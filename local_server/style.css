@@ -36,38 +36,13 @@
     --shadow-card: 0 4px 6px rgba(0, 0, 0, 0.2);
 }
 
-/* ===== 반응형 폰트 크기 조절 ===== */
+/* ===== 반응형 폰트 크기 조절 (JS FontSizeManager에서 동적으로 제어함) ===== */
 html {
-    /* 기본 폰트 크기 - 뷰포트 너비에 따라 조절 */
-    font-size: clamp(14px, 3.8vw, 16px);
-}
-
-/* 매우 작은 화면 (360px 미만) */
-@media (max-width: 359px) {
-    html {
-        font-size: 13px;
-    }
-}
-
-/* 작은 화면 (360-399px) - 갤럭시 S25 등 */
-@media (min-width: 360px) and (max-width: 399px) {
-    html {
-        font-size: 14px;
-    }
-}
-
-/* 중간 화면 (400-430px) - 갤럭시 S25 Ultra 등 */
-@media (min-width: 400px) and (max-width: 430px) {
-    html {
-        font-size: 15px;
-    }
-}
-
-/* 큰 화면 (430px 초과) */
-@media (min-width: 431px) {
-    html {
-        font-size: 16px;
-    }
+    /* 시스템 글꼴 크기 설정을 무시하고 웹 앱 설정을 따르도록 강제 */
+    -webkit-text-size-adjust: none;
+    -moz-text-size-adjust: none;
+    -ms-text-size-adjust: none;
+    text-size-adjust: none;
 }
 
 * {

@@ -9960,11 +9960,11 @@ function hexToRgb(hex) {
 const FontSizeManager = {
     STORAGE_KEY: 'user_font_size',
 
-    // 폰트 크기 오프셋 (기존 반응형 크기에 더함)
+    // 폰트 크기 오프셋 (보통을 0으로 기준 잡음)
     OFFSETS: {
-        small: 0,    // 기존 반응형 그대로
-        medium: 2,   // +2px
-        large: 4     // +4px
+        small: -1,   // 작게: 기준 -1px
+        medium: 0,   // 보통: 기준 (0px)
+        large: 2     // 크게: 기준 +2px
     },
 
     // 현재 설정 가져오기
@@ -9982,9 +9982,9 @@ const FontSizeManager = {
     // CSS 적용
     apply(size) {
         if (!size) size = this.get();
-        const offset = this.OFFSETS[size] || 0;
+        const offset = this.OFFSETS[size] !== undefined ? this.OFFSETS[size] : 0;
 
-        // 현재 뷰포트 기반 기본 폰트 크기 계산
+        // 현재 뷰포트 기반 기본 폰트 크기 계산 (기존 미디어쿼리 로직을 자바스크립트로 이관)
         const viewportWidth = window.innerWidth;
         let baseFontSize;
 
@@ -9995,12 +9995,13 @@ const FontSizeManager = {
         } else if (viewportWidth < 431) {
             baseFontSize = 15;
         } else {
+            // PC 또는 큰 모바일 (기본 16px)
             baseFontSize = 16;
         }
 
-        // 오프셋 적용
+        // 최종 폰트 크기 결정 (px 단위로 강제 주입하여 시스템 스케일링 무시 효과 보강)
         const finalFontSize = baseFontSize + offset;
-        document.documentElement.style.fontSize = finalFontSize + 'px';
+        document.documentElement.style.setProperty('font-size', finalFontSize + 'px', 'important');
 
         // data 속성 추가 (디버깅용)
         document.documentElement.setAttribute('data-font-size', size);
@@ -10069,6 +10070,11 @@ const FontSizeManager = {
 
 // 페이지 로드 시 폰트 크기 적용
 FontSizeManager.apply();
+
+// 창 크기 변경 시 대응 (가로/세로 전환 등)
+window.addEventListener('resize', () => {
+    FontSizeManager.apply();
+});
 
 // 설정 모달 열릴 때 UI 초기화
 const _originalOpenSettingsModal = window.openSettingsModal;
