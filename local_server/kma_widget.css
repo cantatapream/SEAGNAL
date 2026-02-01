@@ -1,0 +1,89 @@
+/* 기상청 바로가기 위젯 스타일 [New] */
+.kma-shortcut-widget {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.08);
+    /* 반투명 배경 */
+    padding: 4px 8px;
+    /* 여백 50% 축소 */
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    gap: 8px;
+    /* 여백 50% 축소 */
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.kma-brand-unit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-right: 6px;
+    /* 여백 50% 축소 */
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    gap: 1px;
+}
+
+.kma-brand-unit img {
+    height: 16px;
+    /* 전체 크기에 맞춰 소폭 조정 */
+    width: auto;
+}
+
+.kma-brand-text {
+    font-size: 9px;
+    font-weight: 800;
+    color: #555555;
+    /* 요청하신 텍스트 색상 */
+    letter-spacing: -0.5px;
+    line-height: 1;
+}
+
+.kma-button-group {
+    display: flex;
+    gap: 4px;
+    /* 여백 50% 축소 */
+}
+
+.kma-btn {
+    text-decoration: none;
+    font-size: 0.72rem;
+    /* 전체 크기에 맞춰 소폭 조정 */
+    font-weight: 700;
+    padding: 5px 10px;
+    /* 여백 50% 축소 */
+    border-radius: 6px;
+    background: #334155;
+    /* Slate 700 */
+    color: #ffffff;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+}
+
+.kma-btn:hover {
+    background: var(--accent-blue);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(14, 165, 233, 0.4);
+}
+
+/* 모바일 대응 수정 */
+@media (max-width: 500px) {
+    .weather-info-header {
+        flex-direction: row !important;
+        /* 모바일에서도 가로 배치 강제 */
+        flex-wrap: nowrap !important;
+        /* 줄바꿈 금지 */
+        align-items: center !important;
+        /* 수직 중앙 정렬 */
+        justify-content: space-between !important;
+        gap: 8px;
+        margin-bottom: 20px !important;
+    }
+
+    .kma-shortcut-widget {
+        transform: scale(0.85);
+        /* 모바일에서는 크기를 조금 더 줄여서 한 줄 배치 보장 */
+        transform-origin: right center;
+        flex-shrink: 0;
+    }
+}

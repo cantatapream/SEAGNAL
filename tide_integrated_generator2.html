@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<!--
+    조석 예보 추출기 v4
+    - 년도별 수집 기간 설정
+    - 일일 트래픽 한도 기반 자동 분할
+    - 일차별 수집 그룹 표시
+    - 자동 CSV 다운로드
+-->
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>조석 예보 추출기 v4</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --text-main: #f1f5f9;
+            --text-sub: #94a3b8;
+            --accent: #3b82f6;
+            --border: #334155;
+            --success: #10b981;
+            --warn: #fbbf24;
+            --danger: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Pretendard', 'Malgun Gothic', sans-serif;
+            margin: 0;
+            padding: 15px;
+            min-height: 100vh;
+        }
+
+        header {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.3rem;
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 15px;
+            height: calc(100vh - 80px);
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .p-header {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 8px 12px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .p-body {
+            padding: 12px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .section-box {
+            border: 1px solid #334155;
+            padding: 10px;
+            border-radius: 6px;
+            background: #0f172a;
+            margin-bottom: 10px;
+        }
+
+        .section-title {
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #93c5fd;
+            margin-bottom: 8px;
+            display: block;
+            border-bottom: 1px dashed #334155;
+            padding-bottom: 4px;
+        }
+
+        label {
+            font-size: 0.75rem;
+            color: var(--text-sub);
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        input[type="text"],
+        select {
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: white;
+            padding: 6px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        select {
+            cursor: pointer;
+        }
+
+        button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: var(--accent);
+            color: white;
+            font-weight: 600;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            filter: brightness(1.1);
+        }
+
+        button:disabled {
+            background: var(--border);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        button.success {
+            background: var(--success);
+        }
+
+        button.warn {
+            background: var(--warn);
+            color: #000;
+        }
+
+        button.merge-btn {
+            background: #8b5cf6;
+        }
+
+        .flex-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .info-box {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid #3b82f660;
+            border-radius: 4px;
+            padding: 10px;
+            font-size: 0.75rem;
+            color: #93c5fd;
+            margin-bottom: 10px;
+        }
+
+        .calc-result {
+            background: linear-gradient(135deg, #1e3a5f, #1e293b);
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 10px;
+        }
+
+        .calc-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            padding: 3px 0;
+        }
+
+        .calc-row .value {
+            font-weight: bold;
+            color: #60a5fa;
+        }
+
+        /* Day Groups */
+        .day-groups-container {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .day-group {
+            background: #0f172a;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+
+        .day-group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .day-label {
+            font-weight: bold;
+            color: #60a5fa;
+            font-size: 0.9rem;
+        }
+
+        .day-status {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: #475569;
+        }
+
+        .day-status.completed {
+            background: var(--success);
+            color: #020617;
+        }
+
+        .day-status.running {
+            background: var(--accent);
+            animation: pulse 1s infinite;
+        }
+
+        .day-status.error {
+            background: var(--danger);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+        }
+
+        .day-group-body {
+            padding: 10px 12px;
+        }
+
+        .station-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        .station-tag {
+            background: #334155;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            color: #cbd5e1;
+        }
+
+        .station-tag.current {
+            background: var(--accent);
+            color: white;
+        }
+
+        .station-tag.done {
+            background: var(--success);
+            color: #020617;
+        }
+
+        .station-tag.excluded {
+            background: #1e293b;
+            color: #475569;
+            border: 1px dashed #334155;
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+
+        .day-progress {
+            height: 4px;
+            background: #334155;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .day-progress-bar {
+            height: 100%;
+            background: var(--success);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .day-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        /* Log */
+        .log-section {
+            margin-top: 10px;
+            border-top: 1px solid var(--border);
+            padding-top: 10px;
+        }
+
+        .log-box {
+            height: 120px;
+            background: #020617;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            overflow-y: auto;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 0.7rem;
+            color: #cbd5e1;
+        }
+
+        .log-warn {
+            color: #fbbf24;
+        }
+
+        .log-err {
+            color: #ef4444;
+        }
+
+        .log-success {
+            color: #10b981;
+        }
+
+        /* File merge */
+        .file-upload-area {
+            border: 2px dashed #8b5cf6;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 0.75rem;
+            background: rgba(139, 92, 246, 0.1);
+        }
+
+        .file-upload-area:hover {
+            background: rgba(139, 92, 246, 0.2);
+        }
+
+        .file-upload-area input[type="file"] {
+            display: none;
+        }
+
+        .file-list {
+            margin-top: 8px;
+            max-height: 60px;
+            overflow-y: auto;
+            font-size: 0.7rem;
+        }
+
+        .file-item {
+            padding: 3px 8px;
+            background: #1e293b;
+            border-radius: 3px;
+            margin-bottom: 2px;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div>
+            <h1>조석 예보 추출기 <span style="color:#10b981;">v4</span></h1>
+            <span style="font-size:0.7rem; color:#94a3b8;">년도별 수집 & 일차별 자동 분할</span>
+        </div>
+        <div style="text-align:right;">
+            <span style="font-size: 0.7rem; color: #fbbf24;">※ CORS 확장프로그램 필요</span>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <!-- LEFT: Settings -->
+        <div class="panel">
+            <div class="p-header">설정</div>
+            <div class="p-body">
+
+                <div class="info-box">
+                    💡 년도를 선택하면 일일 트래픽(10,000회) 기준으로<br>
+                    자동으로 일차별 수집 그룹이 생성됩니다.
+                </div>
+
+                <!-- API Key -->
+                <div class="section-box">
+                    <span class="section-title">🔑 API Keys (공공데이터포털)</span>
+                    <label>포털 인증키 1</label>
+                    <input type="text" id="apiKey"
+                        value="PmxnR43icJwR7yzKjG612RncLikLD1RvZpPLgEJqUUx0vGQncdfuT9VjiqBlgiXMdcjyKopi4yvUPaPbcdIUfg=="
+                        style="margin-bottom:8px;">
+                    <label>포털 인증키 2</label>
+                    <input type="text" id="apiKey2"
+                        value="7638d46d0afe442e2664227dd1834092f6fca61f8258973f8832ed8f59928ded"
+                        style="margin-bottom:8px;">
+                    <label>포털 인증키 3</label>
+                    <input type="text" id="apiKey3"
+                        value="5b13ad18a3b835b020a635ebb48d46e164ac9988c9f229f61258d6ef37f04819">
+                </div>
+
+                <!-- 년도 설정 -->
+                <div class="section-box">
+                    <span class="section-title">📅 수집 년도</span>
+                    <div class="flex-row">
+                        <div style="flex:1;">
+                            <label>시작 년도</label>
+                            <select id="startYear">
+                                <option value="2024">2024년</option>
+                                <option value="2025">2025년</option>
+                                <option value="2026" selected>2026년</option>
+                                <option value="2027">2027년</option>
+                                <option value="2028">2028년</option>
+                                <option value="2029">2029년</option>
+                                <option value="2030">2030년</option>
+                            </select>
+                        </div>
+                        <span style="margin-top:15px;">~</span>
+                        <div style="flex:1;">
+                            <label>종료 년도</label>
+                            <select id="endYear">
+                                <option value="2024">2024년</option>
+                                <option value="2025">2025년</option>
+                                <option value="2026">2026년</option>
+                                <option value="2027">2027년</option>
+                                <option value="2028" selected>2028년</option>
+                                <option value="2029">2029년</option>
+                                <option value="2030">2030년</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button onclick="calculateGroups()" style="width:100%; margin-top:10px;">📊 일차별 그룹 계산</button>
+
+                    <!-- 계산 결과 -->
+                    <div class="calc-result" id="calcResult" style="display:none;">
+                        <div class="calc-row"><span>총 일수:</span><span class="value" id="totalDays">-</span></div>
+                        <div class="calc-row"><span>하루 수집 가능:</span><span class="value" id="stationsPerDay">-</span>
+                        </div>
+                        <div class="calc-row"><span>총 소요 일수:</span><span class="value" id="totalRequiredDays">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 파일 병합 -->
+                <div class="section-box" style="border-color: #8b5cf6;">
+                    <span class="section-title" style="color:#a78bfa;">📁 CSV 파일 병합</span>
+                    <div class="file-upload-area" onclick="document.getElementById('mergeFilesInput').click()">
+                        <input type="file" id="mergeFilesInput" accept=".csv" multiple
+                            onchange="handleMergeFiles(event)">
+                        <span style="color:#a78bfa;">📤 CSV 파일 선택 (복수 가능)</span>
+                    </div>
+                    <div class="file-list" id="mergeFileList"></div>
+                    <button id="btnMerge" onclick="mergeAndDownload()" class="merge-btn"
+                        style="width:100%; margin-top:8px;" disabled>🔗 병합 & 다운로드</button>
+                </div>
+
+                <!-- 로그 -->
+                <div class="log-section">
+                    <div class="flex-row" style="justify-content:space-between; margin-bottom:5px;">
+                        <span style="font-size:0.8rem; font-weight:600;">로그</span>
+                        <button onclick="clearLog()" style="padding:2px 8px; font-size:0.65rem;">🗑 지우기</button>
+                    </div>
+                    <div class="log-box" id="logConsole">
+                        <div>[안내] 년도를 선택하고 [일차별 그룹 계산] 버튼을 클릭하세요.</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- RIGHT: Day Groups -->
+        <div class="panel">
+            <div class="p-header">
+                <span>일차별 수집 그룹</span>
+                <span id="groupSummary" style="font-size:0.7rem; color:#94a3b8;"></span>
+            </div>
+            <div class="p-body day-groups-container" id="dayGroupsContainer">
+                <div style="text-align:center; padding:40px; color:#94a3b8;">
+                    <div style="font-size:2rem; margin-bottom:10px;">📅</div>
+                    <div>좌측에서 년도를 선택하고<br>[일차별 그룹 계산] 버튼을 클릭하세요.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===================================
+        // 표준항 목록
+        // ===================================
+        const REF_STATIONS = [
+            { code: "DT_0001", name: "인천" },
+            { code: "SO_0566", name: "송공항" },
+            { code: "DT_0002", name: "평택" },
+            { code: "SO_0567", name: "쉬미항" },
+            { code: "DT_0003", name: "영광" },
+            { code: "SO_0568", name: "백야도" },
+            { code: "DT_0004", name: "제주" },
+            { code: "SO_0569", name: "남포항" },
+            { code: "DT_0005", name: "부산" },
+            { code: "SO_0570", name: "광암항" },
+            { code: "DT_0006", name: "묵호" },
+            { code: "SO_0571", name: "거제외포" },
+            { code: "DT_0007", name: "목포" },
+            { code: "SO_0572", name: "읍천항" },
+            { code: "DT_0008", name: "안산" },
+            { code: "SO_0573", name: "양포항" },
+            { code: "DT_0010", name: "서귀포" },
+            { code: "SO_0574", name: "백사장항" },
+            { code: "DT_0011", name: "후포" },
+            { code: "SO_0576", name: "화봉리" },
+            { code: "DT_0012", name: "속초" },
+            { code: "SO_0577", name: "가거도" },
+            { code: "DT_0013", name: "울릉도" },
+            { code: "SO_0578", name: "소매물도" },
+            { code: "DT_0014", name: "통영" },
+            { code: "SO_0581", name: "강양항" },
+            { code: "DT_0016", name: "여수" },
+            { code: "SO_0631", name: "암태도" },
+            { code: "DT_0017", name: "대산" },
+            { code: "SO_0699", name: "천리포항" },
+            { code: "DT_0018", name: "군산" },
+            { code: "SO_0700", name: "호도" },
+            { code: "DT_0020", name: "울산" },
+            { code: "SO_0701", name: "홍도항" },
+            { code: "DT_0021", name: "추자도" },
+            { code: "SO_0702", name: "진도옥도" },
+            { code: "DT_0022", name: "성산포" },
+            { code: "SO_0703", name: "땅끝항" },
+            { code: "DT_0023", name: "모슬포" },
+            { code: "SO_0704", name: "소안항" },
+            { code: "DT_0024", name: "장항" },
+            { code: "SO_0705", name: "마량항" },
+            { code: "DT_0025", name: "보령" },
+            { code: "SO_0706", name: "청산도" },
+            { code: "DT_0026", name: "고흥발포" },
+            { code: "SO_0707", name: "시산항" },
+            { code: "DT_0027", name: "완도" },
+            { code: "SO_0708", name: "안도항" },
+            { code: "DT_0028", name: "진도" },
+            { code: "SO_0709", name: "두문포" },
+            { code: "DT_0029", name: "거제도" },
+            { code: "SO_0710", name: "봉우항" },
+            { code: "DT_0031", name: "거문도" },
+            { code: "SO_0711", name: "창선도" },
+            { code: "DT_0032", name: "강화대교" },
+            { code: "SO_0712", name: "능양항" },
+            { code: "DT_0035", name: "흑산도" },
+            { code: "SO_0731", name: "대진항" },
+            { code: "DT_0036", name: "대청도" },
+            { code: "SO_0732", name: "남애항" },
+            { code: "DT_0037", name: "어청도" },
+            { code: "SO_0733", name: "강릉항" },
+            { code: "DT_0038", name: "굴업도" },
+            { code: "SO_0734", name: "궁촌항" },
+            { code: "DT_0039", name: "왕돌초" },
+            { code: "SO_0735", name: "죽변항" },
+            { code: "DT_0040", name: "독도" },
+            { code: "SO_0736", name: "축산항" },
+            { code: "DT_0041", name: "복사초" },
+            { code: "SO_0737", name: "강구항" },
+            { code: "DT_0042", name: "교본초" },
+            { code: "SO_0739", name: "도장항" },
+            { code: "DT_0043", name: "영흥도" },
+            { code: "SO_0740", name: "보옥항" },
+            { code: "DT_0044", name: "영종대교" },
+            { code: "SO_0752", name: "검산항" },
+            { code: "DT_0046", name: "쌍정초" },
+            { code: "SO_0753", name: "하의도웅곡" },
+            { code: "DT_0047", name: "도농탄" },
+            { code: "SO_0754", name: "평호리" },
+            { code: "DT_0048", name: "속초등표" },
+            { code: "SO_0755", name: "원동항" },
+            { code: "DT_0049", name: "광양" },
+            { code: "SO_0756", name: "사초항" },
+            { code: "DT_0050", name: "태안" },
+            { code: "SO_0757", name: "안남리" },
+            { code: "DT_0051", name: "서천마량" },
+            { code: "SO_0758", name: "달천도" },
+            { code: "DT_0052", name: "인천송도" },
+            { code: "SO_0759", name: "장문리" },
+            { code: "DT_0054", name: "진해" },
+            { code: "SO_0760", name: "오산항" },
+            { code: "DT_0056", name: "부산항신항" },
+            { code: "SO_0761", name: "녹동항" },
+            { code: "DT_0057", name: "동해항" },
+            { code: "SO_1248", name: "신안옥도" },
+            { code: "DT_0058", name: "경인항" },
+            { code: "SO_1249", name: "독거도" },
+            { code: "DT_0059", name: "백령도" },
+            { code: "SO_1250", name: "평도" },
+            { code: "DT_0060", name: "연평도" },
+            { code: "SO_1251", name: "낙월도" },
+            { code: "DT_0061", name: "삼천포" },
+            { code: "SO_1252", name: "외연도항" },
+            { code: "DT_0062", name: "마산" },
+            { code: "SO_1253", name: "상왕등도" },
+            { code: "DT_0063", name: "가덕도" },
+            { code: "SO_1254", name: "만재도" },
+            { code: "DT_0064", name: "교동대교" },
+            { code: "SO_1255", name: "상태도" },
+            { code: "DT_0065", name: "덕적도" },
+            { code: "SO_1256", name: "어류정항" },
+            { code: "DT_0067", name: "안흥" },
+            { code: "SO_1257", name: "강화하리" },
+            { code: "DT_0068", name: "위도" },
+            { code: "SO_1258", name: "잠진도" },
+            { code: "DT_0091", name: "포항" },
+            { code: "SO_1259", name: "자월도" },
+            { code: "DT_0092", name: "여호항" },
+            { code: "SO_1260", name: "방포항" },
+            { code: "DT_0093", name: "소무의도" },
+            { code: "SO_1261", name: "무창포항" },
+            { code: "DT_0094", name: "서거차도" },
+            { code: "SO_1262", name: "격포항" },
+            { code: "IE_0060", name: "이어도" },
+            { code: "SO_1263", name: "구시포항" },
+            { code: "IE_0061", name: "신안가거초" },
+            { code: "SO_1264", name: "계마항" },
+            { code: "IE_0062", name: "옹진소청초" },
+            { code: "SO_1265", name: "송이도" },
+            { code: "SO_0326", name: "미조항" },
+            { code: "SO_1266", name: "남열항" },
+            { code: "SO_0537", name: "벽파진" },
+            { code: "SO_1267", name: "구룡포항" },
+            { code: "SO_0538", name: "안마도" },
+            { code: "SO_1268", name: "궁평항" },
+            { code: "SO_0539", name: "강화외포" },
+            { code: "SO_1269", name: "연도항" },
+            { code: "SO_0540", name: "호산항" },
+            { code: "SO_1270", name: "삼길포항" },
+            { code: "SO_0547", name: "말도" },
+            { code: "SO_1271", name: "어은돌항" },
+            { code: "SO_0548", name: "우이도" },
+            { code: "SO_1272", name: "다대포항" },
+            { code: "SO_0549", name: "초도" },
+            { code: "SO_1273", name: "장호항" },
+            { code: "SO_0550", name: "나로도" },
+            { code: "SO_1274", name: "거진항" },
+            { code: "SO_0551", name: "여서도" },
+            { code: "SO_1275", name: "공현진항" },
+            { code: "SO_0552", name: "고현항" },
+            { code: "SO_1276", name: "아야진항" },
+            { code: "SO_0553", name: "해운대" },
+            { code: "SO_1277", name: "화순항" },
+            { code: "SO_0554", name: "영종왕산" },
+            { code: "SO_1278", name: "원평항" },
+            { code: "SO_0555", name: "서망항" },
+            { code: "SO_1279", name: "어란진항" },
+            { code: "SO_0562", name: "승봉도" },
+            { code: "SO_1280", name: "덕산항" },
+            { code: "SO_0563", name: "울도" },
+            { code: "SO_1281", name: "임원항" },
+            { code: "SO_0564", name: "국화도" },
+            { code: "SO_1282", name: "선재도" },
+            { code: "SO_0565", name: "향화도항" },
+            { code: "SO_1283", name: "사천진항" }
+        ];
+
+        const DAILY_LIMIT = 10000;  // 일일 API 호출 한도
+
+        // ===================================
+        // 상태 변수
+        // ===================================
+        let dayGroups = [];
+        let mergeFiles = [];
+        let currentRunningDay = null;
+        let shouldStop = false;
+
+        // ===================================
+        // 헬퍼 함수
+        // ===================================
+        function getDaysInYear(year) {
+            // 윤년 체크
+            return ((year % 4 === 0 && year % 100 !== 0) || year % 400 === 0) ? 366 : 365;
+        }
+
+        function getTotalDays(startYear, endYear) {
+            let total = 0;
+            for (let y = startYear; y <= endYear; y++) {
+                total += getDaysInYear(y);
+            }
+            return total;
+        }
+
+        function normalizeHlCode(code) {
+            if (!code) return '';
+            code = String(code).trim();
+            if (code === 'H' || code === '1' || code === '3' || code === '고조') return 'H';
+            if (code === 'L' || code === '2' || code === '4' || code === '저조') return 'L';
+            return code;
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // ===================================
+        // 로그
+        // ===================================
+        function log(msg, className = '') {
+            const logBox = document.getElementById('logConsole');
+            const div = document.createElement('div');
+            div.className = className;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logBox.appendChild(div);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('logConsole').innerHTML = '';
+        }
+
+        // ===================================
+        // 일차별 그룹 계산
+        // ===================================
+        function calculateGroups() {
+            const startYear = parseInt(document.getElementById('startYear').value);
+            const endYear = parseInt(document.getElementById('endYear').value);
+
+            if (startYear > endYear) {
+                alert('시작 년도가 종료 년도보다 클 수 없습니다.');
+                return;
+            }
+
+            const totalDays = getTotalDays(startYear, endYear);
+            const stationsPerDay = Math.floor(DAILY_LIMIT / totalDays);
+            const totalRequiredDays = Math.ceil(REF_STATIONS.length / stationsPerDay);
+
+            // 결과 표시
+            document.getElementById('calcResult').style.display = 'block';
+            document.getElementById('totalDays').textContent = `${totalDays}일`;
+            document.getElementById('stationsPerDay').textContent = `${stationsPerDay}개 항`;
+            document.getElementById('totalRequiredDays').textContent = `${totalRequiredDays}일`;
+
+            // 그룹 생성
+            dayGroups = [];
+            for (let i = 0; i < totalRequiredDays; i++) {
+                const startIdx = i * stationsPerDay;
+                const endIdx = Math.min(startIdx + stationsPerDay, REF_STATIONS.length);
+                const stations = REF_STATIONS.slice(startIdx, endIdx).map(s => ({ ...s, selected: true }));
+
+                dayGroups.push({
+                    day: i + 1,
+                    stations: stations,
+                    status: 'pending',  // pending, running, completed, error
+                    progress: 0,
+                    collectedData: []
+                });
+            }
+
+            renderDayGroups();
+            log(`[계산 완료] ${startYear}~${endYear}년 (${totalDays}일), 하루 ${stationsPerDay}개 항, 총 ${totalRequiredDays}일 소요`);
+
+            document.getElementById('groupSummary').textContent =
+                `총 ${REF_STATIONS.length}개 항 / ${totalRequiredDays}일`;
+        }
+
+        // ===================================
+        // 일차별 그룹 렌더링
+        // ===================================
+        function renderDayGroups() {
+            const container = document.getElementById('dayGroupsContainer');
+
+            if (dayGroups.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align:center; padding:40px; color:#94a3b8;">
+                        <div style="font-size:2rem; margin-bottom:10px;">📅</div>
+                        <div>좌측에서 년도를 선택하고<br>[일차별 그룹 계산] 버튼을 클릭하세요.</div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = dayGroups.map(group => {
+                let statusClass = '';
+                let statusText = '대기';
+                if (group.status === 'running') { statusClass = 'running'; statusText = '수집중'; }
+                else if (group.status === 'completed') { statusClass = 'completed'; statusText = '완료'; }
+                else if (group.status === 'error') { statusClass = 'error'; statusText = '오류'; }
+
+                const stationTags = group.stations.map((st, idx) => {
+                    let tagClass = '';
+                    if (group.status === 'completed') tagClass = 'done';
+                    else if (group.status === 'running' && idx < group.progress) tagClass = 'done';
+                    else if (group.status === 'running' && idx === group.progress) tagClass = 'current';
+
+                    if (!st.selected) tagClass += ' excluded';
+
+                    const clickAction = group.status === 'pending' ? `onclick="toggleStation(${group.day}, ${idx})"` : '';
+                    const cursorStyle = group.status === 'pending' ? 'cursor:pointer;' : 'cursor:default;';
+
+                    return `<span class="station-tag ${tagClass}" ${clickAction} style="${cursorStyle}">${st.name}</span>`;
+                }).join('');
+
+                const progressPct = group.stations.length > 0
+                    ? Math.round((group.progress / group.stations.length) * 100)
+                    : 0;
+
+                const btnDisabled = group.status === 'running' || group.status === 'completed' ? 'disabled' : '';
+                const selectDisabled = group.status !== 'pending' ? 'disabled' : '';
+                const btnText = group.status === 'completed' ? '✅ 완료' :
+                    group.status === 'running' ? '⏳ 수집중...' : '▶ 수집하기';
+                const btnClass = group.status === 'completed' ? 'success' : '';
+
+                return `
+                    <div class="day-group" id="day-group-${group.day}">
+                        <div class="day-group-header">
+                            <span class="day-label">${group.day}일차</span>
+                            <span class="day-status ${statusClass}">${statusText}</span>
+                        </div>
+                        <div class="day-group-body">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                <span style="font-size:0.75rem; color:#94a3b8;">수집 대상 선택 (${group.stations.filter(s => s.selected).length}/${group.stations.length})</span>
+                                <div class="flex-row">
+                                    <button ${selectDisabled} onclick="toggleAllStations(${group.day}, true)" style="padding:2px 6px; font-size:0.6rem; background:#334155;">전체선택</button>
+                                    <button ${selectDisabled} onclick="toggleAllStations(${group.day}, false)" style="padding:2px 6px; font-size:0.6rem; background:#334155;">전체해제</button>
+                                </div>
+                            </div>
+                            <div class="station-tags" id="station-tags-${group.day}">
+                                ${stationTags}
+                            </div>
+                            <div class="day-progress">
+                                <div class="day-progress-bar" id="progress-bar-${group.day}" style="width:${progressPct}%"></div>
+                            </div>
+                            <div class="day-actions">
+                                <select id="api-select-${group.day}" style="width: auto; font-size: 0.75rem; padding: 4px;" ${btnDisabled}>
+                                    <option value="all">모든 키 시도</option>
+                                    <option value="key1">인증키 1만 사용</option>
+                                    <option value="key2">인증키 2만 사용</option>
+                                    <option value="key3">인증키 3만 사용</option>
+                                </select>
+                                <button ${btnDisabled} class="${btnClass}" onclick="startDayCollection(${group.day})" style="flex:1;">
+                                    ${btnText}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateDayGroup(dayNum) {
+            const group = dayGroups.find(g => g.day === dayNum);
+            if (!group) return;
+
+            const groupEl = document.getElementById(`day-group-${dayNum}`);
+            if (!groupEl) return;
+
+            // Status
+            let statusClass = '';
+            let statusText = '대기';
+            if (group.status === 'running') { statusClass = 'running'; statusText = '수집중'; }
+            else if (group.status === 'completed') { statusClass = 'completed'; statusText = '완료'; }
+            else if (group.status === 'error') { statusClass = 'error'; statusText = '오류'; }
+
+            const statusEl = groupEl.querySelector('.day-status');
+            statusEl.className = `day-status ${statusClass}`;
+            statusEl.textContent = statusText;
+
+            // Station tags
+            const tagsContainer = document.getElementById(`station-tags-${dayNum}`);
+            tagsContainer.innerHTML = group.stations.map((st, idx) => {
+                let tagClass = '';
+                if (group.status === 'completed') tagClass = 'done';
+                else if (group.status === 'running' && idx < group.progress) tagClass = 'done';
+                else if (group.status === 'running' && idx === group.progress) tagClass = 'current';
+
+                if (!st.selected) tagClass += ' excluded';
+
+                const clickAction = group.status === 'pending' ? `onclick="toggleStation(${group.day}, ${idx})"` : '';
+                const cursorStyle = group.status === 'pending' ? 'cursor:pointer;' : 'cursor:default;';
+
+                return `<span class="station-tag ${tagClass}" ${clickAction} style="${cursorStyle}">${st.name}</span>`;
+            }).join('');
+
+            // Label update (Count)
+            const countLabel = groupEl.querySelector('.day-group-body span[style*="font-size:0.75rem"]');
+            if (countLabel) {
+                countLabel.textContent = `수집 대상 선택 (${group.stations.filter(s => s.selected).length}/${group.stations.length})`;
+            }
+
+            // Progress bar
+            const progressPct = group.stations.length > 0
+                ? Math.round((group.progress / group.stations.length) * 100)
+                : 0;
+            document.getElementById(`progress-bar-${dayNum}`).style.width = progressPct + '%';
+
+            // Button & Select
+            const btn = groupEl.querySelector('button');
+            const sel = document.getElementById(`api-select-${dayNum}`);
+            if (group.status === 'completed') {
+                btn.disabled = true;
+                if (sel) sel.disabled = true;
+                btn.className = 'success';
+                btn.textContent = '✅ 완료';
+            } else if (group.status === 'running') {
+                btn.disabled = true;
+                if (sel) sel.disabled = true;
+                btn.textContent = '⏳ 수집중...';
+            }
+        }
+        window.toggleStation = function (dayNum, idx) {
+            const group = dayGroups.find(g => g.day === dayNum);
+            if (!group || group.status !== 'pending') return;
+            group.stations[idx].selected = !group.stations[idx].selected;
+            updateDayGroup(dayNum);
+        };
+
+        window.toggleAllStations = function (dayNum, selectAll) {
+            const group = dayGroups.find(g => g.day === dayNum);
+            if (!group || group.status !== 'pending') return;
+            group.stations.forEach(s => s.selected = selectAll);
+            updateDayGroup(dayNum);
+        };
+
+        // ===================================
+        // 일차별 수집
+        // ===================================
+        async function startDayCollection(dayNum) {
+            const group = dayGroups.find(g => g.day === dayNum);
+            if (!group) return;
+
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const apiKey2 = document.getElementById('apiKey2').value.trim();
+            const apiKey3 = document.getElementById('apiKey3').value.trim();
+
+            if (!apiKey && !apiKey2 && !apiKey3) {
+                alert('최소 하나의 API Key를 입력하세요.');
+                return;
+            }
+
+            const apiType = document.getElementById(`api-select-${dayNum}`).value;
+            const targetStations = group.stations.filter(s => s.selected);
+
+            if (targetStations.length === 0) {
+                alert('수집할 표준항을 선택하세요.');
+                return;
+            }
+
+            const startYear = parseInt(document.getElementById('startYear').value);
+            const endYear = parseInt(document.getElementById('endYear').value);
+
+            group.status = 'running';
+            group.progress = 0;
+            group.collectedData = [];
+            currentRunningDay = dayNum;
+            shouldStop = false;
+
+            updateDayGroup(dayNum);
+
+            log(`[${dayNum}일차] 수집 시작 (${targetStations.length}개 항, API: ${apiType})`);
+
+            for (let i = 0; i < group.stations.length; i++) {
+                if (shouldStop) {
+                    log(`[${dayNum}일차] 수집 중지됨`, 'log-warn');
+                    break;
+                }
+
+                const station = group.stations[i];
+                if (!station.selected) continue; // 선택되지 않은 역은 스킵
+
+                group.progress = i;
+                updateDayGroup(dayNum);
+
+                log(`[${dayNum}일차] ${i + 1}/${group.stations.length} - ${station.name} 수집 중...`);
+
+                try {
+                    const data = await fetchStationData(apiKey, apiKey2, apiKey3, apiType, station, startYear, endYear);
+                    if (data.length > 0) {
+                        group.collectedData.push(...data);
+                        log(`[${dayNum}일차] ${station.name}: ${data.length}건 수집됨`);
+                    } else {
+                        log(`[${dayNum}일차] ${station.name}: 데이터 없음`, 'log-warn');
+                    }
+                } catch (err) {
+                    log(`[${dayNum}일차] ${station.name}: 오류 - ${err.message}`, 'log-err');
+                }
+
+                group.progress = i + 1;
+                updateDayGroup(dayNum);
+            }
+
+            if (!shouldStop) {
+                group.status = 'completed';
+                updateDayGroup(dayNum);
+
+                // 자동 CSV 다운로드
+                if (group.collectedData.length > 0) {
+                    downloadDayData(group, startYear, endYear);
+                    log(`[${dayNum}일차] 완료! ${group.collectedData.length}건 저장됨`, 'log-success');
+                } else {
+                    log(`[${dayNum}일차] 완료 (데이터 없음)`, 'log-warn');
+                }
+            }
+
+            currentRunningDay = null;
+        }
+
+        async function fetchStationData(apiKey1, apiKey2, apiKey3, apiType, station, startYear, endYear) {
+            const results = [];
+
+            for (let year = startYear; year <= endYear; year++) {
+                const daysInYear = getDaysInYear(year);
+
+                for (let dayOfYear = 1; dayOfYear <= daysInYear; dayOfYear++) {
+                    if (shouldStop) break;
+
+                    const date = new Date(year, 0, dayOfYear);
+                    const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
+                    const qParams = `&date=${dateStr}&reqDate=${dateStr}&searchDate=${dateStr}`;
+
+                    const tryUrls = [];
+                    // 인증키 1 (포털 API)
+                    if ((apiType === 'all' || apiType === 'key1') && apiKey1) {
+                        tryUrls.push(`https://apis.data.go.kr/1192136/tideFcstHghLw/GetTideFcstHghLwApiService?serviceKey=${encodeURIComponent(apiKey1)}&type=json&obsCode=${station.code}${qParams}`);
+                        // 혹시 몰라 포털용 KHOA 직접 API 형식도 추가 (기존 로직 유지)
+                        tryUrls.push(`http://www.khoa.go.kr/oceangrid/khoa/takepart/openapi/openApiObsTidePreTabDataInfo.do?ServiceKey=${encodeURIComponent(apiKey1)}&ResultType=json&ObsCode=${station.code}&Date=${dateStr}&ReqDate=${dateStr}`);
+                    }
+
+                    // 인증키 2 (포털 API)
+                    if ((apiType === 'all' || apiType === 'key2') && apiKey2) {
+                        tryUrls.push(`https://apis.data.go.kr/1192136/tideFcstHghLw/GetTideFcstHghLwApiService?serviceKey=${encodeURIComponent(apiKey2)}&type=json&obsCode=${station.code}${qParams}`);
+                        tryUrls.push(`http://www.khoa.go.kr/oceangrid/khoa/takepart/openapi/openApiObsTidePreTabDataInfo.do?ServiceKey=${encodeURIComponent(apiKey2)}&ResultType=json&ObsCode=${station.code}&Date=${dateStr}&ReqDate=${dateStr}`);
+                    }
+
+                    // 인증키 3 (포털 API)
+                    if ((apiType === 'all' || apiType === 'key3') && apiKey3) {
+                        tryUrls.push(`https://apis.data.go.kr/1192136/tideFcstHghLw/GetTideFcstHghLwApiService?serviceKey=${encodeURIComponent(apiKey3)}&type=json&obsCode=${station.code}${qParams}`);
+                        tryUrls.push(`http://www.khoa.go.kr/oceangrid/khoa/takepart/openapi/openApiObsTidePreTabDataInfo.do?ServiceKey=${encodeURIComponent(apiKey3)}&ResultType=json&ObsCode=${station.code}&Date=${dateStr}&ReqDate=${dateStr}`);
+                    }
+
+                    try {
+                        let validJson = null;
+
+                        for (const url of tryUrls) {
+                            try {
+                                const response = await fetch(url);
+
+                                if (response.status === 429) {
+                                    await sleep(2000);
+                                    const retry = await fetch(url);
+                                    if (!retry.ok) continue;
+                                    const text = await retry.text();
+                                    if (text.trim().startsWith('<')) continue;
+                                    validJson = JSON.parse(text);
+                                    break;
+                                }
+
+                                if (!response.ok) continue;
+
+                                const text = await response.text();
+                                if (text.trim().startsWith('<') && !text.includes('<resultCode>')) continue;
+
+                                validJson = JSON.parse(text);
+                                break;
+                            } catch (e) { }
+                        }
+
+                        if (validJson) {
+                            let dataList = null;
+                            if (validJson.body && validJson.body.items) {
+                                dataList = validJson.body.items.item || validJson.body.items;
+                            } else if (validJson.response && validJson.response.body && validJson.response.body.items) {
+                                dataList = validJson.response.body.items.item || validJson.response.body.items;
+                            } else if (validJson.result && validJson.result.data) {
+                                dataList = validJson.result.data;
+                            }
+
+                            if (dataList && !Array.isArray(dataList)) dataList = [dataList];
+
+                            if (dataList && dataList.length > 0) {
+                                dataList.forEach(item => {
+                                    results.push({
+                                        stationCode: station.code,
+                                        stationName: station.name,
+                                        tph_time: item.predcDt || item.tph_time || '',
+                                        tph_level: item.predcTdlVl || item.predcTdlvVl || item.tph_level || '',
+                                        hl_code: normalizeHlCode(item.extrSe || item.hl_code || '')
+                                    });
+                                });
+                            }
+                        }
+                    } catch (e) { }
+
+                    await sleep(150);
+                }
+            }
+
+            return results;
+        }
+
+        // ===================================
+        // CSV 다운로드
+        // ===================================
+        function downloadDayData(group, startYear, endYear) {
+            // 1. 데이터 정제 (중복 제거 & 연도 필터링)
+            const dailyData = {};
+            const targetYears = new Set();
+            for (let y = startYear; y <= endYear; y++) targetYears.add(String(y));
+
+            // 중복 방지용 Set (Code + Time)
+            const seen = new Set();
+
+            group.collectedData.forEach(item => {
+                if (!item.tph_time || item.tph_time.length < 10) return;
+
+                // [Deduplication] 중복 데이터 제거
+                const uniqueKey = `${item.stationCode}_${item.tph_time}_${item.hl_code}`;
+                if (seen.has(uniqueKey)) return;
+                seen.add(uniqueKey);
+
+                const dateStr = item.tph_time.substring(0, 10); // YYYY-MM-DD
+                const yearStr = dateStr.substring(0, 4);
+
+                // [Year Filter] 선택된 연도만 포함
+                if (!targetYears.has(yearStr)) return;
+
+                const key = `${item.stationCode}_${dateStr}`;
+                if (!dailyData[key]) {
+                    dailyData[key] = {
+                        code: item.stationCode,
+                        name: item.stationName,
+                        date: dateStr,
+                        highs: [],
+                        lows: []
+                    };
+                }
+
+                if (item.hl_code === 'H') {
+                    dailyData[key].highs.push(item);
+                } else if (item.hl_code === 'L') {
+                    dailyData[key].lows.push(item);
+                }
+            });
+
+            // 2. CSV 헤더 구성 (Wide Format)
+            // 고조1, 고조1조위, 저조1, 저조1조위, 고조2, 고조2조위, 저조2, 저조2조위
+            const headers = [
+                '관측소코드', '관측소명', '날짜',
+                '고조1시간', '고조1조위',
+                '저조1시간', '저조1조위',
+                '고조2시간', '고조2조위',
+                '저조2시간', '저조2조위'
+            ];
+
+            const rows = [];
+            // 날짜순 정렬
+            const sortedKeys = Object.keys(dailyData).sort();
+
+            sortedKeys.forEach(key => {
+                const d = dailyData[key];
+
+                // 시간순 정렬
+                d.highs.sort((a, b) => a.tph_time.localeCompare(b.tph_time));
+                d.lows.sort((a, b) => a.tph_time.localeCompare(b.tph_time));
+
+                const row = [
+                    d.code,
+                    d.name,
+                    d.date,
+                    // 고조 1
+                    d.highs[0] ? d.highs[0].tph_time : '',
+                    d.highs[0] ? d.highs[0].tph_level : '',
+                    // 저조 1
+                    d.lows[0] ? d.lows[0].tph_time : '',
+                    d.lows[0] ? d.lows[0].tph_level : '',
+                    // 고조 2
+                    d.highs[1] ? d.highs[1].tph_time : '',
+                    d.highs[1] ? d.highs[1].tph_level : '',
+                    // 저조 2
+                    d.lows[1] ? d.lows[1].tph_time : '',
+                    d.lows[1] ? d.lows[1].tph_level : ''
+                ];
+                rows.push(row);
+            });
+
+            if (rows.length === 0) return;
+
+            const csvContent = '\uFEFF' + headers.join(',') + '\n' +
+                rows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+
+            const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            link.download = `tide_${startYear}-${endYear}_day${group.day}_wide_${timestamp}.csv`;
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // ===================================
+        // 파일 병합
+        // ===================================
+        function handleMergeFiles(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            mergeFiles = [];
+            const fileListEl = document.getElementById('mergeFileList');
+            fileListEl.innerHTML = '<div style="color:#94a3b8; padding:5px;">로딩 중...</div>';
+
+            let loadedCount = 0;
+
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+
+                reader.onload = function (e) {
+                    const content = e.target.result;
+                    let lines = content.split('\n').filter(line => line.trim());
+
+                    if (lines.length > 0) {
+                        let firstLine = lines[0];
+                        if (firstLine.charCodeAt(0) === 0xFEFF) firstLine = firstLine.substring(1);
+                        if (firstLine.includes('관측소코드')) lines = lines.slice(1);
+                    }
+
+                    mergeFiles.push({ name: file.name, lines: lines, count: lines.length });
+                    loadedCount++;
+
+                    if (loadedCount === files.length) {
+                        updateMergeFileList();
+                        document.getElementById('btnMerge').disabled = false;
+                    }
+                };
+
+                reader.readAsText(file, 'UTF-8');
+            });
+        }
+
+        function updateMergeFileList() {
+            const container = document.getElementById('mergeFileList');
+            const totalRows = mergeFiles.reduce((sum, f) => sum + f.count, 0);
+
+            container.innerHTML = mergeFiles.map(f =>
+                `<div class="file-item"><span>📄 ${f.name}</span><span style="color:#10b981;">${f.count}건</span></div>`
+            ).join('') +
+                `<div style="margin-top:5px; padding-top:5px; border-top:1px solid #334155; color:#fbbf24;">
+                총 ${mergeFiles.length}개 파일, ${totalRows}건
+            </div>`;
+
+            log(`[병합] ${mergeFiles.length}개 파일 선택됨`);
+        }
+
+        function mergeAndDownload() {
+            if (mergeFiles.length === 0) return;
+
+            // [Header Update] Wide Format 헤더 사용
+            const headers = [
+                '관측소코드', '관측소명', '날짜',
+                '고조1시간', '고조1조위',
+                '저조1시간', '저조1조위',
+                '고조2시간', '고조2조위',
+                '저조2시간', '저조2조위'
+            ];
+
+            let allLines = [];
+            mergeFiles.forEach(f => { allLines = allLines.concat(f.lines); });
+
+            const csvContent = '\uFEFF' + headers.join(',') + '\n' + allLines.join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            // 파일명에 wide_merged 표시
+            link.download = `tide_wide_merged_${timestamp}_${mergeFiles.length}files.csv`;
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            log(`[완료] ${mergeFiles.length}개 파일 병합 완료! (Wide Format)`, 'log-success');
+
+            mergeFiles = [];
+            document.getElementById('mergeFileList').innerHTML = '';
+            document.getElementById('mergeFilesInput').value = '';
+            document.getElementById('btnMerge').disabled = true;
+        }
+    </script>
+
+</body>
+
+</html>

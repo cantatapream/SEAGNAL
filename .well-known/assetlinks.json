@@ -1,0 +1,14 @@
+[
+    {
+        "relation": [
+            "delegate_permission/common.handle_all_urls"
+        ],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "com.seagnal.app",
+            "sha256_cert_fingerprints": [
+                "E4:62:F2:C9:C6:74:74:69:26:97:63:1E:E4:D0:89:32:ED:92:57:D2:C9:4A:C1:A9:66:3D:AA:0F:97:50:67:94"
+            ]
+        }
+    }
+]

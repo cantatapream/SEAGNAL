@@ -1,0 +1,25 @@
+{
+    "name": "weather-app-local",
+    "version": "1.0.0",
+    "description": "Local weather app server and collector",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "collect": "node scheduler.js"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "body-parser": "^2.2.1",
+        "cloudinary": "^1.41.3",
+        "cors": "^2.8.5",
+        "dotenv": "^17.2.3",
+        "express": "^4.18.2",
+        "firebase-admin": "^13.6.0",
+        "iconv-lite": "^0.7.2",
+        "multer": "^2.0.2",
+        "multer-storage-cloudinary": "^4.0.0",
+        "web-push": "^3.6.7"
+    }
+}

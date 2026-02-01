@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 배경색: 짙은 남색 (웹과 동일) -->
+    <item android:drawable="@color/splash_background_color" />
+
+    <!-- 전체 화면 캡처 이미지 (로고+텍스트+글로우 포함) -->
+    <!-- gravity="center"로 중앙 정렬 -->
+    <!-- width/height를 크게 잡거나 match_parent로 설정 -->
+    <item>
+        <bitmap
+            android:src="@drawable/splash_full_re"
+            android:gravity="center" />
+    </item>
+</layer-list>

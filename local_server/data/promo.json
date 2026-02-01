@@ -1,0 +1,57 @@
+[
+  {
+    "id": 1767275269169,
+    "title": "테스트2",
+    "content": "<p>ㅇㅇㅇ</p>",
+    "category": "PROMO",
+    "isPinned": false,
+    "attachments": [
+      {
+        "url": "https://res.cloudinary.com/dwuhzw4ui/raw/upload/v1767275254/seagnal-files/su1mbs0shxjcpqolur0g",
+        "filename": "seagnal-files/su1mbs0shxjcpqolur0g",
+        "originalName": "PRESENB.pptx",
+        "size": 7776414,
+        "type": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      },
+      {
+        "url": "https://res.cloudinary.com/dwuhzw4ui/raw/upload/v1767275265/seagnal-files/cties2oqhgztqdv1xbpz",
+        "filename": "seagnal-files/cties2oqhgztqdv1xbpz",
+        "originalName": "4. 조석 및 일출몰 정보.jpg",
+        "size": 1412930,
+        "type": "image/jpeg"
+      }
+    ],
+    "createdAt": "2026.01.01 22:47",
+    "updatedAt": "2026.01.01 22:47",
+    "views": 15
+  },
+  {
+    "id": 1767274964138,
+    "title": "자료",
+    "content": "<p>자료</p>",
+    "category": "PROMO",
+    "isPinned": false,
+    "attachments": [
+      {
+        "url": "https://res.cloudinary.com/dwuhzw4ui/raw/upload/v1767274957/seagnal-files/oj8sslvimwktzrhk1hwh",
+        "filename": "seagnal-files/oj8sslvimwktzrhk1hwh",
+        "originalName": "íë ì  íì´ì1.pptx",
+        "size": 7776414,
+        "type": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      }
+    ],
+    "createdAt": "2026.01.01 22:42",
+    "updatedAt": "2026.01.01 22:42",
+    "views": 12
+  },
+  {
+    "id": 1767266452085,
+    "title": "1",
+    "content": "<p>1</p>",
+    "category": "PROMO",
+    "isPinned": false,
+    "createdAt": "2026.01.01 20:20",
+    "updatedAt": "2026.01.01 20:20",
+    "views": 6
+  }
+]

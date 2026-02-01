@@ -1,0 +1,6 @@
+node_modules
+backups
+apk_build
+.git
+android
+local_server/node_modules

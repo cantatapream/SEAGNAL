@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<!--
+    [파일 용도 설명]
+    각 특보해역은 점으로 찍어서 구역화 하는 html
+    
+    [작업 상세]
+    1. 배경 이미지(haegudo_resized.jpg)를 캔버스에 로드합니다.
+    2. 사용자 인터페이스를 통해 특보 구역 목록(MARINE_ZONES)에서 작업할 구역을 선택합니다.
+    3. 마우스 클릭으로 해당 구역의 경계점(Polygon Vertex)들을 순차적으로 찍습니다.
+    4. Shift+클릭으로 해당 구역의 중심점(라벨 표시 위치)을 설정합니다.
+    5. [전체 내보내기] 버튼을 통해 생성된 좌표 데이터(zoneOverlayConfig.js 형식)를 JSON으로 추출합니다.
+    6. 이 데이터는 메인 앱의 지도 오버레이(SVG Polygon)를 렌더링하는 데 사용됩니다.
+-->
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>특보구역 경계 그리기 도구</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #1a1a2e;
+            color: #eee;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 380px;
+            background: linear-gradient(180deg, #16213e 0%, #1a1a2e 100%);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border-right: 1px solid #0f3460;
+            overflow-y: auto;
+        }
+
+        h2 {
+            margin: 0 0 5px 0;
+            font-size: 1.1rem;
+            color: #e94560;
+        }
+
+        .control-group {
+            background: rgba(15, 52, 96, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #0f3460;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 0.85rem;
+            color: #aaa;
+        }
+
+        select,
+        input[type="text"] {
+            width: 100%;
+            padding: 8px 10px;
+            background: #0f0f23;
+            border: 1px solid #0f3460;
+            color: #fff;
+            border-radius: 6px;
+            margin-bottom: 6px;
+        }
+
+        select:focus,
+        input:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, #e94560, #0f3460);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 5px;
+            transition: transform 0.1s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(233, 69, 96, 0.3);
+        }
+
+        button.secondary {
+            background: #333;
+        }
+
+        button.secondary:hover {
+            background: #444;
+            box-shadow: none;
+        }
+
+        button.danger {
+            background: linear-gradient(135deg, #c0392b, #e74c3c);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+
+        .status-editing {
+            background: #e94560;
+            color: white;
+        }
+
+        .point-list {
+            margin-top: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+            background: #0f0f23;
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            padding: 5px;
+            font-size: 0.8rem;
+            font-family: monospace;
+        }
+
+        .point-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #16213e;
+            padding: 4px 8px;
+            margin-bottom: 3px;
+            border-radius: 4px;
+        }
+
+        .point-item .remove-btn {
+            background: transparent;
+            color: #e94560;
+            width: auto;
+            padding: 2px 6px;
+            margin: 0;
+            font-size: 0.9rem;
+        }
+
+        .log-area {
+            flex: 1;
+            min-height: 120px;
+            background: #0f0f23;
+            border: 1px solid #0f3460;
+            color: #0f0;
+            font-family: 'Consolas', monospace;
+            padding: 10px;
+            font-size: 0.75rem;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            border-radius: 6px;
+        }
+
+        .hint-text {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 5px;
+            line-height: 1.4;
+        }
+
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            background: #0a0a0a;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        #main-canvas {
+            display: block;
+            transform-origin: 0 0;
+        }
+
+        #mode-indicator {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 18px;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            z-index: 100;
+            border: 2px solid #2ecc71;
+            color: #2ecc71;
+        }
+
+        .shortcut-hint {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            color: #888;
+            z-index: 100;
+        }
+
+        .shortcut-hint kbd {
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin: 0 2px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="sidebar">
+        <h2>✏️ 경계선 그리기 도구</h2>
+
+        <div class="control-group">
+            <label>1. 특보 구역 선택</label>
+            <select id="zone-select" onchange="onZoneChange()">
+                <option value="">-- 구역을 선택하세요 --</option>
+            </select>
+
+            <div id="edit-panel" style="display:none; margin-top:12px; border-top:1px solid #0f3460; padding-top:12px;">
+                <span class="status-badge status-editing">편집 중</span>
+                <strong id="current-zone-display" style="display:block; margin: 8px 0; font-size:1rem;">-</strong>
+
+                <p class="hint-text">
+                    🖱️ <b>클릭</b>: 점 추가 (선 연결)<br>
+                    📍 <b>Shift+클릭</b>: 중심점 설정
+                </p>
+
+                <label style="margin-top:10px;">경로 점 목록 (<span id="point-count">0</span>개)</label>
+                <div class="point-list" id="point-list-container">
+                    <div style="color:#666;">점이 없습니다.</div>
+                </div>
+
+                <div id="center-info" style="margin-top:8px; font-size:0.85rem; color:#f39c12;">
+                    📍 중심점: 미설정
+                </div>
+
+                <div style="display:flex; gap:5px; margin-top:10px;">
+                    <button onclick="undoLastPoint()" class="secondary">↩ 실행취소</button>
+                    <button onclick="clearAllPoints()" class="secondary">🗑️ 전체삭제</button>
+                </div>
+
+                <button onclick="saveCurrentZone()" class="danger" style="margin-top: 15px;">✅ 이 구역 완료</button>
+            </div>
+
+            <!-- 진행 현황 -->
+            <div
+                style="margin-top:15px; padding:12px; background:rgba(46,204,113,0.1); border:1px solid #2ecc71; border-radius:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="color:#2ecc71; font-weight:bold;">✅ 완료: <span id="saved-count">0</span>개</span>
+                    <span style="color:#888; font-size:0.8rem;">/ <span id="total-count">0</span>개</span>
+                </div>
+            </div>
+
+            <button onclick="exportAllZones()"
+                style="margin-top:10px; background:linear-gradient(135deg, #2ecc71, #27ae60);">📤 전체 내보내기
+                (JSON)</button>
+        </div>
+
+        <label>출력 데이터 (복사용)</label>
+        <textarea id="log-output" class="log-area" readonly></textarea>
+    </div>
+
+    <div class="canvas-container" id="canvas-wrapper">
+        <div id="mode-indicator">✏️ 클릭하여 점 추가</div>
+        <div class="shortcut-hint">
+            <kbd>↑↓←→</kbd> 이동 | <kbd>Ctrl+Z</kbd> 실행취소 | <kbd>Esc</kbd> 경로 취소
+        </div>
+        <canvas id="main-canvas"></canvas>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. 특보 구역 목록
+        // ==========================================
+        const MARINE_ZONES = [
+            "동해중부안쪽먼바다", "동해중부바깥먼바다",
+            "동해남부북쪽안쪽먼바다", "동해남부남쪽안쪽먼바다", "동해남부북쪽바깥먼바다", "동해남부남쪽바깥먼바다",
+            "강원북부앞바다", "강원중부앞바다", "강원남부앞바다",
+            "경북북부앞바다", "경북남부앞바다",
+            "울산앞바다", "부산앞바다", "거제시동부앞바다",
+            "서해중부안쪽먼바다", "서해중부바깥먼바다",
+            "서해남부북쪽안쪽먼바다", "서해남부남쪽안쪽먼바다", "서해남부북쪽바깥먼바다", "서해남부남쪽바깥먼바다",
+            "인천·경기북부앞바다", "인천·경기남부앞바다",
+            "충남북부앞바다", "충남남부앞바다",
+            "전북북부앞바다", "전북남부앞바다",
+            "전남북부서해앞바다", "전남중부서해앞바다", "전남남부서해앞바다",
+            "남해서부서쪽먼바다", "남해서부동쪽먼바다",
+            "남해동부안쪽먼바다", "남해동부바깥먼바다",
+            "경남서부남해앞바다", "경남중부남해앞바다",
+            "전남서부남해앞바다", "전남동부남해앞바다",
+            "제주도북부앞바다", "제주도남부앞바다", "제주도동부앞바다", "제주도서부앞바다",
+            "제주도남서쪽안쪽먼바다", "제주도남동쪽안쪽먼바다", "제주도남쪽바깥먼바다",
+            "서해5도", "울릉도·독도"
+        ].sort();
+
+        // ==========================================
+        // 2. 상태 변수
+        // ==========================================
+        const canvas = document.getElementById('main-canvas');
+        const ctx = canvas.getContext('2d');
+        const wrapper = document.getElementById('canvas-wrapper');
+        const logOutput = document.getElementById('log-output');
+
+        let originalImage = new Image();
+        let scale = 1, translateX = 0, translateY = 0;
+        let isDragging = false, startDragX, startDragY;
+
+        // 편집 상태
+        let currentZone = null;
+        let pathPoints = [];    // [{x, y}, ...] - 현재 그리는 경로
+        let centerPoint = null; // {x, y}
+
+        // 저장된 구역 데이터
+        let savedZones = {};    // { "구역명": { center, paths } }
+
+        // ==========================================
+        // 3. 초기화
+        // ==========================================
+        window.onload = function () {
+            initZoneList();
+
+            originalImage.src = 'images/haegudo_resized.jpg';
+            originalImage.onload = () => {
+                console.log("Image Loaded:", originalImage.width, originalImage.height);
+                canvas.width = originalImage.width;
+                canvas.height = originalImage.height;
+
+                ctx.drawImage(originalImage, 0, 0);
+                fitToScreen();
+                initMouseEvents();
+                initKeyboardEvents();
+            };
+
+            originalImage.onerror = () => {
+                alert("이미지 로드 실패: images/haegudo_resized.jpg\nhaegudo.gif를 시도합니다.");
+                originalImage.src = 'images/haegudo.gif';
+            };
+        };
+
+        function initZoneList() {
+            const select = document.getElementById('zone-select');
+            MARINE_ZONES.forEach(zone => {
+                const opt = document.createElement('option');
+                opt.value = zone;
+                opt.textContent = zone;
+                opt.id = `opt-${zone.replace(/[^a-zA-Z0-9가-힣]/g, '_')}`;
+                select.appendChild(opt);
+            });
+            document.getElementById('total-count').textContent = MARINE_ZONES.length;
+        }
+
+        function updateZoneListUI() {
+            // 드롭다운에 체크표시 반영
+            MARINE_ZONES.forEach(zone => {
+                const optId = `opt-${zone.replace(/[^a-zA-Z0-9가-힣]/g, '_')}`;
+                const opt = document.getElementById(optId);
+                if (opt) {
+                    opt.textContent = savedZones[zone] ? `✅ ${zone}` : zone;
+                }
+            });
+            document.getElementById('saved-count').textContent = Object.keys(savedZones).length;
+        }
+
+        // ==========================================
+        // 4. 구역 관리
+        // ==========================================
+        function onZoneChange() {
+            const select = document.getElementById('zone-select');
+            const editPanel = document.getElementById('edit-panel');
+            const display = document.getElementById('current-zone-display');
+
+            if (select.value) {
+                currentZone = select.value;
+                display.textContent = currentZone;
+                editPanel.style.display = 'block';
+                pathPoints = [];
+                centerPoint = null;
+                updatePointListUI();
+                updateCenterInfo();
+                redrawCanvas();
+            } else {
+                currentZone = null;
+                editPanel.style.display = 'none';
+                pathPoints = [];
+                centerPoint = null;
+                redrawCanvas();
+            }
+        }
+
+        function addPoint(x, y) {
+            pathPoints.push({ x: Math.round(x), y: Math.round(y) });
+            updatePointListUI();
+            redrawCanvas();
+        }
+
+        function undoLastPoint() {
+            if (pathPoints.length > 0) {
+                pathPoints.pop();
+                updatePointListUI();
+                redrawCanvas();
+            }
+        }
+
+        function clearAllPoints() {
+            if (pathPoints.length === 0 && !centerPoint) return;
+            if (confirm("모든 점과 중심점을 삭제하시겠습니까?")) {
+                pathPoints = [];
+                centerPoint = null;
+                updatePointListUI();
+                updateCenterInfo();
+                redrawCanvas();
+            }
+        }
+
+        function updatePointListUI() {
+            const container = document.getElementById('point-list-container');
+            document.getElementById('point-count').textContent = pathPoints.length;
+
+            if (pathPoints.length === 0) {
+                container.innerHTML = '<div style="color:#666;">점이 없습니다.</div>';
+                return;
+            }
+            container.innerHTML = '';
+            pathPoints.forEach((pt, idx) => {
+                const div = document.createElement('div');
+                div.className = 'point-item';
+                div.innerHTML = `
+                    <span>#${idx + 1}: (${pt.x}, ${pt.y})</span>
+                    <button class="remove-btn" onclick="removePoint(${idx})">×</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function removePoint(idx) {
+            pathPoints.splice(idx, 1);
+            updatePointListUI();
+            redrawCanvas();
+        }
+
+        function updateCenterInfo() {
+            const el = document.getElementById('center-info');
+            if (centerPoint) {
+                el.innerHTML = `📍 중심점: (${centerPoint.x}, ${centerPoint.y})`;
+            } else {
+                el.innerHTML = '📍 중심점: 미설정';
+            }
+        }
+
+        // ==========================================
+        // 5. 저장
+        // ==========================================
+        function saveCurrentZone() {
+            if (!currentZone) {
+                alert("구역을 먼저 선택하세요.");
+                return;
+            }
+            if (pathPoints.length < 2) {
+                alert("최소 2개의 점이 필요합니다.");
+                return;
+            }
+
+            // 중심점 계산 (설정 안됐으면 평균)
+            let cx, cy;
+            if (centerPoint) {
+                cx = centerPoint.x;
+                cy = centerPoint.y;
+            } else {
+                cx = Math.round(pathPoints.reduce((s, p) => s + p.x, 0) / pathPoints.length);
+                cy = Math.round(pathPoints.reduce((s, p) => s + p.y, 0) / pathPoints.length);
+            }
+
+            // 구역 데이터 저장
+            savedZones[currentZone] = {
+                center: { x: cx, y: cy },
+                paths: [pathPoints.map(p => ({ x: p.x, y: p.y }))]
+            };
+
+            console.log(`✅ ${currentZone} 저장 완료`);
+
+            // UI 업데이트
+            updateZoneListUI();
+
+            // 다음 구역으로 이동 여부 확인
+            const savedCount = Object.keys(savedZones).length;
+            alert(`✅ ${currentZone} 완료!\n\n전체: ${savedCount}/${MARINE_ZONES.length}개 완료`);
+
+            // 초기화
+            pathPoints = [];
+            centerPoint = null;
+            updatePointListUI();
+            updateCenterInfo();
+            redrawCanvas();
+        }
+
+        function exportAllZones() {
+            const count = Object.keys(savedZones).length;
+            if (count === 0) {
+                alert("저장된 구역이 없습니다.");
+                return;
+            }
+
+            // 전체 JSON 생성
+            let output = "const ZONE_OVERLAY_CONFIG = {\n";
+
+            for (const [zoneName, data] of Object.entries(savedZones)) {
+                const pathStr = data.paths[0].map(p => `            { "x": ${p.x}, "y": ${p.y} }`).join(',\n');
+                output += `    "${zoneName}": {
+        "center": { "x": ${data.center.x}, "y": ${data.center.y} },
+        "paths": [
+            [
+${pathStr}
+            ]
+        ]
+    },\n`;
+            }
+
+            output += "};\n";
+
+            logOutput.value = output;
+            logOutput.scrollTop = 0;
+
+            // 클립보드에 복사
+            navigator.clipboard.writeText(output).then(() => {
+                alert(`✅ ${count}개 구역 데이터가 클립보드에 복사되었습니다!\n\nzoneOverlayConfig.js 파일에 붙여넣으세요.`);
+            }).catch(() => {
+                alert(`✅ ${count}개 구역 데이터가 출력되었습니다.\n직접 복사해주세요.`);
+            });
+        }
+
+        // ==========================================
+        // 6. 캔버스 렌더링
+        // ==========================================
+        function redrawCanvas() {
+            ctx.drawImage(originalImage, 0, 0);
+
+            ctx.save();
+
+            // 경로 그리기 (열린 폴리라인)
+            if (pathPoints.length > 0) {
+                // 선
+                ctx.strokeStyle = '#00b4ff';
+                ctx.lineWidth = 2 / scale;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.shadowColor = 'rgba(0, 200, 255, 0.8)';
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+                for (let i = 1; i < pathPoints.length; i++) {
+                    ctx.lineTo(pathPoints[i].x, pathPoints[i].y);
+                }
+                // closePath() 제거 - 열린 선
+                ctx.stroke();
+
+                // 점
+                ctx.shadowBlur = 0;
+                pathPoints.forEach((pt, idx) => {
+                    ctx.fillStyle = idx === 0 ? '#2ecc71' : '#fff';
+                    ctx.beginPath();
+                    ctx.arc(pt.x, pt.y, 5 / scale, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#000';
+                    ctx.lineWidth = 1 / scale;
+                    ctx.stroke();
+                });
+            }
+
+            // 중심점
+            if (centerPoint) {
+                const size = 15 / scale;
+                ctx.strokeStyle = '#f39c12';
+                ctx.lineWidth = 3 / scale;
+                ctx.shadowColor = 'rgba(243, 156, 18, 0.8)';
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.moveTo(centerPoint.x - size, centerPoint.y);
+                ctx.lineTo(centerPoint.x + size, centerPoint.y);
+                ctx.moveTo(centerPoint.x, centerPoint.y - size);
+                ctx.lineTo(centerPoint.x, centerPoint.y + size);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(centerPoint.x, centerPoint.y, size * 0.7, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        // ==========================================
+        // 7. 마우스 이벤트
+        // ==========================================
+        function initMouseEvents() {
+            wrapper.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                const newScale = scale * delta;
+                if (newScale < 0.05 || newScale > 5) return;
+
+                const rect = wrapper.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                translateX -= (mouseX - translateX) * (delta - 1);
+                translateY -= (mouseY - translateY) * (delta - 1);
+                scale = newScale;
+                updateTransform();
+            });
+
+            wrapper.addEventListener('mousedown', (e) => {
+                if (e.button === 1 || (e.button === 0 && e.altKey)) {
+                    isDragging = true;
+                    startDragX = e.clientX - translateX;
+                    startDragY = e.clientY - translateY;
+                    wrapper.style.cursor = 'grabbing';
+                    return;
+                }
+            });
+
+            wrapper.addEventListener('click', (e) => {
+                if (!currentZone) return;
+                if (e.altKey) return; // Alt는 팬용
+
+                const pt = getImgPoint(e);
+                if (!isValidPt(pt)) return;
+
+                if (e.shiftKey) {
+                    // Shift+클릭: 중심점 설정
+                    centerPoint = { x: Math.round(pt.x), y: Math.round(pt.y) };
+                    updateCenterInfo();
+                    redrawCanvas();
+                } else {
+                    // 일반 클릭: 점 추가
+                    addPoint(pt.x, pt.y);
+                }
+            });
+
+            wrapper.addEventListener('dblclick', (e) => {
+                // 더블클릭: 경로 닫기 (마지막 점과 첫 점 연결)
+                if (pathPoints.length >= 3) {
+                    redrawCanvas();
+                    console.log('경로 완성! 점 개수:', pathPoints.length);
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    translateX = e.clientX - startDragX;
+                    translateY = e.clientY - startDragY;
+                    updateTransform();
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDragging = false;
+                wrapper.style.cursor = 'crosshair';
+            });
+        }
+
+        // ==========================================
+        // 8. 키보드 이벤트
+        // ==========================================
+        function initKeyboardEvents() {
+            window.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+                switch (e.key) {
+                    case 'ArrowUp': translateY += 50; updateTransform(); break;
+                    case 'ArrowDown': translateY -= 50; updateTransform(); break;
+                    case 'ArrowLeft': translateX += 50; updateTransform(); break;
+                    case 'ArrowRight': translateX -= 50; updateTransform(); break;
+                    case 'z': if (e.ctrlKey) undoLastPoint(); break;
+                    case 'Escape': clearAllPoints(); break;
+                }
+            });
+        }
+
+        // ==========================================
+        // 9. 유틸리티
+        // ==========================================
+        function getImgPoint(e) {
+            const rect = wrapper.getBoundingClientRect();
+            return {
+                x: (e.clientX - rect.left - translateX) / scale,
+                y: (e.clientY - rect.top - translateY) / scale
+            };
+        }
+
+        function isValidPt(pt) {
+            return pt.x >= 0 && pt.x <= canvas.width && pt.y >= 0 && pt.y <= canvas.height;
+        }
+
+        function updateTransform() {
+            canvas.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        }
+
+        function fitToScreen() {
+            const wrapperW = wrapper.clientWidth;
+            const wrapperH = wrapper.clientHeight;
+            const scaleX = wrapperW / originalImage.width;
+            const scaleY = wrapperH / originalImage.height;
+            scale = Math.min(scaleX, scaleY) * 0.9;
+            translateX = (wrapperW - originalImage.width * scale) / 2;
+            translateY = (wrapperH - originalImage.height * scale) / 2;
+            updateTransform();
+        }
+    </script>
+</body>
+
+</html>

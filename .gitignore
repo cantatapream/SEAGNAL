@@ -1,0 +1,16 @@
+# 의존성 및 무거운 폴더 제외
+node_modules/
+backups/
+.gemini/
+.agent/
+
+# 환경 변수 (비밀번호 등 포함 가능성)
+.env
+
+# OS/ID 관련 잡다한 파일들
+.DS_Store
+Thumbs.db
+.vscode/
+
+# 로그 파일
+*.log
