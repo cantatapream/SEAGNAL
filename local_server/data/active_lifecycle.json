@@ -1,11 +1,11 @@
 {
-  "updatedAt": "2026. 2. 1. 오후 11:01:07",
+  "updatedAt": "2026. 2. 1. 오후 11:06:07",
   "zones": {
     "S1323200": {
       "regId": "S1323200",
       "regKo": "제주도동부앞바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -58,111 +58,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도동부앞바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도동부앞바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도동부앞바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도동부앞바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도동부앞바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -2135,6 +2030,111 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도동부앞바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도동부앞바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도동부앞바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도동부앞바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도동부앞바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -2142,7 +2142,7 @@
       "regId": "S1323400",
       "regKo": "제주도서부앞바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -2195,111 +2195,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도서부앞바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도서부앞바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도서부앞바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도서부앞바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도서부앞바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -4272,6 +4167,111 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도서부앞바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도서부앞바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도서부앞바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도서부앞바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도서부앞바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -4279,7 +4279,7 @@
       "regId": "S1324210",
       "regKo": "제주도남서쪽안쪽먼바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -4332,111 +4332,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도남서쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도남서쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도남서쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도남서쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도남서쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -6409,6 +6304,111 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도남서쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도남서쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도남서쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도남서쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도남서쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -6416,7 +6416,7 @@
       "regId": "S1324110",
       "regKo": "제주도남동쪽안쪽먼바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -6469,111 +6469,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도남동쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도남동쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도남동쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도남동쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도남동쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -8546,6 +8441,111 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도남동쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도남동쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도남동쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도남동쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도남동쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -8553,7 +8553,7 @@
       "regId": "S1324020",
       "regKo": "제주도남쪽바깥먼바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -8606,111 +8606,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도남쪽바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도남쪽바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도남쪽바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도남쪽바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "제주도남쪽바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -10683,6 +10578,111 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도남쪽바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도남쪽바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도남쪽바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도남쪽바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "제주도남쪽바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -10690,7 +10690,7 @@
       "regId": "S1312010",
       "regKo": "남해동부안쪽먼바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -10743,111 +10743,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "남해동부안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "남해동부안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "남해동부안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "남해동부안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "남해동부안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -12820,6 +12715,111 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "남해동부안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "남해동부안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "남해동부안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "남해동부안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "남해동부안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -12827,7 +12827,7 @@
       "regId": "S1312020",
       "regKo": "남해동부바깥먼바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -12880,111 +12880,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "남해동부바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "남해동부바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "남해동부바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "남해동부바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "남해동부바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -14957,6 +14852,111 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "남해동부바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "남해동부바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "남해동부바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "남해동부바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "남해동부바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -14964,7 +14964,7 @@
       "regId": "S1132110",
       "regKo": "동해남부남쪽안쪽먼바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -15017,111 +15017,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "동해남부남쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "동해남부남쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "동해남부남쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "동해남부남쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021758",
-            "match": "MATCH",
-            "regKo": "동해남부남쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -17094,6 +16989,111 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "동해남부남쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "동해남부남쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "동해남부남쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "동해남부남쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021758",
+            "match": "MATCH",
+            "regKo": "동해남부남쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -17101,7 +17101,7 @@
       "regId": "S1132120",
       "regKo": "동해남부남쪽바깥먼바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -17154,111 +17154,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.04:10",
-            "tmEf": "2026.02.02. 오전(06시~12시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240061241",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021158",
-            "match": "MATCH",
-            "regKo": "동해남부남쪽바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.04:10",
-            "tmEf": "2026.02.02. 오전(06시~12시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240061241",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021158",
-            "match": "MATCH",
-            "regKo": "동해남부남쪽바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.04:10",
-            "tmEf": "2026.02.02. 오전(06시~12시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240061241",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021158",
-            "match": "MATCH",
-            "regKo": "동해남부남쪽바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.04:10",
-            "tmEf": "2026.02.02. 오전(06시~12시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240061241",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021158",
-            "match": "MATCH",
-            "regKo": "동해남부남쪽바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.04:10",
-            "tmEf": "2026.02.02. 오전(06시~12시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240061241",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021158",
-            "match": "MATCH",
-            "regKo": "동해남부남쪽바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -19231,6 +19126,111 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.04:10",
+            "tmEf": "2026.02.02. 오전(06시~12시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240061241",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021158",
+            "match": "MATCH",
+            "regKo": "동해남부남쪽바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.04:10",
+            "tmEf": "2026.02.02. 오전(06시~12시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240061241",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021158",
+            "match": "MATCH",
+            "regKo": "동해남부남쪽바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.04:10",
+            "tmEf": "2026.02.02. 오전(06시~12시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240061241",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021158",
+            "match": "MATCH",
+            "regKo": "동해남부남쪽바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.04:10",
+            "tmEf": "2026.02.02. 오전(06시~12시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240061241",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021158",
+            "match": "MATCH",
+            "regKo": "동해남부남쪽바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.04:10",
+            "tmEf": "2026.02.02. 오전(06시~12시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240061241",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021158",
+            "match": "MATCH",
+            "regKo": "동해남부남쪽바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -19238,7 +19238,7 @@
       "regId": "S1132210",
       "regKo": "동해남부북쪽안쪽먼바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -19291,111 +19291,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.04:10",
-            "tmEf": "2026.02.02. 오전(06시~12시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240061241",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021158",
-            "match": "MATCH",
-            "regKo": "동해남부북쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.04:10",
-            "tmEf": "2026.02.02. 오전(06시~12시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240061241",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021158",
-            "match": "MATCH",
-            "regKo": "동해남부북쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.04:10",
-            "tmEf": "2026.02.02. 오전(06시~12시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240061241",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021158",
-            "match": "MATCH",
-            "regKo": "동해남부북쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.04:10",
-            "tmEf": "2026.02.02. 오전(06시~12시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240061241",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021158",
-            "match": "MATCH",
-            "regKo": "동해남부북쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.04:10",
-            "tmEf": "2026.02.02. 오전(06시~12시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240061241",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021158",
-            "match": "MATCH",
-            "regKo": "동해남부북쪽안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -21368,6 +21263,111 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.04:10",
+            "tmEf": "2026.02.02. 오전(06시~12시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240061241",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021158",
+            "match": "MATCH",
+            "regKo": "동해남부북쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.04:10",
+            "tmEf": "2026.02.02. 오전(06시~12시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240061241",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021158",
+            "match": "MATCH",
+            "regKo": "동해남부북쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.04:10",
+            "tmEf": "2026.02.02. 오전(06시~12시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240061241",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021158",
+            "match": "MATCH",
+            "regKo": "동해남부북쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.04:10",
+            "tmEf": "2026.02.02. 오전(06시~12시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240061241",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021158",
+            "match": "MATCH",
+            "regKo": "동해남부북쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.04:10",
+            "tmEf": "2026.02.02. 오전(06시~12시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240061241",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021158",
+            "match": "MATCH",
+            "regKo": "동해남부북쪽안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -21375,7 +21375,7 @@
       "regId": "S1132220",
       "regKo": "동해남부북쪽바깥먼바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -21428,111 +21428,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.04:10",
-            "tmEf": "2026.02.02. 오전(06시~12시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240061241",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021158",
-            "match": "MATCH",
-            "regKo": "동해남부북쪽바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.04:10",
-            "tmEf": "2026.02.02. 오전(06시~12시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240061241",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021158",
-            "match": "MATCH",
-            "regKo": "동해남부북쪽바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.04:10",
-            "tmEf": "2026.02.02. 오전(06시~12시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240061241",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021158",
-            "match": "MATCH",
-            "regKo": "동해남부북쪽바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.04:10",
-            "tmEf": "2026.02.02. 오전(06시~12시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240061241",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021158",
-            "match": "MATCH",
-            "regKo": "동해남부북쪽바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.04:10",
-            "tmEf": "2026.02.02. 오전(06시~12시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240061241",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "예비",
-            "tmEf": "202602021158",
-            "match": "MATCH",
-            "regKo": "동해남부북쪽바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -23505,6 +23400,111 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.04:10",
+            "tmEf": "2026.02.02. 오전(06시~12시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240061241",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021158",
+            "match": "MATCH",
+            "regKo": "동해남부북쪽바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.04:10",
+            "tmEf": "2026.02.02. 오전(06시~12시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240061241",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021158",
+            "match": "MATCH",
+            "regKo": "동해남부북쪽바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.04:10",
+            "tmEf": "2026.02.02. 오전(06시~12시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240061241",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021158",
+            "match": "MATCH",
+            "regKo": "동해남부북쪽바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.04:10",
+            "tmEf": "2026.02.02. 오전(06시~12시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240061241",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021158",
+            "match": "MATCH",
+            "regKo": "동해남부북쪽바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.04:10",
+            "tmEf": "2026.02.02. 오전(06시~12시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240061241",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "예비",
+            "tmEf": "202602021158",
+            "match": "MATCH",
+            "regKo": "동해남부북쪽바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -23512,7 +23512,7 @@
       "regId": "S1152010",
       "regKo": "동해중부안쪽먼바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "주의보",
@@ -23566,111 +23566,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "주의",
-            "tmEf": "202602010300",
-            "match": "MATCH",
-            "regKo": "동해중부안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "주의",
-            "tmEf": "202602010300",
-            "match": "MATCH",
-            "regKo": "동해중부안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "주의",
-            "tmEf": "202602010300",
-            "match": "MATCH",
-            "regKo": "동해중부안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "주의",
-            "tmEf": "202602010300",
-            "match": "MATCH",
-            "regKo": "동해중부안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "주의",
-            "tmEf": "202602010300",
-            "match": "MATCH",
-            "regKo": "동해중부안쪽먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -25643,6 +25538,111 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "주의",
+            "tmEf": "202602010300",
+            "match": "MATCH",
+            "regKo": "동해중부안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "주의",
+            "tmEf": "202602010300",
+            "match": "MATCH",
+            "regKo": "동해중부안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "주의",
+            "tmEf": "202602010300",
+            "match": "MATCH",
+            "regKo": "동해중부안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "주의",
+            "tmEf": "202602010300",
+            "match": "MATCH",
+            "regKo": "동해중부안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "주의",
+            "tmEf": "202602010300",
+            "match": "MATCH",
+            "regKo": "동해중부안쪽먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -25650,7 +25650,7 @@
       "regId": "S2120800",
       "regKo": "울릉도울릉읍연안바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "주의보",
@@ -25703,106 +25703,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -27681,6 +27581,106 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -27688,7 +27688,7 @@
       "regId": "S2120900",
       "regKo": "울릉도서면연안바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "주의보",
@@ -27741,106 +27741,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -29719,6 +29619,106 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -29726,7 +29726,7 @@
       "regId": "S2121000",
       "regKo": "울릉도북면연안바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "주의보",
@@ -29779,106 +29779,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -31757,6 +31657,106 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -31764,7 +31764,7 @@
       "regId": "S1152020",
       "regKo": "동해중부바깥먼바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "주의보",
@@ -31818,111 +31818,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "주의",
-            "tmEf": "202602010300",
-            "match": "MATCH",
-            "regKo": "동해중부바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "주의",
-            "tmEf": "202602010300",
-            "match": "MATCH",
-            "regKo": "동해중부바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "주의",
-            "tmEf": "202602010300",
-            "match": "MATCH",
-            "regKo": "동해중부바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "주의",
-            "tmEf": "202602010300",
-            "match": "MATCH",
-            "regKo": "동해중부바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "주의보",
-            "tmFc": "2026.02.01.01:00",
-            "tmEf": "2026.02.01.03:00",
-            "tmYn": "2일 밤(21시 ~ 24시)",
-            "command": "발표",
-            "rawTmEf": "202602010300",
-            "rawTmEd": "202602030000"
-          },
-          "hub": {
-            "level": "주의",
-            "tmEf": "202602010300",
-            "match": "MATCH",
-            "regKo": "동해중부바깥먼바다"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -33895,6 +33790,111 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "주의",
+            "tmEf": "202602010300",
+            "match": "MATCH",
+            "regKo": "동해중부바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "주의",
+            "tmEf": "202602010300",
+            "match": "MATCH",
+            "regKo": "동해중부바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "주의",
+            "tmEf": "202602010300",
+            "match": "MATCH",
+            "regKo": "동해중부바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "주의",
+            "tmEf": "202602010300",
+            "match": "MATCH",
+            "regKo": "동해중부바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "주의보",
+            "tmFc": "2026.02.01.01:00",
+            "tmEf": "2026.02.01.03:00",
+            "tmYn": "2일 밤(21시 ~ 24시)",
+            "command": "발표",
+            "rawTmEf": "202602010300",
+            "rawTmEd": "202602030000"
+          },
+          "hub": {
+            "level": "주의",
+            "tmEf": "202602010300",
+            "match": "MATCH",
+            "regKo": "동해중부바깥먼바다"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -33902,7 +33902,7 @@
       "regId": "S2320900",
       "regKo": "제주도동부앞바다중 북동연안바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -33954,106 +33954,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -35932,6 +35832,106 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -35939,7 +35939,7 @@
       "regId": "S2321000",
       "regKo": "제주도동부앞바다중 남동연안바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -35991,106 +35991,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -37969,6 +37869,106 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -37976,7 +37976,7 @@
       "regId": "S2330200",
       "regKo": "제주도동부앞바다중 우도연안바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -38028,106 +38028,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -40006,6 +39906,106 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -40013,7 +40013,7 @@
       "regId": "S2320610",
       "regKo": "제주도서부앞바다중 북서연안바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -40065,106 +40065,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -42043,6 +41943,106 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -42050,7 +42050,7 @@
       "regId": "S2320620",
       "regKo": "제주도서부앞바다중 남서연안바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -42102,106 +42102,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -44080,6 +43980,106 @@
           },
           "isKeyframe": false,
           "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
         }
       ]
     },
@@ -44087,7 +44087,7 @@
       "regId": "S2330300",
       "regKo": "제주도서부앞바다중 가파도연안바다",
       "summary": {
-        "updatedAt": "2026. 2. 1. 오후 11:01:07",
+        "updatedAt": "2026. 2. 1. 오후 11:06:07",
         "afsoStatus": {
           "wrnTp": "풍랑",
           "wrnLvl": "예비",
@@ -44139,106 +44139,6 @@
           "keyframeType": "발표"
         },
         {
-          "timestamp": "2026. 2. 1. 오후 9:16:58",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:18:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:19:29",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:20:34",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
-          "timestamp": "2026. 2. 1. 오후 9:22:09",
-          "afso": {
-            "wrnTp": "풍랑",
-            "wrnLvl": "예비",
-            "tmFc": "2026.02.01.16:00",
-            "tmEf": "2026.02.02. 오후(12시~18시)",
-            "tmYn": "일 ",
-            "command": "발표",
-            "rawTmEf": "2026020240121841",
-            "rawTmEd": ""
-          },
-          "hub": {
-            "level": "N/A",
-            "tmEf": "",
-            "match": "AFSO_ONLY"
-          },
-          "isKeyframe": false,
-          "keyframeType": null
-        },
-        {
           "timestamp": "2026. 2. 1. 오후 9:23:09",
           "afso": {
             "wrnTp": "풍랑",
@@ -46100,6 +46000,106 @@
         },
         {
           "timestamp": "2026. 2. 1. 오후 11:01:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:02:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:03:07",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:04:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:05:06",
+          "afso": {
+            "wrnTp": "풍랑",
+            "wrnLvl": "예비",
+            "tmFc": "2026.02.01.16:00",
+            "tmEf": "2026.02.02. 오후(12시~18시)",
+            "tmYn": "일 ",
+            "command": "발표",
+            "rawTmEf": "2026020240121841",
+            "rawTmEd": ""
+          },
+          "hub": {
+            "level": "N/A",
+            "tmEf": "",
+            "match": "AFSO_ONLY"
+          },
+          "isKeyframe": false,
+          "keyframeType": null
+        },
+        {
+          "timestamp": "2026. 2. 1. 오후 11:06:07",
           "afso": {
             "wrnTp": "풍랑",
             "wrnLvl": "예비",
