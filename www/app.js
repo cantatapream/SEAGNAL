@@ -1,4 +1,4 @@
-// Configuration
+﻿// Configuration
 const CONFIG = {
     KMA_HUB_KEY: 'ZKEQU5ukRvGhEFObpBbxVw',
 
@@ -492,11 +492,6 @@ const COASTAL_MAPPING = {
     '강원남부앞바다': [
         { name: '연안바다', fullName: '강원남부앞바다중연안바다' }
     ],
-    '울릉도': [
-        { name: '울릉읍연안바다', fullName: '울릉도울릉읍연안바다' },
-        { name: '서면연안바다', fullName: '울릉도서면연안바다' },
-        { name: '북면연안바다', fullName: '울릉도북면연안바다' }
-    ],
     '동해중부안쪽먼바다': [
         { name: '울릉읍연안바다', fullName: '울릉도울릉읍연안바다' },
         { name: '서면연안바다', fullName: '울릉도서면연안바다' },
@@ -530,8 +525,7 @@ const COASTAL_MAPPING = {
         { name: '평수구역', fullName: '경기북부앞바다중평수구역' }
     ],
     '인천·경기북부앞바다': [
-        { name: '평수구역', fullName: '인천·경기북부앞바다중평수구역' },
-        { name: '연안바다', fullName: '인천·경기북부앞바다중연안바다' }
+        { name: '평수구역', fullName: '인천·경기북부앞바다중평수구역' }
     ],
     '인천·경기남부앞바다': [
         { name: '먼평수구역', fullName: '인천·경기남부앞바다중먼평수구역' },
@@ -829,6 +823,7 @@ let appState = {
     alerts: [],
     coastalAlerts: {}, // 연안바다 특보 저장
     buoyData: {},      // 부이 데이터 저장
+    alertStateHistory: {}, // [New] 구역별 특보 히스토리 (alert_state.json)
     lastUpdated: null,
     isLoading: false,
     apiStatus: { hub: 'pending', buoy: 'pending', coastal: 'pending' },
@@ -858,6 +853,20 @@ function formatDate(dateStr) {
         .replace(/&amp;/g, '&')
         .replace(/&nbsp;/g, ' ')
         .trim();
+
+    // [수정] '일' 또는 숫자가 전혀 포함되지 않은 완전한 텍스트 쓰레기값만 필터링
+    // 단, '오전', '오후', '~' 등이 포함된 유효한 기간 텍스트는 허용
+    if (decoded === '일' || (!/\d/.test(decoded) && !decoded.includes('오전') && !decoded.includes('오후'))) {
+        return '정보 없음';
+    }
+
+    // [추가] '00일'로 시작하거나 포함된 무효한 날짜 처리
+    if (decoded.includes('00일') || decoded.startsWith('00')) {
+        // 단, '00시' 같은 경우는 제외해야 하므로 더 정밀하게 체크
+        if (decoded.includes('00일') || decoded === '00') {
+            return '정보 없음';
+        }
+    }
 
     // 시간을 오전/오후 형식으로 변환하는 헬퍼 함수
     const formatHourToAmPm = (hourStr, minStr = '00') => {
@@ -901,84 +910,56 @@ function formatDate(dateStr) {
 
 // 시간 포맷 변환 (발효/해제 시간대 처리)
 function formatWarningTime(tmEf, isEndTime = false) {
-    // null이거나 빈 문자열이면 "정보 없음" 반환
     if (!tmEf || tmEf.trim() === '' || tmEf === '0' || tmEf === '000000000000') {
         return '정보 없음';
     }
 
-    // "00일"로 시작하거나 유효하지 않은 날짜 처리
-    if (tmEf.startsWith('00일') || tmEf === '00일') {
-        return '정보 없음';
+    let decoded = String(tmEf)
+        .replace(/&#40;/g, '(')
+        .replace(/&#41;/g, ')')
+        .replace(/&amp;/g, '&')
+        .replace(/&nbsp;/g, ' ')
+        .trim();
+
+    // 이미 한글 시간대가 포함되어 있으면 그대로
+    if (decoded.includes('새벽') || decoded.includes('아침') || decoded.includes('오전') ||
+        decoded.includes('낮') || decoded.includes('오후') || decoded.includes('저녁') || decoded.includes('밤')) {
+        return decoded;
     }
 
-    // 이미 한글로 포맷된 경우 그대로 반환
-    if (tmEf.includes('새벽') || tmEf.includes('아침') || tmEf.includes('오전') ||
-        tmEf.includes('낮') || tmEf.includes('오후') || tmEf.includes('저녁') || tmEf.includes('밤')) {
-        return tmEf;
+    const cleanStr = decoded.replace(/[^0-9]/g, '');
+
+    // [수정] 숫자가 전혀 없는 경우 원본 문자열이 아닌 '정보 없음' 반환 시도
+    if (cleanStr.length === 0) return '정보 없음';
+    if (cleanStr.length < 10) return decoded;
+
+    const month = cleanStr.length >= 12 ? cleanStr.substring(4, 6) : cleanStr.substring(0, 2);
+    const day = cleanStr.length >= 12 ? cleanStr.substring(6, 8) : cleanStr.substring(2, 4);
+    const hour = cleanStr.substring(8, 10);
+    const minute = cleanStr.length >= 12 ? cleanStr.substring(10, 12) : '00';
+
+    if (day === '00' || day === '0') return '정보 없음';
+
+    const hh = parseInt(hour, 10);
+    const mm = minute;
+
+    // [핵심 변경] 정확한 시각(00분, 30분 등 5분 단위)이 있으면 정밀 표출 우선
+    if (mm === '00' || mm === '30' || (parseInt(mm) % 5 === 0 && mm !== '55' && mm !== '59' && mm !== '58')) {
+        let ampm = hh < 12 ? '오전' : '오후';
+        let hour12 = hh === 0 ? 12 : (hh > 12 ? hh - 12 : hh);
+        let timeStr = `${month}/${day} ${ampm} ${hour12}시`;
+        if (mm !== '00') timeStr += ` ${parseInt(mm, 10)}분`;
+        return timeStr;
     }
 
-    const cleanStr = String(tmEf).replace(/[^0-9]/g, '');
+    // 그 외 모호한 시각(55, 59분 등)은 기상청 범위로 표출
+    let range = "";
+    if (hh >= 0 && hh < 6) range = "새벽(00시~06시)";
+    else if (hh >= 6 && hh < 12) range = "오전(06시~12시)";
+    else if (hh >= 12 && hh < 18) range = "오후(12시~18시)";
+    else range = "밤(18시~24시)";
 
-    // 숫자 형식이 아니거나 길이가 부족한 경우
-    if (cleanStr.length < 12) {
-        return '정보 없음';
-    }
-
-    try {
-        const month = cleanStr.substring(4, 6);
-        const day = cleanStr.substring(6, 8);
-        const hour = cleanStr.substring(8, 10);
-        const minute = cleanStr.substring(10, 12);
-
-        // 시간대 범위 확인 (분이 58 또는 59인 경우 = 시간대 범위)
-        if (minute === '58' || minute === '59') {
-            let timeRange = '';
-
-            if (hour === '02') {
-                timeRange = '새벽(00시~03시)';
-            } else if (hour === '05') {
-                timeRange = minute === '59' ? '새벽(03시~06시)' : '새벽(00시~06시)';
-            } else if (hour === '08') {
-                timeRange = '아침(06시~09시)';
-            } else if (hour === '11') {
-                timeRange = minute === '59' ? '오전(09시~12시)' : '오전(06시~12시)';
-            } else if (hour === '14') {
-                timeRange = minute === '58' ? '오후(12시~18시)' : '낮(12시~15시)';
-            } else if (hour === '17') {
-                timeRange = minute === '59' ? '늦은오후(15시~18시)' : '오후(12시~18시)';
-            } else if (hour === '20') {
-                timeRange = '저녁(18시~21시)';
-            } else if (hour === '23') {
-                timeRange = minute === '59' ? '밤(21시~24시)' : '밤(18시~24시)';
-            } else {
-                // 매핑되지 않은 경우 정확한 시간 표시
-                return `${month}/${day} ${hour}:${minute}`;
-            }
-
-            return `${month}/${day} ${timeRange}`;
-        } else {
-            // 정확한 시간인 경우
-            const hourNum = parseInt(hour, 10);
-            let timeText = '';
-
-            if (hourNum < 12) {
-                timeText = `오전 ${hourNum === 0 ? '12' : hourNum}시`;
-            } else {
-                timeText = `오후 ${hourNum === 12 ? '12' : hourNum - 12}시`;
-            }
-
-            // 분이 00이 아닌 경우 분도 표시
-            if (minute !== '00') {
-                timeText += ` ${parseInt(minute, 10)}분`;
-            }
-
-            return `${month}/${day} ${timeText}`;
-        }
-
-    } catch (e) {
-        // console.error('시간 포맷 변환 오류:', e, 'tmEf:', tmEf);
-        return '정보 없음';
-    }
+    return `${month}/${day} ${range}`;
 }
 
 
@@ -1018,6 +999,9 @@ async function fetchAllData() {
     if (appState.isLoading) return;
     updateLoading(true);
 
+    // [New] 방문객 카운트 업데이트
+    updateVisitorStats();
+
     appState.apiStatus = { hub: 'loading', buoy: 'loading', coastal: 'loading' };
     updateApiStatusDisplay();
 
@@ -1037,9 +1021,7 @@ async function fetchAllData() {
             const buoyData = await fetchBuoyData();
             appState.buoyData = buoyData;
             appState.apiStatus.buoy = Object.keys(buoyData).length > 0 ? 'success' : 'error';
-            // console.log('✅ 부이 API 성공:', Object.keys(buoyData).length, '개 부이 데이터');
         } catch (e) {
-            // console.error('❌ 부이 API 실패:', e.message);
             appState.buoyData = getMockBuoyData();
             appState.apiStatus.buoy = 'error';
         }
@@ -1052,159 +1034,89 @@ async function fetchAllData() {
     }
 
     try {
-        // 1단계: 부이 데이터 별도 호출
+        // 1단계: 부이 데이터 및 장부(Ledger) 데이터 호출
         const buoyPromise = fetchBuoyData();
 
-        // 2단계: KMA Hub API와 AFSO API 동시 호출 (먼저 온 것 먼저 표시)
-        let hubAlerts = [];
-        let afsoMainAlerts = [];
-        let coastalAlerts = {};
-        let hubSuccess = false;
-        let afsoSuccess = false;
-        let firstResponder = null;
+        // [핵심] alert_state.json (장부) 가져오기 - 모든 표출의 근거
+        const ledgerResponse = await fetch('/api/alert-state?_t=' + Date.now());
+        const ledger = ledgerResponse.ok ? await ledgerResponse.json() : {};
+        appState.alertStateHistory = ledger;
+        // console.log('✅ Ledger Loaded:', Object.keys(ledger).length, 'zones');
 
-        const hubPromise = fetchKmaHubData().then(data => {
-            hubAlerts = data || [];
-            hubSuccess = hubAlerts.length > 0;
-            return { type: 'hub', data: hubAlerts, success: hubSuccess };
-        }).catch(e => {
-            // console.error('❌ KMA Hub API Error:', e.message);
-            return { type: 'hub', data: [], success: false };
-        });
+        // 2단계: API 데이터 호출 (AFSO는 연안바다 매칭용으로 유지)
+        const hubPromise = fetchKmaHubData().catch(() => []);
+        const afsoPromise = fetchAfsoData().catch(() => ({ mainAlerts: [], coastalAlerts: {} }));
 
-        const afsoPromise = fetchAfsoData().then(data => {
-            afsoMainAlerts = data?.mainAlerts || [];
-            coastalAlerts = data?.coastalAlerts || {};
-            afsoSuccess = afsoMainAlerts.length > 0 || Object.keys(coastalAlerts).length > 0;
-            return { type: 'afso', data: afsoMainAlerts, coastal: coastalAlerts, success: afsoSuccess };
-        }).catch(e => {
-            // console.error('❌ AFSO API Error:', e.message);
-            return { type: 'afso', data: [], coastal: {}, success: false };
-        });
+        // 3단계: 장부(Ledger) 기반으로 appState.alerts 구성 (사용자 요청: 장부 데이터 기준 표출)
+        const ledgerAlerts = [];
+        const coastalFromLedger = {};
 
-        // 먼저 응답한 API 결과 즉시 표시
-        const firstResult = await Promise.race([hubPromise, afsoPromise]);
-        firstResponder = firstResult.type;
+        for (const [regId, zoneData] of Object.entries(ledger)) {
+            // [A안 적용] 새 구조: activeAlert, upcomingAlert / 구형 호환: current
+            let alertDataSource = null;
+            let alertStatus = null;
 
-        // console.log(`🚀 첫 번째 응답: ${firstResponder.toUpperCase()} API`);
+            if (zoneData.activeAlert) {
+                alertDataSource = zoneData.activeAlert;
+                alertStatus = 'active';
+            } else if (zoneData.upcomingAlert) {
+                alertDataSource = zoneData.upcomingAlert;
+                alertStatus = 'publish';
+            } else if (zoneData.current) {
+                // 구형 포맷 호환
+                alertDataSource = zoneData.current;
+                alertStatus = zoneData.current.status;
+            }
 
-        // 첫 번째 결과로 즉시 화면 업데이트
-        if (firstResult.type === 'hub' && firstResult.success) {
-            appState.alerts = firstResult.data;
-            appState.apiStatus.hub = 'success';
-            // console.log('📡 Hub 데이터 먼저 표시:', firstResult.data.length, '개');
-        } else if (firstResult.type === 'afso' && firstResult.success) {
-            appState.alerts = firstResult.data;
-            appState.coastalAlerts = firstResult.coastal;
-            appState.apiStatus.coastal = 'success';
-            // console.log('📡 AFSO 데이터 먼저 표시:', firstResult.data.length, '개');
+            if (!alertDataSource) continue;
+
+            const curr = alertDataSource;
+
+            const isCoastal = (curr.regKo || '').includes('연안바다') || (curr.regKo || '').includes('평수구');
+            const hasAlert = alertStatus === 'active' || alertStatus === 'publish';
+
+            if (hasAlert) {
+                const alertData = {
+                    zoneName: curr.regKo,
+                    regId: regId,
+                    warnType: curr.wrnTp || '풍랑',
+                    level: (curr.wrnLvl === '경보' || (curr.wrnLvlName && curr.wrnLvlName.includes('경보'))) ? '경보' :
+                        (curr.wrnLvl === '주의보' || curr.wrnLvl === '주의' || (curr.wrnLvlName && curr.wrnLvlName.includes('주의'))) ? '주의보' :
+                            (curr.wrnLvl === '예비' || (curr.wrnLvlName && curr.wrnLvlName.includes('예비'))) ? '주의보' : '주의보', // 예비는 기본적으로 주의보 수준을 의미하므로 보정
+                    tmFc: curr.tmFc,
+                    tmEf: curr.tmEf,
+                    tmEd: curr.tmYn,
+                    command: curr.command,
+                    isFromLedger: true,
+                    isPreliminary: alertStatus === 'publish' || curr.wrnLvl === '예비'
+                };
+
+                if (isCoastal) {
+                    if (!coastalFromLedger[curr.regKo]) coastalFromLedger[curr.regKo] = [];
+                    coastalFromLedger[curr.regKo].push(alertData);
+                } else {
+                    ledgerAlerts.push(alertData);
+                }
+            }
         }
 
-        // 첫 번째 결과 있으면 즉시 렌더링
-        if (firstResult.success) {
-            appState.lastUpdated = new Date();
-            updateApiStatusDisplay();
-            renderApp();
-        }
+        // 최종 상태 반영
+        appState.alerts = ledgerAlerts;
+        appState.coastalAlerts = coastalFromLedger;
+        appState.lastUpdated = new Date();
 
-        // 두 번째 API 결과 대기
-        const secondPromise = firstResponder === 'hub' ? afsoPromise : hubPromise;
-        const secondResult = await secondPromise;
-
-        // console.log(`🚀 두 번째 응답: ${secondResult.type.toUpperCase()} API`);
-
-        // 이제 hubAlerts, afsoMainAlerts, coastalAlerts 모두 채워짐
-        // 부이 데이터는 백그라운드에서 처리 (스플래시 대기 시간 단축)
+        // 4단계: 부이 데이터는 백그라운드 수신 완료 후 렌더링
         buoyPromise.then(data => {
             appState.buoyData = data || {};
             appState.apiStatus.buoy = Object.keys(appState.buoyData).length > 0 ? 'success' : 'warning';
-            // console.log('✅ Buoy Data Loaded (Background):', Object.keys(appState.buoyData).length, 'stations');
             updateApiStatusDisplay();
-            renderApp(); // 부이 정보 반영하여 다시 렌더링
-        }).catch(e => {
-            // console.error('❌ Buoy API Error (Background):', e.message);
-            appState.apiStatus.buoy = 'error';
-            updateApiStatusDisplay();
+            renderApp();
         });
 
-        // 3단계: 데이터 비교 및 최종 결정
-        let finalAlerts = [];
-        let dataSource = '';
-
-        // Hub가 빈 데이터인 경우 → AFSO 사용
-        if (hubAlerts.length === 0) {
-            finalAlerts = afsoMainAlerts;
-            dataSource = 'AFSO (Hub 빈 데이터)';
-            // console.log('⚠️ KMA Hub API 빈 데이터 - AFSO API 사용');
-        }
-        // AFSO가 빈 데이터인 경우 → Hub 사용
-        else if (afsoMainAlerts.length === 0) {
-            finalAlerts = hubAlerts;
-            dataSource = 'HUB (AFSO 빈 데이터)';
-            // console.log('⚠️ AFSO API 빈 데이터 - Hub API 사용');
-        }
-        // 둘 다 데이터가 있는 경우 → 비교하여 Hub 우선
-        else {
-            // 데이터 비교
-            const hubMap = new Map();
-            const afsoMap = new Map();
-            hubAlerts.forEach(a => hubMap.set(a.zoneName, a));
-            afsoMainAlerts.forEach(a => afsoMap.set(a.zoneName, a));
-
-            let isDifferent = false;
-
-            // 개수 비교
-            if (hubAlerts.length !== afsoMainAlerts.length) {
-                isDifferent = true;
-            } else {
-                // 내용 비교
-                for (const [zoneName, hubAlert] of hubMap) {
-                    const afsoAlert = afsoMap.get(zoneName);
-                    if (!afsoAlert || hubAlert.warnType !== afsoAlert.warnType || hubAlert.level !== afsoAlert.level) {
-                        isDifferent = true;
-                        break;
-                    }
-                }
-            }
-
-            if (isDifferent) {
-                // 상이한 경우 → Hub 우선
-                finalAlerts = hubAlerts;
-                dataSource = 'HUB (데이터 상이 - Hub 우선)';
-                // console.log('📍 데이터 상이 → Hub API 우선 적용');
-            } else {
-                // 동일한 경우 → 현재 표시된 상태 유지 (첫 번째 응답 유지)
-                finalAlerts = firstResponder === 'hub' ? hubAlerts : afsoMainAlerts;
-                dataSource = `${firstResponder.toUpperCase()} (데이터 동일 - 유지)`;
-                // console.log('✅ 데이터 동일 → 현재 상태 유지');
-            }
-        }
-
-        // 최종 데이터 저장
-        appState.alerts = finalAlerts;
-        // appState.buoyData는 백그라운드에서 설정됨
-        appState.coastalAlerts = coastalAlerts;
-
-        // API 상태 업데이트
-        appState.apiStatus.hub = hubSuccess ? 'success' : 'error';
-        appState.apiStatus.buoy = appState.apiStatus.buoy || 'loading'; // 백그라운드에서 업데이트됨
-        appState.apiStatus.coastal = afsoSuccess ? 'success' : 'error';
-        appState.hasApiError = finalAlerts.length === 0 && Object.keys(coastalAlerts).length === 0;
-
-        // console.log('=== API Results (Progressive) ===');
-        // console.log('First Responder:', firstResponder.toUpperCase());
-        // console.log('KMA Hub API:', hubSuccess ? 'SUCCESS' : 'FAILED/EMPTY', `(${hubAlerts.length} items)`);
-        // console.log('AFSO API:', afsoSuccess ? 'SUCCESS' : 'FAILED', `(${afsoMainAlerts.length} main, ${Object.keys(coastalAlerts).length} coastal)`);
-        // console.log('Final Data Source:', dataSource);
-        // console.log('Final Alerts:', finalAlerts.length, 'items');
-        // console.log('Buoy Data: (Loading in Background)');
-
-        appState.lastUpdated = new Date();
         updateApiStatusDisplay();
         renderApp();
     } catch (error) {
         // console.error('Critical Error in fetchAllData:', error);
-        appState.apiStatus = { hub: 'error', buoy: 'error', coastal: 'error' };
         appState.hasApiError = true;
         updateApiStatusDisplay();
         renderApp();
@@ -1212,6 +1124,7 @@ async function fetchAllData() {
         updateLoading(false);
     }
 }
+
 
 // --- KMA HUB API (wrn_now_data.php) ---
 async function fetchKmaHubData() {
@@ -1303,7 +1216,11 @@ function parseHubText(text) {
         }
 
         const regId = parts[2];
-        const regName = parts[3];
+        let regName = parts[3];
+        // [추가] 기상청 데이터 중 '평수구역'이 '평수구'로 잘려오는 현상 보정
+        if (regName && regName.endsWith('평수구')) {
+            regName = regName + '역';
+        }
         const tmFc = parts[4];
         const tmEf = parts[5];
         const wrnType = parts[6];
@@ -1343,7 +1260,7 @@ function parseHubText(text) {
 
                 // 또는 "중" 앞부분 추출
                 if (!parentZone) {
-                    const match = regName.match(/^(.+)중(.+)(연안바다|평수구역)$/);
+                    const match = regName.match(/^(.+)중(.+)(연안바다|평수구역|평수구)$/);
                     if (match) {
                         parentZone = match[1];
                     }
@@ -1361,7 +1278,7 @@ function parseHubText(text) {
                     }
                 }
             }
-            return; // 해제 명령은 alerts에 추가하지 않음
+            // return; // [수정] 해제 명령어도 alerts에 포함시켜야 관리 패널에서 확인 가능
         }
 
         // 중복 체크 (같은 구역 + 같은 특보 종류)
@@ -1372,12 +1289,15 @@ function parseHubText(text) {
         seenZones.add(key);
 
         // 특보 수준 변환
+        const isPreliminary = (level === '예비' || cmd === '예보');
         let levelText = level;
-        if (level === '주의') levelText = '주의보';
-        else if (level === '경보') levelText = '경보';
-        else if (level === '예비') levelText = '예비';
-
-        const isPreliminary = level === '예비';
+        if (isPreliminary) {
+            levelText = '예비';
+        } else if (level === '주의') {
+            levelText = '주의보';
+        } else if (level === '경보') {
+            levelText = '경보';
+        }
 
         const alertData = {
             id: `${regId}_${wrnType}_${tmFc}`,
@@ -1437,6 +1357,7 @@ function getMockAlerts() {
 
 /**
  * 구역명에서 "제외" 정보 파싱
+ * &#40; -> (, &#41; -> ) 등
  */
 function parseExclusionFromZoneName(zoneName) {
     if (!zoneName) return { cleanZoneName: '', excluded: [] };
@@ -1450,8 +1371,11 @@ function parseExclusionFromZoneName(zoneName) {
     const cleanZoneName = match[1].trim();
     const exclusionText = match[2].trim();
 
+    // "제외" 앞의 연안바다 이름 추출
+    // 예: "남서연안바다 제외", "북동·남동연안바다 제외", "북서연안바다, 가파도연안바다 제외"
     const excludedPart = exclusionText.replace(/\s*제외\s*$/, '');
 
+    // 구분자로 분리 (·, ,, 、)
     const excludedNames = excludedPart
         .split(/[·,、]/)
         .map(name => name.trim())
@@ -1506,12 +1430,30 @@ async function fetchAfsoData() {
                 continue;
             }
 
-            // 수준 변환
-            let level = item.wrnLvlName || '';
-            if (level === '주의') level = '주의보';
-            else if (level === '경보') level = '경보';
+            // [수정] 해제된 특보는 처리하지 않음
+            if (item.wrnCmd && item.wrnCmd.includes('해제')) {
+                continue;
+            }
 
-            const isPreliminary = item.wrnLvl === '1';
+            // 수준 및 예비 여부 변환
+            const lvl = String(item.wrnLvl || '').trim();
+            const lvlName = String(item.wrnLvlName || '').trim();
+            const cmd = String(item.wrnCmd || '').trim();
+
+            const isPreliminary = lvl === '1' ||
+                lvl.includes('예비') ||
+                lvlName.includes('예비') ||
+                cmd.includes('예비');
+
+            let level = lvlName || lvl;
+            if (isPreliminary) {
+                level = '예비';
+            } else if (level === '주의') {
+                level = '주의보';
+            } else if (level === '경보') {
+                level = '경보';
+            }
+
             const warnType = item.wrnTp === '해일' ? '폭풍해일' : item.wrnTp;
 
             // 연안바다/평수구역인지 확인
@@ -1537,7 +1479,7 @@ async function fetchAfsoData() {
                         zoneName: zoneName,
                         warnType: warnType,
                         level: level,
-                        command: '발표',
+                        command: item.wrnCmd || '발표',
                         tmFc: decodeHtmlEntities(item.tmFc || ''),
                         tmEf: decodeHtmlEntities(item.tmEf || ''),
                         tmEd: decodeHtmlEntities(item.tmEd || ''),
@@ -1557,7 +1499,7 @@ async function fetchAfsoData() {
                         zoneName: zoneName,
                         warnType: warnType,
                         level: level,
-                        command: '발표',
+                        command: item.wrnCmd || '발표',
                         tmFc: decodeHtmlEntities(item.tmFc || ''),
                         tmEf: decodeHtmlEntities(item.tmEf || ''),
                         tmEd: decodeHtmlEntities(item.tmEd || ''),
@@ -2134,6 +2076,8 @@ function renderApp() {
 
     // [New] 동일 구역의 특보를 하나로 묶기
     const zoneAlertsMap = {};
+
+    // 1. 메인 특보 데이터 기반으로 맵 구성
     appState.alerts.forEach(item => {
         if (item.isCoastal) return;
         if (typeof UserSettings !== 'undefined' && !UserSettings.isVisible(item.zoneName)) return;
@@ -2144,9 +2088,51 @@ function renderApp() {
         zoneAlertsMap[item.zoneName].push(item);
     });
 
+    // 2. [수정] 연안바다/평수구역 특보가 있는 경우, 해당 상위 구역(Parent)도 맵에 추가
+    // (메인 특보가 없더라도 연안 특보를 보여주기 위해 카드를 생성해야 함)
+    if (appState.coastalAlerts) {
+        for (const [coastalName, alerts] of Object.entries(appState.coastalAlerts)) {
+            if (alerts && alerts.length > 0) {
+                // 이 연안구역이 속한 모든 상위 구역(Parent) 찾기
+                for (const [parentName, subZones] of Object.entries(COASTAL_MAPPING)) {
+                    // 공백 제거 및 부분 일치 비교 (KMA 데이터는 '평수구역'을 '평수구'로 줄여 보내는 경우가 많음)
+                    const isMatch = subZones.some(sz => {
+                        let szNorm = (sz.fullName || '').replace(/\s+/g, '');
+                        let cNorm = coastalName.replace(/\s+/g, '');
+
+                        // '평수구'로 끝나는 경우 '역'을 붙여서 비교 시도
+                        if (cNorm.endsWith('평수구')) cNorm += '역';
+                        if (szNorm.endsWith('평수구')) szNorm += '역';
+
+                        return szNorm === cNorm || (szNorm.length > 5 && cNorm.length > 5 && (szNorm.startsWith(cNorm) || cNorm.startsWith(szNorm)));
+                    });
+
+                    if (isMatch) {
+                        // 사용자가 설정에서 숨긴 구역은 건너뜀
+                        if (typeof UserSettings !== 'undefined' && !UserSettings.isVisible(parentName)) continue;
+
+                        if (!zoneAlertsMap[parentName]) {
+                            // 메인 특보가 없는 경우 더미 객체 하나 추가 (구역명 보존 및 에러 방지용)
+                            // dummy: true 속성을 통해 메인 특보가 없음을 createAlertElement에서 알 수 있음
+                            zoneAlertsMap[parentName] = [{
+                                zoneName: parentName,
+                                isDummy: true,
+                                // 기본값 설정
+                                warnType: '',
+                                level: '',
+                                tmFc: '',
+                                tmEf: '',
+                                tmEd: ''
+                            }];
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Object.keys(zoneAlertsMap).forEach(zoneName => {
         const items = zoneAlertsMap[zoneName];
-        const rep = items[0]; // 대표 정보 파싱용
         const subRegion = getSubRegion(zoneName) || '기타';
         const mainRegion = getMainRegion(subRegion);
 
@@ -2368,8 +2354,58 @@ function renderApp() {
     });
 
     // Count Active vs Preliminary (필터링된 목록 기준)
-    const activeCount = filteredAlerts.filter(a => !a.isPreliminary).length;
-    const prelimCount = filteredAlerts.filter(a => a.isPreliminary).length;
+    const now = getKfTime();
+
+    // [수정] 장부(alertStateHistory)에서 실제 발효 중인 해역 목록 추출
+    const activeZoneIds = new Set();
+    if (appState.alertStateHistory) {
+        Object.entries(appState.alertStateHistory).forEach(([regId, entry]) => {
+            if (!entry) return;
+
+            // [A안 적용] 새 구조: activeAlert 사용
+            if (entry.activeAlert) {
+                activeZoneIds.add(regId);
+                return;
+            }
+
+            // 구형 포맷 호환: entry.current 사용
+            if (entry.current) {
+                const curr = entry.current;
+                const cleanEf = (curr.rawTmEf || String(curr.tmEf || '').replace(/[^0-9]/g, ''));
+                const isActive = curr.status === 'active' || (cleanEf && cleanEf.length >= 12 && now >= cleanEf);
+                if (isActive) {
+                    activeZoneIds.add(regId);
+                }
+            }
+        });
+    }
+
+    // [수정] 발효 카운트: filteredAlerts 중 장부에 발효 중인 해역만 카운트
+    // UserSettings 필터링이 적용된 목록에서만 카운트
+    const filteredActiveZoneIds = new Set();
+    filteredAlerts.forEach(a => {
+        if (a.regId && activeZoneIds.has(a.regId)) {
+            filteredActiveZoneIds.add(a.regId);
+        }
+    });
+    const activeCount = filteredActiveZoneIds.size;
+
+    // [수정] 발표 카운트: 해당 해역에 기존 active가 전혀 없는 "순수 신규 발표"만 집계
+    // 장부에 active가 있는 해역은 제외 (변경 예고이지 신규 발표가 아님)
+    const prelimCount = filteredAlerts.filter(a => {
+        // 예비특보이거나 발효시각이 미래인 경우
+        const isPrelim = a.isPreliminary;
+        const cleanEf = String(a.tmEf || '').replace(/[^0-9]/g, '');
+        const isFuture = cleanEf && cleanEf.length >= 12 && now < cleanEf;
+
+        if (!isPrelim && !isFuture) return false; // 예비/대기가 아니면 제외
+
+        // [핵심] 장부(alertStateHistory)에서 해당 해역에 이미 발효 중인 특보가 있으면 "발표"로 세지 않음
+        if (a.regId && activeZoneIds.has(a.regId)) return false;
+
+        return true; // 순수 신규 발표만 카운트
+    }).length;
+
     const totalCount = activeCount + prelimCount;
 
     // [New] 헤더 텍스트 변경 로직
@@ -2388,7 +2424,7 @@ function renderApp() {
     const sectionTitle = document.querySelector('#main-accordion-header .section-title');
     if (sectionTitle) {
         if (isFiltered) {
-            sectionTitle.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> 지정해역별 특보현황';
+            sectionTitle.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> 관심해역별 특보현황';
         } else {
             sectionTitle.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> 해역별 특보현황';
         }
@@ -2398,7 +2434,7 @@ function renderApp() {
     const statusTitle = document.querySelector('#marine-status-accordion-header .section-title');
     if (statusTitle) {
         if (isFiltered) {
-            statusTitle.innerHTML = '<i class="fa-solid fa-sun" style="color: #FFD700;"></i> 지정해역별 기상현황';
+            statusTitle.innerHTML = '<i class="fa-solid fa-sun" style="color: #FFD700;"></i> 관심해역별 기상현황';
         } else {
             statusTitle.innerHTML = '<i class="fa-solid fa-sun" style="color: #FFD700;"></i> 해역별 기상현황';
         }
@@ -2446,7 +2482,7 @@ function renderApp() {
 
             // 텍스트 조건부 변경
             if (isFiltered) {
-                safeBadge.textContent = '지정해역 특보 없음';
+                safeBadge.textContent = '관심해역 특보 없음';
             } else {
                 safeBadge.textContent = '전 해역 특보없음';
             }
@@ -2506,15 +2542,21 @@ function renderApp() {
 function createAlertElement(items) {
     if (!Array.isArray(items)) items = [items];
 
-    // 내부 정렬 (가장 중요한 특보가 앞으로)
-    const sortedAlerts = sortAlertItems(items);
-    const data = sortedAlerts[0]; // 대표 데이터 (구역명, 시간 등)
+    let zoneNameStr = '';
+    let sortedAlerts = [];
+
+    if (items.length > 0) {
+        sortedAlerts = sortAlertItems(items);
+        zoneNameStr = sortedAlerts[0].zoneName;
+    }
+
+    const data = sortedAlerts[0] || {};
+    zoneNameStr = data.zoneName || '알 수 없는 구역';
 
     const template = document.getElementById('alert-item-template');
     const clone = template.content.cloneNode(true);
     const card = clone.querySelector('.alert-card');
 
-    // 카드 스타일 (컴팩트하게 - 중분류보다 작게)
     card.style.cssText = `
         padding: 10px 12px;
         margin-bottom: 6px;
@@ -2524,12 +2566,10 @@ function createAlertElement(items) {
         transition: all 0.2s ease;
     `;
 
-    // 구역명 (컴팩트하게)
     const zoneName = clone.querySelector('.zone-name');
-    zoneName.innerHTML = ''; // 초기화
-
+    zoneName.innerHTML = '';
     const nameSpan = document.createElement('span');
-    nameSpan.textContent = data.zoneName;
+    nameSpan.textContent = zoneNameStr;
     zoneName.appendChild(nameSpan);
 
     // 원본 이름에 추가 정보(해제예고 등)가 있다면 함께 표시
@@ -2555,88 +2595,308 @@ function createAlertElement(items) {
         flex-wrap: wrap;
     `;
 
-    // 뱃지 (복수 특보 지원)
     const badgeContainer = clone.querySelector('.alert-badges');
     badgeContainer.style.display = 'flex';
     badgeContainer.style.gap = '4px';
     badgeContainer.style.flexWrap = 'wrap';
 
-    sortedAlerts.forEach(alert => {
-        if (alert.warnType && alert.level) {
-            const badge = document.createElement('span');
-            badge.className = `status-badge ${alert.isPreliminary ? 'preliminary' : 'warning'}`;
-            badge.textContent = `${alert.warnType} ${alert.level}`;
-            badgeContainer.appendChild(badge);
+    const now = getKfTime();
+    const targetZoneName = data.zoneName || '';
 
-            // 명령 뱃지 (발표, 대치 등 - 발표는 제외)
-            if (alert.command && alert.command !== '발표') {
-                const cmdBadge = document.createElement('span');
-                cmdBadge.className = 'status-badge safe';
-                cmdBadge.textContent = alert.command;
-                badgeContainer.appendChild(cmdBadge);
+    const getAlertScore = (type, lvl) => {
+        const TYPE_RANK = { '태풍': 100, '풍랑': 10, '강풍': 10, '해일': 10, '호우': 10, '대설': 10, '기타': 0 };
+        const LVL_RANK = { '경보': 5, '주의보': 2, '예비': 1, '기타': 0, '해제': 0, '': 0 };
+        const tScore = TYPE_RANK[type] || (type && type.includes('태풍') ? 100 : 10);
+        const lScore = LVL_RANK[lvl] || 0;
+        return tScore + lScore;
+    };
+
+    let ledgerEntry = null;
+    const targetRegId = data.regId; // API 데이터의 regId
+
+    // 1단계: regId로 정밀 매칭 시도
+    if (appState.alertStateHistory && targetRegId && appState.alertStateHistory[targetRegId]) {
+        ledgerEntry = appState.alertStateHistory[targetRegId];
+    }
+
+    // 2단계: 실패 시 명칭 기반 매칭 (Fallback)
+    if (!ledgerEntry && appState.alertStateHistory) {
+        const normalizeName = (s) => (s || '').replace(/[\s·.()]/g, '').trim();
+        const normTarget = normalizeName(targetZoneName);
+
+        for (const [regId, zoneData] of Object.entries(appState.alertStateHistory)) {
+            const normKo = normalizeName(zoneData.korName || zoneData.regKo || '');
+            if (normKo === normTarget) {
+                ledgerEntry = zoneData;
+                break;
             }
         }
-    });
+    }
 
-    // 시간 정보 (복수 특보 지원 - 각 특보별로 섹션 생성)
-    const details = clone.querySelector('.alert-details');
-    details.innerHTML = ''; // 기존 템플릿 구조 초기화 후 동적 생성
+    let currentInView = null;
+    let transitionBadge = null;
+    let publishEntry = null; // 예정된 변경사항
+
+    // [A안 적용] 장부에서 activeAlert와 upcomingAlert를 분리하여 참조
+    // 마이그레이션 호환: current 필드가 있으면 구형 포맷으로 처리
+    if (ledgerEntry) {
+        // 신형 포맷 (activeAlert + upcomingAlert)
+        if (ledgerEntry.activeAlert) {
+            const curr = ledgerEntry.activeAlert;
+            const currLevel = (curr.wrnLvl === '경보' || (curr.wrnLvl && curr.wrnLvl.includes('경보'))) ? '경보' :
+                (curr.wrnLvl === '주의보' || (curr.wrnLvl && curr.wrnLvl.includes('주의'))) ? '주의보' :
+                    (curr.wrnLvl === '예비' || (curr.wrnLvl && curr.wrnLvl.includes('예비'))) ? '예비' : '기타';
+
+            currentInView = {
+                warnType: curr.wrnTp || curr.warnType || '풍랑',
+                level: currLevel,
+                tmFc: curr.tmFc,
+                tmEf: curr.tmEf,
+                tmYn: curr.tmYn,
+                rawTmEf: curr.rawTmEf || '',
+                isFromHistory: true
+            };
+        }
+
+        if (ledgerEntry.upcomingAlert) {
+            const upcoming = ledgerEntry.upcomingAlert;
+            const upLevel = (upcoming.wrnLvl === '경보' || (upcoming.wrnLvl && upcoming.wrnLvl.includes('경보'))) ? '경보' :
+                (upcoming.wrnLvl === '주의보' || (upcoming.wrnLvl && upcoming.wrnLvl.includes('주의'))) ? '주의보' :
+                    (upcoming.wrnLvl === '예비' || (upcoming.wrnLvl && upcoming.wrnLvl.includes('예비'))) ? '예비' : '기타';
+
+            publishEntry = {
+                warnType: upcoming.wrnTp || upcoming.warnType || '풍랑',
+                level: upLevel,
+                tmFc: upcoming.tmFc,
+                tmEf: upcoming.tmEf,
+                tmYn: upcoming.tmYn,
+                rawTmEf: upcoming.rawTmEf || '',
+                isFromHistory: true
+            };
+        }
+
+        // 구형 포맷 호환 (current 필드가 있는 경우)
+        if (!currentInView && !publishEntry && ledgerEntry.current) {
+            const curr = ledgerEntry.current;
+            const currLevel = (curr.wrnLvl === '경보' || (curr.wrnLvl && curr.wrnLvl.includes('경보'))) ? '경보' :
+                (curr.wrnLvl === '주의보' || (curr.wrnLvl && curr.wrnLvl.includes('주의'))) ? '주의보' :
+                    (curr.wrnLvl === '예비' || (curr.wrnLvl && curr.wrnLvl.includes('예비'))) ? '예비' : '기타';
+
+            const currData = {
+                warnType: curr.wrnTp || curr.warnType || '풍랑',
+                level: currLevel,
+                tmFc: curr.tmFc,
+                tmEf: curr.tmEf,
+                tmYn: curr.tmYn,
+                rawTmEf: curr.rawTmEf || '',
+                isFromHistory: true
+            };
+
+            if (curr.status === 'active') {
+                currentInView = currData;
+            } else if (curr.status === 'publish') {
+                publishEntry = currData;
+            }
+        }
+    }
+
+    // [Fallback] 장부에 데이터가 없을 때만 API 데이터를 현재 상태로 간주
+    // 장부에 데이터가 있으면 장부 기준으로 처리하므로 Fallback 불필요
+    if (!ledgerEntry && !currentInView && data && !data.isDummy && data.warnType && data.level) {
+        if (!data.isPreliminary) {
+            currentInView = {
+                ...data,
+                level: (data.level === '경보' || (data.level && data.level.includes('경보'))) ? '경보' : '주의보'
+            };
+        }
+    }
+
+    // [단순화] 격상/격하 배지 계산 로직 제거됨
+
+    let upcomingFromApi = [];
+    const seenTmFc = new Set();
+
+    // 1. 장부의 publishEntry가 있으면 가장 먼저 등록 (우선순위)
+    if (publishEntry && publishEntry.tmFc) {
+        seenTmFc.add(publishEntry.tmFc);
+    }
+    // currentInView도 기등록 처리
+    if (currentInView && currentInView.tmFc) {
+        seenTmFc.add(currentInView.tmFc);
+    }
 
     sortedAlerts.forEach(alert => {
-        const timeBox = document.createElement('div');
-        timeBox.className = 'alert-time-box';
-        timeBox.style.cssText = `
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        `;
+        if (!alert.warnType || !alert.level) return;
+        const cleanEf = String(alert.tmEf || '').replace(/[^0-9]/g, '');
+        const isFuture = cleanEf && cleanEf.length >= 12 && now < cleanEf;
 
-        // [수정] 특보가 2개 이상일 때만 개별 타이틀(뱃지) 표시 - 단일 특보일 경우 중복 제거
-        if (sortedAlerts.length > 1) {
-            const alertTitle = document.createElement('div');
-            alertTitle.style.cssText = `
-                display: inline-block;
-                margin-bottom: 10px;
-                padding: 2px 8px;
-                border-radius: 4px;
-                font-size: 0.85rem;
-                font-weight: 700;
-                background: ${alert.isPreliminary ? 'rgba(255, 183, 77, 0.2)' : 'rgba(255, 107, 107, 0.2)'};
-                color: ${alert.isPreliminary ? '#ffb74d' : '#ff6b6b'};
-                border: 1px solid ${alert.isPreliminary ? 'rgba(255, 183, 77, 0.3)' : 'rgba(255, 107, 107, 0.3)'};
-            `;
-            alertTitle.textContent = `${alert.warnType} ${alert.level}${alert.command && alert.command !== '발표' ? ` (${alert.command})` : ''}`;
-            timeBox.appendChild(alertTitle);
+        if (isFuture || alert.isPreliminary) {
+            // 이미 장부 데이터(publishEntry/currentInView)로 처리된 동일 시각 데이터는 제외
+            if (alert.tmFc && seenTmFc.has(alert.tmFc)) return;
+
+            upcomingFromApi.push(alert);
+            if (alert.tmFc) seenTmFc.add(alert.tmFc);
         }
-
-        // 시간 정보 행들
-        const createRow = (label, value, color) => {
-            const row = document.createElement('div');
-            row.style.cssText = 'display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem;';
-            row.innerHTML = `
-                <span style="color: #8b949e;">${label}</span>
-                <span style="color: ${color || '#e6edf3'}; font-weight: 500;">${value}</span>
-            `;
-            return row;
-        };
-
-        const releaseTimeRaw = alert.tmEd && alert.tmEd.trim() !== '' ? alert.tmEd : '';
-        let releaseTime = '정보 없음';
-        if (releaseTimeRaw && !releaseTimeRaw.startsWith('00일')) {
-            releaseTime = formatDate(releaseTimeRaw);
-        }
-
-        timeBox.appendChild(createRow('발표시각', formatDate(alert.tmFc) || '정보 없음'));
-        timeBox.appendChild(createRow('발효시각', formatDate(alert.tmEf) || '정보 없음'));
-        timeBox.appendChild(createRow('해제예정', releaseTime, '#69f0ae'));
-
-        details.appendChild(timeBox);
     });
 
-    // 연안바다/평수구역 표시 (먼저)
-    const coastalZones = COASTAL_MAPPING[data.zoneName];
+
+
+    if (currentInView) {
+        const badge = document.createElement('span');
+        badge.className = 'status-badge warning';
+        badge.textContent = `${currentInView.warnType} ${currentInView.level}`;
+        badgeContainer.appendChild(badge);
+
+
+    }
+
+    // [보정] API 파싱 오류나 장부 오류로 인해 예비특보와 주의보가 동시에 잡히는 경우
+    // 장부(History) 여부와 상관없이, 예비특보가 존재하는데 주의보가 떠있다면(경보 제외)
+    // 그리고 두 특보의 발표시각(tmFc)이 같다면, 이는 100% 동일 데이터를 잘못 해석한 것이다.
+    if (publishEntry && currentInView) {
+        // level 비교를 느슨하게 하여 '주의보' 뿐만 아니라 '주의' 등도 포함
+        const curLvl = currentInView.level || '';
+        const pubLvl = publishEntry.level || '';
+
+        if (pubLvl.includes('예비') && !curLvl.includes('경보')) {
+            // 발표 시각이 같으면 동일 알림의 중복 해석이므로 제거
+            if (publishEntry.tmFc === currentInView.tmFc) {
+                currentInView = null;
+                activeFromApi = [];
+            }
+        }
+    }
+
+
+    // [수정] publishEntry(예정된 변경)가 있으면 배지 생성
+    if (publishEntry) {
+        let direction = '';
+        if (currentInView) {
+            const curScore = getAlertScore(currentInView.warnType, currentInView.level);
+            const pubScore = getAlertScore(publishEntry.warnType, publishEntry.level);
+            direction = curScore > pubScore ? '격하' : curScore < pubScore ? '격상' : '';
+        }
+
+        // 예비 배지 생성: 사용자 요청에 따라 항상 '풍랑 예비' 형식으로 간소화
+        const badge = document.createElement('span');
+        badge.className = 'status-badge preliminary';
+        const cleanType = (publishEntry.warnType || '').replace('주의보', '').replace('경보', '').trim();
+        badge.textContent = `${cleanType} 예비`;
+        badgeContainer.appendChild(badge);
+
+        // 상세 영역 표시를 위해 리스트에 추가 (중복 방지는 위에서 처리됨)
+        upcomingFromApi.unshift({
+            ...publishEntry,
+            _isUpcoming: true,
+            _direction: direction
+        });
+    }
+
+    // 추가적인 upcoming 정보들 배지 생성
+    upcomingFromApi.forEach(upcoming => {
+        if (upcoming._isUpcoming) return; // 이미 publishEntry로 처리된 것 스킵
+
+        const badge = document.createElement('span');
+        badge.className = 'status-badge preliminary';
+        const cleanType = (upcoming.warnType || '').replace('주의보', '').replace('경보', '').trim();
+        badge.textContent = `${cleanType} 예비`;
+        badgeContainer.appendChild(badge);
+    });
+
+    if (badgeContainer.children.length === 0) {
+        const safeBadge = document.createElement('span');
+        safeBadge.className = 'status-badge safe';
+        safeBadge.textContent = '관심해역 특보 없음';
+        safeBadge.style.opacity = '0.6';
+        badgeContainer.appendChild(safeBadge);
+    }
+
+    // 상세 정보 영역 표시용 데이터 리스트 구성
+    const detailedAlertList = [];
+    const seenDetailTmFc = new Set();
+
+    // 1. 현재 발효 중인 특보 등록
+    if (currentInView) {
+        detailedAlertList.push({ ...currentInView, _isCurrent: true });
+        if (currentInView.tmFc) seenDetailTmFc.add(currentInView.tmFc);
+    }
+
+    // 2. 다가오는(예비) 특보 등록
+    upcomingFromApi.forEach(up => {
+        // 이미 등록된 정보와 발표시각(tmFc)이 같으면 완벽한 중복이므로 제외
+        if (up.tmFc && seenDetailTmFc.has(up.tmFc)) return;
+
+        detailedAlertList.push({ ...up, _isUpcoming: true });
+        if (up.tmFc) seenDetailTmFc.add(up.tmFc);
+    });
+
+    const details = clone.querySelector('.alert-details');
+    details.innerHTML = '';
+
+    const formatAlertTime = (timeStr) => {
+        if (!timeStr || timeStr.trim() === '' || timeStr.trim() === '일') return '정보 없음';
+        const decoded = timeStr.replace(/&#40;/g, '(').replace(/&#41;/g, ')').trim();
+        const dotMatch = decoded.match(/^(\d{4})\.(\d{2})\.(\d{2})\.(\d{2}):(\d{2})$/);
+        if (dotMatch) {
+            const yy = dotMatch[1].slice(-2);
+            let hh = parseInt(dotMatch[4], 10);
+            const ampm = hh >= 12 ? '오후' : '오전';
+            if (hh > 12) hh -= 12;
+            if (hh === 0) hh = 12;
+            return `${yy}.${dotMatch[2]}.${dotMatch[3]} ${ampm} ${hh}시 ${dotMatch[5]}분`;
+        }
+        const textMatch = decoded.match(/^(\d{4})\.(\d{2})\.(\d{2})\.\s*(.+)$/);
+        if (textMatch) {
+            const yy = textMatch[1].slice(-2);
+            return `${yy}.${textMatch[2]}.${textMatch[3]} ${textMatch[4]}`;
+        }
+        return decoded;
+    };
+
+    const createRow = (label, value, color) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.85rem;';
+        row.innerHTML = `<span style="color: #8b949e;">${label}</span><span style="color: ${color || '#e6edf3'}; font-weight: 500;">${value || '정보 없음'}</span>`;
+        return row;
+    };
+
+    detailedAlertList.forEach((alert, idx) => {
+        if (alert.isDummy) return;
+
+        // [수정] 다가오는 특보인 경우: 현재 특보가 이미 위에 있을 때만(idx > 0) [다가오는 특보] 타이틀과 구분선 표시
+        if (alert._isUpcoming) {
+            if (idx > 0) {
+                const divider = document.createElement('div');
+                divider.style.cssText = 'height: 1px; background: rgba(255,255,255,0.1); margin: 12px 0 8px 0; border-top: 1px dashed rgba(255,255,255,0.05);';
+                details.appendChild(divider);
+
+                const upcomingHead = document.createElement('div');
+                upcomingHead.style.cssText = 'color: #ffb74d; font-size: 0.75rem; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;';
+                upcomingHead.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> [다가오는 특보] ${alert.warnType} ${alert.level} 예정`;
+                details.appendChild(upcomingHead);
+            }
+        }
+        // [수정] '현재 발효 중' 타이틀은 사용자 요청으로 인해 표시하지 않음 (공간 절약 및 디자인 깔끔화)
+
+        details.appendChild(createRow('발표시각', formatAlertTime(alert.tmFc)));
+        details.appendChild(createRow('발효시각', formatAlertTime(alert.tmEf)));
+        let releaseTime = alert.tmYn || alert.tmEd || '';
+        if (releaseTime.trim() === '일' || releaseTime.trim() === '') {
+            releaseTime = '정보 없음';
+        }
+        details.appendChild(createRow('해제예정', releaseTime, '#69f0ae'));
+    });
+
+    const findCoastalZones = (zName) => {
+        if (!zName) return null;
+        const norm = zName.replace(/[\s·.]/g, '');
+        for (const [key, val] of Object.entries(COASTAL_MAPPING)) {
+            if (key.replace(/[\s·.]/g, '') === norm) return val;
+        }
+        return null;
+    };
+
+    const coastalZones = findCoastalZones(data.zoneName);
     if (coastalZones && coastalZones.length > 0) {
         const coastalContainer = document.createElement('div');
         coastalContainer.className = 'coastal-zones';
@@ -2645,19 +2905,18 @@ function createAlertElement(items) {
         coastalContainer.style.paddingTop = '12px';
 
         const coastalTitle = document.createElement('div');
-        coastalTitle.style.fontSize = '0.85rem';
-        coastalTitle.style.color = '#8b949e';
-        coastalTitle.style.marginBottom = '8px';
+        coastalTitle.style.cssText = 'font-size: 0.85rem; color: #8b949e; margin-bottom: 8px;';
         coastalTitle.textContent = '연안바다/평수구역';
         coastalContainer.appendChild(coastalTitle);
 
-        // 공백 무관 매칭 함수
         const findCoastalAlert = (fullName) => {
-            const normalizedTarget = fullName.replace(/\s+/g, '');
-            for (const [key, alerts] of Object.entries(appState.coastalAlerts)) {
+            const normalizedTarget = (fullName || '').replace(/\s+/g, '');
+            for (const [key, alerts] of Object.entries(appState.coastalAlerts || {})) {
                 const normalizedKey = key.replace(/\s+/g, '');
-                if (normalizedKey === normalizedTarget) {
-                    return alerts; // 이제 배열을 반환함
+                if (normalizedKey === normalizedTarget) return alerts;
+                // 부분 일치 허용 (구역/수구 등 truncation 대응)
+                if (normalizedKey.length > 10 && normalizedTarget.length > 10) {
+                    if (normalizedKey.startsWith(normalizedTarget) || normalizedTarget.startsWith(normalizedKey)) return alerts;
                 }
             }
             return null;
@@ -2670,65 +2929,39 @@ function createAlertElement(items) {
             if (!alertA && alertB) return 1;
             return 0;
         });
-
         sortedCoastal.forEach(coastal => {
             const coastalAlert = findCoastalAlert(coastal.fullName);
             const coastalItem = createCoastalElement(coastal, coastalAlert, data.zoneName);
             coastalContainer.appendChild(coastalItem);
         });
-
         details.appendChild(coastalContainer);
     }
 
-    // 부이 정보 표시 (버튼 방식) - 연안바다 아래
     const buoys = BUOY_MAPPING[data.zoneName];
     if (buoys && buoys.length > 0) {
         const buoyContainer = document.createElement('div');
         buoyContainer.className = 'buoy-section';
-        buoyContainer.style.marginTop = '12px';
-        buoyContainer.style.borderTop = '1px solid rgba(255,255,255,0.1)';
-        buoyContainer.style.paddingTop = '12px';
+        buoyContainer.style.cssText = 'margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;';
 
         const buoyTitle = document.createElement('div');
-        buoyTitle.style.fontSize = '0.85rem';
-        buoyTitle.style.color = '#8b949e';
-        buoyTitle.style.marginBottom = '10px';
+        buoyTitle.style.cssText = 'font-size: 0.85rem; color: #8b949e; margin-bottom: 10px;';
         buoyTitle.innerHTML = BUOY_SVG_ICON + ' 관측부이 <span style="color:#69f0ae;font-size:0.75rem">(' + buoys.length + ')</span>';
         buoyContainer.appendChild(buoyTitle);
 
-        // 버튼 컨테이너
         const btnContainer = document.createElement('div');
-        btnContainer.style.display = 'flex';
-        btnContainer.style.flexWrap = 'wrap';
-        btnContainer.style.gap = '8px';
-        btnContainer.style.marginBottom = '10px';
+        btnContainer.style.cssText = 'display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;';
 
-        // 정보 표시 영역
         const infoArea = document.createElement('div');
         infoArea.className = 'buoy-info-area';
-        infoArea.style.display = 'none';
-        infoArea.style.backgroundColor = 'rgba(68, 138, 255, 0.1)';
-        infoArea.style.borderRadius = '8px';
-        infoArea.style.padding = '12px';
-        infoArea.style.border = '1px solid rgba(68, 138, 255, 0.2)';
+        infoArea.style.cssText = 'display: none; background: rgba(68, 138, 255, 0.1); border-radius: 8px; padding: 12px; border: 1px solid rgba(68, 138, 255, 0.2);';
 
         buoys.forEach(buoy => {
             const btn = document.createElement('button');
             btn.className = 'buoy-btn';
             btn.textContent = buoy.name;
-            btn.style.padding = '6px 14px';
-            btn.style.borderRadius = '16px';
-            btn.style.border = '1px solid rgba(255,255,255,0.15)';
-            btn.style.backgroundColor = 'rgba(255,255,255,0.05)';
-            btn.style.color = '#ccc';
-            btn.style.fontSize = '0.85rem';
-            btn.style.cursor = 'pointer';
-            btn.style.transition = 'all 0.2s';
-
+            btn.style.cssText = 'padding: 6px 14px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #ccc; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;';
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-
-                // 이미 활성화된 버튼 클릭 시 닫기
                 if (btn.classList.contains('active')) {
                     btn.classList.remove('active');
                     btn.style.backgroundColor = 'rgba(255,255,255,0.05)';
@@ -2737,26 +2970,19 @@ function createAlertElement(items) {
                     infoArea.style.display = 'none';
                     return;
                 }
-
-                // 다른 버튼 비활성화
                 btnContainer.querySelectorAll('.buoy-btn').forEach(b => {
                     b.classList.remove('active');
                     b.style.backgroundColor = 'rgba(255,255,255,0.05)';
                     b.style.color = '#ccc';
                     b.style.borderColor = 'rgba(255,255,255,0.15)';
                 });
-
-                // 현재 버튼 활성화
                 btn.classList.add('active');
                 btn.style.backgroundColor = 'rgba(68, 138, 255, 0.3)';
                 btn.style.color = '#448aff';
                 btn.style.borderColor = '#448aff';
-
-                // 부이 정보 표시
-                displayBuoyInfo(buoy, infoArea);
                 infoArea.style.display = 'block';
+                displayBuoyInfo(buoy, infoArea);
             });
-
             btnContainer.appendChild(btn);
         });
 
@@ -2789,127 +3015,39 @@ function createAlertElement(items) {
         }
     });
 
-    // 🗺️ 버튼 컨테이너 (기상예보 + 해구별 예상 기상)
-    if (typeof ZONE_OVERLAY_CONFIG !== 'undefined' && ZONE_OVERLAY_CONFIG[data.zoneName]) {
-        // 매핑된 구역인지 확인 (먼바다 통합 구역 등 - 예보 데이터가 없는 구역)
-        const isMappedZone = typeof ZONE_NAME_DISPLAY_MAP !== 'undefined' && ZONE_NAME_DISPLAY_MAP[data.zoneName];
+    const actionsContainer = document.createElement('div');
+    actionsContainer.className = 'card-action-btns';
+    actionsContainer.style.cssText = 'display: flex; gap: 8px; margin-top: 15px;';
 
-        const btnContainer = document.createElement('div');
-        btnContainer.style.cssText = `
-            display: flex;
-            gap: 8px;
-            margin-top: 15px;
-            flex-wrap: nowrap;
-        `;
-
-        // 기상예보 버튼 (매핑된 구역이 아닌 경우에만 표시)
-        if (!isMappedZone) {
-            const forecastBtn = document.createElement('button');
-            forecastBtn.className = 'forecast-btn';
-            forecastBtn.innerHTML = '☀️ 기상예보';
-            forecastBtn.style.cssText = `
-                flex: 1;
-                padding: 12px 8px;
-                background: linear-gradient(135deg, #ffd54f, #ff9800, #f57c00);
-                color: #1a1e2e;
-                border: none;
-                border-radius: 8px;
-                font-size: 0.85rem;
-                font-weight: 600;
-                cursor: pointer;
-                transition: transform 0.2s, box-shadow 0.2s;
-                box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
-                white-space: nowrap;
-            `;
-            forecastBtn.addEventListener('mouseenter', () => {
-                forecastBtn.style.transform = 'translateY(-2px)';
-                forecastBtn.style.boxShadow = '0 4px 15px rgba(255, 152, 0, 0.5)';
-            });
-            forecastBtn.addEventListener('mouseleave', () => {
-                forecastBtn.style.transform = 'translateY(0)';
-                forecastBtn.style.boxShadow = '0 2px 8px rgba(255, 152, 0, 0.3)';
-            });
-            forecastBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                showSeaForecastTable(data.zoneName);
-            });
-            btnContainer.appendChild(forecastBtn);
-        }
-
-        // 해구별 예상 기상 버튼
-        const zoneViewBtn = document.createElement('button');
-        zoneViewBtn.className = 'zone-view-btn';
-        zoneViewBtn.innerHTML = '🗺️ 해구별 기상전망';
-        zoneViewBtn.style.cssText = `
-            flex: 1;
-            padding: 12px 8px;
-            background: linear-gradient(135deg, #e94560, #0f3460);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            white-space: nowrap;
-        `;
-        zoneViewBtn.addEventListener('mouseenter', () => {
-            zoneViewBtn.style.transform = 'translateY(-2px)';
-            zoneViewBtn.style.boxShadow = '0 4px 15px rgba(233, 69, 96, 0.4)';
-        });
-        zoneViewBtn.addEventListener('mouseleave', () => {
-            zoneViewBtn.style.transform = 'translateY(0)';
-            zoneViewBtn.style.boxShadow = 'none';
-        });
-        zoneViewBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (typeof showZoneOverlay === 'function') {
-                showZoneOverlay(data.zoneName);
-            }
-        });
-
-        btnContainer.appendChild(zoneViewBtn);
-
-        // 윈디 버튼 (Windy URL이 있는 구역만)
-        if (WINDY_URL_MAPPING[data.zoneName]) {
-            const windyBtn = document.createElement('button');
-            windyBtn.className = 'windy-btn';
-            windyBtn.innerHTML = '<i class="fa-solid fa-wind"></i> Windy';
-            windyBtn.style.cssText = `
-                flex: 1;
-                padding: 12px 8px;
-                background: linear-gradient(135deg, #00c6ff, #0072ff);
-                color: white;
-                border: none;
-                border-radius: 8px;
-                font-size: 0.85rem;
-                font-weight: 600;
-                cursor: pointer;
-                transition: transform 0.2s, box-shadow 0.2s;
-                white-space: nowrap;
-            `;
-            windyBtn.addEventListener('mouseenter', () => {
-                windyBtn.style.transform = 'translateY(-2px)';
-                windyBtn.style.boxShadow = '0 4px 15px rgba(0, 114, 255, 0.4)';
-            });
-            windyBtn.addEventListener('mouseleave', () => {
-                windyBtn.style.transform = 'translateY(0)';
-                windyBtn.style.boxShadow = 'none';
-            });
-            windyBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                showWindyPopup(data.zoneName);
-            });
-            btnContainer.appendChild(windyBtn);
-        }
-
-        details.appendChild(btnContainer);
+    // [수정] 해역별 기상현황과 동일한 조건 적용: ZONE_NAME_DISPLAY_MAP에 없는 해역에만 기상예보 버튼 표시
+    const isMappedZone = typeof ZONE_NAME_DISPLAY_MAP !== 'undefined' && ZONE_NAME_DISPLAY_MAP[data.zoneName];
+    if (typeof showSeaForecastTable === 'function' && !isMappedZone) {
+        const forecastBtn = document.createElement('button');
+        forecastBtn.innerHTML = '☀️ 기상예보';
+        forecastBtn.style.cssText = 'flex: 1; padding: 12px 8px; background: linear-gradient(135deg, #ffd54f, #ff9800, #f57c00); color: #1a1e2e; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: transform 0.2s; box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);';
+        forecastBtn.addEventListener('click', (e) => { e.stopPropagation(); showSeaForecastTable(data.zoneName); });
+        actionsContainer.appendChild(forecastBtn);
     }
 
+    const zoneViewBtn = document.createElement('button');
+    zoneViewBtn.innerHTML = '🗺️ 해구별 기상전망';
+    zoneViewBtn.style.cssText = 'flex: 1; padding: 12px 8px; background: linear-gradient(135deg, #e94560, #0f3460); color: white; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: transform 0.2s;';
+    zoneViewBtn.addEventListener('click', (e) => { e.stopPropagation(); if (typeof showZoneOverlay === 'function') showZoneOverlay(data.zoneName); });
+    actionsContainer.appendChild(zoneViewBtn);
+
+
+    if (WINDY_URL_MAPPING[data.zoneName]) {
+        const windyBtn = document.createElement('button');
+        windyBtn.innerHTML = '<i class="fa-solid fa-wind"></i> 윈디';
+        windyBtn.style.cssText = 'flex: 1; padding: 12px 8px; background: linear-gradient(135deg, #00c6ff, #0072ff); color: white; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: transform 0.2s;';
+        windyBtn.addEventListener('click', (e) => { e.stopPropagation(); showWindyPopup(data.zoneName); });
+        actionsContainer.appendChild(windyBtn);
+    }
+
+    details.appendChild(actionsContainer);
     return card;
 }
 
-// 부이 정보 표시 (버튼 클릭 시 호출)
 function displayBuoyInfo(buoy, container) {
     container.innerHTML = '';
 
@@ -3168,7 +3306,7 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
     // coastal.name 예: "북서연안바다", "연안바다" 등
     // parentZoneName 예: "제주도서부앞바다"
     if (parentZoneName && COASTAL_ZONES_IMAGES[parentZoneName]) {
-        // 정확한 매칭을 위해 coastal.name 사용. 
+        // 정확한 매칭을 위해 coastal.name 사용.
         // 예: 제주도서부앞바다 -> 북서연안바다
 
         let imageName = null;
@@ -3202,14 +3340,6 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
 
             // Re-ordering logic:
             // Just append to header, but we want it Next to Name.
-            // Let's wrapping Name + Btn in a container or just insert after Name.
-            // Header is flex -> space-between. Name is left, Badge is right.
-            // We want Map btn next to Badge(right) or next to Name(left)?
-            // User said "연안바다 오른쪽에 지도 아이콘을 넣고". Let's put it next to name.
-
-            // But header uses space-between. Name is one child. Badge is another.
-            // If we add mapBtn, it will be in middle.
-            // Better: NameSpan includes the button? No.
             // Let's make a left-side container.
 
             // Override header structure for layout
@@ -3246,14 +3376,69 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
         // 정렬 적용 (태풍 우선)
         const sortedAlerts = sortAlertItems(alertData);
 
+        const now = getKfTime();
+
+        // [문제4 해결] 장부에서 실제 발효 중인 특보 정보 확인
+        let activeAlertFromLedger = null;
+        let pendingAlert = null;
+
         sortedAlerts.forEach(alert => {
-            const badge = document.createElement('span');
-            badge.className = `status-badge ${alert.isPreliminary ? 'preliminary' : 'warning'}`;
-            badge.style.fontSize = '0.7rem'; // 폰트 약간 축소
-            badge.style.padding = '1px 6px';
-            badge.textContent = `${alert.warnType} ${alert.level}`;
-            badgeContainer.appendChild(badge);
+            const cleanEf = String(alert.tmEf || '').replace(/[^0-9]/g, '');
+            const isAwaiting = cleanEf && cleanEf.length >= 12 && now < cleanEf;
+
+            if (alert.isPreliminary || isAwaiting) {
+                // 예비/대기 상태
+                pendingAlert = alert;
+            } else {
+                // 발효 중 상태
+                activeAlertFromLedger = alert;
+            }
         });
+
+        // [A안 적용] 발효 중인 특보 없고 예비만 있으면, 히스토리에서 찾지 않음
+        // activeAlert가 null이면 발효 중인 특보 없음
+        // 더 이상 히스토리에서 이전 발효 특보를 찾지 않음
+
+        // 1. [A안 적용] 발효 중인 특보가 있으면 그것만 표시
+        if (activeAlertFromLedger && !activeAlertFromLedger.isPreliminary) {
+            const badge = document.createElement('span');
+            badge.className = 'status-badge warning';
+            badge.style.fontSize = '0.7rem';
+            badge.style.padding = '1px 6px';
+            badge.textContent = `${activeAlertFromLedger.warnType} ${activeAlertFromLedger.level}`;
+            badgeContainer.appendChild(badge);
+        }
+        // 2. 발효 중인 특보가 없으면 예비/대기만 표시
+        else if (pendingAlert) {
+            const badge = document.createElement('span');
+            badge.className = 'status-badge preliminary';
+            badge.style.fontSize = '0.7rem';
+            badge.style.padding = '1px 6px';
+            // [수정] level이 '예비'이면 ' 예비' 중복 방지
+            const cleanType = (pendingAlert.warnType || '').replace(/주의보|경보/g, '').trim();
+            badge.textContent = `${cleanType} 예비`;
+            badgeContainer.appendChild(badge);
+        }
+
+        // 3. 배지가 하나도 없으면 원래 로직 fallback
+        if (badgeContainer.children.length === 0) {
+            sortedAlerts.forEach(alert => {
+                const badge = document.createElement('span');
+                const cleanEf = String(alert.tmEf || '').replace(/[^0-9]/g, '');
+                const isAwaiting = !alert.isPreliminary && cleanEf && cleanEf.length >= 12 && now < cleanEf;
+
+                badge.className = `status-badge ${alert.isPreliminary || isAwaiting ? 'preliminary' : 'warning'}`;
+                badge.style.fontSize = '0.7rem';
+                badge.style.padding = '1px 6px';
+
+                badge.textContent = (alert.isPreliminary || isAwaiting)
+                    ? `${(alert.warnType || '').replace(/주의보|경보/g, '').trim()} 예비`
+                    : `${alert.warnType} ${alert.level}`;
+
+                badgeContainer.appendChild(badge);
+            });
+        }
+
         header.appendChild(badgeContainer);
 
         // 시각적 강조 (가장 높은 등급 기준)
@@ -3276,26 +3461,44 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
             color: #aaa;
         `;
 
-        // 시각 포맷팅 함수 (내장)
+        // [수정] 시각 포맷팅 함수 (yy.mm.dd 오전/오후 ##시 ##분)
         const formatAfsoTime = (timeStr) => {
-            if (!timeStr || timeStr.trim() === '') return '정보 없음';
-            let decoded = timeStr.replace(/&#40;/g, '(').replace(/&#41;/g, ')').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').trim();
-            const formatHourToAmPm = (hourStr, minStr = '00') => {
-                const hour = parseInt(hourStr, 10);
-                let text = (hour === 0) ? '오전 12시' : (hour < 12) ? `오전 ${hour}시` : (hour === 12) ? '오후 12시' : `오후 ${hour - 12}시`;
-                if (minStr !== '00') text += ` ${parseInt(minStr, 10)}분`;
-                return text;
-            };
+            if (!timeStr || timeStr.trim() === '' || timeStr.trim() === '일') return '정보 없음';
+            const decoded = timeStr.replace(/&#40;/g, '(').replace(/&#41;/g, ')').trim();
+
+            // 2026.01.11.21:10 형식 매칭
             const dotMatch = decoded.match(/^(\d{4})\.(\d{2})\.(\d{2})\.(\d{2}):(\d{2})$/);
-            if (dotMatch) return `${dotMatch[2]}/${dotMatch[3]} ${formatHourToAmPm(dotMatch[4], dotMatch[5])}`;
+            if (dotMatch) {
+                const yy = dotMatch[1].slice(-2);
+                let hh = parseInt(dotMatch[4], 10);
+                const ampm = hh >= 12 ? '오후' : '오전';
+                if (hh > 12) hh -= 12;
+                if (hh === 0) hh = 12;
+                return `${yy}.${dotMatch[2]}.${dotMatch[3]} ${ampm} ${hh}시 ${dotMatch[5]}분`;
+            }
+
+            // 2026.01.12. 밤(18시~24시) 형식 매칭 (발효시각 등)
             const textMatch = decoded.match(/^(\d{4})\.(\d{2})\.(\d{2})\.\s*(.+)$/);
-            if (textMatch) return `${textMatch[2]}/${textMatch[3]} ${textMatch[4]}`;
-            if (decoded.includes('/')) return decoded;
-            if (/^\d{12,}$/.test(decoded)) return `${decoded.substring(4, 6)}/${decoded.substring(6, 8)} ${formatHourToAmPm(decoded.substring(8, 10), decoded.substring(10, 12))}`;
+            if (textMatch) {
+                const yy = textMatch[1].slice(-2);
+                return `${yy}.${textMatch[2]}.${textMatch[3]} ${textMatch[4]}`;
+            }
+
             return decoded;
         };
 
-        sortedAlerts.forEach((alert, index) => {
+        // [수정] 상세 정보 영역 표시 전 중복 제거 (종류와 등급이 같으면 하나만 표시)
+        const uniqueCoastalAlerts = [];
+        const coastalSeen = new Set();
+        sortedAlerts.forEach(a => {
+            const key = `${a.warnType}|${a.level}`;
+            if (!coastalSeen.has(key)) {
+                uniqueCoastalAlerts.push(a);
+                coastalSeen.add(key);
+            }
+        });
+
+        uniqueCoastalAlerts.forEach((alert, index) => {
             const tmFcFormatted = formatAfsoTime(alert.tmFc);
             const tmEfFormatted = formatAfsoTime(alert.tmEf);
             let tmEdFormatted = '정보 없음';
@@ -3303,8 +3506,8 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
                 tmEdFormatted = formatAfsoTime(alert.tmEd);
             }
 
-            // [수정] 단일 특보일 경우 내부 타이틀(뱃지 형태) 숨김
-            if (sortedAlerts.length > 1) {
+            // [수정] 둘 이상의 서로 다른 특보 정보가 있을 때만 타이틀 표시
+            if (uniqueCoastalAlerts.length > 1) {
                 const alertTitle = document.createElement('div');
                 alertTitle.style.cssText = `
                     margin-bottom: 6px;
@@ -3314,22 +3517,30 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
                     font-weight: 700;
                     font-size: 0.75rem;
                 `;
-                alertTitle.textContent = `● ${alert.warnType} ${alert.level}`;
+                // 명칭 구성: 예비 단계이면 '풍랑 주의보 예정' 등
+                const isPrelim = alert.isPreliminary || (alert.rawTmEf && getKfTime() < alert.rawTmEf.replace(/[^0-9]/g, ''));
+                alertTitle.textContent = `● ${alert.warnType} ${alert.level}${isPrelim ? ' 예정' : ''}`;
                 detailBox.appendChild(alertTitle);
             }
 
-            const infoHtml = `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.75rem;">
-                    <span style="color: #777;">발표: ${tmFcFormatted}</span>
-                    <span style="color: #777;">발효: ${tmEfFormatted}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.75rem;">
-                    <span style="color: #777;">해제예정</span>
-                    <span style="color: ${tmEdFormatted === '미정' ? '#777' : '#69f0ae'};">${tmEdFormatted}</span>
-                </div>
-            `;
+            // [Fix] 3줄 평평한 구조 + 해제예정 All Green
+            const createRow = (label, value, color) => `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 0.75rem;">
+                    <span style="color: #777;">${label}</span>
+                    <span style="color: ${color || '#e6edf3'}; font-weight: 500;">${value}</span>
+                </div>`;
+
+            const infoHtml =
+                createRow('발표시각', tmFcFormatted) +
+                createRow('발효시각', tmEfFormatted) +
+                createRow('해제예정', tmEdFormatted, '#69f0ae'); // 무조건 초록색
+
             const infoContainer = document.createElement('div');
             infoContainer.innerHTML = infoHtml;
+            // 마지막 요소가 아니면 마진
+            if (index < uniqueCoastalAlerts.length - 1) {
+                infoContainer.style.marginBottom = '10px';
+            }
             detailBox.appendChild(infoContainer);
         });
 
@@ -4281,40 +4492,49 @@ function renderMarineChart(data) {
 // Tab Navigation
 // ----------------------------------------------------------------------------
 
+window.switchMainTab = function (targetId) {
+    const tabs = document.querySelectorAll('.tab-btn');
+    const contents = document.querySelectorAll('.tab-content');
+
+    // 모든 탭 비활성화
+    tabs.forEach(t => t.classList.remove('active'));
+    // 모든 컨텐츠 숨기기
+    contents.forEach(c => c.classList.remove('active'));
+
+    // 선택된 탭 활성화
+    const tab = document.querySelector(`.tab-btn[data-target="${targetId}"]`);
+    if (tab) tab.classList.add('active');
+
+    const targetSection = document.getElementById(targetId);
+    if (targetSection) {
+        targetSection.classList.add('active');
+
+        // 해구별 기상 탭이 활성화될 때 지도 초기화
+        if (targetId === 'sea-zone-section') {
+            setTimeout(() => {
+                if (window.initSeaZoneMap) {
+                    window.initSeaZoneMap();
+                }
+            }, 200);
+        }
+
+        // 공지사항 탭 로드
+        if (targetId === 'promo-section') {
+            if (typeof loadPromoPosts === 'function') setTimeout(loadPromoPosts, 100);
+        }
+    }
+};
+
 function initTabs() {
     // 탭 스타일 주입
     injectTabStyles();
 
     const tabs = document.querySelectorAll('.tab-btn');
-    const contents = document.querySelectorAll('.tab-content');
-    let seaZoneInitialized = false; // 지도 초기화 여부 플래그
 
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             const targetId = tab.getAttribute('data-target');
-
-            // 모든 탭 비활성화
-            tabs.forEach(t => t.classList.remove('active'));
-            // 모든 컨텐츠 숨기기
-            contents.forEach(c => c.classList.remove('active'));
-
-            // 선택된 탭 활성화
-            tab.classList.add('active');
-            const targetSection = document.getElementById(targetId);
-            if (targetSection) {
-                targetSection.classList.add('active');
-
-                // 해구별 기상 탭이 활성화될 때 지도 초기화
-                if (targetId === 'sea-zone-section') {
-                    console.log('Refreshing Sea Zone Map...');
-                    // 탭이 활성화되어 보이는 상태가 된 후 지도 초기화
-                    setTimeout(() => {
-                        if (window.initSeaZoneMap) {
-                            window.initSeaZoneMap();
-                        }
-                    }, 200); // 약간의 지연을 주어 CSS가 적용된 후 초기화
-                }
-            }
+            window.switchMainTab(targetId);
         });
     });
 }
@@ -5263,11 +5483,8 @@ window.closeTideInfoPopup = closeTideInfoPopup;
 
 // 헤더 클릭 시 전체 데이터 새로고침
 async function handleHeaderRefresh() {
-    // 기상정보 탭으로 강제 전환
-    const weatherTab = document.querySelector('.tab-btn[data-target="weather-alert-section"]');
-    if (weatherTab) {
-        weatherTab.click();
-    }
+    // 기상정보 탭으로 강제 전환 (programmatic click 제거 -> switchMainTab 사용)
+    window.switchMainTab("weather-alert-section");
 
     // 이미 로딩 중이면 무시
     if (appState.isLoading) return;
@@ -5927,7 +6144,7 @@ function createStatusCard(zoneName) {
     // 윈디 버튼
     if (typeof WINDY_URL_MAPPING !== 'undefined' && WINDY_URL_MAPPING[zoneName]) {
         const windyBtn = document.createElement('button');
-        windyBtn.innerHTML = '<i class=\"fa-solid fa-wind\"></i> Windy';
+        windyBtn.innerHTML = '<i class=\"fa-solid fa-wind\"></i> 윈디';
         windyBtn.style.cssText = `
             padding: 5px 10px;
             background: linear-gradient(135deg, #00c6ff, #0072ff);
@@ -6191,6 +6408,15 @@ const NotificationSettings = {
     set(newSettings) {
         this.settings = { ...this.settings, ...newSettings };
         this.save();
+
+        // [추가] 서버로 설정 즉시 동기화 (네이티브인 경우)
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+            // window.subscribeUser 함수가 토큰과 설정을 함께 보냄
+            if (typeof window.subscribeUser === 'function') {
+                // 토큰은 내부적으로 다시 가져오거나 저장된 것을 사용 (이미 브릿지에 구현됨)
+                window.subscribeUser();
+            }
+        }
     }
 };
 NotificationSettings.init();
@@ -6209,7 +6435,48 @@ function initNotificationUI() {
 
     // Load values
     master.checked = s.master;
-    master.onclick = (e) => updateMasterState(e.target.checked);
+
+    // [확실한 이벤트 바인딩]
+    master.onclick = async (e) => {
+        console.log('Push toggle clicked. Master checked:', e.target.checked);
+        const willBeEnabled = e.target.checked;
+
+        if (willBeEnabled) {
+            // [Debug] 함수 존재 확인
+            if (typeof window.checkPushPermission !== 'function') {
+                console.error('Critical Error: checkPushPermission is not defined!');
+                return;
+            }
+
+            const permission = await window.checkPushPermission();
+            console.log('Permission result:', permission);
+
+            if (permission === 'denied') {
+                e.preventDefault();
+                e.target.checked = false;
+
+                if (confirm('현재 알림 권한이 거절되어 있습니다.\n푸시 알림을 받으시려면 휴대폰 설정에서 알림을 허용해 주셔야 합니다.\n\n설정 화면으로 이동하시겠습니까?')) {
+                    window.openAppSettings();
+                }
+                return;
+            } else if (permission === 'prompt') {
+                if (window.Capacitor && window.Capacitor.Plugins.PushNotifications) {
+                    const result = await window.Capacitor.Plugins.PushNotifications.requestPermissions();
+                    if (result.receive !== 'granted') {
+                        e.preventDefault();
+                        e.target.checked = false;
+                        return;
+                    }
+                }
+            }
+        }
+        // 정상적인 경우 UI 업데이트
+        updateMasterState(willBeEnabled);
+
+        // [추가] 즉시 설정 저장 및 서버 동기화
+        NotificationSettings.set({ master: willBeEnabled });
+    };
+
     updateMasterState(s.master);
 
     // Radios
@@ -6278,13 +6545,43 @@ function saveNotificationUI() {
     });
 }
 
+// [New] 설정 탭 전환 함수
+window.switchSettingsTab = function (tabId) {
+    console.log('Switching to tab:', tabId);
+
+    // 모든 탭 버튼 비활성화
+    document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    // 선택된 탭 버튼 활성화 (ID 기반으로 시도 후 안되면 기존 방식으로)
+    const activeBtn = document.getElementById(`btn-${tabId}`) || document.querySelector(`.settings-tab-btn[onclick*="${tabId}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    // 모든 탭 컨텐츠 숨기기
+    document.querySelectorAll('.settings-tab-content').forEach(content => {
+        content.classList.remove('active');
+        content.style.display = 'none'; // 명시적으로 숨김
+    });
+    // 선택된 탭 컨텐츠 보이기
+    const activeContent = document.getElementById(tabId);
+    if (activeContent) {
+        activeContent.classList.add('active');
+        activeContent.style.display = 'block'; // 명시적으로 보여줌
+    }
+};
+
 function openSettingsModal() {
     const modal = document.getElementById('settings-modal');
     if (!modal) return;
 
+    // UI 보이기
+    modal.classList.remove('hidden');
+
+    // [New] 탭 초기화 (관심해역 탭부터 시작)
+    window.switchSettingsTab('tab-zones');
+
     renderSettingsList();
     initNotificationUI(); // [New] UI 초기화
-    modal.classList.remove('hidden');
 }
 
 function closeSettingsModal() {
@@ -6295,6 +6592,7 @@ function closeSettingsModal() {
 function saveSettingsAndClose() {
     UserSettings.save();
     saveNotificationUI(); // [New] 알림 설정 저장
+    if (window.FontSizeManager) FontSizeManager.save(); // [New] 폰트 크기 저장
     closeSettingsModal();
 
     // [New] 서버에 푸시 구독 정보 업데이트 요청 (Zones 변경 반영)
@@ -6780,7 +7078,7 @@ let adminTriggerTimer = null;
 /*
 function initAdminTrigger() {
     // [탭 15회 클릭 -> 통합 로그인 모달]
-
+ 
     // (1) 태풍정보 탭 -> 공지 팝업 관리
     const typhoonTab = document.querySelector('button[data-target="typhoon-section"]');
     if (typhoonTab) {
@@ -6790,7 +7088,7 @@ function initAdminTrigger() {
             count++;
             if (timer) clearTimeout(timer);
             timer = setTimeout(() => { count = 0; }, 2000);
-
+ 
             if (count >= 15) {
                 count = 0;
                 // 통합 로그인 모달 호출 (공지 모드)
@@ -6802,7 +7100,7 @@ function initAdminTrigger() {
             }
         });
     }
-
+ 
     // (2) 공지사항 탭 -> 게시글 관리
     const promoTab = document.querySelector('button[data-target="promo-section"]');
     if (promoTab) {
@@ -6812,7 +7110,7 @@ function initAdminTrigger() {
             count++;
             if (timer) clearTimeout(timer);
             timer = setTimeout(() => { count = 0; }, 2000);
-
+ 
             if (count >= 15) {
                 count = 0;
                 // 통합 로그인 모달 호출 (홍보 모드)
@@ -6824,7 +7122,7 @@ function initAdminTrigger() {
             }
         });
     }
-
+ 
     // (3) 해구기상 탭 -> API 관리
     const zoneTab = document.querySelector('button[data-target="sea-zone-section"]');
     if (zoneTab) {
@@ -6834,7 +7132,7 @@ function initAdminTrigger() {
             count++;
             if (timer) clearTimeout(timer);
             timer = setTimeout(() => { count = 0; }, 2000);
-
+ 
             if (count >= 15) {
                 count = 0;
                 // 통합 로그인 모달 호출 (API 모드)
@@ -7901,6 +8199,8 @@ window.openPromoEditor = function (editData = null) {
     if (adminModal) adminModal.classList.add('hidden');
     const promoMgmtModal = document.getElementById('promo-management-modal');
     if (promoMgmtModal) promoMgmtModal.remove();
+    const unifiedModal = document.getElementById('unified-admin-modal');
+    if (unifiedModal) unifiedModal.style.display = 'none'; // 편집 중에는 잠깐 숨김
 
     currentEditingPromoId = editData ? editData.id : null;
 
@@ -8072,6 +8372,8 @@ window.openPromoEditor = function (editData = null) {
 window.closePromoEditor = function () {
     const modal = document.getElementById('promo-editor-modal');
     if (modal) modal.classList.add('hidden');
+    const unifiedModal = document.getElementById('unified-admin-modal');
+    if (unifiedModal) unifiedModal.style.display = 'flex'; // 다시 표시
     currentEditingPromoId = null;
 };
 
@@ -8116,6 +8418,7 @@ window.savePromoPost = async function () {
             closePromoEditor();
             loadPromoPosts(); // 목록 새로고침
             if (typeof loadPromoListForAdmin === 'function') loadPromoListForAdmin();
+            if (typeof loadUnifiedPromoList === 'function') loadUnifiedPromoList();
         } else {
             alert('저장 실패: ' + (result.error || '알 수 없는 오류'));
         }
@@ -8166,20 +8469,26 @@ window.deletePromoPost = async function (postId) {
 
 // 12. 탭 전환 시 게시글 로드 및 관리자 인증 (15회 클릭)
 document.addEventListener('DOMContentLoaded', async function () {
-    let typhoonTabClickCount = 0;
-    let typhoonTabClickTimer = null;
-    let promoTabClickCount = 0;
-    let promoTabClickTimer = null;
-    let zoneTabClickCount = 0;
-    let zoneTabClickTimer = null;
+    // [New] 네이티브 스플래시(=검정화면) 종료 -> 웹 스플래시 시작
+    if (window.hideNativeSplash) {
+        // 약간의 딜레이를 주어 흰색 플래시를 완전히 방지할 수도 있음
+        setTimeout(() => window.hideNativeSplash(), 100);
+    }
+
+    let unifiedAdminClickCount = 0;
+    let unifiedAdminClickTimer = null;
 
     // 스플래시 화면 노출 시작 시간
     const splashStartTime = Date.now();
+
+    // [New] Capacitor 네이티브 환경 감지 (앱 접속 시 스플래시 스킵)
+    const isNativeApp = window.Capacitor && window.Capacitor.isNativePlatform();
 
     // 스플래시 화면 제거 함수
     const hideSplash = () => {
         const splash = document.getElementById('splash-screen');
         if (splash) {
+            // 앱/웹 모두 자연스러운 페이드 아웃 적용
             splash.classList.add('fade-out');
             setTimeout(() => {
                 splash.remove();
@@ -8195,54 +8504,42 @@ document.addEventListener('DOMContentLoaded', async function () {
         // console.error('Initial data fetch failed:', e);
     }
 
-    // 2. 최소 노출 시간(2초) 보장 후 제거
+    // 2. 스플래시 종료 타이밍 결정
+    // [수정] 앱에서도 웹 스플래시를 보여줌 (검정화면 -> 웹 스플래시 -> 메인)
+    // 네이티브 스플래시는 0초(검정)로 지나가고, 웹 스플래시가 2초간 나옴
     const minSplashTime = 2000;
     const elapsedTime = Date.now() - splashStartTime;
     const delay = Math.max(0, minSplashTime - elapsedTime);
 
     setTimeout(hideSplash, delay);
 
+    // [New] 푸시 알림 파라미터 확인 및 팝업 표시
+    checkForPushPopup();
+
+    // === [New] 헤더 15회 클릭 시 통합 관리자 센터 진입 ===
+    const headerContent = document.querySelector('.header-content');
+    if (headerContent) {
+        headerContent.addEventListener('click', function (e) {
+            // 사용자 클릭만 카운트
+            const isUserClick = e.detail > 0 || e.isTrusted;
+            if (!isUserClick) return;
+
+            unifiedAdminClickCount++;
+            clearTimeout(unifiedAdminClickTimer);
+            unifiedAdminClickTimer = setTimeout(() => { unifiedAdminClickCount = 0; }, 3000);
+
+            if (unifiedAdminClickCount >= 15) {
+                unifiedAdminClickCount = 0;
+                showUnifiedLoginModal('alert', '통합 관리자 인증', 'fa-user-shield');
+            }
+        });
+    }
+
     document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', function () {
+        btn.addEventListener('click', function (e) {
             // 홍보정보 탭 - 게시글 로드
             if (this.dataset.target === 'promo-section') {
                 setTimeout(() => loadPromoPosts(), 100);
-            }
-
-            // === 해구기상 탭 15회 클릭 시 API 관리 모달 ===
-            if (this.dataset.target === 'sea-zone-section') {
-                zoneTabClickCount++;
-                clearTimeout(zoneTabClickTimer);
-                zoneTabClickTimer = setTimeout(() => { zoneTabClickCount = 0; }, 3000);
-
-                if (zoneTabClickCount >= 15) {
-                    zoneTabClickCount = 0;
-                    showUnifiedLoginModal('api', 'API 관리자 인증', 'fa-server');
-                }
-            }
-
-            // === 태풍정보 탭 15회 클릭 시 공지 팝업 관리 모달 ===
-            if (this.dataset.target === 'typhoon-section') {
-                typhoonTabClickCount++;
-                clearTimeout(typhoonTabClickTimer);
-                typhoonTabClickTimer = setTimeout(() => { typhoonTabClickCount = 0; }, 3000);
-
-                if (typhoonTabClickCount >= 15) {
-                    typhoonTabClickCount = 0;
-                    showUnifiedLoginModal('notice', '공지 팝업 관리자 인증', 'fa-bell');
-                }
-            }
-
-            // === 공지사항 탭 15회 클릭 시 게시글 관리 모달 ===
-            if (this.dataset.target === 'promo-section') {
-                promoTabClickCount++;
-                clearTimeout(promoTabClickTimer);
-                promoTabClickTimer = setTimeout(() => { promoTabClickCount = 0; }, 3000);
-
-                if (promoTabClickCount >= 15) {
-                    promoTabClickCount = 0;
-                    showUnifiedLoginModal('promo', '게시글 관리자 인증', 'fa-bullhorn');
-                }
             }
         });
     });
@@ -8255,7 +8552,8 @@ document.addEventListener('DOMContentLoaded', async function () {
 const adminAuthenticated = {
     api: false,
     notice: false,
-    promo: false
+    promo: false,
+    alert: false
 };
 
 // 1. 통합 로그인 모달 (Mode: 'api' | 'notice' | 'promo')
@@ -8263,7 +8561,7 @@ window.showUnifiedLoginModal = function (mode, title, icon) {
     const existing = document.getElementById('unified-admin-login-modal');
     if (existing) existing.remove();
 
-    const iconColor = mode === 'api' ? '#4fc3f7' : (mode === 'notice' ? '#ffd54f' : '#ff7043');
+    const iconColor = mode === 'api' ? '#4fc3f7' : (mode === 'notice' ? '#ffd54f' : (mode === 'promo' ? '#ff7043' : '#ef5350'));
 
     const modal = document.createElement('div');
     modal.id = 'unified-admin-login-modal';
@@ -8306,16 +8604,16 @@ window.verifyUnifiedAdminPassword = function (mode) {
     const password = input.value;
 
     if (password === 'zaqxsw12!wlstjq') {
-        adminAuthenticated[mode] = true;
+        // 모든 권한을 한 번에 부여 (통합 모달이므로)
+        adminAuthenticated.api = true;
+        adminAuthenticated.notice = true;
+        adminAuthenticated.promo = true;
+        adminAuthenticated.alert = true;
+
         document.getElementById('unified-admin-login-modal').remove();
 
-        if (mode === 'api') {
-            showApiManagementModal();
-        } else if (mode === 'notice') {
-            showNoticeManagementModal();
-        } else if (mode === 'promo') {
-            showPromoManagementModal();
-        }
+        // 통합 관리자 모달 호출 (인증된 모드로 시작)
+        showUnifiedAdminModal(mode);
     } else {
         alert('비밀번호가 일치하지 않습니다.');
         input.value = '';
@@ -8323,7 +8621,787 @@ window.verifyUnifiedAdminPassword = function (mode) {
     }
 };
 
-// 2. 관리 모달 구현체들
+// 2. 통합 관리자 모달 메인
+window.showUnifiedAdminModal = function (initialTab = 'alert') {
+    const existing = document.getElementById('unified-admin-modal');
+    if (existing) existing.remove();
+
+    const tabs = [
+        { id: 'alert', name: '특보 알림', icon: 'fa-tower-broadcast' },
+        { id: 'api', name: 'API 설정', icon: 'fa-server' },
+        { id: 'notice', name: '공지 팝업', icon: 'fa-bell' },
+        { id: 'promo', name: '게시글 관리', icon: 'fa-bullhorn' },
+        { id: 'stats', name: '방문자 통계', icon: 'fa-chart-line' }
+    ];
+
+    const modal = document.createElement('div');
+    modal.id = 'unified-admin-modal';
+
+    modal.innerHTML = `
+        <div class="unified-admin-wrapper">
+            <div class="unified-admin-header">
+                <h3><i class="fa-solid fa-user-shield"></i> SEAGNAL 통합 관리자 센터</h3>
+                <button class="unified-admin-close" onclick="document.getElementById('unified-admin-modal').remove();">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <div class="unified-admin-main-tabs">
+                ${tabs.map(t => `
+                    <button class="admin-main-tab" data-tab="${t.id}" onclick="switchUnifiedAdminTab('${t.id}')">
+                        <i class="fa-solid ${t.icon}"></i>
+                        <span>${t.name}</span>
+                    </button>
+                `).join('')}
+            </div>
+            
+            <div class="unified-admin-body" id="unified-admin-body">
+                <!-- 콘텐츠가 여기에 렌더링됨 -->
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // 초기 탭 활성화
+    switchUnifiedAdminTab(initialTab);
+};
+
+window.switchUnifiedAdminTab = function (tabId) {
+    // 탭 버튼 스타일 업데이트
+    document.querySelectorAll('.admin-main-tab').forEach(btn => {
+        if (btn.dataset.tab === tabId) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+
+    const body = document.getElementById('unified-admin-body');
+    if (!body) return;
+
+    // 기존 내용 비우기
+    body.innerHTML = `
+        <div style="text-align:center;padding:100px;color:#64748b;">
+            <i class="fa-solid fa-circle-notch fa-spin fa-2x"></i>
+            <p style="margin-top:15px;font-weight:600;">데이터를 불러오는 중...</p>
+        </div>
+    `;
+
+    // 탭별 콘텐츠 렌더링
+    setTimeout(async () => {
+        if (tabId === 'alert') {
+            renderUnifiedAlertContent(body);
+        } else if (tabId === 'api') {
+            renderUnifiedApiContent(body);
+        } else if (tabId === 'notice') {
+            renderUnifiedNoticeContent(body);
+        } else if (tabId === 'promo') {
+            renderUnifiedPromoContent(body);
+        } else if (tabId === 'stats') {
+            renderUnifiedStatsContent(body);
+        }
+    }, 100);
+};
+
+// (A) 특보 알림 섹션 렌더링
+async function renderUnifiedAlertContent(container) {
+    if (!adminAuthenticated.alert) return;
+
+    // 기존 showAlertManagementModal의 UI 구조를 차용하되 통합 모달 내부에 맞게 조정
+    const tabs = [
+        { id: 'publish', name: '발표', icon: 'fa-bullhorn' },
+        { id: 'active', name: '발효', icon: 'fa-check-circle' },
+        { id: 'release', name: '해제', icon: 'fa-check' },
+        { id: 'level', name: '격상/격하', icon: 'fa-arrow-up-right-dots' },
+        { id: 'custom', name: '직접 발송', icon: 'fa-paper-plane' },
+        { id: 'history', name: '발송 이력', icon: 'fa-history' }
+    ];
+
+    container.innerHTML = `
+        <div class="admin-section-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div>
+                <i class="fa-solid fa-tower-broadcast" style="color:#ef4444;"></i> 실시간 특보 알림 관리
+            </div>
+        </div>
+        
+        <div class="admin-sub-tabs">
+            ${tabs.map(t => `
+                <button class="alert-admin-tab" data-tab="${t.id}" onclick="switchAlertAdminTabInternal('${t.id}')">
+                    ${t.name}
+                </button>
+            `).join('')}
+        </div>
+        
+        <div id="alert-admin-inner-content">
+            <!-- switchAlertAdminTabInternal에 의해 채워짐 -->
+        </div>
+    `;
+
+    // 내부 탭 전환 함수 (전역 window 객체에 임시 등록하여 기존 로직 재활용)
+    window.switchAlertAdminTabInternal = function (subTabId) {
+        document.querySelectorAll('.alert-admin-tab').forEach(btn => {
+            if (btn.dataset.tab === subTabId) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+
+        const innerContainer = document.getElementById('alert-admin-inner-content');
+        if (innerContainer) window.renderAlertAdminContent(subTabId, innerContainer);
+    };
+
+    // 초기 서브탭: 발표
+    switchAlertAdminTabInternal('publish');
+}
+
+// (B) API 설정 섹션 렌더링
+// (B) API 설정 섹션 렌더링
+async function renderUnifiedApiContent(container) {
+    if (!adminAuthenticated.api) return;
+
+    container.innerHTML = `
+        <div class="admin-section-title">
+            <i class="fa-solid fa-server" style="color:#38bdf8;"></i> API 수집 및 동기화 상태
+        </div>
+        
+        <!-- API 상태 리스트 -->
+        <div id="unified-api-status-list" style="margin-bottom:25px;">
+            <!-- refreshUnifiedApiStatus에 의해 채워짐 -->
+        </div>
+
+        <!-- 인증키 설정 섹션 (하단 통합) -->
+        <div class="admin-section-title" style="margin-top:30px; border-top:1px solid rgba(255,255,255,0.05); padding-top:20px;">
+            <i class="fa-solid fa-key" style="color:#f59e0b;"></i> API 인증키 설정
+        </div>
+        
+        <div class="admin-card" style="padding:20px; background:rgba(15, 23, 42, 0.4);">
+            <div style="font-weight:600; color:#fff; margin-bottom:12px; font-size:0.85rem; display:flex; align-items:center; gap:8px;">
+                <i class="fa-solid fa-bolt" style="color:#ff5722;"></i> 기상청 API HUB (Auth Key)
+                <span style="font-size:0.7rem; color:#64748b; font-weight:400;">- 기상예보, 특보-HUB, 해구예보, 부이 공통</span>
+            </div>
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <input type="password" id="unified-kma-hub-key" 
+                    style="flex:1; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; padding:12px; font-size:0.9rem; font-family:monospace;" 
+                    placeholder="인증키를 입력하세요">
+                <button onclick="toggleUnifiedKeyVisibility('unified-kma-hub-key')" 
+                    style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#94a3b8; width:45px; cursor:pointer;" title="보기/숨기기">
+                    <i class="fa-solid fa-eye"></i>
+                </button>
+            </div>
+            <button class="admin-action-btn admin-btn-primary" style="width:100%; height:45px; font-size:0.9rem;" onclick="saveUnifiedApiConfig()">
+                <i class="fa-solid fa-save"></i> 인증키 설정 저장하기
+            </button>
+            <div style="margin-top:10px; font-size:0.7rem; color:#64748b; text-align:center;">
+                <i class="fa-solid fa-circle-info"></i> 인증키를 변경하면 다음 데이터 수집 시점부터 적용됩니다.
+            </div>
+        </div>
+
+        <div style="text-align:center; margin-top:20px;">
+            <button class="admin-action-btn" style="background:none; border:1px solid rgba(255,255,255,0.1); color:#64748b;" onclick="refreshUnifiedApiStatus()">
+                <i class="fa-solid fa-rotate"></i> 상태 데이터 새로고침
+            </button>
+        </div>
+    `;
+
+    // 인증키 보기 토글
+    window.toggleUnifiedKeyVisibility = function (id) {
+        const input = document.getElementById(id);
+        const icon = event.currentTarget.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('fa-eye', 'fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('fa-eye-slash', 'fa-eye');
+        }
+    };
+
+    // 인증키 저장
+    window.saveUnifiedApiConfig = async function () {
+        const hubKey = document.getElementById('unified-kma-hub-key').value;
+        if (!hubKey) return alert('KMA HUB 인증키를 입력해주세요.');
+
+        try {
+            const res = await fetch(CONFIG.API_BASE + '/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ KMA_HUB_KEY: hubKey })
+            });
+            if (res.ok) {
+                alert('설정이 저장되었습니다.');
+                refreshUnifiedApiStatus();
+            } else { alert('저장 실패'); }
+        } catch (e) { alert('에러: ' + e.message); }
+    };
+
+    window.refreshUnifiedApiStatus = async function () {
+        const listContainer = document.getElementById('unified-api-status-list');
+        const hubInput = document.getElementById('unified-kma-hub-key');
+        if (!listContainer) return;
+
+        try {
+            // 1. 현재 설정된 인증키 먼저 로드
+            const configRes = await fetch(CONFIG.API_BASE + '/api/config');
+            const config = await configRes.json();
+            if (hubInput && config.KMA_HUB_KEY) hubInput.value = config.KMA_HUB_KEY;
+
+            // 2. 상태 리스트 로드
+            const res = await fetch(CONFIG.API_BASE + '/api/status');
+            const status = await res.json();
+            const apiItems = [
+                { key: 'general', name: '기상 예보', icon: 'fa-sun', color: '#ffd54f' },
+                { key: 'warnings_hub', name: '특보 - HUB (KMA)', icon: 'fa-bolt', color: '#ff5722' },
+                { key: 'warnings_afso', name: '특보 - AFSO (연안)', icon: 'fa-water', color: '#ff9800' },
+                { key: 'zone', name: '해구별 예보', icon: 'fa-map-location-dot', color: '#29b6f6' },
+                { key: 'buoys', name: '관측 부이', icon: 'fa-anchor', color: '#26a69a' }
+            ];
+
+            listContainer.innerHTML = apiItems.map(api => {
+                const s = status[api.key] || { lastRun: '-', status: '정보 없음', message: '' };
+                const isSuccess = s.status === '성공';
+                const statusColor = isSuccess ? '#10b981' : (s.status === '실패' ? '#ef4444' : '#64748b');
+
+                return `
+                    <div class="admin-card" style="display:flex; justify-content:space-between; align-items:center; padding:12px 15px;">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <div style="width:36px; height:36px; background:rgba(255,255,255,0.05); border-radius:10px; display:flex; align-items:center; justify-content:center;">
+                                <i class="fa-solid ${api.icon}" style="color:${api.color}; font-size:1rem;"></i>
+                            </div>
+                            <div>
+                                <div style="font-weight:700; color:#fff; font-size:0.9rem;">${api.name}</div>
+                                <div style="font-size:0.7rem; color:#64748b;">최종 실행: ${s.lastRun}</div>
+                            </div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span style="padding:3px 10px; border-radius:30px; font-size:0.65rem; font-weight:800; background:${statusColor}22; color:${statusColor}; border:1px solid ${statusColor}44;">
+                                ${s.status}
+                            </span>
+                            <button class="admin-action-btn" style="padding:6px 10px; font-size:0.7rem;" onclick="forceUpdateApiUnified('${api.key}')">
+                                <i class="fa-solid fa-play"></i> 수동 호출
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } catch (e) {
+            listContainer.innerHTML = '<div style="color:#ef4444;text-align:center;padding:20px;">API 상태를 불러오지 못했습니다.</div>';
+        }
+    };
+
+    window.forceUpdateApiUnified = async function (type) {
+        if (!confirm(`${type} API 수집을 강제로 실행하시겠습니까?`)) return;
+        try {
+            await fetch(CONFIG.API_BASE + '/api/force-update/' + type, { method: 'POST' });
+            alert('요청되었습니다.');
+            refreshUnifiedApiStatus();
+        } catch (e) { alert('오류 발생'); }
+    };
+
+    refreshUnifiedApiStatus();
+}
+
+// (C) 공지 팝업 섹션 렌더링
+async function renderUnifiedNoticeContent(container) {
+    if (!adminAuthenticated.notice) return;
+
+    container.innerHTML = `
+        <div class="admin-section-title">
+            <i class="fa-solid fa-bell" style="color:#fbbf24;"></i> 서비스 상단 공지 팝업 관리
+        </div>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
+            <div class="admin-card">
+                <div style="font-weight:700; color:#fff; margin-bottom:12px; font-size:0.9rem;">진행 중인 공지</div>
+                <div id="unified-active-notices" style="max-height:200px; overflow-y:auto;"></div>
+            </div>
+            <div class="admin-card">
+                <div style="font-weight:700; color:#fff; margin-bottom:12px; font-size:0.9rem;">최근 종료된 공지</div>
+                <div id="unified-expired-notices" style="max-height:200px; overflow-y:auto;"></div>
+            </div>
+        </div>
+        
+        <div class="admin-card" id="notice-form-container">
+            <div style="font-weight:700; color:#fff; margin-bottom:15px; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:10px;">
+                <i class="fa-solid fa-plus-circle"></i> 공지사항 작성 및 수정
+            </div>
+            <input type="hidden" id="uni-notice-id" value="">
+            <div style="margin-bottom:12px;">
+                <input type="text" id="uni-notice-title" placeholder="공지 제목" style="width:100%; padding:10px; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; outline:none;">
+            </div>
+            <div style="margin-bottom:12px;">
+                <textarea id="uni-notice-content" placeholder="공지 상세 내용" style="width:100%; height:80px; padding:10px; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; outline:none; resize:none;"></textarea>
+            </div>
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <input type="date" id="uni-notice-date" style="flex:1; padding:8px; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff;">
+                <select id="uni-notice-hour" style="width:70px; padding:8px; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff;"></select>
+                <select id="uni-notice-min" style="width:70px; padding:8px; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff;"></select>
+            </div>
+            <button class="admin-action-btn admin-btn-primary" style="width:100%;" onclick="saveNoticeUnified()">
+                <i class="fa-solid fa-save"></i> 공지사항 저장
+            </button>
+        </div>
+    `;
+
+    // 시간 옵션 채우기
+    const hSelect = document.getElementById('uni-notice-hour');
+    const mSelect = document.getElementById('uni-notice-min');
+    for (let i = 0; i < 24; i++) hSelect.innerHTML += `<option value="${i}">${String(i).padStart(2, '0')}시</option>`;
+    for (let i = 0; i < 60; i += 10) mSelect.innerHTML += `<option value="${i}">${String(i).padStart(2, '0')}분</option>`;
+
+    window.refreshUnifiedNoticeList = async function () {
+        try {
+            const res = await fetch(CONFIG.API_BASE + '/api/notices');
+            const data = await res.json();
+
+            const activeEl = document.getElementById('unified-active-notices');
+            const expiredEl = document.getElementById('unified-expired-notices');
+
+            activeEl.innerHTML = (data.active || []).map(n => `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid rgba(255,255,255,0.03);">
+                    <div style="font-size:0.85rem; color:#e2e8f0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${n.title}</div>
+                    <div style="display:flex; gap:5px;">
+                        <button onclick="editNoticeUnified(${n.id})" style="background:none; border:none; color:#38bdf8; cursor:pointer; font-size:0.8rem;">수정</button>
+                        <button onclick="deleteNoticeUnified(${n.id})" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.8rem;">삭제</button>
+                    </div>
+                </div>
+            `).join('') || '<div style="color:#64748b; font-size:0.8rem; padding:10px;">활성 공지 없음</div>';
+
+            expiredEl.innerHTML = (data.expired || []).map(n => `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid rgba(255,255,255,0.03);">
+                    <div style="font-size:0.85rem; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${n.title}</div>
+                    <button onclick="editNoticeUnified(${n.id})" style="background:none; border:none; color:#38bdf8; cursor:pointer; font-size:0.8rem;">복사</button>
+                </div>
+            `).join('') || '<div style="color:#64748b; font-size:0.8rem; padding:10px;">종료 이력 없음</div>';
+        } catch (e) { }
+    };
+
+    window.saveNoticeUnified = async function () {
+        const payload = {
+            id: document.getElementById('uni-notice-id').value || Date.now(),
+            title: document.getElementById('uni-notice-title').value,
+            content: document.getElementById('uni-notice-content').value,
+            expiresAt: `${document.getElementById('uni-notice-date').value} ${document.getElementById('uni-notice-hour').value.padStart(2, '0')}:${document.getElementById('uni-notice-min').value.padStart(2, '0')}`,
+            isActive: true
+        };
+        if (!payload.title || !payload.content) return alert('내용을 입력하세요.');
+        const res = await fetch(CONFIG.API_BASE + '/api/notices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (res.ok) { alert('저장되었습니다.'); refreshUnifiedNoticeList(); }
+    };
+
+    refreshUnifiedNoticeList();
+}
+
+// 통합 모달 전용 공지사항 수정
+window.editNoticeUnified = async function (id) {
+    try {
+        const res = await fetch(CONFIG.API_BASE + '/api/notices');
+        const data = await res.json();
+        const allNotices = [...(data.active || []), ...(data.expired || [])];
+        const target = allNotices.find(n => n.id === id);
+
+        if (target) {
+            document.getElementById('uni-notice-id').value = target.id;
+            document.getElementById('uni-notice-title').value = target.title;
+            document.getElementById('uni-notice-content').value = target.content;
+
+            if (target.expiresAt) {
+                const parts = target.expiresAt.split(' ');
+                document.getElementById('uni-notice-date').value = parts[0];
+                if (parts[1]) {
+                    const timeParts = parts[1].split(':');
+                    document.getElementById('uni-notice-hour').value = parseInt(timeParts[0]);
+                    document.getElementById('uni-notice-min').value = parseInt(timeParts[1]);
+                }
+            }
+            document.getElementById('uni-notice-title').focus();
+            // 폼으로 스크롤
+            document.getElementById('notice-form-container').scrollIntoView({ behavior: 'smooth' });
+        }
+    } catch (e) { }
+};
+
+// 통합 모달 전용 공지사항 삭제
+window.deleteNoticeUnified = async function (id) {
+    if (!confirm("이 공지를 삭제하시겠습니까?")) return;
+    try {
+        const res = await fetch(CONFIG.API_BASE + '/api/notice/' + id, { method: 'DELETE' });
+        if (res.ok) {
+            alert("삭제되었습니다.");
+            refreshUnifiedNoticeList();
+        } else {
+            alert("삭제 실패");
+        }
+    } catch (e) {
+        alert("오류: " + e.message);
+    }
+};
+
+// (D) 게시글 관리 섹션 렌더링
+async function renderUnifiedPromoContent(container) {
+    if (!adminAuthenticated.promo) return;
+
+    container.innerHTML = `
+        <div class="admin-section-title">
+            <i class="fa-solid fa-bullhorn" style="color:#f87171;"></i> 정보광장(게시글) 관리
+        </div>
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <div style="color:#94a3b8; font-size:0.85rem;">최근 등록된 게시글 목록입니다.</div>
+            <button class="admin-action-btn admin-btn-primary" onclick="openPromoEditor()">
+                <i class="fa-solid fa-plus"></i> 새 게시글 작성
+            </button>
+        </div>
+        
+        <div id="unified-promo-list-container">
+            <!-- loadUnifiedPromoList 에 의해 채워짐 -->
+        </div>
+    `;
+
+    window.loadUnifiedPromoList = async function () {
+        const listEl = document.getElementById('unified-promo-list-container');
+        if (!listEl) return;
+        try {
+            const res = await fetch(CONFIG.API_BASE + '/api/promo');
+            const posts = await res.json();
+
+            listEl.innerHTML = posts.map(post => `
+                <div class="admin-card" style="margin-bottom:10px; padding:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div style="flex:1;">
+                            <span style="font-size:0.75rem; padding:2px 6px; border-radius:4px; background:rgba(255,255,255,0.1); color:#94a3b8; margin-right:10px;">${post.category || '홍보'}</span>
+                            <span style="font-weight:700; color:#fff; font-size:0.95rem;">${post.title}</span>
+                            <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">${post.createdAt} | 조회수: ${post.views || 0}</div>
+                        </div>
+                        <div style="display:flex; gap:10px;">
+                            <button class="admin-action-btn" style="padding:5px 10px; font-size:0.75rem;" onclick="editPromoPost(${post.id})">
+                                <i class="fa-solid fa-edit"></i> 수정
+                            </button>
+                            <button class="admin-action-btn admin-btn-danger" style="padding:5px 10px; font-size:0.75rem;" onclick="deletePromoPostUnified(${post.id})">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('') || '<div style="text-align:center; padding:40px; color:#64748b;">등록된 게시글이 없습니다.</div>';
+        } catch (e) { }
+    };
+
+    window.deletePromoPostUnified = async function (id) {
+        if (!confirm('정말 삭제하시겠습니까?')) return;
+        await fetch(CONFIG.API_BASE + '/api/promo/' + id, { method: 'DELETE' });
+        loadUnifiedPromoList();
+    };
+
+    loadUnifiedPromoList();
+}
+
+// (E) 방문자 통계 섹션 렌더링
+let visitorChart = null;
+async function renderUnifiedStatsContent(container) {
+    container.innerHTML = `
+        <div class="admin-section-title" style="display:flex; justify-content:space-between; align-items:center;">
+             <div><i class="fa-solid fa-chart-line" style="color:#a78bfa;"></i> 방문자 통계 분석</div>
+             <div style="font-size:0.75rem; color:#64748b;">KST 기준 데이터</div>
+        </div>
+        
+        <div id="stats-loading" style="text-align:center; padding:50px; color:#64748b;">
+            <i class="fa-solid fa-circle-notch fa-spin fa-2x"></i>
+            <p style="margin-top:10px;">통계 데이터를 분석 중입니다...</p>
+        </div>
+        
+        <div id="stats-dashboard" style="display:none;">
+            <!-- 상단 요약 카드 -->
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:12px; margin-bottom:20px;">
+                <div class="admin-card" style="padding:15px; text-align:center; border-left:4px solid #3b82f6;">
+                    <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:5px;">오늘 방문</div>
+                    <div id="stat-today" style="font-size:1.2rem; font-weight:800; color:#fff;">0</div>
+                </div>
+                <div class="admin-card" style="padding:15px; text-align:center; border-left:4px solid #10b981;">
+                    <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:5px;">어제 방문</div>
+                    <div id="stat-yesterday" style="font-size:1.2rem; font-weight:800; color:#fff;">0</div>
+                </div>
+                <div class="admin-card" style="padding:15px; text-align:center; border-left:4px solid #f59e0b;">
+                    <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:5px;">최근 7일 합계</div>
+                    <div id="stat-week" style="font-size:1.2rem; font-weight:800; color:#fff;">0</div>
+                </div>
+                <div class="admin-card" style="padding:15px; text-align:center; border-left:4px solid #f87171;">
+                    <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:5px;">이번 달 합계</div>
+                    <div id="stat-month" style="font-size:1.2rem; font-weight:800; color:#fff;">0</div>
+                </div>
+            </div>
+
+            <!-- 필터 제어바 -->
+            <div style="background:rgba(255,255,255,0.03); padding:12px; border-radius:12px; margin-bottom:20px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; border:1px solid rgba(255,255,255,0.05);">
+                <div style="display:flex; background:rgba(0,0,0,0.2); padding:3px; border-radius:8px;">
+                    ${['hourly', 'daily', 'monthly'].map(p => `
+                        <button onclick="window.updateStatsType('${p}')" id="btn-stats-${p}"
+                                style="padding:6px 12px; border:none; border-radius:6px; background:transparent; color:#94a3b8; font-size:0.8rem; font-weight:600; cursor:pointer; transition:0.2s;">
+                            ${p === 'hourly' ? '시간별(오늘)' : (p === 'daily' ? '일별' : '월별')}
+                        </button>
+                    `).join('')}
+                </div>
+                <div id="stats-date-group" style="display:flex; align-items:center; gap:8px; margin-left:auto;">
+                    <input type="date" id="stats-start-date" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; padding:4px 8px; font-size:0.8rem;">
+                    <span style="color:#475569;">~</span>
+                    <input type="date" id="stats-end-date" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; padding:4px 8px; font-size:0.8rem;">
+                    <button onclick="window.refreshStatsDash()" style="background:#3b82f6; border:none; color:#fff; padding:5px 10px; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer;">적용</button>
+                </div>
+            </div>
+
+            <!-- 그래프 영역 -->
+            <div class="admin-card" style="padding:20px; margin-bottom:20px; height:320px; position:relative;">
+                <canvas id="visitor-main-chart"></canvas>
+            </div>
+
+            <!-- 상세 데이터 표 -->
+            <div class="admin-card" style="overflow:hidden;">
+                <div style="padding:12px 16px; background:rgba(255,255,255,0.02); border-bottom:1px solid rgba(255,255,255,0.05); font-weight:700; font-size:0.85rem; color:#94a3b8;">
+                    상세 데이터 내역
+                </div>
+                <div style="max-height:300px; overflow-y:auto;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                        <thead style="position:sticky; top:0; background:#1e293b; color:#64748b; text-align:left;">
+                            <tr>
+                                <th style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.05);">날짜/시간</th>
+                                <th style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.05); text-align:right;">방문수</th>
+                                <th style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.05); text-align:right;">비중</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stats-table-body" style="color:#cbd5e1;"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // 날짜 기본값 설정 (최근 30일)
+    const now = new Date();
+    const kstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+    const kst30DaysAgo = new Date(kstNow.getTime() - (30 * 24 * 60 * 60 * 1000));
+
+    const endStr = kstNow.toISOString().split('T')[0];
+    const startStr = kst30DaysAgo.toISOString().split('T')[0];
+
+    document.getElementById('stats-start-date').value = startStr;
+    document.getElementById('stats-end-date').value = endStr;
+
+    let statsType = 'daily';
+    let rawData = {};
+
+    window.updateStatsType = function (type) {
+        statsType = type;
+        document.querySelectorAll('[id^="btn-stats-"]').forEach(btn => {
+            if (btn.id === `btn-stats-${type}`) {
+                btn.style.background = '#3b82f6';
+                btn.style.color = '#fff';
+            } else {
+                btn.style.background = 'transparent';
+                btn.style.color = '#94a3b8';
+            }
+        });
+
+        // 시간별일 때는 날짜 선택기 비활성화 (오늘 고정)
+        const dateGroup = document.getElementById('stats-date-group');
+        if (type === 'hourly') dateGroup.style.opacity = '0.3', dateGroup.style.pointerEvents = 'none';
+        else dateGroup.style.opacity = '1', dateGroup.style.pointerEvents = 'all';
+
+        refreshStatsDash();
+    };
+
+    window.refreshStatsDash = function () {
+        processStatsAndRender(rawData, statsType);
+    };
+
+    try {
+        const res = await fetch(CONFIG.API_BASE + '/api/stats/visitors');
+        rawData = await res.json();
+
+        document.getElementById('stats-loading').style.display = 'none';
+        document.getElementById('stats-dashboard').style.display = 'block';
+
+        // 요약 정보 계산
+        updateStatsSummary(rawData);
+
+        // 초기 렌더링 (일별)
+        window.updateStatsType('daily');
+    } catch (e) {
+        container.innerHTML += `<div style="color:#ef4444; text-align:center; padding:20px;">데이터 로드 실패: ${e.message}</div>`;
+    }
+}
+
+function updateStatsSummary(data) {
+    const kstNow = new Date(new Date().getTime() + (9 * 60 * 60 * 1000));
+    const todayStr = kstNow.toISOString().split('T')[0];
+    const yesterdayStr = new Date(kstNow.getTime() - 86400000).toISOString().split('T')[0];
+
+    // 1. 오늘
+    document.getElementById('stat-today').textContent = (data[todayStr]?.total || 0).toLocaleString();
+    // 2. 어제
+    document.getElementById('stat-yesterday').textContent = (data[yesterdayStr]?.total || 0).toLocaleString();
+
+    // 3. 최근 7일
+    let weekTotal = 0;
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(kstNow.getTime() - (i * 86400000)).toISOString().split('T')[0];
+        weekTotal += (data[d]?.total || 0);
+    }
+    document.getElementById('stat-week').textContent = weekTotal.toLocaleString();
+
+    // 4. 이번 달
+    let monthTotal = 0;
+    const thisMonthPrefix = todayStr.substring(0, 7);
+    Object.keys(data).forEach(k => {
+        if (k.startsWith(thisMonthPrefix)) monthTotal += (data[k].total || 0);
+    });
+    document.getElementById('stat-month').textContent = monthTotal.toLocaleString();
+}
+
+function processStatsAndRender(data, type) {
+    let labels = [];
+    let values = [];
+    let tableData = [];
+
+    const startVal = document.getElementById('stats-start-date').value;
+    const endVal = document.getElementById('stats-end-date').value;
+
+    if (type === 'hourly') {
+        const kstNow = new Date(new Date().getTime() + (9 * 60 * 60 * 1000));
+        const todayStr = kstNow.toISOString().split('T')[0];
+        const dayData = data[todayStr] || { hourly: {} };
+
+        for (let i = 0; i < 24; i++) {
+            const h = String(i).padStart(2, '0');
+            labels.push(`${h}시`);
+            const v = dayData.hourly[h] || 0;
+            values.push(v);
+            tableData.push({ label: `${h}:00 ~ ${h}:59`, value: v });
+        }
+    } else if (type === 'daily') {
+        const start = new Date(startVal);
+        const end = new Date(endVal);
+        let current = new Date(start);
+
+        while (current <= end) {
+            const dStr = current.toISOString().split('T')[0];
+            labels.push(dStr.substring(5)); // MM-DD
+            const v = data[dStr]?.total || 0;
+            values.push(v);
+            tableData.push({ label: dStr, value: v });
+            current.setDate(current.getDate() + 1);
+        }
+    } else if (type === 'monthly') {
+        // 최근 12개월 추출 또는 연도별 집계
+        const yearMonths = {};
+        Object.keys(data).forEach(k => {
+            const ym = k.substring(0, 7);
+            yearMonths[ym] = (yearMonths[ym] || 0) + (data[k].total || 0);
+        });
+        const sortedYM = Object.keys(yearMonths).sort().slice(-12);
+        sortedYM.forEach(ym => {
+            labels.push(ym);
+            values.push(yearMonths[ym]);
+            tableData.push({ label: ym, value: yearMonths[ym] });
+        });
+    }
+
+    // 차트 그리기
+    renderVisitorChart(labels, values, type);
+
+    // 테이블 업데이트
+    const tbody = document.getElementById('stats-table-body');
+    const total = values.reduce((a, b) => a + b, 0);
+
+    // 최근 순으로 정렬하여 표출 (일별/월별일 때만)
+    if (type !== 'hourly') tableData.reverse();
+
+    tbody.innerHTML = tableData.map(item => {
+        const percent = total > 0 ? ((item.value / total) * 100).toFixed(1) : 0;
+        return `
+            <tr>
+                <td style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.03);">${item.label}</td>
+                <td style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.03); text-align:right; font-weight:700;">${item.value.toLocaleString()}</td>
+                <td style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.03); text-align:right; color:#64748b;">${percent}%</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderVisitorChart(labels, values, type) {
+    const ctx = document.getElementById('visitor-main-chart').getContext('2d');
+
+    if (visitorChart) visitorChart.destroy();
+
+    const isLine = type !== 'bar';
+    const mainColor = '#22c55e'; // Vibrant Green (Emerald)
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+    gradient.addColorStop(0, 'rgba(34, 197, 94, 0.4)');
+    gradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
+
+    visitorChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '방문자 수',
+                data: values,
+                borderColor: mainColor,
+                borderWidth: 3,
+                backgroundColor: gradient,
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: '#fff',
+                pointBorderColor: mainColor,
+                pointRadius: 4,
+                pointHoverRadius: 6
+            }]
+        },
+        plugins: [{
+            id: 'glow',
+            beforeDatasetDraw: (chart, args) => {
+                const { ctx } = chart;
+                ctx.save();
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = mainColor;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+            },
+            afterDatasetDraw: (chart) => {
+                chart.ctx.restore();
+            }
+        }],
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    titleColor: '#fff',
+                    bodyColor: '#cbd5e1',
+                    padding: 12,
+                    cornerRadius: 8,
+                    displayColors: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#64748b', font: { size: 10 } }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#64748b', font: { size: 10 } }
+                }
+            }
+        }
+    });
+}
+
+// 기존 관리 함수들 리다이렉션 (하위 호환성 유지)
+window.showNoticeManagementModal = () => showUnifiedAdminModal('notice');
+window.showPromoManagementModal = () => showUnifiedAdminModal('promo');
+window.showApiManagementModal = () => showUnifiedAdminModal('api');
+window.showAlertManagementModal = () => showUnifiedAdminModal('alert');
+
+// 2. 관리 모달 구현체들 (기존 함수는 이제 helper로 사용되거나 제거 가능)
 
 // (A) 공지 팝업 관리
 window.showNoticeManagementModal = async function () {
@@ -8801,3 +9879,1710 @@ function hexToRgb(hex) {
         // console.warn('[Init] 공지사항 뱃지 초기화 실패:', e.message);
     }
 })();
+
+// ============================================================================
+// [New] 폰트 크기 설정 기능
+// ============================================================================
+const FontSizeManager = {
+    STORAGE_KEY: 'user_font_size',
+
+    // 폰트 크기 오프셋 (기존 반응형 크기에 더함)
+    OFFSETS: {
+        small: 0,    // 기존 반응형 그대로
+        medium: 2,   // +2px
+        large: 4     // +4px
+    },
+
+    // 현재 설정 가져오기
+    get() {
+        return localStorage.getItem(this.STORAGE_KEY) || 'medium';
+    },
+
+    // 설정 저장
+    set(size) {
+        if (!this.OFFSETS.hasOwnProperty(size)) size = 'medium';
+        localStorage.setItem(this.STORAGE_KEY, size);
+        this.apply(size);
+    },
+
+    // CSS 적용
+    apply(size) {
+        if (!size) size = this.get();
+        const offset = this.OFFSETS[size] || 0;
+
+        // 현재 뷰포트 기반 기본 폰트 크기 계산
+        const viewportWidth = window.innerWidth;
+        let baseFontSize;
+
+        if (viewportWidth < 360) {
+            baseFontSize = 13;
+        } else if (viewportWidth < 400) {
+            baseFontSize = 14;
+        } else if (viewportWidth < 431) {
+            baseFontSize = 15;
+        } else {
+            baseFontSize = 16;
+        }
+
+        // 오프셋 적용
+        const finalFontSize = baseFontSize + offset;
+        document.documentElement.style.fontSize = finalFontSize + 'px';
+
+        // data 속성 추가 (디버깅용)
+        document.documentElement.setAttribute('data-font-size', size);
+
+        console.log(`[FontSize] 적용: ${size} (base: ${baseFontSize}px + offset: ${offset}px = ${finalFontSize}px)`);
+    },
+
+    // 설정 모달 UI 초기화
+    initUI() {
+        const radios = document.querySelectorAll('input[name="font-size"]');
+        const current = this.get();
+
+        radios.forEach(radio => {
+            const content = radio.nextElementSibling;
+
+            // 현재 값 반영
+            if (radio.value === current) {
+                radio.checked = true;
+                if (content) {
+                    content.style.background = 'var(--accent-blue)';
+                    content.style.color = 'white';
+                    content.classList.add('active');
+                }
+            } else {
+                radio.checked = false;
+                if (content) {
+                    content.style.background = '';
+                    content.style.color = '#ccc';
+                    content.classList.remove('active');
+                }
+            }
+
+            // 클릭 이벤트
+            radio.addEventListener('change', () => {
+                // 모든 라디오 스타일 초기화
+                radios.forEach(r => {
+                    const c = r.nextElementSibling;
+                    if (c) {
+                        c.style.background = '';
+                        c.style.color = '#ccc';
+                        c.classList.remove('active');
+                    }
+                });
+
+                // 선택된 라디오 스타일 적용
+                if (content) {
+                    content.style.background = 'var(--accent-blue)';
+                    content.style.color = 'white';
+                    content.classList.add('active');
+                }
+
+                // 즉시 미리보기 적용
+                this.apply(radio.value);
+            });
+        });
+    },
+
+    // 저장 (saveSettingsAndClose에서 호출)
+    save() {
+        const selected = document.querySelector('input[name="font-size"]:checked');
+        if (selected) {
+            this.set(selected.value);
+        }
+    }
+};
+
+// 페이지 로드 시 폰트 크기 적용
+FontSizeManager.apply();
+
+// 설정 모달 열릴 때 UI 초기화
+const _originalOpenSettingsModal = window.openSettingsModal;
+window.openSettingsModal = function () {
+    if (_originalOpenSettingsModal) _originalOpenSettingsModal();
+    setTimeout(() => FontSizeManager.initUI(), 100);
+};
+
+// 전역 노출
+window.FontSizeManager = FontSizeManager;
+
+// ============================================================================
+// [New] 특보 알림 상세 팝업 기능
+// ============================================================================
+const AlertDetailPopup = {
+    isWinterPeriod(dateStr) {
+        if (!dateStr) return false;
+        // 숫자만 추출해서 분석 (점이나 하이픈 등 제거)
+        const cleanStr = String(dateStr).replace(/[^0-9]/g, '');
+
+        // 문자로 된 시각(예: "01/05 오후...")인 경우 처리
+        if (typeof dateStr === 'string' && (dateStr.includes('/') || dateStr.includes('오후'))) {
+            const now = new Date();
+            const month = now.getMonth() + 1;
+            return month >= 11 || month <= 3;
+        }
+
+        if (cleanStr.length < 4) return false;
+
+        let month = 0;
+        // 형식 판단: 20260110... 또는 260110... 또는 0110...
+        if (cleanStr.startsWith('20')) {
+            month = parseInt(cleanStr.substring(4, 6));
+        } else if (cleanStr.length >= 6) {
+            // YYMMDD...
+            month = parseInt(cleanStr.substring(2, 4));
+        } else {
+            // MMDD...
+            month = parseInt(cleanStr.substring(0, 2));
+        }
+        return month >= 11 || month <= 3;
+    },
+
+    // 날짜 포맷 (숫자면 포맷팅, 아니면 그대로 유지)
+    formatDateTime(dateStr) {
+        if (!dateStr || dateStr === '일' || !/\d/.test(dateStr)) return '정보 없음';
+        // 숫자로만 구성된 12자리 형식이 아니면(예: "01/05 오후...") 그대로 반환
+        if (typeof dateStr !== 'string' || !/^\d{12}$/.test(dateStr)) return dateStr;
+        const y = dateStr.substring(0, 4);
+        const m = dateStr.substring(4, 6);
+        const d = dateStr.substring(6, 8);
+        const h = dateStr.substring(8, 10);
+        const min = dateStr.substring(10, 12);
+        return `${y}-${m}-${d} ${h}:${min}`;
+    },
+
+    // 해역명을 링크로 변환
+    createZoneLinks(zones, status) {
+        if (!zones || zones.length === 0) return '해당 해역';
+        return zones.map(zone =>
+            `<a href="#" class="alert-zone-link" data-zone="${zone}" data-status="${status}" style="color: var(--accent-blue); text-decoration: underline; cursor: pointer;">${zone}</a>`
+        ).join(', ');
+    },
+
+    // 메시지 생성
+    generateMessage(data) {
+        let { alertType, status, tmFc, tmEf, tmYn, zones, prevAlertType } = data;
+        const isWinter = this.isWinterPeriod(tmEf || tmFc);
+
+        // [수정] 발효/해제 알림 시에는 발표 시각(tmFc)보다 실제 사건 시각(tmEf/tmYn)을 우선 표출
+        let primaryTime = tmFc;
+        if (status === 'active' || status === 'upgrade' || status === 'downgrade') {
+            primaryTime = tmEf || tmFc;
+        } else if (status === 'release') {
+            primaryTime = tmYn || tmFc;
+        }
+
+        const timeStrLong = this.formatDateTime(primaryTime);
+        const effectTimeStr = this.formatDateTime(tmEf);
+        const zoneLinks = this.createZoneLinks(zones, status);
+
+        // [수정] 용어 명확화: '풍랑'이나 '풍랑예비'는 문맥상 '풍랑주의보'로 표출
+        if (alertType.includes('풍랑') && !alertType.includes('경보')) {
+            alertType = '풍랑주의보';
+        }
+        if (prevAlertType && prevAlertType.includes('풍랑') && !prevAlertType.includes('경보')) {
+            prevAlertType = '풍랑주의보';
+        }
+
+        let message = '';
+
+        // 1. 풍랑/풍랑주의보/풍랑예비 - 발표 (Publish)
+        if (alertType.includes('풍랑') && status === 'publish') {
+            if (isWinter) {
+                // 동절기 (Winter inside)
+                message = `
+① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 '발표'되었습니다.
+발효 예정 일시는 앱의 상세내용에서 확인해주시고, 발효 시 30톤 미만 어선은 출항 및 조업이 제한되니 사전에 안전지대로 이동 및 대피바랍니다.
+* 15톤 이상 출항 가능 조건은 가까운 해양경찰 파출소 문의
+
+② 출항 및 조업 제한 위반 시 어선안전조업법 제49조에 따라 어업허가 정지 등 행정처분 대상이 될 수 있습니다.
+
+③ 출항 제한과 관련 문의는 가까운 해양경찰 파출소로 문의바랍니다.`;
+            } else if (['경보', '태풍'].some(t => alertType.includes(t))) {
+                // 풍랑경보/태풍 강한 특보는 비동절기에도 모든 어선 제한 문구 우선
+                message = `
+① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 '발표'되었습니다.
+
+② 발효 예정 일시는 앱의 상세내용에서 확인해주시고, 발효 시 모든 어선은 출항 및 조업이 제한됩니다. 해당 해역 및 인근 해역을 항해하는 어선은 속히 안전지대로 대피해주시기 바랍니다.
+
+③ 출항 및 조업 제한 위반 시 어선안전조업법 제49조에 따라 어업허가 정지 등 행정처분 대상이 될 수 있습니다.
+
+④ 출항 제한과 관련 문의는 가까운 해경 파출소로 문의바랍니다.`;
+            } else {
+                // 비동절기 (Winter outside)
+                message = `
+① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 '발표'되었습니다.
+해당 발표는 ${effectTimeStr}부로 '발효'될 예정이며, 발효 시 15톤 미만 어선은 출항 및 조업이 제한되니 사전에 안전지대로 이동 및 대피바랍니다.
+
+② 출항 및 조업 제한 위반 시 어선안전조업법 제49조에 따라 어업허가 정지 등 행정처분 대상이 될 수 있습니다.
+
+③ 출항 제한과 관련 문의는 가까운 해경 파출소로 문의바랍니다.`;
+            }
+        }
+        // 2. 풍랑/풍랑주의보 - 발효 (Active)
+        else if (alertType.includes('풍랑') && status === 'active') {
+            if (isWinter) {
+                // 동절기
+                message = `
+① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 '발효'되었습니다.
+30톤 미만 어선은 출항 및 조업이 제한되니 조업 중인 어선은 안전지대로 이동 및 대피바랍니다.
+* 15톤 이상 출항 가능 조건은 가까운 해양경찰 파출소 문의
+
+② 해제 예정 일시는 앱의 상세내용에서 확인해주시고, 실제 풍랑주의보 해제 시각 이후부터 모든 어선은 즉시 출항이 가능하오니, 수시로 기상특보를 확인바랍니다.
+
+③ 출항 및 조업 제한 위반 시 어선안전조업법 제49조에 따라 어업허가 정지 등 행정처분 대상이 될 수 있습니다.
+
+④ 출항 제한과 관련 문의는 가까운 해경 파출소로 문의바랍니다.`;
+            } else {
+                // 비동절기
+                message = `
+① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 '발효'되었습니다.
+15톤 미만 어선은 출항 및 조업이 제한되니 조업 중인 어선은 안전지대로 이동 및 대피바랍니다.
+
+② 해제 예정 일시는 앱의 상세내용에서 확인해주시고, 실제 풍랑주의보 해제 시각 이후부터 모든 어선은 즉시 출항이 가능하오니, 수시로 기상특보를 확인바랍니다.
+
+③ 출항 및 조업 제한 위반 시 어선안전조업법 제49조에 따라 어업허가 정지 등 행정처분 대상이 될 수 있습니다.
+
+④ 출항 제한과 관련 문의는 가까운 해경 파출소로 문의바랍니다.`;
+            }
+        }
+        // 2-1. 풍랑경보, 태풍주의보, 태풍경보 - 발효 (Active) [신규 추가]
+        else if (['경보', '태풍'].some(t => alertType.includes(t)) && status === 'active') {
+            message = `
+① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 '발효'되었습니다.
+
+② 모든 어선은 출항 및 조업이 제한됩니다. 해당 해역 및 인근 해역을 항해하는 어선은 속히 안전지대로 대피해주시기 바랍니다.
+
+③ 출항 및 조업 제한 위반 시 어선안전조업법 제49조에 따라 어업허가 정지 등 행정처분 대상이 될 수 있습니다.
+
+④ 출항 제한과 관련 문의는 가까운 해경 파출소로 문의바랍니다.`;
+        }
+        // 3. 해제 (Release)
+        else if (status === 'release') {
+            message = `
+① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 '해제'되었습니다. 어선의 출항 및 조업이 가능하나, 출항 전 출항지 및 조업지 해상상태를 확인하시어 안전한 출항과 조업이 되도록 당부드립니다.
+
+② 출항 제한과 관련 문의는 가까운 해경 파출소로 문의바랍니다.`;
+        }
+        // 4. 격상/격하 (Upgrade/Downgrade)
+        else if (status === 'upgrade' || status === 'downgrade') {
+            const levelWord = status === 'upgrade' ? '격상' : '격하';
+
+            // [Fix] 격상/격하 후의 최종 특보가 '풍랑주의보'인 경우와 '경보/태풍'인 경우를 구분하여 안내
+            if (alertType.includes('풍랑') && !alertType.includes('경보')) {
+                // 풍랑주의보로 변한 경우 (주로 경보->주의보 격하 시)
+                if (isWinter) {
+                    message = `
+① ${timeStrLong}부로 ${zoneLinks}에 ${prevAlertType || '특보'}가 ${alertType}으로 ${levelWord}되었습니다.
+30톤 미만 어선은 출항 및 조업이 제한되니 조업 중인 어선은 안전지대로 이동 및 대피바랍니다.
+* 15톤 이상 출항 가능 조건은 가까운 해양경찰 파출소 문의
+
+② 해제 예정 일시는 앱의 상세내용에서 확인해주시고, 실제 풍랑주의보 해제 시각 이후부터 모든 어선은 즉시 출항이 가능하오니, 수시로 기상특보를 확인바랍니다.
+
+③ 출항 및 조업 제한 위반 시 어선안전조업법 제49조에 따라 어업허가 정지 등 행정처분 대상이 될 수 있습니다.
+
+④ 출항 제한과 관련 문의는 가까운 해경 파출소로 문의바랍니다.`;
+                } else {
+                    message = `
+① ${timeStrLong}부로 ${zoneLinks}에 ${prevAlertType || '특보'}가 ${alertType}으로 ${levelWord}되었습니다.
+15톤 미만 어선은 출항 및 조업이 제한되니 조업 중인 어선은 안전지대로 이동 및 대피바랍니다.
+
+② 해제 예정 일시는 앱의 상세내용에서 확인해주시고, 실제 풍랑주의보 해제 시각 이후부터 모든 어선은 즉시 출항이 가능하오니, 수시로 기상특보를 확인바랍니다.
+
+③ 출항 및 조업 제한 위반 시 어선안전조업법 제49조에 따라 어업허가 정지 등 행정처분 대상이 될 수 있습니다.
+
+④ 출항 제한과 관련 문의는 가까운 해경 파출소로 문의바랍니다.`;
+                }
+            } else {
+                // 경보나 태풍으로 격상/격하된 경우 (모든 어선 제한)
+                message = `
+① ${timeStrLong}부로 ${zoneLinks}에 ${prevAlertType || '특보'}가 ${alertType}으로 ${levelWord}되었습니다.
+
+② 모든 어선은 출항 및 조업이 제한됩니다. 해당 해역 및 인근 해역을 항해하는 어선은 속히 안전지대로 대피해주시기 바랍니다.
+
+③ 출항 및 조업 제한 위반 시 어선안전조업법 제49조에 따라 어업허가 정지 등 행정처분 대상이 될 수 있습니다.
+
+④ 출항 제한과 관련 문의는 가까운 해경 파출소로 문의바랍니다.`;
+            }
+        }
+        // 5. 풍랑경보, 태풍주의보, 태풍경보 - 발표 (Publish)
+        else if (['경보', '태풍'].some(t => alertType.includes(t)) && status === 'publish') {
+            message = `
+① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 '발표'되었습니다.
+
+② 발효 예정 일시는 앱의 상세내용에서 확인해주시고, 발효 시 모든 어선은 출항 및 조업이 제한됩니다. 해당 해역 및 인근 해역을 항해하는 어선은 속히 안전지대로 대피해주시기 바랍니다.
+
+③ 출항 및 조업 제한 위반 시 어선안전조업법 제49조에 따라 어업허가 정지 등 행정처분 대상이 될 수 있습니다.
+
+④ 출항 제한과 관련 문의는 가까운 해경 파출소로 문의바랍니다.`;
+        }
+        // 6. 기타 (기본형)
+        else {
+            message = `
+① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 발생했습니다.
+
+② 자세한 내용은 앱의 기상특보 탭에서 확인해주세요.`;
+        }
+
+        return message.trim();
+    },
+
+    // 팝업 표시
+    show(data) {
+        const message = this.generateMessage(data);
+
+        // 기존 팝업 제거
+        const existing = document.getElementById('alert-detail-popup');
+        if (existing) existing.remove();
+
+        // 제목 및 아이콘 설정
+        let title = '기상특보에 따른 안전권고';
+        let iconColor = '#f59e0b'; // 주황색 (기본)
+
+        if (data.status === 'release') {
+            title = '기상특보 해제 알림';
+            iconColor = '#10b981'; // 초록색 (해제)
+        }
+
+        // 팝업 생성
+        const popup = document.createElement('div');
+        popup.id = 'alert-detail-popup';
+        popup.innerHTML = `
+            <div class="alert-popup-overlay" onclick="AlertDetailPopup.close()"></div>
+            <div class="alert-popup-content">
+                <div class="alert-popup-header">
+                    <h3><i class="fa-solid fa-triangle-exclamation" style="color: ${iconColor};"></i> ${title}</h3>
+                    <button class="alert-popup-close" onclick="AlertDetailPopup.close()">✕</button>
+                </div>
+                <div class="alert-popup-body">
+                    ${message.replace(/\n/g, '<br>')}
+                </div>
+                <div class="alert-popup-footer">
+                    <button onclick="AlertDetailPopup.close()" style="padding: 10px 24px; background: var(--accent-blue); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">확인</button>
+                </div>
+            </div>
+        `;
+
+        // 스타일 추가
+        if (!document.getElementById('alert-popup-style')) {
+            const style = document.createElement('style');
+            style.id = 'alert-popup-style';
+            style.textContent = `
+                #alert-detail-popup {
+                    position: fixed;
+                    inset: 0;
+                    z-index: 10000;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                }
+                .alert-popup-overlay {
+                    position: absolute;
+                    inset: 0;
+                    background: rgba(0,0,0,0.7);
+                }
+                .alert-popup-content {
+                    position: relative;
+                    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+                    border-radius: 16px;
+                    border: 1px solid rgba(255,255,255,0.1);
+                    max-width: 500px;
+                    width: 100%;
+                    max-height: 80vh;
+                    overflow: hidden;
+                    animation: alertPopupIn 0.3s ease-out;
+                }
+                @keyframes alertPopupIn {
+                    from { opacity: 0; transform: scale(0.9) translateY(20px); }
+                    to { opacity: 1; transform: scale(1) translateY(0); }
+                }
+                .alert-popup-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 16px 20px;
+                    border-bottom: 1px solid rgba(255,255,255,0.1);
+                }
+                .alert-popup-header h3 {
+                    margin: 0;
+                    font-size: 1.1rem;
+                    color: #fff;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+                .alert-popup-close {
+                    background: none;
+                    border: none;
+                    color: #94a3b8;
+                    font-size: 1.2rem;
+                    cursor: pointer;
+                }
+                .alert-popup-body {
+                    padding: 20px;
+                    color: #e2e8f0;
+                    font-size: 0.95rem;
+                    line-height: 1.7;
+                    max-height: 50vh;
+                    overflow-y: auto;
+                }
+                .alert-popup-footer {
+                    padding: 16px 20px;
+                    border-top: 1px solid rgba(255,255,255,0.1);
+                    display: flex;
+                    justify-content: center;
+                }
+                .alert-zone-link:hover {
+                    color: #60a5fa !important;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        document.body.appendChild(popup);
+
+        // 해역 링크 클릭 이벤트
+        popup.querySelectorAll('.alert-zone-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const zoneName = e.target.dataset.zone;
+                const status = e.target.dataset.status; // status 가져오기
+                this.close();
+                this.scrollToZone(zoneName, status);
+            });
+        });
+    },
+
+    // 팝업 닫기
+    close() {
+        const popup = document.getElementById('alert-detail-popup');
+        if (popup) popup.remove();
+    },
+
+    // 해역 아코디언으로 스크롤 및 펼치기
+    scrollToZone(zoneName, status) {
+        const tabId = 'weather-alert-section';
+        let cardClass = '.alert-card';
+
+        // 1. 탭 이동
+        const tab = document.querySelector(`[data-target="${tabId}"]`);
+        if (tab) tab.click();
+
+        // DOM 렌더링 및 탭 전환 시간 확보
+        setTimeout(() => {
+            // 2. 메인 아코디언 강제 열기
+            if (status === 'release') {
+                cardClass = '.weather-status-card';
+                const marineBody = document.getElementById('marine-status-accordion-body');
+                if (marineBody && marineBody.classList.contains('collapsed')) {
+                    if (typeof toggleMarineStatusAccordion === 'function') toggleMarineStatusAccordion();
+                    else {
+                        marineBody.classList.remove('collapsed');
+                        marineBody.style.maxHeight = 'none';
+                    }
+                }
+            } else {
+                const mainBody = document.getElementById('main-accordion-body');
+                if (mainBody && mainBody.classList.contains('collapsed')) {
+                    if (typeof toggleMainAccordion === 'function') toggleMainAccordion();
+                    else {
+                        mainBody.classList.remove('collapsed');
+                        mainBody.style.maxHeight = 'none';
+                    }
+                }
+            }
+
+            // 3. 대상 카드 찾기
+            const cards = document.querySelectorAll(cardClass);
+            let targetCard = null;
+
+            cards.forEach(card => {
+                if (card.textContent.includes(zoneName)) {
+                    targetCard = card;
+                }
+            });
+
+            if (targetCard) {
+                // 4. 상위 지역별 아코디언 강제 열기
+                const seaSection = targetCard.closest('.sea-section');
+                if (seaSection && !seaSection.classList.contains('open')) {
+                    const header = seaSection.querySelector('.sea-header');
+                    if (header) header.click();
+                }
+
+                const subRegionSection = targetCard.closest('.sub-region-section');
+                if (subRegionSection) {
+                    const list = subRegionSection.querySelector('.sub-region-list');
+                    if (list && list.style.display === 'none') {
+                        const header = subRegionSection.querySelector('.sub-region-header');
+                        if (header) header.click();
+                    }
+                }
+
+                if (status !== 'release') {
+                    const details = targetCard.querySelector('.alert-details');
+                    const arrow = targetCard.querySelector('.detail-arrow');
+                    if (details && details.classList.contains('hidden')) {
+                        details.classList.remove('hidden');
+                        if (arrow) arrow.style.transform = 'rotate(90deg)';
+                    }
+                }
+
+                // 5. 스크롤 및 하이라이트
+                targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetCard.style.boxShadow = '0 0 20px 5px rgba(255, 215, 0, 0.8)';
+                setTimeout(() => { targetCard.style.boxShadow = ''; }, 3000);
+            }
+        }, 500);
+    }
+};
+
+// [New] 푸시 알림 파라미터 체크 함수 (분석/수정본)
+function checkForPushPopup() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('popup') === 'true') {
+        const alertType = params.get('alertType') || '';
+        const status = params.get('status');
+
+        // [Fix] 지진해일/폭풍해일의 경우 팝업 설계 없음 -> 팝업을 표시하지 않음
+        if (alertType.includes('해일')) {
+            return;
+        }
+
+        // [수정] 발효시각 변경(publish_time_change)인 경우 앱 접속 시 상세 팝업을 띄우지 않음
+        if (status === 'publish_time_change') {
+            return;
+        }
+
+        const data = {
+            alertType: alertType,
+            status: status,
+            tmFc: params.get('tmFc'),
+            tmEf: params.get('tmEf'),
+            tmYn: params.get('tmYn'),
+            zones: params.get('zones') ? params.get('zones').split(',') : [],
+            prevAlertType: params.get('prevAlertType')
+        };
+
+        // 데이터가 충분히 로드된 후 표시하기 위해 약간의 지연
+        setTimeout(() => {
+            if (typeof AlertDetailPopup !== 'undefined') {
+                AlertDetailPopup.show(data);
+            }
+        }, 500);
+    }
+}
+
+// 전역 노출
+window.AlertDetailPopup = AlertDetailPopup;
+
+// ============================================================================
+// (D) 특보 알림 관리 (Alert Management)
+// ============================================================================
+
+// Mock Data Storage for Demo
+let MOCK_ALERT_HISTORY = [];
+
+function generateMockAlertHistory() {
+    // Generate data based on the MD file scenarios
+    const now = new Date();
+
+    // 1. Publish (발표)
+    MOCK_ALERT_HISTORY.push({
+        id: 'pub_1',
+        tab: 'publish', // also shown in general history
+        type: 'auto',
+        time: '26.01.03 07:00',
+        pushStatus: 'sent',
+        pushTime: '15:30',
+        title: '풍랑주의보 발표',
+        zones: ['울산앞바다', '경북남부앞바다'],
+        grade: 'warning',
+        items: [
+            { zone: '울산앞바다', tmEf: '26.01.03 09:00', tmRl: '26.01.03 18:00' },
+            { zone: '경북남부앞바다', tmEf: '26.01.03 09:00', tmRl: '26.01.03 18:00' }
+        ]
+    });
+
+    MOCK_ALERT_HISTORY.push({
+        id: 'pub_2',
+        tab: 'publish',
+        type: 'auto',
+        time: '26.01.03 07:00',
+        pushStatus: 'pending',
+        pushTime: null,
+        title: '풍랑주의보 발표',
+        zones: ['부산앞바다', '거제시동부앞바다'],
+        grade: 'advisory',
+        items: [
+            { zone: '부산앞바다', tmEf: '26.01.03 10:00', tmRl: '26.01.03 20:00' },
+            { zone: '거제시동부앞바다', tmEf: '26.01.03 10:00', tmRl: '26.01.03 22:00' }
+        ]
+    });
+
+    MOCK_ALERT_HISTORY.push({
+        id: 'act_1',
+        tab: 'active',
+        type: 'auto',
+        time: '26.01.03 09:00',
+        badge: 'active',
+        pushStatus: 'sent',
+        pushTime: '09:00',
+        title: '풍랑경보 발효',
+        zones: ['인천·경기북부앞바다'],
+        grade: 'warning',
+        items: [
+            { zone: '인천·경기북부앞바다', tmRl: '26.01.03 18:00' }
+        ]
+    });
+
+    MOCK_ALERT_HISTORY.push({
+        id: 'lvl_1',
+        tab: 'level',
+        type: 'auto',
+        time: '26.01.03 15:00',
+        badge: 'upgrade',
+        pushStatus: 'sent',
+        pushTime: '15:00',
+        title: '풍랑주의보 → 풍랑경보',
+        zones: ['제주도북부앞바다'],
+        grade: 'warning',
+        items: [
+            { zone: '제주도북부앞바다', tmRl: '26.01.03 22:00' }
+        ]
+    });
+
+    // Custom History (Manually Sent)
+    MOCK_ALERT_HISTORY.push({
+        id: 'cust_1',
+        tab: 'custom_history',
+        type: 'manual',
+        time: '26.01.03 15:30',
+        pushStatus: 'sent',
+        count: 245,
+        target: '전남서부남해앞바다, 전남동부남해앞바다',
+        title: '긴급 해양 안전 공지',
+        content: '현재 남해 서부 해역에 강한 돌풍이 예상되오니 소형 선박은 안전한 곳으로 대피하시기 바랍니다.'
+    });
+
+    MOCK_ALERT_HISTORY.push({
+        id: 'cust_2',
+        tab: 'custom_history',
+        type: 'manual',
+        time: '26.01.02 09:00',
+        pushStatus: 'sent',
+        count: 512,
+        target: '전체 해역',
+        title: '시스템 점검 안내',
+        content: '26.01.02 10:00 ~ 12:00 서비스 점검 예정입니다. 이용에 불편을 드려 죄송합니다.'
+    });
+}
+
+// Generate once
+generateMockAlertHistory();
+
+window.showAlertManagementModal = function () {
+    if (!adminAuthenticated.alert) return;
+
+    const existingModal = document.getElementById('alert-management-modal');
+    if (existingModal) existingModal.remove();
+
+    const tabs = [
+        { id: 'publish', name: '발표', icon: 'fa-bullhorn' },
+        { id: 'active', name: '발효', icon: 'fa-check-circle' },
+        { id: 'release', name: '해제', icon: 'fa-check' },
+        { id: 'level', name: '격상/격하', icon: 'fa-arrow-up-right-dots' },
+        { id: 'custom', name: '직접 발송', icon: 'fa-paper-plane' },
+        { id: 'history', name: '발송 이력', icon: 'fa-history' }
+    ];
+
+    let activeTab = 'publish'; // default
+
+    const modal = document.createElement('div');
+    modal.id = 'alert-management-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.8);backdrop-filter:blur(4px);animation:fadeIn 0.2s;';
+
+    modal.innerHTML = `
+        <div style="background:linear-gradient(135deg,#1e293b,#0f172a);border-radius:16px;width:95%;max-width:600px;max-height:85vh;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(255,255,255,0.1);">
+            <!-- Header (Fixed) -->
+            <div style="background:linear-gradient(135deg,#ef4444,#b91c1c);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:10;">
+                <h3 style="margin:0;color:#fff;font-size:1.1rem;font-weight:700;display:flex;align-items:center;gap:10px;text-shadow:0 1px 2px rgba(0,0,0,0.2);">
+                    <i class="fa-solid fa-tower-broadcast"></i> 해양특보 알림 관리
+                </h3>
+                <button onclick="document.getElementById('alert-management-modal').remove();" 
+                        style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:1.2rem;display:flex;align-items:center;justify-content:center;transition:background 0.2s;">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <!-- Tabs (Fixed & No Scroll) -->
+            <div style="display:flex;background:rgba(0,0,0,0.2);padding:0;border-bottom:1px solid rgba(255,255,255,0.1);position:sticky;z-index:10;backdrop-filter:blur(10px);width:100%;">
+                ${tabs.map(t => `
+                    <button class="alert-admin-tab" 
+                            data-tab="${t.id}"
+                            onclick="window.switchAlertAdminTab('${t.id}')"
+                            style="flex:1;padding:12px 2px;border:none;background:transparent;color:#94a3b8;cursor:pointer;font-weight:600;font-size:0.75rem;transition:all 0.2s;white-space:nowrap;border-bottom:2px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:0;">
+                         <i class="fa-solid ${t.icon}" style="font-size:0.9rem;"></i>
+                         <span>${t.name}</span>
+                    </button>
+                `).join('')}
+            </div>
+
+            <!-- Content Area (Scrollable) -->
+            <div id="alert-management-content" style="padding:20px;flex:1;overflow-y:auto;background:#0f172a;">
+                <div style="text-align:center;padding:40px;color:#64748b;">
+                    <i class="fa-solid fa-circle-notch fa-spin"></i> 데이터를 불러오는 중...
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Initial render
+    window.switchAlertAdminTab(activeTab);
+};
+
+window.switchAlertAdminTab = function (tabId) {
+    // Update tab styles
+    document.querySelectorAll('.alert-admin-tab').forEach(btn => {
+        if (btn.dataset.tab === tabId) {
+            btn.style.color = '#fff';
+            btn.style.borderBottomColor = '#ef4444';
+            btn.style.background = 'rgba(255,255,255,0.05)';
+        } else {
+            btn.style.color = '#94a3b8';
+            btn.style.borderBottomColor = 'transparent';
+            btn.style.background = 'transparent';
+        }
+    });
+
+    // CONTENT RENDER
+    window.renderAlertAdminContent(tabId);
+};
+
+window.renderAlertAdminContent = async function (tabId, targetContainer = null) {
+    const container = targetContainer || document.getElementById('alert-management-content');
+    if (!container) return;
+
+    if (tabId === 'custom') {
+        window.renderCustomPushTab(container);
+        return;
+    }
+    if (tabId === 'history') {
+        window.renderHistoryTab(container);
+        return;
+    }
+
+    // 1. Fetch Push History for status verification
+    let pushHistory = [];
+    try {
+        const hRes = await fetch('/api/push-history');
+        if (hRes.ok) pushHistory = await hRes.json();
+    } catch (e) { }
+
+    // 2. Prepare Data
+    // [수정] 해양특보 알림 관리에서는 메인 해역 특보만 취급 (연안바다/평수구역 제외)
+    const allAlerts = [
+        ...appState.alerts
+    ].filter(a => !a.isCoastal && !a.zoneName.includes('연안바다') && !a.zoneName.includes('평수구역'));
+
+    // Filter by Tab
+    let filteredItems = [];
+    if (tabId === 'publish') {
+        // [수정] 발표 탭: 신규 발표(1)나 시각 변경(2)만 포함. 등급 변경(명령6 혹은 command:'변경')은 제외하여 격상 탭으로 유도.
+        filteredItems = allAlerts.filter(a =>
+            (a.isPreliminary || a.command === '1' || a.command === '발표' || a.command === '2' || a.command === '시각변경') &&
+            !(a.command === '변경' || a.command === '변경발표' || a.command === '6')
+        );
+    } else if (tabId === 'active') {
+        // [수정] 발효 탭: 해제(3)가 아닌 모든 데이터를 포함
+        filteredItems = allAlerts.filter(a => a.command !== '3' && a.command !== '해제');
+    } else if (tabId === 'release') {
+        filteredItems = allAlerts.filter(a =>
+            a.command === '3' ||
+            a.command === '해제' ||
+            (!a.isPreliminary && a.tmEd && a.tmEd.trim() !== '' && a.tmEd !== '정보 없음' && a.tmEd !== '미정' && !a.tmEd.includes('00일'))
+        );
+    } else if (tabId === 'level') {
+        // [수정] 격상/격하 탭: command가 '변경'이거나 '6'인 모든 건(예정 포함)을 여기서 관리
+        filteredItems = allAlerts.filter(a => a.command === '변경' || a.command === '변경발표' || a.command === '6');
+    }
+
+    // [추가] 데이터 무결성 보장: 동일 해역/특보에 대해 가장 최신 데이터(발표시각 기준)만 남김
+    const uniqueAlertMap = new Map();
+    filteredItems.forEach(item => {
+        const uniqueKey = `${item.zoneName}_${item.warnType}_${item.level}`;
+        const existing = uniqueAlertMap.get(uniqueKey);
+
+        // 시간 비교를 위해 숫자만 추출
+        const itemTime = String(item.tmFc || '').replace(/[^0-9]/g, '');
+        const existingTime = existing ? String(existing.tmFc || '').replace(/[^0-9]/g, '') : '';
+
+        if (!existing || itemTime > existingTime) {
+            uniqueAlertMap.set(uniqueKey, item);
+        }
+    });
+    const finalizedItems = Array.from(uniqueAlertMap.values());
+
+    // 3. 1단계 그룹화 (시간 + 특보종류)
+    const cardGroups = {};
+    const nowStr = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace(/[-T:Z]/g, '').substring(0, 12);
+
+    finalizedItems.forEach(item => {
+        // 격상/격하 여부 판단
+        const isLevelChange = item.command === '변경' || item.level?.includes('경보');
+        const statusType = item.level?.includes('경보') ? '격상' : (item.level?.includes('주의보') && item.command === '변경' ? '격하' : '정규');
+
+        // 날짜 정규화 함수 (비교용)
+        const getCompareValue = (dStr) => {
+            if (!dStr || dStr === '정보 없음' || dStr === '미정' || dStr.trim() === '일') return '999999999999';
+            let numeric = dStr.replace(/[^0-9]/g, '');
+            if (numeric.length === 12) return numeric;
+
+            // 한글 포함 시각 (예: 06일 오전(09시~12시)) 처리
+            const dayMatch = dStr.match(/(\d+)일/);
+            const hourMatch = dStr.match(/\((\d+)시/);
+            if (dayMatch) {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = dayMatch[1].padStart(2, '0');
+                // 범위의 시작 시각을 기준으로 비교 (09시~12시 -> 09시)
+                const hour = hourMatch ? hourMatch[1].padStart(2, '0') : '00';
+                return `${year}${month}${day}${hour}00`;
+            }
+            if (!numeric || numeric.length === 0) return '999999999999';
+            return numeric.padEnd(12, '0');
+        };
+
+        const efCompare = getCompareValue(item.tmEf);
+        const edCompare = getCompareValue(item.tmEd);
+
+        // 실제 상황 판단 (현재 시점 기준)
+        // [수정] 장부에서 '발표(upcoming)' 상태라면 시간이 지났어도 강제로 Active가 아닌 것으로 간주함
+        const isActuallyActive = item.isPreliminary ? false : (efCompare <= nowStr);
+        const isActuallyReleased = (item.isPreliminary || !isActuallyActive) ? false : (edCompare <= nowStr);
+
+        // [핵심 로직] 탭별 대기/라이브 판단
+        const isWaiting = tabId === 'release'
+            ? (edCompare > nowStr)
+            : (item.isPreliminary || efCompare > nowStr);
+
+        const typeKey = `${item.warnType}${item.level}`;
+        // [핵심 변경] 그룹 키에서 시각 제거하여 동일 특보 종류는 무조건 하나의 카드로 통합
+        // [수정] 그룹 키에 시각 정보를 포함하여 동일한 종류라도 시각이 다르면 분리
+        // (발표/발효/해제 시각을 모두 고려하여 유니크하게 분리)
+        // [Primary Key] - Used for grouping cards
+        // [Primary Key] - Used for grouping cards
+        let primaryTime = item.tmFc; // Default (Publish/Level)
+        if (tabId === 'active') primaryTime = item.tmEf; // Active tab uses tmEf
+        else if (tabId === 'release') primaryTime = item.tmYn || item.tmEd || '정보 없음'; // Release tab uses Release Time
+
+        const groupKey = `${statusType}_${typeKey}_${primaryTime}`;
+
+        // [Sub Key] - Used for separating lists inside a card
+        let subKey = 'default';
+        if (tabId === 'publish') subKey = item.tmEf; // Split by Effective Time
+        else if (tabId === 'active') subKey = item.tmEd || '정보 없음'; // Split by Release Time
+
+        const isTimeChanged = item.command === '2' || item.command === '시각변경';
+
+        // Time Validation & Format
+        let headerTimeDisplay = isNaN(Number(primaryTime)) ? (primaryTime === '정보 없음' ? '해제 시각 미정' : primaryTime) : primaryTime;
+        if (primaryTime && primaryTime.length === 12 && !isNaN(Number(primaryTime))) {
+            headerTimeDisplay = `26.${primaryTime.substring(4, 6)}.${primaryTime.substring(6, 8)} ${primaryTime.substring(8, 10)}:${primaryTime.substring(10, 12)}`;
+        }
+
+        if (!cardGroups[groupKey]) {
+            cardGroups[groupKey] = {
+                key: groupKey,
+                headerTime: headerTimeDisplay,
+                rawTime: primaryTime,
+                tmFc: item.tmFc, // Keep for push log matching
+                statusType: statusType,
+                typeName: item.warnType,
+                level: item.level,
+                isPreliminary: item.isPreliminary,
+                isTimeChanged: isTimeChanged,
+                // [Fix] Add missing status flags to object
+                isWaiting: isWaiting,
+                isActuallyActive: isActuallyActive,
+                isActuallyReleased: isActuallyReleased,
+                subGroups: {}
+            };
+        }
+
+        if (!cardGroups[groupKey].subGroups[subKey]) {
+            cardGroups[groupKey].subGroups[subKey] = {
+                tmEf: item.tmEf,
+                tmYn: item.tmEd,
+                // Fix: Ensure tmFc is correctly assigned from item
+                tmFc: item.tmFc,
+                zones: []
+            };
+        }
+
+        const fullName = item.zoneName.split('(')[0].trim();
+        if (!cardGroups[groupKey].subGroups[subKey].zones.includes(fullName)) {
+            cardGroups[groupKey].subGroups[subKey].zones.push(fullName);
+        }
+    });
+
+    const sortedGroups = Object.values(cardGroups).sort((a, b) => {
+        if (a.isWaiting !== b.isWaiting) return a.isWaiting ? 1 : -1;
+        return String(b.rawTime).localeCompare(String(a.rawTime));
+    });
+
+    if (sortedGroups.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center;padding:60px 20px;color:#64748b;">
+                <i class="fa-solid fa-clipboard-check" style="font-size:3rem;margin-bottom:15px;opacity:0.3;"></i>
+                <p style="font-size:1.1rem;font-weight:600;">현재 해당 탭의 특보 데이터가 없습니다.</p>
+                <p style="font-size:0.85rem;margin-top:5px;">기상청 데이터가 수집되면 자동으로 타임라인이 형성됩니다.</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    sortedGroups.forEach(group => {
+        let timeDisplay = group.headerTime;
+        const isSent = pushHistory.some(h => {
+            // 탭 매칭
+            const tabMatch = (group.isLevelChange ? h.tab === 'level' : (h.tab === tabId || h.tab.startsWith(tabId)));
+            if (!tabMatch) return false;
+
+            // [New] 기준시각(tmRef)이 있으면 우선 매칭 (자동 발송 시 심어짐)
+            // 이제 groupKey가 시각별로 분리되었으므로 tmRef 비교가 정확해짐
+            if (h.tmRef && group.tmFc && h.tmRef === group.tmFc) return true;
+
+            // [Fallback] 기존 내용 기반 매칭 (수동 발송 등)
+            return h.content?.includes(group.typeName) && h.time?.includes(group.headerTime?.substring(4, 10));
+        });
+
+        const sentLog = isSent ? pushHistory.find(h =>
+            ((h.tmRef && group.tmFc && h.tmRef === group.tmFc) || (h.content?.includes(group.typeName) && h.time?.includes(group.headerTime?.substring(4, 10))))
+        ) : null;
+
+        const isAuto = sentLog?.type === 'auto';
+        let statusText = '';
+        const pushResult = isSent ? (isAuto ? '자동 발송완료' : '수동 발송완료') : '발송 대기';
+
+        if (tabId === 'active' || tabId === 'level') {
+            if (group.isTimeChanged) {
+                statusText = `<span style="color:#38bdf8;"><i class="fa-solid fa-clock-rotate-left"></i> 시각 변경</span> <span style="color:rgba(255,255,255,0.2);margin:0 5px;">|</span> <span style="color:${isSent ? '#22c55e' : '#94a3b8'};">${pushResult}</span>`;
+            } else if (group.isWaiting) {
+                statusText = `<span style="color:#f59e0b;"><i class="fa-solid fa-hourglass-start"></i> 발효 대기 중</span>`;
+            } else if (group.isActuallyReleased) {
+                statusText = `<span style="color:#22c55e;"><i class="fa-solid fa-check-double"></i> 해제 완료</span> <span style="color:rgba(255,255,255,0.2);margin:0 5px;">|</span> <span style="color:${isSent ? '#22c55e' : '#94a3b8'};">${pushResult}</span>`;
+            } else {
+                let liveLabel = '발효 중';
+                if (group.isLevelChange) {
+                    liveLabel = `${group.level}로 ${group.statusType}`;
+                }
+                statusText = `<span style="color:#ef4444;"><i class="fa-solid fa-satellite-dish"></i> ${liveLabel}</span> <span style="color:rgba(255,255,255,0.2);margin:0 5px;">|</span> <span style="color:${isSent ? '#22c55e' : '#94a3b8'};">${pushResult}</span>`;
+            }
+        } else if (tabId === 'release') {
+            if (group.isWaiting) {
+                statusText = `<span style="color:#10b981;"><i class="fa-solid fa-clock"></i> 해제 예정</span> <span style="color:rgba(255,255,255,0.2);margin:0 5px;">|</span> <span style="color:${isSent ? '#22c55e' : '#94a3b8'};">${pushResult}</span>`;
+            } else {
+                statusText = `<span style="color:#22c55e;"><i class="fa-solid fa-check-double"></i> 해제 완료</span> <span style="color:rgba(255,255,255,0.2);margin:0 5px;">|</span> <span style="color:${isSent ? '#22c55e' : '#94a3b8'};">${pushResult}</span>`;
+            }
+        } else if (tabId === 'publish') {
+            if (group.isActuallyActive) {
+                statusText = `<span style="color:#22c55e;">발효 완료</span> <span style="color:rgba(255,255,255,0.2);margin:0 5px;">|</span> <span style="color:${isSent ? '#22c55e' : '#94a3b8'};">${pushResult}</span>`;
+            } else {
+                statusText = `<span style="color:#f59e0b;"><i class="fa-solid fa-hourglass-start"></i> 발효 대기</span> <span style="color:rgba(255,255,255,0.2);margin:0 5px;">|</span> <span style="color:${isSent ? '#22c55e' : '#94a3b8'};">${pushResult}</span>`;
+            }
+        } else {
+            statusText = isSent ? '수동 발송완료' : '발송 대기';
+        }
+
+        const statusBadge = `<div style="font-size:0.75rem;font-weight:700;display:flex;align-items:center;">${statusText}</div>`;
+
+        let displayLevel = group.level || '';
+        if ((displayLevel === '예비' || group.isPreliminary) && (tabId === 'active' || tabId === 'release' || tabId === 'level' || tabId === 'publish')) {
+            displayLevel = '주의보';
+        }
+
+        let tabSymbol = '🔔'; let tabLabel = '발표';
+        if (tabId === 'active') { tabSymbol = '⚠️'; tabLabel = '발효'; }
+        else if (tabId === 'release') { tabSymbol = '✅'; tabLabel = '해제'; }
+        else if (tabId === 'level') {
+            const isUp = (group.level || '').includes('경보');
+            tabSymbol = isUp ? '🔺' : '🔻'; tabLabel = isUp ? '격상' : '격하';
+            if (group.typeName.includes('태풍')) tabSymbol = '🌀';
+        }
+
+        const fullTitle = `${group.typeName}${displayLevel}`;
+        const displayLabelText = (fullTitle.includes(tabLabel)) ? '' : tabLabel;
+
+        html += `
+            <div style="background:rgba(30,41,59,0.5);border:1px solid rgba(255,255,255,0.1);border-radius:12px;margin-bottom:18px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+                <div style="padding:12px 16px;background:rgba(255,255,255,0.03);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.05);">
+                    <div style="font-size:0.85rem;font-weight:700;color:#cbd5e1;display:flex;align-items:center;">
+                        <i class="fa-regular fa-calendar-check" style="margin-right:8px;"></i> ${timeDisplay}
+                        <span style="color:rgba(255,255,255,0.1);margin:0 10px;">|</span>
+                        ${statusBadge}
+                    </div>
+                    ${((tabId === 'active' || tabId === 'release' || tabId === 'level') && group.isWaiting) ? '' :
+                (tabId === 'active' && group.isLevelChange) ? `
+                        <div style="background:rgba(255,255,255,0.05);color:#64748b;padding:5px 12px;border-radius:6px;font-size:0.7rem;font-weight:700;border:1px solid rgba(255,255,255,0.05);">
+                            격상/격하 탭에서 관리
+                        </div>
+                      ` : `
+                        <button onclick="window.sendManualPushFromGroup('${group.key}', '${tabId}')" 
+                                style="background:#ef4444;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:0.75rem;font-weight:800;cursor:pointer;">
+                            ${isSent ? '수동 발송완료' : '푸시 발송'}
+                        </button>
+                    `}
+                </div>
+                <div style="padding:16px;">
+                    <div style="font-size:1.05rem; color:#fff; font-weight:800; margin-bottom:15px; display:flex; align-items:center; gap:8px;">
+                        ${group.isTimeChanged ? '🕐' : tabSymbol} 
+                        ${fullTitle} 
+                        ${group.isTimeChanged ?
+                (tabId === 'publish' ? '발효시각 변경' : '해제시각 변경') :
+                (group.isWaiting && tabId === 'level' ? (group.statusType + ' 예정') : displayLabelText)}
+                    </div>
+                    ${(() => {
+                // [해제] 탭인 경우: 모든 subGroups의 해역을 하나로 합쳐서 간단히 노출
+                if (tabId === 'release') {
+                    const allZones = [];
+                    Object.values(group.subGroups).forEach(sub => {
+                        sub.zones.forEach(z => {
+                            if (!allZones.includes(z)) allZones.push(z);
+                        });
+                    });
+
+                    return `
+                                <div style="line-height:1.6;">
+                                    <div style="color:#e2e8f0;font-size:0.85rem;font-weight:600;margin-bottom:4px;">
+                                        ㅇ 대상해역(${allZones.length}): <span style="font-weight:400;color:#94a3b8;">${allZones.join(', ')}</span>
+                                    </div>
+                                </div>
+                            `;
+                }
+
+                // [발표/발효/격상] 탭인 경우: subGroups(시간별) 순회하여 출력
+                const keys = Object.keys(group.subGroups).sort();
+                return keys.map(k => {
+                    const sub = group.subGroups[k];
+                    const uniqueZones = Array.from(new Set(sub.zones));
+                    const zStr = uniqueZones.join(', ');
+                    const count = uniqueZones.length;
+
+                    let subInfo = '';
+                    if (tabId === 'active') {
+                        const ed = typeof formatDate === 'function' ? formatDate(sub.tmYn) : sub.tmYn;
+                        subInfo = `<div style="color:#94a3b8;font-size:0.85rem;margin-top:2px;">- 해제예정: <span style="color:#69f0ae;">${ed}</span></div>`;
+                    } else if (tabId === 'publish') {
+                        const ef = typeof formatDate === 'function' ? formatDate(sub.tmEf) : sub.tmEf;
+                        subInfo = `<div style="color:#94a3b8;font-size:0.85rem;margin-top:2px;">- 발효예정: <span style="color:#fff;">${ef}</span></div>`;
+                    } else if (tabId === 'level') {
+                        const ed = typeof formatDate === 'function' ? formatDate(sub.tmYn) : sub.tmYn;
+                        subInfo = `<div style="color:#94a3b8;font-size:0.85rem;margin-top:2px;">- 해제예정: <span style="color:#69f0ae;">${ed}</span></div>`;
+                    }
+
+                    return `
+                                <div style="margin-bottom:12px; padding-bottom:12px; border-bottom:1px dashed rgba(255,255,255,0.1);">
+                                    <div style="font-size:0.95rem; line-height:1.4;">
+                                        <span style="color:#cbd5e1; font-weight:600;">ㅇ 대상해역(${count}):</span>
+                                        <span style="color:#e2e8f0;">${zStr}</span>
+                                    </div>
+                                    ${subInfo}
+                                </div>
+                            `;
+                }).join('');
+            })()}
+                </div>
+            </div>
+        `;
+    });
+    // [추가] 중요! 수동 발송을 위해 cardGroups 데이터를 전역에 저장 (sendManualPushFromGroup 에서 사용)
+    window._currentAdminCardGroups = cardGroups;
+
+    container.innerHTML = html;
+};
+
+// [수동 발송 핸들러]
+window.sendManualPushFromGroup = async function (groupKey, tabId) {
+    if (!confirm('해당 그룹의 시나리오 메시지를 정말 수동으로 발송하시겠습니까?')) return;
+
+    // 1. 그룹 정보 조회
+    const groups = window._currentAdminCardGroups;
+    if (!groups || !groups[groupKey]) {
+        return alert('오류: 그룹 정보를 찾을 수 없습니다. 페이지를 새로고침 해주세요.');
+    }
+    const group = groups[groupKey];
+
+    // 2. 데이터 페이로드 구성 (서버에서 사용자별 필터링 후 텍스트 생성)
+    // 텍스트 생성 로직(클라이언트)은 제거하고, 원본 데이터만 구조화하여 전송함.
+
+    const typeName = group.typeName; // 예: 풍랑, 태풍
+    const level = group.level || ''; // 예: 주의보, 경보
+
+    // items 배열 생성: { zones: [], tmEf: '', tmEd: '', tmYn: '' }
+    const items = Object.values(group.subGroups).map(sub => ({
+        zones: sub.zones, // 배열 그대로 전송
+        tmFc: group.headerTime?.replace(/[^0-9]/g, '') || '', // 발표시각
+        tmEf: sub.tmEf,
+        tmEd: sub.tmEd,
+        tmYn: sub.tmEd // 서버 문구 생성기에서 사용하는 필드명(해제예정)으로도 전송
+    }));
+
+    // 3. 발송 요청 (Custom Push API)
+    try {
+        // 로딩 표시
+        const btn = document.activeElement;
+        const originalText = btn ? btn.innerText : '';
+        if (btn) btn.innerText = '전송 중...';
+
+        const res = await fetch('/api/push-custom', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                isManualGroupSend: true,
+                payload: {
+                    templateId: (tabId === 'level' && group.isWaiting) ? 'level_scheduled' : tabId, // active, release, level, publish
+                    typeName: typeName,
+                    level: level,
+                    items: items,
+                    isTimeChanged: group.isTimeChanged
+                }
+            })
+        });
+
+        if (res.ok) {
+            alert('성공적으로 발송 요청되었습니다.');
+            // UI 갱신 (해당 탭 다시 로드)
+            window.switchAlertAdminTab(tabId);
+        } else {
+            const err = await res.text();
+            alert('발송 실패: ' + err);
+            if (btn) btn.innerText = originalText;
+        }
+    } catch (e) {
+        alert('네트워크 오류: ' + e.message);
+        const btn = document.activeElement;
+        if (btn) btn.innerText = originalText;
+    }
+};
+
+window.renderCustomPushTab = async function (container) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
+
+    // Fetch real history
+    let history = [];
+    try {
+        const histRes = await fetch('/api/push-history');
+        if (histRes.ok) history = await histRes.json();
+    } catch (e) {
+        console.warn('History load fail, using empty.');
+    }
+
+    // Build regions object for accordion
+    const regions = {};
+    if (typeof SUB_REGION_ZONES !== 'undefined') {
+        for (const [subName, zones] of Object.entries(SUB_REGION_ZONES)) {
+            const mainName = typeof getMainRegion === 'function' ? getMainRegion(subName) : '기타';
+            if (!regions[mainName]) regions[mainName] = {};
+            regions[mainName][subName] = zones;
+        }
+    }
+
+    let accordionHtml = '';
+    Object.entries(regions).forEach(([main, subs], mainIdx) => {
+        const isJeju = main.includes('제주');
+
+        accordionHtml += `
+            <div style="margin-bottom:10px;border:1px solid rgba(255,255,255,0.05);border-radius:10px;overflow:hidden;background:rgba(255,255,255,0.02);">
+                <div style="padding:12px;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:space-between;">
+                    <div style="display:flex;align-items:center;gap:10px;flex:1;">
+                        <input type="checkbox" class="main-region-checkbox" data-main="${mainIdx}" 
+                               onchange="window.toggleMainRegionZones(${mainIdx}, this.checked)"
+                               style="width:16px;height:16px;cursor:pointer;">
+                        <span onclick="window.toggleAdminAccordion('main-${mainIdx}')" style="font-weight:700;color:#fff;font-size:0.95rem;cursor:pointer;flex:1;">${main}</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-down" id="icon-main-${mainIdx}" onclick="window.toggleAdminAccordion('main-${mainIdx}')" style="font-size:0.8rem;transition:transform 0.2s;cursor:pointer;color:#94a3b8;padding:5px;"></i>
+                </div>
+                <div id="content-main-${mainIdx}" style="display:none;padding:10px;background:rgba(0,0,0,0.2);">
+                    ${isJeju ? `
+                        <!-- 제주 특화: 중분류 없이 바로 소해구 목록 -->
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                            ${Object.values(subs)[0].map(z => `
+                                <label style="display:inline-flex;align-items:center;background:rgba(255,255,255,0.05);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:0.85rem;color:#cbd5e1;border:1px solid rgba(255,255,255,0.05);">
+                                    <input type="checkbox" class="zone-checkbox main-group-${mainIdx}" value="${z}" style="margin-right:6px;" onchange="window.updateTargetCount()"> ${z}
+                                </label>
+                            `).join('')}
+                        </div>
+                    ` : Object.entries(subs).map(([sub, zones], subIdx) => `
+                        <div style="margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.03);padding-bottom:10px;">
+                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                                <input type="checkbox" class="sub-region-checkbox main-group-${mainIdx}" data-sub="${mainIdx}-${subIdx}"
+                                       onchange="window.toggleSubRegionZones(${mainIdx}, ${subIdx}, this.checked)"
+                                       style="width:14px;height:14px;cursor:pointer;">
+                                <span onclick="window.toggleAdminAccordion('sub-${mainIdx}-${subIdx}')" style="font-size:0.85rem;color:#3b82f6;font-weight:600;cursor:pointer;">${sub}</span>
+                            </div>
+                            <div id="content-sub-${mainIdx}-${subIdx}" style="display:flex;flex-wrap:wrap;gap:6px;padding-left:24px;">
+                                ${zones.map(z => `
+                                    <label style="display:inline-flex;align-items:center;background:rgba(255,255,255,0.05);padding:4px 8px;border-radius:4px;cursor:pointer;font-size:0.8rem;color:#cbd5e1;border:1px solid transparent;">
+                                        <input type="checkbox" class="zone-checkbox main-group-${mainIdx} sub-group-${mainIdx}-${subIdx}" value="${z}" style="margin-right:5px;" onchange="window.updateTargetCount()"> ${z}
+                                    </label>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = `
+        <div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-weight:600;color:#fff;margin-bottom:15px;font-size:1rem;display:flex;align-items:center;gap:8px;">
+                <i class="fa-solid fa-envelope"></i> 커스텀 알림 발송
+            </div>
+            
+            <div style="margin-bottom:15px;">
+                <label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:10px;">발송 대상 해역 선택 (Hierarchy)</label>
+                <div style="background:rgba(0,0,0,0.3);padding:15px;border-radius:12px;max-height:350px;overflow-y:auto;border:1px solid rgba(255,255,255,0.05);">
+                    <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;gap:10px;">
+                        <input type="checkbox" id="check-all-zones" onchange="window.toggleAllZones(this.checked)" 
+                               style="width:18px;height:18px;cursor:pointer;">
+                        <label for="check-all-zones" style="cursor:pointer;font-size:0.9rem;color:#fff;font-weight:700;">전체 해역 선택</label>
+                    </div>
+                    ${accordionHtml}
+                </div>
+            </div>
+
+            <div style="margin-bottom:15px;">
+                <label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;">알림 제목</label>
+                <input type="text" id="custom-push-title" placeholder="예: 🌊 긴급 해양 안전 안내" 
+                       oninput="window.updateCustomPushPreview()"
+                       style="width:100%;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;box-sizing:border-box;outline:none;">
+            </div>
+
+            <div style="margin-bottom:15px;">
+                <label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;">알림 내용</label>
+                <textarea id="custom-push-content" placeholder="직접 작성하실 알림 내용을 입력해주세요." 
+                          oninput="window.updateCustomPushPreview()"
+                          style="width:100%;height:100px;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;resize:none;box-sizing:border-box;outline:none;line-height:1.4;"></textarea>
+                <div style="text-align:right;font-size:0.75rem;color:#64748b;margin-top:4px;" id="custom-push-char-count">0 / 500자</div>
+            </div>
+
+            <!-- 미리보기 (Fixed Layout) -->
+            <div style="background:rgba(0,0,0,0.3);padding:20px;border-radius:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.05);">
+                <div style="font-size:0.8rem;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Smartphone Preview</div>
+                <div style="background:#fff;border-radius:20px;padding:16px;box-shadow:0 10px 25px rgba(0,0,0,0.3);position:relative;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                        <div style="width:28px;height:28px;background:#1e293b;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;">🌊</div>
+                        <div style="font-weight:800;color:#1e293b;font-size:0.95rem;flex:1;">SEA:GNAL</div>
+                        <div style="font-size:0.75rem;color:#94a3b8;">지금</div>
+                    </div>
+                    <div id="preview-title" style="font-weight:800;margin-bottom:4px;color:#000;font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">(제목 미리보기)</div>
+                    <div id="preview-content" style="color:#475569;font-size:1rem;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">(내용 미리보기)</div>
+                </div>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:0.95rem;color:#cbd5e1;">발송 대상: <span style="font-weight:800;color:#3b82f6;" id="target-zone-count">0</span>개 구역</div>
+                <div style="display:flex;gap:12px;">
+                    <button onclick="window.switchAlertAdminTab('custom')" style="padding:12px 20px;background:rgba(255,255,255,0.08);border:none;border-radius:10px;color:#cbd5e1;cursor:pointer;font-weight:600;">초기화</button>
+                    <button onclick="window.confirmCustomPush()" style="padding:12px 28px;background:linear-gradient(135deg,#ef4444,#b91c1c);border:none;border-radius:10px;color:#fff;font-weight:700;cursor:pointer;box-shadow:0 10px 20px rgba(239,68,68,0.3);">푸시 발송하기</button>
+                </div>
+            </div>
+            
+            <!-- Custom Confirm Overlay -->
+            <div id="custom-push-confirm-overlay" style="display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:100;border-radius:16px;backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;">
+                <div style="background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:30px;width:100%;max-width:320px;text-align:center;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);">
+                    <div style="font-size:3rem;margin-bottom:20px;">📢</div>
+                    <div style="color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:12px;">푸시 발송 최종 확인</div>
+                    <div style="color:#94a3b8;font-size:0.9rem;line-height:1.6;margin-bottom:25px;">
+                        정말 <span id="confirm-target-text" style="color:#3b82f6;font-weight:700;"></span>으로<br>알림을 발송하시겠습니까?
+                    </div>
+                    <div style="display:flex;gap:10px;">
+                        <button onclick="document.getElementById('custom-push-confirm-overlay').style.display='none'" style="flex:1;padding:12px;background:rgba(255,255,255,0.05);border:none;border-radius:10px;color:#cbd5e1;cursor:pointer;font-weight:600;">취소</button>
+                        <button id="final-send-btn" onclick="window.executeCustomPush()" style="flex:1;padding:12px;background:#ef4444;border:none;border-radius:10px;color:#fff;cursor:pointer;font-weight:700;">지금 발송</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+// [History State]
+let historyFilter = { cat: 'all', type: 'all' };
+
+window.renderHistoryTab = async function (container) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
+
+    try {
+        const histRes = await fetch('/api/push-history');
+        const history = histRes.ok ? await histRes.json() : [];
+
+        // Apply Filters
+        const filtered = history.filter(h => {
+            const catMatch = historyFilter.cat === 'all' || h.tab === historyFilter.cat;
+            const typeMatch = historyFilter.type === 'all' || h.type === historyFilter.type;
+            return catMatch && typeMatch;
+        });
+
+        const categories = [
+            { id: 'all', name: '전체' },
+            { id: 'publish', name: '발표' },
+            { id: 'active', name: '발효' },
+            { id: 'release', name: '해제' },
+            { id: 'level', name: '격상/격하' },
+            { id: 'custom', name: '직접 발송' }
+        ];
+
+        let html = `
+            <div style="margin-bottom:20px;">
+                <!-- Level 1: Category Filter -->
+                <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.05);">
+                    ${categories.map(c => `
+                        <button onclick="window.updateHistoryFilter('cat', '${c.id}')" 
+                                style="padding:6px 12px;border:none;border-radius:20px;background:${historyFilter.cat === c.id ? '#ef4444' : 'rgba(255,255,255,0.05)'};color:${historyFilter.cat === c.id ? '#fff' : '#94a3b8'};font-size:0.8rem;white-space:nowrap;cursor:pointer;font-weight:600;">
+                            ${c.name}
+                        </button>
+                    `).join('')}
+                </div>
+
+                <!-- Level 2: Type Filter (Auto/Manual) -->
+                ${historyFilter.cat !== 'custom' ? `
+                    <div style="display:flex;gap:10px;margin-bottom:20px;padding-left:4px;">
+                        ${['all', 'auto', 'manual'].map(t => `
+                            <label style="display:flex;align-items:center;gap:6px;color:${historyFilter.type === t ? '#fff' : '#64748b'};font-size:0.85rem;cursor:pointer;font-weight:600;">
+                                <input type="radio" name="hist-type" value="${t}" ${historyFilter.type === t ? 'checked' : ''} 
+                                       onchange="window.updateHistoryFilter('type', '${t}')"
+                                       style="width:14px;height:14px;cursor:pointer;"> 
+                                ${t === 'all' ? '전체' : (t === 'auto' ? '자동' : '수동')}
+                            </label>
+                        `).join('')}
+                    </div>
+                ` : ''}
+
+                <!-- Management Controls -->
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;padding:0 6px;">
+                    <div style="display:flex;gap:12px;align-items:center;">
+                        <input type="checkbox" id="hist-check-all" onchange="window.toggleAllHistoryChecks(this.checked)" style="width:16px;height:16px;cursor:pointer;">
+                        <label for="hist-check-all" style="color:#94a3b8;font-size:0.85rem;cursor:pointer;">전체 선택</label>
+                    </div>
+                    <button onclick="window.deleteSelectedHistory()" style="padding:6px 12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#ef4444;border-radius:6px;font-size:0.8rem;cursor:pointer;font-weight:600;">선택 삭제</button>
+                </div>
+
+                <!-- History List -->
+                <div id="history-items-container">
+                    ${filtered.map(h => `
+                        <div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:14px;margin-bottom:12px;border:1px solid rgba(255,255,255,0.05);position:relative;">
+                            <div style="position:absolute;top:14px;left:14px;">
+                                <input type="checkbox" class="hist-item-check" data-id="${h.id}" style="width:15px;height:15px;cursor:pointer;">
+                            </div>
+                            <div style="margin-left:30px;">
+                                <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                                    <span style="color:#64748b;font-size:0.75rem;">${h.time}</span>
+                                    <div style="display:flex;gap:6px;">
+                                        <span style="padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;background:${h.type === 'manual' ? 'rgba(59,130,246,0.1)' : 'rgba(34,197,94,0.1)'};color:${h.type === 'manual' ? '#3b82f6' : '#22c55e'};">
+                                            ${h.type === 'manual' ? '👤 수동' : '🤖 자동'}
+                                        </span>
+                                        <button onclick="window.deleteSingleHistory(${h.id})" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:0.8rem;"><i class="fa-solid fa-trash-can"></i></button>
+                                    </div>
+                                </div>
+                                <div style="color:#fff;font-weight:700;margin-bottom:4px;font-size:0.95rem;">${h.title}</div>
+                                <div style="color:#94a3b8;font-size:0.85rem;line-height:1.4;margin-bottom:8px;">${h.content}</div>
+                                <div style="font-size:0.7rem;color:#475569;background:rgba(0,0,0,0.2);padding:6px 10px;border-radius:6px;">
+                                    <i class="fa-solid fa-location-dot" style="margin-right:4px;"></i> 대상: ${h.target.length > 50 ? h.target.substring(0, 50) + '...' : h.target}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                    ${filtered.length === 0 ? '<div style="text-align:center;padding:50px;color:#64748b;">이력이 없습니다.</div>' : ''}
+                </div>
+                
+                ${history.length > 0 ? `
+                    <div style="text-align:center;margin-top:20px;">
+                        <button onclick="window.clearAllHistory()" style="background:none;border:none;color:#64748b;font-size:0.8rem;text-decoration:underline;cursor:pointer;">전체 이력 초기화</button>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = `<div style="text-align:center;padding:40px;color:#ef4444;">오류 발생: ${e.message}</div>`;
+    }
+};
+
+window.updateHistoryFilter = function (key, val) {
+    historyFilter[key] = val;
+    // If category is custom, type must be manual/all (but custom is always manual)
+    if (historyFilter.cat === 'custom') historyFilter.type = 'all';
+
+    // [Fix] 통합 관리자 센터 대응: 두 가지 가능한 ID를 모두 체크
+    const container = document.getElementById('alert-admin-inner-content') || document.getElementById('alert-management-content');
+    if (container) window.renderHistoryTab(container);
+};
+
+window.toggleAllHistoryChecks = function (checked) {
+    document.querySelectorAll('.hist-item-check').forEach(cb => cb.checked = checked);
+};
+
+window.deleteSingleHistory = async function (id) {
+    if (!confirm('해당 이력을 삭제하시겠습니까?')) return;
+    try {
+        const res = await fetch(`/api/push-history/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+            const container = document.getElementById('alert-admin-inner-content') || document.getElementById('alert-management-content');
+            if (container) window.renderHistoryTab(container);
+        }
+    } catch (e) { alert('삭제 실패: ' + e.message); }
+};
+
+window.deleteSelectedHistory = async function () {
+    const checked = Array.from(document.querySelectorAll('.hist-item-check:checked')).map(cb => parseInt(cb.dataset.id));
+    if (checked.length === 0) return alert('삭제할 항목을 선택해주세요.');
+    if (!confirm(`${checked.length}개의 항목을 삭제하시겠습니까?`)) return;
+
+    try {
+        const res = await fetch('/api/push-history', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: checked })
+        });
+        if (res.ok) {
+            const container = document.getElementById('alert-admin-inner-content') || document.getElementById('alert-management-content');
+            if (container) window.renderHistoryTab(container);
+        }
+    } catch (e) { alert('삭제 실패: ' + e.message); }
+};
+
+window.clearAllHistory = async function () {
+    if (!confirm('정말로 모든 발송 이력을 영구적으로 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+    try {
+        const res = await fetch('/api/push-history', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+        if (res.ok) {
+            const container = document.getElementById('alert-admin-inner-content') || document.getElementById('alert-management-content');
+            if (container) window.renderHistoryTab(container);
+        }
+    } catch (e) { alert('삭제 실패: ' + e.message); }
+};
+
+window.toggleMainRegionZones = function (mainIdx, checked) {
+    document.querySelectorAll(`.main-group-${mainIdx}`).forEach(cb => {
+        cb.checked = checked;
+    });
+    window.updateTargetCount();
+};
+
+window.toggleSubRegionZones = function (mainIdx, subIdx, checked) {
+    document.querySelectorAll(`.sub-group-${mainIdx}-${subIdx}`).forEach(cb => {
+        cb.checked = checked;
+    });
+    window.updateTargetCount();
+};
+
+window.toggleAdminAccordion = function (id) {
+    const content = document.getElementById('content-' + id);
+    const icon = document.getElementById('icon-' + id);
+    if (!content) return;
+
+    const isHidden = content.style.display === 'none';
+    content.style.display = isHidden ? 'block' : 'none';
+    if (icon) {
+        if (id.startsWith('main')) {
+            icon.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+        } else {
+            icon.className = isHidden ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-right';
+        }
+    }
+};
+
+window.toggleAllZones = function (checked) {
+    document.querySelectorAll('.zone-checkbox, .main-region-checkbox, .sub-region-checkbox').forEach(cb => {
+        cb.checked = checked;
+    });
+    window.updateTargetCount();
+};
+
+window.updateTargetCount = function () {
+    const checked = document.querySelectorAll('.zone-checkbox:checked');
+    const targetCountEl = document.getElementById('target-zone-count');
+    if (targetCountEl) targetCountEl.textContent = checked.length;
+};
+
+window.updateCustomPushPreview = function () {
+    const titleVal = document.getElementById('custom-push-title').value;
+    const contentVal = document.getElementById('custom-push-content').value;
+
+    const previewTitle = document.getElementById('preview-title');
+    const previewContent = document.getElementById('preview-content');
+    const charCount = document.getElementById('custom-push-char-count');
+
+    if (previewTitle) previewTitle.textContent = titleVal || '(제목 미리보기)';
+    if (previewContent) previewContent.textContent = contentVal || '(내용 미리보기)';
+    if (charCount) charCount.textContent = `${contentVal.length} / 500자`;
+};
+
+window.confirmCustomPush = function () {
+    const title = document.getElementById('custom-push-title').value.trim();
+    const content = document.getElementById('custom-push-content').value.trim();
+    const checked = document.querySelectorAll('.zone-checkbox:checked');
+    const allChecked = document.getElementById('check-all-zones').checked;
+
+    if (checked.length === 0 && !allChecked) {
+        alert('발송 대상 해역을 선택해주세요.');
+        return;
+    }
+    if (!title || !content) {
+        alert('제목과 내용을 입력해주세요.');
+        return;
+    }
+
+    const targetText = allChecked ? '전체 해역' : `${checked.length}개 해역`;
+    document.getElementById('confirm-target-text').textContent = targetText;
+    document.getElementById('custom-push-confirm-overlay').style.display = 'flex';
+};
+
+window.executeCustomPush = async function () {
+    const title = document.getElementById('custom-push-title').value.trim();
+    const content = document.getElementById('custom-push-content').value.trim();
+    const checked = document.querySelectorAll('.zone-checkbox:checked');
+    const allChecked = document.getElementById('check-all-zones').checked;
+    const targetZones = allChecked ? '전체 해역' : Array.from(checked).map(cb => cb.value).join(', ');
+
+    const btn = document.getElementById('final-send-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 발송 중...';
+
+    try {
+        const response = await fetch('/api/push-custom', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, content, targetZones })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+            alert(`✅ 푸시 발송 완료\n성공: ${result.successCount}건 / 실패: ${result.failCount}건`);
+            window.switchAlertAdminTab('custom');
+        } else {
+            alert('❌ 발송 실패: ' + (result.error || '알 수 없는 오류'));
+            document.getElementById('custom-push-confirm-overlay').style.display = 'none';
+        }
+    } catch (e) {
+        alert('❌ 서버 통신 오류: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '지금 발송';
+    }
+};
+
+// (Redundant declarations removed)
+
+
+// ============================================================================
+// [�ű�] �湮�� ī���� UI ������Ʈ
+// ============================================================================
+window.updateVisitorStats = async function () {
+    try {
+        // [수정] 세션당 1회만 카운트를 증가시키도록 로직 개선
+        const hasVisited = sessionStorage.getItem('v1_visited');
+        const url = hasVisited ? '/api/visit?inc=false' : '/api/visit';
+
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Network response was not ok');
+        const data = await response.json();
+
+        // 처음 방문(카운트 증가)인 경우 세션에 기록
+        if (!hasVisited) {
+            sessionStorage.setItem('v1_visited', 'true');
+        }
+
+        const todayEl = document.getElementById('today-count');
+        const totalEl = document.getElementById('total-count');
+
+        if (todayEl) todayEl.textContent = data.today.toLocaleString();
+        if (totalEl) totalEl.textContent = data.total.toLocaleString();
+    } catch (e) {
+        console.error('Failed to update visitor stats:', e);
+    }
+};
+
+// [Final Cleanup] 헤더 로고의 좀비 리스너 제거 및 관리자 트리거 방지
+document.addEventListener('DOMContentLoaded', () => {
+    const headerContent = document.querySelector('.header-content');
+    if (headerContent) {
+        // 기존 리스너(addEventListener로 추가된 것들) 제거를 위해 복제 후 교체
+        const newHeader = headerContent.cloneNode(true);
+        headerContent.parentNode.replaceChild(newHeader, headerContent);
+
+        // 새로 교체된 헤더에 호버 힌트만 추가 (관리자 연타 안내 제거)
+        newHeader.setAttribute('title', '전체 데이터 새로고침');
+    }
+});
+
+// 헤더 클릭 시 데이터 새로고침
+window.handleHeaderRefresh = function () {
+    console.log('🔄 헤더 클릭: 전체 데이터 새로고침');
+    fetchAllData();
+    if (typeof renderMarineWeatherStatus === 'function') renderMarineWeatherStatus();
+};
+
+/**
+ * [추가] 기상청 링크 클릭 핸들러 (모바일 앱 대응)
+ * 앱 환경이면 팝업창으로, 웹이면 새 창으로 열기
+ */
+window.handleKmaLinkClick = function (event, url, title) {
+    // 모바일 네이티브 플랫폼(Android 등)인지 확인
+    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+        event.preventDefault(); // 기본 링크 이동 방지
+        window.openKmaIframeModal(url, title);
+        return false;
+    }
+    return true; // 일반 웹 브라우저는 target="_blank"로 열림
+};
+
+/**
+ * 기상청 전용 아이프레임 모달 열기
+ */
+window.openKmaIframeModal = function (url, title) {
+    // 기존 모달 제거
+    const existing = document.getElementById('kma-iframe-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'kma-iframe-modal';
+    modal.className = 'kma-iframe-modal';
+    modal.innerHTML = `
+        <div class="kma-iframe-overlay" onclick="window.closeKmaIframeModal()"></div>
+        <div class="kma-iframe-content">
+            <div class="kma-iframe-header">
+                <h3><i class="fa-solid fa-cloud-sun"></i> ${title} - 기상청</h3>
+                <button class="kma-iframe-close" onclick="window.closeKmaIframeModal()">✕</button>
+            </div>
+            <div class="kma-iframe-body">
+                <iframe src="${url}" frameborder="0" allowfullscreen></iframe>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+    document.body.style.overflow = 'hidden'; // 배경 스크롤 방지
+};
+
+/**
+ * 기상청 아이프레임 모달 닫기
+ */
+window.closeKmaIframeModal = function () {
+    const modal = document.getElementById('kma-iframe-modal');
+    if (modal) {
+        modal.classList.add('fade-out'); // 애니메이션 위해 클래스 추가 (선택사항)
+        setTimeout(() => {
+            modal.remove();
+            document.body.style.overflow = '';
+        }, 150);
+    }
+};
+

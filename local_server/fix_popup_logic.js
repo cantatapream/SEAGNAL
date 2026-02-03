@@ -62,6 +62,9 @@ window.AlertDetailPopup = {
         const effectTimeStr = this.formatDateTime(tmEf);       // 발효시각
         const zoneLinks = this.createZoneLinks(zones, status);
 
+        // [New] 시간 정보가 유효할 때만 '부로' 접미사를 붙임
+        const timePrefix = (timeStrLong && timeStrLong !== '정보 없음' && timeStrLong !== '미정') ? `${timeStrLong}부로 ` : '';
+
         // 용어 명확화
         if (alertType.includes('풍랑') && !alertType.includes('경보')) alertType = '풍랑주의보';
         if (prevAlertType && prevAlertType.includes('풍랑') && !prevAlertType.includes('경보')) prevAlertType = '풍랑주의보';
@@ -73,19 +76,18 @@ window.AlertDetailPopup = {
             if (isWinter) {
                 // 동절기 (30톤)
                 message = `
-① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 '발표'되었습니다.
+① ${timePrefix}${zoneLinks}에 ${alertType}가 '발표'되었습니다.
 발효 예정 일시는 앱의 상세내용에서 확인해주시고, 발효 시 30톤 미만 어선은 출항 및 조업이 제한되니 사전에 안전지대로 이동 및 대피바랍니다.
 * 15톤 이상 출항 가능 조건은 가까운 해양경찰 파출소 문의
 
 ② 출항 및 조업 제한 위반 시 어선안전조업법 제49조에 따라 어업허가 정지 등 행정처분 대상이 될 수 있습니다.
 
-③ 출항 제한과 관련 문의는 가까운 해양경찰 파출소로 문의바랍니다.`;
+③ 출항 제한과 관련 문의은 가까운 해양경찰 파출소로 문의바랍니다.`;
             } else {
                 // 경보나 태풍이 아닌 일반 풍랑주의보 (15톤)
-                // (단, '경보'나 '태풍' 여부는 아래 else if나 별도 체크 필요하지만 여기선 alertType이 풍랑주의보임)
                 message = `
-① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 '발표'되었습니다.
-해당 발표는 ${effectTimeStr}부로 '발효'될 예정이며, 발효 시 15톤 미만 어선은 출항 및 조업이 제한되니 사전에 안전지대로 이동 및 대피바랍니다.
+① ${timePrefix}${zoneLinks}에 ${alertType}가 '발표'되었습니다.
+해당 발표는 ${effectTimeStr && effectTimeStr !== '정보 없음' ? effectTimeStr + '부로 ' : ''}'발효'될 예정이며, 발효 시 15톤 미만 어선은 출항 및 조업이 제한되니 사전에 안전지대로 이동 및 대피바랍니다.
 
 ② 출항 및 조업 제한 위반 시 어선안전조업법 제49조에 따라 어업허가 정지 등 행정처분 대상이 될 수 있습니다.
 
@@ -95,7 +97,7 @@ window.AlertDetailPopup = {
         // [예외] 풍랑경보/태풍 발표 (Publish)
         else if (['경보', '태풍'].some(t => alertType.includes(t)) && status === 'publish') {
             message = `
-① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 '발표'되었습니다.
+① ${timePrefix}${zoneLinks}에 ${alertType}가 '발표'되었습니다.
 
 ② 발효 예정 일시는 앱의 상세내용에서 확인해주시고, 발효 시 모든 어선은 출항 및 조업이 제한됩니다. 해당 해역 및 인근 해역을 항해하는 어선은 속히 안전지대로 대피해주시기 바랍니다.
 
@@ -108,7 +110,7 @@ window.AlertDetailPopup = {
             if (isWinter) {
                 // 동절기 (30톤)
                 message = `
-① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 '발효'되었습니다.
+① ${timePrefix}${zoneLinks}에 ${alertType}가 '발효'되었습니다.
 30톤 미만 어선은 출항 및 조업이 제한되니 조업 중인 어선은 안전지대로 이동 및 대피바랍니다.
 * 15톤 이상 출항 가능 조건은 가까운 해양경찰 파출소 문의
 
@@ -120,7 +122,7 @@ window.AlertDetailPopup = {
             } else {
                 // 비동절기 (15톤)
                 message = `
-① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 '발효'되었습니다.
+① ${timePrefix}${zoneLinks}에 ${alertType}가 '발효'되었습니다.
 15톤 미만 어선은 출항 및 조업이 제한되니 조업 중인 어선은 안전지대로 이동 및 대피바랍니다.
 
 ② 해제 예정 일시는 앱의 상세내용에서 확인해주시고, 실제 풍랑주의보 해제 시각 이후부터 모든 어선은 즉시 출항이 가능하오니, 수시로 기상특보를 확인바랍니다.
@@ -133,7 +135,7 @@ window.AlertDetailPopup = {
         // 3. 풍랑경보/태풍 - 발효 (Active)
         else if (['경보', '태풍'].some(t => alertType.includes(t)) && status === 'active') {
             message = `
-① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 '발효'되었습니다.
+① ${timePrefix}${zoneLinks}에 ${alertType}가 '발효'되었습니다.
 
 ② 모든 어선은 출항 및 조업이 제한됩니다. 해당 해역 및 인근 해역을 항해하는 어선은 속히 안전지대로 대피해주시기 바랍니다.
 
@@ -144,7 +146,7 @@ window.AlertDetailPopup = {
         // 4. 해제 (Release)
         else if (status === 'release') {
             message = `
-① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 '해제'되었습니다. 어선의 출항 및 조업이 가능하나, 출항 전 출항지 및 조업지 해상상태를 확인하시어 안전한 출항과 조업이 되도록 당부드립니다.
+① ${timePrefix}${zoneLinks}에 ${alertType}가 '해제'되었습니다. 어선의 출항 및 조업이 가능하나, 출항 전 출항지 및 조업지 해상상태를 확인하시어 안전한 출항과 조업이 되도록 당부드립니다.
 
 ② 출항 제한과 관련 문의는 가까운 해경 파출소로 문의바랍니다.`;
         }
@@ -157,7 +159,7 @@ window.AlertDetailPopup = {
                 // 최종 태세가 풍랑주의보
                 if (isWinter) {
                     message = `
-① ${timeStrLong}부로 ${zoneLinks}에 ${prevAlertType || '전 단계 특보'}가 ${targetType}으로 ${levelWord}되었습니다.
+① ${timePrefix}${zoneLinks}에 ${prevAlertType || '전 단계 특보'}가 ${targetType}으로 ${levelWord}되었습니다.
 30톤 미만 어선은 출항 및 조업이 제한되니 조업 중인 어선은 안전지대로 이동 및 대피바랍니다.
 * 15톤 이상 출항 가능 조건은 가까운 해양경찰 파출소 문의
 
@@ -168,7 +170,7 @@ window.AlertDetailPopup = {
 ④ 출항 제한과 관련 문의는 가까운 해경 파출소로 문의바랍니다.`;
                 } else {
                     message = `
-① ${timeStrLong}부로 ${zoneLinks}에 ${prevAlertType || '전 단계 특보'}가 ${targetType}으로 ${levelWord}되었습니다.
+① ${timePrefix}${zoneLinks}에 ${prevAlertType || '전 단계 특보'}가 ${targetType}으로 ${levelWord}되었습니다.
 15톤 미만 어선은 출항 및 조업이 제한되니 조업 중인 어선은 안전지대로 이동 및 대피바랍니다.
 
 ② 해제 예정 일시는 앱의 상세내용에서 확인해주시고, 실제 풍랑주의보 해제 시각 이후부터 모든 어선은 즉시 출항이 가능하오니, 수시로 기상특보를 확인바랍니다.
@@ -180,7 +182,7 @@ window.AlertDetailPopup = {
             } else {
                 // 최종 태세가 경보/태풍
                 message = `
-① ${timeStrLong}부로 ${zoneLinks}에 ${prevAlertType || '전 단계 특보'}가 ${targetType}으로 ${levelWord}되었습니다.
+① ${timePrefix}${zoneLinks}에 ${prevAlertType || '전 단계 특보'}가 ${targetType}으로 ${levelWord}되었습니다.
 
 ② 모든 어선은 출항 및 조업이 제한됩니다. 해당 해역 및 인근 해역을 항해하는 어선은 속히 안전지대로 대피해주시기 바랍니다.
 
@@ -191,7 +193,7 @@ window.AlertDetailPopup = {
         }
         else {
             message = `
-① ${timeStrLong}부로 ${zoneLinks}에 ${alertType}가 발생했습니다.
+① ${timePrefix}${zoneLinks}에 ${alertType}가 발생했습니다.
 
 ② 자세한 내용은 앱의 기상특보 탭에서 확인해주세요.`;
         }
@@ -201,6 +203,13 @@ window.AlertDetailPopup = {
 
     // 팝업 표시
     show(data) {
+        // [New] 안전정보 팝업 끄기 설정 체크
+        const suppressSafetyPopup = localStorage.getItem('suppressSafetyPopup') === 'true';
+        if (suppressSafetyPopup) {
+            console.log('[AlertDetailPopup] 안전정보 팝업이 설정에 의해 비활성화되었습니다.');
+            return; // 팝업 표시하지 않음
+        }
+
         const message = this.generateMessage(data);
 
         // 기존 팝업 제거

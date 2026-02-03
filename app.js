@@ -8720,20 +8720,6 @@ async function renderUnifiedAlertContent(container) {
             <div>
                 <i class="fa-solid fa-tower-broadcast" style="color:#ef4444;"></i> 실시간 특보 알림 관리
             </div>
-            <div class="hub-hybrid-toggle" style="display:flex; align-items:center; gap:10px; background:rgba(0,0,0,0.2); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.1);">
-                <span style="font-size:0.75rem; color:#94a3b8;">HUB 하이브리드</span>
-                <!-- [임시] 분석용 로그 다운로드 버튼 -->
-                <button onclick="downloadHubHybridLog()" title="HUB 분석 로그 다운로드"
-                    style="background:rgba(255,255,255,0.05); border:none; border-radius:4px; color:#38bdf8; width:28px; height:22px; display:flex; align-items:center; justify-content:center; cursor:pointer;">
-                    <i class="fa-solid fa-download" style="font-size:0.75rem;"></i>
-                </button>
-                <label class="admin-switch" style="position:relative; display:inline-block; width:42px; height:22px;">
-                    <input type="checkbox" id="hub-hybrid-toggle" style="opacity:0; width:0; height:0;" onchange="toggleHubHybridRelease(this.checked)">
-                    <span class="admin-slider" style="position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#374151; border-radius:22px; transition:0.3s;">
-                        <span style="position:absolute; content:''; height:16px; width:16px; left:3px; bottom:3px; background:white; border-radius:50%; transition:0.3s;"></span>
-                    </span>
-                </label>
-            </div>
         </div>
         
         <div class="admin-sub-tabs">
@@ -8760,68 +8746,8 @@ async function renderUnifiedAlertContent(container) {
         if (innerContainer) window.renderAlertAdminContent(subTabId, innerContainer);
     };
 
-    // [임시] HUB 하이브리드 로그 다운로드 함수
-    window.downloadHubHybridLog = function () {
-        if (!confirm('최근 수집된 HUB 분석 로그 파일을 다운로드하시겠습니까?')) return;
-        window.open(CONFIG.API_BASE + '/api/debug/hub-logs/download', '_blank');
-    };
-
-    // [NEW] HUB 하이브리드 해제 토글 함수
-    window.toggleHubHybridRelease = async function (enabled) {
-        try {
-            const res = await fetch(CONFIG.API_BASE + '/api/config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ USE_HUB_RELEASE: enabled })
-            });
-            if (res.ok) {
-                const statusText = enabled ? 'ON (활성화)' : 'OFF (비활성화)';
-                console.log(`[Admin] HUB 하이브리드 해제: ${statusText}`);
-                // 토글 슬라이더 색상 변경
-                updateHubToggleStyle(enabled);
-            } else {
-                alert('설정 저장 실패');
-                // 실패 시 원래 상태로 되돌리기
-                document.getElementById('hub-hybrid-toggle').checked = !enabled;
-            }
-        } catch (e) {
-            alert('오류: ' + e.message);
-            document.getElementById('hub-hybrid-toggle').checked = !enabled;
-        }
-    };
-
-    // [NEW] 토글 스타일 업데이트
-    function updateHubToggleStyle(enabled) {
-        const slider = document.querySelector('.hub-hybrid-toggle .admin-slider');
-        const knob = slider ? slider.querySelector('span') : null;
-        if (slider) {
-            slider.style.background = enabled ? '#10b981' : '#374151';
-        }
-        if (knob) {
-            knob.style.transform = enabled ? 'translateX(20px)' : 'translateX(0)';
-        }
-    }
-
-    // [NEW] 서버에서 현재 설정 로드하여 토글 초기화
-    async function loadHubHybridStatus() {
-        try {
-            const res = await fetch(CONFIG.API_BASE + '/api/config');
-            const config = await res.json();
-            const toggle = document.getElementById('hub-hybrid-toggle');
-            if (toggle && typeof config.USE_HUB_RELEASE === 'boolean') {
-                toggle.checked = config.USE_HUB_RELEASE;
-                updateHubToggleStyle(config.USE_HUB_RELEASE);
-            }
-        } catch (e) {
-            console.warn('HUB 설정 로드 실패:', e.message);
-        }
-    }
-
     // 초기 서브탭: 발표
     switchAlertAdminTabInternal('publish');
-
-    // HUB 토글 상태 로드
-    loadHubHybridStatus();
 }
 
 // (B) API 설정 섹션 렌더링
@@ -9960,11 +9886,11 @@ function hexToRgb(hex) {
 const FontSizeManager = {
     STORAGE_KEY: 'user_font_size',
 
-    // 폰트 크기 오프셋 (보통을 0으로 기준 잡음)
+    // 폰트 크기 오프셋 (기존 반응형 크기에 더함)
     OFFSETS: {
-        small: -1,   // 작게: 기준 -1px
-        medium: 0,   // 보통: 기준 (0px)
-        large: 2     // 크게: 기준 +2px
+        small: 0,    // 기존 반응형 그대로
+        medium: 2,   // +2px
+        large: 4     // +4px
     },
 
     // 현재 설정 가져오기
@@ -9982,9 +9908,9 @@ const FontSizeManager = {
     // CSS 적용
     apply(size) {
         if (!size) size = this.get();
-        const offset = this.OFFSETS[size] !== undefined ? this.OFFSETS[size] : 0;
+        const offset = this.OFFSETS[size] || 0;
 
-        // 현재 뷰포트 기반 기본 폰트 크기 계산 (기존 미디어쿼리 로직을 자바스크립트로 이관)
+        // 현재 뷰포트 기반 기본 폰트 크기 계산
         const viewportWidth = window.innerWidth;
         let baseFontSize;
 
@@ -9995,13 +9921,12 @@ const FontSizeManager = {
         } else if (viewportWidth < 431) {
             baseFontSize = 15;
         } else {
-            // PC 또는 큰 모바일 (기본 16px)
             baseFontSize = 16;
         }
 
-        // 최종 폰트 크기 결정 (px 단위로 강제 주입하여 시스템 스케일링 무시 효과 보강)
+        // 오프셋 적용
         const finalFontSize = baseFontSize + offset;
-        document.documentElement.style.setProperty('font-size', finalFontSize + 'px', 'important');
+        document.documentElement.style.fontSize = finalFontSize + 'px';
 
         // data 속성 추가 (디버깅용)
         document.documentElement.setAttribute('data-font-size', size);
@@ -10070,11 +9995,6 @@ const FontSizeManager = {
 
 // 페이지 로드 시 폰트 크기 적용
 FontSizeManager.apply();
-
-// 창 크기 변경 시 대응 (가로/세로 전환 등)
-window.addEventListener('resize', () => {
-    FontSizeManager.apply();
-});
 
 // 설정 모달 열릴 때 UI 초기화
 const _originalOpenSettingsModal = window.openSettingsModal;

@@ -203,6 +203,13 @@ window.AlertDetailPopup = {
 
     // 팝업 표시
     show(data) {
+        // [New] 안전정보 팝업 끄기 설정 체크
+        const suppressSafetyPopup = localStorage.getItem('suppressSafetyPopup') === 'true';
+        if (suppressSafetyPopup) {
+            console.log('[AlertDetailPopup] 안전정보 팝업이 설정에 의해 비활성화되었습니다.');
+            return; // 팝업 표시하지 않음
+        }
+
         const message = this.generateMessage(data);
 
         // 기존 팝업 제거
@@ -424,3 +431,22 @@ window.AlertDetailPopup.scrollToZone = function (zoneName, status) {
         }, 500);
     }
 })();
+
+// ============================================================================
+// [New] 안전정보 팝업 끄기 설정 이벤트 핸들러
+// ============================================================================
+document.addEventListener('DOMContentLoaded', () => {
+    // 토글 요소 찾기
+    const suppressToggle = document.getElementById('opt-suppress-safety-popup');
+    if (suppressToggle) {
+        // 초기값 로드
+        const savedValue = localStorage.getItem('suppressSafetyPopup') === 'true';
+        suppressToggle.checked = savedValue;
+
+        // 변경 이벤트 핸들러
+        suppressToggle.addEventListener('change', (e) => {
+            localStorage.setItem('suppressSafetyPopup', e.target.checked);
+            console.log('[Settings] suppressSafetyPopup =', e.target.checked);
+        });
+    }
+});

@@ -1891,13 +1891,22 @@ function displayBuoyDataInModal(container, data) {
 
     html += '</div>';
 
-    // 관측 시간 포맷
-    let timeStr = data.time || '';
-    if (timeStr.length === 12) {
-        timeStr = `${timeStr.substring(4, 6)}. ${timeStr.substring(6, 8)}. ${timeStr.substring(8, 10)}:${timeStr.substring(10, 12)}`;
+    // 관측 시간 포맷 (입력이 '202602022300' 형태)
+    let timeStr = String(data.time || '').trim();
+    // 12자리 숫자(YYYYMMDDHHMM)가 포착되면 포맷팅
+    const timeMatch = timeStr.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
+
+    if (timeMatch) {
+        // const year = timeMatch[1]; // 년도
+        const month = parseInt(timeMatch[2], 10);
+        const day = parseInt(timeMatch[3], 10);
+        const hour = timeMatch[4];
+        // const min = timeMatch[5]; // 분
+
+        timeStr = `${month}월 ${day}일 ${hour}시`;
     }
 
-    html += `<div style="margin-top:15px; font-size:0.75rem; color:#666; text-align:right;">관측 시간: ${timeStr}</div>`;
+    html += `<div style="margin-top:15px; font-size:0.75rem; color:#666; text-align:right;">관측 시간 : ${timeStr}</div>`;
 
     container.innerHTML = html;
 }
