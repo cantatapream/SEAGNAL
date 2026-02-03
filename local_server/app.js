@@ -2836,6 +2836,19 @@ function createAlertElement(items) {
     const formatAlertTime = (timeStr) => {
         if (!timeStr || timeStr.trim() === '' || timeStr.trim() === '일') return '정보 없음';
         const decoded = timeStr.replace(/&#40;/g, '(').replace(/&#41;/g, ')').trim();
+
+        // [NEW] YYYYMMDDHHMM 형식 (12자리 연속 숫자) 처리 - 예: 202602020900
+        const rawMatch = decoded.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$/);
+        if (rawMatch) {
+            const month = parseInt(rawMatch[2], 10);
+            const day = parseInt(rawMatch[3], 10);
+            let hh = parseInt(rawMatch[4], 10);
+            const mm = rawMatch[5];
+            const ampm = hh >= 12 ? '오후' : '오전';
+            const displayHour = hh > 12 ? hh - 12 : (hh === 0 ? 12 : hh);
+            return `${month}월 ${day}일 ${ampm} ${String(displayHour).padStart(2, '0')}:${mm}`;
+        }
+
         const dotMatch = decoded.match(/^(\d{4})\.(\d{2})\.(\d{2})\.(\d{2}):(\d{2})$/);
         if (dotMatch) {
             const yy = dotMatch[1].slice(-2);
@@ -8847,7 +8860,6 @@ async function renderUnifiedApiContent(container) {
             const apiItems = [
                 { key: 'general', name: '기상 예보', icon: 'fa-sun', color: '#ffd54f' },
                 { key: 'warnings_hub', name: '특보 - HUB (KMA)', icon: 'fa-bolt', color: '#ff5722' },
-                { key: 'warnings_afso', name: '특보 - AFSO (연안)', icon: 'fa-water', color: '#ff9800' },
                 { key: 'zone', name: '해구별 예보', icon: 'fa-map-location-dot', color: '#29b6f6' },
                 { key: 'buoys', name: '관측 부이', icon: 'fa-anchor', color: '#26a69a' }
             ];

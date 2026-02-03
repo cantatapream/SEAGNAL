@@ -766,56 +766,61 @@
                 <div id="tab-font" class="settings-tab-content">
                     <div id="display-settings-card"
                         style="margin: 15px; background: rgba(30, 41, 59, 0.4); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); overflow: hidden; backdrop-filter: blur(10px);">
-                        <div style="padding: 18px 18px 12px 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-                            <div
-                                style="font-size: 1rem; color: #fff; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                                <i class="fa-solid fa-sliders" style="color: #a78bfa;"></i>기타 설정
-                            </div>
-                        </div>
-                        <div style="padding: 15px;">
+                        <div style="padding: 18px;">
                             <!-- 글자 크기 섹션 -->
-                            <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 3px; font-weight: 600;">글자 크기
-                            </div>
-                            <div style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 10px;">화면에 표시되는 글자 크기를 조절합니다.
-                            </div>
-                            <div class="radio-tab-container"
-                                style="display: flex; gap: 8px; padding: 4px; background: rgba(0, 0, 0, 0.2); border-radius: 8px;">
-                                <label class="radio-tab" style="flex: 1; cursor: pointer; position: relative;">
-                                    <input type="radio" name="font-size" value="small"
-                                        style="position: absolute; opacity: 0;">
-                                    <div class="radio-content"
-                                        style="padding: 10px; text-align: center; border-radius: 6px; transition: all 0.2s; color: #ccc;">
-                                        작게</div>
-                                </label>
-                                <label class="radio-tab" style="flex: 1; cursor: pointer; position: relative;">
-                                    <input type="radio" name="font-size" value="medium" checked
-                                        style="position: absolute; opacity: 0;">
-                                    <div class="radio-content active"
-                                        style="padding: 10px; text-align: center; border-radius: 6px; transition: all 0.2s; background: var(--accent-blue); color: white;">
-                                        보통</div>
-                                </label>
-                                <label class="radio-tab" style="flex: 1; cursor: pointer; position: relative;">
-                                    <input type="radio" name="font-size" value="large"
-                                        style="position: absolute; opacity: 0;">
-                                    <div class="radio-content"
-                                        style="padding: 10px; text-align: center; border-radius: 6px; transition: all 0.2s; color: #ccc;">
-                                        크게</div>
-                                </label>
+                            <div style="margin-bottom: 20px;">
+                                <div
+                                    style="font-size: 1rem; color: #fff; font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                                    <i class="fa-solid fa-text-height" style="color: #a78bfa;"></i>글자 크기
+                                </div>
+                                <div style="font-size: 0.78rem; color: #64748b; margin-bottom: 12px;">화면에 표시되는 글자 크기를
+                                    조절합니다.</div>
+                                <div class="radio-tab-container"
+                                    style="display: flex; gap: 8px; padding: 4px; background: rgba(0, 0, 0, 0.2); border-radius: 8px;">
+                                    <label class="radio-tab" style="flex: 1; cursor: pointer; position: relative;">
+                                        <input type="radio" name="font-size" value="small"
+                                            style="position: absolute; opacity: 0;">
+                                        <div class="radio-content"
+                                            style="padding: 10px; text-align: center; border-radius: 6px; transition: all 0.2s; color: #ccc;">
+                                            작게</div>
+                                    </label>
+                                    <label class="radio-tab" style="flex: 1; cursor: pointer; position: relative;">
+                                        <input type="radio" name="font-size" value="medium" checked
+                                            style="position: absolute; opacity: 0;">
+                                        <div class="radio-content active"
+                                            style="padding: 10px; text-align: center; border-radius: 6px; transition: all 0.2s; background: var(--accent-blue); color: white;">
+                                            보통</div>
+                                    </label>
+                                    <label class="radio-tab" style="flex: 1; cursor: pointer; position: relative;">
+                                        <input type="radio" name="font-size" value="large"
+                                            style="position: absolute; opacity: 0;">
+                                        <div class="radio-content"
+                                            style="padding: 10px; text-align: center; border-radius: 6px; transition: all 0.2s; color: #ccc;">
+                                            크게</div>
+                                    </label>
+                                </div>
                             </div>
 
                             <!-- 구분선 -->
                             <div style="height: 1px; background: rgba(255,255,255,0.1); margin: 20px 0;"></div>
 
                             <!-- 기상특보 안전권고 섹션 -->
-                            <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 10px; font-weight: 600;">기상특보
-                                안전권고</div>
-                            <div class="setting-item"
-                                style="padding: 0; border: none; background: none; display: flex; justify-content: space-between; align-items: center;">
-                                <div class="setting-label" style="font-size: 0.95rem; color: #cbd5e1;">안전정보 팝업 끄기</div>
-                                <label class="switch">
-                                    <input type="checkbox" id="opt-suppress-safety-popup">
-                                    <span class="slider"></span>
-                                </label>
+                            <div>
+                                <div
+                                    style="font-size: 1rem; color: #fff; font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                                    <i class="fa-solid fa-circle-info" style="color: #38bdf8;"></i>기상특보 안전권고
+                                </div>
+                                <div style="font-size: 0.78rem; color: #64748b; margin-bottom: 12px;">기상특보 알림을 통해 접속했을 때
+                                    발생되는 팝업 표출을 설정합니다.</div>
+                                <div class="setting-item"
+                                    style="padding: 0; border: none; background: none; display: flex; justify-content: space-between; align-items: center;">
+                                    <div class="setting-label" style="font-size: 0.9rem; color: #cbd5e1;">기상특보에 따른 안전권고
+                                        팝업 끄기</div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="opt-suppress-safety-popup">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
