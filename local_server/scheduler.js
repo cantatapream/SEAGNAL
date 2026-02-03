@@ -55,7 +55,6 @@ try {
 const lastRunStatus = {
     warnings: { lastRun: null, status: '대기 중', message: '' },
     warnings_hub: { lastRun: null, status: '대기 중', message: '' },
-    warnings_afso: { lastRun: null, status: '대기 중', message: '' },
     buoys: { lastRun: null, status: '대기 중', message: '' },
     general: { lastRun: null, status: '대기 중', message: '' },
     zone: { lastRun: null, status: '대기 중', message: '' }
@@ -190,7 +189,6 @@ const HUB_STATUS_FILE = path.join(__dirname, 'data/hub_status.json');
 
 const CONFIG = {
     KMA_HUB_KEY: 'ZKEQU5ukRvGhEFObpBbxVw', // 기본값
-    AFSO_KEY: '', // 향후 필요시 대비
     USE_HUB_RELEASE: false, // [NEW] HUB 하이브리드 해제 활성화 여부
     DATA_DIR: path.join(__dirname, 'data'),
     URLS: {
@@ -467,7 +465,6 @@ function loadApiConfig() {
         if (fs.existsSync(CONFIG_FILE)) {
             const fileData = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
             if (fileData.KMA_HUB_KEY) CONFIG.KMA_HUB_KEY = fileData.KMA_HUB_KEY;
-            if (fileData.AFSO_KEY) CONFIG.AFSO_KEY = fileData.AFSO_KEY;
             if (typeof fileData.USE_HUB_RELEASE === 'boolean') CONFIG.USE_HUB_RELEASE = fileData.USE_HUB_RELEASE;
             // log('🔑 API 설정 로드 완료');
         }
@@ -480,12 +477,10 @@ loadApiConfig();
 function saveApiConfig(newConfig) {
     try {
         if (newConfig.KMA_HUB_KEY) CONFIG.KMA_HUB_KEY = newConfig.KMA_HUB_KEY;
-        if (newConfig.AFSO_KEY !== undefined) CONFIG.AFSO_KEY = newConfig.AFSO_KEY;
         if (typeof newConfig.USE_HUB_RELEASE === 'boolean') CONFIG.USE_HUB_RELEASE = newConfig.USE_HUB_RELEASE;
 
         fs.writeFileSync(CONFIG_FILE, JSON.stringify({
             KMA_HUB_KEY: CONFIG.KMA_HUB_KEY,
-            AFSO_KEY: CONFIG.AFSO_KEY,
             USE_HUB_RELEASE: CONFIG.USE_HUB_RELEASE
         }, null, 2));
         log(`✅ API 설정 저장 완료 (USE_HUB_RELEASE: ${CONFIG.USE_HUB_RELEASE})`);
@@ -788,7 +783,7 @@ async function collectWarnings() {
     saveData('warnings.json', {
         updatedAt: getNowStr(),
         kma: 'HUB_ONLY_MODE',
-        afso: afsoJsonWrapper
+        afso: { metData: [] } // 호환성 유지
     });
 
     lastRunStatus.warnings = { lastRun: getNowStr(), status: '성공', message: `통합 ${metData.length}건 저장` };
@@ -1795,11 +1790,6 @@ async function collectWarningsHub() {
         lastRunStatus.warnings_hub = { lastRun: getNowStr(), status: '실패', message: e.message };
         throw e;
     }
-}
-
-// 1-2. AFSO 특보만 수집 (수동)
-async function collectWarningsAfso() {
-    await collectWarnings(); // 통합 로직 사용
 }
 
 // 2. 부이 수집

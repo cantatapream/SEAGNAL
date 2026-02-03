@@ -1,47 +1,88 @@
 {
-  "background_color": "#1e293b",
+  "name": "SEA:GNAL(바다:그 날의 신호)",
+  "short_name": "SEA:GNAL",
+  "description": "전국 해상 실시간 기상특보 및 해구별 맞춤 기상전망, 조석/일출몰 정보를 제공하는 전문 해역 기상 서비스",
+  "id": "/",
+  "start_url": "./index.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#05070a",
+  "theme_color": "#05070a",
+  "orientation": "portrait",
+  "lang": "ko-KR",
+  "dir": "ltr",
+  "categories": [
+    "weather",
+    "news",
+    "navigation",
+    "utilities"
+  ],
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
   "icons": [
     {
-      "src": "assets/icons/icon-48.webp",
-      "type": "image/png",
-      "sizes": "48x48",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "assets/icons/icon-72.webp",
-      "type": "image/png",
-      "sizes": "72x72",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "assets/icons/icon-96.webp",
-      "type": "image/png",
-      "sizes": "96x96",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "assets/icons/icon-128.webp",
-      "type": "image/png",
-      "sizes": "128x128",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "assets/icons/icon-192.webp",
-      "type": "image/png",
-      "sizes": "192x192",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "assets/icons/icon-256.webp",
-      "type": "image/png",
-      "sizes": "256x256",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "assets/icons/icon-512.webp",
-      "type": "image/png",
+      "src": "assets/icon_wave_pulse_square.png",
       "sizes": "512x512",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon_wave_pulse_square.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "assets/screenshots/screenshot1.jpg",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "전국 해상 특보 현황"
+    },
+    {
+      "src": "assets/screenshots/screenshot2.jpg",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "해역별 기상 현황"
+    },
+    {
+      "src": "assets/screenshots/screenshot3.jpg",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "실시간 기상 현황 상세"
+    },
+    {
+      "src": "assets/screenshots/screenshot4.jpg",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "세밀한 해구도 정보"
+    },
+    {
+      "src": "assets/screenshots/screenshot5.jpg",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "기상 관측 부이 상세 데이터"
+    },
+    {
+      "src": "assets/screenshots/screenshot6.jpg",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "해구별 맞춤 기상 예보"
+    },
+    {
+      "src": "assets/screenshots/screenshot7.jpg",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "조석 정보 및 일출몰 시간"
     }
   ]
 }

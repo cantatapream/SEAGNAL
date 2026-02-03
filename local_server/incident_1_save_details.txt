@@ -1,3 +1,0 @@
-2026. 1. 29. 오전 4:10:55 | Type: 발표 | AFSO: 주의보 | HUB: 정보없음 | Match: 정보없음
-2026. 1. 29. 오후 12:00:26 | Type: 해제 | AFSO: 주의보 | HUB: undefined | Match: RELEASE
-2026. 1. 29. 오후 4:00:41 | Type: 발표 | AFSO: 예비 | HUB: 예비 | Match: MATCH

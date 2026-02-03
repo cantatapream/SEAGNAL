@@ -431,22 +431,3 @@ window.AlertDetailPopup.scrollToZone = function (zoneName, status) {
         }, 500);
     }
 })();
-
-// ============================================================================
-// [New] 안전정보 팝업 끄기 설정 이벤트 핸들러
-// ============================================================================
-document.addEventListener('DOMContentLoaded', () => {
-    // 토글 요소 찾기
-    const suppressToggle = document.getElementById('opt-suppress-safety-popup');
-    if (suppressToggle) {
-        // 초기값 로드
-        const savedValue = localStorage.getItem('suppressSafetyPopup') === 'true';
-        suppressToggle.checked = savedValue;
-
-        // 변경 이벤트 핸들러
-        suppressToggle.addEventListener('change', (e) => {
-            localStorage.setItem('suppressSafetyPopup', e.target.checked);
-            console.log('[Settings] suppressSafetyPopup =', e.target.checked);
-        });
-    }
-});
