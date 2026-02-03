@@ -70,6 +70,47 @@
         }
     }
     </script>
+
+    <!-- 화면 방향 잠금 (세로 모드 고정) -->
+    <script>
+        // 화면 방향을 세로(Portrait)로 잠금
+        window.lockScreenToPortrait = function () {
+            // 1. Web Screen Orientation API 시도 (전체화면 모드에서만 작동)
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('portrait').catch(function (err) {
+                    // 전체화면이 아니거나 지원하지 않는 경우 무시
+                    console.log('[Orientation] Portrait lock not supported or not in fullscreen');
+                });
+            }
+
+            // 2. 앱(WebView)에 세로 고정 요청
+            if (window.Android && window.Android.lockOrientation) {
+                window.Android.lockOrientation('portrait');
+            }
+        };
+
+        // 화면 방향 잠금 해제 (가로 모드 허용)
+        window.unlockScreenOrientation = function () {
+            if (screen.orientation && screen.orientation.unlock) {
+                screen.orientation.unlock();
+            }
+            if (window.Android && window.Android.unlockOrientation) {
+                window.Android.unlockOrientation();
+            }
+        };
+
+        // 특정 팝업에서 가로 모드로 전환
+        window.lockScreenToLandscape = function () {
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(function (err) {
+                    console.log('[Orientation] Landscape lock not supported');
+                });
+            }
+            if (window.Android && window.Android.lockOrientation) {
+                window.Android.lockOrientation('landscape');
+            }
+        };
+    </script>
 </head>
 
 <body class="loading">

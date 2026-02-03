@@ -4341,9 +4341,12 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
 
     tableHTML += '</tbody></table></div>';
 
+    // 스크롤 안내 메시지 (가운데 정렬)
+    tableHTML += `<div style="text-align:center; font-size:0.95rem; color:#ffffff; padding:10px 0 4px; font-weight:500;">☜ 밀어서 더 많은 정보를 확인하세요 ☞</div>`;
+
     // 발표시각 우측 하단 표시
     if (baseTimeFormatted) {
-        tableHTML += `<div style="text-align:right; font-size:11px; color:#8899aa; padding:8px 10px 5px; background:linear-gradient(to top, #1e1e1e 80%, rgba(30,30,30,0)); position:sticky; bottom:0; right:0;">${baseTimeFormatted}</div>`;
+        tableHTML += `<div style="text-align:right; font-size:11px; color:#8899aa; padding:4px 10px 5px;">${baseTimeFormatted}</div>`;
     }
 
     body.innerHTML = tableHTML;
@@ -5268,16 +5271,13 @@ function renderSeaForecastTableInModal(container, items, zoneName, tmFc = null) 
     container.innerHTML = `
         <div style="position:relative;">
             <div style="overflow-x:auto;">${html}</div>
+            <div style="text-align:center; font-size:0.95rem; color:#ffffff; padding:10px 0 4px; font-weight:500;">☜ 밀어서 더 많은 정보를 확인하세요 ☞</div>
             ${tmFcText ? `
                 <div style="
                     text-align: right;
-                    padding: 10px 5px 5px 5px;
+                    padding: 4px 5px 5px 5px;
                     font-size: 0.75rem;
                     color: #8899aa;
-                    position: sticky;
-                    right: 0;
-                    bottom: 0;
-                    background: linear-gradient(to right, transparent, #1a1e2e 30%);
                 ">${tmFcText}</div>
             ` : ''}
         </div>
