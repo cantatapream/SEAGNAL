@@ -656,20 +656,56 @@
     <!-- 해구도 정보 모달은 app.js에서 동적으로 생성됨 -->
 
     <!-- 조석 데이터 및 로직 -->
+
+    <!-- [리팩토링] 모듈화된 스크립트 로드 순서 중요 -->
+
+    <!-- 1. 핵심 코어 (설정, 유틸) -->
+    <script src="js/00_core/config.js"></script>
+    <script src="js/00_core/utils.js"></script>
+    <script src="js/00_core/formatters.js"></script>
+
+    <!-- 2. 정적 데이터 (Data Static) -->
+    <script src="js/99_data_static/zone_data.js"></script>
+    <script src="js/99_data_static/coastal_mapping.js"></script>
+    <script src="js/99_data_static/buoy_mapping.js"></script>
+    <script src="js/99_data_static/sea_regions.js"></script>
+    <script src="js/99_data_static/buoy_locations.js"></script>
+    <script src="js/99_data_static/windy_config.js"></script>
+
+    <!-- 3. API 서비스 (Data Fetching) -->
+    <script src="js/02_api/kma_api.js"></script>
+    <script src="js/02_api/buoy_api.js"></script>
+    <script src="js/02_api/weather_service.js"></script>
+
+    <!-- 4. 해구도 지도 (Seazone Map) -->
+    <script src="js/03_seazone/seazone_config.js"></script>
+    <script src="js/03_seazone/seazone_core.js"></script>
+    <script src="js/03_seazone/seazone_overlay.js"></script>
+
+    <!-- 5. UI 렌더링 (Weather UI) -->
+    <script src="js/05_weather/weather_ui.js"></script>
+
+    <!-- 6. 레거시/기타 기능 (순차적으로 리팩토링 예정) -->
     <script src="tide.js"></script>
     <script src="tide_calendar.js"></script>
-    <script src="seaZonesData.js"></script>
 
-    <script src="zoneOverlayConfig.js"></script>
-    <script src="gridCalibrationData.js"></script>
+    <!-- <script src="seaZonesData.js"></script> [삭제됨: zone_data.js로 대체] -->
+    <!-- <script src="zoneOverlayConfig.js"></script> [삭제됨: sea_regions.js로 대체] -->
+    <!-- <script src="gridCalibrationData.js"></script> [삭제됨: seazone_config.js로 대체] -->
+
     <script src="fix_popup_logic.js?v=Patch_20260111_02"></script>
     <script src="auto_refresh.js?v=Patch_20260111_02"></script>
-    <script src="buoyLocations.js"></script>
-    <script src="seaZoneCoordinates.js"></script>
-    <script src="seaZones.js?v=Patch_20260203_AdminFix"></script>
+
+    <!-- <script src="buoyLocations.js"></script> [삭제됨: buoy_locations.js로 대체] -->
+    <!-- <script src="seaZoneCoordinates.js"></script> [삭제됨: sea_regions.js로 대체] -->
+    <!-- <script src="seaZones.js?v=AdminFix"></script> [삭제됨: seazone_core.js로 대체] -->
+
     <script type="module" src="capacitor-plugins.js?v=Patch_20260111_02"></script>
     <link rel="stylesheet" href="kma_widget.css">
-    <script src="app.js?v=Patch_20260203_AdminFix"></script>
+
+    <!-- 7. 메인 진입점 (App Entry) -->
+    <script src="app.js?v=Refactored_v1"></script>
+
     <!-- 사용자 설정 모달 -->
     <!-- 사용자 설정 모달 -->
     <div id="settings-modal" class="modal hidden">

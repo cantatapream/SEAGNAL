@@ -1,4 +1,643 @@
 {
-  "updatedAt": "2026. 2. 3. 오후 10:58:37",
-  "zones": {}
+  "updatedAt": "2026. 2. 4. 오후 9:28:38",
+  "zones": {
+    "S1152010": {
+      "regId": "S1152010",
+      "regKo": "동해중부안쪽먼바다",
+      "current": null,
+      "upcoming": {
+        "regId": "S1152010",
+        "regKo": "동해중부안쪽먼바다",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": false,
+        "source": "HUB",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 4:01:29",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1152020": {
+      "regId": "S1152020",
+      "regKo": "동해중부바깥먼바다",
+      "current": null,
+      "upcoming": {
+        "regId": "S1152020",
+        "regKo": "동해중부바깥먼바다",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": false,
+        "source": "HUB",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 4:01:29",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1232110": {
+      "regId": "S1232110",
+      "regKo": "서해남부북쪽안쪽먼바다",
+      "current": null,
+      "upcoming": {
+        "regId": "S1232110",
+        "regKo": "서해남부북쪽안쪽먼바다",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": false,
+        "source": "HUB",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 4:01:29",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1232120": {
+      "regId": "S1232120",
+      "regKo": "서해남부북쪽바깥먼바다",
+      "current": null,
+      "upcoming": {
+        "regId": "S1232120",
+        "regKo": "서해남부북쪽바깥먼바다",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": false,
+        "source": "HUB",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 4:01:29",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1251100": {
+      "regId": "S1251100",
+      "regKo": "인천·경기북부앞바다",
+      "current": null,
+      "upcoming": {
+        "regId": "S1251100",
+        "regKo": "인천·경기북부앞바다",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": false,
+        "source": "HUB",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 4:01:29",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1251200": {
+      "regId": "S1251200",
+      "regKo": "인천·경기남부앞바다",
+      "current": null,
+      "upcoming": {
+        "regId": "S1251200",
+        "regKo": "인천·경기남부앞바다",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": false,
+        "source": "HUB",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 4:01:29",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1251300": {
+      "regId": "S1251300",
+      "regKo": "충남북부앞바다",
+      "current": null,
+      "upcoming": {
+        "regId": "S1251300",
+        "regKo": "충남북부앞바다",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": false,
+        "source": "HUB",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 4:01:29",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1251400": {
+      "regId": "S1251400",
+      "regKo": "충남남부앞바다",
+      "current": null,
+      "upcoming": {
+        "regId": "S1251400",
+        "regKo": "충남남부앞바다",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": false,
+        "source": "HUB",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 4:01:29",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1252010": {
+      "regId": "S1252010",
+      "regKo": "서해중부안쪽먼바다",
+      "current": null,
+      "upcoming": {
+        "regId": "S1252010",
+        "regKo": "서해중부안쪽먼바다",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": false,
+        "source": "HUB",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 4:01:29",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1252020": {
+      "regId": "S1252020",
+      "regKo": "서해중부바깥먼바다",
+      "current": null,
+      "upcoming": {
+        "regId": "S1252020",
+        "regKo": "서해중부바깥먼바다",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": false,
+        "source": "HUB",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 4:01:29",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1152010_SUB_울릉도울릉읍연안바다": {
+      "regId": "S1152010_SUB_울릉도울릉읍연안바다",
+      "regKo": "울릉도울릉읍연안바다",
+      "current": null,
+      "upcoming": {
+        "regId": "S1152010_SUB_울릉도울릉읍연안바다",
+        "regKo": "울릉도울릉읍연안바다",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": true,
+        "source": "INHERIT",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 4:02:24",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1152010_SUB_울릉도서면연안바다": {
+      "regId": "S1152010_SUB_울릉도서면연안바다",
+      "regKo": "울릉도서면연안바다",
+      "current": null,
+      "upcoming": {
+        "regId": "S1152010_SUB_울릉도서면연안바다",
+        "regKo": "울릉도서면연안바다",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": true,
+        "source": "INHERIT",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 4:02:24",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1152010_SUB_울릉도북면연안바다": {
+      "regId": "S1152010_SUB_울릉도북면연안바다",
+      "regKo": "울릉도북면연안바다",
+      "current": null,
+      "upcoming": {
+        "regId": "S1152010_SUB_울릉도북면연안바다",
+        "regKo": "울릉도북면연안바다",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": true,
+        "source": "INHERIT",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 4:02:24",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1251100_SUB_인천경기북부앞바다중평수구역": {
+      "regId": "S1251100_SUB_인천경기북부앞바다중평수구역",
+      "regKo": "인천·경기북부앞바다중평수구역",
+      "current": null,
+      "upcoming": {
+        "regId": "S1251100_SUB_인천경기북부앞바다중평수구역",
+        "regKo": "인천·경기북부앞바다중평수구역",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": true,
+        "source": "INHERIT",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 5:44:02",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1251200_SUB_인천경기남부앞바다중먼평수구역": {
+      "regId": "S1251200_SUB_인천경기남부앞바다중먼평수구역",
+      "regKo": "인천·경기남부앞바다중먼평수구역",
+      "current": null,
+      "upcoming": {
+        "regId": "S1251200_SUB_인천경기남부앞바다중먼평수구역",
+        "regKo": "인천·경기남부앞바다중먼평수구역",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": true,
+        "source": "INHERIT",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 5:44:02",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1251200_SUB_인천경기남부앞바다중북부앞평수구역": {
+      "regId": "S1251200_SUB_인천경기남부앞바다중북부앞평수구역",
+      "regKo": "인천·경기남부앞바다중북부앞평수구역",
+      "current": null,
+      "upcoming": {
+        "regId": "S1251200_SUB_인천경기남부앞바다중북부앞평수구역",
+        "regKo": "인천·경기남부앞바다중북부앞평수구역",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": true,
+        "source": "INHERIT",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 5:44:02",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1251200_SUB_인천경기남부앞바다중남부앞평수구역": {
+      "regId": "S1251200_SUB_인천경기남부앞바다중남부앞평수구역",
+      "regKo": "인천·경기남부앞바다중남부앞평수구역",
+      "current": null,
+      "upcoming": {
+        "regId": "S1251200_SUB_인천경기남부앞바다중남부앞평수구역",
+        "regKo": "인천·경기남부앞바다중남부앞평수구역",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": true,
+        "source": "INHERIT",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 5:44:02",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1251300_SUB_천수만평수구역": {
+      "regId": "S1251300_SUB_천수만평수구역",
+      "regKo": "천수만평수구역",
+      "current": null,
+      "upcoming": {
+        "regId": "S1251300_SUB_천수만평수구역",
+        "regKo": "천수만평수구역",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": true,
+        "source": "INHERIT",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 5:44:02",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1251300_SUB_안면도서쪽평수구역": {
+      "regId": "S1251300_SUB_안면도서쪽평수구역",
+      "regKo": "안면도서쪽평수구역",
+      "current": null,
+      "upcoming": {
+        "regId": "S1251300_SUB_안면도서쪽평수구역",
+        "regKo": "안면도서쪽평수구역",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": true,
+        "source": "INHERIT",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 5:44:02",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1251300_SUB_당진평수구역": {
+      "regId": "S1251300_SUB_당진평수구역",
+      "regKo": "당진평수구역",
+      "current": null,
+      "upcoming": {
+        "regId": "S1251300_SUB_당진평수구역",
+        "regKo": "당진평수구역",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": true,
+        "source": "INHERIT",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 5:44:02",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1251300_SUB_태안서산북쪽평수구역": {
+      "regId": "S1251300_SUB_태안서산북쪽평수구역",
+      "regKo": "태안·서산북쪽평수구역",
+      "current": null,
+      "upcoming": {
+        "regId": "S1251300_SUB_태안서산북쪽평수구역",
+        "regKo": "태안·서산북쪽평수구역",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": true,
+        "source": "INHERIT",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 5:44:02",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    },
+    "S1251400_SUB_충남남부앞바다중평수구역": {
+      "regId": "S1251400_SUB_충남남부앞바다중평수구역",
+      "regKo": "충남남부앞바다중평수구역",
+      "current": null,
+      "upcoming": {
+        "regId": "S1251400_SUB_충남남부앞바다중평수구역",
+        "regKo": "충남남부앞바다중평수구역",
+        "wrnTp": "풍랑",
+        "wrnLvl": "예비",
+        "tmFc": "202602041600",
+        "tmEf": "202602052358",
+        "tmYn": "",
+        "img": "",
+        "isCoastal": true,
+        "source": "INHERIT",
+        "status": "publish"
+      },
+      "history": [
+        {
+          "timestamp": "2026. 2. 4. 오후 5:44:02",
+          "wrnTp": "풍랑",
+          "wrnLvl": "예비",
+          "tmEf": "202602052358",
+          "isKeyframe": true,
+          "keyframeType": "신규발생"
+        }
+      ],
+      "isReleaseNotified": false
+    }
+  }
 }

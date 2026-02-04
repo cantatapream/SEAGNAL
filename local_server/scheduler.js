@@ -595,31 +595,27 @@ async function fetchCoastalAlerts() {
         });
         const html = await res.text();
 
-        // <특정관리해역 연안바다 특보사항> 섹션 추출
-        const startTag = '특정관리해역 연안바다 특보사항';
-        const endTag = '참고사사항'; // 기상청 오타(참고사항/참고사사항) 대응
+        // <특정관리해역 평수구역/연안바다 특보사항> 전체 섹션 추출을 위해 상위 키워드 사용
+        const startTag = '특정관리해역';
+        const endTag = '참고사항';
+        const endTagAlt = '참고사사항'; // 기상청 오타 대응
 
         let startIdx = html.indexOf(startTag);
-        if (startIdx === -1) {
-            // 인코딩 버전 체크
-            startIdx = html.indexOf('특정관리해역');
-        }
-
         if (startIdx === -1) return "";
 
         const section = html.substring(startIdx);
-        let endIdx = section.indexOf('참고사항');
-        if (endIdx === -1) endIdx = section.indexOf('참고사사항');
+        let endIdx = section.indexOf(endTag);
+        if (endIdx === -1) endIdx = section.indexOf(endTagAlt);
 
         const targetText = endIdx !== -1 ? section.substring(0, endIdx) : section;
 
         // HTML 태그 제거 및 공백 정규화
         const cleanText = targetText.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
 
-        log(`🌐 연안바다 크롤링 성공 (길이: ${cleanText.length})`);
+        log(`🌐 연안바다/평수구역 크롤링 성공 (길이: ${cleanText.length})`);
         return cleanText;
     } catch (e) {
-        log(`❌ 연안바다 크롤링 실패: ${e.message}`);
+        log(`❌ 연안바다/평수구역 크롤링 실패: ${e.message}`);
         return "";
     }
 }
@@ -723,9 +719,7 @@ async function collectWarnings() {
             .map(([childClean]) => childClean);
 
         relevantChildren.forEach(childClean => {
-            // 크롤링된 목록에 이 자식이 있는지 확인
             if (coastalZoneNames.has(childClean)) {
-                // ARCHIVE_ZONES에서 원본 이름 찾기
                 let originalChildName = childClean;
                 const parentKey = Object.keys(ARCHIVE_ZONES).find(k => k.replace(/[\s·\.]/g, '') === parentName);
                 if (parentKey && ARCHIVE_ZONES[parentKey]) {
@@ -739,6 +733,8 @@ async function collectWarnings() {
                     ...alertObj, // 부모 속성 복사
                     regId: childId,
                     regKo: originalChildName,
+                    parentRegId: item.regId,   // 부모 ID 저장
+                    parentRegKo: item.regKo,   // 부모 이름 저장
                     isCoastal: true,
                     source: 'INHERIT'
                 };
@@ -993,6 +989,7 @@ function groupChangesToAlerts(changes) {
         const fullTmFc = ch.data.tmFc ? (ch.data.tmFc.length < 10 ? new Date().getFullYear() + ch.data.tmFc : ch.data.tmFc) : '';
 
         // [핵심 변경] 그룹 키에서 시각(tmEf)을 제거하여 특보 종류별로 통합
+        // 부모와 자식이 같은 발효 시각을 공유하므로(Inheritance), 이 키를 통해 하나로 묶임
         const key = `${ch.type}_${ch.data.wrnTp}_${ch.data.wrnLvl || ''}`;
         if (!grouped[key]) {
             grouped[key] = {
@@ -1003,8 +1000,19 @@ function groupChangesToAlerts(changes) {
                 items: []
             };
         }
+
+        // [USER REQUEST] 단독 자식 구역일 경우 "부모중 자식" 형식 적용
+        let displayZone = fixZoneName(ch.data.regKo);
+        if (ch.data.isCoastal && ch.data.parentRegKo) {
+            const pKo = ch.data.parentRegKo;
+            // 부모 이름이 이미 포함되어 있는지 체크 (중복 방지)
+            if (!displayZone.includes(pKo)) {
+                displayZone = `${pKo}중 ${displayZone}`;
+            }
+        }
+
         grouped[key].items.push({
-            zone: fixZoneName(ch.data.regKo),
+            zone: displayZone,
             tmEf: fullTmEf,
             tmYn: fullTmYn,
             rawTmEf: ch.data.rawTmEf,
@@ -1036,10 +1044,8 @@ function groupChangesToAlerts(changes) {
         else if (g.type.includes('downgrade')) title = `${levelIcon} ${warnName}로 격하${suffix}`;
         else title = `🔔 ${warnName} 알림${suffix}`;
 
-        // [핵심 변경] 본문 생성 로직: 해역 중심 나열 (ㅇ 해역 \n - 시각)
-        // 1. 정보를 담을 그룹 생성 (동일 시간/등급별로 묶어 전송 효율 극대화)
-        const contentGroups = {};
-
+        // [핵심 변경] 본문 생성 로직: 부모 중심 요약 (Parent-Centric Summarization)
+        const timeGroups = {};
         g.items.forEach(item => {
             const timeRange = fmtRange(item.tmEf);
             const releaseTime = item.tmYn ? fmtRange(item.tmYn) : '정보 없음';
@@ -1053,22 +1059,57 @@ function groupChangesToAlerts(changes) {
             } else if (g.type === 'active' || g.type === 'active_time_change' || g.type === 'release_scheduled') {
                 timeLabel = `해제예정: ${releaseTime}`;
             } else if (g.type === 'release') {
-                timeLabel = ''; // 해제 알림은 시각 정보 제외
+                timeLabel = '';
             } else {
                 timeLabel = `일시: ${timeRange}`;
             }
 
-            if (!contentGroups[timeLabel]) contentGroups[timeLabel] = [];
-            contentGroups[timeLabel].push(item.zone);
+            if (!timeGroups[timeLabel]) timeGroups[timeLabel] = {};
+
+            // 변경된 데이터에서 부모 정보를 찾음
+            const ch = changes.find(c => c.data.regId === item.regId);
+            const pName = (ch && ch.data.parentRegKo) ? ch.data.parentRegKo : item.zone;
+
+            if (!timeGroups[timeLabel][pName]) {
+                timeGroups[timeLabel][pName] = { items: [] };
+            }
+            timeGroups[timeLabel][pName].items.push(ch ? ch.data : item);
         });
 
-        // 2. 그룹별 본문 조립 (ㅇ 해역 \n - 시각)
         let bodyLines = [];
-        Object.entries(contentGroups).forEach(([label, zones]) => {
-            const zoneList = zones.join(', ');
-            bodyLines.push(`ㅇ ${zoneList}`);
-            if (label) {
-                bodyLines.push(`  - ${label}`);
+        Object.entries(timeGroups).forEach(([label, parentMap]) => {
+            const displayZones = [];
+
+            Object.entries(parentMap).forEach(([pName, pGroup]) => {
+                const parentItemInGroup = pGroup.items.find(it => !it.isCoastal);
+                const childrenInGroup = pGroup.items.filter(it => it.isCoastal);
+
+                const allExpectedChildren = ARCHIVE_ZONES[pName] || [];
+
+                if (parentItemInGroup) {
+                    // 1. 부모가 포함된 경우 (초기 발표/해제 등)
+                    const missingChildren = allExpectedChildren.filter(expected =>
+                        !childrenInGroup.some(it => it.regKo.replace(/[\s·\.]/g, '') === expected.replace(/[\s·\.]/g, ''))
+                    );
+
+                    if (missingChildren.length === 0) {
+                        // 자식까지 100% 다 포함됨 -> 부모 이름만 노출
+                        displayZones.push(pName);
+                    } else {
+                        // 일부 자식 제외 -> "부모(자식A, 자식B 제외)" 형식
+                        const shortMissingNames = missingChildren.map(m => m.replace(pName, '').replace('중', '').trim());
+                        displayZones.push(`${pName}(${shortMissingNames.join(', ')} 제외)`);
+                    }
+                } else {
+                    // 2. 자식들만 포함된 경우 (증분 추가/해제 등)
+                    const shortNames = childrenInGroup.map(it => it.regKo.replace(pName, '').replace('중', '').trim());
+                    displayZones.push(`${pName}중 ${shortNames.join(', ')}`);
+                }
+            });
+
+            if (displayZones.length > 0) {
+                bodyLines.push(`ㅇ ${displayZones.join(', ')}`);
+                if (label) bodyLines.push(`  - ${label}`);
             }
         });
 
@@ -1555,7 +1596,23 @@ class LifeCycleManager {
 
             // 비교 대상 (기존 상태)
             const prevItem = entry.current || entry.upcoming;
-            const newStatus = newItem.isCoastal ? (newItem.wrnLvl === '예비' ? 'publish' : 'active') : (activeMap[regId] ? 'active' : 'publish');
+
+            // [상태 결정 로직 고도화]
+            let newStatus = 'publish';
+            if (newItem.isCoastal) {
+                // 자식 구역의 경우: 부모의 현재 상태를 먼저 살핌
+                const parentEntry = newItem.parentRegId ? this.state.zones[newItem.parentRegId] : null;
+                if (parentEntry && parentEntry.current) {
+                    // 부모가 이미 발효 중이면 자식도 발효(active)로 간주
+                    newStatus = 'active';
+                } else {
+                    // 부모가 없거나 아직 예비면 부모의 시각 정보에 따름
+                    newStatus = activeMap[regId] ? 'active' : 'publish';
+                }
+            } else {
+                // 일반 구역(부모)
+                newStatus = activeMap[regId] ? 'active' : 'publish';
+            }
 
             // 실제 상태 객체 구성 (Hub Item -> App Item)
             const appItem = {
@@ -1567,8 +1624,8 @@ class LifeCycleManager {
             if (isNew) {
                 // [신규]
                 if (newItem.wrnLvl !== '기타' && newItem.wrnLvl !== '해제') {
-                    const type = activeMap[regId] ? 'active' : 'publish'; // 바로 발효인지 예비인지
-                    changes.push({ type, data: appItem });
+                    // 계산된 newStatus를 type으로 사용 (부모가 발효 중이면 자식도 'active' 타입으로 알림 생성)
+                    changes.push({ type: newStatus, data: appItem });
                     this.appendHistory(entry, newItem, '신규발생', nowStr);
                 }
             } else if (prevItem) {
@@ -1588,8 +1645,15 @@ class LifeCycleManager {
                     }
                 } else {
                     // 등급은 같으나 상세 정보 변경? (시각 등)
-                    // 해제예고 시각 변경 등은 알림까지는 안 보내더라도 히스토리에 남길 수 있음
-                    // 여기서는 생략
+                    const isIssuanceTimeChanged = prevItem.tmEf !== newItem.tmEf;
+                    const isReleaseTimeChanged = prevItem.tmYn !== newItem.tmYn;
+
+                    if (isIssuanceTimeChanged || isReleaseTimeChanged) {
+                        // 예정 시각 변경인지, 해제 시각 변경인지 타입 결정
+                        const changeType = (newStatus === 'publish') ? 'publish_time_change' : 'active_time_change';
+                        changes.push({ type: changeType, data: appItem });
+                        this.appendHistory(entry, newItem, '시각변경', nowStr);
+                    }
                 }
             } else {
                 // 장부에는 있었으나 활성 상태가 아니었던 경우 (재발생)
