@@ -338,22 +338,21 @@ function mapDataToForm(form, parentWarnings, activeChildren) {
                         targetSlot = 'upcoming';
                     } else {
                         // 2. 주의보/경보인 경우 -> 시간 체크
-                        const now = new Date();
+                        // [수정] KST 기준으로 명시적 비교 (Fly.io는 UTC 서버이므로)
+                        const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
                         // tmEf 포맷 예: "2026-02-06 02:00"
                         const tmEfStr = warning.tmEf || '';
                         const efMatch = tmEfStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
 
                         if (efMatch) {
-                            const efDate = new Date(
-                                parseInt(efMatch[1]),
-                                parseInt(efMatch[2]) - 1,
-                                parseInt(efMatch[3]),
-                                parseInt(efMatch[4]),
-                                parseInt(efMatch[5])
-                            );
+                            // efDate는 KST 기준 시각임 (기상청은 KST로 발표)
+                            // KST 시간대를 명시적으로 사용
+                            const efDateStr = `${efMatch[1]}-${efMatch[2]}-${efMatch[3]}T${efMatch[4]}:${efMatch[5]}:00+09:00`;
+                            const efDate = new Date(efDateStr);
+                            const nowUTC = new Date(); // UTC 기준 현재 시각
 
                             // 현재 시각 < 발효 시각이면 -> 아직 미발효 -> upcoming으로 이동
-                            if (now < efDate) {
+                            if (nowUTC < efDate) {
                                 targetSlot = 'upcoming';
                                 // 레벨 표기는 기상청 원문("주의보" 등)을 유지하되, 슬롯만 변경됨
                             }

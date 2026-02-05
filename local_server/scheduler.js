@@ -2,6 +2,19 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
+// [Push] Firebase Admin 초기화
+const admin = require('firebase-admin');
+
+try {
+    const serviceAccount = require('./serviceAccountKey.json');
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+    });
+    console.log('🔥 Firebase Admin 초기화 완료');
+} catch (e) {
+    console.warn('⚠️ Firebase serviceAccountKey.json 없음 (FCM 불가):', e.message);
+}
+
 // [Time Correction] 서버 시각 오차 보정용
 let timeDriftOffset = 0;
 
