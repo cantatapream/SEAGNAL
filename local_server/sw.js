@@ -1,4 +1,4 @@
-// [SEAGNAL Push Service Worker] - v=2.0 (Force Update)
+// [SEAGNAL Push Service Worker] - v=TimeFormatUpdate_20260204 (Force Update)
 // 캐싱 기능 없이 오직 푸시 알림 수신만 담당합니다.
 
 self.addEventListener('install', (event) => {

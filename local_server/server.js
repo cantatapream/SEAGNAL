@@ -83,7 +83,6 @@ const dataCache = {
     warnings: null,
     buoys: null,
     forecasts: null,
-    zoneForecasts: null,
     notice: null,
     promo: null, // 홍보 게시판 데이터
     lastUpdate: {}
@@ -92,10 +91,9 @@ const dataCache = {
 // 파일을 메모리에 미리 로드하는 함수
 function refreshCache() {
     const files = {
-        warnings: 'warnings.json',
+        warnings: 'weather_alerts.json',
         buoys: 'buoys.json',
         forecasts: 'general_forecasts.json',
-        zoneForecasts: 'zone_forecasts.json',
         notice: 'notice.json',
         promo: 'promo.json'
     };
@@ -167,49 +165,12 @@ console.log(`🌍 Serving static files from: ${staticRoot}`);
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 // 1. 특보 현황
-app.get('/api/warnings', (req, res) => {
-    // [테스트] Mock
-    if (global.mockWarningData) return res.json(global.mockWarningData);
-
-    if (dataCache.warnings) res.json(dataCache.warnings);
-    else res.status(404).json({ error: '데이터 준비 중' });
-});
-
-// 1-1. 특보 상태 (히스토리 포함) - 이중 배지 표출을 위한 API
-app.get('/api/alert-state', (req, res) => {
+// 1. 특보 정보 (통합 크롤러 데이터)
+app.get('/api/weather-alerts', (req, res) => {
     try {
-        const filePath = path.join(DATA_DIR, 'active_lifecycle.json');
+        const filePath = path.join(DATA_DIR, 'weather_alerts.json');
         if (!fs.existsSync(filePath)) {
-            return res.json({});
-        }
-
-        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-        // 프론트엔드 호환성을 위해 zones 객체만 추출하여 평탄화된 형태로 반환
-        // 프론트엔드는 { regId: { activeAlert, upcomingAlert, ... } } 형태를 기대함
-        const flattened = {};
-        if (data.zones) {
-            for (const [regId, entry] of Object.entries(data.zones)) {
-                flattened[regId] = {
-                    activeAlert: entry.current || null,
-                    upcomingAlert: entry.upcoming || null,
-                    summary: entry.summary,
-                    history: entry.history
-                };
-            }
-        }
-        res.json(flattened);
-    } catch (e) {
-        console.error('Error in /api/alert-state:', e);
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// [New] 원본 라이프사이클 데이터 엔드포인트
-app.get('/api/active-lifecycle', (req, res) => {
-    try {
-        const filePath = path.join(DATA_DIR, 'active_lifecycle.json');
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ error: 'active_lifecycle.json not found' });
+            return res.status(404).json({ error: 'weather_alerts.json not found' });
         }
         res.sendFile(filePath);
     } catch (e) {
@@ -217,17 +178,10 @@ app.get('/api/active-lifecycle', (req, res) => {
     }
 });
 
-app.get('/api/active-lifecycle-save', (req, res) => {
-    try {
-        const filePath = path.join(DATA_DIR, 'active_lifecycle_save.json');
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ error: 'active_lifecycle_save.json not found' });
-        }
-        res.sendFile(filePath);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
+
+// (Legacy warnings endpoint removed)
+
+
 
 // 2. 부이 정보
 app.get('/api/buoys', (req, res) => {
@@ -244,10 +198,8 @@ app.post('/api/force-update/:type', async (req, res) => {
     const type = req.params.type;
     console.log(`🔄 수동 업데이트 요청: ${type}`);
     try {
-        if (type === 'warnings') await scheduler.collectWarnings();
-        else if (type === 'buoys') await scheduler.collectBuoys();
+        if (type === 'buoys') await scheduler.collectBuoys();
         else if (type === 'general') await scheduler.collectGeneralForecasts();
-        else if (type === 'zone') await scheduler.collectZoneForecasts();
         else return res.status(400).json({ error: '잘못된 타입' });
 
         // 캐시 즉시 갱신
@@ -278,38 +230,7 @@ app.post('/api/config', (req, res) => {
     }
 });
 
-// [디버그] 서버에 저장된 특보 원본 데이터 확인
-app.get('/api/debug/warnings', (req, res) => {
-    try {
-        const filePath = path.join(__dirname, 'data', 'warnings.json');
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).send('warnings.json not found');
-        }
-        const data = fs.readFileSync(filePath, 'utf8');
-        res.header('Content-Type', 'text/plain; charset=utf-8'); // JSON 대신 text로 보여줌 (가독성)
-        res.send(data);
-    } catch (e) {
-        res.status(500).send(e.message);
-    }
-});
 
-// [NEW] HUB 통합 로그 다운로드
-app.get('/api/debug/hub-logs/download', (req, res) => {
-    try {
-        const filePath = path.join(DATA_DIR, 'hub_hybrid_log.txt');
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).send('최근 수집된 로그가 없습니다. (해제 감지 시 생성됨)');
-        }
-
-        const now = new Date();
-        const dateStr = now.toISOString().split('T')[0].replace(/-/g, '');
-        const filename = `seagnal_hub_hybrid_log_${dateStr}.txt`;
-
-        res.download(filePath, filename);
-    } catch (e) {
-        res.status(500).send(e.message);
-    }
-});
 
 // 3. 기상 전망
 app.get('/api/forecasts', (req, res) => {
@@ -318,10 +239,7 @@ app.get('/api/forecasts', (req, res) => {
 });
 
 // 4. 해구별 기상전망
-app.get('/api/marine-zone-forecasts', (req, res) => {
-    if (dataCache.zoneForecasts) res.json(dataCache.zoneForecasts);
-    else res.status(404).json({ error: '데이터 준비 중' });
-});
+
 
 // 5. 공지사항 (GET)
 app.get('/api/notice', (req, res) => {
@@ -1371,107 +1289,97 @@ app.post('/api/push-custom', async (req, res) => {
             return filteredItems;
         };
 
-        // [Helper] 동적 메시지 생성기
+        // [Helper] 동적 메시지 생성기 (전면 개편: 5가지 시나리오 적용)
         const generateMessage = (filteredPayload) => {
             const { templateId, typeName, level, items } = filteredPayload;
-            const fullTitle = `${typeName}${level}`;
+            // items: [{ zones: [...], tmFc, tmEf, tmYn }] (Grouped by Push Sender)
+
             let genTitle = '';
             let genBody = '';
 
-            // 날짜/시간 포맷 (YY.MM.DD HH:mm) - 범위 문자열은 그대로 반환
+            // 시각 포맷 헬퍼 (예: "9일 새벽(...)")
+            // tmEf나 tmYn에 이미 포맷팅된 문자열이 들어온다고 가정하되, 숫자만 오면 포맷팅 시도
             const fmt = (str) => {
-                if (!str) return '정보 없음';
-                // 이미 범위 형식(예: "14일 오전...")이거나 시각 포함인 경우 그대로 반환
-                const s = String(str);
-                if (s.includes('일') || s.includes('시') || s.includes('오전') || s.includes('오후') || s.includes('~')) {
-                    return s;
+                if (!str) return '미정';
+                if (/^\d{12}$/.test(str)) { // 202602090300
+                    const dd = parseInt(str.substring(6, 8));
+                    const hh = str.substring(8, 10);
+                    const mm = str.substring(10, 12);
+                    return `${dd}일 ${hh}:${mm}`;
                 }
-                if (s.length < 12) return str; // 포맷 불가하면 원본 반환
-                return `${s.substring(2, 4)}.${s.substring(4, 6)}.${s.substring(6, 8)} ${s.substring(8, 10)}:${s.substring(10, 12)}`;
-            }
-
-
-            const isWinter = (dateStr) => {
-                if (!dateStr || dateStr.length < 6) return false;
-                const month = parseInt(dateStr.substring(4, 6));
-                return month >= 11 || month <= 3;
+                return str;
             };
 
-            const fmtShort = (t) => {
-                if (!t) return '정보 없음';
-                // 숫자로만 구성된 12자리 형식이 아니면(예: "01/05 오후...") 그대로 반환
-                if (typeof t !== 'string' || !/^\d{12}$/.test(t)) return t;
-                return `${t.substring(2, 4)}.${t.substring(4, 6)}.${t.substring(6, 8)} ${t.substring(8, 10)}:${t.substring(10, 12)}`;
-            };
+            // 특보 명칭 (예: 풍랑주의보)
+            const fullTitle = `${typeName}${level ? ' ' + level : ''}`.trim();
 
-            const fmtRange = (t) => {
-                if (!t) return '미정';
-                if (typeof t !== 'string' || !/^\d{12}$/.test(t)) return t;
-                const mm = t.substring(4, 6);
-                const dd = t.substring(6, 8);
-                const hh = parseInt(t.substring(8, 10));
-                let range = "";
-                if (hh >= 0 && hh < 6) range = "새벽(00시~06시)";
-                else if (hh >= 6 && hh < 12) range = "오전(06시~12시)";
-                else if (hh >= 12 && hh < 18) range = "오후(12시~18시)";
-                else range = "밤(18시~24시)";
-                return `${mm}/${dd} ${range}`;
-            };
-
-            // 용어 명확화: '풍랑'이나 '풍랑예비'는 문맥상 '풍랑주의보'로 표출
-            let displayTypeName = typeName;
-            if (displayTypeName.includes('풍랑') && !displayTypeName.includes('경보')) {
-                displayTypeName = '풍랑주의보';
-            }
-            let displayFullTitle = displayTypeName + (level ? ' ' + level : '');
-
-            // [Fix] 해제 알림 시 '예비'라는 명칭이 포함되지 않도록 처리 (예: 풍랑주의보 예비 -> 풍랑주의보)
-            if (templateId === 'release') {
-                displayFullTitle = displayFullTitle.replace(/예비/g, '주의보').replace(/주의보\s?주의보/g, '주의보').trim();
+            // ========================================================================
+            // 1. 발표 (예비특보)
+            // ========================================================================
+            if (templateId === 'publish') {
+                genTitle = `📢 ${fullTitle} 예비 발표`;
+                // 내용: 해역 + 발효예정 시각 (이미 그룹핑된 items 순회)
+                genBody = items.map(item => {
+                    const zStr = item.zones.join(', ');
+                    const efTime = fmt(item.tmEf);
+                    return `ㅇ${zStr}\n  - 발효예정 : ${efTime}`;
+                }).join('\n');
             }
 
-            const isTimeChanged = filteredPayload.isTimeChanged || templateId.includes('time_change');
-
-            if (templateId === 'active' || templateId === 'active_time_change') { // 발효
-                genTitle = isTimeChanged ? `🕐 ${displayFullTitle} 해제시각 변경` : `🚨 ${displayFullTitle} 발효`;
+            // ========================================================================
+            // 2. 발효 (현재 발효)
+            // ========================================================================
+            else if (templateId === 'active') {
+                genTitle = `🚨 ${fullTitle} 발효`;
+                // 내용: 해역 + 해제예정 시각
                 genBody = items.map(item => {
                     const zStr = item.zones.join(', ');
-                    const targetTmYn = item.tmYn || item.tmEd;
-                    return `ㅇ ${zStr}\n  - 해제예정: ${targetTmYn ? fmtRange(targetTmYn) : '미정'}`;
-                }).join('\n\n');
+                    const ynTime = fmt(item.tmYn);
+                    return `ㅇ${zStr}\n  - 해제예정 : ${ynTime}`;
+                }).join('\n');
+            }
 
-            } else if (templateId === 'release') { // 해제
-                genTitle = `✅ ${displayFullTitle} 해제`;
+            // ========================================================================
+            // 3. 해제 (특보 종료)
+            // ========================================================================
+            else if (templateId === 'release') {
+                genTitle = `✅ ${fullTitle} 해제`;
+                // 내용: 해역만 나열
+                const allZones = [];
+                items.forEach(i => i.zones.forEach(z => { if (!allZones.includes(z)) allZones.push(z); }));
+                genBody = `ㅇ${allZones.join(', ')}`;
+            }
+
+            // ========================================================================
+            // 4. 발효시각 변경
+            // ========================================================================
+            else if (templateId === 'time_ef_change') {
+                genTitle = `🕐 발효시각 변경`;
+                // 내용: 해역 + 변경된 발효예정 시각
                 genBody = items.map(item => {
                     const zStr = item.zones.join(', ');
-                    return `${fmtShort(item.tmEf)}부 ${zStr} ${displayFullTitle} 해제`;
-                }).join('\n\n');
+                    const efTime = fmt(item.tmEf);
+                    return `ㅇ${zStr}\n  - 발효예정 : ${efTime}`;
+                }).join('\n');
+            }
 
-            } else if (templateId === 'level' || templateId.includes('grade')) { // 격상/격하
-                const isScheduledLevel = templateId.includes('scheduled');
-                const isUp = (level.includes('경보'));
-                const isTyphoon = displayTypeName.includes('태풍');
-                const iconLvl = isUp ? '🔺' : '🔻';
-                const levelIcon = isTyphoon ? '🌀' : iconLvl;
-                const statusWord = isUp ? '격상' : '격하';
-                const suffix = isScheduledLevel ? ' 예정' : '';
-
-                genTitle = `${levelIcon} ${displayFullTitle}로 ${statusWord}${suffix}`;
-                const prevName = displayTypeName + (isUp ? '주의보' : '경보');
-
+            // ========================================================================
+            // 5. 해제시각 변경
+            // ========================================================================
+            else if (templateId === 'time_yn_change') {
+                genTitle = `🕐 해제시각 변경`;
+                // 내용: 해역 + 변경된 해제예정 시각
                 genBody = items.map(item => {
                     const zStr = item.zones.join(', ');
-                    const targetTmYn = item.tmYn || item.tmEd;
-                    const actionWord = isScheduledLevel ? '될 예정입니다' : '되었습니다';
-                    return `ㅇ ${fmtShort(item.tmEf)}부 ${zStr}\n  - ${prevName} → ${displayFullTitle}로 ${statusWord}${actionWord}.\n  - 해제예정: ${targetTmYn ? fmtRange(targetTmYn) : '미정'}`;
-                }).join('\n\n');
+                    const ynTime = fmt(item.tmYn);
+                    return `ㅇ${zStr}\n  - 해제예정 : ${ynTime}`;
+                }).join('\n');
+            }
 
-            } else { // 발표 (publish, publish_time_change)
-                genTitle = isTimeChanged ? `🕐 ${displayFullTitle} 발효시각 변경` : `📢 ${displayFullTitle} 발표`;
-                genBody = items.map(item => {
-                    const zStr = item.zones.join(', ');
-                    return `ㅇ ${zStr}\n  - 발효예정: ${fmtRange(item.tmEf)}`;
-                }).join('\n\n');
+            // Fallback
+            else {
+                genTitle = `📢 ${fullTitle} 알림`;
+                genBody = items.map(i => i.zones.join(', ')).join('\n');
             }
 
             return { title: genTitle, body: genBody };

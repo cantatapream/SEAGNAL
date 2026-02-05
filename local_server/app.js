@@ -909,6 +909,7 @@ function formatDate(dateStr) {
 }
 
 // 시간 포맷 변환 (발효/해제 시간대 처리)
+// 시간 포맷 변환 (발효/해제 시간대 처리)
 function formatWarningTime(tmEf, isEndTime = false) {
     if (!tmEf || tmEf.trim() === '' || tmEf === '0' || tmEf === '000000000000') {
         return '정보 없음';
@@ -928,38 +929,38 @@ function formatWarningTime(tmEf, isEndTime = false) {
     }
 
     const cleanStr = decoded.replace(/[^0-9]/g, '');
-
-    // [수정] 숫자가 전혀 없는 경우 원본 문자열이 아닌 '정보 없음' 반환 시도
     if (cleanStr.length === 0) return '정보 없음';
-    if (cleanStr.length < 10) return decoded;
 
-    const month = cleanStr.length >= 12 ? cleanStr.substring(4, 6) : cleanStr.substring(0, 2);
-    const day = cleanStr.length >= 12 ? cleanStr.substring(6, 8) : cleanStr.substring(2, 4);
-    const hour = cleanStr.substring(8, 10);
-    const minute = cleanStr.length >= 12 ? cleanStr.substring(10, 12) : '00';
+    // YYYYMMDDHHmm (12자리) 처리
+    if (cleanStr.length >= 10) {
+        const month = cleanStr.length >= 12 ? cleanStr.substring(4, 6) : cleanStr.substring(0, 2);
+        const day = cleanStr.length >= 12 ? cleanStr.substring(6, 8) : cleanStr.substring(2, 4);
+        const hourOrInt = cleanStr.substring(8, 10);
+        const minuteOrInt = cleanStr.length >= 12 ? cleanStr.substring(10, 12) : '00';
 
-    if (day === '00' || day === '0') return '정보 없음';
+        const hh = parseInt(hourOrInt, 10);
+        const mm = parseInt(minuteOrInt, 10);
 
-    const hh = parseInt(hour, 10);
-    const mm = minute;
+        // [Smart Fix] 58/59분 코드를 범위형 텍스트로 변환
+        if (mm === 58 || mm === 59) {
+            const datePart = `${parseInt(month)}월 ${parseInt(day)}일`;
+            if (hh >= 18 && hh <= 23) return `${datePart} 밤(18시~24시)`;
+            if (hh >= 12 && hh < 18) return `${datePart} 오후(12시~18시)`;
+            if (hh >= 9 && hh < 12) return `${datePart} 오전(09시~12시)`;
+            if (hh >= 6 && hh < 9) return `${datePart} 아침(06시~09시)`;
+            if (hh >= 0 && hh < 6) return `${datePart} 새벽(00시~06시)`;
+        }
 
-    // [핵심 변경] 정확한 시각(00분, 30분 등 5분 단위)이 있으면 정밀 표출 우선
-    if (mm === '00' || mm === '30' || (parseInt(mm) % 5 === 0 && mm !== '55' && mm !== '59' && mm !== '58')) {
+        // 일반 시각 포맷팅
+        if (day === '00' || day === '0') return '정보 없음';
         let ampm = hh < 12 ? '오전' : '오후';
         let hour12 = hh === 0 ? 12 : (hh > 12 ? hh - 12 : hh);
-        let timeStr = `${month}/${day} ${ampm} ${hour12}시`;
-        if (mm !== '00') timeStr += ` ${parseInt(mm, 10)}분`;
+        let timeStr = `${parseInt(month)}월 ${parseInt(day)}일 ${ampm} ${hour12}시`;
+        if (mm !== 0) timeStr += ` ${mm}분`;
         return timeStr;
     }
 
-    // 그 외 모호한 시각(55, 59분 등)은 기상청 범위로 표출
-    let range = "";
-    if (hh >= 0 && hh < 6) range = "새벽(00시~06시)";
-    else if (hh >= 6 && hh < 12) range = "오전(06시~12시)";
-    else if (hh >= 12 && hh < 18) range = "오후(12시~18시)";
-    else range = "밤(18시~24시)";
-
-    return `${month}/${day} ${range}`;
+    return decoded;
 }
 
 
@@ -1005,118 +1006,38 @@ async function fetchAllData() {
     appState.apiStatus = { hub: 'loading', buoy: 'loading', coastal: 'loading' };
     updateApiStatusDisplay();
 
-    // 초기화: 연안바다 관련 상태 리셋
+    // 초기화
     appState.coastalAlerts = {};
     appState.releasedCoastalZones = {};
 
-    // 테스트 모드: Mock 특보 데이터 사용 + 실제 부이 API 호출
-    if (CONFIG.USE_MOCK_DATA) {
-        // console.log('🧪 테스트 모드: Mock 특보 데이터 + 실제 부이 API');
-        appState.alerts = getMockAlerts();
-        appState.apiStatus = { hub: 'success', buoy: 'loading' };
-        updateApiStatusDisplay();
-
-        // 부이 데이터는 실제 API에서 가져오기
-        try {
-            const buoyData = await fetchBuoyData();
-            appState.buoyData = buoyData;
-            appState.apiStatus.buoy = Object.keys(buoyData).length > 0 ? 'success' : 'error';
-        } catch (e) {
-            appState.buoyData = getMockBuoyData();
-            appState.apiStatus.buoy = 'error';
-        }
-
-        appState.lastUpdated = new Date();
-        updateApiStatusDisplay();
-        renderApp();
-        updateLoading(false);
-        return;
-    }
-
     try {
-        // 1단계: 부이 데이터 및 장부(Ledger) 데이터 호출
+        // 1. 부이 데이터 호출 (비동기 시작)
         const buoyPromise = fetchBuoyData();
 
-        // [핵심] alert_state.json (장부) 가져오기 - 모든 표출의 근거
-        const ledgerResponse = await fetch('/api/alert-state?_t=' + Date.now());
-        const ledger = ledgerResponse.ok ? await ledgerResponse.json() : {};
-        appState.alertStateHistory = ledger;
-        // console.log('✅ Ledger Loaded:', Object.keys(ledger).length, 'zones');
-
-        // 2단계: API 데이터 호출 (AFSO는 연안바다 매칭용으로 유지)
-        const hubPromise = fetchKmaHubData().catch(() => []);
-        const afsoPromise = fetchAfsoData().catch(() => ({ mainAlerts: [], coastalAlerts: {} }));
-
-        // 3단계: 장부(Ledger) 기반으로 appState.alerts 구성 (사용자 요청: 장부 데이터 기준 표출)
-        const ledgerAlerts = [];
-        const coastalFromLedger = {};
-
-        for (const [regId, zoneData] of Object.entries(ledger)) {
-            // [A안 적용] 새 구조: activeAlert, upcomingAlert / 구형 호환: current
-            let alertDataSource = null;
-            let alertStatus = null;
-
-            if (zoneData.activeAlert) {
-                alertDataSource = zoneData.activeAlert;
-                alertStatus = 'active';
-            } else if (zoneData.upcomingAlert) {
-                alertDataSource = zoneData.upcomingAlert;
-                alertStatus = 'publish';
-            } else if (zoneData.current) {
-                // 구형 포맷 호환
-                alertDataSource = zoneData.current;
-                alertStatus = zoneData.current.status;
-            }
-
-            if (!alertDataSource) continue;
-
-            const curr = alertDataSource;
-
-            const isCoastal = (curr.regKo || '').includes('연안바다') || (curr.regKo || '').includes('평수구');
-            const hasAlert = alertStatus === 'active' || alertStatus === 'publish';
-
-            if (hasAlert) {
-                const alertData = {
-                    zoneName: curr.regKo,
-                    regId: regId,
-                    warnType: curr.wrnTp || '풍랑',
-                    level: (curr.wrnLvl === '경보' || (curr.wrnLvlName && curr.wrnLvlName.includes('경보'))) ? '경보' :
-                        (curr.wrnLvl === '주의보' || curr.wrnLvl === '주의' || (curr.wrnLvlName && curr.wrnLvlName.includes('주의'))) ? '주의보' :
-                            (curr.wrnLvl === '예비' || (curr.wrnLvlName && curr.wrnLvlName.includes('예비'))) ? '주의보' : '주의보', // 예비는 기본적으로 주의보 수준을 의미하므로 보정
-                    tmFc: curr.tmFc,
-                    tmEf: curr.tmEf,
-                    tmEd: curr.tmYn,
-                    command: curr.command,
-                    isFromLedger: true,
-                    isPreliminary: alertStatus === 'publish' || curr.wrnLvl === '예비'
-                };
-
-                if (isCoastal) {
-                    if (!coastalFromLedger[curr.regKo]) coastalFromLedger[curr.regKo] = [];
-                    coastalFromLedger[curr.regKo].push(alertData);
-                } else {
-                    ledgerAlerts.push(alertData);
-                }
-            }
+        // 2. 특보 데이터 (crawler가 생성한 JSON 파일)
+        const alertsResponse = await fetch('/api/weather-alerts?_t=' + Date.now());
+        if (alertsResponse.ok) {
+            const rootData = await alertsResponse.json();
+            // JSON 계층 구조를 appState.alerts(평탄화된 배열)와 appState.coastalAlerts로 변환
+            flattenAlertsData(rootData);
+            appState.apiStatus.hub = 'success';
+        } else {
+            console.warn('Weather alerts fetch failed');
+            appState.alerts = [];
+            appState.apiStatus.hub = 'error';
         }
 
-        // 최종 상태 반영
-        appState.alerts = ledgerAlerts;
-        appState.coastalAlerts = coastalFromLedger;
-        appState.lastUpdated = new Date();
+        appState.lastUpdated = new Date(); // 업데이트 시각 갱신
 
-        // 4단계: 부이 데이터는 백그라운드 수신 완료 후 렌더링
-        buoyPromise.then(data => {
-            appState.buoyData = data || {};
-            appState.apiStatus.buoy = Object.keys(appState.buoyData).length > 0 ? 'success' : 'warning';
-            updateApiStatusDisplay();
-            renderApp();
-        });
+        // 3. 부이 데이터 대기
+        const buoyData = await buoyPromise;
+        appState.buoyData = buoyData || {};
+        appState.apiStatus.buoy = Object.keys(appState.buoyData).length > 0 ? 'success' : 'warning';
 
         updateApiStatusDisplay();
         renderApp();
     } catch (error) {
-        // console.error('Critical Error in fetchAllData:', error);
+        console.error('Critical Error in fetchAllData:', error);
         appState.hasApiError = true;
         updateApiStatusDisplay();
         renderApp();
@@ -1126,400 +1047,130 @@ async function fetchAllData() {
 }
 
 
-// --- KMA HUB API (wrn_now_data.php) ---
-async function fetchKmaHubData() {
-    // wrn_now_data.php 데이터 (로컬 서버에서 수집된 warnings.json)
-    // 파라미터(tm2, mode 등)는 이미 수집된 데이터에 반영되어 있거나 로컬 파일에는 무의미함
-    const url = CONFIG.KMA_API_URL;
 
-    // console.log('Fetching KMA Hub (Local):', url);
 
-    try {
-        // [Cache Busting] 브라우저 캐시 방지를 위해 타임스탬프 추가
-        const response = await fetch(`${url}?_t=${Date.now()}`);
 
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
 
-        // 로컬 서버는 UTF-8 JSON을 반환함 (scheduler.js가 이미 디코딩함)
-        const jsonData = await response.json();
+// --- Weather Alerts Processing Helper Functions ---
 
-        // warnings.json 구조: { updatedAt: ..., kma: "RAW TEXT", afso: {...} }
-        let text = jsonData.kma || '';
+/**
+ * weather_alerts.json 구조를 기존 UI 렌더링에 맞는 평탄화된 배열 구조로 변환
+ * 데이터 깊이가 동적(제주는 3단계, 동해/서해/남해는 4단계)이므로 재귀적으로 탐색
+ */
+function flattenAlertsData(rootData) {
+    const alerts = [];
+    const coastalMap = {};
+    const seas = rootData.current || {};
 
-        // [Fix] 서버에서 EUC-KR 디코딩 실패 시 Base64로 전달받아 브라우저에서 수행
-        if (text.startsWith('BASE64:')) {
-            try {
-                const base64 = text.substring(7); // Remove 'BASE64:'
-                const binaryString = atob(base64);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
+    // 재귀 탐색 함수
+    function recursiveFind(obj) {
+        for (const key in obj) {
+            const val = obj[key];
+            // 객체가 아니거나 null이면 패스
+            if (!val || typeof val !== 'object') continue;
+
+            // 'current' 또는 'upcoming' 키를 가지고 있다면 구역(Zone) 노드로 판단
+            if (Object.prototype.hasOwnProperty.call(val, 'current') ||
+                Object.prototype.hasOwnProperty.call(val, 'upcoming')) {
+
+                const zoneName = key; // 키가 곧 구역명 (예: "울산앞바다", "제주도북부앞바다")
+                const zoneData = val;
+
+                // 1. Current Alert (Active)
+                if (zoneData.current) {
+                    processSingleAlert(zoneName, zoneData.current, false, alerts, zoneData.children, coastalMap);
                 }
-                text = new TextDecoder('euc-kr').decode(bytes);
-                // console.log('✅ Hub Data: Base64 -> EUC-KR Decodng Success');
-            } catch (e) {
-                // console.error('❌ Base64 Decoding Failed:', e);
+
+                // 2. Upcoming Alert (Preliminary)
+                if (zoneData.upcoming) {
+                    processSingleAlert(zoneName, zoneData.upcoming, true, alerts, zoneData.children, coastalMap);
+                }
+            } else {
+                // 구역 노드가 아니라면 하위로 더 탐색 (Grouping Node)
+                recursiveFind(val);
             }
         }
-
-        // console.log(`Hub Raw Response Info: Length=${text.length}, UpdatedAt=${jsonData.updatedAt}`);
-        // console.log('Hub Raw Response (first 1000 chars):', text.substring(0, 1000));
-        // console.log('Data Updated At:', jsonData.updatedAt);
-
-        const parsed = parseHubText(text);
-        // console.log('Hub Parsed:', parsed.length, 'items');
-
-        return parsed;
-    } catch (e) {
-        // console.warn(`Local Fetch failed:`, e.message);
-        return getMockAlerts();
     }
 
-    return getMockAlerts();
-}
+    // 탐색 시작
+    recursiveFind(seas);
 
-
-function parseHubText(text) {
-    const lines = text.trim().split('\n');
-    const alerts = [];
-    const seenZones = new Set(); // 중복 방지
-
-    // 해제된 연안바다/평수구역 수집 (제외 처리용)
-    appState.releasedCoastalZones = appState.releasedCoastalZones || {};
-
-    // console.log('Parsing', lines.length, 'lines');
-
-    lines.forEach((line, idx) => {
-        // 헤더/주석 라인 건너뛰기
-        if (line.startsWith('#') || line.trim() === '') return;
-
-        // 쉼표로 분리
-        const parts = line.split(',').map(p => p.trim());
-
-        // wrn_now_data.php 응답 포맷:
-        // 0: regUp (상위구역코드)
-        // 1: regUpName (상위구역명)
-        // 2: regId (특보구역코드)
-        // 3: regName (특보구역명) - 한글!
-        // 4: tmFc (발표시각)
-        // 5: tmEf (발효시각)
-        // 6: wrnType (특보종류) - 풍랑, 태풍, 강풍, 해일 등 한글!
-        // 7: level (특보수준) - 주의, 경보, 예비
-        // 8: cmd (명령) - 발표, 해제 등
-        // 9: edTm (해제예정시각)
-
-        if (parts.length < 10) {
-            // console.log(`Line ${idx} skipped (not enough parts):`, parts.length);
-            return;
-        }
-
-        const regId = parts[2];
-        let regName = parts[3];
-        // [추가] 기상청 데이터 중 '평수구역'이 '평수구'로 잘려오는 현상 보정
-        if (regName && regName.endsWith('평수구')) {
-            regName = regName + '역';
-        }
-        const tmFc = parts[4];
-        const tmEf = parts[5];
-        const wrnType = parts[6];
-        const level = parts[7];
-        const cmd = parts[8];
-        const edTm = parts[9];
-
-        // 해상 특보만 필터링 (풍랑, 태풍, 해일, 지진해일) - 강풍 제외
-        const marineTypes = ['풍랑', '태풍', '해일', '지진해일'];
-        if (!marineTypes.includes(wrnType)) {
-            return;
-        }
-
-        // 해일 특보 명확화: API에서 '해일'로 오면 '폭풍해일'로 변환
-        let displayWarnType = wrnType;
-        if (wrnType === '해일') {
-            displayWarnType = '폭풍해일';
-        }
-
-        // 연안바다 여부 확인
-        const isCoastal = regName.includes('연안바다') || regName.includes('평수구역');
-
-        // ⭐ 해제 명령 처리: 연안바다/평수구역의 해제는 따로 기록
-        if (cmd === '해제') {
-            if (isCoastal) {
-                // 상위 해역 찾기 (예: "제주도서부앞바다중남서연안바다" → "제주도서부앞바다")
-                let parentZone = null;
-                for (const [mainZone, subZones] of Object.entries(COASTAL_MAPPING)) {
-                    for (const sub of subZones) {
-                        if (sub.fullName === regName) {
-                            parentZone = mainZone;
-                            break;
-                        }
-                    }
-                    if (parentZone) break;
-                }
-
-                // 또는 "중" 앞부분 추출
-                if (!parentZone) {
-                    const match = regName.match(/^(.+)중(.+)(연안바다|평수구역|평수구)$/);
-                    if (match) {
-                        parentZone = match[1];
-                    }
-                }
-
-                if (parentZone) {
-                    if (!appState.releasedCoastalZones[parentZone]) {
-                        appState.releasedCoastalZones[parentZone] = [];
-                    }
-                    // 연안바다 이름 추출 (예: "제주도서부앞바다중남서연안바다" → "남서연안바다")
-                    const shortName = regName.replace(parentZone + '중', '');
-                    if (!appState.releasedCoastalZones[parentZone].includes(shortName)) {
-                        appState.releasedCoastalZones[parentZone].push(shortName);
-                        // console.log(`🔓 연안바다 해제 감지: ${regName} (상위: ${parentZone})`);
-                    }
-                }
-            }
-            // return; // [수정] 해제 명령어도 alerts에 포함시켜야 관리 패널에서 확인 가능
-        }
-
-        // 중복 체크 (같은 구역 + 같은 특보 종류)
-        const key = `${regId}_${wrnType}`;
-        if (seenZones.has(key)) {
-            return;
-        }
-        seenZones.add(key);
-
-        // 특보 수준 변환
-        const isPreliminary = (level === '예비' || cmd === '예보');
-        let levelText = level;
-        if (isPreliminary) {
-            levelText = '예비';
-        } else if (level === '주의') {
-            levelText = '주의보';
-        } else if (level === '경보') {
-            levelText = '경보';
-        }
-
-        const alertData = {
-            id: `${regId}_${wrnType}_${tmFc}`,
-            zoneCode: regId,
-            zoneName: regName,
-            warnType: displayWarnType,  // 원본 wrnType 대신 변환된 표시명 사용
-            level: levelText,
-            command: cmd,
-            tmFc: tmFc,
-            tmEf: tmEf,
-            tmEd: edTm,
-            isPreliminary: isPreliminary,
-            isCoastal: isCoastal,
-            source: 'HUB'
-        };
-
-        // 1. 제외 정보 파싱 (예: "제주도서부앞바다(남서연안바다 제외)")
-        const exclusionParsed = parseExclusionFromZoneName(regName);
-        if (exclusionParsed.excluded.length > 0) {
-            alertData.zoneName = exclusionParsed.cleanZoneName;
-            alertData.tempExclusions = exclusionParsed.excluded; // fetchAllData에서 사용
-        } else {
-            // 2. 제외 정보가 없다면, 일반 괄호(해제예고 등) 제거
-            const cleanNameMatch = regName.match(/^(.+?)\s*\(.*?\)$/);
-            if (cleanNameMatch) {
-                alertData.originalZoneName = regName;
-                alertData.zoneName = cleanNameMatch[1].trim();
-            }
-        }
-
-        // 연안바다는 별도 저장
-        if (isCoastal) {
-            if (!appState.coastalAlerts[alertData.zoneName]) {
-                appState.coastalAlerts[alertData.zoneName] = [];
-            }
-            appState.coastalAlerts[alertData.zoneName].push(alertData);
-        } else {
-            alerts.push(alertData);
-        }
-
-        // console.log(`Added: ${alertData.zoneName} - ${wrnType}${levelText} ${isCoastal ? '(연안)' : ''}`);
-    });
-
-    // console.log('Total main alerts:', alerts.length);
-    // console.log('Total coastal alerts:', Object.keys(appState.coastalAlerts).length);
-    // console.log('Released coastal zones:', appState.releasedCoastalZones);
-    return alerts;
-}
-
-// --- MOCK DATA 비활성화 (API 실패 시 빈 데이터 반환) ---
-function getMockAlerts() {
-    // console.log('⚠️ API 연결 실패 - 특보 데이터 없음');
-    // 더미 데이터 제거됨 - 실제 API 데이터만 표시
-    appState.coastalAlerts = {};
-    return [];
+    appState.alerts = alerts;
+    appState.coastalAlerts = coastalMap;
+    // console.log(`Processed Alerts: ${alerts.length} main, ${Object.keys(coastalMap).length} coastal zones.`);
 }
 
 /**
- * 구역명에서 "제외" 정보 파싱
- * &#40; -> (, &#41; -> ) 등
+ * 단일 특보 객체를 처리하고 연안바다 정보를 매핑
  */
-function parseExclusionFromZoneName(zoneName) {
-    if (!zoneName) return { cleanZoneName: '', excluded: [] };
+function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenObj, coastalMap) {
+    // alertObj 구조: { wrnTp, wrnLvl, tmFc, tmEf, tmYn }
+    const displayLevel = transformLevel(alertObj.wrnLvl);
 
-    const match = zoneName.match(/^(.+?)\((.+?제외)\)$/);
+    // [핵심 수정] 시간 비교 로직 추가
+    // tmEf(발효시각)를 파싱하여 현재 시각과 비교
+    const now = getKfTime(); // YYYYMMDDHHmm 형식의 현재 시각
+    const rawEf = (alertObj.tmEf || '').replace(/[^0-9]/g, ''); // 숫자만 추출
 
-    if (!match) {
-        return { cleanZoneName: zoneName.trim(), excluded: [] };
+    // 미래 발효 여부 확인: 
+    // 1. isUpcoming 파라미터가 true이면 무조건 예비/발표
+    // 2. wrnLvl이 '예비'이면 무조건 예비
+    // 3. tmEf가 유효하고(12자리), 현재 시각보다 미래이면 -> 아직 발효 전이므로 '발표(대기)' 상태로 취급
+    let reallyUpcoming = isUpcoming || displayLevel === '예비';
+
+    if (!reallyUpcoming && rawEf.length >= 12) {
+        if (now < rawEf) {
+            // 현재 시각이 발효 시각보다 작음 -> 미래 -> 예비(발표)로 취급
+            reallyUpcoming = true;
+        }
     }
 
-    const cleanZoneName = match[1].trim();
-    const exclusionText = match[2].trim();
+    const alertItem = {
+        zoneName: zoneName,
+        regId: zoneName,
+        warnType: alertObj.wrnTp,
+        level: displayLevel === '예비' ? '주의보' : displayLevel,
+        tmFc: alertObj.tmFc,
+        tmEf: alertObj.tmEf,
+        tmEd: alertObj.tmYn,
+        command: reallyUpcoming ? '발표' : '발효', // 미래면 '발표', 지났으면 '발효'
+        isPreliminary: reallyUpcoming,
+        isCoastal: false,
+        source: 'CRAWLER'
+    };
 
-    // "제외" 앞의 연안바다 이름 추출
-    // 예: "남서연안바다 제외", "북동·남동연안바다 제외", "북서연안바다, 가파도연안바다 제외"
-    const excludedPart = exclusionText.replace(/\s*제외\s*$/, '');
+    // 레벨 재조정: 화면 표시용
+    if (displayLevel === '예비') {
+        alertItem.level = '예비';
+    }
 
-    // 구분자로 분리 (·, ,, 、)
-    const excludedNames = excludedPart
-        .split(/[·,、]/)
-        .map(name => name.trim())
-        .filter(name => name.length > 0);
+    alertsArr.push(alertItem);
 
-    // console.log(`🔍 제외 정보 파싱: "${zoneName}" → 구역: "${cleanZoneName}", 제외: [${excludedNames.join(', ')}]`);
-
-    return { cleanZoneName, excluded: excludedNames };
-}
-
-// --- AFSO API (메인 해역 + 연안바다/평수구역 특보 조회) ---
-async function fetchAfsoData() {
-    // 로컬 서버의 warnings.json에 포함된 afso 데이터 사용
-    const url = CONFIG.KMA_API_URL; // warnings.json
-
-    // console.log('Fetching AFSO Data (Local):', url);
-
-    try {
-        // [Cache Busting] 브라우저 캐시 방지를 위해 타임스탬프 추가
-        const response = await fetch(`${url}?_t=${Date.now()}`);
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-
-        const jsonData = await response.json();
-        const data = jsonData.afso; // warnings.json 내의 afso 객체
-
-        if (!data) {
-            // console.warn('AFSO Data missing in local file');
-            return { mainAlerts: [], coastalAlerts: {} };
-        }
-
-        const metData = data.data?.metData || data.metData;
-
-        if (!metData || metData.length === 0) {
-            // console.warn('AFSO API: metData가 없습니다.');
-            return { mainAlerts: [], coastalAlerts: {} };
-        }
-
-        // console.log('AFSO API: 총', metData.length, '개 항목 수신');
-
-        const mainAlerts = [];
-        const coastalAlerts = {};
-        const seenMain = new Set();
-
-        for (const item of metData) {
-            const regKo = (item.regKo || '').replace(/\s+/g, '').trim();
-
-            // 특보가 없는 경우 건너뛰기
-            if (!item.wrnTp || item.wrnTp.trim() === '') {
-                continue;
-            }
-
-            // [수정] 해제된 특보는 처리하지 않음
-            if (item.wrnCmd && item.wrnCmd.includes('해제')) {
-                continue;
-            }
-
-            // 수준 및 예비 여부 변환
-            const lvl = String(item.wrnLvl || '').trim();
-            const lvlName = String(item.wrnLvlName || '').trim();
-            const cmd = String(item.wrnCmd || '').trim();
-
-            const isPreliminary = lvl === '1' ||
-                lvl.includes('예비') ||
-                lvlName.includes('예비') ||
-                cmd.includes('예비');
-
-            let level = lvlName || lvl;
-            if (isPreliminary) {
-                level = '예비';
-            } else if (level === '주의') {
-                level = '주의보';
-            } else if (level === '경보') {
-                level = '경보';
-            }
-
-            const warnType = item.wrnTp === '해일' ? '폭풍해일' : item.wrnTp;
-
-            // 연안바다/평수구역인지 확인
-            const isCoastal = regKo.includes('연안바다') || regKo.includes('평수구');
-
-            // 평수구역 텍스트 잘림 보정
-            let zoneName = regKo;
-            if (zoneName.endsWith('평수구') && !zoneName.endsWith('평수구역')) {
-                zoneName = zoneName + '역';
-            }
-
-            if (isCoastal) {
-                // 연안바다/평수구역은 coastalAlerts에 저장
-                if (!coastalAlerts[zoneName]) {
-                    coastalAlerts[zoneName] = [];
-                }
-
-                // 중복 체크 (같은 구역 + 같은 특보 종류)
-                const isExists = coastalAlerts[zoneName].some(a => a.warnType === warnType);
-                if (!isExists) {
-                    coastalAlerts[zoneName].push({
-                        id: `afso_${item.regId}_${item.wrnTp}`,
-                        zoneName: zoneName,
-                        warnType: warnType,
-                        level: level,
-                        command: item.wrnCmd || '발표',
-                        tmFc: decodeHtmlEntities(item.tmFc || ''),
-                        tmEf: decodeHtmlEntities(item.tmEf || ''),
-                        tmEd: decodeHtmlEntities(item.tmEd || ''),
-                        isPreliminary: isPreliminary,
-                        isCoastal: true,
-                        source: 'AFSO'
-                    });
-                    // console.log(`🌊 연안/평수구역: ${zoneName} - ${warnType} ${level}`);
-                }
-            } else {
-                // 메인 해역은 mainAlerts에 저장 (중복 방지)
-                const key = `${zoneName}_${warnType}`;
-                if (!seenMain.has(key)) {
-                    seenMain.add(key);
-                    mainAlerts.push({
-                        id: `afso_${item.regId}_${item.wrnTp}`,
-                        zoneName: zoneName,
-                        warnType: warnType,
-                        level: level,
-                        command: item.wrnCmd || '발표',
-                        tmFc: decodeHtmlEntities(item.tmFc || ''),
-                        tmEf: decodeHtmlEntities(item.tmEf || ''),
-                        tmEd: decodeHtmlEntities(item.tmEd || ''),
-                        isPreliminary: isPreliminary,
-                        isCoastal: false,
-                        source: 'AFSO'
-                    });
-                    // console.log(`🌊 메인 해역: ${zoneName} - ${warnType} ${level}`);
-                }
+    // 연안바다(Children) 처리
+    if (childrenObj) {
+        for (const [childName, status] of Object.entries(childrenObj)) {
+            // status가 'Y'인 경우 부모 특보 적용
+            if (status === 'Y') {
+                if (!coastalMap[childName]) coastalMap[childName] = [];
+                // 부모 특보 정보를 상속받아 연안바다 특보 객체 생성
+                const childAlert = {
+                    ...alertItem,
+                    zoneName: childName,
+                    isCoastal: true,
+                    parentZone: zoneName,
+                    id: `auto_${childName}_${alertObj.wrnTp}_${reallyUpcoming ? 'pre' : 'act'}`
+                };
+                coastalMap[childName].push(childAlert);
             }
         }
-
-        // console.log('AFSO API: 메인 해역', mainAlerts.length, '개, 연안/평수구역', Object.keys(coastalAlerts).length, '개 추출');
-        return { mainAlerts, coastalAlerts };
-
-    } catch (e) {
-        // console.error('AFSO API Error:', e.message);
-        return { mainAlerts: [], coastalAlerts: {} };
     }
 }
+
+function transformLevel(lvl) {
+    if (lvl === '주의') return '주의보';
+    return lvl;
+}
+
 
 // --- BUOY API (해양관측 데이터) ---
 async function fetchBuoyData() {
@@ -1647,238 +1298,8 @@ function getWindDirectionText(degree) {
 }
 
 
-// ============================================================================
-// 연안바다 제외 로직 (Coastal Exclusion Logic)
-// ============================================================================
-// 
-// 핵심 원리:
-// 1. 메인 해역(예: "제주도서부앞바다")에 특보가 발효되면
-//    → 해당 해역에 속한 모든 연안바다/평수구역도 자동으로 특보 적용
-// 2. 단, "제외" 문구가 있으면 해당 연안바다/평수구역은 특보에서 제외
-//    예: "제주도서부앞바다(남서연안바다 제외)" 
-//    → 남서연안바다만 제외, 나머지(북서연안바다, 가파도연안바다)는 특보 발효
-// ============================================================================
+// 연안바다 및 제외 처리 함수 제거됨
 
-/**
- * 메인 해역 특보를 기반으로 연안바다/평수구역 특보 상태를 자동 생성
- * 
- * @param {Object} exclusionInfo - 제외 정보 객체 (해역명 → 제외된 연안바다 목록)
- *   예: { '제주도서부앞바다': ['남서연안바다'], '제주도동부앞바다': ['우도연안바다', '남동연안바다'] }
- */
-function processCoastalWarningStatus(exclusionInfo = {}) {
-    // console.log('=== 연안바다 특보 상태 처리 시작 ===');
-    // console.log('제외 정보:', exclusionInfo);
-
-    // 각 메인 해역 특보에 대해 처리
-    for (const mainAlert of appState.alerts) {
-        const mainZoneName = mainAlert.zoneName;
-        const warnType = mainAlert.warnType;
-        const level = mainAlert.level;
-
-        // COASTAL_MAPPING에서 해당 메인 해역의 연안바다/평수구역 찾기
-        const subZones = COASTAL_MAPPING[mainZoneName];
-        if (!subZones || subZones.length === 0) {
-            continue; // 연안바다가 없는 해역은 무시
-        }
-
-        // 제외된 연안바다 목록 가져오기
-        const excludedNames = exclusionInfo[mainZoneName] || [];
-
-        // console.log(`📍 ${mainZoneName} (${warnType} ${level}):`);
-        // console.log(`   - 하위 구역: ${subZones.map(s => s.name).join(', ')}`);
-        // console.log(`   - 제외 구역: ${excludedNames.length > 0 ? excludedNames.join(', ') : '없음'}`);
-
-        // 각 연안바다/평수구역에 대해 특보 상태 결정
-        for (const subZone of subZones) {
-            const fullName = subZone.fullName;
-            const shortName = subZone.name;
-
-            // 제외 여부 확인 (다양한 패턴 매칭)
-            const isExcluded = excludedNames.some(excluded => {
-                const normalizedExcluded = excluded.replace(/\s+/g, '').replace(/연안바다$/, '').replace(/평수구역$/, '');
-                const normalizedShort = shortName.replace(/\s+/g, '').replace(/연안바다$/, '').replace(/평수구역$/, '');
-                const normalizedFull = fullName.replace(/\s+/g, '');
-
-                return normalizedExcluded === normalizedShort ||
-                    normalizedExcluded === normalizedFull ||
-                    fullName.includes(excluded) ||
-                    shortName.includes(excluded);
-            });
-
-            if (isExcluded) {
-                // 제외된 경우: coastalAlerts에서 제거 (이미 있다면)
-                if (appState.coastalAlerts[fullName]) {
-                    delete appState.coastalAlerts[fullName];
-                    // console.log(`   ❌ 제외: ${fullName}`);
-                }
-            } else {
-                // 제외되지 않은 경우: coastalAlerts에 추가 (없다면)
-                const alertKey = `${fullName}_${warnType}`;
-                if (!appState.coastalAlerts[fullName] ||
-                    appState.coastalAlerts[fullName].warnType !== warnType) {
-                    appState.coastalAlerts[fullName] = {
-                        id: `auto_${fullName}_${warnType}`,
-                        zoneName: fullName,
-                        warnType: warnType,
-                        level: level,
-                        command: mainAlert.command || '발표',
-                        tmFc: mainAlert.tmFc,
-                        tmEf: mainAlert.tmEf,
-                        tmEd: mainAlert.tmEd,
-                        isPreliminary: mainAlert.isPreliminary,
-                        isCoastal: true,
-                        source: 'AUTO_FROM_MAIN',
-                        parentZone: mainZoneName
-                    };
-                    // console.log(`   ✅ 적용: ${fullName}`);
-                }
-            }
-        }
-    }
-
-    // console.log('=== 연안바다 특보 상태 처리 완료 ===');
-    // console.log('최종 연안바다 특보 수:', Object.keys(appState.coastalAlerts).length);
-}
-
-/**
- * 구역명에서 "제외" 정보 파싱
- * 예: "제주도서부앞바다(남서연안바다 제외)" → { '제주도서부앞바다': ['남서연안바다'] }
- * 예: "제주도동부앞바다(북동·남동연안바다 제외)" → { '제주도동부앞바다': ['북동연안바다', '남동연안바다'] }
- * 
- * @param {string} zoneName - 특보 구역명 (제외 정보 포함 가능)
- * @returns {Object} - { cleanZoneName: '정제된 구역명', excluded: ['제외된 연안바다 목록'] }
- */
-function parseExclusionFromZoneName(zoneName) {
-    if (!zoneName) return { cleanZoneName: '', excluded: [] };
-
-    // 괄호 안의 제외 정보 추출
-    // 패턴: "구역명(제외 정보)"
-    const match = zoneName.match(/^(.+?)\((.+?제외)\)$/);
-
-    if (!match) {
-        return { cleanZoneName: zoneName.trim(), excluded: [] };
-    }
-
-    const cleanZoneName = match[1].trim();
-    const exclusionText = match[2].trim();
-
-    // "제외" 앞의 연안바다 이름 추출
-    // 예: "남서연안바다 제외", "북동·남동연안바다 제외", "북서연안바다, 가파도연안바다 제외"
-    const excludedPart = exclusionText.replace(/\s*제외\s*$/, '');
-
-    // 구분자로 분리 (·, ,, 、)
-    const excludedNames = excludedPart
-        .split(/[·,、]/)
-        .map(name => name.trim())
-        .filter(name => name.length > 0);
-
-    // console.log(`🔍 제외 정보 파싱: "${zoneName}" → 구역: "${cleanZoneName}", 제외: [${excludedNames.join(', ')}]`);
-
-    return { cleanZoneName, excluded: excludedNames };
-}
-
-/**
- * WthrInfo t1 필드 또는 Portal 텍스트에서 전체 제외 정보 추출
- * 
- * @param {string} text - 특보 현황 텍스트
- * @returns {Object} - 해역별 제외 정보 { '해역명': ['제외된 연안바다/평수구역 목록'] }
- */
-function parseAllExclusionInfo(text) {
-    const exclusionInfo = {};
-
-    if (!text) return exclusionInfo;
-
-    // "구역명(연안바다 제외)" 또는 "구역명(평수구역 제외)" 패턴 찾기
-    // 예: "제주도서부앞바다(북서연안바다 제외)", "인천·경기남부앞바다(먼평수구역 제외)"
-    // 예: "충남북부앞바다(천수만평수구역·당진평수구역 제외)"
-    const pattern = /([가-힣·]+(?:앞바다|먼바다))\(([^)]+(?:연안바다|평수구역)[^)]*제외)\)/g;
-    let match;
-
-    while ((match = pattern.exec(text)) !== null) {
-        const zoneName = match[1];
-        const exclusionText = match[2];
-
-        // "제외" 앞의 연안바다/평수구역 이름 추출
-        const excludedPart = exclusionText.replace(/\s*제외\s*$/g, '');
-
-        // 구분자로 분리 (·, ,, 、)
-        const excludedNames = excludedPart
-            .split(/[·,、]/)
-            .map(name => {
-                let cleaned = name.trim();
-                // "연안바다" 또는 "평수구역" 접미사가 없으면 추가
-                if (cleaned && !cleaned.endsWith('연안바다') && !cleaned.endsWith('평수구역')) {
-                    // 원본 텍스트에서 어떤 타입인지 확인
-                    if (exclusionText.includes('평수구역') && !exclusionText.includes('연안바다')) {
-                        cleaned += '평수구역';
-                    } else if (exclusionText.includes('연안바다') && !exclusionText.includes('평수구역')) {
-                        cleaned += '연안바다';
-                    }
-                    // 둘 다 있거나 없으면 원본 그대로 유지
-                }
-                return cleaned;
-            })
-            .filter(name => name.length > 0);
-
-        if (excludedNames.length > 0) {
-            // 기존 항목에 추가 (같은 해역에 여러 제외 정보가 있을 수 있음)
-            if (exclusionInfo[zoneName]) {
-                exclusionInfo[zoneName].push(...excludedNames);
-            } else {
-                exclusionInfo[zoneName] = excludedNames;
-            }
-            // console.log(`📋 제외 정보 추출: ${zoneName} → [${excludedNames.join(', ')}]`);
-        }
-    }
-
-    return exclusionInfo;
-}
-
-/**
- * 메인 해역에 특보가 있을 때, 해당 연안바다의 특보 상태 확인
- * 
- * @param {string} coastalZoneName - 연안바다 전체 이름 (예: "제주도서부앞바다중남서연안바다")
- * @param {string} warnType - 특보 종류 (풍랑, 태풍, 해일)
- * @returns {Object|null} - 특보 정보 또는 null (특보 없음)
- */
-function getCoastalWarningStatus(coastalZoneName, warnType) {
-    // 1. coastalAlerts에 직접 있는지 확인
-    const directAlert = appState.coastalAlerts[coastalZoneName];
-    if (directAlert && directAlert.warnType === warnType) {
-        return directAlert;
-    }
-
-    // 2. 상위 해역 찾기
-    let parentZoneName = null;
-    for (const [mainZone, subZones] of Object.entries(COASTAL_MAPPING)) {
-        for (const sub of subZones) {
-            if (sub.fullName === coastalZoneName) {
-                parentZoneName = mainZone;
-                break;
-            }
-        }
-        if (parentZoneName) break;
-    }
-
-    if (!parentZoneName) return null;
-
-    // 3. 상위 해역에 특보가 있는지 확인
-    const parentAlert = appState.alerts.find(a =>
-        a.zoneName === parentZoneName && a.warnType === warnType
-    );
-
-    if (!parentAlert) return null;
-
-    // 4. 상위 해역에 특보가 있으면 연안바다도 특보 발효
-    // (processCoastalWarningStatus에서 제외 처리가 이미 되어 있어야 함)
-    return {
-        ...parentAlert,
-        zoneName: coastalZoneName,
-        isCoastal: true,
-        source: 'INHERITED_FROM_MAIN',
-        parentZone: parentZoneName
-    };
-}
 
 // ----------------------------------------------------------------------------
 // UI Rendering
@@ -1978,7 +1399,14 @@ function sortAlertItems(items) {
         if (item.length === 0) return null;
 
         // 그룹 내부 정렬 (가장 높은 우선순위가 0번으로)
+        // [수정] 발효 중(Active) 알림이 발표 예정(Preliminary)보다 우선하도록 정렬
         const sorted = [...item].sort((a, b) => {
+            // 0. 발효 상태 우선 (isPreliminary: false가 true보다 상단)
+            // -> 현재 발효 중인 특보가 미래 발효 예정인 특보보다 먼저 표시되어야 함
+            if (a.isPreliminary !== b.isPreliminary) {
+                return a.isPreliminary ? 1 : -1; // active(false) first
+            }
+
             const aTypeWeight = TYPE_ORDER[a.warnType] || 99;
             const bTypeWeight = TYPE_ORDER[b.warnType] || 99;
             if (aTypeWeight !== bTypeWeight) return aTypeWeight - bTypeWeight;
@@ -2026,6 +1454,12 @@ function sortAlertItems(items) {
 
         if (!repA) return 1;
         if (!repB) return -1;
+
+        // 0. [추가] 발효 상태 우선 (isPreliminary: false가 true보다 상단)
+        // -> 현재 발효 중인 특보가 미래 발효 예정인 특보보다 먼저 표시되어야 함
+        if (repA.isPreliminary !== repB.isPreliminary) {
+            return repA.isPreliminary ? 1 : -1; // active(false) first
+        }
 
         // 1. 특보 종류 우선순위 (태풍→지진해일→폭풍해일→풍랑)
         const aTypeWeight = TYPE_ORDER[repA.warnType] || 99;
@@ -2354,58 +1788,28 @@ function renderApp() {
     });
 
     // Count Active vs Preliminary (필터링된 목록 기준)
-    const now = getKfTime();
+    const activeSet = new Set();
+    const prelimSet = new Set();
 
-    // [수정] 장부(alertStateHistory)에서 실제 발효 중인 해역 목록 추출
-    const activeZoneIds = new Set();
-    if (appState.alertStateHistory) {
-        Object.entries(appState.alertStateHistory).forEach(([regId, entry]) => {
-            if (!entry) return;
-
-            // [A안 적용] 새 구조: activeAlert 사용
-            if (entry.activeAlert) {
-                activeZoneIds.add(regId);
-                return;
-            }
-
-            // 구형 포맷 호환: entry.current 사용
-            if (entry.current) {
-                const curr = entry.current;
-                const cleanEf = (curr.rawTmEf || String(curr.tmEf || '').replace(/[^0-9]/g, ''));
-                const isActive = curr.status === 'active' || (cleanEf && cleanEf.length >= 12 && now >= cleanEf);
-                if (isActive) {
-                    activeZoneIds.add(regId);
-                }
-            }
-        });
-    }
-
-    // [수정] 발효 카운트: filteredAlerts 중 장부에 발효 중인 해역만 카운트
-    // UserSettings 필터링이 적용된 목록에서만 카운트
-    const filteredActiveZoneIds = new Set();
     filteredAlerts.forEach(a => {
-        if (a.regId && activeZoneIds.has(a.regId)) {
-            filteredActiveZoneIds.add(a.regId);
+        if (a.isDummy) return;
+
+        // 특보 구역명 기준으로 중복 제거 (동일 구역에 여러 특보가 있을 수 있으나 구역 수 기준인지 확인 필요)
+        // 사용자는 "발효 ##건"이라고 했으므로 단순 특보 건수를 세는 것이 맞을 수 있으나 
+        // 기존에는 해역(Zone) 수를 셌음. 여기서는 해역별 카드 수와 일치시키는 것이 안전함.
+        // 하지만 flattenAlertsData에서 current/upcoming을 분리했으므로, 
+        // 한 해역에 current, upcoming이 둘 다 있으면 각각 별도의 아이템이 됨.
+
+        if (a.isPreliminary) {
+            prelimSet.add(a.zoneName);
+        } else {
+            // 발효 중 (주의보/경보)
+            activeSet.add(a.zoneName);
         }
     });
-    const activeCount = filteredActiveZoneIds.size;
 
-    // [수정] 발표 카운트: 해당 해역에 기존 active가 전혀 없는 "순수 신규 발표"만 집계
-    // 장부에 active가 있는 해역은 제외 (변경 예고이지 신규 발표가 아님)
-    const prelimCount = filteredAlerts.filter(a => {
-        // 예비특보이거나 발효시각이 미래인 경우
-        const isPrelim = a.isPreliminary;
-        const cleanEf = String(a.tmEf || '').replace(/[^0-9]/g, '');
-        const isFuture = cleanEf && cleanEf.length >= 12 && now < cleanEf;
-
-        if (!isPrelim && !isFuture) return false; // 예비/대기가 아니면 제외
-
-        // [핵심] 장부(alertStateHistory)에서 해당 해역에 이미 발효 중인 특보가 있으면 "발표"로 세지 않음
-        if (a.regId && activeZoneIds.has(a.regId)) return false;
-
-        return true; // 순수 신규 발표만 카운트
-    }).length;
-
+    const activeCount = activeSet.size;
+    const prelimCount = prelimSet.size;
     const totalCount = activeCount + prelimCount;
 
     // [New] 헤더 텍스트 변경 로직
@@ -2769,6 +2173,7 @@ function createAlertElement(items) {
 
 
     // [수정] publishEntry(예정된 변경)가 있으면 배지 생성
+    // [추가 수정] currentInView가 있으면 배지는 생성하지 않음 (current 우선)
     if (publishEntry) {
         let direction = '';
         if (currentInView) {
@@ -2777,12 +2182,14 @@ function createAlertElement(items) {
             direction = curScore > pubScore ? '격하' : curScore < pubScore ? '격상' : '';
         }
 
-        // 예비 배지 생성: 사용자 요청에 따라 항상 '풍랑 예비' 형식으로 간소화
-        const badge = document.createElement('span');
-        badge.className = 'status-badge preliminary';
-        const cleanType = (publishEntry.warnType || '').replace('주의보', '').replace('경보', '').trim();
-        badge.textContent = `${cleanType} 예비`;
-        badgeContainer.appendChild(badge);
+        // [수정] currentInView가 없을 때만 예비 배지 생성
+        if (!currentInView) {
+            const badge = document.createElement('span');
+            badge.className = 'status-badge preliminary';
+            const cleanType = (publishEntry.warnType || '').replace('주의보', '').replace('경보', '').trim();
+            badge.textContent = `${cleanType} 예비`;
+            badgeContainer.appendChild(badge);
+        }
 
         // 상세 영역 표시를 위해 리스트에 추가 (중복 방지는 위에서 처리됨)
         upcomingFromApi.unshift({
@@ -2792,16 +2199,21 @@ function createAlertElement(items) {
         });
     }
 
-    // 추가적인 upcoming 정보들 배지 생성
-    upcomingFromApi.forEach(upcoming => {
-        if (upcoming._isUpcoming) return; // 이미 publishEntry로 처리된 것 스킵
+    // [중복 뱃지 생성 로직 제거됨] - 사용자 요청으로 Revert
 
-        const badge = document.createElement('span');
-        badge.className = 'status-badge preliminary';
-        const cleanType = (upcoming.warnType || '').replace('주의보', '').replace('경보', '').trim();
-        badge.textContent = `${cleanType} 예비`;
-        badgeContainer.appendChild(badge);
-    });
+    // 추가적인 upcoming 정보들 배지 생성
+    // [수정] currentInView가 있으면 upcoming 배지는 생성하지 않음
+    if (!currentInView) {
+        upcomingFromApi.forEach(upcoming => {
+            if (upcoming._isUpcoming) return; // 이미 publishEntry로 처리된 것 스킵
+
+            const badge = document.createElement('span');
+            badge.className = 'status-badge preliminary';
+            const cleanType = (upcoming.warnType || '').replace('주의보', '').replace('경보', '').trim();
+            badge.textContent = `${cleanType} 예비`;
+            badgeContainer.appendChild(badge);
+        });
+    }
 
     if (badgeContainer.children.length === 0) {
         const safeBadge = document.createElement('span');
@@ -2834,36 +2246,8 @@ function createAlertElement(items) {
     details.innerHTML = '';
 
     const formatAlertTime = (timeStr) => {
-        if (!timeStr || timeStr.trim() === '' || timeStr.trim() === '일') return '정보 없음';
-        const decoded = timeStr.replace(/&#40;/g, '(').replace(/&#41;/g, ')').trim();
-
-        // [NEW] YYYYMMDDHHMM 형식 (12자리 연속 숫자) 처리 - 예: 202602020900
-        const rawMatch = decoded.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$/);
-        if (rawMatch) {
-            const month = parseInt(rawMatch[2], 10);
-            const day = parseInt(rawMatch[3], 10);
-            let hh = parseInt(rawMatch[4], 10);
-            const mm = rawMatch[5];
-            const ampm = hh >= 12 ? '오후' : '오전';
-            const displayHour = hh > 12 ? hh - 12 : (hh === 0 ? 12 : hh);
-            return `${month}월 ${day}일 ${ampm} ${String(displayHour).padStart(2, '0')}:${mm}`;
-        }
-
-        const dotMatch = decoded.match(/^(\d{4})\.(\d{2})\.(\d{2})\.(\d{2}):(\d{2})$/);
-        if (dotMatch) {
-            const yy = dotMatch[1].slice(-2);
-            let hh = parseInt(dotMatch[4], 10);
-            const ampm = hh >= 12 ? '오후' : '오전';
-            if (hh > 12) hh -= 12;
-            if (hh === 0) hh = 12;
-            return `${yy}.${dotMatch[2]}.${dotMatch[3]} ${ampm} ${hh}시 ${dotMatch[5]}분`;
-        }
-        const textMatch = decoded.match(/^(\d{4})\.(\d{2})\.(\d{2})\.\s*(.+)$/);
-        if (textMatch) {
-            const yy = textMatch[1].slice(-2);
-            return `${yy}.${textMatch[2]}.${textMatch[3]} ${textMatch[4]}`;
-        }
-        return decoded;
+        // 전역 함수가 이미 최신화되었으므로 이를 활용하도록 간소화 가능
+        return formatWarningTime(timeStr);
     };
 
     const createRow = (label, value, color) => {
@@ -3474,30 +2858,9 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
             color: #aaa;
         `;
 
-        // [수정] 시각 포맷팅 함수 (yy.mm.dd 오전/오후 ##시 ##분)
-        const formatAfsoTime = (timeStr) => {
-            if (!timeStr || timeStr.trim() === '' || timeStr.trim() === '일') return '정보 없음';
-            const decoded = timeStr.replace(/&#40;/g, '(').replace(/&#41;/g, ')').trim();
-
-            // 2026.01.11.21:10 형식 매칭
-            const dotMatch = decoded.match(/^(\d{4})\.(\d{2})\.(\d{2})\.(\d{2}):(\d{2})$/);
-            if (dotMatch) {
-                const yy = dotMatch[1].slice(-2);
-                let hh = parseInt(dotMatch[4], 10);
-                const ampm = hh >= 12 ? '오후' : '오전';
-                if (hh > 12) hh -= 12;
-                if (hh === 0) hh = 12;
-                return `${yy}.${dotMatch[2]}.${dotMatch[3]} ${ampm} ${hh}시 ${dotMatch[5]}분`;
-            }
-
-            // 2026.01.12. 밤(18시~24시) 형식 매칭 (발효시각 등)
-            const textMatch = decoded.match(/^(\d{4})\.(\d{2})\.(\d{2})\.\s*(.+)$/);
-            if (textMatch) {
-                const yy = textMatch[1].slice(-2);
-                return `${yy}.${textMatch[2]}.${textMatch[3]} ${textMatch[4]}`;
-            }
-
-            return decoded;
+        // [수정] 범용 시각 포맷팅 함수 (글로벌 함수 활용)
+        const formatWarningTimeLocal = (timeStr) => {
+            return formatWarningTime(timeStr);
         };
 
         // [수정] 상세 정보 영역 표시 전 중복 제거 (종류와 등급이 같으면 하나만 표시)
@@ -3512,11 +2875,11 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
         });
 
         uniqueCoastalAlerts.forEach((alert, index) => {
-            const tmFcFormatted = formatAfsoTime(alert.tmFc);
-            const tmEfFormatted = formatAfsoTime(alert.tmEf);
+            const tmFcFormatted = formatWarningTime(alert.tmFc);
+            const tmEfFormatted = formatWarningTime(alert.tmEf);
             let tmEdFormatted = '정보 없음';
             if (alert.tmEd && alert.tmEd.trim().length > 2 && !alert.isPreliminary) {
-                tmEdFormatted = formatAfsoTime(alert.tmEd);
+                tmEdFormatted = formatWarningTime(alert.tmEd);
             }
 
             // [수정] 둘 이상의 서로 다른 특보 정보가 있을 때만 타이틀 표시
@@ -8527,7 +7890,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     setTimeout(hideSplash, delay);
 
     // [New] 푸시 알림 파라미터 확인 및 팝업 표시
-    checkForPushPopup();
+    // checkForPushPopup 제거됨 (fix_popup_logic.js 이관)
 
     // === [New] 헤더 15회 클릭 시 통합 관리자 센터 진입 ===
     const headerContent = document.querySelector('.header-content');
