@@ -922,7 +922,16 @@ function formatWarningTime(tmEf, isEndTime = false) {
         .replace(/&nbsp;/g, ' ')
         .trim();
 
-    // 이미 한글 시간대가 포함되어 있으면 그대로
+    // [수정] 2026-02-07 밤(18~24시)와 같은 하이브리드 형식을 2월 7일 밤(18~24시)로 변환
+    const hybridMatch = decoded.match(/^(\d{4})-(\d{2})-(\d{2})(.*)$/);
+    if (hybridMatch) {
+        const m = parseInt(hybridMatch[2], 10);
+        const d = parseInt(hybridMatch[3], 10);
+        const rest = hybridMatch[4];
+        decoded = `${m}월 ${d}일${rest}`;
+    }
+
+    // 이미 한글 시간대가 포함되어 있으면 그대로 (위에서 변환된 값 포함)
     if (decoded.includes('새벽') || decoded.includes('아침') || decoded.includes('오전') ||
         decoded.includes('낮') || decoded.includes('오후') || decoded.includes('저녁') || decoded.includes('밤')) {
         return decoded;

@@ -149,6 +149,54 @@ function createFullForm() {
 // 유틸리티 함수
 // ============================================================================
 
+/**
+ * tmYn(해제 예고 시각) 문자열을 Date 객체로 파싱
+ * 예: "6일 밤(21시 ~ 24시)" → 해당 월의 6일 21:00 (시작 시각 기준)
+ * 예: "9일 오전(09시 ~ 12시)" → 해당 월의 9일 09:00
+ * @param {string} tmYn - 해제 예고 문자열
+ * @returns {Date|null} - 파싱된 Date 또는 null
+ */
+function parseTmYnToDate(tmYn) {
+    if (!tmYn || typeof tmYn !== 'string' || tmYn.trim() === '') return null;
+
+    try {
+        // 현재 KST 기준 년/월 가져오기
+        const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+        const year = nowKST.getFullYear();
+        const month = nowKST.getMonth(); // 0-indexed
+
+        // 일자 추출: "6일", "9일" 등
+        const dayMatch = tmYn.match(/(\d{1,2})일/);
+        if (!dayMatch) return null;
+        const day = parseInt(dayMatch[1]);
+
+        // 시간 범위 추출: "(21시 ~ 24시)", "(09시 ~ 12시)" 등
+        const timeMatch = tmYn.match(/\((\d{1,2})시\s*[~～-]\s*(\d{1,2})시\)/);
+        if (!timeMatch) {
+            // 단일 시간 형식: "15시" 등
+            const singleTimeMatch = tmYn.match(/(\d{1,2})시/);
+            if (singleTimeMatch) {
+                const hour = parseInt(singleTimeMatch[1]);
+                return new Date(year, month, day, hour, 0, 0);
+            }
+            return null;
+        }
+
+        // 시작 시각 사용 (해제 예고의 시작 시점)
+        let startHour = parseInt(timeMatch[1]);
+
+        // 24시 처리 → 다음 날 00시
+        if (startHour === 24) {
+            return new Date(year, month, day + 1, 0, 0, 0);
+        }
+
+        return new Date(year, month, day, startHour, 0, 0);
+    } catch (e) {
+        console.error(`[parseTmYnToDate] 파싱 실패: ${tmYn}`, e.message);
+        return null;
+    }
+}
+
 async function fetchHtml(url) {
     return new Promise((resolve, reject) => {
         https.get(url, {
@@ -378,7 +426,7 @@ function mapDataToForm(form, parentWarnings, activeChildren) {
 }
 
 // ============================================================================
-// 데이터 보정 로직 (Ghost Alert Prevention)
+// 데이터 보정 로직 (Ghost Alert Prevention + 해제 예고 시각 준수)
 // ============================================================================
 
 function preserveContinuingAlerts(prevNode, currNode, path = []) {
@@ -386,23 +434,61 @@ function preserveContinuingAlerts(prevNode, currNode, path = []) {
 
     // Leaf Node 도달
     if ('current' in currNode && 'upcoming' in currNode) {
-        // 보정 조건 체크
-        // 1. 현재 데이터에는 live 특보가 없음 (삭제됨)
-        // 2. 하지만 upcoming(예비/미래발효) 데이터는 있음 (격상/격하 대기)
-        // 3. 직전 데이터에는 live 특보가 있었음
+        const zoneName = path.length > 0 ? path[path.length - 1] : 'Unknown';
+        const logName = `[AlertLogic][${zoneName}]`;
+
+        // ============================================================
+        // Case A: 현재 발효(current) 없음 + 예비(upcoming) 있음 + 이전 발효 있었음
+        // ============================================================
         if (currNode.current === null && currNode.upcoming !== null && prevNode && prevNode.current !== null) {
+            const prevAlert = prevNode.current;
+            const upcomingAlert = currNode.upcoming;
 
-            // [중요] 특보 종류가 같은지 체크해야 할까? 
-            // 보통 풍랑주의보 -> 풍랑경보로 가므로 종류(wrnTp)는 같음.
-            // 태풍 -> 풍랑으로 바뀌는 경우도 있을 수 있으나, 어쨌든 '공백'보다는 유지가 안전함.
+            // [쟁점 2] 동일 등급(wrnTp + wrnLvl) 체크
+            // 동일 등급이면: 발효가 해제되고 새 예비가 발표된 것 → 해제 처리 (유지하지 않음)
+            // 다른 등급이면: 격상/격하 대기 → 기존 발효 유지
+            const isSameLevel = (prevAlert.wrnTp === upcomingAlert.wrnTp && prevAlert.wrnLvl === upcomingAlert.wrnLvl);
 
-            const zoneName = path.length > 0 ? path[path.length - 1] : 'Unknown';
-            const logName = `[GhostFix][${zoneName}]`;
-
-            // 기존 데이터 복사 (유지)
-            currNode.current = prevNode.current;
-            console.log(`${logName} 🛡️ ${currNode.current.wrnLvl} 유지됨. (사유: ${currNode.upcoming.wrnLvl} 대기중)`);
+            if (isSameLevel) {
+                // 동일 등급 → 발효 해제 + 예비 발표 시나리오
+                // current는 null로 유지 (해제 알림 발송됨)
+                console.log(`${logName} ⚡ 동일 등급(${prevAlert.wrnLvl}) 발효→예비 전환. 해제 처리.`);
+                // currNode.current는 이미 null이므로 그대로 둠
+            } else {
+                // 다른 등급 → 격상/격하 대기 → 기존 발효 유지
+                currNode.current = prevAlert;
+                console.log(`${logName} 🛡️ ${prevAlert.wrnLvl} 유지됨. (사유: ${upcomingAlert.wrnLvl} 대기중)`);
+            }
+            return;
         }
+
+        // ============================================================
+        // Case B: 현재 발효 없음 + 예비 없음 + 이전 발효 있었음 (해제 케이스)
+        // [쟁점 1] 해제 예고 시각(tmYn) 미도래 시 발효 유지
+        // ============================================================
+        if (currNode.current === null && currNode.upcoming === null && prevNode && prevNode.current !== null) {
+            const prevAlert = prevNode.current;
+
+            // tmYn(해제 예고 시각)이 있고, 아직 도래하지 않았으면 발효 유지
+            if (prevAlert.tmYn) {
+                const releaseTime = parseTmYnToDate(prevAlert.tmYn);
+                const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+
+                if (releaseTime && nowKST < releaseTime) {
+                    // 해제 예고 시각 미도래 → 발효 유지
+                    currNode.current = prevAlert;
+                    console.log(`${logName} ⏳ ${prevAlert.wrnLvl} 유지됨. (해제 예고: ${prevAlert.tmYn}, 현재 미도래)`);
+                    return;
+                } else {
+                    // 해제 예고 시각 도래 또는 파싱 실패 → 해제 처리
+                    console.log(`${logName} ✅ ${prevAlert.wrnLvl} 해제됨. (해제 예고 시각 도래)`);
+                }
+            } else {
+                // tmYn 없음 → 즉시 해제 케이스 (데이터가 사라짐)
+                console.log(`${logName} ✅ ${prevAlert.wrnLvl} 해제됨. (데이터 사라짐, 즉시 해제)`);
+            }
+        }
+
         return;
     }
 
@@ -481,7 +567,8 @@ function detectChanges(previous, current) {
         return a.wrnTp !== b.wrnTp ||
             a.wrnLvl !== b.wrnLvl ||
             a.tmEf !== b.tmEf ||
-            a.tmFc !== b.tmFc;
+            a.tmFc !== b.tmFc ||
+            a.tmYn !== b.tmYn;
     }
 
     traverse(previous, current);

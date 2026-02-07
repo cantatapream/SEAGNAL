@@ -36,23 +36,24 @@ async function processAndSendNotifications(changes) {
                 continue;
             }
 
-            // 신규 발표 (또는 업데이트)
-            // 무조건 '예비 발표'로 취급
-            const scenario = 'publish';
+            // 신규 발표 또는 시각 변경 처리 (일원화)
             const typeName = curr.wrnTp;
-            const level = curr.wrnLvl; // 주의보/경보
+            const level = curr.wrnLvl;
 
-            // Key: PUBLISH_풍랑_주의보
-            addToGroup(groups, scenario, typeName, level, {
-                zones: [zone],
-                tmFc: curr.tmFc,
-                tmEf: curr.tmEf, // 발효예정 시각
-                tmYn: curr.tmYn
-            });
-
-            // 시각 변경 체크 (기존에 있었는데 시각만 바뀐 경우)
-            if (prev && prev.tmEf !== curr.tmEf) {
-                addToGroup(groups, 'time_ef_change', typeName, level, {
+            // (1) 새로 생겼거나 등급이 바뀐 경우 -> '발표' 알림
+            if (!prev || prev.wrnLvl !== curr.wrnLvl) {
+                const scenario = 'publish';
+                addToGroup(groups, scenario, typeName, level, {
+                    zones: [zone],
+                    tmFc: curr.tmFc,
+                    tmEf: curr.tmEf, // 발효예정 시각
+                    tmYn: curr.tmYn
+                });
+            }
+            // (2) 등급은 같은데 시각만 바뀐 경우 -> '시각 변경' 알림
+            else if (prev.tmEf !== curr.tmEf) {
+                const scenario = 'time_ef_change';
+                addToGroup(groups, scenario, typeName, level, {
                     zones: [zone],
                     tmFc: curr.tmFc,
                     tmEf: curr.tmEf,
@@ -100,8 +101,9 @@ async function processAndSendNotifications(changes) {
             // 5-1(발표) 정의에 "특보의 수준이 격상, 격하된다는 발표가 나온 경우에도 발표로 알림" 이라고 되어 있음.
             // 하지만 그건 '발표(예비)' 단계의 이야기일 수 있음.
             // 이미 발효된 특보가 격상되면 -> '풍랑경보 발효'로 보내는 것이 맞음 (시나리오 2)
+            // 3. 등급 변경 (격상/격하)
             if (prev.wrnLvl !== curr.wrnLvl) {
-                const scenario = 'active'; // 격상도 '발효' 시나리오로 처리 (사용자 요청 5-2)
+                const scenario = 'active'; // 격상도 '발효' 시나리오로 처리
                 const typeName = curr.wrnTp;
                 const level = curr.wrnLvl;
 
@@ -112,27 +114,26 @@ async function processAndSendNotifications(changes) {
                     tmYn: curr.tmYn
                 });
             }
+            // 4. 시각 변경 (등급 변경이 없을 때만 별도 알림 발송 - 일원화)
+            else {
+                // 4-1. 발효시각 변경 (이미 발효된 건데 발효시각이 바뀔 일은 드묾)
+                if (prev.tmEf !== curr.tmEf) {
+                    // 필요 시 추가 로직 작성 가능
+                }
 
-            // 4. 시각 변경
-            // 4-1. 발효시각 변경 (이미 발효된 건데 발효시각이 바뀔 일은 드뭄, 보통 해제시각이 바뀜)
-            if (prev.tmEf !== curr.tmEf) {
-                // 혹시 모르니 체크
-                // addToGroup(groups, 'time_ef_change', ...); 
-                // (이미 발효된 건은 발효시각 변경이 의미 없을 수 있음)
-            }
+                // 4-2. 해제시각 변경 (연장 등)
+                if (prev.tmYn !== curr.tmYn) {
+                    const scenario = 'time_yn_change';
+                    const typeName = curr.wrnTp;
+                    const level = curr.wrnLvl;
 
-            // 4-2. 해제시각 변경 (연장 등)
-            if (prev.tmYn !== curr.tmYn) {
-                const scenario = 'time_yn_change';
-                const typeName = curr.wrnTp;
-                const level = curr.wrnLvl;
-
-                addToGroup(groups, scenario, typeName, level, {
-                    zones: [zone],
-                    tmFc: curr.tmFc,
-                    tmEf: curr.tmEf,
-                    tmYn: curr.tmYn // 변경된 해제예정 시각
-                });
+                    addToGroup(groups, scenario, typeName, level, {
+                        zones: [zone],
+                        tmFc: curr.tmFc,
+                        tmEf: curr.tmEf,
+                        tmYn: curr.tmYn // 변경된 해제예정 시각
+                    });
+                }
             }
         }
     }

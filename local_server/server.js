@@ -1297,17 +1297,63 @@ app.post('/api/push-custom', async (req, res) => {
             let genTitle = '';
             let genBody = '';
 
-            // 시각 포맷 헬퍼 (예: "9일 새벽(...)")
-            // tmEf나 tmYn에 이미 포맷팅된 문자열이 들어온다고 가정하되, 숫자만 오면 포맷팅 시도
+            // 요일 배열 (일~토)
+            const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+            // 시각 포맷 헬퍼: D일 HH:mm 또는 D일 범위시간 형식으로 변환
             const fmt = (str) => {
                 if (!str) return '미정';
-                if (/^\d{12}$/.test(str)) { // 202602090300
-                    const dd = parseInt(str.substring(6, 8));
-                    const hh = str.substring(8, 10);
-                    const mm = str.substring(10, 12);
-                    return `${dd}일 ${hh}:${mm}`;
+
+                // 1. "2026-02-06 12:00" 형식 처리 (숫자 시:분)
+                const dateMatch = str.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+                if (dateMatch) {
+                    const [, , , day, hour, minute] = dateMatch;
+                    return `${parseInt(day)}일 ${hour}:${minute}`;
                 }
+
+                // 2. "2026-02-07 밤(18~24시)" 형식 처리 (한글 시간대)
+                const koreanTimeMatch = str.match(/(\d{4})-(\d{2})-(\d{2})\s+(.+)/);
+                if (koreanTimeMatch) {
+                    const [, , , day, timeDesc] = koreanTimeMatch;
+                    return `${parseInt(day)}일 ${timeDesc}`;
+                }
+
+                // 3. 12자리 숫자 형식 (202602061200)
+                if (/^\d{12}$/.test(str)) {
+                    const day = str.substring(6, 8);
+                    const hour = str.substring(8, 10);
+                    const minute = str.substring(10, 12);
+                    return `${parseInt(day)}일 ${hour}:${minute}`;
+                }
+
+                // 4. 그 외 (이미 포맷팅된 문자열: "9일 새벽(03시~06시)" 등)
                 return str;
+            };
+
+            // 시각별 그룹핑 헬퍼 (tmEf 또는 tmYn 기준)
+            const groupByTime = (items, timeKey) => {
+                const groups = {};
+                items.forEach(item => {
+                    const timeVal = item[timeKey] || '미정';
+                    if (!groups[timeVal]) {
+                        groups[timeVal] = [];
+                    }
+                    item.zones.forEach(z => {
+                        if (!groups[timeVal].includes(z)) {
+                            groups[timeVal].push(z);
+                        }
+                    });
+                });
+                return groups; // { '2026-02-06 12:00': ['서해중부안쪽먼바다', '서해중부바깥먼바다'], ... }
+            };
+
+            // 그룹핑된 데이터를 메시지로 변환
+            const formatGroupedMessage = (groups, timeLabel) => {
+                return Object.entries(groups).map(([time, zones]) => {
+                    const zStr = zones.join(', ');
+                    const formattedTime = fmt(time);
+                    return `ㅇ${zStr}\n - ${timeLabel} : ${formattedTime}`;
+                }).join('\n');
             };
 
             // 특보 명칭 (예: 풍랑주의보)
@@ -1317,13 +1363,12 @@ app.post('/api/push-custom', async (req, res) => {
             // 1. 발표 (예비특보)
             // ========================================================================
             if (templateId === 'publish') {
-                genTitle = `📢 ${fullTitle} 예비 발표`;
-                // 내용: 해역 + 발효예정 시각 (이미 그룹핑된 items 순회)
-                genBody = items.map(item => {
-                    const zStr = item.zones.join(', ');
-                    const efTime = fmt(item.tmEf);
-                    return `ㅇ${zStr}\n  - 발효예정 : ${efTime}`;
-                }).join('\n');
+                // level이 '예비'면 typeName만 사용 (중복 방지: "풍랑 예비 예비 발표" → "풍랑 예비 발표")
+                // level이 '경보' 등이면 fullTitle 사용 ("풍랑 경보 예비 발표")
+                const titleForPublish = (level === '예비') ? typeName : fullTitle;
+                genTitle = `📢 ${titleForPublish} 예비 발표`;
+                const grouped = groupByTime(items, 'tmEf');
+                genBody = formatGroupedMessage(grouped, '발효예정');
             }
 
             // ========================================================================
@@ -1331,12 +1376,8 @@ app.post('/api/push-custom', async (req, res) => {
             // ========================================================================
             else if (templateId === 'active') {
                 genTitle = `🚨 ${fullTitle} 발효`;
-                // 내용: 해역 + 해제예정 시각
-                genBody = items.map(item => {
-                    const zStr = item.zones.join(', ');
-                    const ynTime = fmt(item.tmYn);
-                    return `ㅇ${zStr}\n  - 해제예정 : ${ynTime}`;
-                }).join('\n');
+                const grouped = groupByTime(items, 'tmYn');
+                genBody = formatGroupedMessage(grouped, '해제예정');
             }
 
             // ========================================================================
@@ -1344,7 +1385,7 @@ app.post('/api/push-custom', async (req, res) => {
             // ========================================================================
             else if (templateId === 'release') {
                 genTitle = `✅ ${fullTitle} 해제`;
-                // 내용: 해역만 나열
+                // 내용: 해역만 나열 (시각 그룹핑 불필요)
                 const allZones = [];
                 items.forEach(i => i.zones.forEach(z => { if (!allZones.includes(z)) allZones.push(z); }));
                 genBody = `ㅇ${allZones.join(', ')}`;
@@ -1355,12 +1396,8 @@ app.post('/api/push-custom', async (req, res) => {
             // ========================================================================
             else if (templateId === 'time_ef_change') {
                 genTitle = `🕐 발효시각 변경`;
-                // 내용: 해역 + 변경된 발효예정 시각
-                genBody = items.map(item => {
-                    const zStr = item.zones.join(', ');
-                    const efTime = fmt(item.tmEf);
-                    return `ㅇ${zStr}\n  - 발효예정 : ${efTime}`;
-                }).join('\n');
+                const grouped = groupByTime(items, 'tmEf');
+                genBody = formatGroupedMessage(grouped, '발효예정');
             }
 
             // ========================================================================
@@ -1368,12 +1405,8 @@ app.post('/api/push-custom', async (req, res) => {
             // ========================================================================
             else if (templateId === 'time_yn_change') {
                 genTitle = `🕐 해제시각 변경`;
-                // 내용: 해역 + 변경된 해제예정 시각
-                genBody = items.map(item => {
-                    const zStr = item.zones.join(', ');
-                    const ynTime = fmt(item.tmYn);
-                    return `ㅇ${zStr}\n  - 해제예정 : ${ynTime}`;
-                }).join('\n');
+                const grouped = groupByTime(items, 'tmYn');
+                genBody = formatGroupedMessage(grouped, '해제예정');
             }
 
             // Fallback
@@ -1441,16 +1474,20 @@ app.post('/api/push-custom', async (req, res) => {
                 const params = new URLSearchParams();
                 params.append('popup', 'true');
                 if (isManualGroupSend && payload) {
-                    params.append('alertType', payload.typeName || '');
+                    // alertType에 level 포함 (예: "풍랑주의보")
+                    const fullAlertType = (payload.typeName || '') + (payload.level ? payload.level : '');
+                    params.append('alertType', fullAlertType);
                     params.append('status', payload.templateId);
                     params.append('tmFc', payload.items[0].tmFc || '');
                     params.append('tmEf', payload.items[0].tmEf || '');
-                    params.append('tmYn', payload.items[0].tmEd || '');
+                    params.append('tmYn', payload.items[0].tmYn || '');  // 오타 수정: tmEd → tmYn
                     params.append('zones', userFilteredItems.flatMap(i => i.zones).join(','));
-                    if (payload.templateId === 'level') {
-                        const isUp = (payload.level || '').includes('경보');
-                        params.append('prevAlertType', (payload.typeName || '') + (isUp ? '주의보' : '경보'));
-                    }
+
+                    // [주석처리] 격상/격하 기능 - 추후 사용 가능
+                    // if (payload.templateId === 'level') {
+                    //     const isUp = (payload.level || '').includes('경보');
+                    //     params.append('prevAlertType', (payload.typeName || '') + (isUp ? '주의보' : '경보'));
+                    // }
                 }
                 const url = `/?tab=weather-alert-section&${params.toString()}`;
 

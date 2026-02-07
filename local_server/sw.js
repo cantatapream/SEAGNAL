@@ -46,21 +46,24 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
 
+    const targetUrl = event.notification.data.url || '/';
+
     // 클릭 시 앱 열기 (또는 포커스)
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-            // 이미 열린 창이 있으면 포커스
+            // 이미 열린 창이 있으면 URL 이동 후 포커스
             for (let i = 0; i < windowClients.length; i++) {
                 const client = windowClients[i];
-                if ('focus' in client) {
-                    // 필요 시 URL 이동 로직 추가 가능 (client.navigate)
-                    return client.focus();
+                if ('navigate' in client) {
+                    // URL을 변경하여 popup 파라미터 전달
+                    return client.navigate(targetUrl).then(client => client.focus());
                 }
             }
             // 없으면 새로 열기
             if (clients.openWindow) {
-                return clients.openWindow(event.notification.data.url || '/');
+                return clients.openWindow(targetUrl);
             }
         })
     );
 });
+
