@@ -284,6 +284,9 @@ function initTideMap() {
         popupElement.id = 'tide-popup-container';
         popupElement.style.display = 'none';
 
+        // [UI Change] 팝업 전체 위치 하향 조정 (안내 문구와 겹침 방지 - 과도하지 않게 조정)
+        popupElement.style.marginTop = '20px'; // 지도 상단에서 살짝만 떨어뜨림
+
         const mapContainer = document.getElementById('tide-map');
         if (!mapContainer) return;
 
@@ -539,13 +542,10 @@ function showTidePopup(coordinate, data) {
         <button class="tide-popup-close-x" onclick="tidePopupOverlay.setPosition(undefined)" title="닫기">
             <i class="fa-solid fa-xmark"></i>
         </button>
-        <div class="tide-popup-body">
-            <div class="tide-location">
-                <i class="fa-solid fa-location-dot"></i>
-                <span>${data.clickedLat}°N, ${data.clickedLon}°E</span>
-            </div>
+        <div class="tide-popup-body" style="padding-top: 15px;">
+            <!-- [UI Change] 좌표 정보 하단 이동으로 제거 -->
             
-            <button class="tide-popup-fav-btn" onclick="addCurrentLocationToFavorites('${data.clickedLat}', '${data.clickedLon}')">
+            <button class="tide-popup-fav-btn" onclick="addCurrentLocationToFavorites('${data.clickedLat}', '${data.clickedLon}')" style="margin-top: 5px;">
                 <i class="fa-solid fa-star"></i> 즐겨찾기 추가
             </button>
     `;
@@ -568,6 +568,14 @@ function showTidePopup(coordinate, data) {
             </div>
         `;
         html += getAstronomyInfoHTML(astroInfo);
+
+        // [UI Change] 좌표 정보 하단 이동 (에러 상황에서도 표시)
+        html += `
+            <div class="tide-location-bottom" style="text-align: center; margin-top: 12px; font-size: 0.75rem; color: #94a3b8; display: flex; align-items: center; justify-content: center; opacity: 0.8;">
+                <i class="fa-solid fa-location-dot" style="margin-right: 6px; font-size: 0.7rem;"></i>
+                <span style="font-family: 'Roboto Mono', monospace;">${data.clickedLat}°N, ${data.clickedLon}°E</span>
+            </div>
+        `;
     } else if (data.tideInfo) {
         let allTides = [];
 
@@ -721,6 +729,14 @@ function showTidePopup(coordinate, data) {
         html += `</div></div>`;
 
         html += getAstronomyInfoHTML(astroInfo);
+
+        // [UI Change] 좌표 정보 하단 이동
+        html += `
+            <div class="tide-location-bottom" style="text-align: center; margin-top: 12px; font-size: 0.75rem; color: #94a3b8; display: flex; align-items: center; justify-content: center; opacity: 0.8;">
+                <i class="fa-solid fa-location-dot" style="margin-right: 6px; font-size: 0.7rem;"></i>
+                <span style="font-family: 'Roboto Mono', monospace;">${data.clickedLat}°N, ${data.clickedLon}°E</span>
+            </div>
+        `;
     }
 
     html += `</div>`;

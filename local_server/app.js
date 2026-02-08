@@ -1979,6 +1979,14 @@ function createAlertElement(items) {
         transition: all 0.2s ease;
     `;
 
+    // [Fix] 모바일 화면에서 해역명과 뱃지가 겹칠 경우 자연스럽게 줄바꿈 허용 (문제 2 해결)
+    const header = clone.querySelector('.alert-header');
+    if (header) {
+        header.style.flexWrap = 'wrap';
+        header.style.rowGap = '6px';
+        header.style.alignItems = 'center';
+    }
+
     const zoneName = clone.querySelector('.zone-name');
     zoneName.innerHTML = '';
     const nameSpan = document.createElement('span');
@@ -2429,14 +2437,14 @@ function createAlertElement(items) {
     const isMappedZone = typeof ZONE_NAME_DISPLAY_MAP !== 'undefined' && ZONE_NAME_DISPLAY_MAP[data.zoneName];
     if (typeof showSeaForecastTable === 'function' && !isMappedZone) {
         const forecastBtn = document.createElement('button');
-        forecastBtn.innerHTML = '☀️ 기상예보';
+        forecastBtn.innerHTML = '기상예보';
         forecastBtn.style.cssText = 'flex: 1; padding: 12px 8px; background: linear-gradient(135deg, #ffd54f, #ff9800, #f57c00); color: #1a1e2e; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: transform 0.2s; box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);';
         forecastBtn.addEventListener('click', (e) => { e.stopPropagation(); showSeaForecastTable(data.zoneName); });
         actionsContainer.appendChild(forecastBtn);
     }
 
     const zoneViewBtn = document.createElement('button');
-    zoneViewBtn.innerHTML = '🗺️ 해구별 기상전망';
+    zoneViewBtn.innerHTML = '해구기상';
     zoneViewBtn.style.cssText = 'flex: 1; padding: 12px 8px; background: linear-gradient(135deg, #e94560, #0f3460); color: white; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: transform 0.2s;';
     zoneViewBtn.addEventListener('click', (e) => { e.stopPropagation(); if (typeof showZoneOverlay === 'function') showZoneOverlay(data.zoneName); });
     actionsContainer.appendChild(zoneViewBtn);
@@ -2444,7 +2452,7 @@ function createAlertElement(items) {
 
     if (WINDY_URL_MAPPING[data.zoneName]) {
         const windyBtn = document.createElement('button');
-        windyBtn.innerHTML = '<i class="fa-solid fa-wind"></i> 윈디';
+        windyBtn.innerHTML = '윈디';
         windyBtn.style.cssText = 'flex: 1; padding: 12px 8px; background: linear-gradient(135deg, #00c6ff, #0072ff); color: white; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: transform 0.2s;';
         windyBtn.addEventListener('click', (e) => { e.stopPropagation(); showWindyPopup(data.zoneName); });
         actionsContainer.appendChild(windyBtn);
@@ -4047,7 +4055,56 @@ function injectTabStyles() {
 // Initialization
 // ----------------------------------------------------------------------------
 
+// [Fix] 모바일 UI 개선을 위한 전역 스타일 주입
+function injectGlobalStyles() {
+    if (document.getElementById('mobile-ui-fix-style')) return;
+    const style = document.createElement('style');
+    style.id = 'mobile-ui-fix-style';
+    style.innerHTML = `
+        /* [Mobile UI Fix] 뱃지 및 헤더 밀림 방지 */
+        .status-badge {
+            white-space: nowrap !important; /* 뱃지 텍스트 줄바꿈 방지 (덩어리로 넘기기) */
+        }
+        .main-accordion-header {
+            flex-wrap: wrap !important; /* 헤더 줄바꿈 허용 */
+            gap: 8px !important;
+            align-items: center !important;
+            height: auto !important; /* 높이 유동적 */
+            padding-bottom: 12px !important; /* 줄바꿈 시 여백 확보 */
+            padding-top: 12px !important;
+        }
+        .header-status {
+            margin-left: auto !important; /* 우측 정렬 */
+            justify-content: flex-end !important;
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 5px !important;
+        }
+        .section-title {
+            white-space: nowrap !important; /* 제목 텍스트 줄바꿈 방지 */
+            margin-right: 8px !important; /* 제목과 뱃지 사이 간격 */
+            max-width: 100%; /* 너무 길면 말줄임 등 처리 여지 */
+        }
+        .alert-header {
+            flex-wrap: wrap !important; /* 카드 헤더 줄바꿈 허용 */
+            align-items: center !important;
+            gap: 8px !important;
+        }
+        .alert-badges {
+            justify-content: flex-end !important; /* 뱃지 우측 정렬 */
+            margin-left: auto !important;
+            flex-wrap: wrap !important;
+        }
+        /* 뱃지가 다음 줄로 넘어갔을 때 간격 조정 */
+        .alert-badges:empty {
+            display: none !important;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
+    injectGlobalStyles(); // [Fix] 스타일 주입 호출
     // console.log('=== Marine Weather Alert System Starting ===');
     // console.log('Using wrn_now_data.php API');
     // console.log('Config:', CONFIG);
@@ -5170,7 +5227,7 @@ function renderOtherButtonsForStatus(zoneName, container) {
         if (!isMappedZone) {
             const forecastBtn = document.createElement('button');
             forecastBtn.className = 'forecast-btn';
-            forecastBtn.innerHTML = '☀️ 기상예보';
+            forecastBtn.innerHTML = '기상예보';
             forecastBtn.style.cssText = `
                 flex: 1;
                 padding: 12px 8px;
@@ -5203,7 +5260,7 @@ function renderOtherButtonsForStatus(zoneName, container) {
         // 2. 해구별 기상전망 버튼
         const zoneViewBtn = document.createElement('button');
         zoneViewBtn.className = 'zone-view-btn';
-        zoneViewBtn.innerHTML = '🗺️ 해구별 기상전망';
+        zoneViewBtn.innerHTML = '해구기상';
         zoneViewBtn.style.cssText = `
             flex: 1;
             padding: 12px 8px;
@@ -5235,7 +5292,7 @@ function renderOtherButtonsForStatus(zoneName, container) {
         if (typeof WINDY_URL_MAPPING !== 'undefined' && WINDY_URL_MAPPING[zoneName]) {
             const windyBtn = document.createElement('button');
             windyBtn.className = 'windy-btn';
-            windyBtn.innerHTML = '🌀 윈디';
+            windyBtn.innerHTML = '윈디';
             windyBtn.style.cssText = `
                 flex: 1;
                 padding: 12px 8px;
@@ -5485,7 +5542,7 @@ function createStatusCard(zoneName) {
     // 기상예보 버튼
     if (!isMappedZone) {
         const forecastBtn = document.createElement('button');
-        forecastBtn.textContent = '☀️ 기상예보';
+        forecastBtn.textContent = '기상예보';
         forecastBtn.style.cssText = `
             padding: 5px 10px;
             background: linear-gradient(135deg, #ffd54f, #ff9800);
@@ -5507,7 +5564,7 @@ function createStatusCard(zoneName) {
 
     // 해구별 기상전망 버튼
     const zoneViewBtn = document.createElement('button');
-    zoneViewBtn.textContent = '🗺️ 해구별 기상전망';
+    zoneViewBtn.textContent = '해구기상';
     zoneViewBtn.style.cssText = `
         padding: 5px 10px;
         background: linear-gradient(135deg, #e94560, #0f3460);
@@ -5529,7 +5586,7 @@ function createStatusCard(zoneName) {
     // 윈디 버튼
     if (typeof WINDY_URL_MAPPING !== 'undefined' && WINDY_URL_MAPPING[zoneName]) {
         const windyBtn = document.createElement('button');
-        windyBtn.innerHTML = '<i class=\"fa-solid fa-wind\"></i> 윈디';
+        windyBtn.innerHTML = '윈디';
         windyBtn.style.cssText = `
             padding: 5px 10px;
             background: linear-gradient(135deg, #00c6ff, #0072ff);
