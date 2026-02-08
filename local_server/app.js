@@ -9773,12 +9773,17 @@ window.renderAlertAdminContent = async function (tabId, targetContainer = null) 
             if (h.tmRef && group.tmFc && h.tmRef === group.tmFc) return true;
 
             // [Fallback] 기존 내용 기반 매칭 (수동 발송 등)
-            return h.content?.includes(group.typeName) && h.time?.includes(group.headerTime?.substring(4, 10));
+            // [수정] 종류와 시각뿐만 아니라 탭(tabId) 정보가 일치해야 함 (이미지 3 오판독 방지)
+            const contentMatch = h.content?.includes(group.typeName) && h.time?.includes(group.headerTime?.substring(4, 10));
+            return contentMatch && (h.tab === tabId || h.tab?.startsWith(tabId));
         });
 
-        const sentLog = isSent ? pushHistory.find(h =>
-            ((h.tmRef && group.tmFc && h.tmRef === group.tmFc) || (h.content?.includes(group.typeName) && h.time?.includes(group.headerTime?.substring(4, 10))))
-        ) : null;
+        const sentLog = isSent ? pushHistory.find(h => {
+            const tabMatch = (group.isLevelChange ? h.tab === 'level' : (h.tab === tabId || h.tab?.startsWith(tabId)));
+            if (!tabMatch) return false;
+            if (h.tmRef && group.tmFc && h.tmRef === group.tmFc) return true;
+            return h.content?.includes(group.typeName) && h.time?.includes(group.headerTime?.substring(4, 10));
+        }) : null;
 
         const isAuto = sentLog?.type === 'auto';
         let statusText = '';
@@ -9848,8 +9853,8 @@ window.renderAlertAdminContent = async function (tabId, targetContainer = null) 
                         </div>
                       ` : `
                         <button onclick="window.sendManualPushFromGroup('${group.key}', '${tabId}')" 
-                                style="background:#ef4444;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:0.75rem;font-weight:800;cursor:pointer;">
-                            ${isSent ? '수동 발송완료' : '푸시 발송'}
+                                style="background:${isSent ? '#475569' : '#ef4444'};color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:0.75rem;font-weight:800;cursor:pointer;">
+                            수동발송
                         </button>
                     `}
                 </div>

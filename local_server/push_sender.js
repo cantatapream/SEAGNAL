@@ -41,7 +41,10 @@ async function processAndSendNotifications(changes) {
             const level = curr.wrnLvl;
 
             // (1) 새로 생겼거나 등급이 바뀐 경우 -> '발표' 알림
-            if (!prev || prev.wrnLvl !== curr.wrnLvl) {
+            // [분석 반영] 단, '예비 -> 주의보' 전환은 동일 특보의 시간 확정 과정이므로 신규 발표에서 제외
+            const isPreToAdvisory = (prev && prev.wrnLvl === '예비' && curr.wrnLvl === '주의보');
+
+            if (!prev || (prev.wrnLvl !== curr.wrnLvl && !isPreToAdvisory)) {
                 const scenario = 'publish';
                 addToGroup(groups, scenario, typeName, level, {
                     zones: [zone],
@@ -50,8 +53,8 @@ async function processAndSendNotifications(changes) {
                     tmYn: curr.tmYn
                 });
             }
-            // (2) 등급은 같은데 시각만 바뀐 경우 -> '시각 변경' 알림
-            else if (prev.tmEf !== curr.tmEf) {
+            // (2) 등급은 같은데 시각만 바뀐 경우이거나, '예비 -> 주의보'로 시각이 구체화된 경우 -> '시각 변경' 알림
+            else if (prev.tmEf !== curr.tmEf || isPreToAdvisory) {
                 const scenario = 'time_ef_change';
                 addToGroup(groups, scenario, typeName, level, {
                     zones: [zone],
@@ -190,6 +193,7 @@ async function sendToApi(payload) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 isManualGroupSend: true, // 템플릿 엔진 사용 트리거
+                type: 'auto', // [추가] 자동 발송 타입 명시
                 payload: payload
             })
         });

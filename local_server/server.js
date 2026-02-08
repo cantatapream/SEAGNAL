@@ -83,6 +83,7 @@ const dataCache = {
     warnings: null,
     buoys: null,
     forecasts: null,
+    zoneForecasts: null,
     notice: null,
     promo: null, // 홍보 게시판 데이터
     lastUpdate: {}
@@ -94,6 +95,7 @@ function refreshCache() {
         warnings: 'weather_alerts.json',
         buoys: 'buoys.json',
         forecasts: 'general_forecasts.json',
+        zoneForecasts: 'zone_forecasts.json',
         notice: 'notice.json',
         promo: 'promo.json'
     };
@@ -200,6 +202,7 @@ app.post('/api/force-update/:type', async (req, res) => {
     try {
         if (type === 'buoys') await scheduler.collectBuoys();
         else if (type === 'general') await scheduler.collectGeneralForecasts();
+        else if (type === 'zone') await scheduler.collectZoneForecasts();
         else return res.status(400).json({ error: '잘못된 타입' });
 
         // 캐시 즉시 갱신
@@ -239,6 +242,10 @@ app.get('/api/forecasts', (req, res) => {
 });
 
 // 4. 해구별 기상전망
+app.get('/api/marine-zone-forecasts', (req, res) => {
+    if (dataCache.zoneForecasts) res.json(dataCache.zoneForecasts);
+    else res.status(404).json({ error: '데이터 준비 중' });
+});
 
 
 // 5. 공지사항 (GET)
@@ -1356,17 +1363,21 @@ app.post('/api/push-custom', async (req, res) => {
                 }).join('\n');
             };
 
-            // 특보 명칭 (예: 풍랑주의보)
-            const fullTitle = `${typeName}${level ? ' ' + level : ''}`.trim();
+            // [분석 반영] '예비' 등급은 실질적으로 '주의보'를 의미하므로 명칭 보정
+            let effectiveLevel = level;
+            if (level === '예비') {
+                effectiveLevel = '주의보';
+            }
+
+            // 특보 명칭 (예: 풍랑주의보) - 보정된 등급 사용
+            const fullTitle = `${typeName}${effectiveLevel ? ' ' + effectiveLevel : ''}`.trim();
 
             // ========================================================================
             // 1. 발표 (예비특보)
             // ========================================================================
             if (templateId === 'publish') {
-                // level이 '예비'면 typeName만 사용 (중복 방지: "풍랑 예비 예비 발표" → "풍랑 예비 발표")
-                // level이 '경보' 등이면 fullTitle 사용 ("풍랑 경보 예비 발표")
-                const titleForPublish = (level === '예비') ? typeName : fullTitle;
-                genTitle = `📢 ${titleForPublish} 예비 발표`;
+                // [수정] "풍랑 주의보 예비 발표"와 같은 중복 표현을 제거하고 "풍랑 주의보 발표"로 통일
+                genTitle = `📢 ${fullTitle} 발표`;
                 const grouped = groupByTime(items, 'tmEf');
                 genBody = formatGroupedMessage(grouped, '발효예정');
             }
@@ -1565,7 +1576,7 @@ app.post('/api/push-custom', async (req, res) => {
             target: histTarget,
             count: successCount,
             status: 'sent',
-            type: 'manual',
+            type: req.body.type || 'manual', // [수정] 요청 시 전달받은 타입(auto 등)이 있으면 사용
             tab: isManualGroupSend ? (payload.templateId || 'active') : 'custom',
             tmRef: isManualGroupSend ? (payload.items[0].tmFc || payload.items[0].tmEf || '') : ''
         };
