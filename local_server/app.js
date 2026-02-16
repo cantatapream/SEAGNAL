@@ -8153,6 +8153,9 @@ async function renderUnifiedAlertContent(container) {
             <div>
                 <i class="fa-solid fa-tower-broadcast" style="color:#ef4444;"></i> 실시간 특보 알림 관리
             </div>
+            <button onclick="openAlertTestModal()" style="padding:8px 16px; background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:0.85rem; font-weight:600;">
+                <i class="fa-solid fa-flask"></i> 특보 수집 테스트
+            </button>
         </div>
         
         <div class="admin-sub-tabs">
@@ -8182,6 +8185,252 @@ async function renderUnifiedAlertContent(container) {
     // 초기 서브탭: 발표
     switchAlertAdminTabInternal('publish');
 }
+
+// ============================================================================
+// [특보 수집 테스트] 팝업 모달
+// ============================================================================
+
+window.openAlertTestModal = function () {
+    const existing = document.getElementById('alert-test-modal-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'alert-test-modal-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+    overlay.innerHTML = `
+        <div style="background:#1e293b;border-radius:16px;width:95%;max-width:900px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,0.1);">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0;">
+                <h3 style="margin:0;color:#fff;font-size:1.1rem;"><i class="fa-solid fa-flask" style="color:#8b5cf6;"></i> 특보 수집 테스트</h3>
+                <button onclick="this.closest('#alert-test-modal-overlay').remove()" style="background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer;">&times;</button>
+            </div>
+            <div style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0;">
+                <button id="atm-tab-status" onclick="switchAlertTestTab('status')" class="atm-tab" style="flex:1;padding:12px;background:rgba(99,102,241,0.2);color:#a5b4fc;border:none;cursor:pointer;font-weight:600;font-size:0.9rem;border-bottom:2px solid #6366f1;">
+                    <i class="fa-solid fa-database"></i> 수집 현황
+                </button>
+                <button id="atm-tab-collect" onclick="switchAlertTestTab('collect')" class="atm-tab" style="flex:1;padding:12px;background:transparent;color:#94a3b8;border:none;cursor:pointer;font-weight:600;font-size:0.9rem;border-bottom:2px solid transparent;">
+                    <i class="fa-solid fa-download"></i> 통보문 수집
+                </button>
+            </div>
+            <div id="atm-content" style="flex:1;overflow-y:auto;padding:20px;"></div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    switchAlertTestTab('status');
+};
+
+window.switchAlertTestTab = function (tabId) {
+    ['status', 'collect'].forEach(id => {
+        const btn = document.getElementById('atm-tab-' + id);
+        if (!btn) return;
+        if (id === tabId) { btn.style.background = 'rgba(99,102,241,0.2)'; btn.style.color = '#a5b4fc'; btn.style.borderBottom = '2px solid #6366f1'; }
+        else { btn.style.background = 'transparent'; btn.style.color = '#94a3b8'; btn.style.borderBottom = '2px solid transparent'; }
+    });
+    const content = document.getElementById('atm-content');
+    if (tabId === 'status') renderATMStatus(content);
+    else renderATMCollect(content);
+};
+
+// --- [수집 현황] 탭 ---
+async function renderATMStatus(container) {
+    container.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;">로딩 중...</div>';
+    try {
+        const [alertsRes, crawlRes] = await Promise.all([
+            fetch('/api/weather-alerts').then(r => r.json()),
+            fetch('/api/admin/crawl-status').then(r => r.json())
+        ]);
+        const isPaused = crawlRes.paused;
+        container.innerHTML = `
+            <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+                <button onclick="atmReset()" style="padding:8px 16px;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
+                    <i class="fa-solid fa-trash-can"></i> 초기화
+                </button>
+                <button id="atm-crawl-toggle" onclick="atmCrawlToggle()" style="padding:8px 16px;background:linear-gradient(135deg,${isPaused ? '#22c55e,#16a34a' : '#f59e0b,#d97706'});color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
+                    <i class="fa-solid ${isPaused ? 'fa-play' : 'fa-pause'}"></i> ${isPaused ? '크롤링 시작' : '크롤링 정지'}
+                </button>
+                <button onclick="renderATMStatus(document.getElementById('atm-content'))" style="padding:8px 16px;background:rgba(255,255,255,0.1);color:#94a3b8;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;">
+                    <i class="fa-solid fa-refresh"></i> 새로고침
+                </button>
+            </div>
+            <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;overflow:auto;max-height:55vh;">
+                <pre style="margin:0;color:#e2e8f0;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;font-family:'Courier New',monospace;">${JSON.stringify(alertsRes, null, 2)}</pre>
+            </div>`;
+    } catch (e) { container.innerHTML = '<div style="color:#ef4444;padding:20px;">오류: ' + e.message + '</div>'; }
+}
+
+window.atmReset = async function () {
+    if (!confirm('특보 장부를 초기화하시겠습니까?\\n모든 수집 데이터가 삭제됩니다.')) return;
+    try {
+        const res = await fetch('/api/admin/alerts-reset', { method: 'POST' });
+        const data = await res.json();
+        alert(data.message || '초기화 완료');
+        renderATMStatus(document.getElementById('atm-content'));
+    } catch (e) { alert('초기화 실패: ' + e.message); }
+};
+
+window.atmCrawlToggle = async function () {
+    try {
+        await fetch('/api/admin/crawl-toggle', { method: 'POST' });
+        renderATMStatus(document.getElementById('atm-content'));
+    } catch (e) { alert('상태 변경 실패: ' + e.message); }
+};
+
+// --- [통보문 수집] 탭 ---
+function renderATMCollect(container) {
+    const today = new Date().toISOString().substring(0, 10);
+    container.innerHTML = `
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+            <input type="date" id="atm-date-input" value="${today}" style="padding:8px 12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:#fff;font-size:0.9rem;" />
+            <button onclick="atmFetchReports()" style="padding:8px 16px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
+                <i class="fa-solid fa-search"></i> 조회
+            </button>
+            <button id="atm-collect-all-btn" onclick="atmCollectAll()" style="display:none;padding:8px 16px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
+                <i class="fa-solid fa-download"></i> 모두 수집
+            </button>
+        </div>
+        <div id="atm-progress" style="display:none;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                <span id="atm-progress-text" style="color:#a5b4fc;font-size:0.85rem;">0/0건 처리 중...</span>
+                <span id="atm-progress-pct" style="color:#94a3b8;font-size:0.85rem;">0%</span>
+            </div>
+            <div style="background:rgba(0,0,0,0.3);border-radius:4px;height:6px;overflow:hidden;">
+                <div id="atm-progress-bar" style="background:linear-gradient(90deg,#6366f1,#8b5cf6);height:100%;width:0%;transition:width 0.3s;border-radius:4px;"></div>
+            </div>
+        </div>
+        <div id="atm-report-list" style="color:#94a3b8;font-size:0.9rem;">날짜를 선택하고 [조회] 버튼을 눌러주세요.</div>`;
+}
+
+window._atmResults = {};
+window._atmReports = [];
+
+window.atmFetchReports = async function () {
+    const date = document.getElementById('atm-date-input').value;
+    if (!date) return alert('날짜를 선택해주세요.');
+    const listEl = document.getElementById('atm-report-list');
+    listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">통보문 목록을 불러오는 중...</div>';
+    try {
+        const res = await fetch('/api/admin/reports?date=' + date);
+        const data = await res.json();
+        if (data.count === 0) {
+            listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">해당 날짜에 [특보]/[예비] 통보문이 없습니다.</div>';
+            document.getElementById('atm-collect-all-btn').style.display = 'none';
+            return;
+        }
+        document.getElementById('atm-collect-all-btn').style.display = 'inline-block';
+        window._atmReports = data.reports;
+        window._atmResults = {};
+        listEl.innerHTML = data.reports.map((r, i) => `
+            <div id="atm-row-${i}" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:6px;flex-wrap:wrap;">
+                <span style="flex:1;color:#e2e8f0;font-size:0.85rem;min-width:200px;">${r.title}</span>
+                <span style="color:#64748b;font-size:0.7rem;word-break:break-all;">${r.id}</span>
+                <div style="display:flex;gap:6px;flex-shrink:0;">
+                    <button id="atm-cb-${i}" onclick="atmCollectOne(${i})" style="padding:5px 12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">수집</button>
+                    <button id="atm-rb-${i}" onclick="atmShowResult(${i})" style="display:none;padding:5px 12px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">결과</button>
+                </div>
+            </div>`).join('');
+    } catch (e) { listEl.innerHTML = '<div style="color:#ef4444;padding:20px;">오류: ' + e.message + '</div>'; }
+};
+
+window.atmCollectOne = async function (i) {
+    const report = window._atmReports[i];
+    const btn = document.getElementById('atm-cb-' + i);
+    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 수집 중'; btn.style.background = 'rgba(255,255,255,0.1)';
+    try {
+        const res = await fetch('/api/admin/report-collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: report.id, title: report.title }) });
+        const data = await res.json();
+        window._atmResults[i] = data;
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> 완료'; btn.style.background = 'rgba(34,197,94,0.3)'; btn.style.color = '#86efac';
+        document.getElementById('atm-rb-' + i).style.display = 'inline-block';
+    } catch (e) { btn.innerHTML = '<i class="fa-solid fa-xmark"></i> 실패'; btn.style.background = 'rgba(239,68,68,0.3)'; btn.style.color = '#fca5a5'; }
+};
+
+window.atmCollectAll = async function () {
+    const reports = window._atmReports;
+    if (!reports || reports.length === 0) return;
+    if (!confirm(reports.length + '건의 통보문을 모두 수집하시겠습니까?')) return;
+    const progressEl = document.getElementById('atm-progress');
+    const pText = document.getElementById('atm-progress-text');
+    const pPct = document.getElementById('atm-progress-pct');
+    const pBar = document.getElementById('atm-progress-bar');
+    progressEl.style.display = 'block';
+    for (let i = 0; i < reports.length; i++) {
+        const pct = Math.round((i / reports.length) * 100);
+        pText.textContent = (i + 1) + '/' + reports.length + '건 처리 중...';
+        pPct.textContent = pct + '%'; pBar.style.width = pct + '%';
+        await atmCollectOne(i);
+    }
+    pText.textContent = reports.length + '/' + reports.length + '건 완료!';
+    pPct.textContent = '100%'; pBar.style.width = '100%';
+};
+
+// --- [결과 팝업] ---
+window.atmShowResult = function (i) {
+    const data = window._atmResults[i];
+    if (!data) return alert('수집 결과가 없습니다.');
+    const old = document.getElementById('atm-result-popup');
+    if (old) old.remove();
+
+    const popup = document.createElement('div');
+    popup.id = 'atm-result-popup';
+    popup.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:10001;display:flex;align-items:center;justify-content:center;';
+    popup.onclick = (e) => { if (e.target === popup) popup.remove(); };
+
+    const appliedBadge = data.applied
+        ? '<span style="background:rgba(34,197,94,0.2);color:#86efac;padding:2px 8px;border-radius:4px;font-size:0.75rem;">장부 반영됨</span>'
+        : '<span style="background:rgba(245,158,11,0.2);color:#fcd34d;padding:2px 8px;border-radius:4px;font-size:0.75rem;">미반영</span>';
+    const kwBadges = (data.foundKeywords || []).map(kw => '<span style="background:rgba(99,102,241,0.2);color:#a5b4fc;padding:2px 6px;border-radius:4px;font-size:0.7rem;">' + kw + '</span>').join(' ');
+
+    popup.innerHTML = `
+        <div style="background:#1e293b;border-radius:14px;width:90%;max-width:750px;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,0.1);">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.1);">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <h4 style="margin:0;color:#fff;font-size:0.95rem;">수집 결과</h4>${appliedBadge} ${kwBadges}
+                </div>
+                <button onclick="document.getElementById('atm-result-popup').remove()" style="background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer;">&times;</button>
+            </div>
+            <div style="font-size:0.8rem;color:#94a3b8;padding:8px 18px 0;">${data.title || data.reportId || ''}</div>
+            <div style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.1);">
+                <button id="atr-tab-json" onclick="atmSwitchResultTab('json')" style="flex:1;padding:10px;background:rgba(99,102,241,0.2);color:#a5b4fc;border:none;cursor:pointer;font-weight:600;font-size:0.85rem;border-bottom:2px solid #6366f1;">JSON</button>
+                <button id="atr-tab-ai" onclick="atmSwitchResultTab('ai')" style="flex:1;padding:10px;background:transparent;color:#94a3b8;border:none;cursor:pointer;font-weight:600;font-size:0.85rem;border-bottom:2px solid transparent;">AI 분석</button>
+            </div>
+            <div id="atr-content" style="flex:1;overflow-y:auto;padding:16px;"></div>
+        </div>`;
+    document.body.appendChild(popup);
+    window._atmCurResult = data;
+    atmSwitchResultTab('json');
+};
+
+window.atmSwitchResultTab = function (tabId) {
+    ['json', 'ai'].forEach(id => {
+        const btn = document.getElementById('atr-tab-' + id);
+        if (!btn) return;
+        if (id === tabId) { btn.style.background = 'rgba(99,102,241,0.2)'; btn.style.color = '#a5b4fc'; btn.style.borderBottom = '2px solid #6366f1'; }
+        else { btn.style.background = 'transparent'; btn.style.color = '#94a3b8'; btn.style.borderBottom = '2px solid transparent'; }
+    });
+    const ct = document.getElementById('atr-content');
+    const d = window._atmCurResult;
+    if (tabId === 'json') {
+        const j = { reportId: d.reportId, title: d.title, applied: d.applied, foundKeywords: d.foundKeywords, aiResult: d.aiResult, message: d.message || '' };
+        ct.innerHTML = '<div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:14px;overflow:auto;"><pre style="margin:0;color:#e2e8f0;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;font-family:Courier New,monospace;">' + JSON.stringify(j, null, 2) + '</pre></div>';
+    } else {
+        const aiArr = d.aiResult || [];
+        const aiHtml = aiArr.length > 0 ? aiArr.map((ev, idx) => {
+            const borderColor = ev.command === '해제' ? '#22c55e' : ev.command === '예비' ? '#f59e0b' : '#ef4444';
+            return '<div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:12px;margin-bottom:8px;border-left:3px solid ' + borderColor + ';">'
+                + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">'
+                + '<span style="font-weight:700;color:#fff;font-size:0.85rem;">#' + (idx+1) + ' ' + ev.type + '</span>'
+                + '<span style="background:rgba(255,255,255,0.1);color:#e2e8f0;padding:2px 8px;border-radius:4px;font-size:0.75rem;">' + ev.command + '</span>'
+                + '<span style="color:#94a3b8;font-size:0.75rem;">' + (ev.time||'') + '</span></div>'
+                + '<div style="color:#94a3b8;font-size:0.8rem;">구역: ' + (ev.zones||[]).join(', ') + '</div>'
+                + (ev.tmYn ? '<div style="color:#fcd34d;font-size:0.75rem;margin-top:4px;">해제예고: ' + ev.tmYn + '</div>' : '')
+                + '</div>';
+        }).join('') : '<div style="color:#94a3b8;padding:10px;">AI 분석 결과가 없습니다.</div>';
+        ct.innerHTML = '<div style="margin-bottom:16px;"><div style="color:#a5b4fc;font-weight:600;font-size:0.85rem;margin-bottom:8px;"><i class="fa-solid fa-robot"></i> AI 분석 결과 (' + aiArr.length + '건)</div>' + aiHtml + '</div>'
+            + '<div><div style="color:#a5b4fc;font-weight:600;font-size:0.85rem;margin-bottom:8px;"><i class="fa-solid fa-file-lines"></i> 원문 텍스트</div>'
+            + '<div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:14px;overflow:auto;max-height:35vh;"><pre style="margin:0;color:#cbd5e1;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;font-family:Courier New,monospace;">' + (d.rawText||'(내용 없음)') + '</pre></div></div>';
+    }
+};
 
 // (B) API 설정 섹션 렌더링
 // (B) API 설정 섹션 렌더링
