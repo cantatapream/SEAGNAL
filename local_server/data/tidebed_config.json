@@ -1,0 +1,18 @@
+{
+  "keys": [
+    {
+      "key": "PmxnR43icJwR7yzKjG612RncLikLD1RvZpPLgEJqUUx0vGQncdfuT9VjiqBlgiXMdcjyKopi4yvUPaPbcdIUfg==",
+      "used": 48,
+      "expiry": "2028-02-11",
+      "owner": "JIN"
+    },
+    {
+      "key": "7638d46d0afe442e2664227dd1834092f6fca61f8258973f8832ed8f59928ded",
+      "used": 0,
+      "expiry": "2028-02-13",
+      "owner": "LEE"
+    }
+  ],
+  "currentIndex": 0,
+  "lastResetDate": "2026-02-14"
+}

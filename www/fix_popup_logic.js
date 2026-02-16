@@ -329,11 +329,9 @@ window.AlertDetailPopup = {
                 e.preventDefault();
                 const zoneName = e.target.dataset.zone;
                 this.close();
-                // 기존 app.js에 정의된 scrollToZone이 있다면 사용, 없으면 패스
+                // 지도 이동 실행
                 if (window.AlertDetailPopup && window.AlertDetailPopup.scrollToZone) {
-                    // 여기서는 원본 그대로 복사했으므로 자신 호출
-                    // 하지만 이 객체 안에 scrollToZone이 없으면(=위에서 잘랐으면) 에러남.
-                    // 따라서 위에서 createZoneLinks 등 모든 메서드를 다 포함해야 함.
+                    window.AlertDetailPopup.scrollToZone(zoneName, data.status);
                 }
             });
         });
@@ -409,12 +407,79 @@ window.AlertDetailPopup.scrollToZone = function (zoneName, status) {
     }, 500);
 };
 
-// 푸시 팝업 자동 체크 실행
-(function checkForPushPopup() {
+// 푸시 팝업 자동 체크 함수 (window에 등록하여 capacitor-plugins.js에서 호출 가능)
+window.checkForPushPopup = async function () {
     const params = new URLSearchParams(window.location.search);
+    const status = params.get('status');
+
+    // [New] 시각 변경 알림인 경우 팝업 표시 및 지도 이동 기능을 모두 생략함 (Option A)
+    if (status === 'time_ef_change' || status === 'time_yn_change') {
+        console.log('[AlertDetailPopup] 단순 시각 변경 알림은 팝업 및 화면 이동을 생략합니다.');
+        // 앱 홈 화면으로 진입한 것처럼 보이도록 URL 파라미터 제거
+        if (window.history.replaceState) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        return;
+    }
+
     if (params.get('popup') === 'true') {
         const alertType = params.get('alertType') || '';
         if (alertType.includes('해일')) return;
+
+        const zones = params.get('zones') ? params.get('zones').split(',') : [];
+
+        // [New] 중복 특보 체크 (경보 발효 중 + 주의보 예비 동시 존재 시 팝업 비표시)
+        try {
+            const response = await fetch('/data/weather_alerts.json');
+            if (response.ok) {
+                const alertsData = await response.json();
+                const currentData = alertsData.current || {};
+
+                // 해역별로 current와 upcoming이 모두 존재하고 등급이 다른지 확인
+                let hasDualLevelAlert = false;
+
+                // 재귀적으로 해역 찾기 (4단계 중첩 구조 대응)
+                const findZoneData = (obj, targetZone) => {
+                    if (!obj || typeof obj !== 'object') return null;
+                    for (const [key, value] of Object.entries(obj)) {
+                        if (key === targetZone && value && (value.current !== undefined || value.upcoming !== undefined)) {
+                            return value;
+                        }
+                        if (typeof value === 'object' && value !== null) {
+                            const found = findZoneData(value, targetZone);
+                            if (found) return found;
+                        }
+                    }
+                    return null;
+                };
+
+                for (const zone of zones) {
+                    const zoneData = findZoneData(currentData, zone);
+                    if (zoneData && zoneData.current && zoneData.upcoming) {
+                        // 둘 다 존재하고 등급이 다른 경우
+                        const currentLevel = zoneData.current.wrnLvl;
+                        const upcomingLevel = zoneData.upcoming.wrnLvl;
+                        if (currentLevel !== upcomingLevel &&
+                            currentLevel !== '예비' && upcomingLevel !== '예비') {
+                            // 경보/주의보 조합인 경우
+                            if ((currentLevel === '경보' && upcomingLevel === '주의보') ||
+                                (currentLevel === '주의보' && upcomingLevel === '경보')) {
+                                hasDualLevelAlert = true;
+                                console.log(`[AlertDetailPopup] 중복 특보 감지: ${zone} (${currentLevel} + ${upcomingLevel}) - 팝업 비표시`);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (hasDualLevelAlert) {
+                    console.log('[AlertDetailPopup] 등급이 다른 2개의 특보가 동시 존재하여 팝업을 표시하지 않습니다.');
+                    return; // 팝업 표시하지 않음
+                }
+            }
+        } catch (err) {
+            console.warn('[AlertDetailPopup] 특보 데이터 확인 실패, 팝업 표시 진행:', err.message);
+        }
 
         const data = {
             alertType: alertType,
@@ -422,7 +487,7 @@ window.AlertDetailPopup.scrollToZone = function (zoneName, status) {
             tmFc: params.get('tmFc'),
             tmEf: params.get('tmEf'),
             tmYn: params.get('tmYn'),
-            zones: params.get('zones') ? params.get('zones').split(',') : [],
+            zones: zones,
             prevAlertType: params.get('prevAlertType')
         };
 
@@ -430,4 +495,8 @@ window.AlertDetailPopup.scrollToZone = function (zoneName, status) {
             if (window.AlertDetailPopup) window.AlertDetailPopup.show(data);
         }, 500);
     }
-})();
+};
+
+// 페이지 로드 시 자동 실행
+window.checkForPushPopup();
+

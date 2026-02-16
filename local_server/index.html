@@ -26,7 +26,7 @@
         rel="stylesheet">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="style.css?v=Badge_Update_20260101">
+    <link rel="stylesheet" href="style.css?v=Margin_Final_v5">
     <link rel="stylesheet" href="splash.css?v=Badge_Update_20260101">
 
 
@@ -65,6 +65,7 @@
     {
         "imports": {
             "@capacitor/core": "./assets/vendor/core/index.js",
+            "@capacitor/geolocation": "./assets/vendor/geolocation/index.js",
             "@capacitor/push-notifications": "./assets/vendor/push-notifications/index.js",
             "@capacitor/splash-screen": "./assets/vendor/splash-screen/index.js"
         }
@@ -225,7 +226,7 @@
                         <span style="color: rgba(255,255,255,0.5); font-size: 0.85rem; margin-right: 8px;">
                             <i class="fa-solid fa-spinner fa-spin"></i>
                         </span>
-                        <i id="main-accordion-icon" class="fa-solid fa-chevron-down"></i>
+
                     </div>
                 </div>
 
@@ -246,7 +247,6 @@
                                     <span style="font-size: 1.5rem; margin-right: 8px;">🌅</span> 동해 (East Sea) <span
                                         class="badge count-badge" id="east-count">0건</span>
                                 </div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="east-sea-list">
                                 <!-- Items will be injected here -->
@@ -260,7 +260,6 @@
                                     <span style="font-size: 1.5rem; margin-right: 8px;">🌊</span> 서해 (West Sea) <span
                                         class="badge count-badge" id="west-count">0건</span>
                                 </div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="west-sea-list">
                                 <!-- Items will be injected here -->
@@ -274,7 +273,6 @@
                                     <span style="font-size: 1.5rem; margin-right: 8px;">🏖️</span> 남해 (South Sea) <span
                                         class="badge count-badge" id="south-count">0건</span>
                                 </div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="south-sea-list">
                                 <!-- Items will be injected here -->
@@ -289,7 +287,6 @@
                                         style="width: 24px; vertical-align: text-bottom; margin-right: 8px;"> 제주해역 (Jeju
                                     Sea) <span class="badge count-badge" id="jeju-count">0건</span>
                                 </div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="jeju-sea-list">
                                 <!-- Items will be injected here -->
@@ -324,7 +321,7 @@
                             해역별 기상현황</h2>
                     </div>
                     <div class="header-status">
-                        <i id="marine-status-accordion-icon" class="fa-solid fa-chevron-down"></i>
+
                     </div>
                 </div>
 
@@ -336,7 +333,6 @@
                                 <div class="sea-title"><span style="font-size: 1.5rem; margin-right: 8px;">🌅</span> 동해
                                     (East Sea) <span class="badge count-badge" id="status-east-count"
                                         style="background: rgba(79, 195, 247, 0.3); color: #4fc3f7;">0개 구역</span></div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="status-east-sea-list"></div>
                         </div>
@@ -347,7 +343,6 @@
                                 <div class="sea-title"><span style="font-size: 1.5rem; margin-right: 8px;">🌊</span> 서해
                                     (West Sea) <span class="badge count-badge" id="status-west-count"
                                         style="background: rgba(79, 195, 247, 0.3); color: #4fc3f7;">0개 구역</span></div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="status-west-sea-list"></div>
                         </div>
@@ -358,7 +353,6 @@
                                 <div class="sea-title"><span style="font-size: 1.5rem; margin-right: 8px;">🏖️</span> 남해
                                     (South Sea) <span class="badge count-badge" id="status-south-count"
                                         style="background: rgba(79, 195, 247, 0.3); color: #4fc3f7;">0개 구역</span></div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="status-south-sea-list"></div>
                         </div>
@@ -370,7 +364,6 @@
                                         style="width: 24px; vertical-align: text-bottom; margin-right: 8px;"> 제주해역 (Jeju
                                     Sea) <span class="badge count-badge" id="status-jeju-count"
                                         style="background: rgba(79, 195, 247, 0.3); color: #4fc3f7;">0개 구역</span></div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="status-jeju-sea-list"></div>
                         </div>
@@ -396,6 +389,10 @@
 
                     <div class="sea-zone-guide-overlay" id="sea-zone-guide-overlay">
                         <span class="guide-text" id="sea-zone-guide-text">기상을 확인할 해구를 선택해주세요</span>
+                        <button id="sea-zone-my-location-btn" class="my-location-btn-overlay"
+                            onclick="moveSeaZoneMapToMyLocation()" title="내 위치 찾기">
+                            내 위치
+                        </button>
                     </div>
                     <div id="sea-zone-map" class="sea-zone-map">
                         <!-- SVG 지도가 여기에 렌더링됨 -->
@@ -455,50 +452,7 @@
                     </p>
                 </div>
 
-                <!-- 기상청 태풍 정보 아이프레임 -->
-                <div class="typhoon-iframe-wrapper" style="
-                    position: relative;
-                    width: 100%;
-                    height: 500px; /* 고정 높이로 안정성 확보 */
-                    border-radius: 12px;
-                    overflow: hidden;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
-                    background: #1a1a1a; /* 배경색을 어둡게 변경 */
-                ">
-                    <!-- 예외 처리용 배경 버튼 -->
-                    <div style="
-                        position: absolute;
-                        top: 50%;
-                        left: 50%;
-                        transform: translate(-50%, -50%);
-                        text-align: center;
-                        z-index: 0;
-                    ">
-                        <a href="https://www.weather.go.kr/w/typhoon/ko/weather/typhoon_02.jsp" target="_blank" style="
-                                display: inline-block;
-                                padding: 10px 20px;
-                                background: #334155;
-                                color: #fff;
-                                text-decoration: none;
-                                border-radius: 6px;
-                                font-size: 0.9rem;
-                            ">
-                            기상청 사이트에서 보기
-                        </a>
-                    </div>
 
-                    <iframe src="https://www.weather.go.kr/w/typhoon/ko/weather/typhoon_02.jsp" id="typhoon-iframe"
-                        class="typhoon-iframe" scrolling="yes" loading="lazy" allow="geolocation" style="
-                                position: absolute;
-                                width: 100%;
-                                height: calc(100% + 80px); /* 상단 헤더를 더 넉넉히 가림 */
-                                border: none;
-                                z-index: 1;
-                                background: white;
-                                top: -80px;
-                                left: 0;
-                            " title="기상청 태풍 정보"></iframe>
-                </div>
             </section>
 
             <!-- 섹션 4: 조석 및 일출몰 정보 -->
@@ -511,7 +465,7 @@
                 </div>
 
                 <!-- 날짜 네비게이션 -->
-                <div class="tide-date-navigator">
+                <div class="tide-date-navigator" style="margin-bottom: 0px !important;">
                     <button class="tide-nav-btn" onclick="prevTideDate()" title="이전 날">
                         <i class="fa-solid fa-chevron-left"></i>
                     </button>
@@ -527,17 +481,15 @@
                     </button>
 
                 </div>
-                <input type="date" id="tide-date-picker-hidden"
-                    style="position: absolute; opacity: 0; pointer-events: none;" onchange="onTideDatePickerChange()">
-
-                <!-- 즐겨찾기 목록 -->
-                <div id="tide-favorites-container" class="tide-favorites-container" style="display: none;">
-                    <!-- 즐겨찾기 버튼들이 여기에 추가됨 -->
+                <!-- 조석 지도 -->
+                <div class="sea-zone-map-container" style="margin-top: 5px !important; margin-bottom: 5px;">
+                    <div id="tide-map" style="width: 100%; height: 500px; border-radius: 10px; overflow: hidden;"></div>
                 </div>
 
-                <!-- 조석 지도 -->
-                <div class="sea-zone-map-container" style="margin-bottom: 20px;">
-                    <div id="tide-map" style="width: 100%; height: 500px; border-radius: 10px; overflow: hidden;"></div>
+                <!-- 즐겨찾기 목록 (지도의 아래로 이동) -->
+                <div id="tide-favorites-container" class="tide-favorites-container"
+                    style="display: none; margin-bottom: 20px;">
+                    <!-- 즐겨찾기 버튼들이 여기에 추가됨 -->
                 </div>
 
                 <!-- 출처 정보 -->
@@ -634,7 +586,6 @@
                 <div class="alert-badges">
                     <!-- Badges injected here -->
                 </div>
-                <i class="fa-solid fa-chevron-right detail-arrow"></i>
             </div>
             <div class="alert-details hidden">
                 <div class="detail-row">
@@ -656,7 +607,7 @@
     <!-- 해구도 정보 모달은 app.js에서 동적으로 생성됨 -->
 
     <!-- 조석 데이터 및 로직 -->
-    <script src="tide.js"></script>
+    <script src="tide.js?v=DiurnalGaugeRemainingTime_20260209"></script>
     <script src="tide_calendar.js"></script>
     <script src="seaZonesData.js"></script>
 
@@ -881,6 +832,39 @@
             </div>
         </div>
     </div>
+
+    <!-- 조석 즐겨찾기 관리 모달 (커스텀 팝업) -->
+    <div id="tide-fav-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 400px; min-height: auto; padding: 0;">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                <h3 id="tide-fav-modal-title" style="font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-star" style="color: #FFD700;"></i> 즐겨찾기 추가
+                </h3>
+                <button class="modal-close" onclick="closeTideFavModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <p id="tide-fav-modal-message"
+                    style="margin: 0 0 16px 0; color: #cbd5e1; font-size: 0.95rem; line-height: 1.6;"></p>
+                <div id="tide-fav-input-container">
+                    <input type="text" id="tide-fav-name-input" placeholder="즐겨찾기 이름을 입력해주세요."
+                        style="width: 100%; padding: 12px 16px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; color: #fff; font-size: 1rem; outline: none; transition: all 0.2s;"
+                        onfocus="this.style.borderColor='var(--accent-blue)'"
+                        onblur="this.style.borderColor='rgba(255,255,255,0.15)'">
+                </div>
+            </div>
+            <div class="modal-footer"
+                style="padding: 16px 20px; border-top: 1px solid rgba(255, 255, 255, 0.05); display: flex; justify-content: flex-end; gap: 12px; background: rgba(0,0,0,0.1);">
+                <button id="tide-fav-modal-cancel" onclick="closeTideFavModal()"
+                    style="padding: 10px 18px; background: rgba(255, 255, 255, 0.08); color: #ccc; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; cursor: pointer; font-size: 0.9rem; font-weight: 500; transition: all 0.2s;">
+                    취소
+                </button>
+                <button id="tide-fav-modal-confirm"
+                    style="padding: 10px 24px; background: var(--accent-blue); color: #fff; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
+                    확인
+                </button>
+            </div>
+        </div>
+    </div>
     <style>
         /* 토글 스위치 스타일 */
         .setting-item {
@@ -990,7 +974,7 @@
             flex-wrap: wrap;
             gap: 8px;
             margin-bottom: 15px;
-            padding: 10px;
+            padding: 5px 10px;
             background: rgba(0, 0, 0, 0.2);
             border-radius: 8px;
             align-items: center;

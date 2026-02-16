@@ -11,15 +11,20 @@
     "author": "",
     "license": "ISC",
     "dependencies": {
+        "@google-cloud/storage": "^7.19.0",
+        "@google/generative-ai": "^0.24.1",
         "body-parser": "^2.2.1",
+        "cheerio": "^1.2.0",
         "cloudinary": "^1.41.3",
         "cors": "^2.8.5",
         "dotenv": "^17.2.3",
         "express": "^4.18.2",
         "firebase-admin": "^13.6.0",
         "iconv-lite": "^0.7.2",
+        "lru-cache": "^7.18.3",
         "multer": "^2.0.2",
         "multer-storage-cloudinary": "^4.0.0",
+        "node-cron": "^4.2.1",
         "web-push": "^3.6.7"
     }
 }

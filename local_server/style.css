@@ -1467,7 +1467,7 @@ line-height: 1.1;
     align-items: center;
     justify-content: center;
     gap: 10px;
-    margin-bottom: 15px;
+    margin-bottom: 2px !important;
     padding: 8px 15px;
     background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
     border-radius: 10px;
@@ -1534,6 +1534,7 @@ line-height: 1.1;
     .tide-date-navigator {
         gap: 10px;
         padding: 12px 15px;
+        margin-bottom: 2px !important;
     }
 
     .tide-nav-btn,
@@ -2245,7 +2246,7 @@ line-height: 1.1;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 15px;
+    gap: 8px;
     white-space: nowrap;
     transition: all 0.3s ease;
 }
@@ -2264,24 +2265,23 @@ line-height: 1.1;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 6px 14px;
-    background: linear-gradient(135deg, #4285f4, #34a853);
+    padding: 4px 12px;
+    background: #3b82f6;
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     color: white;
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
     transition: all 0.3s ease;
     white-space: nowrap;
     height: auto;
     line-height: 1;
-    box-shadow: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .sea-zone-guide-overlay .my-location-btn-overlay:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(66, 133, 244, 0.4);
+    background: #2563eb;
 }
 
 .sea-zone-guide-overlay .my-location-btn-overlay:active {
@@ -3966,6 +3966,64 @@ line-height: 1.1;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+/* Unified Admin Accordion & Premium Details */
+.admin-accordion {
+    margin-top: 10px;
+}
+
+.admin-accordion summary::-webkit-details-marker {
+    display: none;
+}
+
+.admin-accordion summary {
+    user-select: none;
+    outline: none;
+    transition: background 0.2s;
+}
+
+.admin-accordion summary:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.admin-accordion[open] summary i {
+    transform: rotate(180deg);
+}
+
+.admin-accordion summary i {
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.admin-accordion-content {
+    animation: adminAccordionFade 0.3s ease-out;
+}
+
+@keyframes adminAccordionFade {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.tidebed-key-item {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
+    transition: all 0.2s;
+}
+
+.tidebed-key-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(96, 165, 250, 0.3);
+}
+
+
 /* ===== KMA Iframe Modal (통보문/특보종합 전용) ===== */
 .kma-iframe-modal {
     position: fixed;
@@ -4107,4 +4165,125 @@ line-height: 1.1;
 .hub-hybrid-toggle:hover {
     background: rgba(0, 0, 0, 0.3);
     border-color: rgba(16, 185, 129, 0.3);
+}
+
+/* ===== SEAGNAL Simple Modal (Premium Alert) ===== */
+.seagnal-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 40000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.seagnal-modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.seagnal-modal-content {
+    position: relative;
+    width: 100%;
+    max-width: 320px;
+    background: #1e293b;
+    border-radius: 20px;
+    padding: 25px;
+    text-align: center;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    animation: kmaSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.seagnal-modal-icon {
+    font-size: 2.5rem;
+    margin-bottom: 15px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.seagnal-modal-icon.error {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.seagnal-modal-title {
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin-bottom: 8px;
+}
+
+.seagnal-modal-message {
+    color: #94a3b8;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-bottom: 25px;
+}
+
+.seagnal-modal-btn {
+    width: 100%;
+    padding: 12px;
+    background: #3b82f6;
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.seagnal-modal-btn:active {
+    transform: scale(0.97);
+}
+
+.seagnal-modal.fade-out {
+    animation: fadeOut 0.2s ease-in forwards;
+}
+
+.seagnal-modal.fade-out .seagnal-modal-content {
+    animation: fadeOutDown 0.2s ease-in forwards;
+}
+
+@keyframes fadeOutDown {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+
+    to {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+}
+
+/* 해구 지도 내 위치 펄스 애니메이션 */
+@keyframes seaZoneLocationPulse {
+    0% {
+        transform: scale(0.8);
+        opacity: 0.8;
+    }
+
+    100% {
+        transform: scale(2.4);
+        opacity: 0;
+    }
+}
+
+.sea-zone-my-location-pulse {
+    animation: seaZoneLocationPulse 2s infinite;
 }

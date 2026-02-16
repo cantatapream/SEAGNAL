@@ -338,5 +338,17 @@ module.exports = {
     collectGeneralForecasts,
     collectZoneForecasts,
     getStatus: () => lastRunStatus,
-    getConfig: () => ({ KMA_HUB_KEY: CONFIG.KMA_HUB_KEY })
+    getConfig: () => ({ KMA_HUB_KEY: CONFIG.KMA_HUB_KEY }),
+    updateConfig: (newConfig) => {
+        try {
+            if (newConfig.KMA_HUB_KEY) {
+                CONFIG.KMA_HUB_KEY = newConfig.KMA_HUB_KEY;
+                fs.writeFileSync(CONFIG_FILE, JSON.stringify({ KMA_HUB_KEY: CONFIG.KMA_HUB_KEY }, null, 2), 'utf8');
+                return true;
+            }
+        } catch (e) {
+            console.error('API 설정 저장 실패:', e.message);
+        }
+        return false;
+    }
 };

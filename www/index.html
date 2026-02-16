@@ -65,6 +65,7 @@
     {
         "imports": {
             "@capacitor/core": "./assets/vendor/core/index.js",
+            "@capacitor/geolocation": "./assets/vendor/geolocation/index.js",
             "@capacitor/push-notifications": "./assets/vendor/push-notifications/index.js",
             "@capacitor/splash-screen": "./assets/vendor/splash-screen/index.js"
         }
@@ -225,7 +226,7 @@
                         <span style="color: rgba(255,255,255,0.5); font-size: 0.85rem; margin-right: 8px;">
                             <i class="fa-solid fa-spinner fa-spin"></i>
                         </span>
-                        <i id="main-accordion-icon" class="fa-solid fa-chevron-down"></i>
+
                     </div>
                 </div>
 
@@ -246,7 +247,6 @@
                                     <span style="font-size: 1.5rem; margin-right: 8px;">🌅</span> 동해 (East Sea) <span
                                         class="badge count-badge" id="east-count">0건</span>
                                 </div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="east-sea-list">
                                 <!-- Items will be injected here -->
@@ -260,7 +260,6 @@
                                     <span style="font-size: 1.5rem; margin-right: 8px;">🌊</span> 서해 (West Sea) <span
                                         class="badge count-badge" id="west-count">0건</span>
                                 </div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="west-sea-list">
                                 <!-- Items will be injected here -->
@@ -274,7 +273,6 @@
                                     <span style="font-size: 1.5rem; margin-right: 8px;">🏖️</span> 남해 (South Sea) <span
                                         class="badge count-badge" id="south-count">0건</span>
                                 </div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="south-sea-list">
                                 <!-- Items will be injected here -->
@@ -289,7 +287,6 @@
                                         style="width: 24px; vertical-align: text-bottom; margin-right: 8px;"> 제주해역 (Jeju
                                     Sea) <span class="badge count-badge" id="jeju-count">0건</span>
                                 </div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="jeju-sea-list">
                                 <!-- Items will be injected here -->
@@ -306,9 +303,9 @@
                                 일시적인 시스템 오류 또는 네트워크 문제일 수 있습니다.<br>
                                 잠시 후 다시 시도해주세요.
                             </p>
-                            <button onclick="fetchAllData()"
+                            <button onclick="window.location.reload()"
                                 style="margin-top: 20px; padding: 8px 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; color: white; cursor: pointer;">
-                                <i class="fa-solid fa-rotate-right"></i> 다시 시도
+                                <i class="fa-solid fa-rotate-right"></i> 앱 재시작
                             </button>
                         </div>
                     </div>
@@ -324,7 +321,7 @@
                             해역별 기상현황</h2>
                     </div>
                     <div class="header-status">
-                        <i id="marine-status-accordion-icon" class="fa-solid fa-chevron-down"></i>
+
                     </div>
                 </div>
 
@@ -336,7 +333,6 @@
                                 <div class="sea-title"><span style="font-size: 1.5rem; margin-right: 8px;">🌅</span> 동해
                                     (East Sea) <span class="badge count-badge" id="status-east-count"
                                         style="background: rgba(79, 195, 247, 0.3); color: #4fc3f7;">0개 구역</span></div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="status-east-sea-list"></div>
                         </div>
@@ -347,7 +343,6 @@
                                 <div class="sea-title"><span style="font-size: 1.5rem; margin-right: 8px;">🌊</span> 서해
                                     (West Sea) <span class="badge count-badge" id="status-west-count"
                                         style="background: rgba(79, 195, 247, 0.3); color: #4fc3f7;">0개 구역</span></div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="status-west-sea-list"></div>
                         </div>
@@ -358,7 +353,6 @@
                                 <div class="sea-title"><span style="font-size: 1.5rem; margin-right: 8px;">🏖️</span> 남해
                                     (South Sea) <span class="badge count-badge" id="status-south-count"
                                         style="background: rgba(79, 195, 247, 0.3); color: #4fc3f7;">0개 구역</span></div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="status-south-sea-list"></div>
                         </div>
@@ -370,7 +364,6 @@
                                         style="width: 24px; vertical-align: text-bottom; margin-right: 8px;"> 제주해역 (Jeju
                                     Sea) <span class="badge count-badge" id="status-jeju-count"
                                         style="background: rgba(79, 195, 247, 0.3); color: #4fc3f7;">0개 구역</span></div>
-                                <i class="fa-solid fa-chevron-down toggle-icon"></i>
                             </div>
                             <div class="alert-list" id="status-jeju-sea-list"></div>
                         </div>
@@ -455,50 +448,7 @@
                     </p>
                 </div>
 
-                <!-- 기상청 태풍 정보 아이프레임 -->
-                <div class="typhoon-iframe-wrapper" style="
-                    position: relative;
-                    width: 100%;
-                    height: 500px; /* 고정 높이로 안정성 확보 */
-                    border-radius: 12px;
-                    overflow: hidden;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
-                    background: #1a1a1a; /* 배경색을 어둡게 변경 */
-                ">
-                    <!-- 예외 처리용 배경 버튼 -->
-                    <div style="
-                        position: absolute;
-                        top: 50%;
-                        left: 50%;
-                        transform: translate(-50%, -50%);
-                        text-align: center;
-                        z-index: 0;
-                    ">
-                        <a href="https://www.weather.go.kr/w/typhoon/ko/weather/typhoon_02.jsp" target="_blank" style="
-                                display: inline-block;
-                                padding: 10px 20px;
-                                background: #334155;
-                                color: #fff;
-                                text-decoration: none;
-                                border-radius: 6px;
-                                font-size: 0.9rem;
-                            ">
-                            기상청 사이트에서 보기
-                        </a>
-                    </div>
 
-                    <iframe src="https://www.weather.go.kr/w/typhoon/ko/weather/typhoon_02.jsp" id="typhoon-iframe"
-                        class="typhoon-iframe" scrolling="yes" loading="lazy" allow="geolocation" style="
-                                position: absolute;
-                                width: 100%;
-                                height: calc(100% + 80px); /* 상단 헤더를 더 넉넉히 가림 */
-                                border: none;
-                                z-index: 1;
-                                background: white;
-                                top: -80px;
-                                left: 0;
-                            " title="기상청 태풍 정보"></iframe>
-                </div>
             </section>
 
             <!-- 섹션 4: 조석 및 일출몰 정보 -->
@@ -634,7 +584,6 @@
                 <div class="alert-badges">
                     <!-- Badges injected here -->
                 </div>
-                <i class="fa-solid fa-chevron-right detail-arrow"></i>
             </div>
             <div class="alert-details hidden">
                 <div class="detail-row">
@@ -656,56 +605,20 @@
     <!-- 해구도 정보 모달은 app.js에서 동적으로 생성됨 -->
 
     <!-- 조석 데이터 및 로직 -->
-
-    <!-- [리팩토링] 모듈화된 스크립트 로드 순서 중요 -->
-
-    <!-- 1. 핵심 코어 (설정, 유틸) -->
-    <script src="js/00_core/config.js"></script>
-    <script src="js/00_core/utils.js"></script>
-    <script src="js/00_core/formatters.js"></script>
-
-    <!-- 2. 정적 데이터 (Data Static) -->
-    <script src="js/99_data_static/zone_data.js"></script>
-    <script src="js/99_data_static/coastal_mapping.js"></script>
-    <script src="js/99_data_static/buoy_mapping.js"></script>
-    <script src="js/99_data_static/sea_regions.js"></script>
-    <script src="js/99_data_static/buoy_locations.js"></script>
-    <script src="js/99_data_static/windy_config.js"></script>
-
-    <!-- 3. API 서비스 (Data Fetching) -->
-    <script src="js/02_api/kma_api.js"></script>
-    <script src="js/02_api/buoy_api.js"></script>
-    <script src="js/02_api/weather_service.js"></script>
-
-    <!-- 4. 해구도 지도 (Seazone Map) -->
-    <script src="js/03_seazone/seazone_config.js"></script>
-    <script src="js/03_seazone/seazone_core.js"></script>
-    <script src="js/03_seazone/seazone_overlay.js"></script>
-
-    <!-- 5. UI 렌더링 (Weather UI) -->
-    <script src="js/05_weather/weather_ui.js"></script>
-
-    <!-- 6. 레거시/기타 기능 (순차적으로 리팩토링 예정) -->
-    <script src="tide.js"></script>
+    <script src="tide.js?v=DiurnalGaugeRemainingTime_20260209"></script>
     <script src="tide_calendar.js"></script>
+    <script src="seaZonesData.js"></script>
 
-    <!-- <script src="seaZonesData.js"></script> [삭제됨: zone_data.js로 대체] -->
-    <!-- <script src="zoneOverlayConfig.js"></script> [삭제됨: sea_regions.js로 대체] -->
-    <!-- <script src="gridCalibrationData.js"></script> [삭제됨: seazone_config.js로 대체] -->
-
-    <script src="fix_popup_logic.js?v=Patch_20260111_02"></script>
-    <script src="auto_refresh.js?v=Patch_20260111_02"></script>
-
-    <!-- <script src="buoyLocations.js"></script> [삭제됨: buoy_locations.js로 대체] -->
-    <!-- <script src="seaZoneCoordinates.js"></script> [삭제됨: sea_regions.js로 대체] -->
-    <!-- <script src="seaZones.js?v=AdminFix"></script> [삭제됨: seazone_core.js로 대체] -->
-
+    <script src="zoneOverlayConfig.js"></script>
+    <script src="gridCalibrationData.js"></script>
+    <script src="fix_popup_logic.js?v=TimeFormatUpdate_20260204"></script>
+    <script src="auto_refresh.js?v=TimeFormatUpdate_20260204"></script>
+    <script src="buoyLocations.js"></script>
+    <script src="seaZoneCoordinates.js"></script>
+    <script src="seaZones.js?v=TimeFormatUpdate_20260204"></script>
     <script type="module" src="capacitor-plugins.js?v=Patch_20260111_02"></script>
     <link rel="stylesheet" href="kma_widget.css">
-
-    <!-- 7. 메인 진입점 (App Entry) -->
-    <script src="app.js?v=Refactored_v1"></script>
-
+    <script src="app.js?v=TimeFormatUpdate_20260204"></script>
     <!-- 사용자 설정 모달 -->
     <!-- 사용자 설정 모달 -->
     <div id="settings-modal" class="modal hidden">

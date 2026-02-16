@@ -7,7 +7,7 @@ COPY package.json ./
 COPY local_server/package.json ./local_server/
 
 # 의존성 설치
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # 전체 소스 복사
 COPY . .

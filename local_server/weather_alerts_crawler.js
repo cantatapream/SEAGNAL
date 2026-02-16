@@ -2,13 +2,10 @@
  * 기상특보 통합 크롤러 (weather_alerts_crawler.js)
  * 
  * 기능:
- * 1. 기상청 특보 URL에서 HTML 데이터 수집
- * 2. 부모 해역("동해남부앞바다" 등)의 특보(주의보/경보/예비) 파싱
- * 3. 자식 해역("연안바다", "평수구역")의 활성화 여부(Y/N) 파싱
- * 4. 미리 정의된 고정 스키마(폼)에 데이터를 매핑하여 단일 JSON 파일로 저장
- * 5. Previous/Current 비교를 통한 변화 감지 (푸시 알림 트리거용)
- * 
- * 출력: data/weather_alerts.json
+ * 1. 통보문(list.do) 기반 실시간 특보 상태 관리 (Report Alert Processor 연동)
+ * 2. 특보종합(warning.do) 기반 연안바다/평수구역 활성화 여부 동기화
+ * 3. 부모 해역 상태에 따른 자식 해역 상속 및 강제 해제 로직 적용
+ * 4. 해역별 특보 히스토리 누적
  */
 
 const https = require('https');
@@ -16,130 +13,123 @@ const fs = require('fs');
 const path = require('path');
 
 const pushSender = require('./push_sender');
-
-// ============================================================================
-// 설정
-// ============================================================================
+const reportProcessor = require('./report_alert_processor');
 
 const CONFIG = {
     URL: 'https://www.weather.go.kr/w/wnuri-fct2021/weather/warning.do',
-    OUTPUT_FILE: path.join(__dirname, 'data', 'weather_alerts.json'),
-    ALLOWED_TYPES: ['풍랑', '태풍', '지진해일', '폭풍해일']
+    OUTPUT_FILE: path.join(__dirname, 'data', 'weather_alerts.json')
 };
 
 // ============================================================================
 // 고정 스키마 (폼) 정의
 // ============================================================================
 
-/**
- * 기본 해역 구조 생성 (데이터 없음)
- */
+const ZONE_GROUP_MAP = {
+    // ... (Keep existing map or if it's not defined here, rely on what's available. ZONE_GROUP_MAP is actually not in this file, it's in report_alert_processor.js. Wait, createZoneStructure IS in this file.)
+};
+// Re-reading file content shows createZoneStructure at line 27. I will replace the function body.
+
 function createZoneStructure() {
     return {
         "동해": {
             "동해남부해상": {
                 "동해남부앞바다": {
-                    "울산앞바다": { current: null, upcoming: null, children: { "울산앞바다중평수구역": null, "울산앞바다중연안바다": null } },
-                    "경북남부앞바다": { current: null, upcoming: null, children: { "경북남부앞바다중평수구역": null, "경북남부앞바다중연안바다": null } },
-                    "경북북부앞바다": { current: null, upcoming: null, children: { "경북북부앞바다중연안바다": null } }
+                    "울산앞바다": { current: null, upcoming: null, history: [], children: { "울산앞바다중평수구역": null, "울산앞바다중연안바다": null } },
+                    "경북남부앞바다": { current: null, upcoming: null, history: [], children: { "경북남부앞바다중평수구역": null, "경북남부앞바다중연안바다": null } },
+                    "경북북부앞바다": { current: null, upcoming: null, history: [], children: { "경북북부앞바다중연안바다": null } }
                 },
                 "동해남부먼바다": {
-                    "동해남부남쪽안쪽먼바다": { current: null, upcoming: null, children: {} },
-                    "동해남부남쪽바깥먼바다": { current: null, upcoming: null, children: {} },
-                    "동해남부북쪽안쪽먼바다": { current: null, upcoming: null, children: {} },
-                    "동해남부북쪽바깥먼바다": { current: null, upcoming: null, children: {} }
+                    "동해남부남쪽안쪽먼바다": { current: null, upcoming: null, history: [], children: {} },
+                    "동해남부남쪽바깥먼바다": { current: null, upcoming: null, history: [], children: {} },
+                    "동해남부북쪽안쪽먼바다": { current: null, upcoming: null, history: [], children: {} },
+                    "동해남부북쪽바깥먼바다": { current: null, upcoming: null, history: [], children: {} }
                 }
             },
             "동해중부해상": {
                 "동해중부앞바다": {
-                    "강원북부앞바다": { current: null, upcoming: null, children: { "강원북부앞바다중연안바다": null } },
-                    "강원중부앞바다": { current: null, upcoming: null, children: { "강원중부앞바다중연안바다": null } },
-                    "강원남부앞바다": { current: null, upcoming: null, children: { "강원남부앞바다중연안바다": null } }
+                    "강원북부앞바다": { current: null, upcoming: null, history: [], children: { "강원북부앞바다중연안바다": null } },
+                    "강원중부앞바다": { current: null, upcoming: null, history: [], children: { "강원중부앞바다중연안바다": null } },
+                    "강원남부앞바다": { current: null, upcoming: null, history: [], children: { "강원남부앞바다중연안바다": null } }
                 },
                 "동해중부먼바다": {
-                    "동해중부안쪽먼바다": { current: null, upcoming: null, children: { "울릉도울릉읍연안바다": null, "울릉도서면연안바다": null, "울릉도북면연안바다": null } },
-                    "동해중부바깥먼바다": { current: null, upcoming: null, children: {} }
+                    "동해중부안쪽먼바다": { current: null, upcoming: null, history: [], children: { "울릉도울릉읍연안바다": null, "울릉도서면연안바다": null, "울릉도북면연안바다": null } },
+                    "동해중부바깥먼바다": { current: null, upcoming: null, history: [], children: {} }
                 }
             }
         },
-
         "서해": {
             "서해남부해상": {
                 "서해남부앞바다": {
-                    "전북북부앞바다": { current: null, upcoming: null, children: { "전북북부앞바다중평수구역": null } },
-                    "전북남부앞바다": { current: null, upcoming: null, children: { "전북남부앞바다중평수구역": null } },
-                    "전남북부서해앞바다": { current: null, upcoming: null, children: { "전남북부서해앞바다중평수구역": null } },
-                    "전남중부서해앞바다": { current: null, upcoming: null, children: { "전남중부서해앞바다중먼평수구역": null, "전남중부서해앞바다중앞평수구역": null } },
-                    "전남남부서해앞바다": { current: null, upcoming: null, children: { "전남남부서해앞바다중평수구역": null } }
+                    "전북북부앞바다": { current: null, upcoming: null, history: [], children: { "전북북부앞바다중평수구역": null } },
+                    "전북남부앞바다": { current: null, upcoming: null, history: [], children: { "전북남부앞바다중평수구역": null } },
+                    "전남북부서해앞바다": { current: null, upcoming: null, history: [], children: { "전남북부서해앞바다중평수구역": null } },
+                    "전남중부서해앞바다": { current: null, upcoming: null, history: [], children: { "전남중부서해앞바다중먼평수구역": null, "전남중부서해앞바다중앞평수구역": null } },
+                    "전남남부서해앞바다": { current: null, upcoming: null, history: [], children: { "전남남부서해앞바다중평수구역": null } }
                 },
                 "서해남부먼바다": {
-                    "서해남부북쪽안쪽먼바다": { current: null, upcoming: null, children: {} },
-                    "서해남부북쪽바깥먼바다": { current: null, upcoming: null, children: {} },
-                    "서해남부남쪽안쪽먼바다": { current: null, upcoming: null, children: { "서해남부남쪽안쪽먼바다중조도부근평수구역": null } },
-                    "서해남부남쪽바깥먼바다": { current: null, upcoming: null, children: {} }
+                    "서해남부북쪽안쪽먼바다": { current: null, upcoming: null, history: [], children: {} },
+                    "서해남부북쪽바깥먼바다": { current: null, upcoming: null, history: [], children: {} },
+                    "서해남부남쪽안쪽먼바다": { current: null, upcoming: null, history: [], children: { "서해남부남쪽안쪽먼바다중조도부근평수구역": null } },
+                    "서해남부남쪽바깥먼바다": { current: null, upcoming: null, history: [], children: {} }
                 }
             },
             "서해중부해상": {
                 "서해중부앞바다": {
-                    "인천·경기북부앞바다": { current: null, upcoming: null, children: { "인천·경기북부앞바다중평수구역": null, "인천·경기북부앞바다중연안바다": null } },
-                    "인천·경기남부앞바다": { current: null, upcoming: null, children: { "인천·경기남부앞바다중먼평수구역": null, "인천·경기남부앞바다중북부앞평수구역": null, "인천·경기남부앞바다중남부앞평수구역": null } },
-                    "충남북부앞바다": { current: null, upcoming: null, children: { "천수만평수구역": null, "안면도서쪽평수구역": null, "당진평수구역": null, "태안·서산북쪽평수구역": null } },
-                    "충남남부앞바다": { current: null, upcoming: null, children: { "충남남부앞바다중평수구역": null } }
+                    "인천·경기북부앞바다": { current: null, upcoming: null, history: [], children: { "인천·경기북부앞바다중평수구역": null, "인천·경기북부앞바다중연안바다": null } },
+                    "인천·경기남부앞바다": { current: null, upcoming: null, history: [], children: { "인천·경기남부앞바다중먼평수구역": null, "인천·경기남부앞바다중북부앞평수구역": null, "인천·경기남부앞바다중남부앞평수구역": null } },
+                    "충남북부앞바다": { current: null, upcoming: null, history: [], children: { "천수만평수구역": null, "안면도서쪽평수구역": null, "당진평수구역": null, "태안·서산북쪽평수구역": null } },
+                    "충남남부앞바다": { current: null, upcoming: null, history: [], children: { "충남남부앞바다중평수구역": null } }
                 },
                 "서해중부먼바다": {
-                    "서해중부안쪽먼바다": { current: null, upcoming: null, children: {} },
-                    "서해중부바깥먼바다": { current: null, upcoming: null, children: {} }
+                    "서해중부안쪽먼바다": { current: null, upcoming: null, history: [], children: {} },
+                    "서해중부바깥먼바다": { current: null, upcoming: null, history: [], children: {} }
                 }
             }
         },
-
         "남해": {
             "남해동부해상": {
                 "남해동부앞바다": {
-                    "부산앞바다": { current: null, upcoming: null, children: { "부산앞바다중동부평수구역": null, "부산앞바다중서부평수구역": null, "부산앞바다중연안바다": null } },
-                    "경남서부남해앞바다": { current: null, upcoming: null, children: { "경남서부남해앞바다중동부평수구역": null, "경남서부남해앞바다중서부평수구역": null, "경남서부남해앞바다중남부평수구역": null, "경남서부남해앞바다중남해군연안바다": null } },
-                    "경남중부남해앞바다": { current: null, upcoming: null, children: { "경남중부남해앞바다중평수구역": null, "경남중부남해앞바다중연안바다": null } },
-                    "거제시동부앞바다": { current: null, upcoming: null, children: { "거제시동부앞바다중연안바다": null } }
+                    "부산앞바다": { current: null, upcoming: null, history: [], children: { "부산앞바다중동부평수구역": null, "부산앞바다중서부평수구역": null, "부산앞바다중연안바다": null } },
+                    "경남서부남해앞바다": { current: null, upcoming: null, history: [], children: { "경남서부남해앞바다중동부평수구역": null, "경남서부남해앞바다중서부평수구역": null, "경남서부남해앞바다중남부평수구역": null, "경남서부남해앞바다중남해군연안바다": null } },
+                    "경남중부남해앞바다": { current: null, upcoming: null, history: [], children: { "경남중부남해앞바다중평수구역": null, "경남중부남해앞바다중연안바다": null } },
+                    "거제시동부앞바다": { current: null, upcoming: null, history: [], children: { "거제시동부앞바다중연안바다": null } }
                 },
                 "남해동부먼바다": {
-                    "남해동부안쪽먼바다": { current: null, upcoming: null, children: {} },
-                    "남해동부바깥먼바다": { current: null, upcoming: null, children: {} }
+                    "남해동부안쪽먼바다": { current: null, upcoming: null, history: [], children: {} },
+                    "남해동부바깥먼바다": { current: null, upcoming: null, history: [], children: {} }
                 }
             },
             "남해서부해상": {
                 "남해서부앞바다": {
-                    "전남서부남해앞바다": { current: null, upcoming: null, children: { "전남서부남해앞바다중평수구역": null } },
-                    "전남동부남해앞바다": { current: null, upcoming: null, children: { "전남동부남해앞바다중서부평수구역": null, "전남동부남해앞바다중동부평수구역": null } }
+                    "전남서부남해앞바다": { current: null, upcoming: null, history: [], children: { "전남서부남해앞바다중평수구역": null } },
+                    "전남동부남해앞바다": { current: null, upcoming: null, history: [], children: { "전남동부남해앞바다중서부평수구역": null, "전남동부남해앞바다중동부평수구역": null } }
                 },
                 "남해서부먼바다": {
-                    "남해서부서쪽먼바다": { current: null, upcoming: null, children: { "남해서부서쪽먼바다중추자도연안바다": null } },
-                    "남해서부동쪽먼바다": { current: null, upcoming: null, children: {} }
+                    "남해서부서쪽먼바다": { current: null, upcoming: null, history: [], children: { "남해서부서쪽먼바다중추자도연안바다": null } },
+                    "남해서부동쪽먼바다": { current: null, upcoming: null, history: [], children: {} }
                 }
             }
         },
-
         "제주도": {
             "제주도앞바다": {
-                "제주도북부앞바다": { current: null, upcoming: null, children: { "제주도북부앞바다중연안바다": null } },
-                "제주도동부앞바다": { current: null, upcoming: null, children: { "제주도동부앞바다중북동연안바다": null, "제주도동부앞바다중남동연안바다": null, "제주도동부앞바다중우도연안바다": null } },
-                "제주도남부앞바다": { current: null, upcoming: null, children: { "제주도남부앞바다중연안바다": null } },
-                "제주도서부앞바다": { current: null, upcoming: null, children: { "제주도서부앞바다중북서연안바다": null, "제주도서부앞바다중남서연안바다": null, "제주도서부앞바다중가파도연안바다": null } }
+                "제주도북부앞바다": { current: null, upcoming: null, history: [], children: { "제주도북부앞바다중연안바다": null } },
+                "제주도동부앞바다": { current: null, upcoming: null, history: [], children: { "제주도동부앞바다중북동연안바다": null, "제주도동부앞바다중남동연안바다": null, "제주도동부앞바다중우도연안바다": null } },
+                "제주도남부앞바다": { current: null, upcoming: null, history: [], children: { "제주도남부앞바다중연안바다": null } },
+                "제주도서부앞바다": { current: null, upcoming: null, history: [], children: { "제주도서부앞바다중북서연안바다": null, "제주도서부앞바다중남서연안바다": null, "제주도서부앞바다중가파도연안바다": null } }
             },
             "제주도먼바다": {
-                "제주도남쪽바깥먼바다": { current: null, upcoming: null, children: {} },
-                "제주도남동쪽안쪽먼바다": { current: null, upcoming: null, children: {} },
-                "제주도남서쪽안쪽먼바다": { current: null, upcoming: null, children: {} }
+                "제주도남쪽바깥먼바다": { current: null, upcoming: null, history: [], children: {} },
+                "제주도남동쪽안쪽먼바다": { current: null, upcoming: null, history: [], children: {} },
+                "제주도남서쪽안쪽먼바다": { current: null, upcoming: null, history: [], children: {} }
             }
         }
     };
 }
 
-/**
- * 저장용 전체 폼 (current / previous 포함)
- */
 function createFullForm() {
     return {
         updatedAt: null,
+        lastReportId: null,
         previous: createZoneStructure(),
         current: createZoneStructure()
     };
@@ -149,143 +139,21 @@ function createFullForm() {
 // 유틸리티 함수
 // ============================================================================
 
-/**
- * tmYn(해제 예고 시각) 문자열을 Date 객체로 파싱
- * 예: "6일 밤(21시 ~ 24시)" → 해당 월의 6일 21:00 (시작 시각 기준)
- * 예: "9일 오전(09시 ~ 12시)" → 해당 월의 9일 09:00
- * @param {string} tmYn - 해제 예고 문자열
- * @returns {Date|null} - 파싱된 Date 또는 null
- */
-function parseTmYnToDate(tmYn) {
-    if (!tmYn || typeof tmYn !== 'string' || tmYn.trim() === '') return null;
-
-    try {
-        // 현재 KST 기준 년/월 가져오기
-        const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-        const year = nowKST.getFullYear();
-        const month = nowKST.getMonth(); // 0-indexed
-
-        // 일자 추출: "6일", "9일" 등
-        const dayMatch = tmYn.match(/(\d{1,2})일/);
-        if (!dayMatch) return null;
-        const day = parseInt(dayMatch[1]);
-
-        // 시간 범위 추출: "(21시 ~ 24시)", "(09시 ~ 12시)" 등
-        const timeMatch = tmYn.match(/\((\d{1,2})시\s*[~～-]\s*(\d{1,2})시\)/);
-        if (!timeMatch) {
-            // 단일 시간 형식: "15시" 등
-            const singleTimeMatch = tmYn.match(/(\d{1,2})시/);
-            if (singleTimeMatch) {
-                const hour = parseInt(singleTimeMatch[1]);
-                return new Date(year, month, day, hour, 0, 0);
-            }
-            return null;
-        }
-
-        // 시작 시각 사용 (해제 예고의 시작 시점)
-        let startHour = parseInt(timeMatch[1]);
-
-        // 24시 처리 → 다음 날 00시
-        if (startHour === 24) {
-            return new Date(year, month, day + 1, 0, 0, 0);
-        }
-
-        return new Date(year, month, day, startHour, 0, 0);
-    } catch (e) {
-        console.error(`[parseTmYnToDate] 파싱 실패: ${tmYn}`, e.message);
-        return null;
-    }
-}
-
 async function fetchHtml(url) {
     return new Promise((resolve, reject) => {
         https.get(url, {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept-Language': 'ko-KR,ko;q=0.9' }
         }, (res) => {
-            let data = '';
-            res.setEncoding('utf8');
-            res.on('data', chunk => data += chunk);
-            res.on('end', () => resolve(data));
+            const chunks = [];
+            res.on('data', chunk => chunks.push(chunk));
+            res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
         }).on('error', reject);
     });
 }
 
-function parseZonesString(str) {
-    const results = [];
-    // 1. 괄호로 묶인 그룹 찾기 (ex: "서해남부먼바다(서해남부남쪽안쪽먼바다, 서해남부남쪽바깥먼바다)")
-    // 괄호 밖의 이름(대표명)과 괄호 안의 이름들(상세명)을 모두 추출해야 함
-
-    // 쉼표로 분리하되, 괄호 안의 쉼표는 무시하도록 할 수도 있으나, 
-    // 기상청 데이터 패턴상 "구역명(상세1, 상세2), 구역명2(상세3)" 형태이므로 
-    // 정규식으로 그룹을 매칭하는 것이 안전함.
-    // [Fix] 구역명 뒤에 HTML 태그(</font></b>)나 공백이 섞여 있어도 무시하고 괄호를 인식하도록 개선
-    // (?:<[^>]+>)* : 태그 무시, \s* : 공백 무시
-    const groupPattern = /([가-힣·\s]+(?:앞바다|먼바다|해상))(?:<[^>]+>)*\s*(?:\(([^)]+)\))?/g;
-
-    let match;
-    while ((match = groupPattern.exec(str)) !== null) {
-        const primaryName = match[1].trim();
-        const subNamesStr = match[2];
-
-        // 괄호 안의 내용이 있으면 쉼표로 분리하여 각각을 개별 Zone으로 등록
-        // 예: 서해남부먼바다(서해남부남쪽안쪽먼바다, 서해남부남쪽바깥먼바다)
-        // -> 서해남부남쪽안쪽먼바다, 서해남부남쪽바깥먼바다 각각이 Parent 레벨로 올라가야 함 (스키마에 존재하므로)
-        if (subNamesStr) {
-            const subNames = subNamesStr.split(',').map(s => s.trim());
-            subNames.forEach(subName => {
-                results.push({
-                    parent: subName, // 상세 구역명을 Parent(메인 키)로 승격
-                    children: []     // 이 Zone 하위의 연안/평수구역은 별도 로직으로 처리됨
-                });
-            });
-        } else {
-            // 괄호가 없으면 대표명 그대로 사용
-            results.push({
-                parent: primaryName,
-                children: []
-            });
-        }
-    }
-    return results;
-}
-
-// ============================================================================
-// Core Parsers
-// ============================================================================
-
-// 1. 부모 해역 파싱 (테이블)
-function parseParentWarnings(html) {
-    const results = [];
-    const trPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-    let trMatch;
-
-    while ((trMatch = trPattern.exec(html)) !== null) {
-        const tds = [];
-        const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-        let tdMatch;
-
-        while ((tdMatch = tdRegex.exec(trMatch[1])) !== null) {
-            tds.push(tdMatch[1].replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&middot;/g, '·').replace(/\s+/g, ' ').trim());
-        }
-
-        if (tds.length >= 6) {
-            const wrnTp = tds[0];
-            if (CONFIG.ALLOWED_TYPES.some(t => wrnTp.includes(t))) {
-                results.push({
-                    wrnTp: tds[0],
-                    wrnLvl: tds[1],
-                    zones: parseZonesString(tds[2]),
-                    tmFc: tds[3],
-                    tmEf: tds[4],
-                    tmYn: tds[5]
-                });
-            }
-        }
-    }
-    return results;
-}
-
-// 2. 자식 해역 파싱 (텍스트)
+/**
+ * 자식 해역 파싱 (warning.do의 특정관리해역 섹션에서 활성화 여부 추출)
+ */
 function parseChildWarnings(html, form) {
     const startIdx = html.indexOf('특정관리해역');
     if (startIdx === -1) return new Set();
@@ -298,7 +166,6 @@ function parseChildWarnings(html, form) {
     const activeChildren = new Set();
     const allChildren = [];
 
-    // 폼에서 모든 자식 이름 수집
     function collectChildren(obj) {
         if (!obj || typeof obj !== 'object') return;
         if (obj.children) {
@@ -319,191 +186,106 @@ function parseChildWarnings(html, form) {
     return activeChildren;
 }
 
-// 3. 폼에 데이터 매핑 (부모-자식 관계 해결)
-function mapDataToForm(form, parentWarnings, activeChildren) {
-    function findZoneEntry(obj, zoneName) {
-        if (!obj || typeof obj !== 'object') return null;
-        for (const [key, value] of Object.entries(obj)) {
-            if (key === zoneName && value && typeof value === 'object' && 'current' in value) {
-                return value;
-            }
-            const found = findZoneEntry(value, zoneName);
-            if (found) return found;
-        }
-        return null;
-    }
+/**
+ * 폼에 데이터 매핑 (부모-자식 상속 해결)
+ */
+function mapDataToForm(form, activeChildren) {
+    function updateChildren(obj) {
+        if (!obj || typeof obj !== 'object') return;
 
-    function activateChild(obj, childName) {
-        if (!obj || typeof obj !== 'object') return false;
-        if (obj.children && obj.children.hasOwnProperty(childName)) {
-            obj.children[childName] = 'Y';
-            return true;
-        }
-        for (const value of Object.values(obj)) {
-            if (activateChild(value, childName)) return true;
-        }
-        return false;
-    }
-
-    const PARENT_GROUP_MAP = {
-        "동해남부앞바다": ["울산앞바다", "경북남부앞바다", "경북북부앞바다"],
-        "동해남부먼바다": ["동해남부남쪽안쪽먼바다", "동해남부남쪽바깥먼바다", "동해남부북쪽안쪽먼바다", "동해남부북쪽바깥먼바다"],
-        "동해중부앞바다": ["강원북부앞바다", "강원중부앞바다", "강원남부앞바다"],
-        "동해중부먼바다": ["동해중부안쪽먼바다", "동해중부바깥먼바다"],
-        "서해남부앞바다": ["전북북부앞바다", "전북남부앞바다", "전남북부서해앞바다", "전남중부서해앞바다", "전남남부서해앞바다"],
-        "서해남부먼바다": ["서해남부북쪽안쪽먼바다", "서해남부북쪽바깥먼바다", "서해남부남쪽안쪽먼바다", "서해남부남쪽바깥먼바다"],
-        "서해중부앞바다": ["인천·경기북부앞바다", "인천·경기남부앞바다", "충남북부앞바다", "충남남부앞바다"],
-        "서해중부먼바다": ["서해중부안쪽먼바다", "서해중부바깥먼바다"],
-        "남해동부앞바다": ["부산앞바다", "경남서부남해앞바다", "경남중부남해앞바다", "거제시동부앞바다"],
-        "남해동부먼바다": ["남해동부안쪽먼바다", "남해동부바깥먼바다"],
-        "남해서부앞바다": ["전남서부남해앞바다", "전남동부남해앞바다"],
-        "남해서부먼바다": ["남해서부서쪽먼바다", "남해서부동쪽먼바다"],
-        "제주도앞바다": ["제주도북부앞바다", "제주도동부앞바다", "제주도남부앞바다", "제주도서부앞바다"],
-        "제주도먼바다": ["제주도남쪽바깥먼바다", "제주도남동쪽안쪽먼바다", "제주도남서쪽안쪽먼바다"]
-    };
-
-    for (const warning of parentWarnings) {
-        for (const zoneInfo of warning.zones) {
-            let targetNames = [];
-            if (zoneInfo.children.length > 0) {
-                targetNames = zoneInfo.children;
-            } else {
-                if (PARENT_GROUP_MAP[zoneInfo.parent]) {
-                    targetNames = PARENT_GROUP_MAP[zoneInfo.parent];
+        if (obj.current !== undefined && obj.children) {
+            for (const childName of Object.keys(obj.children)) {
+                if (obj.current === null && obj.upcoming === null) {
+                    // [상속 룰] 부모가 발효 중인 특보도 없고 예정된 특보도 없다면 자식도 강제 해제
+                    obj.children[childName] = null;
                 } else {
-                    targetNames = [zoneInfo.parent];
-                }
-            }
-
-            for (const name of targetNames) {
-                const entry = findZoneEntry(form, name);
-                if (entry) {
-                    // [수정] 발효 시각(tmEf)과 현재 시각 비교 로직 추가
-                    // 기상청이 '특보' 테이블에 넣었더라도, 발효 시각이 미래라면 논리적으로는 'upcoming(예비/발표)' 상태여야 함.
-
-                    let targetSlot = 'current'; // 기본값
-
-                    // 1. 명시적으로 '예비'인 경우 -> 당연히 upcoming
-                    if (warning.wrnLvl === '예비') {
-                        targetSlot = 'upcoming';
-                    } else {
-                        // 2. 주의보/경보인 경우 -> 시간 체크
-                        // [수정] KST 기준으로 명시적 비교 (Fly.io는 UTC 서버이므로)
-                        const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-                        // tmEf 포맷 예: "2026-02-06 02:00"
-                        const tmEfStr = warning.tmEf || '';
-                        const efMatch = tmEfStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
-
-                        if (efMatch) {
-                            // efDate는 KST 기준 시각임 (기상청은 KST로 발표)
-                            // KST 시간대를 명시적으로 사용
-                            const efDateStr = `${efMatch[1]}-${efMatch[2]}-${efMatch[3]}T${efMatch[4]}:${efMatch[5]}:00+09:00`;
-                            const efDate = new Date(efDateStr);
-                            const nowUTC = new Date(); // UTC 기준 현재 시각
-
-                            // 현재 시각 < 발효 시각이면 -> 아직 미발효 -> upcoming으로 이동
-                            if (nowUTC < efDate) {
-                                targetSlot = 'upcoming';
-                                // 레벨 표기는 기상청 원문("주의보" 등)을 유지하되, 슬롯만 변경됨
-                            }
-                        }
-                    }
-
-                    // 해당 슬롯에 데이터 할당
-                    entry[targetSlot] = {
-                        wrnTp: warning.wrnTp,
-                        wrnLvl: warning.wrnLvl, // 주의보/경보 텍스트 유지
-                        tmFc: warning.tmFc,
-                        tmEf: warning.tmEf,
-                        tmYn: warning.tmYn
-                    };
+                    // 부모가 활성 상태(발효 또는 발표)일 때만 warning.do의 표기 여부에 따름
+                    obj.children[childName] = activeChildren.has(childName) ? 'Y' : null;
                 }
             }
         }
-    }
 
-    for (const childName of activeChildren) {
-        activateChild(form, childName);
+        for (const value of Object.values(obj)) {
+            if (value && typeof value === 'object') updateChildren(value);
+        }
     }
+    updateChildren(form);
 }
 
 // ============================================================================
-// 데이터 보정 로직 (Ghost Alert Prevention + 해제 예고 시각 준수)
+// 시간 기반 상태 정성 (Pending Status Resolver)
 // ============================================================================
 
-function preserveContinuingAlerts(prevNode, currNode, path = []) {
-    if (!currNode || typeof currNode !== 'object') return;
+function parseKmaTime(timeStr) {
+    if (!timeStr || timeStr === "시각미정") return null;
+    const match = timeStr.match(/(\d{4})년\s*(\d{2})월\s*(\d{2})일\s*(\d{2})시\s*(\d{2})분/);
+    if (!match) return null;
+    const [_, y, m, d, h, min] = match;
+    return new Date(`${y}-${m}-${d}T${h}:${min}:00+09:00`);
+}
 
-    // Leaf Node 도달
-    if ('current' in currNode && 'upcoming' in currNode) {
-        const zoneName = path.length > 0 ? path[path.length - 1] : 'Unknown';
-        const logName = `[AlertLogic][${zoneName}]`;
+/**
+ * 발효 시각이 지났으면 상태를 업데이트함
+ */
+const HISTORY_FILE = path.join(__dirname, 'data/alert_history.json');
 
-        // ============================================================
-        // Case A: 현재 발효(current) 없음 + 예비(upcoming) 있음 + 이전 발효 있었음
-        // ============================================================
-        if (currNode.current === null && currNode.upcoming !== null && prevNode && prevNode.current !== null) {
-            const prevAlert = prevNode.current;
-            const upcomingAlert = currNode.upcoming;
-
-            // [쟁점 2] 동일 등급(wrnTp + wrnLvl) 체크
-            // 동일 등급이면: 발효가 해제되고 새 예비가 발표된 것 → 해제 처리 (유지하지 않음)
-            // 다른 등급이면: 격상/격하 대기 → 기존 발효 유지
-            const isSameLevel = (prevAlert.wrnTp === upcomingAlert.wrnTp && prevAlert.wrnLvl === upcomingAlert.wrnLvl);
-
-            if (isSameLevel) {
-                // 동일 등급 → 발효 해제 + 예비 발표 시나리오
-                // current는 null로 유지 (해제 알림 발송됨)
-                console.log(`${logName} ⚡ 동일 등급(${prevAlert.wrnLvl}) 발효→예비 전환. 해제 처리.`);
-                // currNode.current는 이미 null이므로 그대로 둠
-            } else {
-                // 다른 등급 → 격상/격하 대기 → 기존 발효 유지
-                currNode.current = prevAlert;
-                console.log(`${logName} 🛡️ ${prevAlert.wrnLvl} 유지됨. (사유: ${upcomingAlert.wrnLvl} 대기중)`);
-            }
-            return;
+function updateHistoryFile(zoneName, event, isRelease = false) {
+    try {
+        let historyData = {};
+        if (fs.existsSync(HISTORY_FILE)) {
+            historyData = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8'));
         }
 
-        // ============================================================
-        // Case B: 현재 발효 없음 + 예비 없음 + 이전 발효 있었음 (해제 케이스)
-        // [쟁점 1] 해제 예고 시각(tmYn) 미도래 시 발효 유지
-        // ============================================================
-        if (currNode.current === null && currNode.upcoming === null && prevNode && prevNode.current !== null) {
-            const prevAlert = prevNode.current;
+        if (isRelease) {
+            if (zoneName && historyData[zoneName]) {
+                delete historyData[zoneName];
+            }
+        }
+        fs.writeFileSync(HISTORY_FILE, JSON.stringify(historyData, null, 2));
+    } catch (e) {
+        console.error(`[HistoryFile] Error: ${e.message}`);
+    }
+}
 
-            // tmYn(해제 예고 시각)이 있고, 아직 도래하지 않았으면 발효 유지
-            if (prevAlert.tmYn) {
-                const releaseTime = parseTmYnToDate(prevAlert.tmYn);
-                const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+/**
+ * 발효 시각이 지났으면 상태를 업데이트함
+ */
+function resolvePendingStatuses(obj, zoneName = null) {
+    if (!obj || typeof obj !== 'object') return;
+    const now = new Date();
 
-                if (releaseTime && nowKST < releaseTime) {
-                    // 해제 예고 시각 미도래 → 발효 유지
-                    currNode.current = prevAlert;
-                    console.log(`${logName} ⏳ ${prevAlert.wrnLvl} 유지됨. (해제 예고: ${prevAlert.tmYn}, 현재 미도래)`);
-                    return;
-                } else {
-                    // 해제 예고 시각 도래 또는 파싱 실패 → 해제 처리
-                    console.log(`${logName} ✅ ${prevAlert.wrnLvl} 해제됨. (해제 예고 시각 도래)`);
-                }
-            } else {
-                // tmYn 없음 → 즉시 해제 케이스 (데이터가 사라짐)
-                console.log(`${logName} ✅ ${prevAlert.wrnLvl} 해제됨. (데이터 사라짐, 즉시 해제)`);
+    if ('current' in obj && 'upcoming' in obj) {
+        // 1. 예약된 해제 처리 (tmRelease)
+        if (obj.current && obj.current.tmRelease) {
+            const releaseTime = parseKmaTime(obj.current.tmRelease);
+            if (releaseTime && releaseTime <= now) {
+                console.log(`[Resolver] 해제 발효 시각 도달: ${obj.current.tmRelease}`);
+                obj.current = null;
+                obj.history = []; // [지침 반영] 해제 발효 시 히스토리 즉시 삭제
+                if (zoneName) updateHistoryFile(zoneName, null, true);
             }
         }
 
-        return;
+        // 2. 예약된 발효 처리 (upcoming)
+        if (obj.upcoming && obj.upcoming.wrnLvl !== '예비') {
+            const effectiveTime = parseKmaTime(obj.upcoming.tmEf);
+            if (effectiveTime && effectiveTime <= now) {
+                console.log(`[Resolver] 특보 발효 시각 도달: ${obj.upcoming.wrnTp} (${obj.upcoming.tmEf})`);
+
+                // [Fix] 기존 upcoming의 모든 메타데이터(tmFc, tmYn 등)를 상속하며 current로 전환
+                obj.current = {
+                    ...(obj.current || {}),
+                    ...obj.upcoming,
+                    tmEf: obj.upcoming.tmEf // 발효시각 확정
+                };
+                obj.upcoming = null;
+            }
+        }
     }
 
-    // Child Node 순회
-    for (const [key, value] of Object.entries(currNode)) {
-        if (key === 'children') continue; // children 속성은 건너뜀 (구조상)
-
-        if (prevNode && prevNode[key]) {
-            preserveContinuingAlerts(prevNode[key], value, [...path, key]);
-        } else {
-            // prev가 없으면 비교 불가 (신규 구조 등)
-            // 그냥 지나감
-        }
+    for (const [key, value] of Object.entries(obj)) {
+        if (key === 'children' || key === 'history' || key === 'missingCount') continue;
+        resolvePendingStatuses(value, key);
     }
 }
 
@@ -517,60 +299,30 @@ function detectChanges(previous, current) {
     function traverse(prevNode, currNode, path = []) {
         if (!currNode || typeof currNode !== 'object') return;
 
-        // Leaf Node 도달 (특보 정보가 있는 곳)
         if ('current' in currNode && 'upcoming' in currNode) {
             const zoneName = path[path.length - 1];
-
-            // 1. 발효 특보(current) 비교
             const prevCurr = prevNode?.current;
             const currCurr = currNode.current;
-
-            if (isDifferent(prevCurr, currCurr)) {
-                changes.push({
-                    type: 'CURRENT_CHANGE',
-                    zone: zoneName,
-                    prev: prevCurr,
-                    curr: currCurr
-                });
-            }
-
-            // 2. 예비 특보(upcoming) 비교
             const prevUp = prevNode?.upcoming;
             const currUp = currNode.upcoming;
 
-            if (isDifferent(prevUp, currUp)) {
-                changes.push({
-                    type: 'UPCOMING_CHANGE',
-                    zone: zoneName,
-                    prev: prevUp,
-                    curr: currUp
-                });
+            // [수정] PushSender와 Type 일치시킴
+            // 1. Upcoming 변화 (발표, 예비특보 등)
+            if (JSON.stringify(prevUp) !== JSON.stringify(currUp)) {
+                changes.push({ type: 'UPCOMING_CHANGE', zone: zoneName, prev: prevUp, curr: currUp });
             }
 
+            // 2. Current 변화 (발효, 해제, 변경 등)
+            if (JSON.stringify(prevCurr) !== JSON.stringify(currCurr)) {
+                changes.push({ type: 'CURRENT_CHANGE', zone: zoneName, prev: prevCurr, curr: currCurr });
+            }
             return;
         }
 
-        // Child Node 순회
         for (const [key, value] of Object.entries(currNode)) {
-            if (key === 'children') continue;
-
-            if (prevNode && prevNode[key]) {
-                traverse(prevNode[key], value, [...path, key]);
-            } else {
-                traverse(null, value, [...path, key]);
-            }
+            if (key === 'children' || key === 'history' || key === 'missingCount') continue;
+            traverse(prevNode ? prevNode[key] : null, value, [...path, key]);
         }
-    }
-
-    function isDifferent(a, b) {
-        if (!a && !b) return false;
-        if (!a || !b) return true;
-
-        return a.wrnTp !== b.wrnTp ||
-            a.wrnLvl !== b.wrnLvl ||
-            a.tmEf !== b.tmEf ||
-            a.tmFc !== b.tmFc ||
-            a.tmYn !== b.tmYn;
     }
 
     traverse(previous, current);
@@ -584,92 +336,56 @@ function detectChanges(previous, current) {
 async function run() {
     console.log(`[Crawler] 시작: ${new Date().toISOString()}`);
 
-    // 1. 전체 폼 로드 (기존 파일이 있으면 읽어서 previous로 활용)
     let fullForm;
     if (fs.existsSync(CONFIG.OUTPUT_FILE)) {
         try {
             const existing = JSON.parse(fs.readFileSync(CONFIG.OUTPUT_FILE, 'utf8'));
-
-            // 신규 구조(previous/current)인지 구형 구조(동해, 서해... 바로 시작)인지 확인
-            if (existing.current) {
-                // 신규 구조: 기존 current를 previous로 이동
-                fullForm = {
-                    updatedAt: null,
-                    previous: existing.current,
-                    current: createZoneStructure()
-                };
-            } else if (existing["동해"]) {
-                // 구형 구조: 전체를 previous로
-                fullForm = {
-                    updatedAt: null,
-                    previous: existing,
-                    current: createZoneStructure()
-                };
-            } else {
-                fullForm = createFullForm();
-            }
-
+            fullForm = {
+                updatedAt: null,
+                lastReportId: existing.lastReportId || null,
+                previous: JSON.parse(JSON.stringify(existing.current || createZoneStructure())),
+                current: existing.current || createZoneStructure()
+            };
         } catch (e) {
-            console.error('[Crawler] 기존 파일 로드 실패, 새로 생성합니다.');
             fullForm = createFullForm();
         }
     } else {
         fullForm = createFullForm();
     }
 
-    fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-
     try {
-        // 2. 데이터 수집
+        // 1. 통보문 처리 (부모 상태 및 히스토리 업데이트)
+        await reportProcessor.applyNewReports(fullForm);
+
+        // 2. 시간 기반 예약 처리 (미래 발효/해제 시각 체크)
+        resolvePendingStatuses(fullForm.current);
+
+        // 3. 특보종합 처리 (연안/평수구역 활성화 여부 확인용)
         const html = await fetchHtml(CONFIG.URL);
-
-        // 3. 파싱 (채우기 대상은 fullForm.current)
-        const parentWarnings = parseParentWarnings(html);
         const activeChildren = parseChildWarnings(html, fullForm.current);
+        console.log(`[Crawler] 자식 특보(연안/평수) 활성화: ${activeChildren.size}건`);
 
-        console.log(`[Crawler] 부모 특보: ${parentWarnings.length}건, 자식 특보: ${activeChildren.size}건`);
+        // 3. 자식 상속 로직 적용
+        mapDataToForm(fullForm.current, activeChildren);
 
-        // 4. 매핑
-        mapDataToForm(fullForm.current, parentWarnings, activeChildren);
-
-        // [New] 4-1. 정보 보정 (격상/격하 시 기존 특보 실종 방지)
-        // 기상청 데이터가 "주의보"를 삭제하고 "경보(미래)"만 올리는 경우,
-        // 실제로는 발효 시각 전까지 "주의보"가 유지되어야 하므로 previous에서 복구함.
-        if (fullForm.previous) {
-            preserveContinuingAlerts(fullForm.previous, fullForm.current);
-        }
-
-        // 5. 변화 감지 (Previous vs Current)
+        // 4. 변화 감지 (Previous vs Current)
         const changes = detectChanges(fullForm.previous, fullForm.current);
 
         if (changes.length > 0) {
             console.log(`🚀 변화 감지: ${changes.length}건`);
-            changes.forEach(c => {
-                const pStr = c.prev ? `${c.prev.wrnTp}/${c.prev.wrnLvl}` : '(없음)';
-                const cStr = c.curr ? `${c.curr.wrnTp}/${c.curr.wrnLvl}` : '(해제)';
-                console.log(`   - [${c.zone}] ${c.type}: ${pStr} -> ${cStr}`);
-            });
-
-            // [Push Notification] 변화가 있으면 알림 발송 위임
-            // 크롤러는 '변화 감지'까지만 담당하고, 그룹핑 및 발송은 push_sender가 담당
-            try {
-                await pushSender.processChanges(changes);
-            } catch (err) {
-                console.error(`[Crawler] 알림 발송 위임 실패: ${err.message}`);
-            }
+            await pushSender.processChanges(changes).catch(err => console.error(`[Push] 오류: ${err.message}`));
         } else {
             console.log('💤 특보 변경 사항 없음');
         }
 
-        // 6. 저장
-        const jsonStr = JSON.stringify(fullForm, null, 2);
-        fs.writeFileSync(CONFIG.OUTPUT_FILE, jsonStr, 'utf8');
-        console.log(`[Crawler] 저장 완료: ${CONFIG.OUTPUT_FILE} (${jsonStr.length} bytes)`);
+        // 5. 저장
+        fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+        fs.writeFileSync(CONFIG.OUTPUT_FILE, JSON.stringify(fullForm, null, 2), 'utf8');
+        console.log(`[Crawler] 저장 완료`);
 
-        return changes; // 호출자에게 변화 내역 반환
-
+        return changes;
     } catch (e) {
-        console.error(`[Crawler] 오류 발생: ${e.message}`);
+        console.error(`[Crawler] 오류: ${e.message}`);
         return [];
     }
 }

@@ -1,5 +1,6 @@
 
 // Capacitor 전역 객체 확보
+import { Geolocation } from '@capacitor/geolocation';
 const { PushNotifications, SplashScreen, Capacitor } = window.Capacitor ? window.Capacitor.Plugins : {};
 
 // [SplashScreen] 앱 로드 즉시 네이티브 스플래시 숨김 (웹 스플래시 노출을 위해)
@@ -144,6 +145,38 @@ window.checkPushPermission = async () => {
     } catch (e) {
         return 'granted';
     }
+};
+
+// [위치 정보] Capacitor를 이용한 위치 정보 획득 (권한 요청 포함)
+window.getCurrentPositionViaCapacitor = async () => {
+    // 1. 네이티브 모드가 아니면 기본 브라우저 기능 사용 시도
+    if (!window.Capacitor || !window.Capacitor.isNativePlatform()) {
+        return new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: false,
+                timeout: 15000, // 10초에서 15초로 증가
+                maximumAge: 10000 // 60초에서 10초로 단축 (더 신선한 좌표 우선)
+            });
+        });
+    }
+
+    // 2. 권한 확인 및 요청
+    let permStatus = await Geolocation.checkPermissions();
+    if (permStatus.location === 'prompt' || permStatus.location === 'prompt-with-description') {
+        permStatus = await Geolocation.requestPermissions();
+    }
+
+    if (permStatus.location !== 'granted') {
+        throw new Error('location_permission_denied');
+    }
+
+    // 3. 현재 위치 획득
+    const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: false, // 배터리 절약 및 속도를 위해 정확도 낮춤
+        timeout: 20000 // 네이티브 환경은 조금 더 여유있게 20초 부여
+    });
+
+    return position;
 };
 
 initPushNotifications();

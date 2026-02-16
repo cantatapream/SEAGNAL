@@ -1,4 +1,4 @@
-﻿// Configuration
+// Configuration
 const CONFIG = {
     KMA_HUB_KEY: 'ZKEQU5ukRvGhEFObpBbxVw',
 
@@ -1635,7 +1635,6 @@ function renderApp() {
                     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
                 `;
                 subHeader.innerHTML = `
-                    <i class="fa-solid fa-chevron-right" style="font-size: 0.85rem; color: #4fc3f7; transition: transform 0.3s;"></i>
                     <span style="font-size: 1.0rem; font-weight: 700; color: #fff;">${subRegion}</span>
                     <span style="background: rgba(255, 152, 0, 0.4); padding: 4px 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 600; color: #ffd54f; margin-left: auto;">${subItems.length}개 해역</span>
                 `;
@@ -1666,8 +1665,6 @@ function renderApp() {
                         }
                         const header = list.previousElementSibling;
                         if (header && list !== listContainer) {
-                            const icon = header.querySelector('.fa-chevron-right');
-                            if (icon) icon.style.transform = 'rotate(0deg)';
                             header.style.marginLeft = '0';
                         }
                     });
@@ -1675,8 +1672,6 @@ function renderApp() {
                     // 클릭한 것이 닫혀있었다면 열기 (애니메이션)
                     if (isCurrentlyHidden) {
                         slideDown(listContainer);
-                        const icon = subHeader.querySelector('.fa-chevron-right');
-                        if (icon) icon.style.transform = 'rotate(90deg)';
                         subHeader.style.marginLeft = '4px';
                     } else {
                         slideUp(listContainer);
@@ -1916,16 +1911,8 @@ function renderApp() {
             }
         }
 
-        // Re-append icon
-        if (icon) {
-            globalStatusContainer.appendChild(icon);
-        } else {
-            // Create if missing (shouldn't happen usually)
-            const newIcon = document.createElement('i');
-            newIcon.id = 'main-accordion-icon';
-            newIcon.className = 'fa-solid fa-chevron-down';
-            globalStatusContainer.appendChild(newIcon);
-        }
+        // Re-append icon logic removed
+
     }
 
     // [New] 기상현황 아코디언 자동 제어 로직
@@ -2263,8 +2250,9 @@ function createAlertElement(items) {
     details.innerHTML = '';
 
     const formatAlertTime = (timeStr) => {
-        // 전역 함수가 이미 최신화되었으므로 이를 활용하도록 간소화 가능
-        return formatWarningTime(timeStr);
+        // [수정] 월 표기 제거 (예: "2월 10일" -> "10일")
+        const formatted = formatWarningTime(timeStr);
+        return formatted ? formatted.replace(/^\d+월\s*/, '').replace(/\s\d+월\s*/, ' ') : formatted;
     };
 
     const createRow = (label, value, color) => {
@@ -2286,7 +2274,12 @@ function createAlertElement(items) {
 
                 const upcomingHead = document.createElement('div');
                 upcomingHead.style.cssText = 'color: #ffb74d; font-size: 0.75rem; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;';
-                upcomingHead.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> [다가오는 특보] ${alert.warnType} ${alert.level} 예정`;
+
+                // [수정] '예비' 레벨은 '주의보'로 치환하여 표시 ("예비 예정" -> "주의보 예정")
+                let displayLevel = alert.level;
+                if (displayLevel === '예비') displayLevel = '주의보';
+
+                upcomingHead.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> [다가오는 특보] ${alert.warnType} ${displayLevel} 예정`;
                 details.appendChild(upcomingHead);
             }
         }
@@ -2297,6 +2290,9 @@ function createAlertElement(items) {
         let releaseTime = alert.tmYn || alert.tmEd || '';
         if (releaseTime.trim() === '일' || releaseTime.trim() === '') {
             releaseTime = '정보 없음';
+        } else {
+            // [수정] 월 표기 제거
+            releaseTime = releaseTime.replace(/^\d+월\s*/, '').replace(/\s\d+월\s*/, ' ');
         }
         details.appendChild(createRow('해제예정', releaseTime, '#69f0ae'));
     });
@@ -2417,15 +2413,14 @@ function createAlertElement(items) {
         document.querySelectorAll('.alert-details').forEach(otherDetails => {
             otherDetails.classList.add('hidden');
         });
-        document.querySelectorAll('.detail-arrow').forEach(otherArrow => {
-            otherArrow.style.transform = 'rotate(0deg)';
-        });
+        // Arrow rotation logic removed
+
 
         // 2. 현재 카드만 토글 (이전에 닫혀있었다면 열기)
         if (isCurrentlyHidden) {
             details.classList.remove('hidden');
-            const arrow = card.querySelector('.detail-arrow');
-            arrow.style.transform = 'rotate(90deg)';
+            // arrow rotation removed
+
         }
     });
 
@@ -5392,7 +5387,6 @@ async function renderMarineWeatherStatus() {
                     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
                 `;
                 subHeader.innerHTML = `
-                    <i class="fa-solid fa-chevron-right" style="font-size: 0.85rem; color: #4fc3f7; transition: transform 0.3s;"></i>
                     <span style="font-size: 1.0rem; font-weight: 700; color: #fff;">${subRegion}</span>
                     <span style="background: rgba(79, 195, 247, 0.3); padding: 4px 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 600; color: #4fc3f7; margin-left: auto;">${zones.length}개 해역</span>
                 `;
@@ -5423,20 +5417,17 @@ async function renderMarineWeatherStatus() {
                         }
                         const header = list.previousElementSibling;
                         if (header && list !== listContainer) {
-                            const icon = header.querySelector('.fa-chevron-right');
-                            if (icon) icon.style.transform = 'rotate(0deg)';
+
                         }
                     });
 
                     // 클릭한 것이 닫혀있었다면 열기 (애니메이션)
                     if (isCurrentlyHidden) {
                         slideDown(listContainer);
-                        const icon = subHeader.querySelector('.fa-chevron-right');
-                        if (icon) icon.style.transform = 'rotate(90deg)';
+
                     } else {
                         slideUp(listContainer);
-                        const icon = subHeader.querySelector('.fa-chevron-right');
-                        if (icon) icon.style.transform = 'rotate(0deg)';
+
                     }
                 };
 
@@ -8207,9 +8198,34 @@ async function renderUnifiedApiContent(container) {
             <!-- refreshUnifiedApiStatus에 의해 채워짐 -->
         </div>
 
+        <!-- [New] TideBed API 관리 섹션 -->
+        <div class="admin-section-title" style="margin-top:30px; border-top:1px solid rgba(255,255,255,0.05); padding-top:20px;">
+            <i class="fa-solid fa-water" style="color:#60a5fa;"></i> 공공데이터포털 TideBed API 관리 현황
+        </div>
+
+        <div class="admin-card" style="padding:20px; background:rgba(15, 23, 42, 0.4); margin-bottom:15px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <div id="tidebed-usage-status" style="font-weight:700; color:#fff; font-size:1rem;">
+                    API 호출 현황 : <span style="color:#38bdf8;">-회</span> / <span style="color:#94a3b8;">-회</span>
+                </div>
+                <button class="admin-action-btn admin-btn-primary" onclick="addTideBedKey()">
+                    <i class="fa-solid fa-plus"></i> KEY 추가
+                </button>
+            </div>
+            
+            <details class="admin-accordion" style="background:rgba(0,0,0,0.2); border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+                <summary style="padding:12px; cursor:pointer; color:#94a3b8; font-size:0.85rem; font-weight:600; list-style:none; display:flex; align-items:center; gap:8px;">
+                    <i class="fa-solid fa-chevron-down" style="font-size:0.7rem;"></i> (API 키 등록 현황)
+                </summary>
+                <div id="tidebed-key-list" style="padding:10px; border-top:1px solid rgba(255,255,255,0.05);">
+                    <!-- refreshUnifiedTideBedStatus에 의해 채워짐 -->
+                </div>
+            </details>
+        </div>
+
         <!-- 인증키 설정 섹션 (하단 통합) -->
         <div class="admin-section-title" style="margin-top:30px; border-top:1px solid rgba(255,255,255,0.05); padding-top:20px;">
-            <i class="fa-solid fa-key" style="color:#f59e0b;"></i> API 인증키 설정
+            <i class="fa-solid fa-key" style="color:#f59e0b;"></i> 기상청 API HUB (Auth Key)
         </div>
         
         <div class="admin-card" style="padding:20px; background:rgba(15, 23, 42, 0.4);">
@@ -8244,6 +8260,154 @@ async function renderUnifiedApiContent(container) {
     // 인증키 보기 토글
     window.toggleUnifiedKeyVisibility = function (id) {
         const input = document.getElementById(id);
+        const btn = event.currentTarget;
+        const icon = btn.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('fa-eye', 'fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('fa-eye-slash', 'fa-eye');
+        }
+    };
+
+    // [New] TideBed API 키 추가 (커스텀 모달 사용)
+    window.addTideBedKey = function () {
+        const modal = document.createElement('div');
+        modal.id = 'tidebed-add-key-modal';
+        modal.style.cssText = 'position:fixed;inset:0;z-index:20000;background:rgba(0,0,0,0.8);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;';
+
+        modal.innerHTML = `
+            <div style="background:#1e2435; border-radius:16px; width:100%; max-width:400px; padding:25px; border:1px solid rgba(255,255,255,0.1); box-shadow:0 25px 50px rgba(0,0,0,0.5);">
+                <h3 style="color:#fff; margin:0 0 20px; display:flex; align-items:center; gap:10px;">
+                    <i class="fa-solid fa-key" style="color:#38bdf8;"></i> TideBED API 키 추가
+                </h3>
+                
+                <div style="margin-bottom:15px;">
+                    <label style="display:block; color:#94a3b8; font-size:0.8rem; margin-bottom:6px;">새 인증키 (Service Key)</label>
+                    <input type="text" id="new-tidebed-key" placeholder="API Key를 입력하세요" 
+                           style="width:100%; padding:12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; font-size:0.9rem; font-family:monospace; box-sizing:border-box;">
+                </div>
+
+                <div style="margin-bottom:15px;">
+                    <label style="display:block; color:#94a3b8; font-size:0.8rem; margin-bottom:6px;">만료 일자</label>
+                    <input type="text" id="new-tidebed-expiry" placeholder="예: 2028-02-11" 
+                           style="width:100%; padding:12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; font-size:0.9rem; box-sizing:border-box;">
+                </div>
+
+                <div style="margin-bottom:25px;">
+                    <label style="display:block; color:#94a3b8; font-size:0.8rem; margin-bottom:6px;">닉네임 (소유자)</label>
+                    <input type="text" id="new-tidebed-owner" placeholder="예: JIN" 
+                           style="width:100%; padding:12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; font-size:0.9rem; box-sizing:border-box;">
+                </div>
+
+                <div style="display:flex; gap:12px;">
+                    <button onclick="document.getElementById('tidebed-add-key-modal').remove()" 
+                            style="flex:1; padding:12px; background:rgba(255,255,255,0.05); border:none; border-radius:8px; color:#94a3b8; cursor:pointer; font-weight:600;">취소</button>
+                    <button id="tidebed-key-save-btn" style="flex:1; padding:12px; background:linear-gradient(135deg,#38bdf8,#2563eb); border:none; border-radius:8px; color:#fff; cursor:pointer; font-weight:700;">저장하기</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        document.getElementById('tidebed-key-save-btn').onclick = async () => {
+            const key = document.getElementById('new-tidebed-key').value.trim();
+            const expiry = document.getElementById('new-tidebed-expiry').value.trim();
+            const owner = document.getElementById('new-tidebed-owner').value.trim();
+
+            if (!key) return alert('인증키를 입력해주세요.');
+
+            try {
+                const res = await fetch(CONFIG.API_BASE + '/api/tidebed/key', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key, expiry, owner })
+                });
+                if (res.ok) {
+                    alert('인증키가 성공적으로 추가되었습니다.');
+                    modal.remove();
+                    refreshUnifiedTideBedStatus();
+                } else {
+                    const data = await res.json();
+                    alert(data.error || '추가 실패');
+                }
+            } catch (e) { alert('에러: ' + e.message); }
+        };
+    };
+
+    // [New] TideBed API 키 삭제
+    window.deleteTideBedKey = async function (index) {
+        if (!confirm('정말 이 인증키를 삭제하시겠습니까?')) return;
+        try {
+            const res = await fetch(CONFIG.API_BASE + `/api/tidebed/key/${index}`, { method: 'DELETE' });
+            if (res.ok) {
+                alert('삭제되었습니다.');
+                refreshUnifiedTideBedStatus();
+            } else {
+                const data = await res.json();
+                alert(data.error || '삭제 실패');
+            }
+        } catch (e) { alert('에러: ' + e.message); }
+    };
+
+    // [New] TideBed API 상태 새로고침
+    window.refreshUnifiedTideBedStatus = async function () {
+        const usageEl = document.getElementById('tidebed-usage-status');
+        const listEl = document.getElementById('tidebed-key-list');
+        if (!usageEl || !listEl) return;
+
+        try {
+            const res = await fetch(CONFIG.API_BASE + '/api/tidebed/config');
+            const data = await res.json();
+
+            // 상단 요약
+            usageEl.innerHTML = `API 호출 현황 : <span style="color:#38bdf8;">${data.totalUsed.toLocaleString()}회</span> / <span style="color:#94a3b8;">${data.totalLimit.toLocaleString()}회</span>`;
+
+            // 목록 렌더링
+            listEl.innerHTML = `
+                <div class="admin-accordion-content">
+                    ${data.keys.map((k, i) => `
+                        <div class="tidebed-key-item">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                <div style="flex:1;">
+                                    <div style="font-size:0.75rem; font-weight:700; color:#fff; margin-bottom:6px; display:flex; align-items:center; gap:8px;">
+                                        <i class="fa-solid fa-key" style="color:${data.currentIndex === i ? '#10b981' : '#64748b'}; font-size:0.6rem;"></i>
+                                        ${i + 1}번 KEY ${data.currentIndex === i ? '<span style="padding:2px 6px; background:rgba(16,185,129,0.1); color:#10b981; border-radius:4px; font-size:0.65rem;">사용 중</span>' : ''}
+                                    </div>
+                                    <div style="display:flex; align-items:center; gap:8px; background:rgba(0,0,0,0.2); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+                                        <input type="password" value="${k.fullKey}" id="tidebed-key-${i}" readonly
+                                            style="flex:1; background:transparent; border:none; color:#38bdf8; font-size:0.85rem; font-family:monospace; outline:none; padding:0;">
+                                        <button onclick="toggleTideBedKeyItemVisibility(${i})" style="background:none; border:none; color:#94a3b8; cursor:pointer;" title="보기/숨기기">
+                                            <i class="fa-solid fa-eye"></i>
+                                        </button>
+                                    </div>
+                                    <div style="margin-top:8px; display:flex; flex-direction:column; gap:4px;">
+                                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                                            <span style="font-size:0.7rem; color:#64748b;">일일 호출: <b style="color:#cbd5e1;">${k.used.toLocaleString()}</b> / 10,000</span>
+                                            <button onclick="deleteTideBedKey(${i})" style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); color:#ef4444; border-radius:6px; padding:4px 8px; font-size:0.7rem; cursor:pointer;">
+                                                <i class="fa-solid fa-trash-can" style="margin-right:4px;"></i> 삭제
+                                            </button>
+                                        </div>
+                                        <div style="font-size:0.7rem; color:#64748b; padding:6px 0; border-top:1px solid rgba(255,255,255,0.03); display:flex; gap:10px;">
+                                            <span>📅 만료: <b style="color:#94a3b8;">${k.expiry}</b></span>
+                                            <span>👤 소유: <b style="color:#94a3b8;">${k.owner}</b></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` || '<div style="color:#64748b; font-size:0.8rem; text-align:center; padding:10px;">등록된 키가 없습니다.</div>';
+
+        } catch (e) {
+            console.error('TideBed 상태 로드 실패:', e);
+        }
+    };
+
+    window.toggleTideBedKeyItemVisibility = function (i) {
+        const input = document.getElementById(`tidebed-key-${i}`);
         const icon = event.currentTarget.querySelector('i');
         if (input.type === 'password') {
             input.type = 'text';
@@ -8335,6 +8499,7 @@ async function renderUnifiedApiContent(container) {
     };
 
     refreshUnifiedApiStatus();
+    refreshUnifiedTideBedStatus();
 }
 
 // (C) 공지 팝업 섹션 렌더링
@@ -10559,6 +10724,48 @@ window.closeKmaIframeModal = function () {
             modal.remove();
             document.body.style.overflow = '';
         }, 150);
+    }
+};
+
+/**
+ * SEAGNAL 커스텀 시스템 모달 (Alert 대체용)
+ */
+window.showSeagnalModal = function (title, message, type = 'info') {
+    // 기존 모달 제거
+    const existing = document.getElementById('seagnal-custom-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'seagnal-custom-modal';
+    modal.className = 'seagnal-modal';
+
+    const icon = type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-info';
+    const iconClass = type === 'error' ? 'error' : '';
+
+    modal.innerHTML = `
+        <div class="seagnal-modal-overlay" onclick="window.closeSeagnalModal()"></div>
+        <div class="seagnal-modal-content">
+            <div class="seagnal-modal-icon ${iconClass}">
+                <i class="fa-solid ${icon}"></i>
+            </div>
+            <div class="seagnal-modal-title">${title}</div>
+            <div class="seagnal-modal-message">${message.replace(/\n/g, '<br>')}</div>
+            <button class="seagnal-modal-btn" onclick="window.closeSeagnalModal()">확인</button>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+    document.body.style.overflow = 'hidden';
+};
+
+window.closeSeagnalModal = function () {
+    const modal = document.getElementById('seagnal-custom-modal');
+    if (modal) {
+        modal.classList.add('fade-out');
+        setTimeout(() => {
+            modal.remove();
+            document.body.style.overflow = '';
+        }, 200);
     }
 };
 

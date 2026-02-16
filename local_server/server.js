@@ -3,17 +3,26 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
 const multer = require('multer'); // 파일 업로드 처리
+const cron = require('node-cron'); // 스케줄링을 위한 cron
 
-// ============================================================================
-// [중요] API 데이터 수집 스케줄러 로드 (1분마다 특보, 30분마다 부이 등 자동 수집)
-// ============================================================================
 const scheduler = require('./scheduler');
+const cloudBackup = require('./cloud_backup'); // [New] 클라우드 백업 모듈
 
 const app = express();
 const PORT = 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
+
+// [New] LRU Cache for Tide Data & Environment Flag
+const LRU = require('lru-cache');
+const tideCache = new LRU({
+    max: 500,
+    ttl: 1000 * 60 * 60,
+    updateAgeOnGet: true
+});
+const IS_FLY_IO = !!process.env.FLY_APP_NAME;
 
 // 업로드 폴더 확인 및 생성
 if (!fs.existsSync(UPLOAD_DIR)) {
@@ -126,11 +135,33 @@ function refreshCache() {
 setInterval(refreshCache, 5000);
 refreshCache(); // 초기 로드
 
+// [New] 매일 한국 시간 00:05분에 클라우드 백업 자동 실행 (Fly.io Timezone 고려)
+// UTC 15:05 = KST 00:05
+cron.schedule('5 15 * * *', () => {
+    console.log('⏰ [Daily Schedule] 클라우드 백업 작업을 시작합니다.');
+    cloudBackup.performBackup();
+});
+
 // ============================================================================
 // 서버 설정 및 엔드포인트
 // ============================================================================
 app.use(cors());
 app.use(express.json()); // [중요] 모든 POST 라우트에서 req.body를 사용하기 위해 먼저 설정
+
+// [New] Fly.io 환경 대응: 메모리 캐시 데이터를 파일처럼 제공
+// 클라이언트가 /data/tide_...json 요청 시, 파일 시스템보다 메모리를 먼저 확인
+app.get('/data/:filename', (req, res, next) => {
+    const filename = req.params.filename;
+
+    // 1. 메모리 캐수에 데이터가 있으면 즉시 반환 (JSON)
+    if (tideCache.has(filename)) {
+        // console.log(`🚀 Memory Hit: ${filename}`); // 디버깅용 (필요 시 주석 해제)
+        return res.json(tideCache.get(filename));
+    }
+
+    // 2. 없으면 다음 미들웨어(static file handler)로 넘김 -> 파일 시스템 조회 시도
+    next();
+});
 
 // 정적 파일 제공 설정
 // Fly.io 환경과 로컬 환경에 모두 대응하도록 설정
@@ -466,6 +497,508 @@ app.get('/api/stats/visitors', (req, res) => {
         }
     } catch (e) {
         res.status(500).json({ error: e.message });
+    }
+});
+
+// [New] TideBED API Configuration & Key Management
+const TIDEBED_CONFIG_FILE = path.join(DATA_DIR, 'tidebed_config.json');
+let tideBedConfig = {
+    keys: [
+        {
+            key: 'PmxnR43icJwR7yzKjG612RncLikLD1RvZpPLgEJqUUx0vGQncdfuT9VjiqBlgiXMdcjyKopi4yvUPaPbcdIUfg==',
+            used: 0,
+            expiry: '2028-02-11',
+            owner: 'JIN'
+        }
+    ],
+    currentIndex: 0,
+    lastResetDate: new Date().toISOString().split('T')[0]
+};
+
+// Config 로드
+if (fs.existsSync(TIDEBED_CONFIG_FILE)) {
+    try {
+        const savedConfig = JSON.parse(fs.readFileSync(TIDEBED_CONFIG_FILE, 'utf8'));
+        if (savedConfig.keys && savedConfig.keys.length > 0) {
+            tideBedConfig = savedConfig;
+
+            // [Fix] 기존 데이터에 expiry/owner 가 없는 경우 초기값 설정
+            let needsSave = false;
+            tideBedConfig.keys.forEach(k => {
+                if (!k.expiry) { k.expiry = '2028-02-11'; needsSave = true; }
+                if (!k.owner) { k.owner = 'JIN'; needsSave = true; }
+            });
+
+            // 일일 초기화 로직 (KST 기준)
+            const nowKst = new Date(Date.now() + (9 * 60 * 60 * 1000));
+            const todayStr = nowKst.toISOString().split('T')[0];
+            if (tideBedConfig.lastResetDate !== todayStr) {
+                console.log(`📅 날짜 변경 감지 (${tideBedConfig.lastResetDate} -> ${todayStr}). TideBED API 사용량 초기화.`);
+                tideBedConfig.keys.forEach(k => k.used = 0);
+                tideBedConfig.currentIndex = 0;
+                tideBedConfig.lastResetDate = todayStr;
+                needsSave = true;
+            }
+            if (needsSave) saveTideBedConfig();
+        }
+    } catch (e) {
+        console.error('⚠️ TideBED Config 로드 실패:', e.message);
+    }
+} else {
+    saveTideBedConfig(); // 기본 설정 저장
+}
+
+function saveTideBedConfig() {
+    try {
+        fs.writeFileSync(TIDEBED_CONFIG_FILE, JSON.stringify(tideBedConfig, null, 2), 'utf8');
+    } catch (e) {
+        console.error('⚠️ TideBED Config 저장 실패:', e.message);
+    }
+}
+
+const TIDEBED_BASE_URL = 'https://apis.data.go.kr/1192136/tidebed/GetTidebedApiService';
+const { findTidePeaks } = require('./peak_finder');
+
+// TideBED API 페이지 호출 함수 (자동 키 전환 지원)
+async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retryCount = 0) {
+    if (tideBedConfig.keys.length === 0) {
+        console.error('❌ 등록된 TideBED API 키가 없습니다.');
+        return null;
+    }
+
+    // [New] 매 호출 시 날짜 체크하여 일일 초기화 수행
+    const nowKst = new Date(Date.now() + (9 * 60 * 60 * 1000));
+    const todayStr = nowKst.toISOString().split('T')[0];
+    if (tideBedConfig.lastResetDate !== todayStr) {
+        console.log(`📅 날짜 변경 감지 (${todayStr}). 사용량 초기화.`);
+        tideBedConfig.keys.forEach(k => k.used = 0);
+        tideBedConfig.currentIndex = 0;
+        tideBedConfig.lastResetDate = todayStr;
+        saveTideBedConfig();
+    }
+
+    const currentKeyData = tideBedConfig.keys[tideBedConfig.currentIndex];
+    const apiKey = currentKeyData.key;
+
+    return new Promise((resolve) => {
+        const encodedKey = encodeURIComponent(apiKey);
+        const url = `${TIDEBED_BASE_URL}?serviceKey=${encodedKey}&lat=${lat}&lot=${lon}&reqDate=${reqDate}&type=json&min=1&numOfRows=${numOfRows}&pageNo=${pageNo}`;
+
+        https.get(url, (response) => {
+            let data = '';
+            response.on('data', chunk => data += chunk);
+            response.on('end', async () => {
+                try {
+                    // console.log(`  🔍 Page ${pageNo} raw response (first 200 chars):`, data.substring(0, 200));
+
+                    // API 응답 에러 체크 (예: OVER_QUOTA, LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR)
+                    if (data.includes('SERVICE_ERROR') || data.includes('LIMITED_NUMBER') || data.includes('OVER_QUOTA')) {
+                        console.warn(`⚠️ TideBED API Key (${tideBedConfig.currentIndex + 1}번) 제한/오류 발생. 다음 키로 전환 시도...`);
+                        if (retryCount < tideBedConfig.keys.length) {
+                            rotateTideBedKey();
+                            const result = await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1);
+                            return resolve(result);
+                        }
+                    }
+
+                    const parsed = JSON.parse(data);
+
+                    // 정상 응답인 경우 호출 횟수 증가
+                    currentKeyData.used = (currentKeyData.used || 0) + 1;
+                    if (currentKeyData.used >= 10000) {
+                        console.log(`🚀 ${tideBedConfig.currentIndex + 1}번 키 제한(10,000회) 도달. 다음 키로 자동 전환.`);
+                        rotateTideBedKey();
+                    } else {
+                        saveTideBedConfig(); // 사용량 업데이트 저장
+                    }
+
+                    resolve(parsed);
+                } catch (e) {
+                    // JSON 파싱 실패 시에도 에러 메시지에 따라 키 전환 여부 결정
+                    if (data.includes('<returnReasonCode>')) { // XML 형태의 에러라면
+                        console.warn(`⚠️ TideBED API XML 에러 응답 감지. 키 전환 시도...`);
+                        if (retryCount < tideBedConfig.keys.length) {
+                            rotateTideBedKey();
+                            const result = await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1);
+                            return resolve(result);
+                        }
+                    }
+                    console.error(`❌ TideBED Page ${pageNo} JSON parse error:`, e.message);
+                    resolve(null);
+                }
+            });
+        }).on('error', (err) => {
+            console.error(`❌ TideBED Page ${pageNo} request error:`, err.message);
+            resolve(null);
+        });
+    });
+}
+
+function rotateTideBedKey() {
+    tideBedConfig.currentIndex = (tideBedConfig.currentIndex + 1) % tideBedConfig.keys.length;
+    console.log(`🔄 TideBED API Key가 ${tideBedConfig.currentIndex + 1}번으로 전환되었습니다.`);
+    saveTideBedConfig();
+}
+
+// TideBED 관리 API 엔드포인트
+app.get('/api/tidebed/config', (req, res) => {
+    res.json({
+        currentIndex: tideBedConfig.currentIndex,
+        keys: tideBedConfig.keys.map((k, i) => ({
+            id: i + 1,
+            fullKey: k.key,
+            used: k.used || 0,
+            expiry: k.expiry || '-',
+            owner: k.owner || '-'
+        })),
+        totalLimit: tideBedConfig.keys.length * 10000,
+        totalUsed: tideBedConfig.keys.reduce((acc, k) => acc + (k.used || 0), 0)
+    });
+});
+
+app.post('/api/tidebed/key', (req, res) => {
+    const { key, expiry, owner } = req.body;
+    if (!key) return res.status(400).json({ error: '인증키가 없습니다.' });
+
+    // 중복 체크
+    if (tideBedConfig.keys.some(k => k.key === key)) {
+        return res.status(400).json({ error: '이미 등록된 인증키입니다.' });
+    }
+
+    tideBedConfig.keys.push({
+        key: key,
+        used: 0,
+        expiry: expiry || '-',
+        owner: owner || '-'
+    });
+    saveTideBedConfig();
+    res.json({ success: true, count: tideBedConfig.keys.length });
+});
+
+app.delete('/api/tidebed/key/:index', (req, res) => {
+    const index = parseInt(req.params.index);
+    if (isNaN(index) || index < 0 || index >= tideBedConfig.keys.length) {
+        return res.status(400).json({ error: '잘못된 인덱스입니다.' });
+    }
+
+    if (tideBedConfig.keys.length <= 1) {
+        return res.status(400).json({ error: '최소 하나 이상의 키가 필요합니다.' });
+    }
+
+    tideBedConfig.keys.splice(index, 1);
+    // 현재 인덱스가 삭제된 위치보다 뒤라면 하나 당김
+    if (tideBedConfig.currentIndex >= index && tideBedConfig.currentIndex > 0) {
+        tideBedConfig.currentIndex--;
+    }
+    saveTideBedConfig();
+    res.json({ success: true });
+});
+
+// TideBED 전체 데이터 수집 (5페이지 -> 1440개)
+async function collectTideBedData(lat, lon, reqDate) {
+    console.log(`📡 TideBED API 수집 시작: lat=${lat}, lon=${lon}, date=${reqDate}`);
+    const allItems = [];
+
+    // 5페이지 동시 요청
+    const pagePromises = [1, 2, 3, 4, 5].map(page => {
+        console.log(`  📄 Page ${page}/5 요청 시작...`);
+        return fetchTideBedPage(lat, lon, reqDate, page).then(result => ({ page, result }));
+    });
+
+    const results = await Promise.all(pagePromises);
+
+    // 순서대로 처리
+    for (const { page, result } of results) {
+        // API 응답 구조 호환: {response: {body: ...}} 또는 {body: ...} 둘 다 처리
+        const body = result?.response?.body || result?.body;
+        const header = result?.response?.header || result?.header;
+
+        if (body && body.items) {
+            const items = body.items.item;
+            if (Array.isArray(items)) {
+                allItems.push(...items);
+            } else if (items) {
+                allItems.push(items);
+            }
+            console.log(`  ✅ Page ${page}: ${Array.isArray(items) ? items.length : 1}건 수집 완료`);
+        } else {
+            console.warn(`  ⚠️ Page ${page}: 데이터 없음 또는 오류`);
+            if (header) {
+                console.warn(`     응답 코드: ${header.resultCode || 'N/A'}`);
+                console.warn(`     응답 메시지: ${header.resultMsg || 'N/A'}`);
+            }
+        }
+    }
+
+    console.log(`📡 TideBED 수집 완료: 총 ${allItems.length}건`);
+    return allItems;
+}
+
+// 격자 해시 조회 (1건만 빠르게 조회하여 격자 식별)
+async function getGridHash(lat, lon, reqDate) {
+    try {
+        const result = await fetchTideBedPage(lat, lon, reqDate, 1, 1);
+        const body = result?.response?.body || result?.body;
+        if (body && body.items) {
+            const item = Array.isArray(body.items.item) ? body.items.item[0] : body.items.item;
+            if (item && item.m2TconstAmp !== undefined && item.m2TconstTlag !== undefined) {
+                const amp = Math.round(parseFloat(item.m2TconstAmp) * 1000);
+                const tlag = Math.round(parseFloat(item.m2TconstTlag) * 1000);
+                return `${amp}_${tlag}`;
+            }
+        }
+    } catch (e) {
+        console.error('❌ 격자 해시 조회 실패:', e.message);
+    }
+    return null;
+}
+
+// 캐시 파일 자동 삭제 타이머 관리
+const _fileCleanupTimers = {};
+function scheduleFileCleanup(filePath, delayMs = 60000) {
+    if (_fileCleanupTimers[filePath]) clearTimeout(_fileCleanupTimers[filePath]);
+    _fileCleanupTimers[filePath] = setTimeout(() => {
+        try {
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+                console.log(`🗑️ 캐시 삭제: ${path.basename(filePath)}`);
+            }
+        } catch (e) { /* ignore */ }
+        delete _fileCleanupTimers[filePath];
+    }, delayMs);
+}
+
+// YYYYMMDD 정수에서 전일/익일 날짜 계산
+function getAdjacentDates(dateInt) {
+    const str = String(dateInt);
+    const year = parseInt(str.substring(0, 4));
+    const month = parseInt(str.substring(4, 6)) - 1;
+    const day = parseInt(str.substring(6, 8));
+
+    const current = new Date(year, month, day);
+    const prev = new Date(current); prev.setDate(current.getDate() - 1);
+    const next = new Date(current); next.setDate(current.getDate() + 1);
+
+    const toYMD = (d) => parseInt(d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0'));
+    const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    return {
+        prev: toYMD(prev),
+        current: dateInt,
+        next: toYMD(next),
+        currentISO: toISO(current)
+    };
+}
+
+// 604라인 부근의 기존 collectAndSaveTideData는 유지하되, 내부 로직에서 padding 지원 가능하도록 수정 고려 가능
+// 지금은 /api/save_tide_input 의 루프를 직접 강화하는 것이 더 안전함.
+
+// 단일 날짜 수집 + 피크 분석 + 파일 저장 통합 함수 (패딩 지원 추가)
+async function collectAndSaveTideData(lat, lon, dateInt, time, fileName, paddedItems = null) {
+    const filePath = path.join(DATA_DIR, fileName);
+    const reqDateStr = String(dateInt);
+    const adj = getAdjacentDates(dateInt);
+
+    // console.log(`📡 [${fileName}] 수집/분석 시작 (Padding: ${!!paddedItems})`);
+
+    try {
+        // 1. 데이터 확보 (이미 외부에서 3일치 합쳐서 줬다면 그것 사용, 아니면 단일 호출)
+        let items = [];
+        if (paddedItems) {
+            // 외부에서 준 패딩된 전체 데이터
+            items = paddedItems;
+        } else {
+            items = await collectTideBedData(lat, lon, reqDateStr);
+        }
+
+        // 2. 피크 탐색 (Target Date 지정하여 경계선 누락 방지!)
+        const peakResult = findTidePeaks(items, adj.currentISO);
+
+        // 3. 저장용 데이터 (파일에는 해당 날짜 데이터만 포함하거나 전체 포함 선택 - 여기서는 해당 날짜 데이터만 필터링해서 기록)
+        const dayOnlyItems = items.filter(i => (i.slctdDt || i.obsrvnDt).startsWith(adj.currentISO));
+
+        const completeData = {
+            requestDate: dateInt,
+            requestTime: time,
+            latitude: lat,
+            longitude: lon,
+            timestamp: new Date().toISOString(),
+            tideBedStatus: dayOnlyItems.length > 0 ? 'complete' : 'error',
+            tideBedCount: dayOnlyItems.length,
+            highTide1: peakResult.highTide1,
+            highTide2: peakResult.highTide2,
+            lowTide1: peakResult.lowTide1,
+            lowTide2: peakResult.lowTide2,
+            peakCount: peakResult.peakCount,
+            tideBedData: dayOnlyItems
+        };
+
+        tideCache.set(fileName, completeData);
+        if (!IS_FLY_IO) {
+            fs.writeFileSync(filePath, JSON.stringify(completeData, null, 2), 'utf8');
+        }
+
+        return completeData;
+    } catch (err) {
+        console.error(`❌ ${fileName} 수집 실패:`, err.message);
+        const errorData = {
+            requestDate: dateInt,
+            requestTime: time,
+            latitude: lat,
+            longitude: lon,
+            timestamp: new Date().toISOString(),
+            tideBedStatus: 'error',
+            tideBedError: err.message,
+            tideBedData: []
+        };
+        tideCache.set(fileName, errorData);
+        if (!IS_FLY_IO) {
+            fs.writeFileSync(filePath, JSON.stringify(errorData, null, 2), 'utf8');
+        }
+        return errorData;
+    }
+}
+
+// [New] Tide Input Saver + TideBED API Collector (격자 캐싱 지원)
+app.post('/api/save_tide_input', async (req, res) => {
+    const { date, time, lat, lon } = req.body;
+
+    console.log(`📡 Tide Input Received: Date=${date}, Time=${time}, Lat=${lat}, Lon=${lon}`);
+
+    try {
+        // 1단계: 격자 해시 조회 (1건 사전 조회)
+        const gridHash = await getGridHash(lat, lon, date);
+        if (!gridHash) {
+            console.error('❌ 격자 해시를 확인할 수 없습니다.');
+            res.json({ success: false, error: 'Grid hash unavailable' });
+            return;
+        }
+
+        const adj = getAdjacentDates(date);
+        console.log(`📅 격자: ${gridHash}, 날짜: 전일=${adj.prev}, 당일=${adj.current}, 익일=${adj.next}`);
+
+        // 2단계: 3일치 파일명 결정 및 캐시 확인
+        const datePairs = [
+            { key: 'yesterday', date: adj.prev },
+            { key: 'today', date: adj.current },
+            { key: 'tomorrow', date: adj.next }
+        ];
+
+        const fileMap = {};
+        const toCollect = [];
+
+        for (const pair of datePairs) {
+            const fileName = `tide_${pair.date}_${gridHash}.json`;
+            const filePath = path.join(DATA_DIR, fileName);
+            fileMap[pair.key] = fileName;
+
+            fileMap[pair.key] = fileName;
+
+            let cached = false;
+
+            // [1순위] 메모리 캐시 확인
+            if (tideCache.has(fileName)) {
+                cached = true;
+            }
+            // [2순위] 파일 캐시 확인 (로컬 전용)
+            else if (!IS_FLY_IO && fs.existsSync(filePath)) {
+                try {
+                    const existing = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                    if (existing.tideBedStatus === 'complete') {
+                        cached = true;
+                        tideCache.set(fileName, existing); // 메모리 로드 (Warm-up)
+                    }
+                } catch (e) { /* corrupt file */ }
+            }
+
+            if (!cached) {
+                toCollect.push({ key: pair.key, date: pair.date, fileName });
+            }
+        }
+
+        console.log(`📦 캐시 히트: ${3 - toCollect.length}건, 수집 필요: ${toCollect.length}건`);
+
+        // 3단계: collecting 상태 초기화 (메모리 우선, 로컬은 파일도 생성)
+        for (const item of toCollect) {
+            const filePath = path.join(DATA_DIR, item.fileName);
+            const initData = {
+                requestDate: item.date,
+                requestTime: time,
+                latitude: lat,
+                longitude: lon,
+                timestamp: new Date().toISOString(),
+                tideBedStatus: 'collecting...',
+                tideBedData: []
+            };
+
+            tideCache.set(item.fileName, initData); // 메모리에 '수집중' 상태 마킹
+            if (!IS_FLY_IO) {
+                fs.writeFileSync(filePath, JSON.stringify(initData, null, 2), 'utf8');
+            }
+        }
+
+        // 클라이언트에 즉시 응답 (격자 해시 + 파일명 포함)
+        res.json({
+            success: true,
+            gridHash,
+            files: fileMap,
+            cached: 3 - toCollect.length,
+            collecting: toCollect.length
+        });
+
+        // 4단계: 백그라운드에서 필요한 날짜만 수집
+        // 4단계: 백그라운드 수집 강화 (Padding Analysis 적용)
+        (async () => {
+            try {
+                // 1. 필요한 모든 날짜(어제, 오늘, 내일) 리스트업
+                const allNeededDays = [adj.prev, adj.current, adj.next];
+                const rawItemsMap = {};
+
+                // 2. 3일치 데이터를 병렬로 모두 확보 (캐시 우선, 없으면 API)
+                await Promise.all(allNeededDays.map(async (dayValue) => {
+                    const fname = `tide_${dayValue}_${gridHash}.json`;
+
+                    // 캐시 혹은 파일에 데이터가 이미 있는지 확인
+                    if (tideCache.has(fname) && tideCache.get(fname).tideBedStatus === 'complete') {
+                        rawItemsMap[dayValue] = tideCache.get(fname).tideBedData;
+                    } else if (!IS_FLY_IO && fs.existsSync(path.join(DATA_DIR, fname))) {
+                        const existing = JSON.parse(fs.readFileSync(path.join(DATA_DIR, fname), 'utf8'));
+                        if (existing.tideBedStatus === 'complete') {
+                            rawItemsMap[dayValue] = existing.tideBedData;
+                        }
+                    }
+
+                    // 없으면 API에서 가져옴
+                    if (!rawItemsMap[dayValue]) {
+                        rawItemsMap[dayValue] = await collectTideBedData(lat, lon, String(dayValue));
+                    }
+                }));
+
+                // 3. 수집이 필요한 각 대상 일자별로 패딩 분석 수행
+                for (const item of toCollect) {
+                    const dateInt = item.date;
+                    const adj = getAdjacentDates(dateInt);
+
+                    // 패딩 데이터 구성: (어제 끝 3시간) + (오늘 전체) + (내일 앞 3시간)
+                    const paddedItems = [
+                        ...(rawItemsMap[adj.prev] || []).slice(-180),
+                        ...(rawItemsMap[dateInt] || []),
+                        ...(rawItemsMap[adj.next] || []).slice(0, 180)
+                    ];
+
+                    // 실제 저장 및 분석 실행
+                    await collectAndSaveTideData(lat, lon, dateInt, time, item.fileName, paddedItems);
+                }
+
+                console.log(`🎉 [Padding Analysis] ${toCollect.length}일치 병렬 분석 및 수집 완료!`);
+            } catch (err) {
+                console.error('❌ 백그라운드 수집 오류:', err.message);
+            }
+        })();
+
+    } catch (e) {
+        console.error('Failed to save tide input:', e);
+        res.status(500).json({ error: 'Failed to save data' });
     }
 });
 
@@ -1359,7 +1892,7 @@ app.post('/api/push-custom', async (req, res) => {
                 return Object.entries(groups).map(([time, zones]) => {
                     const zStr = zones.join(', ');
                     const formattedTime = fmt(time);
-                    return `ㅇ${zStr}\n - ${timeLabel} : ${formattedTime}`;
+                    return `ㅇ${zStr}\n   - ${timeLabel} : ${formattedTime}`;
                 }).join('\n');
             };
 
@@ -1493,14 +2026,10 @@ app.post('/api/push-custom', async (req, res) => {
                     params.append('tmEf', payload.items[0].tmEf || '');
                     params.append('tmYn', payload.items[0].tmYn || '');  // 오타 수정: tmEd → tmYn
                     params.append('zones', userFilteredItems.flatMap(i => i.zones).join(','));
-
-                    // [주석처리] 격상/격하 기능 - 추후 사용 가능
-                    // if (payload.templateId === 'level') {
-                    //     const isUp = (payload.level || '').includes('경보');
-                    //     params.append('prevAlertType', (payload.typeName || '') + (isUp ? '주의보' : '경보'));
-                    // }
                 }
-                const url = `/?tab=weather-alert-section&${params.toString()}`;
+                // [Fix] 절대 경로 URL 사용 (앱 실행 호환성 강화)
+                const BASE_URL = 'https://seagnal-server.fly.dev';
+                const url = `${BASE_URL}/?tab=weather-alert-section&${params.toString()}`;
 
                 if (user.type === 'fcm' && user.token) {
                     if (admin.apps.length > 0) {

@@ -36,6 +36,12 @@ subprojects {
                     sourceCompatibility JavaVersion.VERSION_17
                     targetCompatibility JavaVersion.VERSION_17
                 }
+                // Kotlin 타겟 버전을 Java와 동일하게 17로 강제 고정
+                if (project.plugins.hasPlugin('kotlin-android') || project.plugins.hasPlugin('kotlin')) {
+                    kotlinOptions {
+                        jvmTarget = "17"
+                    }
+                }
             }
         }
         if (project.plugins.hasPlugin('java') || project.plugins.hasPlugin('kotlin')) {

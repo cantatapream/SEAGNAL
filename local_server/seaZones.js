@@ -113,6 +113,10 @@ let mapContainer, canvas, mapImage;
 let smallGridCanvas, smallGridCtx;
 const MIN_SMALL_GRID_SCALE = 2.5; // 소해구 표시 시작 배율
 
+// [New] 내 위치 관련 변수
+let seaZoneMyLocation = null;
+let seaZoneMyLocationContainer = null;
+
 let scale = 1, translateX = 0, translateY = 0;
 let isDraggingMap = false, startDragX, startDragY;
 
@@ -132,6 +136,17 @@ let selectedSmallZoneKey = null; // 현재 선택된 소해구 ID (예: "123-5")
 let ctx = null; // 캔버스 컨텍스트
 
 function initSeaZoneMap() {
+    // [UI Change] PC 브라우저에서는 내 위치 버튼 숨김 (모바일/앱 전용)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const myLocBtn = document.getElementById('sea-zone-my-location-btn');
+    if (myLocBtn) {
+        if (!isMobile) {
+            myLocBtn.style.setProperty('display', 'none', 'important');
+        } else {
+            myLocBtn.style.display = 'flex';
+        }
+    }
+
     // index.html의 실제 ID는 'sea-zone-map' 임
     mapContainer = document.getElementById('sea-zone-map');
     if (!mapContainer) {
@@ -442,6 +457,11 @@ function applyTransform() {
     // 부이 표시 업데이트
     if (typeof updateBuoyVisibility === 'function') {
         updateBuoyVisibility();
+    }
+
+    // 내 위치 표시 업데이트
+    if (typeof updateSeaZoneMyLocationMarker === 'function') {
+        updateSeaZoneMyLocationMarker();
     }
 
     // 소해구 그리드 렌더링
@@ -1571,8 +1591,218 @@ window.resetMap = function () {
 };
 
 // ----------------------------------------------------------------------------
-// (내 위치 기능 삭제됨)
+// 📍 내 위치 기능
 // ----------------------------------------------------------------------------
+window.moveSeaZoneMapToMyLocation = async function () {
+    const btn = document.getElementById('sea-zone-my-location-btn');
+    if (!btn || btn.disabled) return;
+
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 확인 중...';
+    btn.disabled = true;
+
+    try {
+        if (typeof window.getCurrentPositionViaCapacitor !== 'function') {
+            throw new Error('Geolocation plugin not found');
+        }
+
+        const position = await window.getCurrentPositionViaCapacitor();
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+
+        seaZoneMyLocation = { lat, lon };
+
+        if (typeof gpsToPixel !== 'function') {
+            throw new Error('gpsToPixel function not found');
+        }
+
+        const pixel = gpsToPixel(lon, lat);
+
+        // 지도가 초기화되지 않았거나 이미지 정보가 없는 경우 체크
+        const imgW = (mapImage && mapImage.naturalWidth) || IMAGE_MAP.width;
+        const imgH = (mapImage && mapImage.naturalHeight) || IMAGE_MAP.height;
+
+        if (pixel.x < 0 || pixel.x > imgW || pixel.y < 0 || pixel.y > imgH) {
+            throw new Error('sea_zone_out_of_range');
+        }
+
+        // 지도를 해당 픽셀로 이동 (고배율 줌)
+        if (typeof zoomToPixelWithMarkerAnimated === 'function') {
+            zoomToPixelWithMarkerAnimated(pixel.x, pixel.y, 4.5);
+        } else {
+            // 호환성 유지
+            scale = 4.5;
+            const containerCenterX = mapContainer.clientWidth / 2;
+            const containerCenterY = mapContainer.clientHeight / 2;
+            translateX = containerCenterX - (pixel.x * scale);
+            translateY = containerCenterY - (pixel.y * scale);
+            applyTransform();
+        }
+
+        // 해구 번호 찾기
+        const cellKey = findCellAtPosition(pixel.x, pixel.y);
+        if (cellKey && typeof SEA_ZONES_DATA !== 'undefined') {
+            const zoneNum = SEA_ZONES_DATA[cellKey];
+            if (zoneNum && zoneNum !== "0") {
+                // 소해구 ID 계산
+                const smallZoneId = getSmallZoneId(pixel.x, pixel.y, cellKey, zoneNum);
+
+                // [New] 유효하지 않은 소해구 체크 (존재한다면)
+                let targetZoneId = zoneNum;
+                if (typeof INVALID_SMALL_ZONES !== 'undefined') {
+                    if (!INVALID_SMALL_ZONES.includes(smallZoneId)) {
+                        targetZoneId = smallZoneId;
+                    }
+                } else {
+                    // 데이터가 있으면 일단 시도
+                    targetZoneId = smallZoneId;
+                }
+
+                // 기상 데이터 조회 (팝업)
+                if (typeof getMarineZoneData === 'function') {
+                    // 약간의 딜레이를 주어 이동 애니메이션과 겹치지 않게 함
+                    setTimeout(() => getMarineZoneData(targetZoneId), 800);
+                }
+            } else {
+                throw new Error('no_sea_zone_found');
+            }
+        } else {
+            throw new Error('no_sea_zone_found');
+        }
+
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+
+    } catch (error) {
+        console.error("해구 지도 내 위치 오류:", error);
+        let msg = "위치 정보를 가져올 수 없습니다.";
+        if (error.message === 'location_permission_denied' || (error.code === 1)) {
+            msg = "위치 정보 사용 승인이 거부되었습니다. 설정에서 권한을 허용해주세요.";
+        } else if (error.message === 'sea_zone_out_of_range' || error.message === 'no_sea_zone_found') {
+            msg = "현재 위치에 해당하는 해구 정보가 없습니다.";
+        }
+
+        if (typeof window.showSeagnalModal === 'function') {
+            window.showSeagnalModal('위치 확인 실패', msg, 'error');
+        } else {
+            alert(msg);
+        }
+
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+    }
+};
+
+function updateSeaZoneMyLocationMarker() {
+    if (!mapContainer || !seaZoneMyLocation) return;
+
+    // [Fix] 맵 래퍼가 아닌 메인 컨테이너(mapContainer)에 부착하여 스케일 역보정 문제를 피함
+    if (!seaZoneMyLocationContainer || !seaZoneMyLocationContainer.isConnected) {
+        // 기존 컨테이너가 있으면 제거 (동적 재생성 대응)
+        const existing = document.getElementById('sea-zone-my-location-container');
+        if (existing) existing.remove();
+
+        seaZoneMyLocationContainer = document.createElement('div');
+        seaZoneMyLocationContainer.id = 'sea-zone-my-location-container';
+        // 부모 컨테이너(mapContainer)의 전체 영역을 덮음
+        seaZoneMyLocationContainer.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000;';
+        mapContainer.appendChild(seaZoneMyLocationContainer);
+    }
+
+    const { lat, lon } = seaZoneMyLocation;
+    const pixel = gpsToPixel(lon, lat);
+
+    // [New] 화면상의 실제 좌표 계산 (translateX/Y와 scale 반영)
+    const screenX = translateX + pixel.x * scale;
+    const screenY = translateY + pixel.y * scale;
+
+    // 화면 밖이면 숨김 (여유 범위 50px)
+    if (screenX < -50 || screenX > mapContainer.clientWidth + 50 ||
+        screenY < -50 || screenY > mapContainer.clientHeight + 50) {
+        seaZoneMyLocationContainer.style.display = 'none';
+        return;
+    }
+    seaZoneMyLocationContainer.style.display = 'block';
+
+    // [Refined Style] 이미지 2 스타일: 다층 원형 레이어링으로 글로우 연출
+    seaZoneMyLocationContainer.innerHTML = `
+        <div style="
+            position: absolute;
+            left: ${screenX}px;
+            top: ${screenY}px;
+            width: 30px;
+            height: 30px;
+            transform: translate(-50%, -50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        ">
+            <!-- 1. 가장 바깥쪽 은은한 글로우 (radius 15) -->
+            <div style="
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 123, 255, 0.12);
+                border-radius: 50%;
+            "></div>
+            
+            <!-- 2. 중간 단계 글로우 (radius 12) -->
+            <div style="
+                position: absolute;
+                width: 80%;
+                height: 80%;
+                background: rgba(0, 123, 255, 0.22);
+                border-radius: 50%;
+            "></div>
+
+            <!-- 펄스 애니메이션 (CSS 클래스 사용) -->
+            <div class="sea-zone-my-location-pulse" style="
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 123, 255, 0.2);
+                border-radius: 50%;
+            "></div>
+            
+            <!-- 3. 두꺼운 흰색 테두리 (radius 9) -->
+            <div style="
+                position: absolute;
+                width: 60%;
+                height: 60%;
+                background: #ffffff;
+                border-radius: 50%;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            "></div>
+            
+            <!-- 4. 중심 파란색 점 (radius 6) - 생생한 블루(#007bff) -->
+            <div style="
+                position: absolute;
+                width: 40%;
+                height: 40%;
+                background: #007bff;
+                border-radius: 50%;
+            "></div>
+
+            <!-- 라벨 (위치와 텍스트 크기 고정) -->
+            <div style="
+                position: absolute;
+                top: -26px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(10, 25, 41, 0.85);
+                color: white;
+                padding: 3px 8px;
+                border-radius: 5px;
+                font-size: 11px;
+                white-space: nowrap;
+                font-weight: 600;
+                border: 1px solid rgba(255,255,255,0.2);
+                backdrop-filter: blur(2px);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            ">내 위치</div>
+        </div>
+    `;
+}
 
 
 // ============================================================

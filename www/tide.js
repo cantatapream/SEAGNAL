@@ -48,11 +48,12 @@ const TideFavorites = {
         return true;
     },
 
-    remove(index) {
-        if (confirm(`'${this.items[index].name}' 즐겨찾기를 삭제하시겠습니까?`)) {
-            this.items.splice(index, 1);
-            this.save();
+    remove(index, askConfirm = true) {
+        if (askConfirm && !confirm(`'${this.items[index].name}' 즐겨찾기를 삭제하시겠습니까?`)) {
+            return;
         }
+        this.items.splice(index, 1);
+        this.save();
     },
 
     render() {
@@ -137,33 +138,7 @@ window.loadTideData = loadTideData;
 
 // 표준항 목록 (tide_map_fixed.html에서 복사)
 const TIDE_REFERENCE_STATIONS = [
-    { code: "SO_0732", name: "남애항", lat: 37.944, lon: 128.788 },
-    { code: "SO_0733", name: "강릉항", lat: 37.772, lon: 128.951 },
-    { code: "SO_0734", name: "궁촌항", lat: 37.327, lon: 129.27 },
-    { code: "SO_0735", name: "죽변항", lat: 37.054, lon: 129.423 },
-    { code: "SO_0736", name: "축산항", lat: 36.509, lon: 129.448 },
-    { code: "SO_0737", name: "강구항", lat: 36.358, lon: 129.391 },
-    { code: "SO_0555", name: "서망항", lat: 34.366, lon: 126.134 },
-    { code: "SO_0559", name: "완도항", lat: 34.261, lon: 126.759 },
-    { code: "SO_0558", name: "법성포", lat: 35.569, lon: 126.427 },
-    { code: "SO_0557", name: "오도항", lat: 35.035, lon: 126.433 },
-    { code: "SO_0560", name: "나포항", lat: 35.464, lon: 126.324 },
-    { code: "SO_0562", name: "승봉도", lat: 37.169, lon: 126.29 },
-    { code: "SO_0573", name: "양포항", lat: 35.881, lon: 129.527 },
-    { code: "SO_0581", name: "강양항", lat: 35.39, lon: 129.344 },
-    { code: "SO_0571", name: "거제외포", lat: 34.939, lon: 128.718 },
-    { code: "SO_0578", name: "소매물도", lat: 34.621, lon: 128.548 },
-    { code: "SO_0567", name: "쉬미항", lat: 34.504, lon: 126.183 },
-    { code: "SO_0576", name: "화봉리", lat: 34.661, lon: 126.256 },
-    { code: "SO_0564", name: "국화도", lat: 37.06, lon: 126.56 },
-    { code: "SO_0563", name: "울도", lat: 37.035, lon: 125.995 },
-    { code: "SO_0706", name: "청산도", lat: 34.18, lon: 126.856 },
-    { code: "SO_0708", name: "안도항", lat: 34.479, lon: 127.797 },
-    { code: "SO_0712", name: "능양항", lat: 34.812, lon: 128.245 },
-    { code: "SO_0701", name: "홍도항", lat: 34.681, lon: 125.195 },
-    { code: "SO_0702", name: "진도옥도", lat: 34.35, lon: 126.018 },
-    { code: "SO_0703", name: "제주한림", lat: 33.412, lon: 126.265 },
-    { code: "SO_0704", name: "보령항", lat: 36.329, lon: 126.335 },
+    { code: "DT_0001", name: "인천", lat: 37.451, lon: 126.592 },
     { code: "DT_0002", name: "평택", lat: 36.966, lon: 126.822 },
     { code: "DT_0003", name: "영광", lat: 35.426, lon: 126.42 },
     { code: "DT_0004", name: "제주", lat: 33.527, lon: 126.543 },
@@ -175,95 +150,160 @@ const TIDE_REFERENCE_STATIONS = [
     { code: "DT_0011", name: "후포", lat: 36.677, lon: 129.453 },
     { code: "DT_0012", name: "속초", lat: 38.207, lon: 128.594 },
     { code: "DT_0013", name: "울릉도", lat: 37.491, lon: 130.913 },
+    { code: "DT_0014", name: "통영", lat: 34.827, lon: 128.434 },
     { code: "DT_0016", name: "여수", lat: 34.747, lon: 127.765 },
     { code: "DT_0017", name: "대산", lat: 37.007, lon: 126.352 },
     { code: "DT_0018", name: "군산", lat: 35.975, lon: 126.563 },
-    { code: "DT_0021", name: "추자도", lat: 33.961, lon: 126.3 },
-    { code: "DT_0023", name: "모슬포", lat: 33.214, lon: 126.251 },
-    { code: "DT_0028", name: "진도", lat: 34.377, lon: 126.308 },
-    { code: "SO_0553", name: "해운대", lat: 35.16, lon: 129.191 },
-    { code: "SO_0540", name: "호산항", lat: 37.176, lon: 129.342 },
     { code: "DT_0020", name: "울산", lat: 35.501, lon: 129.387 },
+    { code: "DT_0021", name: "추자도", lat: 33.961, lon: 126.3 },
     { code: "DT_0022", name: "성산포", lat: 33.474, lon: 126.927 },
+    { code: "DT_0023", name: "모슬포", lat: 33.214, lon: 126.251 },
     { code: "DT_0024", name: "장항", lat: 36.006, lon: 126.687 },
+    { code: "DT_0025", name: "보령", lat: 36.406, lon: 126.486 },
     { code: "DT_0026", name: "고흥발포", lat: 34.481, lon: 127.342 },
     { code: "DT_0027", name: "완도", lat: 34.315, lon: 126.759 },
+    { code: "DT_0028", name: "진도", lat: 34.9667, lon: 127.9667 },
     { code: "DT_0029", name: "거제도", lat: 34.801, lon: 128.699 },
-    { code: "DT_0025", name: "보령", lat: 36.406, lon: 126.486 },
-    { code: "DT_0001", name: "인천", lat: 37.451, lon: 126.592 },
-    { code: "DT_0052", name: "인천송도", lat: 37.338, lon: 126.586 },
-    { code: "DT_0014", name: "통영", lat: 34.827, lon: 128.434 },
+    { code: "DT_0031", name: "거문도", lat: 34.027, lon: 127.308 },
+    { code: "DT_0032", name: "강화대교", lat: 37.75, lon: 126.5 },
+    { code: "DT_0035", name: "흑산도", lat: 34.6833, lon: 125.4333 },
+    { code: "DT_0036", name: "대청도", lat: 37.8333, lon: 124.7 },
     { code: "DT_0037", name: "어청도", lat: 36.117, lon: 125.984 },
-    { code: "DT_0046", name: "쌍정초", lat: 37.556, lon: 130.939 },
-    { code: "DT_0039", name: "왕돌초", lat: 36.719, lon: 129.732 },
-    { code: "DT_0041", name: "복사초", lat: 34.098, lon: 126.168 },
-    { code: "DT_0047", name: "도농탄", lat: 33.287, lon: 126.104 },
-    { code: "SO_0537", name: "벽파진", lat: 34.539, lon: 126.346 },
-    { code: "SO_0547", name: "말도", lat: 35.855, lon: 126.318 },
-    { code: "SO_0550", name: "나로도", lat: 34.463, lon: 127.453 },
-    { code: "SO_0705", name: "마량항", lat: 34.448, lon: 126.821 },
-    { code: "SO_0707", name: "시산항", lat: 34.394, lon: 127.261 },
-    { code: "SO_0709", name: "두문포", lat: 34.643, lon: 127.797 },
-    { code: "SO_0710", name: "봉우항", lat: 34.932, lon: 127.927 },
-    { code: "SO_0711", name: "창선도", lat: 34.84, lon: 128.019 },
-    { code: "SO_0700", name: "호도", lat: 36.303, lon: 126.264 },
+    { code: "DT_0038", name: "굴업도", lat: 37.2000, lon: 126.0000 },
+    { code: "DT_0039", name: "왕돌초", lat: 36.7167, lon: 129.7167 },
+    { code: "DT_0040", name: "독도", lat: 37.2333, lon: 131.8667 },
+    { code: "DT_0041", name: "복사초", lat: 34.0833, lon: 126.1667 },
+    { code: "DT_0042", name: "교본초", lat: 34.7000, lon: 128.3000 },
+    { code: "DT_0043", name: "영흥도", lat: 37.25, lon: 126.4833 },
+    { code: "DT_0044", name: "영종대교", lat: 37.5667, lon: 126.5833 },
+    { code: "DT_0046", name: "쌍정초", lat: 37.5500, lon: 130.9333 },
+    { code: "DT_0047", name: "도농탄", lat: 33.1500, lon: 126.2667 },
+    { code: "DT_0048", name: "속초등표", lat: 38.2167, lon: 128.6 },
+    { code: "DT_0049", name: "광양", lat: 34.9, lon: 127.7 },
+    { code: "DT_0050", name: "태안", lat: 36.9167, lon: 126.2333 },
+    { code: "DT_0051", name: "서천마량", lat: 36.1333, lon: 126.5 },
+    { code: "DT_0052", name: "인천송도", lat: 37.338, lon: 126.586 },
+    { code: "DT_0054", name: "진해", lat: 35.15, lon: 128.6667 },
+    { code: "DT_0056", name: "부산항신항", lat: 35.0833, lon: 128.8333 },
+    { code: "DT_0057", name: "동해항", lat: 37.5, lon: 129.1333 },
+    { code: "DT_0058", name: "경인항", lat: 37.5667, lon: 126.6 },
     { code: "DT_0059", name: "백령도", lat: 37.955, lon: 124.736 },
     { code: "DT_0060", name: "연평도", lat: 37.657, lon: 125.714 },
+    { code: "DT_0061", name: "삼천포", lat: 34.9167, lon: 128.0667 },
+    { code: "DT_0062", name: "마산", lat: 35.2, lon: 128.5833 },
+    { code: "DT_0063", name: "가덕도", lat: 35.0167, lon: 128.8333 },
+    { code: "DT_0064", name: "교동대교", lat: 37.789, lon: 126.339 },
+    { code: "DT_0065", name: "덕적도", lat: 37.2333, lon: 126.15 },
+    { code: "DT_0067", name: "안흥", lat: 36.6833, lon: 126.1167 },
+    { code: "DT_0068", name: "위도", lat: 35.618, lon: 126.301 },
+    { code: "DT_0091", name: "포항", lat: 36.05, lon: 129.3833 },
+    { code: "DT_0092", name: "여호항", lat: 34.6667, lon: 127.4667 },
+    { code: "DT_0093", name: "소무의도", lat: 37.373, lon: 126.44 },
+    { code: "DT_0094", name: "서거차도", lat: 34.251, lon: 125.915 },
+    { code: "IE_0060", name: "이어도", lat: 32.1167, lon: 127.1833 },
+    { code: "IE_0061", name: "신안가거초", lat: 33.9500, lon: 124.6000 },
+    { code: "IE_0062", name: "옹진소청초", lat: 37.4167, lon: 124.7333 },
+    { code: "SO_0326", name: "미조항", lat: 34.7167, lon: 128.05 },
+    { code: "SO_0537", name: "벽파진", lat: 34.539, lon: 126.346 },
+    { code: "SO_0538", name: "안마도", lat: 35.3500, lon: 126.0167 },
+    { code: "SO_0539", name: "강화외포", lat: 37.7, lon: 126.3833 },
+    { code: "SO_0540", name: "호산항", lat: 37.176, lon: 129.342 },
+    { code: "SO_0547", name: "말도", lat: 35.855, lon: 126.318 },
+    { code: "SO_0548", name: "우이도", lat: 34.6167, lon: 125.8500 },
+    { code: "SO_0549", name: "초도", lat: 34.2167, lon: 127.25 },
+    { code: "SO_0550", name: "나로도", lat: 34.463, lon: 127.453 },
     { code: "SO_0551", name: "여서도", lat: 33.988, lon: 126.923 },
     { code: "SO_0552", name: "고현항", lat: 34.901, lon: 128.622 },
-    { code: "IE_0062", name: "옹진소청초", lat: 37.423, lon: 124.738 },
-    { code: "SO_0572", name: "갈두", lat: 34.549, lon: 127.589 },
-    { code: "SO_0575", name: "하태도", lat: 34.403, lon: 127.122 },
-    { code: "SO_0561", name: "거문도", lat: 34.027, lon: 127.308 },
-    { code: "SO_0570", name: "광암항", lat: 35.102, lon: 128.498 },
-    { code: "SO_0568", name: "백야도", lat: 34.624, lon: 127.632 },
-    { code: "SO_0577", name: "가거도", lat: 34.05, lon: 125.128 },
-    { code: "SO_0566", name: "송공항", lat: 34.848, lon: 126.225 },
+    { code: "SO_0553", name: "해운대", lat: 35.16, lon: 129.191 },
+    { code: "SO_0554", name: "영종왕산", lat: 37.45, lon: 126.3667 },
+    { code: "SO_0555", name: "서망항", lat: 34.366, lon: 126.134 },
+    { code: "SO_0562", name: "승봉도", lat: 37.169, lon: 126.29 },
+    { code: "SO_0563", name: "울도", lat: 37.035, lon: 125.995 },
+    { code: "SO_0564", name: "국화도", lat: 37.06, lon: 126.56 },
     { code: "SO_0565", name: "향화도항", lat: 35.167, lon: 126.359 },
+    { code: "SO_0566", name: "송공항", lat: 34.848, lon: 126.225 },
+    { code: "SO_0567", name: "쉬미항", lat: 34.504, lon: 126.183 },
+    { code: "SO_0568", name: "백야도", lat: 34.624, lon: 127.632 },
+    { code: "SO_0569", name: "남포항", lat: 34.9500, lon: 128.3167 },
+    { code: "SO_0570", name: "광암항", lat: 35.1000, lon: 128.5000 },
+    { code: "SO_0571", name: "거제외포", lat: 34.939, lon: 128.718 },
+    { code: "SO_0572", name: "읍천항", lat: 35.6833, lon: 129.4833 },
+    { code: "SO_0573", name: "양포항", lat: 35.881, lon: 129.527 },
     { code: "SO_0574", name: "백사장항", lat: 36.586, lon: 126.315 },
+    { code: "SO_0576", name: "화봉리", lat: 34.661, lon: 126.256 },
+    { code: "SO_0577", name: "가거도", lat: 34.05, lon: 125.128 },
+    { code: "SO_0578", name: "소매물도", lat: 34.621, lon: 128.548 },
+    { code: "SO_0581", name: "강양항", lat: 35.39, lon: 129.344 },
+    { code: "SO_0631", name: "암태도", lat: 34.853, lon: 126.071 },
+    { code: "SO_0699", name: "천리포항", lat: 36.8, lon: 126.15 },
+    { code: "SO_0700", name: "호도", lat: 36.303, lon: 126.264 },
+    { code: "SO_0701", name: "홍도항", lat: 34.681, lon: 125.195 },
+    { code: "SO_0702", name: "진도옥도", lat: 34.35, lon: 126.018 },
+    { code: "SO_0703", name: "땅끝항", lat: 34.3000, lon: 126.5333 },
+    { code: "SO_0704", name: "소안항", lat: 34.1500, lon: 127.6333 },
+    { code: "SO_0705", name: "마량항", lat: 34.448, lon: 126.821 },
+    { code: "SO_0706", name: "청산도", lat: 34.18, lon: 126.856 },
+    { code: "SO_0707", name: "시산항", lat: 34.394, lon: 127.261 },
+    { code: "SO_0708", name: "안도항", lat: 34.479, lon: 127.797 },
+    { code: "SO_0709", name: "두문포", lat: 34.643, lon: 127.797 },
+    { code: "SO_0710", name: "봉우항", lat: 34.9333, lon: 127.9333 },
+    { code: "SO_0711", name: "창선도", lat: 34.8333, lon: 128.0167 },
+    { code: "SO_0712", name: "능양항", lat: 34.8167, lon: 128.2500 },
     { code: "SO_0731", name: "대진항", lat: 38.501, lon: 128.426 },
+    { code: "SO_0732", name: "남애항", lat: 37.944, lon: 128.788 },
+    { code: "SO_0733", name: "강릉항", lat: 37.772, lon: 128.951 },
+    { code: "SO_0734", name: "궁촌항", lat: 37.327, lon: 129.27 },
+    { code: "SO_0735", name: "죽변항", lat: 37.054, lon: 129.423 },
+    { code: "SO_0736", name: "축산항", lat: 36.509, lon: 129.448 },
+    { code: "SO_0737", name: "강구항", lat: 36.358, lon: 129.391 },
+    { code: "SO_0739", name: "도장항", lat: 34.3667, lon: 127.0167 },
+    { code: "SO_0740", name: "보옥항", lat: 34.1333, lon: 126.5167 },
+    { code: "SO_0752", name: "검산항", lat: 35.0000, lon: 126.1000 },
+    { code: "SO_0753", name: "하의도웅곡", lat: 34.608, lon: 126.038 },
+    { code: "SO_0754", name: "평호리", lat: 34.448, lon: 126.455 },
+    { code: "SO_0755", name: "원동항", lat: 34.393, lon: 126.648 },
+    { code: "SO_0756", name: "사초항", lat: 34.4667, lon: 126.7667 },
+    { code: "SO_0757", name: "안남리", lat: 34.73, lon: 127.264 },
+    { code: "SO_0758", name: "달천도", lat: 34.7667, lon: 127.5667 },
+    { code: "SO_0759", name: "장문리", lat: 34.873, lon: 128.424 },
+    { code: "SO_0760", name: "오산항", lat: 36.888, lon: 129.416 },
+    { code: "SO_0761", name: "녹동항", lat: 34.5333, lon: 127.1333 },
+    { code: "SO_1248", name: "신안옥도", lat: 34.683, lon: 126.064 },
+    { code: "SO_1249", name: "독거도", lat: 34.2333, lon: 126.1667 },
+    { code: "SO_1250", name: "평도", lat: 34.2500, lon: 127.4500 },
     { code: "SO_1251", name: "낙월도", lat: 35.2, lon: 126.145 },
     { code: "SO_1252", name: "외연도항", lat: 36.225, lon: 126.081 },
-    { code: "SO_0757", name: "안남리", lat: 34.73, lon: 127.264 },
-    { code: "SO_0755", name: "원동항", lat: 34.393, lon: 126.648 },
-    { code: "SO_0754", name: "평호리", lat: 34.448, lon: 126.455 },
+    { code: "SO_1253", name: "상왕등도", lat: 35.6667, lon: 126.1167 },
+    { code: "SO_1254", name: "만재도", lat: 34.2, lon: 125.4667 },
+    { code: "SO_1255", name: "상태도", lat: 34.4333, lon: 125.2833 },
     { code: "SO_1256", name: "어류정항", lat: 37.643, lon: 126.342 },
-    { code: "DT_0064", name: "교동대교", lat: 37.789, lon: 126.339 },
-    { code: "SO_1249", name: "오도항", lat: 35.035, lon: 126.433 },
-    { code: "SO_1247", name: "여자만", lat: 34.762, lon: 127.403 },
-    { code: "SO_1246", name: "법성포", lat: 35.569, lon: 126.427 },
-    { code: "SO_1248", name: "신안옥도", lat: 34.683, lon: 126.064 },
-    { code: "SO_0759", name: "장문리", lat: 34.873, lon: 128.424 },
-    { code: "DT_0068", name: "위도", lat: 35.618, lon: 126.301 },
-    { code: "SO_0760", name: "오산항", lat: 36.888, lon: 129.416 },
-    { code: "SO_0753", name: "하의도웅곡", lat: 34.608, lon: 126.038 },
-    { code: "SO_0631", name: "암태도", lat: 34.853, lon: 126.071 },
-    { code: "SO_0752", name: "검산항", lat: 35.0, lon: 126.107 },
+    { code: "SO_1257", name: "강화하리", lat: 37.78, lon: 126.43 },
+    { code: "SO_1258", name: "잠진도", lat: 37.4167, lon: 126.4167 },
+    { code: "SO_1259", name: "자월도", lat: 37.25, lon: 126.3167 },
+    { code: "SO_1260", name: "방포항", lat: 36.5, lon: 126.3333 },
+    { code: "SO_1261", name: "무창포항", lat: 36.25, lon: 126.5333 },
+    { code: "SO_1262", name: "격포항", lat: 35.6167, lon: 126.4667 },
+    { code: "SO_1263", name: "구시포항", lat: 35.4333, lon: 126.4333 },
+    { code: "SO_1264", name: "계마항", lat: 35.4, lon: 126.4 },
     { code: "SO_1265", name: "송이도", lat: 35.271, lon: 126.15 },
     { code: "SO_1266", name: "남열항", lat: 34.576, lon: 127.48 },
     { code: "SO_1267", name: "구룡포항", lat: 35.99, lon: 129.555 },
-    { code: "DT_0093", name: "소무의도", lat: 37.373, lon: 126.44 },
-    { code: "DT_0094", name: "서거차도", lat: 34.251, lon: 125.915 },
     { code: "SO_1268", name: "궁평항", lat: 37.117, lon: 126.68 },
+    { code: "SO_1269", name: "연도항", lat: 36.0833, lon: 126.4500 },
     { code: "SO_1270", name: "삼길포항", lat: 37.004, lon: 126.452 },
-    { code: "SO_1271", name: "풍도", lat: 37.072, lon: 126.436 },
-    { code: "SO_1272", name: "초산리", lat: 35.023, lon: 126.262 },
-    { code: "SO_1277", name: "화순항", lat: 33.215, lon: 126.315 },
+    { code: "SO_1271", name: "어은돌항", lat: 36.7500, lon: 126.1333 },
+    { code: "SO_1272", name: "다대포항", lat: 35.0500, lon: 128.9833 },
+    { code: "SO_1273", name: "장호항", lat: 37.288, lon: 129.317 },
     { code: "SO_1274", name: "거진항", lat: 38.446, lon: 128.456 },
     { code: "SO_1275", name: "공현진항", lat: 38.355, lon: 128.513 },
     { code: "SO_1276", name: "아야진항", lat: 38.27, lon: 128.557 },
-    { code: "SO_1273", name: "장호항", lat: 37.288, lon: 129.317 },
-    { code: "SO_1283", name: "사천진항", lat: 37.875, lon: 128.875 },
+    { code: "SO_1277", name: "화순항", lat: 33.2333, lon: 126.3333 },
+    { code: "SO_1278", name: "원평항", lat: 34.7833, lon: 125.9167 },
     { code: "SO_1279", name: "어란진항", lat: 34.348, lon: 126.475 },
     { code: "SO_1280", name: "덕산항", lat: 37.377, lon: 129.253 },
     { code: "SO_1281", name: "임원항", lat: 37.228, lon: 129.343 },
     { code: "SO_1282", name: "선재도", lat: 37.253, lon: 126.509 },
-    { code: "SO_1278", name: "원평항", lat: 34.781, lon: 125.908 },
-    { code: "SO_1284", name: "월포리", lat: 36.209, lon: 129.381 },
-    { code: "SO_1285", name: "구계항", lat: 36.318, lon: 129.379 },
-    { code: "SO_1286", name: "영덕대진항", lat: 36.557, lon: 129.431 },
-    { code: "SO_1287", name: "구산항", lat: 36.76, lon: 129.472 },
-    { code: "SO_1288", name: "기사문항", lat: 38.007, lon: 128.73 }
+    { code: "SO_1283", name: "사천진항", lat: 37.875, lon: 128.875 }
 ];
 
 let stationData = TIDE_REFERENCE_STATIONS;
@@ -283,6 +323,9 @@ function initTideMap() {
         const popupElement = document.createElement('div');
         popupElement.id = 'tide-popup-container';
         popupElement.style.display = 'none';
+
+        // [UI Change] 팝업 전체 위치 하향 조정 (안내 문구와 겹침 방지 - 과도하지 않게 조정)
+        popupElement.style.marginTop = '20px'; // 지도 상단에서 살짝만 떨어뜨림
 
         const mapContainer = document.getElementById('tide-map');
         if (!mapContainer) return;
@@ -448,14 +491,130 @@ function updateFavoriteMarkers() {
 }
 
 // ===== 지도 클릭 처리 =====
-async function handleTideMapClick(event) {
-    // 팝업이 열려있어도 다른 곳을 클릭하면 이동하도록 변경 (닫기 로직 제거)
-    // if (tidePopupOverlay && tidePopupOverlay.getPosition()) { ... } 제거
+// TideBED 폴링 타이머 (중복 방지)
+let _tidePollTimer = null;
+// 게이지 실시간 갱신 타이머
+let _gaugeUpdateTimer = null;
+// 마지막 표시 데이터 (게이지 갱신용)
+let _lastTideDisplayData = null;
 
+function stopGaugeAutoRefresh() {
+    if (_gaugeUpdateTimer) {
+        clearInterval(_gaugeUpdateTimer);
+        _gaugeUpdateTimer = null;
+    }
+}
+
+function startGaugeAutoRefresh() {
+    stopGaugeAutoRefresh();
+    _gaugeUpdateTimer = setInterval(() => {
+        if (!_lastTideDisplayData || !tidePopupOverlay || !tidePopupOverlay.getPosition()) {
+            stopGaugeAutoRefresh();
+            return;
+        }
+        const d = _lastTideDisplayData;
+        // 현재 시각 기준으로 게이지 재계산
+        let currentTideLevel = null;
+        const now = new Date();
+        const isToday = now.getFullYear() === currentTideDate.getFullYear() &&
+            now.getMonth() === currentTideDate.getMonth() &&
+            now.getDate() === currentTideDate.getDate();
+
+        if (isToday && d.todayData && d.todayData.tideBedData && d.todayData.tideBedData.length > 0) {
+            const nowHH = String(now.getHours()).padStart(2, '0');
+            const nowMM = String(now.getMinutes()).padStart(2, '0');
+            const nowTimeStr = `${nowHH}:${nowMM}`;
+            let closestItem = null;
+            let closestDiff = Infinity;
+            for (const item of d.todayData.tideBedData) {
+                const itemTime = item.slctdDt ? item.slctdDt.split(' ')[1] : null;
+                if (!itemTime) continue;
+                const diff = Math.abs(timeToMinutes(itemTime) - timeToMinutes(nowTimeStr));
+                if (diff < closestDiff) {
+                    closestDiff = diff;
+                    closestItem = item;
+                }
+            }
+            if (closestItem) {
+                currentTideLevel = parseFloat(closestItem.slctdHgt);
+            }
+        }
+
+        const tideProgress = getTideProgress(d.allTides, currentTideDate, d.prevDayLastTide, d.nextDayFirstTide, currentTideLevel);
+        if (tideProgress) {
+            const gaugeWrapper = document.querySelector('.tide-progress-wrapper');
+            if (gaugeWrapper) {
+                const newHtml = getTideProgressHTML(tideProgress);
+                const temp = document.createElement('div');
+                temp.innerHTML = newHtml;
+                if (temp.firstElementChild) {
+                    gaugeWrapper.replaceWith(temp.firstElementChild);
+                }
+            }
+        }
+    }, 60000); // 1분마다 갱신
+}
+
+// [New] 동해 북부 예외 처리 함수 (북위 36도 이북 & 동해)
+async function processEastSeaNorthException(lat, lon, coord) {
+    showTidePopup(coord, { clickedLat: lat.toFixed(6), clickedLon: lon.toFixed(6), loading: true });
+
+    const y = currentTideDate.getFullYear();
+    const loaded = await loadTideData(String(y)); // 올해 데이터 로드
+    // 연말연시 3일치 처리를 위해 전년/내년 데이터도 로드 필요할 수 있음 (getClientAdjacentDates 활용)
+    const dates = getClientAdjacentDates(currentTideDate);
+    const years = new Set([
+        dates.yesterdayObj.getFullYear(),
+        dates.todayObj.getFullYear(),
+        dates.tomorrowObj.getFullYear()
+    ]);
+    for (const yr of years) {
+        if (yr !== y) await loadTideData(String(yr));
+    }
+
+    if (!window.TIDE_DATA_STORAGE || !window.TIDE_DATA_STORAGE[y]) {
+        showTidePopup(coord, { clickedLat: lat.toFixed(6), clickedLon: lon.toFixed(6), error: `${y}년 조석 데이터(표준항)를 불러올 수 없습니다.` });
+        return;
+    }
+
+    const keyMap = { yesterday: dates.yesterday, today: dates.today, tomorrow: dates.tomorrow };
+    const result = {
+        yesterday: null, today: null, tomorrow: null
+    };
+
+    try {
+        for (const [key, dateInt] of Object.entries(keyMap)) {
+            const stations = findNearestStationsWithData(lat, lon, dateInt, 3);
+            if (stations.length === 0) throw new Error('근거 데이터 부족');
+            const idw = interpolateTideByIDW(stations);
+            result[key] = convertIDWToTideBedFormat(idw, dateInt);
+            // [UI Hint] IDW 결과임을 명시
+            result[key].isInterpolated = true;
+        }
+
+        console.log('⚡ 동해 북부 예외 처리: IDW 결과 표출 (표준항 보간)');
+        showTidePopup(coord, {
+            clickedLat: lat.toFixed(6),
+            clickedLon: lon.toFixed(6),
+            tideBed: result
+        });
+    } catch (e) {
+        showTidePopup(coord, {
+            clickedLat: lat.toFixed(6),
+            clickedLon: lon.toFixed(6),
+            error: '동해 북부 예보를 위한 근거 데이터가 부족합니다.'
+        });
+    }
+}
+
+async function handleTideMapClick(event) {
     // 클릭한 위치에 즐겨찾기 마커나 표준항 마커가 있는지 확인
-    const feature = tideMap.forEachFeatureAtPixel(event.pixel, function (feature) {
-        return feature;
-    });
+    let feature = null;
+    if (event.pixel) {
+        feature = tideMap.forEachFeatureAtPixel(event.pixel, function (feature) {
+            return feature;
+        });
+    }
 
     // 즐겨찾기 마커 클릭 시 해당 위치로 정확히 스냅
     let coordinate = event.coordinate;
@@ -473,57 +632,141 @@ async function handleTideMapClick(event) {
         clickLon = lonLat[0];
     }
 
-    // ... 나머지 로직 계속 진행
     const selectedDate = getSelectedTideDate();
-    const year = String(selectedDate).substring(0, 4);
-
-    // 데이터 로딩 체크 및 시도
-    if (!window.TIDE_DATA_STORAGE || !window.TIDE_DATA_STORAGE[year]) {
-        const success = await loadTideData(year);
-        if (!success) {
-            alert(`${year}년 조석 데이터가 준비되지 않았습니다.`);
-            return;
-        }
-    }
-
-    // 좌표 사용
     const longitude = clickLon;
     const latitude = clickLat;
 
     lastClickedCoordinate = coordinate;
     lastClickedLonLat = { lat: latitude, lon: longitude };
 
-    const nearest3Stations = findNearestStations(latitude, longitude, 3);
-
-
-    let stationsWithData = nearest3Stations.map(station => ({
-        ...station,
-        tideInfo: getTideDataForDate(station.name, selectedDate)
-    })).filter(s => s.tideInfo);
-
-    if (stationsWithData.length === 0) {
-        console.warn('⚠️ 가까운 표준항에 데이터 없음. 모든 표준항 재검색...');
-        stationsWithData = findNearestStationsWithData(latitude, longitude, selectedDate, 3);
+    // [Exception] 동해 북부 (북위 36도 이북 & 동경 128도 이상)
+    if (latitude >= 36.0 && longitude >= 128.0) {
+        stopGaugeAutoRefresh(); // 게이지 타이머 중지
+        await processEastSeaNorthException(latitude, longitude, coordinate);
+        return;
     }
 
-    if (stationsWithData.length === 0) {
+    // 1단계: 로딩 스피너 팝업 즉시 표시
+    stopGaugeAutoRefresh();
+    showTidePopup(coordinate, {
+        clickedLat: latitude.toFixed(6),
+        clickedLon: longitude.toFixed(6),
+        loading: true
+    });
+
+    // 2단계: 서버에 수집 요청
+    const now = new Date();
+    const timeString = [
+        String(now.getHours()).padStart(2, '0'),
+        String(now.getMinutes()).padStart(2, '0'),
+        String(now.getSeconds()).padStart(2, '0')
+    ].join(':');
+
+    let serverResponse;
+    try {
+        const res = await fetch('/api/save_tide_input', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date: selectedDate,
+                time: timeString,
+                lat: latitude,
+                lon: longitude
+            })
+        });
+        serverResponse = await res.json();
+        if (!serverResponse.success) {
+            if (serverResponse.error === 'Grid hash unavailable') {
+                throw new Error('육지를 선택하신 것 같습니다.<br>가까운 바다를 클릭해주세요.');
+            } else {
+                throw new Error('서버 요청에 실패했습니다.');
+            }
+        }
+        console.log(`✅ 격자: ${serverResponse.gridHash}, 캐시: ${serverResponse.cached}건, 수집: ${serverResponse.collecting}건`);
+    } catch (err) {
+        console.error('❌ TideBED 수집 요청 실패:', err);
         showTidePopup(coordinate, {
             clickedLat: latitude.toFixed(6),
             clickedLon: longitude.toFixed(6),
-            error: `해당 날짜의 조석 데이터가 없습니다.\n\n📅 선택 날짜: ${selectedDate}`
+            error: err.message
         });
         return;
     }
 
-    const interpolatedTide = interpolateTideByIDW(stationsWithData);
+    const files = serverResponse.files;
 
-    showTidePopup(coordinate, {
-        clickedLat: latitude.toFixed(6),
-        clickedLon: longitude.toFixed(6),
-        stations: stationsWithData,
-        tideInfo: interpolatedTide,
-        method: stationsWithData.length > 1 ? 'idw' : 'single'
-    });
+    // 3단계: 모두 캐시 히트인 경우 즉시 렌더링
+    if (serverResponse.collecting === 0) {
+        console.log('⚡ 3일치 모두 캐시 히트! 즉시 렌더링');
+        try {
+            const [yesterdayRes, todayRes, tomorrowRes] = await Promise.all([
+                fetch(`/data/${files.yesterday}?` + Date.now()),
+                fetch(`/data/${files.today}?` + Date.now()),
+                fetch(`/data/${files.tomorrow}?` + Date.now())
+            ]);
+            const [yesterdayData, todayData, tomorrowData] = await Promise.all([
+                yesterdayRes.json(), todayRes.json(), tomorrowRes.json()
+            ]);
+            showTidePopup(coordinate, {
+                clickedLat: latitude.toFixed(6),
+                clickedLon: longitude.toFixed(6),
+                tideBed: { yesterday: yesterdayData, today: todayData, tomorrow: tomorrowData }
+            });
+        } catch (err) {
+            showTidePopup(coordinate, {
+                clickedLat: latitude.toFixed(6),
+                clickedLon: longitude.toFixed(6),
+                error: '캐시 데이터 로드에 실패했습니다.'
+            });
+        }
+        return;
+    }
+
+    // 4단계: 폴링 - 동적 파일명 사용
+    if (_tidePollTimer) clearInterval(_tidePollTimer);
+
+    let pollCount = 0;
+    const MAX_POLL = 60;
+
+    _tidePollTimer = setInterval(async () => {
+        pollCount++;
+        if (pollCount > MAX_POLL) {
+            clearInterval(_tidePollTimer);
+            _tidePollTimer = null;
+            showTidePopup(coordinate, {
+                clickedLat: latitude.toFixed(6),
+                clickedLon: longitude.toFixed(6),
+                error: '데이터 수집 시간이 초과되었습니다.\n다시 시도해 주세요.'
+            });
+            return;
+        }
+
+        try {
+            const todayRes = await fetch(`/data/${files.today}?` + Date.now());
+            const todayData = await todayRes.json();
+            if (todayData.tideBedStatus !== 'complete') return;
+
+            const tomorrowRes = await fetch(`/data/${files.tomorrow}?` + Date.now());
+            const tomorrowData = await tomorrowRes.json();
+            if (tomorrowData.tideBedStatus !== 'complete') return;
+
+            clearInterval(_tidePollTimer);
+            _tidePollTimer = null;
+
+            const yesterdayRes = await fetch(`/data/${files.yesterday}?` + Date.now());
+            const yesterdayData = await yesterdayRes.json();
+
+            console.log('✅ 3일치 TideBED 데이터 수신 완료');
+
+            showTidePopup(coordinate, {
+                clickedLat: latitude.toFixed(6),
+                clickedLon: longitude.toFixed(6),
+                tideBed: { yesterday: yesterdayData, today: todayData, tomorrow: tomorrowData }
+            });
+        } catch (err) {
+            console.log(`⏳ 폴링 ${pollCount}/${MAX_POLL}...`);
+        }
+    }, 1000);
 }
 
 // ===== 조석 팝업 표시 =====
@@ -535,32 +778,107 @@ function showTidePopup(coordinate, data) {
     const lon = parseFloat(data.clickedLon);
     const astroInfo = getAstronomyInfo(lat, lon, currentTideDate);
 
+    // 즐겨찾기 상태 확인
+    const existingFavIndex = TideFavorites.items.findIndex(item => {
+        return Math.abs(parseFloat(item.lat) - lat) < 0.0001 && Math.abs(parseFloat(item.lon) - lon) < 0.0001;
+    });
+
+    let favButtonHtml = '';
+    if (existingFavIndex !== -1) {
+        const favName = TideFavorites.items[existingFavIndex].name;
+        favButtonHtml = `
+            <div class="tide-popup-fav-btn" style="
+                margin-top: 5px; 
+                background-color: rgba(255, 215, 0, 0.1); 
+                border: 1px solid rgba(255, 215, 0, 0.3);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                cursor: default;
+            ">
+                <span style="font-weight: bold; color: #FFD700; font-size: 1rem;">
+                    <i class="fa-solid fa-star" style="margin-right: 4px;"></i> ${favName}
+                </span>
+                <button onclick="removeCurrentLocationFromFavorites(${existingFavIndex})" style="
+                    background-color: rgba(239, 68, 68, 0.15); 
+                    border: 1px solid rgba(239, 68, 68, 0.3); 
+                    color: #ef4444; 
+                    border-radius: 4px; 
+                    padding: 4px 10px; 
+                    font-size: 0.8rem; 
+                    cursor: pointer;
+                    margin-left: 8px;
+                    font-weight: 500;
+                    white-space: nowrap;
+                ">
+                    해제
+                </button>
+            </div>
+        `;
+    } else {
+        favButtonHtml = `
+            <button class="tide-popup-fav-btn" onclick="addCurrentLocationToFavorites('${data.clickedLat}', '${data.clickedLon}')" style="margin-top: 5px;">
+                <i class="fa-regular fa-star"></i> 즐겨찾기 추가
+            </button>
+        `;
+    }
+
     let html = `
-        <button class="tide-popup-close-x" onclick="tidePopupOverlay.setPosition(undefined)" title="닫기">
+        <button class="tide-popup-close-x" onclick="stopGaugeAutoRefresh(); tidePopupOverlay.setPosition(undefined)" title="닫기">
             <i class="fa-solid fa-xmark"></i>
         </button>
-        <div class="tide-popup-body">
-            <div class="tide-location">
-                <i class="fa-solid fa-location-dot"></i>
-                <span>${data.clickedLat}°N, ${data.clickedLon}°E</span>
-            </div>
-            
-            <button class="tide-popup-fav-btn" onclick="addCurrentLocationToFavorites('${data.clickedLat}', '${data.clickedLon}')">
-                <i class="fa-solid fa-star"></i> 즐겨찾기 추가
-            </button>
+        <div class="tide-popup-body" style="padding-top: 15px;">
+            ${data.loading ? '' : favButtonHtml}
     `;
 
-    // 즐겨찾기 추가 함수 (전역)
-    window.addCurrentLocationToFavorites = (lat, lon) => {
+    // 즐겨찾기 추가/해제 함수 (전역)
+    window.addCurrentLocationToFavorites = (latStr, lonStr) => {
         const name = prompt('즐겨찾기 이름을 입력해주세요:', '');
         if (name) {
-            if (TideFavorites.add(name, lat, lon)) {
-                alert('즐겨찾기에 추가되었습니다.');
+            if (TideFavorites.add(name, latStr, lonStr)) {
+                showTidePopup(coordinate, data);
             }
         }
     };
+    window.removeCurrentLocationFromFavorites = (index) => {
+        const name = TideFavorites.items[index].name;
+        if (confirm(`'${name}' 즐겨찾기를 해제하시겠습니까?`)) {
+            TideFavorites.remove(index, false);
+            showTidePopup(coordinate, data);
+        }
+    };
 
-    if (data.error) {
+    // === 로딩 상태 ===
+    if (data.loading) {
+        html += `
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px 10px;">
+                <div style="
+                    width: 36px; height: 36px;
+                    border: 3px solid rgba(255,255,255,0.1);
+                    border-top: 3px solid #3b82f6;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                "></div>
+                <div style="margin-top: 12px; color: #94a3b8; font-size: 0.85rem; text-align: center;">
+                    국립해양조사원으로부터<br>정확한 조석정보를 불러오고 있습니다.
+                </div>
+                <div style="margin-top: 4px; color: #64748b; font-size: 0.7rem;">
+                    약 3~5초 소요됩니다
+                </div>
+            </div>
+            <style>
+                @keyframes spin { to { transform: rotate(360deg); } }
+            </style>
+        `;
+        html += `
+            <div class="tide-location-bottom" style="text-align: center; margin-top: 12px; font-size: 0.75rem; color: #94a3b8; display: flex; align-items: center; justify-content: center; opacity: 0.8;">
+                <i class="fa-solid fa-location-dot" style="margin-right: 6px; font-size: 0.7rem;"></i>
+                <span style="font-family: 'Roboto Mono', monospace;">${data.clickedLat}°N, ${data.clickedLon}°E</span>
+            </div>
+        `;
+
+        // === 에러 상태 ===
+    } else if (data.error) {
         html += `
             <div class="tide-error">
                 <i class="fa-solid fa-circle-exclamation"></i>
@@ -568,99 +886,121 @@ function showTidePopup(coordinate, data) {
             </div>
         `;
         html += getAstronomyInfoHTML(astroInfo);
-    } else if (data.tideInfo) {
+        html += `
+            <div class="tide-location-bottom" style="text-align: center; margin-top: 12px; font-size: 0.75rem; color: #94a3b8; display: flex; align-items: center; justify-content: center; opacity: 0.8;">
+                <i class="fa-solid fa-location-dot" style="margin-right: 6px; font-size: 0.7rem;"></i>
+                <span style="font-family: 'Roboto Mono', monospace;">${data.clickedLat}°N, ${data.clickedLon}°E</span>
+            </div>
+        `;
+
+        // === TideBED 데이터 표출 ===
+    } else if (data.tideBed) {
+        const today = data.tideBed.today;
+        const yesterday = data.tideBed.yesterday;
+        const tomorrow = data.tideBed.tomorrow;
+
+        // 고조/저조 목록 구성
         let allTides = [];
+        if (today.highTide1) allTides.push({ type: 'high', timeRaw: today.highTide1.time, time: today.highTide1.time, level: today.highTide1.height });
+        if (today.highTide2) allTides.push({ type: 'high', timeRaw: today.highTide2.time, time: today.highTide2.time, level: today.highTide2.height });
+        if (today.lowTide1) allTides.push({ type: 'low', timeRaw: today.lowTide1.time, time: today.lowTide1.time, level: today.lowTide1.height });
+        if (today.lowTide2) allTides.push({ type: 'low', timeRaw: today.lowTide2.time, time: today.lowTide2.time, level: today.lowTide2.height });
 
-        for (let i = 1; i <= 4; i++) {
-            const highTime = data.tideInfo[`highTide${i}Time`];
-            const highLevel = data.tideInfo[`highTide${i}Level`];
-            const lowTime = data.tideInfo[`lowTide${i}Time`];
-            const lowLevel = data.tideInfo[`lowTide${i}Level`];
+        // 시간순 정렬
+        allTides.sort((a, b) => timeToMinutes(a.timeRaw) - timeToMinutes(b.timeRaw));
 
-            if (highTime !== undefined && !isNaN(highLevel) && highLevel !== null) {
-                allTides.push({
-                    type: 'high',
-                    timeRaw: highTime,
-                    time: formatTime(highTime),
-                    level: highLevel
-                });
-            }
-
-            if (lowTime !== undefined && !isNaN(lowLevel) && lowLevel !== null) {
-                allTides.push({
-                    type: 'low',
-                    timeRaw: lowTime,
-                    time: formatTime(lowTime),
-                    level: lowLevel
-                });
-            }
-        }
-
-        allTides.sort((a, b) => a.timeRaw - b.timeRaw);
-
-        // [Fix] 물리적으로 불가능한 중복/인접 데이터 제거 (4시간 이내 같은 타입 제거 & 00:00 우선 제거)
-        const filteredTides = [];
-        // 먼저 0이 아닌 유효한 시간 데이터를 우선적으로 수집
-        allTides.forEach(current => {
-            // 1. 이미 등록된 데이터와 충돌(4시간 내 같은 타입)하는지 확인
-            const conflictIndex = filteredTides.findIndex(t => {
-                const timeDiff = Math.abs(timeToMinutes(t.timeRaw) - timeToMinutes(current.timeRaw));
-                return t.type === current.type && timeDiff < 240;
-            });
-
-            if (conflictIndex === -1) {
-                // 충돌 없으면 추가
-                filteredTides.push(current);
-            } else {
-                // 충돌 발생! 더 신뢰할 수 있는 데이터 선택
-                const existing = filteredTides[conflictIndex];
-
-                // 현재 데이터가 0이 아니고, 기존 데이터가 0이면 교체 (00:00은 오류일 확률 높음)
-                if (current.timeRaw !== '0000' && current.timeRaw !== 0 && (existing.timeRaw === '0000' || existing.timeRaw === 0)) {
-                    console.warn(`⚠️ 물리적 중복 교체 (${current.type}): 00:00 제거하고 ${current.timeRaw} 사용`);
-                    filteredTides[conflictIndex] = current;
-                } else {
-                    console.warn(`⚠️ 물리적 중복 제거 (${current.type}): ${current.timeRaw} 무시 (기존: ${existing.timeRaw})`);
-                }
-            }
-        });
-        allTides = filteredTides;
-
+        // 전일 마지막 고조/저조 (변화량 계산용)
         let prevDayLastHigh = null;
         let prevDayLastLow = null;
+        let prevDayLastTide = null; // 게이지용
 
-        const prevDate = new Date(currentTideDate);
-        prevDate.setDate(prevDate.getDate() - 1);
-        const prevDateNum = parseInt(
-            `${prevDate.getFullYear()}${String(prevDate.getMonth() + 1).padStart(2, '0')}${String(prevDate.getDate()).padStart(2, '0')}`
-        );
+        if (yesterday.highTide2) prevDayLastHigh = yesterday.highTide2.height;
+        else if (yesterday.highTide1) prevDayLastHigh = yesterday.highTide1.height;
 
-        let stationName = null;
-        if (data.stations && data.stations.length > 0) {
-            stationName = data.stations[0].name;
-        } else if (data.tideInfo && data.tideInfo.sourceStations && data.tideInfo.sourceStations.length > 0) {
-            stationName = data.tideInfo.sourceStations[0];
+        if (yesterday.lowTide2) prevDayLastLow = yesterday.lowTide2.height;
+        else if (yesterday.lowTide1) prevDayLastLow = yesterday.lowTide1.height;
+
+        // 전일 마지막 피크 (시간순으로 가장 늦은 것)
+        const yesterdayPeaks = [];
+        if (yesterday.highTide1) yesterdayPeaks.push({ type: 'high', timeRaw: yesterday.highTide1.time, level: yesterday.highTide1.height });
+        if (yesterday.highTide2) yesterdayPeaks.push({ type: 'high', timeRaw: yesterday.highTide2.time, level: yesterday.highTide2.height });
+        if (yesterday.lowTide1) yesterdayPeaks.push({ type: 'low', timeRaw: yesterday.lowTide1.time, level: yesterday.lowTide1.height });
+        if (yesterday.lowTide2) yesterdayPeaks.push({ type: 'low', timeRaw: yesterday.lowTide2.time, level: yesterday.lowTide2.height });
+        yesterdayPeaks.sort((a, b) => timeToMinutes(a.timeRaw) - timeToMinutes(b.timeRaw));
+        if (yesterdayPeaks.length > 0) {
+            const last = yesterdayPeaks[yesterdayPeaks.length - 1];
+            prevDayLastTide = { type: last.type, timeRaw: last.timeRaw, time: last.timeRaw, level: last.level };
         }
 
-        if (stationName) {
-            const prevDayData = getTideDataForDate(stationName, prevDateNum);
+        // 익일 첫 피크 (게이지용)
+        let nextDayFirstTide = null;
+        const tomorrowPeaks = [];
+        if (tomorrow.highTide1) tomorrowPeaks.push({ type: 'high', timeRaw: tomorrow.highTide1.time, level: tomorrow.highTide1.height });
+        if (tomorrow.highTide2) tomorrowPeaks.push({ type: 'high', timeRaw: tomorrow.highTide2.time, level: tomorrow.highTide2.height });
+        if (tomorrow.lowTide1) tomorrowPeaks.push({ type: 'low', timeRaw: tomorrow.lowTide1.time, level: tomorrow.lowTide1.height });
+        if (tomorrow.lowTide2) tomorrowPeaks.push({ type: 'low', timeRaw: tomorrow.lowTide2.time, level: tomorrow.lowTide2.height });
+        tomorrowPeaks.sort((a, b) => timeToMinutes(a.timeRaw) - timeToMinutes(b.timeRaw));
+        if (tomorrowPeaks.length > 0) {
+            const first = tomorrowPeaks[0];
+            nextDayFirstTide = { type: first.type, timeRaw: first.timeRaw, time: first.timeRaw, level: first.level };
+        }
 
-            if (prevDayData) {
-                for (let i = 4; i >= 1; i--) {
-                    if (prevDayLastHigh === null && prevDayData[`highTide${i}Level`] !== undefined) {
-                        prevDayLastHigh = prevDayData[`highTide${i}Level`];
-                    }
-                    if (prevDayLastLow === null && prevDayData[`lowTide${i}Level`] !== undefined) {
-                        prevDayLastLow = prevDayData[`lowTide${i}Level`];
-                    }
-                    if (prevDayLastHigh !== null && prevDayLastLow !== null) break;
+        // 현재 조위 (1분 데이터에서 직접 참조)
+        let currentTideLevel = null;
+        const now = new Date();
+        const isToday = now.getFullYear() === currentTideDate.getFullYear() &&
+            now.getMonth() === currentTideDate.getMonth() &&
+            now.getDate() === currentTideDate.getDate();
+
+        if (isToday && today.tideBedData && today.tideBedData.length > 0) {
+            const nowHH = String(now.getHours()).padStart(2, '0');
+            const nowMM = String(now.getMinutes()).padStart(2, '0');
+            const nowTimeStr = `${nowHH}:${nowMM}`;
+
+            // slctdDt에서 현재 시각에 가장 가까운 데이터 찾기
+            let closestItem = null;
+            let closestDiff = Infinity;
+            for (const item of today.tideBedData) {
+                const itemTime = item.slctdDt ? item.slctdDt.split(' ')[1] : null;
+                if (!itemTime) continue;
+                const diff = Math.abs(timeToMinutes(itemTime) - timeToMinutes(nowTimeStr));
+                if (diff < closestDiff) {
+                    closestDiff = diff;
+                    closestItem = item;
                 }
+            }
+            if (closestItem) {
+                currentTideLevel = parseFloat(closestItem.slctdHgt);
             }
         }
 
+        // 게이지 표시 (getTideProgress) - 데이터가 온전하고(complete), 일조부등(2회 이하)이 아닐 경우만 표시
+        // 동해 해역 등 타이드배드 미제공 구역 대응
+        const totalTideCount = allTides.length;
+        const isTideBedProvided = today.tideBedStatus === 'complete';
+
+        if (totalTideCount > 2 && isTideBedProvided) {
+            const tideProgress = getTideProgress(allTides, currentTideDate, prevDayLastTide, nextDayFirstTide, currentTideLevel);
+
+            // [API 보정] API 데이터가 NaN이거나 없을 경우, 게이지에서 계산된 보간 조위 사용
+            if (tideProgress && (currentTideLevel === null || isNaN(currentTideLevel))) {
+                currentTideLevel = tideProgress.currentLevel;
+            }
+
+            if (tideProgress) {
+                html += getTideProgressHTML(tideProgress);
+            }
+
+            // 게이지 실시간 갱신용 데이터 저장 및 타이머 시작
+            _lastTideDisplayData = { allTides, prevDayLastTide, nextDayFirstTide, todayData: today };
+            startGaugeAutoRefresh();
+        }
+
+        // 변화량 계산 (▲▼)
         for (let i = 0; i < allTides.length; i++) {
             let tidalRange = null;
 
+            // 당일 내에서 직전 반대 피크 찾기
             for (let j = i - 1; j >= 0; j--) {
                 if (allTides[j].type !== allTides[i].type) {
                     tidalRange = allTides[i].level - allTides[j].level;
@@ -668,6 +1008,7 @@ function showTidePopup(coordinate, data) {
                 }
             }
 
+            // 당일 내 직전이 없으면 전일 마지막 피크 사용
             if (tidalRange === null) {
                 if (allTides[i].type === 'high' && prevDayLastLow !== null) {
                     tidalRange = allTides[i].level - prevDayLastLow;
@@ -682,6 +1023,7 @@ function showTidePopup(coordinate, data) {
         const highTides = allTides.filter(t => t.type === 'high');
         const lowTides = allTides.filter(t => t.type === 'low');
 
+        // 고조 그룹
         html += `<div class="tide-group">`;
         html += `<div class="tide-group-label high">고<br>조</div>`;
         html += `<div class="tide-group-items">`;
@@ -702,6 +1044,7 @@ function showTidePopup(coordinate, data) {
 
         html += `<div class="tide-divider"></div>`;
 
+        // 저조 그룹
         html += `<div class="tide-group">`;
         html += `<div class="tide-group-label low">저<br>조</div>`;
         html += `<div class="tide-group-items">`;
@@ -720,7 +1063,24 @@ function showTidePopup(coordinate, data) {
         }
         html += `</div></div>`;
 
+        // 일조부등 안내
+        if (totalTideCount > 0 && totalTideCount <= 2) {
+            html += `
+                <div style="font-size: 0.65rem; color: #94a3b8; text-align: center; margin-top: 8px; margin-bottom: 4px; padding: 2px 0; width: 100%;">
+                    [일조부등으로 인한 조석정보 생략]
+                </div>
+            `;
+        }
+
         html += getAstronomyInfoHTML(astroInfo);
+
+        // 좌표 정보 하단
+        html += `
+            <div class="tide-location-bottom" style="text-align: center; margin-top: 12px; font-size: 0.75rem; color: #94a3b8; display: flex; align-items: center; justify-content: center; opacity: 0.8;">
+                <i class="fa-solid fa-location-dot" style="margin-right: 6px; font-size: 0.7rem;"></i>
+                <span style="font-family: 'Roboto Mono', monospace;">${data.clickedLat}°N, ${data.clickedLon}°E</span>
+            </div>
+        `;
     }
 
     html += `</div>`;
@@ -732,10 +1092,68 @@ function showTidePopup(coordinate, data) {
 // ===== 유틸리티 함수들 =====
 
 function getSelectedTideDate() {
-    const year = currentTideDate.getFullYear();
-    const month = String(currentTideDate.getMonth() + 1).padStart(2, '0');
-    const date = String(currentTideDate.getDate()).padStart(2, '0');
-    return parseInt(`${year}${month}${date}`);
+    return parseInt(formatYMD(currentTideDate));
+}
+
+function formatYMD(dateObj) {
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const date = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}${month}${date}`;
+}
+
+// [New] IDW 결과를 TideBED 데이터 형식으로 변환 (어댑터)
+function convertIDWToTideBedFormat(idwResult, dateInt) {
+    if (!idwResult) return {};
+    const obj = {
+        requestDate: dateInt,
+        tideBedStatus: 'complete (IDW)',
+        tideBedData: [] // 1분 데이터는 없음 (보간으로 채움)
+    };
+
+    // HHMM -> HH:MM 변환 헬퍼
+    const formatTimeHHMM = (timeVal) => {
+        if (!timeVal && timeVal !== 0) return '';
+        const s = String(timeVal).padStart(4, '0');
+        if (s.includes(':')) return s;
+        return `${s.substring(0, 2)}:${s.substring(2, 4)}`;
+    };
+
+    for (let i = 1; i <= 4; i++) {
+        // High Tides
+        if (idwResult[`highTide${i}Time`] && idwResult[`highTide${i}Level`] !== undefined) {
+            obj[`highTide${i}`] = {
+                time: formatTimeHHMM(idwResult[`highTide${i}Time`]),
+                height: String(idwResult[`highTide${i}Level`])
+            };
+        }
+        // Low Tides
+        if (idwResult[`lowTide${i}Time`] && idwResult[`lowTide${i}Level`] !== undefined) {
+            obj[`lowTide${i}`] = {
+                time: formatTimeHHMM(idwResult[`lowTide${i}Time`]),
+                height: String(idwResult[`lowTide${i}Level`])
+            };
+        }
+    }
+    return obj;
+}
+
+// [New] 클라이언트용 전일/익일 날짜 계산
+function getClientAdjacentDates(baseDateObj) {
+    const prev = new Date(baseDateObj);
+    prev.setDate(prev.getDate() - 1);
+
+    const next = new Date(baseDateObj);
+    next.setDate(next.getDate() + 1);
+
+    return {
+        yesterday: parseInt(formatYMD(prev)),
+        today: parseInt(formatYMD(baseDateObj)),
+        tomorrow: parseInt(formatYMD(next)),
+        yesterdayObj: prev,
+        todayObj: baseDateObj,
+        tomorrowObj: next
+    };
 }
 
 function findNearestStations(lat, lon, count = 3) {
@@ -915,8 +1333,13 @@ function interpolateTideByIDW(stationsWithData) {
 }
 
 function timeToMinutes(timeStr) {
-    if (!timeStr) return 0;
-    const str = String(timeStr).padStart(4, '0');
+    if (!timeStr && timeStr !== 0) return 0;
+    const s = String(timeStr);
+    if (s.includes(':')) {
+        const parts = s.split(':');
+        return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+    }
+    const str = s.padStart(4, '0');
     const hours = parseInt(str.substring(0, 2));
     const minutes = parseInt(str.substring(2, 4));
     return hours * 60 + minutes;
@@ -988,63 +1411,219 @@ function onTideDatePickerChange() {
 }
 
 async function refreshPopupIfOpen() {
-    if (lastClickedCoordinate && lastClickedLonLat && tidePopupOverlay && tidePopupOverlay.getPosition()) {
-        const latitude = lastClickedLonLat.lat;
-        const longitude = lastClickedLonLat.lon;
-        const selectedDate = getSelectedTideDate();
-        const year = String(selectedDate).substring(0, 4);
+    if (!lastClickedCoordinate || !lastClickedLonLat || !tidePopupOverlay || !tidePopupOverlay.getPosition()) return;
 
-        // 데이터 로딩 체크 및 시도
-        if (!window.TIDE_DATA_STORAGE || !window.TIDE_DATA_STORAGE[year]) {
-            await loadTideData(year); // 로드 시도 (성공 여부에 상관없이 진행)
+    const latitude = lastClickedLonLat.lat;
+    const longitude = lastClickedLonLat.lon;
+
+    const y = currentTideDate.getFullYear();
+    const m = String(currentTideDate.getMonth() + 1).padStart(2, '0');
+    const d = String(currentTideDate.getDate()).padStart(2, '0');
+    const dateInt = parseInt(`${y}${m}${d}`);
+
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const timeStr = `${hh}:${mm}:${ss}`;
+
+    // 게이지 타이머 중지
+    stopGaugeAutoRefresh();
+
+    // [Exception] 동해 북부 (북위 36도 이북 & 동경 128도 이상)
+    if (latitude >= 36.0 && longitude >= 128.0) {
+        await processEastSeaNorthException(latitude, longitude, lastClickedCoordinate);
+        return;
+    }
+
+    // 1단계: 로딩 스피너 표시
+    showTidePopup(lastClickedCoordinate, {
+        clickedLat: latitude.toFixed(6),
+        clickedLon: longitude.toFixed(6),
+        loading: true
+    });
+
+    let serverResponse;
+    try {
+        const res = await fetch('/api/save_tide_input', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date: dateInt,
+                time: timeStr,
+                lat: latitude,
+                lon: longitude
+            })
+        });
+        serverResponse = await res.json();
+        if (!serverResponse.success) {
+            if (serverResponse.error === 'Grid hash unavailable') {
+                throw new Error('육지를 선택하신 것 같습니다.<br>가까운 바다를 클릭해주세요.');
+            } else {
+                throw new Error('서버 요청에 실패했습니다.');
+            }
         }
+        console.log(`✅ 날짜변경 격자: ${serverResponse.gridHash}, 캐시: ${serverResponse.cached}건, 수집: ${serverResponse.collecting}건`);
+    } catch (err) {
+        console.error('서버 요청 실패:', err);
+        showTidePopup(lastClickedCoordinate, {
+            clickedLat: latitude.toFixed(6),
+            clickedLon: longitude.toFixed(6),
+            error: err.message
+        });
+        return;
+    }
 
-        const nearest3Stations = findNearestStations(latitude, longitude, 3);
+    const files = serverResponse.files;
 
-        let stationsWithData = nearest3Stations.map(station => ({
-            ...station,
-            tideInfo: getTideDataForDate(station.name, selectedDate)
-        })).filter(s => s.tideInfo);
-
-        if (stationsWithData.length === 0) {
-            stationsWithData = findNearestStationsWithData(latitude, longitude, selectedDate, 3);
-        }
-
-        if (stationsWithData.length === 0) {
+    // 3단계: 모두 캐시 히트인 경우 즉시 렌더링
+    if (serverResponse.collecting === 0) {
+        console.log('⚡ 날짜변경: 3일치 모두 캐시 히트! 즉시 렌더링');
+        try {
+            const [yesterdayRes, todayRes, tomorrowRes] = await Promise.all([
+                fetch(`/data/${files.yesterday}?` + Date.now()),
+                fetch(`/data/${files.today}?` + Date.now()),
+                fetch(`/data/${files.tomorrow}?` + Date.now())
+            ]);
+            const [yesterdayData, todayData, tomorrowData] = await Promise.all([
+                yesterdayRes.json(), todayRes.json(), tomorrowRes.json()
+            ]);
             showTidePopup(lastClickedCoordinate, {
                 clickedLat: latitude.toFixed(6),
                 clickedLon: longitude.toFixed(6),
-                error: `해당 날짜의 조석 데이터가 없습니다.\n\n📅 선택 날짜: ${selectedDate}`
+                tideBed: { yesterday: yesterdayData, today: todayData, tomorrow: tomorrowData }
+            });
+        } catch (err) {
+            showTidePopup(lastClickedCoordinate, {
+                clickedLat: latitude.toFixed(6),
+                clickedLon: longitude.toFixed(6),
+                error: '캐시 데이터 로드에 실패했습니다.'
+            });
+        }
+        return;
+    }
+
+    // 4단계: 폴링
+    if (_tidePollTimer) clearInterval(_tidePollTimer);
+    let pollCount = 0;
+    const MAX_POLL = 60;
+
+    _tidePollTimer = setInterval(async () => {
+        pollCount++;
+        if (pollCount > MAX_POLL) {
+            clearInterval(_tidePollTimer);
+            _tidePollTimer = null;
+            showTidePopup(lastClickedCoordinate, {
+                clickedLat: latitude.toFixed(6),
+                clickedLon: longitude.toFixed(6),
+                error: '데이터 수집 시간이 초과되었습니다.'
             });
             return;
         }
 
-        const interpolatedTide = interpolateTideByIDW(stationsWithData);
+        try {
+            const todayRes = await fetch(`/data/${files.today}?` + Date.now());
+            const todayData = await todayRes.json();
+            if (todayData.tideBedStatus !== 'complete') return;
 
-        showTidePopup(lastClickedCoordinate, {
-            clickedLat: latitude.toFixed(6),
-            clickedLon: longitude.toFixed(6),
-            stations: stationsWithData,
-            tideInfo: interpolatedTide,
-            method: stationsWithData.length > 1 ? 'idw' : 'single'
-        });
-    }
+            const tomorrowRes = await fetch(`/data/${files.tomorrow}?` + Date.now());
+            const tomorrowData = await tomorrowRes.json();
+            if (tomorrowData.tideBedStatus !== 'complete') return;
+
+            clearInterval(_tidePollTimer);
+            _tidePollTimer = null;
+
+            const yesterdayRes = await fetch(`/data/${files.yesterday}?` + Date.now());
+            const yesterdayData = await yesterdayRes.json();
+
+            console.log('✅ 날짜 변경 후 3일치 TideBED 데이터 수신 완료');
+
+            showTidePopup(lastClickedCoordinate, {
+                clickedLat: latitude.toFixed(6),
+                clickedLon: longitude.toFixed(6),
+                tideBed: { yesterday: yesterdayData, today: todayData, tomorrow: tomorrowData }
+            });
+        } catch (err) {
+            console.log(`폴링 중... (${pollCount}/${MAX_POLL})`);
+        }
+    }, 1000);
 }
 
 // ===== 지도 컨트롤 추가 =====
 function addTideMapControls() {
     if (!tideMap) return;
 
+    // 모바일 기기 여부 확인 (간단한 정규식 체크)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    // [UI Change] 내 위치 버튼 표시 여부 결정
+    const buttonStyle = isMobile ? '' : 'display: none !important;';
+
     const instructionControl = document.createElement('div');
     instructionControl.className = 'tide-map-control-instruction';
+    // [UI Change] 내 위치 버튼 추가 (모바일에서만 보임)
     instructionControl.innerHTML = `
-        <span class="tide-instruction-text">물 때를 확인할 위치를 클릭하세요</span>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <span class="tide-instruction-text">물 때를 확인할 위치를 클릭하세요</span>
+            <button id="tide-my-location-btn" onclick="handleMyLocationClick()" style="
+                background-color: #3b82f6; 
+                color: white; 
+                border: none; 
+                border-radius: 4px; 
+                padding: 4px 8px; 
+                font-size: 0.8rem; 
+                cursor: pointer; 
+                font-weight: 500;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+                ${buttonStyle}
+            ">
+                내 위치
+            </button>
+        </div>
     `;
 
     const instructionOverlay = new ol.control.Control({
         element: instructionControl
     });
     tideMap.addControl(instructionOverlay);
+
+    // 내 위치 버튼 핸들러 (전역 노출)
+    window.handleMyLocationClick = async function () {
+        const btn = document.getElementById('tide-my-location-btn');
+        const originalText = btn.innerText;
+        btn.innerText = "확인 중...";
+        btn.disabled = true;
+
+        try {
+            // Capacitor 기반 위치 획득 (권한 요청 포함)
+            const position = await window.getCurrentPositionViaCapacitor();
+
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            const center = ol.proj.fromLonLat([lon, lat]);
+
+            // 지도 이동
+            tideMap.getView().animate({ center: center, zoom: 10, duration: 500 });
+
+            // 팝업 표시 (약간의 지연 후)
+            setTimeout(() => {
+                handleTideMapClick({ coordinate: center });
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }, 600);
+        } catch (error) {
+            console.error("위치 정보 오류:", error);
+            let msg = "위치 정보를 가져올 수 없습니다.";
+            if (error.message === 'location_permission_denied') {
+                msg = "위치 정보 사용 승인이 거부되었습니다. 설정에서 권한을 허용해주세요.";
+            } else if (error.code === 1) {
+                msg = "위치 정보 사용 승인이 필요합니다.";
+            }
+            alert(msg);
+            btn.innerText = originalText;
+            btn.disabled = false;
+        }
+    };
 }
 
 // ===== 유틸리티: 음력 및 천문 =====
@@ -1240,6 +1819,181 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('tide-section').classList.contains('active')) {
         initTideMap();
     }
-
-    // console.log('✅ 조석 지도 스크립트 로드 완료');
 });
+
+// ===== 실시간 조석 게이지 로직 =====
+
+function getTideProgress(sortedTides, currentDate, prevDayTide = null, nextDayTide = null, currentTideLevel = null) {
+    if (!sortedTides || sortedTides.length === 0) return null;
+
+    const now = new Date();
+    const isToday = now.getFullYear() === currentDate.getFullYear() &&
+        now.getMonth() === currentDate.getMonth() &&
+        now.getDate() === currentDate.getDate();
+
+    if (!isToday) return null;
+
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    let prevTide = null;
+    let nextTide = null;
+
+    // 현재 시각 기준 이전/다음 물때 찾기
+    for (let i = 0; i < sortedTides.length; i++) {
+        const tMinutes = timeToMinutes(sortedTides[i].timeRaw);
+        if (tMinutes > currentMinutes) {
+            nextTide = sortedTides[i];
+            if (i > 0) {
+                prevTide = sortedTides[i - 1];
+            } else if (prevDayTide) {
+                prevTide = { ...prevDayTide };
+                prevTide.timeRawAdjusted = timeToMinutes(prevDayTide.timeRaw) - 1440;
+            }
+            break;
+        }
+    }
+
+    // 다음 물때가 없으면 다음날 첫 물때 활용
+    if (!nextTide) {
+        if (nextDayTide) {
+            prevTide = sortedTides[sortedTides.length - 1];
+            nextTide = { ...nextDayTide };
+            nextTide.timeRawAdjusted = timeToMinutes(nextDayTide.timeRaw) + 1440;
+        } else {
+            return null;
+        }
+    }
+
+    if (!prevTide || !nextTide) return null;
+
+    const prevMinutes = prevTide.timeRawAdjusted !== undefined ? prevTide.timeRawAdjusted : timeToMinutes(prevTide.timeRaw);
+    const nextMinutes = nextTide.timeRawAdjusted !== undefined ? nextTide.timeRawAdjusted : timeToMinutes(nextTide.timeRaw);
+    const totalDuration = nextMinutes - prevMinutes;
+
+    // 조석 주기 상한을 10시간(600분)에서 13시간(780분)으로 완화 (동해 등 일조부등 대응)
+    if (totalDuration > 780 || totalDuration <= 0) {
+        return null;
+    }
+
+    const elapsed = currentMinutes - prevMinutes;
+    let percent = (elapsed / totalDuration) * 100;
+    percent = Math.min(100, Math.max(0, percent));
+
+    // 현재 조위: TideBED 1분 데이터가 있으면 직접 사용, 없으면 코사인 보간
+    let currentLevel;
+    if (currentTideLevel !== null && !isNaN(currentTideLevel)) {
+        currentLevel = Math.round(currentTideLevel);
+    } else {
+        const t = elapsed / totalDuration;
+        const cosFactor = (1 - Math.cos(t * Math.PI)) / 2;
+        currentLevel = Math.round(prevTide.level + (nextTide.level - prevTide.level) * cosFactor);
+    }
+
+    const status = nextTide.type === 'high' ? 'rising' : 'falling';
+    const statusText = status === 'rising' ? '밀물 (들물)' : '썰물 (날물)';
+
+    return {
+        prev: prevTide,
+        next: nextTide,
+        percent: percent.toFixed(1),
+        currentLevel: currentLevel,
+        status: status,
+        statusText: statusText,
+        remainingMinutes: nextMinutes - currentMinutes
+    };
+}
+
+function getTideProgressHTML(progress) {
+    if (!progress) return '';
+
+    const { prev, next, percent, currentLevel, status } = progress;
+
+    // 색상 테마: 밀물(Rising/Red), 썰물(Falling/Blue)
+    const colorRising = '#ef4444'; // Red 500
+    const colorFalling = '#3b82f6'; // Blue 500
+
+    const themeColor = status === 'rising' ? colorRising : colorFalling;
+    const gradient = status === 'rising'
+        ? `linear-gradient(90deg, #991b1b 0%, ${colorRising} 100%)`
+        : `linear-gradient(90deg, #1e3a8a 0%, ${colorFalling} 100%)`;
+
+    // 라벨 스타일링 (고조-빨강 / 저조-파랑)
+    const getLabel = (t) => {
+        const color = t.type === 'high' ? '#f87171' : '#60a5fa';
+        const typeText = t.type === 'high' ? '고조' : '저조';
+        return `<div style="color: ${color}; font-weight: 600;">${typeText} ${t.time}</div>`;
+    };
+
+    return `
+        <div class="tide-progress-wrapper" style="
+            margin-top: 4px;
+            margin-bottom: 2px;
+            background: rgba(15, 23, 42, 0.4);
+            border-radius: 8px;
+            padding: 4px 10px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        ">
+            <!-- 타임라인 라벨 -->
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 6px;">
+                ${getLabel(prev)}
+                ${getLabel(next)}
+            </div>
+
+            <!-- 프로그레스 바 트랙 -->
+            <div style="position: relative; height: 6px; background: #334155; border-radius: 3px; margin: 0 1px;">
+                <!-- 진행 바 -->
+                <div style="
+                    position: absolute;
+                    top: 0; left: 0; bottom: 0;
+                    width: ${percent}%;
+                    background: ${gradient};
+                    border-radius: 3px;
+                    transition: width 1s ease-in-out;
+                "></div>
+
+                <!-- [New] 회색 영역 중앙에 남은 시간 표시 (##:##) -->
+                ${progress.remainingMinutes > 0 ? `
+                <div style="
+                    position: absolute;
+                    left: ${(parseFloat(percent) + 100) / 2}%;
+                    top: 50%;
+                    transform: translate(-50%, -50%);
+                    font-size: 0.65rem;
+                    font-weight: 700;
+                    color: rgba(255, 255, 255, 0.5);
+                    white-space: nowrap;
+                    pointer-events: none;
+                    font-family: 'Roboto Mono', monospace;
+                    letter-spacing: -0.5px;
+                ">
+                    ${Math.floor(progress.remainingMinutes / 60).toString().padStart(2, '0')}:${(progress.remainingMinutes % 60).toString().padStart(2, '0')}
+                </div>
+                ` : ''}
+            </div>
+
+            <!-- 현재 예상 조위 정보 (여백 최소화) -->
+            <div style="
+                text-align: center; 
+                margin-top: 6px; 
+                font-size: 0.8rem; 
+                color: #94a3b8;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 5px;
+            ">
+                <span>현재 예상 조위</span>
+                <span style="
+                    font-size: 1rem; 
+                    font-weight: 700; 
+                    color: ${themeColor};
+                ">
+                    ${currentLevel}cm
+                </span>
+                <span style="font-size: 0.75rem; opacity: 0.9; color: ${themeColor}; font-weight: bold;">
+                    ${status === 'rising' ? '▲' : '▼'}
+                </span>
+            </div>
+        </div>
+    `;
+}
