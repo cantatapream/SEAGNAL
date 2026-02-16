@@ -144,7 +144,11 @@ async function applyNewReports(fullForm) {
             let match;
             while ((match = pattern.exec(selectListMatch[1])) !== null) {
                 const id = match[1];
-                if (id.includes(':')) pageReports.push({ id, title: match[2].trim() });
+                const title = match[2].trim();
+                // [필터링] 제목에 [특보] 또는 [예비]가 포함된 통보문만 수집
+                if (id.includes(':') && (title.includes('[특보]') || title.includes('[예비]'))) {
+                    pageReports.push({ id, title });
+                }
             }
             console.log(`[ReportProcessor] ${page}페이지에서 ${pageReports.length}건의 통보문 발견.`);
 
@@ -163,10 +167,21 @@ async function applyNewReports(fullForm) {
         allNewReports.reverse();
         console.log(`[ReportProcessor] 총 ${allNewReports.length}건의 신규 통보문 처리 시작.`);
         let changed = false;
+        const RELEVANT_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
+
         for (const report of allNewReports) {
-            console.log(`[ReportProcessor] AI 분석 중: ${report.title}`);
+            console.log(`[ReportProcessor] 통보문 확인 중: ${report.title}`);
             const text = await fetchReportDetail(report.id);
 
+            // [필터링] 내용에 해상 관련 키워드가 포함된 경우에만 AI 분석 수행
+            const hasRelevantKeyword = RELEVANT_KEYWORDS.some(kw => text.includes(kw));
+            if (!hasRelevantKeyword) {
+                console.log(`[ReportProcessor] 해상 특보 키워드 미포함, 건너뜀: ${report.title}`);
+                fullForm.lastReportId = report.id;
+                continue;
+            }
+
+            console.log(`[ReportProcessor] AI 분석 시작: ${report.title}`);
             // AI를 사용하여 통보문 분석
             const events = await aiParser.parseNoticeWithAI(text);
 
