@@ -2330,8 +2330,9 @@ app.post('/api/admin/report-collect', async (req, res) => {
             });
         }
 
-        // 3. AI 분석
-        const aiResult = await aiParser.parseNoticeWithAI(rawText);
+        // 3. AI 분석 (발표시각을 baseDate로 전달하여 날짜 계산 정확도 향상)
+        const baseDate = extractTmFcFromReportId(reportId);
+        const aiResult = await aiParser.parseNoticeWithAI(rawText, baseDate);
 
         // 4. 장부에 반영
         let applied = false;
@@ -2393,7 +2394,8 @@ app.post('/api/admin/reports-collect-all', async (req, res) => {
                     continue;
                 }
 
-                const aiResult = await aiParser.parseNoticeWithAI(rawText);
+                const baseDate = extractTmFcFromReportId(report.id);
+                const aiResult = await aiParser.parseNoticeWithAI(rawText, baseDate);
 
                 // 장부 반영
                 let applied = false;
