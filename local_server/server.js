@@ -2227,6 +2227,7 @@ app.get('/api/archive/download/:filename', (req, res) => {
 const weatherAlertsCrawler = require('./weather_alerts_crawler');
 const reportProcessor = require('./report_alert_processor');
 const aiParser = require('./ai_report_parser');
+const pushSender = require('./push_sender');
 
 // 9-1. 크롤링 상태 조회
 app.get('/api/admin/crawl-status', (req, res) => {
@@ -2313,7 +2314,7 @@ app.get('/api/admin/reports', async (req, res) => {
 // 9-5. 단일 통보문 수집 (AI 분석 포함, 장부 반영)
 app.post('/api/admin/report-collect', async (req, res) => {
     try {
-        const { reportId, title } = req.body;
+        const { reportId, title, referenceTime } = req.body;
         if (!reportId) return res.status(400).json({ error: 'reportId가 필요합니다' });
 
         // 1. 통보문 본문 가져오기
@@ -2356,17 +2357,33 @@ app.post('/api/admin/report-collect', async (req, res) => {
                 fullForm = weatherAlertsCrawler.createFullForm();
             }
 
+            // 기준시각: 클라이언트에서 전달한 referenceTime 또는 통보문의 발표시각 사용
+            const refTime = referenceTime || null;
+
             for (const event of aiResult) {
                 event.reportId = reportId;
                 event.tmFc = extractTmFcFromReportId(reportId);
                 event.zones.forEach(zoneName => {
-                    if (reportProcessor.updateZoneStatus(fullForm.current, zoneName, event)) {
+                    if (reportProcessor.updateZoneStatus(fullForm.current, zoneName, event, refTime)) {
                         applied = true;
                     }
                 });
             }
 
+            // 변경 감지 및 푸시 알림 발송
+            let pushResult = null;
             if (applied) {
+                const changes = weatherAlertsCrawler.detectChanges(fullForm.previous, fullForm.current);
+                if (changes.length > 0) {
+                    try {
+                        await pushSender.processChanges(changes);
+                        pushResult = { sent: true, changeCount: changes.length };
+                        console.log(`[Admin] 테스트 수집 → 변경 ${changes.length}건 감지, 푸시 발송 완료`);
+                    } catch (pushErr) {
+                        pushResult = { sent: false, error: pushErr.message };
+                        console.error(`[Admin] 푸시 발송 오류:`, pushErr.message);
+                    }
+                }
                 fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
                 if (reportId > (fullForm.lastReportId || '')) fullForm.lastReportId = reportId;
                 fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
@@ -2375,7 +2392,7 @@ app.post('/api/admin/report-collect', async (req, res) => {
             console.error('[Admin] 장부 반영 오류:', applyErr.message);
         }
 
-        res.json({ success: true, reportId, title, rawText, aiResult, foundKeywords, applied, aiError });
+        res.json({ success: true, reportId, title, rawText, aiResult, foundKeywords, applied, aiError, pushResult });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
