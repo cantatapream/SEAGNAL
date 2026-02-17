@@ -183,7 +183,11 @@ async function applyNewReports(fullForm) {
 
             console.log(`[ReportProcessor] AI 분석 시작: ${report.title}`);
             // AI를 사용하여 통보문 분석
-            const events = await aiParser.parseNoticeWithAI(text);
+            const aiParsed = await aiParser.parseNoticeWithAI(text);
+            const events = aiParsed.data || [];
+            if (aiParsed.error) {
+                console.error(`[ReportProcessor] AI 분석 오류: ${aiParsed.error}`);
+            }
 
             // 분석된 각 이벤트를 시스템에 적용
             for (const event of events) {
