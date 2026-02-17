@@ -394,4 +394,4 @@ if (require.main === module) {
     run();
 }
 
-module.exports = { run, detectChanges };
+module.exports = { run, detectChanges, createFullForm, CONFIG };

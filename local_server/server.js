@@ -2221,6 +2221,236 @@ app.get('/api/archive/download/:filename', (req, res) => {
     }
 });
 
+// ============================================================================
+// [Admin] 특보 수집 테스트 API
+// ============================================================================
+const weatherAlertsCrawler = require('./weather_alerts_crawler');
+const reportProcessor = require('./report_alert_processor');
+const aiParser = require('./ai_report_parser');
+
+// 9-1. 크롤링 상태 조회
+app.get('/api/admin/crawl-status', (req, res) => {
+    res.json({ paused: scheduler.getCrawlPaused() });
+});
+
+// 9-2. 크롤링 정지/시작 토글
+app.post('/api/admin/crawl-toggle', (req, res) => {
+    const current = scheduler.getCrawlPaused();
+    scheduler.setCrawlPaused(!current);
+    const newState = scheduler.getCrawlPaused();
+    console.log(`[Admin] 크롤링 상태 변경: ${newState ? '정지' : '실행'}`);
+    res.json({ paused: newState });
+});
+
+// 9-3. 특보 장부 초기화
+app.post('/api/admin/alerts-reset', (req, res) => {
+    try {
+        const freshForm = weatherAlertsCrawler.createFullForm();
+        freshForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+        fs.writeFileSync(weatherAlertsCrawler.CONFIG.OUTPUT_FILE, JSON.stringify(freshForm, null, 2), 'utf8');
+        console.log('[Admin] 특보 장부 초기화 완료');
+        res.json({ success: true, message: '특보 장부가 초기화되었습니다.' });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// 9-4. 특정 날짜 통보문 목록 조회 (제목에 [특보]/[예비] 포함 필터링)
+app.get('/api/admin/reports', async (req, res) => {
+    try {
+        const date = req.query.date; // YYYY-MM-DD
+        if (!date) return res.status(400).json({ error: 'date 파라미터가 필요합니다 (YYYY-MM-DD)' });
+
+        const https = require('https');
+        const fetchPage = (pageIndex) => {
+            return new Promise((resolve, reject) => {
+                const url = `https://www.weather.go.kr/w/special-report/list.do?stn=108&date=${date}&pageIndex=${pageIndex}`;
+                https.get(url, {
+                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+                }, (resp) => {
+                    const chunks = [];
+                    resp.on('data', c => chunks.push(c));
+                    resp.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+                }).on('error', reject);
+            });
+        };
+
+        const allReports = [];
+        for (let page = 1; page <= 3; page++) {
+            const html = await fetchPage(page);
+            const selectMatch = html.match(/<select id="select-list"[^>]*>([\s\S]*?)<\/select>/);
+            if (!selectMatch) break;
+
+            const pattern = /<option value="([^"]+)"[^>]*>([^<]+)<\/option>/g;
+            let match;
+            while ((match = pattern.exec(selectMatch[1])) !== null) {
+                const id = match[1];
+                const title = match[2].trim();
+                if (id.includes(':') && (title.includes('[특보]') || title.includes('[예비]'))) {
+                    // reportId에서 날짜 추출하여 요청 날짜와 매칭
+                    const parts = id.split(':');
+                    if (parts.length >= 2) {
+                        const idDate = parts[1].substring(0, 8); // YYYYMMDD
+                        const reqDate = date.replace(/-/g, '');   // YYYYMMDD
+                        if (idDate === reqDate) {
+                            allReports.push({ id, title });
+                        }
+                    }
+                }
+            }
+            if (allReports.length === 0 && page === 1) break; // 첫 페이지에 결과 없으면 종료
+        }
+
+        res.json({ date, reports: allReports, count: allReports.length });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 9-5. 단일 통보문 수집 (AI 분석 포함, 장부 반영)
+app.post('/api/admin/report-collect', async (req, res) => {
+    try {
+        const { reportId, title } = req.body;
+        if (!reportId) return res.status(400).json({ error: 'reportId가 필요합니다' });
+
+        // 1. 통보문 본문 가져오기
+        const rawText = await reportProcessor.fetchReportDetail(reportId);
+        if (!rawText) return res.json({ success: false, rawText: '', aiResult: [], message: '통보문 내용을 가져올 수 없습니다.' });
+
+        // 2. 키워드 필터링
+        const RELEVANT_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
+        const foundKeywords = RELEVANT_KEYWORDS.filter(kw => rawText.includes(kw));
+
+        if (foundKeywords.length === 0) {
+            return res.json({
+                success: true, reportId, title, rawText,
+                aiResult: [], foundKeywords: [],
+                message: '해상 특보 키워드(풍랑/태풍/지진해일/폭풍해일)가 포함되지 않은 통보문입니다.',
+                applied: false
+            });
+        }
+
+        // 3. AI 분석
+        const aiResult = await aiParser.parseNoticeWithAI(rawText);
+
+        // 4. 장부에 반영
+        let applied = false;
+        try {
+            const outputFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
+            let fullForm;
+            if (fs.existsSync(outputFile)) {
+                const existing = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+                fullForm = {
+                    updatedAt: null,
+                    lastReportId: existing.lastReportId || null,
+                    previous: JSON.parse(JSON.stringify(existing.current || {})),
+                    current: existing.current || {}
+                };
+            } else {
+                fullForm = weatherAlertsCrawler.createFullForm();
+            }
+
+            for (const event of aiResult) {
+                event.reportId = reportId;
+                event.tmFc = extractTmFcFromReportId(reportId);
+                event.zones.forEach(zoneName => {
+                    if (reportProcessor.updateZoneStatus(fullForm.current, zoneName, event)) {
+                        applied = true;
+                    }
+                });
+            }
+
+            if (applied) {
+                fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+                if (reportId > (fullForm.lastReportId || '')) fullForm.lastReportId = reportId;
+                fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
+            }
+        } catch (applyErr) {
+            console.error('[Admin] 장부 반영 오류:', applyErr.message);
+        }
+
+        res.json({ success: true, reportId, title, rawText, aiResult, foundKeywords, applied });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// 9-6. 전체 통보문 일괄 수집
+app.post('/api/admin/reports-collect-all', async (req, res) => {
+    try {
+        const { reports } = req.body; // [{ id, title }, ...]
+        if (!reports || !Array.isArray(reports)) return res.status(400).json({ error: 'reports 배열이 필요합니다' });
+
+        const results = [];
+        for (const report of reports) {
+            try {
+                const rawText = await reportProcessor.fetchReportDetail(report.id);
+                const RELEVANT_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
+                const foundKeywords = RELEVANT_KEYWORDS.filter(kw => rawText.includes(kw));
+
+                if (foundKeywords.length === 0) {
+                    results.push({ reportId: report.id, title: report.title, aiResult: [], foundKeywords: [], applied: false, message: '키워드 미포함' });
+                    continue;
+                }
+
+                const aiResult = await aiParser.parseNoticeWithAI(rawText);
+
+                // 장부 반영
+                let applied = false;
+                const outputFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
+                let fullForm;
+                if (fs.existsSync(outputFile)) {
+                    const existing = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+                    fullForm = {
+                        updatedAt: null,
+                        lastReportId: existing.lastReportId || null,
+                        previous: JSON.parse(JSON.stringify(existing.current || {})),
+                        current: existing.current || {}
+                    };
+                } else {
+                    fullForm = weatherAlertsCrawler.createFullForm();
+                }
+
+                for (const event of aiResult) {
+                    event.reportId = report.id;
+                    event.tmFc = extractTmFcFromReportId(report.id);
+                    event.zones.forEach(zoneName => {
+                        if (reportProcessor.updateZoneStatus(fullForm.current, zoneName, event)) {
+                            applied = true;
+                        }
+                    });
+                }
+
+                if (applied) {
+                    fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+                    if (report.id > (fullForm.lastReportId || '')) fullForm.lastReportId = report.id;
+                    fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
+                }
+
+                results.push({ reportId: report.id, title: report.title, rawText, aiResult, foundKeywords, applied });
+            } catch (itemErr) {
+                results.push({ reportId: report.id, title: report.title, error: itemErr.message, applied: false });
+            }
+        }
+
+        res.json({ success: true, totalCount: reports.length, results });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// 헬퍼: reportId에서 발표시각 추출
+function extractTmFcFromReportId(reportId) {
+    const parts = reportId.split(':');
+    if (parts.length >= 2) {
+        const ts = parts[1];
+        if (ts.length >= 12) {
+            return `${ts.substring(0, 4)}년 ${ts.substring(4, 6)}월 ${ts.substring(6, 8)}일 ${ts.substring(8, 10)}시 ${ts.substring(10, 12)}분`;
+        }
+    }
+    return '';
+}
+
 // 3001(관리자/개발용) 포트 고정 사용 (Fly.io도 3001 포트 사용하도록 fly.toml에 설정됨)
 const finalPort = 3001;
 

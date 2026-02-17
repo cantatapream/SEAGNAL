@@ -55,6 +55,9 @@ function log(msg) {
     console.log(`[${getNowStr()}] ${msg}`);
 }
 
+// [Admin] 크롤링 일시정지 플래그 (메모리 기반, 서버 재시작 시 자동 해제)
+let crawlPaused = false;
+
 const lastRunStatus = {
     buoys: { lastRun: null, status: '대기 중', message: '' },
     buoys: { lastRun: null, status: '대기 중', message: '' },
@@ -322,8 +325,12 @@ async function init() {
 
         // [New] 특보 정보 크롤링 (매 1분 마다 실행)
         // 사용자 요청: 실시간성 확보를 위해 1분 주기로 단축
-        log('🔎 기상특보 크롤러 실행...');
-        weatherAlertsCrawler.run().catch(err => log(`⚠️ 크롤러 오류: ${err.message}`));
+        if (!crawlPaused) {
+            log('🔎 기상특보 크롤러 실행...');
+            weatherAlertsCrawler.run().catch(err => log(`⚠️ 크롤러 오류: ${err.message}`));
+        } else {
+            log('⏸️ 기상특보 크롤링 일시정지 상태');
+        }
 
         if (process.env.FLY_ALLOC_ID) {
             fetch('https://seagnal-server.fly.dev/api/health').catch(() => { });
@@ -338,6 +345,8 @@ module.exports = {
     collectGeneralForecasts,
     collectZoneForecasts,
     getStatus: () => lastRunStatus,
+    getCrawlPaused: () => crawlPaused,
+    setCrawlPaused: (val) => { crawlPaused = !!val; },
     getConfig: () => ({ KMA_HUB_KEY: CONFIG.KMA_HUB_KEY }),
     updateConfig: (newConfig) => {
         try {
