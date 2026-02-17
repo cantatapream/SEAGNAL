@@ -140,9 +140,8 @@ function updateZoneStatus(obj, targetZone, event, referenceTime) {
                 const prevUp = value.upcoming || {};
                 const prevCurr = value.current || {};
                 const inheritedTmFc = (prevUp.wrnTp === cleanType && prevUp.wrnLvl === '예비') ? (prevUp.tmFc || event.tmFc || '') : (event.tmFc || '');
-                // [Fix] 예비 케이스도 주의보/경보와 동일하게 tmCc 상속 체인 적용
-                // 이전 상태(upcoming/current)의 tmCc를 보존하여 해제예정 시각이 유실되지 않도록 함
-                const inheritedTmCc = tmCc || prevUp.tmCc || prevUp.tmYn || prevCurr.tmCc || prevCurr.tmYn || '';
+                // upcoming은 current와 독립된 건이므로, current의 해제예정시각(tmCc)을 상속하면 안됨
+                const inheritedTmCc = tmCc || prevUp.tmCc || prevUp.tmYn || '';
                 value.upcoming = { ...prevUp, wrnTp: cleanType, wrnLvl: '예비', tmEf: tmEfOriginal, tmFc: inheritedTmFc, tmCc: inheritedTmCc };
             } else {
                 const isJuui = event.type.includes('주의보');
@@ -159,11 +158,12 @@ function updateZoneStatus(obj, targetZone, event, referenceTime) {
                 }
 
                 const inheritedTmFc = isContinued ? (prevCurr.tmFc || prevUp.tmFc || event.tmFc || '') : (event.tmFc || '');
-                const inheritedTmCc = tmCc || event.tmYn || prevCurr.tmCc || prevCurr.tmYn || prevUp.tmCc || prevUp.tmYn || '';
-
                 if (effTime && effTime > now) {
+                    // upcoming은 current와 독립된 건이므로, current의 해제예정시각(tmCc)을 상속하면 안됨
+                    const inheritedTmCc = tmCc || event.tmYn || prevUp.tmCc || prevUp.tmYn || '';
                     value.upcoming = { ...prevUp, wrnTp: cleanType, wrnLvl: level, tmFc: inheritedTmFc, tmEf: tmEfOriginal, tmCc: inheritedTmCc };
                 } else {
+                    const inheritedTmCc = tmCc || event.tmYn || prevCurr.tmCc || prevCurr.tmYn || prevUp.tmCc || prevUp.tmYn || '';
                     value.current = { ...prevCurr, wrnTp: cleanType, wrnLvl: level, tmFc: inheritedTmFc, tmEf: tmEfOriginal || prevCurr.tmEf || '', tmCc: inheritedTmCc };
                     value.upcoming = null;
                 }
