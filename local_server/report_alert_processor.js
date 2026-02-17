@@ -107,7 +107,7 @@ function updateZoneStatus(obj, targetZone, event) {
             if (!isDup) {
                 value.history.unshift({
                     reportId: event.reportId, time: event.tmFc || new Date().toLocaleString('ko-KR'),
-                    tmEf: event.time, type: event.type, command: event.command, processedAt: new Date().toISOString()
+                    tmEf: event.tmEf || event.time, tmCc: event.tmCc || '', type: event.type, command: event.command, processedAt: new Date().toISOString()
                 });
                 // [Fix] history 무한 증가 방지 (최근 20건만 유지)
                 if (value.history.length > 20) value.history = value.history.slice(0, 20);
@@ -116,9 +116,13 @@ function updateZoneStatus(obj, targetZone, event) {
             const effTime = parseKmaTime(event.time);
             const now = new Date();
 
+            // tmEf 원본(범위형 포함)을 보존, time은 parseKmaTime 호환용 시작시각
+            const tmEfOriginal = event.tmEf || event.time;
+            const tmCc = event.tmCc || '';
+
             if (event.command === '해제') {
                 if (effTime && effTime > now) {
-                    if (value.current) { value.current.tmRelease = event.time; value.current.tmYn = event.time; }
+                    if (value.current) { value.current.tmRelease = event.time; value.current.tmYn = event.time; value.current.tmCc = tmEfOriginal; }
                 } else {
                     value.current = null; value.upcoming = null; value.history = [];
                 }
@@ -126,7 +130,7 @@ function updateZoneStatus(obj, targetZone, event) {
                 const cleanType = event.type.replace('예비특보', '').replace('주의보', '').replace('경보', '').trim();
                 const prevUp = value.upcoming || {};
                 const inheritedTmFc = (prevUp.wrnTp === cleanType && prevUp.wrnLvl === '예비') ? (prevUp.tmFc || event.tmFc || '') : (event.tmFc || '');
-                value.upcoming = { ...prevUp, wrnTp: cleanType, wrnLvl: '예비', tmEf: event.time, tmFc: inheritedTmFc };
+                value.upcoming = { ...prevUp, wrnTp: cleanType, wrnLvl: '예비', tmEf: tmEfOriginal, tmFc: inheritedTmFc, tmCc: tmCc };
             } else {
                 const isJuui = event.type.includes('주의보');
                 const cleanType = event.type.replace('주의보', '').replace('경보', '').trim();
@@ -142,12 +146,12 @@ function updateZoneStatus(obj, targetZone, event) {
                 }
 
                 const inheritedTmFc = isContinued ? (prevCurr.tmFc || prevUp.tmFc || event.tmFc || '') : (event.tmFc || '');
-                const inheritedTmYn = event.tmYn || prevCurr.tmYn || prevUp.tmYn || '';
+                const inheritedTmCc = tmCc || event.tmYn || prevCurr.tmCc || prevCurr.tmYn || prevUp.tmCc || prevUp.tmYn || '';
 
                 if (effTime && effTime > now) {
-                    value.upcoming = { ...prevUp, wrnTp: cleanType, wrnLvl: level, tmFc: inheritedTmFc, tmEf: event.time, tmYn: inheritedTmYn };
+                    value.upcoming = { ...prevUp, wrnTp: cleanType, wrnLvl: level, tmFc: inheritedTmFc, tmEf: tmEfOriginal, tmCc: inheritedTmCc };
                 } else {
-                    value.current = { ...prevCurr, wrnTp: cleanType, wrnLvl: level, tmFc: inheritedTmFc, tmEf: event.time || prevCurr.tmEf || '', tmYn: inheritedTmYn };
+                    value.current = { ...prevCurr, wrnTp: cleanType, wrnLvl: level, tmFc: inheritedTmFc, tmEf: tmEfOriginal || prevCurr.tmEf || '', tmCc: inheritedTmCc };
                     value.upcoming = null;
                 }
             }

@@ -35,14 +35,18 @@ ${JSON.stringify(ZONE_GROUP_MAP, null, 2)}
 - **복수 명시**: 괄호 안에 여러 해역이 콤마로 구분되어 있다면(예: 서해남부먼바다(서해남부북쪽안쪽먼바다, 서해남부북쪽바깥먼바다)), 그 해역들을 모두 추출해라.
 - **주의**: 해역 이름이 ZONE_GROUP_MAP에 존재하지 않는 육상 지역(예: 서해5도, 전라남도 등)은 무시하고, 해역만 추출해라.
 
-### 3. 상태(command) 및 시각(time) 추출 규칙
+### 3. 상태(command) 및 시각 추출 규칙
 - **command 종류**: '발표', '발효', '해제', '예비', '변경', '보강', '연장' 중 하나로 분류한다.
 - **예비특보 처리**: '예비특보'가 포함된 항목은 command를 반드시 '예비'로 설정한다.
-- **time**: 해당 상태가 실제로 발생하는(효력을 발생하는) 시각을 'YYYY년 MM월 DD일 HH시 mm분' 형식으로 추출한다.
-  - '해제'의 경우 해제 시각을, '발효'의 경우 발효 시각을 정확히 매칭해야 한다.
-  - 시간 범위가 주어진 경우(예: "오전(06시~12시)", "오후(12시~18시)", "밤(18시~24시)"), 범위의 **시작 시각**을 사용한다.
-    예시: "02월 15일 오전(06시~12시)" → "2026년 02월 15일 06시 00분"
-- **tmYn (해제예고)**: 문장에 '해제 예고' 또는 '해제 시각'에 대한 예측 정보가 있다면 'tmYn' 필드에 해당 텍스트를 입력한다.
+- **tmEf (발효시각)**: 해당 특보가 효력을 발생하는(또는 발생 예정인) 시각이다.
+  - 정확한 시각이 명시된 경우: 'YYYY년 MM월 DD일 HH시 mm분' 형식으로 추출한다.
+    예시: "02월 15일 12시" → "2026년 02월 15일 12시 00분"
+  - **시간 범위**가 주어진 경우(예: "오전(06시~12시)", "오후(12시~18시)", "밤(18시~24시)"): 범위를 그대로 보존하여 'YYYY년 MM월 DD일 오전(06시~12시)' 형식으로 추출한다.
+    예시: "02월 15일 오전(06시~12시)" → "2026년 02월 15일 오전(06시~12시)"
+  - '해제'의 경우 해제 시각을, '발효'나 '예비'의 경우 발효 예정 시각을 정확히 매칭해야 한다.
+- **tmCc (해제시각)**: 해당 특보의 해제 시각 또는 해제 예고 시각이다.
+  - 해제 시각이 명시된 경우: 동일한 형식으로 추출한다 (범위형도 동일 규칙 적용).
+  - 해제 예고가 없으면 빈 문자열("")로 설정한다.
 
 ### 4. 출력 형식
 반드시 아래와 같은 JSON 배열 형식으로만 응답해야 한다. 추가적인 설명은 생략한다.
@@ -50,9 +54,9 @@ ${JSON.stringify(ZONE_GROUP_MAP, null, 2)}
   {
     "type": "풍랑예비특보 | 풍랑주의보 | 풍랑경보 | 태풍예비특보 | 태풍주의보 | 태풍경보 | 지진해일주의보 | 지진해일경보 | 폭풍해일예비특보 | 폭풍해일주의보 | 폭풍해일경보",
     "command": "예비",
-    "time": "2024년 08월 30일 06시 00분",
+    "tmEf": "2024년 08월 30일 오전(06시~12시)",
     "zones": ["서해중부안쪽먼바다", "서해중부바깥먼바다"],
-    "tmYn": ""
+    "tmCc": ""
   }
 ]
 
@@ -63,8 +67,25 @@ ${JSON.stringify(ZONE_GROUP_MAP, null, 2)}
 `;
 
 /**
- * Gemini 1.5 Flash를 사용하여 통보문 분석
- * @param {string} noticeText 
+ * 범위형 시각 문자열에서 시작 시각만 추출 (parseKmaTime 호환용)
+ * 예: "2026년 02월 15일 오전(06시~12시)" → "2026년 02월 15일 06시 00분"
+ * 예: "2026년 02월 15일 12시 00분" → "2026년 02월 15일 12시 00분" (그대로)
+ */
+function extractStartTime(tmEf) {
+    if (!tmEf) return '';
+    // 이미 "HH시 mm분" 형식이면 그대로 반환
+    if (/\d{2}시\s*\d{2}분/.test(tmEf)) return tmEf;
+    // 범위형: "오전(06시~12시)", "오후(12시~18시)", "밤(18시~24시)" 등에서 시작 시각 추출
+    const rangeMatch = tmEf.match(/(\d{4}년\s*\d{2}월\s*\d{2}일)\s*\S*\((\d{2})시~\d{2}시\)/);
+    if (rangeMatch) {
+        return `${rangeMatch[1]} ${rangeMatch[2]}시 00분`;
+    }
+    return tmEf;
+}
+
+/**
+ * Gemini를 사용하여 통보문 분석
+ * @param {string} noticeText
  */
 async function parseNoticeWithAI(noticeText, baseDate = '') {
     if (!API_KEY || API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
@@ -92,6 +113,17 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
         console.log('[AI Parser] Gemini 응답 수신 완료, 길이:', text.length);
 
         const parsed = JSON.parse(text);
+        // 하위 호환: tmEf → time 변환 (기존 코드에서 event.time 사용하는 부분 대응)
+        // time에는 범위형에서 시작 시각만 추출하여 저장 (parseKmaTime 호환용)
+        for (const item of parsed) {
+            if (item.tmEf && !item.time) {
+                item.time = extractStartTime(item.tmEf);
+            }
+            // 기존 tmYn → tmCc 호환
+            if (item.tmCc !== undefined && item.tmYn === undefined) {
+                item.tmYn = item.tmCc;
+            }
+        }
         return { data: parsed, error: null };
     } catch (error) {
         const msg = `[AI Parser] 분석 중 오류 발생: ${error.message}`;
@@ -102,5 +134,6 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
 
 module.exports = {
     parseNoticeWithAI,
+    extractStartTime,
     ZONE_GROUP_MAP
 };
