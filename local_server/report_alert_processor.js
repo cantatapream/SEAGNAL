@@ -295,6 +295,17 @@ async function applyNewReports(fullForm) {
                     }
                 });
             }
+            // [Fix] 통보문의 tmCc를 존 트리 전체에 전파
+            // 통보문이 특정 해역의 주의보/경보에만 tmCc를 포함하고, 예비 해역에는 별도 이벤트가 없는 경우,
+            // 같은 기상유형(예: 풍랑)의 예비/주의보/경보가 걸려있는 모든 해역에 tmCc를 적용
+            if (Object.keys(tmCcByBaseType).length > 0) {
+                const propagatedCount = propagateTmCcToZoneTree(fullForm.current, tmCcByBaseType);
+                if (propagatedCount > 0) {
+                    console.log(`[ReportProcessor] 존 트리 tmCc 전파: ${propagatedCount}건 업데이트`);
+                    changed = true;
+                }
+            }
+
             fullForm.lastReportId = report.id;
         }
         return changed;
@@ -302,6 +313,46 @@ async function applyNewReports(fullForm) {
         console.error(`[ReportProcessor] 오류: ${e.message}`);
         return false;
     }
+}
+
+/**
+ * 존 트리를 순회하며, 같은 기상유형의 upcoming/current에 tmCc가 비어있는 해역에 전파
+ * @param {object} obj - 존 트리 노드
+ * @param {object} tmCcByBaseType - { '풍랑': '2026년 02월 08일 밤(21시~24시)', ... }
+ * @returns {number} 업데이트된 해역 수
+ */
+function propagateTmCcToZoneTree(obj, tmCcByBaseType) {
+    if (!obj || typeof obj !== 'object') return 0;
+    let count = 0;
+
+    for (const [key, value] of Object.entries(obj)) {
+        if (key === 'children' || key === 'history' || key === 'missingCount') continue;
+
+        if (value && typeof value === 'object' && 'current' in value && 'upcoming' in value) {
+            // upcoming에 tmCc가 비어있고, 같은 기상유형의 tmCc가 있으면 전파
+            if (value.upcoming && value.upcoming.wrnTp && !value.upcoming.tmCc) {
+                const baseType = value.upcoming.wrnTp; // 이미 클린 타입 (예: '풍랑')
+                if (tmCcByBaseType[baseType]) {
+                    value.upcoming.tmCc = tmCcByBaseType[baseType];
+                    console.log(`[ReportProcessor] tmCc 존 전파 (upcoming): ${key} ← ${tmCcByBaseType[baseType]}`);
+                    count++;
+                }
+            }
+            // current에도 동일 적용
+            if (value.current && value.current.wrnTp && !value.current.tmCc) {
+                const baseType = value.current.wrnTp;
+                if (tmCcByBaseType[baseType]) {
+                    value.current.tmCc = tmCcByBaseType[baseType];
+                    console.log(`[ReportProcessor] tmCc 존 전파 (current): ${key} ← ${tmCcByBaseType[baseType]}`);
+                    count++;
+                }
+            }
+        }
+
+        // 하위 노드 재귀 탐색
+        count += propagateTmCcToZoneTree(value, tmCcByBaseType);
+    }
+    return count;
 }
 
 /**
