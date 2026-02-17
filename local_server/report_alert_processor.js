@@ -45,16 +45,41 @@ async function fetchReportDetail(reportId) {
     const kind = parts[0] || '';
     const dateStr = parts[1] || '';
     const dateParam = dateStr.substring(0, 4) + '-' + dateStr.substring(4, 6) + '-' + dateStr.substring(6, 8);
-    // reportId를 인코딩하지 않음 (브라우저 폼 제출과 동일하게, ':'는 쿼리 값에서 허용됨)
-    const url = `${CONFIG.DETAIL_URL}?stn=108&kind=${kind}&date=${dateParam}&reportId=${reportId}`;
+    // [Fix] prevStn=108 추가 — KMA 서버는 prevStn이 stn과 일치해야만 reportId를 인식함
+    // prevStn 없이 요청하면 항상 최신 통보문 내용만 반환하는 버그가 있었음
+    const url = `${CONFIG.DETAIL_URL}?prevStn=108&stn=108&kind=${kind}&date=${dateParam}&reportId=${reportId}`;
 
     const html = await fetchHtml(url);
-    const contentMatch = html.match(/<div class="cmp-view-content">([\s\S]*?)<\/div>\s*<\/section>/);
-    if (!contentMatch) return "";
 
-    return contentMatch[1]
+    // [Fix] 여러 정규식 패턴을 순차적으로 시도하여 HTML 구조 변경에 대응
+    let contentHtml = '';
+    const patterns = [
+        /<div class="cmp-view-content">([\s\S]*?)<\/div>\s*<\/section>/,  // 원본 패턴
+        /<div class="cmp-view-content">([\s\S]*?)<\/div>\s*<\/div>/,      // </section> 대신 </div>
+        /<div class="cmp-view-content">([\s\S]*)<\/div>/,                  // 마지막 </div>까지 (greedy)
+    ];
+    for (const pattern of patterns) {
+        const match = html.match(pattern);
+        if (match && match[1] && match[1].trim().length > 20) {
+            contentHtml = match[1];
+            break;
+        }
+    }
+    if (!contentHtml) return "";
+
+    let text = contentHtml
         .replace(/<p[^>]*>/g, '\n').replace(/<\/p>/g, '\n').replace(/<br\s*\/?>/g, '\n')
         .replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/[ ]+/g, ' ').trim();
+
+    // [핵심 수정] "참고사항" 섹션 제거 — AI가 중복 이벤트를 생성하는 주요 원인
+    // 참고사항에는 "현재 발효 중인 전체 특보 현황"이 나열되어 있어,
+    // AI가 이를 새로운 이벤트로 오해하여 이미 발효 중인 해역까지 중복 처리함
+    const refIdx = text.indexOf('참고사항');
+    if (refIdx !== -1) {
+        text = text.substring(0, refIdx).trim();
+    }
+
+    return text;
 }
 
 // [AI 대체] resolveZones, parseEvents 함수는 이제 ai_report_parser에서 처리하므로 삭제함
@@ -75,12 +100,18 @@ function updateZoneStatus(obj, targetZone, event) {
     for (const [key, value] of Object.entries(obj)) {
         if (key === targetZone && value && 'current' in value) {
             if (!value.history) value.history = [];
-            const isDup = value.history.some(h => h.reportId === event.reportId && h.command === event.command && h.time === event.time);
+            // [Fix] 중복 검사: h.time은 tmFc(발표시각)로 저장되므로 event.tmFc와 비교해야 함
+            // 기존에는 h.time === event.time (tmEf) 비교로 인해 중복 검사가 항상 실패하는 버그가 있었음
+            const isDup = value.history.some(h =>
+                h.reportId === event.reportId && h.command === event.command
+            );
             if (!isDup) {
                 value.history.unshift({
                     reportId: event.reportId, time: event.tmFc || new Date().toLocaleString('ko-KR'),
                     tmEf: event.time, type: event.type, command: event.command, processedAt: new Date().toISOString()
                 });
+                // [Fix] history 무한 증가 방지 (최근 20건만 유지)
+                if (value.history.length > 20) value.history = value.history.slice(0, 20);
             }
 
             const effTime = parseKmaTime(event.time);
@@ -132,6 +163,7 @@ async function applyNewReports(fullForm) {
     console.log(`[ReportProcessor] 체크 중... (LastId: ${fullForm.lastReportId})`);
     try {
         const allNewReports = [];
+        const seenReportIds = new Set(); // [Fix] 페이지간 중복 방지 (select-list가 모든 페이지에서 동일)
         let foundLast = false;
         for (let page = 1; page <= 5; page++) {
             const html = await fetchHtml(`${CONFIG.LIST_URL}?pageIndex=${page}`);
@@ -148,7 +180,10 @@ async function applyNewReports(fullForm) {
                 const title = match[2].trim();
                 // [필터링] 제목에 [특보] 또는 [예비]가 포함된 통보문만 수집
                 if (id.includes(':') && (title.includes('[특보]') || title.includes('[예비]'))) {
-                    pageReports.push({ id, title });
+                    if (!seenReportIds.has(id)) {
+                        seenReportIds.add(id);
+                        pageReports.push({ id, title });
+                    }
                 }
             }
             console.log(`[ReportProcessor] ${page}페이지에서 ${pageReports.length}건의 통보문 발견.`);
@@ -190,11 +225,29 @@ async function applyNewReports(fullForm) {
                 console.error(`[ReportProcessor] AI 분석 오류: ${aiParsed.error}`);
             }
 
-            // 분석된 각 이벤트를 시스템에 적용
+            // [Fix] AI 결과 중복 제거: 동일 type+command+zones 조합의 이벤트 병합
+            const deduplicatedEvents = [];
+            const seenEventKeys = new Set();
             for (const event of events) {
+                // zones를 정렬하여 순서 무관하게 비교
+                const sortedZones = [...(event.zones || [])].sort().join(',');
+                const eventKey = `${event.type}|${event.command}|${sortedZones}`;
+                if (!seenEventKeys.has(eventKey)) {
+                    seenEventKeys.add(eventKey);
+                    deduplicatedEvents.push(event);
+                } else {
+                    console.log(`[ReportProcessor] 중복 이벤트 제거: ${event.type} ${event.command}`);
+                }
+            }
+
+            // 분석된 각 이벤트를 시스템에 적용
+            for (const event of deduplicatedEvents) {
                 // reportId 및 발표시각(tmFc) 추가
                 event.reportId = report.id;
                 event.tmFc = extractTmFcFromId(report.id);
+
+                // [Fix] zones 내 중복 제거
+                event.zones = [...new Set(event.zones || [])];
 
                 console.log(`[AI Event] ${event.type} ${event.command} (${event.time}) - 구역: ${event.zones.length}개`);
 

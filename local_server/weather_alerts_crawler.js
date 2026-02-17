@@ -333,7 +333,15 @@ function detectChanges(previous, current) {
 // Main Execution
 // ============================================================================
 
+// [Fix] 동시 실행 방지 Lock — AI 처리가 1분 초과 시 중복 실행되어 데이터 오염 방지
+let _isRunning = false;
+
 async function run() {
+    if (_isRunning) {
+        console.log('[Crawler] 이전 실행이 아직 진행 중, 건너뜀');
+        return [];
+    }
+    _isRunning = true;
     console.log(`[Crawler] 시작: ${new Date().toISOString()}`);
 
     let fullForm;
@@ -387,6 +395,8 @@ async function run() {
     } catch (e) {
         console.error(`[Crawler] 오류: ${e.message}`);
         return [];
+    } finally {
+        _isRunning = false;
     }
 }
 
