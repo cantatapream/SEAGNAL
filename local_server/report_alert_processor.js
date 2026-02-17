@@ -42,12 +42,11 @@ async function fetchHtml(url) {
 
 async function fetchReportDetail(reportId) {
     const parts = reportId.split(':');
-    const kind = parts[0] || '';
     const dateStr = parts[1] || '';
     const dateParam = dateStr.substring(0, 4) + '-' + dateStr.substring(4, 6) + '-' + dateStr.substring(6, 8);
-    // [Fix] prevStn=108 추가 — KMA 서버는 prevStn이 stn과 일치해야만 reportId를 인식함
-    // prevStn 없이 요청하면 항상 최신 통보문 내용만 반환하는 버그가 있었음
-    const url = `${CONFIG.DETAIL_URL}?prevStn=108&stn=108&kind=${kind}&date=${dateParam}&reportId=${reportId}`;
+    // [Fix] kind 파라미터 제거 — KMA 서버는 kind가 포함되면 reportId를 무시하고
+    // 해당 kind의 최신 통보문만 반환함. kind 없이 prevStn+reportId만 보내야 정상 동작.
+    const url = `${CONFIG.DETAIL_URL}?prevStn=108&stn=108&date=${dateParam}&reportId=${reportId}`;
 
     const html = await fetchHtml(url);
 
