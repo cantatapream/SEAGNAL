@@ -35,15 +35,7 @@ async function fetchHtml(url) {
         }, (res) => {
             const chunks = [];
             res.on('data', chunk => chunks.push(chunk));
-            res.on('end', () => {
-                const buf = Buffer.concat(chunks);
-                // UTF-16 LE BOM(0xFF 0xFE) 감지 시 utf16le로 디코딩
-                if (buf.length >= 2 && buf[0] === 0xFF && buf[1] === 0xFE) {
-                    resolve(buf.toString('utf16le'));
-                } else {
-                    resolve(buf.toString('utf8'));
-                }
-            });
+            res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
         }).on('error', reject);
     });
 }
@@ -53,7 +45,8 @@ async function fetchReportDetail(reportId) {
     const kind = parts[0] || '';
     const dateStr = parts[1] || '';
     const dateParam = dateStr.substring(0, 4) + '-' + dateStr.substring(4, 6) + '-' + dateStr.substring(6, 8);
-    const url = `${CONFIG.DETAIL_URL}?stn=108&kind=${kind}&date=${dateParam}&reportId=${encodeURIComponent(reportId)}`;
+    // reportId를 인코딩하지 않음 (브라우저 폼 제출과 동일하게, ':'는 쿼리 값에서 허용됨)
+    const url = `${CONFIG.DETAIL_URL}?stn=108&kind=${kind}&date=${dateParam}&reportId=${reportId}`;
 
     const html = await fetchHtml(url);
     const contentMatch = html.match(/<div class="cmp-view-content">([\s\S]*?)<\/div>\s*<\/section>/);

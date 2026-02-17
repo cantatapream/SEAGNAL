@@ -2270,14 +2270,7 @@ app.get('/api/admin/reports', async (req, res) => {
                 }, (resp) => {
                     const chunks = [];
                     resp.on('data', c => chunks.push(c));
-                    resp.on('end', () => {
-                        const buf = Buffer.concat(chunks);
-                        if (buf.length >= 2 && buf[0] === 0xFF && buf[1] === 0xFE) {
-                            resolve(buf.toString('utf16le'));
-                        } else {
-                            resolve(buf.toString('utf8'));
-                        }
-                    });
+                    resp.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
                 }).on('error', reject);
             });
         };
