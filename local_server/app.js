@@ -931,9 +931,14 @@ function formatWarningTime(tmEf, isEndTime = false) {
         decoded = `${m}월 ${d}일${rest}`;
     }
 
-    // 이미 한글 시간대가 포함되어 있으면 그대로 (위에서 변환된 값 포함)
+    // 이미 한글 시간대가 포함되어 있으면 연도/월 정리 후 반환 (위에서 변환된 값 포함)
     if (decoded.includes('새벽') || decoded.includes('아침') || decoded.includes('오전') ||
         decoded.includes('낮') || decoded.includes('오후') || decoded.includes('저녁') || decoded.includes('밤')) {
+        // "2026년 02월 15일 오전(06시~12시)" → "2월 15일 오전(06시~12시)"
+        const koMatch = decoded.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(.*)/);
+        if (koMatch) {
+            return `${parseInt(koMatch[2])}월 ${parseInt(koMatch[3])}일 ${koMatch[4]}`.trim();
+        }
         return decoded;
     }
 
@@ -2255,9 +2260,9 @@ function createAlertElement(items) {
     details.innerHTML = '';
 
     const formatAlertTime = (timeStr) => {
-        // [수정] 월 표기 제거 (예: "2월 10일" -> "10일")
+        // [수정] 연도/월 표기 제거 (예: "2026년 2월 10일" -> "10일", "2월 15일 오전(06시~12시)" -> "15일 오전(06시~12시)")
         const formatted = formatWarningTime(timeStr);
-        return formatted ? formatted.replace(/^\d+월\s*/, '').replace(/\s\d+월\s*/, ' ') : formatted;
+        return formatted ? formatted.replace(/\d{4}년\s*/g, '').replace(/^\d+월\s*/, '').replace(/\s\d+월\s*/, ' ') : formatted;
     };
 
     const createRow = (label, value, color) => {
@@ -2292,12 +2297,12 @@ function createAlertElement(items) {
 
         details.appendChild(createRow('발표시각', formatAlertTime(alert.tmFc)));
         details.appendChild(createRow('발효시각', formatAlertTime(alert.tmEf)));
-        let releaseTime = alert.tmYn || alert.tmEd || '';
+        let releaseTime = alert.tmCc || alert.tmYn || alert.tmEd || '';
         if (releaseTime.trim() === '일' || releaseTime.trim() === '') {
             releaseTime = '정보 없음';
         } else {
-            // [수정] 월 표기 제거
-            releaseTime = releaseTime.replace(/^\d+월\s*/, '').replace(/\s\d+월\s*/, ' ');
+            // [수정] formatAlertTime 동일 로직 적용 (해제시각도 연도/월 제거)
+            releaseTime = formatAlertTime(releaseTime);
         }
         details.appendChild(createRow('해제예정', releaseTime, '#69f0ae'));
     });
@@ -2891,12 +2896,18 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
             }
         });
 
+        // [수정] 연도/월 표기 제거 헬퍼 (특보카드 상세에서도 동일하게 적용)
+        const stripYearMonth = (timeStr) => {
+            const formatted = formatWarningTime(timeStr);
+            return formatted ? formatted.replace(/\d{4}년\s*/g, '').replace(/^\d+월\s*/, '').replace(/\s\d+월\s*/, ' ') : formatted;
+        };
+
         uniqueCoastalAlerts.forEach((alert, index) => {
-            const tmFcFormatted = formatWarningTime(alert.tmFc);
-            const tmEfFormatted = formatWarningTime(alert.tmEf);
+            const tmFcFormatted = stripYearMonth(alert.tmFc);
+            const tmEfFormatted = stripYearMonth(alert.tmEf);
             let tmEdFormatted = '정보 없음';
             if (alert.tmEd && alert.tmEd.trim().length > 2 && !alert.isPreliminary) {
-                tmEdFormatted = formatWarningTime(alert.tmEd);
+                tmEdFormatted = stripYearMonth(alert.tmEd);
             }
 
             // [수정] 둘 이상의 서로 다른 특보 정보가 있을 때만 타이틀 표시
@@ -8354,8 +8365,13 @@ window.atmCollectOne = async function (i) {
         const res = await fetch('/api/admin/report-collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: report.id, title: report.title, referenceTime }) });
         const data = await res.json();
         window._atmResults[i] = data;
-        btn.innerHTML = '<i class="fa-solid fa-check"></i> 완료'; btn.style.background = 'rgba(34,197,94,0.3)'; btn.style.color = '#86efac';
         document.getElementById('atm-rb-' + i).style.display = 'inline-block';
+        // [수정] 서버 에러(500) 또는 success:false 구분 표시
+        if (!res.ok || data.success === false) {
+            btn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> 에러'; btn.style.background = 'rgba(245,158,11,0.3)'; btn.style.color = '#fcd34d';
+        } else {
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> 완료'; btn.style.background = 'rgba(34,197,94,0.3)'; btn.style.color = '#86efac';
+        }
     } catch (e) { btn.innerHTML = '<i class="fa-solid fa-xmark"></i> 실패'; btn.style.background = 'rgba(239,68,68,0.3)'; btn.style.color = '#fca5a5'; }
 };
 
@@ -8390,9 +8406,11 @@ window.atmShowResult = function (i) {
     popup.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:10001;display:flex;align-items:center;justify-content:center;';
     popup.onclick = (e) => { if (e.target === popup) popup.remove(); };
 
-    const appliedBadge = data.applied
-        ? '<span style="background:rgba(34,197,94,0.2);color:#86efac;padding:2px 8px;border-radius:4px;font-size:0.75rem;">장부 반영됨</span>'
-        : '<span style="background:rgba(245,158,11,0.2);color:#fcd34d;padding:2px 8px;border-radius:4px;font-size:0.75rem;">미반영</span>';
+    const appliedBadge = data.success === false
+        ? '<span style="background:rgba(239,68,68,0.2);color:#fca5a5;padding:2px 8px;border-radius:4px;font-size:0.75rem;">서버 에러</span>'
+        : data.applied
+            ? '<span style="background:rgba(34,197,94,0.2);color:#86efac;padding:2px 8px;border-radius:4px;font-size:0.75rem;">장부 반영됨</span>'
+            : '<span style="background:rgba(245,158,11,0.2);color:#fcd34d;padding:2px 8px;border-radius:4px;font-size:0.75rem;">미반영</span>';
     const pushBadge = data.pushResult
         ? (data.pushResult.sent
             ? '<span style="background:rgba(56,189,248,0.2);color:#7dd3fc;padding:2px 8px;border-radius:4px;font-size:0.75rem;">푸시 발송(' + data.pushResult.changeCount + '건)</span>'
@@ -8430,7 +8448,9 @@ window.atmSwitchResultTab = function (tabId) {
     const ct = document.getElementById('atr-content');
     const d = window._atmCurResult;
     if (tabId === 'json') {
-        const j = { reportId: d.reportId, title: d.title, applied: d.applied, foundKeywords: d.foundKeywords, aiResult: d.aiResult, message: d.message || '' };
+        // [수정] rawText 제외한 전체 응답 표시 (에러 응답 포함)
+        const j = Object.assign({}, d);
+        delete j.rawText; // 원문은 AI 탭에서 표시
         ct.innerHTML = '<div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:14px;overflow:auto;"><pre style="margin:0;color:#e2e8f0;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;font-family:Courier New,monospace;">' + JSON.stringify(j, null, 2) + '</pre></div>';
     } else {
         const aiArr = d.aiResult || [];
