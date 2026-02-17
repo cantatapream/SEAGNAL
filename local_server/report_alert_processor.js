@@ -217,6 +217,18 @@ async function applyNewReports(fullForm) {
         }
 
         allNewReports.reverse();
+
+        // [Fix] 보고서를 ID 내 타임스탬프 기준으로 시간순 정렬
+        // KMA select-list는 보고서를 타입(met:/pwn:)별로 그룹화하여 나열하므로,
+        // reverse()만으로는 정확한 시간순이 보장되지 않음.
+        // 예: pwn:(예비) 보고서가 met:(특보) 보고서보다 뒤에 처리되면,
+        //     해제 이후에 과거 예비가 재적용되어 tmCc가 유실되는 문제 발생.
+        allNewReports.sort((a, b) => {
+            const tsA = (a.id.split(':')[1] || '').substring(0, 12);
+            const tsB = (b.id.split(':')[1] || '').substring(0, 12);
+            return tsA.localeCompare(tsB);
+        });
+
         console.log(`[ReportProcessor] 총 ${allNewReports.length}건의 신규 통보문 처리 시작.`);
         let changed = false;
         const RELEVANT_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
