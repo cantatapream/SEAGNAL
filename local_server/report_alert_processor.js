@@ -138,8 +138,12 @@ function updateZoneStatus(obj, targetZone, event, referenceTime) {
             } else if (event.command === '예비') {
                 const cleanType = event.type.replace('예비특보', '').replace('주의보', '').replace('경보', '').trim();
                 const prevUp = value.upcoming || {};
+                const prevCurr = value.current || {};
                 const inheritedTmFc = (prevUp.wrnTp === cleanType && prevUp.wrnLvl === '예비') ? (prevUp.tmFc || event.tmFc || '') : (event.tmFc || '');
-                value.upcoming = { ...prevUp, wrnTp: cleanType, wrnLvl: '예비', tmEf: tmEfOriginal, tmFc: inheritedTmFc, tmCc: tmCc };
+                // [Fix] 예비 케이스도 주의보/경보와 동일하게 tmCc 상속 체인 적용
+                // 이전 상태(upcoming/current)의 tmCc를 보존하여 해제예정 시각이 유실되지 않도록 함
+                const inheritedTmCc = tmCc || prevUp.tmCc || prevUp.tmYn || prevCurr.tmCc || prevCurr.tmYn || '';
+                value.upcoming = { ...prevUp, wrnTp: cleanType, wrnLvl: '예비', tmEf: tmEfOriginal, tmFc: inheritedTmFc, tmCc: inheritedTmCc };
             } else {
                 const isJuui = event.type.includes('주의보');
                 const cleanType = event.type.replace('주의보', '').replace('경보', '').trim();
@@ -249,6 +253,28 @@ async function applyNewReports(fullForm) {
                     deduplicatedEvents.push(event);
                 } else {
                     console.log(`[ReportProcessor] 중복 이벤트 제거: ${event.type} ${event.command}`);
+                }
+            }
+
+            // [Fix] 동일 통보문 내 같은 기상유형 이벤트 간 tmCc 전파
+            // 예: 풍랑주의보(tmCc 있음)와 풍랑예비특보(tmCc 없음)가 동시 존재 시,
+            // 해제예정은 해당 기상현상 전체에 적용되므로 tmCc가 없는 이벤트에 전파
+            const tmCcByBaseType = {};
+            for (const event of deduplicatedEvents) {
+                const baseType = (event.type || '').replace('예비특보', '').replace('주의보', '').replace('경보', '').trim();
+                if (event.tmCc && !tmCcByBaseType[baseType]) {
+                    tmCcByBaseType[baseType] = event.tmCc;
+                }
+            }
+            for (const event of deduplicatedEvents) {
+                if (!event.tmCc) {
+                    const baseType = (event.type || '').replace('예비특보', '').replace('주의보', '').replace('경보', '').trim();
+                    if (tmCcByBaseType[baseType]) {
+                        event.tmCc = tmCcByBaseType[baseType];
+                        // tmYn도 동기화 (하위 호환)
+                        if (!event.tmYn) event.tmYn = event.tmCc;
+                        console.log(`[ReportProcessor] tmCc 전파: ${event.type} ← ${tmCcByBaseType[baseType]}`);
+                    }
                 }
             }
 
