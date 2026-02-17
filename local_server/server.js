@@ -2332,7 +2332,9 @@ app.post('/api/admin/report-collect', async (req, res) => {
 
         // 3. AI 분석 (발표시각을 baseDate로 전달하여 날짜 계산 정확도 향상)
         const baseDate = extractTmFcFromReportId(reportId);
-        const aiResult = await aiParser.parseNoticeWithAI(rawText, baseDate);
+        const aiParsed = await aiParser.parseNoticeWithAI(rawText, baseDate);
+        const aiResult = aiParsed.data || [];
+        const aiError = aiParsed.error || null;
 
         // 4. 장부에 반영
         let applied = false;
@@ -2370,7 +2372,7 @@ app.post('/api/admin/report-collect', async (req, res) => {
             console.error('[Admin] 장부 반영 오류:', applyErr.message);
         }
 
-        res.json({ success: true, reportId, title, rawText, aiResult, foundKeywords, applied });
+        res.json({ success: true, reportId, title, rawText, aiResult, foundKeywords, applied, aiError });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
@@ -2395,7 +2397,9 @@ app.post('/api/admin/reports-collect-all', async (req, res) => {
                 }
 
                 const baseDate = extractTmFcFromReportId(report.id);
-                const aiResult = await aiParser.parseNoticeWithAI(rawText, baseDate);
+                const aiParsed = await aiParser.parseNoticeWithAI(rawText, baseDate);
+                const aiResult = aiParsed.data || [];
+                const aiError = aiParsed.error || null;
 
                 // 장부 반영
                 let applied = false;
@@ -2429,7 +2433,7 @@ app.post('/api/admin/reports-collect-all', async (req, res) => {
                     fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
                 }
 
-                results.push({ reportId: report.id, title: report.title, rawText, aiResult, foundKeywords, applied });
+                results.push({ reportId: report.id, title: report.title, rawText, aiResult, foundKeywords, applied, aiError });
             } catch (itemErr) {
                 results.push({ reportId: report.id, title: report.title, error: itemErr.message, applied: false });
             }

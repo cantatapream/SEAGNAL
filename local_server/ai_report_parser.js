@@ -59,11 +59,13 @@ ${JSON.stringify(ZONE_GROUP_MAP, null, 2)}
  */
 async function parseNoticeWithAI(noticeText, baseDate = '') {
     if (!API_KEY || API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
-        console.warn('[AI Parser] GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인하세요.');
-        return [];
+        const msg = '[AI Parser] GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인하세요.';
+        console.warn(msg);
+        return { data: [], error: msg };
     }
 
     try {
+        console.log('[AI Parser] Gemini API 호출 시작... (baseDate:', baseDate || '없음', ')');
         const model = genAI.getGenerativeModel({
             model: "gemini-2.0-flash",
             generationConfig: { responseMimeType: "application/json" }
@@ -78,11 +80,14 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
+        console.log('[AI Parser] Gemini 응답 수신 완료, 길이:', text.length);
 
-        return JSON.parse(text);
+        const parsed = JSON.parse(text);
+        return { data: parsed, error: null };
     } catch (error) {
-        console.error('[AI Parser] 분석 중 오류 발생:', error.message);
-        return [];
+        const msg = `[AI Parser] 분석 중 오류 발생: ${error.message}`;
+        console.error(msg);
+        return { data: [], error: msg };
     }
 }
 
