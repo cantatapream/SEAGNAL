@@ -8388,13 +8388,17 @@ window.atmSwitchResultTab = function (tabId) {
         const aiArr = d.aiResult || [];
         const aiHtml = aiArr.length > 0 ? aiArr.map((ev, idx) => {
             const borderColor = ev.command === '해제' ? '#22c55e' : ev.command === '예비' ? '#f59e0b' : '#ef4444';
+            const tmFcDisplay = d.reportId ? (function(rid) { var p=rid.split(':'); if(p.length>=2){var t=p[1]; if(t.length>=12) return t.substring(0,4)+'년 '+t.substring(4,6)+'월 '+t.substring(6,8)+'일 '+t.substring(8,10)+'시 '+t.substring(10,12)+'분';} return ''; })(d.reportId) : '';
+            const tmEfDisplay = ev.tmEf || ev.time || '';
+            const tmCcDisplay = ev.tmCc || ev.tmYn || '';
             return '<div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:12px;margin-bottom:8px;border-left:3px solid ' + borderColor + ';">'
-                + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">'
+                + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">'
                 + '<span style="font-weight:700;color:#fff;font-size:0.85rem;">#' + (idx+1) + ' ' + ev.type + '</span>'
-                + '<span style="background:rgba(255,255,255,0.1);color:#e2e8f0;padding:2px 8px;border-radius:4px;font-size:0.75rem;">' + ev.command + '</span>'
-                + '<span style="color:#94a3b8;font-size:0.75rem;">' + (ev.time||'') + '</span></div>'
+                + '<span style="background:rgba(255,255,255,0.1);color:#e2e8f0;padding:2px 8px;border-radius:4px;font-size:0.75rem;">' + ev.command + '</span></div>'
+                + '<div style="font-size:0.8rem;margin-bottom:4px;display:flex;gap:4px;"><span style="color:#8b949e;min-width:56px;">발표시각</span><span style="color:#94a3b8;">' + (tmFcDisplay || '정보 없음') + '</span></div>'
+                + '<div style="font-size:0.8rem;margin-bottom:4px;display:flex;gap:4px;"><span style="color:#8b949e;min-width:56px;">발효시각</span><span style="color:#e2e8f0;font-weight:500;">' + (tmEfDisplay || '정보 없음') + '</span></div>'
+                + '<div style="font-size:0.8rem;margin-bottom:6px;display:flex;gap:4px;"><span style="color:#8b949e;min-width:56px;">해제시각</span><span style="color:#69f0ae;">' + (tmCcDisplay || '정보 없음') + '</span></div>'
                 + '<div style="color:#94a3b8;font-size:0.8rem;">구역: ' + (ev.zones||[]).join(', ') + '</div>'
-                + (ev.tmYn ? '<div style="color:#fcd34d;font-size:0.75rem;margin-top:4px;">해제예고: ' + ev.tmYn + '</div>' : '')
                 + '</div>';
         }).join('') : '<div style="color:#94a3b8;padding:10px;">AI 분석 결과가 없습니다.</div>';
         ct.innerHTML = '<div style="margin-bottom:16px;"><div style="color:#a5b4fc;font-weight:600;font-size:0.85rem;margin-bottom:8px;"><i class="fa-solid fa-robot"></i> AI 분석 결과 (' + aiArr.length + '건)</div>' + aiHtml + '</div>'
