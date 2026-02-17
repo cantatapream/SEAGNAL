@@ -1129,9 +1129,17 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
     // [핵심 수정] 시간 비교 로직 추가
     // tmEf(발효시각)를 파싱하여 현재 시각과 비교
     const now = getKfTime(); // YYYYMMDDHHmm 형식의 현재 시각
-    const rawEf = (alertObj.tmEf || '').replace(/[^0-9]/g, ''); // 숫자만 추출
+    // 범위형 tmEf에서 시작 시각 추출 (예: "2026년 02월 15일 오전(06시~12시)" → 시작시각의 숫자)
+    let rawEf = (alertObj.tmEf || '').replace(/[^0-9]/g, ''); // 숫자만 추출
+    // 범위형인 경우 숫자가 14자리 이상이 됨 (YYYYMMDD + 시작HH + 종료HH + ...) → 앞 12자리만 사용
+    const rangeMatch = (alertObj.tmEf || '').match(/(\d{4})년\s*(\d{2})월\s*(\d{2})일\s*\S*\((\d{2})시~\d{2}시\)/);
+    if (rangeMatch) {
+        rawEf = rangeMatch[1] + rangeMatch[2] + rangeMatch[3] + rangeMatch[4] + '00';
+    } else if (rawEf.length > 12) {
+        rawEf = rawEf.substring(0, 12);
+    }
 
-    // 미래 발효 여부 확인: 
+    // 미래 발효 여부 확인:
     // 1. isUpcoming 파라미터가 true이면 무조건 예비/발표
     // 2. wrnLvl이 '예비'이면 무조건 예비
     // 3. tmEf가 유효하고(12자리), 현재 시각보다 미래이면 -> 아직 발효 전이므로 '발표(대기)' 상태로 취급
@@ -1151,6 +1159,7 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
         level: displayLevel === '예비' ? '주의보' : displayLevel,
         tmFc: alertObj.tmFc,
         tmEf: alertObj.tmEf,
+        tmCc: alertObj.tmCc || '',
         tmEd: alertObj.tmYn,
         command: reallyUpcoming ? '발표' : '발효', // 미래면 '발표', 지났으면 '발효'
         isPreliminary: reallyUpcoming,
