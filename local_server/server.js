@@ -2342,6 +2342,7 @@ app.post('/api/admin/report-collect', async (req, res) => {
 
         // 4. 장부에 반영
         let applied = false;
+        let pushResult = null;
         try {
             const outputFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
             let fullForm;
@@ -2371,7 +2372,6 @@ app.post('/api/admin/report-collect', async (req, res) => {
             }
 
             // 변경 감지 및 푸시 알림 발송
-            let pushResult = null;
             if (applied) {
                 const changes = weatherAlertsCrawler.detectChanges(fullForm.previous, fullForm.current);
                 if (changes.length > 0) {
