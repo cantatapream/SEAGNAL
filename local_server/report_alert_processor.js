@@ -35,7 +35,15 @@ async function fetchHtml(url) {
         }, (res) => {
             const chunks = [];
             res.on('data', chunk => chunks.push(chunk));
-            res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+            res.on('end', () => {
+                const buf = Buffer.concat(chunks);
+                // UTF-16 LE BOM(0xFF 0xFE) 감지 시 utf16le로 디코딩
+                if (buf.length >= 2 && buf[0] === 0xFF && buf[1] === 0xFE) {
+                    resolve(buf.toString('utf16le'));
+                } else {
+                    resolve(buf.toString('utf8'));
+                }
+            });
         }).on('error', reject);
     });
 }
