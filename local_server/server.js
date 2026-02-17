@@ -2371,18 +2371,22 @@ app.post('/api/admin/report-collect', async (req, res) => {
                 });
             }
 
-            // 변경 감지 및 푸시 알림 발송
-            if (applied) {
-                const changes = weatherAlertsCrawler.detectChanges(fullForm.previous, fullForm.current);
-                if (changes.length > 0) {
-                    try {
-                        await pushSender.processChanges(changes);
-                        pushResult = { sent: true, changeCount: changes.length };
-                        console.log(`[Admin] 테스트 수집 → 변경 ${changes.length}건 감지, 푸시 발송 완료`);
-                    } catch (pushErr) {
-                        pushResult = { sent: false, error: pushErr.message };
-                        console.error(`[Admin] 푸시 발송 오류:`, pushErr.message);
-                    }
+            // 기준시각 기반 상태 전환 (upcoming → current)
+            // resolvePendingStatuses는 이벤트 적용 여부와 무관하게 실행해야 함
+            // (이전 수집에서 upcoming으로 저장된 항목이 현재 기준시각에서 발효될 수 있음)
+            weatherAlertsCrawler.resolvePendingStatuses(fullForm.current, null, refTime);
+
+            // 변경 감지 및 저장 (이벤트 적용 + 상태 전환 모두 포함)
+            const changes = weatherAlertsCrawler.detectChanges(fullForm.previous, fullForm.current);
+            if (changes.length > 0) {
+                applied = true;
+                try {
+                    await pushSender.processChanges(changes);
+                    pushResult = { sent: true, changeCount: changes.length };
+                    console.log(`[Admin] 테스트 수집 → 변경 ${changes.length}건 감지, 푸시 발송 완료`);
+                } catch (pushErr) {
+                    pushResult = { sent: false, error: pushErr.message };
+                    console.error(`[Admin] 푸시 발송 오류:`, pushErr.message);
                 }
                 fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
                 if (reportId > (fullForm.lastReportId || '')) fullForm.lastReportId = reportId;
@@ -2401,7 +2405,7 @@ app.post('/api/admin/report-collect', async (req, res) => {
 // 9-6. 전체 통보문 일괄 수집
 app.post('/api/admin/reports-collect-all', async (req, res) => {
     try {
-        const { reports } = req.body; // [{ id, title }, ...]
+        const { reports, referenceTimeMode } = req.body; // [{ id, title }, ...], mode: 'auto'|'now'|'custom'
         if (!reports || !Array.isArray(reports)) return res.status(400).json({ error: 'reports 배열이 필요합니다' });
 
         const results = [];
@@ -2437,17 +2441,25 @@ app.post('/api/admin/reports-collect-all', async (req, res) => {
                     fullForm = weatherAlertsCrawler.createFullForm();
                 }
 
+                // 기준시각: 'auto' 모드면 reportId에서 추출, 아니면 null (시스템 시각)
+                const refTime = (referenceTimeMode === 'auto') ? extractRefTimeFromReportId(report.id) : null;
+
                 for (const event of aiResult) {
                     event.reportId = report.id;
                     event.tmFc = extractTmFcFromReportId(report.id);
                     event.zones.forEach(zoneName => {
-                        if (reportProcessor.updateZoneStatus(fullForm.current, zoneName, event)) {
+                        if (reportProcessor.updateZoneStatus(fullForm.current, zoneName, event, refTime)) {
                             applied = true;
                         }
                     });
                 }
 
-                if (applied) {
+                // 기준시각 기반 상태 전환 (upcoming → current)
+                weatherAlertsCrawler.resolvePendingStatuses(fullForm.current, null, refTime);
+
+                // 변경 감지 및 저장
+                const changes = weatherAlertsCrawler.detectChanges(fullForm.previous, fullForm.current);
+                if (changes.length > 0 || applied) {
                     fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
                     if (report.id > (fullForm.lastReportId || '')) fullForm.lastReportId = report.id;
                     fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
@@ -2464,6 +2476,16 @@ app.post('/api/admin/reports-collect-all', async (req, res) => {
         res.status(500).json({ success: false, error: e.message });
     }
 });
+
+// 헬퍼: reportId에서 기준시각(ISO) 추출 (resolvePendingStatuses용)
+function extractRefTimeFromReportId(reportId) {
+    const parts = (reportId || '').split(':');
+    if (parts.length >= 2 && parts[1].length >= 12) {
+        const ts = parts[1];
+        return new Date(`${ts.substring(0,4)}-${ts.substring(4,6)}-${ts.substring(6,8)}T${ts.substring(8,10)}:${ts.substring(10,12)}:00+09:00`).toISOString();
+    }
+    return null;
+}
 
 // 헬퍼: reportId에서 발표시각 추출
 function extractTmFcFromReportId(reportId) {

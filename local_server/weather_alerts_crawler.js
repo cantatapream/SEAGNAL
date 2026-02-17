@@ -250,9 +250,9 @@ function updateHistoryFile(zoneName, event, isRelease = false) {
 /**
  * 발효 시각이 지났으면 상태를 업데이트함
  */
-function resolvePendingStatuses(obj, zoneName = null) {
+function resolvePendingStatuses(obj, zoneName = null, referenceTime = null) {
     if (!obj || typeof obj !== 'object') return;
-    const now = new Date();
+    const now = referenceTime ? new Date(referenceTime) : new Date();
 
     if ('current' in obj && 'upcoming' in obj) {
         // 1. 예약된 해제 처리 (tmRelease)
@@ -285,7 +285,7 @@ function resolvePendingStatuses(obj, zoneName = null) {
 
     for (const [key, value] of Object.entries(obj)) {
         if (key === 'children' || key === 'history' || key === 'missingCount') continue;
-        resolvePendingStatuses(value, key);
+        resolvePendingStatuses(value, key, referenceTime);
     }
 }
 
@@ -404,4 +404,4 @@ if (require.main === module) {
     run();
 }
 
-module.exports = { run, detectChanges, createFullForm, CONFIG };
+module.exports = { run, detectChanges, createFullForm, resolvePendingStatuses, CONFIG };
