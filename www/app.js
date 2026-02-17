@@ -2900,12 +2900,18 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
             }
         });
 
+        // [수정] 연도/월 표기 제거 헬퍼 (특보카드 상세에서도 동일하게 적용)
+        const stripYearMonth = (timeStr) => {
+            const formatted = formatWarningTime(timeStr);
+            return formatted ? formatted.replace(/\d{4}년\s*/g, '').replace(/^\d+월\s*/, '').replace(/\s\d+월\s*/, ' ') : formatted;
+        };
+
         uniqueCoastalAlerts.forEach((alert, index) => {
-            const tmFcFormatted = formatWarningTime(alert.tmFc);
-            const tmEfFormatted = formatWarningTime(alert.tmEf);
+            const tmFcFormatted = stripYearMonth(alert.tmFc);
+            const tmEfFormatted = stripYearMonth(alert.tmEf);
             let tmEdFormatted = '정보 없음';
             if (alert.tmEd && alert.tmEd.trim().length > 2 && !alert.isPreliminary) {
-                tmEdFormatted = formatWarningTime(alert.tmEd);
+                tmEdFormatted = stripYearMonth(alert.tmEd);
             }
 
             // [수정] 둘 이상의 서로 다른 특보 정보가 있을 때만 타이틀 표시
