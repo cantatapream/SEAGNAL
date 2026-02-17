@@ -1070,6 +1070,8 @@ function flattenAlertsData(rootData) {
     const alerts = [];
     const coastalMap = {};
     const seas = rootData.current || {};
+    // [Fix] 동일 zone 중복 처리 방지 (만약 JSON 구조에 중복 키가 존재하더라도 안전)
+    const processedZones = new Set();
 
     // 재귀 탐색 함수
     function recursiveFind(obj) {
@@ -1084,6 +1086,10 @@ function flattenAlertsData(rootData) {
 
                 const zoneName = key; // 키가 곧 구역명 (예: "울산앞바다", "제주도북부앞바다")
                 const zoneData = val;
+
+                // [Fix] 이미 처리한 zone은 건너뜀
+                if (processedZones.has(zoneName)) continue;
+                processedZones.add(zoneName);
 
                 // 1. Current Alert (Active)
                 if (zoneData.current) {
@@ -1106,7 +1112,6 @@ function flattenAlertsData(rootData) {
 
     appState.alerts = alerts;
     appState.coastalAlerts = coastalMap;
-    // console.log(`Processed Alerts: ${alerts.length} main, ${Object.keys(coastalMap).length} coastal zones.`);
 }
 
 /**
@@ -4098,46 +4103,12 @@ function injectGlobalStyles() {
     document.head.appendChild(style);
 }
 
+// [Fix] 중복 DOMContentLoaded 방지 플래그 - 아래 7904번째 줄에 동일한 핸들러가 있으므로
+// 이 핸들러에서는 fetchAllData를 호출하지 않고 초기화 작업만 수행
 window.addEventListener('DOMContentLoaded', async () => {
     injectGlobalStyles(); // [Fix] 스타일 주입 호출
-    // console.log('=== Marine Weather Alert System Starting ===');
-    // console.log('Using wrn_now_data.php API');
-    // console.log('Config:', CONFIG);
-
     initTabs(); // 탭 초기화
     updateTimeDisplay();
-
-    // 스플래시 화면 노출 시작 시간
-    const splashStartTime = Date.now();
-
-    // 스플래시 화면 제거 함수
-    const hideSplash = () => {
-        const splash = document.getElementById('splash-screen');
-        if (splash) {
-            splash.classList.add('fade-out');
-            setTimeout(() => {
-                splash.remove();
-                document.body.classList.remove('loading');
-            }, 800); // splash.css의 transition 시간(0.8s)과 일치
-        }
-    };
-
-    // 1. 데이터 로딩 대기
-    try {
-        await fetchAllData();
-    } catch (e) {
-        console.error('Initial data fetch failed:', e);
-    }
-
-    // 2. 최소 노출 시간(2초) 보장 후 제거
-    const minSplashTime = 1500;
-    const elapsedTime = Date.now() - splashStartTime;
-    const delay = Math.max(0, minSplashTime - elapsedTime);
-
-    setTimeout(hideSplash, delay);
-
-    // Auto-refresh every 5 minutes (Disabled via user request)
-    // setInterval(fetchAllData, 5 * 60 * 1000);
     setInterval(updateTimeDisplay, 60000);
 });
 

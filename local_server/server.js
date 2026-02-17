@@ -2276,6 +2276,7 @@ app.get('/api/admin/reports', async (req, res) => {
         };
 
         const allReports = [];
+        const seenIds = new Set(); // [Fix] 페이지간 중복 방지 (select-list가 모든 페이지에서 동일하여 3배 중복 발생)
         for (let page = 1; page <= 3; page++) {
             const html = await fetchPage(page);
             const selectMatch = html.match(/<select id="select-list"[^>]*>([\s\S]*?)<\/select>/);
@@ -2286,6 +2287,7 @@ app.get('/api/admin/reports', async (req, res) => {
             while ((match = pattern.exec(selectMatch[1])) !== null) {
                 const id = match[1];
                 const title = match[2].trim();
+                if (seenIds.has(id)) continue; // 중복 건너뜀
                 if (id.includes(':') && (title.includes('[특보]') || title.includes('[예비]'))) {
                     // reportId에서 날짜 추출하여 요청 날짜와 매칭
                     const parts = id.split(':');
@@ -2293,6 +2295,7 @@ app.get('/api/admin/reports', async (req, res) => {
                         const idDate = parts[1].substring(0, 8); // YYYYMMDD
                         const reqDate = date.replace(/-/g, '');   // YYYYMMDD
                         if (idDate === reqDate) {
+                            seenIds.add(id);
                             allReports.push({ id, title });
                         }
                     }
