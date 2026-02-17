@@ -931,9 +931,14 @@ function formatWarningTime(tmEf, isEndTime = false) {
         decoded = `${m}월 ${d}일${rest}`;
     }
 
-    // 이미 한글 시간대가 포함되어 있으면 그대로 (위에서 변환된 값 포함)
+    // 이미 한글 시간대가 포함되어 있으면 연도/월 정리 후 반환 (위에서 변환된 값 포함)
     if (decoded.includes('새벽') || decoded.includes('아침') || decoded.includes('오전') ||
         decoded.includes('낮') || decoded.includes('오후') || decoded.includes('저녁') || decoded.includes('밤')) {
+        // "2026년 02월 15일 오전(06시~12시)" → "2월 15일 오전(06시~12시)"
+        const koMatch = decoded.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(.*)/);
+        if (koMatch) {
+            return `${parseInt(koMatch[2])}월 ${parseInt(koMatch[3])}일 ${koMatch[4]}`.trim();
+        }
         return decoded;
     }
 
@@ -2300,8 +2305,8 @@ function createAlertElement(items) {
         if (releaseTime.trim() === '일' || releaseTime.trim() === '') {
             releaseTime = '정보 없음';
         } else {
-            // [수정] 월 표기 제거
-            releaseTime = releaseTime.replace(/^\d+월\s*/, '').replace(/\s\d+월\s*/, ' ');
+            // [수정] formatAlertTime 동일 로직 적용 (해제시각도 범위형일 수 있음)
+            releaseTime = formatAlertTime(releaseTime);
         }
         details.appendChild(createRow('해제예정', releaseTime, '#69f0ae'));
     });

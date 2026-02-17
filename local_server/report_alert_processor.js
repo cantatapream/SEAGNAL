@@ -94,7 +94,7 @@ function parseKmaTime(timeStr) {
     return new Date(`${y}-${m}-${d}T${h}:${min}:00+09:00`);
 }
 
-function updateZoneStatus(obj, targetZone, event) {
+function updateZoneStatus(obj, targetZone, event, referenceTime) {
     if (!obj || typeof obj !== 'object') return false;
     for (const [key, value] of Object.entries(obj)) {
         if (key === targetZone && value && 'current' in value) {
@@ -114,7 +114,7 @@ function updateZoneStatus(obj, targetZone, event) {
             }
 
             const effTime = parseKmaTime(event.time);
-            const now = new Date();
+            const now = referenceTime ? new Date(referenceTime) : new Date();
 
             // tmEf 원본(범위형 포함)을 보존, time은 parseKmaTime 호환용 시작시각
             const tmEfOriginal = event.tmEf || event.time;
@@ -157,7 +157,7 @@ function updateZoneStatus(obj, targetZone, event) {
             }
             return true;
         }
-        if (updateZoneStatus(value, targetZone, event)) return true;
+        if (updateZoneStatus(value, targetZone, event, referenceTime)) return true;
     }
     return false;
 }

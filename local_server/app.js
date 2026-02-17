@@ -8251,7 +8251,7 @@ window.atmCrawlToggle = async function () {
 function renderATMCollect(container) {
     const today = new Date().toISOString().substring(0, 10);
     container.innerHTML = `
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
             <input type="date" id="atm-date-input" value="${today}" style="padding:8px 12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:#fff;font-size:0.9rem;" />
             <button onclick="atmFetchReports()" style="padding:8px 16px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
                 <i class="fa-solid fa-search"></i> 조회
@@ -8259,6 +8259,28 @@ function renderATMCollect(container) {
             <button id="atm-collect-all-btn" onclick="atmCollectAll()" style="display:none;padding:8px 16px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
                 <i class="fa-solid fa-download"></i> 모두 수집
             </button>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;padding:10px 14px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:8px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+                <i class="fa-solid fa-clock" style="color:#a5b4fc;font-size:0.8rem;"></i>
+                <span style="color:#a5b4fc;font-size:0.8rem;font-weight:600;">기준시각</span>
+            </div>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+                <input type="radio" name="atm-ref-mode" value="auto" checked onchange="document.getElementById('atm-ref-custom').style.display='none';" style="accent-color:#6366f1;" />
+                <span style="color:#e2e8f0;font-size:0.8rem;">통보문 발표시각 기준</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+                <input type="radio" name="atm-ref-mode" value="now" onchange="document.getElementById('atm-ref-custom').style.display='none';" style="accent-color:#6366f1;" />
+                <span style="color:#e2e8f0;font-size:0.8rem;">현재시각 기준</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+                <input type="radio" name="atm-ref-mode" value="custom" onchange="document.getElementById('atm-ref-custom').style.display='flex';" style="accent-color:#6366f1;" />
+                <span style="color:#e2e8f0;font-size:0.8rem;">직접 설정</span>
+            </label>
+            <input type="datetime-local" id="atm-ref-custom" style="display:none;padding:6px 10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:#fff;font-size:0.8rem;" />
+            <div style="width:100%;font-size:0.7rem;color:#64748b;margin-top:2px;">
+                <i class="fa-solid fa-circle-info"></i> "통보문 발표시각 기준": 각 통보문의 발표시각을 now로 사용하여 과거 특보의 생애주기를 정확히 재현합니다.
+            </div>
         </div>
         <div id="atm-progress" style="display:none;margin-bottom:12px;">
             <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
@@ -8303,12 +8325,33 @@ window.atmFetchReports = async function () {
     } catch (e) { listEl.innerHTML = '<div style="color:#ef4444;padding:20px;">오류: ' + e.message + '</div>'; }
 };
 
+// 기준시각 계산 헬퍼
+window.getAtmReferenceTime = function (reportId) {
+    const mode = document.querySelector('input[name="atm-ref-mode"]:checked');
+    if (!mode) return null;
+    if (mode.value === 'now') return null; // null = 서버에서 new Date() 사용
+    if (mode.value === 'custom') {
+        const val = document.getElementById('atm-ref-custom').value;
+        return val ? new Date(val).toISOString() : null;
+    }
+    // 'auto': reportId에서 발표시각 추출하여 사용
+    if (reportId) {
+        const parts = reportId.split(':');
+        if (parts.length >= 2 && parts[1].length >= 12) {
+            const ts = parts[1];
+            return new Date(`${ts.substring(0,4)}-${ts.substring(4,6)}-${ts.substring(6,8)}T${ts.substring(8,10)}:${ts.substring(10,12)}:00+09:00`).toISOString();
+        }
+    }
+    return null;
+};
+
 window.atmCollectOne = async function (i) {
     const report = window._atmReports[i];
     const btn = document.getElementById('atm-cb-' + i);
     btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 수집 중'; btn.style.background = 'rgba(255,255,255,0.1)';
     try {
-        const res = await fetch('/api/admin/report-collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: report.id, title: report.title }) });
+        const referenceTime = getAtmReferenceTime(report.id);
+        const res = await fetch('/api/admin/report-collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: report.id, title: report.title, referenceTime }) });
         const data = await res.json();
         window._atmResults[i] = data;
         btn.innerHTML = '<i class="fa-solid fa-check"></i> 완료'; btn.style.background = 'rgba(34,197,94,0.3)'; btn.style.color = '#86efac';
@@ -8350,13 +8393,18 @@ window.atmShowResult = function (i) {
     const appliedBadge = data.applied
         ? '<span style="background:rgba(34,197,94,0.2);color:#86efac;padding:2px 8px;border-radius:4px;font-size:0.75rem;">장부 반영됨</span>'
         : '<span style="background:rgba(245,158,11,0.2);color:#fcd34d;padding:2px 8px;border-radius:4px;font-size:0.75rem;">미반영</span>';
+    const pushBadge = data.pushResult
+        ? (data.pushResult.sent
+            ? '<span style="background:rgba(56,189,248,0.2);color:#7dd3fc;padding:2px 8px;border-radius:4px;font-size:0.75rem;">푸시 발송(' + data.pushResult.changeCount + '건)</span>'
+            : '<span style="background:rgba(239,68,68,0.2);color:#fca5a5;padding:2px 8px;border-radius:4px;font-size:0.75rem;">푸시 실패</span>')
+        : (data.applied ? '<span style="background:rgba(100,116,139,0.2);color:#94a3b8;padding:2px 8px;border-radius:4px;font-size:0.75rem;">변경 없음</span>' : '');
     const kwBadges = (data.foundKeywords || []).map(kw => '<span style="background:rgba(99,102,241,0.2);color:#a5b4fc;padding:2px 6px;border-radius:4px;font-size:0.7rem;">' + kw + '</span>').join(' ');
 
     popup.innerHTML = `
         <div style="background:#1e293b;border-radius:14px;width:90%;max-width:750px;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,0.1);">
             <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.1);">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                    <h4 style="margin:0;color:#fff;font-size:0.95rem;">수집 결과</h4>${appliedBadge} ${kwBadges}
+                    <h4 style="margin:0;color:#fff;font-size:0.95rem;">수집 결과</h4>${appliedBadge} ${pushBadge} ${kwBadges}
                 </div>
                 <button onclick="document.getElementById('atm-result-popup').remove()" style="background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer;">&times;</button>
             </div>
