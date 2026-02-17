@@ -2070,6 +2070,7 @@ function createAlertElement(items) {
                 level: currLevel,
                 tmFc: curr.tmFc,
                 tmEf: curr.tmEf,
+                tmCc: curr.tmCc,
                 tmYn: curr.tmYn,
                 rawTmEf: curr.rawTmEf || '',
                 isFromHistory: true
@@ -2087,6 +2088,7 @@ function createAlertElement(items) {
                 level: upLevel,
                 tmFc: upcoming.tmFc,
                 tmEf: upcoming.tmEf,
+                tmCc: upcoming.tmCc,
                 tmYn: upcoming.tmYn,
                 rawTmEf: upcoming.rawTmEf || '',
                 isFromHistory: true
@@ -2105,6 +2107,7 @@ function createAlertElement(items) {
                 level: currLevel,
                 tmFc: curr.tmFc,
                 tmEf: curr.tmEf,
+                tmCc: curr.tmCc,
                 tmYn: curr.tmYn,
                 rawTmEf: curr.rawTmEf || '',
                 isFromHistory: true
@@ -2906,8 +2909,9 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
             const tmFcFormatted = stripYearMonth(alert.tmFc);
             const tmEfFormatted = stripYearMonth(alert.tmEf);
             let tmEdFormatted = '정보 없음';
-            if (alert.tmEd && alert.tmEd.trim().length > 2 && !alert.isPreliminary) {
-                tmEdFormatted = stripYearMonth(alert.tmEd);
+            const releaseVal = alert.tmCc || alert.tmEd || '';
+            if (releaseVal && releaseVal.trim().length > 2 && !alert.isPreliminary) {
+                tmEdFormatted = stripYearMonth(releaseVal);
             }
 
             // [수정] 둘 이상의 서로 다른 특보 정보가 있을 때만 타이틀 표시
