@@ -1016,6 +1016,8 @@ async function fetchAllData() {
 
     // [New] 방문객 카운트 업데이트
     updateVisitorStats();
+    // [New] 수집 실패 여부 확인 → 헤더 경고 표시
+    checkCollectFailures();
 
     appState.apiStatus = { hub: 'loading', buoy: 'loading', coastal: 'loading' };
     updateApiStatusDisplay();
@@ -8077,6 +8079,66 @@ window.verifyUnifiedAdminPassword = function (mode) {
     }
 };
 
+// 2-0. 수집 실패 통보문 알림 팝업
+window.showCollectFailureAlert = async function () {
+    try {
+        const res = await fetch('/api/admin/collect-failures');
+        if (!res.ok) return;
+        const failures = await res.json();
+        if (!failures || failures.length === 0) return;
+
+        const old = document.getElementById('collect-failure-popup');
+        if (old) old.remove();
+
+        const popup = document.createElement('div');
+        popup.id = 'collect-failure-popup';
+        popup.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10002;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s;';
+        popup.onclick = (e) => { if (e.target === popup) popup.remove(); };
+
+        const rows = failures.map(f => {
+            const time = f.failedAt ? new Date(f.failedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '';
+            return `<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;margin-bottom:6px;">
+                <i class="fa-solid fa-circle-xmark" style="color:#ef4444;flex-shrink:0;"></i>
+                <div style="flex:1;min-width:0;">
+                    <div style="color:#fca5a5;font-size:0.85rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.title || f.reportId}</div>
+                    <div style="color:#94a3b8;font-size:0.7rem;margin-top:2px;">${f.reportId} · ${f.retriesUsed || 5}회 시도 · ${time}</div>
+                    <div style="color:#f87171;font-size:0.72rem;margin-top:2px;">${f.error || ''}</div>
+                </div>
+            </div>`;
+        }).join('');
+
+        popup.innerHTML = `
+            <div style="background:#1e293b;border-radius:14px;width:90%;max-width:500px;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(239,68,68,0.3);box-shadow:0 0 30px rgba(239,68,68,0.15);">
+                <div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;gap:10px;">
+                    <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;font-size:1.2rem;"></i>
+                    <div style="flex:1;">
+                        <h4 style="margin:0;color:#fff;font-size:1rem;">AI 수집 실패 통보문 ${failures.length}건</h4>
+                        <div style="color:#94a3b8;font-size:0.75rem;margin-top:2px;">5회 재시도 후에도 AI 분석에 실패한 통보문입니다.</div>
+                    </div>
+                    <button onclick="document.getElementById('collect-failure-popup').remove()" style="background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer;">&times;</button>
+                </div>
+                <div style="padding:14px 18px;overflow-y:auto;flex:1;">${rows}</div>
+                <div style="padding:12px 18px;border-top:1px solid rgba(255,255,255,0.1);display:flex;gap:10px;justify-content:flex-end;">
+                    <button onclick="clearCollectFailures()" style="padding:8px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
+                        <i class="fa-solid fa-check"></i> 확인 (기록 삭제)
+                    </button>
+                    <button onclick="document.getElementById('collect-failure-popup').remove()" style="padding:8px 16px;background:rgba(255,255,255,0.1);color:#e2e8f0;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;">닫기</button>
+                </div>
+            </div>`;
+        document.body.appendChild(popup);
+    } catch (e) { /* 무시 */ }
+};
+
+// 실패 기록 삭제 및 헤더 복원
+window.clearCollectFailures = async function () {
+    try {
+        await fetch('/api/admin/collect-failures', { method: 'DELETE' });
+        markVisitorCounterError(false);
+        const popup = document.getElementById('collect-failure-popup');
+        if (popup) popup.remove();
+    } catch (e) { /* 무시 */ }
+};
+
 // 2. 통합 관리자 모달 메인
 window.showUnifiedAdminModal = function (initialTab = 'alert') {
     const existing = document.getElementById('unified-admin-modal');
@@ -8121,6 +8183,9 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
 
     // 초기 탭 활성화
     switchUnifiedAdminTab(initialTab);
+
+    // [신규] 수집 실패 통보문이 있으면 팝업으로 알림
+    showCollectFailureAlert();
 };
 
 window.switchUnifiedAdminTab = function (tabId) {
@@ -8432,26 +8497,70 @@ window.getAtmReferenceTime = function (reportId) {
 };
 
 window.atmCollectOne = async function (i, refTimeOverride) {
+    const MAX_RETRIES = 5;
     const report = window._atmReports[i];
     const btn = document.getElementById('atm-cb-' + i);
     btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 수집 중'; btn.style.background = 'rgba(255,255,255,0.1)';
-    try {
-        // refTimeOverride가 있으면 사용 (모두 수집 시 auto 모드에서 최신 통보문 시각으로 통일)
-        const referenceTime = refTimeOverride !== undefined ? refTimeOverride : getAtmReferenceTime(report.id);
-        // 푸시 알림 토글 상태 확인 (체크 해제 시 푸시 발송 생략)
-        const pushToggle = document.getElementById('atm-push-toggle');
-        const skipPush = pushToggle ? !pushToggle.checked : false;
-        const res = await fetch('/api/admin/report-collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: report.id, title: report.title, referenceTime, skipPush }) });
-        const data = await res.json();
-        window._atmResults[i] = data;
-        document.getElementById('atm-rb-' + i).style.display = 'inline-block';
-        // [수정] 서버 에러(500) 또는 success:false 구분 표시
-        if (!res.ok || data.success === false) {
-            btn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> 에러'; btn.style.background = 'rgba(245,158,11,0.3)'; btn.style.color = '#fcd34d';
-        } else {
-            btn.innerHTML = '<i class="fa-solid fa-check"></i> 완료'; btn.style.background = 'rgba(34,197,94,0.3)'; btn.style.color = '#86efac';
+
+    const referenceTime = refTimeOverride !== undefined ? refTimeOverride : getAtmReferenceTime(report.id);
+    const pushToggle = document.getElementById('atm-push-toggle');
+    const skipPush = pushToggle ? !pushToggle.checked : false;
+
+    let lastData = null;
+    let lastOk = false;
+    let attempt = 0;
+
+    for (attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        if (attempt > 1) {
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 재시도 ${attempt}/${MAX_RETRIES}`;
+            btn.style.background = 'rgba(245,158,11,0.15)';
+            // 재시도 간 1.5초 대기
+            await new Promise(r => setTimeout(r, 1500));
         }
-    } catch (e) { btn.innerHTML = '<i class="fa-solid fa-xmark"></i> 실패'; btn.style.background = 'rgba(239,68,68,0.3)'; btn.style.color = '#fca5a5'; }
+        try {
+            const res = await fetch('/api/admin/report-collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: report.id, title: report.title, referenceTime, skipPush }) });
+            lastOk = res.ok;
+            lastData = await res.json();
+        } catch (e) {
+            lastData = { success: false, aiError: e.message, aiResult: [], foundKeywords: [] };
+            lastOk = false;
+        }
+
+        // AI 분석 성공 판별: 키워드가 있는데 aiResult가 빈 배열이거나 aiError가 있으면 실패
+        const hasKeywords = lastData.foundKeywords && lastData.foundKeywords.length > 0;
+        const aiAnalysisFailed = hasKeywords && (lastData.aiError || !lastData.aiResult || lastData.aiResult.length === 0);
+        const isServerError = !lastOk || lastData.success === false;
+
+        if (!aiAnalysisFailed && !isServerError) break; // 성공 → 루프 종료
+        if (attempt === MAX_RETRIES) break; // 마지막 시도 → 루프 종료
+    }
+
+    window._atmResults[i] = lastData;
+    document.getElementById('atm-rb-' + i).style.display = 'inline-block';
+
+    // 최종 결과 판별
+    const hasKeywords = lastData.foundKeywords && lastData.foundKeywords.length > 0;
+    const aiStillFailed = hasKeywords && (lastData.aiError || !lastData.aiResult || lastData.aiResult.length === 0);
+    const serverError = !lastOk || lastData.success === false;
+
+    if (serverError) {
+        btn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> 에러'; btn.style.background = 'rgba(245,158,11,0.3)'; btn.style.color = '#fcd34d';
+    } else if (aiStillFailed) {
+        btn.innerHTML = `<i class="fa-solid fa-xmark"></i> AI실패(${attempt}회)`; btn.style.background = 'rgba(239,68,68,0.3)'; btn.style.color = '#fca5a5';
+        // 서버에 실패 기록 저장
+        try {
+            await fetch('/api/admin/collect-failures', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reportId: report.id, title: report.title, error: lastData.aiError || 'AI 분석 결과 없음', retriesUsed: attempt })
+            });
+        } catch (e) { /* 무시 */ }
+        // 헤더 방문자 표시 빨간색으로 변경
+        markVisitorCounterError(true);
+    } else {
+        btn.innerHTML = attempt > 1
+            ? `<i class="fa-solid fa-check"></i> 완료(${attempt}회)`
+            : '<i class="fa-solid fa-check"></i> 완료';
+        btn.style.background = 'rgba(34,197,94,0.3)'; btn.style.color = '#86efac';
+    }
 };
 
 window.atmCollectAll = async function () {
@@ -11049,6 +11158,40 @@ window.updateVisitorStats = async function () {
     } catch (e) {
         console.error('Failed to update visitor stats:', e);
     }
+};
+
+// ============================================================================
+// [신규] 수집 실패 시 헤더 방문자 카운터 경고 표시
+// ============================================================================
+window.markVisitorCounterError = function (hasError) {
+    const counter = document.querySelector('.visitor-counter');
+    if (!counter) return;
+    const counts = counter.querySelectorAll('.vc-count');
+    const labels = counter.querySelectorAll('.vc-label');
+    const dot = counter.querySelector('.vc-dot');
+    if (hasError) {
+        counts.forEach(el => el.style.color = '#ef4444');
+        labels.forEach(el => el.style.color = '#fca5a5');
+        if (dot) dot.style.color = '#ef4444';
+        counter.title = '수집 실패 통보문이 있습니다. 관리자 센터를 확인하세요.';
+    } else {
+        counts.forEach(el => el.style.color = '');
+        labels.forEach(el => el.style.color = '');
+        if (dot) dot.style.color = '';
+        counter.title = '';
+    }
+};
+
+// 페이지 로드 시 수집 실패 여부 확인하여 헤더에 반영
+window.checkCollectFailures = async function () {
+    try {
+        const res = await fetch('/api/admin/collect-failures');
+        if (!res.ok) return;
+        const failures = await res.json();
+        if (failures && failures.length > 0) {
+            markVisitorCounterError(true);
+        }
+    } catch (e) { /* 무시 */ }
 };
 
 // [Final Cleanup] 헤더 로고의 좀비 리스너 제거 및 관리자 트리거 방지

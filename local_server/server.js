@@ -415,6 +415,7 @@ app.delete('/api/notice/:id', (req, res) => {
 // ============================================================================
 const VISITORS_FILE = path.join(DATA_DIR, 'visitors.json');
 const VISITORS_STATS_FILE = path.join(DATA_DIR, 'visitors_stats.json');
+const COLLECT_FAILURES_FILE = path.join(DATA_DIR, 'collect_failures.json');
 
 function getVisitorData() {
     try {
@@ -2452,6 +2453,39 @@ app.post('/api/admin/report-collect', async (req, res) => {
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
+});
+
+// 9-5-1. 수집 실패 정보 조회/저장/삭제 API
+app.get('/api/admin/collect-failures', (req, res) => {
+    try {
+        if (!fs.existsSync(COLLECT_FAILURES_FILE)) return res.json([]);
+        const data = JSON.parse(fs.readFileSync(COLLECT_FAILURES_FILE, 'utf8'));
+        res.json(data);
+    } catch (e) { res.json([]); }
+});
+
+app.post('/api/admin/collect-failures', (req, res) => {
+    try {
+        const { reportId, title, error, retriesUsed } = req.body;
+        let failures = [];
+        if (fs.existsSync(COLLECT_FAILURES_FILE)) {
+            try { failures = JSON.parse(fs.readFileSync(COLLECT_FAILURES_FILE, 'utf8')); } catch (e) { failures = []; }
+        }
+        // 동일 reportId 중복 방지
+        if (!failures.some(f => f.reportId === reportId)) {
+            failures.push({ reportId, title, error, retriesUsed, failedAt: new Date().toISOString() });
+            fs.writeFileSync(COLLECT_FAILURES_FILE, JSON.stringify(failures, null, 2), 'utf8');
+            console.log(`[Admin] 수집 실패 기록: ${reportId} (${retriesUsed}회 시도)`);
+        }
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/collect-failures', (req, res) => {
+    try {
+        if (fs.existsSync(COLLECT_FAILURES_FILE)) fs.unlinkSync(COLLECT_FAILURES_FILE);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // 9-6. 전체 통보문 일괄 수집
