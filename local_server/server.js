@@ -1866,7 +1866,15 @@ app.post('/api/push-custom', async (req, res) => {
                     return `${parseInt(day)}일 ${hour}:${minute}`;
                 }
 
-                // 4. 그 외 (이미 포맷팅된 문자열: "9일 새벽(03시~06시)" 등)
+                // 4. 한국어 형식 "2026년 02월 07일 00시 00분" → "07일 00시 00분"
+                //    또는 "2026년 02월 08일 밤(21시~24시)" → "08일 밤(21시~24시)"
+                const korFmtMatch = str.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(.*)/);
+                if (korFmtMatch) {
+                    const [, , , day, rest] = korFmtMatch;
+                    return `${String(day).padStart(2, '0')}일 ${rest}`.trim();
+                }
+
+                // 5. 그 외 (이미 포맷팅된 문자열: "9일 새벽(03시~06시)" 등)
                 return str;
             };
 

@@ -50,7 +50,7 @@ async function processAndSendNotifications(changes) {
                     zones: [zone],
                     tmFc: curr.tmFc,
                     tmEf: curr.tmEf, // 발효예정 시각
-                    tmYn: curr.tmYn
+                    tmYn: curr.tmYn || curr.tmCc // tmCc가 실제 해제예정시각 필드
                 });
             }
             // (2) 등급은 같은데 시각만 바뀐 경우이거나, '예비 -> 주의보'로 시각이 구체화된 경우 -> '시각 변경' 알림
@@ -60,7 +60,7 @@ async function processAndSendNotifications(changes) {
                     zones: [zone],
                     tmFc: curr.tmFc,
                     tmEf: curr.tmEf,
-                    tmYn: curr.tmYn
+                    tmYn: curr.tmYn || curr.tmCc
                 });
             }
         }
@@ -78,7 +78,7 @@ async function processAndSendNotifications(changes) {
                     zones: [zone],
                     tmFc: prev.tmFc,
                     tmEf: prev.tmEf,
-                    tmYn: prev.tmYn // 해제 시점엔 크게 중요치 않으나 정보 전달
+                    tmYn: prev.tmYn || prev.tmCc
                 });
                 continue;
             }
@@ -93,7 +93,7 @@ async function processAndSendNotifications(changes) {
                     zones: [zone],
                     tmFc: curr.tmFc,
                     tmEf: curr.tmEf,
-                    tmYn: curr.tmYn // 해제예정 시각
+                    tmYn: curr.tmYn || curr.tmCc // tmCc가 실제 해제예정시각 필드
                 });
                 continue;
             }
@@ -114,7 +114,7 @@ async function processAndSendNotifications(changes) {
                     zones: [zone],
                     tmFc: curr.tmFc,
                     tmEf: curr.tmEf,
-                    tmYn: curr.tmYn
+                    tmYn: curr.tmYn || curr.tmCc
                 });
             }
             // 4. 시각 변경 (등급 변경이 없을 때만 별도 알림 발송 - 일원화)
@@ -124,8 +124,10 @@ async function processAndSendNotifications(changes) {
                     // 필요 시 추가 로직 작성 가능
                 }
 
-                // 4-2. 해제시각 변경 (연장 등)
-                if (prev.tmYn !== curr.tmYn) {
+                // 4-2. 해제시각 변경 (연장 등) — tmCc가 실제 해제예정시각 필드
+                const prevTmYn = prev.tmYn || prev.tmCc;
+                const currTmYn = curr.tmYn || curr.tmCc;
+                if (prevTmYn !== currTmYn) {
                     const scenario = 'time_yn_change';
                     const typeName = curr.wrnTp;
                     const level = curr.wrnLvl;
@@ -134,7 +136,7 @@ async function processAndSendNotifications(changes) {
                         zones: [zone],
                         tmFc: curr.tmFc,
                         tmEf: curr.tmEf,
-                        tmYn: curr.tmYn // 변경된 해제예정 시각
+                        tmYn: currTmYn // 변경된 해제예정 시각
                     });
                 }
             }
