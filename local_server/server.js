@@ -2359,7 +2359,7 @@ app.get('/api/admin/reports', async (req, res) => {
 // 9-5. 단일 통보문 수집 (AI 분석 포함, 장부 반영)
 app.post('/api/admin/report-collect', async (req, res) => {
     try {
-        const { reportId, title, referenceTime } = req.body;
+        const { reportId, title, referenceTime, skipPush } = req.body;
         if (!reportId) return res.status(400).json({ error: 'reportId가 필요합니다' });
 
         // 1. 통보문 본문 가져오기
@@ -2427,13 +2427,18 @@ app.post('/api/admin/report-collect', async (req, res) => {
             const changes = weatherAlertsCrawler.detectChanges(fullForm.previous, fullForm.current);
             if (changes.length > 0) {
                 applied = true;
-                try {
-                    await pushSender.processChanges(changes);
-                    pushResult = { sent: true, changeCount: changes.length };
-                    console.log(`[Admin] 테스트 수집 → 변경 ${changes.length}건 감지, 푸시 발송 완료`);
-                } catch (pushErr) {
-                    pushResult = { sent: false, error: pushErr.message };
-                    console.error(`[Admin] 푸시 발송 오류:`, pushErr.message);
+                if (skipPush) {
+                    pushResult = { sent: false, skipped: true, changeCount: changes.length };
+                    console.log(`[Admin] 테스트 수집 → 변경 ${changes.length}건 감지, 푸시 발송 생략 (토글 OFF)`);
+                } else {
+                    try {
+                        await pushSender.processChanges(changes);
+                        pushResult = { sent: true, changeCount: changes.length };
+                        console.log(`[Admin] 테스트 수집 → 변경 ${changes.length}건 감지, 푸시 발송 완료`);
+                    } catch (pushErr) {
+                        pushResult = { sent: false, error: pushErr.message };
+                        console.error(`[Admin] 푸시 발송 오류:`, pushErr.message);
+                    }
                 }
                 fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
                 if (reportId > (fullForm.lastReportId || '')) fullForm.lastReportId = reportId;

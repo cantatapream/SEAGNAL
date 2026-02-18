@@ -8311,6 +8311,15 @@ function renderATMCollect(container) {
             <button id="atm-collect-all-btn" onclick="atmCollectAll()" style="display:none;padding:8px 16px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
                 <i class="fa-solid fa-download"></i> 모두 수집
             </button>
+            <label id="atm-push-toggle-wrap" style="display:none;align-items:center;gap:6px;cursor:pointer;padding:6px 12px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.15);border-radius:8px;user-select:none;">
+                <span style="color:#94a3b8;font-size:0.78rem;font-weight:600;">푸시 알림</span>
+                <div style="position:relative;width:36px;height:20px;">
+                    <input type="checkbox" id="atm-push-toggle" checked style="opacity:0;width:0;height:0;position:absolute;" />
+                    <div id="atm-push-track" style="position:absolute;inset:0;background:#22c55e;border-radius:10px;transition:background 0.2s;"></div>
+                    <div id="atm-push-thumb" style="position:absolute;top:2px;left:18px;width:16px;height:16px;background:#fff;border-radius:50%;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>
+                </div>
+                <span id="atm-push-label" style="color:#86efac;font-size:0.75rem;font-weight:700;min-width:24px;">ON</span>
+            </label>
         </div>
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;padding:10px 14px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:8px;">
             <div style="display:flex;align-items:center;gap:6px;">
@@ -8344,6 +8353,29 @@ function renderATMCollect(container) {
             </div>
         </div>
         <div id="atm-report-list" style="color:#94a3b8;font-size:0.9rem;">날짜를 선택하고 [조회] 버튼을 눌러주세요.</div>`;
+
+    // 푸시 알림 토글 이벤트 바인딩
+    const pushToggleWrap = document.getElementById('atm-push-toggle-wrap');
+    if (pushToggleWrap) {
+        pushToggleWrap.addEventListener('click', function () {
+            const cb = document.getElementById('atm-push-toggle');
+            const track = document.getElementById('atm-push-track');
+            const thumb = document.getElementById('atm-push-thumb');
+            const label = document.getElementById('atm-push-label');
+            cb.checked = !cb.checked;
+            if (cb.checked) {
+                track.style.background = '#22c55e';
+                thumb.style.left = '18px';
+                label.textContent = 'ON';
+                label.style.color = '#86efac';
+            } else {
+                track.style.background = '#475569';
+                thumb.style.left = '2px';
+                label.textContent = 'OFF';
+                label.style.color = '#94a3b8';
+            }
+        });
+    }
 }
 
 window._atmResults = {};
@@ -8360,9 +8392,11 @@ window.atmFetchReports = async function () {
         if (data.count === 0) {
             listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">해당 날짜에 [특보]/[예비] 통보문이 없습니다.</div>';
             document.getElementById('atm-collect-all-btn').style.display = 'none';
+            document.getElementById('atm-push-toggle-wrap').style.display = 'none';
             return;
         }
         document.getElementById('atm-collect-all-btn').style.display = 'inline-block';
+        document.getElementById('atm-push-toggle-wrap').style.display = 'flex';
         window._atmReports = data.reports;
         window._atmResults = {};
         listEl.innerHTML = data.reports.map((r, i) => `
@@ -8404,7 +8438,10 @@ window.atmCollectOne = async function (i, refTimeOverride) {
     try {
         // refTimeOverride가 있으면 사용 (모두 수집 시 auto 모드에서 최신 통보문 시각으로 통일)
         const referenceTime = refTimeOverride !== undefined ? refTimeOverride : getAtmReferenceTime(report.id);
-        const res = await fetch('/api/admin/report-collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: report.id, title: report.title, referenceTime }) });
+        // 푸시 알림 토글 상태 확인 (체크 해제 시 푸시 발송 생략)
+        const pushToggle = document.getElementById('atm-push-toggle');
+        const skipPush = pushToggle ? !pushToggle.checked : false;
+        const res = await fetch('/api/admin/report-collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: report.id, title: report.title, referenceTime, skipPush }) });
         const data = await res.json();
         window._atmResults[i] = data;
         document.getElementById('atm-rb-' + i).style.display = 'inline-block';
