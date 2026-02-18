@@ -1098,12 +1098,12 @@ function flattenAlertsData(rootData) {
 
                 // 1. Current Alert (Active)
                 if (zoneData.current) {
-                    processSingleAlert(zoneName, zoneData.current, false, alerts, zoneData.children, coastalMap);
+                    processSingleAlert(zoneName, zoneData.current, false, alerts, zoneData.children, coastalMap, zoneData.history);
                 }
 
                 // 2. Upcoming Alert (Preliminary)
                 if (zoneData.upcoming) {
-                    processSingleAlert(zoneName, zoneData.upcoming, true, alerts, zoneData.children, coastalMap);
+                    processSingleAlert(zoneName, zoneData.upcoming, true, alerts, zoneData.children, coastalMap, zoneData.history);
                 }
             } else {
                 // 구역 노드가 아니라면 하위로 더 탐색 (Grouping Node)
@@ -1122,7 +1122,7 @@ function flattenAlertsData(rootData) {
 /**
  * 단일 특보 객체를 처리하고 연안바다 정보를 매핑
  */
-function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenObj, coastalMap) {
+function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenObj, coastalMap, history) {
     // alertObj 구조: { wrnTp, wrnLvl, tmFc, tmEf, tmYn }
     const displayLevel = transformLevel(alertObj.wrnLvl);
 
@@ -1164,12 +1164,40 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
         command: reallyUpcoming ? '발표' : '발효', // 미래면 '발표', 지났으면 '발효'
         isPreliminary: reallyUpcoming,
         isCoastal: false,
-        source: 'CRAWLER'
+        source: 'CRAWLER',
+        prevLevel: null // 격상/격하 시 이전 등급 (history에서 파생)
     };
 
     // 레벨 재조정: 화면 표시용
     if (displayLevel === '예비') {
         alertItem.level = '예비';
+    }
+
+    // [격상/격하 판별] history에서 현재 특보를 생성한 command가 '변경'인지 확인
+    // history 구조: [{ type: "풍랑경보", command: "변경", ... }, { type: "풍랑주의보", command: "발효", ... }, ...]
+    // history[0]이 가장 최신이며, 현재 current/upcoming 상태를 만든 이벤트에 해당
+    if (history && history.length > 0 && displayLevel !== '예비') {
+        const baseType = alertObj.wrnTp; // e.g., "풍랑"
+        // 같은 특보 종류(wrnTp)에 해당하는 이력만 필터 (다른 종류가 섞일 수 있음)
+        const relevantHistory = history.filter(h => h.type && h.type.startsWith(baseType));
+
+        if (relevantHistory.length > 0 && relevantHistory[0].command === '변경') {
+            // 현재 상태가 '변경' 명령으로 도달했음 → 격상 또는 격하
+            alertItem.command = '변경';
+
+            // 이전 등급 찾기: 같은 종류의 이전 이력 중 현재와 다른 등급을 가진 첫 번째 항목
+            const currentLevel = alertObj.wrnLvl; // e.g., "경보"
+            for (let i = 1; i < relevantHistory.length; i++) {
+                const prevType = relevantHistory[i].type; // e.g., "풍랑주의보"
+                const prevLvl = prevType.includes('경보') ? '경보'
+                    : prevType.includes('주의보') ? '주의보'
+                    : prevType.includes('예비') ? '예비' : null;
+                if (prevLvl && prevLvl !== currentLevel) {
+                    alertItem.prevLevel = prevLvl;
+                    break;
+                }
+            }
+        }
     }
 
     alertsArr.push(alertItem);
@@ -10272,7 +10300,8 @@ window.renderAlertAdminContent = async function (tabId, targetContainer = null) 
                 // [Fix] isLevelChange를 group 객체에 추가 (push-history 매칭에서 참조됨)
                 isLevelChange: isLevelChange,
                 // [추가] 격상/격하 시 이전 등급 정보 (수동 발송용)
-                prevLevel: statusType === '격상' ? '주의보' : (statusType === '격하' ? '경보' : null),
+                // history에서 파생된 item.prevLevel이 있으면 우선 사용, 없으면 기존 추론 로직 유지
+                prevLevel: item.prevLevel || (statusType === '격상' ? '주의보' : (statusType === '격하' ? '경보' : null)),
                 prevTypeName: (statusType === '격상' || statusType === '격하') ? item.warnType : null,
                 subGroups: {}
             };
