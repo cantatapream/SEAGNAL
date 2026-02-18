@@ -8489,7 +8489,7 @@ window.atmSwitchResultTab = function (tabId) {
             const borderColor = ev.command === '해제' ? '#22c55e' : ev.command === '예비' ? '#f59e0b' : '#ef4444';
             const tmFcDisplay = d.reportId ? (function(rid) { var p=rid.split(':'); if(p.length>=2){var t=p[1]; if(t.length>=12) return t.substring(0,4)+'년 '+t.substring(4,6)+'월 '+t.substring(6,8)+'일 '+t.substring(8,10)+'시 '+t.substring(10,12)+'분';} return ''; })(d.reportId) : '';
             const tmEfDisplay = ev.tmEf || ev.time || '';
-            const tmCcDisplay = ev.tmCc || ev.tmYn || '';
+            const tmCcDisplay = ev.tmCc || ev.tmYn || (ev.command === '해제' ? (ev.tmEf || ev.time || '') : '');
             return '<div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:12px;margin-bottom:8px;border-left:3px solid ' + borderColor + ';">'
                 + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">'
                 + '<span style="font-weight:700;color:#fff;font-size:0.85rem;">#' + (idx+1) + ' ' + ev.type + '</span>'
