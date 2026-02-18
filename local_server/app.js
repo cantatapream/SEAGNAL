@@ -8369,12 +8369,13 @@ window.getAtmReferenceTime = function (reportId) {
     return null;
 };
 
-window.atmCollectOne = async function (i) {
+window.atmCollectOne = async function (i, refTimeOverride) {
     const report = window._atmReports[i];
     const btn = document.getElementById('atm-cb-' + i);
     btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 수집 중'; btn.style.background = 'rgba(255,255,255,0.1)';
     try {
-        const referenceTime = getAtmReferenceTime(report.id);
+        // refTimeOverride가 있으면 사용 (모두 수집 시 auto 모드에서 최신 통보문 시각으로 통일)
+        const referenceTime = refTimeOverride !== undefined ? refTimeOverride : getAtmReferenceTime(report.id);
         const res = await fetch('/api/admin/report-collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: report.id, title: report.title, referenceTime }) });
         const data = await res.json();
         window._atmResults[i] = data;
@@ -8397,11 +8398,28 @@ window.atmCollectAll = async function () {
     const pPct = document.getElementById('atm-progress-pct');
     const pBar = document.getElementById('atm-progress-bar');
     progressEl.style.display = 'block';
-    for (let i = 0; i < reports.length; i++) {
-        const pct = Math.round((i / reports.length) * 100);
-        pText.textContent = (i + 1) + '/' + reports.length + '건 처리 중...';
+
+    // [수정] 시간순 정렬 (오래된 것부터 처리) - reportId 타임스탬프 기준
+    const sortedIndices = reports.map((_, i) => i).sort((a, b) => {
+        const tsA = (reports[a].id.split(':')[1] || '').substring(0, 12);
+        const tsB = (reports[b].id.split(':')[1] || '').substring(0, 12);
+        return tsA.localeCompare(tsB);
+    });
+
+    // [수정] auto 모드일 때: 가장 최근(마지막) 통보문의 발표시각을 기준시각으로 통일
+    const mode = document.querySelector('input[name="atm-ref-mode"]:checked');
+    let autoRefTimeOverride = null;
+    if (mode && mode.value === 'auto' && sortedIndices.length > 0) {
+        const latestIdx = sortedIndices[sortedIndices.length - 1];
+        autoRefTimeOverride = getAtmReferenceTime(reports[latestIdx].id);
+    }
+
+    for (let step = 0; step < sortedIndices.length; step++) {
+        const i = sortedIndices[step];
+        const pct = Math.round((step / sortedIndices.length) * 100);
+        pText.textContent = (step + 1) + '/' + sortedIndices.length + '건 처리 중...';
         pPct.textContent = pct + '%'; pBar.style.width = pct + '%';
-        await atmCollectOne(i);
+        await atmCollectOne(i, autoRefTimeOverride);
     }
     pText.textContent = reports.length + '/' + reports.length + '건 완료!';
     pPct.textContent = '100%'; pBar.style.width = '100%';
