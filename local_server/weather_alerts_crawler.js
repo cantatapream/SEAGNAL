@@ -362,10 +362,14 @@ async function run() {
     }
 
     try {
-        // 1. 통보문 처리 (부모 상태 및 히스토리 업데이트)
+        // 1. 시간 기반 예약 처리 선행 실행 (upcoming → current 전환)
+        // 해제 이벤트는 current에만 적용되므로, 통보문 처리 전에 상태 전환이 필요
+        resolvePendingStatuses(fullForm.current);
+
+        // 2. 통보문 처리 (부모 상태 및 히스토리 업데이트)
         await reportProcessor.applyNewReports(fullForm);
 
-        // 2. 시간 기반 예약 처리 (미래 발효/해제 시각 체크)
+        // 3. 통보문 처리 후 재실행 (새로 생성된 upcoming 처리)
         resolvePendingStatuses(fullForm.current);
 
         // 3. 특보종합 처리 (연안/평수구역 활성화 여부 확인용)

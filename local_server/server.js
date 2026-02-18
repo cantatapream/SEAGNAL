@@ -2369,6 +2369,10 @@ app.post('/api/admin/report-collect', async (req, res) => {
             // 기준시각: 클라이언트에서 전달한 referenceTime 또는 통보문의 발표시각 사용
             const refTime = referenceTime || null;
 
+            // [Fix] 이벤트 적용 전에 상태 전환 선행 실행 (upcoming → current)
+            // 해제 이벤트가 current에만 적용되므로, upcoming이 먼저 current로 전환되어야 함
+            weatherAlertsCrawler.resolvePendingStatuses(fullForm.current, null, refTime);
+
             for (const event of aiResult) {
                 event.reportId = reportId;
                 event.tmFc = extractTmFcFromReportId(reportId);
@@ -2379,9 +2383,7 @@ app.post('/api/admin/report-collect', async (req, res) => {
                 });
             }
 
-            // 기준시각 기반 상태 전환 (upcoming → current)
-            // resolvePendingStatuses는 이벤트 적용 여부와 무관하게 실행해야 함
-            // (이전 수집에서 upcoming으로 저장된 항목이 현재 기준시각에서 발효될 수 있음)
+            // 이벤트 적용 후에도 재실행 (이벤트가 새로 생성한 upcoming 처리)
             weatherAlertsCrawler.resolvePendingStatuses(fullForm.current, null, refTime);
 
             // 변경 감지 및 저장 (이벤트 적용 + 상태 전환 모두 포함)
@@ -2452,6 +2454,9 @@ app.post('/api/admin/reports-collect-all', async (req, res) => {
                 // 기준시각: 'auto' 모드면 reportId에서 추출, 아니면 null (시스템 시각)
                 const refTime = (referenceTimeMode === 'auto') ? extractRefTimeFromReportId(report.id) : null;
 
+                // [Fix] 이벤트 적용 전에 상태 전환 선행 실행 (upcoming → current)
+                weatherAlertsCrawler.resolvePendingStatuses(fullForm.current, null, refTime);
+
                 for (const event of aiResult) {
                     event.reportId = report.id;
                     event.tmFc = extractTmFcFromReportId(report.id);
@@ -2462,7 +2467,7 @@ app.post('/api/admin/reports-collect-all', async (req, res) => {
                     });
                 }
 
-                // 기준시각 기반 상태 전환 (upcoming → current)
+                // 이벤트 적용 후에도 재실행 (이벤트가 새로 생성한 upcoming 처리)
                 weatherAlertsCrawler.resolvePendingStatuses(fullForm.current, null, refTime);
 
                 // 변경 감지 및 저장
