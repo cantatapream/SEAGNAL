@@ -308,8 +308,9 @@ function detectChanges(previous, current) {
 
             // [수정] PushSender와 Type 일치시킴
             // 1. Upcoming 변화 (발표, 예비특보 등)
+            // [추가] 격상/격하 판별을 위해 현재 발효 중인 특보(currentActive) 정보도 함께 전달
             if (JSON.stringify(prevUp) !== JSON.stringify(currUp)) {
-                changes.push({ type: 'UPCOMING_CHANGE', zone: zoneName, prev: prevUp, curr: currUp });
+                changes.push({ type: 'UPCOMING_CHANGE', zone: zoneName, prev: prevUp, curr: currUp, currentActive: currCurr || null });
             }
 
             // 2. Current 변화 (발효, 해제, 변경 등)
