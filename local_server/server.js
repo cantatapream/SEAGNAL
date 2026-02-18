@@ -1456,14 +1456,13 @@ const TEST_SCENARIOS = {
         }
     },
     'upgrade_jeju': {
-        title: '⚠️ 풍랑경보 격상 알림',
-        body: `📍 제주도서부앞바다
-  변경 03일 18:00 (주의보→경보)
-  해제예정 미정`,
+        title: '📢 풍랑 주의보→경보 격상 발표',
+        body: `ㅇ제주도서부앞바다
+   - 발효예정 : 3일 18:00`,
         data: {
             type: 'weather_alert',
             alertType: '풍랑경보',
-            status: 'upgrade',
+            status: 'level_upgrade_publish',
             tmFc: '202601031800',
             tmEf: '202601031800',
             zones: '제주도서부앞바다',
@@ -1491,16 +1490,15 @@ const TEST_SCENARIOS = {
         }
     },
 
-    // Case 3: 격상 알림
+    // Case 3: 격상 발효 알림
     'upgrade': {
-        title: '⚠️ 풍랑경보 격상 알림',
-        body: `📍 서해중부먼바다
-  변경 03일 18:00 (주의보→경보)
-  해제예정 정보 없음`,
+        title: '🚨 풍랑 주의보→경보 격상 발효',
+        body: `ㅇ서해중부먼바다
+   - 해제예정 : 미정`,
         data: {
             type: 'weather_alert',
             alertType: '풍랑경보',
-            status: 'upgrade',
+            status: 'level_upgrade_active',
             tmFc: '202601031800',
             tmEf: '202601031800',
             zones: '서해중부먼바다',
@@ -1508,16 +1506,15 @@ const TEST_SCENARIOS = {
         }
     },
 
-    // Case 4: 격하 알림
+    // Case 4: 격하 발효 알림
     'downgrade': {
-        title: '🔔 풍랑주의보 격하 알림',
-        body: `📍 남해동부먼바다
-  변경 04일 06:00 (경보→주의보)
-  해제예정 04일 15:00`,
+        title: '🚨 풍랑 경보→주의보 격하 발효',
+        body: `ㅇ남해동부먼바다
+   - 해제예정 : 4일 15:00`,
         data: {
             type: 'weather_alert',
             alertType: '풍랑주의보',
-            status: 'downgrade',
+            status: 'level_downgrade_active',
             tmFc: '202601040600',
             tmEf: '202601040600',
             zones: '남해동부먼바다',
@@ -1831,7 +1828,7 @@ app.post('/api/push-custom', async (req, res) => {
 
         // [Helper] 동적 메시지 생성기 (전면 개편: 5가지 시나리오 적용)
         const generateMessage = (filteredPayload) => {
-            const { templateId, typeName, level, items } = filteredPayload;
+            const { templateId, typeName, level, items, prevTypeName, prevLevel } = filteredPayload;
             // items: [{ zones: [...], tmFc, tmEf, tmYn }] (Grouped by Push Sender)
 
             let genTitle = '';
@@ -1944,7 +1941,47 @@ app.post('/api/push-custom', async (req, res) => {
             }
 
             // ========================================================================
-            // 4. 발효시각 변경
+            // 4. 격상 발표
+            // ========================================================================
+            else if (templateId === 'level_upgrade_publish') {
+                const prevLvl = prevLevel || '주의보';
+                genTitle = `📢 ${typeName} ${prevLvl}→${effectiveLevel} 격상 발표`;
+                const grouped = groupByTime(items, 'tmEf');
+                genBody = formatGroupedMessage(grouped, '발효예정');
+            }
+
+            // ========================================================================
+            // 5. 격상 발효
+            // ========================================================================
+            else if (templateId === 'level_upgrade_active') {
+                const prevLvl = prevLevel || '주의보';
+                genTitle = `🚨 ${typeName} ${prevLvl}→${effectiveLevel} 격상 발효`;
+                const grouped = groupByTime(items, 'tmYn');
+                genBody = formatGroupedMessage(grouped, '해제예정');
+            }
+
+            // ========================================================================
+            // 6. 격하 발표
+            // ========================================================================
+            else if (templateId === 'level_downgrade_publish') {
+                const prevLvl = prevLevel || '경보';
+                genTitle = `📢 ${typeName} ${prevLvl}→${effectiveLevel} 격하 발표`;
+                const grouped = groupByTime(items, 'tmEf');
+                genBody = formatGroupedMessage(grouped, '발효예정');
+            }
+
+            // ========================================================================
+            // 7. 격하 발효
+            // ========================================================================
+            else if (templateId === 'level_downgrade_active') {
+                const prevLvl = prevLevel || '경보';
+                genTitle = `🚨 ${typeName} ${prevLvl}→${effectiveLevel} 격하 발효`;
+                const grouped = groupByTime(items, 'tmYn');
+                genBody = formatGroupedMessage(grouped, '해제예정');
+            }
+
+            // ========================================================================
+            // 8. 발효시각 변경
             // ========================================================================
             else if (templateId === 'time_ef_change') {
                 genTitle = `🕐 발효시각 변경`;
@@ -1953,7 +1990,7 @@ app.post('/api/push-custom', async (req, res) => {
             }
 
             // ========================================================================
-            // 5. 해제시각 변경
+            // 9. 해제시각 변경
             // ========================================================================
             else if (templateId === 'time_yn_change') {
                 genTitle = `🕐 해제시각 변경`;
@@ -2114,7 +2151,7 @@ app.post('/api/push-custom', async (req, res) => {
             count: successCount,
             status: 'sent',
             type: req.body.type || 'manual', // [수정] 요청 시 전달받은 타입(auto 등)이 있으면 사용
-            tab: isManualGroupSend ? (payload.templateId || 'active') : 'custom',
+            tab: isManualGroupSend ? (payload.templateId && payload.templateId.startsWith('level_') ? 'level' : (payload.templateId || 'active')) : 'custom',
             tmRef: isManualGroupSend ? (payload.items[0].tmFc || payload.items[0].tmEf || '') : ''
         };
         history.unshift(newLog);

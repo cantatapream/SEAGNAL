@@ -3,9 +3,21 @@ const fetch = require('node-fetch'); // Node.js 18+ 내장 fetch 사용 시 생�
 
 const API_URL = 'http://localhost:3001/api/push-custom'; // 로컬 서버 포트 확인 필요 (현재 3001 사용 중)
 
+// ============================================================================
+// 격상/격하 판별을 위한 특보 점수 체계 (app.js getAlertScore와 동일)
+// ============================================================================
+const TYPE_RANK = { '태풍': 100, '풍랑': 10, '강풍': 10, '해일': 10, '호우': 10, '대설': 10, '기타': 0 };
+const LVL_RANK = { '경보': 5, '주의보': 2, '예비': 1, '기타': 0, '해제': 0, '': 0 };
+
+function getAlertScore(type, lvl) {
+    const tScore = TYPE_RANK[type] || (type && type.includes('태풍') ? 100 : 10);
+    const lScore = LVL_RANK[lvl] || 0;
+    return tScore + lScore;
+}
+
 /**
  * 변경 사항(changes)을 분석하여 그룹핑 후 푸시 알림 발송
- * @param {Array} changes - [{ type, zone, prev, curr }, ...]
+ * @param {Array} changes - [{ type, zone, prev, curr, currentActive? }, ...]
  */
 async function processAndSendNotifications(changes) {
     if (!changes || changes.length === 0) return;
@@ -14,7 +26,7 @@ async function processAndSendNotifications(changes) {
 
     // 1. 그룹핑 컨테이너
     // Key: `${Scenario}_${TypeName}_${Level}`
-    // Value: { templateId, typeName, level, items: [] }
+    // Value: { templateId, typeName, level, items: [], prevTypeName?, prevLevel? }
     const groups = {};
 
     for (const change of changes) {
@@ -45,6 +57,28 @@ async function processAndSendNotifications(changes) {
             const isPreToAdvisory = (prev && prev.wrnLvl === '예비' && curr.wrnLvl === '주의보');
 
             if (!prev || (prev.wrnLvl !== curr.wrnLvl && !isPreToAdvisory)) {
+                // [추가] 격상/격하 판별: 현재 발효 중인 특보(currentActive)와 비교
+                const currentActive = change.currentActive;
+                if (currentActive && currentActive.wrnLvl) {
+                    const curScore = getAlertScore(currentActive.wrnTp, currentActive.wrnLvl);
+                    const newScore = getAlertScore(typeName, level);
+
+                    if (curScore !== newScore) {
+                        // 격상 또는 격하 발표
+                        const scenario = curScore < newScore ? 'level_upgrade_publish' : 'level_downgrade_publish';
+                        addToGroup(groups, scenario, typeName, level, {
+                            zones: [zone],
+                            tmFc: curr.tmFc,
+                            tmEf: curr.tmEf,
+                            tmYn: curr.tmYn || curr.tmCc,
+                            prevTypeName: currentActive.wrnTp,
+                            prevLevel: currentActive.wrnLvl
+                        });
+                        continue;
+                    }
+                }
+
+                // 격상/격하가 아닌 일반 발표
                 const scenario = 'publish';
                 addToGroup(groups, scenario, typeName, level, {
                     zones: [zone],
@@ -99,22 +133,21 @@ async function processAndSendNotifications(changes) {
             }
 
             // 3. 등급 변경 (격상/격하)
-            // 사용자 시나리오에는 '발표'나 '발효'에 포함되는 개념인지, 별도인지 명시되지 않았으나
-            // 보통 '발효' 상태에서 등급이 바뀌면 -> 새로운 등급으로 '발효' 알림을 보내거나 '격상' 알림을 보냄.
-            // 5-1(발표) 정의에 "특보의 수준이 격상, 격하된다는 발표가 나온 경우에도 발표로 알림" 이라고 되어 있음.
-            // 하지만 그건 '발표(예비)' 단계의 이야기일 수 있음.
-            // 이미 발효된 특보가 격상되면 -> '풍랑경보 발효'로 보내는 것이 맞음 (시나리오 2)
-            // 3. 등급 변경 (격상/격하)
             if (prev.wrnLvl !== curr.wrnLvl) {
-                const scenario = 'active'; // 격상도 '발효' 시나리오로 처리
+                const prevScore = getAlertScore(prev.wrnTp, prev.wrnLvl);
+                const currScore = getAlertScore(curr.wrnTp, curr.wrnLvl);
                 const typeName = curr.wrnTp;
                 const level = curr.wrnLvl;
 
+                // 격상 또는 격하 발효
+                const scenario = prevScore < currScore ? 'level_upgrade_active' : 'level_downgrade_active';
                 addToGroup(groups, scenario, typeName, level, {
                     zones: [zone],
                     tmFc: curr.tmFc,
                     tmEf: curr.tmEf,
-                    tmYn: curr.tmYn || curr.tmCc
+                    tmYn: curr.tmYn || curr.tmCc,
+                    prevTypeName: prev.wrnTp,
+                    prevLevel: prev.wrnLvl
                 });
             }
             // 4. 시각 변경 (등급 변경이 없을 때만 별도 알림 발송 - 일원화)
@@ -148,23 +181,18 @@ async function processAndSendNotifications(changes) {
         const group = groups[key];
 
         // Payload 구성
-        // items를 시각별로 2차 그루핑은 Server의 generateMessage가 하는 게 아니라,
-        // 여기서 Flatten된 리스트를 보내면 Server가 알아서 메시지를 만든다?
-        // 아니요, Server `generateMessage`는 items 리스트를 받아서 "시각별 맵"을 만듭니다.
-        // 따라서 여기서는 단순히 zone과 time 정보를 담은 item들을 배열로 보내기만 하면 됩니다.
-
         const payload = {
             templateId: group.templateId,
             typeName: group.typeName,
             level: group.level,
             items: group.items, // [{zones:['A'], tmEf:'...'}, {zones:['B'], tmEf:'...'}]
-            // Server가 이를 받아서 items.map(...) 하거나 group by time 함.
+            // [추가] 격상/격하 시 이전 등급 정보 전달
+            prevTypeName: group.prevTypeName || null,
+            prevLevel: group.prevLevel || null
         };
 
         // API 호출
         try {
-            // 로컬 서버 호출이므로 fetch 사용
-            // (Node 18 미만인 경우 node-fetch 필요, 여기서는 global fetch 가정하거나 require)
             await sendToApi(payload);
         } catch (e) {
             console.error(`[PushSender] 발송 실패 (${key}):`, e.message);
@@ -181,7 +209,10 @@ function addToGroup(groups, templateId, typeName, level, itemData) {
             templateId,
             typeName,
             level,
-            items: []
+            items: [],
+            // [추가] 격상/격하 시 이전 특보 정보 저장
+            prevTypeName: itemData.prevTypeName || null,
+            prevLevel: itemData.prevLevel || null
         };
     }
     // itemData: { zones: ['서해...'], tmEf: '...', tmYn: '...' }

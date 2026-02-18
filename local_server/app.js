@@ -10269,6 +10269,11 @@ window.renderAlertAdminContent = async function (tabId, targetContainer = null) 
                 isWaiting: isWaiting,
                 isActuallyActive: isActuallyActive,
                 isActuallyReleased: isActuallyReleased,
+                // [Fix] isLevelChange를 group 객체에 추가 (push-history 매칭에서 참조됨)
+                isLevelChange: isLevelChange,
+                // [추가] 격상/격하 시 이전 등급 정보 (수동 발송용)
+                prevLevel: statusType === '격상' ? '주의보' : (statusType === '격하' ? '경보' : null),
+                prevTypeName: (statusType === '격상' || statusType === '격하') ? item.warnType : null,
                 subGroups: {}
             };
         }
@@ -10510,11 +10515,17 @@ window.sendManualPushFromGroup = async function (groupKey, tabId) {
             body: JSON.stringify({
                 isManualGroupSend: true,
                 payload: {
-                    templateId: (tabId === 'level' && group.isWaiting) ? 'level_scheduled' : tabId, // active, release, level, publish
+                    templateId: tabId === 'level'
+                        ? (group.statusType === '격상'
+                            ? (group.isWaiting ? 'level_upgrade_publish' : 'level_upgrade_active')
+                            : (group.isWaiting ? 'level_downgrade_publish' : 'level_downgrade_active'))
+                        : tabId, // active, release, publish
                     typeName: typeName,
                     level: level,
                     items: items,
-                    isTimeChanged: group.isTimeChanged
+                    isTimeChanged: group.isTimeChanged,
+                    prevTypeName: group.prevTypeName || null,
+                    prevLevel: group.prevLevel || null
                 }
             })
         });
