@@ -266,6 +266,19 @@ function resolvePendingStatuses(obj, zoneName = null, referenceTime = null) {
             }
         }
 
+        // 1-2. tmCc 기반 자동 해제 (해제 예정 시각이 명확한 경우)
+        // tmRelease가 없더라도, tmCc에 파싱 가능한 명확한 시각이 있으면 해제 처리
+        // 범위형("오늘 밤(21시~24시)")은 parseKmaTime이 null을 반환하므로 안전
+        if (obj.current && !obj.current.tmRelease && obj.current.tmCc) {
+            const ccTime = parseKmaTime(obj.current.tmCc);
+            if (ccTime && ccTime <= now) {
+                console.log(`[Resolver] 해제 예정 시각(tmCc) 도달: ${obj.current.tmCc}`);
+                obj.current = null;
+                obj.history = [];
+                if (zoneName) updateHistoryFile(zoneName, null, true);
+            }
+        }
+
         // 2. 예약된 발효 처리 (upcoming)
         if (obj.upcoming && obj.upcoming.wrnLvl !== '예비') {
             const effectiveTime = parseKmaTime(obj.upcoming.tmEf);
