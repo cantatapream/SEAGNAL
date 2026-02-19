@@ -8542,6 +8542,66 @@ window.toggleEfAccordion = function (id) {
     if (arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
 };
 
+// --- 시각 입력 타입 토글 (정확한 시각 ↔ 범위형) ---
+window.toggleManualTimeType = function (prefix, type) {
+    const exactWrap = document.getElementById(`${prefix}-exact-wrap`);
+    const rangeWrap = document.getElementById(`${prefix}-range-wrap`);
+    const btnExact = document.getElementById(`${prefix}-btn-exact`);
+    const btnRange = document.getElementById(`${prefix}-btn-range`);
+    if (!exactWrap || !rangeWrap) return;
+
+    const activeStyle = 'flex:1;padding:6px 10px;border-radius:6px;border:1px solid rgba(59,130,246,0.4);background:rgba(59,130,246,0.2);color:#93c5fd;font-size:0.75rem;font-weight:600;cursor:pointer;transition:all 0.2s;';
+    const inactiveStyle = 'flex:1;padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#64748b;font-size:0.75rem;font-weight:600;cursor:pointer;transition:all 0.2s;';
+
+    if (type === 'exact') {
+        exactWrap.style.display = '';
+        rangeWrap.style.display = 'none';
+        btnExact.style.cssText = activeStyle;
+        btnRange.style.cssText = inactiveStyle;
+    } else {
+        exactWrap.style.display = 'none';
+        rangeWrap.style.display = '';
+        btnRange.style.cssText = activeStyle;
+        btnExact.style.cssText = inactiveStyle;
+    }
+    exactWrap.dataset.active = (type === 'exact') ? '1' : '0';
+};
+
+// 시각 필드 HTML 생성 헬퍼
+function buildTimeFieldHTML(id, label, isOptional) {
+    const inputStyle = 'width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;color-scheme:dark;';
+    const rangeInputStyle = 'flex:1;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.85rem;box-sizing:border-box;color-scheme:dark;';
+    const mb = isOptional ? '16px' : '12px';
+    return `
+        <div style="margin-bottom:${mb};">
+            <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:6px;">${label}${isOptional ? ' (선택)' : ''}</label>
+            <div style="display:flex;gap:4px;margin-bottom:8px;">
+                <button type="button" id="${id}-btn-exact" onclick="toggleManualTimeType('${id}','exact')"
+                    style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid rgba(59,130,246,0.4);background:rgba(59,130,246,0.2);color:#93c5fd;font-size:0.75rem;font-weight:600;cursor:pointer;transition:all 0.2s;">
+                    <i class="fa-solid fa-clock"></i> 정확한 시각
+                </button>
+                <button type="button" id="${id}-btn-range" onclick="toggleManualTimeType('${id}','range')"
+                    style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#64748b;font-size:0.75rem;font-weight:600;cursor:pointer;transition:all 0.2s;">
+                    <i class="fa-solid fa-arrows-left-right"></i> 범위형
+                </button>
+            </div>
+            <div id="${id}-exact-wrap" data-active="1">
+                <input type="datetime-local" id="${id}" style="${inputStyle}">
+            </div>
+            <div id="${id}-range-wrap" style="display:none;">
+                <div style="display:flex;gap:6px;">
+                    <input type="date" id="${id}-range-date" style="${rangeInputStyle}">
+                    <select id="${id}-range-period" style="${rangeInputStyle}">
+                        <option value="새벽(00시~06시)">새벽(00~06시)</option>
+                        <option value="오전(06시~12시)">오전(06~12시)</option>
+                        <option value="오후(12시~18시)">오후(12~18시)</option>
+                        <option value="밤(18시~24시)">밤(18~24시)</option>
+                    </select>
+                </div>
+            </div>
+        </div>`;
+}
+
 // --- 특보 추가 모달 ---
 window.openAddAlertModal = function (zoneName) {
     const old = document.getElementById('manual-alert-modal');
@@ -8578,14 +8638,8 @@ window.openAddAlertModal = function (zoneName) {
                         <option value="경보">경보</option>
                     </select>
                 </div>
-                <div style="margin-bottom:12px;">
-                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">발효 시각</label>
-                    <input type="datetime-local" id="ma-tmEf" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;">
-                </div>
-                <div style="margin-bottom:16px;">
-                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">해제 예정 시각 (선택)</label>
-                    <input type="datetime-local" id="ma-tmEd" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;">
-                </div>
+                ${buildTimeFieldHTML('ma-tmEf', '발효 시각', false)}
+                ${buildTimeFieldHTML('ma-tmEd', '해제 예정 시각', true)}
                 <button onclick="submitManualAlert('${zoneName}', 'add')" style="width:100%;padding:12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.9rem;">
                     <i class="fa-solid fa-check"></i> 추가
                 </button>
@@ -8596,6 +8650,12 @@ window.openAddAlertModal = function (zoneName) {
     // 기본값: 현재 시각(KST)
     const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
     document.getElementById('ma-tmEf').value = now.toISOString().slice(0, 16);
+    // 범위형 날짜 기본값
+    const todayStr = now.toISOString().slice(0, 10);
+    const efDateEl = document.getElementById('ma-tmEf-range-date');
+    const edDateEl = document.getElementById('ma-tmEd-range-date');
+    if (efDateEl) efDateEl.value = todayStr;
+    if (edDateEl) edDateEl.value = todayStr;
 };
 
 // --- 특보 수정 모달 ---
@@ -8635,33 +8695,69 @@ window.openEditAlertModal = function (zoneName, alertIdx) {
                         <option value="경보" ${alert.level === '경보' ? 'selected' : ''}>경보</option>
                     </select>
                 </div>
-                <div style="margin-bottom:12px;">
-                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">발효 시각</label>
-                    <input type="datetime-local" id="ma-tmEf" value="${toLocalDatetime(alert.tmEf)}" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;">
-                </div>
-                <div style="margin-bottom:16px;">
-                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">해제 예정 시각 (선택)</label>
-                    <input type="datetime-local" id="ma-tmEd" value="${toLocalDatetime(alert.tmEd)}" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;">
-                </div>
+                ${buildTimeFieldHTML('ma-tmEf', '발효 시각', false)}
+                ${buildTimeFieldHTML('ma-tmEd', '해제 예정 시각', true)}
                 <button onclick="submitManualAlert('${zoneName}', 'edit')" style="width:100%;padding:12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.9rem;">
                     <i class="fa-solid fa-check"></i> 수정 완료
                 </button>
             </div>
         </div>`;
     document.body.appendChild(modal);
+
+    // 기존 값 프리필: 범위형 여부 판별
+    const isRangeVal = (v) => v && /[새벽오전오후밤]\(/.test(v);
+    const parseRangeVal = (v) => {
+        if (!v) return null;
+        const m = v.match(/(\d{4})년\s*(\d{2})월\s*(\d{2})일\s*(.*)/);
+        if (!m) return null;
+        return { date: `${m[1]}-${m[2]}-${m[3]}`, period: m[4].trim() };
+    };
+
+    // 발효 시각
+    if (isRangeVal(alert.tmEfDisplay || alert.tmEf)) {
+        const parsed = parseRangeVal(alert.tmEfDisplay || alert.tmEf);
+        if (parsed) {
+            toggleManualTimeType('ma-tmEf', 'range');
+            document.getElementById('ma-tmEf-range-date').value = parsed.date;
+            const periodSel = document.getElementById('ma-tmEf-range-period');
+            for (const opt of periodSel.options) {
+                if (parsed.period.includes(opt.value.split('(')[0])) { opt.selected = true; break; }
+            }
+        }
+    } else {
+        const v = toLocalDatetime(alert.tmEf);
+        if (v) document.getElementById('ma-tmEf').value = v;
+    }
+
+    // 해제 예정 시각
+    if (isRangeVal(alert.tmEdDisplay || alert.tmEd)) {
+        const parsed = parseRangeVal(alert.tmEdDisplay || alert.tmEd);
+        if (parsed) {
+            toggleManualTimeType('ma-tmEd', 'range');
+            document.getElementById('ma-tmEd-range-date').value = parsed.date;
+            const periodSel = document.getElementById('ma-tmEd-range-period');
+            for (const opt of periodSel.options) {
+                if (parsed.period.includes(opt.value.split('(')[0])) { opt.selected = true; break; }
+            }
+        }
+    } else {
+        const v = toLocalDatetime(alert.tmEd);
+        if (v) document.getElementById('ma-tmEd').value = v;
+    }
+
+    // 범위형 날짜 기본값 (빈 경우)
+    const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const todayStr = kstNow.toISOString().slice(0, 10);
+    ['ma-tmEf-range-date', 'ma-tmEd-range-date'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el.value) el.value = todayStr;
+    });
 };
 
 // --- 특보 추가/수정 처리 ---
 window.submitManualAlert = async function (zoneName, mode, alertIdx) {
     const warnType = document.getElementById('ma-warnType').value;
     const level = document.getElementById('ma-level').value;
-    const tmEfRaw = document.getElementById('ma-tmEf').value;
-    const tmEdRaw = document.getElementById('ma-tmEd').value;
-
-    if (!warnType || !level || !tmEfRaw) {
-        alert('특보 종류, 등급, 발효 시각은 필수 입력입니다.');
-        return;
-    }
 
     // datetime-local → 기상청 형식 (예: "2026년 02월 19일 14시 30분")
     const toKmaFormat = (s) => {
@@ -8671,13 +8767,51 @@ window.submitManualAlert = async function (zoneName, mode, alertIdx) {
         const [h, mi] = timePart.split(':');
         return `${y}년 ${m}월 ${d}일 ${h}시 ${mi}분`;
     };
-    const tmEf = toKmaFormat(tmEfRaw);
-    const tmCc = tmEdRaw ? toKmaFormat(tmEdRaw) : '';
+
+    // date + period → 기상청 범위 형식 (예: "2026년 02월 19일 오전(06시~12시)")
+    const toKmaRangeFormat = (dateVal, periodVal) => {
+        if (!dateVal || !periodVal) return '';
+        const [y, m, d] = dateVal.split('-');
+        return `${y}년 ${m}월 ${d}일 ${periodVal}`;
+    };
+
+    // 발효 시각 읽기 (정확한 시각 or 범위형)
+    const tmEfExactWrap = document.getElementById('ma-tmEf-exact-wrap');
+    const tmEfIsRange = tmEfExactWrap && tmEfExactWrap.dataset.active === '0';
+    let tmEf, tmEfRaw;
+    if (tmEfIsRange) {
+        const dateVal = document.getElementById('ma-tmEf-range-date').value;
+        const periodVal = document.getElementById('ma-tmEf-range-period').value;
+        if (!dateVal) { alert('발효 날짜를 선택해주세요.'); return; }
+        tmEf = toKmaRangeFormat(dateVal, periodVal);
+        tmEfRaw = null;
+    } else {
+        tmEfRaw = document.getElementById('ma-tmEf').value;
+        tmEf = toKmaFormat(tmEfRaw);
+    }
+
+    // 해제 예정 시각 읽기 (정확한 시각 or 범위형)
+    const tmEdExactWrap = document.getElementById('ma-tmEd-exact-wrap');
+    const tmEdIsRange = tmEdExactWrap && tmEdExactWrap.dataset.active === '0';
+    let tmCc;
+    if (tmEdIsRange) {
+        const dateVal = document.getElementById('ma-tmEd-range-date').value;
+        const periodVal = document.getElementById('ma-tmEd-range-period').value;
+        tmCc = dateVal ? toKmaRangeFormat(dateVal, periodVal) : '';
+    } else {
+        const tmEdRaw = document.getElementById('ma-tmEd').value;
+        tmCc = tmEdRaw ? toKmaFormat(tmEdRaw) : '';
+    }
+
+    if (!warnType || !level || !tmEf) {
+        alert('특보 종류, 등급, 발효 시각은 필수 입력입니다.');
+        return;
+    }
 
     // 현재 시각과 비교하여 command 결정 (발표=아직 미발효, 발효=이미 발효)
     const now = new Date();
-    const effDate = new Date(tmEfRaw);
-    const command = (mode === 'edit') ? '변경' : (effDate > now ? '발표' : '발효');
+    // 범위형이면 정확한 비교 불가 → 발표로 처리
+    const command = (mode === 'edit') ? '변경' : (tmEfIsRange ? '발표' : (new Date(tmEfRaw) > now ? '발표' : '발효'));
 
     const tmFc = toKmaFormat(new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16));
 
