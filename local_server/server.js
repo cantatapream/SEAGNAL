@@ -2488,6 +2488,153 @@ app.delete('/api/admin/collect-failures', (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// 9-5-2. 수동 특보 등록 API (zone tree 직접 주입)
+// AI 분석 실패 시 관리자가 수동으로 특보를 등록하면
+// weather_alerts.json의 zone tree에 직접 기록되어 영구 보존됨.
+// 이후 AI가 같은 해역의 후속 통보문을 정상 파싱하면
+// updateZoneStatus가 자동으로 발효시간 확정/해제/격상을 반영함.
+app.post('/api/admin/manual-alert', (req, res) => {
+    try {
+        const { zoneName, warnType, level, command, tmFc, tmEf, tmCc, skipPush } = req.body;
+
+        if (!zoneName || !warnType || !level || !command) {
+            return res.status(400).json({ error: '필수 항목 누락: zoneName, warnType, level, command' });
+        }
+
+        // 1. weather_alerts.json 로드
+        const outputFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
+        let fullForm;
+        if (fs.existsSync(outputFile)) {
+            const existing = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+            fullForm = {
+                updatedAt: null,
+                lastReportId: existing.lastReportId || null,
+                previous: JSON.parse(JSON.stringify(existing.current || {})),
+                current: existing.current || {}
+            };
+        } else {
+            fullForm = weatherAlertsCrawler.createFullForm();
+        }
+
+        // 2. 이벤트 구성 (기존 updateZoneStatus 형식 준수)
+        const isJuui = level === '주의보';
+        const isGyeongbo = level === '경보';
+        const isYebi = level === '예비';
+        let typeStr;
+        if (isYebi) {
+            typeStr = `${warnType}예비특보`;
+        } else {
+            typeStr = `${warnType}${level}`;
+        }
+
+        const manualReportId = `manual:${Date.now()}`;
+        const event = {
+            type: typeStr,
+            command: command,
+            reportId: manualReportId,
+            tmFc: tmFc || new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+            tmEf: tmEf || '',
+            time: tmEf || '',    // parseKmaTime 호환용
+            tmCc: tmCc || '',
+            zones: [zoneName]
+        };
+
+        // 3. 상태 전환 선행 실행 (upcoming → current)
+        weatherAlertsCrawler.resolvePendingStatuses(fullForm.current);
+
+        // 4. zone tree에 이벤트 적용
+        let applied = false;
+        if (reportProcessor.updateZoneStatus(fullForm.current, zoneName, event)) {
+            applied = true;
+        }
+
+        // 5. 이벤트 적용 후 재실행 (새로 생성된 upcoming 처리)
+        weatherAlertsCrawler.resolvePendingStatuses(fullForm.current);
+
+        // 6. 변경 감지 및 푸시
+        let pushResult = null;
+        const changes = weatherAlertsCrawler.detectChanges(fullForm.previous, fullForm.current);
+        if (changes.length > 0) {
+            applied = true;
+            if (skipPush) {
+                pushResult = { sent: false, skipped: true, changeCount: changes.length };
+                console.log(`[Admin] 수동 특보 → 변경 ${changes.length}건 감지, 푸시 생략`);
+            } else {
+                try {
+                    pushSender.processChanges(changes);
+                    pushResult = { sent: true, changeCount: changes.length };
+                    console.log(`[Admin] 수동 특보 → 변경 ${changes.length}건 감지, 푸시 발송`);
+                } catch (pushErr) {
+                    pushResult = { sent: false, error: pushErr.message };
+                }
+            }
+        }
+
+        // 7. 저장
+        fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+        fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
+        console.log(`[Admin] 수동 특보 저장: ${zoneName} ${typeStr} ${command}`);
+
+        res.json({ success: true, applied, zoneName, type: typeStr, command, pushResult, reportId: manualReportId });
+    } catch (e) {
+        console.error('[Admin] 수동 특보 등록 오류:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 9-5-3. 수동 특보 삭제(해제) API
+// 관리자가 잘못 등록한 수동 특보를 해제 처리
+app.post('/api/admin/manual-alert-release', (req, res) => {
+    try {
+        const { zoneName, skipPush } = req.body;
+        if (!zoneName) return res.status(400).json({ error: 'zoneName 필수' });
+
+        const outputFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
+        if (!fs.existsSync(outputFile)) return res.status(404).json({ error: '장부 파일 없음' });
+
+        const existing = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+        const fullForm = {
+            updatedAt: null,
+            lastReportId: existing.lastReportId || null,
+            previous: JSON.parse(JSON.stringify(existing.current || {})),
+            current: existing.current || {}
+        };
+
+        // zone tree에서 해당 해역 찾아서 직접 해제
+        function findAndRelease(obj, target) {
+            if (!obj || typeof obj !== 'object') return false;
+            for (const [key, value] of Object.entries(obj)) {
+                if (key === target && value && 'current' in value) {
+                    value.current = null;
+                    value.upcoming = null;
+                    value.history = [];
+                    return true;
+                }
+                if (key === 'children' || key === 'history' || key === 'missingCount') continue;
+                if (findAndRelease(value, target)) return true;
+            }
+            return false;
+        }
+
+        const released = findAndRelease(fullForm.current, zoneName);
+
+        if (released) {
+            // 변경 감지 및 저장
+            const changes = weatherAlertsCrawler.detectChanges(fullForm.previous, fullForm.current);
+            if (changes.length > 0 && !skipPush) {
+                pushSender.processChanges(changes).catch(err => console.error(`[Push] 오류: ${err.message}`));
+            }
+            fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+            fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
+            console.log(`[Admin] 수동 해제: ${zoneName}`);
+        }
+
+        res.json({ success: true, released, zoneName });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // 9-6. 전체 통보문 일괄 수집
 app.post('/api/admin/reports-collect-all', async (req, res) => {
     try {

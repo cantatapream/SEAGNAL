@@ -1070,6 +1070,23 @@ async function fetchAllData() {
 // --- Weather Alerts Processing Helper Functions ---
 
 /**
+ * 서버에서 최신 특보 데이터를 다시 불러와 appState에 반영
+ * 수동 특보 등록/삭제 후 호출하여 zone tree의 최신 상태를 동기화
+ */
+async function refreshAlertData() {
+    try {
+        const resp = await fetch('/api/weather-alerts?_t=' + Date.now());
+        if (resp.ok) {
+            const rootData = await resp.json();
+            flattenAlertsData(rootData);
+            appState.lastUpdated = new Date();
+        }
+    } catch (e) {
+        console.error('[refreshAlertData] 특보 데이터 갱신 실패:', e.message);
+    }
+}
+
+/**
  * weather_alerts.json 구조를 기존 UI 렌더링에 맞는 평탄화된 배열 구조로 변환
  * 데이터 깊이가 동적(제주는 3단계, 동해/서해/남해는 4단계)이므로 재귀적으로 탐색
  */
@@ -8446,7 +8463,7 @@ function buildZoneAccordion(zoneName, alerts) {
                     <td style="padding:8px 4px;font-size:0.75rem;"><span style="color:${statusColor};">${statusText}</span></td>
                     <td style="padding:8px 4px;text-align:right;white-space:nowrap;">
                         <button onclick="openEditAlertModal('${zoneName}', ${idx})" style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:0.7rem;margin-right:4px;" title="수정"><i class="fa-solid fa-pen"></i></button>
-                        <button onclick="deleteManualAlert('${zoneName}', ${idx})" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:0.7rem;" title="삭제"><i class="fa-solid fa-trash"></i></button>
+                        <button onclick="deleteManualAlert('${zoneName}')" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:0.7rem;" title="삭제"><i class="fa-solid fa-trash"></i></button>
                     </td>
                 </tr>`;
         });
@@ -8626,7 +8643,7 @@ window.openEditAlertModal = function (zoneName, alertIdx) {
                     <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">해제 예정 시각 (선택)</label>
                     <input type="datetime-local" id="ma-tmEd" value="${toLocalDatetime(alert.tmEd)}" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;">
                 </div>
-                <button onclick="submitManualAlert('${zoneName}', 'edit', ${alertIdx})" style="width:100%;padding:12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.9rem;">
+                <button onclick="submitManualAlert('${zoneName}', 'edit')" style="width:100%;padding:12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.9rem;">
                     <i class="fa-solid fa-check"></i> 수정 완료
                 </button>
             </div>
@@ -8635,7 +8652,7 @@ window.openEditAlertModal = function (zoneName, alertIdx) {
 };
 
 // --- 특보 추가/수정 처리 ---
-window.submitManualAlert = function (zoneName, mode, alertIdx) {
+window.submitManualAlert = async function (zoneName, mode, alertIdx) {
     const warnType = document.getElementById('ma-warnType').value;
     const level = document.getElementById('ma-level').value;
     const tmEfRaw = document.getElementById('ma-tmEf').value;
@@ -8646,64 +8663,84 @@ window.submitManualAlert = function (zoneName, mode, alertIdx) {
         return;
     }
 
-    // datetime-local → 12자리 문자열
-    const toNumeric = (s) => s ? s.replace(/[-T:]/g, '').padEnd(12, '0') : '';
-    const tmEf = toNumeric(tmEfRaw);
-    const tmEd = tmEdRaw ? toNumeric(tmEdRaw) : '';
-    const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace(/[-T:Z]/g, '').substring(0, 12);
-    const isPreliminary = tmEf > now;
-
-    const newAlert = {
-        zoneName,
-        regId: zoneName,
-        warnType,
-        level,
-        tmFc: now,
-        tmEf: tmEf,
-        tmCc: '',
-        tmEd: tmEd || '미정',
-        command: isPreliminary ? '발표' : '발효',
-        isPreliminary,
-        isCoastal: false,
-        source: 'MANUAL',
-        prevLevel: null
+    // datetime-local → 기상청 형식 (예: "2026년 02월 19일 14시 30분")
+    const toKmaFormat = (s) => {
+        if (!s) return '';
+        const [datePart, timePart] = s.split('T');
+        const [y, m, d] = datePart.split('-');
+        const [h, mi] = timePart.split(':');
+        return `${y}년 ${m}월 ${d}일 ${h}시 ${mi}분`;
     };
+    const tmEf = toKmaFormat(tmEfRaw);
+    const tmCc = tmEdRaw ? toKmaFormat(tmEdRaw) : '';
 
-    if (mode === 'add') {
-        appState.alerts.push(newAlert);
-    } else if (mode === 'edit' && alertIdx !== undefined) {
-        const zoneAlerts = appState.alerts.filter(a => a.zoneName === zoneName && !a.isCoastal);
-        const target = zoneAlerts[alertIdx];
-        if (target) {
-            const globalIdx = appState.alerts.indexOf(target);
-            if (globalIdx !== -1) appState.alerts[globalIdx] = newAlert;
+    // 현재 시각과 비교하여 command 결정 (발표=아직 미발효, 발효=이미 발효)
+    const now = new Date();
+    const effDate = new Date(tmEfRaw);
+    const command = (mode === 'edit') ? '변경' : (effDate > now ? '발표' : '발효');
+
+    const tmFc = toKmaFormat(new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16));
+
+    try {
+        // 수정 모드일 때 기존 특보를 먼저 해제
+        if (mode === 'edit') {
+            await fetch('/api/admin/manual-alert-release', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ zoneName, skipPush: true })
+            });
         }
+
+        // zone tree에 직접 주입
+        const resp = await fetch('/api/admin/manual-alert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ zoneName, warnType, level, command, tmFc, tmEf, tmCc, skipPush: false })
+        });
+        const result = await resp.json();
+        if (!resp.ok) throw new Error(result.error || '등록 실패');
+
+        const modal = document.getElementById('manual-alert-modal');
+        if (modal) modal.remove();
+
+        // 서버에서 최신 데이터 다시 불러오기
+        await refreshAlertData();
+
+        // UI 새로고침
+        const inner = document.getElementById('error-fix-inner-content');
+        if (inner) renderManualInputTab(inner);
+        if (typeof renderAlertSection === 'function') renderAlertSection();
+
+        alert(`${zoneName} ${warnType}${level} 등록 완료 (${result.applied ? '장부 반영됨' : '변경 없음'})`);
+    } catch (e) {
+        alert(`등록 실패: ${e.message}`);
     }
-
-    const modal = document.getElementById('manual-alert-modal');
-    if (modal) modal.remove();
-
-    // UI 새로고침
-    const inner = document.getElementById('error-fix-inner-content');
-    if (inner) renderManualInputTab(inner);
-    // 메인 화면 특보 UI도 갱신
-    if (typeof renderAlertSection === 'function') renderAlertSection();
 };
 
-// --- 특보 삭제 ---
-window.deleteManualAlert = function (zoneName, alertIdx) {
-    if (!confirm(`${zoneName}의 해당 특보를 삭제하시겠습니까?`)) return;
+// --- 특보 삭제 (서버 zone tree에서 해제) ---
+window.deleteManualAlert = async function (zoneName) {
+    if (!confirm(`${zoneName}의 해당 특보를 해제(삭제)하시겠습니까?`)) return;
 
-    const zoneAlerts = appState.alerts.filter(a => a.zoneName === zoneName && !a.isCoastal);
-    const target = zoneAlerts[alertIdx];
-    if (target) {
-        const globalIdx = appState.alerts.indexOf(target);
-        if (globalIdx !== -1) appState.alerts.splice(globalIdx, 1);
+    try {
+        const resp = await fetch('/api/admin/manual-alert-release', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ zoneName, skipPush: false })
+        });
+        const result = await resp.json();
+        if (!resp.ok) throw new Error(result.error || '해제 실패');
+
+        // 서버에서 최신 데이터 다시 불러오기
+        await refreshAlertData();
+
+        const inner = document.getElementById('error-fix-inner-content');
+        if (inner) renderManualInputTab(inner);
+        if (typeof renderAlertSection === 'function') renderAlertSection();
+
+        alert(`${zoneName} 특보 해제 완료`);
+    } catch (e) {
+        alert(`해제 실패: ${e.message}`);
     }
-
-    const inner = document.getElementById('error-fix-inner-content');
-    if (inner) renderManualInputTab(inner);
-    if (typeof renderAlertSection === 'function') renderAlertSection();
 };
 
 // --- 수동 푸시 발송 모달 ---
