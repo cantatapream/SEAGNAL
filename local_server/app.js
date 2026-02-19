@@ -8441,8 +8441,8 @@ function buildZoneAccordion(zoneName, alerts) {
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
                     <td style="padding:8px 6px;color:#fff;font-size:0.8rem;font-weight:600;">${a.warnType || '-'}</td>
                     <td style="padding:8px 6px;font-size:0.8rem;"><span style="color:${a.level === '경보' ? '#ef4444' : '#f59e0b'};font-weight:600;">${a.level || '-'}</span></td>
-                    <td style="padding:8px 6px;color:#cbd5e1;font-size:0.75rem;">${formatAlertTime(a.tmEf)}</td>
-                    <td style="padding:8px 6px;color:#cbd5e1;font-size:0.75rem;">${formatAlertTime(a.tmEd)}</td>
+                    <td style="padding:8px 6px;color:#cbd5e1;font-size:0.75rem;">${formatEfAlertTime(a.tmEf)}</td>
+                    <td style="padding:8px 6px;color:#cbd5e1;font-size:0.75rem;">${formatEfAlertTime(a.tmEd)}</td>
                     <td style="padding:8px 4px;font-size:0.75rem;"><span style="color:${statusColor};">${statusText}</span></td>
                     <td style="padding:8px 4px;text-align:right;white-space:nowrap;">
                         <button onclick="openEditAlertModal('${zoneName}', ${idx})" style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:0.7rem;margin-right:4px;" title="수정"><i class="fa-solid fa-pen"></i></button>
@@ -8492,8 +8492,16 @@ function buildZoneAccordion(zoneName, alerts) {
         </div>`;
 }
 
-// 시각 포맷 헬퍼
-function formatAlertTime(timeStr) {
+// 시각 변환 헬퍼 (12자리 숫자 → datetime-local 형식)
+function toLocalDatetime(s) {
+    if (!s) return '';
+    const n = String(s).replace(/[^0-9]/g, '');
+    if (n.length >= 12) return `${n.slice(0,4)}-${n.slice(4,6)}-${n.slice(6,8)}T${n.slice(8,10)}:${n.slice(10,12)}`;
+    return '';
+}
+
+// 시각 포맷 헬퍼 (오류확인/수동입력 전용)
+function formatEfAlertTime(timeStr) {
     if (!timeStr || timeStr === '정보 없음' || timeStr === '미정') return timeStr || '-';
     // 12자리 숫자 시각인 경우
     const numeric = String(timeStr).replace(/[^0-9]/g, '');
@@ -8587,13 +8595,7 @@ window.openEditAlertModal = function (zoneName, alertIdx) {
     modal.style.cssText = 'position:fixed;inset:0;z-index:10010;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);animation:fadeIn 0.2s;';
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 
-    // 시각 변환 (12자리 → datetime-local 형식)
-    const toLocalDt = (s) => {
-        if (!s) return '';
-        const n = String(s).replace(/[^0-9]/g, '');
-        if (n.length >= 12) return `${n.slice(0,4)}-${n.slice(4,6)}-${n.slice(6,8)}T${n.slice(8,10)}:${n.slice(10,12)}`;
-        return '';
-    };
+    // 시각 변환: 모듈 스코프 toLocalDatetime 사용
 
     modal.innerHTML = `
         <div style="background:#1e293b;border-radius:14px;width:90%;max-width:400px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);">
@@ -8618,11 +8620,11 @@ window.openEditAlertModal = function (zoneName, alertIdx) {
                 </div>
                 <div style="margin-bottom:12px;">
                     <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">발효 시각</label>
-                    <input type="datetime-local" id="ma-tmEf" value="${toLocalDt(alert.tmEf)}" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;">
+                    <input type="datetime-local" id="ma-tmEf" value="${toLocalDatetime(alert.tmEf)}" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;">
                 </div>
                 <div style="margin-bottom:16px;">
                     <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">해제 예정 시각 (선택)</label>
-                    <input type="datetime-local" id="ma-tmEd" value="${toLocalDt(alert.tmEd)}" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;">
+                    <input type="datetime-local" id="ma-tmEd" value="${toLocalDatetime(alert.tmEd)}" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;">
                 </div>
                 <button onclick="submitManualAlert('${zoneName}', 'edit', ${alertIdx})" style="width:100%;padding:12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.9rem;">
                     <i class="fa-solid fa-check"></i> 수정 완료
