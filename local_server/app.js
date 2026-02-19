@@ -8146,6 +8146,7 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
 
     const tabs = [
         { id: 'alert', name: '특보 알림', icon: 'fa-tower-broadcast' },
+        { id: 'error-fix', name: '오류 확인 및 수정', icon: 'fa-triangle-exclamation' },
         { id: 'api', name: 'API 설정', icon: 'fa-server' },
         { id: 'notice', name: '공지 팝업', icon: 'fa-bell' },
         { id: 'promo', name: '게시글 관리', icon: 'fa-bullhorn' },
@@ -8210,6 +8211,8 @@ window.switchUnifiedAdminTab = function (tabId) {
     setTimeout(async () => {
         if (tabId === 'alert') {
             renderUnifiedAlertContent(body);
+        } else if (tabId === 'error-fix') {
+            renderUnifiedErrorFixContent(body);
         } else if (tabId === 'api') {
             renderUnifiedApiContent(body);
         } else if (tabId === 'notice') {
@@ -8220,6 +8223,573 @@ window.switchUnifiedAdminTab = function (tabId) {
             renderUnifiedStatsContent(body);
         }
     }, 100);
+};
+
+// ============================================================================
+// (A-0) 오류 확인 및 수정 섹션 렌더링
+// ============================================================================
+async function renderUnifiedErrorFixContent(container) {
+    const subTabs = [
+        { id: 'error-list', name: '오류 목록', icon: 'fa-list-check' },
+        { id: 'manual-input', name: '수동 입력', icon: 'fa-pen-to-square' }
+    ];
+
+    container.innerHTML = `
+        <div class="admin-section-title" style="display:flex; justify-content:space-between; align-items:center;">
+            <div><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 오류 확인 및 수정</div>
+        </div>
+        <div class="admin-sub-tabs">
+            ${subTabs.map(t => `
+                <button class="error-fix-sub-tab" data-tab="${t.id}" onclick="switchErrorFixSubTab('${t.id}')">
+                    <i class="fa-solid ${t.icon}"></i> ${t.name}
+                </button>
+            `).join('')}
+        </div>
+        <div id="error-fix-inner-content"></div>
+    `;
+
+    window.switchErrorFixSubTab = function (subTabId) {
+        document.querySelectorAll('.error-fix-sub-tab').forEach(btn => {
+            if (btn.dataset.tab === subTabId) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+        const inner = document.getElementById('error-fix-inner-content');
+        if (!inner) return;
+        if (subTabId === 'error-list') renderErrorListTab(inner);
+        else if (subTabId === 'manual-input') renderManualInputTab(inner);
+    };
+
+    switchErrorFixSubTab('error-list');
+}
+
+// --- 서브탭 1: 오류 목록 ---
+async function renderErrorListTab(container) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
+
+    let failures = [];
+    try {
+        const res = await fetch('/api/admin/collect-failures');
+        if (res.ok) failures = await res.json();
+    } catch (e) { /* 무시 */ }
+
+    if (!failures || failures.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center;padding:60px 20px;color:#64748b;">
+                <i class="fa-solid fa-circle-check" style="font-size:2.5rem;color:#22c55e;margin-bottom:15px;display:block;"></i>
+                <div style="font-size:1rem;font-weight:700;color:#cbd5e1;margin-bottom:6px;">수집 오류 없음</div>
+                <div style="font-size:0.85rem;">현재 AI 수집 실패 통보문이 없습니다.</div>
+            </div>`;
+        return;
+    }
+
+    const rows = failures.map((f, idx) => {
+        const time = f.failedAt ? new Date(f.failedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-';
+        return `
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:10px;margin-bottom:8px;">
+                <i class="fa-solid fa-circle-xmark" style="color:#ef4444;flex-shrink:0;font-size:1.1rem;"></i>
+                <div style="flex:1;min-width:0;">
+                    <div style="color:#fca5a5;font-size:0.9rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.title || f.reportId}</div>
+                    <div style="color:#94a3b8;font-size:0.75rem;margin-top:3px;">ID: ${f.reportId} | ${f.retriesUsed || 5}회 시도 | ${time}</div>
+                    <div style="color:#f87171;font-size:0.75rem;margin-top:2px;">${f.error || ''}</div>
+                </div>
+                <button onclick="deleteOneCollectFailure('${f.reportId}')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#94a3b8;padding:6px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;" title="이 항목 삭제">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </div>`;
+    }).join('');
+
+    container.innerHTML = `
+        <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="color:#fca5a5;font-size:0.9rem;font-weight:600;">
+                <i class="fa-solid fa-triangle-exclamation"></i> 수집 실패 ${failures.length}건
+            </div>
+            <button onclick="clearAllCollectFailuresAndRefresh()" style="padding:6px 14px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.8rem;font-weight:600;">
+                <i class="fa-solid fa-check"></i> 전체 삭제
+            </button>
+        </div>
+        ${rows}
+    `;
+}
+
+// 개별 실패 기록 삭제
+window.deleteOneCollectFailure = async function (reportId) {
+    try {
+        const res = await fetch('/api/admin/collect-failures');
+        if (!res.ok) return;
+        let failures = await res.json();
+        failures = failures.filter(f => f.reportId !== reportId);
+        // 전체 삭제 후 남은 것만 다시 저장
+        await fetch('/api/admin/collect-failures', { method: 'DELETE' });
+        for (const f of failures) {
+            await fetch('/api/admin/collect-failures', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(f)
+            });
+        }
+        if (failures.length === 0) markVisitorCounterError(false);
+        const inner = document.getElementById('error-fix-inner-content');
+        if (inner) renderErrorListTab(inner);
+    } catch (e) { /* 무시 */ }
+};
+
+// 전체 실패 기록 삭제 및 새로고침
+window.clearAllCollectFailuresAndRefresh = async function () {
+    try {
+        await fetch('/api/admin/collect-failures', { method: 'DELETE' });
+        markVisitorCounterError(false);
+        const inner = document.getElementById('error-fix-inner-content');
+        if (inner) renderErrorListTab(inner);
+    } catch (e) { /* 무시 */ }
+};
+
+// --- 서브탭 2: 수동 입력 (아코디언 + CRUD + 푸시알림) ---
+async function renderManualInputTab(container) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
+
+    // 현재 발효 중 특보 가져오기 (연안/평수구역 제외)
+    const allAlerts = (appState.alerts || []).filter(a => !a.isCoastal && !a.zoneName.includes('연안바다') && !a.zoneName.includes('평수구역'));
+
+    // 해역별 특보 매핑
+    const alertsByZone = {};
+    allAlerts.forEach(a => {
+        if (!alertsByZone[a.zoneName]) alertsByZone[a.zoneName] = [];
+        alertsByZone[a.zoneName].push(a);
+    });
+
+    const mainRegions = ['동해', '서해', '남해', '제주'];
+    let html = '<div style="margin-bottom:10px;color:#94a3b8;font-size:0.8rem;"><i class="fa-solid fa-info-circle"></i> 해역을 펼쳐 특보를 확인하고, 추가/수정/삭제할 수 있습니다.</div>';
+
+    mainRegions.forEach(mainRegion => {
+        const regionData = SEA_REGIONS[mainRegion];
+        if (!regionData) return;
+        const mainId = `ef-main-${mainRegion}`;
+
+        // 대분류 내 전체 특보 수 계산
+        let totalAlertCount = 0;
+        regionData.subRegions.forEach(sub => {
+            (SUB_REGION_ZONES[sub] || []).forEach(z => {
+                totalAlertCount += (alertsByZone[z] || []).length;
+            });
+        });
+        const alertBadge = totalAlertCount > 0
+            ? `<span style="margin-left:8px;background:rgba(239,68,68,0.2);color:#fca5a5;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;">${totalAlertCount}건</span>`
+            : `<span style="margin-left:8px;color:#64748b;font-size:0.75rem;">특보 없음</span>`;
+
+        html += `<div style="margin-bottom:8px;border:1px solid rgba(255,255,255,0.06);border-radius:10px;overflow:hidden;background:rgba(255,255,255,0.02);">`;
+        // 대분류 헤더
+        html += `
+            <div onclick="toggleEfAccordion('${mainId}')" style="padding:12px 14px;background:rgba(255,255,255,0.05);display:flex;align-items:center;cursor:pointer;user-select:none;">
+                <i class="fa-solid fa-chevron-right ef-arrow" id="arrow-${mainId}" style="font-size:0.75rem;width:18px;transition:transform 0.2s;color:#94a3b8;"></i>
+                <span style="font-weight:700;color:#fff;font-size:0.95rem;">${regionData.icon || ''} ${regionData.displayName || mainRegion}</span>
+                ${alertBadge}
+            </div>
+            <div id="${mainId}" style="display:none;padding:4px 8px 8px 8px;background:rgba(0,0,0,0.15);">`;
+
+        if (mainRegion === '제주') {
+            // 제주: 중분류 생략, 바로 소분류
+            const zones = SUB_REGION_ZONES['제주해역'] || [];
+            zones.forEach(zone => {
+                html += buildZoneAccordion(zone, alertsByZone[zone] || []);
+            });
+        } else {
+            regionData.subRegions.forEach(subRegion => {
+                const subId = `ef-sub-${subRegion}`;
+                const subZones = SUB_REGION_ZONES[subRegion] || [];
+                let subAlertCount = 0;
+                subZones.forEach(z => { subAlertCount += (alertsByZone[z] || []).length; });
+                const subBadge = subAlertCount > 0
+                    ? `<span style="margin-left:6px;background:rgba(239,68,68,0.15);color:#fca5a5;padding:1px 6px;border-radius:8px;font-size:0.7rem;">${subAlertCount}건</span>`
+                    : '';
+
+                html += `
+                    <div style="margin-bottom:6px;border:1px solid rgba(255,255,255,0.04);border-radius:8px;overflow:hidden;">
+                        <div onclick="toggleEfAccordion('${subId}')" style="padding:10px 12px;background:rgba(255,255,255,0.03);display:flex;align-items:center;cursor:pointer;user-select:none;">
+                            <i class="fa-solid fa-chevron-right ef-arrow" id="arrow-${subId}" style="font-size:0.65rem;width:15px;transition:transform 0.2s;color:#64748b;"></i>
+                            <span style="font-weight:600;color:#3b82f6;font-size:0.88rem;">${subRegion}</span>
+                            ${subBadge}
+                        </div>
+                        <div id="${subId}" style="display:none;padding:4px 6px 6px 14px;border-left:2px dashed rgba(255,255,255,0.08);">`;
+
+                subZones.forEach(zone => {
+                    html += buildZoneAccordion(zone, alertsByZone[zone] || []);
+                });
+
+                html += `</div></div>`;
+            });
+        }
+
+        html += `</div></div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+// 소분류 해역 아코디언 (클릭 시 특보 테이블 + CRUD)
+function buildZoneAccordion(zoneName, alerts) {
+    const zoneId = `ef-zone-${zoneName.replace(/[·\s]/g, '_')}`;
+    const hasAlerts = alerts.length > 0;
+    const indicatorColor = hasAlerts ? '#ef4444' : '#334155';
+    const countText = hasAlerts ? `<span style="color:#fca5a5;font-size:0.72rem;margin-left:6px;">${alerts.length}건</span>` : '';
+
+    let tableRows = '';
+    if (hasAlerts) {
+        alerts.forEach((a, idx) => {
+            const statusText = a.isPreliminary ? '발표 예정' : '발효 중';
+            const statusColor = a.isPreliminary ? '#f59e0b' : '#22c55e';
+            tableRows += `
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                    <td style="padding:8px 6px;color:#fff;font-size:0.8rem;font-weight:600;">${a.warnType || '-'}</td>
+                    <td style="padding:8px 6px;font-size:0.8rem;"><span style="color:${a.level === '경보' ? '#ef4444' : '#f59e0b'};font-weight:600;">${a.level || '-'}</span></td>
+                    <td style="padding:8px 6px;color:#cbd5e1;font-size:0.75rem;">${formatAlertTime(a.tmEf)}</td>
+                    <td style="padding:8px 6px;color:#cbd5e1;font-size:0.75rem;">${formatAlertTime(a.tmEd)}</td>
+                    <td style="padding:8px 4px;font-size:0.75rem;"><span style="color:${statusColor};">${statusText}</span></td>
+                    <td style="padding:8px 4px;text-align:right;white-space:nowrap;">
+                        <button onclick="openEditAlertModal('${zoneName}', ${idx})" style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:0.7rem;margin-right:4px;" title="수정"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteManualAlert('${zoneName}', ${idx})" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:0.7rem;" title="삭제"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`;
+        });
+    }
+
+    return `
+        <div style="margin-bottom:4px;border:1px solid rgba(255,255,255,0.03);border-radius:6px;overflow:hidden;">
+            <div onclick="toggleEfAccordion('${zoneId}')" style="padding:8px 10px;display:flex;align-items:center;cursor:pointer;user-select:none;background:rgba(255,255,255,0.02);">
+                <span style="width:6px;height:6px;border-radius:50%;background:${indicatorColor};margin-right:8px;flex-shrink:0;"></span>
+                <i class="fa-solid fa-chevron-right ef-arrow" id="arrow-${zoneId}" style="font-size:0.6rem;width:13px;transition:transform 0.2s;color:#64748b;"></i>
+                <span style="color:#ddd;font-size:0.85rem;">${zoneName}</span>
+                ${countText}
+            </div>
+            <div id="${zoneId}" style="display:none;padding:8px;background:rgba(0,0,0,0.2);">
+                ${hasAlerts ? `
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                                <th style="padding:6px;text-align:left;color:#94a3b8;font-size:0.72rem;font-weight:600;">종류</th>
+                                <th style="padding:6px;text-align:left;color:#94a3b8;font-size:0.72rem;font-weight:600;">등급</th>
+                                <th style="padding:6px;text-align:left;color:#94a3b8;font-size:0.72rem;font-weight:600;">발효</th>
+                                <th style="padding:6px;text-align:left;color:#94a3b8;font-size:0.72rem;font-weight:600;">해제예정</th>
+                                <th style="padding:6px;text-align:left;color:#94a3b8;font-size:0.72rem;font-weight:600;">상태</th>
+                                <th style="padding:6px;text-align:right;color:#94a3b8;font-size:0.72rem;font-weight:600;">액션</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tableRows}</tbody>
+                    </table>
+                ` : `
+                    <div style="text-align:center;padding:12px;color:#64748b;font-size:0.82rem;">
+                        <i class="fa-solid fa-circle-info"></i> 현재 발효 중인 특보가 없습니다.
+                    </div>
+                `}
+                <div style="margin-top:8px;text-align:center;">
+                    <button onclick="openAddAlertModal('${zoneName}')" style="padding:6px 14px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.78rem;font-weight:600;">
+                        <i class="fa-solid fa-plus"></i> 특보 추가
+                    </button>
+                    <button onclick="openManualPushModal('${zoneName}')" style="padding:6px 14px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.78rem;font-weight:600;margin-left:6px;">
+                        <i class="fa-solid fa-bell"></i> 푸시 발송
+                    </button>
+                </div>
+            </div>
+        </div>`;
+}
+
+// 시각 포맷 헬퍼
+function formatAlertTime(timeStr) {
+    if (!timeStr || timeStr === '정보 없음' || timeStr === '미정') return timeStr || '-';
+    // 12자리 숫자 시각인 경우
+    const numeric = String(timeStr).replace(/[^0-9]/g, '');
+    if (numeric.length >= 10) {
+        const m = numeric.substring(4, 6);
+        const d = numeric.substring(6, 8);
+        const h = numeric.substring(8, 10);
+        const mi = numeric.length >= 12 ? numeric.substring(10, 12) : '00';
+        return `${m}/${d} ${h}:${mi}`;
+    }
+    return timeStr;
+}
+
+// 아코디언 토글
+window.toggleEfAccordion = function (id) {
+    const body = document.getElementById(id);
+    const arrow = document.getElementById('arrow-' + id);
+    if (!body) return;
+    const isOpen = body.style.display !== 'none';
+    body.style.display = isOpen ? 'none' : 'block';
+    if (arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+};
+
+// --- 특보 추가 모달 ---
+window.openAddAlertModal = function (zoneName) {
+    const old = document.getElementById('manual-alert-modal');
+    if (old) old.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'manual-alert-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10010;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);animation:fadeIn 0.2s;';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+    modal.innerHTML = `
+        <div style="background:#1e293b;border-radius:14px;width:90%;max-width:400px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);">
+            <div style="padding:16px;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:space-between;">
+                <h4 style="margin:0;color:#fff;font-size:0.95rem;"><i class="fa-solid fa-plus"></i> 특보 수동 추가</h4>
+                <button onclick="document.getElementById('manual-alert-modal').remove()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;">&times;</button>
+            </div>
+            <div style="padding:18px;">
+                <div style="color:#94a3b8;font-size:0.82rem;margin-bottom:12px;"><i class="fa-solid fa-location-dot"></i> ${zoneName}</div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">특보 종류</label>
+                    <select id="ma-warnType" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;">
+                        <option value="풍랑">풍랑</option>
+                        <option value="강풍">강풍</option>
+                        <option value="호우">호우</option>
+                        <option value="대설">대설</option>
+                        <option value="태풍">태풍</option>
+                        <option value="해일">해일</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">특보 등급</label>
+                    <select id="ma-level" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;">
+                        <option value="주의보">주의보</option>
+                        <option value="경보">경보</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">발효 시각</label>
+                    <input type="datetime-local" id="ma-tmEf" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">해제 예정 시각 (선택)</label>
+                    <input type="datetime-local" id="ma-tmEd" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;">
+                </div>
+                <button onclick="submitManualAlert('${zoneName}', 'add')" style="width:100%;padding:12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.9rem;">
+                    <i class="fa-solid fa-check"></i> 추가
+                </button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+
+    // 기본값: 현재 시각(KST)
+    const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    document.getElementById('ma-tmEf').value = now.toISOString().slice(0, 16);
+};
+
+// --- 특보 수정 모달 ---
+window.openEditAlertModal = function (zoneName, alertIdx) {
+    const zoneAlerts = (appState.alerts || []).filter(a => a.zoneName === zoneName && !a.isCoastal);
+    const alert = zoneAlerts[alertIdx];
+    if (!alert) return;
+
+    const old = document.getElementById('manual-alert-modal');
+    if (old) old.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'manual-alert-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10010;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);animation:fadeIn 0.2s;';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+    // 시각 변환 (12자리 → datetime-local 형식)
+    const toLocalDt = (s) => {
+        if (!s) return '';
+        const n = String(s).replace(/[^0-9]/g, '');
+        if (n.length >= 12) return `${n.slice(0,4)}-${n.slice(4,6)}-${n.slice(6,8)}T${n.slice(8,10)}:${n.slice(10,12)}`;
+        return '';
+    };
+
+    modal.innerHTML = `
+        <div style="background:#1e293b;border-radius:14px;width:90%;max-width:400px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);">
+            <div style="padding:16px;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:space-between;">
+                <h4 style="margin:0;color:#fff;font-size:0.95rem;"><i class="fa-solid fa-pen"></i> 특보 수정</h4>
+                <button onclick="document.getElementById('manual-alert-modal').remove()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;">&times;</button>
+            </div>
+            <div style="padding:18px;">
+                <div style="color:#94a3b8;font-size:0.82rem;margin-bottom:12px;"><i class="fa-solid fa-location-dot"></i> ${zoneName}</div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">특보 종류</label>
+                    <select id="ma-warnType" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;">
+                        ${['풍랑','강풍','호우','대설','태풍','해일'].map(t => `<option value="${t}" ${alert.warnType === t ? 'selected' : ''}>${t}</option>`).join('')}
+                    </select>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">특보 등급</label>
+                    <select id="ma-level" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;">
+                        <option value="주의보" ${alert.level === '주의보' ? 'selected' : ''}>주의보</option>
+                        <option value="경보" ${alert.level === '경보' ? 'selected' : ''}>경보</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">발효 시각</label>
+                    <input type="datetime-local" id="ma-tmEf" value="${toLocalDt(alert.tmEf)}" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">해제 예정 시각 (선택)</label>
+                    <input type="datetime-local" id="ma-tmEd" value="${toLocalDt(alert.tmEd)}" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;">
+                </div>
+                <button onclick="submitManualAlert('${zoneName}', 'edit', ${alertIdx})" style="width:100%;padding:12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.9rem;">
+                    <i class="fa-solid fa-check"></i> 수정 완료
+                </button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+};
+
+// --- 특보 추가/수정 처리 ---
+window.submitManualAlert = function (zoneName, mode, alertIdx) {
+    const warnType = document.getElementById('ma-warnType').value;
+    const level = document.getElementById('ma-level').value;
+    const tmEfRaw = document.getElementById('ma-tmEf').value;
+    const tmEdRaw = document.getElementById('ma-tmEd').value;
+
+    if (!warnType || !level || !tmEfRaw) {
+        alert('특보 종류, 등급, 발효 시각은 필수 입력입니다.');
+        return;
+    }
+
+    // datetime-local → 12자리 문자열
+    const toNumeric = (s) => s ? s.replace(/[-T:]/g, '').padEnd(12, '0') : '';
+    const tmEf = toNumeric(tmEfRaw);
+    const tmEd = tmEdRaw ? toNumeric(tmEdRaw) : '';
+    const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace(/[-T:Z]/g, '').substring(0, 12);
+    const isPreliminary = tmEf > now;
+
+    const newAlert = {
+        zoneName,
+        regId: zoneName,
+        warnType,
+        level,
+        tmFc: now,
+        tmEf: tmEf,
+        tmCc: '',
+        tmEd: tmEd || '미정',
+        command: isPreliminary ? '발표' : '발효',
+        isPreliminary,
+        isCoastal: false,
+        source: 'MANUAL',
+        prevLevel: null
+    };
+
+    if (mode === 'add') {
+        appState.alerts.push(newAlert);
+    } else if (mode === 'edit' && alertIdx !== undefined) {
+        const zoneAlerts = appState.alerts.filter(a => a.zoneName === zoneName && !a.isCoastal);
+        const target = zoneAlerts[alertIdx];
+        if (target) {
+            const globalIdx = appState.alerts.indexOf(target);
+            if (globalIdx !== -1) appState.alerts[globalIdx] = newAlert;
+        }
+    }
+
+    const modal = document.getElementById('manual-alert-modal');
+    if (modal) modal.remove();
+
+    // UI 새로고침
+    const inner = document.getElementById('error-fix-inner-content');
+    if (inner) renderManualInputTab(inner);
+    // 메인 화면 특보 UI도 갱신
+    if (typeof renderAlertSection === 'function') renderAlertSection();
+};
+
+// --- 특보 삭제 ---
+window.deleteManualAlert = function (zoneName, alertIdx) {
+    if (!confirm(`${zoneName}의 해당 특보를 삭제하시겠습니까?`)) return;
+
+    const zoneAlerts = appState.alerts.filter(a => a.zoneName === zoneName && !a.isCoastal);
+    const target = zoneAlerts[alertIdx];
+    if (target) {
+        const globalIdx = appState.alerts.indexOf(target);
+        if (globalIdx !== -1) appState.alerts.splice(globalIdx, 1);
+    }
+
+    const inner = document.getElementById('error-fix-inner-content');
+    if (inner) renderManualInputTab(inner);
+    if (typeof renderAlertSection === 'function') renderAlertSection();
+};
+
+// --- 수동 푸시 발송 모달 ---
+window.openManualPushModal = function (zoneName) {
+    const old = document.getElementById('manual-push-modal');
+    if (old) old.remove();
+
+    // 해당 해역의 현재 특보 정보 수집
+    const zoneAlerts = (appState.alerts || []).filter(a => a.zoneName === zoneName && !a.isCoastal);
+    let defaultTitle = `[${zoneName}] 해양특보 안내`;
+    let defaultContent = '';
+    if (zoneAlerts.length > 0) {
+        defaultContent = zoneAlerts.map(a => `${a.warnType} ${a.level} (${a.isPreliminary ? '발표예정' : '발효중'})`).join('\n');
+    } else {
+        defaultContent = '현재 발효 중인 특보가 없습니다.';
+    }
+
+    const modal = document.createElement('div');
+    modal.id = 'manual-push-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10010;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);animation:fadeIn 0.2s;';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+    modal.innerHTML = `
+        <div style="background:#1e293b;border-radius:14px;width:90%;max-width:420px;overflow:hidden;border:1px solid rgba(139,92,246,0.3);">
+            <div style="padding:16px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);display:flex;align-items:center;justify-content:space-between;">
+                <h4 style="margin:0;color:#fff;font-size:0.95rem;"><i class="fa-solid fa-bell"></i> 수동 푸시 발송</h4>
+                <button onclick="document.getElementById('manual-push-modal').remove()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;">&times;</button>
+            </div>
+            <div style="padding:18px;">
+                <div style="color:#a78bfa;font-size:0.82rem;margin-bottom:12px;"><i class="fa-solid fa-location-dot"></i> 대상 해역: <strong>${zoneName}</strong></div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">알림 제목</label>
+                    <input type="text" id="mp-title" value="${defaultTitle}" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">알림 내용</label>
+                    <textarea id="mp-content" style="width:100%;height:100px;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;resize:none;font-size:0.9rem;box-sizing:border-box;line-height:1.4;">${defaultContent}</textarea>
+                </div>
+                <button id="mp-send-btn" onclick="sendManualPush('${zoneName}')" style="width:100%;padding:12px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.9rem;">
+                    <i class="fa-solid fa-paper-plane"></i> 푸시 알림 발송
+                </button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+};
+
+// --- 수동 푸시 발송 처리 ---
+window.sendManualPush = async function (zoneName) {
+    const title = document.getElementById('mp-title').value.trim();
+    const content = document.getElementById('mp-content').value.trim();
+    const btn = document.getElementById('mp-send-btn');
+
+    if (!title || !content) {
+        alert('제목과 내용을 입력해주세요.');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 발송 중...';
+
+    try {
+        const res = await fetch('/api/push-custom', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, content, targetZones: [zoneName] })
+        });
+        const result = await res.json();
+
+        if (result.success || result.sent > 0) {
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> 발송 완료!';
+            btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
+            setTimeout(() => {
+                const modal = document.getElementById('manual-push-modal');
+                if (modal) modal.remove();
+            }, 1500);
+        } else {
+            btn.innerHTML = '<i class="fa-solid fa-xmark"></i> 발송 실패';
+            btn.style.background = 'rgba(239,68,68,0.3)';
+            btn.disabled = false;
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 푸시 알림 발송';
+                btn.style.background = 'linear-gradient(135deg,#8b5cf6,#7c3aed)';
+            }, 2000);
+        }
+    } catch (e) {
+        btn.innerHTML = '<i class="fa-solid fa-xmark"></i> 오류 발생';
+        btn.disabled = false;
+    }
 };
 
 // (A) 특보 알림 섹션 렌더링
