@@ -7014,8 +7014,8 @@ function showMaintenancePopup() {
                     </p>
                 </div>
                 <div class="notice-footer" style="justify-content: center;">
-                    <button class="notice-close-btn" onclick="document.getElementById('server-maintenance-popup').remove(); location.reload();">
-                        <i class="fa-solid fa-rotate-right"></i> 다시 시도
+                    <button class="notice-close-btn" onclick="document.getElementById('server-maintenance-popup').remove(); window.location.reload();">
+                        <i class="fa-solid fa-power-off"></i> 앱 재시작
                     </button>
                 </div>
             </div>
@@ -7043,8 +7043,8 @@ function showNetworkErrorPopup() {
                     </p>
                 </div>
                 <div class="notice-footer" style="justify-content: center;">
-                    <button class="notice-close-btn" onclick="document.getElementById('network-error-popup').remove(); location.reload();">
-                        <i class="fa-solid fa-rotate-right"></i> 다시 시도
+                    <button class="notice-close-btn" onclick="document.getElementById('network-error-popup').remove(); window.location.reload();">
+                        <i class="fa-solid fa-power-off"></i> 앱 재시작
                     </button>
                 </div>
             </div>
