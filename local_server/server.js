@@ -2528,13 +2528,24 @@ app.post('/api/admin/manual-alert', (req, res) => {
         }
 
         const manualReportId = `manual:${Date.now()}`;
+
+        // 범위형 tmEf에서 parseKmaTime 호환용 시작시각 추출
+        // "2026년 02월 19일 오전(06시~12시)" → "2026년 02월 19일 06시 00분"
+        let timeForParsing = tmEf || '';
+        if (tmEf) {
+            const rangeMatch = tmEf.match(/(\d{4})년\s*(\d{2})월\s*(\d{2})일\s*(?:새벽|오전|오후|밤)\((\d{2})시/);
+            if (rangeMatch) {
+                timeForParsing = `${rangeMatch[1]}년 ${rangeMatch[2]}월 ${rangeMatch[3]}일 ${rangeMatch[4]}시 00분`;
+            }
+        }
+
         const event = {
             type: typeStr,
             command: command,
             reportId: manualReportId,
             tmFc: tmFc || new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
             tmEf: tmEf || '',
-            time: tmEf || '',    // parseKmaTime 호환용
+            time: timeForParsing,    // parseKmaTime 호환용 (범위형일 경우 시작시각)
             tmCc: tmCc || '',
             zones: [zoneName]
         };
