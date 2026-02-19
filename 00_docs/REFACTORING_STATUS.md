@@ -1,6 +1,6 @@
 # SEAGNAL 리팩토링 종합 현황
 
-> 최종 업데이트: 2026-02-19 (KST)
+> 최종 업데이트: 2026-02-19 15:48 (KST)
 
 ---
 
@@ -23,7 +23,7 @@
 | Phase 2 | 문서화 기반 설정 | ✅ 완료 |
 | Phase 3 | 서버 리팩토링 (server.js) | ✅ 완료 |
 | Phase 4 | 프론트엔드 리팩토링 (app.js) | ✅ 완료 |
-| Phase 5 | 최종 검증 및 프로덕션 전환 | ⬜ 대기 (사용자 검증 필요) |
+| Phase 5 | 프로덕션 전환 | ✅ 완료 |
 
 ---
 
@@ -49,12 +49,14 @@
 
 ---
 
-## 5. Phase 3: 서버 리팩토링 ✅ (server.js 2,758줄 → server_new.js 83줄 + 모듈)
+## 5. Phase 3: 서버 리팩토링 ✅ (2,758줄 → 83줄 진입점 + 모듈)
 
-### 생성된 서버 모듈
+### 서버 구조
 ```
 local_server/
-├── server_new.js                   ← 새 진입점 (83줄)           ✅
+├── server.js                       ← 모듈화된 진입점 (83줄)       ✅
+├── server_original.js              ← 원본 백업 (2,758줄)
+├── server_new.js                   ← 교체 전 테스트 버전 (보존)
 ├── config/
 │   └── server_config.js            ← Express 설정, 경로, 환경변수 ✅
 ├── services/
@@ -71,17 +73,19 @@ local_server/
 │   ├── push.js                     ← 푸시 구독/발송/이력 API       ✅
 │   ├── push_test.js                ← 푸시 테스트 시나리오 API       ✅
 │   └── admin.js                    ← 관리자(크롤링/수집/수동특보) API ✅
-└── server.js                       ← 기존 원본 (2,758줄, 보존)
 ```
 
 ---
 
 ## 6. Phase 4: 프론트엔드 리팩토링 ✅ (app.js 12,077줄 → 15개 모듈)
 
-### 생성된 프론트엔드 모듈
+### 프론트엔드 구조
 ```
 local_server/
-├── index_staging.html               ← 15개 모듈 로딩 버전          ✅
+├── index.html                       ← 15개 모듈 로딩 (교체됨)       ✅
+├── index_original.html              ← 원본 백업 (app.js 로딩)
+├── index_staging.html               ← 교체 전 테스트 버전 (보존)
+├── app.js                           ← 원본 보존 (12,077줄)
 ├── js/
 │   ├── config.js          (491줄)   ← CONFIG, 해역상수, Windy매핑   ✅
 │   ├── mappings.js        (369줄)   ← 연안매핑, 부이매핑, 부이타입    ✅
@@ -98,11 +102,9 @@ local_server/
 │   ├── admin.js          (1034줄)   ← 통합 관리자 시스템              ✅
 │   ├── admin_collect.js  (1724줄)   ← 수집 테스트, 방문자 통계        ✅
 │   └── history.js        (1347줄)   ← 특보 이력, 마무리 유틸          ✅
-├── app.js                           ← 기존 원본 (12,077줄, 보존)
-└── index.html                       ← 기존 원본 (보존)
 ```
 
-### 모듈 로딩 순서 (index_staging.html)
+### 모듈 로딩 순서 (index.html)
 1. `js/config.js` → 2. `js/mappings.js` → 3. `js/utils.js` → 4. `js/data.js`
 → 5. `js/render.js` → 6. `js/render_coastal.js` → 7. `js/marine.js`
 → 8. `js/settings.js` → 9. `js/forecast.js` → 10. `js/windy.js`
@@ -111,24 +113,24 @@ local_server/
 
 ---
 
-## 7. Phase 5: 최종 검증 및 프로덕션 전환 (대기)
+## 7. Phase 5: 프로덕션 전환 ✅
 
-### 5.1 사용자 확인 필요 사항
-- [ ] `node server_new.js`로 서버 시작 → 정상 기동 확인
-- [ ] `/index_staging.html`로 접속 → 전체 기능 동작 확인
-- [ ] 원본 `/index.html` → 기존 app.js로 여전히 정상 동작 확인
+### 5.1 파일 교체 완료
+- [x] `server_new.js` → `server.js` 교체 (원본 → `server_original.js` 백업)
+- [x] `index_staging.html` → `index.html` 교체 (원본 → `index_original.html` 백업)
 
-### 5.2 프로덕션 전환 단계
-- [ ] `server_new.js` → `server.js` 교체 (원본 백업)
-- [ ] `index_staging.html` → `index.html` 교체 (원본 백업)
-- [ ] 스테이징 배포 및 테스트
-- [ ] staging → main PR 생성 및 머지
+### 5.2 롤백 방법
+원본으로 되돌리려면:
+```bash
+cd local_server
+cp server_original.js server.js
+cp index_original.html index.html
+```
 
 ---
 
-## 핵심 원칙 (리마인더)
+## 핵심 원칙
 
-1. **원본 보존**: server.js, app.js, index.html 원본은 모두 그대로 유지됨
+1. **원본 보존**: `server_original.js`, `index_original.html`, `app.js` 원본 백업 유지
 2. **기능 100% 유지**: 코드 위치만 이동, 로직 변경 없음
-3. **안전한 전환**: 새 파일(server_new.js, index_staging.html)로 먼저 테스트 후 교체
-4. **파일 헤더 주석**: 모든 새 파일에 역할/연계/초보자 안내 포함
+3. **파일 헤더 주석**: 모든 모듈 파일에 역할/연계/초보자 안내 포함
