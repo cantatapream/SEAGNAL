@@ -3945,7 +3945,8 @@ line-height: 1.1;
     display: none;
 }
 
-.alert-admin-tab {
+.alert-admin-tab,
+.error-fix-sub-tab {
     flex: 1;
     min-width: 80px;
     padding: 8px 12px;
@@ -3960,7 +3961,8 @@ line-height: 1.1;
     white-space: nowrap;
 }
 
-.alert-admin-tab.active {
+.alert-admin-tab.active,
+.error-fix-sub-tab.active {
     background: rgba(255, 255, 255, 0.1);
     color: #fff;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
