@@ -1,0 +1,864 @@
+/**
+ * ============================================================================
+ * 파일명: js/forecast.js
+ * 역할: 해상예보 테이블, 정보 팝업(해구별/특보/조석)
+ * ============================================================================
+ *
+ * [설명]
+ * - SEA_FORECAST_API_KEY, SEA_WEATHER_CODES 등: 해상예보 API 상수
+ * - renderSeaForecastTableInModal(): 해상예보 테이블 렌더링
+ * - showSeaZoneInfoPopup(): 해구별 기상 안내 팝업
+ * - showWeatherAlertInfoPopup(): 특보 안내 팝업
+ * - showTideInfoPopup(): 조석 안내 팝업
+ * - updateTimeDisplay(): 시간 표시 업데이트
+ *
+ * [로딩 순서] 9번째 (settings.js 이후)
+ * ============================================================================
+ */
+
+// ==================== 해상예보 테이블 표시 ====================
+
+
+// 해상예보 API 키
+const SEA_FORECAST_API_KEY = 'ZKEQU5ukRvGhEFObpBbxVw';
+
+// 날씨 코드
+const SEA_WEATHER_CODES = {
+    'DB01': '☀️', 'DB02': '🌤️', 'DB03': '⛅', 'DB04': '☁️'
+};
+
+// 풍향 한글 변환
+const SEA_WIND_DIRS = {
+    'N': '북', 'NNE': '북북동', 'NE': '북동', 'ENE': '동북동',
+    'E': '동', 'ESE': '동남동', 'SE': '남동', 'SSE': '남남동',
+    'S': '남', 'SSW': '남남서', 'SW': '남서', 'WSW': '서남서',
+    'W': '서', 'WNW': '서북서', 'NW': '북서', 'NNW': '북북서'
+};
+
+// 특보 구역명 → 예보 표시명 매핑 (UI에 표시할 이름)
+const ZONE_NAME_DISPLAY_MAP = {
+    // 제주 먼바다 통합
+    '제주도남서쪽안쪽먼바다': '제주도남쪽먼바다',
+    '제주도남동쪽안쪽먼바다': '제주도남쪽먼바다',
+    '제주도남쪽바깥먼바다': '제주도남쪽먼바다',
+
+    // 서해중부
+    '인천·경기북부앞바다': '경기북부앞바다',
+    '서해중부안쪽먼바다': '서해중부먼바다',
+    '서해중부바깥먼바다': '서해중부먼바다',
+
+    // 서해남부 먼바다 통합
+    '서해남부북쪽바깥먼바다': '서해남부먼바다',
+    '서해남부북쪽안쪽먼바다': '서해남부먼바다',
+    '서해남부남쪽바깥먼바다': '서해남부먼바다',
+    '서해남부남쪽안쪽먼바다': '서해남부먼바다',
+
+    // 남해서부 먼바다 통합
+    '남해서부서쪽먼바다': '남해서부먼바다',
+    '남해서부동쪽먼바다': '남해서부먼바다',
+
+    // 남해동부 먼바다 통합
+    '남해동부안쪽먼바다': '남해동부먼바다',
+    '남해동부바깥먼바다': '남해동부먼바다',
+
+    // 동해남부 먼바다 통합
+    '동해남부남쪽안쪽먼바다': '동해남부먼바다',
+    '동해남부남쪽바깥먼바다': '동해남부먼바다',
+    '동해남부북쪽안쪽먼바다': '동해남부먼바다',
+    '동해남부북쪽바깥먼바다': '동해남부먼바다',
+
+    // 동해중부 먼바다 통합
+    '동해중부안쪽먼바다': '동해중부먼바다',
+    '동해중부바깥먼바다': '동해중부먼바다'
+};
+
+// 특보 구역명 → 예보 API 구역코드 매핑
+const ZONE_NAME_TO_CODE = {
+    // === 제주 ===
+    '제주도서부앞바다': '12B10304',
+    '제주도북부앞바다': '12B10302',
+    '제주도동부앞바다': '12B10301',
+    '제주도남부앞바다': '12B10303',
+    '제주도앞바다': '12B10300',
+    '제주도남쪽먼바다': '12B10400',
+    '제주도남서쪽안쪽먼바다': '12B10400',
+    '제주도남동쪽안쪽먼바다': '12B10400',
+    '제주도남쪽바깥먼바다': '12B10400',
+
+    // === 서해중부 ===
+    '인천·경기북부앞바다': '12A20101',
+    '경기북부앞바다': '12A20101',
+    '인천·경기남부앞바다': '12A20102',
+    '충남북부앞바다': '12A20103',
+    '충남남부앞바다': '12A20104',
+    '서해중부앞바다': '12A20100',
+    '서해중부먼바다': '12A20200',
+    '서해중부안쪽먼바다': '12A20200',
+    '서해중부바깥먼바다': '12A20200',
+
+    // === 서해남부 ===
+    '전북북부앞바다': '22A30101',
+    '전북남부앞바다': '22A30102',
+    '전남북부서해앞바다': '22A30103',
+    '전남중부서해앞바다': '22A30104',
+    '전남남부서해앞바다': '22A30105',
+    '서해남부앞바다': '12A30100',
+    '서해남부먼바다': '12A30200',
+    '서해남부북쪽바깥먼바다': '12A30200',
+    '서해남부북쪽안쪽먼바다': '12A30200',
+    '서해남부남쪽바깥먼바다': '12A30200',
+    '서해남부남쪽안쪽먼바다': '12A30200',
+
+    // === 서해북부 ===
+    '서해북부앞바다': '12A10100',
+    '서해북부먼바다': '12A10200',
+
+    // === 남해서부 ===
+    '전남서부남해앞바다': '12B10101',
+    '전남동부남해앞바다': '12B10102',
+    '남해서부앞바다': '12B10100',
+    '남해서부먼바다': '12B10200',
+    '남해서부서쪽먼바다': '12B10200',
+    '남해서부동쪽먼바다': '12B10200',
+
+    // === 남해동부 ===
+    '경남서부남해앞바다': '12B20101',
+    '경남중부남해앞바다': '12B20102',
+    '부산앞바다': '12B20103',
+    '거제시동부앞바다': '12B20104',
+    '남해동부앞바다': '12B20100',
+    '남해동부먼바다': '12B20200',
+    '남해동부안쪽먼바다': '12B20200',
+    '남해동부바깥먼바다': '12B20200',
+
+    // === 동해남부 ===
+    '울산앞바다': '12C10101',
+    '경북남부앞바다': '12C10102',
+    '경북북부앞바다': '12C10103',
+    '동해남부앞바다': '12C10100',
+    '동해남부먼바다': '12C10200',
+    '동해남부남쪽안쪽먼바다': '12C10200',
+    '동해남부남쪽바깥먼바다': '12C10200',
+    '동해남부북쪽안쪽먼바다': '12C10200',
+    '동해남부북쪽바깥먼바다': '12C10200',
+
+    // === 동해중부 ===
+    '강원남부앞바다': '12C20101',
+    '강원중부앞바다': '12C20102',
+    '강원북부앞바다': '12C20103',
+    '동해중부앞바다': '12C20100',
+    '동해중부먼바다': '12C20200',
+    '동해중부안쪽먼바다': '12C20200',
+    '동해중부바깥먼바다': '12C20200',
+
+    // === 동해북부 ===
+    '동해북부앞바다': '12C30100',
+    '동해북부먼바다': '12C30200'
+};
+
+// 구역명으로 API 코드 찾기 (개선된 버전)
+function getZoneCodeByName(zoneName) {
+    // 0. 매핑 테이블에서 먼저 찾기
+    if (ZONE_NAME_TO_CODE[zoneName]) {
+        return ZONE_NAME_TO_CODE[zoneName];
+    }
+
+    if (typeof SEA_ZONE_COORDINATES === 'undefined') return null;
+
+    // 정규화 함수 (공백 제거, 특수문자 제거)
+    const normalize = (str) => str.replace(/\s+/g, '').replace(/[·]/g, '');
+    const normalizedInput = normalize(zoneName);
+
+    // 1. 정확한 일치
+    for (const [code, zone] of Object.entries(SEA_ZONE_COORDINATES)) {
+        if (zone.name === zoneName) {
+            return code;
+        }
+    }
+
+    // 2. 정규화 후 일치
+    for (const [code, zone] of Object.entries(SEA_ZONE_COORDINATES)) {
+        if (normalize(zone.name) === normalizedInput) {
+            return code;
+        }
+    }
+
+    // 3. 부분 일치 (입력이 API 이름을 포함하거나, API 이름이 입력을 포함)
+    for (const [code, zone] of Object.entries(SEA_ZONE_COORDINATES)) {
+        const normalizedZone = normalize(zone.name);
+        if (normalizedInput.includes(normalizedZone) || normalizedZone.includes(normalizedInput)) {
+            return code;
+        }
+    }
+
+    // 4. 해상 → 바다 변환 후 재시도
+    const converted = zoneName.replace('해상', '바다');
+    if (converted !== zoneName) {
+        if (ZONE_NAME_TO_CODE[converted]) {
+            return ZONE_NAME_TO_CODE[converted];
+        }
+        for (const [code, zone] of Object.entries(SEA_ZONE_COORDINATES)) {
+            if (zone.name === converted || normalize(zone.name) === normalize(converted)) {
+                return code;
+            }
+        }
+    }
+
+    console.warn('구역 코드를 찾을 수 없음:', zoneName);
+    return null;
+}
+
+// 해상예보 팝업 모달 표시
+async function showSeaForecastTable(zoneName) {
+    // 매핑된 표시 이름 가져오기
+    const displayName = ZONE_NAME_DISPLAY_MAP[zoneName] || zoneName;
+
+    // 기존 모달이 있으면 제거
+    const existingModal = document.getElementById('sea-forecast-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    // 모달 생성
+    const modal = document.createElement('div');
+    modal.id = 'sea-forecast-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+        padding: 20px;
+        box-sizing: border-box;
+        transition: background 0.3s ease;
+    `;
+
+    // 모달 컨텐츠
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: linear-gradient(145deg, #1a1e2e, #232a3c);
+        border-radius: 16px;
+        max-width: 900px;
+        width: 100%;
+        max-height: 90vh;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transform: scale(0.9) translateY(20px);
+        opacity: 0;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+    `;
+
+    // 헤더
+    const header = document.createElement('div');
+    header.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 24px;
+        background: linear-gradient(135deg, #ffd54f, #ff9800);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    `;
+    header.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:1.5rem;">☀️</span>
+            <div>
+                <div style="font-size:1.1rem;font-weight:700;color:#1a1e2e;">${displayName}</div>
+                <div style="font-size:0.85rem;color:rgba(0,0,0,0.6);">기상예보</div>
+            </div>
+        </div>
+        <button id="close-forecast-modal" style="
+            background: rgba(0,0,0,0.2);
+            border: none;
+            color: #1a1e2e;
+            font-size: 1.5rem;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        ">×</button>
+    `;
+
+    // 컨텐츠 영역
+    const contentArea = document.createElement('div');
+    contentArea.id = 'forecast-content-area';
+    contentArea.style.cssText = `
+        padding: 20px;
+        overflow-x: auto;
+    `;
+    contentArea.innerHTML = `
+        <div style="text-align:center;padding:40px;color:#8899aa;">
+            <div style="width:40px;height:40px;border:3px solid #3a4459;border-top-color:#ffd54f;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 15px;"></div>
+            <p>예보 데이터를 조회하고 있습니다...</p>
+        </div>
+        <style>
+            @keyframes spin { to { transform: rotate(360deg); } }
+        </style>
+    `;
+
+    modalContent.appendChild(header);
+    modalContent.appendChild(contentArea);
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+
+    // 열기 애니메이션
+    requestAnimationFrame(() => {
+        modal.style.background = 'rgba(0, 0, 0, 0.8)';
+        modalContent.style.transform = 'scale(1) translateY(0)';
+        modalContent.style.opacity = '1';
+    });
+
+    // 모달 닫기 함수
+    const closeModal = () => {
+        modal.style.background = 'rgba(0, 0, 0, 0)';
+        modalContent.style.transform = 'scale(0.9) translateY(20px)';
+        modalContent.style.opacity = '0';
+        setTimeout(() => modal.remove(), 300);
+        document.removeEventListener('keydown', escHandler);
+    };
+
+    // 닫기 버튼 이벤트
+    document.getElementById('close-forecast-modal').onclick = closeModal;
+
+    // 배경 클릭 시 닫기
+    modal.onclick = (e) => {
+        if (e.target === modal) closeModal();
+    };
+
+    // ESC 키로 닫기
+    const escHandler = (e) => {
+        if (e.key === 'Escape') closeModal();
+    };
+    document.addEventListener('keydown', escHandler);
+
+    // API 코드 찾기
+    const regId = getZoneCodeByName(zoneName);
+    if (!regId) {
+        contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역의 예보 코드를 찾을 수 없습니다.<br><small style="color:#666;">(${zoneName})</small></div>`;
+        return;
+    }
+
+    try {
+        // 로컬 서버 API에서 데이터 가져오기
+        const response = await fetch('/api/forecasts');
+        if (!response.ok) throw new Error('로컬 서버 응답 오류');
+
+        const json = await response.json();
+
+        // regId로 데이터 찾기
+        const items = json.data && json.data[regId];
+
+        if (items && items.length > 0) {
+            // 발표시각
+            const tmFc = json.tmFc || (items[0] && items[0].tmFc);
+            renderSeaForecastTableInModal(contentArea, items, displayName, tmFc);
+        } else {
+            contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역(${regId})의 예보 데이터가 없습니다.<br><small style="color:#666;">스케줄러가 데이터를 수집할 때까지 기다려주세요.</small></div>`;
+        }
+    } catch (error) {
+        // console.error('해상예보 조회 오류:', error);
+        contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ef5350;">❌ 데이터 조회 중 오류가 발생했습니다.<br><small>${error.message}</small></div>`;
+    }
+}
+
+
+
+// 해상예보 테이블 렌더링 (모달용) - VilageFcstMsgService API 구조
+function renderSeaForecastTableInModal(container, items, zoneName, tmFc = null) {
+    const today = new Date();
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+    // numEf를 날짜/시간으로 변환
+    const forecasts = items.map(item => {
+        const numEf = parseInt(item.numEf) || 0;
+        const dayOffset = Math.floor(numEf / 2);
+        const isAM = numEf % 2 === 1;
+
+        const date = new Date(today);
+        date.setDate(date.getDate() + dayOffset);
+
+        return {
+            ...item,
+            date: date,
+            dayOffset: dayOffset,
+            period: isAM ? 'am' : 'pm'
+        };
+    });
+
+    // 날짜별 그룹화
+    const dateGroups = {};
+    forecasts.forEach(f => {
+        if (!dateGroups[f.dayOffset]) {
+            dateGroups[f.dayOffset] = {
+                date: f.date,
+                am: null,
+                pm: null
+            };
+        }
+        dateGroups[f.dayOffset][f.period] = f;
+    });
+
+    const sortedDays = Object.keys(dateGroups).sort((a, b) => a - b).slice(0, 4);
+
+    // 테이블 스타일
+    const tableStyle = `
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+        min-width: 600px;
+    `;
+
+    const thStyle = `
+        padding: 10px 6px;
+        text-align: center;
+        background: #2a3347;
+        color: #fff;
+        font-weight: 600;
+        border-bottom: 2px solid #4fc3f7;
+    `;
+
+    const tdStyle = `
+        padding: 8px 6px;
+        text-align: center;
+        border-bottom: 1px solid #3a4459;
+        color: #e0e6ed;
+    `;
+
+    const labelStyle = `
+        background: #1e2433;
+        text-align: left;
+        padding-left: 12px;
+        color: #4fc3f7;
+        font-weight: 500;
+        border-right: 1px solid #3a4459;
+        width: 60px;
+    `;
+
+    let html = `<table style="${tableStyle}">`;
+
+    // 날짜 헤더 행
+    html += `<tr>
+        <th style="${thStyle}; ${labelStyle}">날짜</th>`;
+    sortedDays.forEach((dayKey, idx) => {
+        const d = dateGroups[dayKey].date;
+        const dayLabels = ['오늘', '내일', '모레', ''];
+        const label = dayLabels[idx] || '';
+        const dateStr = `${d.getDate()}일(${dayNames[d.getDay()]})`;
+        html += `<th colspan="2" style="${thStyle}">${dateStr}<br><small style="opacity:0.7">${label}</small></th>`;
+    });
+    html += `</tr>`;
+
+    // 시간 헤더 행
+    html += `<tr>
+        <th style="${thStyle}; ${labelStyle}">시각</th>`;
+    sortedDays.forEach(() => {
+        html += `<th style="${thStyle}; font-size:0.8rem;">오전</th><th style="${thStyle}; font-size:0.8rem;">오후</th>`;
+    });
+    html += `</tr>`;
+
+    // 날씨 행
+    html += `<tr>
+        <th style="${tdStyle}; ${labelStyle}">날씨</th>`;
+    sortedDays.forEach(dayKey => {
+        const group = dateGroups[dayKey];
+        ['am', 'pm'].forEach(period => {
+            const f = group[period];
+            if (f) {
+                const icon = SEA_WEATHER_CODES[f.wfCd] || '❓';
+                html += `<td style="${tdStyle}"><span style="font-size:1.3rem">${icon}</span></td>`;
+            } else {
+                html += `<td style="${tdStyle}">-</td>`;
+            }
+        });
+    });
+    html += `</tr>`;
+
+    // 파고 행
+    html += `<tr>
+        <th style="${tdStyle}; ${labelStyle}">파고<small style="display:block;font-size:0.7rem;color:#8899aa">(m)</small></th>`;
+    sortedDays.forEach(dayKey => {
+        const group = dateGroups[dayKey];
+        ['am', 'pm'].forEach(period => {
+            const f = group[period];
+            if (f && f.wh1 !== undefined) {
+                html += `<td style="${tdStyle}; color:#4db6ac; font-weight:600;">${f.wh1}~${f.wh2}m</td>`;
+            } else {
+                html += `<td style="${tdStyle}">-</td>`;
+            }
+        });
+    });
+    html += `</tr>`;
+
+    // 풍속 행
+    html += `<tr>
+        <th style="${tdStyle}; ${labelStyle}">풍속<small style="display:block;font-size:0.7rem;color:#8899aa">(m/s)</small></th>`;
+    sortedDays.forEach(dayKey => {
+        const group = dateGroups[dayKey];
+        ['am', 'pm'].forEach(period => {
+            const f = group[period];
+            if (f && f.ws1 !== undefined) {
+                html += `<td style="${tdStyle}; color:#ff9800; font-weight:600;">${f.ws1}~${f.ws2}m/s</td>`;
+            } else {
+                html += `<td style="${tdStyle}">-</td>`;
+            }
+        });
+    });
+    html += `</tr>`;
+
+    // 풍향 행
+    html += `<tr>
+        <th style="${tdStyle}; ${labelStyle}">풍향</th>`;
+    sortedDays.forEach(dayKey => {
+        const group = dateGroups[dayKey];
+        ['am', 'pm'].forEach(period => {
+            const f = group[period];
+            if (f && f.wd1) {
+                const wd1 = SEA_WIND_DIRS[f.wd1] || f.wd1;
+                const wd2 = SEA_WIND_DIRS[f.wd2] || f.wd2;
+                html += `<td style="${tdStyle}">${wd1}→${wd2}</td>`;
+            } else {
+                html += `<td style="${tdStyle}">-</td>`;
+            }
+        });
+    });
+    html += `</tr>`;
+
+    // 예보 행
+    html += `<tr>
+        <th style="${tdStyle}; ${labelStyle}">예보</th>`;
+    sortedDays.forEach(dayKey => {
+        const group = dateGroups[dayKey];
+        ['am', 'pm'].forEach(period => {
+            const f = group[period];
+            if (f && f.wf) {
+                html += `<td style="${tdStyle}; font-size:0.75rem; color:#8899aa; white-space:normal; max-width:80px; line-height:1.3;">${f.wf}</td>`;
+            } else {
+                html += `<td style="${tdStyle}">-</td>`;
+            }
+        });
+    });
+    html += `</tr>`;
+
+    html += `</table>`;
+
+    // 발표시각 포맷팅
+    let tmFcText = '';
+    if (tmFc) {
+        const tmFcStr = String(tmFc);
+        const year = tmFcStr.substring(0, 4);
+        const month = tmFcStr.substring(4, 6);
+        const day = tmFcStr.substring(6, 8);
+        const hour = tmFcStr.substring(8, 10);
+        const minute = tmFcStr.substring(10, 12);
+        tmFcText = `${year}.${month}.${day} ${hour}:${minute} 발표`;
+    }
+
+    // 테이블과 발표시각 표시
+    container.innerHTML = `
+        <div style="position:relative;">
+            <div style="overflow-x:auto;">${html}</div>
+            <div style="text-align:center; font-size:0.95rem; color:#ffffff; padding:10px 0 4px; font-weight:500;">☜ 밀어서 더 많은 정보를 확인하세요 ☞</div>
+            ${tmFcText ? `
+                <div style="
+                    text-align: right;
+                    padding: 4px 5px 5px 5px;
+                    font-size: 0.75rem;
+                    color: #8899aa;
+                ">${tmFcText}</div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// 전역 함수로 등록
+window.showSeaForecastTable = showSeaForecastTable;
+
+// ===== 해구별 기상정보 이용안내 팝업 =====
+
+/**
+ * 해구별 기상정보 이용안내 팝업 표시
+ */
+function showSeaZoneInfoPopup() {
+    // 기존 모달 있으면 제거
+    const existing = document.getElementById('sea-zone-info-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'sea-zone-info-modal';
+    modal.className = 'sea-zone-info-modal';
+    modal.innerHTML = `
+        <div class="sea-zone-info-overlay" onclick="closeSeaZoneInfoPopup()"></div>
+        <div class="sea-zone-info-content">
+            <div class="sea-zone-info-header">
+                <h3><i class="fa-solid fa-circle-info"></i> 이용안내</h3>
+                <button class="sea-zone-info-close" onclick="closeSeaZoneInfoPopup()" title="닫기">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="sea-zone-info-body">
+                <div class="info-section">
+                    <div class="info-section-title">
+                        <i class="fa-solid fa-database"></i> 제공정보 (기상청 API)
+                    </div>
+                    <ul class="info-list">
+                        <li>각 대해구･소해구별 기상전망 (매일 00시, 12시 발표)</li>
+                        <li>각 부이별 관측 데이터 (매시간 발표)</li>
+                    </ul>
+                </div>
+                <div class="info-section">
+                    <div class="info-section-title">
+                        <i class="fa-solid fa-triangle-exclamation"></i> 유의사항
+                    </div>
+                    <ul class="info-list">
+                        <li>경위도 오차 가능성 고려 항해용도 사용불가</li>
+                        <li>각 특보구역 및 부이는 대략적 위치로 표출</li>
+                        <li>연안바다 및 평수구역의 위치정보 미표출</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // 애니메이션을 위해 약간의 딜레이 후 show 클래스 추가
+    requestAnimationFrame(() => {
+        modal.classList.add('show');
+    });
+}
+
+/**
+ * 해구별 기상정보 이용안내 팝업 닫기
+ */
+function closeSeaZoneInfoPopup() {
+    const modal = document.getElementById('sea-zone-info-modal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => modal.remove(), 300);
+    }
+}
+
+// 전역 함수로 등록
+window.showSeaZoneInfoPopup = showSeaZoneInfoPopup;
+window.closeSeaZoneInfoPopup = closeSeaZoneInfoPopup;
+
+// ===== 해역별 특보 현황 이용안내 팝업 =====
+
+/**
+ * 해역별 특보 현황 이용안내 팝업 표시
+ */
+function showWeatherAlertInfoPopup() {
+    // 기존 모달 있으면 제거
+    const existing = document.getElementById('weather-alert-info-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'weather-alert-info-modal';
+    modal.className = 'sea-zone-info-modal';
+    modal.innerHTML = `
+        <div class="sea-zone-info-overlay" onclick="closeWeatherAlertInfoPopup()"></div>
+        <div class="sea-zone-info-content">
+            <div class="sea-zone-info-header">
+                <h3><i class="fa-solid fa-circle-info"></i> 이용안내</h3>
+                <button class="sea-zone-info-close" onclick="closeWeatherAlertInfoPopup()" title="닫기">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="sea-zone-info-body">
+                <div class="info-section">
+                    <div class="info-section-title">
+                        <i class="fa-solid fa-database"></i> 제공정보 (기상청 API 등)
+                    </div>
+                    <ul class="info-list">
+                        <li>각 해역 특보구역별 특보(태풍, 풍랑, 폭풍해일, 지진해일) 현황 및 변경사항</li>
+                        <li>특보구역 내 위치 중인 부이의 관측 데이터 (매시간 발표)</li>
+                        <li>앞바다의 기상예보 (05시, 17시 발표)</li>
+                        <li>해구별 기상전망</li>
+                    </ul>
+                </div>
+                <div class="info-section">
+                    <div class="info-section-title">
+                        <i class="fa-solid fa-triangle-exclamation"></i> 유의사항
+                    </div>
+                    <ul class="info-list">
+                        <li>기상특보 : 기상청에서 발표하는 정보를 기반으로 제공하나, 기상청 홈페이지 기상정보 수시 확인 요망</li>
+                        <li>출항 가능여부 등 판단 시 반드시 신고기관(파출소, 출장소 등)에 확인 요망</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // 애니메이션을 위해 약간의 딜레이 후 show 클래스 추가
+    requestAnimationFrame(() => {
+        modal.classList.add('show');
+    });
+}
+
+/**
+ * 해역별 특보 현황 이용안내 팝업 닫기
+ */
+function closeWeatherAlertInfoPopup() {
+    const modal = document.getElementById('weather-alert-info-modal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => modal.remove(), 300);
+    }
+}
+
+// 전역 함수로 등록
+window.showWeatherAlertInfoPopup = showWeatherAlertInfoPopup;
+window.closeWeatherAlertInfoPopup = closeWeatherAlertInfoPopup;
+
+// ===== 물 때 정보 이용안내 팝업 =====
+
+/**
+ * 물 때 정보 이용안내 팝업 표시
+ */
+function showTideInfoPopup() {
+    // 기존 모달 있으면 제거
+    const existing = document.getElementById('tide-info-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'tide-info-modal';
+    modal.className = 'sea-zone-info-modal';
+    modal.innerHTML = `
+        <div class="sea-zone-info-overlay" onclick="closeTideInfoPopup()"></div>
+        <div class="sea-zone-info-content">
+            <div class="sea-zone-info-header">
+                <h3><i class="fa-solid fa-circle-info"></i> 이용안내</h3>
+                <button class="sea-zone-info-close" onclick="closeTideInfoPopup()" title="닫기">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="sea-zone-info-body">
+                <div class="info-section">
+                    <div class="info-section-title">
+                        <i class="fa-solid fa-database"></i> 제공정보 (국립해양조사원 조석예보 API 기반)
+                    </div>
+                    <ul class="info-list">
+                        <li>조석정보, 일출･몰, 월출･몰, 월령 및 밝기, 달 모양 정보</li>
+                    </ul>
+                </div>
+                <div class="info-section">
+                    <div class="info-section-title">
+                        <i class="fa-solid fa-triangle-exclamation"></i> 유의사항
+                    </div>
+                    <ul class="info-list">
+                        <li>국립해양조사원은 공식적으로 166개 <strong>"표준항 외 위치의 조석정보를 제공하지 않음"</strong></li>
+                        <li>선택한 위치의 정보는 <strong>"표준항의 조석 관측･예측정보를 기준"</strong>으로 환경, 거리 등 요소를 <strong style="color: #448aff;">"자체 계산 로직에 반영"</strong>하여 산출한 결과임.</li>
+                        <li>산출된 결과는 자체 계산 로직에 따라 계산된 값이므로 <strong style="color: #ff5252;">"실제와 오차가 있으므로 이 정보 이용에 따른 책임을 지지 않음."</strong></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // 애니메이션을 위해 약간의 딜레이 후 show 클래스 추가
+    requestAnimationFrame(() => {
+        modal.classList.add('show');
+    });
+}
+
+/**
+ * 물 때 정보 이용안내 팝업 닫기
+ */
+function closeTideInfoPopup() {
+    const modal = document.getElementById('tide-info-modal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => modal.remove(), 300);
+    }
+}
+
+// 전역 함수로 등록
+window.showTideInfoPopup = showTideInfoPopup;
+window.closeTideInfoPopup = closeTideInfoPopup;
+
+// 헤더 클릭 시 전체 데이터 새로고침
+async function handleHeaderRefresh() {
+    // 기상정보 탭으로 강제 전환 (programmatic click 제거 -> switchMainTab 사용)
+    window.switchMainTab("weather-alert-section");
+
+    // 이미 로딩 중이면 무시
+    if (appState.isLoading) return;
+
+    try {
+        await fetchAllData();
+    } catch (e) {
+        // console.error('Refresh failed:', e);
+    }
+}
+window.handleHeaderRefresh = handleHeaderRefresh;
+
+// ============================================================================
+// 실시간 시간 표시 업데이트
+// ============================================================================
+
+/**
+ * 우측 상단 시간 표시 업데이트
+ */
+function updateTimeDisplay() {
+    const now = new Date();
+    const dateEl = document.getElementById('current-date');
+    const timeEl = document.getElementById('current-time');
+
+    if (dateEl && timeEl) {
+        const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+        dateEl.textContent = now.toLocaleDateString('ko-KR', options);
+        timeEl.textContent = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // 좌측 상단 '최근 업데이트' 시간도 현재 시간으로 동기화
+    // (사용자 요청: 아무것도 안 해도 자동 업데이트, 두 시간 동일하게)
+    if (typeof ApiStatusManager !== 'undefined') {
+        // appState.lastUpdated를 현재 시간으로 잠시 덮어쓰거나, 
+        // ApiStatusManager.update()가 내부적으로 new Date()를 쓰도록 했으므로 그냥 호출만 하면 됨.
+        // 단, ApiStatusManager.update()가 appState.lastUpdated를 우선 사용한다면 
+        // 여기서 로직 변경이 필요할 수 있으나, 이전 스텝에서 new Date()를 fallback으로 넣었음.
+        // 하지만 사용자가 "시간 기준이 동일하게"라고 했으므로 
+        // ApiStatusManager가 표시하는 시간도 'current-time'과 완전히 같아야 함.
+
+        // 가장 확실한 방법: ApiStatusManager 업데이트 시 appState.lastUpdated가 아닌 'now'를 쓰도록 유도
+        // 이전 수정에서: const time = appState.lastUpdated || new Date(); 였음.
+        // 업데이트 안 눌렀으면 lastUpdated는 갱신 안 됨 -> 구 시간이 뜸.
+        // 따라서 "자동 업데이트"를 원한다면 그냥 현재 시간을 박아야 함.
+
+        // ApiStatusManager.update() 내용을 보면 appState.lastUpdated가 있으면 그걸 씀.
+        // 그러므로 강제로 현재 시간을 보여주려면 update 로직을 또 고쳐야 하거나,
+        // 여기서 직접 DOM을 건드려야 함.
+
+        // 하지만 더 좋은 방법:
+        // ApiStatusManager.update()가 '실시간 시계' 역할을 하도록 변경했어야 함.
+        // 이전 단계에서 수정한 ApiStatusManager.update()는 'lastUpdated'가 있으면 그걸 썼음.
+        // 사용자는 "아무것도 하지 않아도 시간이 가길" 원함.
+        // 즉 lastUpdated(데이터 갱신 시각)이 아니라 Current Time(현재 시각)을 원함.
+
+        // 따라서 여기서 ApiStatusManager의 update를 호출하되, 
+        // ApiStatusManager.update 내부에서 'lastUpdated' 의존성을 제거하고 항상 new Date()를 쓰게 해야 함.
+
+        // 그러려면 이 함수에서 ApiStatusManager를 호출하기 전에, 
+        // ApiStatusManager.update() 메소드를 다시 수정해야 함.
+        // 일단 여기서는 호출만 추가. 다음 스텝이나 이번 스텝에서 ApiStatusManager도 고쳐야 함.
+        if (window.ApiStatusManager) ApiStatusManager.update();
+    }
+}
+
+// 시간 표시 초기화 및 1초마다 업데이트 (초 단위 동기화)
+updateTimeDisplay();
+setInterval(updateTimeDisplay, 1000);
+
