@@ -8638,6 +8638,10 @@ window.openAddAlertModal = function (zoneName) {
                         <option value="경보">경보</option>
                     </select>
                 </div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">발표 시각</label>
+                    <input type="datetime-local" id="ma-tmFc" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;color-scheme:dark;">
+                </div>
                 ${buildTimeFieldHTML('ma-tmEf', '발효 시각', false)}
                 ${buildTimeFieldHTML('ma-tmEd', '해제 예정 시각', true)}
                 <button onclick="submitManualAlert('${zoneName}', 'add')" style="width:100%;padding:12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.9rem;">
@@ -8649,7 +8653,9 @@ window.openAddAlertModal = function (zoneName) {
 
     // 기본값: 현재 시각(KST)
     const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
-    document.getElementById('ma-tmEf').value = now.toISOString().slice(0, 16);
+    const nowStr = now.toISOString().slice(0, 16);
+    document.getElementById('ma-tmFc').value = nowStr;
+    document.getElementById('ma-tmEf').value = nowStr;
     // 범위형 날짜 기본값
     const todayStr = now.toISOString().slice(0, 10);
     const efDateEl = document.getElementById('ma-tmEf-range-date');
@@ -8695,6 +8701,10 @@ window.openEditAlertModal = function (zoneName, alertIdx) {
                         <option value="경보" ${alert.level === '경보' ? 'selected' : ''}>경보</option>
                     </select>
                 </div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">발표 시각</label>
+                    <input type="datetime-local" id="ma-tmFc" style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;color-scheme:dark;">
+                </div>
                 ${buildTimeFieldHTML('ma-tmEf', '발효 시각', false)}
                 ${buildTimeFieldHTML('ma-tmEd', '해제 예정 시각', true)}
                 <button onclick="submitManualAlert('${zoneName}', 'edit')" style="width:100%;padding:12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.9rem;">
@@ -8712,6 +8722,14 @@ window.openEditAlertModal = function (zoneName, alertIdx) {
         if (!m) return null;
         return { date: `${m[1]}-${m[2]}-${m[3]}`, period: m[4].trim() };
     };
+
+    // 발표 시각
+    const tmFcVal = toLocalDatetime(alert.tmFc);
+    if (tmFcVal) document.getElementById('ma-tmFc').value = tmFcVal;
+    else {
+        const kstNowTmp = new Date(Date.now() + 9 * 60 * 60 * 1000);
+        document.getElementById('ma-tmFc').value = kstNowTmp.toISOString().slice(0, 16);
+    }
 
     // 발효 시각
     if (isRangeVal(alert.tmEfDisplay || alert.tmEf)) {
@@ -8808,12 +8826,14 @@ window.submitManualAlert = async function (zoneName, mode, alertIdx) {
         return;
     }
 
+    // 발표 시각 읽기
+    const tmFcRaw = document.getElementById('ma-tmFc').value;
+    const tmFc = tmFcRaw ? toKmaFormat(tmFcRaw) : toKmaFormat(new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16));
+
     // 현재 시각과 비교하여 command 결정 (발표=아직 미발효, 발효=이미 발효)
     const now = new Date();
     // 범위형이면 정확한 비교 불가 → 발표로 처리
     const command = (mode === 'edit') ? '변경' : (tmEfIsRange ? '발표' : (new Date(tmEfRaw) > now ? '발표' : '발효'));
-
-    const tmFc = toKmaFormat(new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16));
 
     try {
         // 수정 모드일 때 기존 특보를 먼저 해제
