@@ -1,0 +1,32 @@
+# fly.staging.toml - SEAGNAL 스테이징 서버 설정
+#
+# [용도] 리팩토링 및 테스트용 스테이징 환경
+# [배포] flyctl deploy --config fly.staging.toml --remote-only
+# [접속] https://seagnal-staging.fly.dev
+#
+# 프로덕션(fly.toml)과의 차이점:
+#   - app 이름: seagnal-staging (프로덕션: seagnal-server)
+#   - 볼륨 이름: seagnal_staging_data (프로덕션: seagnal_data)
+#   - auto_stop_machines: true (비용 절감, 프로덕션: false)
+#   - min_machines_running: 0 (비용 절감, 프로덕션: 1)
+
+app = 'seagnal-staging'
+primary_region = 'sin'
+
+[[mounts]]
+  source = 'seagnal_staging_data'
+  destination = '/app/local_server/data'
+
+[http_service]
+  internal_port = 3001
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 512
