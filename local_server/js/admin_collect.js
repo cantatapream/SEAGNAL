@@ -820,7 +820,7 @@ async function renderUnifiedNoticeContent(container) {
     window.saveNoticeUnified = async function () {
         const dateVal = document.getElementById('uni-notice-date').value;
         const payload = {
-            id: document.getElementById('uni-notice-id').value || Date.now(),
+            id: Number(document.getElementById('uni-notice-id').value) || Date.now(),
             title: document.getElementById('uni-notice-title').value,
             content: document.getElementById('uni-notice-content').value,
             expiresAt: dateVal
@@ -842,7 +842,7 @@ window.editNoticeUnified = async function (id) {
         const res = await fetch(CONFIG.API_BASE + '/api/notices');
         const data = await res.json();
         const allNotices = [...(data.active || []), ...(data.expired || [])];
-        const target = allNotices.find(n => n.id === id);
+        const target = allNotices.find(n => String(n.id) === String(id));
 
         if (target) {
             document.getElementById('uni-notice-id').value = target.id;
@@ -1492,7 +1492,7 @@ window.editNotice = async function (id) {
         const res = await fetch(CONFIG.API_BASE + '/api/notices');
         const data = await res.json();
         const allNotices = [...(data.active || []), ...(data.expired || [])];
-        const target = allNotices.find(n => n.id === id);
+        const target = allNotices.find(n => String(n.id) === String(id));
 
         if (target) {
             document.getElementById('notice-edit-id').value = target.id;
