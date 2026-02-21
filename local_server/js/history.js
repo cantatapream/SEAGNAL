@@ -1240,9 +1240,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// 헤더 클릭 시 데이터 새로고침
+// 헤더 클릭 시 기상정보 탭 이동 + 데이터 새로고침
 window.handleHeaderRefresh = function () {
-    console.log('🔄 헤더 클릭: 전체 데이터 새로고침');
+    console.log('🔄 헤더 클릭: 기상정보 탭 전환 + 전체 데이터 새로고침');
+    if (typeof window.switchMainTab === 'function') {
+        window.switchMainTab('weather-alert-section');
+    }
     fetchAllData();
     if (typeof renderMarineWeatherStatus === 'function') renderMarineWeatherStatus();
 };
