@@ -808,18 +808,24 @@ async function renderUnifiedNoticeContent(container) {
             expiredEl.innerHTML = (data.expired || []).map(n => `
                 <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid rgba(255,255,255,0.03);">
                     <div style="font-size:0.85rem; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${n.title}</div>
-                    <button onclick="editNoticeUnified(${n.id})" style="background:none; border:none; color:#38bdf8; cursor:pointer; font-size:0.8rem;">복사</button>
+                    <div style="display:flex; gap:5px;">
+                        <button onclick="editNoticeUnified(${n.id})" style="background:none; border:none; color:#38bdf8; cursor:pointer; font-size:0.8rem;">복사</button>
+                        <button onclick="deleteNoticeUnified(${n.id})" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.8rem;">삭제</button>
+                    </div>
                 </div>
             `).join('') || '<div style="color:#64748b; font-size:0.8rem; padding:10px;">종료 이력 없음</div>';
         } catch (e) { }
     };
 
     window.saveNoticeUnified = async function () {
+        const dateVal = document.getElementById('uni-notice-date').value;
         const payload = {
             id: document.getElementById('uni-notice-id').value || Date.now(),
             title: document.getElementById('uni-notice-title').value,
             content: document.getElementById('uni-notice-content').value,
-            expiresAt: `${document.getElementById('uni-notice-date').value} ${document.getElementById('uni-notice-hour').value.padStart(2, '0')}:${document.getElementById('uni-notice-min').value.padStart(2, '0')}`,
+            expiresAt: dateVal
+                ? `${dateVal} ${document.getElementById('uni-notice-hour').value.padStart(2, '0')}:${document.getElementById('uni-notice-min').value.padStart(2, '0')}`
+                : null,
             isActive: true
         };
         if (!payload.title || !payload.content) return alert('내용을 입력하세요.');
