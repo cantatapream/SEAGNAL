@@ -84,7 +84,10 @@ router.get('/api/notices', (req, res) => {
         notices.forEach(n => {
             if (n.expiresAt) {
                 const expDate = new Date(n.expiresAt.replace(' ', 'T') + ':00');
-                if (expDate > now && n.isActive !== false) {
+                if (isNaN(expDate.getTime())) {
+                    // 날짜 파싱 실패 시 isActive 기준으로 분류
+                    (n.isActive ? active : expired).push(n);
+                } else if (expDate > now && n.isActive !== false) {
                     active.push(n);
                 } else {
                     expired.push(n);
