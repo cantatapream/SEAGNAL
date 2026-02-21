@@ -1,0 +1,29 @@
+[
+  {
+    "id": "NOTICE",
+    "name": "공지사항",
+    "badgeText": "공지",
+    "badgeColor": "#ff5252",
+    "sortOrder": 1,
+    "isDefault": true,
+    "createdAt": "2026-01-01 00:00"
+  },
+  {
+    "id": "LEGAL",
+    "name": "법률정보",
+    "badgeText": "법률",
+    "badgeColor": "#448aff",
+    "sortOrder": 2,
+    "isDefault": true,
+    "createdAt": "2026-01-01 00:00"
+  },
+  {
+    "id": "PROMO",
+    "name": "홍보정보",
+    "badgeText": "홍보",
+    "badgeColor": "#69f0ae",
+    "sortOrder": 3,
+    "isDefault": true,
+    "createdAt": "2026-01-01 00:00"
+  }
+]
