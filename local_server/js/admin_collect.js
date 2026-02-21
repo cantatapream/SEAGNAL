@@ -842,7 +842,7 @@ window.editNoticeUnified = async function (id) {
         const res = await fetch(CONFIG.API_BASE + '/api/notices');
         const data = await res.json();
         const allNotices = [...(data.active || []), ...(data.expired || [])];
-        const target = allNotices.find(n => n.id === id);
+        const target = allNotices.find(n => String(n.id) === String(id));
 
         if (target) {
             document.getElementById('uni-notice-id').value = target.id;
@@ -1492,7 +1492,7 @@ window.editNotice = async function (id) {
         const res = await fetch(CONFIG.API_BASE + '/api/notices');
         const data = await res.json();
         const allNotices = [...(data.active || []), ...(data.expired || [])];
-        const target = allNotices.find(n => n.id === id);
+        const target = allNotices.find(n => String(n.id) === String(id));
 
         if (target) {
             document.getElementById('notice-edit-id').value = target.id;

@@ -118,7 +118,7 @@ router.post('/api/notices', (req, res) => {
             notices = JSON.parse(fs.readFileSync(filePath, 'utf8'));
         }
 
-        const existingIdx = notices.findIndex(n => n.id === newNotice.id);
+        const existingIdx = notices.findIndex(n => String(n.id) === String(newNotice.id));
         if (existingIdx >= 0) {
             notices[existingIdx] = newNotice;
         } else {
@@ -142,7 +142,7 @@ router.post('/api/notices', (req, res) => {
 
 // 공지사항 삭제
 router.delete('/api/notice/:id', (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = req.params.id; // 문자열 그대로 유지 (타입 불일치 방지)
 
     try {
         const filePath = path.join(DATA_DIR, 'notices.json');
@@ -152,11 +152,11 @@ router.delete('/api/notice/:id', (req, res) => {
             notices = JSON.parse(fs.readFileSync(filePath, 'utf8'));
         }
 
-        notices = notices.filter(n => n.id !== id);
+        notices = notices.filter(n => String(n.id) !== String(id));
         fs.writeFileSync(filePath, JSON.stringify(notices, null, 2), 'utf8');
 
         // 현재 활성 공지(notice.json / dataCache)가 삭제 대상이면 함께 정리
-        if (dataCache.notice && dataCache.notice.id === id) {
+        if (dataCache.notice && String(dataCache.notice.id) === String(id)) {
             dataCache.notice = { isActive: false };
             const singlePath = path.join(DATA_DIR, 'notice.json');
             fs.writeFileSync(singlePath, JSON.stringify({ isActive: false }, null, 2), 'utf8');
