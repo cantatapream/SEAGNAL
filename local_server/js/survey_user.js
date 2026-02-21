@@ -139,13 +139,16 @@
     }
 
     // ========================================================================
-    // 화면 2: 설문 진행 (스텝 방식, 닫기 불가)
+    // 화면 2: 설문 진행 (페이지당 3문항씩 표시)
     // ========================================================================
+    const QUESTIONS_PER_PAGE = 3;
+
     function showSurveyForm(survey) {
         const questions = survey.questions || [];
         if (questions.length === 0) return;
 
-        let currentStep = 0;
+        let currentPage = 0;
+        const totalPages = Math.ceil(questions.length / QUESTIONS_PER_PAGE);
         const answers = {};
 
         const popup = document.createElement('div');
@@ -153,15 +156,17 @@
         popup.style.cssText = 'position:fixed;inset:0;z-index:10100;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);display:flex;flex-direction:column;animation:svFadeIn 0.2s ease-out;';
 
         function render() {
-            const q = questions[currentStep];
-            const pct = Math.round(((currentStep + 1) / questions.length) * 100);
-            const isLast = currentStep === questions.length - 1;
-            const isFirst = currentStep === 0;
+            const startIdx = currentPage * QUESTIONS_PER_PAGE;
+            const endIdx = Math.min(startIdx + QUESTIONS_PER_PAGE, questions.length);
+            const pageQuestions = questions.slice(startIdx, endIdx);
+            const pct = Math.round(((currentPage + 1) / totalPages) * 100);
+            const isFirst = currentPage === 0;
+            const isLast = currentPage === totalPages - 1;
 
             popup.innerHTML = `
                 <style>
                     @keyframes svFadeIn { from { opacity:0; } to { opacity:1; } }
-                    .sv-form-body { animation: svFadeIn 0.2s ease-out; }
+                    .sv-page-body { animation: svFadeIn 0.2s ease-out; }
                     .sv-option { padding:14px 16px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:10px; margin-bottom:8px; cursor:pointer; transition:all 0.15s; display:flex; align-items:center; gap:10px; color:#cbd5e1; font-size:0.92rem; }
                     .sv-option:hover { background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,0.15); }
                     .sv-option.selected { background:rgba(16,185,129,0.12); border-color:rgba(16,185,129,0.4); color:#fff; }
@@ -175,7 +180,7 @@
                 <div style="padding:16px 20px; display:flex; align-items:center; gap:12px;">
                     <div style="flex:1;">
                         <div style="color:#fff; font-weight:700; font-size:0.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escSurveyHtml(survey.title)}</div>
-                        <div style="color:#64748b; font-size:0.78rem; margin-top:2px;">${currentStep + 1} / ${questions.length}</div>
+                        <div style="color:#64748b; font-size:0.78rem; margin-top:2px;">${currentPage + 1} / ${totalPages} 페이지</div>
                     </div>
                 </div>
                 <div style="padding:0 20px;">
@@ -183,12 +188,18 @@
                         <div style="height:100%; width:${pct}%; background:linear-gradient(90deg,#10b981,#34d399); border-radius:4px; transition:width 0.3s;"></div>
                     </div>
                 </div>
-                <div class="sv-form-body" style="flex:1; overflow-y:auto; padding:24px 20px;">
-                    <div style="margin-bottom:8px;">
-                        <span style="color:#fff; font-weight:700; font-size:1.05rem; line-height:1.5;">Q${currentStep + 1}. ${escSurveyHtml(q.title)}</span>
-                        ${q.required ? '<span style="color:#ef4444; margin-left:6px; font-size:0.8rem;">*필수</span>' : ''}
-                    </div>
-                    <div id="sv-answer-area" style="margin-top:16px;"></div>
+                <div class="sv-page-body" style="flex:1; overflow-y:auto; padding:16px 20px 24px;">
+                    ${pageQuestions.map((q, pi) => {
+                        const globalIdx = startIdx + pi;
+                        return `
+                        <div style="padding:18px 16px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:12px; margin-bottom:12px;">
+                            <div style="margin-bottom:12px;">
+                                <span style="color:#fff; font-weight:700; font-size:1rem; line-height:1.5;">Q${globalIdx + 1}. ${escSurveyHtml(q.title)}</span>
+                                ${q.required ? '<span style="color:#ef4444; margin-left:6px; font-size:0.8rem;">*필수</span>' : ''}
+                            </div>
+                            <div id="sv-answer-area-${globalIdx}"></div>
+                        </div>`;
+                    }).join('')}
                 </div>
                 <div style="padding:16px 20px; display:flex; gap:10px; border-top:1px solid rgba(255,255,255,0.06);">
                     ${!isFirst ? `<button id="sv-btn-prev" style="flex:1; padding:14px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:12px; color:#94a3b8; font-size:0.92rem; cursor:pointer; font-weight:600;"><i class="fa-solid fa-chevron-left"></i> 이전</button>` : ''}
@@ -198,28 +209,38 @@
                 </div>
             `;
 
-            const area = popup.querySelector('#sv-answer-area');
-            renderAnswerInput(area, q, answers);
+            // 현재 페이지 질문들의 답변 영역 렌더링
+            pageQuestions.forEach((q, pi) => {
+                const globalIdx = startIdx + pi;
+                const area = popup.querySelector('#sv-answer-area-' + globalIdx);
+                if (area) renderAnswerInput(area, q, answers);
+            });
 
             // 이전 버튼
             const prevBtn = popup.querySelector('#sv-btn-prev');
-            if (prevBtn) prevBtn.onclick = () => { currentStep--; render(); };
+            if (prevBtn) prevBtn.onclick = () => { currentPage--; render(); };
 
             // 다음/제출 버튼
             popup.querySelector('#sv-btn-next').onclick = async () => {
-                // 필수 체크
-                if (q.required) {
-                    const a = answers[q.qId];
-                    if (a === undefined || a === null || a === '' || (Array.isArray(a) && a.length === 0)) {
-                        alert('이 질문은 필수 응답입니다.');
-                        return;
+                // 현재 페이지의 필수 항목 체크
+                for (let pi = 0; pi < pageQuestions.length; pi++) {
+                    const q = pageQuestions[pi];
+                    const globalIdx = startIdx + pi;
+                    if (q.required) {
+                        const a = answers[q.qId];
+                        if (a === undefined || a === null || a === '' || (Array.isArray(a) && a.length === 0)) {
+                            alert('Q' + (globalIdx + 1) + '. ' + q.title + '\n이 질문은 필수 응답입니다.');
+                            const target = popup.querySelector('#sv-answer-area-' + globalIdx);
+                            if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            return;
+                        }
                     }
                 }
 
                 if (isLast) {
                     await submitSurvey(survey, answers, popup);
                 } else {
-                    currentStep++;
+                    currentPage++;
                     render();
                 }
             };

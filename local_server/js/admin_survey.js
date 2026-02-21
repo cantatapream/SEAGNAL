@@ -428,11 +428,14 @@ window.editSurvey = async function (id) {
         const survey = surveys.find(s => s.id === id);
         if (!survey) return alert('설문을 찾을 수 없습니다.');
 
-        _editingSurveyId = id;
-        _surveyQuestions = (survey.questions || []).map(q => ({ ...q }));
+        // 먼저 탭 전환 (renderSurveyCreateTab이 _surveyQuestions=[], _editingSurveyId=null 초기화)
         switchSurveySubTab('survey-create');
 
+        // 탭 전환(초기화) 이후에 수정 데이터를 세팅
         setTimeout(() => {
+            _editingSurveyId = id;
+            _surveyQuestions = (survey.questions || []).map(q => ({ ...q }));
+
             const el = (sid) => document.getElementById(sid);
             if (el('sv-title')) el('sv-title').value = survey.title || '';
             if (el('sv-desc')) el('sv-desc').value = survey.description || '';
