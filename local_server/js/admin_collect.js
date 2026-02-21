@@ -891,11 +891,11 @@ async function renderUnifiedPromoContent(container) {
             <i class="fa-solid fa-bullhorn" style="color:#f87171;"></i> 게시판 관리
         </div>
 
-        <div class="admin-sub-tabs" style="display:flex; gap:8px; margin-bottom:20px;">
-            <button class="admin-sub-tab active" data-subtab="board-mgmt" onclick="switchBoardSubTab('board-mgmt')">
+        <div class="admin-sub-tabs">
+            <button class="error-fix-sub-tab active" data-subtab="board-mgmt" onclick="switchBoardSubTab('board-mgmt')">
                 <i class="fa-solid fa-layer-group"></i> 게시판 관리
             </button>
-            <button class="admin-sub-tab" data-subtab="post-mgmt" onclick="switchBoardSubTab('post-mgmt')">
+            <button class="error-fix-sub-tab" data-subtab="post-mgmt" onclick="switchBoardSubTab('post-mgmt')">
                 <i class="fa-solid fa-file-lines"></i> 게시글 관리
             </button>
         </div>
@@ -905,7 +905,7 @@ async function renderUnifiedPromoContent(container) {
 
     // 서브탭 전환 함수
     window.switchBoardSubTab = function (tabId) {
-        document.querySelectorAll('.admin-sub-tab[data-subtab]').forEach(btn => {
+        document.querySelectorAll('.error-fix-sub-tab[data-subtab]').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.subtab === tabId);
         });
         const content = document.getElementById('board-subtab-content');
@@ -936,22 +936,32 @@ async function renderUnifiedPromoContent(container) {
         if (!listEl) return;
         try {
             const res = await fetch(CONFIG.API_BASE + '/api/boards');
-            const boards = await res.json();
+            if (!res.ok) throw new Error('API 응답 오류: ' + res.status);
+            const text = await res.text();
+            let boards;
+            try { boards = JSON.parse(text); } catch (e) { throw new Error('JSON 파싱 실패'); }
 
-            if (!boards || boards.length === 0) {
+            if (!Array.isArray(boards) || boards.length === 0) {
                 listEl.innerHTML = '<div style="text-align:center; padding:40px; color:#64748b;">등록된 게시판이 없습니다.</div>';
                 return;
             }
 
             listEl.innerHTML = `
                 <div style="display:flex; flex-direction:column; gap:6px;" id="board-sortable-list">
-                    ${boards.map((board, idx) => `
+                    ${boards.map((board, idx) => {
+                        const isFirst = idx === 0;
+                        const isLast = idx === boards.length - 1;
+                        return `
                         <div class="admin-card" style="margin-bottom:0; padding:12px; display:flex; align-items:center; gap:12px;" data-board-id="${board.id}">
                             <div style="display:flex; flex-direction:column; gap:4px; flex-shrink:0;">
-                                <button class="board-sort-btn" onclick="moveBoardOrder('${board.id}', -1)" style="background:none; border:none; color:#64748b; cursor:pointer; font-size:0.7rem; padding:2px;" ${idx === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>
+                                <button class="board-sort-btn" onclick="moveBoardOrder('${board.id}', -1)"
+                                    style="background:none; border:none; color:${isFirst ? '#334155' : '#64748b'}; cursor:${isFirst ? 'default' : 'pointer'}; font-size:0.7rem; padding:2px; opacity:${isFirst ? '0.3' : '1'};"
+                                    ${isFirst ? 'disabled' : ''}>
                                     <i class="fa-solid fa-chevron-up"></i>
                                 </button>
-                                <button class="board-sort-btn" onclick="moveBoardOrder('${board.id}', 1)" style="background:none; border:none; color:#64748b; cursor:pointer; font-size:0.7rem; padding:2px;" ${idx === boards.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>
+                                <button class="board-sort-btn" onclick="moveBoardOrder('${board.id}', 1)"
+                                    style="background:none; border:none; color:${isLast ? '#334155' : '#64748b'}; cursor:${isLast ? 'default' : 'pointer'}; font-size:0.7rem; padding:2px; opacity:${isLast ? '0.3' : '1'};"
+                                    ${isLast ? 'disabled' : ''}>
                                     <i class="fa-solid fa-chevron-down"></i>
                                 </button>
                             </div>
@@ -961,25 +971,28 @@ async function renderUnifiedPromoContent(container) {
                                 border:1px solid ${hexToRgba(board.badgeColor, 0.5)};">
                                 ${board.badgeText}
                             </span>
-                            <div style="flex:1;">
+                            <div style="flex:1; min-width:0;">
                                 <span style="font-weight:700; color:#fff; font-size:0.95rem;">${board.name}</span>
-                                <span style="font-size:0.75rem; color:#64748b; margin-left:8px;">ID: ${board.id}</span>
                             </div>
-                            <div style="display:flex; gap:8px;">
+                            <div style="display:flex; gap:8px; flex-shrink:0;">
                                 <button class="admin-action-btn" style="padding:5px 10px; font-size:0.75rem;" onclick='openBoardEditor(${JSON.stringify(board).replace(/'/g, "&#39;")})'>
                                     <i class="fa-solid fa-edit"></i> 수정
                                 </button>
-                                ${board.isDefault ? '<span style="font-size:0.7rem; color:#64748b; padding:5px 10px;">기본</span>' : `
+                                ${board.isDefault ? '' : `
                                 <button class="admin-action-btn admin-btn-danger" style="padding:5px 10px; font-size:0.75rem;" onclick="deleteBoard('${board.id}')">
                                     <i class="fa-solid fa-trash"></i>
                                 </button>`}
                             </div>
-                        </div>
-                    `).join('')}
+                        </div>`;
+                    }).join('')}
                 </div>
             `;
         } catch (e) {
-            listEl.innerHTML = '<div style="text-align:center; padding:40px; color:#ef4444;">게시판 목록 로드 실패</div>';
+            listEl.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">
+                <i class="fa-solid fa-triangle-exclamation" style="font-size:1.5rem; margin-bottom:10px; display:block;"></i>
+                게시판 목록 로드 실패<br>
+                <span style="font-size:0.75rem; color:#94a3b8; margin-top:8px; display:block;">서버를 재시작해주세요 (새 API 엔드포인트 반영 필요)</span>
+            </div>`;
         }
     };
 
