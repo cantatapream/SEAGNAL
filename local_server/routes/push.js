@@ -203,6 +203,34 @@ router.post('/api/push-custom', async (req, res) => {
 
             if (!shouldSend) return;
 
+            // 3. 시나리오별 수신 설정 필터링 (announce/active/release/night)
+            if (isManualGroupSend && payload) {
+                const opts = user.options || {};
+                const tid = payload.templateId;
+
+                // 발표 관련 (publish, 격상/격하 발표, 발효시각 변경)
+                if (opts.announce === false &&
+                    ['publish', 'level_upgrade_publish', 'level_downgrade_publish', 'time_ef_change'].includes(tid)) {
+                    return;
+                }
+                // 발효 관련 (active, 격상/격하 발효, 해제시각 변경)
+                if (opts.active === false &&
+                    ['active', 'level_upgrade_active', 'level_downgrade_active', 'time_yn_change'].includes(tid)) {
+                    return;
+                }
+                // 해제
+                if (opts.release === false && tid === 'release') {
+                    return;
+                }
+                // 야간 수신 거부 (KST 22:00 ~ 07:00)
+                if (opts.night === false) {
+                    const kstHour = (new Date().getUTCHours() + 9) % 24;
+                    if (kstHour >= 22 || kstHour < 7) {
+                        return;
+                    }
+                }
+            }
+
             try {
                 // URL 파라미터 구성 (개인화 정보 포함)
                 const params = new URLSearchParams();
