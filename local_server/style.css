@@ -3946,7 +3946,8 @@ line-height: 1.1;
 }
 
 .alert-admin-tab,
-.error-fix-sub-tab {
+.error-fix-sub-tab,
+.survey-sub-tab {
     flex: 1;
     min-width: 80px;
     padding: 8px 12px;
@@ -3962,7 +3963,8 @@ line-height: 1.1;
 }
 
 .alert-admin-tab.active,
-.error-fix-sub-tab.active {
+.error-fix-sub-tab.active,
+.survey-sub-tab.active {
     background: rgba(255, 255, 255, 0.1);
     color: #fff;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
