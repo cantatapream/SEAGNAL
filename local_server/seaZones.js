@@ -113,6 +113,10 @@ let mapContainer, canvas, mapImage;
 let smallGridCanvas, smallGridCtx;
 const MIN_SMALL_GRID_SCALE = 2.5; // 소해구 표시 시작 배율
 
+// [Preload] 백그라운드 이미지 프리로드용 캐시
+let _preloadedMapImage = null;
+let _preloadComplete = false;
+
 // [New] 내 위치 관련 변수
 let seaZoneMyLocation = null;
 let seaZoneMyLocationContainer = null;
@@ -204,8 +208,12 @@ function initSeaZoneMap() {
     wrapper.style.cssText = 'width:100%; height:100%; position:absolute; transform-origin:0 0; opacity:0; transition:opacity 0.3s ease;';
     mapContainer.appendChild(wrapper);
 
-    // 이미지 객체 생성
-    mapImage = new Image();
+    // 이미지 객체 생성 (프리로드된 이미지가 있으면 재사용)
+    if (_preloadedMapImage && _preloadComplete) {
+        mapImage = _preloadedMapImage;
+    } else {
+        mapImage = _preloadedMapImage || new Image();
+    }
 
     // 캔버스 (클릭 감지용 - 투명)
     canvas = document.createElement('canvas');
@@ -256,9 +264,17 @@ function initSeaZoneMap() {
     };
 
     // 이미지 경로 설정 (핸들러 정의 후 실행)
-    mapImage.src = '/images/haegudo.gif';
     mapImage.style.cssText = 'position:absolute; left:0; top:0; pointer-events:none; z-index:1;';
     wrapper.appendChild(mapImage);
+
+    if (_preloadComplete && mapImage.complete && mapImage.naturalWidth > 0) {
+        // 프리로드 완료된 이미지: onload를 수동 트리거
+        console.log('[Preload] 프리로드된 이미지 사용');
+        mapImage.onload();
+    } else {
+        // 프리로드 미완료 또는 최초 로드: src 설정으로 로드 시작
+        mapImage.src = '/images/haegudo.gif';
+    }
 
     // 🖱️ 마우스 이벤트 바인딩 (PC)
     canvas.addEventListener('mousedown', onMouseDown);
@@ -836,8 +852,24 @@ function resetGuideMessage() {
     updateGuideMessage('기상을 확인할 해구를 선택해주세요');
 }
 
+// [Preload] 메인 로딩 완료 후 백그라운드에서 해구 지도 이미지를 미리 로드
+function preloadSeaZoneImage() {
+    if (_preloadedMapImage) return; // 이미 프리로드 시작됨
+    _preloadedMapImage = new Image();
+    _preloadedMapImage.onload = function () {
+        _preloadComplete = true;
+        console.log('[Preload] 해구 지도 이미지 프리로드 완료:', _preloadedMapImage.naturalWidth, 'x', _preloadedMapImage.naturalHeight);
+    };
+    _preloadedMapImage.onerror = function () {
+        console.warn('[Preload] 해구 지도 이미지 프리로드 실패');
+        _preloadedMapImage = null;
+    };
+    _preloadedMapImage.src = '/images/haegudo.gif';
+}
+
 // 함수를 전역에 노출 (탭 클릭 시 호출용)
 window.initSeaZoneMap = initSeaZoneMap;
+window.preloadSeaZoneImage = preloadSeaZoneImage;
 
 // ============================================================
 // 📱 모바일 터치 이벤트 핸들러
