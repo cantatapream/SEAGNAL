@@ -1,7 +1,0 @@
-node_modules
-backups
-.git
-android
-apk_build
-.next
-.agent
