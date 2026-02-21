@@ -205,6 +205,18 @@ window.addEventListener('DOMContentLoaded', async () => {
     initTabs(); // 탭 초기화
     updateTimeDisplay();
     setInterval(updateTimeDisplay, 60000);
+
+    // [Preload] 메인 로딩 완료 후 해구 지도 이미지를 백그라운드에서 미리 로드
+    // requestIdleCallback 사용으로 메인 UI 렌더링을 방해하지 않음
+    if (window.requestIdleCallback) {
+        requestIdleCallback(() => {
+            if (window.preloadSeaZoneImage) window.preloadSeaZoneImage();
+        });
+    } else {
+        setTimeout(() => {
+            if (window.preloadSeaZoneImage) window.preloadSeaZoneImage();
+        }, 1000);
+    }
 });
 
 window.toggleSection = toggleSection;
