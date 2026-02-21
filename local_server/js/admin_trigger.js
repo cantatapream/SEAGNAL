@@ -544,6 +544,5 @@ function showNetworkErrorPopup() {
     }
 }
 
-// 전역 등록
-window.showMyLocationWeather = showMyLocationWeather;
+// [참고] showMyLocationWeather는 settings.js에 정의됨
 

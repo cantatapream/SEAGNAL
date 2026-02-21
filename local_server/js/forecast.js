@@ -10,9 +10,9 @@
  * - showSeaZoneInfoPopup(): 해구별 기상 안내 팝업
  * - showWeatherAlertInfoPopup(): 특보 안내 팝업
  * - showTideInfoPopup(): 조석 안내 팝업
- * - updateTimeDisplay(): 시간 표시 업데이트
  *
  * [로딩 순서] 9번째 (settings.js 이후)
+ * [참고] handleHeaderRefresh, updateTimeDisplay → app_init.js로 이동됨
  * ============================================================================
  */
 
@@ -789,76 +789,6 @@ function closeTideInfoPopup() {
 window.showTideInfoPopup = showTideInfoPopup;
 window.closeTideInfoPopup = closeTideInfoPopup;
 
-// 헤더 클릭 시 전체 데이터 새로고침
-async function handleHeaderRefresh() {
-    // 기상정보 탭으로 강제 전환 (programmatic click 제거 -> switchMainTab 사용)
-    window.switchMainTab("weather-alert-section");
-
-    // 이미 로딩 중이면 무시
-    if (appState.isLoading) return;
-
-    try {
-        await fetchAllData();
-    } catch (e) {
-        // console.error('Refresh failed:', e);
-    }
-}
-window.handleHeaderRefresh = handleHeaderRefresh;
-
-// ============================================================================
-// 실시간 시간 표시 업데이트
-// ============================================================================
-
-/**
- * 우측 상단 시간 표시 업데이트
- */
-function updateTimeDisplay() {
-    const now = new Date();
-    const dateEl = document.getElementById('current-date');
-    const timeEl = document.getElementById('current-time');
-
-    if (dateEl && timeEl) {
-        const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
-        dateEl.textContent = now.toLocaleDateString('ko-KR', options);
-        timeEl.textContent = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-    }
-
-    // 좌측 상단 '최근 업데이트' 시간도 현재 시간으로 동기화
-    // (사용자 요청: 아무것도 안 해도 자동 업데이트, 두 시간 동일하게)
-    if (typeof ApiStatusManager !== 'undefined') {
-        // appState.lastUpdated를 현재 시간으로 잠시 덮어쓰거나, 
-        // ApiStatusManager.update()가 내부적으로 new Date()를 쓰도록 했으므로 그냥 호출만 하면 됨.
-        // 단, ApiStatusManager.update()가 appState.lastUpdated를 우선 사용한다면 
-        // 여기서 로직 변경이 필요할 수 있으나, 이전 스텝에서 new Date()를 fallback으로 넣었음.
-        // 하지만 사용자가 "시간 기준이 동일하게"라고 했으므로 
-        // ApiStatusManager가 표시하는 시간도 'current-time'과 완전히 같아야 함.
-
-        // 가장 확실한 방법: ApiStatusManager 업데이트 시 appState.lastUpdated가 아닌 'now'를 쓰도록 유도
-        // 이전 수정에서: const time = appState.lastUpdated || new Date(); 였음.
-        // 업데이트 안 눌렀으면 lastUpdated는 갱신 안 됨 -> 구 시간이 뜸.
-        // 따라서 "자동 업데이트"를 원한다면 그냥 현재 시간을 박아야 함.
-
-        // ApiStatusManager.update() 내용을 보면 appState.lastUpdated가 있으면 그걸 씀.
-        // 그러므로 강제로 현재 시간을 보여주려면 update 로직을 또 고쳐야 하거나,
-        // 여기서 직접 DOM을 건드려야 함.
-
-        // 하지만 더 좋은 방법:
-        // ApiStatusManager.update()가 '실시간 시계' 역할을 하도록 변경했어야 함.
-        // 이전 단계에서 수정한 ApiStatusManager.update()는 'lastUpdated'가 있으면 그걸 썼음.
-        // 사용자는 "아무것도 하지 않아도 시간이 가길" 원함.
-        // 즉 lastUpdated(데이터 갱신 시각)이 아니라 Current Time(현재 시각)을 원함.
-
-        // 따라서 여기서 ApiStatusManager의 update를 호출하되, 
-        // ApiStatusManager.update 내부에서 'lastUpdated' 의존성을 제거하고 항상 new Date()를 쓰게 해야 함.
-
-        // 그러려면 이 함수에서 ApiStatusManager를 호출하기 전에, 
-        // ApiStatusManager.update() 메소드를 다시 수정해야 함.
-        // 일단 여기서는 호출만 추가. 다음 스텝이나 이번 스텝에서 ApiStatusManager도 고쳐야 함.
-        if (window.ApiStatusManager) ApiStatusManager.update();
-    }
-}
-
-// 시간 표시 초기화 및 1초마다 업데이트 (초 단위 동기화)
-updateTimeDisplay();
-setInterval(updateTimeDisplay, 1000);
+// [이동됨] handleHeaderRefresh → app_init.js
+// [이동됨] updateTimeDisplay → app_init.js
 
