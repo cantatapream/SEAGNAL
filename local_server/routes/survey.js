@@ -1,24 +1,47 @@
 /**
  * ============================================================================
  * 파일명: routes/survey.js
- * 역할: 설문조사 CRUD, 응답 수집, CSV 다운로드 API
+ * 역할: 설문조사 CRUD, 응답 수집, CSV 다운로드 백엔드 API
  * ============================================================================
  *
- * [설명]
- * - GET    /api/surveys              → 설문 목록 조회 (관리자: 전체, 사용자: active만)
- * - POST   /api/surveys              → 설문 생성
- * - PUT    /api/surveys/:id          → 설문 수정
- * - DELETE /api/surveys/:id          → 설문 삭제
- * - POST   /api/surveys/:id/close    → 설문 조기 마감
- * - POST   /api/surveys/:id/duplicate→ 설문 복제
- * - GET    /api/surveys/:id/responses→ 응답 데이터 조회
- * - POST   /api/surveys/:id/respond  → 설문 응답 제출
- * - GET    /api/surveys/:id/csv      → CSV 다운로드
+ * [개요 - 초보자 안내]
+ * 이 파일은 SEAGNAL(바다날씨) 앱의 "설문조사" 기능을 위한 백엔드(서버) API입니다.
+ * 관리자가 설문을 만들고, 사용자가 응답하고, 결과를 분석하는 모든 서버 로직이 여기에 있습니다.
+ *
+ * 설문 데이터는 data/surveys.json 파일에 저장되고,
+ * 각 설문의 응답은 data/survey_responses_{설문ID}.json 파일에 별도 저장됩니다.
+ *
+ * [전체 시스템 흐름]
+ * 1. 관리자 → admin_survey.js(프론트)에서 설문 생성/수정/마감
+ *    → 이 파일의 POST/PUT/DELETE /api/surveys API 호출
+ * 2. 사용자 → survey_user.js(프론트)가 앱 접속 시 GET /api/surveys/active 호출
+ *    → 미완료 설문이 있으면 팝업 표시
+ *    → 응답 제출 시 POST /api/surveys/:id/respond 호출
+ * 3. 관리자 → 결과 확인 시 GET /api/surveys/:id/responses 호출
+ *    → CSV 다운로드 시 GET /api/surveys/:id/csv 호출
+ *
+ * [API 엔드포인트 목록]
+ * - GET    /api/surveys              → 설문 목록 조회 (관리자용, 전체)
  * - GET    /api/surveys/active       → 현재 진행 중인 설문 (사용자용)
+ * - POST   /api/surveys              → 설문 생성 (관리자)
+ * - PUT    /api/surveys/:id          → 설문 수정 (관리자)
+ * - DELETE /api/surveys/:id          → 설문 삭제 (관리자)
+ * - POST   /api/surveys/:id/close    → 설문 조기 마감 (관리자)
+ * - POST   /api/surveys/:id/duplicate→ 설문 복제 (관리자)
+ * - GET    /api/surveys/:id/responses→ 응답 데이터 조회 (관리자)
+ * - POST   /api/surveys/:id/respond  → 설문 응답 제출 (사용자)
+ * - GET    /api/surveys/:id/csv      → CSV 다운로드 (관리자)
  *
  * [연계 파일]
- * - config/server_config.js → DATA_DIR 경로
- * - server.js → app.use()로 이 라우터 등록
+ * - config/server_config.js  → DATA_DIR 경로 설정 (surveys.json 저장 위치)
+ * - server.js                → app.use()로 이 라우터를 Express 앱에 등록
+ * - js/admin_survey.js       → 관리자 화면에서 이 API를 호출하는 프론트엔드
+ * - js/survey_user.js        → 사용자 팝업에서 이 API를 호출하는 프론트엔드
+ * - data/surveys.json        → 설문 메타데이터 저장소
+ * - data/survey_responses_*.json → 각 설문별 응답 저장소
+ *
+ * [로딩 순서]
+ * server.js 시작 → require('./routes/survey') → Express 라우터 등록
  * ============================================================================
  */
 

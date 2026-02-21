@@ -1,16 +1,40 @@
 /**
  * ============================================================================
  * 파일명: js/admin_survey.js
- * 역할: 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과/이력)
+ * 역할: 통합 관리자 센터 - 설문조사 탭 UI (생성/현황/결과분석/이력관리)
  * ============================================================================
  *
- * [설명]
- * - renderUnifiedSurveyContent(): 설문조사 메인 탭 렌더링
- * - 서브탭: 설문 생성, 진행 현황, 결과/분석, 이력 관리
- * - Chart.js를 활용한 설문 결과 시각화
- * - CSV 다운로드 기능
+ * [개요 - 초보자 안내]
+ * 이 파일은 SEAGNAL(바다날씨) 앱의 "관리자 센터 → 설문조사" 탭의 전체 UI를 담당합니다.
+ * 관리자가 설문을 만들고, 현황을 확인하고, 결과를 차트로 분석하는 모든 화면이 여기에 있습니다.
  *
- * [로딩 순서] admin.js, admin_collect.js 이후
+ * [4개 서브탭 구성]
+ * 1. 설문 생성   - 질문 추가/삭제/순서변경, 유형 선택(단일선택/복수선택/주관식/별점/드롭다운)
+ * 2. 진행 현황   - 활성/초안 설문 목록, 발행/마감/수정/삭제 액션
+ * 3. 결과/분석   - Chart.js 도넛/막대/별점 차트, 주관식 답변 목록, CSV 다운로드
+ * 4. 이력 관리   - 월별 그룹화된 전체 설문 이력, 복제/삭제
+ *
+ * [전체 시스템에서의 위치]
+ * 관리자가 관리자 센터를 열면 → admin.js에서 탭 목록을 렌더링 →
+ * "설문조사" 탭 클릭 시 → 이 파일의 renderUnifiedSurveyContent() 호출 →
+ * 각 서브탭에서 routes/survey.js의 API를 fetch()로 호출하여 데이터 CRUD
+ *
+ * [연계 파일]
+ * - js/admin.js              → 탭 시스템의 부모. '설문조사' 탭 선택 시 이 파일의 메인 함수 호출
+ * - routes/survey.js         → 백엔드 API. 이 파일에서 fetch()로 호출
+ * - js/config.js             → CONFIG.API_BASE (API 서버 주소)
+ * - index.html               → <script src="js/admin_survey.js"> 로 로딩
+ * - Chart.js (CDN)           → 결과 시각화에 사용 (index.html에서 CDN 로드)
+ *
+ * [주요 전역 함수]
+ * - renderUnifiedSurveyContent(container): 설문조사 탭 메인 렌더러 (admin.js에서 호출)
+ * - switchSurveySubTab(tabId): 서브탭 전환
+ * - saveSurvey(status): 설문 저장 (draft 또는 active)
+ * - viewSurveyResult(id): 특정 설문 결과 보기
+ *
+ * [로딩 순서]
+ * index.html에서 admin.js → admin_collect.js → admin_survey.js 순서로 로드
+ * admin.js의 renderUnifiedSurveyContent() 호출을 통해 실행됨
  * ============================================================================
  */
 
