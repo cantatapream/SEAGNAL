@@ -155,6 +155,13 @@ router.delete('/api/notice/:id', (req, res) => {
         notices = notices.filter(n => n.id !== id);
         fs.writeFileSync(filePath, JSON.stringify(notices, null, 2), 'utf8');
 
+        // 현재 활성 공지(notice.json / dataCache)가 삭제 대상이면 함께 정리
+        if (dataCache.notice && dataCache.notice.id === id) {
+            dataCache.notice = { isActive: false };
+            const singlePath = path.join(DATA_DIR, 'notice.json');
+            fs.writeFileSync(singlePath, JSON.stringify({ isActive: false }, null, 2), 'utf8');
+        }
+
         res.json({ success: true });
     } catch (e) {
         console.error('공지 삭제 실패:', e);
