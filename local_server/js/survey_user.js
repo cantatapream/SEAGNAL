@@ -63,23 +63,40 @@
         localStorage.setItem('seagnal_survey_done_' + surveyId, 'true');
     }
 
+    // 설문 종료 후 공지사항 체크 실행
+    function triggerNoticeAfterSurvey() {
+        if (typeof checkNoticeStatus === 'function') {
+            checkNoticeStatus();
+        }
+    }
+
     // 스플래시 이후 설문 팝업 체크 (지연 호출)
     function initSurveyCheck() {
         // 스플래시가 끝난 후 체크 (3초 딜레이)
         setTimeout(async () => {
             try {
                 const res = await fetch((window.CONFIG ? CONFIG.API_BASE : '') + '/api/surveys/active');
-                if (!res.ok) return;
+                if (!res.ok) {
+                    triggerNoticeAfterSurvey();
+                    return;
+                }
                 const activeSurveys = await res.json();
-                if (!activeSurveys || activeSurveys.length === 0) return;
+                if (!activeSurveys || activeSurveys.length === 0) {
+                    triggerNoticeAfterSurvey();
+                    return;
+                }
 
                 // 아직 완료하지 않은 첫 번째 설문 찾기
                 const pending = activeSurveys.find(s => !isSurveyDone(s.id));
-                if (!pending) return;
+                if (!pending) {
+                    triggerNoticeAfterSurvey();
+                    return;
+                }
 
                 showSurveyInvitePopup(pending);
             } catch (e) {
-                // 무시 - 설문 로드 실패해도 앱 사용에는 문제 없음
+                // 설문 로드 실패해도 공지사항은 표시
+                triggerNoticeAfterSurvey();
             }
         }, 3000);
     }
@@ -135,6 +152,7 @@
         // 나중에 → 팝업만 닫기 (아무것도 저장하지 않음 → 다음 접속 시 재표시)
         document.getElementById('sv-btn-later').onclick = () => {
             popup.remove();
+            triggerNoticeAfterSurvey();
         };
     }
 
@@ -384,12 +402,21 @@
                     </div>
                     <h3 style="color:#fff;font-size:1.2rem;margin:0 0 8px;font-weight:700;">설문이 완료되었습니다!</h3>
                     <p style="color:#94a3b8;font-size:0.9rem;margin:0 0 28px;line-height:1.5;">소중한 의견 감사합니다.<br>더 나은 서비스로 보답하겠습니다.</p>
-                    <button onclick="document.getElementById('survey-user-popup').remove();" style="padding:14px 40px;background:linear-gradient(135deg,#10b981,#059669);border:none;border-radius:12px;color:#fff;font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 4px 15px rgba(16,185,129,0.3);">
+                    <button id="sv-complete-close-btn" style="padding:14px 40px;background:linear-gradient(135deg,#10b981,#059669);border:none;border-radius:12px;color:#fff;font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 4px 15px rgba(16,185,129,0.3);">
                         닫기
                     </button>
                 </div>
             </div>
         `;
+
+        // 닫기 버튼 클릭 시 팝업 제거 + 공지사항 체크
+        const closeBtn = popup.querySelector('#sv-complete-close-btn');
+        if (closeBtn) {
+            closeBtn.onclick = () => {
+                popup.remove();
+                triggerNoticeAfterSurvey();
+            };
+        }
     }
 
     // HTML 이스케이프 헬퍼
