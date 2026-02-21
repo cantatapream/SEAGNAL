@@ -2356,12 +2356,13 @@ function createAlertElement(items) {
 
         details.appendChild(createRow('발표시각', formatAlertTime(alert.tmFc)));
         details.appendChild(createRow('발효시각', formatAlertTime(alert.tmEf)));
-        let releaseTime = alert.tmCc || alert.tmYn || alert.tmEd || '';
-        if (releaseTime.trim() === '일' || releaseTime.trim() === '') {
-            releaseTime = '정보 없음';
-        } else {
-            // [수정] formatAlertTime 동일 로직 적용 (해제시각도 연도/월 제거)
-            releaseTime = formatAlertTime(releaseTime);
+        // [Fix] 예비특보(isPreliminary)는 아직 발효 전이므로 해제예정시각을 표시하지 않음
+        let releaseTime = '정보 없음';
+        if (!alert.isPreliminary) {
+            const rawRelease = alert.tmCc || alert.tmYn || alert.tmEd || '';
+            if (rawRelease.trim() !== '' && rawRelease.trim() !== '일') {
+                releaseTime = formatAlertTime(rawRelease);
+            }
         }
         details.appendChild(createRow('해제예정', releaseTime, '#69f0ae'));
     });
