@@ -484,6 +484,13 @@ function openSettingsModal() {
     const modal = document.getElementById('settings-modal');
     if (!modal) return;
 
+    // 네이티브 앱이 아닌 경우 푸시 알림 탭 숨김
+    const isNative = window.Capacitor && window.Capacitor.isNativePlatform();
+    const pushTabBtn = document.getElementById('btn-tab-push');
+    const pushTabContent = document.getElementById('tab-push');
+    if (pushTabBtn) pushTabBtn.style.display = isNative ? '' : 'none';
+    if (pushTabContent) pushTabContent.style.display = isNative ? '' : 'none';
+
     // UI 보이기
     modal.classList.remove('hidden');
 
