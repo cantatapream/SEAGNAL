@@ -41,13 +41,19 @@ const HISTORY_FILE = path.join(DATA_DIR, 'custom_push_history.json');
 // ============================================================================
 // VAPID 설정
 // ============================================================================
+let vapidConfigured = false;
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-    webpush.setVapidDetails(
-        process.env.VAPID_SUBJECT || 'mailto:seagnal_admin@example.com',
-        process.env.VAPID_PUBLIC_KEY,
-        process.env.VAPID_PRIVATE_KEY
-    );
-    console.log('🔔 Web Push VAPID 설정 완료');
+    try {
+        webpush.setVapidDetails(
+            process.env.VAPID_SUBJECT || 'mailto:seagnal_admin@example.com',
+            process.env.VAPID_PUBLIC_KEY,
+            process.env.VAPID_PRIVATE_KEY
+        );
+        vapidConfigured = true;
+        console.log('🔔 Web Push VAPID 설정 완료');
+    } catch (err) {
+        console.error('⚠️ VAPID 설정 실패 (푸시 비활성화):', err.message);
+    }
 }
 
 // ============================================================================
