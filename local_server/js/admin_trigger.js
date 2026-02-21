@@ -372,7 +372,7 @@ window.editNotice = async function (id) {
         const res = await fetch(CONFIG.API_BASE + '/api/notices');
         if (!res.ok) throw new Error('API 오류');
         const notices = await res.json();
-        const notice = [...(notices.active || []), ...(notices.expired || [])].find(n => n.id === id);
+        const notice = [...(notices.active || []), ...(notices.expired || [])].find(n => String(n.id) === String(id));
 
         if (notice) {
             document.getElementById('notice-edit-id').value = notice.id;
