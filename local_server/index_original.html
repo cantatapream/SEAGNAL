@@ -303,9 +303,9 @@
                                 일시적인 시스템 오류 또는 네트워크 문제일 수 있습니다.<br>
                                 잠시 후 다시 시도해주세요.
                             </p>
-                            <button onclick="window.location.reload()"
+                            <button onclick="fetchAllData()"
                                 style="margin-top: 20px; padding: 8px 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; color: white; cursor: pointer;">
-                                <i class="fa-solid fa-rotate-right"></i> 앱 재시작
+                                <i class="fa-solid fa-rotate-right"></i> 다시 시도
                             </button>
                         </div>
                     </div>
@@ -620,22 +620,7 @@
     <script src="seaZones.js?v=TimeFormatUpdate_20260204"></script>
     <script type="module" src="capacitor-plugins.js?v=Patch_20260111_02"></script>
     <link rel="stylesheet" href="kma_widget.css">
-    <!-- [리팩토링] app.js를 15개 모듈로 분할 -->
-    <script src="js/config.js"></script>
-    <script src="js/mappings.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/data.js"></script>
-    <script src="js/render.js"></script>
-    <script src="js/render_coastal.js"></script>
-    <script src="js/marine.js"></script>
-    <script src="js/settings.js"></script>
-    <script src="js/forecast.js"></script>
-    <script src="js/windy.js"></script>
-    <script src="js/admin_trigger.js"></script>
-    <script src="js/promo.js"></script>
-    <script src="js/admin.js"></script>
-    <script src="js/admin_collect.js"></script>
-    <script src="js/history.js"></script>
+    <script src="app.js?v=TimeFormatUpdate_20260204"></script>
     <!-- 사용자 설정 모달 -->
     <!-- 사용자 설정 모달 -->
     <div id="settings-modal" class="modal hidden">
