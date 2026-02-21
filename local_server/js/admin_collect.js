@@ -881,43 +881,368 @@ window.deleteNoticeUnified = async function (id) {
     }
 };
 
-// (D) 게시글 관리 섹션 렌더링
+// (D) 게시판 관리 섹션 렌더링
 async function renderUnifiedPromoContent(container) {
     if (!adminAuthenticated.promo) return;
 
+    // 서브탭 구조: 게시판 관리 / 게시글 관리
     container.innerHTML = `
         <div class="admin-section-title">
-            <i class="fa-solid fa-bullhorn" style="color:#f87171;"></i> 정보광장(게시글) 관리
+            <i class="fa-solid fa-bullhorn" style="color:#f87171;"></i> 게시판 관리
         </div>
-        
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-            <div style="color:#94a3b8; font-size:0.85rem;">최근 등록된 게시글 목록입니다.</div>
-            <button class="admin-action-btn admin-btn-primary" onclick="openPromoEditor()">
-                <i class="fa-solid fa-plus"></i> 새 게시글 작성
+
+        <div class="admin-sub-tabs">
+            <button class="error-fix-sub-tab active" data-subtab="board-mgmt" onclick="switchBoardSubTab('board-mgmt')">
+                <i class="fa-solid fa-layer-group"></i> 게시판 관리
+            </button>
+            <button class="error-fix-sub-tab" data-subtab="post-mgmt" onclick="switchBoardSubTab('post-mgmt')">
+                <i class="fa-solid fa-file-lines"></i> 게시글 관리
             </button>
         </div>
-        
-        <div id="unified-promo-list-container">
-            <!-- loadUnifiedPromoList 에 의해 채워짐 -->
-        </div>
+
+        <div id="board-subtab-content"></div>
     `;
 
+    // 서브탭 전환 함수
+    window.switchBoardSubTab = function (tabId) {
+        document.querySelectorAll('.error-fix-sub-tab[data-subtab]').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.subtab === tabId);
+        });
+        const content = document.getElementById('board-subtab-content');
+        if (!content) return;
+        if (tabId === 'board-mgmt') renderBoardManagement(content);
+        else if (tabId === 'post-mgmt') renderPostManagement(content);
+    };
+
+    // ========== 게시판 관리 영역 ==========
+    async function renderBoardManagement(el) {
+        el.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <div style="color:#94a3b8; font-size:0.85rem;">게시판 카테고리를 추가/수정/삭제/정렬할 수 있습니다.</div>
+                <button class="admin-action-btn admin-btn-primary" onclick="openBoardEditor()">
+                    <i class="fa-solid fa-plus"></i> 게시판 추가
+                </button>
+            </div>
+            <div id="board-list-container">
+                <div style="text-align:center; padding:30px; color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 불러오는 중...</div>
+            </div>
+        `;
+        loadBoardList();
+    }
+
+    // 게시판 목록 로드
+    window.loadBoardList = async function () {
+        const listEl = document.getElementById('board-list-container');
+        if (!listEl) return;
+        try {
+            const res = await fetch(CONFIG.API_BASE + '/api/boards');
+            if (!res.ok) throw new Error('API 응답 오류: ' + res.status);
+            const text = await res.text();
+            let boards;
+            try { boards = JSON.parse(text); } catch (e) { throw new Error('JSON 파싱 실패'); }
+
+            if (!Array.isArray(boards) || boards.length === 0) {
+                listEl.innerHTML = '<div style="text-align:center; padding:40px; color:#64748b;">등록된 게시판이 없습니다.</div>';
+                return;
+            }
+
+            listEl.innerHTML = `
+                <div style="display:flex; flex-direction:column; gap:6px;" id="board-sortable-list">
+                    ${boards.map((board, idx) => {
+                        const isFirst = idx === 0;
+                        const isLast = idx === boards.length - 1;
+                        return `
+                        <div class="admin-card" style="margin-bottom:0; padding:12px; display:flex; align-items:center; gap:12px;" data-board-id="${board.id}">
+                            <div style="display:flex; flex-direction:column; gap:4px; flex-shrink:0;">
+                                <button class="board-sort-btn" onclick="moveBoardOrder('${board.id}', -1)"
+                                    style="background:none; border:none; color:${isFirst ? '#334155' : '#64748b'}; cursor:${isFirst ? 'default' : 'pointer'}; font-size:0.7rem; padding:2px; opacity:${isFirst ? '0.3' : '1'};"
+                                    ${isFirst ? 'disabled' : ''}>
+                                    <i class="fa-solid fa-chevron-up"></i>
+                                </button>
+                                <button class="board-sort-btn" onclick="moveBoardOrder('${board.id}', 1)"
+                                    style="background:none; border:none; color:${isLast ? '#334155' : '#64748b'}; cursor:${isLast ? 'default' : 'pointer'}; font-size:0.7rem; padding:2px; opacity:${isLast ? '0.3' : '1'};"
+                                    ${isLast ? 'disabled' : ''}>
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </button>
+                            </div>
+                            <span style="display:inline-block; padding:3px 10px; border-radius:20px; font-size:0.75rem; font-weight:600;
+                                background:${hexToRgba(board.badgeColor, 0.15)};
+                                color:${board.badgeColor};
+                                border:1px solid ${hexToRgba(board.badgeColor, 0.5)};">
+                                ${board.badgeText}
+                            </span>
+                            <div style="flex:1; min-width:0;">
+                                <span style="font-weight:700; color:#fff; font-size:0.95rem;">${board.name}</span>
+                            </div>
+                            <div style="display:flex; gap:8px; flex-shrink:0;">
+                                <button class="admin-action-btn" style="padding:5px 10px; font-size:0.75rem;" onclick='openBoardEditor(${JSON.stringify(board).replace(/'/g, "&#39;")})'>
+                                    <i class="fa-solid fa-edit"></i> 수정
+                                </button>
+                                ${board.isDefault ? '' : `
+                                <button class="admin-action-btn admin-btn-danger" style="padding:5px 10px; font-size:0.75rem;" onclick="deleteBoard('${board.id}')">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>`}
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            `;
+        } catch (e) {
+            listEl.innerHTML = `<div style="text-align:center; padding:40px; color:#ef4444;">
+                <i class="fa-solid fa-triangle-exclamation" style="font-size:1.5rem; margin-bottom:10px; display:block;"></i>
+                게시판 목록 로드 실패<br>
+                <span style="font-size:0.75rem; color:#94a3b8; margin-top:8px; display:block;">서버를 재시작해주세요 (새 API 엔드포인트 반영 필요)</span>
+            </div>`;
+        }
+    };
+
+    // 색상 헬퍼
+    window.hexToRgba = function (hex, alpha) {
+        if (!hex) return `rgba(148,163,184,${alpha})`;
+        hex = hex.replace('#', '');
+        if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        return `rgba(${r},${g},${b},${alpha})`;
+    };
+
+    // 게시판 순서 이동
+    window.moveBoardOrder = async function (boardId, direction) {
+        try {
+            const res = await fetch(CONFIG.API_BASE + '/api/boards');
+            const boards = await res.json();
+            const idx = boards.findIndex(b => b.id === boardId);
+            if (idx === -1) return;
+            const targetIdx = idx + direction;
+            if (targetIdx < 0 || targetIdx >= boards.length) return;
+
+            // swap sortOrder
+            const order = boards.map((b, i) => ({ id: b.id, sortOrder: i + 1 }));
+            const temp = order[idx].sortOrder;
+            order[idx].sortOrder = order[targetIdx].sortOrder;
+            order[targetIdx].sortOrder = temp;
+
+            await fetch(CONFIG.API_BASE + '/api/boards/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ order })
+            });
+            loadBoardList();
+        } catch (e) {
+            alert('순서 변경 실패');
+        }
+    };
+
+    // 게시판 편집 팝업
+    window.openBoardEditor = function (editData) {
+        const isEdit = !!editData;
+        const existing = document.getElementById('board-editor-popup');
+        if (existing) existing.remove();
+
+        const popup = document.createElement('div');
+        popup.id = 'board-editor-popup';
+        popup.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:10001; display:flex; align-items:center; justify-content:center;';
+        popup.innerHTML = `
+            <div style="background:#1e293b; border-radius:16px; padding:24px; width:90%; max-width:420px; border:1px solid rgba(255,255,255,0.1);">
+                <h4 style="color:#fff; margin:0 0 20px; font-size:1.1rem;">
+                    <i class="fa-solid ${isEdit ? 'fa-edit' : 'fa-plus'}"></i> ${isEdit ? '게시판 수정' : '게시판 추가'}
+                </h4>
+                <div style="display:flex; flex-direction:column; gap:14px;">
+                    <div>
+                        <label style="font-size:0.8rem; color:#94a3b8; display:block; margin-bottom:4px;">게시판 이름</label>
+                        <input type="text" id="board-edit-name" value="${isEdit ? editData.name : ''}" placeholder="예: 안전정보"
+                            style="width:100%; padding:10px 12px; background:#0f172a; border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:#fff; font-size:0.95rem; box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.8rem; color:#94a3b8; display:block; margin-bottom:4px;">뱃지 텍스트 (2~4자)</label>
+                        <input type="text" id="board-edit-badge" value="${isEdit ? editData.badgeText : ''}" placeholder="예: 안전" maxlength="4"
+                            style="width:100%; padding:10px 12px; background:#0f172a; border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:#fff; font-size:0.95rem; box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.8rem; color:#94a3b8; display:block; margin-bottom:6px;">뱃지 색상</label>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <input type="color" id="board-edit-color" value="${isEdit ? editData.badgeColor : '#94a3b8'}"
+                                style="width:48px; height:36px; border:none; background:none; cursor:pointer;">
+                            <div id="board-color-preview" style="display:inline-block; padding:4px 14px; border-radius:20px; font-size:0.8rem; font-weight:600;
+                                background:${isEdit ? hexToRgba(editData.badgeColor, 0.15) : 'rgba(148,163,184,0.15)'};
+                                color:${isEdit ? editData.badgeColor : '#94a3b8'};
+                                border:1px solid ${isEdit ? hexToRgba(editData.badgeColor, 0.5) : 'rgba(148,163,184,0.5)'};">
+                                ${isEdit ? editData.badgeText : '미리보기'}
+                            </div>
+                            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                ${['#ff5252','#448aff','#69f0ae','#ffab40','#ce93d8','#4dd0e1','#f48fb1','#aed581'].map(c => `
+                                    <button onclick="document.getElementById('board-edit-color').value='${c}'; updateBoardColorPreview();"
+                                        style="width:24px; height:24px; border-radius:50%; border:2px solid rgba(255,255,255,0.2); background:${c}; cursor:pointer;"></button>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
+                    <button onclick="document.getElementById('board-editor-popup').remove();"
+                        style="padding:8px 20px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); border-radius:8px; color:#94a3b8; cursor:pointer;">취소</button>
+                    <button onclick="saveBoard(${isEdit ? "'" + editData.id + "'" : 'null'})"
+                        style="padding:8px 20px; background:linear-gradient(135deg,#3b82f6,#2563eb); border:none; border-radius:8px; color:#fff; cursor:pointer; font-weight:600;">
+                        <i class="fa-solid fa-check"></i> ${isEdit ? '수정' : '추가'}
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(popup);
+
+        // 색상 미리보기 업데이트
+        window.updateBoardColorPreview = function () {
+            const color = document.getElementById('board-edit-color').value;
+            const badgeText = document.getElementById('board-edit-badge').value || '미리보기';
+            const preview = document.getElementById('board-color-preview');
+            if (preview) {
+                preview.style.color = color;
+                preview.style.background = hexToRgba(color, 0.15);
+                preview.style.border = '1px solid ' + hexToRgba(color, 0.5);
+                preview.textContent = badgeText;
+            }
+        };
+
+        document.getElementById('board-edit-color').addEventListener('input', updateBoardColorPreview);
+        document.getElementById('board-edit-badge').addEventListener('input', updateBoardColorPreview);
+    };
+
+    // 게시판 저장
+    window.saveBoard = async function (boardId) {
+        const name = document.getElementById('board-edit-name').value.trim();
+        const badgeText = document.getElementById('board-edit-badge').value.trim();
+        const badgeColor = document.getElementById('board-edit-color').value;
+
+        if (!name) { alert('게시판 이름을 입력해주세요.'); return; }
+        if (!badgeText) { alert('뱃지 텍스트를 입력해주세요.'); return; }
+
+        const data = { name, badgeText, badgeColor };
+        if (boardId) data.id = boardId;
+
+        try {
+            const res = await fetch(CONFIG.API_BASE + '/api/boards', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (result.success) {
+                const popup = document.getElementById('board-editor-popup');
+                if (popup) popup.remove();
+                loadBoardList();
+                alert(boardId ? '게시판이 수정되었습니다.' : '게시판이 추가되었습니다.');
+            } else {
+                alert('저장 실패: ' + (result.error || ''));
+            }
+        } catch (e) {
+            alert('서버 오류');
+        }
+    };
+
+    // 게시판 삭제
+    window.deleteBoard = async function (boardId) {
+        if (!confirm('이 게시판을 삭제하시겠습니까?\n(게시글이 있으면 삭제할 수 없습니다)')) return;
+        try {
+            const res = await fetch(CONFIG.API_BASE + '/api/boards/' + boardId, { method: 'DELETE' });
+            const result = await res.json();
+            if (result.success) {
+                loadBoardList();
+                alert('삭제되었습니다.');
+            } else {
+                alert(result.error || '삭제 실패');
+            }
+        } catch (e) {
+            alert('서버 오류');
+        }
+    };
+
+    // ========== 게시글 관리 영역 ==========
+    async function renderPostManagement(el) {
+        // 게시판 목록을 불러와서 필터 드롭다운 생성
+        let boards = [];
+        try {
+            const bRes = await fetch(CONFIG.API_BASE + '/api/boards');
+            boards = await bRes.json();
+        } catch (e) {}
+
+        el.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <select id="admin-post-filter" onchange="loadUnifiedPromoList()" style="padding:8px 12px; background:#0f172a; border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:#fff; font-size:0.85rem;">
+                        <option value="ALL">전체 게시판</option>
+                        ${boards.map(b => `<option value="${b.id}">${b.name}</option>`).join('')}
+                    </select>
+                    <div style="position:relative;">
+                        <input type="text" id="admin-post-search" placeholder="제목 검색..." onkeyup="loadUnifiedPromoList()"
+                            style="padding:8px 12px 8px 32px; background:#0f172a; border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:#fff; font-size:0.85rem; width:180px;">
+                        <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#64748b; font-size:0.8rem;"></i>
+                    </div>
+                </div>
+                <button class="admin-action-btn admin-btn-primary" onclick="openPromoEditor()">
+                    <i class="fa-solid fa-plus"></i> 새 게시글 작성
+                </button>
+            </div>
+
+            <div id="unified-promo-list-container">
+                <div style="text-align:center; padding:30px; color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 불러오는 중...</div>
+            </div>
+        `;
+        loadUnifiedPromoList();
+    }
+
+    // 게시글 목록 로드 (필터, 검색 포함)
     window.loadUnifiedPromoList = async function () {
         const listEl = document.getElementById('unified-promo-list-container');
         if (!listEl) return;
-        try {
-            const res = await fetch(CONFIG.API_BASE + '/api/promo');
-            const posts = await res.json();
 
-            listEl.innerHTML = posts.map(post => `
+        const filterEl = document.getElementById('admin-post-filter');
+        const searchEl = document.getElementById('admin-post-search');
+        const filterCategory = filterEl ? filterEl.value : 'ALL';
+        const searchKeyword = searchEl ? searchEl.value.trim().toLowerCase() : '';
+
+        try {
+            const [promoRes, boardsRes] = await Promise.all([
+                fetch(CONFIG.API_BASE + '/api/promo'),
+                fetch(CONFIG.API_BASE + '/api/boards')
+            ]);
+            const posts = await promoRes.json();
+            const boards = await boardsRes.json();
+
+            // 게시판 맵 생성
+            const boardMap = {};
+            boards.forEach(b => { boardMap[b.id] = b; });
+
+            // 필터링
+            let filtered = posts;
+            if (filterCategory !== 'ALL') {
+                filtered = filtered.filter(p => p.category === filterCategory);
+            }
+            if (searchKeyword) {
+                filtered = filtered.filter(p => (p.title || '').toLowerCase().includes(searchKeyword));
+            }
+
+            if (filtered.length === 0) {
+                listEl.innerHTML = '<div style="text-align:center; padding:40px; color:#64748b;">조건에 맞는 게시글이 없습니다.</div>';
+                return;
+            }
+
+            listEl.innerHTML = filtered.map(post => {
+                const board = boardMap[post.category];
+                const badgeColor = board ? board.badgeColor : '#94a3b8';
+                const badgeText = board ? board.badgeText : (post.category || '기타');
+                return `
                 <div class="admin-card" style="margin-bottom:10px; padding:12px;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div style="flex:1;">
-                            <span style="font-size:0.75rem; padding:2px 6px; border-radius:4px; background:rgba(255,255,255,0.1); color:#94a3b8; margin-right:10px;">${post.category || '홍보'}</span>
+                        <div style="flex:1; min-width:0;">
+                            <span style="display:inline-block; font-size:0.7rem; padding:2px 8px; border-radius:12px; font-weight:600; margin-right:8px;
+                                background:${hexToRgba(badgeColor, 0.15)}; color:${badgeColor}; border:1px solid ${hexToRgba(badgeColor, 0.4)};">
+                                ${badgeText}
+                            </span>
                             <span style="font-weight:700; color:#fff; font-size:0.95rem;">${post.title}</span>
                             <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">${post.createdAt} | 조회수: ${post.views || 0}</div>
                         </div>
-                        <div style="display:flex; gap:10px;">
+                        <div style="display:flex; gap:8px; flex-shrink:0;">
                             <button class="admin-action-btn" style="padding:5px 10px; font-size:0.75rem;" onclick="editPromoPost(${post.id})">
                                 <i class="fa-solid fa-edit"></i> 수정
                             </button>
@@ -926,9 +1251,11 @@ async function renderUnifiedPromoContent(container) {
                             </button>
                         </div>
                     </div>
-                </div>
-            `).join('') || '<div style="text-align:center; padding:40px; color:#64748b;">등록된 게시글이 없습니다.</div>';
-        } catch (e) { }
+                </div>`;
+            }).join('');
+        } catch (e) {
+            listEl.innerHTML = '<div style="text-align:center; padding:40px; color:#ef4444;">게시글 로드 실패</div>';
+        }
     };
 
     window.deletePromoPostUnified = async function (id) {
@@ -937,7 +1264,8 @@ async function renderUnifiedPromoContent(container) {
         loadUnifiedPromoList();
     };
 
-    loadUnifiedPromoList();
+    // 초기 렌더: 게시판 관리 서브탭
+    renderBoardManagement(document.getElementById('board-subtab-content'));
 }
 
 // (E) 방문자 통계 섹션 렌더링

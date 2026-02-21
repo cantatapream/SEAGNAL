@@ -161,7 +161,7 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         { id: 'error-fix', name: '오류 확인 및 수정', icon: 'fa-triangle-exclamation' },
         { id: 'api', name: 'API 설정', icon: 'fa-server' },
         { id: 'notice', name: '공지 팝업', icon: 'fa-bell' },
-        { id: 'promo', name: '게시글 관리', icon: 'fa-bullhorn' },
+        { id: 'promo', name: '게시판 관리', icon: 'fa-bullhorn' },
         { id: 'stats', name: '방문자 통계', icon: 'fa-chart-line' }
     ];
 
