@@ -748,8 +748,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 관리자 트리거 초기화 (15회 클릭) - LEGACY REMOVED
     // if (typeof initAdminTrigger === 'function') initAdminTrigger();
 
-    // 공지사항 및 서버 상태 확인
-    if (typeof checkNoticeStatus === 'function') checkNoticeStatus();
+    // 공지사항 확인은 설문조사 완료/스킵 후 survey_user.js에서 호출됨
 });
 
 

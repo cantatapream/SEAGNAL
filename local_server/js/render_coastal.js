@@ -569,15 +569,5 @@ function updateLoading(isLoading) {
     }
 }
 
-function updateTimeDisplay() {
-    const now = new Date();
-    const dateEl = document.getElementById('current-date');
-    const timeEl = document.getElementById('current-time');
-
-    if (dateEl && timeEl) {
-        const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
-        dateEl.textContent = now.toLocaleDateString('ko-KR', options);
-        timeEl.textContent = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-    }
-}
+// [이동됨] updateTimeDisplay → app_init.js
 

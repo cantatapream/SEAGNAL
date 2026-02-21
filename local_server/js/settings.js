@@ -203,8 +203,8 @@ function injectGlobalStyles() {
 window.addEventListener('DOMContentLoaded', async () => {
     injectGlobalStyles(); // [Fix] 스타일 주입 호출
     initTabs(); // 탭 초기화
-    updateTimeDisplay();
-    setInterval(updateTimeDisplay, 60000);
+    // [이동됨] updateTimeDisplay 호출은 app_init.js에서 1초 간격으로 관리
+    if (typeof updateTimeDisplay === 'function') updateTimeDisplay();
 
     // [Preload] 메인 로딩 완료 후 해구 지도 이미지를 백그라운드에서 미리 로드
     // requestIdleCallback 사용으로 메인 UI 렌더링을 방해하지 않음
