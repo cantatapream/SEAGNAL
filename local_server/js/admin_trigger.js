@@ -462,7 +462,7 @@ function showNoticePopup(noticeData) {
                     <span>📢 ${noticeData.title}</span>
                 </div>
                 <div class="notice-content">
-                    ${noticeData.content}
+                    ${(noticeData.content || '').replace(/\n/g, '<br>')}
                 </div>
                 <div class="notice-footer">
                     <label class="notice-checkbox-label">

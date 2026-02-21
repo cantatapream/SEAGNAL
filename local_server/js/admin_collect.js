@@ -820,7 +820,7 @@ async function renderUnifiedNoticeContent(container) {
     window.saveNoticeUnified = async function () {
         const dateVal = document.getElementById('uni-notice-date').value;
         const payload = {
-            id: document.getElementById('uni-notice-id').value || Date.now(),
+            id: Number(document.getElementById('uni-notice-id').value) || Date.now(),
             title: document.getElementById('uni-notice-title').value,
             content: document.getElementById('uni-notice-content').value,
             expiresAt: dateVal
