@@ -1,6 +1,6 @@
 # SEAGNAL 리팩토링 종합 현황
 
-> 최종 업데이트: 2026-02-19 15:48 (KST)
+> 최종 업데이트: 2026-02-21 16:30 (KST)
 
 ---
 
@@ -24,6 +24,8 @@
 | Phase 3 | 서버 리팩토링 (server.js) | ✅ 완료 |
 | Phase 4 | 프론트엔드 리팩토링 (app.js) | ✅ 완료 |
 | Phase 5 | 프로덕션 전환 | ✅ 완료 |
+| **기능 확장** | **게시판 동적 관리** | ✅ 완료 |
+| **기능 확장** | **설문조사 시스템** | ✅ 완료 |
 
 ---
 
@@ -72,7 +74,11 @@ local_server/
 │   ├── archive.js                  ← 아카이브 다운로드 API          ✅
 │   ├── push.js                     ← 푸시 구독/발송/이력 API       ✅
 │   ├── push_test.js                ← 푸시 테스트 시나리오 API       ✅
-│   └── admin.js                    ← 관리자(크롤링/수집/수동특보) API ✅
+│   ├── admin.js                    ← 관리자(크롤링/수집/수동특보) API ✅
+│   └── survey.js        (361줄)   ← 설문조사 CRUD/응답/CSV API     ✅ [2026-02-21 추가]
+├── data/
+│   └── surveys.json                ← 설문 메타데이터 저장소          ✅ [2026-02-21 추가]
+│   └── survey_responses_*.json     ← 설문별 응답 저장소 (자동 생성)
 ```
 
 ---
@@ -101,6 +107,8 @@ local_server/
 │   ├── promo.js           (960줄)   ← 홍보 게시판                    ✅
 │   ├── admin.js          (1034줄)   ← 통합 관리자 시스템              ✅
 │   ├── admin_collect.js  (1724줄)   ← 수집 테스트, 방문자 통계        ✅
+│   ├── admin_survey.js   (679줄)   ← 설문조사 관리자 UI (4개 서브탭)  ✅ [2026-02-21 추가]
+│   ├── survey_user.js    (362줄)   ← 사용자 설문 팝업 (자동 표시)     ✅ [2026-02-21 추가]
 │   └── history.js        (1347줄)   ← 특보 이력, 마무리 유틸          ✅
 ```
 
@@ -109,7 +117,8 @@ local_server/
 → 5. `js/render.js` → 6. `js/render_coastal.js` → 7. `js/marine.js`
 → 8. `js/settings.js` → 9. `js/forecast.js` → 10. `js/windy.js`
 → 11. `js/admin_trigger.js` → 12. `js/promo.js` → 13. `js/admin.js`
-→ 14. `js/admin_collect.js` → 15. `js/history.js`
+→ 14. `js/admin_collect.js` → **15. `js/admin_survey.js`** → **16. `js/survey_user.js`**
+→ 17. `js/history.js`
 
 ---
 
@@ -126,6 +135,37 @@ cd local_server
 cp server_original.js server.js
 cp index_original.html index.html
 ```
+
+---
+
+## 8. 기능 확장 이력 (리팩토링 이후 신규 기능)
+
+### 8.1 게시판 동적 관리 ✅ (2026-02-20)
+- 게시판 추가/수정/삭제/정렬 기능 구현
+- 관리자 센터 → 게시판 관리 탭 서브탭 추가
+
+### 8.2 설문조사 시스템 ✅ (2026-02-21)
+
+| 파일 | 줄수 | 역할 |
+|------|------|------|
+| routes/survey.js | 361줄 | 백엔드 API 10개 엔드포인트 (CRUD/응답/CSV) |
+| js/admin_survey.js | 679줄 | 관리자 설문 관리 UI (4개 서브탭) |
+| js/survey_user.js | 362줄 | 사용자 설문 팝업 (완료 시 재표시 방지) |
+| data/surveys.json | - | 설문 메타데이터 저장소 |
+
+#### 기존 파일 최소 수정:
+| 파일 | 수정 내용 | 변경량 |
+|------|----------|--------|
+| config/server_config.js | FILES.SURVEYS 경로 추가 | +1줄 |
+| server.js | survey 라우터 등록 | +2줄 |
+| js/admin.js | 설문조사 탭 추가 | +2줄 |
+| index.html | script 태그 2개 추가 | +2줄 |
+
+#### 핵심 설계 결정:
+- **재표시 방지**: localStorage `seagnal_survey_done_{id}` + 서버 deviceId 이중 체크
+- **질문 유형 5종**: 단일선택, 복수선택, 주관식, 별점평가, 드롭다운
+- **결과 시각화**: Chart.js 연동 (도넛/막대/별점 차트)
+- **CSV 다운로드**: BOM 포함 한글 엑셀 호환
 
 ---
 

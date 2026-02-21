@@ -74,11 +74,23 @@ async function performBackup() {
         'tidebed_config.json',
         'notice.json',
         'notices.json',
-        'promo.json'
+        'promo.json',
+        'surveys.json'
     ];
 
     for (const file of targetFiles) {
         await uploadFile(file);
+    }
+
+    // 설문 응답 파일들 (survey_responses_*.json) 동적 백업
+    try {
+        const surveyResponseFiles = fs.readdirSync(DATA_DIR)
+            .filter(f => f.startsWith('survey_responses_') && f.endsWith('.json'));
+        for (const file of surveyResponseFiles) {
+            await uploadFile(file);
+        }
+    } catch (e) {
+        console.error('❌ [Backup] 설문 응답 파일 백업 실패:', e.message);
     }
     console.log('✨ [Daily Backup] 모든 백업 작업 완료');
 }

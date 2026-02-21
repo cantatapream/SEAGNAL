@@ -67,6 +67,7 @@ app.use(require('./routes/archive'));
 app.use(require('./routes/push'));
 app.use(require('./routes/push_test'));
 app.use(require('./routes/admin'));
+app.use(require('./routes/survey'));
 
 // ============================================================================
 // 4. 정기 작업 (Daily Cloud Backup)
@@ -84,6 +85,6 @@ app.listen(PORT, () => {
     console.log(`\n=================================================`);
     console.log(`🚀 서버 실행 중! Port: ${PORT}`);
     console.log(`📡 접속 주소: http://localhost:${PORT}/index.html`);
-    console.log(`✅ 라우트 모듈: health, weather, tide, content, stats, archive, push, admin`);
+    console.log(`✅ 라우트 모듈: health, weather, tide, content, stats, archive, push, admin, survey`);
     console.log(`=================================================\n`);
 });

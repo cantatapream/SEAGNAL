@@ -162,7 +162,8 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         { id: 'api', name: 'API 설정', icon: 'fa-server' },
         { id: 'notice', name: '공지 팝업', icon: 'fa-bell' },
         { id: 'promo', name: '게시판 관리', icon: 'fa-bullhorn' },
-        { id: 'stats', name: '방문자 통계', icon: 'fa-chart-line' }
+        { id: 'stats', name: '방문자 통계', icon: 'fa-chart-line' },
+        { id: 'survey', name: '설문조사', icon: 'fa-clipboard-list' }
     ];
 
     const modal = document.createElement('div');
@@ -233,6 +234,8 @@ window.switchUnifiedAdminTab = function (tabId) {
             renderUnifiedPromoContent(body);
         } else if (tabId === 'stats') {
             renderUnifiedStatsContent(body);
+        } else if (tabId === 'survey') {
+            renderUnifiedSurveyContent(body);
         }
     }, 100);
 };

@@ -69,7 +69,8 @@ const FILES = {
     COLLECT_FAILURES: path.join(DATA_DIR, 'collect_failures.json'),
     SUBSCRIPTIONS: path.join(DATA_DIR, 'subscriptions.json'),
     PUSH_HISTORY: path.join(DATA_DIR, 'custom_push_history.json'),
-    TIDEBED_CONFIG: path.join(DATA_DIR, 'tidebed_config.json')
+    TIDEBED_CONFIG: path.join(DATA_DIR, 'tidebed_config.json'),
+    SURVEYS: path.join(DATA_DIR, 'surveys.json')
 };
 
 module.exports = {
