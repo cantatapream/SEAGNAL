@@ -170,6 +170,155 @@ router.delete('/api/notice/:id', (req, res) => {
 });
 
 // ============================================================================
+// 게시판(카테고리) 관리 API
+// ============================================================================
+
+// 게시판 목록 조회
+router.get('/api/boards', (req, res) => {
+    if (dataCache.boards) res.json(dataCache.boards);
+    else {
+        // 파일에서 직접 로드 시도
+        const filePath = path.join(DATA_DIR, 'boards.json');
+        if (fs.existsSync(filePath)) {
+            try {
+                const boards = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                dataCache.boards = boards;
+                res.json(boards);
+            } catch (e) {
+                res.json([]);
+            }
+        } else {
+            res.json([]);
+        }
+    }
+});
+
+// 게시판 저장 (추가/수정)
+router.post('/api/boards', (req, res) => {
+    const boardData = req.body;
+    if (!boardData.name) {
+        return res.status(400).json({ error: '게시판 이름은 필수입니다.' });
+    }
+
+    try {
+        const filePath = path.join(DATA_DIR, 'boards.json');
+        let boards = [];
+
+        if (fs.existsSync(filePath)) {
+            boards = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        }
+
+        if (boardData.id) {
+            // 수정
+            const index = boards.findIndex(b => b.id === boardData.id);
+            if (index !== -1) {
+                boards[index] = { ...boards[index], ...boardData };
+            } else {
+                return res.status(404).json({ error: '게시판을 찾을 수 없습니다.' });
+            }
+        } else {
+            // 신규: ID는 대문자 영문으로 생성
+            const newId = 'BOARD_' + Date.now();
+            const maxOrder = boards.reduce((max, b) => Math.max(max, b.sortOrder || 0), 0);
+            const newBoard = {
+                id: newId,
+                name: boardData.name,
+                badgeText: boardData.badgeText || boardData.name.substring(0, 2),
+                badgeColor: boardData.badgeColor || '#94a3b8',
+                sortOrder: maxOrder + 1,
+                isDefault: false,
+                createdAt: new Date().toISOString()
+            };
+            boards.push(newBoard);
+        }
+
+        fs.writeFileSync(filePath, JSON.stringify(boards, null, 2), 'utf8');
+        dataCache.boards = boards;
+        dataCache.lastUpdate.boards = Date.now();
+
+        res.json({ success: true, boards });
+    } catch (e) {
+        console.error('게시판 저장 실패:', e);
+        res.status(500).json({ error: '저장 실패' });
+    }
+});
+
+// 게시판 순서 일괄 변경
+router.post('/api/boards/reorder', (req, res) => {
+    const { order } = req.body; // [{ id, sortOrder }, ...]
+    if (!Array.isArray(order)) {
+        return res.status(400).json({ error: '올바른 순서 데이터가 필요합니다.' });
+    }
+
+    try {
+        const filePath = path.join(DATA_DIR, 'boards.json');
+        let boards = [];
+
+        if (fs.existsSync(filePath)) {
+            boards = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        }
+
+        order.forEach(item => {
+            const board = boards.find(b => b.id === item.id);
+            if (board) board.sortOrder = item.sortOrder;
+        });
+
+        boards.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+        fs.writeFileSync(filePath, JSON.stringify(boards, null, 2), 'utf8');
+        dataCache.boards = boards;
+        dataCache.lastUpdate.boards = Date.now();
+
+        res.json({ success: true, boards });
+    } catch (e) {
+        console.error('게시판 순서 변경 실패:', e);
+        res.status(500).json({ error: '순서 변경 실패' });
+    }
+});
+
+// 게시판 삭제
+router.delete('/api/boards/:id', (req, res) => {
+    const id = req.params.id;
+
+    try {
+        const filePath = path.join(DATA_DIR, 'boards.json');
+        let boards = [];
+
+        if (fs.existsSync(filePath)) {
+            boards = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        }
+
+        const target = boards.find(b => b.id === id);
+        if (!target) {
+            return res.status(404).json({ error: '게시판을 찾을 수 없습니다.' });
+        }
+
+        // 해당 게시판에 속한 게시글 수 확인
+        const promoPath = path.join(DATA_DIR, 'promo.json');
+        let posts = [];
+        if (fs.existsSync(promoPath)) {
+            posts = JSON.parse(fs.readFileSync(promoPath, 'utf8'));
+        }
+        const postsInBoard = posts.filter(p => p.category === id);
+        if (postsInBoard.length > 0) {
+            return res.status(400).json({
+                error: `이 게시판에 ${postsInBoard.length}개의 게시글이 있습니다. 게시글을 먼저 삭제하거나 다른 게시판으로 이동해주세요.`
+            });
+        }
+
+        boards = boards.filter(b => b.id !== id);
+        fs.writeFileSync(filePath, JSON.stringify(boards, null, 2), 'utf8');
+        dataCache.boards = boards;
+        dataCache.lastUpdate.boards = Date.now();
+
+        res.json({ success: true });
+    } catch (e) {
+        console.error('게시판 삭제 실패:', e);
+        res.status(500).json({ error: '삭제 실패' });
+    }
+});
+
+// ============================================================================
 // 홍보 게시판 API
 // ============================================================================
 

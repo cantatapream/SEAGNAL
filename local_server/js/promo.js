@@ -22,6 +22,7 @@
 let promoQuillEditor = null;
 let currentEditingPromoId = null;
 let currentAttachments = []; // [New] 현재 편집 중인 게시글의 첨부파일 목록
+let _boardsCache = []; // 게시판 목록 캐시
 
 // [New] 첨부파일 목록 렌더링
 function renderAttachmentList() {
@@ -125,9 +126,19 @@ async function loadPromoPosts() {
     `;
 
     try {
-        const res = await fetch(CONFIG.API_BASE + '/api/promo');
-        if (!res.ok) throw new Error('API 오류');
-        const posts = await res.json();
+        // 게시판 목록과 게시글을 병렬 로드
+        const [promoRes, boardsRes] = await Promise.all([
+            fetch(CONFIG.API_BASE + '/api/promo'),
+            fetch(CONFIG.API_BASE + '/api/boards')
+        ]);
+        if (!promoRes.ok) throw new Error('API 오류');
+        const posts = await promoRes.json();
+        const boards = await boardsRes.json();
+
+        // 게시판 캐시 업데이트 및 탭 렌더링
+        _boardsCache = boards || [];
+        renderPromoTabs(_boardsCache);
+
         updateNewBadges(posts); // [New] 뱃지 업데이트
         renderPromoPosts(posts);
     } catch (e) {
@@ -141,6 +152,19 @@ async function loadPromoPosts() {
     }
 }
 
+// 게시판 탭 버튼 동적 렌더링
+function renderPromoTabs(boards) {
+    const tabsContainer = document.getElementById('promo-tabs-container');
+    if (!tabsContainer) return;
+
+    // "전체" 버튼은 항상 유지, 나머지는 동적 생성
+    let html = `<button class="promo-tab-btn ${currentPromoCategory === 'ALL' ? 'active' : ''}" onclick="filterPromo('ALL')">전체</button>`;
+    boards.forEach(board => {
+        html += `<button class="promo-tab-btn ${currentPromoCategory === board.id ? 'active' : ''}" onclick="filterPromo('${board.id}')">${board.name}</button>`;
+    });
+    tabsContainer.innerHTML = html;
+}
+
 // 24시간 이내 새 게시글 체크 및 뱃지 표시
 function updateNewBadges(posts) {
     if (!posts || posts.length === 0) return;
@@ -148,30 +172,21 @@ function updateNewBadges(posts) {
     const now = new Date();
     const ONE_DAY = 24 * 60 * 60 * 1000; // 24시간 (ms)
 
-    // 카테고리별 새 글 유무 상태
-    const hasNew = {
-        'ALL': false,
-        'NOTICE': false,
-        'LEGAL': false,
-        'PROMO': false
-    };
+    // 카테고리별 새 글 유무 상태 (동적 게시판 지원)
+    const hasNew = { 'ALL': false };
+    _boardsCache.forEach(b => { hasNew[b.id] = false; });
 
     posts.forEach(post => {
-        // 날짜 파싱 (다양한 형식을 고려하여 안전하게 처리)
-        // 예: "2026.01.01", "2026-01-01T...", etc.
         let postDateStr = post.createdAt;
         if (!postDateStr) return;
 
-        // 점(.)을 하이픈(-)으로 변경하여 호환성 확보
         postDateStr = postDateStr.replace(/\./g, '-');
-
         const postDate = new Date(postDateStr);
 
-        // 유효한 날짜인 경우에만 계산
         if (!isNaN(postDate.getTime())) {
             const diff = now - postDate;
-            if (diff >= 0 && diff < ONE_DAY) { // 24시간 이내 (미래 날짜 제외)
-                hasNew['ALL'] = true; // 전체에는 하나라도 있으면 표시
+            if (diff >= 0 && diff < ONE_DAY) {
+                hasNew['ALL'] = true;
                 if (hasNew.hasOwnProperty(post.category)) {
                     hasNew[post.category] = true;
                 }
@@ -193,10 +208,10 @@ function updateNewBadges(posts) {
         }
     }
 
-    // 2. 카테고리 필터 버튼 뱃지 업데이트
-    // 순서: 전체(0), 공지사항(1), 법률정보(2), 홍보정보(3)
+    // 2. 카테고리 필터 버튼 뱃지 업데이트 (동적 게시판 지원)
     const categoryBtns = document.querySelectorAll('.promo-tabs .promo-tab-btn');
-    const mapping = ['ALL', 'NOTICE', 'LEGAL', 'PROMO'];
+    // 순서: 전체(0), 그 다음은 _boardsCache 순서대로
+    const mapping = ['ALL', ..._boardsCache.map(b => b.id)];
 
     categoryBtns.forEach((btn, index) => {
         if (index >= mapping.length) return;
@@ -293,29 +308,29 @@ function renderPromoPosts(posts) {
         return dateStr;
     }
 
-    // 카테고리 뱃지 생성 헬퍼
+    // 카테고리 뱃지 생성 헬퍼 (동적 게시판 지원)
     function getCategoryBadge(category, isPinned) {
-        // 중요 공지는 카테고리 무관 붉은색? or 카테고리별? -> 기획: 카테고리별 색상
-        // [전체] 탭일 때만 뱃지 표시하거나, 항상 표시하거나.
-        // 기획: "[전체] 탭에서만 나타나는 거지? 해당 테그가 게시글 왼쪽에 위치"
-
         if (currentPromoCategory !== 'ALL') return ''; // 개별 탭에서는 표시 X
 
-        let badgeClass = 'promo-badge-gray';
-        let badgeText = '알림';
-
-        if (category === 'NOTICE') {
-            badgeClass = 'promo-badge-red';
-            badgeText = '공지';
-        } else if (category === 'LEGAL') {
-            badgeClass = 'promo-badge-blue';
-            badgeText = '법률';
-        } else if (category === 'PROMO') {
-            badgeClass = 'promo-badge-green';
-            badgeText = '홍보';
+        const board = _boardsCache.find(b => b.id === category);
+        if (board) {
+            const color = board.badgeColor || '#94a3b8';
+            return `<span class="promo-badge" style="background:${_hexToRgba(color, 0.1)}; color:${color}; border:1px solid ${_hexToRgba(color, 0.6)}; box-shadow:0 0 8px ${_hexToRgba(color, 0.4)};">${board.badgeText}</span>`;
         }
 
-        return `<span class="promo-badge ${badgeClass}">${badgeText}</span>`;
+        // 매칭되는 게시판이 없는 경우 (기본 회색)
+        return `<span class="promo-badge promo-badge-gray">${category || '기타'}</span>`;
+    }
+
+    // 색상 변환 헬퍼 (프론트용)
+    function _hexToRgba(hex, alpha) {
+        if (!hex) return `rgba(148,163,184,${alpha})`;
+        hex = hex.replace('#', '');
+        if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        return `rgba(${r},${g},${b},${alpha})`;
     }
 
     const now = new Date();
@@ -400,23 +415,22 @@ window.changePromoPage = function (page) {
     // document.getElementById('promo-list').scrollIntoView({ behavior: 'smooth' });
 };
 
-// 2-1. 카테고리 필터링 함수
+// 2-1. 카테고리 필터링 함수 (동적 게시판 지원)
 window.filterPromo = function (category) {
     currentPromoCategory = category;
-    currentPromoPage = 1; // [수정] 필터 변경 시 1페이지로
+    currentPromoPage = 1;
 
-    // 탭 UI 업데이트
+    // 탭 UI 업데이트: onclick에서 전달된 카테고리 ID로 매칭
     document.querySelectorAll('.promo-tab-btn').forEach(btn => {
         btn.classList.remove('active');
     });
-    // 현재 클릭된 버튼 찾아서 active (이벤트 타겟 대신 텍스트 비교 등으로 찾음)
+    // 전체 탭 또는 동적 게시판 탭 활성화
     const btns = document.querySelectorAll('.promo-tab-btn');
-    if (category === 'ALL') btns[0].classList.add('active');
-    else if (category === 'NOTICE') btns[1].classList.add('active');
-    else if (category === 'LEGAL') btns[2].classList.add('active');
-    else if (category === 'PROMO') btns[3].classList.add('active');
+    const mapping = ['ALL', ..._boardsCache.map(b => b.id)];
+    const idx = mapping.indexOf(category);
+    if (idx >= 0 && btns[idx]) btns[idx].classList.add('active');
 
-    renderPromoPosts(); // 재렌더링
+    renderPromoPosts();
 };
 
 // 2-2. 검색 함수
@@ -424,34 +438,7 @@ window.searchPromo = function () {
     const input = document.getElementById('promo-search-input');
     if (input) {
         currentSearchKeyword = input.value.trim();
-        currentPromoPage = 1; // [수정] 검색 시 1페이지로
-        renderPromoPosts();
-    }
-}
-
-// 2-1. 카테고리 필터링 함수
-window.filterPromo = function (category) {
-    currentPromoCategory = category;
-
-    // 탭 UI 업데이트
-    document.querySelectorAll('.promo-tab-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    // 현재 클릭된 버튼 찾아서 active (이벤트 타겟 대신 텍스트 비교 등으로 찾음)
-    const btns = document.querySelectorAll('.promo-tab-btn');
-    if (category === 'ALL') btns[0].classList.add('active');
-    else if (category === 'NOTICE') btns[1].classList.add('active');
-    else if (category === 'LEGAL') btns[2].classList.add('active');
-    else if (category === 'PROMO') btns[3].classList.add('active');
-
-    renderPromoPosts(); // 재렌더링
-};
-
-// 2-2. 검색 함수
-window.searchPromo = function () {
-    const input = document.getElementById('promo-search-input');
-    if (input) {
-        currentSearchKeyword = input.value.trim();
+        currentPromoPage = 1;
         renderPromoPosts();
     }
 }
@@ -606,7 +593,7 @@ function escapeHtml(text) {
 // Legacy openPromoAdminPanel removed. Using showPromoManagementModal instead.
 
 // 8. 새 글 작성 에디터 열기
-window.openPromoEditor = function (editData = null) {
+window.openPromoEditor = async function (editData = null) {
     // 기존 모달 닫기
     const adminModal = document.getElementById('admin-modal');
     if (adminModal) adminModal.classList.add('hidden');
@@ -630,9 +617,7 @@ window.openPromoEditor = function (editData = null) {
                     <div class="promo-editor-body">
                         <div style="display:flex; gap:10px; margin-bottom:15px;">
                             <select id="promo-editor-category" style="flex:1; padding:12px; background:#0f172a; border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; font-size:1rem;">
-                                <option value="NOTICE">📢 공지사항</option>
-                                <option value="LEGAL">⚖️ 법률정보</option>
-                                <option value="PROMO">🎉 홍보정보</option>
+                                <!-- 게시판 옵션은 동적으로 채워짐 -->
                             </select>
                             <label style="display:flex; align-items:center; gap:8px; padding:0 15px; background:rgba(255,82,82,0.1); border:1px solid rgba(255,82,82,0.3); border-radius:8px; cursor:pointer;">
                                 <input type="checkbox" id="promo-editor-pinned">
@@ -757,12 +742,31 @@ window.openPromoEditor = function (editData = null) {
         });
     }
 
+    // 카테고리 드롭다운 동적 채우기
+    const categorySelect = document.getElementById('promo-editor-category');
+    if (categorySelect) {
+        try {
+            const bRes = await fetch(CONFIG.API_BASE + '/api/boards');
+            const boards = await bRes.json();
+            categorySelect.innerHTML = boards.map(b =>
+                `<option value="${b.id}">${b.name}</option>`
+            ).join('');
+        } catch (e) {
+            // 게시판 로드 실패 시 캐시 사용
+            if (_boardsCache.length > 0) {
+                categorySelect.innerHTML = _boardsCache.map(b =>
+                    `<option value="${b.id}">${b.name}</option>`
+                ).join('');
+            }
+        }
+    }
+
     // 수정 모드라면 기존 데이터 채우기
     document.getElementById('promo-editor-header-title').innerHTML = editData
         ? '<i class="fa-solid fa-pen-to-square"></i> 글 수정'
         : '<i class="fa-solid fa-pen-to-square"></i> 새 글 작성';
     document.getElementById('promo-editor-title').value = editData ? editData.title : '';
-    document.getElementById('promo-editor-category').value = editData ? (editData.category || 'PROMO') : 'PROMO';
+    document.getElementById('promo-editor-category').value = editData ? (editData.category || (_boardsCache[0] && _boardsCache[0].id) || 'PROMO') : (_boardsCache[0] && _boardsCache[0].id) || 'PROMO';
     document.getElementById('promo-editor-pinned').checked = editData ? (editData.isPinned || false) : false;
     promoQuillEditor.root.innerHTML = editData ? editData.content : '';
 

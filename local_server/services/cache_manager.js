@@ -36,6 +36,7 @@ const dataCache = {
     zoneForecasts: null,
     notice: null,
     promo: null,
+    boards: null,
     lastUpdate: {}
 };
 
@@ -51,7 +52,8 @@ function refreshCache() {
         forecasts: 'general_forecasts.json',
         zoneForecasts: 'zone_forecasts.json',
         notice: 'notice.json',
-        promo: 'promo.json'
+        promo: 'promo.json',
+        boards: 'boards.json'
     };
 
     Object.keys(files).forEach(key => {
