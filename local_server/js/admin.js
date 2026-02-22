@@ -518,6 +518,11 @@ function toLocalDatetime(s) {
 // 시각 포맷 헬퍼 (오류확인/수동입력 전용)
 function formatEfAlertTime(timeStr) {
     if (!timeStr || timeStr === '정보 없음' || timeStr === '미정') return timeStr || '-';
+    // utils.js의 formatWarningTime이 있으면 위임 (범위형 시간 올바르게 처리)
+    if (typeof formatWarningTime === 'function') {
+        const result = formatWarningTime(timeStr, false);
+        return result;
+    }
     // 12자리 숫자 시각인 경우
     const numeric = String(timeStr).replace(/[^0-9]/g, '');
     if (numeric.length >= 10) {

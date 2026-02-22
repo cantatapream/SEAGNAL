@@ -185,7 +185,7 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
         tmFc: alertObj.tmFc,
         tmEf: alertObj.tmEf,
         tmCc: alertObj.tmCc || '',
-        tmEd: alertObj.tmYn,
+        tmEd: alertObj.tmYn || alertObj.tmCc,
         command: reallyUpcoming ? '발표' : '발효', // 미래면 '발표', 지났으면 '발효'
         isPreliminary: reallyUpcoming,
         isCoastal: false,
