@@ -816,7 +816,7 @@ window.submitManualAlert = async function (zoneName, mode, alertIdx) {
         const resp = await fetch('/api/admin/manual-alert', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ zoneName, warnType, level, command, tmFc, tmEf, tmCc, skipPush: false })
+            body: JSON.stringify({ zoneName, warnType, level, command, tmFc, tmEf, tmCc, skipPush: mode === 'edit' })
         });
         const result = await resp.json();
         if (!resp.ok) throw new Error(result.error || '등록 실패');
