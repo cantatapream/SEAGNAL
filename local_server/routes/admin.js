@@ -45,6 +45,7 @@ const pushSender = require('../push_sender');
 const scheduler = require('../scheduler');
 
 const COLLECT_FAILURES_FILE = path.join(DATA_DIR, 'collect_failures.json');
+const COLLECT_CACHE_DIR = path.join(DATA_DIR, 'collect_cache');
 
 // ============================================================================
 // 헬퍼 함수
@@ -254,9 +255,71 @@ router.post('/api/admin/report-collect', async (req, res) => {
             console.error('[Admin] 장부 반영 오류:', applyErr.message);
         }
 
-        res.json({ success: true, reportId, title, rawText, aiResult, foundKeywords, applied, aiError, pushResult });
+        const responseData = { success: true, reportId, title, rawText, aiResult, foundKeywords, applied, aiError, pushResult };
+
+        // 수집 결과를 캐시에 저장 (재조회 시 AI 토큰 소모 방지)
+        try {
+            if (!fs.existsSync(COLLECT_CACHE_DIR)) fs.mkdirSync(COLLECT_CACHE_DIR, { recursive: true });
+            const cacheFileName = reportId.replace(/[/:]/g, '_') + '.json';
+            fs.writeFileSync(path.join(COLLECT_CACHE_DIR, cacheFileName), JSON.stringify(responseData, null, 2), 'utf8');
+        } catch (cacheErr) {
+            console.error('[Admin] 수집 캐시 저장 오류:', cacheErr.message);
+        }
+
+        res.json(responseData);
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// ============================================================================
+// 이미 수집된 통보문 조회 (AI 토큰 소모 방지)
+// ============================================================================
+
+/** 처리된 reportId 목록 반환 (weather_alerts.json의 history에서 추출) */
+router.get('/api/admin/processed-reports', (req, res) => {
+    try {
+        const outputFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
+        if (!fs.existsSync(outputFile)) return res.json({ processedIds: [] });
+
+        const data = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+        const processedIds = new Set();
+
+        // zone tree의 모든 history에서 reportId 수집
+        function traverse(obj) {
+            if (!obj || typeof obj !== 'object') return;
+            if (Array.isArray(obj)) return;
+            if (obj.history && Array.isArray(obj.history)) {
+                obj.history.forEach(h => { if (h.reportId) processedIds.add(h.reportId); });
+            }
+            for (const val of Object.values(obj)) {
+                if (val && typeof val === 'object') traverse(val);
+            }
+        }
+        traverse(data.current);
+        traverse(data.previous);
+
+        res.json({ processedIds: Array.from(processedIds) });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/** 캐시된 수집 결과 반환 (AI 재분석 없이) */
+router.get('/api/admin/report-cache/:reportId', (req, res) => {
+    try {
+        const reportId = req.params.reportId;
+        if (!fs.existsSync(COLLECT_CACHE_DIR)) return res.json({ cached: false });
+
+        const cacheFileName = reportId.replace(/[/:]/g, '_') + '.json';
+        const cachePath = path.join(COLLECT_CACHE_DIR, cacheFileName);
+
+        if (!fs.existsSync(cachePath)) return res.json({ cached: false });
+
+        const cached = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+        res.json({ cached: true, data: cached });
+    } catch (e) {
+        res.json({ cached: false });
     }
 });
 

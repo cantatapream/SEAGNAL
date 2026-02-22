@@ -192,8 +192,20 @@ window.atmFetchReports = async function () {
     const listEl = document.getElementById('atm-report-list');
     listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">통보문 목록을 불러오는 중...</div>';
     try {
-        const res = await fetch('/api/admin/reports?date=' + date);
-        const data = await res.json();
+        // 통보문 목록과 이미 처리된 reportId 목록을 동시에 조회
+        const [reportsRes, processedRes] = await Promise.all([
+            fetch('/api/admin/reports?date=' + date),
+            fetch('/api/admin/processed-reports').catch(() => ({ ok: false }))
+        ]);
+        const data = await reportsRes.json();
+        let processedIds = new Set();
+        try {
+            if (processedRes.ok) {
+                const processedData = await processedRes.json();
+                processedIds = new Set(processedData.processedIds || []);
+            }
+        } catch (e) { /* processed-reports 실패해도 통보문 목록은 정상 표시 */ }
+
         if (data.count === 0) {
             listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">해당 날짜에 [특보]/[예비] 통보문이 없습니다.</div>';
             document.getElementById('atm-collect-all-btn').style.display = 'none';
@@ -204,15 +216,34 @@ window.atmFetchReports = async function () {
         document.getElementById('atm-push-toggle-wrap').style.display = 'flex';
         window._atmReports = data.reports;
         window._atmResults = {};
-        listEl.innerHTML = data.reports.map((r, i) => `
-            <div id="atm-row-${i}" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:6px;flex-wrap:wrap;">
-                <span style="flex:1;color:#e2e8f0;font-size:0.85rem;min-width:200px;">${r.title}</span>
-                <span style="color:#64748b;font-size:0.7rem;word-break:break-all;">${r.id}</span>
-                <div style="display:flex;gap:6px;flex-shrink:0;">
-                    <button id="atm-cb-${i}" onclick="atmCollectOne(${i})" style="padding:5px 12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">수집</button>
-                    <button id="atm-rb-${i}" onclick="atmShowResult(${i})" style="display:none;padding:5px 12px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">결과</button>
-                </div>
-            </div>`).join('');
+
+        listEl.innerHTML = data.reports.map((r, i) => {
+            const isProcessed = processedIds.has(r.id);
+            if (isProcessed) {
+                // 이미 수집된 통보문: [완료] [결과] [재수집]
+                return `
+                <div id="atm-row-${i}" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:6px;flex-wrap:wrap;">
+                    <span style="flex:1;color:#e2e8f0;font-size:0.85rem;min-width:200px;">${r.title}</span>
+                    <span style="color:#64748b;font-size:0.7rem;word-break:break-all;">${r.id}</span>
+                    <div style="display:flex;gap:6px;flex-shrink:0;">
+                        <button id="atm-cb-${i}" disabled style="padding:5px 12px;background:rgba(34,197,94,0.3);color:#86efac;border:none;border-radius:6px;font-size:0.8rem;font-weight:600;cursor:default;"><i class="fa-solid fa-check"></i> 완료</button>
+                        <button id="atm-rb-${i}" onclick="atmShowCachedResult(${i})" style="padding:5px 12px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">결과</button>
+                        <button onclick="atmCollectOne(${i})" style="padding:5px 10px;background:rgba(255,255,255,0.08);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;font-size:0.75rem;font-weight:600;" title="AI를 다시 사용하여 재수집"><i class="fa-solid fa-rotate"></i> 재수집</button>
+                    </div>
+                </div>`;
+            } else {
+                // 미수집 통보문: 기존 [수집] 버튼
+                return `
+                <div id="atm-row-${i}" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:6px;flex-wrap:wrap;">
+                    <span style="flex:1;color:#e2e8f0;font-size:0.85rem;min-width:200px;">${r.title}</span>
+                    <span style="color:#64748b;font-size:0.7rem;word-break:break-all;">${r.id}</span>
+                    <div style="display:flex;gap:6px;flex-shrink:0;">
+                        <button id="atm-cb-${i}" onclick="atmCollectOne(${i})" style="padding:5px 12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">수집</button>
+                        <button id="atm-rb-${i}" onclick="atmShowResult(${i})" style="display:none;padding:5px 12px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">결과</button>
+                    </div>
+                </div>`;
+            }
+        }).join('');
     } catch (e) { listEl.innerHTML = '<div style="color:#ef4444;padding:20px;">오류: ' + e.message + '</div>'; }
 };
 
@@ -381,6 +412,30 @@ window.atmShowResult = function (i) {
     document.body.appendChild(popup);
     window._atmCurResult = data;
     atmSwitchResultTab('json');
+};
+
+// 이미 수집된 통보문의 캐시 결과 표시 (AI 토큰 소모 없이)
+window.atmShowCachedResult = async function (i) {
+    // 먼저 메모리 캐시 확인 (현재 세션에서 이미 수집한 경우)
+    if (window._atmResults[i]) {
+        return atmShowResult(i);
+    }
+    // 서버 캐시에서 조회
+    const report = window._atmReports[i];
+    if (!report) return alert('통보문 정보가 없습니다.');
+
+    try {
+        const res = await fetch('/api/admin/report-cache/' + encodeURIComponent(report.id));
+        const result = await res.json();
+        if (result.cached && result.data) {
+            window._atmResults[i] = result.data;
+            atmShowResult(i);
+        } else {
+            alert('캐시된 수집 결과가 없습니다.\n[재수집] 버튼을 눌러 다시 수집해주세요.');
+        }
+    } catch (e) {
+        alert('결과 조회 실패: ' + e.message);
+    }
 };
 
 window.atmSwitchResultTab = function (tabId) {

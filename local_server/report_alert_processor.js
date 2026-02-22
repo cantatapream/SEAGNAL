@@ -3,6 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const aiParser = require('./ai_report_parser');
 
+const COLLECT_CACHE_DIR = path.join(__dirname, 'data', 'collect_cache');
+
 const CONFIG = {
     LIST_URL: 'https://www.weather.go.kr/w/special-report/list.do',
     DETAIL_URL: 'https://www.weather.go.kr/w/special-report/list.do',
@@ -318,6 +320,21 @@ async function applyNewReports(fullForm) {
                     console.log(`[ReportProcessor] 존 트리 tmCc 전파: ${propagatedCount}건 업데이트`);
                     changed = true;
                 }
+            }
+
+            // 수집 결과를 캐시에 저장 (관리자 테스트에서 재조회 시 AI 토큰 소모 방지)
+            try {
+                if (!fs.existsSync(COLLECT_CACHE_DIR)) fs.mkdirSync(COLLECT_CACHE_DIR, { recursive: true });
+                const foundKeywords = RELEVANT_KEYWORDS.filter(kw => text.includes(kw));
+                const cacheData = {
+                    success: true, reportId: report.id, title: report.title,
+                    rawText: text, aiResult: deduplicatedEvents, foundKeywords,
+                    applied: changed, aiError: aiParsed.error || null, pushResult: null
+                };
+                const cacheFileName = report.id.replace(/[/:]/g, '_') + '.json';
+                fs.writeFileSync(path.join(COLLECT_CACHE_DIR, cacheFileName), JSON.stringify(cacheData, null, 2), 'utf8');
+            } catch (cacheErr) {
+                console.error('[ReportProcessor] 수집 캐시 저장 오류:', cacheErr.message);
             }
 
             fullForm.lastReportId = report.id;
