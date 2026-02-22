@@ -591,7 +591,7 @@ function showNoticePopup(noticeData) {
                 </div>
                 <div class="notice-body">
                     <div class="notice-body-inner ${typeClass}">
-                        ${(noticeData.content || '').trim().replace(/\n/g, '<br>')}
+                        ${(noticeData.content || '').trim()}
                     </div>
                     ${promoButtonHtml}
                 </div>
