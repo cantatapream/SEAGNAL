@@ -295,6 +295,8 @@ async function applyNewReports(fullForm) {
             }
 
             // 분석된 각 이벤트를 시스템에 적용
+            // [Fix] 같은 통보문 내 동일 type+command로 이미 처리된 구역은 덮어쓰지 않도록 추적
+            const processedZonesInReport = {};
             for (const event of deduplicatedEvents) {
                 // reportId 및 발표시각(tmFc) 추가
                 event.reportId = report.id;
@@ -303,9 +305,21 @@ async function applyNewReports(fullForm) {
                 // [Fix] zones 내 중복 제거
                 event.zones = [...new Set(event.zones || [])];
 
+                const trackingKey = `${event.type}|${event.command}`;
+                if (!processedZonesInReport[trackingKey]) {
+                    processedZonesInReport[trackingKey] = new Set();
+                }
+
                 console.log(`[AI Event] ${event.type} ${event.command} (${event.time}) - 구역: ${event.zones.length}개`);
 
                 event.zones.forEach(zoneName => {
+                    // [Fix] 같은 통보문의 같은 type+command로 이미 처리된 구역은 건너뜀 (시간 덮어쓰기 방지)
+                    if (processedZonesInReport[trackingKey].has(zoneName)) {
+                        console.log(`[ReportProcessor] 구역 중복 건너뜀: ${zoneName} (${trackingKey}, 이전 이벤트에서 이미 처리됨)`);
+                        return;
+                    }
+                    processedZonesInReport[trackingKey].add(zoneName);
+
                     if (updateZoneStatus(fullForm.current, zoneName, event)) {
                         changed = true;
                     }
