@@ -468,7 +468,7 @@ async function renderUnifiedApiContent(container) {
         <div class="admin-card" style="padding:20px; background:rgba(15, 23, 42, 0.4);">
             <div style="font-weight:600; color:#fff; margin-bottom:12px; font-size:0.85rem; display:flex; align-items:center; gap:8px;">
                 <i class="fa-solid fa-bolt" style="color:#ff5722;"></i> 기상청 API HUB (Auth Key)
-                <span style="font-size:0.7rem; color:#64748b; font-weight:400;">- 기상예보, 특보-HUB, 해구예보, 부이 공통</span>
+                <span style="font-size:0.7rem; color:#64748b; font-weight:400;">- 기상예보, 해구예보, 부이 공통</span>
             </div>
             <div style="display:flex; gap:10px; margin-bottom:15px;">
                 <input type="password" id="unified-kma-hub-key" 
@@ -689,7 +689,6 @@ async function renderUnifiedApiContent(container) {
             const status = await res.json();
             const apiItems = [
                 { key: 'general', name: '기상 예보', icon: 'fa-sun', color: '#ffd54f' },
-                { key: 'warnings_hub', name: '특보 - HUB (KMA)', icon: 'fa-bolt', color: '#ff5722' },
                 { key: 'zone', name: '해구별 예보', icon: 'fa-map-location-dot', color: '#29b6f6' },
                 { key: 'buoys', name: '관측 부이', icon: 'fa-anchor', color: '#26a69a' }
             ];
@@ -2064,7 +2063,6 @@ window.refreshApiStatus = async function () {
 
         const apiItems = [
             { key: 'general', name: '기상 예보', icon: 'fa-sun', color: '#ffd54f' },
-            { key: 'warnings_hub', name: '특보 - HUB (KMA)', icon: 'fa-bolt', color: '#ff5722' },
             { key: 'zone', name: '해구별 예보', icon: 'fa-map-location-dot', color: '#29b6f6' },
             { key: 'buoys', name: '관측 부이', icon: 'fa-anchor', color: '#26a69a' }
         ];
