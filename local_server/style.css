@@ -1751,7 +1751,7 @@ line-height: 1.1;
 
 /* 콘텐츠 영역 */
 .notice-body {
-    padding: 20px 24px;
+    padding: 12px 24px;
 }
 
 .notice-body-inner {
@@ -1760,7 +1760,6 @@ line-height: 1.1;
     font-size: 0.9rem;
     line-height: 1.75;
     color: #cbd5e1;
-    white-space: pre-line;
     word-break: keep-all;
 }
 
