@@ -142,7 +142,8 @@ function updateZoneStatus(obj, targetZone, event, referenceTime) {
                 const inheritedTmFc = (prevUp.wrnTp === cleanType && prevUp.wrnLvl === '예비') ? (prevUp.tmFc || event.tmFc || '') : (event.tmFc || '');
                 // upcoming은 current와 독립된 건이므로, current의 해제예정시각(tmCc)을 상속하면 안됨
                 const inheritedTmCc = tmCc || prevUp.tmCc || prevUp.tmYn || '';
-                value.upcoming = { ...prevUp, wrnTp: cleanType, wrnLvl: '예비', tmEf: tmEfOriginal, tmFc: inheritedTmFc, tmCc: inheritedTmCc };
+                const tmCcExplicit = !!(tmCc); // AI가 통보문에서 직접 추출한 경우만 true
+                value.upcoming = { ...prevUp, wrnTp: cleanType, wrnLvl: '예비', tmEf: tmEfOriginal, tmFc: inheritedTmFc, tmCc: inheritedTmCc, tmCcExplicit };
             } else {
                 const isJuui = event.type.includes('주의보');
                 const cleanType = event.type.replace('주의보', '').replace('경보', '').trim();
@@ -161,7 +162,8 @@ function updateZoneStatus(obj, targetZone, event, referenceTime) {
                 if (effTime && effTime > now) {
                     // upcoming은 current와 독립된 건이므로, current의 해제예정시각(tmCc)을 상속하면 안됨
                     const inheritedTmCc = tmCc || event.tmYn || prevUp.tmCc || prevUp.tmYn || '';
-                    value.upcoming = { ...prevUp, wrnTp: cleanType, wrnLvl: level, tmFc: inheritedTmFc, tmEf: tmEfOriginal, tmCc: inheritedTmCc };
+                    const tmCcExplicit = !!(tmCc || event.tmYn); // AI가 통보문에서 직접 추출한 경우만 true
+                    value.upcoming = { ...prevUp, wrnTp: cleanType, wrnLvl: level, tmFc: inheritedTmFc, tmEf: tmEfOriginal, tmCc: inheritedTmCc, tmCcExplicit };
                 } else {
                     const inheritedTmCc = tmCc || event.tmYn || prevCurr.tmCc || prevCurr.tmYn || prevUp.tmCc || prevUp.tmYn || '';
                     value.current = { ...prevCurr, wrnTp: cleanType, wrnLvl: level, tmFc: inheritedTmFc, tmEf: tmEfOriginal || prevCurr.tmEf || '', tmCc: inheritedTmCc };
