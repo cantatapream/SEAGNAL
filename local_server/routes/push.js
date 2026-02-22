@@ -164,125 +164,135 @@ router.post('/api/push-custom', async (req, res) => {
         let failCount = 0;
         let deadSubscriptionsFound = false;
 
-        const broadcastPromises = subs.map(async (user) => {
-            // 1. 전체 알림 수신 거부 확인
-            if (user.options && user.options.master === false) return;
+        // 배치 발송 (100명씩 끊어서 발송하여 메모리 절약)
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < subs.length; i += BATCH_SIZE) {
+            const batch = subs.slice(i, i + BATCH_SIZE);
+            const batchPromises = batch.map(async (user) => {
+                // 1. 전체 알림 수신 거부 확인
+                if (user.options && user.options.master === false) return;
 
-            let finalTitle = title;
-            let finalBody = content;
-            let shouldSend = false;
-            let userFilteredItems = null;
+                let finalTitle = title;
+                let finalBody = content;
+                let shouldSend = false;
+                let userFilteredItems = null;
 
-            // 2. 모드별 처리
-            if (isManualGroupSend && payload) {
-                // [개인화 모드]
-                userFilteredItems = getMatchedZones(user.zones, payload.items, user.options || {});
-                if (!userFilteredItems || userFilteredItems.length === 0) return;
+                // 2. 모드별 처리
+                if (isManualGroupSend && payload) {
+                    // [개인화 모드]
+                    userFilteredItems = getMatchedZones(user.zones, payload.items, user.options || {});
+                    if (!userFilteredItems || userFilteredItems.length === 0) return;
 
-                const generated = generateMessage({ ...payload, items: userFilteredItems });
-                finalTitle = generated.title;
-                finalBody = generated.body;
-                shouldSend = true;
-            } else {
-                // [기존 커스텀 모드]
-                const sendAll = targetZones.includes('전체 해역') || targetZones.includes('전체해역');
-                const zoneList = sendAll ? [] : targetZones.split(',').map(z => z.trim());
-
-                if (sendAll || (user.options && user.options.target === 'all')) {
+                    const generated = generateMessage({ ...payload, items: userFilteredItems });
+                    finalTitle = generated.title;
+                    finalBody = generated.body;
                     shouldSend = true;
                 } else {
-                    const expandedUserZones = expandToMinorZones(user.zones);
-                    if (!expandedUserZones || expandedUserZones.length === 0) {
+                    // [기존 커스텀 모드]
+                    const sendAll = targetZones.includes('전체 해역') || targetZones.includes('전체해역');
+                    const zoneList = sendAll ? [] : targetZones.split(',').map(z => z.trim());
+
+                    if (sendAll || (user.options && user.options.target === 'all')) {
                         shouldSend = true;
                     } else {
-                        const hasMatch = zoneList.some(tz => expandedUserZones.includes(tz));
-                        shouldSend = hasMatch;
+                        const expandedUserZones = expandToMinorZones(user.zones);
+                        if (!expandedUserZones || expandedUserZones.length === 0) {
+                            shouldSend = true;
+                        } else {
+                            const hasMatch = zoneList.some(tz => expandedUserZones.includes(tz));
+                            shouldSend = hasMatch;
+                        }
                     }
                 }
-            }
 
-            if (!shouldSend) return;
+                if (!shouldSend) return;
 
-            // 3. 시나리오별 수신 설정 필터링 (announce/active/release/night)
-            if (isManualGroupSend && payload) {
-                const opts = user.options || {};
-                const tid = payload.templateId;
+                // 3. 시나리오별 수신 설정 필터링 (announce/active/release/night)
+                if (isManualGroupSend && payload) {
+                    const opts = user.options || {};
+                    const tid = payload.templateId;
 
-                // 발표 관련 (publish, 격상/격하 발표, 발효시각 변경)
-                if (opts.announce === false &&
-                    ['publish', 'level_upgrade_publish', 'level_downgrade_publish', 'time_ef_change'].includes(tid)) {
-                    return;
-                }
-                // 발효 관련 (active, 격상/격하 발효, 해제시각 변경)
-                if (opts.active === false &&
-                    ['active', 'level_upgrade_active', 'level_downgrade_active', 'time_yn_change'].includes(tid)) {
-                    return;
-                }
-                // 해제
-                if (opts.release === false && tid === 'release') {
-                    return;
-                }
-                // 야간 수신 거부 (KST 22:00 ~ 07:00)
-                if (opts.night === false) {
-                    const kstHour = (new Date().getUTCHours() + 9) % 24;
-                    if (kstHour >= 22 || kstHour < 7) {
+                    // 발표 관련 (publish, 격상/격하 발표, 발효시각 변경)
+                    if (opts.announce === false &&
+                        ['publish', 'level_upgrade_publish', 'level_downgrade_publish', 'time_ef_change'].includes(tid)) {
                         return;
                     }
+                    // 발효 관련 (active, 격상/격하 발효, 해제시각 변경)
+                    if (opts.active === false &&
+                        ['active', 'level_upgrade_active', 'level_downgrade_active', 'time_yn_change'].includes(tid)) {
+                        return;
+                    }
+                    // 해제
+                    if (opts.release === false && tid === 'release') {
+                        return;
+                    }
+                    // 야간 수신 거부 (KST 22:00 ~ 07:00)
+                    if (opts.night === false) {
+                        const kstHour = (new Date().getUTCHours() + 9) % 24;
+                        if (kstHour >= 22 || kstHour < 7) {
+                            return;
+                        }
+                    }
                 }
-            }
 
-            try {
-                // URL 파라미터 구성 (개인화 정보 포함)
-                const params = new URLSearchParams();
-                params.append('popup', 'true');
-                if (isManualGroupSend && payload) {
-                    const fullAlertType = (payload.typeName || '') + (payload.level ? payload.level : '');
-                    params.append('alertType', fullAlertType);
-                    params.append('status', payload.templateId);
-                    params.append('tmFc', payload.items[0].tmFc || '');
-                    params.append('tmEf', payload.items[0].tmEf || '');
-                    params.append('tmYn', payload.items[0].tmYn || '');
-                    params.append('zones', userFilteredItems.flatMap(i => i.zones).join(','));
-                }
-                const BASE_URL = 'https://seagnal-server.fly.dev';
-                const url = `${BASE_URL}/?tab=weather-alert-section&${params.toString()}`;
+                try {
+                    // URL 파라미터 구성 (개인화 정보 포함)
+                    const params = new URLSearchParams();
+                    params.append('popup', 'true');
+                    if (isManualGroupSend && payload) {
+                        const fullAlertType = (payload.typeName || '') + (payload.level ? payload.level : '');
+                        params.append('alertType', fullAlertType);
+                        params.append('status', payload.templateId);
+                        params.append('tmFc', payload.items[0].tmFc || '');
+                        params.append('tmEf', payload.items[0].tmEf || '');
+                        params.append('tmYn', payload.items[0].tmYn || '');
+                        params.append('zones', userFilteredItems.flatMap(i => i.zones).join(','));
+                    }
+                    const BASE_URL = 'https://seagnal-server.fly.dev';
+                    const url = `${BASE_URL}/?tab=weather-alert-section&${params.toString()}`;
 
-                if (user.type === 'fcm' && user.token) {
-                    if (admin.apps.length > 0) {
+                    if (user.type === 'fcm' && user.token) {
+                        if (admin.apps.length > 0) {
+                            try {
+                                await admin.messaging().send({
+                                    token: user.token,
+                                    notification: { title: finalTitle, body: finalBody },
+                                    data: { url: url, type: isManualGroupSend ? 'manual_group' : 'custom_push' },
+                                    android: { priority: 'high' },
+                                    apns: { headers: { 'apns-priority': '10' } }
+                                });
+                                successCount++;
+                            } catch (err) {
+                                failCount++;
+                                if (err.code === 'messaging/registration-token-not-registered' || err.code === 'messaging/invalid-registration-token') {
+                                    user._isDead = true;
+                                    deadSubscriptionsFound = true;
+                                }
+                            }
+                        }
+                    } else if (user.subscription) {
                         try {
-                            await admin.messaging().send({
-                                token: user.token,
-                                notification: { title: finalTitle, body: finalBody },
-                                data: { url: url, type: isManualGroupSend ? 'manual_group' : 'custom_push' }
+                            const pushPayload = JSON.stringify({ title: finalTitle, body: finalBody, url: url });
+                            await webpush.sendNotification(user.subscription, pushPayload, {
+                                TTL: 86400,
+                                urgency: 'high'
                             });
                             successCount++;
                         } catch (err) {
                             failCount++;
-                            if (err.code === 'messaging/registration-token-not-registered' || err.code === 'messaging/invalid-registration-token') {
+                            if (err.statusCode === 404 || err.statusCode === 410) {
                                 user._isDead = true;
                                 deadSubscriptionsFound = true;
                             }
                         }
                     }
-                } else if (user.subscription) {
-                    try {
-                        const pushPayload = JSON.stringify({ title: finalTitle, body: finalBody, url: url });
-                        await webpush.sendNotification(user.subscription, pushPayload);
-                        successCount++;
-                    } catch (err) {
-                        failCount++;
-                        if (err.statusCode === 404 || err.statusCode === 410) {
-                            user._isDead = true;
-                            deadSubscriptionsFound = true;
-                        }
-                    }
+                } catch (e) {
+                    failCount++;
                 }
-            } catch (e) {
-                failCount++;
-            }
-        });
+            });
 
-        await Promise.all(broadcastPromises);
+            await Promise.all(batchPromises);
+        }
 
         // 만료된 구독자 정리
         if (deadSubscriptionsFound) {
