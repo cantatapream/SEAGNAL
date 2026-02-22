@@ -185,6 +185,7 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
         tmFc: alertObj.tmFc,
         tmEf: alertObj.tmEf,
         tmCc: alertObj.tmCc || '',
+        tmCcExplicit: alertObj.tmCcExplicit || false, // AI가 통보문에서 직접 추출한 tmCc인지 여부
         tmEd: alertObj.tmYn || alertObj.tmCc,
         command: reallyUpcoming ? '발표' : '발효', // 미래면 '발표', 지났으면 '발효'
         isPreliminary: reallyUpcoming,
