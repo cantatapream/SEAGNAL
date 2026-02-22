@@ -1626,7 +1626,7 @@ line-height: 1.1;
 }
 
 /* ==========================================================================
-   공지사항 & 관리자 팝업 스타일
+   공지사항 & 관리자 팝업 스타일 (리디자인)
    ========================================================================== */
 .notice-modal-overlay {
     position: fixed;
@@ -1634,39 +1634,245 @@ line-height: 1.1;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.75);
+    background-color: rgba(0, 0, 0, 0.7);
     z-index: 9999;
     display: flex;
     justify-content: center;
     align-items: center;
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 
+/* --- 사용자용 공지 팝업 카드 --- */
 .notice-popup {
-    background: #1e293b;
-    /* 어두운 배경 */
+    background: rgba(15, 23, 42, 0.92);
     color: #fff;
-    width: 90%;
-    max-width: 400px;
-    border-radius: 12px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    width: 88%;
+    max-width: 380px;
+    border-radius: 20px;
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 8px 40px rgba(0, 0, 0, 0.55),
+        0 0 80px -20px rgba(59, 130, 246, 0.15);
     overflow: hidden;
-    animation: popupFadeIn 0.3s ease-out;
+    animation: noticeSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes popupFadeIn {
+@keyframes noticeSlideUp {
     from {
         opacity: 0;
-        transform: scale(0.9);
+        transform: translateY(30px) scale(0.96);
     }
-
     to {
         opacity: 1;
-        transform: scale(1);
+        transform: translateY(0) scale(1);
     }
 }
 
+/* 헤더 - 아이콘 뱃지 + 제목 + 만료일 */
+.notice-header-area {
+    position: relative;
+    padding: 28px 24px 20px;
+    text-align: center;
+    overflow: hidden;
+}
+
+.notice-header-area::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.18), rgba(139, 92, 246, 0.12));
+    z-index: 0;
+}
+
+.notice-header-area.maintenance::before {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(239, 68, 68, 0.10));
+}
+
+.notice-header-area.error::before {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.18), rgba(220, 38, 38, 0.10));
+}
+
+.notice-header-area::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+}
+
+.notice-icon-badge {
+    position: relative;
+    z-index: 1;
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 14px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.35);
+}
+
+.notice-icon-badge.maintenance {
+    background: linear-gradient(135deg, #f59e0b, #ef4444);
+    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.35);
+}
+
+.notice-icon-badge.error {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.35);
+}
+
+.notice-title {
+    position: relative;
+    z-index: 1;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+}
+
+.notice-expires {
+    position: relative;
+    z-index: 1;
+    font-size: 0.72rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+/* 콘텐츠 영역 */
+.notice-body {
+    padding: 20px 24px;
+}
+
+.notice-body-inner {
+    border-left: 3px solid rgba(59, 130, 246, 0.4);
+    padding: 2px 0 2px 16px;
+    font-size: 0.9rem;
+    line-height: 1.75;
+    color: #cbd5e1;
+    white-space: pre-line;
+    word-break: keep-all;
+}
+
+.notice-body-inner.maintenance {
+    border-left-color: rgba(245, 158, 11, 0.5);
+}
+
+.notice-body-inner.error {
+    border-left-color: rgba(239, 68, 68, 0.5);
+}
+
+/* 자세히 보기 버튼 */
+.notice-detail-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px;
+    margin-top: 16px;
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.25);
+}
+
+.notice-detail-btn:active {
+    transform: scale(0.97);
+    opacity: 0.9;
+}
+
+/* 푸터 */
+.notice-footer {
+    padding: 14px 24px;
+    background: rgba(0, 0, 0, 0.25);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* 커스텀 체크박스 */
+.notice-checkbox-label {
+    font-size: 0.8rem;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: color 0.2s;
+}
+
+.notice-checkbox-label:active {
+    color: #94a3b8;
+}
+
+.notice-checkbox-custom {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 2px solid #475569;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.notice-checkbox-custom.checked {
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    border-color: transparent;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.notice-checkbox-custom svg {
+    width: 11px;
+    height: 11px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.notice-checkbox-custom.checked svg {
+    opacity: 1;
+}
+
+/* 닫기(확인) 버튼 */
+.notice-close-btn {
+    background: linear-gradient(135deg, #334155, #1e293b);
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 9px 22px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.notice-close-btn:active {
+    transform: scale(0.96);
+    background: linear-gradient(135deg, #475569, #334155);
+}
+
+/* 기존 admin 모달용 헤더 호환 */
 .notice-header {
     background: linear-gradient(135deg, #3b82f6, #2563eb);
     padding: 10px 14px;
@@ -1679,14 +1885,13 @@ line-height: 1.1;
 
 .notice-header.maintenance {
     background: linear-gradient(135deg, #f59e0b, #d97706);
-    /* 주황색 점검 */
 }
 
 .notice-header.error {
     background: linear-gradient(135deg, #ef4444, #b91c1c);
-    /* 빨간색 오류 */
 }
 
+/* 기존 .notice-content는 admin 모달에서 계속 사용 */
 .notice-content {
     padding: 8px;
     font-size: 0.9rem;
@@ -1696,37 +1901,10 @@ line-height: 1.1;
     text-align: left;
 }
 
-.notice-footer {
-    padding: 15px 20px;
-    background: rgba(0, 0, 0, 0.2);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.notice-checkbox-label {
-    font-size: 0.9rem;
-    color: #94a3b8;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.notice-close-btn {
-    background: #334155;
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    padding: 8px 16px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: all 0.2s;
-}
-
-.notice-close-btn:hover {
-    background: #475569;
+/* popupFadeIn은 admin 모달에서 사용 */
+@keyframes popupFadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
 }
 
 /* 관리자 모달 스타일 */

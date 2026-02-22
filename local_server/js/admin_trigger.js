@@ -550,23 +550,31 @@ async function requestNoticeUpdate(payload) {
     }
 }
 
-// 7. 일반 사용자용 공지 팝업
+// 7. 일반 사용자용 공지 팝업 (리디자인)
 function showNoticePopup(noticeData) {
     // 이미 팝업이 있으면 제거
     const existing = document.getElementById('main-notice-popup');
     if (existing) existing.remove();
 
     const isMaintenance = noticeData.title.includes('점검');
-    const headerClass = isMaintenance ? 'maintenance' : '';
+    const typeClass = isMaintenance ? 'maintenance' : '';
+    const iconEmoji = isMaintenance ? '<i class="fa-solid fa-wrench"></i>' : '<i class="fa-solid fa-bullhorn"></i>';
+
+    // 만료일 포맷
+    let expiresText = '';
+    if (noticeData.expiresAt) {
+        const parts = noticeData.expiresAt.split(' ');
+        if (parts[0]) {
+            const dateParts = parts[0].split('-');
+            expiresText = `${dateParts[0]}.${dateParts[1]}.${dateParts[2]}`;
+            if (parts[1]) expiresText += ` ${parts[1]}`;
+            expiresText += ' 까지';
+        }
+    }
 
     // 게시글 연결 버튼 (linkedPromoId가 있을 때만)
     const promoButtonHtml = noticeData.linkedPromoId
-        ? `<button class="notice-promo-btn" onclick="window.goToLinkedPromo(${noticeData.linkedPromoId}, ${noticeData.id})" style="
-            display:flex; align-items:center; justify-content:center; gap:8px;
-            width:100%; padding:12px; margin-top:12px;
-            background:linear-gradient(135deg, #3b82f6, #2563eb); color:#fff;
-            border:none; border-radius:8px; font-weight:700; font-size:0.9rem;
-            cursor:pointer; transition:opacity 0.2s;">
+        ? `<button class="notice-detail-btn" onclick="window.goToLinkedPromo(${noticeData.linkedPromoId}, ${noticeData.id})">
             <i class="fa-solid fa-arrow-right"></i> 자세히 보기
           </button>`
         : '';
@@ -574,24 +582,45 @@ function showNoticePopup(noticeData) {
     const html = `
         <div class="notice-modal-overlay" id="main-notice-popup">
             <div class="notice-popup">
-                <div class="notice-header ${headerClass}">
-                    <span>📢 ${noticeData.title}</span>
+                <div class="notice-header-area ${typeClass}">
+                    <div class="notice-icon-badge ${typeClass}">
+                        ${iconEmoji}
+                    </div>
+                    <div class="notice-title">${noticeData.title}</div>
+                    ${expiresText ? `<div class="notice-expires">${expiresText}</div>` : ''}
                 </div>
-                <div class="notice-content">
-                    ${(noticeData.content || '').replace(/\n/g, '<br>')}
+                <div class="notice-body">
+                    <div class="notice-body-inner ${typeClass}">
+                        ${(noticeData.content || '').replace(/\n/g, '<br>')}
+                    </div>
                     ${promoButtonHtml}
                 </div>
                 <div class="notice-footer">
-                    <label class="notice-checkbox-label">
-                        <input type="checkbox" id="notice-dont-show"> 다시 보지 않기
+                    <label class="notice-checkbox-label" onclick="window._toggleNoticeCheck()">
+                        <span class="notice-checkbox-custom" id="notice-check-box">
+                            <svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="2.5 6 5 8.5 9.5 3.5"></polyline>
+                            </svg>
+                        </span>
+                        다시 보지 않기
                     </label>
-                    <button class="notice-close-btn" onclick="closeNoticePopup(${noticeData.id})">닫기</button>
+                    <input type="checkbox" id="notice-dont-show" style="display:none;">
+                    <button class="notice-close-btn" onclick="closeNoticePopup(${noticeData.id})">확인</button>
                 </div>
             </div>
         </div>
     `;
     document.body.insertAdjacentHTML('beforeend', html);
 }
+
+// 7-0. 커스텀 체크박스 토글
+window._toggleNoticeCheck = function () {
+    const box = document.getElementById('notice-check-box');
+    const hidden = document.getElementById('notice-dont-show');
+    if (!box || !hidden) return;
+    hidden.checked = !hidden.checked;
+    box.classList.toggle('checked', hidden.checked);
+};
 
 // 7-1. 게시글 이동 핸들러
 window.goToLinkedPromo = function (promoId, noticeId) {
@@ -621,21 +650,24 @@ window.closeNoticePopup = function (noticeId) {
     if (popup) popup.remove();
 };
 
-// 9. 하드코딩 팝업: 서버 점검 중 (연결 불가)
+// 9. 하드코딩 팝업: 서버 점검 중 (연결 불가) - 리디자인
 function showMaintenancePopup() {
     const html = `
         <div class="notice-modal-overlay" id="server-maintenance-popup" style="z-index:10000;">
             <div class="notice-popup">
-                <div class="notice-header maintenance">
-                    <span>🔌 서버 연결 불가</span>
+                <div class="notice-header-area maintenance">
+                    <div class="notice-icon-badge maintenance">
+                        <i class="fa-solid fa-server"></i>
+                    </div>
+                    <div class="notice-title">서버 연결 불가</div>
                 </div>
-                <div class="notice-content" style="text-align: center;">
-                    <i class="fa-solid fa-server fa-3x" style="color: #cbd5e1; margin-bottom: 15px;"></i>
-                    <p>현재 서버와 연결할 수 없습니다.</p>
-                    <p style="font-size: 0.9rem; color: #94a3b8;">
-                        서버(PC) 전원이 꺼져 있거나<br>
-                        점검 중일 수 있습니다.
-                    </p>
+                <div class="notice-body">
+                    <div class="notice-body-inner maintenance" style="text-align:center; border-left:none; padding-left:0;">
+                        현재 서버와 연결할 수 없습니다.<br><br>
+                        <span style="font-size:0.85rem; color:#94a3b8;">
+                            서버(PC) 전원이 꺼져 있거나<br>점검 중일 수 있습니다.
+                        </span>
+                    </div>
                 </div>
                 <div class="notice-footer" style="justify-content: center;">
                     <button class="notice-close-btn" onclick="document.getElementById('server-maintenance-popup').remove(); window.location.reload();">
@@ -651,20 +683,24 @@ function showMaintenancePopup() {
     }
 }
 
-// 10. 하드코딩 팝업: 네트워크 오류
+// 10. 하드코딩 팝업: 네트워크 오류 - 리디자인
 function showNetworkErrorPopup() {
     const html = `
         <div class="notice-modal-overlay" id="network-error-popup" style="z-index:10000;">
             <div class="notice-popup">
-                <div class="notice-header error">
-                    <span>📶 네트워크 오류</span>
+                <div class="notice-header-area error">
+                    <div class="notice-icon-badge error">
+                        <i class="fa-solid fa-wifi"></i>
+                    </div>
+                    <div class="notice-title">네트워크 오류</div>
                 </div>
-                <div class="notice-content" style="text-align: center;">
-                    <i class="fa-solid fa-wifi fa-3x" style="color: #cbd5e1; margin-bottom: 15px;"></i>
-                    <p>인터넷 연결이 끊겨 있습니다.</p>
-                    <p style="font-size: 0.9rem; color: #94a3b8;">
-                        Wi-Fi 또는 데이터 설정을<br>확인해 주세요.
-                    </p>
+                <div class="notice-body">
+                    <div class="notice-body-inner error" style="text-align:center; border-left:none; padding-left:0;">
+                        인터넷 연결이 끊겨 있습니다.<br><br>
+                        <span style="font-size:0.85rem; color:#94a3b8;">
+                            Wi-Fi 또는 데이터 설정을<br>확인해 주세요.
+                        </span>
+                    </div>
                 </div>
                 <div class="notice-footer" style="justify-content: center;">
                     <button class="notice-close-btn" onclick="document.getElementById('network-error-popup').remove(); window.location.reload();">
