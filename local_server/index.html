@@ -482,14 +482,13 @@
 
                 </div>
                 <!-- 조석 지도 -->
-                <div class="sea-zone-map-container" style="margin-top: 5px !important; margin-bottom: 5px;">
+                <div class="sea-zone-map-container" style="margin-top: 5px !important; margin-bottom: 5px; position: relative;">
                     <div id="tide-map" style="width: 100%; height: 500px; border-radius: 10px; overflow: hidden;"></div>
-                </div>
-
-                <!-- 즐겨찾기 목록 (지도의 아래로 이동) -->
-                <div id="tide-favorites-container" class="tide-favorites-container"
-                    style="display: none; margin-bottom: 20px;">
-                    <!-- 즐겨찾기 버튼들이 여기에 추가됨 -->
+                    <!-- 즐겨찾기 목록 (지도 내부 오른쪽) -->
+                    <div id="tide-favorites-container" class="tide-favorites-container"
+                        style="display: none;">
+                        <!-- 즐겨찾기 버튼들이 여기에 추가됨 -->
+                    </div>
                 </div>
 
                 <!-- 출처 정보 -->
@@ -985,64 +984,49 @@
         }
     </style>
     <style>
-        /* 조석 즐겨찾기 스타일 */
+        /* 조석 즐겨찾기 스타일 - 지도 내부 오른쪽 세로 정렬 */
         .tide-favorites-container {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            z-index: 10;
             display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 15px;
-            padding: 5px 10px;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 8px;
-            align-items: center;
+            flex-direction: column;
+            gap: 6px;
+            max-height: calc(100% - 16px);
+            overflow-y: auto;
         }
 
         .tide-fav-btn {
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 20px;
-            color: #ddd;
-            font-size: 0.9rem;
+            gap: 5px;
+            padding: 5px 10px;
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            color: #e2e8f0;
+            font-size: 0.8rem;
             cursor: pointer;
             transition: all 0.2s;
+            white-space: nowrap;
         }
 
         .tide-fav-btn:hover {
-            background: rgba(255, 255, 255, 0.15);
+            background: rgba(30, 41, 59, 0.95);
             color: #fff;
-            border-color: rgba(255, 255, 255, 0.4);
-        }
-
-        .tide-fav-delete {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 18px;
-            height: 18px;
-            margin-left: 2px;
-            border-radius: 50%;
-            font-size: 0.75rem;
-            color: #aaa;
-            transition: all 0.2s;
-        }
-
-        .tide-fav-delete:hover {
-            background: rgba(255, 82, 82, 0.2);
-            color: #ff5252;
+            border-color: rgba(255, 255, 255, 0.35);
         }
 
         .tide-popup-fav-btn {
             width: 100%;
             margin: 8px 0;
             padding: 8px;
-            background: rgba(255, 215, 0, 0.1);
-            border: 1px solid rgba(255, 215, 0, 0.3);
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
             border-radius: 6px;
-            color: #ffd54f;
+            color: #fca5a5;
             font-weight: 600;
             font-size: 0.9rem;
             cursor: pointer;
@@ -1054,7 +1038,7 @@
         }
 
         .tide-popup-fav-btn:hover {
-            background: rgba(255, 215, 0, 0.2);
+            background: rgba(239, 68, 68, 0.2);
             transform: translateY(-1px);
         }
     </style>
