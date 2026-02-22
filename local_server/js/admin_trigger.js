@@ -307,6 +307,10 @@ async function showAdminNoticeModal() {
                                         <button onclick="window.clearLinkedPromoLegacy()" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.65rem; padding:2px 6px;">해제</button>
                                     </div>
                                 </div>
+                                <div style="padding:4px 4px 2px;">
+                                    <input id="notice-promo-search" type="text" placeholder="게시글 검색..." oninput="window.filterPromoListLegacy(this.value)"
+                                           style="width:100%; padding:4px 6px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:3px; color:#e2e8f0; font-size:0.68rem; box-sizing:border-box; outline:none;" />
+                                </div>
                                 <div id="notice-promo-list" style="max-height:100px; overflow-y:auto; padding:4px;">
                                     <div style="text-align:center; color:#64748b; font-size:0.7rem; padding:6px;">불러오는 중...</div>
                                 </div>
@@ -370,30 +374,53 @@ window.saveNotice = async function () {
     await requestNoticeUpdate(payload);
 };
 
-// 5-1. 게시글 목록 로드/선택/해제 (독립 공지 모달용)
+// 5-1. 게시글 목록 로드/선택/해제 (독립 공지 모달용) - 전체 로드 + 검색 필터
+var _legacyPromoCache = [];
+
 async function loadPromoListForNoticeLegacy() {
     const listEl = document.getElementById('notice-promo-list');
     if (!listEl) return;
+    const searchEl = document.getElementById('notice-promo-search');
+    if (searchEl) searchEl.value = '';
     try {
         const res = await fetch(CONFIG.API_BASE + '/api/promo');
         if (!res.ok) throw new Error();
         const posts = await res.json();
-        if (!posts || posts.length === 0) {
-            listEl.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.7rem; padding:6px;">게시글 없음</div>';
-            return;
-        }
-        listEl.innerHTML = posts.slice(0, 15).map(p => `
-            <div onclick="window.selectLinkedPromoLegacy(${p.id}, '${(p.title || '').replace(/'/g, "\\'")}')"
-                 style="padding:4px 6px; cursor:pointer; border-radius:3px; font-size:0.7rem; color:#cbd5e1; display:flex; align-items:center; gap:6px;"
-                 onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
-                <i class="fa-solid fa-file-lines" style="color:#64748b; font-size:0.6rem;"></i>
-                <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${p.title}</span>
-            </div>
-        `).join('');
+        _legacyPromoCache = posts || [];
+        window.renderPromoListLegacy(_legacyPromoCache);
     } catch (e) {
         listEl.innerHTML = '<div style="color:#ef4444; font-size:0.7rem; padding:6px;">불러오기 실패</div>';
     }
 }
+
+window.renderPromoListLegacy = function (posts) {
+    const listEl = document.getElementById('notice-promo-list');
+    if (!listEl) return;
+    if (!posts || posts.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.7rem; padding:6px;">게시글 없음</div>';
+        return;
+    }
+    listEl.innerHTML = posts.map(p => `
+        <div onclick="window.selectLinkedPromoLegacy(${p.id}, '${(p.title || '').replace(/'/g, "\\'")}')"
+             style="padding:4px 6px; cursor:pointer; border-radius:3px; font-size:0.7rem; color:#cbd5e1; display:flex; align-items:center; gap:6px;"
+             onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+            <i class="fa-solid fa-file-lines" style="color:#64748b; font-size:0.6rem;"></i>
+            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${p.title}</span>
+        </div>
+    `).join('');
+};
+
+window.filterPromoListLegacy = function (keyword) {
+    if (!keyword || !keyword.trim()) {
+        window.renderPromoListLegacy(_legacyPromoCache);
+        return;
+    }
+    var lower = keyword.trim().toLowerCase();
+    var filtered = _legacyPromoCache.filter(function (p) {
+        return (p.title || '').toLowerCase().indexOf(lower) !== -1;
+    });
+    window.renderPromoListLegacy(filtered);
+};
 
 window.selectLinkedPromoLegacy = function (id, title) {
     document.getElementById('notice-linked-promo').value = id;

@@ -790,6 +790,10 @@ async function renderUnifiedNoticeContent(container) {
                             <button onclick="window.clearLinkedPromoUnified()" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.8rem; padding:4px 8px;">해제</button>
                         </div>
                     </div>
+                    <div style="padding:6px 8px 4px;">
+                        <input id="uni-notice-promo-search" type="text" placeholder="게시글 검색..." oninput="window.filterPromoListUnified(this.value)"
+                               style="width:100%; padding:6px 10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#e2e8f0; font-size:0.78rem; box-sizing:border-box; outline:none;" />
+                    </div>
                     <div id="uni-notice-promo-list" style="max-height:150px; overflow-y:auto; padding:8px;">
                         <div style="text-align:center; color:#64748b; font-size:0.8rem; padding:10px;">게시글 목록을 불러오는 중...</div>
                     </div>
@@ -857,30 +861,53 @@ async function renderUnifiedNoticeContent(container) {
         if (res.ok) { alert('저장되었습니다.'); refreshUnifiedNoticeList(); }
     };
 
-    // 게시글 목록 로드 (공지 연결용)
+    // 게시글 목록 로드 (공지 연결용) - 전체 로드 + 검색 필터
+    var _unifiedPromoCache = [];
+
     window.loadPromoListForNoticeUnified = async function () {
         const listEl = document.getElementById('uni-notice-promo-list');
         if (!listEl) return;
+        const searchEl = document.getElementById('uni-notice-promo-search');
+        if (searchEl) searchEl.value = '';
         try {
             const res = await fetch(CONFIG.API_BASE + '/api/promo');
             if (!res.ok) throw new Error();
             const posts = await res.json();
-            if (!posts || posts.length === 0) {
-                listEl.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.8rem; padding:10px;">등록된 게시글이 없습니다.</div>';
-                return;
-            }
-            listEl.innerHTML = posts.slice(0, 20).map(p => `
-                <div onclick="window.selectLinkedPromoUnified(${p.id}, '${(p.title || '').replace(/'/g, "\\'")}')"
-                     style="padding:8px 10px; cursor:pointer; border-radius:6px; margin-bottom:4px; font-size:0.8rem; color:#cbd5e1; display:flex; align-items:center; gap:8px; transition:background 0.15s;"
-                     onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
-                    <i class="fa-solid fa-file-lines" style="color:#64748b; font-size:0.7rem;"></i>
-                    <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${p.title}</span>
-                    <span style="font-size:0.7rem; color:#475569; flex-shrink:0;">${p.createdAt || ''}</span>
-                </div>
-            `).join('');
+            _unifiedPromoCache = posts || [];
+            window.renderPromoListUnified(_unifiedPromoCache);
         } catch (e) {
             listEl.innerHTML = '<div style="color:#ef4444; font-size:0.8rem; padding:10px;">게시글 불러오기 실패</div>';
         }
+    };
+
+    window.renderPromoListUnified = function (posts) {
+        const listEl = document.getElementById('uni-notice-promo-list');
+        if (!listEl) return;
+        if (!posts || posts.length === 0) {
+            listEl.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.8rem; padding:10px;">등록된 게시글이 없습니다.</div>';
+            return;
+        }
+        listEl.innerHTML = posts.map(p => `
+            <div onclick="window.selectLinkedPromoUnified(${p.id}, '${(p.title || '').replace(/'/g, "\\'")}')"
+                 style="padding:8px 10px; cursor:pointer; border-radius:6px; margin-bottom:4px; font-size:0.8rem; color:#cbd5e1; display:flex; align-items:center; gap:8px; transition:background 0.15s;"
+                 onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+                <i class="fa-solid fa-file-lines" style="color:#64748b; font-size:0.7rem;"></i>
+                <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${p.title}</span>
+                <span style="font-size:0.7rem; color:#475569; flex-shrink:0;">${p.createdAt || ''}</span>
+            </div>
+        `).join('');
+    };
+
+    window.filterPromoListUnified = function (keyword) {
+        if (!keyword || !keyword.trim()) {
+            window.renderPromoListUnified(_unifiedPromoCache);
+            return;
+        }
+        var lower = keyword.trim().toLowerCase();
+        var filtered = _unifiedPromoCache.filter(function (p) {
+            return (p.title || '').toLowerCase().indexOf(lower) !== -1;
+        });
+        window.renderPromoListUnified(filtered);
     };
 
     window.selectLinkedPromoUnified = function (id, title) {
