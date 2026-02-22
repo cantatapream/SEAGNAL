@@ -144,6 +144,23 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
                 item.zones = [...new Set(expanded)];
             }
         }
+        // [Fix] 동일 type+command 이벤트 간 구역 중복 제거
+        // 부모 해역 확장으로 인해 다른 이벤트의 구역이 중복 포함되는 문제 방지
+        // AI 출력 순서(= 통보문 순서)에서 먼저 등장한 이벤트가 구역 우선권을 가짐
+        // 예: 01시 해제(인천·경기)와 02시 해제(서해중부앞바다→전체확장) 간 겹침 방지
+        const claimedZones = {};
+        for (const item of parsed) {
+            const key = `${item.type}|${item.command}`;
+            if (!claimedZones[key]) {
+                claimedZones[key] = new Set();
+            }
+            const beforeCount = item.zones.length;
+            item.zones = item.zones.filter(z => !claimedZones[key].has(z));
+            if (item.zones.length < beforeCount) {
+                console.log(`[AI Parser] 구역 중복 제거: ${item.type} ${item.command} - ${beforeCount - item.zones.length}개 제거됨`);
+            }
+            item.zones.forEach(z => claimedZones[key].add(z));
+        }
         // 하위 호환: tmEf → time 변환 (기존 코드에서 event.time 사용하는 부분 대응)
         // time에는 범위형에서 시작 시각만 추출하여 저장 (parseKmaTime 호환용)
         for (const item of parsed) {
