@@ -158,7 +158,6 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
 
     const tabs = [
         { id: 'alert', name: '특보 알림', icon: 'fa-tower-broadcast' },
-        { id: 'error-fix', name: '오류 확인 및 수정', icon: 'fa-triangle-exclamation' },
         { id: 'api', name: 'API 설정', icon: 'fa-server' },
         { id: 'notice', name: '공지 팝업', icon: 'fa-bell' },
         { id: 'promo', name: '게시판 관리', icon: 'fa-bullhorn' },
@@ -224,8 +223,6 @@ window.switchUnifiedAdminTab = function (tabId) {
     setTimeout(async () => {
         if (tabId === 'alert') {
             renderUnifiedAlertContent(body);
-        } else if (tabId === 'error-fix') {
-            renderUnifiedErrorFixContent(body);
         } else if (tabId === 'api') {
             renderUnifiedApiContent(body);
         } else if (tabId === 'notice') {
@@ -241,41 +238,8 @@ window.switchUnifiedAdminTab = function (tabId) {
 };
 
 // ============================================================================
-// (A-0) 오류 확인 및 수정 섹션 렌더링
+// (A-0) 오류 목록 / 수동 입력 (특보 알림 탭 내부에서 사용)
 // ============================================================================
-async function renderUnifiedErrorFixContent(container) {
-    const subTabs = [
-        { id: 'error-list', name: '오류 목록', icon: 'fa-list-check' },
-        { id: 'manual-input', name: '수동 입력', icon: 'fa-pen-to-square' }
-    ];
-
-    container.innerHTML = `
-        <div class="admin-section-title" style="display:flex; justify-content:space-between; align-items:center;">
-            <div><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 오류 확인 및 수정</div>
-        </div>
-        <div class="admin-sub-tabs">
-            ${subTabs.map(t => `
-                <button class="error-fix-sub-tab" data-tab="${t.id}" onclick="switchErrorFixSubTab('${t.id}')">
-                    <i class="fa-solid ${t.icon}"></i> ${t.name}
-                </button>
-            `).join('')}
-        </div>
-        <div id="error-fix-inner-content"></div>
-    `;
-
-    window.switchErrorFixSubTab = function (subTabId) {
-        document.querySelectorAll('.error-fix-sub-tab').forEach(btn => {
-            if (btn.dataset.tab === subTabId) btn.classList.add('active');
-            else btn.classList.remove('active');
-        });
-        const inner = document.getElementById('error-fix-inner-content');
-        if (!inner) return;
-        if (subTabId === 'error-list') renderErrorListTab(inner);
-        else if (subTabId === 'manual-input') renderManualInputTab(inner);
-    };
-
-    switchErrorFixSubTab('error-list');
-}
 
 // --- 서브탭 1: 오류 목록 ---
 async function renderErrorListTab(container) {
@@ -343,7 +307,7 @@ window.deleteOneCollectFailure = async function (reportId) {
             });
         }
         if (failures.length === 0) markVisitorCounterError(false);
-        const inner = document.getElementById('error-fix-inner-content');
+        const inner = document.getElementById('alert-top-content');
         if (inner) renderErrorListTab(inner);
     } catch (e) { /* 무시 */ }
 };
@@ -353,7 +317,7 @@ window.clearAllCollectFailuresAndRefresh = async function () {
     try {
         await fetch('/api/admin/collect-failures', { method: 'DELETE' });
         markVisitorCounterError(false);
-        const inner = document.getElementById('error-fix-inner-content');
+        const inner = document.getElementById('alert-top-content');
         if (inner) renderErrorListTab(inner);
     } catch (e) { /* 무시 */ }
 };
@@ -864,7 +828,7 @@ window.submitManualAlert = async function (zoneName, mode, alertIdx) {
         await refreshAlertData();
 
         // UI 새로고침
-        const inner = document.getElementById('error-fix-inner-content');
+        const inner = document.getElementById('alert-top-content');
         if (inner) renderManualInputTab(inner);
         if (typeof renderAlertSection === 'function') renderAlertSection();
 
@@ -890,7 +854,7 @@ window.deleteManualAlert = async function (zoneName) {
         // 서버에서 최신 데이터 다시 불러오기
         await refreshAlertData();
 
-        const inner = document.getElementById('error-fix-inner-content');
+        const inner = document.getElementById('alert-top-content');
         if (inner) renderManualInputTab(inner);
         if (typeof renderAlertSection === 'function') renderAlertSection();
 
@@ -988,11 +952,53 @@ window.sendManualPush = async function (zoneName) {
     }
 };
 
-// (A) 특보 알림 섹션 렌더링
+// (A) 특보 알림 섹션 렌더링 (4개 상위 하위탭)
 async function renderUnifiedAlertContent(container) {
     if (!adminAuthenticated.alert) return;
 
-    // 기존 showAlertManagementModal의 UI 구조를 차용하되 통합 모달 내부에 맞게 조정
+    const topTabs = [
+        { id: 'alert-manage', name: '실시간 특보 알림 관리', icon: 'fa-tower-broadcast' },
+        { id: 'collect-test', name: '특보 수집 테스트', icon: 'fa-flask' },
+        { id: 'collect-error', name: '특보 수집 오류', icon: 'fa-list-check' },
+        { id: 'manual-edit', name: '특보 수정', icon: 'fa-pen-to-square' }
+    ];
+
+    container.innerHTML = `
+        <div class="admin-sub-tabs">
+            ${topTabs.map(t => `
+                <button class="alert-top-tab" data-tab="${t.id}" onclick="switchAlertTopTab('${t.id}')">
+                    <i class="fa-solid ${t.icon}"></i> ${t.name}
+                </button>
+            `).join('')}
+        </div>
+        <div id="alert-top-content"></div>
+    `;
+
+    window.switchAlertTopTab = function (topTabId) {
+        document.querySelectorAll('.alert-top-tab').forEach(btn => {
+            if (btn.dataset.tab === topTabId) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+        const topContent = document.getElementById('alert-top-content');
+        if (!topContent) return;
+
+        if (topTabId === 'alert-manage') {
+            renderAlertManageSubTab(topContent);
+        } else if (topTabId === 'collect-test') {
+            renderCollectTestSubTab(topContent);
+        } else if (topTabId === 'collect-error') {
+            renderErrorListTab(topContent);
+        } else if (topTabId === 'manual-edit') {
+            renderManualInputTab(topContent);
+        }
+    };
+
+    // 초기 상위 탭: 실시간 특보 알림 관리
+    switchAlertTopTab('alert-manage');
+}
+
+// (A-1) 실시간 특보 알림 관리 하위탭 렌더링
+function renderAlertManageSubTab(container) {
     const tabs = [
         { id: 'publish', name: '발표', icon: 'fa-bullhorn' },
         { id: 'active', name: '발효', icon: 'fa-check-circle' },
@@ -1007,11 +1013,8 @@ async function renderUnifiedAlertContent(container) {
             <div>
                 <i class="fa-solid fa-tower-broadcast" style="color:#ef4444;"></i> 실시간 특보 알림 관리
             </div>
-            <button onclick="openAlertTestModal()" style="padding:8px 16px; background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:0.85rem; font-weight:600;">
-                <i class="fa-solid fa-flask"></i> 특보 수집 테스트
-            </button>
         </div>
-        
+
         <div class="admin-sub-tabs">
             ${tabs.map(t => `
                 <button class="alert-admin-tab" data-tab="${t.id}" onclick="switchAlertAdminTabInternal('${t.id}')">
@@ -1019,13 +1022,10 @@ async function renderUnifiedAlertContent(container) {
                 </button>
             `).join('')}
         </div>
-        
-        <div id="alert-admin-inner-content">
-            <!-- switchAlertAdminTabInternal에 의해 채워짐 -->
-        </div>
+
+        <div id="alert-admin-inner-content"></div>
     `;
 
-    // 내부 탭 전환 함수 (전역 window 객체에 임시 등록하여 기존 로직 재활용)
     window.switchAlertAdminTabInternal = function (subTabId) {
         document.querySelectorAll('.alert-admin-tab').forEach(btn => {
             if (btn.dataset.tab === subTabId) btn.classList.add('active');
@@ -1036,7 +1036,25 @@ async function renderUnifiedAlertContent(container) {
         if (innerContainer) window.renderAlertAdminContent(subTabId, innerContainer);
     };
 
-    // 초기 서브탭: 발표
     switchAlertAdminTabInternal('publish');
+}
+
+// (A-2) 특보 수집 테스트 인라인 렌더링
+function renderCollectTestSubTab(container) {
+    container.innerHTML = `
+        <div class="admin-section-title" style="display:flex; justify-content:space-between; align-items:center;">
+            <div><i class="fa-solid fa-flask" style="color:#8b5cf6;"></i> 특보 수집 테스트</div>
+        </div>
+        <div style="display:flex;gap:0;border:1px solid rgba(255,255,255,0.1);border-radius:10px;overflow:hidden;margin-bottom:16px;">
+            <button id="atm-tab-status" onclick="switchAlertTestTab('status')" class="atm-tab" style="flex:1;padding:12px;background:rgba(99,102,241,0.2);color:#a5b4fc;border:none;cursor:pointer;font-weight:600;font-size:0.9rem;border-bottom:2px solid #6366f1;">
+                <i class="fa-solid fa-database"></i> 수집 현황
+            </button>
+            <button id="atm-tab-collect" onclick="switchAlertTestTab('collect')" class="atm-tab" style="flex:1;padding:12px;background:transparent;color:#94a3b8;border:none;cursor:pointer;font-weight:600;font-size:0.9rem;border-bottom:2px solid transparent;">
+                <i class="fa-solid fa-download"></i> 통보문 수집
+            </button>
+        </div>
+        <div id="atm-content"></div>
+    `;
+    switchAlertTestTab('status');
 }
 

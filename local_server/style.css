@@ -3945,6 +3945,7 @@ line-height: 1.1;
     display: none;
 }
 
+.alert-top-tab,
 .alert-admin-tab,
 .error-fix-sub-tab,
 .survey-sub-tab {
@@ -3962,6 +3963,7 @@ line-height: 1.1;
     white-space: nowrap;
 }
 
+.alert-top-tab.active,
 .alert-admin-tab.active,
 .error-fix-sub-tab.active,
 .survey-sub-tab.active {
