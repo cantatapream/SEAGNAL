@@ -137,10 +137,10 @@ const TideFavorites = {
         this.items.forEach((item, index) => {
             const btn = document.createElement('div');
             btn.className = 'tide-fav-btn';
+            btn.onclick = () => TideFavorites.moveTo(item.lat, item.lon);
             btn.innerHTML = `
-                <i class="fa-solid fa-star" style="color: #FFD700; font-size: 0.8rem;"></i>
-                <span onclick="TideFavorites.moveTo('${item.lat}', '${item.lon}')">${item.name}</span>
-                <span class="tide-fav-delete" onclick="confirmTideFavoriteDelete(${index})"><i class="fa-solid fa-xmark"></i></span>
+                <i class="fa-solid fa-map-pin" style="color: #f87171; font-size: 0.8rem;"></i>
+                <span>${item.name}</span>
             `;
             container.appendChild(btn);
         });
@@ -585,19 +585,21 @@ function updateFavoriteMarkers() {
         zIndex: 999, // 표준항 마커보다 위에 표시
         style: function (feature) {
             return new ol.style.Style({
-                image: new ol.style.RegularShape({
-                    fill: new ol.style.Fill({ color: '#FFD700' }), // 노란색 채우기
-                    stroke: new ol.style.Stroke({ color: '#e65100', width: 2 }), // 주황색 테두리
-                    points: 5,
-                    radius: 12, // 크기
-                    radius2: 6, // 안쪽 반지름 (별 모양 깊이)
-                    angle: 0
+                image: new ol.style.Icon({
+                    src: 'data:image/svg+xml,' + encodeURIComponent(
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="36" viewBox="0 0 24 36">' +
+                        '<path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="#ef4444" stroke="#991b1b" stroke-width="1"/>' +
+                        '<circle cx="12" cy="11" r="5" fill="white"/>' +
+                        '</svg>'
+                    ),
+                    anchor: [0.5, 1],
+                    scale: 1.2
                 }),
                 text: new ol.style.Text({
                     text: feature.get('name'),
-                    offsetY: 24, // 별 아래에 텍스트 표시
-                    fill: new ol.style.Fill({ color: '#FFD700' }),
-                    stroke: new ol.style.Stroke({ color: '#000000', width: 3 }), // 가독성을 위한 검은 테두리
+                    offsetY: 12,
+                    fill: new ol.style.Fill({ color: '#ffffff' }),
+                    stroke: new ol.style.Stroke({ color: '#000000', width: 3 }),
                     font: 'bold 12px "Noto Sans KR", sans-serif'
                 })
             });
@@ -914,16 +916,16 @@ function showTidePopup(coordinate, data) {
         const favName = TideFavorites.items[existingFavIndex].name;
         favButtonHtml = `
             <div class="tide-popup-fav-btn" style="
-                margin-top: 5px; 
-                background-color: rgba(255, 215, 0, 0.1); 
-                border: 1px solid rgba(255, 215, 0, 0.3);
+                margin-top: 5px;
+                background-color: rgba(239, 68, 68, 0.1);
+                border: 1px solid rgba(239, 68, 68, 0.3);
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
                 cursor: default;
             ">
-                <span style="font-weight: bold; color: #FFD700; font-size: 1rem;">
-                    <i class="fa-solid fa-star" style="margin-right: 4px;"></i> ${favName}
+                <span style="font-weight: bold; color: #f87171; font-size: 1rem;">
+                    <i class="fa-solid fa-map-pin" style="margin-right: 4px;"></i> ${favName}
                 </span>
                 <button onclick="removeCurrentLocationFromFavorites(${existingFavIndex})" style="
                     background-color: rgba(239, 68, 68, 0.15); 
@@ -944,7 +946,7 @@ function showTidePopup(coordinate, data) {
     } else {
         favButtonHtml = `
             <button class="tide-popup-fav-btn" onclick="addCurrentLocationToFavorites('${data.clickedLat}', '${data.clickedLon}')" style="margin-top: 5px;">
-                <i class="fa-regular fa-star"></i> 즐겨찾기 추가
+                <i class="fa-solid fa-map-pin"></i> 즐겨찾기 추가
             </button>
         `;
     }
