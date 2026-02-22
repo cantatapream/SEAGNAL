@@ -294,6 +294,30 @@ async function showAdminNoticeModal() {
                             </div>
                         </div>
                         
+                        <!-- 게시글 링크 선택 -->
+                        <div style="margin-bottom: 8px;">
+                            <label style="display: block; font-size: 0.7rem; color: #94a3b8; margin-bottom: 2px;"><i class="fa-solid fa-link"></i> 게시글 연결 (선택)</label>
+                            <div style="background: #0f172a; border: 1px solid #334155; border-radius: 4px; overflow: hidden;">
+                                <div id="notice-promo-selected" style="display:none; padding:6px 8px; background:rgba(59,130,246,0.1); border-bottom:1px solid #334155;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                                        <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:0;">
+                                            <i class="fa-solid fa-file-lines" style="color:#3b82f6; font-size:0.7rem;"></i>
+                                            <span id="notice-promo-title" style="font-size:0.75rem; color:#e2e8f0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+                                        </div>
+                                        <button onclick="window.clearLinkedPromoLegacy()" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.65rem; padding:2px 6px;">해제</button>
+                                    </div>
+                                </div>
+                                <div style="padding:4px 4px 2px;">
+                                    <input id="notice-promo-search" type="text" placeholder="게시글 검색..." oninput="window.filterPromoListLegacy(this.value)"
+                                           style="width:100%; padding:4px 6px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:3px; color:#e2e8f0; font-size:0.68rem; box-sizing:border-box; outline:none;" />
+                                </div>
+                                <div id="notice-promo-list" style="max-height:100px; overflow-y:auto; padding:4px;">
+                                    <div style="text-align:center; color:#64748b; font-size:0.7rem; padding:6px;">불러오는 중...</div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="notice-linked-promo" value="">
+                        </div>
+
                         <button onclick="saveNotice()" style="width: 100%; padding: 8px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 4px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">
                             <i class="fa-solid fa-paper-plane"></i> 공지 등록
                         </button>
@@ -309,6 +333,9 @@ async function showAdminNoticeModal() {
     const nextHour = new Date(now.getTime() + 60 * 60 * 1000);
     document.getElementById('notice-expire-hour').value = nextHour.getHours();
     document.getElementById('notice-expire-minute').value = 0;
+
+    // 게시글 목록 로드 (공지 연결용)
+    loadPromoListForNoticeLegacy();
 }
 
 // 5. 공지사항 저장 (POST)
@@ -319,6 +346,8 @@ window.saveNotice = async function () {
     const expireDate = document.getElementById('notice-expire-date').value;
     const expireHour = document.getElementById('notice-expire-hour').value;
     const expireMinute = document.getElementById('notice-expire-minute').value;
+    const linkedPromoEl = document.getElementById('notice-linked-promo');
+    const linkedPromoId = linkedPromoEl ? linkedPromoEl.value : '';
 
     if (!title || !content) {
         alert("제목과 내용을 모두 입력해주세요.");
@@ -338,10 +367,72 @@ window.saveNotice = async function () {
         title: title,
         content: content,
         expiresAt: expiresAt,
+        linkedPromoId: linkedPromoId ? Number(linkedPromoId) : null,
         updatedAt: new Date().toLocaleString()
     };
 
     await requestNoticeUpdate(payload);
+};
+
+// 5-1. 게시글 목록 로드/선택/해제 (독립 공지 모달용) - 전체 로드 + 검색 필터
+var _legacyPromoCache = [];
+
+async function loadPromoListForNoticeLegacy() {
+    const listEl = document.getElementById('notice-promo-list');
+    if (!listEl) return;
+    const searchEl = document.getElementById('notice-promo-search');
+    if (searchEl) searchEl.value = '';
+    try {
+        const res = await fetch(CONFIG.API_BASE + '/api/promo');
+        if (!res.ok) throw new Error();
+        const posts = await res.json();
+        _legacyPromoCache = posts || [];
+        window.renderPromoListLegacy(_legacyPromoCache);
+    } catch (e) {
+        listEl.innerHTML = '<div style="color:#ef4444; font-size:0.7rem; padding:6px;">불러오기 실패</div>';
+    }
+}
+
+window.renderPromoListLegacy = function (posts) {
+    const listEl = document.getElementById('notice-promo-list');
+    if (!listEl) return;
+    if (!posts || posts.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.7rem; padding:6px;">게시글 없음</div>';
+        return;
+    }
+    listEl.innerHTML = posts.map(p => `
+        <div onclick="window.selectLinkedPromoLegacy(${p.id}, '${(p.title || '').replace(/'/g, "\\'")}')"
+             style="padding:4px 6px; cursor:pointer; border-radius:3px; font-size:0.7rem; color:#cbd5e1; display:flex; align-items:center; gap:6px;"
+             onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+            <i class="fa-solid fa-file-lines" style="color:#64748b; font-size:0.6rem;"></i>
+            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${p.title}</span>
+        </div>
+    `).join('');
+};
+
+window.filterPromoListLegacy = function (keyword) {
+    if (!keyword || !keyword.trim()) {
+        window.renderPromoListLegacy(_legacyPromoCache);
+        return;
+    }
+    var lower = keyword.trim().toLowerCase();
+    var filtered = _legacyPromoCache.filter(function (p) {
+        return (p.title || '').toLowerCase().indexOf(lower) !== -1;
+    });
+    window.renderPromoListLegacy(filtered);
+};
+
+window.selectLinkedPromoLegacy = function (id, title) {
+    document.getElementById('notice-linked-promo').value = id;
+    document.getElementById('notice-promo-title').textContent = title;
+    document.getElementById('notice-promo-selected').style.display = 'block';
+    document.getElementById('notice-promo-list').style.display = 'none';
+};
+
+window.clearLinkedPromoLegacy = function () {
+    document.getElementById('notice-linked-promo').value = '';
+    document.getElementById('notice-promo-selected').style.display = 'none';
+    document.getElementById('notice-promo-list').style.display = 'block';
 };
 
 // 6. 공지사항 삭제 (ID로)
@@ -387,6 +478,19 @@ window.editNotice = async function (id) {
                     document.getElementById('notice-expire-hour').value = parseInt(timeParts[0]) || 0;
                     document.getElementById('notice-expire-minute').value = parseInt(timeParts[1]) || 0;
                 }
+            }
+
+            // 연결된 게시글 복원
+            if (notice.linkedPromoId) {
+                try {
+                    const pRes = await fetch(CONFIG.API_BASE + '/api/promo/' + notice.linkedPromoId);
+                    if (pRes.ok) {
+                        const post = await pRes.json();
+                        window.selectLinkedPromoLegacy(post.id, post.title);
+                    }
+                } catch (pe) { /* 게시글 삭제됨 */ }
+            } else {
+                window.clearLinkedPromoLegacy();
             }
 
             // 스크롤을 작성 영역으로
@@ -455,6 +559,18 @@ function showNoticePopup(noticeData) {
     const isMaintenance = noticeData.title.includes('점검');
     const headerClass = isMaintenance ? 'maintenance' : '';
 
+    // 게시글 연결 버튼 (linkedPromoId가 있을 때만)
+    const promoButtonHtml = noticeData.linkedPromoId
+        ? `<button class="notice-promo-btn" onclick="window.goToLinkedPromo(${noticeData.linkedPromoId}, ${noticeData.id})" style="
+            display:flex; align-items:center; justify-content:center; gap:8px;
+            width:100%; padding:12px; margin-top:12px;
+            background:linear-gradient(135deg, #3b82f6, #2563eb); color:#fff;
+            border:none; border-radius:8px; font-weight:700; font-size:0.9rem;
+            cursor:pointer; transition:opacity 0.2s;">
+            <i class="fa-solid fa-arrow-right"></i> 자세히 보기
+          </button>`
+        : '';
+
     const html = `
         <div class="notice-modal-overlay" id="main-notice-popup">
             <div class="notice-popup">
@@ -463,6 +579,7 @@ function showNoticePopup(noticeData) {
                 </div>
                 <div class="notice-content">
                     ${(noticeData.content || '').replace(/\n/g, '<br>')}
+                    ${promoButtonHtml}
                 </div>
                 <div class="notice-footer">
                     <label class="notice-checkbox-label">
@@ -475,6 +592,24 @@ function showNoticePopup(noticeData) {
     `;
     document.body.insertAdjacentHTML('beforeend', html);
 }
+
+// 7-1. 게시글 이동 핸들러
+window.goToLinkedPromo = function (promoId, noticeId) {
+    // 공지 팝업 닫기
+    window.closeNoticePopup(noticeId);
+
+    // 공지사항 탭으로 이동
+    if (typeof window.switchMainTab === 'function') {
+        window.switchMainTab('promo-section');
+    }
+
+    // 게시글 상세 열기
+    setTimeout(function () {
+        if (typeof window.openPromoDetail === 'function') {
+            window.openPromoDetail(promoId);
+        }
+    }, 300);
+};
 
 // 8. 팝업 닫기 ("다시 보지 않기" 처리)
 window.closeNoticePopup = function (noticeId) {

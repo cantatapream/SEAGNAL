@@ -775,6 +775,32 @@ async function renderUnifiedNoticeContent(container) {
                 <select id="uni-notice-hour" style="width:70px; padding:8px; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff;"></select>
                 <select id="uni-notice-min" style="width:70px; padding:8px; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff;"></select>
             </div>
+            <!-- 게시글 링크 선택 -->
+            <div style="margin-bottom:15px;">
+                <label style="display:block; font-size:0.85rem; color:#94a3b8; margin-bottom:8px;">
+                    <i class="fa-solid fa-link"></i> 게시글 연결 (선택)
+                </label>
+                <div id="uni-notice-promo-selector" style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:8px; overflow:hidden;">
+                    <div id="uni-notice-promo-selected" style="display:none; padding:10px; background:rgba(59,130,246,0.1); border-bottom:1px solid rgba(255,255,255,0.05);">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
+                                <i class="fa-solid fa-file-lines" style="color:#3b82f6;"></i>
+                                <span id="uni-notice-promo-title" style="font-size:0.85rem; color:#e2e8f0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+                            </div>
+                            <button onclick="window.clearLinkedPromoUnified()" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.8rem; padding:4px 8px;">해제</button>
+                        </div>
+                    </div>
+                    <div style="padding:6px 8px 4px;">
+                        <input id="uni-notice-promo-search" type="text" placeholder="게시글 검색..." oninput="window.filterPromoListUnified(this.value)"
+                               style="width:100%; padding:6px 10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#e2e8f0; font-size:0.78rem; box-sizing:border-box; outline:none;" />
+                    </div>
+                    <div id="uni-notice-promo-list" style="max-height:150px; overflow-y:auto; padding:8px;">
+                        <div style="text-align:center; color:#64748b; font-size:0.8rem; padding:10px;">게시글 목록을 불러오는 중...</div>
+                    </div>
+                </div>
+                <input type="hidden" id="uni-notice-linked-promo" value="">
+            </div>
+
             <button class="admin-action-btn admin-btn-primary" style="width:100%;" onclick="saveNoticeUnified()">
                 <i class="fa-solid fa-save"></i> 공지사항 저장
             </button>
@@ -819,6 +845,7 @@ async function renderUnifiedNoticeContent(container) {
 
     window.saveNoticeUnified = async function () {
         const dateVal = document.getElementById('uni-notice-date').value;
+        const linkedPromoId = document.getElementById('uni-notice-linked-promo').value;
         const payload = {
             id: Number(document.getElementById('uni-notice-id').value) || Date.now(),
             title: document.getElementById('uni-notice-title').value,
@@ -826,6 +853,7 @@ async function renderUnifiedNoticeContent(container) {
             expiresAt: dateVal
                 ? `${dateVal} ${document.getElementById('uni-notice-hour').value.padStart(2, '0')}:${document.getElementById('uni-notice-min').value.padStart(2, '0')}`
                 : null,
+            linkedPromoId: linkedPromoId ? Number(linkedPromoId) : null,
             isActive: true
         };
         if (!payload.title || !payload.content) return alert('내용을 입력하세요.');
@@ -833,7 +861,70 @@ async function renderUnifiedNoticeContent(container) {
         if (res.ok) { alert('저장되었습니다.'); refreshUnifiedNoticeList(); }
     };
 
+    // 게시글 목록 로드 (공지 연결용) - 전체 로드 + 검색 필터
+    var _unifiedPromoCache = [];
+
+    window.loadPromoListForNoticeUnified = async function () {
+        const listEl = document.getElementById('uni-notice-promo-list');
+        if (!listEl) return;
+        const searchEl = document.getElementById('uni-notice-promo-search');
+        if (searchEl) searchEl.value = '';
+        try {
+            const res = await fetch(CONFIG.API_BASE + '/api/promo');
+            if (!res.ok) throw new Error();
+            const posts = await res.json();
+            _unifiedPromoCache = posts || [];
+            window.renderPromoListUnified(_unifiedPromoCache);
+        } catch (e) {
+            listEl.innerHTML = '<div style="color:#ef4444; font-size:0.8rem; padding:10px;">게시글 불러오기 실패</div>';
+        }
+    };
+
+    window.renderPromoListUnified = function (posts) {
+        const listEl = document.getElementById('uni-notice-promo-list');
+        if (!listEl) return;
+        if (!posts || posts.length === 0) {
+            listEl.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.8rem; padding:10px;">등록된 게시글이 없습니다.</div>';
+            return;
+        }
+        listEl.innerHTML = posts.map(p => `
+            <div onclick="window.selectLinkedPromoUnified(${p.id}, '${(p.title || '').replace(/'/g, "\\'")}')"
+                 style="padding:8px 10px; cursor:pointer; border-radius:6px; margin-bottom:4px; font-size:0.8rem; color:#cbd5e1; display:flex; align-items:center; gap:8px; transition:background 0.15s;"
+                 onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+                <i class="fa-solid fa-file-lines" style="color:#64748b; font-size:0.7rem;"></i>
+                <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${p.title}</span>
+                <span style="font-size:0.7rem; color:#475569; flex-shrink:0;">${p.createdAt || ''}</span>
+            </div>
+        `).join('');
+    };
+
+    window.filterPromoListUnified = function (keyword) {
+        if (!keyword || !keyword.trim()) {
+            window.renderPromoListUnified(_unifiedPromoCache);
+            return;
+        }
+        var lower = keyword.trim().toLowerCase();
+        var filtered = _unifiedPromoCache.filter(function (p) {
+            return (p.title || '').toLowerCase().indexOf(lower) !== -1;
+        });
+        window.renderPromoListUnified(filtered);
+    };
+
+    window.selectLinkedPromoUnified = function (id, title) {
+        document.getElementById('uni-notice-linked-promo').value = id;
+        document.getElementById('uni-notice-promo-title').textContent = title;
+        document.getElementById('uni-notice-promo-selected').style.display = 'block';
+        document.getElementById('uni-notice-promo-list').style.display = 'none';
+    };
+
+    window.clearLinkedPromoUnified = function () {
+        document.getElementById('uni-notice-linked-promo').value = '';
+        document.getElementById('uni-notice-promo-selected').style.display = 'none';
+        document.getElementById('uni-notice-promo-list').style.display = 'block';
+    };
+
     refreshUnifiedNoticeList();
+    loadPromoListForNoticeUnified();
 }
 
 // 통합 모달 전용 공지사항 수정
@@ -858,6 +949,19 @@ window.editNoticeUnified = async function (id) {
                     document.getElementById('uni-notice-min').value = parseInt(timeParts[1]);
                 }
             }
+            // 연결된 게시글 복원
+            if (target.linkedPromoId) {
+                try {
+                    const pRes = await fetch(CONFIG.API_BASE + '/api/promo/' + target.linkedPromoId);
+                    if (pRes.ok) {
+                        const post = await pRes.json();
+                        window.selectLinkedPromoUnified(post.id, post.title);
+                    }
+                } catch (e) { /* 게시글 삭제됨 */ }
+            } else {
+                window.clearLinkedPromoUnified();
+            }
+
             document.getElementById('uni-notice-title').focus();
             // 폼으로 스크롤
             document.getElementById('notice-form-container').scrollIntoView({ behavior: 'smooth' });
