@@ -254,7 +254,7 @@ window.renderAlertAdminContent = async function (tabId, targetContainer) {
             if (group.isTimeChanged) {
                 statusText = '<span style="color:#38bdf8;"><i class="fa-solid fa-clock-rotate-left"></i> 시각 변경</span> <span style="color:rgba(255,255,255,0.2);margin:0 5px;">|</span> <span style="color:' + (isSent ? '#22c55e' : '#94a3b8') + ';">' + pushResult + '</span>';
             } else if (group.isWaiting) {
-                statusText = '<span style="color:#f59e0b;"><i class="fa-solid fa-hourglass-start"></i> 발효 대기 중</span>';
+                statusText = '<span style="color:#f59e0b;"><i class="fa-solid fa-hourglass-start"></i> 발효 대기 중</span> <span style="color:rgba(255,255,255,0.2);margin:0 5px;">|</span> <span style="color:' + (isSent ? '#22c55e' : '#94a3b8') + ';">' + pushResult + '</span>';
             } else if (group.isActuallyReleased) {
                 statusText = '<span style="color:#22c55e;"><i class="fa-solid fa-check-double"></i> 해제 완료</span> <span style="color:rgba(255,255,255,0.2);margin:0 5px;">|</span> <span style="color:' + (isSent ? '#22c55e' : '#94a3b8') + ';">' + pushResult + '</span>';
             } else {
@@ -324,7 +324,10 @@ window.renderAlertAdminContent = async function (tabId, targetContainer) {
 
         // Button area
         var buttonArea = '';
-        if ((tabId === 'active' || tabId === 'release' || tabId === 'level') && group.isWaiting) {
+        if (tabId === 'level' && group.isWaiting) {
+            // 격상/격하는 발효 대기 중이어도 발표는 완료 → 수동발송 허용
+            buttonArea = '<button onclick="window.sendManualPushFromGroup(\'' + group.key + '\', \'' + tabId + '\')" style="background:' + (isSent ? '#475569' : '#ef4444') + ';color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:0.75rem;font-weight:800;cursor:pointer;">수동발송</button>';
+        } else if ((tabId === 'active' || tabId === 'release') && group.isWaiting) {
             buttonArea = '';
         } else if (tabId === 'active' && group.isLevelChange) {
             buttonArea = '<div style="background:rgba(255,255,255,0.05);color:#64748b;padding:5px 12px;border-radius:6px;font-size:0.7rem;font-weight:700;border:1px solid rgba(255,255,255,0.05);">격상/격하 탭에서 관리</div>';
