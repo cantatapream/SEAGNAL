@@ -161,8 +161,8 @@ router.post('/api/save_tide_input', async (req, res) => {
                     }
                 }));
 
-                // 수집 대상별 패딩 분석 수행
-                for (const item of toCollect) {
+                // 수집 대상별 패딩 분석 수행 (병렬)
+                await Promise.all(toCollect.map(async (item) => {
                     const dateInt = item.date;
                     const itemAdj = tideCollector.getAdjacentDates(dateInt);
 
@@ -174,7 +174,7 @@ router.post('/api/save_tide_input', async (req, res) => {
                     ];
 
                     await tideCollector.collectAndSaveTideData(lat, lon, dateInt, time, item.fileName, paddedItems);
-                }
+                }));
 
                 console.log(`🎉 [Padding Analysis] ${toCollect.length}일치 병렬 분석 및 수집 완료!`);
             } catch (err) {

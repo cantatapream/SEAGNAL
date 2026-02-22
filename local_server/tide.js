@@ -839,11 +839,12 @@ async function handleTideMapClick(event) {
         return;
     }
 
-    // 4단계: 폴링 - 동적 파일명 사용
+    // 4단계: 폴링 - 동적 파일명 사용 (3개 병렬 체크 + 프로그레스)
     if (_tidePollTimer) clearInterval(_tidePollTimer);
 
     let pollCount = 0;
-    const MAX_POLL = 60;
+    const MAX_POLL = 120; // 500ms 간격이므로 60초
+    const completedData = {};
 
     _tidePollTimer = setInterval(async () => {
         pollCount++;
@@ -859,31 +860,39 @@ async function handleTideMapClick(event) {
         }
 
         try {
-            const todayRes = await fetch(`/data/${files.today}?` + Date.now());
-            const todayData = await todayRes.json();
-            if (todayData.tideBedStatus !== 'complete') return;
+            // 아직 완료되지 않은 파일만 체크 (병렬)
+            const checks = [];
+            if (!completedData.today) checks.push(
+                fetch(`/data/${files.today}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.today = d; }).catch(() => {})
+            );
+            if (!completedData.tomorrow) checks.push(
+                fetch(`/data/${files.tomorrow}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.tomorrow = d; }).catch(() => {})
+            );
+            if (!completedData.yesterday) checks.push(
+                fetch(`/data/${files.yesterday}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.yesterday = d; }).catch(() => {})
+            );
 
-            const tomorrowRes = await fetch(`/data/${files.tomorrow}?` + Date.now());
-            const tomorrowData = await tomorrowRes.json();
-            if (tomorrowData.tideBedStatus !== 'complete') return;
+            await Promise.all(checks);
 
-            clearInterval(_tidePollTimer);
-            _tidePollTimer = null;
+            // 프로그레스 업데이트
+            const done = (completedData.today ? 1 : 0) + (completedData.tomorrow ? 1 : 0) + (completedData.yesterday ? 1 : 0);
 
-            const yesterdayRes = await fetch(`/data/${files.yesterday}?` + Date.now());
-            const yesterdayData = await yesterdayRes.json();
+            // 3개 모두 완료
+            if (done === 3) {
+                clearInterval(_tidePollTimer);
+                _tidePollTimer = null;
+                console.log('✅ 3일치 TideBED 데이터 수신 완료');
 
-            console.log('✅ 3일치 TideBED 데이터 수신 완료');
-
-            showTidePopup(coordinate, {
-                clickedLat: latitude.toFixed(6),
-                clickedLon: longitude.toFixed(6),
-                tideBed: { yesterday: yesterdayData, today: todayData, tomorrow: tomorrowData }
-            });
+                showTidePopup(coordinate, {
+                    clickedLat: latitude.toFixed(6),
+                    clickedLon: longitude.toFixed(6),
+                    tideBed: { yesterday: completedData.yesterday, today: completedData.today, tomorrow: completedData.tomorrow }
+                });
+            }
         } catch (err) {
             console.log(`⏳ 폴링 ${pollCount}/${MAX_POLL}...`);
         }
-    }, 1000);
+    }, 500);
 }
 
 // ===== 조석 팝업 표시 =====
@@ -1635,10 +1644,11 @@ async function refreshPopupIfOpen() {
         return;
     }
 
-    // 4단계: 폴링
+    // 4단계: 폴링 (3개 병렬 체크 + 프로그레스)
     if (_tidePollTimer) clearInterval(_tidePollTimer);
     let pollCount = 0;
-    const MAX_POLL = 60;
+    const MAX_POLL = 120; // 500ms 간격이므로 60초
+    const completedData = {};
 
     _tidePollTimer = setInterval(async () => {
         pollCount++;
@@ -1654,31 +1664,36 @@ async function refreshPopupIfOpen() {
         }
 
         try {
-            const todayRes = await fetch(`/data/${files.today}?` + Date.now());
-            const todayData = await todayRes.json();
-            if (todayData.tideBedStatus !== 'complete') return;
+            const checks = [];
+            if (!completedData.today) checks.push(
+                fetch(`/data/${files.today}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.today = d; }).catch(() => {})
+            );
+            if (!completedData.tomorrow) checks.push(
+                fetch(`/data/${files.tomorrow}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.tomorrow = d; }).catch(() => {})
+            );
+            if (!completedData.yesterday) checks.push(
+                fetch(`/data/${files.yesterday}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.yesterday = d; }).catch(() => {})
+            );
 
-            const tomorrowRes = await fetch(`/data/${files.tomorrow}?` + Date.now());
-            const tomorrowData = await tomorrowRes.json();
-            if (tomorrowData.tideBedStatus !== 'complete') return;
+            await Promise.all(checks);
 
-            clearInterval(_tidePollTimer);
-            _tidePollTimer = null;
+            const done = (completedData.today ? 1 : 0) + (completedData.tomorrow ? 1 : 0) + (completedData.yesterday ? 1 : 0);
 
-            const yesterdayRes = await fetch(`/data/${files.yesterday}?` + Date.now());
-            const yesterdayData = await yesterdayRes.json();
+            if (done === 3) {
+                clearInterval(_tidePollTimer);
+                _tidePollTimer = null;
+                console.log('✅ 날짜 변경 후 3일치 TideBED 데이터 수신 완료');
 
-            console.log('✅ 날짜 변경 후 3일치 TideBED 데이터 수신 완료');
-
-            showTidePopup(lastClickedCoordinate, {
-                clickedLat: latitude.toFixed(6),
-                clickedLon: longitude.toFixed(6),
-                tideBed: { yesterday: yesterdayData, today: todayData, tomorrow: tomorrowData }
-            });
+                showTidePopup(lastClickedCoordinate, {
+                    clickedLat: latitude.toFixed(6),
+                    clickedLon: longitude.toFixed(6),
+                    tideBed: { yesterday: completedData.yesterday, today: completedData.today, tomorrow: completedData.tomorrow }
+                });
+            }
         } catch (err) {
             console.log(`폴링 중... (${pollCount}/${MAX_POLL})`);
         }
-    }, 1000);
+    }, 500);
 }
 
 // ===== 지도 컨트롤 추가 =====
