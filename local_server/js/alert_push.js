@@ -136,7 +136,7 @@ window.renderAlertAdminContent = async function (tabId, targetContainer) {
         filteredItems = allAlerts.filter(function(a) { return a.command !== '3' && a.command !== '해제'; });
     } else if (tabId === 'release') {
         filteredItems = allAlerts.filter(function(a) {
-            return a.command === '3' || a.command === '해제' || (!a.isPreliminary && a.tmEd && a.tmEd.trim() !== '' && a.tmEd !== '정보 없음' && a.tmEd !== '미정' && !a.tmEd.includes('00일'));
+            return a.command === '3' || a.command === '해제' || ((!a.isPreliminary || a.tmCcExplicit) && a.tmEd && a.tmEd.trim() !== '' && a.tmEd !== '정보 없음' && a.tmEd !== '미정' && !a.tmEd.includes('00일'));
         });
     } else if (tabId === 'level') {
         filteredItems = allAlerts.filter(function(a) { return a.command === '변경' || a.command === '변경발표' || a.command === '6'; });

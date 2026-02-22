@@ -454,7 +454,7 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
             const tmEfFormatted = stripYearMonth(alert.tmEf);
             let tmEdFormatted = '정보 없음';
             const releaseVal = alert.tmCc || alert.tmEd || '';
-            if (releaseVal && releaseVal.trim().length > 2 && !alert.isPreliminary) {
+            if (releaseVal && releaseVal.trim().length > 2 && (!alert.isPreliminary || alert.tmCcExplicit)) {
                 tmEdFormatted = stripYearMonth(releaseVal);
             }
 
