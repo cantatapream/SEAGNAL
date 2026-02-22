@@ -341,8 +341,8 @@ async function showAdminNoticeModal() {
 // 5. 공지사항 저장 (POST)
 window.saveNotice = async function () {
     const editId = document.getElementById('notice-edit-id').value;
-    const title = document.getElementById('notice-title').value;
-    const content = document.getElementById('notice-content').value;
+    const title = document.getElementById('notice-title').value.trim();
+    const content = document.getElementById('notice-content').value.trim();
     const expireDate = document.getElementById('notice-expire-date').value;
     const expireHour = document.getElementById('notice-expire-hour').value;
     const expireMinute = document.getElementById('notice-expire-minute').value;
@@ -591,7 +591,7 @@ function showNoticePopup(noticeData) {
                 </div>
                 <div class="notice-body">
                     <div class="notice-body-inner ${typeClass}">
-                        ${(noticeData.content || '').replace(/\n/g, '<br>')}
+                        ${(noticeData.content || '').trim().replace(/\n/g, '<br>')}
                     </div>
                     ${promoButtonHtml}
                 </div>
