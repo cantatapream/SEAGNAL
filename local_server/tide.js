@@ -607,6 +607,16 @@ function updateFavoriteMarkers() {
     tideMap.addLayer(favoriteLayer);
 }
 
+// ===== 프로그레스 게이지 업데이트 =====
+function updateTideProgress(percent) {
+    const arc = document.getElementById('tide-progress-arc');
+    const text = document.getElementById('tide-progress-text');
+    if (!arc || !text) return;
+    const circumference = 2 * Math.PI * 28;
+    arc.setAttribute('stroke-dashoffset', circumference * (1 - percent / 100));
+    text.textContent = `${percent}%`;
+}
+
 // ===== 지도 클릭 처리 =====
 // TideBED 폴링 타이머 (중복 방지)
 let _tidePollTimer = null;
@@ -839,11 +849,12 @@ async function handleTideMapClick(event) {
         return;
     }
 
-    // 4단계: 폴링 - 동적 파일명 사용
+    // 4단계: 폴링 - 동적 파일명 사용 (3개 병렬 체크 + 프로그레스)
     if (_tidePollTimer) clearInterval(_tidePollTimer);
 
     let pollCount = 0;
-    const MAX_POLL = 60;
+    const MAX_POLL = 120; // 500ms 간격이므로 60초
+    const completedData = {};
 
     _tidePollTimer = setInterval(async () => {
         pollCount++;
@@ -859,31 +870,40 @@ async function handleTideMapClick(event) {
         }
 
         try {
-            const todayRes = await fetch(`/data/${files.today}?` + Date.now());
-            const todayData = await todayRes.json();
-            if (todayData.tideBedStatus !== 'complete') return;
+            // 아직 완료되지 않은 파일만 체크 (병렬)
+            const checks = [];
+            if (!completedData.today) checks.push(
+                fetch(`/data/${files.today}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.today = d; }).catch(() => {})
+            );
+            if (!completedData.tomorrow) checks.push(
+                fetch(`/data/${files.tomorrow}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.tomorrow = d; }).catch(() => {})
+            );
+            if (!completedData.yesterday) checks.push(
+                fetch(`/data/${files.yesterday}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.yesterday = d; }).catch(() => {})
+            );
 
-            const tomorrowRes = await fetch(`/data/${files.tomorrow}?` + Date.now());
-            const tomorrowData = await tomorrowRes.json();
-            if (tomorrowData.tideBedStatus !== 'complete') return;
+            await Promise.all(checks);
 
-            clearInterval(_tidePollTimer);
-            _tidePollTimer = null;
+            // 프로그레스 업데이트
+            const done = (completedData.today ? 1 : 0) + (completedData.tomorrow ? 1 : 0) + (completedData.yesterday ? 1 : 0);
+            updateTideProgress(Math.round(done / 3 * 100));
 
-            const yesterdayRes = await fetch(`/data/${files.yesterday}?` + Date.now());
-            const yesterdayData = await yesterdayRes.json();
+            // 3개 모두 완료
+            if (done === 3) {
+                clearInterval(_tidePollTimer);
+                _tidePollTimer = null;
+                console.log('✅ 3일치 TideBED 데이터 수신 완료');
 
-            console.log('✅ 3일치 TideBED 데이터 수신 완료');
-
-            showTidePopup(coordinate, {
-                clickedLat: latitude.toFixed(6),
-                clickedLon: longitude.toFixed(6),
-                tideBed: { yesterday: yesterdayData, today: todayData, tomorrow: tomorrowData }
-            });
+                showTidePopup(coordinate, {
+                    clickedLat: latitude.toFixed(6),
+                    clickedLon: longitude.toFixed(6),
+                    tideBed: { yesterday: completedData.yesterday, today: completedData.today, tomorrow: completedData.tomorrow }
+                });
+            }
         } catch (err) {
             console.log(`⏳ 폴링 ${pollCount}/${MAX_POLL}...`);
         }
-    }, 1000);
+    }, 500);
 }
 
 // ===== 조석 팝업 표시 =====
@@ -982,25 +1002,32 @@ function showTidePopup(coordinate, data) {
 
     // === 로딩 상태 ===
     if (data.loading) {
+        const pct = data.loadingPercent || 0;
+        const deg = Math.round(pct * 3.6);
         html += `
             <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px 10px;">
-                <div style="
-                    width: 36px; height: 36px;
-                    border: 3px solid rgba(255,255,255,0.1);
-                    border-top: 3px solid #3b82f6;
-                    border-radius: 50%;
-                    animation: spin 1s linear infinite;
-                "></div>
+                <div id="tide-progress-ring" style="
+                    position: relative; width: 64px; height: 64px;
+                ">
+                    <svg width="64" height="64" viewBox="0 0 64 64" style="transform: rotate(-90deg);">
+                        <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="4"/>
+                        <circle id="tide-progress-arc" cx="32" cy="32" r="28" fill="none"
+                            stroke="#3b82f6" stroke-width="4" stroke-linecap="round"
+                            stroke-dasharray="${2 * Math.PI * 28}"
+                            stroke-dashoffset="${2 * Math.PI * 28 * (1 - pct / 100)}"
+                            style="transition: stroke-dashoffset 0.4s ease;"/>
+                    </svg>
+                    <div id="tide-progress-text" style="
+                        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+                        display: flex; align-items: center; justify-content: center;
+                        font-size: 0.85rem; font-weight: 600; color: #e2e8f0;
+                        font-family: 'Roboto Mono', monospace;
+                    ">${pct}%</div>
+                </div>
                 <div style="margin-top: 12px; color: #94a3b8; font-size: 0.85rem; text-align: center;">
                     국립해양조사원으로부터<br>정확한 조석정보를 불러오고 있습니다.
                 </div>
-                <div style="margin-top: 4px; color: #64748b; font-size: 0.7rem;">
-                    약 3~5초 소요됩니다
-                </div>
             </div>
-            <style>
-                @keyframes spin { to { transform: rotate(360deg); } }
-            </style>
         `;
         html += `
             <div class="tide-location-bottom" style="text-align: center; margin-top: 12px; font-size: 0.75rem; color: #94a3b8; display: flex; align-items: center; justify-content: center; opacity: 0.8;">
@@ -1635,10 +1662,11 @@ async function refreshPopupIfOpen() {
         return;
     }
 
-    // 4단계: 폴링
+    // 4단계: 폴링 (3개 병렬 체크 + 프로그레스)
     if (_tidePollTimer) clearInterval(_tidePollTimer);
     let pollCount = 0;
-    const MAX_POLL = 60;
+    const MAX_POLL = 120; // 500ms 간격이므로 60초
+    const completedData = {};
 
     _tidePollTimer = setInterval(async () => {
         pollCount++;
@@ -1654,31 +1682,37 @@ async function refreshPopupIfOpen() {
         }
 
         try {
-            const todayRes = await fetch(`/data/${files.today}?` + Date.now());
-            const todayData = await todayRes.json();
-            if (todayData.tideBedStatus !== 'complete') return;
+            const checks = [];
+            if (!completedData.today) checks.push(
+                fetch(`/data/${files.today}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.today = d; }).catch(() => {})
+            );
+            if (!completedData.tomorrow) checks.push(
+                fetch(`/data/${files.tomorrow}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.tomorrow = d; }).catch(() => {})
+            );
+            if (!completedData.yesterday) checks.push(
+                fetch(`/data/${files.yesterday}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.yesterday = d; }).catch(() => {})
+            );
 
-            const tomorrowRes = await fetch(`/data/${files.tomorrow}?` + Date.now());
-            const tomorrowData = await tomorrowRes.json();
-            if (tomorrowData.tideBedStatus !== 'complete') return;
+            await Promise.all(checks);
 
-            clearInterval(_tidePollTimer);
-            _tidePollTimer = null;
+            const done = (completedData.today ? 1 : 0) + (completedData.tomorrow ? 1 : 0) + (completedData.yesterday ? 1 : 0);
+            updateTideProgress(Math.round(done / 3 * 100));
 
-            const yesterdayRes = await fetch(`/data/${files.yesterday}?` + Date.now());
-            const yesterdayData = await yesterdayRes.json();
+            if (done === 3) {
+                clearInterval(_tidePollTimer);
+                _tidePollTimer = null;
+                console.log('✅ 날짜 변경 후 3일치 TideBED 데이터 수신 완료');
 
-            console.log('✅ 날짜 변경 후 3일치 TideBED 데이터 수신 완료');
-
-            showTidePopup(lastClickedCoordinate, {
-                clickedLat: latitude.toFixed(6),
-                clickedLon: longitude.toFixed(6),
-                tideBed: { yesterday: yesterdayData, today: todayData, tomorrow: tomorrowData }
-            });
+                showTidePopup(lastClickedCoordinate, {
+                    clickedLat: latitude.toFixed(6),
+                    clickedLon: longitude.toFixed(6),
+                    tideBed: { yesterday: completedData.yesterday, today: completedData.today, tomorrow: completedData.tomorrow }
+                });
+            }
         } catch (err) {
             console.log(`폴링 중... (${pollCount}/${MAX_POLL})`);
         }
-    }, 1000);
+    }, 500);
 }
 
 // ===== 지도 컨트롤 추가 =====
