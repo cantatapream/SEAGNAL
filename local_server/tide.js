@@ -593,7 +593,7 @@ function updateFavoriteMarkers() {
                         '</svg>'
                     ),
                     anchor: [0.5, 1],
-                    scale: 1.2
+                    scale: 0.6
                 }),
                 text: new ol.style.Text({
                     text: feature.get('name'),
