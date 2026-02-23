@@ -527,14 +527,16 @@ window.toggleSection = function (id) {
     const list = document.getElementById(id);
     if (!list) return;
 
-    const parent = list.parentElement;
+    const parent = list.parentElement; // .sea-section
     const isCurrentlyOpen = parent.classList.contains('open');
 
-    // 1. 모든 해역 섹션을 닫음 (배타적 모드)
-    const allSections = document.querySelectorAll('.sea-section');
-    allSections.forEach(section => {
-        section.classList.remove('open');
-    });
+    // 1. 같은 아코디언(부모 컨테이너) 내의 해역 섹션만 닫음 (배타적 모드)
+    const container = parent.parentElement;
+    if (container) {
+        container.querySelectorAll('.sea-section').forEach(section => {
+            section.classList.remove('open');
+        });
+    }
 
     // 2. 이전에 닫혀있었다면, 현재 섹션만 열기
     if (!isCurrentlyOpen) {

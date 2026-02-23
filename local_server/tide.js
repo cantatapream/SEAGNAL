@@ -796,7 +796,7 @@ async function handleTideMapClick(event) {
         serverResponse = await res.json();
         if (!serverResponse.success) {
             if (serverResponse.error === 'Grid hash unavailable') {
-                throw new Error('육지를 선택하신 것 같습니다.<br>가까운 바다를 클릭해주세요.');
+                throw new Error('국립해양조사원 조석 예측정보가 제공되지 않는 해역입니다.');
             } else {
                 throw new Error('서버 요청에 실패했습니다.');
             }
@@ -1003,7 +1003,7 @@ function showTidePopup(coordinate, data) {
                     animation: spin 1s linear infinite;
                 "></div>
                 <div style="margin-top: 12px; color: #94a3b8; font-size: 0.85rem; text-align: center;">
-                    국립해양조사원으로부터<br>정확한 조석정보를 불러오고 있습니다.
+                    국립해양조사원으로부터 TideBED 기반 조석 예측정보를 불러오고 있습니다.
                 </div>
                 <div style="margin-top: 4px; color: #64748b; font-size: 0.7rem;">
                     약 3~5초 소요됩니다
@@ -1601,7 +1601,7 @@ async function refreshPopupIfOpen() {
         serverResponse = await res.json();
         if (!serverResponse.success) {
             if (serverResponse.error === 'Grid hash unavailable') {
-                throw new Error('육지를 선택하신 것 같습니다.<br>가까운 바다를 클릭해주세요.');
+                throw new Error('국립해양조사원 조석 예측정보가 제공되지 않는 해역입니다.');
             } else {
                 throw new Error('서버 요청에 실패했습니다.');
             }
