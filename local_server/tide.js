@@ -796,7 +796,7 @@ async function handleTideMapClick(event) {
         serverResponse = await res.json();
         if (!serverResponse.success) {
             if (serverResponse.error === 'Grid hash unavailable') {
-                throw new Error('육지를 선택하신 것 같습니다.<br>가까운 바다를 클릭해주세요.');
+                throw new Error('국립해양조사원 조석 예측정보가<br>제공되지 않는 해역입니다.');
             } else {
                 throw new Error('서버 요청에 실패했습니다.');
             }
@@ -1601,7 +1601,7 @@ async function refreshPopupIfOpen() {
         serverResponse = await res.json();
         if (!serverResponse.success) {
             if (serverResponse.error === 'Grid hash unavailable') {
-                throw new Error('육지를 선택하신 것 같습니다.<br>가까운 바다를 클릭해주세요.');
+                throw new Error('국립해양조사원 조석 예측정보가<br>제공되지 않는 해역입니다.');
             } else {
                 throw new Error('서버 요청에 실패했습니다.');
             }
