@@ -580,7 +580,7 @@ function renderSettingsList(expandedStates = null) {
         header.innerHTML = `
             <div class="setting-label" style="font-weight: 700;">
                 <i class="fa-solid fa-chevron-right arrow" style="font-size: 0.8rem; width: 20px; text-align: center; transition: transform 0.3s; transform: rotate(0deg);"></i>
-                ${regionData.icon} ${regionData.displayName || mainRegion} <span style="font-size: 0.85em; font-weight: 400; color: rgba(255,255,255,0.6); margin-left: 6px;">(${regionData.english})</span>
+                ${regionData.icon} ${regionData.displayName || mainRegion}
                 ${mainBadgeHtml}
             </div>
             <div class="switch-wrapper" onclick="event.stopPropagation()">
