@@ -897,16 +897,33 @@ line-height: 1.1;
     justify-content: space-between;
     align-items: center;
     padding: 15px 20px;
-    background-color: rgba(255, 255, 255, 0.05);
-    /* Slightly lighter than background */
+    background: rgba(255, 255, 255, 0.05);
     border-radius: 12px;
     cursor: pointer;
     user-select: none;
     border: 1px solid rgba(255, 255, 255, 0.05);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
 }
 
 .main-accordion-header:hover {
-    background-color: rgba(255, 255, 255, 0.08);
+    filter: brightness(1.1);
+}
+
+/* Gradient state classes - 특보 상태별 색상 */
+.main-accordion-header.gradient-alert {
+    background: linear-gradient(90deg, #321414 0%, #7f1d1d 100%);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.main-accordion-header.gradient-safe {
+    background: linear-gradient(90deg, #14321e 0%, #1a6e1a 100%);
+    border-color: rgba(34, 139, 34, 0.4);
+}
+
+.main-accordion-header.gradient-marine {
+    background: linear-gradient(90deg, #143250 0%, #0b85be 100%);
+    border-color: rgba(14, 165, 233, 0.3);
 }
 
 .header-status {
