@@ -205,6 +205,7 @@ router.post('/api/admin/report-collect', async (req, res) => {
                 fullForm = {
                     updatedAt: null,
                     lastReportId: existing.lastReportId || null,
+                    processedReportIds: existing.processedReportIds || [],
                     previous: JSON.parse(JSON.stringify(existing.current || {})),
                     current: existing.current || {}
                 };
@@ -249,6 +250,17 @@ router.post('/api/admin/report-collect', async (req, res) => {
                 }
                 fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
                 if (reportId > (fullForm.lastReportId || '')) fullForm.lastReportId = reportId;
+                // [Fix] 처리 완료 ID 추적 (동시 발표 통보문 재수집 방지)
+                if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
+                if (!fullForm.processedReportIds.includes(reportId)) fullForm.processedReportIds.push(reportId);
+                // processedReportIds 정리: 최신 타임스탬프 이상만 유지
+                const adminLatestTs = (fullForm.lastReportId || '').split(':')[1]?.substring(0, 12) || '';
+                if (adminLatestTs) {
+                    fullForm.processedReportIds = fullForm.processedReportIds.filter(id => {
+                        const ts = (id.split(':')[1] || '').substring(0, 12);
+                        return ts >= adminLatestTs;
+                    });
+                }
                 fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
             }
         } catch (applyErr) {
@@ -379,6 +391,7 @@ router.post('/api/admin/manual-alert', (req, res) => {
             fullForm = {
                 updatedAt: null,
                 lastReportId: existing.lastReportId || null,
+                processedReportIds: existing.processedReportIds || [],
                 previous: JSON.parse(JSON.stringify(existing.current || {})),
                 current: existing.current || {}
             };
@@ -467,6 +480,7 @@ router.post('/api/admin/manual-alert-release', (req, res) => {
         const fullForm = {
             updatedAt: null,
             lastReportId: existing.lastReportId || null,
+            processedReportIds: existing.processedReportIds || [],
             previous: JSON.parse(JSON.stringify(existing.current || {})),
             current: existing.current || {}
         };
@@ -539,6 +553,7 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
                     fullForm = {
                         updatedAt: null,
                         lastReportId: existing.lastReportId || null,
+                        processedReportIds: existing.processedReportIds || [],
                         previous: JSON.parse(JSON.stringify(existing.current || {})),
                         current: existing.current || {}
                     };
@@ -566,6 +581,16 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
                 if (changes.length > 0 || applied) {
                     fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
                     if (report.id > (fullForm.lastReportId || '')) fullForm.lastReportId = report.id;
+                    // [Fix] 처리 완료 ID 추적
+                    if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
+                    if (!fullForm.processedReportIds.includes(report.id)) fullForm.processedReportIds.push(report.id);
+                    const batchLatestTs = (fullForm.lastReportId || '').split(':')[1]?.substring(0, 12) || '';
+                    if (batchLatestTs) {
+                        fullForm.processedReportIds = fullForm.processedReportIds.filter(id => {
+                            const ts = (id.split(':')[1] || '').substring(0, 12);
+                            return ts >= batchLatestTs;
+                        });
+                    }
                     fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
                 }
 

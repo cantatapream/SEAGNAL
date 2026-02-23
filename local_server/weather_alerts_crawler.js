@@ -130,6 +130,7 @@ function createFullForm() {
     return {
         updatedAt: null,
         lastReportId: null,
+        processedReportIds: [],
         previous: createZoneStructure(),
         current: createZoneStructure()
     };
@@ -365,6 +366,7 @@ async function run() {
             fullForm = {
                 updatedAt: null,
                 lastReportId: existing.lastReportId || null,
+                processedReportIds: existing.processedReportIds || [],
                 previous: JSON.parse(JSON.stringify(existing.current || createZoneStructure())),
                 current: existing.current || createZoneStructure()
             };
