@@ -335,23 +335,22 @@ const SEA_REGIONS = {
     '동해': {
         subRegions: ['동해남부해상', '동해중부해상'],
         icon: '🌅',
-        english: 'East Sea'
+        displayName: '동해 해역'
     },
     '서해': {
         subRegions: ['서해중부해상', '서해남부해상'],
         icon: '🌊',
-        english: 'West Sea'
+        displayName: '서해 해역'
     },
     '남해': {
         subRegions: ['남해동부해상', '남해서부해상'],
         icon: '🏖️',
-        english: 'South Sea'
+        displayName: '남해 해역'
     },
     '제주': {
         subRegions: ['제주해역'],
-        icon: '<img src="assets/dolhareubang_medium.png" style="width: 24px; vertical-align: bottom; margin-right: 2px;">',
-        english: 'Jeju Sea',
-        displayName: '제주해역'
+        icon: '🍊',
+        displayName: '제주 해역'
     }
 };
 
