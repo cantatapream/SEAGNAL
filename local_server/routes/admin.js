@@ -205,6 +205,7 @@ router.post('/api/admin/report-collect', async (req, res) => {
                 fullForm = {
                     updatedAt: null,
                     lastReportId: existing.lastReportId || null,
+                    processedReportIds: existing.processedReportIds || [],
                     previous: JSON.parse(JSON.stringify(existing.current || {})),
                     current: existing.current || {}
                 };
@@ -249,6 +250,17 @@ router.post('/api/admin/report-collect', async (req, res) => {
                 }
                 fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
                 if (reportId > (fullForm.lastReportId || '')) fullForm.lastReportId = reportId;
+                // [Fix] 처리 완료 ID 추적 (동시 발표 통보문 재수집 방지)
+                if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
+                if (!fullForm.processedReportIds.includes(reportId)) fullForm.processedReportIds.push(reportId);
+                // processedReportIds 정리: 최신 타임스탬프 이상만 유지
+                const adminLatestTs = (fullForm.lastReportId || '').split(':')[1]?.substring(0, 12) || '';
+                if (adminLatestTs) {
+                    fullForm.processedReportIds = fullForm.processedReportIds.filter(id => {
+                        const ts = (id.split(':')[1] || '').substring(0, 12);
+                        return ts >= adminLatestTs;
+                    });
+                }
                 fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
             }
         } catch (applyErr) {
@@ -276,28 +288,39 @@ router.post('/api/admin/report-collect', async (req, res) => {
 // 이미 수집된 통보문 조회 (AI 토큰 소모 방지)
 // ============================================================================
 
-/** 처리된 reportId 목록 반환 (weather_alerts.json의 history에서 추출) */
+/** 처리된 reportId 목록 반환 (zone tree history + 수집 캐시 통합) */
 router.get('/api/admin/processed-reports', (req, res) => {
     try {
         const outputFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
-        if (!fs.existsSync(outputFile)) return res.json({ processedIds: [] });
-
-        const data = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
         const processedIds = new Set();
 
-        // zone tree의 모든 history에서 reportId 수집
-        function traverse(obj) {
-            if (!obj || typeof obj !== 'object') return;
-            if (Array.isArray(obj)) return;
-            if (obj.history && Array.isArray(obj.history)) {
-                obj.history.forEach(h => { if (h.reportId) processedIds.add(h.reportId); });
+        // 1) zone tree의 모든 history에서 reportId 수집
+        if (fs.existsSync(outputFile)) {
+            const data = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+            function traverse(obj) {
+                if (!obj || typeof obj !== 'object') return;
+                if (Array.isArray(obj)) return;
+                if (obj.history && Array.isArray(obj.history)) {
+                    obj.history.forEach(h => { if (h.reportId) processedIds.add(h.reportId); });
+                }
+                for (const val of Object.values(obj)) {
+                    if (val && typeof val === 'object') traverse(val);
+                }
             }
-            for (const val of Object.values(obj)) {
-                if (val && typeof val === 'object') traverse(val);
+            traverse(data.current);
+            traverse(data.previous);
+        }
+
+        // 2) 수집 캐시에서 reportId 보완 (해제로 history가 초기화되어도 캐시는 유지됨)
+        if (fs.existsSync(COLLECT_CACHE_DIR)) {
+            const cacheFiles = fs.readdirSync(COLLECT_CACHE_DIR).filter(f => f.endsWith('.json'));
+            for (const file of cacheFiles) {
+                try {
+                    const cached = JSON.parse(fs.readFileSync(path.join(COLLECT_CACHE_DIR, file), 'utf8'));
+                    if (cached.reportId) processedIds.add(cached.reportId);
+                } catch (_) { /* 파손된 캐시 무시 */ }
             }
         }
-        traverse(data.current);
-        traverse(data.previous);
 
         res.json({ processedIds: Array.from(processedIds) });
     } catch (e) {
@@ -379,6 +402,7 @@ router.post('/api/admin/manual-alert', (req, res) => {
             fullForm = {
                 updatedAt: null,
                 lastReportId: existing.lastReportId || null,
+                processedReportIds: existing.processedReportIds || [],
                 previous: JSON.parse(JSON.stringify(existing.current || {})),
                 current: existing.current || {}
             };
@@ -467,6 +491,7 @@ router.post('/api/admin/manual-alert-release', (req, res) => {
         const fullForm = {
             updatedAt: null,
             lastReportId: existing.lastReportId || null,
+            processedReportIds: existing.processedReportIds || [],
             previous: JSON.parse(JSON.stringify(existing.current || {})),
             current: existing.current || {}
         };
@@ -539,6 +564,7 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
                     fullForm = {
                         updatedAt: null,
                         lastReportId: existing.lastReportId || null,
+                        processedReportIds: existing.processedReportIds || [],
                         previous: JSON.parse(JSON.stringify(existing.current || {})),
                         current: existing.current || {}
                     };
@@ -566,6 +592,16 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
                 if (changes.length > 0 || applied) {
                     fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
                     if (report.id > (fullForm.lastReportId || '')) fullForm.lastReportId = report.id;
+                    // [Fix] 처리 완료 ID 추적
+                    if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
+                    if (!fullForm.processedReportIds.includes(report.id)) fullForm.processedReportIds.push(report.id);
+                    const batchLatestTs = (fullForm.lastReportId || '').split(':')[1]?.substring(0, 12) || '';
+                    if (batchLatestTs) {
+                        fullForm.processedReportIds = fullForm.processedReportIds.filter(id => {
+                            const ts = (id.split(':')[1] || '').substring(0, 12);
+                            return ts >= batchLatestTs;
+                        });
+                    }
                     fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
                 }
 
