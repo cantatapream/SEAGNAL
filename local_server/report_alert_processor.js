@@ -184,7 +184,16 @@ async function applyNewReports(fullForm) {
     try {
         const allNewReports = [];
         const seenReportIds = new Set(); // [Fix] 페이지간 중복 방지 (select-list가 모든 페이지에서 동일)
-        let foundLast = false;
+
+        // [Fix] 타임스탬프 기반 수집 — 동시 발표 통보문 누락 방지
+        // KMA select-list는 met:/pwn: 타입별 그룹화로 나열하므로,
+        // 단일 lastReportId 위치 커서로는 다른 그룹의 동시각 통보문을 놓칠 수 있음.
+        // 타임스탬프 비교 + 처리 완료 ID 추적으로 전환하여 동시 발표 통보문을 모두 수집.
+        const lastTs = (fullForm.lastReportId || '').split(':')[1]?.substring(0, 12) || '';
+        const processedIds = new Set(fullForm.processedReportIds || []);
+        if (fullForm.lastReportId) processedIds.add(fullForm.lastReportId);
+
+        let reachedOldTerritory = false;
         for (let page = 1; page <= 5; page++) {
             const html = await fetchHtml(`${CONFIG.LIST_URL}?pageIndex=${page}`);
             const selectListMatch = html.match(/<select id="select-list"[^>]*>([\s\S]*?)<\/select>/);
@@ -208,11 +217,21 @@ async function applyNewReports(fullForm) {
             }
             console.log(`[ReportProcessor] ${page}페이지에서 ${pageReports.length}건의 통보문 발견.`);
 
+            // [Fix] 페이지 내 전체 스캔: 타입별 그룹화에 관계없이 동시각 통보문을 모두 수집
             for (const r of pageReports) {
-                if (r.id === fullForm.lastReportId) { foundLast = true; break; }
-                allNewReports.push(r);
+                if (processedIds.has(r.id)) {
+                    reachedOldTerritory = true;
+                    continue; // 이미 처리된 통보문, 건너뜀
+                }
+                const rTs = (r.id.split(':')[1] || '').substring(0, 12);
+                if (!lastTs || rTs >= lastTs) {
+                    allNewReports.push(r);
+                } else {
+                    reachedOldTerritory = true; // 이전 타임스탬프 도달
+                }
             }
-            if (foundLast || pageReports.length === 0) break;
+            // 이전 영역 도달 시 더 이상 페이지 탐색 불필요
+            if (reachedOldTerritory || pageReports.length === 0) break;
         }
 
         if (allNewReports.length === 0) {
@@ -352,6 +371,17 @@ async function applyNewReports(fullForm) {
             }
 
             fullForm.lastReportId = report.id;
+            // [Fix] 처리 완료 ID 추적 (동시 발표 통보문 재수집 방지)
+            if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
+            fullForm.processedReportIds.push(report.id);
+        }
+        // [Fix] processedReportIds 정리: 최신 타임스탬프의 ID만 유지 (무한 증가 방지)
+        const latestTs = (fullForm.lastReportId || '').split(':')[1]?.substring(0, 12) || '';
+        if (fullForm.processedReportIds && latestTs) {
+            fullForm.processedReportIds = fullForm.processedReportIds.filter(id => {
+                const ts = (id.split(':')[1] || '').substring(0, 12);
+                return ts >= latestTs;
+            });
         }
         return changed;
     } catch (e) {
