@@ -897,17 +897,16 @@ line-height: 1.1;
     justify-content: space-between;
     align-items: center;
     padding: 15px 20px;
-    background: rgba(255, 255, 255, 0.05);
+    background-color: rgba(255, 255, 255, 0.05);
     /* Slightly lighter than background */
     border-radius: 12px;
     cursor: pointer;
-    transition: background-color 0.2s;
     user-select: none;
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .main-accordion-header:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background-color: rgba(255, 255, 255, 0.08);
 }
 
 .header-status {
