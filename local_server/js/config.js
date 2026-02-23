@@ -349,7 +349,7 @@ const SEA_REGIONS = {
     },
     '제주': {
         subRegions: ['제주해역'],
-        icon: '<span style="font-size: 1.5rem; margin-right: 2px; display: inline-flex; align-items: center; width: 1.5rem;"><img src="assets/dolhareubang_medium.png" style="width: 1.5rem;"></span>',
+        icon: '<span style="font-size: 1.5rem;">​<img src="assets/dolhareubang_medium.png" style="width: 1em; vertical-align: middle;"></span>',
         displayName: '제주 해역'
     }
 };
