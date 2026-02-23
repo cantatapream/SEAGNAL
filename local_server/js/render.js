@@ -401,7 +401,7 @@ function renderApp() {
 
             // 특보 있음: 빨간색 그라데이션 유지
             if (mainHeader) {
-                mainHeader.style.background = 'linear-gradient(90deg, rgba(50, 20, 20, 0.6) 0%, rgba(127, 29, 29, 0.9) 100%)';
+                mainHeader.style.backgroundImage = 'linear-gradient(90deg, rgba(50, 20, 20, 0.6) 0%, rgba(127, 29, 29, 0.9) 100%)';
                 mainHeader.style.borderColor = 'rgba(239, 68, 68, 0.3)';
             }
         } else {
@@ -427,7 +427,7 @@ function renderApp() {
 
             // 특보 없음: 초록색 그라데이션으로 변경
             if (mainHeader) {
-                mainHeader.style.background = 'linear-gradient(90deg, rgba(20, 50, 30, 0.6) 0%, rgba(34, 139, 34, 0.8) 100%)';
+                mainHeader.style.backgroundImage = 'linear-gradient(90deg, rgba(20, 50, 30, 0.6) 0%, rgba(34, 139, 34, 0.8) 100%)';
                 mainHeader.style.borderColor = 'rgba(34, 139, 34, 0.4)';
             }
         }
