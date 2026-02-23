@@ -399,10 +399,10 @@ function renderApp() {
                 if (mainHeader) mainHeader.classList.remove('collapsed-state');
             }
 
-            // 특보 있음: 빨간색 그라데이션 유지
+            // 특보 있음: 빨간색 그라데이션 (CSS 클래스로 제어)
             if (mainHeader) {
-                mainHeader.style.backgroundImage = 'linear-gradient(90deg, rgba(50, 20, 20, 0.6) 0%, rgba(127, 29, 29, 0.9) 100%)';
-                mainHeader.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                mainHeader.classList.remove('gradient-safe');
+                mainHeader.classList.add('gradient-alert');
             }
         } else {
             // No Alerts (Green)
@@ -425,10 +425,10 @@ function renderApp() {
                 if (mainHeader) mainHeader.classList.add('collapsed-state');
             }
 
-            // 특보 없음: 초록색 그라데이션으로 변경
+            // 특보 없음: 초록색 그라데이션으로 변경 (CSS 클래스로 제어)
             if (mainHeader) {
-                mainHeader.style.backgroundImage = 'linear-gradient(90deg, rgba(20, 50, 30, 0.6) 0%, rgba(34, 139, 34, 0.8) 100%)';
-                mainHeader.style.borderColor = 'rgba(34, 139, 34, 0.4)';
+                mainHeader.classList.remove('gradient-alert');
+                mainHeader.classList.add('gradient-safe');
             }
         }
 
