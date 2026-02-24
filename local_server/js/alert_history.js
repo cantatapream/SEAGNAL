@@ -5,30 +5,37 @@
  * ============================================================================
  *
  * [설명]
- * 특보 카드의 히스토리 아이콘 버튼을 클릭하면 해당 해역에 적용된
+ * 특보 카드의 📋 버튼을 클릭하면 해당 해역에 적용된
  * 통보문 히스토리를 팝업으로 표시하는 컴포넌트입니다.
  *
  * - showAlertHistoryPopup(zoneName, history): 히스토리 팝업 표시
  *   → 해역명과 해당 해역의 history 배열을 받아 팝업 모달 생성
- *   → 각 통보문 항목은 아코디언 형태로, 클릭 시 해당 해역 관련 AI 분석 내용 표출
+ *   → 각 통보문 항목은 아코디언 형태로, 클릭 시 시각 정보 표출
  *
  * - closeAlertHistoryPopup(): 팝업 닫기
  *
  * [데이터 흐름]
- * 1. render.js의 createAlertElement()에서 히스토리 아이콘 버튼 생성
+ * 1. render.js의 createAlertElement()에서 📋 버튼 생성
  * 2. 버튼 클릭 → showAlertHistoryPopup(zoneName, alertItem.history) 호출
  * 3. history 배열의 각 항목:
- *    { reportId, time(tmFc), tmEf, tmCc, type, command, processedAt }
+ *    { reportId, title, time(tmFc), tmEf, tmCc, type, command, processedAt }
  * 4. 아코디언 펼침 시 /api/bulletin-cache/:reportId API 호출
  *    → collect_cache에서 해당 통보문의 AI 분석 결과를 가져옴
- *    → aiResult 중 해당 해역(zoneName)에 해당하는 이벤트만 필터링하여 표시
+ *    → 해당 해역(zoneName) 관련 시각 정보만 표시 (영향 해역 목록 미표시)
+ *
+ * [뱃지 색상 위계] (단계가 높을수록 강한 색상)
+ * Lv1. 예비        → 연한 파란색 (muted blue)
+ * Lv2. 주의보      → 노란색/앰버 (amber)
+ * Lv3. 경보        → 주황색/빨간색 (orange-red)
+ * Lv4. 태풍주의보  → 진한 빨간색 (deep red)
+ * Lv5. 태풍경보    → 가장 강한 빨간색 (intense red)
+ * 해제            → 초록색 (green, 별도)
  *
  * [연계 파일]
- * - js/render.js        → createAlertElement()에서 히스토리 버튼 생성 및 이 함수 호출
+ * - js/render.js        → createAlertElement()에서 📋 버튼 생성 및 이 함수 호출
  * - js/data.js          → processSingleAlert()에서 alertItem.history에 이력 데이터 포함
  * - routes/weather.js   → GET /api/bulletin-cache/:reportId 엔드포인트
- * - report_alert_processor.js → collect_cache에 통보문별 캐시 저장
- * - js/ui_modal.js      → 기존 모달 패턴 참고 (동일한 다크테마 UI 스타일)
+ * - report_alert_processor.js → collect_cache에 통보문별 캐시 저장, history에 title 포함
  *
  * [로딩 순서] render.js 이후, app_init.js 이전
  * ============================================================================
@@ -39,7 +46,7 @@
 // ============================================================================
 (function injectAlertHistoryStyles() {
     if (document.getElementById('alert-history-styles')) return;
-    const style = document.createElement('style');
+    var style = document.createElement('style');
     style.id = 'alert-history-styles';
     style.textContent = `
         /* 히스토리 팝업 오버레이 */
@@ -167,7 +174,7 @@
         .history-item-header:hover {
             background: rgba(40, 55, 80, 0.6);
         }
-        /* 통보문 유형 뱃지 */
+        /* 통보문 유형 뱃지 - 5단계 위계 색상 */
         .history-type-badge {
             font-size: 0.72rem;
             font-weight: 700;
@@ -176,38 +183,55 @@
             white-space: nowrap;
             flex-shrink: 0;
         }
-        .history-type-badge.preliminary {
-            background: rgba(255, 152, 0, 0.25);
-            color: #ffb74d;
-            border: 1px solid rgba(255, 152, 0, 0.3);
+        /* Lv1: 예비 - 연한 파란색 */
+        .history-type-badge.lv-preliminary {
+            background: rgba(100, 181, 246, 0.15);
+            color: #90caf9;
+            border: 1px solid rgba(100, 181, 246, 0.25);
         }
-        .history-type-badge.alert {
-            background: rgba(244, 67, 54, 0.2);
+        /* Lv2: 주의보 (비태풍) - 앰버/노란색 */
+        .history-type-badge.lv-advisory {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffd54f;
+            border: 1px solid rgba(255, 193, 7, 0.3);
+        }
+        /* Lv3: 경보 (비태풍) - 주황색/빨간색 */
+        .history-type-badge.lv-warning {
+            background: rgba(255, 87, 34, 0.2);
+            color: #ff8a65;
+            border: 1px solid rgba(255, 87, 34, 0.3);
+        }
+        /* Lv4: 태풍주의보 - 진한 빨간색 */
+        .history-type-badge.lv-typhoon-advisory {
+            background: rgba(229, 57, 53, 0.25);
             color: #ef5350;
-            border: 1px solid rgba(244, 67, 54, 0.3);
+            border: 1px solid rgba(229, 57, 53, 0.4);
         }
-        .history-type-badge.release {
+        /* Lv5: 태풍경보 - 가장 강한 빨간색 */
+        .history-type-badge.lv-typhoon-warning {
+            background: rgba(183, 28, 28, 0.35);
+            color: #ff5252;
+            border: 1px solid rgba(183, 28, 28, 0.5);
+            text-shadow: 0 0 8px rgba(255, 82, 82, 0.3);
+        }
+        /* 해제 - 초록색 */
+        .history-type-badge.lv-release {
             background: rgba(76, 175, 80, 0.2);
             color: #66bb6a;
             border: 1px solid rgba(76, 175, 80, 0.3);
         }
-        /* 통보문 번호 및 시간 */
+        /* 통보문 제목 (한 줄) */
         .history-report-info {
             flex: 1;
             min-width: 0;
         }
-        .history-report-id {
+        .history-report-title {
             font-size: 0.82rem;
             font-weight: 600;
             color: #e0e0e0;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-        }
-        .history-report-time {
-            font-size: 0.72rem;
-            color: #8b949e;
-            margin-top: 2px;
         }
         /* 아코디언 화살표 */
         .history-item-arrow {
@@ -219,7 +243,7 @@
         .history-item.expanded .history-item-arrow {
             transform: rotate(90deg);
         }
-        /* 아코디언 내용 (AI 분석) */
+        /* 아코디언 내용 (시각 정보) */
         .history-item-body {
             max-height: 0;
             overflow: hidden;
@@ -236,7 +260,7 @@
             line-height: 1.6;
             border-top: 1px solid rgba(255, 255, 255, 0.06);
         }
-        /* AI 분석 이벤트 카드 */
+        /* 시각 정보 카드 */
         .history-event-card {
             background: rgba(30, 40, 60, 0.4);
             border-radius: 8px;
@@ -274,19 +298,6 @@
         .history-loading i {
             margin-right: 6px;
         }
-        /* 명령 타입별 색상 */
-        .history-command-tag {
-            font-size: 0.72rem;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-weight: 600;
-        }
-        .history-command-tag.publish { background: rgba(33, 150, 243, 0.2); color: #64b5f6; }
-        .history-command-tag.effect { background: rgba(244, 67, 54, 0.2); color: #ef5350; }
-        .history-command-tag.change { background: rgba(156, 39, 176, 0.2); color: #ce93d8; }
-        .history-command-tag.release { background: rgba(76, 175, 80, 0.2); color: #66bb6a; }
-        .history-command-tag.extend { background: rgba(255, 152, 0, 0.2); color: #ffb74d; }
-        .history-command-tag.reinforce { background: rgba(233, 30, 99, 0.2); color: #f48fb1; }
     `;
     document.head.appendChild(style);
 })();
@@ -299,33 +310,28 @@
  * 특보 히스토리 팝업을 표시합니다.
  * @param {string} zoneName - 해역명 (예: "제주도남쪽바깥먼바다")
  * @param {Array} history - 해당 해역의 통보문 히스토리 배열
- *   각 항목: { reportId, time, tmEf, tmCc, type, command, processedAt }
+ *   각 항목: { reportId, title, time, tmEf, tmCc, type, command, processedAt }
  */
 window.showAlertHistoryPopup = function (zoneName, history) {
-    // 기존 팝업이 있으면 제거
     closeAlertHistoryPopup();
 
-    const modal = document.createElement('div');
+    var modal = document.createElement('div');
     modal.id = 'alert-history-modal';
     modal.className = 'alert-history-modal';
 
-    // 오버레이 (클릭 시 닫기)
-    const overlay = document.createElement('div');
+    var overlay = document.createElement('div');
     overlay.className = 'alert-history-overlay';
     overlay.addEventListener('click', closeAlertHistoryPopup);
     modal.appendChild(overlay);
 
-    // 컨텐츠
-    const content = document.createElement('div');
+    var content = document.createElement('div');
     content.className = 'alert-history-content';
 
     // 헤더
-    const header = document.createElement('div');
+    var header = document.createElement('div');
     header.className = 'alert-history-header';
-    header.innerHTML = `
-        <h3><i class="fa-solid fa-clock-rotate-left" style="color: #81d4fa;"></i> ${zoneName} 특보 히스토리</h3>
-    `;
-    const closeBtn = document.createElement('button');
+    header.innerHTML = '<h3>\uD83D\uDCCB ' + escapeHtml(zoneName) + ' \uD2B9\uBCF4 \uD788\uC2A4\uD1A0\uB9AC</h3>';
+    var closeBtn = document.createElement('button');
     closeBtn.className = 'alert-history-close';
     closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
     closeBtn.addEventListener('click', closeAlertHistoryPopup);
@@ -333,18 +339,12 @@ window.showAlertHistoryPopup = function (zoneName, history) {
     content.appendChild(header);
 
     // 본문
-    const body = document.createElement('div');
+    var body = document.createElement('div');
     body.className = 'alert-history-body';
 
     if (!history || history.length === 0) {
-        body.innerHTML = `
-            <div class="alert-history-empty">
-                <i class="fa-solid fa-inbox"></i>
-                히스토리 데이터가 없습니다.
-            </div>
-        `;
+        body.innerHTML = '<div class="alert-history-empty"><i class="fa-solid fa-inbox"></i>\uD788\uC2A4\uD1A0\uB9AC \uB370\uC774\uD130\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.</div>';
     } else {
-        // 히스토리 항목 렌더링 (최신순 - history[0]이 가장 최신)
         history.forEach(function (entry, idx) {
             var item = createHistoryItem(entry, zoneName, idx);
             body.appendChild(item);
@@ -356,12 +356,10 @@ window.showAlertHistoryPopup = function (zoneName, history) {
     document.body.appendChild(modal);
     document.body.style.overflow = 'hidden';
 
-    // 애니메이션 트리거
     requestAnimationFrame(function () {
         modal.classList.add('show');
     });
 
-    // ESC 키로 닫기
     modal._escHandler = function (e) {
         if (e.key === 'Escape') closeAlertHistoryPopup();
     };
@@ -375,7 +373,6 @@ window.closeAlertHistoryPopup = function () {
     var modal = document.getElementById('alert-history-modal');
     if (!modal) return;
 
-    // ESC 핸들러 제거
     if (modal._escHandler) {
         document.removeEventListener('keydown', modal._escHandler);
     }
@@ -393,10 +390,9 @@ window.closeAlertHistoryPopup = function () {
 
 /**
  * 통보문 히스토리 한 건의 DOM 요소를 생성합니다.
- * 아코디언 형태로, 클릭 시 해당 통보문의 AI 분석 결과 중 이 해역 관련 내용만 표시합니다.
  *
  * @param {Object} entry - history 배열의 항목
- *   { reportId, time(tmFc), tmEf, tmCc, type, command, processedAt }
+ *   { reportId, title, time(tmFc), tmEf, tmCc, type, command, processedAt }
  * @param {string} zoneName - 현재 해역명 (AI 분석 결과 필터링용)
  * @param {number} idx - 인덱스
  * @returns {HTMLElement} - 히스토리 아이템 DOM
@@ -411,44 +407,24 @@ function createHistoryItem(entry, zoneName, idx) {
     var headerEl = document.createElement('div');
     headerEl.className = 'history-item-header';
 
-    // 유형 뱃지 (예비/특보/해제)
-    var badgeClass = 'alert';
-    var badgeText = '특보';
-    if (entry.command === '예비') {
-        badgeClass = 'preliminary';
-        badgeText = '예비';
-    } else if (entry.command === '해제') {
-        badgeClass = 'release';
-        badgeText = '해제';
-    }
-
+    // 뱃지: 단계별 색상 적용
+    var badgeInfo = getSeverityBadge(entry.type, entry.command);
     var badge = document.createElement('span');
-    badge.className = 'history-type-badge ' + badgeClass;
-    badge.textContent = badgeText;
+    badge.className = 'history-type-badge ' + badgeInfo.cssClass;
+    badge.textContent = badgeInfo.text;
     headerEl.appendChild(badge);
 
-    // 통보문 번호 및 시간
+    // 통보문 제목: [특보] 제XX-XXX호 : YYYY.MM.DD.HH:MM
     var infoDiv = document.createElement('div');
     infoDiv.className = 'history-report-info';
 
-    var reportIdText = formatReportId(entry.reportId);
-    var reportIdSpan = document.createElement('div');
-    reportIdSpan.className = 'history-report-id';
-    reportIdSpan.textContent = reportIdText;
-    infoDiv.appendChild(reportIdSpan);
-
-    var timeSpan = document.createElement('div');
-    timeSpan.className = 'history-report-time';
-    timeSpan.textContent = formatHistoryTime(entry.time);
-    infoDiv.appendChild(timeSpan);
+    var titleSpan = document.createElement('div');
+    titleSpan.className = 'history-report-title';
+    titleSpan.textContent = formatBulletinTitle(entry);
+    titleSpan.title = titleSpan.textContent; // 툴팁으로 전체 텍스트 표시
+    infoDiv.appendChild(titleSpan);
 
     headerEl.appendChild(infoDiv);
-
-    // 명령 태그 (발표/발효/변경/해제/연장/보강)
-    var commandTag = document.createElement('span');
-    commandTag.className = 'history-command-tag ' + getCommandClass(entry.command);
-    commandTag.textContent = entry.type ? (entry.type + ' ' + entry.command) : entry.command;
-    headerEl.appendChild(commandTag);
 
     // 화살표
     var arrow = document.createElement('i');
@@ -463,7 +439,7 @@ function createHistoryItem(entry, zoneName, idx) {
 
     var bodyInner = document.createElement('div');
     bodyInner.className = 'history-item-body-inner';
-    bodyInner.innerHTML = '<div class="history-loading"><i class="fa-solid fa-spinner fa-spin"></i> 통보문 내용 불러오는 중...</div>';
+    bodyInner.innerHTML = '<div class="history-loading"><i class="fa-solid fa-spinner fa-spin"></i> \uD1B5\uBCF4\uBB38 \uB0B4\uC6A9 \uBD88\uB7EC\uC624\uB294 \uC911...</div>';
     bodyEl.appendChild(bodyInner);
 
     item.appendChild(bodyEl);
@@ -486,7 +462,6 @@ function createHistoryItem(entry, zoneName, idx) {
             item.classList.remove('expanded');
         } else {
             item.classList.add('expanded');
-            // 최초 펼침 시 데이터 로드
             if (item.dataset.loaded === 'false') {
                 loadBulletinContent(entry, zoneName, bodyInner);
                 item.dataset.loaded = 'true';
@@ -498,19 +473,15 @@ function createHistoryItem(entry, zoneName, idx) {
 }
 
 // ============================================================================
-// 통보문 AI 분석 내용 로드
+// 통보문 AI 분석 내용 로드 (시각 정보만 표시, 영향 해역 미표시)
 // ============================================================================
 
 /**
- * 서버의 collect_cache에서 통보문 데이터를 가져와 해당 해역 관련 내용만 표시합니다.
- *
- * @param {Object} entry - history 항목 { reportId, type, command, tmEf, tmCc, ... }
- * @param {string} zoneName - 필터링할 해역명
- * @param {HTMLElement} container - 내용을 렌더링할 DOM 컨테이너
+ * 서버의 collect_cache에서 통보문 데이터를 가져와 시각 정보만 표시합니다.
  */
 function loadBulletinContent(entry, zoneName, container) {
     if (!entry.reportId) {
-        container.innerHTML = '<div style="color: #8b949e; font-size: 0.82rem;">통보문 ID 정보가 없습니다.</div>';
+        container.innerHTML = '<div style="color: #8b949e; font-size: 0.82rem;">\uD1B5\uBCF4\uBB38 ID \uC815\uBCF4\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.</div>';
         return;
     }
 
@@ -525,18 +496,17 @@ function loadBulletinContent(entry, zoneName, container) {
             renderBulletinContent(cacheData, entry, zoneName, container);
         })
         .catch(function () {
-            // 캐시가 없는 경우: history 항목의 기본 정보로 대체 표시
-            renderFallbackContent(entry, zoneName, container);
+            renderFallbackContent(entry, container);
         });
 }
 
 /**
- * 캐시된 통보문 AI 분석 결과를 해역 기준으로 필터링하여 렌더링합니다.
+ * 캐시된 통보문 AI 분석 결과에서 해당 해역의 시각 정보만 렌더링합니다.
+ * 영향 해역 목록은 표시하지 않습니다.
  */
 function renderBulletinContent(cacheData, entry, zoneName, container) {
     var html = '';
 
-    // AI 분석 결과에서 해당 해역과 관련된 이벤트만 필터링
     var aiResult = cacheData.aiResult || [];
     var relevantEvents = aiResult.filter(function (evt) {
         if (!evt.zones || !Array.isArray(evt.zones)) return false;
@@ -548,29 +518,19 @@ function renderBulletinContent(cacheData, entry, zoneName, container) {
     if (relevantEvents.length > 0) {
         relevantEvents.forEach(function (evt) {
             html += '<div class="history-event-card">';
-            html += '<div class="history-event-type">' + escapeHtml(evt.type || '') + ' ' + escapeHtml(evt.command || '') + '</div>';
+            html += '<div class="history-event-type">' + escapeHtml(normalizeTypeText(evt.type, evt.command)) + '</div>';
 
             if (evt.tmEf || evt.time) {
-                html += '<div class="history-event-detail"><span>발효시각</span><span>' + escapeHtml(formatHistoryTime(evt.tmEf || evt.time)) + '</span></div>';
+                html += '<div class="history-event-detail"><span>\uBC1C\uD6A8\uC2DC\uAC01</span><span>' + escapeHtml(formatHistoryTime(evt.tmEf || evt.time)) + '</span></div>';
             }
             if (evt.tmCc) {
-                html += '<div class="history-event-detail"><span>해제예정</span><span style="color: #69f0ae;">' + escapeHtml(formatHistoryTime(evt.tmCc)) + '</span></div>';
-            }
-
-            // 영향 해역 표시 (해당 해역 강조)
-            if (evt.zones && evt.zones.length > 0) {
-                var zonesHtml = evt.zones.map(function (z) {
-                    if (z === zoneName) return '<span style="color: #81d4fa; font-weight: 600;">' + escapeHtml(z) + '</span>';
-                    return '<span style="color: #8b949e;">' + escapeHtml(z) + '</span>';
-                }).join(', ');
-                html += '<div class="history-event-detail" style="flex-direction: column; gap: 4px;"><span>영향 해역</span><span style="font-size: 0.76rem; line-height: 1.5;">' + zonesHtml + '</span></div>';
+                html += '<div class="history-event-detail"><span>\uD574\uC81C\uC608\uC815</span><span style="color: #69f0ae;">' + escapeHtml(formatHistoryTime(evt.tmCc)) + '</span></div>';
             }
 
             html += '</div>';
         });
     } else {
-        // AI 결과에 해당 해역이 없는 경우 (히스토리 기본 정보로 표시)
-        html += renderFallbackHtml(entry, zoneName);
+        html += renderFallbackHtml(entry);
     }
 
     container.innerHTML = html;
@@ -579,38 +539,151 @@ function renderBulletinContent(cacheData, entry, zoneName, container) {
 /**
  * 캐시 데이터가 없을 때 history 항목의 기본 정보만으로 표시합니다.
  */
-function renderFallbackContent(entry, zoneName, container) {
-    container.innerHTML = renderFallbackHtml(entry, zoneName);
+function renderFallbackContent(entry, container) {
+    container.innerHTML = renderFallbackHtml(entry);
 }
 
-function renderFallbackHtml(entry, zoneName) {
+function renderFallbackHtml(entry) {
     var html = '<div class="history-event-card">';
-    html += '<div class="history-event-type">' + escapeHtml(entry.type || '정보 없음') + ' ' + escapeHtml(entry.command || '') + '</div>';
+    html += '<div class="history-event-type">' + escapeHtml(normalizeTypeText(entry.type, entry.command)) + '</div>';
 
     if (entry.tmEf) {
-        html += '<div class="history-event-detail"><span>발효시각</span><span>' + escapeHtml(formatHistoryTime(entry.tmEf)) + '</span></div>';
+        html += '<div class="history-event-detail"><span>\uBC1C\uD6A8\uC2DC\uAC01</span><span>' + escapeHtml(formatHistoryTime(entry.tmEf)) + '</span></div>';
     }
     if (entry.tmCc) {
-        html += '<div class="history-event-detail"><span>해제예정</span><span style="color: #69f0ae;">' + escapeHtml(formatHistoryTime(entry.tmCc)) + '</span></div>';
+        html += '<div class="history-event-detail"><span>\uD574\uC81C\uC608\uC815</span><span style="color: #69f0ae;">' + escapeHtml(formatHistoryTime(entry.tmCc)) + '</span></div>';
     }
     html += '<div style="margin-top: 8px; font-size: 0.76rem; color: #6b7280; font-style: italic;">';
     html += '<i class="fa-solid fa-circle-info" style="margin-right: 4px;"></i>';
-    html += '통보문 상세 내용은 서버 재수집 후 확인 가능합니다.';
+    html += '\uD1B5\uBCF4\uBB38 \uC0C1\uC138 \uB0B4\uC6A9\uC740 \uC11C\uBC84 \uC7AC\uC218\uC9D1 \uD6C4 \uD655\uC778 \uAC00\uB2A5\uD569\uB2C8\uB2E4.';
     html += '</div>';
     html += '</div>';
     return html;
 }
 
 // ============================================================================
-// 유틸리티 함수
+// 뱃지 위계 판별 (색상 + 텍스트)
 // ============================================================================
 
 /**
- * reportId를 "제YYYYMMDD-HHMM호" 형식으로 변환합니다.
- * 예: "met:202602162000:141" → "제20260216-2000호"
+ * type과 command를 분석하여 뱃지의 CSS 클래스와 표시 텍스트를 반환합니다.
  *
- * @param {string} reportId
+ * 위계 (낮은 → 높은):
+ *   예비 < 주의보 < 경보 < 태풍주의보 < 태풍경보
+ *
+ * @param {string} type - 예: "풍랑예비특보", "풍랑주의보", "풍랑경보", "태풍주의보", "태풍경보"
+ * @param {string} command - 예: "예비", "발표", "변경", "해제", "연장", "보강"
+ * @returns {{ cssClass: string, text: string }}
+ */
+function getSeverityBadge(type, command) {
+    var typeStr = type || '';
+    var cmd = command || '';
+
+    // 해제는 별도 처리
+    if (cmd === '해제') {
+        return {
+            cssClass: 'lv-release',
+            text: normalizeTypeText(typeStr, cmd)
+        };
+    }
+
+    // 예비 명령이거나 "예비특보" 포함
+    if (cmd === '예비' || typeStr.includes('예비특보')) {
+        return {
+            cssClass: 'lv-preliminary',
+            text: normalizeTypeText(typeStr, cmd)
+        };
+    }
+
+    var isTyphoon = typeStr.includes('태풍');
+    var isWarning = typeStr.includes('경보');
+    var isAdvisory = typeStr.includes('주의보');
+
+    if (isTyphoon && isWarning) {
+        return { cssClass: 'lv-typhoon-warning', text: normalizeTypeText(typeStr, cmd) };
+    }
+    if (isTyphoon && isAdvisory) {
+        return { cssClass: 'lv-typhoon-advisory', text: normalizeTypeText(typeStr, cmd) };
+    }
+    if (isWarning) {
+        return { cssClass: 'lv-warning', text: normalizeTypeText(typeStr, cmd) };
+    }
+    if (isAdvisory) {
+        return { cssClass: 'lv-advisory', text: normalizeTypeText(typeStr, cmd) };
+    }
+
+    // 기본: 주의보 수준
+    return { cssClass: 'lv-advisory', text: normalizeTypeText(typeStr, cmd) };
+}
+
+/**
+ * type과 command를 자연스러운 뱃지 텍스트로 변환합니다.
+ *
+ * 변환 규칙:
+ * - "풍랑예비특보" + "예비" → "풍랑주의보 예비"
+ *   (예비특보는 주의보의 예비 단계이므로)
+ * - "풍랑주의보" + "발표" → "풍랑주의보 발표"
+ * - "풍랑경보" + "변경" → "풍랑경보 변경"
+ * - "태풍주의보" + "발표" → "태풍주의보 발표"
+ *
+ * @param {string} type
+ * @param {string} command
  * @returns {string}
+ */
+function normalizeTypeText(type, command) {
+    var typeStr = type || '';
+    var cmd = command || '';
+
+    // "예비특보" → "주의보"로 변환 (예비특보는 주의보의 예비 단계)
+    if (typeStr.includes('예비특보')) {
+        var baseType = typeStr.replace('예비특보', '').trim();
+        return baseType + '주의보 예비';
+    }
+
+    // 일반적인 경우: "type command"
+    if (cmd) {
+        return typeStr + ' ' + cmd;
+    }
+    return typeStr;
+}
+
+// ============================================================================
+// 통보문 제목 포맷팅
+// ============================================================================
+
+/**
+ * 통보문 제목을 "[특보] 제XX-XXX호 : YYYY.MM.DD.HH:MM" 형식으로 반환합니다.
+ *
+ * entry.title이 있으면 KMA 원본 제목에서 "/" 이전 텍스트만 사용합니다.
+ * 예: "[특보] 제02-222호 : 2026.02.24.22:30 / 풍랑경보 변경·풍랑주의보 발표"
+ *   → "[특보] 제02-222호 : 2026.02.24.22:30"
+ *
+ * entry.title이 없으면 reportId + time으로 fallback합니다.
+ *
+ * @param {Object} entry - history 항목
+ * @returns {string}
+ */
+function formatBulletinTitle(entry) {
+    if (entry.title) {
+        var slashIdx = entry.title.indexOf('/');
+        if (slashIdx > 0) {
+            return entry.title.substring(0, slashIdx).trim();
+        }
+        return entry.title.trim();
+    }
+
+    // fallback: reportId + time으로 구성
+    var idStr = formatReportId(entry.reportId);
+    var timeStr = formatHistoryTime(entry.time);
+    if (timeStr) {
+        return idStr + ' : ' + timeStr;
+    }
+    return idStr;
+}
+
+/**
+ * reportId를 "제YYYYMMDD-HHMM호" 형식으로 변환합니다.
+ * 예: "met:202602162000:141" → "[특보] 제20260216-2000호"
  */
 function formatReportId(reportId) {
     if (!reportId) return '통보문 번호 없음';
@@ -619,7 +692,7 @@ function formatReportId(reportId) {
     if (parts.length >= 2) {
         var ts = parts[1];
         if (ts && ts.length >= 12) {
-            return '제' + ts.substring(0, 8) + '-' + ts.substring(8, 12) + '호';
+            return '[특보] 제' + ts.substring(0, 8) + '-' + ts.substring(8, 12) + '호';
         }
     }
     return reportId;
@@ -627,21 +700,16 @@ function formatReportId(reportId) {
 
 /**
  * 기상청 시간 문자열을 짧은 형식으로 변환합니다.
- * 예: "2026년 02월 16일 20시 00분" → "02.16. 20:00"
- *
- * @param {string} timeStr
- * @returns {string}
+ * 예: "2026년 02월 16일 20시 00분" → "2026.02.16.20:00"
  */
 function formatHistoryTime(timeStr) {
     if (!timeStr) return '';
 
-    // "YYYY년 MM월 DD일 HH시 MM분" 패턴
     var match = timeStr.match(/(\d{4})년\s*(\d{2})월\s*(\d{2})일\s*(\d{2})시\s*(\d{2})분/);
     if (match) {
-        return match[1] + '.' + match[2] + '.' + match[3] + '. ' + match[4] + ':' + match[5];
+        return match[1] + '.' + match[2] + '.' + match[3] + '.' + match[4] + ':' + match[5];
     }
 
-    // 범위형: "YYYY년 MM월 DD일 오전(06시~12시)" 패턴
     var rangeMatch = timeStr.match(/(\d{4})년\s*(\d{2})월\s*(\d{2})일\s*(.*)/);
     if (rangeMatch) {
         return rangeMatch[1] + '.' + rangeMatch[2] + '.' + rangeMatch[3] + '. ' + rangeMatch[4].trim();
@@ -651,27 +719,7 @@ function formatHistoryTime(timeStr) {
 }
 
 /**
- * command 값에 따른 CSS 클래스를 반환합니다.
- * @param {string} command
- * @returns {string}
- */
-function getCommandClass(command) {
-    switch (command) {
-        case '발표':
-        case '예비': return 'publish';
-        case '발효': return 'effect';
-        case '변경': return 'change';
-        case '해제': return 'release';
-        case '연장': return 'extend';
-        case '보강': return 'reinforce';
-        default: return 'publish';
-    }
-}
-
-/**
  * HTML 특수문자를 이스케이프합니다.
- * @param {string} str
- * @returns {string}
  */
 function escapeHtml(str) {
     if (!str) return '';

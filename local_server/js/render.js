@@ -532,11 +532,10 @@ function createAlertElement(items) {
         const historyBtn = document.createElement('button');
         historyBtn.className = 'alert-history-btn';
         historyBtn.title = '특보 히스토리 보기';
-        historyBtn.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i>';
+        historyBtn.textContent = '📋';
         historyBtn.style.cssText = `
             background: rgba(129, 212, 250, 0.15);
             border: 1px solid rgba(129, 212, 250, 0.3);
-            color: #81d4fa;
             width: 28px;
             height: 28px;
             border-radius: 6px;
@@ -544,7 +543,7 @@ function createAlertElement(items) {
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.78rem;
+            font-size: 0.82rem;
             transition: all 0.2s;
             flex-shrink: 0;
             margin-left: 4px;
