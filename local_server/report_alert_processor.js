@@ -117,7 +117,8 @@ function updateZoneStatus(obj, targetZone, event, referenceTime) {
             );
             if (!isDup) {
                 value.history.unshift({
-                    reportId: event.reportId, time: event.tmFc || new Date().toLocaleString('ko-KR'),
+                    reportId: event.reportId, title: event.title || '',
+                    time: event.tmFc || new Date().toLocaleString('ko-KR'),
                     tmEf: event.tmEf || event.time, tmCc: event.tmCc || '', type: event.type, command: event.command, processedAt: new Date().toISOString()
                 });
                 // [Fix] history 무한 증가 방지 (최근 20건만 유지)
@@ -317,9 +318,10 @@ async function applyNewReports(fullForm) {
             // [Fix] 같은 통보문 내 동일 type+command로 이미 처리된 구역은 덮어쓰지 않도록 추적
             const processedZonesInReport = {};
             for (const event of deduplicatedEvents) {
-                // reportId 및 발표시각(tmFc) 추가
+                // reportId 및 발표시각(tmFc), 통보문 제목(title) 추가
                 event.reportId = report.id;
                 event.tmFc = extractTmFcFromId(report.id);
+                event.title = report.title || '';
 
                 // [Fix] zones 내 중복 제거
                 event.zones = [...new Set(event.zones || [])];

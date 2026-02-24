@@ -13,6 +13,7 @@
  * - GET/POST /api/config → API 인증키 설정
  * - GET /api/forecasts → 일반 기상 전망
  * - GET /api/marine-zone-forecasts → 해구별 기상 전망
+ * - GET /api/bulletin-cache/:reportId → 통보문 캐시 조회 (특보 히스토리 팝업용)
  *
  * [연계 파일]
  * - services/cache_manager.js → dataCache에서 캐시된 데이터 응답
@@ -105,6 +106,26 @@ router.get('/api/forecasts', (req, res) => {
 router.get('/api/marine-zone-forecasts', (req, res) => {
     if (dataCache.zoneForecasts) res.json(dataCache.zoneForecasts);
     else res.status(404).json({ error: '데이터 준비 중' });
+});
+
+// 5. 통보문 캐시 조회 (특보 히스토리 팝업 → 아코디언 펼침 시 호출)
+// collect_cache 디렉토리에 저장된 통보문별 AI 분석 결과를 반환
+// reportId 예: "met:202602162000:141" → 파일명: "met_202602162000_141.json"
+router.get('/api/bulletin-cache/:reportId', (req, res) => {
+    try {
+        const reportId = decodeURIComponent(req.params.reportId);
+        const cacheFileName = reportId.replace(/[/:]/g, '_') + '.json';
+        const cachePath = path.join(DATA_DIR, 'collect_cache', cacheFileName);
+
+        if (!fs.existsSync(cachePath)) {
+            return res.status(404).json({ error: '캐시 데이터 없음', reportId });
+        }
+
+        const cacheData = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+        res.json(cacheData);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 module.exports = router;

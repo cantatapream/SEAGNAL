@@ -221,6 +221,7 @@ router.post('/api/admin/report-collect', async (req, res) => {
             for (const event of aiResult) {
                 event.reportId = reportId;
                 event.tmFc = extractTmFcFromReportId(reportId);
+                event.title = title || '';
                 event.zones.forEach(zoneName => {
                     if (reportProcessor.updateZoneStatus(fullForm.current, zoneName, event, refTime)) {
                         applied = true;
@@ -579,6 +580,7 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
                 for (const event of aiResult) {
                     event.reportId = report.id;
                     event.tmFc = extractTmFcFromReportId(report.id);
+                    event.title = report.title || '';
                     event.zones.forEach(zoneName => {
                         if (reportProcessor.updateZoneStatus(fullForm.current, zoneName, event, refTime)) {
                             applied = true;
