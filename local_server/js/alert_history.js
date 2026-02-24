@@ -190,13 +190,12 @@
             line-height: 1.2;
         }
         .badge-command {
-            font-size: 0.7rem;
-            font-weight: 800;
+            font-size: 0.68rem;
+            font-weight: 500;
         }
         .badge-type {
-            font-size: 0.62rem;
-            font-weight: 600;
-            opacity: 0.85;
+            font-size: 0.68rem;
+            font-weight: 500;
         }
         /* Lv1: 예비 - 연한 파란색 */
         .history-type-badge.lv-preliminary {
@@ -421,18 +420,18 @@ function createHistoryItem(entry, zoneName, idx) {
     var headerEl = document.createElement('div');
     headerEl.className = 'history-item-header';
 
-    // 뱃지: 2줄 구조 (위: 명령, 아래: 유형)
+    // 뱃지: 2줄 구조 (위: 유형, 아래: 명령)
     var badgeInfo = getSeverityBadge(entry.type, entry.command);
     var badge = document.createElement('span');
     badge.className = 'history-type-badge ' + badgeInfo.cssClass;
-    var cmdSpan = document.createElement('span');
-    cmdSpan.className = 'badge-command';
-    cmdSpan.textContent = badgeInfo.command;
     var typeSpan = document.createElement('span');
     typeSpan.className = 'badge-type';
     typeSpan.textContent = badgeInfo.badgeType;
-    badge.appendChild(cmdSpan);
+    var cmdSpan = document.createElement('span');
+    cmdSpan.className = 'badge-command';
+    cmdSpan.textContent = badgeInfo.command;
     badge.appendChild(typeSpan);
+    badge.appendChild(cmdSpan);
     headerEl.appendChild(badge);
 
     // 통보문 제목: [특보] 제XX-XXX호 : YYYY.MM.DD.HH:MM
