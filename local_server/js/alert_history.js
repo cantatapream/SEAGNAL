@@ -620,8 +620,7 @@ function getSeverityBadge(type, command) {
  * type과 command를 자연스러운 뱃지 텍스트로 변환합니다.
  *
  * 변환 규칙:
- * - "풍랑예비특보" + "예비" → "풍랑주의보 예비"
- *   (예비특보는 주의보의 예비 단계이므로)
+ * - "풍랑예비특보" + "예비" → "풍랑 예비"
  * - "풍랑주의보" + "발표" → "풍랑주의보 발표"
  * - "풍랑경보" + "변경" → "풍랑경보 변경"
  * - "태풍주의보" + "발표" → "태풍주의보 발표"
@@ -634,10 +633,10 @@ function normalizeTypeText(type, command) {
     var typeStr = type || '';
     var cmd = command || '';
 
-    // "예비특보" → "주의보"로 변환 (예비특보는 주의보의 예비 단계)
+    // "예비특보" → "예비"로 변환 (예: "풍랑예비특보" → "풍랑 예비")
     if (typeStr.includes('예비특보')) {
         var baseType = typeStr.replace('예비특보', '').trim();
-        return baseType + '주의보 예비';
+        return baseType + ' 예비';
     }
 
     // 일반적인 경우: "type command"
