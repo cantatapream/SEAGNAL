@@ -234,18 +234,22 @@
             color: #66bb6a;
             border: 1px solid rgba(76, 175, 80, 0.3);
         }
-        /* 통보문 제목 (2줄 구조) */
+        /* 통보문 제목 (2줄 구조: prefix + content 컬럼) */
         .history-report-info {
             flex: 1;
             min-width: 0;
+            display: flex;
+            gap: 3px;
+            align-items: flex-start;
         }
-        .history-report-title-line1 {
+        .title-prefix {
             font-size: 0.82rem;
             font-weight: 600;
             color: #e0e0e0;
+            flex-shrink: 0;
             line-height: 1.3;
         }
-        .history-report-title-line2 {
+        .title-content {
             font-size: 0.82rem;
             font-weight: 600;
             color: #e0e0e0;
@@ -439,25 +443,30 @@ function createHistoryItem(entry, zoneName, idx) {
     badge.appendChild(cmdSpan);
     headerEl.appendChild(badge);
 
-    // 통보문 제목: 2줄 (1행: [특보] 제XX-XXX호 :  2행: 날짜시간)
+    // 통보문 제목: [prefix] + content(2줄) 구조
     var titleParts = formatBulletinTitleParts(entry);
     var infoDiv = document.createElement('div');
     infoDiv.className = 'history-report-info';
-    infoDiv.title = titleParts.line1 + (titleParts.line2 ? ' ' + titleParts.line2 : '');
+    infoDiv.title = titleParts.prefix + ' ' + titleParts.id + (titleParts.time ? ' ' + titleParts.time : '');
 
-    var line1 = document.createElement('div');
-    line1.className = 'history-report-title-line1';
-    line1.textContent = titleParts.line1;
-    infoDiv.appendChild(line1);
+    // 접두어 ([특보] 등)
+    var prefixSpan = document.createElement('span');
+    prefixSpan.className = 'title-prefix';
+    prefixSpan.textContent = titleParts.prefix;
+    infoDiv.appendChild(prefixSpan);
 
-    if (titleParts.line2) {
-        var line2 = document.createElement('div');
-        line2.className = 'history-report-title-line2';
-        // "[특보] " 길이만큼 앞에 공백 패딩 → "제"와 동일 위치 정렬
-        line2.style.paddingLeft = titleParts.indent;
-        line2.textContent = titleParts.line2;
-        infoDiv.appendChild(line2);
+    // 내용 컬럼 (제XX호 : + 날짜)
+    var contentDiv = document.createElement('div');
+    contentDiv.className = 'title-content';
+    var idLine = document.createElement('div');
+    idLine.textContent = titleParts.id;
+    contentDiv.appendChild(idLine);
+    if (titleParts.time) {
+        var timeLine = document.createElement('div');
+        timeLine.textContent = titleParts.time;
+        contentDiv.appendChild(timeLine);
     }
+    infoDiv.appendChild(contentDiv);
 
     headerEl.appendChild(infoDiv);
 
@@ -695,47 +704,36 @@ function normalizeTypeText(type, command) {
 // ============================================================================
 
 /**
- * 통보문 제목을 2줄로 분리하여 반환합니다.
+ * 통보문 제목을 prefix / id / time 세 부분으로 분리합니다.
  *
- * line1: "[특보] 제XX-XXX호 :"
- * line2: "YYYY.MM.DD.HH:MM"
- * indent: "[특보] " 너비만큼 → line2가 "제"와 같은 위치에서 시작
+ * prefix: "[특보]"
+ * id:     "제XX-XXX호 :"
+ * time:   "YYYY.MM.DD.HH:MM"
  *
  * @param {Object} entry - history 항목
- * @returns {{ line1: string, line2: string, indent: string }}
+ * @returns {{ prefix: string, id: string, time: string }}
  */
 function formatBulletinTitleParts(entry) {
     var full = formatBulletinTitle(entry);
 
-    // " : " 기준으로 분리 (제XX호 : 날짜)
-    var colonIdx = full.indexOf(' : ');
-    if (colonIdx > 0) {
-        var line1 = full.substring(0, colonIdx) + ' :';
-        var line2 = full.substring(colonIdx + 3).trim();
-
-        // "[특보] " 의 너비만큼 indent (약 4.5ch)
-        // "[특보] " = 5글자 + 공백1 = 약 4.5ch (한글은 2ch 기준)
-        var prefixMatch = line1.match(/^\[.+?\]\s*/);
-        var indent = '0';
-        if (prefixMatch) {
-            // 한글 문자는 약 2ch, 영문/기호는 1ch
-            var prefix = prefixMatch[0];
-            var chWidth = 0;
-            for (var i = 0; i < prefix.length; i++) {
-                var code = prefix.charCodeAt(i);
-                if (code > 0x7F) {
-                    chWidth += 1.75;
-                } else {
-                    chWidth += 1;
-                }
-            }
-            indent = chWidth.toFixed(1) + 'ch';
-        }
-
-        return { line1: line1, line2: line2, indent: indent };
+    // "[특보] " 등 접두어 분리
+    var prefixMatch = full.match(/^(\[.+?\])\s*/);
+    var prefix = '';
+    var rest = full;
+    if (prefixMatch) {
+        prefix = prefixMatch[1];
+        rest = full.substring(prefixMatch[0].length);
     }
 
-    return { line1: full, line2: '', indent: '0' };
+    // " : " 기준으로 id와 time 분리
+    var colonIdx = rest.indexOf(' : ');
+    if (colonIdx > 0) {
+        var id = rest.substring(0, colonIdx) + ' :';
+        var time = rest.substring(colonIdx + 3).trim();
+        return { prefix: prefix, id: id, time: time };
+    }
+
+    return { prefix: prefix, id: rest, time: '' };
 }
 
 /**
