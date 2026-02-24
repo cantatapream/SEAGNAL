@@ -524,6 +524,56 @@ function createAlertElement(items) {
         flex-wrap: wrap;
     `;
 
+    // [New] 히스토리 아이콘 버튼: 해역명과 뱃지 사이에 삽입
+    // 해당 해역의 특보 통보문 히스토리를 팝업으로 조회할 수 있는 버튼
+    // history 데이터는 모든 alert에서 공유하므로 첫 번째 항목에서 가져옴
+    const zoneHistory = data.history || [];
+    if (zoneHistory.length > 0) {
+        const historyBtn = document.createElement('button');
+        historyBtn.className = 'alert-history-btn';
+        historyBtn.title = '특보 히스토리 보기';
+        historyBtn.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i>';
+        historyBtn.style.cssText = `
+            background: rgba(129, 212, 250, 0.15);
+            border: 1px solid rgba(129, 212, 250, 0.3);
+            color: #81d4fa;
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.78rem;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            margin-left: 4px;
+        `;
+        historyBtn.addEventListener('mouseenter', function () {
+            historyBtn.style.background = 'rgba(129, 212, 250, 0.3)';
+            historyBtn.style.borderColor = 'rgba(129, 212, 250, 0.5)';
+        });
+        historyBtn.addEventListener('mouseleave', function () {
+            historyBtn.style.background = 'rgba(129, 212, 250, 0.15)';
+            historyBtn.style.borderColor = 'rgba(129, 212, 250, 0.3)';
+        });
+        historyBtn.addEventListener('click', function (e) {
+            e.stopPropagation(); // 카드 아코디언 토글 방지
+            if (typeof showAlertHistoryPopup === 'function') {
+                showAlertHistoryPopup(zoneNameStr, zoneHistory);
+            }
+        });
+        // 해역명(.zone-name) 뒤, 뱃지 컨테이너(.alert-badges) 앞에 삽입
+        if (header) {
+            const badgeEl = header.querySelector('.alert-badges');
+            if (badgeEl) {
+                header.insertBefore(historyBtn, badgeEl);
+            } else {
+                header.appendChild(historyBtn);
+            }
+        }
+    }
+
     const badgeContainer = clone.querySelector('.alert-badges');
     badgeContainer.style.display = 'flex';
     badgeContainer.style.gap = '4px';
@@ -930,7 +980,7 @@ function createAlertElement(items) {
     // 펼치기/접기
     card.style.cursor = 'pointer';
     card.addEventListener('click', (e) => {
-        if (e.target.closest('.coastal-item') || e.target.closest('.buoy-btn') || e.target.closest('.buoy-info-area')) return;
+        if (e.target.closest('.coastal-item') || e.target.closest('.buoy-btn') || e.target.closest('.buoy-info-area') || e.target.closest('.alert-history-btn')) return;
         e.stopPropagation();
 
         const isCurrentlyHidden = details.classList.contains('hidden');

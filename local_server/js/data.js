@@ -191,7 +191,8 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
         isPreliminary: reallyUpcoming,
         isCoastal: false,
         source: 'CRAWLER',
-        prevLevel: null // 격상/격하 시 이전 등급 (history에서 파생)
+        prevLevel: null, // 격상/격하 시 이전 등급 (history에서 파생)
+        history: history || [] // 해당 해역의 특보 통보문 히스토리 (팝업 표시용)
     };
 
     // 레벨 재조정: 화면 표시용
@@ -235,11 +236,13 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
             if (status === 'Y') {
                 if (!coastalMap[childName]) coastalMap[childName] = [];
                 // 부모 특보 정보를 상속받아 연안바다 특보 객체 생성
+                // [Fix] history는 연안바다에 불필요 (통보문이 연안바다 단위로 발표되지 않으므로)
                 const childAlert = {
                     ...alertItem,
                     zoneName: childName,
                     isCoastal: true,
                     parentZone: zoneName,
+                    history: [], // 연안바다는 히스토리 미표시
                     id: `auto_${childName}_${alertObj.wrnTp}_${reallyUpcoming ? 'pre' : 'act'}`
                 };
                 coastalMap[childName].push(childAlert);
