@@ -190,13 +190,12 @@
             line-height: 1.2;
         }
         .badge-command {
-            font-size: 0.7rem;
-            font-weight: 800;
+            font-size: 0.68rem;
+            font-weight: 500;
         }
         .badge-type {
-            font-size: 0.62rem;
-            font-weight: 600;
-            opacity: 0.85;
+            font-size: 0.68rem;
+            font-weight: 500;
         }
         /* Lv1: 예비 - 연한 파란색 */
         .history-type-badge.lv-preliminary {
@@ -235,17 +234,22 @@
             color: #66bb6a;
             border: 1px solid rgba(76, 175, 80, 0.3);
         }
-        /* 통보문 제목 (줄바꿈 허용) */
+        /* 통보문 제목 (2줄 구조) */
         .history-report-info {
             flex: 1;
             min-width: 0;
         }
-        .history-report-title {
+        .history-report-title-line1 {
             font-size: 0.82rem;
             font-weight: 600;
             color: #e0e0e0;
-            word-break: break-all;
-            line-height: 1.4;
+            line-height: 1.3;
+        }
+        .history-report-title-line2 {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #e0e0e0;
+            line-height: 1.3;
         }
         /* 아코디언 화살표 */
         .history-item-arrow {
@@ -421,29 +425,39 @@ function createHistoryItem(entry, zoneName, idx) {
     var headerEl = document.createElement('div');
     headerEl.className = 'history-item-header';
 
-    // 뱃지: 2줄 구조 (위: 명령, 아래: 유형)
+    // 뱃지: 2줄 구조 (위: 유형, 아래: 명령)
     var badgeInfo = getSeverityBadge(entry.type, entry.command);
     var badge = document.createElement('span');
     badge.className = 'history-type-badge ' + badgeInfo.cssClass;
-    var cmdSpan = document.createElement('span');
-    cmdSpan.className = 'badge-command';
-    cmdSpan.textContent = badgeInfo.command;
     var typeSpan = document.createElement('span');
     typeSpan.className = 'badge-type';
     typeSpan.textContent = badgeInfo.badgeType;
-    badge.appendChild(cmdSpan);
+    var cmdSpan = document.createElement('span');
+    cmdSpan.className = 'badge-command';
+    cmdSpan.textContent = badgeInfo.command;
     badge.appendChild(typeSpan);
+    badge.appendChild(cmdSpan);
     headerEl.appendChild(badge);
 
-    // 통보문 제목: [특보] 제XX-XXX호 : YYYY.MM.DD.HH:MM
+    // 통보문 제목: 2줄 (1행: [특보] 제XX-XXX호 :  2행: 날짜시간)
+    var titleParts = formatBulletinTitleParts(entry);
     var infoDiv = document.createElement('div');
     infoDiv.className = 'history-report-info';
+    infoDiv.title = titleParts.line1 + (titleParts.line2 ? ' ' + titleParts.line2 : '');
 
-    var titleSpan = document.createElement('div');
-    titleSpan.className = 'history-report-title';
-    titleSpan.textContent = formatBulletinTitle(entry);
-    titleSpan.title = titleSpan.textContent; // 툴팁으로 전체 텍스트 표시
-    infoDiv.appendChild(titleSpan);
+    var line1 = document.createElement('div');
+    line1.className = 'history-report-title-line1';
+    line1.textContent = titleParts.line1;
+    infoDiv.appendChild(line1);
+
+    if (titleParts.line2) {
+        var line2 = document.createElement('div');
+        line2.className = 'history-report-title-line2';
+        // "[특보] " 길이만큼 앞에 공백 패딩 → "제"와 동일 위치 정렬
+        line2.style.paddingLeft = titleParts.indent;
+        line2.textContent = titleParts.line2;
+        infoDiv.appendChild(line2);
+    }
 
     headerEl.appendChild(infoDiv);
 
@@ -681,13 +695,51 @@ function normalizeTypeText(type, command) {
 // ============================================================================
 
 /**
+ * 통보문 제목을 2줄로 분리하여 반환합니다.
+ *
+ * line1: "[특보] 제XX-XXX호 :"
+ * line2: "YYYY.MM.DD.HH:MM"
+ * indent: "[특보] " 너비만큼 → line2가 "제"와 같은 위치에서 시작
+ *
+ * @param {Object} entry - history 항목
+ * @returns {{ line1: string, line2: string, indent: string }}
+ */
+function formatBulletinTitleParts(entry) {
+    var full = formatBulletinTitle(entry);
+
+    // " : " 기준으로 분리 (제XX호 : 날짜)
+    var colonIdx = full.indexOf(' : ');
+    if (colonIdx > 0) {
+        var line1 = full.substring(0, colonIdx) + ' :';
+        var line2 = full.substring(colonIdx + 3).trim();
+
+        // "[특보] " 의 너비만큼 indent (약 4.5ch)
+        // "[특보] " = 5글자 + 공백1 = 약 4.5ch (한글은 2ch 기준)
+        var prefixMatch = line1.match(/^\[.+?\]\s*/);
+        var indent = '0';
+        if (prefixMatch) {
+            // 한글 문자는 약 2ch, 영문/기호는 1ch
+            var prefix = prefixMatch[0];
+            var chWidth = 0;
+            for (var i = 0; i < prefix.length; i++) {
+                var code = prefix.charCodeAt(i);
+                if (code > 0x7F) {
+                    chWidth += 1.75;
+                } else {
+                    chWidth += 1;
+                }
+            }
+            indent = chWidth.toFixed(1) + 'ch';
+        }
+
+        return { line1: line1, line2: line2, indent: indent };
+    }
+
+    return { line1: full, line2: '', indent: '0' };
+}
+
+/**
  * 통보문 제목을 "[특보] 제XX-XXX호 : YYYY.MM.DD.HH:MM" 형식으로 반환합니다.
- *
- * entry.title이 있으면 KMA 원본 제목에서 "/" 이전 텍스트만 사용합니다.
- * 예: "[특보] 제02-222호 : 2026.02.24.22:30 / 풍랑경보 변경·풍랑주의보 발표"
- *   → "[특보] 제02-222호 : 2026.02.24.22:30"
- *
- * entry.title이 없으면 reportId + time으로 fallback합니다.
  *
  * @param {Object} entry - history 항목
  * @returns {string}
