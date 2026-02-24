@@ -174,14 +174,28 @@
         .history-item-header:hover {
             background: rgba(40, 55, 80, 0.6);
         }
-        /* 통보문 유형 뱃지 - 5단계 위계 색상 */
+        /* 통보문 유형 뱃지 - 5단계 위계 색상, 2줄 구조 */
         .history-type-badge {
             font-size: 0.72rem;
             font-weight: 700;
-            padding: 3px 8px;
+            padding: 4px 8px;
             border-radius: 6px;
-            white-space: nowrap;
             flex-shrink: 0;
+            min-width: 48px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1px;
+            line-height: 1.2;
+        }
+        .badge-command {
+            font-size: 0.68rem;
+            font-weight: 500;
+        }
+        .badge-type {
+            font-size: 0.68rem;
+            font-weight: 500;
         }
         /* Lv1: 예비 - 연한 파란색 */
         .history-type-badge.lv-preliminary {
@@ -220,18 +234,26 @@
             color: #66bb6a;
             border: 1px solid rgba(76, 175, 80, 0.3);
         }
-        /* 통보문 제목 (한 줄) */
+        /* 통보문 제목 (2줄 구조: prefix + content 컬럼) */
         .history-report-info {
             flex: 1;
             min-width: 0;
+            display: flex;
+            gap: 3px;
+            align-items: flex-start;
         }
-        .history-report-title {
+        .title-prefix {
             font-size: 0.82rem;
             font-weight: 600;
             color: #e0e0e0;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            flex-shrink: 0;
+            line-height: 1.3;
+        }
+        .title-content {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #e0e0e0;
+            line-height: 1.3;
         }
         /* 아코디언 화살표 */
         .history-item-arrow {
@@ -407,22 +429,44 @@ function createHistoryItem(entry, zoneName, idx) {
     var headerEl = document.createElement('div');
     headerEl.className = 'history-item-header';
 
-    // 뱃지: 단계별 색상 적용
+    // 뱃지: 2줄 구조 (위: 유형, 아래: 명령)
     var badgeInfo = getSeverityBadge(entry.type, entry.command);
     var badge = document.createElement('span');
     badge.className = 'history-type-badge ' + badgeInfo.cssClass;
-    badge.textContent = badgeInfo.text;
+    var typeSpan = document.createElement('span');
+    typeSpan.className = 'badge-type';
+    typeSpan.textContent = badgeInfo.badgeType;
+    var cmdSpan = document.createElement('span');
+    cmdSpan.className = 'badge-command';
+    cmdSpan.textContent = badgeInfo.command;
+    badge.appendChild(typeSpan);
+    badge.appendChild(cmdSpan);
     headerEl.appendChild(badge);
 
-    // 통보문 제목: [특보] 제XX-XXX호 : YYYY.MM.DD.HH:MM
+    // 통보문 제목: [prefix] + content(2줄) 구조
+    var titleParts = formatBulletinTitleParts(entry);
     var infoDiv = document.createElement('div');
     infoDiv.className = 'history-report-info';
+    infoDiv.title = titleParts.prefix + ' ' + titleParts.id + (titleParts.time ? ' ' + titleParts.time : '');
 
-    var titleSpan = document.createElement('div');
-    titleSpan.className = 'history-report-title';
-    titleSpan.textContent = formatBulletinTitle(entry);
-    titleSpan.title = titleSpan.textContent; // 툴팁으로 전체 텍스트 표시
-    infoDiv.appendChild(titleSpan);
+    // 접두어 ([특보] 등)
+    var prefixSpan = document.createElement('span');
+    prefixSpan.className = 'title-prefix';
+    prefixSpan.textContent = titleParts.prefix;
+    infoDiv.appendChild(prefixSpan);
+
+    // 내용 컬럼 (제XX호 : + 날짜)
+    var contentDiv = document.createElement('div');
+    contentDiv.className = 'title-content';
+    var idLine = document.createElement('div');
+    idLine.textContent = titleParts.id;
+    contentDiv.appendChild(idLine);
+    if (titleParts.time) {
+        var timeLine = document.createElement('div');
+        timeLine.textContent = titleParts.time;
+        contentDiv.appendChild(timeLine);
+    }
+    infoDiv.appendChild(contentDiv);
 
     headerEl.appendChild(infoDiv);
 
@@ -566,33 +610,44 @@ function renderFallbackHtml(entry) {
 // ============================================================================
 
 /**
- * type과 command를 분석하여 뱃지의 CSS 클래스와 표시 텍스트를 반환합니다.
+ * type과 command를 분석하여 뱃지의 CSS 클래스, 명령어, 유형을 반환합니다.
  *
- * 위계 (낮은 → 높은):
- *   예비 < 주의보 < 경보 < 태풍주의보 < 태풍경보
+ * 뱃지 2줄 구조:
+ *   1행: command (발표, 변경, 해제, 예비 등)
+ *   2행: badgeType (풍랑주의보, 풍랑경보, 풍랑 등)
  *
  * @param {string} type - 예: "풍랑예비특보", "풍랑주의보", "풍랑경보", "태풍주의보", "태풍경보"
  * @param {string} command - 예: "예비", "발표", "변경", "해제", "연장", "보강"
- * @returns {{ cssClass: string, text: string }}
+ * @returns {{ cssClass: string, command: string, badgeType: string, text: string }}
  */
 function getSeverityBadge(type, command) {
     var typeStr = type || '';
     var cmd = command || '';
 
+    // badgeType: 표시용 유형 텍스트 추출
+    var badgeType = typeStr;
+    if (typeStr.includes('예비특보')) {
+        badgeType = typeStr.replace('예비특보', '').trim();
+    }
+
+    // command 표시용: 예비특보인 경우 '예비'
+    var displayCmd = cmd;
+    if (!displayCmd && typeStr.includes('예비특보')) {
+        displayCmd = '예비';
+    }
+
+    var result = { cssClass: '', command: displayCmd, badgeType: badgeType, text: normalizeTypeText(typeStr, cmd) };
+
     // 해제는 별도 처리
     if (cmd === '해제') {
-        return {
-            cssClass: 'lv-release',
-            text: normalizeTypeText(typeStr, cmd)
-        };
+        result.cssClass = 'lv-release';
+        return result;
     }
 
     // 예비 명령이거나 "예비특보" 포함
     if (cmd === '예비' || typeStr.includes('예비특보')) {
-        return {
-            cssClass: 'lv-preliminary',
-            text: normalizeTypeText(typeStr, cmd)
-        };
+        result.cssClass = 'lv-preliminary';
+        return result;
     }
 
     var isTyphoon = typeStr.includes('태풍');
@@ -600,20 +655,18 @@ function getSeverityBadge(type, command) {
     var isAdvisory = typeStr.includes('주의보');
 
     if (isTyphoon && isWarning) {
-        return { cssClass: 'lv-typhoon-warning', text: normalizeTypeText(typeStr, cmd) };
-    }
-    if (isTyphoon && isAdvisory) {
-        return { cssClass: 'lv-typhoon-advisory', text: normalizeTypeText(typeStr, cmd) };
-    }
-    if (isWarning) {
-        return { cssClass: 'lv-warning', text: normalizeTypeText(typeStr, cmd) };
-    }
-    if (isAdvisory) {
-        return { cssClass: 'lv-advisory', text: normalizeTypeText(typeStr, cmd) };
+        result.cssClass = 'lv-typhoon-warning';
+    } else if (isTyphoon && isAdvisory) {
+        result.cssClass = 'lv-typhoon-advisory';
+    } else if (isWarning) {
+        result.cssClass = 'lv-warning';
+    } else if (isAdvisory) {
+        result.cssClass = 'lv-advisory';
+    } else {
+        result.cssClass = 'lv-advisory';
     }
 
-    // 기본: 주의보 수준
-    return { cssClass: 'lv-advisory', text: normalizeTypeText(typeStr, cmd) };
+    return result;
 }
 
 /**
@@ -651,13 +704,40 @@ function normalizeTypeText(type, command) {
 // ============================================================================
 
 /**
+ * 통보문 제목을 prefix / id / time 세 부분으로 분리합니다.
+ *
+ * prefix: "[특보]"
+ * id:     "제XX-XXX호 :"
+ * time:   "YYYY.MM.DD.HH:MM"
+ *
+ * @param {Object} entry - history 항목
+ * @returns {{ prefix: string, id: string, time: string }}
+ */
+function formatBulletinTitleParts(entry) {
+    var full = formatBulletinTitle(entry);
+
+    // "[특보] " 등 접두어 분리
+    var prefixMatch = full.match(/^(\[.+?\])\s*/);
+    var prefix = '';
+    var rest = full;
+    if (prefixMatch) {
+        prefix = prefixMatch[1];
+        rest = full.substring(prefixMatch[0].length);
+    }
+
+    // " : " 기준으로 id와 time 분리
+    var colonIdx = rest.indexOf(' : ');
+    if (colonIdx > 0) {
+        var id = rest.substring(0, colonIdx) + ' :';
+        var time = rest.substring(colonIdx + 3).trim();
+        return { prefix: prefix, id: id, time: time };
+    }
+
+    return { prefix: prefix, id: rest, time: '' };
+}
+
+/**
  * 통보문 제목을 "[특보] 제XX-XXX호 : YYYY.MM.DD.HH:MM" 형식으로 반환합니다.
- *
- * entry.title이 있으면 KMA 원본 제목에서 "/" 이전 텍스트만 사용합니다.
- * 예: "[특보] 제02-222호 : 2026.02.24.22:30 / 풍랑경보 변경·풍랑주의보 발표"
- *   → "[특보] 제02-222호 : 2026.02.24.22:30"
- *
- * entry.title이 없으면 reportId + time으로 fallback합니다.
  *
  * @param {Object} entry - history 항목
  * @returns {string}
