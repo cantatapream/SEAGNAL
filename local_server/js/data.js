@@ -191,7 +191,8 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
         isPreliminary: reallyUpcoming,
         isCoastal: false,
         source: 'CRAWLER',
-        prevLevel: null // 격상/격하 시 이전 등급 (history에서 파생)
+        prevLevel: null, // 격상/격하 시 이전 등급 (history에서 파생)
+        history: history || [] // 해당 해역의 특보 통보문 히스토리 (팝업 표시용)
     };
 
     // 레벨 재조정: 화면 표시용

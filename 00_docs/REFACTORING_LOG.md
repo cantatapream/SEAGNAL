@@ -4,6 +4,64 @@
 
 ---
 
+## 2026-02-24
+
+### [기능 확장] 특보 히스토리 팝업 기능 추가
+
+#### 배경:
+- 특보 카드에서 해당 해역의 통보문 발표 이력을 확인할 수 있는 기능 요청
+- 예비특보 → 주의보 → 경보 등 특보 진행 과정을 추적 가능하게 함
+
+#### 작업 내용:
+
+1. **data.js 수정** - `processSingleAlert()`에서 `alertItem.history` 필드 추가
+   - 기존: history는 격상/격하 판별에만 사용되고 프론트엔드에 전달되지 않음
+   - 변경: alertItem 객체에 `history: history || []` 추가하여 프론트엔드에서 접근 가능
+   - 영향: 기존 로직 변경 없음 (속성 추가만)
+
+2. **routes/weather.js 수정** - `/api/bulletin-cache/:reportId` 엔드포인트 추가
+   - collect_cache 디렉토리의 통보문별 AI 분석 캐시를 조회하는 API
+   - reportId를 파일명으로 변환하여 JSON 응답
+   - 영향: 기존 라우트와 완전 독립
+
+3. **js/alert_history.js 신규 생성** - 특보 히스토리 팝업 모달 컴포넌트
+   - `showAlertHistoryPopup(zoneName, history)`: 팝업 표시
+   - `closeAlertHistoryPopup()`: 팝업 닫기
+   - 각 통보문 항목을 아코디언 형태로 표시
+   - 아코디언 펼침 시 `/api/bulletin-cache` API로 AI 분석 결과 조회
+   - 해당 해역(zoneName) 관련 이벤트만 필터링하여 표시
+   - 캐시 미존재 시 fallback으로 history 항목 기본 정보 표시
+   - 기존 다크테마 UI 패턴 준수 (z-index: 10001, ESC 닫기, 오버레이 클릭 닫기)
+
+4. **js/render.js 수정** - `createAlertElement()`에 히스토리 아이콘 버튼 추가
+   - 해역명(.zone-name)과 뱃지(.alert-badges) 사이에 시계 아이콘 버튼 삽입
+   - history 배열이 비어있으면 버튼 미표시
+   - 버튼 클릭 시 `showAlertHistoryPopup()` 호출
+   - `e.stopPropagation()`으로 카드 아코디언 토글 방지
+   - 카드 클릭 핸들러에 `.alert-history-btn` 예외 추가
+
+5. **index.html 수정** - `alert_history.js` 스크립트 태그 등록
+   - render.js 다음, render_coastal.js 이전에 배치
+
+#### 기존 기능 영향 분석:
+| 항목 | 영향 | 비고 |
+|------|------|------|
+| 특보 카드 렌더링 | 없음 | 버튼 추가만, 기존 뱃지/상세정보 로직 미변경 |
+| 카드 아코디언 토글 | 없음 | stopPropagation + closest 예외 처리 |
+| 연안바다 카드 | 없음 | createCoastalElement에서 history 미참조 |
+| 격상/격하 판별 | 없음 | history 참조 로직 미변경 |
+| 특보 해제 시 히스토리 초기화 | 정상 동작 | report_alert_processor.js의 `value.history = []` 유지 |
+| API 라우트 | 없음 | 신규 엔드포인트만 추가, 기존 라우트 미변경 |
+
+#### 변경 파일:
+- `local_server/js/data.js` (1줄 수정)
+- `local_server/routes/weather.js` (19줄 추가)
+- `local_server/js/alert_history.js` (신규, ~340줄)
+- `local_server/js/render.js` (~50줄 추가)
+- `local_server/index.html` (1줄 추가)
+
+---
+
 ## 2026-02-19
 
 ### [09:00 KST] Phase 1 시작 - 스테이징 인프라 구축
