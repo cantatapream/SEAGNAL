@@ -222,15 +222,24 @@ function validateZonesAgainstText(parsed, noticeText) {
             continue;
         }
 
-        // Case 2: AI zones와 코드레벨 파싱 결과가 다르면 코드레벨 결과로 교정
-        // 코드레벨 파싱은 결정적(deterministic)이므로 AI보다 신뢰도가 높음
+        // Case 2: AI zones와 코드레벨 파싱 결과가 다르면 교정
+        // 단, 코드레벨 파싱이 AI보다 적게 찾은 경우는 코드파싱 오류일 수 있으므로
+        // AI 결과를 유지하되 코드레벨에서 찾은 zones를 합집합으로 추가
         if (aiZones.length > 0 && expected.zones.length > 0) {
             const aiSorted = [...aiZones].sort().join(',');
             const expectedSorted = [...expected.zones].sort().join(',');
 
             if (aiSorted !== expectedSorted) {
-                console.log(`[AI Parser 코드검증] zones 교정: [${aiZones.join(', ')}] → [${expected.zones.join(', ')}]`);
-                aiItem.zones = [...expected.zones];
+                if (expected.zones.length >= aiZones.length) {
+                    // 코드레벨이 같거나 더 많이 찾음 → 코드레벨 결과 신뢰
+                    console.log(`[AI Parser 코드검증] zones 교정: [${aiZones.join(', ')}] → [${expected.zones.join(', ')}]`);
+                    aiItem.zones = [...expected.zones];
+                } else {
+                    // 코드레벨이 더 적게 찾음 → AI 결과 유지 + 코드레벨 결과 합집합
+                    const merged = [...new Set([...aiZones, ...expected.zones])];
+                    console.log(`[AI Parser 코드검증] zones 합집합: [${aiZones.join(', ')}] + [${expected.zones.join(', ')}] → [${merged.join(', ')}]`);
+                    aiItem.zones = merged;
+                }
             }
         }
     }
