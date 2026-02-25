@@ -560,9 +560,15 @@ function buildTimeFieldHTML(id, label, isOptional) {
                     <input type="date" id="${id}-range-date" style="${rangeInputStyle}">
                     <select id="${id}-range-period" style="${rangeInputStyle}">
                         <option value="새벽(00시~06시)">새벽(00~06시)</option>
+                        <option value="아침(06시~09시)">아침(06~09시)</option>
                         <option value="오전(06시~12시)">오전(06~12시)</option>
+                        <option value="오전(09시~12시)">오전(09~12시)</option>
+                        <option value="낮(12시~15시)">낮(12~15시)</option>
                         <option value="오후(12시~18시)">오후(12~18시)</option>
+                        <option value="늦은 오후(15시~18시)">늦은 오후(15~18시)</option>
+                        <option value="저녁(18시~21시)">저녁(18~21시)</option>
                         <option value="밤(18시~24시)">밤(18~24시)</option>
+                        <option value="밤(21시~24시)">밤(21~24시)</option>
                     </select>
                 </div>
             </div>
@@ -682,12 +688,31 @@ window.openEditAlertModal = function (zoneName, alertIdx) {
     document.body.appendChild(modal);
 
     // 기존 값 프리필: 범위형 여부 판별
-    const isRangeVal = (v) => v && /[새벽오전오후밤]\(/.test(v);
+    const isRangeVal = (v) => v && /[새벽아침오전낮오후저녁밤]\(/.test(v);
     const parseRangeVal = (v) => {
         if (!v) return null;
         const m = v.match(/(\d{4})년\s*(\d{2})월\s*(\d{2})일\s*(.*)/);
         if (!m) return null;
         return { date: `${m[1]}-${m[2]}-${m[3]}`, period: m[4].trim() };
+    };
+    // 범위형 period를 select option의 value와 정확히 매칭하는 헬퍼
+    const selectRangePeriod = (selectEl, periodStr) => {
+        // 1차: value 정확 매칭
+        for (const opt of selectEl.options) {
+            if (opt.value === periodStr) { opt.selected = true; return; }
+        }
+        // 2차: 시간 범위 매칭 (예: "밤(21시~24시)" vs "밤(21시~24시)")
+        const timeMatch = periodStr.match(/(\d{2})시~(\d{2})시/);
+        if (timeMatch) {
+            for (const opt of selectEl.options) {
+                if (opt.value.includes(timeMatch[1] + '시~' + timeMatch[2] + '시')) { opt.selected = true; return; }
+            }
+        }
+        // 3차: 앞부분 키워드 매칭 (fallback)
+        const prefix = periodStr.split('(')[0];
+        for (const opt of selectEl.options) {
+            if (opt.value.split('(')[0] === prefix) { opt.selected = true; return; }
+        }
     };
 
     // 발표 시각
@@ -704,10 +729,7 @@ window.openEditAlertModal = function (zoneName, alertIdx) {
         if (parsed) {
             toggleManualTimeType('ma-tmEf', 'range');
             document.getElementById('ma-tmEf-range-date').value = parsed.date;
-            const periodSel = document.getElementById('ma-tmEf-range-period');
-            for (const opt of periodSel.options) {
-                if (parsed.period.includes(opt.value.split('(')[0])) { opt.selected = true; break; }
-            }
+            selectRangePeriod(document.getElementById('ma-tmEf-range-period'), parsed.period);
         }
     } else {
         const v = toLocalDatetime(alert.tmEf);
@@ -720,10 +742,7 @@ window.openEditAlertModal = function (zoneName, alertIdx) {
         if (parsed) {
             toggleManualTimeType('ma-tmEd', 'range');
             document.getElementById('ma-tmEd-range-date').value = parsed.date;
-            const periodSel = document.getElementById('ma-tmEd-range-period');
-            for (const opt of periodSel.options) {
-                if (parsed.period.includes(opt.value.split('(')[0])) { opt.selected = true; break; }
-            }
+            selectRangePeriod(document.getElementById('ma-tmEd-range-period'), parsed.period);
         }
     } else {
         const v = toLocalDatetime(alert.tmEd);
@@ -816,7 +835,7 @@ window.submitManualAlert = async function (zoneName, mode, alertIdx) {
         const resp = await fetch('/api/admin/manual-alert', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ zoneName, warnType, level, command, tmFc, tmEf, tmCc, skipPush: mode === 'edit' })
+            body: JSON.stringify({ zoneName, warnType, level, command, tmFc, tmEf, tmCc, skipPush: true })
         });
         const result = await resp.json();
         if (!resp.ok) throw new Error(result.error || '등록 실패');
@@ -846,7 +865,7 @@ window.deleteManualAlert = async function (zoneName) {
         const resp = await fetch('/api/admin/manual-alert-release', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ zoneName, skipPush: false })
+            body: JSON.stringify({ zoneName, skipPush: true })
         });
         const result = await resp.json();
         if (!resp.ok) throw new Error(result.error || '해제 실패');

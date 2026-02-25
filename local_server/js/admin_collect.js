@@ -199,10 +199,12 @@ window.atmFetchReports = async function () {
         ]);
         const data = await reportsRes.json();
         let processedIds = new Set();
+        let failedIds = new Set();
         try {
             if (processedRes.ok) {
                 const processedData = await processedRes.json();
                 processedIds = new Set(processedData.processedIds || []);
+                failedIds = new Set(processedData.failedIds || []);
             }
         } catch (e) { /* processed-reports 실패해도 통보문 목록은 정상 표시 */ }
 
@@ -219,7 +221,20 @@ window.atmFetchReports = async function () {
 
         listEl.innerHTML = data.reports.map((r, i) => {
             const isProcessed = processedIds.has(r.id);
-            if (isProcessed) {
+            const isFailed = failedIds.has(r.id);
+            if (isProcessed && isFailed) {
+                // 수집했으나 AI 분석 실패: [분석실패] 뱃지 + [결과] [재수집]
+                return `
+                <div id="atm-row-${i}" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(239,68,68,0.08);border-radius:8px;margin-bottom:6px;flex-wrap:wrap;border-left:3px solid #ef4444;">
+                    <span style="background:rgba(239,68,68,0.2);color:#fca5a5;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;flex-shrink:0;"><i class="fa-solid fa-triangle-exclamation"></i> 분석실패</span>
+                    <span style="flex:1;color:#e2e8f0;font-size:0.85rem;min-width:200px;">${r.title}</span>
+                    <span style="color:#64748b;font-size:0.7rem;word-break:break-all;">${r.id}</span>
+                    <div style="display:flex;gap:6px;flex-shrink:0;">
+                        <button id="atm-cb-${i}" onclick="atmCollectOne(${i})" style="padding:5px 12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;"><i class="fa-solid fa-rotate"></i> 재수집</button>
+                        <button id="atm-rb-${i}" onclick="atmShowCachedResult(${i})" style="padding:5px 12px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">결과</button>
+                    </div>
+                </div>`;
+            } else if (isProcessed) {
                 // 이미 수집된 통보문: [완료] [결과] [재수집]
                 return `
                 <div id="atm-row-${i}" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:6px;flex-wrap:wrap;">
@@ -229,6 +244,18 @@ window.atmFetchReports = async function () {
                         <button id="atm-cb-${i}" disabled style="padding:5px 12px;background:rgba(34,197,94,0.3);color:#86efac;border:none;border-radius:6px;font-size:0.8rem;font-weight:600;cursor:default;"><i class="fa-solid fa-check"></i> 완료</button>
                         <button id="atm-rb-${i}" onclick="atmShowCachedResult(${i})" style="padding:5px 12px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">결과</button>
                         <button onclick="atmCollectOne(${i})" style="padding:5px 10px;background:rgba(255,255,255,0.08);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;font-size:0.75rem;font-weight:600;" title="AI를 다시 사용하여 재수집"><i class="fa-solid fa-rotate"></i> 재수집</button>
+                    </div>
+                </div>`;
+            } else if (isFailed) {
+                // 수집 실패한 통보문 (history에는 없지만 실패 기록만 있음)
+                return `
+                <div id="atm-row-${i}" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(239,68,68,0.08);border-radius:8px;margin-bottom:6px;flex-wrap:wrap;border-left:3px solid #ef4444;">
+                    <span style="background:rgba(239,68,68,0.2);color:#fca5a5;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;flex-shrink:0;"><i class="fa-solid fa-triangle-exclamation"></i> 분석실패</span>
+                    <span style="flex:1;color:#e2e8f0;font-size:0.85rem;min-width:200px;">${r.title}</span>
+                    <span style="color:#64748b;font-size:0.7rem;word-break:break-all;">${r.id}</span>
+                    <div style="display:flex;gap:6px;flex-shrink:0;">
+                        <button id="atm-cb-${i}" onclick="atmCollectOne(${i})" style="padding:5px 12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;"><i class="fa-solid fa-rotate"></i> 재수집</button>
+                        <button id="atm-rb-${i}" onclick="atmShowResult(${i})" style="display:none;padding:5px 12px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">결과</button>
                     </div>
                 </div>`;
             } else {
