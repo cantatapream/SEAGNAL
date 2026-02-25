@@ -121,6 +121,135 @@
             window.Capacitor.Plugins.SplashScreen.hide();
         }
     </script>
+    <!-- Maintenance Screen (점검 페이지 - 스플래시 앞에 표시) -->
+    <div id="maintenance-screen" style="display:none;position:fixed;inset:0;z-index:99999;background:linear-gradient(180deg,#0f172a 0%,#1e293b 100%);flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center;">
+        <div id="maintenance-logo" style="cursor:pointer;margin-bottom:30px;user-select:none;-webkit-user-select:none;">
+            <img src="images/splash_icon_transparent.png" alt="SEA:GNAL" style="width:100px;height:100px;opacity:0.7;filter:grayscale(50%);">
+        </div>
+        <div style="margin-bottom:10px;">
+            <i class="fa-solid fa-wrench" style="font-size:2rem;color:#f59e0b;"></i>
+        </div>
+        <h2 id="maintenance-title" style="color:#fff;font-size:1.3rem;font-weight:700;margin:0 0 12px;line-height:1.4;"></h2>
+        <p id="maintenance-content" style="color:#94a3b8;font-size:0.95rem;line-height:1.7;margin:0 0 30px;white-space:pre-line;max-width:360px;"></p>
+        <div style="color:#475569;font-size:0.8rem;">
+            <i class="fa-solid fa-clock"></i> 빠른 시일 내에 복구하겠습니다.
+        </div>
+    </div>
+
+    <!-- Maintenance Admin Bypass (비밀번호 입력 모달) -->
+    <div id="maintenance-bypass-modal" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.8);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+        <div style="background:#1e2435;border-radius:12px;padding:24px;max-width:320px;width:90%;text-align:center;box-shadow:0 10px 25px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.08);">
+            <h3 style="color:#fff;margin:0 0 6px;font-size:1rem;"><i class="fa-solid fa-user-shield" style="color:#f59e0b;"></i> 관리자 인증</h3>
+            <p style="color:#64748b;font-size:0.8rem;margin:0 0 16px;">관리자 비밀번호를 입력하세요.</p>
+            <input type="password" id="maintenance-bypass-pw" placeholder="비밀번호"
+                   style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;background:rgba(0,0,0,0.3);color:#fff;font-size:1rem;box-sizing:border-box;margin-bottom:14px;outline:none;text-align:center;">
+            <div style="display:flex;gap:10px;">
+                <button onclick="document.getElementById('maintenance-bypass-modal').style.display='none';"
+                        style="flex:1;padding:10px;background:rgba(255,255,255,0.05);border:none;border-radius:6px;color:#aaa;cursor:pointer;">취소</button>
+                <button onclick="verifyMaintenanceBypass()"
+                        style="flex:1;padding:10px;background:linear-gradient(135deg,#f59e0b,#d97706);border:none;border-radius:6px;color:#1a1f2e;font-weight:600;cursor:pointer;">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // 점검 모드 확인 및 차단 로직
+    (function() {
+        var _maintClickCount = 0;
+        var _maintClickTimer = null;
+        var ADMIN_PASSWORD = 'zaqxsw12!wlstjq';
+
+        // 관리자 우회 확인 (세션 단위)
+        if (sessionStorage.getItem('maintenance_bypass') === 'true') {
+            return; // 이미 우회 인증됨 → 정상 진행
+        }
+
+        // 점검 상태 확인
+        fetch('/api/maintenance-status', { cache: 'no-store' })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (!data.active) return; // 점검 아님 → 정상 진행
+
+                // 점검 모드 활성 → 점검 페이지 표시
+                var screen = document.getElementById('maintenance-screen');
+                var titleEl = document.getElementById('maintenance-title');
+                var contentEl = document.getElementById('maintenance-content');
+
+                if (titleEl) titleEl.textContent = data.title || '서버 점검 중';
+                if (contentEl) contentEl.textContent = data.content || '점검이 완료되면 정상적으로 이용하실 수 있습니다.';
+                if (screen) screen.style.display = 'flex';
+
+                // 스플래시와 앱 컨테이너 숨기기
+                var splash = document.getElementById('splash-screen');
+                var appContainer = document.querySelector('.app-container');
+                if (splash) splash.style.display = 'none';
+                if (appContainer) appContainer.style.display = 'none';
+
+                // 10회 클릭 → 관리자 비밀번호 입력
+                var logo = document.getElementById('maintenance-logo');
+                if (logo) {
+                    logo.addEventListener('click', function() {
+                        _maintClickCount++;
+                        if (_maintClickTimer) clearTimeout(_maintClickTimer);
+                        _maintClickTimer = setTimeout(function() { _maintClickCount = 0; }, 3000);
+
+                        if (_maintClickCount >= 10) {
+                            _maintClickCount = 0;
+                            var modal = document.getElementById('maintenance-bypass-modal');
+                            if (modal) {
+                                modal.style.display = 'flex';
+                                setTimeout(function() {
+                                    var pw = document.getElementById('maintenance-bypass-pw');
+                                    if (pw) { pw.value = ''; pw.focus(); }
+                                }, 100);
+                            }
+                        }
+                    });
+                }
+
+                // 엔터키 지원
+                var pwInput = document.getElementById('maintenance-bypass-pw');
+                if (pwInput) {
+                    pwInput.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') verifyMaintenanceBypass();
+                    });
+                }
+            })
+            .catch(function() {
+                // API 실패 시 정상 진행 (점검 아닌 것으로 간주)
+            });
+
+        // 관리자 비밀번호 검증
+        window.verifyMaintenanceBypass = function() {
+            var pw = document.getElementById('maintenance-bypass-pw');
+            if (!pw) return;
+
+            if (pw.value === ADMIN_PASSWORD) {
+                // 인증 성공 → 세션에 우회 플래그 저장
+                sessionStorage.setItem('maintenance_bypass', 'true');
+
+                // 점검 페이지 숨기고 앱 표시
+                var screen = document.getElementById('maintenance-screen');
+                var modal = document.getElementById('maintenance-bypass-modal');
+                var splash = document.getElementById('splash-screen');
+                var appContainer = document.querySelector('.app-container');
+
+                if (modal) modal.style.display = 'none';
+                if (screen) screen.style.display = 'none';
+                if (splash) splash.style.display = '';
+                if (appContainer) appContainer.style.display = '';
+
+                // 페이지 리로드로 정상 초기화
+                window.location.reload();
+            } else {
+                alert('비밀번호가 일치하지 않습니다.');
+                pw.value = '';
+                pw.focus();
+            }
+        };
+    })();
+    </script>
+
     <!-- Splash Screen -->
     <div id="splash-screen" class="splash-screen">
         <div class="splash-content">
