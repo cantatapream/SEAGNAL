@@ -46,6 +46,7 @@ const scheduler = require('../scheduler');
 
 const COLLECT_FAILURES_FILE = path.join(DATA_DIR, 'collect_failures.json');
 const COLLECT_CACHE_DIR = path.join(DATA_DIR, 'collect_cache');
+const MAINTENANCE_FILE = path.join(DATA_DIR, 'maintenance_config.json');
 
 // ============================================================================
 // 헬퍼 함수
@@ -625,6 +626,66 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
         res.json({ success: true, totalCount: reports.length, results });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// ============================================================================
+// 점검 모드 관리
+// ============================================================================
+
+/** 점검 모드 상태 조회 (관리자용) */
+router.get('/api/admin/maintenance', (req, res) => {
+    try {
+        if (fs.existsSync(MAINTENANCE_FILE)) {
+            const config = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8'));
+            res.json(config);
+        } else {
+            res.json({ active: false, title: '', content: '', startedAt: null });
+        }
+    } catch (e) {
+        res.json({ active: false, title: '', content: '', startedAt: null });
+    }
+});
+
+/** 점검 모드 설정 (시작/종료/내용 변경) */
+router.post('/api/admin/maintenance', (req, res) => {
+    try {
+        const { active, title, content } = req.body;
+        let config = { active: false, title: '', content: '', startedAt: null, startedBy: 'admin' };
+
+        if (fs.existsSync(MAINTENANCE_FILE)) {
+            try { config = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8')); } catch (_) {}
+        }
+
+        if (typeof active === 'boolean') config.active = active;
+        if (typeof title === 'string') config.title = title;
+        if (typeof content === 'string') config.content = content;
+
+        if (active === true) {
+            config.startedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+        } else if (active === false) {
+            config.startedAt = null;
+        }
+
+        fs.writeFileSync(MAINTENANCE_FILE, JSON.stringify(config, null, 2), 'utf8');
+        console.log(`[Admin] 점검 모드 ${config.active ? '시작' : '종료'}: ${config.title || '(제목 없음)'}`);
+        res.json({ success: true, config });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/** 점검 모드 상태 조회 (일반 사용자용 - 공개 API) */
+router.get('/api/maintenance-status', (req, res) => {
+    try {
+        if (fs.existsSync(MAINTENANCE_FILE)) {
+            const config = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8'));
+            res.json({ active: config.active, title: config.title, content: config.content });
+        } else {
+            res.json({ active: false });
+        }
+    } catch (e) {
+        res.json({ active: false });
     }
 });
 

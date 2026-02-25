@@ -1,7 +1,10 @@
 const fetch = require('node-fetch'); // Node.js 18+ 내장 fetch 사용 시 생략 가능하나 안전하게
 // (Node 내장 fetch 사용 시 require 제거 필요할 수 있음. 환경에 따라 다름)
+const fs = require('fs');
+const path = require('path');
 
 const API_URL = 'http://localhost:3001/api/push-custom'; // 로컬 서버 포트 확인 필요 (현재 3001 사용 중)
+const MAINTENANCE_FILE = path.join(__dirname, 'data', 'maintenance_config.json');
 
 // ============================================================================
 // 격상/격하 판별을 위한 특보 점수 체계 (app.js getAlertScore와 동일)
@@ -21,6 +24,17 @@ function getAlertScore(type, lvl) {
  */
 async function processAndSendNotifications(changes) {
     if (!changes || changes.length === 0) return;
+
+    // 점검 모드 중에는 푸시 알림 발송 차단
+    try {
+        if (fs.existsSync(MAINTENANCE_FILE)) {
+            const config = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8'));
+            if (config.active) {
+                console.log(`[PushSender] 점검 모드 활성화 중 → 푸시 발송 차단 (${changes.length}건 무시)`);
+                return;
+            }
+        }
+    } catch (_) { /* 점검 파일 읽기 실패 시 정상 진행 */ }
 
     console.log(`[PushSender] ${changes.length}건의 변경사항 분석 중...`);
 
