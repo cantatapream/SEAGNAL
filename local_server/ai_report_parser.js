@@ -45,6 +45,9 @@ ${JSON.stringify(ZONE_GROUP_MAP, null, 2)}
 - **부분 제한 (한정)**: 부모 해역 뒤에 괄호가 있고 그 안에 특정 해역이 명시되어 있다면(예: 제주도먼바다(제주도남쪽바깥먼바다)), 오직 괄호 안에 명시된 해역들**만** 추출해라. 이는 "이 해역들만 해당"이라는 한정(限定) 의미이다.
   예시: "제주도앞바다(제주도동부앞바다)" → zones에는 오직 ["제주도동부앞바다"]만 넣어라. 절대로 나머지(북부, 남부, 서부)를 넣으면 안 된다.
 - **복수 명시**: 괄호 안에 여러 해역이 콤마로 구분되어 있다면(예: 서해남부먼바다(서해남부북쪽안쪽먼바다, 서해남부북쪽바깥먼바다)), 그 해역들을 모두 추출해라.
+- **복수 항목 동일 부모 (매우 중요)**: 같은 부모 해역이 여러 번호 항목에 걸쳐 서로 다른 자식 해역으로 나뉘어 있으면, 각 항목마다 **해당 항목의 괄호 안에 명시된 자식 해역만** zones에 넣어라. 절대로 다른 항목의 자식 해역을 넣거나 zones를 비워두지 마라.
+  예시: "(1) 풍랑주의보 발표 : 동해남부앞바다(경북남부앞바다) ... (2) 풍랑주의보 발표 : 동해남부앞바다(경북북부앞바다)"
+  → 항목 (1)의 zones: ["경북남부앞바다"], 항목 (2)의 zones: ["경북북부앞바다"]. 절대로 (1)에 경북북부앞바다를 넣거나 (2)의 zones를 빈 배열로 두면 안 된다.
 - **"제외" 표현과의 구별 (매우 중요)**:
   - 괄호 안에 "제외"라는 단어가 **있는** 경우: 제외 대상이다. 예: "제주도(제주도동부 제외)" → 동부를 제외한 나머지.
   - 괄호 안에 "제외"라는 단어가 **없는** 경우: 한정(only) 대상이다. 예: "제주도앞바다(제주도동부앞바다)" → 동부**만** 해당.
@@ -90,6 +93,152 @@ JSON 배열을 출력하기 전에, 아래 검증을 반드시 수행하라:
 `;
 
 /**
+ * 해역 명세 텍스트에서 구체적인 해역 목록 추출
+ * "동해남부앞바다(경북남부앞바다)" → ["경북남부앞바다"]
+ * "동해남부전해상" → ["동해남부전해상"] (확장은 후처리에서 수행)
+ * @param {string} zoneText - 해역 명세 텍스트
+ * @returns {string[]}
+ */
+function resolveZonesFromSpec(zoneText) {
+    const zones = [];
+
+    // "부모해역(자식해역1, 자식해역2)" 패턴 (괄호 앞 공백 허용)
+    const parentPattern = /([\uAC00-\uD7A3·]+(?:앞바다|먼바다|전해상))\s*\(([^)]+)\)/g;
+    let m;
+    const matchedRanges = [];
+
+    while ((m = parentPattern.exec(zoneText)) !== null) {
+        matchedRanges.push({ start: m.index, end: m.index + m[0].length });
+        const parent = m[1].trim();
+        const inner = m[2].trim();
+
+        if (inner.includes('제외')) {
+            const children = ZONE_GROUP_MAP[parent];
+            if (!children) continue;
+            const excludedText = inner.replace(/제외/g, '').trim();
+            const excluded = excludedText.split(/[,，\s]+/).map(z => z.trim()).filter(Boolean);
+            zones.push(...children.filter(z => !excluded.some(e => z.includes(e))));
+        } else {
+            const children = ZONE_GROUP_MAP[parent];
+            if (!children) continue;
+            inner.split(/[,，]/).forEach(z => {
+                const trimmed = z.trim();
+                if (children.includes(trimmed)) zones.push(trimmed);
+            });
+        }
+    }
+
+    // 괄호 패턴이 없으면 독립 해역명 추출
+    if (zones.length === 0) {
+        const standalonePattern = /([\uAC00-\uD7A3·]+(?:앞바다|먼바다|전해상))/;
+        const sm = zoneText.match(standalonePattern);
+        if (sm) zones.push(sm[1].trim());
+    }
+
+    return [...new Set(zones)];
+}
+
+/**
+ * 통보문 원문에서 번호별 항목의 해역 정보를 코드레벨로 추출
+ * @param {string} noticeText - 통보문 원문
+ * @returns {Array<{type: string, command: string, zones: string[]}>}
+ */
+function extractPerItemZones(noticeText) {
+    if (!noticeText) return [];
+
+    const items = [];
+    // Pattern: (N) TYPE COMMAND : ZONE_SPEC
+    const pattern = /\((\d+)\)\s*([\uAC00-\uD7A3]+(?:예비특보|주의보|경보))\s*(발표|발효|해제|예비|변경|보강|연장)\s*[:：\-]?\s*([^\n]+)/g;
+    let match;
+
+    while ((match = pattern.exec(noticeText)) !== null) {
+        const type = match[2].trim();
+        const command = match[3].trim();
+        const zoneText = match[4].trim();
+
+        // 해상 특보만 처리
+        if (!/풍랑|태풍|지진해일|폭풍해일/.test(type)) continue;
+
+        const zones = resolveZonesFromSpec(zoneText);
+        if (zones.length > 0) {
+            items.push({ type, command, zones });
+        }
+    }
+
+    return items;
+}
+
+/**
+ * [코드레벨 검증] AI 결과의 zones를 통보문 원문의 번호별 항목과 대조하여 교정
+ * - 빈 zones → 코드레벨 파싱에서 복구
+ * - 동일 부모의 잘못된 자식 해역 → 올바른 자식으로 교정
+ *
+ * @param {Array} parsed - AI 분석 결과 배열
+ * @param {string} noticeText - 통보문 원문 텍스트
+ */
+function validateZonesAgainstText(parsed, noticeText) {
+    if (!parsed || !noticeText) return;
+
+    const textItems = extractPerItemZones(noticeText);
+    if (textItems.length === 0) return;
+
+    // type+command 그룹별로 텍스트 항목 분류
+    const textGroups = {};
+    for (const item of textItems) {
+        const key = `${item.type}|${item.command}`;
+        if (!textGroups[key]) textGroups[key] = [];
+        textGroups[key].push(item);
+    }
+
+    // AI 결과를 같은 type+command 순서로 매칭
+    const aiGroupCounters = {};
+    for (const aiItem of parsed) {
+        if (!aiItem.type) continue;
+
+        const key = `${aiItem.type}|${aiItem.command}`;
+        if (!aiGroupCounters[key]) aiGroupCounters[key] = 0;
+        const idx = aiGroupCounters[key]++;
+
+        const textGroup = textGroups[key];
+        if (!textGroup || idx >= textGroup.length) continue;
+
+        const expected = textGroup[idx];
+        const aiZones = aiItem.zones || [];
+
+        // Case 1: AI가 빈 zones 반환 → 코드레벨에서 복구
+        if (aiZones.length === 0 && expected.zones.length > 0) {
+            console.log(`[AI Parser 코드검증] 빈 zones 복구: ${aiItem.type} ${aiItem.command} → [${expected.zones.join(', ')}]`);
+            aiItem.zones = [...expected.zones];
+            continue;
+        }
+
+        // Case 2: AI가 동일 부모의 잘못된 자식 해역을 반환 → 올바른 자식으로 교정
+        if (aiZones.length > 0 && expected.zones.length > 0) {
+            for (const [parent, children] of Object.entries(ZONE_GROUP_MAP)) {
+                const childSet = new Set(children);
+                const aiInParent = aiZones.filter(z => childSet.has(z));
+                const expectedInParent = expected.zones.filter(z => childSet.has(z));
+
+                if (aiInParent.length > 0 && expectedInParent.length > 0) {
+                    const aiSet = new Set(aiInParent);
+                    const expectedSet = new Set(expectedInParent);
+                    const matches = expectedSet.size === aiSet.size &&
+                        [...expectedSet].every(z => aiSet.has(z));
+
+                    if (!matches) {
+                        console.log(`[AI Parser 코드검증] zones 교정 (${parent}): [${aiInParent.join(', ')}] → [${expectedInParent.join(', ')}]`);
+                        aiItem.zones = aiItem.zones.filter(z => !childSet.has(z));
+                        aiItem.zones.push(...expectedInParent);
+                        aiItem.zones = [...new Set(aiItem.zones)];
+                    }
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/**
  * [코드레벨 검증] 통보문 원문의 "부모해역(자식해역)" 괄호 한정 패턴과 AI 결과를 대조하여,
  * AI가 괄호 안 해역이 아닌 보완(complement) 해역을 반환한 경우 교정한다.
  *
@@ -104,8 +253,12 @@ function validateParenthesisZones(parsed, noticeText) {
 
     // 통보문에서 해상 특보 관련 "부모해역(자식해역1, 자식해역2)" 패턴 추출
     // "제외" 포함 괄호는 건너뜀 (육상 특보의 제외 패턴)
-    const parenthesisPattern = /([\uAC00-\uD7A3·]+(?:앞바다|먼바다|전해상))\(([^)]+)\)/g;
-    const parenthesisRules = []; // { parent, specifiedChildren: Set }
+    // [Fix] 괄호 앞 공백 허용: "앞바다 (경북남부앞바다)" 형태도 매칭
+    const parenthesisPattern = /([\uAC00-\uD7A3·]+(?:앞바다|먼바다|전해상))\s*\(([^)]+)\)/g;
+
+    // [Fix] 동일 부모 해역이 여러 번 나올 때 규칙을 병합하여 진동(oscillation) 방지
+    // 예: 동해남부앞바다(경북남부앞바다) + 동해남부앞바다(경북북부앞바다) → specifiedChildren = {경북남부, 경북북부}
+    const rulesByParent = new Map();
 
     let match;
     while ((match = parenthesisPattern.exec(noticeText)) !== null) {
@@ -129,10 +282,17 @@ function validateParenthesisZones(parsed, noticeText) {
         });
 
         if (specifiedChildren.size > 0) {
-            parenthesisRules.push({ parent, allChildren: new Set(childrenOfParent), specifiedChildren });
+            if (rulesByParent.has(parent)) {
+                // 동일 부모: 기존 규칙에 specifiedChildren 병합
+                const existing = rulesByParent.get(parent);
+                specifiedChildren.forEach(c => existing.specifiedChildren.add(c));
+            } else {
+                rulesByParent.set(parent, { parent, allChildren: new Set(childrenOfParent), specifiedChildren });
+            }
         }
     }
 
+    const parenthesisRules = [...rulesByParent.values()];
     if (parenthesisRules.length === 0) return;
 
     // 각 AI 결과 항목의 zones를 검증
@@ -209,8 +369,12 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
         console.log('[AI Parser] Gemini 응답 수신 완료, 길이:', text.length);
 
         const parsed = JSON.parse(text);
-        // [후처리 0] 괄호 한정 패턴 코드레벨 검증
-        // 통보문에 "부모해역(자식해역)" 패턴이 있을 때, AI가 괄호 안 해역 대신
+        // [후처리 0-1] 코드레벨 번호별 항목 대조: AI가 빈 zones 또는 잘못된 자식 해역을 반환한 경우 교정
+        // 통보문의 "(N) TYPE COMMAND : ZONE_SPEC" 패턴을 코드레벨로 파싱하여 AI 결과와 1:1 대조
+        validateZonesAgainstText(parsed, noticeText);
+
+        // [후처리 0-2] 괄호 한정 패턴 코드레벨 검증
+        // 통보문에 "부모해역(자식해역)" 패턴이 있을 때, AI가 괄호 안 해역이 아닌
         // 보완(complement) 해역을 반환하는 오류를 코드 레벨에서 교정
         validateParenthesisZones(parsed, noticeText);
 
