@@ -157,7 +157,7 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
     // 범위형 tmEf에서 시작 시각 추출 (예: "2026년 02월 15일 오전(06시~12시)" → 시작시각의 숫자)
     let rawEf = (alertObj.tmEf || '').replace(/[^0-9]/g, ''); // 숫자만 추출
     // 범위형인 경우 숫자가 14자리 이상이 됨 (YYYYMMDD + 시작HH + 종료HH + ...) → 앞 12자리만 사용
-    const rangeMatch = (alertObj.tmEf || '').match(/(\d{4})년\s*(\d{2})월\s*(\d{2})일\s*\S*\((\d{2})시~\d{2}시\)/);
+    const rangeMatch = (alertObj.tmEf || '').match(/(\d{4})년\s*(\d{2})월\s*(\d{2})일\s*.*?\((\d{2})시~\d{2}시\)/);
     if (rangeMatch) {
         rawEf = rangeMatch[1] + rangeMatch[2] + rangeMatch[3] + rangeMatch[4] + '00';
     } else if (rawEf.length > 12) {
