@@ -42,8 +42,14 @@ ${JSON.stringify(ZONE_GROUP_MAP, null, 2)}
 - **전해상 패턴**: 통보문에 "서해중부전해상", "제주도전해상" 등 "XX전해상"이라는 표현이 있으면, 이는 해당 해역의 **모든** 하위 해역(앞바다 + 먼바다 전체)에 특보가 적용된다는 의미이다. ZONE_GROUP_MAP에서 해당 "전해상" 키의 자식 해역 전체를 zones에 넣어라.
   예시: "서해중부전해상" → ZONE_GROUP_MAP["서해중부전해상"]의 모든 해역 추출
 - **전체 포함**: 통보문에 부모 해역 이름(예: 제주도먼바다)만 있고 뒤에 괄호가 없다면, 해당 부모에 속한 모든 자식 해역을 리스트에 넣어라.
-- **부분 제한**: 부모 해역 뒤에 괄호가 있고 그 안에 특정 해역이 명시되어 있다면(예: 제주도먼바다(제주도남쪽바깥먼바다)), 오직 괄호 안에 명시된 해역들만 추출해라.
+- **부분 제한 (한정)**: 부모 해역 뒤에 괄호가 있고 그 안에 특정 해역이 명시되어 있다면(예: 제주도먼바다(제주도남쪽바깥먼바다)), 오직 괄호 안에 명시된 해역들**만** 추출해라. 이는 "이 해역들만 해당"이라는 한정(限定) 의미이다.
+  예시: "제주도앞바다(제주도동부앞바다)" → zones에는 오직 ["제주도동부앞바다"]만 넣어라. 절대로 나머지(북부, 남부, 서부)를 넣으면 안 된다.
 - **복수 명시**: 괄호 안에 여러 해역이 콤마로 구분되어 있다면(예: 서해남부먼바다(서해남부북쪽안쪽먼바다, 서해남부북쪽바깥먼바다)), 그 해역들을 모두 추출해라.
+- **"제외" 표현과의 구별 (매우 중요)**:
+  - 괄호 안에 "제외"라는 단어가 **있는** 경우: 제외 대상이다. 예: "제주도(제주도동부 제외)" → 동부를 제외한 나머지.
+  - 괄호 안에 "제외"라는 단어가 **없는** 경우: 한정(only) 대상이다. 예: "제주도앞바다(제주도동부앞바다)" → 동부**만** 해당.
+  - 이 두 가지를 **절대 혼동하지 마라**. "제외"가 없으면 반드시 괄호 안 해역**만** 추출해야 한다.
+- **육상 특보 구역 무시**: 강풍, 대설, 한파 등 육상 특보 항목에 등장하는 구역(예: 제주도(제주도동부 제외))은 해상 특보 해역 추출과 무관하다. 육상 특보의 "제외" 표현이 해상 특보의 괄호 해석에 영향을 주어서는 안 된다.
 - **주의**: 해역 이름이 ZONE_GROUP_MAP에 존재하지 않는 육상 지역(예: 서해5도, 전라남도 등)은 무시하고, 해역만 추출해라.
 
 ### 3. 상태(command) 및 시각 추출 규칙
@@ -84,6 +90,79 @@ JSON 배열을 출력하기 전에, 아래 검증을 반드시 수행하라:
 `;
 
 /**
+ * [코드레벨 검증] 통보문 원문의 "부모해역(자식해역)" 괄호 한정 패턴과 AI 결과를 대조하여,
+ * AI가 괄호 안 해역이 아닌 보완(complement) 해역을 반환한 경우 교정한다.
+ *
+ * 예: 원문 "제주도앞바다(제주도동부앞바다)" + AI zones ["제주도북부앞바다","제주도남부앞바다","제주도서부앞바다"]
+ *   → 교정: zones = ["제주도동부앞바다"]
+ *
+ * @param {Array} parsed - AI 분석 결과 배열
+ * @param {string} noticeText - 통보문 원문 텍스트
+ */
+function validateParenthesisZones(parsed, noticeText) {
+    if (!parsed || !noticeText) return;
+
+    // 통보문에서 해상 특보 관련 "부모해역(자식해역1, 자식해역2)" 패턴 추출
+    // "제외" 포함 괄호는 건너뜀 (육상 특보의 제외 패턴)
+    const parenthesisPattern = /([\uAC00-\uD7A3·]+(?:앞바다|먼바다|전해상))\(([^)]+)\)/g;
+    const parenthesisRules = []; // { parent, specifiedChildren: Set }
+
+    let match;
+    while ((match = parenthesisPattern.exec(noticeText)) !== null) {
+        const parent = match[1].trim();
+        const inner = match[2].trim();
+
+        // "제외" 키워드가 포함되면 한정이 아닌 제외 패턴 → 건너뜀
+        if (inner.includes('제외')) continue;
+
+        // ZONE_GROUP_MAP에서 부모의 자식 해역 확인
+        const childrenOfParent = ZONE_GROUP_MAP[parent];
+        if (!childrenOfParent) continue;
+
+        // 괄호 안 해역들 파싱
+        const specifiedChildren = new Set();
+        inner.split(/[,，]/).forEach(z => {
+            const trimmed = z.trim();
+            if (childrenOfParent.includes(trimmed)) {
+                specifiedChildren.add(trimmed);
+            }
+        });
+
+        if (specifiedChildren.size > 0) {
+            parenthesisRules.push({ parent, allChildren: new Set(childrenOfParent), specifiedChildren });
+        }
+    }
+
+    if (parenthesisRules.length === 0) return;
+
+    // 각 AI 결과 항목의 zones를 검증
+    for (const item of parsed) {
+        if (!item.zones || !Array.isArray(item.zones)) continue;
+
+        for (const rule of parenthesisRules) {
+            const zonesInParent = item.zones.filter(z => rule.allChildren.has(z));
+            if (zonesInParent.length === 0) continue;
+
+            // AI가 반환한 해역이 괄호에 명시된 해역과 정확히 일치하면 OK
+            const specifiedInResult = zonesInParent.filter(z => rule.specifiedChildren.has(z));
+            const complementInResult = zonesInParent.filter(z => !rule.specifiedChildren.has(z));
+
+            // AI가 괄호에 명시된 해역 대신 보완(complement)만 반환한 경우 교정
+            if (specifiedInResult.length === 0 && complementInResult.length > 0) {
+                console.log(`[AI Parser 검증] 괄호 한정 교정: ${rule.parent}(${[...rule.specifiedChildren].join(',')})`);
+                console.log(`  AI가 반환한 해역: [${complementInResult.join(', ')}]`);
+                console.log(`  교정 후: [${[...rule.specifiedChildren].join(', ')}]`);
+
+                // complement 해역 제거, specified 해역 추가
+                item.zones = item.zones.filter(z => !rule.allChildren.has(z));
+                item.zones.push(...rule.specifiedChildren);
+                item.zones = [...new Set(item.zones)];
+            }
+        }
+    }
+}
+
+/**
  * 범위형 시각 문자열에서 시작 시각만 추출 (parseKmaTime 호환용)
  * 예: "2026년 02월 15일 오전(06시~12시)" → "2026년 02월 15일 06시 00분"
  * 예: "2026년 02월 15일 12시 00분" → "2026년 02월 15일 12시 00분" (그대로)
@@ -92,8 +171,8 @@ function extractStartTime(tmEf) {
     if (!tmEf) return '';
     // 이미 "HH시 mm분" 형식이면 그대로 반환
     if (/\d{2}시\s*\d{2}분/.test(tmEf)) return tmEf;
-    // 범위형: "오전(06시~12시)", "오후(12시~18시)", "밤(18시~24시)" 등에서 시작 시각 추출
-    const rangeMatch = tmEf.match(/(\d{4}년\s*\d{2}월\s*\d{2}일)\s*\S*\((\d{2})시~\d{2}시\)/);
+    // 범위형: "오전(06시~12시)", "늦은 오후(15시~18시)", "밤(21시~24시)" 등에서 시작 시각 추출
+    const rangeMatch = tmEf.match(/(\d{4}년\s*\d{2}월\s*\d{2}일)\s*.*?\((\d{2})시~\d{2}시\)/);
     if (rangeMatch) {
         return `${rangeMatch[1]} ${rangeMatch[2]}시 00분`;
     }
@@ -130,6 +209,11 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
         console.log('[AI Parser] Gemini 응답 수신 완료, 길이:', text.length);
 
         const parsed = JSON.parse(text);
+        // [후처리 0] 괄호 한정 패턴 코드레벨 검증
+        // 통보문에 "부모해역(자식해역)" 패턴이 있을 때, AI가 괄호 안 해역 대신
+        // 보완(complement) 해역을 반환하는 오류를 코드 레벨에서 교정
+        validateParenthesisZones(parsed, noticeText);
+
         // [후처리] AI가 부모 해역(전해상, 앞바다, 먼바다 등)을 확장하지 않고 반환한 경우 코드 레벨에서 강제 확장
         for (const item of parsed) {
             if (item.zones && Array.isArray(item.zones)) {

@@ -323,7 +323,16 @@ router.get('/api/admin/processed-reports', (req, res) => {
             }
         }
 
-        res.json({ processedIds: Array.from(processedIds) });
+        // 3) 수집 실패 목록에서 failedIds 수집
+        const failedIds = new Set();
+        if (fs.existsSync(COLLECT_FAILURES_FILE)) {
+            try {
+                const failures = JSON.parse(fs.readFileSync(COLLECT_FAILURES_FILE, 'utf8'));
+                failures.forEach(f => { if (f.reportId) failedIds.add(f.reportId); });
+            } catch (_) { /* 파손 무시 */ }
+        }
+
+        res.json({ processedIds: Array.from(processedIds), failedIds: Array.from(failedIds) });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -419,7 +428,7 @@ router.post('/api/admin/manual-alert', (req, res) => {
         // 범위형 tmEf에서 parseKmaTime 호환용 시작시각 추출
         let timeForParsing = tmEf || '';
         if (tmEf) {
-            const rangeMatch = tmEf.match(/(\d{4})년\s*(\d{2})월\s*(\d{2})일\s*(?:새벽|오전|오후|밤)\((\d{2})시/);
+            const rangeMatch = tmEf.match(/(\d{4})년\s*(\d{2})월\s*(\d{2})일\s*(?:새벽|아침|오전|낮|오후|늦은 오후|저녁|밤)\((\d{2})시/);
             if (rangeMatch) {
                 timeForParsing = `${rangeMatch[1]}년 ${rangeMatch[2]}월 ${rangeMatch[3]}일 ${rangeMatch[4]}시 00분`;
             }
