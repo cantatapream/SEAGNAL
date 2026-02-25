@@ -45,6 +45,9 @@ ${JSON.stringify(ZONE_GROUP_MAP, null, 2)}
 - **부분 제한 (한정)**: 부모 해역 뒤에 괄호가 있고 그 안에 특정 해역이 명시되어 있다면(예: 제주도먼바다(제주도남쪽바깥먼바다)), 오직 괄호 안에 명시된 해역들**만** 추출해라. 이는 "이 해역들만 해당"이라는 한정(限定) 의미이다.
   예시: "제주도앞바다(제주도동부앞바다)" → zones에는 오직 ["제주도동부앞바다"]만 넣어라. 절대로 나머지(북부, 남부, 서부)를 넣으면 안 된다.
 - **복수 명시**: 괄호 안에 여러 해역이 콤마로 구분되어 있다면(예: 서해남부먼바다(서해남부북쪽안쪽먼바다, 서해남부북쪽바깥먼바다)), 그 해역들을 모두 추출해라.
+- **혼합 나열 (매우 중요)**: 괄호 패턴과 독립 해역이 콤마로 함께 나열된 경우, 괄호 안 해역과 독립 해역을 **모두** 추출해라. 괄호 바깥의 독립 해역을 절대 누락하지 마라.
+  예시: "제주도앞바다(제주도북부앞바다, 제주도동부앞바다, 제주도남부앞바다), 제주도남동쪽안쪽먼바다, 제주도남서쪽안쪽먼바다"
+  → zones: ["제주도북부앞바다", "제주도동부앞바다", "제주도남부앞바다", "제주도남동쪽안쪽먼바다", "제주도남서쪽안쪽먼바다"]. 먼바다 2개를 빠뜨리면 안 된다.
 - **복수 항목 동일 부모 (매우 중요)**: 같은 부모 해역이 여러 번호 항목에 걸쳐 서로 다른 자식 해역으로 나뉘어 있으면, 각 항목마다 **해당 항목의 괄호 안에 명시된 자식 해역만** zones에 넣어라. 절대로 다른 항목의 자식 해역을 넣거나 zones를 비워두지 마라.
   예시: "(1) 풍랑주의보 발표 : 동해남부앞바다(경북남부앞바다) ... (2) 풍랑주의보 발표 : 동해남부앞바다(경북북부앞바다)"
   → 항목 (1)의 zones: ["경북남부앞바다"], 항목 (2)의 zones: ["경북북부앞바다"]. 절대로 (1)에 경북북부앞바다를 넣거나 (2)의 zones를 빈 배열로 두면 안 된다.
@@ -128,11 +131,18 @@ function resolveZonesFromSpec(zoneText) {
         }
     }
 
-    // 괄호 패턴이 없으면 독립 해역명 추출
-    if (zones.length === 0) {
-        const standalonePattern = /([\uAC00-\uD7A3·]+(?:앞바다|먼바다|전해상))/;
-        const sm = zoneText.match(standalonePattern);
-        if (sm) zones.push(sm[1].trim());
+    // [Fix] 괄호 패턴 외부의 독립 해역명도 항상 추출
+    // 예: "제주도앞바다(제주도북부앞바다), 제주도남동쪽안쪽먼바다" → 먼바다도 추출
+    const standalonePattern = /([\uAC00-\uD7A3·]+(?:앞바다|먼바다|전해상))/g;
+    let sm;
+    while ((sm = standalonePattern.exec(zoneText)) !== null) {
+        const pos = sm.index;
+        // 괄호 패턴 범위 내 해역은 건너뜀 (이미 처리됨)
+        const inParenthesis = matchedRanges.some(({ start, end }) => pos >= start && pos < end);
+        if (inParenthesis) continue;
+
+        const zoneName = sm[1].trim();
+        zones.push(zoneName);
     }
 
     return [...new Set(zones)];
@@ -212,26 +222,23 @@ function validateZonesAgainstText(parsed, noticeText) {
             continue;
         }
 
-        // Case 2: AI가 동일 부모의 잘못된 자식 해역을 반환 → 올바른 자식으로 교정
+        // Case 2: AI zones와 코드레벨 파싱 결과가 다르면 교정
+        // 단, 코드레벨 파싱이 AI보다 적게 찾은 경우는 코드파싱 오류일 수 있으므로
+        // AI 결과를 유지하되 코드레벨에서 찾은 zones를 합집합으로 추가
         if (aiZones.length > 0 && expected.zones.length > 0) {
-            for (const [parent, children] of Object.entries(ZONE_GROUP_MAP)) {
-                const childSet = new Set(children);
-                const aiInParent = aiZones.filter(z => childSet.has(z));
-                const expectedInParent = expected.zones.filter(z => childSet.has(z));
+            const aiSorted = [...aiZones].sort().join(',');
+            const expectedSorted = [...expected.zones].sort().join(',');
 
-                if (aiInParent.length > 0 && expectedInParent.length > 0) {
-                    const aiSet = new Set(aiInParent);
-                    const expectedSet = new Set(expectedInParent);
-                    const matches = expectedSet.size === aiSet.size &&
-                        [...expectedSet].every(z => aiSet.has(z));
-
-                    if (!matches) {
-                        console.log(`[AI Parser 코드검증] zones 교정 (${parent}): [${aiInParent.join(', ')}] → [${expectedInParent.join(', ')}]`);
-                        aiItem.zones = aiItem.zones.filter(z => !childSet.has(z));
-                        aiItem.zones.push(...expectedInParent);
-                        aiItem.zones = [...new Set(aiItem.zones)];
-                    }
-                    break;
+            if (aiSorted !== expectedSorted) {
+                if (expected.zones.length >= aiZones.length) {
+                    // 코드레벨이 같거나 더 많이 찾음 → 코드레벨 결과 신뢰
+                    console.log(`[AI Parser 코드검증] zones 교정: [${aiZones.join(', ')}] → [${expected.zones.join(', ')}]`);
+                    aiItem.zones = [...expected.zones];
+                } else {
+                    // 코드레벨이 더 적게 찾음 → AI 결과 유지 + 코드레벨 결과 합집합
+                    const merged = [...new Set([...aiZones, ...expected.zones])];
+                    console.log(`[AI Parser 코드검증] zones 합집합: [${aiZones.join(', ')}] + [${expected.zones.join(', ')}] → [${merged.join(', ')}]`);
+                    aiItem.zones = merged;
                 }
             }
         }

@@ -162,7 +162,8 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         { id: 'notice', name: '공지 팝업', icon: 'fa-bell' },
         { id: 'promo', name: '게시판 관리', icon: 'fa-bullhorn' },
         { id: 'stats', name: '방문자 통계', icon: 'fa-chart-line' },
-        { id: 'survey', name: '설문조사', icon: 'fa-clipboard-list' }
+        { id: 'survey', name: '설문조사', icon: 'fa-clipboard-list' },
+        { id: 'maintenance', name: '점검', icon: 'fa-wrench' }
     ];
 
     const modal = document.createElement('div');
@@ -233,6 +234,8 @@ window.switchUnifiedAdminTab = function (tabId) {
             renderUnifiedStatsContent(body);
         } else if (tabId === 'survey') {
             renderUnifiedSurveyContent(body);
+        } else if (tabId === 'maintenance') {
+            renderUnifiedMaintenanceContent(body);
         }
     }, 100);
 };
@@ -1076,4 +1079,154 @@ function renderCollectTestSubTab(container) {
     `;
     switchAlertTestTab('status');
 }
+
+// ============================================================================
+// (G) 점검 모드 관리 탭 렌더링
+// ============================================================================
+async function renderUnifiedMaintenanceContent(container) {
+    container.innerHTML = '<div style="text-align:center;padding:60px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin fa-2x"></i><p style="margin-top:15px;">점검 설정 로딩 중...</p></div>';
+
+    // 서버에서 현재 점검 상태 조회
+    let config = { active: false, title: '', content: '', startedAt: null };
+    try {
+        const res = await fetch('/api/admin/maintenance');
+        if (res.ok) config = await res.json();
+    } catch (e) { /* 무시 */ }
+
+    const statusColor = config.active ? '#ef4444' : '#22c55e';
+    const statusText = config.active ? '점검 중' : '정상 운영';
+    const statusIcon = config.active ? 'fa-wrench' : 'fa-check-circle';
+    const btnLabel = config.active ? '점검 해제' : '점검 시작';
+    const btnColor = config.active ? 'linear-gradient(135deg,#22c55e,#16a34a)' : 'linear-gradient(135deg,#ef4444,#dc2626)';
+    const btnIcon = config.active ? 'fa-play' : 'fa-stop';
+
+    container.innerHTML = `
+        <div class="admin-section-title">
+            <i class="fa-solid fa-wrench" style="color:#f59e0b;"></i> 점검 모드 관리
+        </div>
+
+        <!-- 현재 상태 표시 -->
+        <div style="margin-bottom:20px;padding:16px;background:rgba(0,0,0,0.2);border-radius:12px;border:1px solid ${statusColor}33;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <i class="fa-solid ${statusIcon}" style="color:${statusColor};font-size:1.3rem;"></i>
+                <span style="color:${statusColor};font-weight:700;font-size:1.1rem;">${statusText}</span>
+            </div>
+            ${config.active && config.startedAt ? `<div style="color:#94a3b8;font-size:0.8rem;">시작 시각: ${config.startedAt}</div>` : ''}
+            ${config.active ? `<div style="color:#fca5a5;font-size:0.8rem;margin-top:4px;"><i class="fa-solid fa-bell-slash"></i> 푸시 알림 발송이 차단되어 있습니다.</div>` : ''}
+        </div>
+
+        <!-- 점검 제목 -->
+        <div style="margin-bottom:14px;">
+            <label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;font-weight:600;">점검 제목</label>
+            <input type="text" id="maint-title" value="${(config.title || '').replace(/"/g, '&quot;')}" placeholder="예: 서버 점검 안내"
+                   style="width:100%;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.95rem;box-sizing:border-box;">
+        </div>
+
+        <!-- 점검 내용 -->
+        <div style="margin-bottom:20px;">
+            <label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;font-weight:600;">점검 내용</label>
+            <textarea id="maint-content" rows="5" placeholder="사용자에게 표시할 점검 안내 내용을 입력하세요."
+                      style="width:100%;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.95rem;box-sizing:border-box;resize:vertical;line-height:1.5;">${config.content || ''}</textarea>
+        </div>
+
+        <!-- 내용 저장 버튼 -->
+        <div style="margin-bottom:16px;">
+            <button onclick="saveMaintenanceContent()" style="width:100%;padding:12px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.9rem;">
+                <i class="fa-solid fa-save"></i> 점검 내용 저장
+            </button>
+        </div>
+
+        <!-- 구분선 -->
+        <div style="height:1px;background:rgba(255,255,255,0.1);margin:20px 0;"></div>
+
+        <!-- 점검 시작/해제 버튼 -->
+        <div style="margin-bottom:16px;">
+            <button id="maint-toggle-btn" onclick="toggleMaintenanceMode()" style="width:100%;padding:14px;background:${btnColor};color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:1rem;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+                <i class="fa-solid ${btnIcon}"></i> ${btnLabel}
+            </button>
+        </div>
+
+        <!-- 안내 -->
+        <div style="padding:14px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:10px;">
+            <div style="color:#fbbf24;font-size:0.85rem;font-weight:600;margin-bottom:6px;"><i class="fa-solid fa-circle-info"></i> 안내</div>
+            <ul style="color:#94a3b8;font-size:0.8rem;margin:0;padding-left:16px;line-height:1.8;">
+                <li>점검 시작 시 모든 사용자에게 점검 페이지가 표시됩니다.</li>
+                <li>점검 중에는 푸시 알림이 발송되지 않습니다.</li>
+                <li>관리자는 점검 페이지에서 로고를 10회 클릭하여 우회 접속할 수 있습니다.</li>
+                <li>점검 해제 시 사용자가 정상적으로 앱에 접근할 수 있습니다.</li>
+            </ul>
+        </div>
+    `;
+}
+
+/** 점검 내용만 저장 (활성화 상태 변경 없이) */
+window.saveMaintenanceContent = async function () {
+    const title = document.getElementById('maint-title').value.trim();
+    const content = document.getElementById('maint-content').value.trim();
+
+    if (!title) {
+        alert('점검 제목을 입력해주세요.');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/maintenance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, content })
+        });
+        const result = await res.json();
+        if (result.success) {
+            alert('점검 내용이 저장되었습니다.');
+        } else {
+            alert('저장 실패: ' + (result.error || ''));
+        }
+    } catch (e) {
+        alert('오류: ' + e.message);
+    }
+};
+
+/** 점검 모드 시작/해제 토글 */
+window.toggleMaintenanceMode = async function () {
+    // 현재 상태 조회
+    let config = { active: false };
+    try {
+        const res = await fetch('/api/admin/maintenance');
+        if (res.ok) config = await res.json();
+    } catch (e) { /* */ }
+
+    const newActive = !config.active;
+    const title = document.getElementById('maint-title').value.trim();
+    const content = document.getElementById('maint-content').value.trim();
+
+    if (newActive && !title) {
+        alert('점검을 시작하려면 제목을 입력해주세요.');
+        return;
+    }
+
+    const confirmMsg = newActive
+        ? '점검 모드를 시작하시겠습니까?\n\n모든 사용자에게 점검 페이지가 표시되고,\n푸시 알림 발송이 차단됩니다.'
+        : '점검 모드를 해제하시겠습니까?\n\n사용자가 정상적으로 앱에 접근할 수 있습니다.';
+
+    if (!confirm(confirmMsg)) return;
+
+    try {
+        const res = await fetch('/api/admin/maintenance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ active: newActive, title, content })
+        });
+        const result = await res.json();
+        if (result.success) {
+            alert(newActive ? '점검 모드가 시작되었습니다.' : '점검 모드가 해제되었습니다.');
+            // 탭 UI 새로고침
+            const body = document.getElementById('unified-admin-body');
+            if (body) renderUnifiedMaintenanceContent(body);
+        } else {
+            alert('오류: ' + (result.error || ''));
+        }
+    } catch (e) {
+        alert('오류: ' + e.message);
+    }
+};
 
