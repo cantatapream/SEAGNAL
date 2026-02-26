@@ -486,17 +486,22 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
             item.zones.forEach(z => claimedZones[key].add(z));
         }
         // [후처리] AI가 해제 예고를 누락한 경우 코드 레벨 보정
-        // 이벤트 블록 텍스트에서 "해제 예고:" 패턴을 직접 추출하여 tmCc에 채움
-        if (splitResult.count > 1 && textForAI) {
-            const eventBlocks = textForAI.split(/---\s*이벤트\s*\d+\/\d+\s*---/).filter(b => b.trim());
-            for (let i = 0; i < parsed.length && i < eventBlocks.length; i++) {
-                if (!parsed[i].tmCc && eventBlocks[i]) {
+        // 다중 이벤트: 이벤트 블록별 매칭, 단일 이벤트: 전체 텍스트에서 매칭
+        if (parsed.some(item => !item.tmCc)) {
+            let blockTexts;
+            if (splitResult.count > 1 && textForAI) {
+                blockTexts = textForAI.split(/---\s*이벤트\s*\d+\/\d+\s*---/).filter(b => b.trim());
+            } else {
+                blockTexts = [textForAI || noticeText];
+            }
+            for (let i = 0; i < parsed.length; i++) {
+                if (!parsed[i].tmCc) {
+                    const searchText = blockTexts[i] || blockTexts[0] || '';
                     // "해제 예고: 23일 늦은 오후(15시~18시)" 또는 "해제 예고: 23일 12시" 패턴 매칭
-                    const releaseMatch = eventBlocks[i].match(/해제\s*예고\s*[:：]\s*(\d{1,2})일\s+(.*?\(\d{2}시~\d{2}시\)|\d{2}시(?:\s*\d{2}분)?)/);
+                    const releaseMatch = searchText.match(/해제\s*예고\s*[:：]\s*(\d{1,2})일\s+(.*?\(\d{2}시~\d{2}시\)|\d{2}시(?:\s*\d{2}분)?)/);
                     if (releaseMatch) {
                         const dayNum = releaseMatch[1].padStart(2, '0');
                         const timeRange = releaseMatch[2].trim();
-                        // tmEf 또는 baseDate에서 년/월 유추
                         const dateRef = parsed[i].tmEf || baseDate || '';
                         const ymMatch = dateRef.match(/(\d{4})년\s*(\d{2})월/);
                         if (ymMatch) {
