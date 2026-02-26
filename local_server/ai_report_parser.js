@@ -281,10 +281,8 @@ function splitNumberedEvents(noticeText) {
         for (const sectionName of sectionNames) {
             if (itemsBySection[sectionName] && itemsBySection[sectionName][n]) {
                 block += `□ ${sectionName}\n(${n}) ${itemsBySection[sectionName][n]}\n`;
-            } else if (sections[sectionName]) {
-                // 해당 섹션에 N번 항목이 없으면 섹션 전체 내용 포함 (공유 정보)
-                block += `□ ${sectionName}\n${sections[sectionName]}\n`;
             }
+            // 해당 번호가 섹션에 없으면 포함하지 않음 (해제처럼 내용이 없는 경우 정상)
         }
         eventBlocks.push(block.trim());
     }
