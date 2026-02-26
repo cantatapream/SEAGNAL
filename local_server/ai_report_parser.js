@@ -373,10 +373,21 @@ function filterMaritimeBlocks(separatedText) {
     if (maritimeBlocks.length === blocks.length) return separatedText;
     if (maritimeBlocks.length === 0) return separatedText;
 
-    // 재번호 부여
+    // 재번호 부여: 이벤트 헤더 + 블록 내부 (N) 아이템 번호 모두 변경
     const total = maritimeBlocks.length;
     const renumbered = maritimeBlocks.map((block, idx) => {
-        return block.replace(/---\s*이벤트\s*\d+\/\d+\s*---/, `--- 이벤트 ${idx + 1}/${total} ---`);
+        const newNum = idx + 1;
+        // 블록 내부의 원래 아이템 번호 추출
+        const origNumMatch = block.match(/\((\d+)\)/);
+        let result = block.replace(/---\s*이벤트\s*\d+\/\d+\s*---/, `--- 이벤트 ${newNum}/${total} ---`);
+        // 내부 (원래번호) → (새번호) 치환
+        if (origNumMatch) {
+            const origNum = origNumMatch[1];
+            if (origNum !== String(newNum)) {
+                result = result.replace(new RegExp(`\\(${origNum}\\)`, 'g'), `(${newNum})`);
+            }
+        }
+        return result;
     });
 
     const removedCount = blocks.length - maritimeBlocks.length;
