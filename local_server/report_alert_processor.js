@@ -270,9 +270,10 @@ async function applyNewReports(fullForm) {
             }
 
             console.log(`[ReportProcessor] AI 분석 시작: ${report.title}`);
-            // AI를 사용하여 통보문 분석
+            // AI를 사용하여 통보문 분석 (번호별 항목 분리 포함)
             const aiParsed = await aiParser.parseNoticeWithAI(text);
             const events = aiParsed.data || [];
+            const separatedText = aiParsed.separatedText || null;
             if (aiParsed.error) {
                 console.error(`[ReportProcessor] AI 분석 오류: ${aiParsed.error}`);
             }
@@ -363,7 +364,7 @@ async function applyNewReports(fullForm) {
                 const foundKeywords = RELEVANT_KEYWORDS.filter(kw => text.includes(kw));
                 const cacheData = {
                     success: true, reportId: report.id, title: report.title,
-                    rawText: text, aiResult: deduplicatedEvents, foundKeywords,
+                    rawText: text, separatedText, aiResult: deduplicatedEvents, foundKeywords,
                     applied: changed, aiError: aiParsed.error || null, pushResult: null
                 };
                 const cacheFileName = report.id.replace(/[/:]/g, '_') + '.json';
