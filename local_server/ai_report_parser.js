@@ -253,6 +253,60 @@ function resolveParenthesizedZones(text) {
 }
 
 /**
+ * 분리된 이벤트 블록에서 비해상 특보 블록(강풍, 대설, 한파 등)을 제거하고 재번호 부여
+ * AI 프롬프트의 "육상 특보 무시" 규칙과 "M개 블록 = M개 결과" 규칙 간의 충돌 방지
+ * @param {string} separatedText - splitNumberedEvents()의 separated 결과
+ * @returns {string}
+ */
+function filterMaritimeBlocks(separatedText) {
+    if (!separatedText) return separatedText;
+
+    const MARITIME_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
+
+    // 블록 헤더 위치 파악
+    const blockRegex = /---\s*이벤트\s*\d+\/\d+\s*---/g;
+    const blockHeaders = [];
+    let match;
+    while ((match = blockRegex.exec(separatedText)) !== null) {
+        blockHeaders.push({ header: match[0], start: match.index });
+    }
+
+    if (blockHeaders.length <= 1) return separatedText;
+
+    // 각 블록 내용 추출
+    const blocks = [];
+    for (let i = 0; i < blockHeaders.length; i++) {
+        const start = blockHeaders[i].start;
+        const end = i + 1 < blockHeaders.length ? blockHeaders[i + 1].start : separatedText.length;
+        blocks.push(separatedText.substring(start, end).trim());
+    }
+
+    // 해상 특보 블록만 필터링: (N) 뒤의 특보 타입명으로 판별
+    const maritimeBlocks = blocks.filter(block => {
+        const itemMatch = block.match(/\(\d+\)\s*(\S+)/);
+        if (itemMatch) {
+            return MARITIME_KEYWORDS.some(kw => itemMatch[1].includes(kw));
+        }
+        return true; // 타입 판별 불가 시 유지
+    });
+
+    // 필터링 결과가 동일하거나 전부 제거되면 원본 반환
+    if (maritimeBlocks.length === blocks.length) return separatedText;
+    if (maritimeBlocks.length === 0) return separatedText;
+
+    // 재번호 부여
+    const total = maritimeBlocks.length;
+    const renumbered = maritimeBlocks.map((block, idx) => {
+        return block.replace(/---\s*이벤트\s*\d+\/\d+\s*---/, `--- 이벤트 ${idx + 1}/${total} ---`);
+    });
+
+    const removedCount = blocks.length - maritimeBlocks.length;
+    console.log(`[AI Parser] 비해상 특보 블록 ${removedCount}개 제거, 해상 특보 ${total}개 블록 유지`);
+
+    return renumbered.join('\n\n');
+}
+
+/**
  * Gemini를 사용하여 통보문 분석
  * @param {string} noticeText
  */
@@ -266,7 +320,12 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
     try {
         // 번호별 항목 분리 (다중 이벤트 통보문 처리)
         const splitResult = splitNumberedEvents(noticeText);
-        const baseText = splitResult.separated || noticeText;
+        let baseText = splitResult.separated || noticeText;
+
+        // 비해상 특보 블록 제거 (강풍, 대설, 한파 등 → AI 프롬프트 충돌 방지)
+        if (splitResult.separated) {
+            baseText = filterMaritimeBlocks(baseText);
+        }
 
         // 부모해역(자식) 패턴을 코드 레벨에서 사전 확장 (AI 괄호 해석 오류 방지)
         const textForAI = resolveParenthesizedZones(baseText);
@@ -351,5 +410,6 @@ module.exports = {
     extractStartTime,
     splitNumberedEvents,
     resolveParenthesizedZones,
+    filterMaritimeBlocks,
     ZONE_GROUP_MAP
 };
