@@ -115,7 +115,10 @@ function validateParenthesisZones(parsed, noticeText) {
     // 통보문에서 해상 특보 관련 "부모해역(자식해역1, 자식해역2)" 패턴 추출
     // "제외" 포함 괄호는 건너뜀 (육상 특보의 제외 패턴)
     const parenthesisPattern = /([\uAC00-\uD7A3·]+(?:앞바다|먼바다|전해상))\(([^)]+)\)/g;
-    const parenthesisRules = []; // { parent, specifiedChildren: Set }
+    // [Fix] 같은 부모해역이 다른 이벤트에서 다른 자식 제한으로 등장할 때
+    // 별도 규칙으로 만들면 뒤 규칙이 앞 규칙의 정상 결과를 오교정함
+    // → 같은 부모는 specifiedChildren을 병합하여 단일 규칙으로 통합
+    const ruleMap = {}; // parent → { parent, allChildren, specifiedChildren }
 
     let match;
     while ((match = parenthesisPattern.exec(noticeText)) !== null) {
@@ -129,20 +132,21 @@ function validateParenthesisZones(parsed, noticeText) {
         const childrenOfParent = ZONE_GROUP_MAP[parent];
         if (!childrenOfParent) continue;
 
-        // 괄호 안 해역들 파싱
-        const specifiedChildren = new Set();
+        // 같은 부모가 처음 등장하면 규칙 생성
+        if (!ruleMap[parent]) {
+            ruleMap[parent] = { parent, allChildren: new Set(childrenOfParent), specifiedChildren: new Set() };
+        }
+
+        // 괄호 안 해역들을 병합 추가
         inner.split(/[,，]/).forEach(z => {
             const trimmed = z.trim();
             if (childrenOfParent.includes(trimmed)) {
-                specifiedChildren.add(trimmed);
+                ruleMap[parent].specifiedChildren.add(trimmed);
             }
         });
-
-        if (specifiedChildren.size > 0) {
-            parenthesisRules.push({ parent, allChildren: new Set(childrenOfParent), specifiedChildren });
-        }
     }
 
+    const parenthesisRules = Object.values(ruleMap).filter(r => r.specifiedChildren.size > 0);
     if (parenthesisRules.length === 0) return;
 
     // 각 AI 결과 항목의 zones를 검증
