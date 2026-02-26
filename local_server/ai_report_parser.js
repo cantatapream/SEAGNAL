@@ -76,11 +76,21 @@ ${JSON.stringify(ZONE_GROUP_MAP, null, 2)}
 - 해상 특보(풍랑, 태풍, 지진해일, 폭풍해일)만 추출한다. 강풍, 대설, 한파 등 육상 특보는 무시한다.
 - 해역이 없는 항목(육상 지역만 언급된 항목)은 결과에 포함하지 않는다.
 
-### 6. 최종 검증 (반드시 수행)
+### 6. 이벤트 구분 블록 처리 (중요)
+통보문이 "--- 이벤트 N/M ---" 형식의 구분자로 분리되어 제공될 수 있다.
+이 경우:
+- 각 "--- 이벤트 N/M ---" 블록은 **완전히 독립된 이벤트**이다.
+- 각 블록의 □ 해당구역에 명시된 구역만 해당 이벤트의 zones에 포함하라.
+- 다른 블록의 구역을 현재 블록에 절대 혼합하지 마라.
+- 각 블록마다 하나의 JSON 객체를 생성하라.
+- 총 M개의 블록이 있으면 반드시 M개의 JSON 객체가 반환되어야 한다.
+
+### 7. 최종 검증 (반드시 수행)
 JSON 배열을 출력하기 전에, 아래 검증을 반드시 수행하라:
 - 각 항목의 zones에 포함된 모든 해역이 통보문 원문에 **실제로 명시**되어 있는지 원문과 1:1 대조하라.
 - 부모 해역 뒤에 괄호가 있어 특정 해역만 명시된 경우(예: "서해중부앞바다(충남북부앞바다, 충남남부앞바다)"), 괄호 안에 명시된 해역만 남기고 **원문에 없는 해역은 zones에서 제거**하라.
 - 원문에 근거 없이 추론하거나 확장한 해역이 있으면 반드시 제거하라.
+- 이벤트 구분 블록이 있는 경우, 각 블록의 구역이 다른 블록과 섞이지 않았는지 반드시 확인하라.
 `;
 
 /**
@@ -101,6 +111,105 @@ function extractStartTime(tmEf) {
 }
 
 /**
+ * 통보문의 번호별 항목을 분리하여 이벤트별 독립 블록으로 재구성
+ * 예: (1) 풍랑주의보 ... (2) 풍랑주의보 ... → 이벤트 1/2, 이벤트 2/2로 분리
+ * @param {string} noticeText - 원문 텍스트
+ * @returns {{ separated: string|null, count: number }}
+ */
+function splitNumberedEvents(noticeText) {
+    if (!noticeText) return { separated: null, count: 0 };
+
+    // (2) 이상이 존재해야 다중 이벤트
+    if (!/\(2\)/.test(noticeText)) return { separated: null, count: 1 };
+
+    // 섹션 헤더 위치 파악
+    const sectionNames = ['발효시각', '해당구역', '내용'];
+    const sectionRegex = /□\s*(발효시각|해당구역|내용)/g;
+    const sectionPositions = [];
+    let m;
+    while ((m = sectionRegex.exec(noticeText)) !== null) {
+        sectionPositions.push({ name: m[1], start: m.index, headerEnd: m.index + m[0].length });
+    }
+
+    if (sectionPositions.length === 0) return { separated: null, count: 0 };
+
+    // 최대 항목 번호 파악 (20 이하만 항목 번호로 인정)
+    let maxNum = 0;
+    const allNums = noticeText.match(/\(\d+\)/g);
+    if (allNums) {
+        for (const n of allNums) {
+            const num = parseInt(n.replace(/[()]/g, ''));
+            if (num > maxNum && num <= 20) maxNum = num;
+        }
+    }
+
+    if (maxNum <= 1) return { separated: null, count: 1 };
+
+    // 헤더 텍스트 (첫 번째 섹션 이전 — 통보문 제목, 발표시각 등)
+    const headerText = noticeText.substring(0, sectionPositions[0].start).trim();
+
+    // 각 섹션의 내용 추출
+    const sections = {};
+    for (let i = 0; i < sectionPositions.length; i++) {
+        const sp = sectionPositions[i];
+        const endPos = i + 1 < sectionPositions.length
+            ? sectionPositions[i + 1].start
+            : noticeText.length;
+        sections[sp.name] = noticeText.substring(sp.headerEnd, endPos).trim();
+    }
+
+    // 각 섹션에서 번호별 항목 분리
+    const itemsBySection = {};
+    for (const [sectionName, sectionContent] of Object.entries(sections)) {
+        itemsBySection[sectionName] = {};
+
+        for (let n = 1; n <= maxNum; n++) {
+            const itemRegex = new RegExp(`\\(${n}\\)`);
+            const startMatch = itemRegex.exec(sectionContent);
+            if (!startMatch) continue;
+
+            const contentStart = startMatch.index + startMatch[0].length;
+
+            // 다음 항목 번호 또는 섹션 끝까지
+            let contentEnd = sectionContent.length;
+            if (n < maxNum) {
+                const nextRegex = new RegExp(`\\(${n + 1}\\)`);
+                const remaining = sectionContent.substring(contentStart);
+                const nextMatch = nextRegex.exec(remaining);
+                if (nextMatch) {
+                    contentEnd = contentStart + nextMatch.index;
+                }
+            }
+
+            itemsBySection[sectionName][n] = sectionContent.substring(contentStart, contentEnd).trim();
+        }
+    }
+
+    // 이벤트별 블록 구성
+    const eventBlocks = [];
+    for (let n = 1; n <= maxNum; n++) {
+        let block = `--- 이벤트 ${n}/${maxNum} ---\n`;
+        if (headerText) block += headerText + '\n';
+
+        for (const sectionName of sectionNames) {
+            if (itemsBySection[sectionName] && itemsBySection[sectionName][n]) {
+                block += `□ ${sectionName}\n(${n}) ${itemsBySection[sectionName][n]}\n`;
+            } else if (sections[sectionName]) {
+                // 해당 섹션에 N번 항목이 없으면 섹션 전체 내용 포함 (공유 정보)
+                block += `□ ${sectionName}\n${sections[sectionName]}\n`;
+            }
+        }
+        eventBlocks.push(block.trim());
+    }
+
+    console.log(`[AI Parser] 통보문 ${maxNum}개 이벤트로 분리 완료`);
+    return {
+        separated: eventBlocks.join('\n\n'),
+        count: maxNum
+    };
+}
+
+/**
  * Gemini를 사용하여 통보문 분석
  * @param {string} noticeText
  */
@@ -112,7 +221,11 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
     }
 
     try {
-        console.log('[AI Parser] Gemini API 호출 시작... (baseDate:', baseDate || '없음', ')');
+        // 번호별 항목 분리 (다중 이벤트 통보문 처리)
+        const splitResult = splitNumberedEvents(noticeText);
+        const textForAI = splitResult.separated || noticeText;
+
+        console.log('[AI Parser] Gemini API 호출 시작... (baseDate:', baseDate || '없음', ', 이벤트 분리:', splitResult.count > 1 ? splitResult.count + '개' : '없음', ')');
         const model = genAI.getGenerativeModel({
             model: "gemini-2.0-flash",
             generationConfig: { responseMimeType: "application/json" }
@@ -123,7 +236,7 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
             ? `통보문 발표 시각은 ${baseDate}이다. 이를 기준으로 '오늘', '내일', '모레'의 정확한 날짜(YYYY년 MM월 DD일)를 계산하여 추출하라.`
             : `현재 시각은 ${new Date().getFullYear()}년 ${new Date().getMonth() + 1}월이다. 이를 기준으로 날짜를 유추하라.`;
 
-        const prompt = `${SYSTEM_INSTRUCTION}\n\n${referenceDateInfo}\n\n분석할 통보문:\n${noticeText}`;
+        const prompt = `${SYSTEM_INSTRUCTION}\n\n${referenceDateInfo}\n\n분석할 통보문:\n${textForAI}`;
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
@@ -172,16 +285,19 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
                 item.tmYn = item.tmCc;
             }
         }
-        return { data: parsed, error: null };
+        return { data: parsed, error: null, separatedText: splitResult.separated || null };
     } catch (error) {
         const msg = `[AI Parser] 분석 중 오류 발생: ${error.message}`;
         console.error(msg);
-        return { data: [], error: msg };
+        // 에러 발생 시에도 분리된 텍스트는 반환 (UI 표시용)
+        const splitFallback = splitNumberedEvents(noticeText);
+        return { data: [], error: msg, separatedText: splitFallback.separated || null };
     }
 }
 
 module.exports = {
     parseNoticeWithAI,
     extractStartTime,
+    splitNumberedEvents,
     ZONE_GROUP_MAP
 };

@@ -188,11 +188,12 @@ router.post('/api/admin/report-collect', async (req, res) => {
             });
         }
 
-        // 3. AI 분석
+        // 3. AI 분석 (번호별 항목 분리 포함)
         const baseDate = extractTmFcFromReportId(reportId);
         const aiParsed = await aiParser.parseNoticeWithAI(rawText, baseDate);
         const aiResult = aiParsed.data || [];
         const aiError = aiParsed.error || null;
+        const separatedText = aiParsed.separatedText || null;
 
         // 4. 장부에 반영
         let applied = false;
@@ -267,7 +268,7 @@ router.post('/api/admin/report-collect', async (req, res) => {
             console.error('[Admin] 장부 반영 오류:', applyErr.message);
         }
 
-        const responseData = { success: true, reportId, title, rawText, aiResult, foundKeywords, applied, aiError, pushResult };
+        const responseData = { success: true, reportId, title, rawText, separatedText, aiResult, foundKeywords, applied, aiError, pushResult };
 
         // 수집 결과를 캐시에 저장 (재조회 시 AI 토큰 소모 방지)
         try {
