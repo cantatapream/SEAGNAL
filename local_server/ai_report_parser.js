@@ -61,8 +61,12 @@ ${JSON.stringify(ZONE_GROUP_MAP, null, 2)}
   - **시간 범위**가 주어진 경우(예: "오전(06시~12시)", "오후(12시~18시)", "밤(18시~24시)"): 범위를 그대로 보존하여 'YYYY년 MM월 DD일 오전(06시~12시)' 형식으로 추출한다.
     예시: "02월 15일 오전(06시~12시)" → "2026년 02월 15일 오전(06시~12시)"
   - '해제'의 경우 해제 시각을, '발효'나 '예비'의 경우 발효 예정 시각을 정확히 매칭해야 한다.
-- **tmCc (해제시각)**: 해당 특보의 해제 시각 또는 해제 예고 시각이다.
-  - 해제 시각이 명시된 경우: 동일한 형식으로 추출한다 (범위형도 동일 규칙 적용).
+- **tmCc (해제시각/해제 예고)**: 해당 특보의 해제 시각 또는 해제 예고 시각이다.
+  - □ 내용 섹션에 "○ 해제 예고:" 또는 "해제예고:"가 있으면, 그 뒤의 날짜·시간을 tmCc로 추출한다.
+  - 이는 command가 '변경', '발효', '보강' 등 '해제'가 아닌 경우에도 동일하게 적용된다.
+  - 형식은 tmEf와 동일하다 (범위형 포함).
+    예시: "해제 예고: 23일 늦은 오후(15시~18시)" → tmCc = "2026년 02월 23일 늦은 오후(15시~18시)"
+    예시: "해제 예고: 15일 밤(21시~24시)" → tmCc = "2026년 02월 15일 밤(21시~24시)"
   - 해제 예고가 없으면 빈 문자열("")로 설정한다.
 
 ### 4. 출력 형식
@@ -480,6 +484,33 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
                 console.log(`[AI Parser] 구역 중복 제거: ${item.type} ${item.command} - ${beforeCount - item.zones.length}개 제거됨`);
             }
             item.zones.forEach(z => claimedZones[key].add(z));
+        }
+        // [후처리] AI가 해제 예고를 누락한 경우 코드 레벨 보정
+        // 다중 이벤트: 이벤트 블록별 매칭, 단일 이벤트: 전체 텍스트에서 매칭
+        if (parsed.some(item => !item.tmCc)) {
+            let blockTexts;
+            if (splitResult.count > 1 && textForAI) {
+                blockTexts = textForAI.split(/---\s*이벤트\s*\d+\/\d+\s*---/).filter(b => b.trim());
+            } else {
+                blockTexts = [textForAI || noticeText];
+            }
+            for (let i = 0; i < parsed.length; i++) {
+                if (!parsed[i].tmCc) {
+                    const searchText = blockTexts[i] || blockTexts[0] || '';
+                    // "해제 예고: 23일 늦은 오후(15시~18시)" 또는 "해제 예고: 23일 12시" 패턴 매칭
+                    const releaseMatch = searchText.match(/해제\s*예고\s*[:：]\s*(\d{1,2})일\s+(.*?\(\d{2}시~\d{2}시\)|\d{2}시(?:\s*\d{2}분)?)/);
+                    if (releaseMatch) {
+                        const dayNum = releaseMatch[1].padStart(2, '0');
+                        const timeRange = releaseMatch[2].trim();
+                        const dateRef = parsed[i].tmEf || baseDate || '';
+                        const ymMatch = dateRef.match(/(\d{4})년\s*(\d{2})월/);
+                        if (ymMatch) {
+                            parsed[i].tmCc = `${ymMatch[1]}년 ${ymMatch[2]}월 ${dayNum}일 ${timeRange}`;
+                            console.log(`[AI Parser] 해제 예고 코드 보정: ${parsed[i].tmCc}`);
+                        }
+                    }
+                }
+            }
         }
         // 하위 호환: tmEf → time 변환 (기존 코드에서 event.time 사용하는 부분 대응)
         // time에는 범위형에서 시작 시각만 추출하여 저장 (parseKmaTime 호환용)
