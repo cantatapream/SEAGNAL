@@ -210,6 +210,49 @@ function splitNumberedEvents(noticeText) {
 }
 
 /**
+ * 부모해역(자식1, 자식2) 패턴을 코드 레벨에서 사전 확장
+ * AI에게 전달하기 전에 해역명을 확정하여 괄호 해석 오류를 방지
+ *
+ * 처리 순서:
+ * Step 1: 부모해역(자식1, 자식2) → 자식1, 자식2 (괄호 제한 추출)
+ * Step 2: 단독 부모해역 → ZONE_GROUP_MAP의 모든 자식으로 확장
+ *
+ * @param {string} text - 통보문 텍스트 (분리된 이벤트 블록 포함 가능)
+ * @returns {string}
+ */
+function resolveParenthesizedZones(text) {
+    if (!text) return text;
+
+    // 부모 해역 키를 길이 내림차순 정렬 (긴 이름 우선 매칭으로 부분 매칭 방지)
+    const parentKeys = Object.keys(ZONE_GROUP_MAP).sort((a, b) => b.length - a.length);
+
+    let result = text;
+
+    // Step 1: 부모해역(자식1, 자식2) → 자식1, 자식2
+    for (const parentKey of parentKeys) {
+        const escaped = parentKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const parenRegex = new RegExp(escaped + '\\(([^)]+)\\)', 'g');
+        result = result.replace(parenRegex, (match, children) => {
+            console.log(`[Zone Pre-parse] 괄호 제한: ${parentKey}(...) → ${children.trim()}`);
+            return children.trim();
+        });
+    }
+
+    // Step 2: 단독 부모해역 → 모든 자식 해역으로 확장
+    for (const parentKey of parentKeys) {
+        if (!result.includes(parentKey)) continue;
+        const escaped = parentKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        result = result.replace(new RegExp(escaped, 'g'), (match) => {
+            const expanded = ZONE_GROUP_MAP[parentKey].join(', ');
+            console.log(`[Zone Pre-parse] 전체 확장: ${parentKey} → ${expanded}`);
+            return expanded;
+        });
+    }
+
+    return result;
+}
+
+/**
  * Gemini를 사용하여 통보문 분석
  * @param {string} noticeText
  */
@@ -223,9 +266,15 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
     try {
         // 번호별 항목 분리 (다중 이벤트 통보문 처리)
         const splitResult = splitNumberedEvents(noticeText);
-        const textForAI = splitResult.separated || noticeText;
+        const baseText = splitResult.separated || noticeText;
 
-        console.log('[AI Parser] Gemini API 호출 시작... (baseDate:', baseDate || '없음', ', 이벤트 분리:', splitResult.count > 1 ? splitResult.count + '개' : '없음', ')');
+        // 부모해역(자식) 패턴을 코드 레벨에서 사전 확장 (AI 괄호 해석 오류 방지)
+        const textForAI = resolveParenthesizedZones(baseText);
+
+        // UI 표시용: 분리 또는 해역 확장이 적용된 경우 표시
+        const processedText = (textForAI !== noticeText) ? textForAI : null;
+
+        console.log('[AI Parser] Gemini API 호출 시작... (baseDate:', baseDate || '없음', ', 이벤트 분리:', splitResult.count > 1 ? splitResult.count + '개' : '없음', ', 해역 사전확장:', textForAI !== baseText ? 'Y' : 'N', ')');
         const model = genAI.getGenerativeModel({
             model: "gemini-2.0-flash",
             generationConfig: { responseMimeType: "application/json" }
@@ -285,13 +334,15 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
                 item.tmYn = item.tmCc;
             }
         }
-        return { data: parsed, error: null, separatedText: splitResult.separated || null };
+        return { data: parsed, error: null, separatedText: processedText };
     } catch (error) {
         const msg = `[AI Parser] 분석 중 오류 발생: ${error.message}`;
         console.error(msg);
-        // 에러 발생 시에도 분리된 텍스트는 반환 (UI 표시용)
+        // 에러 발생 시에도 변환된 텍스트는 반환 (UI 표시용)
         const splitFallback = splitNumberedEvents(noticeText);
-        return { data: [], error: msg, separatedText: splitFallback.separated || null };
+        const fallbackBase = splitFallback.separated || noticeText;
+        const fallbackResolved = resolveParenthesizedZones(fallbackBase);
+        return { data: [], error: msg, separatedText: (fallbackResolved !== noticeText) ? fallbackResolved : null };
     }
 }
 
@@ -299,5 +350,6 @@ module.exports = {
     parseNoticeWithAI,
     extractStartTime,
     splitNumberedEvents,
+    resolveParenthesizedZones,
     ZONE_GROUP_MAP
 };
