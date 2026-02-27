@@ -67,6 +67,8 @@ ${JSON.stringify(ZONE_GROUP_MAP, null, 2)}
   - 형식은 tmEf와 동일하다 (범위형 포함).
     예시: "해제 예고: 23일 늦은 오후(15시~18시)" → tmCc = "2026년 02월 23일 늦은 오후(15시~18시)"
     예시: "해제 예고: 15일 밤(21시~24시)" → tmCc = "2026년 02월 15일 밤(21시~24시)"
+  - **중요: "XX일"은 달력 날짜이다. "X일 뒤"가 아니다.** 해제 예고의 날짜는 항상 발표일 이후의 미래 날짜이므로, 발표일 기준으로 해당 월의 XX일이 이미 지난 경우 다음 달의 XX일을 의미한다.
+    예시: 발표가 02월 27일이고 "해제 예고: 4일 늦은 오후(15시~18시)" → tmCc = "2026년 03월 04일 늦은 오후(15시~18시)" (02월 04일은 이미 지났으므로 03월 04일)
   - 해제 예고가 없으면 빈 문자열("")로 설정한다.
 
 ### 4. 출력 형식
@@ -519,12 +521,24 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
                     // "해제 예고: 23일 늦은 오후(15시~18시)" 또는 "해제 예고: 23일 12시" 패턴 매칭
                     const releaseMatch = searchText.match(/해제\s*예고\s*[:：]\s*(\d{1,2})일\s+(.*?\(\d{2}시~\d{2}시\)|\d{2}시(?:\s*\d{2}분)?)/);
                     if (releaseMatch) {
-                        const dayNum = releaseMatch[1].padStart(2, '0');
+                        const dayNum = parseInt(releaseMatch[1], 10);
                         const timeRange = releaseMatch[2].trim();
                         const dateRef = parsed[i].tmEf || baseDate || '';
-                        const ymMatch = dateRef.match(/(\d{4})년\s*(\d{2})월/);
-                        if (ymMatch) {
-                            parsed[i].tmCc = `${ymMatch[1]}년 ${ymMatch[2]}월 ${dayNum}일 ${timeRange}`;
+                        const ymdMatch = dateRef.match(/(\d{4})년\s*(\d{2})월\s*(\d{2})일/);
+                        if (ymdMatch) {
+                            let year = parseInt(ymdMatch[1], 10);
+                            let month = parseInt(ymdMatch[2], 10);
+                            const refDay = parseInt(ymdMatch[3], 10);
+                            // 해제 예고 날짜는 항상 발표일 이후의 미래 날짜이므로,
+                            // 추출된 일(day)이 기준일보다 작으면 다음 달을 의미
+                            if (dayNum < refDay) {
+                                month += 1;
+                                if (month > 12) {
+                                    month = 1;
+                                    year += 1;
+                                }
+                            }
+                            parsed[i].tmCc = `${year}년 ${String(month).padStart(2, '0')}월 ${String(dayNum).padStart(2, '0')}일 ${timeRange}`;
                             console.log(`[AI Parser] 해제 예고 코드 보정: ${parsed[i].tmCc}`);
                         }
                     }
