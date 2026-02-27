@@ -272,6 +272,27 @@ function splitNumberedEvents(noticeText) {
         }
     }
 
+    // 후처리: "(1) ,(2) 내용" 패턴 — 복수 번호가 동일 내용을 공유하는 경우 처리
+    // 분리 결과가 콤마(,)만 남은 항목은 원문에서 공유 대상 번호를 찾아 내용 복사
+    for (const [sectionName, items] of Object.entries(itemsBySection)) {
+        const sectionContent = sections[sectionName];
+        // 높은 번호부터 처리하여 연쇄 공유 (1),(2),(3) 패턴도 해결
+        const nums = Object.keys(items).map(Number).sort((a, b) => b - a);
+        for (const n of nums) {
+            if (items[n] && /^,?\s*$/.test(items[n])) {
+                const sharePattern = new RegExp(`\\(${n}\\)\\s*,\\s*\\((\\d+)\\)`);
+                const shareMatch = sharePattern.exec(sectionContent);
+                if (shareMatch) {
+                    const sharedWith = parseInt(shareMatch[1]);
+                    if (items[sharedWith] && !/^,?\s*$/.test(items[sharedWith])) {
+                        items[n] = items[sharedWith];
+                        console.log(`[AI Parser] 내용 공유: (${n}) ← (${sharedWith}) in ${sectionName}`);
+                    }
+                }
+            }
+        }
+    }
+
     // 이벤트별 블록 구성
     const eventBlocks = [];
     for (let n = 1; n <= maxNum; n++) {
