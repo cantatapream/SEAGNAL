@@ -271,7 +271,8 @@ async function applyNewReports(fullForm) {
 
             console.log(`[ReportProcessor] AI 분석 시작: ${report.title}`);
             // AI를 사용하여 통보문 분석 (번호별 항목 분리 포함)
-            const aiParsed = await aiParser.parseNoticeWithAI(text);
+            const baseDate = extractTmFcFromId(report.id);
+            const aiParsed = await aiParser.parseNoticeWithAI(text, baseDate);
             const events = aiParsed.data || [];
             const separatedText = aiParsed.separatedText || null;
             if (aiParsed.error) {
