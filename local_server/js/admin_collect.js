@@ -478,6 +478,7 @@ window.atmSwitchResultTab = function (tabId) {
         // [수정] rawText 제외한 전체 응답 표시 (에러 응답 포함)
         const j = Object.assign({}, d);
         delete j.rawText; // 원문은 AI 탭에서 표시
+        delete j.separatedText; // 구분 텍스트도 AI 탭에서 표시
         ct.innerHTML = '<div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:14px;overflow:auto;"><pre style="margin:0;color:#e2e8f0;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;font-family:Courier New,monospace;">' + JSON.stringify(j, null, 2) + '</pre></div>';
     } else {
         const aiArr = d.aiResult || [];
@@ -496,9 +497,58 @@ window.atmSwitchResultTab = function (tabId) {
                 + '<div style="color:#94a3b8;font-size:0.8rem;">구역: ' + (ev.zones||[]).join(', ') + '</div>'
                 + '</div>';
         }).join('') : '<div style="color:#94a3b8;padding:10px;">AI 분석 결과가 없습니다.</div>';
-        ct.innerHTML = '<div style="margin-bottom:16px;"><div style="color:#a5b4fc;font-weight:600;font-size:0.85rem;margin-bottom:8px;"><i class="fa-solid fa-robot"></i> AI 분석 결과 (' + aiArr.length + '건)</div>' + aiHtml + '</div>'
-            + '<div><div style="color:#a5b4fc;font-weight:600;font-size:0.85rem;margin-bottom:8px;"><i class="fa-solid fa-file-lines"></i> 원문 텍스트</div>'
-            + '<div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:14px;overflow:auto;max-height:35vh;"><pre style="margin:0;color:#cbd5e1;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;font-family:Courier New,monospace;">' + (d.rawText||'(내용 없음)') + '</pre></div></div>';
+        // 원문/구분 텍스트 영역 구성
+        var preStyle = 'margin:0;color:#cbd5e1;font-size:0.7rem;white-space:pre-wrap;word-break:break-all;font-family:Courier New,monospace;';
+        var boxStyle = 'background:rgba(0,0,0,0.3);border-radius:10px;padding:14px;overflow:auto;max-height:35vh;';
+        var hasSeparated = !!d.separatedText;
+        var textHtml = '';
+
+        if (hasSeparated && window.innerWidth >= 700) {
+            // PC: 좌우 분할
+            textHtml = '<div style="display:flex;gap:12px;">'
+                + '<div style="flex:1;min-width:0;"><div style="color:#a5b4fc;font-weight:600;font-size:0.8rem;margin-bottom:6px;"><i class="fa-solid fa-file-lines"></i> 원문 텍스트</div>'
+                + '<div style="' + boxStyle + '"><pre style="' + preStyle + '">' + (d.rawText||'(내용 없음)') + '</pre></div></div>'
+                + '<div style="flex:1;min-width:0;"><div style="color:#34d399;font-weight:600;font-size:0.8rem;margin-bottom:6px;"><i class="fa-solid fa-scissors"></i> 구분 텍스트</div>'
+                + '<div style="' + boxStyle + 'border:1px solid rgba(52,211,153,0.2);"><pre style="' + preStyle + '">' + d.separatedText + '</pre></div></div>'
+                + '</div>';
+        } else if (hasSeparated) {
+            // 모바일: 토글 버튼
+            textHtml = '<div>'
+                + '<div style="display:flex;gap:4px;margin-bottom:8px;">'
+                + '<button id="atr-text-btn-original" onclick="atmSwitchTextView(\'original\')" style="flex:1;padding:6px 10px;background:rgba(99,102,241,0.2);color:#a5b4fc;border:none;cursor:pointer;font-size:0.8rem;border-radius:6px;font-weight:600;"><i class="fa-solid fa-file-lines"></i> 원문</button>'
+                + '<button id="atr-text-btn-separated" onclick="atmSwitchTextView(\'separated\')" style="flex:1;padding:6px 10px;background:transparent;color:#94a3b8;border:1px solid rgba(255,255,255,0.1);cursor:pointer;font-size:0.8rem;border-radius:6px;"><i class="fa-solid fa-scissors"></i> 구분</button>'
+                + '</div>'
+                + '<div id="atr-text-original-panel" style="' + boxStyle + '"><pre style="' + preStyle + '">' + (d.rawText||'(내용 없음)') + '</pre></div>'
+                + '<div id="atr-text-separated-panel" style="display:none;' + boxStyle + 'border:1px solid rgba(52,211,153,0.2);"><pre style="' + preStyle + '">' + d.separatedText + '</pre></div>'
+                + '</div>';
+        } else {
+            // 구분 텍스트 없음: 원문만 표시
+            textHtml = '<div><div style="color:#a5b4fc;font-weight:600;font-size:0.85rem;margin-bottom:8px;"><i class="fa-solid fa-file-lines"></i> 원문 텍스트</div>'
+                + '<div style="' + boxStyle + '"><pre style="' + preStyle + '">' + (d.rawText||'(내용 없음)') + '</pre></div></div>';
+        }
+
+        ct.innerHTML = '<div style="margin-bottom:16px;"><div style="color:#a5b4fc;font-weight:600;font-size:0.85rem;margin-bottom:8px;"><i class="fa-solid fa-robot"></i> AI 분석 결과 (' + aiArr.length + '건)</div>' + aiHtml + '</div>' + textHtml;
+    }
+};
+
+// 모바일 원문/구분 텍스트 토글
+window.atmSwitchTextView = function(view) {
+    var origPanel = document.getElementById('atr-text-original-panel');
+    var sepPanel = document.getElementById('atr-text-separated-panel');
+    var btnOrig = document.getElementById('atr-text-btn-original');
+    var btnSep = document.getElementById('atr-text-btn-separated');
+    if (!origPanel || !sepPanel) return;
+
+    if (view === 'original') {
+        origPanel.style.display = 'block';
+        sepPanel.style.display = 'none';
+        if (btnOrig) { btnOrig.style.background = 'rgba(99,102,241,0.2)'; btnOrig.style.color = '#a5b4fc'; btnOrig.style.border = 'none'; }
+        if (btnSep) { btnSep.style.background = 'transparent'; btnSep.style.color = '#94a3b8'; btnSep.style.border = '1px solid rgba(255,255,255,0.1)'; }
+    } else {
+        origPanel.style.display = 'none';
+        sepPanel.style.display = 'block';
+        if (btnSep) { btnSep.style.background = 'rgba(16,185,129,0.2)'; btnSep.style.color = '#34d399'; btnSep.style.border = 'none'; }
+        if (btnOrig) { btnOrig.style.background = 'transparent'; btnOrig.style.color = '#94a3b8'; btnOrig.style.border = '1px solid rgba(255,255,255,0.1)'; }
     }
 };
 
