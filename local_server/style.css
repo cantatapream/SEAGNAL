@@ -3530,6 +3530,47 @@ line-height: 1.1;
     transform: rotate(45deg);
 }
 
+/* 제보 버튼 */
+.header-report-btn {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #e2e8f0;
+    cursor: pointer;
+    font-size: 0.8rem;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    padding: 0;
+    backdrop-filter: blur(4px);
+    position: relative;
+}
+
+.header-report-btn:hover {
+    color: #fbbf24;
+}
+
+.report-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #ef4444;
+    color: white;
+    font-size: 0.55rem;
+    font-weight: 700;
+    min-width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0 3px;
+}
+
 
 
 @media (max-width: 480px) {
@@ -3545,7 +3586,8 @@ line-height: 1.1;
         padding: 0 !important;
     }
 
-    .header-settings-btn {
+    .header-settings-btn,
+    .header-report-btn {
         width: 26px !important;
         height: 26px !important;
         font-size: 0.8rem !important;
@@ -3670,14 +3712,14 @@ line-height: 1.1;
     }
 
     /* Settings button - use same height as logo text */
-    .header-settings-btn {
+    .header-settings-btn,
+    .header-report-btn {
         width: calc(9vw * 0.8) !important;
         height: calc(9vw * 0.8) !important;
         max-width: 32px !important;
         max-height: 32px !important;
         font-size: 3.5vw !important;
         margin-top: -4px !important;
-        /* Align with SEA:GNAL center */
     }
 
     /* Logo subtitle - fixed vw size */

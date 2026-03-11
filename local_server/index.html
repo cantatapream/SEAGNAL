@@ -280,6 +280,10 @@
                     <span class="vc-count" id="total-count">---</span>
                 </div>
                 <div class="vc-divider"></div>
+                <button class="header-report-btn" id="header-report-btn" onclick="openReportModal()" title="오류 제보" style="display:none;">
+                    <i class="fa-solid fa-envelope"></i>
+                    <span class="report-badge" id="report-badge" style="display:none;">0</span>
+                </button>
                 <button class="header-settings-btn" onclick="openSettingsModal()" title="앱 설정">
                     <i class="fa-solid fa-gear"></i>
                 </button>
@@ -755,6 +759,8 @@
     <script src="js/admin.js"></script>
     <script src="js/admin_collect.js"></script>
     <script src="js/admin_survey.js"></script>
+    <script src="js/admin_report.js"></script>
+    <script src="js/report_user.js"></script>
     <script src="js/survey_user.js"></script>
     <script src="js/alert_push.js"></script>
     <script src="js/ui_modal.js"></script>

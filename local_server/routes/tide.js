@@ -31,9 +31,76 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
-const { DATA_DIR, IS_FLY_IO } = require('../config/server_config');
+const { DATA_DIR, IS_FLY_IO, FILES } = require('../config/server_config');
 const { tideCache } = require('../services/cache_manager');
 const tideCollector = require('../services/tide_collector');
+
+// ============================================================================
+// 조석 조회 횟수 제한 (동일 사용자 15회/일)
+// ============================================================================
+const TIDE_DAILY_LIMIT = 15;
+
+function getTideUsage() {
+    try {
+        if (fs.existsSync(FILES.TIDE_USAGE)) {
+            return JSON.parse(fs.readFileSync(FILES.TIDE_USAGE, 'utf8'));
+        }
+    } catch (e) { /* 무시 */ }
+    return {};
+}
+
+function saveTideUsage(usage) {
+    fs.writeFileSync(FILES.TIDE_USAGE, JSON.stringify(usage, null, 2), 'utf8');
+}
+
+function getTodayKST() {
+    const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    return now.toISOString().slice(0, 10);
+}
+
+function checkTideRateLimit(deviceId) {
+    if (!deviceId) return { allowed: true };
+
+    const today = getTodayKST();
+    const usage = getTideUsage();
+
+    if (!usage[today]) usage[today] = {};
+    const count = usage[today][deviceId] || 0;
+
+    if (count >= TIDE_DAILY_LIMIT) {
+        // 차단 관리에 자동 등록
+        try {
+            const blocksPath = FILES.BLOCKS;
+            let blocks = { reportBlocks: [], tideBlocks: [], appBlocks: [] };
+            if (fs.existsSync(blocksPath)) {
+                blocks = JSON.parse(fs.readFileSync(blocksPath, 'utf8'));
+            }
+            const existing = blocks.tideBlocks.find(b => b.deviceId === deviceId);
+            if (!existing) {
+                const endOfDay = new Date(Date.now() + 9 * 60 * 60 * 1000);
+                endOfDay.setHours(23, 59, 59, 999);
+                blocks.tideBlocks.push({
+                    deviceId,
+                    reason: '과도 조회 (자동)',
+                    duration: '1d',
+                    blockedAt: new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString(),
+                    until: endOfDay.toISOString(),
+                    dailyCount: count + 1
+                });
+                fs.writeFileSync(blocksPath, JSON.stringify(blocks, null, 2), 'utf8');
+                console.log(`🚫 [Tide] 조석 조회 제한 초과: ${deviceId} (${count + 1}회)`);
+            }
+        } catch (e) {
+            console.error('[Tide] 차단 등록 오류:', e.message);
+        }
+        return { allowed: false, count };
+    }
+
+    // 카운트 증가
+    usage[today][deviceId] = count + 1;
+    saveTideUsage(usage);
+    return { allowed: true, count: count + 1 };
+}
 
 // ============================================================================
 // 조석 캐시 데이터 조회 (메모리 → 파일 폴백)
@@ -54,7 +121,19 @@ router.get('/data/:filename', (req, res, next) => {
 // 조석 데이터 수집 요청 (격자 캐싱 + 3일 패딩 분석)
 // ============================================================================
 router.post('/api/save_tide_input', async (req, res) => {
-    const { date, time, lat, lon } = req.body;
+    const { date, time, lat, lon, deviceId } = req.body;
+
+    // 조석 조회 횟수 제한 체크
+    if (deviceId) {
+        const rateCheck = checkTideRateLimit(deviceId);
+        if (!rateCheck.allowed) {
+            return res.status(429).json({
+                success: false,
+                error: '일일 조석 조회 횟수(15회)를 초과했습니다. 자정에 초기화됩니다.',
+                dailyCount: rateCheck.count
+            });
+        }
+    }
 
     console.log(`📡 Tide Input Received: Date=${date}, Time=${time}, Lat=${lat}, Lon=${lon}`);
 
@@ -244,4 +323,17 @@ router.delete('/api/tidebed/key/:index', (req, res) => {
     res.json({ success: true });
 });
 
+// 일일 조석 조회 카운트 리셋 (자정에 호출)
+function resetDailyTideUsage() {
+    const today = getTodayKST();
+    const usage = getTideUsage();
+    // 오늘 이전 날짜 데이터 삭제
+    Object.keys(usage).forEach(date => {
+        if (date < today) delete usage[date];
+    });
+    saveTideUsage(usage);
+    console.log('🔄 [Tide] 일일 조석 조회 카운트 정리 완료');
+}
+
 module.exports = router;
+module.exports.resetDailyTideUsage = resetDailyTideUsage;
