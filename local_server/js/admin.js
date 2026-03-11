@@ -91,6 +91,20 @@ window.verifyUnifiedAdminPassword = function (mode) {
     }
 };
 
+// 1-1. 관리자 모드 토글 (localStorage 영구 저장)
+window._toggleAdminMode = function (checked) {
+    if (checked) {
+        localStorage.setItem('seagnal_admin_mode', 'true');
+        // 제보 뱃지 즉시 업데이트
+        if (typeof updateReportBadge === 'function') updateReportBadge();
+    } else {
+        localStorage.removeItem('seagnal_admin_mode');
+        // 뱃지 숨기기
+        const badge = document.getElementById('report-badge');
+        if (badge) badge.style.display = 'none';
+    }
+};
+
 // 2-0. 수집 실패 통보문 알림 팝업
 window.showCollectFailureAlert = async function () {
     try {
@@ -163,19 +177,30 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         { id: 'promo', name: '게시판 관리', icon: 'fa-bullhorn' },
         { id: 'stats', name: '방문자 통계', icon: 'fa-chart-line' },
         { id: 'survey', name: '설문조사', icon: 'fa-clipboard-list' },
+        { id: 'report', name: '제보 관리', icon: 'fa-envelope' },
+        { id: 'block', name: '차단 관리', icon: 'fa-ban' },
         { id: 'maintenance', name: '점검', icon: 'fa-wrench' }
     ];
 
     const modal = document.createElement('div');
     modal.id = 'unified-admin-modal';
 
+    const isAdminMode = localStorage.getItem('seagnal_admin_mode') === 'true';
+
     modal.innerHTML = `
         <div class="unified-admin-wrapper">
             <div class="unified-admin-header">
                 <h3><i class="fa-solid fa-user-shield"></i> SEAGNAL 통합 관리자 센터</h3>
-                <button class="unified-admin-close" onclick="document.getElementById('unified-admin-modal').remove();">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:0.7rem;color:#94a3b8;" title="앱 종료 후에도 관리자 모드 유지">
+                        <input type="checkbox" id="admin-mode-toggle" ${isAdminMode ? 'checked' : ''} onchange="window._toggleAdminMode(this.checked)"
+                               style="width:14px;height:14px;accent-color:#3b82f6;">
+                        <span>관리자 모드</span>
+                    </label>
+                    <button class="unified-admin-close" onclick="document.getElementById('unified-admin-modal').remove();">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
             </div>
             
             <div class="unified-admin-main-tabs">
@@ -234,6 +259,10 @@ window.switchUnifiedAdminTab = function (tabId) {
             renderUnifiedStatsContent(body);
         } else if (tabId === 'survey') {
             renderUnifiedSurveyContent(body);
+        } else if (tabId === 'report') {
+            if (typeof renderUnifiedReportContent === 'function') renderUnifiedReportContent(body);
+        } else if (tabId === 'block') {
+            if (typeof renderUnifiedBlockContent === 'function') renderUnifiedBlockContent(body);
         } else if (tabId === 'maintenance') {
             renderUnifiedMaintenanceContent(body);
         }

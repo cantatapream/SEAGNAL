@@ -945,9 +945,23 @@ document.addEventListener('DOMContentLoaded', async function () {
             clearTimeout(unifiedAdminClickTimer);
             unifiedAdminClickTimer = setTimeout(() => { unifiedAdminClickCount = 0; }, 3000);
 
-            if (unifiedAdminClickCount >= 15) {
+            // 관리자 모드: 10회 클릭으로 비밀번호 없이 진입
+            const isAdminMode = localStorage.getItem('seagnal_admin_mode') === 'true';
+            const threshold = isAdminMode ? 10 : 15;
+
+            if (unifiedAdminClickCount >= threshold) {
                 unifiedAdminClickCount = 0;
-                showUnifiedLoginModal('alert', '통합 관리자 인증', 'fa-user-shield');
+                if (isAdminMode) {
+                    // 관리자 모드: 비밀번호 없이 바로 진입
+                    adminAuthenticated.api = true;
+                    adminAuthenticated.notice = true;
+                    adminAuthenticated.promo = true;
+                    adminAuthenticated.alert = true;
+                    showUnifiedAdminModal('alert');
+                } else {
+                    // 일반 모드: 비밀번호 입력 필요
+                    showUnifiedLoginModal('alert', '통합 관리자 인증', 'fa-user-shield');
+                }
             }
         });
     }
