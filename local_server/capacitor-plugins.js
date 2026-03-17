@@ -1,6 +1,7 @@
 
 // Capacitor 전역 객체 확보
 import { Geolocation } from '@capacitor/geolocation';
+import { App } from '@capacitor/app';
 const { PushNotifications, SplashScreen, Capacitor } = window.Capacitor ? window.Capacitor.Plugins : {};
 
 // [SplashScreen] 앱 로드 즉시 네이티브 스플래시 숨김 (웹 스플래시 노출을 위해)
@@ -179,4 +180,183 @@ window.getCurrentPositionViaCapacitor = async () => {
     return position;
 };
 
+// ============================================================================
+// [앱 업데이트 체크] 서버의 최신 버전과 현재 앱 버전을 비교하여 업데이트 유도
+// ============================================================================
+
+/**
+ * 시맨틱 버전 비교 (예: "1.0.0" < "1.1.0" → true)
+ * a가 b보다 낮으면 true 반환
+ */
+function isVersionLower(a, b) {
+    const partsA = a.split('.').map(Number);
+    const partsB = b.split('.').map(Number);
+    for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+        const numA = partsA[i] || 0;
+        const numB = partsB[i] || 0;
+        if (numA < numB) return true;
+        if (numA > numB) return false;
+    }
+    return false;
+}
+
+/**
+ * 업데이트 팝업 HTML을 생성하고 body에 삽입
+ */
+function showUpdatePopup(currentVersion, latestVersion, updateMessage, playStoreUrl) {
+    // 이미 팝업이 있으면 중복 생성 방지
+    if (document.getElementById('app-update-overlay')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'app-update-overlay';
+    overlay.innerHTML = `
+        <style>
+            #app-update-overlay {
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0, 0, 0, 0.75);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 999999;
+                padding: 24px;
+                backdrop-filter: blur(4px);
+                -webkit-backdrop-filter: blur(4px);
+            }
+            .update-popup {
+                background: linear-gradient(135deg, #161b2d 0%, #1a2238 100%);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 20px;
+                padding: 36px 28px 28px;
+                max-width: 320px;
+                width: 100%;
+                text-align: center;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            }
+            .update-icon {
+                width: 64px;
+                height: 64px;
+                margin: 0 auto 20px;
+                border-radius: 50%;
+                background: rgba(68, 138, 255, 0.12);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .update-icon svg {
+                width: 32px;
+                height: 32px;
+                stroke: #448aff;
+                fill: none;
+                stroke-width: 2;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+            .update-title {
+                font-family: 'Inter', 'Noto Sans KR', sans-serif;
+                font-size: 1.2rem;
+                font-weight: 700;
+                color: #ffffff;
+                margin-bottom: 8px;
+            }
+            .update-version {
+                font-family: 'Inter', 'Noto Sans KR', sans-serif;
+                font-size: 0.85rem;
+                color: #94a3b8;
+                margin-bottom: 16px;
+            }
+            .update-message {
+                font-family: 'Inter', 'Noto Sans KR', sans-serif;
+                font-size: 0.95rem;
+                color: #94a3b8;
+                line-height: 1.6;
+                margin-bottom: 28px;
+            }
+            .update-button {
+                display: block;
+                width: 100%;
+                padding: 15px;
+                background: #448aff;
+                color: #ffffff;
+                border: none;
+                border-radius: 12px;
+                font-family: 'Inter', 'Noto Sans KR', sans-serif;
+                font-size: 1rem;
+                font-weight: 600;
+                cursor: pointer;
+                transition: background 0.2s;
+                -webkit-tap-highlight-color: transparent;
+            }
+            .update-button:active {
+                background: #2962ff;
+            }
+        </style>
+        <div class="update-popup">
+            <div class="update-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+            </div>
+            <div class="update-title">업데이트가 필요합니다</div>
+            <div class="update-version">v${currentVersion} → v${latestVersion}</div>
+            <p class="update-message">${updateMessage}</p>
+            <button class="update-button" id="app-update-btn">업데이트</button>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // 업데이트 버튼 클릭 → Play Store로 이동
+    document.getElementById('app-update-btn').addEventListener('click', () => {
+        window.open(playStoreUrl, '_system');
+    });
+}
+
+/**
+ * 앱 시작 시 서버에서 최신 버전을 확인하고, 업데이트가 필요하면 팝업 표시
+ */
+const checkAppUpdate = async () => {
+    // 네이티브 앱에서만 동작 (브라우저에서는 무시)
+    if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return;
+
+    try {
+        // 현재 앱 버전 가져오기 (@capacitor/app 플러그인)
+        const appInfo = await App.getInfo();
+        if (!appInfo || !appInfo.version) {
+            console.log('[AppUpdate] 앱 버전 정보를 가져올 수 없습니다.');
+            return;
+        }
+        const currentVersion = appInfo.version; // build.gradle의 versionName
+
+        // 서버에서 최신 버전 조회
+        const response = await fetch('/api/app-version?_t=' + Date.now());
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const { latestVersion, updateMessage, playStoreUrl } = data;
+
+        if (!latestVersion) return;
+
+        // 버전 비교: 현재 버전이 최신 버전보다 낮으면 업데이트 팝업 표시
+        if (isVersionLower(currentVersion, latestVersion)) {
+            console.log(`[AppUpdate] 업데이트 필요: ${currentVersion} → ${latestVersion}`);
+            // DOM이 준비된 후 팝업 표시
+            if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                showUpdatePopup(currentVersion, latestVersion, updateMessage, playStoreUrl);
+            } else {
+                window.addEventListener('DOMContentLoaded', () => {
+                    showUpdatePopup(currentVersion, latestVersion, updateMessage, playStoreUrl);
+                });
+            }
+        } else {
+            console.log(`[AppUpdate] 최신 버전입니다: ${currentVersion}`);
+        }
+    } catch (e) {
+        console.error('[AppUpdate] 업데이트 확인 실패:', e.message);
+    }
+};
+
 initPushNotifications();
+checkAppUpdate();
