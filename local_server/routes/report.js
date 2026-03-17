@@ -260,6 +260,27 @@ router.get('/api/reports/:id', (req, res) => {
 });
 
 // ============================================================================
+// 제보 이미지 다운로드 (GET /api/reports/:id/download/:filename)
+// ============================================================================
+router.get('/api/reports/:id/download/:filename', (req, res) => {
+    const reports = getReports();
+    const report = reports.find(r => r.id === req.params.id);
+    if (!report) return res.status(404).json({ error: '제보를 찾을 수 없습니다.' });
+
+    const filename = req.params.filename;
+    if (!report.attachments || !report.attachments.includes(filename)) {
+        return res.status(404).json({ error: '첨부파일을 찾을 수 없습니다.' });
+    }
+
+    const filePath = path.join(REPORT_UPLOAD_DIR, filename);
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: '파일이 존재하지 않습니다.' });
+    }
+
+    res.download(filePath, filename);
+});
+
+// ============================================================================
 // 답변 작성 (POST /api/reports/:id/answer)
 // ============================================================================
 router.post('/api/reports/:id/answer', async (req, res) => {
