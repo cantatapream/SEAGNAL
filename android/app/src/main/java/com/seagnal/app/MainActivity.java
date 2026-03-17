@@ -14,6 +14,7 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
 
     private boolean isShowingError = false;
+    private String lastFailedUrl = null;
 
     @Override
     public void onStart() {
@@ -31,7 +32,8 @@ public class MainActivity extends BridgeActivity {
                     // 메인 프레임 로딩 에러만 처리 (이미지, CSS 등 서브리소스 에러는 무시)
                     if (request.isForMainFrame()) {
                         isShowingError = true;
-                        view.loadDataWithBaseURL(null, getOfflineErrorHtml(), "text/html", "UTF-8", null);
+                        lastFailedUrl = request.getUrl().toString();
+                        view.loadDataWithBaseURL(null, getOfflineErrorHtml(lastFailedUrl), "text/html", "UTF-8", null);
                     }
                 }
 
@@ -62,7 +64,9 @@ public class MainActivity extends BridgeActivity {
      * 오프라인 에러 페이지 HTML
      * 앱의 다크 테마(#080a0f ~ #1c2640)에 맞춘 디자인
      */
-    private String getOfflineErrorHtml() {
+    private String getOfflineErrorHtml(String retryUrl) {
+        // XSS 방지를 위해 URL에서 위험 문자 이스케이프
+        String safeUrl = retryUrl.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "&quot;");
         return "<!DOCTYPE html>" +
             "<html lang='ko'>" +
             "<head>" +
@@ -161,7 +165,7 @@ public class MainActivity extends BridgeActivity {
             "  <p class='error-message'>" +
             "    네트워크 연결 상태를 확인한 후<br>다시 시도해 주세요." +
             "  </p>" +
-            "  <button class='retry-button' onclick='window.location.reload()'>" +
+            "  <button class='retry-button' onclick=\"window.location.href='" + safeUrl + "'\">" +
             "    <svg viewBox='0 0 24 24'>" +
             "      <polyline points='23 4 23 10 17 10'/>" +
             "      <path d='M20.49 15a9 9 0 1 1-2.12-9.36L23 10'/>" +
