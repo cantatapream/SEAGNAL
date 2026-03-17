@@ -510,39 +510,78 @@
     }
 
     // ========================================================================
-    // Capacitor 뒤로가기 이벤트 리스너 초기화
+    // 뒤로가기 공통 처리 로직
     // ========================================================================
-    function initBackButtonHandler() {
-        // 네이티브 앱에서만 동작
-        if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return;
+    function handleBackPress(exitAppFn) {
+        // 1. 팝업 스택에 팝업이 있으면 마지막 팝업 닫기
+        if (!PopupStack.isEmpty()) {
+            PopupStack.popLast();
+            return;
+        }
 
-        // @capacitor/app 플러그인 동적 import
+        // 2. 팝업이 없으면 종료 로직
+        var now = Date.now();
+        if (now - lastBackPressTime < BACK_PRESS_INTERVAL) {
+            // 연속 뒤로가기 → 앱 종료
+            exitAppFn();
+        } else {
+            // 첫 번째 뒤로가기 → 토스트 표시
+            lastBackPressTime = now;
+            showExitToast();
+        }
+    }
+
+    // ========================================================================
+    // Capacitor 뒤로가기 이벤트 리스너 (Capacitor 네이티브 환경)
+    // ========================================================================
+    function initCapacitorBackButton() {
+        if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return false;
+
         import('@capacitor/app').then(function (module) {
             var App = module.App;
 
             App.addListener('backButton', function () {
-                // 1. 팝업 스택에 팝업이 있으면 마지막 팝업 닫기
-                if (!PopupStack.isEmpty()) {
-                    PopupStack.popLast();
-                    return;
-                }
-
-                // 2. 팝업이 없으면 종료 로직
-                var now = Date.now();
-                if (now - lastBackPressTime < BACK_PRESS_INTERVAL) {
-                    // 연속 뒤로가기 → 앱 종료
+                handleBackPress(function () {
                     App.exitApp();
-                } else {
-                    // 첫 번째 뒤로가기 → 토스트 표시
-                    lastBackPressTime = now;
-                    showExitToast();
-                }
+                });
             });
 
-            console.log('[BackButton] 하드웨어 뒤로가기 핸들러 등록 완료');
+            console.log('[BackButton] Capacitor 뒤로가기 핸들러 등록 완료');
         }).catch(function (e) {
             console.error('[BackButton] @capacitor/app import 실패:', e);
         });
+
+        return true;
+    }
+
+    // ========================================================================
+    // History API 트랩 (TWA 환경)
+    // ========================================================================
+    var HISTORY_TRAP_STATE = { seagnalTrap: true };
+
+    function pushHistoryTrap() {
+        // 현재 상태가 이미 트랩이면 중복 push 방지
+        if (history.state && history.state.seagnalTrap) return;
+        history.pushState(HISTORY_TRAP_STATE, '');
+    }
+
+    function initHistoryTrapBackButton() {
+        // 히스토리 트랩 설치
+        pushHistoryTrap();
+
+        window.addEventListener('popstate', function (e) {
+            // 트랩 상태가 pop 되었으면 → 뒤로가기 발생
+            // 즉시 트랩을 다시 설치하여 다음 뒤로가기도 잡을 수 있도록
+            pushHistoryTrap();
+
+            handleBackPress(function () {
+                // TWA에서는 App.exitApp()이 없으므로
+                // 히스토리 트랩을 제거하고 실제 뒤로가기를 허용하여 앱 종료
+                history.back();
+            });
+        });
+
+        console.log('[BackButton] History API 트랩 뒤로가기 핸들러 등록 완료');
     }
 
     // ========================================================================
@@ -568,7 +607,11 @@
         wrapMaintenancePopup();
 
         // 뒤로가기 핸들러 초기화
-        initBackButtonHandler();
+        // Capacitor 네이티브 환경이면 Capacitor 방식, 아니면 History API 트랩 방식
+        var isCapacitor = initCapacitorBackButton();
+        if (!isCapacitor) {
+            initHistoryTrapBackButton();
+        }
 
         console.log('[BackButton] 팝업 스택 관리자 초기화 완료');
     }
