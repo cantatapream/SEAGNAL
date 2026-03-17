@@ -203,7 +203,7 @@
     // ========================================================================
     // 사진 첨부 관리
     // ========================================================================
-    const reportFiles = [];
+    const reportFiles = [];     // { file: File, dataUrl: string }
 
     window._addReportAttachment = function (input) {
         if (!input.files || !input.files[0]) return;
@@ -220,19 +220,23 @@
             return;
         }
 
-        reportFiles.push(file);
+        // FileReader로 data URL 생성 (Android WebView 호환)
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            reportFiles.push({ file: file, dataUrl: e.target.result });
+            renderAttachPreviews();
+        };
+        reader.readAsDataURL(file);
         input.value = '';
-
-        renderAttachPreviews();
     };
 
     function renderAttachPreviews() {
         const container = document.getElementById('report-attach-previews');
         if (!container) return;
 
-        container.innerHTML = reportFiles.map((f, i) => `
+        container.innerHTML = reportFiles.map((item, i) => `
             <div style="position:relative;width:70px;height:70px;border-radius:8px;overflow:hidden;border:1px solid #334155;">
-                <img src="${URL.createObjectURL(f)}" style="width:100%;height:100%;object-fit:cover;">
+                <img src="${item.dataUrl}" style="width:100%;height:100%;object-fit:cover;">
                 <button onclick="window._removeReportAttachment(${i})"
                         style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.7);border:none;color:#fff;width:18px;height:18px;border-radius:50%;font-size:0.6rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">
                     <i class="fa-solid fa-xmark"></i>
@@ -280,8 +284,8 @@
             formData.append('title', title);
             formData.append('content', content);
 
-            reportFiles.forEach(file => {
-                formData.append('attachments', file);
+            reportFiles.forEach(item => {
+                formData.append('attachments', item.file);
             });
 
             const res = await fetch(CONFIG.API_BASE + '/api/reports', {
