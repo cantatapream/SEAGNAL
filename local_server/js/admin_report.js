@@ -171,9 +171,9 @@ window._showReportDetail = async function (id) {
     const answeredDate = report.answeredAt ? new Date(report.answeredAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '';
 
     const attachHTML = (report.attachments && report.attachments.length > 0)
-        ? report.attachments.map(f => `
+        ? report.attachments.map((f, idx) => `
             <div style="display:inline-block;position:relative;width:80px;height:80px;border-radius:6px;overflow:hidden;border:1px solid #334155;">
-                <div onclick="window._openImageViewer('/uploads/reports/${f}', '${report.id}', '${f}')" style="width:100%;height:100%;cursor:pointer;">
+                <div onclick="window._openImageViewer('${report.id}', ${idx})" style="width:100%;height:100%;cursor:pointer;">
                     <img src="/uploads/reports/${f}" style="width:100%;height:100%;object-fit:cover;">
                 </div>
                 <a href="${CONFIG.API_BASE}/api/reports/${report.id}/download/${encodeURIComponent(f)}" download
@@ -208,15 +208,7 @@ window._showReportDetail = async function (id) {
 
             <!-- 첨부파일 -->
             <div style="margin-bottom:15px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                    <span style="color:#94a3b8;font-size:0.75rem;"><i class="fa-solid fa-paperclip"></i> 첨부사진</span>
-                    ${(report.attachments && report.attachments.length > 0) ? `
-                        <a href="${CONFIG.API_BASE}/api/reports/${report.id}/download-all" download
-                           style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;padding:4px 10px;border-radius:5px;font-size:0.7rem;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
-                            <i class="fa-solid fa-download"></i> 전체 다운로드
-                        </a>
-                    ` : ''}
-                </div>
+                <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:6px;"><i class="fa-solid fa-paperclip"></i> 첨부사진</div>
                 <div style="display:flex;gap:6px;flex-wrap:wrap;">${attachHTML}</div>
             </div>
 
@@ -258,157 +250,235 @@ window._showReportDetail = async function (id) {
 };
 
 // ============================================================================
-// 2-1. 이미지 뷰어 팝업 (확대/축소 지원)
+// 2-1. 이미지 뷰어 팝업 (스와이프 넘기기, 핀치 확대 지원)
 // ============================================================================
-window._openImageViewer = function (src, reportId, filename) {
+window._openImageViewer = function (reportId, startIndex) {
     const existing = document.getElementById('image-viewer-modal');
     if (existing) existing.remove();
 
+    const report = _allReports.find(r => r.id === reportId);
+    if (!report || !report.attachments || report.attachments.length === 0) return;
+
+    const attachments = report.attachments;
+    let currentIndex = startIndex || 0;
     let scale = 1;
     let translateX = 0;
     let translateY = 0;
     let isDragging = false;
     let startX, startY, lastTranslateX, lastTranslateY;
+    // 스와이프 감지용
+    let swipeStartX = 0;
+    let swipeStartY = 0;
+    let swiping = false;
 
     const modal = document.createElement('div');
     modal.id = 'image-viewer-modal';
-    modal.style.cssText = 'position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);display:flex;flex-direction:column;align-items:center;justify-content:center;';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;';
 
-    modal.innerHTML = `
-        <div style="position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;z-index:10003;background:linear-gradient(to bottom,rgba(0,0,0,0.6),transparent);">
-            <div style="display:flex;gap:8px;align-items:center;">
-                <button id="iv-zoom-in" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:8px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="확대">
-                    <i class="fa-solid fa-magnifying-glass-plus"></i>
+    function getDownloadUrl(filename) {
+        return CONFIG.API_BASE + '/api/reports/' + reportId + '/download/' + encodeURIComponent(filename);
+    }
+
+    function render() {
+        const filename = attachments[currentIndex];
+        const src = '/uploads/reports/' + filename;
+        const indicator = attachments.length > 1 ? `<span style="color:rgba(255,255,255,0.5);font-size:0.75rem;">${currentIndex + 1} / ${attachments.length}</span>` : '';
+
+        modal.innerHTML = `
+            <div style="position:relative;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:48px 16px 12px 16px;z-index:10003;background:linear-gradient(to bottom,rgba(0,0,0,0.7),transparent);flex-shrink:0;">
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <a id="iv-download" href="${getDownloadUrl(filename)}" download
+                       style="background:rgba(59,130,246,0.4);border:none;color:#fff;width:40px;height:40px;border-radius:10px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;" title="다운로드">
+                        <i class="fa-solid fa-download"></i>
+                    </a>
+                    ${indicator}
+                </div>
+                <button id="iv-close" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:40px;height:40px;border-radius:10px;font-size:1.3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="닫기">
+                    <i class="fa-solid fa-xmark"></i>
                 </button>
-                <button id="iv-zoom-out" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:8px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="축소">
-                    <i class="fa-solid fa-magnifying-glass-minus"></i>
-                </button>
-                <button id="iv-zoom-reset" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:8px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="원래 크기">
-                    <i class="fa-solid fa-expand"></i>
-                </button>
-                <span id="iv-zoom-level" style="color:rgba(255,255,255,0.7);font-size:0.75rem;min-width:40px;text-align:center;">100%</span>
-                ${(reportId && filename) ? `
-                <a id="iv-download" href="${CONFIG.API_BASE}/api/reports/${reportId}/download/${encodeURIComponent(filename)}" download
-                   style="background:rgba(59,130,246,0.4);border:none;color:#fff;width:36px;height:36px;border-radius:8px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;margin-left:8px;" title="다운로드">
-                    <i class="fa-solid fa-download"></i>
-                </a>` : ''}
             </div>
-            <button id="iv-close" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:40px;height:40px;border-radius:10px;font-size:1.3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="닫기">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-        </div>
-        <div id="iv-container" style="flex:1;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:grab;padding:60px 10px 10px;">
-            <img id="iv-image" src="${src}" style="max-width:100%;max-height:100%;object-fit:contain;transition:transform 0.15s ease;user-select:none;-webkit-user-drag:none;" draggable="false">
-        </div>
-    `;
+            <div id="iv-container" style="flex:1;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;touch-action:none;">
+                ${attachments.length > 1 && currentIndex > 0 ? `
+                <button id="iv-prev" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);z-index:10004;background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>` : ''}
+                <img id="iv-image" src="${src}" style="max-width:100%;max-height:100%;object-fit:contain;transition:transform 0.15s ease;user-select:none;-webkit-user-drag:none;" draggable="false">
+                ${attachments.length > 1 && currentIndex < attachments.length - 1 ? `
+                <button id="iv-next" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:10004;background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>` : ''}
+            </div>
+        `;
 
-    document.body.appendChild(modal);
+        // 줌 초기화
+        scale = 1;
+        translateX = 0;
+        translateY = 0;
 
-    const img = document.getElementById('iv-image');
-    const container = document.getElementById('iv-container');
-    const zoomLevel = document.getElementById('iv-zoom-level');
-
-    function updateTransform() {
-        img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
-        zoomLevel.textContent = Math.round(scale * 100) + '%';
+        bindEvents();
     }
 
-    function zoomTo(newScale) {
-        scale = Math.max(0.1, Math.min(10, newScale));
-        if (scale <= 1) { translateX = 0; translateY = 0; }
-        updateTransform();
+    function goTo(idx) {
+        if (idx < 0 || idx >= attachments.length) return;
+        currentIndex = idx;
+        render();
     }
 
-    // 확대/축소 버튼
-    document.getElementById('iv-zoom-in').onclick = (e) => { e.stopPropagation(); zoomTo(scale * 1.3); };
-    document.getElementById('iv-zoom-out').onclick = (e) => { e.stopPropagation(); zoomTo(scale / 1.3); };
-    document.getElementById('iv-zoom-reset').onclick = (e) => { e.stopPropagation(); scale = 1; translateX = 0; translateY = 0; updateTransform(); };
+    function bindEvents() {
+        const img = document.getElementById('iv-image');
+        const container = document.getElementById('iv-container');
 
-    // 닫기 버튼
-    document.getElementById('iv-close').onclick = () => modal.remove();
+        // 닫기 버튼
+        document.getElementById('iv-close').onclick = () => { cleanup(); modal.remove(); };
 
-    // 배경 클릭 시 닫기
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal || e.target === container) modal.remove();
-    });
+        // 이전/다음 버튼
+        const prevBtn = document.getElementById('iv-prev');
+        const nextBtn = document.getElementById('iv-next');
+        if (prevBtn) prevBtn.onclick = (e) => { e.stopPropagation(); goTo(currentIndex - 1); };
+        if (nextBtn) nextBtn.onclick = (e) => { e.stopPropagation(); goTo(currentIndex + 1); };
 
-    // 마우스 휠 확대/축소
-    container.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        zoomTo(scale * delta);
-    }, { passive: false });
-
-    // 드래그로 이미지 이동 (확대 시)
-    container.addEventListener('mousedown', (e) => {
-        if (scale <= 1) return;
-        isDragging = true;
-        startX = e.clientX;
-        startY = e.clientY;
-        lastTranslateX = translateX;
-        lastTranslateY = translateY;
-        container.style.cursor = 'grabbing';
-        e.preventDefault();
-    });
-    document.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        translateX = lastTranslateX + (e.clientX - startX);
-        translateY = lastTranslateY + (e.clientY - startY);
-        img.style.transition = 'none';
-        updateTransform();
-    });
-    document.addEventListener('mouseup', () => {
-        isDragging = false;
-        if (container) container.style.cursor = scale > 1 ? 'grab' : 'grab';
-        if (img) img.style.transition = 'transform 0.15s ease';
-    });
-
-    // 터치 핀치 줌 지원
-    let lastTouchDist = 0;
-    let lastTouchMid = { x: 0, y: 0 };
-    container.addEventListener('touchstart', (e) => {
-        if (e.touches.length === 2) {
-            const dx = e.touches[0].clientX - e.touches[1].clientX;
-            const dy = e.touches[0].clientY - e.touches[1].clientY;
-            lastTouchDist = Math.sqrt(dx * dx + dy * dy);
-        } else if (e.touches.length === 1 && scale > 1) {
-            isDragging = true;
-            startX = e.touches[0].clientX;
-            startY = e.touches[0].clientY;
-            lastTranslateX = translateX;
-            lastTranslateY = translateY;
+        function updateTransform() {
+            img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
         }
-    }, { passive: true });
-    container.addEventListener('touchmove', (e) => {
-        if (e.touches.length === 2) {
-            e.preventDefault();
-            const dx = e.touches[0].clientX - e.touches[1].clientX;
-            const dy = e.touches[0].clientY - e.touches[1].clientY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (lastTouchDist > 0) {
-                const ratio = dist / lastTouchDist;
-                zoomTo(scale * ratio);
-            }
-            lastTouchDist = dist;
-        } else if (e.touches.length === 1 && isDragging) {
-            e.preventDefault();
-            translateX = lastTranslateX + (e.touches[0].clientX - startX);
-            translateY = lastTranslateY + (e.touches[0].clientY - startY);
-            img.style.transition = 'none';
+
+        function zoomTo(newScale) {
+            scale = Math.max(1, Math.min(10, newScale));
+            if (scale === 1) { translateX = 0; translateY = 0; }
             updateTransform();
         }
-    }, { passive: false });
-    container.addEventListener('touchend', () => {
-        isDragging = false;
-        lastTouchDist = 0;
-        if (img) img.style.transition = 'transform 0.15s ease';
-    });
 
-    // ESC 키로 닫기
+        // 마우스 휠 확대 (축소는 1 이하로 안 됨)
+        container.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            zoomTo(scale * delta);
+        }, { passive: false });
+
+        // 마우스 드래그 (확대 시 이동)
+        container.addEventListener('mousedown', (e) => {
+            if (e.target.closest('button') || e.target.closest('a')) return;
+            if (scale > 1) {
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                lastTranslateX = translateX;
+                lastTranslateY = translateY;
+                container.style.cursor = 'grabbing';
+                e.preventDefault();
+            }
+        });
+        const onMouseMove = (e) => {
+            if (!isDragging) return;
+            translateX = lastTranslateX + (e.clientX - startX);
+            translateY = lastTranslateY + (e.clientY - startY);
+            img.style.transition = 'none';
+            updateTransform();
+        };
+        const onMouseUp = () => {
+            isDragging = false;
+            if (container) container.style.cursor = '';
+            if (img) img.style.transition = 'transform 0.15s ease';
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+
+        // 터치: 핀치 줌 + 스와이프 넘기기 + 드래그 이동
+        let lastTouchDist = 0;
+        container.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                // 핀치 줌 시작
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                lastTouchDist = Math.sqrt(dx * dx + dy * dy);
+            } else if (e.touches.length === 1) {
+                swipeStartX = e.touches[0].clientX;
+                swipeStartY = e.touches[0].clientY;
+                if (scale > 1) {
+                    // 확대 상태: 드래그 이동
+                    isDragging = true;
+                    startX = e.touches[0].clientX;
+                    startY = e.touches[0].clientY;
+                    lastTranslateX = translateX;
+                    lastTranslateY = translateY;
+                } else {
+                    // 원본 크기: 스와이프 모드
+                    swiping = true;
+                }
+            }
+        }, { passive: true });
+
+        container.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (lastTouchDist > 0) {
+                    zoomTo(scale * (dist / lastTouchDist));
+                }
+                lastTouchDist = dist;
+            } else if (e.touches.length === 1 && isDragging && scale > 1) {
+                e.preventDefault();
+                translateX = lastTranslateX + (e.touches[0].clientX - startX);
+                translateY = lastTranslateY + (e.touches[0].clientY - startY);
+                img.style.transition = 'none';
+                updateTransform();
+            }
+            // 스와이프는 touchend에서 판정
+        }, { passive: false });
+
+        container.addEventListener('touchend', (e) => {
+            if (swiping && scale === 1 && e.changedTouches.length > 0) {
+                const endX = e.changedTouches[0].clientX;
+                const endY = e.changedTouches[0].clientY;
+                const diffX = endX - swipeStartX;
+                const diffY = Math.abs(endY - swipeStartY);
+                // 수평 스와이프 감지 (50px 이상, 수직 이동보다 수평이 클 때)
+                if (Math.abs(diffX) > 50 && Math.abs(diffX) > diffY) {
+                    if (diffX < 0 && currentIndex < attachments.length - 1) {
+                        goTo(currentIndex + 1); return;
+                    } else if (diffX > 0 && currentIndex > 0) {
+                        goTo(currentIndex - 1); return;
+                    }
+                }
+            }
+            isDragging = false;
+            swiping = false;
+            lastTouchDist = 0;
+            if (img) img.style.transition = 'transform 0.15s ease';
+        });
+
+        // 배경 클릭 시 닫기
+        container.addEventListener('click', (e) => {
+            if (e.target === container) { cleanup(); modal.remove(); }
+        });
+
+        // 리스너 정리 함수 저장
+        modal._cleanup = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.removeEventListener('keydown', onKey);
+        };
+    }
+
+    function cleanup() {
+        if (modal._cleanup) modal._cleanup();
+    }
+
+    document.body.appendChild(modal);
+    render();
+
+    // ESC / 좌우 화살표 키
     const onKey = (e) => {
-        if (e.key === 'Escape') { modal.remove(); document.removeEventListener('keydown', onKey); }
+        if (e.key === 'Escape') { cleanup(); modal.remove(); }
+        else if (e.key === 'ArrowLeft') goTo(currentIndex - 1);
+        else if (e.key === 'ArrowRight') goTo(currentIndex + 1);
     };
     document.addEventListener('keydown', onKey);
+    // 첫 render에서 onKey가 아직 없으므로 여기서 저장
+    modal._cleanup = () => {
+        document.removeEventListener('keydown', onKey);
+    };
 };
 
 window._sendAnswer = async function (reportId, sendPush) {
