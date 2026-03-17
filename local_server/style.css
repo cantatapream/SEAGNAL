@@ -4551,3 +4551,34 @@ line-height: 1.1;
 .sea-zone-my-location-pulse {
     animation: seaZoneLocationPulse 2s infinite;
 }
+
+/* ============================================================================
+   뒤로가기 종료 토스트
+   ============================================================================ */
+#back-exit-toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(30, 41, 59, 0.95);
+    color: #e2e8f0;
+    padding: 12px 24px;
+    border-radius: 24px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    font-family: 'Inter', 'Noto Sans KR', sans-serif;
+    z-index: 999999;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    white-space: nowrap;
+}
+
+#back-exit-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
