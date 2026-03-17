@@ -260,6 +260,70 @@ router.get('/api/reports/:id', (req, res) => {
 });
 
 // ============================================================================
+// 제보 이미지 다운로드 (GET /api/reports/:id/download/:filename)
+// ============================================================================
+router.get('/api/reports/:id/download/:filename', (req, res) => {
+    const reports = getReports();
+    const report = reports.find(r => r.id === req.params.id);
+    if (!report) return res.status(404).json({ error: '제보를 찾을 수 없습니다.' });
+
+    const filename = req.params.filename;
+    if (!report.attachments || !report.attachments.includes(filename)) {
+        return res.status(404).json({ error: '첨부파일을 찾을 수 없습니다.' });
+    }
+
+    const filePath = path.join(REPORT_UPLOAD_DIR, filename);
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: '파일이 존재하지 않습니다.' });
+    }
+
+    res.download(filePath, filename);
+});
+
+// ============================================================================
+// 제보 이미지 일괄 다운로드 - ZIP (GET /api/reports/:id/download-all)
+// ============================================================================
+router.get('/api/reports/:id/download-all', (req, res) => {
+    const reports = getReports();
+    const report = reports.find(r => r.id === req.params.id);
+    if (!report) return res.status(404).json({ error: '제보를 찾을 수 없습니다.' });
+
+    if (!report.attachments || report.attachments.length === 0) {
+        return res.status(404).json({ error: '첨부파일이 없습니다.' });
+    }
+
+    // 첨부파일이 1개면 단일 다운로드
+    if (report.attachments.length === 1) {
+        const filePath = path.join(REPORT_UPLOAD_DIR, report.attachments[0]);
+        if (!fs.existsSync(filePath)) return res.status(404).json({ error: '파일이 존재하지 않습니다.' });
+        return res.download(filePath, report.attachments[0]);
+    }
+
+    // 여러 파일을 tar로 묶어서 전송 (외부 라이브러리 없이)
+    const archiver = require('archiver');
+    const zipFilename = `${report.id}_attachments.zip`;
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
+
+    const archive = archiver('zip', { zlib: { level: 5 } });
+    archive.on('error', (err) => {
+        console.error('[Report] ZIP 생성 오류:', err.message);
+        if (!res.headersSent) res.status(500).json({ error: 'ZIP 생성 실패' });
+    });
+    archive.pipe(res);
+
+    for (const filename of report.attachments) {
+        const filePath = path.join(REPORT_UPLOAD_DIR, filename);
+        if (fs.existsSync(filePath)) {
+            archive.file(filePath, { name: filename });
+        }
+    }
+
+    archive.finalize();
+});
+
+// ============================================================================
 // 답변 작성 (POST /api/reports/:id/answer)
 // ============================================================================
 router.post('/api/reports/:id/answer', async (req, res) => {

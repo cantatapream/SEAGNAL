@@ -172,8 +172,16 @@ window._showReportDetail = async function (id) {
 
     const attachHTML = (report.attachments && report.attachments.length > 0)
         ? report.attachments.map(f => `
-            <div onclick="window._openImageViewer('/uploads/reports/${f}')" style="display:inline-block;width:80px;height:80px;border-radius:6px;overflow:hidden;border:1px solid #334155;cursor:pointer;">
-                <img src="/uploads/reports/${f}" style="width:100%;height:100%;object-fit:cover;">
+            <div style="display:inline-block;position:relative;width:80px;height:80px;border-radius:6px;overflow:hidden;border:1px solid #334155;">
+                <div onclick="window._openImageViewer('/uploads/reports/${f}', '${report.id}', '${f}')" style="width:100%;height:100%;cursor:pointer;">
+                    <img src="/uploads/reports/${f}" style="width:100%;height:100%;object-fit:cover;">
+                </div>
+                <a href="${CONFIG.API_BASE}/api/reports/${report.id}/download/${encodeURIComponent(f)}" download
+                   onclick="event.stopPropagation();"
+                   style="position:absolute;bottom:2px;right:2px;background:rgba(0,0,0,0.7);color:#fff;width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:0.6rem;text-decoration:none;"
+                   title="다운로드">
+                    <i class="fa-solid fa-download"></i>
+                </a>
             </div>
         `).join('')
         : '<span style="color:#64748b;font-size:0.8rem;">첨부파일 없음</span>';
@@ -200,7 +208,15 @@ window._showReportDetail = async function (id) {
 
             <!-- 첨부파일 -->
             <div style="margin-bottom:15px;">
-                <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:6px;"><i class="fa-solid fa-paperclip"></i> 첨부사진</div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <span style="color:#94a3b8;font-size:0.75rem;"><i class="fa-solid fa-paperclip"></i> 첨부사진</span>
+                    ${(report.attachments && report.attachments.length > 0) ? `
+                        <a href="${CONFIG.API_BASE}/api/reports/${report.id}/download-all" download
+                           style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;padding:4px 10px;border-radius:5px;font-size:0.7rem;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
+                            <i class="fa-solid fa-download"></i> 전체 다운로드
+                        </a>
+                    ` : ''}
+                </div>
                 <div style="display:flex;gap:6px;flex-wrap:wrap;">${attachHTML}</div>
             </div>
 
@@ -244,7 +260,7 @@ window._showReportDetail = async function (id) {
 // ============================================================================
 // 2-1. 이미지 뷰어 팝업 (확대/축소 지원)
 // ============================================================================
-window._openImageViewer = function (src) {
+window._openImageViewer = function (src, reportId, filename) {
     const existing = document.getElementById('image-viewer-modal');
     if (existing) existing.remove();
 
@@ -271,6 +287,11 @@ window._openImageViewer = function (src) {
                     <i class="fa-solid fa-expand"></i>
                 </button>
                 <span id="iv-zoom-level" style="color:rgba(255,255,255,0.7);font-size:0.75rem;min-width:40px;text-align:center;">100%</span>
+                ${(reportId && filename) ? `
+                <a id="iv-download" href="${CONFIG.API_BASE}/api/reports/${reportId}/download/${encodeURIComponent(filename)}" download
+                   style="background:rgba(59,130,246,0.4);border:none;color:#fff;width:36px;height:36px;border-radius:8px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;margin-left:8px;" title="다운로드">
+                    <i class="fa-solid fa-download"></i>
+                </a>` : ''}
             </div>
             <button id="iv-close" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:40px;height:40px;border-radius:10px;font-size:1.3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="닫기">
                 <i class="fa-solid fa-xmark"></i>
