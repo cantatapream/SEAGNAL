@@ -225,9 +225,14 @@
         reader.onload = function (e) {
             reportFiles.push({ file: file, dataUrl: e.target.result });
             renderAttachPreviews();
+            // input 리셋은 파일 읽기 완료 후 수행해야 함
+            // (Android WebView에서 읽기 전에 리셋하면 content:// URI 권한이 해제됨)
+            input.value = '';
+        };
+        reader.onerror = function () {
+            input.value = '';
         };
         reader.readAsDataURL(file);
-        input.value = '';
     };
 
     function renderAttachPreviews() {
