@@ -172,9 +172,9 @@ window._showReportDetail = async function (id) {
 
     const attachHTML = (report.attachments && report.attachments.length > 0)
         ? report.attachments.map(f => `
-            <a href="/uploads/reports/${f}" target="_blank" style="display:inline-block;width:80px;height:80px;border-radius:6px;overflow:hidden;border:1px solid #334155;">
+            <div onclick="window._openImageViewer('/uploads/reports/${f}')" style="display:inline-block;width:80px;height:80px;border-radius:6px;overflow:hidden;border:1px solid #334155;cursor:pointer;">
                 <img src="/uploads/reports/${f}" style="width:100%;height:100%;object-fit:cover;">
-            </a>
+            </div>
         `).join('')
         : '<span style="color:#64748b;font-size:0.8rem;">첨부파일 없음</span>';
 
@@ -239,6 +239,155 @@ window._showReportDetail = async function (id) {
             </div>
         </div>
     `;
+};
+
+// ============================================================================
+// 2-1. 이미지 뷰어 팝업 (확대/축소 지원)
+// ============================================================================
+window._openImageViewer = function (src) {
+    const existing = document.getElementById('image-viewer-modal');
+    if (existing) existing.remove();
+
+    let scale = 1;
+    let translateX = 0;
+    let translateY = 0;
+    let isDragging = false;
+    let startX, startY, lastTranslateX, lastTranslateY;
+
+    const modal = document.createElement('div');
+    modal.id = 'image-viewer-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);display:flex;flex-direction:column;align-items:center;justify-content:center;';
+
+    modal.innerHTML = `
+        <div style="position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;z-index:10003;background:linear-gradient(to bottom,rgba(0,0,0,0.6),transparent);">
+            <div style="display:flex;gap:8px;align-items:center;">
+                <button id="iv-zoom-in" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:8px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="확대">
+                    <i class="fa-solid fa-magnifying-glass-plus"></i>
+                </button>
+                <button id="iv-zoom-out" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:8px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="축소">
+                    <i class="fa-solid fa-magnifying-glass-minus"></i>
+                </button>
+                <button id="iv-zoom-reset" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:8px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="원래 크기">
+                    <i class="fa-solid fa-expand"></i>
+                </button>
+                <span id="iv-zoom-level" style="color:rgba(255,255,255,0.7);font-size:0.75rem;min-width:40px;text-align:center;">100%</span>
+            </div>
+            <button id="iv-close" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:40px;height:40px;border-radius:10px;font-size:1.3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="닫기">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div id="iv-container" style="flex:1;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:grab;padding:60px 10px 10px;">
+            <img id="iv-image" src="${src}" style="max-width:100%;max-height:100%;object-fit:contain;transition:transform 0.15s ease;user-select:none;-webkit-user-drag:none;" draggable="false">
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const img = document.getElementById('iv-image');
+    const container = document.getElementById('iv-container');
+    const zoomLevel = document.getElementById('iv-zoom-level');
+
+    function updateTransform() {
+        img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        zoomLevel.textContent = Math.round(scale * 100) + '%';
+    }
+
+    function zoomTo(newScale) {
+        scale = Math.max(0.1, Math.min(10, newScale));
+        if (scale <= 1) { translateX = 0; translateY = 0; }
+        updateTransform();
+    }
+
+    // 확대/축소 버튼
+    document.getElementById('iv-zoom-in').onclick = (e) => { e.stopPropagation(); zoomTo(scale * 1.3); };
+    document.getElementById('iv-zoom-out').onclick = (e) => { e.stopPropagation(); zoomTo(scale / 1.3); };
+    document.getElementById('iv-zoom-reset').onclick = (e) => { e.stopPropagation(); scale = 1; translateX = 0; translateY = 0; updateTransform(); };
+
+    // 닫기 버튼
+    document.getElementById('iv-close').onclick = () => modal.remove();
+
+    // 배경 클릭 시 닫기
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal || e.target === container) modal.remove();
+    });
+
+    // 마우스 휠 확대/축소
+    container.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        zoomTo(scale * delta);
+    }, { passive: false });
+
+    // 드래그로 이미지 이동 (확대 시)
+    container.addEventListener('mousedown', (e) => {
+        if (scale <= 1) return;
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        lastTranslateX = translateX;
+        lastTranslateY = translateY;
+        container.style.cursor = 'grabbing';
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        translateX = lastTranslateX + (e.clientX - startX);
+        translateY = lastTranslateY + (e.clientY - startY);
+        img.style.transition = 'none';
+        updateTransform();
+    });
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+        if (container) container.style.cursor = scale > 1 ? 'grab' : 'grab';
+        if (img) img.style.transition = 'transform 0.15s ease';
+    });
+
+    // 터치 핀치 줌 지원
+    let lastTouchDist = 0;
+    let lastTouchMid = { x: 0, y: 0 };
+    container.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            lastTouchDist = Math.sqrt(dx * dx + dy * dy);
+        } else if (e.touches.length === 1 && scale > 1) {
+            isDragging = true;
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            lastTranslateX = translateX;
+            lastTranslateY = translateY;
+        }
+    }, { passive: true });
+    container.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (lastTouchDist > 0) {
+                const ratio = dist / lastTouchDist;
+                zoomTo(scale * ratio);
+            }
+            lastTouchDist = dist;
+        } else if (e.touches.length === 1 && isDragging) {
+            e.preventDefault();
+            translateX = lastTranslateX + (e.touches[0].clientX - startX);
+            translateY = lastTranslateY + (e.touches[0].clientY - startY);
+            img.style.transition = 'none';
+            updateTransform();
+        }
+    }, { passive: false });
+    container.addEventListener('touchend', () => {
+        isDragging = false;
+        lastTouchDist = 0;
+        if (img) img.style.transition = 'transform 0.15s ease';
+    });
+
+    // ESC 키로 닫기
+    const onKey = (e) => {
+        if (e.key === 'Escape') { modal.remove(); document.removeEventListener('keydown', onKey); }
+    };
+    document.addEventListener('keydown', onKey);
 };
 
 window._sendAnswer = async function (reportId, sendPush) {
