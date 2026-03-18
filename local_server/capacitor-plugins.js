@@ -2,6 +2,7 @@
 // Capacitor 전역 객체 확보
 import { Geolocation } from '@capacitor/geolocation';
 import { App } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 const { PushNotifications, SplashScreen, Capacitor } = window.Capacitor ? window.Capacitor.Plugins : {};
 
 // [SplashScreen] 앱 로드 즉시 네이티브 스플래시 숨김 (웹 스플래시 노출을 위해)
@@ -308,9 +309,15 @@ function showUpdatePopup(currentVersion, latestVersion, updateMessage, playStore
 
     document.body.appendChild(overlay);
 
-    // 업데이트 버튼 클릭 → Play Store로 이동
+    // 업데이트 버튼 클릭 → Play Store로 이동 (Capacitor Browser 플러그인 사용)
     document.getElementById('app-update-btn').addEventListener('click', () => {
-        window.open(playStoreUrl, '_system');
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+            Browser.open({ url: playStoreUrl }).catch(() => {
+                window.open(playStoreUrl, '_blank');
+            });
+        } else {
+            window.open(playStoreUrl, '_blank');
+        }
     });
 }
 
@@ -360,3 +367,29 @@ const checkAppUpdate = async () => {
 
 initPushNotifications();
 checkAppUpdate();
+
+// ============================================================================
+// [외부 링크 처리] Capacitor 앱에서 외부 링크를 시스템 브라우저로 열기
+// ============================================================================
+if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+    document.addEventListener('click', (e) => {
+        const anchor = e.target.closest('a[target="_blank"]');
+        if (!anchor) return;
+
+        const href = anchor.getAttribute('href');
+        if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+
+        // 외부 URL인 경우 Capacitor Browser로 열기
+        try {
+            const url = new URL(href, window.location.origin);
+            if (url.origin !== window.location.origin) {
+                e.preventDefault();
+                Browser.open({ url: href }).catch(() => {
+                    window.open(href, '_blank');
+                });
+            }
+        } catch (err) {
+            // URL 파싱 실패 시 기본 동작
+        }
+    }, true);
+}
