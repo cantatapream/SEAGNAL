@@ -25,6 +25,11 @@ public class MainActivity extends BridgeActivity {
             WebSettings settings = webView.getSettings();
             settings.setTextZoom(100);
 
+            // 핀치 줌(두 손가락 확대/축소) 활성화
+            settings.setSupportZoom(true);
+            settings.setBuiltInZoomControls(true);
+            settings.setDisplayZoomControls(false); // +/- 버튼 숨김
+
             // BridgeWebViewClient를 상속하여 Capacitor 브릿지 기능을 유지하면서
             // 네트워크 에러 감지 기능 추가
             webView.setWebViewClient(new BridgeWebViewClient(getBridge()) {
