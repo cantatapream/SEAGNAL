@@ -477,6 +477,72 @@
         maintObserver.observe(document.body, { childList: true });
     }
 
+    /**
+     * 17. 해구별 기상정보 모달 (marine.js)
+     *     closeSeaZoneModal이 전역 함수이므로 래핑 + DOM 감시로 처리
+     */
+    function wrapSeaZoneModal() {
+        var origClose = window.closeSeaZoneModal;
+        if (!origClose) return;
+
+        window.closeSeaZoneModal = function () {
+            PopupStack.remove('sea-zone-modal');
+            origClose.apply(this, arguments);
+        };
+
+        // showMarineZoneModal은 로컬 함수이므로 DOM 감시로 등록
+        var seaZoneObserver = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                mutation.addedNodes.forEach(function (node) {
+                    if (node.id === 'sea-zone-modal') {
+                        PopupStack.push('sea-zone-modal', function () {
+                            window.closeSeaZoneModal();
+                        });
+                    }
+                });
+                mutation.removedNodes.forEach(function (node) {
+                    if (node.id === 'sea-zone-modal') {
+                        PopupStack.remove('sea-zone-modal');
+                    }
+                });
+            });
+        });
+        seaZoneObserver.observe(document.body, { childList: true });
+    }
+
+    /**
+     * 18. 해구별 Windy 팝업 (marine.js - openZoneWindy)
+     *     zone-windy-modal은 windy.js의 windy-modal과 별개
+     */
+    function wrapZoneWindyPopup() {
+        var origClose = window.closeZoneWindyPopup;
+        if (!origClose) return;
+
+        window.closeZoneWindyPopup = function () {
+            PopupStack.remove('zone-windy-modal');
+            origClose.apply(this, arguments);
+        };
+
+        // DOM 감시로 등록/해제
+        var zoneWindyObserver = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                mutation.addedNodes.forEach(function (node) {
+                    if (node.id === 'zone-windy-modal') {
+                        PopupStack.push('zone-windy-modal', function () {
+                            window.closeZoneWindyPopup();
+                        });
+                    }
+                });
+                mutation.removedNodes.forEach(function (node) {
+                    if (node.id === 'zone-windy-modal') {
+                        PopupStack.remove('zone-windy-modal');
+                    }
+                });
+            });
+        });
+        zoneWindyObserver.observe(document.body, { childList: true });
+    }
+
     // ========================================================================
     // 뒤로가기 토스트 및 앱 종료 로직
     // ========================================================================
@@ -607,6 +673,8 @@
         wrapReportAnswerPopup();
         wrapAppUpdatePopup();
         wrapMaintenancePopup();
+        wrapSeaZoneModal();
+        wrapZoneWindyPopup();
 
         // 뒤로가기 핸들러 초기화
         // Capacitor 네이티브 환경이면 Capacitor 방식, 아니면 History API 트랩 방식
