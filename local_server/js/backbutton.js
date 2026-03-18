@@ -543,6 +543,58 @@
         zoneWindyObserver.observe(document.body, { childList: true });
     }
 
+    /**
+     * 19. 연안기상 이미지 모달 (render_coastal.js)
+     *     showImageModal은 로컬 함수이므로 DOM 감시로 처리
+     */
+    function wrapImageModal() {
+        var imageModalObserver = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                mutation.addedNodes.forEach(function (node) {
+                    if (node.id === 'image-modal-overlay') {
+                        PopupStack.push('image-modal-overlay', function () {
+                            var overlay = document.getElementById('image-modal-overlay');
+                            if (overlay) overlay.remove();
+                        });
+                    }
+                });
+                mutation.removedNodes.forEach(function (node) {
+                    if (node.id === 'image-modal-overlay') {
+                        PopupStack.remove('image-modal-overlay');
+                    }
+                });
+            });
+        });
+        imageModalObserver.observe(document.body, { childList: true });
+    }
+
+    /**
+     * 20. 부이 정보 모달 (seaZones.js)
+     *     buoy-info-modal + buoy-modal-backdrop 함께 제거
+     */
+    function wrapBuoyInfoModal() {
+        var buoyObserver = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                mutation.addedNodes.forEach(function (node) {
+                    if (node.id === 'buoy-info-modal') {
+                        PopupStack.push('buoy-info-modal', function () {
+                            var modal = document.getElementById('buoy-info-modal');
+                            if (modal) modal.remove();
+                            var backdrop = document.getElementById('buoy-modal-backdrop');
+                            if (backdrop) backdrop.remove();
+                        });
+                    }
+                });
+                mutation.removedNodes.forEach(function (node) {
+                    if (node.id === 'buoy-info-modal') {
+                        PopupStack.remove('buoy-info-modal');
+                    }
+                });
+            });
+        });
+        buoyObserver.observe(document.body, { childList: true });
+    }
+
     // ========================================================================
     // 뒤로가기 토스트 및 앱 종료 로직
     // ========================================================================
@@ -675,6 +727,8 @@
         wrapMaintenancePopup();
         wrapSeaZoneModal();
         wrapZoneWindyPopup();
+        wrapImageModal();
+        wrapBuoyInfoModal();
 
         // 뒤로가기 핸들러 초기화
         // Capacitor 네이티브 환경이면 Capacitor 방식, 아니면 History API 트랩 방식
