@@ -68,48 +68,63 @@
             "@capacitor/geolocation": "./assets/vendor/geolocation/index.js",
             "@capacitor/push-notifications": "./assets/vendor/push-notifications/index.js",
             "@capacitor/splash-screen": "./assets/vendor/splash-screen/index.js",
-            "@capacitor/app": "./assets/vendor/app/index.js"
+            "@capacitor/app": "./assets/vendor/app/index.js",
+            "@capacitor/browser": "./assets/vendor/browser/index.js",
+            "@capacitor/screen-orientation": "./assets/vendor/screen-orientation/index.js"
         }
     }
     </script>
 
-    <!-- 화면 방향 잠금 (세로 모드 고정) -->
+    <!-- 화면 방향 잠금 (Capacitor ScreenOrientation 플러그인 우선) -->
     <script>
+        // Capacitor ScreenOrientation 플러그인 헬퍼
+        function _getScreenOrientationPlugin() {
+            if (window.Capacitor && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins.ScreenOrientation) {
+                return window.Capacitor.Plugins.ScreenOrientation;
+            }
+            return null;
+        }
+
         // 화면 방향을 세로(Portrait)로 잠금
         window.lockScreenToPortrait = function () {
-            // 1. Web Screen Orientation API 시도 (전체화면 모드에서만 작동)
-            if (screen.orientation && screen.orientation.lock) {
-                screen.orientation.lock('portrait').catch(function (err) {
-                    // 전체화면이 아니거나 지원하지 않는 경우 무시
-                    console.log('[Orientation] Portrait lock not supported or not in fullscreen');
+            var plugin = _getScreenOrientationPlugin();
+            if (plugin) {
+                plugin.lock({ orientation: 'portrait' }).catch(function (err) {
+                    console.log('[Orientation] Capacitor portrait lock failed:', err);
                 });
+                return;
             }
-
-            // 2. 앱(WebView)에 세로 고정 요청
-            if (window.Android && window.Android.lockOrientation) {
-                window.Android.lockOrientation('portrait');
+            // Web API fallback
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('portrait').catch(function () {});
             }
         };
 
-        // 화면 방향 잠금 해제 (가로 모드 허용)
+        // 화면 방향 잠금 해제
         window.unlockScreenOrientation = function () {
+            var plugin = _getScreenOrientationPlugin();
+            if (plugin) {
+                plugin.unlock().catch(function (err) {
+                    console.log('[Orientation] Capacitor unlock failed:', err);
+                });
+                return;
+            }
             if (screen.orientation && screen.orientation.unlock) {
                 screen.orientation.unlock();
-            }
-            if (window.Android && window.Android.unlockOrientation) {
-                window.Android.unlockOrientation();
             }
         };
 
         // 특정 팝업에서 가로 모드로 전환
         window.lockScreenToLandscape = function () {
-            if (screen.orientation && screen.orientation.lock) {
-                screen.orientation.lock('landscape').catch(function (err) {
-                    console.log('[Orientation] Landscape lock not supported');
+            var plugin = _getScreenOrientationPlugin();
+            if (plugin) {
+                plugin.lock({ orientation: 'landscape' }).catch(function (err) {
+                    console.log('[Orientation] Capacitor landscape lock failed:', err);
                 });
+                return;
             }
-            if (window.Android && window.Android.lockOrientation) {
-                window.Android.lockOrientation('landscape');
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(function () {});
             }
         };
     </script>
