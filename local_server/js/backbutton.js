@@ -537,20 +537,22 @@
     function initCapacitorBackButton() {
         if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return false;
 
-        import('@capacitor/app').then(function (module) {
-            var App = module.App;
+        // window.Capacitor.Plugins.App을 직접 사용 (dynamic import 제거)
+        // dynamic import('@capacitor/app')는 모듈 로딩 타이밍 이슈로
+        // 리스너 등록이 실패하거나 네이티브 브릿지와 연결되지 않을 수 있음
+        var AppPlugin = window.Capacitor.Plugins.App;
+        if (!AppPlugin) {
+            console.error('[BackButton] Capacitor App 플러그인을 찾을 수 없습니다');
+            return false;
+        }
 
-            App.addListener('backButton', function () {
-                handleBackPress(function () {
-                    App.exitApp();
-                });
+        AppPlugin.addListener('backButton', function () {
+            handleBackPress(function () {
+                AppPlugin.exitApp();
             });
-
-            console.log('[BackButton] Capacitor 뒤로가기 핸들러 등록 완료');
-        }).catch(function (e) {
-            console.error('[BackButton] @capacitor/app import 실패:', e);
         });
 
+        console.log('[BackButton] Capacitor 뒤로가기 핸들러 등록 완료');
         return true;
     }
 
