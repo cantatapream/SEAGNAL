@@ -1,9 +1,9 @@
 {
-  "appId": "com.seagnal.app.staging",
-  "appName": "SEA:GNAL(staging)",
+  "appId": "com.seagnal.app",
+  "appName": "SEA:GNAL(바다날씨)",
   "webDir": "www",
   "server": {
-    "url": "https://seagnal-staging.fly.dev",
+    "url": "https://seagnal-server.fly.dev",
     "cleartext": true,
     "androidScheme": "https"
   },
