@@ -8,8 +8,8 @@ import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebViewClient;
 
 public class MainActivity extends BridgeActivity {
 
@@ -25,15 +25,18 @@ public class MainActivity extends BridgeActivity {
             WebSettings settings = webView.getSettings();
             settings.setTextZoom(100);
 
-            // 커스텀 WebViewClient로 네트워크 에러 감지
-            webView.setWebViewClient(new WebViewClient() {
+            // BridgeWebViewClient를 상속하여 Capacitor 브릿지 기능을 유지하면서
+            // 네트워크 에러 감지 기능 추가
+            webView.setWebViewClient(new BridgeWebViewClient(getBridge()) {
                 @Override
                 public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                    // 메인 프레임 로딩 에러만 처리 (이미지, CSS 등 서브리소스 에러는 무시)
+                    // 메인 프레임 로딩 에러만 커스텀 처리 (이미지, CSS 등 서브리소스 에러는 Capacitor 기본 처리)
                     if (request.isForMainFrame()) {
                         isShowingError = true;
                         lastFailedUrl = request.getUrl().toString();
                         view.loadDataWithBaseURL(null, getOfflineErrorHtml(lastFailedUrl), "text/html", "UTF-8", null);
+                    } else {
+                        super.onReceivedError(view, request, error);
                     }
                 }
 
