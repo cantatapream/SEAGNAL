@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">SEA:GNAL(staging)</string>
-    <string name="title_activity_main">SEA:GNAL(staging)</string>
-    <string name="package_name">com.seagnal.app.staging</string>
-    <string name="custom_url_scheme">com.seagnal.app.staging</string>
+    <string name="app_name">SEA:GNAL(바다날씨)</string>
+    <string name="title_activity_main">SEA:GNAL(바다날씨)</string>
+    <string name="package_name">com.seagnal.app</string>
+    <string name="custom_url_scheme">com.seagnal.app</string>
 </resources>
