@@ -240,6 +240,7 @@ async function showSeaForecastTable(zoneName) {
 
     // 모달 컨텐츠
     const modalContent = document.createElement('div');
+    modalContent.className = 'forecast-modal-content';
     modalContent.style.cssText = `
         background: linear-gradient(145deg, #1a1e2e, #232a3c);
         border-radius: 16px;

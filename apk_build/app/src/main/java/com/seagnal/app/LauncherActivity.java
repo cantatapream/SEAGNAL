@@ -44,14 +44,15 @@ public class LauncherActivity
 
     @Override
     public void onBackPressed() {
-        // 앱 실행 후 3초간은 뒤로가기 버튼을 무시하여, 
+        // 앱 실행 후 3초간은 뒤로가기 버튼을 무시하여,
         // JavaScript가 히스토리 트랩을 설치할 시간을 확보해줍니다.
         if (System.currentTimeMillis() - creationTime < 3000) {
             return;
         }
-        
-        // 그 이후에는 기본 동작 (TWA에서는 웹뷰 히스토리 백 또는 종료)
-        // super.onBackPressed(); // 이걸 주석 처리하면 아예 안 꺼짐 (JS 제어권)
+
+        // 그 이후에는 기본 동작 (TWA에서는 웹뷰 히스토리 백)
+        // JS에서 History API 트랩으로 popstate 이벤트를 감지하여 처리
+        super.onBackPressed();
     }
 
     @Override

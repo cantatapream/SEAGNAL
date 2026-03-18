@@ -456,8 +456,18 @@ function initTideMap() {
             setPosition: (pos) => {
                 if (pos) {
                     popupElement.style.display = 'block';
+                    // 뒤로가기 버튼으로 팝업 닫기 지원
+                    if (window.PopupStack) {
+                        PopupStack.push('tide-popup', function () {
+                            stopGaugeAutoRefresh();
+                            tidePopupOverlay.setPosition(undefined);
+                        });
+                    }
                 } else {
                     popupElement.style.display = 'none';
+                    if (window.PopupStack) {
+                        PopupStack.remove('tide-popup');
+                    }
                 }
             },
             getPosition: () => popupElement.style.display === 'block' ? true : undefined
