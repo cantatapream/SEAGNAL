@@ -65,23 +65,6 @@ router.get('/api/status', (req, res) => {
     res.json(scheduler.getStatus());
 });
 
-// [DEBUG] 네트워크 진단 (필요 시 사용)
-router.get('/api/debug-fetch', async (req, res) => {
-    const results = {};
-    try {
-        const ipRes = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(5000) });
-        results.serverIP = await ipRes.json();
-    } catch (e) { results.serverIP = { error: e.message }; }
-    try {
-        const testUrl = 'https://apihub.kma.go.kr/api/typ01/url/sea_obs.php?stn=0&help=1&authKey=' + scheduler.getConfig().KMA_HUB_KEY;
-        const response = await fetch(testUrl, { signal: AbortSignal.timeout(10000) });
-        results.kmaApi = { success: true, status: response.status };
-    } catch (e) {
-        results.kmaApi = { success: false, error: e.message };
-    }
-    res.json(results);
-});
-
 // 2-1. 수동 업데이트
 router.post('/api/force-update/:type', async (req, res) => {
     const type = req.params.type;
