@@ -2142,25 +2142,20 @@ function displayBuoyDataInModal(container, data) {
     // 파고 3종 표시 (최대/유의/평균)
     const hasDetailedWave = data.whMax !== null || data.whSig !== null || data.whAvg !== null;
     if (hasDetailedWave) {
-        html += `<div>
-            <span style="color:#888;">🌊 파고</span>
-            <div style="display:flex; gap:12px; margin-top:4px;">`;
-        if (data.whMax !== null) {
-            html += `<span style="color:#4fc3f7; font-weight:500;">최대 <b>${data.whMax}</b> m</span>`;
-        }
-        if (data.whSig !== null) {
-            html += `<span style="color:#4fc3f7; font-weight:500;">유의 <b>${data.whSig}</b> m</span>`;
-        }
-        if (data.whAvg !== null) {
-            html += `<span style="color:#4fc3f7; font-weight:500;">평균 <b>${data.whAvg}</b> m</span>`;
-        }
-        html += `</div></div>`;
-        hasData = true;
-    } else if (data.wh !== null) {
-        // kma_buoy 데이터가 없으면 기존 유의파고만 표시
+        const sub = 'font-size:0.75em;font-weight:400;color:#888;';
+        const parts = [];
+        if (data.whMax !== null) parts.push(`${data.whMax}<span style="${sub}">m(최대)</span>`);
+        if (data.whSig !== null) parts.push(`${data.whSig}<span style="${sub}">m(유의)</span>`);
+        if (data.whAvg !== null) parts.push(`${data.whAvg}<span style="${sub}">m(평균)</span>`);
         html += `<div style="display:flex; justify-content:space-between;">
             <span style="color:#888;">🌊 파고</span>
-            <span style="color:#4fc3f7; font-weight:500;">${data.wh}m</span>
+            <span style="color:#4fc3f7; font-weight:500;">${parts.join(' | ')}</span>
+        </div>`;
+        hasData = true;
+    } else if (data.wh !== null) {
+        html += `<div style="display:flex; justify-content:space-between;">
+            <span style="color:#888;">🌊 파고</span>
+            <span style="color:#4fc3f7; font-weight:500;">${data.wh}<span style="font-size:0.75em;font-weight:400;color:#888;">m</span></span>
         </div>`;
         hasData = true;
     }
