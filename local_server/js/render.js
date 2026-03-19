@@ -1003,9 +1003,8 @@ function createAlertElement(items) {
     actionsContainer.className = 'card-action-btns';
     actionsContainer.style.cssText = 'display: flex; gap: 8px; margin-top: 15px;';
 
-    // [수정] 해역별 기상현황과 동일한 조건 적용: ZONE_NAME_DISPLAY_MAP에 없는 해역에만 기상예보 버튼 표시
-    const isMappedZone = typeof ZONE_NAME_DISPLAY_MAP !== 'undefined' && ZONE_NAME_DISPLAY_MAP[data.zoneName];
-    if (typeof showSeaForecastTable === 'function' && !isMappedZone) {
+    // 기상예보 버튼 (먼바다 포함 전체 해역 - ZONE_NAME_DISPLAY_MAP으로 통합 매핑은 showSeaForecastTable 내부에서 처리)
+    if (typeof showSeaForecastTable === 'function') {
         const forecastBtn = document.createElement('button');
         forecastBtn.innerHTML = '기상예보';
         forecastBtn.style.cssText = 'flex: 1; padding: 12px 8px; background: linear-gradient(135deg, #ffd54f, #ff9800, #f57c00); color: #1a1e2e; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: transform 0.2s; box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);';
