@@ -2149,7 +2149,7 @@ function displayBuoyDataInModal(container, data) {
         if (data.whAvg !== null) parts.push(`${data.whAvg}<span style="${sub}">m(평균)</span>`);
         html += `<div style="display:flex; justify-content:space-between;">
             <span style="color:#888;">🌊 파고</span>
-            <span style="color:#4fc3f7; font-weight:500;">${parts.join(' | ')}</span>
+            <span style="color:#4fc3f7; font-weight:500;">${parts.join('<span style="font-size:0.75em;font-weight:400;color:#888;"> | </span>')}</span>
         </div>`;
         hasData = true;
     } else if (data.wh !== null) {
