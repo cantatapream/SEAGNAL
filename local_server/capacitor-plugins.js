@@ -182,13 +182,26 @@ const initPushNotifications = async () => {
 
 // 시스템 설정화면 열기
 window.openAppSettings = async () => {
+    if (window._updatePushDebug) window._updatePushDebug('[openAppSettings] called');
     if (window.Capacitor && window.Capacitor.isNativePlatform()) {
         const { NativeSettings } = window.Capacitor.Plugins;
+        if (!NativeSettings) {
+            if (window._updatePushDebug) window._updatePushDebug('[openAppSettings] NativeSettings plugin NOT found');
+            return;
+        }
         try {
+            if (window._updatePushDebug) window._updatePushDebug('[openAppSettings] trying app_notification');
             await NativeSettings.open({ option: 'app_notification' });
         } catch (e) {
-            await NativeSettings.open({ option: 'application_details' });
+            if (window._updatePushDebug) window._updatePushDebug('[openAppSettings] fallback: ' + e.message);
+            try {
+                await NativeSettings.open({ option: 'application_details' });
+            } catch (e2) {
+                if (window._updatePushDebug) window._updatePushDebug('[openAppSettings] all failed: ' + e2.message);
+            }
         }
+    } else {
+        if (window._updatePushDebug) window._updatePushDebug('[openAppSettings] not native platform');
     }
 };
 
