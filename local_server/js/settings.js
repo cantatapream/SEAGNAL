@@ -364,7 +364,7 @@ function initNotificationUI() {
             console.log('Permission result:', permission);
             if (window._updatePushDebug) window._updatePushDebug('[Toggle] checkPermission: ' + permission);
 
-            if (permission === 'denied') {
+            if (permission === 'denied' || permission === 'prompt-with-rationale') {
                 e.preventDefault();
                 e.target.checked = false;
 
