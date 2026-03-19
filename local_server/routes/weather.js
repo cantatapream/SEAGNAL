@@ -65,6 +65,19 @@ router.get('/api/status', (req, res) => {
     res.json(scheduler.getStatus());
 });
 
+// [DEBUG] KMA API 연결 테스트
+router.get('/api/debug-fetch', async (req, res) => {
+    const testUrl = 'https://apihub.kma.go.kr/api/typ01/url/sea_obs.php?stn=0&help=1&authKey=' + scheduler.getConfig().KMA_HUB_KEY;
+    try {
+        const response = await fetch(testUrl, { signal: AbortSignal.timeout(10000) });
+        const buffer = await response.arrayBuffer();
+        const text = new TextDecoder('euc-kr').decode(buffer);
+        res.json({ success: true, status: response.status, bodyLength: text.length, first100: text.substring(0, 100) });
+    } catch (e) {
+        res.json({ success: false, error: e.message, cause: e.cause?.message || null, code: e.cause?.code || null, stack: e.stack?.substring(0, 300) });
+    }
+});
+
 // 2-1. 수동 업데이트
 router.post('/api/force-update/:type', async (req, res) => {
     const type = req.params.type;
