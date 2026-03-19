@@ -362,7 +362,6 @@ function initNotificationUI() {
 
             const permission = await window.checkPushPermission();
             console.log('Permission result:', permission);
-            if (window._updatePushDebug) window._updatePushDebug('[Toggle] checkPermission: ' + permission);
 
             if (permission === 'denied' || permission === 'prompt-with-rationale') {
                 e.preventDefault();
