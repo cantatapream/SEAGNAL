@@ -100,16 +100,16 @@ function displayBuoyInfo(buoy, container) {
     if (hasDetailedWave) {
         const valStyle = 'color:#4fc3f7;font-weight:600;font-size:1.1rem;';
         const unitStyle = 'font-size:0.75rem;font-weight:400;color:#8b949e;';
-        const sepStyle = 'color:#555;margin:0 4px;';
+        const sepStyle = 'color:#555;margin:0 2px;';
         const parts = [];
         if (buoyData.waveHeightMax !== null) parts.push(`<span style="${valStyle}">${buoyData.waveHeightMax}</span><span style="${unitStyle}">m(최대)</span>`);
         if (buoyData.waveHeightAvg !== null) parts.push(`<span style="${valStyle}">${buoyData.waveHeightAvg}</span><span style="${unitStyle}">m(평균)</span>`);
         if (buoyData.waveHeightSig !== null) parts.push(`<span style="${valStyle}">${buoyData.waveHeightSig}</span><span style="${unitStyle}">m(유의)</span>`);
         const waveDiv = document.createElement('div');
-        waveDiv.style.cssText = 'width:100%;margin-bottom:4px;';
+        waveDiv.style.cssText = 'width:100%;margin-bottom:2px;';
         waveDiv.innerHTML = `
-            <div style="font-size:0.85rem;color:#8b949e;margin-bottom:4px;">🌊 파고</div>
-            <div style="text-align:center;">${parts.join(`<span style="${sepStyle}">|</span>`)}</div>
+            <div style="font-size:0.85rem;color:#8b949e;margin-bottom:2px;">🌊 파고</div>
+            <div>${parts.join(`<span style="${sepStyle}">|</span>`)}</div>
         `;
         mainData.appendChild(waveDiv);
     } else if (buoyData.waveHeight !== null) {
