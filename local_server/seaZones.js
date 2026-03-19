@@ -2144,14 +2144,14 @@ function displayBuoyDataInModal(container, data) {
     if (hasDetailedWave) {
         const valStyle = 'color:#4fc3f7;font-weight:600;font-size:1em;';
         const unitStyle = 'font-size:0.75em;font-weight:400;color:#888;';
-        const sepStyle = 'color:#555;margin:0 4px;';
+        const sepStyle = 'color:#555;margin:0 1px;';
         const parts = [];
         if (data.whMax !== null) parts.push(`<span style="${valStyle}">${data.whMax}</span><span style="${unitStyle}">m(최대)</span>`);
         if (data.whAvg !== null) parts.push(`<span style="${valStyle}">${data.whAvg}</span><span style="${unitStyle}">m(평균)</span>`);
         if (data.whSig !== null) parts.push(`<span style="${valStyle}">${data.whSig}</span><span style="${unitStyle}">m(유의)</span>`);
         html += `<div style="margin-bottom:2px;">
             <div style="color:#888;margin-bottom:4px;">🌊 파고</div>
-            <div style="text-align:center;">${parts.join(`<span style="${sepStyle}">|</span>`)}</div>
+            <div>${parts.join(`<span style="${sepStyle}">|</span>`)}</div>
         </div>`;
         hasData = true;
     } else if (data.wh !== null) {
