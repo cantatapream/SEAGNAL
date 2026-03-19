@@ -332,6 +332,8 @@ const NotificationSettings = {
 NotificationSettings.init();
 
 function initNotificationUI() {
+    // 매번 localStorage에서 최신 값을 다시 읽어옴 (capacitor-plugins.js에서 직접 저장한 값 반영)
+    NotificationSettings.init();
     const s = NotificationSettings.get();
 
     const master = document.getElementById('push-master-toggle');
@@ -360,6 +362,7 @@ function initNotificationUI() {
 
             const permission = await window.checkPushPermission();
             console.log('Permission result:', permission);
+            if (window._updatePushDebug) window._updatePushDebug('[Toggle] checkPermission: ' + permission);
 
             if (permission === 'denied') {
                 e.preventDefault();
