@@ -2139,17 +2139,19 @@ function displayBuoyDataInModal(container, data) {
     let html = '<div style="display:grid; gap:8px; font-size:0.9rem;">';
     let hasData = false;
 
-    // 파고 3종 표시 (최대/유의/평균)
+    // 파고 3종 표시 (최대/유의/평균) - 라벨 아래 한 줄 배치
     const hasDetailedWave = data.whMax !== null || data.whSig !== null || data.whAvg !== null;
     if (hasDetailedWave) {
-        const sub = 'font-size:0.75em;font-weight:400;color:#888;';
+        const valStyle = 'color:#4fc3f7;font-weight:600;font-size:1em;';
+        const unitStyle = 'font-size:0.75em;font-weight:400;color:#888;';
+        const sepStyle = 'color:#555;margin:0 4px;';
         const parts = [];
-        if (data.whMax !== null) parts.push(`${data.whMax}<span style="${sub}">m(최대)</span>`);
-        if (data.whSig !== null) parts.push(`${data.whSig}<span style="${sub}">m(유의)</span>`);
-        if (data.whAvg !== null) parts.push(`${data.whAvg}<span style="${sub}">m(평균)</span>`);
-        html += `<div style="display:flex; justify-content:space-between;">
-            <span style="color:#888;">🌊 파고</span>
-            <span style="color:#4fc3f7; font-weight:500;">${parts.join('<span style="font-size:0.75em;font-weight:400;color:#888;"> | </span>')}</span>
+        if (data.whMax !== null) parts.push(`<span style="${valStyle}">${data.whMax}</span><span style="${unitStyle}">m(최대)</span>`);
+        if (data.whAvg !== null) parts.push(`<span style="${valStyle}">${data.whAvg}</span><span style="${unitStyle}">m(평균)</span>`);
+        if (data.whSig !== null) parts.push(`<span style="${valStyle}">${data.whSig}</span><span style="${unitStyle}">m(유의)</span>`);
+        html += `<div style="margin-bottom:2px;">
+            <div style="color:#888;margin-bottom:4px;">🌊 파고</div>
+            <div style="text-align:center;">${parts.join(`<span style="${sepStyle}">|</span>`)}</div>
         </div>`;
         hasData = true;
     } else if (data.wh !== null) {
