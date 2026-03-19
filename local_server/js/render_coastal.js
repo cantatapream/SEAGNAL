@@ -106,7 +106,7 @@ function displayBuoyInfo(buoy, container) {
         if (buoyData.waveHeightAvg !== null) parts.push(`<span style="${valStyle}">${buoyData.waveHeightAvg}</span><span style="${unitStyle}">m(평균)</span>`);
         if (buoyData.waveHeightSig !== null) parts.push(`<span style="${valStyle}">${buoyData.waveHeightSig}</span><span style="${unitStyle}">m(유의)</span>`);
         const waveDiv = document.createElement('div');
-        waveDiv.style.cssText = 'width:100%;margin-bottom:2px;';
+        waveDiv.style.cssText = 'width:100%;margin-bottom:-10px;';
         waveDiv.innerHTML = `
             <div style="font-size:0.85rem;color:#8b949e;margin-bottom:2px;">🌊 파고</div>
             <div>${parts.join(`<span style="${sepStyle}">|</span>`)}</div>
