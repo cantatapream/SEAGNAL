@@ -113,6 +113,7 @@ async function updateDuckDNS() {
 
 const PROD_DATA_DIR = path.join(__dirname, '../../Production/local_server/data');
 const IS_FLY_IO = !!process.env.FLY_ALLOC_ID;
+const PROD_API_BASE = 'https://seagnal-server.fly.dev';
 
 function saveData(filename, data) {
     const jsonStr = JSON.stringify(data, null, 2);
@@ -149,13 +150,41 @@ async function fetchWithTimeout(url, options = {}, timeout = 10000) {
 async function collectBuoys() {
     try {
         const url = `${CONFIG.URLS.BUOY}?stn=0&help=0&authKey=${CONFIG.KMA_HUB_KEY}`;
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url, {}, 8000);
         const buffer = await response.arrayBuffer();
         const text = new TextDecoder('euc-kr').decode(buffer);
         saveData('buoys.json', { updatedAt: getNowStr(), raw: text });
         lastRunStatus.buoys = { lastRun: getNowStr(), status: '성공', message: '데이터 저장 완료' };
     } catch (e) {
-        lastRunStatus.buoys = { lastRun: getNowStr(), status: '실패', message: e.message };
+        log(`⚠️ KMA 직접 수집 실패, 프로덕션 프록시 시도: ${e.message}`);
+        try {
+            const res = await fetchWithTimeout(`${PROD_API_BASE}/api/buoys`, {}, 8000);
+            const data = await res.json();
+            saveData('buoys.json', data);
+            lastRunStatus.buoys = { lastRun: getNowStr(), status: '성공', message: '프로덕션 프록시' };
+        } catch (e2) {
+            lastRunStatus.buoys = { lastRun: getNowStr(), status: '실패', message: e2.message };
+        }
+    }
+}
+
+// 1-2. 해양기상부이 상세 데이터 수집 (최대/유의/평균 파고)
+async function collectKmaBuoys() {
+    try {
+        const url = `${CONFIG.URLS.KMA_BUOY}?stn=0&help=0&authKey=${CONFIG.KMA_HUB_KEY}`;
+        const response = await fetchWithTimeout(url, {}, 8000);
+        const buffer = await response.arrayBuffer();
+        const text = new TextDecoder('euc-kr').decode(buffer);
+        saveData('kma_buoys.json', { updatedAt: getNowStr(), raw: text });
+    } catch (e) {
+        // 프로덕션에 kma-buoys API가 있으면 프록시, 없으면 무시
+        try {
+            const res = await fetchWithTimeout(`${PROD_API_BASE}/api/kma-buoys`, {}, 8000);
+            if (res.ok) {
+                const data = await res.json();
+                saveData('kma_buoys.json', data);
+            }
+        } catch (e2) { }
     }
 }
 
@@ -190,7 +219,7 @@ async function collectGeneralForecasts() {
         const results = {};
         for (const regId of SEA_FORECAST_ZONES) {
             const url = `https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstMsgService/getSeaFcst?pageNo=1&numOfRows=30&dataType=JSON&regId=${regId}&authKey=${CONFIG.KMA_HUB_KEY}`;
-            const res = await fetch(url);
+            const res = await fetchWithTimeout(url, {}, 8000);
             const data = await res.json();
             if (data.response?.body?.items?.item) {
                 results[regId] = Array.isArray(data.response.body.items.item) ? data.response.body.items.item : [data.response.body.items.item];
@@ -200,7 +229,15 @@ async function collectGeneralForecasts() {
         saveData('general_forecasts.json', { updatedAt: getNowStr(), data: results, count: Object.keys(results).length });
         lastRunStatus.general = { lastRun: getNowStr(), status: '성공', message: `${Object.keys(results).length}개 구역 저장` };
     } catch (e) {
-        lastRunStatus.general = { lastRun: getNowStr(), status: '실패', message: e.message };
+        log(`⚠️ 기상예보 직접 수집 실패, 프로덕션 프록시 시도: ${e.message}`);
+        try {
+            const res = await fetchWithTimeout(`${PROD_API_BASE}/api/forecasts`, {}, 8000);
+            const data = await res.json();
+            saveData('general_forecasts.json', data);
+            lastRunStatus.general = { lastRun: getNowStr(), status: '성공', message: '프로덕션 프록시' };
+        } catch (e2) {
+            lastRunStatus.general = { lastRun: getNowStr(), status: '실패', message: e2.message };
+        }
     }
 }
 
@@ -283,7 +320,15 @@ async function collectZoneForecasts() {
             }
         }
     } catch (e) {
-        lastRunStatus.zone = { lastRun: getNowStr(), status: '실패', message: e.message };
+        log(`⚠️ 해구별 예보 직접 수집 실패, 프로덕션 프록시 시도: ${e.message}`);
+        try {
+            const res = await fetchWithTimeout(`${PROD_API_BASE}/api/marine-zone-forecasts`, {}, 8000);
+            const data = await res.json();
+            saveData('zone_forecasts.json', data);
+            lastRunStatus.zone = { lastRun: getNowStr(), status: '성공', message: '프로덕션 프록시' };
+        } catch (e2) {
+            lastRunStatus.zone = { lastRun: getNowStr(), status: '실패', message: e2.message };
+        }
     } finally { isCollectingZone = false; }
 }
 
