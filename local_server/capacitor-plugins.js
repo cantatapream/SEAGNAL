@@ -117,6 +117,14 @@ const initPushNotifications = async () => {
     // 2. 권한 확인 및 요청
     let permStatus = await PushNotifications.checkPermissions();
 
+    // [DEBUG] 화면에 권한 상태 표시 (확인 후 제거)
+    const _dbg = document.createElement('div');
+    _dbg.id = 'push-debug-overlay';
+    _dbg.style.cssText = 'position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.85);color:#0f0;font-size:11px;padding:10px;border-radius:8px;z-index:999999;font-family:monospace;white-space:pre-wrap;pointer-events:none;';
+    _dbg.textContent = '[Push Debug]\ncheckPermissions: ' + permStatus.receive + '\ntime: ' + new Date().toLocaleTimeString();
+    document.body.appendChild(_dbg);
+    window._updatePushDebug = (msg) => { _dbg.textContent += '\n' + msg; };
+
     if (permStatus.receive === 'prompt') {
         // 최초 실행: 커스텀 팝업으로 알림 허용 유도
         const hasAskedBefore = localStorage.getItem('push_permission_asked');
@@ -143,10 +151,14 @@ const initPushNotifications = async () => {
         }
 
         permStatus = await PushNotifications.requestPermissions();
+        if (window._updatePushDebug) window._updatePushDebug('afterRequest: ' + permStatus.receive);
     }
+
+    if (window._updatePushDebug) window._updatePushDebug('finalStatus: ' + permStatus.receive);
 
     if (permStatus.receive === 'granted') {
         await PushNotifications.register();
+        if (window._updatePushDebug) window._updatePushDebug('register() called, master set to true');
 
         // 시스템에서 허용한 경우: 설정의 "푸시 알림 받기" 토글 자동 ON
         try {
