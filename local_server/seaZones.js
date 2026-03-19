@@ -2045,6 +2045,9 @@ async function fetchBuoyDataForModal(buoyId) {
         const mappedData = {
             time: cached.tm,
             wh: cached.waveHeight,
+            whMax: cached.waveHeightMax || null,
+            whSig: cached.waveHeightSig || null,
+            whAvg: cached.waveHeightAvg || null,
             ws: cached.windSpeed,
             wd: cached.windDirection,
             ta: cached.airTemp,
@@ -2126,7 +2129,6 @@ function parseBuoyDataForModal(text, buoyId) {
  */
 function displayBuoyDataInModal(container, data) {
     const metrics = [
-        { label: '🌊 파고', key: 'wh', unit: 'm', color: '#4fc3f7' },
         { label: '💨 풍속', key: 'ws', unit: 'm/s', color: '#81c784' },
         { label: '🧭 풍향', key: 'wd', unit: '°', color: 'white' },
         { label: '🌡 기온', key: 'ta', unit: '°C', color: 'white' },
@@ -2136,6 +2138,32 @@ function displayBuoyDataInModal(container, data) {
 
     let html = '<div style="display:grid; gap:8px; font-size:0.9rem;">';
     let hasData = false;
+
+    // 파고 3종 표시 (최대/유의/평균)
+    const hasDetailedWave = data.whMax !== null || data.whSig !== null || data.whAvg !== null;
+    if (hasDetailedWave) {
+        html += `<div>
+            <span style="color:#888;">🌊 파고</span>
+            <div style="display:flex; gap:12px; margin-top:4px;">`;
+        if (data.whMax !== null) {
+            html += `<span style="color:#4fc3f7; font-weight:500;">최대 <b>${data.whMax}</b> m</span>`;
+        }
+        if (data.whSig !== null) {
+            html += `<span style="color:#4fc3f7; font-weight:500;">유의 <b>${data.whSig}</b> m</span>`;
+        }
+        if (data.whAvg !== null) {
+            html += `<span style="color:#4fc3f7; font-weight:500;">평균 <b>${data.whAvg}</b> m</span>`;
+        }
+        html += `</div></div>`;
+        hasData = true;
+    } else if (data.wh !== null) {
+        // kma_buoy 데이터가 없으면 기존 유의파고만 표시
+        html += `<div style="display:flex; justify-content:space-between;">
+            <span style="color:#888;">🌊 파고</span>
+            <span style="color:#4fc3f7; font-weight:500;">${data.wh}m</span>
+        </div>`;
+        hasData = true;
+    }
 
     metrics.forEach(m => {
         if (data[m.key] !== null) {

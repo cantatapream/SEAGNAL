@@ -54,7 +54,13 @@ router.get('/api/buoys', (req, res) => {
     else res.status(404).json({ error: '데이터 준비 중' });
 });
 
-// 2-1. API 상태 확인
+// 2-1. 부이 상세 파고 정보 (kma_buoy.php)
+router.get('/api/kma-buoys', (req, res) => {
+    if (dataCache.kmaBuoys) res.json(dataCache.kmaBuoys);
+    else res.status(404).json({ error: '데이터 준비 중' });
+});
+
+// 2-2. API 상태 확인
 router.get('/api/status', (req, res) => {
     res.json(scheduler.getStatus());
 });
