@@ -188,6 +188,19 @@ async function collectKmaBuoys() {
     }
 }
 
+// 1-2. 해양기상부이 상세 데이터 수집 (최대/유의/평균 파고)
+async function collectKmaBuoys() {
+    try {
+        const url = `${CONFIG.URLS.KMA_BUOY}?stn=0&help=0&authKey=${CONFIG.KMA_HUB_KEY}`;
+        const response = await fetch(url);
+        const buffer = await response.arrayBuffer();
+        const text = new TextDecoder('euc-kr').decode(buffer);
+        saveData('kma_buoys.json', { updatedAt: getNowStr(), raw: text });
+    } catch (e) {
+        log(`⚠️ KMA 부이 상세 수집 실패: ${e.message}`);
+    }
+}
+
 // 2. 기상예보 수집
 const SEA_FORECAST_ZONES = [
     '12B10304', '12B10302', '12B10301', '12B10303', '12B10300', '12B10400',
