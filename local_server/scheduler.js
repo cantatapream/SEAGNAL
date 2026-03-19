@@ -72,7 +72,7 @@ const CONFIG = {
     DATA_DIR: path.join(__dirname, 'data'),
     URLS: {
         BUOY: 'https://apihub.kma.go.kr/api/typ01/url/sea_obs.php',
-        BUOY: 'https://apihub.kma.go.kr/api/typ01/url/sea_obs.php',
+        KMA_BUOY: 'https://apihub.kma.go.kr/api/typ01/url/kma_buoy.php',
         SEA_FORECAST: 'https://apihub.kma.go.kr/api/typ01/url/fct_afs_dl.php',
         SEA_ZONE_LARGE: 'https://apihub.kma.go.kr/api/typ06/url/marine_large_zone.php'
     }
@@ -156,6 +156,19 @@ async function collectBuoys() {
         lastRunStatus.buoys = { lastRun: getNowStr(), status: '성공', message: '데이터 저장 완료' };
     } catch (e) {
         lastRunStatus.buoys = { lastRun: getNowStr(), status: '실패', message: e.message };
+    }
+}
+
+// 1-2. 해양기상부이 상세 데이터 수집 (최대/유의/평균 파고)
+async function collectKmaBuoys() {
+    try {
+        const url = `${CONFIG.URLS.KMA_BUOY}?stn=0&help=0&authKey=${CONFIG.KMA_HUB_KEY}`;
+        const response = await fetch(url);
+        const buffer = await response.arrayBuffer();
+        const text = new TextDecoder('euc-kr').decode(buffer);
+        saveData('kma_buoys.json', { updatedAt: getNowStr(), raw: text });
+    } catch (e) {
+        log(`⚠️ KMA 부이 상세 수집 실패: ${e.message}`);
     }
 }
 
@@ -291,6 +304,7 @@ async function init() {
     try {
         await Promise.all([
             collectBuoys().then(() => log('✅ 부이 데이터 수집 완료')),
+            collectKmaBuoys().then(() => log('✅ 부이 상세(파고) 데이터 수집 완료')),
             collectGeneralForecasts().then(() => log('✅ 일반예보 데이터 수집 완료')),
             collectZoneForecasts().then(() => log('✅ 해구별 예보 데이터 수집 완료'))
         ]);
@@ -315,7 +329,10 @@ async function init() {
         const min = now.getMinutes();
 
         // 부이: 매시 5분, 35분
-        if (min % 30 === 5) collectBuoys();
+        if (min % 30 === 5) {
+            collectBuoys();
+            collectKmaBuoys();
+        }
 
         // 기상예보: 하루 2회 (05:15, 17:15)
         if (['05:15', '17:15'].includes(hm)) collectGeneralForecasts();
@@ -342,6 +359,7 @@ init();
 
 module.exports = {
     collectBuoys,
+    collectKmaBuoys,
     collectGeneralForecasts,
     collectZoneForecasts,
     getStatus: () => lastRunStatus,
