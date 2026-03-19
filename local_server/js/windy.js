@@ -231,9 +231,6 @@ function renderBuoyButtonsForStatus(zoneName, container) {
 
 function renderOtherButtonsForStatus(zoneName, container) {
     if (typeof ZONE_OVERLAY_CONFIG !== 'undefined' && ZONE_OVERLAY_CONFIG[zoneName]) {
-        // 매핑된 구역인지 확인
-        const isMappedZone = typeof ZONE_NAME_DISPLAY_MAP !== 'undefined' && ZONE_NAME_DISPLAY_MAP[zoneName];
-
         const btnContainer = document.createElement('div');
         btnContainer.style.cssText = `
             display: flex;
@@ -242,8 +239,11 @@ function renderOtherButtonsForStatus(zoneName, container) {
             flex-wrap: nowrap;
         `;
 
-        // 1. 기상예보 버튼
-        if (!isMappedZone) {
+        // 매핑된 구역인지 확인
+        const isMappedZone = typeof ZONE_NAME_DISPLAY_MAP !== 'undefined' && ZONE_NAME_DISPLAY_MAP[zoneName];
+
+        // 1. 기상예보 버튼: 기존 앞바다 로직 유지 + 먼바다 해역 추가
+        if (!isMappedZone || zoneName.includes('먼바다')) {
             const forecastBtn = document.createElement('button');
             forecastBtn.className = 'forecast-btn';
             forecastBtn.innerHTML = '기상예보';
@@ -554,8 +554,8 @@ function createStatusCard(zoneName) {
 
     const isMappedZone = typeof ZONE_NAME_DISPLAY_MAP !== 'undefined' && ZONE_NAME_DISPLAY_MAP[zoneName];
 
-    // 기상예보 버튼
-    if (!isMappedZone) {
+    // 기상예보 버튼: 기존 앞바다 로직 유지 + 먼바다 해역 추가
+    if (!isMappedZone || zoneName.includes('먼바다')) {
         const forecastBtn = document.createElement('button');
         forecastBtn.textContent = '기상예보';
         forecastBtn.style.cssText = `
