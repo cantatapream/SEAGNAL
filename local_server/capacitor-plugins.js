@@ -190,12 +190,18 @@ window.openAppSettings = async () => {
             return;
         }
         try {
-            if (window._updatePushDebug) window._updatePushDebug('[openAppSettings] trying app_notification');
-            await NativeSettings.open({ option: 'app_notification' });
+            if (window._updatePushDebug) window._updatePushDebug('[openAppSettings] trying AppNotification');
+            await NativeSettings.open({
+                optionAndroid: 'AppNotification',
+                optionIOS: 'App'
+            });
         } catch (e) {
             if (window._updatePushDebug) window._updatePushDebug('[openAppSettings] fallback: ' + e.message);
             try {
-                await NativeSettings.open({ option: 'application_details' });
+                await NativeSettings.open({
+                    optionAndroid: 'ApplicationDetails',
+                    optionIOS: 'App'
+                });
             } catch (e2) {
                 if (window._updatePushDebug) window._updatePushDebug('[openAppSettings] all failed: ' + e2.message);
             }
