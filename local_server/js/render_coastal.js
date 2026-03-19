@@ -95,7 +95,18 @@ function displayBuoyInfo(buoy, container) {
     mainData.style.marginBottom = '12px';
     mainData.style.flexWrap = 'wrap';
 
-    if (buoyData.waveHeight !== null) {
+    // 파고 표시: 최대/유의/평균이 있으면 3종, 없으면 기존 유의파고만
+    const hasDetailedWave = buoyData.waveHeightMax !== null && buoyData.waveHeightMax !== undefined;
+    if (hasDetailedWave) {
+        const sub = '<span style="font-size:0.75rem;font-weight:400;color:#8b949e">';
+        const parts = [];
+        if (buoyData.waveHeightMax !== null) parts.push(`${buoyData.waveHeightMax}${sub}m(최대)</span>`);
+        if (buoyData.waveHeightSig !== null) parts.push(`${buoyData.waveHeightSig}${sub}m(유의)</span>`);
+        if (buoyData.waveHeightAvg !== null) parts.push(`${buoyData.waveHeightAvg}${sub}m(평균)</span>`);
+        const waveBox = createDataBox('🌊 파고', '', '', '#4fc3f7');
+        waveBox.querySelector('span:last-child').innerHTML = parts.join('<span style="font-size:0.75rem;font-weight:400;color:#8b949e"> | </span>');
+        mainData.appendChild(waveBox);
+    } else if (buoyData.waveHeight !== null) {
         const waveBox = createDataBox('🌊 파고', buoyData.waveHeight, 'm', '#4fc3f7');
         mainData.appendChild(waveBox);
     }
