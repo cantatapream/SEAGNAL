@@ -65,40 +65,20 @@ router.get('/api/status', (req, res) => {
     res.json(scheduler.getStatus());
 });
 
-// [DEBUG] KMA API 연결 테스트
+// [DEBUG] 네트워크 진단 (필요 시 사용)
 router.get('/api/debug-fetch', async (req, res) => {
     const results = {};
-
-    // 1. 외부 IP 확인
     try {
         const ipRes = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(5000) });
         results.serverIP = await ipRes.json();
     } catch (e) { results.serverIP = { error: e.message }; }
-
-    // 2. DNS 확인
     try {
-        const dns = require('dns').promises;
-        const addresses = await dns.resolve4('apihub.kma.go.kr');
-        results.dns = { resolved: addresses };
-    } catch (e) { results.dns = { error: e.message }; }
-
-    // 3. KMA API 호출 테스트
-    const testUrl = 'https://apihub.kma.go.kr/api/typ01/url/sea_obs.php?stn=0&help=1&authKey=' + scheduler.getConfig().KMA_HUB_KEY;
-    try {
+        const testUrl = 'https://apihub.kma.go.kr/api/typ01/url/sea_obs.php?stn=0&help=1&authKey=' + scheduler.getConfig().KMA_HUB_KEY;
         const response = await fetch(testUrl, { signal: AbortSignal.timeout(10000) });
-        const buffer = await response.arrayBuffer();
-        const text = new TextDecoder('euc-kr').decode(buffer);
-        results.kmaApi = { success: true, status: response.status, bodyLength: text.length };
+        results.kmaApi = { success: true, status: response.status };
     } catch (e) {
-        results.kmaApi = { success: false, error: e.message, cause: e.cause?.message || null, code: e.cause?.code || null };
+        results.kmaApi = { success: false, error: e.message };
     }
-
-    // 4. 다른 한국 API 테스트 (비교용)
-    try {
-        const testRes = await fetch('https://www.google.com', { method: 'HEAD', signal: AbortSignal.timeout(5000) });
-        results.googleTest = { success: true, status: testRes.status };
-    } catch (e) { results.googleTest = { error: e.message }; }
-
     res.json(results);
 });
 
