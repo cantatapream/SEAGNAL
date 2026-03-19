@@ -104,7 +104,7 @@ function displayBuoyInfo(buoy, container) {
         if (buoyData.waveHeightSig !== null) parts.push(`${buoyData.waveHeightSig}${sub}m(유의)</span>`);
         if (buoyData.waveHeightAvg !== null) parts.push(`${buoyData.waveHeightAvg}${sub}m(평균)</span>`);
         const waveBox = createDataBox('🌊 파고', '', '', '#4fc3f7');
-        waveBox.querySelector('span:last-child').innerHTML = parts.join(' | ');
+        waveBox.querySelector('span:last-child').innerHTML = parts.join('<span style="font-size:0.75rem;font-weight:400;color:#8b949e"> | </span>');
         mainData.appendChild(waveBox);
     } else if (buoyData.waveHeight !== null) {
         const waveBox = createDataBox('🌊 파고', buoyData.waveHeight, 'm', '#4fc3f7');
