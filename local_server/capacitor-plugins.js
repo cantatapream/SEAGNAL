@@ -134,18 +134,12 @@ const initPushNotifications = async () => {
             const userAccepted = await showCustomPopup({
                 icon: '<svg viewBox="0 0 24 24" stroke="#448aff"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
                 iconBg: 'rgba(68, 138, 255, 0.12)',
-                title: '알림을 허용하시겠습니까?',
-                message: '해상 특보가 발표되면<br>실시간 푸시 알림으로 알려드립니다.<br><br><span style="font-size: 0.82rem; color: #64748b;">설정에서 언제든 변경할 수 있습니다.</span>',
-                confirmText: '허용',
-                cancelText: '나중에'
+                title: '실시간 특보 알림 안내',
+                message: '해상 특보가 발표되면<br>실시간 푸시 알림으로 알려드립니다.<br><br>다음 화면에서 반드시<br><span style="color: #ffd600; font-weight: bold;">허용을 눌러주세요.</span><br><br><img src="assets/images/push_permission_guide.png" alt="알림 허용 안내" style="width: 85%; border-radius: 12px; margin: 8px auto; display: block; border: 1px solid rgba(255,255,255,0.15);"><br><span style="color: #ef5350; font-weight: bold;">허용하지 않으면 실시간 특보 알림을 받을 수 없습니다.</span><br><br><span style="font-size: 0.82rem; color: #64748b;">알림은 설정에서 언제든 변경할 수 있습니다.</span>',
+                confirmText: '확인'
             });
 
             localStorage.setItem('push_permission_asked', 'true');
-
-            if (!userAccepted) {
-                console.log('[Push] 사용자가 나중에를 선택함');
-                return;
-            }
         }
 
         permStatus = await PushNotifications.requestPermissions();
@@ -153,6 +147,24 @@ const initPushNotifications = async () => {
 
     if (permStatus.receive === 'granted') {
         await PushNotifications.register();
+
+        // 시스템에서 허용한 경우: 설정의 "푸시 알림 받기" 토글 자동 ON
+        try {
+            const NOTI_KEY = 'notificationSettings_v1';
+            const saved = localStorage.getItem(NOTI_KEY);
+            const notiSettings = saved ? JSON.parse(saved) : {
+                master: false, target: 'interest',
+                announce: true, active: true, release: true, night: true
+            };
+            notiSettings.master = true;
+            localStorage.setItem(NOTI_KEY, JSON.stringify(notiSettings));
+
+            // UI가 이미 로드된 경우 토글 상태도 동기화
+            const masterToggle = document.getElementById('push-master-toggle');
+            if (masterToggle) masterToggle.checked = true;
+        } catch (e) {
+            console.error('[Push] 알림 설정 자동 ON 실패:', e);
+        }
     }
 };
 
