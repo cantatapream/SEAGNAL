@@ -757,11 +757,18 @@ function showTideInfoPopup() {
                     <div class="info-section-title">
                         <i class="fa-solid fa-triangle-exclamation"></i> 유의사항
                     </div>
-                    <ul class="info-list">
-                        <li>국립해양조사원은 공식적으로 166개 <strong>"표준항 외 위치의 조석정보를 제공하지 않음"</strong></li>
-                        <li>선택한 위치의 정보는 <strong>"표준항의 조석 관측･예측정보를 기준"</strong>으로 환경, 거리 등 요소를 <strong style="color: #448aff;">"자체 계산 로직에 반영"</strong>하여 산출한 결과임.</li>
-                        <li>산출된 결과는 자체 계산 로직에 따라 계산된 값이므로 <strong style="color: #ff5252;">"실제와 오차가 있으므로 이 정보 이용에 따른 책임을 지지 않음."</strong></li>
-                    </ul>
+                    <div style="color: #cbd5e1; font-size: 0.9rem; line-height: 1.7; padding: 0 4px;">
+                        <p style="margin: 0 0 12px 0;">국립해양조사원에서 제공하는 <strong style="color: #60a5fa;">TideBed</strong> 기반의 조석 예측정보를 제공합니다.</p>
+                        <p style="margin: 0 0 8px 0; color: #94a3b8; font-size: 0.85rem;">TideBed의 조석 예측정보 제공 방식:</p>
+                        <ol style="margin: 0 0 14px 0; padding-left: 20px; color: #cbd5e1;">
+                            <li style="margin-bottom: 6px;">대한민국의 해역을 일정한 기준에 따라 다수의 격자로 나눔</li>
+                            <li style="margin-bottom: 6px;">각 격자에 기준이 되는 표준항의 조석 관측소를 지정 <span style="color: #94a3b8;">(전국 166개)</span></li>
+                            <li style="margin-bottom: 6px;">관측소의 관측 값에 격자의 위치에 따른 조고비, 조고시 등 요소를 반영 및 계산하여 조석 예측정보 산출</li>
+                        </ol>
+                        <p style="margin: 0; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08);">
+                            <strong style="color: #fbbf24;">예측정보는 비교적 정확하나,</strong> <strong style="color: #ff5252;">실제와 오차가 있을 수 있으므로 정보 이용에 따른 책임을 지지 않습니다.</strong>
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
