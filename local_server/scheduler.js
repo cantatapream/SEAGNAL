@@ -177,7 +177,6 @@ async function collectKmaBuoys() {
         const text = new TextDecoder('euc-kr').decode(buffer);
         saveData('kma_buoys.json', { updatedAt: getNowStr(), raw: text });
     } catch (e) {
-        log(`⚠️ KMA 부이 상세 직접 수집 실패: ${e.message}`);
         // 프로덕션에 kma-buoys API가 있으면 프록시, 없으면 무시
         try {
             const res = await fetchWithTimeout(`${PROD_API_BASE}/api/kma-buoys`, {}, 8000);
@@ -185,9 +184,20 @@ async function collectKmaBuoys() {
                 const data = await res.json();
                 saveData('kma_buoys.json', data);
             }
-        } catch (e2) {
-            log(`⚠️ KMA 부이 상세 프록시 수집도 실패: ${e2.message}`);
-        }
+        } catch (e2) { }
+    }
+}
+
+// 1-2. 해양기상부이 상세 데이터 수집 (최대/유의/평균 파고)
+async function collectKmaBuoys() {
+    try {
+        const url = `${CONFIG.URLS.KMA_BUOY}?stn=0&help=0&authKey=${CONFIG.KMA_HUB_KEY}`;
+        const response = await fetch(url);
+        const buffer = await response.arrayBuffer();
+        const text = new TextDecoder('euc-kr').decode(buffer);
+        saveData('kma_buoys.json', { updatedAt: getNowStr(), raw: text });
+    } catch (e) {
+        log(`⚠️ KMA 부이 상세 수집 실패: ${e.message}`);
     }
 }
 
