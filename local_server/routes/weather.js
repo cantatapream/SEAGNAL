@@ -117,6 +117,12 @@ router.get('/api/marine-zone-forecasts', (req, res) => {
     else res.status(404).json({ error: '데이터 준비 중' });
 });
 
+// 4-1. 중기해상예보
+router.get('/api/mid-term-sea-forecasts', (req, res) => {
+    if (dataCache.midTermSeaForecasts) res.json(dataCache.midTermSeaForecasts);
+    else res.status(404).json({ error: '데이터 준비 중' });
+});
+
 // 5. 통보문 캐시 조회 (특보 히스토리 팝업 → 아코디언 펼침 시 호출)
 // collect_cache 디렉토리에 저장된 통보문별 AI 분석 결과를 반환
 // reportId 예: "met:202602162000:141" → 파일명: "met_202602162000_141.json"
