@@ -35,6 +35,30 @@ const SEA_WIND_DIRS = {
     'W': '서', 'WNW': '서북서', 'NW': '북서', 'NNW': '북북서'
 };
 
+// 풍향 각도(degree) → 한글 16방위 변환 (먼바다 해구 기상용)
+function degreeToWindDir(deg) {
+    if (deg === null || deg === undefined || isNaN(deg)) return '-';
+    deg = ((deg % 360) + 360) % 360;
+    const dirs = ['북', '북북동', '북동', '동북동', '동', '동남동', '남동', '남남동',
+                  '남', '남남서', '남서', '서남서', '서', '서북서', '북서', '북북서'];
+    return dirs[Math.round(deg / 22.5) % 16];
+}
+
+// UTC tm 문자열(YYYYMMDDHH) → KST Date 변환
+function tmToKstDate(tm) {
+    const s = String(tm);
+    const utc = new Date(Date.UTC(
+        parseInt(s.substring(0, 4)), parseInt(s.substring(4, 6)) - 1,
+        parseInt(s.substring(6, 8)), parseInt(s.substring(8, 10)), 0, 0
+    ));
+    return new Date(utc.getTime() + 9 * 60 * 60 * 1000);
+}
+
+// 파고 값 포맷 (1.0 → "1", 0.5 → "0.5")
+function formatWaveHeight(v) {
+    return v % 1 === 0 ? String(Math.round(v)) : String(parseFloat(v.toFixed(1)));
+}
+
 // 특보 구역명 → 예보 표시명 매핑 (UI에 표시할 이름)
 const ZONE_NAME_DISPLAY_MAP = {
     // 제주 먼바다 통합
@@ -341,33 +365,63 @@ async function showSeaForecastTable(zoneName) {
     };
     document.addEventListener('keydown', escHandler);
 
-    // API 코드 찾기
-    const regId = getZoneCodeByName(zoneName);
-    if (!regId) {
-        contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역의 예보 코드를 찾을 수 없습니다.<br><small style="color:#666;">(${zoneName})</small></div>`;
-        return;
-    }
+    // 먼바다 여부 확인
+    const isFarSea = zoneName && zoneName.includes('먼바다');
 
-    try {
-        // 로컬 서버 API에서 데이터 가져오기
-        const response = await fetch('/api/forecasts');
-        if (!response.ok) throw new Error('로컬 서버 응답 오류');
+    if (isFarSea) {
+        // 먼바다: 해구별 기상전망 데이터로 예보 생성
+        try {
+            const coords = typeof ZONE_COORDINATES !== 'undefined' ? ZONE_COORDINATES[zoneName] : null;
+            if (!coords) {
+                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역의 좌표를 찾을 수 없습니다.<br><small style="color:#666;">(${zoneName})</small></div>`;
+                return;
+            }
 
-        const json = await response.json();
+            const zoneId = typeof getSeaZoneByGPS === 'function' ? getSeaZoneByGPS(coords.lon, coords.lat) : null;
+            if (!zoneId || zoneId === '0') {
+                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 좌표의 해구 정보를 찾을 수 없습니다.<br><small style="color:#666;">(${zoneName}: ${coords.lat}, ${coords.lon})</small></div>`;
+                return;
+            }
 
-        // regId로 데이터 찾기
-        const items = json.data && json.data[regId];
+            const response = await fetch('/api/marine-zone-forecasts');
+            if (!response.ok) throw new Error('해구별 기상전망 데이터 조회 실패');
 
-        if (items && items.length > 0) {
-            // 발표시각
-            const tmFc = json.tmFc || (items[0] && items[0].tmFc);
-            renderSeaForecastTableInModal(contentArea, items, displayName, tmFc);
-        } else {
-            contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역(${regId})의 예보 데이터가 없습니다.<br><small style="color:#666;">스케줄러가 데이터를 수집할 때까지 기다려주세요.</small></div>`;
+            const json = await response.json();
+            const zoneData = json.data && json.data[String(zoneId)];
+
+            if (zoneData && zoneData.length > 0) {
+                const baseTm = json.baseTmUtf;
+                renderFarSeaForecastTable(contentArea, zoneData, displayName, baseTm);
+            } else {
+                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해구(${zoneId}) 예보 데이터가 없습니다.<br><small style="color:#666;">스케줄러가 데이터를 수집할 때까지 기다려주세요.</small></div>`;
+            }
+        } catch (error) {
+            contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ef5350;">❌ 데이터 조회 중 오류가 발생했습니다.<br><small>${error.message}</small></div>`;
         }
-    } catch (error) {
-        // console.error('해상예보 조회 오류:', error);
-        contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ef5350;">❌ 데이터 조회 중 오류가 발생했습니다.<br><small>${error.message}</small></div>`;
+    } else {
+        // 앞바다: 기존 단기예보 API 데이터 사용
+        const regId = getZoneCodeByName(zoneName);
+        if (!regId) {
+            contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역의 예보 코드를 찾을 수 없습니다.<br><small style="color:#666;">(${zoneName})</small></div>`;
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/forecasts');
+            if (!response.ok) throw new Error('로컬 서버 응답 오류');
+
+            const json = await response.json();
+            const items = json.data && json.data[regId];
+
+            if (items && items.length > 0) {
+                const tmFc = json.tmFc || (items[0] && items[0].tmFc);
+                renderSeaForecastTableInModal(contentArea, items, displayName, tmFc);
+            } else {
+                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역(${regId})의 예보 데이터가 없습니다.<br><small style="color:#666;">스케줄러가 데이터를 수집할 때까지 기다려주세요.</small></div>`;
+            }
+        } catch (error) {
+            contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ef5350;">❌ 데이터 조회 중 오류가 발생했습니다.<br><small>${error.message}</small></div>`;
+        }
     }
 }
 
@@ -576,6 +630,172 @@ function renderSeaForecastTableInModal(container, items, zoneName, tmFc = null) 
                     color: #8899aa;
                 ">${tmFcText}</div>
             ` : ''}
+        </div>
+    `;
+}
+
+// 먼바다 기상예보 테이블 렌더링 (해구별 기상전망 데이터 기반)
+function renderFarSeaForecastTable(container, zoneData, zoneName, baseTmUtf) {
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+    // UTC tm → KST로 변환하여 날짜별/시간대별 그룹화
+    const dataByDate = {};
+    zoneData.forEach(d => {
+        const kst = tmToKstDate(d.tm);
+        const dateKey = `${kst.getUTCFullYear()}${String(kst.getUTCMonth() + 1).padStart(2, '0')}${String(kst.getUTCDate()).padStart(2, '0')}`;
+        const hour = kst.getUTCHours();
+
+        if (!dataByDate[dateKey]) {
+            dataByDate[dateKey] = {
+                date: new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate())),
+                am: [], pm: []
+            };
+        }
+
+        if ([0, 3, 6, 9].includes(hour)) {
+            dataByDate[dateKey].am.push({ ...d, kstHour: hour });
+        } else if ([12, 15, 18, 21].includes(hour)) {
+            dataByDate[dateKey].pm.push({ ...d, kstHour: hour });
+        }
+    });
+
+    // 오늘(KST) 기준으로 4일치 선택
+    const now = new Date();
+    const kstNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600000));
+    const todayKey = `${kstNow.getFullYear()}${String(kstNow.getMonth() + 1).padStart(2, '0')}${String(kstNow.getDate()).padStart(2, '0')}`;
+    const todayDate = new Date(Date.UTC(kstNow.getFullYear(), kstNow.getMonth(), kstNow.getDate()));
+
+    const sortedDates = Object.keys(dataByDate).sort();
+    let startIdx = sortedDates.indexOf(todayKey);
+    if (startIdx < 0) {
+        startIdx = sortedDates.findIndex(d => d >= todayKey);
+        if (startIdx < 0) startIdx = 0;
+    }
+    const selectedDates = sortedDates.slice(startIdx, startIdx + 4);
+
+    if (selectedDates.length === 0) {
+        container.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 표시할 수 있는 예보 데이터가 없습니다.</div>`;
+        return;
+    }
+
+    // 오전/오후 데이터 가공
+    function processSlot(items) {
+        if (!items || items.length === 0) return null;
+        items.sort((a, b) => a.kstHour - b.kstHour);
+
+        const whValues = items.map(i => i.wh).filter(v => !isNaN(v) && v !== null);
+        const wsValues = items.map(i => i.ws).filter(v => !isNaN(v) && v !== null);
+
+        if (whValues.length === 0 && wsValues.length === 0) return null;
+
+        const whMin = Math.min(...whValues);
+        const whMax = Math.max(...whValues);
+        const wsMin = Math.round(Math.min(...wsValues));
+        const wsMax = Math.round(Math.max(...wsValues));
+
+        const firstDir = degreeToWindDir(items[0].windDir);
+        const lastDir = degreeToWindDir(items[items.length - 1].windDir);
+        const windDir = firstDir === lastDir ? firstDir : `${firstDir}→${lastDir}`;
+
+        return {
+            wh: whMin === whMax ? `${formatWaveHeight(whMin)}m` : `${formatWaveHeight(whMin)}~${formatWaveHeight(whMax)}m`,
+            ws: wsMin === wsMax ? `${wsMin}m/s` : `${wsMin}~${wsMax}m/s`,
+            windDir: windDir
+        };
+    }
+
+    const processedDays = selectedDates.map(dateKey => ({
+        dateKey,
+        date: dataByDate[dateKey].date,
+        am: processSlot(dataByDate[dateKey].am),
+        pm: processSlot(dataByDate[dateKey].pm)
+    }));
+
+    // 테이블 렌더링 (앞바다와 동일한 스타일)
+    const tableStyle = `width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 600px;`;
+    const thStyle = `padding: 10px 6px; text-align: center; background: #2a3347; color: #fff; font-weight: 600; border-bottom: 2px solid #4fc3f7;`;
+    const tdStyle = `padding: 8px 6px; text-align: center; border-bottom: 1px solid #3a4459; color: #e0e6ed;`;
+    const labelStyle = `background: #1e2433; text-align: left; padding-left: 12px; color: #4fc3f7; font-weight: 500; border-right: 1px solid #3a4459; width: 60px;`;
+
+    let html = `<table style="${tableStyle}">`;
+
+    // 날짜 헤더 행
+    html += `<tr><th style="${thStyle}; ${labelStyle}">날짜</th>`;
+    processedDays.forEach(day => {
+        const d = day.date;
+        const dayOffset = Math.round((d.getTime() - todayDate.getTime()) / (24 * 3600000));
+        const dayLabels = { 0: '오늘', 1: '내일', 2: '모레' };
+        const label = dayLabels[dayOffset] || '';
+        const dateStr = `${d.getUTCDate()}일(${dayNames[d.getUTCDay()]})`;
+        html += `<th colspan="2" style="${thStyle}">${dateStr}<br><small style="opacity:0.7">${label}</small></th>`;
+    });
+    html += `</tr>`;
+
+    // 시각 헤더 행
+    html += `<tr><th style="${thStyle}; ${labelStyle}">시각</th>`;
+    processedDays.forEach(() => {
+        html += `<th style="${thStyle}; font-size:0.8rem;">오전</th><th style="${thStyle}; font-size:0.8rem;">오후</th>`;
+    });
+    html += `</tr>`;
+
+    // 날씨 행 (먼바다는 데이터 없음)
+    html += `<tr><th style="${tdStyle}; ${labelStyle}">날씨</th>`;
+    processedDays.forEach(() => {
+        html += `<td style="${tdStyle}">-</td><td style="${tdStyle}">-</td>`;
+    });
+    html += `</tr>`;
+
+    // 파고 행
+    html += `<tr><th style="${tdStyle}; ${labelStyle}">파고<small style="display:block;font-size:0.7rem;color:#8899aa">(m)</small></th>`;
+    processedDays.forEach(day => {
+        ['am', 'pm'].forEach(period => {
+            const d = day[period];
+            html += d ? `<td style="${tdStyle}; color:#4db6ac; font-weight:600;">${d.wh}</td>` : `<td style="${tdStyle}">-</td>`;
+        });
+    });
+    html += `</tr>`;
+
+    // 풍속 행
+    html += `<tr><th style="${tdStyle}; ${labelStyle}">풍속<small style="display:block;font-size:0.7rem;color:#8899aa">(m/s)</small></th>`;
+    processedDays.forEach(day => {
+        ['am', 'pm'].forEach(period => {
+            const d = day[period];
+            html += d ? `<td style="${tdStyle}; color:#ff9800; font-weight:600;">${d.ws}</td>` : `<td style="${tdStyle}">-</td>`;
+        });
+    });
+    html += `</tr>`;
+
+    // 풍향 행
+    html += `<tr><th style="${tdStyle}; ${labelStyle}">풍향</th>`;
+    processedDays.forEach(day => {
+        ['am', 'pm'].forEach(period => {
+            const d = day[period];
+            html += d ? `<td style="${tdStyle}">${d.windDir}</td>` : `<td style="${tdStyle}">-</td>`;
+        });
+    });
+    html += `</tr>`;
+
+    // 예보 행 (먼바다는 데이터 없음)
+    html += `<tr><th style="${tdStyle}; ${labelStyle}">예보</th>`;
+    processedDays.forEach(() => {
+        html += `<td style="${tdStyle}">-</td><td style="${tdStyle}">-</td>`;
+    });
+    html += `</tr>`;
+
+    html += `</table>`;
+
+    // 발표시각 포맷팅
+    let tmFcText = '';
+    if (baseTmUtf) {
+        const baseKst = tmToKstDate(baseTmUtf);
+        tmFcText = `${baseKst.getUTCFullYear()}.${String(baseKst.getUTCMonth() + 1).padStart(2, '0')}.${String(baseKst.getUTCDate()).padStart(2, '0')} ${String(baseKst.getUTCHours()).padStart(2, '0')}:00 발표`;
+    }
+
+    container.innerHTML = `
+        <div style="position:relative;">
+            <div style="overflow-x:auto;">${html}</div>
+            <div style="text-align:center; font-size:0.95rem; color:#ffffff; padding:10px 0 4px; font-weight:500;">☜ 밀어서 더 많은 정보를 확인하세요 ☞</div>
+            ${tmFcText ? `<div style="text-align: right; padding: 4px 5px 5px 5px; font-size: 0.75rem; color: #8899aa;">${tmFcText}</div>` : ''}
         </div>
     `;
 }
