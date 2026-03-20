@@ -141,7 +141,7 @@ router.post('/api/unsubscribe', (req, res) => {
 // 커스텀 푸시 발송 API (Broadcast + Personalized)
 // ============================================================================
 router.post('/api/push-custom', async (req, res) => {
-    const { title, content, targetZones, isManualGroupSend, payload } = req.body;
+    const { title, content, targetZones, isManualGroupSend, payload, sendToAllSubscribers } = req.body;
 
     // 수동 그룹 발송 모드 (개인화 필터링 적용)
     if (isManualGroupSend && payload) {
@@ -189,7 +189,7 @@ router.post('/api/push-custom', async (req, res) => {
                     shouldSend = true;
                 } else {
                     // [기존 커스텀 모드]
-                    const sendAll = targetZones.includes('전체 해역') || targetZones.includes('전체해역');
+                    const sendAll = sendToAllSubscribers || targetZones.includes('전체 해역') || targetZones.includes('전체해역') || targetZones.includes('구독자 전원');
                     const zoneList = sendAll ? [] : targetZones.split(',').map(z => z.trim());
 
                     if (sendAll || (user.options && user.options.target === 'all')) {
