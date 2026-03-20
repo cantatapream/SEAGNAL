@@ -847,19 +847,16 @@ function renderSeaForecastTableInModal(container, items, zoneName, tmFc = null, 
 
     html += `</table>`;
 
-    // 발표시각 포맷팅 (단기 + 중기)
-    let announcementText = '';
+    // 발표시각 포맷팅 (단기 + 중기, 각각 별도 줄)
+    let shortTermLine = '';
+    let midTermLine = '';
     if (tmFc) {
         const shortTermText = formatShortTermTmFc(tmFc);
-        announcementText = `단기예보(1일~3일) ${shortTermText} 발표`;
+        shortTermLine = `단기예보(1일~3일) ${shortTermText} 발표`;
     }
     if (midTermTmFc) {
         const midText = formatMidTermTmFc(midTermTmFc);
-        if (announcementText) {
-            announcementText += ` / 중기예보(4일~10일) ${midText} 발표`;
-        } else {
-            announcementText = `중기예보(4일~10일) ${midText} 발표`;
-        }
+        midTermLine = `중기예보(4일~10일) ${midText} 발표`;
     }
 
     // 테이블과 발표시각 표시
@@ -867,13 +864,14 @@ function renderSeaForecastTableInModal(container, items, zoneName, tmFc = null, 
         <div style="position:relative;">
             <div style="overflow-x:auto;">${html}</div>
             <div style="text-align:center; font-size:0.95rem; color:#ffffff; padding:10px 0 4px; font-weight:500;">☜ 밀어서 더 많은 정보를 확인하세요 ☞</div>
-            ${announcementText ? `
+            ${(shortTermLine || midTermLine) ? `
                 <div style="
                     text-align: right;
                     padding: 4px 5px 5px 5px;
                     font-size: 0.75rem;
                     color: #8899aa;
-                ">${announcementText}</div>
+                    line-height: 1.8;
+                ">${shortTermLine}${(shortTermLine && midTermLine) ? '<br>' : ''}${midTermLine}</div>
             ` : ''}
         </div>
     `;
@@ -1076,29 +1074,34 @@ function renderFarSeaForecastTable(container, zoneData, zoneName, baseTmUtf, mid
 
     html += `</table>`;
 
-    // 발표시각 포맷팅 (해구기상 + 중기)
-    let announcementText = '';
+    // 발표시각 포맷팅 (해구기상 + 중기, 각각 별도 줄)
+    let shortTermLine = '';
+    let midTermLine = '';
     if (baseTmUtf) {
         const baseKst = tmToKstDate(baseTmUtf);
         const month = baseKst.getUTCMonth() + 1;
         const day = String(baseKst.getUTCDate()).padStart(2, '0');
         const hour = String(baseKst.getUTCHours()).padStart(2, '0');
-        announcementText = `해구기상정보(1일~3일) ${month}월 ${day}일 ${hour}:00 발표`;
+        shortTermLine = `해구기상정보(1일~3일) ${month}월 ${day}일 ${hour}:00 발표`;
     }
     if (midTermTmFc) {
         const midText = formatMidTermTmFc(midTermTmFc);
-        if (announcementText) {
-            announcementText += ` / 중기예보(4일~10일) ${midText} 발표`;
-        } else {
-            announcementText = `중기예보(4일~10일) ${midText} 발표`;
-        }
+        midTermLine = `중기예보(4일~10일) ${midText} 발표`;
     }
 
     container.innerHTML = `
         <div style="position:relative;">
             <div style="overflow-x:auto;">${html}</div>
             <div style="text-align:center; font-size:0.95rem; color:#ffffff; padding:10px 0 4px; font-weight:500;">☜ 밀어서 더 많은 정보를 확인하세요 ☞</div>
-            ${announcementText ? `<div style="text-align: right; padding: 4px 5px 5px 5px; font-size: 0.75rem; color: #8899aa;">${announcementText}</div>` : ''}
+            ${(shortTermLine || midTermLine) ? `
+                <div style="
+                    text-align: right;
+                    padding: 4px 5px 5px 5px;
+                    font-size: 0.75rem;
+                    color: #8899aa;
+                    line-height: 1.8;
+                ">${shortTermLine}${(shortTermLine && midTermLine) ? '<br>' : ''}${midTermLine}</div>
+            ` : ''}
         </div>
     `;
 }
