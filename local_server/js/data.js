@@ -279,7 +279,18 @@ async function fetchBuoyData() {
         // console.log('Buoys Updated At:', jsonData.updatedAt);
 
         const parsed = parseBuoyData(text);
-        // console.log('Buoy Parsed:', Object.keys(parsed).length, 'stations');
+
+        // KMA 부이 상세 데이터 병합 (최대/유의/평균 파고)
+        try {
+            const kmaBuoyData = await fetchKmaBuoyData();
+            for (const stnId of Object.keys(parsed)) {
+                if (kmaBuoyData[stnId]) {
+                    parsed[stnId].waveHeightMax = kmaBuoyData[stnId].waveHeightMax;
+                    parsed[stnId].waveHeightSig = kmaBuoyData[stnId].waveHeightSig;
+                    parsed[stnId].waveHeightAvg = kmaBuoyData[stnId].waveHeightAvg;
+                }
+            }
+        } catch (e) { }
 
         return parsed;
     } catch (e) {
@@ -365,6 +376,52 @@ function parseBuoyData(text) {
     // console.log('Parsed buoy station IDs:', Object.keys(buoyData).slice(0, 10));
 
     return buoyData;
+}
+
+// KMA 부이 상세 데이터 fetch (최대/유의/평균 파고)
+async function fetchKmaBuoyData() {
+    try {
+        const response = await fetch(CONFIG.KMA_BUOY_API_URL);
+        if (!response.ok) return {};
+        const jsonData = await response.json();
+        const text = jsonData.raw || '';
+        return parseKmaBuoyData(text);
+    } catch (e) {
+        return {};
+    }
+}
+
+// kma_buoy.php 응답 파싱
+// 포맷: TM(0), STN(1), WD1(2), WS1(3), WS1_GST(4), WD2(5), WS2(6), WS2_GST(7),
+//        PA(8), HM(9), TA(10), TW(11), WH_MAX(12), WH_SIG(13), WH_AVE(14), WP(15), WO(16)
+function parseKmaBuoyData(text) {
+    const lines = text.trim().split('\n');
+    const result = {};
+
+    lines.forEach(line => {
+        if (line.startsWith('#') || !line.trim()) return;
+        const parts = line.split(/\s+/).map(p => p.trim()).filter(p => p);
+        if (parts.length < 15) return;
+
+        try {
+            const stnId = parts[1].trim();
+            if (!stnId || stnId.length > 8 || stnId.length < 3) return;
+
+            const parseValue = (val) => {
+                const num = parseFloat(val);
+                return (isNaN(num) || num <= -99) ? null : num;
+            };
+
+            // 같은 부이의 최신 데이터만 유지 (마지막 줄이 최신)
+            result[stnId] = {
+                waveHeightMax: parseValue(parts[12]),
+                waveHeightSig: parseValue(parts[13]),
+                waveHeightAvg: parseValue(parts[14]),
+            };
+        } catch (e) { }
+    });
+
+    return result;
 }
 
 // 부이 데이터 없음 (API 실패 시)

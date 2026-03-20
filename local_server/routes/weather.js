@@ -54,7 +54,13 @@ router.get('/api/buoys', (req, res) => {
     else res.status(404).json({ error: '데이터 준비 중' });
 });
 
-// 2-1. API 상태 확인
+// 2-1. 부이 상세 파고 정보 (kma_buoy.php)
+router.get('/api/kma-buoys', (req, res) => {
+    if (dataCache.kmaBuoys) res.json(dataCache.kmaBuoys);
+    else res.status(404).json({ error: '데이터 준비 중' });
+});
+
+// 2-2. API 상태 확인
 router.get('/api/status', (req, res) => {
     res.json(scheduler.getStatus());
 });
@@ -64,7 +70,10 @@ router.post('/api/force-update/:type', async (req, res) => {
     const type = req.params.type;
     console.log(`🔄 수동 업데이트 요청: ${type}`);
     try {
-        if (type === 'buoys') await scheduler.collectBuoys();
+        if (type === 'buoys') {
+            await scheduler.collectBuoys();
+            await scheduler.collectKmaBuoys();
+        }
         else if (type === 'general') await scheduler.collectGeneralForecasts();
         else if (type === 'zone') await scheduler.collectZoneForecasts();
         else return res.status(400).json({ error: '잘못된 타입' });
