@@ -685,7 +685,7 @@ const APP_VERSION_FILE = path.join(__dirname, '..', 'app_version.json');
 /** 앱 버전 정보 수정 */
 router.post('/api/admin/app-version', (req, res) => {
     try {
-        const { latestVersion, latestVersionCode, minVersion, updateMessage } = req.body;
+        const { latestVersion, latestVersionCode, updateMessage } = req.body;
 
         if (!latestVersion || latestVersionCode === undefined) {
             return res.status(400).json({ error: 'latestVersion과 latestVersionCode는 필수입니다.' });
@@ -700,7 +700,6 @@ router.post('/api/admin/app-version', (req, res) => {
         // 값 업데이트
         config.latestVersion = latestVersion;
         config.latestVersionCode = parseInt(latestVersionCode, 10);
-        if (typeof minVersion === 'string') config.minVersion = minVersion;
         if (typeof updateMessage === 'string') config.updateMessage = updateMessage;
 
         fs.writeFileSync(APP_VERSION_FILE, JSON.stringify(config, null, 2), 'utf8');
