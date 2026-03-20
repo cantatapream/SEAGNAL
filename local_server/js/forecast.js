@@ -1116,38 +1116,68 @@ function renderFarSeaForecastTable(container, zoneData, zoneName, baseTmUtf, mid
     });
     html += `</tr>`;
 
-    // 날짜별 데이터 유무 확인 (열 단위 병합용)
-    const emptyDays = new Set();
+    // 단기 날짜별 데이터 유무 확인 (열 단위 병합용)
+    const emptyShortDays = new Set();
     processedDays.forEach((day, idx) => {
-        if (day.am === null && day.pm === null) emptyDays.add(idx);
+        if (day.am === null && day.pm === null) emptyShortDays.add(idx);
     });
+    const nonEmptyShortCount = processedDays.length - emptyShortDays.size;
+    const nonEmptyShortColSpan = nonEmptyShortCount * 2;
 
-    // 날씨 행 (먼바다 해구기상은 날씨 데이터 없음)
-    html += `<tr><th style="${tdStyle}; ${labelStyle}">날씨</th>`;
-    processedDays.forEach((day, idx) => {
-        if (emptyDays.has(idx)) {
-            html += `<td colspan="2" rowspan="5" style="${tdStyle}; color:#8899aa; vertical-align:middle;">정보 없음</td>`;
-            return;
-        }
-        html += `<td style="${tdStyle}">-</td><td style="${tdStyle}">-</td>`;
-    });
-    midTermDays.forEach(mid => {
-        ['am', 'pm'].forEach(period => {
-            html += renderMidTermCell(mid, period, 'wf_icon', midTdStyle);
+    // 중기 날짜별 데이터 유무 확인
+    const emptyMidDays = new Set();
+    midTermDays.forEach((mid, idx) => {
+        const hasData = ['am', 'pm'].some(period => {
+            const data = mid[period];
+            return data && ((data.wf && data.wf !== '-') || (data.wh && data.wh !== '-'));
         });
+        if (!hasData) emptyMidDays.add(idx);
+    });
+    const nonEmptyMidCount = midTermDays.length - emptyMidDays.size;
+    const nonEmptyMidColSpan = nonEmptyMidCount * 2;
+
+    // 날씨 행 (해구기상은 날씨 데이터 없음 → 비어있지 않은 단기 날짜는 행 병합 "정보 없음")
+    html += `<tr><th style="${tdStyle}; ${labelStyle}">날씨</th>`;
+    {
+        // 단기: 순서를 유지하면서 빈 날짜는 rowspan=5, 연속 비어있지 않은 날짜는 colspan으로 병합
+        let i = 0;
+        while (i < processedDays.length) {
+            if (emptyShortDays.has(i)) {
+                html += `<td colspan="2" rowspan="5" style="${tdStyle}; color:#8899aa; vertical-align:middle;">정보 없음</td>`;
+                i++;
+            } else {
+                // 연속 비어있지 않은 날짜 수 계산
+                let count = 0;
+                let j = i;
+                while (j < processedDays.length && !emptyShortDays.has(j)) { count++; j++; }
+                html += `<td colspan="${count * 2}" style="${tdStyle}; color:#8899aa;">정보 없음</td>`;
+                i = j;
+            }
+        }
+    }
+    // 중기: 빈 날짜는 rowspan=5, 비어있지 않은 날짜는 개별 셀
+    midTermDays.forEach((mid, idx) => {
+        if (emptyMidDays.has(idx)) {
+            html += `<td colspan="2" rowspan="5" style="${midTdStyle}; color:#8899aa; vertical-align:middle;">정보 없음</td>`;
+        } else {
+            ['am', 'pm'].forEach(period => {
+                html += renderMidTermCell(mid, period, 'wf_icon', midTdStyle);
+            });
+        }
     });
     html += `</tr>`;
 
     // 파고 행
     html += `<tr><th style="${tdStyle}; ${labelStyle}">파고<small style="display:block;font-size:0.7rem;color:#8899aa">(m)</small></th>`;
     processedDays.forEach((day, idx) => {
-        if (emptyDays.has(idx)) return; // rowspan으로 이미 병합됨
+        if (emptyShortDays.has(idx)) return; // rowspan으로 이미 병합됨
         ['am', 'pm'].forEach(period => {
             const d = day[period];
             html += d ? `<td style="${tdStyle}; color:#4db6ac; font-weight:600;">${d.wh}</td>` : `<td style="${tdStyle}">-</td>`;
         });
     });
-    midTermDays.forEach(mid => {
+    midTermDays.forEach((mid, idx) => {
+        if (emptyMidDays.has(idx)) return; // rowspan으로 이미 병합됨
         ['am', 'pm'].forEach(period => {
             html += renderMidTermCell(mid, period, 'wh', midTdStyle);
         });
@@ -1157,22 +1187,22 @@ function renderFarSeaForecastTable(container, zoneData, zoneName, baseTmUtf, mid
     // 풍속 행
     html += `<tr><th style="${tdStyle}; ${labelStyle}">풍속<small style="display:block;font-size:0.7rem;color:#8899aa">(m/s)</small></th>`;
     processedDays.forEach((day, idx) => {
-        if (emptyDays.has(idx)) return; // rowspan으로 이미 병합됨
+        if (emptyShortDays.has(idx)) return; // rowspan으로 이미 병합됨
         ['am', 'pm'].forEach(period => {
             const d = day[period];
             html += d ? `<td style="${tdStyle}; color:#ff9800; font-weight:600;">${d.ws}</td>` : `<td style="${tdStyle}">-</td>`;
         });
     });
-    // 중기 풍속+풍향 셀 병합 안내 (풍속 행에서 2행 rowspan)
-    if (midTermDays.length > 0) {
-        html += `<td colspan="${midColSpan}" rowspan="2" style="${midTdStyle}; font-size:0.75rem; color:#8899aa; vertical-align:middle;">중기예보는 풍속 및 풍향 정보를 제공하지 않습니다.</td>`;
+    // 중기 풍속+풍향 셀 병합 안내 (비어있지 않은 중기 날짜만)
+    if (nonEmptyMidCount > 0) {
+        html += `<td colspan="${nonEmptyMidColSpan}" rowspan="2" style="${midTdStyle}; font-size:0.75rem; color:#8899aa; vertical-align:middle;">중기예보는 풍속 및 풍향 정보를 제공하지 않습니다.</td>`;
     }
     html += `</tr>`;
 
     // 풍향 행
     html += `<tr><th style="${tdStyle}; ${labelStyle}">풍향</th>`;
     processedDays.forEach((day, idx) => {
-        if (emptyDays.has(idx)) return; // rowspan으로 이미 병합됨
+        if (emptyShortDays.has(idx)) return; // rowspan으로 이미 병합됨
         ['am', 'pm'].forEach(period => {
             const d = day[period];
             if (d) {
@@ -1186,13 +1216,25 @@ function renderFarSeaForecastTable(container, zoneData, zoneName, baseTmUtf, mid
     // 중기 풍향 셀은 위에서 rowspan으로 이미 병합됨
     html += `</tr>`;
 
-    // 예보 행 (먼바다 해구기상은 예보 텍스트 없음)
+    // 예보 행 (해구기상은 예보 없음 → 비어있지 않은 단기 날짜는 행 병합 "정보 없음")
     html += `<tr><th style="${tdStyle}; ${labelStyle}">예보</th>`;
-    processedDays.forEach((day, idx) => {
-        if (emptyDays.has(idx)) return; // rowspan으로 이미 병합됨
-        html += `<td style="${tdStyle}">-</td><td style="${tdStyle}">-</td>`;
-    });
-    midTermDays.forEach(mid => {
+    {
+        // 빈 단기 날짜는 rowspan으로 이미 병합됨, 연속 비어있지 않은 날짜는 colspan으로 병합
+        let i = 0;
+        while (i < processedDays.length) {
+            if (emptyShortDays.has(i)) {
+                i++; // rowspan으로 이미 병합됨
+            } else {
+                let count = 0;
+                let j = i;
+                while (j < processedDays.length && !emptyShortDays.has(j)) { count++; j++; }
+                html += `<td colspan="${count * 2}" style="${tdStyle}; color:#8899aa;">정보 없음</td>`;
+                i = j;
+            }
+        }
+    }
+    midTermDays.forEach((mid, idx) => {
+        if (emptyMidDays.has(idx)) return; // rowspan으로 이미 병합됨
         ['am', 'pm'].forEach(period => {
             html += renderMidTermCell(mid, period, 'wf_text', midTdStyle);
         });
