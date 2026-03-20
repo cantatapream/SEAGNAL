@@ -1241,7 +1241,7 @@ async function renderUnifiedVersionContent(container) {
         <div style="padding:14px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:10px;margin-bottom:20px;">
             <div style="color:#a78bfa;font-size:0.85rem;font-weight:600;margin-bottom:4px;"><i class="fa-solid fa-circle-info"></i> 안내</div>
             <div style="color:#94a3b8;font-size:0.8rem;line-height:1.6;">
-                Play Store에 새 버전을 배포한 후, 아래에서 버전 정보를 업데이트하면<br>
+                새 버전 생성 시 <span style="color:#a78bfa;font-weight:600;">android/app/build.gradle</span>의 <span style="color:#a78bfa;font-weight:600;">versionCode</span>와 <span style="color:#a78bfa;font-weight:600;">versionName</span>을 업데이트 후 Play Store에 배포한 후, 아래에서 버전 정보를 업데이트하면<br>
                 기존 사용자 앱에서 자동으로 업데이트 팝업이 표시됩니다.
             </div>
         </div>
