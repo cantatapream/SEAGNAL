@@ -74,7 +74,10 @@ router.post('/api/force-update/:type', async (req, res) => {
             await scheduler.collectBuoys();
             await scheduler.collectKmaBuoys();
         }
-        else if (type === 'general') await scheduler.collectGeneralForecasts();
+        else if (type === 'general') {
+            await scheduler.collectGeneralForecasts();
+            await scheduler.collectMidTermSeaForecasts();
+        }
         else if (type === 'zone') await scheduler.collectZoneForecasts();
         else return res.status(400).json({ error: '잘못된 타입' });
 
@@ -114,6 +117,12 @@ router.get('/api/forecasts', (req, res) => {
 // 4. 해구별 기상전망
 router.get('/api/marine-zone-forecasts', (req, res) => {
     if (dataCache.zoneForecasts) res.json(dataCache.zoneForecasts);
+    else res.status(404).json({ error: '데이터 준비 중' });
+});
+
+// 4-1. 중기해상예보
+router.get('/api/mid-term-sea-forecasts', (req, res) => {
+    if (dataCache.midTermSeaForecasts) res.json(dataCache.midTermSeaForecasts);
     else res.status(404).json({ error: '데이터 준비 중' });
 });
 

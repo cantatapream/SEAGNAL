@@ -242,8 +242,8 @@ function renderOtherButtonsForStatus(zoneName, container) {
             flex-wrap: nowrap;
         `;
 
-        // 1. 기상예보 버튼
-        if (!isMappedZone) {
+        // 1. 기상예보 버튼 (앞바다: 단기예보, 먼바다: 해구기상 기반)
+        {
             const forecastBtn = document.createElement('button');
             forecastBtn.className = 'forecast-btn';
             forecastBtn.innerHTML = '기상예보';
@@ -554,8 +554,8 @@ function createStatusCard(zoneName) {
 
     const isMappedZone = typeof ZONE_NAME_DISPLAY_MAP !== 'undefined' && ZONE_NAME_DISPLAY_MAP[zoneName];
 
-    // 기상예보 버튼
-    if (!isMappedZone) {
+    // 기상예보 버튼 (앞바다: 단기예보, 먼바다: 해구기상 기반)
+    {
         const forecastBtn = document.createElement('button');
         forecastBtn.textContent = '기상예보';
         forecastBtn.style.cssText = `

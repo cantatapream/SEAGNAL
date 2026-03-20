@@ -322,6 +322,72 @@ async function collectZoneForecasts() {
     } finally { isCollectingZone = false; }
 }
 
+// 5. 중기해상예보 수집 (getMidSeaFcst)
+const MID_TERM_SEA_REG_IDS = [
+    '12A10000', // 서해북부
+    '12A20000', // 서해중부
+    '12A30000', // 서해남부
+    '12B10000', // 남해서부
+    '12B20000', // 남해동부
+    '12C10000', // 동해남부
+    '12C20000', // 동해중부
+    '12C30000', // 동해북부
+];
+
+async function collectMidTermSeaForecasts() {
+    try {
+        // 최근 06:00 또는 18:00 KST 발표시각 계산
+        const now = getCorrectedDate();
+        const kst = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600000));
+        const kstHour = kst.getHours();
+        let tmFcDate = new Date(kst);
+
+        if (kstHour >= 18) {
+            tmFcDate.setHours(18, 0, 0, 0);
+        } else if (kstHour >= 6) {
+            tmFcDate.setHours(6, 0, 0, 0);
+        } else {
+            // 전날 18시
+            tmFcDate.setDate(tmFcDate.getDate() - 1);
+            tmFcDate.setHours(18, 0, 0, 0);
+        }
+
+        const tmFc = `${tmFcDate.getFullYear()}${String(tmFcDate.getMonth() + 1).padStart(2, '0')}${String(tmFcDate.getDate()).padStart(2, '0')}${String(tmFcDate.getHours()).padStart(2, '0')}00`;
+
+        const results = {};
+        for (const regId of MID_TERM_SEA_REG_IDS) {
+            const url = `https://apihub.kma.go.kr/api/typ02/openApi/MidFcstInfoService/getMidSeaFcst?pageNo=1&numOfRows=10&dataType=JSON&regId=${regId}&tmFc=${tmFc}&authKey=${CONFIG.KMA_HUB_KEY}`;
+            try {
+                const res = await fetchWithTimeout(url, {}, 8000);
+                const data = await res.json();
+                if (data.response?.body?.items?.item) {
+                    const items = Array.isArray(data.response.body.items.item)
+                        ? data.response.body.items.item
+                        : [data.response.body.items.item];
+                    results[regId] = items[0]; // 중기예보는 보통 단일 item
+                }
+            } catch (e) {
+                log(`⚠️ 중기해상예보 ${regId} 수집 실패: ${e.message}`);
+            }
+            await new Promise(r => setTimeout(r, 50));
+        }
+
+        if (Object.keys(results).length > 0) {
+            saveData('mid_term_sea_forecasts.json', {
+                updatedAt: getNowStr(),
+                tmFc: tmFc,
+                data: results,
+                count: Object.keys(results).length
+            });
+            log(`✅ 중기해상예보 수집 완료: ${Object.keys(results).length}개 구역`);
+        } else {
+            log('⚠️ 중기해상예보 데이터 없음');
+        }
+    } catch (e) {
+        log(`⚠️ 중기해상예보 수집 실패: ${e.message}`);
+    }
+}
+
 // [Note] 기존 특보 수집(collectWarnings) 및 해구별 예보(collectZoneForecasts) 로직은 제거됨.
 // 특보는 weather_alerts_crawler.js가 전담.
 
@@ -341,7 +407,8 @@ async function init() {
             collectBuoys().then(() => log('✅ 부이 데이터 수집 완료')),
             collectKmaBuoys().then(() => log('✅ 부이 상세(파고) 데이터 수집 완료')),
             collectGeneralForecasts().then(() => log('✅ 일반예보 데이터 수집 완료')),
-            collectZoneForecasts().then(() => log('✅ 해구별 예보 데이터 수집 완료'))
+            collectZoneForecasts().then(() => log('✅ 해구별 예보 데이터 수집 완료')),
+            collectMidTermSeaForecasts()
         ]);
     } catch (e) {
         log(`⚠️ 일부 수집 중 오류: ${e.message}`);
@@ -375,6 +442,9 @@ async function init() {
         // [복구] 해구별 기상전망: 하루 4회
         if (['02:00', '08:00', '14:00', '20:00'].includes(hm)) collectZoneForecasts();
 
+        // 중기해상예보: 하루 2회 (06:15, 18:15)
+        if (['06:15', '18:15'].includes(hm)) collectMidTermSeaForecasts();
+
         // [New] 특보 정보 크롤링 (매 1분 마다 실행)
         // 사용자 요청: 실시간성 확보를 위해 1분 주기로 단축
         if (!crawlPaused) {
@@ -397,6 +467,7 @@ module.exports = {
     collectKmaBuoys,
     collectGeneralForecasts,
     collectZoneForecasts,
+    collectMidTermSeaForecasts,
     getStatus: () => lastRunStatus,
     getCrawlPaused: () => crawlPaused,
     setCrawlPaused: (val) => { crawlPaused = !!val; },

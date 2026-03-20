@@ -35,6 +35,7 @@ const dataCache = {
     kmaBuoys: null,
     forecasts: null,
     zoneForecasts: null,
+    midTermSeaForecasts: null,
     notice: null,
     promo: null,
     boards: null,
@@ -53,6 +54,7 @@ function refreshCache() {
         kmaBuoys: 'kma_buoys.json',
         forecasts: 'general_forecasts.json',
         zoneForecasts: 'zone_forecasts.json',
+        midTermSeaForecasts: 'mid_term_sea_forecasts.json',
         notice: 'notice.json',
         promo: 'promo.json',
         boards: 'boards.json'
