@@ -718,12 +718,14 @@ function renderSeaForecastTableInModal(container, items, zoneName, tmFc = null, 
         color: #fff;
         font-weight: 600;
         border-bottom: 2px solid #4fc3f7;
+        border-right: 1px solid #3a4459;
     `;
 
     const tdStyle = `
         padding: 8px 8px;
         text-align: center;
         border-bottom: 1px solid #3a4459;
+        border-right: 1px solid #3a4459;
         color: #e0e6ed;
         white-space: nowrap;
     `;
@@ -746,12 +748,14 @@ function renderSeaForecastTableInModal(container, items, zoneName, tmFc = null, 
         color: #fff;
         font-weight: 600;
         border-bottom: 2px solid #7c4dff;
+        border-right: 1px solid #3a4459;
     `;
 
     const midTdStyle = `
         padding: 8px 8px;
         text-align: center;
         border-bottom: 1px solid #3a4459;
+        border-right: 1px solid #3a4459;
         color: #c0c8d4;
         white-space: nowrap;
     `;
@@ -1061,13 +1065,13 @@ function renderFarSeaForecastTable(container, zoneData, zoneName, baseTmUtf, mid
     const labelColWidth = 60;
     const tableMinWidth = labelColWidth + totalDayCols * colWidth * 2;
     const tableStyle = `width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.85rem; min-width: ${tableMinWidth}px;`;
-    const thStyle = `padding: 10px 8px; text-align: center; background: #2a3347; color: #fff; font-weight: 600; border-bottom: 2px solid #4fc3f7;`;
-    const tdStyle = `padding: 8px 8px; text-align: center; border-bottom: 1px solid #3a4459; color: #e0e6ed; white-space: nowrap;`;
+    const thStyle = `padding: 10px 8px; text-align: center; background: #2a3347; color: #fff; font-weight: 600; border-bottom: 2px solid #4fc3f7; border-right: 1px solid #3a4459;`;
+    const tdStyle = `padding: 8px 8px; text-align: center; border-bottom: 1px solid #3a4459; border-right: 1px solid #3a4459; color: #e0e6ed; white-space: nowrap;`;
     const labelStyle = `background: #1e2433; text-align: left; padding-left: 12px; color: #4fc3f7; font-weight: 500; border-right: 1px solid #3a4459; width: ${labelColWidth}px;`;
 
     // 중기 구분을 위한 스타일
-    const midThStyle = `padding: 10px 8px; text-align: center; background: #232a3c; color: #fff; font-weight: 600; border-bottom: 2px solid #7c4dff;`;
-    const midTdStyle = `padding: 8px 8px; text-align: center; border-bottom: 1px solid #3a4459; color: #c0c8d4; white-space: nowrap;`;
+    const midThStyle = `padding: 10px 8px; text-align: center; background: #232a3c; color: #fff; font-weight: 600; border-bottom: 2px solid #7c4dff; border-right: 1px solid #3a4459;`;
+    const midTdStyle = `padding: 8px 8px; text-align: center; border-bottom: 1px solid #3a4459; border-right: 1px solid #3a4459; color: #c0c8d4; white-space: nowrap;`;
 
     let html = `<table style="${tableStyle}">`;
     // colgroup으로 컬럼 폭 균등 지정
