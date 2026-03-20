@@ -684,7 +684,13 @@ function renderSeaForecastTableInModal(container, items, zoneName, tmFc = null, 
 
     const sortedDays = Object.keys(dateGroups).sort((a, b) => a - b).slice(0, 4);
 
-    // 중기예보 데이터 파싱 (4일~10일)
+    // 단기예보 날짜 목록 (YYYYMMDD 문자열) - 중기 중복 방지용
+    const shortTermDateKeys = new Set(sortedDays.map(dayKey => {
+        const d = dateGroups[dayKey].date;
+        return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    }));
+
+    // 중기예보 데이터 파싱 (4일~10일), 단기와 겹치는 날짜 제외
     let midTermDays = [];
     if (midTermData && midTermTmFc) {
         const tmFcStr = String(midTermTmFc);
@@ -693,7 +699,11 @@ function renderSeaForecastTableInModal(container, items, zoneName, tmFc = null, 
             parseInt(tmFcStr.substring(4, 6)) - 1,
             parseInt(tmFcStr.substring(6, 8))
         );
-        midTermDays = parseMidTermSeaData(midTermData, baseDate);
+        midTermDays = parseMidTermSeaData(midTermData, baseDate).filter(mid => {
+            const d = mid.date;
+            const key = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+            return !shortTermDateKeys.has(key);
+        });
     }
 
     // 테이블 스타일 (컬럼 수에 따른 min-width 동적 계산)
@@ -996,14 +1006,18 @@ function renderFarSeaForecastTable(container, zoneData, zoneName, baseTmUtf, mid
         };
     }
 
+    // am/pm 모두 데이터 없는 날은 제외
     const processedDays = selectedDates.map(dateKey => ({
         dateKey,
         date: dataByDate[dateKey].date,
         am: processSlot(dataByDate[dateKey].am),
         pm: processSlot(dataByDate[dateKey].pm)
-    }));
+    })).filter(day => day.am !== null || day.pm !== null);
 
-    // 중기예보 데이터 파싱 (4일~10일)
+    // 단기 날짜 목록 (YYYYMMDD) - 중기 중복 방지용
+    const shortTermDateKeys = new Set(processedDays.map(day => day.dateKey));
+
+    // 중기예보 데이터 파싱 (4일~10일), 단기와 겹치는 날짜 제외
     let midTermDays = [];
     if (midTermData && midTermTmFc) {
         const tmFcStr = String(midTermTmFc);
@@ -1012,7 +1026,11 @@ function renderFarSeaForecastTable(container, zoneData, zoneName, baseTmUtf, mid
             parseInt(tmFcStr.substring(4, 6)) - 1,
             parseInt(tmFcStr.substring(6, 8))
         );
-        midTermDays = parseMidTermSeaData(midTermData, baseDate);
+        midTermDays = parseMidTermSeaData(midTermData, baseDate).filter(mid => {
+            const d = mid.date;
+            const key = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+            return !shortTermDateKeys.has(key);
+        });
     }
 
     // 테이블 렌더링 (앞바다와 동일한 스타일, 컬럼 수에 따른 min-width 동적 계산)
