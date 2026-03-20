@@ -1272,25 +1272,14 @@ async function renderUnifiedVersionContent(container) {
                 <input type="number" id="ver-latestVersionCode" value="${versionData.latestVersionCode || ''}" placeholder="예: 4" style="${fieldStyle}">
             </div>
 
-            <!-- minVersion -->
-            <div>
-                <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:6px;font-weight:600;">minVersion</label>
-                <div style="${currentStyle}">${versionData.minVersion || '-'}</div>
-            </div>
-            <div>
-                <label style="display:block;color:#a78bfa;font-size:0.8rem;margin-bottom:6px;font-weight:600;">minVersion</label>
-                <input type="text" id="ver-minVersion" value="${versionData.minVersion || ''}" placeholder="예: 1.0.0" style="${fieldStyle}">
-            </div>
+        </div>
 
-            <!-- updateMessage -->
-            <div>
-                <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:6px;font-weight:600;">업데이트 메시지</label>
-                <div style="${currentStyle}; white-space:pre-wrap;">${versionData.updateMessage || '-'}</div>
-            </div>
-            <div>
-                <label style="display:block;color:#a78bfa;font-size:0.8rem;margin-bottom:6px;font-weight:600;">업데이트 메시지</label>
-                <textarea id="ver-updateMessage" rows="2" placeholder="사용자에게 표시할 업데이트 안내" style="${fieldStyle}; resize:vertical;">${versionData.updateMessage || ''}</textarea>
-            </div>
+        <!-- 업데이트 메시지 (전체 너비) -->
+        <div style="margin-bottom:20px;">
+            <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:4px;font-weight:600;">현재 업데이트 메시지</label>
+            <div style="${currentStyle}; white-space:pre-wrap; margin-bottom:10px;">${versionData.updateMessage || '-'}</div>
+            <label style="display:block;color:#a78bfa;font-size:0.8rem;margin-bottom:4px;font-weight:600;">변경할 업데이트 메시지</label>
+            <textarea id="ver-updateMessage" rows="4" placeholder="사용자에게 표시할 업데이트 안내" style="${fieldStyle}; resize:vertical; line-height:1.5;">${versionData.updateMessage || ''}</textarea>
         </div>
 
         <!-- 적용 버튼 -->
@@ -1304,7 +1293,6 @@ async function renderUnifiedVersionContent(container) {
 window.applyVersionUpdate = async function () {
     const latestVersion = document.getElementById('ver-latestVersion').value.trim();
     const latestVersionCode = parseInt(document.getElementById('ver-latestVersionCode').value, 10);
-    const minVersion = document.getElementById('ver-minVersion').value.trim();
     const updateMessage = document.getElementById('ver-updateMessage').value.trim();
 
     if (!latestVersion || isNaN(latestVersionCode)) {
@@ -1320,7 +1308,7 @@ window.applyVersionUpdate = async function () {
         const res = await fetch('/api/admin/app-version', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ latestVersion, latestVersionCode, minVersion, updateMessage })
+            body: JSON.stringify({ latestVersion, latestVersionCode, updateMessage })
         });
         const result = await res.json();
         if (result.success) {
