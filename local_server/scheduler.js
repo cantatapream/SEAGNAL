@@ -72,7 +72,7 @@ const CONFIG = {
     DATA_DIR: path.join(__dirname, 'data'),
     URLS: {
         BUOY: 'https://apihub.kma.go.kr/api/typ01/url/sea_obs.php',
-        KMA_BUOY: 'https://apihub.kma.go.kr/api/typ01/url/kma_buoy.php',
+        BUOY: 'https://apihub.kma.go.kr/api/typ01/url/sea_obs.php',
         SEA_FORECAST: 'https://apihub.kma.go.kr/api/typ01/url/fct_afs_dl.php',
         SEA_ZONE_LARGE: 'https://apihub.kma.go.kr/api/typ06/url/marine_large_zone.php'
     }
@@ -113,7 +113,6 @@ async function updateDuckDNS() {
 
 const PROD_DATA_DIR = path.join(__dirname, '../../Production/local_server/data');
 const IS_FLY_IO = !!process.env.FLY_ALLOC_ID;
-const PROD_API_BASE = 'https://seagnal-server.fly.dev';
 
 function saveData(filename, data) {
     const jsonStr = JSON.stringify(data, null, 2);
@@ -150,44 +149,13 @@ async function fetchWithTimeout(url, options = {}, timeout = 10000) {
 async function collectBuoys() {
     try {
         const url = `${CONFIG.URLS.BUOY}?stn=0&help=0&authKey=${CONFIG.KMA_HUB_KEY}`;
-        const response = await fetchWithTimeout(url, {}, 8000);
+        const response = await fetch(url);
         const buffer = await response.arrayBuffer();
         const text = new TextDecoder('euc-kr').decode(buffer);
         saveData('buoys.json', { updatedAt: getNowStr(), raw: text });
         lastRunStatus.buoys = { lastRun: getNowStr(), status: '성공', message: '데이터 저장 완료' };
     } catch (e) {
-        log(`⚠️ KMA 직접 수집 실패, 프로덕션 프록시 시도: ${e.message}`);
-        try {
-            const res = await fetchWithTimeout(`${PROD_API_BASE}/api/buoys`, {}, 8000);
-            const data = await res.json();
-            saveData('buoys.json', data);
-            lastRunStatus.buoys = { lastRun: getNowStr(), status: '성공', message: '프로덕션 프록시' };
-        } catch (e2) {
-            lastRunStatus.buoys = { lastRun: getNowStr(), status: '실패', message: e2.message };
-        }
-    }
-}
-
-// 1-2. 해양기상부이 상세 데이터 수집 (최대/유의/평균 파고)
-async function collectKmaBuoys() {
-    try {
-        const url = `${CONFIG.URLS.KMA_BUOY}?stn=0&help=0&authKey=${CONFIG.KMA_HUB_KEY}`;
-        const response = await fetchWithTimeout(url, {}, 8000);
-        const buffer = await response.arrayBuffer();
-        const text = new TextDecoder('euc-kr').decode(buffer);
-        saveData('kma_buoys.json', { updatedAt: getNowStr(), raw: text });
-    } catch (e) {
-        log(`⚠️ KMA 부이 상세 직접 수집 실패: ${e.message}`);
-        // 프로덕션에 kma-buoys API가 있으면 프록시, 없으면 무시
-        try {
-            const res = await fetchWithTimeout(`${PROD_API_BASE}/api/kma-buoys`, {}, 8000);
-            if (res.ok) {
-                const data = await res.json();
-                saveData('kma_buoys.json', data);
-            }
-        } catch (e2) {
-            log(`⚠️ KMA 부이 상세 프록시 수집도 실패: ${e2.message}`);
-        }
+        lastRunStatus.buoys = { lastRun: getNowStr(), status: '실패', message: e.message };
     }
 }
 
@@ -209,7 +177,7 @@ async function collectGeneralForecasts() {
         const results = {};
         for (const regId of SEA_FORECAST_ZONES) {
             const url = `https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstMsgService/getSeaFcst?pageNo=1&numOfRows=30&dataType=JSON&regId=${regId}&authKey=${CONFIG.KMA_HUB_KEY}`;
-            const res = await fetchWithTimeout(url, {}, 8000);
+            const res = await fetch(url);
             const data = await res.json();
             if (data.response?.body?.items?.item) {
                 results[regId] = Array.isArray(data.response.body.items.item) ? data.response.body.items.item : [data.response.body.items.item];
@@ -219,15 +187,7 @@ async function collectGeneralForecasts() {
         saveData('general_forecasts.json', { updatedAt: getNowStr(), data: results, count: Object.keys(results).length });
         lastRunStatus.general = { lastRun: getNowStr(), status: '성공', message: `${Object.keys(results).length}개 구역 저장` };
     } catch (e) {
-        log(`⚠️ 기상예보 직접 수집 실패, 프로덕션 프록시 시도: ${e.message}`);
-        try {
-            const res = await fetchWithTimeout(`${PROD_API_BASE}/api/forecasts`, {}, 8000);
-            const data = await res.json();
-            saveData('general_forecasts.json', data);
-            lastRunStatus.general = { lastRun: getNowStr(), status: '성공', message: '프로덕션 프록시' };
-        } catch (e2) {
-            lastRunStatus.general = { lastRun: getNowStr(), status: '실패', message: e2.message };
-        }
+        lastRunStatus.general = { lastRun: getNowStr(), status: '실패', message: e.message };
     }
 }
 
@@ -310,15 +270,7 @@ async function collectZoneForecasts() {
             }
         }
     } catch (e) {
-        log(`⚠️ 해구별 예보 직접 수집 실패, 프로덕션 프록시 시도: ${e.message}`);
-        try {
-            const res = await fetchWithTimeout(`${PROD_API_BASE}/api/marine-zone-forecasts`, {}, 8000);
-            const data = await res.json();
-            saveData('zone_forecasts.json', data);
-            lastRunStatus.zone = { lastRun: getNowStr(), status: '성공', message: '프로덕션 프록시' };
-        } catch (e2) {
-            lastRunStatus.zone = { lastRun: getNowStr(), status: '실패', message: e2.message };
-        }
+        lastRunStatus.zone = { lastRun: getNowStr(), status: '실패', message: e.message };
     } finally { isCollectingZone = false; }
 }
 
@@ -339,7 +291,6 @@ async function init() {
     try {
         await Promise.all([
             collectBuoys().then(() => log('✅ 부이 데이터 수집 완료')),
-            collectKmaBuoys().then(() => log('✅ 부이 상세(파고) 데이터 수집 완료')),
             collectGeneralForecasts().then(() => log('✅ 일반예보 데이터 수집 완료')),
             collectZoneForecasts().then(() => log('✅ 해구별 예보 데이터 수집 완료'))
         ]);
@@ -364,10 +315,7 @@ async function init() {
         const min = now.getMinutes();
 
         // 부이: 매시 5분, 35분
-        if (min % 30 === 5) {
-            collectBuoys();
-            collectKmaBuoys();
-        }
+        if (min % 30 === 5) collectBuoys();
 
         // 기상예보: 하루 2회 (05:15, 17:15)
         if (['05:15', '17:15'].includes(hm)) collectGeneralForecasts();
@@ -394,7 +342,6 @@ init();
 
 module.exports = {
     collectBuoys,
-    collectKmaBuoys,
     collectGeneralForecasts,
     collectZoneForecasts,
     getStatus: () => lastRunStatus,

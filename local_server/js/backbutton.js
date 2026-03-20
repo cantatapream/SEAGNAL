@@ -652,11 +652,17 @@
     // ========================================================================
     // Capacitor 뒤로가기 이벤트 리스너 (Capacitor 네이티브 환경)
     // ========================================================================
-    var backButtonRegistered = false;
+    function initCapacitorBackButton() {
+        if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return false;
 
-    function registerBackButtonListener(AppPlugin) {
-        if (backButtonRegistered) return true;
-        if (!AppPlugin || !AppPlugin.addListener) return false;
+        // window.Capacitor.Plugins.App을 직접 사용 (dynamic import 제거)
+        // dynamic import('@capacitor/app')는 모듈 로딩 타이밍 이슈로
+        // 리스너 등록이 실패하거나 네이티브 브릿지와 연결되지 않을 수 있음
+        var AppPlugin = window.Capacitor.Plugins.App;
+        if (!AppPlugin) {
+            console.error('[BackButton] Capacitor App 플러그인을 찾을 수 없습니다');
+            return false;
+        }
 
         AppPlugin.addListener('backButton', function () {
             handleBackPress(function () {
@@ -664,57 +670,7 @@
             });
         });
 
-        backButtonRegistered = true;
         console.log('[BackButton] Capacitor 뒤로가기 핸들러 등록 완료');
-        return true;
-    }
-
-    function initCapacitorBackButton() {
-        if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return false;
-
-        // 방법 1: window.Capacitor.Plugins.App 직접 접근
-        if (window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
-            if (registerBackButtonListener(window.Capacitor.Plugins.App)) return true;
-        }
-
-        // 방법 2: 동적 import 시도 (모듈 로딩이 완료된 경우)
-        try {
-            import('@capacitor/app').then(function (module) {
-                var App = module.App;
-                if (registerBackButtonListener(App)) {
-                    console.log('[BackButton] dynamic import 방식으로 등록 성공');
-                }
-            }).catch(function () {
-                console.warn('[BackButton] dynamic import 실패, 폴링 시작');
-            });
-        } catch (e) {
-            // import()를 지원하지 않는 환경
-        }
-
-        // 방법 3: 플러그인이 늦게 등록될 수 있으므로 폴링으로 재시도
-        var retryCount = 0;
-        var maxRetries = 20;
-        var retryInterval = setInterval(function () {
-            retryCount++;
-            if (backButtonRegistered) {
-                clearInterval(retryInterval);
-                return;
-            }
-            if (window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
-                if (registerBackButtonListener(window.Capacitor.Plugins.App)) {
-                    clearInterval(retryInterval);
-                    console.log('[BackButton] 폴링 방식으로 등록 성공 (' + retryCount + '번째 시도)');
-                }
-            }
-            if (retryCount >= maxRetries) {
-                clearInterval(retryInterval);
-                if (!backButtonRegistered) {
-                    console.error('[BackButton] Capacitor App 플러그인 등록 실패 (최대 재시도 초과)');
-                }
-            }
-        }, 500);
-
-        // 일단 true 반환 (재시도 진행 중이므로 History API 폴백 방지)
         return true;
     }
 

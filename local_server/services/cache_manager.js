@@ -32,7 +32,6 @@ const { DATA_DIR } = require('../config/server_config');
 const dataCache = {
     warnings: null,
     buoys: null,
-    kmaBuoys: null,
     forecasts: null,
     zoneForecasts: null,
     notice: null,
@@ -50,7 +49,6 @@ function refreshCache() {
     const files = {
         warnings: 'weather_alerts.json',
         buoys: 'buoys.json',
-        kmaBuoys: 'kma_buoys.json',
         forecasts: 'general_forecasts.json',
         zoneForecasts: 'zone_forecasts.json',
         notice: 'notice.json',

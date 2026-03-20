@@ -355,10 +355,11 @@
                             <span class="kma-brand-text">기상청</span>
                         </div>
                         <div class="kma-button-group">
-                            <a href="javascript:void(0)" class="kma-btn"
-                                onclick="window.openKmaIframeModal('https://www.weather.go.kr/w/special-report/list.do', '통보문')">통보문</a>
-                            <a href="javascript:void(0)" class="kma-btn"
-                                onclick="window.openKmaIframeModal('https://www.weather.go.kr/w/special-report/overall.do', '특보종합')">특보종합</a>
+                            <a href="https://www.weather.go.kr/w/special-report/list.do" target="_blank" class="kma-btn"
+                                onclick="return window.handleKmaLinkClick(event, this.href, '통보문')">통보문</a>
+                            <a href="https://www.weather.go.kr/w/special-report/overall.do" target="_blank"
+                                class="kma-btn"
+                                onclick="return window.handleKmaLinkClick(event, this.href, '특보종합')">특보종합</a>
                         </div>
                     </div>
                 </div>

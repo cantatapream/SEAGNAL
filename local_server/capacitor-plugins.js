@@ -116,56 +116,12 @@ const initPushNotifications = async () => {
 
     // 2. 권한 확인 및 요청
     let permStatus = await PushNotifications.checkPermissions();
-
     if (permStatus.receive === 'prompt') {
-        // 최초 실행: 커스텀 팝업으로 알림 허용 유도
-        const hasAskedBefore = localStorage.getItem('push_permission_asked');
-
-        if (!hasAskedBefore) {
-            // DOM 준비 대기
-            await new Promise((resolve) => {
-                if (document.readyState === 'complete' || document.readyState === 'interactive') {
-                    resolve();
-                } else {
-                    window.addEventListener('DOMContentLoaded', resolve, { once: true });
-                }
-            });
-
-            const userAccepted = await showCustomPopup({
-                icon: '<svg viewBox="0 0 24 24" stroke="#448aff"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
-                iconBg: 'rgba(68, 138, 255, 0.12)',
-                title: '실시간 특보 알림 안내',
-                message: '해상 특보가 발표되면<br>실시간 푸시 알림으로 알려드립니다.<br><br>다음 화면에서 반드시<br><span style="color: #ffd600; font-weight: bold;">허용을 눌러주세요.</span><br><br><img src="images/push_permission_guide.png" alt="알림 허용 안내" style="width: 85%; border-radius: 12px; margin: 8px auto; display: block; border: 1px solid rgba(255,255,255,0.15);"><br><span style="color: #ef5350; font-weight: bold;">허용하지 않으면 실시간 특보 알림을 받을 수 없습니다.</span><br><br><span style="font-size: 0.82rem; color: #64748b;">알림은 설정에서 언제든 변경할 수 있습니다.</span>',
-                confirmText: '확인'
-            });
-
-            localStorage.setItem('push_permission_asked', 'true');
-        }
-
         permStatus = await PushNotifications.requestPermissions();
-
     }
 
     if (permStatus.receive === 'granted') {
         await PushNotifications.register();
-
-        // 시스템에서 허용한 경우: 설정의 "푸시 알림 받기" 토글 자동 ON
-        try {
-            const NOTI_KEY = 'notificationSettings_v1';
-            const saved = localStorage.getItem(NOTI_KEY);
-            const notiSettings = saved ? JSON.parse(saved) : {
-                master: false, target: 'interest',
-                announce: true, active: true, release: true, night: true
-            };
-            notiSettings.master = true;
-            localStorage.setItem(NOTI_KEY, JSON.stringify(notiSettings));
-
-            // UI가 이미 로드된 경우 토글 상태도 동기화
-            const masterToggle = document.getElementById('push-master-toggle');
-            if (masterToggle) masterToggle.checked = true;
-        } catch (e) {
-            console.error('[Push] 알림 설정 자동 ON 실패:', e);
-        }
     }
 };
 
@@ -173,24 +129,11 @@ const initPushNotifications = async () => {
 window.openAppSettings = async () => {
     if (window.Capacitor && window.Capacitor.isNativePlatform()) {
         const { NativeSettings } = window.Capacitor.Plugins;
-        if (!NativeSettings) {
-            return;
-        }
         try {
-            await NativeSettings.open({
-                optionAndroid: 'app_notification',
-                optionIOS: 'App'
-            });
+            await NativeSettings.open({ option: 'app_notification' });
         } catch (e) {
-            try {
-                await NativeSettings.open({
-                    optionAndroid: 'application_details',
-                    optionIOS: 'App'
-                });
-            } catch (e2) {
-            }
+            await NativeSettings.open({ option: 'application_details' });
         }
-    } else {
     }
 };
 
@@ -205,154 +148,6 @@ window.checkPushPermission = async () => {
         return 'granted';
     }
 };
-
-// ============================================================================
-// [알림 권한 팝업] 앱 스타일에 맞춘 커스텀 팝업 시스템
-// ============================================================================
-
-/**
- * 커스텀 팝업을 표시하고 사용자 선택을 Promise로 반환
- * @param {Object} options - 팝업 옵션
- * @param {string} options.icon - SVG 아이콘 HTML
- * @param {string} options.iconBg - 아이콘 배경색
- * @param {string} options.title - 팝업 제목
- * @param {string} options.message - 팝업 메시지 (HTML 가능)
- * @param {string} options.confirmText - 확인 버튼 텍스트
- * @param {string} [options.cancelText] - 취소 버튼 텍스트 (없으면 확인 버튼만 표시)
- * @returns {Promise<boolean>} 확인: true, 취소: false
- */
-function showCustomPopup({ icon, iconBg, title, message, confirmText, cancelText }) {
-    return new Promise((resolve) => {
-        if (document.getElementById('custom-popup-overlay')) {
-            document.getElementById('custom-popup-overlay').remove();
-        }
-
-        const overlay = document.createElement('div');
-        overlay.id = 'custom-popup-overlay';
-        overlay.innerHTML = `
-            <style>
-                #custom-popup-overlay {
-                    position: fixed;
-                    top: 0; left: 0; right: 0; bottom: 0;
-                    background: rgba(0, 0, 0, 0.75);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    z-index: 999999;
-                    padding: 24px;
-                    backdrop-filter: blur(4px);
-                    -webkit-backdrop-filter: blur(4px);
-                    animation: popupFadeIn 0.25s ease-out;
-                }
-                @keyframes popupFadeIn {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
-                }
-                .custom-popup {
-                    background: linear-gradient(135deg, #161b2d 0%, #1a2238 100%);
-                    border: 1px solid rgba(255, 255, 255, 0.1);
-                    border-radius: 20px;
-                    padding: 36px 28px 28px;
-                    max-width: 320px;
-                    width: 100%;
-                    text-align: center;
-                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-                    animation: popupSlideUp 0.3s ease-out;
-                }
-                @keyframes popupSlideUp {
-                    from { opacity: 0; transform: translateY(20px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-                .custom-popup-icon {
-                    width: 64px;
-                    height: 64px;
-                    margin: 0 auto 20px;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                }
-                .custom-popup-icon svg {
-                    width: 32px;
-                    height: 32px;
-                    fill: none;
-                    stroke-width: 2;
-                    stroke-linecap: round;
-                    stroke-linejoin: round;
-                }
-                .custom-popup-title {
-                    font-family: 'Inter', 'Noto Sans KR', sans-serif;
-                    font-size: 1.2rem;
-                    font-weight: 700;
-                    color: #ffffff;
-                    margin-bottom: 12px;
-                }
-                .custom-popup-message {
-                    font-family: 'Inter', 'Noto Sans KR', sans-serif;
-                    font-size: 0.92rem;
-                    color: #94a3b8;
-                    line-height: 1.7;
-                    margin-bottom: 28px;
-                }
-                .custom-popup-buttons {
-                    display: flex;
-                    gap: 10px;
-                }
-                .custom-popup-btn {
-                    flex: 1;
-                    padding: 14px;
-                    border: none;
-                    border-radius: 12px;
-                    font-family: 'Inter', 'Noto Sans KR', sans-serif;
-                    font-size: 0.95rem;
-                    font-weight: 600;
-                    cursor: pointer;
-                    transition: background 0.2s;
-                    -webkit-tap-highlight-color: transparent;
-                }
-                .custom-popup-btn.confirm {
-                    background: #448aff;
-                    color: #ffffff;
-                }
-                .custom-popup-btn.confirm:active {
-                    background: #2962ff;
-                }
-                .custom-popup-btn.cancel {
-                    background: rgba(255, 255, 255, 0.08);
-                    color: #94a3b8;
-                }
-                .custom-popup-btn.cancel:active {
-                    background: rgba(255, 255, 255, 0.15);
-                }
-            </style>
-            <div class="custom-popup">
-                <div class="custom-popup-icon" style="background: ${iconBg}">
-                    ${icon}
-                </div>
-                <div class="custom-popup-title">${title}</div>
-                <div class="custom-popup-message">${message}</div>
-                <div class="custom-popup-buttons">
-                    ${cancelText ? `<button class="custom-popup-btn cancel" id="custom-popup-cancel">${cancelText}</button>` : ''}
-                    <button class="custom-popup-btn confirm" id="custom-popup-confirm">${confirmText}</button>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(overlay);
-
-        const cleanup = (result) => {
-            overlay.remove();
-            resolve(result);
-        };
-
-        document.getElementById('custom-popup-confirm').addEventListener('click', () => cleanup(true));
-        const cancelBtn = document.getElementById('custom-popup-cancel');
-        if (cancelBtn) cancelBtn.addEventListener('click', () => cleanup(false));
-    });
-}
-
-// 전역 노출 (settings.js에서 사용)
-window.showCustomPopup = showCustomPopup;
 
 // [위치 정보] Capacitor를 이용한 위치 정보 획득 (권한 요청 포함)
 window.getCurrentPositionViaCapacitor = async () => {

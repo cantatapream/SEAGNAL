@@ -1,7 +1,7 @@
 import { registerPlugin } from '@capacitor/core';
 const Browser = registerPlugin('Browser', {
-    web: () => import('./web.js').then(m => new m.BrowserWeb()),
+    web: () => import('./web').then(m => new m.BrowserWeb()),
 });
-export * from './definitions.js';
+export * from './definitions';
 export { Browser };
 //# sourceMappingURL=index.js.map

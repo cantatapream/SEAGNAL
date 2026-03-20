@@ -332,8 +332,6 @@ const NotificationSettings = {
 NotificationSettings.init();
 
 function initNotificationUI() {
-    // 매번 localStorage에서 최신 값을 다시 읽어옴 (capacitor-plugins.js에서 직접 저장한 값 반영)
-    NotificationSettings.init();
     const s = NotificationSettings.get();
 
     const master = document.getElementById('push-master-toggle');
@@ -363,21 +361,12 @@ function initNotificationUI() {
             const permission = await window.checkPushPermission();
             console.log('Permission result:', permission);
 
-            if (permission === 'denied' || permission === 'prompt-with-rationale') {
+            if (permission === 'denied') {
                 e.preventDefault();
                 e.target.checked = false;
 
-                if (typeof window.showCustomPopup === 'function') {
-                    window.showCustomPopup({
-                        icon: '<svg viewBox="0 0 24 24" stroke="#ff9800"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
-                        iconBg: 'rgba(255, 152, 0, 0.12)',
-                        title: '알림 권한이 필요합니다',
-                        message: '현재 알림 권한이 거절되어 있습니다.<br>푸시 알림을 받으시려면 휴대폰 설정에서<br>알림을 허용해 주세요.',
-                        confirmText: '설정으로 이동',
-                        cancelText: '취소'
-                    }).then((goToSettings) => {
-                        if (goToSettings) window.openAppSettings();
-                    });
+                if (confirm('현재 알림 권한이 거절되어 있습니다.\n푸시 알림을 받으시려면 휴대폰 설정에서 알림을 허용해 주셔야 합니다.\n\n설정 화면으로 이동하시겠습니까?')) {
+                    window.openAppSettings();
                 }
                 return;
             } else if (permission === 'prompt') {
@@ -833,73 +822,61 @@ async function showMyLocationWeather() {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 확인 중...';
     btn.disabled = true;
 
-    try {
-        let lat, lon;
-
-        // Capacitor 네이티브 환경이면 Capacitor Geolocation 플러그인 사용
-        if (typeof window.getCurrentPositionViaCapacitor === 'function') {
-            const position = await window.getCurrentPositionViaCapacitor();
-            lat = position.coords.latitude;
-            lon = position.coords.longitude;
-        } else if (navigator.geolocation) {
-            // 브라우저 환경 폴백
-            const position = await new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, {
-                    enableHighAccuracy: true, timeout: 15000, maximumAge: 0
-                });
-            });
-            lat = position.coords.latitude;
-            lon = position.coords.longitude;
-        } else {
-            alert("이 환경에서는 위치 정보를 사용할 수 없습니다.");
-            return;
-        }
-
-        // 1. 해구(Sea Zone) 판별
-        const checkResult = findSeaZone(lon, lat);
-
-        if (checkResult) {
-            // 해상임: 해당 해구의 기상전망 표출
-            if (window.showMarineZoneModal) {
-                if (window.closeSeaZoneModal) window.closeSeaZoneModal();
-                window.getMarineZoneData(checkResult.zoneId);
-            }
-        } else {
-            // 육상임: 가장 가까운 해안 예보 구역 찾기
-            const nearestZone = findNearestZone(lat, lon);
-            if (nearestZone) {
-                if (window.showSeaForecastTable) {
-                    showSeaForecastTable(nearestZone.name);
-                }
-            } else {
-                alert("가장 가까운 예보 구역을 찾을 수 없습니다.");
-            }
-        }
-    } catch (e) {
-        console.error("Location error:", e);
-        let msg = "위치 정보를 가져올 수 없습니다.";
-        if (e.message === 'location_permission_denied') {
-            // 권한 거부 시 스타일 팝업으로 안내
-            if (typeof window.showCustomPopup === 'function' && window.Capacitor && window.Capacitor.isNativePlatform()) {
-                const goToSettings = await window.showCustomPopup({
-                    icon: '<svg viewBox="0 0 24 24" stroke="#ff9800"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
-                    iconBg: 'rgba(255, 152, 0, 0.12)',
-                    title: '위치 권한이 필요합니다',
-                    message: '내 주변 바다 날씨를 확인하려면<br>위치 정보 접근을 허용해 주세요.',
-                    confirmText: '설정으로 이동',
-                    cancelText: '취소'
-                });
-                if (goToSettings) window.openAppSettings();
-            } else {
-                alert(msg + "\n위치 정보 제공을 허용해주세요.");
-            }
-        } else {
-            alert(msg);
-        }
-    } finally {
+    if (!navigator.geolocation) {
+        alert("이 브라우저는 위치 정보를 지원하지 않습니다.");
         btn.innerHTML = originalText;
         btn.disabled = false;
+        return;
     }
+
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            try {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+
+                // 1. 해구(Sea Zone) 판별
+                const checkResult = findSeaZone(lon, lat);
+
+                if (checkResult) {
+                    // 해상임: 해당 해구의 기상전망 표출
+                    if (window.showMarineZoneModal) {
+                        // 모달 닫기 버튼 등이 겹칠 수 있으므로 기존 모달 정리
+                        if (window.closeSeaZoneModal) window.closeSeaZoneModal();
+
+                        // 데이터 조회 및 모달 열기
+                        window.getMarineZoneData(checkResult.zoneId);
+                    }
+                } else {
+                    // 육상임: 가장 가까운 해안 예보 구역 찾기
+                    const nearestZone = findNearestZone(lat, lon);
+                    if (nearestZone) {
+                        if (window.showSeaForecastTable) {
+                            showSeaForecastTable(nearestZone.name);
+                        }
+                    } else {
+                        alert("가장 가까운 예보 구역을 찾을 수 없습니다.");
+                    }
+                }
+
+            } catch (e) {
+                // console.error("Loc logic error:", e);
+                alert("위치 정보를 처리하는 중 오류가 발생했습니다.");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        },
+        (error) => {
+            // console.error("Geo error:", error);
+            let msg = "위치 정보를 가져올 수 없습니다.";
+            if (error.code === 1) msg += "\n위치 정보 제공을 허용해주세요.";
+            alert(msg);
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
 }
 
 // 헬퍼: GPS 좌표로 해구 정보(대해구, 소해구) 찾기

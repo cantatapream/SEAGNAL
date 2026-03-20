@@ -20,9 +20,12 @@
 // 기상청 링크 클릭 핸들러 (모바일 앱 대응)
 // ============================================================================
 window.handleKmaLinkClick = function (event, url, title) {
-    event.preventDefault();
-    window.openKmaIframeModal(url, title);
-    return false;
+    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+        event.preventDefault();
+        window.openKmaIframeModal(url, title);
+        return false;
+    }
+    return true;
 };
 
 // ============================================================================

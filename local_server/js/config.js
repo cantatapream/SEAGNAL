@@ -28,7 +28,6 @@ const CONFIG = {
     API_BASE: '',  // 로컬 서버 기준 상대 경로 (빈 문자열)
     KMA_API_URL: 'api/warnings', // warnings.json (KMA + AFSO)
     BUOY_API_URL: 'api/buoys',   // buoys.json
-    KMA_BUOY_API_URL: 'api/kma-buoys', // kma_buoys.json (최대/유의/평균 파고)
     NOTICE_API_URL: 'api/notice', // notice.json
 
     // CORS 프록시 설정 - 로컬 서버 사용으로 불필요
