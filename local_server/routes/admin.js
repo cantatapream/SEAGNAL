@@ -676,6 +676,41 @@ router.post('/api/admin/maintenance', (req, res) => {
     }
 });
 
+// ============================================================================
+// 앱 버전 관리
+// ============================================================================
+
+const APP_VERSION_FILE = path.join(__dirname, '..', 'app_version.json');
+
+/** 앱 버전 정보 수정 */
+router.post('/api/admin/app-version', (req, res) => {
+    try {
+        const { latestVersion, latestVersionCode, minVersion, updateMessage } = req.body;
+
+        if (!latestVersion || latestVersionCode === undefined) {
+            return res.status(400).json({ error: 'latestVersion과 latestVersionCode는 필수입니다.' });
+        }
+
+        // 기존 파일 읽기
+        let config = {};
+        if (fs.existsSync(APP_VERSION_FILE)) {
+            try { config = JSON.parse(fs.readFileSync(APP_VERSION_FILE, 'utf8')); } catch (_) {}
+        }
+
+        // 값 업데이트
+        config.latestVersion = latestVersion;
+        config.latestVersionCode = parseInt(latestVersionCode, 10);
+        if (typeof minVersion === 'string') config.minVersion = minVersion;
+        if (typeof updateMessage === 'string') config.updateMessage = updateMessage;
+
+        fs.writeFileSync(APP_VERSION_FILE, JSON.stringify(config, null, 2), 'utf8');
+        console.log(`[Admin] 앱 버전 업데이트: v${latestVersion} (code: ${latestVersionCode})`);
+        res.json({ success: true, config });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 /** 점검 모드 상태 조회 (일반 사용자용 - 공개 API) */
 router.get('/api/maintenance-status', (req, res) => {
     try {
