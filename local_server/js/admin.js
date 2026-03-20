@@ -179,7 +179,8 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         { id: 'survey', name: '설문조사', icon: 'fa-clipboard-list' },
         { id: 'report', name: '제보 관리', icon: 'fa-envelope' },
         { id: 'block', name: '차단 관리', icon: 'fa-ban' },
-        { id: 'maintenance', name: '점검', icon: 'fa-wrench' }
+        { id: 'maintenance', name: '점검', icon: 'fa-wrench' },
+        { id: 'version', name: '버전 관리', icon: 'fa-code-branch' }
     ];
 
     const modal = document.createElement('div');
@@ -265,6 +266,8 @@ window.switchUnifiedAdminTab = function (tabId) {
             if (typeof renderUnifiedBlockContent === 'function') renderUnifiedBlockContent(body);
         } else if (tabId === 'maintenance') {
             renderUnifiedMaintenanceContent(body);
+        } else if (tabId === 'version') {
+            renderUnifiedVersionContent(body);
         }
     }, 100);
 };
@@ -1212,6 +1215,133 @@ window.saveMaintenanceContent = async function () {
         }
     } catch (e) {
         alert('오류: ' + e.message);
+    }
+};
+
+// ============================================================================
+// (H) 버전 관리 탭 렌더링
+// ============================================================================
+async function renderUnifiedVersionContent(container) {
+    container.innerHTML = '<div style="text-align:center;padding:60px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin fa-2x"></i><p style="margin-top:15px;">버전 정보 로딩 중...</p></div>';
+
+    let versionData = {};
+    try {
+        const res = await fetch('/api/app-version');
+        if (res.ok) versionData = await res.json();
+    } catch (e) { /* 무시 */ }
+
+    const fieldStyle = 'width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.95rem;box-sizing:border-box;';
+    const currentStyle = 'padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#94a3b8;font-size:0.95rem;font-family:monospace;';
+
+    container.innerHTML = `
+        <div class="admin-section-title">
+            <i class="fa-solid fa-code-branch" style="color:#8b5cf6;"></i> 앱 버전 관리
+        </div>
+
+        <div style="padding:14px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:10px;margin-bottom:20px;">
+            <div style="color:#a78bfa;font-size:0.85rem;font-weight:600;margin-bottom:4px;"><i class="fa-solid fa-circle-info"></i> 안내</div>
+            <div style="color:#94a3b8;font-size:0.8rem;line-height:1.6;">
+                Play Store에 새 버전을 배포한 후, 아래에서 버전 정보를 업데이트하면<br>
+                기존 사용자 앱에서 자동으로 업데이트 팝업이 표시됩니다.
+            </div>
+        </div>
+
+        <!-- 테이블 형태: 기존 / 변경 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+            <!-- 헤더 -->
+            <div style="text-align:center;color:#64748b;font-size:0.85rem;font-weight:700;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.1);">현재 값</div>
+            <div style="text-align:center;color:#a78bfa;font-size:0.85rem;font-weight:700;padding-bottom:8px;border-bottom:1px solid rgba(139,92,246,0.3);">변경할 값</div>
+
+            <!-- latestVersion -->
+            <div>
+                <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:6px;font-weight:600;">latestVersion</label>
+                <div style="${currentStyle}">${versionData.latestVersion || '-'}</div>
+            </div>
+            <div>
+                <label style="display:block;color:#a78bfa;font-size:0.8rem;margin-bottom:6px;font-weight:600;">latestVersion</label>
+                <input type="text" id="ver-latestVersion" value="${versionData.latestVersion || ''}" placeholder="예: 1.2.0" style="${fieldStyle}">
+            </div>
+
+            <!-- latestVersionCode -->
+            <div>
+                <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:6px;font-weight:600;">versionCode</label>
+                <div style="${currentStyle}">${versionData.latestVersionCode || '-'}</div>
+            </div>
+            <div>
+                <label style="display:block;color:#a78bfa;font-size:0.8rem;margin-bottom:6px;font-weight:600;">versionCode</label>
+                <input type="number" id="ver-latestVersionCode" value="${versionData.latestVersionCode || ''}" placeholder="예: 4" style="${fieldStyle}">
+            </div>
+
+            <!-- minVersion -->
+            <div>
+                <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:6px;font-weight:600;">minVersion</label>
+                <div style="${currentStyle}">${versionData.minVersion || '-'}</div>
+            </div>
+            <div>
+                <label style="display:block;color:#a78bfa;font-size:0.8rem;margin-bottom:6px;font-weight:600;">minVersion</label>
+                <input type="text" id="ver-minVersion" value="${versionData.minVersion || ''}" placeholder="예: 1.0.0" style="${fieldStyle}">
+            </div>
+
+            <!-- updateMessage -->
+            <div>
+                <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:6px;font-weight:600;">업데이트 메시지</label>
+                <div style="${currentStyle}; white-space:pre-wrap;">${versionData.updateMessage || '-'}</div>
+            </div>
+            <div>
+                <label style="display:block;color:#a78bfa;font-size:0.8rem;margin-bottom:6px;font-weight:600;">업데이트 메시지</label>
+                <textarea id="ver-updateMessage" rows="2" placeholder="사용자에게 표시할 업데이트 안내" style="${fieldStyle}; resize:vertical;">${versionData.updateMessage || ''}</textarea>
+            </div>
+        </div>
+
+        <!-- 적용 버튼 -->
+        <button id="ver-apply-btn" onclick="applyVersionUpdate()" style="width:100%;padding:14px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:1rem;box-shadow:0 4px 12px rgba(139,92,246,0.3);">
+            <i class="fa-solid fa-check"></i> 적용
+        </button>
+    `;
+}
+
+/** 버전 정보 적용 */
+window.applyVersionUpdate = async function () {
+    const latestVersion = document.getElementById('ver-latestVersion').value.trim();
+    const latestVersionCode = parseInt(document.getElementById('ver-latestVersionCode').value, 10);
+    const minVersion = document.getElementById('ver-minVersion').value.trim();
+    const updateMessage = document.getElementById('ver-updateMessage').value.trim();
+
+    if (!latestVersion || isNaN(latestVersionCode)) {
+        alert('latestVersion과 versionCode는 필수 입력입니다.');
+        return;
+    }
+
+    const btn = document.getElementById('ver-apply-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 적용 중...';
+
+    try {
+        const res = await fetch('/api/admin/app-version', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ latestVersion, latestVersionCode, minVersion, updateMessage })
+        });
+        const result = await res.json();
+        if (result.success) {
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> 적용 완료!';
+            btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
+            // UI 새로고침
+            setTimeout(() => {
+                const body = document.getElementById('unified-admin-body');
+                if (body) renderUnifiedVersionContent(body);
+            }, 1000);
+        } else {
+            alert('적용 실패: ' + (result.error || ''));
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> 적용';
+            btn.disabled = false;
+            btn.style.background = 'linear-gradient(135deg,#8b5cf6,#7c3aed)';
+        }
+    } catch (e) {
+        alert('오류: ' + e.message);
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> 적용';
+        btn.disabled = false;
+        btn.style.background = 'linear-gradient(135deg,#8b5cf6,#7c3aed)';
     }
 };
 
