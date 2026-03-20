@@ -35,6 +35,29 @@ const SEA_WIND_DIRS = {
     'W': '서', 'WNW': '서북서', 'NW': '북서', 'NNW': '북북서'
 };
 
+// 먼바다 구역명 → 해구번호 직접 매핑
+const FAR_SEA_ZONE_ID_MAP = {
+    '동해남부남쪽안쪽먼바다': 94,
+    '동해남부남쪽바깥먼바다': 367,
+    '동해남부북쪽안쪽먼바다': 77,
+    '동해남부북쪽바깥먼바다': 80,
+    '동해중부안쪽먼바다': 57,
+    '동해중부바깥먼바다': 60,
+    '서해중부안쪽먼바다': 162,
+    '서해중부바깥먼바다': 149,
+    '서해남부북쪽안쪽먼바다': 192,
+    '서해남부북쪽바깥먼바다': 189,
+    '서해남부남쪽안쪽먼바다': 209,
+    '서해남부남쪽바깥먼바다': 216,
+    '남해동부안쪽먼바다': 112,
+    '남해동부바깥먼바다': 381,
+    '남해서부서쪽먼바다': 222,
+    '남해서부동쪽먼바다': 224,
+    '제주도남서쪽안쪽먼바다': 230,
+    '제주도남동쪽안쪽먼바다': 244,
+    '제주도남쪽바깥먼바다': 463
+};
+
 // 풍향 각도(degree) → 한글 16방위 변환 (먼바다 해구 기상용)
 function degreeToWindDir(deg) {
     if (deg === null || deg === undefined || isNaN(deg)) return '-';
@@ -371,15 +394,9 @@ async function showSeaForecastTable(zoneName) {
     if (isFarSea) {
         // 먼바다: 해구별 기상전망 데이터로 예보 생성
         try {
-            const coords = typeof ZONE_COORDINATES !== 'undefined' ? ZONE_COORDINATES[zoneName] : null;
-            if (!coords) {
-                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역의 좌표를 찾을 수 없습니다.<br><small style="color:#666;">(${zoneName})</small></div>`;
-                return;
-            }
-
-            const zoneId = typeof getSeaZoneByGPS === 'function' ? getSeaZoneByGPS(coords.lon, coords.lat) : null;
-            if (!zoneId || zoneId === '0') {
-                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 좌표의 해구 정보를 찾을 수 없습니다.<br><small style="color:#666;">(${zoneName}: ${coords.lat}, ${coords.lon})</small></div>`;
+            const zoneId = FAR_SEA_ZONE_ID_MAP[zoneName];
+            if (!zoneId) {
+                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역의 해구 정보를 찾을 수 없습니다.<br><small style="color:#666;">(${zoneName})</small></div>`;
                 return;
             }
 
