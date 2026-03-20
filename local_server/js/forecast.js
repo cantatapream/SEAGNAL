@@ -88,35 +88,26 @@ const ZONE_NAME_DISPLAY_MAP = {
     '인천·경기북부앞바다': '경기북부앞바다'
 };
 
-// 먼바다 세부 해역 → 중기예보 상위 그룹명 매핑
-const FAR_SEA_MID_TERM_GROUP_NAME = {
-    // 제주 먼바다
-    '제주도남서쪽안쪽먼바다': '제주도남쪽먼바다',
-    '제주도남동쪽안쪽먼바다': '제주도남쪽먼바다',
-    '제주도남쪽바깥먼바다': '제주도남쪽먼바다',
-    // 서해중부 먼바다
-    '서해중부안쪽먼바다': '서해중부먼바다',
-    '서해중부바깥먼바다': '서해중부먼바다',
-    // 서해남부 먼바다
-    '서해남부북쪽바깥먼바다': '서해남부먼바다',
-    '서해남부북쪽안쪽먼바다': '서해남부먼바다',
-    '서해남부남쪽바깥먼바다': '서해남부먼바다',
-    '서해남부남쪽안쪽먼바다': '서해남부먼바다',
-    // 남해서부 먼바다
-    '남해서부서쪽먼바다': '남해서부먼바다',
-    '남해서부동쪽먼바다': '남해서부먼바다',
-    // 남해동부 먼바다
-    '남해동부안쪽먼바다': '남해동부먼바다',
-    '남해동부바깥먼바다': '남해동부먼바다',
-    // 동해남부 먼바다
-    '동해남부남쪽안쪽먼바다': '동해남부먼바다',
-    '동해남부남쪽바깥먼바다': '동해남부먼바다',
-    '동해남부북쪽안쪽먼바다': '동해남부먼바다',
-    '동해남부북쪽바깥먼바다': '동해남부먼바다',
-    // 동해중부 먼바다
-    '동해중부안쪽먼바다': '동해중부먼바다',
-    '동해중부바깥먼바다': '동해중부먼바다'
+// 중기예보 regId → 권역 표시명 매핑 (9개 권역)
+const MID_TERM_REG_ID_DISPLAY = {
+    '12A10000': '서해북부',
+    '12A20000': '서해중부',
+    '12A30000': '서해남부',
+    '12B10000': '남해서부',
+    '12B20000': '남해동부',
+    '12C10000': '동해남부',
+    '12C20000': '동해중부',
+    '12C30000': '동해북부'
 };
+
+// 중기예보 권역 표시명 구하기 (제주도 해역은 '제주도해상'으로 분기)
+function getMidTermDisplayName(zoneName) {
+    const regId = getMidTermRegId(zoneName);
+    if (!regId) return null;
+    // 제주도 해역은 regId가 남해서부(12B10000)와 같지만 별도 권역
+    if (zoneName.startsWith('제주도')) return '제주도해상';
+    return MID_TERM_REG_ID_DISPLAY[regId] || null;
+}
 
 // 특보 구역명 → 예보 API 구역코드 매핑
 const ZONE_NAME_TO_CODE = {
@@ -385,8 +376,8 @@ function getZoneCodeByName(zoneName) {
 async function showSeaForecastTable(zoneName) {
     // 팝업 제목은 세부 해역명 그대로 사용 (앞바다 특수 케이스만 매핑)
     const displayName = ZONE_NAME_DISPLAY_MAP[zoneName] || zoneName;
-    // 중기예보 그룹명 (먼바다의 경우 상위 그룹명)
-    const midTermGroupName = FAR_SEA_MID_TERM_GROUP_NAME[zoneName] || null;
+    // 중기예보 권역 표시명 (9개 권역: 서해북부, 제주도해상 등)
+    const midTermGroupName = getMidTermDisplayName(zoneName);
 
     // 기존 모달이 있으면 제거
     const existingModal = document.getElementById('sea-forecast-modal');
@@ -813,21 +804,42 @@ function renderSeaForecastTableInModal(container, items, zoneName, tmFc = null, 
     });
     html += `</tr>`;
 
+    // 단기 데이터 존재 여부 체크 헬퍼
+    function hasShortTermData(field) {
+        return sortedDays.some(dayKey => {
+            const group = dateGroups[dayKey];
+            return ['am', 'pm'].some(period => {
+                const f = group[period];
+                if (!f) return false;
+                if (field === 'weather') return true;
+                if (field === 'wh') return f.wh1 !== undefined;
+                if (field === 'ws') return f.ws1 !== undefined;
+                if (field === 'wd') return !!f.wd1;
+                if (field === 'wf') return !!f.wf;
+                return false;
+            });
+        });
+    }
+
     // 날씨 행
     html += `<tr>
         <th style="${tdStyle}; ${labelStyle}">날씨</th>`;
-    sortedDays.forEach(dayKey => {
-        const group = dateGroups[dayKey];
-        ['am', 'pm'].forEach(period => {
-            const f = group[period];
-            if (f) {
-                const icon = SEA_WEATHER_CODES[f.wfCd] || '❓';
-                html += `<td style="${tdStyle}"><span style="font-size:1.3rem">${icon}</span></td>`;
-            } else {
-                html += `<td style="${tdStyle}">-</td>`;
-            }
+    if (hasShortTermData('weather')) {
+        sortedDays.forEach(dayKey => {
+            const group = dateGroups[dayKey];
+            ['am', 'pm'].forEach(period => {
+                const f = group[period];
+                if (f) {
+                    const icon = SEA_WEATHER_CODES[f.wfCd] || '❓';
+                    html += `<td style="${tdStyle}"><span style="font-size:1.3rem">${icon}</span></td>`;
+                } else {
+                    html += `<td style="${tdStyle}">-</td>`;
+                }
+            });
         });
-    });
+    } else {
+        html += `<td colspan="${shortColSpan}" style="${tdStyle}; color:#8899aa;">정보 없음</td>`;
+    }
     midTermDays.forEach(mid => {
         ['am', 'pm'].forEach(period => {
             html += renderMidTermCell(mid, period, 'wf_icon', midTdStyle);
@@ -838,17 +850,21 @@ function renderSeaForecastTableInModal(container, items, zoneName, tmFc = null, 
     // 파고 행
     html += `<tr>
         <th style="${tdStyle}; ${labelStyle}">파고<small style="display:block;font-size:0.7rem;color:#8899aa">(m)</small></th>`;
-    sortedDays.forEach(dayKey => {
-        const group = dateGroups[dayKey];
-        ['am', 'pm'].forEach(period => {
-            const f = group[period];
-            if (f && f.wh1 !== undefined) {
-                html += `<td style="${tdStyle}; color:#4db6ac; font-weight:600;">${f.wh1}~${f.wh2}m</td>`;
-            } else {
-                html += `<td style="${tdStyle}">-</td>`;
-            }
+    if (hasShortTermData('wh')) {
+        sortedDays.forEach(dayKey => {
+            const group = dateGroups[dayKey];
+            ['am', 'pm'].forEach(period => {
+                const f = group[period];
+                if (f && f.wh1 !== undefined) {
+                    html += `<td style="${tdStyle}; color:#4db6ac; font-weight:600;">${f.wh1}~${f.wh2}m</td>`;
+                } else {
+                    html += `<td style="${tdStyle}">-</td>`;
+                }
+            });
         });
-    });
+    } else {
+        html += `<td colspan="${shortColSpan}" style="${tdStyle}; color:#8899aa;">정보 없음</td>`;
+    }
     midTermDays.forEach(mid => {
         ['am', 'pm'].forEach(period => {
             html += renderMidTermCell(mid, period, 'wh', midTdStyle);
@@ -859,56 +875,68 @@ function renderSeaForecastTableInModal(container, items, zoneName, tmFc = null, 
     // 풍속 행
     html += `<tr>
         <th style="${tdStyle}; ${labelStyle}">풍속<small style="display:block;font-size:0.7rem;color:#8899aa">(m/s)</small></th>`;
-    sortedDays.forEach(dayKey => {
-        const group = dateGroups[dayKey];
-        ['am', 'pm'].forEach(period => {
-            const f = group[period];
-            if (f && f.ws1 !== undefined) {
-                html += `<td style="${tdStyle}; color:#ff9800; font-weight:600;">${f.ws1}~${f.ws2}m/s</td>`;
-            } else {
-                html += `<td style="${tdStyle}">-</td>`;
-            }
+    if (hasShortTermData('ws')) {
+        sortedDays.forEach(dayKey => {
+            const group = dateGroups[dayKey];
+            ['am', 'pm'].forEach(period => {
+                const f = group[period];
+                if (f && f.ws1 !== undefined) {
+                    html += `<td style="${tdStyle}; color:#ff9800; font-weight:600;">${f.ws1}~${f.ws2}m/s</td>`;
+                } else {
+                    html += `<td style="${tdStyle}">-</td>`;
+                }
+            });
         });
-    });
+    } else {
+        html += `<td colspan="${shortColSpan}" style="${tdStyle}; color:#8899aa;">정보 없음</td>`;
+    }
     // 중기 풍속+풍향 셀 병합 안내 (풍속 행에서 2행 rowspan)
     if (midTermDays.length > 0) {
-        html += `<td colspan="${midColSpan}" rowspan="2" style="${midTdStyle}; font-size:0.75rem; color:#8899aa; vertical-align:middle;">중기예보는 풍속 및<br>풍향 정보를 제공하지<br>않습니다.</td>`;
+        html += `<td colspan="${midColSpan}" rowspan="2" style="${midTdStyle}; font-size:0.75rem; color:#8899aa; vertical-align:middle;">중기예보는 풍속 및 풍향 정보를 제공하지 않습니다.</td>`;
     }
     html += `</tr>`;
 
     // 풍향 행
     html += `<tr>
         <th style="${tdStyle}; ${labelStyle}">풍향</th>`;
-    sortedDays.forEach(dayKey => {
-        const group = dateGroups[dayKey];
-        ['am', 'pm'].forEach(period => {
-            const f = group[period];
-            if (f && f.wd1) {
-                const wd1 = SEA_WIND_DIRS[f.wd1] || f.wd1;
-                const wd2 = SEA_WIND_DIRS[f.wd2] || f.wd2;
-                html += `<td style="${tdStyle}">${wd1}→${wd2}</td>`;
-            } else {
-                html += `<td style="${tdStyle}">-</td>`;
-            }
+    if (hasShortTermData('wd')) {
+        sortedDays.forEach(dayKey => {
+            const group = dateGroups[dayKey];
+            ['am', 'pm'].forEach(period => {
+                const f = group[period];
+                if (f && f.wd1) {
+                    const wd1 = SEA_WIND_DIRS[f.wd1] || f.wd1;
+                    const wd2 = SEA_WIND_DIRS[f.wd2] || f.wd2;
+                    html += `<td style="${tdStyle}">${wd1}→${wd2}</td>`;
+                } else {
+                    html += `<td style="${tdStyle}">-</td>`;
+                }
+            });
         });
-    });
+    } else {
+        html += `<td colspan="${shortColSpan}" style="${tdStyle}; color:#8899aa;">정보 없음</td>`;
+    }
     // 중기 풍향 셀은 위에서 rowspan으로 이미 병합됨
     html += `</tr>`;
 
     // 예보 행
     html += `<tr>
         <th style="${tdStyle}; ${labelStyle}">예보</th>`;
-    sortedDays.forEach(dayKey => {
-        const group = dateGroups[dayKey];
-        ['am', 'pm'].forEach(period => {
-            const f = group[period];
-            if (f && f.wf) {
-                html += `<td style="${tdStyle}; font-size:0.75rem; color:#8899aa; white-space:normal; max-width:80px; line-height:1.3;">${f.wf}</td>`;
-            } else {
-                html += `<td style="${tdStyle}">-</td>`;
-            }
+    if (hasShortTermData('wf')) {
+        sortedDays.forEach(dayKey => {
+            const group = dateGroups[dayKey];
+            ['am', 'pm'].forEach(period => {
+                const f = group[period];
+                if (f && f.wf) {
+                    html += `<td style="${tdStyle}; font-size:0.75rem; color:#8899aa; white-space:normal; max-width:80px; line-height:1.3;">${f.wf}</td>`;
+                } else {
+                    html += `<td style="${tdStyle}">-</td>`;
+                }
+            });
         });
-    });
+    } else {
+        html += `<td colspan="${shortColSpan}" style="${tdStyle}; color:#8899aa;">정보 없음</td>`;
+    }
     midTermDays.forEach(mid => {
         ['am', 'pm'].forEach(period => {
             html += renderMidTermCell(mid, period, 'wf_text', midTdStyle);
@@ -1106,11 +1134,23 @@ function renderFarSeaForecastTable(container, zoneData, zoneName, baseTmUtf, mid
     });
     html += `</tr>`;
 
-    // 날씨 행 (먼바다 해구기상은 데이터 없음, 중기는 이모지 표시)
+    // 단기(해구) 데이터 존재 여부 체크 헬퍼
+    function hasShortTermData(field) {
+        return processedDays.some(day => {
+            return ['am', 'pm'].some(period => {
+                const d = day[period];
+                if (!d) return false;
+                if (field === 'wh') return !!d.wh;
+                if (field === 'ws') return !!d.ws;
+                if (field === 'wd') return !!d.windDir && d.windDir !== '-';
+                return false;
+            });
+        });
+    }
+
+    // 날씨 행 (먼바다 해구기상은 날씨 데이터 없음 → 정보 없음)
     html += `<tr><th style="${tdStyle}; ${labelStyle}">날씨</th>`;
-    processedDays.forEach(() => {
-        html += `<td style="${tdStyle}">-</td><td style="${tdStyle}">-</td>`;
-    });
+    html += `<td colspan="${shortColSpan}" style="${tdStyle}; color:#8899aa;">정보 없음</td>`;
     midTermDays.forEach(mid => {
         ['am', 'pm'].forEach(period => {
             html += renderMidTermCell(mid, period, 'wf_icon', midTdStyle);
@@ -1120,12 +1160,16 @@ function renderFarSeaForecastTable(container, zoneData, zoneName, baseTmUtf, mid
 
     // 파고 행
     html += `<tr><th style="${tdStyle}; ${labelStyle}">파고<small style="display:block;font-size:0.7rem;color:#8899aa">(m)</small></th>`;
-    processedDays.forEach(day => {
-        ['am', 'pm'].forEach(period => {
-            const d = day[period];
-            html += d ? `<td style="${tdStyle}; color:#4db6ac; font-weight:600;">${d.wh}</td>` : `<td style="${tdStyle}">-</td>`;
+    if (hasShortTermData('wh')) {
+        processedDays.forEach(day => {
+            ['am', 'pm'].forEach(period => {
+                const d = day[period];
+                html += d ? `<td style="${tdStyle}; color:#4db6ac; font-weight:600;">${d.wh}</td>` : `<td style="${tdStyle}">-</td>`;
+            });
         });
-    });
+    } else {
+        html += `<td colspan="${shortColSpan}" style="${tdStyle}; color:#8899aa;">정보 없음</td>`;
+    }
     midTermDays.forEach(mid => {
         ['am', 'pm'].forEach(period => {
             html += renderMidTermCell(mid, period, 'wh', midTdStyle);
@@ -1135,34 +1179,40 @@ function renderFarSeaForecastTable(container, zoneData, zoneName, baseTmUtf, mid
 
     // 풍속 행
     html += `<tr><th style="${tdStyle}; ${labelStyle}">풍속<small style="display:block;font-size:0.7rem;color:#8899aa">(m/s)</small></th>`;
-    processedDays.forEach(day => {
-        ['am', 'pm'].forEach(period => {
-            const d = day[period];
-            html += d ? `<td style="${tdStyle}; color:#ff9800; font-weight:600;">${d.ws}</td>` : `<td style="${tdStyle}">-</td>`;
+    if (hasShortTermData('ws')) {
+        processedDays.forEach(day => {
+            ['am', 'pm'].forEach(period => {
+                const d = day[period];
+                html += d ? `<td style="${tdStyle}; color:#ff9800; font-weight:600;">${d.ws}</td>` : `<td style="${tdStyle}">-</td>`;
+            });
         });
-    });
+    } else {
+        html += `<td colspan="${shortColSpan}" style="${tdStyle}; color:#8899aa;">정보 없음</td>`;
+    }
     // 중기 풍속+풍향 셀 병합 안내 (풍속 행에서 2행 rowspan)
     if (midTermDays.length > 0) {
-        html += `<td colspan="${midColSpan}" rowspan="2" style="${midTdStyle}; font-size:0.75rem; color:#8899aa; vertical-align:middle;">중기예보는 풍속 및<br>풍향 정보를 제공하지<br>않습니다.</td>`;
+        html += `<td colspan="${midColSpan}" rowspan="2" style="${midTdStyle}; font-size:0.75rem; color:#8899aa; vertical-align:middle;">중기예보는 풍속 및 풍향 정보를 제공하지 않습니다.</td>`;
     }
     html += `</tr>`;
 
     // 풍향 행
     html += `<tr><th style="${tdStyle}; ${labelStyle}">풍향</th>`;
-    processedDays.forEach(day => {
-        ['am', 'pm'].forEach(period => {
-            const d = day[period];
-            html += d ? `<td style="${tdStyle}">${d.windDir}</td>` : `<td style="${tdStyle}">-</td>`;
+    if (hasShortTermData('wd')) {
+        processedDays.forEach(day => {
+            ['am', 'pm'].forEach(period => {
+                const d = day[period];
+                html += d ? `<td style="${tdStyle}">${d.windDir}</td>` : `<td style="${tdStyle}">-</td>`;
+            });
         });
-    });
+    } else {
+        html += `<td colspan="${shortColSpan}" style="${tdStyle}; color:#8899aa;">정보 없음</td>`;
+    }
     // 중기 풍향 셀은 위에서 rowspan으로 이미 병합됨
     html += `</tr>`;
 
-    // 예보 행 (먼바다 해구기상은 데이터 없음, 중기는 날씨 텍스트 표시)
+    // 예보 행 (먼바다 해구기상은 예보 텍스트 없음 → 정보 없음)
     html += `<tr><th style="${tdStyle}; ${labelStyle}">예보</th>`;
-    processedDays.forEach(() => {
-        html += `<td style="${tdStyle}">-</td><td style="${tdStyle}">-</td>`;
-    });
+    html += `<td colspan="${shortColSpan}" style="${tdStyle}; color:#8899aa;">정보 없음</td>`;
     midTermDays.forEach(mid => {
         ['am', 'pm'].forEach(period => {
             html += renderMidTermCell(mid, period, 'wf_text', midTdStyle);
