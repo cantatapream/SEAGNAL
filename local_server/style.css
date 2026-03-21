@@ -905,6 +905,11 @@ line-height: 1.1;
     border: 1px solid rgba(255, 255, 255, 0.05);
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
+    margin-top: 10px;
+}
+
+.main-accordion-header:first-child {
+    margin-top: 0;
 }
 
 .main-accordion-header:hover {

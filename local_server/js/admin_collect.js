@@ -68,40 +68,11 @@ window.switchAlertTestTab = function (tabId) {
 async function renderATMStatus(container) {
     container.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;">로딩 중...</div>';
     try {
-        const [alertsRes, crawlRes, marineFcstRes] = await Promise.all([
+        const [alertsRes, crawlRes] = await Promise.all([
             fetch('/api/weather-alerts').then(r => r.json()),
-            fetch('/api/admin/crawl-status').then(r => r.json()),
-            fetch('/api/marine-forecast').then(r => r.ok ? r.json() : null).catch(() => null)
+            fetch('/api/admin/crawl-status').then(r => r.json())
         ]);
         const isPaused = crawlRes.paused;
-
-        // 해상 기상 전망 현황 카드 생성
-        let marineFcstHtml = '';
-        if (marineFcstRes) {
-            const fmtSection = (label, data) => {
-                if (!data) return `<div style="color:#64748b;font-size:0.78rem;padding:4px 0;">${label}: 데이터 없음</div>`;
-                const cats = data.categories ? Object.keys(data.categories).join(', ') : '없음';
-                return `<div style="margin-bottom:8px;">
-                    <div style="color:#e2e8f0;font-size:0.82rem;font-weight:600;margin-bottom:2px;">${label} (${data.publishTime || '시간 미상'})</div>
-                    <div style="color:#94a3b8;font-size:0.75rem;">${data.forecastPeriod || ''}</div>
-                    <div style="color:#94a3b8;font-size:0.75rem;">카테고리: ${cats}</div>
-                    <details style="margin-top:4px;">
-                        <summary style="color:#64748b;font-size:0.72rem;cursor:pointer;">원문 보기</summary>
-                        <pre style="color:#94a3b8;font-size:0.7rem;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow:auto;margin-top:4px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;">${data.rawText || '없음'}</pre>
-                    </details>
-                </div>`;
-            };
-            marineFcstHtml = `
-            <div style="background:linear-gradient(135deg,rgba(30,41,59,0.8),rgba(51,65,85,0.5));border:1px solid rgba(148,163,184,0.2);border-radius:10px;padding:14px;margin-bottom:16px;">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-                    <i class="fa-solid fa-water" style="color:#94a3b8;"></i>
-                    <span style="color:#e2e8f0;font-weight:700;font-size:0.9rem;">해상 기상 전망</span>
-                    <span style="color:#64748b;font-size:0.72rem;margin-left:auto;">${marineFcstRes.updatedAt || ''}</span>
-                </div>
-                ${fmtSection('초단기 전망', marineFcstRes.ultraShort)}
-                ${fmtSection('단기 전망', marineFcstRes.shortTerm)}
-            </div>`;
-        }
 
         container.innerHTML = `
             <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
@@ -115,7 +86,6 @@ async function renderATMStatus(container) {
                     <i class="fa-solid fa-refresh"></i> 새로고침
                 </button>
             </div>
-            ${marineFcstHtml}
             <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;overflow:auto;max-height:55vh;">
                 <pre style="margin:0;color:#e2e8f0;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;font-family:'Courier New',monospace;">${JSON.stringify(alertsRes, null, 2)}</pre>
             </div>`;
@@ -192,7 +162,8 @@ function renderATMCollect(container) {
                 <div id="atm-progress-bar" style="background:linear-gradient(90deg,#6366f1,#8b5cf6);height:100%;width:0%;transition:width 0.3s;border-radius:4px;"></div>
             </div>
         </div>
-        <div id="atm-report-list" style="color:#94a3b8;font-size:0.9rem;">날짜를 선택하고 [조회] 버튼을 눌러주세요.</div>`;
+        <div id="atm-report-list" style="color:#94a3b8;font-size:0.9rem;">날짜를 선택하고 [조회] 버튼을 눌러주세요.</div>
+        <div id="atm-forecast-list" style="margin-top:16px;"></div>`;
 
     // 푸시 알림 토글 이벤트 바인딩
     const pushToggleWrap = document.getElementById('atm-push-toggle-wrap');
@@ -253,6 +224,9 @@ window.atmFetchReports = async function () {
         document.getElementById('atm-push-toggle-wrap').style.display = 'flex';
         window._atmReports = data.reports;
         window._atmResults = {};
+
+        // 전망 통보문 목록도 함께 로드
+        atmLoadForecastList();
 
         listEl.innerHTML = data.reports.map((r, i) => {
             const isProcessed = processedIds.has(r.id);
@@ -393,6 +367,202 @@ window.atmCollectOne = async function (i, refTimeOverride) {
             ? `<i class="fa-solid fa-check"></i> 완료(${attempt}회)`
             : '<i class="fa-solid fa-check"></i> 완료';
         btn.style.background = 'rgba(34,197,94,0.3)'; btn.style.color = '#86efac';
+    }
+};
+
+// --- 전망 통보문 리스트 (통보문 수집 탭 내) ---
+window.atmLoadForecastList = async function () {
+    const container = document.getElementById('atm-forecast-list');
+    if (!container) return;
+    container.innerHTML = '<div style="text-align:center;padding:10px;color:#64748b;font-size:0.8rem;"><i class="fa-solid fa-spinner fa-spin"></i> 전망 목록 로딩 중...</div>';
+    try {
+        const cacheList = await fetch(CONFIG.API_BASE + '/api/forecast-cache/list').then(r => r.json());
+        if (!cacheList || cacheList.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+        let html = `<div style="font-weight:700;color:#e2e8f0;font-size:0.9rem;margin-bottom:10px;"><i class="fa-solid fa-water" style="color:#94a3b8;"></i> 해상 기상 전망 (${cacheList.length}건)</div>`;
+        cacheList.forEach((item, i) => {
+            const typeColor = item.type === '초단기전망' ? '#38bdf8' : '#a78bfa';
+            const aiTag = item.hasAiResult ? '<span style="background:#10b98133;color:#10b981;padding:2px 6px;border-radius:4px;font-size:0.65rem;font-weight:700;">AI</span>' : '';
+            html += `
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:6px;flex-wrap:wrap;">
+                <span style="background:${typeColor}22;color:${typeColor};padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;flex-shrink:0;">${item.type || '전망'}</span>
+                ${aiTag}
+                <span style="flex:1;color:#e2e8f0;font-size:0.85rem;min-width:200px;">${item.title || item.reportId}</span>
+                <span style="color:#64748b;font-size:0.7rem;">${item.publishTime || ''}</span>
+                <div style="display:flex;gap:6px;flex-shrink:0;">
+                    <button disabled style="padding:5px 12px;background:rgba(34,197,94,0.3);color:#86efac;border:none;border-radius:6px;font-size:0.8rem;font-weight:600;cursor:default;"><i class="fa-solid fa-check"></i> 완료</button>
+                    <button onclick="atmShowForecastResult('${encodeURIComponent(item.reportId)}')" style="padding:5px 12px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">결과</button>
+                    <button onclick="atmRecollectForecast('${encodeURIComponent(item.reportId)}')" style="padding:5px 10px;background:rgba(255,255,255,0.08);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;font-size:0.75rem;font-weight:600;" title="전망 재수집"><i class="fa-solid fa-rotate"></i> 재수집</button>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = `<div style="color:#ef4444;font-size:0.8rem;padding:10px;">전망 목록 로드 실패: ${e.message}</div>`;
+    }
+};
+
+// 전망 재수집
+window.atmRecollectForecast = async function (encodedReportId) {
+    if (!confirm('해상 기상 전망을 재수집하시겠습니까?')) return;
+    try {
+        const res = await fetch(CONFIG.API_BASE + '/api/marine-forecast/refresh', { method: 'POST' });
+        if (res.ok) {
+            alert('재수집 완료');
+            atmLoadForecastList();
+        } else {
+            alert('재수집 실패');
+        }
+    } catch (e) { alert('재수집 오류: ' + e.message); }
+};
+
+// 전망 결과 모달 - AI 분석결과 / 원문 텍스트 / 구분 텍스트
+window.atmShowForecastResult = async function (encodedReportId) {
+    const reportId = decodeURIComponent(encodedReportId);
+    const existing = document.getElementById('atm-result-popup');
+    if (existing) existing.remove();
+
+    const popup = document.createElement('div');
+    popup.id = 'atm-result-popup';
+    popup.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:10001;display:flex;align-items:center;justify-content:center;';
+    popup.onclick = (e) => { if (e.target === popup) popup.remove(); };
+    popup.innerHTML = '<div style="text-align:center;color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin fa-2x"></i></div>';
+    document.body.appendChild(popup);
+
+    try {
+        const res = await fetch(CONFIG.API_BASE + '/api/forecast-cache/' + encodedReportId);
+        if (!res.ok) throw new Error('캐시 데이터 없음');
+        const data = await res.json();
+
+        const escHtml = (s) => s ? String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
+
+        // AI 분석 결과: 카테고리별 정제된 텍스트
+        let aiHtml = '';
+        const aiCats = data.aiResult && data.aiResult.categories ? data.aiResult.categories : {};
+        const aiKeys = Object.keys(aiCats);
+        if (aiKeys.length > 0) {
+            aiHtml = aiKeys.map(key => {
+                const cat = aiCats[key];
+                const mainText = cat.main || '';
+                const subItems = cat.sub || [];
+                return `<div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:12px;margin-bottom:8px;border-left:3px solid #6366f1;">
+                    <div style="font-weight:700;color:#fff;font-size:0.85rem;margin-bottom:6px;">${escHtml(key)}</div>
+                    <div style="color:#e2e8f0;font-size:0.8rem;line-height:1.5;">${escHtml(mainText)}</div>
+                    ${subItems.map(s => `<div style="color:#94a3b8;font-size:0.78rem;padding-left:12px;margin-top:4px;">${escHtml(s)}</div>`).join('')}
+                </div>`;
+            }).join('');
+        } else {
+            aiHtml = '<div style="color:#94a3b8;padding:10px;">AI 분석 결과가 없습니다.</div>';
+        }
+
+        // AI 이슈
+        let issuesHtml = '';
+        if (data.aiResult && data.aiResult.issues && data.aiResult.issues.length > 0) {
+            issuesHtml = `<div style="background:#f59e0b11;border:1px solid #f59e0b33;border-radius:8px;padding:10px;margin-bottom:12px;">
+                <div style="color:#f59e0b;font-weight:700;font-size:0.8rem;margin-bottom:6px;"><i class="fa-solid fa-triangle-exclamation"></i> AI 발견 이슈</div>
+                ${data.aiResult.issues.map(i => `<div style="color:#fbbf24;font-size:0.75rem;padding:2px 0;">• ${escHtml(i)}</div>`).join('')}
+            </div>`;
+        }
+
+        // 구분 텍스트: 코드 파싱 결과
+        let separatedText = '';
+        if (data.codeCategories) {
+            const codeKeys = Object.keys(data.codeCategories);
+            separatedText = codeKeys.map(key => {
+                const val = data.codeCategories[key];
+                const text = typeof val === 'string' ? val : JSON.stringify(val, null, 2);
+                return `[${key}]\n${text}`;
+            }).join('\n\n');
+        }
+
+        // 원문/구분 텍스트 영역
+        const preStyle = 'margin:0;color:#cbd5e1;font-size:0.7rem;white-space:pre-wrap;word-break:break-all;font-family:Courier New,monospace;';
+        const boxStyle = 'background:rgba(0,0,0,0.3);border-radius:10px;padding:14px;overflow:auto;max-height:35vh;';
+        const hasSeparated = !!separatedText;
+        let textHtml = '';
+
+        if (hasSeparated && window.innerWidth >= 700) {
+            textHtml = '<div style="display:flex;gap:12px;">'
+                + '<div style="flex:1;min-width:0;"><div style="color:#a5b4fc;font-weight:600;font-size:0.8rem;margin-bottom:6px;"><i class="fa-solid fa-file-lines"></i> 원문 텍스트</div>'
+                + '<div style="' + boxStyle + '"><pre style="' + preStyle + '">' + escHtml(data.rawText || '(내용 없음)') + '</pre></div></div>'
+                + '<div style="flex:1;min-width:0;"><div style="color:#34d399;font-weight:600;font-size:0.8rem;margin-bottom:6px;"><i class="fa-solid fa-scissors"></i> 구분 텍스트</div>'
+                + '<div style="' + boxStyle + 'border:1px solid rgba(52,211,153,0.2);"><pre style="' + preStyle + '">' + escHtml(separatedText) + '</pre></div></div>'
+                + '</div>';
+        } else if (hasSeparated) {
+            textHtml = '<div>'
+                + '<div style="display:flex;gap:4px;margin-bottom:8px;">'
+                + '<button id="atr-text-btn-original" onclick="atmSwitchTextView(\'original\')" style="flex:1;padding:6px 10px;background:rgba(99,102,241,0.2);color:#a5b4fc;border:none;cursor:pointer;font-size:0.8rem;border-radius:6px;font-weight:600;"><i class="fa-solid fa-file-lines"></i> 원문</button>'
+                + '<button id="atr-text-btn-separated" onclick="atmSwitchTextView(\'separated\')" style="flex:1;padding:6px 10px;background:transparent;color:#94a3b8;border:1px solid rgba(255,255,255,0.1);cursor:pointer;font-size:0.8rem;border-radius:6px;"><i class="fa-solid fa-scissors"></i> 구분</button>'
+                + '</div>'
+                + '<div id="atr-text-original-panel" style="' + boxStyle + '"><pre style="' + preStyle + '">' + escHtml(data.rawText || '(내용 없음)') + '</pre></div>'
+                + '<div id="atr-text-separated-panel" style="display:none;' + boxStyle + 'border:1px solid rgba(52,211,153,0.2);"><pre style="' + preStyle + '">' + escHtml(separatedText) + '</pre></div>'
+                + '</div>';
+        } else {
+            textHtml = '<div><div style="color:#a5b4fc;font-weight:600;font-size:0.85rem;margin-bottom:8px;"><i class="fa-solid fa-file-lines"></i> 원문 텍스트</div>'
+                + '<div style="' + boxStyle + '"><pre style="' + preStyle + '">' + escHtml(data.rawText || '(내용 없음)') + '</pre></div></div>';
+        }
+
+        const typeTag = data.type ? `<span style="background:rgba(99,102,241,0.2);color:#a5b4fc;padding:2px 8px;border-radius:4px;font-size:0.75rem;">${escHtml(data.type)}</span>` : '';
+
+        popup.innerHTML = `
+        <div style="background:#1e293b;border-radius:14px;width:90%;max-width:750px;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,0.1);">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.1);">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <h4 style="margin:0;color:#fff;font-size:0.95rem;">수집 결과</h4>${typeTag}
+                </div>
+                <button onclick="document.getElementById('atm-result-popup').remove()" style="background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer;">&times;</button>
+            </div>
+            <div style="font-size:0.8rem;color:#94a3b8;padding:8px 18px 0;">${escHtml(data.title || '')} (${data.publishTime || ''})</div>
+            <div style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.1);">
+                <button id="atr-tab-json" onclick="atmSwitchFcstResultTab('json')" style="flex:1;padding:10px;background:transparent;color:#94a3b8;border:none;cursor:pointer;font-weight:600;font-size:0.85rem;border-bottom:2px solid transparent;">JSON</button>
+                <button id="atr-tab-ai" onclick="atmSwitchFcstResultTab('ai')" style="flex:1;padding:10px;background:rgba(99,102,241,0.2);color:#a5b4fc;border:none;cursor:pointer;font-weight:600;font-size:0.85rem;border-bottom:2px solid #6366f1;">AI 분석</button>
+            </div>
+            <div id="atr-content" style="flex:1;overflow-y:auto;padding:16px;">
+                <div id="atr-fcst-json" style="display:none;"></div>
+                <div id="atr-fcst-ai">
+                    ${issuesHtml}
+                    <div style="margin-bottom:16px;">
+                        <div style="color:#a5b4fc;font-weight:600;font-size:0.85rem;margin-bottom:8px;"><i class="fa-solid fa-robot"></i> AI 분석 결과 (${aiKeys.length}건)</div>
+                        ${aiHtml}
+                    </div>
+                    ${textHtml}
+                </div>
+            </div>
+        </div>`;
+
+        // JSON 데이터 준비
+        const jsonData = Object.assign({}, data);
+        delete jsonData.rawText;
+        document.getElementById('atr-fcst-json').innerHTML = '<div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:14px;overflow:auto;"><pre style="margin:0;color:#e2e8f0;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;font-family:Courier New,monospace;">' + JSON.stringify(jsonData, null, 2) + '</pre></div>';
+
+        window._atmFcstResultData = data;
+    } catch (e) {
+        popup.innerHTML = `
+        <div style="background:#1e293b;border-radius:14px;padding:40px;text-align:center;">
+            <div style="color:#ef4444;margin-bottom:10px;"><i class="fa-solid fa-exclamation-circle fa-2x"></i></div>
+            <div style="color:#f87171;">${e.message}</div>
+            <button onclick="document.getElementById('atm-result-popup').remove()" style="margin-top:15px;padding:8px 16px;background:#374151;color:#fff;border:none;border-radius:6px;cursor:pointer;">닫기</button>
+        </div>`;
+    }
+};
+
+window.atmSwitchFcstResultTab = function (tabId) {
+    ['json', 'ai'].forEach(id => {
+        const btn = document.getElementById('atr-tab-' + id);
+        if (!btn) return;
+        if (id === tabId) { btn.style.background = 'rgba(99,102,241,0.2)'; btn.style.color = '#a5b4fc'; btn.style.borderBottom = '2px solid #6366f1'; }
+        else { btn.style.background = 'transparent'; btn.style.color = '#94a3b8'; btn.style.borderBottom = '2px solid transparent'; }
+    });
+    const jsonDiv = document.getElementById('atr-fcst-json');
+    const aiDiv = document.getElementById('atr-fcst-ai');
+    if (tabId === 'json') {
+        if (jsonDiv) jsonDiv.style.display = 'block';
+        if (aiDiv) aiDiv.style.display = 'none';
+    } else {
+        if (jsonDiv) jsonDiv.style.display = 'none';
+        if (aiDiv) aiDiv.style.display = 'block';
     }
 };
 

@@ -300,7 +300,7 @@ function renderApp() {
     }
 
     // --- Global Badge & Accordion State Logic ---
-    const globalStatusContainer = document.querySelector('.header-status'); // Use container to clear/add multiple badges
+    const globalStatusContainer = document.querySelector('#main-accordion-header .header-status'); // 해역별 특보현황 헤더의 상태 배지 영역
     const mainHeader = document.getElementById('main-accordion-header');
     const mainBody = document.getElementById('main-accordion-body');
 
