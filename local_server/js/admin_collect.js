@@ -40,6 +40,9 @@ window.openAlertTestModal = function () {
                 <button id="atm-tab-collect" onclick="switchAlertTestTab('collect')" class="atm-tab" style="flex:1;padding:12px;background:transparent;color:#94a3b8;border:none;cursor:pointer;font-weight:600;font-size:0.9rem;border-bottom:2px solid transparent;">
                     <i class="fa-solid fa-download"></i> 통보문 수집
                 </button>
+                <button id="atm-tab-forecast" onclick="switchAlertTestTab('forecast')" class="atm-tab" style="flex:1;padding:12px;background:transparent;color:#94a3b8;border:none;cursor:pointer;font-weight:600;font-size:0.9rem;border-bottom:2px solid transparent;">
+                    <i class="fa-solid fa-water"></i> 전망 수집
+                </button>
             </div>
             <div id="atm-content" style="flex:1;overflow-y:auto;padding:20px;"></div>
         </div>
@@ -49,7 +52,7 @@ window.openAlertTestModal = function () {
 };
 
 window.switchAlertTestTab = function (tabId) {
-    ['status', 'collect'].forEach(id => {
+    ['status', 'collect', 'forecast'].forEach(id => {
         const btn = document.getElementById('atm-tab-' + id);
         if (!btn) return;
         if (id === tabId) { btn.style.background = 'rgba(99,102,241,0.2)'; btn.style.color = '#a5b4fc'; btn.style.borderBottom = '2px solid #6366f1'; }
@@ -57,7 +60,8 @@ window.switchAlertTestTab = function (tabId) {
     });
     const content = document.getElementById('atm-content');
     if (tabId === 'status') renderATMStatus(content);
-    else renderATMCollect(content);
+    else if (tabId === 'collect') renderATMCollect(content);
+    else if (tabId === 'forecast') renderATMForecast(content);
 };
 
 // --- [수집 현황] 탭 ---
@@ -583,6 +587,214 @@ window.atmSwitchTextView = function(view) {
     }
 };
 
+// ============================================================================
+// [전망 수집] 탭: 초단기/단기 전망 통보문 수집 결과 목록 및 결과 보기
+// ============================================================================
+
+async function renderATMForecast(container) {
+    container.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> 전망 수집 목록 로딩 중...</div>';
+
+    try {
+        const [cacheList, marineFcst] = await Promise.all([
+            fetch(CONFIG.API_BASE + '/api/forecast-cache/list').then(r => r.json()),
+            fetch(CONFIG.API_BASE + '/api/marine-forecast').then(r => r.ok ? r.json() : null).catch(() => null)
+        ]);
+
+        let html = '';
+
+        // 현재 표출 중인 전망 요약
+        if (marineFcst) {
+            html += `
+            <div style="background:linear-gradient(135deg,rgba(30,41,59,0.8),rgba(51,65,85,0.5));border:1px solid rgba(148,163,184,0.2);border-radius:10px;padding:14px;margin-bottom:16px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    <i class="fa-solid fa-water" style="color:#94a3b8;"></i>
+                    <span style="color:#e2e8f0;font-weight:700;font-size:0.9rem;">현재 표출 중인 전망</span>
+                    <span style="color:#64748b;font-size:0.72rem;margin-left:auto;">${marineFcst.updatedAt || ''}</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    ${['ultraShort', 'shortTerm'].map(key => {
+                        const d = marineFcst[key];
+                        const label = key === 'ultraShort' ? '초단기' : '단기';
+                        if (!d) return `<div style="color:#64748b;font-size:0.78rem;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;">${label}: 없음</div>`;
+                        const cats = d.categories ? (typeof d.categories === 'object' ? Object.keys(d.categories).join(', ') : '있음') : '없음';
+                        const aiTag = d.aiResult ? '<span style="color:#10b981;font-size:0.65rem;margin-left:4px;">AI✓</span>' : '';
+                        return `<div style="padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;">
+                            <div style="color:#e2e8f0;font-size:0.82rem;font-weight:600;">${label} (${d.publishTime || ''})${aiTag}</div>
+                            <div style="color:#94a3b8;font-size:0.72rem;">카테고리: ${cats}</div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>`;
+        }
+
+        // 수집 이력 목록
+        if (!cacheList || cacheList.length === 0) {
+            html += '<div style="text-align:center;padding:20px;color:#64748b;font-size:0.85rem;">수집된 전망 통보문이 없습니다. 기상 예보 수동 호출을 실행해주세요.</div>';
+        } else {
+            html += `<div style="font-weight:700;color:#e2e8f0;font-size:0.9rem;margin-bottom:10px;"><i class="fa-solid fa-list"></i> 수집 이력 (${cacheList.length}건)</div>`;
+            cacheList.forEach(item => {
+                const typeColor = item.type === '초단기전망' ? '#38bdf8' : '#a78bfa';
+                const aiTag = item.hasAiResult ? '<span style="background:#10b98133;color:#10b981;padding:2px 6px;border-radius:4px;font-size:0.65rem;font-weight:700;">AI 분석</span>' : '';
+                html += `
+                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+                    <div style="flex:1;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                            <span style="background:${typeColor}22;color:${typeColor};padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;">${item.type || '전망'}</span>
+                            ${aiTag}
+                        </div>
+                        <div style="color:#e2e8f0;font-size:0.82rem;font-weight:500;">${item.title || item.reportId}</div>
+                        <div style="color:#64748b;font-size:0.72rem;">${item.publishTime || ''}</div>
+                    </div>
+                    <button onclick="showForecastResult('${encodeURIComponent(item.reportId)}')" style="padding:6px 14px;background:#8b5cf622;color:#a78bfa;border:1px solid #8b5cf644;border-radius:6px;cursor:pointer;font-size:0.75rem;font-weight:600;">
+                        <i class="fa-solid fa-eye"></i> 결과
+                    </button>
+                </div>`;
+            });
+        }
+
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = `<div style="color:#ef4444;text-align:center;padding:20px;">전망 목록을 불러올 수 없습니다: ${e.message}</div>`;
+    }
+}
+
+// 전망 결과 상세 보기 모달
+window.showForecastResult = async function (encodedReportId) {
+    const reportId = decodeURIComponent(encodedReportId);
+
+    // 모달 생성
+    const existing = document.getElementById('forecast-result-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'forecast-result-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:20000;background:rgba(0,0,0,0.85);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:20px;';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    modal.innerHTML = '<div style="text-align:center;color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><p>로딩 중...</p></div>';
+    document.body.appendChild(modal);
+
+    try {
+        const res = await fetch(CONFIG.API_BASE + '/api/forecast-cache/' + encodedReportId);
+        if (!res.ok) throw new Error('캐시 데이터 없음');
+        const data = await res.json();
+
+        const escHtml = (s) => {
+            if (!s) return '';
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        };
+
+        // 카테고리 비교 렌더링
+        let compareHtml = '';
+        const codeKeys = data.codeCategories ? Object.keys(data.codeCategories) : [];
+        const aiKeys = data.aiResult && data.aiResult.categories ? Object.keys(data.aiResult.categories) : [];
+        const allKeys = [...new Set([...codeKeys, ...aiKeys])];
+
+        if (allKeys.length > 0) {
+            compareHtml = allKeys.map(key => {
+                const codeText = data.codeCategories && data.codeCategories[key] ? (typeof data.codeCategories[key] === 'string' ? data.codeCategories[key] : JSON.stringify(data.codeCategories[key])) : '';
+                const aiCat = data.aiResult && data.aiResult.categories && data.aiResult.categories[key];
+                const aiMain = aiCat ? (aiCat.main || '') : '';
+                const aiSub = aiCat && aiCat.sub ? aiCat.sub.join('\n') : '';
+                const aiText = aiMain + (aiSub ? '\n' + aiSub : '');
+
+                const codeOnly = codeText && !aiText;
+                const aiOnly = !codeText && aiText;
+                const differ = codeText && aiText && codeText.trim() !== aiText.trim();
+
+                let tagHtml = '';
+                if (aiOnly) tagHtml = '<span style="color:#f59e0b;font-size:0.65rem;">AI 추가</span>';
+                else if (codeOnly) tagHtml = '<span style="color:#ef4444;font-size:0.65rem;">AI 미포함</span>';
+                else if (differ) tagHtml = '<span style="color:#38bdf8;font-size:0.65rem;">AI 교정</span>';
+                else tagHtml = '<span style="color:#10b981;font-size:0.65rem;">일치</span>';
+
+                return `
+                <div style="margin-bottom:12px;border:1px solid rgba(255,255,255,0.08);border-radius:8px;overflow:hidden;">
+                    <div style="padding:8px 12px;background:rgba(99,102,241,0.1);display:flex;align-items:center;gap:8px;">
+                        <span style="color:#a5b4fc;font-weight:700;font-size:0.85rem;">${escHtml(key)}</span>
+                        ${tagHtml}
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+                        <div style="padding:10px;border-right:1px solid rgba(255,255,255,0.05);">
+                            <div style="color:#64748b;font-size:0.7rem;font-weight:600;margin-bottom:4px;">코드 추출</div>
+                            <pre style="color:#cbd5e1;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;margin:0;">${escHtml(codeText) || '<span style="color:#475569;">없음</span>'}</pre>
+                        </div>
+                        <div style="padding:10px;">
+                            <div style="color:#10b981;font-size:0.7rem;font-weight:600;margin-bottom:4px;">AI 분석</div>
+                            <pre style="color:#cbd5e1;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;margin:0;">${escHtml(aiText) || '<span style="color:#475569;">없음</span>'}</pre>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // AI 이슈 표시
+        let issuesHtml = '';
+        if (data.aiResult && data.aiResult.issues && data.aiResult.issues.length > 0) {
+            issuesHtml = `
+            <div style="background:#f59e0b11;border:1px solid #f59e0b33;border-radius:8px;padding:10px;margin-bottom:12px;">
+                <div style="color:#f59e0b;font-weight:700;font-size:0.8rem;margin-bottom:6px;"><i class="fa-solid fa-triangle-exclamation"></i> AI 발견 이슈</div>
+                ${data.aiResult.issues.map(i => `<div style="color:#fbbf24;font-size:0.75rem;padding:2px 0;">• ${escHtml(i)}</div>`).join('')}
+            </div>`;
+        }
+
+        modal.innerHTML = `
+        <div style="background:#1e293b;border-radius:16px;width:95%;max-width:900px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,0.1);">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0;">
+                <div>
+                    <h3 style="margin:0;color:#fff;font-size:1rem;"><i class="fa-solid fa-magnifying-glass-chart" style="color:#a78bfa;"></i> 전망 분석 결과</h3>
+                    <div style="color:#94a3b8;font-size:0.75rem;margin-top:2px;">${escHtml(data.title || '')} (${data.publishTime || ''})</div>
+                </div>
+                <button onclick="document.getElementById('forecast-result-modal').remove()" style="background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer;">&times;</button>
+            </div>
+            <div style="flex:1;overflow-y:auto;padding:16px 20px;">
+                ${issuesHtml}
+
+                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                    <button id="fcst-tab-compare" onclick="switchFcstResultTab('compare')" style="flex:1;padding:8px;background:rgba(99,102,241,0.2);color:#a5b4fc;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;border-bottom:2px solid #6366f1;">
+                        <i class="fa-solid fa-code-compare"></i> 비교
+                    </button>
+                    <button id="fcst-tab-raw" onclick="switchFcstResultTab('raw')" style="flex:1;padding:8px;background:transparent;color:#94a3b8;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">
+                        <i class="fa-solid fa-file-lines"></i> 원문
+                    </button>
+                </div>
+
+                <div id="fcst-result-compare">
+                    ${compareHtml || '<div style="color:#64748b;text-align:center;padding:20px;">카테고리 데이터가 없습니다.</div>'}
+                </div>
+                <div id="fcst-result-raw" style="display:none;">
+                    <pre style="color:#cbd5e1;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;padding:12px;background:rgba(0,0,0,0.3);border-radius:8px;max-height:60vh;overflow-y:auto;">${escHtml(data.rawText || '원문 없음')}</pre>
+                </div>
+            </div>
+        </div>`;
+    } catch (e) {
+        modal.innerHTML = `
+        <div style="background:#1e293b;border-radius:16px;padding:40px;text-align:center;">
+            <div style="color:#ef4444;margin-bottom:10px;"><i class="fa-solid fa-exclamation-circle fa-2x"></i></div>
+            <div style="color:#f87171;">${e.message}</div>
+            <button onclick="document.getElementById('forecast-result-modal').remove()" style="margin-top:15px;padding:8px 16px;background:#374151;color:#fff;border:none;border-radius:6px;cursor:pointer;">닫기</button>
+        </div>`;
+    }
+};
+
+window.switchFcstResultTab = function (tabId) {
+    const compareDiv = document.getElementById('fcst-result-compare');
+    const rawDiv = document.getElementById('fcst-result-raw');
+    const btnCompare = document.getElementById('fcst-tab-compare');
+    const btnRaw = document.getElementById('fcst-tab-raw');
+
+    if (tabId === 'compare') {
+        if (compareDiv) compareDiv.style.display = 'block';
+        if (rawDiv) rawDiv.style.display = 'none';
+        if (btnCompare) { btnCompare.style.background = 'rgba(99,102,241,0.2)'; btnCompare.style.color = '#a5b4fc'; btnCompare.style.borderBottom = '2px solid #6366f1'; }
+        if (btnRaw) { btnRaw.style.background = 'transparent'; btnRaw.style.color = '#94a3b8'; btnRaw.style.borderBottom = 'none'; }
+    } else {
+        if (compareDiv) compareDiv.style.display = 'none';
+        if (rawDiv) rawDiv.style.display = 'block';
+        if (btnRaw) { btnRaw.style.background = 'rgba(99,102,241,0.2)'; btnRaw.style.color = '#a5b4fc'; btnRaw.style.borderBottom = '2px solid #6366f1'; }
+        if (btnCompare) { btnCompare.style.background = 'transparent'; btnCompare.style.color = '#94a3b8'; btnCompare.style.borderBottom = 'none'; }
+    }
+};
+
 // (B) API 설정 섹션 렌더링
 // (B) API 설정 섹션 렌더링
 async function renderUnifiedApiContent(container) {
@@ -862,24 +1074,27 @@ async function renderUnifiedApiContent(container) {
                 const statusColor = isSuccess ? '#10b981' : (s.status === '실패' ? '#ef4444' : '#64748b');
 
                 return `
-                    <div class="admin-card" style="display:flex; justify-content:space-between; align-items:center; padding:12px 15px;">
-                        <div style="display:flex; align-items:center; gap:12px;">
-                            <div style="width:36px; height:36px; background:rgba(255,255,255,0.05); border-radius:10px; display:flex; align-items:center; justify-content:center;">
-                                <i class="fa-solid ${api.icon}" style="color:${api.color}; font-size:1rem;"></i>
+                    <div class="admin-card" id="api-card-${api.key}" style="padding:12px 15px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:12px;">
+                                <div style="width:36px; height:36px; background:rgba(255,255,255,0.05); border-radius:10px; display:flex; align-items:center; justify-content:center;">
+                                    <i class="fa-solid ${api.icon}" style="color:${api.color}; font-size:1rem;"></i>
+                                </div>
+                                <div>
+                                    <div style="font-weight:700; color:#fff; font-size:0.9rem;">${api.name}</div>
+                                    <div style="font-size:0.7rem; color:#64748b;">최종 실행: ${s.lastRun}</div>
+                                </div>
                             </div>
-                            <div>
-                                <div style="font-weight:700; color:#fff; font-size:0.9rem;">${api.name}</div>
-                                <div style="font-size:0.7rem; color:#64748b;">최종 실행: ${s.lastRun}</div>
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <span style="padding:3px 10px; border-radius:30px; font-size:0.65rem; font-weight:800; background:${statusColor}22; color:${statusColor}; border:1px solid ${statusColor}44;">
+                                    ${s.status}
+                                </span>
+                                <button class="admin-action-btn" id="api-btn-${api.key}" style="padding:6px 10px; font-size:0.7rem;" onclick="forceUpdateApiUnified('${api.key}')">
+                                    <i class="fa-solid fa-play"></i> 수동 호출
+                                </button>
                             </div>
                         </div>
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <span style="padding:3px 10px; border-radius:30px; font-size:0.65rem; font-weight:800; background:${statusColor}22; color:${statusColor}; border:1px solid ${statusColor}44;">
-                                ${s.status}
-                            </span>
-                            <button class="admin-action-btn" style="padding:6px 10px; font-size:0.7rem;" onclick="forceUpdateApiUnified('${api.key}')">
-                                <i class="fa-solid fa-play"></i> 수동 호출
-                            </button>
-                        </div>
+                        <div id="api-progress-${api.key}" style="display:none; margin-top:10px;"></div>
                     </div>
                 `;
             }).join('');
@@ -889,12 +1104,72 @@ async function renderUnifiedApiContent(container) {
     };
 
     window.forceUpdateApiUnified = async function (type) {
-        if (!confirm(`${type} API 수집을 강제로 실행하시겠습니까?`)) return;
+        const btn = document.getElementById('api-btn-' + type);
+        const progressEl = document.getElementById('api-progress-' + type);
+        if (!btn || !progressEl) return;
+
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 수집 중...';
+        btn.disabled = true;
+
+        // 진행 표시 UI
+        progressEl.style.display = 'block';
+        progressEl.innerHTML = `
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <span class="cp-text" style="color:#a5b4fc; font-size:0.75rem;">준비 중...</span>
+                <span class="cp-pct" style="color:#94a3b8; font-size:0.75rem;">0%</span>
+            </div>
+            <div style="background:rgba(0,0,0,0.3); border-radius:4px; height:5px; overflow:hidden;">
+                <div class="cp-bar" style="background:linear-gradient(90deg,#6366f1,#8b5cf6); height:100%; width:0%; transition:width 0.3s; border-radius:4px;"></div>
+            </div>
+        `;
+
         try {
-            await fetch(CONFIG.API_BASE + '/api/force-update/' + type, { method: 'POST' });
-            alert('요청되었습니다.');
-            refreshUnifiedApiStatus();
-        } catch (e) { alert('오류 발생'); }
+            const es = new EventSource(CONFIG.API_BASE + '/api/force-update/' + type + '/stream');
+
+            await new Promise((resolve, reject) => {
+                es.onmessage = (ev) => {
+                    try {
+                        const data = JSON.parse(ev.data);
+                        if (data.done) { es.close(); resolve(data); return; }
+                        if (data.error) { es.close(); reject(new Error(data.error)); return; }
+                        if (data.current && data.total) {
+                            const pct = Math.round((data.current / data.total) * 100);
+                            const textEl = progressEl.querySelector('.cp-text');
+                            const pctEl = progressEl.querySelector('.cp-pct');
+                            const barEl = progressEl.querySelector('.cp-bar');
+                            if (textEl) textEl.textContent = `${data.step}: ${data.current}/${data.total} (${data.detail || ''})`;
+                            if (pctEl) pctEl.textContent = pct + '%';
+                            if (barEl) barEl.style.width = pct + '%';
+                        }
+                    } catch (e) { }
+                };
+                es.onerror = () => { es.close(); reject(new Error('SSE 연결 실패')); };
+            });
+
+            // 완료 표시
+            const barEl = progressEl.querySelector('.cp-bar');
+            const pctEl = progressEl.querySelector('.cp-pct');
+            const textEl = progressEl.querySelector('.cp-text');
+            if (barEl) barEl.style.width = '100%';
+            if (pctEl) pctEl.textContent = '100%';
+            if (textEl) { textEl.textContent = '수집 완료!'; textEl.style.color = '#10b981'; }
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> 완료';
+
+            setTimeout(() => {
+                progressEl.style.display = 'none';
+                refreshUnifiedApiStatus();
+            }, 2000);
+        } catch (e) {
+            btn.innerHTML = '<i class="fa-solid fa-times"></i> 에러';
+            const textEl = progressEl.querySelector('.cp-text');
+            if (textEl) { textEl.textContent = '수집 실패: ' + e.message; textEl.style.color = '#ef4444'; }
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                progressEl.style.display = 'none';
+            }, 3000);
+        }
     };
 
     refreshUnifiedApiStatus();
