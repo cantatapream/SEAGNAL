@@ -30,17 +30,8 @@ const MARINE_FORECAST_ORDER = ['강풍', '해상', '너울', '바다안개'];
 window.toggleMarineForecastAccordion = function () {
     const body = document.getElementById('marine-forecast-accordion-body');
     const header = document.getElementById('marine-forecast-accordion-header');
-    const icon = document.getElementById('marine-forecast-accordion-icon');
-
     if (body) body.classList.toggle('collapsed');
     if (header) header.classList.toggle('collapsed-state');
-    if (icon) {
-        if (header && header.classList.contains('collapsed-state')) {
-            icon.style.transform = 'rotate(0deg)';
-        } else {
-            icon.style.transform = 'rotate(180deg)';
-        }
-    }
 };
 
 /**

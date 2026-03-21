@@ -652,8 +652,8 @@ router.get('/api/admin/maintenance', (req, res) => {
 /** 점검 모드 설정 (시작/종료/내용 변경) */
 router.post('/api/admin/maintenance', (req, res) => {
     try {
-        const { active, title, content } = req.body;
-        let config = { active: false, title: '', content: '', startedAt: null, startedBy: 'admin' };
+        const { active, title, content, blockPush } = req.body;
+        let config = { active: false, title: '', content: '', startedAt: null, startedBy: 'admin', blockPush: true };
 
         if (fs.existsSync(MAINTENANCE_FILE)) {
             try { config = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8')); } catch (_) {}
@@ -662,6 +662,7 @@ router.post('/api/admin/maintenance', (req, res) => {
         if (typeof active === 'boolean') config.active = active;
         if (typeof title === 'string') config.title = title;
         if (typeof content === 'string') config.content = content;
+        if (typeof blockPush === 'boolean') config.blockPush = blockPush;
 
         if (active === true) {
             config.startedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });

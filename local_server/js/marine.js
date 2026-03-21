@@ -882,6 +882,13 @@ function renderMarineChart(data) {
 // ----------------------------------------------------------------------------
 
 window.switchMainTab = function (targetId) {
+    // 차단된 탭인지 확인
+    const targetTab = document.querySelector(`.tab-btn[data-target="${targetId}"]`);
+    if (targetTab && targetTab.dataset.blocked === 'true') {
+        if (typeof showBlockedFeaturePopup === 'function') showBlockedFeaturePopup();
+        return;
+    }
+
     const tabs = document.querySelectorAll('.tab-btn');
     const contents = document.querySelectorAll('.tab-content');
 
