@@ -90,12 +90,16 @@ function renderCategoryHtml(categoryKey, text) {
     html += `<div class="marine-forecast-category-header">`;
     html += `<span class="marine-forecast-emoji">${emoji}</span>`;
     html += `<span class="marine-forecast-category-text">`;
-    html += `<span class="marine-forecast-category-name">${displayName}</span> : ${escapeHtml(mainText)}`;
+    // AI 마크업이 포함되어 있으면 renderMarineMarkup, 없으면 escapeHtml
+    const hasMarkup = /\{\{(loc|num|warn):/.test(mainText) || subItems.some(s => /\{\{(loc|num|warn):/.test(s));
+    const renderText = hasMarkup ? renderMarineMarkup : escapeHtml;
+
+    html += `<span class="marine-forecast-category-name">${displayName}</span> : ${renderText(mainText)}`;
     html += `</span>`;
     html += `</div>`;
 
     for (const sub of subItems) {
-        html += `<div class="marine-forecast-sub-item">${escapeHtml(sub)}</div>`;
+        html += `<div class="marine-forecast-sub-item">${renderText(sub)}</div>`;
     }
 
     html += `</div>`;
@@ -108,6 +112,36 @@ function renderCategoryHtml(categoryKey, text) {
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * AI 마크업 변환: {{loc:...}}, {{num:...}}, {{warn:...}} → HTML span
+ * 색상: 지역=파랑, 수치=빨강, 경고=주황
+ */
+function renderMarineMarkup(str) {
+    if (!str) return '';
+    // 먼저 마크업 태그 내부를 보호하면서 이스케이프
+    // 1. 마크업 태그를 추출하여 플레이스홀더로 교체
+    const tokens = [];
+    let safe = str.replace(/\{\{(loc|num|warn):([^}]*)\}\}/g, (_, type, text) => {
+        const idx = tokens.length;
+        tokens.push({ type, text });
+        return `__MK${idx}__`;
+    });
+    // 2. 나머지 텍스트 이스케이프
+    safe = escapeHtml(safe);
+    // 3. 플레이스홀더를 실제 HTML로 교체
+    safe = safe.replace(/__MK(\d+)__/g, (_, idx) => {
+        const t = tokens[parseInt(idx)];
+        const escaped = escapeHtml(t.text);
+        switch (t.type) {
+            case 'loc':  return `<span style="color:#60a5fa;font-weight:700;">${escaped}</span>`;
+            case 'num':  return `<span style="color:#f87171;font-weight:700;">${escaped}</span>`;
+            case 'warn': return `<span style="color:#fb923c;font-weight:700;">${escaped}</span>`;
+            default:     return escaped;
+        }
+    });
+    return safe;
 }
 
 /**
