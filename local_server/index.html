@@ -328,21 +328,7 @@
                 </div>
             </div>
 
-            <!-- 운영 병행 모드 팝업 -->
-            <div id="work-mode-popup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:99998;justify-content:center;align-items:center;" onclick="closeWorkModePopup()">
-                <div onclick="event.stopPropagation();" style="background:linear-gradient(135deg,#1e293b,#334155);border:1px solid rgba(212,160,23,0.3);border-radius:16px;padding:24px;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-                        <i class="fa-solid fa-helmet-safety" style="color:#d4a017;font-size:1.2rem;"></i>
-                        <span style="color:#fbbf24;font-weight:700;font-size:0.95rem;">SEA:GNAL의 기능 개선을 위해 작업 중입니다.</span>
-                    </div>
-                    <div id="work-mode-popup-content" style="color:#cbd5e1;font-size:0.85rem;line-height:1.7;margin-bottom:16px;white-space:pre-line;"></div>
-                    <div id="work-mode-popup-end" style="display:none;padding:12px;background:rgba(212,160,23,0.1);border:1px solid rgba(212,160,23,0.2);border-radius:10px;margin-bottom:16px;">
-                        <div style="color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">작업 종료 예상시점</div>
-                        <div id="work-mode-popup-end-time" style="color:#fbbf24;font-weight:700;font-size:0.95rem;"></div>
-                    </div>
-                    <button onclick="closeWorkModePopup()" style="width:100%;padding:12px;background:linear-gradient(135deg,#475569,#334155);color:#e2e8f0;border:1px solid rgba(255,255,255,0.1);border-radius:10px;cursor:pointer;font-weight:600;font-size:0.9rem;">확인</button>
-                </div>
-            </div>
+            <!-- 운영 병행 모드 팝업 → body 레벨로 이동됨 -->
 
             <!-- 탭 네비게이션 (헤더 내부로 이동) -->
             <nav class="main-tabs">
@@ -852,6 +838,7 @@
     // 운영 병행 모드 & 선택적 차단 상태 확인
     const DEFAULT_WORK_CONTENT = '현재 관리자가 SEA:GNAL의 쾌적한 사용 및 운영을 위하여 기능 개선작업을 진행 중입니다.\n작업 중에는 표출 오류, 서버 멈춤 등 기타 문제가 일시적으로 발생할 수 있습니다.\n하지만 작업 소요시간은 오래 걸리지 않으니 사용 중 문제가 발생하지 않도록 신속하게 마무리하겠습니다.\n이용해주셔서 감사합니다.';
     let _workModeData = null;
+    let _maintenanceData = null;
 
     async function checkBlockStatus() {
         try {
@@ -872,6 +859,11 @@
             }
 
             // 2. 선택적 기능 차단
+            if (data.maintenance && data.maintenance.active) {
+                _maintenanceData = data.maintenance;
+            } else {
+                _maintenanceData = null;
+            }
             const blocked = (data.maintenance && data.maintenance.active && data.maintenance.blockedFeatures) || [];
             applyFeatureBlocks(blocked);
         } catch (e) { /* 무시 */ }
@@ -898,6 +890,12 @@
             'weather-alert': 'main-accordion-body',
             'weather-buoy': 'marine-status-accordion-body',
         };
+        // 원본 onclick 핸들러 매핑
+        const originalOnclickMap = {
+            'marine-forecast': 'toggleMarineForecastAccordion()',
+            'weather-alert': 'toggleMainAccordion()',
+            'weather-buoy': 'toggleMarineStatusAccordion()',
+        };
         for (const [featureId, headerId] of Object.entries(featureMap)) {
             const header = document.getElementById(headerId);
             if (!header) continue;
@@ -908,18 +906,34 @@
                 // 헤더에 오버레이
                 if (!existingOverlay) {
                     header.style.position = 'relative';
-                    header.style.pointerEvents = 'none';
+                    // 원본 onclick 저장
+                    if (!header.dataset.originalOnclick) {
+                        header.dataset.originalOnclick = header.getAttribute('onclick') || originalOnclickMap[featureId] || '';
+                    }
+                    header.setAttribute('onclick', '');
+                    header.onclick = function(e) { e.stopPropagation(); showBlockedFeaturePopup(); };
+                    header.style.cursor = 'pointer';
                     const div = document.createElement('div');
                     div.className = 'feature-block-overlay';
-                    div.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:10;display:flex;align-items:center;justify-content:center;border-radius:inherit;backdrop-filter:blur(2px);';
+                    div.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:10;display:flex;align-items:center;justify-content:center;border-radius:inherit;backdrop-filter:blur(2px);pointer-events:none;';
                     div.innerHTML = '<div style="text-align:center;color:#94a3b8;"><i class="fa-solid fa-wrench" style="font-size:1rem;color:#f59e0b;margin-right:6px;"></i><span style="font-size:0.8rem;">점검 중인 기능입니다</span></div>';
                     header.appendChild(div);
                 }
                 // 바디 숨김
                 if (bodyEl) bodyEl.style.display = 'none';
             } else {
-                if (existingOverlay) existingOverlay.remove();
+                if (existingOverlay) {
+                    existingOverlay.remove();
+                    // 원본 onclick 복원
+                    const origOnclick = header.dataset.originalOnclick;
+                    if (origOnclick) {
+                        header.setAttribute('onclick', origOnclick);
+                        header.onclick = null;
+                        delete header.dataset.originalOnclick;
+                    }
+                }
                 header.style.pointerEvents = '';
+                header.style.cursor = '';
                 if (bodyEl) bodyEl.style.display = '';
             }
         }
@@ -930,12 +944,20 @@
             if (!tabBtn) continue;
             if (blocked.includes(featureId)) {
                 tabBtn.style.opacity = '0.4';
-                tabBtn.style.pointerEvents = 'none';
+                tabBtn.style.pointerEvents = 'auto';
+                tabBtn.style.cursor = 'pointer';
                 tabBtn.title = '점검 중인 기능입니다';
+                tabBtn.dataset.blocked = 'true';
+                tabBtn.onclick = function(e) { e.preventDefault(); e.stopPropagation(); showBlockedFeaturePopup(); };
             } else {
                 tabBtn.style.opacity = '';
                 tabBtn.style.pointerEvents = '';
+                tabBtn.style.cursor = '';
                 tabBtn.title = '';
+                if (tabBtn.dataset.blocked) {
+                    delete tabBtn.dataset.blocked;
+                    tabBtn.onclick = null;
+                }
             }
         }
     }
@@ -967,6 +989,24 @@
         document.getElementById('work-mode-popup').style.display = 'none';
     }
     window.closeWorkModePopup = closeWorkModePopup;
+
+    function showBlockedFeaturePopup() {
+        const popup = document.getElementById('blocked-feature-popup');
+        const titleEl = document.getElementById('blocked-feature-popup-title');
+        const contentEl = document.getElementById('blocked-feature-popup-content');
+
+        const data = _maintenanceData || {};
+        titleEl.textContent = data.title || '서버 점검 안내';
+        contentEl.textContent = data.content || '점검이 완료되면 정상적으로 이용하실 수 있습니다.';
+
+        popup.style.display = 'flex';
+    }
+    window.showBlockedFeaturePopup = showBlockedFeaturePopup;
+
+    function closeBlockedFeaturePopup() {
+        document.getElementById('blocked-feature-popup').style.display = 'none';
+    }
+    window.closeBlockedFeaturePopup = closeBlockedFeaturePopup;
 
     // 페이지 로드 시 & 5분마다 확인
     document.addEventListener('DOMContentLoaded', () => {
@@ -1380,6 +1420,42 @@
             transform: translateY(-1px);
         }
     </style>
+
+<!-- 운영 병행 모드 팝업 (body 레벨 - 화면 중앙 표시) -->
+<div id="work-mode-popup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:99998;justify-content:center;align-items:center;" onclick="closeWorkModePopup()">
+    <div onclick="event.stopPropagation();" style="background:linear-gradient(135deg,#1e293b,#334155);border:1px solid rgba(212,160,23,0.3);border-radius:16px;padding:24px;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+            <i class="fa-solid fa-helmet-safety" style="color:#d4a017;font-size:1.2rem;"></i>
+            <span style="color:#fbbf24;font-weight:700;font-size:0.95rem;">SEA:GNAL의 기능 개선을 위해 작업 중입니다.</span>
+        </div>
+        <div id="work-mode-popup-content" style="color:#cbd5e1;font-size:0.85rem;line-height:1.7;margin-bottom:16px;white-space:pre-line;"></div>
+        <div id="work-mode-popup-end" style="display:none;padding:12px;background:rgba(212,160,23,0.1);border:1px solid rgba(212,160,23,0.2);border-radius:10px;margin-bottom:16px;">
+            <div style="color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">작업 종료 예상시점</div>
+            <div id="work-mode-popup-end-time" style="color:#fbbf24;font-weight:700;font-size:0.95rem;"></div>
+        </div>
+        <button onclick="closeWorkModePopup()" style="width:100%;padding:12px;background:linear-gradient(135deg,#475569,#334155);color:#e2e8f0;border:1px solid rgba(255,255,255,0.1);border-radius:10px;cursor:pointer;font-weight:600;font-size:0.9rem;">확인</button>
+    </div>
+</div>
+
+<!-- 선택적 차단 점검 안내 팝업 (body 레벨 - 화면 중앙 표시) -->
+<div id="blocked-feature-popup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:99998;justify-content:center;align-items:center;" onclick="closeBlockedFeaturePopup()">
+    <div onclick="event.stopPropagation();" style="background:linear-gradient(135deg,#1e293b,#334155);border:1px solid rgba(245,158,11,0.3);border-radius:16px;padding:24px;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+            <i class="fa-solid fa-wrench" style="color:#f59e0b;font-size:1.2rem;"></i>
+            <span style="color:#fbbf24;font-weight:700;font-size:0.95rem;">서버 점검 안내</span>
+        </div>
+        <div style="margin-bottom:16px;">
+            <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:6px;font-weight:600;">점검 제목</div>
+            <div id="blocked-feature-popup-title" style="color:#e2e8f0;font-size:0.9rem;padding:10px 14px;background:rgba(255,255,255,0.05);border-radius:8px;border:1px solid rgba(255,255,255,0.08);"></div>
+        </div>
+        <div style="margin-bottom:16px;">
+            <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:6px;font-weight:600;">점검 내용</div>
+            <div id="blocked-feature-popup-content" style="color:#cbd5e1;font-size:0.85rem;line-height:1.7;padding:12px 14px;background:rgba(255,255,255,0.05);border-radius:8px;border:1px solid rgba(255,255,255,0.08);white-space:pre-line;"></div>
+        </div>
+        <button onclick="closeBlockedFeaturePopup()" style="width:100%;padding:12px;background:linear-gradient(135deg,#475569,#334155);color:#e2e8f0;border:1px solid rgba(255,255,255,0.1);border-radius:10px;cursor:pointer;font-weight:600;font-size:0.9rem;">확인</button>
+    </div>
+</div>
+
 </body>
 
 </html>
