@@ -4,3 +4,4 @@ apk_build
 .git
 android
 local_server/node_modules
+local_server/data

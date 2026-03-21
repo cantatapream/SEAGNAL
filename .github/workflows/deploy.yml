@@ -23,7 +23,7 @@ jobs:
         id: deploy
         run: |
           set -o pipefail
-          flyctl deploy --remote-only 2>&1 | tee deploy.log
+          flyctl deploy --remote-only --depot=false 2>&1 | tee deploy.log
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
