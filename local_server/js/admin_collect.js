@@ -374,21 +374,43 @@ window.atmCollectOne = async function (i, refTimeOverride) {
 window.atmLoadForecastList = async function () {
     const container = document.getElementById('atm-forecast-list');
     if (!container) return;
+    const selectedDate = document.getElementById('atm-date-input').value; // YYYY-MM-DD
+    if (!selectedDate) { container.innerHTML = ''; return; }
     container.innerHTML = '<div style="text-align:center;padding:10px;color:#64748b;font-size:0.8rem;"><i class="fa-solid fa-spinner fa-spin"></i> 전망 목록 로딩 중...</div>';
     try {
-        const cacheList = await fetch(CONFIG.API_BASE + '/api/forecast-cache/list').then(r => r.json());
-        if (!cacheList || cacheList.length === 0) {
+        const [cacheList, marineFcst] = await Promise.all([
+            fetch(CONFIG.API_BASE + '/api/forecast-cache/list').then(r => r.json()),
+            fetch(CONFIG.API_BASE + '/api/marine-forecast').then(r => r.ok ? r.json() : null).catch(() => null)
+        ]);
+        // 현재 인덱스 페이지에 표출 중인 전망 reportId
+        const activeIds = new Set();
+        if (marineFcst) {
+            if (marineFcst.ultraShort && marineFcst.ultraShort.reportId) activeIds.add(marineFcst.ultraShort.reportId);
+            if (marineFcst.shortTerm && marineFcst.shortTerm.reportId) activeIds.add(marineFcst.shortTerm.reportId);
+        }
+        // 선택된 날짜로 필터링 (publishTime: "MM.DD. HH:MM" 또는 reportId에서 날짜 추출)
+        const dateParts = selectedDate.split('-'); // ['2026','03','01']
+        const mm = dateParts[1]; const dd = dateParts[2];
+        const datePrefix = mm + '.' + dd + '.'; // "03.01."
+        const dateStr = dateParts[0] + mm + dd; // "20260301"
+        const filtered = (cacheList || []).filter(item => {
+            if (item.publishTime && item.publishTime.startsWith(datePrefix)) return true;
+            if (item.reportId && item.reportId.includes(dateStr)) return true;
+            return false;
+        });
+        if (filtered.length === 0) {
             container.innerHTML = '';
             return;
         }
-        let html = `<div style="font-weight:700;color:#e2e8f0;font-size:0.9rem;margin-bottom:10px;"><i class="fa-solid fa-water" style="color:#94a3b8;"></i> 해상 기상 전망 (${cacheList.length}건)</div>`;
-        cacheList.forEach((item, i) => {
-            const typeColor = item.type === '초단기전망' ? '#38bdf8' : '#a78bfa';
-            const aiTag = item.hasAiResult ? '<span style="background:#10b98133;color:#10b981;padding:2px 6px;border-radius:4px;font-size:0.65rem;font-weight:700;">AI</span>' : '';
+        let html = `<div style="font-weight:700;color:#e2e8f0;font-size:0.9rem;margin-bottom:10px;"><i class="fa-solid fa-water" style="color:#94a3b8;"></i> 해상 기상 전망 (${filtered.length}건)</div>`;
+        filtered.forEach((item, i) => {
+            const isActive = activeIds.has(item.reportId);
+            const activeBadge = isActive
+                ? '<span style="background:rgba(34,197,94,0.15);color:#4ade80;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;flex-shrink:0;border:1px solid rgba(34,197,94,0.3);"><i class="fa-solid fa-tower-broadcast"></i> 표출 중</span>'
+                : '';
             html += `
             <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:6px;flex-wrap:wrap;">
-                <span style="background:${typeColor}22;color:${typeColor};padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;flex-shrink:0;">${item.type || '전망'}</span>
-                ${aiTag}
+                ${activeBadge}
                 <span style="flex:1;color:#e2e8f0;font-size:0.85rem;min-width:200px;">${item.title || item.reportId}</span>
                 <span style="color:#64748b;font-size:0.7rem;">${item.publishTime || ''}</span>
                 <div style="display:flex;gap:6px;flex-shrink:0;">
@@ -437,20 +459,30 @@ window.atmShowForecastResult = async function (encodedReportId) {
         const data = await res.json();
 
         const escHtml = (s) => s ? String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
+        // 마크업 렌더링 함수 (marine_forecast.js에서 글로벌 노출)
+        const renderMarkup = window.renderMarineMarkup || escHtml;
 
-        // AI 분석 결과: 카테고리별 정제된 텍스트
+        // AI 분석 결과: 최종 카테고리 데이터 (AI 결과 우선, 없으면 코드 추출)
         let aiHtml = '';
-        const aiCats = data.aiResult && data.aiResult.categories ? data.aiResult.categories : {};
-        const aiKeys = Object.keys(aiCats);
-        if (aiKeys.length > 0) {
-            aiHtml = aiKeys.map(key => {
-                const cat = aiCats[key];
-                const mainText = cat.main || '';
-                const subItems = cat.sub || [];
+        const displayCats = data.categories || (data.aiResult && data.aiResult.categories ? data.aiResult.categories : {});
+        const EMOJI_MAP = { '강풍': '💨', '해상': '🌊', '너울': '🌊', '바다안개': '🌫️', '바다 안개': '🌫️', '안개': '🌫️' };
+        const displayKeys = Object.keys(displayCats);
+        if (displayKeys.length > 0) {
+            aiHtml = displayKeys.map(key => {
+                const val = displayCats[key];
+                let mainText = '';
+                let subItems = [];
+                if (typeof val === 'object' && val.main !== undefined) {
+                    mainText = val.main || '';
+                    subItems = val.sub || [];
+                } else {
+                    mainText = String(val || '');
+                }
+                const emoji = EMOJI_MAP[key] || '📋';
                 return `<div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:12px;margin-bottom:8px;border-left:3px solid #6366f1;">
-                    <div style="font-weight:700;color:#fff;font-size:0.85rem;margin-bottom:6px;">${escHtml(key)}</div>
-                    <div style="color:#e2e8f0;font-size:0.8rem;line-height:1.5;">${escHtml(mainText)}</div>
-                    ${subItems.map(s => `<div style="color:#94a3b8;font-size:0.78rem;padding-left:12px;margin-top:4px;">${escHtml(s)}</div>`).join('')}
+                    <div style="font-weight:700;color:#fff;font-size:0.85rem;margin-bottom:6px;">${emoji} ${escHtml(key)}</div>
+                    <div style="color:#e2e8f0;font-size:0.8rem;line-height:1.6;">${renderMarkup(mainText)}</div>
+                    ${subItems.map(s => `<div style="color:#cbd5e1;font-size:0.78rem;padding-left:12px;margin-top:4px;line-height:1.5;">${renderMarkup(s)}</div>`).join('')}
                 </div>`;
             }).join('');
         } else {
@@ -524,7 +556,7 @@ window.atmShowForecastResult = async function (encodedReportId) {
                 <div id="atr-fcst-ai">
                     ${issuesHtml}
                     <div style="margin-bottom:16px;">
-                        <div style="color:#a5b4fc;font-weight:600;font-size:0.85rem;margin-bottom:8px;"><i class="fa-solid fa-robot"></i> AI 분석 결과 (${aiKeys.length}건)</div>
+                        <div style="color:#a5b4fc;font-weight:600;font-size:0.85rem;margin-bottom:8px;"><i class="fa-solid fa-robot"></i> AI 분석 결과 (${displayKeys.length}건)</div>
                         ${aiHtml}
                     </div>
                     ${textHtml}
