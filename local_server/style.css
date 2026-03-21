@@ -192,6 +192,15 @@ line-height: 1.1;
     }
 }
 
+@keyframes workModeBlink {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0;
+    }
+}
+
 .subtitle {
     font-size: 0.8rem;
     color: var(--text-sub);
