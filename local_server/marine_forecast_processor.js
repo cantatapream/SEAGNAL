@@ -392,7 +392,15 @@ async function collectMarineForecasts() {
     try {
         const reports = await findForecastReports();
 
-        const forecasts = { ultraShort: null, shortTerm: null, updatedAt: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) };
+        // 기존 데이터 로드 (새 수집 실패 시 기존 데이터 보존)
+        let forecasts = { ultraShort: null, shortTerm: null, updatedAt: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) };
+        try {
+            if (fs.existsSync(DATA_FILE)) {
+                const existing = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+                if (existing.ultraShort) forecasts.ultraShort = existing.ultraShort;
+                if (existing.shortTerm) forecasts.shortTerm = existing.shortTerm;
+            }
+        } catch (e) { /* 기존 파일 읽기 실패 시 무시 */ }
 
         // 초단기/단기 공통 수집+AI 분석 처리
         async function processForecast(report, typeLabel) {
