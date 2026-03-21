@@ -58,6 +58,11 @@ async function fetchAllData() {
 
         updateApiStatusDisplay();
         renderApp();
+
+        // 해상 기상 전망 데이터도 함께 갱신
+        if (typeof loadMarineForecast === 'function') {
+            loadMarineForecast();
+        }
     } catch (error) {
         console.error('Critical Error in fetchAllData:', error);
         appState.hasApiError = true;
