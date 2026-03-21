@@ -64,11 +64,41 @@ window.switchAlertTestTab = function (tabId) {
 async function renderATMStatus(container) {
     container.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;">로딩 중...</div>';
     try {
-        const [alertsRes, crawlRes] = await Promise.all([
+        const [alertsRes, crawlRes, marineFcstRes] = await Promise.all([
             fetch('/api/weather-alerts').then(r => r.json()),
-            fetch('/api/admin/crawl-status').then(r => r.json())
+            fetch('/api/admin/crawl-status').then(r => r.json()),
+            fetch('/api/marine-forecast').then(r => r.ok ? r.json() : null).catch(() => null)
         ]);
         const isPaused = crawlRes.paused;
+
+        // 해상 기상 전망 현황 카드 생성
+        let marineFcstHtml = '';
+        if (marineFcstRes) {
+            const fmtSection = (label, data) => {
+                if (!data) return `<div style="color:#64748b;font-size:0.78rem;padding:4px 0;">${label}: 데이터 없음</div>`;
+                const cats = data.categories ? Object.keys(data.categories).join(', ') : '없음';
+                return `<div style="margin-bottom:8px;">
+                    <div style="color:#e2e8f0;font-size:0.82rem;font-weight:600;margin-bottom:2px;">${label} (${data.publishTime || '시간 미상'})</div>
+                    <div style="color:#94a3b8;font-size:0.75rem;">${data.forecastPeriod || ''}</div>
+                    <div style="color:#94a3b8;font-size:0.75rem;">카테고리: ${cats}</div>
+                    <details style="margin-top:4px;">
+                        <summary style="color:#64748b;font-size:0.72rem;cursor:pointer;">원문 보기</summary>
+                        <pre style="color:#94a3b8;font-size:0.7rem;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow:auto;margin-top:4px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;">${data.rawText || '없음'}</pre>
+                    </details>
+                </div>`;
+            };
+            marineFcstHtml = `
+            <div style="background:linear-gradient(135deg,rgba(30,41,59,0.8),rgba(51,65,85,0.5));border:1px solid rgba(148,163,184,0.2);border-radius:10px;padding:14px;margin-bottom:16px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                    <i class="fa-solid fa-water" style="color:#94a3b8;"></i>
+                    <span style="color:#e2e8f0;font-weight:700;font-size:0.9rem;">해상 기상 전망</span>
+                    <span style="color:#64748b;font-size:0.72rem;margin-left:auto;">${marineFcstRes.updatedAt || ''}</span>
+                </div>
+                ${fmtSection('초단기 전망', marineFcstRes.ultraShort)}
+                ${fmtSection('단기 전망', marineFcstRes.shortTerm)}
+            </div>`;
+        }
+
         container.innerHTML = `
             <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
                 <button onclick="atmReset()" style="padding:8px 16px;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
@@ -81,6 +111,7 @@ async function renderATMStatus(container) {
                     <i class="fa-solid fa-refresh"></i> 새로고침
                 </button>
             </div>
+            ${marineFcstHtml}
             <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;overflow:auto;max-height:55vh;">
                 <pre style="margin:0;color:#e2e8f0;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;font-family:'Courier New',monospace;">${JSON.stringify(alertsRes, null, 2)}</pre>
             </div>`;
