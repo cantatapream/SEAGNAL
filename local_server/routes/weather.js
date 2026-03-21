@@ -65,7 +65,56 @@ router.get('/api/status', (req, res) => {
     res.json(scheduler.getStatus());
 });
 
-// 2-1. 수동 업데이트
+// 2-1. 수동 업데이트 (SSE 스트리밍 진행 상황)
+router.get('/api/force-update/:type/stream', async (req, res) => {
+    const type = req.params.type;
+    console.log(`🔄 수동 업데이트 SSE 요청: ${type}`);
+
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no'
+    });
+
+    const onProgress = (data) => {
+        if (data.type === type) {
+            res.write(`data: ${JSON.stringify(data)}\n\n`);
+        }
+    };
+    scheduler.collectProgress.on('progress', onProgress);
+
+    req.on('close', () => {
+        scheduler.collectProgress.off('progress', onProgress);
+    });
+
+    try {
+        if (type === 'buoys') {
+            await scheduler.collectBuoys();
+            await scheduler.collectKmaBuoys();
+        }
+        else if (type === 'general') {
+            await scheduler.collectGeneralForecasts();
+            await scheduler.collectMidTermSeaForecasts();
+        }
+        else if (type === 'zone') await scheduler.collectZoneForecasts();
+        else {
+            res.write(`data: ${JSON.stringify({ error: '잘못된 타입' })}\n\n`);
+            res.end();
+            return;
+        }
+
+        refreshCache();
+        res.write(`data: ${JSON.stringify({ done: true, status: scheduler.getStatus()[type] })}\n\n`);
+    } catch (e) {
+        res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
+    } finally {
+        scheduler.collectProgress.off('progress', onProgress);
+        res.end();
+    }
+});
+
+// 2-1-b. 수동 업데이트 (기존 POST 호환)
 router.post('/api/force-update/:type', async (req, res) => {
     const type = req.params.type;
     console.log(`🔄 수동 업데이트 요청: ${type}`);

@@ -2246,26 +2246,89 @@ window.refreshApiStatus = async function () {
 
 window.forceUpdateApi = async function (type) {
     const btn = event.target.closest('button');
+    const card = btn.closest('div[style*="border-radius:10px"]');
     const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 수집 중...';
     btn.disabled = true;
 
-    try {
-        const res = await fetch(CONFIG.API_BASE + '/api/force-update/' + type, { method: 'POST' });
-        const result = await res.json();
+    // 진행 표시 UI 삽입
+    let progressEl = card.querySelector('.collect-progress');
+    if (!progressEl) {
+        progressEl = document.createElement('div');
+        progressEl.className = 'collect-progress';
+        progressEl.style.cssText = 'margin-top:8px;';
+        card.appendChild(progressEl);
+    }
+    progressEl.innerHTML = `
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span class="cp-text" style="color:#a5b4fc;font-size:0.75rem;">준비 중...</span>
+            <span class="cp-pct" style="color:#94a3b8;font-size:0.75rem;">0%</span>
+        </div>
+        <div style="background:rgba(0,0,0,0.3);border-radius:4px;height:5px;overflow:hidden;">
+            <div class="cp-bar" style="background:linear-gradient(90deg,#6366f1,#8b5cf6);height:100%;width:0%;transition:width 0.3s;border-radius:4px;"></div>
+        </div>
+    `;
 
-        if (result.success) {
-            btn.innerHTML = '<i class="fa-solid fa-check"></i> 완료';
-            setTimeout(() => { refreshApiStatus(); }, 1000);
-        } else {
-            throw new Error(result.error || '실패');
-        }
+    try {
+        const es = new EventSource(CONFIG.API_BASE + '/api/force-update/' + type + '/stream');
+
+        await new Promise((resolve, reject) => {
+            es.onmessage = (ev) => {
+                try {
+                    const data = JSON.parse(ev.data);
+                    if (data.done) {
+                        es.close();
+                        resolve(data);
+                        return;
+                    }
+                    if (data.error) {
+                        es.close();
+                        reject(new Error(data.error));
+                        return;
+                    }
+                    // 진행 상황 업데이트
+                    if (data.current && data.total) {
+                        const pct = Math.round((data.current / data.total) * 100);
+                        const textEl = progressEl.querySelector('.cp-text');
+                        const pctEl = progressEl.querySelector('.cp-pct');
+                        const barEl = progressEl.querySelector('.cp-bar');
+                        textEl.textContent = `${data.step}: ${data.current}/${data.total} (${data.detail || ''})`;
+                        pctEl.textContent = pct + '%';
+                        barEl.style.width = pct + '%';
+                    }
+                } catch (e) { }
+            };
+            es.onerror = () => {
+                es.close();
+                reject(new Error('SSE 연결 실패'));
+            };
+        });
+
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> 완료';
+        const barEl = progressEl.querySelector('.cp-bar');
+        const pctEl = progressEl.querySelector('.cp-pct');
+        const textEl = progressEl.querySelector('.cp-text');
+        barEl.style.width = '100%';
+        pctEl.textContent = '100%';
+        textEl.textContent = '수집 완료!';
+        textEl.style.color = '#4caf50';
+
+        setTimeout(() => {
+            progressEl.remove();
+            refreshApiStatus();
+        }, 2000);
     } catch (e) {
         btn.innerHTML = '<i class="fa-solid fa-times"></i> 에러';
+        const textEl = progressEl.querySelector('.cp-text');
+        if (textEl) {
+            textEl.textContent = '수집 실패: ' + e.message;
+            textEl.style.color = '#f44336';
+        }
         setTimeout(() => {
             btn.innerHTML = originalText;
             btn.disabled = false;
-        }, 2000);
+            progressEl.remove();
+        }, 3000);
     }
 };
 

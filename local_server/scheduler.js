@@ -58,8 +58,12 @@ function log(msg) {
 // [Admin] 크롤링 일시정지 플래그 (메모리 기반, 서버 재시작 시 자동 해제)
 let crawlPaused = false;
 
+// [Progress] 수집 진행 상황 이벤트 시스템
+const EventEmitter = require('events');
+const collectProgress = new EventEmitter();
+collectProgress.setMaxListeners(20);
+
 const lastRunStatus = {
-    buoys: { lastRun: null, status: '대기 중', message: '' },
     buoys: { lastRun: null, status: '대기 중', message: '' },
     general: { lastRun: null, status: '대기 중', message: '' },
     zone: { lastRun: null, status: '대기 중', message: '' }
@@ -149,6 +153,7 @@ async function fetchWithTimeout(url, options = {}, timeout = 10000) {
 // 1. 부이 수집
 async function collectBuoys() {
     try {
+        collectProgress.emit('progress', { type: 'buoys', step: '부이 데이터', current: 1, total: 2, detail: '관측 부이' });
         const url = `${CONFIG.URLS.BUOY}?stn=0&help=0&authKey=${CONFIG.KMA_HUB_KEY}`;
         const response = await fetchWithTimeout(url, {}, 8000);
         const buffer = await response.arrayBuffer();
@@ -171,6 +176,7 @@ async function collectBuoys() {
 // 1-2. 해양기상부이 상세 데이터 수집 (최대/유의/평균 파고)
 async function collectKmaBuoys() {
     try {
+        collectProgress.emit('progress', { type: 'buoys', step: '부이 데이터', current: 2, total: 2, detail: '해양기상부이' });
         const url = `${CONFIG.URLS.KMA_BUOY}?stn=0&help=0&authKey=${CONFIG.KMA_HUB_KEY}`;
         const response = await fetchWithTimeout(url, {}, 8000);
         const buffer = await response.arrayBuffer();
@@ -207,7 +213,10 @@ const SEA_FORECAST_ZONES = [
 async function collectGeneralForecasts() {
     try {
         const results = {};
-        for (const regId of SEA_FORECAST_ZONES) {
+        const total = SEA_FORECAST_ZONES.length;
+        for (let i = 0; i < total; i++) {
+            const regId = SEA_FORECAST_ZONES[i];
+            collectProgress.emit('progress', { type: 'general', step: '단기예보', current: i + 1, total, detail: `구역 ${regId}` });
             const url = `https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstMsgService/getSeaFcst?pageNo=1&numOfRows=30&dataType=JSON&regId=${regId}&authKey=${CONFIG.KMA_HUB_KEY}`;
             const res = await fetchWithTimeout(url, {}, 8000);
             const data = await res.json();
@@ -285,7 +294,10 @@ async function collectZoneForecasts() {
             const zoneDataMap = {};
             const baseDate = new Date(Date.UTC(parseInt(validBaseTm.substring(0, 4)), parseInt(validBaseTm.substring(4, 6)) - 1, parseInt(validBaseTm.substring(6, 8)), parseInt(validBaseTm.substring(8, 10))));
 
+            const zoneSteps = Math.floor(75 / 3) + 1; // 26 steps
             for (let h = 0; h <= 75; h += 3) {
+                const stepIdx = h / 3 + 1;
+                collectProgress.emit('progress', { type: 'zone', step: '해구별 예보', current: stepIdx, total: zoneSteps, detail: `+${h}시간` });
                 const efDate = new Date(baseDate.getTime() + h * 60 * 60 * 1000);
                 const tm_ef = getUtcTm(efDate);
                 const url = `${CONFIG.URLS.SEA_ZONE_LARGE}?tma_fc=${validBaseTm}&tma_ef=${tm_ef}&Lzone=0&disp=0&help=0&authKey=${CONFIG.KMA_HUB_KEY}`;
@@ -357,7 +369,10 @@ async function collectMidTermSeaForecasts() {
         const results = {};
         const MAX_RETRIES = 3;
         const TIMEOUT_MS = 30000; // 30초 (기상청 API 응답 지연 대비)
-        for (const regId of MID_TERM_SEA_REG_IDS) {
+        const midTotal = MID_TERM_SEA_REG_IDS.length;
+        for (let mi = 0; mi < midTotal; mi++) {
+            const regId = MID_TERM_SEA_REG_IDS[mi];
+            collectProgress.emit('progress', { type: 'general', step: '중기예보', current: mi + 1, total: midTotal, detail: `구역 ${regId}` });
             const url = `https://apihub.kma.go.kr/api/typ02/openApi/MidFcstInfoService/getMidSeaFcst?pageNo=1&numOfRows=10&dataType=JSON&regId=${regId}&tmFc=${tmFc}&authKey=${CONFIG.KMA_HUB_KEY}`;
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
                 try {
@@ -480,6 +495,7 @@ module.exports = {
     collectZoneForecasts,
     collectMidTermSeaForecasts,
     getStatus: () => lastRunStatus,
+    collectProgress,
     getCrawlPaused: () => crawlPaused,
     setCrawlPaused: (val) => { crawlPaused = !!val; },
     getConfig: () => ({ KMA_HUB_KEY: CONFIG.KMA_HUB_KEY }),
