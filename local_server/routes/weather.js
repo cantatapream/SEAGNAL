@@ -263,8 +263,8 @@ router.post('/api/admin/forecast-collect', async (req, res) => {
             }).on('error', reject);
         });
 
-        // 상세 페이지에서 원문 가져오기
-        const detailUrl = `https://www.weather.go.kr/w/special-report/detail.do?prevStn=108&stn=108&date=${dateParam}&reportId=${reportId}`;
+        // 상세 페이지에서 원문 가져오기 (기상청은 list.do에 reportId를 전달하여 상세 조회)
+        const detailUrl = `https://www.weather.go.kr/w/special-report/list.do?prevStn=108&stn=108&date=${dateParam}&reportId=${reportId}`;
         const html = await fetchHtml(detailUrl);
 
         // 전망 기간 추출
