@@ -113,7 +113,7 @@ router.post('/api/admin/alerts-reset', (req, res) => {
 // 통보문 수집 (날짜별 목록 조회 + 단일/일괄 수집)
 // ============================================================================
 
-// 특정 날짜 통보문 목록 조회 (제목에 [특보]/[예비] 포함 필터링)
+// 특정 날짜 통보문 목록 조회 (제목에 [특보]/[예비]/[해설] 포함 필터링)
 router.get('/api/admin/reports', async (req, res) => {
     try {
         const date = req.query.date; // YYYY-MM-DD
@@ -145,7 +145,7 @@ router.get('/api/admin/reports', async (req, res) => {
                 const id = match[1];
                 const title = match[2].trim();
                 if (seenIds.has(id)) continue;
-                if (id.includes(':') && (title.includes('[특보]') || title.includes('[예비]'))) {
+                if (id.includes(':') && (title.includes('[특보]') || title.includes('[예비]') || title.includes('[해설]'))) {
                     const parts = id.split(':');
                     if (parts.length >= 2) {
                         const idDate = parts[1].substring(0, 8);
