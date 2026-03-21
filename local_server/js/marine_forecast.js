@@ -64,20 +64,27 @@ function renderCategoryHtml(categoryKey, text) {
     const emoji = MARINE_FORECAST_EMOJI[categoryKey] || '📋';
     const displayName = categoryKey === '바다 안개' ? '바다안개' : categoryKey;
 
-    // 줄 분리 후 메인/서브 항목 구분
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    const mainLines = [];
-    const subItems = [];
+    let mainText = '';
+    let subItems = [];
 
-    for (const line of lines) {
-        if (line.startsWith('-') || line.startsWith('–') || line.startsWith('—')) {
-            subItems.push(line);
-        } else {
-            mainLines.push(line);
+    // AI 분석 결과는 {main, sub} 객체 형식
+    if (typeof text === 'object' && text.main !== undefined) {
+        mainText = text.main || '';
+        subItems = text.sub || [];
+    } else {
+        // 기존 문자열 형식: 줄 분리 후 메인/서브 항목 구분
+        const lines = String(text).split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        const mainLines = [];
+
+        for (const line of lines) {
+            if (line.startsWith('-') || line.startsWith('–') || line.startsWith('—')) {
+                subItems.push(line);
+            } else {
+                mainLines.push(line);
+            }
         }
+        mainText = mainLines.join(' ');
     }
-
-    const mainText = mainLines.join(' ');
 
     let html = `<div class="marine-forecast-category">`;
     html += `<div class="marine-forecast-category-header">`;

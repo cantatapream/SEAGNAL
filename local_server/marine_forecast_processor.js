@@ -1,13 +1,13 @@
 /**
  * ============================================================================
  * 파일명: marine_forecast_processor.js
- * 역할: 기상청 통보문에서 해상 기상 전망 (초단기/단기) 파싱
+ * 역할: 기상청 통보문에서 해상 기상 전망 (초단기/단기) 파싱 + AI 분석
  * ============================================================================
  *
  * [설명]
  * - 통보문(list.do)에서 cmt: 접두사인 해설 통보문 중 초단기/단기 전망을 수집
  * - 원문에서 강풍, 해상, 너울, 바다안개 카테고리 텍스트를 추출
- * - AI 분석 불필요 (단순 텍스트 파싱)
+ * - AI 분석으로 원문+추출 결과를 검토하여 최종 표출 데이터 생성
  *
  * [연계 파일]
  * - report_alert_processor.js → fetchHtml, fetchReportDetail 재사용
@@ -19,8 +19,11 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+require('dotenv').config();
 
 const DATA_FILE = path.join(__dirname, 'data', 'marine_forecast.json');
+const FORECAST_CACHE_DIR = path.join(__dirname, 'data', 'forecast_cache');
 
 const CONFIG = {
     LIST_URL: 'https://www.weather.go.kr/w/special-report/list.do',
@@ -133,7 +136,10 @@ async function fetchForecastDetail(reportId) {
 
     let rawText = contentHtml
         .replace(/<p[^>]*>/g, '\n').replace(/<\/p>/g, '\n').replace(/<br\s*\/?>/g, '\n')
-        .replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/[ ]+/g, ' ').trim();
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+        .replace(/[ ]+/g, ' ').trim();
 
     return { rawText, forecastPeriod, publishTime };
 }
@@ -195,6 +201,152 @@ function formatCategoryText(text) {
     };
 }
 
+// ============================================================================
+// AI 분석: 원문 + 텍스트 파싱 결과를 AI가 검토하여 최종 표출 데이터 생성
+// ============================================================================
+
+const FORECAST_AI_PROMPT = `
+너는 대한민국 기상청 해상 기상 전망 통보문 전문 분석가이다.
+주어진 원문 텍스트와 코드가 추출한 카테고리별 텍스트를 검토하여, 최종적으로 사용자에게 표출할 정제된 카테고리별 데이터를 생성해야 한다.
+
+### 1. 분석 대상 카테고리
+해상 기상 전망 통보문에는 다음 카테고리가 포함될 수 있다:
+- **강풍**: 바람 관련 예보 (해상 강풍, 돌풍 등)
+- **해상**: 해상 상태, 파도 높이 등
+- **너울**: 너울성 파도 관련
+- **바다안개**: 해무, 안개 관련
+
+### 2. 분석 규칙 (매우 중요)
+- 원문에서 각 카테고리는 "○ (카테고리명)" 패턴으로 시작한다. 예: "○ (강풍)", "○ (바다 안개)"
+- 카테고리 내용은 다음 카테고리 시작("○ (") 또는 다른 섹션 구분자("<기온>", "<하늘상태 및 강수>", "<건조 및 강풍>" 등)가 나올 때까지이다.
+- **중요**: "<기온>", "<하늘상태 및 강수>", "<건조 및 강풍>" 등 꺽쇠(<>) 안의 내용은 해상 전망과 무관한 육상 기상 정보이므로, 해당 내용은 반드시 제외해야 한다.
+- 하위 항목은 "- "로 시작하는 줄이다.
+- 각 카테고리의 본문(main)과 하위 항목(sub)을 명확히 분리해야 한다.
+
+### 3. 텍스트 정제 규칙
+- HTML 엔티티(&lt;, &gt;, &amp; 등)가 남아있으면 올바른 문자로 변환한다.
+- 불필요한 공백, 중복 줄바꿈을 정리한다.
+- 원문의 의미를 훼손하지 않되, 읽기 좋게 정리한다.
+- 원문에 없는 내용을 추가하거나 임의로 수정하지 않는다.
+
+### 4. 출력 형식
+반드시 아래 JSON 형식으로만 응답하라. 추가 설명은 생략한다.
+{
+  "categories": {
+    "강풍": {
+      "main": "카테고리 본문 텍스트 (하위 항목 제외, 한 줄로)",
+      "sub": ["- 하위 항목 1", "- 하위 항목 2"]
+    },
+    "바다안개": {
+      "main": "...",
+      "sub": ["- ..."]
+    }
+  },
+  "issues": ["코드 추출과 다른 점이 있으면 여기에 기록 (없으면 빈 배열)"]
+}
+
+### 5. 검증 (반드시 수행)
+- 코드가 추출한 결과와 원문을 비교하여, 코드 추출이 잘못된 부분이 있으면 교정한다.
+- 특히 카테고리 경계가 잘못 잡혀 다른 섹션의 내용이 섞인 경우 반드시 분리한다.
+- 원문에 존재하는 카테고리인데 코드가 누락한 경우 추가한다.
+- 원문에 해당 카테고리가 없는데 코드가 잘못 추출한 경우 제거한다.
+`;
+
+/**
+ * AI 분석으로 전망 텍스트를 정제한다
+ */
+async function analyzeWithAI(rawText, codeExtracted) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+        console.log('[MarineForecast] GEMINI_API_KEY 없음, AI 분석 건너뜀');
+        return null;
+    }
+
+    try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({
+            model: 'gemini-2.0-flash',
+            generationConfig: { responseMimeType: 'application/json' }
+        });
+
+        const userPrompt = `## 원문 텍스트
+${rawText}
+
+## 코드 추출 결과
+${JSON.stringify(codeExtracted, null, 2)}
+
+위 원문과 코드 추출 결과를 비교 검토하여, 최종 표출용 정제 데이터를 JSON으로 반환하라.`;
+
+        const result = await model.generateContent([
+            { role: 'user', parts: [{ text: FORECAST_AI_PROMPT + '\n\n' + userPrompt }] }
+        ]);
+
+        const text = result.response.text();
+        const parsed = JSON.parse(text);
+        console.log('[MarineForecast] AI 분석 완료');
+        if (parsed.issues && parsed.issues.length > 0) {
+            console.log('[MarineForecast] AI 발견 이슈:', parsed.issues);
+        }
+        return parsed;
+    } catch (e) {
+        console.error(`[MarineForecast] AI 분석 오류: ${e.message}`);
+        return null;
+    }
+}
+
+/**
+ * 전망 캐시 저장
+ */
+function saveForecastCache(reportId, data) {
+    try {
+        if (!fs.existsSync(FORECAST_CACHE_DIR)) fs.mkdirSync(FORECAST_CACHE_DIR, { recursive: true });
+        const fileName = reportId.replace(/[/:]/g, '_') + '.json';
+        fs.writeFileSync(path.join(FORECAST_CACHE_DIR, fileName), JSON.stringify(data, null, 2), 'utf8');
+    } catch (e) {
+        console.error(`[MarineForecast] 캐시 저장 오류: ${e.message}`);
+    }
+}
+
+/**
+ * 전망 캐시 로드
+ */
+function loadForecastCache(reportId) {
+    try {
+        const fileName = reportId.replace(/[/:]/g, '_') + '.json';
+        const filePath = path.join(FORECAST_CACHE_DIR, fileName);
+        if (fs.existsSync(filePath)) {
+            return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        }
+    } catch (e) { }
+    return null;
+}
+
+/**
+ * 전망 캐시 목록 조회
+ */
+function listForecastCaches() {
+    try {
+        if (!fs.existsSync(FORECAST_CACHE_DIR)) return [];
+        return fs.readdirSync(FORECAST_CACHE_DIR)
+            .filter(f => f.endsWith('.json'))
+            .map(f => {
+                try {
+                    const data = JSON.parse(fs.readFileSync(path.join(FORECAST_CACHE_DIR, f), 'utf8'));
+                    return {
+                        reportId: data.reportId,
+                        title: data.title,
+                        type: data.type,
+                        publishTime: data.publishTime,
+                        hasAiResult: !!data.aiResult,
+                        fileName: f
+                    };
+                } catch (e) { return null; }
+            })
+            .filter(Boolean)
+            .sort((a, b) => (b.publishTime || '').localeCompare(a.publishTime || ''));
+    } catch (e) { return []; }
+}
+
 /**
  * 메인 수집 함수: 최신 초단기/단기 전망을 수집하고 저장한다
  */
@@ -206,40 +358,50 @@ async function collectMarineForecasts() {
 
         const forecasts = { ultraShort: null, shortTerm: null, updatedAt: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) };
 
-        // 초단기 전망 수집
-        if (reports.ultraShort) {
-            console.log(`[MarineForecast] 초단기 전망 수집: ${reports.ultraShort.title}`);
-            const detail = await fetchForecastDetail(reports.ultraShort.id);
-            const categories = extractCategories(detail.rawText);
-            const hasContent = Object.keys(categories).length > 0;
+        // 초단기/단기 공통 수집+AI 분석 처리
+        async function processForecast(report, typeLabel) {
+            console.log(`[MarineForecast] ${typeLabel} 수집: ${report.title}`);
+            const detail = await fetchForecastDetail(report.id);
+            const codeCategories = extractCategories(detail.rawText);
+            const hasContent = Object.keys(codeCategories).length > 0;
 
-            forecasts.ultraShort = {
-                reportId: reports.ultraShort.id,
-                title: reports.ultraShort.title,
+            // AI 분석 실행 (원문에 해상 관련 키워드가 있을 때만)
+            let aiResult = null;
+            const hasMarineKeywords = /강풍|바다\s*안개|해상|너울/.test(detail.rawText);
+            if (hasContent && hasMarineKeywords) {
+                aiResult = await analyzeWithAI(detail.rawText, codeCategories);
+            }
+
+            // AI 결과가 있으면 AI 카테고리를 최종 사용, 없으면 코드 추출 결과 사용
+            const finalCategories = (aiResult && aiResult.categories) ? aiResult.categories : (hasContent ? codeCategories : null);
+
+            const forecastData = {
+                reportId: report.id,
+                title: report.title,
+                type: typeLabel,
                 publishTime: detail.publishTime,
                 forecastPeriod: detail.forecastPeriod,
                 rawText: detail.rawText,
-                categories: hasContent ? categories : null,
-                hasContent
+                codeCategories: hasContent ? codeCategories : null,
+                aiResult: aiResult,
+                categories: finalCategories,
+                hasContent: hasContent || !!(aiResult && aiResult.categories && Object.keys(aiResult.categories).length > 0)
             };
+
+            // 캐시 저장
+            saveForecastCache(report.id, forecastData);
+
+            return forecastData;
+        }
+
+        // 초단기 전망 수집
+        if (reports.ultraShort) {
+            forecasts.ultraShort = await processForecast(reports.ultraShort, '초단기전망');
         }
 
         // 단기 전망 수집
         if (reports.shortTerm) {
-            console.log(`[MarineForecast] 단기 전망 수집: ${reports.shortTerm.title}`);
-            const detail = await fetchForecastDetail(reports.shortTerm.id);
-            const categories = extractCategories(detail.rawText);
-            const hasContent = Object.keys(categories).length > 0;
-
-            forecasts.shortTerm = {
-                reportId: reports.shortTerm.id,
-                title: reports.shortTerm.title,
-                publishTime: detail.publishTime,
-                forecastPeriod: detail.forecastPeriod,
-                rawText: detail.rawText,
-                categories: hasContent ? categories : null,
-                hasContent
-            };
+            forecasts.shortTerm = await processForecast(reports.shortTerm, '단기전망');
         }
 
         // 저장
@@ -273,5 +435,9 @@ module.exports = {
     collectMarineForecasts,
     loadForecasts,
     extractCategories,
-    formatCategoryText
+    formatCategoryText,
+    loadForecastCache,
+    listForecastCaches,
+    analyzeWithAI,
+    saveForecastCache
 };

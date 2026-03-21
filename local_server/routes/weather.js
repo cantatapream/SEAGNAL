@@ -208,4 +208,27 @@ router.get('/api/bulletin-cache/:reportId', (req, res) => {
     }
 });
 
+// 7. 해상 전망 캐시 목록 조회 (초단기/단기 전망 통보문 수집 결과)
+const marineForecast = require('../marine_forecast_processor');
+
+router.get('/api/forecast-cache/list', (req, res) => {
+    try {
+        res.json(marineForecast.listForecastCaches());
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 8. 해상 전망 캐시 상세 조회 (원문 + 코드 추출 + AI 분석 결과)
+router.get('/api/forecast-cache/:reportId', (req, res) => {
+    try {
+        const reportId = decodeURIComponent(req.params.reportId);
+        const data = marineForecast.loadForecastCache(reportId);
+        if (!data) return res.status(404).json({ error: '캐시 데이터 없음', reportId });
+        res.json(data);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 module.exports = router;
