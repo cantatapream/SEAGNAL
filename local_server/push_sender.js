@@ -25,11 +25,11 @@ function getAlertScore(type, lvl) {
 async function processAndSendNotifications(changes) {
     if (!changes || changes.length === 0) return;
 
-    // 점검 모드 중에는 푸시 알림 발송 차단
+    // 점검 모드 중 푸시 알림 차단 여부 확인
     try {
         if (fs.existsSync(MAINTENANCE_FILE)) {
             const config = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8'));
-            if (config.active) {
+            if (config.active && config.blockPush !== false) {
                 console.log(`[PushSender] 점검 모드 활성화 중 → 푸시 발송 차단 (${changes.length}건 무시)`);
                 return;
             }

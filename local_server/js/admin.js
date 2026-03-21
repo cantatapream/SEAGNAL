@@ -1159,7 +1159,7 @@ window.switchMaintenanceSubTab = function (tab) {
 async function renderMaintenanceFullTab(container) {
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
 
-    let config = { active: false, title: '', content: '', startedAt: null, blockedFeatures: [] };
+    let config = { active: false, title: '', content: '', startedAt: null, blockedFeatures: [], blockPush: true };
     try {
         const res = await fetch('/api/admin/maintenance');
         if (res.ok) config = await res.json();
@@ -1173,6 +1173,7 @@ async function renderMaintenanceFullTab(container) {
     const btnIcon = config.active ? 'fa-play' : 'fa-stop';
 
     const blocked = config.blockedFeatures || [];
+    const isBlockPush = config.blockPush !== false;
     const features = [
         { id: 'marine-forecast', label: '기상청 해상 기상 전망(임시운영)', group: '기상정보' },
         { id: 'weather-alert', label: '해역별 특보현황', group: '기상정보' },
@@ -1185,6 +1186,21 @@ async function renderMaintenanceFullTab(container) {
 
     const checkboxStyle = 'width:16px;height:16px;accent-color:#ef4444;cursor:pointer;';
 
+    // 점검 중일 때 차단된 서비스 목록 HTML 생성
+    let blockedListHtml = '';
+    if (config.active && blocked.length > 0) {
+        const blockedLabels = blocked.map(id => {
+            const f = features.find(feat => feat.id === id);
+            return f ? f.label : id;
+        });
+        blockedListHtml = `
+            <div style="margin-top:10px;padding:10px 12px;background:rgba(239,68,68,0.1);border-radius:8px;border:1px solid rgba(239,68,68,0.2);">
+                <div style="color:#fca5a5;font-size:0.75rem;font-weight:600;margin-bottom:6px;"><i class="fa-solid fa-list-check"></i> 차단된 서비스</div>
+                ${blockedLabels.map(label => `<div style="color:#e2e8f0;font-size:0.8rem;padding:3px 0;"><i class="fa-solid fa-xmark" style="color:#ef4444;margin-right:6px;font-size:0.7rem;"></i>${label}</div>`).join('')}
+            </div>
+        `;
+    }
+
     container.innerHTML = `
         <!-- 현재 상태 표시 -->
         <div style="margin-bottom:20px;padding:16px;background:rgba(0,0,0,0.2);border-radius:12px;border:1px solid ${statusColor}33;">
@@ -1193,7 +1209,9 @@ async function renderMaintenanceFullTab(container) {
                 <span style="color:${statusColor};font-weight:700;font-size:1.1rem;">${statusText}</span>
             </div>
             ${config.active && config.startedAt ? `<div style="color:#94a3b8;font-size:0.8rem;">시작 시각: ${config.startedAt}</div>` : ''}
-            ${config.active ? `<div style="color:#fca5a5;font-size:0.8rem;margin-top:4px;"><i class="fa-solid fa-bell-slash"></i> 푸시 알림 발송이 차단되어 있습니다.</div>` : ''}
+            ${config.active && isBlockPush ? `<div style="color:#fca5a5;font-size:0.8rem;margin-top:4px;"><i class="fa-solid fa-bell-slash"></i> 푸시 알림 발송이 차단되어 있습니다.</div>` : ''}
+            ${config.active && !isBlockPush ? `<div style="color:#86efac;font-size:0.8rem;margin-top:4px;"><i class="fa-solid fa-bell"></i> 푸시 알림은 정상 발송됩니다.</div>` : ''}
+            ${blockedListHtml}
         </div>
 
         <!-- 차단 방식 선택 -->
@@ -1208,25 +1226,36 @@ async function renderMaintenanceFullTab(container) {
                 </label>
             </div>
             <!-- 선택적 차단 체크박스 -->
-            <div id="maint-feature-list" style="display:${blocked.length > 0 ? 'block' : 'none'};padding:14px;background:rgba(0,0,0,0.15);border-radius:10px;border:1px solid rgba(255,255,255,0.08);">
+            <div id="maint-feature-list" style="display:${blocked.length > 0 && !config.active ? 'block' : 'none'};padding:14px;background:rgba(0,0,0,0.15);border-radius:10px;border:1px solid rgba(255,255,255,0.08);">
                 <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:10px;">차단할 기능을 선택하세요:</div>
                 <div style="margin-bottom:8px;color:#64748b;font-size:0.7rem;font-weight:600;">기상정보 탭 내</div>
                 ${features.filter(f => f.group === '기상정보').map(f => `
                     <label style="display:flex;align-items:center;gap:8px;padding:6px 0;color:#e2e8f0;font-size:0.85rem;cursor:pointer;">
-                        <input type="checkbox" class="maint-feature-cb" value="${f.id}" ${blocked.includes(f.id) ? 'checked' : ''} style="${checkboxStyle}"> ${f.label}
+                        <input type="checkbox" class="maint-feature-cb" value="${f.id}" style="${checkboxStyle}"> ${f.label}
                     </label>
                 `).join('')}
                 <div style="height:1px;background:rgba(255,255,255,0.06);margin:8px 0;"></div>
                 <div style="margin-bottom:8px;color:#64748b;font-size:0.7rem;font-weight:600;">탭 전체</div>
                 ${features.filter(f => f.group === '탭').map(f => `
                     <label style="display:flex;align-items:center;gap:8px;padding:6px 0;color:#e2e8f0;font-size:0.85rem;cursor:pointer;">
-                        <input type="checkbox" class="maint-feature-cb" value="${f.id}" ${blocked.includes(f.id) ? 'checked' : ''} style="${checkboxStyle}"> ${f.label}
+                        <input type="checkbox" class="maint-feature-cb" value="${f.id}" style="${checkboxStyle}"> ${f.label}
                     </label>
                 `).join('')}
                 <button onclick="saveBlockedFeatures()" style="margin-top:12px;width:100%;padding:10px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.85rem;">
                     <i class="fa-solid fa-save"></i> 차단 기능 저장
                 </button>
             </div>
+        </div>
+
+        <!-- 푸시 알림 차단 옵션 -->
+        <div style="margin-bottom:16px;">
+            <label style="display:flex;align-items:center;gap:8px;color:#e2e8f0;font-size:0.85rem;cursor:pointer;padding:12px;background:rgba(0,0,0,0.15);border-radius:10px;border:1px solid rgba(255,255,255,0.08);">
+                <input type="checkbox" id="maint-block-push" ${isBlockPush ? 'checked' : ''} style="width:16px;height:16px;accent-color:#ef4444;cursor:pointer;">
+                <div>
+                    <div style="font-weight:600;"><i class="fa-solid fa-bell-slash" style="color:#f59e0b;margin-right:4px;"></i> 푸시 알림 차단</div>
+                    <div style="color:#94a3b8;font-size:0.75rem;margin-top:2px;">체크 시 점검 중 모든 푸시 알림 발송이 중지됩니다.</div>
+                </div>
+            </label>
         </div>
 
         <!-- 점검 제목 -->
@@ -1266,7 +1295,7 @@ async function renderMaintenanceFullTab(container) {
             <ul style="color:#94a3b8;font-size:0.8rem;margin:0;padding-left:16px;line-height:1.8;">
                 <li><b>전체 차단</b>: 점검 시작 시 모든 사용자에게 점검 페이지가 표시됩니다.</li>
                 <li><b>선택적 차단</b>: 선택한 기능만 차단되고, 나머지 기능은 정상 이용 가능합니다.</li>
-                <li>점검 중에는 푸시 알림이 발송되지 않습니다.</li>
+                <li><b>푸시 알림 차단</b>: 체크 해제 시 점검 중에도 푸시 알림이 정상 발송됩니다.</li>
                 <li>관리자는 점검 페이지에서 로고를 10회 클릭하여 우회 접속할 수 있습니다.</li>
                 <li>점검 해제 시 사용자가 정상적으로 앱에 접근할 수 있습니다.</li>
             </ul>
@@ -1591,11 +1620,18 @@ window.toggleMaintenanceMode = async function () {
 
     const blockType = document.querySelector('input[name="maint-block-type"]:checked');
     const isSelective = blockType && blockType.value === 'selective';
-    const confirmMsg = newActive
-        ? (isSelective
-            ? '점검 모드를 시작하시겠습니까?\n\n선택한 기능만 차단되고, 나머지 기능은 정상 이용 가능합니다.\n푸시 알림 발송이 차단됩니다.'
-            : '점검 모드를 시작하시겠습니까?\n\n모든 사용자에게 점검 페이지가 표시되고,\n푸시 알림 발송이 차단됩니다.')
-        : '점검 모드를 해제하시겠습니까?\n\n사용자가 정상적으로 앱에 접근할 수 있습니다.';
+    const blockPushCb = document.getElementById('maint-block-push');
+    const blockPush = blockPushCb ? blockPushCb.checked : true;
+
+    let confirmMsg;
+    if (!newActive) {
+        confirmMsg = '점검 모드를 해제하시겠습니까?\n\n사용자가 정상적으로 앱에 접근할 수 있습니다.';
+    } else {
+        const pushMsg = blockPush ? '\n푸시 알림 발송이 차단됩니다.' : '\n푸시 알림은 정상 발송됩니다.';
+        confirmMsg = isSelective
+            ? '점검 모드를 시작하시겠습니까?\n\n선택한 기능만 차단되고, 나머지 기능은 정상 이용 가능합니다.' + pushMsg
+            : '점검 모드를 시작하시겠습니까?\n\n모든 사용자에게 점검 페이지가 표시됩니다.' + pushMsg;
+    }
 
     if (!confirm(confirmMsg)) return;
 
@@ -1603,7 +1639,7 @@ window.toggleMaintenanceMode = async function () {
         const res = await fetch('/api/admin/maintenance', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ active: newActive, title, content })
+            body: JSON.stringify({ active: newActive, title, content, blockPush })
         });
         const result = await res.json();
         if (result.success) {

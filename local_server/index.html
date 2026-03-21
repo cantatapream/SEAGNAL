@@ -941,20 +941,14 @@
             if (!tabBtn) continue;
             if (blocked.includes(featureId)) {
                 tabBtn.style.opacity = '0.4';
-                tabBtn.style.pointerEvents = 'auto';
                 tabBtn.style.cursor = 'pointer';
                 tabBtn.title = '점검 중인 기능입니다';
                 tabBtn.dataset.blocked = 'true';
-                tabBtn.onclick = function(e) { e.preventDefault(); e.stopPropagation(); showBlockedFeaturePopup(); };
             } else {
                 tabBtn.style.opacity = '';
-                tabBtn.style.pointerEvents = '';
                 tabBtn.style.cursor = '';
                 tabBtn.title = '';
-                if (tabBtn.dataset.blocked) {
-                    delete tabBtn.dataset.blocked;
-                    tabBtn.onclick = null;
-                }
+                delete tabBtn.dataset.blocked;
             }
         }
     }
