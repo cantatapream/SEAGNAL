@@ -218,6 +218,9 @@ window.atmFetchReports = async function () {
             listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">해당 날짜에 [특보]/[예비] 통보문이 없습니다.</div>';
             document.getElementById('atm-collect-all-btn').style.display = 'none';
             document.getElementById('atm-push-toggle-wrap').style.display = 'none';
+            // 전망 목록도 초기화
+            const forecastContainer = document.getElementById('atm-forecast-list');
+            if (forecastContainer) forecastContainer.innerHTML = '';
             return;
         }
         // [특보]/[예비] 통보문과 [해설] 통보문 분리
