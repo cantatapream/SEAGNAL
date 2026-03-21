@@ -355,19 +355,30 @@ async function collectMidTermSeaForecasts() {
         const tmFc = `${tmFcDate.getFullYear()}${String(tmFcDate.getMonth() + 1).padStart(2, '0')}${String(tmFcDate.getDate()).padStart(2, '0')}${String(tmFcDate.getHours()).padStart(2, '0')}00`;
 
         const results = {};
+        const MAX_RETRIES = 3;
+        const TIMEOUT_MS = 30000; // 30초 (기상청 API 응답 지연 대비)
         for (const regId of MID_TERM_SEA_REG_IDS) {
             const url = `https://apihub.kma.go.kr/api/typ02/openApi/MidFcstInfoService/getMidSeaFcst?pageNo=1&numOfRows=10&dataType=JSON&regId=${regId}&tmFc=${tmFc}&authKey=${CONFIG.KMA_HUB_KEY}`;
-            try {
-                const res = await fetchWithTimeout(url, {}, 8000);
-                const data = await res.json();
-                if (data.response?.body?.items?.item) {
-                    const items = Array.isArray(data.response.body.items.item)
-                        ? data.response.body.items.item
-                        : [data.response.body.items.item];
-                    results[regId] = items[0]; // 중기예보는 보통 단일 item
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    const res = await fetchWithTimeout(url, {}, TIMEOUT_MS);
+                    const data = await res.json();
+                    if (data.response?.body?.items?.item) {
+                        const items = Array.isArray(data.response.body.items.item)
+                            ? data.response.body.items.item
+                            : [data.response.body.items.item];
+                        results[regId] = items[0];
+                    }
+                    break; // 성공 시 재시도 루프 탈출
+                } catch (e) {
+                    if (attempt < MAX_RETRIES) {
+                        const delay = attempt * 2000; // 2초, 4초 대기 후 재시도
+                        log(`⚠️ 중기해상예보 ${regId} ${attempt}/${MAX_RETRIES}회 실패, ${delay/1000}초 후 재시도: ${e.message}`);
+                        await new Promise(r => setTimeout(r, delay));
+                    } else {
+                        log(`⚠️ 중기해상예보 ${regId} ${MAX_RETRIES}회 모두 실패: ${e.message}`);
+                    }
                 }
-            } catch (e) {
-                log(`⚠️ 중기해상예보 ${regId} 수집 실패: ${e.message}`);
             }
             await new Promise(r => setTimeout(r, 50));
         }
