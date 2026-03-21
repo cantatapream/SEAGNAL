@@ -118,7 +118,7 @@ function escapeHtml(str) {
  * AI 마크업 변환: {{loc:...}}, {{num:...}}, {{warn:...}} → HTML span
  * 색상: 지역=파랑, 수치=빨강, 경고=주황
  */
-function renderMarineMarkup(str) {
+window.renderMarineMarkup = function renderMarineMarkup(str) {
     if (!str) return '';
     // 먼저 마크업 태그 내부를 보호하면서 이스케이프
     // 1. 마크업 태그를 추출하여 플레이스홀더로 교체

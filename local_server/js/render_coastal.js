@@ -565,7 +565,7 @@ function updateLoading(isLoading) {
     appState.isLoading = isLoading;
     const indicator = document.getElementById('loading-indicator');
     const content = document.getElementById('alert-content');
-    const headerStatus = document.querySelector('.header-status');
+    const headerStatus = document.querySelector('#main-accordion-header .header-status');
 
     if (isLoading) {
         if (indicator) indicator.classList.remove('hidden');
