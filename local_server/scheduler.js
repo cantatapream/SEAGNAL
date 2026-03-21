@@ -95,6 +95,8 @@ function loadApiConfig() {
 }
 loadApiConfig();
 
+const marineForecastProcessor = require('./marine_forecast_processor');
+
 const DUCKDNS_CONFIG = {
     ENABLED: !process.env.FLY_ALLOC_ID,
     DOMAIN: 'seagnal',
@@ -434,7 +436,8 @@ async function init() {
             collectKmaBuoys().then(() => log('✅ 부이 상세(파고) 데이터 수집 완료')),
             collectGeneralForecasts().then(() => log('✅ 일반예보 데이터 수집 완료')),
             collectZoneForecasts().then(() => log('✅ 해구별 예보 데이터 수집 완료')),
-            collectMidTermSeaForecasts()
+            collectMidTermSeaForecasts(),
+            marineForecastProcessor.collectMarineForecasts().then(() => log('✅ 해상 기상 전망 수집 완료'))
         ]);
     } catch (e) {
         log(`⚠️ 일부 수집 중 오류: ${e.message}`);
@@ -478,6 +481,12 @@ async function init() {
             weatherAlertsCrawler.run().catch(err => log(`⚠️ 크롤러 오류: ${err.message}`));
         } else {
             log('⏸️ 기상특보 크롤링 일시정지 상태');
+        }
+
+        // [New] 해상 기상 전망 수집 (매 10분마다)
+        if (min % 10 === 3) {
+            marineForecastProcessor.collectMarineForecasts()
+                .catch(err => log(`⚠️ 해상 기상 전망 수집 오류: ${err.message}`));
         }
 
         if (process.env.FLY_ALLOC_ID) {

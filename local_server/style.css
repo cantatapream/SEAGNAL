@@ -927,6 +927,132 @@ line-height: 1.1;
     border-color: rgba(14, 165, 233, 0.3);
 }
 
+/* 기상청 해상 기상 전망 아코디언 - 슬레이트/회색 */
+.main-accordion-header.gradient-slate {
+    background: linear-gradient(90deg, #1a1f2e 0%, #334155 100%);
+    border-color: rgba(148, 163, 184, 0.3);
+}
+
+/* 해상 기상 전망 컨테이너 */
+.marine-forecast-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* 서브 아코디언 (초단기/단기) */
+.marine-forecast-sub-accordion {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.marine-forecast-sub-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+    background: rgba(255, 255, 255, 0.02);
+    transition: background 0.2s;
+}
+
+.marine-forecast-sub-header:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.marine-forecast-sub-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.marine-forecast-sub-icon {
+    color: #94a3b8;
+    font-size: 0.75rem;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.marine-forecast-sub-accordion.open .marine-forecast-sub-icon {
+    transform: rotate(180deg);
+}
+
+.marine-forecast-sub-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                padding 0.3s ease,
+                opacity 0.3s ease;
+    opacity: 0;
+    padding: 0 16px;
+}
+
+.marine-forecast-sub-accordion.open .marine-forecast-sub-body {
+    max-height: 3000px;
+    opacity: 1;
+    padding: 0 16px 16px 16px;
+}
+
+/* 전망 기간 */
+.marine-forecast-period {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+/* 카테고리 항목 */
+.marine-forecast-category {
+    margin-bottom: 10px;
+}
+
+.marine-forecast-category-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.marine-forecast-emoji {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    line-height: 1.5;
+}
+
+.marine-forecast-category-name {
+    font-weight: 700;
+    color: #e2e8f0;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.marine-forecast-category-text {
+    color: #cbd5e1;
+    font-size: 0.83rem;
+    line-height: 1.6;
+}
+
+/* 하위 항목 (- 특히, - 또한, 등) */
+.marine-forecast-sub-item {
+    padding-left: 2em;
+    color: #94a3b8;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    margin-top: 2px;
+}
+
+/* 빈 데이터 메시지 */
+.marine-forecast-empty {
+    color: #64748b;
+    font-size: 0.83rem;
+    text-align: center;
+    padding: 16px 0;
+    font-style: italic;
+}
+
 .header-status {
     display: flex;
     align-items: center;

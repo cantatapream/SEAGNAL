@@ -511,6 +511,46 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 기상청 해상 기상 전망 아코디언 -->
+                <div id="marine-forecast-accordion-header" class="main-accordion-header gradient-slate collapsed-state"
+                    onclick="toggleMarineForecastAccordion()"
+                    style="margin-top: 15px;">
+                    <div class="accordion-title-with-info">
+                        <h2 class="section-title" style="margin: 0;"><i class="fa-solid fa-water"
+                                style="color: #94a3b8;"></i>
+                            기상청 해상 기상 전망(임시)</h2>
+                    </div>
+                    <div class="header-status">
+                        <i class="fa-solid fa-chevron-down" id="marine-forecast-accordion-icon"></i>
+                    </div>
+                </div>
+
+                <div id="marine-forecast-accordion-body" class="main-accordion-body collapsed">
+                    <div id="marine-forecast-content" class="marine-forecast-container">
+                        <!-- 초단기 전망 -->
+                        <div class="marine-forecast-sub-accordion open" id="ultra-short-forecast-section">
+                            <div class="marine-forecast-sub-header" onclick="toggleMarineForecastSub('ultra-short-forecast-body')">
+                                <span class="marine-forecast-sub-title" id="ultra-short-forecast-title">초단기 전망</span>
+                                <i class="fa-solid fa-chevron-down marine-forecast-sub-icon"></i>
+                            </div>
+                            <div class="marine-forecast-sub-body" id="ultra-short-forecast-body">
+                                <p class="marine-forecast-empty">데이터를 불러오는 중...</p>
+                            </div>
+                        </div>
+
+                        <!-- 단기 전망 -->
+                        <div class="marine-forecast-sub-accordion open" id="short-term-forecast-section">
+                            <div class="marine-forecast-sub-header" onclick="toggleMarineForecastSub('short-term-forecast-body')">
+                                <span class="marine-forecast-sub-title" id="short-term-forecast-title">단기 전망</span>
+                                <i class="fa-solid fa-chevron-down marine-forecast-sub-icon"></i>
+                            </div>
+                            <div class="marine-forecast-sub-body" id="short-term-forecast-body">
+                                <p class="marine-forecast-empty">데이터를 불러오는 중...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- 섹션 2: 해구별 기상정보 -->
@@ -771,6 +811,7 @@
     <script src="js/settings.js"></script>
     <script src="js/forecast.js"></script>
     <script src="js/windy.js"></script>
+    <script src="js/marine_forecast.js"></script>
     <script src="js/admin_trigger.js"></script>
     <script src="js/promo.js"></script>
     <script src="js/admin.js"></script>
