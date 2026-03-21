@@ -324,6 +324,26 @@ router.post('/api/admin/forecast-collect', async (req, res) => {
         // 캐시 저장
         marineForecast.saveForecastCache(reportId, forecastData);
 
+        // marine_forecast.json도 갱신 (프론트 표출용)
+        try {
+            const dataFilePath = path.join(__dirname, '..', 'data', 'marine_forecast.json');
+            let forecasts = { ultraShort: null, shortTerm: null, updatedAt: '' };
+            if (fs.existsSync(dataFilePath)) {
+                forecasts = JSON.parse(fs.readFileSync(dataFilePath, 'utf8'));
+            }
+            if (isUltraShort) {
+                forecasts.ultraShort = forecastData;
+            } else {
+                forecasts.shortTerm = forecastData;
+            }
+            forecasts.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+            const dataDir = path.dirname(dataFilePath);
+            if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+            fs.writeFileSync(dataFilePath, JSON.stringify(forecasts, null, 2), 'utf8');
+        } catch (updateErr) {
+            console.error('[Admin] marine_forecast.json 갱신 오류:', updateErr.message);
+        }
+
         res.json({ success: true, data: forecastData });
     } catch (e) {
         console.error('[Admin] 전망 수집 오류:', e.message);
