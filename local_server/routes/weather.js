@@ -241,4 +241,94 @@ router.post('/api/marine-forecast/refresh', async (req, res) => {
     }
 });
 
+// 10. 개별 전망 통보문 수집 (관리자용 - 특정 reportId 수집)
+router.post('/api/admin/forecast-collect', async (req, res) => {
+    try {
+        const { reportId, title } = req.body;
+        if (!reportId) return res.status(400).json({ success: false, error: 'reportId 필요' });
+
+        // 통보문 상세 조회
+        const parts = reportId.split(':');
+        const dateStr = parts[1] || '';
+        const dateParam = dateStr.substring(0, 4) + '-' + dateStr.substring(4, 6) + '-' + dateStr.substring(6, 8);
+        const url = `https://www.weather.go.kr/w/special-report/list.do?stn=108&date=${dateParam}`;
+
+        // fetchForecastDetail을 직접 호출하기 위해 내부 함수 재현
+        const https = require('https');
+        const fetchHtml = (u) => new Promise((resolve, reject) => {
+            https.get(u, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (resp) => {
+                const chunks = [];
+                resp.on('data', c => chunks.push(c));
+                resp.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+            }).on('error', reject);
+        });
+
+        // 상세 페이지에서 원문 가져오기
+        const detailUrl = `https://www.weather.go.kr/w/special-report/detail.do?prevStn=108&stn=108&date=${dateParam}&reportId=${reportId}`;
+        const html = await fetchHtml(detailUrl);
+
+        // 전망 기간 추출
+        let forecastPeriod = '';
+        const periodMatch = html.match(/※\s*(\d{1,2}월\s*\d{1,2}일[^<]*?까지의\s*전망[^<.]*\.?)/);
+        if (periodMatch) forecastPeriod = '※ ' + periodMatch[1].replace(/\s+/g, ' ').trim();
+
+        // 발표 시각 추출
+        let publishTime = '';
+        const ts = parts[1] || '';
+        if (ts.length >= 12) publishTime = `${ts.substring(4, 6)}.${ts.substring(6, 8)}. ${ts.substring(8, 10)}:${ts.substring(10, 12)}`;
+
+        // 본문 텍스트 추출
+        let contentHtml = '';
+        const patterns = [
+            /<div class="cmp-view-content">([\s\S]*?)<\/div>\s*<\/section>/,
+            /<div class="cmp-view-content">([\s\S]*?)<\/div>\s*<\/div>/,
+            /<div class="cmp-view-content">([\s\S]*)<\/div>/,
+        ];
+        for (const p of patterns) {
+            const m = html.match(p);
+            if (m && m[1] && m[1].trim().length > 20) { contentHtml = m[1]; break; }
+        }
+
+        let rawText = contentHtml
+            .replace(/<p[^>]*>/g, '\n').replace(/<\/p>/g, '\n').replace(/<br\s*\/?>/g, '\n')
+            .replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ')
+            .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+            .replace(/[ ]+/g, ' ').trim();
+
+        // 카테고리 추출
+        const codeCategories = marineForecast.extractCategories(rawText);
+        const hasContent = Object.keys(codeCategories).length > 0;
+
+        // AI 분석
+        let aiResult = null;
+        const hasMarineKeywords = /강풍|바다\s*안개|해상|너울/.test(rawText);
+        if (hasContent && hasMarineKeywords) {
+            aiResult = await marineForecast.analyzeWithAI(rawText, codeCategories);
+        }
+
+        // 최종 카테고리 결정
+        const finalCategories = (aiResult && aiResult.categories) ? aiResult.categories : (hasContent ? codeCategories : null);
+
+        // 전망 타입 판별
+        const isUltraShort = /초단기/.test(title || '');
+        const typeLabel = isUltraShort ? '초단기전망' : '단기전망';
+
+        const forecastData = {
+            reportId, title: title || '', type: typeLabel,
+            publishTime, forecastPeriod, rawText,
+            codeCategories: hasContent ? codeCategories : null,
+            aiResult, categories: finalCategories,
+            hasContent: hasContent || !!(aiResult && aiResult.categories && Object.keys(aiResult.categories).length > 0)
+        };
+
+        // 캐시 저장
+        marineForecast.saveForecastCache(reportId, forecastData);
+
+        res.json({ success: true, data: forecastData });
+    } catch (e) {
+        console.error('[Admin] 전망 수집 오류:', e.message);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 module.exports = router;

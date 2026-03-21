@@ -220,15 +220,33 @@ window.atmFetchReports = async function () {
             document.getElementById('atm-push-toggle-wrap').style.display = 'none';
             return;
         }
-        document.getElementById('atm-collect-all-btn').style.display = 'inline-block';
-        document.getElementById('atm-push-toggle-wrap').style.display = 'flex';
-        window._atmReports = data.reports;
+        // [특보]/[예비] 통보문과 [해설] 통보문 분리
+        const alertReports = data.reports.filter(r => !r.title.includes('[해설]'));
+        const forecastReports = data.reports.filter(r => r.title.includes('[해설]'));
+
+        document.getElementById('atm-collect-all-btn').style.display = alertReports.length > 0 ? 'inline-block' : 'none';
+        document.getElementById('atm-push-toggle-wrap').style.display = alertReports.length > 0 ? 'flex' : 'none';
+        window._atmReports = alertReports; // 특보/예비만 (인덱스 일치)
         window._atmResults = {};
 
-        // 전망 통보문 목록도 함께 로드
-        atmLoadForecastList();
+        // 전망 통보문: [해설] 통보문이 있으면 그걸 기준으로, 없으면 캐시 기반
+        if (forecastReports.length > 0) {
+            window._atmForecastReports = forecastReports;
+            atmRenderForecastReports(forecastReports);
+        } else {
+            atmLoadForecastList();
+        }
 
-        listEl.innerHTML = data.reports.map((r, i) => {
+        if (alertReports.length === 0) {
+            listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">해당 날짜에 [특보]/[예비] 통보문이 없습니다.</div>';
+            if (forecastReports.length === 0) {
+                document.getElementById('atm-collect-all-btn').style.display = 'none';
+                document.getElementById('atm-push-toggle-wrap').style.display = 'none';
+            }
+            return;
+        }
+
+        listEl.innerHTML = alertReports.map((r, i) => {
             const isProcessed = processedIds.has(r.id);
             const isFailed = failedIds.has(r.id);
             if (isProcessed && isFailed) {
@@ -367,6 +385,97 @@ window.atmCollectOne = async function (i, refTimeOverride) {
             ? `<i class="fa-solid fa-check"></i> 완료(${attempt}회)`
             : '<i class="fa-solid fa-check"></i> 완료';
         btn.style.background = 'rgba(34,197,94,0.3)'; btn.style.color = '#86efac';
+    }
+};
+
+// --- [해설] 통보문(전망)을 전망 영역에 렌더링 ---
+window.atmRenderForecastReports = async function (forecastReports) {
+    const container = document.getElementById('atm-forecast-list');
+    if (!container) return;
+
+    // 이미 캐시에 있는 reportId 조회
+    let cachedIds = new Set();
+    try {
+        const cacheList = await fetch(CONFIG.API_BASE + '/api/forecast-cache/list').then(r => r.json());
+        cachedIds = new Set((cacheList || []).map(c => c.reportId));
+    } catch (e) { /* 무시 */ }
+
+    // 현재 표출 중인 전망 reportId
+    let activeIds = new Set();
+    try {
+        const marineFcst = await fetch(CONFIG.API_BASE + '/api/marine-forecast').then(r => r.ok ? r.json() : null);
+        if (marineFcst) {
+            if (marineFcst.ultraShort && marineFcst.ultraShort.reportId) activeIds.add(marineFcst.ultraShort.reportId);
+            if (marineFcst.shortTerm && marineFcst.shortTerm.reportId) activeIds.add(marineFcst.shortTerm.reportId);
+        }
+    } catch (e) { /* 무시 */ }
+
+    let html = `<div style="font-weight:700;color:#e2e8f0;font-size:0.9rem;margin-bottom:10px;"><i class="fa-solid fa-water" style="color:#94a3b8;"></i> 해상 기상 전망 (${forecastReports.length}건)</div>`;
+    forecastReports.forEach((r, i) => {
+        const isCached = cachedIds.has(r.id);
+        const isActive = activeIds.has(r.id);
+        const activeBadge = isActive
+            ? '<span style="background:rgba(34,197,94,0.15);color:#4ade80;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;flex-shrink:0;border:1px solid rgba(34,197,94,0.3);"><i class="fa-solid fa-tower-broadcast"></i> 표출 중</span>'
+            : '';
+
+        if (isCached) {
+            html += `
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:6px;flex-wrap:wrap;">
+                ${activeBadge}
+                <span style="flex:1;color:#e2e8f0;font-size:0.85rem;min-width:200px;">${r.title}</span>
+                <span style="color:#64748b;font-size:0.7rem;word-break:break-all;">${r.id}</span>
+                <div style="display:flex;gap:6px;flex-shrink:0;">
+                    <button disabled style="padding:5px 12px;background:rgba(34,197,94,0.3);color:#86efac;border:none;border-radius:6px;font-size:0.8rem;font-weight:600;cursor:default;"><i class="fa-solid fa-check"></i> 완료</button>
+                    <button onclick="atmShowForecastResult('${encodeURIComponent(r.id)}')" style="padding:5px 12px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">결과</button>
+                    <button onclick="atmCollectForecast('${encodeURIComponent(r.id)}','${encodeURIComponent(r.title)}',this)" style="padding:5px 10px;background:rgba(255,255,255,0.08);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;font-size:0.75rem;font-weight:600;"><i class="fa-solid fa-rotate"></i> 재수집</button>
+                </div>
+            </div>`;
+        } else {
+            html += `
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:6px;flex-wrap:wrap;">
+                ${activeBadge}
+                <span style="flex:1;color:#e2e8f0;font-size:0.85rem;min-width:200px;">${r.title}</span>
+                <span style="color:#64748b;font-size:0.7rem;word-break:break-all;">${r.id}</span>
+                <div style="display:flex;gap:6px;flex-shrink:0;">
+                    <button onclick="atmCollectForecast('${encodeURIComponent(r.id)}','${encodeURIComponent(r.title)}',this)" style="padding:5px 12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">수집</button>
+                </div>
+            </div>`;
+        }
+    });
+    container.innerHTML = html;
+};
+
+// 개별 전망 통보문 수집
+window.atmCollectForecast = async function (encodedId, encodedTitle, btn) {
+    const reportId = decodeURIComponent(encodedId);
+    const title = decodeURIComponent(encodedTitle);
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 수집 중';
+    btn.style.background = 'rgba(255,255,255,0.1)';
+    try {
+        const res = await fetch(CONFIG.API_BASE + '/api/admin/forecast-collect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reportId, title })
+        });
+        const data = await res.json();
+        if (data.success) {
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> 완료';
+            btn.style.background = 'rgba(34,197,94,0.3)';
+            btn.style.color = '#86efac';
+            // 전망 리스트 새로고침
+            if (window._atmForecastReports) {
+                atmRenderForecastReports(window._atmForecastReports);
+            }
+        } else {
+            btn.innerHTML = '<i class="fa-solid fa-xmark"></i> 실패';
+            btn.style.background = 'rgba(239,68,68,0.3)';
+            btn.style.color = '#fca5a5';
+        }
+    } catch (e) {
+        btn.innerHTML = '<i class="fa-solid fa-xmark"></i> 오류';
+        btn.style.background = 'rgba(239,68,68,0.3)';
+        btn.style.color = '#fca5a5';
     }
 };
 

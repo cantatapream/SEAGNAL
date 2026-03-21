@@ -90,9 +90,8 @@ function renderCategoryHtml(categoryKey, text) {
     html += `<div class="marine-forecast-category-header">`;
     html += `<span class="marine-forecast-emoji">${emoji}</span>`;
     html += `<span class="marine-forecast-category-text">`;
-    // AI 마크업이 포함되어 있으면 renderMarineMarkup, 없으면 escapeHtml
-    const hasMarkup = /\{\{(loc|num|warn):/.test(mainText) || subItems.some(s => /\{\{(loc|num|warn):/.test(s));
-    const renderText = hasMarkup ? renderMarineMarkup : escapeHtml;
+    // renderMarineMarkup: 마크업 태그 있으면 변환, 없으면 자동 패턴 감지 포맷 적용
+    const renderText = renderMarineMarkup;
 
     html += `<span class="marine-forecast-category-name">${displayName}</span> : ${renderText(mainText)}`;
     html += `</span>`;
@@ -120,28 +119,55 @@ function escapeHtml(str) {
  */
 window.renderMarineMarkup = function renderMarineMarkup(str) {
     if (!str) return '';
-    // 먼저 마크업 태그 내부를 보호하면서 이스케이프
-    // 1. 마크업 태그를 추출하여 플레이스홀더로 교체
-    const tokens = [];
-    let safe = str.replace(/\{\{(loc|num|warn):([^}]*)\}\}/g, (_, type, text) => {
-        const idx = tokens.length;
-        tokens.push({ type, text });
-        return `__MK${idx}__`;
-    });
-    // 2. 나머지 텍스트 이스케이프
-    safe = escapeHtml(safe);
-    // 3. 플레이스홀더를 실제 HTML로 교체
-    safe = safe.replace(/__MK(\d+)__/g, (_, idx) => {
-        const t = tokens[parseInt(idx)];
-        const escaped = escapeHtml(t.text);
-        switch (t.type) {
-            case 'loc':  return `<span style="color:#60a5fa;font-weight:700;">${escaped}</span>`;
-            case 'num':  return `<span style="color:#f87171;font-weight:700;">${escaped}</span>`;
-            case 'warn': return `<span style="color:#fb923c;font-weight:700;">${escaped}</span>`;
-            default:     return escaped;
-        }
-    });
-    return safe;
+
+    // AI 마크업 태그가 있으면 기존 로직 사용
+    const hasMarkupTags = /\{\{(loc|num|warn):/.test(str);
+    if (hasMarkupTags) {
+        const tokens = [];
+        let safe = str.replace(/\{\{(loc|num|warn):([^}]*)\}\}/g, (_, type, text) => {
+            const idx = tokens.length;
+            tokens.push({ type, text });
+            return `__MK${idx}__`;
+        });
+        safe = escapeHtml(safe);
+        safe = safe.replace(/__MK(\d+)__/g, (_, idx) => {
+            const t = tokens[parseInt(idx)];
+            const escaped = escapeHtml(t.text);
+            switch (t.type) {
+                case 'loc':  return `<span style="color:#60a5fa;font-weight:700;">${escaped}</span>`;
+                case 'num':  return `<span style="color:#f87171;font-weight:700;">${escaped}</span>`;
+                case 'warn': return `<span style="color:#fb923c;font-weight:700;">${escaped}</span>`;
+                default:     return escaped;
+            }
+        });
+        return safe;
+    }
+
+    // 마크업 태그 없으면 자동 패턴 감지하여 포맷 적용
+    let result = escapeHtml(str);
+
+    // 수치 패턴 (빨강, 볼드): 풍속, 파고, 거리, 온도 등
+    result = result.replace(/(순간풍속\s*\d+[~\-]?\d*\s*km\/h\s*\([^)]*\))/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
+    result = result.replace(/(파고\s*\d+[~\-]?\d*\s*m)/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
+    result = result.replace(/(가시거리\s*\d+[~\-]?\d*\s*m)/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
+    result = result.replace(/(\d+[~\-]\d+\s*m(?:\/s)?(?!\w))/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
+    result = result.replace(/(풍속\s*\d+[~\-]?\d*\s*m\/s)/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
+
+    // 지역 패턴 (파랑, 볼드): 해역명, 지역명
+    const locPatterns = [
+        /([가-힣]+해안|[가-힣]+해역|[가-힣]+연안)/g,
+        /(동해[남중북]?부?|서해[남중북]?부?|남해[동서]?부?|제주도?\s*[남북동서]?부?해상)/g,
+        /(경기내륙|충청내륙|전라내륙|경상내륙|강원내륙|수도권|충청권|전라권|경상권|강원권)/g,
+        /(인천|경기서해안|충남서해안|전북서해안|전남서해안|경남남해안|부산|울산|경북동해안|강원동해안)/g,
+    ];
+    for (const pat of locPatterns) {
+        result = result.replace(pat, '<span style="color:#60a5fa;font-weight:700;">$1</span>');
+    }
+
+    // 경고 패턴 (주황, 볼드): 안전 관련 문구
+    result = result.replace(/(유의하기 바랍니다|주의하기 바랍니다|확인하기 바랍니다|안전사고에 유의|안전에 유의|강하게 부는 곳|높게 일는 곳|시설물 관리|해상교통[^.]*이용[^.]*바랍니다|운항정보를 확인)/g, '<span style="color:#fb923c;font-weight:700;">$1</span>');
+
+    return result;
 }
 
 /**
