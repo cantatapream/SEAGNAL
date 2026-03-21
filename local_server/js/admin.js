@@ -1113,13 +1113,53 @@ function renderCollectTestSubTab(container) {
 }
 
 // ============================================================================
-// (G) 점검 모드 관리 탭 렌더링
+// (G) 점검 모드 관리 탭 렌더링 (하위 탭: 점검 모드 / 운영 병행 모드)
 // ============================================================================
 async function renderUnifiedMaintenanceContent(container) {
-    container.innerHTML = '<div style="text-align:center;padding:60px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin fa-2x"></i><p style="margin-top:15px;">점검 설정 로딩 중...</p></div>';
+    container.innerHTML = `
+        <div class="admin-section-title">
+            <i class="fa-solid fa-wrench" style="color:#f59e0b;"></i> 점검 관리
+        </div>
+        <!-- 하위 탭 -->
+        <div style="display:flex;gap:0;margin-bottom:20px;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);">
+            <button id="maint-subtab-full" onclick="switchMaintenanceSubTab('full')" style="flex:1;padding:12px;background:rgba(255,255,255,0.1);color:#fff;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;">
+                <i class="fa-solid fa-ban"></i> 점검 모드
+            </button>
+            <button id="maint-subtab-work" onclick="switchMaintenanceSubTab('work')" style="flex:1;padding:12px;background:rgba(255,255,255,0.03);color:#64748b;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;">
+                <i class="fa-solid fa-helmet-safety"></i> 운영 병행 모드
+            </button>
+        </div>
+        <div id="maint-subtab-body"></div>
+    `;
+    // 기본: 점검 모드 탭
+    switchMaintenanceSubTab('full');
+}
 
-    // 서버에서 현재 점검 상태 조회
-    let config = { active: false, title: '', content: '', startedAt: null };
+window.switchMaintenanceSubTab = function (tab) {
+    const fullBtn = document.getElementById('maint-subtab-full');
+    const workBtn = document.getElementById('maint-subtab-work');
+    const body = document.getElementById('maint-subtab-body');
+    if (!body) return;
+
+    const activeStyle = 'flex:1;padding:12px;background:rgba(255,255,255,0.1);color:#fff;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;';
+    const inactiveStyle = 'flex:1;padding:12px;background:rgba(255,255,255,0.03);color:#64748b;border:none;cursor:pointer;font-weight:700;font-size:0.85rem;';
+
+    if (tab === 'full') {
+        fullBtn.style.cssText = activeStyle;
+        workBtn.style.cssText = inactiveStyle;
+        renderMaintenanceFullTab(body);
+    } else {
+        fullBtn.style.cssText = inactiveStyle;
+        workBtn.style.cssText = activeStyle;
+        renderMaintenanceWorkTab(body);
+    }
+};
+
+// --- 점검 모드 (전체 차단) 하위 탭 ---
+async function renderMaintenanceFullTab(container) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
+
+    let config = { active: false, title: '', content: '', startedAt: null, blockedFeatures: [] };
     try {
         const res = await fetch('/api/admin/maintenance');
         if (res.ok) config = await res.json();
@@ -1132,11 +1172,20 @@ async function renderUnifiedMaintenanceContent(container) {
     const btnColor = config.active ? 'linear-gradient(135deg,#22c55e,#16a34a)' : 'linear-gradient(135deg,#ef4444,#dc2626)';
     const btnIcon = config.active ? 'fa-play' : 'fa-stop';
 
-    container.innerHTML = `
-        <div class="admin-section-title">
-            <i class="fa-solid fa-wrench" style="color:#f59e0b;"></i> 점검 모드 관리
-        </div>
+    const blocked = config.blockedFeatures || [];
+    const features = [
+        { id: 'marine-forecast', label: '기상청 해상 기상 전망(임시운영)', group: '기상정보' },
+        { id: 'weather-alert', label: '해역별 특보현황', group: '기상정보' },
+        { id: 'weather-buoy', label: '해역별 기상현황', group: '기상정보' },
+        { id: 'sea-zone', label: '해구기상', group: '탭' },
+        { id: 'tide', label: '조석정보', group: '탭' },
+        { id: 'typhoon', label: '태풍정보', group: '탭' },
+        { id: 'promo', label: '공지사항', group: '탭' },
+    ];
 
+    const checkboxStyle = 'width:16px;height:16px;accent-color:#ef4444;cursor:pointer;';
+
+    container.innerHTML = `
         <!-- 현재 상태 표시 -->
         <div style="margin-bottom:20px;padding:16px;background:rgba(0,0,0,0.2);border-radius:12px;border:1px solid ${statusColor}33;">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
@@ -1145,6 +1194,39 @@ async function renderUnifiedMaintenanceContent(container) {
             </div>
             ${config.active && config.startedAt ? `<div style="color:#94a3b8;font-size:0.8rem;">시작 시각: ${config.startedAt}</div>` : ''}
             ${config.active ? `<div style="color:#fca5a5;font-size:0.8rem;margin-top:4px;"><i class="fa-solid fa-bell-slash"></i> 푸시 알림 발송이 차단되어 있습니다.</div>` : ''}
+        </div>
+
+        <!-- 차단 방식 선택 -->
+        <div style="margin-bottom:16px;">
+            <label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:8px;font-weight:600;">차단 방식</label>
+            <div style="display:flex;gap:10px;margin-bottom:12px;">
+                <label style="display:flex;align-items:center;gap:6px;color:#e2e8f0;font-size:0.85rem;cursor:pointer;">
+                    <input type="radio" name="maint-block-type" value="full" ${blocked.length === 0 ? 'checked' : ''} onchange="toggleBlockType()" style="accent-color:#ef4444;cursor:pointer;"> 전체 차단
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;color:#e2e8f0;font-size:0.85rem;cursor:pointer;">
+                    <input type="radio" name="maint-block-type" value="selective" ${blocked.length > 0 ? 'checked' : ''} onchange="toggleBlockType()" style="accent-color:#f59e0b;cursor:pointer;"> 선택적 차단
+                </label>
+            </div>
+            <!-- 선택적 차단 체크박스 -->
+            <div id="maint-feature-list" style="display:${blocked.length > 0 ? 'block' : 'none'};padding:14px;background:rgba(0,0,0,0.15);border-radius:10px;border:1px solid rgba(255,255,255,0.08);">
+                <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:10px;">차단할 기능을 선택하세요:</div>
+                <div style="margin-bottom:8px;color:#64748b;font-size:0.7rem;font-weight:600;">기상정보 탭 내</div>
+                ${features.filter(f => f.group === '기상정보').map(f => `
+                    <label style="display:flex;align-items:center;gap:8px;padding:6px 0;color:#e2e8f0;font-size:0.85rem;cursor:pointer;">
+                        <input type="checkbox" class="maint-feature-cb" value="${f.id}" ${blocked.includes(f.id) ? 'checked' : ''} style="${checkboxStyle}"> ${f.label}
+                    </label>
+                `).join('')}
+                <div style="height:1px;background:rgba(255,255,255,0.06);margin:8px 0;"></div>
+                <div style="margin-bottom:8px;color:#64748b;font-size:0.7rem;font-weight:600;">탭 전체</div>
+                ${features.filter(f => f.group === '탭').map(f => `
+                    <label style="display:flex;align-items:center;gap:8px;padding:6px 0;color:#e2e8f0;font-size:0.85rem;cursor:pointer;">
+                        <input type="checkbox" class="maint-feature-cb" value="${f.id}" ${blocked.includes(f.id) ? 'checked' : ''} style="${checkboxStyle}"> ${f.label}
+                    </label>
+                `).join('')}
+                <button onclick="saveBlockedFeatures()" style="margin-top:12px;width:100%;padding:10px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.85rem;">
+                    <i class="fa-solid fa-save"></i> 차단 기능 저장
+                </button>
+            </div>
         </div>
 
         <!-- 점검 제목 -->
@@ -1182,7 +1264,8 @@ async function renderUnifiedMaintenanceContent(container) {
         <div style="padding:14px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:10px;">
             <div style="color:#fbbf24;font-size:0.85rem;font-weight:600;margin-bottom:6px;"><i class="fa-solid fa-circle-info"></i> 안내</div>
             <ul style="color:#94a3b8;font-size:0.8rem;margin:0;padding-left:16px;line-height:1.8;">
-                <li>점검 시작 시 모든 사용자에게 점검 페이지가 표시됩니다.</li>
+                <li><b>전체 차단</b>: 점검 시작 시 모든 사용자에게 점검 페이지가 표시됩니다.</li>
+                <li><b>선택적 차단</b>: 선택한 기능만 차단되고, 나머지 기능은 정상 이용 가능합니다.</li>
                 <li>점검 중에는 푸시 알림이 발송되지 않습니다.</li>
                 <li>관리자는 점검 페이지에서 로고를 10회 클릭하여 우회 접속할 수 있습니다.</li>
                 <li>점검 해제 시 사용자가 정상적으로 앱에 접근할 수 있습니다.</li>
@@ -1190,6 +1273,161 @@ async function renderUnifiedMaintenanceContent(container) {
         </div>
     `;
 }
+
+window.toggleBlockType = function () {
+    const featureList = document.getElementById('maint-feature-list');
+    const blockType = document.querySelector('input[name="maint-block-type"]:checked').value;
+    featureList.style.display = blockType === 'selective' ? 'block' : 'none';
+};
+
+window.saveBlockedFeatures = async function () {
+    const blockType = document.querySelector('input[name="maint-block-type"]:checked').value;
+    let blockedFeatures = [];
+    if (blockType === 'selective') {
+        document.querySelectorAll('.maint-feature-cb:checked').forEach(cb => blockedFeatures.push(cb.value));
+    }
+    try {
+        const res = await fetch('/api/admin/maintenance-features', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ blockedFeatures })
+        });
+        const result = await res.json();
+        if (result.success) {
+            alert('차단 기능이 저장되었습니다.');
+        } else {
+            alert('저장 실패: ' + (result.error || ''));
+        }
+    } catch (e) {
+        alert('오류: ' + e.message);
+    }
+};
+
+// --- 운영 병행 모드 하위 탭 ---
+async function renderMaintenanceWorkTab(container) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
+
+    let config = { active: false, content: '', estimatedEnd: '', startedAt: null };
+    try {
+        const res = await fetch('/api/admin/work-mode');
+        if (res.ok) config = await res.json();
+    } catch (e) { /* 무시 */ }
+
+    const statusColor = config.active ? '#f59e0b' : '#22c55e';
+    const statusText = config.active ? '작업 중' : '미활성';
+    const statusIcon = config.active ? 'fa-helmet-safety' : 'fa-check-circle';
+    const btnLabel = config.active ? '작업 종료' : '작업 시작';
+    const btnColor = config.active ? 'linear-gradient(135deg,#22c55e,#16a34a)' : 'linear-gradient(135deg,#f59e0b,#d97706)';
+    const btnIcon = config.active ? 'fa-stop' : 'fa-play';
+
+    const defaultContent = `현재 관리자가 SEA:GNAL의 쾌적한 사용 및 운영을 위하여 기능 개선작업을 진행 중입니다.\n작업 중에는 표출 오류, 서버 멈춤 등 기타 문제가 일시적으로 발생할 수 있습니다.\n하지만 작업 소요시간은 오래 걸리지 않으니 사용 중 문제가 발생하지 않도록 신속하게 마무리하겠습니다.\n이용해주셔서 감사합니다.`;
+
+    container.innerHTML = `
+        <!-- 현재 상태 -->
+        <div style="margin-bottom:20px;padding:16px;background:rgba(0,0,0,0.2);border-radius:12px;border:1px solid ${statusColor}33;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <i class="fa-solid ${statusIcon}" style="color:${statusColor};font-size:1.3rem;"></i>
+                <span style="color:${statusColor};font-weight:700;font-size:1.1rem;">${statusText}</span>
+            </div>
+            ${config.active && config.startedAt ? `<div style="color:#94a3b8;font-size:0.8rem;">시작 시각: ${config.startedAt}</div>` : ''}
+        </div>
+
+        <!-- 표출 내용 -->
+        <div style="margin-bottom:14px;">
+            <label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;font-weight:600;">표출 내용 <span style="color:#64748b;font-size:0.75rem;">(비워두면 기본 문구 사용)</span></label>
+            <textarea id="work-mode-content" rows="6" placeholder="${defaultContent}"
+                      style="width:100%;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.95rem;box-sizing:border-box;resize:vertical;line-height:1.5;">${config.content || ''}</textarea>
+        </div>
+
+        <!-- 종료 예상시점 -->
+        <div style="margin-bottom:20px;">
+            <label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;font-weight:600;">작업 종료 예상시점</label>
+            <input type="datetime-local" id="work-mode-end" value="${config.estimatedEnd || ''}"
+                   style="width:100%;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.95rem;box-sizing:border-box;">
+        </div>
+
+        <!-- 내용 저장 버튼 -->
+        <div style="margin-bottom:16px;">
+            <button onclick="saveWorkModeContent()" style="width:100%;padding:12px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.9rem;">
+                <i class="fa-solid fa-save"></i> 내용 저장
+            </button>
+        </div>
+
+        <!-- 구분선 -->
+        <div style="height:1px;background:rgba(255,255,255,0.1);margin:20px 0;"></div>
+
+        <!-- 시작/종료 버튼 -->
+        <div style="margin-bottom:16px;">
+            <button onclick="toggleWorkMode()" style="width:100%;padding:14px;background:${btnColor};color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:1rem;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+                <i class="fa-solid ${btnIcon}"></i> ${btnLabel}
+            </button>
+        </div>
+
+        <!-- 안내 -->
+        <div style="padding:14px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:10px;">
+            <div style="color:#fbbf24;font-size:0.85rem;font-weight:600;margin-bottom:6px;"><i class="fa-solid fa-circle-info"></i> 안내</div>
+            <ul style="color:#94a3b8;font-size:0.8rem;margin:0;padding-left:16px;line-height:1.8;">
+                <li>서비스는 정상 운영되며, 사용자에게 작업 중임을 안내합니다.</li>
+                <li>헤더에 <span style="color:#fbbf24;">[기능개선 작업 중]</span> 뱃지가 깜빡이며 표시됩니다.</li>
+                <li>뱃지를 클릭하면 안내 팝업이 표시됩니다.</li>
+                <li>점검 모드와 동시에 활성화할 수 있습니다.</li>
+            </ul>
+        </div>
+    `;
+}
+
+window.saveWorkModeContent = async function () {
+    const content = document.getElementById('work-mode-content').value.trim();
+    const estimatedEnd = document.getElementById('work-mode-end').value;
+    try {
+        const res = await fetch('/api/admin/work-mode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content, estimatedEnd })
+        });
+        const result = await res.json();
+        if (result.success) alert('내용이 저장되었습니다.');
+        else alert('저장 실패: ' + (result.error || ''));
+    } catch (e) {
+        alert('오류: ' + e.message);
+    }
+};
+
+window.toggleWorkMode = async function () {
+    let config = { active: false };
+    try {
+        const res = await fetch('/api/admin/work-mode');
+        if (res.ok) config = await res.json();
+    } catch (e) { /* */ }
+
+    const newActive = !config.active;
+    const content = document.getElementById('work-mode-content').value.trim();
+    const estimatedEnd = document.getElementById('work-mode-end').value;
+
+    const confirmMsg = newActive
+        ? '운영 병행 모드를 시작하시겠습니까?\n\n사용자에게 [기능개선 작업 중] 뱃지가 표시됩니다.'
+        : '운영 병행 모드를 종료하시겠습니까?';
+
+    if (!confirm(confirmMsg)) return;
+
+    try {
+        const res = await fetch('/api/admin/work-mode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ active: newActive, content, estimatedEnd })
+        });
+        const result = await res.json();
+        if (result.success) {
+            alert(newActive ? '운영 병행 모드가 시작되었습니다.' : '운영 병행 모드가 종료되었습니다.');
+            const body = document.getElementById('maint-subtab-body');
+            if (body) renderMaintenanceWorkTab(body);
+        } else {
+            alert('오류: ' + (result.error || ''));
+        }
+    } catch (e) {
+        alert('오류: ' + e.message);
+    }
+};
 
 /** 점검 내용만 저장 (활성화 상태 변경 없이) */
 window.saveMaintenanceContent = async function () {
@@ -1351,8 +1589,12 @@ window.toggleMaintenanceMode = async function () {
         return;
     }
 
+    const blockType = document.querySelector('input[name="maint-block-type"]:checked');
+    const isSelective = blockType && blockType.value === 'selective';
     const confirmMsg = newActive
-        ? '점검 모드를 시작하시겠습니까?\n\n모든 사용자에게 점검 페이지가 표시되고,\n푸시 알림 발송이 차단됩니다.'
+        ? (isSelective
+            ? '점검 모드를 시작하시겠습니까?\n\n선택한 기능만 차단되고, 나머지 기능은 정상 이용 가능합니다.\n푸시 알림 발송이 차단됩니다.'
+            : '점검 모드를 시작하시겠습니까?\n\n모든 사용자에게 점검 페이지가 표시되고,\n푸시 알림 발송이 차단됩니다.')
         : '점검 모드를 해제하시겠습니까?\n\n사용자가 정상적으로 앱에 접근할 수 있습니다.';
 
     if (!confirm(confirmMsg)) return;
@@ -1366,9 +1608,9 @@ window.toggleMaintenanceMode = async function () {
         const result = await res.json();
         if (result.success) {
             alert(newActive ? '점검 모드가 시작되었습니다.' : '점검 모드가 해제되었습니다.');
-            // 탭 UI 새로고침
-            const body = document.getElementById('unified-admin-body');
-            if (body) renderUnifiedMaintenanceContent(body);
+            // 하위 탭 UI 새로고침
+            const subtabBody = document.getElementById('maint-subtab-body');
+            if (subtabBody) renderMaintenanceFullTab(subtabBody);
         } else {
             alert('오류: ' + (result.error || ''));
         }

@@ -47,6 +47,7 @@ const scheduler = require('../scheduler');
 const COLLECT_FAILURES_FILE = path.join(DATA_DIR, 'collect_failures.json');
 const COLLECT_CACHE_DIR = path.join(DATA_DIR, 'collect_cache');
 const MAINTENANCE_FILE = path.join(DATA_DIR, 'maintenance_config.json');
+const WORK_MODE_FILE = path.join(DATA_DIR, 'work_mode_config.json');
 
 // ============================================================================
 // 헬퍼 함수
@@ -715,12 +716,107 @@ router.get('/api/maintenance-status', (req, res) => {
     try {
         if (fs.existsSync(MAINTENANCE_FILE)) {
             const config = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8'));
-            res.json({ active: config.active, title: config.title, content: config.content });
+            res.json({ active: config.active, title: config.title, content: config.content, blockedFeatures: config.blockedFeatures || [] });
         } else {
             res.json({ active: false });
         }
     } catch (e) {
         res.json({ active: false });
+    }
+});
+
+// ============================================================================
+// 운영 병행 모드 관리
+// ============================================================================
+
+const DEFAULT_WORK_MESSAGE = `현재 관리자가 SEA:GNAL의 쾌적한 사용 및 운영을 위하여 기능 개선작업을 진행 중입니다.
+작업 중에는 표출 오류, 서버 멈춤 등 기타 문제가 일시적으로 발생할 수 있습니다.
+하지만 작업 소요시간은 오래 걸리지 않으니 사용 중 문제가 발생하지 않도록 신속하게 마무리하겠습니다.
+이용해주셔서 감사합니다.`;
+
+function loadWorkModeConfig() {
+    try {
+        if (fs.existsSync(WORK_MODE_FILE)) {
+            return JSON.parse(fs.readFileSync(WORK_MODE_FILE, 'utf8'));
+        }
+    } catch (e) { /* 무시 */ }
+    return { active: false, content: '', estimatedEnd: '', startedAt: null };
+}
+
+/** 운영 병행 모드 상태 조회 (관리자용) */
+router.get('/api/admin/work-mode', (req, res) => {
+    res.json(loadWorkModeConfig());
+});
+
+/** 운영 병행 모드 설정 */
+router.post('/api/admin/work-mode', (req, res) => {
+    try {
+        const { active, content, estimatedEnd } = req.body;
+        const config = loadWorkModeConfig();
+
+        if (typeof active === 'boolean') config.active = active;
+        if (typeof content === 'string') config.content = content;
+        if (typeof estimatedEnd === 'string') config.estimatedEnd = estimatedEnd;
+
+        if (active === true) {
+            config.startedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+        } else if (active === false) {
+            config.startedAt = null;
+        }
+
+        fs.writeFileSync(WORK_MODE_FILE, JSON.stringify(config, null, 2), 'utf8');
+        console.log(`[Admin] 운영 병행 모드 ${config.active ? '시작' : '종료'}`);
+        res.json({ success: true, config });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/** 운영 병행 모드 상태 조회 (공개 API) */
+router.get('/api/work-mode-status', (req, res) => {
+    const config = loadWorkModeConfig();
+    res.json({ active: config.active, content: config.content, estimatedEnd: config.estimatedEnd });
+});
+
+// ============================================================================
+// 점검 모드 - 선택적 기능 차단
+// ============================================================================
+
+/** 점검 모드 설정 (선택적 차단 포함) - 기존 POST 확장 */
+router.post('/api/admin/maintenance-features', (req, res) => {
+    try {
+        const { blockedFeatures } = req.body;
+        let config = { active: false, title: '', content: '', startedAt: null, startedBy: 'admin', blockedFeatures: [] };
+
+        if (fs.existsSync(MAINTENANCE_FILE)) {
+            try { config = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8')); } catch (_) {}
+        }
+
+        if (Array.isArray(blockedFeatures)) config.blockedFeatures = blockedFeatures;
+
+        fs.writeFileSync(MAINTENANCE_FILE, JSON.stringify(config, null, 2), 'utf8');
+        console.log(`[Admin] 선택적 차단 기능 업데이트: ${(config.blockedFeatures || []).join(', ') || '없음'}`);
+        res.json({ success: true, config });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/** 점검/차단 상태 통합 조회 (공개 API - 기존 maintenance-status 확장) */
+router.get('/api/block-status', (req, res) => {
+    try {
+        let maintenance = { active: false, blockedFeatures: [] };
+        if (fs.existsSync(MAINTENANCE_FILE)) {
+            const config = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8'));
+            maintenance = { active: config.active, title: config.title, content: config.content, blockedFeatures: config.blockedFeatures || [] };
+        }
+        const workMode = loadWorkModeConfig();
+        res.json({
+            maintenance,
+            workMode: { active: workMode.active, content: workMode.content, estimatedEnd: workMode.estimatedEnd }
+        });
+    } catch (e) {
+        res.json({ maintenance: { active: false, blockedFeatures: [] }, workMode: { active: false } });
     }
 });
 

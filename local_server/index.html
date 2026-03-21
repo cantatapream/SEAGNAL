@@ -186,7 +186,12 @@
             .then(function(data) {
                 if (!data.active) return; // 점검 아님 → 정상 진행
 
-                // 점검 모드 활성 → 점검 페이지 표시
+                // 선택적 차단 모드: blockedFeatures가 있으면 전체 차단하지 않음
+                if (data.blockedFeatures && data.blockedFeatures.length > 0) {
+                    return; // checkBlockStatus()에서 처리
+                }
+
+                // 전체 차단 → 점검 페이지 표시
                 var screen = document.getElementById('maintenance-screen');
                 var titleEl = document.getElementById('maintenance-title');
                 var contentEl = document.getElementById('maintenance-content');
@@ -313,10 +318,29 @@
                     <div class="h1-wrapper"
                         style="display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
                         <div class="logo-subtitle">바다 : 그 날의 신호</div>
-                        <h1>
-                            <span class="logo-text">SEA<span class="logo-accent">:</span>GNAL</span>
-                        </h1>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <h1 style="margin:0;">
+                                <span class="logo-text">SEA<span class="logo-accent">:</span>GNAL</span>
+                            </h1>
+                            <span id="work-mode-badge" onclick="event.stopPropagation();showWorkModePopup();" style="display:none;padding:3px 10px;border:1.5px solid #d4a017;border-radius:20px;color:#d4a017;font-size:0.6rem;font-weight:700;cursor:pointer;white-space:nowrap;animation:workModeBlink 1s ease-in-out infinite;letter-spacing:0.5px;">기능개선 작업 중</span>
+                        </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- 운영 병행 모드 팝업 -->
+            <div id="work-mode-popup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:99998;justify-content:center;align-items:center;" onclick="closeWorkModePopup()">
+                <div onclick="event.stopPropagation();" style="background:linear-gradient(135deg,#1e293b,#334155);border:1px solid rgba(212,160,23,0.3);border-radius:16px;padding:24px;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+                        <i class="fa-solid fa-helmet-safety" style="color:#d4a017;font-size:1.2rem;"></i>
+                        <span style="color:#fbbf24;font-weight:700;font-size:0.95rem;">SEA:GNAL의 기능 개선을 위해 작업 중입니다.</span>
+                    </div>
+                    <div id="work-mode-popup-content" style="color:#cbd5e1;font-size:0.85rem;line-height:1.7;margin-bottom:16px;white-space:pre-line;"></div>
+                    <div id="work-mode-popup-end" style="display:none;padding:12px;background:rgba(212,160,23,0.1);border:1px solid rgba(212,160,23,0.2);border-radius:10px;margin-bottom:16px;">
+                        <div style="color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">작업 종료 예상시점</div>
+                        <div id="work-mode-popup-end-time" style="color:#fbbf24;font-weight:700;font-size:0.95rem;"></div>
+                    </div>
+                    <button onclick="closeWorkModePopup()" style="width:100%;padding:12px;background:linear-gradient(135deg,#475569,#334155);color:#e2e8f0;border:1px solid rgba(255,255,255,0.1);border-radius:10px;cursor:pointer;font-weight:600;font-size:0.9rem;">확인</button>
                 </div>
             </div>
 
@@ -822,6 +846,135 @@
     <script src="js/ui_modal.js"></script>
     <script src="js/app_init.js"></script>
     <script src="js/backbutton.js"></script>
+
+    <!-- 운영 병행 모드 + 선택적 기능 차단 -->
+    <script>
+    // 운영 병행 모드 & 선택적 차단 상태 확인
+    const DEFAULT_WORK_CONTENT = '현재 관리자가 SEA:GNAL의 쾌적한 사용 및 운영을 위하여 기능 개선작업을 진행 중입니다.\n작업 중에는 표출 오류, 서버 멈춤 등 기타 문제가 일시적으로 발생할 수 있습니다.\n하지만 작업 소요시간은 오래 걸리지 않으니 사용 중 문제가 발생하지 않도록 신속하게 마무리하겠습니다.\n이용해주셔서 감사합니다.';
+    let _workModeData = null;
+
+    async function checkBlockStatus() {
+        try {
+            const res = await fetch('/api/block-status?_t=' + Date.now());
+            if (!res.ok) return;
+            const data = await res.json();
+
+            // 1. 운영 병행 모드 뱃지
+            const badge = document.getElementById('work-mode-badge');
+            if (badge) {
+                if (data.workMode && data.workMode.active) {
+                    badge.style.display = 'inline-block';
+                    _workModeData = data.workMode;
+                } else {
+                    badge.style.display = 'none';
+                    _workModeData = null;
+                }
+            }
+
+            // 2. 선택적 기능 차단
+            const blocked = (data.maintenance && data.maintenance.active && data.maintenance.blockedFeatures) || [];
+            applyFeatureBlocks(blocked);
+        } catch (e) { /* 무시 */ }
+    }
+
+    function applyFeatureBlocks(blocked) {
+        // 기상정보 탭 내 섹션
+        const featureMap = {
+            'marine-forecast': 'marine-forecast-accordion-header',
+            'weather-alert': 'main-accordion-header',
+            'weather-buoy': 'marine-status-accordion-header',
+        };
+        // 탭 전체
+        const tabMap = {
+            'sea-zone': 'sea-zone-section',
+            'tide': 'tide-section',
+            'typhoon': 'typhoon-section',
+            'promo': 'promo-section',
+        };
+
+        // 기상정보 내 섹션 차단 (header에 직접 오버레이)
+        const bodyMap = {
+            'marine-forecast': 'marine-forecast-accordion-body',
+            'weather-alert': 'main-accordion-body',
+            'weather-buoy': 'marine-status-accordion-body',
+        };
+        for (const [featureId, headerId] of Object.entries(featureMap)) {
+            const header = document.getElementById(headerId);
+            if (!header) continue;
+            const bodyId = bodyMap[featureId];
+            const bodyEl = bodyId ? document.getElementById(bodyId) : null;
+            const existingOverlay = header.querySelector('.feature-block-overlay');
+            if (blocked.includes(featureId)) {
+                // 헤더에 오버레이
+                if (!existingOverlay) {
+                    header.style.position = 'relative';
+                    header.style.pointerEvents = 'none';
+                    const div = document.createElement('div');
+                    div.className = 'feature-block-overlay';
+                    div.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:10;display:flex;align-items:center;justify-content:center;border-radius:inherit;backdrop-filter:blur(2px);';
+                    div.innerHTML = '<div style="text-align:center;color:#94a3b8;"><i class="fa-solid fa-wrench" style="font-size:1rem;color:#f59e0b;margin-right:6px;"></i><span style="font-size:0.8rem;">점검 중인 기능입니다</span></div>';
+                    header.appendChild(div);
+                }
+                // 바디 숨김
+                if (bodyEl) bodyEl.style.display = 'none';
+            } else {
+                if (existingOverlay) existingOverlay.remove();
+                header.style.pointerEvents = '';
+                if (bodyEl) bodyEl.style.display = '';
+            }
+        }
+
+        // 탭 전체 차단
+        for (const [featureId, sectionId] of Object.entries(tabMap)) {
+            const tabBtn = document.querySelector(`.tab-btn[data-target="${sectionId}"]`);
+            if (!tabBtn) continue;
+            if (blocked.includes(featureId)) {
+                tabBtn.style.opacity = '0.4';
+                tabBtn.style.pointerEvents = 'none';
+                tabBtn.title = '점검 중인 기능입니다';
+            } else {
+                tabBtn.style.opacity = '';
+                tabBtn.style.pointerEvents = '';
+                tabBtn.title = '';
+            }
+        }
+    }
+
+    function showWorkModePopup() {
+        const popup = document.getElementById('work-mode-popup');
+        const contentEl = document.getElementById('work-mode-popup-content');
+        const endEl = document.getElementById('work-mode-popup-end');
+        const endTimeEl = document.getElementById('work-mode-popup-end-time');
+
+        const data = _workModeData || {};
+        contentEl.textContent = data.content || DEFAULT_WORK_CONTENT;
+
+        if (data.estimatedEnd) {
+            const dt = new Date(data.estimatedEnd);
+            const days = ['일', '월', '화', '수', '목', '금', '토'];
+            const formatted = `${dt.getFullYear()}.${String(dt.getMonth()+1).padStart(2,'0')}.${String(dt.getDate()).padStart(2,'0')}.(${days[dt.getDay()]}) ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+            endTimeEl.textContent = formatted;
+            endEl.style.display = 'block';
+        } else {
+            endEl.style.display = 'none';
+        }
+
+        popup.style.display = 'flex';
+    }
+    window.showWorkModePopup = showWorkModePopup;
+
+    function closeWorkModePopup() {
+        document.getElementById('work-mode-popup').style.display = 'none';
+    }
+    window.closeWorkModePopup = closeWorkModePopup;
+
+    // 페이지 로드 시 & 5분마다 확인
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(checkBlockStatus, 500);
+        setInterval(checkBlockStatus, 300000);
+    });
+    </script>
+
     <!-- 사용자 설정 모달 -->
     <!-- 사용자 설정 모달 -->
     <div id="settings-modal" class="modal hidden">
