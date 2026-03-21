@@ -231,4 +231,14 @@ router.get('/api/forecast-cache/:reportId', (req, res) => {
     }
 });
 
+// 9. 해상 전망 재수집 (관리자용)
+router.post('/api/marine-forecast/refresh', async (req, res) => {
+    try {
+        await marineForecast.collectMarineForecasts();
+        res.json({ success: true, message: '해상 기상 전망 재수집 완료' });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 module.exports = router;
