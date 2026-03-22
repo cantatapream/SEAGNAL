@@ -517,33 +517,25 @@ async function showSeaForecastTable(zoneName) {
     const midTermPromise = midTermRegId ? fetch('/api/mid-term-sea-forecasts').then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null);
 
     if (isFarSea) {
-        // 먼바다: 지방기상청 단기예보 데이터 사용 (단기예보 우선, 이후 중기예보로 채움)
-        const regId = getZoneCodeByName(zoneName);
-        if (!regId) {
-            contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역의 예보 코드를 찾을 수 없습니다.<br><small style="color:#666;">(${zoneName})</small></div>`;
-            return;
-        }
-
+        // 먼바다: 지방기상청 PDF 해상예보 데이터 사용 (단기예보 우선, 이후 중기예보로 채움)
         try {
-            const [response, midTermJson] = await Promise.all([
-                fetch('/api/forecasts'),
+            const [marineResponse, midTermJson] = await Promise.all([
+                fetch('/api/regional-marine-forecast'),
                 midTermPromise
             ]);
-            if (!response.ok) throw new Error('로컬 서버 응답 오류');
-
-            const json = await response.json();
-            const items = json.data && json.data[regId];
 
             if (midTermJson && midTermJson.data && midTermRegId) {
                 midTermData = midTermJson.data[midTermRegId];
                 midTermTmFc = midTermJson.tmFc;
             }
 
-            if (items && items.length > 0) {
-                const tmFc = json.tmFc || (items[0] && items[0].tmFc);
-                renderSeaForecastTableInModal(contentArea, items, displayName, tmFc, midTermData, midTermTmFc, midTermGroupName);
+            const marineData = marineResponse.ok ? await marineResponse.json() : {};
+            const zoneData = marineData[zoneName];
+
+            if (zoneData && zoneData.periods && zoneData.periods.length > 0) {
+                renderRegionalMarineForecastTable(contentArea, zoneData, displayName, midTermData, midTermTmFc, midTermGroupName);
             } else {
-                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역(${regId})의 예보 데이터가 없습니다.<br><small style="color:#666;">스케줄러가 데이터를 수집할 때까지 기다려주세요.</small></div>`;
+                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역(${zoneName})의 예보 데이터가 없습니다.<br><small style="color:#666;">스케줄러가 데이터를 수집할 때까지 기다려주세요.</small></div>`;
             }
         } catch (error) {
             contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ef5350;">❌ 데이터 조회 중 오류가 발생했습니다.<br><small>${error.message}</small></div>`;
@@ -1494,6 +1486,220 @@ function closeTideInfoPopup() {
         modal.classList.remove('show');
         setTimeout(() => modal.remove(), 300);
     }
+}
+
+// 먼바다 지방기상청 PDF 기반 단기예보 테이블 렌더링
+function renderRegionalMarineForecastTable(container, zoneData, zoneName, midTermData, midTermTmFc, midTermGroupName) {
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+    // periods를 날짜별로 그룹화
+    const dateGroups = {};
+    const sortedDateKeys = [];
+    zoneData.periods.forEach(p => {
+        if (!dateGroups[p.date]) {
+            dateGroups[p.date] = { am: null, pm: null };
+            sortedDateKeys.push(p.date);
+        }
+        dateGroups[p.date][p.period] = p;
+    });
+
+    // 단기예보 날짜 Set (중기 중복 방지)
+    const shortTermDateKeys = new Set(sortedDateKeys);
+
+    // 중기예보 파싱
+    let midTermDays = [];
+    if (midTermData && midTermTmFc) {
+        const tmFcStr = String(midTermTmFc);
+        const baseDate = new Date(
+            parseInt(tmFcStr.substring(0, 4)),
+            parseInt(tmFcStr.substring(4, 6)) - 1,
+            parseInt(tmFcStr.substring(6, 8))
+        );
+        midTermDays = parseMidTermSeaData(midTermData, baseDate).filter(mid => {
+            const d = mid.date;
+            const key = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+            return !shortTermDateKeys.has(key);
+        });
+    }
+
+    // 날씨 텍스트 → 이모지
+    function weatherToEmoji(text) {
+        if (!text || text === '-') return '-';
+        if (text.includes('맑음')) return '☀️';
+        if (text.includes('비/눈') || text.includes('비/\n눈')) return '🌧️';
+        if (text.includes('눈')) return '🌨️';
+        if (text.includes('소나기')) return '🌦️';
+        if (text.includes('비')) return '🌧️';
+        if (text.includes('흐리')) return '☁️';
+        if (text.includes('구름많')) return '⛅';
+        return '❓';
+    }
+
+    // 테이블 스타일
+    const totalDayCols = sortedDateKeys.length + midTermDays.length;
+    const colWidth = 70;
+    const labelColWidth = 60;
+    const tableMinWidth = labelColWidth + totalDayCols * colWidth * 2;
+
+    const tableStyle = `width:100%;border-collapse:collapse;table-layout:fixed;font-size:0.85rem;min-width:${tableMinWidth}px;`;
+    const thStyle = `padding:10px 8px;text-align:center;background:#2a3347;color:#fff;font-weight:600;border-bottom:2px solid #4fc3f7;border-right:1px solid #3a4459;`;
+    const tdStyle = `padding:8px 8px;text-align:center;border-bottom:1px solid #3a4459;border-right:1px solid #3a4459;color:#e0e6ed;white-space:nowrap;`;
+    const labelStyle = `background:#1e2433;text-align:left;padding-left:12px;color:#4fc3f7;font-weight:500;border-right:1px solid #3a4459;width:${labelColWidth}px;`;
+    const midThStyle = `padding:10px 8px;text-align:center;background:#232a3c;color:#fff;font-weight:600;border-bottom:2px solid #7c4dff;border-right:1px solid #3a4459;`;
+    const midTdStyle = `padding:8px 8px;text-align:center;border-bottom:1px solid #3a4459;border-right:1px solid #3a4459;color:#c0c8d4;white-space:nowrap;`;
+
+    let html = `<table style="${tableStyle}">`;
+    html += `<colgroup><col style="width:${labelColWidth}px;">`;
+    for (let i = 0; i < totalDayCols * 2; i++) html += `<col style="width:${colWidth}px;">`;
+    html += `</colgroup>`;
+
+    // 구분 라벨 행
+    const shortColSpan = sortedDateKeys.length * 2;
+    const midColSpan = midTermDays.length * 2;
+    const midTermLabel = midTermGroupName ? `기상청 중기예보(${midTermGroupName})` : '기상청 중기예보';
+    if (midTermDays.length > 0) {
+        html += `<tr>
+            <th style="${thStyle};${labelStyle}"></th>
+            <th colspan="${shortColSpan}" style="${thStyle};font-size:0.8rem;border-bottom:2px solid #4fc3f7;">지방기상청 단기 해상예보</th>
+            <th colspan="${midColSpan}" style="${midThStyle};font-size:0.8rem;border-bottom:2px solid #7c4dff;">${midTermLabel}</th>
+        </tr>`;
+    }
+
+    // 날짜 헤더
+    const dayLabels = ['오늘', '내일', '모레', '글피', '그글피'];
+    html += `<tr><th style="${thStyle};${labelStyle}">날짜</th>`;
+    sortedDateKeys.forEach((dateKey, idx) => {
+        const y = parseInt(dateKey.substring(0, 4));
+        const m = parseInt(dateKey.substring(4, 6)) - 1;
+        const d = parseInt(dateKey.substring(6, 8));
+        const date = new Date(y, m, d);
+        const dateStr = `${d}.(${dayNames[date.getDay()]})`;
+        const label = dayLabels[idx] || '';
+        html += `<th colspan="2" style="${thStyle}">${dateStr}<br><small style="opacity:0.7">${label}</small></th>`;
+    });
+    midTermDays.forEach(mid => {
+        const d = mid.date;
+        const dateStr = `${d.getDate()}.(${dayNames[d.getDay()]})`;
+        html += `<th colspan="2" style="${midThStyle}">${dateStr}</th>`;
+    });
+    html += `</tr>`;
+
+    // 시각 헤더
+    html += `<tr><th style="${thStyle};${labelStyle}">시각</th>`;
+    sortedDateKeys.forEach(() => {
+        html += `<th style="${thStyle};font-size:0.8rem;">오전</th><th style="${thStyle};font-size:0.8rem;">오후</th>`;
+    });
+    midTermDays.forEach(() => {
+        html += `<th style="${midThStyle};font-size:0.8rem;">오전</th><th style="${midThStyle};font-size:0.8rem;">오후</th>`;
+    });
+    html += `</tr>`;
+
+    // 날씨 행
+    html += `<tr><th style="${tdStyle};${labelStyle}">날씨</th>`;
+    sortedDateKeys.forEach(dateKey => {
+        const group = dateGroups[dateKey];
+        ['am', 'pm'].forEach(period => {
+            const p = group[period];
+            if (p && p.weather && p.weather !== '-') {
+                const emoji = weatherToEmoji(p.weather);
+                const weatherShort = p.weather.length > 8 ? p.weather.substring(0, 8) + '..' : p.weather;
+                html += `<td style="${tdStyle}" title="${p.weather}"><span style="font-size:1.3rem">${emoji}</span><br><small style="font-size:0.6rem;color:#8899aa;">${weatherShort}</small></td>`;
+            } else {
+                html += `<td style="${tdStyle};color:#8899aa;font-size:0.7rem;">-</td>`;
+            }
+        });
+    });
+    midTermDays.forEach(mid => {
+        ['am', 'pm'].forEach(period => {
+            html += renderMidTermCell(mid, period, 'wf_icon', midTdStyle);
+        });
+    });
+    html += `</tr>`;
+
+    // 파고 행
+    html += `<tr><th style="${tdStyle};${labelStyle}">파고<small style="display:block;font-size:0.7rem;color:#8899aa">(m)</small></th>`;
+    sortedDateKeys.forEach(dateKey => {
+        const group = dateGroups[dateKey];
+        ['am', 'pm'].forEach(period => {
+            const p = group[period];
+            if (p && p.waveHeight && p.waveHeight !== '-') {
+                html += `<td style="${tdStyle};color:#4db6ac;font-weight:600;">${p.waveHeight}m</td>`;
+            } else {
+                html += `<td style="${tdStyle};color:#8899aa;font-size:0.7rem;">-</td>`;
+            }
+        });
+    });
+    midTermDays.forEach(mid => {
+        ['am', 'pm'].forEach(period => {
+            html += renderMidTermCell(mid, period, 'wh', midTdStyle);
+        });
+    });
+    html += `</tr>`;
+
+    // 풍향/풍속 행 (PDF 데이터는 풍향+풍속이 합쳐져있음)
+    html += `<tr><th style="${tdStyle};${labelStyle}">풍향<br>풍속<small style="display:block;font-size:0.7rem;color:#8899aa">(m/s)</small></th>`;
+    sortedDateKeys.forEach(dateKey => {
+        const group = dateGroups[dateKey];
+        ['am', 'pm'].forEach(period => {
+            const p = group[period];
+            if (p && p.wind && p.wind !== '-') {
+                // "북동~동 / 7~11" → 풍향: 북동~동, 풍속: 7~11
+                const parts = p.wind.split('/').map(s => s.trim());
+                const dir = parts[0] || '-';
+                const speed = parts[1] || '-';
+                html += `<td style="${tdStyle};white-space:normal;line-height:1.4;font-size:0.8rem;">${dir}<br><span style="color:#64b5f6;">${speed}</span></td>`;
+            } else {
+                html += `<td style="${tdStyle};color:#8899aa;font-size:0.7rem;">-</td>`;
+            }
+        });
+    });
+    if (midTermDays.length > 0) {
+        html += `<td colspan="${midColSpan}" style="${midTdStyle};font-size:0.75rem;color:#8899aa;vertical-align:middle;">중기예보는 풍속 및 풍향 정보를 제공하지 않습니다.</td>`;
+    }
+    html += `</tr>`;
+
+    // 예보 행 (날씨 전문)
+    html += `<tr><th style="${tdStyle};${labelStyle}">예보</th>`;
+    sortedDateKeys.forEach(dateKey => {
+        const group = dateGroups[dateKey];
+        ['am', 'pm'].forEach(period => {
+            const p = group[period];
+            if (p && p.weather && p.weather !== '-') {
+                html += `<td style="${tdStyle};font-size:0.75rem;color:#8899aa;white-space:normal;max-width:80px;line-height:1.3;">${p.weather}</td>`;
+            } else {
+                html += `<td style="${tdStyle};color:#8899aa;font-size:0.7rem;">-</td>`;
+            }
+        });
+    });
+    midTermDays.forEach(mid => {
+        ['am', 'pm'].forEach(period => {
+            html += renderMidTermCell(mid, period, 'wf_text', midTdStyle);
+        });
+    });
+    html += `</tr></table>`;
+
+    // 발표시각
+    let shortTermLine = '';
+    let midTermLine = '';
+    if (zoneData.publishTime) {
+        shortTermLine = `단기예보(1일~5일) ${zoneData.publishTime} 발표 (${zoneData.officeName || '지방기상청'})`;
+    }
+    if (midTermTmFc) {
+        const midText = formatMidTermTmFc(midTermTmFc);
+        midTermLine = `중기예보(4일~10일) ${midText} 발표`;
+    }
+
+    container.innerHTML = `
+        <div style="position:relative;">
+            <div style="overflow-x:auto;">${html}</div>
+            <div style="text-align:center;font-size:0.95rem;color:#ffffff;padding:10px 0 4px;font-weight:500;">☜ 밀어서 더 많은 정보를 확인하세요 ☞</div>
+            ${(shortTermLine || midTermLine) ? `
+                <div style="text-align:right;padding:4px 5px 5px 5px;font-size:0.75rem;color:#8899aa;line-height:1.8;">
+                    ${shortTermLine}${(shortTermLine && midTermLine) ? '<br>' : ''}${midTermLine}
+                </div>
+            ` : ''}
+        </div>
+    `;
 }
 
 // 전역 함수로 등록
