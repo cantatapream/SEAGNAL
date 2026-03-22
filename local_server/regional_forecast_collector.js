@@ -194,10 +194,13 @@ function parseSummaryForecast(text) {
 
     let summaryText = summaryMatch[0].trim();
 
-    // ※ 참고 문구도 포함
-    const noteMatch = text.match(/※\s*\d+일까지의[\s\S]*?참고하기 바랍니다\./);
+    // ※ 참고 문구도 포함 (기온 테이블 앞의 것만, 한 줄로 제한)
+    const noteMatch = text.match(/※\s*\d+일까지의[^\n]*참고하기 바랍니다\./);
     if (noteMatch) {
-        summaryText += '\n' + noteMatch[0].trim();
+        // 이미 summaryText에 포함되어 있지 않은 경우만 추가
+        if (!summaryText.includes('참고하기 바랍니다')) {
+            summaryText += '\n' + noteMatch[0].trim();
+        }
     }
 
     // 줄바꿈 정리
