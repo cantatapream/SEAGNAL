@@ -1525,13 +1525,14 @@ function renderRegionalMarineForecastTable(container, zoneData, zoneName, midTer
     // 날씨 텍스트 → 이모지
     function weatherToEmoji(text) {
         if (!text || text === '-') return '-';
-        if (text.includes('맑음')) return '☀️';
-        if (text.includes('비/눈') || text.includes('비/\n눈')) return '🌧️';
-        if (text.includes('눈')) return '🌨️';
-        if (text.includes('소나기')) return '🌦️';
-        if (text.includes('비')) return '🌧️';
-        if (text.includes('흐리')) return '☁️';
-        if (text.includes('구름많')) return '⛅';
+        const t = text.replace(/\s+/g, ' ').trim();
+        if (t.includes('맑음')) return '☀️';
+        if (t.includes('비/눈') || t.includes('비/\n눈')) return '🌧️';
+        if (t.includes('눈')) return '🌨️';
+        if (t.includes('소나기')) return '🌦️';
+        if (t.includes('비')) return '🌧️';
+        if (t.includes('흐리') || t.includes('흐림')) return '☁️';
+        if (t.includes('구름많')) return '⛅';
         return '❓';
     }
 
@@ -1602,8 +1603,7 @@ function renderRegionalMarineForecastTable(container, zoneData, zoneName, midTer
             const p = group[period];
             if (p && p.weather && p.weather !== '-') {
                 const emoji = weatherToEmoji(p.weather);
-                const weatherShort = p.weather.length > 8 ? p.weather.substring(0, 8) + '..' : p.weather;
-                html += `<td style="${tdStyle}" title="${p.weather}"><span style="font-size:1.3rem">${emoji}</span><br><small style="font-size:0.6rem;color:#8899aa;">${weatherShort}</small></td>`;
+                html += `<td style="${tdStyle}" title="${p.weather}"><span style="font-size:1.3rem">${emoji}</span></td>`;
             } else {
                 html += `<td style="${tdStyle};color:#8899aa;font-size:0.7rem;">-</td>`;
             }
@@ -1636,26 +1636,45 @@ function renderRegionalMarineForecastTable(container, zoneData, zoneName, midTer
     });
     html += `</tr>`;
 
-    // 풍향/풍속 행 (PDF 데이터는 풍향+풍속이 합쳐져있음)
-    html += `<tr><th style="${tdStyle};${labelStyle}">풍향<br>풍속<small style="display:block;font-size:0.7rem;color:#8899aa">(m/s)</small></th>`;
+    // 풍속 행
+    html += `<tr><th style="${tdStyle};${labelStyle}">풍속<small style="display:block;font-size:0.7rem;color:#8899aa">(m/s)</small></th>`;
     sortedDateKeys.forEach(dateKey => {
         const group = dateGroups[dateKey];
         ['am', 'pm'].forEach(period => {
             const p = group[period];
             if (p && p.wind && p.wind !== '-') {
-                // "북동~동 / 7~11" → 풍향: 북동~동, 풍속: 7~11
                 const parts = p.wind.split('/').map(s => s.trim());
-                const dir = parts[0] || '-';
                 const speed = parts[1] || '-';
-                html += `<td style="${tdStyle};white-space:normal;line-height:1.4;font-size:0.8rem;">${dir}<br><span style="color:#64b5f6;">${speed}</span></td>`;
+                html += `<td style="${tdStyle};color:#ff9800;font-weight:600;">${speed}m/s</td>`;
             } else {
                 html += `<td style="${tdStyle};color:#8899aa;font-size:0.7rem;">-</td>`;
             }
         });
     });
     if (midTermDays.length > 0) {
-        html += `<td colspan="${midColSpan}" style="${midTdStyle};font-size:0.75rem;color:#8899aa;vertical-align:middle;">중기예보는 풍속 및 풍향 정보를 제공하지 않습니다.</td>`;
+        html += `<td colspan="${midColSpan}" rowspan="2" style="${midTdStyle};font-size:0.75rem;color:#8899aa;vertical-align:middle;">중기예보는 풍속 및 풍향 정보를 제공하지 않습니다.</td>`;
     }
+    html += `</tr>`;
+
+    // 풍향 행
+    html += `<tr><th style="${tdStyle};${labelStyle}">풍향</th>`;
+    sortedDateKeys.forEach(dateKey => {
+        const group = dateGroups[dateKey];
+        ['am', 'pm'].forEach(period => {
+            const p = group[period];
+            if (p && p.wind && p.wind !== '-') {
+                const parts = p.wind.split('/').map(s => s.trim());
+                const dir = parts[0] || '-';
+                // "북동~동" → "북동→동"
+                const dirFormatted = dir.replace(/~/g, '\n→');
+                const dirHtml = dirFormatted.replace(/\n/g, '<br>');
+                html += `<td style="${tdStyle};white-space:normal;line-height:1.3;">${dirHtml}</td>`;
+            } else {
+                html += `<td style="${tdStyle};color:#8899aa;font-size:0.7rem;">-</td>`;
+            }
+        });
+    });
+    // 중기 풍향 셀은 위에서 rowspan으로 이미 병합됨
     html += `</tr>`;
 
     // 예보 행 (날씨 전문)
