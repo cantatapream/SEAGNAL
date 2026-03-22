@@ -529,10 +529,13 @@ function saveSettingsAndClose() {
         window.subscribeUser();
     }
 
-    // 화면 갱신: 특보 및 기상현황
+    // 화면 갱신: 특보, 기상현황, 종합 예보
     renderApp();
     if (typeof renderMarineWeatherStatus === 'function') {
         renderMarineWeatherStatus();
+    }
+    if (typeof loadRegionalForecast === 'function') {
+        loadRegionalForecast();
     }
 }
 
