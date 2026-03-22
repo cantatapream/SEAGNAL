@@ -808,6 +808,11 @@ function normalizeMarineZoneName(rawName) {
     // 공백, 줄바꿈 제거
     let name = rawName.replace(/[\s\n]/g, '');
 
+    // PDF에서 '인천경기' (가운뎃점 누락) → '인천·경기' 정규화
+    if (name.includes('인천경기') && !name.includes('인천·경기')) {
+        name = name.replace('인천경기', '인천·경기');
+    }
+
     // 대화퇴, 연해주, 규슈, 동중국해 등 관련 없는 구역 제외
     if (['대화퇴', '연해주', '규슈서해', '규슈남해', '동중국해'].some(x => name.includes(x))) {
         return null;
