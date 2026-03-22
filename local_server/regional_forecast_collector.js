@@ -659,38 +659,36 @@ function parseMarineForecast(text, publishTimestamp) {
 
         // 먼바다 또는 앞바다 구역명 감지
         if (line.includes('먼바다') || line.includes('앞바다')) {
-            // 이전 줄과 합쳐서 전체 구역명 구성
             let zoneName = '';
 
-            // 여러 줄에 걸친 구역명 조합
-            // 먼바다 예: "제주도남서쪽" (이전줄) + "안쪽먼바다" (현재줄)
-            // 먼바다 예: "서쪽" (이전줄) + "먼바다" (현재줄)
-            // 앞바다 예: "강원북부" (이전줄) + "앞바다" (현재줄)
-            // 앞바다 예: "전남북부서해" (이전줄) + "앞바다" (현재줄)
+            // PDF 텍스트에서 구역명은 1~2줄에 걸쳐 나옴:
+            // 1줄: "강원북부앞바다" (전체), "제주도남서쪽안쪽먼바다" (전체)
+            // 2줄: "강원북부" + "앞바다", "전남서부" + "남해앞바다"
+            //       "서쪽" + "먼바다", "제주도남서쪽" + "안쪽먼바다"
+            // 단독: "앞바다", "먼바다" (상위 카테고리 필요)
 
             const prevLine = i > 0 ? lines[i - 1].trim() : '';
-            // 날씨 키워드 (이전 줄이 날씨 텍스트이면 구역명 조합에서 제외)
-            const weatherWords = ['맑음', '구름많음', '흐림', '흐리고', '비', '눈', '소나기', '안개'];
-            const isPrevWeather = weatherWords.some(w => prevLine.includes(w));
 
-            if (line.startsWith('제주도') || line.startsWith('동해') || line.startsWith('서해') || line.startsWith('남해') ||
-                line.startsWith('강원') || line.startsWith('경북') || line.startsWith('경남') || line.startsWith('충남') ||
-                line.startsWith('전북') || line.startsWith('전남') || line.startsWith('부산') || line.startsWith('울산') ||
-                line.startsWith('인천') || line.startsWith('거제')) {
-                // 전체 구역명이 한 줄에
-                zoneName = line.replace(/\s/g, '');
-            } else if (prevLine && !windPattern.test(prevLine) && !waveSimplePattern.test(prevLine)
-                       && prevLine !== '~' && !isPrevWeather) {
-                // 이전 줄이 구역명의 앞부분 → 합쳐서 전체 구역명 생성
-                // 먼바다: "서쪽" + "먼바다", "제주도남서쪽" + "안쪽먼바다"
-                // 앞바다: "강원북부" + "앞바다", "전남북부서해" + "앞바다"
+            // prevLine이 데이터(풍향/파고/날씨)인지 판별
+            const weatherWords = ['맑음', '구름많음', '흐림', '흐리고', '비', '눈', '소나기', '안개'];
+            const isPrevData = !prevLine || prevLine.length < 2 ||
+                windPattern.test(prevLine) || waveSimplePattern.test(prevLine) ||
+                prevLine === '~' || weatherWords.some(w => prevLine.includes(w));
+
+            if (!isPrevData) {
+                // 이전 줄이 구역명 접두어 → 합쳐서 전체 구역명 생성
+                // "강원북부" + "앞바다" → "강원북부앞바다"
+                // "전남서부" + "남해앞바다" → "전남서부남해앞바다"
+                // "서쪽" + "먼바다" → "서쪽먼바다"
+                // "인천·경기" + "남부앞바다" → "인천·경기남부앞바다"
                 zoneName = (prevLine + line).replace(/\s/g, '');
             } else {
+                // 이전 줄 없거나 데이터 → 현재 줄만 사용
                 zoneName = line.replace(/\s/g, '');
             }
 
-            // 상위 카테고리 붙이기 (동해남부 + 남쪽안쪽먼바다 등)
-            // 또는 단독 "앞바다"/"먼바다" → 상위 카테고리 + 앞바다/먼바다
+            // 상위 카테고리 붙이기 (세로 텍스트에서 추출한 동해남부, 서해중부 등)
+            // 단독 "앞바다"/"먼바다" 또는 방향 접두어만 있는 경우
             if (zoneName === '앞바다' || zoneName === '먼바다' ||
                 zoneName.startsWith('남쪽') || zoneName.startsWith('북쪽') ||
                 zoneName.startsWith('서쪽') || zoneName.startsWith('동쪽') ||
