@@ -517,33 +517,33 @@ async function showSeaForecastTable(zoneName) {
     const midTermPromise = midTermRegId ? fetch('/api/mid-term-sea-forecasts').then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null);
 
     if (isFarSea) {
-        // 먼바다: 해구별 기상전망 데이터로 예보 생성
-        try {
-            const zoneId = FAR_SEA_ZONE_ID_MAP[zoneName];
-            if (!zoneId) {
-                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역의 해구 정보를 찾을 수 없습니다.<br><small style="color:#666;">(${zoneName})</small></div>`;
-                return;
-            }
+        // 먼바다: 지방기상청 단기예보 데이터 사용 (단기예보 우선, 이후 중기예보로 채움)
+        const regId = getZoneCodeByName(zoneName);
+        if (!regId) {
+            contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역의 예보 코드를 찾을 수 없습니다.<br><small style="color:#666;">(${zoneName})</small></div>`;
+            return;
+        }
 
+        try {
             const [response, midTermJson] = await Promise.all([
-                fetch('/api/marine-zone-forecasts'),
+                fetch('/api/forecasts'),
                 midTermPromise
             ]);
-            if (!response.ok) throw new Error('해구별 기상전망 데이터 조회 실패');
+            if (!response.ok) throw new Error('로컬 서버 응답 오류');
 
             const json = await response.json();
-            const zoneData = json.data && json.data[String(zoneId)];
+            const items = json.data && json.data[regId];
 
             if (midTermJson && midTermJson.data && midTermRegId) {
                 midTermData = midTermJson.data[midTermRegId];
                 midTermTmFc = midTermJson.tmFc;
             }
 
-            if (zoneData && zoneData.length > 0) {
-                const baseTm = json.baseTmUtf;
-                renderFarSeaForecastTable(contentArea, zoneData, displayName, baseTm, midTermData, midTermTmFc, midTermGroupName);
+            if (items && items.length > 0) {
+                const tmFc = json.tmFc || (items[0] && items[0].tmFc);
+                renderSeaForecastTableInModal(contentArea, items, displayName, tmFc, midTermData, midTermTmFc, midTermGroupName);
             } else {
-                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해구(${zoneId}) 예보 데이터가 없습니다.<br><small style="color:#666;">스케줄러가 데이터를 수집할 때까지 기다려주세요.</small></div>`;
+                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역(${regId})의 예보 데이터가 없습니다.<br><small style="color:#666;">스케줄러가 데이터를 수집할 때까지 기다려주세요.</small></div>`;
             }
         } catch (error) {
             contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ef5350;">❌ 데이터 조회 중 오류가 발생했습니다.<br><small>${error.message}</small></div>`;
