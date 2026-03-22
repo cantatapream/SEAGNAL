@@ -263,10 +263,14 @@ function renderRegionalForecast(data) {
         return;
     }
 
-    // 관심해역에 해당하는 지방청 데이터만 필터링
+    // 지방청 표출 순서: 수도권→부산→광주→강원→대전→대구→제주
+    const OFFICE_DISPLAY_ORDER = ['109', '159', '156', '105', '133', '143', '184'];
+
+    // 관심해역에 해당하는 지방청 데이터를 정해진 순서대로 필터링
+    const relevantSet = new Set(relevantCodes);
     const relevantData = [];
-    for (const code of relevantCodes) {
-        if (data[code] && data[code].summary) {
+    for (const code of OFFICE_DISPLAY_ORDER) {
+        if (relevantSet.has(code) && data[code] && data[code].summary) {
             relevantData.push(data[code]);
         }
     }
