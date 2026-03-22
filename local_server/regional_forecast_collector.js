@@ -364,16 +364,29 @@ async function collectOneOffice(officeCode) {
 
 /**
  * 모든 지방청의 단기예보를 수집
+ * @param {EventEmitter} [progressEmitter] - 진행률 이벤트 전송용 (scheduler.collectProgress)
  */
-async function collectRegionalForecasts() {
+async function collectRegionalForecasts(progressEmitter) {
     console.log('[RegionalForecast] 지방기상청 단기예보 수집 시작...');
 
     const results = {};
     const codes = Object.keys(REGIONAL_OFFICES);
+    const total = codes.length;
 
     // 순차적으로 수집 (서버 부하 방지)
-    for (const code of codes) {
+    for (let i = 0; i < codes.length; i++) {
+        const code = codes[i];
+        const officeName = REGIONAL_OFFICES[code].name;
         try {
+            if (progressEmitter) {
+                progressEmitter.emit('progress', {
+                    type: 'general',
+                    step: `지방청 예보 (${officeName})`,
+                    current: i + 1,
+                    total,
+                    detail: officeName
+                });
+            }
             const data = await collectOneOffice(code);
             if (data) {
                 results[code] = data;

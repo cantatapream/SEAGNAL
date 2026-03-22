@@ -97,8 +97,8 @@ router.get('/api/force-update/:type/stream', async (req, res) => {
         else if (type === 'general') {
             await scheduler.collectGeneralForecasts();
             await scheduler.collectMidTermSeaForecasts();
-            // 지방기상청 단기예보도 함께 수집
-            regionalForecastCollector.collectRegionalForecasts().catch(e => console.log(`⚠️ 지방청 예보 수집 오류: ${e.message}`));
+            // 지방기상청 단기예보도 함께 수집 (진행률 포함)
+            await regionalForecastCollector.collectRegionalForecasts(scheduler.collectProgress);
         }
         else if (type === 'zone') await scheduler.collectZoneForecasts();
         else {
@@ -130,7 +130,7 @@ router.post('/api/force-update/:type', async (req, res) => {
             await scheduler.collectGeneralForecasts();
             await scheduler.collectMidTermSeaForecasts();
             // 지방기상청 단기예보도 함께 수집
-            regionalForecastCollector.collectRegionalForecasts().catch(e => console.log(`⚠️ 지방청 예보 수집 오류: ${e.message}`));
+            await regionalForecastCollector.collectRegionalForecasts();
         }
         else if (type === 'zone') await scheduler.collectZoneForecasts();
         else return res.status(400).json({ error: '잘못된 타입' });
