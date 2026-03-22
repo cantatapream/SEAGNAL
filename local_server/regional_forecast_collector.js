@@ -164,19 +164,29 @@ function getPublishTimeCandidates() {
  */
 async function fetchRegionalPdf(officeCode) {
     const candidates = getPublishTimeCandidates();
+    const errors = [];
 
     for (const ts of candidates) {
         const url = `https://www.weather.go.kr/w/repositary/xml/fct/rpt_wid_day_${ts}_${officeCode}.pdf`;
         try {
             const buf = await fetchPdf(url);
             if (buf.length > 500) {
+                console.log(`[RegionalForecast] ${officeCode}: PDF 다운로드 성공 (${ts}, ${buf.length}bytes)`);
                 return { buffer: buf, timestamp: ts, url };
             }
+            errors.push(`${ts}: ${buf.length}bytes (too small)`);
         } catch (e) {
-            // 이 시간대 PDF 없음, 다음 시도
+            errors.push(`${ts}: ${e.message}`);
             continue;
         }
     }
+    // 디버그: 모든 후보 시도 실패 사유 기록
+    try {
+        const debugDir = path.join(__dirname, 'data', 'debug_pdf');
+        if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
+        const logContent = `[${new Date().toISOString()}] officeCode=${officeCode}\n후보 시도 결과:\n${errors.map(e => `  - ${e}`).join('\n')}\n`;
+        fs.writeFileSync(path.join(debugDir, `fetch_log_${officeCode}.txt`), logContent, 'utf8');
+    } catch (_) {}
     return null;
 }
 
