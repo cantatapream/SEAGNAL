@@ -59,6 +59,7 @@ const ZONE_TO_OFFICE_MAP = {
     '거제시동부앞바다': '159',
     // 인천·경기 → 수도권기상청(109)
     '인천·경기북부앞바다': '109',
+    '경기북부앞바다': '109',  // seaZoneCoordinates.js에서 사용하는 별칭
     '인천·경기남부앞바다': '109',
     // 충남 → 대전지방기상청(133)
     '충남북부앞바다': '133',
@@ -564,11 +565,11 @@ async function retryMissingOffices() {
  * @returns {Object} { zoneName: { publishTime, periods: [{date, period, wind, weather, waveHeight}...] } }
  */
 function parseMarineForecast(text, publishTimestamp) {
-    if (!text) return {};
+    if (!text) return { farSeaZones: {}, coastalZones: {} };
 
     // 해상 섹션 추출 (단 기 예 보 [해상] 이후)
     const marineIdx = text.indexOf('단 기 예 보 [해상]');
-    if (marineIdx === -1) return {};
+    if (marineIdx === -1) return { farSeaZones: {}, coastalZones: {} };
 
     const marineText = text.substring(marineIdx);
 
@@ -659,32 +660,38 @@ function parseMarineForecast(text, publishTimestamp) {
 
         // 먼바다 또는 앞바다 구역명 감지
         if (line.includes('먼바다') || line.includes('앞바다')) {
-            // 이전 줄과 합쳐서 전체 구역명 구성
             let zoneName = '';
 
-            // 여러 줄에 걸친 구역명 조합
-            // 예: "제주도남서쪽" (이전줄) + "안쪽먼바다" (현재줄)
-            // 예: "안쪽먼바다" (현재줄만, 상위 카테고리 참조)
-            // 예: "서쪽" (이전줄) + "먼바다" (현재줄)
+            // PDF 텍스트에서 구역명은 1~2줄에 걸쳐 나옴:
+            // 1줄: "강원북부앞바다" (전체), "제주도남서쪽안쪽먼바다" (전체)
+            // 2줄: "강원북부" + "앞바다", "전남서부" + "남해앞바다"
+            //       "서쪽" + "먼바다", "제주도남서쪽" + "안쪽먼바다"
+            // 단독: "앞바다", "먼바다" (상위 카테고리 필요)
 
             const prevLine = i > 0 ? lines[i - 1].trim() : '';
 
-            if (line.startsWith('제주도') || line.startsWith('동해') || line.startsWith('서해') || line.startsWith('남해')) {
-                // 전체 구역명이 한 줄에
-                zoneName = line.replace(/\s/g, '');
-            } else if (prevLine && !windPattern.test(prevLine) && !waveSimplePattern.test(prevLine) && prevLine !== '~') {
-                // 이전 줄이 구역명의 앞부분
-                if (prevLine.startsWith('제주도') || prevLine.startsWith('남쪽') || prevLine.startsWith('북쪽') || prevLine.startsWith('서쪽') || prevLine.startsWith('동쪽')) {
-                    zoneName = (prevLine + line).replace(/\s/g, '');
-                } else {
-                    zoneName = line.replace(/\s/g, '');
-                }
+            // prevLine이 데이터(풍향/파고/날씨)인지 판별
+            const weatherWords = ['맑음', '구름많음', '흐림', '흐리고', '비', '눈', '소나기', '안개'];
+            const isPrevData = !prevLine || prevLine.length < 2 ||
+                windPattern.test(prevLine) || waveSimplePattern.test(prevLine) ||
+                prevLine === '~' || weatherWords.some(w => prevLine.includes(w));
+
+            if (!isPrevData) {
+                // 이전 줄이 구역명 접두어 → 합쳐서 전체 구역명 생성
+                // "강원북부" + "앞바다" → "강원북부앞바다"
+                // "전남서부" + "남해앞바다" → "전남서부남해앞바다"
+                // "서쪽" + "먼바다" → "서쪽먼바다"
+                // "인천·경기" + "남부앞바다" → "인천·경기남부앞바다"
+                zoneName = (prevLine + line).replace(/\s/g, '');
             } else {
+                // 이전 줄 없거나 데이터 → 현재 줄만 사용
                 zoneName = line.replace(/\s/g, '');
             }
 
-            // 상위 카테고리 붙이기 (동해남부 + 남쪽안쪽먼바다 등)
-            if (zoneName.startsWith('남쪽') || zoneName.startsWith('북쪽') ||
+            // 상위 카테고리 붙이기 (세로 텍스트에서 추출한 동해남부, 서해중부 등)
+            // 단독 "앞바다"/"먼바다" 또는 방향 접두어만 있는 경우
+            if (zoneName === '앞바다' || zoneName === '먼바다' ||
+                zoneName.startsWith('남쪽') || zoneName.startsWith('북쪽') ||
                 zoneName.startsWith('서쪽') || zoneName.startsWith('동쪽') ||
                 zoneName.startsWith('안쪽') || zoneName.startsWith('바깥')) {
                 if (currentParent) {
@@ -698,6 +705,16 @@ function parseMarineForecast(text, publishTimestamp) {
             // 이 구역의 데이터 시작 위치
             zoneBlocks.push({ zoneName, startLine: i + 1 });
         }
+    }
+
+    // 디버그: 감지된 구역 블록 로그
+    const farBlocks = zoneBlocks.filter(b => b.zoneName.includes('먼바다'));
+    const coastalBlocks = zoneBlocks.filter(b => b.zoneName.includes('앞바다'));
+    if (coastalBlocks.length > 0) {
+        console.log(`[MarineParse] 앞바다 구역 감지: ${coastalBlocks.map(b => b.zoneName).join(', ')}`);
+    }
+    if (farBlocks.length > 0) {
+        console.log(`[MarineParse] 먼바다 구역 감지: ${farBlocks.map(b => b.zoneName).join(', ')}`);
     }
 
     // 각 구역 블록에서 9개 시간대 데이터 추출
@@ -790,6 +807,11 @@ function parseMarineForecast(text, publishTimestamp) {
 function normalizeMarineZoneName(rawName) {
     // 공백, 줄바꿈 제거
     let name = rawName.replace(/[\s\n]/g, '');
+
+    // PDF에서 '인천경기' (가운뎃점 누락) → '인천·경기' 정규화
+    if (name.includes('인천경기') && !name.includes('인천·경기')) {
+        name = name.replace('인천경기', '인천·경기');
+    }
 
     // 대화퇴, 연해주, 규슈, 동중국해 등 관련 없는 구역 제외
     if (['대화퇴', '연해주', '규슈서해', '규슈남해', '동중국해'].some(x => name.includes(x))) {

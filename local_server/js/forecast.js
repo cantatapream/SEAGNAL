@@ -516,7 +516,7 @@ async function showSeaForecastTable(zoneName) {
     let midTermTmFc = null;
     const midTermPromise = midTermRegId ? fetch('/api/mid-term-sea-forecasts').then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null);
 
-    // 먼바다/앞바다 모두 지방기상청 PDF 해상예보 데이터 사용
+    // PDF 해상예보 API URL (먼바다/앞바다 구분)
     const forecastApiUrl = isFarSea ? '/api/regional-marine-forecast' : '/api/regional-coastal-forecast';
     try {
         const [marineResponse, midTermJson] = await Promise.all([
@@ -533,7 +533,25 @@ async function showSeaForecastTable(zoneName) {
         const zoneData = marineData[zoneName];
 
         if (zoneData && zoneData.periods && zoneData.periods.length > 0) {
+            // PDF 데이터 사용
             renderRegionalMarineForecastTable(contentArea, zoneData, displayName, midTermData, midTermTmFc, midTermGroupName);
+        } else if (!isFarSea) {
+            // 앞바다: PDF 데이터 없으면 기존 단기예보 API로 폴백
+            const regId = getZoneCodeByName(zoneName);
+            if (!regId) {
+                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역의 예보 코드를 찾을 수 없습니다.<br><small style="color:#666;">(${zoneName})</small></div>`;
+                return;
+            }
+            const response = await fetch('/api/forecasts');
+            if (!response.ok) throw new Error('로컬 서버 응답 오류');
+            const json = await response.json();
+            const items = json.data && json.data[regId];
+            if (items && items.length > 0) {
+                const tmFc = json.tmFc || (items[0] && items[0].tmFc);
+                renderSeaForecastTableInModal(contentArea, items, displayName, tmFc, midTermData, midTermTmFc, midTermGroupName);
+            } else {
+                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역(${zoneName})의 예보 데이터가 없습니다.<br><small style="color:#666;">스케줄러가 데이터를 수집할 때까지 기다려주세요.</small></div>`;
+            }
         } else {
             contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역(${zoneName})의 예보 데이터가 없습니다.<br><small style="color:#666;">스케줄러가 데이터를 수집할 때까지 기다려주세요.</small></div>`;
         }
