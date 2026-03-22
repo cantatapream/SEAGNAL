@@ -332,6 +332,13 @@ async function collectOneOffice(officeCode) {
         const pdfData = await pdfParse(result.buffer);
         const text = pdfData.text;
 
+        // 디버그: PDF 원본 텍스트를 파일로 저장 (파싱 검증용)
+        try {
+            const debugDir = path.join(__dirname, 'data', 'debug_pdf');
+            if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
+            fs.writeFileSync(path.join(debugDir, `pdf_text_${officeCode}.txt`), text, 'utf8');
+        } catch (_) {}
+
         const summary = parseSummaryForecast(text);
         const temperature = parseTodayTemperature(text);
         const publishTime = parsePublishTime(text);
