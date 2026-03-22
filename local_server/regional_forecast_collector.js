@@ -19,7 +19,13 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const pdfParse = require('pdf-parse');
+let pdfParse;
+try {
+    pdfParse = require('pdf-parse');
+} catch (e) {
+    console.error('⚠️ pdf-parse 모듈 로드 실패:', e.message);
+    pdfParse = null;
+}
 
 const DATA_FILE = path.join(__dirname, 'data', 'regional_forecast.json');
 
@@ -262,6 +268,10 @@ async function collectOneOffice(officeCode) {
             return null;
         }
 
+        if (!pdfParse) {
+            console.error(`[RegionalForecast] pdf-parse 모듈 없음, PDF 파싱 불가`);
+            return null;
+        }
         const pdfData = await pdfParse(result.buffer);
         const text = pdfData.text;
 
