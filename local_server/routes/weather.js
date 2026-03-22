@@ -142,6 +142,26 @@ router.post('/api/force-update/:type', async (req, res) => {
     }
 });
 
+// 2-1-c. 지방청 수집 디버그 로그 조회
+router.get('/api/regional-debug', (req, res) => {
+    const debugDir = require('path').join(__dirname, '..', 'data', 'debug_pdf');
+    const fs = require('fs');
+    const result = { debugDir, exists: fs.existsSync(debugDir), files: [], contents: {} };
+    try {
+        if (result.exists) {
+            result.files = fs.readdirSync(debugDir);
+            for (const f of result.files) {
+                try {
+                    result.contents[f] = fs.readFileSync(require('path').join(debugDir, f), 'utf8');
+                } catch (_) {}
+            }
+        }
+    } catch (e) {
+        result.error = e.message;
+    }
+    res.json(result);
+});
+
 // 2-2. API 인증키 설정 조회
 router.get('/api/config', (req, res) => {
     try {
