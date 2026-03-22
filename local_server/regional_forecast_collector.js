@@ -825,6 +825,7 @@ function loadRegionalForecasts() {
 
 /**
  * 먼바다 해상예보 데이터 로드 (모든 지방청의 marineForecast를 통합)
+ * ZONE_TO_OFFICE_MAP에 따라 해당 구역의 관할 지방청 데이터만 사용
  * @returns {Object} { zoneName: { officeName, publishTime, periods: [...] } }
  */
 function loadMarineForecasts() {
@@ -834,6 +835,9 @@ function loadMarineForecasts() {
     for (const [code, data] of Object.entries(regional)) {
         if (code.startsWith('_') || !data || !data.marineForecast) continue;
         for (const [zoneName, zoneData] of Object.entries(data.marineForecast)) {
+            // 해당 구역의 관할 지방청이 맞는지 확인
+            const correctOffice = ZONE_TO_OFFICE_MAP[zoneName];
+            if (correctOffice && correctOffice !== code) continue;
             result[zoneName] = {
                 officeName: data.officeName,
                 publishTime: data.publishTime,
@@ -847,6 +851,7 @@ function loadMarineForecasts() {
 
 /**
  * 앞바다 해상예보 데이터 로드 (모든 지방청의 coastalForecast를 통합)
+ * ZONE_TO_OFFICE_MAP에 따라 해당 구역의 관할 지방청 데이터만 사용
  * @returns {Object} { zoneName: { officeName, publishTime, periods: [...] } }
  */
 function loadCoastalForecasts() {
@@ -856,6 +861,9 @@ function loadCoastalForecasts() {
     for (const [code, data] of Object.entries(regional)) {
         if (code.startsWith('_') || !data || !data.coastalForecast) continue;
         for (const [zoneName, zoneData] of Object.entries(data.coastalForecast)) {
+            // 해당 구역의 관할 지방청이 맞는지 확인
+            const correctOffice = ZONE_TO_OFFICE_MAP[zoneName];
+            if (correctOffice && correctOffice !== code) continue;
             result[zoneName] = {
                 officeName: data.officeName,
                 publishTime: data.publishTime,
