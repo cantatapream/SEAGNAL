@@ -379,9 +379,19 @@ async function collectOneOffice(officeCode) {
 async function collectRegionalForecasts(progressEmitter) {
     console.log('[RegionalForecast] 지방기상청 단기예보 수집 시작...');
 
+    // 디버그 디렉토리를 미리 생성
+    const debugDir = path.join(__dirname, 'data', 'debug_pdf');
+    try {
+        if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
+        console.log(`[RegionalForecast] 디버그 디렉토리: ${debugDir}`);
+    } catch (e) {
+        console.error(`[RegionalForecast] 디버그 디렉토리 생성 실패: ${e.message}`);
+    }
+
     const results = {};
     const codes = Object.keys(REGIONAL_OFFICES);
     const total = codes.length;
+    const collectLog = [`[${new Date().toISOString()}] 지방청 수집 시작\n`];
 
     // 순차적으로 수집 (서버 부하 방지)
     for (let i = 0; i < codes.length; i++) {
@@ -400,16 +410,29 @@ async function collectRegionalForecasts(progressEmitter) {
             const data = await collectOneOffice(code);
             if (data) {
                 results[code] = data;
+                collectLog.push(`✅ ${officeName}(${code}): 성공`);
+            } else {
+                collectLog.push(`❌ ${officeName}(${code}): 데이터 없음 (PDF 다운로드 실패 또는 파싱 실패)`);
             }
             // 요청 간 딜레이
             await new Promise(r => setTimeout(r, 500));
         } catch (e) {
+            collectLog.push(`❌ ${officeName}(${code}): 오류 - ${e.message}`);
             console.log(`[RegionalForecast] ${code} 수집 실패: ${e.message}`);
         }
     }
 
     const collectedCount = Object.keys(results).length;
+    collectLog.push(`\n수집 결과: ${collectedCount}/${codes.length}개 성공`);
     console.log(`[RegionalForecast] 수집 완료: ${collectedCount}/${codes.length}개 지방청`);
+
+    // 수집 결과 로그 파일 저장
+    try {
+        fs.writeFileSync(path.join(debugDir, 'collect_result.txt'), collectLog.join('\n'), 'utf8');
+        console.log(`[RegionalForecast] 수집 로그 저장: ${path.join(debugDir, 'collect_result.txt')}`);
+    } catch (e) {
+        console.error(`[RegionalForecast] 수집 로그 저장 실패: ${e.message}`);
+    }
 
     // 기존 데이터와 병합 (일부만 실패한 경우 이전 데이터 유지)
     let existing = {};
