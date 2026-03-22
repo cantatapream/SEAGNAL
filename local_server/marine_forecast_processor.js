@@ -141,6 +141,13 @@ async function fetchForecastDetail(reportId) {
         .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"')
         .replace(/[ ]+/g, ' ').trim();
 
+    // 불필요한 부가 텍스트 제거 (날씨해설 다운로드, 첨부파일 안내 등)
+    rawText = rawText
+        .replace(/날씨해설\s*다운로드/g, '')
+        .replace(/첨부파일\s*다운로드/g, '')
+        .replace(/\[?\s*날씨해설\s*\]?/g, '')
+        .trim();
+
     return { rawText, forecastPeriod, publishTime };
 }
 
@@ -228,6 +235,7 @@ const FORECAST_AI_PROMPT = `
 - 불필요한 공백, 중복 줄바꿈을 정리한다.
 - 원문의 의미를 훼손하지 않되, 읽기 좋게 정리한다.
 - 원문에 없는 내용을 추가하거나 임의로 수정하지 않는다.
+- **중요**: "날씨해설 다운로드", "첨부파일 다운로드" 등 기상 전망 내용과 무관한 부가 텍스트는 반드시 제거한다.
 
 ### 4. 키워드 강조 마크업 (매우 중요)
 텍스트 안에서 중요 키워드를 아래 3가지 마크업 태그로 감싸야 한다.

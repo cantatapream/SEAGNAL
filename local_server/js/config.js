@@ -473,6 +473,107 @@ function getMainRegion(subRegion) {
     return '기타';
 }
 
+// 소분류 존 → 지방기상청 코드 매핑
+const ZONE_TO_OFFICE = {
+    // 강원 → 강원지방기상청(105)
+    '강원북부앞바다': '105',
+    '강원중부앞바다': '105',
+    '강원남부앞바다': '105',
+    // 경북, 울산 → 대구지방기상청(143)
+    '경북북부앞바다': '143',
+    '경북남부앞바다': '143',
+    '울산앞바다': '143',
+    // 부산, 경남, 거제 → 부산지방기상청(159)
+    '부산앞바다': '159',
+    '경남서부남해앞바다': '159',
+    '경남중부남해앞바다': '159',
+    '거제시동부앞바다': '159',
+    // 인천·경기 → 수도권기상청(109)
+    '인천·경기북부앞바다': '109',
+    '인천·경기남부앞바다': '109',
+    // 충남 → 대전지방기상청(133)
+    // 충남 → 대전지방기상청(133)
+    '충남북부앞바다': '133',
+    '충남남부앞바다': '133',
+    // 전북, 전남 → 광주지방기상청(156)
+    '전북북부앞바다': '156',
+    '전북남부앞바다': '156',
+    '전남북부서해앞바다': '156',
+    '전남중부서해앞바다': '156',
+    '전남남부서해앞바다': '156',
+    '전남서부남해앞바다': '156',
+    '전남동부남해앞바다': '156',
+    // 제주 → 제주지방기상청(184)
+    '제주도북부앞바다': '184',
+    '제주도남부앞바다': '184',
+    '제주도동부앞바다': '184',
+    '제주도서부앞바다': '184',
+    // 먼바다 → 해역명 기준
+    '동해중부안쪽먼바다': '105',
+    '동해중부바깥먼바다': '105',
+    '동해남부남쪽안쪽먼바다': '159',
+    '동해남부남쪽바깥먼바다': '159',
+    '동해남부북쪽안쪽먼바다': '143',
+    '동해남부북쪽바깥먼바다': '143',
+    '서해중부안쪽먼바다': '109',
+    '서해중부바깥먼바다': '109',
+    '서해남부북쪽안쪽먼바다': '156',
+    '서해남부북쪽바깥먼바다': '156',
+    '서해남부남쪽안쪽먼바다': '156',
+    '서해남부남쪽바깥먼바다': '156',
+    '남해동부안쪽먼바다': '159',
+    '남해동부바깥먼바다': '159',
+    '남해서부서쪽먼바다': '156',
+    '남해서부동쪽먼바다': '156',
+    '제주도남서쪽안쪽먼바다': '184',
+    '제주도남동쪽안쪽먼바다': '184',
+    '제주도남쪽바깥먼바다': '184',
+};
+
+// 지방기상청 정보
+const REGIONAL_OFFICES = {
+    '109': { name: '수도권기상청' },
+    '159': { name: '부산지방기상청' },
+    '156': { name: '광주지방기상청' },
+    '105': { name: '강원지방기상청' },
+    '133': { name: '대전지방기상청' },
+    '143': { name: '대구지방기상청' },
+    '184': { name: '제주지방기상청' },
+};
+
+/**
+ * 사용자 관심해역 설정에서 해당하는 지방청 코드 목록을 반환
+ * @param {Object} settings - UserSettings.settings 객체
+ * @returns {string[]} 지방청 코드 배열 (중복 제거)
+ */
+function getRelevantOffices(settings) {
+    if (!settings || Object.keys(settings).length === 0) {
+        // 설정이 없으면 모든 지방청
+        return Object.keys(REGIONAL_OFFICES);
+    }
+
+    const offices = new Set();
+
+    // 모든 소분류 존을 순회하며 visible인 것만 지방청 매핑
+    for (const [subRegion, zones] of Object.entries(SUB_REGION_ZONES)) {
+        for (const zone of zones) {
+            // 존이 visible인지 확인
+            if (settings[zone] === false) continue;
+
+            // 상위 중분류도 확인
+            const mainRegion = getMainRegion(subRegion);
+            if (mainRegion && settings[mainRegion] === false) continue;
+            if (mainRegion !== '제주' && settings[subRegion] === false) continue;
+
+            // 매핑된 지방청 추가
+            const officeCode = ZONE_TO_OFFICE[zone];
+            if (officeCode) offices.add(officeCode);
+        }
+    }
+
+    return Array.from(offices);
+}
+
 // 기존 호환용: 구역명 → 대분류 (동해/서해/남해/제주)
 function getSeaArea(zoneName) {
     const subRegion = getSubRegion(zoneName);

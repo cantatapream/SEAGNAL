@@ -236,7 +236,120 @@ async function loadMarineForecast() {
     }
 }
 
+/**
+ * 사용자 관심해역 기반으로 해당하는 지방청 코드 목록 반환
+ */
+function getRelevantOfficeCodes() {
+    if (typeof getRelevantOffices === 'function' && typeof UserSettings !== 'undefined') {
+        return getRelevantOffices(UserSettings.settings);
+    }
+    // config.js 로드 전이면 모든 지방청 반환
+    return Object.keys(REGIONAL_OFFICES || {});
+}
+
+/**
+ * 종합 예보 (지방기상청 단기예보) 렌더링
+ */
+function renderRegionalForecast(data) {
+    const titleEl = document.getElementById('regional-forecast-title');
+    const bodyEl = document.getElementById('regional-forecast-body');
+    if (!titleEl || !bodyEl) return;
+
+    const relevantCodes = getRelevantOfficeCodes();
+
+    if (!data || relevantCodes.length === 0) {
+        titleEl.textContent = '종합 예보';
+        bodyEl.innerHTML = '<p class="marine-forecast-empty">관심해역을 설정하면 해당 지역의 종합 예보를 확인할 수 있습니다.</p>';
+        return;
+    }
+
+    // 관심해역에 해당하는 지방청 데이터만 필터링
+    const relevantData = [];
+    for (const code of relevantCodes) {
+        if (data[code] && data[code].summary) {
+            relevantData.push(data[code]);
+        }
+    }
+
+    if (relevantData.length === 0) {
+        titleEl.textContent = '종합 예보';
+        bodyEl.innerHTML = '<p class="marine-forecast-empty">종합 예보 데이터를 수집 중입니다.</p>';
+        return;
+    }
+
+    titleEl.textContent = `종합 예보 (${relevantData.length}개 지방청)`;
+
+    let html = '';
+    for (const item of relevantData) {
+        const publishLabel = item.publishTime || '';
+
+        html += `<div class="regional-forecast-office">`;
+        html += `<div class="regional-forecast-office-header">`;
+        html += `<span class="regional-forecast-office-name">${escapeHtml(item.officeName)} 단기예보</span>`;
+        if (publishLabel) {
+            html += `<span class="regional-forecast-publish-time">(${escapeHtml(publishLabel)} 발표)</span>`;
+        }
+        html += `</div>`;
+
+        // 종합 전망 내용
+        const lines = item.summary.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        html += `<div class="regional-forecast-summary">`;
+        for (const line of lines) {
+            if (line.startsWith('□') || line.startsWith('*') || line.startsWith('※')) {
+                // 종합 제목 또는 참고 사항
+                html += `<div class="regional-forecast-line regional-forecast-main">${escapeHtml(line)}</div>`;
+            } else if (line.startsWith('○')) {
+                // 일별 전망
+                html += `<div class="regional-forecast-line regional-forecast-day">${escapeHtml(line)}</div>`;
+            } else if (line.startsWith('-')) {
+                // 하위 항목
+                html += `<div class="regional-forecast-line regional-forecast-sub">${escapeHtml(line)}</div>`;
+            } else {
+                html += `<div class="regional-forecast-line">${escapeHtml(line)}</div>`;
+            }
+        }
+        html += `</div>`;
+
+        // 기온 정보
+        if (item.temperature) {
+            html += `<div class="regional-forecast-temp">`;
+            html += `<span class="regional-forecast-temp-icon">🌡️</span>`;
+            html += `<span class="regional-forecast-temp-label">오늘 기온</span>`;
+            if (item.temperature.low) {
+                html += `<span class="regional-forecast-temp-value temp-low">최저 <b>${escapeHtml(item.temperature.low)}℃</b></span>`;
+            }
+            if (item.temperature.high) {
+                html += `<span class="regional-forecast-temp-value temp-high">최고 <b>${escapeHtml(item.temperature.high)}℃</b></span>`;
+            }
+            html += `</div>`;
+        }
+
+        html += `</div>`;
+    }
+
+    bodyEl.innerHTML = html;
+}
+
+/**
+ * 종합 예보 데이터 로드
+ */
+async function loadRegionalForecast() {
+    try {
+        const response = await fetch('/api/regional-forecast?_t=' + Date.now());
+        if (!response.ok) {
+            renderRegionalForecast(null);
+            return;
+        }
+        const data = await response.json();
+        renderRegionalForecast(data);
+    } catch (e) {
+        console.error('[RegionalForecast] 로드 오류:', e);
+        renderRegionalForecast(null);
+    }
+}
+
 // DOM 로드 후 데이터 불러오기
 document.addEventListener('DOMContentLoaded', function () {
     setTimeout(loadMarineForecast, 1000);
+    setTimeout(loadRegionalForecast, 1200);
 });

@@ -96,6 +96,7 @@ function loadApiConfig() {
 loadApiConfig();
 
 const marineForecastProcessor = require('./marine_forecast_processor');
+const regionalForecastCollector = require('./regional_forecast_collector');
 
 const DUCKDNS_CONFIG = {
     ENABLED: !process.env.FLY_ALLOC_ID,
@@ -437,7 +438,8 @@ async function init() {
             collectGeneralForecasts().then(() => log('✅ 일반예보 데이터 수집 완료')),
             collectZoneForecasts().then(() => log('✅ 해구별 예보 데이터 수집 완료')),
             collectMidTermSeaForecasts(),
-            marineForecastProcessor.collectMarineForecasts().then(() => log('✅ 해상 기상 전망 수집 완료'))
+            marineForecastProcessor.collectMarineForecasts().then(() => log('✅ 해상 기상 전망 수집 완료')),
+            regionalForecastCollector.collectRegionalForecasts().then(() => log('✅ 지방기상청 단기예보 수집 완료'))
         ]);
     } catch (e) {
         log(`⚠️ 일부 수집 중 오류: ${e.message}`);
@@ -473,6 +475,19 @@ async function init() {
 
         // 중기해상예보: 하루 2회 (06:15, 18:15)
         if (['06:15', '18:15'].includes(hm)) collectMidTermSeaForecasts();
+
+        // 지방기상청 단기예보: 발표 주기(05, 11, 17시) +10분에 수집
+        if (['05:10', '11:10', '17:10'].includes(hm)) {
+            regionalForecastCollector.collectRegionalForecasts()
+                .then(() => log('✅ 지방기상청 단기예보 수집 완료'))
+                .catch(err => log(`⚠️ 지방기상청 단기예보 수집 오류: ${err.message}`));
+        }
+
+        // 지방기상청 단기예보: 미수집 지방청 재시도 (30분 간격)
+        if (min % 30 === 10 && !['05:10', '11:10', '17:10'].includes(hm)) {
+            regionalForecastCollector.retryMissingOffices()
+                .catch(err => log(`⚠️ 지방기상청 재수집 오류: ${err.message}`));
+        }
 
         // [New] 특보 정보 크롤링 (매 1분 마다 실행)
         // 사용자 요청: 실시간성 확보를 위해 1분 주기로 단축
