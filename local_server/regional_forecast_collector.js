@@ -188,20 +188,24 @@ function parseSummaryForecast(text) {
     if (!text) return null;
 
     // 날씨종합 섹션 찾기
-    // □ (종합) 으로 시작하는 부분
-    const summaryMatch = text.match(/□\s*\(종합\)\s*([\s\S]*?)(?=기온\s*평년|기온\s*\(℃\)|기온\(℃\)|파고|천문정보|쪽수|$)/);
+    // □ (종합) 으로 시작하는 부분, 기온 테이블이나 다음 섹션 전까지
+    const summaryMatch = text.match(/□\s*\(종합\)\s*([\s\S]*?)(?=평년\s*\(오늘\)|기온\s*평년|기온\s*\n|기온\s*\(℃\)|기온\(℃\)|파고|천문정보|쪽수|$)/);
     if (!summaryMatch) return null;
 
     let summaryText = summaryMatch[0].trim();
 
-    // ※ 참고 문구도 포함 (기온 테이블 앞의 것만, 한 줄로 제한)
+    // ※ 참고 문구도 포함 (한 줄로 제한하여 기온 테이블 포함 방지)
     const noteMatch = text.match(/※\s*\d+일까지의[^\n]*참고하기 바랍니다\./);
     if (noteMatch) {
-        // 이미 summaryText에 포함되어 있지 않은 경우만 추가
         if (!summaryText.includes('참고하기 바랍니다')) {
             summaryText += '\n' + noteMatch[0].trim();
         }
     }
+
+    // 혹시 포함된 기온 테이블 잔여 텍스트 제거
+    summaryText = summaryText.replace(/평년\s*\(오늘\)[\s\S]*/g, '');
+    summaryText = summaryText.replace(/최저[\d.\-~\s]+$/gm, '');
+    summaryText = summaryText.replace(/최고[\d.\-~\s]+$/gm, '');
 
     // 줄바꿈 정리
     summaryText = summaryText
@@ -214,31 +218,81 @@ function parseSummaryForecast(text) {
 
 /**
  * PDF 텍스트에서 오늘 기온(최저/최고)을 추출
+ *
+ * PDF 텍스트에서 기온 테이블은 공백 없이 셀이 연결되어 추출됨:
+ * "최저6.1 ~ 8.35.6 ~ 8.35.0 ~ 9.39 ~ 1010 ~ 11117 ~ 9"
+ * 기온표 구조: 평년(오늘) | 어제 | 오늘 | 내일 | 모레 | 글피 | 그글피
+ * 각 셀은 "숫자 ~ 숫자" 범위. 셀 간 구분자 없이 연결됨.
+ *
+ * 파싱 전략: ~ 기호를 기준으로 분할하여 3번째 ~ 앞뒤에서 오늘 값 추출
+ * 3번째 ~ = 오늘 셀의 범위 구분자
+ * ~ 앞: ...이전셀high + 오늘low → 끝에서 온도값 추출
+ * ~ 뒤: 오늘high + 다음셀... → 앞에서 온도값 추출
  */
 function parseTodayTemperature(text) {
     if (!text) return null;
 
-    // 기온 테이블에서 오늘 최저/최고 추출
-    // 패턴: "최저" 줄에서 오늘(3번째 숫자열), "최고" 줄에서 오늘(3번째 숫자열)
-    // 기온표 구조: 평년(오늘) | 어제 | 오늘 | 내일 | 모레 | 글피 | 그글피
-
     let low = null;
     let high = null;
 
-    // 최저 기온 추출
-    const lowMatch = text.match(/최저[\s\S]*?([\d.~]+)\s+([\d.~]+)\s+([\d.~]+)\s+([\d.~]+)/);
-    if (lowMatch) {
-        low = lowMatch[3]; // 3번째 = 오늘
+    // 최저 기온 행에서 오늘 값 추출
+    const lowLineMatch = text.match(/최저[^\n]*/);
+    if (lowLineMatch) {
+        low = extractTodayValueFromLine(lowLineMatch[0].replace(/^최저\s*/, ''));
     }
 
-    // 최고 기온 추출
-    const highMatch = text.match(/최고[\s\S]*?([\d.~]+)\s+([\d.~]+)\s+([\d.~]+)\s+([\d.~]+)/);
-    if (highMatch) {
-        high = highMatch[3]; // 3번째 = 오늘
+    // 최고 기온 행에서 오늘 값 추출
+    const highLineMatch = text.match(/최고[^\n]*/);
+    if (highLineMatch) {
+        high = extractTodayValueFromLine(highLineMatch[0].replace(/^최고\s*/, ''));
     }
 
     if (!low && !high) return null;
     return { low, high };
+}
+
+/**
+ * 기온 행에서 3번째 ~ 기호를 기준으로 오늘 값(범위)을 추출
+ *
+ * 전략: ~ 기호들 사이의 세그먼트에는 인접한 두 셀의 값이 연결되어 있음.
+ * 세그먼트(tilde#1~tilde#2) = 어제high + 오늘low
+ * 세그먼트(tilde#2~tilde#3) = 오늘high + 내일low
+ * 각 세그먼트에서 온도값 패턴으로 분리 후 마지막/첫번째 값을 취함.
+ *
+ * 예: "6.1~8.35.6~8.35.0~9.39~10..." → seg1-2="8.35.0" → [8.3, 5.0]
+ */
+function extractTodayValueFromLine(data) {
+    // ~ 위치 찾기
+    const tildePositions = [];
+    for (let i = 0; i < data.length; i++) {
+        if (data[i] === '~') tildePositions.push(i);
+    }
+
+    // 오늘 셀(3번째)에 ~ 가 있으려면 최소 3개, 내일도 있으려면 4개
+    if (tildePositions.length < 4) return null;
+
+    // 온도값 패턴: -12.3, 8.8, -3, 20 등 (1~2자리 정수 + 선택적 소수점1자리)
+    const tempPattern = /-?\d{1,2}(?:\.\d)?/g;
+
+    // 세그먼트: tilde#1 ~ tilde#2 사이 = 어제high + 오늘low
+    const segBefore = data.substring(tildePositions[1] + 1, tildePositions[2]).trim();
+    const beforeTemps = segBefore.match(tempPattern);
+    if (!beforeTemps || beforeTemps.length < 2) return null;
+    const todayLow = beforeTemps[beforeTemps.length - 1]; // 마지막 = 오늘low
+
+    // 세그먼트: tilde#2 ~ tilde#3 사이 = 오늘high + 내일low
+    const segAfter = data.substring(tildePositions[2] + 1, tildePositions[3]).trim();
+    const afterTemps = segAfter.match(tempPattern);
+    if (!afterTemps || afterTemps.length < 2) return null;
+    const todayHigh = afterTemps[0]; // 첫번째 = 오늘high
+
+    const lowVal = parseFloat(todayLow);
+    const highVal = parseFloat(todayHigh);
+
+    // 유효성 검증: 한국 기온 범위 (-30 ~ 50)
+    if (lowVal < -30 || lowVal > 50 || highVal < -30 || highVal > 50) return null;
+
+    return `${todayLow} ~ ${todayHigh}`;
 }
 
 /**
