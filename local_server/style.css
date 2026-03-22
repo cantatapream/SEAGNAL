@@ -1004,7 +1004,7 @@ line-height: 1.1;
 }
 
 .marine-forecast-sub-accordion.open .marine-forecast-sub-body {
-    max-height: 3000px;
+    max-height: 8000px;
     opacity: 1;
     padding: 0 16px 16px 16px;
 }
@@ -1095,8 +1095,8 @@ line-height: 1.1;
 .main-accordion-body {
     overflow: hidden;
     transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-in-out;
-    max-height: 2000px;
-    /* Arbitrary large height */
+    max-height: 8000px;
+    /* Arbitrary large height - 7개 지방청 전체 표시 가능하도록 여유있게 설정 */
     opacity: 1;
     margin-top: 15px;
 }
