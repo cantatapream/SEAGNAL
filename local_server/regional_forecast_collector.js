@@ -352,10 +352,17 @@ async function collectOneOffice(officeCode) {
         const summary = parseSummaryForecast(text);
         const temperature = parseTodayTemperature(text);
         const publishTime = parsePublishTime(text);
+        const marineForecast = parseMarineForecast(text, result.timestamp);
+
+        const marineCount = Object.keys(marineForecast).length;
+        if (marineCount > 0) {
+            console.log(`[RegionalForecast] ${office.name}: 해상예보 ${marineCount}개 구역 파싱 완료`);
+        }
 
         if (!summary) {
             console.log(`[RegionalForecast] ${office.name}: 종합 전망 추출 실패`);
-            return null;
+            // 해상예보만이라도 반환
+            if (marineCount === 0) return null;
         }
 
         return {
@@ -364,6 +371,7 @@ async function collectOneOffice(officeCode) {
             publishTime: publishTime || result.timestamp,
             summary,
             temperature,
+            marineForecast,
             collectedAt: new Date().toISOString()
         };
     } catch (e) {
@@ -543,6 +551,262 @@ async function retryMissingOffices() {
 }
 
 /**
+ * PDF 텍스트에서 해상예보 [해상] 섹션의 먼바다 데이터를 파싱
+ *
+ * PDF 해상 테이블 구조:
+ *   구역 | 오늘 오후 | 내일 오전 | 내일 오후 | 모레 오전 | 모레 오후 | 글피 오전 | 글피 오후 | 그글피 오전 | 그글피 오후
+ *   각 셀: 풍향/풍속 + 날씨 + 파고
+ *
+ * @param {string} text - PDF에서 추출한 전체 텍스트
+ * @param {string} publishTimestamp - 발표 타임스탬프 (YYYYMMDDHH00)
+ * @returns {Object} { zoneName: { publishTime, periods: [{date, period, wind, weather, waveHeight}...] } }
+ */
+function parseMarineForecast(text, publishTimestamp) {
+    if (!text) return {};
+
+    // 해상 섹션 추출 (단 기 예 보 [해상] 이후)
+    const marineIdx = text.indexOf('단 기 예 보 [해상]');
+    if (marineIdx === -1) return {};
+
+    const marineText = text.substring(marineIdx);
+
+    // 발표일 기준 날짜 계산
+    let baseDate;
+    if (publishTimestamp && publishTimestamp.length >= 8) {
+        baseDate = new Date(
+            parseInt(publishTimestamp.substring(0, 4)),
+            parseInt(publishTimestamp.substring(4, 6)) - 1,
+            parseInt(publishTimestamp.substring(6, 8))
+        );
+    } else {
+        baseDate = new Date();
+    }
+
+    // 시간대 라벨 (9개)
+    const timeSlots = [
+        { dayOffset: 0, period: 'pm' },   // 오늘 오후
+        { dayOffset: 1, period: 'am' },   // 내일 오전
+        { dayOffset: 1, period: 'pm' },   // 내일 오후
+        { dayOffset: 2, period: 'am' },   // 모레 오전
+        { dayOffset: 2, period: 'pm' },   // 모레 오후
+        { dayOffset: 3, period: 'am' },   // 글피 오전
+        { dayOffset: 3, period: 'pm' },   // 글피 오후
+        { dayOffset: 4, period: 'am' },   // 그글피 오전
+        { dayOffset: 4, period: 'pm' },   // 그글피 오후
+    ];
+
+    // 먼바다 구역명 패턴 (PDF에서 줄바꿈 포함)
+    // 예: "안쪽먼바다", "바깥먼바다", "서쪽\n먼바다", "동쪽\n먼바다"
+    const farSeaZones = {};
+
+    // 줄 단위로 분할
+    const lines = marineText.split('\n');
+
+    // 먼바다 구역을 찾고 해당 줄 이후의 데이터를 파싱
+    // 전략: "먼바다" 키워드가 포함된 구역명을 찾고, 이후 풍향/풍속 + 날씨 + 파고 패턴을 9회 추출
+
+    // 먼저 전체 텍스트에서 구역별로 블록을 분리
+    // 해상국지 테이블 시작 전까지만 파싱 (해상국지는 앞바다)
+
+    // 구역명 정규화를 위한 매핑
+    const ZONE_NAME_NORMALIZE = {
+        '제주도남서쪽\n안쪽먼바다': '제주도남서쪽안쪽먼바다',
+        '제주도남동쪽\n안쪽먼바다': '제주도남동쪽안쪽먼바다',
+        '제주도남쪽\n바깥먼바다': '제주도남쪽바깥먼바다',
+        '남쪽\n안쪽먼바다': null,  // 컨텍스트에 따라 결정
+        '남쪽\n바깥먼바다': null,
+        '북쪽\n안쪽먼바다': null,
+        '북쪽\n바깥먼바다': null,
+        '서쪽\n먼바다': null,
+        '동쪽\n먼바다': null,
+    };
+
+    // 풍향/풍속 패턴: "북동~동 / 7~11" 또는 "북동~동 / 6~9"
+    const windPattern = /^([가-힣~]+)\s*\/\s*(\d+~\d+)$/;
+    // 파고 패턴: "0.5" 또는 "1.0" (단독) 또는 "0.5\n~\n1.5" (범위)
+    const waveSimplePattern = /^(\d+\.?\d*)$/;
+
+    // 해상 섹션을 구역 블록으로 분할하는 다른 접근법:
+    // "날씨파고" 헤더 행 이후의 데이터를 구역별로 읽음
+
+    // 해상 섹션에서 먼바다가 포함된 구역 데이터 추출
+    // 접근법: 연속된 줄을 스캔하면서 먼바다 구역명과 9개 시간대 데이터를 추출
+
+    // 먼바다 키워드를 포함하는 줄의 인덱스 찾기
+    const zoneBlocks = [];
+    let currentParent = ''; // 상위 카테고리 (동해남부, 서해남부 등)
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+
+        // 상위 카테고리 추적 (동\n해\n남\n부 → 동해남부)
+        if (/^[동서남]$/.test(line) && i + 1 < lines.length) {
+            // 세로 텍스트 감지 (동\n해\n남\n부 등)
+            let vertical = line;
+            let j = i + 1;
+            while (j < lines.length && /^[해서남북중부]$/.test(lines[j].trim())) {
+                vertical += lines[j].trim();
+                j++;
+            }
+            if (vertical.length >= 2) {
+                currentParent = vertical;
+            }
+        }
+
+        // 먼바다 구역명 감지
+        if (line.includes('먼바다')) {
+            // 이전 줄과 합쳐서 전체 구역명 구성
+            let zoneName = '';
+
+            // 여러 줄에 걸친 구역명 조합
+            // 예: "제주도남서쪽" (이전줄) + "안쪽먼바다" (현재줄)
+            // 예: "안쪽먼바다" (현재줄만, 상위 카테고리 참조)
+            // 예: "서쪽" (이전줄) + "먼바다" (현재줄)
+
+            const prevLine = i > 0 ? lines[i - 1].trim() : '';
+
+            if (line.startsWith('제주도') || line.startsWith('동해') || line.startsWith('서해') || line.startsWith('남해')) {
+                // 전체 구역명이 한 줄에
+                zoneName = line.replace(/\s/g, '');
+            } else if (prevLine && !windPattern.test(prevLine) && !waveSimplePattern.test(prevLine) && prevLine !== '~') {
+                // 이전 줄이 구역명의 앞부분
+                if (prevLine.startsWith('제주도') || prevLine.startsWith('남쪽') || prevLine.startsWith('북쪽') || prevLine.startsWith('서쪽') || prevLine.startsWith('동쪽')) {
+                    zoneName = (prevLine + line).replace(/\s/g, '');
+                } else {
+                    zoneName = line.replace(/\s/g, '');
+                }
+            } else {
+                zoneName = line.replace(/\s/g, '');
+            }
+
+            // 상위 카테고리 붙이기 (동해남부 + 남쪽안쪽먼바다 등)
+            if (zoneName.startsWith('남쪽') || zoneName.startsWith('북쪽') ||
+                zoneName.startsWith('서쪽') || zoneName.startsWith('동쪽') ||
+                zoneName.startsWith('안쪽') || zoneName.startsWith('바깥')) {
+                if (currentParent) {
+                    zoneName = currentParent + zoneName;
+                }
+            }
+
+            // 앞바다는 제외, 먼바다만
+            if (!zoneName.includes('먼바다')) continue;
+            // 해상국지 섹션의 앞바다는 제외
+            if (zoneName.includes('앞바다')) continue;
+
+            // 이 구역의 데이터 시작 위치 (먼바다 줄 다음부터)
+            zoneBlocks.push({ zoneName, startLine: i + 1 });
+        }
+    }
+
+    // 각 구역 블록에서 9개 시간대 데이터 추출
+    for (const block of zoneBlocks) {
+        const periods = [];
+        let lineIdx = block.startLine;
+        let slotCount = 0;
+
+        while (slotCount < 9 && lineIdx < lines.length) {
+            const line = lines[lineIdx].trim();
+
+            // 다음 구역이나 섹션 시작이면 중단
+            if (line.includes('먼바다') || line.includes('앞바다') ||
+                line === '※' || line.startsWith('※ 날씨')) break;
+
+            // 풍향/풍속 패턴 매칭
+            const windMatch = line.match(windPattern);
+            if (windMatch) {
+                const wind = `${windMatch[1]} / ${windMatch[2]}`;
+
+                // 다음 줄: 날씨 (맑음, 흐림, 구름많음 등)
+                lineIdx++;
+                let weather = '';
+                while (lineIdx < lines.length) {
+                    const wLine = lines[lineIdx].trim();
+                    // 파고 시작 (숫자) 이면 날씨 수집 종료
+                    if (waveSimplePattern.test(wLine)) break;
+                    if (wLine === '~') break;
+                    // 빈 줄 스킵
+                    if (wLine === '') { lineIdx++; continue; }
+                    // 풍향 패턴이면 날씨 없이 다음 시간대
+                    if (windPattern.test(wLine)) break;
+                    weather += (weather ? ' ' : '') + wLine;
+                    lineIdx++;
+                }
+
+                // 파고 추출
+                let waveHeight = '';
+                const curLine = lineIdx < lines.length ? lines[lineIdx].trim() : '';
+                if (waveSimplePattern.test(curLine)) {
+                    waveHeight = curLine;
+                    lineIdx++;
+                    // "0.5\n~\n1.5" 패턴 확인
+                    if (lineIdx < lines.length && lines[lineIdx].trim() === '~') {
+                        lineIdx++;
+                        if (lineIdx < lines.length && waveSimplePattern.test(lines[lineIdx].trim())) {
+                            waveHeight += '~' + lines[lineIdx].trim();
+                            lineIdx++;
+                        }
+                    }
+                }
+
+                const slot = timeSlots[slotCount];
+                const date = new Date(baseDate);
+                date.setDate(date.getDate() + slot.dayOffset);
+                const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
+
+                periods.push({
+                    date: dateStr,
+                    period: slot.period,
+                    wind,
+                    weather: weather || '-',
+                    waveHeight: waveHeight || '-'
+                });
+                slotCount++;
+                continue;
+            }
+            lineIdx++;
+        }
+
+        if (periods.length > 0) {
+            // ZONE_TO_OFFICE_MAP의 키와 일치하도록 구역명 정규화
+            const normalizedName = normalizeMarineZoneName(block.zoneName);
+            if (normalizedName) {
+                farSeaZones[normalizedName] = {
+                    periods
+                };
+            }
+        }
+    }
+
+    return farSeaZones;
+}
+
+/**
+ * 해상 구역명을 ZONE_TO_OFFICE_MAP 키와 일치하도록 정규화
+ */
+function normalizeMarineZoneName(rawName) {
+    // 공백, 줄바꿈 제거
+    let name = rawName.replace(/[\s\n]/g, '');
+
+    // 대화퇴, 연해주, 규슈, 동중국해 등 관련 없는 구역 제외
+    if (['대화퇴', '연해주', '규슈서해', '규슈남해', '동중국해'].some(x => name.includes(x))) {
+        return null;
+    }
+
+    // ZONE_TO_OFFICE_MAP에 있는 먼바다 구역명과 매칭
+    const knownZones = Object.keys(ZONE_TO_OFFICE_MAP).filter(z => z.includes('먼바다'));
+
+    // 정확히 일치
+    if (knownZones.includes(name)) return name;
+
+    // 부분 매칭 시도
+    for (const known of knownZones) {
+        if (name.includes(known) || known.includes(name)) return known;
+    }
+
+    return name; // 매칭 안 되더라도 원본 반환
+}
+
+/**
  * 저장된 데이터 로드
  */
 function loadRegionalForecasts() {
@@ -554,10 +818,33 @@ function loadRegionalForecasts() {
     return {};
 }
 
+/**
+ * 먼바다 해상예보 데이터 로드 (모든 지방청의 marineForecast를 통합)
+ * @returns {Object} { zoneName: { officeName, publishTime, periods: [...] } }
+ */
+function loadMarineForecasts() {
+    const regional = loadRegionalForecasts();
+    const result = {};
+
+    for (const [code, data] of Object.entries(regional)) {
+        if (code.startsWith('_') || !data || !data.marineForecast) continue;
+        for (const [zoneName, zoneData] of Object.entries(data.marineForecast)) {
+            result[zoneName] = {
+                officeName: data.officeName,
+                publishTime: data.publishTime,
+                collectedAt: data.collectedAt,
+                ...zoneData
+            };
+        }
+    }
+    return result;
+}
+
 module.exports = {
     collectRegionalForecasts,
     retryMissingOffices,
     loadRegionalForecasts,
+    loadMarineForecasts,
     REGIONAL_OFFICES,
     ZONE_TO_OFFICE_MAP
 };
