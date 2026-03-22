@@ -385,6 +385,17 @@
 
                 <div id="marine-forecast-accordion-body" class="main-accordion-body collapsed">
                     <div id="marine-forecast-content" class="marine-forecast-container">
+                        <!-- 종합 예보 (지방기상청 단기예보) -->
+                        <div class="marine-forecast-sub-accordion open" id="regional-forecast-section">
+                            <div class="marine-forecast-sub-header" onclick="toggleMarineForecastSub('regional-forecast-body')">
+                                <span class="marine-forecast-sub-title" id="regional-forecast-title">종합 예보</span>
+                                <i class="fa-solid fa-chevron-down marine-forecast-sub-icon"></i>
+                            </div>
+                            <div class="marine-forecast-sub-body" id="regional-forecast-body">
+                                <p class="marine-forecast-empty">데이터를 불러오는 중...</p>
+                            </div>
+                        </div>
+
                         <!-- 초단기 전망 -->
                         <div class="marine-forecast-sub-accordion open" id="ultra-short-forecast-section">
                             <div class="marine-forecast-sub-header" onclick="toggleMarineForecastSub('ultra-short-forecast-body')">

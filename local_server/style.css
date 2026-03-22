@@ -4724,3 +4724,103 @@ line-height: 1.1;
     opacity: 1;
     transform: translateX(-50%) translateY(0);
 }
+
+/* ============================================================================
+ * 종합 예보 (지방기상청 단기예보)
+ * ============================================================================ */
+
+.regional-forecast-office {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 10px;
+}
+
+.regional-forecast-office:last-child {
+    margin-bottom: 0;
+}
+
+.regional-forecast-office-header {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.regional-forecast-office-name {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #60a5fa;
+}
+
+.regional-forecast-publish-time {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.regional-forecast-summary {
+    margin-bottom: 8px;
+}
+
+.regional-forecast-line {
+    font-size: 0.82rem;
+    color: #cbd5e1;
+    line-height: 1.7;
+}
+
+.regional-forecast-main {
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 4px;
+}
+
+.regional-forecast-day {
+    padding-left: 0.5em;
+    color: #94a3b8;
+}
+
+.regional-forecast-sub {
+    padding-left: 1.5em;
+    color: #94a3b8;
+    font-size: 0.8rem;
+}
+
+.regional-forecast-temp {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
+    margin-top: 8px;
+}
+
+.regional-forecast-temp-icon {
+    font-size: 1rem;
+}
+
+.regional-forecast-temp-label {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.regional-forecast-temp-value {
+    font-size: 0.82rem;
+    margin-left: 4px;
+}
+
+.regional-forecast-temp-value.temp-low {
+    color: #93c5fd;
+}
+
+.regional-forecast-temp-value.temp-high {
+    color: #fca5a5;
+}
+
+.regional-forecast-temp-value b {
+    font-weight: 700;
+}

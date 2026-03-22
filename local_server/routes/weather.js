@@ -34,6 +34,7 @@ const path = require('path');
 const { DATA_DIR } = require('../config/server_config');
 const { dataCache, refreshCache } = require('../services/cache_manager');
 const scheduler = require('../scheduler');
+const regionalForecastCollector = require('../regional_forecast_collector');
 
 // 1. 특보 정보 (통합 크롤러 데이터)
 router.get('/api/weather-alerts', (req, res) => {
@@ -96,6 +97,8 @@ router.get('/api/force-update/:type/stream', async (req, res) => {
         else if (type === 'general') {
             await scheduler.collectGeneralForecasts();
             await scheduler.collectMidTermSeaForecasts();
+            // 지방기상청 단기예보도 함께 수집
+            regionalForecastCollector.collectRegionalForecasts().catch(e => console.log(`⚠️ 지방청 예보 수집 오류: ${e.message}`));
         }
         else if (type === 'zone') await scheduler.collectZoneForecasts();
         else {
@@ -126,6 +129,8 @@ router.post('/api/force-update/:type', async (req, res) => {
         else if (type === 'general') {
             await scheduler.collectGeneralForecasts();
             await scheduler.collectMidTermSeaForecasts();
+            // 지방기상청 단기예보도 함께 수집
+            regionalForecastCollector.collectRegionalForecasts().catch(e => console.log(`⚠️ 지방청 예보 수집 오류: ${e.message}`));
         }
         else if (type === 'zone') await scheduler.collectZoneForecasts();
         else return res.status(400).json({ error: '잘못된 타입' });
@@ -181,6 +186,19 @@ router.get('/api/marine-forecast', (req, res) => {
         const filePath = path.join(DATA_DIR, 'marine_forecast.json');
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'marine_forecast.json not found' });
+        }
+        res.sendFile(filePath);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 5-1. 지방기상청 단기예보 (종합 전망 + 기온)
+router.get('/api/regional-forecast', (req, res) => {
+    try {
+        const filePath = path.join(DATA_DIR, 'regional_forecast.json');
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: 'regional_forecast.json not found' });
         }
         res.sendFile(filePath);
     } catch (e) {
