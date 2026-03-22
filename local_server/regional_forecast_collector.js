@@ -585,8 +585,23 @@ function parseMarineForecast(text, publishTimestamp) {
         baseDate = new Date();
     }
 
-    // 시간대 라벨 (9개)
-    const timeSlots = [
+    // 발표 시각에 따라 시간대 라벨 결정 (9개)
+    // 05시 발표: 오늘 오전부터 시작 (오전,오후,오전,오후,...,그글피 오전)
+    // 11시/17시 발표: 오늘 오후부터 시작 (오후,오전,오후,...,그글피 오후)
+    const publishHour = publishTimestamp ? parseInt(publishTimestamp.substring(8, 10)) : 17;
+    const isMorningPublish = (publishHour < 11); // 05시 발표
+
+    const timeSlots = isMorningPublish ? [
+        { dayOffset: 0, period: 'am' },   // 오늘 오전
+        { dayOffset: 0, period: 'pm' },   // 오늘 오후
+        { dayOffset: 1, period: 'am' },   // 내일 오전
+        { dayOffset: 1, period: 'pm' },   // 내일 오후
+        { dayOffset: 2, period: 'am' },   // 모레 오전
+        { dayOffset: 2, period: 'pm' },   // 모레 오후
+        { dayOffset: 3, period: 'am' },   // 글피 오전
+        { dayOffset: 3, period: 'pm' },   // 글피 오후
+        { dayOffset: 4, period: 'am' },   // 그글피 오전
+    ] : [
         { dayOffset: 0, period: 'pm' },   // 오늘 오후
         { dayOffset: 1, period: 'am' },   // 내일 오전
         { dayOffset: 1, period: 'pm' },   // 내일 오후
@@ -729,7 +744,7 @@ function parseMarineForecast(text, publishTimestamp) {
         let lineIdx = block.startLine;
         let slotCount = 0;
 
-        while (slotCount < 9 && lineIdx < lines.length) {
+        while (slotCount < timeSlots.length && lineIdx < lines.length) {
             const line = lines[lineIdx].trim();
 
             // 다음 구역이나 섹션 시작이면 중단

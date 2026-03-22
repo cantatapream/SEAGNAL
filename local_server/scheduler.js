@@ -458,8 +458,11 @@ async function init() {
     setInterval(async () => {
         await syncTime();
         const now = getCorrectedDate();
-        const hm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        const min = now.getMinutes();
+        // KST 기준으로 시/분 계산 (서버가 UTC여도 정상 동작하도록)
+        const kstMs = now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600000);
+        const kstDate = new Date(kstMs);
+        const hm = `${String(kstDate.getHours()).padStart(2, '0')}:${String(kstDate.getMinutes()).padStart(2, '0')}`;
+        const min = kstDate.getMinutes();
 
         // 부이: 매시 5분, 35분
         if (min % 30 === 5) {
