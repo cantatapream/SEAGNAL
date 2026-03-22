@@ -1623,7 +1623,7 @@ function renderRegionalMarineForecastTable(container, zoneData, zoneName, midTer
         ['am', 'pm'].forEach(period => {
             const p = group[period];
             if (p && p.waveHeight && p.waveHeight !== '-') {
-                html += `<td style="${tdStyle};color:#4db6ac;font-weight:600;">${p.waveHeight}m</td>`;
+                html += `<td style="${tdStyle};color:#4db6ac;font-weight:600;font-size:0.78rem;padding:8px 2px;">${p.waveHeight}m</td>`;
             } else {
                 html += `<td style="${tdStyle};color:#8899aa;font-size:0.7rem;">-</td>`;
             }
@@ -1645,7 +1645,7 @@ function renderRegionalMarineForecastTable(container, zoneData, zoneName, midTer
             if (p && p.wind && p.wind !== '-') {
                 const parts = p.wind.split('/').map(s => s.trim());
                 const speed = parts[1] || '-';
-                html += `<td style="${tdStyle};color:#ff9800;font-weight:600;">${speed}m/s</td>`;
+                html += `<td style="${tdStyle};color:#ff9800;font-weight:600;font-size:0.78rem;padding:8px 2px;">${speed}m/s</td>`;
             } else {
                 html += `<td style="${tdStyle};color:#8899aa;font-size:0.7rem;">-</td>`;
             }
