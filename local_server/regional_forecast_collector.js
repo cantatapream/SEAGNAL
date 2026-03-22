@@ -61,9 +61,9 @@ const ZONE_TO_OFFICE_MAP = {
     '인천·경기북부앞바다': '109',
     '경기북부앞바다': '109',  // seaZoneCoordinates.js에서 사용하는 별칭
     '인천·경기남부앞바다': '109',
-    // 충남 → 대전지방기상청(133)
-    '충남북부앞바다': '133',
-    '충남남부앞바다': '133',
+    // 충남 → 수도권기상청(109) (수도권기상청 PDF에서 해상구역으로 제공)
+    '충남북부앞바다': '109',
+    '충남남부앞바다': '109',
     // 전북, 전남 → 광주지방기상청(156)
     '전북북부앞바다': '156',
     '전북남부앞바다': '156',
@@ -644,9 +644,9 @@ function parseMarineForecast(text, publishTimestamp) {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
 
-        // 상위 카테고리 추적 (동\n해\n남\n부 → 동해남부)
+        // 상위 카테고리 추적
+        // Case 1: 세로 텍스트 (동\n해\n남\n부 → 동해남부)
         if (/^[동서남]$/.test(line) && i + 1 < lines.length) {
-            // 세로 텍스트 감지 (동\n해\n남\n부 등)
             let vertical = line;
             let j = i + 1;
             while (j < lines.length && /^[해서남북중부]$/.test(lines[j].trim())) {
@@ -657,6 +657,12 @@ function parseMarineForecast(text, publishTimestamp) {
                 currentParent = vertical;
             }
         }
+        // Case 2: 한 줄로 추출된 상위 카테고리 (세로 텍스트가 병합된 경우)
+        if (/^(서해중부|서해남부|서해북부|동해중부|동해남부|남해동부|남해서부)$/.test(line)) {
+            currentParent = line;
+        }
+        // Case 3: "해상구역" 또는 "해상국지" 같은 섹션 구분자는 parent로 사용하지 않음
+        // (해상구역 하위에는 개별 구역명이 직접 나옴)
 
         // 먼바다 또는 앞바다 구역명 감지
         if (line.includes('먼바다') || line.includes('앞바다')) {
@@ -798,6 +804,47 @@ function parseMarineForecast(text, publishTimestamp) {
         }
     }
 
+    // === 후처리: 통합 구역명 → 개별 구역으로 확장 ===
+    // 광주지방기상청 PDF는 "서해남부 > 앞바다" 통합명만 제공하고
+    // 전북북부/남부앞바다 개별 구역명이 없으므로, 동일 데이터를 복제 적용
+    const ZONE_EXPANSION_MAP = {
+        '서해남부앞바다': ['전북북부앞바다', '전북남부앞바다'],
+        '서해중부앞바다': ['인천·경기북부앞바다', '인천·경기남부앞바다', '충남북부앞바다', '충남남부앞바다'],
+        '서해북부앞바다': [],  // 서해북부앞바다는 그 자체가 유효한 구역
+    };
+
+    for (const [genericName, specificNames] of Object.entries(ZONE_EXPANSION_MAP)) {
+        if (specificNames.length === 0) continue;
+        if (coastalZones[genericName]) {
+            // 개별 구역이 아직 파싱되지 않은 경우에만 통합 데이터로 채움
+            for (const specific of specificNames) {
+                if (!coastalZones[specific]) {
+                    coastalZones[specific] = JSON.parse(JSON.stringify(coastalZones[genericName]));
+                    console.log(`[MarineParse] 통합 구역 확장: ${genericName} → ${specific}`);
+                }
+            }
+            // 통합 구역명 자체는 제거 (ZONE_TO_OFFICE_MAP에 없으므로)
+            delete coastalZones[genericName];
+        }
+    }
+
+    // 먼바다도 동일하게 통합 구역 확장
+    const FAR_SEA_EXPANSION_MAP = {
+        '서해남부먼바다': ['서해남부북쪽안쪽먼바다', '서해남부북쪽바깥먼바다', '서해남부남쪽안쪽먼바다', '서해남부남쪽바깥먼바다'],
+    };
+
+    for (const [genericName, specificNames] of Object.entries(FAR_SEA_EXPANSION_MAP)) {
+        if (farSeaZones[genericName]) {
+            for (const specific of specificNames) {
+                if (!farSeaZones[specific]) {
+                    farSeaZones[specific] = JSON.parse(JSON.stringify(farSeaZones[genericName]));
+                    console.log(`[MarineParse] 먼바다 통합 구역 확장: ${genericName} → ${specific}`);
+                }
+            }
+            delete farSeaZones[genericName];
+        }
+    }
+
     return { farSeaZones, coastalZones };
 }
 
@@ -876,6 +923,12 @@ function loadMarineForecasts() {
  * ZONE_TO_OFFICE_MAP에 따라 해당 구역의 관할 지방청 데이터만 사용
  * @returns {Object} { zoneName: { officeName, publishTime, periods: [...] } }
  */
+// seaZoneCoordinates.js와 ZONE_TO_OFFICE_MAP 간 이름 차이를 해소하기 위한 별칭
+const COASTAL_ZONE_ALIASES = {
+    '인천·경기북부앞바다': '경기북부앞바다',
+    '인천·경기남부앞바다': '경기남부앞바다',
+};
+
 function loadCoastalForecasts() {
     const regional = loadRegionalForecasts();
     const result = {};
@@ -886,12 +939,19 @@ function loadCoastalForecasts() {
             // 해당 구역의 관할 지방청이 맞는지 확인
             const correctOffice = ZONE_TO_OFFICE_MAP[zoneName];
             if (correctOffice && correctOffice !== code) continue;
-            result[zoneName] = {
+            const entry = {
                 officeName: data.officeName,
                 publishTime: data.publishTime,
                 collectedAt: data.collectedAt,
                 ...zoneData
             };
+            result[zoneName] = entry;
+
+            // 별칭도 동일 데이터로 등록 (seaZoneCoordinates.js에서 다른 이름을 사용하는 경우)
+            const alias = COASTAL_ZONE_ALIASES[zoneName];
+            if (alias) {
+                result[alias] = entry;
+            }
         }
     }
     return result;
