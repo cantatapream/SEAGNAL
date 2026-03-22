@@ -236,6 +236,16 @@ router.get('/api/regional-marine-forecast', (req, res) => {
     }
 });
 
+// 5-3. 앞바다 해상예보 (PDF 파싱 데이터)
+router.get('/api/regional-coastal-forecast', (req, res) => {
+    try {
+        const data = regionalForecastCollector.loadCoastalForecasts();
+        res.json(data);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // 6. 통보문 캐시 조회 (특보 히스토리 팝업 → 아코디언 펼침 시 호출)
 // collect_cache 디렉토리에 저장된 통보문별 AI 분석 결과를 반환
 // reportId 예: "met:202602162000:141" → 파일명: "met_202602162000_141.json"

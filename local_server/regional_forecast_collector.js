@@ -352,17 +352,18 @@ async function collectOneOffice(officeCode) {
         const summary = parseSummaryForecast(text);
         const temperature = parseTodayTemperature(text);
         const publishTime = parsePublishTime(text);
-        const marineForecast = parseMarineForecast(text, result.timestamp);
+        const { farSeaZones: marineForecast, coastalZones: coastalForecast } = parseMarineForecast(text, result.timestamp);
 
         const marineCount = Object.keys(marineForecast).length;
-        if (marineCount > 0) {
-            console.log(`[RegionalForecast] ${office.name}: 해상예보 ${marineCount}개 구역 파싱 완료`);
+        const coastalCount = Object.keys(coastalForecast).length;
+        if (marineCount > 0 || coastalCount > 0) {
+            console.log(`[RegionalForecast] ${office.name}: 해상예보 먼바다 ${marineCount}개, 앞바다 ${coastalCount}개 구역 파싱 완료`);
         }
 
         if (!summary) {
             console.log(`[RegionalForecast] ${office.name}: 종합 전망 추출 실패`);
             // 해상예보만이라도 반환
-            if (marineCount === 0) return null;
+            if (marineCount === 0 && coastalCount === 0) return null;
         }
 
         return {
@@ -372,6 +373,7 @@ async function collectOneOffice(officeCode) {
             summary,
             temperature,
             marineForecast,
+            coastalForecast,
             collectedAt: new Date().toISOString()
         };
     } catch (e) {
@@ -595,9 +597,11 @@ function parseMarineForecast(text, publishTimestamp) {
         { dayOffset: 4, period: 'pm' },   // 그글피 오후
     ];
 
-    // 먼바다 구역명 패턴 (PDF에서 줄바꿈 포함)
-    // 예: "안쪽먼바다", "바깥먼바다", "서쪽\n먼바다", "동쪽\n먼바다"
+    // 해상 구역명 패턴 (PDF에서 줄바꿈 포함)
+    // 먼바다: "안쪽먼바다", "바깥먼바다", "서쪽\n먼바다", "동쪽\n먼바다"
+    // 앞바다: "강원북부앞바다", "제주도서부앞바다" 등
     const farSeaZones = {};
+    const coastalZones = {};
 
     // 줄 단위로 분할
     const lines = marineText.split('\n');
@@ -653,8 +657,8 @@ function parseMarineForecast(text, publishTimestamp) {
             }
         }
 
-        // 먼바다 구역명 감지
-        if (line.includes('먼바다')) {
+        // 먼바다 또는 앞바다 구역명 감지
+        if (line.includes('먼바다') || line.includes('앞바다')) {
             // 이전 줄과 합쳐서 전체 구역명 구성
             let zoneName = '';
 
@@ -688,12 +692,10 @@ function parseMarineForecast(text, publishTimestamp) {
                 }
             }
 
-            // 앞바다는 제외, 먼바다만
-            if (!zoneName.includes('먼바다')) continue;
-            // 해상국지 섹션의 앞바다는 제외
-            if (zoneName.includes('앞바다')) continue;
+            // 먼바다 또는 앞바다가 아닌 경우 제외
+            if (!zoneName.includes('먼바다') && !zoneName.includes('앞바다')) continue;
 
-            // 이 구역의 데이터 시작 위치 (먼바다 줄 다음부터)
+            // 이 구역의 데이터 시작 위치
             zoneBlocks.push({ zoneName, startLine: i + 1 });
         }
     }
@@ -770,14 +772,16 @@ function parseMarineForecast(text, publishTimestamp) {
             // ZONE_TO_OFFICE_MAP의 키와 일치하도록 구역명 정규화
             const normalizedName = normalizeMarineZoneName(block.zoneName);
             if (normalizedName) {
-                farSeaZones[normalizedName] = {
-                    periods
-                };
+                if (normalizedName.includes('앞바다')) {
+                    coastalZones[normalizedName] = { periods };
+                } else {
+                    farSeaZones[normalizedName] = { periods };
+                }
             }
         }
     }
 
-    return farSeaZones;
+    return { farSeaZones, coastalZones };
 }
 
 /**
@@ -792,8 +796,9 @@ function normalizeMarineZoneName(rawName) {
         return null;
     }
 
-    // ZONE_TO_OFFICE_MAP에 있는 먼바다 구역명과 매칭
-    const knownZones = Object.keys(ZONE_TO_OFFICE_MAP).filter(z => z.includes('먼바다'));
+    // ZONE_TO_OFFICE_MAP에 있는 먼바다/앞바다 구역명과 매칭
+    const isCoastal = name.includes('앞바다');
+    const knownZones = Object.keys(ZONE_TO_OFFICE_MAP).filter(z => isCoastal ? z.includes('앞바다') : z.includes('먼바다'));
 
     // 정확히 일치
     if (knownZones.includes(name)) return name;
@@ -840,11 +845,34 @@ function loadMarineForecasts() {
     return result;
 }
 
+/**
+ * 앞바다 해상예보 데이터 로드 (모든 지방청의 coastalForecast를 통합)
+ * @returns {Object} { zoneName: { officeName, publishTime, periods: [...] } }
+ */
+function loadCoastalForecasts() {
+    const regional = loadRegionalForecasts();
+    const result = {};
+
+    for (const [code, data] of Object.entries(regional)) {
+        if (code.startsWith('_') || !data || !data.coastalForecast) continue;
+        for (const [zoneName, zoneData] of Object.entries(data.coastalForecast)) {
+            result[zoneName] = {
+                officeName: data.officeName,
+                publishTime: data.publishTime,
+                collectedAt: data.collectedAt,
+                ...zoneData
+            };
+        }
+    }
+    return result;
+}
+
 module.exports = {
     collectRegionalForecasts,
     retryMissingOffices,
     loadRegionalForecasts,
     loadMarineForecasts,
+    loadCoastalForecasts,
     REGIONAL_OFFICES,
     ZONE_TO_OFFICE_MAP
 };

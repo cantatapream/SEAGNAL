@@ -516,62 +516,29 @@ async function showSeaForecastTable(zoneName) {
     let midTermTmFc = null;
     const midTermPromise = midTermRegId ? fetch('/api/mid-term-sea-forecasts').then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null);
 
-    if (isFarSea) {
-        // 먼바다: 지방기상청 PDF 해상예보 데이터 사용 (단기예보 우선, 이후 중기예보로 채움)
-        try {
-            const [marineResponse, midTermJson] = await Promise.all([
-                fetch('/api/regional-marine-forecast'),
-                midTermPromise
-            ]);
+    // 먼바다/앞바다 모두 지방기상청 PDF 해상예보 데이터 사용
+    const forecastApiUrl = isFarSea ? '/api/regional-marine-forecast' : '/api/regional-coastal-forecast';
+    try {
+        const [marineResponse, midTermJson] = await Promise.all([
+            fetch(forecastApiUrl),
+            midTermPromise
+        ]);
 
-            if (midTermJson && midTermJson.data && midTermRegId) {
-                midTermData = midTermJson.data[midTermRegId];
-                midTermTmFc = midTermJson.tmFc;
-            }
-
-            const marineData = marineResponse.ok ? await marineResponse.json() : {};
-            const zoneData = marineData[zoneName];
-
-            if (zoneData && zoneData.periods && zoneData.periods.length > 0) {
-                renderRegionalMarineForecastTable(contentArea, zoneData, displayName, midTermData, midTermTmFc, midTermGroupName);
-            } else {
-                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역(${zoneName})의 예보 데이터가 없습니다.<br><small style="color:#666;">스케줄러가 데이터를 수집할 때까지 기다려주세요.</small></div>`;
-            }
-        } catch (error) {
-            contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ef5350;">❌ 데이터 조회 중 오류가 발생했습니다.<br><small>${error.message}</small></div>`;
-        }
-    } else {
-        // 앞바다: 기존 단기예보 API 데이터 사용
-        const regId = getZoneCodeByName(zoneName);
-        if (!regId) {
-            contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역의 예보 코드를 찾을 수 없습니다.<br><small style="color:#666;">(${zoneName})</small></div>`;
-            return;
+        if (midTermJson && midTermJson.data && midTermRegId) {
+            midTermData = midTermJson.data[midTermRegId];
+            midTermTmFc = midTermJson.tmFc;
         }
 
-        try {
-            const [response, midTermJson] = await Promise.all([
-                fetch('/api/forecasts'),
-                midTermPromise
-            ]);
-            if (!response.ok) throw new Error('로컬 서버 응답 오류');
+        const marineData = marineResponse.ok ? await marineResponse.json() : {};
+        const zoneData = marineData[zoneName];
 
-            const json = await response.json();
-            const items = json.data && json.data[regId];
-
-            if (midTermJson && midTermJson.data && midTermRegId) {
-                midTermData = midTermJson.data[midTermRegId];
-                midTermTmFc = midTermJson.tmFc;
-            }
-
-            if (items && items.length > 0) {
-                const tmFc = json.tmFc || (items[0] && items[0].tmFc);
-                renderSeaForecastTableInModal(contentArea, items, displayName, tmFc, midTermData, midTermTmFc, midTermGroupName);
-            } else {
-                contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역(${regId})의 예보 데이터가 없습니다.<br><small style="color:#666;">스케줄러가 데이터를 수집할 때까지 기다려주세요.</small></div>`;
-            }
-        } catch (error) {
-            contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ef5350;">❌ 데이터 조회 중 오류가 발생했습니다.<br><small>${error.message}</small></div>`;
+        if (zoneData && zoneData.periods && zoneData.periods.length > 0) {
+            renderRegionalMarineForecastTable(contentArea, zoneData, displayName, midTermData, midTermTmFc, midTermGroupName);
+        } else {
+            contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ff9800;">⚠️ 해당 구역(${zoneName})의 예보 데이터가 없습니다.<br><small style="color:#666;">스케줄러가 데이터를 수집할 때까지 기다려주세요.</small></div>`;
         }
+    } catch (error) {
+        contentArea.innerHTML = `<div style="text-align:center;padding:30px;color:#ef5350;">❌ 데이터 조회 중 오류가 발생했습니다.<br><small>${error.message}</small></div>`;
     }
 }
 
@@ -1623,7 +1590,7 @@ function renderRegionalMarineForecastTable(container, zoneData, zoneName, midTer
         ['am', 'pm'].forEach(period => {
             const p = group[period];
             if (p && p.waveHeight && p.waveHeight !== '-') {
-                html += `<td style="${tdStyle};color:#4db6ac;font-weight:600;">${p.waveHeight}m</td>`;
+                html += `<td style="${tdStyle};color:#4db6ac;font-weight:600;font-size:0.78rem;padding:8px 2px;">${p.waveHeight}m</td>`;
             } else {
                 html += `<td style="${tdStyle};color:#8899aa;font-size:0.7rem;">-</td>`;
             }
@@ -1645,7 +1612,7 @@ function renderRegionalMarineForecastTable(container, zoneData, zoneName, midTer
             if (p && p.wind && p.wind !== '-') {
                 const parts = p.wind.split('/').map(s => s.trim());
                 const speed = parts[1] || '-';
-                html += `<td style="${tdStyle};color:#ff9800;font-weight:600;">${speed}m/s</td>`;
+                html += `<td style="${tdStyle};color:#ff9800;font-weight:600;font-size:0.78rem;padding:8px 2px;">${speed}m/s</td>`;
             } else {
                 html += `<td style="${tdStyle};color:#8899aa;font-size:0.7rem;">-</td>`;
             }
