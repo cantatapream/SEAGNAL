@@ -23,18 +23,25 @@ let pdfParse;
 try {
     const pdfModule = require('pdf-parse');
     if (typeof pdfModule === 'function') {
-        // pdf-parse v1: 함수형 API
+        // pdf-parse v1: 함수형 API (정상)
         pdfParse = pdfModule;
-    } else if (pdfModule && pdfModule.PDFParse) {
-        // pdf-parse v2: 클래스형 API → v1 호환 래퍼
-        pdfParse = async (buffer) => {
-            const parser = new pdfModule.PDFParse(new Uint8Array(buffer));
-            await parser.load();
-            const result = await parser.getText();
-            return { text: result.text, numpages: result.total };
-        };
     } else {
-        pdfParse = null;
+        // pdf-parse v2가 로드됨 → v1을 상위 node_modules에서 시도
+        // v2는 테이블 텍스트 추출 방식이 다르므로 v1 필요
+        try {
+            const v1Path = require.resolve('pdf-parse', { paths: [path.join(__dirname, '..')] });
+            const v1Module = require(v1Path);
+            if (typeof v1Module === 'function') {
+                pdfParse = v1Module;
+                console.log('[RegionalForecast] pdf-parse v1 로드 (상위 경로)');
+            } else {
+                console.error('⚠️ pdf-parse v1을 찾을 수 없음. v2는 해상 테이블 파싱과 호환되지 않습니다.');
+                pdfParse = null;
+            }
+        } catch {
+            console.error('⚠️ pdf-parse v1을 상위 경로에서 찾을 수 없음');
+            pdfParse = null;
+        }
     }
 } catch (e) {
     console.error('⚠️ pdf-parse 모듈 로드 실패:', e.message);
