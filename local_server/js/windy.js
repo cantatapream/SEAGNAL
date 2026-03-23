@@ -653,6 +653,7 @@ function createStatusCard(zoneName) {
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
+            margin-right: 8px;
         `;
 
         // 부이 버튼들 (기본 회색, 데이터 로드 후 updateBuoyButtonColors로 색상 갱신)

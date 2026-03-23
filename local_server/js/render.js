@@ -934,7 +934,7 @@ function createAlertElement(items) {
         buoyContainer.appendChild(buoyTitle);
 
         const btnContainer = document.createElement('div');
-        btnContainer.style.cssText = 'display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;';
+        btnContainer.style.cssText = 'display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; margin-right: 8px;';
 
         const infoArea = document.createElement('div');
         infoArea.className = 'buoy-info-area';
