@@ -59,6 +59,11 @@ async function fetchAllData() {
         updateApiStatusDisplay();
         renderApp();
 
+        // 부이 데이터 로드 완료 → 부이 버튼 색상 갱신
+        if (typeof updateBuoyButtonColors === 'function') {
+            updateBuoyButtonColors();
+        }
+
         // 해상 기상 전망 데이터도 함께 갱신
         if (typeof loadMarineForecast === 'function') {
             loadMarineForecast();

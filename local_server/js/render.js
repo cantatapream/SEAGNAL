@@ -942,33 +942,23 @@ function createAlertElement(items) {
 
         buoys.forEach(buoy => {
             const btn = document.createElement('button');
-            btn.className = 'buoy-btn';
+            btn.className = 'buoy-btn buoy-status-btn';
             btn.textContent = buoy.name;
             btn.dataset.buoyId = buoy.id;
 
-            // 부이 데이터 수집 여부 확인 → 미수집 시 빨간색 표시
-            const hasData = appState.buoyData && appState.buoyData[buoy.id];
-            const defaultColor = hasData ? '#ccc' : '#ff6b6b';
-            const defaultBorder = hasData ? 'rgba(255,255,255,0.15)' : 'rgba(255,107,107,0.4)';
-
-            btn.style.cssText = `padding: 6px 14px; border-radius: 16px; border: 1px solid ${defaultBorder}; background: rgba(255,255,255,0.05); color: ${defaultColor}; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; flex-shrink: 0;`;
+            // 기본 회색으로 생성 (데이터 로드 후 updateBuoyButtonColors로 색상 갱신)
+            btn.style.cssText = `padding: 6px 14px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #ccc; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;`;
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (btn.classList.contains('active')) {
                     btn.classList.remove('active');
-                    btn.style.backgroundColor = 'rgba(255,255,255,0.05)';
-                    btn.style.color = defaultColor;
-                    btn.style.borderColor = defaultBorder;
+                    if (typeof _applyBuoyDefaultStyle === 'function') _applyBuoyDefaultStyle(btn);
                     infoArea.style.display = 'none';
                     return;
                 }
                 btnContainer.querySelectorAll('.buoy-btn').forEach(b => {
                     b.classList.remove('active');
-                    b.style.backgroundColor = 'rgba(255,255,255,0.05)';
-                    const bBuoyId = b.dataset.buoyId;
-                    const bHasData = appState.buoyData && appState.buoyData[bBuoyId];
-                    b.style.color = bHasData ? '#ccc' : '#ff6b6b';
-                    b.style.borderColor = bHasData ? 'rgba(255,255,255,0.15)' : 'rgba(255,107,107,0.4)';
+                    if (typeof _applyBuoyDefaultStyle === 'function') _applyBuoyDefaultStyle(b);
                 });
                 btn.classList.add('active');
                 btn.style.backgroundColor = 'rgba(68, 138, 255, 0.3)';

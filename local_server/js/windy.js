@@ -428,6 +428,7 @@ async function renderMarineWeatherStatus() {
                 listContainer.className = 'sub-region-list';
                 listContainer.style.display = 'none';
                 listContainer.style.paddingLeft = '12px';
+                listContainer.style.paddingRight = '4px';
 
                 // 토글 기능 (배타적 모드: 하나만 열림, 슬라이드 애니메이션)
                 subHeader.onclick = () => {
@@ -520,6 +521,7 @@ function createStatusCard(zoneName) {
         background: rgba(30, 40, 60, 0.6);
         border: 1px solid rgba(255, 255, 255, 0.08);
         transition: all 0.2s ease;
+        overflow: visible;
     `;
 
     // === 헤더 영역: 구역명 + 버튼들 ===
@@ -644,34 +646,31 @@ function createStatusCard(zoneName) {
         `;
         buoySection.appendChild(buoyLabel);
 
-        // 부이 버튼 컨테이너 (별도 div로 분리하여 잘림 방지)
+        // 부이 버튼 컨테이너
         const buoyBtnWrap = document.createElement('div');
         buoyBtnWrap.style.cssText = `
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
+            padding-right: 4px;
         `;
 
-        // 부이 버튼들
+        // 부이 버튼들 (기본 회색, 데이터 로드 후 updateBuoyButtonColors로 색상 갱신)
         buoys.forEach(buoy => {
             const btn = document.createElement('button');
             btn.textContent = buoy.name;
-
-            // 부이 데이터 수집 여부 확인 → 미수집 시 빨간색 표시
-            const hasData = typeof appState !== 'undefined' && appState.buoyData && appState.buoyData[buoy.id];
-            const defaultColor = hasData ? '#ccc' : '#ff6b6b';
-            const defaultBorder = hasData ? 'rgba(255,255,255,0.15)' : 'rgba(255,107,107,0.4)';
+            btn.dataset.buoyId = buoy.id;
+            btn.className = 'buoy-status-btn';
 
             btn.style.cssText = `
                 padding: 4px 10px;
                 border-radius: 12px;
-                border: 1px solid ${defaultBorder};
+                border: 1px solid rgba(255,255,255,0.15);
                 background: rgba(255,255,255,0.05);
-                color: ${defaultColor};
+                color: #ccc;
                 font-size: 0.75rem;
                 cursor: pointer;
                 transition: all 0.2s;
-                flex-shrink: 0;
             `;
 
             btn.onclick = (e) => {
@@ -680,22 +679,16 @@ function createStatusCard(zoneName) {
                 // 이미 활성화된 버튼 클릭 시 닫기
                 if (btn.classList.contains('active')) {
                     btn.classList.remove('active');
-                    btn.style.backgroundColor = 'rgba(255,255,255,0.05)';
-                    btn.style.color = defaultColor;
-                    btn.style.borderColor = defaultBorder;
+                    _applyBuoyDefaultStyle(btn);
                     const infoArea = buoySection.querySelector('.buoy-info-area');
                     if (infoArea) infoArea.style.display = 'none';
                     return;
                 }
 
                 // 다른 버튼 비활성화
-                buoyBtnWrap.querySelectorAll('button').forEach(b => {
+                buoyBtnWrap.querySelectorAll('.buoy-status-btn').forEach(b => {
                     b.classList.remove('active');
-                    b.style.backgroundColor = 'rgba(255,255,255,0.05)';
-                    const bBuoyId = b.dataset.buoyId;
-                    const bHasData = typeof appState !== 'undefined' && appState.buoyData && appState.buoyData[bBuoyId];
-                    b.style.color = bHasData ? '#ccc' : '#ff6b6b';
-                    b.style.borderColor = bHasData ? 'rgba(255,255,255,0.15)' : 'rgba(255,107,107,0.4)';
+                    _applyBuoyDefaultStyle(b);
                 });
 
                 // 현재 버튼 활성화
@@ -724,7 +717,6 @@ function createStatusCard(zoneName) {
                     infoArea.style.display = 'block';
                 }
             };
-            btn.dataset.buoyId = buoy.id;
             buoyBtnWrap.appendChild(btn);
         });
 
@@ -733,6 +725,28 @@ function createStatusCard(zoneName) {
     }
 
     return card;
+}
+
+/**
+ * 부이 버튼의 기본 스타일 적용 (active 해제 시)
+ * appState.buoyData 존재 여부에 따라 회색/빨간색 결정
+ */
+function _applyBuoyDefaultStyle(btn) {
+    const buoyId = btn.dataset.buoyId;
+    const hasData = typeof appState !== 'undefined' && appState.buoyData && appState.buoyData[buoyId];
+    btn.style.backgroundColor = 'rgba(255,255,255,0.05)';
+    btn.style.color = hasData ? '#ccc' : '#ff6b6b';
+    btn.style.borderColor = hasData ? 'rgba(255,255,255,0.15)' : 'rgba(255,107,107,0.4)';
+}
+
+/**
+ * 부이 데이터 로드 완료 후 호출하여 모든 부이 버튼의 색상을 갱신
+ */
+function updateBuoyButtonColors() {
+    document.querySelectorAll('.buoy-status-btn').forEach(btn => {
+        if (btn.classList.contains('active')) return; // 활성화 상태는 유지
+        _applyBuoyDefaultStyle(btn);
+    });
 }
 
 window.toggleMarineStatusAccordion = function () {
