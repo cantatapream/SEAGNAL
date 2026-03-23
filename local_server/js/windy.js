@@ -428,7 +428,6 @@ async function renderMarineWeatherStatus() {
                 listContainer.className = 'sub-region-list';
                 listContainer.style.display = 'none';
                 listContainer.style.paddingLeft = '12px';
-                listContainer.style.paddingRight = '4px';
 
                 // 토글 기능 (배타적 모드: 하나만 열림, 슬라이드 애니메이션)
                 subHeader.onclick = () => {
@@ -508,6 +507,9 @@ async function renderMarineWeatherStatus() {
             }
         }
     }
+
+    // 카드 생성 완료 후 부이 데이터가 이미 로드되어 있으면 색상 갱신
+    updateBuoyButtonColors();
 }
 
 // 개별 구역 카드 생성 (기상 현황용) - 특보 현황과 100% 일치하도록 조정
@@ -521,7 +523,6 @@ function createStatusCard(zoneName) {
         background: rgba(30, 40, 60, 0.6);
         border: 1px solid rgba(255, 255, 255, 0.08);
         transition: all 0.2s ease;
-        overflow: visible;
     `;
 
     // === 헤더 영역: 구역명 + 버튼들 ===
@@ -652,7 +653,6 @@ function createStatusCard(zoneName) {
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
-            padding-right: 4px;
         `;
 
         // 부이 버튼들 (기본 회색, 데이터 로드 후 updateBuoyButtonColors로 색상 갱신)

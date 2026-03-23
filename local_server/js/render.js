@@ -946,8 +946,12 @@ function createAlertElement(items) {
             btn.textContent = buoy.name;
             btn.dataset.buoyId = buoy.id;
 
-            // 기본 회색으로 생성 (데이터 로드 후 updateBuoyButtonColors로 색상 갱신)
-            btn.style.cssText = `padding: 6px 14px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #ccc; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;`;
+            // renderApp() 시점에는 appState.buoyData가 이미 로드됨 → 즉시 판단
+            const hasData = appState.buoyData && appState.buoyData[buoy.id];
+            const defaultColor = hasData ? '#ccc' : '#ff6b6b';
+            const defaultBorder = hasData ? 'rgba(255,255,255,0.15)' : 'rgba(255,107,107,0.4)';
+
+            btn.style.cssText = `padding: 6px 14px; border-radius: 16px; border: 1px solid ${defaultBorder}; background: rgba(255,255,255,0.05); color: ${defaultColor}; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;`;
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (btn.classList.contains('active')) {
