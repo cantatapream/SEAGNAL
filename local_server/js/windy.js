@@ -653,7 +653,6 @@ function createStatusCard(zoneName) {
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
-            margin-right: 8px;
         `;
 
         // 부이 버튼들 (기본 회색, 데이터 로드 후 updateBuoyButtonColors로 색상 갱신)
@@ -666,8 +665,8 @@ function createStatusCard(zoneName) {
             btn.style.cssText = `
                 padding: 4px 10px;
                 border-radius: 12px;
-                border: 1px solid rgba(255,255,255,0.15);
-                background: rgba(255,255,255,0.05);
+                border: 1px solid rgba(255,255,255,0.3);
+                background: rgba(255,255,255,0.08);
                 color: #ccc;
                 font-size: 0.75rem;
                 cursor: pointer;
@@ -735,9 +734,9 @@ function createStatusCard(zoneName) {
 function _applyBuoyDefaultStyle(btn) {
     const buoyId = btn.dataset.buoyId;
     const hasData = typeof appState !== 'undefined' && appState.buoyData && appState.buoyData[buoyId];
-    btn.style.backgroundColor = 'rgba(255,255,255,0.05)';
+    btn.style.backgroundColor = 'rgba(255,255,255,0.08)';
     btn.style.color = hasData ? '#ccc' : '#ff6b6b';
-    btn.style.borderColor = hasData ? 'rgba(255,255,255,0.15)' : 'rgba(255,107,107,0.4)';
+    btn.style.borderColor = hasData ? 'rgba(255,255,255,0.3)' : 'rgba(255,107,107,0.5)';
 }
 
 /**
