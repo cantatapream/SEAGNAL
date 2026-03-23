@@ -21,7 +21,28 @@ const fs = require('fs');
 const path = require('path');
 let pdfParse;
 try {
-    pdfParse = require('pdf-parse');
+    const pdfModule = require('pdf-parse');
+    if (typeof pdfModule === 'function') {
+        // pdf-parse v1: 함수형 API (정상)
+        pdfParse = pdfModule;
+    } else {
+        // pdf-parse v2가 로드됨 → v1을 상위 node_modules에서 시도
+        // v2는 테이블 텍스트 추출 방식이 다르므로 v1 필요
+        try {
+            const v1Path = require.resolve('pdf-parse', { paths: [path.join(__dirname, '..')] });
+            const v1Module = require(v1Path);
+            if (typeof v1Module === 'function') {
+                pdfParse = v1Module;
+                console.log('[RegionalForecast] pdf-parse v1 로드 (상위 경로)');
+            } else {
+                console.error('⚠️ pdf-parse v1을 찾을 수 없음. v2는 해상 테이블 파싱과 호환되지 않습니다.');
+                pdfParse = null;
+            }
+        } catch {
+            console.error('⚠️ pdf-parse v1을 상위 경로에서 찾을 수 없음');
+            pdfParse = null;
+        }
+    }
 } catch (e) {
     console.error('⚠️ pdf-parse 모듈 로드 실패:', e.message);
     pdfParse = null;
@@ -61,9 +82,9 @@ const ZONE_TO_OFFICE_MAP = {
     '인천·경기북부앞바다': '109',
     '경기북부앞바다': '109',  // seaZoneCoordinates.js에서 사용하는 별칭
     '인천·경기남부앞바다': '109',
-    // 충남 → 수도권기상청(109) (수도권기상청 PDF에서 해상구역으로 제공)
-    '충남북부앞바다': '109',
-    '충남남부앞바다': '109',
+    // 충남 → 대전지방기상청(133)
+    '충남북부앞바다': '133',
+    '충남남부앞바다': '133',
     // 전북, 전남 → 광주지방기상청(156)
     '전북북부앞바다': '156',
     '전북남부앞바다': '156',
@@ -567,8 +588,12 @@ async function retryMissingOffices() {
 function parseMarineForecast(text, publishTimestamp) {
     if (!text) return { farSeaZones: {}, coastalZones: {} };
 
-    // 해상 섹션 추출 (단 기 예 보 [해상] 이후)
-    const marineIdx = text.indexOf('단 기 예 보 [해상]');
+    // 해상 섹션 추출 (단 기 예 보 [해상] 또는 [육상/해상] 이후)
+    let marineIdx = text.indexOf('단 기 예 보 [해상]');
+    if (marineIdx === -1) {
+        // 대전지방기상청 등 육상/해상 합본 PDF 지원
+        marineIdx = text.indexOf('단 기 예 보 [육상/해상]');
+    }
     if (marineIdx === -1) return { farSeaZones: {}, coastalZones: {} };
 
     const marineText = text.substring(marineIdx);
@@ -619,8 +644,8 @@ function parseMarineForecast(text, publishTimestamp) {
     const farSeaZones = {};
     const coastalZones = {};
 
-    // 줄 단위로 분할
-    const lines = marineText.split('\n');
+    // 줄 단위로 분할 (pdf-parse v2는 같은 Y좌표의 셀을 탭으로 구분하므로 탭도 줄바꿈으로 변환)
+    const lines = marineText.replace(/\t/g, '\n').split('\n');
 
     // 먼바다 구역을 찾고 해당 줄 이후의 데이터를 파싱
     // 전략: "먼바다" 키워드가 포함된 구역명을 찾고, 이후 풍향/풍속 + 날씨 + 파고 패턴을 9회 추출
@@ -655,6 +680,7 @@ function parseMarineForecast(text, publishTimestamp) {
     // 먼바다 키워드를 포함하는 줄의 인덱스 찾기
     const zoneBlocks = [];
     let currentParent = ''; // 상위 카테고리 (동해남부, 서해남부 등)
+    let lastDirectionPrefix = ''; // 방향 접두어 (북쪽, 남쪽, 서쪽, 동쪽)
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -664,20 +690,29 @@ function parseMarineForecast(text, publishTimestamp) {
         if (/^[동서남]$/.test(line) && i + 1 < lines.length) {
             let vertical = line;
             let j = i + 1;
-            while (j < lines.length && /^[해서남북중부]$/.test(lines[j].trim())) {
+            while (j < lines.length && /^[해서남북중부동]$/.test(lines[j].trim())) {
                 vertical += lines[j].trim();
                 j++;
             }
             if (vertical.length >= 2) {
                 currentParent = vertical;
+                lastDirectionPrefix = ''; // 새 섹션 시작 시 방향 접두어 초기화
+                i = j - 1; // 세로 텍스트로 소비된 줄을 건너뛰어 중복 감지 방지
             }
         }
         // Case 2: 한 줄로 추출된 상위 카테고리 (세로 텍스트가 병합된 경우)
         if (/^(서해중부|서해남부|서해북부|동해중부|동해남부|남해동부|남해서부)$/.test(line)) {
             currentParent = line;
+            lastDirectionPrefix = ''; // 새 섹션 시작 시 방향 접두어 초기화
         }
         // Case 3: "해상구역" 또는 "해상국지" 같은 섹션 구분자는 parent로 사용하지 않음
         // (해상구역 하위에는 개별 구역명이 직접 나옴)
+
+        // 방향 접두어 추적 (북쪽, 남쪽, 서쪽, 동쪽)
+        // PDF에서 "북쪽\n안쪽먼바다" 같은 2줄 구역명의 첫 줄을 기억
+        if (/^(북쪽|남쪽|서쪽|동쪽)$/.test(line)) {
+            lastDirectionPrefix = line;
+        }
 
         // 먼바다 또는 앞바다 구역명 감지
         if (line.includes('먼바다') || line.includes('앞바다')) {
@@ -709,6 +744,15 @@ function parseMarineForecast(text, publishTimestamp) {
                 zoneName = line.replace(/\s/g, '');
             }
 
+            // 방향 접두어 적용 (PDF에서 "북쪽"과 "안쪽먼바다"가 데이터 줄로 분리된 경우)
+            // "안쪽먼바다" → "북쪽안쪽먼바다", "바깥먼바다" → "남쪽바깥먼바다"
+            // "먼바다" → "서쪽먼바다" (남해서부 서쪽/동쪽먼바다)
+            if (lastDirectionPrefix && (
+                zoneName === '먼바다' ||
+                zoneName.startsWith('안쪽') || zoneName.startsWith('바깥'))) {
+                zoneName = lastDirectionPrefix + zoneName;
+            }
+
             // 상위 카테고리 붙이기 (세로 텍스트에서 추출한 동해남부, 서해중부 등)
             // 단독 "앞바다"/"먼바다" 또는 방향 접두어만 있는 경우
             if (zoneName === '앞바다' || zoneName === '먼바다' ||
@@ -738,72 +782,90 @@ function parseMarineForecast(text, publishTimestamp) {
         console.log(`[MarineParse] 먼바다 구역 감지: ${farBlocks.map(b => b.zoneName).join(', ')}`);
     }
 
-    // 각 구역 블록에서 9개 시간대 데이터 추출
+    // 각 구역 블록에서 시간대 데이터 추출 (수집-후-매칭 방식)
+    // pdf-parse의 텍스트 추출 순서에 의존하지 않고, 풍향/풍속·날씨·파고를 독립 수집 후 인덱스로 결합
     for (const block of zoneBlocks) {
-        const periods = [];
+        const winds = [];
+        const weathers = [];
+        const waves = [];
         let lineIdx = block.startLine;
-        let slotCount = 0;
 
-        while (slotCount < timeSlots.length && lineIdx < lines.length) {
+        // 1단계: 구역 데이터 영역의 모든 값을 유형별로 수집
+        while (lineIdx < lines.length) {
             const line = lines[lineIdx].trim();
+            if (!line) { lineIdx++; continue; }
 
             // 다음 구역이나 섹션 시작이면 중단
             if (line.includes('먼바다') || line.includes('앞바다') ||
                 line === '※' || line.startsWith('※ 날씨')) break;
 
-            // 풍향/풍속 패턴 매칭
+            // 충분한 데이터를 수집했으면 중단
+            if (winds.length >= timeSlots.length && weathers.length >= timeSlots.length && waves.length >= timeSlots.length) break;
+
+            // 풍향/풍속 패턴
             const windMatch = line.match(windPattern);
             if (windMatch) {
-                const wind = `${windMatch[1]} / ${windMatch[2]}`;
-
-                // 다음 줄: 날씨 (맑음, 흐림, 구름많음 등)
+                winds.push(`${windMatch[1]} / ${windMatch[2]}`);
                 lineIdx++;
-                let weather = '';
-                while (lineIdx < lines.length) {
-                    const wLine = lines[lineIdx].trim();
-                    // 파고 시작 (숫자) 이면 날씨 수집 종료
-                    if (waveSimplePattern.test(wLine)) break;
-                    if (wLine === '~') break;
-                    // 빈 줄 스킵
-                    if (wLine === '') { lineIdx++; continue; }
-                    // 풍향 패턴이면 날씨 없이 다음 시간대
-                    if (windPattern.test(wLine)) break;
-                    weather += (weather ? ' ' : '') + wLine;
-                    lineIdx++;
-                }
-
-                // 파고 추출
-                let waveHeight = '';
-                const curLine = lineIdx < lines.length ? lines[lineIdx].trim() : '';
-                if (waveSimplePattern.test(curLine)) {
-                    waveHeight = curLine;
-                    lineIdx++;
-                    // "0.5\n~\n1.5" 패턴 확인
-                    if (lineIdx < lines.length && lines[lineIdx].trim() === '~') {
-                        lineIdx++;
-                        if (lineIdx < lines.length && waveSimplePattern.test(lines[lineIdx].trim())) {
-                            waveHeight += '~' + lines[lineIdx].trim();
-                            lineIdx++;
-                        }
-                    }
-                }
-
-                const slot = timeSlots[slotCount];
-                const date = new Date(baseDate);
-                date.setDate(date.getDate() + slot.dayOffset);
-                const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
-
-                periods.push({
-                    date: dateStr,
-                    period: slot.period,
-                    wind,
-                    weather: weather || '-',
-                    waveHeight: waveHeight || '-'
-                });
-                slotCount++;
                 continue;
             }
+
+            // 파고 패턴 (단순 숫자)
+            if (waveSimplePattern.test(line)) {
+                let waveVal = line;
+                // "0.5\n~\n1.5" 범위 패턴 확인
+                if (lineIdx + 2 < lines.length &&
+                    lines[lineIdx + 1].trim() === '~' &&
+                    waveSimplePattern.test(lines[lineIdx + 2].trim())) {
+                    waveVal += '~' + lines[lineIdx + 2].trim();
+                    lineIdx += 2;
+                }
+                waves.push(waveVal);
+                lineIdx++;
+                continue;
+            }
+
+            // ~ 문자 (파고 범위 구분자) - 위에서 처리되지 않은 경우 스킵
+            if (line === '~') { lineIdx++; continue; }
+
+            // 날씨 키워드 체크
+            const weatherKeywords = ['맑음', '구름많음', '구름많', '흐림', '흐리고', '비', '눈', '소나기', '안개'];
+            if (weatherKeywords.some(w => line.includes(w))) {
+                let weatherText = line;
+                // 복합 날씨 ("흐리고" 다음에 "비", "눈" 등) 처리
+                // "흐리고\n한때 비 곳" 등 다음 줄에 비/눈이 포함된 경우도 병합
+                if (line.includes('흐리고') && !line.includes('비') && !line.includes('눈') && !line.includes('소나기')) {
+                    const nextLine = lineIdx + 1 < lines.length ? lines[lineIdx + 1].trim() : '';
+                    if (['비', '눈', '비/눈', '소나기'].some(w => nextLine.includes(w))) {
+                        weatherText += ' ' + nextLine;
+                        lineIdx++;
+                    }
+                }
+                weathers.push(weatherText);
+                lineIdx++;
+                continue;
+            }
+
             lineIdx++;
+        }
+
+        // 2단계: 수집된 데이터를 인덱스로 결합하여 시간대별 데이터 생성
+        const periods = [];
+        const maxSlots = Math.min(winds.length, timeSlots.length);
+
+        for (let s = 0; s < maxSlots; s++) {
+            const slot = timeSlots[s];
+            const date = new Date(baseDate);
+            date.setDate(date.getDate() + slot.dayOffset);
+            const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
+
+            periods.push({
+                date: dateStr,
+                period: slot.period,
+                wind: winds[s],
+                weather: s < weathers.length ? weathers[s] : '-',
+                waveHeight: s < waves.length ? waves[s] : '-'
+            });
         }
 
         if (periods.length > 0) {
@@ -846,6 +908,7 @@ function parseMarineForecast(text, publishTimestamp) {
     // 먼바다도 동일하게 통합 구역 확장
     const FAR_SEA_EXPANSION_MAP = {
         '서해남부먼바다': ['서해남부북쪽안쪽먼바다', '서해남부북쪽바깥먼바다', '서해남부남쪽안쪽먼바다', '서해남부남쪽바깥먼바다'],
+        '남해서부먼바다': ['남해서부서쪽먼바다', '남해서부동쪽먼바다'],
     };
 
     for (const [genericName, specificNames] of Object.entries(FAR_SEA_EXPANSION_MAP)) {
@@ -873,6 +936,11 @@ function normalizeMarineZoneName(rawName) {
     // PDF에서 '인천경기' (가운뎃점 누락) → '인천·경기' 정규화
     if (name.includes('인천경기') && !name.includes('인천·경기')) {
         name = name.replace('인천경기', '인천·경기');
+    }
+
+    // PDF에서 '인천.경기' (마침표) → '인천·경기' 정규화
+    if (name.includes('인천.경기')) {
+        name = name.replace('인천.경기', '인천·경기');
     }
 
     // 대화퇴, 연해주, 규슈, 동중국해 등 관련 없는 구역 제외
