@@ -21,7 +21,21 @@ const fs = require('fs');
 const path = require('path');
 let pdfParse;
 try {
-    pdfParse = require('pdf-parse');
+    const pdfModule = require('pdf-parse');
+    if (typeof pdfModule === 'function') {
+        // pdf-parse v1: 함수형 API
+        pdfParse = pdfModule;
+    } else if (pdfModule && pdfModule.PDFParse) {
+        // pdf-parse v2: 클래스형 API → v1 호환 래퍼
+        pdfParse = async (buffer) => {
+            const parser = new pdfModule.PDFParse(new Uint8Array(buffer));
+            await parser.load();
+            const result = await parser.getText();
+            return { text: result.text, numpages: result.total };
+        };
+    } else {
+        pdfParse = null;
+    }
 } catch (e) {
     console.error('⚠️ pdf-parse 모듈 로드 실패:', e.message);
     pdfParse = null;
@@ -49,8 +63,10 @@ const ZONE_TO_OFFICE_MAP = {
     '강원중부앞바다': '105',
     '강원남부앞바다': '105',
     // 경북, 울산 → 대구지방기상청(143)
-    '경북북부앞바다': '143',
-    '경북남부앞바다': '143',
+    '경북북부동해앞바다': '143',
+    '경북남부동해앞바다': '143',
+    '경북북부앞바다': '143',  // PDF 파싱 시 사용되는 약칭 별칭
+    '경북남부앞바다': '143',  // PDF 파싱 시 사용되는 약칭 별칭
     '울산앞바다': '143',
     // 부산, 경남, 거제 → 부산지방기상청(159)
     '부산앞바다': '159',
@@ -61,9 +77,9 @@ const ZONE_TO_OFFICE_MAP = {
     '인천·경기북부앞바다': '109',
     '경기북부앞바다': '109',  // seaZoneCoordinates.js에서 사용하는 별칭
     '인천·경기남부앞바다': '109',
-    // 충남 → 대전지방기상청(133)
-    '충남북부앞바다': '133',
-    '충남남부앞바다': '133',
+    // 충남 → 수도권기상청(109) (대전기상청 PDF에 해상 섹션 없음, 서해중부앞바다 확장으로 처리)
+    '충남북부앞바다': '109',
+    '충남남부앞바다': '109',
     // 전북, 전남 → 광주지방기상청(156)
     '전북북부앞바다': '156',
     '전북남부앞바다': '156',
@@ -672,6 +688,7 @@ function parseMarineForecast(text, publishTimestamp) {
             if (vertical.length >= 2) {
                 currentParent = vertical;
                 lastDirectionPrefix = ''; // 새 섹션 시작 시 방향 접두어 초기화
+                i = j - 1; // 세로 텍스트로 소비된 줄을 건너뛰어 중복 감지 방지
             }
         }
         // Case 2: 한 줄로 추출된 상위 카테고리 (세로 텍스트가 병합된 경우)
@@ -911,6 +928,15 @@ function normalizeMarineZoneName(rawName) {
     if (name.includes('인천경기') && !name.includes('인천·경기')) {
         name = name.replace('인천경기', '인천·경기');
     }
+
+    // PDF에서 '인천.경기' (마침표) → '인천·경기' 정규화
+    if (name.includes('인천.경기')) {
+        name = name.replace('인천.경기', '인천·경기');
+    }
+
+    // 대구지방기상청 PDF에서 '경북북부앞바다' → '경북북부동해앞바다' 정규화
+    if (name === '경북북부앞바다') name = '경북북부동해앞바다';
+    if (name === '경북남부앞바다') name = '경북남부동해앞바다';
 
     // 대화퇴, 연해주, 규슈, 동중국해 등 관련 없는 구역 제외
     if (['대화퇴', '연해주', '규슈서해', '규슈남해', '동중국해'].some(x => name.includes(x))) {
