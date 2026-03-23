@@ -655,6 +655,7 @@ function parseMarineForecast(text, publishTimestamp) {
     // 먼바다 키워드를 포함하는 줄의 인덱스 찾기
     const zoneBlocks = [];
     let currentParent = ''; // 상위 카테고리 (동해남부, 서해남부 등)
+    let lastDirectionPrefix = ''; // 방향 접두어 (북쪽, 남쪽, 서쪽, 동쪽)
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -670,14 +671,22 @@ function parseMarineForecast(text, publishTimestamp) {
             }
             if (vertical.length >= 2) {
                 currentParent = vertical;
+                lastDirectionPrefix = ''; // 새 섹션 시작 시 방향 접두어 초기화
             }
         }
         // Case 2: 한 줄로 추출된 상위 카테고리 (세로 텍스트가 병합된 경우)
         if (/^(서해중부|서해남부|서해북부|동해중부|동해남부|남해동부|남해서부)$/.test(line)) {
             currentParent = line;
+            lastDirectionPrefix = ''; // 새 섹션 시작 시 방향 접두어 초기화
         }
         // Case 3: "해상구역" 또는 "해상국지" 같은 섹션 구분자는 parent로 사용하지 않음
         // (해상구역 하위에는 개별 구역명이 직접 나옴)
+
+        // 방향 접두어 추적 (북쪽, 남쪽, 서쪽, 동쪽)
+        // PDF에서 "북쪽\n안쪽먼바다" 같은 2줄 구역명의 첫 줄을 기억
+        if (/^(북쪽|남쪽|서쪽|동쪽)$/.test(line)) {
+            lastDirectionPrefix = line;
+        }
 
         // 먼바다 또는 앞바다 구역명 감지
         if (line.includes('먼바다') || line.includes('앞바다')) {
@@ -707,6 +716,15 @@ function parseMarineForecast(text, publishTimestamp) {
             } else {
                 // 이전 줄 없거나 데이터 → 현재 줄만 사용
                 zoneName = line.replace(/\s/g, '');
+            }
+
+            // 방향 접두어 적용 (PDF에서 "북쪽"과 "안쪽먼바다"가 데이터 줄로 분리된 경우)
+            // "안쪽먼바다" → "북쪽안쪽먼바다", "바깥먼바다" → "남쪽바깥먼바다"
+            // "먼바다" → "서쪽먼바다" (남해서부 서쪽/동쪽먼바다)
+            if (lastDirectionPrefix && (
+                zoneName === '먼바다' ||
+                zoneName.startsWith('안쪽') || zoneName.startsWith('바깥'))) {
+                zoneName = lastDirectionPrefix + zoneName;
             }
 
             // 상위 카테고리 붙이기 (세로 텍스트에서 추출한 동해남부, 서해중부 등)
@@ -864,6 +882,7 @@ function parseMarineForecast(text, publishTimestamp) {
     // 먼바다도 동일하게 통합 구역 확장
     const FAR_SEA_EXPANSION_MAP = {
         '서해남부먼바다': ['서해남부북쪽안쪽먼바다', '서해남부북쪽바깥먼바다', '서해남부남쪽안쪽먼바다', '서해남부남쪽바깥먼바다'],
+        '남해서부먼바다': ['남해서부서쪽먼바다', '남해서부동쪽먼바다'],
     };
 
     for (const [genericName, specificNames] of Object.entries(FAR_SEA_EXPANSION_MAP)) {
