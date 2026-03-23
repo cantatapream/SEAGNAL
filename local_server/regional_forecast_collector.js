@@ -664,7 +664,7 @@ function parseMarineForecast(text, publishTimestamp) {
         if (/^[동서남]$/.test(line) && i + 1 < lines.length) {
             let vertical = line;
             let j = i + 1;
-            while (j < lines.length && /^[해서남북중부]$/.test(lines[j].trim())) {
+            while (j < lines.length && /^[해서남북중부동]$/.test(lines[j].trim())) {
                 vertical += lines[j].trim();
                 j++;
             }
@@ -789,9 +789,10 @@ function parseMarineForecast(text, publishTimestamp) {
             if (weatherKeywords.some(w => line.includes(w))) {
                 let weatherText = line;
                 // 복합 날씨 ("흐리고" 다음에 "비", "눈" 등) 처리
+                // "흐리고\n한때 비 곳" 등 다음 줄에 비/눈이 포함된 경우도 병합
                 if (line.includes('흐리고') && !line.includes('비') && !line.includes('눈') && !line.includes('소나기')) {
                     const nextLine = lineIdx + 1 < lines.length ? lines[lineIdx + 1].trim() : '';
-                    if (['비', '눈', '비/눈', '소나기'].some(w => nextLine.startsWith(w))) {
+                    if (['비', '눈', '비/눈', '소나기'].some(w => nextLine.includes(w))) {
                         weatherText += ' ' + nextLine;
                         lineIdx++;
                     }
