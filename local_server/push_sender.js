@@ -140,6 +140,10 @@ async function processAndSendNotifications(changes) {
                     tmYn: curr.tmYn || curr.tmCc
                 });
             }
+            else {
+                // 동일 등급/발효시각이지만 다른 속성(tmYn 등)이 변경된 경우
+                console.log(`[PushSender] UPCOMING 필터링: ${zone} (${typeName} ${level}) - 등급/발효시각 동일, 기타 속성 변경`);
+            }
         }
 
         // B. 발효/해제/변경 (Current Change)
@@ -194,16 +198,17 @@ async function processAndSendNotifications(changes) {
             }
             // 4. 시각 변경
             else {
+                const typeName = curr.wrnTp;
+                const level = curr.wrnLvl;
+
                 if (prev.tmEf !== curr.tmEf) {
-                    // 필요 시 추가 로직 작성 가능
+                    console.log(`[PushSender] CURRENT 발효시각 변경 감지: ${zone} (${typeName} ${level}) ${prev.tmEf} → ${curr.tmEf}`);
                 }
 
                 const prevTmYn = prev.tmYn || prev.tmCc;
                 const currTmYn = curr.tmYn || curr.tmCc;
                 if (prevTmYn !== currTmYn) {
                     const scenario = 'time_yn_change';
-                    const typeName = curr.wrnTp;
-                    const level = curr.wrnLvl;
 
                     addToGroup(groups, scenario, typeName, level, {
                         zones: [zone],
@@ -211,6 +216,10 @@ async function processAndSendNotifications(changes) {
                         tmEf: curr.tmEf,
                         tmYn: currTmYn
                     });
+                }
+
+                if (prev.tmEf === curr.tmEf && prevTmYn === currTmYn) {
+                    console.log(`[PushSender] CURRENT 필터링: ${zone} (${typeName} ${level}) - 등급/시각 동일, 기타 속성 변경`);
                 }
             }
         }
