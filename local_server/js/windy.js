@@ -634,37 +634,44 @@ function createStatusCard(zoneName) {
             border-top: 1px solid rgba(255,255,255,0.08);
         `;
 
-        // 부이 헤더 + 버튼들을 한 줄에
-        const buoyHeader = document.createElement('div');
-        buoyHeader.style.cssText = `
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        `;
-
-        const buoyLabel = document.createElement('span');
+        // 부이 라벨
+        const buoyLabel = document.createElement('div');
         buoyLabel.innerHTML = `${BUOY_SVG_ICON} 관측부이<span style="color:#69f0ae;font-size:0.7rem;margin-left:4px">(${buoys.length})</span>`;
         buoyLabel.style.cssText = `
             font-size: 0.8rem;
             color: #8b949e;
-            flex-shrink: 0;
+            margin-bottom: 8px;
         `;
-        buoyHeader.appendChild(buoyLabel);
+        buoySection.appendChild(buoyLabel);
+
+        // 부이 버튼 컨테이너 (별도 div로 분리하여 잘림 방지)
+        const buoyBtnWrap = document.createElement('div');
+        buoyBtnWrap.style.cssText = `
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        `;
 
         // 부이 버튼들
         buoys.forEach(buoy => {
             const btn = document.createElement('button');
             btn.textContent = buoy.name;
+
+            // 부이 데이터 수집 여부 확인 → 미수집 시 빨간색 표시
+            const hasData = typeof appState !== 'undefined' && appState.buoyData && appState.buoyData[buoy.id];
+            const defaultColor = hasData ? '#ccc' : '#ff6b6b';
+            const defaultBorder = hasData ? 'rgba(255,255,255,0.15)' : 'rgba(255,107,107,0.4)';
+
             btn.style.cssText = `
                 padding: 4px 10px;
                 border-radius: 12px;
-                border: 1px solid rgba(255,255,255,0.15);
+                border: 1px solid ${defaultBorder};
                 background: rgba(255,255,255,0.05);
-                color: #ccc;
+                color: ${defaultColor};
                 font-size: 0.75rem;
                 cursor: pointer;
                 transition: all 0.2s;
+                flex-shrink: 0;
             `;
 
             btn.onclick = (e) => {
@@ -674,19 +681,21 @@ function createStatusCard(zoneName) {
                 if (btn.classList.contains('active')) {
                     btn.classList.remove('active');
                     btn.style.backgroundColor = 'rgba(255,255,255,0.05)';
-                    btn.style.color = '#ccc';
-                    btn.style.borderColor = 'rgba(255,255,255,0.15)';
+                    btn.style.color = defaultColor;
+                    btn.style.borderColor = defaultBorder;
                     const infoArea = buoySection.querySelector('.buoy-info-area');
                     if (infoArea) infoArea.style.display = 'none';
                     return;
                 }
 
                 // 다른 버튼 비활성화
-                buoyHeader.querySelectorAll('button').forEach(b => {
+                buoyBtnWrap.querySelectorAll('button').forEach(b => {
                     b.classList.remove('active');
                     b.style.backgroundColor = 'rgba(255,255,255,0.05)';
-                    b.style.color = '#ccc';
-                    b.style.borderColor = 'rgba(255,255,255,0.15)';
+                    const bBuoyId = b.dataset.buoyId;
+                    const bHasData = typeof appState !== 'undefined' && appState.buoyData && appState.buoyData[bBuoyId];
+                    b.style.color = bHasData ? '#ccc' : '#ff6b6b';
+                    b.style.borderColor = bHasData ? 'rgba(255,255,255,0.15)' : 'rgba(255,107,107,0.4)';
                 });
 
                 // 현재 버튼 활성화
@@ -715,10 +724,11 @@ function createStatusCard(zoneName) {
                     infoArea.style.display = 'block';
                 }
             };
-            buoyHeader.appendChild(btn);
+            btn.dataset.buoyId = buoy.id;
+            buoyBtnWrap.appendChild(btn);
         });
 
-        buoySection.appendChild(buoyHeader);
+        buoySection.appendChild(buoyBtnWrap);
         card.appendChild(buoySection);
     }
 

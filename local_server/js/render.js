@@ -944,22 +944,31 @@ function createAlertElement(items) {
             const btn = document.createElement('button');
             btn.className = 'buoy-btn';
             btn.textContent = buoy.name;
-            btn.style.cssText = 'padding: 6px 14px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #ccc; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;';
+            btn.dataset.buoyId = buoy.id;
+
+            // 부이 데이터 수집 여부 확인 → 미수집 시 빨간색 표시
+            const hasData = appState.buoyData && appState.buoyData[buoy.id];
+            const defaultColor = hasData ? '#ccc' : '#ff6b6b';
+            const defaultBorder = hasData ? 'rgba(255,255,255,0.15)' : 'rgba(255,107,107,0.4)';
+
+            btn.style.cssText = `padding: 6px 14px; border-radius: 16px; border: 1px solid ${defaultBorder}; background: rgba(255,255,255,0.05); color: ${defaultColor}; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; flex-shrink: 0;`;
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (btn.classList.contains('active')) {
                     btn.classList.remove('active');
                     btn.style.backgroundColor = 'rgba(255,255,255,0.05)';
-                    btn.style.color = '#ccc';
-                    btn.style.borderColor = 'rgba(255,255,255,0.15)';
+                    btn.style.color = defaultColor;
+                    btn.style.borderColor = defaultBorder;
                     infoArea.style.display = 'none';
                     return;
                 }
                 btnContainer.querySelectorAll('.buoy-btn').forEach(b => {
                     b.classList.remove('active');
                     b.style.backgroundColor = 'rgba(255,255,255,0.05)';
-                    b.style.color = '#ccc';
-                    b.style.borderColor = 'rgba(255,255,255,0.15)';
+                    const bBuoyId = b.dataset.buoyId;
+                    const bHasData = appState.buoyData && appState.buoyData[bBuoyId];
+                    b.style.color = bHasData ? '#ccc' : '#ff6b6b';
+                    b.style.borderColor = bHasData ? 'rgba(255,255,255,0.15)' : 'rgba(255,107,107,0.4)';
                 });
                 btn.classList.add('active');
                 btn.style.backgroundColor = 'rgba(68, 138, 255, 0.3)';
