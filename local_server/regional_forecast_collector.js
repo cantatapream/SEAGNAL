@@ -619,8 +619,8 @@ function parseMarineForecast(text, publishTimestamp) {
     const farSeaZones = {};
     const coastalZones = {};
 
-    // 줄 단위로 분할
-    const lines = marineText.split('\n');
+    // 줄 단위로 분할 (pdf-parse v2는 같은 Y좌표의 셀을 탭으로 구분하므로 탭도 줄바꿈으로 변환)
+    const lines = marineText.replace(/\t/g, '\n').split('\n');
 
     // 먼바다 구역을 찾고 해당 줄 이후의 데이터를 파싱
     // 전략: "먼바다" 키워드가 포함된 구역명을 찾고, 이후 풍향/풍속 + 날씨 + 파고 패턴을 9회 추출
@@ -738,72 +738,89 @@ function parseMarineForecast(text, publishTimestamp) {
         console.log(`[MarineParse] 먼바다 구역 감지: ${farBlocks.map(b => b.zoneName).join(', ')}`);
     }
 
-    // 각 구역 블록에서 9개 시간대 데이터 추출
+    // 각 구역 블록에서 시간대 데이터 추출 (수집-후-매칭 방식)
+    // pdf-parse의 텍스트 추출 순서에 의존하지 않고, 풍향/풍속·날씨·파고를 독립 수집 후 인덱스로 결합
     for (const block of zoneBlocks) {
-        const periods = [];
+        const winds = [];
+        const weathers = [];
+        const waves = [];
         let lineIdx = block.startLine;
-        let slotCount = 0;
 
-        while (slotCount < timeSlots.length && lineIdx < lines.length) {
+        // 1단계: 구역 데이터 영역의 모든 값을 유형별로 수집
+        while (lineIdx < lines.length) {
             const line = lines[lineIdx].trim();
+            if (!line) { lineIdx++; continue; }
 
             // 다음 구역이나 섹션 시작이면 중단
             if (line.includes('먼바다') || line.includes('앞바다') ||
                 line === '※' || line.startsWith('※ 날씨')) break;
 
-            // 풍향/풍속 패턴 매칭
+            // 충분한 데이터를 수집했으면 중단
+            if (winds.length >= timeSlots.length && weathers.length >= timeSlots.length && waves.length >= timeSlots.length) break;
+
+            // 풍향/풍속 패턴
             const windMatch = line.match(windPattern);
             if (windMatch) {
-                const wind = `${windMatch[1]} / ${windMatch[2]}`;
-
-                // 다음 줄: 날씨 (맑음, 흐림, 구름많음 등)
+                winds.push(`${windMatch[1]} / ${windMatch[2]}`);
                 lineIdx++;
-                let weather = '';
-                while (lineIdx < lines.length) {
-                    const wLine = lines[lineIdx].trim();
-                    // 파고 시작 (숫자) 이면 날씨 수집 종료
-                    if (waveSimplePattern.test(wLine)) break;
-                    if (wLine === '~') break;
-                    // 빈 줄 스킵
-                    if (wLine === '') { lineIdx++; continue; }
-                    // 풍향 패턴이면 날씨 없이 다음 시간대
-                    if (windPattern.test(wLine)) break;
-                    weather += (weather ? ' ' : '') + wLine;
-                    lineIdx++;
-                }
-
-                // 파고 추출
-                let waveHeight = '';
-                const curLine = lineIdx < lines.length ? lines[lineIdx].trim() : '';
-                if (waveSimplePattern.test(curLine)) {
-                    waveHeight = curLine;
-                    lineIdx++;
-                    // "0.5\n~\n1.5" 패턴 확인
-                    if (lineIdx < lines.length && lines[lineIdx].trim() === '~') {
-                        lineIdx++;
-                        if (lineIdx < lines.length && waveSimplePattern.test(lines[lineIdx].trim())) {
-                            waveHeight += '~' + lines[lineIdx].trim();
-                            lineIdx++;
-                        }
-                    }
-                }
-
-                const slot = timeSlots[slotCount];
-                const date = new Date(baseDate);
-                date.setDate(date.getDate() + slot.dayOffset);
-                const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
-
-                periods.push({
-                    date: dateStr,
-                    period: slot.period,
-                    wind,
-                    weather: weather || '-',
-                    waveHeight: waveHeight || '-'
-                });
-                slotCount++;
                 continue;
             }
+
+            // 파고 패턴 (단순 숫자)
+            if (waveSimplePattern.test(line)) {
+                let waveVal = line;
+                // "0.5\n~\n1.5" 범위 패턴 확인
+                if (lineIdx + 2 < lines.length &&
+                    lines[lineIdx + 1].trim() === '~' &&
+                    waveSimplePattern.test(lines[lineIdx + 2].trim())) {
+                    waveVal += '~' + lines[lineIdx + 2].trim();
+                    lineIdx += 2;
+                }
+                waves.push(waveVal);
+                lineIdx++;
+                continue;
+            }
+
+            // ~ 문자 (파고 범위 구분자) - 위에서 처리되지 않은 경우 스킵
+            if (line === '~') { lineIdx++; continue; }
+
+            // 날씨 키워드 체크
+            const weatherKeywords = ['맑음', '구름많음', '구름많', '흐림', '흐리고', '비', '눈', '소나기', '안개'];
+            if (weatherKeywords.some(w => line.includes(w))) {
+                let weatherText = line;
+                // 복합 날씨 ("흐리고" 다음에 "비", "눈" 등) 처리
+                if (line.includes('흐리고') && !line.includes('비') && !line.includes('눈') && !line.includes('소나기')) {
+                    const nextLine = lineIdx + 1 < lines.length ? lines[lineIdx + 1].trim() : '';
+                    if (['비', '눈', '비/눈', '소나기'].some(w => nextLine.startsWith(w))) {
+                        weatherText += ' ' + nextLine;
+                        lineIdx++;
+                    }
+                }
+                weathers.push(weatherText);
+                lineIdx++;
+                continue;
+            }
+
             lineIdx++;
+        }
+
+        // 2단계: 수집된 데이터를 인덱스로 결합하여 시간대별 데이터 생성
+        const periods = [];
+        const maxSlots = Math.min(winds.length, timeSlots.length);
+
+        for (let s = 0; s < maxSlots; s++) {
+            const slot = timeSlots[s];
+            const date = new Date(baseDate);
+            date.setDate(date.getDate() + slot.dayOffset);
+            const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
+
+            periods.push({
+                date: dateStr,
+                period: slot.period,
+                wind: winds[s],
+                weather: s < weathers.length ? weathers[s] : '-',
+                waveHeight: s < waves.length ? waves[s] : '-'
+            });
         }
 
         if (periods.length > 0) {
