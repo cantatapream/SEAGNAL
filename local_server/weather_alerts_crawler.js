@@ -401,12 +401,33 @@ async function run() {
 
         if (changes.length > 0) {
             console.log(`🚀 변화 감지: ${changes.length}건`);
-            await pushSender.processChanges(changes).catch(err => console.error(`[Push] 오류: ${err.message}`));
+            changes.forEach(c => {
+                const zone = c.zone;
+                const type = c.type;
+                const prevInfo = c.prev ? `${c.prev.wrnTp || '?'} ${c.prev.wrnLvl || '?'}` : 'null';
+                const currInfo = c.curr ? `${c.curr.wrnTp || '?'} ${c.curr.wrnLvl || '?'}` : 'null';
+                console.log(`  [Change] ${type} ${zone}: ${prevInfo} → ${currInfo}`);
+            });
+
+            try {
+                const pushSuccess = await pushSender.processChanges(changes);
+                if (pushSuccess) {
+                    console.log('[Crawler] 푸시 발송 완료');
+                } else {
+                    console.warn('[Crawler] ⚠️ 푸시 발송 실패/일부실패 → pending 저장됨 (다음 실행 시 재시도)');
+                }
+            } catch (err) {
+                console.error(`[Push] 오류: ${err.message}`);
+            }
         } else {
             console.log('💤 특보 변경 사항 없음');
+            // 변경사항 없어도 미발송 건 재시도 (push_sender 내부에서 pending 확인)
+            try {
+                await pushSender.processChanges([]);
+            } catch (_) {}
         }
 
-        // 5. 저장
+        // 5. 저장 (변화 감지 결과와 무관하게 항상 저장 — 데이터 최신 상태 유지)
         fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
         fs.writeFileSync(CONFIG.OUTPUT_FILE, JSON.stringify(fullForm, null, 2), 'utf8');
         console.log(`[Crawler] 저장 완료`);
