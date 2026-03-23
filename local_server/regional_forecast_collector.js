@@ -63,10 +63,8 @@ const ZONE_TO_OFFICE_MAP = {
     '강원중부앞바다': '105',
     '강원남부앞바다': '105',
     // 경북, 울산 → 대구지방기상청(143)
-    '경북북부동해앞바다': '143',
-    '경북남부동해앞바다': '143',
-    '경북북부앞바다': '143',  // PDF 파싱 시 사용되는 약칭 별칭
-    '경북남부앞바다': '143',  // PDF 파싱 시 사용되는 약칭 별칭
+    '경북북부앞바다': '143',
+    '경북남부앞바다': '143',
     '울산앞바다': '143',
     // 부산, 경남, 거제 → 부산지방기상청(159)
     '부산앞바다': '159',
@@ -77,9 +75,9 @@ const ZONE_TO_OFFICE_MAP = {
     '인천·경기북부앞바다': '109',
     '경기북부앞바다': '109',  // seaZoneCoordinates.js에서 사용하는 별칭
     '인천·경기남부앞바다': '109',
-    // 충남 → 수도권기상청(109) (대전기상청 PDF에 해상 섹션 없음, 서해중부앞바다 확장으로 처리)
-    '충남북부앞바다': '109',
-    '충남남부앞바다': '109',
+    // 충남 → 대전지방기상청(133)
+    '충남북부앞바다': '133',
+    '충남남부앞바다': '133',
     // 전북, 전남 → 광주지방기상청(156)
     '전북북부앞바다': '156',
     '전북남부앞바다': '156',
@@ -583,8 +581,12 @@ async function retryMissingOffices() {
 function parseMarineForecast(text, publishTimestamp) {
     if (!text) return { farSeaZones: {}, coastalZones: {} };
 
-    // 해상 섹션 추출 (단 기 예 보 [해상] 이후)
-    const marineIdx = text.indexOf('단 기 예 보 [해상]');
+    // 해상 섹션 추출 (단 기 예 보 [해상] 또는 [육상/해상] 이후)
+    let marineIdx = text.indexOf('단 기 예 보 [해상]');
+    if (marineIdx === -1) {
+        // 대전지방기상청 등 육상/해상 합본 PDF 지원
+        marineIdx = text.indexOf('단 기 예 보 [육상/해상]');
+    }
     if (marineIdx === -1) return { farSeaZones: {}, coastalZones: {} };
 
     const marineText = text.substring(marineIdx);
@@ -933,10 +935,6 @@ function normalizeMarineZoneName(rawName) {
     if (name.includes('인천.경기')) {
         name = name.replace('인천.경기', '인천·경기');
     }
-
-    // 대구지방기상청 PDF에서 '경북북부앞바다' → '경북북부동해앞바다' 정규화
-    if (name === '경북북부앞바다') name = '경북북부동해앞바다';
-    if (name === '경북남부앞바다') name = '경북남부동해앞바다';
 
     // 대화퇴, 연해주, 규슈, 동중국해 등 관련 없는 구역 제외
     if (['대화퇴', '연해주', '규슈서해', '규슈남해', '동중국해'].some(x => name.includes(x))) {
