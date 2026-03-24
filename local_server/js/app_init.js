@@ -113,8 +113,7 @@ const FontSizeManager = {
                     content.classList.add('active');
                 }
 
-                // 즉시 미리보기 적용
-                this.apply(radio.value);
+                // 저장 버튼을 눌러야 적용됨 (즉시 미리보기 제거)
             });
         });
     },
