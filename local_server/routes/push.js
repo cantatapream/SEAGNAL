@@ -141,7 +141,7 @@ router.post('/api/unsubscribe', (req, res) => {
 // 커스텀 푸시 발송 API (Broadcast + Personalized)
 // ============================================================================
 router.post('/api/push-custom', async (req, res) => {
-    const { title, content, targetZones, isManualGroupSend, payload, sendToAllSubscribers } = req.body;
+    const { title, content, targetZones, isManualGroupSend, payload, sendToAllSubscribers, adminToken } = req.body;
 
     // 수동 그룹 발송 모드 (개인화 필터링 적용)
     if (isManualGroupSend && payload) {
@@ -159,7 +159,18 @@ router.post('/api/push-custom', async (req, res) => {
             return res.status(404).json({ error: '구독자가 없습니다.' });
         }
 
-        const subs = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8'));
+        let subs = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8'));
+
+        // 관리자 테스트 모드: adminToken이 있으면 해당 토큰의 구독자로만 한정
+        if (adminToken) {
+            const originalCount = subs.length;
+            subs = subs.filter(s => s.type === 'fcm' && s.token === adminToken);
+            console.log(`🔧 [Push] 관리자 테스트 모드: ${originalCount}명 중 관리자 토큰 매칭 ${subs.length}명`);
+            if (subs.length === 0) {
+                return res.json({ success: true, successCount: 0, failCount: 0, message: '관리자 토큰과 일치하는 구독자가 없습니다.' });
+            }
+        }
+
         let successCount = 0;
         let failCount = 0;
         let deadSubscriptionsFound = false;
@@ -294,11 +305,22 @@ router.post('/api/push-custom', async (req, res) => {
             await Promise.all(batchPromises);
         }
 
-        // 만료된 구독자 정리
-        if (deadSubscriptionsFound) {
-            const updatedSubs = subs.filter(u => !u._isDead);
+        // 만료된 구독자 정리 (관리자 테스트 모드에서는 실제 구독 파일 건드리지 않음)
+        if (deadSubscriptionsFound && !adminToken) {
+            const allSubs = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8'));
+            const deadTokens = new Set(subs.filter(u => u._isDead).map(u => u.type === 'fcm' ? u.token : (u.subscription ? u.subscription.endpoint : null)));
+            const updatedSubs = allSubs.filter(s => {
+                const sId = s.type === 'fcm' ? s.token : (s.subscription ? s.subscription.endpoint : null);
+                return !deadTokens.has(sId);
+            });
             fs.writeFileSync(SUBS_FILE, JSON.stringify(updatedSubs, null, 2));
-            console.log(`🧹 [Push/Manual] 만료된 구독 데이터 ${subs.length - updatedSubs.length}건 정리 완료`);
+            console.log(`🧹 [Push/Manual] 만료된 구독 데이터 ${allSubs.length - updatedSubs.length}건 정리 완료`);
+        }
+
+        // 관리자 테스트 모드에서는 히스토리 기록 생략
+        if (adminToken) {
+            console.log(`🔧 [Push] 관리자 테스트 모드 발송 완료: 성공 ${successCount}, 실패 ${failCount}`);
+            return res.json({ success: true, successCount, failCount, testMode: true });
         }
 
         // [History Save]

@@ -102,6 +102,9 @@ window._toggleAdminMode = function (checked) {
         // 뱃지 숨기기
         const badge = document.getElementById('report-badge');
         if (badge) badge.style.display = 'none';
+        // 테스트 모드 상태 초기화 및 장부 정리
+        window._atmTestMode = false;
+        fetch('/api/admin/test-cleanup', { method: 'POST' }).catch(() => {});
     }
 };
 

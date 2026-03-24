@@ -15,6 +15,22 @@
  */
 
 // ============================================================================
+// 관리자 테스트 모드 헬퍼
+// ============================================================================
+window._atmTestMode = false; // 모달 내 테스트 모드 토글 상태
+
+function isAdminTestMode() {
+    return window._atmTestMode === true;
+}
+function getAdminToken() {
+    return localStorage.getItem('push_token') || null;
+}
+function getTestModeParams() {
+    if (!isAdminTestMode()) return {};
+    return { testMode: true, adminToken: getAdminToken() };
+}
+
+// ============================================================================
 // [특보 수집 테스트] 팝업 모달
 // ============================================================================
 
@@ -30,7 +46,18 @@ window.openAlertTestModal = function () {
     overlay.innerHTML = `
         <div style="background:#1e293b;border-radius:16px;width:95%;max-width:900px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,0.1);">
             <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0;">
-                <h3 style="margin:0;color:#fff;font-size:1.1rem;"><i class="fa-solid fa-flask" style="color:#8b5cf6;"></i> 특보 수집 테스트</h3>
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <h3 style="margin:0;color:#fff;font-size:1.1rem;"><i class="fa-solid fa-flask" style="color:#8b5cf6;"></i> 특보 수집 테스트</h3>
+                    <label id="atm-testmode-toggle-wrap" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 10px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.1);border-radius:20px;user-select:none;" title="ON: 사용자 영향 없이 관리자 앱으로만 테스트">
+                        <span style="color:#94a3b8;font-size:0.7rem;font-weight:600;">테스트</span>
+                        <div style="position:relative;width:32px;height:18px;">
+                            <input type="checkbox" id="atm-testmode-cb" style="opacity:0;width:0;height:0;position:absolute;" />
+                            <div id="atm-testmode-track" style="position:absolute;inset:0;background:#475569;border-radius:9px;transition:background 0.2s;"></div>
+                            <div id="atm-testmode-thumb" style="position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>
+                        </div>
+                        <span id="atm-testmode-label" style="color:#94a3b8;font-size:0.68rem;font-weight:700;min-width:22px;">OFF</span>
+                    </label>
+                </div>
                 <button onclick="this.closest('#alert-test-modal-overlay').remove()" style="background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer;">&times;</button>
             </div>
             <div style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0;">
@@ -48,6 +75,58 @@ window.openAlertTestModal = function () {
         </div>
     `;
     document.body.appendChild(overlay);
+
+    // 테스트 모드 토글 이벤트
+    const testToggleWrap = document.getElementById('atm-testmode-toggle-wrap');
+    if (testToggleWrap) {
+        // 초기 상태 반영
+        const cb = document.getElementById('atm-testmode-cb');
+        cb.checked = window._atmTestMode;
+        if (window._atmTestMode) {
+            document.getElementById('atm-testmode-track').style.background = '#8b5cf6';
+            document.getElementById('atm-testmode-thumb').style.left = '16px';
+            document.getElementById('atm-testmode-label').textContent = 'ON';
+            document.getElementById('atm-testmode-label').style.color = '#c4b5fd';
+            testToggleWrap.style.borderColor = 'rgba(139,92,246,0.4)';
+            testToggleWrap.style.background = 'rgba(139,92,246,0.12)';
+        }
+
+        testToggleWrap.addEventListener('click', function () {
+            const cb = document.getElementById('atm-testmode-cb');
+            const track = document.getElementById('atm-testmode-track');
+            const thumb = document.getElementById('atm-testmode-thumb');
+            const label = document.getElementById('atm-testmode-label');
+            cb.checked = !cb.checked;
+            window._atmTestMode = cb.checked;
+            if (cb.checked) {
+                track.style.background = '#8b5cf6';
+                thumb.style.left = '16px';
+                label.textContent = 'ON';
+                label.style.color = '#c4b5fd';
+                testToggleWrap.style.borderColor = 'rgba(139,92,246,0.4)';
+                testToggleWrap.style.background = 'rgba(139,92,246,0.12)';
+            } else {
+                track.style.background = '#475569';
+                thumb.style.left = '2px';
+                label.textContent = 'OFF';
+                label.style.color = '#94a3b8';
+                testToggleWrap.style.borderColor = 'rgba(255,255,255,0.1)';
+                testToggleWrap.style.background = 'rgba(0,0,0,0.25)';
+                // OFF 시 테스트 장부 정리
+                fetch('/api/admin/test-cleanup', { method: 'POST' }).catch(() => {});
+            }
+            // 현재 탭 새로고침
+            const activeTab = document.querySelector('.atm-tab[style*="border-bottom: 2px solid rgb(99, 102, 241)"]') ||
+                              document.querySelector('.atm-tab[style*="border-bottom:2px solid #6366f1"]');
+            if (activeTab) {
+                const tabId = activeTab.id.replace('atm-tab-', '');
+                switchAlertTestTab(tabId);
+            } else {
+                switchAlertTestTab('status');
+            }
+        });
+    }
+
     switchAlertTestTab('status');
 };
 
@@ -68,13 +147,25 @@ window.switchAlertTestTab = function (tabId) {
 async function renderATMStatus(container) {
     container.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;">로딩 중...</div>';
     try {
+        const inTestMode = isAdminTestMode();
+        const alertsUrl = inTestMode ? '/api/admin/test-alerts' : '/api/weather-alerts';
         const [alertsRes, crawlRes] = await Promise.all([
-            fetch('/api/weather-alerts').then(r => r.json()),
+            fetch(alertsUrl).then(r => r.json()),
             fetch('/api/admin/crawl-status').then(r => r.json())
         ]);
         const isPaused = crawlRes.paused;
+        // 테스트 모드에서 테스트 장부가 없으면 운영 장부 표시
+        const displayData = (inTestMode && !alertsRes) ? (await fetch('/api/weather-alerts').then(r => r.json())) : alertsRes;
+
+        const testBanner = inTestMode ? `
+            <div style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+                <i class="fa-solid fa-flask" style="color:#a78bfa;"></i>
+                <span style="color:#c4b5fd;font-size:0.8rem;font-weight:600;">관리자 테스트 모드</span>
+                <span style="color:#94a3b8;font-size:0.75rem;">초기화/수집 시 사용자에게 영향 없이 관리자 앱으로만 알림이 발송됩니다.</span>
+            </div>` : '';
 
         container.innerHTML = `
+            ${testBanner}
             <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
                 <button onclick="atmReset()" style="padding:8px 16px;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
                     <i class="fa-solid fa-trash-can"></i> 초기화
@@ -87,15 +178,23 @@ async function renderATMStatus(container) {
                 </button>
             </div>
             <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;overflow:auto;max-height:55vh;">
-                <pre style="margin:0;color:#e2e8f0;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;font-family:'Courier New',monospace;">${JSON.stringify(alertsRes, null, 2)}</pre>
+                <pre style="margin:0;color:#e2e8f0;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;font-family:'Courier New',monospace;">${JSON.stringify(displayData, null, 2)}</pre>
             </div>`;
     } catch (e) { container.innerHTML = '<div style="color:#ef4444;padding:20px;">오류: ' + e.message + '</div>'; }
 }
 
 window.atmReset = async function () {
-    if (!confirm('특보 장부를 초기화하시겠습니까?\\n모든 수집 데이터가 삭제됩니다.')) return;
+    const testParams = getTestModeParams();
+    const confirmMsg = testParams.testMode
+        ? '테스트 장부를 초기화하시겠습니까?\n(관리자 테스트 모드: 사용자에게 영향 없음)'
+        : '특보 장부를 초기화하시겠습니까?\n모든 수집 데이터가 삭제됩니다.';
+    if (!confirm(confirmMsg)) return;
     try {
-        const res = await fetch('/api/admin/alerts-reset', { method: 'POST' });
+        const res = await fetch('/api/admin/alerts-reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(testParams)
+        });
         const data = await res.json();
         alert(data.message || '초기화 완료');
         renderATMStatus(document.getElementById('atm-content'));
@@ -346,7 +445,7 @@ window.atmCollectOne = async function (i, refTimeOverride) {
             await new Promise(r => setTimeout(r, 1500));
         }
         try {
-            const res = await fetch('/api/admin/report-collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: report.id, title: report.title, referenceTime, skipPush }) });
+            const res = await fetch('/api/admin/report-collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: report.id, title: report.title, referenceTime, skipPush, ...getTestModeParams() }) });
             lastOk = res.ok;
             lastData = await res.json();
         } catch (e) {

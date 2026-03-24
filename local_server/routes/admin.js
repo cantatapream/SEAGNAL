@@ -48,6 +48,12 @@ const COLLECT_FAILURES_FILE = path.join(DATA_DIR, 'collect_failures.json');
 const COLLECT_CACHE_DIR = path.join(DATA_DIR, 'collect_cache');
 const MAINTENANCE_FILE = path.join(DATA_DIR, 'maintenance_config.json');
 const WORK_MODE_FILE = path.join(DATA_DIR, 'work_mode_config.json');
+const TEST_ALERTS_FILE = path.join(DATA_DIR, 'weather_alerts_test.json');
+
+/** 관리자 테스트 모드 시 사용할 장부 파일 경로 반환 */
+function getOutputFile(testMode) {
+    return testMode ? TEST_ALERTS_FILE : weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
+}
 
 // ============================================================================
 // 헬퍼 함수
@@ -100,11 +106,13 @@ router.post('/api/admin/crawl-toggle', (req, res) => {
 // 특보 장부 초기화
 router.post('/api/admin/alerts-reset', (req, res) => {
     try {
+        const { testMode } = req.body || {};
+        const outputFile = getOutputFile(testMode);
         const freshForm = weatherAlertsCrawler.createFullForm();
         freshForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-        fs.writeFileSync(weatherAlertsCrawler.CONFIG.OUTPUT_FILE, JSON.stringify(freshForm, null, 2), 'utf8');
-        console.log('[Admin] 특보 장부 초기화 완료');
-        res.json({ success: true, message: '특보 장부가 초기화되었습니다.' });
+        fs.writeFileSync(outputFile, JSON.stringify(freshForm, null, 2), 'utf8');
+        console.log(`[Admin] 특보 장부 초기화 완료${testMode ? ' (테스트 모드)' : ''}`);
+        res.json({ success: true, message: testMode ? '테스트 장부가 초기화되었습니다.' : '특보 장부가 초기화되었습니다.', testMode: !!testMode });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
@@ -170,7 +178,7 @@ router.get('/api/admin/reports', async (req, res) => {
 // 단일 통보문 수집 (AI 분석 포함, 장부 반영)
 router.post('/api/admin/report-collect', async (req, res) => {
     try {
-        const { reportId, title, referenceTime, skipPush } = req.body;
+        const { reportId, title, referenceTime, skipPush, testMode, adminToken } = req.body;
         if (!reportId) return res.status(400).json({ error: 'reportId가 필요합니다' });
 
         // 1. 통보문 본문 가져오기
@@ -201,7 +209,15 @@ router.post('/api/admin/report-collect', async (req, res) => {
         let applied = false;
         let pushResult = null;
         try {
-            const outputFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
+            const outputFile = getOutputFile(testMode);
+            // 테스트 모드: 테스트 장부가 없으면 운영 장부를 복사하여 시작
+            if (testMode && !fs.existsSync(outputFile)) {
+                const prodFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
+                if (fs.existsSync(prodFile)) {
+                    fs.copyFileSync(prodFile, outputFile);
+                    console.log('[Admin] 테스트 모드: 운영 장부를 테스트 장부로 복사');
+                }
+            }
             let fullForm;
             if (fs.existsSync(outputFile)) {
                 const existing = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
@@ -241,12 +257,13 @@ router.post('/api/admin/report-collect', async (req, res) => {
                 applied = true;
                 if (skipPush) {
                     pushResult = { sent: false, skipped: true, changeCount: changes.length };
-                    console.log(`[Admin] 테스트 수집 → 변경 ${changes.length}건 감지, 푸시 발송 생략 (토글 OFF)`);
+                    console.log(`[Admin] 수집 → 변경 ${changes.length}건 감지, 푸시 발송 생략 (토글 OFF)`);
                 } else {
                     try {
-                        await pushSender.processChanges(changes);
-                        pushResult = { sent: true, changeCount: changes.length };
-                        console.log(`[Admin] 테스트 수집 → 변경 ${changes.length}건 감지, 푸시 발송 완료`);
+                        const pushOptions = (testMode && adminToken) ? { adminToken } : {};
+                        await pushSender.processChanges(changes, pushOptions);
+                        pushResult = { sent: true, changeCount: changes.length, testMode: !!testMode };
+                        console.log(`[Admin] 수집 → 변경 ${changes.length}건 감지, 푸시 발송 완료${testMode ? ' (테스트→관리자만)' : ''}`);
                     } catch (pushErr) {
                         pushResult = { sent: false, error: pushErr.message };
                         console.error(`[Admin] 푸시 발송 오류:`, pushErr.message);
@@ -401,14 +418,18 @@ router.delete('/api/admin/collect-failures', (req, res) => {
 // 수동 특보 등록 (zone tree 직접 주입)
 router.post('/api/admin/manual-alert', (req, res) => {
     try {
-        const { zoneName, warnType, level, command, tmFc, tmEf, tmCc, skipPush } = req.body;
+        const { zoneName, warnType, level, command, tmFc, tmEf, tmCc, skipPush, testMode, adminToken } = req.body;
 
         if (!zoneName || !warnType || !level || !command) {
             return res.status(400).json({ error: '필수 항목 누락: zoneName, warnType, level, command' });
         }
 
-        // 1. weather_alerts.json 로드
-        const outputFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
+        // 1. weather_alerts.json 로드 (테스트 모드 시 별도 파일)
+        const outputFile = getOutputFile(testMode);
+        if (testMode && !fs.existsSync(outputFile)) {
+            const prodFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
+            if (fs.existsSync(prodFile)) fs.copyFileSync(prodFile, outputFile);
+        }
         let fullForm;
         if (fs.existsSync(outputFile)) {
             const existing = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
@@ -470,9 +491,10 @@ router.post('/api/admin/manual-alert', (req, res) => {
                 console.log(`[Admin] 수동 특보 → 변경 ${changes.length}건 감지, 푸시 생략`);
             } else {
                 try {
-                    pushSender.processChanges(changes);
-                    pushResult = { sent: true, changeCount: changes.length };
-                    console.log(`[Admin] 수동 특보 → 변경 ${changes.length}건 감지, 푸시 발송`);
+                    const pushOptions = (testMode && adminToken) ? { adminToken } : {};
+                    pushSender.processChanges(changes, pushOptions);
+                    pushResult = { sent: true, changeCount: changes.length, testMode: !!testMode };
+                    console.log(`[Admin] 수동 특보 → 변경 ${changes.length}건 감지, 푸시 발송${testMode ? ' (테스트→관리자만)' : ''}`);
                 } catch (pushErr) {
                     pushResult = { sent: false, error: pushErr.message };
                 }
@@ -494,10 +516,10 @@ router.post('/api/admin/manual-alert', (req, res) => {
 // 수동 특보 해제
 router.post('/api/admin/manual-alert-release', (req, res) => {
     try {
-        const { zoneName, skipPush } = req.body;
+        const { zoneName, skipPush, testMode, adminToken } = req.body;
         if (!zoneName) return res.status(400).json({ error: 'zoneName 필수' });
 
-        const outputFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
+        const outputFile = getOutputFile(testMode);
         if (!fs.existsSync(outputFile)) return res.status(404).json({ error: '장부 파일 없음' });
 
         const existing = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
@@ -530,7 +552,8 @@ router.post('/api/admin/manual-alert-release', (req, res) => {
         if (released) {
             const changes = weatherAlertsCrawler.detectChanges(fullForm.previous, fullForm.current);
             if (changes.length > 0 && !skipPush) {
-                pushSender.processChanges(changes).catch(err => console.error(`[Push] 오류: ${err.message}`));
+                const pushOptions = (testMode && adminToken) ? { adminToken } : {};
+                pushSender.processChanges(changes, pushOptions).catch(err => console.error(`[Push] 오류: ${err.message}`));
             }
             fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
             fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
@@ -548,7 +571,7 @@ router.post('/api/admin/manual-alert-release', (req, res) => {
 // ============================================================================
 router.post('/api/admin/reports-collect-all', async (req, res) => {
     try {
-        const { reports, referenceTimeMode } = req.body;
+        const { reports, referenceTimeMode, testMode, adminToken } = req.body;
         if (!reports || !Array.isArray(reports)) return res.status(400).json({ error: 'reports 배열이 필요합니다' });
 
         const results = [];
@@ -570,7 +593,14 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
 
                 // 장부 반영
                 let applied = false;
-                const outputFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
+                const outputFile = getOutputFile(testMode);
+                // 테스트 모드: 테스트 장부가 없으면 운영 장부를 복사하여 시작
+                if (testMode && !fs.existsSync(outputFile)) {
+                    const prodFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
+                    if (fs.existsSync(prodFile)) {
+                        fs.copyFileSync(prodFile, outputFile);
+                    }
+                }
                 let fullForm;
                 if (fs.existsSync(outputFile)) {
                     const existing = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
@@ -628,6 +658,36 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
         res.json({ success: true, totalCount: reports.length, results });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// ============================================================================
+// 관리자 테스트 모드 관리
+// ============================================================================
+
+// 테스트 장부 데이터 조회 (수집 현황 탭에서 사용)
+router.get('/api/admin/test-alerts', (req, res) => {
+    try {
+        if (fs.existsSync(TEST_ALERTS_FILE)) {
+            res.json(JSON.parse(fs.readFileSync(TEST_ALERTS_FILE, 'utf8')));
+        } else {
+            res.json(null);
+        }
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 테스트 장부 정리 (관리자 모드 OFF 시 호출)
+router.post('/api/admin/test-cleanup', (req, res) => {
+    try {
+        if (fs.existsSync(TEST_ALERTS_FILE)) {
+            fs.unlinkSync(TEST_ALERTS_FILE);
+            console.log('[Admin] 테스트 장부 삭제 완료');
+        }
+        res.json({ success: true, message: '테스트 데이터가 정리되었습니다.' });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 
