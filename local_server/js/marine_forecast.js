@@ -138,11 +138,16 @@ window.renderMarineMarkup = function renderMarineMarkup(str) {
     let result = escapeHtml(str);
 
     // 수치 패턴 (빨강, 볼드): 풍속, 파고, 거리, 온도 등
-    result = result.replace(/(순간풍속\s*\d+[~\-]?\d*\s*km\/h\s*\([^)]*\))/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
-    result = result.replace(/(파고\s*\d+[~\-]?\d*\s*m)/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
-    result = result.replace(/(가시거리\s*\d+[~\-]?\d*\s*m)/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
-    result = result.replace(/(\d+[~\-]\d+\s*m(?:\/s)?(?!\w))/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
-    result = result.replace(/(풍속\s*\d+[~\-]?\d*\s*m\/s)/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
+    result = result.replace(/(순간풍속\s*\d+\.?\d*[~\-]?\d*\.?\d*\s*km\/h\s*\([^)]*\))/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
+    result = result.replace(/(최대풍속\s*\d+\.?\d*[~\-]?\d*\.?\d*\s*km\/h\s*\([^)]*\))/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
+    result = result.replace(/(파고\s*\d+\.?\d*[~\-]?\d*\.?\d*\s*m)/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
+    result = result.replace(/(가시거리\s*\d+\.?\d*[~\-]?\d*\.?\d*\s*m\s*미만)/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
+    result = result.replace(/(가시거리\s*\d+\.?\d*[~\-]?\d*\.?\d*\s*m)/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
+    result = result.replace(/(풍속\s*\d+\.?\d*[~\-]?\d*\.?\d*\s*m\/s)/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
+    // 풍속 수치: "30~60km/h(8~16m/s)" 형태 (순간풍속/최대풍속 접두사 없는 경우)
+    result = result.replace(/(?<!font-weight:700;">)(\d+\.?\d*[~\-]\d+\.?\d*\s*km\/h\s*\([^)]*\))/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
+    // 파고/물결 수치: "1.5~3.5m", "1.0~2.5m" 형태 (소수점 포함)
+    result = result.replace(/(?<!font-weight:700;">)(\d+\.?\d*[~\-]\d+\.?\d*\s*m)(?![\/a-zA-Z])/g, '<span style="color:#f87171;font-weight:700;">$1</span>');
 
     // 지역 패턴 (파랑, 볼드): 해역명, 지역명
     // 단일 정규식으로 통합 — 긴 구역명을 먼저 매칭하여 이중 래핑 방지
@@ -172,8 +177,47 @@ window.renderMarineMarkup = function renderMarineMarkup(str) {
         '<span style="color:#60a5fa;font-weight:700;">$1</span>'
     );
 
-    // 경고 패턴 (주황, 볼드): 안전 관련 문구
-    result = result.replace(/(유의하기 바랍니다|주의하기 바랍니다|확인하기 바랍니다|안전사고에 유의|안전에 유의|강하게 부는 곳|높게 일는 곳|시설물 관리|해상교통[^.]*이용[^.]*바랍니다|운항정보를 확인)/g, '<span style="color:#fb923c;font-weight:700;">$1</span>');
+    // 경고 패턴 (주황, 볼드): 안전 관련 문구, 위험 기상 현상, 주요 키워드
+    result = result.replace(new RegExp('(' + [
+        // 행동 지침
+        '유의하기 바랍니다',
+        '주의하기 바랍니다',
+        '확인하기 바랍니다',
+        '참고하기 바랍니다',
+        '안전사고에 유의',
+        '안전에 유의',
+        // 위험 강도 표현
+        '매우 강하게 불고',
+        '매우 강하게 불[어겠]',
+        '강하게 불고',
+        '강하게 부는 곳',
+        '매우 높게 일[면겠]',
+        '높게 일[면겠]',
+        '높게 일는 곳',
+        // 특보/경보
+        '풍랑특보[를을]?\\s*발표할\\s*가능성',
+        '풍랑특보',
+        '폭풍해일특보',
+        '태풍특보',
+        // 시설/안전
+        '시설물 관리',
+        '해상교통[^.]*이용[^.]*바랍니다',
+        '운항정보를 확인',
+        // 위험 기상 현상
+        '돌풍과 함께 천둥[.]?번개',
+        '돌풍',
+        '천둥[.]?번개',
+        '너울성 파도',
+        '너울',
+        // 해상 주요 키워드 (주어)
+        '바다\\s*안개',
+        '바다안개',
+        '짙은 안개가 끼는 곳',
+        '안개가 끼는 곳',
+        // 주요 주어 키워드
+        '바람이',
+        '물결이'
+    ].join('|') + ')', 'g'), '<span style="color:#fb923c;font-weight:700;">$1</span>');
 
     return result;
 }
