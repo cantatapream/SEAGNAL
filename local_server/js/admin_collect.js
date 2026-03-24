@@ -17,8 +17,10 @@
 // ============================================================================
 // 관리자 테스트 모드 헬퍼
 // ============================================================================
+window._atmTestMode = false; // 모달 내 테스트 모드 토글 상태
+
 function isAdminTestMode() {
-    return localStorage.getItem('seagnal_admin_mode') === 'true';
+    return window._atmTestMode === true;
 }
 function getAdminToken() {
     return localStorage.getItem('push_token') || null;
@@ -44,7 +46,18 @@ window.openAlertTestModal = function () {
     overlay.innerHTML = `
         <div style="background:#1e293b;border-radius:16px;width:95%;max-width:900px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,0.1);">
             <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0;">
-                <h3 style="margin:0;color:#fff;font-size:1.1rem;"><i class="fa-solid fa-flask" style="color:#8b5cf6;"></i> 특보 수집 테스트</h3>
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <h3 style="margin:0;color:#fff;font-size:1.1rem;"><i class="fa-solid fa-flask" style="color:#8b5cf6;"></i> 특보 수집 테스트</h3>
+                    <label id="atm-testmode-toggle-wrap" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 10px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.1);border-radius:20px;user-select:none;" title="ON: 사용자 영향 없이 관리자 앱으로만 테스트">
+                        <span style="color:#94a3b8;font-size:0.7rem;font-weight:600;">테스트</span>
+                        <div style="position:relative;width:32px;height:18px;">
+                            <input type="checkbox" id="atm-testmode-cb" style="opacity:0;width:0;height:0;position:absolute;" />
+                            <div id="atm-testmode-track" style="position:absolute;inset:0;background:#475569;border-radius:9px;transition:background 0.2s;"></div>
+                            <div id="atm-testmode-thumb" style="position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>
+                        </div>
+                        <span id="atm-testmode-label" style="color:#94a3b8;font-size:0.68rem;font-weight:700;min-width:22px;">OFF</span>
+                    </label>
+                </div>
                 <button onclick="this.closest('#alert-test-modal-overlay').remove()" style="background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer;">&times;</button>
             </div>
             <div style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0;">
@@ -62,6 +75,58 @@ window.openAlertTestModal = function () {
         </div>
     `;
     document.body.appendChild(overlay);
+
+    // 테스트 모드 토글 이벤트
+    const testToggleWrap = document.getElementById('atm-testmode-toggle-wrap');
+    if (testToggleWrap) {
+        // 초기 상태 반영
+        const cb = document.getElementById('atm-testmode-cb');
+        cb.checked = window._atmTestMode;
+        if (window._atmTestMode) {
+            document.getElementById('atm-testmode-track').style.background = '#8b5cf6';
+            document.getElementById('atm-testmode-thumb').style.left = '16px';
+            document.getElementById('atm-testmode-label').textContent = 'ON';
+            document.getElementById('atm-testmode-label').style.color = '#c4b5fd';
+            testToggleWrap.style.borderColor = 'rgba(139,92,246,0.4)';
+            testToggleWrap.style.background = 'rgba(139,92,246,0.12)';
+        }
+
+        testToggleWrap.addEventListener('click', function () {
+            const cb = document.getElementById('atm-testmode-cb');
+            const track = document.getElementById('atm-testmode-track');
+            const thumb = document.getElementById('atm-testmode-thumb');
+            const label = document.getElementById('atm-testmode-label');
+            cb.checked = !cb.checked;
+            window._atmTestMode = cb.checked;
+            if (cb.checked) {
+                track.style.background = '#8b5cf6';
+                thumb.style.left = '16px';
+                label.textContent = 'ON';
+                label.style.color = '#c4b5fd';
+                testToggleWrap.style.borderColor = 'rgba(139,92,246,0.4)';
+                testToggleWrap.style.background = 'rgba(139,92,246,0.12)';
+            } else {
+                track.style.background = '#475569';
+                thumb.style.left = '2px';
+                label.textContent = 'OFF';
+                label.style.color = '#94a3b8';
+                testToggleWrap.style.borderColor = 'rgba(255,255,255,0.1)';
+                testToggleWrap.style.background = 'rgba(0,0,0,0.25)';
+                // OFF 시 테스트 장부 정리
+                fetch('/api/admin/test-cleanup', { method: 'POST' }).catch(() => {});
+            }
+            // 현재 탭 새로고침
+            const activeTab = document.querySelector('.atm-tab[style*="border-bottom: 2px solid rgb(99, 102, 241)"]') ||
+                              document.querySelector('.atm-tab[style*="border-bottom:2px solid #6366f1"]');
+            if (activeTab) {
+                const tabId = activeTab.id.replace('atm-tab-', '');
+                switchAlertTestTab(tabId);
+            } else {
+                switchAlertTestTab('status');
+            }
+        });
+    }
+
     switchAlertTestTab('status');
 };
 
