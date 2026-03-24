@@ -1101,6 +1101,15 @@ function renderCollectTestSubTab(container) {
     container.innerHTML = `
         <div class="admin-section-title" style="display:flex; justify-content:space-between; align-items:center;">
             <div><i class="fa-solid fa-flask" style="color:#8b5cf6;"></i> 특보 수집 테스트</div>
+            <label id="atm-testmode-toggle-wrap" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 10px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.1);border-radius:20px;user-select:none;" title="ON: 사용자 영향 없이 관리자 앱으로만 테스트">
+                <span style="color:#94a3b8;font-size:0.7rem;font-weight:600;">테스트</span>
+                <div style="position:relative;width:32px;height:18px;">
+                    <input type="checkbox" id="atm-testmode-cb" style="opacity:0;width:0;height:0;position:absolute;" />
+                    <div id="atm-testmode-track" style="position:absolute;inset:0;background:#475569;border-radius:9px;transition:background 0.2s;"></div>
+                    <div id="atm-testmode-thumb" style="position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>
+                </div>
+                <span id="atm-testmode-label" style="color:#94a3b8;font-size:0.68rem;font-weight:700;min-width:22px;">OFF</span>
+            </label>
         </div>
         <div style="display:flex;gap:0;border:1px solid rgba(255,255,255,0.1);border-radius:10px;overflow:hidden;margin-bottom:16px;">
             <button id="atm-tab-status" onclick="switchAlertTestTab('status')" class="atm-tab" style="flex:1;padding:12px;background:rgba(99,102,241,0.2);color:#a5b4fc;border:none;cursor:pointer;font-weight:600;font-size:0.9rem;border-bottom:2px solid #6366f1;">
@@ -1112,6 +1121,48 @@ function renderCollectTestSubTab(container) {
         </div>
         <div id="atm-content"></div>
     `;
+
+    // 테스트 모드 토글 이벤트 바인딩
+    const testToggleWrap = document.getElementById('atm-testmode-toggle-wrap');
+    if (testToggleWrap) {
+        const cb = document.getElementById('atm-testmode-cb');
+        cb.checked = window._atmTestMode;
+        if (window._atmTestMode) {
+            document.getElementById('atm-testmode-track').style.background = '#8b5cf6';
+            document.getElementById('atm-testmode-thumb').style.left = '16px';
+            document.getElementById('atm-testmode-label').textContent = 'ON';
+            document.getElementById('atm-testmode-label').style.color = '#c4b5fd';
+            testToggleWrap.style.borderColor = 'rgba(139,92,246,0.4)';
+            testToggleWrap.style.background = 'rgba(139,92,246,0.12)';
+        }
+
+        testToggleWrap.addEventListener('click', function () {
+            const cb = document.getElementById('atm-testmode-cb');
+            const track = document.getElementById('atm-testmode-track');
+            const thumb = document.getElementById('atm-testmode-thumb');
+            const label = document.getElementById('atm-testmode-label');
+            cb.checked = !cb.checked;
+            window._atmTestMode = cb.checked;
+            if (cb.checked) {
+                track.style.background = '#8b5cf6';
+                thumb.style.left = '16px';
+                label.textContent = 'ON';
+                label.style.color = '#c4b5fd';
+                testToggleWrap.style.borderColor = 'rgba(139,92,246,0.4)';
+                testToggleWrap.style.background = 'rgba(139,92,246,0.12)';
+            } else {
+                track.style.background = '#475569';
+                thumb.style.left = '2px';
+                label.textContent = 'OFF';
+                label.style.color = '#94a3b8';
+                testToggleWrap.style.borderColor = 'rgba(255,255,255,0.1)';
+                testToggleWrap.style.background = 'rgba(0,0,0,0.25)';
+                fetch('/api/admin/test-cleanup', { method: 'POST' }).catch(() => {});
+            }
+            switchAlertTestTab('status');
+        });
+    }
+
     switchAlertTestTab('status');
 }
 
