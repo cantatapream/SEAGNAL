@@ -206,17 +206,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     // [이동됨] updateTimeDisplay 호출은 app_init.js에서 1초 간격으로 관리
     if (typeof updateTimeDisplay === 'function') updateTimeDisplay();
 
-    // [Preload] 메인 로딩 완료 후 해구 지도 이미지를 백그라운드에서 미리 로드
-    // requestIdleCallback 사용으로 메인 UI 렌더링을 방해하지 않음
-    if (window.requestIdleCallback) {
-        requestIdleCallback(() => {
-            if (window.preloadSeaZoneImage) window.preloadSeaZoneImage();
-        });
-    } else {
-        setTimeout(() => {
-            if (window.preloadSeaZoneImage) window.preloadSeaZoneImage();
-        }, 1000);
-    }
+    // [이동됨] 해구도 프리로드는 data.js의 loadBackgroundData()에서 순차 처리
 });
 
 window.toggleSection = toggleSection;
