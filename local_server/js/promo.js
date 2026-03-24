@@ -895,9 +895,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     let unifiedAdminClickCount = 0;
     let unifiedAdminClickTimer = null;
 
-    // 스플래시 화면 노출 시작 시간
-    const splashStartTime = Date.now();
-
     // [New] Capacitor 네이티브 환경 감지 (앱 접속 시 스플래시 스킵)
     const isNativeApp = window.Capacitor && window.Capacitor.isNativePlatform();
 
@@ -921,14 +918,8 @@ document.addEventListener('DOMContentLoaded', async function () {
         // console.error('Initial data fetch failed:', e);
     }
 
-    // 2. 스플래시 종료 타이밍 결정
-    // [수정] 앱에서도 웹 스플래시를 보여줌 (검정화면 -> 웹 스플래시 -> 메인)
-    // 네이티브 스플래시는 0초(검정)로 지나가고, 웹 스플래시가 2초간 나옴
-    const minSplashTime = 2000;
-    const elapsedTime = Date.now() - splashStartTime;
-    const delay = Math.max(0, minSplashTime - elapsedTime);
-
-    setTimeout(hideSplash, delay);
+    // 2. 스플래시 종료 — 최소 대기 없이 데이터 로드 완료 즉시 종료
+    hideSplash();
 
     // [New] 푸시 알림 파라미터 확인 및 팝업 표시
     // checkForPushPopup 제거됨 (fix_popup_logic.js 이관)

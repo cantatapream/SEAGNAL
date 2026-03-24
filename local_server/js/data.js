@@ -33,14 +33,10 @@ async function fetchAllData() {
     appState.releasedCoastalZones = {};
 
     try {
-        // 1. 부이 데이터 호출 (비동기 시작)
-        const buoyPromise = fetchBuoyData();
-
-        // 2. 특보 데이터 (crawler가 생성한 JSON 파일)
+        // 1. 특보 데이터 (crawler가 생성한 JSON 파일) — 스플래시 종료 조건
         const alertsResponse = await fetch('/api/weather-alerts?_t=' + Date.now());
         if (alertsResponse.ok) {
             const rootData = await alertsResponse.json();
-            // JSON 계층 구조를 appState.alerts(평탄화된 배열)와 appState.coastalAlerts로 변환
             flattenAlertsData(rootData);
             appState.apiStatus.hub = 'success';
         } else {
@@ -49,25 +45,16 @@ async function fetchAllData() {
             appState.apiStatus.hub = 'error';
         }
 
-        appState.lastUpdated = new Date(); // 업데이트 시각 갱신
+        appState.lastUpdated = new Date();
 
-        // 3. 부이 데이터 대기
-        const buoyData = await buoyPromise;
-        appState.buoyData = buoyData || {};
-        appState.apiStatus.buoy = Object.keys(appState.buoyData).length > 0 ? 'success' : 'warning';
+        // 2. 해상 기상 전망 — 스플래시 종료 조건
+        if (typeof loadMarineForecast === 'function') {
+            await loadMarineForecast();
+        }
 
         updateApiStatusDisplay();
         renderApp();
 
-        // 부이 데이터 로드 완료 → 부이 버튼 색상 갱신
-        if (typeof updateBuoyButtonColors === 'function') {
-            updateBuoyButtonColors();
-        }
-
-        // 해상 기상 전망 데이터도 함께 갱신
-        if (typeof loadMarineForecast === 'function') {
-            loadMarineForecast();
-        }
     } catch (error) {
         console.error('Critical Error in fetchAllData:', error);
         appState.hasApiError = true;
@@ -75,6 +62,35 @@ async function fetchAllData() {
         renderApp();
     } finally {
         updateLoading(false);
+    }
+
+    // 3. 백그라운드 순차 로딩 (스플래시 종료 후 실행)
+    loadBackgroundData();
+}
+
+/**
+ * 스플래시 종료 후 백그라운드에서 순차적으로 로드하는 데이터
+ * 순서: 부이정보 → 해구도 이미지 프리로드
+ */
+async function loadBackgroundData() {
+    try {
+        // 3-1. 부이 데이터 로드
+        const buoyData = await fetchBuoyData();
+        appState.buoyData = buoyData || {};
+        appState.apiStatus.buoy = Object.keys(appState.buoyData).length > 0 ? 'success' : 'warning';
+        updateApiStatusDisplay();
+
+        // 부이 버튼 색상 갱신
+        if (typeof updateBuoyButtonColors === 'function') {
+            updateBuoyButtonColors();
+        }
+
+        // 3-2. 해구도 이미지 프리로드
+        if (window.preloadSeaZoneImage) {
+            window.preloadSeaZoneImage();
+        }
+    } catch (error) {
+        console.error('Background data loading error:', error);
     }
 }
 
