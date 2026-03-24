@@ -1229,7 +1229,7 @@ async function renderMaintenanceFullTab(container) {
     const blocked = config.blockedFeatures || [];
     const isBlockPush = config.blockPush !== false;
     const features = [
-        { id: 'marine-forecast', label: '기상청 해상 기상 전망(임시운영)', group: '기상정보' },
+        { id: 'marine-forecast', label: '기상청 해상 기상 전망', group: '기상정보' },
         { id: 'weather-alert', label: '해역별 특보현황', group: '기상정보' },
         { id: 'weather-buoy', label: '해역별 기상현황', group: '기상정보' },
         { id: 'sea-zone', label: '해구기상', group: '탭' },
