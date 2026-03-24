@@ -14,3 +14,6 @@ Thumbs.db
 
 # 로그 파일
 *.log
+
+# 디버그 PDF 데이터
+local_server/data/debug_pdf/

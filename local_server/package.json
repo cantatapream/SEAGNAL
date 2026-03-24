@@ -24,8 +24,8 @@
         "lru-cache": "^7.18.3",
         "multer": "^2.0.2",
         "multer-storage-cloudinary": "^4.0.0",
-        "node-fetch": "^2.7.0",
         "node-cron": "^4.2.1",
+        "node-fetch": "^2.7.0",
         "pdf-parse": "^1.1.1",
         "web-push": "^3.6.7"
     }
