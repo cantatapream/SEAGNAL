@@ -102,6 +102,8 @@ window._toggleAdminMode = function (checked) {
         // 뱃지 숨기기
         const badge = document.getElementById('report-badge');
         if (badge) badge.style.display = 'none';
+        // 테스트 모드 장부 정리 (사용자와 동일한 상태로 복원)
+        fetch('/api/admin/test-cleanup', { method: 'POST' }).catch(() => {});
     }
 };
 

@@ -15,6 +15,20 @@
  */
 
 // ============================================================================
+// 관리자 테스트 모드 헬퍼
+// ============================================================================
+function isAdminTestMode() {
+    return localStorage.getItem('seagnal_admin_mode') === 'true';
+}
+function getAdminToken() {
+    return localStorage.getItem('push_token') || null;
+}
+function getTestModeParams() {
+    if (!isAdminTestMode()) return {};
+    return { testMode: true, adminToken: getAdminToken() };
+}
+
+// ============================================================================
 // [특보 수집 테스트] 팝업 모달
 // ============================================================================
 
@@ -68,13 +82,25 @@ window.switchAlertTestTab = function (tabId) {
 async function renderATMStatus(container) {
     container.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;">로딩 중...</div>';
     try {
+        const inTestMode = isAdminTestMode();
+        const alertsUrl = inTestMode ? '/api/admin/test-alerts' : '/api/weather-alerts';
         const [alertsRes, crawlRes] = await Promise.all([
-            fetch('/api/weather-alerts').then(r => r.json()),
+            fetch(alertsUrl).then(r => r.json()),
             fetch('/api/admin/crawl-status').then(r => r.json())
         ]);
         const isPaused = crawlRes.paused;
+        // 테스트 모드에서 테스트 장부가 없으면 운영 장부 표시
+        const displayData = (inTestMode && !alertsRes) ? (await fetch('/api/weather-alerts').then(r => r.json())) : alertsRes;
+
+        const testBanner = inTestMode ? `
+            <div style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+                <i class="fa-solid fa-flask" style="color:#a78bfa;"></i>
+                <span style="color:#c4b5fd;font-size:0.8rem;font-weight:600;">관리자 테스트 모드</span>
+                <span style="color:#94a3b8;font-size:0.75rem;">초기화/수집 시 사용자에게 영향 없이 관리자 앱으로만 알림이 발송됩니다.</span>
+            </div>` : '';
 
         container.innerHTML = `
+            ${testBanner}
             <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
                 <button onclick="atmReset()" style="padding:8px 16px;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
                     <i class="fa-solid fa-trash-can"></i> 초기화
@@ -87,15 +113,23 @@ async function renderATMStatus(container) {
                 </button>
             </div>
             <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;overflow:auto;max-height:55vh;">
-                <pre style="margin:0;color:#e2e8f0;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;font-family:'Courier New',monospace;">${JSON.stringify(alertsRes, null, 2)}</pre>
+                <pre style="margin:0;color:#e2e8f0;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;font-family:'Courier New',monospace;">${JSON.stringify(displayData, null, 2)}</pre>
             </div>`;
     } catch (e) { container.innerHTML = '<div style="color:#ef4444;padding:20px;">오류: ' + e.message + '</div>'; }
 }
 
 window.atmReset = async function () {
-    if (!confirm('특보 장부를 초기화하시겠습니까?\\n모든 수집 데이터가 삭제됩니다.')) return;
+    const testParams = getTestModeParams();
+    const confirmMsg = testParams.testMode
+        ? '테스트 장부를 초기화하시겠습니까?\n(관리자 테스트 모드: 사용자에게 영향 없음)'
+        : '특보 장부를 초기화하시겠습니까?\n모든 수집 데이터가 삭제됩니다.';
+    if (!confirm(confirmMsg)) return;
     try {
-        const res = await fetch('/api/admin/alerts-reset', { method: 'POST' });
+        const res = await fetch('/api/admin/alerts-reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(testParams)
+        });
         const data = await res.json();
         alert(data.message || '초기화 완료');
         renderATMStatus(document.getElementById('atm-content'));
@@ -346,7 +380,7 @@ window.atmCollectOne = async function (i, refTimeOverride) {
             await new Promise(r => setTimeout(r, 1500));
         }
         try {
-            const res = await fetch('/api/admin/report-collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: report.id, title: report.title, referenceTime, skipPush }) });
+            const res = await fetch('/api/admin/report-collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: report.id, title: report.title, referenceTime, skipPush, ...getTestModeParams() }) });
             lastOk = res.ok;
             lastData = await res.json();
         } catch (e) {

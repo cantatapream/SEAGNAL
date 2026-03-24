@@ -60,9 +60,10 @@ function clearPendingPushes() {
 /**
  * 변경 사항(changes)을 분석하여 그룹핑 후 푸시 알림 발송
  * @param {Array} changes - [{ type, zone, prev, curr, currentActive? }, ...]
+ * @param {Object} options - { adminToken: string|null } 관리자 테스트 모드 시 해당 토큰으로만 발송
  * @returns {boolean} 발송 성공 여부 (실패 시 false → 크롤러에서 재시도 판단)
  */
-async function processAndSendNotifications(changes) {
+async function processAndSendNotifications(changes, options = {}) {
     if (!changes || changes.length === 0) {
         // 신규 변경사항은 없지만 미발송 건이 있으면 재시도
         return await retryPendingPushes();
@@ -84,6 +85,9 @@ async function processAndSendNotifications(changes) {
         console.log(`[PushSender] 점검 파일 읽기 실패 (정상 진행): ${e.message}`);
     }
 
+    if (options.adminToken) {
+        console.log(`[PushSender] 🔧 관리자 테스트 모드 → 관리자 토큰으로만 발송`);
+    }
     console.log(`[PushSender] ${changes.length}건의 변경사항 분석 중...`);
 
     // 1. 그룹핑 컨테이너
@@ -250,7 +254,7 @@ async function processAndSendNotifications(changes) {
             prevLevel: group.prevLevel || null
         };
 
-        const success = await sendToApi(payload);
+        const success = await sendToApi(payload, options.adminToken || null);
         if (!success) {
             allSuccess = false;
             failedPayloads.push({ payload, key, failedAt: new Date().toISOString() });
@@ -332,9 +336,11 @@ function addToGroup(groups, templateId, typeName, level, itemData) {
 }
 
 /**
+ * @param {Object} payload - 발송 데이터
+ * @param {string|null} adminToken - 관리자 테스트 모드 시 해당 FCM 토큰으로만 발송
  * @returns {boolean} 발송 성공 여부
  */
-async function sendToApi(payload) {
+async function sendToApi(payload, adminToken = null) {
     if (!fetch) {
         console.error('[PushSender] fetch 사용 불가 → 발송 실패');
         return false;
@@ -348,7 +354,8 @@ async function sendToApi(payload) {
             body: JSON.stringify({
                 isManualGroupSend: true,
                 type: 'auto',
-                payload: payload
+                payload: payload,
+                adminToken: adminToken || undefined
             })
         });
 
