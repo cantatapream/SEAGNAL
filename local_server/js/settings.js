@@ -492,11 +492,6 @@ function openSettingsModal() {
     const modal = document.getElementById('settings-modal');
     if (!modal) return;
 
-    // 스냅샷 저장 (저장 버튼 누르기 전까지 되돌릴 수 있도록)
-    UserSettings._snapshot = JSON.parse(JSON.stringify(UserSettings.settings));
-    NotificationSettings._snapshot = JSON.parse(JSON.stringify(NotificationSettings.settings));
-    window._fontSizeSnapshot = window.FontSizeManager ? FontSizeManager.get() : null;
-
     // 네이티브 앱이 아닌 경우 푸시 알림 탭 숨김
     const isNative = window.Capacitor && window.Capacitor.isNativePlatform();
     const pushTabBtn = document.getElementById('btn-tab-push');
@@ -511,7 +506,12 @@ function openSettingsModal() {
     window.switchSettingsTab('tab-zones');
 
     renderSettingsList();
-    initNotificationUI(); // [New] UI 초기화
+    initNotificationUI(); // [New] UI 초기화 (localStorage에서 최신 값 다시 읽음)
+
+    // 스냅샷 저장 (initNotificationUI 이후에 생성해야 localStorage 최신 값 기준)
+    UserSettings._snapshot = JSON.parse(JSON.stringify(UserSettings.settings));
+    NotificationSettings._snapshot = JSON.parse(JSON.stringify(NotificationSettings.settings));
+    window._fontSizeSnapshot = window.FontSizeManager ? FontSizeManager.get() : null;
 }
 
 function closeSettingsModal() {
