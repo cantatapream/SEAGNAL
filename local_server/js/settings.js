@@ -393,9 +393,6 @@ function initNotificationUI() {
         }
         // 정상적인 경우 UI 업데이트
         updateMasterState(willBeEnabled);
-
-        // [추가] 즉시 설정 저장 및 서버 동기화
-        NotificationSettings.set({ master: willBeEnabled });
     };
 
     updateMasterState(s.master);
@@ -495,6 +492,11 @@ function openSettingsModal() {
     const modal = document.getElementById('settings-modal');
     if (!modal) return;
 
+    // 스냅샷 저장 (저장 버튼 누르기 전까지 되돌릴 수 있도록)
+    UserSettings._snapshot = JSON.parse(JSON.stringify(UserSettings.settings));
+    NotificationSettings._snapshot = JSON.parse(JSON.stringify(NotificationSettings.settings));
+    window._fontSizeSnapshot = window.FontSizeManager ? FontSizeManager.get() : null;
+
     // 네이티브 앱이 아닌 경우 푸시 알림 탭 숨김
     const isNative = window.Capacitor && window.Capacitor.isNativePlatform();
     const pushTabBtn = document.getElementById('btn-tab-push');
@@ -515,9 +517,28 @@ function openSettingsModal() {
 function closeSettingsModal() {
     const modal = document.getElementById('settings-modal');
     if (modal) modal.classList.add('hidden');
+
+    // 스냅샷이 남아있으면 저장 없이 닫은 것 → 원래 상태로 복원
+    if (UserSettings._snapshot) {
+        UserSettings.settings = UserSettings._snapshot;
+        UserSettings._snapshot = null;
+    }
+    if (NotificationSettings._snapshot) {
+        NotificationSettings.settings = NotificationSettings._snapshot;
+        NotificationSettings._snapshot = null;
+    }
+    if (window._fontSizeSnapshot) {
+        if (window.FontSizeManager) FontSizeManager.apply(window._fontSizeSnapshot);
+        window._fontSizeSnapshot = null;
+    }
 }
 
 function saveSettingsAndClose() {
+    // 스냅샷 제거 (저장 확정이므로 closeSettingsModal에서 복원하지 않도록)
+    UserSettings._snapshot = null;
+    NotificationSettings._snapshot = null;
+    window._fontSizeSnapshot = null;
+
     UserSettings.save();
     saveNotificationUI(); // [New] 알림 설정 저장
     if (window.FontSizeManager) FontSizeManager.save(); // [New] 폰트 크기 저장
@@ -541,8 +562,9 @@ function saveSettingsAndClose() {
 
 function resetSettings() {
     if (confirm('모든 설정을 초기화하여 전체 해역을 표시하시겠습니까?')) {
-        UserSettings.reset();
-        openSettingsModal(); // UI 갱신
+        // 메모리만 초기화 (저장 버튼을 눌러야 실제 반영)
+        UserSettings.settings = {};
+        renderSettingsList(); // 설정 목록 UI만 갱신
     }
 }
 
