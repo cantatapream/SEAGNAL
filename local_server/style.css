@@ -1158,7 +1158,7 @@ line-height: 1.1;
     opacity: 1;
     margin-top: 1rem;
     padding: 1rem;
-    overflow: hidden;
+    overflow: visible;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -1169,6 +1169,7 @@ line-height: 1.1;
     padding-top: 0;
     padding-bottom: 0;
     border-width: 0;
+    overflow: hidden;
     pointer-events: none;
 }
 
