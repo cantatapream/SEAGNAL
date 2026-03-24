@@ -668,8 +668,9 @@ function parseMarineForecast(text, publishTimestamp) {
 
     // 풍향/풍속 패턴: "북동~동 / 7~11" 또는 "북동~동 / 6~9"
     const windPattern = /^([가-힣~]+)\s*\/\s*(\d+~\d+)$/;
-    // 파고 패턴: "0.5" 또는 "1.0" (단독) 또는 "0.5\n~\n1.5" (범위)
+    // 파고 패턴: "0.5" 또는 "1.0" (단독) 또는 "0.5~1.0" (한 줄 범위) 또는 "0.5\n~\n1.5" (여러 줄 범위)
     const waveSimplePattern = /^(\d+\.?\d*)$/;
+    const waveRangePattern = /^(\d+\.?\d*)\s*~\s*(\d+\.?\d*)$/;
 
     // 해상 섹션을 구역 블록으로 분할하는 다른 접근법:
     // "날씨파고" 헤더 행 이후의 데이터를 구역별로 읽음
@@ -730,6 +731,7 @@ function parseMarineForecast(text, publishTimestamp) {
             const weatherWords = ['맑음', '구름많음', '흐림', '흐리고', '비', '눈', '소나기', '안개'];
             const isPrevData = !prevLine || prevLine.length < 2 ||
                 windPattern.test(prevLine) || waveSimplePattern.test(prevLine) ||
+                waveRangePattern.test(prevLine) ||
                 prevLine === '~' || weatherWords.some(w => prevLine.includes(w));
 
             if (!isPrevData) {
@@ -810,10 +812,18 @@ function parseMarineForecast(text, publishTimestamp) {
                 continue;
             }
 
-            // 파고 패턴 (단순 숫자)
+            // 파고 패턴: "0.5~1.0" (한 줄 범위)
+            const waveRangeMatch = line.match(waveRangePattern);
+            if (waveRangeMatch) {
+                waves.push(`${waveRangeMatch[1]}~${waveRangeMatch[2]}`);
+                lineIdx++;
+                continue;
+            }
+
+            // 파고 패턴 (단순 숫자 "0.5")
             if (waveSimplePattern.test(line)) {
                 let waveVal = line;
-                // "0.5\n~\n1.5" 범위 패턴 확인
+                // "0.5\n~\n1.5" 범위 패턴 확인 (여러 줄에 걸친 경우)
                 if (lineIdx + 2 < lines.length &&
                     lines[lineIdx + 1].trim() === '~' &&
                     waveSimplePattern.test(lines[lineIdx + 2].trim())) {
@@ -932,6 +942,9 @@ function parseMarineForecast(text, publishTimestamp) {
 function normalizeMarineZoneName(rawName) {
     // 공백, 줄바꿈 제거
     let name = rawName.replace(/[\s\n]/g, '');
+
+    // 파고 값이 구역명 앞에 붙은 경우 제거 (예: "0.5~1.0먼바다" → "먼바다")
+    name = name.replace(/^[\d.~]+/, '');
 
     // PDF에서 '인천경기' (가운뎃점 누락) → '인천·경기' 정규화
     if (name.includes('인천경기') && !name.includes('인천·경기')) {
