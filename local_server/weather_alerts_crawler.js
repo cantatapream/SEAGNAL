@@ -189,19 +189,47 @@ function parseChildWarnings(html, form) {
 
 /**
  * 폼에 데이터 매핑 (부모-자식 상속 해결)
+ *
+ * [사전삭제 방어 로직]
+ * 기상청이 특보 해제 전에 warning.do 페이지에서 자식해역 정보를 미리 삭제하는 경우가 있다.
+ * 부모 특보가 살아있는데 "이전에 활성화된 자식 전부"가 동시에 사라지면 사전삭제로 간주하여
+ * 이전 상태를 유지한다. 일부만 사라진 경우는 정상 해제로 처리한다.
+ * 사전삭제로 유지된 자식은 부모 해제 시 함께 자동 해제된다.
  */
 function mapDataToForm(form, activeChildren) {
     function updateChildren(obj) {
         if (!obj || typeof obj !== 'object') return;
 
         if (obj.current !== undefined && obj.children) {
-            for (const childName of Object.keys(obj.children)) {
-                if (obj.current === null && obj.upcoming === null) {
-                    // [상속 룰] 부모가 발효 중인 특보도 없고 예정된 특보도 없다면 자식도 강제 해제
+            const childNames = Object.keys(obj.children);
+
+            if (obj.current === null && obj.upcoming === null) {
+                // [상속 룰] 부모가 발효 중인 특보도 없고 예정된 특보도 없다면 자식도 강제 해제
+                for (const childName of childNames) {
                     obj.children[childName] = null;
+                }
+            } else {
+                // 부모가 활성 상태(발효 또는 발표)
+                const prevActive = childNames.filter(name => obj.children[name] === 'Y');
+
+                if (prevActive.length > 0) {
+                    // 이전에 활성화된 자식이 있었음
+                    const stillInCrawl = prevActive.filter(name => activeChildren.has(name));
+
+                    if (stillInCrawl.length === 0) {
+                        // 이전 활성 자식 전부 소멸 → 기상청 사전삭제 → 이전 상태 유지
+                        console.log(`[Crawler] 사전삭제 감지: 부모 특보 활성 중 자식 ${prevActive.length}개 전체 소멸 → 이전 상태 유지 (${prevActive.join(', ')})`);
+                    } else {
+                        // 일부 자식이 크롤링에 존재 → 크롤링 결과를 신뢰
+                        for (const childName of childNames) {
+                            obj.children[childName] = activeChildren.has(childName) ? 'Y' : null;
+                        }
+                    }
                 } else {
-                    // 부모가 활성 상태(발효 또는 발표)일 때만 warning.do의 표기 여부에 따름
-                    obj.children[childName] = activeChildren.has(childName) ? 'Y' : null;
+                    // 이전에 활성화된 자식 없음 → 크롤링 결과 그대로 반영
+                    for (const childName of childNames) {
+                        obj.children[childName] = activeChildren.has(childName) ? 'Y' : null;
+                    }
                 }
             }
         }
