@@ -74,6 +74,7 @@ body {
     display: flex;
     justify-content: center;
     overflow-x: hidden;
+    padding-bottom: env(safe-area-inset-bottom);
 }
 
 .app-container {
