@@ -71,7 +71,7 @@ router.get('/api/vapid-public-key', (req, res) => {
 
 // 구독 추가/갱신 (Web Push & FCM)
 router.post('/api/subscribe', (req, res) => {
-    const { subscription, token, zones, options } = req.body;
+    const { subscription, token, zones, options, deviceId } = req.body;
 
     const isWebPush = subscription && subscription.endpoint;
     const isFcm = !!token;
@@ -99,6 +99,7 @@ router.post('/api/subscribe', (req, res) => {
             subscription: isWebPush ? subscription : undefined,
             zones: Array.isArray(zones) ? zones : [],
             options: options || { alert: true, release: true },
+            deviceId: deviceId || undefined,
             updatedAt: Date.now()
         };
 

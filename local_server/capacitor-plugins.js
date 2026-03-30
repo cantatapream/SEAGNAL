@@ -53,13 +53,17 @@ window.subscribeUser = async (token = null) => {
         : ALL_ZONES.filter(zone => userSettings[zone] !== false);
 
     try {
+        // deviceId: 제보 답변 푸시 등 기기 식별용
+        const deviceId = localStorage.getItem('seagnal_device_id') || '';
+
         await fetch('/api/subscribe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 token: token,
                 zones: selectedZones,
-                options: pushSettings // 여기에 master(ON/OFF) 상태가 포함됨
+                options: pushSettings, // 여기에 master(ON/OFF) 상태가 포함됨
+                deviceId: deviceId
             })
         });
         console.log('Server subscription updated:', pushSettings.master ? 'ON' : 'OFF', '| Zones:', selectedZones.length);

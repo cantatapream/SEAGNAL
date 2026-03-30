@@ -66,6 +66,18 @@ const reportUpload = multer({
     }
 }).array('attachments', 3); // 최대 3장
 
+// 답변 이미지 업로드 (최대 3장)
+const answerUpload = multer({
+    storage: reportStorage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowed = /jpeg|jpg|png|gif|webp/;
+        const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+        const mime = allowed.test(file.mimetype);
+        cb(null, ext && mime);
+    }
+}).array('answerAttachments', 3);
+
 // ============================================================================
 // 유틸리티 함수
 // ============================================================================
@@ -229,7 +241,8 @@ router.get('/api/reports/pending-answer', (req, res) => {
             reportId: pending.id,
             title: pending.title,
             answer: pending.answer,
-            answeredAt: pending.answeredAt
+            answeredAt: pending.answeredAt,
+            answerAttachments: pending.answerAttachments || []
         });
     } else {
         res.json({ hasAnswer: false });
@@ -271,7 +284,8 @@ router.get('/api/reports/:id/download/:filename', (req, res) => {
     if (!report) return res.status(404).json({ error: '제보를 찾을 수 없습니다.' });
 
     const filename = req.params.filename;
-    if (!report.attachments || !report.attachments.includes(filename)) {
+    const allAttachments = [...(report.attachments || []), ...(report.answerAttachments || [])];
+    if (!allAttachments.includes(filename)) {
         return res.status(404).json({ error: '첨부파일을 찾을 수 없습니다.' });
     }
 
@@ -286,31 +300,50 @@ router.get('/api/reports/:id/download/:filename', (req, res) => {
 // ============================================================================
 // 답변 작성 (POST /api/reports/:id/answer)
 // ============================================================================
-router.post('/api/reports/:id/answer', async (req, res) => {
-    const { answer, sendPush } = req.body;
-    if (!answer) return res.status(400).json({ error: '답변 내용을 입력해주세요.' });
-
-    const reports = getReports();
-    const report = reports.find(r => r.id === req.params.id);
-    if (!report) return res.status(404).json({ error: '제보를 찾을 수 없습니다.' });
-
-    report.answer = answer;
-    report.answeredAt = getKSTNow();
-    report.status = '답변완료';
-    report.answerRead = false; // 사용자가 아직 읽지 않음
-    saveReports(reports);
-
-    // 푸시 알림 발송 (sendPush가 true일 때만)
-    if (sendPush) {
-        try {
-            await sendReportPush(report.deviceId, '제보에 대한 답변이 도착했습니다.');
-        } catch (e) {
-            console.error('[Report] 푸시 발송 실패:', e.message);
+router.post('/api/reports/:id/answer', (req, res) => {
+    answerUpload(req, res, async (err) => {
+        if (err) {
+            if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: '파일 크기는 5MB 이하만 가능합니다.' });
+            return res.status(500).json({ error: '파일 업로드 오류' });
         }
-    }
 
-    console.log(`✅ [Report] 답변 완료: ${report.id} (push: ${!!sendPush})`);
-    res.json({ success: true });
+        const { answer, sendPush, existingAttachments } = req.body;
+        if (!answer) return res.status(400).json({ error: '답변 내용을 입력해주세요.' });
+
+        const reports = getReports();
+        const report = reports.find(r => r.id === req.params.id);
+        if (!report) return res.status(404).json({ error: '제보를 찾을 수 없습니다.' });
+
+        // 기존 답변 이미지 중 삭제된 것 정리
+        const keepExisting = existingAttachments
+            ? (Array.isArray(existingAttachments) ? existingAttachments : [existingAttachments])
+            : [];
+        const oldAttachments = report.answerAttachments || [];
+        const removedAttachments = oldAttachments.filter(f => !keepExisting.includes(f));
+        deleteAttachments(removedAttachments);
+
+        // 새 이미지 파일명
+        const newAttachments = (req.files || []).map(f => f.filename);
+
+        report.answer = answer;
+        report.answeredAt = getKSTNow();
+        report.status = '답변완료';
+        report.answerRead = false;
+        report.answerAttachments = [...keepExisting, ...newAttachments];
+        saveReports(reports);
+
+        // 푸시 알림 발송
+        if (sendPush === 'true' || sendPush === true) {
+            try {
+                await sendReportPush(report.deviceId, '제보에 대한 답변이 도착했습니다.');
+            } catch (e) {
+                console.error('[Report] 푸시 발송 실패:', e.message);
+            }
+        }
+
+        console.log(`✅ [Report] 답변 완료: ${report.id} (push: ${sendPush === 'true'}, images: ${report.answerAttachments.length})`);
+        res.json({ success: true });
+    });
 });
 
 // ============================================================================
@@ -321,8 +354,9 @@ router.delete('/api/reports/:id', (req, res) => {
     const report = reports.find(r => r.id === req.params.id);
     if (!report) return res.status(404).json({ error: '제보를 찾을 수 없습니다.' });
 
-    // 첨부파일 삭제
+    // 첨부파일 삭제 (제보 이미지 + 답변 이미지)
     deleteAttachments(report.attachments);
+    deleteAttachments(report.answerAttachments);
 
     reports = reports.filter(r => r.id !== req.params.id);
     saveReports(reports);
@@ -343,8 +377,11 @@ router.post('/api/reports/bulk-delete', (req, res) => {
     let reports = getReports();
     const toDelete = reports.filter(r => ids.includes(r.id));
 
-    // 첨부파일 삭제
-    toDelete.forEach(r => deleteAttachments(r.attachments));
+    // 첨부파일 삭제 (제보 이미지 + 답변 이미지)
+    toDelete.forEach(r => {
+        deleteAttachments(r.attachments);
+        deleteAttachments(r.answerAttachments);
+    });
 
     reports = reports.filter(r => !ids.includes(r.id));
     saveReports(reports);
@@ -550,8 +587,11 @@ function cleanupExpiredReports() {
 
     if (expired.length === 0) return 0;
 
-    // 첨부파일 삭제
-    expired.forEach(r => deleteAttachments(r.attachments));
+    // 첨부파일 삭제 (제보 이미지 + 답변 이미지)
+    expired.forEach(r => {
+        deleteAttachments(r.attachments);
+        deleteAttachments(r.answerAttachments);
+    });
 
     const remaining = reports.filter(r => {
         const created = new Date(r.createdAt);

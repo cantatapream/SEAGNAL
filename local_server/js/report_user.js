@@ -329,9 +329,22 @@
             let answerHtml = '';
             if (r.answer) {
                 const answerDate = r.answeredAt ? new Date(r.answeredAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+
+                // 답변 첨부 이미지
+                let answerImgHtml = '';
+                if (r.answerAttachments && r.answerAttachments.length > 0) {
+                    answerImgHtml = '<div style="margin-top:10px;"><div style="font-size:0.7rem;color:#94a3b8;margin-bottom:6px;">📎 답변 첨부 이미지</div><div style="display:flex;gap:6px;flex-wrap:wrap;">';
+                    r.answerAttachments.forEach(filename => {
+                        const imgUrl = CONFIG.API_BASE + '/api/reports/' + r.id + '/download/' + encodeURIComponent(filename);
+                        answerImgHtml += `<div style="width:70px;height:70px;border-radius:6px;overflow:hidden;border:1px solid #334155;cursor:pointer;" onclick="window._previewReportImage('${escapeHTML(imgUrl)}')"><img src="${escapeHTML(imgUrl)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.display='none'"></div>`;
+                    });
+                    answerImgHtml += '</div></div>';
+                }
+
                 answerHtml = `
                     <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:6px;">답변일시: ${answerDate}</div>
                     <div style="border-left:3px solid rgba(59,130,246,0.4);padding:2px 0 2px 12px;font-size:0.85rem;line-height:1.7;color:#cbd5e1;word-break:keep-all;">${escapeHTML(r.answer).replace(/\n/g, '<br>')}</div>
+                    ${answerImgHtml}
                 `;
             } else {
                 answerHtml = '<div style="text-align:center;padding:20px 0;color:#64748b;font-size:0.85rem;"><i class="fa-regular fa-comment-dots" style="margin-right:4px;"></i>아직 답변이 등록되지 않았습니다.</div>';
@@ -529,6 +542,17 @@
         const existing = document.getElementById('report-answer-popup');
         if (existing) existing.remove();
 
+        // 답변 첨부 이미지 HTML
+        let answerImgHtml = '';
+        if (data.answerAttachments && data.answerAttachments.length > 0) {
+            answerImgHtml = '<div style="margin-top:10px;"><div style="font-size:0.7rem;color:#94a3b8;margin-bottom:6px;">📎 첨부 이미지</div><div style="display:flex;gap:6px;flex-wrap:wrap;">';
+            data.answerAttachments.forEach(filename => {
+                const imgUrl = CONFIG.API_BASE + '/api/reports/' + data.reportId + '/download/' + encodeURIComponent(filename);
+                answerImgHtml += `<div style="width:70px;height:70px;border-radius:6px;overflow:hidden;border:1px solid #334155;cursor:pointer;" onclick="window._previewReportImage('${escapeHTML(imgUrl)}')"><img src="${escapeHTML(imgUrl)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.display='none'"></div>`;
+            });
+            answerImgHtml += '</div></div>';
+        }
+
         const html = `
             <div class="notice-modal-overlay" id="report-answer-popup" style="z-index:10001;">
                 <div class="notice-popup" style="max-width:380px;max-height:80vh;display:flex;flex-direction:column;">
@@ -546,6 +570,7 @@
                         <div class="notice-body-inner" style="border-left-color:#3b82f6;">
                             ${escapeHTML(data.answer).replace(/\n/g, '<br>')}
                         </div>
+                        ${answerImgHtml}
                     </div>
                     <div class="notice-footer" style="justify-content:center;flex-shrink:0;">
                         <button class="notice-close-btn" onclick="window._dismissReportAnswer('${data.reportId}')">확인</button>
