@@ -279,7 +279,7 @@
                 const statusIcon = r.status === '답변완료' ? '🟢' : '🟡';
                 const date = r.createdAt ? new Date(r.createdAt).toLocaleDateString('ko-KR') : '';
                 html += `
-                    <div onclick="window._showReportDetail('${r.id}')" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+                    <div onclick="window._showMyReportDetail('${r.id}')" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
                         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
                             <span style="font-size:0.75rem;">${statusIcon}</span>
                             <span style="font-size:0.7rem;color:${statusColor};font-weight:600;">${escapeHTML(r.status)}</span>
@@ -299,7 +299,7 @@
     // ========================================================================
     // 제보 상세 보기
     // ========================================================================
-    window._showReportDetail = async function (reportId) {
+    window._showMyReportDetail = async function (reportId) {
         const panel = document.getElementById('report-panel-history');
         if (!panel) return;
 
