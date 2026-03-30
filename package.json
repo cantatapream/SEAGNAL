@@ -23,7 +23,7 @@
     "@capacitor/screen-orientation": "^7.0.4",
     "@capacitor/splash-screen": "^7.0.4",
     "@google-cloud/storage": "^7.19.0",
-    "@google/generative-ai": "^0.24.1",
+    "@google/genai": "^1.47.0",
     "body-parser": "^2.2.1",
     "capacitor-native-settings": "^7.0.2",
     "cheerio": "^1.2.0",
