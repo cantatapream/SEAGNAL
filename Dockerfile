@@ -1,5 +1,8 @@
-FROM node:18-slim
+FROM node:20-slim
 WORKDIR /app
+
+# Fly.io NRT 리전에서 IPv6 외부 연결 불가 → IPv4 강제 사용
+ENV NODE_OPTIONS="--dns-result-order=ipv4first"
 
 # 루트 및 local_server의 의존성 파일 복사
 COPY package.json ./
