@@ -334,9 +334,7 @@ ${JSON.stringify(codeExtracted, null, 2)}
 
 위 원문과 코드 추출 결과를 비교 검토하여, 최종 표출용 정제 데이터를 JSON으로 반환하라.`;
 
-        const result = await model.generateContent([
-            { role: 'user', parts: [{ text: FORECAST_AI_PROMPT + '\n\n' + userPrompt }] }
-        ]);
+        const result = await model.generateContent(FORECAST_AI_PROMPT + '\n\n' + userPrompt);
 
         const text = result.response.text();
         const parsed = JSON.parse(text);
