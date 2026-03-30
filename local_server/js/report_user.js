@@ -140,17 +140,30 @@
         modal.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s ease-out;';
 
         modal.innerHTML = `
-            <div style="background:#1e2435;border-radius:12px;width:95%;max-width:400px;max-height:85vh;overflow-y:auto;box-shadow:0 10px 25px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.08);">
-                <div style="background:#2d3548;padding:14px 18px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center;">
+            <div style="background:#1e2435;border-radius:12px;width:95%;max-width:400px;max-height:85vh;overflow-y:auto;box-shadow:0 10px 25px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;">
+                <div style="background:#2d3548;padding:14px 18px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
                     <h3 style="margin:0;color:#fff;font-size:1rem;display:flex;align-items:center;gap:8px;">
-                        <i class="fa-solid fa-envelope" style="color:#fbbf24;"></i> 제보하기
+                        <i class="fa-solid fa-envelope" style="color:#fbbf24;"></i> 제보
                     </h3>
                     <button onclick="document.getElementById('report-modal').remove();" style="background:none;border:none;color:#94a3b8;font-size:1.2rem;cursor:pointer;">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
 
-                <div style="padding:18px;">
+                <!-- 탭 버튼 -->
+                <div style="display:flex;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;">
+                    <button id="report-tab-write" onclick="window._switchReportTab('write')"
+                            style="flex:1;padding:10px;background:none;border:none;color:#fbbf24;font-size:0.85rem;font-weight:600;cursor:pointer;border-bottom:2px solid #fbbf24;">
+                        ✏️ 제보하기
+                    </button>
+                    <button id="report-tab-history" onclick="window._switchReportTab('history')"
+                            style="flex:1;padding:10px;background:none;border:none;color:#64748b;font-size:0.85rem;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;">
+                        📋 제보내역
+                    </button>
+                </div>
+
+                <!-- 제보하기 탭 내용 -->
+                <div id="report-panel-write" style="padding:18px;overflow-y:auto;">
                     <!-- 카테고리 -->
                     <div style="margin-bottom:14px;">
                         <label style="display:block;font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">카테고리 <span style="color:#ef4444;">*</span></label>
@@ -194,10 +207,171 @@
                         <i class="fa-solid fa-paper-plane"></i> 제보 제출하기
                     </button>
                 </div>
+
+                <!-- 제보내역 탭 내용 -->
+                <div id="report-panel-history" style="padding:18px;overflow-y:auto;display:none;">
+                    <div style="text-align:center;padding:40px 0;color:#64748b;">
+                        <i class="fa-solid fa-spinner fa-spin" style="font-size:1.5rem;"></i>
+                        <p style="margin-top:10px;font-size:0.85rem;">불러오는 중...</p>
+                    </div>
+                </div>
             </div>
         `;
 
         document.body.appendChild(modal);
+    };
+
+    // ========================================================================
+    // 탭 전환
+    // ========================================================================
+    window._switchReportTab = function (tab) {
+        const writePanel = document.getElementById('report-panel-write');
+        const historyPanel = document.getElementById('report-panel-history');
+        const writeTab = document.getElementById('report-tab-write');
+        const historyTab = document.getElementById('report-tab-history');
+        if (!writePanel || !historyPanel || !writeTab || !historyTab) return;
+
+        if (tab === 'write') {
+            writePanel.style.display = 'block';
+            historyPanel.style.display = 'none';
+            writeTab.style.color = '#fbbf24';
+            writeTab.style.borderBottom = '2px solid #fbbf24';
+            historyTab.style.color = '#64748b';
+            historyTab.style.borderBottom = '2px solid transparent';
+        } else {
+            writePanel.style.display = 'none';
+            historyPanel.style.display = 'block';
+            writeTab.style.color = '#64748b';
+            writeTab.style.borderBottom = '2px solid transparent';
+            historyTab.style.color = '#fbbf24';
+            historyTab.style.borderBottom = '2px solid #fbbf24';
+            // 내역 로드 (2단계에서 구현)
+            if (typeof window._loadReportHistory === 'function') {
+                window._loadReportHistory();
+            }
+        }
+    };
+
+    // ========================================================================
+    // 제보내역 로드
+    // ========================================================================
+    window._loadReportHistory = async function () {
+        const panel = document.getElementById('report-panel-history');
+        if (!panel) return;
+
+        panel.innerHTML = '<div style="text-align:center;padding:40px 0;color:#64748b;"><i class="fa-solid fa-spinner fa-spin" style="font-size:1.5rem;"></i><p style="margin-top:10px;font-size:0.85rem;">불러오는 중...</p></div>';
+
+        try {
+            const deviceId = getDeviceId();
+            const res = await fetch(CONFIG.API_BASE + '/api/reports?deviceId=' + encodeURIComponent(deviceId));
+            if (!res.ok) throw new Error('조회 실패');
+            const reports = await res.json();
+
+            if (!reports || reports.length === 0) {
+                panel.innerHTML = '<div style="text-align:center;padding:50px 0;color:#64748b;"><i class="fa-regular fa-envelope-open" style="font-size:2rem;margin-bottom:10px;display:block;"></i><p style="font-size:0.85rem;">제보 내역이 없습니다.</p></div>';
+                return;
+            }
+
+            let html = '<div style="font-size:0.7rem;color:#64748b;margin-bottom:12px;padding:6px 10px;background:rgba(100,116,139,0.1);border-radius:6px;"><i class="fa-solid fa-circle-info" style="margin-right:4px;"></i>제보 내역은 90일 후 자동 삭제됩니다.</div>';
+
+            reports.forEach(r => {
+                const statusColor = r.status === '답변완료' ? '#22c55e' : '#eab308';
+                const statusIcon = r.status === '답변완료' ? '🟢' : '🟡';
+                const date = r.createdAt ? new Date(r.createdAt).toLocaleDateString('ko-KR') : '';
+                html += `
+                    <div onclick="window._showReportDetail('${r.id}')" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                            <span style="font-size:0.75rem;">${statusIcon}</span>
+                            <span style="font-size:0.7rem;color:${statusColor};font-weight:600;">${escapeHTML(r.status)}</span>
+                        </div>
+                        <div style="color:#e2e8f0;font-size:0.85rem;font-weight:500;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHTML(r.title)}</div>
+                        <div style="font-size:0.7rem;color:#64748b;">${date}</div>
+                    </div>
+                `;
+            });
+
+            panel.innerHTML = html;
+        } catch (e) {
+            panel.innerHTML = '<div style="text-align:center;padding:40px 0;color:#ef4444;"><p style="font-size:0.85rem;">내역을 불러올 수 없습니다.</p></div>';
+        }
+    };
+
+    // ========================================================================
+    // 제보 상세 보기
+    // ========================================================================
+    window._showReportDetail = async function (reportId) {
+        const panel = document.getElementById('report-panel-history');
+        if (!panel) return;
+
+        panel.innerHTML = '<div style="text-align:center;padding:40px 0;color:#64748b;"><i class="fa-solid fa-spinner fa-spin" style="font-size:1.5rem;"></i></div>';
+
+        try {
+            const res = await fetch(CONFIG.API_BASE + '/api/reports/' + encodeURIComponent(reportId));
+            if (!res.ok) throw new Error('조회 실패');
+            const r = await res.json();
+
+            const statusColor = r.status === '답변완료' ? '#22c55e' : '#eab308';
+            const statusIcon = r.status === '답변완료' ? '🟢' : '🟡';
+            const date = r.createdAt ? new Date(r.createdAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+
+            // 첨부 이미지 HTML
+            let attachHtml = '';
+            if (r.attachments && r.attachments.length > 0) {
+                attachHtml = '<div style="margin-top:10px;"><div style="font-size:0.7rem;color:#94a3b8;margin-bottom:6px;">📎 첨부 이미지</div><div style="display:flex;gap:6px;flex-wrap:wrap;">';
+                r.attachments.forEach(filename => {
+                    const imgUrl = CONFIG.API_BASE + '/api/reports/' + r.id + '/download/' + encodeURIComponent(filename);
+                    attachHtml += `<div style="width:70px;height:70px;border-radius:6px;overflow:hidden;border:1px solid #334155;cursor:pointer;" onclick="window._previewReportImage('${escapeHTML(imgUrl)}')"><img src="${escapeHTML(imgUrl)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.display='none'"></div>`;
+                });
+                attachHtml += '</div></div>';
+            }
+
+            // 답변 HTML
+            let answerHtml = '';
+            if (r.answer) {
+                const answerDate = r.answeredAt ? new Date(r.answeredAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+                answerHtml = `
+                    <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:6px;">답변일시: ${answerDate}</div>
+                    <div style="border-left:3px solid rgba(59,130,246,0.4);padding:2px 0 2px 12px;font-size:0.85rem;line-height:1.7;color:#cbd5e1;word-break:keep-all;">${escapeHTML(r.answer).replace(/\n/g, '<br>')}</div>
+                `;
+            } else {
+                answerHtml = '<div style="text-align:center;padding:20px 0;color:#64748b;font-size:0.85rem;"><i class="fa-regular fa-comment-dots" style="margin-right:4px;"></i>아직 답변이 등록되지 않았습니다.</div>';
+            }
+
+            panel.innerHTML = `
+                <div style="display:flex;flex-direction:column;height:100%;">
+                    <div style="flex-shrink:0;margin-bottom:12px;">
+                        <button onclick="window._loadReportHistory()" style="background:none;border:none;color:#94a3b8;font-size:0.8rem;cursor:pointer;padding:0;margin-bottom:10px;"><i class="fa-solid fa-arrow-left" style="margin-right:4px;"></i>뒤로</button>
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                            <span>${statusIcon}</span>
+                            <span style="font-size:0.8rem;color:${statusColor};font-weight:600;">${escapeHTML(r.status)}</span>
+                            <span style="font-size:0.7rem;color:#64748b;margin-left:auto;">${escapeHTML(r.category || '')}</span>
+                        </div>
+                        <div style="font-size:0.7rem;color:#64748b;">${date}</div>
+                    </div>
+
+                    <div style="flex:1;overflow-y:auto;">
+                        <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.06);">── 내 질문 ──</div>
+                        <div style="font-size:0.9rem;color:#e2e8f0;font-weight:600;margin-bottom:6px;">${escapeHTML(r.title)}</div>
+                        <div style="font-size:0.85rem;color:#cbd5e1;line-height:1.7;word-break:keep-all;">${escapeHTML(r.content).replace(/\n/g, '<br>')}</div>
+                        ${attachHtml}
+
+                        <div style="font-size:0.7rem;color:#94a3b8;margin:16px 0 6px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.06);">── 관리자 답변 ──</div>
+                        ${answerHtml}
+                    </div>
+                </div>
+            `;
+        } catch (e) {
+            panel.innerHTML = '<div style="text-align:center;padding:40px 0;color:#ef4444;"><p style="font-size:0.85rem;">상세 정보를 불러올 수 없습니다.</p><button onclick="window._loadReportHistory()" style="margin-top:10px;background:none;border:1px solid #64748b;color:#94a3b8;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;">뒤로</button></div>';
+        }
+    };
+
+    // 첨부 이미지 확대 보기
+    window._previewReportImage = function (url) {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;cursor:pointer;';
+        overlay.onclick = () => overlay.remove();
+        overlay.innerHTML = `<img src="${url}" style="max-width:90%;max-height:90%;object-fit:contain;border-radius:8px;">`;
+        document.body.appendChild(overlay);
     };
 
     // ========================================================================
@@ -357,14 +531,14 @@
 
         const html = `
             <div class="notice-modal-overlay" id="report-answer-popup" style="z-index:10001;">
-                <div class="notice-popup" style="max-width:380px;">
-                    <div class="notice-header-area" style="background:linear-gradient(135deg,#1e40af,#3b82f6);">
+                <div class="notice-popup" style="max-width:380px;max-height:80vh;display:flex;flex-direction:column;">
+                    <div class="notice-header-area" style="background:linear-gradient(135deg,#1e40af,#3b82f6);flex-shrink:0;">
                         <div class="notice-icon-badge" style="background:rgba(255,255,255,0.15);">
                             <i class="fa-solid fa-reply"></i>
                         </div>
                         <div class="notice-title">제보 답변</div>
                     </div>
-                    <div class="notice-body">
+                    <div class="notice-body" style="overflow-y:auto;flex:1;">
                         <div style="margin-bottom:10px;">
                             <span style="font-size:0.75rem;color:#94a3b8;">제보 제목</span>
                             <div style="color:#e2e8f0;font-size:0.9rem;font-weight:600;">${escapeHTML(data.title)}</div>
@@ -373,7 +547,7 @@
                             ${escapeHTML(data.answer).replace(/\n/g, '<br>')}
                         </div>
                     </div>
-                    <div class="notice-footer" style="justify-content:center;">
+                    <div class="notice-footer" style="justify-content:center;flex-shrink:0;">
                         <button class="notice-close-btn" onclick="window._dismissReportAnswer('${data.reportId}')">확인</button>
                     </div>
                 </div>

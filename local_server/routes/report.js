@@ -183,9 +183,12 @@ router.post('/api/reports', (req, res) => {
 // ============================================================================
 router.get('/api/reports', (req, res) => {
     const reports = getReports();
-    const { status, category } = req.query;
+    const { status, category, deviceId } = req.query;
 
     let filtered = reports;
+    if (deviceId) {
+        filtered = filtered.filter(r => r.deviceId === deviceId);
+    }
     if (status) {
         filtered = filtered.filter(r => r.status === status);
     }
