@@ -226,6 +226,24 @@ window._showReportDetail = async function (id) {
                           style="width:100%;padding:10px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:0.85rem;resize:vertical;box-sizing:border-box;">${report.answer || ''}</textarea>
             </div>
 
+            <!-- 답변 이미지 첨부 -->
+            <div style="margin-bottom:15px;">
+                <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:6px;"><i class="fa-solid fa-paperclip"></i> 답변 이미지 첨부 <span style="color:#64748b;font-size:0.65rem;">(최대 3장, 5MB)</span></div>
+                <div id="admin-answer-attach-area" style="display:flex;gap:8px;flex-wrap:wrap;">
+                    ${(report.answerAttachments || []).map(f => `
+                        <div class="admin-answer-existing-img" data-filename="${f}" style="position:relative;width:70px;height:70px;border-radius:6px;overflow:hidden;border:1px solid #334155;">
+                            <img src="/uploads/reports/${f}" style="width:100%;height:100%;object-fit:cover;">
+                            <button onclick="this.parentElement.remove();" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.7);border:none;color:#fff;width:18px;height:18px;border-radius:50%;font-size:0.6rem;cursor:pointer;display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    `).join('')}
+                    <label style="width:70px;height:70px;border:2px dashed #334155;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#64748b;font-size:1.5rem;" id="admin-answer-add-btn">
+                        <input type="file" accept="image/*" style="display:none;" onchange="window._addAnswerAttachment(this)">
+                        <i class="fa-solid fa-plus"></i>
+                    </label>
+                </div>
+                <div id="admin-answer-previews" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;"></div>
+            </div>
+
             <!-- 액션 버튼 -->
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 <button onclick="window._blockReportUser('${report.deviceId}')"
@@ -481,19 +499,80 @@ window._openImageViewer = function (reportId, startIndex) {
     };
 };
 
+// 답변 이미지 첨부 관리
+const _answerFiles = []; // { file, dataUrl }
+
+window._addAnswerAttachment = function (input) {
+    if (!input.files || !input.files[0]) return;
+    const existingCount = document.querySelectorAll('.admin-answer-existing-img').length;
+    if (_answerFiles.length + existingCount >= 3) {
+        alert('이미지는 최대 3장까지 첨부할 수 있습니다.');
+        input.value = '';
+        return;
+    }
+    const file = input.files[0];
+    if (file.size > 5 * 1024 * 1024) {
+        alert('파일 크기는 5MB 이하만 가능합니다.');
+        input.value = '';
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        _answerFiles.push({ file, dataUrl: e.target.result });
+        _renderAnswerPreviews();
+        input.value = '';
+    };
+    reader.readAsDataURL(file);
+};
+
+function _renderAnswerPreviews() {
+    const container = document.getElementById('admin-answer-previews');
+    if (!container) return;
+    container.innerHTML = _answerFiles.map((item, i) => `
+        <div style="position:relative;width:70px;height:70px;border-radius:6px;overflow:hidden;border:1px solid #334155;">
+            <img src="${item.dataUrl}" style="width:100%;height:100%;object-fit:cover;">
+            <button onclick="window._removeAnswerAttachment(${i})" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.7);border:none;color:#fff;width:18px;height:18px;border-radius:50%;font-size:0.6rem;cursor:pointer;display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+    `).join('');
+
+    // 3장 이상이면 추가 버튼 숨김
+    const addBtn = document.getElementById('admin-answer-add-btn');
+    const existingCount = document.querySelectorAll('.admin-answer-existing-img').length;
+    if (addBtn) addBtn.style.display = (_answerFiles.length + existingCount >= 3) ? 'none' : 'flex';
+}
+
+window._removeAnswerAttachment = function (index) {
+    _answerFiles.splice(index, 1);
+    _renderAnswerPreviews();
+};
+
 window._sendAnswer = async function (reportId, sendPush) {
     const answer = document.getElementById('admin-answer-text').value.trim();
     if (!answer) { alert('답변 내용을 입력해주세요.'); return; }
 
     try {
+        const formData = new FormData();
+        formData.append('answer', answer);
+        formData.append('sendPush', sendPush ? 'true' : 'false');
+
+        // 기존 이미지 유지 (삭제되지 않은 것)
+        const existingImgs = document.querySelectorAll('.admin-answer-existing-img');
+        existingImgs.forEach(el => {
+            formData.append('existingAttachments', el.dataset.filename);
+        });
+
+        // 새 이미지 추가
+        _answerFiles.forEach(item => {
+            formData.append('answerAttachments', item.file);
+        });
+
         const res = await fetch(CONFIG.API_BASE + '/api/reports/' + reportId + '/answer', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ answer, sendPush })
+            body: formData
         });
         if (res.ok) {
+            _answerFiles.length = 0; // 초기화
             alert(sendPush ? '답변이 발송되었습니다. (푸시 포함)' : '답변이 저장되었습니다.');
-            // 목록으로 돌아가기
             const body = document.getElementById('unified-admin-body');
             if (body) await renderUnifiedReportContent(body);
         } else {
