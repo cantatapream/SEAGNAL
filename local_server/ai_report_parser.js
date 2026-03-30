@@ -1,8 +1,8 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 require('dotenv').config();
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(API_KEY);
+const genAI = new GoogleGenAI({ apiKey: API_KEY });
 
 const ZONE_GROUP_MAP = {
     // 전해상: 해당 해역의 모든 하위 해역 (앞바다 + 먼바다 전체)
@@ -453,10 +453,6 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
         const processedText = (textForAI !== noticeText) ? textForAI : null;
 
         console.log('[AI Parser] Gemini API 호출 시작... (baseDate:', baseDate || '없음', ', 이벤트 분리:', splitResult.count > 1 ? splitResult.count + '개' : '없음', ', 해역 사전확장:', textForAI !== baseText ? 'Y' : 'N', ')');
-        const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash",
-            generationConfig: { responseMimeType: "application/json" }
-        });
 
         // 기준 날짜가 없으면 현재 시간 기준, 있으면 해당 날짜를 컨텍스트로 제공
         const referenceDateInfo = baseDate
@@ -464,9 +460,12 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
             : `현재 시각은 ${new Date().getFullYear()}년 ${new Date().getMonth() + 1}월이다. 이를 기준으로 날짜를 유추하라.`;
 
         const prompt = `${SYSTEM_INSTRUCTION}\n\n${referenceDateInfo}\n\n분석할 통보문:\n${textForAI}`;
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
+        const result = await genAI.models.generateContent({
+            model: 'gemini-2.0-flash',
+            contents: prompt,
+            config: { responseMimeType: 'application/json' }
+        });
+        const text = result.text;
         console.log('[AI Parser] Gemini 응답 수신 완료, 길이:', text.length);
 
         const parsed = JSON.parse(text);

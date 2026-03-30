@@ -19,7 +19,7 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 require('dotenv').config();
 
 const DATA_FILE = path.join(__dirname, 'data', 'marine_forecast.json');
@@ -320,11 +320,7 @@ async function analyzeWithAI(rawText, codeExtracted) {
     }
 
     try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({
-            model: 'gemini-2.0-flash',
-            generationConfig: { responseMimeType: 'application/json' }
-        });
+        const genAI = new GoogleGenAI({ apiKey });
 
         const userPrompt = `## 원문 텍스트
 ${rawText}
@@ -334,11 +330,13 @@ ${JSON.stringify(codeExtracted, null, 2)}
 
 위 원문과 코드 추출 결과를 비교 검토하여, 최종 표출용 정제 데이터를 JSON으로 반환하라.`;
 
-        const result = await model.generateContent([
-            { role: 'user', parts: [{ text: FORECAST_AI_PROMPT + '\n\n' + userPrompt }] }
-        ]);
+        const result = await genAI.models.generateContent({
+            model: 'gemini-2.0-flash',
+            contents: FORECAST_AI_PROMPT + '\n\n' + userPrompt,
+            config: { responseMimeType: 'application/json' }
+        });
 
-        const text = result.response.text();
+        const text = result.text;
         const parsed = JSON.parse(text);
         console.log('[MarineForecast] AI 분석 완료');
         if (parsed.issues && parsed.issues.length > 0) {
