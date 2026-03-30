@@ -12,7 +12,7 @@
     "license": "ISC",
     "dependencies": {
         "@google-cloud/storage": "^7.19.0",
-        "@google/generative-ai": "^0.24.1",
+        "@google/genai": "^1.47.0",
         "body-parser": "^2.2.1",
         "cheerio": "^1.2.0",
         "cloudinary": "^1.41.3",
