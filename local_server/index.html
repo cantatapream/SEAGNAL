@@ -1037,62 +1037,111 @@
         } catch (e) { /* 무시 */ }
     }
 
+    /**
+     * 선택적 기능 차단을 UI에 적용하는 함수
+     * @param {Array} blocked - 차단된 기능 ID 배열 (예: ['marine-forecast', 'sea-zone', 'fishing'])
+     *
+     * [동작 방식]
+     * 1. 아코디언 차단: 헤더에 오버레이 + 바디 숨김 + onclick 교체
+     * 2. 탭 차단: 탭 버튼에 opacity + dataset.blocked 설정
+     * 3. 관리자 모드: 외관은 차단과 동일하되, 클릭 시 정상 동작 허용
+     *
+     * [연계]
+     * - admin.js features 배열의 id와 동일한 키 사용
+     * - marine.js switchMainTab()/switchSubTab() → dataset.blocked 체크
+     * - checkBlockStatus() → 5분마다 호출하여 차단 상태 갱신
+     * - localStorage 'seagnal_admin_mode' → 관리자 모드 여부 확인
+     */
     function applyFeatureBlocks(blocked) {
-        // 기상정보 탭 내 섹션
+        // 관리자 모드 여부 확인 (통합 관리자 센터에서 체크한 경우)
+        // [연계] admin.js _toggleAdminMode() → localStorage 'seagnal_admin_mode' 설정
+        const isAdmin = localStorage.getItem('seagnal_admin_mode') === 'true';
+
+        // ── 아코디언 차단 매핑 ──
+        // featureId → 아코디언 헤더 DOM ID
+        // [대상] 기상정보 > 특보 및 전망 탭 내 3개 아코디언
         const featureMap = {
             'marine-forecast': 'marine-forecast-accordion-header',
             'weather-alert': 'main-accordion-header',
             'weather-buoy': 'marine-status-accordion-header',
         };
-        // 탭 전체
-        const tabMap = {
-            'sea-zone': 'sea-zone-section',
-            'tide': 'tide-section',
-            'typhoon': 'typhoon-section',
-            'promo': 'promo-section',
-        };
-
-        // 기상정보 내 섹션 차단 (header에 직접 오버레이)
+        // featureId → 아코디언 바디 DOM ID (차단 시 숨김 처리)
         const bodyMap = {
             'marine-forecast': 'marine-forecast-accordion-body',
             'weather-alert': 'main-accordion-body',
             'weather-buoy': 'marine-status-accordion-body',
         };
-        // 원본 onclick 핸들러 매핑
+        // featureId → 원본 onclick 핸들러 (차단 해제 시 복원용)
         const originalOnclickMap = {
             'marine-forecast': 'toggleMarineForecastAccordion()',
             'weather-alert': 'toggleMainAccordion()',
             'weather-buoy': 'toggleMarineStatusAccordion()',
         };
+
+        // ── 탭 차단 매핑 ──
+        // featureId → 탭이 가리키는 섹션 ID (메인탭 .tab-btn 또는 서브탭 .sub-tab-btn)
+        // [주의] weather-alert-tab은 서브탭 '특보 및 전망'을 가리킴
+        //        weather-alert는 아코디언 '해역별 특보현황'을 가리킴 (다른 대상)
+        const tabMap = {
+            // 기상정보 하위 서브탭
+            'weather-alert-tab': 'weather-alert-section',
+            'sea-zone': 'sea-zone-section',
+            'typhoon': 'typhoon-section',
+            // 해양생활 하위 서브탭
+            'fishing': 'fishing-section',
+            'surfing': 'surfing-section',
+            'swimming': 'swimming-section',
+            'scuba': 'scuba-section',
+            'mudflat': 'mudflat-section',
+            'sea-parting': 'sea-parting-section',
+            // 메인 독립 탭
+            'tide': 'tide-section',
+            'promo': 'promo-section',
+        };
+
+        // ── 아코디언 차단/해제 처리 ──
         for (const [featureId, headerId] of Object.entries(featureMap)) {
             const header = document.getElementById(headerId);
             if (!header) continue;
             const bodyId = bodyMap[featureId];
             const bodyEl = bodyId ? document.getElementById(bodyId) : null;
             const existingOverlay = header.querySelector('.feature-block-overlay');
+
             if (blocked.includes(featureId)) {
-                // 헤더에 오버레이
+                // ▶ 차단 상태: 오버레이 추가 + onclick 교체
                 if (!existingOverlay) {
                     header.style.position = 'relative';
-                    // 원본 onclick 저장
+                    // 원본 onclick 저장 (최초 1회만)
                     if (!header.dataset.originalOnclick) {
                         header.dataset.originalOnclick = header.getAttribute('onclick') || originalOnclickMap[featureId] || '';
                     }
+                    // onclick 교체: 관리자 모드이면 원본 실행, 아니면 차단 팝업
+                    // [핵심] 관리자는 외관은 차단이지만 클릭 시 정상 진입 가능
+                    const origFn = header.dataset.originalOnclick;
                     header.setAttribute('onclick', '');
-                    header.onclick = function(e) { e.stopPropagation(); showBlockedFeaturePopup(); };
+                    header.onclick = function(e) {
+                        e.stopPropagation();
+                        if (localStorage.getItem('seagnal_admin_mode') === 'true') {
+                            // 관리자 모드: 원본 onclick 실행 (아코디언 토글)
+                            if (origFn) { try { eval(origFn); } catch(err) {} }
+                        } else {
+                            showBlockedFeaturePopup();
+                        }
+                    };
                     header.style.cursor = 'pointer';
+                    // 오버레이 DOM 생성
                     const div = document.createElement('div');
                     div.className = 'feature-block-overlay';
                     div.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:10;display:flex;align-items:center;justify-content:center;border-radius:inherit;backdrop-filter:blur(2px);pointer-events:none;';
                     div.innerHTML = '<div style="text-align:center;color:#94a3b8;"><i class="fa-solid fa-wrench" style="font-size:1rem;color:#f59e0b;margin-right:6px;"></i><span style="font-size:0.8rem;">점검 중인 기능입니다</span></div>';
                     header.appendChild(div);
                 }
-                // 바디 숨김
+                // 바디 숨김 (관리자 모드에서도 초기에는 숨김 → 클릭 시 토글로 열림)
                 if (bodyEl) bodyEl.style.display = 'none';
             } else {
+                // ▶ 차단 해제: 오버레이 제거 + 원본 onclick 복원
                 if (existingOverlay) {
                     existingOverlay.remove();
-                    // 원본 onclick 복원
                     const origOnclick = header.dataset.originalOnclick;
                     if (origOnclick) {
                         header.setAttribute('onclick', origOnclick);
@@ -1106,17 +1155,20 @@
             }
         }
 
-        // 탭 전체 차단 (메인탭 .tab-btn 또는 서브탭 .sub-tab-btn 모두 대응)
-        // [수정 이유] 해구기상/태풍이 서브탭으로 이동하여 .tab-btn에서 매칭 안 됨
+        // ── 탭 차단/해제 처리 ──
+        // [동작] 메인탭(.tab-btn) 또는 서브탭(.sub-tab-btn)에서 data-target으로 매칭
+        // [연계] marine.js switchMainTab()/switchSubTab() → dataset.blocked 체크
         for (const [featureId, sectionId] of Object.entries(tabMap)) {
             const tabBtn = document.querySelector(`.tab-btn[data-target="${sectionId}"], .sub-tab-btn[data-target="${sectionId}"]`);
             if (!tabBtn) continue;
             if (blocked.includes(featureId)) {
+                // 차단 외관 적용 (관리자/일반 사용자 모두 동일한 외관)
                 tabBtn.style.opacity = '0.4';
                 tabBtn.style.cursor = 'pointer';
                 tabBtn.title = '점검 중인 기능입니다';
                 tabBtn.dataset.blocked = 'true';
             } else {
+                // 차단 해제: 원래 상태로 복원
                 tabBtn.style.opacity = '';
                 tabBtn.style.cursor = '';
                 tabBtn.title = '';

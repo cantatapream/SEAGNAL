@@ -1228,14 +1228,31 @@ async function renderMaintenanceFullTab(container) {
 
     const blocked = config.blockedFeatures || [];
     const isBlockPush = config.blockPush !== false;
+    // 선택적 차단 가능한 기능 목록
+    // [구조] id: applyFeatureBlocks()에서 사용하는 차단 식별자
+    //        label: 관리자 UI에 표시되는 한글 이름
+    //        group: 체크박스 그룹 분류 (UI 렌더링용)
+    // [연계] index.html applyFeatureBlocks() → featureMap/tabMap에서 동일 id 사용
+    //        saveBlockedFeatures() → 체크된 id를 서버로 전송
     const features = [
-        { id: 'marine-forecast', label: '기상청 해상 기상 전망', group: '기상정보' },
-        { id: 'weather-alert', label: '해역별 특보현황', group: '기상정보' },
-        { id: 'weather-buoy', label: '해역별 기상현황', group: '기상정보' },
-        { id: 'sea-zone', label: '해구기상', group: '탭' },
-        { id: 'tide', label: '조석정보', group: '탭' },
-        { id: 'typhoon', label: '태풍정보', group: '탭' },
-        { id: 'promo', label: '공지사항', group: '탭' },
+        // 기상정보 > 특보 및 전망 탭 내 아코디언 (개별 차단 가능)
+        { id: 'marine-forecast', label: '기상청 해상 기상 전망', group: '기상정보 > 특보 및 전망 내' },
+        { id: 'weather-alert', label: '해역별 특보현황', group: '기상정보 > 특보 및 전망 내' },
+        { id: 'weather-buoy', label: '해역별 기상현황', group: '기상정보 > 특보 및 전망 내' },
+        // 기상정보 하위 서브탭 (탭 단위 차단)
+        { id: 'weather-alert-tab', label: '특보 및 전망', group: '기상정보 하위 탭' },
+        { id: 'sea-zone', label: '해구기상', group: '기상정보 하위 탭' },
+        { id: 'typhoon', label: '태풍정보', group: '기상정보 하위 탭' },
+        // 해양생활 하위 서브탭 (탭 단위 차단)
+        { id: 'fishing', label: '바다낚시', group: '해양생활 하위 탭' },
+        { id: 'surfing', label: '서핑', group: '해양생활 하위 탭' },
+        { id: 'swimming', label: '해수욕', group: '해양생활 하위 탭' },
+        { id: 'scuba', label: '스킨스쿠버', group: '해양생활 하위 탭' },
+        { id: 'mudflat', label: '갯벌체험', group: '해양생활 하위 탭' },
+        { id: 'sea-parting', label: '바다갈라짐', group: '해양생활 하위 탭' },
+        // 메인 탭 (독립 탭 단위 차단)
+        { id: 'tide', label: '조석정보', group: '메인 탭' },
+        { id: 'promo', label: '공지사항', group: '메인 탭' },
     ];
 
     const checkboxStyle = 'width:16px;height:16px;accent-color:#ef4444;cursor:pointer;';
@@ -1282,19 +1299,24 @@ async function renderMaintenanceFullTab(container) {
             <!-- 선택적 차단 체크박스 -->
             <div id="maint-feature-list" style="display:${blocked.length > 0 && !config.active ? 'block' : 'none'};padding:14px;background:rgba(0,0,0,0.15);border-radius:10px;border:1px solid rgba(255,255,255,0.08);">
                 <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:10px;">차단할 기능을 선택하세요:</div>
-                <div style="margin-bottom:8px;color:#64748b;font-size:0.7rem;font-weight:600;">기상정보 탭 내</div>
-                ${features.filter(f => f.group === '기상정보').map(f => `
-                    <label style="display:flex;align-items:center;gap:8px;padding:6px 0;color:#e2e8f0;font-size:0.85rem;cursor:pointer;">
-                        <input type="checkbox" class="maint-feature-cb" value="${f.id}" style="${checkboxStyle}"> ${f.label}
-                    </label>
-                `).join('')}
-                <div style="height:1px;background:rgba(255,255,255,0.06);margin:8px 0;"></div>
-                <div style="margin-bottom:8px;color:#64748b;font-size:0.7rem;font-weight:600;">탭 전체</div>
-                ${features.filter(f => f.group === '탭').map(f => `
-                    <label style="display:flex;align-items:center;gap:8px;padding:6px 0;color:#e2e8f0;font-size:0.85rem;cursor:pointer;">
-                        <input type="checkbox" class="maint-feature-cb" value="${f.id}" style="${checkboxStyle}"> ${f.label}
-                    </label>
-                `).join('')}
+                ${(() => {
+                    // 그룹별로 체크박스를 자동 렌더링
+                    // [연계] features 배열의 group 속성 기준으로 그룹 분리
+                    const groups = [];
+                    const seen = new Set();
+                    features.forEach(f => {
+                        if (!seen.has(f.group)) { seen.add(f.group); groups.push(f.group); }
+                    });
+                    return groups.map(g => `
+                        <div style="margin-bottom:8px;color:#64748b;font-size:0.7rem;font-weight:600;">${g}</div>
+                        ${features.filter(f => f.group === g).map(f => `
+                            <label style="display:flex;align-items:center;gap:8px;padding:6px 0;color:#e2e8f0;font-size:0.85rem;cursor:pointer;">
+                                <input type="checkbox" class="maint-feature-cb" value="${f.id}" ${blocked.includes(f.id) ? 'checked' : ''} style="${checkboxStyle}"> ${f.label}
+                            </label>
+                        `).join('')}
+                        <div style="height:1px;background:rgba(255,255,255,0.06);margin:8px 0;"></div>
+                    `).join('');
+                })()}
                 <button onclick="saveBlockedFeatures()" style="margin-top:12px;width:100%;padding:10px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.85rem;">
                     <i class="fa-solid fa-save"></i> 차단 기능 저장
                 </button>
