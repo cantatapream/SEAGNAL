@@ -1813,11 +1813,17 @@ line-height: 1.1;
 }
 
 /* --- 사용자용 공지 팝업 카드 --- */
+/* [역할] 공지사항, 서버 점검, 네트워크 에러, 제보 답변 등 공통 팝업 카드 스타일
+ * [연계] admin_trigger.js showNoticePopup(), report_user.js 제보 답변 팝업
+ * [수정] max-height + flex 레이아웃으로 긴 콘텐츠 시 화면 내 스크롤 처리 */
 .notice-popup {
     background: rgba(15, 23, 42, 0.92);
     color: #fff;
     width: 88%;
     max-width: 380px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
     border-radius: 20px;
     box-shadow:
         0 0 0 1px rgba(255, 255, 255, 0.08),
@@ -1839,11 +1845,14 @@ line-height: 1.1;
 }
 
 /* 헤더 - 아이콘 뱃지 + 제목 + 만료일 */
+/* [역할] 팝업 상단 고정 영역 (아이콘, 제목, 만료일 표시)
+ * [연계] .notice-popup flex 레이아웃에서 상단 고정 (flex-shrink:0) */
 .notice-header-area {
     position: relative;
     padding: 28px 24px 20px;
     text-align: center;
     overflow: hidden;
+    flex-shrink: 0;
 }
 
 .notice-header-area::before {
@@ -1919,8 +1928,14 @@ line-height: 1.1;
 }
 
 /* 콘텐츠 영역 */
+/* [역할] 팝업 본문 영역 — 공지 내용이 길면 이 영역만 스크롤
+ * [연계] .notice-popup flex 레이아웃에서 남은 공간을 채움 (flex:1)
+ *        overflow-y:auto로 본문만 스크롤, 헤더/푸터는 화면에 고정 */
 .notice-body {
     padding: 12px 24px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
 }
 
 .notice-body-inner {
@@ -1966,6 +1981,8 @@ line-height: 1.1;
 }
 
 /* 푸터 */
+/* [역할] 팝업 하단 고정 영역 (확인 버튼, 다시 보지 않기 체크박스)
+ * [연계] .notice-popup flex 레이아웃에서 하단 고정 (flex-shrink:0) */
 .notice-footer {
     padding: 14px 24px;
     background: rgba(0, 0, 0, 0.25);
@@ -1973,6 +1990,7 @@ line-height: 1.1;
     justify-content: space-between;
     align-items: center;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
 }
 
 /* 커스텀 체크박스 */
