@@ -614,7 +614,11 @@ async function _fetchFishingData(gubun) {
 
             // 전체 건수 대비 현재까지 수집량 확인 → 다음 페이지 필요 여부
             const totalCount = data?.body?.totalCount || 0;
-            if (allItems.length >= totalCount) break;
+            log(`🎣 바다낚시 ${gubun} p${pageNo}: ${arr.length}건 수신 (누적 ${allItems.length}/${totalCount})`);
+
+            // 종료 조건: 반환 건수가 numOfRows 미만이면 마지막 페이지
+            // numOfRows와 같으면 다음 페이지 존재 가능 → 계속 순회
+            if (arr.length < numOfRows) break;
 
             pageNo++;
             // 안전장치: 최대 10페이지까지만 (3000건)
