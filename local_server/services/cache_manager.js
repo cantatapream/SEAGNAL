@@ -39,7 +39,6 @@ const dataCache = {
     notice: null,
     promo: null,
     boards: null,
-    fishingIndex: null,  // 바다낚시 지수 (scheduler.js → fishing_index.json)
     lastUpdate: {}
 };
 
@@ -58,8 +57,7 @@ function refreshCache() {
         midTermSeaForecasts: 'mid_term_sea_forecasts.json',
         notice: 'notice.json',
         promo: 'promo.json',
-        boards: 'boards.json',
-        fishingIndex: 'fishing_index.json'  // 바다낚시 지수 데이터
+        boards: 'boards.json'
     };
 
     Object.keys(files).forEach(key => {
