@@ -1,0 +1,10 @@
+{
+  "indexes": [
+    { "type": "fishing", "name": "바다낚시", "expiry": "-" },
+    { "type": "surfing", "name": "서핑", "expiry": "-" },
+    { "type": "mudflat", "name": "갯벌체험", "expiry": "-" },
+    { "type": "swimming", "name": "해수욕", "expiry": "-" },
+    { "type": "scuba", "name": "스쿠버다이빙", "expiry": "-" },
+    { "type": "sea-parting", "name": "바닷길", "expiry": "-" }
+  ]
+}
