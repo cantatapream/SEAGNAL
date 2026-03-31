@@ -935,10 +935,16 @@ const SECTION_TO_GROUP = {
 window.switchMainTab = function (targetId) {
     // 차단된 탭인지 확인 (메인탭/서브탭 모두 체크)
     // [연계] index.html applyFeatureBlocks() → dataset.blocked = 'true' 설정
+    // [관리자 우회] localStorage 'seagnal_admin_mode'가 'true'이면 차단 무시하고 정상 진입
+    //   - 외관(opacity 0.4)은 유지된 채로 탭에 정상 접근 가능
+    //   - admin.js _toggleAdminMode()에서 설정됨
     const targetTab = document.querySelector(`.tab-btn[data-target="${targetId}"], .sub-tab-btn[data-target="${targetId}"]`);
     if (targetTab && targetTab.dataset.blocked === 'true') {
-        if (typeof showBlockedFeaturePopup === 'function') showBlockedFeaturePopup();
-        return;
+        // 관리자 모드이면 차단 무시하고 정상 진행
+        if (localStorage.getItem('seagnal_admin_mode') !== 'true') {
+            if (typeof showBlockedFeaturePopup === 'function') showBlockedFeaturePopup();
+            return;
+        }
     }
 
     const mainTabs = document.querySelectorAll('.main-tabs .tab-btn');
@@ -1025,11 +1031,16 @@ window.switchMainTab = function (targetId) {
  * - dataset.blocked 체크로 차단된 서브탭 클릭 시 점검 안내 팝업 표시
  */
 window.switchSubTab = function (targetId) {
-    // 차단된 탭인지 확인
+    // 차단된 서브탭인지 확인
+    // [연계] index.html applyFeatureBlocks() → dataset.blocked = 'true' 설정
+    // [관리자 우회] localStorage 'seagnal_admin_mode'가 'true'이면 차단 무시
     const targetBtn = document.querySelector(`.sub-tab-btn[data-target="${targetId}"]`);
     if (targetBtn && targetBtn.dataset.blocked === 'true') {
-        if (typeof showBlockedFeaturePopup === 'function') showBlockedFeaturePopup();
-        return;
+        // 관리자 모드이면 차단 무시하고 정상 진행
+        if (localStorage.getItem('seagnal_admin_mode') !== 'true') {
+            if (typeof showBlockedFeaturePopup === 'function') showBlockedFeaturePopup();
+            return;
+        }
     }
 
     const groupId = SECTION_TO_GROUP[targetId];
