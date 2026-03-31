@@ -565,15 +565,17 @@ async function collectFishingIndex() {
  */
 async function _fetchFishingData(gubun, dateStr) {
     try {
+        // serviceKey는 이미 디코딩된 상태이므로 인코딩하여 전달
+        // (공공데이터포탈 API는 인코딩된 키를 요구)
+        const encodedKey = encodeURIComponent(FISHING_API_KEY);
         const params = new URLSearchParams({
-            serviceKey: FISHING_API_KEY,
             numOfRows: '300',
             pageNo: '1',
             type: 'json',
             gubun: gubun,
             reqDate: dateStr
         });
-        const url = `${FISHING_API_BASE}?${params.toString()}`;
+        const url = `${FISHING_API_BASE}?serviceKey=${encodedKey}&${params.toString()}`;
         const response = await fetchWithTimeout(url, {}, 15000);
 
         if (!response.ok) {
