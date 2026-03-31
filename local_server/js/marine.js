@@ -1006,12 +1006,20 @@ window.switchSubTab = function (targetId) {
     _onSectionActivated(targetId);
 };
 
-// 섹션 활성화 후 특수 처리
+// 섹션 활성화 후 특수 처리 (해구지도, 프로모, 바다낚시 등)
 function _onSectionActivated(sectionId) {
     if (sectionId === 'sea-zone-section') {
         setTimeout(() => {
             if (window.initSeaZoneMap) {
                 window.initSeaZoneMap();
+            }
+        }, 200);
+    }
+    if (sectionId === 'fishing-section') {
+        // 바다낚시 지도 초기화 (탭 전환 시 사이즈 갱신 포함)
+        setTimeout(() => {
+            if (window.initFishingMap) {
+                window.initFishingMap();
             }
         }, 200);
     }

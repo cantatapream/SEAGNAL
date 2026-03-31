@@ -71,6 +71,7 @@ app.use(require('./routes/admin'));
 app.use(require('./routes/survey'));
 app.use(require('./routes/report'));
 app.use(require('./routes/version'));
+app.use(require('./routes/fishing'));  // 바다낚시 지수 API
 
 // ============================================================================
 // 4. 정기 작업 (Daily Cloud Backup)

@@ -613,12 +613,80 @@
 
             <!-- 섹션: 해양생활 - 바다낚시 -->
             <section id="fishing-section" class="tab-content">
-                <div class="section-header-with-info">
-                    <h2 class="section-title"><i class="fa-solid fa-fish"></i> 바다낚시 지수</h2>
+
+                <!-- 상단 컨트롤: 갯바위/선상 토글 + 내 위치 버튼 -->
+                <div class="fishing-controls">
+                    <!-- 갯바위/선상 구분 토글 버튼 -->
+                    <div class="fishing-gubun-toggle">
+                        <button class="fishing-gubun-btn active" data-gubun="갯바위">갯바위</button>
+                        <button class="fishing-gubun-btn" data-gubun="선상">선상</button>
+                    </div>
+                    <!-- GPS 기반 내 위치 이동 버튼 -->
+                    <button id="fishing-my-location-btn" class="fishing-my-location-btn" title="내 위치">
+                        <i class="fa-solid fa-location-crosshairs"></i> 내 위치
+                    </button>
                 </div>
-                <div style="margin:15px 0;padding:20px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(0,0,0,0.3);text-align:center;">
-                    <p style="margin:0;color:var(--accent-yellow,#ffd54f);font-weight:500;font-size:0.95rem;">바다낚시 지수 기능 준비 중입니다.</p>
+
+                <!-- OpenLayers 지도 컨테이너 -->
+                <div class="fishing-map-container">
+                    <div id="fishing-map" class="fishing-map">
+                        <!-- OpenLayers 지도가 렌더링되는 영역 -->
+                    </div>
                 </div>
+
+                <!-- 발표시점 + 범례 -->
+                <div class="fishing-map-footer">
+                    <span class="fishing-publish-time" id="fishing-publish-time">발표: -</span>
+                    <div class="fishing-legend">
+                        <span class="fishing-legend-item" data-level="매우나쁨"><span class="fishing-legend-dot" style="background:radial-gradient(circle, #EF9A9A 30%, #C62828 100%);box-shadow:0 0 6px rgba(198,40,40,0.4);"></span>매우나쁨</span>
+                        <span class="fishing-legend-item" data-level="나쁨"><span class="fishing-legend-dot" style="background:radial-gradient(circle, #FFB74D 30%, #E65100 100%);box-shadow:0 0 6px rgba(230,81,0,0.4);"></span>나쁨</span>
+                        <span class="fishing-legend-item" data-level="보통"><span class="fishing-legend-dot" style="background:radial-gradient(circle, #FFD54F 30%, #F9A825 100%);box-shadow:0 0 6px rgba(249,168,37,0.4);"></span>보통</span>
+                        <span class="fishing-legend-item" data-level="좋음"><span class="fishing-legend-dot" style="background:radial-gradient(circle, #81C784 30%, #2E7D32 100%);box-shadow:0 0 6px rgba(46,125,50,0.4);"></span>좋음</span>
+                        <span class="fishing-legend-item" data-level="매우좋음"><span class="fishing-legend-dot" style="background:radial-gradient(circle, #81D4FA 30%, #1565C0 100%);box-shadow:0 0 6px rgba(21,101,192,0.4);"></span>매우좋음</span>
+                    </div>
+                </div>
+
+                <!-- 바텀시트 오버레이 (마커 클릭 시 표시) -->
+                <div class="fishing-bottomsheet-overlay" id="fishing-bottomsheet-overlay"></div>
+
+                <!-- 바텀시트 (마커 클릭 시 하단에서 슬라이드업) -->
+                <div class="fishing-bottomsheet" id="fishing-bottomsheet">
+                    <!-- 드래그 핸들 -->
+                    <div class="fishing-bs-handle"><div class="fishing-bs-handle-bar"></div></div>
+
+                    <!-- 위치명 + 종합 지수 -->
+                    <div class="fishing-bs-header">
+                        <div class="fishing-bs-place">
+                            <i class="fa-solid fa-location-dot"></i>
+                            <span id="fishing-bs-place-name">-</span>
+                        </div>
+                        <div class="fishing-bs-total-index" id="fishing-bs-total-index">
+                            <!-- JS에서 종합 지수 배지 렌더링 -->
+                        </div>
+                    </div>
+
+                    <!-- 날짜 네비게이션 -->
+                    <div class="fishing-bs-date-nav">
+                        <button class="fishing-bs-date-btn" id="fishing-date-prev" title="이전 날짜">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span class="fishing-bs-date-label" id="fishing-bs-date-label">-</span>
+                        <button class="fishing-bs-date-btn" id="fishing-date-next" title="다음 날짜">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+
+                    <!-- 예보 데이터 영역 (JS에서 동적 렌더링) -->
+                    <div class="fishing-bs-content" id="fishing-bs-content">
+                        <!-- 오전/오후 데이터, 어종 그리드 등이 JS로 렌더링됨 -->
+                    </div>
+
+                    <!-- 닫기 버튼 -->
+                    <button class="fishing-bs-close" id="fishing-bs-close" title="닫기">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
             </section>
 
             <!-- 섹션: 해양생활 - 서핑 -->
@@ -855,6 +923,7 @@
     <script src="js/survey_user.js"></script>
     <script src="js/alert_push.js"></script>
     <script src="js/ui_modal.js"></script>
+    <script src="js/fishing.js"></script>
     <script src="js/app_init.js"></script>
     <script src="js/backbutton.js"></script>
     <!-- 사용자 설정 모달 -->
