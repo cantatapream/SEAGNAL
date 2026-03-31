@@ -722,7 +722,7 @@
         if (totalIdxEl) {
             if (currentGubun === '갯바위') {
                 var timeSlot = _getDisplayTimeSlot(dateStr);
-                var slotData = forecast && (forecast[timeSlot] || forecast['오전'] || forecast['오후']);
+                var slotData = forecast && (forecast[timeSlot] || forecast['오전'] || forecast['오후'] || forecast['일']);
                 var totalIdx = slotData ? slotData.totalIndex || '' : '';
                 if (totalIdx) {
                     totalIdxEl.innerHTML = '<span class="fishing-index-badge level-' + totalIdx + '">' + totalIdx + '</span>';
@@ -750,7 +750,10 @@
         var isBeforeNoon = now.getHours() < 12;
 
         if (isToday) {
-            if (isBeforeNoon) {
+            if (forecast['일']) {
+                // 오늘이지만 '일'(종일) 슬롯만 있는 경우 (API 예외 상황 대비)
+                html += _buildTimeBlock('종일', forecast['일'], place);
+            } else if (isBeforeNoon) {
                 // 오늘 오전: 오전 데이터 표시 + "오후 예보 보기" 버튼
                 if (forecast['오전']) {
                     html += _buildTimeBlock('오전', forecast['오전'], place);
@@ -773,12 +776,16 @@
                 }
             }
         } else {
-            // 다른 날짜: 오전 + 오후 모두 표시
+            // 다른 날짜: 오전 + 오후 모두 표시, 또는 종일('일') 표시
             if (forecast['오전']) {
                 html += _buildTimeBlock('오전', forecast['오전'], place);
             }
             if (forecast['오후']) {
                 html += _buildTimeBlock('오후', forecast['오후'], place);
+            }
+            // API가 4일차 이후 '일'(종일) 슬롯으로 반환하는 경우
+            if (forecast['일']) {
+                html += _buildTimeBlock('종일', forecast['일'], place);
             }
         }
 
