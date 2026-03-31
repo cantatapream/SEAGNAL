@@ -2181,3 +2181,436 @@ function getTideProgressHTML(progress) {
         </div>
     `;
 }
+
+// ========================================================================
+// 외부 모듈용: 조석 상세 팝업 (바다낚시 등에서 호출)
+// ========================================================================
+
+/**
+ * 특정 경위도의 조석 현황을 독립 모달 팝업으로 표시합니다.
+ * 바다낚시 예보 팝업에서 [조석상세] 버튼 클릭 시 호출됩니다.
+ *
+ * [동작 흐름]
+ * 1. 로딩 모달 표시
+ * 2. /api/save_tide_input API 호출 (경위도 기반 격자 수집 요청)
+ * 3. 데이터 폴링 (3일치: 어제/오늘/내일)
+ * 4. 조석 현황 렌더링 (고조/저조, 현재조위, 게이지, 태양/달 정보)
+ * 5. 즐겨찾기 버튼은 미표시
+ *
+ * [연계 파일]
+ * - js/fishing.js → _buildTimeBlock()에서 [조석상세] 버튼으로 호출
+ * - tide.js 내부 → timeToMinutes(), getAstronomyInfo/HTML(), getTideProgress/HTML() 재사용
+ *
+ * @param {number} lat - 위도
+ * @param {number} lon - 경도
+ * @param {string} placeName - 지역명 (팝업 헤더에 표시)
+ */
+/**
+ * TideBED 방식 낚시 지점의 좌표 보정 맵
+ * 육지/해안 경계에 있는 낚시 포인트를 0.5해리(≈926m ≈ 0.00833°) 해상으로 이동
+ * 키: 지역명에 포함되는 문자열, 값: { dlat, dlon } (위경도 오프셋)
+ */
+const TIDE_COORD_OFFSETS = {
+    '국화도':  { dlat:  0.00833, dlon: 0 },        // 북쪽으로 0.5해리
+    '어청도':  { dlat: 0, dlon: -0.00833 },         // 서쪽으로 0.5해리
+    '신시도':  { dlat: -0.00833, dlon: 0 },          // 남쪽으로 0.5해리
+    '비금도':  { dlat:  0.00833, dlon: 0 },          // 북쪽으로 0.5해리
+    '상태도':  { dlat: 0, dlon: -0.00833 },         // 서쪽으로 0.5해리
+    '하조도':  { dlat: 0, dlon: -0.00833 },         // 서쪽으로 0.5해리
+    '가거도':  { dlat: 0, dlon: -0.00833 },         // 서쪽으로 0.5해리
+    '추자도':  { dlat: 0.01667, dlon: 0 },           // 북쪽으로 1해리
+    '신지도':  { dlat:  0.00833, dlon: 0 },          // 북쪽으로 0.5해리
+    '연도':    { dlat: -0.00833, dlon: 0 },          // 남쪽으로 0.5해리
+    '욕지도':  { dlat: -0.00833, dlon: 0 },          // 남쪽으로 0.5해리
+    '울산':    { dlat: 0, dlon:  0.00833 }           // 동쪽으로 0.5해리
+};
+
+/**
+ * 기준항 IDW 보간법으로 조석을 산출하는 지점 목록
+ * TideBED 데이터가 제공되지 않는 동해안 지점에서 사용
+ */
+const IDW_CALC_PLACES = ['포항', '후포', '울진', '후정', '대진항', '남애항', '외옹치항', '아야진항', '울릉도', '공현진항', '강릉항', '임원항', '양포항'];
+
+window.showTideDetailForLocation = async function (lat, lon, placeName) {
+    // 기존 조석상세 모달이 있으면 제거
+    _closeTideDetailModal();
+
+    // 1단계: 로딩 모달 즉시 표시
+    _showTideDetailModal(placeName, _buildTideDetailLoading(lat, lon));
+
+    // IDW 보간법 사용 여부 판별 (동해안 자체 산출 지점)
+    var useIDW = IDW_CALC_PLACES.some(function (keyword) {
+        return placeName && placeName.indexOf(keyword) !== -1;
+    });
+
+    if (useIDW) {
+        // === IDW 보간법 경로 (기준항 기반 자체 산출) ===
+        try {
+            var now = new Date();
+            var y = now.getFullYear();
+            await loadTideData(String(y));
+            var dates = getClientAdjacentDates(now);
+            // 연말연시 전후년 데이터 로드
+            var years = new Set([dates.yesterdayObj.getFullYear(), dates.todayObj.getFullYear(), dates.tomorrowObj.getFullYear()]);
+            for (var yr of years) {
+                if (yr !== y) await loadTideData(String(yr));
+            }
+
+            var keyMap = { yesterday: dates.yesterday, today: dates.today, tomorrow: dates.tomorrow };
+            var result = { yesterday: null, today: null, tomorrow: null };
+
+            for (var key in keyMap) {
+                var stations = findNearestStationsWithData(lat, lon, keyMap[key], 3);
+                if (stations.length === 0) throw new Error('근거 데이터 부족');
+                var idw = interpolateTideByIDW(stations);
+                result[key] = convertIDWToTideBedFormat(idw, keyMap[key]);
+                result[key].isInterpolated = true;
+            }
+
+            console.log('⚡ 조석상세: IDW 보간법 적용 -', placeName);
+            _showTideDetailModal(placeName, _buildTideDetailContent(lat, lon, result));
+        } catch (e) {
+            console.error('조석상세 IDW 오류:', e);
+            _showTideDetailModal(placeName, _buildTideDetailError('조석 예보를 위한 근거 데이터가 부족합니다.', lat, lon));
+        }
+        return;
+    }
+
+    // === TideBED API 경로 ===
+
+    // 좌표 보정 적용 (육지/해안 경계 지점 → 해상으로 0.5해리 이동)
+    var adjustedLat = lat;
+    var adjustedLon = lon;
+    for (var keyword in TIDE_COORD_OFFSETS) {
+        if (placeName && placeName.indexOf(keyword) !== -1) {
+            var offset = TIDE_COORD_OFFSETS[keyword];
+            adjustedLat = lat + offset.dlat;
+            adjustedLon = lon + offset.dlon;
+            console.log('⚡ 조석상세: 좌표 보정 적용 -', placeName, '→', adjustedLat.toFixed(5), adjustedLon.toFixed(5));
+            break;
+        }
+    }
+
+    // 오늘 날짜 (YYYYMMDD 형식)
+    var now = new Date();
+    var dateNum = parseInt(
+        now.getFullYear() +
+        String(now.getMonth() + 1).padStart(2, '0') +
+        String(now.getDate()).padStart(2, '0')
+    );
+    var timeString = [
+        String(now.getHours()).padStart(2, '0'),
+        String(now.getMinutes()).padStart(2, '0'),
+        String(now.getSeconds()).padStart(2, '0')
+    ].join(':');
+
+    // 서버에 수집 요청 (보정된 좌표 사용)
+    var serverResponse;
+    try {
+        var res = await fetch('/api/save_tide_input', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: dateNum, time: timeString, lat: adjustedLat, lon: adjustedLon })
+        });
+        serverResponse = await res.json();
+        if (!serverResponse.success) {
+            var errMsg = serverResponse.error === 'Grid hash unavailable'
+                ? '국립해양조사원 조석 예측정보가 제공되지 않는 해역입니다.'
+                : '서버 요청에 실패했습니다.';
+            _showTideDetailModal(placeName, _buildTideDetailError(errMsg, lat, lon));
+            return;
+        }
+    } catch (err) {
+        _showTideDetailModal(placeName, _buildTideDetailError(err.message, lat, lon));
+        return;
+    }
+
+    var files = serverResponse.files;
+
+    // 캐시 히트 → 즉시 렌더링
+    if (serverResponse.collecting === 0) {
+        try {
+            var responses = await Promise.all([
+                fetch('/data/' + files.yesterday + '?' + Date.now()),
+                fetch('/data/' + files.today + '?' + Date.now()),
+                fetch('/data/' + files.tomorrow + '?' + Date.now())
+            ]);
+            var data = await Promise.all(responses.map(function (r) { return r.json(); }));
+            _showTideDetailModal(placeName, _buildTideDetailContent(lat, lon, { yesterday: data[0], today: data[1], tomorrow: data[2] }));
+        } catch (err) {
+            _showTideDetailModal(placeName, _buildTideDetailError('캐시 데이터 로드에 실패했습니다.', lat, lon));
+        }
+        return;
+    }
+
+    // 폴링 (500ms 간격, 최대 120회 = 60초)
+    var pollCount = 0;
+    var completedData = {};
+    var pollTimer = setInterval(async function () {
+        pollCount++;
+        if (pollCount > 120) {
+            clearInterval(pollTimer);
+            _showTideDetailModal(placeName, _buildTideDetailError('데이터 수집 시간이 초과되었습니다.', lat, lon));
+            return;
+        }
+        try {
+            var checks = [];
+            if (!completedData.today) checks.push(fetch('/data/' + files.today + '?' + Date.now()).then(function (r) { return r.json(); }).then(function (d) { if (d.tideBedStatus === 'complete') completedData.today = d; }).catch(function () {}));
+            if (!completedData.tomorrow) checks.push(fetch('/data/' + files.tomorrow + '?' + Date.now()).then(function (r) { return r.json(); }).then(function (d) { if (d.tideBedStatus === 'complete') completedData.tomorrow = d; }).catch(function () {}));
+            if (!completedData.yesterday) checks.push(fetch('/data/' + files.yesterday + '?' + Date.now()).then(function (r) { return r.json(); }).then(function (d) { if (d.tideBedStatus === 'complete') completedData.yesterday = d; }).catch(function () {}));
+            await Promise.all(checks);
+            var done = (completedData.today ? 1 : 0) + (completedData.tomorrow ? 1 : 0) + (completedData.yesterday ? 1 : 0);
+            if (done === 3) {
+                clearInterval(pollTimer);
+                _showTideDetailModal(placeName, _buildTideDetailContent(lat, lon, completedData));
+            }
+        } catch (err) { /* 폴링 진행 중 */ }
+    }, 500);
+};
+
+/**
+ * 조석상세 모달을 생성하고 화면에 표시합니다.
+ * 기존 모달이 있으면 내용만 업데이트합니다.
+ * @param {string} placeName - 지역명 (헤더에 표시)
+ * @param {string} bodyHtml - 모달 본문 HTML
+ */
+function _showTideDetailModal(placeName, bodyHtml) {
+    var overlay = document.getElementById('tide-detail-overlay');
+    var popup = document.getElementById('tide-detail-popup');
+
+    // 오버레이가 없으면 새로 생성
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'tide-detail-overlay';
+        overlay.className = 'tide-detail-overlay';
+        overlay.addEventListener('click', function () { _closeTideDetailModal(); });
+        document.body.appendChild(overlay);
+    }
+
+    // 팝업이 없으면 새로 생성
+    if (!popup) {
+        popup = document.createElement('div');
+        popup.id = 'tide-detail-popup';
+        popup.className = 'tide-detail-popup';
+        popup.addEventListener('click', function (e) { e.stopPropagation(); });
+        document.body.appendChild(popup);
+
+        // PopupStack 등록 (뒤로가기 버튼 지원)
+        if (window.PopupStack) {
+            window.PopupStack.push('tide-detail-popup', function () {
+                _closeTideDetailModal();
+            });
+        }
+    }
+
+    // 팝업 내용 렌더링 (헤더 + 본문)
+    popup.innerHTML =
+        '<div class="tide-detail-header">' +
+            '<span>조석 현황 - ' + (placeName || '') + '</span>' +
+            '<button class="tide-detail-close" onclick="window._closeTideDetailModal()"><i class="fa-solid fa-xmark"></i></button>' +
+        '</div>' +
+        '<div class="tide-detail-body">' + bodyHtml + '</div>';
+}
+
+/**
+ * 조석상세 모달을 닫고 DOM에서 제거합니다.
+ * PopupStack에서도 제거하여 뒤로가기 순서를 유지합니다.
+ */
+function _closeTideDetailModal() {
+    var overlay = document.getElementById('tide-detail-overlay');
+    var popup = document.getElementById('tide-detail-popup');
+    if (overlay) overlay.remove();
+    if (popup) popup.remove();
+    if (window.PopupStack) {
+        window.PopupStack.remove('tide-detail-popup');
+    }
+}
+window._closeTideDetailModal = _closeTideDetailModal;
+
+/**
+ * 로딩 상태 HTML을 생성합니다 (스피너 + 안내 메시지).
+ * @param {number} lat - 위도
+ * @param {number} lon - 경도
+ * @returns {string} 로딩 HTML
+ */
+function _buildTideDetailLoading(lat, lon) {
+    return '<div style="display:flex;flex-direction:column;align-items:center;padding:30px 10px;">' +
+        '<div style="width:36px;height:36px;border:3px solid rgba(255,255,255,0.1);border-top:3px solid #3b82f6;border-radius:50%;animation:spin 1s linear infinite;"></div>' +
+        '<div style="margin-top:12px;color:#94a3b8;font-size:0.85rem;text-align:center;">조석 예측정보를 불러오고 있습니다.</div>' +
+        '<div style="margin-top:4px;color:#64748b;font-size:0.7rem;">약 3~5초 소요됩니다</div>' +
+        '</div>' +
+        '<style>@keyframes spin { to { transform: rotate(360deg); } }</style>';
+}
+
+/**
+ * 에러 상태 HTML을 생성합니다.
+ * @param {string} msg - 에러 메시지
+ * @param {number} lat - 위도
+ * @param {number} lon - 경도
+ * @returns {string} 에러 HTML
+ */
+function _buildTideDetailError(msg, lat, lon) {
+    return '<div class="tide-error" style="padding:20px;text-align:center;">' +
+        '<i class="fa-solid fa-circle-exclamation"></i>' +
+        '<p>' + msg + '</p>' +
+        '</div>' +
+        '<div style="text-align:center;font-size:0.7rem;color:#94a3b8;padding:8px;">' +
+        lat.toFixed(4) + '°N, ' + lon.toFixed(4) + '°E</div>';
+}
+
+/**
+ * 조석 데이터 기반 본문 HTML을 생성합니다.
+ * showTidePopup()의 렌더링 로직을 재사용하되, 즐겨찾기 제외.
+ *
+ * [표시 항목]
+ * - 조석 게이지 (밀물/썰물 진행률, 현재 조위)
+ * - 고조/저조 시각·조고·변화량
+ * - 태양/달 정보 (일출몰, 월출몰, 월령)
+ * - 좌표 정보
+ *
+ * @param {number} lat - 위도
+ * @param {number} lon - 경도
+ * @param {Object} tideBed - { yesterday, today, tomorrow } 3일치 조석 데이터
+ * @returns {string} 조석 현황 HTML
+ */
+function _buildTideDetailContent(lat, lon, tideBed) {
+    var html = '';
+    var today = tideBed.today;
+    var yesterday = tideBed.yesterday;
+    var tomorrow = tideBed.tomorrow;
+
+    // 천문 정보 (일출몰, 달 등)
+    var astroInfo = getAstronomyInfo(lat, lon, new Date());
+
+    // 고조/저조 목록 구성 + 시간순 정렬
+    var allTides = [];
+    if (today.highTide1) allTides.push({ type: 'high', timeRaw: today.highTide1.time, time: today.highTide1.time, level: today.highTide1.height });
+    if (today.highTide2) allTides.push({ type: 'high', timeRaw: today.highTide2.time, time: today.highTide2.time, level: today.highTide2.height });
+    if (today.lowTide1) allTides.push({ type: 'low', timeRaw: today.lowTide1.time, time: today.lowTide1.time, level: today.lowTide1.height });
+    if (today.lowTide2) allTides.push({ type: 'low', timeRaw: today.lowTide2.time, time: today.lowTide2.time, level: today.lowTide2.height });
+    allTides.sort(function (a, b) { return timeToMinutes(a.timeRaw) - timeToMinutes(b.timeRaw); });
+
+    // 전일 마지막 고조/저조 (변화량 계산용)
+    var prevDayLastHigh = null, prevDayLastLow = null, prevDayLastTide = null;
+    if (yesterday.highTide2) prevDayLastHigh = yesterday.highTide2.height;
+    else if (yesterday.highTide1) prevDayLastHigh = yesterday.highTide1.height;
+    if (yesterday.lowTide2) prevDayLastLow = yesterday.lowTide2.height;
+    else if (yesterday.lowTide1) prevDayLastLow = yesterday.lowTide1.height;
+
+    var yesterdayPeaks = [];
+    if (yesterday.highTide1) yesterdayPeaks.push({ type: 'high', timeRaw: yesterday.highTide1.time, level: yesterday.highTide1.height });
+    if (yesterday.highTide2) yesterdayPeaks.push({ type: 'high', timeRaw: yesterday.highTide2.time, level: yesterday.highTide2.height });
+    if (yesterday.lowTide1) yesterdayPeaks.push({ type: 'low', timeRaw: yesterday.lowTide1.time, level: yesterday.lowTide1.height });
+    if (yesterday.lowTide2) yesterdayPeaks.push({ type: 'low', timeRaw: yesterday.lowTide2.time, level: yesterday.lowTide2.height });
+    yesterdayPeaks.sort(function (a, b) { return timeToMinutes(a.timeRaw) - timeToMinutes(b.timeRaw); });
+    if (yesterdayPeaks.length > 0) {
+        var last = yesterdayPeaks[yesterdayPeaks.length - 1];
+        prevDayLastTide = { type: last.type, timeRaw: last.timeRaw, time: last.timeRaw, level: last.level };
+    }
+
+    // 익일 첫 피크 (게이지용)
+    var nextDayFirstTide = null;
+    var tomorrowPeaks = [];
+    if (tomorrow.highTide1) tomorrowPeaks.push({ type: 'high', timeRaw: tomorrow.highTide1.time, level: tomorrow.highTide1.height });
+    if (tomorrow.highTide2) tomorrowPeaks.push({ type: 'high', timeRaw: tomorrow.highTide2.time, level: tomorrow.highTide2.height });
+    if (tomorrow.lowTide1) tomorrowPeaks.push({ type: 'low', timeRaw: tomorrow.lowTide1.time, level: tomorrow.lowTide1.height });
+    if (tomorrow.lowTide2) tomorrowPeaks.push({ type: 'low', timeRaw: tomorrow.lowTide2.time, level: tomorrow.lowTide2.height });
+    tomorrowPeaks.sort(function (a, b) { return timeToMinutes(a.timeRaw) - timeToMinutes(b.timeRaw); });
+    if (tomorrowPeaks.length > 0) {
+        var first = tomorrowPeaks[0];
+        nextDayFirstTide = { type: first.type, timeRaw: first.timeRaw, time: first.timeRaw, level: first.level };
+    }
+
+    // 현재 조위 (1분 데이터에서 추출)
+    var currentTideLevel = null;
+    var now = new Date();
+    if (today.tideBedData && today.tideBedData.length > 0) {
+        var nowTimeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        var closestDiff = Infinity;
+        for (var i = 0; i < today.tideBedData.length; i++) {
+            var itemTime = today.tideBedData[i].slctdDt ? today.tideBedData[i].slctdDt.split(' ')[1] : null;
+            if (!itemTime) continue;
+            var diff = Math.abs(timeToMinutes(itemTime) - timeToMinutes(nowTimeStr));
+            if (diff < closestDiff) {
+                closestDiff = diff;
+                currentTideLevel = parseFloat(today.tideBedData[i].slctdHgt);
+            }
+        }
+    }
+
+    // 게이지 표시 (데이터 충분 + complete 상태)
+    var totalTideCount = allTides.length;
+    var isTideBedProvided = today.tideBedStatus === 'complete';
+    if (totalTideCount > 2 && isTideBedProvided) {
+        var tideProgress = getTideProgress(allTides, new Date(), prevDayLastTide, nextDayFirstTide, currentTideLevel);
+        if (tideProgress && (currentTideLevel === null || isNaN(currentTideLevel))) {
+            currentTideLevel = tideProgress.currentLevel;
+        }
+        if (tideProgress) {
+            html += getTideProgressHTML(tideProgress);
+        }
+    }
+
+    // 변화량 계산 (▲▼)
+    for (var i = 0; i < allTides.length; i++) {
+        var tidalRange = null;
+        for (var j = i - 1; j >= 0; j--) {
+            if (allTides[j].type !== allTides[i].type) {
+                tidalRange = allTides[i].level - allTides[j].level;
+                break;
+            }
+        }
+        if (tidalRange === null) {
+            if (allTides[i].type === 'high' && prevDayLastLow !== null) {
+                tidalRange = allTides[i].level - prevDayLastLow;
+            } else if (allTides[i].type === 'low' && prevDayLastHigh !== null) {
+                tidalRange = allTides[i].level - prevDayLastHigh;
+            }
+        }
+        allTides[i].tidalRange = tidalRange !== null ? Math.abs(tidalRange) : null;
+    }
+
+    var highTides = allTides.filter(function (t) { return t.type === 'high'; });
+    var lowTides = allTides.filter(function (t) { return t.type === 'low'; });
+
+    // 고조 그룹
+    html += '<div class="tide-group"><div class="tide-group-label high">고<br>조</div><div class="tide-group-items">';
+    if (highTides.length > 0) {
+        highTides.forEach(function (t) {
+            var rangeText = t.tidalRange !== null ? '+' + t.tidalRange : '';
+            html += '<div class="tide-row high"><span class="tide-time">' + t.time + '</span><span class="tide-level">(' + t.level + 'cm)</span><span class="tide-arrow">▲</span><span class="tide-value-signed">' + rangeText + '</span></div>';
+        });
+    } else {
+        html += '<div class="tide-row empty">--:-- (--cm)</div>';
+    }
+    html += '</div></div>';
+
+    html += '<div class="tide-divider"></div>';
+
+    // 저조 그룹
+    html += '<div class="tide-group"><div class="tide-group-label low">저<br>조</div><div class="tide-group-items">';
+    if (lowTides.length > 0) {
+        lowTides.forEach(function (t) {
+            var rangeText = t.tidalRange !== null ? '' + t.tidalRange : '';
+            html += '<div class="tide-row low"><span class="tide-time">' + t.time + '</span><span class="tide-level">(' + t.level + 'cm)</span><span class="tide-arrow">▼</span><span class="tide-value-signed">-' + rangeText + '</span></div>';
+        });
+    } else {
+        html += '<div class="tide-row empty">--:-- (--cm)</div>';
+    }
+    html += '</div></div>';
+
+    // 일조부등 안내
+    if (totalTideCount > 0 && totalTideCount <= 2) {
+        html += '<div style="font-size:0.65rem;color:#94a3b8;text-align:center;margin-top:8px;padding:2px 0;">[일조부등으로 인한 조석정보 생략]</div>';
+    }
+
+    // 태양/달 정보
+    html += getAstronomyInfoHTML(astroInfo);
+
+    // 좌표 정보
+    html += '<div style="text-align:center;margin-top:8px;font-size:0.7rem;color:#94a3b8;opacity:0.8;">' +
+        '<i class="fa-solid fa-location-dot" style="margin-right:4px;"></i>' +
+        lat.toFixed(4) + '°N, ' + lon.toFixed(4) + '°E</div>';
+
+    return html;
+}
