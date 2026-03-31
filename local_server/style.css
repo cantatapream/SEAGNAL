@@ -4862,7 +4862,7 @@ line-height: 1.1;
 /* --- 예보 팝업 (화면 상단 고정, 하단 스크롤) --- */
 .fishing-bottomsheet {
     position: fixed;
-    top: 28%;
+    top: 32%;
     left: 50%;
     transform: translateX(-50%) scale(0.95);
     width: 92%;
