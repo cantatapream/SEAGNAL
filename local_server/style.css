@@ -4765,6 +4765,11 @@ line-height: 1.1;
     font-size: 0.65rem;
 }
 
+/* 바다낚시 섹션 제목 하단 여백 축소 */
+#fishing-section .section-header-with-info {
+    margin-bottom: 8px;
+}
+
 /* 지도 내부 좌측 하단 범례 (OL 커스텀 컨트롤) */
 .fishing-legend {
     display: flex;
