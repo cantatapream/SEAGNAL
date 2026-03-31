@@ -4724,11 +4724,9 @@ line-height: 1.1;
 /* --- 발표시점 + 범례 --- */
 .fishing-map-footer {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
     padding: 8px 4px;
-    flex-wrap: wrap;
-    gap: 6px;
 }
 
 .fishing-publish-time {
@@ -4736,10 +4734,15 @@ line-height: 1.1;
     font-size: 0.75rem;
 }
 
+/* 지도 내부 좌측 하단 범례 (OL 커스텀 컨트롤) */
 .fishing-legend {
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 3px;
+    background: rgba(10, 16, 31, 0.8);
+    border-radius: 6px;
+    padding: 6px 8px;
+    pointer-events: auto;
 }
 
 .fishing-legend-item {
@@ -4756,6 +4759,83 @@ line-height: 1.1;
     width: 10px;
     height: 10px;
     border-radius: 50%;
+}
+
+/* --- 지도 내부 우측 하단 안내 버튼 --- */
+.fishing-guide-btn {
+    background: rgba(10, 16, 31, 0.8);
+    color: #81D4FA;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    pointer-events: auto;
+}
+
+.fishing-guide-btn:active {
+    background: rgba(10, 16, 31, 0.95);
+}
+
+/* --- 지수 안내 팝업 --- */
+.fishing-guide-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1100;
+}
+
+.fishing-guide-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    max-width: 400px;
+    max-height: 70vh;
+    background: #1a2035;
+    border-radius: 12px;
+    z-index: 1101;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.fishing-guide-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.fishing-guide-popup-close {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 4px;
+}
+
+.fishing-guide-popup-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0;
+}
+
+.fishing-guide-popup-body img {
+    display: block;
+    width: 100%;
+    height: auto;
 }
 
 /* --- 바텀시트 오버레이 (배경 딤) --- */

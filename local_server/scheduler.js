@@ -422,27 +422,28 @@ async function collectFishingIndex() {
     try {
         log('🎣 바다낚시 지수 수집 시작...');
 
-        // 갯바위와 선상 두 구분에 대해 각각 수집
+        // API는 gubun 파라미터와 무관하게 갯바위+선상 전체 데이터를 반환하므로
+        // 1회만 호출하고 위치명 패턴으로 분류 (선상: "항구명(Xkm)" 패턴)
+        const SHIP_PATTERN = /\(\d+km\)/; // 선상 위치는 "(숫자km)" 패턴 포함
+
         const result = {
             updatedAt: getNowStr(),
             갯바위: {},
             선상: {}
         };
 
-        for (const gubun of ['갯바위', '선상']) {
-            // reqDate 미지정 시 현재일 기준 7일치 전체 반환
-            // totalCount가 ~1768이므로 numOfRows=2000으로 한 번에 수집
-            const items = await _fetchFishingData(gubun);
+        const items = await _fetchFishingData('갯바위');
 
-            if (!items || items.length === 0) {
-                log(`⚠️ 바다낚시 ${gubun} 데이터 없음`);
-                continue;
-            }
-
-            // 응답 데이터를 위치별로 그룹핑
+        if (!items || items.length === 0) {
+            log('⚠️ 바다낚시 데이터 없음');
+        } else {
+            // 응답 데이터를 위치명 패턴으로 갯바위/선상 분류 후 그룹핑
             items.forEach(item => {
                     const placeName = item.seafsPstnNm;
                     if (!placeName) return;
+
+                    // 위치명에 "(숫자km)" 패턴 포함 → 선상, 없으면 → 갯바위
+                    const gubun = SHIP_PATTERN.test(placeName) ? '선상' : '갯바위';
 
                     // API 응답의 날짜 형식: "YYYY-MM-DD" → "YYYYMMDD"로 변환
                     const dateStr = item.predcYmd ? item.predcYmd.replace(/-/g, '') : '';
@@ -515,14 +516,13 @@ async function collectFishingIndex() {
                         }
                     }
 
-                    // 선상은 어종 데이터 없이 종합 지수만 존재
-                    if (gubun === '선상' && item.totalIndex) {
+                    // 종합 지수 설정: '기타어종' 행의 totalIndex를 대표로 사용
+                    // (갯바위·선상 모두 기타어종이 가장 범용적이므로)
+                    if (item.seafsTgfshNm === '기타어종' && item.totalIndex) {
                         slot.totalIndex = item.totalIndex;
                     }
-
-                    // 갯바위: 종합 지수는 '기타어종' 행의 totalIndex를 대표로 사용
-                    // (기타어종이 가장 범용적이므로)
-                    if (gubun === '갯바위' && item.seafsTgfshNm === '기타어종' && item.totalIndex) {
+                    // 기타어종이 없는 경우 첫 번째 어종의 지수를 사용
+                    if (!slot.totalIndex && item.totalIndex) {
                         slot.totalIndex = item.totalIndex;
                     }
                 });
