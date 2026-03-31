@@ -2205,37 +2205,116 @@ function getTideProgressHTML(progress) {
  * @param {number} lon - 경도
  * @param {string} placeName - 지역명 (팝업 헤더에 표시)
  */
+/**
+ * TideBED 방식 낚시 지점의 좌표 보정 맵
+ * 육지/해안 경계에 있는 낚시 포인트를 0.5해리(≈926m ≈ 0.00833°) 해상으로 이동
+ * 키: 지역명에 포함되는 문자열, 값: { dlat, dlon } (위경도 오프셋)
+ */
+const TIDE_COORD_OFFSETS = {
+    '국화도':  { dlat:  0.00833, dlon: 0 },        // 북쪽으로 0.5해리
+    '어청도':  { dlat: 0, dlon: -0.00833 },         // 서쪽으로 0.5해리
+    '신시도':  { dlat: 0, dlon: -0.00833 },         // 서쪽으로 0.5해리
+    '비금도':  { dlat:  0.00833, dlon: 0 },          // 북쪽으로 0.5해리
+    '상태도':  { dlat: 0, dlon: -0.00833 },         // 서쪽으로 0.5해리
+    '하조도':  { dlat: 0, dlon: -0.00833 },         // 서쪽으로 0.5해리
+    '가거도':  { dlat: 0, dlon: -0.00833 },         // 서쪽으로 0.5해리
+    '추자도':  { dlat: 0, dlon: -0.00833 },         // 서쪽으로 0.5해리
+    '신지도':  { dlat:  0.00833, dlon: 0 },          // 북쪽으로 0.5해리
+    '연도':    { dlat: -0.00833, dlon: 0 },          // 남쪽으로 0.5해리
+    '욕지도':  { dlat: -0.00833, dlon: 0 },          // 남쪽으로 0.5해리
+    '울산':    { dlat: 0, dlon:  0.00833 }           // 동쪽으로 0.5해리
+};
+
+/**
+ * 기준항 IDW 보간법으로 조석을 산출하는 지점 목록
+ * TideBED 데이터가 제공되지 않는 동해안 지점에서 사용
+ */
+const IDW_CALC_PLACES = ['포항', '후포', '울진', '후정', '대진항', '남애항', '외옹치항', '아야진항', '울릉도'];
+
 window.showTideDetailForLocation = async function (lat, lon, placeName) {
     // 기존 조석상세 모달이 있으면 제거
     _closeTideDetailModal();
 
+    // 1단계: 로딩 모달 즉시 표시
+    _showTideDetailModal(placeName, _buildTideDetailLoading(lat, lon));
+
+    // IDW 보간법 사용 여부 판별 (동해안 자체 산출 지점)
+    var useIDW = IDW_CALC_PLACES.some(function (keyword) {
+        return placeName && placeName.indexOf(keyword) !== -1;
+    });
+
+    if (useIDW) {
+        // === IDW 보간법 경로 (기준항 기반 자체 산출) ===
+        try {
+            var now = new Date();
+            var y = now.getFullYear();
+            await loadTideData(String(y));
+            var dates = getClientAdjacentDates(now);
+            // 연말연시 전후년 데이터 로드
+            var years = new Set([dates.yesterdayObj.getFullYear(), dates.todayObj.getFullYear(), dates.tomorrowObj.getFullYear()]);
+            for (var yr of years) {
+                if (yr !== y) await loadTideData(String(yr));
+            }
+
+            var keyMap = { yesterday: dates.yesterday, today: dates.today, tomorrow: dates.tomorrow };
+            var result = { yesterday: null, today: null, tomorrow: null };
+
+            for (var key in keyMap) {
+                var stations = findNearestStationsWithData(lat, lon, keyMap[key], 3);
+                if (stations.length === 0) throw new Error('근거 데이터 부족');
+                var idw = interpolateTideByIDW(stations);
+                result[key] = convertIDWToTideBedFormat(idw, keyMap[key]);
+                result[key].isInterpolated = true;
+            }
+
+            console.log('⚡ 조석상세: IDW 보간법 적용 -', placeName);
+            _showTideDetailModal(placeName, _buildTideDetailContent(lat, lon, result));
+        } catch (e) {
+            console.error('조석상세 IDW 오류:', e);
+            _showTideDetailModal(placeName, _buildTideDetailError('조석 예보를 위한 근거 데이터가 부족합니다.', lat, lon));
+        }
+        return;
+    }
+
+    // === TideBED API 경로 ===
+
+    // 좌표 보정 적용 (육지/해안 경계 지점 → 해상으로 0.5해리 이동)
+    var adjustedLat = lat;
+    var adjustedLon = lon;
+    for (var keyword in TIDE_COORD_OFFSETS) {
+        if (placeName && placeName.indexOf(keyword) !== -1) {
+            var offset = TIDE_COORD_OFFSETS[keyword];
+            adjustedLat = lat + offset.dlat;
+            adjustedLon = lon + offset.dlon;
+            console.log('⚡ 조석상세: 좌표 보정 적용 -', placeName, '→', adjustedLat.toFixed(5), adjustedLon.toFixed(5));
+            break;
+        }
+    }
+
     // 오늘 날짜 (YYYYMMDD 형식)
-    const now = new Date();
-    const dateNum = parseInt(
+    var now = new Date();
+    var dateNum = parseInt(
         now.getFullYear() +
         String(now.getMonth() + 1).padStart(2, '0') +
         String(now.getDate()).padStart(2, '0')
     );
-    const timeString = [
+    var timeString = [
         String(now.getHours()).padStart(2, '0'),
         String(now.getMinutes()).padStart(2, '0'),
         String(now.getSeconds()).padStart(2, '0')
     ].join(':');
 
-    // 1단계: 로딩 모달 즉시 표시
-    _showTideDetailModal(placeName, _buildTideDetailLoading(lat, lon));
-
-    // 2단계: 서버에 수집 요청
-    let serverResponse;
+    // 서버에 수집 요청 (보정된 좌표 사용)
+    var serverResponse;
     try {
-        const res = await fetch('/api/save_tide_input', {
+        var res = await fetch('/api/save_tide_input', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ date: dateNum, time: timeString, lat: lat, lon: lon })
+            body: JSON.stringify({ date: dateNum, time: timeString, lat: adjustedLat, lon: adjustedLon })
         });
         serverResponse = await res.json();
         if (!serverResponse.success) {
-            const errMsg = serverResponse.error === 'Grid hash unavailable'
+            var errMsg = serverResponse.error === 'Grid hash unavailable'
                 ? '국립해양조사원 조석 예측정보가 제공되지 않는 해역입니다.'
                 : '서버 요청에 실패했습니다.';
             _showTideDetailModal(placeName, _buildTideDetailError(errMsg, lat, lon));
@@ -2246,28 +2325,28 @@ window.showTideDetailForLocation = async function (lat, lon, placeName) {
         return;
     }
 
-    const files = serverResponse.files;
+    var files = serverResponse.files;
 
-    // 3단계: 캐시 히트 → 즉시 렌더링
+    // 캐시 히트 → 즉시 렌더링
     if (serverResponse.collecting === 0) {
         try {
-            const [yRes, tRes, tmRes] = await Promise.all([
-                fetch(`/data/${files.yesterday}?` + Date.now()),
-                fetch(`/data/${files.today}?` + Date.now()),
-                fetch(`/data/${files.tomorrow}?` + Date.now())
+            var responses = await Promise.all([
+                fetch('/data/' + files.yesterday + '?' + Date.now()),
+                fetch('/data/' + files.today + '?' + Date.now()),
+                fetch('/data/' + files.tomorrow + '?' + Date.now())
             ]);
-            const [yData, tData, tmData] = await Promise.all([yRes.json(), tRes.json(), tmRes.json()]);
-            _showTideDetailModal(placeName, _buildTideDetailContent(lat, lon, { yesterday: yData, today: tData, tomorrow: tmData }));
+            var data = await Promise.all(responses.map(function (r) { return r.json(); }));
+            _showTideDetailModal(placeName, _buildTideDetailContent(lat, lon, { yesterday: data[0], today: data[1], tomorrow: data[2] }));
         } catch (err) {
             _showTideDetailModal(placeName, _buildTideDetailError('캐시 데이터 로드에 실패했습니다.', lat, lon));
         }
         return;
     }
 
-    // 4단계: 폴링 (500ms 간격, 최대 120회 = 60초)
-    let pollCount = 0;
-    const completedData = {};
-    const pollTimer = setInterval(async () => {
+    // 폴링 (500ms 간격, 최대 120회 = 60초)
+    var pollCount = 0;
+    var completedData = {};
+    var pollTimer = setInterval(async function () {
         pollCount++;
         if (pollCount > 120) {
             clearInterval(pollTimer);
@@ -2275,12 +2354,12 @@ window.showTideDetailForLocation = async function (lat, lon, placeName) {
             return;
         }
         try {
-            const checks = [];
-            if (!completedData.today) checks.push(fetch(`/data/${files.today}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.today = d; }).catch(() => {}));
-            if (!completedData.tomorrow) checks.push(fetch(`/data/${files.tomorrow}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.tomorrow = d; }).catch(() => {}));
-            if (!completedData.yesterday) checks.push(fetch(`/data/${files.yesterday}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.yesterday = d; }).catch(() => {}));
+            var checks = [];
+            if (!completedData.today) checks.push(fetch('/data/' + files.today + '?' + Date.now()).then(function (r) { return r.json(); }).then(function (d) { if (d.tideBedStatus === 'complete') completedData.today = d; }).catch(function () {}));
+            if (!completedData.tomorrow) checks.push(fetch('/data/' + files.tomorrow + '?' + Date.now()).then(function (r) { return r.json(); }).then(function (d) { if (d.tideBedStatus === 'complete') completedData.tomorrow = d; }).catch(function () {}));
+            if (!completedData.yesterday) checks.push(fetch('/data/' + files.yesterday + '?' + Date.now()).then(function (r) { return r.json(); }).then(function (d) { if (d.tideBedStatus === 'complete') completedData.yesterday = d; }).catch(function () {}));
             await Promise.all(checks);
-            const done = (completedData.today ? 1 : 0) + (completedData.tomorrow ? 1 : 0) + (completedData.yesterday ? 1 : 0);
+            var done = (completedData.today ? 1 : 0) + (completedData.tomorrow ? 1 : 0) + (completedData.yesterday ? 1 : 0);
             if (done === 3) {
                 clearInterval(pollTimer);
                 _showTideDetailModal(placeName, _buildTideDetailContent(lat, lon, completedData));
