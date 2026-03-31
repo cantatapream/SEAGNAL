@@ -555,14 +555,15 @@
 
         const html = `
             <div class="notice-modal-overlay" id="report-answer-popup" style="z-index:10001;">
-                <div class="notice-popup" style="max-width:380px;max-height:80vh;display:flex;flex-direction:column;">
-                    <div class="notice-header-area" style="background:linear-gradient(135deg,#1e40af,#3b82f6);flex-shrink:0;">
+                <!-- 제보 답변 팝업: CSS .notice-popup에 max-height/flex 정의됨 -->
+                <div class="notice-popup">
+                    <div class="notice-header-area" style="background:linear-gradient(135deg,#1e40af,#3b82f6);">
                         <div class="notice-icon-badge" style="background:rgba(255,255,255,0.15);">
                             <i class="fa-solid fa-reply"></i>
                         </div>
                         <div class="notice-title">제보 답변</div>
                     </div>
-                    <div class="notice-body" style="overflow-y:auto;flex:1;">
+                    <div class="notice-body">
                         <div style="margin-bottom:10px;">
                             <span style="font-size:0.75rem;color:#94a3b8;">제보 제목</span>
                             <div style="color:#e2e8f0;font-size:0.9rem;font-weight:600;">${escapeHTML(data.title)}</div>
@@ -572,7 +573,7 @@
                         </div>
                         ${answerImgHtml}
                     </div>
-                    <div class="notice-footer" style="justify-content:center;flex-shrink:0;">
+                    <div class="notice-footer" style="justify-content:center;">
                         <button class="notice-close-btn" onclick="window._dismissReportAnswer('${data.reportId}')">확인</button>
                     </div>
                 </div>
