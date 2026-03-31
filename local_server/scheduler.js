@@ -544,49 +544,66 @@ async function collectFishingIndex() {
 }
 
 /**
- * 바다낚시 API 호출 함수
+ * 바다낚시 API 호출 함수 (페이지네이션 포함)
  * @param {string} gubun 구분 ('갯바위' 또는 '선상')
- * @returns {Array} API 응답의 items 배열 (실패 시 빈 배열)
+ * @returns {Array} API 응답의 전체 items 배열 (실패 시 빈 배열)
  *
  * [설명]
  * 국립해양조사원 API를 호출하여 해당 구분의 전체 낚시 포인트 데이터를 가져옵니다.
  * reqDate 미지정 시 현재일 기준 7일치 데이터가 반환됩니다.
- * numOfRows=2000으로 설정하여 한 번의 호출로 전체 데이터를 가져옵니다.
+ * numOfRows 최대값이 300이므로, 전체 데이터를 가져오기 위해 페이지를 순회합니다.
  */
 async function _fetchFishingData(gubun) {
+    const allItems = [];
+    const encodedKey = encodeURIComponent(FISHING_API_KEY);
+    let pageNo = 1;
+    const numOfRows = 300; // API 최대값
+
     try {
-        // serviceKey는 디코딩된 상태 → encodeURIComponent로 1회 인코딩
-        const encodedKey = encodeURIComponent(FISHING_API_KEY);
-        const params = new URLSearchParams({
-            numOfRows: '2000',
-            pageNo: '1',
-            type: 'json',
-            gubun: gubun
-        });
-        const url = `${FISHING_API_BASE}?serviceKey=${encodedKey}&${params.toString()}`;
-        const response = await fetchWithTimeout(url, {}, 30000);
+        while (true) {
+            const params = new URLSearchParams({
+                numOfRows: String(numOfRows),
+                pageNo: String(pageNo),
+                type: 'json',
+                gubun: gubun
+            });
+            const url = `${FISHING_API_BASE}?serviceKey=${encodedKey}&${params.toString()}`;
+            const response = await fetchWithTimeout(url, {}, 30000);
 
-        if (!response.ok) {
-            log(`⚠️ 바다낚시 API 응답 오류 (${gubun}): HTTP ${response.status}`);
-            return [];
+            if (!response.ok) {
+                log(`⚠️ 바다낚시 API 응답 오류 (${gubun}, p${pageNo}): HTTP ${response.status}`);
+                break;
+            }
+
+            const data = await response.json();
+
+            // 결과코드 검증
+            if (data?.header?.resultCode !== '00') {
+                log(`⚠️ 바다낚시 API 오류 (${gubun}): ${data?.header?.resultMsg}`);
+                break;
+            }
+
+            const items = data?.body?.items?.item;
+            if (!items) break;
+
+            // 단건 응답인 경우 배열로 감싸기
+            const arr = Array.isArray(items) ? items : [items];
+            allItems.push(...arr);
+
+            // 전체 건수 대비 현재까지 수집량 확인 → 다음 페이지 필요 여부
+            const totalCount = data?.body?.totalCount || 0;
+            if (allItems.length >= totalCount) break;
+
+            pageNo++;
+            // 안전장치: 최대 10페이지까지만 (3000건)
+            if (pageNo > 10) break;
         }
 
-        const data = await response.json();
-
-        // API 응답 구조: { header: { resultCode, resultMsg }, body: { items: { item: [...] } } }
-        if (data?.header?.resultCode !== '00') {
-            log(`⚠️ 바다낚시 API 오류 (${gubun}): ${data?.header?.resultMsg}`);
-            return [];
-        }
-
-        const items = data?.body?.items?.item;
-        if (!items) return [];
-
-        // 단건 응답인 경우 배열로 감싸기
-        return Array.isArray(items) ? items : [items];
+        log(`🎣 바다낚시 ${gubun} API 수집: ${allItems.length}건 (${pageNo}페이지)`);
+        return allItems;
     } catch (e) {
         log(`⚠️ 바다낚시 API 호출 실패 (${gubun}): ${e.message}`);
-        return [];
+        return allItems; // 이미 수집한 데이터는 반환
     }
 }
 
