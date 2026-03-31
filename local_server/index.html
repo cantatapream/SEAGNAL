@@ -330,13 +330,28 @@
 
             <!-- 운영 병행 모드 팝업 → body 레벨로 이동됨 -->
 
-            <!-- 탭 네비게이션 (헤더 내부로 이동) -->
+            <!-- 탭 네비게이션: 메인탭 4개 + 서브탭 2그룹 -->
+            <!-- [연계] js/marine.js switchMainTab()/switchSubTab(), js/settings.js 이벤트 바인딩 -->
             <nav class="main-tabs">
-                <button class="tab-btn active" data-target="weather-alert-section">기상정보</button>
-                <button class="tab-btn" data-target="sea-zone-section">해구기상</button>
+                <button class="tab-btn active" data-target="weather-group">기상정보</button>
                 <button class="tab-btn" data-target="tide-section">조석정보</button>
-                <button class="tab-btn" data-target="typhoon-section">태풍정보</button>
+                <button class="tab-btn" data-target="ocean-life-group">해양생활</button>
                 <button class="tab-btn" data-target="promo-section">공지사항</button>
+            </nav>
+            <!-- 기상정보 서브 탭 (특보 및 전망 | 해구기상 | 태풍정보) -->
+            <nav class="sub-tabs" id="weather-sub-tabs">
+                <button class="sub-tab-btn active" data-target="weather-alert-section">특보 및 전망</button>
+                <button class="sub-tab-btn" data-target="sea-zone-section">해구기상</button>
+                <button class="sub-tab-btn" data-target="typhoon-section">태풍정보</button>
+            </nav>
+            <!-- 해양생활 서브 탭 (바다낚시 | 서핑 | 해수욕 | 스킨스쿠버 | 갯벌체험 | 바다갈라짐) -->
+            <nav class="sub-tabs" id="ocean-life-sub-tabs">
+                <button class="sub-tab-btn active" data-target="fishing-section">바다낚시</button>
+                <button class="sub-tab-btn" data-target="surfing-section">서핑</button>
+                <button class="sub-tab-btn" data-target="swimming-section">해수욕</button>
+                <button class="sub-tab-btn" data-target="scuba-section">스킨스쿠버</button>
+                <button class="sub-tab-btn" data-target="mudflat-section">갯벌체험</button>
+                <button class="sub-tab-btn" data-target="sea-parting-section">바다갈라짐</button>
             </nav>
         </header>
 
@@ -770,6 +785,144 @@
                     </div>
                 </div>
             </section>
+
+            <!-- ================================================================
+                 섹션: 해양생활 - 바다낚시
+                 [연계] js/fishing.js → initFishingMap(), 지도 마커/바텀시트
+                 [연계] routes/fishing.js → /api/fishing-index 데이터 제공
+                 ================================================================ -->
+            <section id="fishing-section" class="tab-content">
+
+                <div class="section-header-with-info">
+                    <h2 class="section-title"><i class="fa-solid fa-fish"></i> 바다낚시 지수</h2>
+                </div>
+
+                <!-- 상단 컨트롤: 갯바위/선상 토글 + 내 위치 버튼 -->
+                <div class="fishing-controls">
+                    <!-- 갯바위/선상 구분 토글 버튼 -->
+                    <div class="fishing-gubun-toggle">
+                        <button class="fishing-gubun-btn active" data-gubun="갯바위">갯바위</button>
+                        <button class="fishing-gubun-btn" data-gubun="선상">선상</button>
+                    </div>
+                    <!-- GPS 기반 내 위치 이동 버튼 -->
+                    <button id="fishing-my-location-btn" class="fishing-my-location-btn" title="내 위치">
+                        <i class="fa-solid fa-location-crosshairs"></i> 내 위치
+                    </button>
+                </div>
+
+                <!-- OpenLayers 지도 컨테이너 -->
+                <div class="fishing-map-container">
+                    <div id="fishing-map" class="fishing-map">
+                        <!-- OpenLayers 지도가 렌더링되는 영역 -->
+                    </div>
+                </div>
+
+                <!-- 발표시점 (지도 하단 우측 정렬) -->
+                <div class="fishing-map-footer">
+                    <span class="fishing-publish-time" id="fishing-publish-time">발표: -</span>
+                </div>
+
+                <!-- 바텀시트 오버레이 (마커 클릭 시 표시) -->
+                <div class="fishing-bottomsheet-overlay" id="fishing-bottomsheet-overlay"></div>
+
+                <!-- 바텀시트 (마커 클릭 시 하단에서 슬라이드업) -->
+                <div class="fishing-bottomsheet" id="fishing-bottomsheet">
+                    <!-- 드래그 핸들 -->
+                    <div class="fishing-bs-handle"><div class="fishing-bs-handle-bar"></div></div>
+
+                    <!-- 위치명 + 상태배지 + 닫기 버튼 (한 줄 배치) -->
+                    <div class="fishing-bs-header">
+                        <div class="fishing-bs-place">
+                            <i class="fa-solid fa-location-dot"></i>
+                            <span id="fishing-bs-place-name">-</span>
+                        </div>
+                        <div class="fishing-bs-total-index" id="fishing-bs-total-index">
+                            <!-- JS에서 종합 지수 배지 렌더링 -->
+                        </div>
+                        <!-- 닫기 버튼을 헤더 우측에 배치 (margin-left:auto) -->
+                        <button class="fishing-bs-close" id="fishing-bs-close" title="닫기">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <!-- 날짜 네비게이션 -->
+                    <div class="fishing-bs-date-nav">
+                        <button class="fishing-bs-date-btn" id="fishing-date-prev"><i class="fa-solid fa-chevron-left"></i></button>
+                        <span class="fishing-bs-date-label" id="fishing-bs-date-label">-</span>
+                        <button class="fishing-bs-date-btn" id="fishing-date-next"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+
+                    <!-- 예보 콘텐츠 (스크롤 영역) -->
+                    <div class="fishing-bs-content" id="fishing-bs-content">
+                        <!-- JS에서 오전/오후 예보 블록 렌더링 -->
+                    </div>
+                </div>
+
+                <!-- 갯바위 안내문 (선상 선택 시 숨김) -->
+                <div id="fishing-disclaimer-gwbr" class="fishing-disclaimer">
+                    <p><i class="fa-solid fa-circle-info"></i> 이 자료는 국립해양조사원의 생활해양예보 데이터를 기반으로 하며, 실제 조건과 다를 수 있습니다. 낚시 활동 전 현지 상황을 반드시 확인하시기 바랍니다.</p>
+                    <p><i class="fa-solid fa-triangle-exclamation"></i> 갯바위 낚시 시 항만법에 의거하여 구명조끼 착용이 의무입니다.</p>
+                    <p><i class="fa-solid fa-ban"></i> 수산자원관리법에 따라 금어기·금지체장에 해당하는 어종은 포획이 금지됩니다. 반드시 해당 지역의 금어기 정보를 확인하시기 바랍니다.</p>
+                </div>
+                <!-- 선상 안내문 (갯바위 선택 시 숨김) -->
+                <div id="fishing-disclaimer-ship" class="fishing-disclaimer" style="display:none;">
+                    <p><i class="fa-solid fa-circle-info"></i> 이 자료는 국립해양조사원의 생활해양예보 데이터를 기반으로 하며, 실제 조건과 다를 수 있습니다. 낚시 활동 전 현지 상황을 반드시 확인하시기 바랍니다.</p>
+                    <p><i class="fa-solid fa-triangle-exclamation"></i> 선상 낚시 시 항만법에 의거하여 구명조끼 착용이 의무입니다.</p>
+                    <p><i class="fa-solid fa-ship"></i> 출조항은 해당 낚시 포인트에서 출발하는 항구를 의미하며, 실제 낚시 포인트까지의 거리(km)가 표시됩니다.</p>
+                </div>
+
+            </section>
+
+            <!-- 섹션: 해양생활 - 서핑 -->
+            <section id="surfing-section" class="tab-content">
+                <div class="section-header-with-info">
+                    <h2 class="section-title"><i class="fa-solid fa-water"></i> 서핑 지수</h2>
+                </div>
+                <div style="margin:15px 0;padding:20px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(0,0,0,0.3);text-align:center;">
+                    <p style="margin:0;color:var(--accent-yellow,#ffd54f);font-weight:500;font-size:0.95rem;">서핑 지수 기능 준비 중입니다.</p>
+                </div>
+            </section>
+
+            <!-- 섹션: 해양생활 - 갯벌체험 -->
+            <section id="mudflat-section" class="tab-content">
+                <div class="section-header-with-info">
+                    <h2 class="section-title"><i class="fa-solid fa-shoe-prints"></i> 갯벌체험 지수</h2>
+                </div>
+                <div style="margin:15px 0;padding:20px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(0,0,0,0.3);text-align:center;">
+                    <p style="margin:0;color:var(--accent-yellow,#ffd54f);font-weight:500;font-size:0.95rem;">갯벌체험 지수는 운영기간(5월~10월)에 제공됩니다.</p>
+                </div>
+            </section>
+
+            <!-- 섹션: 해양생활 - 해수욕 -->
+            <section id="swimming-section" class="tab-content">
+                <div class="section-header-with-info">
+                    <h2 class="section-title"><i class="fa-solid fa-umbrella-beach"></i> 해수욕 지수</h2>
+                </div>
+                <div style="margin:15px 0;padding:20px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(0,0,0,0.3);text-align:center;">
+                    <p style="margin:0;color:var(--accent-yellow,#ffd54f);font-weight:500;font-size:0.95rem;">해수욕 지수는 해수욕장 개장기간에 제공됩니다.</p>
+                </div>
+            </section>
+
+            <!-- 섹션: 해양생활 - 스킨스쿠버 -->
+            <section id="scuba-section" class="tab-content">
+                <div class="section-header-with-info">
+                    <h2 class="section-title"><i class="fa-solid fa-mask-snorkel"></i> 스킨스쿠버 지수</h2>
+                </div>
+                <div style="margin:15px 0;padding:20px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(0,0,0,0.3);text-align:center;">
+                    <p style="margin:0;color:var(--accent-yellow,#ffd54f);font-weight:500;font-size:0.95rem;">스킨스쿠버 지수는 운영기간(6월~10월)에 제공됩니다.</p>
+                </div>
+            </section>
+
+            <!-- 섹션: 해양생활 - 바다갈라짐 -->
+            <section id="sea-parting-section" class="tab-content">
+                <div class="section-header-with-info">
+                    <h2 class="section-title"><i class="fa-solid fa-road"></i> 바다갈라짐 지수</h2>
+                </div>
+                <div style="margin:15px 0;padding:20px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(0,0,0,0.3);text-align:center;">
+                    <p style="margin:0;color:var(--accent-yellow,#ffd54f);font-weight:500;font-size:0.95rem;">바다갈라짐 지수 기능 준비 중입니다.</p>
+                </div>
+            </section>
+
         </main>
     </div>
 
@@ -828,6 +981,7 @@
     <script src="js/forecast.js"></script>
     <script src="js/windy.js"></script>
     <script src="js/marine_forecast.js"></script>
+    <script src="js/fishing.js"></script>
     <script src="js/admin_trigger.js"></script>
     <script src="js/promo.js"></script>
     <script src="js/admin.js"></script>
@@ -946,9 +1100,10 @@
             }
         }
 
-        // 탭 전체 차단
+        // 탭 전체 차단 (메인탭 .tab-btn 또는 서브탭 .sub-tab-btn 모두 대응)
+        // [수정 이유] 해구기상/태풍이 서브탭으로 이동하여 .tab-btn에서 매칭 안 됨
         for (const [featureId, sectionId] of Object.entries(tabMap)) {
-            const tabBtn = document.querySelector(`.tab-btn[data-target="${sectionId}"]`);
+            const tabBtn = document.querySelector(`.tab-btn[data-target="${sectionId}"], .sub-tab-btn[data-target="${sectionId}"]`);
             if (!tabBtn) continue;
             if (blocked.includes(featureId)) {
                 tabBtn.style.opacity = '0.4';
