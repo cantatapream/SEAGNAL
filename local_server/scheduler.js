@@ -550,12 +550,23 @@ async function collectFishingIndex() {
                 });
         }
 
+        // 수집된 날짜 분포 분석 (디버깅용)
+        const dateAnalysis = {};
+        ['갯바위', '선상'].forEach(g => {
+            const dateSet = new Set();
+            Object.values(result[g]).forEach(pl => {
+                Object.keys(pl.forecasts).forEach(d => dateSet.add(d));
+            });
+            dateAnalysis[g] = Array.from(dateSet).sort();
+        });
+        log(`🎣 바다낚시 날짜 분포 - 갯바위: ${dateAnalysis['갯바위'].join(',')} (${dateAnalysis['갯바위'].length}일), 선상: ${dateAnalysis['선상'].join(',')} (${dateAnalysis['선상'].length}일)`);
+
         // JSON 파일로 저장 (data/fishing_index.json)
         saveData('fishing_index.json', result);
         lastRunStatus.fishing = {
             lastRun: getNowStr(),
             status: '성공',
-            message: `갯바위 ${Object.keys(result['갯바위']).length}개소, 선상 ${Object.keys(result['선상']).length}개소`
+            message: `갯바위 ${Object.keys(result['갯바위']).length}개소(${dateAnalysis['갯바위'].length}일), 선상 ${Object.keys(result['선상']).length}개소(${dateAnalysis['선상'].length}일)`
         };
         log(`✅ 바다낚시 지수 수집 완료 (갯바위: ${Object.keys(result['갯바위']).length}, 선상: ${Object.keys(result['선상']).length})`);
 
