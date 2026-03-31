@@ -4643,3 +4643,415 @@ line-height: 1.1;
     opacity: 1;
     transform: translateX(-50%) translateY(0);
 }
+
+/* =========================================
+   바다낚시 지수 UI 스타일
+   ========================================= */
+
+/* --- 상단 컨트롤 (토글 + 내위치 버튼) --- */
+.fishing-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+}
+
+/* 갯바위/선상 토글 버튼 그룹 */
+.fishing-gubun-toggle {
+    display: flex;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.fishing-gubun-btn {
+    background: transparent;
+    border: none;
+    color: #888;
+    padding: 8px 18px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
+.fishing-gubun-btn.active {
+    background: var(--accent-blue, #448aff);
+    color: #fff;
+}
+
+/* 내 위치 버튼 */
+.fishing-my-location-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #aaa;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
+.fishing-my-location-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+/* --- 지도 영역 --- */
+.fishing-map-container {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.fishing-map {
+    width: 100%;
+    height: 420px;
+    background: #0d1520;
+}
+
+/* OpenLayers 기본 컨트롤 스타일 재정의 (다크 테마) */
+.fishing-map .ol-control button {
+    background: rgba(22, 27, 45, 0.9) !important;
+    color: #ccc !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* --- 발표시점 + 범례 --- */
+.fishing-map-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 4px;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.fishing-publish-time {
+    color: #888;
+    font-size: 0.75rem;
+}
+
+.fishing-legend {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.fishing-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #aaa;
+    font-size: 0.7rem;
+}
+
+/* 발광형 동심원 범례 마커 */
+.fishing-legend-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+/* --- 바텀시트 오버레이 (배경 딤) --- */
+.fishing-bottomsheet-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 998;
+}
+
+.fishing-bottomsheet-overlay.active {
+    display: block;
+}
+
+/* --- 바텀시트 메인 컨테이너 --- */
+.fishing-bottomsheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-width: 600px;
+    margin: 0 auto;
+    background: #1a1f2e;
+    border-radius: 16px 16px 0 0;
+    z-index: 999;
+    transform: translateY(100%);
+    transition: transform 0.35s ease;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+    padding: 0 16px 20px;
+}
+
+.fishing-bottomsheet.active {
+    transform: translateY(0);
+}
+
+/* 드래그 핸들 */
+.fishing-bs-handle {
+    display: flex;
+    justify-content: center;
+    padding: 10px 0 6px;
+}
+
+.fishing-bs-handle-bar {
+    width: 36px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+}
+
+/* 위치명 + 종합지수 헤더 */
+.fishing-bs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0 12px;
+}
+
+.fishing-bs-place {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.fishing-bs-place i {
+    color: var(--accent-blue, #448aff);
+}
+
+/* 종합 지수 배지 */
+.fishing-index-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+/* 지수별 배지 색상 */
+.fishing-index-badge.level-매우좋음 { background: linear-gradient(135deg, #81D4FA, #1565C0); }
+.fishing-index-badge.level-좋음     { background: linear-gradient(135deg, #81C784, #2E7D32); }
+.fishing-index-badge.level-보통     { background: linear-gradient(135deg, #FFD54F, #F9A825); color: #333; }
+.fishing-index-badge.level-나쁨     { background: linear-gradient(135deg, #FFB74D, #E65100); }
+.fishing-index-badge.level-매우나쁨 { background: linear-gradient(135deg, #EF9A9A, #C62828); }
+
+/* --- 날짜 네비게이션 --- */
+.fishing-bs-date-nav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 12px;
+}
+
+.fishing-bs-date-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    color: #aaa;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.8rem;
+}
+
+.fishing-bs-date-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.fishing-bs-date-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.fishing-bs-date-label {
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 600;
+    min-width: 140px;
+    text-align: center;
+}
+
+/* --- 오전/오후 데이터 블록 --- */
+.fishing-time-block {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+.fishing-time-label {
+    color: var(--accent-blue, #448aff);
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+/* 기상 요약 (파고, 수온, 물때) */
+.fishing-weather-summary {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    color: #bbb;
+    font-size: 0.78rem;
+}
+
+.fishing-weather-summary span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* --- 어종별 그리드 --- */
+.fishing-species-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+
+.fishing-species-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 8px 4px;
+    text-align: center;
+}
+
+.fishing-species-name {
+    color: #ccc;
+    font-size: 0.72rem;
+    font-weight: 500;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+/* 기타어종 ? 버튼 */
+.fishing-etc-info-btn {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 0.65rem;
+    padding: 0 2px;
+    vertical-align: middle;
+}
+
+.fishing-etc-info-btn:hover {
+    color: var(--accent-blue, #448aff);
+}
+
+/* 어종별 지수 미니 배지 */
+.fishing-species-index {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 10px;
+    display: inline-block;
+}
+
+.fishing-species-index.level-매우좋음 { background: rgba(21, 101, 192, 0.3); color: #81D4FA; }
+.fishing-species-index.level-좋음     { background: rgba(46, 125, 50, 0.3); color: #81C784; }
+.fishing-species-index.level-보통     { background: rgba(249, 168, 37, 0.3); color: #FFD54F; }
+.fishing-species-index.level-나쁨     { background: rgba(230, 81, 0, 0.3); color: #FFB74D; }
+.fishing-species-index.level-매우나쁨 { background: rgba(198, 40, 40, 0.3); color: #EF9A9A; }
+
+/* --- 오후 예보 보기 / 접기 버튼 --- */
+.fishing-more-btn {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    color: #aaa;
+    padding: 10px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 4px;
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
+.fishing-more-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+}
+
+/* --- 기타어종 말풍선 (툴팁) --- */
+.fishing-etc-tooltip {
+    position: absolute;
+    background: #2a3042;
+    color: #ddd;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    z-index: 1001;
+    max-width: 280px;
+    word-break: keep-all;
+}
+
+/* 말풍선 꼬리 (아래쪽) */
+.fishing-etc-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid #2a3042;
+}
+
+.fishing-etc-tooltip-title {
+    color: var(--accent-blue, #448aff);
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+/* --- 바텀시트 닫기 버튼 --- */
+.fishing-bs-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    transition: color 0.2s;
+}
+
+.fishing-bs-close:hover {
+    color: #fff;
+}
