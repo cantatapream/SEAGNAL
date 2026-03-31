@@ -56,4 +56,52 @@ router.get('/api/fishing-index', (req, res) => {
     res.status(404).json({ error: '바다낚시 지수 데이터 준비 중' });
 });
 
+/**
+ * GET /api/fishing-debug
+ * 바다낚시 수집 데이터 진단 정보를 반환합니다.
+ * 날짜별 건수, 지역 수, 총 항목 수 등을 확인하여 수집 상태를 파악합니다.
+ *
+ * [연계]
+ * - dataCache.fishingIndex → 메모리 캐시된 수집 데이터
+ * - scheduler.js → collectFishingIndex()에서 수집한 원본 데이터
+ */
+router.get('/api/fishing-debug', (req, res) => {
+    if (!dataCache.fishingIndex) {
+        return res.json({ error: '데이터 없음' });
+    }
+
+    const data = dataCache.fishingIndex;
+    const result = { updatedAt: data.updatedAt };
+
+    // 갯바위/선상 각각의 날짜 분포 분석
+    ['갯바위', '선상'].forEach(gubun => {
+        const places = data[gubun] || {};
+        const placeNames = Object.keys(places);
+        const dateSet = new Set();
+        const dateCounts = {};
+
+        placeNames.forEach(name => {
+            const forecasts = places[name].forecasts || {};
+            Object.keys(forecasts).forEach(dateStr => {
+                dateSet.add(dateStr);
+                if (!dateCounts[dateStr]) dateCounts[dateStr] = { places: 0, slots: 0 };
+                dateCounts[dateStr].places++;
+                Object.keys(forecasts[dateStr]).forEach(slot => {
+                    dateCounts[dateStr].slots++;
+                });
+            });
+        });
+
+        result[gubun] = {
+            지역수: placeNames.length,
+            지역목록: placeNames,
+            날짜수: dateSet.size,
+            날짜목록: Array.from(dateSet).sort(),
+            날짜별현황: dateCounts
+        };
+    });
+
+    res.json(result);
+});
+
 module.exports = router;
