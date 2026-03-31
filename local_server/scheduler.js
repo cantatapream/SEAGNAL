@@ -60,11 +60,9 @@ let crawlPaused = false;
 
 const lastRunStatus = {
     buoys: { lastRun: null, status: '대기 중', message: '' },
-    buoys: { lastRun: null, status: '대기 중', message: '' },
     general: { lastRun: null, status: '대기 중', message: '' },
     zone: { lastRun: null, status: '대기 중', message: '' },
     fishing: { lastRun: null, status: '대기 중', message: '' }  // 바다낚시 지수
-};
 };
 
 const CONFIG_FILE = path.join(__dirname, 'data/api_config.json');
