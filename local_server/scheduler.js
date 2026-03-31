@@ -410,7 +410,7 @@ async function collectMidTermSeaForecasts() {
 
 // 바다낚시 지수 API 인증키 (공공데이터포털 발급)
 const FISHING_API_KEY = 'PmxnR43icJwR7yzKjG612RncLikLD1RvZpPLgEJqUUx0vGQncdfuT9VjiqBlgiXMdcjyKopi4yvUPaPbcdIUfg==';
-const FISHING_API_BASE = 'https://apis.data.go.kr/1192136/fcstFishingv2';
+const FISHING_API_BASE = 'https://apis.data.go.kr/1192136/fcstFishingv2/GetFcstFishingApiServicev2';
 
 /**
  * 바다낚시 지수 데이터 수집 메인 함수
@@ -422,19 +422,6 @@ async function collectFishingIndex() {
     try {
         log('🎣 바다낚시 지수 수집 시작...');
 
-        // 오늘 날짜부터 6일 후까지의 날짜 목록 생성 (YYYYMMDD 형식)
-        const now = getCorrectedDate();
-        const kstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-        const dates = [];
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(kstNow);
-            d.setDate(d.getDate() + i);
-            const yyyy = d.getFullYear();
-            const mm = String(d.getMonth() + 1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            dates.push(`${yyyy}${mm}${dd}`);
-        }
-
         // 갯바위와 선상 두 구분에 대해 각각 수집
         const result = {
             updatedAt: getNowStr(),
@@ -443,18 +430,22 @@ async function collectFishingIndex() {
         };
 
         for (const gubun of ['갯바위', '선상']) {
-            // 모든 날짜에 대해 병렬로 API 호출
-            const datePromises = dates.map(date => _fetchFishingData(gubun, date));
-            const dateResults = await Promise.all(datePromises);
+            // reqDate 미지정 시 현재일 기준 7일치 전체 반환
+            // totalCount가 ~1768이므로 numOfRows=2000으로 한 번에 수집
+            const items = await _fetchFishingData(gubun);
 
-            // 날짜별 응답을 위치별로 그룹핑
-            dateResults.forEach((items, dateIdx) => {
-                const dateStr = dates[dateIdx];
-                if (!items || items.length === 0) return;
+            if (!items || items.length === 0) {
+                log(`⚠️ 바다낚시 ${gubun} 데이터 없음`);
+                continue;
+            }
 
-                items.forEach(item => {
+            // 응답 데이터를 위치별로 그룹핑
+            items.forEach(item => {
                     const placeName = item.seafsPstnNm;
                     if (!placeName) return;
+
+                    // API 응답의 날짜 형식: "YYYY-MM-DD" → "YYYYMMDD"로 변환
+                    const dateStr = item.predcYmd ? item.predcYmd.replace(/-/g, '') : '';
 
                     // 해당 위치가 처음 등장하면 초기 객체 생성
                     if (!result[gubun][placeName]) {
@@ -535,7 +526,6 @@ async function collectFishingIndex() {
                         slot.totalIndex = item.totalIndex;
                     }
                 });
-            });
         }
 
         // JSON 파일로 저장 (data/fishing_index.json)
@@ -554,45 +544,48 @@ async function collectFishingIndex() {
 }
 
 /**
- * 바다낚시 API 단건 호출 함수
+ * 바다낚시 API 호출 함수
  * @param {string} gubun 구분 ('갯바위' 또는 '선상')
- * @param {string} dateStr 요청 날짜 (YYYYMMDD)
  * @returns {Array} API 응답의 items 배열 (실패 시 빈 배열)
  *
  * [설명]
- * 국립해양조사원 API를 호출하여 해당 구분/날짜의 전체 낚시 포인트 데이터를 가져옵니다.
- * numOfRows=300으로 설정하여 한 번의 호출로 전체 데이터를 가져옵니다.
+ * 국립해양조사원 API를 호출하여 해당 구분의 전체 낚시 포인트 데이터를 가져옵니다.
+ * reqDate 미지정 시 현재일 기준 7일치 데이터가 반환됩니다.
+ * numOfRows=2000으로 설정하여 한 번의 호출로 전체 데이터를 가져옵니다.
  */
-async function _fetchFishingData(gubun, dateStr) {
+async function _fetchFishingData(gubun) {
     try {
-        // serviceKey는 이미 디코딩된 상태이므로 인코딩하여 전달
-        // (공공데이터포탈 API는 인코딩된 키를 요구)
+        // serviceKey는 디코딩된 상태 → encodeURIComponent로 1회 인코딩
         const encodedKey = encodeURIComponent(FISHING_API_KEY);
         const params = new URLSearchParams({
-            numOfRows: '300',
+            numOfRows: '2000',
             pageNo: '1',
             type: 'json',
-            gubun: gubun,
-            reqDate: dateStr
+            gubun: gubun
         });
         const url = `${FISHING_API_BASE}?serviceKey=${encodedKey}&${params.toString()}`;
-        const response = await fetchWithTimeout(url, {}, 15000);
+        const response = await fetchWithTimeout(url, {}, 30000);
 
         if (!response.ok) {
-            log(`⚠️ 바다낚시 API 응답 오류 (${gubun}/${dateStr}): HTTP ${response.status}`);
+            log(`⚠️ 바다낚시 API 응답 오류 (${gubun}): HTTP ${response.status}`);
             return [];
         }
 
         const data = await response.json();
 
-        // API 응답 구조: { response: { header: {...}, body: { items: { item: [...] } } } }
-        const items = data?.response?.body?.items?.item;
+        // API 응답 구조: { header: { resultCode, resultMsg }, body: { items: { item: [...] } } }
+        if (data?.header?.resultCode !== '00') {
+            log(`⚠️ 바다낚시 API 오류 (${gubun}): ${data?.header?.resultMsg}`);
+            return [];
+        }
+
+        const items = data?.body?.items?.item;
         if (!items) return [];
 
         // 단건 응답인 경우 배열로 감싸기
         return Array.isArray(items) ? items : [items];
     } catch (e) {
-        log(`⚠️ 바다낚시 API 호출 실패 (${gubun}/${dateStr}): ${e.message}`);
+        log(`⚠️ 바다낚시 API 호출 실패 (${gubun}): ${e.message}`);
         return [];
     }
 }
