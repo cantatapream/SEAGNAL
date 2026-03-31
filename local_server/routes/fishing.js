@@ -80,14 +80,19 @@ router.get('/api/fishing-debug', (req, res) => {
         const dateSet = new Set();
         const dateCounts = {};
 
+        // 슬롯 키 분포 (오전/오후/종일 등 실제 키값 확인용)
+        const slotKeySet = new Set();
+
         placeNames.forEach(name => {
             const forecasts = places[name].forecasts || {};
             Object.keys(forecasts).forEach(dateStr => {
                 dateSet.add(dateStr);
-                if (!dateCounts[dateStr]) dateCounts[dateStr] = { places: 0, slots: 0 };
+                if (!dateCounts[dateStr]) dateCounts[dateStr] = { places: 0, slots: 0, slotKeys: {} };
                 dateCounts[dateStr].places++;
                 Object.keys(forecasts[dateStr]).forEach(slot => {
                     dateCounts[dateStr].slots++;
+                    slotKeySet.add(slot);
+                    dateCounts[dateStr].slotKeys[slot] = (dateCounts[dateStr].slotKeys[slot] || 0) + 1;
                 });
             });
         });
@@ -97,6 +102,7 @@ router.get('/api/fishing-debug', (req, res) => {
             지역목록: placeNames,
             날짜수: dateSet.size,
             날짜목록: Array.from(dateSet).sort(),
+            슬롯키종류: Array.from(slotKeySet),
             날짜별현황: dateCounts
         };
     });
