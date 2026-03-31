@@ -216,6 +216,19 @@
     }
 
     /**
+     * 갯바위/선상에 따라 하단 안내문을 전환합니다.
+     * 갯바위 선택 시 갯바위용, 선상 선택 시 선상용 안내문을 표시합니다.
+     *
+     * [연계] index.html → #fishing-disclaimer-gwbr, #fishing-disclaimer-ship
+     */
+    function _updateDisclaimer() {
+        var gwbr = document.getElementById('fishing-disclaimer-gwbr');
+        var ship = document.getElementById('fishing-disclaimer-ship');
+        if (gwbr) gwbr.style.display = currentGubun === '선상' ? 'none' : '';
+        if (ship) ship.style.display = currentGubun === '선상' ? '' : 'none';
+    }
+
+    /**
      * 지수 안내 팝업을 엽니다.
      * 구분에 따라 해당 이미지를 표시합니다.
      */
@@ -535,6 +548,7 @@
                 _renderMarkers();
                 _closeBottomSheet();
                 _updateGuideButtonLabel();
+                _updateDisclaimer();
             });
         });
 

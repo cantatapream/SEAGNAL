@@ -4742,6 +4742,29 @@ line-height: 1.1;
     font-size: 0.75rem;
 }
 
+/* --- 하단 안내문 (갯바위/선상 구분) --- */
+.fishing-disclaimer {
+    margin: 16px 0 8px;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+}
+.fishing-disclaimer p {
+    margin: 0 0 8px;
+    font-size: 0.72rem;
+    line-height: 1.6;
+    color: #8899aa;
+}
+.fishing-disclaimer p:last-child {
+    margin-bottom: 0;
+}
+.fishing-disclaimer i {
+    color: #5a8fb8;
+    margin-right: 4px;
+    font-size: 0.65rem;
+}
+
 /* 지도 내부 좌측 하단 범례 (OL 커스텀 컨트롤) */
 .fishing-legend {
     display: flex;
@@ -4862,7 +4885,7 @@ line-height: 1.1;
 /* --- 예보 팝업 (화면 상단 고정, 하단 스크롤) --- */
 .fishing-bottomsheet {
     position: fixed;
-    top: 28%;
+    top: 32%;
     left: 50%;
     transform: translateX(-50%) scale(0.95);
     width: 92%;
