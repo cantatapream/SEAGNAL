@@ -113,9 +113,10 @@ async function showBuoyLocationOnMap(buoyId) {
     console.log(`📍 픽셀 좌표: X=${pixel.x}, Y=${pixel.y}`);
 
     // 해구별 기상 탭으로 전환
-    const seaZoneTab = document.querySelector('[data-target="sea-zone-section"]');
-    if (seaZoneTab) {
-        seaZoneTab.click();
+    // [수정] 서브탭 구조 변경으로 .click() 대신 switchMainTab 직접 호출
+    // switchMainTab은 섹션 ID를 받으면 소속 그룹 탭 + 서브탭까지 자동 활성화
+    if (typeof window.switchMainTab === 'function') {
+        window.switchMainTab('sea-zone-section');
     }
 
     // 탭 전환 대기

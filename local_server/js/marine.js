@@ -878,46 +878,214 @@ function renderMarineChart(data) {
 // ----------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
-// Tab Navigation
+// Tab Navigation (메인탭 + 서브탭 2단 구조)
+// ----------------------------------------------------------------------------
+// [구조]
+// 메인탭: 기상정보(그룹) | 조석정보(단독) | 해양생활(그룹) | 공지사항(단독)
+// 서브탭(기상정보): 특보 및 전망 | 해구기상 | 태풍정보
+// 서브탭(해양생활): 바다낚시 | 서핑 | 해수욕 | 스킨스쿠버 | 갯벌체험 | 바다갈라짐
+//
+// [연계]
+// - index.html → .main-tabs .tab-btn, .sub-tabs .sub-tab-btn
+// - js/settings.js → 탭 클릭 이벤트 바인딩
+// - js/app_init.js → switchMainTab("weather-alert-section") 초기 호출
+// - js/admin_trigger.js → switchMainTab('promo-section') 등
+// - js/config.js → seaZoneTab.click() 해구기상 전환
 // ----------------------------------------------------------------------------
 
+// 그룹 탭 → 기본 서브 섹션 매핑 (그룹 클릭 시 어떤 서브 섹션을 표시할지)
+const TAB_GROUP_DEFAULTS = {
+    'weather-group': 'weather-alert-section',
+    'ocean-life-group': 'fishing-section'
+};
+
+// 그룹 탭 → 서브 탭 nav 요소 ID 매핑
+const TAB_GROUP_SUBTABS = {
+    'weather-group': 'weather-sub-tabs',
+    'ocean-life-group': 'ocean-life-sub-tabs'
+};
+
+// 섹션 ID → 소속 그룹 역매핑 (섹션 ID로 switchMainTab 호출 시 올바른 그룹 활성화)
+const SECTION_TO_GROUP = {
+    'weather-alert-section': 'weather-group',
+    'sea-zone-section': 'weather-group',
+    'typhoon-section': 'weather-group',
+    'fishing-section': 'ocean-life-group',
+    'surfing-section': 'ocean-life-group',
+    'mudflat-section': 'ocean-life-group',
+    'swimming-section': 'ocean-life-group',
+    'scuba-section': 'ocean-life-group',
+    'sea-parting-section': 'ocean-life-group'
+};
+
+/**
+ * 메인 탭 전환 함수
+ * targetId는 그룹 ID('weather-group') 또는 섹션 ID('sea-zone-section') 모두 가능
+ *
+ * [호출처]
+ * - settings.js → .tab-btn 클릭 이벤트
+ * - app_init.js → handleHeaderRefresh()
+ * - admin_trigger.js → goToLinkedPromo()
+ * - config.js → 해구기상 탭 전환
+ *
+ * [기존 기능 보호]
+ * - dataset.blocked 체크로 차단된 탭 클릭 시 점검 안내 팝업 표시
+ *   (index.html applyFeatureBlocks()에서 blocked 속성 설정)
+ */
 window.switchMainTab = function (targetId) {
-    // 차단된 탭인지 확인
-    const targetTab = document.querySelector(`.tab-btn[data-target="${targetId}"]`);
+    // 차단된 탭인지 확인 (메인탭/서브탭 모두 체크)
+    // [연계] index.html applyFeatureBlocks() → dataset.blocked = 'true' 설정
+    const targetTab = document.querySelector(`.tab-btn[data-target="${targetId}"], .sub-tab-btn[data-target="${targetId}"]`);
     if (targetTab && targetTab.dataset.blocked === 'true') {
         if (typeof showBlockedFeaturePopup === 'function') showBlockedFeaturePopup();
         return;
     }
 
-    const tabs = document.querySelectorAll('.tab-btn');
+    const mainTabs = document.querySelectorAll('.main-tabs .tab-btn');
+    const subTabNavs = document.querySelectorAll('.sub-tabs');
     const contents = document.querySelectorAll('.tab-content');
 
-    // 모든 탭 비활성화
-    tabs.forEach(t => t.classList.remove('active'));
-    // 모든 컨텐츠 숨기기
+    // 모든 메인 탭 비활성화
+    mainTabs.forEach(t => t.classList.remove('active'));
+    // 모든 콘텐츠 숨기기
     contents.forEach(c => c.classList.remove('active'));
+    // 모든 서브 탭 nav 숨기기
+    subTabNavs.forEach(nav => nav.classList.remove('sub-tabs-visible'));
 
-    // 선택된 탭 활성화
-    const tab = document.querySelector(`.tab-btn[data-target="${targetId}"]`);
-    if (tab) tab.classList.add('active');
+    // 경우 1: targetId가 그룹 ID인 경우 (예: 'weather-group')
+    // → 해당 그룹의 기본 서브 섹션을 표시
+    if (TAB_GROUP_DEFAULTS[targetId]) {
+        const groupId = targetId;
+        const defaultSection = TAB_GROUP_DEFAULTS[groupId];
 
-    const targetSection = document.getElementById(targetId);
-    if (targetSection) {
-        targetSection.classList.add('active');
+        // 메인 탭 활성화
+        const mainTab = document.querySelector(`.main-tabs .tab-btn[data-target="${groupId}"]`);
+        if (mainTab) mainTab.classList.add('active');
 
-        // 해구별 기상 탭이 활성화될 때 지도 초기화
-        if (targetId === 'sea-zone-section') {
-            setTimeout(() => {
-                if (window.initSeaZoneMap) {
-                    window.initSeaZoneMap();
-                }
-            }, 200);
+        // 서브 탭 nav 표시
+        const subTabNavId = TAB_GROUP_SUBTABS[groupId];
+        const subTabNav = document.getElementById(subTabNavId);
+        if (subTabNav) {
+            subTabNav.classList.add('sub-tabs-visible');
+            // 이전에 선택했던 서브 탭이 있으면 그것을 표시, 없으면 기본 서브 섹션
+            const activeSubBtn = subTabNav.querySelector('.sub-tab-btn.active');
+            const sectionToShow = activeSubBtn ? activeSubBtn.getAttribute('data-target') : defaultSection;
+            const section = document.getElementById(sectionToShow);
+            if (section) section.classList.add('active');
+            _onSectionActivated(sectionToShow);
+        } else {
+            _onSectionActivated(defaultSection);
         }
-
-        // 공지사항 탭 로드
-        if (targetId === 'promo-section') {
-            if (typeof loadPromoPosts === 'function') setTimeout(loadPromoPosts, 100);
-        }
+        return;
     }
+
+    // 경우 2: targetId가 섹션 ID인 경우 (예: 'sea-zone-section')
+    // → 역매핑으로 소속 그룹을 찾아서 그룹 탭 + 서브 탭 함께 활성화
+    const groupId = SECTION_TO_GROUP[targetId];
+    if (groupId) {
+        // 메인 탭 활성화
+        const mainTab = document.querySelector(`.main-tabs .tab-btn[data-target="${groupId}"]`);
+        if (mainTab) mainTab.classList.add('active');
+
+        // 서브 탭 nav 표시 + 해당 서브 탭 활성화
+        const subTabNavId = TAB_GROUP_SUBTABS[groupId];
+        const subTabNav = document.getElementById(subTabNavId);
+        if (subTabNav) {
+            subTabNav.classList.add('sub-tabs-visible');
+            subTabNav.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+            const subBtn = subTabNav.querySelector(`.sub-tab-btn[data-target="${targetId}"]`);
+            if (subBtn) subBtn.classList.add('active');
+        }
+
+        // 섹션 표시
+        const section = document.getElementById(targetId);
+        if (section) section.classList.add('active');
+
+        _onSectionActivated(targetId);
+        return;
+    }
+
+    // 경우 3: 서브 탭이 없는 독립 메인 탭 (조석정보, 공지사항)
+    const mainTab = document.querySelector(`.main-tabs .tab-btn[data-target="${targetId}"]`);
+    if (mainTab) mainTab.classList.add('active');
+
+    const section = document.getElementById(targetId);
+    if (section) section.classList.add('active');
+
+    _onSectionActivated(targetId);
 };
+
+/**
+ * 서브 탭 전환 전용 함수
+ * 같은 그룹 내에서 서브 탭만 전환 (메인 탭 상태는 유지)
+ *
+ * [호출처] js/settings.js → .sub-tab-btn 클릭 이벤트
+ *
+ * [기존 기능 보호]
+ * - dataset.blocked 체크로 차단된 서브탭 클릭 시 점검 안내 팝업 표시
+ */
+window.switchSubTab = function (targetId) {
+    // 차단된 탭인지 확인
+    const targetBtn = document.querySelector(`.sub-tab-btn[data-target="${targetId}"]`);
+    if (targetBtn && targetBtn.dataset.blocked === 'true') {
+        if (typeof showBlockedFeaturePopup === 'function') showBlockedFeaturePopup();
+        return;
+    }
+
+    const groupId = SECTION_TO_GROUP[targetId];
+    if (!groupId) return;
+
+    const subTabNavId = TAB_GROUP_SUBTABS[groupId];
+    const subTabNav = document.getElementById(subTabNavId);
+    if (!subTabNav) return;
+
+    // 같은 그룹 내 모든 섹션 숨기기 + 서브 탭 비활성화
+    subTabNav.querySelectorAll('.sub-tab-btn').forEach(btn => {
+        const secId = btn.getAttribute('data-target');
+        const sec = document.getElementById(secId);
+        if (sec) sec.classList.remove('active');
+        btn.classList.remove('active');
+    });
+
+    // 선택된 서브 탭 활성화
+    const subBtn = subTabNav.querySelector(`.sub-tab-btn[data-target="${targetId}"]`);
+    if (subBtn) subBtn.classList.add('active');
+
+    const section = document.getElementById(targetId);
+    if (section) section.classList.add('active');
+
+    _onSectionActivated(targetId);
+};
+
+/**
+ * 섹션 활성화 후 특수 처리 (지도 초기화, 데이터 로드 등)
+ * switchMainTab()과 switchSubTab()에서 공통으로 호출
+ *
+ * [연계]
+ * - sea-zone-section → seaZones.js initSeaZoneMap()
+ * - fishing-section → fishing.js initFishingMap()
+ * - promo-section → promo.js loadPromoPosts()
+ */
+function _onSectionActivated(sectionId) {
+    // 해구별 기상 탭 활성화 시 지도 초기화
+    if (sectionId === 'sea-zone-section') {
+        setTimeout(() => {
+            if (window.initSeaZoneMap) {
+                window.initSeaZoneMap();
+            }
+        }, 200);
+    }
+    // 바다낚시 탭 활성화 시 지도 초기화 (탭 전환 후 사이즈 갱신)
+    if (sectionId === 'fishing-section') {
+        setTimeout(() => {
+            if (window.initFishingMap) {
+                window.initFishingMap();
+            }
+        }, 200);
+    }
+    // 공지사항 탭 활성화 시 게시글 로드
+    if (sectionId === 'promo-section') {
+        if (typeof loadPromoPosts === 'function') setTimeout(loadPromoPosts, 100);
+    }
+}
 
