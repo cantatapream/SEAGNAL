@@ -2229,7 +2229,7 @@ const TIDE_COORD_OFFSETS = {
  * 기준항 IDW 보간법으로 조석을 산출하는 지점 목록
  * TideBED 데이터가 제공되지 않는 동해안 지점에서 사용
  */
-const IDW_CALC_PLACES = ['포항', '후포', '울진', '후정', '대진항', '남애항', '외옹치항', '아야진항', '울릉도'];
+const IDW_CALC_PLACES = ['포항', '후포', '울진', '후정', '대진항', '남애항', '외옹치항', '아야진항', '울릉도', '공현진항', '강릉항', '임원항', '양포항'];
 
 window.showTideDetailForLocation = async function (lat, lon, placeName) {
     // 기존 조석상세 모달이 있으면 제거
