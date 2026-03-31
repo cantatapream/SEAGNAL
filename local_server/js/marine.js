@@ -881,36 +881,141 @@ function renderMarineChart(data) {
 // Tab Navigation
 // ----------------------------------------------------------------------------
 
+// 그룹 → 기본 서브 섹션 매핑
+const TAB_GROUP_DEFAULTS = {
+    'weather-group': 'weather-alert-section',
+    'ocean-life-group': 'fishing-section'
+};
+
+// 그룹 → 서브 탭 nav ID 매핑
+const TAB_GROUP_SUBTABS = {
+    'weather-group': 'weather-sub-tabs',
+    'ocean-life-group': 'ocean-life-sub-tabs'
+};
+
+// 섹션 → 그룹 역매핑
+const SECTION_TO_GROUP = {
+    'weather-alert-section': 'weather-group',
+    'sea-zone-section': 'weather-group',
+    'typhoon-section': 'weather-group',
+    'fishing-section': 'ocean-life-group',
+    'surfing-section': 'ocean-life-group',
+    'mudflat-section': 'ocean-life-group',
+    'swimming-section': 'ocean-life-group',
+    'scuba-section': 'ocean-life-group'
+};
+
 window.switchMainTab = function (targetId) {
-    const tabs = document.querySelectorAll('.tab-btn');
+    const mainTabs = document.querySelectorAll('.main-tabs .tab-btn');
+    const subTabNavs = document.querySelectorAll('.sub-tabs');
     const contents = document.querySelectorAll('.tab-content');
 
-    // 모든 탭 비활성화
-    tabs.forEach(t => t.classList.remove('active'));
+    // 모든 메인 탭 비활성화
+    mainTabs.forEach(t => t.classList.remove('active'));
     // 모든 컨텐츠 숨기기
     contents.forEach(c => c.classList.remove('active'));
+    // 모든 서브 탭 nav 숨기기
+    subTabNavs.forEach(nav => nav.classList.remove('sub-tabs-visible'));
 
-    // 선택된 탭 활성화
-    const tab = document.querySelector(`.tab-btn[data-target="${targetId}"]`);
-    if (tab) tab.classList.add('active');
+    // targetId가 그룹인 경우 → 기본 서브 섹션으로 전환
+    if (TAB_GROUP_DEFAULTS[targetId]) {
+        const groupId = targetId;
+        const defaultSection = TAB_GROUP_DEFAULTS[groupId];
 
-    const targetSection = document.getElementById(targetId);
-    if (targetSection) {
-        targetSection.classList.add('active');
+        // 메인 탭 활성화
+        const mainTab = document.querySelector(`.main-tabs .tab-btn[data-target="${groupId}"]`);
+        if (mainTab) mainTab.classList.add('active');
 
-        // 해구별 기상 탭이 활성화될 때 지도 초기화
-        if (targetId === 'sea-zone-section') {
-            setTimeout(() => {
-                if (window.initSeaZoneMap) {
-                    window.initSeaZoneMap();
-                }
-            }, 200);
+        // 서브 탭 nav 표시
+        const subTabNavId = TAB_GROUP_SUBTABS[groupId];
+        const subTabNav = document.getElementById(subTabNavId);
+        if (subTabNav) {
+            subTabNav.classList.add('sub-tabs-visible');
+            // 서브 탭 중 active가 있으면 그 섹션을 표시, 없으면 기본 섹션
+            const activeSubBtn = subTabNav.querySelector('.sub-tab-btn.active');
+            const sectionToShow = activeSubBtn ? activeSubBtn.getAttribute('data-target') : defaultSection;
+            const section = document.getElementById(sectionToShow);
+            if (section) section.classList.add('active');
+            _onSectionActivated(sectionToShow);
+        } else {
+            _onSectionActivated(defaultSection);
         }
-
-        // 공지사항 탭 로드
-        if (targetId === 'promo-section') {
-            if (typeof loadPromoPosts === 'function') setTimeout(loadPromoPosts, 100);
-        }
+        return;
     }
+
+    // targetId가 섹션 ID인 경우 → 역매핑으로 그룹 찾기
+    const groupId = SECTION_TO_GROUP[targetId];
+    if (groupId) {
+        // 메인 탭 활성화
+        const mainTab = document.querySelector(`.main-tabs .tab-btn[data-target="${groupId}"]`);
+        if (mainTab) mainTab.classList.add('active');
+
+        // 서브 탭 nav 표시 + 해당 서브 탭 활성화
+        const subTabNavId = TAB_GROUP_SUBTABS[groupId];
+        const subTabNav = document.getElementById(subTabNavId);
+        if (subTabNav) {
+            subTabNav.classList.add('sub-tabs-visible');
+            subTabNav.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+            const subBtn = subTabNav.querySelector(`.sub-tab-btn[data-target="${targetId}"]`);
+            if (subBtn) subBtn.classList.add('active');
+        }
+
+        // 섹션 표시
+        const section = document.getElementById(targetId);
+        if (section) section.classList.add('active');
+
+        _onSectionActivated(targetId);
+        return;
+    }
+
+    // 서브 탭 없는 메인 탭 (조석정보, 공지사항)
+    const mainTab = document.querySelector(`.main-tabs .tab-btn[data-target="${targetId}"]`);
+    if (mainTab) mainTab.classList.add('active');
+
+    const section = document.getElementById(targetId);
+    if (section) section.classList.add('active');
+
+    _onSectionActivated(targetId);
 };
+
+// 서브 탭 전환 전용 함수
+window.switchSubTab = function (targetId) {
+    const groupId = SECTION_TO_GROUP[targetId];
+    if (!groupId) return;
+
+    const subTabNavId = TAB_GROUP_SUBTABS[groupId];
+    const subTabNav = document.getElementById(subTabNavId);
+    if (!subTabNav) return;
+
+    // 같은 그룹 내 모든 섹션 숨기기
+    subTabNav.querySelectorAll('.sub-tab-btn').forEach(btn => {
+        const secId = btn.getAttribute('data-target');
+        const sec = document.getElementById(secId);
+        if (sec) sec.classList.remove('active');
+        btn.classList.remove('active');
+    });
+
+    // 선택된 서브 탭 활성화
+    const subBtn = subTabNav.querySelector(`.sub-tab-btn[data-target="${targetId}"]`);
+    if (subBtn) subBtn.classList.add('active');
+
+    const section = document.getElementById(targetId);
+    if (section) section.classList.add('active');
+
+    _onSectionActivated(targetId);
+};
+
+// 섹션 활성화 후 특수 처리
+function _onSectionActivated(sectionId) {
+    if (sectionId === 'sea-zone-section') {
+        setTimeout(() => {
+            if (window.initSeaZoneMap) {
+                window.initSeaZoneMap();
+            }
+        }, 200);
+    }
+    if (sectionId === 'promo-section') {
+        if (typeof loadPromoPosts === 'function') setTimeout(loadPromoPosts, 100);
+    }
+}
 

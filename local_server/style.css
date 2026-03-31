@@ -3459,6 +3459,66 @@ line-height: 1.1;
     }
 }
 
+/* =========================================
+   서브 탭 (Sub Tabs) 스타일
+   ========================================= */
+.sub-tabs {
+    display: flex;
+    justify-content: space-around;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease, opacity 0.3s ease;
+}
+
+.sub-tabs.sub-tabs-visible {
+    max-height: 50px;
+    opacity: 1;
+}
+
+.sub-tab-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-sub, #888);
+    padding: 8px 0;
+    font-size: clamp(0.72rem, 3vw, 0.85rem);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    text-align: center;
+    border-bottom: 2px solid transparent;
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
+.sub-tab-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.sub-tab-btn.active {
+    color: #fff;
+    font-weight: 600;
+    border-bottom-color: var(--accent-blue, #448aff);
+}
+
+@media (max-width: 350px) {
+    .sub-tab-btn {
+        padding: 8px 4px;
+        font-size: 0.7rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .sub-tab-btn {
+        font-size: 0.78rem;
+    }
+}
+
 
 /* Header Utility Bar */
 .header-utility-bar {
