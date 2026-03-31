@@ -731,20 +731,15 @@
         if (prevBtn) prevBtn.disabled = selectedDateIdx <= 0;
         if (nextBtn) nextBtn.disabled = selectedDateIdx >= availableDates.length - 1;
 
-        // --- 종합 지수 배지 (갯바위만 표시, 선상은 어종 데이터 미사용) ---
+        // --- 종합 지수 배지 (갯바위/선상 모두 표시) ---
         var totalIdxEl = document.getElementById('fishing-bs-total-index');
         if (totalIdxEl) {
-            if (currentGubun === '갯바위') {
-                var timeSlot = _getDisplayTimeSlot(dateStr);
-                var slotData = forecast && (forecast[timeSlot] || forecast['오전'] || forecast['오후'] || forecast['일']);
-                var totalIdx = slotData ? slotData.totalIndex || '' : '';
-                if (totalIdx) {
-                    totalIdxEl.innerHTML = '<span class="fishing-index-badge level-' + totalIdx + '">' + totalIdx + '</span>';
-                } else {
-                    totalIdxEl.innerHTML = '';
-                }
+            var timeSlot = _getDisplayTimeSlot(dateStr);
+            var slotData = forecast && (forecast[timeSlot] || forecast['오전'] || forecast['오후'] || forecast['일']);
+            var totalIdx = slotData ? slotData.totalIndex || '' : '';
+            if (totalIdx) {
+                totalIdxEl.innerHTML = '<span class="fishing-index-badge level-' + totalIdx + '">' + totalIdx + '</span>';
             } else {
-                // 선상: 종합지수 미표시
                 totalIdxEl.innerHTML = '';
             }
         }
