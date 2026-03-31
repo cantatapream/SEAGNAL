@@ -369,6 +369,13 @@
         if (bs) bs.classList.add('active');
         if (overlay) overlay.classList.add('active');
 
+        // 뒤로가기 버튼으로 바텀시트 닫기 지원 (PopupStack 등록)
+        if (window.PopupStack) {
+            window.PopupStack.push('fishing-bottomsheet', function () {
+                _closeBottomSheet();
+            });
+        }
+
         // 콘텐츠 렌더링
         _renderBottomSheetContent();
     }
@@ -383,6 +390,11 @@
         if (overlay) overlay.classList.remove('active');
         selectedPlace = null;
         _removeTooltip();
+
+        // 뒤로가기 스택에서 제거
+        if (window.PopupStack) {
+            window.PopupStack.remove('fishing-bottomsheet');
+        }
     }
 
     // ========================================================================
@@ -584,6 +596,13 @@
                 document.body.appendChild(tooltip);
                 activeTooltip = tooltip;
 
+                // 뒤로가기 버튼으로 툴팁 닫기 지원
+                if (window.PopupStack) {
+                    window.PopupStack.push('fishing-etc-tooltip', function () {
+                        _removeTooltip();
+                    });
+                }
+
                 // 위치 계산 (버튼 위에 표시)
                 var rect = btn.getBoundingClientRect();
                 tooltip.style.left = Math.max(10, rect.left + rect.width / 2 - tooltip.offsetWidth / 2) + 'px';
@@ -614,6 +633,11 @@
             activeTooltip.parentNode.removeChild(activeTooltip);
         }
         activeTooltip = null;
+
+        // 뒤로가기 스택에서 제거
+        if (window.PopupStack) {
+            window.PopupStack.remove('fishing-etc-tooltip');
+        }
     }
 
     // ========================================================================
