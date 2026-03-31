@@ -113,9 +113,8 @@ async function showBuoyLocationOnMap(buoyId) {
     console.log(`📍 픽셀 좌표: X=${pixel.x}, Y=${pixel.y}`);
 
     // 해구별 기상 탭으로 전환
-    const seaZoneTab = document.querySelector('[data-target="sea-zone-section"]');
-    if (seaZoneTab) {
-        seaZoneTab.click();
+    if (typeof window.switchMainTab === 'function') {
+        window.switchMainTab('sea-zone-section');
     }
 
     // 탭 전환 대기

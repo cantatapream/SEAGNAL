@@ -20,12 +20,21 @@ function initTabs() {
     // 탭 스타일 주입
     injectTabStyles();
 
+    // 메인 탭 이벤트 바인딩
     const tabs = document.querySelectorAll('.tab-btn');
-
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             const targetId = tab.getAttribute('data-target');
             window.switchMainTab(targetId);
+        });
+    });
+
+    // 서브 탭 이벤트 바인딩
+    const subTabs = document.querySelectorAll('.sub-tab-btn');
+    subTabs.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetId = btn.getAttribute('data-target');
+            window.switchSubTab(targetId);
         });
     });
 }
