@@ -647,7 +647,7 @@
                     <!-- 드래그 핸들 -->
                     <div class="fishing-bs-handle"><div class="fishing-bs-handle-bar"></div></div>
 
-                    <!-- 위치명 + 종합 지수 -->
+                    <!-- 위치명 + 상태배지 + 닫기 버튼 (한 줄 배치) -->
                     <div class="fishing-bs-header">
                         <div class="fishing-bs-place">
                             <i class="fa-solid fa-location-dot"></i>
@@ -656,6 +656,10 @@
                         <div class="fishing-bs-total-index" id="fishing-bs-total-index">
                             <!-- JS에서 종합 지수 배지 렌더링 -->
                         </div>
+                        <!-- 닫기 버튼을 헤더 우측에 배치 (margin-left:auto) -->
+                        <button class="fishing-bs-close" id="fishing-bs-close" title="닫기">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
                     </div>
 
                     <!-- 날짜 네비게이션 -->
@@ -673,11 +677,6 @@
                     <div class="fishing-bs-content" id="fishing-bs-content">
                         <!-- 오전/오후 데이터, 어종 그리드 등이 JS로 렌더링됨 -->
                     </div>
-
-                    <!-- 닫기 버튼 -->
-                    <button class="fishing-bs-close" id="fishing-bs-close" title="닫기">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
                 </div>
 
             </section>

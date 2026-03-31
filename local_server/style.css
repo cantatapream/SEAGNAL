@@ -4851,18 +4851,18 @@ line-height: 1.1;
     display: block;
 }
 
-/* --- 예보 팝업 메인 컨테이너 (중앙 모달) --- */
+/* --- 예보 팝업 (화면 상단 고정, 하단 스크롤) --- */
 .fishing-bottomsheet {
     position: fixed;
-    top: 50%;
+    top: 10%;
     left: 50%;
-    transform: translate(-50%, -50%) scale(0.95);
+    transform: translateX(-50%) scale(0.95);
     width: 92%;
     max-width: 400px;
     background: #1a1f2e;
     border-radius: 12px;
     z-index: 999;
-    max-height: 75vh;
+    max-height: 80vh;
     display: flex;
     flex-direction: column;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
@@ -4874,7 +4874,7 @@ line-height: 1.1;
 .fishing-bottomsheet.active {
     opacity: 1;
     visibility: visible;
-    transform: translate(-50%, -50%) scale(1);
+    transform: translateX(-50%) scale(1);
 }
 
 /* 드래그 핸들 숨김 (중앙 팝업에서는 불필요) */
@@ -4886,11 +4886,12 @@ line-height: 1.1;
     display: none;
 }
 
-/* 위치명 + 종합지수 헤더 */
+/* 위치명 + 상태배지 + 닫기 버튼 헤더 */
+/* 레이아웃: [아이콘 지역명 배지 ---- 닫기X] */
 .fishing-bs-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 8px;
     padding: 12px 16px 8px;
     flex-shrink: 0;
 }
@@ -5132,17 +5133,15 @@ line-height: 1.1;
     margin-bottom: 4px;
 }
 
-/* --- 팝업 닫기 버튼 --- */
+/* --- 팝업 닫기 버튼 (헤더 내부 우측 배치) --- */
 .fishing-bs-close {
-    position: absolute;
-    top: 10px;
-    right: 10px;
+    margin-left: auto;
     background: rgba(255, 255, 255, 0.08);
     border: none;
     color: #888;
     font-size: 0.9rem;
     cursor: pointer;
-    padding: 4px 8px;
+    padding: 0;
     border-radius: 50%;
     width: 28px;
     height: 28px;
@@ -5150,7 +5149,7 @@ line-height: 1.1;
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
-    z-index: 1;
+    flex-shrink: 0;
 }
 
 .fishing-bs-close:hover {
