@@ -511,20 +511,42 @@ async function collectFishingIndex() {
 
                         // 기타어종 목록 추출 (첫 등장 시에만 기록)
                         if (item.seafsTgfshNm === '기타어종' && !place.etcFishList) {
-                            // API 응답에는 기타어종 상세 목록이 없으므로 고정 목록 사용
                             place.etcFishList = '부시리,광어,전갱이,고등어,망상어,학공치,무늬오징어,갑오징어,갈치,도다리,가자미,숭어,꼴뚜기,붕장어,한치,보리멸,청어';
+                        }
+                    } else {
+                        // 선상: 어종 데이터 없이 totalIndex만 존재
+                        if (!slot.totalIndex && item.totalIndex) {
+                            slot.totalIndex = item.totalIndex;
                         }
                     }
 
-                    // 종합 지수 설정: '기타어종' 행의 totalIndex를 대표로 사용
-                    // (갯바위·선상 모두 기타어종이 가장 범용적이므로)
-                    if (item.seafsTgfshNm === '기타어종' && item.totalIndex) {
-                        slot.totalIndex = item.totalIndex;
-                    }
-                    // 기타어종이 없는 경우 첫 번째 어종의 지수를 사용
-                    if (!slot.totalIndex && item.totalIndex) {
-                        slot.totalIndex = item.totalIndex;
-                    }
+                });
+
+                // 종합 지수 설정: 전체 어종의 totalIndex 중 최빈값(가장 많이 나오는 값) 사용
+                // 동일 빈도일 경우 더 보수적(나쁜) 등급을 대표로 선정
+                const levelOrder = { '매우나쁨': 1, '나쁨': 2, '보통': 3, '좋음': 4, '매우좋음': 5 };
+                ['갯바위', '선상'].forEach(g => {
+                    Object.values(result[g]).forEach(pl => {
+                        Object.values(pl.forecasts).forEach(dateFc => {
+                            Object.values(dateFc).forEach(slot => {
+                                if (slot.items && slot.items.length > 0) {
+                                    const freq = {};
+                                    slot.items.forEach(si => {
+                                        if (si.totalIndex) freq[si.totalIndex] = (freq[si.totalIndex] || 0) + 1;
+                                    });
+                                    let modeLevel = '';
+                                    let modeCount = 0;
+                                    Object.keys(freq).forEach(lv => {
+                                        if (freq[lv] > modeCount || (freq[lv] === modeCount && (levelOrder[lv] || 0) < (levelOrder[modeLevel] || 0))) {
+                                            modeLevel = lv;
+                                            modeCount = freq[lv];
+                                        }
+                                    });
+                                    if (modeLevel) slot.totalIndex = modeLevel;
+                                }
+                            });
+                        });
+                    });
                 });
         }
 

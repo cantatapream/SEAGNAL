@@ -60,6 +60,7 @@
     let selectedDateIdx = 0;        // 바텀시트 날짜 인덱스 (0 = 오늘)
     let availableDates = [];        // 사용 가능한 날짜 목록 (YYYYMMDD)
     let activeTooltip = null;       // 현재 표시 중인 기타어종 툴팁 엘리먼트
+    let selectedFeature = null;     // 현재 선택된 마커 피처 (시각적 피드백용)
 
     // ========================================================================
     // 1. 지도 초기화
@@ -108,10 +109,11 @@
             controls: ol.control.defaults.defaults({ attribution: false, zoom: false })
         });
 
-        // 마커 클릭 이벤트: 가장 가까운 피처의 바텀시트 표시
+        // 마커 클릭 이벤트: 선택 피드백 + 팝업 표시
         fishingMap.on('singleclick', function (evt) {
             const feature = fishingMap.forEachFeatureAtPixel(evt.pixel, function (f) { return f; });
             if (feature && feature.get('placeName')) {
+                _selectMarker(feature);
                 _openBottomSheet(feature.get('placeName'));
             }
         });
@@ -222,8 +224,8 @@
         _closeGuidePopup();
 
         var imgSrc = currentGubun === '선상'
-            ? 'images/fishing_index_ship.png'
-            : 'images/fishing_index_gwbr.png';
+            ? '/images/fishing_index_ship.png'
+            : '/images/fishing_index_gwbr.png';
         var title = currentGubun === '선상' ? '선상낚시지수란?' : '갯바위낚시지수란?';
 
         // 팝업 오버레이
@@ -282,6 +284,119 @@
         if (window.PopupStack) {
             window.PopupStack.remove('fishing-guide-popup');
         }
+    }
+
+    // ========================================================================
+    // 1-2. 마커 선택 시각적 피드백
+    // ========================================================================
+
+    /**
+     * 마커 선택 시 확대 + 글로우 강화 효과를 적용합니다.
+     * 이전 선택 마커는 원래 크기로 복원합니다.
+     * @param {ol.Feature} feature - 선택된 피처
+     */
+    function _selectMarker(feature) {
+        // 이전 선택 해제
+        if (selectedFeature && selectedFeature !== feature) {
+            _resetMarkerStyle(selectedFeature);
+        }
+        selectedFeature = feature;
+
+        var placeName = feature.get('placeName');
+        var level = feature.get('level') || '보통';
+        var colors = LEVEL_COLORS[level] || LEVEL_COLORS['보통'];
+
+        // 선택 상태: 마커 크기 확대 (14→22px) + 글로우 강화
+        var size = 22;
+        var canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        var ctx = canvas.getContext('2d');
+        var cx = size / 2, cy = size / 2, r = size / 2 - 1;
+
+        // 글로우 (더 넓고 밝게)
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+        ctx.fillStyle = colors.glow.replace('0.5)', '0.8)');
+        ctx.fill();
+
+        // 그라데이션 원
+        var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r - 1);
+        grad.addColorStop(0, '#ffffff');
+        grad.addColorStop(0.3, colors.inner);
+        grad.addColorStop(1, colors.outer);
+        ctx.beginPath();
+        ctx.arc(cx, cy, r - 1, 0, 2 * Math.PI);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // 흰색 외곽선 추가
+        ctx.beginPath();
+        ctx.arc(cx, cy, r - 1, 0, 2 * Math.PI);
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        feature.setStyle(new ol.style.Style({
+            image: new ol.style.Icon({
+                img: canvas,
+                imgSize: [size, size],
+                anchor: [0.5, 0.5]
+            }),
+            text: new ol.style.Text({
+                text: placeName,
+                font: 'bold 12px "Noto Sans KR", sans-serif',
+                offsetY: 18,
+                fill: new ol.style.Fill({ color: '#ffffff' }),
+                stroke: new ol.style.Stroke({ color: '#000000', width: 3 })
+            })
+        }));
+    }
+
+    /**
+     * 마커를 원래 스타일(14px 기본)로 복원합니다.
+     * @param {ol.Feature} feature - 복원할 피처
+     */
+    function _resetMarkerStyle(feature) {
+        if (!feature) return;
+        var level = feature.get('level') || '보통';
+        var placeName = feature.get('placeName');
+        var colors = LEVEL_COLORS[level] || LEVEL_COLORS['보통'];
+
+        var size = 14;
+        var canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        var ctx = canvas.getContext('2d');
+        var cx = size / 2, cy = size / 2, r = size / 2 - 1;
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+        ctx.fillStyle = colors.glow;
+        ctx.fill();
+
+        var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r - 1);
+        grad.addColorStop(0, colors.inner);
+        grad.addColorStop(1, colors.outer);
+        ctx.beginPath();
+        ctx.arc(cx, cy, r - 1, 0, 2 * Math.PI);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        feature.setStyle(new ol.style.Style({
+            image: new ol.style.Icon({
+                img: canvas,
+                imgSize: [size, size],
+                anchor: [0.5, 0.5]
+            }),
+            text: new ol.style.Text({
+                text: placeName,
+                font: 'bold 12px "Noto Sans KR", sans-serif',
+                offsetY: 14,
+                fill: new ol.style.Fill({ color: '#ffffff' }),
+                stroke: new ol.style.Stroke({ color: '#000000', width: 3 })
+            })
+        }));
     }
 
     // ========================================================================
@@ -556,6 +671,12 @@
         selectedPlace = null;
         _removeTooltip();
 
+        // 선택 마커 원래 크기로 복원
+        if (selectedFeature) {
+            _resetMarkerStyle(selectedFeature);
+            selectedFeature = null;
+        }
+
         // 뒤로가기 스택에서 제거
         if (window.PopupStack) {
             window.PopupStack.remove('fishing-bottomsheet');
@@ -692,17 +813,11 @@
         var html = '<div class="fishing-time-block">';
         var isShip = currentGubun === '선상';
 
-        // 시간 라벨 + 지수 (선상: 선상낚시지수, 갯바위: 종합지수)
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
-        html += '<span class="fishing-time-label">' + timeLabel + '</span>';
-        if (slotData.totalIndex) {
-            html += '<span class="fishing-index-badge level-' + slotData.totalIndex + '">' +
-                (isShip ? slotData.totalIndex : slotData.totalIndex) + '</span>';
-        }
-        html += '</div>';
+        // 오전/오후 배지 (우측 지수 배지 제거)
+        html += '<span class="fishing-time-badge">' + timeLabel + '</span>';
 
-        // 기상 요약 (파고, 수온, 풍속, 유속, 기온, 물때)
-        html += '<div class="fishing-weather-summary">';
+        // 기상 요약 → 2열 테이블
+        html += '<div class="fishing-weather-table">';
         if (slotData.minWvhgt || slotData.maxWvhgt) {
             html += '<span><i class="fa-solid fa-water"></i> 파고 ' + _rangeStr(slotData.minWvhgt, slotData.maxWvhgt, 'm') + '</span>';
         }
@@ -712,7 +827,6 @@
         if (slotData.minWspd || slotData.maxWspd) {
             html += '<span><i class="fa-solid fa-wind"></i> 풍속 ' + _rangeStr(slotData.minWspd, slotData.maxWspd, 'm/s') + '</span>';
         }
-        // 유속, 기온 (주로 선상에서 활용)
         if (slotData.minCrsp || slotData.maxCrsp) {
             html += '<span><i class="fa-solid fa-arrows-spin"></i> 유속 ' + _rangeStr(slotData.minCrsp, slotData.maxCrsp, 'kn') + '</span>';
         }
@@ -725,9 +839,15 @@
         html += '</div>';
 
         // 어종별 그리드 (갯바위만 - 선상은 어종 데이터 미사용)
+        // 기타어종을 맨 마지막으로 정렬
         if (!isShip && slotData.items && slotData.items.length > 0) {
+            var sorted = slotData.items.slice().sort(function (a, b) {
+                var aEtc = a.fishName === '기타어종' ? 1 : 0;
+                var bEtc = b.fishName === '기타어종' ? 1 : 0;
+                return aEtc - bEtc;
+            });
             html += '<div class="fishing-species-grid">';
-            slotData.items.forEach(function (item) {
+            sorted.forEach(function (item) {
                 var levelClass = item.totalIndex ? 'level-' + item.totalIndex : '';
                 var isEtc = item.fishName === '기타어종';
                 html += '<div class="fishing-species-card">';
