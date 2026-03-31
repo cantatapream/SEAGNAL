@@ -60,6 +60,7 @@
     let selectedDateIdx = 0;        // 바텀시트 날짜 인덱스 (0 = 오늘)
     let availableDates = [];        // 사용 가능한 날짜 목록 (YYYYMMDD)
     let activeTooltip = null;       // 현재 표시 중인 기타어종 툴팁 엘리먼트
+    let selectedFeature = null;     // 현재 선택된 마커 피처 (시각적 피드백용)
 
     // ========================================================================
     // 1. 지도 초기화
@@ -104,13 +105,15 @@
                 minZoom: 6,
                 maxZoom: 13
             }),
-            controls: ol.control.defaults.defaults({ attribution: false })
+            // 줌 컨트롤 및 attribution 표시 제거 (핀치줌/스크롤줌은 유지)
+            controls: ol.control.defaults.defaults({ attribution: false, zoom: false })
         });
 
-        // 마커 클릭 이벤트: 가장 가까운 피처의 바텀시트 표시
+        // 마커 클릭 이벤트: 선택 피드백 + 팝업 표시
         fishingMap.on('singleclick', function (evt) {
             const feature = fishingMap.forEachFeatureAtPixel(evt.pixel, function (f) { return f; });
             if (feature && feature.get('placeName')) {
+                _selectMarker(feature);
                 _openBottomSheet(feature.get('placeName'));
             }
         });
@@ -121,12 +124,293 @@
             fishingMap.getTargetElement().style.cursor = hit ? 'pointer' : '';
         });
 
+        // 지도 내부 좌측 하단 범례 + 우측 하단 안내 버튼 컨트롤 추가
+        _addLegendControl(fishingMap);
+        _addGuideControl(fishingMap);
+
         // 데이터 로드 및 마커 렌더링
         _loadFishingData();
 
         // 이벤트 바인딩 (최초 1회)
         _bindEvents();
     };
+
+    // ========================================================================
+    // 1-1. 지도 내부 커스텀 컨트롤 (범례, 안내 버튼)
+    // ========================================================================
+
+    /**
+     * 지도 내부 좌측 하단에 범례 컨트롤을 추가합니다.
+     * ol.control.Control을 사용하여 OL 지도 위에 오버레이합니다.
+     * @param {ol.Map} map - OpenLayers Map 인스턴스
+     */
+    function _addLegendControl(map) {
+        var legendEl = document.createElement('div');
+        legendEl.className = 'fishing-legend';
+
+        // 범례 항목 생성 (등급별 발광형 동심원 + 라벨)
+        var levels = [
+            { name: '매우좋음', inner: '#81D4FA', outer: '#1565C0', glow: 'rgba(21,101,192,0.4)' },
+            { name: '좋음',     inner: '#81C784', outer: '#2E7D32', glow: 'rgba(46,125,50,0.4)' },
+            { name: '보통',     inner: '#FFD54F', outer: '#F9A825', glow: 'rgba(249,168,37,0.4)' },
+            { name: '나쁨',     inner: '#FFB74D', outer: '#E65100', glow: 'rgba(230,81,0,0.4)' },
+            { name: '매우나쁨', inner: '#EF9A9A', outer: '#C62828', glow: 'rgba(198,40,40,0.4)' }
+        ];
+
+        levels.forEach(function (lv) {
+            var item = document.createElement('span');
+            item.className = 'fishing-legend-item';
+            item.innerHTML = '<span class="fishing-legend-dot" style="background:radial-gradient(circle, ' +
+                lv.inner + ' 30%, ' + lv.outer + ' 100%);box-shadow:0 0 6px ' + lv.glow + ';"></span>' + lv.name;
+            legendEl.appendChild(item);
+        });
+
+        var legendControl = new ol.control.Control({
+            element: legendEl
+        });
+
+        // 좌측 하단에 위치 (CSS position으
+        legendEl.style.position = 'absolute';
+        legendEl.style.bottom = '8px';
+        legendEl.style.left = '8px';
+
+        map.addControl(legendControl);
+    }
+
+    /**
+     * 지도 내부 우측 하단에 지수 안내 버튼을 추가합니다.
+     * 현재 구분(갯바위/선상)에 따라 라벨이 변경됩니다.
+     * @param {ol.Map} map - OpenLayers Map 인스턴스
+     */
+    var guideButtonEl = null; // 안내 버튼 엘리먼트 (라벨 변경용 참조)
+
+    function _addGuideControl(map) {
+        guideButtonEl = document.createElement('button');
+        guideButtonEl.className = 'fishing-guide-btn';
+        guideButtonEl.innerHTML = '<i class="fa-solid fa-circle-question"></i> <span class="fishing-guide-btn-label">갯바위낚시지수란?</span>';
+        guideButtonEl.style.position = 'absolute';
+        guideButtonEl.style.bottom = '8px';
+        guideButtonEl.style.right = '8px';
+
+        // 클릭 시 안내 팝업 열기
+        guideButtonEl.addEventListener('click', function (e) {
+            e.stopPropagation();
+            _openGuidePopup();
+        });
+
+        var guideControl = new ol.control.Control({
+            element: guideButtonEl
+        });
+        map.addControl(guideControl);
+    }
+
+    /**
+     * 안내 버튼 라벨을 현재 구분에 맞게 업데이트합니다.
+     */
+    function _updateGuideButtonLabel() {
+        if (!guideButtonEl) return;
+        var label = guideButtonEl.querySelector('.fishing-guide-btn-label');
+        if (label) {
+            label.textContent = currentGubun === '선상' ? '선상낚시지수란?' : '갯바위낚시지수란?';
+        }
+    }
+
+    /**
+     * 갯바위/선상에 따라 하단 안내문을 전환합니다.
+     * 갯바위 선택 시 갯바위용, 선상 선택 시 선상용 안내문을 표시합니다.
+     *
+     * [연계] index.html → #fishing-disclaimer-gwbr, #fishing-disclaimer-ship
+     */
+    function _updateDisclaimer() {
+        var gwbr = document.getElementById('fishing-disclaimer-gwbr');
+        var ship = document.getElementById('fishing-disclaimer-ship');
+        if (gwbr) gwbr.style.display = currentGubun === '선상' ? 'none' : '';
+        if (ship) ship.style.display = currentGubun === '선상' ? '' : 'none';
+    }
+
+    /**
+     * 지수 안내 팝업을 엽니다.
+     * 구분에 따라 해당 이미지를 표시합니다.
+     */
+    function _openGuidePopup() {
+        // 기존 팝업 제거
+        _closeGuidePopup();
+
+        var imgSrc = currentGubun === '선상'
+            ? '/images/fishing_index_ship.png'
+            : '/images/fishing_index_gwbr.png';
+        var title = currentGubun === '선상' ? '선상낚시지수란?' : '갯바위낚시지수란?';
+
+        // 팝업 오버레이
+        var overlay = document.createElement('div');
+        overlay.className = 'fishing-guide-overlay';
+        overlay.id = 'fishing-guide-overlay';
+        overlay.addEventListener('click', function () { _closeGuidePopup(); });
+
+        // 팝업 컨테이너
+        var popup = document.createElement('div');
+        popup.className = 'fishing-guide-popup';
+        popup.id = 'fishing-guide-popup';
+        popup.addEventListener('click', function (e) { e.stopPropagation(); });
+
+        // 헤더 (타이틀 + 닫기 버튼)
+        var header = document.createElement('div');
+        header.className = 'fishing-guide-popup-header';
+        header.innerHTML = '<span>' + title + '</span>' +
+            '<button class="fishing-guide-popup-close" id="fishing-guide-close"><i class="fa-solid fa-xmark"></i></button>';
+
+        // 스크롤 가능한 이미지 영역
+        var body = document.createElement('div');
+        body.className = 'fishing-guide-popup-body';
+        var img = document.createElement('img');
+        img.src = imgSrc;
+        img.alt = title;
+        img.style.width = '100%';
+        body.appendChild(img);
+
+        popup.appendChild(header);
+        popup.appendChild(body);
+        document.body.appendChild(overlay);
+        document.body.appendChild(popup);
+
+        // 닫기 버튼 이벤트
+        document.getElementById('fishing-guide-close').addEventListener('click', function () {
+            _closeGuidePopup();
+        });
+
+        // PopupStack 등록 (뒤로가기 버튼 지원)
+        if (window.PopupStack) {
+            window.PopupStack.push('fishing-guide-popup', function () {
+                _closeGuidePopup();
+            });
+        }
+    }
+
+    /**
+     * 지수 안내 팝업을 닫습니다.
+     */
+    function _closeGuidePopup() {
+        var overlay = document.getElementById('fishing-guide-overlay');
+        var popup = document.getElementById('fishing-guide-popup');
+        if (overlay) overlay.remove();
+        if (popup) popup.remove();
+        if (window.PopupStack) {
+            window.PopupStack.remove('fishing-guide-popup');
+        }
+    }
+
+    // ========================================================================
+    // 1-2. 마커 선택 시각적 피드백
+    // ========================================================================
+
+    /**
+     * 마커 선택 시 확대 + 글로우 강화 효과를 적용합니다.
+     * 이전 선택 마커는 원래 크기로 복원합니다.
+     * @param {ol.Feature} feature - 선택된 피처
+     */
+    function _selectMarker(feature) {
+        // 이전 선택 해제
+        if (selectedFeature && selectedFeature !== feature) {
+            _resetMarkerStyle(selectedFeature);
+        }
+        selectedFeature = feature;
+
+        var placeName = feature.get('placeName');
+        var level = feature.get('level') || '보통';
+        var colors = LEVEL_COLORS[level] || LEVEL_COLORS['보통'];
+
+        // 선택 상태: 마커 크기 확대 (14→22px) + 글로우 강화
+        var size = 22;
+        var canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        var ctx = canvas.getContext('2d');
+        var cx = size / 2, cy = size / 2, r = size / 2 - 1;
+
+        // 글로우 (더 넓고 밝게)
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+        ctx.fillStyle = colors.glow.replace('0.5)', '0.8)');
+        ctx.fill();
+
+        // 그라데이션 원
+        var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r - 1);
+        grad.addColorStop(0, '#ffffff');
+        grad.addColorStop(0.3, colors.inner);
+        grad.addColorStop(1, colors.outer);
+        ctx.beginPath();
+        ctx.arc(cx, cy, r - 1, 0, 2 * Math.PI);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // 흰색 외곽선 추가
+        ctx.beginPath();
+        ctx.arc(cx, cy, r - 1, 0, 2 * Math.PI);
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        feature.setStyle(new ol.style.Style({
+            image: new ol.style.Icon({
+                img: canvas,
+                imgSize: [size, size],
+                anchor: [0.5, 0.5]
+            }),
+            text: new ol.style.Text({
+                text: placeName,
+                font: 'bold 12px "Noto Sans KR", sans-serif',
+                offsetY: 18,
+                fill: new ol.style.Fill({ color: '#ffffff' }),
+                stroke: new ol.style.Stroke({ color: '#000000', width: 3 })
+            })
+        }));
+    }
+
+    /**
+     * 마커를 원래 스타일(14px 기본)로 복원합니다.
+     * @param {ol.Feature} feature - 복원할 피처
+     */
+    function _resetMarkerStyle(feature) {
+        if (!feature) return;
+        var level = feature.get('level') || '보통';
+        var placeName = feature.get('placeName');
+        var colors = LEVEL_COLORS[level] || LEVEL_COLORS['보통'];
+
+        var size = 14;
+        var canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        var ctx = canvas.getContext('2d');
+        var cx = size / 2, cy = size / 2, r = size / 2 - 1;
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+        ctx.fillStyle = colors.glow;
+        ctx.fill();
+
+        var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r - 1);
+        grad.addColorStop(0, colors.inner);
+        grad.addColorStop(1, colors.outer);
+        ctx.beginPath();
+        ctx.arc(cx, cy, r - 1, 0, 2 * Math.PI);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        feature.setStyle(new ol.style.Style({
+            image: new ol.style.Icon({
+                img: canvas,
+                imgSize: [size, size],
+                anchor: [0.5, 0.5]
+            }),
+            text: new ol.style.Text({
+                text: placeName,
+                font: 'bold 12px "Noto Sans KR", sans-serif',
+                offsetY: 14,
+                fill: new ol.style.Fill({ color: '#ffffff' }),
+                stroke: new ol.style.Stroke({ color: '#000000', width: 3 })
+            })
+        }));
+    }
 
     // ========================================================================
     // 2. 데이터 로드 및 마커 렌더링
@@ -191,13 +475,13 @@
 
             const colors = LEVEL_COLORS[level] || LEVEL_COLORS['보통'];
 
-            // 발광형 동심원 마커 (Canvas로 그린 원형 이미지)
+            // 발광형 동심원 마커 (Canvas로 그린 원형 이미지, 조석정보 마커와 유사한 크기)
             const canvas = document.createElement('canvas');
-            const size = 28;
+            const size = 14;
             canvas.width = size;
             canvas.height = size;
             const ctx = canvas.getContext('2d');
-            const cx = size / 2, cy = size / 2, r = size / 2 - 2;
+            const cx = size / 2, cy = size / 2, r = size / 2 - 1;
 
             // 외곽 글로우 (반투명 원)
             ctx.beginPath();
@@ -210,7 +494,7 @@
             grad.addColorStop(0, colors.inner);
             grad.addColorStop(1, colors.outer);
             ctx.beginPath();
-            ctx.arc(cx, cy, r - 2, 0, 2 * Math.PI);
+            ctx.arc(cx, cy, r - 1, 0, 2 * Math.PI);
             ctx.fillStyle = grad;
             ctx.fill();
 
@@ -221,11 +505,19 @@
                 level: level
             });
 
+            // 마커 아이콘 + 위치명 텍스트 스타일 (조석정보 탭과 동일한 크기/배치)
             feature.setStyle(new ol.style.Style({
                 image: new ol.style.Icon({
                     img: canvas,
                     imgSize: [size, size],
                     anchor: [0.5, 0.5]
+                }),
+                text: new ol.style.Text({
+                    text: placeName,
+                    font: 'bold 12px "Noto Sans KR", sans-serif',
+                    offsetY: 14,
+                    fill: new ol.style.Fill({ color: '#ffffff' }),
+                    stroke: new ol.style.Stroke({ color: '#000000', width: 3 })
                 })
             }));
 
@@ -255,6 +547,8 @@
                 currentGubun = gubun;
                 _renderMarkers();
                 _closeBottomSheet();
+                _updateGuideButtonLabel();
+                _updateDisclaimer();
             });
         });
 
@@ -391,6 +685,12 @@
         selectedPlace = null;
         _removeTooltip();
 
+        // 선택 마커 원래 크기로 복원
+        if (selectedFeature) {
+            _resetMarkerStyle(selectedFeature);
+            selectedFeature = null;
+        }
+
         // 뒤로가기 스택에서 제거
         if (window.PopupStack) {
             window.PopupStack.remove('fishing-bottomsheet');
@@ -431,15 +731,20 @@
         if (prevBtn) prevBtn.disabled = selectedDateIdx <= 0;
         if (nextBtn) nextBtn.disabled = selectedDateIdx >= availableDates.length - 1;
 
-        // --- 종합 지수 배지 ---
+        // --- 종합 지수 배지 (갯바위만 표시, 선상은 어종 데이터 미사용) ---
         var totalIdxEl = document.getElementById('fishing-bs-total-index');
         if (totalIdxEl) {
-            var timeSlot = _getDisplayTimeSlot(dateStr);
-            var slotData = forecast && (forecast[timeSlot] || forecast['오전'] || forecast['오후']);
-            var totalIdx = slotData ? slotData.totalIndex || '' : '';
-            if (totalIdx) {
-                totalIdxEl.innerHTML = '<span class="fishing-index-badge level-' + totalIdx + '">' + totalIdx + '</span>';
+            if (currentGubun === '갯바위') {
+                var timeSlot = _getDisplayTimeSlot(dateStr);
+                var slotData = forecast && (forecast[timeSlot] || forecast['오전'] || forecast['오후'] || forecast['일']);
+                var totalIdx = slotData ? slotData.totalIndex || '' : '';
+                if (totalIdx) {
+                    totalIdxEl.innerHTML = '<span class="fishing-index-badge level-' + totalIdx + '">' + totalIdx + '</span>';
+                } else {
+                    totalIdxEl.innerHTML = '';
+                }
             } else {
+                // 선상: 종합지수 미표시
                 totalIdxEl.innerHTML = '';
             }
         }
@@ -459,7 +764,10 @@
         var isBeforeNoon = now.getHours() < 12;
 
         if (isToday) {
-            if (isBeforeNoon) {
+            if (forecast['일']) {
+                // 오늘이지만 '일'(종일) 슬롯만 있는 경우 (API 예외 상황 대비)
+                html += _buildTimeBlock('종일', forecast['일'], place);
+            } else if (isBeforeNoon) {
                 // 오늘 오전: 오전 데이터 표시 + "오후 예보 보기" 버튼
                 if (forecast['오전']) {
                     html += _buildTimeBlock('오전', forecast['오전'], place);
@@ -482,12 +790,16 @@
                 }
             }
         } else {
-            // 다른 날짜: 오전 + 오후 모두 표시
+            // 다른 날짜: 오전 + 오후 모두 표시, 또는 종일('일') 표시
             if (forecast['오전']) {
                 html += _buildTimeBlock('오전', forecast['오전'], place);
             }
             if (forecast['오후']) {
                 html += _buildTimeBlock('오후', forecast['오후'], place);
+            }
+            // API가 4일차 이후 '일'(종일) 슬롯으로 반환하는 경우
+            if (forecast['일']) {
+                html += _buildTimeBlock('종일', forecast['일'], place);
             }
         }
 
@@ -507,6 +819,18 @@
             });
         }
 
+        // 조석상세 버튼 클릭 이벤트 바인딩 (물때 옆 버튼 → 조석 현황 모달 호출)
+        contentEl.querySelectorAll('.fishing-tide-detail-btn').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var lat = parseFloat(btn.getAttribute('data-lat'));
+                var lon = parseFloat(btn.getAttribute('data-lon'));
+                if (window.showTideDetailForLocation && lat && lon) {
+                    window.showTideDetailForLocation(lat, lon, selectedPlace || '');
+                }
+            });
+        });
+
         // 기타어종 ? 버튼 이벤트 바인딩
         _bindEtcFishTooltips(place.etcFishList);
     }
@@ -520,17 +844,13 @@
      */
     function _buildTimeBlock(timeLabel, slotData, place) {
         var html = '<div class="fishing-time-block">';
+        var isShip = currentGubun === '선상';
 
-        // 시간 라벨 + 종합 지수
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
-        html += '<span class="fishing-time-label">' + timeLabel + '</span>';
-        if (slotData.totalIndex) {
-            html += '<span class="fishing-index-badge level-' + slotData.totalIndex + '">' + slotData.totalIndex + '</span>';
-        }
-        html += '</div>';
+        // 오전/오후 배지 (우측 지수 배지 제거)
+        html += '<span class="fishing-time-badge">' + timeLabel + '</span>';
 
-        // 기상 요약 (파고, 수온, 풍속, 물때)
-        html += '<div class="fishing-weather-summary">';
+        // 기상 요약 → 2열 테이블
+        html += '<div class="fishing-weather-table">';
         if (slotData.minWvhgt || slotData.maxWvhgt) {
             html += '<span><i class="fa-solid fa-water"></i> 파고 ' + _rangeStr(slotData.minWvhgt, slotData.maxWvhgt, 'm') + '</span>';
         }
@@ -540,15 +860,32 @@
         if (slotData.minWspd || slotData.maxWspd) {
             html += '<span><i class="fa-solid fa-wind"></i> 풍속 ' + _rangeStr(slotData.minWspd, slotData.maxWspd, 'm/s') + '</span>';
         }
+        if (slotData.minCrsp || slotData.maxCrsp) {
+            html += '<span><i class="fa-solid fa-arrows-spin"></i> 유속 ' + _rangeStr(slotData.minCrsp, slotData.maxCrsp, 'kn') + '</span>';
+        }
+        if (slotData.minArtmp || slotData.maxArtmp) {
+            html += '<span><i class="fa-solid fa-thermometer-half"></i> 기온 ' + _rangeStr(slotData.minArtmp, slotData.maxArtmp, '°C') + '</span>';
+        }
         if (slotData.tdlvHrCn) {
-            html += '<span><i class="fa-solid fa-clock"></i> ' + slotData.tdlvHrCn + '</span>';
+            html += '<span><i class="fa-solid fa-clock"></i> ' + slotData.tdlvHrCn;
+            // 조석상세 버튼 (물때 옆에 배치, 클릭 시 조석 현황 모달 호출)
+            if (place && place.lat && place.lot) {
+                html += ' <button class="fishing-tide-detail-btn" data-lat="' + place.lat + '" data-lon="' + place.lot + '">조석상세</button>';
+            }
+            html += '</span>';
         }
         html += '</div>';
 
-        // 어종별 그리드 (갯바위만 - items 배열이 있을 때)
-        if (slotData.items && slotData.items.length > 0) {
+        // 어종별 그리드 (갯바위만 - 선상은 어종 데이터 미사용)
+        // 기타어종을 맨 마지막으로 정렬
+        if (!isShip && slotData.items && slotData.items.length > 0) {
+            var sorted = slotData.items.slice().sort(function (a, b) {
+                var aEtc = a.fishName === '기타어종' ? 1 : 0;
+                var bEtc = b.fishName === '기타어종' ? 1 : 0;
+                return aEtc - bEtc;
+            });
             html += '<div class="fishing-species-grid">';
-            slotData.items.forEach(function (item) {
+            sorted.forEach(function (item) {
                 var levelClass = item.totalIndex ? 'level-' + item.totalIndex : '';
                 var isEtc = item.fishName === '기타어종';
                 html += '<div class="fishing-species-card">';
