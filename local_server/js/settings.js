@@ -20,23 +20,12 @@ function initTabs() {
     // 탭 스타일 주입
     injectTabStyles();
 
-    // 메인 탭 이벤트 바인딩 (기상정보, 조석정보, 해양생활, 공지사항)
-    // [연계] js/marine.js switchMainTab() → 그룹/섹션 전환 처리
     const tabs = document.querySelectorAll('.tab-btn');
+
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             const targetId = tab.getAttribute('data-target');
             window.switchMainTab(targetId);
-        });
-    });
-
-    // 서브 탭 이벤트 바인딩 (기상정보/해양생활 하위 탭)
-    // [연계] js/marine.js switchSubTab() → 같은 그룹 내 서브 섹션 전환
-    const subTabs = document.querySelectorAll('.sub-tab-btn');
-    subTabs.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const targetId = btn.getAttribute('data-target');
-            window.switchSubTab(targetId);
         });
     });
 }

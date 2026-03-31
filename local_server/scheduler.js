@@ -66,8 +66,7 @@ collectProgress.setMaxListeners(20);
 const lastRunStatus = {
     buoys: { lastRun: null, status: '대기 중', message: '' },
     general: { lastRun: null, status: '대기 중', message: '' },
-    zone: { lastRun: null, status: '대기 중', message: '' },
-    fishing: { lastRun: null, status: '대기 중', message: '' }  // 바다낚시 지수
+    zone: { lastRun: null, status: '대기 중', message: '' }
 };
 
 const CONFIG_FILE = path.join(__dirname, 'data/api_config.json');
@@ -418,263 +417,6 @@ async function collectMidTermSeaForecasts() {
     }
 }
 
-// ============================================================================
-// 바다낚시 지수 수집 (국립해양조사원 공공데이터포털 API)
-// ============================================================================
-// [설명]
-// 국립해양조사원의 바다낚시지수 API(fcstFishingv2)를 호출하여
-// 갯바위/선상별 전국 낚시 포인트의 예보 데이터를 수집합니다.
-// 수집된 데이터는 위치별로 그룹핑되어 fishing_index.json으로 저장됩니다.
-//
-// [연계]
-// - cache_manager.js → fishingIndex 키로 메모리 캐시
-// - routes/fishing.js → GET /api/fishing-index 엔드포인트에서 클라이언트에 제공
-// - js/fishing.js (프론트엔드) → 지도 마커 및 바텀시트 렌더링에 사용
-//
-// [API 갱신 주기] 하루 2회 (오전/오후)
-// [수집 스케줄] 06:30, 18:30 (발표 직후 여유를 두고 수집)
-// ============================================================================
-
-// 바다낚시 지수 API 인증키 (공공데이터포털 발급)
-const FISHING_API_KEY = 'PmxnR43icJwR7yzKjG612RncLikLD1RvZpPLgEJqUUx0vGQncdfuT9VjiqBlgiXMdcjyKopi4yvUPaPbcdIUfg==';
-const FISHING_API_BASE = 'https://apis.data.go.kr/1192136/fcstFishingv2/GetFcstFishingApiServicev2';
-
-/**
- * 바다낚시 지수 데이터 수집 메인 함수
- * - API 1회 호출로 갯바위+선상 전체 데이터를 수집
- * - 위치명 패턴("(숫자km)")으로 갯바위/선상 자동 분류
- * - 수집된 데이터를 fishing_index.json으로 저장
- * - 실패 시 lastRunStatus.fishing에 오류 정보 기록
- *
- * [연계] routes/fishing.js → /api/fishing-index, js/fishing.js → 지도 마커
- */
-async function collectFishingIndex() {
-    try {
-        log('🎣 바다낚시 지수 수집 시작...');
-
-        // API는 gubun 파라미터와 무관하게 갯바위+선상 전체 데이터를 반환하므로
-        // 1회만 호출하고 위치명 패턴으로 분류 (선상: "항구명(Xkm)" 패턴)
-        const SHIP_PATTERN = /\(\d+km\)/; // 선상 위치는 "(숫자km)" 패턴 포함
-
-        const result = {
-            updatedAt: getNowStr(),
-            갯바위: {},
-            선상: {}
-        };
-
-        const items = await _fetchFishingData('갯바위');
-
-        if (!items || items.length === 0) {
-            log('⚠️ 바다낚시 데이터 없음');
-        } else {
-            // 응답 데이터를 위치명 패턴으로 갯바위/선상 분류 후 그룹핑
-            items.forEach(item => {
-                    const placeName = item.seafsPstnNm;
-                    if (!placeName) return;
-
-                    // 위치명에 "(숫자km)" 패턴 포함 → 선상, 없으면 → 갯바위
-                    const gubun = SHIP_PATTERN.test(placeName) ? '선상' : '갯바위';
-
-                    // API 응답의 날짜 형식: "YYYY-MM-DD" → "YYYYMMDD"로 변환
-                    const dateStr = item.predcYmd ? item.predcYmd.replace(/-/g, '') : '';
-
-                    // 해당 위치가 처음 등장하면 초기 객체 생성
-                    if (!result[gubun][placeName]) {
-                        result[gubun][placeName] = {
-                            lat: parseFloat(item.lat) || 0,    // 위도
-                            lot: parseFloat(item.lot) || 0,    // 경도
-                            forecasts: {},                      // 날짜별 예보 데이터
-                            etcFishList: ''                     // 기타어종 목록 (갯바위만)
-                        };
-                    }
-
-                    const place = result[gubun][placeName];
-
-                    // 해당 날짜의 예보 객체 초기화
-                    if (!place.forecasts[dateStr]) {
-                        place.forecasts[dateStr] = {};
-                    }
-
-                    // 오전/오후/일(종일) 구분하여 저장
-                    const timeSlot = item.predcNoonSeCd; // '오전', '오후', 또는 '일'
-                    if (!place.forecasts[dateStr][timeSlot]) {
-                        place.forecasts[dateStr][timeSlot] = {
-                            totalIndex: '',   // 종합 낚시 지수
-                            items: [],        // 어종별 상세 (갯바위만)
-                            minWvhgt: '',     // 최저 파고 (m)
-                            maxWvhgt: '',     // 최고 파고 (m)
-                            minWtem: '',      // 최저 수온 (°C)
-                            maxWtem: '',      // 최고 수온 (°C)
-                            minArtmp: '',     // 최저 기온 (°C)
-                            maxArtmp: '',     // 최고 기온 (°C)
-                            minCrsp: '',      // 최저 유속 (kn)
-                            maxCrsp: '',      // 최고 유속 (kn)
-                            minWspd: '',      // 최저 풍속 (m/s)
-                            maxWspd: '',      // 최고 풍속 (m/s)
-                            tdlvHrCn: ''      // 물때 정보
-                        };
-                    }
-
-                    const slot = place.forecasts[dateStr][timeSlot];
-
-                    // 공통 기상 데이터 (동일 시간대에서 첫 번째 데이터로 설정)
-                    if (!slot.minWvhgt) {
-                        slot.minWvhgt = item.minWvhgt || '';
-                        slot.maxWvhgt = item.maxWvhgt || '';
-                        slot.minWtem = item.minWtem || '';
-                        slot.maxWtem = item.maxWtem || '';
-                        slot.minArtmp = item.minArtmp || '';
-                        slot.maxArtmp = item.maxArtmp || '';
-                        slot.minCrsp = item.minCrsp || '';
-                        slot.maxCrsp = item.maxCrsp || '';
-                        slot.minWspd = item.minWspd || '';
-                        slot.maxWspd = item.maxWspd || '';
-                        slot.tdlvHrCn = item.tdlvHrCn || '';
-                    }
-
-                    // 어종별 상세 데이터 추가 (갯바위만 seafsTgfshNm 존재)
-                    if (item.seafsTgfshNm) {
-                        slot.items.push({
-                            fishName: item.seafsTgfshNm,     // 어종명
-                            totalIndex: item.totalIndex || '' // 해당 어종의 낚시 지수
-                        });
-
-                        // 기타어종 목록 추출 (첫 등장 시에만 기록)
-                        if (item.seafsTgfshNm === '기타어종' && !place.etcFishList) {
-                            place.etcFishList = '부시리,광어,전갱이,고등어,망상어,학공치,무늬오징어,갑오징어,갈치,도다리,가자미,숭어,꼴뚜기,붕장어,한치,보리멸,청어';
-                        }
-                    } else {
-                        // 선상: 어종 데이터 없이 totalIndex만 존재
-                        if (!slot.totalIndex && item.totalIndex) {
-                            slot.totalIndex = item.totalIndex;
-                        }
-                    }
-
-                });
-
-                // 종합 지수 설정: 전체 어종의 totalIndex 중 최빈값(가장 많이 나오는 값) 사용
-                // 동일 빈도일 경우 더 보수적(나쁜) 등급을 대표로 선정
-                const levelOrder = { '매우나쁨': 1, '나쁨': 2, '보통': 3, '좋음': 4, '매우좋음': 5 };
-                ['갯바위', '선상'].forEach(g => {
-                    Object.values(result[g]).forEach(pl => {
-                        Object.values(pl.forecasts).forEach(dateFc => {
-                            Object.values(dateFc).forEach(slot => {
-                                if (slot.items && slot.items.length > 0) {
-                                    const freq = {};
-                                    slot.items.forEach(si => {
-                                        if (si.totalIndex) freq[si.totalIndex] = (freq[si.totalIndex] || 0) + 1;
-                                    });
-                                    let modeLevel = '';
-                                    let modeCount = 0;
-                                    Object.keys(freq).forEach(lv => {
-                                        if (freq[lv] > modeCount || (freq[lv] === modeCount && (levelOrder[lv] || 0) < (levelOrder[modeLevel] || 0))) {
-                                            modeLevel = lv;
-                                            modeCount = freq[lv];
-                                        }
-                                    });
-                                    if (modeLevel) slot.totalIndex = modeLevel;
-                                }
-                            });
-                        });
-                    });
-                });
-        }
-
-        // 수집된 날짜 분포 분석 (디버깅용)
-        const dateAnalysis = {};
-        ['갯바위', '선상'].forEach(g => {
-            const dateSet = new Set();
-            Object.values(result[g]).forEach(pl => {
-                Object.keys(pl.forecasts).forEach(d => dateSet.add(d));
-            });
-            dateAnalysis[g] = Array.from(dateSet).sort();
-        });
-        log(`🎣 바다낚시 날짜 분포 - 갯바위: ${dateAnalysis['갯바위'].join(',')} (${dateAnalysis['갯바위'].length}일), 선상: ${dateAnalysis['선상'].join(',')} (${dateAnalysis['선상'].length}일)`);
-
-        // JSON 파일로 저장 (data/fishing_index.json)
-        saveData('fishing_index.json', result);
-        lastRunStatus.fishing = {
-            lastRun: getNowStr(),
-            status: '성공',
-            message: `갯바위 ${Object.keys(result['갯바위']).length}개소(${dateAnalysis['갯바위'].length}일), 선상 ${Object.keys(result['선상']).length}개소(${dateAnalysis['선상'].length}일)`
-        };
-        log(`✅ 바다낚시 지수 수집 완료 (갯바위: ${Object.keys(result['갯바위']).length}, 선상: ${Object.keys(result['선상']).length})`);
-
-    } catch (e) {
-        lastRunStatus.fishing = { lastRun: getNowStr(), status: '실패', message: e.message };
-        log(`⚠️ 바다낚시 지수 수집 실패: ${e.message}`);
-    }
-}
-
-/**
- * 바다낚시 API 호출 함수 (페이지네이션 포함)
- * @param {string} gubun 구분 ('갯바위' 또는 '선상')
- * @returns {Array} API 응답의 전체 items 배열 (실패 시 빈 배열)
- *
- * [설명]
- * 국립해양조사원 API를 호출하여 해당 구분의 전체 낚시 포인트 데이터를 가져옵니다.
- * reqDate 미지정 시 현재일 기준 7일치 데이터가 반환됩니다.
- * numOfRows 최대값이 300이므로, 전체 데이터를 가져오기 위해 페이지를 순회합니다.
- *
- * [연계] collectFishingIndex()에서 호출
- */
-async function _fetchFishingData(gubun) {
-    const allItems = [];
-    const encodedKey = encodeURIComponent(FISHING_API_KEY);
-    let pageNo = 1;
-    const numOfRows = 300; // API 최대값
-
-    try {
-        while (true) {
-            const params = new URLSearchParams({
-                numOfRows: String(numOfRows),
-                pageNo: String(pageNo),
-                type: 'json',
-                gubun: gubun
-            });
-            const url = `${FISHING_API_BASE}?serviceKey=${encodedKey}&${params.toString()}`;
-            const response = await fetchWithTimeout(url, {}, 30000);
-
-            if (!response.ok) {
-                log(`⚠️ 바다낚시 API 응답 오류 (${gubun}, p${pageNo}): HTTP ${response.status}`);
-                break;
-            }
-
-            const data = await response.json();
-
-            // 결과코드 검증
-            if (data?.header?.resultCode !== '00') {
-                log(`⚠️ 바다낚시 API 오류 (${gubun}): ${data?.header?.resultMsg}`);
-                break;
-            }
-
-            const items = data?.body?.items?.item;
-            if (!items) break;
-
-            // 단건 응답인 경우 배열로 감싸기
-            const arr = Array.isArray(items) ? items : [items];
-            allItems.push(...arr);
-
-            // 전체 건수 대비 현재까지 수집량 확인 → 다음 페이지 필요 여부
-            const totalCount = data?.body?.totalCount || 0;
-            log(`🎣 바다낚시 ${gubun} p${pageNo}: ${arr.length}건 수신 (누적 ${allItems.length}/${totalCount})`);
-
-            // 종료 조건: 반환 건수가 numOfRows 미만이면 마지막 페이지
-            if (arr.length < numOfRows) break;
-
-            pageNo++;
-            // 안전장치: 최대 10페이지까지만 (3000건)
-            if (pageNo > 10) break;
-        }
-
-        log(`🎣 바다낚시 ${gubun} API 수집: ${allItems.length}건 (${pageNo}페이지)`);
-        return allItems;
-    } catch (e) {
-        log(`⚠️ 바다낚시 API 호출 실패 (${gubun}): ${e.message}`);
-        return allItems; // 이미 수집한 데이터는 반환
-    }
-}
-
 // [Note] 기존 특보 수집(collectWarnings) 및 해구별 예보(collectZoneForecasts) 로직은 제거됨.
 // 특보는 weather_alerts_crawler.js가 전담.
 
@@ -697,8 +439,7 @@ async function init() {
             collectZoneForecasts().then(() => log('✅ 해구별 예보 데이터 수집 완료')),
             collectMidTermSeaForecasts(),
             marineForecastProcessor.collectMarineForecasts().then(() => log('✅ 해상 기상 전망 수집 완료')),
-            regionalForecastCollector.collectRegionalForecasts().then(() => log('✅ 지방기상청 단기예보 수집 완료')),
-            collectFishingIndex().then(() => log('✅ 바다낚시 지수 수집 완료'))
+            regionalForecastCollector.collectRegionalForecasts().then(() => log('✅ 지방기상청 단기예보 수집 완료'))
         ]);
     } catch (e) {
         log(`⚠️ 일부 수집 중 오류: ${e.message}`);
@@ -737,9 +478,6 @@ async function init() {
 
         // 중기해상예보: 하루 2회 (06:15, 18:15)
         if (['06:15', '18:15'].includes(hm)) collectMidTermSeaForecasts();
-
-        // 바다낚시 지수: 하루 2회 (06:30, 18:30) - API 발표 직후 수집
-        if (['06:30', '18:30'].includes(hm)) collectFishingIndex();
 
         // 지방기상청 단기예보: 발표 주기(05, 11, 17시) +10분에 수집
         if (['05:10', '11:10', '17:10'].includes(hm)) {
@@ -783,7 +521,6 @@ module.exports = {
     collectGeneralForecasts,
     collectZoneForecasts,
     collectMidTermSeaForecasts,
-    collectFishingIndex,
     getStatus: () => lastRunStatus,
     collectProgress,
     getCrawlPaused: () => crawlPaused,
