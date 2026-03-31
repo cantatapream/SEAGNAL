@@ -902,7 +902,8 @@ const SECTION_TO_GROUP = {
     'surfing-section': 'ocean-life-group',
     'mudflat-section': 'ocean-life-group',
     'swimming-section': 'ocean-life-group',
-    'scuba-section': 'ocean-life-group'
+    'scuba-section': 'ocean-life-group',
+    'sea-parting-section': 'ocean-life-group'
 };
 
 window.switchMainTab = function (targetId) {
