@@ -95,8 +95,9 @@ body {
     background-size: 100% 100%;
     /* Ensure padding doesn't affect background size if box-sizing is border-box */
     background-origin: border-box;
-    padding: 0.75rem 1.25rem 1.5rem;
-    /* 상단 패딩 50% 축소 */
+    padding: 0.75rem 0 0;
+    /* 좌우 패딩 제거: 탭이 화면 전체 너비를 사용하도록 함 */
+    /* 로고/설정 영역은 .header-content에서 개별 패딩 적용 */
     border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
@@ -105,6 +106,12 @@ body {
     /* Glassmorphism */
     -webkit-backdrop-filter: blur(12px);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* 로고 영역: 좌우 패딩을 개별 적용 (탭은 전체 너비 사용) */
+.header-content {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
 }
 
 .main-header::before {
@@ -3321,14 +3328,11 @@ line-height: 1.1;
    ========================================= */
 .main-tabs {
     display: flex;
-    width: auto;
+    width: 100%;
     overflow-x: auto;
     /* 화면 부족 시 스크롤 허용 */
     background: rgba(0, 0, 0, 0.2);
     margin-top: 10px;
-    margin-left: -1.25rem;
-    margin-right: -1.25rem;
-    /* 부모(.main-header) 좌우 패딩 상쇄 → 화면 전체 너비 사용 */
     border-radius: 0;
     /* 전체 너비 사용 시 둥근 모서리 제거 */
     /* 스크롤바 숨김 (깔끔한 UI) */
@@ -3469,12 +3473,9 @@ line-height: 1.1;
 .sub-tabs {
     display: flex;
     justify-content: space-around;
-    width: auto;
+    width: 100%;
     background: rgba(255, 255, 255, 0.03);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    margin-left: -1.25rem;
-    margin-right: -1.25rem;
-    /* 부모(.main-header) 좌우 패딩 상쇄 → 화면 전체 너비 사용 */
     max-height: 0;
     opacity: 0;
     overflow: hidden;
