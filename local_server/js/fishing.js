@@ -798,6 +798,18 @@
             });
         }
 
+        // 조석상세 버튼 클릭 이벤트 바인딩 (물때 옆 버튼 → 조석 현황 모달 호출)
+        contentEl.querySelectorAll('.fishing-tide-detail-btn').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var lat = parseFloat(btn.getAttribute('data-lat'));
+                var lon = parseFloat(btn.getAttribute('data-lon'));
+                if (window.showTideDetailForLocation && lat && lon) {
+                    window.showTideDetailForLocation(lat, lon, selectedPlace || '');
+                }
+            });
+        });
+
         // 기타어종 ? 버튼 이벤트 바인딩
         _bindEtcFishTooltips(place.etcFishList);
     }
@@ -834,7 +846,12 @@
             html += '<span><i class="fa-solid fa-thermometer-half"></i> 기온 ' + _rangeStr(slotData.minArtmp, slotData.maxArtmp, '°C') + '</span>';
         }
         if (slotData.tdlvHrCn) {
-            html += '<span><i class="fa-solid fa-clock"></i> ' + slotData.tdlvHrCn + '</span>';
+            html += '<span><i class="fa-solid fa-clock"></i> ' + slotData.tdlvHrCn;
+            // 조석상세 버튼 (물때 옆에 배치, 클릭 시 조석 현황 모달 호출)
+            if (place && place.lat && place.lot) {
+                html += ' <button class="fishing-tide-detail-btn" data-lat="' + place.lat + '" data-lon="' + place.lot + '">조석상세</button>';
+            }
+            html += '</span>';
         }
         html += '</div>';
 
