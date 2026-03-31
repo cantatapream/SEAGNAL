@@ -3321,12 +3321,16 @@ line-height: 1.1;
    ========================================= */
 .main-tabs {
     display: flex;
-    width: 100%;
+    width: auto;
     overflow-x: auto;
     /* 화면 부족 시 스크롤 허용 */
     background: rgba(0, 0, 0, 0.2);
     margin-top: 10px;
-    border-radius: 8px;
+    margin-left: -1.25rem;
+    margin-right: -1.25rem;
+    /* 부모(.main-header) 좌우 패딩 상쇄 → 화면 전체 너비 사용 */
+    border-radius: 0;
+    /* 전체 너비 사용 시 둥근 모서리 제거 */
     /* 스크롤바 숨김 (깔끔한 UI) */
     scrollbar-width: none;
     /* Firefox */
@@ -3465,9 +3469,12 @@ line-height: 1.1;
 .sub-tabs {
     display: flex;
     justify-content: space-around;
-    width: 100%;
+    width: auto;
     background: rgba(255, 255, 255, 0.03);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-left: -1.25rem;
+    margin-right: -1.25rem;
+    /* 부모(.main-header) 좌우 패딩 상쇄 → 화면 전체 너비 사용 */
     max-height: 0;
     opacity: 0;
     overflow: hidden;
