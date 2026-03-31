@@ -1248,6 +1248,22 @@ async function renderUnifiedApiContent(container) {
             </details>
         </div>
 
+        <!-- [New] 해양생활기상 API 만료일 관리 섹션 -->
+        <div class="admin-section-title" style="margin-top:30px; border-top:1px solid rgba(255,255,255,0.05); padding-top:20px;">
+            <i class="fa-solid fa-umbrella-beach" style="color:#4fc3f7;"></i> 해양생활기상 API 만료일 관리 현황
+        </div>
+
+        <div class="admin-card" style="padding:20px; background:rgba(15, 23, 42, 0.4); margin-bottom:15px;">
+            <details class="admin-accordion" style="background:rgba(0,0,0,0.2); border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+                <summary style="padding:12px; cursor:pointer; color:#94a3b8; font-size:0.85rem; font-weight:600; list-style:none; display:flex; align-items:center; gap:8px;">
+                    <i class="fa-solid fa-chevron-down" style="font-size:0.7rem;"></i> (지수별 API 만료일 현황)
+                </summary>
+                <div id="marine-life-expiry-list" style="padding:10px; border-top:1px solid rgba(255,255,255,0.05);">
+                    <!-- refreshMarineLifeExpiry()에 의해 채워짐 -->
+                </div>
+            </details>
+        </div>
+
         <!-- 인증키 설정 섹션 (하단 통합) -->
         <div class="admin-section-title" style="margin-top:30px; border-top:1px solid rgba(255,255,255,0.05); padding-top:20px;">
             <i class="fa-solid fa-key" style="color:#f59e0b;"></i> 기상청 API HUB (Auth Key)
@@ -1443,6 +1459,142 @@ async function renderUnifiedApiContent(container) {
         }
     };
 
+    // ========================================================================
+    // [New] 해양생활기상 API 만료일 관리 함수
+    // ========================================================================
+
+    /**
+     * 해양생활기상 지수별 만료일 현황을 서버에서 가져와 목록을 렌더링한다.
+     * [연계] GET /api/marine-life/expiry → routes/fishing.js
+     * [호출 시점] renderUnifiedApiContent() 완료 시, editMarineLifeExpiry() 저장 성공 시
+     */
+    window.refreshMarineLifeExpiry = async function () {
+        const listEl = document.getElementById('marine-life-expiry-list');
+        if (!listEl) return;
+
+        // 지수별 아이콘 매핑 (UI 표시용)
+        const iconMap = {
+            fishing: { icon: 'fa-fish', color: '#4fc3f7' },
+            surfing: { icon: 'fa-water', color: '#29b6f6' },
+            mudflat: { icon: 'fa-shrimp', color: '#ff8a65' },
+            swimming: { icon: 'fa-person-swimming', color: '#26c6da' },
+            scuba: { icon: 'fa-mask-snorkel', color: '#7e57c2' },
+            'sea-parting': { icon: 'fa-road', color: '#66bb6a' }
+        };
+
+        try {
+            const res = await fetch(CONFIG.API_BASE + '/api/marine-life/expiry');
+            const data = await res.json();
+
+            listEl.innerHTML = `
+                <div class="admin-accordion-content">
+                    ${data.indexes.map(idx => {
+                        // 만료일 상태 계산: 만료됨(빨강), 30일 이내(노랑), 정상(초록), 미등록(회색)
+                        const ic = iconMap[idx.type] || { icon: 'fa-circle-question', color: '#64748b' };
+                        let statusColor = '#64748b';  // 미등록 기본
+                        let statusText = '미등록';
+                        if (idx.expiry && idx.expiry !== '-') {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const expiryDate = new Date(idx.expiry + 'T00:00:00');
+                            const diffDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+
+                            if (diffDays < 0) {
+                                statusColor = '#ef4444'; statusText = '만료됨';
+                            } else if (diffDays <= 30) {
+                                statusColor = '#f59e0b'; statusText = diffDays + '일 남음';
+                            } else {
+                                statusColor = '#10b981'; statusText = '활성';
+                            }
+                        }
+
+                        return `
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.03);">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <div style="width:30px; height:30px; background:rgba(255,255,255,0.05); border-radius:8px; display:flex; align-items:center; justify-content:center;">
+                                        <i class="fa-solid ${ic.icon}" style="color:${ic.color}; font-size:0.8rem;"></i>
+                                    </div>
+                                    <div>
+                                        <div style="font-size:0.8rem; font-weight:700; color:#fff;">${idx.name}</div>
+                                        <div style="font-size:0.7rem; color:#64748b;">
+                                            📅 만료: <b style="color:${statusColor};">${idx.expiry}</b>
+                                            <span style="margin-left:6px; padding:2px 6px; background:${statusColor}22; color:${statusColor}; border-radius:4px; font-size:0.6rem; font-weight:800; border:1px solid ${statusColor}44;">${statusText}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button onclick="editMarineLifeExpiry('${idx.type}', '${idx.name}')"
+                                    style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; border-radius:6px; padding:5px 10px; font-size:0.7rem; cursor:pointer;">
+                                    <i class="fa-solid fa-pen" style="margin-right:4px;"></i> 수정
+                                </button>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        } catch (e) {
+            console.error('해양생활기상 만료일 로드 실패:', e);
+            listEl.innerHTML = '<div style="color:#ef4444; font-size:0.8rem; text-align:center; padding:10px;">만료일 정보를 불러오지 못했습니다.</div>';
+        }
+    };
+
+    /**
+     * 해양생활기상 지수의 만료일을 수정하는 모달을 표시한다.
+     * @param {string} type - 지수 타입 (fishing, surfing 등)
+     * @param {string} name - 지수 한글명 (바다낚시, 서핑 등)
+     * [연계] PUT /api/marine-life/expiry/:type → routes/fishing.js
+     * [호출] 각 지수 행의 [수정] 버튼 onclick
+     */
+    window.editMarineLifeExpiry = function (type, name) {
+        const modal = document.createElement('div');
+        modal.id = 'marine-expiry-edit-modal';
+        modal.style.cssText = 'position:fixed;inset:0;z-index:20000;background:rgba(0,0,0,0.8);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;';
+
+        modal.innerHTML = `
+            <div style="background:#1e2435; border-radius:16px; width:100%; max-width:360px; padding:25px; border:1px solid rgba(255,255,255,0.1); box-shadow:0 25px 50px rgba(0,0,0,0.5);">
+                <h3 style="color:#fff; margin:0 0 20px; display:flex; align-items:center; gap:10px; font-size:1rem;">
+                    <i class="fa-solid fa-calendar-days" style="color:#4fc3f7;"></i> ${name} 만료일 수정
+                </h3>
+
+                <div style="margin-bottom:20px;">
+                    <label style="display:block; color:#94a3b8; font-size:0.8rem; margin-bottom:6px;">만료 일자</label>
+                    <input type="date" id="marine-expiry-input"
+                           style="width:100%; padding:12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; font-size:0.9rem; box-sizing:border-box;">
+                </div>
+
+                <div style="display:flex; gap:12px;">
+                    <button onclick="document.getElementById('marine-expiry-edit-modal').remove()"
+                            style="flex:1; padding:12px; background:rgba(255,255,255,0.05); border:none; border-radius:8px; color:#94a3b8; cursor:pointer; font-weight:600;">취소</button>
+                    <button id="marine-expiry-save-btn"
+                            style="flex:1; padding:12px; background:linear-gradient(135deg,#4fc3f7,#2196f3); border:none; border-radius:8px; color:#fff; cursor:pointer; font-weight:700;">저장하기</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // 저장 버튼 클릭 → PUT /api/marine-life/expiry/:type
+        document.getElementById('marine-expiry-save-btn').onclick = async () => {
+            const expiry = document.getElementById('marine-expiry-input').value;
+            if (!expiry) return alert('만료일을 선택해주세요.');
+
+            try {
+                const res = await fetch(CONFIG.API_BASE + '/api/marine-life/expiry/' + type, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ expiry })
+                });
+                if (res.ok) {
+                    alert('만료일이 저장되었습니다.');
+                    modal.remove();
+                    refreshMarineLifeExpiry();  // 목록 새로고침
+                } else {
+                    const data = await res.json();
+                    alert(data.error || '저장 실패');
+                }
+            } catch (e) { alert('에러: ' + e.message); }
+        };
+    };
+
     // 인증키 저장
     window.saveUnifiedApiConfig = async function () {
         const hubKey = document.getElementById('unified-kma-hub-key').value;
@@ -1478,7 +1630,8 @@ async function renderUnifiedApiContent(container) {
             const apiItems = [
                 { key: 'general', name: '기상 예보', icon: 'fa-sun', color: '#ffd54f' },
                 { key: 'zone', name: '해구별 예보', icon: 'fa-map-location-dot', color: '#29b6f6' },
-                { key: 'buoys', name: '관측 부이', icon: 'fa-anchor', color: '#26a69a' }
+                { key: 'buoys', name: '관측 부이', icon: 'fa-anchor', color: '#26a69a' },
+                { key: 'fishing', name: '해양생활기상', icon: 'fa-fish', color: '#4fc3f7' }
             ];
 
             listContainer.innerHTML = apiItems.map(api => {
@@ -1587,6 +1740,7 @@ async function renderUnifiedApiContent(container) {
 
     refreshUnifiedApiStatus();
     refreshUnifiedTideBedStatus();
+    refreshMarineLifeExpiry();  // 해양생활기상 만료일 현황 초기 로드
 }
 
 // (C) 공지 팝업 섹션 렌더링

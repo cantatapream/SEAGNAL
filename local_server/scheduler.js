@@ -452,6 +452,9 @@ async function collectFishingIndex() {
     try {
         log('🎣 바다낚시 지수 수집 시작...');
 
+        // 진행률 이벤트 발행 (admin 수동 호출 시 SSE 스트림으로 전달)
+        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 1, total: 3, detail: 'API 호출 중' });
+
         // API는 gubun 파라미터와 무관하게 갯바위+선상 전체 데이터를 반환하므로
         // 1회만 호출하고 위치명 패턴으로 분류 (선상: "항구명(Xkm)" 패턴)
         const SHIP_PATTERN = /\(\d+km\)/; // 선상 위치는 "(숫자km)" 패턴 포함
@@ -463,6 +466,9 @@ async function collectFishingIndex() {
         };
 
         const items = await _fetchFishingData('갯바위');
+
+        // 진행률 이벤트: API 응답 수신 완료, 데이터 가공 시작
+        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 2, total: 3, detail: '데이터 가공 중' });
 
         if (!items || items.length === 0) {
             log('⚠️ 바다낚시 데이터 없음');
@@ -590,6 +596,9 @@ async function collectFishingIndex() {
             dateAnalysis[g] = Array.from(dateSet).sort();
         });
         log(`🎣 바다낚시 날짜 분포 - 갯바위: ${dateAnalysis['갯바위'].join(',')} (${dateAnalysis['갯바위'].length}일), 선상: ${dateAnalysis['선상'].join(',')} (${dateAnalysis['선상'].length}일)`);
+
+        // 진행률 이벤트: 파일 저장 단계
+        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 3, total: 3, detail: '저장 중' });
 
         // JSON 파일로 저장 (data/fishing_index.json)
         saveData('fishing_index.json', result);

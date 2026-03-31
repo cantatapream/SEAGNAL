@@ -23,7 +23,90 @@
 
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
+const path = require('path');
 const { dataCache } = require('../services/cache_manager');
+
+// ============================================================================
+// 해양생활기상 API 만료일 관리
+// ============================================================================
+
+/**
+ * 만료일 설정 파일 경로 (data/marine_life_expiry.json)
+ * - 각 해양생활 지수별 API 만료일을 저장
+ * - admin 페이지에서 조회/수정 시 이 파일을 읽고 쓰기
+ */
+const EXPIRY_FILE = path.join(__dirname, '..', 'data', 'marine_life_expiry.json');
+
+/**
+ * 만료일 설정 파일 로드
+ * @returns {Object} { indexes: [{ type, name, expiry }, ...] }
+ * [연계] GET /api/marine-life/expiry, PUT /api/marine-life/expiry/:type 에서 호출
+ */
+function loadExpiryConfig() {
+    try {
+        return JSON.parse(fs.readFileSync(EXPIRY_FILE, 'utf8'));
+    } catch (e) {
+        // 파일이 없거나 파싱 실패 시 기본 구조 반환
+        return {
+            indexes: [
+                { type: 'fishing', name: '바다낚시', expiry: '-' },
+                { type: 'surfing', name: '서핑', expiry: '-' },
+                { type: 'mudflat', name: '갯벌체험', expiry: '-' },
+                { type: 'swimming', name: '해수욕', expiry: '-' },
+                { type: 'scuba', name: '스쿠버다이빙', expiry: '-' },
+                { type: 'sea-parting', name: '바닷길', expiry: '-' }
+            ]
+        };
+    }
+}
+
+/**
+ * 만료일 설정 파일 저장
+ * @param {Object} config - { indexes: [...] } 구조의 설정 데이터
+ * [연계] PUT /api/marine-life/expiry/:type 에서 호출
+ */
+function saveExpiryConfig(config) {
+    fs.writeFileSync(EXPIRY_FILE, JSON.stringify(config, null, 2), 'utf8');
+}
+
+/**
+ * GET /api/marine-life/expiry
+ * 전체 해양생활 지수별 만료일 현황을 반환합니다.
+ *
+ * [응답 구조]
+ * { indexes: [{ type: "fishing", name: "바다낚시", expiry: "2026-12-31" }, ...] }
+ *
+ * [연계] admin_collect.js → refreshMarineLifeExpiry() 에서 호출
+ */
+router.get('/api/marine-life/expiry', (req, res) => {
+    res.json(loadExpiryConfig());
+});
+
+/**
+ * PUT /api/marine-life/expiry/:type
+ * 특정 지수의 만료일을 수정합니다.
+ *
+ * [요청 바디] { expiry: "2026-12-31" }
+ * [URL 파라미터] :type - 지수 타입 (fishing, surfing, mudflat, swimming, scuba, sea-parting)
+ *
+ * [연계] admin_collect.js → editMarineLifeExpiry() 에서 호출
+ */
+router.put('/api/marine-life/expiry/:type', (req, res) => {
+    const { type } = req.params;
+    const { expiry } = req.body;
+
+    if (!expiry) return res.status(400).json({ error: '만료일을 입력해주세요.' });
+
+    const config = loadExpiryConfig();
+    const target = config.indexes.find(i => i.type === type);
+
+    if (!target) return res.status(404).json({ error: '존재하지 않는 지수 타입입니다.' });
+
+    target.expiry = expiry;
+    saveExpiryConfig(config);
+    res.json({ success: true });
+});
 
 /**
  * GET /api/fishing-index
