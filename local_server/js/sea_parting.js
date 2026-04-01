@@ -39,6 +39,7 @@
     let _data = null;
     let _selectedPlace = null;
     let _initialized = false;
+    let _initializing = false;
 
     /** 체험지수 등급별 색상 */
     const INDEX_COLORS = {
@@ -55,17 +56,21 @@
 
     window.initSeaParting = async function () {
         if (_initialized && _data) return;
+        if (_initializing) return;
+        _initializing = true;
 
         try {
-            const res = await fetch((window.CONFIG?.API_BASE || '') + '/api/sea-split-index');
+            const res = await fetch((window.CONFIG ? CONFIG.API_BASE : '') + '/api/sea-split-index');
             if (!res.ok) throw new Error('API 응답 실패');
             _data = await res.json();
         } catch (e) {
+            _initializing = false;
             _showNotice('바다갈라짐 체험지수 데이터를 불러오지 못했습니다.');
             return;
         }
 
         _initialized = true;
+        _initializing = false;
         _renderPlaceButtons();
 
         // 즐겨찾기가 있으면 자동 선택
