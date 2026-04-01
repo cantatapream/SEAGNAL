@@ -457,8 +457,41 @@ window.renderHistoryTab = async function (container) {
             return '<label style="display:flex;align-items:center;gap:6px;color:' + (historyFilter.type === t ? '#fff' : '#64748b') + ';font-size:0.85rem;cursor:pointer;font-weight:600;"><input type="radio" name="hist-type" value="' + t + '" ' + (historyFilter.type === t ? 'checked' : '') + ' onchange="window.updateHistoryFilter(\'type\', \'' + t + '\')" style="width:14px;height:14px;cursor:pointer;"> ' + (t === 'all' ? '전체' : (t === 'auto' ? '자동' : '수동')) + '</label>';
         }).join('') + '</div>' : '';
 
+        // 발송 이력 항목별 HTML 생성
+        // - 각 항목: 체크박스, 시간, 수신자 수 배지, 자동/수동 배지, 삭제 버튼, 제목, 본문
+        // - 본문 내 줄바꿈(\n)을 <br>로 변환하여 실제 푸시 알림과 동일한 형태로 표시
+        // - h.count: 해당 알림이 발송된 수신자 수 (push.js에서 발송 성공 시 기록)
         var itemsHtml = filtered.map(function(h) {
-            return '<div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:14px;margin-bottom:12px;border:1px solid rgba(255,255,255,0.05);position:relative;"><div style="position:absolute;top:14px;left:14px;"><input type="checkbox" class="hist-item-check" data-id="' + h.id + '" style="width:15px;height:15px;cursor:pointer;"></div><div style="margin-left:30px;"><div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:#64748b;font-size:0.75rem;">' + h.time + '</span><div style="display:flex;gap:6px;"><span style="padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;background:' + (h.type === 'manual' ? 'rgba(59,130,246,0.1)' : 'rgba(34,197,94,0.1)') + ';color:' + (h.type === 'manual' ? '#3b82f6' : '#22c55e') + ';">' + (h.type === 'manual' ? '👤 수동' : '🤖 자동') + '</span><button onclick="window.deleteSingleHistory(' + h.id + ')" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:0.8rem;"><i class="fa-solid fa-trash-can"></i></button></div></div><div style="color:#fff;font-weight:700;margin-bottom:4px;font-size:0.95rem;">' + h.title + '</div><div style="color:#94a3b8;font-size:0.85rem;line-height:1.4;margin-bottom:8px;">' + h.content + '</div><div style="font-size:0.7rem;color:#475569;background:rgba(0,0,0,0.2);padding:6px 10px;border-radius:6px;"><i class="fa-solid fa-location-dot" style="margin-right:4px;"></i> 대상: ' + (h.target.length > 50 ? h.target.substring(0, 50) + '...' : h.target) + '</div></div></div>';
+            // 본문 줄바꿈 변환 (서버에서 \n으로 저장된 내용을 HTML 줄바꿈으로 표시)
+            var contentHtml = (h.content || '').replace(/\n/g, '<br>');
+            // 수신자 수 배지 (0명이거나 값이 없으면 미표시)
+            var countBadge = (h.count && h.count > 0)
+                ? '<span style="padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;background:rgba(99,102,241,0.1);color:#818cf8;">📨 ' + h.count + '명</span>'
+                : '';
+
+            return '<div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:14px;margin-bottom:12px;border:1px solid rgba(255,255,255,0.05);position:relative;">'
+                // 체크박스 (좌측 상단, 선택 삭제용)
+                + '<div style="position:absolute;top:14px;left:14px;">'
+                + '<input type="checkbox" class="hist-item-check" data-id="' + h.id + '" style="width:15px;height:15px;cursor:pointer;">'
+                + '</div>'
+                + '<div style="margin-left:30px;">'
+                // 상단 행: 발송 시각 (좌측) + 수신자 수·자동/수동 배지·삭제 버튼 (우측)
+                + '<div style="display:flex;justify-content:space-between;margin-bottom:8px;">'
+                + '<span style="color:#64748b;font-size:0.75rem;">' + h.time + '</span>'
+                + '<div style="display:flex;gap:6px;align-items:center;">'
+                + countBadge
+                + '<span style="padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;background:'
+                + (h.type === 'manual' ? 'rgba(59,130,246,0.1)' : 'rgba(34,197,94,0.1)')
+                + ';color:' + (h.type === 'manual' ? '#3b82f6' : '#22c55e') + ';">'
+                + (h.type === 'manual' ? '👤 수동' : '🤖 자동') + '</span>'
+                + '<button onclick="window.deleteSingleHistory(' + h.id + ')" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:0.8rem;">'
+                + '<i class="fa-solid fa-trash-can"></i></button>'
+                + '</div></div>'
+                // 알림 제목 (굵은 글씨)
+                + '<div style="color:#fff;font-weight:700;margin-bottom:4px;font-size:0.95rem;">' + h.title + '</div>'
+                // 알림 본문 (줄바꿈 적용된 내용)
+                + '<div style="color:#94a3b8;font-size:0.85rem;line-height:1.6;">' + contentHtml + '</div>'
+                + '</div></div>';
         }).join('');
 
         container.innerHTML = '<div style="margin-bottom:20px;"><div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.05);">' + catHtml + '</div>' + typeHtml + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;padding:0 6px;"><div style="display:flex;gap:12px;align-items:center;"><input type="checkbox" id="hist-check-all" onchange="window.toggleAllHistoryChecks(this.checked)" style="width:16px;height:16px;cursor:pointer;"><label for="hist-check-all" style="color:#94a3b8;font-size:0.85rem;cursor:pointer;">전체 선택</label></div><button onclick="window.deleteSelectedHistory()" style="padding:6px 12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#ef4444;border-radius:6px;font-size:0.8rem;cursor:pointer;font-weight:600;">선택 삭제</button></div><div id="history-items-container">' + itemsHtml + (filtered.length === 0 ? '<div style="text-align:center;padding:50px;color:#64748b;">이력이 없습니다.</div>' : '') + '</div>' + (history.length > 0 ? '<div style="text-align:center;margin-top:20px;"><button onclick="window.clearAllHistory()" style="background:none;border:none;color:#64748b;font-size:0.8rem;text-decoration:underline;cursor:pointer;">전체 이력 초기화</button></div>' : '') + '</div>';
