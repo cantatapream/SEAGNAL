@@ -5284,6 +5284,21 @@ line-height: 1.1;
     margin-bottom: 6px;
 }
 
+/* 선상 모드 시간 헤더: 오전/오후 배지 + 종합지수 배지 좌우 배치 */
+.fishing-time-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+.fishing-time-header .fishing-time-badge {
+    margin-bottom: 0;
+}
+.fishing-time-header .fishing-index-badge {
+    font-size: 0.7rem;
+    padding: 2px 10px;
+}
+
 .fishing-time-badge {
     display: inline-block;
     padding: 2px 10px;
