@@ -54,6 +54,7 @@
     // --- 모듈 상태 ---
     let fishingMap = null;          // OpenLayers Map 인스턴스
     let markerLayer = null;         // 마커 벡터 레이어
+    let myLocationLayer = null;     // 내 위치 파란 원 마커 레이어 (조석정보와 동일 스타일)
     let fishingData = null;         // 서버에서 받은 전체 데이터
     let currentGubun = '갯바위';    // 현재 선택된 구분 (갯바위/선상)
     let selectedPlace = null;       // 바텀시트에 표시 중인 위치명
@@ -602,8 +603,18 @@
     // ========================================================================
 
     /**
-     * 브라우저 Geolocation API를 사용하여 사용자의 현재 위치로 지도를 이동합니다.
-     * Capacitor 환경에서도 동작합니다.
+     * 브라우저 Geolocation API를 사용하여 사용자의 현재 위치로 지도를 이동하고,
+     * 조석정보와 동일한 스타일의 파란 원 마커를 표시합니다.
+     *
+     * [동작]
+     * 1. GPS 좌표 획득
+     * 2. 지도 화면을 해당 좌표로 이동 (줌 10)
+     * 3. 해당 좌표에 파란 원 마커 표시 (4겹: 글로우 → 중간 글로우 → 흰 테두리 → 파란 중심)
+     *
+     * [연계]
+     * - tide.js updateMyLocationMarker() 와 동일한 마커 스타일 사용
+     * - myLocationLayer 변수에 마커 레이어 저장 (중복 생성 방지)
+     * - 재클릭 시 이전 마커를 지우고 새 위치에 다시 표시
      */
     function _moveToMyLocation() {
         if (!navigator.geolocation) {
@@ -618,11 +629,63 @@
             function (pos) {
                 if (gpsBtn) gpsBtn.classList.remove('loading');
                 var coord = ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]);
+
+                // 지도 화면 이동 (기존 동작 유지)
                 fishingMap.getView().animate({
                     center: coord,
                     zoom: 10,
                     duration: 600
                 });
+
+                // --- 내 위치 파란 원 마커 표시 ---
+                // [스타일] 조석정보(tide.js)와 동일한 4겹 동심원
+                //   1층: 바깥 은은한 글로우 (반경 15, 파란 투명 0.15)
+                //   2층: 중간 글로우 (반경 12, 파란 투명 0.25)
+                //   3층: 흰색 테두리 원 (반경 9, 흰색)
+                //   4층: 중심 파란 점 (반경 6, #007bff)
+                if (!myLocationLayer) {
+                    myLocationLayer = new ol.layer.Vector({
+                        source: new ol.source.Vector(),
+                        zIndex: 1000,
+                        style: function () {
+                            return [
+                                new ol.style.Style({
+                                    image: new ol.style.Circle({
+                                        radius: 15,
+                                        fill: new ol.style.Fill({ color: 'rgba(0, 123, 255, 0.15)' })
+                                    })
+                                }),
+                                new ol.style.Style({
+                                    image: new ol.style.Circle({
+                                        radius: 12,
+                                        fill: new ol.style.Fill({ color: 'rgba(0, 123, 255, 0.25)' })
+                                    })
+                                }),
+                                new ol.style.Style({
+                                    image: new ol.style.Circle({
+                                        radius: 9,
+                                        fill: new ol.style.Fill({ color: '#ffffff' }),
+                                        stroke: new ol.style.Stroke({ color: 'rgba(0, 0, 0, 0.05)', width: 1 })
+                                    })
+                                }),
+                                new ol.style.Style({
+                                    image: new ol.style.Circle({
+                                        radius: 6,
+                                        fill: new ol.style.Fill({ color: '#007bff' })
+                                    })
+                                })
+                            ];
+                        }
+                    });
+                    fishingMap.addLayer(myLocationLayer);
+                }
+
+                // 이전 마커 제거 후 새 위치에 마커 추가
+                var source = myLocationLayer.getSource();
+                source.clear();
+                source.addFeature(new ol.Feature({
+                    geometry: new ol.geom.Point(coord)
+                }));
             },
             function (err) {
                 if (gpsBtn) gpsBtn.classList.remove('loading');
@@ -841,8 +904,15 @@
         var html = '<div class="fishing-time-block">';
         var isShip = currentGubun === '선상';
 
-        // 오전/오후 배지 (우측 지수 배지 제거)
-        html += '<span class="fishing-time-badge">' + timeLabel + '</span>';
+        // 오전/오후 배지 + 선상 모드 종합지수 배지 (우측 배치)
+        if (isShip && slotData.totalIndex) {
+            html += '<div class="fishing-time-header">';
+            html += '<span class="fishing-time-badge">' + timeLabel + '</span>';
+            html += '<span class="fishing-index-badge level-' + slotData.totalIndex + '">' + slotData.totalIndex + '</span>';
+            html += '</div>';
+        } else {
+            html += '<span class="fishing-time-badge">' + timeLabel + '</span>';
+        }
 
         // 기상 요약 → 2열 테이블
         html += '<div class="fishing-weather-table">';
