@@ -103,6 +103,8 @@ router.get('/api/force-update/:type/stream', async (req, res) => {
         else if (type === 'zone') await scheduler.collectZoneForecasts();
         // 해양생활기상(바다낚시 지수) 수동 수집 — admin 페이지에서 호출
         else if (type === 'fishing') await scheduler.collectFishingIndex();
+        // 바다갈라짐 체험지수 수동 수집 — admin 페이지에서 호출
+        else if (type === 'sea-split') await scheduler.collectSeaSplitIndex();
         else {
             res.write(`data: ${JSON.stringify({ error: '잘못된 타입' })}\n\n`);
             res.end();
@@ -137,6 +139,8 @@ router.post('/api/force-update/:type', async (req, res) => {
         else if (type === 'zone') await scheduler.collectZoneForecasts();
         // 해양생활기상(바다낚시 지수) 수동 수집 — POST 호환 엔드포인트
         else if (type === 'fishing') await scheduler.collectFishingIndex();
+        // 바다갈라짐 체험지수 수동 수집 — POST 호환 엔드포인트
+        else if (type === 'sea-split') await scheduler.collectSeaSplitIndex();
         else return res.status(400).json({ error: '잘못된 타입' });
 
         refreshCache();

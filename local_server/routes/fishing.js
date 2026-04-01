@@ -139,4 +139,31 @@ router.get('/api/fishing-index', (req, res) => {
     res.status(404).json({ error: '바다낚시 지수 데이터 준비 중' });
 });
 
+// ============================================================================
+// 바다갈라짐 체험지수 API
+// ============================================================================
+
+/**
+ * GET /api/sea-split-index
+ * 바다갈라짐 체험지수 전체 데이터를 반환합니다.
+ *
+ * [응답 구조]
+ * {
+ *   updatedAt: '수집 시점',
+ *   allPlaces: ['진도','무창포',...],   // 14개 전체 지점명
+ *   places: { '실미도': { lat, lot, forecasts: { '2026-04-01': [...] } }, ... }
+ * }
+ *
+ * [연계] scheduler.js → collectSeaSplitIndex()가 sea_split_index.json으로 저장
+ *        js/sea_parting.js (프론트엔드) → fetch('/api/sea-split-index')로 요청
+ */
+router.get('/api/sea-split-index', (req, res) => {
+    // 캐시된 데이터가 있으면 바로 응답
+    if (dataCache.seaSplitIndex) {
+        return res.json(dataCache.seaSplitIndex);
+    }
+    // 아직 수집되지 않은 경우
+    res.status(404).json({ error: '바다갈라짐 체험지수 데이터 준비 중' });
+});
+
 module.exports = router;

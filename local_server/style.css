@@ -5538,3 +5538,336 @@ line-height: 1.1;
     flex: 1;
     min-height: 0;
 }
+
+/* ============================================================================
+ * 바다갈라짐 체험지수 스타일
+ * [연계] index.html #sea-parting-section, js/sea_parting.js 전체
+ * ============================================================================ */
+
+/* 섹션 제목 하단 여백 축소 */
+#sea-parting-section .section-header-with-info {
+    margin-bottom: 8px;
+}
+
+/* 지역 버튼 영역 */
+.sp-place-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 0;
+}
+
+.sp-place-btn {
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    color: #bbb;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
+.sp-place-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+
+.sp-place-btn.active {
+    background: linear-gradient(135deg, rgba(102, 187, 106, 0.25), rgba(102, 187, 106, 0.15));
+    border-color: rgba(102, 187, 106, 0.5);
+    color: #81C784;
+}
+
+.sp-place-btn.favorite .sp-fav-icon {
+    color: #ffd54f;
+    font-size: 0.7rem;
+    margin-right: 2px;
+}
+
+/* 즐겨찾기 + 발표시점 한 줄 */
+.sp-info-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    margin-bottom: 4px;
+}
+
+.sp-favorite-btn {
+    background: none;
+    border: none;
+    color: #555;
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    transition: all 0.2s;
+}
+
+.sp-favorite-btn:hover {
+    color: #ffd54f;
+}
+
+.sp-favorite-btn.active {
+    color: #ffd54f;
+}
+
+.sp-publish-time {
+    color: #64748b;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* 데이터 컨테이너 (fade 애니메이션) */
+.sp-data-container {
+    transition: opacity 0.2s ease;
+}
+
+.sp-data-container.sp-fade-out {
+    opacity: 0;
+}
+
+.sp-data-container.sp-fade-in {
+    animation: spFadeIn 0.3s ease forwards;
+}
+
+@keyframes spFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 테이블 */
+.sp-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    color: #ccc;
+}
+
+.sp-table thead th {
+    background: rgba(255, 255, 255, 0.06);
+    color: #94a3b8;
+    font-weight: 700;
+    font-size: 0.72rem;
+    padding: 10px 8px;
+    text-align: center;
+    white-space: nowrap;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sp-table tbody tr {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.15s;
+}
+
+.sp-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.sp-table tbody td {
+    padding: 10px 8px;
+    text-align: center;
+    vertical-align: middle;
+    white-space: nowrap;
+    font-size: 0.78rem;
+}
+
+.sp-date-cell {
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
+.sp-date-main {
+    font-size: 0.82rem;
+}
+
+.sp-date-day {
+    font-size: 0.68rem;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+.sp-date-day.sp-weekend,
+.sp-date-cell.sp-weekend .sp-date-main {
+    color: #ef5350;
+}
+
+.sp-time-cell {
+    color: #81d4fa;
+    font-weight: 600;
+}
+
+.sp-index-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* 데이터 없음 안내 */
+.sp-no-data {
+    text-align: center;
+    color: #64748b;
+    padding: 30px 15px;
+    font-size: 0.85rem;
+}
+
+/* 하단 안내문구 */
+.sp-notice {
+    margin: 15px 0;
+    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    text-align: center;
+}
+
+.sp-notice p {
+    margin: 0;
+    color: #94a3b8;
+    font-size: 0.85rem;
+}
+
+.sp-notice i {
+    color: #64748b;
+    margin-right: 4px;
+}
+
+/* 체험지수란? 버튼 */
+.sp-guide-link {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.sp-guide-btn {
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 4px 0;
+    transition: color 0.2s;
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
+.sp-guide-btn:hover {
+    color: #94a3b8;
+}
+
+/* 체험지수란? 팝업 */
+.sp-guide-popup {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.sp-guide-popup.show {
+    opacity: 1;
+}
+
+.sp-guide-content {
+    width: 90%;
+    max-width: 380px;
+    background: #161b2d;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+.sp-guide-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sp-guide-header h3 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #e2e8f0;
+    font-weight: 600;
+}
+
+.sp-guide-header h3 i {
+    color: #66bb6a;
+    margin-right: 6px;
+}
+
+.sp-guide-close {
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    color: #888;
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 0;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sp-guide-close:active {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+}
+
+.sp-guide-body {
+    padding: 14px 16px 18px;
+    font-size: 0.82rem;
+    color: #bbb;
+    line-height: 1.6;
+}
+
+.sp-guide-body p {
+    margin: 0 0 12px;
+}
+
+.sp-guide-levels {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.sp-guide-level {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    color: #ccc;
+}
+
+.sp-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.sp-guide-source {
+    color: #555;
+    font-size: 0.7rem;
+    margin-bottom: 0 !important;
+}
