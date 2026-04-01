@@ -1094,6 +1094,14 @@ function _onSectionActivated(sectionId) {
             }
         }, 200);
     }
+    // 바다갈라짐 탭 활성화 시 데이터 로드
+    if (sectionId === 'sea-parting-section') {
+        setTimeout(() => {
+            if (window.initSeaParting) {
+                window.initSeaParting();
+            }
+        }, 200);
+    }
     // 공지사항 탭 활성화 시 게시글 로드
     if (sectionId === 'promo-section') {
         if (typeof loadPromoPosts === 'function') setTimeout(loadPromoPosts, 100);

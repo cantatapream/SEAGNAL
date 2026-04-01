@@ -39,7 +39,8 @@ const dataCache = {
     notice: null,
     promo: null,
     boards: null,
-    fishingIndex: null,  // 바다낚시 지수 (scheduler.js → fishing_index.json)
+    fishingIndex: null,       // 바다낚시 지수 (scheduler.js → fishing_index.json)
+    seaSplitIndex: null,      // 바다갈라짐 체험지수 (scheduler.js → sea_split_index.json)
     lastUpdate: {}
 };
 
@@ -59,7 +60,8 @@ function refreshCache() {
         notice: 'notice.json',
         promo: 'promo.json',
         boards: 'boards.json',
-        fishingIndex: 'fishing_index.json'  // 바다낚시 지수 데이터
+        fishingIndex: 'fishing_index.json',       // 바다낚시 지수 데이터
+        seaSplitIndex: 'sea_split_index.json'   // 바다갈라짐 체험지수 데이터
     };
 
     Object.keys(files).forEach(key => {

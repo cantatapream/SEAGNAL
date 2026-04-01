@@ -919,13 +919,44 @@
                 </div>
             </section>
 
-            <!-- 섹션: 해양생활 - 바다갈라짐 -->
+            <!-- ================================================================
+                 섹션: 해양생활 - 바다갈라짐
+                 [연계] js/sea_parting.js → initSeaParting(), 지역 버튼/테이블
+                 [연계] routes/fishing.js → /api/sea-split-index 데이터 제공
+                 ================================================================ -->
             <section id="sea-parting-section" class="tab-content">
                 <div class="section-header-with-info">
-                    <h2 class="section-title"><i class="fa-solid fa-road"></i> 바다갈라짐 지수</h2>
+                    <h2 class="section-title"><i class="fa-solid fa-road"></i> 바다갈라짐 체험지수</h2>
                 </div>
-                <div style="margin:15px 0;padding:20px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(0,0,0,0.3);text-align:center;">
-                    <p style="margin:0;color:var(--accent-yellow,#ffd54f);font-weight:500;font-size:0.95rem;">바다갈라짐 지수 기능 준비 중입니다.</p>
+
+                <!-- 지역 버튼 영역 (동적 생성) -->
+                <div class="sp-place-buttons" id="sp-place-buttons">
+                    <!-- sea_parting.js에서 데이터 기반 동적 생성 -->
+                </div>
+
+                <!-- 즐겨찾기 별표 + 발표시점 (한 줄) -->
+                <div class="sp-info-row" id="sp-info-row" style="display:none;">
+                    <button class="sp-favorite-btn" id="sp-favorite-btn" title="즐겨찾기">
+                        <i class="fa-regular fa-star"></i>
+                    </button>
+                    <span class="sp-publish-time" id="sp-publish-time">발표: -</span>
+                </div>
+
+                <!-- 체험시간 데이터 테이블 영역 -->
+                <div class="sp-data-container" id="sp-data-container">
+                    <!-- sea_parting.js에서 날짜별 테이블 렌더링 -->
+                </div>
+
+                <!-- 안내 문구 -->
+                <div class="sp-notice" id="sp-notice">
+                    <p><i class="fa-solid fa-circle-info"></i> 지역 버튼을 선택하면 체험시간 정보를 확인할 수 있습니다.</p>
+                </div>
+
+                <!-- 체험지수란? 팝업 트리거 -->
+                <div class="sp-guide-link">
+                    <button class="sp-guide-btn" id="sp-guide-btn">
+                        <i class="fa-solid fa-question-circle"></i> 체험지수란?
+                    </button>
                 </div>
             </section>
 
@@ -988,6 +1019,7 @@
     <script src="js/windy.js"></script>
     <script src="js/marine_forecast.js"></script>
     <script src="js/fishing.js"></script>
+    <script src="js/sea_parting.js"></script>
     <script src="js/admin_trigger.js"></script>
     <script src="js/promo.js"></script>
     <script src="js/admin.js"></script>

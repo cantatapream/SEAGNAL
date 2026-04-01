@@ -67,7 +67,8 @@ const lastRunStatus = {
     buoys: { lastRun: null, status: '대기 중', message: '' },
     general: { lastRun: null, status: '대기 중', message: '' },
     zone: { lastRun: null, status: '대기 중', message: '' },
-    fishing: { lastRun: null, status: '대기 중', message: '' }  // 바다낚시 지수
+    fishing: { lastRun: null, status: '대기 중', message: '' },  // 바다낚시 지수
+    seaSplit: { lastRun: null, status: '대기 중', message: '' }   // 바다갈라짐 체험지수
 };
 
 const CONFIG_FILE = path.join(__dirname, 'data/api_config.json');
@@ -684,6 +685,193 @@ async function _fetchFishingData(gubun) {
     }
 }
 
+// ========================================================================
+// 바다갈라짐 체험지수 수집
+// ========================================================================
+
+// 바다갈라짐 API 설정 (바다낚시와 동일한 인증키 사용)
+const SEA_SPLIT_API_BASE = 'https://apis.data.go.kr/1192136/fcstSeaSplitv2/GetFcstSeaSplitApiServicev2';
+
+// 14개 전체 지점 목록 (코드 순서 기준, 데이터 없는 지점 안내용)
+const SEA_SPLIT_ALL_PLACES = [
+    'SD1:진도', 'SD2:무창포', 'SD4:제부도', 'SD5:서건도', 'SD6:실미도',
+    'SD7:하섬', 'SD8:웅도', 'SD9:소야도', 'SD10:소매물도', 'SD11:동섬',
+    'SD19:우도', 'SD20:선재도', 'SD21:화도', 'SD22:대섬'
+];
+
+/**
+ * 바다갈라짐 체험지수 데이터 수집 함수
+ *
+ * [설명]
+ * 국립해양조사원 바다갈라짐 API를 호출하여 전국 지점의 7일간 예보 데이터를 수집합니다.
+ * numOfRows=300으로 1회 호출 시 대부분 전체 데이터를 수신하며, 초과 시 페이지 순회합니다.
+ * 수집된 데이터를 지점명 기준으로 그룹핑하고, 날짜별로 정리하여 JSON 파일로 저장합니다.
+ *
+ * [데이터 구조]
+ * {
+ *   updatedAt: '수집 시점',
+ *   allPlaces: ['진도','무창포',...],  // 14개 전체 지점명 (데이터 없는 지점 안내용)
+ *   places: {
+ *     '실미도': {
+ *       lat: 37.40252, lot: 126.39808,
+ *       forecasts: {
+ *         '2026-04-01': [
+ *           { bgng: '09:00', end: '14:02', minArtmp: '7.9', maxArtmp: '9.0',
+ *             minWspd: '0.7', maxWspd: '7.4', weather: '흐림', totalIndex: '보통' }
+ *         ],
+ *         '2026-04-06': [       // 같은 날 2구간 가능
+ *           { bgng: '09:00', end: '09:22', ... totalIndex: '나쁨' },
+ *           { bgng: '14:19', end: '18:00', ... totalIndex: '보통' }
+ *         ]
+ *       }
+ *     }
+ *   }
+ * }
+ *
+ * [연계] routes/fishing.js → /api/sea-split-index, js/sea_parting.js → UI 렌더링
+ */
+async function collectSeaSplitIndex() {
+    try {
+        log('🛤️ 바다갈라짐 체험지수 수집 시작...');
+
+        // 진행률 이벤트 발행 (관리자 수동 수집 시 SSE 스트림으로 전달)
+        collectProgress.emit('progress', { type: 'sea-split', step: '바다갈라짐 지수', current: 1, total: 3, detail: 'API 호출 중' });
+
+        const items = await _fetchSeaSplitData();
+
+        collectProgress.emit('progress', { type: 'sea-split', step: '바다갈라짐 지수', current: 2, total: 3, detail: '데이터 가공 중' });
+
+        // 결과 객체 초기화
+        const result = {
+            updatedAt: getNowStr(),
+            allPlaces: SEA_SPLIT_ALL_PLACES.map(s => s.split(':')[1]), // ['진도','무창포',...]
+            places: {}
+        };
+
+        if (!items || items.length === 0) {
+            log('⚠️ 바다갈라짐 데이터 없음 (전 지점 갈라짐 없음)');
+        } else {
+            // API 응답을 지점명 기준으로 그룹핑
+            items.forEach(item => {
+                const placeName = item.splocPstnNm;
+                if (!placeName) return;
+
+                // 해당 지점이 처음 등장하면 초기 객체 생성
+                if (!result.places[placeName]) {
+                    result.places[placeName] = {
+                        lat: parseFloat(item.lat) || 0,
+                        lot: parseFloat(item.lot) || 0,
+                        forecasts: {}
+                    };
+                }
+
+                const place = result.places[placeName];
+                const dateStr = item.predcYmd || ''; // 'YYYY-MM-DD' 형식
+
+                // 해당 날짜의 예보 배열 초기화 (같은 날 2구간 가능하므로 배열)
+                if (!place.forecasts[dateStr]) {
+                    place.forecasts[dateStr] = [];
+                }
+
+                // 시간 구간별 데이터 추가
+                place.forecasts[dateStr].push({
+                    bgng: item.splocBgngDt || '',       // 체험 시작 시간 (HH:MM)
+                    end: item.splocEndDt || '',          // 체험 종료 시간 (HH:MM)
+                    minArtmp: item.minArtmp || '',       // 최저기온 (°C)
+                    maxArtmp: item.maxArtmp || '',       // 최고기온 (°C)
+                    minWspd: item.minWspd || '',         // 최저풍속 (m/s)
+                    maxWspd: item.maxWspd || '',         // 최고풍속 (m/s)
+                    weather: item.weather || '',         // 날씨 (맑음, 흐림, 구름많음 등)
+                    totalIndex: item.totalIndex || ''    // 바다갈라짐 체험지수 (5단계)
+                });
+            });
+        }
+
+        // 수집 결과 로그
+        const placeNames = Object.keys(result.places);
+        log(`🛤️ 바다갈라짐 수집 완료: ${placeNames.length}개 지점 (${placeNames.join(', ')})`);
+
+        // 데이터 없는 지점 목록 로그
+        const missingPlaces = result.allPlaces.filter(n => !result.places[n]);
+        if (missingPlaces.length > 0) {
+            log(`🛤️ 바다갈라짐 미발생 지점: ${missingPlaces.join(', ')}`);
+        }
+
+        collectProgress.emit('progress', { type: 'sea-split', step: '바다갈라짐 지수', current: 3, total: 3, detail: '저장 중' });
+
+        // JSON 파일로 저장
+        saveData('sea_split_index.json', result);
+        lastRunStatus.seaSplit = {
+            lastRun: getNowStr(),
+            status: '성공',
+            message: `${placeNames.length}개 지점, 미발생 ${missingPlaces.length}개`
+        };
+
+    } catch (e) {
+        lastRunStatus.seaSplit = { lastRun: getNowStr(), status: '실패', message: e.message };
+        log(`⚠️ 바다갈라짐 체험지수 수집 실패: ${e.message}`);
+    }
+}
+
+/**
+ * 바다갈라짐 API 호출 함수 (페이지네이션 포함)
+ * @returns {Array} API 응답의 전체 items 배열 (실패 시 빈 배열)
+ *
+ * [설명]
+ * numOfRows=300(최대값)으로 호출하며, totalCount가 300을 초과하면 다음 페이지를 순회합니다.
+ * 현재 7일간 예보 × 14지점이므로 약 70~100건이 일반적이며 1회 호출로 충분합니다.
+ *
+ * [연계] collectSeaSplitIndex()에서 호출
+ */
+async function _fetchSeaSplitData() {
+    const allItems = [];
+    const encodedKey = encodeURIComponent(FISHING_API_KEY); // 낚시와 동일한 API 키 사용
+    let pageNo = 1;
+    const numOfRows = 300;
+
+    try {
+        while (true) {
+            const params = new URLSearchParams({
+                numOfRows: String(numOfRows),
+                pageNo: String(pageNo),
+                type: 'json'
+            });
+            const url = `${SEA_SPLIT_API_BASE}?serviceKey=${encodedKey}&${params.toString()}`;
+            const response = await fetchWithTimeout(url, {}, 30000);
+
+            if (!response.ok) {
+                log(`⚠️ 바다갈라짐 API 응답 오류 (p${pageNo}): HTTP ${response.status}`);
+                break;
+            }
+
+            const data = await response.json();
+
+            if (data?.header?.resultCode !== '00') {
+                log(`⚠️ 바다갈라짐 API 오류: ${data?.header?.resultMsg}`);
+                break;
+            }
+
+            const items = data?.body?.items?.item;
+            if (!items) break;
+
+            const arr = Array.isArray(items) ? items : [items];
+            allItems.push(...arr);
+
+            const totalCount = data?.body?.totalCount || 0;
+            log(`🛤️ 바다갈라짐 p${pageNo}: ${arr.length}건 수신 (누적 ${allItems.length}/${totalCount})`);
+
+            if (arr.length < numOfRows) break;
+            pageNo++;
+            if (pageNo > 10) break; // 안전장치
+        }
+
+        return allItems;
+    } catch (e) {
+        log(`⚠️ 바다갈라짐 API 호출 실패: ${e.message}`);
+        return allItems;
+    }
+}
+
 // [Note] 기존 특보 수집(collectWarnings) 및 해구별 예보(collectZoneForecasts) 로직은 제거됨.
 // 특보는 weather_alerts_crawler.js가 전담.
 
@@ -707,7 +895,8 @@ async function init() {
             collectMidTermSeaForecasts(),
             marineForecastProcessor.collectMarineForecasts().then(() => log('✅ 해상 기상 전망 수집 완료')),
             regionalForecastCollector.collectRegionalForecasts().then(() => log('✅ 지방기상청 단기예보 수집 완료')),
-            collectFishingIndex().then(() => log('✅ 바다낚시 지수 수집 완료'))
+            collectFishingIndex().then(() => log('✅ 바다낚시 지수 수집 완료')),
+            collectSeaSplitIndex().then(() => log('✅ 바다갈라짐 체험지수 수집 완료'))
         ]);
     } catch (e) {
         log(`⚠️ 일부 수집 중 오류: ${e.message}`);
@@ -749,6 +938,9 @@ async function init() {
 
         // 바다낚시 지수: 하루 2회 (06:30, 18:30) - API 발표 직후 수집
         if (['06:30', '18:30'].includes(hm)) collectFishingIndex();
+
+        // 바다갈라짐 체험지수: 매시 35분 (1시간 간격)
+        if (min === 35) collectSeaSplitIndex();
 
         // 지방기상청 단기예보: 발표 주기(05, 11, 17시) +10분에 수집
         if (['05:10', '11:10', '17:10'].includes(hm)) {
@@ -793,6 +985,7 @@ module.exports = {
     collectZoneForecasts,
     collectMidTermSeaForecasts,
     collectFishingIndex,
+    collectSeaSplitIndex,
     getStatus: () => lastRunStatus,
     collectProgress,
     getCrawlPaused: () => crawlPaused,
