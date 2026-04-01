@@ -939,8 +939,8 @@ async function init() {
         // 바다낚시 지수: 하루 2회 (06:30, 18:30) - API 발표 직후 수집
         if (['06:30', '18:30'].includes(hm)) collectFishingIndex();
 
-        // 바다갈라짐 체험지수: 하루 2회 (06:35, 18:35) - 바다낚시 직후 수집
-        if (['06:35', '18:35'].includes(hm)) collectSeaSplitIndex();
+        // 바다갈라짐 체험지수: 매시 35분 (1시간 간격)
+        if (min === 35) collectSeaSplitIndex();
 
         // 지방기상청 단기예보: 발표 주기(05, 11, 17시) +10분에 수집
         if (['05:10', '11:10', '17:10'].includes(hm)) {
