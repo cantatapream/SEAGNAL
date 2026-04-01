@@ -260,13 +260,29 @@
         header.innerHTML = '<span>' + title + '</span>' +
             '<button class="fishing-guide-popup-close" id="fishing-guide-close"><i class="fa-solid fa-xmark"></i></button>';
 
-        // 스크롤 가능한 이미지 영역
+        // 스크롤 가능한 이미지 영역 (로딩 스피너 → 이미지 로딩 완료 시 교체)
         var body = document.createElement('div');
         body.className = 'fishing-guide-popup-body';
+
+        // 로딩 스피너 (이미지 로딩 중 표시)
+        var spinner = document.createElement('div');
+        spinner.className = 'guide-popup-spinner';
+        spinner.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        body.appendChild(spinner);
+
+        // 이미지 (처음엔 숨김, 로딩 완료 시 스피너 대체)
         var img = document.createElement('img');
         img.src = imgSrc;
         img.alt = title;
         img.style.width = '100%';
+        img.style.display = 'none';
+        img.onload = function () {
+            spinner.style.display = 'none';
+            img.style.display = 'block';
+        };
+        img.onerror = function () {
+            spinner.innerHTML = '<span style="color:#ef4444;font-size:0.8rem;">이미지를 불러올 수 없습니다.</span>';
+        };
         body.appendChild(img);
 
         popup.appendChild(header);
@@ -293,8 +309,13 @@
     function _closeGuidePopup() {
         var overlay = document.getElementById('fishing-guide-overlay');
         var popup = document.getElementById('fishing-guide-popup');
+        // 이미지 로딩 중 팝업 닫힐 때 핸들러 정리 (메모리 누수 방지)
+        if (popup) {
+            var img = popup.querySelector('img');
+            if (img) { img.onload = null; img.onerror = null; }
+            popup.remove();
+        }
         if (overlay) overlay.remove();
-        if (popup) popup.remove();
         if (window.PopupStack) {
             window.PopupStack.remove('fishing-guide-popup');
         }
