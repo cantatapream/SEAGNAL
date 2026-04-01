@@ -5780,19 +5780,27 @@ line-height: 1.1;
     margin-right: 4px;
 }
 
-/* --- 하단 정보: 면책 문구 --- */
+/* --- 하단 정보: 면책 문구 (낚시 지수 fishing-disclaimer와 동일 스타일) --- */
 .sp-disclaimer {
     margin-top: 10px;
-    padding: 10px 14px;
-    color: #5a7a8a;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+}
+
+.sp-disclaimer p {
+    margin: 0;
     font-size: 0.72rem;
     line-height: 1.6;
+    color: #8899aa;
 }
 
 .sp-disclaimer i {
     color: #5a8fb8;
     margin-right: 4px;
     font-size: 0.65rem;
+}
 }
 
 /* --- 이미지 가이드 팝업 (바다갈라짐 + 낚시 공용 로딩 스피너) --- */
