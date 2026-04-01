@@ -309,8 +309,13 @@
     function _closeGuidePopup() {
         var overlay = document.getElementById('fishing-guide-overlay');
         var popup = document.getElementById('fishing-guide-popup');
+        // 이미지 로딩 중 팝업 닫힐 때 핸들러 정리 (메모리 누수 방지)
+        if (popup) {
+            var img = popup.querySelector('img');
+            if (img) { img.onload = null; img.onerror = null; }
+            popup.remove();
+        }
         if (overlay) overlay.remove();
-        if (popup) popup.remove();
         if (window.PopupStack) {
             window.PopupStack.remove('fishing-guide-popup');
         }

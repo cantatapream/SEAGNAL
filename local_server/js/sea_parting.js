@@ -143,10 +143,13 @@
             return '<option value="' + name + '">' + name + '</option>';
         }).join('');
 
-        // 드롭다운 변경 시 해당 지역 데이터 표시
-        select.addEventListener('change', function () {
-            _selectPlace(select.value);
-        });
+        // 드롭다운 변경 시 해당 지역 데이터 표시 (중복 등록 방지)
+        if (!select._spBound) {
+            select.addEventListener('change', function () {
+                _selectPlace(select.value);
+            });
+            select._spBound = true;
+        }
 
         // 드롭다운 영역 표시
         var selectorRow = document.getElementById('sp-selector-row');
@@ -266,7 +269,8 @@
             if (!windows || windows.length === 0) return;
 
             // ★ 같은 날 여러 구간이 있으면 시작시간(bgng) 기준 오름차순 정렬
-            windows.sort(function (a, b) {
+            // 원본 배열을 보호하기 위해 복사본을 만들어 정렬
+            var sortedWindows = windows.slice().sort(function (a, b) {
                 return (a.bgng || '').localeCompare(b.bgng || '');
             });
 
@@ -274,7 +278,7 @@
             var dayOfWeek = _getDayOfWeek(date);
             var isWeekend = dayOfWeek === '토' || dayOfWeek === '일';
 
-            windows.forEach(function (w, idx) {
+            sortedWindows.forEach(function (w, idx) {
                 if (!w) return; // null 방어
 
                 var indexStyle = INDEX_COLORS[w.totalIndex] || { bg: 'rgba(255,255,255,0.05)', color: '#94a3b8', border: 'rgba(255,255,255,0.1)' };
@@ -288,7 +292,7 @@
                 // 날짜 셀: 같은 날 여러 구간이면 첫 번째 행에서만 rowspan으로 표시
                 if (idx === 0) {
                     html += '<td class="sp-date-cell' + (isWeekend ? ' sp-weekend' : '') + '"' +
-                        (windows.length > 1 ? ' rowspan="' + windows.length + '"' : '') + '>' +
+                        (sortedWindows.length > 1 ? ' rowspan="' + sortedWindows.length + '"' : '') + '>' +
                         '<div class="sp-date-main">' + formattedDate + '</div>' +
                         '<div class="sp-date-day' + (isWeekend ? ' sp-weekend' : '') + '">' + dayOfWeek + '</div>' +
                         '</td>';
@@ -513,8 +517,13 @@
     function _closeGuidePopup() {
         var overlay = document.getElementById('sp-guide-overlay');
         var popup = document.getElementById('sp-guide-popup');
+        // 이미지 로딩 중 팝업 닫힐 때 핸들러 정리 (메모리 누수 방지)
+        if (popup) {
+            var img = popup.querySelector('img');
+            if (img) { img.onload = null; img.onerror = null; }
+            popup.remove();
+        }
         if (overlay) overlay.remove();
-        if (popup) popup.remove();
         if (window.PopupStack) {
             window.PopupStack.remove('sp-guide-popup');
         }
@@ -532,9 +541,12 @@
     function _calcDuration(startStr, endStr) {
         var sParts = startStr.split(':');
         var eParts = endStr.split(':');
+        if (sParts.length < 2 || eParts.length < 2) return ''; // 형식 오류 방어
         var startMin = parseInt(sParts[0], 10) * 60 + parseInt(sParts[1], 10);
         var endMin = parseInt(eParts[0], 10) * 60 + parseInt(eParts[1], 10);
+        if (isNaN(startMin) || isNaN(endMin)) return ''; // 숫자 변환 실패 방어
         var diff = endMin - startMin;
+        if (diff < 0) diff += 24 * 60; // 자정 넘김 대응 (23:00~01:00 등)
         if (diff <= 0) return '';
 
         var hours = Math.floor(diff / 60);
