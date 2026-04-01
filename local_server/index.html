@@ -921,24 +921,32 @@
 
             <!-- ================================================================
                  섹션: 해양생활 - 바다갈라짐
-                 [연계] js/sea_parting.js → initSeaParting(), 지역 버튼/테이블
+                 [연계] js/sea_parting.js → initSeaParting(), 드롭다운/테이블
                  [연계] routes/fishing.js → /api/sea-split-index 데이터 제공
                  ================================================================ -->
             <section id="sea-parting-section" class="tab-content">
-                <div class="section-header-with-info">
-                    <h2 class="section-title"><i class="fa-solid fa-road"></i> 바다갈라짐 체험지수</h2>
+
+                <!-- 상단 헤더: 제목(좌) + 체험지수란? 버튼(우) -->
+                <div class="section-header-with-info sp-header">
+                    <h2 class="section-title"><i class="fa-solid fa-road"></i> 바다갈라짐 시간</h2>
+                    <button class="sp-guide-btn" id="sp-guide-btn">
+                        <i class="fa-solid fa-question-circle"></i> 체험지수란?
+                    </button>
                 </div>
 
-                <!-- 지역 버튼 영역 (동적 생성) -->
-                <div class="sp-place-buttons" id="sp-place-buttons">
-                    <!-- sea_parting.js에서 데이터 기반 동적 생성 -->
-                </div>
-
-                <!-- 즐겨찾기 별표 + 발표시점 (한 줄) -->
-                <div class="sp-info-row" id="sp-info-row" style="display:none;">
+                <!-- 지역 선택 줄: 드롭다운 + "지역 바다갈라짐 시간" 라벨 + 즐겨찾기 별표 -->
+                <div class="sp-selector-row" id="sp-selector-row" style="display:none;">
+                    <select class="sp-place-select" id="sp-place-select">
+                        <!-- sea_parting.js에서 데이터 기반 동적 생성 -->
+                    </select>
+                    <span class="sp-selector-label">지역 바다갈라짐 시간</span>
                     <button class="sp-favorite-btn" id="sp-favorite-btn" title="즐겨찾기">
                         <i class="fa-regular fa-star"></i>
                     </button>
+                </div>
+
+                <!-- 발표시점 (표 바로 위, 오른쪽 정렬) -->
+                <div class="sp-publish-row" id="sp-publish-row" style="display:none;">
                     <span class="sp-publish-time" id="sp-publish-time">발표: -</span>
                 </div>
 
@@ -947,17 +955,9 @@
                     <!-- sea_parting.js에서 날짜별 테이블 렌더링 -->
                 </div>
 
-                <!-- 안내 문구 -->
-                <div class="sp-notice" id="sp-notice">
-                    <p><i class="fa-solid fa-circle-info"></i> 지역 버튼을 선택하면 체험시간 정보를 확인할 수 있습니다.</p>
-                </div>
+                <!-- 하단 정보: 미발생 지역 안내 + 면책 문구 (sea_parting.js에서 동적 생성) -->
+                <div id="sp-footer-info"></div>
 
-                <!-- 체험지수란? 팝업 트리거 -->
-                <div class="sp-guide-link">
-                    <button class="sp-guide-btn" id="sp-guide-btn">
-                        <i class="fa-solid fa-question-circle"></i> 체험지수란?
-                    </button>
-                </div>
             </section>
 
         </main>

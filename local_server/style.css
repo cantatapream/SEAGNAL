@@ -5540,71 +5540,94 @@ line-height: 1.1;
 }
 
 /* ============================================================================
- * 바다갈라짐 체험지수 스타일
+ * 바다갈라짐 시간 스타일
  * [연계] index.html #sea-parting-section, js/sea_parting.js 전체
  * ============================================================================ */
 
-/* 섹션 제목 하단 여백 축소 */
-#sea-parting-section .section-header-with-info {
-    margin-bottom: 8px;
-}
-
-/* 지역 버튼 영역 */
-.sp-place-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 8px 0;
-}
-
-.sp-place-btn {
-    padding: 7px 14px;
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.05);
-    color: #bbb;
-    font-size: 0.82rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-family: 'Noto Sans KR', sans-serif;
-}
-
-.sp-place-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.2);
-    color: #fff;
-}
-
-.sp-place-btn.active {
-    background: linear-gradient(135deg, rgba(102, 187, 106, 0.25), rgba(102, 187, 106, 0.15));
-    border-color: rgba(102, 187, 106, 0.5);
-    color: #81C784;
-}
-
-.sp-place-btn.favorite .sp-fav-icon {
-    color: #ffd54f;
-    font-size: 0.7rem;
-    margin-right: 2px;
-}
-
-/* 즐겨찾기 + 발표시점 한 줄 */
-.sp-info-row {
+/* --- 상단 헤더: 제목(좌) + 체험지수란?(우) 같은 줄 --- */
+.sp-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 0;
-    margin-bottom: 4px;
+    margin-bottom: 8px;
 }
 
+/* 체험지수란? 버튼 (헤더 오른쪽) */
+.sp-guide-btn {
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 4px 0;
+    transition: color 0.2s;
+    font-family: 'Noto Sans KR', sans-serif;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.sp-guide-btn:hover {
+    color: #94a3b8;
+}
+
+/* --- 지역 선택 줄: 드롭다운 + 라벨 + 별표 --- */
+.sp-selector-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0 4px;
+    flex-wrap: wrap;
+}
+
+/* 다크 테마 드롭다운 */
+.sp-place-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 8px 32px 8px 12px;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    transition: all 0.2s;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    min-width: 90px;
+}
+
+.sp-place-select:focus {
+    outline: none;
+    border-color: rgba(102, 187, 106, 0.5);
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.sp-place-select option {
+    background: #1e2538;
+    color: #e2e8f0;
+}
+
+/* "지역 바다갈라짐 시간" 라벨 */
+.sp-selector-label {
+    color: #94a3b8;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* 즐겨찾기 별표 버튼 */
 .sp-favorite-btn {
     background: none;
     border: none;
     color: #555;
     font-size: 1.1rem;
     cursor: pointer;
-    padding: 4px 8px;
+    padding: 4px 6px;
     transition: all 0.2s;
+    flex-shrink: 0;
 }
 
 .sp-favorite-btn:hover {
@@ -5615,13 +5638,20 @@ line-height: 1.1;
     color: #ffd54f;
 }
 
+/* --- 발표시점 줄 (표 바로 위, 오른쪽 정렬) --- */
+.sp-publish-row {
+    display: flex;
+    justify-content: flex-end;
+    padding: 4px 0;
+}
+
 .sp-publish-time {
     color: #64748b;
-    font-size: 0.75rem;
+    font-size: 0.73rem;
     font-weight: 500;
 }
 
-/* 데이터 컨테이너 (fade 애니메이션) */
+/* --- 데이터 컨테이너 (fade 애니메이션) --- */
 .sp-data-container {
     transition: opacity 0.2s ease;
 }
@@ -5639,7 +5669,7 @@ line-height: 1.1;
     to   { opacity: 1; transform: translateY(0); }
 }
 
-/* 테이블 */
+/* --- 테이블 --- */
 .sp-table-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -5707,6 +5737,15 @@ line-height: 1.1;
     font-weight: 600;
 }
 
+/* 체험시간 하단 소요시간 표시 */
+.sp-duration {
+    display: block;
+    color: #64748b;
+    font-size: 0.68rem;
+    font-weight: 400;
+    margin-top: 2px;
+}
+
 .sp-index-badge {
     display: inline-block;
     padding: 3px 10px;
@@ -5724,150 +5763,48 @@ line-height: 1.1;
     font-size: 0.85rem;
 }
 
-/* 하단 안내문구 */
-.sp-notice {
-    margin: 15px 0;
-    padding: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    background: rgba(0, 0, 0, 0.3);
-    text-align: center;
-}
-
-.sp-notice p {
-    margin: 0;
-    color: #94a3b8;
-    font-size: 0.85rem;
-}
-
-.sp-notice i {
-    color: #64748b;
-    margin-right: 4px;
-}
-
-/* 체험지수란? 버튼 */
-.sp-guide-link {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 10px;
-}
-
-.sp-guide-btn {
-    background: none;
-    border: none;
-    color: #64748b;
-    font-size: 0.75rem;
-    cursor: pointer;
-    padding: 4px 0;
-    transition: color 0.2s;
-    font-family: 'Noto Sans KR', sans-serif;
-}
-
-.sp-guide-btn:hover {
-    color: #94a3b8;
-}
-
-/* 체험지수란? 팝업 */
-.sp-guide-popup {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
-    z-index: 10000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.3s;
-}
-
-.sp-guide-popup.show {
-    opacity: 1;
-}
-
-.sp-guide-content {
-    width: 90%;
-    max-width: 380px;
-    background: #161b2d;
-    border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-    overflow: hidden;
-}
-
-.sp-guide-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 16px 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.sp-guide-header h3 {
-    margin: 0;
-    font-size: 0.9rem;
-    color: #e2e8f0;
-    font-weight: 600;
-}
-
-.sp-guide-header h3 i {
-    color: #66bb6a;
-    margin-right: 6px;
-}
-
-.sp-guide-close {
-    background: rgba(255, 255, 255, 0.08);
-    border: none;
-    color: #888;
-    font-size: 0.9rem;
-    cursor: pointer;
-    padding: 0;
-    border-radius: 50%;
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.sp-guide-close:active {
-    background: rgba(255, 255, 255, 0.15);
-    color: #fff;
-}
-
-.sp-guide-body {
-    padding: 14px 16px 18px;
-    font-size: 0.82rem;
+/* --- 하단 정보: 미발생 지역 안내 --- */
+.sp-missing-notice {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 193, 7, 0.15);
+    border-radius: 10px;
+    background: rgba(255, 193, 7, 0.06);
     color: #bbb;
+    font-size: 0.78rem;
     line-height: 1.6;
 }
 
-.sp-guide-body p {
-    margin: 0 0 12px;
+.sp-missing-notice i {
+    color: #ffc107;
+    margin-right: 4px;
 }
 
-.sp-guide-levels {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 12px;
+/* --- 하단 정보: 면책 문구 --- */
+.sp-disclaimer {
+    margin-top: 10px;
+    padding: 10px 14px;
+    color: #5a7a8a;
+    font-size: 0.72rem;
+    line-height: 1.6;
 }
 
-.sp-guide-level {
+.sp-disclaimer i {
+    color: #5a8fb8;
+    margin-right: 4px;
+    font-size: 0.65rem;
+}
+
+/* --- 이미지 가이드 팝업 (바다갈라짐 + 낚시 공용 로딩 스피너) --- */
+.guide-popup-spinner {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 0.78rem;
-    color: #ccc;
+    justify-content: center;
+    padding: 40px 0;
 }
 
-.sp-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
+.guide-popup-spinner i {
+    font-size: 1.5rem;
+    color: #64748b;
 }
 
-.sp-guide-source {
-    color: #555;
-    font-size: 0.7rem;
-    margin-bottom: 0 !important;
-}
