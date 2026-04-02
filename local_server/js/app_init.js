@@ -191,7 +191,19 @@ window.handleHeaderRefresh = handleHeaderRefresh;
 window.updateVisitorStats = async function () {
     try {
         const hasVisited = sessionStorage.getItem('v1_visited');
-        const url = hasVisited ? '/api/visit?inc=false' : '/api/visit';
+        // 관리자 모드 여부 확인 (localStorage는 동기 읽기이므로 즉시 판단 가능)
+        const isAdmin = localStorage.getItem('seagnal_admin_mode') === 'true';
+
+        // 방문자 카운트 API URL 결정:
+        // - 이미 이 세션에서 방문한 적 있으면 → inc=false (카운트 증가 안 함, 현재 수치만 조회)
+        // - 관리자 기기이면 → admin=true 추가 (서버에서 하루 1회만 카운트)
+        // - 일반 사용자 첫 방문이면 → /api/visit (카운트 +1)
+        let url = '/api/visit';
+        if (hasVisited) {
+            url = '/api/visit?inc=false';
+        } else if (isAdmin) {
+            url = '/api/visit?admin=true';
+        }
 
         const response = await fetch(url);
         if (!response.ok) throw new Error('Network response was not ok');

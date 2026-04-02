@@ -449,8 +449,11 @@ window.openPromoDetail = async function (postId) {
     if (!modal) return;
 
     try {
-        // [수정] 상세 조회 API 호출 (조회수 자동 증가)
-        const res = await fetch(CONFIG.API_BASE + '/api/promo/' + postId);
+        // 상세 조회 API 호출 (조회수 자동 증가)
+        // 관리자 기기이면 ?admin=true를 붙여서 하루 1회만 조회수 증가하도록 함
+        const isAdmin = localStorage.getItem('seagnal_admin_mode') === 'true';
+        const promoUrl = CONFIG.API_BASE + '/api/promo/' + postId + (isAdmin ? '?admin=true' : '');
+        const res = await fetch(promoUrl);
         if (!res.ok) {
             alert('게시글을 불러올 수 없습니다.');
             return;

@@ -1958,7 +1958,8 @@ window.editNoticeUnified = async function (id) {
             // 연결된 게시글 복원
             if (target.linkedPromoId) {
                 try {
-                    const pRes = await fetch(CONFIG.API_BASE + '/api/promo/' + target.linkedPromoId);
+                    // 관리자 패널에서 게시글 조회 → admin=true로 조회수 중복 증가 방지
+                    const pRes = await fetch(CONFIG.API_BASE + '/api/promo/' + target.linkedPromoId + '?admin=true');
                     if (pRes.ok) {
                         const post = await pRes.json();
                         window.selectLinkedPromoUnified(post.id, post.title);
@@ -2419,13 +2420,15 @@ async function renderUnifiedStatsContent(container) {
                     ${['hourly', 'daily', 'monthly'].map(p => `
                         <button onclick="window.updateStatsType('${p}')" id="btn-stats-${p}"
                                 style="padding:6px 12px; border:none; border-radius:6px; background:transparent; color:#94a3b8; font-size:0.8rem; font-weight:600; cursor:pointer; transition:0.2s;">
-                            ${p === 'hourly' ? '시간별(오늘)' : (p === 'daily' ? '일별' : '월별')}
+                            ${p === 'hourly' ? '시간별' : (p === 'daily' ? '일별' : '월별')}
                         </button>
                     `).join('')}
                 </div>
                 <div id="stats-date-group" style="display:flex; align-items:center; gap:8px; margin-left:auto;">
+                    <!-- 날짜 선택기: 시간별 탭에서는 "조회 날짜" 라벨로 바뀌고, 종료일·물결표가 숨겨짐 -->
+                    <span id="stats-date-label" style="color:#94a3b8; font-size:0.75rem; font-weight:600; display:none;">조회 날짜:</span>
                     <input type="date" id="stats-start-date" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; padding:4px 8px; font-size:0.8rem;">
-                    <span style="color:#475569;">~</span>
+                    <span id="stats-date-separator" style="color:#475569;">~</span>
                     <input type="date" id="stats-end-date" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; padding:4px 8px; font-size:0.8rem;">
                     <button onclick="window.refreshStatsDash()" style="background:#3b82f6; border:none; color:#fff; padding:5px 10px; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer;">적용</button>
                 </div>
@@ -2483,10 +2486,27 @@ async function renderUnifiedStatsContent(container) {
             }
         });
 
-        // 시간별일 때는 날짜 선택기 비활성화 (오늘 고정)
-        const dateGroup = document.getElementById('stats-date-group');
-        if (type === 'hourly') dateGroup.style.opacity = '0.3', dateGroup.style.pointerEvents = 'none';
-        else dateGroup.style.opacity = '1', dateGroup.style.pointerEvents = 'all';
+        // 시간별 ↔ 기간별 날짜 선택기 동적 전환
+        // - 시간별: "조회 날짜" 라벨 표시 + 시작일 하나만 노출 (하루 선택)
+        // - 일별/월별: 시작일 ~ 종료일 기간 범위 선택
+        const dateLabel = document.getElementById('stats-date-label');
+        const dateSeparator = document.getElementById('stats-date-separator');
+        const dateEnd = document.getElementById('stats-end-date');
+
+        if (type === 'hourly') {
+            // 시간별: "조회 날짜:" 라벨을 보여주고, 종료일·물결표를 숨김
+            dateLabel.style.display = 'inline';
+            dateSeparator.style.display = 'none';
+            dateEnd.style.display = 'none';
+            // 시작일을 오늘로 초기화 (시간별 전환 시 기본값)
+            const kstNow = new Date(new Date().getTime() + (9 * 60 * 60 * 1000));
+            document.getElementById('stats-start-date').value = kstNow.toISOString().split('T')[0];
+        } else {
+            // 일별/월별: 라벨 숨기고, 종료일·물결표 다시 표시
+            dateLabel.style.display = 'none';
+            dateSeparator.style.display = 'inline';
+            dateEnd.style.display = 'inline';
+        }
 
         refreshStatsDash();
     };
@@ -2548,9 +2568,10 @@ function processStatsAndRender(data, type) {
     const endVal = document.getElementById('stats-end-date').value;
 
     if (type === 'hourly') {
-        const kstNow = new Date(new Date().getTime() + (9 * 60 * 60 * 1000));
-        const todayStr = kstNow.toISOString().split('T')[0];
-        const dayData = data[todayStr] || { hourly: {} };
+        // 시간별 탭: 날짜 선택기(시작일)에서 선택된 날짜의 시간대별 데이터를 표시
+        // 기본값은 오늘이며, 사용자가 날짜를 바꾸면 해당 날짜의 데이터를 보여줌
+        const selectedDate = startVal;
+        const dayData = data[selectedDate] || { hourly: {} };
 
         for (let i = 0; i < 24; i++) {
             const h = String(i).padStart(2, '0');
@@ -3378,6 +3399,24 @@ function _renderGaugeBar(label, used, limit) {
  * @param {Object} cData - /api/admin/storage-usage 응답의 cloudinary 객체
  * @returns {string} HTML 문자열
  */
+/**
+ * Cloudinary 저장소 현황 카드를 렌더링합니다.
+ *
+ * [A+B 조합 UI 구성]
+ * 1. 크레딧 게이지 — 저장+대역폭+변환 합산 사용량 (전체 한도 대비)
+ * 2. 저장 공간 게이지 — 현재 보관 중인 파일 총 크기 (25GB 대비)
+ * 3. 대역폭 게이지 — 이번 달 전송된 데이터 양 (25GB 대비)
+ * 4. 크레딧 세부 내역 — 각 항목별 크레딧 소비 분해
+ * 5. 파일 수 / 플랜 정보
+ *
+ * [연계]
+ * - /api/admin/storage-usage 에서 데이터 수신
+ * - _renderGaugeBar() 로 게이지 바 생성
+ * - _formatBytes() 로 바이트 단위 변환
+ *
+ * @param {Object} cData - 서버 응답의 cloudinary 객체
+ * @returns {string} HTML 문자열
+ */
 function _renderCloudinaryCard(cData) {
     let inner = '';
 
@@ -3399,11 +3438,70 @@ function _renderCloudinaryCard(cData) {
             </div>
         `;
     } else {
-        // 정상 데이터 표시
+        // ── 크레딧 사용량 계산 ──
+        // Cloudinary 무료 플랜은 매달 25 크레딧 제공
+        // 저장(1GB=1크레딧) + 대역폭(1GB=1크레딧) + 변환(1000건=1크레딧)을 합산 소비
+        const creditsUsed = cData.credits?.used || 0;
+        const creditsLimit = cData.credits?.limit || 25;
+        const creditsPct = creditsLimit > 0 ? Math.min((creditsUsed / creditsLimit) * 100, 100) : 0;
+        const creditsColor = _getGaugeColor(creditsPct);
+        const creditsWarning = creditsPct >= 80 ? '<i class="fa-solid fa-triangle-exclamation" style="color:#ef4444; margin-left:6px;"></i>' : '';
+
+        // ── 크레딧 세부 내역 계산 ──
+        // 각 항목이 크레딧을 얼마나 소비하는지 분해하여 표시
+        const storageCredits = ((cData.storage?.used || 0) / (1024 * 1024 * 1024)).toFixed(2);  // 바이트→GB = 크레딧
+        const bandwidthCredits = ((cData.bandwidth?.used || 0) / (1024 * 1024 * 1024)).toFixed(2);
+        const transformsUsed = cData.transformations?.used || 0;
+        const transformsCredits = (transformsUsed / 1000).toFixed(2);  // 1000건 = 1크레딧
+
         inner = `
+            <!-- 1. 크레딧 게이지 (전체 사용량 종합) -->
+            <div style="margin-bottom:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="color:#94a3b8; font-size:0.8rem; font-weight:600;">
+                        <i class="fa-solid fa-coins" style="margin-right:4px; color:#f59e0b;"></i>크레딧 사용량
+                    </span>
+                    <span style="color:#cbd5e1; font-size:0.8rem;">
+                        ${creditsUsed.toFixed(1)} / ${creditsLimit} 크레딧${creditsWarning}
+                    </span>
+                </div>
+                <div style="background:rgba(0,0,0,0.3); border-radius:6px; height:10px; overflow:hidden;">
+                    <div style="background:${creditsColor}; height:100%; width:${creditsPct.toFixed(1)}%; border-radius:6px; transition:width 0.5s ease;"></div>
+                </div>
+                <div style="text-align:right; margin-top:3px; font-size:0.7rem; color:${creditsColor}; font-weight:700;">
+                    ${creditsPct.toFixed(1)}%
+                </div>
+            </div>
+
+            <!-- 2. 저장 공간 게이지 -->
             ${_renderGaugeBar('저장 공간', cData.storage.used, cData.storage.limit)}
-            ${_renderGaugeBar('월간 대역폭 (전송량)', cData.bandwidth.used, cData.bandwidth.limit)}
-            <div style="display:flex; gap:10px; margin-top:8px;">
+
+            <!-- 3. 대역폭 게이지 (이번 달 전송량) -->
+            ${_renderGaugeBar('대역폭 (월)', cData.bandwidth.used, cData.bandwidth.limit)}
+
+            <!-- 4. 크레딧 세부 내역 (각 항목별 크레딧 소비 분해) -->
+            <div style="margin-top:4px; padding:12px; background:rgba(0,0,0,0.2); border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+                <div style="font-size:0.7rem; color:#64748b; font-weight:700; margin-bottom:8px;">
+                    <i class="fa-solid fa-list" style="margin-right:4px;"></i>크레딧 세부 내역
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px; font-size:0.75rem;">
+                    <div style="display:flex; justify-content:space-between; color:#cbd5e1;">
+                        <span>저장 공간</span>
+                        <span>${_formatBytes(cData.storage.used)} <span style="color:#64748b;">(${storageCredits} 크레딧)</span></span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; color:#cbd5e1;">
+                        <span>대역폭</span>
+                        <span>${_formatBytes(cData.bandwidth.used)} <span style="color:#64748b;">(${bandwidthCredits} 크레딧)</span></span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; color:#cbd5e1;">
+                        <span>변환</span>
+                        <span>${transformsUsed.toLocaleString()}건 <span style="color:#64748b;">(${transformsCredits} 크레딧)</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. 파일 수 / 플랜 정보 -->
+            <div style="display:flex; gap:10px; margin-top:12px;">
                 <div style="flex:1; background:rgba(0,0,0,0.2); border-radius:8px; padding:10px; text-align:center;">
                     <div style="font-size:0.7rem; color:#64748b; margin-bottom:4px;">총 파일 수</div>
                     <div style="font-size:1.1rem; font-weight:800; color:#fff;">${(cData.resources || 0).toLocaleString()}</div>
