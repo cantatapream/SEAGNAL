@@ -7266,3 +7266,17 @@ line-height: 1.1;
 .comment-report-reason-label input[type="radio"] {
     accent-color: #f87171;
 }
+
+/* ============================================================================
+   게시글 목록 리액션 수 표시
+   ============================================================================ */
+.promo-item-reactions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.promo-item-reaction-chip {
+    font-size: 0.72rem;
+    color: #64748b;
+    letter-spacing: -0.01em;
+}
