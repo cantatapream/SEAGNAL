@@ -5587,6 +5587,13 @@ line-height: 1.1;
     font-size: 0.65rem;
 }
 
+/* 등급 설명 항목의 들여쓰기 (초급/중급/상급자 bullet) */
+.surfing-disclaimer-indent {
+    display: block;
+    padding-left: 1.2em;
+    line-height: 1.5;
+}
+
 /* --- 지도 내부 좌측 하단 범례 --- */
 .surfing-legend {
     display: flex;
@@ -5783,62 +5790,92 @@ line-height: 1.1;
     margin-bottom: 10px;
 }
 
-.surfing-index-card-title {
-    font-size: 0.72rem;
+/* "서핑지수" 헤더 대형 배지 — 첫 번째 열 헤더에 표시되는 파란 배지 */
+.surfing-index-title-badge {
+    display: inline-block;
+    padding: 5px 12px;
+    background: linear-gradient(135deg, #1976D2, #0D47A1);
+    color: #fff;
+    border-radius: 14px;
+    font-size: 0.78rem;
     font-weight: 700;
-    color: #8899aa;
-    margin-bottom: 8px;
     letter-spacing: 0.04em;
+    white-space: nowrap;
 }
 
+/* 오전/오후/종일 시간대 배지 — 행 레이블에 사용하는 파란 배지 */
+.surfing-time-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    background: linear-gradient(135deg, #1976D2, #0D47A1);
+    color: #fff;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* 등급 배지 공통 스타일 (초급/중급/상급 컬럼 헤더) */
+.surfing-grade-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+}
+/* 초급 — 초록 그라데이션 */
+.surfing-grade-beginner { background: linear-gradient(135deg, #66bb6a, #2E7D32); }
+/* 중급 — 주황 그라데이션 */
+.surfing-grade-mid      { background: linear-gradient(135deg, #ffa726, #E65100); }
+/* 상급 — 빨강 그라데이션 */
+.surfing-grade-adv      { background: linear-gradient(135deg, #ef5350, #C62828); }
+
+/* 서핑지수 테이블: 등호(=) 폭 배분으로 열 너비를 균등하게 */
 .surfing-index-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 3px;
     font-size: 0.82rem;
 }
 
+/* 헤더 첫 열 (서핑지수 배지) */
 .surfing-index-th-label {
-    padding: 4px 6px;
-    text-align: left;
-    color: transparent;
-    font-size: 0;
-}
-
-.surfing-index-th-time {
     padding: 6px 4px;
     text-align: center;
-    color: #8899aa;
-    font-weight: 600;
-    font-size: 0.78rem;
+    width: 25%;
 }
 
-.surfing-index-td-grade {
-    padding: 8px 8px;
-    text-align: left;
-    color: #b0bec5;
-    font-weight: 700;
-    font-size: 0.82rem;
-    white-space: nowrap;
-}
-
-.surfing-index-td-val {
-    padding: 8px 6px;
+/* 헤더 등급 열 (초급/중급/상급 배지) */
+.surfing-index-th-grade {
+    padding: 6px 4px;
     text-align: center;
-    border-radius: 6px;
-    font-weight: 700;
-    font-size: 0.82rem;
-    color: #fff;
-    transition: transform 0.1s;
+    width: 25%;
 }
 
-/* 등급별 셀 색상 — 선명한 그라데이션 배경 */
-.surfing-level-매우좋음 { background: linear-gradient(135deg, #42a5f5, #1565C0); }
-.surfing-level-좋음     { background: linear-gradient(135deg, #66bb6a, #2E7D32); }
-.surfing-level-보통     { background: linear-gradient(135deg, #ffa726, #ef6c00); }
-.surfing-level-나쁨     { background: linear-gradient(135deg, #ff7043, #d84315); }
-.surfing-level-매우나쁨 { background: linear-gradient(135deg, #ef5350, #b71c1c); }
-.surfing-level-none     { background: rgba(255, 255, 255, 0.06); color: #666; font-weight: 400; }
+/* 시간대 행의 첫 열 (오전/오후/종일 배지) */
+.surfing-index-td-time {
+    padding: 8px 4px;
+    text-align: center;
+}
+
+/* 서핑지수 값 셀 — 배경 없음, 텍스트만 색상으로 구분 */
+.surfing-index-td-val {
+    padding: 8px 4px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.82rem;
+}
+
+/* 등급 값 텍스트 색상 — 채워진 박스 없이 색상 텍스트만 */
+.surfing-val-매우좋음 { color: #64B5F6; font-weight: 700; }
+.surfing-val-좋음     { color: #81C784; font-weight: 700; }
+.surfing-val-보통     { color: #FFD54F; font-weight: 700; }
+.surfing-val-나쁨     { color: #FFB74D; font-weight: 700; }
+.surfing-val-매우나쁨 { color: #EF9A9A; font-weight: 700; }
+.surfing-val-none     { color: #555; font-weight: 400; }
 
 /* ═══════════════════════════════════════════════════════════
  *  상세정보 카드 (파고/파주기/바람/수온)
@@ -5867,6 +5904,7 @@ line-height: 1.1;
 
 .surfing-detail-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 0.82rem;
 }
@@ -6146,21 +6184,6 @@ line-height: 1.1;
     color: #607d8b;
 }
 
-/* 팝업 내부에서 사용되는 .surfing-disclaimer는 카드 스타일 통일 */
-.surfing-popup-content .surfing-disclaimer {
-    margin: 8px 0 0;
-    padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 10px;
-}
-
-.surfing-popup-content .surfing-disclaimer p {
-    margin: 0;
-    font-size: 0.68rem;
-    line-height: 1.6;
-    color: #607d8b;
-}
 
 /* ============================================================================
  * 바다갈라짐 시간 스타일

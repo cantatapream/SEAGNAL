@@ -110,9 +110,6 @@
             html += s.buildAlertHtml(alertName);
         }
 
-        // --- 면책조항 ---
-        html += _buildDisclaimer();
-
         contentEl.innerHTML = html;
     }
 
@@ -123,79 +120,87 @@
     /**
      * 서핑지수 테이블 HTML을 생성합니다.
      *
+     * [행/열 전치 레이아웃]
+     * - 헤더(열): [서핑지수 배지] | [초급 배지] | [중급 배지] | [상급 배지]
+     * - 데이터행: [오전/오후 배지] | 매우좋음(텍스트) | 보통(텍스트) | 나쁨(텍스트)
+     *
      * [오전/오후 날짜 (D+0~D+2) 표시 예시]
-     * ┌──────────────┬───────────────┬───────────────┐
-     * │  서핑지수    │     오전      │     오후      │
-     * ├──────────────┼───────────────┼───────────────┤
-     * │    초급      │  ■ 매우좋음   │  ■ 나쁨       │
-     * │    중급      │  ■ 보통       │  ■ 나쁨       │
-     * │    상급      │  ■ 나쁨       │  ■ 나쁨       │
-     * └──────────────┴───────────────┴───────────────┘
+     * ┌────────────────┬──────────────┬──────────────┬──────────────┐
+     * │  [서핑지수▶]  │   [초급▶]   │   [중급▶]   │   [상급▶]   │
+     * ├────────────────┼──────────────┼──────────────┼──────────────┤
+     * │   [오전▶]     │  매우좋음    │   보통       │   나쁨       │
+     * ├────────────────┼──────────────┼──────────────┼──────────────┤
+     * │   [오후▶]     │   나쁨       │   나쁨       │   나쁨       │
+     * └────────────────┴──────────────┴──────────────┴──────────────┘
      *
      * [종일 날짜 (D+3~D+6) 표시 예시]
-     * ┌──────────────┬──────────────────────────────┐
-     * │  서핑지수    │           종일               │
-     * ├──────────────┼──────────────────────────────┤
-     * │    초급      │          ■ 나쁨              │
-     * │    중급      │          ■ 나쁨              │
-     * │    상급      │          ■ 나쁨              │
-     * └──────────────┴──────────────────────────────┘
+     * ┌────────────────┬──────────────┬──────────────┬──────────────┐
+     * │  [서핑지수▶]  │   [초급▶]   │   [중급▶]   │   [상급▶]   │
+     * ├────────────────┼──────────────┼──────────────┼──────────────┤
+     * │   [종일▶]     │   나쁨       │   나쁨       │   나쁨       │
+     * └────────────────┴──────────────┴──────────────┴──────────────┘
      *
-     * 각 셀의 배경색은 등급(매우좋음~매우나쁨)에 따라 달라집니다.
-     * 색상 매핑: LEVEL_COLORS (파랑/초록/노랑/주황/빨강)
+     * ▶ 표시 = 배지(badge) 스타일 (둥근 모서리 채워진 버튼 형태)
+     * 값(매우좋음/나쁨 등) = 배경 없이 텍스트 색상으로만 구분
      *
      * @param {Object} forecast - beach.forecasts[dateStr] 값
-     *   예: { '오전': { grades: {초급:'매우좋음', 중급:'보통', 상급:'나쁨'}, avgWvhgt:... },
+     *   예: { '오전': { grades: {초급:'매우좋음', 중급:'보통', 상급:'나쁨'} },
      *         '오후': { ... } }
-     *   또는 { '일': { grades: {...}, ... } }  (종일)
+     *   또는 { '일': { grades: {...} } }  (종일)
      * @returns {string} HTML 문자열
      */
     function _buildIndexTable(forecast) {
-        // 시간대 목록 결정
-        // 오전/오후가 있으면 ['오전','오후'], 종일이면 ['일']
+        // 시간대 결정: 오전/오후 있으면 D+0~D+2, 종일('일')이면 D+3 이후
         var hasAmPm = forecast['오전'] || forecast['오후'];
-        var timeSlots = hasAmPm ? ['오전', '오후'] : ['일'];
-        // '일'은 화면에 '종일'로 표시
+        var timeSlots  = hasAmPm ? ['오전', '오후'] : ['일'];
         var timeLabels = timeSlots.map(function(t) { return t === '일' ? '종일' : t; });
 
         var grades = ['초급', '중급', '상급'];
-        var COLORS = s.LEVEL_COLORS;
 
-        // 서핑지수 테이블을 카드 형태로 생성
+        // 등급별 배지 CSS 클래스 (초급=초록, 중급=주황, 상급=빨강)
+        var gradeClasses = {
+            '초급': 'surfing-grade-beginner',
+            '중급': 'surfing-grade-mid',
+            '상급': 'surfing-grade-adv'
+        };
+
         var html = '<div class="surfing-index-card">';
-        html += '<div class="surfing-index-card-title">서핑지수</div>';
         html += '<table class="surfing-index-table">';
 
-        // 헤더: 등급 라벨 + 시간대 라벨
+        // --- 헤더 행: [서핑지수 배지] + [초급 배지] + [중급 배지] + [상급 배지] ---
         html += '<thead><tr>';
-        html += '<th class="surfing-index-th-label"></th>';
-        timeLabels.forEach(function(label) {
-            html += '<th class="surfing-index-th-time">' + label + '</th>';
+        html += '<th class="surfing-index-th-label">';
+        html += '<span class="surfing-index-title-badge">서핑지수</span>';
+        html += '</th>';
+        grades.forEach(function(grade) {
+            html += '<th class="surfing-index-th-grade">';
+            html += '<span class="surfing-grade-badge ' + gradeClasses[grade] + '">' + grade + '</span>';
+            html += '</th>';
         });
         html += '</tr></thead>';
 
-        // 등급 행 (초급/중급/상급)
+        // --- 데이터 행: 시간대 배지 + 각 등급의 서핑지수 값(텍스트 색상만) ---
         html += '<tbody>';
-        grades.forEach(function(grade) {
+        timeSlots.forEach(function(slot, idx) {
             html += '<tr>';
-            html += '<td class="surfing-index-td-grade">' + grade + '</td>';
 
-            timeSlots.forEach(function(slot) {
+            // 행 레이블: 오전/오후/종일 배지
+            html += '<td class="surfing-index-td-time">';
+            html += '<span class="surfing-time-badge">' + timeLabels[idx] + '</span>';
+            html += '</td>';
+
+            // 각 등급의 지수값 셀
+            grades.forEach(function(grade) {
                 var slotData = forecast[slot];
                 var levelVal = slotData && slotData.grades && slotData.grades[grade];
                 var level = levelVal || '-';
 
-                // 등급에 맞는 배경색/텍스트색 결정
-                var colors = COLORS[level];
-                var cellClass = 'surfing-index-td-val';
-                if (colors) {
-                    cellClass += ' surfing-level-' + level;
-                } else {
-                    cellClass += ' surfing-level-none';
-                }
+                // 값에 맞는 텍스트 색상 클래스 결정
+                // 예: '매우좋음' → 'surfing-val-매우좋음' → color: #64B5F6
+                var valClass = (level !== '-') ? ('surfing-val-' + level) : 'surfing-val-none';
 
-                html += '<td class="' + cellClass + '">';
-                html += s.utils.escapeHtml(level);
+                html += '<td class="surfing-index-td-val">';
+                html += '<span class="' + valClass + '">' + s.utils.escapeHtml(level) + '</span>';
                 html += '</td>';
             });
 
@@ -414,32 +419,7 @@
     }
 
     // ========================================================================
-    // 4. 면책조항
-    // ========================================================================
-
-    /**
-     * 팝업 하단 면책조항 HTML을 반환합니다.
-     *
-     * [표시 내용 — 대화에서 확정된 문구]
-     * "서핑지수는 수치예측결과를 활용하여 만들어진 참고 자료로서,
-     *  기상 변화 등에 의해 실제와 다를 수 있습니다.
-     *  따라서 서비스는 사용자의 책임하에 이용되어야하며,
-     *  그 정보의 정확성과 법적인 책임은 조사원 및 본 앱에게 있지 아니함을
-     *  알려드립니다."
-     *
-     * @returns {string} HTML 문자열
-     */
-    function _buildDisclaimer() {
-        return '<div class="surfing-disclaimer">' +
-            '<p>서핑지수는 수치예측결과를 활용하여 만들어진 참고 자료로서, ' +
-            '기상 변화 등에 의해 실제와 다를 수 있습니다. ' +
-            '따라서 서비스는 사용자의 책임하에 이용되어야하며, ' +
-            '그 정보의 정확성과 법적인 책임은 조사원 및 본 앱에게 있지 아니함을 알려드립니다.</p>' +
-            '</div>';
-    }
-
-    // ========================================================================
-    // 5. window._surfing에 함수 등록
+    // 4. window._surfing에 함수 등록
     // ========================================================================
 
     /**
