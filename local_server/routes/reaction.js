@@ -38,6 +38,28 @@ function saveReactions(data) {
 }
 
 // ============================================================================
+// 전체 게시글 리액션 수 일괄 조회 (목록 표시용)
+// ============================================================================
+
+/**
+ * GET /api/reactions/counts
+ * 전체 게시글의 리액션 합계를 { "postId": { heartCount, thumbsCount, wowCount } } 형식으로 반환.
+ */
+router.get('/api/reactions/counts', (req, res) => {
+    const all = getReactions();
+    const result = {};
+    Object.keys(all).forEach(pid => {
+        const pr = all[pid] || {};
+        result[pid] = {
+            heartCount: (pr.heart || []).length,
+            thumbsCount: (pr.thumbs || []).length,
+            wowCount: (pr.wow || []).length
+        };
+    });
+    res.json(result);
+});
+
+// ============================================================================
 // 리액션 조회
 // ============================================================================
 

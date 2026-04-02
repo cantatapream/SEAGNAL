@@ -24,6 +24,7 @@ let currentEditingPromoId = null;
 let currentAttachments = []; // [New] 현재 편집 중인 게시글의 첨부파일 목록
 let _boardsCache = []; // 게시판 목록 캐시
 let _commentCounts = {}; // 게시글별 댓글 수 캐시 { "postId": count }
+let _reactionCounts = {}; // 게시글별 리액션 수 캐시 { "postId": { heartCount, thumbsCount, wowCount } }
 
 // [New] 첨부파일 목록 렌더링
 function renderAttachmentList() {
@@ -127,16 +128,18 @@ async function loadPromoPosts() {
     `;
 
     try {
-        // 게시판 목록, 게시글, 댓글 수를 병렬 로드
-        const [promoRes, boardsRes, countsRes] = await Promise.all([
+        // 게시판 목록, 게시글, 댓글 수, 리액션 수를 병렬 로드
+        const [promoRes, boardsRes, countsRes, reactionsRes] = await Promise.all([
             fetch(CONFIG.API_BASE + '/api/promo'),
             fetch(CONFIG.API_BASE + '/api/boards'),
-            fetch(CONFIG.API_BASE + '/api/comments/counts')
+            fetch(CONFIG.API_BASE + '/api/comments/counts'),
+            fetch(CONFIG.API_BASE + '/api/reactions/counts')
         ]);
         if (!promoRes.ok) throw new Error('API 오류');
         const posts = await promoRes.json();
         const boards = await boardsRes.json();
         _commentCounts = countsRes.ok ? await countsRes.json() : {};
+        _reactionCounts = reactionsRes.ok ? await reactionsRes.json() : {};
 
         // 게시판 캐시 업데이트 및 탭 렌더링
         _boardsCache = boards || [];
@@ -359,6 +362,13 @@ function renderPromoPosts(posts) {
         const commentCount = _commentCounts[String(post.id)] || 0;
         const commentCountHtml = '<span class="promo-item-comment-count">[' + commentCount + ']</span>';
 
+        const rc = _reactionCounts[String(post.id)] || { heartCount: 0, thumbsCount: 0, wowCount: 0 };
+        const reactionHtml = `<span class="promo-item-reactions">`
+            + `<span class="promo-item-reaction-chip">❤️ ${rc.heartCount}</span>`
+            + `<span class="promo-item-reaction-chip">👍 ${rc.thumbsCount}</span>`
+            + `<span class="promo-item-reaction-chip">😮 ${rc.wowCount}</span>`
+            + `</span>`;
+
         return `
         <div class="promo-item ${isPinnedClass}" onclick="openPromoDetail(${post.id})">
             <div class="promo-item-title">
@@ -368,7 +378,10 @@ function renderPromoPosts(posts) {
             </div>
             <div class="promo-item-meta">
                 <span class="promo-item-date">${formatPromoDate(post.createdAt)}</span>
-                <span class="promo-item-views"><i class="fa-regular fa-eye"></i> ${post.views || 0}</span>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span class="promo-item-views"><i class="fa-regular fa-eye"></i> ${post.views || 0}</span>
+                    ${reactionHtml}
+                </div>
             </div>
         </div>
         `;
