@@ -425,16 +425,10 @@ function updateMyLocationMarker(lat, lon) {
     // 실제 CSS 애니메이션 효과를 위해 지도 컨테이너에 클래스 부여 가능
 }
 
-// ===== 조석 지도 위치 검색 (Kakao Maps SDK) =====
-
-// Kakao SDK 로드 완료 여부 (중복 로드 방지용)
-let _kakaoSDKLoaded = false;
+// ===== 조석 지도 위치 검색 (서버 프록시 방식) =====
 
 // 검색 타이머 (과도한 API 호출 방지용 - 0.3초 대기)
 let _tideSearchTimer = null;
-
-// Kakao 장소 검색 서비스 객체 (SDK 로드 후 생성)
-let _kakaoPlaces = null;
 
 /**
  * 조석 지도 위치 검색 초기화
@@ -446,18 +440,6 @@ function initTideSearch() {
     const input = document.getElementById('tide-search-input');
     const clearBtn = document.getElementById('tide-search-clear');
     if (!input) return;
-
-    // Kakao SDK 로드 (autoload=false이므로 수동으로 로드)
-    // 주의: autoload=false 상태에서는 window.kakao는 정의되어 있지만
-    //       window.kakao.maps는 load() 호출 전까지 undefined이므로
-    //       window.kakao 존재 여부만 확인 후 load() 호출
-    if (window.kakao && !_kakaoSDKLoaded) {
-        kakao.maps.load(function () {
-            // SDK 로드 완료 후 장소 검색 서비스 객체 생성
-            _kakaoPlaces = new kakao.maps.services.Places();
-            _kakaoSDKLoaded = true;
-        });
-    }
 
     // 검색 입력 이벤트: 글자를 입력할 때마다 0.3초 후 검색 실행
     input.addEventListener('input', function () {
@@ -508,48 +490,40 @@ function initTideSearch() {
 }
 
 /**
- * Kakao 장소 검색 API 호출
- * - 입력된 검색어를 카카오에 전달하고 결과를 받아옵니다
- * - 결과가 있으면 드롭다운으로 표시합니다
- * - SDK가 아직 로드되지 않았으면 자동으로 로드를 시도합니다
+ * 위치 검색 실행 (서버 프록시 방식)
+ * - 브라우저가 직접 Kakao에 요청하지 않고 우리 서버를 통해 검색합니다
+ * - 이 방식은 도메인 인증 문제 없이 어떤 환경(로컬/배포/앱)에서도 동작합니다
  * @param {string} query - 사용자가 입력한 검색어 (예: "속초항")
  */
-function searchKakaoPlaces(query) {
-    // SDK가 아직 로드되지 않았으면 로드 시도 후 재검색
-    // window.kakao.maps는 load() 전까지 undefined이므로 window.kakao만 확인
-    if (!_kakaoPlaces) {
-        if (window.kakao) {
-            renderTideSearchMessage('검색 서비스를 불러오는 중...');
-            // SDK 초기화 시도 후 자동 재검색
-            kakao.maps.load(function () {
-                _kakaoPlaces = new kakao.maps.services.Places();
-                _kakaoSDKLoaded = true;
-                // SDK 로드 완료 후 원래 검색어로 재검색
-                searchKakaoPlaces(query);
-            });
-        } else {
-            // SDK 스크립트 자체가 로드 안 됨 (네트워크 오류 등)
-            renderTideSearchMessage('검색 서비스를 사용할 수 없습니다');
-        }
-        return;
-    }
-
+async function searchKakaoPlaces(query) {
     // 드롭다운에 "검색 중..." 표시
     renderTideSearchMessage('검색 중...');
 
-    // Kakao 키워드 장소 검색 실행
-    _kakaoPlaces.keywordSearch(query, function (result, status) {
-        if (status === kakao.maps.services.Status.OK) {
-            // 검색 성공: 결과 목록을 드롭다운에 표시 (최대 7개)
-            renderTideSearchResults(result.slice(0, 7));
-        } else if (status === kakao.maps.services.Status.ZERO_RESULT) {
-            // 결과 없음
-            renderTideSearchMessage('검색 결과가 없습니다');
-        } else {
-            // 오류 발생
-            renderTideSearchMessage('검색 중 오류가 발생했습니다');
+    try {
+        // 서버의 검색 프록시 엔드포인트 호출
+        const res = await fetch(`/api/search-place?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+            // 서버가 오류 응답을 보낸 경우 (예: API 키 미설정)
+            renderTideSearchMessage(data.error || '검색 서비스를 사용할 수 없습니다');
+            return;
         }
-    });
+
+        if (!data.documents || data.documents.length === 0) {
+            // 검색 결과 없음
+            renderTideSearchMessage('검색 결과가 없습니다');
+            return;
+        }
+
+        // 검색 결과 드롭다운에 표시
+        renderTideSearchResults(data.documents);
+
+    } catch (err) {
+        // 네트워크 오류 등
+        console.error('[tide-search] 검색 오류:', err.message);
+        renderTideSearchMessage('검색 중 오류가 발생했습니다');
+    }
 }
 
 /**
