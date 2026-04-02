@@ -101,10 +101,13 @@ router.get('/api/force-update/:type/stream', async (req, res) => {
             await regionalForecastCollector.collectRegionalForecasts(scheduler.collectProgress);
         }
         else if (type === 'zone') await scheduler.collectZoneForecasts();
-        // 해양생활기상(바다낚시 지수) 수동 수집 — admin 페이지에서 호출
-        else if (type === 'fishing') await scheduler.collectFishingIndex();
-        // 바다갈라짐 체험지수 수동 수집 — admin 페이지에서 호출
-        else if (type === 'sea-split') await scheduler.collectSeaSplitIndex();
+        // 해양생활기상 수동 수집 — 바다낚시 지수 + 바다갈라짐 체험지수를 순차적으로 함께 수집
+        // 관리자 페이지에서 "해양생활기상" 수동 호출 시 두 API가 한번에 실행됨
+        // 프로그레스바: 낚시(1~3/6) → 바다갈라짐(4~6/6) 순서로 표시
+        else if (type === 'fishing') {
+            await scheduler.collectFishingIndex();
+            await scheduler.collectSeaSplitIndex();
+        }
         else {
             res.write(`data: ${JSON.stringify({ error: '잘못된 타입' })}\n\n`);
             res.end();
@@ -137,10 +140,11 @@ router.post('/api/force-update/:type', async (req, res) => {
             await regionalForecastCollector.collectRegionalForecasts();
         }
         else if (type === 'zone') await scheduler.collectZoneForecasts();
-        // 해양생활기상(바다낚시 지수) 수동 수집 — POST 호환 엔드포인트
-        else if (type === 'fishing') await scheduler.collectFishingIndex();
-        // 바다갈라짐 체험지수 수동 수집 — POST 호환 엔드포인트
-        else if (type === 'sea-split') await scheduler.collectSeaSplitIndex();
+        // 해양생활기상 수동 수집 (POST 호환) — 바다낚시 지수 + 바다갈라짐을 순차 실행
+        else if (type === 'fishing') {
+            await scheduler.collectFishingIndex();
+            await scheduler.collectSeaSplitIndex();
+        }
         else return res.status(400).json({ error: '잘못된 타입' });
 
         refreshCache();

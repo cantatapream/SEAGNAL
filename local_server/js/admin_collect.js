@@ -1627,12 +1627,13 @@ async function renderUnifiedApiContent(container) {
             // 2. 상태 리스트 로드
             const res = await fetch(CONFIG.API_BASE + '/api/status');
             const status = await res.json();
+            // 관리자 화면에 표시할 API 수집 항목 목록
+            // 해양생활기상: 수동 호출 시 바다낚시 지수 + 바다갈라짐 체험지수를 한번에 수집
             const apiItems = [
                 { key: 'general', name: '기상 예보', icon: 'fa-sun', color: '#ffd54f' },
                 { key: 'zone', name: '해구별 예보', icon: 'fa-map-location-dot', color: '#29b6f6' },
                 { key: 'buoys', name: '관측 부이', icon: 'fa-anchor', color: '#26a69a' },
-                { key: 'fishing', name: '해양생활기상', icon: 'fa-fish', color: '#4fc3f7' },
-                { key: 'sea-split', name: '바다갈라짐', icon: 'fa-road', color: '#66bb6a' }
+                { key: 'fishing', name: '해양생활기상', icon: 'fa-fish', color: '#4fc3f7' }
             ];
 
             listContainer.innerHTML = apiItems.map(api => {
@@ -3067,12 +3068,13 @@ window.refreshApiStatus = async function () {
         const res = await fetch(CONFIG.API_BASE + '/api/status');
         const status = await res.json();
 
+        // 관리자 화면에 표시할 API 수집 항목 목록 (모바일 뷰)
+        // 해양생활기상: 수동 호출 시 바다낚시 지수 + 바다갈라짐 체험지수를 한번에 수집
         const apiItems = [
             { key: 'general', name: '기상 예보', icon: 'fa-sun', color: '#ffd54f' },
             { key: 'zone', name: '해구별 예보', icon: 'fa-map-location-dot', color: '#29b6f6' },
             { key: 'buoys', name: '관측 부이', icon: 'fa-anchor', color: '#26a69a' },
-            { key: 'fishing', name: '해양생활기상', icon: 'fa-fish', color: '#4fc3f7' },
-            { key: 'sea-split', name: '바다갈라짐', icon: 'fa-road', color: '#66bb6a' }
+            { key: 'fishing', name: '해양생활기상', icon: 'fa-fish', color: '#4fc3f7' }
         ];
 
         let html = '';
