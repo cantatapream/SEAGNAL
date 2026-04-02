@@ -650,7 +650,8 @@ function selectTideSearchResult(lat, lon, name) {
         searchResultLayer = new ol.layer.Vector({
             source: new ol.source.Vector(),
             zIndex: 900,
-            style: function () {
+            style: function (feature) {
+                const label = feature.get('name') || '';
                 return [
                     new ol.style.Style({
                         image: new ol.style.Circle({
@@ -671,7 +672,7 @@ function selectTideSearchResult(lat, lon, name) {
                             fill: new ol.style.Fill({ color: '#ff4444' })
                         }),
                         text: new ol.style.Text({
-                            text: name,
+                            text: label,
                             offsetY: -22,
                             font: 'bold 12px sans-serif',
                             fill: new ol.style.Fill({ color: '#ffffff' }),
@@ -688,9 +689,9 @@ function selectTideSearchResult(lat, lon, name) {
 
     const source = searchResultLayer.getSource();
     source.clear();
-    source.addFeature(new ol.Feature({
-        geometry: new ol.geom.Point(targetCenter)
-    }));
+    const searchFeature = new ol.Feature({ geometry: new ol.geom.Point(targetCenter) });
+    searchFeature.set('name', name);
+    source.addFeature(searchFeature);
 
     // 토스트 안내 메시지 (마커 아래에 표시)
     showTideToast('인근 바다를 눌러서 조석을 확인해보세요!', targetCenter);

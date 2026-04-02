@@ -305,7 +305,7 @@ line-height: 1.1;
 }
 
 .count-badge {
-    background-color: var(--accent-red);
+    background: linear-gradient(135deg, #ff7043, #c62828);
     color: white;
     font-size: 0.7rem;
     padding: 0.25rem 0.6rem;
@@ -316,8 +316,7 @@ line-height: 1.1;
 }
 
 .count-badge.zero {
-    background-color: rgba(255, 255, 255, 0.1);
-    /* Subtle for zero */
+    background: rgba(255, 255, 255, 0.1);
     color: #94a3b8;
     box-shadow: none;
     border: 1px solid rgba(255, 255, 255, 0.1);

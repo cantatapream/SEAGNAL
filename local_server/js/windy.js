@@ -412,7 +412,7 @@ async function renderMarineWeatherStatus() {
                 `;
                 subHeader.innerHTML = `
                     <span style="font-size: 1.0rem; font-weight: 700; color: #fff;">${subRegion}</span>
-                    <span style="background: rgba(79, 195, 247, 0.3); padding: 4px 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 600; color: #4fc3f7; margin-left: auto;">${zones.length}개 해역</span>
+                    <span style="background: linear-gradient(135deg, #4fc3f7, #0277BD); padding: 4px 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 600; color: #fff; margin-left: auto;">${zones.length}개 해역</span>
                 `;
 
                 // 호버 효과
