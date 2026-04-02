@@ -51,6 +51,9 @@
     <!-- Korean Lunar Calendar - 음력 변환 -->
     <script src="https://cdn.jsdelivr.net/npm/korean-lunar-calendar@0.3.6/lib/korean-lunar-calendar.min.js"></script>
 
+    <!-- Kakao Maps SDK - 조석 지도 위치 검색용 (지도 표시 없이 검색 서비스만 사용, autoload=false로 필요 시에만 로드) -->
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=e4193493aa2930a28a59c6bf14dfc937&libraries=services&autoload=false"></script>
+
     <!-- [사용자 설정] 그래프 막대 개별 위치 조정 -->
     <script>
         window.CHART_OFFSETS = [
@@ -694,6 +697,20 @@
                     </button>
 
                 </div>
+
+                <!-- 조석 지도 위치 검색 -->
+                <div class="tide-search-container">
+                    <div class="tide-search-input-wrap">
+                        <i class="fa-solid fa-magnifying-glass tide-search-icon"></i>
+                        <input type="text" id="tide-search-input" placeholder="위치 검색 (예: 속초항, 이호동)" autocomplete="off">
+                        <button id="tide-search-clear" class="tide-search-clear" style="display:none;" title="검색어 지우기">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <!-- 검색 결과 드롭다운 (검색 시에만 표시) -->
+                    <div id="tide-search-dropdown" class="tide-search-dropdown" style="display:none;"></div>
+                </div>
+
                 <!-- 조석 지도 -->
                 <div class="sea-zone-map-container" style="margin-top: 5px !important; margin-bottom: 5px; position: relative;">
                     <div id="tide-map" style="width: 100%; height: 500px; border-radius: 10px; overflow: hidden;"></div>

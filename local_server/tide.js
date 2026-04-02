@@ -425,6 +425,227 @@ function updateMyLocationMarker(lat, lon) {
     // 실제 CSS 애니메이션 효과를 위해 지도 컨테이너에 클래스 부여 가능
 }
 
+// ===== 조석 지도 위치 검색 (Kakao Maps SDK) =====
+
+// Kakao SDK 로드 완료 여부 (중복 로드 방지용)
+let _kakaoSDKLoaded = false;
+
+// 검색 타이머 (과도한 API 호출 방지용 - 0.3초 대기)
+let _tideSearchTimer = null;
+
+// Kakao 장소 검색 서비스 객체 (SDK 로드 후 생성)
+let _kakaoPlaces = null;
+
+/**
+ * 조석 지도 위치 검색 초기화
+ * - Kakao Maps SDK를 로드하고
+ * - 검색 입력창에 이벤트를 연결합니다
+ * - initTideMap()에서 호출됩니다
+ */
+function initTideSearch() {
+    const input = document.getElementById('tide-search-input');
+    const clearBtn = document.getElementById('tide-search-clear');
+    if (!input) return;
+
+    // Kakao SDK 로드 (autoload=false이므로 수동으로 로드)
+    if (window.kakao && window.kakao.maps && !_kakaoSDKLoaded) {
+        kakao.maps.load(function () {
+            // SDK 로드 완료 후 장소 검색 서비스 객체 생성
+            _kakaoPlaces = new kakao.maps.services.Places();
+            _kakaoSDKLoaded = true;
+        });
+    }
+
+    // 검색 입력 이벤트: 글자를 입력할 때마다 0.3초 후 검색 실행
+    input.addEventListener('input', function () {
+        const query = input.value.trim();
+
+        // X(지우기) 버튼 표시/숨김 제어
+        if (clearBtn) {
+            clearBtn.style.display = query.length > 0 ? 'block' : 'none';
+        }
+
+        // 기존 대기 중인 검색 취소 (과도한 호출 방지)
+        if (_tideSearchTimer) clearTimeout(_tideSearchTimer);
+
+        // 2글자 미만이면 드롭다운 닫기
+        if (query.length < 2) {
+            closeTideSearchDropdown();
+            return;
+        }
+
+        // 0.3초 후 검색 실행 (빠르게 연속 입력 시 마지막 입력만 실행)
+        _tideSearchTimer = setTimeout(function () {
+            searchKakaoPlaces(query);
+        }, 300);
+    });
+
+    // X(지우기) 버튼 클릭 시 검색어 초기화
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function () {
+            clearTideSearch();
+        });
+    }
+
+    // ESC 키로 드롭다운 닫기
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            closeTideSearchDropdown();
+            input.blur();
+        }
+    });
+
+    // 검색창 외부 클릭 시 드롭다운 닫기
+    document.addEventListener('click', function (e) {
+        const container = document.querySelector('.tide-search-container');
+        if (container && !container.contains(e.target)) {
+            closeTideSearchDropdown();
+        }
+    });
+}
+
+/**
+ * Kakao 장소 검색 API 호출
+ * - 입력된 검색어를 카카오에 전달하고 결과를 받아옵니다
+ * - 결과가 있으면 드롭다운으로 표시합니다
+ * @param {string} query - 사용자가 입력한 검색어 (예: "속초항")
+ */
+function searchKakaoPlaces(query) {
+    // SDK가 아직 로드되지 않았으면 검색 불가
+    if (!_kakaoPlaces) {
+        renderTideSearchMessage('검색 서비스를 불러오는 중...');
+        return;
+    }
+
+    // 드롭다운에 "검색 중..." 표시
+    renderTideSearchMessage('검색 중...');
+
+    // Kakao 키워드 장소 검색 실행
+    _kakaoPlaces.keywordSearch(query, function (result, status) {
+        if (status === kakao.maps.services.Status.OK) {
+            // 검색 성공: 결과 목록을 드롭다운에 표시 (최대 7개)
+            renderTideSearchResults(result.slice(0, 7));
+        } else if (status === kakao.maps.services.Status.ZERO_RESULT) {
+            // 결과 없음
+            renderTideSearchMessage('검색 결과가 없습니다');
+        } else {
+            // 오류 발생
+            renderTideSearchMessage('검색 중 오류가 발생했습니다');
+        }
+    });
+}
+
+/**
+ * 검색 결과를 드롭다운 목록에 표시
+ * - 각 장소를 클릭 가능한 항목으로 만듭니다
+ * - 장소명과 주소를 "도 > 시 > 구 > 동" 형태로 표시합니다
+ * @param {Array} places - Kakao API가 반환한 장소 배열
+ */
+function renderTideSearchResults(places) {
+    const dropdown = document.getElementById('tide-search-dropdown');
+    if (!dropdown) return;
+
+    // 드롭다운 내용 비우기
+    dropdown.innerHTML = '';
+
+    places.forEach(function (place) {
+        // 주소를 "도 > 시 > 구 > 동" 형태로 변환
+        // 예: "강원특별자치도 속초시 중앙동" → "강원특별자치도 > 속초시 > 중앙동"
+        const addr = place.address_name || '';
+        const addrFormatted = addr.split(' ').join(' > ');
+
+        // 클릭 가능한 항목 생성
+        const item = document.createElement('div');
+        item.className = 'tide-search-item';
+        item.innerHTML = `
+            <div class="tide-search-item-name"><i class="fa-solid fa-location-dot"></i>${place.place_name}</div>
+            <div class="tide-search-item-addr">${addrFormatted}</div>
+        `;
+
+        // 항목 클릭 시 해당 위치로 지도 이동
+        item.addEventListener('click', function () {
+            selectTideSearchResult(
+                parseFloat(place.y),  // 위도
+                parseFloat(place.x),  // 경도
+                place.place_name      // 장소명
+            );
+        });
+
+        dropdown.appendChild(item);
+    });
+
+    // 드롭다운 열기
+    dropdown.style.display = 'block';
+}
+
+/**
+ * 드롭다운에 메시지 표시 (검색 중, 결과 없음 등)
+ * @param {string} msg - 표시할 메시지
+ */
+function renderTideSearchMessage(msg) {
+    const dropdown = document.getElementById('tide-search-dropdown');
+    if (!dropdown) return;
+
+    dropdown.innerHTML = `<div class="tide-search-empty">${msg}</div>`;
+    dropdown.style.display = 'block';
+}
+
+/**
+ * 검색 결과 항목 클릭 시 호출
+ * - 지도를 해당 위치로 부드럽게 이동합니다
+ * - 검색창에 선택한 장소명을 표시합니다
+ * @param {number} lat - 위도 (예: 38.207)
+ * @param {number} lon - 경도 (예: 128.593)
+ * @param {string} name - 장소명 (예: "속초항")
+ */
+function selectTideSearchResult(lat, lon, name) {
+    // 검색창에 선택한 장소명 표시
+    const input = document.getElementById('tide-search-input');
+    if (input) input.value = name;
+
+    // 드롭다운 닫기
+    closeTideSearchDropdown();
+
+    // 지도가 없으면 중단
+    if (!tideMap) return;
+
+    // OpenLayers 좌표로 변환 후 부드럽게 이동 (약 0.8초 애니메이션)
+    const targetCenter = ol.proj.fromLonLat([lon, lat]);
+    tideMap.getView().animate({
+        center: targetCenter,
+        zoom: 13,       // 해안가 세부 지역이 잘 보이는 줌 레벨
+        duration: 800    // 이동 애니메이션 0.8초
+    });
+}
+
+/**
+ * 드롭다운 닫기 (결과 목록 숨기기)
+ */
+function closeTideSearchDropdown() {
+    const dropdown = document.getElementById('tide-search-dropdown');
+    if (dropdown) {
+        dropdown.style.display = 'none';
+        dropdown.innerHTML = '';
+    }
+}
+
+/**
+ * 검색어 초기화 (X 버튼 클릭 시)
+ * - 입력창 비우기, X 버튼 숨기기, 드롭다운 닫기
+ */
+function clearTideSearch() {
+    const input = document.getElementById('tide-search-input');
+    const clearBtn = document.getElementById('tide-search-clear');
+
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+    if (clearBtn) clearBtn.style.display = 'none';
+
+    closeTideSearchDropdown();
+}
+
 // ===== 조석 지도 초기화 =====
 function initTideMap() {
     if (tideMap) {
@@ -518,6 +739,9 @@ function initTideMap() {
         // 현재 연도 데이터 미리 로드
         const currentYear = new Date().getFullYear();
         loadTideData(currentYear);
+
+        // 위치 검색 초기화 (Kakao SDK 로드 + 검색창 이벤트 연결)
+        initTideSearch();
 
         // console.log('✅ 조석 지도 초기화 완료');
     } catch (error) {
