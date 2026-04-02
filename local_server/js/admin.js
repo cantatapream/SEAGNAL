@@ -173,6 +173,7 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
     const existing = document.getElementById('unified-admin-modal');
     if (existing) existing.remove();
 
+    // 관리자 센터 상단 메인 탭 목록 (탭 클릭 시 switchUnifiedAdminTab()에서 분기)
     const tabs = [
         { id: 'alert', name: '특보 알림', icon: 'fa-tower-broadcast' },
         { id: 'api', name: 'API 설정', icon: 'fa-server' },
@@ -183,7 +184,8 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         { id: 'report', name: '제보 관리', icon: 'fa-envelope' },
         { id: 'block', name: '차단 관리', icon: 'fa-ban' },
         { id: 'maintenance', name: '점검', icon: 'fa-wrench' },
-        { id: 'version', name: '버전 관리', icon: 'fa-code-branch' }
+        { id: 'version', name: '버전 관리', icon: 'fa-code-branch' },
+        { id: 'storage', name: '외부 저장소', icon: 'fa-cloud' }
     ];
 
     const modal = document.createElement('div');
@@ -271,6 +273,10 @@ window.switchUnifiedAdminTab = function (tabId) {
             renderUnifiedMaintenanceContent(body);
         } else if (tabId === 'version') {
             renderUnifiedVersionContent(body);
+        } else if (tabId === 'storage') {
+            // 외부 저장소 현황 탭 (Cloudinary, Google Cloud Storage 사용량)
+            // → admin_collect.js의 renderUnifiedStorageContent()에서 렌더링
+            renderUnifiedStorageContent(body);
         }
     }, 100);
 };

@@ -4269,6 +4269,12 @@ line-height: 1.1;
     color: #fbbf24;
 }
 
+/* 외부 저장소 탭 — 하늘색 (클라우드 이미지) */
+.admin-main-tab[data-tab="storage"].active {
+    background: rgba(56, 189, 248, 0.15);
+    color: #7dd3fc;
+}
+
 /* Body */
 .unified-admin-body {
     flex: 1;

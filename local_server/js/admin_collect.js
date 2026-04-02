@@ -3224,10 +3224,271 @@ function hexToRgb(hex) {
         if (res.ok) {
             const posts = await res.json();
             updateNewBadges(posts);
-            // console.log('[Init] 공지사항 뱃지 초기화 완료');
         }
     } catch (e) {
-        // console.warn('[Init] 공지사항 뱃지 초기화 실패:', e.message);
+        // 공지사항 뱃지 초기화 실패 시 무시
     }
 })();
+
+// ============================================================================
+// (H) 외부 저장소 현황 섹션 렌더링
+// ============================================================================
+
+/**
+ * 외부 저장소 현황 탭의 전체 화면을 렌더링합니다.
+ * - Cloudinary: 이미지/문서 업로드에 사용하는 클라우드 저장소
+ * - Google Cloud Storage: 일일 자동 백업에 사용하는 클라우드 저장소
+ *
+ * [동작 흐름]
+ * 1. 로딩 스피너 표시
+ * 2. /api/admin/storage-usage API 호출
+ * 3. 응답 데이터로 게이지 바 + 수치 렌더링
+ *
+ * [연계]
+ * - routes/admin.js → GET /api/admin/storage-usage (사용량 데이터 제공)
+ * - admin.js → switchUnifiedAdminTab('storage')에서 이 함수를 호출
+ *
+ * @param {HTMLElement} container - 탭 내용이 렌더링될 컨테이너 요소
+ */
+async function renderUnifiedStorageContent(container) {
+    // 1단계: 로딩 화면 표시
+    container.innerHTML = `
+        <div class="admin-section-title" style="display:flex; justify-content:space-between; align-items:center;">
+            <div><i class="fa-solid fa-cloud" style="color:#7dd3fc;"></i> 외부 저장소 현황</div>
+            <button onclick="renderUnifiedStorageContent(document.getElementById('unified-admin-body'))"
+                    style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; padding:5px 12px; border-radius:8px; font-size:0.75rem; cursor:pointer;">
+                <i class="fa-solid fa-rotate"></i> 새로고침
+            </button>
+        </div>
+        <div style="text-align:center; padding:60px; color:#64748b;">
+            <i class="fa-solid fa-circle-notch fa-spin fa-2x"></i>
+            <p style="margin-top:12px;">저장소 사용량을 조회하는 중...</p>
+        </div>
+    `;
+
+    // 2단계: 서버 API 호출
+    try {
+        const res = await fetch(CONFIG.API_BASE + '/api/admin/storage-usage');
+        const data = await res.json();
+
+        // 3단계: 데이터를 기반으로 화면 구성
+        let html = `
+            <div class="admin-section-title" style="display:flex; justify-content:space-between; align-items:center;">
+                <div><i class="fa-solid fa-cloud" style="color:#7dd3fc;"></i> 외부 저장소 현황</div>
+                <button onclick="renderUnifiedStorageContent(document.getElementById('unified-admin-body'))"
+                        style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; padding:5px 12px; border-radius:8px; font-size:0.75rem; cursor:pointer;">
+                    <i class="fa-solid fa-rotate"></i> 새로고침
+                </button>
+            </div>
+        `;
+
+        // ── Cloudinary 카드 ──
+        html += _renderCloudinaryCard(data.cloudinary);
+
+        // ── Google Cloud Storage 카드 ──
+        html += _renderGcsCard(data.gcs);
+
+        // ── 안내 문구 ──
+        html += `
+            <div style="margin-top:16px; padding:12px 16px; background:rgba(255,255,255,0.02); border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
+                <div style="display:flex; align-items:center; gap:8px; color:#64748b; font-size:0.75rem;">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <span>사용량이 <span style="color:#f59e0b;">80%</span>를 초과하면 경고가 표시됩니다.
+                    Cloudinary 대역폭은 매월 초에 초기화됩니다.</span>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = html;
+
+    } catch (e) {
+        container.innerHTML += `
+            <div style="color:#ef4444; text-align:center; padding:30px;">
+                <i class="fa-solid fa-triangle-exclamation"></i> 저장소 정보를 불러오지 못했습니다: ${e.message}
+            </div>
+        `;
+    }
+}
+
+/**
+ * 바이트 수를 사람이 읽기 좋은 단위(KB, MB, GB)로 변환합니다.
+ * @param {number} bytes - 바이트 수
+ * @returns {string} 변환된 문자열 (예: "2.1 GB", "580 MB")
+ */
+function _formatBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return (bytes / Math.pow(1024, i)).toFixed(i > 1 ? 1 : 0) + ' ' + units[i];
+}
+
+/**
+ * 사용 비율(%)에 따른 게이지 바 색상을 반환합니다.
+ * - 0~60%: 녹색 (여유)
+ * - 60~80%: 노란색 (주의)
+ * - 80~100%: 빨간색 (경고)
+ *
+ * @param {number} pct - 사용 비율 (0~100)
+ * @returns {string} CSS 색상 값
+ */
+function _getGaugeColor(pct) {
+    if (pct >= 80) return '#ef4444';   // 빨간색 — 위험
+    if (pct >= 60) return '#f59e0b';   // 노란색 — 주의
+    return '#10b981';                   // 녹색 — 여유
+}
+
+/**
+ * 게이지 바 HTML을 생성합니다.
+ * 사용 비율에 따라 바 길이와 색상이 변하며, 80% 초과 시 경고 아이콘이 표시됩니다.
+ *
+ * @param {string} label - 게이지 바 제목 (예: "저장 공간", "월간 대역폭")
+ * @param {number} used - 사용량 (바이트)
+ * @param {number} limit - 한도 (바이트)
+ * @returns {string} HTML 문자열
+ */
+function _renderGaugeBar(label, used, limit) {
+    const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
+    const color = _getGaugeColor(pct);
+    const warning = pct >= 80 ? '<i class="fa-solid fa-triangle-exclamation" style="color:#ef4444; margin-left:6px;"></i>' : '';
+
+    return `
+        <div style="margin-bottom:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <span style="color:#94a3b8; font-size:0.8rem; font-weight:600;">${label}</span>
+                <span style="color:#cbd5e1; font-size:0.8rem;">
+                    ${_formatBytes(used)} / ${_formatBytes(limit)}${warning}
+                </span>
+            </div>
+            <div style="background:rgba(0,0,0,0.3); border-radius:6px; height:8px; overflow:hidden;">
+                <div style="background:${color}; height:100%; width:${pct.toFixed(1)}%; border-radius:6px; transition:width 0.5s ease;"></div>
+            </div>
+            <div style="text-align:right; margin-top:3px; font-size:0.7rem; color:${color}; font-weight:700;">
+                ${pct.toFixed(1)}%
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Cloudinary 저장소 현황 카드를 렌더링합니다.
+ * - 사용 중이면: 저장 공간 게이지, 대역폭 게이지, 파일 수 표시
+ * - 미설정이면: "Cloudinary가 설정되지 않았습니다" 안내
+ * - 오류 발생 시: 에러 메시지 표시
+ *
+ * @param {Object} cData - /api/admin/storage-usage 응답의 cloudinary 객체
+ * @returns {string} HTML 문자열
+ */
+function _renderCloudinaryCard(cData) {
+    let inner = '';
+
+    if (!cData || !cData.available) {
+        // Cloudinary 환경변수가 설정되지 않은 경우 (로컬 디스크 모드)
+        inner = `
+            <div style="text-align:center; padding:25px; color:#64748b;">
+                <i class="fa-solid fa-cloud-slash" style="font-size:1.5rem; margin-bottom:8px; display:block;"></i>
+                <div>Cloudinary가 설정되지 않았습니다</div>
+                <div style="font-size:0.7rem; margin-top:4px;">로컬 디스크(uploads/) 모드로 동작 중</div>
+            </div>
+        `;
+    } else if (cData.error) {
+        // API 호출은 됐으나 오류 발생
+        inner = `
+            <div style="text-align:center; padding:25px; color:#ef4444;">
+                <i class="fa-solid fa-circle-exclamation" style="font-size:1.2rem; margin-bottom:8px; display:block;"></i>
+                <div>조회 실패: ${cData.error}</div>
+            </div>
+        `;
+    } else {
+        // 정상 데이터 표시
+        inner = `
+            ${_renderGaugeBar('저장 공간', cData.storage.used, cData.storage.limit)}
+            ${_renderGaugeBar('월간 대역폭 (전송량)', cData.bandwidth.used, cData.bandwidth.limit)}
+            <div style="display:flex; gap:10px; margin-top:8px;">
+                <div style="flex:1; background:rgba(0,0,0,0.2); border-radius:8px; padding:10px; text-align:center;">
+                    <div style="font-size:0.7rem; color:#64748b; margin-bottom:4px;">총 파일 수</div>
+                    <div style="font-size:1.1rem; font-weight:800; color:#fff;">${(cData.resources || 0).toLocaleString()}</div>
+                </div>
+                <div style="flex:1; background:rgba(0,0,0,0.2); border-radius:8px; padding:10px; text-align:center;">
+                    <div style="font-size:0.7rem; color:#64748b; margin-bottom:4px;">플랜</div>
+                    <div style="font-size:1.1rem; font-weight:800; color:#fff;">${cData.plan || 'Free'}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="admin-card" style="padding:18px; margin-bottom:16px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.05);">
+                <div style="width:36px; height:36px; background:rgba(244,114,182,0.15); border-radius:10px; display:flex; align-items:center; justify-content:center;">
+                    <i class="fa-solid fa-cloud-arrow-up" style="color:#f472b6; font-size:1rem;"></i>
+                </div>
+                <div>
+                    <div style="font-weight:700; color:#fff; font-size:0.9rem;">Cloudinary</div>
+                    <div style="font-size:0.7rem; color:#64748b;">이미지 · 문서 저장소</div>
+                </div>
+            </div>
+            ${inner}
+        </div>
+    `;
+}
+
+/**
+ * Google Cloud Storage 현황 카드를 렌더링합니다.
+ * - 사용 중이면: 저장 공간 게이지, 파일 수, 최근 백업 날짜 표시
+ * - 미설정이면: "GCS가 설정되지 않았습니다" 안내
+ * - 오류 발생 시: 에러 메시지 표시
+ *
+ * @param {Object} gData - /api/admin/storage-usage 응답의 gcs 객체
+ * @returns {string} HTML 문자열
+ */
+function _renderGcsCard(gData) {
+    let inner = '';
+
+    if (!gData || !gData.available) {
+        // GCS 인증키 파일이 없는 경우
+        inner = `
+            <div style="text-align:center; padding:25px; color:#64748b;">
+                <i class="fa-solid fa-cloud-slash" style="font-size:1.5rem; margin-bottom:8px; display:block;"></i>
+                <div>Google Cloud Storage가 설정되지 않았습니다</div>
+                <div style="font-size:0.7rem; margin-top:4px;">백업 기능이 비활성화되어 있습니다</div>
+            </div>
+        `;
+    } else if (gData.error) {
+        inner = `
+            <div style="text-align:center; padding:25px; color:#ef4444;">
+                <i class="fa-solid fa-circle-exclamation" style="font-size:1.2rem; margin-bottom:8px; display:block;"></i>
+                <div>조회 실패: ${gData.error}</div>
+            </div>
+        `;
+    } else {
+        inner = `
+            ${_renderGaugeBar('저장 공간', gData.storage.used, gData.storage.limit)}
+            <div style="display:flex; gap:10px; margin-top:8px;">
+                <div style="flex:1; background:rgba(0,0,0,0.2); border-radius:8px; padding:10px; text-align:center;">
+                    <div style="font-size:0.7rem; color:#64748b; margin-bottom:4px;">백업 파일 수</div>
+                    <div style="font-size:1.1rem; font-weight:800; color:#fff;">${(gData.fileCount || 0).toLocaleString()}</div>
+                </div>
+                <div style="flex:1; background:rgba(0,0,0,0.2); border-radius:8px; padding:10px; text-align:center;">
+                    <div style="font-size:0.7rem; color:#64748b; margin-bottom:4px;">최근 백업</div>
+                    <div style="font-size:1.1rem; font-weight:800; color:#fff;">${gData.latestBackup || '-'}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="admin-card" style="padding:18px; margin-bottom:16px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.05);">
+                <div style="width:36px; height:36px; background:rgba(56,189,248,0.15); border-radius:10px; display:flex; align-items:center; justify-content:center;">
+                    <i class="fa-solid fa-box-archive" style="color:#38bdf8; font-size:1rem;"></i>
+                </div>
+                <div>
+                    <div style="font-weight:700; color:#fff; font-size:0.9rem;">Google Cloud Storage</div>
+                    <div style="font-size:0.7rem; color:#64748b;">자동 백업 저장소</div>
+                </div>
+            </div>
+            ${inner}
+        </div>
+    `;
+}
 

@@ -65,11 +65,8 @@ function updateGranularStats(kstDate) {
         stats[dateStr].total = (stats[dateStr].total || 0) + 1;
         stats[dateStr].hourly[hourStr] = (stats[dateStr].hourly[hourStr] || 0) + 1;
 
-        // 최근 365일치 데이터만 유지
-        const keys = Object.keys(stats).sort();
-        if (keys.length > 365) {
-            delete stats[keys[0]];
-        }
+        // 방문자 통계는 영구 보관 (삭제 로직 없음)
+        // 1일 ≈ 150바이트이므로 10년 누적해도 약 540KB → 성능 영향 없음
 
         fs.writeFileSync(FILES.VISITORS_STATS, JSON.stringify(stats, null, 2), 'utf8');
     } catch (e) {
