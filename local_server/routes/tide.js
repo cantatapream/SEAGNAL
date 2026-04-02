@@ -31,6 +31,7 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+const fetch = require('node-fetch'); // 서버→서버 HTTP 요청용 (Kakao REST API 호출에 사용)
 const { DATA_DIR, IS_FLY_IO, FILES } = require('../config/server_config');
 const { tideCache } = require('../services/cache_manager');
 const tideCollector = require('../services/tide_collector');
@@ -321,6 +322,59 @@ router.delete('/api/tidebed/key/:index', (req, res) => {
     }
     tideCollector.saveTideBedConfig();
     res.json({ success: true });
+});
+
+// ============================================================================
+// 위치 검색 프록시 (Kakao 로컬 키워드 검색 REST API)
+// ============================================================================
+// [역할]
+// 클라이언트(브라우저)가 직접 Kakao API를 호출하면 도메인 인증 실패로 막힙니다.
+// 이 엔드포인트가 중간에서 대신 Kakao에 요청하고 결과만 클라이언트에 전달합니다.
+// REST API 키는 환경변수(KAKAO_REST_API_KEY)로 관리하여 소스코드에 노출되지 않습니다.
+//
+// [요청]  GET /api/search-place?q=속초항
+// [응답]  { documents: [ { place_name, address_name, x, y }, ... ] }
+// ============================================================================
+router.get('/api/search-place', async (req, res) => {
+    // 검색어 유효성 검사 (2글자 미만 거부)
+    const query = (req.query.q || '').trim();
+    if (query.length < 2) {
+        return res.status(400).json({ error: '검색어를 2글자 이상 입력해주세요.' });
+    }
+
+    // 환경변수에서 Kakao REST API 키 읽기
+    const apiKey = process.env.KAKAO_REST_API_KEY;
+    if (!apiKey) {
+        console.warn('[search-place] KAKAO_REST_API_KEY 환경변수가 설정되지 않았습니다.');
+        return res.status(503).json({ error: '검색 서비스가 설정되어 있지 않습니다.' });
+    }
+
+    try {
+        // Kakao 키워드 장소 검색 API 호출 (최대 7개 결과)
+        const kakaoUrl = `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(query)}&size=7`;
+        const kakaoRes = await fetch(kakaoUrl, {
+            headers: { Authorization: `KakaoAK ${apiKey}` }
+        });
+
+        if (!kakaoRes.ok) {
+            console.error(`[search-place] Kakao API 오류: ${kakaoRes.status}`);
+            return res.status(502).json({ error: 'Kakao 검색 API 오류가 발생했습니다.' });
+        }
+
+        const data = await kakaoRes.json();
+        // 필요한 필드만 추려서 반환 (place_name, address_name, x=경도, y=위도)
+        const results = (data.documents || []).map(d => ({
+            place_name:   d.place_name,
+            address_name: d.address_name,
+            x: d.x, // 경도
+            y: d.y  // 위도
+        }));
+        res.json({ documents: results });
+
+    } catch (err) {
+        console.error('[search-place] 서버 오류:', err.message);
+        res.status(500).json({ error: '검색 중 서버 오류가 발생했습니다.' });
+    }
 });
 
 // 일일 조석 조회 카운트 리셋 (자정에 호출)
