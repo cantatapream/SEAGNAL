@@ -881,4 +881,114 @@ router.get('/api/block-status', (req, res) => {
     }
 });
 
+// ============================================================================
+// 외부 저장소 사용량 조회 API
+// ============================================================================
+
+/**
+ * GET /api/admin/storage-usage
+ * Cloudinary와 Google Cloud Storage의 사용량을 조회하여 반환합니다.
+ *
+ * [응답 구조]
+ * {
+ *   cloudinary: {
+ *     available: true/false,          // Cloudinary 설정 여부
+ *     storage: { used: bytes, limit: bytes },   // 저장 공간
+ *     bandwidth: { used: bytes, limit: bytes },  // 월간 대역폭
+ *     resources: number,              // 총 파일 수
+ *     error: string (실패 시)
+ *   },
+ *   gcs: {
+ *     available: true/false,          // Google Cloud Storage 설정 여부
+ *     storage: { used: bytes, limit: 5368709120 (5GB) },  // 저장 공간
+ *     fileCount: number,              // 총 파일 수
+ *     latestBackup: string,           // 최근 백업 날짜
+ *     error: string (실패 시)
+ *   }
+ * }
+ *
+ * [연계]
+ * - services/upload_manager.js → Cloudinary SDK 인스턴스 제공
+ * - cloud_backup.js → Google Cloud Storage 버킷 정보
+ * - js/admin_collect.js → 관리자 "외부 저장소" 탭에서 이 API를 호출하여 게이지 바 표시
+ */
+router.get('/api/admin/storage-usage', async (req, res) => {
+    const result = {
+        cloudinary: { available: false },
+        gcs: { available: false }
+    };
+
+    // ── Cloudinary 사용량 조회 ──
+    // upload_manager.js에서 Cloudinary SDK 인스턴스를 가져와서 Admin API 호출
+    try {
+        const { getCloudinary } = require('../services/upload_manager');
+        const cloudinary = getCloudinary();
+
+        if (cloudinary) {
+            // cloudinary.api.usage()는 현재 계정의 저장 공간, 대역폭, 파일 수 등을 반환
+            const usage = await cloudinary.api.usage();
+            result.cloudinary = {
+                available: true,
+                storage: {
+                    used: usage.storage?.usage || 0,          // 현재 사용 중인 저장 공간 (바이트)
+                    limit: usage.storage?.limit || 0           // 무료 플랜 한도 (바이트)
+                },
+                bandwidth: {
+                    used: usage.bandwidth?.usage || 0,         // 이번 달 사용한 대역폭 (바이트)
+                    limit: usage.bandwidth?.limit || 0          // 월간 대역폭 한도 (바이트)
+                },
+                resources: usage.resources || 0,               // 총 파일(리소스) 수
+                plan: usage.plan || 'Free'                     // 현재 플랜 이름
+            };
+        }
+    } catch (e) {
+        result.cloudinary = { available: true, error: e.message };
+    }
+
+    // ── Google Cloud Storage 사용량 조회 ──
+    // cloud_backup.js의 버킷에서 파일 목록을 가져와 크기를 합산
+    try {
+        const backupKeyPath = path.join(__dirname, '..', 'serviceAccountKey_Backup.json');
+        if (fs.existsSync(backupKeyPath)) {
+            const { Storage } = require('@google-cloud/storage');
+            const keyData = JSON.parse(fs.readFileSync(backupKeyPath, 'utf8'));
+            const storage = new Storage({ keyFilename: backupKeyPath, projectId: keyData.project_id });
+            const bucket = storage.bucket('seagnal-server-backup');
+
+            // 버킷 내 모든 파일 목록을 조회하여 크기 합산
+            const [files] = await bucket.getFiles();
+            let totalSize = 0;
+            let latestDate = '';
+
+            files.forEach(file => {
+                totalSize += parseInt(file.metadata.size || 0);
+                // 파일명에서 백업 날짜 추출 (backup_YYYYMMDD/filename.json)
+                const match = file.name.match(/backup_(\d{8})/);
+                if (match && match[1] > latestDate) {
+                    latestDate = match[1];
+                }
+            });
+
+            // 최근 백업 날짜를 읽기 쉬운 형식으로 변환 (20260402 → 2026-04-02)
+            const formattedDate = latestDate
+                ? `${latestDate.slice(0, 4)}-${latestDate.slice(4, 6)}-${latestDate.slice(6, 8)}`
+                : '-';
+
+            result.gcs = {
+                available: true,
+                storage: {
+                    used: totalSize,                           // 현재 사용 중인 저장 공간 (바이트)
+                    limit: 5 * 1024 * 1024 * 1024              // 무료 한도 5GB (바이트)
+                },
+                fileCount: files.length,                       // 총 파일 수
+                latestBackup: formattedDate                    // 가장 최근 백업 날짜
+            };
+        }
+    } catch (e) {
+        result.gcs = { available: true, error: e.message };
+    }
+
+    res.json(result);
+});
+
 module.exports = router;

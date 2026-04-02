@@ -27,6 +27,7 @@ const { UPLOAD_DIR } = require('../config/server_config');
 
 let upload;         // 이미지 업로드 핸들러
 let uploadFile;     // 문서 파일 업로드 핸들러
+let cloudinaryInstance = null;  // Cloudinary SDK 인스턴스 (사용량 조회용으로 export)
 
 // ============================================================================
 // Cloudinary vs 로컬 디스크 스토리지 선택
@@ -40,6 +41,9 @@ if (process.env.CLOUDINARY_CLOUD_NAME) {
         api_key: process.env.CLOUDINARY_API_KEY,
         api_secret: process.env.CLOUDINARY_API_SECRET
     });
+
+    // 외부에서 사용량 조회(cloudinary.api.usage()) 등에 사용할 수 있도록 인스턴스 보관
+    cloudinaryInstance = cloudinary;
 
     // 이미지 업로드용 스토리지 (jpg, png, gif, webp 허용)
     const cloudStorage = new CloudinaryStorage({
@@ -88,5 +92,8 @@ global.uploadFile = uploadFile;
 
 module.exports = {
     upload,
-    uploadFile
+    uploadFile,
+    // Cloudinary 인스턴스 — 관리자 페이지에서 사용량 조회 시 사용
+    // Cloudinary 미설정 환경(로컬)에서는 null 반환
+    getCloudinary: () => cloudinaryInstance
 };
