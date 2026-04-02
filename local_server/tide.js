@@ -508,12 +508,26 @@ function initTideSearch() {
  * Kakao 장소 검색 API 호출
  * - 입력된 검색어를 카카오에 전달하고 결과를 받아옵니다
  * - 결과가 있으면 드롭다운으로 표시합니다
+ * - SDK가 아직 로드되지 않았으면 자동으로 로드를 시도합니다
  * @param {string} query - 사용자가 입력한 검색어 (예: "속초항")
  */
 function searchKakaoPlaces(query) {
-    // SDK가 아직 로드되지 않았으면 검색 불가
+    // SDK가 아직 로드되지 않았으면 로드 시도 후 재검색
     if (!_kakaoPlaces) {
-        renderTideSearchMessage('검색 서비스를 불러오는 중...');
+        // Kakao SDK 스크립트가 로드되었는지 확인
+        if (window.kakao && window.kakao.maps) {
+            renderTideSearchMessage('검색 서비스를 불러오는 중...');
+            // SDK 초기화 시도 후 자동 재검색
+            kakao.maps.load(function () {
+                _kakaoPlaces = new kakao.maps.services.Places();
+                _kakaoSDKLoaded = true;
+                // SDK 로드 완료 후 원래 검색어로 재검색
+                searchKakaoPlaces(query);
+            });
+        } else {
+            // SDK 스크립트 자체가 로드 안 됨 (네트워크 오류 등)
+            renderTideSearchMessage('검색 서비스를 사용할 수 없습니다');
+        }
         return;
     }
 
