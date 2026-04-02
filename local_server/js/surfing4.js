@@ -161,18 +161,20 @@
         var grades = ['초급', '중급', '상급'];
         var COLORS = s.LEVEL_COLORS;
 
-        var html = '<div class="surfing-index-table-wrap">';
+        // 서핑지수 테이블을 카드 형태로 생성
+        var html = '<div class="surfing-index-card">';
+        html += '<div class="surfing-index-card-title">서핑지수</div>';
         html += '<table class="surfing-index-table">';
 
-        // --- 헤더 행 ---
+        // 헤더: 등급 라벨 + 시간대 라벨
         html += '<thead><tr>';
-        html += '<th class="surfing-index-th-label">서핑지수</th>';
+        html += '<th class="surfing-index-th-label"></th>';
         timeLabels.forEach(function(label) {
             html += '<th class="surfing-index-th-time">' + label + '</th>';
         });
         html += '</tr></thead>';
 
-        // --- 데이터 행 (초급/중급/상급) ---
+        // 등급 행 (초급/중급/상급)
         html += '<tbody>';
         grades.forEach(function(grade) {
             html += '<tr>';
@@ -185,19 +187,15 @@
 
                 // 등급에 맞는 배경색/텍스트색 결정
                 var colors = COLORS[level];
-                var cellStyle = '';
-                var textStyle = 'color:#fff;font-weight:600;';
+                var cellClass = 'surfing-index-td-val';
                 if (colors) {
-                    // outer 색상을 배경으로 사용 (진한 색)
-                    cellStyle = 'background:' + colors.outer + ';';
+                    cellClass += ' surfing-level-' + level;
                 } else {
-                    // 데이터 없음 → 회색
-                    cellStyle = 'background:#555;';
-                    textStyle = 'color:#aaa;font-weight:400;';
+                    cellClass += ' surfing-level-none';
                 }
 
-                html += '<td class="surfing-index-td-val" style="' + cellStyle + '">';
-                html += '<span style="' + textStyle + '">' + s.utils.escapeHtml(level) + '</span>';
+                html += '<td class="' + cellClass + '">';
+                html += s.utils.escapeHtml(level);
                 html += '</td>';
             });
 
@@ -246,53 +244,71 @@
         // 해구별 시간대 데이터: [{time:'9시', wh, wp, ws, windDir}, ...]
         var timeData = s.utils.getZoneTimeData(zoneId, dateStr);
 
+        // 해구 기상 데이터가 전부 비어있는지 확인 (D+3 이후 등)
+        // zone_forecasts에 데이터가 없으면 서핑 API 평균값을 대신 사용
+        var hasZoneData = timeData.some(function(td) {
+            return td.wh !== null || td.wp !== null || td.ws !== null;
+        });
+
         // 수온: 오전/오후/종일에서 추출
-        // 형식: { '오전': '10.5', '오후': '10.8' } 또는 { '일': '11.3' }
         var temps = {};
         if (forecast['오전'] && forecast['오전'].avgWtem) temps['오전'] = forecast['오전'].avgWtem;
         if (forecast['오후'] && forecast['오후'].avgWtem) temps['오후'] = forecast['오후'].avgWtem;
         if (forecast['일'] && forecast['일'].avgWtem)   temps['종일'] = forecast['일'].avgWtem;
 
-        var html = '<div class="surfing-detail-table-wrap">';
+        // ─── 해구 기상 데이터가 있는 경우 (D+0~D+2): 9/12/15/18시 상세 표시 ───
+        if (hasZoneData) {
+            return _buildDetailTableHourly(timeData, temps);
+        }
+
+        // ─── 해구 기상 없는 경우 (D+3 이후): 서핑 API 평균값으로 대체 표시 ───
+        // 서핑 API의 오전/오후/종일별 avgWvhgt, avgWvpd, avgWspd를 사용
+        return _buildDetailTableAvg(forecast, temps);
+    }
+
+    /**
+     * 상세정보 테이블 — 시간대별 표시 (해구 기상 데이터 있는 경우)
+     * 9시/12시/15시/18시 4개 컬럼
+     */
+    function _buildDetailTableHourly(timeData, temps) {
+        var html = '<div class="surfing-detail-card">';
+        html += '<div class="surfing-detail-card-title">상세정보</div>';
         html += '<table class="surfing-detail-table">';
 
-        // --- 헤더 행 ---
+        // 헤더: 빈칸 + 9시/12시/15시/18시
         html += '<thead><tr>';
-        html += '<th class="surfing-detail-th-label">상세정보</th>';
+        html += '<th class="surfing-detail-th-label"></th>';
         timeData.forEach(function(td) {
             html += '<th class="surfing-detail-th-time">' + td.time + '</th>';
         });
-        html += '</tr></thead>';
+        html += '</tr></thead><tbody>';
 
-        html += '<tbody>';
-
-        // --- 행1: 유의파고 (m) ---
+        // 유의파고
         html += '<tr>';
-        html += '<td class="surfing-detail-td-label">유의파고<br><span class="surfing-detail-unit">(m)</span></td>';
+        html += '<td class="surfing-detail-td-label"><span class="surfing-detail-name">유의파고</span><span class="surfing-detail-unit">m</span></td>';
         timeData.forEach(function(td) {
             var val = (td.wh !== null && td.wh !== undefined) ? Number(td.wh).toFixed(1) : '-';
             html += '<td class="surfing-detail-td-val">' + val + '</td>';
         });
         html += '</tr>';
 
-        // --- 행2: 파주기 (sec) ---
+        // 파주기
         html += '<tr>';
-        html += '<td class="surfing-detail-td-label">파주기<br><span class="surfing-detail-unit">(sec)</span></td>';
+        html += '<td class="surfing-detail-td-label"><span class="surfing-detail-name">파주기</span><span class="surfing-detail-unit">sec</span></td>';
         timeData.forEach(function(td) {
             var val = (td.wp !== null && td.wp !== undefined) ? Number(td.wp).toFixed(1) : '-';
             html += '<td class="surfing-detail-td-val">' + val + '</td>';
         });
         html += '</tr>';
 
-        // --- 행3: 바람 (방향 화살표 + 방위명 + 풍속) ---
+        // 바람
         html += '<tr>';
-        html += '<td class="surfing-detail-td-label">바람<br><span class="surfing-detail-unit">(m/s)</span></td>';
+        html += '<td class="surfing-detail-td-label"><span class="surfing-detail-name">바람</span><span class="surfing-detail-unit">m/s</span></td>';
         timeData.forEach(function(td) {
             var windInfo = s.utils.windDirToText(td.windDir);
             var wsVal = (td.ws !== null && td.ws !== undefined) ? Number(td.ws).toFixed(1) : '-';
             html += '<td class="surfing-detail-td-val surfing-detail-wind">';
             if (td.windDir !== null) {
-                // 화살표 + 방위명 + 풍속을 세 줄로 표시
                 html += '<span class="surfing-wind-arrow">' + windInfo.arrow + '</span>';
                 html += '<span class="surfing-wind-dir">' + windInfo.text + '</span>';
                 html += '<span class="surfing-wind-spd">' + wsVal + '</span>';
@@ -303,35 +319,97 @@
         });
         html += '</tr>';
 
-        // --- 행4: 수온 (°C) — 오전/오후 또는 종일 구간으로 colspan 병합 ---
-        // 오전(9시,12시) / 오후(15시,18시)를 각각 2칸씩 병합하거나,
-        // 종일이면 4칸 전체 병합
+        // 수온 (오전/오후 colspan 또는 종일 colspan)
         html += '<tr>';
-        html += '<td class="surfing-detail-td-label">수온<br><span class="surfing-detail-unit">(°C)</span></td>';
-
+        html += '<td class="surfing-detail-td-label"><span class="surfing-detail-name">수온</span><span class="surfing-detail-unit">&deg;C</span></td>';
         if (temps['오전'] || temps['오후']) {
-            // 오전/오후 각 2칸 colspan
             var amVal = temps['오전'] ? temps['오전'] + '°C' : '-';
             var pmVal = temps['오후'] ? temps['오후'] + '°C' : '-';
-            html += '<td class="surfing-detail-td-temp" colspan="2">';
-            html += '<span class="surfing-temp-label">오전</span> ' + s.utils.escapeHtml(amVal);
-            html += '</td>';
-            html += '<td class="surfing-detail-td-temp" colspan="2">';
-            html += '<span class="surfing-temp-label">오후</span> ' + s.utils.escapeHtml(pmVal);
-            html += '</td>';
+            html += '<td class="surfing-detail-td-temp" colspan="2"><span class="surfing-temp-label">오전</span> ' + s.utils.escapeHtml(amVal) + '</td>';
+            html += '<td class="surfing-detail-td-temp" colspan="2"><span class="surfing-temp-label">오후</span> ' + s.utils.escapeHtml(pmVal) + '</td>';
         } else {
-            // 종일: 4칸 전체 병합
             var allVal = temps['종일'] ? temps['종일'] + '°C' : '-';
-            html += '<td class="surfing-detail-td-temp" colspan="4">';
-            html += '<span class="surfing-temp-label">종일</span> ' + s.utils.escapeHtml(allVal);
-            html += '</td>';
+            html += '<td class="surfing-detail-td-temp" colspan="4"><span class="surfing-temp-label">종일</span> ' + s.utils.escapeHtml(allVal) + '</td>';
         }
-
         html += '</tr>';
-        html += '</tbody>';
-        html += '</table>';
-        html += '</div>';
 
+        html += '</tbody></table></div>';
+        return html;
+    }
+
+    /**
+     * 상세정보 테이블 — 서핑 API 평균값 표시 (해구 기상 없는 D+3 이후)
+     *
+     * [동작]
+     * zone_forecasts에 9/12/15/18시 데이터가 없는 경우,
+     * 서핑 API 응답의 avgWvhgt, avgWvpd, avgWspd를 오전/오후 또는 종일 컬럼으로 표시합니다.
+     *
+     * 예: D+4 종일 → forecast['일'] = { avgWvhgt:'0.7', avgWvpd:'6.3', avgWspd:'5.1', avgWtem:'13.1' }
+     *     → 유의파고 0.7m, 파주기 6.3sec, 풍속 5.1m/s, 수온 13.1°C 단일 행으로 표시
+     */
+    function _buildDetailTableAvg(forecast, temps) {
+        // 오전/오후 또는 종일 컬럼 결정
+        var hasAmPm = forecast['오전'] || forecast['오후'];
+        var slots = hasAmPm ? ['오전', '오후'] : ['일'];
+        var labels = slots.map(function(t) { return t === '일' ? '종일' : t; });
+
+        var html = '<div class="surfing-detail-card">';
+        html += '<div class="surfing-detail-card-title">상세정보 <span class="surfing-detail-note">(평균)</span></div>';
+        html += '<table class="surfing-detail-table">';
+
+        // 헤더
+        html += '<thead><tr>';
+        html += '<th class="surfing-detail-th-label"></th>';
+        labels.forEach(function(label) {
+            html += '<th class="surfing-detail-th-time">' + label + '</th>';
+        });
+        html += '</tr></thead><tbody>';
+
+        // 유의파고
+        html += '<tr>';
+        html += '<td class="surfing-detail-td-label"><span class="surfing-detail-name">유의파고</span><span class="surfing-detail-unit">m</span></td>';
+        slots.forEach(function(slot) {
+            var d = forecast[slot];
+            var val = (d && d.avgWvhgt) ? Number(d.avgWvhgt).toFixed(1) : '-';
+            html += '<td class="surfing-detail-td-val">' + val + '</td>';
+        });
+        html += '</tr>';
+
+        // 파주기
+        html += '<tr>';
+        html += '<td class="surfing-detail-td-label"><span class="surfing-detail-name">파주기</span><span class="surfing-detail-unit">sec</span></td>';
+        slots.forEach(function(slot) {
+            var d = forecast[slot];
+            var val = (d && d.avgWvpd) ? Number(d.avgWvpd).toFixed(1) : '-';
+            html += '<td class="surfing-detail-td-val">' + val + '</td>';
+        });
+        html += '</tr>';
+
+        // 풍속 (방향 없이 평균 풍속만)
+        html += '<tr>';
+        html += '<td class="surfing-detail-td-label"><span class="surfing-detail-name">풍속</span><span class="surfing-detail-unit">m/s</span></td>';
+        slots.forEach(function(slot) {
+            var d = forecast[slot];
+            var val = (d && d.avgWspd) ? Number(d.avgWspd).toFixed(1) : '-';
+            html += '<td class="surfing-detail-td-val">' + val + '</td>';
+        });
+        html += '</tr>';
+
+        // 수온
+        html += '<tr>';
+        html += '<td class="surfing-detail-td-label"><span class="surfing-detail-name">수온</span><span class="surfing-detail-unit">&deg;C</span></td>';
+        if (temps['오전'] || temps['오후']) {
+            var amVal = temps['오전'] ? temps['오전'] + '°C' : '-';
+            var pmVal = temps['오후'] ? temps['오후'] + '°C' : '-';
+            html += '<td class="surfing-detail-td-val">' + s.utils.escapeHtml(amVal) + '</td>';
+            html += '<td class="surfing-detail-td-val">' + s.utils.escapeHtml(pmVal) + '</td>';
+        } else {
+            var allVal = temps['종일'] ? temps['종일'] + '°C' : '-';
+            html += '<td class="surfing-detail-td-val" colspan="' + slots.length + '">' + s.utils.escapeHtml(allVal) + '</td>';
+        }
+        html += '</tr>';
+
+        html += '</tbody></table></div>';
         return html;
     }
 

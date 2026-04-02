@@ -5677,7 +5677,7 @@ line-height: 1.1;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 12px 16px 8px;
+    padding: 14px 16px 10px;
     flex-shrink: 0;
 }
 
@@ -5685,22 +5685,23 @@ line-height: 1.1;
     display: flex;
     align-items: center;
     gap: 6px;
-    color: #fff;
-    font-size: 1.1rem;
+    color: #eceff1;
+    font-size: 1.05rem;
     font-weight: 700;
 }
 
 .surfing-popup-place i {
-    color: var(--accent-blue, #448aff);
+    color: #42a5f5;
+    font-size: 0.95rem;
 }
 
 /* 팝업 닫기 버튼 */
 .surfing-popup-close {
     margin-left: auto;
-    background: rgba(255, 255, 255, 0.08);
-    border: none;
-    color: #888;
-    font-size: 0.9rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #78909c;
+    font-size: 0.85rem;
     cursor: pointer;
     padding: 0;
     border-radius: 50%;
@@ -5714,7 +5715,7 @@ line-height: 1.1;
 }
 
 .surfing-popup-close:hover {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.12);
     color: #fff;
 }
 
@@ -5723,42 +5724,42 @@ line-height: 1.1;
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 16px;
-    padding: 6px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 14px;
+    padding: 8px 16px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     flex-shrink: 0;
 }
 
 .surfing-date-btn {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 50%;
-    color: #aaa;
-    width: 32px;
-    height: 32px;
+    color: #90a4ae;
+    width: 30px;
+    height: 30px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
 }
 
 .surfing-date-btn:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.1);
     color: #fff;
 }
 
 .surfing-date-btn:disabled {
-    opacity: 0.3;
+    opacity: 0.25;
     cursor: not-allowed;
 }
 
 .surfing-date-label {
-    color: #fff;
-    font-size: 0.9rem;
-    font-weight: 600;
-    min-width: 140px;
+    color: #eceff1;
+    font-size: 0.88rem;
+    font-weight: 700;
+    min-width: 150px;
     text-align: center;
 }
 
@@ -5766,206 +5767,154 @@ line-height: 1.1;
 .surfing-popup-content {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 8px 16px 16px;
+    padding: 10px 14px 16px;
     flex: 1;
     min-height: 0;
 }
 
-/* --- 서핑지수 테이블 (등급 × 시간대) --- */
-.surfing-index-table-wrap {
-    overflow-x: auto;
-    margin-bottom: 12px;
+/* ═══════════════════════════════════════════════════════════
+ *  서핑지수 카드 (등급 × 시간대)
+ * ═══════════════════════════════════════════════════════════ */
+.surfing-index-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 10px 12px 8px;
+    margin-bottom: 10px;
+}
+
+.surfing-index-card-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #8899aa;
+    margin-bottom: 8px;
+    letter-spacing: 0.04em;
 }
 
 .surfing-index-table {
     width: 100%;
-    border-collapse: collapse;
-    font-size: 0.78rem;
+    border-collapse: separate;
+    border-spacing: 3px;
+    font-size: 0.82rem;
 }
 
-/* 헤더 셀 */
 .surfing-index-th-label {
-    padding: 5px 6px;
+    padding: 4px 6px;
     text-align: left;
-    color: #888;
-    font-weight: 600;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    white-space: nowrap;
+    color: transparent;
+    font-size: 0;
 }
 
 .surfing-index-th-time {
-    padding: 5px 4px;
+    padding: 6px 4px;
     text-align: center;
-    color: #aaa;
+    color: #8899aa;
     font-weight: 600;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    min-width: 54px;
+    font-size: 0.78rem;
 }
 
-.surfing-index-table th {
-    padding: 5px 4px;
-    text-align: center;
-    color: #aaa;
-    font-weight: 600;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-/* 등급 라벨 셀 */
 .surfing-index-td-grade {
-    padding: 5px 6px;
+    padding: 8px 8px;
     text-align: left;
-    color: #ccc;
-    font-weight: 600;
+    color: #b0bec5;
+    font-weight: 700;
+    font-size: 0.82rem;
     white-space: nowrap;
-    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* 지수 값 셀 (배경색은 JS에서 inline style로 부여) */
 .surfing-index-td-val {
-    padding: 5px 4px;
+    padding: 8px 6px;
     text-align: center;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 4px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.82rem;
+    color: #fff;
+    transition: transform 0.1s;
 }
 
-.surfing-index-table td {
-    padding: 5px 4px;
-    text-align: center;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 4px;
+/* 등급별 셀 색상 — 선명한 그라데이션 배경 */
+.surfing-level-매우좋음 { background: linear-gradient(135deg, #42a5f5, #1565C0); }
+.surfing-level-좋음     { background: linear-gradient(135deg, #66bb6a, #2E7D32); }
+.surfing-level-보통     { background: linear-gradient(135deg, #ffa726, #ef6c00); }
+.surfing-level-나쁨     { background: linear-gradient(135deg, #ff7043, #d84315); }
+.surfing-level-매우나쁨 { background: linear-gradient(135deg, #ef5350, #b71c1c); }
+.surfing-level-none     { background: rgba(255, 255, 255, 0.06); color: #666; font-weight: 400; }
+
+/* ═══════════════════════════════════════════════════════════
+ *  상세정보 카드 (파고/파주기/바람/수온)
+ * ═══════════════════════════════════════════════════════════ */
+.surfing-detail-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 10px 12px 8px;
+    margin-bottom: 10px;
 }
 
-/* 지수 셀 색상 (grade level) */
-.surfing-index-table td.level-매우좋음 { background: rgba(21, 101, 192, 0.5); color: #90caf9; font-weight: 700; }
-.surfing-index-table td.level-좋음     { background: rgba(46, 125, 50, 0.5);  color: #a5d6a7; font-weight: 700; }
-.surfing-index-table td.level-보통     { background: rgba(249, 168, 37, 0.4); color: #ffe082; font-weight: 700; }
-.surfing-index-table td.level-나쁨     { background: rgba(230, 81, 0, 0.4);   color: #ffcc80; font-weight: 700; }
-.surfing-index-table td.level-매우나쁨 { background: rgba(198, 40, 40, 0.4);  color: #ef9a9a; font-weight: 700; }
-.surfing-index-table td.level-없음     { background: transparent; color: #666; }
-
-/* --- 상세 기상 테이블 (파고/파주기/바람/수온) --- */
-.surfing-detail-table-wrap {
-    overflow-x: auto;
-    margin-bottom: 12px;
-}
-
-.surfing-detail-section-title {
-    color: #888;
+.surfing-detail-card-title {
     font-size: 0.72rem;
-    font-weight: 600;
-    margin: 8px 0 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-weight: 700;
+    color: #8899aa;
+    margin-bottom: 8px;
+    letter-spacing: 0.04em;
 }
 
-/* 상세 테이블 헤더 셀 */
-.surfing-detail-th-label {
-    padding: 4px 3px;
-    text-align: left;
-    color: #888;
-    font-weight: 500;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    font-size: 0.7rem;
-    white-space: nowrap;
-}
-
-.surfing-detail-th-time {
-    padding: 4px 3px;
-    text-align: center;
-    color: #aaa;
-    font-weight: 500;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    font-size: 0.7rem;
-    min-width: 38px;
-}
-
-/* 행 라벨 셀 (파고/파주기/바람/수온) */
-.surfing-detail-td-label {
-    padding: 4px 3px;
-    text-align: left;
-    color: #888;
-    font-size: 0.7rem;
-    font-weight: 500;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-    white-space: nowrap;
-    line-height: 1.4;
-}
-
-/* 단위 표기 (소괄호) */
-.surfing-detail-unit {
-    color: #666;
-    font-size: 0.65rem;
+.surfing-detail-note {
     font-weight: 400;
-}
-
-/* 일반 데이터 셀 */
-.surfing-detail-td-val {
-    padding: 4px 3px;
-    text-align: center;
-    color: #ccc;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-    font-size: 0.75rem;
-}
-
-/* 바람 셀: 화살표/방위/풍속 세로 배치 */
-.surfing-detail-wind {
-    line-height: 1.3;
-}
-
-.surfing-wind-arrow {
-    display: block;
-    font-size: 0.9rem;
-    color: #81D4FA;
-}
-
-.surfing-wind-dir {
-    display: block;
-    font-size: 0.6rem;
-    color: #aaa;
-}
-
-.surfing-wind-spd {
-    display: block;
-    font-size: 0.72rem;
-    color: #ccc;
-}
-
-/* 수온 셀 (colspan 병합) */
-.surfing-detail-td-temp {
-    padding: 4px 3px;
-    text-align: center;
-    color: #ccc;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-    font-size: 0.75rem;
-    background: rgba(255, 255, 255, 0.02);
-}
-
-.surfing-temp-label {
-    color: #888;
+    color: #64748b;
     font-size: 0.65rem;
-    margin-right: 3px;
 }
 
 .surfing-detail-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.75rem;
-    margin-bottom: 12px;
+    font-size: 0.82rem;
 }
 
-.surfing-detail-table th {
-    padding: 4px 3px;
+.surfing-detail-th-label {
+    padding: 5px 4px;
+    text-align: left;
+    font-size: 0;
+    color: transparent;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.surfing-detail-th-time {
+    padding: 5px 4px;
     text-align: center;
-    color: #aaa;
+    color: #8899aa;
+    font-weight: 600;
+    font-size: 0.78rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.surfing-detail-td-label {
+    padding: 8px 4px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.surfing-detail-name {
+    color: #90a4ae;
+    font-weight: 600;
+    font-size: 0.78rem;
+}
+
+.surfing-detail-unit {
+    color: #546e7a;
+    font-size: 0.65rem;
+    font-weight: 400;
+    margin-left: 3px;
+}
+
+.surfing-detail-td-val {
+    padding: 8px 4px;
+    text-align: center;
+    color: #e0e0e0;
     font-weight: 500;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    font-size: 0.7rem;
-}
-
-.surfing-detail-table td {
-    padding: 4px 3px;
-    text-align: center;
-    color: #ccc;
+    font-size: 0.85rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
@@ -5973,54 +5922,94 @@ line-height: 1.1;
     border-bottom: none;
 }
 
-.surfing-detail-table td.row-label {
-    color: #888;
-    font-weight: 600;
-    text-align: left;
-    padding-left: 2px;
+/* 바람 셀: 화살표/방위/풍속 세로 배치 */
+.surfing-detail-wind {
+    line-height: 1.2;
+    padding-top: 5px;
+    padding-bottom: 5px;
 }
 
-/* --- 특보 영역 (surfing5.js buildAlertHtml 생성) --- */
+.surfing-wind-arrow {
+    display: block;
+    font-size: 1rem;
+    color: #4fc3f7;
+    margin-bottom: 1px;
+}
+
+.surfing-wind-dir {
+    display: block;
+    font-size: 0.68rem;
+    color: #90a4ae;
+    margin-bottom: 1px;
+}
+
+.surfing-wind-spd {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #e0e0e0;
+}
+
+/* 수온 셀 (colspan 병합) */
+.surfing-detail-td-temp {
+    padding: 8px 4px;
+    text-align: center;
+    color: #e0e0e0;
+    font-weight: 500;
+    font-size: 0.85rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.015);
+}
+
+.surfing-temp-label {
+    color: #78909c;
+    font-size: 0.68rem;
+    font-weight: 500;
+    margin-right: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+ *  해상특보 카드 (surfing5.js buildAlertHtml)
+ * ═══════════════════════════════════════════════════════════ */
 .surfing-alert-section {
-    margin-top: 10px;
-    padding: 8px 10px;
     background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
 }
 
 .surfing-alert-title {
-    color: #888;
-    font-size: 0.7rem;
-    font-weight: 600;
-    margin-bottom: 5px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #8899aa;
+    margin-bottom: 6px;
+    letter-spacing: 0.04em;
 }
 
 .surfing-alert-row {
-    font-size: 0.75rem;
-    color: #bbb;
-    line-height: 1.5;
+    font-size: 0.82rem;
+    color: #b0bec5;
+    line-height: 1.6;
 }
 
 .surfing-alert-zone {
-    color: #ccc;
+    color: #cfd8dc;
     font-weight: 600;
 }
 
 .surfing-alert-active {
-    color: #ef9a9a;
+    color: #ef5350;
     font-weight: 700;
 }
 
 .surfing-alert-upcoming {
-    color: #ffcc80;
-    font-weight: 600;
+    color: #ffa726;
+    font-weight: 700;
 }
 
 .surfing-alert-none {
-    color: #64748b;
+    color: #607d8b;
 }
 
 /* --- 특보 배지 (팝업 헤더용) --- */
@@ -6145,16 +6134,32 @@ line-height: 1.1;
     height: auto;
 }
 
-/* --- 팝업 안내문 섹션 --- */
+/* --- 팝업 내 면책조항 --- */
 .surfing-popup-disclaimer {
     margin-top: 8px;
     padding: 10px 12px;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 0.68rem;
     line-height: 1.6;
-    color: #6a7a8a;
+    color: #607d8b;
+}
+
+/* 팝업 내부에서 사용되는 .surfing-disclaimer는 카드 스타일 통일 */
+.surfing-popup-content .surfing-disclaimer {
+    margin: 8px 0 0;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+}
+
+.surfing-popup-content .surfing-disclaimer p {
+    margin: 0;
+    font-size: 0.68rem;
+    line-height: 1.6;
+    color: #607d8b;
 }
 
 /* ============================================================================
