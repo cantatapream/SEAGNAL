@@ -237,6 +237,128 @@ window.saveCommentEdit = async function(commentId) {
 // 댓글 삭제
 // ============================================================================
 
+// ============================================================================
+// 댓글 영구 삭제 (관리자 전용)
+// ============================================================================
+
+/**
+ * soft-delete된 댓글을 완전히 제거한다. 관리자만 호출 가능.
+ * 해당 댓글과 그 답글이 목록에서 완전히 사라진다.
+ *
+ * @param {string} commentId - 영구 삭제할 댓글 ID
+ */
+window.permanentDeleteComment = async function(commentId) {
+    if (!confirm('이 댓글을 영구적으로 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.')) return;
+
+    try {
+        var res = await fetch(CONFIG.API_BASE + '/api/comments/' + commentId + '/permanent', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isAdmin: true })
+        });
+        var result = await res.json();
+        if (result.success) {
+            await refreshComments();
+        } else {
+            alert('영구 삭제 실패: ' + (result.error || '알 수 없는 오류'));
+        }
+    } catch (e) {
+        alert('영구 삭제 중 오류가 발생했습니다.');
+    }
+};
+
+// ============================================================================
+// 댓글 신고
+// ============================================================================
+
+/**
+ * 댓글 신고 팝업을 띄운다.
+ * @param {string} commentId - 신고할 댓글 ID
+ */
+window.openCommentReport = function(commentId) {
+    var comment = _commentsList.find(function(c) { return c.id === commentId; });
+    if (!comment) return;
+
+    // 기존 팝업 제거
+    var existing = document.getElementById('comment-report-modal');
+    if (existing) existing.remove();
+
+    var reasons = ['욕설/비방', '허위정보/안전위협', '스팸/도배', '정치적 내용', '저작권 침해', '개인정보 노출', '기타'];
+
+    var reasonOptions = reasons.map(function(r) {
+        return '<label class="comment-report-reason-label">'
+            + '<input type="radio" name="report-reason" value="' + r + '"> ' + r
+            + '</label>';
+    }).join('');
+
+    var modalHtml = '<div id="comment-report-modal" '
+        + 'style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);'
+        + 'display:flex;align-items:center;justify-content:center;z-index:99999;">'
+        + '<div style="background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:12px;'
+        + 'padding:20px;max-width:320px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
+        + '<h4 style="margin:0;color:#e2e8f0;font-size:0.95rem;"><i class="fa-solid fa-flag" style="color:#f87171;margin-right:6px;"></i>댓글 신고</h4>'
+        + '<button onclick="document.getElementById(\'comment-report-modal\').remove()" '
+        + 'style="background:none;border:none;color:#94a3b8;font-size:1.4rem;cursor:pointer;line-height:1;">&times;</button>'
+        + '</div>'
+        + '<div style="font-size:0.75rem;color:#94a3b8;margin-bottom:12px;">신고 사유를 선택해주세요.</div>'
+        + '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">'
+        + reasonOptions
+        + '</div>'
+        + '<div style="display:flex;gap:8px;justify-content:flex-end;">'
+        + '<button onclick="document.getElementById(\'comment-report-modal\').remove()" '
+        + 'style="padding:6px 14px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);'
+        + 'border-radius:6px;color:#94a3b8;cursor:pointer;font-size:0.82rem;">취소</button>'
+        + '<button onclick="submitCommentReport(\'' + commentId + '\')" '
+        + 'style="padding:6px 14px;background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.4);'
+        + 'border-radius:6px;color:#f87171;cursor:pointer;font-size:0.82rem;font-weight:600;">'
+        + '<i class="fa-solid fa-flag"></i> 신고</button>'
+        + '</div>'
+        + '</div>'
+        + '</div>';
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+};
+
+/**
+ * 선택한 사유로 댓글 신고를 서버에 전송한다.
+ * @param {string} commentId - 신고 댓글 ID
+ */
+window.submitCommentReport = async function(commentId) {
+    var selected = document.querySelector('input[name="report-reason"]:checked');
+    if (!selected) {
+        alert('신고 사유를 선택해주세요.');
+        return;
+    }
+
+    var comment = _commentsList.find(function(c) { return c.id === commentId; });
+    var reason = selected.value;
+
+    try {
+        var res = await fetch(CONFIG.API_BASE + '/api/comment-reports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                commentId: commentId,
+                postId: String(_currentCommentPostId),
+                reason: reason,
+                reporterDeviceId: getCommentDeviceId(),
+                commentNickname: comment ? comment.nickname : '',
+                commentContent: comment ? comment.content : ''
+            })
+        });
+        var result = await res.json();
+        if (result.success) {
+            document.getElementById('comment-report-modal').remove();
+            alert('신고가 접수되었습니다. 검토 후 조치하겠습니다.');
+        } else {
+            alert(result.error || '신고 처리 중 오류가 발생했습니다.');
+        }
+    } catch (e) {
+        alert('신고 중 오류가 발생했습니다.');
+    }
+};
+
 /**
  * 댓글 삭제를 확인 후 서버에 soft delete 요청을 보낸다.
  * 삭제 후 화면에서는 "삭제된 댓글입니다." 또는 "사용자가 삭제한 댓글입니다."로 표시.

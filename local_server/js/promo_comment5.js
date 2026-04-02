@@ -56,12 +56,28 @@ async function loadPromoComments(postId, allowComments) {
     }
 
     // 댓글 섹션 골격 생성
-    // - comment-section-header: "💬 댓글 N개" 헤더
-    // - comment-list-area: 댓글 목록이 그려지는 영역
-    // - comment-input-area: 댓글 입력창 영역
     container.innerHTML = '<div class="comment-section">'
         + '<div class="comment-section-header">'
         + '<i class="fa-solid fa-comment-dots"></i> <span id="comment-count-label">댓글 로딩 중...</span>'
+        + '</div>'
+        // ── 댓글 가이드라인 (접이식)
+        + '<div class="comment-guideline-wrap" id="comment-guideline-wrap">'
+        + '<button class="comment-guideline-toggle" onclick="toggleCommentGuideline()">'
+        + '<i class="fa-solid fa-circle-info"></i> 댓글 작성 가이드라인'
+        + '<i class="fa-solid fa-chevron-down comment-guideline-arrow" id="comment-guideline-arrow"></i>'
+        + '</button>'
+        + '<div class="comment-guideline-body" id="comment-guideline-body">'
+        + '<ul class="comment-guideline-list">'
+        + '<li><i class="fa-solid fa-circle-xmark" style="color:#f87171;"></i> <b>욕설/비방</b>: 타인을 모욕하거나 비하하는 표현</li>'
+        + '<li><i class="fa-solid fa-circle-xmark" style="color:#f87171;"></i> <b>허위정보·안전위협</b>: 사실과 다른 해양 안전 정보 유포</li>'
+        + '<li><i class="fa-solid fa-circle-xmark" style="color:#f87171;"></i> <b>스팸·도배</b>: 동일 또는 무의미한 내용의 반복 게시</li>'
+        + '<li><i class="fa-solid fa-circle-xmark" style="color:#f87171;"></i> <b>정치·종교</b>: 분열을 조장하는 정치적·종교적 내용</li>'
+        + '<li><i class="fa-solid fa-circle-xmark" style="color:#f87171;"></i> <b>저작권 침해</b>: 타인의 저작물 무단 게시</li>'
+        + '<li><i class="fa-solid fa-circle-xmark" style="color:#f87171;"></i> <b>타 서비스 비방</b>: 경쟁 앱·서비스 비하 또는 광고</li>'
+        + '<li><i class="fa-solid fa-circle-xmark" style="color:#f87171;"></i> <b>개인정보</b>: 본인 또는 타인의 개인정보 포함 내용</li>'
+        + '</ul>'
+        + '<div class="comment-guideline-notice">위반 댓글은 사전 통보 없이 삭제되며 서비스 이용이 제한될 수 있습니다.</div>'
+        + '</div>'
         + '</div>'
         + '<div id="comment-list-area" class="comment-list-area">'
         + '<div class="comment-loading"><i class="fa-solid fa-circle-notch fa-spin"></i></div>'
@@ -170,3 +186,25 @@ window.initCommentToggleListener = initCommentToggleListener;
 // loadPromoComments를 전역에서 접근할 수 있도록 노출
 // (promo.js의 openPromoDetail()에서 typeof loadPromoComments 체크 후 호출)
 window.loadPromoComments = loadPromoComments;
+
+// ============================================================================
+// 댓글 가이드라인 토글
+// ============================================================================
+
+/**
+ * 댓글 가이드라인 접이식 패널 열기/닫기
+ */
+window.toggleCommentGuideline = function() {
+    var body = document.getElementById('comment-guideline-body');
+    var arrow = document.getElementById('comment-guideline-arrow');
+    if (!body) return;
+
+    var isOpen = body.classList.contains('open');
+    if (isOpen) {
+        body.classList.remove('open');
+        if (arrow) arrow.style.transform = '';
+    } else {
+        body.classList.add('open');
+        if (arrow) arrow.style.transform = 'rotate(180deg)';
+    }
+};

@@ -77,16 +77,22 @@
 
     // ========================================================================
     // 미처리 제보 건수 뱃지 업데이트 (관리자용)
+    // 기능 제보(미읽음) + 댓글 신고(대기중) 합산
     // ========================================================================
     async function updateReportBadge() {
         try {
-            const res = await fetch(CONFIG.API_BASE + '/api/reports/pending-count');
-            if (!res.ok) return;
-            const data = await res.json();
+            const [featureRes, commentRes] = await Promise.all([
+                fetch(CONFIG.API_BASE + '/api/reports/pending-count'),
+                fetch(CONFIG.API_BASE + '/api/comment-reports/pending-count')
+            ]);
+            const featureData = featureRes.ok ? await featureRes.json() : { count: 0 };
+            const commentData = commentRes.ok ? await commentRes.json() : { count: 0 };
+            const total = (featureData.count || 0) + (commentData.count || 0);
+
             const badge = document.getElementById('report-badge');
             if (badge) {
-                if (data.count > 0) {
-                    badge.textContent = data.count;
+                if (total > 0) {
+                    badge.textContent = total;
                     badge.style.display = 'flex';
                 } else {
                     badge.style.display = 'none';
