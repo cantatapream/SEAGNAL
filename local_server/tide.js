@@ -9,6 +9,7 @@ let tidePopupOverlay = null;
 let tideStationLayer = null;
 let favoriteLayer = null; // 즐겨찾기 마커 레이어
 let myLocationLayer = null;
+let searchResultLayer = null; // 검색 결과 마커 레이어
 
 // 마지막 클릭 위치 저장 (날짜 변경 시 팝업 업데이트용)
 let lastClickedCoordinate = null;
@@ -589,6 +590,25 @@ function renderTideSearchMessage(msg) {
  * @param {number} lon - 경도 (예: 128.593)
  * @param {string} name - 장소명 (예: "속초항")
  */
+function showTideToast(message, duration = 3000) {
+    let toast = document.getElementById('tide-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'tide-toast';
+        toast.style.cssText = [
+            'position:fixed', 'bottom:80px', 'left:50%', 'transform:translateX(-50%)',
+            'background:rgba(30,30,30,0.88)', 'color:#fff', 'padding:10px 20px',
+            'border-radius:20px', 'font-size:13px', 'z-index:9999',
+            'pointer-events:none', 'transition:opacity 0.3s', 'white-space:nowrap'
+        ].join(';');
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.style.opacity = '1';
+    clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(() => { toast.style.opacity = '0'; }, duration);
+}
+
 function selectTideSearchResult(lat, lon, name) {
     // 검색창에 선택한 장소명 표시
     const input = document.getElementById('tide-search-input');
@@ -607,6 +627,56 @@ function selectTideSearchResult(lat, lon, name) {
         zoom: 13,       // 해안가 세부 지역이 잘 보이는 줌 레벨
         duration: 800    // 이동 애니메이션 0.8초
     });
+
+    // 검색 결과 마커 표시
+    if (!searchResultLayer) {
+        searchResultLayer = new ol.layer.Vector({
+            source: new ol.source.Vector(),
+            zIndex: 900,
+            style: function () {
+                return [
+                    new ol.style.Style({
+                        image: new ol.style.Circle({
+                            radius: 14,
+                            fill: new ol.style.Fill({ color: 'rgba(255, 80, 80, 0.15)' })
+                        })
+                    }),
+                    new ol.style.Style({
+                        image: new ol.style.Circle({
+                            radius: 10,
+                            fill: new ol.style.Fill({ color: '#ffffff' }),
+                            stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.08)', width: 1 })
+                        })
+                    }),
+                    new ol.style.Style({
+                        image: new ol.style.Circle({
+                            radius: 6,
+                            fill: new ol.style.Fill({ color: '#ff4444' })
+                        }),
+                        text: new ol.style.Text({
+                            text: name,
+                            offsetY: -22,
+                            font: 'bold 12px sans-serif',
+                            fill: new ol.style.Fill({ color: '#ffffff' }),
+                            backgroundFill: new ol.style.Fill({ color: 'rgba(255,68,68,0.85)' }),
+                            padding: [2, 6, 2, 6],
+                            backgroundStroke: new ol.style.Stroke({ color: 'rgba(255,68,68,0.9)', width: 1 })
+                        })
+                    })
+                ];
+            }
+        });
+        tideMap.addLayer(searchResultLayer);
+    }
+
+    const source = searchResultLayer.getSource();
+    source.clear();
+    source.addFeature(new ol.Feature({
+        geometry: new ol.geom.Point(targetCenter)
+    }));
+
+    // 토스트 안내 메시지
+    showTideToast('인근 바다를 눌러서 조석을 확인해보세요!');
 }
 
 /**
