@@ -838,65 +838,22 @@
         }
 
         var html = '';
-        var isToday = dateStr === _getTodayStr();
-        var now = new Date();
-        var isBeforeNoon = now.getHours() < 12;
 
-        if (isToday) {
-            if (forecast['일']) {
-                // 오늘이지만 '일'(종일) 슬롯만 있는 경우 (API 예외 상황 대비)
-                html += _buildTimeBlock('종일', forecast['일'], place);
-            } else if (isBeforeNoon) {
-                // 오늘 오전: 오전 데이터 표시 + "오후 예보 보기" 버튼
-                if (forecast['오전']) {
-                    html += _buildTimeBlock('오전', forecast['오전'], place);
-                }
-                if (forecast['오후']) {
-                    html += '<div id="fishing-pm-block" style="display:none;">';
-                    html += _buildTimeBlock('오후', forecast['오후'], place);
-                    html += '</div>';
-                    html += '<button class="fishing-more-btn" id="fishing-toggle-pm-btn">';
-                    html += '<i class="fa-solid fa-chevron-down"></i> 오후 예보 보기';
-                    html += '</button>';
-                }
-            } else {
-                // 오늘 오후: 오후 데이터만 표시
-                if (forecast['오후']) {
-                    html += _buildTimeBlock('오후', forecast['오후'], place);
-                } else if (forecast['오전']) {
-                    // 오후 데이터 없으면 오전 표시
-                    html += _buildTimeBlock('오전', forecast['오전'], place);
-                }
-            }
-        } else {
-            // 다른 날짜: 오전 + 오후 모두 표시, 또는 종일('일') 표시
-            if (forecast['오전']) {
-                html += _buildTimeBlock('오전', forecast['오전'], place);
-            }
-            if (forecast['오후']) {
-                html += _buildTimeBlock('오후', forecast['오후'], place);
-            }
-            // API가 4일차 이후 '일'(종일) 슬롯으로 반환하는 경우
-            if (forecast['일']) {
-                html += _buildTimeBlock('종일', forecast['일'], place);
-            }
+        // 오전/오후/종일 예보를 모든 날짜에서 동일하게 바로 표시
+        // (이전에는 오늘 오전 시간대에 오후 예보를 숨기고 "오후 예보 보기" 버튼으로 토글했으나,
+        //  사용성 개선을 위해 항상 오전+오후 모두 바로 표시하도록 변경)
+        if (forecast['오전']) {
+            html += _buildTimeBlock('오전', forecast['오전'], place);
+        }
+        if (forecast['오후']) {
+            html += _buildTimeBlock('오후', forecast['오후'], place);
+        }
+        // API가 '일'(종일) 슬롯으로 반환하는 경우 (4일차 이후 등)
+        if (forecast['일']) {
+            html += _buildTimeBlock('종일', forecast['일'], place);
         }
 
         contentEl.innerHTML = html;
-
-        // "오후 예보 보기" 버튼 토글 이벤트
-        var toggleBtn = document.getElementById('fishing-toggle-pm-btn');
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', function () {
-                var pmBlock = document.getElementById('fishing-pm-block');
-                if (!pmBlock) return;
-                var isHidden = pmBlock.style.display === 'none';
-                pmBlock.style.display = isHidden ? 'block' : 'none';
-                this.innerHTML = isHidden
-                    ? '<i class="fa-solid fa-chevron-up"></i> 오후 예보 접기'
-                    : '<i class="fa-solid fa-chevron-down"></i> 오후 예보 보기';
-            });
-        }
 
         // 조석상세 버튼 클릭 이벤트 바인딩 (물때 옆 버튼 → 조석 현황 모달 호출)
         contentEl.querySelectorAll('.fishing-tide-detail-btn').forEach(function (btn) {

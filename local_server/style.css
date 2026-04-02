@@ -5386,30 +5386,6 @@ line-height: 1.1;
 .fishing-species-index.level-나쁨     { background: rgba(230, 81, 0, 0.3); color: #FFB74D; }
 .fishing-species-index.level-매우나쁨 { background: rgba(198, 40, 40, 0.3); color: #EF9A9A; }
 
-/* --- 오후 예보 보기 / 접기 버튼 --- */
-.fishing-more-btn {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
-    color: #aaa;
-    padding: 10px;
-    font-size: 0.82rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-top: 4px;
-    font-family: 'Noto Sans KR', sans-serif;
-}
-
-.fishing-more-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
-}
-
 /* --- 기타어종 말풍선 (툴팁) --- */
 .fishing-etc-tooltip {
     position: absolute;

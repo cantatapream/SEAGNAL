@@ -40,12 +40,15 @@ app.use(express.json()); // POST 요청의 body를 JSON으로 자동 파싱
 // 경로 상수
 // ============================================================================
 const DATA_DIR = path.join(__dirname, '..', 'data');
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+// 업로드 디렉토리를 data/ 안에 배치하여 Fly.io 볼륨(영구 저장소)에 포함시킴
+// → 컨테이너 재생성(배포/재시작) 시에도 업로드된 파일이 소멸되지 않음
+// fly.toml의 [[mounts]] destination = '/app/local_server/data' 범위 내에 위치
+const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 const SERVER_ROOT = path.join(__dirname, '..');
 
-// 업로드 폴더가 없으면 자동 생성
+// 업로드 폴더가 없으면 자동 생성 (data/uploads/)
 if (!fs.existsSync(UPLOAD_DIR)) {
-    fs.mkdirSync(UPLOAD_DIR);
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
 // ============================================================================
