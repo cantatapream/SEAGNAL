@@ -234,7 +234,7 @@
         var alertMap = s.alertMap;
 
         if (!alertMap || !alertMap[alertName]) {
-            return zoneName + ': <span class="surfing-alert-none-txt">정보 없음</span>';
+            return zoneName + ' <span class="surfing-alert-none-txt">정보 없음</span>';
         }
 
         var zoneInfo = alertMap[alertName];
@@ -244,16 +244,16 @@
         if (current) {
             // 해제 상태이면 "특보 없음" 표시
             if (current.command === '해제') {
-                return zoneName + ': <span class="surfing-alert-none-txt">특보 없음</span>';
+                return zoneName + ' <span class="surfing-alert-none-txt">특보 없음</span>';
             }
             var alertType = s.utils.escapeHtml(current.type || '특보');
-            return zoneName + ': <span class="surfing-alert-active">' + alertType + ' 발효 중</span>';
+            return zoneName + ' <span class="surfing-alert-active">' + alertType + ' 발효 중</span>';
         }
         if (upcoming) {
             var upType = s.utils.escapeHtml(upcoming.type || '특보');
-            return zoneName + ': <span class="surfing-alert-upcoming">' + upType + ' (예비)</span>';
+            return zoneName + ' <span class="surfing-alert-upcoming">' + upType + ' (예비)</span>';
         }
-        return zoneName + ': <span class="surfing-alert-none-txt">특보 없음</span>';
+        return zoneName + ' <span class="surfing-alert-none-txt">특보 없음</span>';
     }
 
     /**
@@ -403,7 +403,7 @@
         // 해상특보: 카드 박스 없이 텍스트 한 줄 (예: "해상특보 : 충남북부앞바다 특보 없음")
         if (alertName) {
             html += '<div class="surfing-compact-alert">';
-            html += '<span class="surfing-compact-alert-label">해상특보</span> : ';
+            html += '<span class="surfing-compact-alert-label">해상특보</span> ';
             html += _buildAlertInlineHtml(alertName);
             html += '</div>';
         }
