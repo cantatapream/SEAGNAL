@@ -305,7 +305,7 @@ line-height: 1.1;
 }
 
 .count-badge {
-    background-color: var(--accent-red);
+    background: linear-gradient(135deg, #ff7043, #c62828);
     color: white;
     font-size: 0.7rem;
     padding: 0.25rem 0.6rem;
@@ -316,8 +316,7 @@ line-height: 1.1;
 }
 
 .count-badge.zero {
-    background-color: rgba(255, 255, 255, 0.1);
-    /* Subtle for zero */
+    background: rgba(255, 255, 255, 0.1);
     color: #94a3b8;
     box-shadow: none;
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -6686,3 +6685,410 @@ line-height: 1.1;
     color: #64748b;
 }
 
+
+/* ============================================================================
+   댓글 시스템 스타일 (promo_comment1~5.js 연계)
+   ============================================================================ */
+
+/* ── 댓글 섹션 전체 컨테이너 */
+.comment-section {
+    margin-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 14px;
+}
+
+/* ── 댓글 섹션 헤더 ("💬 댓글 N개") */
+.comment-section-header {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #94a3b8;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ── 댓글 로딩 스피너 */
+.comment-loading {
+    text-align: center;
+    padding: 20px;
+    color: #4fc3f7;
+    font-size: 1.2rem;
+}
+
+/* ── 댓글 없을 때 안내 문구 */
+.comment-empty {
+    text-align: center;
+    padding: 20px;
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+/* ── 댓글 목록 영역 */
+.comment-list-area {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+/* ── 개별 댓글 아이템 */
+.comment-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+
+/* ── 답글 아이템 (들여쓰기 + 왼쪽 테두리 강조) */
+.comment-item-reply {
+    margin-left: 16px;
+    border-left: 2px solid rgba(79, 195, 247, 0.4);
+    background: rgba(79, 195, 247, 0.04);
+}
+
+/* ── 답글 묶음 컨테이너 */
+.comment-replies {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+/* ── 댓글 헤더 (닉네임 뱃지 + 날짜 + 수정됨) */
+.comment-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+}
+
+/* ── 닉네임 뱃지 */
+.comment-nickname-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+/* ── 댓글 날짜 */
+.comment-date {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+/* ── "수정됨" 뱃지 */
+.comment-edited-badge {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 1px 6px;
+    border-radius: 6px;
+    margin-left: auto;
+}
+
+/* ── 댓글 본문 영역 (수정/삭제 버튼 + 내용) */
+.comment-body {
+    position: relative;
+}
+
+/* ── 댓글 수정/삭제 버튼 묶음 (오른쪽 상단) */
+.comment-actions {
+    float: right;
+    display: flex;
+    gap: 4px;
+    margin-left: 8px;
+}
+
+/* ── 수정/삭제 버튼 공통 */
+.comment-action-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    color: #94a3b8;
+    width: 26px;
+    height: 26px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+.comment-action-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #e2e8f0;
+}
+.comment-action-delete:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* ── 댓글 본문 텍스트 */
+.comment-content {
+    font-size: 0.88rem;
+    color: #e2e8f0;
+    line-height: 1.6;
+    word-break: break-all;
+    white-space: pre-wrap;
+}
+
+/* ── 삭제된 댓글 안내 문구 */
+.comment-deleted-text {
+    font-size: 0.82rem;
+    color: #64748b;
+    font-style: italic;
+    padding: 4px 0;
+}
+
+/* ── 비밀 댓글 안내 문구 */
+.comment-secret-text {
+    font-size: 0.82rem;
+    color: #f59e0b;
+    font-style: italic;
+    padding: 4px 0;
+}
+
+/* ── [원문 보기] 버튼 (관리자 전용) */
+.comment-view-original-btn {
+    margin-top: 6px;
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: 6px;
+    color: #fbbf24;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background 0.15s;
+}
+.comment-view-original-btn:hover {
+    background: rgba(245, 158, 11, 0.25);
+}
+
+/* ── 답글 달기 버튼 wrap */
+.comment-reply-btn-wrap {
+    margin-top: 6px;
+    text-align: right;
+}
+
+/* ── [답글 달기] 버튼 */
+.comment-reply-btn {
+    background: rgba(79, 195, 247, 0.1);
+    border: 1px solid rgba(79, 195, 247, 0.3);
+    border-radius: 8px;
+    color: #4fc3f7;
+    padding: 4px 12px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: background 0.15s;
+}
+.comment-reply-btn:hover {
+    background: rgba(79, 195, 247, 0.2);
+}
+
+/* ── 답글 입력창 */
+.comment-reply-input-wrap {
+    margin: 6px 0 6px 16px;
+    background: rgba(79, 195, 247, 0.04);
+    border: 1px solid rgba(79, 195, 247, 0.2);
+    border-left: 2px solid rgba(79, 195, 247, 0.5);
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+/* ── 댓글/답글 입력창 공통 */
+.comment-input-wrap {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+
+.comment-input-header {
+    margin-bottom: 8px;
+}
+
+/* ── textarea */
+.comment-textarea {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    padding: 8px 10px;
+    resize: vertical;
+    min-height: 70px;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+.comment-textarea:focus {
+    outline: none;
+    border-color: rgba(79, 195, 247, 0.5);
+    background: rgba(0, 0, 0, 0.35);
+}
+.comment-textarea:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ── 인라인 수정 textarea */
+.comment-edit-textarea {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(79, 195, 247, 0.4);
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    padding: 8px 10px;
+    resize: vertical;
+    min-height: 60px;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+.comment-edit-textarea:focus {
+    outline: none;
+    border-color: rgba(79, 195, 247, 0.7);
+}
+
+/* ── 수정 취소/저장 버튼 */
+.comment-edit-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 6px;
+}
+.comment-edit-cancel-btn {
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: #94a3b8;
+    padding: 5px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+.comment-edit-save-btn {
+    background: linear-gradient(135deg, #4fc3f7, #0277BD);
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    padding: 5px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ── 입력창 하단 (비밀 댓글 체크 + 글자수 + 등록 버튼) */
+.comment-input-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    gap: 8px;
+}
+
+/* ── 비밀 댓글 라벨 */
+.comment-secret-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.comment-secret-label input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: #f59e0b;
+    cursor: pointer;
+}
+
+/* ── 글자 수 카운터 */
+.comment-char-count {
+    font-size: 0.75rem;
+    color: #64748b;
+    white-space: nowrap;
+}
+
+/* ── 등록 버튼 */
+.comment-submit-btn {
+    background: linear-gradient(135deg, #4fc3f7, #0277BD);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    padding: 6px 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    transition: opacity 0.15s;
+}
+.comment-submit-btn:hover {
+    opacity: 0.88;
+}
+.comment-submit-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ── 댓글 비활성화 안내 (관리자에게만 보이는 안내) */
+.comment-disabled-notice {
+    font-size: 0.78rem;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 8px;
+    padding: 6px 12px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ── 에디터 댓글 허용 토글 슬라이더 */
+.comment-toggle-switch {
+    display: inline-flex;
+    align-items: center;
+    position: relative;
+    width: 32px;
+    height: 18px;
+}
+.comment-toggle-slider {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.15);
+    transition: background 0.2s;
+    cursor: pointer;
+}
+.comment-toggle-slider::after {
+    content: '';
+    position: absolute;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    top: 3px; left: 3px;
+    transition: transform 0.2s;
+}
+#promo-editor-allow-comments:checked + .comment-toggle-slider::after {
+    transform: translateX(14px);
+}

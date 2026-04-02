@@ -559,6 +559,12 @@ window.openPromoDetail = async function (postId) {
         });
 
         modal.classList.remove('hidden');
+
+        // 댓글 섹션 렌더링: promo_comment.js의 함수 호출
+        // allowComments 여부와 관계없이 loadPromoComments가 내부에서 판단하여 표시
+        if (typeof loadPromoComments === 'function') {
+            loadPromoComments(post.id, post.allowComments || false);
+        }
     } catch (e) {
         // console.error('상세 보기 오류:', e);
         alert('게시글을 불러올 수 없습니다.');
@@ -580,6 +586,9 @@ window.closePromoDetail = function () {
         // [New] 첨부파일 영역 초기화
         const attachmentContainer = document.getElementById('promo-detail-attachments');
         if (attachmentContainer) attachmentContainer.innerHTML = '';
+        // 댓글 섹션 초기화
+        const commentsContainer = document.getElementById('promo-detail-comments');
+        if (commentsContainer) commentsContainer.innerHTML = '';
     }
 };
 
@@ -615,6 +624,15 @@ window.openPromoEditor = async function (editData = null) {
                 <div class="modal-content promo-editor-modal-content">
                     <div class="modal-header">
                         <h3 id="promo-editor-header-title"><i class="fa-solid fa-pen-to-square"></i> 새 글 작성</h3>
+                        <!-- 댓글 허용 여부 토글: 관리자가 게시글 작성/수정 시 댓글 기능 on/off 결정 -->
+                        <label id="promo-editor-comment-toggle-wrap" style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:4px 10px; background:rgba(79,195,247,0.1); border:1px solid rgba(79,195,247,0.3); border-radius:20px; margin-right:8px; white-space:nowrap;">
+                            <i class="fa-solid fa-comment-dots" style="color:#4fc3f7; font-size:0.85rem;"></i>
+                            <span style="font-size:0.8rem; color:#4fc3f7; font-weight:600;">댓글 허용</span>
+                            <div class="comment-toggle-switch">
+                                <input type="checkbox" id="promo-editor-allow-comments" style="display:none;">
+                                <span class="comment-toggle-slider"></span>
+                            </div>
+                        </label>
                         <button class="modal-close" onclick="closePromoEditor()">&times;</button>
                     </div>
                     <div class="promo-editor-body">
@@ -663,6 +681,11 @@ window.openPromoEditor = async function (editData = null) {
     }
 
     editorModal.classList.remove('hidden');
+
+    // 댓글 허용 토글 슬라이더 인터랙션 등록 (promo_comment5.js)
+    if (typeof initCommentToggleListener === 'function') {
+        setTimeout(initCommentToggleListener, 0);
+    }
 
     // Quill 에디터 초기화 (한 번만)
     if (!promoQuillEditor) {
@@ -771,6 +794,14 @@ window.openPromoEditor = async function (editData = null) {
     document.getElementById('promo-editor-title').value = editData ? editData.title : '';
     document.getElementById('promo-editor-category').value = editData ? (editData.category || (_boardsCache[0] && _boardsCache[0].id) || 'PROMO') : (_boardsCache[0] && _boardsCache[0].id) || 'PROMO';
     document.getElementById('promo-editor-pinned').checked = editData ? (editData.isPinned || false) : false;
+    // 댓글 허용 토글: 수정 시 기존 설정값 반영, 신규 시 기본 false
+    const allowCommentsInput = document.getElementById('promo-editor-allow-comments');
+    if (allowCommentsInput) {
+        allowCommentsInput.checked = editData ? (editData.allowComments || false) : false;
+        // 토글 슬라이더 시각적 상태 업데이트
+        const slider = allowCommentsInput.nextElementSibling;
+        if (slider) slider.style.background = allowCommentsInput.checked ? '#4fc3f7' : 'rgba(255,255,255,0.15)';
+    }
     promoQuillEditor.root.innerHTML = editData ? editData.content : '';
 
     // [New] 첨부파일 초기화
@@ -813,12 +844,16 @@ window.savePromoPost = async function () {
 
     const category = document.getElementById('promo-editor-category').value;
     const isPinned = document.getElementById('promo-editor-pinned').checked;
+    // 댓글 허용 여부: 에디터 팝업의 토글 체크박스 상태 읽기
+    const allowCommentsEl = document.getElementById('promo-editor-allow-comments');
+    const allowComments = allowCommentsEl ? allowCommentsEl.checked : false;
 
     const postData = {
         title: title,
         content: content,
         category: category,
         isPinned: isPinned,
+        allowComments: allowComments,  // 댓글 허용 여부
         attachments: currentAttachments // [New] 첨부파일 배열
     };
     if (currentEditingPromoId) {

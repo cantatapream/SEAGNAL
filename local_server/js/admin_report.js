@@ -87,10 +87,11 @@ function renderReportList() {
         filtered = _allReports.filter(r => r.status === _currentFilter);
     }
 
-    // 미처리 건수 뱃지 업데이트
+    // 관리자가 아직 읽지 않은 '접수' 제보 건수를 탭 내부 뱃지에 표시합니다.
+    // (헤더 봉투 뱃지와 동일 기준: 접수 상태 + 미읽음)
     const pendingBadge = document.getElementById('report-pending-badge');
     if (pendingBadge) {
-        const pendingCount = _allReports.filter(r => r.status === '접수').length;
+        const pendingCount = _allReports.filter(r => r.status === '접수' && !r.isRead).length;
         pendingBadge.textContent = pendingCount > 0 ? pendingCount : '';
     }
 
@@ -163,6 +164,18 @@ window._bulkDeleteReports = async function () {
 window._showReportDetail = async function (id) {
     const report = _allReports.find(r => r.id === id);
     if (!report) return;
+
+    // 관리자가 제보를 열람했으므로 읽음 처리합니다.
+    // - 서버에 isRead: true 저장 → 뱃지 카운트에서 제외
+    // - 로컬 배열도 즉시 업데이트 → 목록 돌아왔을 때 뱃지 즉시 반영
+    if (!report.isRead) {
+        try {
+            await fetch(CONFIG.API_BASE + '/api/reports/' + id + '/read', { method: 'PATCH' });
+            report.isRead = true; // 로컬 상태 즉시 반영
+            // 헤더 봉투 뱃지도 즉시 갱신
+            if (typeof window.updateReportBadge === 'function') window.updateReportBadge();
+        } catch (e) { /* 읽음 처리 실패해도 상세보기는 정상 진행 */ }
+    }
 
     const body = document.getElementById('unified-admin-body');
     if (!body) return;

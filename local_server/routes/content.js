@@ -417,6 +417,8 @@ router.post('/api/promo', (req, res) => {
                     ...postData,
                     category: postData.category || posts[index].category || 'PROMO',
                     isPinned: postData.isPinned !== undefined ? postData.isPinned : (posts[index].isPinned || false),
+                    // 댓글 허용 여부: 명시적으로 전달된 경우에만 업데이트, 그 외 기존값 유지
+                    allowComments: postData.allowComments !== undefined ? postData.allowComments : (posts[index].allowComments !== undefined ? posts[index].allowComments : false),
                     attachments: postData.attachments || posts[index].attachments || [],
                     updatedAt: getKstString()
                 };
@@ -431,6 +433,8 @@ router.post('/api/promo', (req, res) => {
                 content: postData.content,
                 category: postData.category || 'PROMO',
                 isPinned: postData.isPinned || false,
+                // 댓글 허용 여부: 기본값 false (관리자가 명시적으로 켜야 활성화)
+                allowComments: postData.allowComments || false,
                 attachments: postData.attachments || [],
                 createdAt: getKstString(),
                 updatedAt: getKstString(),

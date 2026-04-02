@@ -63,11 +63,11 @@
 
     /** 체험지수 등급별 배지 색상 (테이블 체험지수 셀에 사용) */
     const INDEX_COLORS = {
-        '매우좋음': { bg: 'rgba(21,101,192,0.15)', color: '#81D4FA', border: 'rgba(21,101,192,0.4)' },
-        '좋음':     { bg: 'rgba(46,125,50,0.15)',  color: '#81C784', border: 'rgba(46,125,50,0.4)' },
-        '보통':     { bg: 'rgba(249,168,37,0.15)', color: '#FFD54F', border: 'rgba(249,168,37,0.4)' },
-        '나쁨':     { bg: 'rgba(230,81,0,0.15)',   color: '#FFB74D', border: 'rgba(230,81,0,0.4)' },
-        '매우나쁨': { bg: 'rgba(198,40,40,0.15)',  color: '#EF9A9A', border: 'rgba(198,40,40,0.4)' }
+        '매우좋음': { bg: 'linear-gradient(135deg, #81D4FA, #1565C0)', color: '#fff', border: 'rgba(21,101,192,0.4)' },
+        '좋음':     { bg: 'linear-gradient(135deg, #81C784, #2E7D32)', color: '#fff', border: 'rgba(46,125,50,0.4)' },
+        '보통':     { bg: 'linear-gradient(135deg, #FFD54F, #F9A825)', color: '#333', border: 'rgba(249,168,37,0.4)' },
+        '나쁨':     { bg: 'linear-gradient(135deg, #FFB74D, #E65100)', color: '#fff', border: 'rgba(230,81,0,0.4)' },
+        '매우나쁨': { bg: 'linear-gradient(135deg, #EF9A9A, #C62828)', color: '#fff', border: 'rgba(198,40,40,0.4)' }
     };
 
     // ========================================================================

@@ -92,17 +92,16 @@
         }
 
         // 해구번호 및 특보구역명
-        var zoneId    = beach.zone  || (s.BEACH_META[s.selectedBeach] && s.BEACH_META[s.selectedBeach].zone);
+        // zoneId: 해구기상 팝업(marine.js)에서 사용하는 해구 번호 (서핑환경 테이블에서는 더 이상 사용하지 않음)
+        // alertName: 해상특보 조회 키 (예: '충남북부앞바다')
         var alertName = beach.alert || (s.BEACH_META[s.selectedBeach] && s.BEACH_META[s.selectedBeach].alert);
 
-        // zone_forecasts 9/12/15/18시 데이터 존재 여부로 D+0~D+2 / D+3+ 구분
-        // D+3 이후는 zone_forecasts 범위 밖이라 모든 값이 null
-        var timeData    = s.utils.getZoneTimeData(zoneId, dateStr);
-        var hasZoneData = timeData.some(function(td) {
-            return td.wh !== null || td.wp !== null || td.ws !== null;
-        });
+        // 서핑지수 API의 오전/오후 슬롯 유무로 D+0~D+2 / D+3+ 구분
+        // - 오전 또는 오후 슬롯이 있으면 → D+0~D+2 → 오전/오후 2컬럼 테이블
+        // - 없으면(종일 슬롯만 있으면) → D+3+ → compact 1행
+        var hasAmPm = !!(forecast['오전'] || forecast['오후']);
 
-        // 수온 값 추출 (오전/오후/종일 공통)
+        // 수온 값 추출 (D+3+ compact 표시용으로만 사용)
         var temps = {};
         if (forecast['오전'] && forecast['오전'].avgWtem) temps['오전'] = forecast['오전'].avgWtem;
         if (forecast['오후'] && forecast['오후'].avgWtem) temps['오후'] = forecast['오후'].avgWtem;
@@ -110,14 +109,14 @@
 
         var html = '';
 
-        // --- 서핑지수 테이블 ---
+        // --- 서핑지수 테이블 (서핑지수 API 기반, 오전/오후/종일 × 초급/중급/상급) ---
         html += _buildIndexTable(forecast);
 
-        if (hasZoneData) {
-            // ── D+0~D+2: 9/12/15/18시 상세 테이블 (해상특보 테이블 마지막 행) ──
-            html += _buildDetailTableHourly(timeData, temps, alertName);
+        if (hasAmPm) {
+            // ── D+0~D+2: 서핑 전용 API 기반 오전/오후 2컬럼 테이블 ──
+            html += _buildDetailTableAmPm(forecast, alertName);
         } else {
-            // ── D+3+: 한 줄 compact + 해상특보 텍스트 바로 아래 ──
+            // ── D+3+: 한 줄 compact + 해상특보 텍스트 바로 아래 (기존 유지) ──
             html += _buildDetailCompact(forecast, temps, alertName);
         }
 
@@ -257,92 +256,98 @@
     }
 
     /**
-     * 서핑환경 테이블 — 시간대별 표시 (D+0~D+2, 해구 기상 데이터 있는 경우)
+     * 서핑환경 테이블 — 오전/오후 2컬럼 표시 (D+0~D+2)
+     *
+     * [변경 이유]
+     * 기존에는 해구기상(zone_forecasts) API의 9/12/15/18시 데이터를 사용했으나,
+     * 서핑 전용 API(surfing_index)가 서핑에 최적화된 파고·파주기 값을 제공하므로
+     * 이 데이터 기반으로 전환합니다.
+     * 풍향 정보는 서핑 전용 API에서 제공되지 않으므로 풍속만 표시합니다.
+     *
+     * [데이터 소스]
+     * forecast['오전'] 및 forecast['오후'] 각각의:
+     *   - avgWvhgt: 평균 유의파고 (m)
+     *   - avgWvpd:  평균 파주기 (sec)
+     *   - avgWspd:  평균 풍속 (m/s)
+     *   - avgWtem:  평균 수온 (°C)
      *
      * [표시 예시]
      * 서핑환경
-     * ┌────────────┬──────┬──────┬──────┬──────┐
-     * │            │  9시 │ 12시 │ 15시 │ 18시 │
-     * ├────────────┼──────┼──────┼──────┼──────┤
-     * │유의파고 m  │ 1.9m │ 1.9m │ 1.9m │ 1.9m │
-     * │파주기 sec  │  6.9 │  6.9 │  6.9 │  6.9 │
-     * │바람 m/s    │북서풍│북서풍│북서풍│북서풍│
-     * │수온 °C     │ 오전 12.4°C  │ 오후 12.5°C  │
-     * │해상특보    │ 충남북부앞바다: 특보 없음     │ ← colspan 4
-     * └────────────┴──────┴──────┴──────┴──────┘
+     * ┌────────────┬──────────┬──────────┐
+     * │            │   오전   │   오후   │
+     * ├────────────┼──────────┼──────────┤
+     * │유의파고 m  │   1.9    │   2.0    │
+     * │파주기 sec  │   8.3    │   8.6    │
+     * │풍속 m/s    │   8.8    │   8.1    │
+     * │수온 °C     │  6.5°C   │  6.8°C   │
+     * │해상특보    │ 충남북부앞바다 특보없음  │ ← colspan=2
+     * └────────────┴──────────┴──────────┘
      *
-     * @param {Array}  timeData  - [{time:'9시', wh, wp, ws, windDir}, ...]
-     * @param {Object} temps     - { '오전': '12.4', '오후': '12.5' }
+     * @param {Object} forecast  - beach.forecasts[dateStr] (오전/오후 슬롯 포함)
      * @param {string} alertName - 특보구역명 (예: '충남북부앞바다')
      * @returns {string} HTML 문자열
      */
-    function _buildDetailTableHourly(timeData, temps, alertName) {
+    function _buildDetailTableAmPm(forecast, alertName) {
+        // 오전/오후 슬롯 데이터 추출 (API 응답에 없으면 빈 객체로 폴백하여 '-' 표시)
+        var am = forecast['오전'] || {};
+        var pm = forecast['오후'] || {};
+
+        /**
+         * 숫자 값을 소수점 1자리 문자열로 변환합니다.
+         * 값이 없으면 '-'를 반환합니다.
+         * 예) 1.9234 → '1.9',  null → '-',  '' → '-'
+         */
+        function fmt(val) {
+            return (val !== null && val !== undefined && val !== '')
+                ? Number(val).toFixed(1)
+                : '-';
+        }
+
         var html = '<div class="surfing-detail-card">';
         html += '<div class="surfing-detail-card-title">서핑환경</div>';
         html += '<table class="surfing-detail-table">';
 
-        // 헤더: 빈칸 + 9시/12시/15시/18시
+        // ── 헤더: 빈칸 | 오전 | 오후 ──
         html += '<thead><tr>';
         html += '<th class="surfing-detail-th-label"></th>';
-        timeData.forEach(function(td) {
-            html += '<th class="surfing-detail-th-time">' + td.time + '</th>';
-        });
+        html += '<th class="surfing-detail-th-time">오전</th>';
+        html += '<th class="surfing-detail-th-time">오후</th>';
         html += '</tr></thead><tbody>';
 
-        // 유의파고
+        // ── 유의파고 행: 서핑 전용 API의 평균 파고값 ──
         html += '<tr>';
         html += '<td class="surfing-detail-td-label"><span class="surfing-detail-name">유의파고</span><span class="surfing-detail-unit">m</span></td>';
-        timeData.forEach(function(td) {
-            var val = (td.wh !== null && td.wh !== undefined) ? Number(td.wh).toFixed(1) : '-';
-            html += '<td class="surfing-detail-td-val">' + val + '</td>';
-        });
+        html += '<td class="surfing-detail-td-val">' + fmt(am.avgWvhgt) + '</td>';
+        html += '<td class="surfing-detail-td-val">' + fmt(pm.avgWvhgt) + '</td>';
         html += '</tr>';
 
-        // 파주기
+        // ── 파주기 행: 서핑 전용 API의 평균 파주기값 ──
         html += '<tr>';
         html += '<td class="surfing-detail-td-label"><span class="surfing-detail-name">파주기</span><span class="surfing-detail-unit">sec</span></td>';
-        timeData.forEach(function(td) {
-            var val = (td.wp !== null && td.wp !== undefined) ? Number(td.wp).toFixed(1) : '-';
-            html += '<td class="surfing-detail-td-val">' + val + '</td>';
-        });
+        html += '<td class="surfing-detail-td-val">' + fmt(am.avgWvpd) + '</td>';
+        html += '<td class="surfing-detail-td-val">' + fmt(pm.avgWvpd) + '</td>';
         html += '</tr>';
 
-        // 바람
+        // ── 풍속 행: 풍향 없이 속도만 표시 (서핑 API에 풍향 정보 없음) ──
         html += '<tr>';
-        html += '<td class="surfing-detail-td-label"><span class="surfing-detail-name">바람</span><span class="surfing-detail-unit">m/s</span></td>';
-        timeData.forEach(function(td) {
-            var windInfo = s.utils.windDirToText(td.windDir);
-            var wsVal = (td.ws !== null && td.ws !== undefined) ? Number(td.ws).toFixed(1) : '-';
-            html += '<td class="surfing-detail-td-val surfing-detail-wind">';
-            if (td.windDir !== null) {
-                html += '<span class="surfing-wind-arrow">' + windInfo.arrow + '</span>';
-                html += '<span class="surfing-wind-dir">' + windInfo.text + '</span>';
-                html += '<span class="surfing-wind-spd">' + wsVal + '</span>';
-            } else {
-                html += '-';
-            }
-            html += '</td>';
-        });
+        html += '<td class="surfing-detail-td-label"><span class="surfing-detail-name">풍속</span><span class="surfing-detail-unit">m/s</span></td>';
+        html += '<td class="surfing-detail-td-val">' + fmt(am.avgWspd) + '</td>';
+        html += '<td class="surfing-detail-td-val">' + fmt(pm.avgWspd) + '</td>';
         html += '</tr>';
 
-        // 수온 (오전/오후 colspan 또는 종일 colspan)
+        // ── 수온 행: 오전/오후 각 셀에 직접 수온 표시 ──
+        var amTemp = am.avgWtem ? s.utils.escapeHtml(String(am.avgWtem)) + '°C' : '-';
+        var pmTemp = pm.avgWtem ? s.utils.escapeHtml(String(pm.avgWtem)) + '°C' : '-';
         html += '<tr>';
         html += '<td class="surfing-detail-td-label"><span class="surfing-detail-name">수온</span><span class="surfing-detail-unit">&deg;C</span></td>';
-        if (temps['오전'] || temps['오후']) {
-            var amVal = temps['오전'] ? temps['오전'] + '°C' : '-';
-            var pmVal = temps['오후'] ? temps['오후'] + '°C' : '-';
-            html += '<td class="surfing-detail-td-temp" colspan="2"><span class="surfing-temp-label">오전</span> ' + s.utils.escapeHtml(amVal) + '</td>';
-            html += '<td class="surfing-detail-td-temp" colspan="2"><span class="surfing-temp-label">오후</span> ' + s.utils.escapeHtml(pmVal) + '</td>';
-        } else {
-            var allVal = temps['종일'] ? temps['종일'] + '°C' : '-';
-            html += '<td class="surfing-detail-td-temp" colspan="4"><span class="surfing-temp-label">종일</span> ' + s.utils.escapeHtml(allVal) + '</td>';
-        }
+        html += '<td class="surfing-detail-td-temp">' + amTemp + '</td>';
+        html += '<td class="surfing-detail-td-temp">' + pmTemp + '</td>';
         html += '</tr>';
 
-        // 해상특보 행 (수온 바로 아래, colspan으로 시간대 전체 병합)
+        // ── 해상특보 행: 오전/오후 2칸 전체 병합 (colspan=2) ──
         html += '<tr>';
         html += '<td class="surfing-detail-td-label"><span class="surfing-detail-name">해상특보</span></td>';
-        html += '<td class="surfing-detail-td-alert" colspan="' + timeData.length + '">';
+        html += '<td class="surfing-detail-td-alert" colspan="2">';
         html += _buildAlertInlineHtml(alertName);
         html += '</td>';
         html += '</tr>';

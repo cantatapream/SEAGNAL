@@ -157,7 +157,7 @@ function renderApp() {
                 `;
                 subHeader.innerHTML = `
                     <span style="font-size: 1.0rem; font-weight: 700; color: #fff;">${subRegion}</span>
-                    <span style="background: rgba(255, 152, 0, 0.4); padding: 4px 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 600; color: #ffd54f; margin-left: auto;">${subItems.length}개 해역</span>
+                    <span style="background: linear-gradient(135deg, #FFA726, #E65100); padding: 4px 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 600; color: #fff; margin-left: auto;">${subItems.length}개 해역</span>
                 `;
 
                 // 호버 효과 (그라디언트만 변경, 이동 없음)
