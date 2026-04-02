@@ -448,7 +448,10 @@ function initTideSearch() {
     if (!input) return;
 
     // Kakao SDK 로드 (autoload=false이므로 수동으로 로드)
-    if (window.kakao && window.kakao.maps && !_kakaoSDKLoaded) {
+    // 주의: autoload=false 상태에서는 window.kakao는 정의되어 있지만
+    //       window.kakao.maps는 load() 호출 전까지 undefined이므로
+    //       window.kakao 존재 여부만 확인 후 load() 호출
+    if (window.kakao && !_kakaoSDKLoaded) {
         kakao.maps.load(function () {
             // SDK 로드 완료 후 장소 검색 서비스 객체 생성
             _kakaoPlaces = new kakao.maps.services.Places();
@@ -513,9 +516,9 @@ function initTideSearch() {
  */
 function searchKakaoPlaces(query) {
     // SDK가 아직 로드되지 않았으면 로드 시도 후 재검색
+    // window.kakao.maps는 load() 전까지 undefined이므로 window.kakao만 확인
     if (!_kakaoPlaces) {
-        // Kakao SDK 스크립트가 로드되었는지 확인
-        if (window.kakao && window.kakao.maps) {
+        if (window.kakao) {
             renderTideSearchMessage('검색 서비스를 불러오는 중...');
             // SDK 초기화 시도 후 자동 재검색
             kakao.maps.load(function () {
