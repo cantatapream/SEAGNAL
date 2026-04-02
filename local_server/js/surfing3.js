@@ -16,7 +16,7 @@
  * - surfing2.js → s.selectMarker(), s.resetMarkerStyle() 사용
  * - surfing4.js → s.renderPopupContent() 호출 (팝업 내용 채우기)
  * - index.html → #surfing-popup, #surfing-popup-overlay, #surfing-popup-close,
- *                #surfing-popup-beach-name, #surfing-date-prev/next/label,
+ *                #surfing-popup-place-name, #surfing-date-prev/next/label,
  *                #surfing-popup-content
  *
  * [팝업 동작 흐름]
@@ -147,7 +147,7 @@
         if (s.availableDates.length === 0) return;
 
         // --- 팝업 헤더에 해수욕장명 표시 ---
-        var nameEl = document.getElementById('surfing-popup-beach-name');
+        var nameEl = document.getElementById('surfing-popup-place-name');
         if (nameEl) nameEl.textContent = beachName;
 
         // --- 팝업 + 오버레이 활성화 ---
