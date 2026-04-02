@@ -5790,6 +5790,15 @@ line-height: 1.1;
     margin-bottom: 10px;
 }
 
+/* 테이블 위 섹션 타이틀 ("서핑지수") — 이미지2 기준 테이블 밖 별도 텍스트 */
+.surfing-index-card-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #90a4ae;
+    margin-bottom: 6px;
+    letter-spacing: 0.03em;
+}
+
 /* "서핑지수" 헤더 대형 배지 — 첫 번째 열 헤더에 표시되는 파란 배지 */
 .surfing-index-title-badge {
     display: inline-block;
@@ -5841,11 +5850,14 @@ line-height: 1.1;
     font-size: 0.82rem;
 }
 
-/* 헤더 첫 열 (서핑지수 배지) */
+/* 헤더 첫 열 ("구분" 텍스트) */
 .surfing-index-th-label {
-    padding: 6px 4px;
+    padding: 6px 6px;
     text-align: center;
     width: 25%;
+    color: #78909c;
+    font-size: 0.75rem;
+    font-weight: 600;
 }
 
 /* 헤더 등급 열 (초급/중급/상급 배지) */
@@ -5876,6 +5888,54 @@ line-height: 1.1;
 .surfing-val-나쁨     { color: #FFB74D; font-weight: 700; }
 .surfing-val-매우나쁨 { color: #EF9A9A; font-weight: 700; }
 .surfing-val-none     { color: #555; font-weight: 400; }
+
+/* ═══════════════════════════════════════════════════════════
+ *  상세정보 compact 카드 (D+3+ 종일: 한 줄 표시)
+ * ═══════════════════════════════════════════════════════════ */
+
+/* compact 카드 컨테이너: 테이블 없이 한 줄 + 해상특보 포함 */
+.surfing-detail-compact-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 10px 12px 8px;
+    margin-bottom: 10px;
+}
+
+/* 한 줄 row: 항목들을 가로로 균등 배분 */
+.surfing-compact-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0 6px;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* 각 항목: "유의파고 0.3m" 형태 */
+.surfing-compact-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+}
+
+/* 항목 이름 (유의파고, 파주기, 풍속, 수온) */
+.surfing-compact-label {
+    font-size: 0.68rem;
+    color: #78909c;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* 항목 값 (0.3m, 7.1sec 등) */
+.surfing-compact-val {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #e0e0e0;
+    white-space: nowrap;
+}
 
 /* ═══════════════════════════════════════════════════════════
  *  상세정보 카드 (파고/파주기/바람/수온)
