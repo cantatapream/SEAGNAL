@@ -17,7 +17,7 @@
  * 이 API는 사용자가 앱을 열 때마다 호출되어 방문자 수를 기록합니다.
  * visitors.json에는 오늘/전체 방문 수가, visitors_stats.json에는
  * 날짜별/시간대별 상세 통계가 기록됩니다.
- * 최근 365일치 데이터만 유지하여 파일 크기를 관리합니다.
+ * 방문자 통계는 영구 보관됩니다. (1일 ≈ 150바이트, 10년 ≈ 540KB)
  * ============================================================================
  */
 
@@ -79,15 +79,26 @@ function updateGranularStats(kstDate) {
 // ============================================================================
 
 // 방문자 카운터 (오늘/전체 + 자동 증가)
+// 쿼리 파라미터:
+//   inc=false → 카운트 증가 없이 현재 수치만 조회 (이미 세션 내 방문 기록이 있을 때)
+//   admin=true → 관리자 기기에서 호출. 하루에 1회만 카운트 (오늘 이미 카운트했으면 증가 안 함)
+//   (파라미터 없음) → 일반 사용자 첫 방문. 무조건 카운트 +1
 router.get('/api/visit', (req, res) => {
     try {
         const data = getVisitorData();
         const shouldIncrement = req.query.inc !== 'false';
+        const isAdmin = req.query.admin === 'true';
 
         if (shouldIncrement) {
             const now = new Date();
             const kstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000));
             const todayStr = kstDate.toISOString().split('T')[0];
+
+            // 관리자 기기인 경우: 오늘 이미 관리자로 방문 기록이 있으면 카운트 증가하지 않음
+            // → 관리자가 하루에 여러 번 접속해도 방문수는 1회만 올라감
+            if (isAdmin && data.adminLastDate === todayStr) {
+                return res.json(data);
+            }
 
             if (data.lastDate !== todayStr) {
                 data.today = 1;
@@ -96,6 +107,11 @@ router.get('/api/visit', (req, res) => {
                 data.today += 1;
             }
             data.total += 1;
+
+            // 관리자 방문인 경우 오늘 날짜를 기록하여 중복 카운트 방지
+            if (isAdmin) {
+                data.adminLastDate = todayStr;
+            }
 
             fs.writeFileSync(FILES.VISITORS, JSON.stringify(data, null, 2), 'utf8');
             updateGranularStats(kstDate);

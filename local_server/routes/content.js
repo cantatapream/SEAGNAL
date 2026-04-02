@@ -344,7 +344,29 @@ router.get('/api/promo/:id', (req, res) => {
             return res.status(404).json({ error: '게시글을 찾을 수 없습니다.' });
         }
 
-        posts[index].views = (posts[index].views || 0) + 1;
+        // 조회수 증가 로직
+        // - 관리자 기기(?admin=true)인 경우: 하루에 1회만 조회수 증가
+        //   → 해당 게시글의 adminViewDate가 오늘이면 증가하지 않음
+        // - 일반 사용자인 경우: 기존과 동일하게 매번 +1
+        const isAdmin = req.query.admin === 'true';
+        const now = new Date();
+        const kstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+        const todayStr = kstDate.toISOString().split('T')[0];
+
+        let shouldIncView = true;
+        if (isAdmin && posts[index].adminViewDate === todayStr) {
+            // 관리자가 오늘 이미 이 게시글을 조회한 적 있으면 조회수 증가 안 함
+            shouldIncView = false;
+        }
+
+        if (shouldIncView) {
+            posts[index].views = (posts[index].views || 0) + 1;
+            if (isAdmin) {
+                // 관리자 조회 날짜 기록 (하루 1회 제한용, 화면에는 표시되지 않음)
+                posts[index].adminViewDate = todayStr;
+            }
+        }
+
         fs.writeFileSync(filePath, JSON.stringify(posts, null, 2), 'utf8');
 
         dataCache.promo = posts;

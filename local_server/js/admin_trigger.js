@@ -483,7 +483,8 @@ window.editNotice = async function (id) {
             // 연결된 게시글 복원
             if (notice.linkedPromoId) {
                 try {
-                    const pRes = await fetch(CONFIG.API_BASE + '/api/promo/' + notice.linkedPromoId);
+                    // 관리자 패널에서 게시글 조회 → admin=true로 조회수 중복 증가 방지
+                    const pRes = await fetch(CONFIG.API_BASE + '/api/promo/' + notice.linkedPromoId + '?admin=true');
                     if (pRes.ok) {
                         const post = await pRes.json();
                         window.selectLinkedPromoLegacy(post.id, post.title);

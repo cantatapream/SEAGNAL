@@ -925,17 +925,34 @@ router.get('/api/admin/storage-usage', async (req, res) => {
         const cloudinary = getCloudinary();
 
         if (cloudinary) {
-            // cloudinary.api.usage()는 현재 계정의 저장 공간, 대역폭, 파일 수 등을 반환
+            // cloudinary.api.usage()는 현재 계정의 저장 공간, 대역폭, 크레딧, 변환 수 등을 반환
             const usage = await cloudinary.api.usage();
+
+            // Cloudinary 무료(Free) 플랜은 바이트 단위 한도(limit)를 0으로 반환하는 경우가 있음
+            // 이 경우 알려진 무료 플랜 기본값(25GB)을 사용
+            const FREE_LIMIT_BYTES = 25 * 1024 * 1024 * 1024;  // 25 GB
+            const storageLimit = usage.storage?.limit || FREE_LIMIT_BYTES;
+            const bandwidthLimit = usage.bandwidth?.limit || FREE_LIMIT_BYTES;
+
             result.cloudinary = {
                 available: true,
                 storage: {
                     used: usage.storage?.usage || 0,          // 현재 사용 중인 저장 공간 (바이트)
-                    limit: usage.storage?.limit || 0           // 무료 플랜 한도 (바이트)
+                    limit: storageLimit                        // 저장 한도 (바이트, 무료 플랜 기본 25GB)
                 },
                 bandwidth: {
                     used: usage.bandwidth?.usage || 0,         // 이번 달 사용한 대역폭 (바이트)
-                    limit: usage.bandwidth?.limit || 0          // 월간 대역폭 한도 (바이트)
+                    limit: bandwidthLimit                      // 월간 대역폭 한도 (바이트, 무료 플랜 기본 25GB)
+                },
+                // 크레딧 정보: Cloudinary 무료 플랜은 매달 25 크레딧을 제공하며
+                // 저장(1GB=1크레딧), 대역폭(1GB=1크레딧), 변환(1000건=1크레딧) 합산으로 소비
+                credits: {
+                    used: usage.credits?.usage || 0,          // 이번 달 사용한 크레딧 수
+                    limit: usage.credits?.limit || 25          // 월간 크레딧 한도 (무료 플랜 기본 25)
+                },
+                transformations: {
+                    used: usage.transformations?.usage || 0,   // 이번 달 변환 횟수
+                    limit: usage.transformations?.limit || 25000  // 월간 변환 한도 (무료 플랜 기본 25,000건)
                 },
                 resources: usage.resources || 0,               // 총 파일(리소스) 수
                 plan: usage.plan || 'Free'                     // 현재 플랜 이름
