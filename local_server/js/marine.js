@@ -1094,6 +1094,16 @@ function _onSectionActivated(sectionId) {
             }
         }, 200);
     }
+    // 서핑지수 탭 활성화 시 지도 초기화
+    // surfing1.js의 initSurfingMap()을 호출합니다.
+    // 200ms 지연: 탭 전환 CSS transition이 완료된 뒤 OL 지도 크기를 정확히 계산하기 위함
+    if (sectionId === 'surfing-section') {
+        setTimeout(() => {
+            if (window.initSurfingMap) {
+                window.initSurfingMap();
+            }
+        }, 200);
+    }
     // 바다갈라짐 탭 활성화 시 데이터 로드
     if (sectionId === 'sea-parting-section') {
         setTimeout(() => {

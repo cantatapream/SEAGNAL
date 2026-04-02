@@ -879,14 +879,90 @@
 
             </section>
 
-            <!-- 섹션: 해양생활 - 서핑 -->
+            <!-- 섹션: 해양생활 - 서핑
+                 ================================================================
+                 [연계] routes/fishing.js → /api/surfing-index 데이터 제공
+                        js/surfing1~5.js → 지도 초기화 및 마커/팝업 렌더링
+                 ================================================================ -->
             <section id="surfing-section" class="tab-content">
+
                 <div class="section-header-with-info">
                     <h2 class="section-title"><i class="fa-solid fa-water"></i> 서핑 지수</h2>
                 </div>
-                <div style="margin:15px 0;padding:20px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(0,0,0,0.3);text-align:center;">
-                    <p style="margin:0;color:var(--accent-yellow,#ffd54f);font-weight:500;font-size:0.95rem;">서핑 지수 기능 준비 중입니다.</p>
+
+                <!-- 내 위치 버튼 -->
+                <div class="surfing-controls">
+                    <button id="surfing-my-location-btn" class="surfing-my-location-btn" title="내 위치">
+                        <i class="fa-solid fa-location-crosshairs"></i> 내 위치
+                    </button>
                 </div>
+
+                <!-- OpenLayers 지도 컨테이너 -->
+                <div class="surfing-map-container">
+                    <div id="surfing-map" class="surfing-map">
+                        <!-- OpenLayers 지도가 렌더링되는 영역 -->
+                    </div>
+                </div>
+
+                <!-- 발표시점 (지도 하단) -->
+                <div class="surfing-map-footer">
+                    <span class="surfing-publish-time" id="surfing-publish-time">발표: -</span>
+                </div>
+
+                <!-- 팝업 오버레이 (마커 클릭 시 배경 딤) -->
+                <div class="surfing-popup-overlay" id="surfing-popup-overlay"></div>
+
+                <!-- 팝업 패널 (마커 클릭 시 표시) -->
+                <div class="surfing-popup" id="surfing-popup">
+
+                    <!-- 팝업 헤더: 해수욕장명 + 특보 배지 + 닫기 버튼 -->
+                    <div class="surfing-popup-header">
+                        <div class="surfing-popup-place">
+                            <i class="fa-solid fa-location-dot"></i>
+                            <span id="surfing-popup-place-name">-</span>
+                        </div>
+                        <div class="surfing-popup-alert" id="surfing-popup-alert">
+                            <!-- JS에서 특보 배지 렌더링 -->
+                        </div>
+                        <button class="surfing-popup-close" id="surfing-popup-close" title="닫기">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <!-- 날짜 네비게이션 -->
+                    <div class="surfing-date-nav">
+                        <button class="surfing-date-btn" id="surfing-date-prev" title="이전 날짜">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span class="surfing-date-label" id="surfing-date-label">-</span>
+                        <button class="surfing-date-btn" id="surfing-date-next" title="다음 날짜">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+
+                    <!-- 예보 데이터 영역 (JS에서 동적 렌더링) -->
+                    <div class="surfing-popup-content" id="surfing-popup-content">
+                        <!-- 서핑지수 테이블, 파고/파주기/바람/수온 테이블이 JS로 렌더링됨 -->
+                    </div>
+                </div>
+
+                <!-- 가이드 팝업 (서핑지수란?) -->
+                <div class="surfing-guide-overlay" id="surfing-guide-overlay">
+                    <div class="surfing-guide-popup" id="surfing-guide-popup">
+                        <button class="surfing-guide-close" id="surfing-guide-close" title="닫기">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                        <div class="surfing-guide-content" id="surfing-guide-content">
+                            <!-- JS에서 이미지 또는 스피너 렌더링 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 하단 안내문 -->
+                <div class="surfing-disclaimer" id="surfing-disclaimer">
+                    <p><i class="fa-solid fa-circle-check"></i> 생활해양예보지수는 수치예측결과를 활용하여 만들어진 참고자료로서 실제와 다를 수 있으니 현장의 해양·기상 상황을 반드시 확인하시기 바랍니다. 따라서 서비스는 사용자의 책임하에 이용되어야하며, 그 정보의 정확성과 법적인 책임은 조사원 및 본 앱에게 있지 아니함을 알려드립니다.</p>
+                </div>
+
             </section>
 
             <!-- 섹션: 해양생활 - 갯벌체험 -->
@@ -1019,6 +1095,11 @@
     <script src="js/windy.js"></script>
     <script src="js/marine_forecast.js"></script>
     <script src="js/fishing.js"></script>
+    <script src="js/surfing1.js"></script>
+    <script src="js/surfing2.js"></script>
+    <script src="js/surfing3.js"></script>
+    <script src="js/surfing4.js"></script>
+    <script src="js/surfing5.js"></script>
     <script src="js/sea_parting.js"></script>
     <script src="js/admin_trigger.js"></script>
     <script src="js/promo.js"></script>

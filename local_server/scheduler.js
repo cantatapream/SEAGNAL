@@ -68,7 +68,8 @@ const lastRunStatus = {
     general: { lastRun: null, status: '대기 중', message: '' },
     zone: { lastRun: null, status: '대기 중', message: '' },
     fishing: { lastRun: null, status: '대기 중', message: '' },  // 해양생활기상 (바다낚시 지수)
-    seaSplit: { lastRun: null, status: '대기 중', message: '' }   // 바다갈라짐 체험지수
+    seaSplit: { lastRun: null, status: '대기 중', message: '' }, // 바다갈라짐 체험지수
+    surfing: { lastRun: null, status: '대기 중', message: '' }   // 서핑지수
 };
 
 const CONFIG_FILE = path.join(__dirname, 'data/api_config.json');
@@ -918,6 +919,228 @@ async function _fetchSeaSplitData() {
     }
 }
 
+// ============================================================================
+// 서핑지수 수집
+// ============================================================================
+
+/**
+ * 서핑 API 기본 URL 및 API 키
+ * - 낚시지수와 동일한 국립해양조사원 인증키 사용
+ * - 서핑지수 API: fcstSurfingv2 (낚시: fcstFishingv2)
+ */
+const SURFING_API_BASE = 'https://apis.data.go.kr/1192136/fcstSurfingv2/GetFcstSurfingApiServicev2';
+
+/**
+ * 16개 서핑 해수욕장별 해구번호 및 특보구역 매핑 (백엔드 저장용)
+ *
+ * - zone: zone_forecasts.json의 해구 키 (풍향/풍속/파고 조회에 사용)
+ * - alert: weather_alerts.json의 말단 구역명 (해상특보 조회에 사용)
+ *
+ * [해구번호 결정 근거]
+ * 해수욕장 GPS 좌표 → 해구도 격자 매핑
+ * 5xxx 연안 격자(파고=0)는 인접 근해 해구 번호로 대체
+ * 사용자 직접 지정: 월포(816), 진하(923), 다대포(927), 남열(977), 만리포(1644), 월정리(223)
+ */
+const SURFING_BEACH_META = {
+    '송지호해수욕장':     { zone: '55',   alert: '강원북부앞바다' },
+    '죽도해수욕장':       { zone: '62',   alert: '강원북부앞바다' },
+    '경포해수욕장':       { zone: '63',   alert: '강원북부앞바다' },
+    '금진해수욕장':       { zone: '63',   alert: '강원중부앞바다' },
+    '망상해수욕장':       { zone: '63',   alert: '강원남부앞바다' },
+    '월포해수욕장':       { zone: '816',  alert: '경북남부앞바다' },
+    '진하해수욕장':       { zone: '923',  alert: '울산앞바다' },
+    '송정해수욕장':       { zone: '92',   alert: '부산앞바다' },
+    '다대포해수욕장':     { zone: '927',  alert: '부산앞바다' },
+    '송정솔바람해수욕장': { zone: '98',   alert: '경남서부남해앞바다' },
+    '남열해수욕장':       { zone: '977',  alert: '전남동부남해앞바다' },
+    '명사십리해수욕장':   { zone: '213',  alert: '전남서부남해앞바다' },
+    '만리포해수욕장':     { zone: '1644', alert: '충남북부앞바다' },
+    '곽지해수욕장':       { zone: '232',  alert: '제주도북부앞바다' },
+    '월정리해수욕장':     { zone: '223',  alert: '제주도동부앞바다' },
+    '중문색달해수욕장':   { zone: '232',  alert: '제주도남부앞바다' }
+};
+
+/**
+ * 서핑지수를 수집하여 surfing_index.json에 저장합니다.
+ *
+ * [동작 흐름]
+ * 1. 서핑 API를 페이지네이션으로 전체 호출 (최대 480건, 2페이지)
+ * 2. 해수욕장명 기준으로 그룹핑
+ *    - 날짜(predcYmd) → 시간대(predcNoonSeCd: 오전/오후/일) → 등급(grdCn)
+ * 3. SURFING_BEACH_META에서 해구번호와 특보구역 매핑
+ * 4. data/surfing_index.json으로 저장
+ *
+ * [저장 구조]
+ * {
+ *   updatedAt: "2026.04.02 09:00",
+ *   beaches: {
+ *     "경포해수욕장": {
+ *       lat, lot, zone: "63", alert: "강원북부앞바다",
+ *       forecasts: {
+ *         "20260402": {
+ *           "오전": { avgWvhgt, avgWvpd, avgWspd, avgWtem, grades: { 초급:"매우좋음", 중급:"보통", 상급:"나쁨" } },
+ *           "오후": { ... }
+ *         },
+ *         "20260405": { "일": { ... } }   // D+3 이후 종일
+ *       }
+ *     }
+ *   }
+ * }
+ *
+ * [호출 시점]
+ * - 서버 시작 시 init() → Promise.all 병렬 실행
+ * - 매일 06:30, 18:30 (낚시지수와 동일한 API 발표 직후)
+ *
+ * [연계]
+ * - cache_manager.js → surfingIndex 키로 메모리 캐시
+ * - routes/fishing.js → GET /api/surfing-index 엔드포인트
+ * - js/surfing1.js (프론트엔드) → _loadSurfingData()에서 fetch
+ */
+async function collectSurfingIndex() {
+    try {
+        log('🏄 서핑지수 수집 시작...');
+
+        // 페이지네이션으로 전체 데이터 수집
+        const allItems = await _fetchSurfingData();
+        if (allItems.length === 0) {
+            log('⚠️ 서핑지수 수집: 수신 데이터 없음');
+            lastRunStatus.surfing = { lastRun: getNowStr(), status: '실패', message: '수신 데이터 없음' };
+            return;
+        }
+
+        // 해수욕장명 기준으로 데이터 그룹핑
+        // API는 1개 해수욕장 × 1개 날짜 × 1개 시간대 × 1개 등급 = 1행으로 반환
+        // 즉, 경포해수욕장 오전 초급/중급/상급 = 3행
+        const beaches = {};
+
+        allItems.forEach(item => {
+            const name = item.surfPlcNm;  // 해수욕장명 (예: '경포해수욕장')
+            if (!name) return;
+
+            // 해수욕장 기본 정보 초기화 (최초 등장 시)
+            if (!beaches[name]) {
+                const meta = SURFING_BEACH_META[name] || {};
+                beaches[name] = {
+                    lat: item.lat,
+                    lot: item.lot,
+                    zone: meta.zone || '',
+                    alert: meta.alert || '',
+                    forecasts: {}
+                };
+            }
+
+            // 날짜 키: "20260402" 형식
+            const dateStr = item.predcYmd ? item.predcYmd.replace(/-/g, '') : null;
+            if (!dateStr) return;
+
+            if (!beaches[name].forecasts[dateStr]) {
+                beaches[name].forecasts[dateStr] = {};
+            }
+
+            // 시간대 키: '오전', '오후', 또는 '일'(종일)
+            // API 응답의 predcNoonSeCd: '오전', '오후', '일'
+            const slot = item.predcNoonSeCd || '일';
+
+            if (!beaches[name].forecasts[dateStr][slot]) {
+                // 시간대별 기상 평균값 저장 (초급/중급/상급 공통값)
+                beaches[name].forecasts[dateStr][slot] = {
+                    avgWvhgt: item.avgWvhgt || '',  // 평균 파고 (m)
+                    avgWvpd:  item.avgWvpd  || '',  // 평균 파주기 (sec)
+                    avgWspd:  item.avgWspd  || '',  // 평균 풍속 (m/s)
+                    avgWtem:  item.avgWtem  || '',  // 평균 수온 (°C)
+                    grades: {}
+                };
+            }
+
+            // 등급별 서핑지수 저장 (grdCn: '초급'/'중급'/'상급')
+            const grade = item.grdCn;  // '초급', '중급', '상급'
+            if (grade) {
+                beaches[name].forecasts[dateStr][slot].grades[grade] = item.totalIndex || '';
+            }
+        });
+
+        // JSON 파일로 저장 (data/surfing_index.json)
+        const result = {
+            updatedAt: getNowStr(),
+            beaches
+        };
+        saveData('surfing_index.json', result);
+
+        lastRunStatus.surfing = {
+            lastRun: getNowStr(),
+            status: '성공',
+            message: `${Object.keys(beaches).length}개 해수욕장 저장 완료`
+        };
+        log(`✅ 서핑지수 수집 완료 (${Object.keys(beaches).length}개 해수욕장)`);
+
+    } catch (e) {
+        lastRunStatus.surfing = { lastRun: getNowStr(), status: '실패', message: e.message };
+        log(`⚠️ 서핑지수 수집 실패: ${e.message}`);
+    }
+}
+
+/**
+ * 서핑지수 API를 페이지네이션으로 전체 호출합니다.
+ *
+ * [페이지네이션 이유]
+ * API 1회 최대 응답: numOfRows=300건
+ * 실제 데이터: 16해수욕장 × 3등급 × 7일 × 평균 1.5시간대 ≈ 480건
+ * → 2페이지 필요 (300 + 180)
+ *
+ * [연계] collectSurfingIndex()에서 호출
+ *
+ * @returns {Array} 전체 API 응답 items 배열
+ */
+async function _fetchSurfingData() {
+    const allItems = [];
+    const encodedKey = encodeURIComponent(FISHING_API_KEY); // 낚시지수와 동일한 API 키
+    let pageNo = 1;
+    const numOfRows = 300;
+
+    try {
+        while (true) {
+            const params = new URLSearchParams({
+                numOfRows: String(numOfRows),
+                pageNo: String(pageNo),
+                type: 'json'
+            });
+            const url = `${SURFING_API_BASE}?serviceKey=${encodedKey}&${params.toString()}`;
+            const response = await fetchWithTimeout(url, {}, 30000);
+
+            if (!response.ok) {
+                log(`⚠️ 서핑지수 API 응답 오류 (p${pageNo}): HTTP ${response.status}`);
+                break;
+            }
+
+            const data = await response.json();
+
+            if (data?.header?.resultCode !== '00') {
+                log(`⚠️ 서핑지수 API 오류: ${data?.header?.resultMsg}`);
+                break;
+            }
+
+            const items = data?.body?.items?.item;
+            if (!items) break;
+
+            const arr = Array.isArray(items) ? items : [items];
+            allItems.push(...arr);
+
+            const totalCount = data?.body?.totalCount || 0;
+            log(`🏄 서핑지수 p${pageNo}: ${arr.length}건 수신 (누적 ${allItems.length}/${totalCount})`);
+
+            // 더 이상 가져올 데이터가 없으면 종료
+            if (arr.length < numOfRows) break;
+            pageNo++;
+            if (pageNo > 10) break; // 안전장치 (무한루프 방지)
+        }
+
+        return allItems;
+    } catch (e) {
+        log(`⚠️ 서핑지수 API 호출 실패: ${e.message}`);
+        return allItems;
+    }
+}
+
 // [Note] 기존 특보 수집(collectWarnings) 및 해구별 예보(collectZoneForecasts) 로직은 제거됨.
 // 특보는 weather_alerts_crawler.js가 전담.
 
@@ -942,7 +1165,8 @@ async function init() {
             marineForecastProcessor.collectMarineForecasts().then(() => log('✅ 해상 기상 전망 수집 완료')),
             regionalForecastCollector.collectRegionalForecasts().then(() => log('✅ 지방기상청 단기예보 수집 완료')),
             collectFishingIndex().then(() => log('✅ 바다낚시 지수 수집 완료')),
-            collectSeaSplitIndex().then(() => log('✅ 바다갈라짐 체험지수 수집 완료'))
+            collectSeaSplitIndex().then(() => log('✅ 바다갈라짐 체험지수 수집 완료')),
+            collectSurfingIndex().then(() => log('✅ 서핑지수 수집 완료'))
         ]);
     } catch (e) {
         log(`⚠️ 일부 수집 중 오류: ${e.message}`);
@@ -984,6 +1208,9 @@ async function init() {
 
         // 바다낚시 지수: 하루 2회 (06:30, 18:30) - API 발표 직후 수집
         if (['06:30', '18:30'].includes(hm)) collectFishingIndex();
+
+        // 서핑지수: 하루 2회 (06:30, 18:30) - 낚시지수와 동일한 API 발표 주기
+        if (['06:30', '18:30'].includes(hm)) collectSurfingIndex();
 
         // 바다갈라짐 체험지수: 매시 35분 (1시간 간격)
         if (min === 35) collectSeaSplitIndex();
@@ -1032,6 +1259,7 @@ module.exports = {
     collectMidTermSeaForecasts,
     collectFishingIndex,
     collectSeaSplitIndex,
+    collectSurfingIndex,
     // 관리자 페이지용 상태 반환
     // fishing 키에 낚시지수 + 바다갈라짐 통합 상태를 담아서 반환
     // (내부적으로는 fishing/seaSplit 별도 관리, 외부에는 fishing으로 통합 노출)

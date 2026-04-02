@@ -5522,6 +5522,458 @@ line-height: 1.1;
 }
 
 /* ============================================================================
+ * 서핑지수 스타일
+ * [연계] index.html #surfing-section, js/surfing1~5.js 전체
+ * ============================================================================ */
+
+/* 서핑 섹션 제목 하단 여백 축소 */
+#surfing-section .section-header-with-info {
+    margin-bottom: 8px;
+}
+
+/* 상단 컨트롤 (내 위치 버튼 우측 정렬) */
+.surfing-controls {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 10px 0;
+}
+
+/* 내 위치 버튼 */
+.surfing-my-location-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #aaa;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
+.surfing-my-location-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+/* --- 지도 영역 --- */
+.surfing-map-container {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.surfing-map {
+    width: 100%;
+    height: 420px;
+    background: #0d1520;
+}
+
+/* OpenLayers 기본 컨트롤 스타일 재정의 (다크 테마) */
+.surfing-map .ol-control button {
+    background: rgba(22, 27, 45, 0.9) !important;
+    color: #ccc !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* --- 발표시점 --- */
+.surfing-map-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 8px 4px;
+}
+
+.surfing-publish-time {
+    color: #888;
+    font-size: 0.75rem;
+}
+
+/* --- 하단 안내문 --- */
+.surfing-disclaimer {
+    margin: 16px 0 8px;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+}
+
+.surfing-disclaimer p {
+    margin: 0;
+    font-size: 0.72rem;
+    line-height: 1.6;
+    color: #8899aa;
+}
+
+.surfing-disclaimer i {
+    color: #5a8fb8;
+    margin-right: 4px;
+    font-size: 0.65rem;
+}
+
+/* --- 지도 내부 좌측 하단 범례 --- */
+.surfing-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    background: rgba(10, 16, 31, 0.8);
+    border-radius: 6px;
+    padding: 6px 8px;
+    pointer-events: auto;
+}
+
+.surfing-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #aaa;
+    font-size: 0.7rem;
+}
+
+.surfing-legend-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+/* --- 지도 내부 우측 하단 안내 버튼 --- */
+.surfing-guide-btn {
+    background: rgba(10, 16, 31, 0.8);
+    color: #81D4FA;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    pointer-events: auto;
+}
+
+.surfing-guide-btn:active {
+    background: rgba(10, 16, 31, 0.95);
+}
+
+/* --- 팝업 오버레이 (배경 딤) --- */
+.surfing-popup-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 998;
+}
+
+.surfing-popup-overlay.active {
+    display: block;
+}
+
+/* --- 서핑 팝업 (화면 중앙, 상단 고정) --- */
+.surfing-popup {
+    position: fixed;
+    top: 32%;
+    left: 50%;
+    transform: translateX(-50%) scale(0.95);
+    width: 92%;
+    max-width: 400px;
+    background: #1a1f2e;
+    border-radius: 12px;
+    z-index: 999;
+    max-height: 65vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+}
+
+.surfing-popup.active {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) scale(1);
+}
+
+/* 팝업 헤더: 장소명 + 특보배지 + 닫기 버튼 */
+.surfing-popup-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px 8px;
+    flex-shrink: 0;
+}
+
+.surfing-popup-place {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.surfing-popup-place i {
+    color: var(--accent-blue, #448aff);
+}
+
+/* 팝업 닫기 버튼 */
+.surfing-popup-close {
+    margin-left: auto;
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    color: #888;
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 0;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.surfing-popup-close:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+}
+
+/* --- 날짜 네비게이션 --- */
+.surfing-date-nav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    padding: 6px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+
+.surfing-date-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    color: #aaa;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.8rem;
+}
+
+.surfing-date-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.surfing-date-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.surfing-date-label {
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 600;
+    min-width: 140px;
+    text-align: center;
+}
+
+/* 팝업 내용 스크롤 영역 */
+.surfing-popup-content {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 16px 16px;
+    flex: 1;
+    min-height: 0;
+}
+
+/* --- 서핑지수 테이블 (등급 × 시간대) --- */
+.surfing-index-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 12px;
+    font-size: 0.78rem;
+}
+
+.surfing-index-table th {
+    padding: 5px 4px;
+    text-align: center;
+    color: #aaa;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.surfing-index-table td {
+    padding: 5px 4px;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+/* 지수 셀 색상 (grade level) */
+.surfing-index-table td.level-매우좋음 { background: rgba(21, 101, 192, 0.5); color: #90caf9; font-weight: 700; }
+.surfing-index-table td.level-좋음     { background: rgba(46, 125, 50, 0.5);  color: #a5d6a7; font-weight: 700; }
+.surfing-index-table td.level-보통     { background: rgba(249, 168, 37, 0.4); color: #ffe082; font-weight: 700; }
+.surfing-index-table td.level-나쁨     { background: rgba(230, 81, 0, 0.4);   color: #ffcc80; font-weight: 700; }
+.surfing-index-table td.level-매우나쁨 { background: rgba(198, 40, 40, 0.4);  color: #ef9a9a; font-weight: 700; }
+.surfing-index-table td.level-없음     { background: transparent; color: #666; }
+
+/* --- 상세 기상 테이블 (파고/파주기/바람/수온) --- */
+.surfing-detail-section-title {
+    color: #888;
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin: 8px 0 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.surfing-detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+    margin-bottom: 12px;
+}
+
+.surfing-detail-table th {
+    padding: 4px 3px;
+    text-align: center;
+    color: #aaa;
+    font-weight: 500;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.7rem;
+}
+
+.surfing-detail-table td {
+    padding: 4px 3px;
+    text-align: center;
+    color: #ccc;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.surfing-detail-table tr:last-child td {
+    border-bottom: none;
+}
+
+.surfing-detail-table td.row-label {
+    color: #888;
+    font-weight: 600;
+    text-align: left;
+    padding-left: 2px;
+}
+
+/* --- 특보 배지 --- */
+.surfing-alert-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.surfing-alert-badge.no-alert {
+    background: rgba(100, 116, 139, 0.2);
+    color: #64748b;
+}
+
+.surfing-alert-badge.alert-current {
+    background: rgba(198, 40, 40, 0.3);
+    color: #ef9a9a;
+}
+
+.surfing-alert-badge.alert-upcoming {
+    background: rgba(230, 81, 0, 0.25);
+    color: #ffcc80;
+}
+
+/* --- 안내 팝업 (서핑지수란?) --- */
+.surfing-guide-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1100;
+}
+
+.surfing-guide-overlay.active {
+    display: block;
+}
+
+.surfing-guide-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    max-width: 400px;
+    max-height: 70vh;
+    background: #1a2035;
+    border-radius: 12px;
+    z-index: 1101;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.surfing-guide-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    color: #888;
+    font-size: 1rem;
+    cursor: pointer;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+}
+
+.surfing-guide-close:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+}
+
+.surfing-guide-content {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.surfing-guide-content img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+/* --- 팝업 안내문 섹션 --- */
+.surfing-popup-disclaimer {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    font-size: 0.68rem;
+    line-height: 1.6;
+    color: #6a7a8a;
+}
+
+/* ============================================================================
  * 바다갈라짐 시간 스타일
  * [연계] index.html #sea-parting-section, js/sea_parting.js 전체
  * ============================================================================ */

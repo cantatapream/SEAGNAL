@@ -140,6 +140,41 @@ router.get('/api/fishing-index', (req, res) => {
 });
 
 // ============================================================================
+// 서핑지수 API
+// ============================================================================
+
+/**
+ * GET /api/surfing-index
+ * 서핑지수 전체 데이터를 반환합니다.
+ *
+ * [응답 구조]
+ * {
+ *   updatedAt: "2026.04.02 09:00",
+ *   beaches: {
+ *     "경포해수욕장": {
+ *       lat, lot, zone: "63", alert: "강원북부앞바다",
+ *       forecasts: {
+ *         "20260402": {
+ *           "오전": { avgWvhgt, avgWvpd, avgWspd, avgWtem, grades: { 초급, 중급, 상급 } },
+ *           "오후": { ... }
+ *         },
+ *         "20260405": { "일": { ... } }   // D+3 이후 종일
+ *       }
+ *     }
+ *   }
+ * }
+ *
+ * [연계] scheduler.js → collectSurfingIndex() → surfing_index.json
+ *        js/surfing1.js → fetch('/api/surfing-index')
+ */
+router.get('/api/surfing-index', (req, res) => {
+    if (dataCache.surfingIndex) {
+        return res.json(dataCache.surfingIndex);
+    }
+    res.status(404).json({ error: '서핑지수 데이터 준비 중' });
+});
+
+// ============================================================================
 // 바다갈라짐 체험지수 API
 // ============================================================================
 
