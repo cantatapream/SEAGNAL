@@ -590,20 +590,37 @@ function renderTideSearchMessage(msg) {
  * @param {number} lon - 경도 (예: 128.593)
  * @param {string} name - 장소명 (예: "속초항")
  */
-function showTideToast(message, duration = 3000) {
+function showTideToast(message, anchorCoord, duration = 3000) {
     let toast = document.getElementById('tide-toast');
     if (!toast) {
         toast = document.createElement('div');
         toast.id = 'tide-toast';
         toast.style.cssText = [
-            'position:fixed', 'bottom:80px', 'left:50%', 'transform:translateX(-50%)',
-            'background:rgba(30,30,30,0.88)', 'color:#fff', 'padding:10px 20px',
-            'border-radius:20px', 'font-size:13px', 'z-index:9999',
-            'pointer-events:none', 'transition:opacity 0.3s', 'white-space:nowrap'
+            'position:fixed', 'background:rgba(30,30,30,0.88)', 'color:#fff',
+            'padding:10px 20px', 'border-radius:20px', 'font-size:13px',
+            'z-index:9999', 'pointer-events:none', 'transition:opacity 0.3s',
+            'white-space:nowrap', 'transform:translateX(-50%)'
         ].join(';');
         document.body.appendChild(toast);
     }
     toast.textContent = message;
+
+    // 마커 좌표가 주어지면 마커 아래에 배치, 아니면 화면 하단 기본 위치
+    if (anchorCoord && tideMap) {
+        const pixel = tideMap.getPixelFromCoordinate(anchorCoord);
+        const mapEl = tideMap.getTargetElement();
+        const mapRect = mapEl.getBoundingClientRect();
+        const screenX = mapRect.left + pixel[0];
+        const screenY = mapRect.top + pixel[1];
+        toast.style.left = screenX + 'px';
+        toast.style.top = (screenY + 50) + 'px'; // 마커에서 50px 아래
+        toast.style.bottom = '';
+    } else {
+        toast.style.left = '50%';
+        toast.style.top = '';
+        toast.style.bottom = '80px';
+    }
+
     toast.style.opacity = '1';
     clearTimeout(toast._hideTimer);
     toast._hideTimer = setTimeout(() => { toast.style.opacity = '0'; }, duration);
@@ -675,8 +692,8 @@ function selectTideSearchResult(lat, lon, name) {
         geometry: new ol.geom.Point(targetCenter)
     }));
 
-    // 토스트 안내 메시지
-    showTideToast('인근 바다를 눌러서 조석을 확인해보세요!');
+    // 토스트 안내 메시지 (마커 아래에 표시)
+    showTideToast('인근 바다를 눌러서 조석을 확인해보세요!', targetCenter);
 }
 
 /**
