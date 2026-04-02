@@ -11,7 +11,8 @@
  * - POST /api/reports/:id/answer → 답변 작성 (푸시 옵션)
  * - DELETE /api/reports/:id      → 제보 삭제 (첨부파일 포함)
  * - POST /api/reports/bulk-delete → 일괄 삭제
- * - GET  /api/reports/pending-count → 미처리 제보 건수
+ * - GET  /api/reports/pending-count → 미읽음(isRead=false) 접수 제보 건수
+ * - PATCH /api/reports/:id/read    → 제보 읽음 처리 (isRead=true)
  * - GET  /api/reports/pending-answer → 미확인 답변 조회 (사용자용)
  * - POST /api/reports/dismiss-answer → 답변 확인 처리 (사용자용)
  * - POST /api/blocks             → 차단 등록
@@ -178,7 +179,8 @@ router.post('/api/reports', (req, res) => {
             createdAt: getKSTNow(),
             answer: null,
             answeredAt: null,
-            answerRead: false
+            answerRead: false,  // 사용자가 관리자 답변을 읽었는지 여부
+            isRead: false       // 관리자가 이 제보를 열람했는지 여부 (읽으면 뱃지에서 제외)
         };
 
         const reports = getReports();
@@ -212,12 +214,38 @@ router.get('/api/reports', (req, res) => {
 });
 
 // ============================================================================
-// 미처리 제보 건수 (GET /api/reports/pending-count)
+// 미읽음 제보 건수 (GET /api/reports/pending-count)
+// 관리자가 아직 열람하지 않은 '접수' 상태의 제보 건수를 반환합니다.
+// - isRead가 false이거나 undefined인 제보(기존 데이터 포함)를 미읽음으로 처리합니다.
+// - 이 값이 헤더의 봉투 아이콘 뱃지 숫자로 사용됩니다.
 // ============================================================================
 router.get('/api/reports/pending-count', (req, res) => {
     const reports = getReports();
-    const count = reports.filter(r => r.status === '접수').length;
+    // isRead가 false이거나 없는(기존 데이터) 경우 모두 미읽음으로 처리
+    const count = reports.filter(r => r.status === '접수' && !r.isRead).length;
     res.json({ count });
+});
+
+// ============================================================================
+// 제보 읽음 처리 (PATCH /api/reports/:id/read)
+// 관리자가 제보 상세를 열람할 때 호출됩니다.
+// isRead를 true로 설정하여 뱃지 카운트에서 제외합니다.
+// 이미 읽은 제보를 다시 호출해도 오류 없이 성공 응답합니다(멱등성 보장).
+// ============================================================================
+router.patch('/api/reports/:id/read', (req, res) => {
+    const { id } = req.params;
+    const reports = getReports();
+    const report = reports.find(r => r.id === id);
+
+    if (!report) return res.status(404).json({ error: '제보를 찾을 수 없습니다.' });
+
+    // 이미 읽은 경우에도 성공 응답 (중복 호출 안전)
+    if (!report.isRead) {
+        report.isRead = true;
+        saveReports(reports);
+    }
+
+    res.json({ success: true });
 });
 
 // ============================================================================
