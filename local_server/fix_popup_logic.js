@@ -29,16 +29,44 @@ window.AlertDetailPopup = {
     },
 
     // 날짜 포맷 (숫자면 포맷팅, 아니면 그대로 유지)
+    // 예비특보의 경우 마지막 4자리가 "시작시~종료시" 범위를 의미하므로
+    // 범위 패턴에 해당하면 "M월 D일 시간대명(시작~종료시)" 형식으로 변환합니다.
+    // 예: "202604031824" → "4월 3일 밤(18~24시)"
+    // 정확한 시각인 경우 기존대로 "YYYY-MM-DD HH:MM" 형식으로 변환합니다.
+    // 예: "202604021600" → "2026-04-02 16:00"
     formatDateTime(dateStr) {
         if (!dateStr) return '정보 없음';
         if (typeof dateStr !== 'string') return String(dateStr);
 
-        // 숫자로만 구성된 12자리 형식 (YYYYMMDDHHMM)
+        // 숫자로만 구성된 12자리 형식 (YYYYMMDDHHMM 또는 YYYYMMDD시작시종료시)
         const nums = dateStr.replace(/[^0-9]/g, '');
         if (nums.length === 12) {
-            const y = nums.substring(0, 4);
             const m = nums.substring(4, 6);
             const d = nums.substring(6, 8);
+            const timePart = nums.substring(8, 12); // 마지막 4자리 (시:분 또는 시작시~종료시)
+
+            // 기상청 예비특보 시간 범위 패턴 10가지
+            // 마지막 4자리가 "시작시간+종료시간"으로 구성된 범위를 의미
+            const TIME_RANGES = {
+                '0006': '새벽(0~6시)',
+                '0609': '아침(6~9시)',
+                '0612': '오전(6~12시)',
+                '0912': '오전(9~12시)',
+                '1215': '낮(12~15시)',
+                '1218': '오후(12~18시)',
+                '1518': '늦은 오후(15~18시)',
+                '1821': '저녁(18~21시)',
+                '1824': '밤(18~24시)',
+                '2124': '밤(21~24시)'
+            };
+
+            // 범위 패턴에 해당하면 "M월 D일 시간대명" 형식 반환
+            if (TIME_RANGES[timePart]) {
+                return `${parseInt(m)}월 ${parseInt(d)}일 ${TIME_RANGES[timePart]}`;
+            }
+
+            // 범위가 아닌 정확한 시각이면 기존 형식 유지
+            const y = nums.substring(0, 4);
             const h = nums.substring(8, 10);
             const min = nums.substring(10, 12);
             return `${y}-${m}-${d} ${h}:${min}`;
@@ -62,8 +90,11 @@ window.AlertDetailPopup = {
         const effectTimeStr = this.formatDateTime(tmEf);       // 발효시각
         const zoneLinks = this.createZoneLinks(zones, status);
 
-        // [New] 시간 정보가 유효할 때만 '부로' 접미사를 붙임
-        const timePrefix = (timeStrLong && timeStrLong !== '정보 없음' && timeStrLong !== '미정') ? `${timeStrLong}부로 ` : '';
+        // [New] 시간 정보가 유효할 때만 접미사를 붙임
+        // 범위형(예: '4월 3일 밤(18~24시)')이면 '중', 정확한 시각이면 '부로'
+        const timePrefix = (timeStrLong && timeStrLong !== '정보 없음' && timeStrLong !== '미정')
+            ? (timeStrLong.includes('~') ? `${timeStrLong} 중 ` : `${timeStrLong}부로 `)
+            : '';
 
         // 용어 명확화
         if (alertType.includes('풍랑') && !alertType.includes('경보')) alertType = '풍랑주의보';
@@ -87,7 +118,7 @@ window.AlertDetailPopup = {
                 // 경보나 태풍이 아닌 일반 풍랑주의보 (15톤)
                 message = `
 ① ${timePrefix}${zoneLinks}에 ${alertType}가 '발표'되었습니다.
-해당 발표는 ${effectTimeStr && effectTimeStr !== '정보 없음' ? effectTimeStr + '부로 ' : ''}'발효'될 예정이며, 발효 시 15톤 미만 어선은 출항 및 조업이 제한되니 사전에 안전지대로 이동 및 대피바랍니다.
+해당 발표는 ${effectTimeStr && effectTimeStr !== '정보 없음' ? (effectTimeStr.includes('~') ? effectTimeStr + ' 중 ' : effectTimeStr + '부로 ') : ''}'발효'될 예정이며, 발효 시 15톤 미만 어선은 출항 및 조업이 제한되니 사전에 안전지대로 이동 및 대피바랍니다.
 
 ② 출항 및 조업 제한 위반 시 어선안전조업법 제49조에 따라 어업허가 정지 등 행정처분 대상이 될 수 있습니다.
 
@@ -424,6 +455,8 @@ window.checkForPushPopup = async function () {
 
     if (params.get('popup') === 'true') {
         const alertType = params.get('alertType') || '';
+        // 관리자 직접 발송 알림은 alertType이 없으므로 팝업 표시하지 않음
+        if (!alertType) return;
         if (alertType.includes('해일')) return;
 
         const zones = params.get('zones') ? params.get('zones').split(',') : [];
