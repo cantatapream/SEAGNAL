@@ -1643,6 +1643,132 @@ line-height: 1.1;
     border: 1px solid var(--border-color);
 }
 
+/* ===== 조석 지도 위치 검색 ===== */
+/* 검색창 전체를 감싸는 컨테이너 (드롭다운 위치 기준) */
+.tide-search-container {
+    position: relative;
+    margin-top: 4px;
+    margin-bottom: 2px;
+}
+
+/* 돋보기 아이콘 + 입력창 + X버튼을 담는 행 */
+.tide-search-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    transition: border-color 0.3s ease;
+}
+
+/* 입력창에 포커스 시 테두리 강조 */
+.tide-search-input-wrap:focus-within {
+    border-color: var(--accent-blue, #667eea);
+}
+
+/* 돋보기 아이콘 */
+.tide-search-icon {
+    color: var(--text-sub, #8899aa);
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+/* 검색 입력창 */
+#tide-search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-main, #e0e0e0);
+    font-size: 0.85rem;
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
+#tide-search-input::placeholder {
+    color: var(--text-sub, #8899aa);
+    font-size: 0.8rem;
+}
+
+/* 검색어 지우기(X) 버튼 */
+.tide-search-clear {
+    background: none;
+    border: none;
+    color: var(--text-sub, #8899aa);
+    font-size: 0.85rem;
+    cursor: pointer;
+    padding: 2px 4px;
+    flex-shrink: 0;
+    transition: color 0.2s;
+}
+
+.tide-search-clear:hover {
+    color: var(--text-main, #e0e0e0);
+}
+
+/* 검색 결과 드롭다운 목록 */
+.tide-search-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    max-height: 240px;
+    overflow-y: auto;
+    background: var(--card-bg, #1a2332);
+    border: 1px solid var(--border-color, rgba(255,255,255,0.1));
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* 검색 결과 각 항목 */
+.tide-search-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.2s;
+}
+
+.tide-search-item:last-child {
+    border-bottom: none;
+}
+
+.tide-search-item:hover {
+    background: rgba(102, 126, 234, 0.15);
+}
+
+/* 장소명 (예: 속초항) */
+.tide-search-item-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-main, #e0e0e0);
+}
+
+.tide-search-item-name i {
+    color: var(--accent-blue, #667eea);
+    margin-right: 6px;
+    font-size: 0.75rem;
+}
+
+/* 주소 (예: 강원특별자치도 > 속초시) */
+.tide-search-item-addr {
+    font-size: 0.73rem;
+    color: var(--text-sub, #8899aa);
+    margin-top: 2px;
+    padding-left: 18px;
+}
+
+/* 검색 중 로딩 메시지 */
+.tide-search-loading,
+.tide-search-empty {
+    padding: 12px;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-sub, #8899aa);
+}
+
 .tide-nav-btn,
 .tide-calendar-btn {
     display: flex;
