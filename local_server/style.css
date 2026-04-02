@@ -5531,32 +5531,6 @@ line-height: 1.1;
     margin-bottom: 8px;
 }
 
-/* 상단 컨트롤 (내 위치 버튼 우측 정렬) */
-.surfing-controls {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    padding: 10px 0;
-}
-
-/* 내 위치 버튼 */
-.surfing-my-location-btn {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    color: #aaa;
-    padding: 8px 12px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-family: 'Noto Sans KR', sans-serif;
-}
-
-.surfing-my-location-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
-}
-
 /* --- 지도 영역 --- */
 .surfing-map-container {
     position: relative;

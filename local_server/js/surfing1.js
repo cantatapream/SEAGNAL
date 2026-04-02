@@ -242,27 +242,6 @@
         // 팝업 닫기 버튼, 오버레이 클릭, 날짜 이전/다음 버튼 등
         if (s.bindEvents) s.bindEvents();
 
-        // --- 내 위치 버튼 이벤트 바인딩 ---
-        // 클릭 시 GPS 좌표를 얻어 지도 중심을 현재 위치로 이동합니다
-        var locBtn = document.getElementById('surfing-my-location-btn');
-        if (locBtn) {
-            locBtn.addEventListener('click', function () {
-                if (!navigator.geolocation) return;
-                locBtn.disabled = true;
-                navigator.geolocation.getCurrentPosition(
-                    function (pos) {
-                        var coord = ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]);
-                        s.map.getView().animate({ center: coord, zoom: 9, duration: 500 });
-                        locBtn.disabled = false;
-                    },
-                    function () {
-                        locBtn.disabled = false;
-                    },
-                    { timeout: 8000 }
-                );
-            });
-        }
-
         // --- 데이터 로드 및 마커 표시 ---
         _loadSurfingData();
     };
