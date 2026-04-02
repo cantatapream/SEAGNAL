@@ -5790,11 +5790,12 @@ line-height: 1.1;
     margin-bottom: 10px;
 }
 
-/* 테이블 위 섹션 타이틀 ("서핑지수") — 이미지2 기준 테이블 밖 별도 텍스트 */
+/* 테이블 위 섹션 타이틀 ("서핑지수") — 흰색·볼드·가운데 정렬 */
 .surfing-index-card-title {
-    font-size: 0.78rem;
+    font-size: 0.95rem;
     font-weight: 700;
-    color: #90a4ae;
+    color: #ffffff;
+    text-align: center;
     margin-bottom: 6px;
     letter-spacing: 0.03em;
 }
@@ -5937,6 +5938,26 @@ line-height: 1.1;
     white-space: nowrap;
 }
 
+/* D+3 compact 해상특보 한 줄 텍스트 */
+.surfing-compact-alert {
+    font-size: 0.78rem;
+    color: #b0bec5;
+    padding: 6px 2px 2px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin-top: 4px;
+}
+
+/* "해상특보" 레이블 부분 */
+.surfing-compact-alert-label {
+    color: #78909c;
+    font-weight: 600;
+}
+
+/* compact 해상특보 내 특보 상태 색상 */
+.surfing-compact-alert .surfing-alert-active   { color: #ff7043; font-weight: 700; }
+.surfing-compact-alert .surfing-alert-upcoming { color: #ffa726; font-weight: 600; }
+.surfing-compact-alert .surfing-alert-none-txt { color: #78909c; }
+
 /* ═══════════════════════════════════════════════════════════
  *  상세정보 카드 (파고/파주기/바람/수온)
  * ═══════════════════════════════════════════════════════════ */
@@ -5948,13 +5969,30 @@ line-height: 1.1;
     margin-bottom: 10px;
 }
 
+/* 상세정보(서핑환경) 카드 타이틀 — 흰색·볼드·가운데 정렬 */
 .surfing-detail-card-title {
-    font-size: 0.72rem;
+    font-size: 0.89rem;
     font-weight: 700;
-    color: #8899aa;
+    color: #ffffff;
+    text-align: center;
     margin-bottom: 8px;
     letter-spacing: 0.04em;
 }
+
+/* 해상특보 값 셀 (테이블 마지막 행, colspan) */
+.surfing-detail-td-alert {
+    padding: 8px 4px;
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #b0bec5;
+    border-bottom: none;
+}
+
+/* 해상특보 값 색상: 특보 있을 때 강조 */
+.surfing-detail-td-alert .surfing-alert-active   { color: #ff7043; font-weight: 700; }
+.surfing-detail-td-alert .surfing-alert-upcoming { color: #ffa726; font-weight: 600; }
+.surfing-detail-td-alert .surfing-alert-none-txt { color: #78909c; }
 
 .surfing-detail-note {
     font-weight: 400;

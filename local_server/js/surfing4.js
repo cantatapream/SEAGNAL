@@ -114,14 +114,10 @@
         html += _buildIndexTable(forecast);
 
         if (hasZoneData) {
-            // ── D+0~D+2: 9/12/15/18시 상세 테이블 ──
-            html += _buildDetailTableHourly(timeData, temps);
-            // 해상특보는 테이블 아래 별도 블록
-            if (s.buildAlertHtml && alertName) {
-                html += s.buildAlertHtml(alertName);
-            }
+            // ── D+0~D+2: 9/12/15/18시 상세 테이블 (해상특보 테이블 마지막 행) ──
+            html += _buildDetailTableHourly(timeData, temps, alertName);
         } else {
-            // ── D+3+: 한 줄 compact + 해상특보 바로 아래 ──
+            // ── D+3+: 한 줄 compact + 해상특보 텍스트 바로 아래 ──
             html += _buildDetailCompact(forecast, temps, alertName);
         }
 
@@ -221,27 +217,68 @@
     // ========================================================================
 
     /**
-     * 상세정보 테이블 — 시간대별 표시 (D+0~D+2, 해구 기상 데이터 있는 경우)
+     * 해상특보 표시 내용(HTML)을 반환하는 공통 헬퍼.
+     * 테이블 행과 compact 텍스트 양쪽에서 사용합니다.
+     *
+     * [반환 예시]
+     * "충남북부앞바다: <span class='surfing-alert-none-txt'>특보 없음</span>"
+     * "강원북부앞바다: <span class='surfing-alert-active'>풍랑주의보 발효 중</span>"
+     *
+     * @param {string} alertName - 특보구역명 (예: '충남북부앞바다')
+     * @returns {string} 내부 HTML 문자열
+     */
+    function _buildAlertInlineHtml(alertName) {
+        if (!alertName) return '<span class="surfing-alert-none-txt">정보 없음</span>';
+
+        var zoneName = s.utils.escapeHtml(alertName);
+        var alertMap = s.alertMap;
+
+        if (!alertMap || !alertMap[alertName]) {
+            return zoneName + ': <span class="surfing-alert-none-txt">정보 없음</span>';
+        }
+
+        var zoneInfo = alertMap[alertName];
+        var current  = zoneInfo.current;
+        var upcoming = zoneInfo.upcoming;
+
+        if (current) {
+            // 해제 상태이면 "특보 없음" 표시
+            if (current.command === '해제') {
+                return zoneName + ': <span class="surfing-alert-none-txt">특보 없음</span>';
+            }
+            var alertType = s.utils.escapeHtml(current.type || '특보');
+            return zoneName + ': <span class="surfing-alert-active">' + alertType + ' 발효 중</span>';
+        }
+        if (upcoming) {
+            var upType = s.utils.escapeHtml(upcoming.type || '특보');
+            return zoneName + ': <span class="surfing-alert-upcoming">' + upType + ' (예비)</span>';
+        }
+        return zoneName + ': <span class="surfing-alert-none-txt">특보 없음</span>';
+    }
+
+    /**
+     * 서핑환경 테이블 — 시간대별 표시 (D+0~D+2, 해구 기상 데이터 있는 경우)
      *
      * [표시 예시]
-     * 상세정보
+     * 서핑환경
      * ┌────────────┬──────┬──────┬──────┬──────┐
-     * │  구분      │  9시 │ 12시 │ 15시 │ 18시 │
+     * │            │  9시 │ 12시 │ 15시 │ 18시 │
      * ├────────────┼──────┼──────┼──────┼──────┤
      * │유의파고 m  │ 1.9m │ 1.9m │ 1.9m │ 1.9m │
      * │파주기 sec  │  6.9 │  6.9 │  6.9 │  6.9 │
      * │바람 m/s    │북서풍│북서풍│북서풍│북서풍│
-     * │            │8.1m/s│8.1m/s│8.1m/s│8.1m/s│
      * │수온 °C     │ 오전 12.4°C  │ 오후 12.5°C  │
+     * │해상특보    │ 충남북부앞바다: 특보 없음     │ ← colspan 4
      * └────────────┴──────┴──────┴──────┴──────┘
      *
-     * @param {Array}  timeData - [{time:'9시', wh, wp, ws, windDir}, ...]
-     * @param {Object} temps    - { '오전': '12.4', '오후': '12.5' } 또는 { '종일': '13.1' }
+     * @param {Array}  timeData  - [{time:'9시', wh, wp, ws, windDir}, ...]
+     * @param {Object} temps     - { '오전': '12.4', '오후': '12.5' }
+     * @param {string} alertName - 특보구역명 (예: '충남북부앞바다')
      * @returns {string} HTML 문자열
      */
-    function _buildDetailTableHourly(timeData, temps) {
+    function _buildDetailTableHourly(timeData, temps, alertName) {
         var html = '<div class="surfing-detail-card">';
-        html += '<div class="surfing-detail-card-title">상세정보</div>';
+        html += '<div class="surfing-detail-card-title">서핑환경</div>';
         html += '<table class="surfing-detail-table">';
 
         // 헤더: 빈칸 + 9시/12시/15시/18시
@@ -302,6 +339,14 @@
         }
         html += '</tr>';
 
+        // 해상특보 행 (수온 바로 아래, colspan으로 시간대 전체 병합)
+        html += '<tr>';
+        html += '<td class="surfing-detail-td-label"><span class="surfing-detail-name">해상특보</span></td>';
+        html += '<td class="surfing-detail-td-alert" colspan="' + timeData.length + '">';
+        html += _buildAlertInlineHtml(alertName);
+        html += '</td>';
+        html += '</tr>';
+
         html += '</tbody></table></div>';
         return html;
     }
@@ -333,31 +378,34 @@
         var tem = temps['종일'] ? temps['종일'] + '°C' : '-';
 
         var html = '<div class="surfing-detail-compact-card">';
-        html += '<div class="surfing-detail-card-title">상세정보</div>';
+        html += '<div class="surfing-detail-card-title">서핑환경</div>';
 
         // 한 줄: 유의파고 / 파주기 / 풍속 / 수온 가로 나열
         html += '<div class="surfing-compact-row">';
         html += '<span class="surfing-compact-item">';
-        html += '<span class="surfing-compact-label">유의파고</span> ';
+        html += '<span class="surfing-compact-label">유의파고</span>';
         html += '<span class="surfing-compact-val">' + s.utils.escapeHtml(wh) + '</span>';
         html += '</span>';
         html += '<span class="surfing-compact-item">';
-        html += '<span class="surfing-compact-label">파주기</span> ';
+        html += '<span class="surfing-compact-label">파주기</span>';
         html += '<span class="surfing-compact-val">' + s.utils.escapeHtml(wp) + '</span>';
         html += '</span>';
         html += '<span class="surfing-compact-item">';
-        html += '<span class="surfing-compact-label">풍속</span> ';
+        html += '<span class="surfing-compact-label">풍속</span>';
         html += '<span class="surfing-compact-val">' + s.utils.escapeHtml(ws) + '</span>';
         html += '</span>';
         html += '<span class="surfing-compact-item">';
-        html += '<span class="surfing-compact-label">수온</span> ';
+        html += '<span class="surfing-compact-label">수온</span>';
         html += '<span class="surfing-compact-val">' + s.utils.escapeHtml(tem) + '</span>';
         html += '</span>';
         html += '</div>';
 
-        // 해상특보: 한 줄 바로 아래 (surfing5.js의 buildAlertHtml 위임)
-        if (s.buildAlertHtml && alertName) {
-            html += s.buildAlertHtml(alertName);
+        // 해상특보: 카드 박스 없이 텍스트 한 줄 (예: "해상특보 : 충남북부앞바다 특보 없음")
+        if (alertName) {
+            html += '<div class="surfing-compact-alert">';
+            html += '<span class="surfing-compact-alert-label">해상특보</span> : ';
+            html += _buildAlertInlineHtml(alertName);
+            html += '</div>';
         }
 
         html += '</div>';
