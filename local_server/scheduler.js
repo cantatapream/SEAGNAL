@@ -67,7 +67,7 @@ const lastRunStatus = {
     buoys: { lastRun: null, status: '대기 중', message: '' },
     general: { lastRun: null, status: '대기 중', message: '' },
     zone: { lastRun: null, status: '대기 중', message: '' },
-    fishing: { lastRun: null, status: '대기 중', message: '' },  // 바다낚시 지수
+    fishing: { lastRun: null, status: '대기 중', message: '' },  // 해양생활기상 (바다낚시 지수)
     seaSplit: { lastRun: null, status: '대기 중', message: '' }   // 바다갈라짐 체험지수
 };
 
@@ -454,7 +454,8 @@ async function collectFishingIndex() {
         log('🎣 바다낚시 지수 수집 시작...');
 
         // 진행률 이벤트 발행 (admin 수동 호출 시 SSE 스트림으로 전달)
-        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 1, total: 3, detail: 'API 호출 중' });
+        // total=6: 낚시지수 3단계(1~3) + 바다갈라짐 3단계(4~6) — 해양생활기상 통합 호출
+        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 1, total: 6, detail: 'API 호출 중' });
 
         // API는 gubun 파라미터와 무관하게 갯바위+선상 전체 데이터를 반환하므로
         // 1회만 호출하고 위치명 패턴으로 분류 (선상: "항구명(Xkm)" 패턴)
@@ -469,7 +470,7 @@ async function collectFishingIndex() {
         const items = await _fetchFishingData('갯바위');
 
         // 진행률 이벤트: API 응답 수신 완료, 데이터 가공 시작
-        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 2, total: 3, detail: '데이터 가공 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 2, total: 6, detail: '데이터 가공 중' });
 
         if (!items || items.length === 0) {
             log('⚠️ 바다낚시 데이터 없음');
@@ -599,7 +600,7 @@ async function collectFishingIndex() {
         log(`🎣 바다낚시 날짜 분포 - 갯바위: ${dateAnalysis['갯바위'].join(',')} (${dateAnalysis['갯바위'].length}일), 선상: ${dateAnalysis['선상'].join(',')} (${dateAnalysis['선상'].length}일)`);
 
         // 진행률 이벤트: 파일 저장 단계
-        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 3, total: 3, detail: '저장 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 3, total: 6, detail: '저장 중' });
 
         // JSON 파일로 저장 (data/fishing_index.json)
         saveData('fishing_index.json', result);
@@ -735,15 +736,30 @@ async function collectSeaSplitIndex() {
         log('🛤️ 바다갈라짐 체험지수 수집 시작...');
 
         // 진행률 이벤트 발행 (관리자 수동 수집 시 SSE 스트림으로 전달)
-        collectProgress.emit('progress', { type: 'sea-split', step: '바다갈라짐 지수', current: 1, total: 3, detail: 'API 호출 중' });
+        // type을 'fishing'으로 통일 — 해양생활기상 통합 호출 시 같은 SSE 스트림으로 전달되도록
+        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 4, total: 6, detail: 'API 호출 중' });
 
         const items = await _fetchSeaSplitData();
 
-        collectProgress.emit('progress', { type: 'sea-split', step: '바다갈라짐 지수', current: 2, total: 3, detail: '데이터 가공 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 5, total: 6, detail: '데이터 가공 중' });
 
-        // 결과 객체 초기화
+        // ── 발표시각 판단을 위해 기존 저장 데이터를 읽어옴 ──
+        // 이전에 저장된 sea_split_index.json을 읽어서 예보 데이터(places)가 바뀌었는지 비교
+        // 바뀌었으면 "데이터가 갱신된 시점"의 정시를, 안 바뀌었으면 기존 발표시각을 유지
+        let previousData = null;
+        try {
+            const prevPath = path.join(CONFIG.DATA_DIR, 'sea_split_index.json');
+            if (fs.existsSync(prevPath)) {
+                previousData = JSON.parse(fs.readFileSync(prevPath, 'utf8'));
+            }
+        } catch (readErr) {
+            // 파일 읽기 실패 시 previousData = null → "변경됨"으로 처리 (안전하게)
+            log(`⚠️ 기존 바다갈라짐 데이터 읽기 실패 (최초 실행 또는 파일 손상): ${readErr.message}`);
+        }
+
+        // 결과 객체 초기화 (updatedAt은 아래에서 데이터 비교 후 결정)
         const result = {
-            updatedAt: getNowStr(),
+            updatedAt: '', // 데이터 비교 후 설정됨
             allPlaces: SEA_SPLIT_ALL_PLACES.map(s => s.split(':')[1]), // ['진도','무창포',...]
             places: {}
         };
@@ -797,7 +813,37 @@ async function collectSeaSplitIndex() {
             log(`🛤️ 바다갈라짐 미발생 지점: ${missingPlaces.join(', ')}`);
         }
 
-        collectProgress.emit('progress', { type: 'sea-split', step: '바다갈라짐 지수', current: 3, total: 3, detail: '저장 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 6, total: 6, detail: '저장 중' });
+
+        // ── 발표시각 결정: 이전 데이터와 비교하여 변경 여부 판단 ──
+        // places 객체(예보 데이터 본체)만 비교 — updatedAt/allPlaces는 비교 대상이 아님
+        // JSON 문자열로 변환하여 비교 (객체 구조가 동일해도 참조가 다르므로)
+        const newPlacesStr = JSON.stringify(result.places);
+        const oldPlacesStr = previousData ? JSON.stringify(previousData.places) : null;
+        const isDataChanged = (oldPlacesStr === null) || (newPlacesStr !== oldPlacesStr);
+
+        if (isDataChanged) {
+            // 데이터가 바뀌었으므로 현재 시각의 "정시"를 발표시각으로 기록
+            // 예: 13:35에 변경 감지 → "2026. 4. 2. PM 01:00:00"
+            const now = getCorrectedDate();
+            const kstMs = now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600000);
+            const kstDate = new Date(kstMs);
+            // 분/초/밀리초를 0으로 만들어 정시로 변환
+            kstDate.setMinutes(0, 0, 0);
+            const yyyy = kstDate.getFullYear();
+            const mm = kstDate.getMonth() + 1;
+            const dd = kstDate.getDate();
+            const hh = kstDate.getHours();
+            const ampm = hh < 12 ? 'AM' : 'PM';
+            const hh12 = hh === 0 ? 12 : (hh > 12 ? hh - 12 : hh);
+            // "2026. 4. 2. AM 09:00:00" 형식으로 포맷
+            result.updatedAt = `${yyyy}. ${mm}. ${dd}. ${ampm} ${String(hh12).padStart(2, '0')}:00:00`;
+            log(`🛤️ 바다갈라짐 데이터 변경 감지 → 발표시각 갱신: ${result.updatedAt}`);
+        } else {
+            // 데이터가 동일하므로 기존 발표시각을 그대로 유지
+            result.updatedAt = previousData.updatedAt;
+            log(`🛤️ 바다갈라짐 데이터 변경 없음 → 기존 발표시각 유지: ${result.updatedAt}`);
+        }
 
         // JSON 파일로 저장
         saveData('sea_split_index.json', result);
@@ -986,7 +1032,43 @@ module.exports = {
     collectMidTermSeaForecasts,
     collectFishingIndex,
     collectSeaSplitIndex,
-    getStatus: () => lastRunStatus,
+    // 관리자 페이지용 상태 반환
+    // fishing 키에 낚시지수 + 바다갈라짐 통합 상태를 담아서 반환
+    // (내부적으로는 fishing/seaSplit 별도 관리, 외부에는 fishing으로 통합 노출)
+    getStatus: () => {
+        const status = Object.assign({}, lastRunStatus);
+        const f = lastRunStatus.fishing;
+        const s = lastRunStatus.seaSplit;
+
+        if (f.status === '성공' && s.status === '성공') {
+            // 둘 다 성공이면 메시지를 합치고, 더 최근에 실행된 쪽의 시각을 표시
+            status.fishing = {
+                lastRun: s.lastRun || f.lastRun,  // 바다갈라짐이 매시 35분 실행되므로 보통 더 최신
+                status: '성공',
+                message: f.message + ' / ' + s.message
+            };
+        } else if (f.status === '실패' || s.status === '실패') {
+            // 하나라도 실패면 실패 표시 (어떤 쪽이 실패했는지 메시지에 포함)
+            const failMsg = [];
+            if (f.status === '실패') failMsg.push('낚시: ' + f.message);
+            if (s.status === '실패') failMsg.push('갈라짐: ' + s.message);
+            status.fishing = {
+                lastRun: s.lastRun || f.lastRun,
+                status: '실패',
+                message: failMsg.join(' / ')
+            };
+        } else if (f.status === '성공' || s.status === '성공') {
+            // 한쪽만 성공, 다른 쪽은 아직 대기 중 (서버 시작 직후 등)
+            // 실행 완료된 쪽의 상태를 표시
+            const done = f.status === '성공' ? f : s;
+            status.fishing = { lastRun: done.lastRun, status: done.status, message: done.message };
+        }
+        // else: 둘 다 '대기 중'이면 기본 fishing 상태 그대로 유지
+
+        // seaSplit 키는 외부에 노출하지 않음 (관리자 화면에서 별도 카드가 없으므로)
+        delete status.seaSplit;
+        return status;
+    },
     collectProgress,
     getCrawlPaused: () => crawlPaused,
     setCrawlPaused: (val) => { crawlPaused = !!val; },
