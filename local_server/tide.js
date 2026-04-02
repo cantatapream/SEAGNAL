@@ -608,13 +608,22 @@ function showTideToast(message, anchorCoord, duration = 3000) {
     // 마커 좌표가 주어지면 마커 아래에 배치, 아니면 화면 하단 기본 위치
     if (anchorCoord && tideMap) {
         const pixel = tideMap.getPixelFromCoordinate(anchorCoord);
-        const mapEl = tideMap.getTargetElement();
-        const mapRect = mapEl.getBoundingClientRect();
-        const screenX = mapRect.left + pixel[0];
-        const screenY = mapRect.top + pixel[1];
-        toast.style.left = screenX + 'px';
-        toast.style.top = (screenY + 50) + 'px'; // 마커에서 50px 아래
-        toast.style.bottom = '';
+        // pixel이 null이면 좌표가 현재 뷰포트 밖이거나 지도가 아직 렌더링되지 않은 상태
+        // → fallback으로 화면 중앙 하단에 표시
+        if (pixel) {
+            const mapEl = tideMap.getTargetElement();
+            const mapRect = mapEl.getBoundingClientRect();
+            const screenX = mapRect.left + pixel[0];
+            const screenY = mapRect.top + pixel[1];
+            toast.style.left = screenX + 'px';
+            toast.style.top = (screenY + 50) + 'px'; // 마커에서 50px 아래
+            toast.style.bottom = '';
+        } else {
+            // 지도 뷰포트 밖이거나 미렌더링 상태: 화면 중앙 하단 fallback
+            toast.style.left = '50%';
+            toast.style.top = '';
+            toast.style.bottom = '80px';
+        }
     } else {
         toast.style.left = '50%';
         toast.style.top = '';

@@ -79,8 +79,11 @@ function renderCommentList(listEl) {
             html += '</div>';
         }
 
-        // 모든 사용자가 최상위 댓글에 답글 달 수 있음 (삭제된 댓글 제외)
-        if (!comment.isDeleted) {
+        // 모든 사용자가 최상위 댓글에 답글 달 수 있음
+        // 단, 삭제된 댓글 또는 내용이 가려진 비밀 댓글(타인 작성)에는 버튼 숨김
+        // content === '__SECRET__' 이면 서버에서 내용을 가린 것 → 본인/관리자가 아닌 타인의 비밀 댓글
+        var canReplyToTop = !comment.isDeleted && comment.content !== '__SECRET__';
+        if (canReplyToTop) {
             html += '<div class="comment-reply-btn-wrap">'
                 + '<button class="comment-reply-btn" onclick="openReplyInput(\'' + comment.id + '\')">'
                 + '<i class="fa-solid fa-reply"></i> 답글 달기</button></div>';
@@ -181,9 +184,11 @@ function renderCommentItem(comment, myDeviceId, isAdmin, isReply) {
         }
     }
 
-    // ── 답글 아이템 아래에도 [답글 달기] 표시 (모든 사용자, 삭제된 댓글 제외)
+    // ── 답글 아이템 아래에도 [답글 달기] 표시
+    // 삭제된 댓글 또는 내용이 가려진 비밀 댓글(타인 작성)에는 버튼 숨김
     var replyBtnHtml = '';
-    if (isReply && !comment.isDeleted) {
+    var canReplyToReply = isReply && !comment.isDeleted && comment.content !== '__SECRET__';
+    if (canReplyToReply) {
         replyBtnHtml = '<div class="comment-reply-btn-wrap" style="margin-top:4px;">'
             + '<button class="comment-reply-btn" onclick="openReplyInput(\'' + comment.id + '\')">'
             + '<i class="fa-solid fa-reply"></i> 답글 달기</button></div>';
