@@ -1,23 +1,27 @@
 /**
  * ============================================================================
  * 파일명: js/promo_comment4.js
- * 역할: 게시글 댓글 시스템 - 관리자 전용 기능 (답글, 원문 보기)
+ * 역할: 게시글 댓글 시스템 - 답글 입력 및 관리자 전용 기능 (원문 보기)
  * ============================================================================
  *
  * [이 파일이 담당하는 것]
- * - 관리자 답글 입력창 열기/닫기
+ * - 답글 입력창 열기/닫기 (일반 사용자 + 관리자 모두 사용)
  * - 답글 등록 (parentId 포함하여 서버 전송)
- * - 삭제된 댓글 원문 보기 (팝업)
- * - 비밀 댓글 원문 보기 (관리자 전용)
+ * - 삭제된 댓글 원문 보기 (팝업, 관리자 전용)
  *
- * [답글 UI]
- * 특정 댓글 아래에 동적으로 생성되는 인라인 입력창:
+ * [답글 UI - 사용자]
  * ┌─────────────────────────────────┐
- * │ [관리자]                         │
+ * │ [파란돌고래742]  ↩ 답글          │
  * │ ┌───────────────────────────┐   │
  * │ │ 답글을 입력하세요...       │   │
  * │ └───────────────────────────┘   │
  * │ [🔒 비밀]  [취소]  [등록]       │
+ * └─────────────────────────────────┘
+ *
+ * [답글 UI - 관리자]
+ * ┌─────────────────────────────────┐
+ * │ [관리자]  ↩ 답글                 │
+ * │ ...동일...                       │
  * └─────────────────────────────────┘
  * ============================================================================
  */
@@ -29,7 +33,8 @@
 /**
  * 특정 댓글 아래에 답글 입력창을 동적으로 생성한다.
  * 이미 답글 입력창이 열려있으면 닫고 새로 연다 (토글 방식).
- * 관리자만 호출 가능 (렌더링 시 관리자에게만 버튼 표시됨).
+ * 일반 사용자와 관리자 모두 사용 가능.
+ * 입력창 상단에 자신의 닉네임 뱃지가 표시된다.
  *
  * @param {string} parentCommentId - 답글을 달 대상 댓글의 ID
  */
@@ -42,10 +47,17 @@ window.openReplyInput = function(parentCommentId) {
     var targetItem = document.querySelector('[data-comment-id="' + parentCommentId + '"]');
     if (!targetItem) return;
 
-    // 답글 입력창 HTML 생성
+    // 현재 사용자 정보 (관리자/일반 구분)
+    var isAdmin = isAdminMode();
+    var myNickname = isAdmin ? '관리자' : getOrCreateNickname();
+    var badgeStyle = isAdmin
+        ? 'background:linear-gradient(135deg,#4fc3f7,#0277BD);color:#fff;'
+        : 'background:linear-gradient(135deg,#80cbc4,#00695c);color:#fff;';
+
+    // 답글 입력창 HTML 생성 (닉네임 뱃지는 사용자/관리자에 따라 다르게 표시)
     var replyInputHtml = '<div class="comment-reply-input-wrap" id="reply-input-' + parentCommentId + '">'
         + '<div class="comment-input-header">'
-        + '<span class="comment-nickname-badge" style="background:linear-gradient(135deg,#4fc3f7,#0277BD);color:#fff;">관리자</span>'
+        + '<span class="comment-nickname-badge" style="' + badgeStyle + '">' + escapeCommentHtml(myNickname) + '</span>'
         + '<span style="font-size:0.75rem;color:#64748b;margin-left:8px;">↩ 답글</span>'
         + '</div>'
         + '<textarea class="comment-textarea" id="reply-textarea-' + parentCommentId + '" '
@@ -88,6 +100,7 @@ window.closeReplyInput = function(parentCommentId) {
 /**
  * 답글 입력창의 내용을 읽어 서버에 답글을 등록한다.
  * parentId에 대상 댓글의 ID를 포함하여 전송한다.
+ * 일반 사용자와 관리자 모두 사용 가능.
  * 등록 성공 시 댓글 목록을 새로고침한다.
  *
  * @param {string} parentCommentId - 답글 대상 댓글 ID
@@ -102,15 +115,16 @@ window.submitReply = async function(parentCommentId) {
         return;
     }
 
+    var isAdmin = isAdminMode();
     var secretCheck = document.getElementById('reply-secret-' + parentCommentId);
     var isSecret = secretCheck ? secretCheck.checked : false;
 
     var payload = {
         postId: String(_currentCommentPostId),
         parentId: parentCommentId,  // 답글임을 나타내는 부모 댓글 ID
-        authorType: 'admin',
+        authorType: isAdmin ? 'admin' : 'user',
         deviceId: getCommentDeviceId(),
-        nickname: '관리자',
+        nickname: isAdmin ? '관리자' : getOrCreateNickname(),  // 사용자면 해양 닉네임, 관리자면 "관리자"
         content: content,
         isSecret: isSecret
     };

@@ -79,9 +79,8 @@ function renderCommentList(listEl) {
             html += '</div>';
         }
 
-        // 관리자에게는 이 댓글에 [답글 달기] 버튼 표시
-        // (최상위 댓글에만 표시 — 답글에도 답글 달 수 있지만 같은 레벨에 표시됨)
-        if (isAdmin && !comment.isDeleted) {
+        // 모든 사용자가 최상위 댓글에 답글 달 수 있음 (삭제된 댓글 제외)
+        if (!comment.isDeleted) {
             html += '<div class="comment-reply-btn-wrap">'
                 + '<button class="comment-reply-btn" onclick="openReplyInput(\'' + comment.id + '\')">'
                 + '<i class="fa-solid fa-reply"></i> 답글 달기</button></div>';
@@ -182,9 +181,9 @@ function renderCommentItem(comment, myDeviceId, isAdmin, isReply) {
         }
     }
 
-    // ── 답글이 답글에 답글 달기: 관리자 답글(isReply) 아래에도 [답글 달기] 표시
+    // ── 답글 아이템 아래에도 [답글 달기] 표시 (모든 사용자, 삭제된 댓글 제외)
     var replyBtnHtml = '';
-    if (isAdmin && isReply && !comment.isDeleted) {
+    if (isReply && !comment.isDeleted) {
         replyBtnHtml = '<div class="comment-reply-btn-wrap" style="margin-top:4px;">'
             + '<button class="comment-reply-btn" onclick="openReplyInput(\'' + comment.id + '\')">'
             + '<i class="fa-solid fa-reply"></i> 답글 달기</button></div>';
