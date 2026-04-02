@@ -145,11 +145,16 @@ function renderCommentItem(comment, myDeviceId, isAdmin, isReply) {
             : '삭제된 댓글입니다.';
         bodyHtml = '<div class="comment-deleted-text">' + deletedMsg + '</div>';
 
-        // 관리자에게만 [원문 보기] 버튼 표시
+        // 관리자에게만 [원문 보기] + [영구삭제] 버튼 표시
         if (isAdmin) {
-            bodyHtml += '<button class="comment-view-original-btn" '
+            bodyHtml += '<div style="display:flex;gap:6px;margin-top:6px;">'
+                + '<button class="comment-view-original-btn" '
                 + 'onclick="viewOriginalComment(\'' + comment.id + '\')">'
-                + '<i class="fa-solid fa-eye"></i> 원문 보기</button>';
+                + '<i class="fa-solid fa-eye"></i> 원문 보기</button>'
+                + '<button class="comment-permanent-delete-btn" '
+                + 'onclick="permanentDeleteComment(\'' + comment.id + '\')">'
+                + '<i class="fa-solid fa-trash-can"></i> 영구삭제</button>'
+                + '</div>';
         }
     } else if (comment.content === '__SECRET__') {
         // 비밀 댓글: 본인/관리자 아닌 경우 내용 숨김
@@ -162,13 +167,14 @@ function renderCommentItem(comment, myDeviceId, isAdmin, isReply) {
             + '</div>';
     }
 
-    // ── 수정/삭제 버튼 (본인 댓글 or 관리자, 단 삭제된 댓글엔 표시 안 함)
+    // ── 수정/삭제/신고 버튼 (삭제된 댓글엔 표시 안 함)
     var actionsHtml = '';
     if (!comment.isDeleted && comment.content !== '__SECRET__') {
         var canEdit = isMine || isAdmin; // 수정: 본인 또는 관리자
         var canDelete = isMine || isAdmin; // 삭제: 본인 또는 관리자
+        var canReport = !isMine && !isAdmin; // 신고: 타인 댓글만 (본인/관리자 제외)
 
-        if (canEdit || canDelete) {
+        if (canEdit || canDelete || canReport) {
             actionsHtml = '<div class="comment-actions">';
             if (canEdit) {
                 actionsHtml += '<button class="comment-action-btn" '
@@ -179,6 +185,11 @@ function renderCommentItem(comment, myDeviceId, isAdmin, isReply) {
                 actionsHtml += '<button class="comment-action-btn comment-action-delete" '
                     + 'onclick="deleteComment(\'' + comment.id + '\')" title="삭제">'
                     + '<i class="fa-solid fa-trash-can"></i></button>';
+            }
+            if (canReport) {
+                actionsHtml += '<button class="comment-action-btn comment-action-report" '
+                    + 'onclick="openCommentReport(\'' + comment.id + '\')" title="신고">'
+                    + '<i class="fa-solid fa-flag"></i></button>';
             }
             actionsHtml += '</div>';
         }

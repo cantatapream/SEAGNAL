@@ -7092,3 +7092,177 @@ line-height: 1.1;
 #promo-editor-allow-comments:checked + .comment-toggle-slider::after {
     transform: translateX(14px);
 }
+
+/* ============================================================================
+   관리자 영구삭제 버튼
+   ============================================================================ */
+.comment-permanent-delete-btn {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #f87171;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.comment-permanent-delete-btn:hover {
+    background: rgba(239, 68, 68, 0.3);
+}
+
+/* ============================================================================
+   댓글 신고 버튼
+   ============================================================================ */
+.comment-action-report {
+    color: #94a3b8 !important;
+}
+.comment-action-report:hover {
+    color: #f87171 !important;
+    background: rgba(239, 68, 68, 0.1) !important;
+}
+
+/* ============================================================================
+   게시글 목록 댓글 수 [N]
+   ============================================================================ */
+.promo-item-comment-count {
+    font-size: 0.72rem;
+    color: #4fc3f7;
+    margin-left: 5px;
+    font-weight: 500;
+    vertical-align: middle;
+}
+
+/* ============================================================================
+   댓글 가이드라인 (접이식)
+   ============================================================================ */
+.comment-guideline-wrap {
+    margin-bottom: 10px;
+}
+.comment-guideline-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    background: rgba(79, 195, 247, 0.06);
+    border: 1px solid rgba(79, 195, 247, 0.2);
+    color: #4fc3f7;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.2s;
+}
+.comment-guideline-toggle:hover {
+    background: rgba(79, 195, 247, 0.1);
+}
+.comment-guideline-arrow {
+    margin-left: auto;
+    font-size: 0.65rem;
+    transition: transform 0.25s;
+}
+.comment-guideline-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+.comment-guideline-body.open {
+    max-height: 400px;
+}
+.comment-guideline-list {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(79, 195, 247, 0.1);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.comment-guideline-list li {
+    font-size: 0.78rem;
+    color: #cbd5e1;
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    line-height: 1.4;
+}
+.comment-guideline-list li i {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.comment-guideline-notice {
+    font-size: 0.72rem;
+    color: #64748b;
+    margin-top: 7px;
+    padding: 0 2px;
+    line-height: 1.4;
+}
+
+/* ============================================================================
+   리액션 버튼
+   ============================================================================ */
+.promo-reactions-wrap {
+    margin-bottom: 6px;
+}
+.promo-reactions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 2px 0;
+}
+.reaction-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: all 0.18s;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    min-width: 52px;
+    justify-content: center;
+}
+.reaction-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+.reaction-btn-active {
+    background: rgba(79, 195, 247, 0.15);
+    border-color: rgba(79, 195, 247, 0.5);
+    color: #4fc3f7;
+}
+.reaction-emoji {
+    font-size: 0.95rem;
+    line-height: 1;
+}
+.reaction-count {
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+/* ============================================================================
+   댓글 신고 팝업 체크박스
+   ============================================================================ */
+.comment-report-reason-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #cbd5e1;
+    font-size: 0.82rem;
+    padding: 5px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.comment-report-reason-label:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+.comment-report-reason-label input[type="radio"] {
+    accent-color: #f87171;
+}

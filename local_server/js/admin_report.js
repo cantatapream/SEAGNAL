@@ -19,31 +19,56 @@ function escapeHTML(str) {
 }
 
 // ============================================================================
-// 1. 제보 관리 탭 렌더링
+// 1. 제보 관리 탭 렌더링 (하위탭: [기능 제보] / [댓글 신고])
 // ============================================================================
+
+let _currentReportSubTab = 'feature'; // 'feature' | 'comment'
+
 window.renderUnifiedReportContent = async function (body) {
     body.innerHTML = `
         <div style="padding:15px;">
-            <!-- 필터 탭 -->
-            <div id="report-filter-tabs" style="display:flex;gap:6px;margin-bottom:15px;flex-wrap:wrap;">
-                <button class="report-filter-btn active" data-filter="all" onclick="window._filterReports('all')">전체</button>
-                <button class="report-filter-btn" data-filter="접수" onclick="window._filterReports('접수')">접수 <span id="report-pending-badge" style="background:#ef4444;color:#fff;font-size:0.6rem;padding:1px 5px;border-radius:8px;margin-left:3px;"></span></button>
-                <button class="report-filter-btn" data-filter="답변완료" onclick="window._filterReports('답변완료')">답변완료</button>
-            </div>
-
-            <!-- 일괄 작업 바 -->
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                <label style="display:flex;align-items:center;gap:6px;color:#94a3b8;font-size:0.75rem;cursor:pointer;">
-                    <input type="checkbox" id="report-select-all" onchange="window._toggleSelectAllReports(this.checked)"> 전체 선택
-                </label>
-                <button onclick="window._bulkDeleteReports()" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:5px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
-                    <i class="fa-solid fa-trash"></i> 일괄 삭제
+            <!-- 하위탭 선택 -->
+            <div style="display:flex;gap:6px;margin-bottom:14px;">
+                <button id="report-subtab-feature" class="report-subtab-btn active"
+                        onclick="window._switchReportSubTab('feature')">
+                    <i class="fa-solid fa-envelope"></i> 기능 제보
+                    <span id="feature-report-badge" style="display:none;background:#ef4444;color:#fff;font-size:0.6rem;padding:1px 5px;border-radius:8px;margin-left:3px;"></span>
+                </button>
+                <button id="report-subtab-comment" class="report-subtab-btn"
+                        onclick="window._switchReportSubTab('comment')">
+                    <i class="fa-solid fa-flag"></i> 댓글 신고
+                    <span id="comment-report-badge" style="display:none;background:#ef4444;color:#fff;font-size:0.6rem;padding:1px 5px;border-radius:8px;margin-left:3px;"></span>
                 </button>
             </div>
 
-            <!-- 제보 목록 -->
-            <div id="report-list" style="display:flex;flex-direction:column;gap:8px;">
-                <div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>
+            <!-- 기능 제보 패널 -->
+            <div id="report-panel-feature">
+                <!-- 필터 탭 -->
+                <div id="report-filter-tabs" style="display:flex;gap:6px;margin-bottom:15px;flex-wrap:wrap;">
+                    <button class="report-filter-btn active" data-filter="all" onclick="window._filterReports('all')">전체</button>
+                    <button class="report-filter-btn" data-filter="접수" onclick="window._filterReports('접수')">접수 <span id="report-pending-badge" style="background:#ef4444;color:#fff;font-size:0.6rem;padding:1px 5px;border-radius:8px;margin-left:3px;"></span></button>
+                    <button class="report-filter-btn" data-filter="답변완료" onclick="window._filterReports('답변완료')">답변완료</button>
+                </div>
+                <!-- 일괄 작업 바 -->
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <label style="display:flex;align-items:center;gap:6px;color:#94a3b8;font-size:0.75rem;cursor:pointer;">
+                        <input type="checkbox" id="report-select-all" onchange="window._toggleSelectAllReports(this.checked)"> 전체 선택
+                    </label>
+                    <button onclick="window._bulkDeleteReports()" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:5px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
+                        <i class="fa-solid fa-trash"></i> 일괄 삭제
+                    </button>
+                </div>
+                <!-- 제보 목록 -->
+                <div id="report-list" style="display:flex;flex-direction:column;gap:8px;">
+                    <div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>
+                </div>
+            </div>
+
+            <!-- 댓글 신고 패널 (초기 숨김) -->
+            <div id="report-panel-comment" style="display:none;">
+                <div id="comment-report-list" style="display:flex;flex-direction:column;gap:8px;">
+                    <div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>
+                </div>
             </div>
         </div>
     `;
@@ -57,11 +82,23 @@ window.renderUnifiedReportContent = async function (body) {
             .report-filter-btn.active { background:rgba(59,130,246,0.2); border-color:#3b82f6; color:#60a5fa; }
             .report-item { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:12px; cursor:pointer; transition:background 0.2s; }
             .report-item:hover { background:rgba(255,255,255,0.06); }
+            .report-subtab-btn { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#94a3b8; padding:8px 16px; border-radius:8px; font-size:0.8rem; cursor:pointer; transition:all 0.2s; flex:1; }
+            .report-subtab-btn.active { background:rgba(59,130,246,0.2); border-color:#3b82f6; color:#60a5fa; font-weight:600; }
         `;
         document.head.appendChild(style);
     }
 
+    _currentReportSubTab = 'feature';
     await loadReportList();
+    await _loadCommentReportList();
+};
+
+window._switchReportSubTab = function(tab) {
+    _currentReportSubTab = tab;
+    document.getElementById('report-panel-feature').style.display = tab === 'feature' ? 'block' : 'none';
+    document.getElementById('report-panel-comment').style.display = tab === 'comment' ? 'block' : 'none';
+    document.getElementById('report-subtab-feature').classList.toggle('active', tab === 'feature');
+    document.getElementById('report-subtab-comment').classList.toggle('active', tab === 'comment');
 };
 
 let _allReports = [];
@@ -87,12 +124,17 @@ function renderReportList() {
         filtered = _allReports.filter(r => r.status === _currentFilter);
     }
 
-    // 관리자가 아직 읽지 않은 '접수' 제보 건수를 탭 내부 뱃지에 표시합니다.
-    // (헤더 봉투 뱃지와 동일 기준: 접수 상태 + 미읽음)
+    // 기능 제보 뱃지 업데이트
     const pendingBadge = document.getElementById('report-pending-badge');
     if (pendingBadge) {
         const pendingCount = _allReports.filter(r => r.status === '접수' && !r.isRead).length;
         pendingBadge.textContent = pendingCount > 0 ? pendingCount : '';
+    }
+    const featureBadge = document.getElementById('feature-report-badge');
+    if (featureBadge) {
+        const pendingCount = _allReports.filter(r => r.status === '접수' && !r.isRead).length;
+        featureBadge.textContent = pendingCount > 0 ? String(pendingCount) : '';
+        featureBadge.style.display = pendingCount > 0 ? 'inline' : 'none';
     }
 
     if (filtered.length === 0) {
@@ -156,6 +198,126 @@ window._bulkDeleteReports = async function () {
             await loadReportList();
         }
     } catch (e) { alert('삭제 실패: ' + e.message); }
+};
+
+// ============================================================================
+// 댓글 신고 목록 로드 및 렌더링
+// ============================================================================
+
+let _allCommentReports = [];
+
+async function _loadCommentReportList() {
+    try {
+        const res = await fetch(CONFIG.API_BASE + '/api/comment-reports');
+        _allCommentReports = res.ok ? await res.json() : [];
+    } catch (e) { _allCommentReports = []; }
+    _renderCommentReportList();
+}
+
+function _renderCommentReportList() {
+    const container = document.getElementById('comment-report-list');
+    if (!container) return;
+
+    // 댓글 신고 뱃지 업데이트
+    const badge = document.getElementById('comment-report-badge');
+    if (badge) {
+        const count = _allCommentReports.filter(r => r.status === 'pending').length;
+        badge.textContent = count > 0 ? String(count) : '';
+        badge.style.display = count > 0 ? 'inline' : 'none';
+    }
+
+    if (_allCommentReports.length === 0) {
+        container.innerHTML = `<div style="text-align:center;padding:50px;color:#64748b;"><i class="fa-solid fa-flag" style="font-size:2rem;margin-bottom:10px;display:block;"></i><div>신고된 댓글이 없습니다.</div></div>`;
+        return;
+    }
+
+    const statusLabel = { pending: '🔴 대기중', deleted: '🗑️ 삭제됨', blocked: '🚫 차단', ignored: '⬜ 무시', done: '✅ 처리완료' };
+    const statusColor = { pending: '#f87171', deleted: '#94a3b8', blocked: '#fb923c', ignored: '#64748b', done: '#4ade80' };
+
+    container.innerHTML = _allCommentReports.map(r => {
+        const sl = statusLabel[r.status] || r.status;
+        const sc = statusColor[r.status] || '#94a3b8';
+        const dateStr = r.createdAt || '';
+        const isPending = r.status === 'pending';
+        return `
+        <div class="report-item" style="${isPending ? 'border-color:rgba(239,68,68,0.3);' : ''}">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+                <span style="background:rgba(239,68,68,0.1);color:#f87171;padding:2px 8px;border-radius:4px;font-size:0.7rem;">${escapeHTML(r.reason)}</span>
+                <span style="font-size:0.65rem;color:${sc};">${sl} · ${dateStr}</span>
+            </div>
+            <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:6px;">
+                신고 대상: <span style="color:#e2e8f0;font-weight:600;">${escapeHTML(r.commentNickname)}</span>
+            </div>
+            <div style="color:#cbd5e1;font-size:0.8rem;background:rgba(0,0,0,0.2);padding:8px;border-radius:6px;margin-bottom:10px;white-space:pre-wrap;word-break:break-all;">${escapeHTML(r.commentContent || '(내용 없음)')}</div>
+            ${isPending ? `
+            <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                <button onclick="window._processCommentReport('${r.id}', 'deleted')"
+                        style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:5px 10px;border-radius:5px;font-size:0.72rem;cursor:pointer;">
+                    <i class="fa-solid fa-trash-can"></i> 댓글 삭제 후 처리
+                </button>
+                <button onclick="window._processCommentReport('${r.id}', 'blocked')"
+                        style="background:rgba(251,146,60,0.15);border:1px solid rgba(251,146,60,0.3);color:#fb923c;padding:5px 10px;border-radius:5px;font-size:0.72rem;cursor:pointer;">
+                    <i class="fa-solid fa-ban"></i> 작성자 차단
+                </button>
+                <button onclick="window._processCommentReport('${r.id}', 'ignored')"
+                        style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;padding:5px 10px;border-radius:5px;font-size:0.72rem;cursor:pointer;">
+                    <i class="fa-solid fa-eye-slash"></i> 무시
+                </button>
+                <button onclick="window._processCommentReport('${r.id}', 'done')"
+                        style="background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);color:#4ade80;padding:5px 10px;border-radius:5px;font-size:0.72rem;cursor:pointer;">
+                    <i class="fa-solid fa-check"></i> 처리완료
+                </button>
+            </div>
+            ` : `<div style="font-size:0.7rem;color:#64748b;">처리됨: ${r.processedAt || ''}</div>`}
+        </div>`;
+    }).join('');
+}
+
+window._processCommentReport = async function(id, status) {
+    const labels = { deleted: '댓글 삭제 후 처리', blocked: '작성자 차단', ignored: '무시', done: '처리완료' };
+    if (!confirm(`"${labels[status]}"로 처리하시겠습니까?`)) return;
+
+    // 댓글 삭제 처리인 경우: 먼저 해당 댓글을 소프트 삭제
+    if (status === 'deleted') {
+        const report = _allCommentReports.find(r => r.id === id);
+        if (report && report.commentId) {
+            try {
+                await fetch(CONFIG.API_BASE + '/api/comments/' + report.commentId, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ isAdmin: true, deletedBy: 'admin' })
+                });
+            } catch (e) { /* 이미 삭제된 경우 무시 */ }
+        }
+    }
+
+    // 차단 처리인 경우: 작성자 기기 ID 차단 (comment_reports에서 commentId로 신고된 댓글 찾아서 deviceId 차단)
+    if (status === 'blocked') {
+        const report = _allCommentReports.find(r => r.id === id);
+        if (report && report.commentId) {
+            // 댓글 목록에서 해당 댓글의 deviceId를 찾아서 차단
+            try {
+                await fetch(CONFIG.API_BASE + '/api/comments/' + report.commentId, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ isAdmin: true, deletedBy: 'admin' })
+                });
+            } catch (e) { /* 무시 */ }
+        }
+    }
+
+    try {
+        const res = await fetch(CONFIG.API_BASE + '/api/comment-reports/' + id + '/status', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+        });
+        if (res.ok) {
+            await _loadCommentReportList();
+            // 헤더 봉투 뱃지 갱신
+            if (typeof window.updateReportBadge === 'function') window.updateReportBadge();
+        }
+    } catch (e) { alert('처리 실패: ' + e.message); }
 };
 
 // ============================================================================

@@ -23,6 +23,7 @@ let promoQuillEditor = null;
 let currentEditingPromoId = null;
 let currentAttachments = []; // [New] 현재 편집 중인 게시글의 첨부파일 목록
 let _boardsCache = []; // 게시판 목록 캐시
+let _commentCounts = {}; // 게시글별 댓글 수 캐시 { "postId": count }
 
 // [New] 첨부파일 목록 렌더링
 function renderAttachmentList() {
@@ -126,14 +127,16 @@ async function loadPromoPosts() {
     `;
 
     try {
-        // 게시판 목록과 게시글을 병렬 로드
-        const [promoRes, boardsRes] = await Promise.all([
+        // 게시판 목록, 게시글, 댓글 수를 병렬 로드
+        const [promoRes, boardsRes, countsRes] = await Promise.all([
             fetch(CONFIG.API_BASE + '/api/promo'),
-            fetch(CONFIG.API_BASE + '/api/boards')
+            fetch(CONFIG.API_BASE + '/api/boards'),
+            fetch(CONFIG.API_BASE + '/api/comments/counts')
         ]);
         if (!promoRes.ok) throw new Error('API 오류');
         const posts = await promoRes.json();
         const boards = await boardsRes.json();
+        _commentCounts = countsRes.ok ? await countsRes.json() : {};
 
         // 게시판 캐시 업데이트 및 탭 렌더링
         _boardsCache = boards || [];
@@ -353,12 +356,15 @@ function renderPromoPosts(posts) {
         // 카테고리 미지정 데이터 보정
         const category = post.category || 'PROMO';
 
+        const commentCount = _commentCounts[String(post.id)] || 0;
+        const commentCountHtml = '<span class="promo-item-comment-count">[' + commentCount + ']</span>';
+
         return `
         <div class="promo-item ${isPinnedClass}" onclick="openPromoDetail(${post.id})">
             <div class="promo-item-title">
                 ${badgeHtml}
                 ${pinIcon}
-                ${escapeHtml(post.title)}${newBadgeHtml}
+                ${escapeHtml(post.title)}${newBadgeHtml}${commentCountHtml}
             </div>
             <div class="promo-item-meta">
                 <span class="promo-item-date">${formatPromoDate(post.createdAt)}</span>
@@ -466,6 +472,9 @@ window.openPromoDetail = async function (postId) {
         document.getElementById('promo-detail-title').textContent = post.title;
         document.getElementById('promo-detail-date').textContent = post.createdAt;
         document.getElementById('promo-detail-views').textContent = post.views || 0;
+
+        // 리액션 영역 삽입 (날짜/조회수 행 다음)
+        _initPromoReactions(post.id);
 
         const contentEl = document.getElementById('promo-detail-content');
         contentEl.innerHTML = post.content;
@@ -589,6 +598,9 @@ window.closePromoDetail = function () {
         // 댓글 섹션 초기화
         const commentsContainer = document.getElementById('promo-detail-comments');
         if (commentsContainer) commentsContainer.innerHTML = '';
+        // 리액션 영역 초기화
+        const reactionsWrap = document.getElementById('promo-detail-reactions');
+        if (reactionsWrap) reactionsWrap.innerHTML = '';
     }
 };
 
@@ -920,6 +932,66 @@ window.deletePromoPost = async function (postId) {
         // console.error('삭제 오류:', e);
         alert('서버 오류로 삭제에 실패했습니다.');
     }
+};
+
+// ============================================================================
+// 리액션 기능 (❤️ 하트 / 👍 따봉 / 😮 놀람)
+// ============================================================================
+
+/**
+ * 게시글 상세 모달에 리액션 버튼을 초기화하고 현재 상태를 표시한다.
+ * @param {string|number} postId - 게시글 ID
+ */
+async function _initPromoReactions(postId) {
+    const wrap = document.getElementById('promo-detail-reactions');
+    if (!wrap) return;
+
+    const deviceId = localStorage.getItem('seagnal_device_id') || '';
+
+    try {
+        const res = await fetch(CONFIG.API_BASE + '/api/reactions'
+            + '?postId=' + encodeURIComponent(postId)
+            + '&deviceId=' + encodeURIComponent(deviceId));
+        const data = res.ok ? await res.json() : { heartCount: 0, thumbsCount: 0, wowCount: 0, myReaction: null };
+        _renderReactions(wrap, postId, data);
+    } catch (e) {
+        _renderReactions(wrap, postId, { heartCount: 0, thumbsCount: 0, wowCount: 0, myReaction: null });
+    }
+}
+
+function _renderReactions(wrap, postId, data) {
+    const { heartCount, thumbsCount, wowCount, myReaction } = data;
+
+    const btn = (type, emoji, count) => {
+        const active = myReaction === type ? ' reaction-btn-active' : '';
+        return `<button class="reaction-btn${active}" onclick="toggleReaction(${postId}, '${type}')" data-type="${type}">
+            <span class="reaction-emoji">${emoji}</span>
+            <span class="reaction-count">${count}</span>
+        </button>`;
+    };
+
+    wrap.innerHTML = `<div class="promo-reactions">
+        ${btn('heart', '❤️', heartCount)}
+        ${btn('thumbs', '👍', thumbsCount)}
+        ${btn('wow', '😮', wowCount)}
+    </div>`;
+}
+
+window.toggleReaction = async function(postId, type) {
+    const deviceId = localStorage.getItem('seagnal_device_id') || '';
+    if (!deviceId) return;
+
+    try {
+        const res = await fetch(CONFIG.API_BASE + '/api/reactions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ postId: String(postId), deviceId, type })
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const wrap = document.getElementById('promo-detail-reactions');
+        if (wrap) _renderReactions(wrap, postId, data);
+    } catch (e) { /* 무시 */ }
 };
 
 // 12. 탭 전환 시 게시글 로드 및 관리자 인증 (15회 클릭)

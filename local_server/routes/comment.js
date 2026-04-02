@@ -307,4 +307,65 @@ router.delete('/api/comments/:id', (req, res) => {
     res.json({ success: true });
 });
 
+// ============================================================================
+// 댓글 수 일괄 조회 (게시글 목록 표시용)
+// ============================================================================
+
+/**
+ * GET /api/comments/counts
+ *
+ * 전체 게시글의 댓글 수를 { "postId": count } 형식으로 반환한다.
+ * 삭제 여부 관계없이 해당 postId에 속한 모든 댓글 수를 집계.
+ */
+router.get('/api/comments/counts', (req, res) => {
+    const comments = getComments();
+    const counts = {};
+    comments.forEach(c => {
+        const pid = String(c.postId);
+        counts[pid] = (counts[pid] || 0) + 1;
+    });
+    res.json(counts);
+});
+
+// ============================================================================
+// 댓글 영구 삭제 (관리자 전용)
+// ============================================================================
+
+/**
+ * DELETE /api/comments/:id/permanent
+ * Body: { isAdmin: true }
+ *
+ * soft-delete된 댓글을 완전히 제거한다.
+ * 해당 댓글에 달린 답글도 함께 제거한다.
+ * - 관리자만 사용 가능
+ * - isDeleted=true인 댓글에만 허용 (먼저 soft-delete 후 영구 삭제)
+ */
+router.delete('/api/comments/:id/permanent', (req, res) => {
+    const { id } = req.params;
+    const { isAdmin } = req.body;
+
+    if (!isAdmin) {
+        return res.status(403).json({ error: '관리자만 영구 삭제할 수 있습니다.' });
+    }
+
+    const comments = getComments();
+    const idx = comments.findIndex(c => c.id === id);
+
+    if (idx === -1) {
+        return res.status(404).json({ error: '댓글을 찾을 수 없습니다.' });
+    }
+
+    const comment = comments[idx];
+
+    if (!comment.isDeleted) {
+        return res.status(400).json({ error: '영구 삭제는 이미 삭제된 댓글에만 가능합니다.' });
+    }
+
+    // 해당 댓글과 그 답글을 모두 제거
+    const filtered = comments.filter(c => c.id !== id && c.parentId !== id);
+    saveComments(filtered);
+
+    res.json({ success: true });
+});
+
 module.exports = router;
