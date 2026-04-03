@@ -74,12 +74,19 @@ function handleCctvMapClick(event) {
     });
 
     if (feature && feature.get('cctvId')) {
+        // 옹진군(HTTP 전용): Mixed Content 차단으로 iframe 임베드 불가 → 새 창에서 바로 열기
+        const providerKey = feature.get('providerKey');
+        if (providerKey === 'ongjin' && feature.get('shareUrl')) {
+            window.open(feature.get('shareUrl'), '_blank', 'noopener,noreferrer');
+            return;
+        }
+
         // 마커 클릭: 해당 CCTV 팝업 표시
         showCctvPopup({
             cctvId:       feature.get('cctvId'),
             name:         feature.get('name'),
             subtitle:     feature.get('subtitle'),
-            providerKey:  feature.get('providerKey'),
+            providerKey:  providerKey,
             providerName: feature.get('providerName'),
             shareUrl:     feature.get('shareUrl'),
             streamUrl:    feature.get('streamUrl')

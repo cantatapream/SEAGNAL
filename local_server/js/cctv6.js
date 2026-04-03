@@ -171,9 +171,11 @@ const CctvFavorites = {
             const btn = document.createElement('div');
             btn.className = 'cctv-fav-btn';
 
-            // 버튼 클릭 → 해당 CCTV 팝업 열기
+            // 버튼 클릭 → 옹진군은 새 창, 나머지는 팝업
             btn.onclick = () => {
-                if (typeof showCctvPopup === 'function') {
+                if (item.providerKey === 'ongjin' && item.shareUrl) {
+                    window.open(item.shareUrl, '_blank', 'noopener,noreferrer');
+                } else if (typeof showCctvPopup === 'function') {
                     showCctvPopup(item);
                 }
             };
