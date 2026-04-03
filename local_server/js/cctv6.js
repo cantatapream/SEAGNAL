@@ -108,6 +108,8 @@ const CctvFavorites = {
             shareUrl:    item.shareUrl   || null,
             // HLS 스트림 URL (거제시 등이면 값, KBS면 null)
             streamUrl:   item.streamUrl  || null,
+            // 카메라 채널 수 (부산 cnt=2 멀티카메라 처리)
+            cnt:         item.cnt  || '1',
             // 좌표: 즐겨찾기 클릭 시 지도 이동용
             lat:         item.lat  || null,
             lng:         item.lng  || null
