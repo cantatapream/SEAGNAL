@@ -80,7 +80,7 @@ function addCctvMarkers() {
 
                 // iframe 방식(KBS): shareUrl 사용, HLS 방식(거제시 등): streamUrl 사용
                 // 반대쪽 필드는 null로 설정하여 팝업이 어떤 방식인지 명확히 구분
-                shareUrl:  provider.type === 'iframe' ? provider.shareUrl(item.cctvId) : null,
+                shareUrl:  provider.type === 'iframe' ? provider.shareUrl(item.cctvId, item) : null,
                 streamUrl: provider.type === 'hls'    ? provider.streamUrl(item.cctvId) : null
             });
 
@@ -117,11 +117,48 @@ function addCctvMarkers() {
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // 모든 Feature를 하나의 벡터 레이어로 묶어 지도에 추가
+    // 클러스터 소스: 가까운 마커를 하나의 클러스터로 묶음
+    //   distance: 45px — 이 거리 안의 마커들은 하나로 합침
+    //   minDistance: 20px — 클러스터 간 최소 간격
+    // ─────────────────────────────────────────────────────────────────
+    const vectorSource = new ol.source.Vector({ features: allFeatures });
+    const clusterSource = new ol.source.Cluster({
+        distance: 45,
+        minDistance: 20,
+        source: vectorSource
+    });
+
+    // ─────────────────────────────────────────────────────────────────
+    // 클러스터 레이어: 스타일 함수로 클러스터/개별 마커 구분 표시
+    //   - 클러스터(2개 이상): 파란 원 + 개수 텍스트
+    //   - 개별 마커(1개): 기존 cctv_image.png 아이콘 + 지점명 라벨
     // zIndex: 10 → OSM 배경(zIndex 0)보다 위에 표시
     // ─────────────────────────────────────────────────────────────────
     cctvMarkerLayer = new ol.layer.Vector({
-        source: new ol.source.Vector({ features: allFeatures }),
+        source: clusterSource,
+        style: function (feature) {
+            var clusterFeatures = feature.get('features');
+            var size = clusterFeatures ? clusterFeatures.length : 1;
+
+            if (size > 1) {
+                // 클러스터 스타일: 파란 원 + 흰색 개수 텍스트
+                return new ol.style.Style({
+                    image: new ol.style.Circle({
+                        radius: 18 + Math.min(size, 50) * 0.3,
+                        fill: new ol.style.Fill({ color: 'rgba(59, 130, 246, 0.85)' }),
+                        stroke: new ol.style.Stroke({ color: '#ffffff', width: 2 })
+                    }),
+                    text: new ol.style.Text({
+                        text: size.toString(),
+                        fill: new ol.style.Fill({ color: '#ffffff' }),
+                        font: 'bold 13px "Noto Sans KR", sans-serif'
+                    })
+                });
+            } else {
+                // 개별 마커: 내부 Feature의 기존 스타일(아이콘+라벨) 그대로 사용
+                return clusterFeatures[0].getStyle();
+            }
+        },
         zIndex: 10
     });
 

@@ -73,24 +73,52 @@ function handleCctvMapClick(event) {
         return f;
     });
 
-    if (feature && feature.get('cctvId')) {
+    if (!feature) {
+        // 빈 지도 클릭: 팝업 닫기
+        closeCctvPopup();
+        return;
+    }
+
+    // ── 클러스터 처리: feature.get('features')로 내부 Feature 배열 추출 ──
+    const clusterFeatures = feature.get('features');
+
+    if (clusterFeatures && clusterFeatures.length > 1) {
+        // 클러스터 클릭: 클러스터 내 모든 마커가 보이도록 줌 인
+        const extent = ol.extent.createEmpty();
+        clusterFeatures.forEach(function (f) {
+            ol.extent.extend(extent, f.getGeometry().getExtent());
+        });
+        cctvMap.getView().fit(extent, {
+            duration: 500,
+            padding: [80, 80, 80, 80],
+            maxZoom: 18
+        });
+        return;
+    }
+
+    // ── 개별 마커 클릭: 클러스터 래퍼에서 내부 Feature 꺼내기 ──
+    const innerFeature = (clusterFeatures && clusterFeatures.length === 1)
+        ? clusterFeatures[0]
+        : feature;
+
+    if (innerFeature && innerFeature.get('cctvId')) {
         // Feature 좌표에서 경위도 추출 (EPSG:3857 → WGS84)
-        const coords = ol.proj.toLonLat(feature.getGeometry().getCoordinates());
+        const coords = ol.proj.toLonLat(innerFeature.getGeometry().getCoordinates());
 
         // 마커 클릭: 해당 CCTV 팝업 표시
         showCctvPopup({
-            cctvId:       feature.get('cctvId'),
-            name:         feature.get('name'),
-            subtitle:     feature.get('subtitle'),
-            providerKey:  feature.get('providerKey'),
-            providerName: feature.get('providerName'),
-            shareUrl:     feature.get('shareUrl'),
-            streamUrl:    feature.get('streamUrl'),
+            cctvId:       innerFeature.get('cctvId'),
+            name:         innerFeature.get('name'),
+            subtitle:     innerFeature.get('subtitle'),
+            providerKey:  innerFeature.get('providerKey'),
+            providerName: innerFeature.get('providerName'),
+            shareUrl:     innerFeature.get('shareUrl'),
+            streamUrl:    innerFeature.get('streamUrl'),
             lng:          coords[0],
             lat:          coords[1]
         });
     } else {
-        // 빈 지도 클릭: 팝업 닫기
+        // Feature이지만 CCTV 속성 없음: 팝업 닫기
         closeCctvPopup();
     }
 }
