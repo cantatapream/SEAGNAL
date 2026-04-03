@@ -74,6 +74,9 @@ function handleCctvMapClick(event) {
     });
 
     if (feature && feature.get('cctvId')) {
+        // Feature 좌표에서 경위도 추출 (EPSG:3857 → WGS84)
+        const coords = ol.proj.toLonLat(feature.getGeometry().getCoordinates());
+
         // 마커 클릭: 해당 CCTV 팝업 표시
         showCctvPopup({
             cctvId:       feature.get('cctvId'),
@@ -82,7 +85,9 @@ function handleCctvMapClick(event) {
             providerKey:  feature.get('providerKey'),
             providerName: feature.get('providerName'),
             shareUrl:     feature.get('shareUrl'),
-            streamUrl:    feature.get('streamUrl')
+            streamUrl:    feature.get('streamUrl'),
+            lng:          coords[0],
+            lat:          coords[1]
         });
     } else {
         // 빈 지도 클릭: 팝업 닫기
