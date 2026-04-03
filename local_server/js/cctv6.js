@@ -33,10 +33,11 @@ const CctvFavorites = {
     MAX_COUNT: 6,
 
     /**
-     * 각 항목: { cctvId, name, subtitle, providerKey, shareUrl, streamUrl }
+     * 각 항목: { cctvId, name, subtitle, providerKey, shareUrl, streamUrl, lat, lng }
      * providerKey — CCTV_PROVIDERS 키 (팝업 재열 시 type·links 조회용)
      * shareUrl    — iframe 방식 URL (KBS), HLS 방식이면 null
      * streamUrl   — HLS 방식 URL (거제시 등), iframe 방식이면 null
+     * lat, lng    — 좌표 (즐겨찾기 클릭 시 지도 이동용)
      */
     items: [],
 
@@ -106,7 +107,10 @@ const CctvFavorites = {
             // KBS iframe URL (KBS면 값, HLS 제공기관이면 null)
             shareUrl:    item.shareUrl   || null,
             // HLS 스트림 URL (거제시 등이면 값, KBS면 null)
-            streamUrl:   item.streamUrl  || null
+            streamUrl:   item.streamUrl  || null,
+            // 좌표: 즐겨찾기 클릭 시 지도 이동용
+            lat:         item.lat  || null,
+            lng:         item.lng  || null
         });
         this.save();
         return true;
@@ -171,9 +175,19 @@ const CctvFavorites = {
             const btn = document.createElement('div');
             btn.className = 'cctv-fav-btn';
 
-            // 버튼 클릭 → 해당 CCTV 팝업 열기
+            // 버튼 클릭 → 지도 이동 후 팝업 열기
             btn.onclick = () => {
-                if (typeof showCctvPopup === 'function') {
+                if (cctvMap && item.lat && item.lng) {
+                    cctvMap.getView().animate({
+                        center: ol.proj.fromLonLat([parseFloat(item.lng), parseFloat(item.lat)]),
+                        zoom: 13,
+                        duration: 600
+                    }, function () {
+                        if (typeof showCctvPopup === 'function') {
+                            showCctvPopup(item);
+                        }
+                    });
+                } else if (typeof showCctvPopup === 'function') {
                     showCctvPopup(item);
                 }
             };
