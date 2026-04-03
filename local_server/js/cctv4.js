@@ -148,9 +148,32 @@ function showCctvPopup(data) {
     }).join('');
 
     // ── 영상 영역 HTML ────────────────────────────────────────────────
-    // streamUrl이 있으면 HLS video, 없으면 iframe (provider별 클리핑 값 적용)
+    // streamUrl → HLS video | ongjin → 안내+버튼 | 나머지 → iframe
     let mediaHtml;
-    if (data.streamUrl) {
+    if (data.providerKey === 'ongjin') {
+        // 옹진군: HTTP 전용 서버 → HTTPS 앱에서 iframe 임베드 불가
+        // 안내 메시지 + CCTV 보기(새 창) + 옹진군 시스템 링크 버튼
+        mediaHtml = `
+           <div class="cctv-modal-ongjin-notice">
+               <p class="cctv-ongjin-msg">
+                   <i class="fa-solid fa-triangle-exclamation"></i>
+                   이 CCTV는 보안 연결(HTTPS)을 지원하지 않아<br>앱 내에서 영상을 표시할 수 없습니다.
+               </p>
+               <div class="cctv-ongjin-buttons">
+                   <a class="cctv-ongjin-btn cctv-ongjin-btn-primary"
+                      href="${data.shareUrl}"
+                      target="_blank" rel="noopener noreferrer">
+                       <i class="fa-solid fa-play"></i> CCTV 보기
+                   </a>
+                   <a class="cctv-ongjin-btn"
+                      href="http://218.148.169.193/"
+                      target="_blank" rel="noopener noreferrer">
+                       옹진군 재난 CCTV 시스템
+                       <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i>
+                   </a>
+               </div>
+           </div>`;
+    } else if (data.streamUrl) {
         // HLS 스트림 (거제시 등 지자체)
         mediaHtml = `<!-- HLS 스트림 비디오 -->
            <div class="cctv-modal-video-wrap">
