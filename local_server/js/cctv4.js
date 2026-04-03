@@ -135,7 +135,7 @@ function showCctvPopup(data) {
     // CCTV_PROVIDERS[key].links 배열을 HTML 버튼으로 변환
     // KBS    → [KBS재난포털↗] [CCTV더보기↗]
     // 거제시 → [거제시 CCTV↗]
-    const provider  = window.CCTV_PROVIDERS && CCTV_PROVIDERS[data.providerKey];
+    const provider  = window.CCTV_PROVIDERS ? window.CCTV_PROVIDERS[data.providerKey] : null;
     const links     = provider ? (provider.links || []) : [];
     const linksHtml = links.map(function (l) {
         return `<a class="cctv-action-btn"
@@ -148,26 +148,40 @@ function showCctvPopup(data) {
     }).join('');
 
     // ── 영상 영역 HTML ────────────────────────────────────────────────
-    // streamUrl이 있으면 HLS video, 없으면 iframe
-    const mediaHtml = data.streamUrl
-        ? `<!-- HLS 스트림 비디오 (거제시 등 지자체) -->
+    // streamUrl이 있으면 HLS video, 없으면 iframe (provider별 클리핑 값 적용)
+    let mediaHtml;
+    if (data.streamUrl) {
+        // HLS 스트림 (거제시 등 지자체)
+        mediaHtml = `<!-- HLS 스트림 비디오 -->
            <div class="cctv-modal-video-wrap">
                <video id="cctv-modal-video"
                       autoplay muted playsinline controls
                       title="${data.name} CCTV 영상">
                </video>
-           </div>`
-        : `<!-- iframe 공유 페이지 (KBS): CSS 클리핑으로 상하 여백 숨김 -->
-           <div class="cctv-modal-iframe-wrap">
+           </div>`;
+    } else {
+        // iframe 공유 페이지 — 제공기관별 클리핑 값을 인라인 스타일로 적용
+        // KBS:   iframeTopClip=65, iframeWrapHeight=310 (상단 타이틀 + 하단 버튼 숨김)
+        // 옹진군: iframeTopClip=0,  iframeWrapHeight=420 (전체 페이지 표출)
+        const clipTop  = (provider && provider.iframeTopClip)    || 0;
+        const wrapH    = (provider && provider.iframeWrapHeight)  || 400;
+        // 클리핑이 있을 때 하단 버튼 영역(약 60px)도 함께 잘리도록 iframe을 충분히 크게
+        const iframeH  = wrapH + clipTop + (clipTop > 0 ? 60 : 0);
+
+        mediaHtml = `<!-- iframe 공유 페이지 — 클리핑 값: top=${clipTop}px, wrap=${wrapH}px -->
+           <div class="cctv-modal-iframe-wrap"
+                style="height: ${wrapH}px;">
                <iframe id="cctv-modal-iframe"
                    src="${data.shareUrl}"
                    frameborder="0"
                    scrolling="no"
                    allowfullscreen
                    allow="autoplay; encrypted-media; fullscreen"
-                   title="${data.name} CCTV 영상">
+                   title="${data.name} CCTV 영상"
+                   style="top: -${clipTop}px; height: ${iframeH}px;">
                </iframe>
            </div>`;
+    }
 
     // 모달 내부 HTML 구성
     backdrop.innerHTML = `
