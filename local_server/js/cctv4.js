@@ -111,42 +111,43 @@ function showCctvPopup(data) {
             <!-- 헤더: 아이콘+이름/부제목 | KBS링크 | 즐겨찾기별 | 닫기 -->
             <div class="cctv-modal-header">
 
-                <!-- 왼쪽: 카메라 아이콘 + 지점명 + 부제목 -->
+                <!-- 왼쪽: 카메라 아이콘 + 지점명(★ 인접) + 부제목 -->
                 <div class="cctv-modal-title-wrap">
                     <i class="fa-solid fa-video cctv-modal-icon"></i>
                     <div class="cctv-modal-title-text">
-                        <div class="cctv-modal-title">${data.name}</div>
+                        <!-- 지점명 + 즐겨찾기 별 버튼을 한 줄에 배치 -->
+                        <div class="cctv-modal-title-row">
+                            <span class="cctv-modal-title">${data.name}</span>
+                            <button class="cctv-modal-fav-btn"
+                                    id="cctv-fav-toggle-btn"
+                                    onclick="toggleCctvFavorite(${data.cctvId}, '${data.name}', '${data.subtitle}', '${data.shareUrl}')"
+                                    title="${favTitle}">
+                                <i class="${favIcon}" style="color: ${favColor};"></i>
+                            </button>
+                        </div>
                         <div class="cctv-modal-subtitle">${data.subtitle}</div>
                     </div>
                 </div>
 
-                <!-- 오른쪽: 외부 링크 버튼들 + 즐겨찾기 + 닫기 -->
+                <!-- 오른쪽: 외부 링크 버튼들(세로 배치) + 닫기 -->
                 <div class="cctv-modal-actions">
-                    <!-- KBS 재난포털 바로가기 (iframe에서 숨긴 버튼 대체) -->
-                    <a class="cctv-action-btn"
-                       href="https://d.kbs.co.kr/special/cctv"
-                       target="_blank" rel="noopener noreferrer"
-                       title="KBS 재난포털 열기">
-                        KBS재난포털
-                        <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i>
-                    </a>
-
-                    <!-- CCTV 더보기 바로가기 (iframe에서 숨긴 버튼 대체) -->
-                    <a class="cctv-action-btn"
-                       href="https://d.kbs.co.kr/special/cctv"
-                       target="_blank" rel="noopener noreferrer"
-                       title="CCTV 더보기">
-                        CCTV더보기
-                        <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i>
-                    </a>
-
-                    <!-- 즐겨찾기 별 버튼: 클릭 시 등록/해제 토글 -->
-                    <button class="cctv-modal-fav-btn"
-                            id="cctv-fav-toggle-btn"
-                            onclick="toggleCctvFavorite(${data.cctvId}, '${data.name}', '${data.subtitle}', '${data.shareUrl}')"
-                            title="${favTitle}">
-                        <i class="${favIcon}" style="color: ${favColor};"></i>
-                    </button>
+                    <!-- KBS재난포털 / CCTV더보기: 위아래로 배치 -->
+                    <div class="cctv-action-links">
+                        <a class="cctv-action-btn"
+                           href="https://d.kbs.co.kr/special/cctv"
+                           target="_blank" rel="noopener noreferrer"
+                           title="KBS 재난포털 열기">
+                            KBS재난포털
+                            <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i>
+                        </a>
+                        <a class="cctv-action-btn"
+                           href="https://d.kbs.co.kr/special/cctv"
+                           target="_blank" rel="noopener noreferrer"
+                           title="CCTV 더보기">
+                            CCTV더보기
+                            <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i>
+                        </a>
+                    </div>
 
                     <!-- 닫기 버튼 -->
                     <button class="cctv-modal-close-btn" onclick="closeCctvPopup()" title="닫기">
