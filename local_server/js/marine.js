@@ -910,6 +910,7 @@ const SECTION_TO_GROUP = {
     'weather-alert-section': 'weather-group',
     'sea-zone-section': 'weather-group',
     'typhoon-section': 'weather-group',
+    'cctv-section': 'weather-group',
     'fishing-section': 'ocean-life-group',
     'surfing-section': 'ocean-life-group',
     'mudflat-section': 'ocean-life-group',

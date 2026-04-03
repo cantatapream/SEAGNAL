@@ -338,11 +338,12 @@
                 <button class="tab-btn" data-target="ocean-life-group">해양생활</button>
                 <button class="tab-btn" data-target="promo-section">공지사항</button>
             </nav>
-            <!-- 기상정보 서브 탭 (특보 및 전망 | 해구기상 | 태풍정보) -->
+            <!-- 기상정보 서브 탭 (특보 및 전망 | 해구기상 | 태풍정보 | CCTV) -->
             <nav class="sub-tabs" id="weather-sub-tabs">
                 <button class="sub-tab-btn active" data-target="weather-alert-section">특보 및 전망</button>
                 <button class="sub-tab-btn" data-target="sea-zone-section">해구기상</button>
                 <button class="sub-tab-btn" data-target="typhoon-section">태풍정보</button>
+                <button class="sub-tab-btn" data-target="cctv-section">CCTV</button>
             </nav>
             <!-- 해양생활 서브 탭 (바다낚시 | 서핑 | 해수욕 | 스킨스쿠버 | 갯벌체험 | 바다갈라짐) -->
             <nav class="sub-tabs" id="ocean-life-sub-tabs">
@@ -665,6 +666,42 @@
                     </p>
                 </div>
 
+
+            </section>
+
+            <!-- 섹션 3-4: CCTV -->
+            <section id="cctv-section" class="tab-content">
+                <div class="section-header-with-info">
+                    <h2 class="section-title"><i class="fa-solid fa-video"></i> CCTV</h2>
+                </div>
+
+                <!-- 안내 문구 박스 -->
+                <div style="
+                    margin: 15px 0;
+                    padding: 20px;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    border-radius: 12px;
+                    background: rgba(0, 0, 0, 0.3);
+                    text-align: center;
+                ">
+                    <p style="
+                        margin: 0 0 10px 0;
+                        color: var(--accent-yellow, #ffd54f);
+                        font-weight: 500;
+                        font-size: 0.95rem;
+                        line-height: 1.5;
+                    ">
+                        현재 CCTV는 임시 페이지로 추후 UI 및<br>
+                        상세정보 반영 후 정식 서비스 제공 예정입니다.
+                    </p>
+                    <p style="
+                        margin: 0;
+                        color: #888;
+                        font-size: 0.85rem;
+                    ">
+                        (해안 CCTV 실시간 영상 등 관련 기능 반영 예정)
+                    </p>
+                </div>
 
             </section>
 
@@ -1212,6 +1249,7 @@
             'weather-alert-tab': 'weather-alert-section',
             'sea-zone': 'sea-zone-section',
             'typhoon': 'typhoon-section',
+            'cctv': 'cctv-section',
             // 해양생활 하위 서브탭
             'fishing': 'fishing-section',
             'surfing': 'surfing-section',
