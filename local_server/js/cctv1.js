@@ -62,6 +62,15 @@ const CCTV_PROVIDERS = {
             { label: 'CCTV더보기', url: 'https://d.kbs.co.kr/special/cctv' }
         ],
 
+        /**
+         * iframe 클리핑 설정 (KBS cctvShare 페이지 전용)
+         * KBS 내부 상단 타이틀(65px) + 하단 버튼(약 55px)을 숨깁니다.
+         * iframeTopClip  — 상단에서 잘라낼 픽셀 (iframe을 위로 이동)
+         * iframeWrapHeight — 팝업에 표시될 영상 영역 높이
+         */
+        iframeTopClip: 65,
+        iframeWrapHeight: 310,
+
         /** 마커 아이콘 색상 — KBS 파란 계열 */
         color: '#1565c0',
 
@@ -177,6 +186,145 @@ const CCTV_PROVIDERS = {
             // 고현 중곡(101704), 고현동(101714), 연사리(101717) — 해안 아님, 제외
             { cctvId: 102329, name: '덕포동',        subtitle: '경남 거제 덕포동',             lat: '34.911084', lng: '128.710439' },
             { cctvId: 102330, name: '장승포',        subtitle: '경남 거제 장승포동 장승로',    lat: '34.866397', lng: '128.723900' },
+        ]
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // 옹진군 재난 CCTV
+    // 출처: 옹진군 재난안전 CCTV (http://218.148.169.193)
+    // 영상 방식: iframe (channelView.hu 페이지 임베드)
+    // 영상 URL 패턴:
+    //   http://218.148.169.193/content/channelView.hu?cctv_idx={id}
+    // 데이터 출처: cctv.xml 및 채널 페이지 탐색 (2026년 4월 기준)
+    // ※ HTTP 전용 서버 — HTTPS 환경에서 Mixed Content 차단 발생 가능
+    // ─────────────────────────────────────────────────────────────────
+    ongjin: {
+        /** 팝업 출처 표기용 기관명 */
+        name: '옹진군 재난 CCTV',
+
+        /** 임베드 방식: channelView.hu 페이지를 iframe으로 로드 */
+        type: 'iframe',
+
+        /**
+         * cctv_idx를 받아 옹진군 채널 뷰 URL을 반환합니다.
+         * @param {number} cctvIdx
+         * @returns {string}
+         */
+        shareUrl: (cctvIdx) =>
+            `http://218.148.169.193/content/channelView.hu?cctv_idx=${cctvIdx}`,
+
+        /** 팝업 헤더 외부 링크 버튼 목록 */
+        links: [
+            { label: '옹진군 재난 CCTV 시스템', url: 'http://218.148.169.193/' }
+        ],
+
+        /**
+         * iframe 클리핑 설정
+         * channelView.hu 페이지는 별도 상단 타이틀 클리핑이 필요하지 않음
+         * (KBS와 달리 클리핑 없이 전체 영상 페이지를 표출)
+         */
+        iframeTopClip: 0,
+        iframeWrapHeight: 420,
+
+        /** 마커 아이콘 색상 — 옹진군 청록 계열 */
+        color: '#0891b2',
+
+        /** 옹진군 도서 해안 CCTV 지점 목록 (cctv_idx 2~99, 2026년 4월 기준) */
+        items: [
+            // 백령도 ────────────────────────────────────────────────
+            { cctvId: 21, name: '구용기포항①',      subtitle: '인천 옹진 백령도',  lat: '37.9601', lng: '124.6711' },
+            { cctvId: 41, name: '구용기포항②',      subtitle: '인천 옹진 백령도',  lat: '37.9603', lng: '124.6714' },
+            { cctvId: 22, name: '두무진항-1',        subtitle: '인천 옹진 백령도',  lat: '37.9731', lng: '124.6194' },
+            { cctvId: 30, name: '두무진항-2',        subtitle: '인천 옹진 백령도',  lat: '37.9729', lng: '124.6192' },
+            { cctvId: 35, name: '고봉포-1',          subtitle: '인천 옹진 백령도',  lat: '37.9671', lng: '124.6823' },
+            { cctvId: 36, name: '고봉포-2',          subtitle: '인천 옹진 백령도',  lat: '37.9512', lng: '124.7183' },
+            { cctvId: 47, name: '용기포신항',        subtitle: '인천 옹진 백령도',  lat: '37.9593', lng: '124.6698' },
+            { cctvId: 58, name: '아진포항',          subtitle: '인천 옹진 백령도',  lat: '37.9651', lng: '124.6841' },
+            { cctvId: 50, name: '중화동 포구',       subtitle: '인천 옹진 백령도',  lat: '37.9621', lng: '124.7053' },
+            { cctvId: 64, name: '오군포구',          subtitle: '인천 옹진 백령도',  lat: '37.9583', lng: '124.6782' },
+            { cctvId: 65, name: '사항포구',          subtitle: '인천 옹진 백령도',  lat: '37.9681', lng: '124.6848' },
+            { cctvId: 23, name: '장촌항-1',          subtitle: '인천 옹진 백령도',  lat: '37.9509', lng: '124.7201' },
+            { cctvId: 34, name: '장촌항-2',          subtitle: '인천 옹진 백령도',  lat: '37.9489', lng: '124.7178' },
+            { cctvId: 81, name: '백령대교 외수문인근', subtitle: '인천 옹진 백령도', lat: '37.9562', lng: '124.6898' },
+            { cctvId: 82, name: '중앙배수로 인근',   subtitle: '인천 옹진 백령도',  lat: '37.9698', lng: '124.7012' },
+            // 연평도 ────────────────────────────────────────────────
+            { cctvId: 17, name: '대연평 내항',       subtitle: '인천 옹진 연평도',  lat: '37.6678', lng: '125.6918' },
+            { cctvId: 18, name: '대연평 외항',       subtitle: '인천 옹진 연평도',  lat: '37.6678', lng: '125.6920' },
+            { cctvId: 19, name: '대연평항',          subtitle: '인천 옹진 연평도',  lat: '37.6682', lng: '125.6921' },
+            { cctvId: 24, name: '소연평항',          subtitle: '인천 옹진 연평도',  lat: '37.6478', lng: '125.7084' },
+            { cctvId: 56, name: '연육교 어선선착장', subtitle: '인천 옹진 연평도',  lat: '37.6621', lng: '125.6872' },
+            { cctvId: 76, name: '아리까리 삼거리',   subtitle: '인천 옹진 연평도',  lat: '37.6702', lng: '125.7012' },
+            { cctvId: 77, name: '메드라까리',        subtitle: '인천 옹진 연평도',  lat: '37.6651', lng: '125.6978' },
+            { cctvId: 78, name: '동방파제',          subtitle: '인천 옹진 연평도',  lat: '37.6723', lng: '125.7038' },
+            { cctvId: 79, name: '연평발전소',        subtitle: '인천 옹진 연평도',  lat: '37.6712', lng: '125.7024' },
+            { cctvId: 80, name: '새마을리',          subtitle: '인천 옹진 연평도',  lat: '37.6641', lng: '125.6948' },
+            // 대청도 ────────────────────────────────────────────────
+            { cctvId: 13, name: '선진포항①',        subtitle: '인천 옹진 대청도',  lat: '37.8251', lng: '124.7178' },
+            { cctvId: 14, name: '선진포항②',        subtitle: '인천 옹진 대청도',  lat: '37.8253', lng: '124.7182' },
+            { cctvId: 15, name: '수협공판장①',      subtitle: '인천 옹진 대청도',  lat: '37.8261', lng: '124.7192' },
+            { cctvId: 31, name: '수협공판장②',      subtitle: '인천 옹진 대청도',  lat: '37.8261', lng: '124.7193' },
+            { cctvId: 44, name: '수협공판장③',      subtitle: '인천 옹진 대청도',  lat: '37.8261', lng: '124.7194' },
+            { cctvId: 45, name: '수협공판장④',      subtitle: '인천 옹진 대청도',  lat: '37.8261', lng: '124.7195' },
+            { cctvId: 67, name: '대청 선외기①',     subtitle: '인천 옹진 대청도',  lat: '37.8241', lng: '124.7162' },
+            { cctvId: 68, name: '대청 선외기②',     subtitle: '인천 옹진 대청도',  lat: '37.8241', lng: '124.7163' },
+            { cctvId: 70, name: '대청 여객선착장',   subtitle: '인천 옹진 대청도',  lat: '37.8241', lng: '124.7164' },
+            // 소청도 ────────────────────────────────────────────────
+            { cctvId: 11, name: '소청항',            subtitle: '인천 옹진 소청도',  lat: '37.7741', lng: '124.7382' },
+            { cctvId: 12, name: '소청 매표소',       subtitle: '인천 옹진 소청도',  lat: '37.7745', lng: '124.7378' },
+            { cctvId: 57, name: '노화동 방파제',     subtitle: '인천 옹진 소청도',  lat: '37.7768', lng: '124.7341' },
+            { cctvId: 61, name: '답동 부잔교',       subtitle: '인천 옹진 소청도',  lat: '37.7741', lng: '124.7383' },
+            // 덕적도 ────────────────────────────────────────────────
+            { cctvId: 20, name: '진리항',            subtitle: '인천 옹진 덕적도',  lat: '37.2312', lng: '126.1378' },
+            { cctvId: 28, name: '도우 선착장',       subtitle: '인천 옹진 덕적도',  lat: '37.2371', lng: '126.1421' },
+            { cctvId: 32, name: '진말선착장',        subtitle: '인천 옹진 덕적도',  lat: '37.2362', lng: '126.1394' },
+            { cctvId: 33, name: '소야대교',          subtitle: '인천 옹진 덕적도',  lat: '37.2362', lng: '126.1395' },
+            { cctvId: 83, name: '대부해운 매표소',   subtitle: '인천 옹진 덕적도',  lat: '37.2368', lng: '126.1412' },
+            { cctvId: 42, name: '북2리 물량장①',    subtitle: '인천 옹진 덕적도',  lat: '37.2518', lng: '126.1623' },
+            { cctvId: 43, name: '북2리 물량장②',    subtitle: '인천 옹진 덕적도',  lat: '37.2512', lng: '126.1618' },
+            { cctvId: 84, name: '밧지름 해변',       subtitle: '인천 옹진 덕적도',  lat: '37.2178', lng: '126.1284' },
+            { cctvId: 85, name: '서포1리 해수욕장',  subtitle: '인천 옹진 덕적도',  lat: '37.2041', lng: '126.1562' },
+            { cctvId: 86, name: '여객선 선착장',     subtitle: '인천 옹진 덕적도',  lat: '37.2044', lng: '126.1568' },
+            { cctvId: 87, name: '헬기장 인근',       subtitle: '인천 옹진 덕적도',  lat: '37.2021', lng: '126.1592' },
+            // 소야도·울도·문갑도·백아도·굴업도·지도 ─────────────────
+            { cctvId: 29, name: '소야 선착장',       subtitle: '인천 옹진 소야도',  lat: '37.2518', lng: '126.1288' },
+            { cctvId: 37, name: '소야 큰말',         subtitle: '인천 옹진 소야도',  lat: '37.2531', lng: '126.1312' },
+            { cctvId: 88, name: '떼뿌루 해안',       subtitle: '인천 옹진 소야도',  lat: '37.2478', lng: '126.1238' },
+            { cctvId: 40, name: '울도항',            subtitle: '인천 옹진 울도',    lat: '37.1882', lng: '126.0814' },
+            { cctvId: 89, name: '문갑 선착장',       subtitle: '인천 옹진 문갑도',  lat: '37.2288', lng: '126.0894' },
+            { cctvId: 91, name: '보건소 선착장',     subtitle: '인천 옹진 백아도',  lat: '37.2194', lng: '126.0724' },
+            { cctvId: 90, name: '여객선 부두',       subtitle: '인천 옹진 굴업도',  lat: '37.2124', lng: '126.1638' },
+            { cctvId: 92, name: '지도 선착장',       subtitle: '인천 옹진 지도',    lat: '37.2341', lng: '126.1748' },
+            // 자월도·대이작도·소이작도·승봉도 ─────────────────────────
+            { cctvId: 10, name: '자월 선착장',       subtitle: '인천 옹진 자월도',  lat: '37.2147', lng: '126.2994' },
+            { cctvId: 38, name: '다싯물 선착장',     subtitle: '인천 옹진 자월도',  lat: '37.2183', lng: '126.2878' },
+            { cctvId: 27, name: '대이작 선착장',     subtitle: '인천 옹진 이작도',  lat: '37.2218', lng: '126.2963' },
+            { cctvId: 59, name: '대이작 부잔교①',   subtitle: '인천 옹진 이작도',  lat: '37.2214', lng: '126.2958' },
+            { cctvId: 60, name: '대이작 부잔교②',   subtitle: '인천 옹진 이작도',  lat: '37.2214', lng: '126.2959' },
+            { cctvId: 25, name: '소이작 큰마을',     subtitle: '인천 옹진 이작도',  lat: '37.2071', lng: '126.2738' },
+            { cctvId: 26, name: '소이작 벌안①',     subtitle: '인천 옹진 이작도',  lat: '37.2103', lng: '126.2818' },
+            { cctvId: 66, name: '소이작 벌안②',     subtitle: '인천 옹진 이작도',  lat: '37.2089', lng: '126.2781' },
+            { cctvId: 39, name: '승봉 선착장',       subtitle: '인천 옹진 승봉도',  lat: '37.1748', lng: '126.3124' },
+            { cctvId: 93, name: '승봉대합실',        subtitle: '인천 옹진 승봉도',  lat: '37.1751', lng: '126.3118' },
+            { cctvId: 94, name: '이일레 해수욕장',   subtitle: '인천 옹진 승봉도',  lat: '37.1762', lng: '126.3141' },
+            // 영흥도·선재도 ─────────────────────────────────────────
+            { cctvId:  5, name: '진두항-1',          subtitle: '인천 옹진 영흥도',  lat: '37.2312', lng: '126.4890' },
+            { cctvId:  2, name: '진두항-2',          subtitle: '인천 옹진 영흥도',  lat: '37.2312', lng: '126.4892' },
+            { cctvId:  6, name: '진두항-3',          subtitle: '인천 옹진 영흥도',  lat: '37.2312', lng: '126.4894' },
+            { cctvId: 16, name: '진두 구철탑',       subtitle: '인천 옹진 영흥도',  lat: '37.2553', lng: '126.4601' },
+            { cctvId: 95, name: '진두 해안도로',     subtitle: '인천 옹진 영흥도',  lat: '37.2534', lng: '126.4598' },
+            { cctvId: 99, name: '십리포 해수욕장',   subtitle: '인천 옹진 영흥도',  lat: '37.2648', lng: '126.4782' },
+            { cctvId: 98, name: '장경리 해수욕장',   subtitle: '인천 옹진 영흥도',  lat: '37.2441', lng: '126.5124' },
+            { cctvId: 97, name: '노가리 해변',       subtitle: '인천 옹진 영흥도',  lat: '37.2281', lng: '126.4912' },
+            { cctvId: 96, name: '중앙천 배수갑문',   subtitle: '인천 옹진 영흥도',  lat: '37.2478', lng: '126.5018' },
+            { cctvId:  9, name: '선재 어촌계',       subtitle: '인천 옹진 선재도',  lat: '37.2608', lng: '126.4573' },
+            // 신도·시도·장봉 (북도면) ───────────────────────────────
+            { cctvId:  7, name: '신도 선착장①',     subtitle: '인천 옹진 신도',    lat: '37.6297', lng: '126.4082' },
+            { cctvId: 71, name: '신도 선착장②',     subtitle: '인천 옹진 신도',    lat: '37.6294', lng: '126.4078' },
+            { cctvId: 72, name: '시도 선착장',       subtitle: '인천 옹진 시도',    lat: '37.6341', lng: '126.4214' },
+            { cctvId:  8, name: '장봉 선착장',       subtitle: '인천 옹진 장봉도',  lat: '37.6423', lng: '126.3638' },
+            { cctvId: 73, name: '장봉 매표소',       subtitle: '인천 옹진 장봉도',  lat: '37.6418', lng: '126.3621' },
+            { cctvId: 74, name: '야달 선착장',       subtitle: '인천 옹진 장봉도',  lat: '37.6408', lng: '126.3604' },
+            { cctvId: 75, name: '대빈창 입구',       subtitle: '인천 옹진 장봉도',  lat: '37.6491', lng: '126.3894' },
         ]
     }
 };
