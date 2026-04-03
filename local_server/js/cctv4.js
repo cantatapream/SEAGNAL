@@ -135,7 +135,7 @@ function showCctvPopup(data) {
     // CCTV_PROVIDERS[key].links 배열을 HTML 버튼으로 변환
     // KBS    → [KBS재난포털↗] [CCTV더보기↗]
     // 거제시 → [거제시 CCTV↗]
-    const provider  = window.CCTV_PROVIDERS && CCTV_PROVIDERS[data.providerKey];
+    const provider  = window.CCTV_PROVIDERS ? window.CCTV_PROVIDERS[data.providerKey] : null;
     const links     = provider ? (provider.links || []) : [];
     const linksHtml = links.map(function (l) {
         return `<a class="cctv-action-btn"

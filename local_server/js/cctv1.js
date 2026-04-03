@@ -328,3 +328,6 @@ const CCTV_PROVIDERS = {
         ]
     }
 };
+
+// 다른 파일(cctv4.js 등)에서 window.CCTV_PROVIDERS로 참조할 수 있도록 전역 노출
+window.CCTV_PROVIDERS = CCTV_PROVIDERS;
