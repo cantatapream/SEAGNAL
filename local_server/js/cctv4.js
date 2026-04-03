@@ -129,25 +129,25 @@ function showCctvPopup(data) {
                     </div>
                 </div>
 
-                <!-- 오른쪽: 외부 링크 버튼들 + 닫기 -->
+                <!-- 오른쪽: 외부 링크 버튼들(세로 배치) + 닫기 -->
                 <div class="cctv-modal-actions">
-                    <!-- KBS 재난포털 바로가기 (iframe에서 숨긴 버튼 대체) -->
-                    <a class="cctv-action-btn"
-                       href="https://d.kbs.co.kr/special/cctv"
-                       target="_blank" rel="noopener noreferrer"
-                       title="KBS 재난포털 열기">
-                        KBS재난포털
-                        <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i>
-                    </a>
-
-                    <!-- CCTV 더보기 바로가기 (iframe에서 숨긴 버튼 대체) -->
-                    <a class="cctv-action-btn"
-                       href="https://d.kbs.co.kr/special/cctv"
-                       target="_blank" rel="noopener noreferrer"
-                       title="CCTV 더보기">
-                        CCTV더보기
-                        <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i>
-                    </a>
+                    <!-- KBS재난포털 / CCTV더보기: 위아래로 배치 -->
+                    <div class="cctv-action-links">
+                        <a class="cctv-action-btn"
+                           href="https://d.kbs.co.kr/special/cctv"
+                           target="_blank" rel="noopener noreferrer"
+                           title="KBS 재난포털 열기">
+                            KBS재난포털
+                            <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i>
+                        </a>
+                        <a class="cctv-action-btn"
+                           href="https://d.kbs.co.kr/special/cctv"
+                           target="_blank" rel="noopener noreferrer"
+                           title="CCTV 더보기">
+                            CCTV더보기
+                            <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i>
+                        </a>
+                    </div>
 
                     <!-- 닫기 버튼 -->
                     <button class="cctv-modal-close-btn" onclick="closeCctvPopup()" title="닫기">

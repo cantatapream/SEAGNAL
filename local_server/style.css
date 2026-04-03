@@ -7437,6 +7437,13 @@ line-height: 1.1;
     flex-shrink: 0;
 }
 
+/* KBS재난포털 / CCTV더보기 버튼을 세로로 묶는 컨테이너 */
+.cctv-action-links {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
 /* 외부 링크 버튼 (KBS재난포털, CCTV더보기) */
 .cctv-action-btn {
     display: inline-flex;
