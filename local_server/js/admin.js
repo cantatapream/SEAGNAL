@@ -1249,7 +1249,7 @@ async function renderMaintenanceFullTab(container) {
         { id: 'weather-alert-tab', label: '특보 및 전망', group: '기상정보 하위 탭' },
         { id: 'sea-zone', label: '해구기상', group: '기상정보 하위 탭' },
         { id: 'typhoon', label: '태풍정보', group: '기상정보 하위 탭' },
-        { id: 'cctv', label: 'CCTV', group: '기상정보 하위 탭' },
+        { id: 'cctv', label: '해안 CCTV', group: '기상정보 하위 탭' },
         // 해양생활 하위 서브탭 (탭 단위 차단)
         { id: 'fishing', label: '바다낚시', group: '해양생활 하위 탭' },
         { id: 'surfing', label: '서핑', group: '해양생활 하위 탭' },

@@ -338,12 +338,12 @@
                 <button class="tab-btn" data-target="ocean-life-group">해양생활</button>
                 <button class="tab-btn" data-target="promo-section">공지사항</button>
             </nav>
-            <!-- 기상정보 서브 탭 (특보 및 전망 | 해구기상 | 태풍정보 | CCTV) -->
+            <!-- 기상정보 서브 탭 (특보 및 전망 | 해구기상 | 태풍정보 | 해안 CCTV) -->
             <nav class="sub-tabs" id="weather-sub-tabs">
                 <button class="sub-tab-btn active" data-target="weather-alert-section">특보 및 전망</button>
                 <button class="sub-tab-btn" data-target="sea-zone-section">해구기상</button>
                 <button class="sub-tab-btn" data-target="typhoon-section">태풍정보</button>
-                <button class="sub-tab-btn" data-target="cctv-section">CCTV</button>
+                <button class="sub-tab-btn" data-target="cctv-section">해안 CCTV</button>
             </nav>
             <!-- 해양생활 서브 탭 (바다낚시 | 서핑 | 해수욕 | 스킨스쿠버 | 갯벌체험 | 바다갈라짐) -->
             <nav class="sub-tabs" id="ocean-life-sub-tabs">
@@ -670,38 +670,21 @@
             </section>
 
             <!-- 섹션 3-4: CCTV -->
+            <!-- [연계] js/cctv1.js CCTV_PROVIDERS 데이터 -->
+            <!-- [연계] js/cctv2.js initCctvMap() → #cctv-map 렌더링 -->
+            <!-- [연계] js/cctv4.js showCctvPopup() → #cctv-popup-container 표출 -->
             <section id="cctv-section" class="tab-content">
                 <div class="section-header-with-info">
-                    <h2 class="section-title"><i class="fa-solid fa-video"></i> CCTV</h2>
+                    <h2 class="section-title"><i class="fa-solid fa-video"></i> 해안 CCTV</h2>
                 </div>
 
-                <!-- 안내 문구 박스 -->
-                <div style="
-                    margin: 15px 0;
-                    padding: 20px;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
-                    border-radius: 12px;
-                    background: rgba(0, 0, 0, 0.3);
-                    text-align: center;
-                ">
-                    <p style="
-                        margin: 0 0 10px 0;
-                        color: var(--accent-yellow, #ffd54f);
-                        font-weight: 500;
-                        font-size: 0.95rem;
-                        line-height: 1.5;
-                    ">
-                        현재 CCTV는 임시 페이지로 추후 UI 및<br>
-                        상세정보 반영 후 정식 서비스 제공 예정입니다.
-                    </p>
-                    <p style="
-                        margin: 0;
-                        color: #888;
-                        font-size: 0.85rem;
-                    ">
-                        (해안 CCTV 실시간 영상 등 관련 기능 반영 예정)
-                    </p>
-                </div>
+                <!-- OpenLayers 지도 컨테이너 -->
+                <!-- cctv2.js initCctvMap()이 이 요소를 target으로 지도를 초기화합니다 -->
+                <div id="cctv-map" style="width: 100%; height: 450px; border-radius: 10px; overflow: hidden; margin-top: 10px;"></div>
+
+                <!-- CCTV 팝업 컨테이너 (마커 클릭 시 지도 아래에 표출, 기본 숨김) -->
+                <!-- cctv4.js showCctvPopup()이 innerHTML을 채우고 display:block으로 전환합니다 -->
+                <div id="cctv-popup-container" style="display: none;"></div>
 
             </section>
 
@@ -1162,6 +1145,13 @@
     <script src="js/ui_modal.js"></script>
     <script src="js/app_init.js"></script>
     <script src="js/backbutton.js"></script>
+    <!-- CCTV 기능 (로딩 순서 중요: 데이터→지도→마커→팝업→초기화) -->
+    <!-- [연계] cctv1: 데이터 | cctv2: 지도초기화 | cctv3: 마커 | cctv4: 팝업 | cctv5: 탭연결 -->
+    <script src="js/cctv1.js"></script>
+    <script src="js/cctv2.js"></script>
+    <script src="js/cctv3.js"></script>
+    <script src="js/cctv4.js"></script>
+    <script src="js/cctv5.js"></script>
 
     <!-- 운영 병행 모드 + 선택적 기능 차단 -->
     <script>
