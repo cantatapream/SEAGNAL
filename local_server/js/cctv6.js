@@ -175,18 +175,37 @@ const CctvFavorites = {
             const btn = document.createElement('div');
             btn.className = 'cctv-fav-btn';
 
-            // 버튼 클릭 → 지도 이동 후 팝업 열기
+            // 버튼 클릭 → 지도 부드럽게 이동 후 팝업 등장
             btn.onclick = () => {
+                // 열린 팝업이 있으면 먼저 닫기
+                if (typeof closeCctvPopup === 'function') closeCctvPopup();
+
                 if (cctvMap && item.lat && item.lng) {
-                    cctvMap.getView().animate({
-                        center: ol.proj.fromLonLat([parseFloat(item.lng), parseFloat(item.lat)]),
-                        zoom: 13,
-                        duration: 600
-                    }, function () {
-                        if (typeof showCctvPopup === 'function') {
-                            showCctvPopup(item);
-                        }
-                    });
+                    const dest = ol.proj.fromLonLat([parseFloat(item.lng), parseFloat(item.lat)]);
+                    const view = cctvMap.getView();
+                    const curZoom = view.getZoom() || 6;
+                    const targetZoom = 13;
+
+                    // 현재 줌이 목표보다 멀면 2단계(축소→이동+확대)로 부드럽게
+                    if (curZoom < 9) {
+                        // 1단계: 중간 줌까지 이동
+                        view.animate(
+                            { center: dest, zoom: Math.min(curZoom + 2, 10), duration: 600, easing: ol.easing.easeIn },
+                            // 2단계: 목표 줌까지 확대
+                            { center: dest, zoom: targetZoom, duration: 800, easing: ol.easing.easeOut },
+                            function () {
+                                if (typeof showCctvPopup === 'function') showCctvPopup(item);
+                            }
+                        );
+                    } else {
+                        // 이미 확대된 상태: 단순 이동
+                        view.animate(
+                            { center: dest, zoom: targetZoom, duration: 800, easing: ol.easing.easeOut },
+                            function () {
+                                if (typeof showCctvPopup === 'function') showCctvPopup(item);
+                            }
+                        );
+                    }
                 } else if (typeof showCctvPopup === 'function') {
                     showCctvPopup(item);
                 }
