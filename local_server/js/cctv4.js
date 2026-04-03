@@ -223,13 +223,11 @@ function showCctvPopup(data) {
         const iframeH  = wrapH + clipTop + (clipTop > 0 ? 60 : 0);
         const cntNum   = parseInt(data.cnt, 10) || 1;
 
-        // cnt=2 이상: 영상이 가로로 나란히 표출됨 → iframe을 넓게 + 가로 스크롤
-        const iframeW  = cntNum >= 2 ? (cntNum * 100) + '%' : '100%';
-        const scrollX  = cntNum >= 2 ? 'overflow-x: auto;' : '';
-
+        // cnt=2 이상: iframe 내부에서 영상이 가로로 나란히 표출됨
+        // → iframe scrolling을 허용하여 내부 가로 스크롤 가능하게
         mediaHtml = `<!-- iframe 공유 페이지 — cnt=${cntNum}, clip=${clipTop}px, wrap=${wrapH}px -->
            <div class="cctv-modal-iframe-wrap"
-                style="height: ${wrapH}px; ${scrollX}">
+                style="height: ${wrapH}px;">
                <iframe id="cctv-modal-iframe"
                    src="${data.shareUrl}"
                    frameborder="0"
@@ -237,7 +235,7 @@ function showCctvPopup(data) {
                    allowfullscreen
                    allow="autoplay; encrypted-media; fullscreen"
                    title="${data.name} CCTV 영상"
-                   style="top: -${clipTop}px; height: ${iframeH}px; width: ${iframeW};">
+                   style="top: -${clipTop}px; height: ${iframeH}px;">
                </iframe>
            </div>`;
     }
