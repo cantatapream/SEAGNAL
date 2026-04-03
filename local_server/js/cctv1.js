@@ -360,8 +360,8 @@ const CCTV_PROVIDERS = {
          * iframe 클리핑 설정
          * safecity 페이지 상단 자체 헤더(카메라명+타이머 바)를 숨김
          */
-        iframeTopClip: 45,
-        iframeWrapHeight: 350,
+        iframeTopClip: 60,
+        iframeWrapHeight: 340,
 
         /** 마커 아이콘 색상 — 부산시 주황 계열 */
         color: '#e65100',

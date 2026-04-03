@@ -109,7 +109,8 @@ const CctvFavorites = {
             // HLS 스트림 URL (거제시 등이면 값, KBS면 null)
             streamUrl:   item.streamUrl  || null,
             // 카메라 채널 수 (부산 cnt=2 멀티카메라 처리)
-            cnt:         item.cnt  || '1',
+            cnt:         item.cnt        || '1',
+            sensorName:  item.sensorName || null,
             // 좌표: 즐겨찾기 클릭 시 지도 이동용
             lat:         item.lat  || null,
             lng:         item.lng  || null
@@ -188,21 +189,19 @@ const CctvFavorites = {
                     const curZoom = view.getZoom() || 6;
                     const targetZoom = 13;
 
-                    // 현재 줌이 목표보다 멀면 2단계(축소→이동+확대)로 부드럽게
+                    // 현재 위치에서 멀면 2단계: 먼저 이동, 그다음 확대
                     if (curZoom < 9) {
-                        // 1단계: 중간 줌까지 이동
                         view.animate(
-                            { center: dest, zoom: Math.min(curZoom + 2, 10), duration: 600, easing: ol.easing.easeIn },
-                            // 2단계: 목표 줌까지 확대
-                            { center: dest, zoom: targetZoom, duration: 800, easing: ol.easing.easeOut },
+                            { center: dest, duration: 700 },
+                            { zoom: targetZoom, duration: 700 },
                             function () {
                                 if (typeof showCctvPopup === 'function') showCctvPopup(item);
                             }
                         );
                     } else {
-                        // 이미 확대된 상태: 단순 이동
+                        // 이미 확대된 상태: 이동+줌 동시
                         view.animate(
-                            { center: dest, zoom: targetZoom, duration: 800, easing: ol.easing.easeOut },
+                            { center: dest, zoom: targetZoom, duration: 800 },
                             function () {
                                 if (typeof showCctvPopup === 'function') showCctvPopup(item);
                             }

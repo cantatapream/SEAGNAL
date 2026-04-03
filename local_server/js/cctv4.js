@@ -114,7 +114,8 @@ function handleCctvMapClick(event) {
             providerName: innerFeature.get('providerName'),
             shareUrl:     innerFeature.get('shareUrl'),
             streamUrl:    innerFeature.get('streamUrl'),
-            cnt:          innerFeature.get('cnt') || '1',
+            cnt:          innerFeature.get('cnt')        || '1',
+            sensorName:   innerFeature.get('sensorName') || null,
             lng:          coords[0],
             lat:          coords[1]
         });
@@ -218,26 +219,44 @@ function showCctvPopup(data) {
            </div>`;
     } else {
         // iframe 공유 페이지 — 제공기관별 클리핑 값을 인라인 스타일로 적용
-        const clipTop  = (provider && provider.iframeTopClip)    || 0;
-        const wrapH    = (provider && provider.iframeWrapHeight)  || 400;
-        const iframeH  = wrapH + clipTop + (clipTop > 0 ? 60 : 0);
+        const clipTop  = (provider && provider.iframeTopClip)   || 0;
+        const wrapH    = (provider && provider.iframeWrapHeight) || 400;
         const cntNum   = parseInt(data.cnt, 10) || 1;
 
-        // cnt=2 이상: iframe 내부에서 영상이 가로로 나란히 표출됨
-        // → iframe scrolling을 허용하여 내부 가로 스크롤 가능하게
-        mediaHtml = `<!-- iframe 공유 페이지 — cnt=${cntNum}, clip=${clipTop}px, wrap=${wrapH}px -->
-           <div class="cctv-modal-iframe-wrap"
-                style="height: ${wrapH}px;">
-               <iframe id="cctv-modal-iframe"
-                   src="${data.shareUrl}"
-                   frameborder="0"
-                   scrolling="${cntNum >= 2 ? 'auto' : 'no'}"
-                   allowfullscreen
-                   allow="autoplay; encrypted-media; fullscreen"
-                   title="${data.name} CCTV 영상"
-                   style="top: -${clipTop}px; height: ${iframeH}px;">
-               </iframe>
-           </div>`;
+        if (cntNum >= 2 && data.sensorName) {
+            // ── 멀티카메라: 각 채널을 개별 iframe으로 분리 → 위아래 쌓기 ──
+            // 화면 높이의 88%에서 모달 헤더(~52px)와 채널 간 간격을 빼고 균등 분배
+            const availH     = Math.floor((window.innerHeight * 0.88 - 60) / cntNum);
+            const singleWrapH = Math.min(availH, wrapH);
+            const singleIframeH = singleWrapH + clipTop + (clipTop > 0 ? 60 : 0);
+
+            const ids   = data.cctvId.split(',').map(function (s) { return s.trim(); });
+            const names = data.sensorName.split(',').map(function (s) { return s.trim(); });
+
+            const stackedHtml = ids.map(function (id, idx) {
+                const snName = names[idx] || id;
+                const url = 'https://safecity.busan.go.kr/#/cctv?cnt=1' +
+                            '&cctv_cd=' + id +
+                            '&sensorName=' + encodeURIComponent(snName);
+                return `<div class="cctv-modal-iframe-wrap" style="height:${singleWrapH}px;">` +
+                           `<iframe src="${url}" frameborder="0" scrolling="no"` +
+                           ` allowfullscreen allow="autoplay; encrypted-media; fullscreen"` +
+                           ` title="${snName}" style="top:-${clipTop}px; height:${singleIframeH}px;">` +
+                           `</iframe></div>`;
+            }).join('<div style="height:4px;background:rgba(0,0,0,0.4);"></div>');
+
+            mediaHtml = `<div class="cctv-modal-iframe-stack">${stackedHtml}</div>`;
+        } else {
+            // ── 단일 카메라: 기존 방식 ──
+            const iframeH = wrapH + clipTop + (clipTop > 0 ? 60 : 0);
+            mediaHtml = `<div class="cctv-modal-iframe-wrap" style="height:${wrapH}px;">` +
+                            `<iframe id="cctv-modal-iframe" src="${data.shareUrl}"` +
+                            ` frameborder="0" scrolling="no" allowfullscreen` +
+                            ` allow="autoplay; encrypted-media; fullscreen"` +
+                            ` title="${data.name} CCTV 영상"` +
+                            ` style="top:-${clipTop}px; height:${iframeH}px;">` +
+                            `</iframe></div>`;
+        }
     }
 
     // 모달 내부 HTML 구성
