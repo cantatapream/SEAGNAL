@@ -1,15 +1,15 @@
 // ====================================================================
-// cctv2.js — SVG 아이콘 생성 + 지도 초기화
+// cctv2.js — 지도 초기화
 //
 // [역할]
-//   1. 감시카메라(CCTV) 형태의 SVG 마커 아이콘을 동적으로 생성합니다.
-//   2. OpenLayers 지도를 #cctv-map 컨테이너에 초기화합니다.
-//      (최초 1회만 생성, 이후 탭 재진입 시 updateSize()만 호출)
+//   OpenLayers 지도를 #cctv-map 컨테이너에 초기화합니다.
+//   최초 1회만 생성하고, 이후 탭 재진입 시 updateSize()만 호출합니다.
 //
 // [연계]
-//   - cctv1.js  CCTV_PROVIDERS       — color 값 참조
 //   - cctv3.js  addCctvMarkers()     — initCctvMap() 내부에서 호출
 //   - cctv4.js  handleCctvMapClick() — initCctvMap() 내부에서 클릭 이벤트 등록
+//   - cctv6.js  CctvFavorites.init() — initCctvMap() 내부에서 즐겨찾기 초기화
+//   - cctv5.js  DOMContentLoaded     — CCTV 탭 클릭 시 initCctvMap() 호출
 //   - index.html #cctv-map           — 지도 렌더링 대상 DOM
 //   - OpenLayers v8.2.0 (CDN)        — ol.Map, ol.View, ol.layer.Tile 등 사용
 // ====================================================================
@@ -26,79 +26,6 @@ let cctvMap = null;
 let cctvMarkerLayer = null;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SVG 아이콘 생성 유틸리티
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-/**
- * 16진수 색상값의 명도를 조절합니다.
- * [사용처] createCctvIconSvg() — 아이콘 테두리 색상을 본 색상보다 어둡게 만들 때 사용
- *
- * @param {string} hex    — '#rrggbb' 형태의 색상값 (예: '#1565c0')
- * @param {number} amount — 양수: 밝게, 음수: 어둡게 (예: -40이면 각 채널 -40)
- * @returns {string} — 조절된 '#rrggbb' 색상값
- */
-function cctvShadeColor(hex, amount) {
-    const num = parseInt(hex.replace('#', ''), 16);
-    const r = Math.min(255, Math.max(0, (num >> 16) + amount));
-    const g = Math.min(255, Math.max(0, ((num >> 8) & 0xff) + amount));
-    const b = Math.min(255, Math.max(0, (num & 0xff) + amount));
-    return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
-}
-
-/**
- * 감시카메라(CCTV) 형태의 SVG 아이콘 data URI를 생성합니다.
- *
- * 아이콘 구조 (측면도):
- *   ╭──────────────╮
- *   │  본체(body)  │━━━● ← 렌즈(lens)
- *   ╰──────────────╯
- *         │  ← 마운트 폴(mount)
- *      ═══════  ← 베이스 플레이트(base)
- *
- * [사용처] cctv3.js addCctvMarkers() — ol.style.Icon의 src 속성에 사용
- *
- * @param {string} color — 아이콘 채우기 색상 (예: '#1565c0')
- * @returns {string}     — OpenLayers ol.style.Icon src에 바로 사용 가능한 data URI
- */
-function createCctvIconSvg(color) {
-    // 테두리 색상: 본 색상보다 40 어둡게
-    const stroke = cctvShadeColor(color, -40);
-
-    const svg = [
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 34" width="44" height="34">',
-
-        // 카메라 본체 (좌측 둥근 사각형)
-        `<rect x="1" y="7" width="24" height="14" rx="3"`,
-        ` fill="${color}" stroke="${stroke}" stroke-width="1.5"/>`,
-
-        // 렌즈 배럴 (본체 우측에 연결된 원통형 부분)
-        `<rect x="25" y="10.5" width="12" height="7" rx="2"`,
-        ` fill="${color}" stroke="${stroke}" stroke-width="1.5"/>`,
-
-        // 렌즈 유리 (어두운 원 — 카메라 렌즈 표현)
-        `<circle cx="39" cy="14" r="3.2"`,
-        ` fill="#071831" stroke="${stroke}" stroke-width="1"/>`,
-
-        // 렌즈 하이라이트 (반사광 느낌의 작은 흰 원)
-        `<circle cx="38.1" cy="13.1" r="1"`,
-        ` fill="rgba(255,255,255,0.45)"/>`,
-
-        // 마운트 폴 (카메라를 지지하는 수직 기둥)
-        `<rect x="10" y="21" width="4" height="8" rx="1"`,
-        ` fill="${color}" stroke="${stroke}" stroke-width="1"/>`,
-
-        // 베이스 플레이트 (벽/기둥 부착 부분)
-        `<rect x="6" y="28" width="12" height="4" rx="2"`,
-        ` fill="${color}" stroke="${stroke}" stroke-width="1.5"/>`,
-
-        '</svg>'
-    ].join('');
-
-    // OpenLayers Icon src에 바로 사용할 수 있도록 data URI 형태로 반환
-    return 'data:image/svg+xml,' + encodeURIComponent(svg);
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 지도 초기화
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -112,8 +39,9 @@ function createCctvIconSvg(color) {
  *   3. ol.Map 인스턴스 생성 (#cctv-map 컨테이너에 렌더링)
  *      - 초기 뷰: 한반도 해안 전체 (중심 128.0°E / 36.0°N, zoom 6)
  *   4. 마커 추가 (addCctvMarkers — cctv3.js)
- *   5. 마우스 호버 커서 변경 (pointermove)
- *   6. 마커 클릭 이벤트 등록 (handleCctvMapClick — cctv4.js)
+ *   5. 즐겨찾기 초기화 (CctvFavorites.init — cctv6.js)
+ *   6. 마우스 호버 커서 변경 (pointermove)
+ *   7. 마커 클릭 이벤트 등록 (handleCctvMapClick — cctv4.js)
  *
  * [연계]
  *   - cctv5.js DOMContentLoaded — CCTV 탭 클릭 시 이 함수 호출
@@ -154,14 +82,20 @@ function initCctvMap() {
         // ⑤ CCTV 마커 지도에 추가 (cctv3.js)
         addCctvMarkers();
 
-        // ⑥ 마커 위에 마우스 올릴 때 포인터 커서로 변경
+        // ⑥ 즐겨찾기 초기화 (localStorage 로드 + 지도 오른쪽 버튼 목록 렌더링)
+        //    CctvFavorites는 cctv6.js에 정의됨
+        if (window.CctvFavorites) {
+            CctvFavorites.init();
+        }
+
+        // ⑦ 마커 위에 마우스 올릴 때 포인터 커서로 변경
         //    (클릭 가능하다는 시각적 피드백)
         cctvMap.on('pointermove', function (e) {
             const hit = cctvMap.hasFeatureAtPixel(e.pixel);
             cctvMap.getTargetElement().style.cursor = hit ? 'pointer' : '';
         });
 
-        // ⑦ 마커/지도 클릭 이벤트 등록 (cctv4.js)
+        // ⑧ 마커/지도 클릭 이벤트 등록 (cctv4.js)
         cctvMap.on('singleclick', handleCctvMapClick);
 
     } catch (err) {
