@@ -4,29 +4,53 @@
 // [역할]
 //   1. 지도 마커 클릭 이벤트를 처리합니다.
 //   2. 모달 방식(화면 중앙 고정)으로 CCTV 영상 팝업을 표시합니다.
-//   3. 팝업 헤더에 KBS 재난포털/CCTV 더보기 링크 버튼과 즐겨찾기 별 버튼을 배치합니다.
-//   4. iframe 하단 KBS 버튼 영역을 CSS 클리핑으로 숨깁니다.
-//   5. 팝업 닫을 때 iframe src를 비워 스트림을 즉시 중단합니다.
+//   3. 제공기관(providerKey)에 따라 영상 표출 방식을 분기합니다.
+//      - KBS(iframe): KBS cctvShare 페이지를 iframe으로 임베드
+//      - 거제시(hls):  HLS 스트림을 HLS.js video 엘리먼트로 직접 재생
+//   4. 팝업 헤더 링크 버튼을 제공기관별로 동적 생성합니다.
+//   5. 팝업 닫을 때 iframe src 또는 HLS 인스턴스를 즉시 해제합니다.
 //
-// [팝업 UI 구조]
-//   ════════════════════════════════════════ (반투명 배경 딤처리)
-//   ┌──────────────────────────────────────────────┐
-//   │ 📹 가거도  [KBS재난포털↗][CCTV더보기↗][☆][✕]│ ← 헤더
-//   │    전남 신안 가거도                           │ ← 부제목
-//   ├──────────────────────────────────────────────┤
-//   │                                              │
-//   │   <iframe: KBS cctvShare 페이지>             │ ← 영상
-//   │   (하단 KBS 버튼은 CSS 클리핑으로 숨김)       │
-//   │                                              │
-//   └──────────────────────────────────────────────┘
+// [팝업 UI 구조 — KBS]
+//   ┌──────────────────────────────────────────────────┐
+//   │ 📹 가거도 ★  KBS재난포털↗   [✕]                 │
+//   │    전남 신안 가거도          CCTV더보기↗          │
+//   ├──────────────────────────────────────────────────┤
+//   │   <iframe: KBS cctvShare 페이지>                  │
+//   │   (상단 타이틀 + 하단 버튼은 CSS 클리핑으로 숨김)  │
+//   └──────────────────────────────────────────────────┘
+//
+// [팝업 UI 구조 — 거제시(HLS)]
+//   ┌──────────────────────────────────────────────────┐
+//   │ 📹 견내량 ★  거제시CCTV↗    [✕]                 │
+//   │    경남 거제 사등면 덕호리                         │
+//   ├──────────────────────────────────────────────────┤
+//   │   <video: HLS.js로 직접 스트림 재생>               │
+//   └──────────────────────────────────────────────────┘
 //
 // [연계]
-//   - cctv2.js cctvMap               — 클릭 이벤트 등록 대상
-//   - cctv3.js ol.Feature 속성       — cctvId, name, subtitle, shareUrl
-//   - cctv6.js CctvFavorites         — 즐겨찾기 추가/제거/확인
+//   - cctv1.js CCTV_PROVIDERS         — 제공기관 type·links 조회
+//   - cctv2.js cctvMap                — 클릭 이벤트 등록 대상
+//   - cctv3.js ol.Feature 속성        — cctvId, name, subtitle, providerKey,
+//                                        shareUrl, streamUrl
+//   - cctv6.js CctvFavorites          — 즐겨찾기 추가/제거/확인
 //   - index.html #cctv-modal-backdrop — 모달 배경 딤처리 DOM
 //   - backbutton.js PopupStack        — 뒤로가기로 팝업 닫기 지원
+//   - HLS.js (CDN)                    — HLS 스트림 재생 라이브러리
 // ====================================================================
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 현재 열린 팝업의 데이터 (즐겨찾기 토글에 사용)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/**
+ * 현재 열려 있는 팝업의 CCTV 데이터를 전역으로 보관합니다.
+ *
+ * [보관하는 이유]
+ *   즐겨찾기 별 버튼의 onclick="toggleCctvFavorite()"에서
+ *   cctvId, name, providerKey 등을 별도 인자 없이 참조하기 위함입니다.
+ *   팝업이 닫히면 null로 초기화됩니다.
+ */
+let _currentCctvData = null;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 클릭 이벤트 핸들러
@@ -55,8 +79,10 @@ function handleCctvMapClick(event) {
             cctvId:       feature.get('cctvId'),
             name:         feature.get('name'),
             subtitle:     feature.get('subtitle'),
+            providerKey:  feature.get('providerKey'),
             providerName: feature.get('providerName'),
-            shareUrl:     feature.get('shareUrl')
+            shareUrl:     feature.get('shareUrl'),
+            streamUrl:    feature.get('streamUrl')
         });
     } else {
         // 빈 지도 클릭: 팝업 닫기
@@ -71,34 +97,77 @@ function handleCctvMapClick(event) {
 /**
  * CCTV 영상 팝업을 화면 중앙 모달로 표시합니다.
  *
- * [모달 방식을 사용하는 이유]
- *   화면 중앙에 고정(position: fixed)되어 지도를 벗어나 표시되므로
- *   iframe의 전체 폭 활용과 스크롤 없는 영상 시청이 가능합니다.
+ * [영상 표출 방식 분기]
+ *   data.streamUrl 존재 → HLS 스트림 (거제시 등 지자체)
+ *     → <video> 엘리먼트 + HLS.js 로 직접 재생
+ *   data.shareUrl 존재  → 공유 페이지 iframe (KBS)
+ *     → <iframe src="..."> 임베드
+ *     → CSS 클리핑으로 KBS 내부 타이틀·하단 버튼 숨김
  *
- * [iframe 하단 버튼 숨기기]
- *   KBS cctvShare 페이지 하단의 "KBS 재난포털" / "CCTV 더보기" 버튼은
- *   크로스도메인 제약으로 JS/CSS 직접 조작 불가합니다.
- *   대신 iframe wrapper의 overflow:hidden + 클리핑 높이로 시각적으로 숨깁니다.
- *   → wrapper height: 370px (영상 영역만), iframe height: 430px (버튼까지 포함)
+ * [헤더 링크 버튼 동적 생성]
+ *   CCTV_PROVIDERS[data.providerKey].links 배열을 순회하여
+ *   제공기관마다 다른 외부 링크 버튼을 자동 생성합니다.
+ *   예) KBS: [KBS재난포털↗][CCTV더보기↗]
+ *       거제시: [거제시 CCTV↗]
  *
  * [연계]
- *   - handleCctvMapClick()  — 마커 클릭 시 호출
+ *   - handleCctvMapClick() — 마커 클릭 시 호출
  *   - cctv6.js CctvFavorites.has() — 즐겨찾기 등록 여부 확인 (별 버튼 상태)
- *   - closeCctvPopup()      — 닫기 버튼 / 배경 클릭 시 호출
- *   - PopupStack            — backbutton.js 뒤로가기 처리
+ *   - closeCctvPopup()     — 닫기 버튼 / 배경 클릭 시 호출
+ *   - _initCctvHlsPlayer() — HLS 방식일 때 innerHTML 설정 후 호출
  *
- * @param {Object} data — { cctvId, name, subtitle, providerName, shareUrl }
+ * @param {Object} data — { cctvId, name, subtitle, providerKey, providerName, shareUrl, streamUrl }
  */
 function showCctvPopup(data) {
     const backdrop = document.getElementById('cctv-modal-backdrop');
     if (!backdrop) return;
 
+    // 현재 팝업 데이터를 전역에 저장 (즐겨찾기 토글 시 사용)
+    _currentCctvData = data;
+
     // 즐겨찾기 등록 여부에 따라 별 버튼 상태 결정
-    // ★ 노란 채워진 별 = 등록됨, ☆ 빈 별 = 미등록
-    const isFav = window.CctvFavorites && CctvFavorites.has(data.cctvId);
-    const favIcon  = isFav ? 'fa-solid fa-star'   : 'fa-regular fa-star';
-    const favColor = isFav ? '#fbbf24'             : 'rgba(255,255,255,0.6)';
-    const favTitle = isFav ? '즐겨찾기 해제'        : '즐겨찾기 추가';
+    const isFav    = window.CctvFavorites && CctvFavorites.has(data.cctvId);
+    const favIcon  = isFav ? 'fa-solid fa-star'  : 'fa-regular fa-star';
+    const favColor = isFav ? '#fbbf24'            : 'rgba(255,255,255,0.6)';
+    const favTitle = isFav ? '즐겨찾기 해제'       : '즐겨찾기 추가';
+
+    // ── 제공기관별 헤더 링크 버튼 동적 생성 ──────────────────────────
+    // CCTV_PROVIDERS[key].links 배열을 HTML 버튼으로 변환
+    // KBS    → [KBS재난포털↗] [CCTV더보기↗]
+    // 거제시 → [거제시 CCTV↗]
+    const provider  = window.CCTV_PROVIDERS && CCTV_PROVIDERS[data.providerKey];
+    const links     = provider ? (provider.links || []) : [];
+    const linksHtml = links.map(function (l) {
+        return `<a class="cctv-action-btn"
+                   href="${l.url}"
+                   target="_blank" rel="noopener noreferrer"
+                   title="${l.label}">
+                    ${l.label}
+                    <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i>
+                </a>`;
+    }).join('');
+
+    // ── 영상 영역 HTML ────────────────────────────────────────────────
+    // streamUrl이 있으면 HLS video, 없으면 iframe
+    const mediaHtml = data.streamUrl
+        ? `<!-- HLS 스트림 비디오 (거제시 등 지자체) -->
+           <div class="cctv-modal-video-wrap">
+               <video id="cctv-modal-video"
+                      autoplay muted playsinline controls
+                      title="${data.name} CCTV 영상">
+               </video>
+           </div>`
+        : `<!-- iframe 공유 페이지 (KBS): CSS 클리핑으로 상하 여백 숨김 -->
+           <div class="cctv-modal-iframe-wrap">
+               <iframe id="cctv-modal-iframe"
+                   src="${data.shareUrl}"
+                   frameborder="0"
+                   scrolling="no"
+                   allowfullscreen
+                   allow="autoplay; encrypted-media; fullscreen"
+                   title="${data.name} CCTV 영상">
+               </iframe>
+           </div>`;
 
     // 모달 내부 HTML 구성
     backdrop.innerHTML = `
@@ -108,7 +177,7 @@ function showCctvPopup(data) {
         <!-- 모달 카드 -->
         <div class="cctv-modal-card">
 
-            <!-- 헤더: 아이콘+이름/부제목 | KBS링크 | 즐겨찾기별 | 닫기 -->
+            <!-- 헤더: 아이콘+이름(★) / 기관링크 / 닫기 -->
             <div class="cctv-modal-header">
 
                 <!-- 왼쪽: 카메라 아이콘 + 지점명(★ 인접) + 부제목 -->
@@ -120,7 +189,7 @@ function showCctvPopup(data) {
                             <span class="cctv-modal-title">${data.name}</span>
                             <button class="cctv-modal-fav-btn"
                                     id="cctv-fav-toggle-btn"
-                                    onclick="toggleCctvFavorite(${data.cctvId}, '${data.name}', '${data.subtitle}', '${data.shareUrl}')"
+                                    onclick="toggleCctvFavorite()"
                                     title="${favTitle}">
                                 <i class="${favIcon}" style="color: ${favColor};"></i>
                             </button>
@@ -129,56 +198,76 @@ function showCctvPopup(data) {
                     </div>
                 </div>
 
-                <!-- 오른쪽: 외부 링크 버튼들(세로 배치) + 닫기 -->
+                <!-- 오른쪽: 기관별 링크 버튼들(세로) + 닫기 -->
                 <div class="cctv-modal-actions">
-                    <!-- KBS재난포털 / CCTV더보기: 위아래로 배치 -->
                     <div class="cctv-action-links">
-                        <a class="cctv-action-btn"
-                           href="https://d.kbs.co.kr/special/cctv"
-                           target="_blank" rel="noopener noreferrer"
-                           title="KBS 재난포털 열기">
-                            KBS재난포털
-                            <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i>
-                        </a>
-                        <a class="cctv-action-btn"
-                           href="https://d.kbs.co.kr/special/cctv"
-                           target="_blank" rel="noopener noreferrer"
-                           title="CCTV 더보기">
-                            CCTV더보기
-                            <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i>
-                        </a>
+                        ${linksHtml}
                     </div>
-
-                    <!-- 닫기 버튼 -->
                     <button class="cctv-modal-close-btn" onclick="closeCctvPopup()" title="닫기">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- iframe 영역: wrapper로 감싸서 하단 KBS 버튼을 클리핑 -->
-            <!-- wrapper height(370px) < iframe height(430px) → 버튼 55px 잘림 -->
-            <div class="cctv-modal-iframe-wrap">
-                <iframe
-                    id="cctv-modal-iframe"
-                    src="${data.shareUrl}"
-                    frameborder="0"
-                    scrolling="no"
-                    allowfullscreen
-                    allow="autoplay; encrypted-media; fullscreen"
-                    title="${data.name} CCTV 영상">
-                </iframe>
-            </div>
+            <!-- 영상 영역: 제공기관 방식에 따라 video 또는 iframe -->
+            ${mediaHtml}
 
         </div>
     `;
 
-    // 모달 표시 (display: flex → 배경+카드가 화면 위에 고정됨)
+    // 모달 표시 (display: flex → 화면 중앙에 배치)
     backdrop.style.display = 'flex';
+
+    // HLS 스트림인 경우 비디오 플레이어 초기화 (innerHTML 설정 후 실행)
+    if (data.streamUrl) {
+        _initCctvHlsPlayer(data.streamUrl);
+    }
 
     // PopupStack 등록: 뒤로가기 버튼으로 모달 닫기 지원
     if (window.PopupStack) {
         PopupStack.push('cctv-popup', closeCctvPopup);
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HLS 비디오 플레이어 초기화
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/**
+ * HLS.js를 사용하여 거제시 등 HLS 스트림을 video 엘리먼트에 연결합니다.
+ *
+ * [지원 환경]
+ *   - HLS.js 지원 브라우저 (Chrome, Firefox, Edge 등): HLS.js로 재생
+ *   - Safari (네이티브 HLS 지원): video.src에 직접 지정
+ *   - 둘 다 지원 안 하면: 재생 불가 (재생 안 됨 메시지 없음)
+ *
+ * [hls 인스턴스를 video._hls에 보관하는 이유]
+ *   closeCctvPopup()에서 팝업을 닫을 때 hls.destroy()로
+ *   스트림 수신을 완전히 중단하기 위함입니다.
+ *
+ * @param {string} streamUrl — HLS .m3u8 스트림 URL
+ */
+function _initCctvHlsPlayer(streamUrl) {
+    const video = document.getElementById('cctv-modal-video');
+    if (!video) return;
+
+    if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+        // Chrome/Firefox/Edge 등: HLS.js 사용
+        const hls = new Hls({ enableWorker: false });
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+            // 재생목록 파싱 완료 후 자동 재생 시도 (음소거 상태이므로 대부분 허용)
+            video.play().catch(function () {});
+        });
+        // 닫기 시 참조할 수 있도록 video 엘리먼트에 보관
+        video._hls = hls;
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari: 네이티브 HLS 지원
+        video.src = streamUrl;
+        video.addEventListener('loadedmetadata', function () {
+            video.play().catch(function () {});
+        });
     }
 }
 
@@ -189,9 +278,9 @@ function showCctvPopup(data) {
 /**
  * CCTV 모달 팝업을 닫습니다.
  *
- * [iframe src를 먼저 비우는 이유]
- *   innerHTML을 지우기 전에 iframe src를 ''으로 바꿔야
- *   백그라운드 스트림 수신이 즉시 중단됩니다.
+ * [스트림 중단 처리]
+ *   - iframe 방식: src를 ''으로 교체 → 브라우저가 KBS 페이지 언로드
+ *   - HLS 방식:    hls.destroy() → HLS.js 스트림 수신 즉시 중단
  *
  * [연계]
  *   - showCctvPopup() — 닫기 버튼 onclick, 배경 onclick
@@ -202,9 +291,23 @@ function closeCctvPopup() {
     const backdrop = document.getElementById('cctv-modal-backdrop');
     if (!backdrop || backdrop.style.display === 'none') return;
 
-    // iframe 스트림 즉시 중단
+    // iframe 스트림 즉시 중단 (KBS 방식)
     const iframe = backdrop.querySelector('iframe');
     if (iframe) iframe.src = '';
+
+    // HLS 스트림 즉시 중단 (거제시 등 HLS 방식)
+    const video = backdrop.querySelector('#cctv-modal-video');
+    if (video) {
+        video.pause();
+        video.src = '';
+        if (video._hls) {
+            video._hls.destroy();
+            video._hls = null;
+        }
+    }
+
+    // 현재 팝업 데이터 초기화
+    _currentCctvData = null;
 
     // 모달 숨기기 + 내용 비우기
     backdrop.style.display = 'none';
@@ -224,20 +327,23 @@ function closeCctvPopup() {
  * 팝업 헤더의 별 버튼을 클릭했을 때 즐겨찾기를 추가하거나 제거합니다.
  * 버튼 아이콘을 즉시 갱신하여 등록/해제 상태를 시각적으로 피드백합니다.
  *
+ * [인자를 받지 않는 이유]
+ *   팝업 HTML의 onclick="toggleCctvFavorite()" 에서 호출되는데,
+ *   필요한 데이터(cctvId, shareUrl, streamUrl 등)는 이미
+ *   _currentCctvData에 저장되어 있으므로 인자 전달이 불필요합니다.
+ *   덕분에 긴 onclick 문자열 생성이 필요 없고 특수문자 이스케이프 문제도 없습니다.
+ *
  * [연계]
  *   - cctv6.js CctvFavorites.add() / remove() / has() — 실제 저장/삭제 처리
- *   - showCctvPopup() innerHTML — 버튼의 onclick에 직접 지정됨
- *
- * @param {number} cctvId   — 토글할 CCTV ID
- * @param {string} name     — CCTV 지점명
- * @param {string} subtitle — 상세 위치
- * @param {string} shareUrl — KBS cctvShare URL
+ *   - showCctvPopup() — 팝업 innerHTML에서 onclick으로 호출
  */
-function toggleCctvFavorite(cctvId, name, subtitle, shareUrl) {
-    if (!window.CctvFavorites) return;
+function toggleCctvFavorite() {
+    if (!window.CctvFavorites || !_currentCctvData) return;
 
     const btn = document.getElementById('cctv-fav-toggle-btn');
     if (!btn) return;
+
+    const { cctvId, name, subtitle, providerKey, shareUrl, streamUrl } = _currentCctvData;
 
     if (CctvFavorites.has(cctvId)) {
         // ─── 이미 등록됨 → 제거 ───
@@ -246,7 +352,7 @@ function toggleCctvFavorite(cctvId, name, subtitle, shareUrl) {
         btn.innerHTML = `<i class="fa-regular fa-star" style="color: rgba(255,255,255,0.6);"></i>`;
     } else {
         // ─── 미등록 → 추가 ───
-        const added = CctvFavorites.add({ cctvId, name, subtitle, shareUrl });
+        const added = CctvFavorites.add({ cctvId, name, subtitle, providerKey, shareUrl, streamUrl });
         if (added) {
             btn.title = '즐겨찾기 해제';
             btn.innerHTML = `<i class="fa-solid fa-star" style="color: #fbbf24;"></i>`;

@@ -1,54 +1,66 @@
 // ====================================================================
 // cctv1.js — CCTV 제공기관별 데이터 정의
 //
-// [역할] CCTV 제공기관(KBS, 추후 지자체·중앙부처)을 키로 구분하여
+// [역할] CCTV 제공기관(KBS, 거제시, 추후 지자체·중앙부처)을 키로 구분하여
 //        각 지점의 cctvId, 이름, 상세위치, 좌표(lat/lng)를 관리합니다.
 //
 // [설계 의도]
-//   제공기관이 달라도 동일한 구조(name/shareUrl/color/items)를 유지하여
+//   제공기관이 달라도 동일한 구조를 유지하여
 //   cctv2~4.js 의 마커·팝업 로직이 어떤 기관 데이터든 동일하게 처리합니다.
 //   → 새 기관 추가 시 이 파일에 블록만 추가하면 됩니다.
 //
+// [provider 공통 구조]
+//   type      {string}   — 'iframe' | 'hls'
+//                           iframe: shareUrl() 결과를 iframe src로 임베드
+//                           hls:    streamUrl() 결과를 HLS.js video로 재생
+//   name      {string}   — 팝업 출처 표기용 기관명
+//   shareUrl  {Function} — (iframe 전용) cctvId → 영상 공유 페이지 URL
+//   streamUrl {Function} — (hls 전용)   cctvId → HLS .m3u8 스트림 URL
+//   links     {Array}    — 팝업 헤더 외부 링크 버튼 목록 [{ label, url }]
+//   color     {string}   — 지도 마커 색상 (#rrggbb)
+//   items     {Array}    — CCTV 지점 목록
+//     ├ cctvId   {number} — 기관 고유 식별자 (스트림 URL에 사용)
+//     ├ name     {string} — 지점 이름 (마커 라벨, 팝업 제목)
+//     ├ subtitle {string} — 상세 위치 (팝업 부제목)
+//     ├ lat      {string} — 위도  (WGS84)
+//     └ lng      {string} — 경도  (WGS84)
+//
 // [연계]
-//   - cctv2.js  createCctvIconSvg() — color 값 사용
 //   - cctv3.js  addCctvMarkers()    — items 배열 순회
-//   - cctv4.js  showCctvPopup()     — shareUrl, name, subtitle 사용
+//   - cctv4.js  showCctvPopup()     — type, links, shareUrl/streamUrl 사용
 // ====================================================================
 
 /**
  * CCTV_PROVIDERS
  * 제공기관을 키(key)로 구분한 최상위 데이터 객체.
- *
- * 각 기관 블록 구조:
- *   name     {string}   — 팝업 출처 표기용 기관명
- *   shareUrl {Function} — cctvId → 영상 페이지 URL 생성 함수
- *   color    {string}   — 지도 마커 색상 (#rrggbb)
- *   items    {Array}    — CCTV 지점 목록
- *     ├ cctvId   {number} — 기관 고유 식별자
- *     ├ name     {string} — 지점 이름 (마커 라벨, 팝업 제목)
- *     ├ subtitle {string} — 상세 위치 (팝업 부제목)
- *     ├ lat      {string} — 위도  (WGS84, 소수점 7자리)
- *     └ lng      {string} — 경도  (WGS84, 소수점 7자리)
  */
 const CCTV_PROVIDERS = {
 
     // ─────────────────────────────────────────────────────────────────
     // KBS 파노라마 CCTV
     // 출처: KBS 재난포털 (https://d.kbs.co.kr/special/cctv)
+    // 영상 방식: iframe (KBS cctvShare 공개 공유 페이지)
     // 영상 URL 패턴: https://md.kbs.co.kr/special/cctvShare?cctvId={id}
-    // 해안/해양 지점 30개 (2026년 4월 기준)
     // ─────────────────────────────────────────────────────────────────
     kbs: {
         /** 팝업 출처 표기용 기관명 */
         name: 'KBS 파노라마 CCTV',
 
+        /** 임베드 방식: KBS cctvShare 페이지를 iframe으로 로드 */
+        type: 'iframe',
+
         /**
          * cctvId를 받아 KBS 모바일 공유 페이지 URL을 반환합니다.
-         * iframe 임베드가 허용된 공개 공유 엔드포인트입니다.
          * @param {number} cctvId
          * @returns {string}
          */
         shareUrl: (cctvId) => `https://md.kbs.co.kr/special/cctvShare?cctvId=${cctvId}`,
+
+        /** 팝업 헤더 외부 링크 버튼 목록 */
+        links: [
+            { label: 'KBS재난포털', url: 'https://d.kbs.co.kr/special/cctv' },
+            { label: 'CCTV더보기', url: 'https://d.kbs.co.kr/special/cctv' }
+        ],
 
         /** 마커 아이콘 색상 — KBS 파란 계열 */
         color: '#1565c0',
@@ -94,21 +106,80 @@ const CCTV_PROVIDERS = {
             // 원해 ───────────────────────────────────────────────────
             { cctvId: 32017, name: '이어도 북',            subtitle: '이어도 해양과학기지 북쪽',          lat: '32.1236100', lng: '125.1816600' },
         ]
-    }
+    },
 
     // ─────────────────────────────────────────────────────────────────
-    // 추후 추가 예정 (블록만 추가하면 마커·팝업 자동 반영)
+    // 거제시 재난 CCTV
+    // 출처: 거제시 대시민서비스 (https://www.geoje.go.kr/safety/cctv.do)
+    // 영상 방식: HLS 스트림 직접 재생 (Vurix VMS, HLS.js 사용)
+    // 영상 URL 패턴:
+    //   https://www.geoje.go.kr/safety/stream/v1/hls/vurix/100001/{cameraId}/0/0
+    // 데이터 출처: https://www.geoje.go.kr/safety/assets/xml/cctv.xml
     // ─────────────────────────────────────────────────────────────────
-    // localGov: {
-    //     name: '지자체 CCTV',
-    //     shareUrl: (id) => `...`,
-    //     color: '#2e7d32',
-    //     items: []
-    // },
-    // centralGov: {
-    //     name: '중앙부처 CCTV',
-    //     shareUrl: (id) => `...`,
-    //     color: '#6a1b9a',
-    //     items: []
-    // }
+    geoje: {
+        /** 팝업 출처 표기용 기관명 */
+        name: '거제시 재난 CCTV',
+
+        /** 임베드 방식: HLS 스트림을 HLS.js video 엘리먼트로 직접 재생 */
+        type: 'hls',
+
+        /**
+         * cameraId를 받아 거제시 HLS 스트림 URL을 반환합니다.
+         * @param {number} cameraId
+         * @returns {string}
+         */
+        streamUrl: (cameraId) =>
+            `https://www.geoje.go.kr/safety/stream/v1/hls/vurix/100001/${cameraId}/0/0`,
+
+        /** 팝업 헤더 외부 링크 버튼 목록 */
+        links: [
+            { label: '거제시 CCTV', url: 'https://www.geoje.go.kr/safety/cctv.do' }
+        ],
+
+        /** 마커 아이콘 색상 — 거제시 초록 계열 */
+        color: '#1b7340',
+
+        /** 거제시 해상/재난 CCTV 지점 목록 (cctv.xml 기준, 2026년 4월) */
+        items: [
+            // 사등면 ─────────────────────────────────────────────────
+            { cctvId: 101693, name: '후포',         subtitle: '경남 거제 사등면 오량리',      lat: '34.895799', lng: '128.490896' },
+            { cctvId: 101697, name: '견내량',        subtitle: '경남 거제 사등면 덕호리',      lat: '34.886796', lng: '128.479707' },
+            { cctvId: 101698, name: '광리',          subtitle: '경남 거제 사등면 덕호리',      lat: '34.877298', lng: '128.473098' },
+            { cctvId: 102333, name: '창호리',        subtitle: '경남 거제 사등면 창호리',      lat: '34.940012', lng: '128.525896' },
+            // 둔덕면 ─────────────────────────────────────────────────
+            { cctvId: 101699, name: '내평',          subtitle: '경남 거제 둔덕면 술역리',      lat: '34.850100', lng: '128.478703' },
+            { cctvId: 101700, name: '호곡',          subtitle: '경남 거제 둔덕면 술역리',      lat: '34.837302', lng: '128.490504' },
+            { cctvId: 101701, name: '구바지락살포장', subtitle: '경남 거제 둔덕면 어구리',      lat: '34.812687', lng: '128.509917' },
+            // 거제면 ─────────────────────────────────────────────────
+            { cctvId: 101705, name: '아지랑마을',    subtitle: '경남 거제 거제면 법동리',      lat: '34.809314', lng: '128.515887' },
+            { cctvId: 101706, name: '법동',          subtitle: '경남 거제 거제면 법동리',      lat: '34.823317', lng: '128.520441' },
+            { cctvId: 101707, name: '소랑',          subtitle: '경남 거제 거제면 소랑리',      lat: '34.831610', lng: '128.539127' },
+            { cctvId: 101715, name: '죽림',          subtitle: '경남 거제 거제면 오수리',      lat: '34.840996', lng: '128.578196' },
+            // 동부면 ─────────────────────────────────────────────────
+            { cctvId: 101703, name: '동호',          subtitle: '경남 거제 동부면 오송리',      lat: '34.809820', lng: '128.586511' },
+            { cctvId: 101708, name: '함박금길',       subtitle: '경남 거제 동부면 가배리',      lat: '34.786865', lng: '128.545826' },
+            { cctvId: 101709, name: '가배리 수산',    subtitle: '경남 거제 동부면 가배리',      lat: '34.785499', lng: '128.541596' },
+            { cctvId: 101710, name: '가배',          subtitle: '경남 거제 동부면 가배리',      lat: '34.780676', lng: '128.562890' },
+            { cctvId: 102331, name: '학동',          subtitle: '경남 거제 동부면 학동리',      lat: '34.775329', lng: '128.641669' },
+            // 남부면 ─────────────────────────────────────────────────
+            { cctvId: 101711, name: '쌍근',          subtitle: '경남 거제 남부면 탑포리',      lat: '34.764257', lng: '128.583907' },
+            { cctvId: 101712, name: '명사',          subtitle: '경남 거제 남부면 저구리',      lat: '34.726799', lng: '128.600800' },
+            { cctvId: 101713, name: '홍포',          subtitle: '경남 거제 남부면 저구리',      lat: '34.706726', lng: '128.600094' },
+            { cctvId: 102332, name: '다대',          subtitle: '경남 거제 남부면 다대7길',     lat: '34.732800', lng: '128.630503' },
+            { cctvId: 100152, name: '남부면',        subtitle: '경남 거제 남부면',             lat: '34.739770', lng: '128.662572' },
+            // 일운면 ─────────────────────────────────────────────────
+            { cctvId: 102364, name: '구조라',        subtitle: '경남 거제 일운면 구조라리',    lat: '34.807914', lng: '128.692204' },
+            { cctvId: 102366, name: '서이말',        subtitle: '경남 거제 일운면 서이말길',    lat: '34.787398', lng: '128.738503' },
+            // 장목면 ─────────────────────────────────────────────────
+            { cctvId: 102328, name: '옥포대첩로',    subtitle: '경남 거제 장목면 옥포대첩로',  lat: '34.956500', lng: '128.714200' },
+            { cctvId: 102327, name: '송진포',        subtitle: '경남 거제 장목면 송진포리',    lat: '35.000987', lng: '128.701653' },
+            // 고현동·장승포·옥포 ──────────────────────────────────────
+            { cctvId: 101704, name: '고현 중곡',     subtitle: '경남 거제 고현동',             lat: '34.891866', lng: '128.624272' },
+            { cctvId: 101714, name: '고현동',        subtitle: '경남 거제 고현동 1073',        lat: '34.894442', lng: '128.636977' },
+            { cctvId: 102329, name: '덕포동',        subtitle: '경남 거제 덕포동',             lat: '34.911084', lng: '128.710439' },
+            { cctvId: 102330, name: '장승포',        subtitle: '경남 거제 장승포동 장승로',    lat: '34.866397', lng: '128.723900' },
+            // 연초면 ─────────────────────────────────────────────────
+            { cctvId: 101717, name: '연사리',        subtitle: '경남 거제 연초면 연사리',      lat: '34.898092', lng: '128.638446' },
+        ]
+    }
 };

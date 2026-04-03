@@ -7520,6 +7520,27 @@ line-height: 1.1;
     color: #ffffff;
 }
 
+/* HLS 스트림 비디오 래퍼 (거제시 등 지자체 CCTV)
+   iframe 클리핑과 달리 클리핑 불필요 — 네이티브 video 컨트롤 그대로 표출 */
+.cctv-modal-video-wrap {
+    width: 100%;
+    height: 300px;
+    background: #000;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 비디오 엘리먼트: 레터박스 방식으로 비율 유지 */
+.cctv-modal-video-wrap video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
 /* iframe 클리핑 래퍼
    - KBS 내부 상단 타이틀 영역(약 65px): iframe을 위로 밀어 숨김 (top: -65px)
    - KBS 내부 하단 버튼 영역(약 55px): wrapper 높이(310px)로 잘라냄
