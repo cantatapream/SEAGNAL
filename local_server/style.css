@@ -7282,50 +7282,137 @@ line-height: 1.1;
 }
 
 /* ============================================================================
-   CCTV 팝업
-   [연계] js/cctv4.js showCctvPopup() — innerHTML로 이 클래스들을 사용
+   CCTV 지도 래퍼 + 즐겨찾기 컨테이너
+   [연계] index.html #cctv-map, #cctv-favorites-container
+         cctv6.js CctvFavorites.render()
    ============================================================================ */
 
-/* 팝업 전체 래퍼 */
-.cctv-popup {
-    margin-top: 10px;
-    border-radius: 12px;
-    overflow: hidden;
-    background: var(--card-bg);
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+/* 지도 + 즐겨찾기 목록을 함께 감싸는 래퍼 (상대좌표 기준점) */
+.cctv-map-wrapper {
+    position: relative;
+    width: 100%;
 }
 
-/* 팝업 헤더 (지점명 + 닫기 버튼 행) */
-.cctv-popup-header {
+/* OpenLayers 지도 컨테이너 높이 */
+#cctv-map {
+    width: 100%;
+    height: 480px;
+    background: #0f172a;
+}
+
+/* 지도 오른쪽 즐겨찾기 버튼 목록 컨테이너 */
+.cctv-favorites-container {
+    position: absolute;
+    top: 50px;
+    right: 8px;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: calc(100% - 60px);
+    overflow-y: auto;
+    pointer-events: none; /* 컨테이너 자체는 이벤트 통과 */
+}
+
+/* 즐겨찾기 개별 버튼 (★ + 지점명) */
+.cctv-fav-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    background: rgba(15, 23, 42, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 20px;
+    color: #ffffff;
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    pointer-events: auto; /* 버튼은 클릭 가능 */
+    transition: background 0.15s ease, border-color 0.15s ease;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.cctv-fav-btn:hover {
+    background: rgba(21, 101, 192, 0.75);
+    border-color: rgba(96, 165, 250, 0.5);
+}
+
+/* ============================================================================
+   CCTV 모달 팝업
+   [연계] js/cctv4.js showCctvPopup() / closeCctvPopup()
+          index.html #cctv-modal-backdrop
+   ============================================================================ */
+
+/* 전체 화면을 덮는 고정 배경 (display: flex로 카드 중앙 정렬) */
+.cctv-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    display: none;         /* JS에서 'flex'로 전환 */
+    align-items: center;
+    justify-content: center;
+}
+
+/* 반투명 딤처리 오버레이 (클릭 시 팝업 닫기) */
+.cctv-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+}
+
+/* 모달 카드 본체 */
+.cctv-modal-card {
+    position: relative;
+    z-index: 1;
+    width: min(92vw, 480px);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--card-bg, #1e293b);
+    border: 1px solid var(--border-color, rgba(255,255,255,0.12));
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.65);
+    display: flex;
+    flex-direction: column;
+}
+
+/* 헤더: 타이틀 + 액션 버튼들 */
+.cctv-modal-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--border-color);
-    background: rgba(21, 101, 192, 0.12);
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.1));
+    background: rgba(21, 101, 192, 0.14);
     gap: 8px;
-}
-
-/* 아이콘 + 제목/부제목 묶음 */
-.cctv-popup-title-wrap {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-}
-
-/* 카메라 아이콘 */
-.cctv-popup-icon {
-    color: #1565c0;
-    font-size: 1.1rem;
     flex-shrink: 0;
 }
 
+/* 아이콘 + 제목/부제목 묶음 */
+.cctv-modal-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    flex: 1;
+}
+
+/* 카메라 아이콘 */
+.cctv-modal-icon {
+    color: #60a5fa;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+/* 제목/부제목 텍스트 묶음 */
+.cctv-modal-title-text {
+    min-width: 0;
+}
+
 /* CCTV 지점명 */
-.cctv-popup-title {
-    font-size: 0.95rem;
-    font-weight: 600;
+.cctv-modal-title {
+    font-size: 0.92rem;
+    font-weight: 700;
     color: #ffffff;
     white-space: nowrap;
     overflow: hidden;
@@ -7333,17 +7420,70 @@ line-height: 1.1;
 }
 
 /* 상세 위치 (subtitle) */
-.cctv-popup-subtitle {
-    font-size: 0.78rem;
-    color: var(--text-sub, #888);
-    margin-top: 2px;
+.cctv-modal-subtitle {
+    font-size: 0.74rem;
+    color: rgba(255, 255, 255, 0.55);
+    margin-top: 1px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
+/* 오른쪽 액션 버튼 묶음 */
+.cctv-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+/* 외부 링크 버튼 (KBS재난포털, CCTV더보기) */
+.cctv-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease;
+    cursor: pointer;
+}
+
+.cctv-action-btn:hover {
+    background: rgba(96, 165, 250, 0.2);
+    border-color: rgba(96, 165, 250, 0.4);
+    color: #ffffff;
+}
+
+/* 즐겨찾기 별 버튼 */
+.cctv-modal-fav-btn {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    flex-shrink: 0;
+}
+
+.cctv-modal-fav-btn:hover {
+    background: rgba(251, 191, 36, 0.15);
+    border-color: rgba(251, 191, 36, 0.4);
+}
+
 /* 닫기 버튼 */
-.cctv-popup-close {
+.cctv-modal-close-btn {
     width: 30px;
     height: 30px;
     display: flex;
@@ -7352,30 +7492,35 @@ line-height: 1.1;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 50%;
-    color: var(--text-sub, #888);
+    color: rgba(255, 255, 255, 0.6);
     cursor: pointer;
-    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     flex-shrink: 0;
 }
 
-.cctv-popup-close:hover {
-    background: var(--accent-red, #ef4444);
-    border-color: var(--accent-red, #ef4444);
+.cctv-modal-close-btn:hover {
+    background: rgba(239, 68, 68, 0.7);
+    border-color: rgba(239, 68, 68, 0.8);
     color: #ffffff;
 }
 
-/* iframe 래퍼 */
-.cctv-popup-iframe-wrap {
+/* iframe 클리핑 래퍼
+   height(370px) < iframe height(430px) → KBS 하단 버튼 영역(약 60px) 숨김 */
+.cctv-modal-iframe-wrap {
     width: 100%;
-    line-height: 0;
+    height: 370px;
+    overflow: hidden;
     background: #000;
+    line-height: 0;
+    flex-shrink: 0;
 }
 
-/* KBS cctvShare iframe */
-.cctv-popup-iframe {
+/* KBS cctvShare iframe (하단 버튼까지 포함한 전체 높이) */
+.cctv-modal-iframe-wrap iframe {
     display: block;
     width: 100%;
-    height: 420px;
+    height: 430px;
     border: none;
 }
 

@@ -3,18 +3,19 @@
 //
 // [역할]
 //   CCTV_PROVIDERS(cctv1.js)에 정의된 모든 제공기관의 CCTV 지점을
-//   감시카메라 SVG 아이콘 마커로 지도 위에 표시합니다.
+//   cctv_image.png 아이콘 마커로 지도 위에 표시합니다.
+//   아이콘 아래에 지점명 라벨을 표시합니다 (조석정보 표준항 방식과 동일).
 //
 // [마커 구조]
 //   - 각 지점 → ol.Feature (지도 위의 점 하나)
-//   - 스타일  → 감시카메라 SVG 아이콘 (createCctvIconSvg, cctv2.js)
-//              + 지점명 텍스트 라벨 (아이콘 우측)
+//   - 스타일  → /images/cctv_image.png 아이콘
+//              + 지점명 텍스트 라벨 (아이콘 아래)
 //   - 속성   → cctvId, name, subtitle, providerName, shareUrl
 //              (클릭 핸들러 cctv4.js에서 꺼내 사용)
 //
 // [연계]
 //   - cctv1.js CCTV_PROVIDERS        — 데이터 순회
-//   - cctv2.js cctvMap, cctvMarkerLayer, createCctvIconSvg() — 지도/아이콘
+//   - cctv2.js cctvMap, cctvMarkerLayer — 지도 인스턴스/레이어 변수
 //   - cctv4.js handleCctvMapClick()  — Feature 속성 읽어 팝업 표출
 //   - cctv2.js initCctvMap()         — 지도 초기화 완료 후 이 함수 호출
 // ====================================================================
@@ -23,14 +24,14 @@
  * 모든 제공기관의 CCTV 지점을 지도 위에 마커로 표시합니다.
  *
  * [동작 흐름]
- *   1. 기존 마커 레이어가 있으면 제거 (데이터 갱신 대비)
+ *   1. 기존 마커 레이어가 있으면 제거 (재렌더링 대비)
  *   2. CCTV_PROVIDERS 객체를 순회
- *      → 기관별 SVG 아이콘 URL 생성 (createCctvIconSvg)
  *      → 각 지점을 ol.Feature로 생성 (좌표 + 팝업용 속성 포함)
- *   3. 모든 Feature를 하나의 ol.layer.Vector로 묶어 지도에 추가
+ *   3. 마커 스타일: cctv_image.png 아이콘 + 아이콘 아래 지점명 라벨
+ *   4. 모든 Feature를 하나의 ol.layer.Vector로 묶어 지도에 추가
  *
  * [좌표 변환]
- *   KBS API에서 받은 좌표는 WGS84(경위도)이므로
+ *   KBS API 좌표는 WGS84(경위도)이므로
  *   OpenLayers 내부 좌표계인 EPSG:3857(Web Mercator)로 변환합니다.
  *   → ol.proj.fromLonLat([경도, 위도])
  */
@@ -52,10 +53,6 @@ function addCctvMarkers() {
     // ─────────────────────────────────────────────────────────────────
     for (const [providerKey, provider] of Object.entries(CCTV_PROVIDERS)) {
 
-        // 해당 기관의 마커 SVG 아이콘 URL (기관 색상 적용)
-        // 기관 내 모든 지점이 동일한 아이콘을 사용하므로 한 번만 생성
-        const iconUrl = createCctvIconSvg(provider.color);
-
         // 해당 기관의 모든 CCTV 지점을 Feature로 변환
         provider.items.forEach(function (item) {
 
@@ -74,28 +71,31 @@ function addCctvMarkers() {
                 shareUrl:     provider.shareUrl(item.cctvId)
             });
 
-            // ── 마커 스타일: 감시카메라 SVG 아이콘 + 지점명 라벨 ──
+            // ── 마커 스타일: PNG 아이콘 + 아이콘 아래 지점명 라벨 ──
             feature.setStyle(new ol.style.Style({
 
-                // 아이콘 이미지
+                // PNG 이미지 아이콘
                 image: new ol.style.Icon({
-                    src: iconUrl,
-                    // 앵커: [x, y] 비율 기준
-                    // [0.14, 0.88] → 베이스 플레이트 좌측 하단이 실제 좌표 위치에 오도록
-                    anchor: [0.14, 0.88],
+                    // /images/cctv_image.png — local_server/images/ 경로
+                    src: '/images/cctv_image.png',
+                    // 앵커: [0.5, 1.0] → 이미지 하단 중앙이 실제 좌표 위치에 오도록
+                    // (핀 형태 이미지일 경우 끝점이 정확히 해당 지점을 가리킴)
+                    anchor: [0.5, 1.0],
                     anchorXUnits: 'fraction',
                     anchorYUnits: 'fraction',
-                    scale: 0.82
+                    // 스케일: 지도에서 너무 크지 않도록 조정 (필요 시 조정)
+                    scale: 0.55
                 }),
 
-                // 지점명 텍스트 라벨 (아이콘 오른쪽에 표시)
+                // 지점명 텍스트 라벨 — 아이콘 아래 중앙 배치
+                // (조석정보의 표준항 마커와 동일한 방식)
                 text: new ol.style.Text({
                     text: item.name,
-                    offsetX: 24,    // 아이콘 중심 기준 오른쪽 24px
-                    offsetY: -8,    // 약간 위쪽
-                    textAlign: 'left',
+                    offsetX: 0,     // 수평 중앙 정렬
+                    offsetY: 10,    // 아이콘 아래쪽으로 배치
+                    textAlign: 'center',
                     fill: new ol.style.Fill({ color: '#ffffff' }),
-                    // 검정 외곽선으로 어떤 배경에서도 읽기 쉽게
+                    // 검정 외곽선으로 어떤 배경(밝은 지도/어두운 지도)에서도 읽기 쉽게
                     stroke: new ol.style.Stroke({ color: '#000000', width: 3 }),
                     font: 'bold 11px "Noto Sans KR", sans-serif'
                 })
@@ -107,7 +107,7 @@ function addCctvMarkers() {
 
     // ─────────────────────────────────────────────────────────────────
     // 모든 Feature를 하나의 벡터 레이어로 묶어 지도에 추가
-    // zIndex: 10 → OSM 배경(zIndex 0)보다 위에, 다른 UI보다 아래
+    // zIndex: 10 → OSM 배경(zIndex 0)보다 위에 표시
     // ─────────────────────────────────────────────────────────────────
     cctvMarkerLayer = new ol.layer.Vector({
         source: new ol.source.Vector({ features: allFeatures }),
