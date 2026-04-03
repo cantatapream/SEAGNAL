@@ -213,10 +213,8 @@ const CCTV_PROVIDERS = {
         shareUrl: (cctvIdx) =>
             `http://218.148.169.193/content/channelView.hu?cctv_idx=${cctvIdx}`,
 
-        /** 팝업 헤더 외부 링크 버튼 목록 */
-        links: [
-            { label: '옹진군 재난 CCTV 시스템', url: 'http://218.148.169.193/' }
-        ],
+        /** 팝업 헤더 외부 링크 버튼 목록 (안내 패널 내 버튼과 중복되므로 비움) */
+        links: [],
 
         /**
          * iframe 클리핑 설정
