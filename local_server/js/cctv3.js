@@ -113,7 +113,7 @@ function addCctvMarkers() {
 
     _cctvClusterSource = new ol.source.Cluster({
         distance: _getClusterDistance(initialZoom),
-        minDistance: 10,
+        minDistance: 0,
         source: vectorSource
     });
 
