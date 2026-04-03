@@ -78,7 +78,8 @@ function addCctvMarkers() {
                 subtitle:     item.subtitle,
                 providerKey:  providerKey,
                 providerName: provider.name,
-                cnt:          item.cnt || '1',
+                cnt:          item.cnt        || '1',
+                sensorName:   item.sensorName || null,
                 shareUrl:  provider.type === 'iframe' ? provider.shareUrl(item.cctvId, item) : null,
                 streamUrl: provider.type === 'hls'    ? provider.streamUrl(item.cctvId) : null
             });
