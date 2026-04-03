@@ -183,6 +183,19 @@ const CctvFavorites = {
                 // 열린 팝업이 있으면 먼저 닫기
                 if (typeof closeCctvPopup === 'function') closeCctvPopup();
 
+                // lat/lng 없으면 (이전에 저장된 즐겨찾기) 벡터소스에서 Feature 좌표 보완
+                if ((!item.lat || !item.lng) && typeof _cctvClusterSource !== 'undefined' && _cctvClusterSource) {
+                    const vectorSource = _cctvClusterSource.getSource ? _cctvClusterSource.getSource() : null;
+                    if (vectorSource) {
+                        const match = vectorSource.getFeatures().find(f => String(f.get('cctvId')) === String(item.cctvId));
+                        if (match) {
+                            const coords = ol.proj.toLonLat(match.getGeometry().getCoordinates());
+                            item.lng = coords[0];
+                            item.lat = coords[1];
+                        }
+                    }
+                }
+
                 if (cctvMap && item.lat && item.lng) {
                     const dest = ol.proj.fromLonLat([parseFloat(item.lng), parseFloat(item.lat)]);
                     const view = cctvMap.getView();
