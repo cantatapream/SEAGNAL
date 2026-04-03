@@ -7360,6 +7360,8 @@ line-height: 1.1;
     position: absolute;
     inset: 0;
     background: rgba(0, 0, 0, 0.65);
+    opacity: 0;
+    animation: cctvFadeIn 0.25s ease-out forwards;
 }
 
 /* 모달 카드 본체 */
@@ -7374,6 +7376,17 @@ line-height: 1.1;
     box-shadow: 0 8px 40px rgba(0, 0, 0, 0.65);
     display: flex;
     flex-direction: column;
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+    animation: cctvSlideUp 0.3s ease-out 0.05s forwards;
+}
+
+/* 팝업 등장 애니메이션 */
+@keyframes cctvFadeIn {
+    to { opacity: 1; }
+}
+@keyframes cctvSlideUp {
+    to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* 헤더: 타이틀 + 액션 버튼들 */

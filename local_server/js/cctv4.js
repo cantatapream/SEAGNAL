@@ -114,6 +114,7 @@ function handleCctvMapClick(event) {
             providerName: innerFeature.get('providerName'),
             shareUrl:     innerFeature.get('shareUrl'),
             streamUrl:    innerFeature.get('streamUrl'),
+            cnt:          innerFeature.get('cnt') || '1',
             lng:          coords[0],
             lat:          coords[1]
         });
@@ -217,20 +218,20 @@ function showCctvPopup(data) {
            </div>`;
     } else {
         // iframe 공유 페이지 — 제공기관별 클리핑 값을 인라인 스타일로 적용
-        // KBS:   iframeTopClip=65, iframeWrapHeight=310 (상단 타이틀 + 하단 버튼 숨김)
-        // 옹진군: iframeTopClip=0,  iframeWrapHeight=420 (전체 페이지 표출)
         const clipTop  = (provider && provider.iframeTopClip)    || 0;
         const wrapH    = (provider && provider.iframeWrapHeight)  || 400;
-        // 클리핑이 있을 때 하단 버튼 영역(약 60px)도 함께 잘리도록 iframe을 충분히 크게
         const iframeH  = wrapH + clipTop + (clipTop > 0 ? 60 : 0);
+        const cntNum   = parseInt(data.cnt, 10) || 1;
 
-        mediaHtml = `<!-- iframe 공유 페이지 — 클리핑 값: top=${clipTop}px, wrap=${wrapH}px -->
+        // cnt=2 이상: iframe 내부에서 영상이 가로로 나란히 표출됨
+        // → iframe scrolling을 허용하여 내부 가로 스크롤 가능하게
+        mediaHtml = `<!-- iframe 공유 페이지 — cnt=${cntNum}, clip=${clipTop}px, wrap=${wrapH}px -->
            <div class="cctv-modal-iframe-wrap"
                 style="height: ${wrapH}px;">
                <iframe id="cctv-modal-iframe"
                    src="${data.shareUrl}"
                    frameborder="0"
-                   scrolling="no"
+                   scrolling="${cntNum >= 2 ? 'auto' : 'no'}"
                    allowfullscreen
                    allow="autoplay; encrypted-media; fullscreen"
                    title="${data.name} CCTV 영상"
