@@ -186,15 +186,20 @@ async function applyNewReports(fullForm) {
         const allNewReports = [];
         const seenReportIds = new Set(); // [Fix] 페이지간 중복 방지 (select-list가 모든 페이지에서 동일)
 
-        // [Fix] 타임스탬프 기반 수집 — 동시 발표 통보문 누락 방지
-        // KMA select-list는 met:/pwn: 타입별 그룹화로 나열하므로,
-        // 단일 lastReportId 위치 커서로는 다른 그룹의 동시각 통보문을 놓칠 수 있음.
-        // 타임스탬프 비교 + 처리 완료 ID 추적으로 전환하여 동시 발표 통보문을 모두 수집.
-        const lastTs = (fullForm.lastReportId || '').split(':')[1]?.substring(0, 12) || '';
+        // [누락 방지] processedIds 기반 수집 — 처리 완료된 통보문만 건너뜀
+        // 기존 타임스탬프 비교 방식은 기상청이 통보문을 종류별로 그룹화하여 나열할 때
+        // 시간순이 뒤바뀌면 특정 통보문이 영원히 수집되지 않는 누락 버그가 있었음.
+        // 개선: processedReportIds에 없는 통보문은 무조건 수집 대상으로 처리.
         const processedIds = new Set(fullForm.processedReportIds || []);
         if (fullForm.lastReportId) processedIds.add(fullForm.lastReportId);
 
-        let reachedOldTerritory = false;
+        // [보호] 너무 오래된 통보문 재수집 방지를 위한 기준 (3일 = 72시간)
+        // processedReportIds가 정리되면서 오래된 ID가 삭제되었을 때,
+        // 기상청 목록에 남아있는 오래된 통보문을 다시 수집하지 않도록 차단
+        const now = new Date();
+        const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
+        let allProcessedOnPage = false; // 현재 페이지의 통보문이 전부 처리 완료인지
         for (let page = 1; page <= 5; page++) {
             const html = await fetchHtml(`${CONFIG.LIST_URL}?pageIndex=${page}`);
             const selectListMatch = html.match(/<select id="select-list"[^>]*>([\s\S]*?)<\/select>/);
@@ -208,7 +213,7 @@ async function applyNewReports(fullForm) {
             while ((match = pattern.exec(selectListMatch[1])) !== null) {
                 const id = match[1];
                 const title = match[2].trim();
-                // [필터링] 제목에 [특보] 또는 [예비]가 포함된 통보문만 수집
+                // [필터링] 제목에 [특보] 또는 [예비]가 포함된 통보문만 수집 대상
                 if (id.includes(':') && (title.includes('[특보]') || title.includes('[예비]'))) {
                     if (!seenReportIds.has(id)) {
                         seenReportIds.add(id);
@@ -218,21 +223,33 @@ async function applyNewReports(fullForm) {
             }
             console.log(`[ReportProcessor] ${page}페이지에서 ${pageReports.length}건의 통보문 발견.`);
 
-            // [Fix] 페이지 내 전체 스캔: 타입별 그룹화에 관계없이 동시각 통보문을 모두 수집
+            // [누락 방지] processedIds에 없으면 무조건 수집 대상 (타임스탬프 순서 무관)
+            let newOnThisPage = 0;
             for (const r of pageReports) {
-                if (processedIds.has(r.id)) {
-                    reachedOldTerritory = true;
-                    continue; // 이미 처리된 통보문, 건너뜀
-                }
+                // 이미 처리 완료된 통보문이면 건너뜀
+                if (processedIds.has(r.id)) continue;
+
+                // 통보문 ID에서 발표 시각 추출하여 3일 이내인지 확인
+                // (processedReportIds에서 정리된 오래된 통보문이 재수집되는 것을 방지)
                 const rTs = (r.id.split(':')[1] || '').substring(0, 12);
-                if (!lastTs || rTs >= lastTs) {
-                    allNewReports.push(r);
-                } else {
-                    reachedOldTerritory = true; // 이전 타임스탬프 도달
+                if (rTs.length >= 12) {
+                    const reportDate = new Date(`${rTs.substring(0,4)}-${rTs.substring(4,6)}-${rTs.substring(6,8)}T${rTs.substring(8,10)}:${rTs.substring(10,12)}:00+09:00`);
+                    if (now - reportDate > THREE_DAYS_MS) {
+                        continue; // 3일 이상 지난 통보문은 수집하지 않음
+                    }
                 }
+
+                allNewReports.push(r);
+                newOnThisPage++;
             }
-            // 이전 영역 도달 시 더 이상 페이지 탐색 불필요
-            if (reachedOldTerritory || pageReports.length === 0) break;
+
+            // 이 페이지에서 새 통보문이 없고, 통보문 자체도 있었다면 → 다음 페이지 탐색 불필요
+            // (더 오래된 페이지에는 새 통보문이 있을 가능성이 매우 낮음)
+            if (newOnThisPage === 0 && pageReports.length > 0) {
+                allProcessedOnPage = true;
+                break;
+            }
+            if (pageReports.length === 0) break;
         }
 
         if (allNewReports.length === 0) {
@@ -266,6 +283,12 @@ async function applyNewReports(fullForm) {
             if (!hasRelevantKeyword) {
                 console.log(`[ReportProcessor] 해상 특보 키워드 미포함, 건너뜀: ${report.title}`);
                 fullForm.lastReportId = report.id;
+                // [누락 방지] 키워드 미포함 통보문도 processedReportIds에 추가
+                // 추가하지 않으면, 매 사이클마다 같은 통보문의 본문을 반복 조회하게 됨
+                if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
+                if (!fullForm.processedReportIds.includes(report.id)) {
+                    fullForm.processedReportIds.push(report.id);
+                }
                 continue;
             }
 
@@ -379,12 +402,20 @@ async function applyNewReports(fullForm) {
             if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
             fullForm.processedReportIds.push(report.id);
         }
-        // [Fix] processedReportIds 정리: 최신 타임스탬프의 ID만 유지 (무한 증가 방지)
-        const latestTs = (fullForm.lastReportId || '').split(':')[1]?.substring(0, 12) || '';
-        if (fullForm.processedReportIds && latestTs) {
+        // [processedReportIds 정리] 3일(72시간) 이상 지난 ID는 삭제하여 무한 증가 방지
+        // 기존에는 lastTs 기준으로 이전 ID를 모두 삭제했으나, 이 경우 동시각 통보문의
+        // ID가 정리되어 다음 사이클에서 재수집될 수 있었음.
+        // 3일 보관으로 변경하여 충분한 재수집 방어 기간을 확보하면서도 무한 증가를 방지.
+        if (fullForm.processedReportIds) {
+            const cleanupNow = new Date();
+            const CLEANUP_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000; // 3일
             fullForm.processedReportIds = fullForm.processedReportIds.filter(id => {
                 const ts = (id.split(':')[1] || '').substring(0, 12);
-                return ts >= latestTs;
+                if (ts.length >= 12) {
+                    const idDate = new Date(`${ts.substring(0,4)}-${ts.substring(4,6)}-${ts.substring(6,8)}T${ts.substring(8,10)}:${ts.substring(10,12)}:00+09:00`);
+                    return (cleanupNow - idDate) < CLEANUP_THRESHOLD_MS;
+                }
+                return true; // 파싱 불가한 ID는 유지
             });
         }
         return changed;
