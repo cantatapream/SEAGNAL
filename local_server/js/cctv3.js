@@ -83,8 +83,8 @@ function addCctvMarkers() {
                     anchor: [0.5, 1.0],
                     anchorXUnits: 'fraction',
                     anchorYUnits: 'fraction',
-                    // 스케일: 지도에서 너무 크지 않도록 조정 (필요 시 조정)
-                    scale: 0.55
+                    // 스케일: 조석정보 마커와 유사한 크기 (~28-32px 표시)
+                    scale: 0.07
                 }),
 
                 // 지점명 텍스트 라벨 — 아이콘 아래 중앙 배치

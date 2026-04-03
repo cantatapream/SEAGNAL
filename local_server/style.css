@@ -7461,25 +7461,33 @@ line-height: 1.1;
     color: #ffffff;
 }
 
-/* 즐겨찾기 별 버튼 */
+/* 즐겨찾기 별 버튼 (지점명 오른쪽 인라인) */
 .cctv-modal-fav-btn {
-    width: 30px;
-    height: 30px;
-    display: flex;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: none;
     border-radius: 50%;
     cursor: pointer;
-    font-size: 0.9rem;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    font-size: 0.85rem;
+    padding: 0;
+    transition: transform 0.15s ease;
     flex-shrink: 0;
+    vertical-align: middle;
 }
 
 .cctv-modal-fav-btn:hover {
-    background: rgba(251, 191, 36, 0.15);
-    border-color: rgba(251, 191, 36, 0.4);
+    transform: scale(1.25);
+}
+
+/* 지점명 + 별 버튼을 한 줄에 정렬하는 행 */
+.cctv-modal-title-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 /* 닫기 버튼 */
@@ -7506,19 +7514,24 @@ line-height: 1.1;
 }
 
 /* iframe 클리핑 래퍼
-   height(370px) < iframe height(430px) → KBS 하단 버튼 영역(약 60px) 숨김 */
+   - KBS 내부 상단 타이틀 영역(약 65px): iframe을 위로 밀어 숨김 (top: -65px)
+   - KBS 내부 하단 버튼 영역(약 55px): wrapper 높이(310px)로 잘라냄
+   → 실제로 보이는 영역 = iframe y:65 ~ y:375 (LIVE + 영상 + 출처 텍스트) */
 .cctv-modal-iframe-wrap {
+    position: relative;
     width: 100%;
-    height: 370px;
+    height: 310px;
     overflow: hidden;
     background: #000;
     line-height: 0;
     flex-shrink: 0;
 }
 
-/* KBS cctvShare iframe (하단 버튼까지 포함한 전체 높이) */
+/* KBS cctvShare iframe — 상단 타이틀이 wrapper 위로 올라가도록 절대위치 지정 */
 .cctv-modal-iframe-wrap iframe {
-    display: block;
+    position: absolute;
+    top: -65px;
+    left: 0;
     width: 100%;
     height: 430px;
     border: none;
