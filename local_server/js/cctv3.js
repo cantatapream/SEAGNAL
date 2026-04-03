@@ -80,7 +80,7 @@ function addCctvMarkers() {
 
                 // iframe 방식(KBS): shareUrl 사용, HLS 방식(거제시 등): streamUrl 사용
                 // 반대쪽 필드는 null로 설정하여 팝업이 어떤 방식인지 명확히 구분
-                shareUrl:  provider.type === 'iframe' ? provider.shareUrl(item.cctvId) : null,
+                shareUrl:  provider.type === 'iframe' ? provider.shareUrl(item.cctvId, item) : null,
                 streamUrl: provider.type === 'hls'    ? provider.streamUrl(item.cctvId) : null
             });
 
