@@ -7541,6 +7541,59 @@ line-height: 1.1;
     object-fit: contain;
 }
 
+/* 옹진군 안내 패널 (HTTP 전용 → iframe 임베드 불가) */
+.cctv-modal-ongjin-notice {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 28px 20px;
+    background: rgba(0, 0, 0, 0.3);
+}
+.cctv-ongjin-msg {
+    margin: 0;
+    text-align: center;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.5;
+}
+.cctv-ongjin-msg i {
+    color: #fbbf24;
+    margin-right: 4px;
+}
+.cctv-ongjin-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 280px;
+}
+.cctv-ongjin-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-decoration: none;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    transition: background 0.15s;
+}
+.cctv-ongjin-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+.cctv-ongjin-btn-primary {
+    background: #2563eb;
+    border-color: #3b82f6;
+}
+.cctv-ongjin-btn-primary:hover {
+    background: #1d4ed8;
+}
+
 /* iframe 클리핑 래퍼
    height / top offset 은 cctv4.js showCctvPopup()에서 인라인 스타일로 적용됩니다.
    (provider별로 클리핑 값이 달라 CSS 하드코딩 불가)
