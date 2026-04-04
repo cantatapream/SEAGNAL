@@ -218,9 +218,10 @@ async function fetchAreaData(areaCode) {
  *
  * @param {Array<Function>} tasks - 실행할 비동기 함수 배열
  * @param {number} concurrency - 동시 실행 최대 개수
+ * @param {Function} [onDone=null] - 각 작업 완료 시 호출되는 콜백 (진행률 추적용)
  * @returns {Promise<Array>} 각 작업의 결과 (성공/실패 모두 포함)
  */
-async function parallelLimit(tasks, concurrency) {
+async function parallelLimit(tasks, concurrency, onDone = null) {
     const results = [];
     let index = 0;
 
@@ -232,6 +233,7 @@ async function parallelLimit(tasks, concurrency) {
             } catch (err) {
                 results[currentIndex] = { success: false, error: err.message };
             }
+            if (onDone) onDone();
         }
     }
 
@@ -283,14 +285,27 @@ function ensureDir(dirPath) {
  * 4. 수집 완료 후 기존 캐시와 교체 (무중단)
  *
  * @param {boolean} [force=false] - true이면 발표일자 비교 없이 강제 수집
+ * @param {EventEmitter} [progressEmitter=null] - 진행률 이벤트 발행용 (관리자 수동 수집 시 전달)
  * @returns {Promise<Object>} 수집 결과 { success, totalImages, failedImages, elapsed }
  */
-async function collectOceanCondition(force = false) {
+async function collectOceanCondition(force = false, progressEmitter = null) {
+    // 진행률 이벤트 헬퍼 (emitter가 없으면 무시)
+    const emitProgress = (step, current, total, detail) => {
+        if (progressEmitter) {
+            progressEmitter.emit('progress', {
+                type: 'ocean-condition', step, current, total, detail
+            });
+        }
+    };
     const startTime = Date.now();
     log('🌊 해황예보도 수집 시작...');
 
     try {
+        // 총 진행 단계: 1(확인) + 20(지역) + 1(이미지) + 1(교체) = 23
+        const TOTAL_STEPS = 23;
+
         // ── 1단계: 최신 데이터 확인 (전국 데이터로 발표일 체크) ──
+        emitProgress('발표일 확인', 1, TOTAL_STEPS, '전국 데이터 조회 중');
         log('📡 전국(korea) 데이터로 최신 발표일자 확인 중...');
         const koreaData = await fetchAreaData('korea');
         const items = koreaData?.body?.items?.item || [];
@@ -350,6 +365,8 @@ async function collectOceanCondition(force = false) {
                 }
 
                 areaCount++;
+                // 진행률: 2~21번째 단계 (20개 지역)
+                emitProgress('지역 데이터', 1 + areaCount, TOTAL_STEPS, `${AREA_CODES[areaCode]} (${areaCount}/${areaCodes.length})`);
                 log(`  📥 [${areaCount}/${areaCodes.length}] ${AREA_CODES[areaCode]}(${areaCode}): ${areaItems.length}건`);
 
             } catch (err) {
@@ -358,9 +375,18 @@ async function collectOceanCondition(force = false) {
         }
 
         log(`📦 총 ${allImageTasks.length}개 이미지 다운로드 시작 (동시 ${CONCURRENT_DOWNLOADS}개)...`);
+        emitProgress('이미지 다운로드', 22, TOTAL_STEPS, `0/${allImageTasks.length}개`);
 
-        // ── 5단계: 이미지 병렬 다운로드 ──
-        const imageResults = await parallelLimit(allImageTasks, CONCURRENT_DOWNLOADS);
+        // ── 5단계: 이미지 병렬 다운로드 (진행률 콜백 포함) ──
+        let doneCount = 0;
+        const onImageDone = () => {
+            doneCount++;
+            // 50개마다 또는 완료 시 진행률 갱신 (SSE 부하 방지)
+            if (doneCount % 50 === 0 || doneCount === allImageTasks.length) {
+                emitProgress('이미지 다운로드', 22, TOTAL_STEPS, `${doneCount}/${allImageTasks.length}개`);
+            }
+        };
+        const imageResults = await parallelLimit(allImageTasks, CONCURRENT_DOWNLOADS, onImageDone);
         const successCount = imageResults.filter(r => r.success).length;
         const failCount = imageResults.filter(r => !r.success).length;
 
@@ -388,6 +414,7 @@ async function collectOceanCondition(force = false) {
         );
 
         // ── 7단계: 폴더 교체 (무중단 전환) ──
+        emitProgress('캐시 교체', 23, TOTAL_STEPS, '폴더 교체 중');
         // 순서: 기존 캐시 삭제 → 임시 폴더를 정식 캐시로 이름 변경
         // (사용자 요청은 이 사이 아주 짧은 순간만 영향받을 수 있으나, 실질적으로 무시 가능)
         const oldCacheExists = fs.existsSync(CACHE_DIR);

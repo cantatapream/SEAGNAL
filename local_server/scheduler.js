@@ -1317,10 +1317,10 @@ module.exports = {
         delete status.seaSplit;
         return status;
     },
-    // [해황예보도] 관리자 수동 수집용 — 상태를 lastRunStatus에 기록
+    // [해황예보도] 관리자 수동 수집용 — 상태를 lastRunStatus에 기록 + 진행률 이벤트 전달
     collectOceanCondition: async (force) => {
         try {
-            const result = await oceanConditionCollector.collectOceanCondition(force);
+            const result = await oceanConditionCollector.collectOceanCondition(force, collectProgress);
             if (result.success) {
                 const msg = result.skipped
                     ? '변경 없음 (스킵)'
