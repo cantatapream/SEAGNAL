@@ -197,7 +197,7 @@ async function applyNewReports(fullForm) {
         // processedReportIds가 정리되면서 오래된 ID가 삭제되었을 때,
         // 기상청 목록에 남아있는 오래된 통보문을 다시 수집하지 않도록 차단
         const now = new Date();
-        const THREE_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+        const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
         let allProcessedOnPage = false; // 현재 페이지의 통보문이 전부 처리 완료인지
         for (let page = 1; page <= 5; page++) {
@@ -229,13 +229,13 @@ async function applyNewReports(fullForm) {
                 // 이미 처리 완료된 통보문이면 건너뜀
                 if (processedIds.has(r.id)) continue;
 
-                // 통보문 ID에서 발표 시각 추출하여 3일 이내인지 확인
+                // 통보문 ID에서 발표 시각 추출하여 30일 이내인지 확인
                 // (processedReportIds에서 정리된 오래된 통보문이 재수집되는 것을 방지)
                 const rTs = (r.id.split(':')[1] || '').substring(0, 12);
                 if (rTs.length >= 12) {
                     const reportDate = new Date(`${rTs.substring(0,4)}-${rTs.substring(4,6)}-${rTs.substring(6,8)}T${rTs.substring(8,10)}:${rTs.substring(10,12)}:00+09:00`);
-                    if (now - reportDate > THREE_DAYS_MS) {
-                        continue; // 3일 이상 지난 통보문은 수집하지 않음
+                    if (now - reportDate > THIRTY_DAYS_MS) {
+                        continue; // 30일 이상 지난 통보문은 수집하지 않음
                     }
                 }
 
