@@ -688,54 +688,12 @@
                     <!-- cctv6.js CctvFavorites.render()가 이 요소에 버튼을 채웁니다 -->
                     <div id="cctv-favorites-container" class="cctv-favorites-container"
                          style="display: none;"></div>
-
-                    <!-- 위치 편집 버튼 (지도 좌하단) — cctv7.js -->
-                    <button id="cctv-edit-mode-btn" class="cctv-edit-mode-btn"
-                            onclick="toggleCctvEditMode()">
-                        <i class="fa-solid fa-location-crosshairs"></i> 위치 편집
-                    </button>
-
-                    <!-- 편집 모드 정보 패널 (지도 하단) — cctv7.js -->
-                    <div id="cctv-edit-panel" class="cctv-edit-panel" style="display:none;">
-                        <div class="cctv-edit-panel-info">
-                            <div id="cctv-edit-name" class="cctv-edit-name"></div>
-                            <div id="cctv-edit-coord" class="cctv-edit-coord"></div>
-                            <div id="cctv-edit-msg" class="cctv-edit-msg"></div>
-                        </div>
-                        <button class="cctv-edit-export-btn" onclick="exportCctvEditChanges()">
-                            <i class="fa-solid fa-file-export"></i> 내보내기
-                        </button>
-                    </div>
                 </div>
 
                 <!-- 모달 백드롭: 마커 클릭 시 cctv4.js showCctvPopup()이 채우고 표시함 -->
                 <!-- position:fixed로 화면 전체를 덮으므로 section 안에 있어도 무관 -->
                 <div id="cctv-modal-backdrop" class="cctv-modal-backdrop"
                      style="display: none;"></div>
-
-                <!-- 좌표 내보내기 모달 — cctv7.js exportCctvEditChanges() -->
-                <div id="cctv-edit-export-modal" class="cctv-edit-export-modal"
-                     style="display:none;" onclick="if(event.target===this)closeCctvEditExport()">
-                    <div class="cctv-edit-export-card">
-                        <div class="cctv-edit-export-header">
-                            <span>변경된 좌표 목록</span>
-                            <button class="cctv-edit-export-close" onclick="closeCctvEditExport()">
-                                <i class="fa-solid fa-xmark"></i>
-                            </button>
-                        </div>
-                        <p class="cctv-edit-export-desc">
-                            아래 내용을 복사하여 <code>cctv1.js</code>의 해당 항목에 붙여넣으세요.
-                        </p>
-                        <textarea id="cctv-edit-export-text"
-                                  class="cctv-edit-export-textarea" readonly></textarea>
-                        <div class="cctv-edit-export-actions">
-                            <button id="cctv-edit-copy-btn" class="cctv-edit-copy-btn"
-                                    onclick="copyCctvEditChanges()">
-                                <i class="fa-solid fa-copy"></i> 클립보드에 복사
-                            </button>
-                        </div>
-                    </div>
-                </div>
 
             </section>
 
@@ -1206,7 +1164,6 @@
     <script src="js/cctv4.js"></script>
     <script src="js/cctv5.js"></script>
     <script src="js/cctv6.js"></script>
-    <script src="js/cctv7.js"></script>
 
     <!-- 운영 병행 모드 + 선택적 기능 차단 -->
     <script>

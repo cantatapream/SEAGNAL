@@ -103,14 +103,15 @@ const CctvFavorites = {
             name:        item.name,
             subtitle:    item.subtitle,
             // 제공기관 키: 팝업 재열 시 CCTV_PROVIDERS[key] 로 type/links 조회
-            providerKey: item.providerKey || null,
+            providerKey: item.providerKey  || null,
             // KBS iframe URL (KBS면 값, HLS 제공기관이면 null)
-            shareUrl:    item.shareUrl   || null,
+            shareUrl:    item.shareUrl     || null,
             // HLS 스트림 URL (거제시 등이면 값, KBS면 null)
-            streamUrl:   item.streamUrl  || null,
-            // 카메라 채널 수 (부산 cnt=2 멀티카메라 처리)
-            cnt:         item.cnt        || '1',
-            sensorName:  item.sensorName || null,
+            streamUrl:   item.streamUrl    || null,
+            // 카메라 채널 수 (부산 cnt=2, 연안침식 하맹방 cameraCount=2 등)
+            cnt:         item.cnt          || '1',
+            sensorName:  item.sensorName   || null,
+            cameraCount: item.cameraCount  || 1,
             // 좌표: 즐겨찾기 클릭 시 지도 이동용
             lat:         item.lat  || null,
             lng:         item.lng  || null

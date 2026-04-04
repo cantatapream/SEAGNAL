@@ -52,6 +52,9 @@
  */
 let _currentCctvData = null;
 
+/** 연안침식 이미지 자동 갱신 타이머 ID */
+let _cctvImageRefreshTimer = null;
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 클릭 이벤트 핸들러
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -69,12 +72,6 @@ let _currentCctvData = null;
  * @param {ol.MapBrowserEvent} event — OpenLayers 클릭 이벤트 객체
  */
 function handleCctvMapClick(event) {
-    // 편집 모드일 때는 위치 편집 핸들러로 위임 (cctv7.js)
-    if (typeof _editMode !== 'undefined' && _editMode) {
-        handleCctvEditClick(event);
-        return;
-    }
-
     const feature = cctvMap.forEachFeatureAtPixel(event.pixel, function (f) {
         return f;
     });
@@ -120,8 +117,9 @@ function handleCctvMapClick(event) {
             providerName: innerFeature.get('providerName'),
             shareUrl:     innerFeature.get('shareUrl'),
             streamUrl:    innerFeature.get('streamUrl'),
-            cnt:          innerFeature.get('cnt')        || '1',
-            sensorName:   innerFeature.get('sensorName') || null,
+            cnt:          innerFeature.get('cnt')         || '1',
+            sensorName:   innerFeature.get('sensorName')  || null,
+            cameraCount:  innerFeature.get('cameraCount') || 1,
             lng:          coords[0],
             lat:          coords[1]
         });
@@ -189,9 +187,28 @@ function showCctvPopup(data) {
     }).join('');
 
     // ── 영상 영역 HTML ────────────────────────────────────────────────
-    // streamUrl → HLS video | ongjin → 안내+버튼 | 나머지 → iframe
+    // streamUrl → HLS video | ongjin → 안내+버튼 | image → img 태그 | 나머지 → iframe
     let mediaHtml;
-    if (data.providerKey === 'ongjin') {
+    if (provider && provider.type === 'image') {
+        // 연안침식 모니터링: 이미지 직접 표시 (3초마다 src 갱신)
+        const camCount = parseInt(data.cameraCount, 10) || 1;
+        let imgsHtml = '';
+        for (let i = 0; i < camCount; i++) {
+            const src = provider.imageBaseUrl(data.cctvId, i) + '?' + Date.now();
+            const label = camCount > 1 ? ` 카메라 ${i + 1}` : '';
+            imgsHtml += `<div class="cctv-coast-img-wrap">` +
+                `<img id="cctv-coast-img-${i}" class="cctv-coast-img"` +
+                ` src="${src}" alt="${data.name}${label}"` +
+                ` onerror="this.style.display='none';` +
+                    `document.getElementById('cctv-coast-err-${i}').style.display='flex'">` +
+                `<div id="cctv-coast-err-${i}" class="cctv-coast-err" style="display:none;">` +
+                    `<i class="fa-solid fa-triangle-exclamation"></i>` +
+                    `<span>이미지를 불러올 수 없습니다</span>` +
+                `</div>` +
+                `</div>`;
+        }
+        mediaHtml = `<div class="cctv-coast-wrap">${imgsHtml}</div>`;
+    } else if (data.providerKey === 'ongjin') {
         // 옹진군: HTTP 전용 서버 → HTTPS 앱에서 iframe 임베드 불가
         // 안내 메시지 + CCTV 보기(새 창) + 옹진군 시스템 링크 버튼
         mediaHtml = `
@@ -319,6 +336,11 @@ function showCctvPopup(data) {
         _initCctvHlsPlayer(data.streamUrl);
     }
 
+    // 연안침식 이미지인 경우 3초마다 src 갱신 타이머 시작
+    if (provider && provider.type === 'image') {
+        _startCoastImageRefresh(provider, data);
+    }
+
     // PopupStack 등록: 뒤로가기 버튼으로 모달 닫기 지원
     if (window.PopupStack) {
         PopupStack.push('cctv-popup', closeCctvPopup);
@@ -368,6 +390,38 @@ function _initCctvHlsPlayer(streamUrl) {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 연안침식 이미지 자동 갱신
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/**
+ * 3초마다 연안침식 이미지 src를 갱신합니다.
+ * 타임스탬프를 URL 끝에 붙여 브라우저 캐시를 우회합니다.
+ */
+function _startCoastImageRefresh(provider, data) {
+    _stopCoastImageRefresh();
+    const camCount = parseInt(data.cameraCount, 10) || 1;
+    _cctvImageRefreshTimer = setInterval(function () {
+        for (var i = 0; i < camCount; i++) {
+            var img = document.getElementById('cctv-coast-img-' + i);
+            if (img) {
+                // 갱신 전 에러 패널 숨기고 이미지 복원
+                var errEl = document.getElementById('cctv-coast-err-' + i);
+                if (errEl) errEl.style.display = 'none';
+                img.style.display = '';
+                img.src = provider.imageBaseUrl(data.cctvId, i) + '?' + Date.now();
+            }
+        }
+    }, 3000);
+}
+
+function _stopCoastImageRefresh() {
+    if (_cctvImageRefreshTimer) {
+        clearInterval(_cctvImageRefreshTimer);
+        _cctvImageRefreshTimer = null;
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 팝업 닫기
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -401,6 +455,9 @@ function closeCctvPopup() {
             video._hls = null;
         }
     }
+
+    // 연안침식 이미지 갱신 타이머 중단
+    _stopCoastImageRefresh();
 
     // 현재 팝업 데이터 초기화
     _currentCctvData = null;
@@ -439,7 +496,7 @@ function toggleCctvFavorite() {
     const btn = document.getElementById('cctv-fav-toggle-btn');
     if (!btn) return;
 
-    const { cctvId, name, subtitle, providerKey, shareUrl, streamUrl } = _currentCctvData;
+    const { cctvId, name, subtitle, providerKey, shareUrl, streamUrl, cameraCount } = _currentCctvData;
 
     if (CctvFavorites.has(cctvId)) {
         // ─── 이미 등록됨 → 제거 ───
@@ -448,7 +505,7 @@ function toggleCctvFavorite() {
         btn.innerHTML = `<i class="fa-regular fa-star" style="color: rgba(255,255,255,0.6);"></i>`;
     } else {
         // ─── 미등록 → 추가 ───
-        const added = CctvFavorites.add({ cctvId, name, subtitle, providerKey, shareUrl, streamUrl });
+        const added = CctvFavorites.add({ cctvId, name, subtitle, providerKey, shareUrl, streamUrl, cameraCount });
         if (added) {
             btn.title = '즐겨찾기 해제';
             btn.innerHTML = `<i class="fa-solid fa-star" style="color: #fbbf24;"></i>`;

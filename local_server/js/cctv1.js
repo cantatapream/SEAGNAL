@@ -435,6 +435,97 @@ const CCTV_PROVIDERS = {
             { cctvId: '00-800-0054', name: '칠암마을', subtitle: '부산 기장군', lat: '35.29742585', lng: '129.2593381', cnt: '1', sensorName: '기장군_칠암마을' },
             { cctvId: '00-800-0237', name: '학리방파제1(회전형)', subtitle: '부산 기장군', lat: '35.260641', lng: '129.24738', cnt: '1', sensorName: '기장군_학리방파제1(회전형)' },
         ]
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // 국립해양조사원 연안침식 모니터링
+    // 출처: 연안포털 (https://coast.mof.go.kr/coastScene/coastMediaService.do)
+    // 영상 방식: image — proxy.jsp를 통해 이미지 직접 로드 (3초마다 갱신)
+    // 이미지 URL 패턴:
+    //   https://coast.mof.go.kr/proxy.jsp?
+    //   http://10.176.62.134:9001/tilemapApi.do?url=
+    //   http://220.95.232.18/camera/{beach_code}_{cam_idx}.jpg?{timestamp(ms)}
+    // 데이터 출처: json_camera_info.do API (2026년 4월 기준, 38개 지점)
+    // ─────────────────────────────────────────────────────────────────
+    coastal: {
+        /** 팝업 출처 표기용 기관명 */
+        name: '연안침식 모니터링',
+
+        /** 임베드 방식: 이미지 직접 로드 (3초마다 타임스탬프 갱신) */
+        type: 'image',
+
+        /**
+         * beach_code와 카메라 인덱스를 받아 이미지 기본 URL을 반환합니다.
+         * (실제 요청 시 끝에 '?{timestamp}' 를 추가해야 합니다.)
+         * @param {number|string} beachCode — beach_code
+         * @param {number} [camIdx=0] — 카메라 인덱스 (하맹방=2대)
+         * @returns {string}
+         */
+        imageBaseUrl: (beachCode, camIdx) =>
+            `https://coast.mof.go.kr/proxy.jsp?http://10.176.62.134:9001/tilemapApi.do?url=http://220.95.232.18/camera/${beachCode}_${camIdx || 0}.jpg`,
+
+        /** 팝업 헤더 외부 링크 버튼 목록 */
+        links: [
+            { label: '연안포털', url: 'https://coast.mof.go.kr/coastScene/coastMediaService.do' }
+        ],
+
+        /** 마커 아이콘 색상 — 청록 계열 */
+        color: '#0d9488',
+
+        /** 연안침식 모니터링 지점 목록 (beach_code = cctvId) */
+        items: [
+            // 동해 북부 (강원 고성) ──────────────────────────────────
+            { cctvId: 60, name: '초도',       subtitle: '강원 고성',    lat: '38.490699', lng: '128.430379' },
+            { cctvId: 57, name: '공현진',     subtitle: '강원 고성',    lat: '38.358173', lng: '128.509054' },
+            { cctvId: 58, name: '교암',       subtitle: '강원 고성',    lat: '38.291047', lng: '128.546972' },
+            { cctvId: 59, name: '봉포',       subtitle: '강원 고성',    lat: '38.252750', lng: '128.566292' },
+            // 강원 속초 ──────────────────────────────────────────────
+            { cctvId: 69, name: '영랑',       subtitle: '강원 속초',    lat: '38.213461', lng: '128.598305' },
+            { cctvId: 87, name: '장사',       subtitle: '강원 속초',    lat: '38.219300', lng: '128.592000' },
+            // 강원 양양·강릉 ─────────────────────────────────────────
+            { cctvId: 53, name: '소돌',       subtitle: '강원 양양',    lat: '37.907017', lng: '128.825085' },
+            { cctvId: 55, name: '영진',       subtitle: '강원 강릉',    lat: '37.869160', lng: '128.845279' },
+            { cctvId: 52, name: '경포',       subtitle: '강원 강릉',    lat: '37.805453', lng: '128.907841' },
+            { cctvId: 51, name: '강문',       subtitle: '강원 강릉',    lat: '37.794617', lng: '128.917325' },
+            { cctvId: 54, name: '염전',       subtitle: '강원 강릉',    lat: '37.741978', lng: '128.984260' },
+            { cctvId: 56, name: '정동진',     subtitle: '강원 강릉',    lat: '37.686185', lng: '129.040039' },
+            { cctvId:  4, name: '남항진',     subtitle: '강원 강릉',    lat: '37.762963', lng: '128.956515' },
+            // 강원 삼척 ──────────────────────────────────────────────
+            { cctvId: 62, name: '하맹방',     subtitle: '강원 삼척',    lat: '37.394157', lng: '129.225396', cameraCount: 2 },
+            { cctvId: 65, name: '원평',       subtitle: '강원 삼척',    lat: '37.319878', lng: '129.272220' },
+            { cctvId: 88, name: '문암·초곡', subtitle: '강원 삼척',    lat: '37.310000', lng: '129.285900' },
+            // 경북 울진·영덕 ─────────────────────────────────────────
+            { cctvId: 76, name: '월송정',     subtitle: '경북 울진',    lat: '36.740940', lng: '129.472092' },
+            { cctvId: 84, name: '금음리',     subtitle: '경북 울진',    lat: '36.673700', lng: '129.440800' },
+            { cctvId: 82, name: '봉평',       subtitle: '경북 울진',    lat: '37.044500', lng: '129.413800' },
+            { cctvId:  0, name: '고래불',     subtitle: '경북 영덕',    lat: '36.599389', lng: '129.411395' },
+            // 경북 경주·울산 ─────────────────────────────────────────
+            { cctvId: 17, name: '전촌·나정', subtitle: '경북 경주',    lat: '35.784886', lng: '129.491279' },
+            { cctvId: 74, name: '정자',       subtitle: '경북 경주',    lat: '35.628359', lng: '129.441832' },
+            { cctvId: 75, name: '진하',       subtitle: '울산 울주',    lat: '35.383418', lng: '129.346104' },
+            // 부산 ───────────────────────────────────────────────────
+            { cctvId: 81, name: '해운대',     subtitle: '부산 해운대',  lat: '35.158649', lng: '129.159872' },
+            { cctvId: 80, name: '송도',       subtitle: '부산 서구',    lat: '35.075450', lng: '129.016758' },
+            // 경남 거제·남해 ─────────────────────────────────────────
+            { cctvId:  2, name: '구조라',     subtitle: '경남 거제',    lat: '34.808553', lng: '128.690672' },
+            { cctvId:  9, name: '상주',       subtitle: '경남 남해',    lat: '34.720783', lng: '127.988046' },
+            { cctvId: 86, name: '온동',       subtitle: '경남 통영',    lat: '34.892400', lng: '127.726900' },
+            // 제주 ───────────────────────────────────────────────────
+            { cctvId: 67, name: '중문',       subtitle: '제주 서귀포',  lat: '33.244975', lng: '126.411703' },
+            { cctvId: 66, name: '신양',       subtitle: '제주 성산',    lat: '33.434996', lng: '126.923134' },
+            // 전남 ───────────────────────────────────────────────────
+            { cctvId: 85, name: '대반동',     subtitle: '전남 진도',    lat: '34.788800', lng: '126.366000' },
+            { cctvId: 71, name: '대광',       subtitle: '전남 무안',    lat: '35.103071', lng: '126.069566' },
+            // 전북 군산 ──────────────────────────────────────────────
+            { cctvId: 61, name: '선유도',     subtitle: '전북 군산',    lat: '35.816204', lng: '126.411228' },
+            // 충남 태안·보령 ─────────────────────────────────────────
+            { cctvId: 78, name: '꽃지',       subtitle: '충남 태안',    lat: '36.496939', lng: '126.335205' },
+            { cctvId: 79, name: '만리포',     subtitle: '충남 태안',    lat: '36.786420', lng: '126.133595' },
+            { cctvId: 63, name: '대천',       subtitle: '충남 보령',    lat: '36.305630', lng: '126.516048' },
+            // 경기 화성 ──────────────────────────────────────────────
+            { cctvId: 72, name: '방아머리',   subtitle: '경기 화성',    lat: '37.283919', lng: '126.568053' },
+            { cctvId: 73, name: '장골',       subtitle: '경기 화성',    lat: '37.248880', lng: '126.315907' },
+        ]
     }
 };
 
