@@ -69,6 +69,12 @@ let _currentCctvData = null;
  * @param {ol.MapBrowserEvent} event — OpenLayers 클릭 이벤트 객체
  */
 function handleCctvMapClick(event) {
+    // 편집 모드일 때는 위치 편집 핸들러로 위임 (cctv7.js)
+    if (typeof _editMode !== 'undefined' && _editMode) {
+        handleCctvEditClick(event);
+        return;
+    }
+
     const feature = cctvMap.forEachFeatureAtPixel(event.pixel, function (f) {
         return f;
     });
