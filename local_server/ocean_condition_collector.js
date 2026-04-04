@@ -160,21 +160,32 @@ function httpGet(url, timeout = 30000) {
  * @param {string} url - 다운로드할 파일 URL
  * @param {string} destPath - 저장할 로컬 파일 경로
  * @param {number} [timeout=30000] - 타임아웃 (밀리초)
+ * @param {Function} [onByteProgress=null] - 바이트 수신 콜백 (received, total)
  * @returns {Promise<void>}
  */
-function downloadFile(url, destPath, timeout = 30000) {
+function downloadFile(url, destPath, timeout = 30000, onByteProgress = null) {
     return new Promise((resolve, reject) => {
         const protocol = url.startsWith('https') ? https : http;
         const req = protocol.get(url, { timeout, headers: DEFAULT_HEADERS }, (res) => {
             // 리다이렉트 처리
             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                return downloadFile(res.headers.location, destPath, timeout).then(resolve).catch(reject);
+                return downloadFile(res.headers.location, destPath, timeout, onByteProgress).then(resolve).catch(reject);
             }
             if (res.statusCode !== 200) {
                 res.resume();
                 return reject(new Error(`HTTP ${res.statusCode}: ${url}`));
             }
+
+            const totalBytes = parseInt(res.headers['content-length'] || '0', 10);
+            let receivedBytes = 0;
+
             const fileStream = fs.createWriteStream(destPath);
+            res.on('data', (chunk) => {
+                receivedBytes += chunk.length;
+                if (onByteProgress && totalBytes > 0) {
+                    onByteProgress(receivedBytes, totalBytes);
+                }
+            });
             res.pipe(fileStream);
             fileStream.on('finish', () => { fileStream.close(); resolve(); });
             fileStream.on('error', (err) => {
@@ -217,24 +228,28 @@ async function downloadImagesInWaves(imageList, emitProgress, totalSteps) {
 
         // 각 이미지를 다운로드하는 작업 배열 생성
         const tasks = pendingList.map(item => async () => {
+            // 개별 파일 바이트 진행률 콜백 → SSE fileDetail로 전달
+            const onByte = (received, total) => {
+                const pct = Math.round((received / total) * 100);
+                emitProgress('이미지 ' + waveLabel, 22, totalSteps,
+                    `${successCount}/${totalImages}`,
+                    `${item.name} 다운로드 중 ${pct}%`);
+            };
             try {
-                await downloadFile(item.url, item.dest);
+                await downloadFile(item.url, item.dest, 30000, onByte);
                 successCount++;
                 waveDone++;
-                // 개별 이미지 진행률: "Wave1 다운로드 125/1060 (전체 125/1060)"
-                if (waveDone % 10 === 0 || waveDone === waveTotal) {
-                    emitProgress('이미지 ' + waveLabel, 22, totalSteps,
-                        `${waveDone}/${waveTotal} (전체 ${successCount}/${totalImages})`);
-                }
+                emitProgress('이미지 ' + waveLabel, 22, totalSteps,
+                    `${successCount}/${totalImages}`,
+                    `${item.name} 완료 ✓`);
                 return { success: true };
             } catch (err) {
                 waveDone++;
                 waveFailed.push(item);
                 log(`  ❌ [Wave ${wave}] 실패: ${item.name} — ${err.message}`);
-                if (waveDone % 10 === 0 || waveDone === waveTotal) {
-                    emitProgress('이미지 ' + waveLabel, 22, totalSteps,
-                        `${waveDone}/${waveTotal} (전체 ${successCount}/${totalImages})`);
-                }
+                emitProgress('이미지 ' + waveLabel, 22, totalSteps,
+                    `${successCount}/${totalImages}`,
+                    `${item.name} 실패 ✗`);
                 return { success: false, error: err.message };
             }
         });
@@ -251,9 +266,11 @@ async function downloadImagesInWaves(imageList, emitProgress, totalSteps) {
 
         if (wave < MAX_DOWNLOAD_WAVES) {
             // 다음 웨이브 전 대기 (서버 부하 분산)
+            const nextWave = wave + 1;
             log(`⏳ ${WAVE_DELAY / 1000}초 대기 후 실패분 ${waveFailed.length}개 재시도...`);
-            emitProgress('재시도 대기', 22, totalSteps,
-                `${wave}차 완료, ${waveFailed.length}개 실패 — ${WAVE_DELAY / 1000}초 후 재시도`);
+            emitProgress('이미지 다운로드', 22, totalSteps,
+                `${successCount}/${totalImages}`,
+                `${wave}차 ${waveTotal - waveFailed.length}개 성공, ${waveFailed.length}개 실패. ${nextWave}차 다운로드 준비 중`);
             await new Promise(r => setTimeout(r, WAVE_DELAY));
         }
 
@@ -389,11 +406,11 @@ function ensureDir(dirPath) {
  */
 async function collectOceanCondition(force = false, progressEmitter = null) {
     // 진행률 이벤트 헬퍼 (emitter가 없으면 무시)
-    const emitProgress = (step, current, total, detail) => {
+    const emitProgress = (step, current, total, detail, fileDetail) => {
         if (progressEmitter) {
-            progressEmitter.emit('progress', {
-                type: 'ocean-condition', step, current, total, detail
-            });
+            const evt = { type: 'ocean-condition', step, current, total, detail };
+            if (fileDetail) evt.fileDetail = fileDetail;
+            progressEmitter.emit('progress', evt);
         }
     };
     const startTime = Date.now();
