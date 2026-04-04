@@ -595,27 +595,7 @@
         buoyObserver.observe(document.body, { childList: true });
     }
 
-    /**
-     * 21. 해황예보도 전체화면 모달 (ocean_condition4.js)
-     *     이미지 확대 모달이 열리면 PopupStack에 등록
-     *     뒤로가기 시 모달 닫기 (closeOceanForecastModal 호출)
-     *
-     * [연계] ocean_condition4.js → openOceanForecastModal()에서
-     *        이미 PopupStack.push()를 호출하지만,
-     *        DOM 제거 시 스택 정리를 위해 MutationObserver도 등록
-     */
-    function wrapOceanForecastModal() {
-        var oceanObserver = new MutationObserver(function (mutations) {
-            mutations.forEach(function (mutation) {
-                mutation.removedNodes.forEach(function (node) {
-                    if (node.id === 'ocean-forecast-modal') {
-                        PopupStack.remove('ocean-forecast-modal');
-                    }
-                });
-            });
-        });
-        oceanObserver.observe(document.body, { childList: true });
-    }
+
 
     // ========================================================================
     // 뒤로가기 토스트 및 앱 종료 로직
@@ -795,7 +775,7 @@
         wrapZoneWindyPopup();
         wrapImageModal();
         wrapBuoyInfoModal();
-        wrapOceanForecastModal(); // 해황예보도 전체화면 모달 뒤로가기 처리
+
 
         // 뒤로가기 핸들러 초기화
         // Capacitor 네이티브 환경이면 Capacitor 방식, 아니면 History API 트랩 방식

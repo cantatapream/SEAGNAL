@@ -183,20 +183,6 @@ router.get('/api/regional-debug', (req, res) => {
     res.json(result);
 });
 
-// 2-1-c. 해황예보도 캐시 삭제 (디스크 공간 확보)
-router.delete('/api/ocean-cache', (req, res) => {
-    const cacheDir = path.join(DATA_DIR, 'ocean_cache');
-    try {
-        if (fs.existsSync(cacheDir)) {
-            fs.rmSync(cacheDir, { recursive: true, force: true });
-            res.json({ success: true, message: 'ocean_cache 삭제 완료' });
-        } else {
-            res.json({ success: true, message: 'ocean_cache 디렉토리 없음' });
-        }
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
 
 // 2-2. API 인증키 설정 조회
 router.get('/api/config', (req, res) => {

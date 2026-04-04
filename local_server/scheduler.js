@@ -1221,7 +1221,7 @@ async function init() {
             regionalForecastCollector.collectRegionalForecasts().then(() => log('✅ 지방기상청 단기예보 수집 완료')),
             collectFishingIndex().then(() => log('✅ 바다낚시 지수 수집 완료')),
             collectSeaSplitIndex().then(() => log('✅ 바다갈라짐 체험지수 수집 완료')),
-            collectSurfingIndex().then(() => log('✅ 서핑지수 수집 완료')),
+            collectSurfingIndex().then(() => log('✅ 서핑지수 수집 완료'))
         ]);
     } catch (e) {
         log(`⚠️ 일부 수집 중 오류: ${e.message}`);
