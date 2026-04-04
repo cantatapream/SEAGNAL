@@ -88,8 +88,14 @@ const AREA_CODES = {
     ieodo: '이어도'
 };
 
-/** 이미지 동시 다운로드 최대 개수 (서버 부담 방지) */
-const CONCURRENT_DOWNLOADS = 5;
+/** 이미지 동시 다운로드 최대 개수 (khoa.go.kr 서버 부하 방지) */
+const CONCURRENT_DOWNLOADS = 3;
+
+/** 이미지 다운로드 실패 시 재시도 횟수 */
+const DOWNLOAD_RETRIES = 2;
+
+/** 재시도 전 대기 시간 (밀리초) */
+const RETRY_DELAY = 3000;
 
 /** 데이터 저장 경로 (Fly.io 볼륨 마운트 범위 내) */
 const DATA_DIR = path.join(__dirname, 'data');
@@ -179,6 +185,29 @@ function downloadFile(url, destPath, timeout = 30000) {
         req.on('error', reject);
         req.on('timeout', () => { req.destroy(); reject(new Error(`Timeout: ${url}`)); });
     });
+}
+
+/**
+ * 이미지 다운로드 + 실패 시 자동 재시도
+ * khoa.go.kr 서버가 불안정하여 타임아웃이 빈번하므로 최대 DOWNLOAD_RETRIES회 재시도
+ *
+ * @param {string} url - 다운로드할 이미지 URL
+ * @param {string} destPath - 저장할 로컬 파일 경로
+ */
+async function downloadWithRetry(url, destPath) {
+    for (let attempt = 1; attempt <= DOWNLOAD_RETRIES + 1; attempt++) {
+        try {
+            await downloadFile(url, destPath);
+            return; // 성공 시 즉시 반환
+        } catch (err) {
+            if (attempt <= DOWNLOAD_RETRIES) {
+                // 재시도 전 대기 (서버 부하 분산)
+                await new Promise(r => setTimeout(r, RETRY_DELAY));
+            } else {
+                throw err; // 최종 실패
+            }
+        }
+    }
 }
 
 // ============================================================================
@@ -361,11 +390,12 @@ async function collectOceanCondition(force = false, progressEmitter = null) {
                 const jsonPath = path.join(CACHE_NEW_DIR, `${areaCode}.json`);
                 fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2), 'utf-8');
 
-                // 이미지 다운로드 작업 목록에 추가
+                // 이미지 다운로드 작업 목록에 추가 (실패 시 자동 재시도 포함)
                 for (const item of areaItems) {
                     if (item.imgFilePath && item.imgFileNm) {
-                        const imageDest = path.join(CACHE_NEW_DIR, 'images', item.imgFileNm);
-                        allImageTasks.push(() => downloadFile(item.imgFilePath, imageDest));
+                        const url = item.imgFilePath;
+                        const dest = path.join(CACHE_NEW_DIR, 'images', item.imgFileNm);
+                        allImageTasks.push(() => downloadWithRetry(url, dest));
                     }
                 }
 
@@ -397,11 +427,15 @@ async function collectOceanCondition(force = false, progressEmitter = null) {
 
         log(`📸 이미지 다운로드 완료: 성공 ${successCount}개, 실패 ${failCount}개`);
 
-        // 실패가 너무 많으면 (50% 이상) 수집 실패로 처리하고 기존 캐시 유지
-        if (failCount > allImageTasks.length * 0.5) {
-            log('❌ 이미지 다운로드 실패율 50% 초과. 기존 캐시 유지.');
+        // 실패가 너무 많으면 (80% 이상) 수집 실패로 처리하고 기존 캐시 유지
+        // khoa.go.kr 서버가 불안정하여 일부 이미지 실패는 허용 (재시도 후에도 실패한 것)
+        if (failCount > allImageTasks.length * 0.8) {
+            log('❌ 이미지 다운로드 실패율 80% 초과. 기존 캐시 유지.');
             removeDirSync(CACHE_NEW_DIR);
-            return { success: false, reason: '이미지 다운로드 대량 실패' };
+            return { success: false, reason: `이미지 다운로드 대량 실패 (${failCount}/${allImageTasks.length})` };
+        }
+        if (failCount > 0) {
+            log(`⚠️ 일부 이미지 다운로드 실패: ${failCount}개 (허용 범위 내)`);
         }
 
         // ── 6단계: 메타 정보 저장 ──
