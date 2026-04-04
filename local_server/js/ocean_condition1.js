@@ -171,10 +171,9 @@ function bindOceanEvents() {
  * (바다갈라짐의 "지역 바다갈라짐 시간" 라벨과 동일한 역할)
  */
 window.updateOceanForecastTitle = function () {
-    const state = window.OceanForecast;
     const titleText = document.getElementById('ocean-forecast-title-text');
     if (titleText) {
-        const areaName = state.areas[state.currentArea] || '전국';
-        titleText.textContent = areaName + ' 해황예보도';
+        // 지역명 없이 "해황예보도"만 표시 (지역은 드롭다운에서 확인)
+        titleText.textContent = '해황예보도';
     }
 };
