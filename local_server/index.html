@@ -342,7 +342,7 @@
             <nav class="sub-tabs" id="weather-sub-tabs">
                 <button class="sub-tab-btn active" data-target="weather-alert-section">특보 및 전망</button>
                 <button class="sub-tab-btn" data-target="sea-zone-section">해구기상</button>
-                <button class="sub-tab-btn" data-target="ocean-forecast-section">해황예보도</button>
+
                 <button class="sub-tab-btn" data-target="typhoon-section">태풍정보</button>
                 <button class="sub-tab-btn" data-target="cctv-section">해안 CCTV</button>
             </nav>
@@ -633,74 +633,6 @@
                 </div>
             </section>
 
-            <!-- 섹션 2-2: 해황예보도 (국립해양조사원) -->
-            <!-- [연계] js/ocean_condition.js → 전체 UI 제어 -->
-            <!-- [연계] routes/ocean_condition.js → 캐시된 데이터/이미지 제공 -->
-            <!-- [연계] ocean_condition_collector.js → API 데이터 수집 및 디스크 캐싱 -->
-            <section id="ocean-forecast-section" class="tab-content">
-
-                <!-- 고정 제목: 다른 섹션(해구기상, 태풍정보 등)과 동일한 패턴 -->
-                <div class="section-header-with-info">
-                    <h2 class="section-title"><i class="fa-solid fa-water"></i> 해황예보도</h2>
-                </div>
-
-                <!-- 지역 선택 줄: 드롭다운 + "지역 해황예보도" 라벨 + 즐겨찾기 별표 -->
-                <!-- 바다갈라짐(.sp-selector-row)과 동일한 구조 -->
-                <div class="ocean-forecast-selector-row">
-                    <select id="ocean-forecast-area-select" class="ocean-forecast-select">
-                        <!-- js/ocean_condition.js에서 동적으로 20개 지역 옵션 생성 -->
-                    </select>
-                    <span id="ocean-forecast-title-text" class="ocean-forecast-selector-label">지역 해황예보도</span>
-                    <button id="ocean-forecast-fav-btn" class="ocean-forecast-fav-btn" title="즐겨찾기">
-                        <i class="fa-regular fa-star"></i>
-                    </button>
-                </div>
-
-                <!-- 일시 선택: fieldset 스타일 테두리 박스 안에 날짜+시간 버튼 -->
-                <!-- legend 텍스트 "일시 선택"이 상단 테두리에 걸쳐 표시됨 -->
-                <fieldset class="ocean-forecast-datetime-box">
-                    <legend>일시 선택</legend>
-                    <!-- 날짜 버튼 행: 7일간 가로 배치 (예: 4/4(금) ~ 4/10(목)) -->
-                    <div id="ocean-forecast-date-btns" class="ocean-forecast-date-btns">
-                        <!-- js/ocean_condition.js에서 동적 생성 -->
-                    </div>
-                    <!-- 시간 버튼 행: 8개 3시간 간격 (00시 ~ 21시) -->
-                    <div id="ocean-forecast-time-btns" class="ocean-forecast-time-btns">
-                        <!-- js/ocean_condition.js에서 동적 생성 -->
-                    </div>
-                </fieldset>
-
-                <!-- 이미지 표출 영역 -->
-                <div class="ocean-forecast-image-wrapper">
-                    <!-- 로딩 스피너 (이미지 로드 중 표시) -->
-                    <div id="ocean-forecast-loading" class="ocean-forecast-loading" style="display: none;">
-                        <i class="fa-solid fa-spinner fa-spin"></i> 불러오는 중...
-                    </div>
-                    <!-- 데이터 없음 메시지 (캐시 미준비 시 표시) -->
-                    <div id="ocean-forecast-empty" class="ocean-forecast-empty" style="display: none;">
-                        <p>데이터를 준비 중입니다. 잠시 후 다시 시도해주세요.</p>
-                    </div>
-                    <!-- 해황예보도 이미지 (탭하면 전체화면 확대 모달) -->
-                    <img id="ocean-forecast-image"
-                         class="ocean-forecast-image"
-                         alt="해황예보도"
-                         style="display: none;"
-                         onclick="window.openOceanForecastModal()">
-                    <!-- 발표 시점 오버레이 (이미지 왼쪽 하단에 반투명 배경) -->
-                    <div id="ocean-forecast-publish-label" class="ocean-forecast-publish-label" style="display: none;">
-                        <!-- 예: 발표 2026. 04. 04. 09시 -->
-                    </div>
-                </div>
-
-                <!-- 출처 정보 -->
-                <div class="ocean-forecast-source">
-                    <a href="https://www.khoa.go.kr/oceangrid/koofs/kor/observation/ocean_forecast.do"
-                       target="_blank" rel="noopener noreferrer">
-                        <span>국립해양조사원 해황예보도</span>
-                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                    </a>
-                </div>
-            </section>
 
             <!-- 섹션 3: 태풍정보 -->
             <section id="typhoon-section" class="tab-content">
@@ -1215,11 +1147,7 @@
     <script src="js/surfing4.js"></script>
     <script src="js/surfing5.js"></script>
     <script src="js/sea_parting.js"></script>
-    <script src="js/ocean_condition1.js"></script>
-    <script src="js/ocean_condition2.js"></script>
-    <script src="js/ocean_condition3.js"></script>
-    <script src="js/ocean_condition4.js"></script>
-    <script src="js/ocean_condition5.js"></script>
+
     <script src="js/admin_trigger.js"></script>
     <script src="js/promo.js"></script>
     <script src="js/promo_comment1.js"></script>
@@ -1333,7 +1261,7 @@
             // 기상정보 하위 서브탭
             'weather-alert-tab': 'weather-alert-section',
             'sea-zone': 'sea-zone-section',
-            'ocean-forecast': 'ocean-forecast-section',
+
             'typhoon': 'typhoon-section',
             'cctv': 'cctv-section',
             // 해양생활 하위 서브탭

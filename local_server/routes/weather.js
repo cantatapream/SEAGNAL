@@ -115,10 +115,6 @@ router.get('/api/force-update/:type/stream', async (req, res) => {
             await scheduler.collectSeaSplitIndex();
             await scheduler.collectSurfingIndex();
         }
-        // 해황예보도 수동 수집 — 20개 지역의 해양 예보 이미지를 디스크 캐시로 다운로드
-        else if (type === 'ocean-condition') {
-            await scheduler.collectOceanCondition(true);
-        }
         else {
             res.write(`data: ${JSON.stringify({ error: '잘못된 타입' })}\n\n`);
             res.end();
@@ -157,10 +153,6 @@ router.post('/api/force-update/:type', async (req, res) => {
             await scheduler.collectFishingIndex();
             await scheduler.collectSeaSplitIndex();
             await scheduler.collectSurfingIndex();
-        }
-        // 해황예보도 수동 수집 (POST 호환)
-        else if (type === 'ocean-condition') {
-            await scheduler.collectOceanCondition(true);
         }
         else return res.status(400).json({ error: '잘못된 타입' });
 

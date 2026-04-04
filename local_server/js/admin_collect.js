@@ -1633,8 +1633,7 @@ async function renderUnifiedApiContent(container) {
                 { key: 'general', name: '기상 예보', icon: 'fa-sun', color: '#ffd54f' },
                 { key: 'zone', name: '해구별 예보', icon: 'fa-map-location-dot', color: '#29b6f6' },
                 { key: 'buoys', name: '관측 부이', icon: 'fa-anchor', color: '#26a69a' },
-                { key: 'fishing', name: '해양생활기상', icon: 'fa-fish', color: '#4fc3f7' },
-                { key: 'ocean-condition', name: '해황예보도', icon: 'fa-water', color: '#0097a7' }
+                { key: 'fishing', name: '해양생활기상', icon: 'fa-fish', color: '#4fc3f7' }
             ];
 
             listContainer.innerHTML = apiItems.map(api => {
@@ -3105,8 +3104,7 @@ window.refreshApiStatus = async function () {
             { key: 'general', name: '기상 예보', icon: 'fa-sun', color: '#ffd54f' },
             { key: 'zone', name: '해구별 예보', icon: 'fa-map-location-dot', color: '#29b6f6' },
             { key: 'buoys', name: '관측 부이', icon: 'fa-anchor', color: '#26a69a' },
-            { key: 'fishing', name: '해양생활기상', icon: 'fa-fish', color: '#4fc3f7' },
-            { key: 'ocean-condition', name: '해황예보도', icon: 'fa-water', color: '#0097a7' }
+            { key: 'fishing', name: '해양생활기상', icon: 'fa-fish', color: '#4fc3f7' }
         ];
 
         let html = '';
