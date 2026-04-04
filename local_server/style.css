@@ -7718,14 +7718,14 @@ line-height: 1.1;
  * [연계] js/ocean_condition1~5.js
  * ============================================================================ */
 
-/* ── 상단 헤더: 드롭다운 + 제목 + 즐겨찾기 한 줄 배치 ── */
-.ocean-forecast-header {
+/* ── 지역 선택 줄: 드롭다운 + "지역 해황예보도" 라벨 + 즐겨찾기 별표 ── */
+/* 바다갈라짐(.sp-selector-row)과 동일한 구조 */
+.ocean-forecast-selector-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 10px 0;
-    margin-bottom: 10px;
+    gap: 8px;
+    padding: 6px 0 4px;
+    flex-wrap: wrap;
 }
 
 /* 지역 드롭다운 */
@@ -7746,22 +7746,12 @@ line-height: 1.1;
     color: #fff;
 }
 
-/* 제목 텍스트 (가운데) */
-.ocean-forecast-title {
-    font-size: 1.1rem;
+/* "지역 해황예보도" 라벨 (바다갈라짐 .sp-selector-label과 동일) */
+.ocean-forecast-selector-label {
+    color: #94a3b8;
+    font-size: 0.85rem;
     font-weight: 600;
-    color: var(--text-main, #fff);
-    margin: 0;
     white-space: nowrap;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-shrink: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.ocean-forecast-title i {
-    color: var(--accent-blue, #448aff);
 }
 
 /* 즐겨찾기 별표 버튼 */
@@ -8072,8 +8062,8 @@ line-height: 1.1;
         font-size: 0.68rem;
         padding: 4px 1px;
     }
-    .ocean-forecast-title {
-        font-size: 0.95rem;
+    .ocean-forecast-selector-label {
+        font-size: 0.78rem;
     }
     .ocean-forecast-select {
         font-size: 0.78rem;

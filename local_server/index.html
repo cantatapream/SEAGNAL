@@ -639,16 +639,18 @@
             <!-- [연계] ocean_condition_collector.js → API 데이터 수집 및 디스크 캐싱 -->
             <section id="ocean-forecast-section" class="tab-content">
 
-                <!-- 상단: 지역 드롭다운 + 제목(지역명 해황예보도) + 즐겨찾기 별표 -->
-                <!-- 한 줄에 왼쪽(드롭다운), 가운데(제목), 오른쪽(별표) 배치 -->
-                <div class="ocean-forecast-header">
+                <!-- 고정 제목: 다른 섹션(해구기상, 태풍정보 등)과 동일한 패턴 -->
+                <div class="section-header-with-info">
+                    <h2 class="section-title"><i class="fa-solid fa-water"></i> 해황예보도</h2>
+                </div>
+
+                <!-- 지역 선택 줄: 드롭다운 + "지역 해황예보도" 라벨 + 즐겨찾기 별표 -->
+                <!-- 바다갈라짐(.sp-selector-row)과 동일한 구조 -->
+                <div class="ocean-forecast-selector-row">
                     <select id="ocean-forecast-area-select" class="ocean-forecast-select">
                         <!-- js/ocean_condition.js에서 동적으로 20개 지역 옵션 생성 -->
                     </select>
-                    <h2 id="ocean-forecast-title" class="ocean-forecast-title">
-                        <i class="fa-solid fa-water"></i>
-                        <span id="ocean-forecast-title-text">전국 해황예보도</span>
-                    </h2>
+                    <span id="ocean-forecast-title-text" class="ocean-forecast-selector-label">지역 해황예보도</span>
                     <button id="ocean-forecast-fav-btn" class="ocean-forecast-fav-btn" title="즐겨찾기">
                         <i class="fa-regular fa-star"></i>
                     </button>

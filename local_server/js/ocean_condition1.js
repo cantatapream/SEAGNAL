@@ -165,9 +165,10 @@ function bindOceanEvents() {
 }
 
 /**
- * 제목 텍스트 갱신
- * 드롭다운에서 선택된 지역의 한글명 + "해황예보도"로 제목을 변경합니다.
+ * 셀렉터 라벨 텍스트 갱신
+ * 드롭다운에서 선택된 지역의 한글명 + "해황예보도"로 라벨을 변경합니다.
  * 예: "전국 해황예보도", "제주 해황예보도"
+ * (바다갈라짐의 "지역 바다갈라짐 시간" 라벨과 동일한 역할)
  */
 window.updateOceanForecastTitle = function () {
     const state = window.OceanForecast;

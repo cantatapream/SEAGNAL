@@ -69,7 +69,8 @@ const lastRunStatus = {
     zone: { lastRun: null, status: '대기 중', message: '' },
     fishing: { lastRun: null, status: '대기 중', message: '' },  // 해양생활기상 (바다낚시 지수)
     seaSplit: { lastRun: null, status: '대기 중', message: '' }, // 바다갈라짐 체험지수
-    surfing: { lastRun: null, status: '대기 중', message: '' }   // 서핑지수
+    surfing: { lastRun: null, status: '대기 중', message: '' },  // 서핑지수
+    'ocean-condition': { lastRun: null, status: '대기 중', message: '' } // 해황예보도
 };
 
 const CONFIG_FILE = path.join(__dirname, 'data/api_config.json');
@@ -1316,8 +1317,24 @@ module.exports = {
         delete status.seaSplit;
         return status;
     },
-    // [해황예보도] 관리자 수동 수집용
-    collectOceanCondition: (force) => oceanConditionCollector.collectOceanCondition(force),
+    // [해황예보도] 관리자 수동 수집용 — 상태를 lastRunStatus에 기록
+    collectOceanCondition: async (force) => {
+        try {
+            const result = await oceanConditionCollector.collectOceanCondition(force);
+            if (result.success) {
+                const msg = result.skipped
+                    ? '변경 없음 (스킵)'
+                    : `${result.totalAreas || 20}개 지역, ${result.totalImages || 0}개 이미지`;
+                lastRunStatus['ocean-condition'] = { lastRun: getNowStr(), status: '성공', message: msg };
+            } else {
+                lastRunStatus['ocean-condition'] = { lastRun: getNowStr(), status: '실패', message: result.reason || '수집 실패' };
+            }
+            return result;
+        } catch (e) {
+            lastRunStatus['ocean-condition'] = { lastRun: getNowStr(), status: '실패', message: e.message };
+            throw e;
+        }
+    },
     collectProgress,
     getCrawlPaused: () => crawlPaused,
     setCrawlPaused: (val) => { crawlPaused = !!val; },
