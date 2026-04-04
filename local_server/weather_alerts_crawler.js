@@ -11,7 +11,6 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-
 const pushSender = require('./push_sender');
 const reportProcessor = require('./report_alert_processor');
 
