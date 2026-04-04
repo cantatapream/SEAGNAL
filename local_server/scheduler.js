@@ -101,6 +101,11 @@ loadApiConfig();
 const marineForecastProcessor = require('./marine_forecast_processor');
 const regionalForecastCollector = require('./regional_forecast_collector');
 
+// [해황예보도] 국립해양조사원 해황예보도 수집기
+// → 20개 지역의 예보 데이터(JSON)와 예보도 이미지(PNG)를 디스크에 캐싱
+// → routes/ocean_condition.js에서 캐시된 데이터를 프론트에 제공
+const oceanConditionCollector = require('./ocean_condition_collector');
+
 const DUCKDNS_CONFIG = {
     ENABLED: !process.env.FLY_ALLOC_ID,
     DOMAIN: 'seagnal',
@@ -1169,7 +1174,10 @@ async function init() {
             regionalForecastCollector.collectRegionalForecasts().then(() => log('✅ 지방기상청 단기예보 수집 완료')),
             collectFishingIndex().then(() => log('✅ 바다낚시 지수 수집 완료')),
             collectSeaSplitIndex().then(() => log('✅ 바다갈라짐 체험지수 수집 완료')),
-            collectSurfingIndex().then(() => log('✅ 서핑지수 수집 완료'))
+            collectSurfingIndex().then(() => log('✅ 서핑지수 수집 완료')),
+            // [해황예보도] 서버 시작 시 전체 수집 (force=true: 무조건 전체 다운로드)
+            // 20개 지역 × 약 53개 이미지 = 약 1,060개 이미지를 디스크에 캐싱
+            oceanConditionCollector.collectOceanCondition(true).then(() => log('✅ 해황예보도 수집 완료'))
         ]);
     } catch (e) {
         log(`⚠️ 일부 수집 중 오류: ${e.message}`);
@@ -1229,6 +1237,14 @@ async function init() {
         if (min % 30 === 10 && !['05:10', '11:10', '17:10'].includes(hm)) {
             regionalForecastCollector.retryMissingOffices()
                 .catch(err => log(`⚠️ 지방기상청 재수집 오류: ${err.message}`));
+        }
+
+        // [해황예보도] 매일 09:05에 수집 시작
+        // 발표시간(09시) 직후에 새 데이터 여부를 확인하고,
+        // 변경되었으면 20개 지역 전체를 수집합니다.
+        // 미변경 시 10분 간격으로 최대 6회 재시도 (scheduledCollect 내부 처리)
+        if (hm === '09:05') {
+            oceanConditionCollector.scheduledCollect();
         }
 
         // [New] 특보 정보 크롤링 (매 1분 마다 실행)
@@ -1300,6 +1316,8 @@ module.exports = {
         delete status.seaSplit;
         return status;
     },
+    // [해황예보도] 관리자 수동 수집용
+    collectOceanCondition: (force) => oceanConditionCollector.collectOceanCondition(force),
     collectProgress,
     getCrawlPaused: () => crawlPaused,
     setCrawlPaused: (val) => { crawlPaused = !!val; },
