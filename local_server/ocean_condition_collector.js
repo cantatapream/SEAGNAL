@@ -12,9 +12,8 @@
  * [동작 흐름]
  * 1. "전국(korea)" 지역으로 API 호출하여 최신 발표일자 확인
  * 2. 기존 캐시의 발표일자와 비교
- * 3. 다르면(= 새 데이터) → 임시 폴더에 20개 지역 전체 수집
- * 4. 수집 완료 후 기존 캐시 → 삭제, 임시 폴더 → 정식 캐시로 교체
- *    (사용자는 교체 순간까지 기존 캐시를 이용, 서비스 중단 없음)
+ * 3. 다르면(= 새 데이터) → 캐시 폴더에 직접 덮어쓰기 방식으로 수집
+ *    (디스크 공간 절약을 위해 임시 폴더 없이 기존 캐시에 바로 덮어쓰기)
  *
  * [수집 스케줄]
  * - 서버 시작 시: 전체 수집 (init)
@@ -100,7 +99,6 @@ const WAVE_DELAY = 5000;
 /** 데이터 저장 경로 (Fly.io 볼륨 마운트 범위 내) */
 const DATA_DIR = path.join(__dirname, 'data');
 const CACHE_DIR = path.join(DATA_DIR, 'ocean_cache');
-const CACHE_NEW_DIR = path.join(DATA_DIR, 'ocean_cache_new');
 
 // ============================================================================
 // 로깅 유틸리티
@@ -395,10 +393,10 @@ function ensureDir(dirPath) {
  * 해황예보도 전체 수집 (20개 지역의 JSON + 이미지)
  *
  * [동작 순서]
- * 1. 임시 폴더(ocean_cache_new) 생성
- * 2. 20개 지역 순차적으로 API 호출 → JSON 저장
- * 3. 모든 이미지 URL 수집 → 5개씩 병렬 다운로드
- * 4. 수집 완료 후 기존 캐시와 교체 (무중단)
+ * 1. 캐시 폴더 확보 (없으면 생성)
+ * 2. 20개 지역 순차적으로 API 호출 → JSON 저장 (덮어쓰기)
+ * 3. 모든 이미지 URL 수집 → 3개씩 병렬 다운로드 (덮어쓰기)
+ * 4. 메타 정보 저장
  *
  * @param {boolean} [force=false] - true이면 발표일자 비교 없이 강제 수집
  * @param {EventEmitter} [progressEmitter=null] - 진행률 이벤트 발행용 (관리자 수동 수집 시 전달)
@@ -417,8 +415,8 @@ async function collectOceanCondition(force = false, progressEmitter = null) {
     log('🌊 해황예보도 수집 시작...');
 
     try {
-        // 총 진행 단계: 1(확인) + 20(지역) + 1(이미지) + 1(교체) = 23
-        const TOTAL_STEPS = 23;
+        // 총 진행 단계: 1(확인) + 20(지역) + 1(이미지) = 22
+        const TOTAL_STEPS = 22;
 
         // ── 1단계: 최신 데이터 확인 (전국 데이터로 발표일 체크) ──
         emitProgress('발표일 확인', 1, TOTAL_STEPS, '전국 데이터 조회 중');
@@ -452,10 +450,9 @@ async function collectOceanCondition(force = false, progressEmitter = null) {
             }
         }
 
-        // ── 3단계: 임시 폴더 생성 ──
-        removeDirSync(CACHE_NEW_DIR); // 이전 실패한 임시 폴더 정리
-        ensureDir(CACHE_NEW_DIR);
-        ensureDir(path.join(CACHE_NEW_DIR, 'images'));
+        // ── 3단계: 캐시 폴더 확보 (덮어쓰기 방식) ──
+        ensureDir(CACHE_DIR);
+        ensureDir(path.join(CACHE_DIR, 'images'));
 
         // ── 4단계: 20개 지역 API 호출 + JSON 저장 ──
         const allImageTasks = []; // 다운로드할 이미지 목록
@@ -469,7 +466,7 @@ async function collectOceanCondition(force = false, progressEmitter = null) {
                 const areaItems = data?.body?.items?.item || [];
 
                 // JSON 데이터 저장 (지역별 파일)
-                const jsonPath = path.join(CACHE_NEW_DIR, `${areaCode}.json`);
+                const jsonPath = path.join(CACHE_DIR, `${areaCode}.json`);
                 fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2), 'utf-8');
 
                 // 이미지 다운로드 목록에 추가 (URL, 저장경로, 파일명)
@@ -477,7 +474,7 @@ async function collectOceanCondition(force = false, progressEmitter = null) {
                     if (item.imgFilePath && item.imgFileNm) {
                         allImageTasks.push({
                             url: item.imgFilePath,
-                            dest: path.join(CACHE_NEW_DIR, 'images', item.imgFileNm),
+                            dest: path.join(CACHE_DIR, 'images', item.imgFileNm),
                             name: item.imgFileNm
                         });
                     }
@@ -504,10 +501,9 @@ async function collectOceanCondition(force = false, progressEmitter = null) {
 
         log(`📸 이미지 다운로드 최종 결과: 성공 ${successCount}개, 실패 ${failCount}개`);
 
-        // 실패가 너무 많으면 (80% 이상) 수집 실패로 처리하고 기존 캐시 유지
+        // 실패가 너무 많으면 (80% 이상) 수집 실패로 처리
         if (failCount > allImageTasks.length * 0.8) {
-            log('❌ 이미지 다운로드 실패율 80% 초과. 기존 캐시 유지.');
-            removeDirSync(CACHE_NEW_DIR);
+            log('❌ 이미지 다운로드 실패율 80% 초과.');
             return { success: false, reason: `이미지 다운로드 대량 실패 (${failCount}/${allImageTasks.length})` };
         }
         if (failCount > 0) {
@@ -525,20 +521,10 @@ async function collectOceanCondition(force = false, progressEmitter = null) {
             downloadWaves: Math.min(MAX_DOWNLOAD_WAVES, failCount > 0 ? MAX_DOWNLOAD_WAVES : 1)
         };
         fs.writeFileSync(
-            path.join(CACHE_NEW_DIR, 'meta.json'),
+            path.join(CACHE_DIR, 'meta.json'),
             JSON.stringify(meta, null, 2),
             'utf-8'
         );
-
-        // ── 7단계: 폴더 교체 (무중단 전환) ──
-        emitProgress('캐시 교체', 23, TOTAL_STEPS, '폴더 교체 중');
-        // 순서: 기존 캐시 삭제 → 임시 폴더를 정식 캐시로 이름 변경
-        // (사용자 요청은 이 사이 아주 짧은 순간만 영향받을 수 있으나, 실질적으로 무시 가능)
-        const oldCacheExists = fs.existsSync(CACHE_DIR);
-        if (oldCacheExists) {
-            removeDirSync(CACHE_DIR);
-        }
-        fs.renameSync(CACHE_NEW_DIR, CACHE_DIR);
 
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
         log(`🎉 해황예보도 수집 완료! (${areaCount}개 지역, ${successCount}개 이미지, ${elapsed}초 소요)`);
@@ -553,8 +539,6 @@ async function collectOceanCondition(force = false, progressEmitter = null) {
 
     } catch (err) {
         log(`❌ 해황예보도 수집 중 오류: ${err.message}`);
-        // 임시 폴더가 남아있으면 정리
-        removeDirSync(CACHE_NEW_DIR);
         return { success: false, reason: err.message };
     }
 }
