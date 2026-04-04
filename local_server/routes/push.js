@@ -417,4 +417,94 @@ router.delete('/api/push-history', (req, res) => {
     }
 });
 
+// ============================================================================
+// 구독자 통계 API (해역별 구독자 수, 총 구독자 수 등)
+// ============================================================================
+
+/**
+ * GET /api/push-subscriber-stats
+ *
+ * 해역별 구독자 수와 전체 통계를 반환합니다.
+ * 관리자 센터의 여러 화면에서 사용됩니다:
+ * - 발송 이력: 해역별 현재 구독자 수 표시
+ * - 직접 발송: 해역 선택 시 각 해역 옆에 구독자 수 표시
+ * - 이용자 현황 탭: 전체 구독자 분포 표시
+ *
+ * [응답 형식]
+ * {
+ *   totalSubscribers: 501,       // 전체 구독자 수
+ *   fcmCount: 312,               // FCM(앱) 구독자 수
+ *   webCount: 189,               // Web Push(브라우저) 구독자 수
+ *   zoneCounts: {                // 소분류 해역별 구독자 수 (35개)
+ *     "강원북부앞바다": 480,
+ *     "제주도서부앞바다": 485,
+ *     ...
+ *   }
+ * }
+ *
+ * [연계]
+ * - services/push_helpers.js → expandToMinorZones()로 대/중분류를 소분류로 확장
+ * - js/alert_push.js → 직접 발송 탭에서 이 API를 호출하여 구독자 수 표시
+ * - js/admin.js → 이용자 현황 탭에서 이 API를 호출
+ */
+router.get('/api/push-subscriber-stats', (req, res) => {
+    try {
+        // 1. 구독자 파일 읽기
+        let subs = [];
+        if (fs.existsSync(SUBS_FILE)) {
+            subs = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8'));
+        }
+
+        // 2. FCM / Web Push 구분 카운트
+        let fcmCount = 0;
+        let webCount = 0;
+
+        // 3. 소분류 해역별 구독자 수 집계
+        //    - 각 구독자의 zones 배열을 소분류(35개)로 확장
+        //    - zones가 비어있으면 "모든 해역 수신" → 35개 전부에 카운트
+        const zoneCounts = {};
+
+        // ZONE_HIERARCHY에서 전체 소분류 목록 추출 (초기값 0으로 세팅)
+        const { ZONE_HIERARCHY } = require('../services/push_helpers');
+        const allMinorZones = [];
+        for (const major of Object.values(ZONE_HIERARCHY)) {
+            for (const minors of Object.values(major)) {
+                minors.forEach(z => allMinorZones.push(z));
+            }
+        }
+        allMinorZones.forEach(z => { zoneCounts[z] = 0; });
+
+        subs.forEach(sub => {
+            // FCM/Web 구분
+            if (sub.type === 'fcm') fcmCount++;
+            else webCount++;
+
+            // 해역 확장: 빈 배열이거나 target='all'이면 전체 해역 구독으로 간주
+            const isAllZones = (!sub.zones || sub.zones.length === 0) ||
+                               (sub.options && sub.options.target === 'all');
+
+            if (isAllZones) {
+                // 전체 해역 구독자 → 모든 소분류에 +1
+                allMinorZones.forEach(z => { zoneCounts[z]++; });
+            } else {
+                // 개별 해역 구독자 → 소분류로 확장하여 해당 해역에만 +1
+                const expanded = expandToMinorZones(sub.zones);
+                expanded.forEach(z => {
+                    if (zoneCounts[z] !== undefined) zoneCounts[z]++;
+                });
+            }
+        });
+
+        res.json({
+            totalSubscribers: subs.length,
+            fcmCount,
+            webCount,
+            zoneCounts
+        });
+    } catch (e) {
+        console.error('구독자 통계 조회 실패:', e);
+        res.status(500).json({ error: '통계 조회 실패' });
+    }
+});
+
 module.exports = router;
