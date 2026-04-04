@@ -91,11 +91,11 @@ const AREA_CODES = {
 /** 이미지 동시 다운로드 최대 개수 (khoa.go.kr 서버 부하 방지) */
 const CONCURRENT_DOWNLOADS = 3;
 
-/** 이미지 다운로드 실패 시 재시도 횟수 */
-const DOWNLOAD_RETRIES = 2;
+/** 이미지 다운로드 웨이브 최대 반복 횟수 (1회차 전체 → 2~N회차 실패분 재시도) */
+const MAX_DOWNLOAD_WAVES = 5;
 
-/** 재시도 전 대기 시간 (밀리초) */
-const RETRY_DELAY = 3000;
+/** 웨이브 간 대기 시간 (밀리초) — 서버 부하 분산 */
+const WAVE_DELAY = 5000;
 
 /** 데이터 저장 경로 (Fly.io 볼륨 마운트 범위 내) */
 const DATA_DIR = path.join(__dirname, 'data');
@@ -188,26 +188,91 @@ function downloadFile(url, destPath, timeout = 30000) {
 }
 
 /**
- * 이미지 다운로드 + 실패 시 자동 재시도
- * khoa.go.kr 서버가 불안정하여 타임아웃이 빈번하므로 최대 DOWNLOAD_RETRIES회 재시도
+ * 이미지 목록을 웨이브 방식으로 다운로드 (실패분 자동 재시도)
  *
- * @param {string} url - 다운로드할 이미지 URL
- * @param {string} destPath - 저장할 로컬 파일 경로
+ * [동작 흐름]
+ * 1회차(Wave 1): 전체 이미지 다운로드 시도 → 실패 목록 수집
+ * 2회차(Wave 2): 1회차 실패분만 재시도 → 여전히 실패한 것 수집
+ * 3회차(Wave 3): 2회차 실패분만 재시도 → ...
+ * → 모든 이미지 성공 or 최대 횟수(MAX_DOWNLOAD_WAVES) 도달 시 종료
+ *
+ * @param {Array<{url:string, dest:string, name:string}>} imageList - 다운로드할 이미지 목록
+ * @param {Function} emitProgress - 진행률 이벤트 발행 함수
+ * @returns {Object} { successCount, failCount, failedFiles }
  */
-async function downloadWithRetry(url, destPath) {
-    for (let attempt = 1; attempt <= DOWNLOAD_RETRIES + 1; attempt++) {
-        try {
-            await downloadFile(url, destPath);
-            return; // 성공 시 즉시 반환
-        } catch (err) {
-            if (attempt <= DOWNLOAD_RETRIES) {
-                // 재시도 전 대기 (서버 부하 분산)
-                await new Promise(r => setTimeout(r, RETRY_DELAY));
-            } else {
-                throw err; // 최종 실패
+async function downloadImagesInWaves(imageList, emitProgress, totalSteps) {
+    const totalImages = imageList.length;
+    let successCount = 0;
+    let pendingList = imageList.slice(); // 다운로드 대기 목록 (복사본)
+
+    for (let wave = 1; wave <= MAX_DOWNLOAD_WAVES; wave++) {
+        if (pendingList.length === 0) break;
+
+        const waveLabel = wave === 1 ? '다운로드' : `재시도 ${wave - 1}차`;
+        const waveTotal = pendingList.length;
+        let waveDone = 0;
+        const waveFailed = []; // 이번 웨이브에서 실패한 항목
+
+        log(`🔄 [Wave ${wave}] ${waveLabel}: ${waveTotal}개 이미지 (동시 ${CONCURRENT_DOWNLOADS}개)`);
+
+        // 각 이미지를 다운로드하는 작업 배열 생성
+        const tasks = pendingList.map(item => async () => {
+            try {
+                await downloadFile(item.url, item.dest);
+                successCount++;
+                waveDone++;
+                // 개별 이미지 진행률: "Wave1 다운로드 125/1060 (전체 125/1060)"
+                if (waveDone % 10 === 0 || waveDone === waveTotal) {
+                    emitProgress('이미지 ' + waveLabel, 22, totalSteps,
+                        `${waveDone}/${waveTotal} (전체 ${successCount}/${totalImages})`);
+                }
+                return { success: true };
+            } catch (err) {
+                waveDone++;
+                waveFailed.push(item);
+                log(`  ❌ [Wave ${wave}] 실패: ${item.name} — ${err.message}`);
+                if (waveDone % 10 === 0 || waveDone === waveTotal) {
+                    emitProgress('이미지 ' + waveLabel, 22, totalSteps,
+                        `${waveDone}/${waveTotal} (전체 ${successCount}/${totalImages})`);
+                }
+                return { success: false, error: err.message };
             }
+        });
+
+        // 병렬 실행 (동시 CONCURRENT_DOWNLOADS개)
+        await parallelLimit(tasks, CONCURRENT_DOWNLOADS);
+
+        log(`📊 [Wave ${wave}] 결과: 성공 ${waveTotal - waveFailed.length}/${waveTotal}, 실패 ${waveFailed.length}개`);
+
+        if (waveFailed.length === 0) {
+            log(`✅ 모든 이미지 다운로드 완료!`);
+            break;
         }
+
+        if (wave < MAX_DOWNLOAD_WAVES) {
+            // 다음 웨이브 전 대기 (서버 부하 분산)
+            log(`⏳ ${WAVE_DELAY / 1000}초 대기 후 실패분 ${waveFailed.length}개 재시도...`);
+            emitProgress('재시도 대기', 22, totalSteps,
+                `${wave}차 완료, ${waveFailed.length}개 실패 — ${WAVE_DELAY / 1000}초 후 재시도`);
+            await new Promise(r => setTimeout(r, WAVE_DELAY));
+        }
+
+        // 다음 웨이브에서는 실패분만 시도
+        pendingList = waveFailed;
     }
+
+    // 최종 실패 목록
+    const failedFiles = pendingList.map(item => item.name);
+    if (failedFiles.length > 0) {
+        log(`⚠️ 최종 실패 이미지 (${failedFiles.length}개):`);
+        failedFiles.forEach(name => log(`    - ${name}`));
+    }
+
+    return {
+        successCount,
+        failCount: failedFiles.length,
+        failedFiles
+    };
 }
 
 // ============================================================================
@@ -390,12 +455,14 @@ async function collectOceanCondition(force = false, progressEmitter = null) {
                 const jsonPath = path.join(CACHE_NEW_DIR, `${areaCode}.json`);
                 fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2), 'utf-8');
 
-                // 이미지 다운로드 작업 목록에 추가 (실패 시 자동 재시도 포함)
+                // 이미지 다운로드 목록에 추가 (URL, 저장경로, 파일명)
                 for (const item of areaItems) {
                     if (item.imgFilePath && item.imgFileNm) {
-                        const url = item.imgFilePath;
-                        const dest = path.join(CACHE_NEW_DIR, 'images', item.imgFileNm);
-                        allImageTasks.push(() => downloadWithRetry(url, dest));
+                        allImageTasks.push({
+                            url: item.imgFilePath,
+                            dest: path.join(CACHE_NEW_DIR, 'images', item.imgFileNm),
+                            name: item.imgFileNm
+                        });
                     }
                 }
 
@@ -409,33 +476,25 @@ async function collectOceanCondition(force = false, progressEmitter = null) {
             }
         }
 
-        log(`📦 총 ${allImageTasks.length}개 이미지 다운로드 시작 (동시 ${CONCURRENT_DOWNLOADS}개)...`);
+        log(`📦 총 ${allImageTasks.length}개 이미지 다운로드 시작 (웨이브 방식, 최대 ${MAX_DOWNLOAD_WAVES}회 반복)...`);
         emitProgress('이미지 다운로드', 22, TOTAL_STEPS, `0/${allImageTasks.length}개`);
 
-        // ── 5단계: 이미지 병렬 다운로드 (진행률 콜백 포함) ──
-        let doneCount = 0;
-        const onImageDone = () => {
-            doneCount++;
-            // 50개마다 또는 완료 시 진행률 갱신 (SSE 부하 방지)
-            if (doneCount % 50 === 0 || doneCount === allImageTasks.length) {
-                emitProgress('이미지 다운로드', 22, TOTAL_STEPS, `${doneCount}/${allImageTasks.length}개`);
-            }
-        };
-        const imageResults = await parallelLimit(allImageTasks, CONCURRENT_DOWNLOADS, onImageDone);
-        const successCount = imageResults.filter(r => r.success).length;
-        const failCount = imageResults.filter(r => !r.success).length;
+        // ── 5단계: 웨이브 방식 이미지 다운로드 ──
+        // 1회차: 전체 다운로드 → 2회차: 실패분 재시도 → ... → 모두 성공 or 최대 횟수 도달
+        const dlResult = await downloadImagesInWaves(allImageTasks, emitProgress, TOTAL_STEPS);
+        const successCount = dlResult.successCount;
+        const failCount = dlResult.failCount;
 
-        log(`📸 이미지 다운로드 완료: 성공 ${successCount}개, 실패 ${failCount}개`);
+        log(`📸 이미지 다운로드 최종 결과: 성공 ${successCount}개, 실패 ${failCount}개`);
 
         // 실패가 너무 많으면 (80% 이상) 수집 실패로 처리하고 기존 캐시 유지
-        // khoa.go.kr 서버가 불안정하여 일부 이미지 실패는 허용 (재시도 후에도 실패한 것)
         if (failCount > allImageTasks.length * 0.8) {
             log('❌ 이미지 다운로드 실패율 80% 초과. 기존 캐시 유지.');
             removeDirSync(CACHE_NEW_DIR);
             return { success: false, reason: `이미지 다운로드 대량 실패 (${failCount}/${allImageTasks.length})` };
         }
         if (failCount > 0) {
-            log(`⚠️ 일부 이미지 다운로드 실패: ${failCount}개 (허용 범위 내)`);
+            log(`⚠️ 일부 이미지 최종 실패: ${failCount}개 (${MAX_DOWNLOAD_WAVES}회 시도 후)`);
         }
 
         // ── 6단계: 메타 정보 저장 ──
@@ -444,7 +503,9 @@ async function collectOceanCondition(force = false, progressEmitter = null) {
             collectedAt: new Date().toISOString(),
             totalAreas: areaCount,
             totalImages: successCount,
-            failedImages: failCount
+            failedImages: failCount,
+            failedFiles: dlResult.failedFiles || [],
+            downloadWaves: Math.min(MAX_DOWNLOAD_WAVES, failCount > 0 ? MAX_DOWNLOAD_WAVES : 1)
         };
         fs.writeFileSync(
             path.join(CACHE_NEW_DIR, 'meta.json'),
