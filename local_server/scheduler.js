@@ -455,8 +455,8 @@ async function collectFishingIndex() {
         log('🎣 바다낚시 지수 수집 시작...');
 
         // 진행률 이벤트 발행 (admin 수동 호출 시 SSE 스트림으로 전달)
-        // total=6: 낚시지수 3단계(1~3) + 바다갈라짐 3단계(4~6) — 해양생활기상 통합 호출
-        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 1, total: 6, detail: 'API 호출 중' });
+        // total=9: 낚시지수 3단계(1~3) + 바다갈라짐 3단계(4~6) + 서핑지수 3단계(7~9) — 해양생활기상 통합 호출
+        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 1, total: 9, detail: 'API 호출 중' });
 
         // API는 gubun 파라미터와 무관하게 갯바위+선상 전체 데이터를 반환하므로
         // 1회만 호출하고 위치명 패턴으로 분류 (선상: "항구명(Xkm)" 패턴)
@@ -471,7 +471,7 @@ async function collectFishingIndex() {
         const items = await _fetchFishingData('갯바위');
 
         // 진행률 이벤트: API 응답 수신 완료, 데이터 가공 시작
-        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 2, total: 6, detail: '데이터 가공 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 2, total: 9, detail: '데이터 가공 중' });
 
         if (!items || items.length === 0) {
             log('⚠️ 바다낚시 데이터 없음');
@@ -601,7 +601,7 @@ async function collectFishingIndex() {
         log(`🎣 바다낚시 날짜 분포 - 갯바위: ${dateAnalysis['갯바위'].join(',')} (${dateAnalysis['갯바위'].length}일), 선상: ${dateAnalysis['선상'].join(',')} (${dateAnalysis['선상'].length}일)`);
 
         // 진행률 이벤트: 파일 저장 단계
-        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 3, total: 6, detail: '저장 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 3, total: 9, detail: '저장 중' });
 
         // JSON 파일로 저장 (data/fishing_index.json)
         saveData('fishing_index.json', result);
@@ -738,11 +738,11 @@ async function collectSeaSplitIndex() {
 
         // 진행률 이벤트 발행 (관리자 수동 수집 시 SSE 스트림으로 전달)
         // type을 'fishing'으로 통일 — 해양생활기상 통합 호출 시 같은 SSE 스트림으로 전달되도록
-        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 4, total: 6, detail: 'API 호출 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 4, total: 9, detail: 'API 호출 중' });
 
         const items = await _fetchSeaSplitData();
 
-        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 5, total: 6, detail: '데이터 가공 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 5, total: 9, detail: '데이터 가공 중' });
 
         // ── 발표시각 판단을 위해 기존 저장 데이터를 읽어옴 ──
         // 이전에 저장된 sea_split_index.json을 읽어서 예보 데이터(places)가 바뀌었는지 비교
@@ -814,7 +814,7 @@ async function collectSeaSplitIndex() {
             log(`🛤️ 바다갈라짐 미발생 지점: ${missingPlaces.join(', ')}`);
         }
 
-        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 6, total: 6, detail: '저장 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 6, total: 9, detail: '저장 중' });
 
         // ── 발표시각 결정: 이전 데이터와 비교하여 변경 여부 판단 ──
         // places 객체(예보 데이터 본체)만 비교 — updatedAt/allPlaces는 비교 대상이 아님
@@ -999,6 +999,7 @@ const SURFING_BEACH_META = {
 async function collectSurfingIndex() {
     try {
         log('🏄 서핑지수 수집 시작...');
+        collectProgress.emit('progress', { type: 'fishing', step: '서핑지수', current: 7, total: 9, detail: 'API 호출 중' });
 
         // 페이지네이션으로 전체 데이터 수집
         const allItems = await _fetchSurfingData();
@@ -1007,6 +1008,7 @@ async function collectSurfingIndex() {
             lastRunStatus.surfing = { lastRun: getNowStr(), status: '실패', message: '수신 데이터 없음' };
             return;
         }
+        collectProgress.emit('progress', { type: 'fishing', step: '서핑지수', current: 8, total: 9, detail: '데이터 가공 중' });
 
         // 해수욕장명 기준으로 데이터 그룹핑
         // API는 1개 해수욕장 × 1개 날짜 × 1개 시간대 × 1개 등급 = 1행으로 반환
@@ -1065,6 +1067,7 @@ async function collectSurfingIndex() {
             beaches
         };
         saveData('surfing_index.json', result);
+        collectProgress.emit('progress', { type: 'fishing', step: '서핑지수', current: 9, total: 9, detail: '저장 중' });
 
         lastRunStatus.surfing = {
             lastRun: getNowStr(),
