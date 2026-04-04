@@ -119,6 +119,8 @@ async function checkNoticeStatus() {
                 if (expDate <= now) {
                     // console.log('공지 기한 만료됨:', noticeData.expiresAt);
                     localStorage.removeItem('offline_notice_cache');
+                    // [해역 가이드] 공지가 만료되어 팝업 미표시 → 해역 가이드 체크로 이동
+                    if (typeof checkZoneGuide === 'function') checkZoneGuide();
                     return;
                 }
             }
@@ -137,12 +139,17 @@ async function checkNoticeStatus() {
                         showNoticePopup(noticeData); // 공지 팝업 호출
                     }
                 }, 500);
+            } else {
+                // [해역 가이드] "다시 보지 않기" 체크되어 공지 미표시 → 해역 가이드 체크
+                if (typeof checkZoneGuide === 'function') checkZoneGuide();
             }
         }
         // 2. 공지 비활성화 상태라면
         else {
             // [중요] 저장된 공지 삭제 (서버에서 내려갔으므로)
             localStorage.removeItem('offline_notice_cache');
+            // [해역 가이드] 공지가 비활성 상태 → 해역 가이드 체크로 이동
+            if (typeof checkZoneGuide === 'function') checkZoneGuide();
         }
 
     } catch (error) {
@@ -165,8 +172,11 @@ async function checkNoticeStatus() {
                             showNoticePopup(noticeData); // 공지 팝업 호출
                         }
                     }, 500);
+                } else {
+                    // [해역 가이드] 캐시 공지 "다시 보지 않기" 상태 → 해역 가이드 체크
+                    if (typeof checkZoneGuide === 'function') checkZoneGuide();
                 }
-                return; // 캐시 공지를 띄웠으므로 점검 팝업은 스킵
+                return; // 캐시 공지 처리 완료 → 점검 팝업은 스킵
             } catch (e) {
                 // console.error('Cache parse error', e);
             }
@@ -649,6 +659,10 @@ window.closeNoticePopup = function (noticeId) {
     }
     const popup = document.getElementById('main-notice-popup');
     if (popup) popup.remove();
+
+    // [해역 가이드] 공지 팝업이 닫힌 후 → 해역 가이드 체크로 이동
+    // 팝업 체인: 설문 → 공지 → 해역 가이드 순서의 마지막 단계
+    if (typeof checkZoneGuide === 'function') checkZoneGuide();
 };
 
 // 9. 하드코딩 팝업: 서버 점검 중 (연결 불가) - 리디자인
