@@ -43,12 +43,18 @@ const reportProcessor = require('../report_alert_processor');
 const aiParser = require('../ai_report_parser');
 const pushSender = require('../push_sender');
 const scheduler = require('../scheduler');
+// [관리자 푸시] 독립 서비스 모듈 (순환 참조 방지)
+const { sendAdminPush } = require('../services/admin_push');
 
 const COLLECT_FAILURES_FILE = path.join(DATA_DIR, 'collect_failures.json');
 const COLLECT_CACHE_DIR = path.join(DATA_DIR, 'collect_cache');
 const MAINTENANCE_FILE = path.join(DATA_DIR, 'maintenance_config.json');
 const WORK_MODE_FILE = path.join(DATA_DIR, 'work_mode_config.json');
 const TEST_ALERTS_FILE = path.join(DATA_DIR, 'weather_alerts_test.json');
+// [관리자 기기 등록] 관리자 푸시 알림을 받을 기기 목록 (subscriptions.json과 완전 별도)
+const ADMIN_DEVICES_FILE = path.join(DATA_DIR, 'admin_devices.json');
+// [검토 필요 통보문] "내용 없음" 통보문 등 자동 처리 불가 통보문 저장
+const REVIEW_NEEDED_FILE = path.join(DATA_DIR, 'review_needed.json');
 
 /** 관리자 테스트 모드 시 사용할 장부 파일 경로 반환 */
 function getOutputFile(testMode) {
@@ -395,17 +401,24 @@ router.get('/api/admin/collect-failures', (req, res) => {
     } catch (e) { res.json([]); }
 });
 
-router.post('/api/admin/collect-failures', (req, res) => {
+router.post('/api/admin/collect-failures', async (req, res) => {
     try {
         const { reportId, title, error, retriesUsed } = req.body;
         let failures = [];
         if (fs.existsSync(COLLECT_FAILURES_FILE)) {
             try { failures = JSON.parse(fs.readFileSync(COLLECT_FAILURES_FILE, 'utf8')); } catch (e) { failures = []; }
         }
+        // 중복 저장 방지: 이미 같은 통보문이 기록되어 있으면 푸시도 발송하지 않음
         if (!failures.some(f => f.reportId === reportId)) {
             failures.push({ reportId, title, error, retriesUsed, failedAt: new Date().toISOString() });
             fs.writeFileSync(COLLECT_FAILURES_FILE, JSON.stringify(failures, null, 2), 'utf8');
             console.log(`[Admin] 수집 실패 기록: ${reportId} (${retriesUsed}회 시도)`);
+
+            // [관리자 푸시] AI 수집 실패 발생 시 등록된 관리자 기기에 알림 발송
+            sendAdminPush(
+                '⚠️ AI 수집 실패',
+                `${title || reportId} - ${retriesUsed}회 시도 후 실패`
+            ).catch(err => console.error('[Admin] 수집 실패 푸시 발송 오류:', err.message));
         }
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -414,6 +427,66 @@ router.post('/api/admin/collect-failures', (req, res) => {
 router.delete('/api/admin/collect-failures', (req, res) => {
     try {
         if (fs.existsSync(COLLECT_FAILURES_FILE)) fs.unlinkSync(COLLECT_FAILURES_FILE);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ============================================================================
+// 검토 필요 통보문 관리 (review_needed.json)
+// ============================================================================
+
+// [조회] 검토 필요 통보문 목록 반환
+router.get('/api/admin/review-needed', (req, res) => {
+    try {
+        if (!fs.existsSync(REVIEW_NEEDED_FILE)) return res.json([]);
+        const data = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8'));
+        res.json(data);
+    } catch (e) { res.json([]); }
+});
+
+// [확인완료] 특정 통보문을 관리자가 확인 처리 (반복 푸시 중단 조건)
+router.post('/api/admin/review-needed/acknowledge', (req, res) => {
+    try {
+        const { reportId } = req.body;
+        if (!reportId) return res.status(400).json({ error: 'reportId가 필요합니다.' });
+
+        if (!fs.existsSync(REVIEW_NEEDED_FILE)) return res.json({ success: false, message: '검토 필요 항목 없음' });
+
+        let reviews = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8'));
+        const target = reviews.find(r => r.reportId === reportId);
+        if (target) {
+            target.acknowledged = true;
+            target.acknowledgedAt = new Date().toISOString();
+            fs.writeFileSync(REVIEW_NEEDED_FILE, JSON.stringify(reviews, null, 2), 'utf8');
+            console.log(`[Admin] 검토 필요 통보문 확인완료: ${reportId}`);
+        }
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// [전체 확인완료] 모든 검토 필요 통보문 확인 처리
+router.post('/api/admin/review-needed/acknowledge-all', (req, res) => {
+    try {
+        if (!fs.existsSync(REVIEW_NEEDED_FILE)) return res.json({ success: true });
+
+        let reviews = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8'));
+        const now = new Date().toISOString();
+        reviews.forEach(r => {
+            if (!r.acknowledged) {
+                r.acknowledged = true;
+                r.acknowledgedAt = now;
+            }
+        });
+        fs.writeFileSync(REVIEW_NEEDED_FILE, JSON.stringify(reviews, null, 2), 'utf8');
+        console.log('[Admin] 모든 검토 필요 통보문 확인완료 처리');
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// [삭제] 검토 필요 통보문 전체 삭제 (초기화)
+router.delete('/api/admin/review-needed', (req, res) => {
+    try {
+        if (fs.existsSync(REVIEW_NEEDED_FILE)) fs.unlinkSync(REVIEW_NEEDED_FILE);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1073,6 +1146,126 @@ router.post('/api/admin/cleanup-subscription-zones', (req, res) => {
     } catch (e) {
         console.error('[Admin] 구독자 zones 정리 오류:', e.message);
         res.status(500).json({ error: e.message });
+    }
+});
+
+// ============================================================================
+// 관리자 기기 등록/해제 (관리자 전용 푸시 알림 대상 관리)
+// ============================================================================
+// subscriptions.json(일반 사용자 구독)과 완전 별도로 admin_devices.json 사용.
+// 관리자 센터에서 [등록]하면 해당 기기로 수집 오류/검토 필요 푸시 알림을 받을 수 있음.
+
+/**
+ * POST /api/admin/register-device
+ * 현재 기기를 관리자 푸시 알림 대상으로 등록.
+ * body: { token: "FCM토큰" } 또는 { subscription: { endpoint: "..." } }
+ */
+router.post('/api/admin/register-device', (req, res) => {
+    const { token, subscription } = req.body;
+    // FCM 토큰 또는 Web Push 구독 정보 중 하나는 필수
+    if (!token && !(subscription && subscription.endpoint)) {
+        return res.status(400).json({ error: '토큰 또는 구독 정보가 필요합니다.' });
+    }
+
+    try {
+        let devices = [];
+        if (fs.existsSync(ADMIN_DEVICES_FILE)) {
+            devices = JSON.parse(fs.readFileSync(ADMIN_DEVICES_FILE, 'utf8'));
+        }
+
+        // 등록 기기 식별: FCM이면 토큰, Web Push면 endpoint로 구분
+        const deviceId = token || subscription.endpoint;
+        const deviceType = token ? 'fcm' : 'web';
+
+        // 이미 등록된 기기인지 확인 (중복 방지)
+        const exists = devices.some(d => {
+            if (d.type === 'fcm') return d.token === deviceId;
+            return d.subscription && d.subscription.endpoint === deviceId;
+        });
+
+        if (exists) {
+            return res.json({ success: true, message: '이미 등록된 기기입니다.', alreadyRegistered: true });
+        }
+
+        // 새 기기 등록
+        const newDevice = {
+            type: deviceType,
+            token: token || undefined,
+            subscription: subscription || undefined,
+            registeredAt: new Date().toISOString()
+        };
+        devices.push(newDevice);
+        fs.writeFileSync(ADMIN_DEVICES_FILE, JSON.stringify(devices, null, 2), 'utf8');
+        console.log(`[Admin] 관리자 기기 등록: ${deviceType} (총 ${devices.length}대)`);
+        res.json({ success: true, message: '관리자 기기 등록 완료', totalDevices: devices.length });
+    } catch (e) {
+        console.error('[Admin] 관리자 기기 등록 오류:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/**
+ * POST /api/admin/unregister-device
+ * 현재 기기를 관리자 푸시 알림 대상에서 해제.
+ * body: { token: "FCM토큰" } 또는 { subscription: { endpoint: "..." } }
+ */
+router.post('/api/admin/unregister-device', (req, res) => {
+    const { token, subscription } = req.body;
+    if (!token && !(subscription && subscription.endpoint)) {
+        return res.status(400).json({ error: '토큰 또는 구독 정보가 필요합니다.' });
+    }
+
+    try {
+        let devices = [];
+        if (fs.existsSync(ADMIN_DEVICES_FILE)) {
+            devices = JSON.parse(fs.readFileSync(ADMIN_DEVICES_FILE, 'utf8'));
+        }
+
+        const deviceId = token || subscription.endpoint;
+        const before = devices.length;
+
+        // 해당 기기만 목록에서 제거
+        devices = devices.filter(d => {
+            if (d.type === 'fcm') return d.token !== deviceId;
+            return !(d.subscription && d.subscription.endpoint === deviceId);
+        });
+
+        fs.writeFileSync(ADMIN_DEVICES_FILE, JSON.stringify(devices, null, 2), 'utf8');
+        const removed = before - devices.length;
+        console.log(`[Admin] 관리자 기기 해제: ${removed}대 제거 (남은 ${devices.length}대)`);
+        res.json({ success: true, message: '관리자 기기 해제 완료', removed, totalDevices: devices.length });
+    } catch (e) {
+        console.error('[Admin] 관리자 기기 해제 오류:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/**
+ * GET /api/admin/device-status
+ * 현재 기기가 관리자로 등록되어 있는지 확인.
+ * query: ?token=FCM토큰 또는 ?endpoint=WebPush엔드포인트
+ */
+router.get('/api/admin/device-status', (req, res) => {
+    const { token, endpoint } = req.query;
+    if (!token && !endpoint) {
+        return res.json({ registered: false });
+    }
+
+    try {
+        let devices = [];
+        if (fs.existsSync(ADMIN_DEVICES_FILE)) {
+            devices = JSON.parse(fs.readFileSync(ADMIN_DEVICES_FILE, 'utf8'));
+        }
+
+        const deviceId = token || endpoint;
+        const found = devices.some(d => {
+            if (d.type === 'fcm') return d.token === deviceId;
+            return d.subscription && d.subscription.endpoint === deviceId;
+        });
+
+        res.json({ registered: found, totalDevices: devices.length });
+    } catch (e) {
+        res.json({ registered: false });
     }
 });
 

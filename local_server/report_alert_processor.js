@@ -4,6 +4,8 @@ const path = require('path');
 const aiParser = require('./ai_report_parser');
 
 const COLLECT_CACHE_DIR = path.join(__dirname, 'data', 'collect_cache');
+// [검토 필요 통보문] "내용 없음"이지만 참고사항에 해상 키워드가 포함된 통보문 저장
+const REVIEW_NEEDED_FILE = path.join(__dirname, 'data', 'review_needed.json');
 
 const CONFIG = {
     LIST_URL: 'https://www.weather.go.kr/w/special-report/list.do',
@@ -51,7 +53,10 @@ async function fetchHtml(url) {
     });
 }
 
-async function fetchReportDetail(reportId) {
+// 통보문 상세 본문 가져오기
+// options.keepReference = true이면 참고사항 섹션을 유지 (검토 필요 감지용)
+// 기본값은 참고사항 제거 (기존 AI 분석에 영향 없도록)
+async function fetchReportDetail(reportId, options) {
     const parts = reportId.split(':');
     const dateStr = parts[1] || '';
     const dateParam = dateStr.substring(0, 4) + '-' + dateStr.substring(4, 6) + '-' + dateStr.substring(6, 8);
@@ -84,9 +89,12 @@ async function fetchReportDetail(reportId) {
     // [핵심 수정] "참고사항" 섹션 제거 — AI가 중복 이벤트를 생성하는 주요 원인
     // 참고사항에는 "현재 발효 중인 전체 특보 현황"이 나열되어 있어,
     // AI가 이를 새로운 이벤트로 오해하여 이미 발효 중인 해역까지 중복 처리함
-    const refIdx = text.indexOf('참고사항');
-    if (refIdx !== -1) {
-        text = text.substring(0, refIdx).trim();
+    // options.keepReference = true일 때만 참고사항을 유지 (검토 필요 감지용)
+    if (!options || !options.keepReference) {
+        const refIdx = text.indexOf('참고사항');
+        if (refIdx !== -1) {
+            text = text.substring(0, refIdx).trim();
+        }
     }
 
     return text;
@@ -281,6 +289,53 @@ async function applyNewReports(fullForm) {
             // [필터링] 내용에 해상 관련 키워드가 포함된 경우에만 AI 분석 수행
             const hasRelevantKeyword = RELEVANT_KEYWORDS.some(kw => text.includes(kw));
             if (!hasRelevantKeyword) {
+                // [검토 필요 감지] "□ 내용: 없음"이지만 참고사항에 해상 키워드가 있는 경우
+                // 이 경우는 자동 처리가 불가하므로 관리자에게 알려야 함
+                // 예: "동해중부안쪽먼바다의 풍랑특보는 발표가능성이 낮아져 해제합니다" (참고사항에만 있음)
+                const isContentEmpty = !text.trim() || text.trim() === '□ 내용' || text.includes('없음');
+                if (isContentEmpty) {
+                    // 참고사항 포함된 원본 텍스트를 별도로 가져옴 (기존 text는 참고사항이 잘린 상태)
+                    const fullText = await fetchReportDetail(report.id, { keepReference: true });
+                    // 참고사항 부분만 추출
+                    const refIdx = fullText.indexOf('참고사항');
+                    const referenceText = refIdx !== -1 ? fullText.substring(refIdx).trim() : '';
+                    // 참고사항에 해상 특보 키워드가 포함되어 있는지 확인
+                    const hasKeywordInRef = RELEVANT_KEYWORDS.some(kw => referenceText.includes(kw));
+
+                    if (hasKeywordInRef) {
+                        console.log(`[ReportProcessor] ⚠️ 검토 필요 통보문 감지: ${report.title}`);
+                        console.log(`[ReportProcessor]   → 본문 "내용 없음", 참고사항에 해상 키워드 포함`);
+                        // review_needed.json에 저장 (관리자 확인 대상)
+                        try {
+                            let reviews = [];
+                            if (fs.existsSync(REVIEW_NEEDED_FILE)) {
+                                reviews = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8'));
+                            }
+                            // 같은 통보문 중복 저장 방지
+                            if (!reviews.some(r => r.reportId === report.id)) {
+                                reviews.push({
+                                    reportId: report.id,
+                                    title: report.title,
+                                    referenceText: referenceText,
+                                    detectedAt: new Date().toISOString(),
+                                    acknowledged: false  // 관리자가 [확인완료]를 누르면 true로 변경
+                                });
+                                fs.writeFileSync(REVIEW_NEEDED_FILE, JSON.stringify(reviews, null, 2), 'utf8');
+                                console.log(`[ReportProcessor] 검토 필요 통보문 저장 완료: ${report.id}`);
+
+                                // [관리자 푸시] "내용 없음" 통보문 감지 시 관리자에게 푸시 발송
+                                const { sendAdminPush } = require('./services/admin_push');
+                                sendAdminPush(
+                                    '🔍 검토 필요 통보문',
+                                    `${report.title} - 본문 없음, 참고사항에 특보 키워드 포함`
+                                ).catch(err => console.error('[ReportProcessor] 관리자 푸시 발송 오류:', err.message));
+                            }
+                        } catch (reviewErr) {
+                            console.error('[ReportProcessor] 검토 필요 저장 오류:', reviewErr.message);
+                        }
+                    }
+                }
+
                 console.log(`[ReportProcessor] 해상 특보 키워드 미포함, 건너뜀: ${report.title}`);
                 fullForm.lastReportId = report.id;
                 // [누락 방지] 키워드 미포함 통보문도 processedReportIds에 추가
