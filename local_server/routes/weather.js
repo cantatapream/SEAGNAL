@@ -183,6 +183,7 @@ router.get('/api/regional-debug', (req, res) => {
     res.json(result);
 });
 
+
 // 2-2. API 인증키 설정 조회
 router.get('/api/config', (req, res) => {
     try {

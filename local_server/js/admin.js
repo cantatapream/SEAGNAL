@@ -108,13 +108,121 @@ window._toggleAdminMode = function (checked) {
     }
 };
 
-// 2-0. 수집 실패 통보문 알림 팝업
+// ============================================================================
+// 1-2. 관리자 기기 등록/해제 (관리자 전용 푸시 알림 수신 기기 관리)
+// ============================================================================
+// 기존 subscriptions.json(일반 사용자 구독)과 완전 별도로 admin_devices.json 사용.
+// 등록하면: 수집 오류, 검토 필요 통보문 발생 시 이 기기로 푸시 알림을 받음.
+// 해제하면: 더 이상 관리자 푸시 알림을 받지 않음.
+
+/** 현재 기기의 FCM 토큰 가져오기 (localStorage에 저장되어 있음) */
+function _getDeviceToken() {
+    return localStorage.getItem('push_token') || null;
+}
+
+/** 관리자 기기 등록 상태를 서버에서 조회하여 버튼 UI 갱신 */
+window._checkAdminDeviceStatus = async function () {
+    const token = _getDeviceToken();
+    const registerBtn = document.getElementById('btn-admin-register');
+    const unregisterBtn = document.getElementById('btn-admin-unregister');
+    if (!registerBtn || !unregisterBtn) return;
+
+    if (!token) {
+        // 토큰이 없으면 등록 불가 (앱이 아닌 PC 브라우저 등)
+        registerBtn.style.display = 'none';
+        unregisterBtn.style.display = 'none';
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/admin/device-status?token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (data.registered) {
+            // 이미 등록됨 → 등록 버튼 비활성화, 해제 버튼 활성화
+            registerBtn.style.background = '#334155';
+            registerBtn.style.color = '#64748b';
+            registerBtn.innerHTML = '<i class="fa-solid fa-check"></i> 등록됨';
+            registerBtn.disabled = true;
+            unregisterBtn.style.background = '#ef4444';
+            unregisterBtn.disabled = false;
+        } else {
+            // 미등록 → 등록 버튼 활성화, 해제 버튼 비활성화
+            registerBtn.style.background = '#3b82f6';
+            registerBtn.style.color = '#fff';
+            registerBtn.innerHTML = '<i class="fa-solid fa-mobile-screen"></i> 등록';
+            registerBtn.disabled = false;
+            unregisterBtn.style.background = '#334155';
+            unregisterBtn.style.color = '#64748b';
+            unregisterBtn.disabled = true;
+        }
+    } catch (e) {
+        // 네트워크 오류 시 기본 상태 유지
+    }
+};
+
+/** [등록] 버튼 클릭 → 현재 기기를 관리자 푸시 대상으로 등록 */
+window._registerAdminDevice = async function () {
+    const token = _getDeviceToken();
+    if (!token) {
+        alert('푸시 토큰을 찾을 수 없습니다.\n앱에서 알림 권한을 허용한 후 다시 시도해주세요.');
+        return;
+    }
+    try {
+        const res = await fetch('/api/admin/register-device', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert(data.alreadyRegistered ? '이미 등록된 기기입니다.' : '관리자 기기 등록 완료!\n수집 오류 발생 시 이 기기로 푸시 알림을 받습니다.');
+            _checkAdminDeviceStatus(); // 버튼 상태 갱신
+        } else {
+            alert('등록 실패: ' + (data.error || '알 수 없는 오류'));
+        }
+    } catch (e) {
+        alert('등록 요청 실패: ' + e.message);
+    }
+};
+
+/** [해제] 버튼 클릭 → 현재 기기를 관리자 푸시 대상에서 제거 */
+window._unregisterAdminDevice = async function () {
+    const token = _getDeviceToken();
+    if (!token) return;
+    if (!confirm('관리자 알림 수신을 해제하시겠습니까?')) return;
+    try {
+        const res = await fetch('/api/admin/unregister-device', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('관리자 기기 해제 완료');
+            _checkAdminDeviceStatus(); // 버튼 상태 갱신
+        }
+    } catch (e) {
+        alert('해제 요청 실패: ' + e.message);
+    }
+};
+
+// 2-0. 관리자 접속 시 알림 팝업 (검토 필요 + 수집 실패 통합)
 window.showCollectFailureAlert = async function () {
     try {
-        const res = await fetch('/api/admin/collect-failures');
-        if (!res.ok) return;
-        const failures = await res.json();
-        if (!failures || failures.length === 0) return;
+        // 검토 필요 + 수집 실패 병렬 조회
+        const [failRes, reviewRes] = await Promise.all([
+            fetch('/api/admin/collect-failures'),
+            fetch('/api/admin/review-needed')
+        ]);
+        let failures = [];
+        let reviews = [];
+        if (failRes.ok) failures = await failRes.json();
+        if (reviewRes.ok) reviews = await reviewRes.json();
+
+        // 미확인 검토 필요 항목만 필터
+        const pendingReviews = (reviews || []).filter(r => !r.acknowledged);
+        // 둘 다 없으면 팝업 표시하지 않음
+        if ((!failures || failures.length === 0) && pendingReviews.length === 0) return;
 
         const old = document.getElementById('collect-failure-popup');
         if (old) old.remove();
@@ -124,32 +232,71 @@ window.showCollectFailureAlert = async function () {
         popup.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10002;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s;';
         popup.onclick = (e) => { if (e.target === popup) popup.remove(); };
 
-        const rows = failures.map(f => {
-            const time = f.failedAt ? new Date(f.failedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '';
-            return `<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;margin-bottom:6px;">
-                <i class="fa-solid fa-circle-xmark" style="color:#ef4444;flex-shrink:0;"></i>
-                <div style="flex:1;min-width:0;">
-                    <div style="color:#fca5a5;font-size:0.85rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.title || f.reportId}</div>
-                    <div style="color:#94a3b8;font-size:0.7rem;margin-top:2px;">${f.reportId} · ${f.retriesUsed || 5}회 시도 · ${time}</div>
-                    <div style="color:#f87171;font-size:0.72rem;margin-top:2px;">${f.error || ''}</div>
+        let contentHtml = '';
+        const totalCount = pendingReviews.length + (failures ? failures.length : 0);
+
+        // ── 검토 필요 섹션 (오렌지) ──
+        if (pendingReviews.length > 0) {
+            const reviewRows = pendingReviews.map(r => {
+                const time = r.detectedAt ? new Date(r.detectedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '';
+                const preview = (r.referenceText || '').substring(0, 60) + ((r.referenceText || '').length > 60 ? '...' : '');
+                return `<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 14px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:8px;margin-bottom:6px;">
+                    <i class="fa-solid fa-magnifying-glass" style="color:#f59e0b;flex-shrink:0;margin-top:2px;"></i>
+                    <div style="flex:1;min-width:0;">
+                        <div style="color:#fcd34d;font-size:0.85rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.title || r.reportId}</div>
+                        <div style="color:#94a3b8;font-size:0.7rem;margin-top:2px;">본문 없음 · 참고사항에 특보 키워드 · ${time}</div>
+                        <div style="color:#d4a276;font-size:0.72rem;margin-top:2px;">${preview}</div>
+                    </div>
+                </div>`;
+            }).join('');
+            contentHtml += `
+                <div style="margin-bottom:10px;color:#fcd34d;font-size:0.85rem;font-weight:600;">
+                    <i class="fa-solid fa-magnifying-glass"></i> 검토 필요 ${pendingReviews.length}건
                 </div>
-            </div>`;
-        }).join('');
+                ${reviewRows}`;
+        }
+
+        // ── 수집 실패 섹션 (빨간) ──
+        if (failures && failures.length > 0) {
+            const failRows = failures.map(f => {
+                const time = f.failedAt ? new Date(f.failedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '';
+                return `<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;margin-bottom:6px;">
+                    <i class="fa-solid fa-circle-xmark" style="color:#ef4444;flex-shrink:0;"></i>
+                    <div style="flex:1;min-width:0;">
+                        <div style="color:#fca5a5;font-size:0.85rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.title || f.reportId}</div>
+                        <div style="color:#94a3b8;font-size:0.7rem;margin-top:2px;">${f.reportId} · ${f.retriesUsed || 5}회 시도 · ${time}</div>
+                        <div style="color:#f87171;font-size:0.72rem;margin-top:2px;">${f.error || ''}</div>
+                    </div>
+                </div>`;
+            }).join('');
+            if (pendingReviews.length > 0) contentHtml += '<div style="border-top:1px solid rgba(255,255,255,0.08);margin:10px 0;"></div>';
+            contentHtml += `
+                <div style="margin-bottom:10px;color:#fca5a5;font-size:0.85rem;font-weight:600;">
+                    <i class="fa-solid fa-triangle-exclamation"></i> 수집 실패 ${failures.length}건
+                </div>
+                ${failRows}`;
+        }
+
+        // 팝업 테두리 색상: 검토 필요만 있으면 오렌지, 수집 실패 포함 시 빨강
+        const borderColor = failures && failures.length > 0 ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.3)';
+        const shadowColor = failures && failures.length > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)';
+        const headerIcon = failures && failures.length > 0 ? 'fa-triangle-exclamation' : 'fa-magnifying-glass';
+        const headerColor = failures && failures.length > 0 ? '#ef4444' : '#f59e0b';
 
         popup.innerHTML = `
-            <div style="background:#1e293b;border-radius:14px;width:90%;max-width:500px;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;border:1px solid rgba(239,68,68,0.3);box-shadow:0 0 30px rgba(239,68,68,0.15);">
+            <div style="background:#1e293b;border-radius:14px;width:90%;max-width:500px;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;border:1px solid ${borderColor};box-shadow:0 0 30px ${shadowColor};">
                 <div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;gap:10px;">
-                    <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;font-size:1.2rem;"></i>
+                    <i class="fa-solid ${headerIcon}" style="color:${headerColor};font-size:1.2rem;"></i>
                     <div style="flex:1;">
-                        <h4 style="margin:0;color:#fff;font-size:1rem;">AI 수집 실패 통보문 ${failures.length}건</h4>
-                        <div style="color:#94a3b8;font-size:0.75rem;margin-top:2px;">5회 재시도 후에도 AI 분석에 실패한 통보문입니다.</div>
+                        <h4 style="margin:0;color:#fff;font-size:1rem;">관리자 확인 필요 ${totalCount}건</h4>
+                        <div style="color:#94a3b8;font-size:0.75rem;margin-top:2px;">��리자 센터 → 특보 알림 → 특보 수집 오류 탭에서 상세 확인</div>
                     </div>
                     <button onclick="document.getElementById('collect-failure-popup').remove()" style="background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer;">&times;</button>
                 </div>
-                <div style="padding:14px 18px;overflow-y:auto;flex:1;">${rows}</div>
+                <div style="padding:14px 18px;overflow-y:auto;flex:1;">${contentHtml}</div>
                 <div style="padding:12px 18px;border-top:1px solid rgba(255,255,255,0.1);display:flex;gap:10px;justify-content:flex-end;">
                     <button onclick="clearCollectFailures()" style="padding:8px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
-                        <i class="fa-solid fa-check"></i> 확인 (기록 삭제)
+                        <i class="fa-solid fa-check"></i> 전체 확인
                     </button>
                     <button onclick="document.getElementById('collect-failure-popup').remove()" style="padding:8px 16px;background:rgba(255,255,255,0.1);color:#e2e8f0;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;">닫기</button>
                 </div>
@@ -158,11 +305,14 @@ window.showCollectFailureAlert = async function () {
     } catch (e) { /* 무시 */ }
 };
 
-// 실패 기록 삭제 및 헤더 복원
+// 실패 기록 삭제 + 검토 항목 전체 확인완료 및 팝업 닫기
 window.clearCollectFailures = async function () {
     try {
-        await fetch('/api/admin/collect-failures', { method: 'DELETE' });
-        markVisitorCounterError(false);
+        // 수집 실패 삭제 + 검토 필요 전체 확인완료 병렬 처리
+        await Promise.all([
+            fetch('/api/admin/collect-failures', { method: 'DELETE' }),
+            fetch('/api/admin/review-needed/acknowledge-all', { method: 'POST' })
+        ]);
         const popup = document.getElementById('collect-failure-popup');
         if (popup) popup.remove();
     } catch (e) { /* 무시 */ }
@@ -197,12 +347,21 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         <div class="unified-admin-wrapper">
             <div class="unified-admin-header">
                 <h3><i class="fa-solid fa-user-shield"></i> SEAGNAL 통합 관리자 센터</h3>
-                <div style="display:flex;align-items:center;gap:10px;">
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                     <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:0.7rem;color:#94a3b8;" title="앱 종료 후에도 관리자 모드 유지">
                         <input type="checkbox" id="admin-mode-toggle" ${isAdminMode ? 'checked' : ''} onchange="window._toggleAdminMode(this.checked)"
                                style="width:14px;height:14px;accent-color:#3b82f6;">
                         <span>관리자 모드</span>
                     </label>
+                    <!-- [관리자 기기 등록] 이 기기로 수집 오류/검토 필요 푸시 알림을 받을지 설정 -->
+                    <div id="admin-device-btns" style="display:flex;gap:4px;">
+                        <button id="btn-admin-register" onclick="window._registerAdminDevice()" style="padding:3px 8px;background:#3b82f6;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:0.65rem;font-weight:600;" title="이 기기를 관리자 알림 수신 기기로 등록">
+                            <i class="fa-solid fa-mobile-screen"></i> 등록
+                        </button>
+                        <button id="btn-admin-unregister" onclick="window._unregisterAdminDevice()" style="padding:3px 8px;background:#64748b;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:0.65rem;font-weight:600;" title="이 기기의 관리자 알림 수신 해제">
+                            <i class="fa-solid fa-bell-slash"></i> 해제
+                        </button>
+                    </div>
                     <button class="unified-admin-close" onclick="document.getElementById('unified-admin-modal').remove();">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
@@ -225,6 +384,9 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
     `;
 
     document.body.appendChild(modal);
+
+    // [관리자 기기 등록 상태 확인] 현재 기기가 관리자로 등록되어 있는지 서버에서 조회하여 버튼 상태 갱신
+    _checkAdminDeviceStatus();
 
     // 초기 탭 활성화
     switchUnifiedAdminTab(initialTab);
@@ -285,54 +447,129 @@ window.switchUnifiedAdminTab = function (tabId) {
 // (A-0) 오류 목록 / 수동 입력 (특보 알림 탭 내부에서 사용)
 // ============================================================================
 
-// --- 서브탭 1: 오류 목록 ---
+// --- 서브탭 1: 오류 목록 (검토 필요 + 수집 실패 2섹션) ---
 async function renderErrorListTab(container) {
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
 
+    // 두 가지 데이터를 병렬로 조회
     let failures = [];
+    let reviews = [];
     try {
-        const res = await fetch('/api/admin/collect-failures');
-        if (res.ok) failures = await res.json();
+        const [failRes, reviewRes] = await Promise.all([
+            fetch('/api/admin/collect-failures'),
+            fetch('/api/admin/review-needed')
+        ]);
+        if (failRes.ok) failures = await failRes.json();
+        if (reviewRes.ok) reviews = await reviewRes.json();
     } catch (e) { /* 무시 */ }
 
-    if (!failures || failures.length === 0) {
+    // 미확인 검토 필요 항목만 필터
+    const pendingReviews = (reviews || []).filter(r => !r.acknowledged);
+
+    // 둘 다 없으면 정상 상태 표시
+    if ((!failures || failures.length === 0) && pendingReviews.length === 0) {
         container.innerHTML = `
             <div style="text-align:center;padding:60px 20px;color:#64748b;">
                 <i class="fa-solid fa-circle-check" style="font-size:2.5rem;color:#22c55e;margin-bottom:15px;display:block;"></i>
                 <div style="font-size:1rem;font-weight:700;color:#cbd5e1;margin-bottom:6px;">수집 오류 없음</div>
-                <div style="font-size:0.85rem;">현재 AI 수집 실패 통보문이 없습니다.</div>
+                <div style="font-size:0.85rem;">현재 확인이 필요한 항목이 없습니다.</div>
             </div>`;
         return;
     }
 
-    const rows = failures.map((f, idx) => {
-        const time = f.failedAt ? new Date(f.failedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-';
-        return `
-            <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:10px;margin-bottom:8px;">
-                <i class="fa-solid fa-circle-xmark" style="color:#ef4444;flex-shrink:0;font-size:1.1rem;"></i>
-                <div style="flex:1;min-width:0;">
-                    <div style="color:#fca5a5;font-size:0.9rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.title || f.reportId}</div>
-                    <div style="color:#94a3b8;font-size:0.75rem;margin-top:3px;">ID: ${f.reportId} | ${f.retriesUsed || 5}회 시도 | ${time}</div>
-                    <div style="color:#f87171;font-size:0.75rem;margin-top:2px;">${f.error || ''}</div>
-                </div>
-                <button onclick="deleteOneCollectFailure('${f.reportId}')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#94a3b8;padding:6px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;" title="이 항목 삭제">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
-            </div>`;
-    }).join('');
+    let html = '';
 
-    container.innerHTML = `
-        <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
-            <div style="color:#fca5a5;font-size:0.9rem;font-weight:600;">
-                <i class="fa-solid fa-triangle-exclamation"></i> 수집 실패 ${failures.length}건
-            </div>
-            <button onclick="clearAllCollectFailuresAndRefresh()" style="padding:6px 14px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.8rem;font-weight:600;">
-                <i class="fa-solid fa-check"></i> 전체 삭제
-            </button>
-        </div>
-        ${rows}
-    `;
+    // ── 섹션 1: 검토 필요 (오렌지색) ──
+    if (pendingReviews.length > 0) {
+        const reviewRows = pendingReviews.map(r => {
+            const time = r.detectedAt ? new Date(r.detectedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-';
+            // 참고사항 미리보기 (최대 80자)
+            const preview = (r.referenceText || '').substring(0, 80) + ((r.referenceText || '').length > 80 ? '...' : '');
+            return `
+                <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:10px;margin-bottom:8px;">
+                    <i class="fa-solid fa-magnifying-glass" style="color:#f59e0b;flex-shrink:0;font-size:1.1rem;margin-top:2px;"></i>
+                    <div style="flex:1;min-width:0;">
+                        <div style="color:#fcd34d;font-size:0.9rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.title || r.reportId}</div>
+                        <div style="color:#94a3b8;font-size:0.72rem;margin-top:3px;">본문 "내용 없음" · 참고사항에 특보 키워드 포함 · ${time}</div>
+                        <div style="color:#d4a276;font-size:0.75rem;margin-top:4px;line-height:1.4;background:rgba(245,158,11,0.05);padding:6px 8px;border-radius:6px;">${preview}</div>
+                    </div>
+                    <button onclick="acknowledgeReviewItem('${r.reportId}')" style="background:linear-gradient(135deg,#f59e0b,#d97706);border:none;border-radius:6px;color:#fff;padding:6px 10px;cursor:pointer;font-size:0.72rem;white-space:nowrap;font-weight:600;" title="확인 완료 처리">
+                        <i class="fa-solid fa-check"></i> 확인완료
+                    </button>
+                </div>`;
+        }).join('');
+
+        html += `
+            <div style="margin-bottom:16px;">
+                <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
+                    <div style="color:#fcd34d;font-size:0.9rem;font-weight:600;">
+                        <i class="fa-solid fa-magnifying-glass"></i> 검토 필요 ${pendingReviews.length}건
+                    </div>
+                    <button onclick="acknowledgeAllReviews()" style="padding:5px 12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:600;">
+                        <i class="fa-solid fa-check-double"></i> 전체 확인완료
+                    </button>
+                </div>
+                ${reviewRows}
+            </div>`;
+    }
+
+    // ── 섹션 2: 수집 실패 (빨간색) ──
+    if (failures && failures.length > 0) {
+        const failRows = failures.map(f => {
+            const time = f.failedAt ? new Date(f.failedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-';
+            return `
+                <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:10px;margin-bottom:8px;">
+                    <i class="fa-solid fa-circle-xmark" style="color:#ef4444;flex-shrink:0;font-size:1.1rem;"></i>
+                    <div style="flex:1;min-width:0;">
+                        <div style="color:#fca5a5;font-size:0.9rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.title || f.reportId}</div>
+                        <div style="color:#94a3b8;font-size:0.75rem;margin-top:3px;">ID: ${f.reportId} | ${f.retriesUsed || 5}회 시도 | ${time}</div>
+                        <div style="color:#f87171;font-size:0.75rem;margin-top:2px;">${f.error || ''}</div>
+                    </div>
+                    <button onclick="deleteOneCollectFailure('${f.reportId}')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#94a3b8;padding:6px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;" title="이 항목 삭제">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>`;
+        }).join('');
+
+        html += `
+            <div>
+                <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
+                    <div style="color:#fca5a5;font-size:0.9rem;font-weight:600;">
+                        <i class="fa-solid fa-triangle-exclamation"></i> 수집 ��패 ${failures.length}건
+                    </div>
+                    <button onclick="clearAllCollectFailuresAndRefresh()" style="padding:5px 12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:600;">
+                        <i class="fa-solid fa-check"></i> 전체 삭제
+                    </button>
+                </div>
+                ${failRows}
+            </div>`;
+    }
+
+    container.innerHTML = html;
 }
+
+// [검토 필요] 개별 확인완료 처리
+window.acknowledgeReviewItem = async function (reportId) {
+    try {
+        await fetch('/api/admin/review-needed/acknowledge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reportId })
+        });
+        // UI 새로고침
+        const inner = document.getElementById('alert-top-content');
+        if (inner) renderErrorListTab(inner);
+    } catch (e) { /* 무��� */ }
+};
+
+// [검토 필요] 전체 확인완료 처리
+window.acknowledgeAllReviews = async function () {
+    try {
+        await fetch('/api/admin/review-needed/acknowledge-all', { method: 'POST' });
+        const inner = document.getElementById('alert-top-content');
+        if (inner) renderErrorListTab(inner);
+    } catch (e) { /* 무시 */ }
+};
 
 // 개별 실패 기록 삭제
 window.deleteOneCollectFailure = async function (reportId) {
@@ -350,7 +587,6 @@ window.deleteOneCollectFailure = async function (reportId) {
                 body: JSON.stringify(f)
             });
         }
-        if (failures.length === 0) markVisitorCounterError(false);
         const inner = document.getElementById('alert-top-content');
         if (inner) renderErrorListTab(inner);
     } catch (e) { /* 무시 */ }
@@ -360,7 +596,6 @@ window.deleteOneCollectFailure = async function (reportId) {
 window.clearAllCollectFailuresAndRefresh = async function () {
     try {
         await fetch('/api/admin/collect-failures', { method: 'DELETE' });
-        markVisitorCounterError(false);
         const inner = document.getElementById('alert-top-content');
         if (inner) renderErrorListTab(inner);
     } catch (e) { /* 무시 */ }
