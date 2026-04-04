@@ -638,32 +638,35 @@
             <!-- [연계] routes/ocean_condition.js → 캐시된 데이터/이미지 제공 -->
             <!-- [연계] ocean_condition_collector.js → API 데이터 수집 및 디스크 캐싱 -->
             <section id="ocean-forecast-section" class="tab-content">
-                <!-- 섹션 제목 -->
-                <div class="section-header-with-info">
-                    <h2 class="section-title"><i class="fa-solid fa-water"></i> 해황예보도</h2>
-                </div>
 
-                <!-- 지역 선택: 드롭다운 + 즐겨찾기 별표 -->
-                <div class="ocean-forecast-area-selector">
+                <!-- 상단: 지역 드롭다운 + 제목(지역명 해황예보도) + 즐겨찾기 별표 -->
+                <!-- 한 줄에 왼쪽(드롭다운), 가운데(제목), 오른쪽(별표) 배치 -->
+                <div class="ocean-forecast-header">
                     <select id="ocean-forecast-area-select" class="ocean-forecast-select">
-                        <!-- js/ocean_condition.js에서 동적으로 옵션 생성 -->
+                        <!-- js/ocean_condition.js에서 동적으로 20개 지역 옵션 생성 -->
                     </select>
+                    <h2 id="ocean-forecast-title" class="ocean-forecast-title">
+                        <i class="fa-solid fa-water"></i>
+                        <span id="ocean-forecast-title-text">전국 해황예보도</span>
+                    </h2>
                     <button id="ocean-forecast-fav-btn" class="ocean-forecast-fav-btn" title="즐겨찾기">
                         <i class="fa-regular fa-star"></i>
                     </button>
                 </div>
 
-                <!-- 날짜 선택: 7일간 버튼 가로 배치 -->
-                <div id="ocean-forecast-date-btns" class="ocean-forecast-date-btns">
-                    <!-- js/ocean_condition.js에서 동적으로 날짜 버튼 생성 -->
-                    <!-- 예: 4/4(금) | 4/5(토) | ... | 4/10(목) -->
-                </div>
-
-                <!-- 시간 선택: 8개 시간 버튼 가로 배치 -->
-                <div id="ocean-forecast-time-btns" class="ocean-forecast-time-btns">
-                    <!-- js/ocean_condition.js에서 동적으로 시간 버튼 생성 -->
-                    <!-- 00시 | 03시 | 06시 | ... | 21시 -->
-                </div>
+                <!-- 일시 선택: fieldset 스타일 테두리 박스 안에 날짜+시간 버튼 -->
+                <!-- legend 텍스트 "일시 선택"이 상단 테두리에 걸쳐 표시됨 -->
+                <fieldset class="ocean-forecast-datetime-box">
+                    <legend>일시 선택</legend>
+                    <!-- 날짜 버튼 행: 7일간 가로 배치 (예: 4/4(금) ~ 4/10(목)) -->
+                    <div id="ocean-forecast-date-btns" class="ocean-forecast-date-btns">
+                        <!-- js/ocean_condition.js에서 동적 생성 -->
+                    </div>
+                    <!-- 시간 버튼 행: 8개 3시간 간격 (00시 ~ 21시) -->
+                    <div id="ocean-forecast-time-btns" class="ocean-forecast-time-btns">
+                        <!-- js/ocean_condition.js에서 동적 생성 -->
+                    </div>
+                </fieldset>
 
                 <!-- 이미지 표출 영역 -->
                 <div class="ocean-forecast-image-wrapper">
@@ -675,13 +678,13 @@
                     <div id="ocean-forecast-empty" class="ocean-forecast-empty" style="display: none;">
                         <p>데이터를 준비 중입니다. 잠시 후 다시 시도해주세요.</p>
                     </div>
-                    <!-- 해황예보도 이미지 (탭하면 전체화면 확대) -->
+                    <!-- 해황예보도 이미지 (탭하면 전체화면 확대 모달) -->
                     <img id="ocean-forecast-image"
                          class="ocean-forecast-image"
                          alt="해황예보도"
                          style="display: none;"
                          onclick="window.openOceanForecastModal()">
-                    <!-- 발표 시점 오버레이 (이미지 왼쪽 하단) -->
+                    <!-- 발표 시점 오버레이 (이미지 왼쪽 하단에 반투명 배경) -->
                     <div id="ocean-forecast-publish-label" class="ocean-forecast-publish-label" style="display: none;">
                         <!-- 예: 발표 2026. 04. 04. 09시 -->
                     </div>
@@ -1210,7 +1213,11 @@
     <script src="js/surfing4.js"></script>
     <script src="js/surfing5.js"></script>
     <script src="js/sea_parting.js"></script>
-    <script src="js/ocean_condition.js"></script>
+    <script src="js/ocean_condition1.js"></script>
+    <script src="js/ocean_condition2.js"></script>
+    <script src="js/ocean_condition3.js"></script>
+    <script src="js/ocean_condition4.js"></script>
+    <script src="js/ocean_condition5.js"></script>
     <script src="js/admin_trigger.js"></script>
     <script src="js/promo.js"></script>
     <script src="js/promo_comment1.js"></script>

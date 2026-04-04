@@ -909,6 +909,7 @@ const TAB_GROUP_SUBTABS = {
 const SECTION_TO_GROUP = {
     'weather-alert-section': 'weather-group',
     'sea-zone-section': 'weather-group',
+    'ocean-forecast-section': 'weather-group',  // 해황예보도 (국립해양조사원)
     'typhoon-section': 'weather-group',
     'cctv-section': 'weather-group',
     'fishing-section': 'ocean-life-group',
@@ -1084,6 +1085,16 @@ function _onSectionActivated(sectionId) {
         setTimeout(() => {
             if (window.initSeaZoneMap) {
                 window.initSeaZoneMap();
+            }
+        }, 200);
+    }
+    // 해황예보도 탭 활성화 시 초기화
+    // ocean_condition1.js의 initOceanForecast()를 호출합니다.
+    // 최초 1회만 실제 초기화 수행 (내부에서 initialized 플래그로 제어)
+    if (sectionId === 'ocean-forecast-section') {
+        setTimeout(() => {
+            if (window.initOceanForecast) {
+                window.initOceanForecast();
             }
         }, 200);
     }
