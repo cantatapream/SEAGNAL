@@ -193,11 +193,11 @@ async function applyNewReports(fullForm) {
         const processedIds = new Set(fullForm.processedReportIds || []);
         if (fullForm.lastReportId) processedIds.add(fullForm.lastReportId);
 
-        // [보호] 너무 오래된 통보문 재수집 방지를 위한 기준 (3일 = 72시간)
+        // [보호] 너무 오래된 통보문 재수집 방지를 위한 기준 (30일)
         // processedReportIds가 정리되면서 오래된 ID가 삭제되었을 때,
         // 기상청 목록에 남아있는 오래된 통보문을 다시 수집하지 않도록 차단
         const now = new Date();
-        const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+        const THREE_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
         let allProcessedOnPage = false; // 현재 페이지의 통보문이 전부 처리 완료인지
         for (let page = 1; page <= 5; page++) {
@@ -402,13 +402,13 @@ async function applyNewReports(fullForm) {
             if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
             fullForm.processedReportIds.push(report.id);
         }
-        // [processedReportIds 정리] 3일(72시간) 이상 지난 ID는 삭제하여 무한 증가 방지
+        // [processedReportIds 정리] 30일 이상 지난 ID는 삭제하여 무한 증가 방지
         // 기존에는 lastTs 기준으로 이전 ID를 모두 삭제했으나, 이 경우 동시각 통보문의
         // ID가 정리되어 다음 사이클에서 재수집될 수 있었음.
-        // 3일 보관으로 변경하여 충분한 재수집 방어 기간을 확보하면서도 무한 증가를 방지.
+        // 30일 보관으로 변경하여 충분한 재수집 방어 기간을 확보하면서도 무한 증가를 방지.
         if (fullForm.processedReportIds) {
             const cleanupNow = new Date();
-            const CLEANUP_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000; // 3일
+            const CLEANUP_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000; // 30일
             fullForm.processedReportIds = fullForm.processedReportIds.filter(id => {
                 const ts = (id.split(':')[1] || '').substring(0, 12);
                 if (ts.length >= 12) {

@@ -274,12 +274,12 @@ router.post('/api/admin/report-collect', async (req, res) => {
                 // [Fix] 처리 완료 ID 추적 (동시 발표 통보문 재수집 방지)
                 if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
                 if (!fullForm.processedReportIds.includes(reportId)) fullForm.processedReportIds.push(reportId);
-                // [processedReportIds 정리] 3일(72시간) 이상 지난 ID만 삭제
+                // [processedReportIds 정리] 30일 이상 지난 ID만 삭제
                 // report_alert_processor.js와 동일한 기준 적용 — lastTs 기준 정리 시
                 // 자동 크롤러가 보관 중인 ID까지 삭제되어 재수집이 발생할 수 있음
                 if (fullForm.processedReportIds) {
                     const cleanupNow = new Date();
-                    const CLEANUP_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000; // 3일
+                    const CLEANUP_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000; // 30일
                     fullForm.processedReportIds = fullForm.processedReportIds.filter(id => {
                         const ts = (id.split(':')[1] || '').substring(0, 12);
                         if (ts.length >= 12) {
@@ -646,11 +646,11 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
                     // [Fix] 처리 완료 ID 추적
                     if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
                     if (!fullForm.processedReportIds.includes(report.id)) fullForm.processedReportIds.push(report.id);
-                    // [processedReportIds 정리] 3일(72시간) 이상 지난 ID만 삭제
+                    // [processedReportIds 정리] 30일 이상 지난 ID만 삭제
                     // report_alert_processor.js와 동일한 기준 적용
                     if (fullForm.processedReportIds) {
                         const cleanupNow = new Date();
-                        const CLEANUP_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000; // 3일
+                        const CLEANUP_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000; // 30일
                         fullForm.processedReportIds = fullForm.processedReportIds.filter(id => {
                             const ts = (id.split(':')[1] || '').substring(0, 12);
                             if (ts.length >= 12) {
