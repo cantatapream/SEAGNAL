@@ -274,12 +274,19 @@ router.post('/api/admin/report-collect', async (req, res) => {
                 // [Fix] 처리 완료 ID 추적 (동시 발표 통보문 재수집 방지)
                 if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
                 if (!fullForm.processedReportIds.includes(reportId)) fullForm.processedReportIds.push(reportId);
-                // processedReportIds 정리: 최신 타임스탬프 이상만 유지
-                const adminLatestTs = (fullForm.lastReportId || '').split(':')[1]?.substring(0, 12) || '';
-                if (adminLatestTs) {
+                // [processedReportIds 정리] 30일 이상 지난 ID만 삭제
+                // report_alert_processor.js와 동일한 기준 적용 — lastTs 기준 정리 시
+                // 자동 크롤러가 보관 중인 ID까지 삭제되어 재수집이 발생할 수 있음
+                if (fullForm.processedReportIds) {
+                    const cleanupNow = new Date();
+                    const CLEANUP_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000; // 30일
                     fullForm.processedReportIds = fullForm.processedReportIds.filter(id => {
                         const ts = (id.split(':')[1] || '').substring(0, 12);
-                        return ts >= adminLatestTs;
+                        if (ts.length >= 12) {
+                            const idDate = new Date(`${ts.substring(0,4)}-${ts.substring(4,6)}-${ts.substring(6,8)}T${ts.substring(8,10)}:${ts.substring(10,12)}:00+09:00`);
+                            return (cleanupNow - idDate) < CLEANUP_THRESHOLD_MS;
+                        }
+                        return true; // 파싱 불가한 ID는 유지
                     });
                 }
                 fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
@@ -639,11 +646,18 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
                     // [Fix] 처리 완료 ID 추적
                     if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
                     if (!fullForm.processedReportIds.includes(report.id)) fullForm.processedReportIds.push(report.id);
-                    const batchLatestTs = (fullForm.lastReportId || '').split(':')[1]?.substring(0, 12) || '';
-                    if (batchLatestTs) {
+                    // [processedReportIds 정리] 30일 이상 지난 ID만 삭제
+                    // report_alert_processor.js와 동일한 기준 적용
+                    if (fullForm.processedReportIds) {
+                        const cleanupNow = new Date();
+                        const CLEANUP_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000; // 30일
                         fullForm.processedReportIds = fullForm.processedReportIds.filter(id => {
                             const ts = (id.split(':')[1] || '').substring(0, 12);
-                            return ts >= batchLatestTs;
+                            if (ts.length >= 12) {
+                                const idDate = new Date(`${ts.substring(0,4)}-${ts.substring(4,6)}-${ts.substring(6,8)}T${ts.substring(8,10)}:${ts.substring(10,12)}:00+09:00`);
+                                return (cleanupNow - idDate) < CLEANUP_THRESHOLD_MS;
+                            }
+                            return true; // 파싱 불가한 ID는 유지
                         });
                     }
                     fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
@@ -1006,6 +1020,60 @@ router.get('/api/admin/storage-usage', async (req, res) => {
     }
 
     res.json(result);
+});
+
+// ============================================================================
+// 구독자 zones 정리 (대분류/중분류 제거)
+// ============================================================================
+
+/**
+ * POST /api/admin/cleanup-subscription-zones
+ * 기존 구독자의 zones에서 대분류(동해/서해/남해/제주)와
+ * 중분류(동해남부해상, 남해동부해상 등)를 제거하여 소분류만 남김.
+ * 대분류/중분류가 포함되면 expandToMinorZones에서 의도하지 않은 해역까지
+ * 확장되어 관심해역 외 푸시가 발송되는 버그 방지.
+ */
+router.post('/api/admin/cleanup-subscription-zones', (req, res) => {
+    // 제거 대상: 대분류 4개 + 중분류 7개
+    const PARENT_ZONES = new Set([
+        '동해', '서해', '남해', '제주',
+        '동해남부해상', '동해중부해상', '서해중부해상', '서해남부해상',
+        '남해동부해상', '남해서부해상', '제주해역'
+    ]);
+
+    const subsFile = path.join(DATA_DIR, 'subscriptions.json');
+    try {
+        if (!fs.existsSync(subsFile)) {
+            return res.json({ success: true, message: '구독자 파일 없음', updated: 0 });
+        }
+        const subs = JSON.parse(fs.readFileSync(subsFile, 'utf8'));
+        if (!Array.isArray(subs)) {
+            return res.json({ success: true, message: '구독자 데이터가 배열이 아님', updated: 0 });
+        }
+
+        let updatedCount = 0;
+        for (const sub of subs) {
+            if (!Array.isArray(sub.zones)) continue;
+            const before = sub.zones.length;
+            // 대분류/중분류 제거, 소분류만 유지
+            sub.zones = sub.zones.filter(z => !PARENT_ZONES.has(z));
+            if (sub.zones.length !== before) {
+                updatedCount++;
+            }
+        }
+
+        fs.writeFileSync(subsFile, JSON.stringify(subs, null, 2), 'utf8');
+        console.log(`[Admin] 구독자 zones 정리 완료: ${updatedCount}명 갱신`);
+        res.json({
+            success: true,
+            message: `구독자 zones 정리 완료`,
+            total: subs.length,
+            updated: updatedCount
+        });
+    } catch (e) {
+        console.error('[Admin] 구독자 zones 정리 오류:', e.message);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 module.exports = router;

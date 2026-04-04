@@ -1027,15 +1027,34 @@ async function renderUnifiedAlertContent(container) {
     ];
 
     container.innerHTML = `
-        <div class="admin-sub-tabs">
+        <div class="admin-sub-tabs" style="display:flex; align-items:center; gap:0;">
             ${topTabs.map(t => `
                 <button class="alert-top-tab" data-tab="${t.id}" onclick="switchAlertTopTab('${t.id}')">
                     <i class="fa-solid ${t.icon}"></i> ${t.name}
                 </button>
             `).join('')}
+            <button id="btn-cleanup-zones" onclick="cleanupSubscriptionZones()" style="margin-left:auto; padding:6px 14px; background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:0.78rem; font-weight:600; white-space:nowrap;">
+                <i class="fa-solid fa-broom"></i> 구독자 해역 정리
+            </button>
         </div>
         <div id="alert-top-content"></div>
     `;
+
+    // [임시] 구독자 zones에서 대분류/중분류 제거 (1회 실행용)
+    window.cleanupSubscriptionZones = async function () {
+        if (!confirm('구독자의 zones에서 대분류/중분류를 제거합니다.\\n(소분류는 유지됩니다. 1회만 실행하면 됩니다.)')) return;
+        try {
+            const res = await fetch('/api/admin/cleanup-subscription-zones', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                alert(`정리 완료!\\n전체 구독자: ${data.total}명\\n갱신된 구독자: ${data.updated}명`);
+            } else {
+                alert('오류: ' + (data.error || '알 수 없는 오류'));
+            }
+        } catch (e) {
+            alert('요청 실패: ' + e.message);
+        }
+    };
 
     window.switchAlertTopTab = function (topTabId) {
         document.querySelectorAll('.alert-top-tab').forEach(btn => {
