@@ -7746,10 +7746,10 @@ line-height: 1.1;
     color: #fff;
 }
 
-/* "지역 해황예보도" 라벨 (바다갈라짐 .sp-selector-label과 동일) */
+/* "해황예보도" 라벨 */
 .ocean-forecast-selector-label {
     color: #94a3b8;
-    font-size: 0.85rem;
+    font-size: 1.15rem;
     font-weight: 600;
     white-space: nowrap;
 }
@@ -8068,7 +8068,7 @@ line-height: 1.1;
         padding: 4px 1px;
     }
     .ocean-forecast-selector-label {
-        font-size: 0.78rem;
+        font-size: 1rem;
     }
     .ocean-forecast-select {
         font-size: 0.78rem;
