@@ -1054,11 +1054,11 @@ async function renderUnifiedUsersContent(container) {
         // ── 상단 요약 카드 ──
         var summaryHtml = ''
             + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;">'
-            // 추정 설치자 카드
+            // 누적 방문 수 카드
             + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:20px;text-align:center;">'
-            + '<div style="font-size:0.78rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-mobile-screen-button" style="margin-right:4px;"></i> 추정 설치자</div>'
-            + '<div style="font-size:1.8rem;font-weight:800;color:#fff;">~' + visitData.total + '<span style="font-size:0.8rem;font-weight:400;color:#64748b;">명</span></div>'
-            + '<div style="font-size:0.68rem;color:#475569;margin-top:4px;">누적 방문 기반 추정치</div>'
+            + '<div style="font-size:0.78rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-eye" style="margin-right:4px;"></i> 누적 방문 수</div>'
+            + '<div style="font-size:1.8rem;font-weight:800;color:#fff;">' + visitData.total.toLocaleString() + '<span style="font-size:0.8rem;font-weight:400;color:#64748b;">회</span></div>'
+            + '<div style="font-size:0.68rem;color:#475569;margin-top:4px;">동일 사용자 재방문 포함</div>'
             + '</div>'
             // 푸시 구독자 카드
             + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:20px;text-align:center;">'
