@@ -466,7 +466,7 @@ const CCTV_PROVIDERS = {
 
         /** 팝업 헤더 외부 링크 버튼 목록 */
         links: [
-            { label: '연안포털', url: 'https://coast.mof.go.kr/coastScene/coastMediaService.do' }
+            { label: '연안포털', org: '해양수산부', url: 'https://coast.mof.go.kr/coastScene/coastMediaService.do' }
         ],
 
         /** 마커 아이콘 색상 — 청록 계열 */
