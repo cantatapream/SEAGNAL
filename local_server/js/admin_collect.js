@@ -480,8 +480,7 @@ window.atmCollectOne = async function (i, refTimeOverride) {
                 body: JSON.stringify({ reportId: report.id, title: report.title, error: lastData.aiError || 'AI 분석 결과 없음', retriesUsed: attempt })
             });
         } catch (e) { /* 무시 */ }
-        // 헤더 방문자 표시 빨간색으로 변경
-        markVisitorCounterError(true);
+        // [제거됨] 방문자 카운터 빨간색 표시는 관리자 배너 + FCM 푸시로 대체
     } else {
         btn.innerHTML = attempt > 1
             ? `<i class="fa-solid fa-check"></i> 완료(${attempt}회)`

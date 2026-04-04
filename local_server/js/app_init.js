@@ -223,37 +223,57 @@ window.updateVisitorStats = async function () {
     }
 };
 
-// ============================================================================
-// 수집 실패 시 헤더 방문자 카운터 경고 표시
-// ============================================================================
-window.markVisitorCounterError = function (hasError) {
-    const counter = document.querySelector('.visitor-counter');
-    if (!counter) return;
-    const counts = counter.querySelectorAll('.vc-count');
-    const labels = counter.querySelectorAll('.vc-label');
-    const dot = counter.querySelector('.vc-dot');
-    if (hasError) {
-        counts.forEach(el => el.style.color = '#ef4444');
-        labels.forEach(el => el.style.color = '#fca5a5');
-        if (dot) dot.style.color = '#ef4444';
-        counter.title = '수집 실패 통보문이 있습니다. 관리자 센터를 확인하세요.';
-    } else {
-        counts.forEach(el => el.style.color = '');
-        labels.forEach(el => el.style.color = '');
-        if (dot) dot.style.color = '';
-        counter.title = '';
-    }
-};
+// [제거됨] markVisitorCounterError: 방문자 카운터 빨간색 경고 표시 기능 삭제
+// 관리자 알림은 이제 관리자 배너(showAdminAlertBanner)와 FCM 푸시로 대체됨
+// 호환성을 위해 빈 함수로 유지 (외부 호출 시 오류 방지)
+window.markVisitorCounterError = function () { };
+window.checkCollectFailures = function () { };
 
-// 페이지 로드 시 수집 실패 여부 확인하여 헤더에 반영
-window.checkCollectFailures = async function () {
+// ============================================================================
+// [관리자 배너] 관리자 모드 기기로 일반 앱 접속 시 미확인 항목 배너 표시
+// ============================================================================
+window.showAdminAlertBanner = async function () {
+    // 관리자 모드가 아니면 표시하지 않음
+    if (localStorage.getItem('seagnal_admin_mode') !== 'true') return;
+
     try {
-        const res = await fetch('/api/admin/collect-failures');
-        if (!res.ok) return;
-        const failures = await res.json();
-        if (failures && failures.length > 0) {
-            markVisitorCounterError(true);
-        }
+        const [failRes, reviewRes] = await Promise.all([
+            fetch('/api/admin/collect-failures'),
+            fetch('/api/admin/review-needed')
+        ]);
+        let failures = [];
+        let reviews = [];
+        if (failRes.ok) failures = await failRes.json();
+        if (reviewRes.ok) reviews = await reviewRes.json();
+
+        const pendingReviews = (reviews || []).filter(r => !r.acknowledged);
+        const totalPending = pendingReviews.length + (failures ? failures.length : 0);
+
+        // 기존 배너 제거
+        const existing = document.getElementById('admin-alert-banner');
+        if (existing) existing.remove();
+
+        // 미확인 항목 없으면 배너 표시하지 않음
+        if (totalPending === 0) return;
+
+        // 배너 메시지 구성
+        const parts = [];
+        if (pendingReviews.length > 0) parts.push(`검토 필요 ${pendingReviews.length}건`);
+        if (failures && failures.length > 0) parts.push(`수집 실패 ${failures.length}건`);
+
+        const banner = document.createElement('div');
+        banner.id = 'admin-alert-banner';
+        banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;font-size:0.85rem;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+        banner.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;">
+                <i class="fa-solid fa-bell" style="font-size:1rem;"></i>
+                <span>관리자 확인 필요: ${parts.join(', ')}</span>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button onclick="if(typeof showUnifiedAdminModal==='function')showUnifiedAdminModal('alert');document.getElementById('admin-alert-banner').remove();" style="padding:4px 12px;background:rgba(255,255,255,0.25);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:6px;cursor:pointer;font-size:0.78rem;font-weight:600;">관리자 센터</button>
+                <button onclick="document.getElementById('admin-alert-banner').remove()" style="background:none;border:none;color:rgba(255,255,255,0.8);font-size:1.2rem;cursor:pointer;padding:0 4px;">&times;</button>
+            </div>`;
+        document.body.prepend(banner);
     } catch (e) { /* 무시 */ }
 };
 
@@ -266,5 +286,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const newHeader = headerContent.cloneNode(true);
         headerContent.parentNode.replaceChild(newHeader, headerContent);
         newHeader.setAttribute('title', '전체 데이터 새로고침');
+    }
+
+    // [관리자 배너] 관리자 모드 기기 접속 시 미확인 항목 배너 표시
+    if (typeof showAdminAlertBanner === 'function') {
+        showAdminAlertBanner();
     }
 });

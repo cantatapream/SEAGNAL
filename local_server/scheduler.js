@@ -1144,6 +1144,57 @@ async function _fetchSurfingData() {
 // [Note] 기존 특보 수집(collectWarnings) 및 해구별 예보(collectZoneForecasts) 로직은 제거됨.
 // 특보는 weather_alerts_crawler.js가 전담.
 
+// ============================================================================
+// [관리자 반복 푸시] 미확인 항목이 있으면 1시간마다 관리자에게 푸시 재발송
+// 해경 관리자가 바다에 있어 네트워크가 간헐적인 경우를 대비
+// ============================================================================
+const REVIEW_NEEDED_FILE = path.join(CONFIG.DATA_DIR, 'review_needed.json');
+const COLLECT_FAILURES_FILE = path.join(CONFIG.DATA_DIR, 'collect_failures.json');
+
+async function checkAndSendAdminReminder() {
+    try {
+        let pendingReviews = 0;
+        let pendingFailures = 0;
+
+        // 1) 미확인 검토 필요 통보문 수 확인
+        if (fs.existsSync(REVIEW_NEEDED_FILE)) {
+            try {
+                const reviews = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8'));
+                pendingReviews = reviews.filter(r => !r.acknowledged).length;
+            } catch (_) { /* 파손된 파일 무시 */ }
+        }
+
+        // 2) 미처리 수집 실패 수 확인
+        if (fs.existsSync(COLLECT_FAILURES_FILE)) {
+            try {
+                const failures = JSON.parse(fs.readFileSync(COLLECT_FAILURES_FILE, 'utf8'));
+                pendingFailures = failures.length;
+            } catch (_) { /* 파손된 파일 무시 */ }
+        }
+
+        // 미확인 항목 없으면 종료
+        if (pendingReviews === 0 && pendingFailures === 0) return;
+
+        // 관리자 푸시 발송 (서비스 모듈 사용)
+        const { sendAdminPush } = require('./services/admin_push');
+
+        // 알림 메시지 구성
+        const parts = [];
+        if (pendingReviews > 0) parts.push(`검토 필요 ${pendingReviews}건`);
+        if (pendingFailures > 0) parts.push(`수집 실패 ${pendingFailures}건`);
+        const summary = parts.join(', ');
+
+        await sendAdminPush(
+            '📋 미확인 항목 알림',
+            `${summary} - 관리자 확인이 필요합니다`
+        );
+
+        log(`📋 관리자 반복 푸시 발송: ${summary}`);
+    } catch (err) {
+        log(`⚠️ 관리자 반복 푸시 체크 오류: ${err.message}`);
+    }
+}
+
 async function init() {
     // [중요] 외부 서버와 시각 동기화
     await syncTime();
@@ -1241,6 +1292,14 @@ async function init() {
         if (min % 10 === 3) {
             marineForecastProcessor.collectMarineForecasts()
                 .catch(err => log(`⚠️ 해상 기상 전망 수집 오류: ${err.message}`));
+        }
+
+        // [관리자 반복 푸시] 매 정시(min === 0)에 미확인 항목 체크 후 관리자 푸시 재발송
+        // 바다에서 네트워크가 간헐적으로만 되는 해경 관리자를 위해 1시간 간격으로 반복 발송
+        if (min === 0) {
+            checkAndSendAdminReminder().catch(err =>
+                log(`⚠️ 관리자 반복 푸시 오류: ${err.message}`)
+            );
         }
 
         if (process.env.FLY_ALLOC_ID) {
