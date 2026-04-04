@@ -7481,6 +7481,37 @@ line-height: 1.1;
     color: #ffffff;
 }
 
+/* 기관명 + 링크명 2줄 버튼 (해양수산부/연안포털 등) */
+.cctv-action-btn--two-line {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+}
+.cctv-link-org {
+    font-size: 0.62rem;
+    opacity: 0.7;
+    line-height: 1;
+}
+.cctv-link-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    line-height: 1;
+}
+
+/* 헤더 중앙 이미지 안내 박스 (연안침식 전용) */
+.cctv-image-notice {
+    flex: 1;
+    text-align: center;
+    font-size: 0.72rem;
+    line-height: 1.55;
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.5);
+    border-radius: 6px;
+    padding: 5px 10px;
+    white-space: nowrap;
+}
+
 /* 즐겨찾기 별 버튼 (지점명 오른쪽 인라인) */
 .cctv-modal-fav-btn {
     width: 22px;

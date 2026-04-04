@@ -177,14 +177,27 @@ function showCctvPopup(data) {
     const provider  = window.CCTV_PROVIDERS ? window.CCTV_PROVIDERS[data.providerKey] : null;
     const links     = provider ? (provider.links || []) : [];
     const linksHtml = links.map(function (l) {
-        return `<a class="cctv-action-btn"
+        const orgLine = l.org
+            ? `<span class="cctv-link-org">${l.org}</span>`
+            : '';
+        return `<a class="cctv-action-btn${l.org ? ' cctv-action-btn--two-line' : ''}"
                    href="${l.url}"
                    target="_blank" rel="noopener noreferrer"
-                   title="${l.label}">
-                    ${l.label}
-                    <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i>
+                   title="${l.org ? l.org + ' ' : ''}${l.label}">
+                    ${orgLine}
+                    <span class="cctv-link-label">
+                        ${l.label}
+                        <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.65rem;"></i>
+                    </span>
                 </a>`;
     }).join('');
+
+    // image 타입(연안침식)일 때 헤더 중앙에 표시할 안내 박스
+    const imageNoticeHtml = (provider && provider.type === 'image')
+        ? `<div class="cctv-image-notice">
+               이미지로 제공되며<br>3초마다 자동 새로고침됩니다
+           </div>`
+        : '';
 
     // ── 영상 영역 HTML ────────────────────────────────────────────────
     // streamUrl → HLS video | ongjin → 안내+버튼 | image → img 태그 | 나머지 → iframe
@@ -310,6 +323,9 @@ function showCctvPopup(data) {
                         <div class="cctv-modal-subtitle">${data.subtitle}</div>
                     </div>
                 </div>
+
+                <!-- 중앙: image 타입 안내 박스 (연안침식 전용) -->
+                ${imageNoticeHtml}
 
                 <!-- 오른쪽: 기관별 링크 버튼들(세로) + 닫기 -->
                 <div class="cctv-modal-actions">
