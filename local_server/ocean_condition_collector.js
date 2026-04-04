@@ -121,10 +121,15 @@ function log(msg) {
  * @param {number} [timeout=30000] - 타임아웃 (밀리초)
  * @returns {Promise<string>} 응답 본문 문자열
  */
+// khoa.go.kr 서버가 User-Agent 없는 요청을 403으로 차단하므로 브라우저 헤더 필요
+const DEFAULT_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+};
+
 function httpGet(url, timeout = 30000) {
     return new Promise((resolve, reject) => {
         const protocol = url.startsWith('https') ? https : http;
-        const req = protocol.get(url, { timeout }, (res) => {
+        const req = protocol.get(url, { timeout, headers: DEFAULT_HEADERS }, (res) => {
             // 리다이렉트 처리 (301, 302)
             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
                 return httpGet(res.headers.location, timeout).then(resolve).catch(reject);
@@ -154,7 +159,7 @@ function httpGet(url, timeout = 30000) {
 function downloadFile(url, destPath, timeout = 30000) {
     return new Promise((resolve, reject) => {
         const protocol = url.startsWith('https') ? https : http;
-        const req = protocol.get(url, { timeout }, (res) => {
+        const req = protocol.get(url, { timeout, headers: DEFAULT_HEADERS }, (res) => {
             // 리다이렉트 처리
             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
                 return downloadFile(res.headers.location, destPath, timeout).then(resolve).catch(reject);
