@@ -175,6 +175,7 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
 
     // 관리자 센터 상단 메인 탭 목록 (탭 클릭 시 switchUnifiedAdminTab()에서 분기)
     const tabs = [
+        { id: 'users', name: '이용자 현황', icon: 'fa-chart-pie' },
         { id: 'alert', name: '특보 알림', icon: 'fa-tower-broadcast' },
         { id: 'api', name: 'API 설정', icon: 'fa-server' },
         { id: 'notice', name: '공지 팝업', icon: 'fa-bell' },
@@ -253,7 +254,9 @@ window.switchUnifiedAdminTab = function (tabId) {
 
     // 탭별 콘텐츠 렌더링
     setTimeout(async () => {
-        if (tabId === 'alert') {
+        if (tabId === 'users') {
+            renderUnifiedUsersContent(body);
+        } else if (tabId === 'alert') {
             renderUnifiedAlertContent(body);
         } else if (tabId === 'api') {
             renderUnifiedApiContent(body);
@@ -1014,6 +1017,138 @@ window.sendManualPush = async function (zoneName) {
         btn.disabled = false;
     }
 };
+
+// ============================================================================
+// (이용자 현황) 앱 이용자 현황 탭 렌더링
+// ============================================================================
+
+/**
+ * 앱 이용자 현황 탭을 렌더링합니다.
+ *
+ * [표시 항목]
+ * 1. 추정 설치자 수 — 방문자 통계(visitors.json)의 누적 방문 수 기반 추정
+ * 2. 푸시 구독자 수 — subscriptions.json에 등록된 FCM 토큰 수 (앱 설치자)
+ * 3. 해역별 구독자 분포 — 대분류 > 중분류 > 소분류별 구독자 수 (접이식 트리)
+ *
+ * [데이터 소스]
+ * - GET /api/visit?inc=false → 방문자 카운터 (today/total)
+ * - GET /api/push-subscriber-stats → 구독자 수 + 해역별 카운트
+ *
+ * [연계]
+ * - admin.js → showUnifiedAdminModal()에서 'users' 탭으로 이 함수를 호출
+ * - routes/push.js → /api/push-subscriber-stats API에서 해역별 데이터 제공
+ * - routes/stats.js → /api/visit API에서 방문자 수 제공
+ */
+async function renderUnifiedUsersContent(container) {
+    container.innerHTML = '<div style="text-align:center;padding:60px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin fa-2x"></i><p style="margin-top:15px;">데이터를 불러오는 중...</p></div>';
+
+    try {
+        // 방문자 통계와 구독자 통계를 동시에 가져옴
+        var [visitRes, statsRes] = await Promise.all([
+            fetch('/api/visit?inc=false'),
+            fetch('/api/push-subscriber-stats')
+        ]);
+        var visitData = visitRes.ok ? await visitRes.json() : { today: 0, total: 0 };
+        var stats = statsRes.ok ? await statsRes.json() : { totalSubscribers: 0, fcmCount: 0, webCount: 0, zoneCounts: {} };
+
+        // ── 상단 요약 카드 ──
+        var summaryHtml = ''
+            + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;">'
+            // 추정 설치자 카드
+            + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:20px;text-align:center;">'
+            + '<div style="font-size:0.78rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-mobile-screen-button" style="margin-right:4px;"></i> 추정 설치자</div>'
+            + '<div style="font-size:1.8rem;font-weight:800;color:#fff;">~' + visitData.total + '<span style="font-size:0.8rem;font-weight:400;color:#64748b;">명</span></div>'
+            + '<div style="font-size:0.68rem;color:#475569;margin-top:4px;">누적 방문 기반 추정치</div>'
+            + '</div>'
+            // 푸시 구독자 카드
+            + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:20px;text-align:center;">'
+            + '<div style="font-size:0.78rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-bell" style="margin-right:4px;"></i> 푸시 구독자</div>'
+            + '<div style="font-size:1.8rem;font-weight:800;color:#3b82f6;">' + stats.totalSubscribers + '<span style="font-size:0.8rem;font-weight:400;color:#64748b;">명</span></div>'
+            + '<div style="font-size:0.68rem;color:#475569;margin-top:4px;">FCM(앱) ' + stats.fcmCount + '명</div>'
+            + '</div>'
+            + '</div>';
+
+        // ── 오늘 방문자 ──
+        summaryHtml += '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:14px 18px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;">'
+            + '<span style="color:#94a3b8;font-size:0.85rem;"><i class="fa-solid fa-calendar-day" style="margin-right:6px;"></i>오늘 방문자</span>'
+            + '<span style="color:#fff;font-weight:700;font-size:1.1rem;">' + visitData.today + '명</span>'
+            + '</div>';
+
+        // ── 해역별 구독자 분포 ──
+        // ZONE_HIERARCHY 구조를 사용하여 대분류 > 중분류 > 소분류 트리 표시
+        // SUB_REGION_ZONES는 프론트엔드에서 사용 가능 (app.js에서 정의)
+        var zoneHtml = '<div style="margin-bottom:12px;font-weight:700;color:#fff;font-size:0.95rem;display:flex;align-items:center;gap:8px;"><i class="fa-solid fa-map-location-dot" style="color:#3b82f6;"></i> 해역별 구독자 분포</div>';
+
+        var zc = stats.zoneCounts || {};
+
+        // SUB_REGION_ZONES를 사용하여 대분류 > 중분류 > 소분류 트리 생성
+        if (typeof SUB_REGION_ZONES !== 'undefined' && typeof getMainRegion === 'function') {
+            // 대분류별로 그룹핑
+            var regionTree = {};
+            for (var subName in SUB_REGION_ZONES) {
+                var mainName = getMainRegion(subName);
+                if (!regionTree[mainName]) regionTree[mainName] = {};
+                regionTree[mainName][subName] = SUB_REGION_ZONES[subName];
+            }
+
+            var treeIdx = 0;
+            Object.entries(regionTree).forEach(function(entry) {
+                var mainRegion = entry[0], subRegions = entry[1];
+
+                // 대분류의 최대 구독자 수 계산
+                var mainMax = 0;
+                Object.values(subRegions).forEach(function(szones) {
+                    szones.forEach(function(z) { if ((zc[z] || 0) > mainMax) mainMax = zc[z]; });
+                });
+
+                zoneHtml += '<div style="margin-bottom:8px;border:1px solid rgba(255,255,255,0.05);border-radius:10px;overflow:hidden;">'
+                    // 대분류 헤더 (클릭하면 접기/펼치기)
+                    + '<div onclick="var el=document.getElementById(\'user-zone-' + treeIdx + '\');el.style.display=el.style.display===\'none\'?\'block\':\'none\';" style="padding:12px 14px;background:rgba(255,255,255,0.05);cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'
+                    + '<span style="font-weight:700;color:#fff;font-size:0.9rem;">' + mainRegion + '</span>'
+                    + '<span style="color:#818cf8;font-weight:700;font-size:0.85rem;">' + mainMax + '명</span>'
+                    + '</div>'
+                    + '<div id="user-zone-' + treeIdx + '" style="display:none;padding:10px;background:rgba(0,0,0,0.2);">';
+
+                // 중분류 + 소분류
+                Object.entries(subRegions).forEach(function(subEntry) {
+                    var subRegion = subEntry[0], zones = subEntry[1];
+                    var subMax = 0;
+                    zones.forEach(function(z) { if ((zc[z] || 0) > subMax) subMax = zc[z]; });
+
+                    zoneHtml += '<div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.03);">'
+                        + '<div style="display:flex;justify-content:space-between;margin-bottom:6px;padding-left:4px;">'
+                        + '<span style="color:#3b82f6;font-size:0.82rem;font-weight:600;">' + subRegion + '</span>'
+                        + '<span style="color:#64748b;font-size:0.78rem;">' + subMax + '명</span>'
+                        + '</div>';
+
+                    zones.forEach(function(z) {
+                        var count = zc[z] || 0;
+                        zoneHtml += '<div style="display:flex;justify-content:space-between;padding:3px 0 3px 16px;font-size:0.78rem;">'
+                            + '<span style="color:#94a3b8;">○' + z + '</span>'
+                            + '<span style="color:#818cf8;font-weight:600;">' + count + '명</span>'
+                            + '</div>';
+                    });
+
+                    zoneHtml += '</div>';
+                });
+
+                zoneHtml += '</div></div>';
+                treeIdx++;
+            });
+        } else {
+            zoneHtml += '<div style="color:#64748b;font-size:0.85rem;">해역 데이터를 불러올 수 없습니다.</div>';
+        }
+
+        container.innerHTML = '<div style="padding:4px 0;">'
+            + '<div class="admin-section-title"><i class="fa-solid fa-chart-pie" style="color:#8b5cf6;"></i> 앱 이용자 현황</div>'
+            + summaryHtml
+            + zoneHtml
+            + '</div>';
+
+    } catch (e) {
+        container.innerHTML = '<div style="text-align:center;padding:60px;color:#ef4444;"><i class="fa-solid fa-exclamation-triangle"></i> 데이터 로드 실패: ' + e.message + '</div>';
+    }
+}
 
 // (A) 특보 알림 섹션 렌더링 (4개 상위 하위탭)
 async function renderUnifiedAlertContent(container) {

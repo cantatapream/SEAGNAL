@@ -385,8 +385,19 @@ window.sendManualPushFromGroup = async function (groupKey, tabId) {
 window.renderCustomPushTab = async function (container) {
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
 
+    // 발송 이력과 구독자 통계를 동시에 가져옴
+    // - history: 최근 발송 이력 (직접 발송 탭 내부에서 참조)
+    // - _subscriberStats: 해역별 구독자 수 (체크박스 옆에 표시 + 대상 인원 카운터)
     var history = [];
-    try { var histRes = await fetch('/api/push-history'); if (histRes.ok) history = await histRes.json(); } catch (e) { }
+    window._subscriberStats = null;
+    try {
+        var [histRes, statsRes] = await Promise.all([
+            fetch('/api/push-history'),
+            fetch('/api/push-subscriber-stats')
+        ]);
+        if (histRes.ok) history = await histRes.json();
+        if (statsRes.ok) window._subscriberStats = await statsRes.json();
+    } catch (e) { }
 
     var regions = {};
     if (typeof SUB_REGION_ZONES !== 'undefined') {
@@ -405,28 +416,53 @@ window.renderCustomPushTab = async function (container) {
         var isJeju = main.includes('제주');
         var subContent = '';
 
+        // _subscriberStats에서 소분류 해역의 구독자 수를 가져오는 헬퍼
+        // - zoneCounts 객체에서 해역명으로 구독자 수 조회
+        // - 데이터가 없으면 빈 문자열 반환 (구독자 수 표시 생략)
+        var zc = (window._subscriberStats && window._subscriberStats.zoneCounts) || {};
+        var getZoneCountBadge = function(zoneName) {
+            var count = zc[zoneName];
+            return (count !== undefined) ? '<span style="font-size:0.68rem;color:#818cf8;margin-left:4px;font-weight:600;">' + count + '명</span>' : '';
+        };
+        // 중분류(sub-region)의 구독자 수: 하위 소분류 중 최대값 표시
+        var getSubRegionCount = function(szones) {
+            var max = 0;
+            szones.forEach(function(z) { if (zc[z] > max) max = zc[z]; });
+            return max > 0 ? '<span style="font-size:0.7rem;color:#64748b;margin-left:6px;">' + max + '명</span>' : '';
+        };
+        // 대분류(main-region)의 구독자 수: 하위 전체 소분류 중 최대값 표시
+        var getMainRegionCount = function(subRegions) {
+            var max = 0;
+            Object.values(subRegions).forEach(function(szones) {
+                szones.forEach(function(z) { if (zc[z] > max) max = zc[z]; });
+            });
+            return max > 0 ? '<span style="font-size:0.7rem;color:#64748b;margin-left:6px;">' + max + '명</span>' : '';
+        };
+
         if (isJeju) {
+            // 제주 해역: 중분류 없이 바로 소분류 표시
             var jejuZones = Object.values(subs)[0] || [];
             subContent = '<div style="display:flex;flex-wrap:wrap;gap:8px;">' + jejuZones.map(function(z) {
-                return '<label style="display:inline-flex;align-items:center;background:rgba(255,255,255,0.05);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:0.85rem;color:#cbd5e1;border:1px solid rgba(255,255,255,0.05);"><input type="checkbox" class="zone-checkbox main-group-' + mainIdx + '" value="' + z + '" style="margin-right:6px;" onchange="window.updateTargetCount()"> ' + z + '</label>';
+                return '<label style="display:inline-flex;align-items:center;background:rgba(255,255,255,0.05);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:0.85rem;color:#cbd5e1;border:1px solid rgba(255,255,255,0.05);"><input type="checkbox" class="zone-checkbox main-group-' + mainIdx + '" value="' + z + '" style="margin-right:6px;" onchange="window.updateTargetCount()"> ' + z + getZoneCountBadge(z) + '</label>';
             }).join('') + '</div>';
         } else {
+            // 동해/서해/남해: 중분류 → 소분류 계층 구조
             var subIdx = 0;
             subContent = Object.entries(subs).map(function(se) {
                 var sub = se[0], szones = se[1];
-                var result = '<div style="margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.03);padding-bottom:10px;"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><input type="checkbox" class="sub-region-checkbox main-group-' + mainIdx + '" data-sub="' + mainIdx + '-' + subIdx + '" onchange="window.toggleSubRegionZones(' + mainIdx + ', ' + subIdx + ', this.checked)" style="width:14px;height:14px;cursor:pointer;"><span onclick="window.toggleAdminAccordion(\'sub-' + mainIdx + '-' + subIdx + '\')" style="font-size:0.85rem;color:#3b82f6;font-weight:600;cursor:pointer;">' + sub + '</span></div><div id="content-sub-' + mainIdx + '-' + subIdx + '" style="display:flex;flex-wrap:wrap;gap:6px;padding-left:24px;">' + szones.map(function(z) {
-                    return '<label style="display:inline-flex;align-items:center;background:rgba(255,255,255,0.05);padding:4px 8px;border-radius:4px;cursor:pointer;font-size:0.8rem;color:#cbd5e1;border:1px solid transparent;"><input type="checkbox" class="zone-checkbox main-group-' + mainIdx + ' sub-group-' + mainIdx + '-' + subIdx + '" value="' + z + '" style="margin-right:5px;" onchange="window.updateTargetCount()"> ' + z + '</label>';
+                var result = '<div style="margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.03);padding-bottom:10px;"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><input type="checkbox" class="sub-region-checkbox main-group-' + mainIdx + '" data-sub="' + mainIdx + '-' + subIdx + '" onchange="window.toggleSubRegionZones(' + mainIdx + ', ' + subIdx + ', this.checked)" style="width:14px;height:14px;cursor:pointer;"><span onclick="window.toggleAdminAccordion(\'sub-' + mainIdx + '-' + subIdx + '\')" style="font-size:0.85rem;color:#3b82f6;font-weight:600;cursor:pointer;">' + sub + getSubRegionCount(szones) + '</span></div><div id="content-sub-' + mainIdx + '-' + subIdx + '" style="display:flex;flex-wrap:wrap;gap:6px;padding-left:24px;">' + szones.map(function(z) {
+                    return '<label style="display:inline-flex;align-items:center;background:rgba(255,255,255,0.05);padding:4px 8px;border-radius:4px;cursor:pointer;font-size:0.8rem;color:#cbd5e1;border:1px solid transparent;"><input type="checkbox" class="zone-checkbox main-group-' + mainIdx + ' sub-group-' + mainIdx + '-' + subIdx + '" value="' + z + '" style="margin-right:5px;" onchange="window.updateTargetCount()"> ' + z + getZoneCountBadge(z) + '</label>';
                 }).join('') + '</div></div>';
                 subIdx++;
                 return result;
             }).join('');
         }
 
-        accordionHtml += '<div style="margin-bottom:10px;border:1px solid rgba(255,255,255,0.05);border-radius:10px;overflow:hidden;background:rgba(255,255,255,0.02);"><div style="padding:12px;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:space-between;"><div style="display:flex;align-items:center;gap:10px;flex:1;"><input type="checkbox" class="main-region-checkbox" data-main="' + mainIdx + '" onchange="window.toggleMainRegionZones(' + mainIdx + ', this.checked)" style="width:16px;height:16px;cursor:pointer;"><span onclick="window.toggleAdminAccordion(\'main-' + mainIdx + '\')" style="font-weight:700;color:#fff;font-size:0.95rem;cursor:pointer;flex:1;">' + main + '</span></div><i class="fa-solid fa-chevron-down" id="icon-main-' + mainIdx + '" onclick="window.toggleAdminAccordion(\'main-' + mainIdx + '\')" style="font-size:0.8rem;transition:transform 0.2s;cursor:pointer;color:#94a3b8;padding:5px;"></i></div><div id="content-main-' + mainIdx + '" style="display:none;padding:10px;background:rgba(0,0,0,0.2);">' + subContent + '</div></div>';
+        accordionHtml += '<div style="margin-bottom:10px;border:1px solid rgba(255,255,255,0.05);border-radius:10px;overflow:hidden;background:rgba(255,255,255,0.02);"><div style="padding:12px;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:space-between;"><div style="display:flex;align-items:center;gap:10px;flex:1;"><input type="checkbox" class="main-region-checkbox" data-main="' + mainIdx + '" onchange="window.toggleMainRegionZones(' + mainIdx + ', this.checked)" style="width:16px;height:16px;cursor:pointer;"><span onclick="window.toggleAdminAccordion(\'main-' + mainIdx + '\')" style="font-weight:700;color:#fff;font-size:0.95rem;cursor:pointer;flex:1;">' + main + getMainRegionCount(subs) + '</span></div><i class="fa-solid fa-chevron-down" id="icon-main-' + mainIdx + '" onclick="window.toggleAdminAccordion(\'main-' + mainIdx + '\')" style="font-size:0.8rem;transition:transform 0.2s;cursor:pointer;color:#94a3b8;padding:5px;"></i></div><div id="content-main-' + mainIdx + '" style="display:none;padding:10px;background:rgba(0,0,0,0.2);">' + subContent + '</div></div>';
         mainIdx++;
     });
 
-    container.innerHTML = '<div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.08);"><div style="font-weight:600;color:#fff;margin-bottom:15px;font-size:1rem;display:flex;align-items:center;gap:8px;"><i class="fa-solid fa-envelope"></i> 커스텀 알림 발송</div><div style="margin-bottom:15px;padding:12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:10px;"><div style="display:flex;align-items:center;gap:10px;"><input type="checkbox" id="check-send-all-subscribers" onchange="window.toggleSendAllSubscribers(this.checked)" style="width:18px;height:18px;cursor:pointer;accent-color:#ef4444;"><label for="check-send-all-subscribers" style="cursor:pointer;font-size:0.95rem;color:#fca5a5;font-weight:700;"><i class="fa-solid fa-users" style="margin-right:6px;"></i>구독자 전원에게 발송</label><span style="font-size:0.75rem;color:#94a3b8;margin-left:auto;">(푸시 알림 허용 사용자 전체)</span></div></div><div id="zone-selection-area" style="margin-bottom:15px;"><label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:10px;">발송 대상 해역 선택 (Hierarchy)</label><div style="background:rgba(0,0,0,0.3);padding:15px;border-radius:12px;max-height:350px;overflow-y:auto;border:1px solid rgba(255,255,255,0.05);"><div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;gap:10px;"><input type="checkbox" id="check-all-zones" onchange="window.toggleAllZones(this.checked)" style="width:18px;height:18px;cursor:pointer;"><label for="check-all-zones" style="cursor:pointer;font-size:0.9rem;color:#fff;font-weight:700;">전체 해역 선택</label></div>' + accordionHtml + '</div></div><div style="margin-bottom:15px;"><label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;">알림 제목</label><input type="text" id="custom-push-title" placeholder="예: 🌊 긴급 해양 안전 안내" oninput="window.updateCustomPushPreview()" style="width:100%;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;box-sizing:border-box;outline:none;"></div><div style="margin-bottom:15px;"><label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;">알림 내용</label><textarea id="custom-push-content" placeholder="직접 작성하실 알림 내용을 입력해주세요." oninput="window.updateCustomPushPreview()" style="width:100%;height:100px;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;resize:none;box-sizing:border-box;outline:none;line-height:1.4;"></textarea><div style="text-align:right;font-size:0.75rem;color:#64748b;margin-top:4px;" id="custom-push-char-count">0 / 500자</div></div><div style="background:rgba(0,0,0,0.3);padding:20px;border-radius:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.05);"><div style="font-size:0.8rem;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Smartphone Preview</div><div style="background:#fff;border-radius:20px;padding:16px;box-shadow:0 10px 25px rgba(0,0,0,0.3);position:relative;"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:28px;height:28px;background:#1e293b;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;">🌊</div><div style="font-weight:800;color:#1e293b;font-size:0.95rem;flex:1;">SEA:GNAL</div><div style="font-size:0.75rem;color:#94a3b8;">지금</div></div><div id="preview-title" style="font-weight:800;margin-bottom:4px;color:#000;font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">(제목 미리보기)</div><div id="preview-content" style="color:#475569;font-size:1rem;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">(내용 미리보기)</div></div></div><div style="display:flex;justify-content:space-between;align-items:center;"><div style="font-size:0.95rem;color:#cbd5e1;">발송 대상: <span style="font-weight:800;color:#3b82f6;" id="target-zone-count">0</span>개 구역</div><div style="display:flex;gap:12px;"><button onclick="window.switchAlertAdminTab(\'custom\')" style="padding:12px 20px;background:rgba(255,255,255,0.08);border:none;border-radius:10px;color:#cbd5e1;cursor:pointer;font-weight:600;">초기화</button><button onclick="window.confirmCustomPush()" style="padding:12px 28px;background:linear-gradient(135deg,#ef4444,#b91c1c);border:none;border-radius:10px;color:#fff;font-weight:700;cursor:pointer;box-shadow:0 10px 20px rgba(239,68,68,0.3);">푸시 발송하기</button></div></div><div id="custom-push-confirm-overlay" style="display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:100;border-radius:16px;backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;"><div style="background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:30px;width:100%;max-width:320px;text-align:center;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);"><div style="font-size:3rem;margin-bottom:20px;">📢</div><div style="color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:12px;">푸시 발송 최종 확인</div><div style="color:#94a3b8;font-size:0.9rem;line-height:1.6;margin-bottom:25px;">정말 <span id="confirm-target-text" style="color:#3b82f6;font-weight:700;"></span>으로<br>알림을 발송하시겠습니까?</div><div style="display:flex;gap:10px;"><button onclick="document.getElementById(\'custom-push-confirm-overlay\').style.display=\'none\'" style="flex:1;padding:12px;background:rgba(255,255,255,0.05);border:none;border-radius:10px;color:#cbd5e1;cursor:pointer;font-weight:600;">취소</button><button id="final-send-btn" onclick="window.executeCustomPush()" style="flex:1;padding:12px;background:#ef4444;border:none;border-radius:10px;color:#fff;cursor:pointer;font-weight:700;">지금 발송</button></div></div></div></div>';
+    container.innerHTML = '<div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.08);"><div style="font-weight:600;color:#fff;margin-bottom:15px;font-size:1rem;display:flex;align-items:center;gap:8px;"><i class="fa-solid fa-envelope"></i> 커스텀 알림 발송</div><div style="margin-bottom:15px;padding:12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:10px;"><div style="display:flex;align-items:center;gap:10px;"><input type="checkbox" id="check-send-all-subscribers" onchange="window.toggleSendAllSubscribers(this.checked)" style="width:18px;height:18px;cursor:pointer;accent-color:#ef4444;"><label for="check-send-all-subscribers" style="cursor:pointer;font-size:0.95rem;color:#fca5a5;font-weight:700;"><i class="fa-solid fa-users" style="margin-right:6px;"></i>구독자 전원에게 발송</label><span style="font-size:0.75rem;color:#94a3b8;margin-left:auto;">(푸시 알림 허용 사용자 전체)</span></div></div><div id="zone-selection-area" style="margin-bottom:15px;"><label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:10px;">발송 대상 해역 선택 (Hierarchy)</label><div style="background:rgba(0,0,0,0.3);padding:15px;border-radius:12px;max-height:350px;overflow-y:auto;border:1px solid rgba(255,255,255,0.05);"><div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;gap:10px;"><input type="checkbox" id="check-all-zones" onchange="window.toggleAllZones(this.checked)" style="width:18px;height:18px;cursor:pointer;"><label for="check-all-zones" style="cursor:pointer;font-size:0.9rem;color:#fff;font-weight:700;">전체 해역 선택</label></div>' + accordionHtml + '</div></div><div style="margin-bottom:15px;"><label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;">알림 제목</label><input type="text" id="custom-push-title" placeholder="예: 🌊 긴급 해양 안전 안내" oninput="window.updateCustomPushPreview()" style="width:100%;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;box-sizing:border-box;outline:none;"></div><div style="margin-bottom:15px;"><label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:6px;">알림 내용</label><textarea id="custom-push-content" placeholder="직접 작성하실 알림 내용을 입력해주세요." oninput="window.updateCustomPushPreview()" style="width:100%;height:100px;padding:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;resize:none;box-sizing:border-box;outline:none;line-height:1.4;"></textarea><div style="text-align:right;font-size:0.75rem;color:#64748b;margin-top:4px;" id="custom-push-char-count">0 / 500자</div></div><div style="background:rgba(0,0,0,0.3);padding:20px;border-radius:16px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.05);"><div style="font-size:0.8rem;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Smartphone Preview</div><div style="background:#fff;border-radius:20px;padding:16px;box-shadow:0 10px 25px rgba(0,0,0,0.3);position:relative;"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:28px;height:28px;background:#1e293b;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;">🌊</div><div style="font-weight:800;color:#1e293b;font-size:0.95rem;flex:1;">SEA:GNAL</div><div style="font-size:0.75rem;color:#94a3b8;">지금</div></div><div id="preview-title" style="font-weight:800;margin-bottom:4px;color:#000;font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">(제목 미리보기)</div><div id="preview-content" style="color:#475569;font-size:1rem;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">(내용 미리보기)</div></div></div><div style="display:flex;justify-content:space-between;align-items:center;"><div style="font-size:0.95rem;color:#cbd5e1;">발송 대상: <span style="font-weight:800;color:#3b82f6;" id="target-zone-count">0</span>개 구역 <span id="target-recipient-count" style="color:#818cf8;font-size:0.85rem;"></span></div><div style="display:flex;gap:12px;"><button onclick="window.switchAlertAdminTab(\'custom\')" style="padding:12px 20px;background:rgba(255,255,255,0.08);border:none;border-radius:10px;color:#cbd5e1;cursor:pointer;font-weight:600;">초기화</button><button onclick="window.confirmCustomPush()" style="padding:12px 28px;background:linear-gradient(135deg,#ef4444,#b91c1c);border:none;border-radius:10px;color:#fff;font-weight:700;cursor:pointer;box-shadow:0 10px 20px rgba(239,68,68,0.3);">푸시 발송하기</button></div></div><div id="custom-push-confirm-overlay" style="display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:100;border-radius:16px;backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;"><div style="background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:30px;width:100%;max-width:320px;text-align:center;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);"><div style="font-size:3rem;margin-bottom:20px;">📢</div><div style="color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:12px;">푸시 발송 최종 확인</div><div style="color:#94a3b8;font-size:0.9rem;line-height:1.6;margin-bottom:25px;">정말 <span id="confirm-target-text" style="color:#3b82f6;font-weight:700;"></span>으로<br>알림을 발송하시겠습니까?</div><div style="display:flex;gap:10px;"><button onclick="document.getElementById(\'custom-push-confirm-overlay\').style.display=\'none\'" style="flex:1;padding:12px;background:rgba(255,255,255,0.05);border:none;border-radius:10px;color:#cbd5e1;cursor:pointer;font-weight:600;">취소</button><button id="final-send-btn" onclick="window.executeCustomPush()" style="flex:1;padding:12px;background:#ef4444;border:none;border-radius:10px;color:#fff;cursor:pointer;font-weight:700;">지금 발송</button></div></div></div></div>';
 };
 
 // ============================================================================
@@ -437,8 +473,15 @@ var historyFilter = { cat: 'all', type: 'all' };
 window.renderHistoryTab = async function (container) {
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
     try {
-        var histRes = await fetch('/api/push-history');
+        // 발송 이력과 구독자 통계를 동시에 가져옴
+        // - histRes: 발송 이력 목록
+        // - statsRes: 해역별 현재 구독자 수 (접이식 패널에서 사용)
+        var [histRes, statsRes] = await Promise.all([
+            fetch('/api/push-history'),
+            fetch('/api/push-subscriber-stats')
+        ]);
         var history = histRes.ok ? await histRes.json() : [];
+        var subscriberStats = statsRes.ok ? await statsRes.json() : null;
         var filtered = history.filter(function(h) {
             return (historyFilter.cat === 'all' || h.tab === historyFilter.cat) && (historyFilter.type === 'all' || h.type === historyFilter.type);
         });
@@ -491,6 +534,28 @@ window.renderHistoryTab = async function (container) {
                 + '<div style="color:#fff;font-weight:700;margin-bottom:4px;font-size:0.95rem;">' + h.title + '</div>'
                 // 알림 본문 (줄바꿈 적용된 내용)
                 + '<div style="color:#94a3b8;font-size:0.85rem;line-height:1.6;">' + contentHtml + '</div>'
+                // 해역별 구독자 수 접이식 패널
+                // - h.target에 저장된 해역명(쉼표 구분)을 파싱
+                // - 각 해역에 대해 현재 구독자 수를 표시 (subscriberStats에서 조회)
+                // - "현재 기준"이라고 표기 (발송 당시 수가 아닌 현재 수이므로)
+                + (function() {
+                    if (!subscriberStats || !subscriberStats.zoneCounts || !h.target) return '';
+                    // ○ 접두사 제거 후 해역명 파싱
+                    var zones = h.target.split(',').map(function(z) { return z.trim().replace(/^○/, ''); }).filter(Boolean);
+                    if (zones.length === 0) return '';
+                    var panelId = 'zone-detail-' + h.id;
+                    var zoneItems = zones.map(function(z) {
+                        var count = subscriberStats.zoneCounts[z];
+                        var countStr = (count !== undefined) ? count + '명' : '-';
+                        return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:0.78rem;"><span style="color:#94a3b8;">○' + z + '</span><span style="color:#818cf8;font-weight:600;">' + countStr + '</span></div>';
+                    }).join('');
+                    return '<div style="margin-top:8px;">'
+                        + '<button onclick="var el=document.getElementById(\'' + panelId + '\');el.style.display=el.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'i\').className=el.style.display===\'none\'?\'fa-solid fa-caret-right\':\'fa-solid fa-caret-down\';" style="background:none;border:none;color:#64748b;font-size:0.78rem;cursor:pointer;padding:2px 0;display:flex;align-items:center;gap:4px;">'
+                        + '<i class="fa-solid fa-caret-right"></i> 해역별 구독자 수 <span style="font-size:0.68rem;color:#475569;">(현재 기준)</span></button>'
+                        + '<div id="' + panelId + '" style="display:none;margin-top:4px;padding:8px 10px;background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(255,255,255,0.03);">'
+                        + zoneItems
+                        + '</div></div>';
+                })()
                 + '</div></div>';
         }).join('');
 
@@ -574,6 +639,15 @@ window.toggleAdminAccordion = function (id) {
     }
 };
 
+/**
+ * "구독자 전원에게 발송" 체크박스 토글 처리
+ *
+ * [동작]
+ * - 체크 시: 해역 선택 영역 비활성화 + 카운터에 "전원" 표시 + 총 구독자 수 표시
+ * - 해제 시: 해역 선택 영역 활성화 + 카운터를 현재 체크된 해역 수로 복원
+ *
+ * [연계] "구독자 전원에게 발송" 체크박스의 onchange 이벤트로 호출됨
+ */
 window.toggleSendAllSubscribers = function (checked) {
     var zoneArea = document.getElementById('zone-selection-area');
     if (zoneArea) {
@@ -584,6 +658,16 @@ window.toggleSendAllSubscribers = function (checked) {
     if (countEl) {
         countEl.textContent = checked ? '전원' : document.querySelectorAll('.zone-checkbox:checked').length;
     }
+    // 구독자 전원 선택 시 총 구독자 수 표시
+    var recipientEl = document.getElementById('target-recipient-count');
+    if (recipientEl) {
+        var stats = window._subscriberStats;
+        if (checked && stats) {
+            recipientEl.textContent = '(' + stats.totalSubscribers + '명)';
+        } else if (!checked) {
+            window.updateTargetCount(); // 해제 시 선택된 해역 기반으로 재계산
+        }
+    }
 };
 
 window.toggleAllZones = function (checked) {
@@ -591,10 +675,39 @@ window.toggleAllZones = function (checked) {
     window.updateTargetCount();
 };
 
+/**
+ * 선택된 해역 수와 예상 수신 인원을 카운터에 표시합니다.
+ *
+ * [동작 방식]
+ * 1. 체크된 소분류 해역(zone-checkbox) 수를 카운트 → "N개 구역"
+ * 2. 각 해역의 구독자 수를 _subscriberStats에서 조회하여 최대값 표시 → "(약 N명)"
+ *    - 최대값을 사용하는 이유: 한 사용자가 여러 해역을 구독하면 단순 합산 시 중복됨
+ *    - "약"을 붙이는 이유: 야간모드 필터 등 실제 발송 시 추가 필터링이 있을 수 있음
+ *
+ * [연계] renderCustomPushTab()에서 체크박스 onchange 이벤트로 호출됨
+ */
 window.updateTargetCount = function () {
     var checked = document.querySelectorAll('.zone-checkbox:checked');
     var el = document.getElementById('target-zone-count');
     if (el) el.textContent = checked.length;
+
+    // 예상 수신 인원 계산 (구독자 통계가 있을 때만)
+    var recipientEl = document.getElementById('target-recipient-count');
+    if (recipientEl) {
+        var stats = window._subscriberStats;
+        if (stats && stats.zoneCounts && checked.length > 0) {
+            // 선택된 해역 중 가장 많은 구독자 수를 기준으로 표시
+            // (단순 합산은 중복 카운트가 되므로 최대값이 더 정확한 추정)
+            var maxCount = 0;
+            checked.forEach(function(cb) {
+                var count = stats.zoneCounts[cb.value] || 0;
+                if (count > maxCount) maxCount = count;
+            });
+            recipientEl.textContent = '(약 ' + maxCount + '명)';
+        } else {
+            recipientEl.textContent = '';
+        }
+    }
 };
 
 window.updateCustomPushPreview = function () {
