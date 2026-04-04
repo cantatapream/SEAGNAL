@@ -1248,6 +1248,7 @@ async function renderMaintenanceFullTab(container) {
         // 기상정보 하위 서브탭 (탭 단위 차단)
         { id: 'weather-alert-tab', label: '특보 및 전망', group: '기상정보 하위 탭' },
         { id: 'sea-zone', label: '해구기상', group: '기상정보 하위 탭' },
+        { id: 'ocean-forecast', label: '해황예보도', group: '기상정보 하위 탭' },
         { id: 'typhoon', label: '태풍정보', group: '기상정보 하위 탭' },
         { id: 'cctv', label: '해안 CCTV', group: '기상정보 하위 탭' },
         // 해양생활 하위 서브탭 (탭 단위 차단)
