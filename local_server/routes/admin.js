@@ -1022,4 +1022,58 @@ router.get('/api/admin/storage-usage', async (req, res) => {
     res.json(result);
 });
 
+// ============================================================================
+// 구독자 zones 정리 (대분류/중분류 제거)
+// ============================================================================
+
+/**
+ * POST /api/admin/cleanup-subscription-zones
+ * 기존 구독자의 zones에서 대분류(동해/서해/남해/제주)와
+ * 중분류(동해남부해상, 남해동부해상 등)를 제거하여 소분류만 남김.
+ * 대분류/중분류가 포함되면 expandToMinorZones에서 의도하지 않은 해역까지
+ * 확장되어 관심해역 외 푸시가 발송되는 버그 방지.
+ */
+router.post('/api/admin/cleanup-subscription-zones', (req, res) => {
+    // 제거 대상: 대분류 4개 + 중분류 7개
+    const PARENT_ZONES = new Set([
+        '동해', '서해', '남해', '제주',
+        '동해남부해상', '동해중부해상', '서해중부해상', '서해남부해상',
+        '남해동부해상', '남해서부해상', '제주해역'
+    ]);
+
+    const subsFile = path.join(DATA_DIR, 'subscriptions.json');
+    try {
+        if (!fs.existsSync(subsFile)) {
+            return res.json({ success: true, message: '구독자 파일 없음', updated: 0 });
+        }
+        const subs = JSON.parse(fs.readFileSync(subsFile, 'utf8'));
+        if (!Array.isArray(subs)) {
+            return res.json({ success: true, message: '구독자 데이터가 배열이 아님', updated: 0 });
+        }
+
+        let updatedCount = 0;
+        for (const sub of subs) {
+            if (!Array.isArray(sub.zones)) continue;
+            const before = sub.zones.length;
+            // 대분류/중분류 제거, 소분류만 유지
+            sub.zones = sub.zones.filter(z => !PARENT_ZONES.has(z));
+            if (sub.zones.length !== before) {
+                updatedCount++;
+            }
+        }
+
+        fs.writeFileSync(subsFile, JSON.stringify(subs, null, 2), 'utf8');
+        console.log(`[Admin] 구독자 zones 정리 완료: ${updatedCount}명 갱신`);
+        res.json({
+            success: true,
+            message: `구독자 zones 정리 완료`,
+            total: subs.length,
+            updated: updatedCount
+        });
+    } catch (e) {
+        console.error('[Admin] 구독자 zones 정리 오류:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 module.exports = router;
