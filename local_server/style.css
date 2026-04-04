@@ -7890,15 +7890,20 @@ line-height: 1.1;
     display: block;
     cursor: pointer;
     border-radius: 10px;
+    transition: opacity 0.2s ease;
 }
 
-/* 로딩 스피너 */
+/* 로딩 스피너 (이미지 위에 absolute 오버레이 — 레이아웃 밀림 방지) */
 .ocean-forecast-loading {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 60px 0;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
     color: var(--text-sub, #94a3b8);
     font-size: 0.9rem;
 }
@@ -7967,7 +7972,7 @@ line-height: 1.1;
 /* 모달 닫기 버튼 */
 .ocean-forecast-modal-close {
     position: absolute;
-    top: 16px;
+    top: calc(env(safe-area-inset-top, 0px) + 48px);
     right: 16px;
     background: rgba(255, 255, 255, 0.15);
     border: none;
@@ -7990,7 +7995,7 @@ line-height: 1.1;
 /* 모달 일시 라벨 (상단) */
 .ocean-forecast-modal-label {
     position: absolute;
-    top: 20px;
+    top: calc(env(safe-area-inset-top, 0px) + 52px);
     left: 50%;
     transform: translateX(-50%);
     color: rgba(255, 255, 255, 0.8);
@@ -8009,7 +8014,7 @@ line-height: 1.1;
 .ocean-forecast-modal-img-container {
     max-width: 95vw;
     max-height: 80vh;
-    overflow: hidden;
+    overflow: visible;
     display: flex;
     align-items: center;
     justify-content: center;

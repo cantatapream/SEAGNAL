@@ -63,6 +63,7 @@ window.showOceanImage = function () {
     if (!targetItem || !targetItem.imgFileNm) {
         // 해당 날짜+시간의 이미지가 없음
         imageEl.style.display = 'none';
+        imageEl.style.opacity = '1';
         if (publishEl) publishEl.style.display = 'none';
         if (emptyEl) {
             emptyEl.style.display = 'block';
@@ -74,17 +75,21 @@ window.showOceanImage = function () {
     // 이미지 URL 구성 (우리 서버 캐시에서 제공)
     var imageUrl = '/api/ocean-condition/image/' + targetItem.imgFileNm;
 
-    // 로딩 표시
+    // 로딩 표시: 기존 이미지를 흐리게 유지 + 스피너를 이미지 위에 오버레이
+    // (이미지를 숨기지 않으므로 레이아웃이 밀리지 않음)
+    imageEl.style.opacity = '0.3';
     if (loadingEl) loadingEl.style.display = 'flex';
     if (emptyEl) emptyEl.style.display = 'none';
 
     // 이미지 로드
     imageEl.onload = function () {
         imageEl.style.display = 'block';
+        imageEl.style.opacity = '1';
         if (loadingEl) loadingEl.style.display = 'none';
     };
     imageEl.onerror = function () {
         imageEl.style.display = 'none';
+        imageEl.style.opacity = '1';
         if (loadingEl) loadingEl.style.display = 'none';
         if (emptyEl) {
             emptyEl.style.display = 'block';
@@ -262,35 +267,20 @@ function setupOceanModalZoom(img, container) {
         applyTransform();
     }, { passive: false });
 
-    // ── 더블탭 확대 (모바일/PC) ──
-    var lastTap = 0;
-    container.addEventListener('touchend', function (e) {
-        var now = Date.now();
-        if (now - lastTap < 300) {
-            // 더블탭 감지
-            e.preventDefault();
-            if (scale > 1) {
-                // 확대 상태 → 원래 크기로
-                scale = 1; posX = 0; posY = 0;
-            } else {
-                // 원래 크기 → 2배 확대
-                scale = 2;
-            }
-            applyTransform();
-        }
-        lastTap = now;
-    });
-
-    // ── 핀치줌 (모바일 터치) ──
+    // ── 핀치줌 / 더블탭 / 드래그 공용 상태 ──
     var startDist = 0;
     var startScale = 1;
     var isDragging = false;
+    var isPinching = false;  // 핀치줌 진행 중 플래그 (더블탭 오인 방지)
     var dragStartX = 0, dragStartY = 0;
     var startPosX = 0, startPosY = 0;
+    var lastTap = 0;
 
+    // ── 터치 시작 ──
     container.addEventListener('touchstart', function (e) {
         if (e.touches.length === 2) {
             // 두 손가락: 핀치줌 시작
+            isPinching = true;
             startDist = getTouchDistance(e.touches);
             startScale = scale;
             e.preventDefault();
@@ -304,6 +294,7 @@ function setupOceanModalZoom(img, container) {
         }
     }, { passive: false });
 
+    // ── 터치 이동 ──
     container.addEventListener('touchmove', function (e) {
         if (e.touches.length === 2) {
             // 핀치줌 진행
@@ -322,10 +313,31 @@ function setupOceanModalZoom(img, container) {
         }
     }, { passive: false });
 
-    container.addEventListener('touchend', function () {
+    // ── 터치 종료 ──
+    container.addEventListener('touchend', function (e) {
         isDragging = false;
+
+        // 핀치줌 중이면 더블탭 감지 스킵 (두 손가락 빠르게 떼면 오인 방지)
+        if (isPinching) {
+            if (e.touches.length === 0) isPinching = false;
+            return;
+        }
+
+        // 더블탭 감지 (한 손가락만)
+        var now = Date.now();
+        if (now - lastTap < 300) {
+            e.preventDefault();
+            if (scale > 1) {
+                scale = 1; posX = 0; posY = 0;
+            } else {
+                scale = 2;
+            }
+            applyTransform();
+        }
+        lastTap = now;
+
         // 축소되었으면 위치 리셋
-        if (scale <= 1) { posX = 0; posY = 0; applyTransform(); }
+        if (scale <= 1) { scale = 1; posX = 0; posY = 0; applyTransform(); }
     });
 
     /**

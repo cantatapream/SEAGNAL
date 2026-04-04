@@ -85,7 +85,14 @@ router.get('/api/force-update/:type/stream', async (req, res) => {
     };
     scheduler.collectProgress.on('progress', onProgress);
 
+    // 30초마다 하트비트 전송 — Fly.io 프록시 60초 idle timeout 방지
+    // SSE 규격에서 ':'로 시작하는 줄은 코멘트로 클라이언트에서 무시됨
+    const heartbeat = setInterval(() => {
+        try { res.write(': keepalive\n\n'); } catch (_) {}
+    }, 30000);
+
     req.on('close', () => {
+        clearInterval(heartbeat);
         scheduler.collectProgress.off('progress', onProgress);
     });
 
@@ -123,6 +130,7 @@ router.get('/api/force-update/:type/stream', async (req, res) => {
     } catch (e) {
         res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
     } finally {
+        clearInterval(heartbeat);
         scheduler.collectProgress.off('progress', onProgress);
         res.end();
     }
