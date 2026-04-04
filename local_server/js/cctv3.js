@@ -69,10 +69,13 @@ function addCctvMarkers() {
 
     for (const [providerKey, provider] of Object.entries(CCTV_PROVIDERS)) {
         provider.items.forEach(function (item) {
+            // coastal 마커는 동일 지점에 다른 provider 마커가 겹칠 수 있으므로
+            // 약 11m 북쪽으로 미세 offset → 확대 시 시각적으로 분리
+            var lat = parseFloat(item.lat) + (providerKey === 'coastal' ? 0.0001 : 0);
+            var lng = parseFloat(item.lng);
+
             const feature = new ol.Feature({
-                geometry: new ol.geom.Point(
-                    ol.proj.fromLonLat([parseFloat(item.lng), parseFloat(item.lat)])
-                ),
+                geometry: new ol.geom.Point(ol.proj.fromLonLat([lng, lat])),
                 cctvId:       item.cctvId,
                 name:         item.name,
                 subtitle:     item.subtitle,

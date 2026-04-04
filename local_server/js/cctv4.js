@@ -72,12 +72,6 @@ let _cctvImageRefreshTimer = null;
  * @param {ol.MapBrowserEvent} event — OpenLayers 클릭 이벤트 객체
  */
 function handleCctvMapClick(event) {
-    // 편집 모드일 때는 위치 편집 핸들러로 위임 (cctv7.js)
-    if (typeof _editMode !== 'undefined' && _editMode) {
-        handleCctvEditClick(event);
-        return;
-    }
-
     const feature = cctvMap.forEachFeatureAtPixel(event.pixel, function (f) {
         return f;
     });
@@ -201,8 +195,17 @@ function showCctvPopup(data) {
         let imgsHtml = '';
         for (let i = 0; i < camCount; i++) {
             const src = provider.imageBaseUrl(data.cctvId, i) + '?' + Date.now();
-            imgsHtml += `<img id="cctv-coast-img-${i}" class="cctv-coast-img"
-                              src="${src}" alt="${data.name} 카메라${camCount > 1 ? ' ' + (i + 1) : ''}">`;
+            const label = camCount > 1 ? ` 카메라 ${i + 1}` : '';
+            imgsHtml += `<div class="cctv-coast-img-wrap">` +
+                `<img id="cctv-coast-img-${i}" class="cctv-coast-img"` +
+                ` src="${src}" alt="${data.name}${label}"` +
+                ` onerror="this.style.display='none';` +
+                    `document.getElementById('cctv-coast-err-${i}').style.display='flex'">` +
+                `<div id="cctv-coast-err-${i}" class="cctv-coast-err" style="display:none;">` +
+                    `<i class="fa-solid fa-triangle-exclamation"></i>` +
+                    `<span>이미지를 불러올 수 없습니다</span>` +
+                `</div>` +
+                `</div>`;
         }
         mediaHtml = `<div class="cctv-coast-wrap">${imgsHtml}</div>`;
     } else if (data.providerKey === 'ongjin') {
@@ -401,6 +404,10 @@ function _startCoastImageRefresh(provider, data) {
         for (var i = 0; i < camCount; i++) {
             var img = document.getElementById('cctv-coast-img-' + i);
             if (img) {
+                // 갱신 전 에러 패널 숨기고 이미지 복원
+                var errEl = document.getElementById('cctv-coast-err-' + i);
+                if (errEl) errEl.style.display = 'none';
+                img.style.display = '';
                 img.src = provider.imageBaseUrl(data.cctvId, i) + '?' + Date.now();
             }
         }
@@ -489,7 +496,7 @@ function toggleCctvFavorite() {
     const btn = document.getElementById('cctv-fav-toggle-btn');
     if (!btn) return;
 
-    const { cctvId, name, subtitle, providerKey, shareUrl, streamUrl } = _currentCctvData;
+    const { cctvId, name, subtitle, providerKey, shareUrl, streamUrl, cameraCount } = _currentCctvData;
 
     if (CctvFavorites.has(cctvId)) {
         // ─── 이미 등록됨 → 제거 ───
@@ -498,7 +505,7 @@ function toggleCctvFavorite() {
         btn.innerHTML = `<i class="fa-regular fa-star" style="color: rgba(255,255,255,0.6);"></i>`;
     } else {
         // ─── 미등록 → 추가 ───
-        const added = CctvFavorites.add({ cctvId, name, subtitle, providerKey, shareUrl, streamUrl });
+        const added = CctvFavorites.add({ cctvId, name, subtitle, providerKey, shareUrl, streamUrl, cameraCount });
         if (added) {
             btn.title = '즐겨찾기 해제';
             btn.innerHTML = `<i class="fa-solid fa-star" style="color: #fbbf24;"></i>`;

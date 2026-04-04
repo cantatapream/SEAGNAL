@@ -7645,6 +7645,13 @@ line-height: 1.1;
     flex-direction: column;
 }
 
+/* 개별 이미지 래퍼 (이미지 + 에러 패널을 겹쳐 배치) */
+.cctv-coast-img-wrap {
+    position: relative;
+    width: 100%;
+    background: #0f172a;
+}
+
 /* 개별 이미지 (단일 또는 멀티카메라 스택) */
 .cctv-coast-img {
     width: 100%;
@@ -7652,5 +7659,25 @@ line-height: 1.1;
     object-fit: contain;
     max-height: 380px;
     background: #0f172a;
+}
+
+/* 이미지 로딩 실패 시 표시되는 에러 패널 */
+.cctv-coast-err {
+    width: 100%;
+    min-height: 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: #94a3b8;
+    font-size: 13px;
+    background: #0f172a;
+    padding: 24px 0;
+}
+.cctv-coast-err i {
+    font-size: 28px;
+    color: #ef4444;
+    opacity: 0.7;
 }
 
