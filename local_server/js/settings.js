@@ -22,10 +22,42 @@ function initTabs() {
 
     // 메인 탭 이벤트 바인딩 (기상정보, 조석정보, 해양생활, 공지사항)
     // [연계] js/marine.js switchMainTab() → 그룹/섹션 전환 처리
+
+    // [히든 접근] 조석정보 탭 10회 연속 탭 → 해양종합정보 테스트 페이지 진입
+    // - 3초 이내 연속 탭만 카운트, 초과 시 리셋
+    // - 다른 탭 클릭 시에도 카운터 리셋
+    let _hiddenTapCount = 0;
+    let _hiddenTapTimer = null;
+
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             const targetId = tab.getAttribute('data-target');
+
+            // 조석정보 탭 연속 탭 감지
+            if (targetId === 'tide-section') {
+                _hiddenTapCount++;
+                // 3초 타이머 리셋 (3초 이내 연속 탭만 인정)
+                clearTimeout(_hiddenTapTimer);
+                _hiddenTapTimer = setTimeout(() => { _hiddenTapCount = 0; }, 3000);
+
+                // 10회 도달 시 해양종합정보 테스트 페이지로 전환
+                if (_hiddenTapCount >= 10) {
+                    _hiddenTapCount = 0;
+                    clearTimeout(_hiddenTapTimer);
+                    // [연계] ocean_map.js initOceanMap() → 해양종합정보 지도 초기화
+                    const oceanSection = document.getElementById('ocean-map-section');
+                    if (oceanSection) {
+                        window.switchMainTab('ocean-map-section');
+                        return;
+                    }
+                }
+            } else {
+                // 다른 탭 클릭 시 카운터 리셋
+                _hiddenTapCount = 0;
+                clearTimeout(_hiddenTapTimer);
+            }
+
             window.switchMainTab(targetId);
         });
     });
