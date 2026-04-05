@@ -628,14 +628,42 @@ function _renderSeafogSlide(tsEl, idx) {
     if (errEl) errEl.style.display = 'none';
     if (imgEl) {
         imgEl.style.display = '';
+
+        // 로딩 완료(onload) 또는 실패(onerror) 전까지 ◀/▶ 버튼 비활성화
+        _setSeafogNavDisabled(true);
+        imgEl.onload  = function () { _setSeafogNavDisabled(false); };
+        imgEl.onerror = function () { _seafogImgError(this); _setSeafogNavDisabled(false); };
+
         imgEl.src = slide.uri; // DOM 유지 + src만 교체
     }
+}
+
+/**
+ * ◀/▶ 버튼(일반 nav + 전체화면 오버레이 nav)을 일괄 활성화/비활성화합니다.
+ * 이미지 src 교체 직후 비활성화하고, 로드 완료(성공·실패 모두) 시 재활성화합니다.
+ *
+ * @param {boolean} disabled — true: 비활성화 / false: 활성화
+ */
+function _setSeafogNavDisabled(disabled) {
+    // 일반 네비게이션 바 버튼
+    document.querySelectorAll('.cctv-seafog-nav-btn').forEach(function (btn) {
+        btn.disabled = disabled;
+        btn.style.opacity = disabled ? '0.4' : '';
+        btn.style.cursor  = disabled ? 'not-allowed' : '';
+    });
+    // 전체화면 오버레이 버튼
+    document.querySelectorAll('.cctv-seafog-fs-btn').forEach(function (btn) {
+        btn.disabled = disabled;
+        btn.style.opacity = disabled ? '0.4' : '';
+        btn.style.cursor  = disabled ? 'not-allowed' : '';
+    });
 }
 
 /**
  * 이미지 로드 실패 시 호출됩니다.
  * img와 error div가 영속적으로 DOM에 존재하므로
  * img를 숨기고 error div를 표시하는 방식으로 처리합니다.
+ * (버튼 재활성화는 _renderSeafogSlide의 onerror 핸들러에서 담당)
  */
 function _seafogImgError(imgEl) {
     if (!imgEl || !imgEl.isConnected) return;
