@@ -26,17 +26,18 @@ const {
 } = require('./marine_weather_api1');
 
 /**
- * fct_afs_dl API에서 기온(최저/최고) 범위를 수집
+ * fct_afs_dl API에서 기온(최저/최고)을 수집
  *
- * 전략: 관할 지점별 TA 값을 모두 수집한 뒤,
- *   오늘의 최저기온(06시) / 최고기온(15시)을 각각 min~max 범위로 산출
- *   → 기존 PDF의 "최저 5.5 ~ 8.0 / 최고 13 ~ 18" 형식과 동일
+ * 전략:
+ *   - fct_afs_dl은 지역별 단기예보 상세 데이터를 제공
+ *   - TM_EF(예보 대상 시각)는 12시간 간격: 1200(낮=최고), 0000(밤=최저)
+ *   - 관할 지점별로 TA(기온) 수집 후 min~max 범위 산출
  *
  * @param {string} officeCode - 지방기상청 코드 (예: '109')
  * @param {string} authKey - KMA API Hub 인증키
  * @returns {Promise<{low: string, high: string}|null>}
- *   low: "최저1 ~ 최저2" (예: "5.5 ~ 8.0")
- *   high: "최고1 ~ 최고2" (예: "13 ~ 18")
+ *   low: "최저기온" (예: "6") 또는 범위 "5 ~ 8"
+ *   high: "최고기온" (예: "13") 또는 범위 "13 ~ 18"
  */
 async function fetchTemperature(officeCode, authKey) {
     const stnList = OFFICE_STN_LIST[officeCode];
@@ -45,14 +46,17 @@ async function fetchTemperature(officeCode, authKey) {
     const officeName = REGIONAL_OFFICES[officeCode]?.name || officeCode;
     const candidates = getPublishTmCandidates();
 
-    // 오늘 날짜 (KST 기준)
+    // KST 기준 오늘/내일 날짜 계산
     const now = new Date();
     const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
     const todayStr = `${kst.getUTCFullYear()}${String(kst.getUTCMonth() + 1).padStart(2, '0')}${String(kst.getUTCDate()).padStart(2, '0')}`;
+    const tomorrow = new Date(kst);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    const tomorrowStr = `${tomorrow.getUTCFullYear()}${String(tomorrow.getUTCMonth() + 1).padStart(2, '0')}${String(tomorrow.getUTCDate()).padStart(2, '0')}`;
 
     // 각 관할 지점별로 기온 수집
-    const allLows = [];   // 오늘 최저기온들
-    const allHighs = [];  // 오늘 최고기온들
+    const allLows = [];   // 최저기온(0000 행)들
+    const allHighs = [];  // 최고기온(1200 행)들
 
     for (const stn of stnList) {
         let fetched = false;
@@ -63,15 +67,14 @@ async function fetchTemperature(officeCode, authKey) {
                 const text = decodeEucKr(buffer);
 
                 if (!text.includes('#START7777')) {
-                    // 첫 번째 후보에서만 디버그 로그 출력
                     if (tm === candidates[0]) {
-                        console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_dl 응답에 #START7777 없음 (stn=${stn}, tm=${tm}, 길이=${text.length}, 앞200자=${text.substring(0, 200).replace(/\n/g, '\\n')})`);
+                        console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_dl 응답에 #START7777 없음 (stn=${stn}, tm=${tm}, 길이=${text.length})`);
                     }
                     continue;
                 }
 
-                // TA 필드에서 오늘 최저/최고 추출
-                const temps = parseTaFromFctAfsDl(text, todayStr);
+                // TA 필드에서 최저/최고 추출
+                const temps = parseTaFromFctAfsDl(text, todayStr, tomorrowStr);
                 if (temps) {
                     if (temps.low !== null) allLows.push(temps.low);
                     if (temps.high !== null) allHighs.push(temps.high);
@@ -79,7 +82,7 @@ async function fetchTemperature(officeCode, authKey) {
                     break; // 이 지점 성공, 다음 지점으로
                 } else {
                     if (tm === candidates[0]) {
-                        console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_dl TA 파싱 실패 (stn=${stn}, tm=${tm}, 앞500자=${text.substring(0, 500).replace(/\n/g, '\\n')})`);
+                        console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_dl TA 파싱 실패 (stn=${stn}, tm=${tm})`);
                     }
                 }
             } catch (e) {
@@ -99,43 +102,55 @@ async function fetchTemperature(officeCode, authKey) {
         return null;
     }
 
-    // 범위 산출: 모든 지점의 최저 중 min~max, 최고 중 min~max
-    const low = allLows.length > 0
-        ? `${Math.min(...allLows)} ~ ${Math.max(...allLows)}`
-        : null;
-    const high = allHighs.length > 0
-        ? `${Math.min(...allHighs)} ~ ${Math.max(...allHighs)}`
-        : null;
+    // 범위 산출: 여러 지점의 값 중 min~max
+    // 값이 하나뿐이거나 min===max이면 단일 값으로 표시
+    const formatRange = (arr) => {
+        const min = Math.min(...arr);
+        const max = Math.max(...arr);
+        return min === max ? `${min}` : `${min} ~ ${max}`;
+    };
+
+    const low = allLows.length > 0 ? formatRange(allLows) : null;
+    const high = allHighs.length > 0 ? formatRange(allHighs) : null;
 
     console.log(`[MarineWeatherAPI] ${officeName}: 기온 수집 완료 (최저: ${low || '없음'}, 최고: ${high || '없음'})`);
     return { low, high };
 }
 
 /**
- * fct_afs_dl API 응답에서 오늘 날짜의 TA(기온) 최저/최고를 추출
+ * fct_afs_dl API 응답에서 기온(TA) 최저/최고를 추출
  *
  * 응답 형식 (disp=0):
  *   #START7777
- *   # REG_ID TM_FC TM_EF ... TA ...
- *   108 202604051100 202604050600 ... 5.0 ...
- *   108 202604051100 202604051500 ... 15.0 ...
+ *   # REG_ID TM_FC TM_EF MOD NE STN C MAN_ID MAN_FC W1 T W2 TA ST SKY PREP WF
+ *   11A00101 202604051100 202604051200 A02 0 109 2 shs*** 신현식 S 1 SW 9 90 DB03 1 "구름많고 한때 비"
+ *   11A00101 202604051100 202604060000 A02 1 109 2 shs*** 신현식 NW 1 N 6 60 DB03 1 "구름많고 한때 비 곳"
  *   ...
  *   #7777END
  *
- * 최저기온: TM_EF가 오늘 0600인 행의 TA
- * 최고기온: TM_EF가 오늘 1500인 행의 TA
+ * TM_EF 시각 패턴 (12시간 간격):
+ *   - YYYYMMDD1200 → 낮 최고기온
+ *   - YYYYMMDD0000 → 밤 최저기온 (전일 밤~당일 아침)
+ *
+ * 추출 로직:
+ *   - 오늘 1200 → 오늘 최고기온
+ *   - 오늘 0000 → 오늘 최저기온 (05시 발표에서만 존재)
+ *   - 내일 0000 → 오늘밤 최저기온 (11시/17시 발표 폴백)
  *
  * @param {string} text - API 응답 텍스트
  * @param {string} todayStr - YYYYMMDD 형식 오늘 날짜
+ * @param {string} tomorrowStr - YYYYMMDD 형식 내일 날짜
  * @returns {{low: number|null, high: number|null}|null}
  */
-function parseTaFromFctAfsDl(text, todayStr) {
+function parseTaFromFctAfsDl(text, todayStr, tomorrowStr) {
     const lines = text.split('\n');
     let headerFields = [];
     let taIndex = -1;
 
-    let lowTemp = null;
-    let highTemp = null;
+    let lowTemp = null;       // 오늘 0000 최저기온
+    let highTemp = null;      // 오늘 1200 최고기온
+    let tonightLow = null;    // 내일 0000 (오늘밤 최저, 폴백용)
+    let tomorrowHigh = null;  // 내일 1200 (내일 최고, 17시 발표 폴백용)
 
     for (const line of lines) {
         const trimmed = line.trim();
@@ -157,24 +172,39 @@ function parseTaFromFctAfsDl(text, todayStr) {
         const parts = trimmed.split(/\s+/);
         if (parts.length <= taIndex) continue;
 
-        // TM_EF 필드 확인 (3번째 컬럼, 인덱스 2)
+        // TM_EF 필드 확인
         const tmEfIndex = headerFields.indexOf('TM_EF');
         if (tmEfIndex === -1 || parts.length <= tmEfIndex) continue;
 
         const tmEf = parts[tmEfIndex];
-        if (!tmEf.startsWith(todayStr)) continue;
-
         const ta = parseFloat(parts[taIndex]);
         if (isNaN(ta)) continue;
 
-        // 0600 = 최저기온 시각
-        if (tmEf.includes('0600')) {
-            lowTemp = ta;
-        }
-        // 1500 = 최고기온 시각
-        if (tmEf.includes('1500')) {
+        // 오늘 1200 → 최고기온
+        if (tmEf === todayStr + '1200') {
             highTemp = ta;
         }
+        // 오늘 0000 → 최저기온 (05시 발표에서만 존재)
+        if (tmEf === todayStr + '0000') {
+            lowTemp = ta;
+        }
+        // 내일 0000 → 오늘밤 최저기온 (폴백)
+        if (tmEf === tomorrowStr + '0000' && tonightLow === null) {
+            tonightLow = ta;
+        }
+        // 내일 1200 → 내일 최고기온 (17시 발표 폴백)
+        if (tmEf === tomorrowStr + '1200' && tomorrowHigh === null) {
+            tomorrowHigh = ta;
+        }
+    }
+
+    // 오늘 최저가 없으면 오늘밤 최저(내일 0000)로 대체
+    if (lowTemp === null && tonightLow !== null) {
+        lowTemp = tonightLow;
+    }
+    // 오늘 최고가 없으면 내일 최고(내일 1200)로 대체 (17시 발표 등)
+    if (highTemp === null && tomorrowHigh !== null) {
+        highTemp = tomorrowHigh;
     }
 
     if (lowTemp === null && highTemp === null) return null;
