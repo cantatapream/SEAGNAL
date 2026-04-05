@@ -18,6 +18,7 @@
 const {
     API_URLS,
     REGIONAL_OFFICES,
+    OFFICE_STN_LIST,
     getPublishTmCandidates,
     formatPublishTime,
     httpsGet,
@@ -26,6 +27,11 @@ const {
 
 /**
  * fct_afs_ds API에서 종합 전망 텍스트를 수집
+ *
+ * stn 파라미터 후보:
+ *   1) 지방기상청 코드 (예: '109')
+ *   2) 관할 지점 코드 (예: '108' = 서울)
+ *   → 두 형식 모두 시도하여 유효한 응답을 찾음
  *
  * @param {string} stn - 지방기상청 코드 (예: '109')
  * @param {string} authKey - KMA API Hub 인증키
@@ -39,45 +45,57 @@ async function fetchSummary(stn, authKey) {
     const candidates = getPublishTmCandidates();
     const officeName = REGIONAL_OFFICES[stn]?.name || stn;
 
-    for (const tm of candidates) {
-        try {
-            const url = `${API_URLS.FCT_AFS_DS}?stn=${stn}&tm=${tm}&disp=0&help=0&authKey=${authKey}`;
-            const buffer = await httpsGet(url, 10000);
-            const text = decodeEucKr(buffer);
-
-            // 유효한 응답인지 확인 (#START7777 마커 존재)
-            if (!text.includes('#START7777')) {
-                // 첫 번째 후보에서만 디버그 로그 출력 (tm이 가장 최근)
-                if (tm === candidates[0]) {
-                    console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_ds 응답에 #START7777 없음 (tm=${tm}, 길이=${text.length}, 앞200자=${text.substring(0, 200).replace(/\n/g, '\\n')})`);
-                }
-                continue;
-            }
-
-            // $1 섹션 추출 (육상 개황 = 종합 전망 텍스트)
-            const result = parseFctAfsDs(text);
-            if (!result || !result.summary) {
-                console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_ds 파싱 실패 (tm=${tm}, sections=${text.substring(0, 300).replace(/\n/g, '\\n')})`);
-                continue;
-            }
-
-            console.log(`[MarineWeatherAPI] ${officeName}: 종합 전망 수집 성공 (tm=${tm})`);
-            return {
-                summary: result.summary,
-                publishTime: formatPublishTime(tm),
-                publishTm: tm,
-                forecasterName: result.forecasterName || '',
-            };
-        } catch (e) {
-            // 첫 번째 후보에서 에러 발생 시 로그 출력
-            if (tm === candidates[0]) {
-                console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_ds 에러 (tm=${tm}): ${e.message}`);
-            }
-            continue;
+    // stn 파라미터 후보: 지방청 코드 → 관할 지점 코드 순서
+    const stnCandidates = [stn];
+    const stnList = OFFICE_STN_LIST[stn];
+    if (stnList) {
+        for (const s of stnList) {
+            if (!stnCandidates.includes(s)) stnCandidates.push(s);
         }
     }
 
-    console.log(`[MarineWeatherAPI] ${officeName}: 종합 전망 수집 실패 (모든 후보 시도 완료)`);
+    for (const stnVal of stnCandidates) {
+        for (const tm of candidates) {
+            try {
+                const url = `${API_URLS.FCT_AFS_DS}?stn=${stnVal}&tm=${tm}&disp=0&help=0&authKey=${authKey}`;
+                const buffer = await httpsGet(url, 10000);
+                const text = decodeEucKr(buffer);
+
+                // 유효한 응답인지 확인 (#START7777 마커 존재)
+                if (!text.includes('#START7777')) {
+                    if (stnVal === stnCandidates[0] && tm === candidates[0]) {
+                        console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_ds 응답에 #START7777 없음 (stn=${stnVal}, tm=${tm}, 길이=${text.length})`);
+                    }
+                    continue;
+                }
+
+                // $1 섹션 추출 (육상 개황 = 종합 전망 텍스트)
+                const result = parseFctAfsDs(text);
+                if (!result || !result.summary) {
+                    // 데이터 없으면 다음 tm 후보 시도
+                    if (stnVal === stnCandidates[0] && tm === candidates[0]) {
+                        console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_ds 파싱 실패 (stn=${stnVal}, tm=${tm}, 본문길이=${text.length}, 앞300자=${text.substring(0, 300).replace(/\n/g, '\\n')})`);
+                    }
+                    continue;
+                }
+
+                console.log(`[MarineWeatherAPI] ${officeName}: 종합 전망 수집 성공 (stn=${stnVal}, tm=${tm})`);
+                return {
+                    summary: result.summary,
+                    publishTime: formatPublishTime(tm),
+                    publishTm: tm,
+                    forecasterName: result.forecasterName || '',
+                };
+            } catch (e) {
+                if (stnVal === stnCandidates[0] && tm === candidates[0]) {
+                    console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_ds 에러 (stn=${stnVal}, tm=${tm}): ${e.message}`);
+                }
+                continue;
+            }
+        }
+    }
+
+    console.log(`[MarineWeatherAPI] ${officeName}: 종합 전망 수집 실패 (stn후보: ${stnCandidates.join(',')}, tm후보: ${candidates.length}개 모두 시도)`);
     return null;
 }
 
