@@ -190,6 +190,26 @@ function findNearestDepth(filePath, targetLat, targetLon) {
 }
 
 // ============================================================================
+// API: 해양종합정보 설정 (프론트엔드에서 KHOA 맵 키 조회용)
+// ============================================================================
+
+/**
+ * GET /api/ocean/config
+ * 해양종합정보 프론트엔드에서 필요한 설정값을 반환합니다.
+ * - KHOA_MAP_KEY: 해아름 지도 타일 API 키
+ */
+router.get('/api/ocean/config', (req, res) => {
+    try {
+        const config = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'api_config.json'), 'utf8'));
+        res.json({
+            KHOA_MAP_KEY: config.KHOA_MAP_KEY || ''
+        });
+    } catch (e) {
+        res.json({ KHOA_MAP_KEY: '' });
+    }
+});
+
+// ============================================================================
 // 하위 라우터 연결 (ocean2~5)
 // ============================================================================
 // 각 파일이 존재할 때만 안전하게 로드

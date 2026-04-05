@@ -1013,7 +1013,9 @@ window.switchMainTab = function (targetId) {
     }
 
     // 경우 3: 서브 탭이 없는 독립 메인 탭 (조석정보, 공지사항)
-    const mainTab = document.querySelector(`.main-tabs .tab-btn[data-target="${targetId}"]`);
+    // 히든 탭(ocean-map-section)은 조석정보에서 진입하므로 조석정보 탭 하이라이트 유지
+    const actualTabTarget = (targetId === 'ocean-map-section') ? 'tide-section' : targetId;
+    const mainTab = document.querySelector(`.main-tabs .tab-btn[data-target="${actualTabTarget}"]`);
     if (mainTab) mainTab.classList.add('active');
 
     const section = document.getElementById(targetId);
@@ -1079,6 +1081,11 @@ window.switchSubTab = function (targetId) {
  * - promo-section → promo.js loadPromoPosts()
  */
 function _onSectionActivated(sectionId) {
+    // 해양종합정보에서 벗어날 때 오버레이 애니메이션 정리 (RAF 누수 방지)
+    if (sectionId !== 'ocean-map-section' && window.oceanOverlayClear) {
+        window.oceanOverlayClear();
+    }
+
     // 해구별 기상 탭 활성화 시 지도 초기화
     if (sectionId === 'sea-zone-section') {
         setTimeout(() => {

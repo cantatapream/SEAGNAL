@@ -172,9 +172,9 @@
 
     function loadKhoaMapKey() {
         try {
-            // api_config.json은 서버에서 /api/config로 제공
-            // 클라이언트에서는 fetch로 가져옴
-            fetch('/api/config')
+            // 해양종합정보 전용 설정 엔드포인트에서 KHOA 맵 키 조회
+            // (기존 /api/config는 KMA_HUB_KEY만 반환하므로 별도 엔드포인트 사용)
+            fetch('/api/ocean/config')
                 .then(r => r.json())
                 .then(config => {
                     if (config.KHOA_MAP_KEY) {

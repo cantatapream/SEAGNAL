@@ -67,8 +67,10 @@
     // 상태 변수
     // ========================================================================
 
-    let canvas = null;
+    let canvas = null;              // 메인 캔버스 (파티클 + 합성)
     let ctx = null;
+    let gridCanvas = null;          // 오프스크린 캔버스 (격자 색상 정적 렌더)
+    let gridCtx = null;
     let mapRef = null;
     let activeLayer = 'current';   // 현재 표시 중인 오버레이
     let gridData = null;           // ROMS 격자 데이터
@@ -85,6 +87,10 @@
         canvas = document.getElementById('ocean-overlay-canvas');
         if (!canvas) return;
         ctx = canvas.getContext('2d');
+
+        // 오프스크린 캔버스 생성 (격자 색상용 - 정적 렌더)
+        gridCanvas = document.createElement('canvas');
+        gridCtx = gridCanvas.getContext('2d');
 
         // 캔버스 크기를 지도에 맞춤
         resizeCanvas();
@@ -110,7 +116,7 @@
         if (!canvas || !ctx) return;
         mapRef = map;
         resizeCanvas();
-        renderOverlay();
+        renderGridToOffscreen();
     };
 
     window.oceanOverlayClear = function () {
@@ -119,7 +125,12 @@
             animationId = null;
         }
         if (ctx) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            var w = canvas.width / (window.devicePixelRatio || 1);
+            var h = canvas.height / (window.devicePixelRatio || 1);
+            ctx.clearRect(0, 0, w, h);
+        }
+        if (gridCtx) {
+            gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
         }
         particles = [];
         gridData = null;
@@ -133,12 +144,21 @@
         if (!canvas || !mapRef) return;
         var viewport = mapRef.getViewport();
         var rect = viewport.getBoundingClientRect();
-        canvas.width = rect.width * (window.devicePixelRatio || 1);
-        canvas.height = rect.height * (window.devicePixelRatio || 1);
+        var dpr = window.devicePixelRatio || 1;
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
         canvas.style.width = rect.width + 'px';
         canvas.style.height = rect.height + 'px';
         if (ctx) {
-            ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        // 오프스크린 캔버스도 동일 크기
+        if (gridCanvas) {
+            gridCanvas.width = rect.width * dpr;
+            gridCanvas.height = rect.height * dpr;
+            if (gridCtx) {
+                gridCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            }
         }
     }
 
@@ -149,7 +169,7 @@
     function setActiveLayer(layer) {
         activeLayer = layer;
         updateLegend(layer);
-        renderOverlay();
+        renderGridToOffscreen();
     }
 
     function updateLegend(layer) {
@@ -200,7 +220,7 @@
             .then(function (data) {
                 if (data.success && data.items) {
                     gridData = data.items;
-                    renderOverlay();
+                    renderGridToOffscreen();
                     startParticleAnimation();
                 }
             })
@@ -213,12 +233,16 @@
     // 렌더링
     // ========================================================================
 
-    function renderOverlay() {
-        if (!ctx || !canvas || !gridData || !mapRef) return;
+    /**
+     * 격자 색상을 오프스크린 캔버스에 렌더링 (정적 레이어)
+     * animate()에서 매 프레임 이 이미지를 합성하여 파티클과 함께 표시
+     */
+    function renderGridToOffscreen() {
+        if (!gridCtx || !gridCanvas || !gridData || !mapRef) return;
 
-        var w = canvas.width / (window.devicePixelRatio || 1);
-        var h = canvas.height / (window.devicePixelRatio || 1);
-        ctx.clearRect(0, 0, w, h);
+        var w = gridCanvas.width / (window.devicePixelRatio || 1);
+        var h = gridCanvas.height / (window.devicePixelRatio || 1);
+        gridCtx.clearRect(0, 0, w, h);
 
         var scale = COLOR_SCALES[activeLayer];
 
@@ -233,20 +257,28 @@
             // 값에 따른 색상 결정
             var value;
             if (activeLayer === 'current') value = item.crsp || 0;
-            else if (activeLayer === 'wind') value = item.crsp ? item.crsp / 10 : 0; // 근사치
-            else value = item.crsp ? item.crsp / 20 : 0; // 근사치
+            else if (activeLayer === 'wind') value = item.crsp ? item.crsp / 10 : 0;
+            else value = item.crsp ? item.crsp / 20 : 0;
 
             var color = interpolateColor(scale, value);
             var radius = Math.max(8, 15 - mapRef.getView().getZoom());
 
             // 부드러운 원형 그라디언트
-            var gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+            var gradient = gridCtx.createRadialGradient(x, y, 0, x, y, radius);
             gradient.addColorStop(0, 'rgba(' + color[0] + ',' + color[1] + ',' + color[2] + ',' + color[3] + ')');
             gradient.addColorStop(1, 'rgba(' + color[0] + ',' + color[1] + ',' + color[2] + ',0)');
 
-            ctx.fillStyle = gradient;
-            ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+            gridCtx.fillStyle = gradient;
+            gridCtx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
         });
+
+        // 애니메이션이 아직 없으면 정적 렌더만 메인 캔버스에 표시
+        if (!animationId && ctx) {
+            var mw = canvas.width / (window.devicePixelRatio || 1);
+            var mh = canvas.height / (window.devicePixelRatio || 1);
+            ctx.clearRect(0, 0, mw, mh);
+            ctx.drawImage(gridCanvas, 0, 0, mw, mh);
+        }
     }
 
     /**
@@ -309,14 +341,17 @@
         var w = canvas.width / (window.devicePixelRatio || 1);
         var h = canvas.height / (window.devicePixelRatio || 1);
 
-        // 페이드 효과
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.03)';
-        ctx.fillRect(0, 0, w, h);
+        // 매 프레임 캔버스 초기화 후 레이어 합성:
+        // 1) 오프스크린 격자 색상 이미지 그리기 (정적)
+        // 2) 파티클 페이드 트레일 + 새 파티클 위치
+        ctx.clearRect(0, 0, w, h);
 
-        // 격자 데이터 렌더
-        renderOverlay();
+        // ① 격자 색상 오버레이 (오프스크린 캔버스에서 복사)
+        if (gridCanvas) {
+            ctx.drawImage(gridCanvas, 0, 0, w, h);
+        }
 
-        // 파티클 업데이트 및 렌더
+        // ② 파티클 업데이트 및 렌더 (흐름선 효과)
         particles.forEach(function (p) {
             // 가장 가까운 격자점의 유향/유속 찾기
             var lonLat = ol.proj.toLonLat([p.x, p.y]);
@@ -326,7 +361,7 @@
                 var dir = (nearest.crdir || 0) * Math.PI / 180;
                 var spd = (nearest.crsp || 0) * 0.5; // 스케일 조정
 
-                // 화면 좌표에서의 이동
+                // 지도 좌표계에서의 이동
                 p.x += Math.sin(dir) * spd;
                 p.y -= Math.cos(dir) * spd;
             }
@@ -339,13 +374,13 @@
                 p.age = 0;
             }
 
-            // 렌더
+            // 화면에 파티클 그리기 (나이에 따라 투명도 감소)
             var pixel = mapRef.getPixelFromCoordinate([p.x, p.y]);
             if (pixel) {
                 var alpha = 1.0 - (p.age / p.maxAge);
-                ctx.fillStyle = 'rgba(255, 255, 255, ' + (alpha * 0.6) + ')';
+                ctx.fillStyle = 'rgba(255, 255, 255, ' + (alpha * 0.7) + ')';
                 ctx.beginPath();
-                ctx.arc(pixel[0], pixel[1], 1.2, 0, Math.PI * 2);
+                ctx.arc(pixel[0], pixel[1], 1.5, 0, Math.PI * 2);
                 ctx.fill();
             }
         });
