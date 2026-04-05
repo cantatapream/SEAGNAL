@@ -387,57 +387,146 @@ window._showReportDetail = async function (id) {
                 <div style="display:flex;gap:6px;flex-wrap:wrap;">${attachHTML}</div>
             </div>
 
+            <!-- ── 대화 스레드: 관리자 답변 → 사용자 추가 의견 → 관리자 추가 답변 ── -->
+
             ${report.answer ? `
+                <!-- 관리자 최초 답변 (읽기 전용) -->
                 <div style="background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.15);border-radius:8px;padding:12px;margin-bottom:15px;">
                     <div style="color:#4ade80;font-size:0.75rem;margin-bottom:6px;"><i class="fa-solid fa-reply"></i> 관리자 답변 (${answeredDate})</div>
                     <div style="color:#e2e8f0;font-size:0.85rem;white-space:pre-wrap;">${escapeHTML(report.answer)}</div>
+                    ${(report.answerAttachments && report.answerAttachments.length > 0) ? `
+                        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;">
+                            ${report.answerAttachments.map(f => `<img src="/uploads/reports/${f}" style="width:60px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #334155;">`).join('')}
+                        </div>
+                    ` : ''}
                 </div>
             ` : ''}
 
-            <!-- 답변 작성 -->
-            <div style="margin-bottom:15px;">
-                <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:6px;"><i class="fa-solid fa-pen"></i> 관리자 답변 작성</div>
-                <textarea id="admin-answer-text" rows="4" placeholder="답변을 입력하세요..."
-                          style="width:100%;padding:10px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:0.85rem;resize:vertical;box-sizing:border-box;">${report.answer || ''}</textarea>
-            </div>
-
-            <!-- 답변 이미지 첨부 -->
-            <div style="margin-bottom:15px;">
-                <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:6px;"><i class="fa-solid fa-paperclip"></i> 답변 이미지 첨부 <span style="color:#64748b;font-size:0.65rem;">(최대 3장, 5MB)</span></div>
-                <div id="admin-answer-attach-area" style="display:flex;gap:8px;flex-wrap:wrap;">
-                    ${(report.answerAttachments || []).map(f => `
-                        <div class="admin-answer-existing-img" data-filename="${f}" style="position:relative;width:70px;height:70px;border-radius:6px;overflow:hidden;border:1px solid #334155;">
-                            <img src="/uploads/reports/${f}" style="width:100%;height:100%;object-fit:cover;">
-                            <button onclick="this.parentElement.remove();" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.7);border:none;color:#fff;width:18px;height:18px;border-radius:50%;font-size:0.6rem;cursor:pointer;display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-xmark"></i></button>
-                        </div>
-                    `).join('')}
-                    <label style="width:70px;height:70px;border:2px dashed #334155;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#64748b;font-size:1.5rem;" id="admin-answer-add-btn">
-                        <input type="file" accept="image/*" style="display:none;" onchange="window._addAnswerAttachment(this)">
-                        <i class="fa-solid fa-plus"></i>
-                    </label>
+            ${report.userComment ? `
+                <!-- 사용자 추가 의견 (읽기 전용) -->
+                <div style="background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:8px;padding:12px;margin-bottom:15px;">
+                    <div style="color:#60a5fa;font-size:0.75rem;margin-bottom:6px;">
+                        <i class="fa-solid fa-comment"></i> 사용자 추가 의견
+                        (${report.userCommentAt ? new Date(report.userCommentAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : ''})
+                    </div>
+                    <div style="color:#e2e8f0;font-size:0.85rem;white-space:pre-wrap;">${escapeHTML(report.userComment)}</div>
                 </div>
-                <div id="admin-answer-previews" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;"></div>
-            </div>
+            ` : ''}
 
-            <!-- 액션 버튼 -->
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                <button onclick="window._blockReportUser('${report.deviceId}')"
-                        style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
-                    <i class="fa-solid fa-ban"></i> 사용자 차단
-                </button>
-                <button onclick="window._deleteReport('${report.id}')"
-                        style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
-                    <i class="fa-solid fa-trash"></i> 삭제
-                </button>
-                <button onclick="window._sendAnswer('${report.id}', false)"
-                        style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
-                    <i class="fa-solid fa-paper-plane"></i> 답변 발송
-                </button>
-                <button onclick="window._sendAnswer('${report.id}', true)"
-                        style="background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;color:#fff;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;font-weight:600;">
-                    <i class="fa-solid fa-bell"></i> 답변 발송 + 푸시
-                </button>
-            </div>
+            ${report.additionalAnswer ? `
+                <!-- 관리자 추가 답변 (읽기 전용) -->
+                <div style="background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.15);border-radius:8px;padding:12px;margin-bottom:15px;">
+                    <div style="color:#4ade80;font-size:0.75rem;margin-bottom:6px;">
+                        <i class="fa-solid fa-reply-all"></i> 관리자 추가 답변
+                        (${report.additionalAnsweredAt ? new Date(report.additionalAnsweredAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : ''})
+                    </div>
+                    <div style="color:#e2e8f0;font-size:0.85rem;white-space:pre-wrap;">${escapeHTML(report.additionalAnswer)}</div>
+                </div>
+            ` : ''}
+
+            <!-- 답변/추가 답변 작성 영역 -->
+            ${report.userComment && !report.additionalAnswer ? `
+                <!-- 사용자 추가 의견이 있고, 아직 추가 답변을 안 한 경우 → 추가 답변 작성 -->
+                <div style="margin-bottom:15px;">
+                    <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:6px;"><i class="fa-solid fa-pen"></i> 관리자 추가 답변 작성</div>
+                    <textarea id="admin-additional-answer-text" rows="4" placeholder="추가 답변을 입력하세요..."
+                              style="width:100%;padding:10px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:0.85rem;resize:vertical;box-sizing:border-box;"></textarea>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <button onclick="window._blockReportUser('${report.deviceId}')"
+                            style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
+                        <i class="fa-solid fa-ban"></i> 사용자 차단
+                    </button>
+                    <button onclick="window._deleteReport('${report.id}')"
+                            style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
+                        <i class="fa-solid fa-trash"></i> 삭제
+                    </button>
+                    <button onclick="window._sendAdditionalAnswer('${report.id}', false)"
+                            style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
+                        <i class="fa-solid fa-paper-plane"></i> 추가 답변 발송
+                    </button>
+                    <button onclick="window._sendAdditionalAnswer('${report.id}', true)"
+                            style="background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;color:#fff;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;font-weight:600;">
+                        <i class="fa-solid fa-bell"></i> 추가 답변 + 푸시
+                    </button>
+                </div>
+            ` : !report.answer ? `
+                <!-- 최초 답변 미작성 → 답변 작성 영역 -->
+                <div style="margin-bottom:15px;">
+                    <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:6px;"><i class="fa-solid fa-pen"></i> 관리자 답변 작성</div>
+                    <textarea id="admin-answer-text" rows="4" placeholder="답변을 입력하세요..."
+                              style="width:100%;padding:10px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:0.85rem;resize:vertical;box-sizing:border-box;"></textarea>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:6px;"><i class="fa-solid fa-paperclip"></i> 답변 이미지 첨부 <span style="color:#64748b;font-size:0.65rem;">(최대 3장, 5MB)</span></div>
+                    <div id="admin-answer-attach-area" style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <label style="width:70px;height:70px;border:2px dashed #334155;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#64748b;font-size:1.5rem;" id="admin-answer-add-btn">
+                            <input type="file" accept="image/*" style="display:none;" onchange="window._addAnswerAttachment(this)">
+                            <i class="fa-solid fa-plus"></i>
+                        </label>
+                    </div>
+                    <div id="admin-answer-previews" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;"></div>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <button onclick="window._blockReportUser('${report.deviceId}')"
+                            style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
+                        <i class="fa-solid fa-ban"></i> 사용자 차단
+                    </button>
+                    <button onclick="window._deleteReport('${report.id}')"
+                            style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
+                        <i class="fa-solid fa-trash"></i> 삭제
+                    </button>
+                    <button onclick="window._sendAnswer('${report.id}', false)"
+                            style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
+                        <i class="fa-solid fa-paper-plane"></i> 답변 발송
+                    </button>
+                    <button onclick="window._sendAnswer('${report.id}', true)"
+                            style="background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;color:#fff;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;font-weight:600;">
+                        <i class="fa-solid fa-bell"></i> 답변 발송 + 푸시
+                    </button>
+                </div>
+            ` : `
+                <!-- 답변 완료 + 추가 의견 없거나 추가 답변도 완료된 경우 → 답변 수정 영역 -->
+                <div style="margin-bottom:15px;">
+                    <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:6px;"><i class="fa-solid fa-pen"></i> 관리자 답변 수정</div>
+                    <textarea id="admin-answer-text" rows="4" placeholder="답변을 수정하세요..."
+                              style="width:100%;padding:10px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:0.85rem;resize:vertical;box-sizing:border-box;">${report.answer || ''}</textarea>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:6px;"><i class="fa-solid fa-paperclip"></i> 답변 이미지 첨부 <span style="color:#64748b;font-size:0.65rem;">(최대 3장, 5MB)</span></div>
+                    <div id="admin-answer-attach-area" style="display:flex;gap:8px;flex-wrap:wrap;">
+                        ${(report.answerAttachments || []).map(f => `
+                            <div class="admin-answer-existing-img" data-filename="${f}" style="position:relative;width:70px;height:70px;border-radius:6px;overflow:hidden;border:1px solid #334155;">
+                                <img src="/uploads/reports/${f}" style="width:100%;height:100%;object-fit:cover;">
+                                <button onclick="this.parentElement.remove();" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.7);border:none;color:#fff;width:18px;height:18px;border-radius:50%;font-size:0.6rem;cursor:pointer;display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                        `).join('')}
+                        <label style="width:70px;height:70px;border:2px dashed #334155;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#64748b;font-size:1.5rem;" id="admin-answer-add-btn">
+                            <input type="file" accept="image/*" style="display:none;" onchange="window._addAnswerAttachment(this)">
+                            <i class="fa-solid fa-plus"></i>
+                        </label>
+                    </div>
+                    <div id="admin-answer-previews" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;"></div>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <button onclick="window._blockReportUser('${report.deviceId}')"
+                            style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
+                        <i class="fa-solid fa-ban"></i> 사용자 차단
+                    </button>
+                    <button onclick="window._deleteReport('${report.id}')"
+                            style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
+                        <i class="fa-solid fa-trash"></i> 삭제
+                    </button>
+                    <button onclick="window._sendAnswer('${report.id}', false)"
+                            style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;">
+                        <i class="fa-solid fa-paper-plane"></i> 답변 발송
+                    </button>
+                    <button onclick="window._sendAnswer('${report.id}', true)"
+                            style="background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;color:#fff;padding:8px 12px;border-radius:6px;font-size:0.75rem;cursor:pointer;font-weight:600;">
+                        <i class="fa-solid fa-bell"></i> 답변 발송 + 푸시
+                    </button>
+                </div>
+            `}
         </div>
     `;
 };
@@ -753,6 +842,44 @@ window._sendAnswer = async function (reportId, sendPush) {
         } else {
             const data = await res.json();
             alert(data.error || '답변 발송 실패');
+        }
+    } catch (e) { alert('서버 오류: ' + e.message); }
+};
+
+/**
+ * 관리자 추가 답변 발송 함수
+ * 사용자가 추가 의견을 보낸 제보에 대해 관리자가 추가 답변을 작성하여 전송
+ *
+ * [동작]
+ * 1. 추가 답변 텍스트를 서버에 전송 (POST /api/reports/:id/additional-answer)
+ * 2. 성공 시 제보 목록으로 돌아감
+ * 3. 푸시 옵션이 있으면 사용자에게 알림 발송
+ *
+ * [연계] _showReportDetail() → 추가 답변 발송 버튼의 onclick에서 호출
+ * [연계] routes/report.js → POST /api/reports/:id/additional-answer
+ *
+ * @param {string} reportId - 제보 ID
+ * @param {boolean} sendPush - 사용자에게 푸시 알림 발송 여부
+ */
+window._sendAdditionalAnswer = async function (reportId, sendPush) {
+    var answerEl = document.getElementById('admin-additional-answer-text');
+    if (!answerEl) return;
+    var answer = answerEl.value.trim();
+    if (!answer) { alert('추가 답변 내용을 입력해주세요.'); return; }
+
+    try {
+        var res = await fetch(CONFIG.API_BASE + '/api/reports/' + reportId + '/additional-answer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ answer: answer, sendPush: sendPush ? 'true' : 'false' })
+        });
+        if (res.ok) {
+            alert(sendPush ? '추가 답변이 발송되었습니다. (푸시 포함)' : '추가 답변이 저장되었습니다.');
+            var body = document.getElementById('unified-admin-body');
+            if (body) await renderUnifiedReportContent(body);
+        } else {
+            var data = await res.json();
+            alert(data.error || '추가 답변 발송 실패');
         }
     } catch (e) { alert('서버 오류: ' + e.message); }
 };

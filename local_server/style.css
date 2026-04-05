@@ -4532,6 +4532,23 @@ line-height: 1.1;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+/* 모바일에서 하위 탭 2x2 배치 (화면 폭 600px 이하) */
+@media (max-width: 600px) {
+    .admin-sub-tabs {
+        flex-wrap: wrap;
+        overflow-x: visible;
+    }
+    .alert-top-tab,
+    .alert-admin-tab,
+    .error-fix-sub-tab,
+    .survey-sub-tab {
+        flex: 0 0 calc(50% - 2px);
+        white-space: normal;
+        text-align: center;
+        min-width: unset;
+    }
+}
+
 /* ── 이용자 현황 세그먼트 컨트롤 (구독현황 / 방문자통계 탭) ──
  * 앱의 다크 프리미엄 톤에 맞춘 현대적 세그먼트 컨트롤 디자인.
  * [연계] admin.js → renderUnifiedUsersContent()에서 .users-sub-tab 버튼 생성

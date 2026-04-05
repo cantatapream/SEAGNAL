@@ -40,6 +40,18 @@ try {
     firebaseAdmin = require('firebase-admin');
 } catch (e) { /* Firebase 미설치 시 무시 */ }
 
+/**
+ * 관리자 기기 푸시 알림 서비스
+ * 제보/신고 접수 시 관리자에게 푸시 알림을 보내는 데 사용
+ *
+ * [연계] services/admin_push.js → sendAdminPush(title, body, data)
+ * [연계] POST /api/reports → 제보 등록 성공 후 호출
+ */
+let sendAdminPush;
+try {
+    sendAdminPush = require('../services/admin_push').sendAdminPush;
+} catch (e) { /* admin_push 서비스 미설치 시 무시 */ }
+
 // ============================================================================
 // 이미지 업로드 설정 (제보 전용, 최대 3장, 5MB)
 // ============================================================================
@@ -188,6 +200,17 @@ router.post('/api/reports', (req, res) => {
         saveReports(reports);
 
         console.log(`📩 [Report] 새 제보 등록: ${report.id} (${category})`);
+
+        // 관리자 기기에 제보 접수 푸시 알림 발송
+        // 관리자가 앱을 열지 않아도 새 제보를 인지할 수 있도록 함
+        if (sendAdminPush) {
+            sendAdminPush(
+                '📢 새 제보 접수',
+                `[${category}] ${title}`,
+                { type: 'new_report', reportId: report.id }
+            ).catch(function(e) { console.error('[Report] 관리자 푸시 발송 실패:', e.message); });
+        }
+
         res.json({ success: true, id: report.id });
     });
 });
@@ -251,11 +274,25 @@ router.patch('/api/reports/:id/read', (req, res) => {
 // ============================================================================
 // 미확인 답변 조회 - 사용자용 (GET /api/reports/pending-answer)
 // ============================================================================
+/**
+ * 미확인 답변 조회 (사용자용)
+ *
+ * [동작]
+ * 1. 최초 답변 미확인 건 → hasAnswer: true, type: "answer"
+ * 2. 추가 답변 미확인 건 → hasAnswer: true, type: "additionalAnswer"
+ * 3. 둘 다 없으면 → hasAnswer: false
+ *
+ * 최초 답변이 미확인이면 우선 표시, 확인 후 추가 답변 미확인 건 표시
+ *
+ * [연계] report_user.js → checkReportAnswer()에서 앱 시작 시 호출
+ */
 router.get('/api/reports/pending-answer', (req, res) => {
     const { deviceId } = req.query;
     if (!deviceId) return res.status(400).json({ error: 'deviceId 필요' });
 
     const reports = getReports();
+
+    // 1순위: 최초 답변 미확인
     const pending = reports.find(r =>
         r.deviceId === deviceId &&
         r.status === '답변완료' &&
@@ -264,31 +301,65 @@ router.get('/api/reports/pending-answer', (req, res) => {
     );
 
     if (pending) {
-        res.json({
+        return res.json({
             hasAnswer: true,
+            type: 'answer',
             reportId: pending.id,
             title: pending.title,
             answer: pending.answer,
             answeredAt: pending.answeredAt,
             answerAttachments: pending.answerAttachments || []
         });
-    } else {
-        res.json({ hasAnswer: false });
     }
+
+    // 2순위: 추가 답변 미확인
+    const pendingAdditional = reports.find(r =>
+        r.deviceId === deviceId &&
+        r.additionalAnswer &&
+        !r.additionalAnswerRead
+    );
+
+    if (pendingAdditional) {
+        return res.json({
+            hasAnswer: true,
+            type: 'additionalAnswer',
+            reportId: pendingAdditional.id,
+            title: pendingAdditional.title,
+            answer: pendingAdditional.additionalAnswer,
+            answeredAt: pendingAdditional.additionalAnsweredAt,
+            answerAttachments: []
+        });
+    }
+
+    res.json({ hasAnswer: false });
 });
 
 // ============================================================================
 // 답변 확인 처리 - 사용자용 (POST /api/reports/dismiss-answer)
 // ============================================================================
+/**
+ * 답변 확인 처리 (사용자용)
+ *
+ * [동작]
+ * type 파라미터에 따라 최초 답변 또는 추가 답변을 확인 처리
+ * - type이 없거나 "answer" → answerRead = true (기존 동작)
+ * - type이 "additionalAnswer" → additionalAnswerRead = true
+ *
+ * [연계] report_user.js → _dismissReportAnswer()에서 호출
+ */
 router.post('/api/reports/dismiss-answer', (req, res) => {
-    const { deviceId, reportId } = req.body;
+    const { deviceId, reportId, type } = req.body;
     if (!deviceId || !reportId) return res.status(400).json({ error: '필수 항목 누락' });
 
     const reports = getReports();
     const report = reports.find(r => r.id === reportId && r.deviceId === deviceId);
     if (!report) return res.status(404).json({ error: '제보를 찾을 수 없습니다.' });
 
-    report.answerRead = true;
+    if (type === 'additionalAnswer') {
+        report.additionalAnswerRead = true;
+    } else {
+        report.answerRead = true;
+    }
     saveReports(reports);
     res.json({ success: true });
 });
@@ -372,6 +443,104 @@ router.post('/api/reports/:id/answer', (req, res) => {
         console.log(`✅ [Report] 답변 완료: ${report.id} (push: ${sendPush === 'true'}, images: ${report.answerAttachments.length})`);
         res.json({ success: true });
     });
+});
+
+// ============================================================================
+// 사용자 추가 의견 등록 (POST /api/reports/:id/user-comment)
+// ============================================================================
+/**
+ * 사용자가 관리자 답변을 확인한 후 1회에 한해 추가 의견을 보내는 API
+ *
+ * [제한 조건]
+ * - 관리자 답변이 있어야 함 (answer 필드 존재)
+ * - 이미 추가 의견을 보낸 적이 있으면 거부 (1회 제한)
+ * - deviceId가 제보 작성자와 일치해야 함
+ *
+ * [동작]
+ * 1. 추가 의견 텍스트를 report.userComment에 저장
+ * 2. 작성 시각을 report.userCommentAt에 저장
+ * 3. 관리자 기기에 푸시 알림 발송 ("사용자 추가 의견 접수")
+ *
+ * [연계] report_user.js → 사용자 제보 상세 화면 하단의 추가 의견 작성란
+ * [연계] admin_report.js → 관리자 제보 상세에서 추가 의견 표시
+ */
+router.post('/api/reports/:id/user-comment', (req, res) => {
+    const { deviceId, comment } = req.body;
+    if (!deviceId || !comment) return res.status(400).json({ error: '필수 항목이 누락되었습니다.' });
+    if (comment.length > 1000) return res.status(400).json({ error: '추가 의견은 1000자 이내로 작성해주세요.' });
+
+    const reports = getReports();
+    const report = reports.find(r => r.id === req.params.id && r.deviceId === deviceId);
+    if (!report) return res.status(404).json({ error: '제보를 찾을 수 없습니다.' });
+
+    // 답변이 없으면 추가 의견 불가
+    if (!report.answer) return res.status(400).json({ error: '관리자 답변이 없는 제보에는 추가 의견을 작성할 수 없습니다.' });
+
+    // 이미 추가 의견을 보낸 경우 거부 (1회 제한)
+    if (report.userComment) return res.status(400).json({ error: '이미 추가 의견을 보냈습니다.' });
+
+    report.userComment = comment;
+    report.userCommentAt = getKSTNow();
+    saveReports(reports);
+
+    console.log(`💬 [Report] 사용자 추가 의견: ${report.id}`);
+
+    // 관리자 기기에 푸시 알림
+    if (sendAdminPush) {
+        sendAdminPush(
+            '💬 사용자 추가 의견 접수',
+            `[${report.category}] ${report.title}`,
+            { type: 'user_comment', reportId: report.id }
+        ).catch(function(e) { console.error('[Report] 관리자 푸시 발송 실패:', e.message); });
+    }
+
+    res.json({ success: true });
+});
+
+// ============================================================================
+// 관리자 추가 답변 작성 (POST /api/reports/:id/additional-answer)
+// ============================================================================
+/**
+ * 관리자가 사용자의 추가 의견에 대해 추가 답변을 작성하는 API
+ *
+ * [제한 조건]
+ * - 사용자 추가 의견이 있어야 함 (userComment 필드 존재)
+ *
+ * [동작]
+ * 1. 추가 답변 텍스트를 report.additionalAnswer에 저장
+ * 2. 작성 시각을 report.additionalAnsweredAt에 저장
+ * 3. additionalAnswerRead = false 설정 (사용자 미확인 상태)
+ * 4. 사용자에게 푸시 알림 발송 (옵션)
+ *
+ * [연계] admin_report.js → 관리자 제보 상세 화면의 추가 답변 작성란
+ * [연계] report_user.js → 사용자 제보 상세에서 추가 답변 표시
+ */
+router.post('/api/reports/:id/additional-answer', async (req, res) => {
+    const { answer, sendPush: pushFlag } = req.body;
+    if (!answer) return res.status(400).json({ error: '추가 답변 내용을 입력해주세요.' });
+
+    const reports = getReports();
+    const report = reports.find(r => r.id === req.params.id);
+    if (!report) return res.status(404).json({ error: '제보를 찾을 수 없습니다.' });
+
+    if (!report.userComment) return res.status(400).json({ error: '사용자 추가 의견이 없어 추가 답변을 작성할 수 없습니다.' });
+
+    report.additionalAnswer = answer;
+    report.additionalAnsweredAt = getKSTNow();
+    report.additionalAnswerRead = false;
+    saveReports(reports);
+
+    // 푸시 알림 발송 (옵션)
+    if (pushFlag === 'true' || pushFlag === true) {
+        try {
+            await sendReportPush(report.deviceId, '추가 의견에 대한 답변이 도착했습니다.');
+        } catch (e) {
+            console.error('[Report] 푸시 발송 실패:', e.message);
+        }
+    }
+
+    console.log(`✅ [Report] 추가 답변 완료: ${report.id}`);
+    res.json({ success: true });
 });
 
 // ============================================================================
