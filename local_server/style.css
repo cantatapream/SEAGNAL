@@ -7741,20 +7741,25 @@ line-height: 1.1;
 .cctv-seafog-img {
     width: 100%;
     height: 100%;
-    object-fit: contain;       /* 비율 유지, 여백은 검정으로 */
+    object-fit: contain;
     display: block;
-    cursor: zoom-in;           /* 클릭 → 전체화면 힌트 */
-    transition: opacity 0.15s; /* 이미지 전환 시 부드러운 페이드 */
+    cursor: zoom-in;
 }
 
-/* 이미지 전체화면 상태 */
-.cctv-seafog-img:fullscreen,
-.cctv-seafog-img:-webkit-full-screen {
+/* imgArea 전체화면 상태 */
+#cctv-seafog-img-area:fullscreen,
+#cctv-seafog-img-area:-webkit-full-screen {
+    background: #000;
+    aspect-ratio: unset;
     width: 100vw;
     height: 100vh;
-    object-fit: contain;
-    background: #000;
     cursor: default;
+}
+#cctv-seafog-img-area:fullscreen .cctv-seafog-img,
+#cctv-seafog-img-area:-webkit-full-screen .cctv-seafog-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
 }
 
 /* 로딩 스피너 */
@@ -7773,26 +7778,80 @@ line-height: 1.1;
 
 /* 이미지 로드 실패 메시지 */
 .cctv-seafog-error {
-    display: flex;
+    position: absolute;
+    inset: 0;
+    display: none;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     color: #94a3b8;
     font-size: 13px;
-    padding: 20px 0;
+    background: #060d1a;
 }
 .cctv-seafog-error i {
     font-size: 26px;
     color: #ef4444;
     opacity: 0.7;
 }
-.cctv-seafog-error small {
-    font-size: 11px;
-    color: #64748b;
+
+/* ── 전체화면 전용 네비게이션 오버레이 ──
+   평소: display:none
+   전체화면 + hover: 하단 중앙에 반투명 패널로 표시 */
+.cctv-seafog-fs-nav {
+    display: none; /* 전체화면 아닐 때는 완전히 숨김 */
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    align-items: center;
+    gap: 16px;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    padding: 10px 20px;
+    opacity: 0;
+    transition: opacity 0.25s;
+    z-index: 10;
+}
+/* 전체화면 진입 → display: flex 로 전환 */
+#cctv-seafog-img-area:fullscreen .cctv-seafog-fs-nav,
+#cctv-seafog-img-area:-webkit-full-screen .cctv-seafog-fs-nav {
+    display: flex;
+}
+/* hover 시 불투명하게 */
+#cctv-seafog-img-area:fullscreen:hover .cctv-seafog-fs-nav,
+#cctv-seafog-img-area:-webkit-full-screen:hover .cctv-seafog-fs-nav {
+    opacity: 1;
+}
+.cctv-seafog-fs-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.1);
+    color: #e2e8f0;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+.cctv-seafog-fs-btn:hover {
+    background: rgba(255, 255, 255, 0.22);
+    color: #fff;
+}
+.cctv-seafog-fs-page {
+    font-size: 0.9rem;
+    color: #e2e8f0;
+    min-width: 36px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
 }
 
-/* ── 네비게이션 바 ── */
-/* ◀  ⏸  ▶  |  04월 05일 09:30 기준 */
+/* ── 네비게이션 바: ◀  1/4  ▶  |  기준 시각 + 안내 문구 ── */
 .cctv-seafog-nav {
     display: flex;
     align-items: center;
@@ -7803,14 +7862,13 @@ line-height: 1.1;
     gap: 10px;
 }
 
-/* 버튼 묶음: ◀ ⏸ ▶ */
 .cctv-seafog-nav-controls {
     display: flex;
     align-items: center;
     gap: 6px;
 }
 
-/* 개별 버튼(◀ ⏸ ▶) */
+/* ◀/▶ 버튼 */
 .cctv-seafog-nav-btn {
     width: 32px;
     height: 32px;
@@ -7833,40 +7891,37 @@ line-height: 1.1;
     background: rgba(255, 255, 255, 0.18);
 }
 
-/* 재생/정지 버튼: 약간 강조 */
-.cctv-seafog-playpause {
-    border-color: rgba(96, 125, 139, 0.4);
-    background: rgba(96, 125, 139, 0.15);
-    color: #90a4ae;
-}
-.cctv-seafog-playpause:hover {
-    background: rgba(96, 125, 139, 0.3);
-    color: #cfd8dc;
+/* 페이지 인디케이터: "1/4" */
+.cctv-seafog-page-indicator {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    min-width: 28px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
 }
 
-/* 기준 시각 표시: "04월 05일 09:30 기준" */
+/* 타임스탬프 + 안내 문구를 세로로 쌓는 래퍼 */
+.cctv-seafog-timestamp-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    flex: 1;
+}
+
+/* 기준 시각: "04월 05일 09:30 기준" */
 .cctv-seafog-timestamp {
     font-size: 0.72rem;
     color: #94a3b8;
     text-align: right;
     white-space: nowrap;
-    flex: 1;
 }
 
-/* ── 스틸컷 안내 문구 ── */
-/* 네비게이션 바 아래에 표시되는 작은 안내 */
-.cctv-seafog-notice {
-    padding: 7px 14px;
-    font-size: 0.68rem;
+/* 안내 문구: "CCTV는 스틸컷으로 제공합니다." */
+.cctv-seafog-notice-inline {
+    font-size: 0.62rem;
     color: #64748b;
-    background: rgba(255, 255, 255, 0.02);
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.cctv-seafog-notice i {
-    font-size: 0.65rem;
-    color: #607d8b;
+    text-align: right;
+    white-space: nowrap;
 }
 
