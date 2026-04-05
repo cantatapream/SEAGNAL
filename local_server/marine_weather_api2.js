@@ -46,11 +46,20 @@ async function fetchSummary(stn, authKey) {
             const text = decodeEucKr(buffer);
 
             // 유효한 응답인지 확인 (#START7777 마커 존재)
-            if (!text.includes('#START7777')) continue;
+            if (!text.includes('#START7777')) {
+                // 첫 번째 후보에서만 디버그 로그 출력 (tm이 가장 최근)
+                if (tm === candidates[0]) {
+                    console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_ds 응답에 #START7777 없음 (tm=${tm}, 길이=${text.length}, 앞200자=${text.substring(0, 200).replace(/\n/g, '\\n')})`);
+                }
+                continue;
+            }
 
             // $1 섹션 추출 (육상 개황 = 종합 전망 텍스트)
             const result = parseFctAfsDs(text);
-            if (!result || !result.summary) continue;
+            if (!result || !result.summary) {
+                console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_ds 파싱 실패 (tm=${tm}, sections=${text.substring(0, 300).replace(/\n/g, '\\n')})`);
+                continue;
+            }
 
             console.log(`[MarineWeatherAPI] ${officeName}: 종합 전망 수집 성공 (tm=${tm})`);
             return {
@@ -60,7 +69,10 @@ async function fetchSummary(stn, authKey) {
                 forecasterName: result.forecasterName || '',
             };
         } catch (e) {
-            // 이 tm에서 실패 → 다음 후보로
+            // 첫 번째 후보에서 에러 발생 시 로그 출력
+            if (tm === candidates[0]) {
+                console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_ds 에러 (tm=${tm}): ${e.message}`);
+            }
             continue;
         }
     }

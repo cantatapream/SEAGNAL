@@ -17,8 +17,6 @@
  * ============================================================================
  */
 
-const https = require('https');
-
 // ─── KMA API 엔드포인트 ───
 const API_URLS = {
     // 단기예보 개황 텍스트 (typ01, EUC-KR)
@@ -242,30 +240,28 @@ function formatPublishTime(tm) {
 }
 
 /**
- * HTTPS GET 요청 수행 (타임아웃 지원)
+ * HTTP GET 요청 수행 (fetch API 기반, gzip 자동 해제)
+ * scheduler.js의 fetchWithTimeout()과 동일한 방식 사용
  * @param {string} url - 요청 URL
  * @param {number} [timeout=10000] - 타임아웃(ms)
  * @returns {Promise<Buffer>} 응답 바디 버퍼
  */
-function httpsGet(url, timeout = 10000) {
-    return new Promise((resolve, reject) => {
-        const req = https.get(url, {
-            headers: { 'User-Agent': 'SEAGNAL/1.0' },
-            timeout
-        }, (res) => {
-            if (res.statusCode === 301 || res.statusCode === 302) {
-                return httpsGet(res.headers.location, timeout).then(resolve).catch(reject);
-            }
-            if (res.statusCode !== 200) {
-                return reject(new Error(`HTTP ${res.statusCode}`));
-            }
-            const chunks = [];
-            res.on('data', chunk => chunks.push(chunk));
-            res.on('end', () => resolve(Buffer.concat(chunks)));
-        });
-        req.on('error', reject);
-        req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
-    });
+async function httpsGet(url, timeout = 10000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(id);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        return Buffer.from(arrayBuffer);
+    } catch (e) {
+        clearTimeout(id);
+        if (e.name === 'AbortError') throw new Error('timeout');
+        throw e;
+    }
 }
 
 /**
