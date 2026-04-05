@@ -584,7 +584,7 @@ async function _initSeafogSlider(data) {
         _seafogSliderTimer = setInterval(function () {
             _seafogSlideIndex = (_seafogSlideIndex + 1) % _seafogSlides.length;
             _renderSeafogSlide(imgArea, tsEl, _seafogSlideIndex);
-        }, 2000);
+        }, 3000);
 
     } catch (err) {
         // 오류 발생 시 에러 메시지 표시
@@ -621,26 +621,51 @@ function _renderSeafogSlide(imgArea, tsEl, idx) {
     // imgDt: "2026-04-05 09:30" → "04월 05일 09:30 기준"
     let tsText = slide.imgDt;
     try {
-        // "2026-04-05 09:30" → date 파싱
-        const parts = slide.imgDt.split(' ');       // ["2026-04-05", "09:30"]
-        const dateParts = parts[0].split('-');       // ["2026", "04", "05"]
-        const mm   = dateParts[1];                  // "04"
-        const dd   = dateParts[2];                  // "05"
-        const time = parts[1];                      // "09:30"
-        tsText = `${mm}월 ${dd}일 ${time} 기준`;   // "04월 05일 09:30 기준"
+        const parts = slide.imgDt.split(' ');
+        const dateParts = parts[0].split('-');
+        const mm   = dateParts[1];
+        const dd   = dateParts[2];
+        const time = parts[1];
+        tsText = `${mm}월 ${dd}일 ${time} 기준`;
     } catch (e) { /* 파싱 실패 시 원본 문자열 사용 */ }
 
-    // 타임스탬프 갱신
     if (tsEl) tsEl.textContent = tsText;
 
-    // 이미지 교체 (onerror: 로드 실패 시 에러 UI 표시)
+    // 이미지 교체
+    // onerror는 인라인 문자열 대신 전역 함수 _seafogImgError()를 호출합니다.
+    // → 이전 슬라이드의 이미지가 DOM에서 제거된 뒤 뒤늦게 onerror가 발화해도
+    //   isConnected 체크로 현재 이미지를 덮어쓰는 것을 방지합니다.
     imgArea.innerHTML = `
         <img class="cctv-seafog-img"
              src="${slide.uri}"
              alt="해무 CCTV ${slide.imgDt}"
              title="클릭하여 전체화면으로 보기"
              onclick="seafogFullscreen(this)"
-             onerror="this.parentElement.innerHTML='<div class=cctv-seafog-error><i class=\\"fa-solid fa-triangle-exclamation\\"></i><span>이미지를 불러올 수 없습니다</span></div>'">`;
+             onerror="_seafogImgError(this)">`;
+}
+
+/**
+ * 이미지 로드 실패 시 호출됩니다.
+ *
+ * [핵심: isConnected 체크]
+ * 슬라이드가 넘어갈 때 imgArea.innerHTML을 교체하면 이전 <img>는 DOM에서 제거됩니다.
+ * 그런데 브라우저가 이미 해당 이미지를 요청한 경우, 제거 이후에도 onerror가 뒤늦게 발화합니다.
+ * isConnected === false 이면 DOM에서 이미 제거된 요소이므로 아무 처리도 하지 않습니다.
+ * 이 체크가 없으면 "이미지를 불러올 수 없습니다" 텍스트가 현재 이미지를 덮어쓰는 문제가 생깁니다.
+ *
+ * @param {HTMLImageElement} imgEl — onerror를 발화시킨 img 엘리먼트
+ */
+function _seafogImgError(imgEl) {
+    // DOM에서 이미 제거된 이전 슬라이드의 이미지 → 무시
+    if (!imgEl || !imgEl.isConnected) return;
+    const parent = imgEl.parentElement;
+    if (!parent) return;
+
+    parent.innerHTML = `
+        <div class="cctv-seafog-error">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span>이미지를 불러올 수 없습니다</span>
+        </div>`;
 }
 
 /**
@@ -673,7 +698,7 @@ function seafogPrev() {
             const ia  = document.getElementById('cctv-seafog-img-area');
             const ts  = document.getElementById('cctv-seafog-timestamp');
             _renderSeafogSlide(ia, ts, _seafogSlideIndex);
-        }, 2000);
+        }, 3000);
     }
 }
 
@@ -696,7 +721,7 @@ function seafogNext() {
             const ia  = document.getElementById('cctv-seafog-img-area');
             const ts  = document.getElementById('cctv-seafog-timestamp');
             _renderSeafogSlide(ia, ts, _seafogSlideIndex);
-        }, 2000);
+        }, 3000);
     }
 }
 
@@ -729,7 +754,7 @@ function seafogTogglePlay() {
             const ia  = document.getElementById('cctv-seafog-img-area');
             const ts  = document.getElementById('cctv-seafog-timestamp');
             _renderSeafogSlide(ia, ts, _seafogSlideIndex);
-        }, 2000);
+        }, 3000);
         if (iconEl) {
             iconEl.className = 'fa-solid fa-pause';
             if (btnEl) btnEl.title = '정지';
