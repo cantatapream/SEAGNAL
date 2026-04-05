@@ -2904,8 +2904,8 @@ function renderVisitorChart(labels, values, type, alertMarkers) {
                 }
             },
             {
-                // 특보 푸시 발송 시점에 수직 점선 + 라벨을 그리는 커스텀 플러그인
-                // Chart.js의 afterDraw 훅을 사용하여 차트가 다 그려진 후 위에 덧그림
+                // 특보 푸시 발송 시점에 수직 점선을 그리는 커스텀 플러그인
+                // 텍스트 라벨은 표시하지 않고, 마우스 hover 시 툴팁으로 표시
                 id: 'alertMarkers',
                 afterDraw: function(chart) {
                     if (!markers || markers.length === 0) return;
@@ -2915,28 +2915,20 @@ function renderVisitorChart(labels, values, type, alertMarkers) {
                     var yScale = chart.scales.y;
 
                     markers.forEach(function(marker) {
-                        // X축의 해당 인덱스 위치(픽셀)를 가져옴
                         var x = xScale.getPixelForValue(marker.index);
                         var yTop = yScale.top;
                         var yBottom = yScale.bottom;
 
-                        // 수직 점선 그리기
+                        // 수직 점선만 그리기 (라벨 없음)
                         chartCtx.save();
                         chartCtx.beginPath();
-                        chartCtx.setLineDash([4, 4]); // 점선 패턴: 4px 선 + 4px 공백
-                        chartCtx.strokeStyle = 'rgba(245, 158, 11, 0.6)'; // 황색 (특보 강조색)
+                        chartCtx.setLineDash([4, 4]);
+                        chartCtx.strokeStyle = 'rgba(245, 158, 11, 0.5)';
                         chartCtx.lineWidth = 1.5;
                         chartCtx.moveTo(x, yTop);
                         chartCtx.lineTo(x, yBottom);
                         chartCtx.stroke();
-                        chartCtx.setLineDash([]); // 점선 해제
-
-                        // 상단 라벨 그리기
-                        chartCtx.font = '600 9px sans-serif';
-                        chartCtx.fillStyle = '#f59e0b'; // 황색
-                        chartCtx.textAlign = 'center';
-                        chartCtx.fillText('▼' + marker.label, x, yTop - 4);
-
+                        chartCtx.setLineDash([]);
                         chartCtx.restore();
                     });
                 }
@@ -2945,9 +2937,8 @@ function renderVisitorChart(labels, values, type, alertMarkers) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            // 상단에 특보 마커 라벨이 잘리지 않도록 여백 추가
             layout: {
-                padding: { top: markers.length > 0 ? 18 : 0 }
+                padding: { top: 0 }
             },
             plugins: {
                 legend: { display: false },
@@ -2957,7 +2948,24 @@ function renderVisitorChart(labels, values, type, alertMarkers) {
                     bodyColor: '#cbd5e1',
                     padding: 12,
                     cornerRadius: 8,
-                    displayColors: false
+                    displayColors: false,
+                    callbacks: {
+                        afterBody: function(tooltipItems) {
+                            if (!markers || markers.length === 0 || !tooltipItems[0]) return '';
+                            var idx = tooltipItems[0].dataIndex;
+                            var matched = markers.filter(function(m) { return m.index === idx; });
+                            if (matched.length === 0) return '';
+                            var lines = ['', '⚠ 특보 알림:'];
+                            matched.forEach(function(m) {
+                                var text = m.fullLabel || m.label;
+                                // fullLabel에 줄바꿈이 있으면 분리
+                                text.split('\n').forEach(function(line) {
+                                    lines.push('  ' + line.replace(/[📢🔔⚠️🔴🟢⬆️⬇️]/g, '').trim());
+                                });
+                            });
+                            return lines;
+                        }
+                    }
                 }
             },
             scales: {
