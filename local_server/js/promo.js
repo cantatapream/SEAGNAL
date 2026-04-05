@@ -1021,7 +1021,30 @@ document.addEventListener('DOMContentLoaded', async function () {
     // [New] Capacitor 네이티브 환경 감지 (앱 접속 시 스플래시 스킵)
     const isNativeApp = window.Capacitor && window.Capacitor.isNativePlatform();
 
-    // 스플래시 화면 제거 함수
+    // ── 스플래시 화면 제거 (이중 조건 방식) ──
+    // 두 가지 조건이 모두 충족되어야 스플래시가 사라집니다:
+    // 1) 데이터 로딩 완료 (fetchAllData 성공/실패)
+    // 2) 스플래시 애니메이션 완료 (SEA:GNAL 타이틀이 완전히 나타남)
+    //
+    // [왜 이렇게 하는가?]
+    // 데이터 로딩이 빨리 끝나면 로고/타이틀이 아직 나타나는 중에 화면이 전환되어
+    // 사용자가 스플래시를 제대로 보지 못하는 문제를 방지합니다.
+    // 반대로 데이터 로딩이 느리면 애니메이션은 이미 끝난 상태이므로
+    // 로딩 완료 즉시 전환됩니다 (불필요한 대기 없음).
+    //
+    // [안전장치]
+    // animationend 이벤트가 발생하지 않는 극히 드문 경우를 대비하여
+    // 3초 타이머가 자동으로 애니메이션 완료 조건을 충족시킵니다.
+    //
+    // [연계]
+    // - splash.css → .splash-title 애니메이션: fadeUp 1s ease-out 0.8s (총 1.8초)
+    // - index.html → #splash-screen, .splash-title 요소
+
+    let dataReady = false;  // fetchAllData() 완료 여부
+    let animReady = false;  // 스플래시 애니메이션 완료 여부
+    let splashHidden = false; // 중복 호출 방지 플래그
+
+    // 스플래시 화면을 실제로 제거하는 함수
     const hideSplash = () => {
         const splash = document.getElementById('splash-screen');
         if (splash) {
@@ -1034,15 +1057,48 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
     };
 
+    // 두 조건 모두 충족되었는지 확인하고, 충족되면 스플래시 제거
+    const tryHideSplash = () => {
+        if (dataReady && animReady && !splashHidden) {
+            splashHidden = true;
+            hideSplash();
+        }
+    };
+
+    // 스플래시 타이틀(.splash-title) 애니메이션 완료 감지
+    // .splash-title은 0.8초 딜레이 + 1초 애니메이션 = 1.8초 후 완료
+    // 이것이 스플래시에서 가장 마지막으로 나타나는 요소
+    const splashTitle = document.querySelector('.splash-title');
+    if (splashTitle) {
+        splashTitle.addEventListener('animationend', function onAnimEnd() {
+            splashTitle.removeEventListener('animationend', onAnimEnd);
+            animReady = true;
+            tryHideSplash();
+        });
+    } else {
+        // 스플래시 타이틀 요소가 없는 경우 (예: 점검 모드로 스플래시 숨김)
+        animReady = true;
+    }
+
+    // 안전장치: 3초 후에도 animationend가 발생하지 않으면 강제 완료 처리
+    // (브라우저 호환성 문제나 CSS 로드 실패 등 예외 상황 대비)
+    setTimeout(() => {
+        if (!animReady) {
+            animReady = true;
+            tryHideSplash();
+        }
+    }, 3000);
+
     // 1. 데이터 로딩 대기
     try {
         await fetchAllData();
     } catch (e) {
-        // console.error('Initial data fetch failed:', e);
+        // 데이터 로드 실패해도 앱은 표시해야 함
     }
 
-    // 2. 스플래시 종료 — 최소 대기 없이 데이터 로드 완료 즉시 종료
-    hideSplash();
+    // 2. 데이터 로딩 완료 → 조건 1 충족
+    dataReady = true;
+    tryHideSplash();
 
     // [New] 푸시 알림 파라미터 확인 및 팝업 표시
     // checkForPushPopup 제거됨 (fix_popup_logic.js 이관)

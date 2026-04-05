@@ -2387,8 +2387,30 @@ async function renderUnifiedPromoContent(container) {
     renderBoardManagement(document.getElementById('board-subtab-content'));
 }
 
+// ============================================================================
 // (E) 방문자 통계 섹션 렌더링
+// ============================================================================
+
+/**
+ * 방문자 통계 대시보드를 렌더링합니다.
+ *
+ * [표시 항목]
+ * 1. 상단 요약 카드 4개 (오늘/어제/7일/이달 방문수)
+ * 2. 조회 필터 바 (시간별/일별/월별 + 날짜 선택)
+ * 3. 방문자 차트 (라인 그래프 + 특보 푸시 발송 시점 수직 마커)
+ * 4. 상세 데이터 테이블 (방문수 + 비중 + 특보 이벤트)
+ *
+ * [데이터 소스]
+ * - GET /api/stats/visitors → 날짜별/시간대별 방문 통계
+ * - GET /api/push-history → 특보 푸시 발송 이력 (차트 마커 + 테이블 표시용)
+ *
+ * [연계]
+ * - admin.js → switchUsersSubTab('visitor')에서 이 함수를 호출
+ * - processStatsAndRender() → 차트 및 테이블 데이터 가공
+ * - renderVisitorChart() → Chart.js 차트 렌더링 + 특보 마커 표시
+ */
 let visitorChart = null;
+let pushHistoryData = []; // 특보 푸시 발송 이력 (차트 마커용으로 전역 저장)
 async function renderUnifiedStatsContent(container) {
     container.innerHTML = `
         <div class="admin-section-title" style="display:flex; justify-content:space-between; align-items:center;">
@@ -2459,6 +2481,7 @@ async function renderUnifiedStatsContent(container) {
                                 <th style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.05);">날짜/시간</th>
                                 <th style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.05); text-align:right;">방문수</th>
                                 <th style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.05); text-align:right;">비중</th>
+                                <th style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.05);">특보 이벤트</th>
                             </tr>
                         </thead>
                         <tbody id="stats-table-body" style="color:#cbd5e1;"></tbody>
@@ -2524,8 +2547,25 @@ async function renderUnifiedStatsContent(container) {
     };
 
     try {
-        const res = await fetch(CONFIG.API_BASE + '/api/stats/visitors');
-        rawData = await res.json();
+        // 방문자 통계 + 특보 푸시 이력을 동시에 요청
+        // 특보 이력은 차트에 수직 마커를 표시하고, 테이블에 이벤트 정보를 보여주기 위해 사용
+        const [visitorRes, pushRes] = await Promise.all([
+            fetch(CONFIG.API_BASE + '/api/stats/visitors'),
+            fetch(CONFIG.API_BASE + '/api/push-history').catch(() => ({ ok: false }))
+        ]);
+        rawData = await visitorRes.json();
+
+        // 특보 푸시 이력 저장 (자동 발송된 특보만 필터링)
+        // type이 'auto'인 것만 = 크롤러가 자동 감지하여 발송한 특보 알림
+        // 'manual'이나 'custom'은 관리자가 수동 발송한 것이므로 제외
+        if (pushRes.ok) {
+            var allHistory = await pushRes.json();
+            pushHistoryData = Array.isArray(allHistory)
+                ? allHistory.filter(function(h) { return h.type === 'auto'; })
+                : [];
+        } else {
+            pushHistoryData = [];
+        }
 
         document.getElementById('stats-loading').style.display = 'none';
         document.getElementById('stats-dashboard').style.display = 'block';
@@ -2567,6 +2607,29 @@ function updateStatsSummary(data) {
     document.getElementById('stat-month').textContent = monthTotal.toLocaleString();
 }
 
+/**
+ * 방문자 통계 데이터를 가공하여 차트와 테이블을 렌더링합니다.
+ *
+ * [동작 과정]
+ * 1. 조회 모드(시간별/일별/월별)에 따라 데이터를 가공
+ * 2. 해당 기간에 발송된 특보 푸시 이력을 매칭
+ * 3. 차트에 방문자 수 + 특보 발송 시점 수직 마커를 표시
+ * 4. 테이블에 방문수 + 비중 + 특보 이벤트 정보를 표시
+ *
+ * @param {Object} data - 방문자 통계 원본 데이터 (visitors_stats.json)
+ * @param {string} type - 조회 모드 ('hourly' | 'daily' | 'monthly')
+ *
+ * [특보 이력 매칭 방식]
+ * - 시간별(hourly): 해당 날짜의 각 시간대에 발송된 특보를 매칭
+ *   예: 06시에 "풍랑주의보 발표" 발송 → 06시 행에 표시
+ * - 일별(daily): 해당 날짜에 발송된 모든 특보 건수를 표시
+ *   예: 4/4에 3건 발송 → 4/4 행에 "3건" 표시
+ * - 월별(monthly): 해당 월에 발송된 모든 특보 건수를 표시
+ *
+ * [연계]
+ * - pushHistoryData → renderUnifiedStatsContent()에서 로드한 특보 이력
+ * - renderVisitorChart() → 차트 렌더링 + 수직 마커 표시
+ */
 function processStatsAndRender(data, type) {
     let labels = [];
     let values = [];
@@ -2575,31 +2638,132 @@ function processStatsAndRender(data, type) {
     const startVal = document.getElementById('stats-start-date').value;
     const endVal = document.getElementById('stats-end-date').value;
 
+    // ── 특보 푸시 이력을 시간대/날짜/월별로 분류 ──
+    // pushHistoryData의 time 형식: "26.04.04 06:15" (YY.MM.DD HH:MM)
+    // 이를 파싱하여 각 조회 모드에 맞게 매칭
+
+    /**
+     * 특보 이력의 time 문자열을 파싱하는 함수
+     * "26.04.04 06:15" → { dateStr: "2026-04-04", hour: "06", fullTime: "06:15" }
+     *
+     * @param {string} timeStr - 이력의 time 필드 (YY.MM.DD HH:MM 형식)
+     * @returns {Object|null} 파싱된 날짜/시간 정보 또는 null (파싱 실패 시)
+     */
+    function parsePushTime(timeStr) {
+        if (!timeStr || timeStr.length < 14) return null;
+        // "26.04.04 06:15" → year=26, month=04, day=04, hour=06, min=15
+        var parts = timeStr.split(' ');
+        if (parts.length < 2) return null;
+        var dateParts = parts[0].split('.');
+        var timeParts = parts[1].split(':');
+        if (dateParts.length < 3 || timeParts.length < 2) return null;
+        var year = '20' + dateParts[0]; // "26" → "2026"
+        var month = dateParts[1];
+        var day = dateParts[2];
+        return {
+            dateStr: year + '-' + month + '-' + day, // "2026-04-04"
+            hour: timeParts[0],                       // "06"
+            fullTime: parts[1]                        // "06:15"
+        };
+    }
+
+    /**
+     * 특보 탭 ID를 사람이 읽을 수 있는 한글 라벨로 변환
+     * @param {string} tab - "publish" | "active" | "release" | "level"
+     * @returns {string} 한글 라벨
+     */
+    function getAlertLabel(tab) {
+        var map = { publish: '발표', active: '발효', release: '해제', level: '격상/격하' };
+        return map[tab] || tab;
+    }
+
+    // 특보 이력을 날짜별로 그룹핑 (시간별/일별 공용)
+    var pushByDate = {};   // { "2026-04-04": [{ hour, title, tab, fullTime }, ...] }
+    var pushByMonth = {};  // { "2026-04": [{ title, tab }, ...] }
+
+    pushHistoryData.forEach(function(h) {
+        var parsed = parsePushTime(h.time);
+        if (!parsed) return;
+        // 날짜별 그룹
+        if (!pushByDate[parsed.dateStr]) pushByDate[parsed.dateStr] = [];
+        pushByDate[parsed.dateStr].push({
+            hour: parsed.hour,
+            fullTime: parsed.fullTime,
+            title: h.title || '',
+            tab: h.tab || ''
+        });
+        // 월별 그룹
+        var ym = parsed.dateStr.substring(0, 7);
+        if (!pushByMonth[ym]) pushByMonth[ym] = [];
+        pushByMonth[ym].push({ title: h.title || '', tab: h.tab || '' });
+    });
+
+    // 차트에 표시할 특보 마커 위치 (X축 인덱스 + 라벨)
+    var alertMarkers = [];
+
     if (type === 'hourly') {
         // 시간별 탭: 날짜 선택기(시작일)에서 선택된 날짜의 시간대별 데이터를 표시
         // 기본값은 오늘이며, 사용자가 날짜를 바꾸면 해당 날짜의 데이터를 보여줌
         const selectedDate = startVal;
         const dayData = data[selectedDate] || { hourly: {} };
+        var dayPushes = pushByDate[selectedDate] || [];
 
         for (let i = 0; i < 24; i++) {
             const h = String(i).padStart(2, '0');
             labels.push(`${h}시`);
             const v = dayData.hourly[h] || 0;
             values.push(v);
-            tableData.push({ label: `${h}:00 ~ ${h}:59`, value: v });
+
+            // 이 시간대에 발송된 특보 목록
+            var hourPushes = dayPushes.filter(function(p) { return p.hour === h; });
+            var alertEvents = hourPushes.map(function(p) {
+                return { time: p.fullTime, title: p.title, label: getAlertLabel(p.tab) };
+            });
+
+            tableData.push({ label: `${h}:00 ~ ${h}:59`, value: v, alerts: alertEvents });
+
+            // 차트 마커 추가
+            if (hourPushes.length > 0) {
+                hourPushes.forEach(function(p) {
+                    alertMarkers.push({
+                        index: i,
+                        label: p.title.replace(/[📢🔔⚠️🔴🟢⬆️⬇️]/g, '').trim().substring(0, 12),
+                        fullLabel: p.title
+                    });
+                });
+            }
         }
     } else if (type === 'daily') {
         const start = new Date(startVal);
         const end = new Date(endVal);
         let current = new Date(start);
+        let idx = 0;
 
         while (current <= end) {
             const dStr = current.toISOString().split('T')[0];
             labels.push(dStr.substring(5)); // MM-DD
             const v = data[dStr]?.total || 0;
             values.push(v);
-            tableData.push({ label: dStr, value: v });
+
+            // 이 날짜에 발송된 특보 목록
+            var dayAlerts = pushByDate[dStr] || [];
+            var alertEvents = dayAlerts.map(function(p) {
+                return { time: p.fullTime, title: p.title, label: getAlertLabel(p.tab) };
+            });
+
+            tableData.push({ label: dStr, value: v, alerts: alertEvents });
+
+            // 차트 마커 (일별: 특보가 있는 날에 마커 표시)
+            if (dayAlerts.length > 0) {
+                alertMarkers.push({
+                    index: idx,
+                    label: dayAlerts.length + '건',
+                    fullLabel: dayAlerts.map(function(p) { return p.title; }).join('\n')
+                });
+            }
+
             current.setDate(current.getDate() + 1);
+            idx++;
         }
     } else if (type === 'monthly') {
         // 최근 12개월 추출 또는 연도별 집계
@@ -2609,17 +2773,36 @@ function processStatsAndRender(data, type) {
             yearMonths[ym] = (yearMonths[ym] || 0) + (data[k].total || 0);
         });
         const sortedYM = Object.keys(yearMonths).sort().slice(-12);
+        let idx = 0;
         sortedYM.forEach(ym => {
             labels.push(ym);
             values.push(yearMonths[ym]);
-            tableData.push({ label: ym, value: yearMonths[ym] });
+
+            // 이 달에 발송된 특보 건수
+            var monthAlerts = pushByMonth[ym] || [];
+            tableData.push({
+                label: ym,
+                value: yearMonths[ym],
+                alerts: monthAlerts.length > 0
+                    ? [{ time: '', title: monthAlerts.length + '건 발송', label: '' }]
+                    : []
+            });
+
+            if (monthAlerts.length > 0) {
+                alertMarkers.push({
+                    index: idx,
+                    label: monthAlerts.length + '건',
+                    fullLabel: '특보 ' + monthAlerts.length + '건 발송'
+                });
+            }
+            idx++;
         });
     }
 
-    // 차트 그리기
-    renderVisitorChart(labels, values, type);
+    // 차트 그리기 (특보 마커 정보도 함께 전달)
+    renderVisitorChart(labels, values, type, alertMarkers);
 
-    // 테이블 업데이트
+    // ── 테이블 업데이트 (특보 이벤트 컬럼 추가) ──
     const tbody = document.getElementById('stats-table-body');
     const total = values.reduce((a, b) => a + b, 0);
 
@@ -2628,27 +2811,64 @@ function processStatsAndRender(data, type) {
 
     tbody.innerHTML = tableData.map(item => {
         const percent = total > 0 ? ((item.value / total) * 100).toFixed(1) : 0;
+
+        // 특보 이벤트 컬럼 내용 생성
+        // 시간별: "06:15 풍랑주의보 발표" 형태로 각 이벤트를 줄바꿈으로 표시
+        // 일별/월별: "3건 발송" 또는 개별 제목 표시
+        var alertHtml = '';
+        if (item.alerts && item.alerts.length > 0) {
+            alertHtml = item.alerts.map(function(a) {
+                var text = '';
+                if (a.time) text += '<span style="color:#94a3b8;">' + a.time + '</span> ';
+                text += '<span style="color:#f59e0b;">' + (a.title || a.label) + '</span>';
+                return text;
+            }).join('<br>');
+        }
+
         return `
             <tr>
                 <td style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.03);">${item.label}</td>
                 <td style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.03); text-align:right; font-weight:700;">${item.value.toLocaleString()}</td>
                 <td style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.03); text-align:right; color:#64748b;">${percent}%</td>
+                <td style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.03); font-size:0.75rem; max-width:200px;">${alertHtml}</td>
             </tr>
         `;
     }).join('');
 }
 
-function renderVisitorChart(labels, values, type) {
+/**
+ * 방문자 차트를 렌더링합니다.
+ * Chart.js 라인 그래프에 특보 푸시 발송 시점을 수직 마커로 표시합니다.
+ *
+ * @param {string[]} labels - X축 라벨 (시간/날짜/월)
+ * @param {number[]} values - Y축 값 (방문자 수)
+ * @param {string} type - 조회 모드 ('hourly' | 'daily' | 'monthly')
+ * @param {Array} alertMarkers - 특보 마커 배열 [{ index, label, fullLabel }]
+ *   index: X축에서의 위치 (0-based)
+ *   label: 차트에 짧게 표시할 텍스트 (예: "3건")
+ *   fullLabel: 툴팁에 표시할 전체 텍스트
+ *
+ * [특보 마커 표시 방식]
+ * 차트 위에 수직 점선을 그리고, 상단에 라벨을 표시합니다.
+ * 외부 플러그인 없이 Chart.js의 커스텀 플러그인으로 직접 그립니다.
+ *
+ * [연계]
+ * - processStatsAndRender() → 가공된 데이터와 마커 정보를 전달받음
+ * - Chart.js 라이브러리 (CDN으로 로드됨)
+ */
+function renderVisitorChart(labels, values, type, alertMarkers) {
     const ctx = document.getElementById('visitor-main-chart').getContext('2d');
 
     if (visitorChart) visitorChart.destroy();
 
-    const isLine = type !== 'bar';
     const mainColor = '#22c55e'; // Vibrant Green (Emerald)
 
     const gradient = ctx.createLinearGradient(0, 0, 0, 300);
     gradient.addColorStop(0, 'rgba(34, 197, 94, 0.4)');
     gradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
+
+    // 특보 마커를 참조하기 위해 변수에 저장 (플러그인 내부에서 접근)
+    var markers = alertMarkers || [];
 
     visitorChart = new Chart(ctx, {
         type: 'line',
@@ -2668,23 +2888,67 @@ function renderVisitorChart(labels, values, type) {
                 pointHoverRadius: 6
             }]
         },
-        plugins: [{
-            id: 'glow',
-            beforeDatasetDraw: (chart, args) => {
-                const { ctx } = chart;
-                ctx.save();
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = mainColor;
-                ctx.shadowOffsetX = 0;
-                ctx.shadowOffsetY = 0;
+        plugins: [
+            {
+                // 차트 선에 은은한 글로우(빛번짐) 효과를 추가하는 플러그인
+                id: 'glow',
+                beforeDatasetDraw: (chart) => {
+                    chart.ctx.save();
+                    chart.ctx.shadowBlur = 15;
+                    chart.ctx.shadowColor = mainColor;
+                    chart.ctx.shadowOffsetX = 0;
+                    chart.ctx.shadowOffsetY = 0;
+                },
+                afterDatasetDraw: (chart) => {
+                    chart.ctx.restore();
+                }
             },
-            afterDatasetDraw: (chart) => {
-                chart.ctx.restore();
+            {
+                // 특보 푸시 발송 시점에 수직 점선 + 라벨을 그리는 커스텀 플러그인
+                // Chart.js의 afterDraw 훅을 사용하여 차트가 다 그려진 후 위에 덧그림
+                id: 'alertMarkers',
+                afterDraw: function(chart) {
+                    if (!markers || markers.length === 0) return;
+
+                    var chartCtx = chart.ctx;
+                    var xScale = chart.scales.x;
+                    var yScale = chart.scales.y;
+
+                    markers.forEach(function(marker) {
+                        // X축의 해당 인덱스 위치(픽셀)를 가져옴
+                        var x = xScale.getPixelForValue(marker.index);
+                        var yTop = yScale.top;
+                        var yBottom = yScale.bottom;
+
+                        // 수직 점선 그리기
+                        chartCtx.save();
+                        chartCtx.beginPath();
+                        chartCtx.setLineDash([4, 4]); // 점선 패턴: 4px 선 + 4px 공백
+                        chartCtx.strokeStyle = 'rgba(245, 158, 11, 0.6)'; // 황색 (특보 강조색)
+                        chartCtx.lineWidth = 1.5;
+                        chartCtx.moveTo(x, yTop);
+                        chartCtx.lineTo(x, yBottom);
+                        chartCtx.stroke();
+                        chartCtx.setLineDash([]); // 점선 해제
+
+                        // 상단 라벨 그리기
+                        chartCtx.font = '600 9px sans-serif';
+                        chartCtx.fillStyle = '#f59e0b'; // 황색
+                        chartCtx.textAlign = 'center';
+                        chartCtx.fillText('▼' + marker.label, x, yTop - 4);
+
+                        chartCtx.restore();
+                    });
+                }
             }
-        }],
+        ],
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            // 상단에 특보 마커 라벨이 잘리지 않도록 여백 추가
+            layout: {
+                padding: { top: markers.length > 0 ? 18 : 0 }
+            },
             plugins: {
                 legend: { display: false },
                 tooltip: {

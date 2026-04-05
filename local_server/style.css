@@ -4532,6 +4532,41 @@ line-height: 1.1;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+/* ── 이용자 현황 세그먼트 컨트롤 (구독현황 / 방문자통계 탭) ──
+ * 앱의 다크 프리미엄 톤에 맞춘 현대적 세그먼트 컨트롤 디자인.
+ * [연계] admin.js → renderUnifiedUsersContent()에서 .users-sub-tab 버튼 생성
+ * [연계] admin.js → switchUsersSubTab()에서 .active 클래스 토글
+ */
+.users-sub-tab {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    position: relative;
+    letter-spacing: 0.3px;
+}
+
+/* 비선택 탭: 호버 시 살짝 밝아짐 */
+.users-sub-tab:hover:not(.active) {
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+/* 선택된 탭: 파란색 배경 강조 + 글로우 효과 */
+.users-sub-tab.active {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(99, 102, 241, 0.15));
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
 /* Unified Admin Accordion & Premium Details */
 .admin-accordion {
     margin-top: 10px;
