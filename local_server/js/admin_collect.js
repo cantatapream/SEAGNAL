@@ -480,8 +480,7 @@ window.atmCollectOne = async function (i, refTimeOverride) {
                 body: JSON.stringify({ reportId: report.id, title: report.title, error: lastData.aiError || 'AI 분석 결과 없음', retriesUsed: attempt })
             });
         } catch (e) { /* 무시 */ }
-        // 헤더 방문자 표시 빨간색으로 변경
-        markVisitorCounterError(true);
+        // [제거됨] 방문자 카운터 빨간색 표시는 관리자 배너 + FCM 푸시로 대체
     } else {
         btn.innerHTML = attempt > 1
             ? `<i class="fa-solid fa-check"></i> 완료(${attempt}회)`
@@ -1690,6 +1689,7 @@ async function renderUnifiedApiContent(container) {
             <div style="background:rgba(0,0,0,0.3); border-radius:4px; height:5px; overflow:hidden;">
                 <div class="cp-bar" style="background:linear-gradient(90deg,#6366f1,#8b5cf6); height:100%; width:0%; transition:width 0.3s; border-radius:4px;"></div>
             </div>
+            <div class="cp-file" style="color:#64748b; font-size:0.65rem; margin-top:4px; min-height:1em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
         `;
 
         try {
@@ -1706,9 +1706,15 @@ async function renderUnifiedApiContent(container) {
                             const textEl = progressEl.querySelector('.cp-text');
                             const pctEl = progressEl.querySelector('.cp-pct');
                             const barEl = progressEl.querySelector('.cp-bar');
-                            if (textEl) textEl.textContent = `${data.step}: ${data.current}/${data.total} (${data.detail || ''})`;
+                            const fileEl = progressEl.querySelector('.cp-file');
+                            // 메인 진행률: "이미지 다운로드: 120/1060" (detail이 있으면 step + detail)
+                            if (textEl) textEl.textContent = data.detail
+                                ? `${data.step}: ${data.detail}`
+                                : `${data.step}: ${data.current}/${data.total}`;
                             if (pctEl) pctEl.textContent = pct + '%';
                             if (barEl) barEl.style.width = pct + '%';
+                            // 개별 파일 진행률 (하단): "do_korea_20260404_09.png 다운로드 중 57%"
+                            if (fileEl) fileEl.textContent = data.fileDetail || '';
                         }
                     } catch (e) { }
                 };
@@ -1722,6 +1728,8 @@ async function renderUnifiedApiContent(container) {
             if (barEl) barEl.style.width = '100%';
             if (pctEl) pctEl.textContent = '100%';
             if (textEl) { textEl.textContent = '수집 완료!'; textEl.style.color = '#10b981'; }
+            const fileEl2 = progressEl.querySelector('.cp-file');
+            if (fileEl2) fileEl2.textContent = '';
             btn.innerHTML = '<i class="fa-solid fa-check"></i> 완료';
 
             setTimeout(() => {

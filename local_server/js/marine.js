@@ -909,7 +909,7 @@ const TAB_GROUP_SUBTABS = {
 const SECTION_TO_GROUP = {
     'weather-alert-section': 'weather-group',
     'sea-zone-section': 'weather-group',
-    'typhoon-section': 'weather-group',
+'typhoon-section': 'weather-group',
     'cctv-section': 'weather-group',
     'fishing-section': 'ocean-life-group',
     'surfing-section': 'ocean-life-group',
@@ -1087,7 +1087,7 @@ function _onSectionActivated(sectionId) {
             }
         }, 200);
     }
-    // 바다낚시 탭 활성화 시 지도 초기화 (탭 전환 후 사이즈 갱신)
+// 바다낚시 탭 활성화 시 지도 초기화 (탭 전환 후 사이즈 갱신)
     if (sectionId === 'fishing-section') {
         setTimeout(() => {
             if (window.initFishingMap) {

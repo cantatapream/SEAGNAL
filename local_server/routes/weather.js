@@ -85,7 +85,14 @@ router.get('/api/force-update/:type/stream', async (req, res) => {
     };
     scheduler.collectProgress.on('progress', onProgress);
 
+    // 30초마다 하트비트 전송 — Fly.io 프록시 60초 idle timeout 방지
+    // SSE 규격에서 ':'로 시작하는 줄은 코멘트로 클라이언트에서 무시됨
+    const heartbeat = setInterval(() => {
+        try { res.write(': keepalive\n\n'); } catch (_) {}
+    }, 30000);
+
     req.on('close', () => {
+        clearInterval(heartbeat);
         scheduler.collectProgress.off('progress', onProgress);
     });
 
@@ -101,12 +108,12 @@ router.get('/api/force-update/:type/stream', async (req, res) => {
             await regionalForecastCollector.collectRegionalForecasts(scheduler.collectProgress);
         }
         else if (type === 'zone') await scheduler.collectZoneForecasts();
-        // 해양생활기상 수동 수집 — 바다낚시 지수 + 바다갈라짐 체험지수를 순차적으로 함께 수집
-        // 관리자 페이지에서 "해양생활기상" 수동 호출 시 두 API가 한번에 실행됨
-        // 프로그레스바: 낚시(1~3/6) → 바다갈라짐(4~6/6) 순서로 표시
+        // 해양생활기상 수동 수집 — 바다낚시 지수 + 바다갈라짐 체험지수 + 서핑지수를 순차적으로 함께 수집
+        // 관리자 페이지에서 "해양생활기상" 수동 호출 시 세 API가 한번에 실행됨
         else if (type === 'fishing') {
             await scheduler.collectFishingIndex();
             await scheduler.collectSeaSplitIndex();
+            await scheduler.collectSurfingIndex();
         }
         else {
             res.write(`data: ${JSON.stringify({ error: '잘못된 타입' })}\n\n`);
@@ -119,6 +126,7 @@ router.get('/api/force-update/:type/stream', async (req, res) => {
     } catch (e) {
         res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
     } finally {
+        clearInterval(heartbeat);
         scheduler.collectProgress.off('progress', onProgress);
         res.end();
     }
@@ -140,10 +148,11 @@ router.post('/api/force-update/:type', async (req, res) => {
             await regionalForecastCollector.collectRegionalForecasts();
         }
         else if (type === 'zone') await scheduler.collectZoneForecasts();
-        // 해양생활기상 수동 수집 (POST 호환) — 바다낚시 지수 + 바다갈라짐을 순차 실행
+        // 해양생활기상 수동 수집 (POST 호환) — 바다낚시 지수 + 바다갈라짐 + 서핑지수를 순차 실행
         else if (type === 'fishing') {
             await scheduler.collectFishingIndex();
             await scheduler.collectSeaSplitIndex();
+            await scheduler.collectSurfingIndex();
         }
         else return res.status(400).json({ error: '잘못된 타입' });
 
@@ -173,6 +182,7 @@ router.get('/api/regional-debug', (req, res) => {
     }
     res.json(result);
 });
+
 
 // 2-2. API 인증키 설정 조회
 router.get('/api/config', (req, res) => {

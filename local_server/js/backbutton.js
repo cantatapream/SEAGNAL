@@ -595,6 +595,8 @@
         buoyObserver.observe(document.body, { childList: true });
     }
 
+
+
     // ========================================================================
     // 뒤로가기 토스트 및 앱 종료 로직
     // ========================================================================
@@ -773,6 +775,7 @@
         wrapZoneWindyPopup();
         wrapImageModal();
         wrapBuoyInfoModal();
+
 
         // 뒤로가기 핸들러 초기화
         // Capacitor 네이티브 환경이면 Capacitor 방식, 아니면 History API 트랩 방식
