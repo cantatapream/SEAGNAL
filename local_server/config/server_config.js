@@ -80,7 +80,11 @@ const FILES = {
     // 구독자 일별 스냅샷: 매일 자정(KST)에 구독자 수를 기록하여 증감 추이 분석에 사용
     // [연계] services/subscriber_snapshot.js → 스냅샷 기록
     // [연계] routes/push.js → /api/subscriber-history API에서 조회
-    SUBSCRIBER_STATS: path.join(DATA_DIR, 'subscriber_stats.json')
+    SUBSCRIBER_STATS: path.join(DATA_DIR, 'subscriber_stats.json'),
+    // 구독/해지 이벤트 로그: 신규 구독, 수동 해지, 만료 토큰 자동 정리를 일별로 집계
+    // [연계] routes/push.js → 구독/해지 발생 시 기록 + /api/subscriber-events API에서 조회
+    // [연계] js/admin.js → 구독 현황 탭의 이탈률 카드에서 활용
+    SUBSCRIBER_EVENTS: path.join(DATA_DIR, 'subscriber_events.json')
 };
 
 module.exports = {

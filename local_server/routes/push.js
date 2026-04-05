@@ -39,6 +39,66 @@ const SUBS_FILE = path.join(DATA_DIR, 'subscriptions.json');
 const HISTORY_FILE = path.join(DATA_DIR, 'custom_push_history.json');
 
 // ============================================================================
+// 구독/해지 이벤트 기록 함수
+// ============================================================================
+
+/**
+ * 구독 또는 해지 이벤트를 일별로 집계하여 기록합니다.
+ *
+ * [데이터 구조]
+ * subscriber_events.json:
+ * {
+ *   "2026-04-05": { "subscribe": 3, "unsubscribe": 1, "expired": 2 },
+ *   "2026-04-04": { "subscribe": 5, "unsubscribe": 0, "expired": 0 },
+ *   ...
+ * }
+ *
+ * [이벤트 유형]
+ * - subscribe: 신규 구독 (기존에 없던 사용자가 처음 구독)
+ * - unsubscribe: 수동 해지 (사용자가 직접 구독 취소)
+ * - expired: 만료 자동 정리 (FCM 토큰 만료 등으로 서버에서 자동 제거)
+ *
+ * @param {string} eventType - 'subscribe' | 'unsubscribe' | 'expired'
+ * @param {number} count - 이벤트 발생 건수 (기본 1)
+ *
+ * [연계]
+ * - config/server_config.js → FILES.SUBSCRIBER_EVENTS 경로
+ * - /api/subscribe → 신규 구독 시 'subscribe' 기록
+ * - /api/unsubscribe → 수동 해지 시 'unsubscribe' 기록
+ * - /api/push-custom → 만료 토큰 정리 시 'expired' 기록
+ * - /api/subscriber-events → 이 데이터를 조회하는 API
+ * - js/admin.js → 구독 현황 탭의 이탈률 카드에서 활용
+ */
+function recordSubscriberEvent(eventType, count) {
+    try {
+        if (!count || count <= 0) return;
+
+        // KST 기준 오늘 날짜
+        var now = new Date();
+        var kstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+        var todayStr = kstDate.toISOString().split('T')[0];
+
+        // 기존 이벤트 로그 읽기
+        var events = {};
+        if (fs.existsSync(FILES.SUBSCRIBER_EVENTS)) {
+            events = JSON.parse(fs.readFileSync(FILES.SUBSCRIBER_EVENTS, 'utf8'));
+        }
+
+        // 오늘 날짜 항목이 없으면 초기화
+        if (!events[todayStr]) {
+            events[todayStr] = { subscribe: 0, unsubscribe: 0, expired: 0 };
+        }
+
+        // 해당 이벤트 카운트 증가
+        events[todayStr][eventType] = (events[todayStr][eventType] || 0) + count;
+
+        fs.writeFileSync(FILES.SUBSCRIBER_EVENTS, JSON.stringify(events, null, 2), 'utf8');
+    } catch (e) {
+        console.error('[SubscriberEvent] 이벤트 기록 실패:', e.message);
+    }
+}
+
+// ============================================================================
 // VAPID 설정
 // ============================================================================
 let vapidConfigured = false;
@@ -104,9 +164,12 @@ router.post('/api/subscribe', (req, res) => {
         };
 
         if (existingIndex !== -1) {
+            // 기존 구독자 설정 갱신 (구독 해역/옵션 변경 등) → 신규 구독이 아니므로 이벤트 미기록
             subs[existingIndex] = newEntry;
         } else {
+            // 신규 구독자 추가 → 이벤트 기록
             subs.push(newEntry);
+            recordSubscriberEvent('subscribe', 1);
         }
 
         fs.writeFileSync(SUBS_FILE, JSON.stringify(subs, null, 2));
@@ -128,8 +191,11 @@ router.post('/api/unsubscribe', (req, res) => {
             const initialLen = subs.length;
             subs = subs.filter(s => s.subscription.endpoint !== endpoint);
 
-            if (subs.length !== initialLen) {
+            // 실제로 삭제된 구독자가 있으면 파일 저장 + 해지 이벤트 기록
+            var removedCount = initialLen - subs.length;
+            if (removedCount > 0) {
                 fs.writeFileSync(SUBS_FILE, JSON.stringify(subs, null, 2));
+                recordSubscriberEvent('unsubscribe', removedCount);
             }
         }
         res.json({ success: true });
@@ -314,8 +380,11 @@ router.post('/api/push-custom', async (req, res) => {
                 const sId = s.type === 'fcm' ? s.token : (s.subscription ? s.subscription.endpoint : null);
                 return !deadTokens.has(sId);
             });
+            var expiredCount = allSubs.length - updatedSubs.length;
             fs.writeFileSync(SUBS_FILE, JSON.stringify(updatedSubs, null, 2));
-            console.log(`🧹 [Push/Manual] 만료된 구독 데이터 ${allSubs.length - updatedSubs.length}건 정리 완료`);
+            console.log(`🧹 [Push/Manual] 만료된 구독 데이터 ${expiredCount}건 정리 완료`);
+            // 만료 자동 정리 이벤트 기록
+            recordSubscriberEvent('expired', expiredCount);
         }
 
         // 관리자 테스트 모드에서는 히스토리 기록 생략
@@ -536,6 +605,34 @@ router.get('/api/subscriber-history', (req, res) => {
     } catch (e) {
         console.error('구독자 이력 조회 실패:', e);
         res.status(500).json({ error: '이력 조회 실패' });
+    }
+});
+
+/**
+ * 구독/해지 이벤트 일별 집계 데이터를 반환합니다.
+ *
+ * [응답 형태]
+ * {
+ *   "2026-04-05": { "subscribe": 3, "unsubscribe": 1, "expired": 2 },
+ *   "2026-04-04": { "subscribe": 5, "unsubscribe": 0, "expired": 0 },
+ *   ...
+ * }
+ *
+ * [연계]
+ * - recordSubscriberEvent() → 구독/해지 발생 시 이 데이터를 기록
+ * - js/admin.js → renderSubscriberTab()에서 이탈률 카드 렌더링에 사용
+ */
+router.get('/api/subscriber-events', (req, res) => {
+    try {
+        if (fs.existsSync(FILES.SUBSCRIBER_EVENTS)) {
+            const events = JSON.parse(fs.readFileSync(FILES.SUBSCRIBER_EVENTS, 'utf8'));
+            res.json(events);
+        } else {
+            res.json({});
+        }
+    } catch (e) {
+        console.error('구독 이벤트 조회 실패:', e);
+        res.status(500).json({ error: '이벤트 조회 실패' });
     }
 });
 

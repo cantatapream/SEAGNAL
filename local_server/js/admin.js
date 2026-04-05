@@ -1355,11 +1355,14 @@ async function renderSubscriberTab(container) {
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
 
     try {
-        // ── 1. 데이터 2개를 동시에 요청 (현재 구독자 수 + 일별 이력) ──
+        // ── 1. 데이터 3개를 동시에 요청 ──
+        // (현재 구독자 수 + 일별 스냅샷 이력 + 구독/해지 이벤트 로그)
         var statsRes = await fetch('/api/push-subscriber-stats');
         var historyRes = await fetch('/api/subscriber-history');
+        var eventsRes = await fetch('/api/subscriber-events').catch(function() { return { ok: false }; });
         var stats = statsRes.ok ? await statsRes.json() : { totalSubscribers: 0, fcmCount: 0, webCount: 0, zoneCounts: {} };
         var history = historyRes.ok ? await historyRes.json() : {};
+        var events = eventsRes.ok ? await eventsRes.json() : {};
 
         // ── 2. 전일/전월/전년 대비 증감 계산 ──
         // KST 기준 오늘/어제/한달전/1년전 날짜 문자열 생성
@@ -1434,6 +1437,126 @@ async function renderSubscriberTab(container) {
             + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;position:relative;">'
             + '<div style="font-size:0.82rem;color:#94a3b8;margin-bottom:10px;font-weight:600;"><i class="fa-solid fa-chart-line" style="margin-right:4px;color:#8b5cf6;"></i> 구독자 추이</div>'
             + '<div style="height:180px;"><canvas id="subscriber-trend-chart"></canvas></div>'
+            + '</div>'
+            + '</div>';
+
+        // ── 3.5 구독 유지율(이탈률) 카드 ──
+        // 이벤트 로그 데이터를 기반으로 이번 주/이번 달/전체 기간의 유지율을 계산
+        // 유지율 = 1 - (해지+만료) / (기간 시작 구독자 + 신규 구독)
+        // 이벤트 데이터가 없으면 "데이터 수집 중" 표시
+
+        /**
+         * 특정 기간의 구독 유지율을 계산하는 함수
+         *
+         * [계산 방식]
+         * 유지율 = (1 - 이탈자 / (기간 시작 시 구독자 + 신규)) × 100
+         * - 이탈자 = 수동 해지(unsubscribe) + 만료 자동 정리(expired)
+         * - 기간 시작 시 구독자 = 현재 구독자 - 신규 + 이탈자 (역산)
+         *
+         * @param {string} startDate - 집계 시작 날짜 (YYYY-MM-DD)
+         * @param {string} endDate - 집계 종료 날짜 (YYYY-MM-DD)
+         * @returns {Object} { rate: 유지율(%), subscribed: 신규, lost: 이탈, hasData: 데이터 유무 }
+         */
+        function calcRetention(startDate, endDate) {
+            var totalSub = 0;   // 기간 내 신규 구독 수
+            var totalUnsub = 0; // 기간 내 수동 해지 수
+            var totalExpired = 0; // 기간 내 만료 정리 수
+            var hasData = false;
+
+            Object.keys(events).forEach(function(dateStr) {
+                if (dateStr >= startDate && dateStr <= endDate) {
+                    var dayEvent = events[dateStr];
+                    totalSub += (dayEvent.subscribe || 0);
+                    totalUnsub += (dayEvent.unsubscribe || 0);
+                    totalExpired += (dayEvent.expired || 0);
+                    hasData = true;
+                }
+            });
+
+            var totalLost = totalUnsub + totalExpired;
+            // 기간 시작 시점의 구독자 수를 역산
+            // 현재 구독자 = 시작 시 구독자 + 신규 - 이탈
+            // 시작 시 구독자 = 현재 - 신규 + 이탈
+            var startCount = currentTotal - totalSub + totalLost;
+            // 분모: 기간 시작 시 구독자 + 신규 (이 중 얼마나 유지되었는지)
+            var base = startCount + totalSub;
+            var rate = base > 0 ? ((1 - totalLost / base) * 100) : 100;
+            if (rate > 100) rate = 100;
+            if (rate < 0) rate = 0;
+
+            return {
+                rate: rate.toFixed(1),
+                subscribed: totalSub,
+                lost: totalLost,
+                unsubscribed: totalUnsub,
+                expired: totalExpired,
+                hasData: hasData
+            };
+        }
+
+        // 이번 주 시작일 (월요일)
+        var weekDay = kstNow.getUTCDay() || 7;
+        var thisWeekStart = new Date(kstNow);
+        thisWeekStart.setUTCDate(thisWeekStart.getUTCDate() - weekDay + 1);
+        var thisWeekStartStr = thisWeekStart.toISOString().split('T')[0];
+
+        // 이번 달 시작일
+        var thisMonthStartStr = todayStr.substring(0, 7) + '-01';
+
+        // 전체 기간 (이벤트 데이터의 첫 날짜 ~ 오늘)
+        var allEventDates = Object.keys(events).sort();
+        var firstEventDate = allEventDates.length > 0 ? allEventDates[0] : todayStr;
+
+        var weekRetention = calcRetention(thisWeekStartStr, todayStr);
+        var monthRetention = calcRetention(thisMonthStartStr, todayStr);
+        var totalRetention = calcRetention(firstEventDate, todayStr);
+
+        /**
+         * 유지율 카드 항목 HTML 생성 함수
+         * 게이지 바와 함께 유지율, 신규, 이탈 수치를 표시합니다.
+         *
+         * @param {string} label - 카드 제목 (예: "이번 주")
+         * @param {Object} ret - calcRetention() 반환값
+         * @returns {string} HTML 문자열
+         */
+        function retentionCard(label, ret) {
+            if (!ret.hasData) {
+                return '<div style="flex:1;min-width:100px;background:rgba(0,0,0,0.2);border-radius:10px;padding:14px;text-align:center;">'
+                    + '<div style="font-size:0.75rem;color:#64748b;margin-bottom:6px;">' + label + '</div>'
+                    + '<div style="font-size:0.82rem;color:#475569;">수집 중</div>'
+                    + '</div>';
+            }
+
+            // 유지율에 따른 색상: 95%↑ 초록, 90%↑ 노랑, 그 이하 빨강
+            var rateNum = parseFloat(ret.rate);
+            var color = rateNum >= 95 ? '#22c55e' : (rateNum >= 90 ? '#f59e0b' : '#ef4444');
+
+            // 게이지 바 너비 (유지율 %)
+            var barWidth = Math.max(rateNum, 5); // 최소 5% 너비 (비어 보이지 않도록)
+
+            return '<div style="flex:1;min-width:100px;background:rgba(0,0,0,0.2);border-radius:10px;padding:14px;text-align:center;">'
+                + '<div style="font-size:0.75rem;color:#94a3b8;margin-bottom:6px;">' + label + '</div>'
+                + '<div style="font-size:1.3rem;font-weight:800;color:' + color + ';margin-bottom:6px;">' + ret.rate + '%</div>'
+                // 게이지 바
+                + '<div style="height:4px;background:rgba(255,255,255,0.05);border-radius:2px;overflow:hidden;margin-bottom:8px;">'
+                + '<div style="height:100%;width:' + barWidth + '%;background:' + color + ';border-radius:2px;transition:width 0.5s;"></div>'
+                + '</div>'
+                // 상세 수치: 신규 / 이탈(해지+만료)
+                + '<div style="font-size:0.7rem;color:#64748b;">'
+                + '<span style="color:#22c55e;">+' + ret.subscribed + '</span>'
+                + ' / '
+                + '<span style="color:#ef4444;">-' + ret.lost + '</span>'
+                + (ret.expired > 0 ? '<span style="color:#475569;"> (만료 ' + ret.expired + ')</span>' : '')
+                + '</div>'
+                + '</div>';
+        }
+
+        var retentionHtml = '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;margin-bottom:20px;">'
+            + '<div style="font-size:0.82rem;color:#94a3b8;margin-bottom:12px;font-weight:600;"><i class="fa-solid fa-shield-halved" style="margin-right:4px;color:#22c55e;"></i> 구독 유지율</div>'
+            + '<div style="display:flex;gap:10px;flex-wrap:wrap;">'
+            + retentionCard('이번 주', weekRetention)
+            + retentionCard('이번 달', monthRetention)
+            + retentionCard('전체', totalRetention)
             + '</div>'
             + '</div>';
 
@@ -1520,7 +1643,7 @@ async function renderSubscriberTab(container) {
         }
 
         // ── 6. 전체 HTML 조립 후 렌더링 ──
-        container.innerHTML = topHtml + filterHtml + zoneHtml;
+        container.innerHTML = topHtml + retentionHtml + filterHtml + zoneHtml;
 
         // ── 7. 차트 및 테이블 렌더링 ──
         // 이력 데이터를 날짜순으로 정렬
