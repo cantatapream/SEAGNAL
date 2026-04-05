@@ -75,6 +75,7 @@ app.use(require('./routes/fishing'));  // 바다낚시 지수 API
 app.use(require('./routes/comment')); // 게시글 댓글 API
 app.use(require('./routes/reaction')); // 게시글 리액션 API
 app.use(require('./routes/comment_report')); // 댓글 신고 API
+app.use(require('./routes/cctv_seafog'));   // 해무 CCTV 스틸컷 API (국립해양조사원)
 
 // ============================================================================
 // 4. 정기 작업 (Daily Cloud Backup)

@@ -114,7 +114,11 @@ const CctvFavorites = {
             cameraCount: item.cameraCount  || 1,
             // 좌표: 즐겨찾기 클릭 시 지도 이동용
             lat:         item.lat  || null,
-            lng:         item.lng  || null
+            lng:         item.lng  || null,
+            // obsName: seafog(해무 CCTV) 전용 관측소명
+            // 즐겨찾기에서 팝업 재열 시 /api/seafog-cctv?obs={obsName} 쿼리에 사용
+            // seafog 이외 프로바이더는 null로 저장됨
+            obsName:     item.obsName || null
         });
         this.save();
         return true;

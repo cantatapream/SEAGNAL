@@ -527,6 +527,130 @@ const CCTV_PROVIDERS = {
             { cctvId: 73, name: '장골',       subtitle: '경기 화성',    lat: '37.248880', lng: '126.315907' },
         ]
     }
+    ,
+
+    // ─────────────────────────────────────────────────────────────────
+    // 국립해양조사원 해무 CCTV 스틸컷
+    // 출처: 공공데이터포털 "해양수산부 국립해양조사원_해무 CCTV 스틸컷 조회"
+    // 영상 방식: image (서버에서 10분마다 수집한 스틸컷 이미지 슬라이드)
+    // 서버 API: GET /api/seafog-cctv?obs={obsName}
+    // 이미지 URL: https://khoa.go.kr/oceandata/openapi/odmi/odmiImage.do?fileKey=...
+    //
+    // [cctvId 범위: 9001~9009]
+    //   다른 프로바이더(KBS, 거제, 부산, 옹진, coastal)와 cctvId 충돌을 피하기 위해
+    //   9001번대 ID를 할당합니다.
+    //
+    // [obsName 필드]
+    //   공공API의 sfogObsvtrNm(관측소명)과 정확히 일치해야 합니다.
+    //   팝업에서 /api/seafog-cctv?obs={obsName} 으로 해당 지점의 이미지를 요청합니다.
+    // ─────────────────────────────────────────────────────────────────
+    seafog: {
+        /** 팝업 출처 표기용 기관명 */
+        name: '국립해양조사원 해무 CCTV',
+
+        /**
+         * 영상 방식: seafog
+         * 서버 캐시 API에서 이미지 URL을 받아 슬라이드로 표시합니다.
+         * (iframe/hls/image와 달리 별도 fetch가 필요한 비동기 방식)
+         */
+        type: 'seafog',
+
+        /** 팝업 헤더 외부 링크 버튼 */
+        links: [
+            {
+                label: '해양데이터포털',
+                org:   '국립해양조사원',
+                url:   'https://www.khoa.go.kr/oceandata/main.do'
+            }
+        ],
+
+        /** 지도 마커 색상 — 해무 특성을 반영한 회청색 */
+        color: '#607d8b',
+
+        /**
+         * 해무 관측 항구 9개 지점
+         *
+         * [obsName] 공공API sfogObsvtrNm 값과 정확히 일치해야 합니다.
+         *           팝업에서 이 값으로 /api/seafog-cctv?obs= 쿼리를 만듭니다.
+         */
+        items: [
+            // 서해 ─────────────────────────────────────────────────────
+            {
+                cctvId:  9001,
+                name:    '대산항',
+                subtitle:'충남 서산 대산항',
+                obsName: '대산항',
+                lat:     '37.0021',
+                lng:     '126.4398'
+            },
+            {
+                cctvId:  9002,
+                name:    '인천항',
+                subtitle:'인천 인천항',
+                obsName: '인천항',
+                lat:     '37.4591',
+                lng:     '126.5912'
+            },
+            {
+                cctvId:  9003,
+                name:    '평택당진항',
+                subtitle:'충남 당진 평택당진항',
+                obsName: '평택당진항',
+                lat:     '36.9761',
+                lng:     '126.7764'
+            },
+            // 남해 ─────────────────────────────────────────────────────
+            {
+                cctvId:  9004,
+                name:    '목포항',
+                subtitle:'전남 목포항',
+                obsName: '목포항',
+                lat:     '34.7781',
+                lng:     '126.3718'
+            },
+            {
+                cctvId:  9005,
+                name:    '여수항',
+                subtitle:'전남 여수항',
+                obsName: '여수항',
+                lat:     '34.7436',
+                lng:     '127.7443'
+            },
+            {
+                cctvId:  9006,
+                name:    '부산항(북항)',
+                subtitle:'부산 북항',
+                obsName: '부산항(북항)',
+                lat:     '35.1057',
+                lng:     '129.0362'
+            },
+            {
+                cctvId:  9007,
+                name:    '부산항(신항서측)',
+                subtitle:'부산 강서 신항',
+                obsName: '부산항(신항서측)',
+                lat:     '35.0839',
+                lng:     '128.7978'
+            },
+            // 동해 ─────────────────────────────────────────────────────
+            {
+                cctvId:  9008,
+                name:    '울산항',
+                subtitle:'울산 울산항',
+                obsName: '울산항',
+                lat:     '35.5139',
+                lng:     '129.3873'
+            },
+            {
+                cctvId:  9009,
+                name:    '포항항',
+                subtitle:'경북 포항항',
+                obsName: '포항항',
+                lat:     '36.0211',
+                lng:     '129.3636'
+            }
+        ]
+    }
 };
 
 // 다른 파일(cctv4.js 등)에서 window.CCTV_PROVIDERS로 참조할 수 있도록 전역 노출
