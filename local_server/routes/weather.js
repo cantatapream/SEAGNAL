@@ -248,7 +248,7 @@ router.get('/api/regional-forecast', (req, res) => {
     }
 });
 
-// 5-2. 먼바다 해상예보 (PDF 파싱 데이터)
+// 5-2. 먼바다 해상예보 (KMA API 수집 데이터)
 router.get('/api/regional-marine-forecast', (req, res) => {
     try {
         const data = regionalForecastCollector.loadMarineForecasts();
@@ -258,7 +258,7 @@ router.get('/api/regional-marine-forecast', (req, res) => {
     }
 });
 
-// 5-3. 앞바다 해상예보 (PDF 파싱 데이터)
+// 5-3. 앞바다 해상예보 (KMA API 수집 데이터)
 router.get('/api/regional-coastal-forecast', (req, res) => {
     try {
         const data = regionalForecastCollector.loadCoastalForecasts();
