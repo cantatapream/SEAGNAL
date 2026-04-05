@@ -62,7 +62,13 @@ async function fetchTemperature(officeCode, authKey) {
                 const buffer = await httpsGet(url, 10000);
                 const text = decodeEucKr(buffer);
 
-                if (!text.includes('#START7777')) continue;
+                if (!text.includes('#START7777')) {
+                    // 첫 번째 후보에서만 디버그 로그 출력
+                    if (tm === candidates[0]) {
+                        console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_dl 응답에 #START7777 없음 (stn=${stn}, tm=${tm}, 길이=${text.length}, 앞200자=${text.substring(0, 200).replace(/\n/g, '\\n')})`);
+                    }
+                    continue;
+                }
 
                 // TA 필드에서 오늘 최저/최고 추출
                 const temps = parseTaFromFctAfsDl(text, todayStr);
@@ -71,8 +77,15 @@ async function fetchTemperature(officeCode, authKey) {
                     if (temps.high !== null) allHighs.push(temps.high);
                     fetched = true;
                     break; // 이 지점 성공, 다음 지점으로
+                } else {
+                    if (tm === candidates[0]) {
+                        console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_dl TA 파싱 실패 (stn=${stn}, tm=${tm}, 앞500자=${text.substring(0, 500).replace(/\n/g, '\\n')})`);
+                    }
                 }
             } catch (e) {
+                if (tm === candidates[0]) {
+                    console.log(`[MarineWeatherAPI] ${officeName}: fct_afs_dl 에러 (stn=${stn}, tm=${tm}): ${e.message}`);
+                }
                 continue;
             }
         }
