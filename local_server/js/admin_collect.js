@@ -2722,11 +2722,13 @@ function processStatsAndRender(data, type) {
 
             tableData.push({ label: `${h}:00 ~ ${h}:59`, value: v, alerts: alertEvents });
 
-            // 차트 마커 추가
+            // 차트 마커 추가 (분 단위 정밀 위치)
             if (hourPushes.length > 0) {
                 hourPushes.forEach(function(p) {
+                    var min = parseInt(p.fullTime.split(':')[1] || '0', 10);
                     alertMarkers.push({
-                        index: i,
+                        index: i + (min / 60),
+                        hourIndex: i,
                         label: p.title.replace(/[📢🔔⚠️🔴🟢⬆️⬇️]/g, '').trim().substring(0, 12),
                         fullLabel: p.title
                     });
@@ -2915,7 +2917,18 @@ function renderVisitorChart(labels, values, type, alertMarkers) {
                     var yScale = chart.scales.y;
 
                     markers.forEach(function(marker) {
-                        var x = xScale.getPixelForValue(marker.index);
+                        // 소수점 인덱스 보간: 예) 4.53 → 04시~05시 사이 53% 지점
+                        var idx = marker.index;
+                        var floorIdx = Math.floor(idx);
+                        var frac = idx - floorIdx;
+                        var x;
+                        if (frac === 0) {
+                            x = xScale.getPixelForValue(floorIdx);
+                        } else {
+                            var x0 = xScale.getPixelForValue(floorIdx);
+                            var x1 = xScale.getPixelForValue(Math.min(floorIdx + 1, xScale.max));
+                            x = x0 + (x1 - x0) * frac;
+                        }
                         var yTop = yScale.top;
                         var yBottom = yScale.bottom;
 
@@ -2953,7 +2966,10 @@ function renderVisitorChart(labels, values, type, alertMarkers) {
                         afterBody: function(tooltipItems) {
                             if (!markers || markers.length === 0 || !tooltipItems[0]) return '';
                             var idx = tooltipItems[0].dataIndex;
-                            var matched = markers.filter(function(m) { return m.index === idx; });
+                            var matched = markers.filter(function(m) {
+                                // hourIndex가 있으면 시간별 정밀 마커 → 시간대로 매칭
+                                return (m.hourIndex !== undefined) ? m.hourIndex === idx : Math.floor(m.index) === idx;
+                            });
                             if (matched.length === 0) return '';
                             var lines = ['', '⚠ 특보 알림:'];
                             matched.forEach(function(m) {
