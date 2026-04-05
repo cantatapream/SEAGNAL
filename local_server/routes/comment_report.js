@@ -34,6 +34,17 @@ const { DATA_DIR } = require('../config/server_config');
 
 const COMMENT_REPORTS_FILE = path.join(DATA_DIR, 'comment_reports.json');
 
+/**
+ * 관리자 기기 푸시 알림 서비스
+ * 댓글 신고 접수 시 관리자에게 푸시 알림을 보내는 데 사용
+ *
+ * [연계] services/admin_push.js → sendAdminPush(title, body, data)
+ */
+let sendAdminPush;
+try {
+    sendAdminPush = require('../services/admin_push').sendAdminPush;
+} catch (e) { /* admin_push 서비스 미설치 시 무시 */ }
+
 function getCommentReports() {
     try {
         if (!fs.existsSync(COMMENT_REPORTS_FILE)) return [];
@@ -118,6 +129,16 @@ router.post('/api/comment-reports', (req, res) => {
 
     reports.push(newReport);
     saveCommentReports(reports);
+
+    // 관리자 기기에 댓글 신고 접수 푸시 알림 발송
+    if (sendAdminPush) {
+        var reasonText = String(reason).substring(0, 30);
+        sendAdminPush(
+            '🚨 새 댓글 신고 접수',
+            `사유: ${reasonText}`,
+            { type: 'comment_report', reportId: newReport.id }
+        ).catch(function(e) { console.error('[CommentReport] 관리자 푸시 발송 실패:', e.message); });
+    }
 
     res.json({ success: true });
 });

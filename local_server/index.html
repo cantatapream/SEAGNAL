@@ -403,9 +403,16 @@
                 <div id="marine-forecast-accordion-body" class="main-accordion-body collapsed">
                     <div id="marine-forecast-content" class="marine-forecast-container">
                         <!-- 종합 예보 (지방기상청 단기예보) -->
+                        <!-- 종합 예보: 지방청별 단기예보를 표시하는 섹션
+                             ⚙ 설정 버튼으로 표시할 지방청을 수동 선택 가능
+                             수동 선택은 관심해역 설정보다 우선 적용됨 -->
                         <div class="marine-forecast-sub-accordion open" id="regional-forecast-section">
                             <div class="marine-forecast-sub-header" onclick="toggleMarineForecastSub('regional-forecast-body')">
                                 <span class="marine-forecast-sub-title" id="regional-forecast-title">종합 예보</span>
+                                <button id="regional-office-settings-btn" onclick="event.stopPropagation(); toggleOfficeSettingsPanel()" title="지방청 표시 설정"
+                                    style="background:none;border:none;color:#64748b;font-size:1rem;cursor:pointer;padding:4px 8px;margin-left:auto;transition:color 0.2s;">
+                                    <i class="fa-solid fa-gear"></i>
+                                </button>
                                 <i class="fa-solid fa-chevron-down marine-forecast-sub-icon"></i>
                             </div>
                             <div class="marine-forecast-sub-body" id="regional-forecast-body">

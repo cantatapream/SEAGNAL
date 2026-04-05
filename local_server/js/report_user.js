@@ -356,6 +356,44 @@
                 answerHtml = '<div style="text-align:center;padding:20px 0;color:#64748b;font-size:0.85rem;"><i class="fa-regular fa-comment-dots" style="margin-right:4px;"></i>아직 답변이 등록되지 않았습니다.</div>';
             }
 
+            // ── 추가 의견 영역 (관리자 답변이 있을 때만 표시) ──
+            // 1) 이미 추가 의견을 보낸 경우 → 의견 내용 표시 (읽기 전용)
+            // 2) 아직 보내지 않은 경우 → 입력란 + 보내기 버튼 표시
+            // 3) 관리자 추가 답변이 있으면 그것도 표시
+            let userCommentHtml = '';
+            if (r.answer) {
+                if (r.userComment) {
+                    // 이미 보낸 추가 의견 표시
+                    var commentDate = r.userCommentAt ? new Date(r.userCommentAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+                    userCommentHtml += `
+                        <div style="font-size:0.7rem;color:#94a3b8;margin:16px 0 6px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.06);">── 추가 의견 ──</div>
+                        <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:6px;">의견일시: ${commentDate}</div>
+                        <div style="border-left:3px solid rgba(168,85,247,0.4);padding:2px 0 2px 12px;font-size:0.85rem;line-height:1.7;color:#cbd5e1;word-break:keep-all;">${escapeHTML(r.userComment).replace(/\n/g, '<br>')}</div>
+                    `;
+
+                    // 관리자 추가 답변이 있으면 표시
+                    if (r.additionalAnswer) {
+                        var addAnswerDate = r.additionalAnsweredAt ? new Date(r.additionalAnsweredAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+                        userCommentHtml += `
+                            <div style="font-size:0.7rem;color:#94a3b8;margin:16px 0 6px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.06);">── 관리자 추가 답변 ──</div>
+                            <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:6px;">답변일시: ${addAnswerDate}</div>
+                            <div style="border-left:3px solid rgba(59,130,246,0.4);padding:2px 0 2px 12px;font-size:0.85rem;line-height:1.7;color:#cbd5e1;word-break:keep-all;">${escapeHTML(r.additionalAnswer).replace(/\n/g, '<br>')}</div>
+                        `;
+                    }
+                } else {
+                    // 추가 의견 미작성 → 입력란 표시
+                    userCommentHtml += `
+                        <div style="font-size:0.7rem;color:#94a3b8;margin:16px 0 6px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.06);">── 추가 의견 ──</div>
+                        <textarea id="user-comment-input" rows="3" placeholder="관리자에게 전달할 추가 의견을 입력하세요..."
+                            style="width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;font-size:0.85rem;resize:vertical;box-sizing:border-box;margin-bottom:8px;"></textarea>
+                        <button onclick="window._sendUserComment('${r.id}')"
+                            style="width:100%;padding:10px;background:linear-gradient(135deg,rgba(168,85,247,0.3),rgba(139,92,246,0.2));border:1px solid rgba(168,85,247,0.3);color:#c4b5fd;border-radius:8px;font-size:0.85rem;font-weight:600;cursor:pointer;">
+                            <i class="fa-solid fa-paper-plane" style="margin-right:4px;"></i>추가 의견 보내기
+                        </button>
+                    `;
+                }
+            }
+
             panel.innerHTML = `
                 <div style="display:flex;flex-direction:column;height:100%;">
                     <div style="flex-shrink:0;margin-bottom:12px;">
@@ -376,6 +414,8 @@
 
                         <div style="font-size:0.7rem;color:#94a3b8;margin:16px 0 6px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.06);">── 관리자 답변 ──</div>
                         ${answerHtml}
+
+                        ${userCommentHtml}
                     </div>
                 </div>
             `;
@@ -579,8 +619,14 @@
                         </div>
                         ${answerImgHtml}
                     </div>
-                    <div class="notice-footer" style="justify-content:center;">
-                        <button class="notice-close-btn" onclick="window._dismissReportAnswer('${data.reportId}')">확인</button>
+                    <div class="notice-footer" style="justify-content:center;gap:8px;">
+                        <button class="notice-close-btn" onclick="window._dismissReportAnswer('${data.reportId}', '${data.type || 'answer'}')">확인</button>
+                        ${(data.type || 'answer') === 'answer' ? `
+                            <button class="notice-close-btn" style="background:rgba(168,85,247,0.2);color:#c4b5fd;border:1px solid rgba(168,85,247,0.3);"
+                                onclick="window._dismissReportAnswer('${data.reportId}', '${data.type || 'answer'}'); window._goToReportDetail('${data.reportId}');">
+                                추가 의견 작성
+                            </button>
+                        ` : ''}
                     </div>
                 </div>
             </div>
@@ -588,7 +634,19 @@
         document.body.insertAdjacentHTML('beforeend', html);
     }
 
-    window._dismissReportAnswer = async function (reportId) {
+    /**
+     * 답변 확인 처리 (팝업 닫기 + 서버에 확인 상태 저장)
+     *
+     * [동작]
+     * 1. 팝업 제거
+     * 2. 서버에 type(answer/additionalAnswer)에 따라 확인 처리 요청
+     *
+     * [연계] pending-answer API → type 파라미터로 최초/추가 답변 구분
+     *
+     * @param {string} reportId - 제보 ID
+     * @param {string} type - "answer" 또는 "additionalAnswer"
+     */
+    window._dismissReportAnswer = async function (reportId, type) {
         const popup = document.getElementById('report-answer-popup');
         if (popup) popup.remove();
 
@@ -596,9 +654,76 @@
             await fetch(CONFIG.API_BASE + '/api/reports/dismiss-answer', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ deviceId: getDeviceId(), reportId })
+                body: JSON.stringify({ deviceId: getDeviceId(), reportId, type: type || 'answer' })
             });
         } catch (e) { /* 무시 */ }
+    };
+
+    /**
+     * 사용자 추가 의견 전송 함수
+     * 관리자 답변을 받은 후 1회에 한해 추가 의견을 보내는 기능
+     *
+     * [동작]
+     * 1. 입력란의 텍스트를 서버에 전송 (POST /api/reports/:id/user-comment)
+     * 2. 성공 시 화면 새로고침 (추가 의견이 표시되고 입력란은 사라짐)
+     * 3. 관리자 기기에 자동으로 푸시 알림 발송 (서버 측 처리)
+     *
+     * [연계] _showMyReportDetail() → 추가 의견 보내기 버튼의 onclick에서 호출
+     * [연계] routes/report.js → POST /api/reports/:id/user-comment
+     *
+     * @param {string} reportId - 제보 ID
+     */
+    window._sendUserComment = async function (reportId) {
+        var input = document.getElementById('user-comment-input');
+        if (!input) return;
+        var comment = input.value.trim();
+        if (!comment) { alert('추가 의견을 입력해주세요.'); return; }
+
+        try {
+            var res = await fetch(CONFIG.API_BASE + '/api/reports/' + reportId + '/user-comment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deviceId: getDeviceId(), comment: comment })
+            });
+            var data = await res.json();
+            if (res.ok && data.success) {
+                alert('추가 의견이 전송되었습니다.');
+                // 상세 화면 새로고침 (추가 의견 표시로 전환)
+                window._showMyReportDetail(reportId);
+            } else {
+                alert(data.error || '전송에 실패했습니다.');
+            }
+        } catch (e) {
+            alert('서버 연결에 실패했습니다.');
+        }
+    };
+
+    /**
+     * 답변 팝업에서 "추가 의견 작성" 클릭 시 해당 제보 상세로 이동하는 함수
+     *
+     * [동작]
+     * 1. 제보 모달이 없으면 생성
+     * 2. 제보내역 탭 활성화
+     * 3. 해당 제보의 상세 화면으로 이동 (추가 의견 입력란이 표시됨)
+     *
+     * [연계] showAnswerPopup() → "추가 의견 작성" 버튼의 onclick에서 호출
+     *
+     * @param {string} reportId - 제보 ID
+     */
+    window._goToReportDetail = function (reportId) {
+        // 제보 모달 열기
+        if (typeof window.openReportModal === 'function') {
+            window.openReportModal();
+        }
+        // 약간의 딜레이 후 제보내역 탭 전환 + 상세 이동
+        setTimeout(function() {
+            if (typeof window.switchReportTab === 'function') {
+                window.switchReportTab('history');
+            }
+            setTimeout(function() {
+                window._showMyReportDetail(reportId);
+            }, 300);
+        }, 300);
     };
 
     // ========================================================================

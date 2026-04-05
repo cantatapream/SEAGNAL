@@ -288,14 +288,185 @@ async function loadMarineForecast() {
 
 /**
  * 사용자 관심해역 기반으로 해당하는 지방청 코드 목록 반환
+ *
+ * [우선순위]
+ * 1. 수동 지방청 설정 (localStorage의 'officeManualSettings')이 있으면 최우선 적용
+ * 2. 수동 설정이 없으면 기존 관심해역 설정에 따라 자동 결정
+ *
+ * [연계] toggleOfficeSettingsPanel() → 수동 설정 UI
+ * [연계] renderRegionalForecast() → 이 함수의 반환값으로 표시할 지방청 결정
  */
 function getRelevantOfficeCodes() {
+    // 1순위: 수동 지방청 설정 확인
+    var manualSettings = getOfficeManualSettings();
+    if (manualSettings) {
+        // 수동 설정에서 ON인 지방청 코드만 반환
+        var codes = [];
+        Object.keys(manualSettings).forEach(function(code) {
+            if (manualSettings[code]) codes.push(code);
+        });
+        return codes;
+    }
+
+    // 2순위: 기존 관심해역 기반 자동 결정
     if (typeof getRelevantOffices === 'function' && typeof UserSettings !== 'undefined') {
         return getRelevantOffices(UserSettings.settings);
     }
     // config.js 로드 전이면 모든 지방청 반환
     return Object.keys(REGIONAL_OFFICES || {});
 }
+
+/**
+ * localStorage에서 수동 지방청 설정을 읽어오는 함수
+ * 설정이 없거나 파싱 실패 시 null 반환 (= 관심해역 설정 사용)
+ *
+ * @returns {Object|null} { "109": true, "159": false, ... } 형태 또는 null
+ */
+function getOfficeManualSettings() {
+    try {
+        var saved = localStorage.getItem('officeManualSettings');
+        if (!saved) return null;
+        return JSON.parse(saved);
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * 수동 지방청 설정을 localStorage에 저장하는 함수
+ *
+ * @param {Object} settings - { "109": true, "159": false, ... }
+ */
+function saveOfficeManualSettings(settings) {
+    localStorage.setItem('officeManualSettings', JSON.stringify(settings));
+}
+
+/**
+ * 수동 지방청 설정을 초기화하는 함수 (관심해역 설정으로 되돌리기)
+ * localStorage에서 삭제하고 UI 갱신
+ */
+function resetOfficeManualSettings() {
+    localStorage.removeItem('officeManualSettings');
+    // 설정 패널 닫기
+    var panel = document.getElementById('office-settings-panel');
+    if (panel) panel.remove();
+    // 예보 다시 렌더링 (관심해역 기반으로 복원)
+    if (typeof loadRegionalForecast === 'function') loadRegionalForecast();
+}
+
+/**
+ * 지방청 설정 패널을 열고 닫는 토글 함수
+ * 종합 예보 헤더의 ⚙ 버튼 클릭 시 호출
+ *
+ * [동작]
+ * - 패널이 없으면 생성하여 표시
+ * - 패널이 이미 있으면 제거 (토글)
+ * - 7개 지방청 목록과 토글 스위치를 표시
+ * - 수동 설정이 없는 경우 현재 관심해역 기반 상태를 기본값으로 표시
+ *
+ * [연계] index.html → ⚙ 버튼의 onclick에서 호출
+ * [연계] saveOfficeManualSettings() → 토글 변경 시 저장
+ * [연계] renderRegionalForecast() → 설정 변경 후 예보 다시 렌더링
+ */
+function toggleOfficeSettingsPanel() {
+    var existing = document.getElementById('office-settings-panel');
+    if (existing) { existing.remove(); return; }
+
+    // 현재 상태: 수동 설정이 있으면 그 값, 없으면 관심해역 기반
+    var manualSettings = getOfficeManualSettings();
+    var currentCodes;
+    if (manualSettings) {
+        currentCodes = new Set(Object.keys(manualSettings).filter(function(k) { return manualSettings[k]; }));
+    } else {
+        if (typeof getRelevantOffices === 'function' && typeof UserSettings !== 'undefined') {
+            currentCodes = new Set(getRelevantOffices(UserSettings.settings));
+        } else {
+            currentCodes = new Set(Object.keys(REGIONAL_OFFICES || {}));
+        }
+    }
+
+    // 지방청 목록 (표출 순서)
+    var offices = [
+        { code: '109', name: '수도권기상청' },
+        { code: '159', name: '부산지방기상청' },
+        { code: '156', name: '광주지방기상청' },
+        { code: '105', name: '강원지방기상청' },
+        { code: '133', name: '대전지방기상청' },
+        { code: '143', name: '대구지방기상청' },
+        { code: '184', name: '제주지방기상청' }
+    ];
+
+    // 설정 패널 HTML 생성
+    var listHtml = offices.map(function(o) {
+        var isOn = currentCodes.has(o.code);
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);">'
+            + '<span style="color:#e2e8f0;font-size:0.85rem;">' + o.name + '</span>'
+            + '<label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer;">'
+            + '<input type="checkbox" data-office-code="' + o.code + '" ' + (isOn ? 'checked' : '')
+            + ' onchange="onOfficeToggleChange()" style="opacity:0;width:0;height:0;">'
+            + '<span style="position:absolute;inset:0;background:' + (isOn ? 'rgba(59,130,246,0.6)' : 'rgba(255,255,255,0.1)')
+            + ';border-radius:12px;transition:background 0.3s;"></span>'
+            + '<span style="position:absolute;top:2px;left:' + (isOn ? '22px' : '2px')
+            + ';width:20px;height:20px;background:#fff;border-radius:50%;transition:left 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></span>'
+            + '</label></div>';
+    }).join('');
+
+    var panel = document.createElement('div');
+    panel.id = 'office-settings-panel';
+    panel.style.cssText = 'background:rgba(15,23,42,0.95);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:16px;margin:8px 0;';
+    panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
+        + '<span style="color:#fff;font-size:0.9rem;font-weight:600;">📋 지방청 표시 설정</span>'
+        + '<button onclick="document.getElementById(\'office-settings-panel\').remove()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:1.1rem;">&times;</button>'
+        + '</div>'
+        + '<p style="color:#94a3b8;font-size:0.75rem;margin:0 0 12px 0;">※ 이 설정은 관심해역 설정보다 우선 적용됩니다.</p>'
+        + listHtml
+        + '<div style="text-align:center;margin-top:12px;">'
+        + '<button onclick="resetOfficeManualSettings()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;padding:8px 20px;border-radius:8px;font-size:0.8rem;cursor:pointer;">초기화 (관심해역 기준으로 복원)</button>'
+        + '</div>';
+
+    // 종합 예보 헤더 바로 아래에 삽입
+    var headerEl = document.querySelector('#regional-forecast-section .marine-forecast-sub-header');
+    if (headerEl && headerEl.parentNode) {
+        headerEl.parentNode.insertBefore(panel, headerEl.nextSibling);
+    }
+}
+
+/**
+ * 지방청 토글 스위치 변경 시 호출되는 함수
+ * 모든 토글의 현재 상태를 수집하여 localStorage에 저장하고 예보를 다시 렌더링
+ *
+ * [동작]
+ * 1. 설정 패널 내 모든 체크박스를 순회
+ * 2. 각 지방청 코드별 ON/OFF 상태를 수집
+ * 3. localStorage에 저장
+ * 4. 토글 스위치 시각적 상태 갱신 (색상, 위치)
+ * 5. 예보 다시 렌더링
+ */
+function onOfficeToggleChange() {
+    var panel = document.getElementById('office-settings-panel');
+    if (!panel) return;
+
+    var checkboxes = panel.querySelectorAll('input[data-office-code]');
+    var settings = {};
+    checkboxes.forEach(function(cb) {
+        settings[cb.getAttribute('data-office-code')] = cb.checked;
+        // 토글 스위치 시각적 상태 갱신
+        var track = cb.nextElementSibling;
+        var thumb = track ? track.nextElementSibling : null;
+        if (track) track.style.background = cb.checked ? 'rgba(59,130,246,0.6)' : 'rgba(255,255,255,0.1)';
+        if (thumb) thumb.style.left = cb.checked ? '22px' : '2px';
+    });
+
+    saveOfficeManualSettings(settings);
+
+    // 예보 다시 렌더링
+    if (typeof loadRegionalForecast === 'function') loadRegionalForecast();
+}
+
+// 전역에서 접근 가능하도록 window에 등록
+window.toggleOfficeSettingsPanel = toggleOfficeSettingsPanel;
+window.onOfficeToggleChange = onOfficeToggleChange;
+window.resetOfficeManualSettings = resetOfficeManualSettings;
 
 /**
  * 종합 예보 (지방기상청 단기예보) 렌더링

@@ -788,6 +788,58 @@ window.toggleEfAccordion = function (id) {
     if (arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
 };
 
+/**
+ * 시간대명 드롭다운 선택 시 기본 시작/종료 시간을 자동 세팅하는 함수
+ * 예: "새벽" 선택 → 시작 00시, 종료 06시 자동 세팅
+ *
+ * [동작 원리]
+ * 드롭다운의 각 option에 data-start, data-end 속성으로 기본 시간이 정의되어 있음
+ * 선택된 option의 data 속성을 읽어 시작/종료 셀렉트박스에 반영
+ *
+ * [연계] buildTimeFieldHTML() → 시간대 드롭다운의 onchange에서 호출
+ * [연계] updateRangePreview() → 시간 세팅 후 미리보기 갱신
+ *
+ * @param {string} prefix - 입력 필드 ID 접두사 (예: "ma-tmEf")
+ */
+window.applyPeriodDefaults = function (prefix) {
+    var periodSelect = document.getElementById(prefix + '-range-period-name');
+    var startSelect = document.getElementById(prefix + '-range-start');
+    var endSelect = document.getElementById(prefix + '-range-end');
+    if (!periodSelect || !startSelect || !endSelect) return;
+
+    var selected = periodSelect.options[periodSelect.selectedIndex];
+    var startVal = selected.getAttribute('data-start');
+    var endVal = selected.getAttribute('data-end');
+
+    if (startVal) startSelect.value = startVal;
+    if (endVal) endSelect.value = endVal;
+
+    updateRangePreview(prefix);
+};
+
+/**
+ * 범위형 시간 미리보기 갱신 함수
+ * 시간대명 + 시작/종료 시간을 조합하여 최종 결과를 미리보기에 표시
+ * 예: 시간대명 "새벽" + 시작 00시 + 종료 06시 → "새벽(00시~06시)"
+ *
+ * [연계] 시작/종료 시간 셀렉트박스의 onchange에서 호출
+ * [연계] applyPeriodDefaults() → 시간대명 변경 후 자동 호출
+ *
+ * @param {string} prefix - 입력 필드 ID 접두사 (예: "ma-tmEf")
+ */
+window.updateRangePreview = function (prefix) {
+    var periodSelect = document.getElementById(prefix + '-range-period-name');
+    var startSelect = document.getElementById(prefix + '-range-start');
+    var endSelect = document.getElementById(prefix + '-range-end');
+    var preview = document.getElementById(prefix + '-range-preview');
+    if (!periodSelect || !startSelect || !endSelect || !preview) return;
+
+    var name = periodSelect.value;
+    var startH = startSelect.value;
+    var endH = endSelect.value;
+    preview.textContent = '→ ' + name + '(' + startH + '시~' + endH + '시)';
+};
+
 // --- 시각 입력 타입 토글 (정확한 시각 ↔ 범위형) ---
 window.toggleManualTimeType = function (prefix, type) {
     const exactWrap = document.getElementById(`${prefix}-exact-wrap`);
@@ -813,11 +865,37 @@ window.toggleManualTimeType = function (prefix, type) {
     exactWrap.dataset.active = (type === 'exact') ? '1' : '0';
 };
 
-// 시각 필드 HTML 생성 헬퍼
+/**
+ * 시각 필드 HTML 생성 헬퍼
+ * "정확한 시각"(datetime-local)과 "범위형"(시간대명 + 시작/종료 시간) 두 모드를 지원
+ *
+ * [범위형 구성]
+ * - 날짜 선택 (date input)
+ * - 시간대명 드롭다운 (새벽, 아침, 오전 등) → 선택 시 기본 시작/종료 시간 자동 세팅
+ * - 시작/종료 시간 직접 선택 (0~24시 셀렉트박스)
+ * - 미리보기 (예: "새벽(00시~06시)")
+ *
+ * [연계] toggleManualTimeType() → 정확한 시각 ↔ 범위형 전환
+ * [연계] updateRangePreview() → 시간대명/시작/종료 변경 시 미리보기 갱신
+ * [연계] applyPeriodDefaults() → 시간대명 선택 시 기본 시간 자동 세팅
+ *
+ * @param {string} id - 입력 필드 ID 접두사 (예: "ma-tmEf")
+ * @param {string} label - 라벨 텍스트 (예: "발효 시각")
+ * @param {boolean} isOptional - 선택 입력 여부
+ */
 function buildTimeFieldHTML(id, label, isOptional) {
     const inputStyle = 'width:100%;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.9rem;box-sizing:border-box;color-scheme:dark;';
     const rangeInputStyle = 'flex:1;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.85rem;box-sizing:border-box;color-scheme:dark;';
+    const smallSelectStyle = 'width:70px;padding:8px 4px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.85rem;box-sizing:border-box;text-align:center;';
     const mb = isOptional ? '16px' : '12px';
+
+    // 0~24시 옵션 생성
+    let hourOptions = '';
+    for (let h = 0; h <= 24; h++) {
+        const hStr = String(h).padStart(2, '0');
+        hourOptions += `<option value="${hStr}">${hStr}</option>`;
+    }
+
     return `
         <div style="margin-bottom:${mb};">
             <label style="display:block;color:#94a3b8;font-size:0.8rem;margin-bottom:6px;">${label}${isOptional ? ' (선택)' : ''}</label>
@@ -835,20 +913,38 @@ function buildTimeFieldHTML(id, label, isOptional) {
                 <input type="datetime-local" id="${id}" style="${inputStyle}">
             </div>
             <div id="${id}-range-wrap" style="display:none;">
-                <div style="display:flex;gap:6px;">
-                    <input type="date" id="${id}-range-date" style="${rangeInputStyle}">
-                    <select id="${id}-range-period" style="${rangeInputStyle}">
-                        <option value="새벽(00시~06시)">새벽(00~06시)</option>
-                        <option value="아침(06시~09시)">아침(06~09시)</option>
-                        <option value="오전(06시~12시)">오전(06~12시)</option>
-                        <option value="오전(09시~12시)">오전(09~12시)</option>
-                        <option value="낮(12시~15시)">낮(12~15시)</option>
-                        <option value="오후(12시~18시)">오후(12~18시)</option>
-                        <option value="늦은 오후(15시~18시)">늦은 오후(15~18시)</option>
-                        <option value="저녁(18시~21시)">저녁(18~21시)</option>
-                        <option value="밤(18시~24시)">밤(18~24시)</option>
-                        <option value="밤(21시~24시)">밤(21~24시)</option>
+                <div style="margin-bottom:8px;">
+                    <input type="date" id="${id}-range-date" style="${inputStyle}">
+                </div>
+                <div style="margin-bottom:8px;">
+                    <label style="display:block;color:#64748b;font-size:0.75rem;margin-bottom:4px;">시간대</label>
+                    <select id="${id}-range-period-name" onchange="applyPeriodDefaults('${id}')" style="${inputStyle}">
+                        <option value="새벽" data-start="00" data-end="06">새벽</option>
+                        <option value="이른 새벽" data-start="00" data-end="03">이른 새벽</option>
+                        <option value="아침" data-start="06" data-end="09">아침</option>
+                        <option value="오전" data-start="06" data-end="12">오전</option>
+                        <option value="낮" data-start="12" data-end="15">낮</option>
+                        <option value="오후" data-start="12" data-end="18">오후</option>
+                        <option value="늦은 오후" data-start="15" data-end="18">늦은 오후</option>
+                        <option value="저녁" data-start="18" data-end="21">저녁</option>
+                        <option value="밤" data-start="18" data-end="24">밤</option>
                     </select>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                    <label style="color:#64748b;font-size:0.75rem;white-space:nowrap;">시작</label>
+                    <select id="${id}-range-start" onchange="updateRangePreview('${id}')" style="${smallSelectStyle}">
+                        ${hourOptions}
+                    </select>
+                    <span style="color:#64748b;font-size:0.85rem;">시</span>
+                    <span style="color:#64748b;font-size:0.85rem;margin:0 2px;">~</span>
+                    <label style="color:#64748b;font-size:0.75rem;white-space:nowrap;">종료</label>
+                    <select id="${id}-range-end" onchange="updateRangePreview('${id}')" style="${smallSelectStyle}">
+                        ${hourOptions}
+                    </select>
+                    <span style="color:#64748b;font-size:0.85rem;">시</span>
+                </div>
+                <div id="${id}-range-preview" style="color:#93c5fd;font-size:0.78rem;padding:4px 0;">
+                    → 새벽(00시~06시)
                 </div>
             </div>
         </div>`;
@@ -974,24 +1070,58 @@ window.openEditAlertModal = function (zoneName, alertIdx) {
         if (!m) return null;
         return { date: `${m[1]}-${m[2]}-${m[3]}`, period: m[4].trim() };
     };
-    // 범위형 period를 select option의 value와 정확히 매칭하는 헬퍼
-    const selectRangePeriod = (selectEl, periodStr) => {
-        // 1차: value 정확 매칭
-        for (const opt of selectEl.options) {
-            if (opt.value === periodStr) { opt.selected = true; return; }
-        }
-        // 2차: 시간 범위 매칭 (예: "밤(21시~24시)" vs "밤(21시~24시)")
-        const timeMatch = periodStr.match(/(\d{2})시~(\d{2})시/);
-        if (timeMatch) {
-            for (const opt of selectEl.options) {
-                if (opt.value.includes(timeMatch[1] + '시~' + timeMatch[2] + '시')) { opt.selected = true; return; }
+    /**
+     * 범위형 기존값 프리필 헬퍼 (수정 모드에서 기존 특보값을 UI에 복원)
+     * 예: "새벽(00시~06시)" → 시간대명 드롭다운: "새벽", 시작: "00", 종료: "06"
+     *
+     * [동작 원리]
+     * 1. periodStr에서 시간대명과 시작/종료 시간을 파싱
+     * 2. 시간대명 드롭다운에서 매칭되는 옵션 선택
+     * 3. 시작/종료 셀렉트박스에 시간 세팅
+     * 4. 미리보기 갱신
+     *
+     * @param {string} prefix - 입력 필드 ID 접두사 (예: "ma-tmEf")
+     * @param {string} periodStr - 범위형 문자열 (예: "새벽(00시~06시)")
+     */
+    const restoreRangeValues = (prefix, periodStr) => {
+        var nameSelect = document.getElementById(prefix + '-range-period-name');
+        var startSelect = document.getElementById(prefix + '-range-start');
+        var endSelect = document.getElementById(prefix + '-range-end');
+        if (!nameSelect || !startSelect || !endSelect) return;
+
+        // 시간대명 추출 (괄호 앞부분)
+        var periodName = periodStr.split('(')[0].trim();
+
+        // 시작/종료 시간 추출
+        var timeMatch = periodStr.match(/(\d{2})시~(\d{2})시/);
+
+        // 시간대명 드롭다운 매칭
+        var matched = false;
+        for (var i = 0; i < nameSelect.options.length; i++) {
+            if (nameSelect.options[i].value === periodName) {
+                nameSelect.selectedIndex = i;
+                matched = true;
+                break;
             }
         }
-        // 3차: 앞부분 키워드 매칭 (fallback)
-        const prefix = periodStr.split('(')[0];
-        for (const opt of selectEl.options) {
-            if (opt.value.split('(')[0] === prefix) { opt.selected = true; return; }
+        // 매칭 실패 시 키워드 부분 매칭 시도
+        if (!matched) {
+            for (var j = 0; j < nameSelect.options.length; j++) {
+                if (periodName.includes(nameSelect.options[j].value)) {
+                    nameSelect.selectedIndex = j;
+                    break;
+                }
+            }
         }
+
+        // 시작/종료 시간 세팅
+        if (timeMatch) {
+            startSelect.value = timeMatch[1];
+            endSelect.value = timeMatch[2];
+        }
+
+        // 미리보기 갱신
+        updateRangePreview(prefix);
     };
 
     // 발표 시각
@@ -1008,7 +1138,7 @@ window.openEditAlertModal = function (zoneName, alertIdx) {
         if (parsed) {
             toggleManualTimeType('ma-tmEf', 'range');
             document.getElementById('ma-tmEf-range-date').value = parsed.date;
-            selectRangePeriod(document.getElementById('ma-tmEf-range-period'), parsed.period);
+            restoreRangeValues('ma-tmEf', parsed.period);
         }
     } else {
         const v = toLocalDatetime(alert.tmEf);
@@ -1021,7 +1151,7 @@ window.openEditAlertModal = function (zoneName, alertIdx) {
         if (parsed) {
             toggleManualTimeType('ma-tmEd', 'range');
             document.getElementById('ma-tmEd-range-date').value = parsed.date;
-            selectRangePeriod(document.getElementById('ma-tmEd-range-period'), parsed.period);
+            restoreRangeValues('ma-tmEd', parsed.period);
         }
     } else {
         const v = toLocalDatetime(alert.tmEd);
@@ -1058,13 +1188,29 @@ window.submitManualAlert = async function (zoneName, mode, alertIdx) {
         return `${y}년 ${m}월 ${d}일 ${periodVal}`;
     };
 
+    /**
+     * 범위형 시간 값 조합 헬퍼
+     * 시간대명 드롭다운 + 시작/종료 셀렉트박스에서 값을 읽어
+     * "시간대명(XX시~YY시)" 형태의 문자열을 생성
+     *
+     * @param {string} prefix - 입력 필드 ID 접두사 (예: "ma-tmEf")
+     * @returns {string} 조합된 범위형 문자열 (예: "새벽(00시~06시)")
+     */
+    const getRangePeriodValue = (prefix) => {
+        const nameEl = document.getElementById(prefix + '-range-period-name');
+        const startEl = document.getElementById(prefix + '-range-start');
+        const endEl = document.getElementById(prefix + '-range-end');
+        if (!nameEl || !startEl || !endEl) return '';
+        return nameEl.value + '(' + startEl.value + '시~' + endEl.value + '시)';
+    };
+
     // 발효 시각 읽기 (정확한 시각 or 범위형)
     const tmEfExactWrap = document.getElementById('ma-tmEf-exact-wrap');
     const tmEfIsRange = tmEfExactWrap && tmEfExactWrap.dataset.active === '0';
     let tmEf, tmEfRaw;
     if (tmEfIsRange) {
         const dateVal = document.getElementById('ma-tmEf-range-date').value;
-        const periodVal = document.getElementById('ma-tmEf-range-period').value;
+        const periodVal = getRangePeriodValue('ma-tmEf');
         if (!dateVal) { alert('발효 날짜를 선택해주세요.'); return; }
         tmEf = toKmaRangeFormat(dateVal, periodVal);
         tmEfRaw = null;
@@ -1079,7 +1225,7 @@ window.submitManualAlert = async function (zoneName, mode, alertIdx) {
     let tmCc;
     if (tmEdIsRange) {
         const dateVal = document.getElementById('ma-tmEd-range-date').value;
-        const periodVal = document.getElementById('ma-tmEd-range-period').value;
+        const periodVal = getRangePeriodValue('ma-tmEd');
         tmCc = dateVal ? toKmaRangeFormat(dateVal, periodVal) : '';
     } else {
         const tmEdRaw = document.getElementById('ma-tmEd').value;
