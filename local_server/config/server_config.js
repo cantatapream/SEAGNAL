@@ -76,7 +76,11 @@ const FILES = {
     SURVEYS: path.join(DATA_DIR, 'surveys.json'),
     REPORTS: path.join(DATA_DIR, 'reports.json'),
     BLOCKS: path.join(DATA_DIR, 'blocks.json'),
-    TIDE_USAGE: path.join(DATA_DIR, 'tide_usage.json')
+    TIDE_USAGE: path.join(DATA_DIR, 'tide_usage.json'),
+    // 구독자 일별 스냅샷: 매일 자정(KST)에 구독자 수를 기록하여 증감 추이 분석에 사용
+    // [연계] services/subscriber_snapshot.js → 스냅샷 기록
+    // [연계] routes/push.js → /api/subscriber-history API에서 조회
+    SUBSCRIBER_STATS: path.join(DATA_DIR, 'subscriber_stats.json')
 };
 
 module.exports = {

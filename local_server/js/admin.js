@@ -1330,22 +1330,140 @@ async function renderUnifiedUsersContent(container) {
  *
  * [연계] renderUnifiedUsersContent() → switchUsersSubTab('subscriber')에서 호출
  */
+/**
+ * 구독 현황 하위 탭 렌더링
+ *
+ * [표시 항목]
+ * 1. 구독자 요약 카드 (현재 총 구독자 수 + FCM/Web 구분)
+ * 2. 전일/전월/전년 대비 증감 카드
+ * 3. 구독자 추이 차트 (일별/주간/월별 전환 가능)
+ * 4. 상세 증감 내역 테이블
+ * 5. 해역별 구독자 분포 트리 (대분류 > 중분류 > 소분류, 접이식)
+ *
+ * [데이터 소스]
+ * - GET /api/push-subscriber-stats → 현재 구독자 수 + 해역별 카운트
+ * - GET /api/subscriber-history → 일별 구독자 스냅샷 (추이 분석용)
+ *
+ * [연계]
+ * - renderUnifiedUsersContent() → switchUsersSubTab('subscriber')에서 호출
+ * - services/subscriber_snapshot.js → 매일 자정 스냅샷 기록
+ * - routes/push.js → /api/subscriber-history API
+ */
+let subscriberChart = null; // 구독자 추이 차트 인스턴스 (재생성 시 파괴용)
+
 async function renderSubscriberTab(container) {
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
 
     try {
+        // ── 1. 데이터 2개를 동시에 요청 (현재 구독자 수 + 일별 이력) ──
         var statsRes = await fetch('/api/push-subscriber-stats');
+        var historyRes = await fetch('/api/subscriber-history');
         var stats = statsRes.ok ? await statsRes.json() : { totalSubscribers: 0, fcmCount: 0, webCount: 0, zoneCounts: {} };
+        var history = historyRes.ok ? await historyRes.json() : {};
 
-        // ── 구독자 요약 카드 ──
-        var summaryHtml = '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:24px;text-align:center;margin-bottom:20px;">'
-            + '<div style="font-size:0.82rem;color:#94a3b8;margin-bottom:10px;"><i class="fa-solid fa-bell" style="margin-right:4px;"></i> 푸시 알림 구독자</div>'
+        // ── 2. 전일/전월/전년 대비 증감 계산 ──
+        // KST 기준 오늘/어제/한달전/1년전 날짜 문자열 생성
+        var now = new Date();
+        var kstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+        var todayStr = kstNow.toISOString().split('T')[0];
+
+        // 어제 날짜
+        var yesterdayDate = new Date(kstNow.getTime() - 86400000);
+        var yesterdayStr = yesterdayDate.toISOString().split('T')[0];
+
+        // 한 달 전 날짜
+        var lastMonthDate = new Date(kstNow);
+        lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+        var lastMonthStr = lastMonthDate.toISOString().split('T')[0];
+
+        // 1년 전 날짜
+        var lastYearDate = new Date(kstNow);
+        lastYearDate.setFullYear(lastYearDate.getFullYear() - 1);
+        var lastYearStr = lastYearDate.toISOString().split('T')[0];
+
+        var currentTotal = stats.totalSubscribers;
+
+        // 증감 계산 함수: 과거 데이터가 없으면 null 반환
+        function calcDiff(pastDateStr) {
+            if (history[pastDateStr]) {
+                return currentTotal - history[pastDateStr].total;
+            }
+            return null; // 데이터 없음
+        }
+
+        var diffDay = calcDiff(yesterdayStr);
+        var diffMonth = calcDiff(lastMonthStr);
+        var diffYear = calcDiff(lastYearStr);
+
+        // 증감 표시용 HTML 생성 함수
+        // 양수면 초록색 ▲, 음수면 빨간색 ▼, 0이면 회색 ─, 데이터 없으면 N/A
+        function diffBadge(diff, label) {
+            if (diff === null) {
+                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.03);">'
+                    + '<span style="color:#94a3b8;font-size:0.78rem;">' + label + '</span>'
+                    + '<span style="color:#475569;font-size:0.8rem;font-weight:600;">N/A</span></div>';
+            }
+            var color = diff > 0 ? '#22c55e' : (diff < 0 ? '#ef4444' : '#64748b');
+            var arrow = diff > 0 ? '▲' : (diff < 0 ? '▼' : '─');
+            var sign = diff > 0 ? '+' : '';
+            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.03);">'
+                + '<span style="color:#94a3b8;font-size:0.78rem;">' + label + '</span>'
+                + '<span style="color:' + color + ';font-size:0.85rem;font-weight:700;">' + sign + diff + '명 ' + arrow + '</span></div>';
+        }
+
+        // ── 3. HTML 조립: 상단 2단 레이아웃 (요약카드 + 추이차트) ──
+        var topHtml = '<div style="display:grid;grid-template-columns:1fr 1.5fr;gap:16px;margin-bottom:20px;">'
+            // 왼쪽: 요약 카드 + 증감 카드
+            + '<div>'
+            // 현재 구독자 수 카드
+            + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:20px;text-align:center;margin-bottom:12px;">'
+            + '<div style="font-size:0.82rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-bell" style="margin-right:4px;"></i> 푸시 알림 구독자</div>'
             + '<div style="font-size:2.2rem;font-weight:800;color:#3b82f6;">' + stats.totalSubscribers + '<span style="font-size:0.9rem;font-weight:400;color:#64748b;">명</span></div>'
-            + '<div style="font-size:0.75rem;color:#475569;margin-top:6px;">FCM(앱) ' + stats.fcmCount + '명'
+            + '<div style="font-size:0.75rem;color:#475569;margin-top:4px;">FCM(앱) ' + stats.fcmCount + '명'
             + (stats.webCount > 0 ? ' · Web ' + stats.webCount + '명' : '')
-            + '</div></div>';
+            + '</div></div>'
+            // 전일/전월/전년 대비 증감 카드
+            + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:14px 16px;">'
+            + '<div style="font-size:0.78rem;color:#94a3b8;margin-bottom:8px;font-weight:600;">증감 현황</div>'
+            + diffBadge(diffDay, '전일 대비')
+            + diffBadge(diffMonth, '전월 대비')
+            + diffBadge(diffYear, '전년 대비')
+            + '</div>'
+            + '</div>'
+            // 오른쪽: 구독자 추이 차트
+            + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;position:relative;">'
+            + '<div style="font-size:0.82rem;color:#94a3b8;margin-bottom:10px;font-weight:600;"><i class="fa-solid fa-chart-line" style="margin-right:4px;color:#8b5cf6;"></i> 구독자 추이</div>'
+            + '<div style="height:180px;"><canvas id="subscriber-trend-chart"></canvas></div>'
+            + '</div>'
+            + '</div>';
 
-        // ── 해역별 구독자 분포 ──
+        // ── 4. 조회 필터 바 (일별/주간/월별) + 상세 증감 내역 테이블 ──
+        var filterHtml = '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;margin-bottom:20px;">'
+            // 필터 버튼 바
+            + '<div style="display:flex;gap:6px;margin-bottom:14px;">'
+            + '<div style="display:flex;background:rgba(0,0,0,0.2);padding:3px;border-radius:8px;">'
+            + '<button onclick="window.switchSubHistoryType(\'daily\')" id="btn-sub-daily" style="padding:6px 14px;border:none;border-radius:6px;background:#3b82f6;color:#fff;font-size:0.8rem;font-weight:600;cursor:pointer;transition:0.2s;">일별</button>'
+            + '<button onclick="window.switchSubHistoryType(\'weekly\')" id="btn-sub-weekly" style="padding:6px 14px;border:none;border-radius:6px;background:transparent;color:#94a3b8;font-size:0.8rem;font-weight:600;cursor:pointer;transition:0.2s;">주간</button>'
+            + '<button onclick="window.switchSubHistoryType(\'monthly\')" id="btn-sub-monthly" style="padding:6px 14px;border:none;border-radius:6px;background:transparent;color:#94a3b8;font-size:0.8rem;font-weight:600;cursor:pointer;transition:0.2s;">월별</button>'
+            + '</div>'
+            + '</div>'
+            // 상세 증감 내역 테이블
+            + '<div style="font-size:0.85rem;font-weight:700;color:#94a3b8;margin-bottom:10px;">상세 증감 내역</div>'
+            + '<div style="max-height:280px;overflow-y:auto;">'
+            + '<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">'
+            + '<thead style="position:sticky;top:0;background:#1e293b;color:#64748b;text-align:left;">'
+            + '<tr>'
+            + '<th style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);">기간</th>'
+            + '<th style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);text-align:right;">구독자 수</th>'
+            + '<th style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);text-align:right;">증감</th>'
+            + '</tr>'
+            + '</thead>'
+            + '<tbody id="sub-history-table-body" style="color:#cbd5e1;"></tbody>'
+            + '</table>'
+            + '</div>'
+            + '</div>';
+
+        // ── 5. 해역별 구독자 분포 (기존 로직 유지) ──
         var zoneHtml = '<div style="margin-bottom:12px;font-weight:700;color:#fff;font-size:0.95rem;display:flex;align-items:center;gap:8px;"><i class="fa-solid fa-map-location-dot" style="color:#3b82f6;"></i> 해역별 구독자 분포</div>';
 
         var zc = stats.zoneCounts || {};
@@ -1401,7 +1519,241 @@ async function renderSubscriberTab(container) {
             zoneHtml += '<div style="color:#64748b;font-size:0.85rem;">해역 데이터를 불러올 수 없습니다.</div>';
         }
 
-        container.innerHTML = summaryHtml + zoneHtml;
+        // ── 6. 전체 HTML 조립 후 렌더링 ──
+        container.innerHTML = topHtml + filterHtml + zoneHtml;
+
+        // ── 7. 차트 및 테이블 렌더링 ──
+        // 이력 데이터를 날짜순으로 정렬
+        var sortedDates = Object.keys(history).sort();
+
+        /**
+         * 구독자 추이 차트를 그리는 함수
+         * Chart.js 라인 차트로 일별 구독자 수 추이를 시각화합니다.
+         *
+         * @param {string[]} labels - X축 라벨 (날짜 문자열)
+         * @param {number[]} values - Y축 값 (구독자 수)
+         *
+         * [연계] Chart.js 라이브러리 사용 (방문자 차트와 동일한 라이브러리)
+         */
+        function renderSubChart(labels, values) {
+            var canvas = document.getElementById('subscriber-trend-chart');
+            if (!canvas) return;
+            var ctx = canvas.getContext('2d');
+
+            if (subscriberChart) subscriberChart.destroy();
+
+            var gradient = ctx.createLinearGradient(0, 0, 0, 180);
+            gradient.addColorStop(0, 'rgba(99, 102, 241, 0.4)');
+            gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+
+            subscriberChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '구독자 수',
+                        data: values,
+                        borderColor: '#818cf8',
+                        borderWidth: 2.5,
+                        backgroundColor: gradient,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#fff',
+                        pointBorderColor: '#818cf8',
+                        pointRadius: 3,
+                        pointHoverRadius: 5
+                    }]
+                },
+                plugins: [{
+                    // 차트 선에 은은한 글로우(빛번짐) 효과를 추가하는 플러그인
+                    id: 'subGlow',
+                    beforeDatasetDraw: function(chart) {
+                        chart.ctx.save();
+                        chart.ctx.shadowBlur = 12;
+                        chart.ctx.shadowColor = '#818cf8';
+                    },
+                    afterDatasetDraw: function(chart) {
+                        chart.ctx.restore();
+                    }
+                }],
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1e293b',
+                            titleColor: '#fff',
+                            bodyColor: '#cbd5e1',
+                            padding: 10,
+                            cornerRadius: 8,
+                            displayColors: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#64748b', font: { size: 10 } }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#64748b', font: { size: 9 }, maxRotation: 45 }
+                        }
+                    }
+                }
+            });
+        }
+
+        /**
+         * 상세 증감 내역 테이블을 업데이트하는 함수
+         * 각 행에 기간, 구독자 수, 전 기간 대비 증감(+/- 색상 구분)을 표시합니다.
+         *
+         * @param {Array} tableData - [{ label, value, diff }] 형태의 배열
+         *   label: 표시할 날짜/주간/월 문자열
+         *   value: 해당 시점의 구독자 수
+         *   diff: 이전 시점 대비 증감 (null이면 첫 데이터)
+         */
+        function renderSubTable(tableData) {
+            var tbody = document.getElementById('sub-history-table-body');
+            if (!tbody) return;
+
+            tbody.innerHTML = tableData.map(function(item) {
+                var diffHtml = '';
+                if (item.diff === null || item.diff === undefined) {
+                    diffHtml = '<span style="color:#475569;">─</span>';
+                } else if (item.diff > 0) {
+                    diffHtml = '<span style="color:#22c55e;font-weight:700;">+' + item.diff + ' ▲</span>';
+                } else if (item.diff < 0) {
+                    diffHtml = '<span style="color:#ef4444;font-weight:700;">' + item.diff + ' ▼</span>';
+                } else {
+                    diffHtml = '<span style="color:#64748b;">0 ─</span>';
+                }
+
+                return '<tr>'
+                    + '<td style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.03);">' + item.label + '</td>'
+                    + '<td style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:right;font-weight:700;">' + item.value.toLocaleString() + '명</td>'
+                    + '<td style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:right;">' + diffHtml + '</td>'
+                    + '</tr>';
+            }).join('');
+        }
+
+        /**
+         * 조회 모드(일별/주간/월별) 전환 함수
+         * 버튼 클릭 시 해당 모드로 차트와 테이블을 다시 그립니다.
+         *
+         * @param {string} type - 'daily' | 'weekly' | 'monthly'
+         *
+         * [동작 방식]
+         * - daily: 최근 30일의 일별 구독자 수를 표시
+         * - weekly: 주 단위로 마지막 날의 구독자 수를 표시 (최대 12주)
+         * - monthly: 월 단위로 마지막 날의 구독자 수를 표시 (최대 12개월)
+         */
+        window.switchSubHistoryType = function(type) {
+            // 버튼 활성화 상태 전환
+            ['daily', 'weekly', 'monthly'].forEach(function(t) {
+                var btn = document.getElementById('btn-sub-' + t);
+                if (btn) {
+                    if (t === type) {
+                        btn.style.background = '#3b82f6';
+                        btn.style.color = '#fff';
+                    } else {
+                        btn.style.background = 'transparent';
+                        btn.style.color = '#94a3b8';
+                    }
+                }
+            });
+
+            var labels = [];
+            var values = [];
+            var tableData = [];
+
+            if (type === 'daily') {
+                // 일별: 최근 30일
+                var recent = sortedDates.slice(-30);
+                for (var i = 0; i < recent.length; i++) {
+                    var d = recent[i];
+                    var val = history[d].total;
+                    labels.push(d.substring(5)); // "MM-DD" 형태
+                    values.push(val);
+                    // 전일 대비 증감 계산
+                    var prevVal = (i > 0) ? history[recent[i - 1]].total : null;
+                    tableData.push({
+                        label: d,
+                        value: val,
+                        diff: prevVal !== null ? val - prevVal : null
+                    });
+                }
+                tableData.reverse(); // 최근 날짜가 위로
+            } else if (type === 'weekly') {
+                // 주간: 주의 마지막 날 기준 (최대 12주)
+                // 날짜를 7일 단위로 묶어서 각 주의 마지막 기록을 사용
+                var weekBuckets = {};
+                sortedDates.forEach(function(d) {
+                    var dateObj = new Date(d + 'T00:00:00Z');
+                    // ISO 주차 계산: 해당 날짜가 속한 주의 시작일(월요일) 기준
+                    var dayOfWeek = dateObj.getUTCDay() || 7; // 일요일=7
+                    var monday = new Date(dateObj);
+                    monday.setUTCDate(monday.getUTCDate() - dayOfWeek + 1);
+                    var weekKey = monday.toISOString().split('T')[0]; // 주 시작일을 키로 사용
+                    weekBuckets[weekKey] = { date: d, total: history[d].total };
+                });
+                var weekKeys = Object.keys(weekBuckets).sort().slice(-12);
+                for (var w = 0; w < weekKeys.length; w++) {
+                    var wk = weekKeys[w];
+                    var wVal = weekBuckets[wk].total;
+                    labels.push(wk.substring(5) + '~');
+                    values.push(wVal);
+                    var prevWVal = (w > 0) ? weekBuckets[weekKeys[w - 1]].total : null;
+                    tableData.push({
+                        label: wk + ' 주',
+                        value: wVal,
+                        diff: prevWVal !== null ? wVal - prevWVal : null
+                    });
+                }
+                tableData.reverse();
+            } else if (type === 'monthly') {
+                // 월별: 각 월의 마지막 기록 (최대 12개월)
+                var monthBuckets = {};
+                sortedDates.forEach(function(d) {
+                    var ym = d.substring(0, 7); // "YYYY-MM"
+                    monthBuckets[ym] = { date: d, total: history[d].total };
+                });
+                var monthKeys = Object.keys(monthBuckets).sort().slice(-12);
+                for (var m = 0; m < monthKeys.length; m++) {
+                    var mk = monthKeys[m];
+                    var mVal = monthBuckets[mk].total;
+                    labels.push(mk);
+                    values.push(mVal);
+                    var prevMVal = (m > 0) ? monthBuckets[monthKeys[m - 1]].total : null;
+                    tableData.push({
+                        label: mk,
+                        value: mVal,
+                        diff: prevMVal !== null ? mVal - prevMVal : null
+                    });
+                }
+                tableData.reverse();
+            }
+
+            renderSubChart(labels, values);
+            renderSubTable(tableData);
+        };
+
+        // ── 8. 초기 렌더링: 일별 모드로 차트와 테이블 표시 ──
+        // 이력 데이터가 있으면 차트를 그리고, 없으면 안내 메시지 표시
+        if (sortedDates.length > 0) {
+            window.switchSubHistoryType('daily');
+        } else {
+            // 아직 스냅샷 데이터가 없는 경우 (서비스 최초 적용 시)
+            var chartArea = document.getElementById('subscriber-trend-chart');
+            if (chartArea) {
+                chartArea.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#475569;font-size:0.82rem;">데이터 수집 중입니다. 내일부터 추이가 표시됩니다.</div>';
+            }
+            var tableBody = document.getElementById('sub-history-table-body');
+            if (tableBody) {
+                tableBody.innerHTML = '<tr><td colspan="3" style="padding:20px;text-align:center;color:#475569;">아직 이력 데이터가 없습니다.</td></tr>';
+            }
+        }
+
     } catch (e) {
         container.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">데이터 로드 실패: ' + e.message + '</div>';
     }

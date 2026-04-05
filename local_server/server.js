@@ -80,6 +80,19 @@ app.use(require('./routes/cctv_seafog'));   // 해무 CCTV 스틸컷 API (국립
 // ============================================================================
 // 4. 정기 작업 (Daily Cloud Backup)
 // ============================================================================
+// 매일 KST 23:55 (UTC 14:55)에 구독자 수 스냅샷 기록
+// → 하루가 끝나기 직전의 구독자 수를 기록하여 일별 추이 분석에 사용
+// [연계] services/subscriber_snapshot.js → takeSnapshot()
+// [연계] routes/push.js → /api/subscriber-history API에서 조회
+// [연계] js/admin.js → 구독 현황 탭의 추이 차트/증감 카드에서 활용
+const subscriberSnapshot = require('./services/subscriber_snapshot');
+cron.schedule('55 14 * * *', () => {
+    console.log('⏰ [Daily Schedule] 구독자 스냅샷 기록을 시작합니다.');
+    subscriberSnapshot.takeSnapshot();
+});
+// 서버 시작 시에도 오늘 스냅샷이 없으면 즉시 기록 (서버 재시작 시 누락 방지)
+subscriberSnapshot.takeSnapshot();
+
 // 매일 KST 00:05 (UTC 15:05)에 클라우드 백업 자동 실행
 cron.schedule('5 15 * * *', () => {
     console.log('⏰ [Daily Schedule] 클라우드 백업 작업을 시작합니다.');

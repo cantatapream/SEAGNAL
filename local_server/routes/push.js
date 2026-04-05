@@ -32,7 +32,7 @@ const fs = require('fs');
 const path = require('path');
 const webpush = require('web-push');
 const admin = require('firebase-admin');
-const { DATA_DIR } = require('../config/server_config');
+const { DATA_DIR, FILES } = require('../config/server_config');
 const { expandToMinorZones, getMatchedZones, generateMessage } = require('../services/push_helpers');
 
 const SUBS_FILE = path.join(DATA_DIR, 'subscriptions.json');
@@ -504,6 +504,38 @@ router.get('/api/push-subscriber-stats', (req, res) => {
     } catch (e) {
         console.error('구독자 통계 조회 실패:', e);
         res.status(500).json({ error: '통계 조회 실패' });
+    }
+});
+
+// ============================================================================
+// 구독자 일별 스냅샷 이력 조회 API
+// ============================================================================
+
+/**
+ * 구독자 증감 추이를 분석하기 위한 일별 스냅샷 데이터를 반환합니다.
+ *
+ * [응답 형태]
+ * {
+ *   "2026-04-05": { "total": 690, "fcm": 690, "web": 0 },
+ *   "2026-04-04": { "total": 678, "fcm": 678, "web": 0 },
+ *   ...
+ * }
+ *
+ * [연계]
+ * - services/subscriber_snapshot.js → takeSnapshot()이 이 데이터를 매일 기록
+ * - js/admin.js → renderSubscriberTab()에서 이 API를 호출하여 추이 차트/증감 카드 표시
+ */
+router.get('/api/subscriber-history', (req, res) => {
+    try {
+        if (fs.existsSync(FILES.SUBSCRIBER_STATS)) {
+            const stats = JSON.parse(fs.readFileSync(FILES.SUBSCRIBER_STATS, 'utf8'));
+            res.json(stats);
+        } else {
+            res.json({});
+        }
+    } catch (e) {
+        console.error('구독자 이력 조회 실패:', e);
+        res.status(500).json({ error: '이력 조회 실패' });
     }
 });
 
