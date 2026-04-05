@@ -1581,13 +1581,16 @@ function renderRegionalMarineForecastTable(container, zoneData, zoneName, midTer
     });
     html += `</tr>`;
 
-    // 날씨 행
+    // 날씨 행 (API wfCd가 있으면 SEA_WEATHER_CODES 아이콘 사용, 없으면 텍스트 기반 이모지)
     html += `<tr><th style="${tdStyle};${labelStyle}">날씨</th>`;
     sortedDateKeys.forEach(dateKey => {
         const group = dateGroups[dateKey];
         ['am', 'pm'].forEach(period => {
             const p = group[period];
-            if (p && p.weather && p.weather !== '-') {
+            if (p && p.wfCd && SEA_WEATHER_CODES[p.wfCd]) {
+                const icon = SEA_WEATHER_CODES[p.wfCd];
+                html += `<td style="${tdStyle}" title="${p.weather || p.wf || ''}"><span style="font-size:1.3rem">${icon}</span></td>`;
+            } else if (p && p.weather && p.weather !== '-') {
                 const emoji = weatherToEmoji(p.weather);
                 html += `<td style="${tdStyle}" title="${p.weather}"><span style="font-size:1.3rem">${emoji}</span></td>`;
             } else {
@@ -1602,13 +1605,15 @@ function renderRegionalMarineForecastTable(container, zoneData, zoneName, midTer
     });
     html += `</tr>`;
 
-    // 파고 행
+    // 파고 행 (API wh1/wh2 필드 우선, 없으면 waveHeight 문자열 사용)
     html += `<tr><th style="${tdStyle};${labelStyle}">파고<small style="display:block;font-size:0.7rem;color:#8899aa">(m)</small></th>`;
     sortedDateKeys.forEach(dateKey => {
         const group = dateGroups[dateKey];
         ['am', 'pm'].forEach(period => {
             const p = group[period];
-            if (p && p.waveHeight && p.waveHeight !== '-') {
+            if (p && p.wh1 !== undefined && p.wh1 !== null) {
+                html += `<td style="${tdStyle};color:#4db6ac;font-weight:600;font-size:0.78rem;padding:8px 2px;">${p.wh1}~${p.wh2}m</td>`;
+            } else if (p && p.waveHeight && p.waveHeight !== '-') {
                 html += `<td style="${tdStyle};color:#4db6ac;font-weight:600;font-size:0.78rem;padding:8px 2px;">${p.waveHeight}m</td>`;
             } else {
                 html += `<td style="${tdStyle};color:#8899aa;font-size:0.7rem;">-</td>`;
@@ -1622,13 +1627,15 @@ function renderRegionalMarineForecastTable(container, zoneData, zoneName, midTer
     });
     html += `</tr>`;
 
-    // 풍속 행
+    // 풍속 행 (API ws1/ws2 필드 우선, 없으면 wind 문자열에서 추출)
     html += `<tr><th style="${tdStyle};${labelStyle}">풍속<small style="display:block;font-size:0.7rem;color:#8899aa">(m/s)</small></th>`;
     sortedDateKeys.forEach(dateKey => {
         const group = dateGroups[dateKey];
         ['am', 'pm'].forEach(period => {
             const p = group[period];
-            if (p && p.wind && p.wind !== '-') {
+            if (p && p.ws1 !== undefined && p.ws1 !== null) {
+                html += `<td style="${tdStyle};color:#ff9800;font-weight:600;font-size:0.78rem;padding:8px 2px;">${p.ws1}~${p.ws2}m/s</td>`;
+            } else if (p && p.wind && p.wind !== '-') {
                 const parts = p.wind.split('/').map(s => s.trim());
                 const speed = parts[1] || '-';
                 html += `<td style="${tdStyle};color:#ff9800;font-weight:600;font-size:0.78rem;padding:8px 2px;">${speed}m/s</td>`;
@@ -1642,16 +1649,19 @@ function renderRegionalMarineForecastTable(container, zoneData, zoneName, midTer
     }
     html += `</tr>`;
 
-    // 풍향 행
+    // 풍향 행 (API wd1/wd2 필드 우선, 없으면 wind 문자열에서 추출)
     html += `<tr><th style="${tdStyle};${labelStyle}">풍향</th>`;
     sortedDateKeys.forEach(dateKey => {
         const group = dateGroups[dateKey];
         ['am', 'pm'].forEach(period => {
             const p = group[period];
-            if (p && p.wind && p.wind !== '-') {
+            if (p && p.wd1) {
+                const wd1 = (typeof SEA_WIND_DIRS !== 'undefined' && SEA_WIND_DIRS[p.wd1]) || p.wd1;
+                const wd2 = (typeof SEA_WIND_DIRS !== 'undefined' && SEA_WIND_DIRS[p.wd2]) || p.wd2;
+                html += `<td style="${tdStyle};white-space:normal;line-height:1.3;">${wd1}<br>→${wd2}</td>`;
+            } else if (p && p.wind && p.wind !== '-') {
                 const parts = p.wind.split('/').map(s => s.trim());
                 const dir = parts[0] || '-';
-                // "북동~동" → "북동→동"
                 const dirFormatted = dir.replace(/~/g, '\n→');
                 const dirHtml = dirFormatted.replace(/\n/g, '<br>');
                 html += `<td style="${tdStyle};white-space:normal;line-height:1.3;">${dirHtml}</td>`;

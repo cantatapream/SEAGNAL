@@ -510,9 +510,9 @@ function renderRegionalForecast(data) {
 
         html += `<div class="regional-forecast-office">`;
         html += `<div class="regional-forecast-office-header">`;
-        html += `<span class="regional-forecast-office-name">${escapeHtml(item.officeName)} 단기예보</span>`;
+        html += `<span class="regional-forecast-office-name">단기예보(1일~5일)</span>`;
         if (publishLabel) {
-            html += `<span class="regional-forecast-publish-time">(${escapeHtml(publishLabel)} 발표)</span>`;
+            html += `<span class="regional-forecast-publish-time">${escapeHtml(publishLabel)} 발표 (${escapeHtml(item.officeName)})</span>`;
         }
         html += `</div>`;
 
