@@ -165,7 +165,7 @@ router.post('/api/force-update/:type', async (req, res) => {
 
 // 2-1-c. 지방청 수집 디버그 로그 조회
 router.get('/api/regional-debug', (req, res) => {
-    const debugDir = require('path').join(__dirname, '..', 'data', 'debug_pdf');
+    const debugDir = require('path').join(__dirname, '..', 'data', 'debug_api');
     const fs = require('fs');
     const result = { debugDir, exists: fs.existsSync(debugDir), files: [], contents: {} };
     try {
