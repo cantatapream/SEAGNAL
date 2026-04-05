@@ -330,6 +330,65 @@ router.post('/api/surveys/:id/respond', (req, res) => {
     }
 });
 
+// ============================================================================
+// 백업 복구 API (관리자용)
+// ============================================================================
+
+// 복구 가능한 백업 날짜 목록 조회
+router.get('/api/surveys/backup/dates', async (req, res) => {
+    try {
+        const restore = require('../cloud_restore');
+        const dates = await restore.listBackupDates();
+        res.json({ success: true, dates });
+    } catch (e) {
+        console.error('백업 목록 조회 실패:', e);
+        res.status(500).json({ error: '백업 목록 조회 실패: ' + e.message });
+    }
+});
+
+// 특정 날짜 백업의 설문 파일 미리보기
+router.get('/api/surveys/backup/preview/:date', async (req, res) => {
+    try {
+        const restore = require('../cloud_restore');
+        const dateFolder = `backup_${req.params.date}`;
+        const result = await restore.restoreSurveyData(dateFolder, true);
+        res.json(result);
+    } catch (e) {
+        console.error('백업 미리보기 실패:', e);
+        res.status(500).json({ error: '미리보기 실패: ' + e.message });
+    }
+});
+
+// 설문 데이터가 있는 최신 백업 자동 탐색
+router.get('/api/surveys/backup/latest', async (req, res) => {
+    try {
+        const restore = require('../cloud_restore');
+        const latest = await restore.findLatestSurveyBackup();
+        if (!latest) {
+            return res.json({ success: false, message: '설문 데이터가 있는 백업을 찾을 수 없습니다.' });
+        }
+        res.json({ success: true, ...latest });
+    } catch (e) {
+        console.error('최신 백업 탐색 실패:', e);
+        res.status(500).json({ error: '탐색 실패: ' + e.message });
+    }
+});
+
+// 백업에서 설문 데이터 복구 실행
+router.post('/api/surveys/backup/restore/:date', async (req, res) => {
+    try {
+        const restore = require('../cloud_restore');
+        const dateFolder = `backup_${req.params.date}`;
+        console.log(`🔄 [Restore] ${dateFolder}에서 설문 데이터 복구 시작...`);
+        const result = await restore.restoreSurveyData(dateFolder, false);
+        console.log(`✅ [Restore] 복구 완료: ${result.message}`);
+        res.json(result);
+    } catch (e) {
+        console.error('복구 실행 실패:', e);
+        res.status(500).json({ error: '복구 실패: ' + e.message });
+    }
+});
+
 // CSV 다운로드
 router.get('/api/surveys/:id/csv', (req, res) => {
     try {
