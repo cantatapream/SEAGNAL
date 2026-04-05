@@ -717,8 +717,8 @@
         }
         // 약간의 딜레이 후 제보내역 탭 전환 + 상세 이동
         setTimeout(function() {
-            if (typeof window.switchReportTab === 'function') {
-                window.switchReportTab('history');
+            if (typeof window._switchReportTab === 'function') {
+                window._switchReportTab('history');
             }
             setTimeout(function() {
                 window._showMyReportDetail(reportId);

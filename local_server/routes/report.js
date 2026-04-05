@@ -316,7 +316,7 @@ router.get('/api/reports/pending-answer', (req, res) => {
     const pendingAdditional = reports.find(r =>
         r.deviceId === deviceId &&
         r.additionalAnswer &&
-        r.additionalAnswerRead === false
+        !r.additionalAnswerRead
     );
 
     if (pendingAdditional) {
