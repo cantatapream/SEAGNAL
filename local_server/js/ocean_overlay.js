@@ -211,6 +211,8 @@
         var bl = ol.proj.toLonLat([extent[0], extent[1]]);
         var tr = ol.proj.toLonLat([extent[2], extent[3]]);
 
+        console.log('[OceanOverlay] 그리드 데이터 로드 시작:', bl, tr);
+
         // ROMS 그리드 데이터 로드
         fetch('/api/ocean/roms-grid?ymin=' + bl[1].toFixed(2) +
             '&ymax=' + tr[1].toFixed(2) +
@@ -218,10 +220,15 @@
             '&xmax=' + tr[0].toFixed(2))
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (data.success && data.items) {
+                console.log('[OceanOverlay] ROMS 응답:', data.success, '항목:', data.items ? data.items.length : 0);
+                if (data.success && data.items && data.items.length > 0) {
                     gridData = data.items;
                     renderGridToOffscreen();
                     startParticleAnimation();
+                } else {
+                    console.warn('[OceanOverlay] ROMS 데이터 없음, 범례만 표시');
+                    // 데이터 없어도 범례는 표시
+                    updateLegend(activeLayer);
                 }
             })
             .catch(function (e) {

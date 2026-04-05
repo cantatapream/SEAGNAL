@@ -1081,6 +1081,20 @@ window.switchSubTab = function (targetId) {
  * - promo-section → promo.js loadPromoPosts()
  */
 function _onSectionActivated(sectionId) {
+    // 해양종합정보 진입/퇴장 시 헤더·탭바 숨김/표시
+    var mainHeader = document.querySelector('.main-header');
+    var mainTabs = document.querySelector('.main-tabs');
+    var subTabs = document.querySelectorAll('.sub-tabs');
+    if (sectionId === 'ocean-map-section') {
+        if (mainHeader) mainHeader.style.display = 'none';
+        if (mainTabs) mainTabs.style.display = 'none';
+        subTabs.forEach(function (el) { el.style.display = 'none'; });
+    } else {
+        if (mainHeader) mainHeader.style.display = '';
+        if (mainTabs) mainTabs.style.display = '';
+        subTabs.forEach(function (el) { el.style.display = ''; });
+    }
+
     // 해양종합정보에서 벗어날 때 오버레이 애니메이션 정리 (RAF 누수 방지)
     if (sectionId !== 'ocean-map-section' && window.oceanOverlayClear) {
         window.oceanOverlayClear();

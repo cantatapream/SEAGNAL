@@ -26,10 +26,8 @@
     // ========================================================================
     let oceanMap = null;           // OpenLayers Map 인스턴스
     let currentMode = 'A';        // 현재 모드: 'A' 조석지도, 'B' 해양현황
-    let baseLayerA = null;         // 모드 A 베이스맵 (BASEMAP_RLTM3857)
-    let baseLayerB = null;         // 모드 B 베이스맵 (BASEMAP_RLTMCOAST3857)
-    let osmFallbackLayer = null;   // OSM 폴백 레이어
-    let khoaMapKey = '';           // 해아름 API 키
+    let baseLayerA = null;         // 모드 A 베이스맵 (CartoDB Voyager)
+    let baseLayerB = null;         // 모드 B 베이스맵 (CartoDB Dark Matter)
 
     // 한반도 남부 + 제주 → 최소 줌 레벨 6
     const DEFAULT_CENTER = [127.0, 34.5];
@@ -42,28 +40,45 @@
     // ========================================================================
 
     /**
-     * KHOA 해아름 타일 레이어를 생성합니다.
-     * 해아름 API는 브라우저에서 스크립트 태그로 호출해야 하므로
-     * XYZ 타일 소스를 직접 구성합니다.
+     * KHOA 해아름 베이스맵 레이어를 생성합니다.
      *
-     * @param {string} mapType - 'BASEMAP_RLTM3857' 또는 'BASEMAP_RLTMCOAST3857'
-     * @returns {ol.layer.Tile|null}
+     * 해아름 API는 도메인 인증 기반 브라우저 전용이므로
+     * 직접 XYZ 타일 호출이 불가합니다.
+     * 대신 모드별로 적합한 공개 타일 소스를 사용합니다:
+     * - 모드 A (조석지도): CartoDB Voyager (깔끔한 해안선, 한글 지명)
+     * - 모드 B (해양현황): CartoDB Dark Matter (어두운 배경, 오버레이 가시성)
+     *
+     * @param {string} mapType - 'A' 또는 'B'
+     * @returns {ol.layer.Tile}
      */
-    function createKhoaLayer(mapType) {
-        if (!khoaMapKey) return null;
-
+    function createBaseLayer(mapType) {
         try {
-            return new ol.layer.Tile({
-                source: new ol.source.XYZ({
-                    url: `https://map.ngii.go.kr/openapi/Gettile/${mapType}/{z}/{x}/{y}.png?apikey=${khoaMapKey}`,
-                    crossOrigin: 'anonymous',
-                    maxZoom: 18
-                }),
-                visible: true
-            });
+            if (mapType === 'B') {
+                // 모드 B: 다크 베이스맵 (오버레이 색상이 잘 보이도록)
+                return new ol.layer.Tile({
+                    source: new ol.source.XYZ({
+                        url: 'https://{a-d}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+                        crossOrigin: 'anonymous',
+                        maxZoom: 18,
+                        attributions: '&copy; <a href="https://carto.com/">CARTO</a>'
+                    }),
+                    visible: true
+                });
+            } else {
+                // 모드 A: 라이트 베이스맵 (조석 마커가 잘 보이도록)
+                return new ol.layer.Tile({
+                    source: new ol.source.XYZ({
+                        url: 'https://{a-d}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+                        crossOrigin: 'anonymous',
+                        maxZoom: 18,
+                        attributions: '&copy; <a href="https://carto.com/">CARTO</a>'
+                    }),
+                    visible: true
+                });
+            }
         } catch (e) {
-            console.warn('[OceanMap] 해아름 레이어 생성 실패:', e.message);
-            return null;
+            console.warn('[OceanMap] 베이스 레이어 생성 실패:', e.message);
+            return createOsmLayer();
         }
     }
 
@@ -92,22 +107,12 @@
         }
 
         try {
-            // API 키 로드
-            loadKhoaMapKey();
+            // 베이스 레이어 생성 (모드별 타일)
+            baseLayerA = createBaseLayer('A');
+            baseLayerB = createBaseLayer('B');
+            baseLayerB.setVisible(false);
 
-            // 베이스 레이어 생성
-            baseLayerA = createKhoaLayer('BASEMAP_RLTM3857');
-            baseLayerB = createKhoaLayer('BASEMAP_RLTMCOAST3857');
-            osmFallbackLayer = createOsmLayer();
-
-            // 해아름 레이어가 없으면 OSM 폴백
-            const initialLayer = baseLayerA || osmFallbackLayer;
-            if (baseLayerB) baseLayerB.setVisible(false);
-
-            const layers = [initialLayer];
-            if (baseLayerA && baseLayerB) layers.push(baseLayerB);
-            if (baseLayerA) layers.push(osmFallbackLayer);
-            if (baseLayerA) osmFallbackLayer.setVisible(false);
+            const layers = [baseLayerA, baseLayerB];
 
             // 지도 생성
             oceanMap = new ol.Map({
@@ -166,49 +171,7 @@
         }
     };
 
-    // ========================================================================
-    // API 키 로드
-    // ========================================================================
-
-    function loadKhoaMapKey() {
-        try {
-            // 해양종합정보 전용 설정 엔드포인트에서 KHOA 맵 키 조회
-            // (기존 /api/config는 KMA_HUB_KEY만 반환하므로 별도 엔드포인트 사용)
-            fetch('/api/ocean/config')
-                .then(r => r.json())
-                .then(config => {
-                    if (config.KHOA_MAP_KEY) {
-                        khoaMapKey = config.KHOA_MAP_KEY;
-                        // 키를 받은 후 해아름 레이어 재생성
-                        refreshBaseLayers();
-                    }
-                })
-                .catch(() => { });
-        } catch (e) { }
-    }
-
-    function refreshBaseLayers() {
-        if (!oceanMap || !khoaMapKey) return;
-
-        const newLayerA = createKhoaLayer('BASEMAP_RLTM3857');
-        const newLayerB = createKhoaLayer('BASEMAP_RLTMCOAST3857');
-
-        if (newLayerA) {
-            if (baseLayerA) oceanMap.removeLayer(baseLayerA);
-            baseLayerA = newLayerA;
-            baseLayerA.setVisible(currentMode === 'A');
-            oceanMap.getLayers().insertAt(0, baseLayerA);
-        }
-        if (newLayerB) {
-            if (baseLayerB) oceanMap.removeLayer(baseLayerB);
-            baseLayerB = newLayerB;
-            baseLayerB.setVisible(currentMode === 'B');
-            oceanMap.getLayers().insertAt(1, baseLayerB);
-        }
-        if (newLayerA || newLayerB) {
-            osmFallbackLayer.setVisible(false);
-        }
-    }
+    // (베이스 레이어는 공개 타일 사용으로 별도 API 키 불필요)
 
     // ========================================================================
     // 모드 전환
@@ -250,7 +213,6 @@
             // 베이스맵 전환
             if (baseLayerA) baseLayerA.setVisible(true);
             if (baseLayerB) baseLayerB.setVisible(false);
-            if (!baseLayerA) osmFallbackLayer.setVisible(true);
 
             // 마커 표시
             if (window.showOceanMarkers) window.showOceanMarkers(true);
@@ -273,7 +235,6 @@
             // 베이스맵 전환
             if (baseLayerA) baseLayerA.setVisible(false);
             if (baseLayerB) baseLayerB.setVisible(true);
-            if (!baseLayerB) osmFallbackLayer.setVisible(true);
 
             // 마커 숨김
             if (window.showOceanMarkers) window.showOceanMarkers(false);
