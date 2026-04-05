@@ -84,6 +84,10 @@ function addCctvMarkers() {
                 cnt:          item.cnt          || '1',
                 sensorName:   item.sensorName   || null,
                 cameraCount:  item.cameraCount  || 1,
+                // obsName: 해무 CCTV(seafog) 전용 — 공공API 관측소명과 정확히 일치해야 함
+                // 팝업에서 /api/seafog-cctv?obs={obsName} 쿼리에 사용됩니다.
+                // seafog 이외 프로바이더는 null로 설정됩니다.
+                obsName:   item.obsName         || null,
                 shareUrl:  provider.type === 'iframe' ? provider.shareUrl(item.cctvId, item) : null,
                 streamUrl: provider.type === 'hls'    ? provider.streamUrl(item.cctvId) : null
             });

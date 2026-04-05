@@ -52,8 +52,31 @@
  */
 let _currentCctvData = null;
 
-/** 연안침식 이미지 자동 갱신 타이머 ID */
+/** 연안침식(coastal) 이미지 자동 갱신 타이머 ID */
 let _cctvImageRefreshTimer = null;
+
+/**
+ * 해무 CCTV(seafog) 슬라이드 자동 전환 타이머 ID
+ *
+ * [역할]
+ *   팝업이 열리면 2초마다 다음 스틸컷으로 이미지를 전환합니다.
+ *   팝업이 닫히거나 정지 버튼을 누르면 clearInterval로 중단합니다.
+ *   _stopSeafogSlider()에서 null로 초기화합니다.
+ */
+let _seafogSliderTimer = null;
+
+/**
+ * 해무 CCTV 현재 슬라이드 인덱스 (0 = 가장 오래된 이미지)
+ * 네비게이션 버튼(◀/▶)과 자동 전환 타이머가 공유하는 상태값입니다.
+ */
+let _seafogSlideIndex = 0;
+
+/**
+ * 해무 CCTV 슬라이드에 표시할 이미지 배열
+ * 서버에서 받아온 { imgDt, uri } 객체 배열이며, imgDt 오름차순으로 정렬됩니다.
+ * (오래된 이미지부터 최신 이미지 순)
+ */
+let _seafogSlides = [];
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 클릭 이벤트 핸들러
@@ -120,6 +143,8 @@ function handleCctvMapClick(event) {
             cnt:          innerFeature.get('cnt')         || '1',
             sensorName:   innerFeature.get('sensorName')  || null,
             cameraCount:  innerFeature.get('cameraCount') || 1,
+            // obsName: 해무 CCTV 전용 — 서버 API 쿼리에 사용 (/api/seafog-cctv?obs=...)
+            obsName:      innerFeature.get('obsName')     || null,
             lng:          coords[0],
             lat:          coords[1]
         });
@@ -200,9 +225,70 @@ function showCctvPopup(data) {
         : '';
 
     // ── 영상 영역 HTML ────────────────────────────────────────────────
-    // streamUrl → HLS video | ongjin → 안내+버튼 | image → img 태그 | 나머지 → iframe
+    // seafog → 스틸컷 슬라이더 | streamUrl → HLS video | ongjin → 안내+버튼
+    // image → img 태그 | 나머지 → iframe
     let mediaHtml;
-    if (provider && provider.type === 'image') {
+    if (provider && provider.type === 'seafog') {
+        // ── 해무 CCTV 스틸컷 슬라이더 ──────────────────────────────────
+        // 처음에는 로딩 상태로 렌더링하고, _initSeafogSlider()가 비동기로
+        // 서버 API를 호출한 뒤 이 영역을 실제 이미지로 교체합니다.
+        //
+        // [팝업 구조]
+        //   ┌──────────────────────────────────────────────────┐
+        //   │  [이미지 영역] — 클릭 시 전체화면                 │
+        //   ├──────────────────────────────────────────────────┤
+        //   │  ◀  ⏸  ▶  │  04월 05일 09:30 기준               │
+        //   ├──────────────────────────────────────────────────┤
+        //   │  📷 해무 CCTV 스틸컷으로 제공됩니다              │
+        //   └──────────────────────────────────────────────────┘
+        mediaHtml = `
+            <div class="cctv-seafog-wrap" id="cctv-seafog-wrap">
+                <!-- 이미지 영역: 로딩 → 실제 이미지로 교체됨 -->
+                <div class="cctv-seafog-img-area" id="cctv-seafog-img-area">
+                    <div class="cctv-seafog-loading">
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        <span>이미지 불러오는 중...</span>
+                    </div>
+                </div>
+
+                <!-- 네비게이션 바: ◀ ⏸ ▶ | 기준 시각 -->
+                <div class="cctv-seafog-nav" id="cctv-seafog-nav">
+                    <div class="cctv-seafog-nav-controls">
+                        <!-- 이전 이미지 버튼 -->
+                        <button class="cctv-seafog-nav-btn"
+                                id="cctv-seafog-prev"
+                                onclick="seafogPrev()"
+                                title="이전 이미지">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <!-- 재생/정지 토글 버튼 -->
+                        <button class="cctv-seafog-nav-btn cctv-seafog-playpause"
+                                id="cctv-seafog-playpause"
+                                onclick="seafogTogglePlay()"
+                                title="정지">
+                            <i class="fa-solid fa-pause" id="cctv-seafog-playpause-icon"></i>
+                        </button>
+                        <!-- 다음 이미지 버튼 -->
+                        <button class="cctv-seafog-nav-btn"
+                                id="cctv-seafog-next"
+                                onclick="seafogNext()"
+                                title="다음 이미지">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+                    <!-- 기준 시각: "04월 05일 09:30 기준" -->
+                    <div class="cctv-seafog-timestamp" id="cctv-seafog-timestamp">
+                        —
+                    </div>
+                </div>
+
+                <!-- 스틸컷 안내 문구 -->
+                <div class="cctv-seafog-notice">
+                    <i class="fa-solid fa-camera"></i>
+                    해무 CCTV 스틸컷으로 제공됩니다
+                </div>
+            </div>`;
+    } else if (provider && provider.type === 'image') {
         // 연안침식 모니터링: 이미지 직접 표시 (3초마다 src 갱신)
         const camCount = parseInt(data.cameraCount, 10) || 1;
         let imgsHtml = '';
@@ -357,6 +443,11 @@ function showCctvPopup(data) {
         _startCoastImageRefresh(provider, data);
     }
 
+    // 해무 CCTV인 경우 서버 API 호출 후 슬라이더 초기화
+    if (provider && provider.type === 'seafog') {
+        _initSeafogSlider(data);
+    }
+
     // PopupStack 등록: 뒤로가기 버튼으로 모달 닫기 지원
     if (window.PopupStack) {
         PopupStack.push('cctv-popup', closeCctvPopup);
@@ -438,6 +529,235 @@ function _stopCoastImageRefresh() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 해무 CCTV 스틸컷 슬라이더
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/**
+ * 해무 CCTV 팝업 슬라이더를 초기화합니다.
+ *
+ * [동작 순서]
+ * 1. 서버 /api/seafog-cctv?obs={obsName} 호출
+ * 2. 응답받은 이미지 배열을 _seafogSlides에 저장
+ * 3. 첫 번째 이미지(가장 오래된 것)부터 표시
+ * 4. 2초마다 다음 이미지로 자동 전환 타이머 시작
+ *
+ * [전체화면]
+ * 이미지 클릭 시 requestFullscreen() API로 전체화면 진입합니다.
+ * 전체화면은 브라우저 기본 기능이므로 별도 오버레이 없이 동작합니다.
+ *
+ * @param {Object} data — showCctvPopup()에서 전달된 CCTV 데이터
+ *                        data.obsName: 서버 API 쿼리에 사용할 관측소명
+ */
+async function _initSeafogSlider(data) {
+    const imgArea  = document.getElementById('cctv-seafog-img-area');
+    const tsEl     = document.getElementById('cctv-seafog-timestamp');
+    if (!imgArea) return;
+
+    // 기존 슬라이더 타이머 정지 (다른 마커를 연속 클릭하는 경우 대비)
+    _stopSeafogSlider();
+    _seafogSlides     = [];
+    _seafogSlideIndex = 0;
+
+    try {
+        // ── 서버 API 호출 ────────────────────────────────────────────
+        const obsEncoded = encodeURIComponent(data.obsName || '');
+        const res  = await fetch('/api/seafog-cctv?obs=' + obsEncoded);
+        const json = await res.json();
+
+        if (!json.ok || !json.stations) {
+            throw new Error(json.message || '데이터 없음');
+        }
+
+        // 해당 관측소의 이미지 배열 (imgDt 오름차순, 서버에서 이미 정렬됨)
+        const slides = json.stations[data.obsName] || [];
+        if (slides.length === 0) {
+            throw new Error('이미지 데이터 없음');
+        }
+
+        // 전역에 저장 (네비게이션 버튼 핸들러가 참조)
+        _seafogSlides = slides;
+
+        // ── 첫 번째 이미지 표시 ──────────────────────────────────────
+        _renderSeafogSlide(imgArea, tsEl, 0);
+
+        // ── 2초마다 자동 전환 타이머 시작 ───────────────────────────
+        _seafogSliderTimer = setInterval(function () {
+            _seafogSlideIndex = (_seafogSlideIndex + 1) % _seafogSlides.length;
+            _renderSeafogSlide(imgArea, tsEl, _seafogSlideIndex);
+        }, 2000);
+
+    } catch (err) {
+        // 오류 발생 시 에러 메시지 표시
+        imgArea.innerHTML = `
+            <div class="cctv-seafog-error">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>이미지를 불러올 수 없습니다</span>
+                <small>${err.message}</small>
+            </div>`;
+        if (tsEl) tsEl.textContent = '—';
+    }
+}
+
+/**
+ * 특정 인덱스의 스틸컷을 이미지 영역에 표시합니다.
+ *
+ * [imgDt 포맷 변환]
+ *   API 응답: "2026-04-05 09:30"
+ *   표시 형식: "04월 05일 09:30 기준"
+ *
+ * [전체화면]
+ *   이미지를 클릭하면 해당 <img> 엘리먼트가 전체화면으로 전환됩니다.
+ *   - PC 브라우저: 전체화면 API (requestFullscreen)
+ *   - 모바일 Safari: webkitRequestFullscreen (자동 대응)
+ *
+ * @param {HTMLElement} imgArea — 이미지를 교체할 DOM 컨테이너
+ * @param {HTMLElement} tsEl    — 타임스탬프를 표시할 DOM 엘리먼트
+ * @param {number}      idx     — _seafogSlides 배열에서의 인덱스
+ */
+function _renderSeafogSlide(imgArea, tsEl, idx) {
+    const slide = _seafogSlides[idx];
+    if (!slide) return;
+
+    // imgDt: "2026-04-05 09:30" → "04월 05일 09:30 기준"
+    let tsText = slide.imgDt;
+    try {
+        // "2026-04-05 09:30" → date 파싱
+        const parts = slide.imgDt.split(' ');       // ["2026-04-05", "09:30"]
+        const dateParts = parts[0].split('-');       // ["2026", "04", "05"]
+        const mm   = dateParts[1];                  // "04"
+        const dd   = dateParts[2];                  // "05"
+        const time = parts[1];                      // "09:30"
+        tsText = `${mm}월 ${dd}일 ${time} 기준`;   // "04월 05일 09:30 기준"
+    } catch (e) { /* 파싱 실패 시 원본 문자열 사용 */ }
+
+    // 타임스탬프 갱신
+    if (tsEl) tsEl.textContent = tsText;
+
+    // 이미지 교체 (onerror: 로드 실패 시 에러 UI 표시)
+    imgArea.innerHTML = `
+        <img class="cctv-seafog-img"
+             src="${slide.uri}"
+             alt="해무 CCTV ${slide.imgDt}"
+             title="클릭하여 전체화면으로 보기"
+             onclick="seafogFullscreen(this)"
+             onerror="this.parentElement.innerHTML='<div class=cctv-seafog-error><i class=\\"fa-solid fa-triangle-exclamation\\"></i><span>이미지를 불러올 수 없습니다</span></div>'">`;
+}
+
+/**
+ * 해무 CCTV 자동 전환 타이머를 정지합니다.
+ * 팝업 닫기, 새 팝업 열기, 정지 버튼 클릭 시 호출됩니다.
+ */
+function _stopSeafogSlider() {
+    if (_seafogSliderTimer) {
+        clearInterval(_seafogSliderTimer);
+        _seafogSliderTimer = null;
+    }
+}
+
+/**
+ * 이전 이미지로 이동합니다. (◀ 버튼)
+ * 클릭 시 자동 전환 타이머를 리셋하여 클릭 후 2초부터 다시 카운트합니다.
+ */
+function seafogPrev() {
+    if (_seafogSlides.length === 0) return;
+    _seafogSlideIndex = (_seafogSlideIndex - 1 + _seafogSlides.length) % _seafogSlides.length;
+    const imgArea = document.getElementById('cctv-seafog-img-area');
+    const tsEl    = document.getElementById('cctv-seafog-timestamp');
+    _renderSeafogSlide(imgArea, tsEl, _seafogSlideIndex);
+
+    // 자동 재생 중이면 타이머 리셋 (클릭 후 2초부터 다시 카운트)
+    if (_seafogSliderTimer) {
+        _stopSeafogSlider();
+        _seafogSliderTimer = setInterval(function () {
+            _seafogSlideIndex = (_seafogSlideIndex + 1) % _seafogSlides.length;
+            const ia  = document.getElementById('cctv-seafog-img-area');
+            const ts  = document.getElementById('cctv-seafog-timestamp');
+            _renderSeafogSlide(ia, ts, _seafogSlideIndex);
+        }, 2000);
+    }
+}
+
+/**
+ * 다음 이미지로 이동합니다. (▶ 버튼)
+ * 클릭 시 자동 전환 타이머를 리셋하여 클릭 후 2초부터 다시 카운트합니다.
+ */
+function seafogNext() {
+    if (_seafogSlides.length === 0) return;
+    _seafogSlideIndex = (_seafogSlideIndex + 1) % _seafogSlides.length;
+    const imgArea = document.getElementById('cctv-seafog-img-area');
+    const tsEl    = document.getElementById('cctv-seafog-timestamp');
+    _renderSeafogSlide(imgArea, tsEl, _seafogSlideIndex);
+
+    // 자동 재생 중이면 타이머 리셋
+    if (_seafogSliderTimer) {
+        _stopSeafogSlider();
+        _seafogSliderTimer = setInterval(function () {
+            _seafogSlideIndex = (_seafogSlideIndex + 1) % _seafogSlides.length;
+            const ia  = document.getElementById('cctv-seafog-img-area');
+            const ts  = document.getElementById('cctv-seafog-timestamp');
+            _renderSeafogSlide(ia, ts, _seafogSlideIndex);
+        }, 2000);
+    }
+}
+
+/**
+ * 재생/정지를 토글합니다. (⏸/▶ 버튼)
+ *
+ * [재생 중 → 정지]
+ *   - 타이머 중단
+ *   - 버튼 아이콘: fa-pause → fa-play
+ *
+ * [정지 중 → 재생]
+ *   - 2초 타이머 재시작
+ *   - 버튼 아이콘: fa-play → fa-pause
+ */
+function seafogTogglePlay() {
+    const iconEl = document.getElementById('cctv-seafog-playpause-icon');
+    const btnEl  = document.getElementById('cctv-seafog-playpause');
+
+    if (_seafogSliderTimer) {
+        // 재생 중 → 정지
+        _stopSeafogSlider();
+        if (iconEl) {
+            iconEl.className = 'fa-solid fa-play';
+            if (btnEl) btnEl.title = '재생';
+        }
+    } else {
+        // 정지 중 → 재생
+        _seafogSliderTimer = setInterval(function () {
+            _seafogSlideIndex = (_seafogSlideIndex + 1) % _seafogSlides.length;
+            const ia  = document.getElementById('cctv-seafog-img-area');
+            const ts  = document.getElementById('cctv-seafog-timestamp');
+            _renderSeafogSlide(ia, ts, _seafogSlideIndex);
+        }, 2000);
+        if (iconEl) {
+            iconEl.className = 'fa-solid fa-pause';
+            if (btnEl) btnEl.title = '정지';
+        }
+    }
+}
+
+/**
+ * 이미지 클릭 시 전체화면으로 전환합니다.
+ *
+ * [동작]
+ *   - 브라우저 Fullscreen API (requestFullscreen) 사용
+ *   - 모바일 Safari: webkitRequestFullscreen 자동 폴백
+ *   - 전체화면 해제: ESC 키 또는 브라우저 기본 동작
+ *
+ * @param {HTMLImageElement} imgEl — 전체화면으로 표시할 이미지 엘리먼트
+ */
+function seafogFullscreen(imgEl) {
+    if (!imgEl) return;
+    if (imgEl.requestFullscreen) {
+        imgEl.requestFullscreen();
+    } else if (imgEl.webkitRequestFullscreen) {
+        // Safari / iOS 대응
+        imgEl.webkitRequestFullscreen();
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 팝업 닫기
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -474,6 +794,9 @@ function closeCctvPopup() {
 
     // 연안침식 이미지 갱신 타이머 중단
     _stopCoastImageRefresh();
+
+    // 해무 CCTV 슬라이드 타이머 중단
+    _stopSeafogSlider();
 
     // 현재 팝업 데이터 초기화
     _currentCctvData = null;
