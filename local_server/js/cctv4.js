@@ -835,7 +835,7 @@ function toggleCctvFavorite() {
     const btn = document.getElementById('cctv-fav-toggle-btn');
     if (!btn) return;
 
-    const { cctvId, name, subtitle, providerKey, shareUrl, streamUrl, cameraCount } = _currentCctvData;
+    const { cctvId, name, subtitle, providerKey, shareUrl, streamUrl, cameraCount, obsName } = _currentCctvData;
 
     if (CctvFavorites.has(cctvId)) {
         // ─── 이미 등록됨 → 제거 ───
@@ -844,7 +844,8 @@ function toggleCctvFavorite() {
         btn.innerHTML = `<i class="fa-regular fa-star" style="color: rgba(255,255,255,0.6);"></i>`;
     } else {
         // ─── 미등록 → 추가 ───
-        const added = CctvFavorites.add({ cctvId, name, subtitle, providerKey, shareUrl, streamUrl, cameraCount });
+        // obsName: seafog(해무 CCTV) 전용 — 즐겨찾기에서 팝업 재열 시 API 쿼리에 필요
+        const added = CctvFavorites.add({ cctvId, name, subtitle, providerKey, shareUrl, streamUrl, cameraCount, obsName });
         if (added) {
             btn.title = '즐겨찾기 해제';
             btn.innerHTML = `<i class="fa-solid fa-star" style="color: #fbbf24;"></i>`;
