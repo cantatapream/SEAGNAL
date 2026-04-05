@@ -560,7 +560,7 @@ const CCTV_PROVIDERS = {
             {
                 label: '해양데이터포털',
                 org:   '국립해양조사원',
-                url:   'https://khoa.go.kr/oceangrid/khoa/koofs/main/koofs.do'
+                url:   'https://www.khoa.go.kr/oceandata/main.do'
             }
         ],
 
