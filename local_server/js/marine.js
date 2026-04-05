@@ -1117,5 +1117,13 @@ function _onSectionActivated(sectionId) {
     if (sectionId === 'promo-section') {
         if (typeof loadPromoPosts === 'function') setTimeout(loadPromoPosts, 100);
     }
+    // 해양종합정보 탭 활성화 시 지도 초기화
+    if (sectionId === 'ocean-map-section') {
+        setTimeout(() => {
+            if (window.initOceanMap) {
+                window.initOceanMap();
+            }
+        }, 200);
+    }
 }
 
