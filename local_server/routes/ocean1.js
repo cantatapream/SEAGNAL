@@ -291,15 +291,39 @@ async function _fetchKhoaStream(date, hour) {
         '&pre_hour=' + encodeURIComponent(hour);
 
     const fetchFn = global.fetch || require('node-fetch');
-    const r = await fetchFn(upstream, {
-        redirect: 'follow',
-        headers: {
-            'Referer': 'http://www.khoa.go.kr/oceanmap/main.do',
-            'User-Agent': 'Mozilla/5.0'
-        }
-    });
-    if (!r.ok) throw new Error('khoa upstream ' + r.status);
-    const json = await r.json();
+    let r;
+    try {
+        r = await fetchFn(upstream, {
+            redirect: 'follow',
+            headers: {
+                'Referer': 'http://www.khoa.go.kr/oceanmap/main.do',
+                'User-Agent': 'Mozilla/5.0'
+            }
+        });
+    } catch (netErr) {
+        // HTTP 가 막히면 HTTPS 재시도
+        const httpsUrl = upstream.replace(/^http:/, 'https:');
+        r = await fetchFn(httpsUrl, {
+            redirect: 'follow',
+            headers: {
+                'Referer': 'https://www.khoa.go.kr/oceanmap/main.do',
+                'User-Agent': 'Mozilla/5.0'
+            }
+        });
+    }
+    if (!r.ok) {
+        const body = await r.text();
+        console.error('[KHOA-Stream] upstream', r.status, 'url:', upstream, 'body:', body.slice(0, 300));
+        throw new Error('khoa upstream ' + r.status);
+    }
+    const text = await r.text();
+    let json;
+    try {
+        json = JSON.parse(text);
+    } catch (parseErr) {
+        console.error('[KHOA-Stream] JSON parse fail. body:', text.slice(0, 300));
+        throw new Error('khoa response not JSON');
+    }
 
     // data 는 2차원 배열로 들어옴 → 1차원으로 평탄화
     const flat = [];
