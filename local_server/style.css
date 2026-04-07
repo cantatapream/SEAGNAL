@@ -8750,8 +8750,8 @@ line-height: 1.1;
     font-size: clamp(1.4rem, 4.5vw, 1.7rem);
     margin-left: 6px;
 }
-.ocean-tide-current-arrow.is-up { color: #e74c5e; }
-.ocean-tide-current-arrow.is-down { color: #e74c5e; }
+.ocean-tide-current-arrow.is-up { color: #ef4444; }
+.ocean-tide-current-arrow.is-down { color: #3b82f6; }
 
 /* 4피크 리스트 */
 .ocean-tide-peaks {
