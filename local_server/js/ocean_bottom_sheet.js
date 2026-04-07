@@ -199,42 +199,67 @@
     }
 
     function fetchTide(lat, lon, stationInfo) {
-        // 조석 데이터: 기존 TideBED API 활용
-        // 표준항 코드가 있으면 더 정확한 데이터
-        var url = '/api/save_tide_input';
-        var body = {
-            lat: lat,
-            lon: lon,
-            date: formatDate(window.getOceanDate ? window.getOceanDate() : new Date())
-        };
-        if (stationInfo && stationInfo.stationCode) {
-            body.stationCode = stationInfo.stationCode;
-        }
+        // TideBED API 흐름:
+        // 1) POST /api/save_tide_input → { success, gridHash, files: { today: "tide_YYYYMMDD_hash.json" } }
+        // 2) 서버가 백그라운드에서 데이터 수집
+        // 3) GET /data/{filename} → 수집된 조석 데이터
+        var dateInt = formatDate(window.getOceanDate ? window.getOceanDate() : new Date());
+        var body = { lat: lat, lon: lon, date: dateInt };
 
-        fetch(url, {
+        fetch('/api/save_tide_input', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         })
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (data.success || data.tideData) {
-                    var tideInfo = data.tideData || data;
-                    // 고조/저조 시각 표시
-                    var text = '';
-                    if (tideInfo.analysis && tideInfo.analysis.length > 0) {
-                        // 가장 가까운 고조/저조 정보
-                        var next = tideInfo.analysis[0];
-                        text = (next.type === 'high' ? '고조' : '저조') + ' ' +
-                            (next.time || '') + ' ' + (next.level ? next.level + 'cm' : '');
-                    } else if (tideInfo.message) {
-                        text = tideInfo.message;
-                    } else {
-                        text = '조석 정보 있음';
-                    }
-                    setValue('ocean-val-tide', text);
+                if (!data.success || !data.files || !data.files.today) {
+                    setValue('ocean-val-tide', '조석 데이터 없음');
+                    return;
+                }
+                // 수집 완료 대기 후 파일 조회 (2초 후 재시도)
+                var fileName = data.files.today;
+                var retries = 0;
+                var maxRetries = 5;
+
+                function pollTideData() {
+                    fetch('/data/' + fileName)
+                        .then(function (r) { return r.json(); })
+                        .then(function (tideData) {
+                            if (tideData.tideBedStatus === 'complete' && tideData.analysis) {
+                                // 고조/저조 표시
+                                var peaks = tideData.analysis;
+                                if (peaks.length > 0) {
+                                    var text = peaks.slice(0, 2).map(function (p) {
+                                        var type = p.type === 'high' ? '만조' : '간조';
+                                        return type + ' ' + (p.time || '') + ' ' + (p.level ? p.level + 'cm' : '');
+                                    }).join(' / ');
+                                    setValue('ocean-val-tide', text);
+                                } else {
+                                    setValue('ocean-val-tide', '분석 데이터 없음');
+                                }
+                            } else if (retries < maxRetries) {
+                                retries++;
+                                setTimeout(pollTideData, 2000);
+                            } else {
+                                setValue('ocean-val-tide', '수집 중...');
+                            }
+                        })
+                        .catch(function () {
+                            if (retries < maxRetries) {
+                                retries++;
+                                setTimeout(pollTideData, 2000);
+                            } else {
+                                setValue('ocean-val-tide', '조회 실패');
+                            }
+                        });
+                }
+
+                // 캐시 히트면 즉시 조회, 아니면 2초 대기 후 폴링
+                if (data.cached >= 1) {
+                    pollTideData();
                 } else {
-                    setValue('ocean-val-tide', '데이터 없음');
+                    setTimeout(pollTideData, 2000);
                 }
             })
             .catch(function () { setValue('ocean-val-tide', '조회 실패'); });
@@ -327,11 +352,14 @@
     // 유틸리티
     // ========================================================================
 
+    /**
+     * TideBED API가 기대하는 YYYYMMDD 정수 형식으로 날짜를 변환
+     */
     function formatDate(date) {
         var y = date.getFullYear();
         var m = String(date.getMonth() + 1).padStart(2, '0');
         var d = String(date.getDate()).padStart(2, '0');
-        return y + '-' + m + '-' + d;
+        return parseInt(y + '' + m + '' + d);
     }
 
 })();
