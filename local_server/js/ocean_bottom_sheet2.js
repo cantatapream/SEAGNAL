@@ -47,7 +47,7 @@
             if (typeof getLunarDate === 'function') {
                 try {
                     var lunarStr = getLunarDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
-                    lunarEl.textContent = '(' + lunarStr + ')';
+                    lunarEl.textContent = '(음력 ' + lunarStr + ')';
                 } catch (e) {
                     lunarEl.textContent = '';
                 }

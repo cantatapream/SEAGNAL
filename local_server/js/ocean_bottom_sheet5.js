@@ -50,23 +50,12 @@
         // (4) 조석: 비동기 로딩
         if (OS.fetchTideForSheet) OS.fetchTideForSheet(lat, lon, d);
 
-        // (5) 6개 일반 카드: 오늘만 호출, 미래/과거는 숨김
-        //     (수심은 정적이므로 날짜 무관하게 호출)
-        if (OS.isToday(d)) {
-            fetchDepth(lat, lon);
-            fetchRoms(lat, lon);
-            fetchWeather(lat, lon);
-            fetchWave(lat, lon);
-        } else {
-            // 정적 수심만 시도
-            fetchDepth(lat, lon);
-            // 나머지는 즉시 숨김
-            OS.hideCard('ocean-card-temp');
-            OS.hideCard('ocean-card-current');
-            OS.hideCard('ocean-card-wind');
-            OS.hideCard('ocean-card-wave');
-            OS.hideCard('ocean-card-airtemp');
-        }
+        // (5) 6개 일반 카드: 일단 모든 날짜에서 호출 (안A)
+        //     백엔드 정상화 전까지 카드 자동 숨김도 임시 해제 — 실패 시 "데이터 없음" 텍스트 표출
+        fetchDepth(lat, lon);
+        fetchRoms(lat, lon);
+        fetchWeather(lat, lon);
+        fetchWave(lat, lon);
 
         // (6) 저질 버튼은 항상 보이고, 결과 영역만 숨김
         var seabedBtn = document.getElementById('ocean-seabed-btn');
@@ -94,10 +83,10 @@
                     OS.setCardValue('ocean-val-depth', data.depth.toFixed(1) + ' m');
                     OS.showCard('ocean-card-depth');
                 } else {
-                    OS.hideCard('ocean-card-depth');
+                    OS.setCardValue('ocean-val-depth', '데이터 없음');
                 }
             })
-            .catch(function () { OS.hideCard('ocean-card-depth'); });
+            .catch(function () { OS.setCardValue('ocean-val-depth', '데이터 없음'); });
     }
 
     function fetchRoms(lat, lon) {
@@ -105,27 +94,27 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data || !data.success) {
-                    OS.hideCard('ocean-card-temp');
-                    OS.hideCard('ocean-card-current');
+                    OS.setCardValue('ocean-val-temp', '데이터 없음');
+                    OS.setCardValue('ocean-val-current', '데이터 없음');
                     return;
                 }
                 if (data.wtem != null) {
                     OS.setCardValue('ocean-val-temp', data.wtem.toFixed(1) + '\u00B0C');
                     OS.showCard('ocean-card-temp');
                 } else {
-                    OS.hideCard('ocean-card-temp');
+                    OS.setCardValue('ocean-val-temp', '데이터 없음');
                 }
                 if (data.crsp != null && data.crdir != null) {
                     OS.setCardValue('ocean-val-current',
                         OS.windDirToText(data.crdir) + ' ' + data.crsp.toFixed(1) + ' cm/s');
                     OS.showCard('ocean-card-current');
                 } else {
-                    OS.hideCard('ocean-card-current');
+                    OS.setCardValue('ocean-val-current', '데이터 없음');
                 }
             })
             .catch(function () {
-                OS.hideCard('ocean-card-temp');
-                OS.hideCard('ocean-card-current');
+                OS.setCardValue('ocean-val-temp', '데이터 없음');
+                OS.setCardValue('ocean-val-current', '데이터 없음');
             });
     }
 
@@ -134,8 +123,8 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data || !data.success) {
-                    OS.hideCard('ocean-card-wind');
-                    OS.hideCard('ocean-card-airtemp');
+                    OS.setCardValue('ocean-val-wind', '데이터 없음');
+                    OS.setCardValue('ocean-val-airtemp', '데이터 없음');
                     return;
                 }
                 if (data.windDir != null && data.windSpeed != null) {
@@ -143,18 +132,18 @@
                         OS.windDirToText(data.windDir) + ' ' + data.windSpeed.toFixed(1) + ' m/s');
                     OS.showCard('ocean-card-wind');
                 } else {
-                    OS.hideCard('ocean-card-wind');
+                    OS.setCardValue('ocean-val-wind', '데이터 없음');
                 }
                 if (data.temperature != null) {
                     OS.setCardValue('ocean-val-airtemp', data.temperature.toFixed(1) + '\u00B0C');
                     OS.showCard('ocean-card-airtemp');
                 } else {
-                    OS.hideCard('ocean-card-airtemp');
+                    OS.setCardValue('ocean-val-airtemp', '데이터 없음');
                 }
             })
             .catch(function () {
-                OS.hideCard('ocean-card-wind');
-                OS.hideCard('ocean-card-airtemp');
+                OS.setCardValue('ocean-val-wind', '데이터 없음');
+                OS.setCardValue('ocean-val-airtemp', '데이터 없음');
             });
     }
 
@@ -166,10 +155,10 @@
                     OS.setCardValue('ocean-val-wave', data.waveHeight.toFixed(1) + ' m');
                     OS.showCard('ocean-card-wave');
                 } else {
-                    OS.hideCard('ocean-card-wave');
+                    OS.setCardValue('ocean-val-wave', '데이터 없음');
                 }
             })
-            .catch(function () { OS.hideCard('ocean-card-wave'); });
+            .catch(function () { OS.setCardValue('ocean-val-wave', '데이터 없음'); });
     }
 
     /* --------------------------------------------------------------

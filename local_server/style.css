@@ -8479,11 +8479,13 @@ line-height: 1.1;
     padding: 14px 20px 8px;
 }
 .ocean-sheet-header-row1 {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
 }
+.ocean-sheet-header-row1 > .ocean-date-nav-inline { grid-column: 2; justify-self: center; }
+.ocean-sheet-header-row1 > .ocean-sheet-controls  { grid-column: 3; justify-self: end; }
 .ocean-date-nav-inline {
     display: flex;
     align-items: center;
@@ -8512,9 +8514,9 @@ line-height: 1.1;
 }
 .ocean-sheet-solar {
     color: #fff;
-    font-size: 0.95rem;
+    font-size: clamp(1.0rem, 3.4vw, 1.15rem);
     font-weight: 600;
-    min-width: 150px;
+    min-width: 170px;
     text-align: center;
 }
 .ocean-sheet-controls {
@@ -8541,8 +8543,8 @@ line-height: 1.1;
     color: #64b4ff;
 }
 .ocean-sheet-lunar {
-    color: rgba(255,255,255,0.5);
-    font-size: 0.72rem;
+    color: rgba(255,255,255,0.6);
+    font-size: clamp(0.8rem, 2.6vw, 0.9rem);
     text-align: center;
 }
 .ocean-sheet-coord {
@@ -8679,13 +8681,18 @@ line-height: 1.1;
 /* 상세 - 헤더 (좌:고조 / 가운데:진행바 / 우:저조) */
 .ocean-tide-head {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 18px;
+    padding: 4px 4px 0;
+}
+.ocean-tide-head-labels {
+    display: flex;
     justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 14px;
+    align-items: flex-end;
 }
 .ocean-tide-head-side {
-    font-size: 0.85rem;
+    font-size: clamp(0.95rem, 3.2vw, 1.1rem);
     font-weight: 700;
     white-space: nowrap;
 }
@@ -8693,8 +8700,8 @@ line-height: 1.1;
 .ocean-tide-head-side.is-low  { color: #4a9eff; }
 
 .ocean-tide-progress-track {
-    flex: 1;
-    height: 6px;
+    width: 100%;
+    height: 8px;
     background: rgba(255,255,255,0.08);
     border-radius: 3px;
     position: relative;
@@ -8717,13 +8724,11 @@ line-height: 1.1;
     transform: translate(-50%, -50%);
 }
 .ocean-tide-progress-remain {
-    position: absolute;
-    top: 14px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: rgba(255,255,255,0.55);
-    font-size: 0.7rem;
+    text-align: center;
+    color: rgba(255,255,255,0.7);
+    font-size: clamp(0.85rem, 2.8vw, 0.98rem);
     white-space: nowrap;
+    margin-top: 6px;
 }
 
 /* 현재 예상 조위 */
@@ -8732,18 +8737,18 @@ line-height: 1.1;
     margin: 22px 0 18px;
 }
 .ocean-tide-current-label {
-    color: rgba(255,255,255,0.6);
-    font-size: 0.78rem;
+    color: rgba(255,255,255,0.7);
+    font-size: clamp(0.9rem, 2.8vw, 1.0rem);
 }
 .ocean-tide-current-big {
     color: #fff;
-    font-size: 1.6rem;
+    font-size: clamp(1.8rem, 6.5vw, 2.4rem);
     font-weight: 700;
-    margin-left: 6px;
+    margin-left: 8px;
 }
 .ocean-tide-current-arrow {
-    font-size: 1.2rem;
-    margin-left: 4px;
+    font-size: clamp(1.4rem, 4.5vw, 1.7rem);
+    margin-left: 6px;
 }
 .ocean-tide-current-arrow.is-up { color: #e74c5e; }
 .ocean-tide-current-arrow.is-down { color: #e74c5e; }
@@ -8760,17 +8765,17 @@ line-height: 1.1;
     gap: 10px;
 }
 .ocean-tide-peak-label {
-    width: 30px;
-    border-radius: 6px;
+    width: 36px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.75rem;
+    font-size: clamp(0.85rem, 2.8vw, 0.95rem);
     font-weight: 700;
     writing-mode: vertical-rl;
     text-orientation: upright;
-    letter-spacing: 2px;
-    padding: 6px 0;
+    letter-spacing: 3px;
+    padding: 8px 0;
 }
 .ocean-tide-peak-label.is-high {
     color: #e74c5e;
@@ -8791,19 +8796,20 @@ line-height: 1.1;
 }
 .ocean-tide-peak-row {
     display: grid;
-    grid-template-columns: 60px 1fr 22px 60px;
+    grid-template-columns: 70px 1fr 26px 70px;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     color: #fff;
-    font-size: 0.85rem;
+    font-size: clamp(0.95rem, 3.0vw, 1.05rem);
     font-weight: 600;
+    padding: 4px 0;
 }
 .ocean-tide-peak-time { color: #fff; }
-.ocean-tide-peak-cm { color: rgba(255,255,255,0.55); font-size: 0.78rem; font-weight: 500; }
-.ocean-tide-peak-arrow { text-align: center; }
+.ocean-tide-peak-cm { color: rgba(255,255,255,0.65); font-size: clamp(0.85rem, 2.7vw, 0.95rem); font-weight: 500; }
+.ocean-tide-peak-arrow { text-align: center; font-size: 1.05em; }
 .ocean-tide-peak-arrow.is-high { color: #e74c5e; }
 .ocean-tide-peak-arrow.is-low  { color: #4a9eff; }
-.ocean-tide-peak-diff { text-align: right; font-size: 0.82rem; }
+.ocean-tide-peak-diff { text-align: right; font-size: clamp(0.9rem, 2.8vw, 1.0rem); font-weight: 600; }
 .ocean-tide-peak-diff.is-high { color: #e74c5e; }
 .ocean-tide-peak-diff.is-low  { color: #4a9eff; }
 
