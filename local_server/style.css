@@ -8374,6 +8374,10 @@ body.ocean-map-active .main-header .header-content {
     z-index: 10;
     background: #0c1a3a;
     border-radius: 20px 20px 0 0;
+    /* margin-collapse 차단: 첫 자식인 .ocean-sheet-handle 의 margin-top 이
+       wrapper 밖으로 새어나가 sticky 가 위로 밀리는 현상을 방지 */
+    padding-top: 1px;
+    overflow: hidden;
 }
 
 .ocean-bottom-sheet.open {
@@ -8482,9 +8486,9 @@ body.ocean-map-active .main-header .header-content {
     color: #fff;
     font-size: 0.9rem;
     font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    /* 작은 화면 + 큰 글자에서도 2열 유지를 위해 줄바꿈 허용 */
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 /* 스켈레톤 로딩 */
@@ -8568,8 +8572,11 @@ body.ocean-map-active .main-header .header-content {
 
 /* 반응형 */
 @media (max-width: 400px) {
+    /* 작은 화면 + 큰 글자에서도 카드는 2열 유지 (1열로 떨어지면 우측 여백이 비고
+       모든 카드를 보려고 사용자가 과도하게 스크롤해야 한다) */
     .ocean-cards-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
     }
 
     .ocean-mode-header {
@@ -8911,17 +8918,24 @@ body.ocean-map-active .main-header .header-content {
     gap: 4px;
 }
 .ocean-tide-peak-row {
+    /* 4컬럼 균등 그리드:
+       시각(1fr) | (수위)(1fr) | 화살표(auto) | 편차(auto)
+       - 시각/수위 셀은 좌측 묶음으로 나란히 (사용자 그룹화 의도)
+       - 화살표/편차 셀은 우측 묶음
+       - 모든 셀에 nowrap → "(### cm)" 가 두 줄로 줄바꿈되지 않음
+       - min-width: 0 으로 grid 자식이 콘텐츠 폭에 갇히지 않게 */
     display: grid;
-    grid-template-columns: 70px 1fr 26px 70px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
     align-items: center;
-    gap: 10px;
+    column-gap: 10px;
     color: #fff;
     font-size: clamp(0.95rem, 3.0vw, 1.05rem);
     font-weight: 600;
     padding: 4px 0;
 }
-.ocean-tide-peak-time { color: #fff; }
-.ocean-tide-peak-cm { color: rgba(255,255,255,0.65); font-size: clamp(0.85rem, 2.7vw, 0.95rem); font-weight: 500; }
+.ocean-tide-peak-row > * { min-width: 0; white-space: nowrap; }
+.ocean-tide-peak-time { color: #fff; text-align: left; }
+.ocean-tide-peak-cm { color: rgba(255,255,255,0.65); font-size: clamp(0.85rem, 2.7vw, 0.95rem); font-weight: 500; text-align: left; }
 .ocean-tide-peak-arrow { text-align: center; font-size: 1.05em; }
 .ocean-tide-peak-arrow.is-high { color: #e74c5e; }
 .ocean-tide-peak-arrow.is-low  { color: #4a9eff; }
