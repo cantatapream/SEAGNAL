@@ -66,11 +66,14 @@
      * @returns {ol.layer.Tile}
      */
     function createKhoaLayer(layer) {
-        var endpoint = KHOA_WMS_BASE + layer + '/wmsVectordata.do';
+        // KHOA가 HTTPS→HTTP 302 리다이렉트를 보내 브라우저가 차단하므로
+        // 서버 프록시(/api/ocean/khoa-wms)를 거쳐서 받습니다.
+        var endpoint = '/api/ocean/khoa-wms';
 
         var wmsSource = new ol.source.TileWMS({
             url: endpoint,
             params: {
+                'layer': layer,
                 'SERVICE': 'WMS',
                 'VERSION': '1.1.1',
                 'REQUEST': 'GetMap',

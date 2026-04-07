@@ -210,6 +210,52 @@ router.get('/api/ocean/config', (req, res) => {
 });
 
 // ============================================================================
+// KHOA 해아름 WMS 프록시
+// ============================================================================
+// KHOA WMS는 HTTPS → HTTP 302 리다이렉트를 보내서 브라우저가 mixed-content로
+// 차단합니다. 서버에서 대신 받아 PNG만 클라이언트에 전달합니다.
+//
+// GET /api/ocean/khoa-wms?layer=BASEMAP_RLTM3857&BBOX=...&WIDTH=256&...
+router.get('/api/ocean/khoa-wms', async (req, res) => {
+    try {
+        const layer = req.query.layer;
+        if (!layer || !/^[A-Z0-9_]+$/i.test(layer)) {
+            return res.status(400).send('invalid layer');
+        }
+
+        const params = new URLSearchParams();
+        for (const k of Object.keys(req.query)) {
+            if (k === 'layer') continue;
+            params.append(k, req.query[k]);
+        }
+
+        // HTTP로 직접 요청 (KHOA가 어차피 302로 HTTP로 보냄)
+        const upstream = 'http://www.khoa.go.kr/oceanmap/' + layer +
+            '/wmsVectordata.do?' + params.toString();
+
+        const fetchFn = global.fetch || require('node-fetch');
+        const r = await fetchFn(upstream, {
+            redirect: 'follow',
+            headers: {
+                'Referer': 'http://www.khoa.go.kr/oceanmap/main.do',
+                'User-Agent': 'Mozilla/5.0'
+            }
+        });
+
+        if (!r.ok) {
+            return res.status(r.status).send('upstream error');
+        }
+        const buf = Buffer.from(await r.arrayBuffer());
+        res.set('Content-Type', r.headers.get('content-type') || 'image/png');
+        res.set('Cache-Control', 'public, max-age=86400');
+        res.send(buf);
+    } catch (e) {
+        console.error('[KHOA-WMS proxy] error:', e.message);
+        res.status(500).send('proxy error');
+    }
+});
+
+// ============================================================================
 // 하위 라우터 연결 (ocean2~5)
 // ============================================================================
 // 각 파일이 존재할 때만 안전하게 로드
