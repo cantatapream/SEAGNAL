@@ -151,15 +151,16 @@
      *  - 헤더의 ✕ 버튼 (ocean_bottom_sheet2.js bindControls) → closeSheet()
      *  - Android WebView/PWA 시스템 뒤로가기 → popstate 표준 경로
      * ------------------------------------------------------------ */
-    OS._historyDummyActive = false;
-
     /**
      * 시트를 닫는다.
-     * @param {boolean} fromPopstate
-     *        true  = popstate 핸들러에서 호출 (브라우저가 이미 pop 처리 함)
-     *        false = 사용자가 ✕/닫기 버튼으로 닫음 (우리가 직접 back() 호출 필요)
+     *
+     * [뒤로가기 처리]
+     *  본 모듈은 더 이상 직접 history.pushState/popstate 를 다루지 않는다.
+     *  대신 backbutton.js 의 PopupStack 에 'ocean-bottom-sheet' 항목을 등록해 두면,
+     *  시스템 뒤로가기 시 backbutton.js 가 PopupStack.popLast() 를 호출하면서
+     *  여기 등록한 closeSheet 콜백이 자동으로 불린다.
      */
-    OS.closeSheet = function (fromPopstate) {
+    OS.closeSheet = function () {
         var sheet = document.getElementById('ocean-bottom-sheet');
         if (!sheet) return;
 
@@ -167,15 +168,9 @@
         sheet.classList.remove('open');
         setTimeout(function () { sheet.style.display = 'none'; }, 300);
 
-        // 2) history dummy 정리
-        if (OS._historyDummyActive) {
-            // popstate 핸들러가 다시 closeSheet 를 부르지 않도록
-            // 먼저 false 로 만들고 나서 back() 을 호출한다.
-            OS._historyDummyActive = false;
-            if (!fromPopstate) {
-                window.__OCEAN_SUPPRESS_NEXT_POPSTATE__ = true;
-                try { window.history.back(); } catch (e) {}
-            }
+        // 2) PopupStack 에서 본인 제거 (popLast 가 부른 경우엔 이미 pop 되었지만 안전)
+        if (window.PopupStack) {
+            window.PopupStack.remove('ocean-bottom-sheet');
         }
     };
 
@@ -295,13 +290,12 @@
         setTimeout(function () { sheet.classList.add('open'); }, 10);
 
         // 휴대폰 시스템 뒤로가기로 시트를 닫을 수 있도록
-        // 우리만의 더미 history state 를 1개 push (이미 살아있으면 다시 push 하지 않음).
-        // 위쪽 closeSheet/popstate 핸들러가 이 dummy 의 생사로 분기한다.
-        if (!OS._historyDummyActive) {
-            try {
-                window.history.pushState({ oceanSheet: true }, '');
-                OS._historyDummyActive = true;
-            } catch (e) {}
+        // backbutton.js 의 PopupStack 에 등록 (LIFO).
+        // 시스템 뒤로가기 → PopupStack.popLast() → OS.closeSheet 가 자동 호출됨.
+        if (window.PopupStack) {
+            window.PopupStack.push('ocean-bottom-sheet', function () {
+                OS.closeSheet();
+            });
         }
 
         // 헤더 컨트롤 1회 바인딩 (2.js 정의)

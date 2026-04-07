@@ -1125,33 +1125,25 @@ window.switchSubTab = function (targetId) {
  * 해양종합정보(히든탭) 전역 상태
  * ----------------------------------------------------------------------------
  * _oceanPrevActiveSections
- *   - 진입 직전에 .active 였던 다른 섹션들의 ID 목록.
- *   - 해양종합정보는 "독립 화면" 이어야 하므로 진입 시 다른 섹션의 .active 를
- *     모두 떼서 배경에 비치지 않게 하고, 그 ID 들을 여기 저장해 뒀다가
- *     퇴장 시 그대로 복원한다.
+ *   진입 직전에 .active 였던 다른 섹션들의 ID 목록. 해양종합정보는 "독립 화면"
+ *   이어야 하므로 진입 시 다른 섹션의 .active 를 모두 떼서 배경에 비치지 않게
+ *   하고, 그 ID 들을 여기 저장해 뒀다가 퇴장 시 그대로 복원한다.
  *
- * __OCEAN_SECTION_DUMMY_ACTIVE__
- *   - 우리가 history 스택에 push 한 "섹션 dummy state" 가 살아있는지 여부.
- *   - 휴대폰 시스템 뒤로가기 1단계(시트 닫기) 다음의 2단계(섹션 닫기)를
- *     자연스럽게 동작시키기 위해 섹션 자체에도 dummy 가 필요하다.
- *
- * __OCEAN_SUPPRESS_NEXT_POPSTATE__
- *   - "방금 우리가 직접 history.back() 을 호출했음" 을 표시하는 1회용 플래그.
- *   - 사용자가 ✕ 또는 ← 버튼으로 시트/섹션을 닫으면 우리가 back() 을 호출하는데,
- *     그 결과 발화되는 popstate 가 다시 closeSheet/exit 를 호출하는 무한 루프를
- *     막기 위해 popstate 핸들러 진입 시 이 플래그를 보고 1회 무시한다.
+ * [뒤로가기 처리 — backbutton.js 의 PopupStack 위에 얹힘]
+ *  본 파일은 더 이상 직접 history.pushState/popstate 를 다루지 않는다.
+ *  그 대신 backbutton.js 가 운영하는 전역 PopupStack 에 다음 두 항목을 등록한다:
+ *    - 'ocean-map-section'  : 섹션 자체 (← 또는 시스템 뒤로가기로 닫기)
+ *    - 'ocean-bottom-sheet'  : 시트 (ocean_bottom_sheet1.js 에서 등록)
+ *  PopupStack 은 LIFO 이므로 시스템 뒤로가기 시 시트 → 섹션 → 앱 종료 토스트
+ *  순으로 자연스럽게 처리된다.
  * -------------------------------------------------------------------------- */
 window._oceanPrevActiveSections = [];
-window.__OCEAN_SECTION_DUMMY_ACTIVE__ = false;
-window.__OCEAN_SUPPRESS_NEXT_POPSTATE__ = false;
 
 window.enterOceanMapSection = function () {
     var section = document.getElementById('ocean-map-section');
     if (!section) return;
 
     // 1) 직전에 활성화돼 있던 섹션들의 .active 를 제거하고 ID 를 기억한다.
-    //    (해양종합정보는 독립 화면이어야 하며, 조석정보 등 다른 섹션이 배경에
-    //     비치면 안 된다.)
     window._oceanPrevActiveSections = [];
     var prevs = document.querySelectorAll('.tab-content.active');
     for (var p = 0; p < prevs.length; p++) {
@@ -1162,30 +1154,35 @@ window.enterOceanMapSection = function () {
     }
     section.classList.add('active');
 
-    // history dummy 1개 push (시트 dummy 와 별개로 섹션 자체의 entry)
-    if (!window.__OCEAN_SECTION_DUMMY_ACTIVE__) {
-        try {
-            window.history.pushState({ oceanMapSection: true }, '');
-            window.__OCEAN_SECTION_DUMMY_ACTIVE__ = true;
-        } catch (e) {}
+    // 2) 뒤로가기 시 backbutton.js 가 우리를 닫을 수 있도록 PopupStack 등록
+    if (window.PopupStack) {
+        window.PopupStack.push('ocean-map-section', function () {
+            window.exitOceanMapSection();
+        });
     }
 
-    // 2) CSS 변수: 탭바(메인탭+서브탭)가 차지하는 화면 위쪽 offset 주입
-    //    서브탭이 보이고 있으면 서브탭 bottom, 아니면 메인탭 bottom 사용
-    var subVisible = document.querySelector('.sub-tabs.sub-tabs-visible');
-    var refEl = subVisible || document.querySelector('.main-tabs');
-    if (refEl) {
-        var rect = refEl.getBoundingClientRect();
-        document.documentElement.style.setProperty('--ocean-top-offset', rect.bottom + 'px');
-    } else {
-        document.documentElement.style.setProperty('--ocean-top-offset', '0px');
-    }
-
-    // 3) 헤더 숨김 + 지도 init (기존 _onSectionActivated 재활용)
+    // 3) 헤더 처리(SEAGNAL 로고 영역만 숨김) + 지도 init
     _onSectionActivated('ocean-map-section');
+
+    // 4) CSS 변수: 탭바(메인탭+서브탭)가 차지하는 화면 위쪽 offset 주입
+    //    로고 숨김 후 레이아웃이 반영되도록 rAF 다음 프레임에 계산.
+    requestAnimationFrame(function () {
+        var subVisible = document.querySelector('.sub-tabs.sub-tabs-visible');
+        var refEl = subVisible || document.querySelector('.main-tabs');
+        if (refEl) {
+            var rect = refEl.getBoundingClientRect();
+            document.documentElement.style.setProperty('--ocean-top-offset', rect.bottom + 'px');
+        } else {
+            document.documentElement.style.setProperty('--ocean-top-offset', '0px');
+        }
+        if (window.getOceanMap) {
+            var m = window.getOceanMap();
+            if (m && m.updateSize) m.updateSize();
+        }
+    });
 };
 
-window.exitOceanMapSection = function (fromPopstate) {
+window.exitOceanMapSection = function () {
     var section = document.getElementById('ocean-map-section');
     if (!section) return;
     section.classList.remove('active');
@@ -1205,71 +1202,26 @@ window.exitOceanMapSection = function (fromPopstate) {
     }
     _onSectionActivated(fallbackId || '');
 
-    // history dummy 정리
-    if (window.__OCEAN_SECTION_DUMMY_ACTIVE__) {
-        window.__OCEAN_SECTION_DUMMY_ACTIVE__ = false;
-        if (!fromPopstate) {
-            window.__OCEAN_SUPPRESS_NEXT_POPSTATE__ = true;
-            try { window.history.back(); } catch (e) {}
-        }
+    // PopupStack 에서 우리 항목 제거 (popLast 가 부른 경우엔 이미 pop 되었지만 안전)
+    if (window.PopupStack) {
+        window.PopupStack.remove('ocean-map-section');
     }
 };
 
-/* ----------------------------------------------------------------------------
- * popstate 통합 핸들러
- * ----------------------------------------------------------------------------
- * [역할]
- *  휴대폰의 내장 뒤로가기 버튼 또는 브라우저 ← 버튼을 누르면 발화되는
- *  popstate 이벤트를 한 곳에서 처리한다.
- *
- * [분기 우선순위]
- *  1) 우리가 직접 호출한 back() 의 결과인가? (suppress 플래그)
- *     → 1회 소비 후 return (무한 루프 방지)
- *  2) 시트 dummy 가 살아있는가?
- *     → 시트만 닫는다 (섹션은 그대로 유지)
- *  3) 섹션 dummy 가 살아있는가?
- *     → 섹션을 닫고 직전 메인탭(예: 조석정보)으로 복귀
- *  4) 그 외
- *     → 무시 (브라우저 기본 동작 → 앱 종료 토스트 등)
- *
- * [전체 시퀀스 예]
- *  진입 → [normal, sectionDummy]
- *  시트 열기 → [normal, sectionDummy, sheetDummy]
- *  뒤로가기 ① → 시트 닫힘 (sheetDummy pop, 분기 2)
- *  뒤로가기 ② → 섹션 닫힘 (sectionDummy pop, 분기 3)
- *  뒤로가기 ③ → 앱 종료 토스트 (분기 4, 시스템 기본)
- *
- * [연계]
- *  - 시트 dummy push: ocean_bottom_sheet1.js showOceanBottomSheet
- *  - 섹션 dummy push: 본 파일 enterOceanMapSection
- *  - 시트 닫기: OceanSheet.closeSheet
- *  - 섹션 닫기: 본 파일 exitOceanMapSection
- * -------------------------------------------------------------------------- */
-window.addEventListener('popstate', function () {
-    if (window.__OCEAN_SUPPRESS_NEXT_POPSTATE__) {
-        window.__OCEAN_SUPPRESS_NEXT_POPSTATE__ = false;
-        return;
-    }
-    var OS = window.OceanSheet;
-    if (OS && OS._historyDummyActive) {
-        OS._historyDummyActive = false;
-        OS.closeSheet(true);
-        return;
-    }
-    if (window.__OCEAN_SECTION_DUMMY_ACTIVE__) {
-        window.__OCEAN_SECTION_DUMMY_ACTIVE__ = false;
-        window.exitOceanMapSection(true);
-        return;
-    }
-});
-
 function _onSectionActivated(sectionId) {
     // 해양종합정보 진입/퇴장 시 헤더 처리
-    // - ocean-map-section 은 메인탭/서브탭이 그대로 보여야 하는 "독립 화면"이므로
-    //   .main-header 를 숨기지 않는다. (숨기면 위쪽이 빈 공간이 된다)
-    // - 다른 섹션 복귀 시에도 헤더는 원래 표시 상태이므로 별도 처리 불필요.
-    var mainHeader = document.querySelector('.main-header');
-    if (mainHeader) mainHeader.style.display = '';
+    // - .main-header 는 [header-utility-bar(카운터/버튼) + header-content(SEAGNAL 로고)
+    //   + main-tabs + sub-tabs] 로 구성되어 있다.
+    // - 해양종합정보에서는 메인탭/서브탭만 남기고 위쪽 로고 영역만 숨긴다.
+    var utilBar = document.querySelector('.main-header .header-utility-bar');
+    var logoContent = document.querySelector('.main-header .header-content');
+    if (sectionId === 'ocean-map-section') {
+        if (utilBar) utilBar.style.display = 'none';
+        if (logoContent) logoContent.style.display = 'none';
+    } else {
+        if (utilBar) utilBar.style.display = '';
+        if (logoContent) logoContent.style.display = '';
+    }
 
     // 해양종합정보에서 벗어날 때 오버레이 애니메이션 정리 (RAF 누수 방지)
     if (sectionId !== 'ocean-map-section' && window.oceanOverlayClear) {
