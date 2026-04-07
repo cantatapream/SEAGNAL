@@ -353,23 +353,23 @@
     }
 
     /**
-     * 해구 폴리곤 데이터를 격자 점 배열로 변환.
-     * 각 해구 내부에 0.4도 간격 격자점 생성 → sampleAt() 쌍선형 보간에 사용.
+     * 소해구 좌표 기반으로 그리드 포인트를 생성합니다.
+     *
+     * 백엔드 /api/ocean/zone-forecasts 가 zone_coords.json에서 계산한
+     * 소해구별 실제 lat/lon 좌표를 반환합니다 (~1295개).
+     * 각 해구 좌표를 그대로 격자점으로 사용하므로 별도의 Nearest-Zone 근사 불필요.
      */
     function buildGridFromZones(zones, layer) {
         var pts = [];
-        var STEP = 0.4;
         Object.keys(zones).forEach(function (lzone) {
             var z = zones[lzone];
-            var ymin = z.bounds[0], ymax = z.bounds[1];
-            var xmin = z.bounds[2], xmax = z.bounds[3];
-            var crsp  = (layer === 'wind') ? (z.ws  || 0) : (z.wh  || 0);
-            var crdir = (layer === 'wind') ? (z.windDir || 0) : (z.waveDir || 0);
-            for (var lat = ymin; lat <= ymax + 0.01; lat += STEP) {
-                for (var lon = xmin; lon <= xmax + 0.01; lon += STEP) {
-                    pts.push({ lat: lat, lon: lon, crsp: crsp, crdir: crdir });
-                }
-            }
+            if (z.lat == null || z.lon == null) return;
+            pts.push({
+                lat:   z.lat,
+                lon:   z.lon,
+                crsp:  (layer === 'wind') ? (z.ws  || 0) : (z.wh  || 0),
+                crdir: (layer === 'wind') ? (z.windDir || 0) : (z.waveDir || 0)
+            });
         });
         return pts;
     }
