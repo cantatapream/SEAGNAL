@@ -28,16 +28,16 @@
     // ========================================================================
 
     const COLOR_SCALES = {
-        // 해류 속도 (cm/s): 바다누리 범례 기준 (1 kn = 51.44 cm/s 환산)
-        // 0.0kn=0  0.3kn=15  0.5kn=26  0.8kn=41  1.1kn=57  1.4kn=72  1.6kn=82
+        // 해류 속도 (cm/s): 바다누리 범례 기준 m/s 환산
+        // 0.0m/s=0  0.3m/s=30  0.5m/s=50  0.8m/s=80  1.1m/s=110  1.4m/s=140  1.6m/s=160
         current: [
-            { val: 0,  color: [10,  30,  180, 0.85] },  // 진파랑  (0.0 kn)
-            { val: 15, color: [30,  110, 235, 0.85] },  // 파랑    (0.3 kn)
-            { val: 26, color: [30,  200, 210, 0.85] },  // 청록    (0.5 kn)
-            { val: 41, color: [80,  220, 60,  0.85] },  // 연두    (0.8 kn)
-            { val: 57, color: [220, 230, 20,  0.90] },  // 노랑    (1.1 kn)
-            { val: 72, color: [240, 110, 15,  0.90] },  // 주황    (1.4 kn)
-            { val: 82, color: [220, 20,  20,  0.90] }   // 빨강    (1.6 kn)
+            { val: 0,   color: [10,  30,  180, 0.85] },  // 진파랑  (0.0 m/s)
+            { val: 30,  color: [30,  110, 235, 0.85] },  // 파랑    (0.3 m/s)
+            { val: 50,  color: [30,  200, 210, 0.85] },  // 청록    (0.5 m/s)
+            { val: 80,  color: [80,  220, 60,  0.85] },  // 연두    (0.8 m/s)
+            { val: 110, color: [220, 230, 20,  0.90] },  // 노랑    (1.1 m/s)
+            { val: 140, color: [240, 110, 15,  0.90] },  // 주황    (1.4 m/s)
+            { val: 160, color: [220, 20,  20,  0.90] }   // 빨강    (1.6 m/s)
         ],
         // 풍속 (m/s): 0 → 25+
         wind: [
@@ -256,10 +256,10 @@
         });
         barEl.style.background = 'linear-gradient(to right, ' + colors.join(', ') + ')';
 
-        // 라벨 — 해류는 바다누리 기준 kn 단위로 표시
-        var knLabels = { current: [0.0, 0.3, 0.5, 0.8, 1.1, 1.4, 1.6] };
-        if (layer === 'current' && knLabels.current) {
-            labelsEl.innerHTML = knLabels.current.map(function (v) {
+        // 라벨 — 해류는 바다누리 기준 m/s 단위로 표시
+        var msLabels = { current: [0.0, 0.3, 0.5, 0.8, 1.1, 1.4, 1.6] };
+        if (layer === 'current' && msLabels.current) {
+            labelsEl.innerHTML = msLabels.current.map(function (v) {
                 return '<span>' + v.toFixed(1) + '</span>';
             }).join('');
         } else {
@@ -270,7 +270,7 @@
 
         // 제목
         var titles = {
-            current: '유속 (kn)',
+            current: '유속 (m/s)',
             wind: '풍속 (m/s)',
             wave: '유의파고 (m)'
         };
