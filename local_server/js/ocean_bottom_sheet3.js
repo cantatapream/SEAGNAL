@@ -265,25 +265,12 @@
         if (!todayMode || !prevPeak || !nextPeak) {
             return '';
         }
-        // 좌측 라벨: 다음 피크 (시각 포함)
-        var leftCls = nextPeak.type === 'high' ? 'is-high' : 'is-low';
-        var leftLabel = (nextPeak.type === 'high' ? '고조 ' : '저조 ') + minutesToHHMM(nextPeak.minutes);
+        // tide.js와 동일: 좌측=직전(prev) 피크, 우측=다음(next) 피크
+        var leftCls = prevPeak.type === 'high' ? 'is-high' : 'is-low';
+        var leftLabel = (prevPeak.type === 'high' ? '고조 ' : '저조 ') + minutesToHHMM(prevPeak.minutes);
 
-        // 우측 라벨: nextPeak 이후의 첫 번째 피크 (peaks 배열에서 시간순으로 다시 찾음)
-        var afterNext = null;
-        if (peaks && peaks.length) {
-            for (var i = 0; i < peaks.length; i++) {
-                if (peaks[i].minutes > nextPeak.minutes) { afterNext = peaks[i]; break; }
-            }
-        }
-        var rightCls, rightLabel;
-        if (afterNext) {
-            rightCls = afterNext.type === 'high' ? 'is-high' : 'is-low';
-            rightLabel = (afterNext.type === 'high' ? '고조 ' : '저조 ') + minutesToHHMM(afterNext.minutes);
-        } else {
-            rightCls = nextPeak.type === 'high' ? 'is-low' : 'is-high';
-            rightLabel = (nextPeak.type === 'high' ? '저조' : '고조');
-        }
+        var rightCls = nextPeak.type === 'high' ? 'is-high' : 'is-low';
+        var rightLabel = (nextPeak.type === 'high' ? '고조 ' : '저조 ') + minutesToHHMM(nextPeak.minutes);
 
         var nowMin = nowMinutes();
         var pct = ((nowMin - prevPeak.minutes) / (nextPeak.minutes - prevPeak.minutes)) * 100;

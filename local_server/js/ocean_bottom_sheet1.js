@@ -113,12 +113,39 @@
     /* --------------------------------------------------------------
      * 시트 닫기
      * ------------------------------------------------------------ */
+    // 뒤로가기 처리: 시트가 열려있는 동안 history 스택에 더미 state를 1개 push.
+    // popstate가 발생하면(=뒤로가기) 시트를 닫고 끝. 닫기 버튼/✕로 닫을 때는
+    // history.back()을 호출해서 그 더미 state도 같이 정리.
+    OS._historyPushed = false;
+    OS._closing = false;
+
     OS.closeSheet = function () {
         var sheet = document.getElementById('ocean-bottom-sheet');
         if (!sheet) return;
         sheet.classList.remove('open');
         setTimeout(function () { sheet.style.display = 'none'; }, 300);
+        // 사용자 클릭으로 닫는 경우: 푸시했던 더미 state를 history에서 제거
+        if (OS._historyPushed && !OS._closing) {
+            OS._closing = true;
+            try { window.history.back(); } catch (e) {}
+        }
+        OS._historyPushed = false;
+        OS._closing = false;
     };
+
+    // popstate (뒤로가기 버튼) — 시트가 열려있으면 닫음
+    window.addEventListener('popstate', function () {
+        var sheet = document.getElementById('ocean-bottom-sheet');
+        if (!sheet) return;
+        if (sheet.classList.contains('open')) {
+            // popstate로 진입했으므로 history.back()을 다시 호출하지 않도록 _closing 플래그 설정
+            OS._closing = true;
+            OS._historyPushed = false;
+            sheet.classList.remove('open');
+            setTimeout(function () { sheet.style.display = 'none'; }, 300);
+            OS._closing = false;
+        }
+    });
 
     /* --------------------------------------------------------------
      * 진입점 — 지도 클릭 시 ocean_map.js가 호출
@@ -139,6 +166,14 @@
         // 시트 표시 (살짝 지연 후 transition 클래스 부여)
         sheet.style.display = 'block';
         setTimeout(function () { sheet.classList.add('open'); }, 10);
+
+        // 휴대폰 뒤로가기 버튼으로 닫기 가능하도록 history state 푸시
+        if (!OS._historyPushed) {
+            try {
+                window.history.pushState({ oceanSheet: true }, '');
+                OS._historyPushed = true;
+            } catch (e) {}
+        }
 
         // 헤더 컨트롤 1회 바인딩 (2.js 정의)
         if (!OS.state.bound && OS.bindControls) {
