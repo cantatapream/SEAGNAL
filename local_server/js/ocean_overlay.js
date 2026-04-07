@@ -79,7 +79,7 @@
     let gridLookup = null;         // 'lonIdx_latIdx' → point 사전 (보간용)
     let animationId = null;        // 파티클 애니메이션 RAF ID
     let particles = [];            // 파티클 배열
-    const BASE_PARTICLES = 2000;   // 줌 7 기준 입자 수 (실제는 줌에 따라 가변)
+    const BASE_PARTICLES = 1000;   // 줌 7 기준 입자 수 (실제는 줌에 따라 가변)
     let trailCanvas = null;        // 입자 트레일 전용 오프스크린 (페이드 누적)
     let trailCtx = null;
     let streamActive = false;      // 해류 시각화 ON/OFF (사용자 토글)
@@ -477,8 +477,8 @@
         // 듬성듬성 보이지 않게 한다.
         var zoom = mapRef.getView().getZoom();
         var count = Math.round(BASE_PARTICLES * Math.pow(1.35, zoom - 7));
-        if (count < 800) count = 800;
-        if (count > 8000) count = 8000;
+        if (count < 400) count = 400;
+        if (count > 2500) count = 2500;
 
         particles = [];
         for (var i = 0; i < count; i++) {
@@ -511,8 +511,8 @@
         return {
             x: extent[0] + Math.random() * w,
             y: extent[1] + Math.random() * h,
-            age: Math.floor(Math.random() * 120),
-            maxAge: 150 + Math.floor(Math.random() * 100),
+            age: Math.floor(Math.random() * 60),
+            maxAge: 60 + Math.floor(Math.random() * 40),
             prevPx: null,
             prevPy: null
         };
@@ -536,18 +536,18 @@
         if (trailCtx) {
             // 페이드 강도가 작을수록 잔상이 길게 남음 → 흐름이 강처럼 보임.
             trailCtx.globalCompositeOperation = 'destination-out';
-            trailCtx.fillStyle = 'rgba(0,0,0,0.015)';
+            trailCtx.fillStyle = 'rgba(0,0,0,0.05)';
             trailCtx.fillRect(0, 0, w, h);
             trailCtx.globalCompositeOperation = 'source-over';
         }
 
         // ② 입자 업데이트 + 트레일 캔버스에 짧은 선분으로 그리기
         // SPEED_SCALE: 화면 해상도(m/px) 기반으로 동적 계산.
-        // 목표: 1 cm/s 해류 → 0.12 px/frame, 10 cm/s → 1.2 px/frame (줌 무관)
-        // dx_meters = spdMps * SPEED_SCALE → dx_pixels = dx_meters / resolution
-        // SPEED_SCALE = 0.12 * resolution * 100
+        // 목표: 1 cm/s → 0.03 px/frame, 10 cm/s → 0.3 px/frame, 30 cm/s → 0.9 px/frame
+        // 바다누리 수준의 느리고 자연스러운 흐름 표현 (너무 빠르면 꼬리가 연결돼 보임)
+        // dx_pixels = spdMps * SPEED_SCALE / resolution
         var resolution = mapRef.getView().getResolution();
-        var SPEED_SCALE = 0.12 * resolution * 100;
+        var SPEED_SCALE = 0.03 * resolution * 100;
 
         particles.forEach(function (p) {
             var lonLat = ol.proj.toLonLat([p.x, p.y]);
@@ -592,9 +592,9 @@
             // 속도에 따라 색상 부여 (느림=파랑, 보통=초록/노랑, 빠름=주황/빨강)
             if (trailCtx && p.prevPx !== null) {
                 var col = interpolateColor(scale, spdValue);
-                trailCtx.strokeStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0.92)';
-                // 빠를수록 굵게
-                var lw = 1.2 + Math.min(2.8, spdValue / 20);
+                trailCtx.strokeStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0.78)';
+                // 빠를수록 굵게 (바다누리처럼 얇고 섬세하게)
+                var lw = 0.8 + Math.min(1.2, spdValue / 40);
                 trailCtx.lineWidth = lw;
                 trailCtx.lineCap = 'round';
                 trailCtx.beginPath();
