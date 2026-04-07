@@ -8270,11 +8270,22 @@ line-height: 1.1;
  * - 화면을 꽉 채우고, 내부는 세로 flex 로 [모드헤더] [검색창] [지도(잔여공간)] 배치
  * - 메인탭/서브탭은 별도 작업(E)에서 위쪽 일부 영역을 비워두는 방식으로 노출
  * ========================================================================== */
+/* 해양종합정보 활성 시에는 SEAGNAL 로고 영역(카운터/버튼/타이틀) 을 숨김.
+   메인탭/서브탭(.main-tabs, .sub-tabs) 은 그대로 노출.
+   body 클래스 + !important 로 다른 코드 경로(switchMainTab 등)가
+   inline display 를 복원해도 항상 숨김 상태가 유지되도록 한다. */
+body.ocean-map-active .main-header .header-utility-bar,
+body.ocean-map-active .main-header .header-content {
+    display: none !important;
+}
+
 #ocean-map-section.tab-content.active {
     position: fixed;
     top: var(--ocean-top-offset, 0);
     right: 0;
-    bottom: 0;
+    /* 휴대폰 하단 네비게이션바(홈/뒤로가기) 영역만큼 bottom 을 띄워서
+       지도/오버레이 컨트롤이 시스템 바에 가려지지 않도록 한다 */
+    bottom: env(safe-area-inset-bottom, 0);
     left: 0;
     max-width: none;
     width: 100%;
@@ -8350,22 +8361,19 @@ line-height: 1.1;
     transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
     overflow-y: auto;
     box-shadow: 0 -4px 30px rgba(0,0,0,0.5);
+    /* 휴대폰 하단 네비게이션바(홈/뒤로가기)에 가려지지 않도록 안전영역 보정 */
+    padding-bottom: env(safe-area-inset-bottom);
 }
-/* 핸들(──) + 헤더(년월일/네비) 는 시트 본문을 스크롤해도 항상 상단에 고정.
-   시트 자체가 스크롤 컨테이너이므로 position: sticky; top: 0 로 고정.
-   배경을 시트와 동일하게 깔아 본문 위로 겹쳐 보이지 않도록 한다. */
-.ocean-bottom-sheet .ocean-sheet-handle {
+/* 핸들(──) + 헤더(년월일/네비) 는 단일 wrapper(.ocean-sheet-stickytop) 로 묶여
+   시트 본문을 스크롤해도 항상 시트 상단에 고정된다.
+   - 시트 자체가 스크롤 컨테이너이므로 wrapper 에 position: sticky; top: 0 적용
+   - 불투명 배경을 깔아 본문이 위로 비치지 않게 한다 */
+.ocean-bottom-sheet .ocean-sheet-stickytop {
     position: sticky;
     top: 0;
-    z-index: 5;
-    background: linear-gradient(180deg, #0c1a3a 0%, #0c1a3a 100%);
-}
-.ocean-bottom-sheet .ocean-sheet-header {
-    position: sticky;
-    /* 핸들 높이(약 24px = margin 10+4+10) 만큼 아래에 붙도록 */
-    top: 24px;
-    z-index: 4;
-    background: linear-gradient(180deg, #0c1a3a 0%, #0e2046 100%);
+    z-index: 10;
+    background: #0c1a3a;
+    border-radius: 20px 20px 0 0;
 }
 
 .ocean-bottom-sheet.open {

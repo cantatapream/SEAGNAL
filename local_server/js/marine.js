@@ -1153,6 +1153,7 @@ window.enterOceanMapSection = function () {
         }
     }
     section.classList.add('active');
+    document.body.classList.add('ocean-map-active');
 
     // 2) 뒤로가기 시 backbutton.js 가 우리를 닫을 수 있도록 PopupStack 등록
     if (window.PopupStack) {
@@ -1186,6 +1187,7 @@ window.exitOceanMapSection = function () {
     var section = document.getElementById('ocean-map-section');
     if (!section) return;
     section.classList.remove('active');
+    document.body.classList.remove('ocean-map-active');
 
     // CSS 변수 초기화
     document.documentElement.style.removeProperty('--ocean-top-offset');
@@ -1209,19 +1211,9 @@ window.exitOceanMapSection = function () {
 };
 
 function _onSectionActivated(sectionId) {
-    // 해양종합정보 진입/퇴장 시 헤더 처리
-    // - .main-header 는 [header-utility-bar(카운터/버튼) + header-content(SEAGNAL 로고)
-    //   + main-tabs + sub-tabs] 로 구성되어 있다.
-    // - 해양종합정보에서는 메인탭/서브탭만 남기고 위쪽 로고 영역만 숨긴다.
-    var utilBar = document.querySelector('.main-header .header-utility-bar');
-    var logoContent = document.querySelector('.main-header .header-content');
-    if (sectionId === 'ocean-map-section') {
-        if (utilBar) utilBar.style.display = 'none';
-        if (logoContent) logoContent.style.display = 'none';
-    } else {
-        if (utilBar) utilBar.style.display = '';
-        if (logoContent) logoContent.style.display = '';
-    }
+    // 해양종합정보 진입/퇴장 시 SEAGNAL 로고 영역 숨김/표시는
+    // body.ocean-map-active 클래스 + style.css 의 !important 규칙이 담당한다.
+    // (다른 코드 경로 — switchMainTab 등이 inline display 를 건드려도 항상 숨김 유지)
 
     // 해양종합정보에서 벗어날 때 오버레이 애니메이션 정리 (RAF 누수 방지)
     if (sectionId !== 'ocean-map-section' && window.oceanOverlayClear) {

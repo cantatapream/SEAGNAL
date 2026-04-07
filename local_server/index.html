@@ -844,6 +844,9 @@
 
                 <!-- 바텀시트 (지도 클릭 시 해양 데이터 표시) -->
                 <div class="ocean-bottom-sheet" id="ocean-bottom-sheet" style="display:none;">
+                    <!-- 핸들 + 날짜 헤더는 한 wrapper 로 묶어 sticky 처리:
+                         시트 본문을 스크롤해도 항상 시트 상단에 고정 -->
+                    <div class="ocean-sheet-stickytop">
                     <div class="ocean-sheet-handle"></div>
 
                     <!-- 헤더: 3행 구조 (날짜네비 / 음력 / 좌표토글) -->
@@ -870,6 +873,7 @@
                         <div class="ocean-sheet-lunar" id="ocean-sheet-lunar"></div>
                         <div class="ocean-sheet-coord" id="ocean-sheet-coord" style="display:none;"></div>
                     </div>
+                    </div><!-- /.ocean-sheet-stickytop -->
 
                     <!-- 바디: 조석(풀폭) / 천문(풀폭) / 6카드 그리드 / 저질 -->
                     <div class="ocean-sheet-body" id="ocean-sheet-body">

@@ -111,6 +111,9 @@
         OS.state.date = d;
         OS.renderHeader();
         if (OS.loadAllForDate) OS.loadAllForDate();
+        // 날짜 변경 시 시트 본문 스크롤을 최상단으로 되돌림
+        var sheet = document.getElementById('ocean-bottom-sheet');
+        if (sheet) sheet.scrollTop = 0;
     };
 
     /* --------------------------------------------------------------
@@ -122,6 +125,9 @@
         OS.state.date = d;
         OS.renderHeader();
         if (OS.loadAllForDate) OS.loadAllForDate();
+        // 날짜 변경 시 시트 본문 스크롤을 최상단으로 되돌림
+        var sheet = document.getElementById('ocean-bottom-sheet');
+        if (sheet) sheet.scrollTop = 0;
     };
 
     /* --------------------------------------------------------------
