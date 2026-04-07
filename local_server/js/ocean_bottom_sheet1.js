@@ -173,6 +173,7 @@
             // 먼저 false 로 만들고 나서 back() 을 호출한다.
             OS._historyDummyActive = false;
             if (!fromPopstate) {
+                window.__OCEAN_SUPPRESS_NEXT_POPSTATE__ = true;
                 try { window.history.back(); } catch (e) {}
             }
         }
@@ -270,14 +271,8 @@
         OS._dragBound = true;
     };
 
-    // 휴대폰 시스템 뒤로가기 / 브라우저 ← 버튼 처리
-    // - 우리가 push 한 dummy 가 살아있을 때만 우리 케이스로 인식
-    // - 그 외 popstate (페이지 자체 이동 등) 는 무시
-    window.addEventListener('popstate', function () {
-        if (!OS._historyDummyActive) return;
-        OS._historyDummyActive = false; // dummy 는 이미 브라우저가 pop 했음
-        OS.closeSheet(true);            // back() 재호출 없이 시트만 닫기
-    });
+    // popstate 처리는 marine.js 의 단일 통합 핸들러가 담당한다.
+    // (시트 dummy → 섹션 dummy 순으로 분기)
 
     /* --------------------------------------------------------------
      * 진입점 — 지도 클릭 시 ocean_map.js가 호출

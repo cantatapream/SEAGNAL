@@ -8272,38 +8272,61 @@ line-height: 1.1;
  * ========================================================================== */
 #ocean-map-section.tab-content.active {
     position: fixed;
-    /* top 만 변수로: enterOceanMapSection() 이 (메인탭+서브탭) 의 bottom Y 를 주입.
-       이 값이 비어 있으면 0 (전체 화면). 탭바가 있으면 그 아래부터 시작해서
-       메인탭/서브탭은 ocean-map-section 위에서 그대로 노출된다. */
     top: var(--ocean-top-offset, 0);
     right: 0;
     bottom: 0;
     left: 0;
     max-width: none;
     width: 100%;
-    height: 100%;
+    height: auto;
     margin: 0;
     padding: 0;
     z-index: 50;
     background: #0c1a3a;
-    display: flex;
-    flex-direction: column;
     overflow: hidden;
 }
-#ocean-map-section.active .ocean-mode-header,
-#ocean-map-section.active .ocean-search-container {
-    flex: 0 0 auto;            /* 컨텐츠 높이 그대로 */
-}
+/* 지도 래퍼: 섹션 전체를 풀로 차지 */
 #ocean-map-section.active .ocean-map-wrapper {
-    flex: 1 1 auto;            /* 잔여 세로 공간 모두 차지 */
-    min-height: 0;             /* flex children 가 부모를 넘지 않도록 */
-    position: relative;
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    border-radius: 0;
+    overflow: hidden;
 }
 #ocean-map-section.active #ocean-map {
     width: 100%;
     height: 100%;
     border-radius: 0;
-    overflow: hidden;
+}
+/* 모드 헤더: 지도 위에 떠 있는 반투명 패널 */
+#ocean-map-section.active .ocean-mode-header {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    margin: 0;
+    z-index: 10;
+    background: rgba(12, 26, 58, 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+/* 검색창: 모드 헤더 아래에 떠 있는 반투명 패널 */
+#ocean-map-section.active .ocean-search-container {
+    position: absolute;
+    top: 72px;
+    left: 12px;
+    right: 12px;
+    margin: 0;
+    z-index: 10;
+}
+#ocean-map-section.active .ocean-search-input-wrap {
+    background: rgba(15, 27, 51, 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
 }
 
 .ocean-bottom-sheet {

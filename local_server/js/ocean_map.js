@@ -28,6 +28,7 @@
     let currentMode = 'A';        // 현재 모드: 'A' 조석지도, 'B' 해양현황
     let baseLayerA = null;         // 모드 A 베이스맵 (해아름 RLTM3857)
     let baseLayerB = null;         // 모드 B 베이스맵 (해아름 RLTMCOAST3857)
+    let searchResultLayer = null;  // 검색 결과 마커 레이어
 
     // 해아름 WMS 엔드포인트 (F12 캡처로 확인됨)
     // http://www.khoa.go.kr/oceanmap/{LAYER}/wmsVectordata.do?SERVICE=WMS&...
@@ -424,17 +425,95 @@
             item.addEventListener('click', function () {
                 const lat = parseFloat(this.dataset.lat);
                 const lon = parseFloat(this.dataset.lon);
+                var name = this.querySelector('strong').textContent;
                 if (oceanMap) {
                     oceanMap.getView().animate({
                         center: ol.proj.fromLonLat([lon, lat]),
                         zoom: 12,
                         duration: 800
                     });
+                    addOrUpdateSearchMarker(lat, lon, name);
                 }
                 closeSearchDropdown();
-                document.getElementById('ocean-search-input').value = this.querySelector('strong').textContent;
+                document.getElementById('ocean-search-input').value = name;
             });
         });
+    }
+
+    /**
+     * 검색 결과 위치에 마커 + 라벨을 표시한다.
+     *
+     * [역할]
+     *  사용자가 위치 검색 드롭다운에서 항목을 클릭했을 때, 지도 이동 직후
+     *  그 좌표 위에 빨간 점(중심 6px) + 흰 원(10px) + 반투명 외곽 원(14px)
+     *  3겹 마커를 그리고, 위쪽에 장소 이름 라벨(빨간 배경)을 함께 표시한다.
+     *  조석정보 탭(tide.js) 의 검색 결과 마커와 동일한 시각/패턴이다.
+     *
+     * [동작 방식]
+     *  - 첫 호출 시: ol.layer.Vector + ol.source.Vector 를 1회 생성하고
+     *    style 함수에서 3겹 Circle + Text 를 반환하도록 정의한 뒤
+     *    oceanMap 에 addLayer 한다.
+     *  - 이후 호출 시: 기존 source.clear() 로 이전 마커를 지우고 새 Feature
+     *    1개를 추가한다 → 항상 마커 1개만 유지된다.
+     *
+     * [연계]
+     *  - 호출처: showSearchResults 의 항목 클릭 핸들러
+     *  - 모델: tide.js 657-707 의 searchResultLayer 패턴
+     *
+     * @param {number} lat   위도
+     * @param {number} lon   경도
+     * @param {string} name  마커 위에 표시할 장소 이름
+     */
+    function addOrUpdateSearchMarker(lat, lon, name) {
+        if (!oceanMap) return;
+        var coord = ol.proj.fromLonLat([lon, lat]);
+
+        if (!searchResultLayer) {
+            searchResultLayer = new ol.layer.Vector({
+                source: new ol.source.Vector(),
+                zIndex: 900,
+                style: function (feature) {
+                    var label = feature.get('name') || '';
+                    return [
+                        new ol.style.Style({
+                            image: new ol.style.Circle({
+                                radius: 14,
+                                fill: new ol.style.Fill({ color: 'rgba(255, 80, 80, 0.15)' })
+                            })
+                        }),
+                        new ol.style.Style({
+                            image: new ol.style.Circle({
+                                radius: 10,
+                                fill: new ol.style.Fill({ color: '#ffffff' }),
+                                stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.08)', width: 1 })
+                            })
+                        }),
+                        new ol.style.Style({
+                            image: new ol.style.Circle({
+                                radius: 6,
+                                fill: new ol.style.Fill({ color: '#ff4444' })
+                            }),
+                            text: new ol.style.Text({
+                                text: label,
+                                offsetY: -22,
+                                font: 'bold 12px sans-serif',
+                                fill: new ol.style.Fill({ color: '#ffffff' }),
+                                backgroundFill: new ol.style.Fill({ color: 'rgba(255,68,68,0.85)' }),
+                                padding: [2, 6, 2, 6],
+                                backgroundStroke: new ol.style.Stroke({ color: 'rgba(255,68,68,0.9)', width: 1 })
+                            })
+                        })
+                    ];
+                }
+            });
+            oceanMap.addLayer(searchResultLayer);
+        }
+
+        var source = searchResultLayer.getSource();
+        source.clear();
+        var feature = new ol.Feature({ geometry: new ol.geom.Point(coord) });
+        feature.set('name', name);
+        source.addFeature(feature);
     }
 
     function closeSearchDropdown() {
