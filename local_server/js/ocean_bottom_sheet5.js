@@ -53,7 +53,7 @@
         // (5) 6개 일반 카드: 일단 모든 날짜에서 호출 (안A)
         //     백엔드 정상화 전까지 카드 자동 숨김도 임시 해제 — 실패 시 "데이터 없음" 텍스트 표출
         fetchDepth(lat, lon);
-        fetchRoms(lat, lon);
+        fetchRoms(lat, lon, d);
         fetchWeather(lat, lon);
         fetchWave(lat, lon);
 
@@ -89,8 +89,30 @@
             .catch(function () { OS.setCardValue('ocean-val-depth', '데이터 없음'); });
     }
 
-    function fetchRoms(lat, lon) {
-        fetch('/api/ocean/roms?lat=' + lat + '&lon=' + lon)
+    function fetchRoms(lat, lon, dateObj) {
+        // KHOA 해아름 stream-vector(전 해역 격자) 캐시에서 가장 가까운 점 1개 조회.
+        // 기존 공공데이터포털 ROMS API 단일좌표 호출보다 빠르고, 같은 시각이면
+        // 서버 캐시(1시간 TTL)로 즉시 응답된다.
+        var dateStr = '', hourStr = '';
+        try {
+            var d = dateObj || new Date();
+            dateStr = d.getFullYear() +
+                String(d.getMonth() + 1).padStart(2, '0') +
+                String(d.getDate()).padStart(2, '0');
+            // 사용자가 미래 날짜를 보고 있을 수도 있으니 정오를 기본으로
+            var nowD = new Date();
+            var sameDay = (d.getFullYear() === nowD.getFullYear() &&
+                           d.getMonth() === nowD.getMonth() &&
+                           d.getDate() === nowD.getDate());
+            hourStr = sameDay
+                ? String(nowD.getHours()).padStart(2, '0')
+                : '12';
+        } catch (e) { /* fall through */ }
+
+        var url = '/api/ocean/khoa-stream-nearest?lat=' + lat + '&lon=' + lon;
+        if (dateStr) url += '&date=' + dateStr + '&hour=' + hourStr;
+
+        fetch(url)
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data || !data.success) {
