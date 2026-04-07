@@ -271,7 +271,7 @@ router.get('/api/ocean/khoa-wms', async (req, res) => {
 //   → 주어진 좌표에 가장 가까운 점 1개 (단일 좌표 조회용)
 
 const KHOA_STREAM_BASE =
-    'http://www.khoa.go.kr/oceandata/oceaninfo/prediction/dynamic-stream-vector.do';
+    'https://www.khoa.go.kr/oceandata/oceaninfo/prediction/dynamic-stream-vector.do';
 
 // 메모리 캐시: { 'YYYYMMDD_HH': { ts, points: [{lat,lon,s,d,temp,...}], meta } }
 const _khoaCache = new Map();
@@ -291,26 +291,15 @@ async function _fetchKhoaStream(date, hour) {
         '&pre_hour=' + encodeURIComponent(hour);
 
     const fetchFn = global.fetch || require('node-fetch');
-    let r;
-    try {
-        r = await fetchFn(upstream, {
-            redirect: 'follow',
-            headers: {
-                'Referer': 'http://www.khoa.go.kr/oceanmap/main.do',
-                'User-Agent': 'Mozilla/5.0'
-            }
-        });
-    } catch (netErr) {
-        // HTTP 가 막히면 HTTPS 재시도
-        const httpsUrl = upstream.replace(/^http:/, 'https:');
-        r = await fetchFn(httpsUrl, {
-            redirect: 'follow',
-            headers: {
-                'Referer': 'https://www.khoa.go.kr/oceanmap/main.do',
-                'User-Agent': 'Mozilla/5.0'
-            }
-        });
-    }
+    const headers = {
+        'Referer': 'https://www.khoa.go.kr/oceandata/oceaninfo/prediction/predictionDynamicStream.do',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Origin': 'https://www.khoa.go.kr'
+    };
+    let r = await fetchFn(upstream, { redirect: 'follow', headers: headers });
     if (!r.ok) {
         const body = await r.text();
         console.error('[KHOA-Stream] upstream', r.status, 'url:', upstream, 'body:', body.slice(0, 300));
