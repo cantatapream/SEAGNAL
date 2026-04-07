@@ -185,8 +185,9 @@ router.get('/api/ocean/wave', (req, res) => {
 /**
  * GET /api/ocean/zone-forecasts
  *
- * 모든 해구의 파고·바람 예보를 반환합니다.
+ * 모든 소해구의 파고·바람 예보를 반환합니다.
  * ocean_overlay.js의 바람/파고 오버레이 시각화에 사용됩니다.
+ * zone_coords.json의 소해구 좌표를 함께 반환하여 정확한 위치에 표출합니다.
  *
  * [요청 파라미터]
  * - time (선택): ISO 날짜 문자열. 없으면 현재 시각 기준.
@@ -198,13 +199,23 @@ router.get('/api/ocean/zone-forecasts', (req, res) => {
             return res.json({ success: false, error: '해구별 기상전망 데이터가 없습니다.' });
         }
 
+        // 소해구 좌표 로드 (없으면 빈 객체)
+        const coordsPath = path.join(DATA_DIR, 'zone_coords.json');
+        const zoneCoords = fs.existsSync(coordsPath)
+            ? JSON.parse(fs.readFileSync(coordsPath, 'utf8'))
+            : {};
+
         const zoneData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
         const targetTime = req.query.time ? new Date(req.query.time) : new Date();
 
         const result = {};
-        SEA_ZONES.forEach(zone => {
-            const items = zoneData.data?.[zone.lzone];
+        Object.keys(zoneData.data).forEach(lzone => {
+            const items = zoneData.data[lzone];
             if (!items || items.length === 0) return;
+
+            // 좌표 없는 해구는 제외
+            const coords = zoneCoords[lzone];
+            if (!coords) return;
 
             let closest = items[0], minDiff = Infinity;
             items.forEach(item => {
@@ -217,8 +228,9 @@ router.get('/api/ocean/zone-forecasts', (req, res) => {
                 if (diff < minDiff) { minDiff = diff; closest = item; }
             });
 
-            result[zone.lzone] = {
-                bounds: zone.bounds,   // [ymin, ymax, xmin, xmax]
+            result[lzone] = {
+                lat: coords.lat,
+                lon: coords.lon,
                 wh: closest.wh || 0,
                 waveDir: closest.waveDir || 0,
                 ws: closest.ws || 0,
