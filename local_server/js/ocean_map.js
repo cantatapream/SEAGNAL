@@ -92,10 +92,24 @@
      */
     function createKhoaLayer(tileUrl) {
         if (tileUrl) {
-            // 해아름 타일 URL 형식: 기본URL + &z={z}&x={x}&y={y}
-            // (URL에 이미 ?ServiceKey=... 가 있으므로 &로 추가)
+            // 해아름 타일 URL 형식
+            // 원본:  https://...SSLVectormapApi.do?ServiceKey=KEY
+            // 변환:  https://...SSLVectormapApi.do/{z}/{x}/{y}.png?ServiceKey=KEY
+            // (경로는 .do 뒤에, ServiceKey는 query string으로 유지)
+            var queryIndex = tileUrl.indexOf('?');
+            var finalUrl;
+            if (queryIndex >= 0) {
+                var basePart = tileUrl.substring(0, queryIndex);   // ...SSLVectormapApi.do
+                var queryPart = tileUrl.substring(queryIndex);     // ?ServiceKey=...
+                finalUrl = basePart + '/{z}/{x}/{y}.png' + queryPart;
+            } else {
+                finalUrl = tileUrl + '/{z}/{x}/{y}.png';
+            }
+
+            console.log('[OceanMap] 해아름 타일 최종 URL:', finalUrl);
+
             var xyzSource = new ol.source.XYZ({
-                url: tileUrl + '&z={z}&x={x}&y={y}',
+                url: finalUrl,
                 maxZoom: 18,
                 attributions: '&copy; <a href="https://www.khoa.go.kr">국립해양조사원</a>'
             });
@@ -104,7 +118,6 @@
             var tileLoadErrors = 0;
             xyzSource.on('tileloaderror', function () {
                 tileLoadErrors++;
-                // 3번 연속 실패하면 OSM으로 전환
                 if (tileLoadErrors === 3) {
                     console.warn('[OceanMap] 해아름 타일 로드 실패, OSM으로 자동 전환');
                     xyzSource.setUrl('https://tile.openstreetmap.org/{z}/{x}/{y}.png');
