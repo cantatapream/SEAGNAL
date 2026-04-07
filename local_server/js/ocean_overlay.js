@@ -417,7 +417,7 @@
 
         if (zonePts.length === 0) return [];
 
-        // 0.5° 정규 격자로 전체 한반도 주변 해역 커버 (빈 셀은 nearest-neighbor 채움)
+        // 소해구 데이터가 있는 셀만 표시 (nearest-neighbor 채움 없음)
         var pts = [];
         var STEP = 0.5;
         var LAT_MIN = 24.25, LAT_MAX = 45.75;
@@ -427,11 +427,6 @@
             for (var lon = LON_MIN; lon <= LON_MAX + 0.01; lon = Math.round((lon + STEP) * 100) / 100) {
                 var key = lat.toFixed(2) + '_' + lon.toFixed(2);
                 var val = zoneMap[key];
-
-                if (!val) {
-                    // 빈 셀: 최근접 소해구 값으로 채움 (spiral 탐색 → O(1) 평균)
-                    val = findNearestZoneVal(lat, lon, zoneMap, STEP);
-                }
 
                 if (val) {
                     pts.push({ lat: lat, lon: lon, crsp: val.crsp, crdir: val.crdir });
