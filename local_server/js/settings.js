@@ -48,7 +48,13 @@ function initTabs() {
                     // [연계] ocean_map.js initOceanMap() → 해양종합정보 지도 초기화
                     const oceanSection = document.getElementById('ocean-map-section');
                     if (oceanSection) {
-                        window.switchMainTab('ocean-map-section');
+                        // 일반 switchMainTab 을 쓰면 메인탭/서브탭이 모두 비활성화되어
+                        // 사용자가 보고 있던 탭바가 사라진다. 히든 탭 전용 진입 함수를 사용한다.
+                        if (typeof window.enterOceanMapSection === 'function') {
+                            window.enterOceanMapSection();
+                        } else {
+                            window.switchMainTab('ocean-map-section');
+                        }
                         return;
                     }
                 }

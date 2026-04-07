@@ -8272,7 +8272,13 @@ line-height: 1.1;
  * ========================================================================== */
 #ocean-map-section.tab-content.active {
     position: fixed;
-    inset: 0;                  /* top:0; right:0; bottom:0; left:0; */
+    /* top 만 변수로: enterOceanMapSection() 이 (메인탭+서브탭) 의 bottom Y 를 주입.
+       이 값이 비어 있으면 0 (전체 화면). 탭바가 있으면 그 아래부터 시작해서
+       메인탭/서브탭은 ocean-map-section 위에서 그대로 노출된다. */
+    top: var(--ocean-top-offset, 0);
+    right: 0;
+    bottom: 0;
+    left: 0;
     max-width: none;
     width: 100%;
     height: 100%;
