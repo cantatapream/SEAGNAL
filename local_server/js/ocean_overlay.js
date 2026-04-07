@@ -74,9 +74,14 @@
     let mapRef = null;
     let activeLayer = 'current';   // 현재 표시 중인 오버레이
     let gridData = null;           // ROMS 격자 데이터
+    let lonList = null;            // 정렬된 unique lon 배열 (보간용 인덱스)
+    let latList = null;            // 정렬된 unique lat 배열
+    let gridLookup = null;         // 'lonIdx_latIdx' → point 사전 (보간용)
     let animationId = null;        // 파티클 애니메이션 RAF ID
     let particles = [];            // 파티클 배열
-    const MAX_PARTICLES = 800;
+    const BASE_PARTICLES = 2000;   // 줌 7 기준 입자 수 (실제는 줌에 따라 가변)
+    let trailCanvas = null;        // 입자 트레일 전용 오프스크린 (페이드 누적)
+    let trailCtx = null;
     let streamActive = false;      // 해류 시각화 ON/OFF (사용자 토글)
     let inited = false;            // oceanOverlayInit 1회 가드
 
@@ -99,6 +104,9 @@
         canvas = document.getElementById('ocean-overlay-canvas');
         if (!canvas) return;
         ctx = canvas.getContext('2d');
+        // 입자 트레일 전용 오프스크린 캔버스
+        trailCanvas = document.createElement('canvas');
+        trailCtx = trailCanvas.getContext('2d');
         inited = true;
 
         // 오프스크린 캔버스 생성 (격자 색상용 - 정적 렌더)
@@ -142,6 +150,18 @@
         if (!canvas || !ctx) return;
         mapRef = map;
         resizeCanvas();
+        // 줌/팬 후 트레일 잔상은 픽셀 좌표가 어긋나므로 지우고 새로 시작
+        if (trailCtx && trailCanvas) {
+            var tw = trailCanvas.width / (window.devicePixelRatio || 1);
+            var th = trailCanvas.height / (window.devicePixelRatio || 1);
+            trailCtx.clearRect(0, 0, tw, th);
+        }
+        if (particles && particles.length) {
+            for (var i = 0; i < particles.length; i++) {
+                particles[i].prevPx = null;
+                particles[i].prevPy = null;
+            }
+        }
         renderGridToOffscreen();
     };
 
@@ -158,8 +178,16 @@
         if (gridCtx) {
             gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
         }
+        if (trailCtx && trailCanvas) {
+            var tw = trailCanvas.width / (window.devicePixelRatio || 1);
+            var th = trailCanvas.height / (window.devicePixelRatio || 1);
+            trailCtx.clearRect(0, 0, tw, th);
+        }
         particles = [];
         gridData = null;
+        lonList = null;
+        latList = null;
+        gridLookup = null;
     };
 
     // ========================================================================
@@ -184,6 +212,13 @@
             gridCanvas.height = rect.height * dpr;
             if (gridCtx) {
                 gridCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            }
+        }
+        if (trailCanvas) {
+            trailCanvas.width = rect.width * dpr;
+            trailCanvas.height = rect.height * dpr;
+            if (trailCtx) {
+                trailCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
             }
         }
     }
@@ -275,45 +310,130 @@
      * 격자 색상을 오프스크린 캔버스에 렌더링 (정적 레이어)
      * animate()에서 매 프레임 이 이미지를 합성하여 파티클과 함께 표시
      */
+    /**
+     * 격자 인덱스 빌드 — 정렬된 lon/lat 리스트와 (lonIdx, latIdx) → point 사전.
+     * 격자가 정규 격자(lat 동일, lon 동일이 행/열을 이룸)라는 KHOA 데이터 특성을 활용.
+     * sampleAt() 의 쌍선형 보간에 사용된다.
+     */
+    function buildGridIndex() {
+        if (!gridData || gridData.length === 0) return;
+        var lonSet = {}, latSet = {};
+        for (var i = 0; i < gridData.length; i++) {
+            lonSet[gridData[i].lon] = true;
+            latSet[gridData[i].lat] = true;
+        }
+        lonList = Object.keys(lonSet).map(parseFloat).sort(function (a, b) { return a - b; });
+        latList = Object.keys(latSet).map(parseFloat).sort(function (a, b) { return a - b; });
+        var lonIdx = {}, latIdx = {};
+        for (var k = 0; k < lonList.length; k++) lonIdx[lonList[k]] = k;
+        for (var m = 0; m < latList.length; m++) latIdx[latList[m]] = m;
+        gridLookup = {};
+        for (var n = 0; n < gridData.length; n++) {
+            var p = gridData[n];
+            gridLookup[lonIdx[p.lon] + '_' + latIdx[p.lat]] = p;
+        }
+    }
+
+    // 정렬 배열 sortedArr 에서 value 보다 크지 않은 마지막 인덱스를 찾는다 (이진탐색).
+    function lowerBound(sortedArr, value) {
+        var lo = 0, hi = sortedArr.length - 1;
+        if (value < sortedArr[0]) return -1;
+        if (value >= sortedArr[hi]) return hi;
+        while (lo < hi) {
+            var mid = (lo + hi + 1) >> 1;
+            if (sortedArr[mid] <= value) lo = mid; else hi = mid - 1;
+        }
+        return lo;
+    }
+
+    /**
+     * 임의의 (lon, lat) 위치에서 격자 4개를 둘러싸 쌍선형 보간한 결과 반환.
+     * 보간된 crsp(cm/s), crdir(deg) 객체. 격자 외곽이거나 4점 중 결측이면 null.
+     */
+    function sampleAt(lon, lat) {
+        if (!lonList || !latList || !gridLookup) return null;
+        var li = lowerBound(lonList, lon);
+        var la = lowerBound(latList, lat);
+        if (li < 0 || li >= lonList.length - 1) return null;
+        if (la < 0 || la >= latList.length - 1) return null;
+        var p00 = gridLookup[li + '_' + la];
+        var p10 = gridLookup[(li + 1) + '_' + la];
+        var p01 = gridLookup[li + '_' + (la + 1)];
+        var p11 = gridLookup[(li + 1) + '_' + (la + 1)];
+        if (!p00 || !p10 || !p01 || !p11) return null;
+        var fx = (lon - lonList[li]) / (lonList[li + 1] - lonList[li]);
+        var fy = (lat - latList[la]) / (latList[la + 1] - latList[la]);
+        var s = (p00.crsp * (1 - fx) + p10.crsp * fx) * (1 - fy) +
+                (p01.crsp * (1 - fx) + p11.crsp * fx) * fy;
+        // 방향은 sin/cos 로 분해해서 보간 (도 단위 직접 평균하면 0/360 경계에서 깨짐)
+        function vec(d) { var r = d * Math.PI / 180; return [Math.sin(r), Math.cos(r)]; }
+        var v00 = vec(p00.crdir), v10 = vec(p10.crdir), v01 = vec(p01.crdir), v11 = vec(p11.crdir);
+        var sx = (v00[0] * (1 - fx) + v10[0] * fx) * (1 - fy) + (v01[0] * (1 - fx) + v11[0] * fx) * fy;
+        var sy = (v00[1] * (1 - fx) + v10[1] * fx) * (1 - fy) + (v01[1] * (1 - fx) + v11[1] * fx) * fy;
+        var d = Math.atan2(sx, sy) * 180 / Math.PI;
+        if (d < 0) d += 360;
+        return { crsp: s, crdir: d };
+    }
+
+    /**
+     * 색상 격자 렌더링 — 화면을 저해상도(STEP px)로 샘플링하여
+     * 각 픽셀에서 sampleAt() 으로 쌍선형 보간한 값을 색으로 환산.
+     * 이 저해상도 ImageData 를 캔버스 크기로 부드럽게 확대(drawImage smoothing)
+     * 해서 매끄러운 색면을 얻는다. 줌인할수록 같은 격자 영역에 더 많은 픽셀이
+     * 들어가 자동으로 더 섬세해 보인다.
+     */
     function renderGridToOffscreen() {
         if (!gridCtx || !gridCanvas || !gridData || !mapRef) return;
+        if (!lonList) buildGridIndex();
 
-        var w = gridCanvas.width / (window.devicePixelRatio || 1);
-        var h = gridCanvas.height / (window.devicePixelRatio || 1);
+        var dpr = window.devicePixelRatio || 1;
+        var w = gridCanvas.width / dpr;
+        var h = gridCanvas.height / dpr;
         gridCtx.clearRect(0, 0, w, h);
 
         var scale = COLOR_SCALES[activeLayer];
+        var STEP = 4; // 4px 단위 샘플링 → 속도/품질 균형
+        var imgW = Math.max(1, Math.ceil(w / STEP));
+        var imgH = Math.max(1, Math.ceil(h / STEP));
 
-        gridData.forEach(function (item) {
-            var pixel = mapRef.getPixelFromCoordinate(ol.proj.fromLonLat([item.lon, item.lat]));
-            if (!pixel) return;
+        var tmp = document.createElement('canvas');
+        tmp.width = imgW;
+        tmp.height = imgH;
+        var tctx = tmp.getContext('2d');
+        var idata = tctx.createImageData(imgW, imgH);
+        var data = idata.data;
 
-            var x = pixel[0];
-            var y = pixel[1];
-            if (x < -20 || x > w + 20 || y < -20 || y > h + 20) return;
+        for (var py = 0; py < imgH; py++) {
+            for (var px = 0; px < imgW; px++) {
+                var sx = px * STEP;
+                var sy = py * STEP;
+                var coord = mapRef.getCoordinateFromPixel([sx, sy]);
+                if (!coord) continue;
+                var ll = ol.proj.toLonLat(coord);
+                var samp = sampleAt(ll[0], ll[1]);
+                if (!samp) continue;
+                var value;
+                if (activeLayer === 'current') value = samp.crsp;
+                else if (activeLayer === 'wind') value = samp.crsp / 10;
+                else value = samp.crsp / 20;
 
-            // 값에 따른 색상 결정
-            var value;
-            if (activeLayer === 'current') value = item.crsp || 0;
-            else if (activeLayer === 'wind') value = item.crsp ? item.crsp / 10 : 0;
-            else value = item.crsp ? item.crsp / 20 : 0;
+                var color = interpolateColor(scale, value);
+                var i = (py * imgW + px) * 4;
+                data[i]     = color[0];
+                data[i + 1] = color[1];
+                data[i + 2] = color[2];
+                data[i + 3] = Math.round((color[3] || 0.6) * 255);
+            }
+        }
+        tctx.putImageData(idata, 0, 0);
 
-            var color = interpolateColor(scale, value);
-            var radius = Math.max(8, 15 - mapRef.getView().getZoom());
+        gridCtx.imageSmoothingEnabled = true;
+        gridCtx.imageSmoothingQuality = 'high';
+        gridCtx.drawImage(tmp, 0, 0, w, h);
 
-            // 부드러운 원형 그라디언트
-            var gradient = gridCtx.createRadialGradient(x, y, 0, x, y, radius);
-            gradient.addColorStop(0, 'rgba(' + color[0] + ',' + color[1] + ',' + color[2] + ',' + color[3] + ')');
-            gradient.addColorStop(1, 'rgba(' + color[0] + ',' + color[1] + ',' + color[2] + ',0)');
-
-            gridCtx.fillStyle = gradient;
-            gridCtx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
-        });
-
-        // 애니메이션이 아직 없으면 정적 렌더만 메인 캔버스에 표시
         if (!animationId && ctx) {
-            var mw = canvas.width / (window.devicePixelRatio || 1);
-            var mh = canvas.height / (window.devicePixelRatio || 1);
+            var mw = canvas.width / dpr;
+            var mh = canvas.height / dpr;
             ctx.clearRect(0, 0, mw, mh);
             ctx.drawImage(gridCanvas, 0, 0, mw, mh);
         }
@@ -347,18 +467,37 @@
     function startParticleAnimation() {
         if (animationId) cancelAnimationFrame(animationId);
         if (!gridData || gridData.length === 0) return;
+        if (!lonList) buildGridIndex();
 
-        // 파티클 초기화
+        // 줌이 깊을수록 입자 더 조밀하게 — 같은 화면 면적에 더 많이 떨어뜨려
+        // 듬성듬성 보이지 않게 한다.
+        var zoom = mapRef.getView().getZoom();
+        var count = Math.round(BASE_PARTICLES * Math.pow(1.35, zoom - 7));
+        if (count < 800) count = 800;
+        if (count > 8000) count = 8000;
+
         particles = [];
-        for (var i = 0; i < MAX_PARTICLES; i++) {
+        for (var i = 0; i < count; i++) {
             particles.push(createParticle());
+        }
+
+        // 트레일 캔버스 초기화
+        if (trailCtx && trailCanvas) {
+            var tw = trailCanvas.width / (window.devicePixelRatio || 1);
+            var th = trailCanvas.height / (window.devicePixelRatio || 1);
+            trailCtx.clearRect(0, 0, tw, th);
         }
 
         animate();
     }
 
+    /**
+     * 파티클 생성: 화면(viewport) 안에서 랜덤 좌표에 떨어뜨린다.
+     * 좌표는 EPSG:3857(map projection coord)로 저장 — 줌/팬해도 같은 절대 좌표.
+     * prevPx/prevPy 는 이전 프레임의 픽셀 좌표(트레일 선분 그릴 때 사용).
+     */
     function createParticle() {
-        if (!mapRef) return { x: 0, y: 0, age: 0, maxAge: 60 };
+        if (!mapRef) return { x: 0, y: 0, age: 0, maxAge: 80, prevPx: null, prevPy: null };
 
         var view = mapRef.getView();
         var extent = view.calculateExtent(mapRef.getSize());
@@ -368,8 +507,10 @@
         return {
             x: extent[0] + Math.random() * w,
             y: extent[1] + Math.random() * h,
-            age: Math.floor(Math.random() * 60),
-            maxAge: 40 + Math.floor(Math.random() * 40)
+            age: Math.floor(Math.random() * 80),
+            maxAge: 60 + Math.floor(Math.random() * 60),
+            prevPx: null,
+            prevPy: null
         };
     }
 
@@ -378,50 +519,85 @@
 
         var w = canvas.width / (window.devicePixelRatio || 1);
         var h = canvas.height / (window.devicePixelRatio || 1);
+        var scale = COLOR_SCALES[activeLayer];
 
-        // 매 프레임 캔버스 초기화 후 레이어 합성:
-        // 1) 오프스크린 격자 색상 이미지 그리기 (정적)
-        // 2) 파티클 페이드 트레일 + 새 파티클 위치
-        ctx.clearRect(0, 0, w, h);
-
-        // ① 격자 색상 오버레이 (오프스크린 캔버스에서 복사)
-        if (gridCanvas) {
-            ctx.drawImage(gridCanvas, 0, 0, w, h);
+        // ① 트레일 캔버스를 약간 페이드(검정 반투명 덮기) → 잔상이 서서히 사라짐
+        if (trailCtx) {
+            // 페이드 강도가 작을수록 잔상이 길게 남음 → 흐름이 강처럼 보임.
+            trailCtx.globalCompositeOperation = 'destination-out';
+            trailCtx.fillStyle = 'rgba(0,0,0,0.035)';
+            trailCtx.fillRect(0, 0, w, h);
+            trailCtx.globalCompositeOperation = 'source-over';
         }
 
-        // ② 파티클 업데이트 및 렌더 (흐름선 효과)
+        // ② 입자 업데이트 + 트레일 캔버스에 짧은 선분으로 그리기
+        // 이동량은 지도 좌표(EPSG:3857) 단위. 줌인하면 화면상 같은 미터가 더 큰 픽셀이라
+        // 자동으로 빠르게 흐르는 것처럼 보임.
+        // 속도 스케일: KHOA s(m/s) → cm/s 변환된 crsp(0~250 정도) → 좌표 단위 이동량.
+        // 한 프레임당 m 단위 이동. 1 cm/s = 0.01 m/s. 한 프레임 ≈ 1초로 가정 시
+        // 0.01 m 가 되어 화면에서 안 보이므로 50배 가속.
+        var SPEED_SCALE = 50;
+
         particles.forEach(function (p) {
-            // 가장 가까운 격자점의 유향/유속 찾기
             var lonLat = ol.proj.toLonLat([p.x, p.y]);
-            var nearest = findNearestGrid(lonLat[1], lonLat[0]);
+            // 가장 가까운 점 대신 4점 쌍선형 보간으로 매끄럽게 흐르게.
+            var nearest = sampleAt(lonLat[0], lonLat[1]);
 
+            var spdValue = 0;
             if (nearest) {
-                var dir = (nearest.crdir || 0) * Math.PI / 180;
-                var spd = (nearest.crsp || 0) * 0.5; // 스케일 조정
+                var dirRad = (nearest.crdir || 0) * Math.PI / 180;
+                var spdMps = (nearest.crsp || 0) * 0.01; // cm/s → m/s
+                spdValue = nearest.crsp || 0;
 
-                // 지도 좌표계에서의 이동
-                p.x += Math.sin(dir) * spd;
-                p.y -= Math.cos(dir) * spd;
+                p.x += Math.sin(dirRad) * spdMps * SPEED_SCALE;
+                p.y -= Math.cos(dirRad) * spdMps * SPEED_SCALE;
             }
 
             p.age++;
-            if (p.age > p.maxAge) {
+            // 격자점이 없거나 너무 느리면 자주 재생성
+            if (p.age > p.maxAge || !nearest || spdValue < 0.5) {
                 var newP = createParticle();
                 p.x = newP.x;
                 p.y = newP.y;
                 p.age = 0;
+                p.prevPx = null;
+                p.prevPy = null;
+                return;
             }
 
-            // 화면에 파티클 그리기 (나이에 따라 투명도 감소)
             var pixel = mapRef.getPixelFromCoordinate([p.x, p.y]);
-            if (pixel) {
-                var alpha = 1.0 - (p.age / p.maxAge);
-                ctx.fillStyle = 'rgba(255, 255, 255, ' + (alpha * 0.7) + ')';
-                ctx.beginPath();
-                ctx.arc(pixel[0], pixel[1], 1.5, 0, Math.PI * 2);
-                ctx.fill();
+            if (!pixel) return;
+            var px = pixel[0], py = pixel[1];
+
+            // 화면 밖이면 재생성
+            if (px < 0 || py < 0 || px > w || py > h) {
+                var np = createParticle();
+                p.x = np.x; p.y = np.y; p.age = 0;
+                p.prevPx = null; p.prevPy = null;
+                return;
             }
+
+            // 트레일에 짧은 선분 그리기 (이전 픽셀 → 현재 픽셀)
+            if (trailCtx && p.prevPx !== null) {
+                var col = interpolateColor(scale, spdValue);
+                trailCtx.strokeStyle = 'rgba(255,255,255,0.85)';
+                // 빠를수록 굵게 + 더 진하게
+                var lw = 0.8 + Math.min(2.2, spdValue / 30);
+                trailCtx.lineWidth = lw;
+                trailCtx.lineCap = 'round';
+                trailCtx.beginPath();
+                trailCtx.moveTo(p.prevPx, p.prevPy);
+                trailCtx.lineTo(px, py);
+                trailCtx.stroke();
+            }
+            p.prevPx = px;
+            p.prevPy = py;
         });
+
+        // ③ 메인 캔버스 합성: 색상 격자(정적) + 트레일(애니메이션)
+        ctx.clearRect(0, 0, w, h);
+        if (gridCanvas) ctx.drawImage(gridCanvas, 0, 0, w, h);
+        if (trailCanvas) ctx.drawImage(trailCanvas, 0, 0, w, h);
 
         animationId = requestAnimationFrame(animate);
     }
