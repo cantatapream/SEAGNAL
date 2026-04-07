@@ -83,6 +83,7 @@
     let trailCanvas = null;        // 입자 트레일 전용 오프스크린 (페이드 누적)
     let trailCtx = null;
     let streamActive = false;      // 해류 시각화 ON/OFF (사용자 토글)
+    let isMoving = false;          // 지도 이동/줌 중 플래그 (잔상 방지)
     let inited = false;            // oceanOverlayInit 1회 가드
 
     // ========================================================================
@@ -108,6 +109,12 @@
         trailCanvas = document.createElement('canvas');
         trailCtx = trailCanvas.getContext('2d');
         inited = true;
+
+        // 지도 이동/줌 시작 → 파티클 캔버스 숨기기 (잔상 방지)
+        mapRef.on('movestart', function () {
+            isMoving = true;
+            if (canvas) canvas.style.visibility = 'hidden';
+        });
 
         // 오프스크린 캔버스 생성 (격자 색상용 - 정적 렌더)
         gridCanvas = document.createElement('canvas');
@@ -163,6 +170,9 @@
             }
         }
         renderGridToOffscreen();
+        // 이동 종료 → 파티클 다시 표시
+        isMoving = false;
+        if (canvas && streamActive) canvas.style.visibility = 'visible';
     };
 
     window.oceanOverlayClear = function () {
@@ -430,13 +440,7 @@
         gridCtx.imageSmoothingEnabled = true;
         gridCtx.imageSmoothingQuality = 'high';
         gridCtx.drawImage(tmp, 0, 0, w, h);
-
-        if (!animationId && ctx) {
-            var mw = canvas.width / dpr;
-            var mh = canvas.height / dpr;
-            ctx.clearRect(0, 0, mw, mh);
-            ctx.drawImage(gridCanvas, 0, 0, mw, mh);
-        }
+        // 배경 색상은 animate()에서 그리지 않음 — 파티클 트레일 자체에 색상을 부여
     }
 
     /**
@@ -507,8 +511,8 @@
         return {
             x: extent[0] + Math.random() * w,
             y: extent[1] + Math.random() * h,
-            age: Math.floor(Math.random() * 80),
-            maxAge: 60 + Math.floor(Math.random() * 60),
+            age: Math.floor(Math.random() * 120),
+            maxAge: 150 + Math.floor(Math.random() * 100),
             prevPx: null,
             prevPy: null
         };
@@ -521,22 +525,29 @@
         var h = canvas.height / (window.devicePixelRatio || 1);
         var scale = COLOR_SCALES[activeLayer];
 
+        // 지도 이동/줌 중에는 캔버스를 비우고 대기 (잔상 방지)
+        if (isMoving) {
+            ctx.clearRect(0, 0, w, h);
+            animationId = requestAnimationFrame(animate);
+            return;
+        }
+
         // ① 트레일 캔버스를 약간 페이드(검정 반투명 덮기) → 잔상이 서서히 사라짐
         if (trailCtx) {
             // 페이드 강도가 작을수록 잔상이 길게 남음 → 흐름이 강처럼 보임.
             trailCtx.globalCompositeOperation = 'destination-out';
-            trailCtx.fillStyle = 'rgba(0,0,0,0.035)';
+            trailCtx.fillStyle = 'rgba(0,0,0,0.015)';
             trailCtx.fillRect(0, 0, w, h);
             trailCtx.globalCompositeOperation = 'source-over';
         }
 
         // ② 입자 업데이트 + 트레일 캔버스에 짧은 선분으로 그리기
-        // 이동량은 지도 좌표(EPSG:3857) 단위. 줌인하면 화면상 같은 미터가 더 큰 픽셀이라
-        // 자동으로 빠르게 흐르는 것처럼 보임.
-        // 속도 스케일: KHOA s(m/s) → cm/s 변환된 crsp(0~250 정도) → 좌표 단위 이동량.
-        // 한 프레임당 m 단위 이동. 1 cm/s = 0.01 m/s. 한 프레임 ≈ 1초로 가정 시
-        // 0.01 m 가 되어 화면에서 안 보이므로 50배 가속.
-        var SPEED_SCALE = 50;
+        // SPEED_SCALE: 화면 해상도(m/px) 기반으로 동적 계산.
+        // 목표: 1 cm/s 해류 → 0.12 px/frame, 10 cm/s → 1.2 px/frame (줌 무관)
+        // dx_meters = spdMps * SPEED_SCALE → dx_pixels = dx_meters / resolution
+        // SPEED_SCALE = 0.12 * resolution * 100
+        var resolution = mapRef.getView().getResolution();
+        var SPEED_SCALE = 0.12 * resolution * 100;
 
         particles.forEach(function (p) {
             var lonLat = ol.proj.toLonLat([p.x, p.y]);
@@ -555,7 +566,7 @@
 
             p.age++;
             // 격자점이 없거나 너무 느리면 자주 재생성
-            if (p.age > p.maxAge || !nearest || spdValue < 0.5) {
+            if (p.age > p.maxAge || !nearest || spdValue < 0.1) {
                 var newP = createParticle();
                 p.x = newP.x;
                 p.y = newP.y;
@@ -578,11 +589,12 @@
             }
 
             // 트레일에 짧은 선분 그리기 (이전 픽셀 → 현재 픽셀)
+            // 속도에 따라 색상 부여 (느림=파랑, 보통=초록/노랑, 빠름=주황/빨강)
             if (trailCtx && p.prevPx !== null) {
                 var col = interpolateColor(scale, spdValue);
-                trailCtx.strokeStyle = 'rgba(255,255,255,0.85)';
-                // 빠를수록 굵게 + 더 진하게
-                var lw = 0.8 + Math.min(2.2, spdValue / 30);
+                trailCtx.strokeStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0.92)';
+                // 빠를수록 굵게
+                var lw = 1.2 + Math.min(2.8, spdValue / 20);
                 trailCtx.lineWidth = lw;
                 trailCtx.lineCap = 'round';
                 trailCtx.beginPath();
@@ -594,9 +606,8 @@
             p.prevPy = py;
         });
 
-        // ③ 메인 캔버스 합성: 색상 격자(정적) + 트레일(애니메이션)
+        // ③ 메인 캔버스 합성: 파티클 트레일만 표시 (배경 색상 없음 → 지도가 그대로 보임)
         ctx.clearRect(0, 0, w, h);
-        if (gridCanvas) ctx.drawImage(gridCanvas, 0, 0, w, h);
         if (trailCanvas) ctx.drawImage(trailCanvas, 0, 0, w, h);
 
         animationId = requestAnimationFrame(animate);
