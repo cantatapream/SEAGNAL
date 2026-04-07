@@ -353,24 +353,47 @@
     }
 
     /**
-     * 해구 폴리곤 데이터를 격자 점 배열로 변환.
-     * 각 해구 내부에 0.4도 간격 격자점 생성 → sampleAt() 쌍선형 보간에 사용.
+     * 해구 데이터를 전체 한반도 주변 해역 격자로 확장.
+     *
+     * zone_forecasts.json 은 해구 ID → 예보값 매핑만 있고 좌표가 없습니다.
+     * 우리가 알고 있는 9개 해구의 중심 좌표를 이용해 Nearest-Zone 방식으로
+     * 전체 해역(120–138E, 28–44N)을 커버하는 격자를 생성합니다.
+     * 인접 격자점 간 보간(sampleAt)으로 해구 경계가 부드럽게 표시됩니다.
      */
     function buildGridFromZones(zones, layer) {
-        var pts = [];
-        var STEP = 0.4;
+        // 9개 해구의 중심 좌표 및 값 계산
+        var zoneCenters = [];
         Object.keys(zones).forEach(function (lzone) {
             var z = zones[lzone];
-            var ymin = z.bounds[0], ymax = z.bounds[1];
-            var xmin = z.bounds[2], xmax = z.bounds[3];
-            var crsp  = (layer === 'wind') ? (z.ws  || 0) : (z.wh  || 0);
-            var crdir = (layer === 'wind') ? (z.windDir || 0) : (z.waveDir || 0);
-            for (var lat = ymin; lat <= ymax + 0.01; lat += STEP) {
-                for (var lon = xmin; lon <= xmax + 0.01; lon += STEP) {
-                    pts.push({ lat: lat, lon: lon, crsp: crsp, crdir: crdir });
-                }
-            }
+            var centerLat = (z.bounds[0] + z.bounds[1]) / 2;
+            var centerLon = (z.bounds[2] + z.bounds[3]) / 2;
+            zoneCenters.push({
+                lat: centerLat, lon: centerLon,
+                crsp:  (layer === 'wind') ? (z.ws  || 0) : (z.wh  || 0),
+                crdir: (layer === 'wind') ? (z.windDir || 0) : (z.waveDir || 0)
+            });
         });
+        if (zoneCenters.length === 0) return [];
+
+        // 전체 한반도 주변 해역을 0.4도 격자로 덮기
+        var pts = [];
+        var STEP = 0.4;
+        var LAT_MIN = 28, LAT_MAX = 44;
+        var LON_MIN = 120, LON_MAX = 138;
+
+        for (var lat = LAT_MIN; lat <= LAT_MAX; lat += STEP) {
+            for (var lon = LON_MIN; lon <= LON_MAX; lon += STEP) {
+                // 가장 가까운 해구 중심 찾기
+                var best = zoneCenters[0], bestDist = Infinity;
+                for (var k = 0; k < zoneCenters.length; k++) {
+                    var dlat = lat - zoneCenters[k].lat;
+                    var dlon = lon - zoneCenters[k].lon;
+                    var dist = dlat * dlat + dlon * dlon;
+                    if (dist < bestDist) { bestDist = dist; best = zoneCenters[k]; }
+                }
+                pts.push({ lat: lat, lon: lon, crsp: best.crsp, crdir: best.crdir });
+            }
+        }
         return pts;
     }
 
