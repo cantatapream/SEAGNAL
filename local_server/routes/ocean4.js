@@ -240,10 +240,16 @@ router.get('/api/ocean/zone-forecasts', (req, res) => {
                 if (diff < minDiff) { minDiff = diff; closest = item; }
             });
 
+            // -999는 KMA 결측값 → 제외 (양쪽 모두 유효해야 포함)
+            const wh = closest.wh;
+            const ws = closest.ws;
+            if (wh == null || wh < 0) return;
+            if (ws == null || ws < 0) return;
+
             const entry = {
-                wh: closest.wh || 0,
+                wh: wh,
                 waveDir: closest.waveDir || 0,
-                ws: closest.ws || 0,
+                ws: ws,
                 windDir: closest.windDir || 0,
                 tm: String(closest.tm)
             };
@@ -252,7 +258,6 @@ router.get('/api/ocean/zone-forecasts', (req, res) => {
                 entry.lat = coords.lat;
                 entry.lon = coords.lon;
             } else if (coords.bounds) {
-                // fallback: bounds 중심점
                 entry.bounds = coords.bounds;
             }
             result[lzone] = entry;

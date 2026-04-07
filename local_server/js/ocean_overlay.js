@@ -397,8 +397,12 @@
             }
             if (lat == null || lon == null) return;
 
+            // -999 결측값 제외
+            var crsp = (layer === 'wind') ? z.ws : z.wh;
+            if (crsp == null || crsp < 0) return;
+
             var val = {
-                crsp:  (layer === 'wind') ? (z.ws  || 0) : (z.wh  || 0),
+                crsp:  crsp,
                 crdir: (layer === 'wind') ? (z.windDir || 0) : (z.waveDir || 0)
             };
             var key = parseFloat(lat).toFixed(2) + '_' + parseFloat(lon).toFixed(2);
@@ -575,8 +579,10 @@
         }
         tctx.putImageData(idata, 0, 0);
 
-        // 소해구(0.5°, ~55km) 격자 경계를 부드럽게 블러 처리 (Windy 스타일)
-        var blurPx = Math.max(6, Math.round(w / 80));
+        // 소해구 격자 경계 부드럽게: 줌 레벨에 비례해 최소 blur 적용
+        // (너무 크면 zone 경계가 뭉개짐 → 2~6px 범위로 제한)
+        var zoom = mapRef ? mapRef.getView().getZoom() : 7;
+        var blurPx = Math.max(2, Math.min(6, Math.round((10 - zoom) * 1.5)));
         gridCtx.imageSmoothingEnabled = true;
         gridCtx.imageSmoothingQuality = 'high';
         gridCtx.filter = 'blur(' + blurPx + 'px)';
