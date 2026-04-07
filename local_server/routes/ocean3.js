@@ -32,6 +32,60 @@ const { DATA_DIR } = require('../config/server_config');
 // 기상청 융합기상실황 API URL
 const KMA_SFC_URL = 'https://apihub.kma.go.kr/api/typ01/url/sfc_nc_var.php';
 
+// ============================================================================
+// 해구 격자 매핑 (ocean4.js와 동일 — 바람 예보 조회 시 사용)
+// ============================================================================
+const SEA_ZONES = [
+    { lzone: '474', bounds: [36.0, 38.0, 124.0, 126.0] },
+    { lzone: '472', bounds: [34.5, 36.0, 124.0, 126.0] },
+    { lzone: '471', bounds: [33.0, 34.5, 124.0, 126.0] },
+    { lzone: '480', bounds: [33.0, 34.5, 126.0, 128.0] },
+    { lzone: '482', bounds: [33.0, 34.5, 128.0, 130.0] },
+    { lzone: '484', bounds: [34.5, 36.5, 129.0, 132.0] },
+    { lzone: '486', bounds: [36.5, 38.5, 129.0, 132.0] },
+    { lzone: '488', bounds: [38.5, 40.0, 128.0, 132.0] },
+    { lzone: '478', bounds: [32.0, 33.5, 125.0, 127.5] },
+];
+
+function findZoneByCoord3(lat, lon) {
+    for (const zone of SEA_ZONES) {
+        const [ymin, ymax, xmin, xmax] = zone.bounds;
+        if (lat >= ymin && lat <= ymax && lon >= xmin && lon <= xmax) return zone.lzone;
+    }
+    let closest = SEA_ZONES[0].lzone, minDist = Infinity;
+    for (const zone of SEA_ZONES) {
+        const [ymin, ymax, xmin, xmax] = zone.bounds;
+        const d = Math.pow(lat - (ymin + ymax) / 2, 2) + Math.pow(lon - (xmin + xmax) / 2, 2);
+        if (d < minDist) { minDist = d; closest = zone.lzone; }
+    }
+    return closest;
+}
+
+/**
+ * zone_forecasts.json에서 특정 시각에 가장 가까운 항목 반환.
+ * time: JavaScript Date 객체
+ */
+function getZoneForecastAt(lat, lon, time) {
+    const filePath = path.join(DATA_DIR, 'zone_forecasts.json');
+    if (!fs.existsSync(filePath)) return null;
+    const zoneData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const lzone = findZoneByCoord3(lat, lon);
+    const items = zoneData.data?.[lzone];
+    if (!items || items.length === 0) return null;
+
+    let closest = items[0], minDiff = Infinity;
+    items.forEach(item => {
+        const s = String(item.tm);
+        const predTime = new Date(Date.UTC(
+            parseInt(s.substring(0, 4)), parseInt(s.substring(4, 6)) - 1,
+            parseInt(s.substring(6, 8)), parseInt(s.substring(8, 10))
+        ));
+        const diff = Math.abs(predTime.getTime() - time.getTime());
+        if (diff < minDiff) { minDiff = diff; closest = item; }
+    });
+    return closest;
+}
+
 /**
  * API 설정 파일에서 KMA 인증키를 읽어오는 함수
  */
@@ -80,6 +134,25 @@ router.get('/api/ocean/weather', async (req, res) => {
 
         if (isNaN(lat) || isNaN(lon)) {
             return res.status(400).json({ success: false, error: '위도(lat)와 경도(lon)를 입력해주세요.' });
+        }
+
+        // time 파라미터가 있으면 zone_forecasts.json에서 바람 예보 데이터 반환
+        // (KMA 융합기상 API는 실시간 관측만 지원하므로 과거/미래는 예보 데이터 사용)
+        if (req.query.time) {
+            const targetTime = new Date(req.query.time);
+            const fc = getZoneForecastAt(lat, lon, targetTime);
+            if (fc) {
+                return res.json({
+                    success: true,
+                    windDir: fc.windDir,
+                    windSpeed: fc.ws,
+                    temperature: null,   // 해구 예보에 기온 없음
+                    rainfall: null,
+                    obsTime: String(fc.tm),
+                    source: 'forecast'
+                });
+            }
+            return res.json({ success: false, error: '해당 시각의 바람 예보 데이터가 없습니다.' });
         }
 
         const authKey = getKmaKey();

@@ -54,8 +54,8 @@
         //     백엔드 정상화 전까지 카드 자동 숨김도 임시 해제 — 실패 시 "데이터 없음" 텍스트 표출
         fetchDepth(lat, lon);
         fetchRoms(lat, lon, d);
-        fetchWeather(lat, lon);
-        fetchWave(lat, lon);
+        fetchWeather(lat, lon, d);
+        fetchWave(lat, lon, d);
 
         // (6) 저질 버튼은 항상 보이고, 결과 영역만 숨김
         var seabedBtn = document.getElementById('ocean-seabed-btn');
@@ -140,8 +140,10 @@
             });
     }
 
-    function fetchWeather(lat, lon) {
-        fetch('/api/ocean/weather?lat=' + lat + '&lon=' + lon)
+    function fetchWeather(lat, lon, dateObj) {
+        var url = '/api/ocean/weather?lat=' + lat + '&lon=' + lon;
+        if (dateObj) url += '&time=' + encodeURIComponent(dateObj.toISOString());
+        fetch(url)
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data || !data.success) {
@@ -169,8 +171,10 @@
             });
     }
 
-    function fetchWave(lat, lon) {
-        fetch('/api/ocean/wave?lat=' + lat + '&lon=' + lon)
+    function fetchWave(lat, lon, dateObj) {
+        var url = '/api/ocean/wave?lat=' + lat + '&lon=' + lon;
+        if (dateObj) url += '&time=' + encodeURIComponent(dateObj.toISOString());
+        fetch(url)
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (data && data.success && data.waveHeight != null) {
