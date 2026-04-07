@@ -64,26 +64,53 @@
     function runIdw(lat, lon, dateObj, callback) {
         try {
             var dates = getClientAdjacentDates(dateObj);
-            var dateInt = dates.today;
+            // tide.js processEastSeaNorthException와 동일하게 3일치(어제/오늘/내일) 모두 IDW
+            var keyMap = { yesterday: dates.yesterday, today: dates.today, tomorrow: dates.tomorrow };
+            var result = { yesterday: null, today: null, tomorrow: null };
 
-            var stations = findNearestStationsWithData(lat, lon, dateInt, 3);
-            if (!stations || stations.length === 0) {
-                callback(null, '인근 표준항 조석 데이터가 존재하지 않습니다.');
-                return;
+            // 연도가 다를 수 있으므로 필요한 연도를 모두 로드
+            var years = {};
+            years[dates.yesterdayObj.getFullYear()] = true;
+            years[dates.todayObj.getFullYear()] = true;
+            years[dates.tomorrowObj.getFullYear()] = true;
+            var pending = Object.keys(years);
+
+            function afterLoads() {
+                try {
+                    for (var key in keyMap) {
+                        var dateInt = keyMap[key];
+                        var stations = findNearestStationsWithData(lat, lon, dateInt, 3);
+                        if (!stations || stations.length === 0) {
+                            callback(null, '인근 표준항 조석 데이터가 존재하지 않습니다.');
+                            return;
+                        }
+                        var idwResult = interpolateTideByIDW(stations);
+                        if (!idwResult) {
+                            callback(null, '표준항 보간 계산에 실패했습니다.');
+                            return;
+                        }
+                        var tideBed = convertIDWToTideBedFormat(idwResult, dateInt);
+                        if (!tideBed) {
+                            callback(null, '표준항 보간 결과를 변환할 수 없습니다.');
+                            return;
+                        }
+                        tideBed.isInterpolated = true;
+                        result[key] = tideBed;
+                    }
+                    callback(result, null);
+                } catch (e) {
+                    callback(null, '표준항 보간 처리 중 예외: ' + (e.message || e));
+                }
             }
 
-            var idwResult = interpolateTideByIDW(stations);
-            if (!idwResult) {
-                callback(null, '표준항 보간 계산에 실패했습니다.');
-                return;
+            function loadNext() {
+                if (pending.length === 0) { afterLoads(); return; }
+                var yr = pending.shift();
+                try {
+                    loadTideData(parseInt(yr, 10), function () { loadNext(); });
+                } catch (e) { loadNext(); }
             }
-
-            var tideBed = convertIDWToTideBedFormat(idwResult, dateInt);
-            if (!tideBed) {
-                callback(null, '표준항 보간 결과를 변환할 수 없습니다.');
-                return;
-            }
-            callback(tideBed, null);
+            loadNext();
         } catch (e) {
             callback(null, '표준항 보간 처리 중 예외: ' + (e.message || e));
         }

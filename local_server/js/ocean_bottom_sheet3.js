@@ -48,8 +48,11 @@
         // 동해북부 우회 (4.js)
         if (lat >= 36 && lon >= 128 && typeof OS.tryEastSeaIdw === 'function') {
             OS.tryEastSeaIdw(lat, lon, dateObj, function (result, errMsg) {
-                if (result) {
-                    OS.renderTideData(result, /*isIdw=*/true, dateObj);
+                if (result && result.today) {
+                    OS.renderTideData(result.today, /*isIdw=*/true, dateObj, {
+                        yesterday: result.yesterday,
+                        tomorrow: result.tomorrow
+                    });
                 } else {
                     OS.renderTideError(errMsg ||
                         '동해 북부 표준항 보간을 위한 근거 데이터가 부족합니다.');
@@ -89,35 +92,54 @@
                     OS.renderTideError('조석 데이터 응답이 비어 있습니다.');
                     return;
                 }
-                pollTodayFile(resp.files.today, dateObj);
+                // tide.js의 loadAllThreeDays와 동일하게 3일치(어제/오늘/내일)를 모두 폴링
+                pollThreeDayFiles(resp.files, dateObj);
             })
             .catch(function () {
                 OS.renderTideError('조석 데이터 요청 중 오류가 발생했습니다.');
             });
 
-        // -- 내부: today 파일 1개만 폴링 (60초) --------------
-        function pollTodayFile(fileName, dateObj) {
+        // -- 내부: 3일치(어제/오늘/내일) 폴링 ---------------------
+        // tide.js와 같은 방식으로 today를 우선 받아 즉시 렌더하고,
+        // 어제/내일은 백그라운드로 계속 폴링하여 cross-day 보강.
+        function pollThreeDayFiles(files, dateObj) {
             var tries = 0;
-            (function loop() {
-                fetch('/data/' + fileName)
+            var collected = { yesterday: null, today: null, tomorrow: null };
+
+            function fetchOne(key) {
+                var fname = files[key];
+                if (!fname || collected[key]) return Promise.resolve();
+                return fetch('/data/' + fname)
                     .then(function (r) { return r.json(); })
-                    .then(function (data) {
-                        if (data && (data.tideBedStatus === 'complete'
-                            || data.tideBedStatus === 'complete (IDW)')) {
-                            OS.renderTideData(data, /*isIdw=*/false, dateObj);
+                    .then(function (d) {
+                        if (d && (d.tideBedStatus === 'complete'
+                            || d.tideBedStatus === 'complete (IDW)')) {
+                            collected[key] = d;
+                        }
+                    })
+                    .catch(function () {});
+            }
+
+            (function loop() {
+                Promise.all([fetchOne('yesterday'), fetchOne('today'), fetchOne('tomorrow')])
+                    .then(function () {
+                        if (collected.today) {
+                            // 오늘 데이터 + 현재까지 모인 이웃 데이터로 렌더
+                            OS.renderTideData(collected.today, /*isIdw=*/false, dateObj, {
+                                yesterday: collected.yesterday,
+                                tomorrow: collected.tomorrow
+                            });
+                            // 이웃이 아직 비어있으면 백그라운드 보강 폴링
+                            if ((!collected.yesterday || !collected.tomorrow)
+                                && ++tries < POLL_MAX_TRIES) {
+                                setTimeout(loop, POLL_INTERVAL_MS);
+                            }
                             return;
                         }
                         if (++tries < POLL_MAX_TRIES) {
                             setTimeout(loop, POLL_INTERVAL_MS);
                         } else {
                             OS.renderTideError('조석 데이터 수집 시간이 초과되었습니다.');
-                        }
-                    })
-                    .catch(function () {
-                        if (++tries < POLL_MAX_TRIES) {
-                            setTimeout(loop, POLL_INTERVAL_MS);
-                        } else {
-                            OS.renderTideError('조석 데이터 조회 실패');
                         }
                     });
             })();
@@ -174,42 +196,86 @@
      * @param {boolean} isIdw     동해북부 IDW 보간 결과 여부
      * @param {Date} dateObj      이 카드가 표시 중인 날짜
      * ------------------------------------------------------------ */
-    OS.renderTideData = function (data, isIdw, dateObj) {
+    OS.renderTideData = function (data, isIdw, dateObj, neighbors) {
         var card = document.getElementById('ocean-card-tide');
         if (!card) return;
 
-        var peaks = collectPeaks(data); // [{type:'high'|'low', minutes, level}, ...]
+        var peaks = collectPeaks(data); // [{type, minutes, level}]
         if (peaks.length === 0) {
             OS.renderTideError('조석 분석 데이터가 비어 있습니다.');
             return;
         }
         peaks.sort(function (a, b) { return a.minutes - b.minutes; });
 
+        // 어제/내일 피크 (cross-day 보강용) — tide.js loadAllThreeDays와 동일
+        var yPeaks = (neighbors && neighbors.yesterday) ? collectPeaks(neighbors.yesterday) : [];
+        var tPeaks = (neighbors && neighbors.tomorrow)  ? collectPeaks(neighbors.tomorrow)  : [];
+        yPeaks.sort(function (a, b) { return a.minutes - b.minutes; });
+        tPeaks.sort(function (a, b) { return a.minutes - b.minutes; });
+
         var todayMode = OS.isToday(dateObj);
         var nowMin = nowMinutes();
 
-        // 직전·다음 피크 계산 (오늘일 때만 의미 있음)
+        // 직전·다음 피크 계산 — tide.js getTideProgress와 동일한 fallback 트리
+        // (1) 일반: 오늘 피크들 사이
+        // (2) 새벽: prev = 어제 마지막 피크 (-1440 보정)
+        // (3) 심야: next = 내일 첫 피크 (+1440 보정)
         var prevPeak = null, nextPeak = null;
         if (todayMode) {
             for (var i = 0; i < peaks.length; i++) {
-                if (peaks[i].minutes <= nowMin) prevPeak = peaks[i];
-                if (peaks[i].minutes > nowMin && !nextPeak) nextPeak = peaks[i];
+                if (peaks[i].minutes > nowMin) {
+                    nextPeak = peaks[i];
+                    if (i > 0) {
+                        prevPeak = peaks[i - 1];
+                    } else if (yPeaks.length > 0) {
+                        var yLast = yPeaks[yPeaks.length - 1];
+                        prevPeak = { type: yLast.type, level: yLast.level, minutes: yLast.minutes - 1440 };
+                    }
+                    break;
+                }
+            }
+            // 다음 피크 없음 → 내일 첫 피크
+            if (!nextPeak) {
+                if (peaks.length > 0) prevPeak = peaks[peaks.length - 1];
+                if (tPeaks.length > 0) {
+                    var tFirst = tPeaks[0];
+                    nextPeak = { type: tFirst.type, level: tFirst.level, minutes: tFirst.minutes + 1440 };
+                }
+            }
+            // 게이지 길이 검증 (tide.js 2370행과 동일: >780 또는 ≤0이면 무효)
+            if (prevPeak && nextPeak) {
+                var dur = nextPeak.minutes - prevPeak.minutes;
+                if (dur > 780 || dur <= 0) {
+                    prevPeak = null;
+                    nextPeak = null;
+                }
+            } else {
+                prevPeak = null;
+                nextPeak = null;
             }
         }
 
-        // 4피크 리스트의 ±차이값: 직전 반대 피크 대비
-        // peaks 배열을 시간순으로 두고, 각 피크에 대해 그 직전의 반대 type 피크를 찾아 차이 계산
+        // 4피크 리스트의 ±차이값: tide.js processCurrentDay와 동일
+        // - 첫 피크는 어제 마지막 반대 피크 기준
+        // - 마지막 피크는 내일 첫 반대 피크 기준 (오늘에 같은 종류 피크가 더 없을 때)
+        var yLastHigh = lastOfType(yPeaks, 'high');
+        var yLastLow  = lastOfType(yPeaks, 'low');
+        var tFirstHigh = firstOfType(tPeaks, 'high');
+        var tFirstLow  = firstOfType(tPeaks, 'low');
         for (var j = 0; j < peaks.length; j++) {
             var p = peaks[j];
             var dprev = null;
+            // (a) 오늘 배열 안에서 직전 반대 피크
             for (var k = j - 1; k >= 0; k--) {
                 if (peaks[k].type !== p.type) { dprev = peaks[k]; break; }
             }
-            // 직전 반대 피크가 없으면 그 다음 반대 피크와 비교 (배열 첫 항목 보호)
+            // (b) 없으면 어제 마지막 반대 피크
             if (!dprev) {
-                for (var k2 = j + 1; k2 < peaks.length; k2++) {
-                    if (peaks[k2].type !== p.type) { dprev = peaks[k2]; break; }
-                }
+                dprev = (p.type === 'high') ? yLastLow : yLastHigh;
+            }
+            // (c) 그래도 없으면 내일 첫 반대 피크 (배열 양끝 보호)
+            if (!dprev) {
+                dprev = (p.type === 'high') ? tFirstLow : tFirstHigh;
             }
             p.diff = dprev ? (p.level - dprev.level) : null;
         }
@@ -279,8 +345,15 @@
 
         var remainMin = Math.max(0, nextPeak.minutes - nowMin);
         var remainStr = formatRemain(remainMin);
-        // "고조까지 남은시간 HH:MM" 또는 "저조까지 남은시간 HH:MM"
         var remainText = (nextPeak.type === 'high' ? '고조까지' : '저조까지') + ' 남은시간 ' + remainStr;
+
+        // tide.js getTideProgressHTML과 동일한 색상 테마
+        // - rising(다음=고조): #991b1b → #ef4444 빨강 그라데이션
+        // - falling(다음=저조): #1e3a8a → #3b82f6 파랑 그라데이션
+        var rising = nextPeak.type === 'high';
+        var gradient = rising
+            ? 'linear-gradient(90deg, #991b1b 0%, #ef4444 100%)'
+            : 'linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%)';
 
         return (
             '<div class="ocean-tide-head">' +
@@ -289,7 +362,7 @@
                 '<div class="ocean-tide-head-side ' + rightCls + '">' + rightLabel + '</div>' +
               '</div>' +
               '<div class="ocean-tide-progress-track">' +
-                '<div class="ocean-tide-progress-fill" style="width:' + pct.toFixed(1) + '%"></div>' +
+                '<div class="ocean-tide-progress-fill" style="width:' + pct.toFixed(1) + '%; background:' + gradient + ';"></div>' +
                 '<div class="ocean-tide-progress-marker" style="left:' + pct.toFixed(1) + '%"></div>' +
               '</div>' +
               '<div class="ocean-tide-progress-remain">' + remainText + '</div>' +
@@ -352,6 +425,18 @@
     }
 
     /* --------------------------------------------------------------
+     * 내부: 특정 type의 첫/마지막 피크 (cross-day 변화량 계산용)
+     * ------------------------------------------------------------ */
+    function firstOfType(arr, type) {
+        for (var i = 0; i < arr.length; i++) if (arr[i].type === type) return arr[i];
+        return null;
+    }
+    function lastOfType(arr, type) {
+        for (var i = arr.length - 1; i >= 0; i--) if (arr[i].type === type) return arr[i];
+        return null;
+    }
+
+    /* --------------------------------------------------------------
      * 내부: 사인 보간으로 두 피크 사이의 현재 조위를 추정
      * ------------------------------------------------------------ */
     function interpolateLevel(prevPeak, nextPeak, currentMin) {
@@ -385,8 +470,10 @@
         return parseInt(s.substring(0, 2), 10) * 60 + parseInt(s.substring(2, 4), 10);
     }
     function minutesToHHMM(m) {
-        var h = Math.floor(m / 60);
-        var mm = m % 60;
+        // cross-day 보정으로 음수 또는 1440 이상 값이 들어올 수 있음 → 24h 모듈로
+        var n = ((m % 1440) + 1440) % 1440;
+        var h = Math.floor(n / 60);
+        var mm = n % 60;
         return String(h).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
     }
     function formatRemain(m) {
