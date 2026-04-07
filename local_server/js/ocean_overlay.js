@@ -39,27 +39,28 @@
             { val: 140, color: [240, 110, 15,  0.90] },  // 주황    (1.4 m/s)
             { val: 160, color: [220, 20,  20,  0.90] }   // 빨강    (1.6 m/s)
         ],
-        // 풍속 (m/s): 0 → 30+ — 윈디 스타일 무지개 그라디언트
+        // 풍속 (m/s): 0 → 25+ — Windy 앱 색상과 유사 (보라→파→청록→초록→노랑→주황→빨강)
+        // 반투명하게 처리하여 지도가 비쳐 보임
         wind: [
-            { val: 0,  color: [50,  30, 150, 0.75] },   // 남색
-            { val: 3,  color: [40,  80, 200, 0.78] },   // 파랑
-            { val: 5,  color: [30, 170, 180, 0.80] },   // 청록
-            { val: 10, color: [60, 190,  60, 0.82] },   // 녹색
-            { val: 15, color: [230, 210,  20, 0.85] },  // 노랑
-            { val: 20, color: [240, 110,  10, 0.88] },  // 주황
-            { val: 25, color: [200,  20,  20, 0.90] },  // 빨강
-            { val: 30, color: [130,  10, 100, 0.92] }   // 진빨강/보라
+            { val: 0,  color: [ 53,  42, 135, 0.70] },  // 진보라  (무풍)
+            { val: 2,  color: [ 53,  95, 200, 0.72] },  // 파랑
+            { val: 5,  color: [ 33, 160, 200, 0.74] },  // 하늘파랑
+            { val: 8,  color: [ 30, 195, 155, 0.76] },  // 청록
+            { val: 12, color: [ 50, 200,  60, 0.78] },  // 연두
+            { val: 16, color: [230, 220,  20, 0.80] },  // 노랑
+            { val: 20, color: [250, 130,  10, 0.83] },  // 주황
+            { val: 25, color: [220,  20,  20, 0.86] }   // 빨강    (강풍)
         ],
-        // 파고 (m): 0 → 6+ — 윈디 스타일 무지개 그라디언트
+        // 파고 (m): 0 → 5+ — Windy 파고 색상과 유사
         wave: [
-            { val: 0,   color: [50,  30, 150, 0.72] },  // 남색     (잔잔)
-            { val: 0.5, color: [40,  80, 200, 0.75] },  // 파랑
-            { val: 1.0, color: [30, 170, 180, 0.78] },  // 청록
-            { val: 1.5, color: [60, 190,  60, 0.80] },  // 녹색
-            { val: 2.0, color: [230, 210,  20, 0.82] }, // 노랑
-            { val: 3.0, color: [240, 130,  10, 0.85] }, // 주황
-            { val: 4.0, color: [200,  30,  20, 0.88] }, // 빨강
-            { val: 6.0, color: [130,  10, 100, 0.90] }  // 진빨강/보라 (매우 높음)
+            { val: 0,   color: [ 53,  42, 135, 0.68] }, // 진보라  (잔잔)
+            { val: 0.3, color: [ 53,  95, 200, 0.70] }, // 파랑
+            { val: 0.7, color: [ 33, 160, 200, 0.73] }, // 하늘파랑
+            { val: 1.2, color: [ 30, 195, 155, 0.76] }, // 청록
+            { val: 2.0, color: [230, 220,  20, 0.79] }, // 노랑
+            { val: 3.0, color: [250, 130,  10, 0.82] }, // 주황
+            { val: 4.0, color: [220,  20,  20, 0.85] }, // 빨강
+            { val: 5.5, color: [150,  10,  80, 0.88] }  // 진빨강  (매우 높음)
         ]
     };
 
@@ -236,13 +237,21 @@
 
     function setActiveLayer(layer) {
         activeLayer = layer;
-        // 레이어 전환 시 이전 트레일 제거
+        // 레이어 전환 시 이전 데이터 및 캔버스 모두 초기화
+        gridData = null;
+        lonList = null; latList = null; gridLookup = null;
+        particles = [];
         if (trailCtx && trailCanvas) {
             trailCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
         }
-        particles = [];
+        if (gridCtx && gridCanvas) {
+            gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+        }
+        if (ctx && canvas) {
+            var dpr = window.devicePixelRatio || 1;
+            ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+        }
         updateLegend(layer);
-        if (gridData) renderGridToOffscreen();
     }
 
     function updateLegend(layer) {
@@ -311,6 +320,8 @@
                 console.log('[OceanOverlay] KHOA 격자 점 수:', gridData.length);
                 updateLegend('current');
                 renderGridToOffscreen();
+                if (canvas) canvas.style.visibility = 'visible';
+                isMoving = false;
                 startParticleAnimation();
             })
             .catch(function (e) { console.warn('[OceanOverlay] KHOA 로드 실패:', e.message); });
@@ -337,10 +348,17 @@
                     return;
                 }
                 gridData = buildGridFromZones(data.zones, layer);
+                if (!gridData || gridData.length === 0) {
+                    console.warn('[OceanOverlay] zone 격자 생성 실패 (데이터 없음)');
+                    return;
+                }
                 lonList = null; // 인덱스 재빌드 강제
                 buildGridIndex();
                 updateLegend(layer);
                 renderGridToOffscreen();
+                // 캔버스 반드시 표시
+                if (canvas) canvas.style.visibility = 'visible';
+                isMoving = false;
                 if (layer === 'wave') {
                     // 파고: 배경 색상만 표시 (파티클 없음)
                     if (animationId) cancelAnimationFrame(animationId);
@@ -353,25 +371,72 @@
     }
 
     /**
-     * 소해구 좌표 기반으로 그리드 포인트를 생성합니다.
+     * 소해구 좌표 기반으로 완전한 격자를 생성합니다.
      *
-     * 백엔드 /api/ocean/zone-forecasts 가 zone_coords.json에서 계산한
-     * 소해구별 실제 lat/lon 좌표를 반환합니다 (~1295개).
-     * 각 해구 좌표를 그대로 격자점으로 사용하므로 별도의 Nearest-Zone 근사 불필요.
+     * 1. 소해구 데이터(~1295개)를 lat/lon 해시맵으로 인덱싱
+     * 2. 0.5° 정규 격자를 전체 한반도 주변 해역에 걸쳐 생성
+     * 3. 빈 셀은 인근 소해구 값으로 채움 (흰 공백 방지)
+     * → bilinear 보간이 항상 4-corner를 찾을 수 있어 백색 공백이 사라짐
      */
     function buildGridFromZones(zones, layer) {
-        var pts = [];
+        // 소해구 데이터 → 빠른 위치 인덱스 구축
+        var zoneMap = {};
+        var zonePts = [];
         Object.keys(zones).forEach(function (lzone) {
             var z = zones[lzone];
             if (z.lat == null || z.lon == null) return;
-            pts.push({
-                lat:   z.lat,
-                lon:   z.lon,
+            var val = {
                 crsp:  (layer === 'wind') ? (z.ws  || 0) : (z.wh  || 0),
                 crdir: (layer === 'wind') ? (z.windDir || 0) : (z.waveDir || 0)
-            });
+            };
+            var key = z.lat.toFixed(2) + '_' + z.lon.toFixed(2);
+            zoneMap[key] = val;
+            zonePts.push({ lat: z.lat, lon: z.lon, crsp: val.crsp, crdir: val.crdir });
         });
+
+        if (zonePts.length === 0) return [];
+
+        // 0.5° 정규 격자로 전체 한반도 주변 해역 커버 (빈 셀은 nearest-neighbor 채움)
+        var pts = [];
+        var STEP = 0.5;
+        var LAT_MIN = 24.25, LAT_MAX = 45.75;
+        var LON_MIN = 118.25, LON_MAX = 141.75;
+
+        for (var lat = LAT_MIN; lat <= LAT_MAX + 0.01; lat = Math.round((lat + STEP) * 100) / 100) {
+            for (var lon = LON_MIN; lon <= LON_MAX + 0.01; lon = Math.round((lon + STEP) * 100) / 100) {
+                var key = lat.toFixed(2) + '_' + lon.toFixed(2);
+                var val = zoneMap[key];
+
+                if (!val) {
+                    // 빈 셀: 최근접 소해구 값으로 채움 (spiral 탐색 → O(1) 평균)
+                    val = findNearestZoneVal(lat, lon, zoneMap, STEP);
+                }
+
+                if (val) {
+                    pts.push({ lat: lat, lon: lon, crsp: val.crsp, crdir: val.crdir });
+                }
+            }
+        }
         return pts;
+    }
+
+    /**
+     * (lat, lon) 주변에서 가장 가까운 소해구 값을 나선형으로 탐색합니다.
+     * zoneMap 키는 "lat.toFixed(2)_lon.toFixed(2)" 형식.
+     */
+    function findNearestZoneVal(lat, lon, zoneMap, step) {
+        for (var r = 1; r <= 8; r++) {
+            for (var dRow = -r; dRow <= r; dRow++) {
+                for (var dCol = -r; dCol <= r; dCol++) {
+                    if (Math.abs(dRow) !== r && Math.abs(dCol) !== r) continue; // 경계만
+                    var tLat = Math.round((lat + dRow * step) * 100) / 100;
+                    var tLon = Math.round((lon + dCol * step) * 100) / 100;
+                    var k = tLat.toFixed(2) + '_' + tLon.toFixed(2);
+                    if (zoneMap[k]) return zoneMap[k];
+                }
+            }
+        }
+        return null;
     }
 
     // ========================================================================
@@ -498,10 +563,13 @@
         }
         tctx.putImageData(idata, 0, 0);
 
+        // 소해구(0.5°, ~55km) 격자 경계를 부드럽게 블러 처리 (Windy 스타일)
+        var blurPx = Math.max(6, Math.round(w / 80));
         gridCtx.imageSmoothingEnabled = true;
         gridCtx.imageSmoothingQuality = 'high';
+        gridCtx.filter = 'blur(' + blurPx + 'px)';
         gridCtx.drawImage(tmp, 0, 0, w, h);
-        // 배경 색상은 animate()에서 그리지 않음 — 파티클 트레일 자체에 색상을 부여
+        gridCtx.filter = 'none';
     }
 
     /**
