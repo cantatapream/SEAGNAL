@@ -39,6 +39,11 @@ const ROMS_API_URL = 'https://apis.data.go.kr/1192136/roms/GetRomsApiService';
  * - 키가 없으면 빈 문자열 반환
  */
 function getRomsKey() {
+    // 1순위: 환경변수 (Fly.io secret 등)
+    if (process.env.ROMS_SERVICE_KEY) {
+        return process.env.ROMS_SERVICE_KEY;
+    }
+    // 2순위: api_config.json 파일
     try {
         const config = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'api_config.json'), 'utf8'));
         return config.ROMS_SERVICE_KEY || '';
