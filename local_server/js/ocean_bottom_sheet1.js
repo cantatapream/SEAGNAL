@@ -287,6 +287,7 @@
 
         // 시트 표시 (살짝 지연 후 transition 클래스 부여)
         sheet.style.display = 'block';
+        sheet.scrollTop = 0; // 새로 열 때 스크롤 최상단으로
         setTimeout(function () { sheet.classList.add('open'); }, 10);
 
         // 휴대폰 시스템 뒤로가기로 시트를 닫을 수 있도록
