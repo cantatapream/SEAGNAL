@@ -104,10 +104,11 @@ router.get('/api/ocean/depth', async (req, res) => {
         }
 
         // 좌표의 정수 부분으로 파일명 결정
-        // 예: lat=34.5, lon=126.3 → "lat34_lon126"
+        // 예: lat=34.5, lon=126.3 → "lat34lat_lon126"
+        // (Fly.io 볼륨의 실제 파일명 규칙: lat{N}lat_lon{M})
         const latKey = Math.floor(lat);
         const lonKey = Math.floor(lon);
-        const fileName = `lat${latKey}_lon${lonKey}`;
+        const fileName = `lat${latKey}lat_lon${lonKey}`;
 
         // 해당 파일이 존재하는지 캐시된 목록에서 확인
         if (!availableFiles.has(fileName)) {
