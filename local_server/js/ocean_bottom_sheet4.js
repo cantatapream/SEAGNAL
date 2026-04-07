@@ -40,25 +40,7 @@
             callback(null, '표준항 보간 모듈이 로드되지 않았습니다.');
             return;
         }
-
-        var year = dateObj.getFullYear();
-        // tide.js의 loadTideData는 callback 형태 — 데이터가 없으면 자동 로드 후 호출
-        try {
-            loadTideData(year, function (ok) {
-                if (!ok) {
-                    callback(null, '해당 연도(' + year + ') 표준항 데이터를 불러오지 못했습니다.');
-                    return;
-                }
-                runIdw(lat, lon, dateObj, callback);
-            });
-        } catch (e) {
-            // loadTideData가 동기 또는 다른 시그니처일 수 있으므로 한 번 더 시도
-            try {
-                runIdw(lat, lon, dateObj, callback);
-            } catch (e2) {
-                callback(null, '표준항 보간 중 오류가 발생했습니다.');
-            }
-        }
+        runIdw(lat, lon, dateObj, callback);
     };
 
     function runIdw(lat, lon, dateObj, callback) {
@@ -106,8 +88,15 @@
             function loadNext() {
                 if (pending.length === 0) { afterLoads(); return; }
                 var yr = pending.shift();
+                // tide.js의 loadTideData는 async (Promise 반환), 인자는 year 1개
                 try {
-                    loadTideData(parseInt(yr, 10), function () { loadNext(); });
+                    var p = loadTideData(String(yr));
+                    if (p && typeof p.then === 'function') {
+                        p.then(function () { loadNext(); },
+                               function () { loadNext(); });
+                    } else {
+                        loadNext();
+                    }
                 } catch (e) { loadNext(); }
             }
             loadNext();
