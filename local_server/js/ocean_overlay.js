@@ -405,7 +405,12 @@
                 crsp:  crsp,
                 crdir: (layer === 'wind') ? (z.windDir || 0) : (z.waveDir || 0)
             };
-            var key = parseFloat(lat).toFixed(2) + '_' + parseFloat(lon).toFixed(2);
+            // 0.5° 격자에 스냅 (zone_coords.json의 미세 오차 보정: x.24→x.25, x.76→x.75 등)
+            lat = Math.round((parseFloat(lat) - 0.25) / 0.5) * 0.5 + 0.25;
+            lon = Math.round((parseFloat(lon) - 0.25) / 0.5) * 0.5 + 0.25;
+            lat = Math.round(lat * 100) / 100;
+            lon = Math.round(lon * 100) / 100;
+            var key = lat.toFixed(2) + '_' + lon.toFixed(2);
             zoneMap[key] = val;
             zonePts.push({ lat: parseFloat(lat), lon: parseFloat(lon), crsp: val.crsp, crdir: val.crdir });
         });

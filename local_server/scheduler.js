@@ -1255,8 +1255,8 @@ async function init() {
         // 기상예보: 하루 2회 (05:15, 17:15)
         if (['05:15', '17:15'].includes(hm)) collectGeneralForecasts();
 
-        // [복구] 해구별 기상전망: 하루 4회
-        if (['02:00', '08:00', '14:00', '20:00'].includes(hm)) collectZoneForecasts();
+        // 해구별 기상전망: 하루 2회 (09:30, 21:30 KST)
+        if (['09:30', '21:30'].includes(hm)) collectZoneForecasts();
 
         // 중기해상예보: 하루 2회 (06:15, 18:15)
         if (['06:15', '18:15'].includes(hm)) collectMidTermSeaForecasts();
