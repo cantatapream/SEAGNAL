@@ -8351,6 +8351,22 @@ line-height: 1.1;
     overflow-y: auto;
     box-shadow: 0 -4px 30px rgba(0,0,0,0.5);
 }
+/* 핸들(──) + 헤더(년월일/네비) 는 시트 본문을 스크롤해도 항상 상단에 고정.
+   시트 자체가 스크롤 컨테이너이므로 position: sticky; top: 0 로 고정.
+   배경을 시트와 동일하게 깔아 본문 위로 겹쳐 보이지 않도록 한다. */
+.ocean-bottom-sheet .ocean-sheet-handle {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: linear-gradient(180deg, #0c1a3a 0%, #0c1a3a 100%);
+}
+.ocean-bottom-sheet .ocean-sheet-header {
+    position: sticky;
+    /* 핸들 높이(약 24px = margin 10+4+10) 만큼 아래에 붙도록 */
+    top: 24px;
+    z-index: 4;
+    background: linear-gradient(180deg, #0c1a3a 0%, #0e2046 100%);
+}
 
 .ocean-bottom-sheet.open {
     transform: translateY(0);
