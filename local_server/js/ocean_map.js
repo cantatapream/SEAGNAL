@@ -26,8 +26,8 @@
     // ========================================================================
     let oceanMap = null;           // OpenLayers Map 인스턴스
     let currentMode = 'A';        // 현재 모드: 'A' 조석지도, 'B' 해양현황
-    let baseLayerA = null;         // 모드 A 베이스맵 (CartoDB Voyager)
-    let baseLayerB = null;         // 모드 B 베이스맵 (CartoDB Dark Matter)
+    let baseLayerA = null;         // 모드 A 베이스맵 (OSM 한글)
+    let baseLayerB = null;         // 모드 B 베이스맵 (OSM 한글)
 
     // 한반도 남부 + 제주 → 최소 줌 레벨 6
     const DEFAULT_CENTER = [127.0, 34.5];
@@ -53,29 +53,17 @@
      */
     function createBaseLayer(mapType) {
         try {
-            if (mapType === 'B') {
-                // 모드 B: 다크 베이스맵 (오버레이 색상이 잘 보이도록)
-                return new ol.layer.Tile({
-                    source: new ol.source.XYZ({
-                        url: 'https://{a-d}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-                        crossOrigin: 'anonymous',
-                        maxZoom: 18,
-                        attributions: '&copy; <a href="https://carto.com/">CARTO</a>'
-                    }),
-                    visible: true
-                });
-            } else {
-                // 모드 A: 라이트 베이스맵 (조석 마커가 잘 보이도록)
-                return new ol.layer.Tile({
-                    source: new ol.source.XYZ({
-                        url: 'https://{a-d}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-                        crossOrigin: 'anonymous',
-                        maxZoom: 18,
-                        attributions: '&copy; <a href="https://carto.com/">CARTO</a>'
-                    }),
-                    visible: true
-                });
-            }
+            // OSM 타일 사용 (한글 라벨 지원)
+            // KHOA 해아름 타일은 도메인 인증 필요하여 직접 사용 불가
+            return new ol.layer.Tile({
+                source: new ol.source.XYZ({
+                    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    crossOrigin: 'anonymous',
+                    maxZoom: 18,
+                    attributions: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                }),
+                visible: true
+            });
         } catch (e) {
             console.warn('[OceanMap] 베이스 레이어 생성 실패:', e.message);
             return createOsmLayer();

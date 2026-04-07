@@ -26,6 +26,7 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+const fetch = require('node-fetch');
 const { DATA_DIR } = require('../config/server_config');
 
 // 기상청 융합기상실황 API URL
@@ -95,17 +96,10 @@ router.get('/api/ocean/weather', async (req, res) => {
         const oneHourAgo = new Date(kstNow.getTime() - 60 * 60 * 1000);
         const tm1 = formatKstTime(oneHourAgo);
 
-        const params = new URLSearchParams({
-            tm1,
-            tm2,
-            lon: lon.toFixed(4),
-            lat: lat.toFixed(4),
-            obs: 'wd_10m,ws_10m,rn_ox,ta',  // 풍향10m, 풍속10m, 강수유무, 기온
-            itv: '60',     // 60분 간격
-            authKey
-        });
+        // KMA API 키는 URLSearchParams 인코딩 없이 직접 구성
+        const url = `${KMA_SFC_URL}?tm1=${tm1}&tm2=${tm2}&lon=${lon.toFixed(4)}&lat=${lat.toFixed(4)}&obs=wd_10m,ws_10m,rn_ox,ta&itv=60&authKey=${authKey}`;
 
-        const response = await fetch(`${KMA_SFC_URL}?${params}`);
+        const response = await fetch(url);
         const text = await response.text();
 
         // CSV 응답 파싱

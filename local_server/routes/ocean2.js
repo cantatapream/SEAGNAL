@@ -27,6 +27,7 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+const fetch = require('node-fetch');
 const { DATA_DIR } = require('../config/server_config');
 
 // ROMS API 기본 URL
@@ -94,18 +95,18 @@ router.get('/api/ocean/roms', async (req, res) => {
         // 클릭 좌표 기준 ±0.05도 범위로 API 호출
         // → 가장 가까운 예측점 하나를 찾기 위한 최소 범위
         const delta = 0.05;
-        const params = new URLSearchParams({
-            serviceKey,
-            type: 'json',
-            ymin: (lat - delta).toFixed(2),
-            ymax: (lat + delta).toFixed(2),
-            xmin: (lon - delta).toFixed(2),
-            xmax: (lon + delta).toFixed(2),
-            numOfRows: '300'
-        });
+        // 공공데이터포털 API 키는 URLSearchParams로 인코딩하면 안 됨 (=,%2B 등 깨짐)
+        const url = `${ROMS_API_URL}?serviceKey=${serviceKey}&type=json&ymin=${(lat - delta).toFixed(2)}&ymax=${(lat + delta).toFixed(2)}&xmin=${(lon - delta).toFixed(2)}&xmax=${(lon + delta).toFixed(2)}&numOfRows=300`;
 
-        const response = await fetch(`${ROMS_API_URL}?${params}`);
-        const data = await response.json();
+        const response = await fetch(url);
+        const text = await response.text();
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (parseErr) {
+            console.error('[Ocean] ROMS 응답 파싱 실패:', text.substring(0, 200));
+            return res.json({ success: false, error: 'ROMS API 응답 형식 오류' });
+        }
 
         // API 응답 구조 확인
         // 정상: { header: { resultCode: "00" }, body: { items: { item: [...] } } }
@@ -269,18 +270,17 @@ function splitRange(min, max, maxSize) {
  */
 async function fetchRomsBlock(serviceKey, ymin, ymax, xmin, xmax) {
     try {
-        const params = new URLSearchParams({
-            serviceKey,
-            type: 'json',
-            ymin: ymin.toFixed(2),
-            ymax: ymax.toFixed(2),
-            xmin: xmin.toFixed(2),
-            xmax: xmax.toFixed(2),
-            numOfRows: '300'
-        });
+        const url = `${ROMS_API_URL}?serviceKey=${serviceKey}&type=json&ymin=${ymin.toFixed(2)}&ymax=${ymax.toFixed(2)}&xmin=${xmin.toFixed(2)}&xmax=${xmax.toFixed(2)}&numOfRows=300`;
 
-        const response = await fetch(`${ROMS_API_URL}?${params}`);
-        const data = await response.json();
+        const response = await fetch(url);
+        const text = await response.text();
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error('[Ocean] ROMS 블록 파싱 실패:', text.substring(0, 200));
+            return [];
+        }
 
         const body = data.body || data.response?.body;
         const items = body?.items?.item;

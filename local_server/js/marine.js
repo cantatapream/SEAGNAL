@@ -1087,12 +1087,9 @@ function _onSectionActivated(sectionId) {
     var subTabs = document.querySelectorAll('.sub-tabs');
     if (sectionId === 'ocean-map-section') {
         if (mainHeader) mainHeader.style.display = 'none';
-        if (mainTabs) mainTabs.style.display = 'none';
-        subTabs.forEach(function (el) { el.style.display = 'none'; });
+        // 메인 탭과 서브 탭은 유지 (네비게이션 가능하도록)
     } else {
         if (mainHeader) mainHeader.style.display = '';
-        if (mainTabs) mainTabs.style.display = '';
-        subTabs.forEach(function (el) { el.style.display = ''; });
     }
 
     // 해양종합정보에서 벗어날 때 오버레이 애니메이션 정리 (RAF 누수 방지)
