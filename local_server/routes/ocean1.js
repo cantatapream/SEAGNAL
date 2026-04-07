@@ -257,6 +257,144 @@ router.get('/api/ocean/khoa-wms', async (req, res) => {
 });
 
 // ============================================================================
+// KHOA 해아름 dynamic-stream-vector 프록시 + 메모리 캐시
+// ============================================================================
+//
+// 해아름 사이트가 내부적으로 사용하는 ROMS 격자 JSON을 그대로 가져온다.
+// 한 번 호출 시 한국 전 해역 약 1만 격자점의 (lat, lon, s, d, temp, salt, zeta)
+// 가 ~1MB JSON 으로 한꺼번에 온다. 공공데이터포털 ROMS API 를 좌표마다
+// 따로 부르던 기존 방식보다 훨씬 빠르고, 시각화에도 그대로 쓸 수 있다.
+//
+// GET /api/ocean/khoa-stream-vector?date=YYYYMMDD&hour=HH
+//   → 원본 JSON 그대로 (오버레이용)
+// GET /api/ocean/khoa-stream-nearest?lat=&lon=&date=&hour=
+//   → 주어진 좌표에 가장 가까운 점 1개 (단일 좌표 조회용)
+
+const KHOA_STREAM_BASE =
+    'http://www.khoa.go.kr/oceandata/oceaninfo/prediction/dynamic-stream-vector.do';
+
+// 메모리 캐시: { 'YYYYMMDD_HH': { ts, points: [{lat,lon,s,d,temp,...}], meta } }
+const _khoaCache = new Map();
+const KHOA_CACHE_TTL_MS = 60 * 60 * 1000; // 1시간
+
+function _cacheKey(date, hour) { return date + '_' + hour; }
+
+async function _fetchKhoaStream(date, hour) {
+    const key = _cacheKey(date, hour);
+    const cached = _khoaCache.get(key);
+    if (cached && (Date.now() - cached.ts) < KHOA_CACHE_TTL_MS) {
+        return cached;
+    }
+
+    const upstream = KHOA_STREAM_BASE +
+        '?obsCheck=EYS&pre_date=' + encodeURIComponent(date) +
+        '&pre_hour=' + encodeURIComponent(hour);
+
+    const fetchFn = global.fetch || require('node-fetch');
+    const r = await fetchFn(upstream, {
+        redirect: 'follow',
+        headers: {
+            'Referer': 'http://www.khoa.go.kr/oceanmap/main.do',
+            'User-Agent': 'Mozilla/5.0'
+        }
+    });
+    if (!r.ok) throw new Error('khoa upstream ' + r.status);
+    const json = await r.json();
+
+    // data 는 2차원 배열로 들어옴 → 1차원으로 평탄화
+    const flat = [];
+    if (Array.isArray(json.data)) {
+        for (const chunk of json.data) {
+            if (!Array.isArray(chunk)) continue;
+            for (const p of chunk) {
+                if (!p || typeof p.lat !== 'number' || typeof p.lon !== 'number') continue;
+                // s=0 이고 d=0 이면 육지/결측 → 단일조회에서는 제외하지만
+                // 오버레이는 색상 0 으로 처리해야 하므로 여기서는 모두 보존.
+                flat.push(p);
+            }
+        }
+    }
+
+    const entry = { ts: Date.now(), points: flat, meta: json.meta || {} };
+    _khoaCache.set(key, entry);
+    return entry;
+}
+
+// 현재 시각 → KHOA 가 받아들이는 (YYYYMMDD, HH) 로 변환
+function _defaultDateHour(qDate, qHour) {
+    if (qDate && qHour != null) {
+        return { date: String(qDate), hour: String(qHour).padStart(2, '0') };
+    }
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const h = String(d.getHours()).padStart(2, '0');
+    return { date: y + m + day, hour: h };
+}
+
+router.get('/api/ocean/khoa-stream-vector', async (req, res) => {
+    try {
+        const { date, hour } = _defaultDateHour(req.query.date, req.query.hour);
+        const entry = await _fetchKhoaStream(date, hour);
+        res.set('Cache-Control', 'public, max-age=600');
+        res.json({
+            success: true,
+            date: date,
+            hour: hour,
+            count: entry.points.length,
+            meta: entry.meta,
+            points: entry.points
+        });
+    } catch (e) {
+        console.error('[KHOA-Stream] error:', e.message);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+router.get('/api/ocean/khoa-stream-nearest', async (req, res) => {
+    try {
+        const lat = parseFloat(req.query.lat);
+        const lon = parseFloat(req.query.lon);
+        if (isNaN(lat) || isNaN(lon)) {
+            return res.status(400).json({ success: false, error: 'lat/lon 필수' });
+        }
+        const { date, hour } = _defaultDateHour(req.query.date, req.query.hour);
+        const entry = await _fetchKhoaStream(date, hour);
+
+        let best = null;
+        let bestD = Infinity;
+        for (const p of entry.points) {
+            // 결측점 제외 (육지 등)
+            if (p.s === 0 && p.d === 0 && p.temp === 0 && p.salt === 0 && p.zeta === 0) continue;
+            const dLat = p.lat - lat;
+            const dLon = p.lon - lon;
+            const dist = dLat * dLat + dLon * dLon;
+            if (dist < bestD) { bestD = dist; best = p; }
+        }
+        if (!best) {
+            return res.json({ success: false, error: '주변 격자점 없음' });
+        }
+        // 클라이언트 기존 포맷 호환: crdir(deg), crsp(cm/s), wtem(°C)
+        res.json({
+            success: true,
+            date: date,
+            hour: hour,
+            lat: best.lat,
+            lon: best.lon,
+            crdir: best.d,
+            crsp: best.s * 100, // m/s → cm/s
+            wtem: best.temp,
+            salt: best.salt,
+            zeta: best.zeta
+        });
+    } catch (e) {
+        console.error('[KHOA-Nearest] error:', e.message);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// ============================================================================
 // 하위 라우터 연결 (ocean2~5)
 // ============================================================================
 // 각 파일이 존재할 때만 안전하게 로드

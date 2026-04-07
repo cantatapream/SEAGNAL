@@ -77,6 +77,8 @@
     let animationId = null;        // 파티클 애니메이션 RAF ID
     let particles = [];            // 파티클 배열
     const MAX_PARTICLES = 800;
+    let streamActive = false;      // 해류 시각화 ON/OFF (사용자 토글)
+    let inited = false;            // oceanOverlayInit 1회 가드
 
     // ========================================================================
     // 초기화
@@ -84,9 +86,20 @@
 
     window.oceanOverlayInit = function (map) {
         mapRef = map;
+        // 모드 B 재진입 시에는 OFF 상태로 초기화 (직전 토글 상태 유지하지 않음)
+        if (inited) {
+            streamActive = false;
+            document.querySelectorAll('.ocean-overlay-btn[data-layer="current"]').forEach(function (b) {
+                b.classList.remove('active');
+            });
+            window.oceanOverlayClear();
+            resizeCanvas();
+            return;
+        }
         canvas = document.getElementById('ocean-overlay-canvas');
         if (!canvas) return;
         ctx = canvas.getContext('2d');
+        inited = true;
 
         // 오프스크린 캔버스 생성 (격자 색상용 - 정적 렌더)
         gridCanvas = document.createElement('canvas');
@@ -95,21 +108,34 @@
         // 캔버스 크기를 지도에 맞춤
         resizeCanvas();
 
-        // 오버레이 토글 버튼 바인딩
+        // 오버레이 토글 버튼 바인딩 (current 만 사용 — wind/wave 는 데이터 소스 미연결)
+        // 사용자 요구사항(2026-04): 모드 B(해양현황) 진입만으로는 해류 애니메이션을
+        // 표시하지 않고, 'current' 버튼을 눌렀을 때만 ON, 다시 누르면 OFF.
         document.querySelectorAll('.ocean-overlay-btn[data-layer]').forEach(function (btn) {
+            // 기본 active 클래스를 모두 떼서 OFF 상태로 시작
+            btn.classList.remove('active');
             btn.addEventListener('click', function () {
                 var layer = this.dataset.layer;
-                setActiveLayer(layer);
-
-                document.querySelectorAll('.ocean-overlay-btn[data-layer]').forEach(function (b) {
-                    b.classList.remove('active');
-                });
-                this.classList.add('active');
+                if (layer !== 'current') {
+                    // 현재는 current 만 지원
+                    return;
+                }
+                if (streamActive) {
+                    // 토글 OFF
+                    streamActive = false;
+                    this.classList.remove('active');
+                    window.oceanOverlayClear();
+                } else {
+                    // 토글 ON
+                    streamActive = true;
+                    this.classList.add('active');
+                    setActiveLayer('current');
+                    loadOverlayData();
+                }
             });
         });
 
-        // 데이터 로드 및 렌더링
-        loadOverlayData();
+        // 진입 시 자동 로드 안 함 — 사용자가 버튼을 눌러야 시작.
     };
 
     window.oceanOverlayRefresh = function (map) {
@@ -206,33 +232,38 @@
     function loadOverlayData() {
         if (!mapRef) return;
 
-        var view = mapRef.getView();
-        var extent = view.calculateExtent(mapRef.getSize());
-        var bl = ol.proj.toLonLat([extent[0], extent[1]]);
-        var tr = ol.proj.toLonLat([extent[2], extent[3]]);
+        console.log('[OceanOverlay] KHOA stream-vector 로드 시작');
 
-        console.log('[OceanOverlay] 그리드 데이터 로드 시작:', bl, tr);
-
-        // ROMS 그리드 데이터 로드
-        fetch('/api/ocean/roms-grid?ymin=' + bl[1].toFixed(2) +
-            '&ymax=' + tr[1].toFixed(2) +
-            '&xmin=' + bl[0].toFixed(2) +
-            '&xmax=' + tr[0].toFixed(2))
+        // KHOA 해아름 stream-vector — 한국 전 해역 약 1만 격자점을 1회 호출로 수신.
+        // 응답 포맷: { success, points: [{lat, lon, s(m/s), d(deg), temp, salt, zeta}, ...] }
+        // 기존 오버레이 코드는 crsp(cm/s)·crdir(deg) 키를 기대하므로 어댑터 변환.
+        fetch('/api/ocean/khoa-stream-vector')
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                console.log('[OceanOverlay] ROMS 응답:', data.success, '항목:', data.items ? data.items.length : 0);
-                if (data.success && data.items && data.items.length > 0) {
-                    gridData = data.items;
-                    renderGridToOffscreen();
-                    startParticleAnimation();
-                } else {
-                    console.warn('[OceanOverlay] ROMS 데이터 없음, 범례만 표시');
-                    // 데이터 없어도 범례는 표시
+                if (!data || !data.success || !data.points || data.points.length === 0) {
+                    console.warn('[OceanOverlay] KHOA stream-vector 데이터 없음');
                     updateLegend(activeLayer);
+                    return;
                 }
+                // 결측점(육지 등) 제거 + 키 변환
+                gridData = [];
+                for (var i = 0; i < data.points.length; i++) {
+                    var p = data.points[i];
+                    if (p.s === 0 && p.d === 0 && p.temp === 0 && p.salt === 0 && p.zeta === 0) continue;
+                    gridData.push({
+                        lat: p.lat,
+                        lon: p.lon,
+                        crsp: p.s * 100, // m/s → cm/s
+                        crdir: p.d
+                    });
+                }
+                console.log('[OceanOverlay] KHOA 격자 점 수:', gridData.length);
+                updateLegend(activeLayer);
+                renderGridToOffscreen();
+                startParticleAnimation();
             })
             .catch(function (e) {
-                console.warn('[OceanOverlay] ROMS 그리드 로드 실패:', e.message);
+                console.warn('[OceanOverlay] KHOA 로드 실패:', e.message);
             });
     }
 
