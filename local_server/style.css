@@ -8285,10 +8285,18 @@ line-height: 1.1;
     background: #0c1a3a;
     overflow: hidden;
 }
-/* 지도 래퍼: 섹션 전체를 풀로 차지 */
+/* 지도 래퍼: 섹션 전체를 풀로 차지
+   - index.html 의 .ocean-map-wrapper 에 인라인 style="position: relative" 가
+     박혀 있다(자식 absolute 요소의 anchor 용도). 인라인 스타일은 일반 규칙보다
+     우선이므로 position 만 !important 로 절대 위치로 강제한다. */
 #ocean-map-section.active .ocean-map-wrapper {
-    position: absolute;
-    inset: 0;
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: auto;
     margin: 0;
     border-radius: 0;
     overflow: hidden;
