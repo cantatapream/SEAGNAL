@@ -29,11 +29,11 @@
     let baseLayerA = null;         // 모드 A 베이스맵 (해아름 RLTM3857)
     let baseLayerB = null;         // 모드 B 베이스맵 (해아름 RLTMCOAST3857)
 
-    // 해아름 API 키
-    const KHOA_KEY = 'FEEFEC76EEBF0FA3676CDCFE6';
-    // 해아름 스크립트가 반환하는 타일 기본 URL (스크립트 로드 후 채워짐)
-    let khoaTileUrlA = null;  // BASEMAP_RLTM3857 (조석지도용)
-    let khoaTileUrlB = null;  // BASEMAP_RLTMCOAST3857 (해양현황용)
+    // 해아름 WMS 엔드포인트 (F12 캡처로 확인됨)
+    // http://www.khoa.go.kr/oceanmap/{LAYER}/wmsVectordata.do?SERVICE=WMS&...
+    const KHOA_WMS_BASE = 'https://www.khoa.go.kr/oceanmap/';
+    const KHOA_LAYER_A = 'BASEMAP_RLTM3857';      // 조석지도용
+    const KHOA_LAYER_B = 'BASEMAP_RLTMCOAST3857'; // 해양현황용
 
     // 한반도 남부 + 제주 → 최소 줌 레벨 6
     const DEFAULT_CENTER = [127.0, 34.5];
@@ -42,100 +42,67 @@
     const MAX_ZOOM = 18;
 
     // ========================================================================
-    // 해아름 타일 로드
+    // 해아름 WMS 레이어 생성
     // ========================================================================
 
     /**
-     * 해아름 스크립트를 브라우저에서 직접 로드합니다.
+     * 해아름 WMS 타일 레이어를 생성합니다.
      *
      * [동작 방식]
-     * KHOA는 지도 타일을 바로 주는 게 아니라,
-     * "이 주소로 오면 지도 줄게" 라는 URL을 스크립트 형태로 알려줍니다.
-     * 브라우저가 직접 이 스크립트를 받아서 _vectorMapUrl 변수에 저장합니다.
+     * KHOA 해아름은 WMS 1.1.1 GetMap 방식으로 지도 조각을 줍니다.
+     * 우리는 OpenLayers의 TileWMS source에 엔드포인트와 파라미터만
+     * 넘기면, OL이 알아서 BBOX를 계산해서 256x256 png를 요청합니다.
      *
-     * [예시]
-     * 스크립트 로드 → var _vectorMapUrl = 'https://www.khoa.go.kr/...'
-     *              → 이 URL로 지도 사진 조각(타일)을 요청
+     * [캡처된 실제 요청 예시]
+     *  http://www.khoa.go.kr/oceanmap/BASEMAP_RLTMHL/wmsVectordata.do
+     *    ?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap
+     *    &FORMAT=image/png&TRANSPARENT=true
+     *    &WIDTH=256&HEIGHT=256&SRS=EPSG:5179&STYLES=
+     *    &BBOX=...
+     *
+     * 레이어 이름에 '3857'이 포함되어 있으므로 EPSG:3857로 요청합니다.
      *
      * @param {string} layer - 레이어명 (BASEMAP_RLTM3857 등)
-     * @returns {Promise<string|null>} 타일 기본 URL 또는 null
-     */
-    function loadKhoaScript(layer) {
-        return new Promise(function (resolve) {
-            var script = document.createElement('script');
-            script.src = 'https://www.khoa.go.kr/oceanmap/' + layer +
-                '/otmsSSLVectormapApi.do?ServiceKey=' + KHOA_KEY + '&version=2';
-
-            script.onload = function () {
-                // 스크립트가 window._vectorMapUrl 변수에 URL을 담아줌
-                var url = window._vectorMapUrl || null;
-                window._vectorMapUrl = null; // 다음 스크립트를 위해 초기화
-                console.log('[OceanMap] 해아름 타일 URL(' + layer + '):', url);
-                resolve(url);
-            };
-
-            script.onerror = function () {
-                console.warn('[OceanMap] 해아름 스크립트 로드 실패:', layer);
-                resolve(null);
-            };
-
-            document.head.appendChild(script);
-        });
-    }
-
-    /**
-     * 해아름 타일 URL로 OpenLayers 레이어를 만듭니다.
-     * 실패 시 OSM으로 대체합니다.
-     *
-     * @param {string|null} tileUrl - loadKhoaScript()가 반환한 URL
      * @returns {ol.layer.Tile}
      */
-    function createKhoaLayer(tileUrl) {
-        if (tileUrl) {
-            // 해아름 타일 URL 형식
-            // 원본:  https://...SSLVectormapApi.do?ServiceKey=KEY
-            // 변환:  https://...SSLVectormapApi.do/{z}/{x}/{y}.png?ServiceKey=KEY
-            // (경로는 .do 뒤에, ServiceKey는 query string으로 유지)
-            var queryIndex = tileUrl.indexOf('?');
-            var finalUrl;
-            if (queryIndex >= 0) {
-                var basePart = tileUrl.substring(0, queryIndex);   // ...SSLVectormapApi.do
-                var queryPart = tileUrl.substring(queryIndex);     // ?ServiceKey=...
-                finalUrl = basePart + '/{z}/{x}/{y}.png' + queryPart;
-            } else {
-                finalUrl = tileUrl + '/{z}/{x}/{y}.png';
-            }
+    function createKhoaLayer(layer) {
+        var endpoint = KHOA_WMS_BASE + layer + '/wmsVectordata.do';
 
-            console.log('[OceanMap] 해아름 타일 최종 URL:', finalUrl);
+        var wmsSource = new ol.source.TileWMS({
+            url: endpoint,
+            params: {
+                'SERVICE': 'WMS',
+                'VERSION': '1.1.1',
+                'REQUEST': 'GetMap',
+                'FORMAT': 'image/png',
+                'TRANSPARENT': true,
+                'STYLES': '',
+                'LAYERS': '',
+                'SRS': 'EPSG:3857'
+            },
+            projection: 'EPSG:3857',
+            attributions: '&copy; <a href="https://www.khoa.go.kr">국립해양조사원</a>',
+            crossOrigin: 'anonymous'
+        });
 
-            var xyzSource = new ol.source.XYZ({
-                url: finalUrl,
-                maxZoom: 18,
-                attributions: '&copy; <a href="https://www.khoa.go.kr">국립해양조사원</a>'
-            });
-
-            // 타일 로드 실패 시 OSM으로 자동 교체
-            var tileLoadErrors = 0;
-            xyzSource.on('tileloaderror', function () {
-                tileLoadErrors++;
-                if (tileLoadErrors === 3) {
-                    console.warn('[OceanMap] 해아름 타일 로드 실패, OSM으로 자동 전환');
-                    xyzSource.setUrl('https://tile.openstreetmap.org/{z}/{x}/{y}.png');
-                }
-            });
-
-            return new ol.layer.Tile({
-                source: xyzSource,
-                visible: true
-            });
-        }
-
-        // 해아름 URL 자체를 못 받은 경우 OSM으로 대체
-        console.warn('[OceanMap] 해아름 타일 없음, OSM으로 대체');
-        return new ol.layer.Tile({
-            source: new ol.source.OSM(),
+        // 타일 로드 실패 시 OSM으로 자동 교체
+        var tileLoadErrors = 0;
+        var fallbackTriggered = false;
+        var tileLayer = new ol.layer.Tile({
+            source: wmsSource,
             visible: true
         });
+        wmsSource.on('tileloaderror', function () {
+            tileLoadErrors++;
+            if (!fallbackTriggered && tileLoadErrors >= 3) {
+                fallbackTriggered = true;
+                console.warn('[OceanMap] 해아름 WMS 로드 실패(' + layer + '), OSM으로 전환');
+                tileLayer.setSource(new ol.source.OSM());
+            }
+        });
+
+        console.log('[OceanMap] 해아름 WMS 엔드포인트:', endpoint);
+        return tileLayer;
     }
 
     // ========================================================================
@@ -152,18 +119,8 @@
             return;
         }
 
-        // 해아름 스크립트 2개를 순서대로 로드한 뒤 지도 초기화
-        // (A 로드 후 B 로드 → 순서 보장)
-        loadKhoaScript('BASEMAP_RLTM3857').then(function (urlA) {
-            khoaTileUrlA = urlA;
-            return loadKhoaScript('BASEMAP_RLTMCOAST3857');
-        }).then(function (urlB) {
-            khoaTileUrlB = urlB;
-            buildMap();
-        }).catch(function () {
-            // 스크립트 로드 자체가 실패해도 OSM으로 지도 표시
-            buildMap();
-        });
+        // WMS 방식이라 비동기 스크립트 로드 불필요 → 즉시 빌드
+        buildMap();
     };
 
     /**
@@ -172,9 +129,9 @@
      */
     function buildMap() {
         try {
-            // 해아름 타일로 레이어 생성 (실패 시 OSM 대체)
-            baseLayerA = createKhoaLayer(khoaTileUrlA);
-            baseLayerB = createKhoaLayer(khoaTileUrlB);
+            // 해아름 WMS 레이어 생성 (실패 시 OSM 대체)
+            baseLayerA = createKhoaLayer(KHOA_LAYER_A);
+            baseLayerB = createKhoaLayer(KHOA_LAYER_B);
             baseLayerB.setVisible(false);
 
             const layers = [baseLayerA, baseLayerB];
@@ -230,7 +187,7 @@
                 myLocBtn.addEventListener('click', goToMyLocation);
             }
 
-            console.log('[OceanMap] 지도 초기화 완료 (해아름 타일:', khoaTileUrlA ? '성공' : 'OSM 대체', ')');
+            console.log('[OceanMap] 지도 초기화 완료 (해아름 WMS)');
         } catch (error) {
             console.error('[OceanMap] 초기화 오류:', error);
         }
