@@ -199,11 +199,24 @@ router.get('/api/ocean/zone-forecasts', (req, res) => {
             return res.json({ success: false, error: '해구별 기상전망 데이터가 없습니다.' });
         }
 
-        // 소해구 좌표 로드 (없으면 빈 객체)
+        // 소해구 좌표 로드 (없으면 SEA_ZONES bounds 기반 fallback 사용)
         const coordsPath = path.join(DATA_DIR, 'zone_coords.json');
         const zoneCoords = fs.existsSync(coordsPath)
             ? JSON.parse(fs.readFileSync(coordsPath, 'utf8'))
-            : {};
+            : null;
+
+        // zone_coords.json 없을 때 SEA_ZONES bounds → 위치 맵으로 변환
+        const fallbackCoords = {};
+        if (!zoneCoords) {
+            SEA_ZONES.forEach(z => {
+                fallbackCoords[z.lzone] = {
+                    lat: (z.bounds[0] + z.bounds[1]) / 2,
+                    lon: (z.bounds[2] + z.bounds[3]) / 2,
+                    bounds: z.bounds
+                };
+            });
+        }
+        const coordsMap = zoneCoords || fallbackCoords;
 
         const zoneData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
         const targetTime = req.query.time ? new Date(req.query.time) : new Date();
@@ -213,9 +226,8 @@ router.get('/api/ocean/zone-forecasts', (req, res) => {
             const items = zoneData.data[lzone];
             if (!items || items.length === 0) return;
 
-            // 좌표 없는 해구는 제외
-            const coords = zoneCoords[lzone];
-            if (!coords) return;
+            const coords = coordsMap[lzone];
+            if (!coords) return; // 좌표 없는 해구 제외
 
             let closest = items[0], minDiff = Infinity;
             items.forEach(item => {
@@ -228,15 +240,22 @@ router.get('/api/ocean/zone-forecasts', (req, res) => {
                 if (diff < minDiff) { minDiff = diff; closest = item; }
             });
 
-            result[lzone] = {
-                lat: coords.lat,
-                lon: coords.lon,
+            const entry = {
                 wh: closest.wh || 0,
                 waveDir: closest.waveDir || 0,
                 ws: closest.ws || 0,
                 windDir: closest.windDir || 0,
                 tm: String(closest.tm)
             };
+            // 신규 포맷: lat/lon 직접 포함
+            if (coords.lat != null && coords.lon != null) {
+                entry.lat = coords.lat;
+                entry.lon = coords.lon;
+            } else if (coords.bounds) {
+                // fallback: bounds 중심점
+                entry.bounds = coords.bounds;
+            }
+            result[lzone] = entry;
         });
 
         res.json({ success: true, zones: result });
