@@ -377,14 +377,24 @@
         if (list.length === 0) return '';
         var rowsHtml = list.map(function (p) {
             var diff = p.diff;
-            var diffStr = (diff == null) ? '' :
-                (diff > 0 ? '+' + Math.round(diff) : '' + Math.round(diff));
+            var sign = '';
+            var digits = '';
+            if (diff != null) {
+                var rounded = Math.round(diff);
+                sign = (rounded > 0) ? '+' : (rounded < 0 ? '−' : '');
+                digits = String(Math.abs(rounded));
+            }
             return (
                 '<div class="ocean-tide-peak-row">' +
-                  '<span class="ocean-tide-peak-time">' + minutesToHHMM(p.minutes) + '</span>' +
-                  '<span class="ocean-tide-peak-cm">(' + Math.round(p.level) + ' cm)</span>' +
-                  '<span class="ocean-tide-peak-arrow ' + cls + '">' + arrow + '</span>' +
-                  '<span class="ocean-tide-peak-diff ' + cls + '">' + diffStr + '</span>' +
+                  '<div class="ocean-tide-peak-left">' +
+                    '<span class="ocean-tide-peak-time">' + minutesToHHMM(p.minutes) + '</span>' +
+                    '<span class="ocean-tide-peak-cm">(' + Math.round(p.level) + ' cm)</span>' +
+                  '</div>' +
+                  '<div class="ocean-tide-peak-right ' + cls + '">' +
+                    '<span class="ocean-tide-peak-arrow">' + arrow + '</span>' +
+                    '<span class="ocean-tide-peak-sign">' + sign + '</span>' +
+                    '<span class="ocean-tide-peak-digits">' + digits + '</span>' +
+                  '</div>' +
                 '</div>'
             );
         }).join('');

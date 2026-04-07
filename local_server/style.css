@@ -8917,31 +8917,49 @@ body.ocean-map-active .main-header .header-content {
     justify-content: center;
     gap: 4px;
 }
+/* 고/저조 행:
+   - 좌측 묶음(.ocean-tide-peak-left) = 시각 + (cm), gap 0.5em (≈ 2 spaces)
+   - 우측 묶음(.ocean-tide-peak-right) = 화살표 + 부호 + 숫자, gap 0.5em
+   - 좌/우 묶음은 space-between 으로 양 끝에 배치
+   - 우측 묶음 내부의 화살표/부호/숫자는 고정폭 + tabular-nums 로
+     모든 행에서 같은 세로선상에 정렬됨 (자릿수가 달라져도 변화 없음) */
 .ocean-tide-peak-row {
-    /* 4컬럼 균등 그리드:
-       시각(1fr) | (수위)(1fr) | 화살표(auto) | 편차(auto)
-       - 시각/수위 셀은 좌측 묶음으로 나란히 (사용자 그룹화 의도)
-       - 화살표/편차 셀은 우측 묶음
-       - 모든 셀에 nowrap → "(### cm)" 가 두 줄로 줄바꿈되지 않음
-       - min-width: 0 으로 grid 자식이 콘텐츠 폭에 갇히지 않게 */
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+    display: flex;
     align-items: center;
-    column-gap: 10px;
+    justify-content: space-between;
+    gap: 12px;
     color: #fff;
     font-size: clamp(0.95rem, 3.0vw, 1.05rem);
     font-weight: 600;
     padding: 4px 0;
+    font-variant-numeric: tabular-nums;
 }
-.ocean-tide-peak-row > * { min-width: 0; white-space: nowrap; }
-.ocean-tide-peak-time { color: #fff; text-align: left; }
-.ocean-tide-peak-cm { color: rgba(255,255,255,0.65); font-size: clamp(0.85rem, 2.7vw, 0.95rem); font-weight: 500; text-align: left; }
-.ocean-tide-peak-arrow { text-align: center; font-size: 1.05em; }
-.ocean-tide-peak-arrow.is-high { color: #e74c5e; }
-.ocean-tide-peak-arrow.is-low  { color: #4a9eff; }
-.ocean-tide-peak-diff { text-align: right; font-size: clamp(0.9rem, 2.8vw, 1.0rem); font-weight: 600; }
-.ocean-tide-peak-diff.is-high { color: #e74c5e; }
-.ocean-tide-peak-diff.is-low  { color: #4a9eff; }
+.ocean-tide-peak-left,
+.ocean-tide-peak-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5em; /* 한 몸처럼 보이게 약 2칸 띄움 */
+    white-space: nowrap;
+}
+.ocean-tide-peak-time { color: #fff; min-width: 5ch; text-align: left; }
+.ocean-tide-peak-cm   { color: rgba(255,255,255,0.65); font-size: clamp(0.85rem, 2.7vw, 0.95rem); font-weight: 500; }
+.ocean-tide-peak-arrow {
+    width: 1.2em;        /* 모든 행에서 화살표가 같은 세로선상에 오도록 고정폭 */
+    text-align: center;
+    font-size: 1.05em;
+}
+.ocean-tide-peak-sign {
+    width: 0.8em;        /* +/- 가 같은 세로선상에 오도록 고정폭 */
+    text-align: center;
+    font-weight: 700;
+}
+.ocean-tide-peak-digits {
+    min-width: 3ch;      /* 1~3자리 숫자 모두 같은 시작 위치 */
+    text-align: left;
+    font-weight: 600;
+}
+.ocean-tide-peak-right.is-high { color: #e74c5e; }
+.ocean-tide-peak-right.is-low  { color: #4a9eff; }
 
 /* --- 천문 카드 --- */
 .ocean-astro-wrap {
