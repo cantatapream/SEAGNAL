@@ -141,8 +141,8 @@ router.get('/api/ocean/wave', (req, res) => {
             return res.json({ success: false, error: `해구 ${lzone}의 파고 데이터가 없습니다.` });
         }
 
-        // 현재 시각에 가장 가까운 예측 데이터 선택
-        const now = new Date();
+        // 선택된 시각 기준으로 예측 데이터 선택 (time 파라미터 없으면 현재 시각)
+        const now = req.query.time ? new Date(req.query.time) : new Date();
         let closest = zoneItems[0];
         let minDiff = Infinity;
 
