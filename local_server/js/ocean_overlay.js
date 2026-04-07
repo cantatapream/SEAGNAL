@@ -543,7 +543,7 @@
         if (trailCtx) {
             // 페이드 강도가 작을수록 잔상이 길게 남음 → 흐름이 강처럼 보임.
             trailCtx.globalCompositeOperation = 'destination-out';
-            trailCtx.fillStyle = 'rgba(0,0,0,0.05)';
+            trailCtx.fillStyle = 'rgba(0,0,0,0.10)';
             trailCtx.fillRect(0, 0, w, h);
             trailCtx.globalCompositeOperation = 'source-over';
         }
@@ -554,7 +554,7 @@
         // 바다누리 수준의 느리고 자연스러운 흐름 표현 (너무 빠르면 꼬리가 연결돼 보임)
         // dx_pixels = spdMps * SPEED_SCALE / resolution
         var resolution = mapRef.getView().getResolution();
-        var SPEED_SCALE = 0.03 * resolution * 100;
+        var SPEED_SCALE = 0.015 * resolution * 100;
 
         particles.forEach(function (p) {
             var lonLat = ol.proj.toLonLat([p.x, p.y]);
