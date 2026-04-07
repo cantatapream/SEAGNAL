@@ -39,27 +39,27 @@
             { val: 140, color: [240, 110, 15,  0.90] },  // 주황    (1.4 m/s)
             { val: 160, color: [220, 20,  20,  0.90] }   // 빨강    (1.6 m/s)
         ],
-        // 풍속 (m/s): 0 → 25+
+        // 풍속 (m/s): 0 → 30+ — 윈디 스타일 무지개 그라디언트
         wind: [
-            { val: 0, color: [60, 80, 120, 0.4] },      // 회청색
-            { val: 3, color: [50, 140, 80, 0.5] },       // 초록
-            { val: 6, color: [80, 180, 60, 0.55] },      // 연초록
-            { val: 9, color: [180, 200, 40, 0.6] },      // 연두
-            { val: 12, color: [240, 180, 30, 0.65] },    // 노랑
-            { val: 15, color: [240, 100, 30, 0.7] },     // 주황
-            { val: 20, color: [200, 40, 40, 0.75] },     // 빨강
-            { val: 25, color: [160, 30, 120, 0.8] }      // 보라
+            { val: 0,  color: [50,  30, 150, 0.75] },   // 남색
+            { val: 3,  color: [40,  80, 200, 0.78] },   // 파랑
+            { val: 5,  color: [30, 170, 180, 0.80] },   // 청록
+            { val: 10, color: [60, 190,  60, 0.82] },   // 녹색
+            { val: 15, color: [230, 210,  20, 0.85] },  // 노랑
+            { val: 20, color: [240, 110,  10, 0.88] },  // 주황
+            { val: 25, color: [200,  20,  20, 0.90] },  // 빨강
+            { val: 30, color: [130,  10, 100, 0.92] }   // 진빨강/보라
         ],
-        // 파고 (m): 0 → 6+
+        // 파고 (m): 0 → 6+ — 윈디 스타일 무지개 그라디언트
         wave: [
-            { val: 0, color: [30, 80, 140, 0.4] },      // 진파랑
-            { val: 0.5, color: [40, 130, 200, 0.5] },    // 파랑
-            { val: 1.0, color: [60, 180, 180, 0.55] },   // 청록
-            { val: 1.5, color: [100, 200, 120, 0.6] },   // 청초록
-            { val: 2.0, color: [180, 210, 60, 0.65] },   // 연두
-            { val: 3.0, color: [240, 180, 40, 0.7] },    // 노랑
-            { val: 4.0, color: [240, 100, 40, 0.75] },   // 주황
-            { val: 6.0, color: [200, 40, 60, 0.8] }      // 빨강
+            { val: 0,   color: [50,  30, 150, 0.72] },  // 남색     (잔잔)
+            { val: 0.5, color: [40,  80, 200, 0.75] },  // 파랑
+            { val: 1.0, color: [30, 170, 180, 0.78] },  // 청록
+            { val: 1.5, color: [60, 190,  60, 0.80] },  // 녹색
+            { val: 2.0, color: [230, 210,  20, 0.82] }, // 노랑
+            { val: 3.0, color: [240, 130,  10, 0.85] }, // 주황
+            { val: 4.0, color: [200,  30,  20, 0.88] }, // 빨강
+            { val: 6.0, color: [130,  10, 100, 0.90] }  // 진빨강/보라 (매우 높음)
         ]
     };
 
@@ -123,28 +123,25 @@
         // 캔버스 크기를 지도에 맞춤
         resizeCanvas();
 
-        // 오버레이 토글 버튼 바인딩 (current 만 사용 — wind/wave 는 데이터 소스 미연결)
-        // 사용자 요구사항(2026-04): 모드 B(해양현황) 진입만으로는 해류 애니메이션을
-        // 표시하지 않고, 'current' 버튼을 눌렀을 때만 ON, 다시 누르면 OFF.
+        // 오버레이 토글 버튼 바인딩 (current/wind/wave 3개 레이어 지원)
+        // 같은 버튼 재클릭 → OFF, 다른 버튼 클릭 → 레이어 전환
         document.querySelectorAll('.ocean-overlay-btn[data-layer]').forEach(function (btn) {
-            // 기본 active 클래스를 모두 떼서 OFF 상태로 시작
             btn.classList.remove('active');
             btn.addEventListener('click', function () {
                 var layer = this.dataset.layer;
-                if (layer !== 'current') {
-                    // 현재는 current 만 지원
-                    return;
-                }
-                if (streamActive) {
-                    // 토글 OFF
+                if (streamActive && activeLayer === layer) {
+                    // 같은 레이어 토글 OFF
                     streamActive = false;
                     this.classList.remove('active');
                     window.oceanOverlayClear();
                 } else {
-                    // 토글 ON
+                    // 레이어 전환 또는 ON
                     streamActive = true;
+                    document.querySelectorAll('.ocean-overlay-btn[data-layer]').forEach(function (b) {
+                        b.classList.remove('active');
+                    });
                     this.classList.add('active');
-                    setActiveLayer('current');
+                    setActiveLayer(layer);
                     loadOverlayData();
                 }
             });
@@ -239,8 +236,13 @@
 
     function setActiveLayer(layer) {
         activeLayer = layer;
+        // 레이어 전환 시 이전 트레일 제거
+        if (trailCtx && trailCanvas) {
+            trailCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+        }
+        particles = [];
         updateLegend(layer);
-        renderGridToOffscreen();
+        if (gridData) renderGridToOffscreen();
     }
 
     function updateLegend(layer) {
@@ -256,15 +258,15 @@
         });
         barEl.style.background = 'linear-gradient(to right, ' + colors.join(', ') + ')';
 
-        // 라벨 — 해류는 바다누리 기준 m/s 단위로 표시
-        var msLabels = { current: [0.0, 0.3, 0.5, 0.8, 1.1, 1.4, 1.6] };
-        if (layer === 'current' && msLabels.current) {
-            labelsEl.innerHTML = msLabels.current.map(function (v) {
+        // 라벨: current=바다누리 m/s 기준, wind=m/s, wave=m
+        if (layer === 'current') {
+            var knLabels = [0.0, 0.3, 0.5, 0.8, 1.1, 1.4, 1.6];
+            labelsEl.innerHTML = knLabels.map(function (v) {
                 return '<span>' + v.toFixed(1) + '</span>';
             }).join('');
         } else {
             labelsEl.innerHTML = scale.map(function (s) {
-                return '<span>' + s.val + '</span>';
+                return '<span>' + (Number.isInteger(s.val) ? s.val : s.val.toFixed(1)) + '</span>';
             }).join('');
         }
 
@@ -283,12 +285,15 @@
 
     function loadOverlayData() {
         if (!mapRef) return;
+        if (activeLayer === 'current') {
+            loadCurrentData();
+        } else {
+            loadZoneForecastData(activeLayer);
+        }
+    }
 
+    function loadCurrentData() {
         console.log('[OceanOverlay] KHOA stream-vector 로드 시작');
-
-        // KHOA 해아름 stream-vector — 한국 전 해역 약 1만 격자점을 1회 호출로 수신.
-        // 응답 포맷: { success, points: [{lat, lon, s(m/s), d(deg), temp, salt, zeta}, ...] }
-        // 기존 오버레이 코드는 crsp(cm/s)·crdir(deg) 키를 기대하므로 어댑터 변환.
         fetch('/api/ocean/khoa-stream-vector')
             .then(function (r) { return r.json(); })
             .then(function (data) {
@@ -297,26 +302,76 @@
                     updateLegend(activeLayer);
                     return;
                 }
-                // 결측점(육지 등) 제거 + 키 변환
                 gridData = [];
                 for (var i = 0; i < data.points.length; i++) {
                     var p = data.points[i];
                     if (p.s === 0 && p.d === 0 && p.temp === 0 && p.salt === 0 && p.zeta === 0) continue;
-                    gridData.push({
-                        lat: p.lat,
-                        lon: p.lon,
-                        crsp: p.s * 100, // m/s → cm/s
-                        crdir: p.d
-                    });
+                    gridData.push({ lat: p.lat, lon: p.lon, crsp: p.s * 100, crdir: p.d });
                 }
                 console.log('[OceanOverlay] KHOA 격자 점 수:', gridData.length);
-                updateLegend(activeLayer);
+                updateLegend('current');
                 renderGridToOffscreen();
                 startParticleAnimation();
             })
-            .catch(function (e) {
-                console.warn('[OceanOverlay] KHOA 로드 실패:', e.message);
-            });
+            .catch(function (e) { console.warn('[OceanOverlay] KHOA 로드 실패:', e.message); });
+    }
+
+    /**
+     * 해구별 기상전망(zone_forecasts)으로 바람/파고 오버레이 데이터를 로드합니다.
+     * layer: 'wind' 또는 'wave'
+     * - wind: crsp = ws(m/s), crdir = windDir → 파티클 애니메이션
+     * - wave: crsp = wh(m),   crdir = waveDir → 배경 색상 (파티클 없음)
+     */
+    function loadZoneForecastData(layer) {
+        var timeParam = '';
+        try {
+            var d = window.OceanSheet && window.OceanSheet.state && window.OceanSheet.state.date;
+            if (d) timeParam = '?time=' + encodeURIComponent(d.toISOString());
+        } catch (e) { /* ignore */ }
+
+        fetch('/api/ocean/zone-forecasts' + timeParam)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.success) {
+                    console.warn('[OceanOverlay] zone-forecasts 데이터 없음');
+                    return;
+                }
+                gridData = buildGridFromZones(data.zones, layer);
+                lonList = null; // 인덱스 재빌드 강제
+                buildGridIndex();
+                updateLegend(layer);
+                renderGridToOffscreen();
+                if (layer === 'wave') {
+                    // 파고: 배경 색상만 표시 (파티클 없음)
+                    if (animationId) cancelAnimationFrame(animationId);
+                    animationId = requestAnimationFrame(animate);
+                } else {
+                    startParticleAnimation();
+                }
+            })
+            .catch(function (e) { console.warn('[OceanOverlay] zone-forecasts 로드 실패:', e.message); });
+    }
+
+    /**
+     * 해구 폴리곤 데이터를 격자 점 배열로 변환.
+     * 각 해구 내부에 0.4도 간격 격자점 생성 → sampleAt() 쌍선형 보간에 사용.
+     */
+    function buildGridFromZones(zones, layer) {
+        var pts = [];
+        var STEP = 0.4;
+        Object.keys(zones).forEach(function (lzone) {
+            var z = zones[lzone];
+            var ymin = z.bounds[0], ymax = z.bounds[1];
+            var xmin = z.bounds[2], xmax = z.bounds[3];
+            var crsp  = (layer === 'wind') ? (z.ws  || 0) : (z.wh  || 0);
+            var crdir = (layer === 'wind') ? (z.windDir || 0) : (z.waveDir || 0);
+            for (var lat = ymin; lat <= ymax + 0.01; lat += STEP) {
+                for (var lon = xmin; lon <= xmax + 0.01; lon += STEP) {
+                    pts.push({ lat: lat, lon: lon, crsp: crsp, crdir: crdir });
+                }
+            }
+        });
+        return pts;
     }
 
     // ========================================================================
@@ -429,10 +484,9 @@
                 var ll = ol.proj.toLonLat(coord);
                 var samp = sampleAt(ll[0], ll[1]);
                 if (!samp) continue;
-                var value;
-                if (activeLayer === 'current') value = samp.crsp;
-                else if (activeLayer === 'wind') value = samp.crsp / 10;
-                else value = samp.crsp / 20;
+                // crsp는 레이어별 네이티브 단위:
+                // current=cm/s, wind=m/s, wave=m → 각 COLOR_SCALES과 단위 일치
+                var value = samp.crsp;
 
                 var color = interpolateColor(scale, value);
                 var i = (py * imgW + px) * 4;
@@ -539,32 +593,40 @@
             return;
         }
 
-        // ① 트레일 캔버스를 약간 페이드(검정 반투명 덮기) → 잔상이 서서히 사라짐
+        // ─── 파고: 배경 색상만 표시 (파티클 없음) ───
+        if (activeLayer === 'wave') {
+            ctx.clearRect(0, 0, w, h);
+            if (gridCanvas) ctx.drawImage(gridCanvas, 0, 0, w, h);
+            animationId = requestAnimationFrame(animate);
+            return;
+        }
+
+        // ─── 해류/바람: 파티클 트레일 ───
+        // ① 트레일 페이드 (꼬리 길이 조정: 값이 클수록 짧아짐)
         if (trailCtx) {
-            // 페이드 강도가 작을수록 잔상이 길게 남음 → 흐름이 강처럼 보임.
             trailCtx.globalCompositeOperation = 'destination-out';
-            trailCtx.fillStyle = 'rgba(0,0,0,0.20)';
+            trailCtx.fillStyle = 'rgba(0,0,0,0.15)';
             trailCtx.fillRect(0, 0, w, h);
             trailCtx.globalCompositeOperation = 'source-over';
         }
 
-        // ② 입자 업데이트 + 트레일 캔버스에 짧은 선분으로 그리기
-        // SPEED_SCALE: 화면 해상도(m/px) 기반으로 동적 계산.
-        // 목표: 1 cm/s → 0.03 px/frame, 10 cm/s → 0.3 px/frame, 30 cm/s → 0.9 px/frame
-        // 바다누리 수준의 느리고 자연스러운 흐름 표현 (너무 빠르면 꼬리가 연결돼 보임)
-        // dx_pixels = spdMps * SPEED_SCALE / resolution
+        // ② 입자 이동 + 트레일 그리기
+        // SPEED_SCALE: 레이어별 단위 보정
+        // - current: crsp=cm/s → spdMps=crsp*0.01, SPEED_SCALE=0.015*res*100
+        // - wind:    crsp=m/s  → spdMps=crsp 그대로, SPEED_SCALE=0.015*res
+        // 결과: 둘 다 동일한 시각적 속도 (1단위 → 0.015 px/frame)
         var resolution = mapRef.getView().getResolution();
-        var SPEED_SCALE = 0.0075 * resolution * 100;
+        var isWind = (activeLayer === 'wind');
+        var SPEED_SCALE = isWind ? (0.015 * resolution) : (0.015 * resolution * 100);
 
         particles.forEach(function (p) {
             var lonLat = ol.proj.toLonLat([p.x, p.y]);
-            // 가장 가까운 점 대신 4점 쌍선형 보간으로 매끄럽게 흐르게.
             var nearest = sampleAt(lonLat[0], lonLat[1]);
 
             var spdValue = 0;
             if (nearest) {
                 var dirRad = (nearest.crdir || 0) * Math.PI / 180;
-                var spdMps = (nearest.crsp || 0) * 0.01; // cm/s → m/s
+                var spdMps = isWind ? (nearest.crsp || 0) : (nearest.crsp || 0) * 0.01;
                 spdValue = nearest.crsp || 0;
 
                 p.x += Math.sin(dirRad) * spdMps * SPEED_SCALE;
@@ -572,14 +634,11 @@
             }
 
             p.age++;
-            // 격자점이 없거나 너무 느리면 자주 재생성
-            if (p.age > p.maxAge || !nearest || spdValue < 0.1) {
+            var minSpeed = isWind ? 0.05 : 0.1; // m/s 또는 cm/s 기준 최소속도
+            if (p.age > p.maxAge || !nearest || spdValue < minSpeed) {
                 var newP = createParticle();
-                p.x = newP.x;
-                p.y = newP.y;
-                p.age = 0;
-                p.prevPx = null;
-                p.prevPy = null;
+                p.x = newP.x; p.y = newP.y; p.age = 0;
+                p.prevPx = null; p.prevPy = null;
                 return;
             }
 
@@ -587,7 +646,6 @@
             if (!pixel) return;
             var px = pixel[0], py = pixel[1];
 
-            // 화면 밖이면 재생성
             if (px < 0 || py < 0 || px > w || py > h) {
                 var np = createParticle();
                 p.x = np.x; p.y = np.y; p.age = 0;
@@ -595,14 +653,17 @@
                 return;
             }
 
-            // 트레일에 짧은 선분 그리기 (이전 픽셀 → 현재 픽셀)
-            // 속도에 따라 색상 부여 (느림=파랑, 보통=초록/노랑, 빠름=주황/빨강)
             if (trailCtx && p.prevPx !== null) {
-                var col = interpolateColor(scale, spdValue);
-                trailCtx.strokeStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0.78)';
-                // 빠를수록 굵게 (바다누리처럼 얇고 섬세하게)
-                var lw = 0.8 + Math.min(1.2, spdValue / 40);
-                trailCtx.lineWidth = lw;
+                if (isWind) {
+                    // 바람: 배경 색상 위에 흰 트레일 (윈디 스타일)
+                    trailCtx.strokeStyle = 'rgba(255,255,255,0.70)';
+                    trailCtx.lineWidth = 0.8 + Math.min(1.0, spdValue / 15);
+                } else {
+                    // 해류: 속도별 색상 트레일
+                    var col = interpolateColor(scale, spdValue);
+                    trailCtx.strokeStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0.78)';
+                    trailCtx.lineWidth = 0.8 + Math.min(1.2, spdValue / 40);
+                }
                 trailCtx.lineCap = 'round';
                 trailCtx.beginPath();
                 trailCtx.moveTo(p.prevPx, p.prevPy);
@@ -613,8 +674,9 @@
             p.prevPy = py;
         });
 
-        // ③ 메인 캔버스 합성: 파티클 트레일만 표시 (배경 색상 없음 → 지도가 그대로 보임)
+        // ③ 합성: 바람=배경색상+흰트레일, 해류=트레일만
         ctx.clearRect(0, 0, w, h);
+        if (isWind && gridCanvas) ctx.drawImage(gridCanvas, 0, 0, w, h);
         if (trailCanvas) ctx.drawImage(trailCanvas, 0, 0, w, h);
 
         animationId = requestAnimationFrame(animate);
