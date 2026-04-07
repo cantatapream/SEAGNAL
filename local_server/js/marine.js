@@ -1264,14 +1264,12 @@ window.addEventListener('popstate', function () {
 });
 
 function _onSectionActivated(sectionId) {
-    // 해양종합정보 진입/퇴장 시 헤더 숨김/표시
-    // (메인탭 / 서브탭은 손대지 않는다 — enterOceanMapSection 이 따로 관리)
+    // 해양종합정보 진입/퇴장 시 헤더 처리
+    // - ocean-map-section 은 메인탭/서브탭이 그대로 보여야 하는 "독립 화면"이므로
+    //   .main-header 를 숨기지 않는다. (숨기면 위쪽이 빈 공간이 된다)
+    // - 다른 섹션 복귀 시에도 헤더는 원래 표시 상태이므로 별도 처리 불필요.
     var mainHeader = document.querySelector('.main-header');
-    if (sectionId === 'ocean-map-section') {
-        if (mainHeader) mainHeader.style.display = 'none';
-    } else {
-        if (mainHeader) mainHeader.style.display = '';
-    }
+    if (mainHeader) mainHeader.style.display = '';
 
     // 해양종합정보에서 벗어날 때 오버레이 애니메이션 정리 (RAF 누수 방지)
     if (sectionId !== 'ocean-map-section' && window.oceanOverlayClear) {
