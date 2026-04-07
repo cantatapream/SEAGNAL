@@ -77,6 +77,10 @@ app.use(require('./routes/reaction')); // 게시글 리액션 API
 app.use(require('./routes/comment_report')); // 댓글 신고 API
 app.use(require('./routes/cctv_seafog'));   // 해무 CCTV 스틸컷 API (국립해양조사원)
 app.use(require('./routes/ocean1'));        // 해양종합정보 API (수심/ROMS/기상/파고/저질)
+app.use(require('./routes/ocean2'));        // ROMS 격자/저질 API
+app.use(require('./routes/ocean3'));        // 해양현황 날씨/바람 API (zone_forecasts 기반)
+app.use(require('./routes/ocean4'));        // 해양현황 파고/zone-forecasts 오버레이 API
+app.use(require('./routes/ocean5'));        // 해저지형/기타 해양 API
 
 // ============================================================================
 // 4. 정기 작업 (Daily Cloud Backup)
