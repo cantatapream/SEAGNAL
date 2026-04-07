@@ -76,7 +76,9 @@
     let gridData = null;           // ROMS 격자 데이터
     let animationId = null;        // 파티클 애니메이션 RAF ID
     let particles = [];            // 파티클 배열
-    const MAX_PARTICLES = 800;
+    const MAX_PARTICLES = 2500;    // 흐름 트레일 효과를 위해 조밀하게
+    let trailCanvas = null;        // 입자 트레일 전용 오프스크린 (페이드 누적)
+    let trailCtx = null;
     let streamActive = false;      // 해류 시각화 ON/OFF (사용자 토글)
     let inited = false;            // oceanOverlayInit 1회 가드
 
@@ -99,6 +101,9 @@
         canvas = document.getElementById('ocean-overlay-canvas');
         if (!canvas) return;
         ctx = canvas.getContext('2d');
+        // 입자 트레일 전용 오프스크린 캔버스
+        trailCanvas = document.createElement('canvas');
+        trailCtx = trailCanvas.getContext('2d');
         inited = true;
 
         // 오프스크린 캔버스 생성 (격자 색상용 - 정적 렌더)
@@ -142,6 +147,18 @@
         if (!canvas || !ctx) return;
         mapRef = map;
         resizeCanvas();
+        // 줌/팬 후 트레일 잔상은 픽셀 좌표가 어긋나므로 지우고 새로 시작
+        if (trailCtx && trailCanvas) {
+            var tw = trailCanvas.width / (window.devicePixelRatio || 1);
+            var th = trailCanvas.height / (window.devicePixelRatio || 1);
+            trailCtx.clearRect(0, 0, tw, th);
+        }
+        if (particles && particles.length) {
+            for (var i = 0; i < particles.length; i++) {
+                particles[i].prevPx = null;
+                particles[i].prevPy = null;
+            }
+        }
         renderGridToOffscreen();
     };
 
@@ -157,6 +174,11 @@
         }
         if (gridCtx) {
             gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+        }
+        if (trailCtx && trailCanvas) {
+            var tw = trailCanvas.width / (window.devicePixelRatio || 1);
+            var th = trailCanvas.height / (window.devicePixelRatio || 1);
+            trailCtx.clearRect(0, 0, tw, th);
         }
         particles = [];
         gridData = null;
@@ -184,6 +206,13 @@
             gridCanvas.height = rect.height * dpr;
             if (gridCtx) {
                 gridCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            }
+        }
+        if (trailCanvas) {
+            trailCanvas.width = rect.width * dpr;
+            trailCanvas.height = rect.height * dpr;
+            if (trailCtx) {
+                trailCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
             }
         }
     }
@@ -283,6 +312,17 @@
         gridCtx.clearRect(0, 0, w, h);
 
         var scale = COLOR_SCALES[activeLayer];
+        var zoom = mapRef.getView().getZoom();
+
+        // 격자 간격(약 0.15°)을 현재 줌의 픽셀로 환산해서 반경에 사용한다.
+        // 줌인할수록 반경도 같이 커져 빈 공간 없이 색이 채워진다.
+        // (KHOA 격자 lat 간격은 보통 0.13~0.15°)
+        var GRID_DEG = 0.15;
+        var refLat = 35;
+        var p1 = mapRef.getPixelFromCoordinate(ol.proj.fromLonLat([127.0, refLat]));
+        var p2 = mapRef.getPixelFromCoordinate(ol.proj.fromLonLat([127.0, refLat + GRID_DEG]));
+        var spacingPx = p1 && p2 ? Math.abs(p2[1] - p1[1]) : 20;
+        var radius = Math.max(10, spacingPx * 0.95);
 
         gridData.forEach(function (item) {
             var pixel = mapRef.getPixelFromCoordinate(ol.proj.fromLonLat([item.lon, item.lat]));
@@ -290,27 +330,24 @@
 
             var x = pixel[0];
             var y = pixel[1];
-            if (x < -20 || x > w + 20 || y < -20 || y > h + 20) return;
+            if (x < -radius || x > w + radius || y < -radius || y > h + radius) return;
 
-            // 값에 따른 색상 결정
             var value;
             if (activeLayer === 'current') value = item.crsp || 0;
             else if (activeLayer === 'wind') value = item.crsp ? item.crsp / 10 : 0;
             else value = item.crsp ? item.crsp / 20 : 0;
 
             var color = interpolateColor(scale, value);
-            var radius = Math.max(8, 15 - mapRef.getView().getZoom());
 
-            // 부드러운 원형 그라디언트
             var gradient = gridCtx.createRadialGradient(x, y, 0, x, y, radius);
             gradient.addColorStop(0, 'rgba(' + color[0] + ',' + color[1] + ',' + color[2] + ',' + color[3] + ')');
+            gradient.addColorStop(0.6, 'rgba(' + color[0] + ',' + color[1] + ',' + color[2] + ',' + (color[3] * 0.5) + ')');
             gradient.addColorStop(1, 'rgba(' + color[0] + ',' + color[1] + ',' + color[2] + ',0)');
 
             gridCtx.fillStyle = gradient;
             gridCtx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
         });
 
-        // 애니메이션이 아직 없으면 정적 렌더만 메인 캔버스에 표시
         if (!animationId && ctx) {
             var mw = canvas.width / (window.devicePixelRatio || 1);
             var mh = canvas.height / (window.devicePixelRatio || 1);
@@ -348,17 +385,28 @@
         if (animationId) cancelAnimationFrame(animationId);
         if (!gridData || gridData.length === 0) return;
 
-        // 파티클 초기화
         particles = [];
         for (var i = 0; i < MAX_PARTICLES; i++) {
             particles.push(createParticle());
         }
 
+        // 트레일 캔버스 초기화
+        if (trailCtx && trailCanvas) {
+            var tw = trailCanvas.width / (window.devicePixelRatio || 1);
+            var th = trailCanvas.height / (window.devicePixelRatio || 1);
+            trailCtx.clearRect(0, 0, tw, th);
+        }
+
         animate();
     }
 
+    /**
+     * 파티클 생성: 화면(viewport) 안에서 랜덤 좌표에 떨어뜨린다.
+     * 좌표는 EPSG:3857(map projection coord)로 저장 — 줌/팬해도 같은 절대 좌표.
+     * prevPx/prevPy 는 이전 프레임의 픽셀 좌표(트레일 선분 그릴 때 사용).
+     */
     function createParticle() {
-        if (!mapRef) return { x: 0, y: 0, age: 0, maxAge: 60 };
+        if (!mapRef) return { x: 0, y: 0, age: 0, maxAge: 80, prevPx: null, prevPy: null };
 
         var view = mapRef.getView();
         var extent = view.calculateExtent(mapRef.getSize());
@@ -368,8 +416,10 @@
         return {
             x: extent[0] + Math.random() * w,
             y: extent[1] + Math.random() * h,
-            age: Math.floor(Math.random() * 60),
-            maxAge: 40 + Math.floor(Math.random() * 40)
+            age: Math.floor(Math.random() * 80),
+            maxAge: 60 + Math.floor(Math.random() * 60),
+            prevPx: null,
+            prevPy: null
         };
     }
 
@@ -378,50 +428,83 @@
 
         var w = canvas.width / (window.devicePixelRatio || 1);
         var h = canvas.height / (window.devicePixelRatio || 1);
+        var scale = COLOR_SCALES[activeLayer];
 
-        // 매 프레임 캔버스 초기화 후 레이어 합성:
-        // 1) 오프스크린 격자 색상 이미지 그리기 (정적)
-        // 2) 파티클 페이드 트레일 + 새 파티클 위치
-        ctx.clearRect(0, 0, w, h);
-
-        // ① 격자 색상 오버레이 (오프스크린 캔버스에서 복사)
-        if (gridCanvas) {
-            ctx.drawImage(gridCanvas, 0, 0, w, h);
+        // ① 트레일 캔버스를 약간 페이드(검정 반투명 덮기) → 잔상이 서서히 사라짐
+        if (trailCtx) {
+            trailCtx.globalCompositeOperation = 'destination-out';
+            trailCtx.fillStyle = 'rgba(0,0,0,0.06)';
+            trailCtx.fillRect(0, 0, w, h);
+            trailCtx.globalCompositeOperation = 'source-over';
         }
 
-        // ② 파티클 업데이트 및 렌더 (흐름선 효과)
+        // ② 입자 업데이트 + 트레일 캔버스에 짧은 선분으로 그리기
+        // 이동량은 지도 좌표(EPSG:3857) 단위. 줌인하면 화면상 같은 미터가 더 큰 픽셀이라
+        // 자동으로 빠르게 흐르는 것처럼 보임.
+        // 속도 스케일: KHOA s(m/s) → cm/s 변환된 crsp(0~250 정도) → 좌표 단위 이동량.
+        // 한 프레임당 m 단위 이동. 1 cm/s = 0.01 m/s. 한 프레임 ≈ 1초로 가정 시
+        // 0.01 m 가 되어 화면에서 안 보이므로 50배 가속.
+        var SPEED_SCALE = 50;
+
         particles.forEach(function (p) {
-            // 가장 가까운 격자점의 유향/유속 찾기
             var lonLat = ol.proj.toLonLat([p.x, p.y]);
             var nearest = findNearestGrid(lonLat[1], lonLat[0]);
 
+            var spdValue = 0;
             if (nearest) {
-                var dir = (nearest.crdir || 0) * Math.PI / 180;
-                var spd = (nearest.crsp || 0) * 0.5; // 스케일 조정
+                var dirRad = (nearest.crdir || 0) * Math.PI / 180;
+                var spdMps = (nearest.crsp || 0) * 0.01; // cm/s → m/s
+                spdValue = nearest.crsp || 0;
 
-                // 지도 좌표계에서의 이동
-                p.x += Math.sin(dir) * spd;
-                p.y -= Math.cos(dir) * spd;
+                p.x += Math.sin(dirRad) * spdMps * SPEED_SCALE;
+                p.y -= Math.cos(dirRad) * spdMps * SPEED_SCALE;
             }
 
             p.age++;
-            if (p.age > p.maxAge) {
+            // 격자점이 없거나 너무 느리면 자주 재생성
+            if (p.age > p.maxAge || !nearest || spdValue < 0.5) {
                 var newP = createParticle();
                 p.x = newP.x;
                 p.y = newP.y;
                 p.age = 0;
+                p.prevPx = null;
+                p.prevPy = null;
+                return;
             }
 
-            // 화면에 파티클 그리기 (나이에 따라 투명도 감소)
             var pixel = mapRef.getPixelFromCoordinate([p.x, p.y]);
-            if (pixel) {
-                var alpha = 1.0 - (p.age / p.maxAge);
-                ctx.fillStyle = 'rgba(255, 255, 255, ' + (alpha * 0.7) + ')';
-                ctx.beginPath();
-                ctx.arc(pixel[0], pixel[1], 1.5, 0, Math.PI * 2);
-                ctx.fill();
+            if (!pixel) return;
+            var px = pixel[0], py = pixel[1];
+
+            // 화면 밖이면 재생성
+            if (px < 0 || py < 0 || px > w || py > h) {
+                var np = createParticle();
+                p.x = np.x; p.y = np.y; p.age = 0;
+                p.prevPx = null; p.prevPy = null;
+                return;
             }
+
+            // 트레일에 짧은 선분 그리기 (이전 픽셀 → 현재 픽셀)
+            if (trailCtx && p.prevPx !== null) {
+                var col = interpolateColor(scale, spdValue);
+                trailCtx.strokeStyle = 'rgba(255,255,255,0.85)';
+                // 빠를수록 굵게 + 더 진하게
+                var lw = 0.8 + Math.min(2.2, spdValue / 30);
+                trailCtx.lineWidth = lw;
+                trailCtx.lineCap = 'round';
+                trailCtx.beginPath();
+                trailCtx.moveTo(p.prevPx, p.prevPy);
+                trailCtx.lineTo(px, py);
+                trailCtx.stroke();
+            }
+            p.prevPx = px;
+            p.prevPy = py;
         });
+
+        // ③ 메인 캔버스 합성: 색상 격자(정적) + 트레일(애니메이션)
+        ctx.clearRect(0, 0, w, h);
+        if (gridCanvas) ctx.drawImage(gridCanvas, 0, 0, w, h);
+        if (trailCanvas) ctx.drawImage(trailCanvas, 0, 0, w, h);
 
         animationId = requestAnimationFrame(animate);
     }
