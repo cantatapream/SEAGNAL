@@ -380,18 +380,30 @@
      */
     function buildGridFromZones(zones, layer) {
         // 소해구 데이터 → 빠른 위치 인덱스 구축
+        // API 포맷 두 가지 지원:
+        //   신규: { lat, lon, wh, ws, ... }  (zone_coords.json 기반)
+        //   구형: { bounds:[ymin,ymax,xmin,xmax], wh, ws, ... }  (SEA_ZONES 기반)
         var zoneMap = {};
         var zonePts = [];
         Object.keys(zones).forEach(function (lzone) {
             var z = zones[lzone];
-            if (z.lat == null || z.lon == null) return;
+
+            // lat/lon 결정: 신규 포맷 우선, 없으면 bounds 중심점 사용
+            var lat = z.lat;
+            var lon = z.lon;
+            if ((lat == null || lon == null) && z.bounds && z.bounds.length === 4) {
+                lat = (z.bounds[0] + z.bounds[1]) / 2;
+                lon = (z.bounds[2] + z.bounds[3]) / 2;
+            }
+            if (lat == null || lon == null) return;
+
             var val = {
                 crsp:  (layer === 'wind') ? (z.ws  || 0) : (z.wh  || 0),
                 crdir: (layer === 'wind') ? (z.windDir || 0) : (z.waveDir || 0)
             };
-            var key = z.lat.toFixed(2) + '_' + z.lon.toFixed(2);
+            var key = parseFloat(lat).toFixed(2) + '_' + parseFloat(lon).toFixed(2);
             zoneMap[key] = val;
-            zonePts.push({ lat: z.lat, lon: z.lon, crsp: val.crsp, crdir: val.crdir });
+            zonePts.push({ lat: parseFloat(lat), lon: parseFloat(lon), crsp: val.crsp, crdir: val.crdir });
         });
 
         if (zonePts.length === 0) return [];
