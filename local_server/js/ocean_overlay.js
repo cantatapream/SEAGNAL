@@ -74,9 +74,12 @@
     let mapRef = null;
     let activeLayer = 'current';   // 현재 표시 중인 오버레이
     let gridData = null;           // ROMS 격자 데이터
+    let lonList = null;            // 정렬된 unique lon 배열 (보간용 인덱스)
+    let latList = null;            // 정렬된 unique lat 배열
+    let gridLookup = null;         // 'lonIdx_latIdx' → point 사전 (보간용)
     let animationId = null;        // 파티클 애니메이션 RAF ID
     let particles = [];            // 파티클 배열
-    const MAX_PARTICLES = 2500;    // 흐름 트레일 효과를 위해 조밀하게
+    const BASE_PARTICLES = 2000;   // 줌 7 기준 입자 수 (실제는 줌에 따라 가변)
     let trailCanvas = null;        // 입자 트레일 전용 오프스크린 (페이드 누적)
     let trailCtx = null;
     let streamActive = false;      // 해류 시각화 ON/OFF (사용자 토글)
@@ -182,6 +185,9 @@
         }
         particles = [];
         gridData = null;
+        lonList = null;
+        latList = null;
+        gridLookup = null;
     };
 
     // ========================================================================
@@ -304,53 +310,130 @@
      * 격자 색상을 오프스크린 캔버스에 렌더링 (정적 레이어)
      * animate()에서 매 프레임 이 이미지를 합성하여 파티클과 함께 표시
      */
+    /**
+     * 격자 인덱스 빌드 — 정렬된 lon/lat 리스트와 (lonIdx, latIdx) → point 사전.
+     * 격자가 정규 격자(lat 동일, lon 동일이 행/열을 이룸)라는 KHOA 데이터 특성을 활용.
+     * sampleAt() 의 쌍선형 보간에 사용된다.
+     */
+    function buildGridIndex() {
+        if (!gridData || gridData.length === 0) return;
+        var lonSet = {}, latSet = {};
+        for (var i = 0; i < gridData.length; i++) {
+            lonSet[gridData[i].lon] = true;
+            latSet[gridData[i].lat] = true;
+        }
+        lonList = Object.keys(lonSet).map(parseFloat).sort(function (a, b) { return a - b; });
+        latList = Object.keys(latSet).map(parseFloat).sort(function (a, b) { return a - b; });
+        var lonIdx = {}, latIdx = {};
+        for (var k = 0; k < lonList.length; k++) lonIdx[lonList[k]] = k;
+        for (var m = 0; m < latList.length; m++) latIdx[latList[m]] = m;
+        gridLookup = {};
+        for (var n = 0; n < gridData.length; n++) {
+            var p = gridData[n];
+            gridLookup[lonIdx[p.lon] + '_' + latIdx[p.lat]] = p;
+        }
+    }
+
+    // 정렬 배열 sortedArr 에서 value 보다 크지 않은 마지막 인덱스를 찾는다 (이진탐색).
+    function lowerBound(sortedArr, value) {
+        var lo = 0, hi = sortedArr.length - 1;
+        if (value < sortedArr[0]) return -1;
+        if (value >= sortedArr[hi]) return hi;
+        while (lo < hi) {
+            var mid = (lo + hi + 1) >> 1;
+            if (sortedArr[mid] <= value) lo = mid; else hi = mid - 1;
+        }
+        return lo;
+    }
+
+    /**
+     * 임의의 (lon, lat) 위치에서 격자 4개를 둘러싸 쌍선형 보간한 결과 반환.
+     * 보간된 crsp(cm/s), crdir(deg) 객체. 격자 외곽이거나 4점 중 결측이면 null.
+     */
+    function sampleAt(lon, lat) {
+        if (!lonList || !latList || !gridLookup) return null;
+        var li = lowerBound(lonList, lon);
+        var la = lowerBound(latList, lat);
+        if (li < 0 || li >= lonList.length - 1) return null;
+        if (la < 0 || la >= latList.length - 1) return null;
+        var p00 = gridLookup[li + '_' + la];
+        var p10 = gridLookup[(li + 1) + '_' + la];
+        var p01 = gridLookup[li + '_' + (la + 1)];
+        var p11 = gridLookup[(li + 1) + '_' + (la + 1)];
+        if (!p00 || !p10 || !p01 || !p11) return null;
+        var fx = (lon - lonList[li]) / (lonList[li + 1] - lonList[li]);
+        var fy = (lat - latList[la]) / (latList[la + 1] - latList[la]);
+        var s = (p00.crsp * (1 - fx) + p10.crsp * fx) * (1 - fy) +
+                (p01.crsp * (1 - fx) + p11.crsp * fx) * fy;
+        // 방향은 sin/cos 로 분해해서 보간 (도 단위 직접 평균하면 0/360 경계에서 깨짐)
+        function vec(d) { var r = d * Math.PI / 180; return [Math.sin(r), Math.cos(r)]; }
+        var v00 = vec(p00.crdir), v10 = vec(p10.crdir), v01 = vec(p01.crdir), v11 = vec(p11.crdir);
+        var sx = (v00[0] * (1 - fx) + v10[0] * fx) * (1 - fy) + (v01[0] * (1 - fx) + v11[0] * fx) * fy;
+        var sy = (v00[1] * (1 - fx) + v10[1] * fx) * (1 - fy) + (v01[1] * (1 - fx) + v11[1] * fx) * fy;
+        var d = Math.atan2(sx, sy) * 180 / Math.PI;
+        if (d < 0) d += 360;
+        return { crsp: s, crdir: d };
+    }
+
+    /**
+     * 색상 격자 렌더링 — 화면을 저해상도(STEP px)로 샘플링하여
+     * 각 픽셀에서 sampleAt() 으로 쌍선형 보간한 값을 색으로 환산.
+     * 이 저해상도 ImageData 를 캔버스 크기로 부드럽게 확대(drawImage smoothing)
+     * 해서 매끄러운 색면을 얻는다. 줌인할수록 같은 격자 영역에 더 많은 픽셀이
+     * 들어가 자동으로 더 섬세해 보인다.
+     */
     function renderGridToOffscreen() {
         if (!gridCtx || !gridCanvas || !gridData || !mapRef) return;
+        if (!lonList) buildGridIndex();
 
-        var w = gridCanvas.width / (window.devicePixelRatio || 1);
-        var h = gridCanvas.height / (window.devicePixelRatio || 1);
+        var dpr = window.devicePixelRatio || 1;
+        var w = gridCanvas.width / dpr;
+        var h = gridCanvas.height / dpr;
         gridCtx.clearRect(0, 0, w, h);
 
         var scale = COLOR_SCALES[activeLayer];
-        var zoom = mapRef.getView().getZoom();
+        var STEP = 4; // 4px 단위 샘플링 → 속도/품질 균형
+        var imgW = Math.max(1, Math.ceil(w / STEP));
+        var imgH = Math.max(1, Math.ceil(h / STEP));
 
-        // 격자 간격(약 0.15°)을 현재 줌의 픽셀로 환산해서 반경에 사용한다.
-        // 줌인할수록 반경도 같이 커져 빈 공간 없이 색이 채워진다.
-        // (KHOA 격자 lat 간격은 보통 0.13~0.15°)
-        var GRID_DEG = 0.15;
-        var refLat = 35;
-        var p1 = mapRef.getPixelFromCoordinate(ol.proj.fromLonLat([127.0, refLat]));
-        var p2 = mapRef.getPixelFromCoordinate(ol.proj.fromLonLat([127.0, refLat + GRID_DEG]));
-        var spacingPx = p1 && p2 ? Math.abs(p2[1] - p1[1]) : 20;
-        var radius = Math.max(10, spacingPx * 0.95);
+        var tmp = document.createElement('canvas');
+        tmp.width = imgW;
+        tmp.height = imgH;
+        var tctx = tmp.getContext('2d');
+        var idata = tctx.createImageData(imgW, imgH);
+        var data = idata.data;
 
-        gridData.forEach(function (item) {
-            var pixel = mapRef.getPixelFromCoordinate(ol.proj.fromLonLat([item.lon, item.lat]));
-            if (!pixel) return;
+        for (var py = 0; py < imgH; py++) {
+            for (var px = 0; px < imgW; px++) {
+                var sx = px * STEP;
+                var sy = py * STEP;
+                var coord = mapRef.getCoordinateFromPixel([sx, sy]);
+                if (!coord) continue;
+                var ll = ol.proj.toLonLat(coord);
+                var samp = sampleAt(ll[0], ll[1]);
+                if (!samp) continue;
+                var value;
+                if (activeLayer === 'current') value = samp.crsp;
+                else if (activeLayer === 'wind') value = samp.crsp / 10;
+                else value = samp.crsp / 20;
 
-            var x = pixel[0];
-            var y = pixel[1];
-            if (x < -radius || x > w + radius || y < -radius || y > h + radius) return;
+                var color = interpolateColor(scale, value);
+                var i = (py * imgW + px) * 4;
+                data[i]     = color[0];
+                data[i + 1] = color[1];
+                data[i + 2] = color[2];
+                data[i + 3] = Math.round((color[3] || 0.6) * 255);
+            }
+        }
+        tctx.putImageData(idata, 0, 0);
 
-            var value;
-            if (activeLayer === 'current') value = item.crsp || 0;
-            else if (activeLayer === 'wind') value = item.crsp ? item.crsp / 10 : 0;
-            else value = item.crsp ? item.crsp / 20 : 0;
-
-            var color = interpolateColor(scale, value);
-
-            var gradient = gridCtx.createRadialGradient(x, y, 0, x, y, radius);
-            gradient.addColorStop(0, 'rgba(' + color[0] + ',' + color[1] + ',' + color[2] + ',' + color[3] + ')');
-            gradient.addColorStop(0.6, 'rgba(' + color[0] + ',' + color[1] + ',' + color[2] + ',' + (color[3] * 0.5) + ')');
-            gradient.addColorStop(1, 'rgba(' + color[0] + ',' + color[1] + ',' + color[2] + ',0)');
-
-            gridCtx.fillStyle = gradient;
-            gridCtx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
-        });
+        gridCtx.imageSmoothingEnabled = true;
+        gridCtx.imageSmoothingQuality = 'high';
+        gridCtx.drawImage(tmp, 0, 0, w, h);
 
         if (!animationId && ctx) {
-            var mw = canvas.width / (window.devicePixelRatio || 1);
-            var mh = canvas.height / (window.devicePixelRatio || 1);
+            var mw = canvas.width / dpr;
+            var mh = canvas.height / dpr;
             ctx.clearRect(0, 0, mw, mh);
             ctx.drawImage(gridCanvas, 0, 0, mw, mh);
         }
@@ -384,9 +467,17 @@
     function startParticleAnimation() {
         if (animationId) cancelAnimationFrame(animationId);
         if (!gridData || gridData.length === 0) return;
+        if (!lonList) buildGridIndex();
+
+        // 줌이 깊을수록 입자 더 조밀하게 — 같은 화면 면적에 더 많이 떨어뜨려
+        // 듬성듬성 보이지 않게 한다.
+        var zoom = mapRef.getView().getZoom();
+        var count = Math.round(BASE_PARTICLES * Math.pow(1.35, zoom - 7));
+        if (count < 800) count = 800;
+        if (count > 8000) count = 8000;
 
         particles = [];
-        for (var i = 0; i < MAX_PARTICLES; i++) {
+        for (var i = 0; i < count; i++) {
             particles.push(createParticle());
         }
 
@@ -432,8 +523,9 @@
 
         // ① 트레일 캔버스를 약간 페이드(검정 반투명 덮기) → 잔상이 서서히 사라짐
         if (trailCtx) {
+            // 페이드 강도가 작을수록 잔상이 길게 남음 → 흐름이 강처럼 보임.
             trailCtx.globalCompositeOperation = 'destination-out';
-            trailCtx.fillStyle = 'rgba(0,0,0,0.06)';
+            trailCtx.fillStyle = 'rgba(0,0,0,0.035)';
             trailCtx.fillRect(0, 0, w, h);
             trailCtx.globalCompositeOperation = 'source-over';
         }
@@ -448,7 +540,8 @@
 
         particles.forEach(function (p) {
             var lonLat = ol.proj.toLonLat([p.x, p.y]);
-            var nearest = findNearestGrid(lonLat[1], lonLat[0]);
+            // 가장 가까운 점 대신 4점 쌍선형 보간으로 매끄럽게 흐르게.
+            var nearest = sampleAt(lonLat[0], lonLat[1]);
 
             var spdValue = 0;
             if (nearest) {
