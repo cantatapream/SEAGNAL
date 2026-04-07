@@ -325,28 +325,73 @@
         });
     }
 
+    /**
+     * 위치 검색 (서버 프록시 방식)
+     *
+     * [역할]
+     * 사용자가 검색창에 입력한 키워드(예: "제주항")로 장소를 찾아
+     * 드롭다운에 결과를 보여줍니다. 결과를 클릭하면 지도가 그 좌표로 이동합니다.
+     *
+     * [왜 서버 프록시?]
+     * - 조석정보 탭(tide.js)과 동일하게 우리 서버의 /api/search-place 를 통해 검색합니다.
+     * - 브라우저가 직접 Kakao 자바스크립트 SDK 를 부르지 않으므로
+     *   1) Kakao Maps SDK 스크립트를 페이지에 로드할 필요가 없고
+     *   2) 도메인 인증/배포환경 변경 이슈가 없으며
+     *   3) tide.js 검색에서 이미 검증된 동일 응답 포맷을 그대로 사용합니다.
+     *
+     * [연계]
+     * - 서버: routes/tide.js 의 /api/search-place (Kakao REST API 프록시)
+     * - 호출처: 본 파일 위쪽 input 'input'/'keydown' 이벤트 핸들러
+     * - 결과 표시: showSearchResults() 가 드롭다운 DOM 을 렌더링
+     * - 항목 클릭: 같은 함수 안에서 oceanMap.getView().animate() 로 이동
+     */
     function searchLocation(query) {
-        // Kakao 장소 검색 API 사용 (tide.js와 동일 패턴)
-        if (!window.kakao || !window.kakao.maps || !window.kakao.maps.services) {
-            // Kakao SDK 없으면 드롭다운에 안내
-            showSearchResults([{ name: 'Kakao SDK 로딩 중...', disabled: true }]);
-            return;
-        }
+        // 1) 검색 시작 안내 (사용자가 무언가 진행 중임을 인지)
+        showSearchResults([{ name: '검색 중...', disabled: true }]);
 
-        const ps = new kakao.maps.services.Places();
-        ps.keywordSearch(query, function (data, status) {
-            if (status === kakao.maps.services.Status.OK && data.length > 0) {
-                const results = data.slice(0, 5).map(item => ({
-                    name: item.place_name,
-                    address: item.address_name,
-                    lat: parseFloat(item.y),
-                    lon: parseFloat(item.x)
-                }));
+        // 2) 서버 프록시 호출 — Kakao REST API 응답을 그대로 패스스루
+        fetch('/api/search-place?q=' + encodeURIComponent(query))
+            .then(function (res) {
+                return res.json().then(function (data) {
+                    return { ok: res.ok, data: data };
+                });
+            })
+            .then(function (resp) {
+                // 3-a) 서버 오류 (예: API 키 미설정)
+                if (!resp.ok) {
+                    showSearchResults([{
+                        name: (resp.data && resp.data.error) || '검색 서비스를 사용할 수 없습니다',
+                        disabled: true
+                    }]);
+                    return;
+                }
+
+                var docs = resp.data && resp.data.documents;
+                // 3-b) 결과 없음
+                if (!docs || docs.length === 0) {
+                    showSearchResults([{ name: '검색 결과가 없습니다', disabled: true }]);
+                    return;
+                }
+
+                // 3-c) 정상 결과 → 기존 showSearchResults 가 기대하는 포맷으로 매핑
+                //   - place_name  → name   (드롭다운 굵은 글씨)
+                //   - address_name → address (드롭다운 보조 텍스트)
+                //   - x(경도) / y(위도) → lon / lat (지도 이동에 사용)
+                var results = docs.slice(0, 5).map(function (item) {
+                    return {
+                        name: item.place_name,
+                        address: item.address_name,
+                        lat: parseFloat(item.y),
+                        lon: parseFloat(item.x)
+                    };
+                });
                 showSearchResults(results);
-            } else {
-                showSearchResults([{ name: '검색 결과 없음', disabled: true }]);
-            }
-        });
+            })
+            .catch(function (err) {
+                // 4) 네트워크 오류 등
+                console.error('[OceanMap] 검색 오류:', err && err.message);
+                showSearchResults([{ name: '검색 중 오류가 발생했습니다', disabled: true }]);
+            });
     }
 
     function showSearchResults(results) {

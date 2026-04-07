@@ -111,40 +111,172 @@
     };
 
     /* --------------------------------------------------------------
-     * 시트 닫기
+     * 시트 닫기 + 휴대폰 뒤로가기 연동
+     * ------------------------------------------------------------
+     *
+     * [동작 모델: 단순화된 1개 상태]
+     *
+     *   _historyDummyActive : 지금 우리(바텀시트)가 푸시한 "더미 history state"가
+     *                         브라우저 history 스택에 살아있느냐 여부.
+     *
+     *   ┌──────────────────────────────┐
+     *   │ 시트 열기 (showOceanBottomSheet) │
+     *   │   - dummy 가 없으면 pushState   │
+     *   │   - _historyDummyActive = true  │
+     *   └──────────────────────────────┘
+     *           │
+     *           ├── 사용자가 ✕ 또는 닫기 버튼 클릭
+     *           │      → closeSheet(false)
+     *           │         ├── 시트 DOM 닫기
+     *           │         ├── dummy 가 살아있으면 history.back() 호출
+     *           │         │     (그 결과 popstate 가 발화되지만,
+     *           │         │      그 시점에는 이미 dummy=false 로 만들어 두므로
+     *           │         │      popstate 핸들러는 아무 것도 하지 않음)
+     *           │         └── _historyDummyActive = false
+     *           │
+     *           └── 사용자가 휴대폰 시스템 뒤로가기 버튼
+     *                  → 브라우저가 dummy 를 pop → popstate 발화
+     *                    ├── _historyDummyActive 가 true 이면 우리 케이스로 인지
+     *                    ├── _historyDummyActive = false  (back() 재호출 방지)
+     *                    └── closeSheet(true) 호출 → 시트만 닫고 끝
+     *
+     * [왜 이렇게 단순한가?]
+     *  - "내가 push 한 dummy 가 살아있나?" 라는 1개 boolean 만 보면
+     *    어느 경로(사용자 닫기/시스템 뒤로가기)인지 항상 정확히 분기됨.
+     *  - 닫기 애니메이션(300ms) 중 popstate 가 들어와도 dummy 플래그만 보고 판단하므로
+     *    .open 클래스 유무에 의존하지 않아 race 가 없음.
+     *
+     * [연계]
+     *  - showOceanBottomSheet (이 파일 아래쪽) 에서 dummy push
+     *  - 헤더의 ✕ 버튼 (ocean_bottom_sheet2.js bindControls) → closeSheet()
+     *  - Android WebView/PWA 시스템 뒤로가기 → popstate 표준 경로
      * ------------------------------------------------------------ */
-    // 뒤로가기 처리: 시트가 열려있는 동안 history 스택에 더미 state를 1개 push.
-    // popstate가 발생하면(=뒤로가기) 시트를 닫고 끝. 닫기 버튼/✕로 닫을 때는
-    // history.back()을 호출해서 그 더미 state도 같이 정리.
-    OS._historyPushed = false;
-    OS._closing = false;
+    OS._historyDummyActive = false;
 
-    OS.closeSheet = function () {
+    /**
+     * 시트를 닫는다.
+     * @param {boolean} fromPopstate
+     *        true  = popstate 핸들러에서 호출 (브라우저가 이미 pop 처리 함)
+     *        false = 사용자가 ✕/닫기 버튼으로 닫음 (우리가 직접 back() 호출 필요)
+     */
+    OS.closeSheet = function (fromPopstate) {
         var sheet = document.getElementById('ocean-bottom-sheet');
         if (!sheet) return;
+
+        // 1) 시각적으로 시트 내려가기
         sheet.classList.remove('open');
         setTimeout(function () { sheet.style.display = 'none'; }, 300);
-        // 사용자 클릭으로 닫는 경우: 푸시했던 더미 state를 history에서 제거
-        if (OS._historyPushed && !OS._closing) {
-            OS._closing = true;
-            try { window.history.back(); } catch (e) {}
+
+        // 2) history dummy 정리
+        if (OS._historyDummyActive) {
+            // popstate 핸들러가 다시 closeSheet 를 부르지 않도록
+            // 먼저 false 로 만들고 나서 back() 을 호출한다.
+            OS._historyDummyActive = false;
+            if (!fromPopstate) {
+                try { window.history.back(); } catch (e) {}
+            }
         }
-        OS._historyPushed = false;
-        OS._closing = false;
     };
 
-    // popstate (뒤로가기 버튼) — 시트가 열려있으면 닫음
-    window.addEventListener('popstate', function () {
-        var sheet = document.getElementById('ocean-bottom-sheet');
-        if (!sheet) return;
-        if (sheet.classList.contains('open')) {
-            // popstate로 진입했으므로 history.back()을 다시 호출하지 않도록 _closing 플래그 설정
-            OS._closing = true;
-            OS._historyPushed = false;
-            sheet.classList.remove('open');
-            setTimeout(function () { sheet.style.display = 'none'; }, 300);
-            OS._closing = false;
+    /* --------------------------------------------------------------
+     * 핸들(──) 드래그로 시트 닫기
+     * ------------------------------------------------------------
+     *
+     * [동작]
+     *  - 시트 상단 핸들 막대를 손가락(또는 마우스)으로 잡고 아래로 끌면
+     *    시트가 따라 내려오고, 손을 떼는 순간:
+     *      • 충분히 내렸으면 (≥80px) → 닫기
+     *      • 빠르게 튕기듯 내렸으면 (속도 ≥0.5 px/ms) → 닫기
+     *      • 그 외 → 원위치(스프링백)
+     *  - 위로 끌어올리는 동작은 무시 (이미 끝까지 열린 상태이므로)
+     *
+     * [왜 Pointer Events 인가]
+     *  - touch / mouse / pen 을 단일 코드로 처리 → 모바일/데스크톱 동일
+     *  - .ocean-sheet-handle 에 touch-action: none 을 줘서
+     *    브라우저 기본 스크롤 제스처와 충돌하지 않음
+     *
+     * [드래그 시작 영역]
+     *  - 핸들 div(::before 로 hit area 확장) 만 드래그 시작 가능 →
+     *    시트 본문 스크롤은 그대로 동작 (스크롤하다 닫힘 X)
+     *
+     * [연계]
+     *  - DOM: index.html .ocean-sheet-handle, #ocean-bottom-sheet
+     *  - CSS: .ocean-bottom-sheet.dragging (드래그 중 transition 끔)
+     *  - 닫기: 위에 정의한 OS.closeSheet() 사용
+     * ------------------------------------------------------------ */
+    OS._dragBound = false;
+    OS.bindHandleDrag = function () {
+        if (OS._dragBound) return;
+        var sheet  = document.getElementById('ocean-bottom-sheet');
+        var handle = sheet ? sheet.querySelector('.ocean-sheet-handle') : null;
+        if (!handle || !sheet) return;
+
+        var startY = 0;          // 드래그 시작 시점의 손가락 Y
+        var startTime = 0;       // 시작 시각 (속도 계산용)
+        var lastY = 0;           // 최근 손가락 Y (속도 계산용)
+        var lastTime = 0;        // 최근 시각
+        var dragging = false;    // 현재 드래그 중인지
+        var pointerId = null;    // 캡처한 포인터 ID
+
+        handle.addEventListener('pointerdown', function (e) {
+            // 좌클릭/터치만 (마우스 우클릭 등 제외)
+            if (e.button != null && e.button !== 0) return;
+            dragging = true;
+            startY = lastY = e.clientY;
+            startTime = lastTime = Date.now();
+            pointerId = e.pointerId;
+            try { handle.setPointerCapture(pointerId); } catch (err) {}
+            sheet.classList.add('dragging');
+        });
+
+        handle.addEventListener('pointermove', function (e) {
+            if (!dragging) return;
+            var dy = e.clientY - startY;
+            // 위로 끌어올리는 건 무시 (transform 음수 방지)
+            if (dy < 0) dy = 0;
+            sheet.style.transform = 'translateY(' + dy + 'px)';
+            lastY = e.clientY;
+            lastTime = Date.now();
+        });
+
+        function endDrag(e) {
+            if (!dragging) return;
+            dragging = false;
+            sheet.classList.remove('dragging');
+            try { if (pointerId != null) handle.releasePointerCapture(pointerId); } catch (err) {}
+            pointerId = null;
+
+            var totalDy = (e ? e.clientY : lastY) - startY;
+            if (totalDy < 0) totalDy = 0;
+
+            // 속도 계산: 마지막 30ms 의 평균 속도 근사
+            var elapsed = Math.max(1, lastTime - startTime);
+            var velocity = totalDy / elapsed; // px / ms
+
+            var SHOULD_CLOSE = totalDy >= 80 || velocity >= 0.5;
+            if (SHOULD_CLOSE) {
+                // 인라인 transform 을 비워서 .ocean-bottom-sheet (open 제거 시) 의
+                // translateY(100%) 로 자연스럽게 내려가도록 한다.
+                sheet.style.transform = '';
+                OS.closeSheet();
+            } else {
+                // 스프링백 — 원위치 (open 클래스의 translateY(0) 로)
+                sheet.style.transform = '';
+            }
         }
+        handle.addEventListener('pointerup', endDrag);
+        handle.addEventListener('pointercancel', endDrag);
+
+        OS._dragBound = true;
+    };
+
+    // 휴대폰 시스템 뒤로가기 / 브라우저 ← 버튼 처리
+    // - 우리가 push 한 dummy 가 살아있을 때만 우리 케이스로 인식
+    // - 그 외 popstate (페이지 자체 이동 등) 는 무시
+    window.addEventListener('popstate', function () {
+        if (!OS._historyDummyActive) return;
+        OS._historyDummyActive = false; // dummy 는 이미 브라우저가 pop 했음
+        OS.closeSheet(true);            // back() 재호출 없이 시트만 닫기
     });
 
     /* --------------------------------------------------------------
@@ -167,11 +299,13 @@
         sheet.style.display = 'block';
         setTimeout(function () { sheet.classList.add('open'); }, 10);
 
-        // 휴대폰 뒤로가기 버튼으로 닫기 가능하도록 history state 푸시
-        if (!OS._historyPushed) {
+        // 휴대폰 시스템 뒤로가기로 시트를 닫을 수 있도록
+        // 우리만의 더미 history state 를 1개 push (이미 살아있으면 다시 push 하지 않음).
+        // 위쪽 closeSheet/popstate 핸들러가 이 dummy 의 생사로 분기한다.
+        if (!OS._historyDummyActive) {
             try {
                 window.history.pushState({ oceanSheet: true }, '');
-                OS._historyPushed = true;
+                OS._historyDummyActive = true;
             } catch (e) {}
         }
 
@@ -180,6 +314,9 @@
             OS.bindControls();
             OS.state.bound = true;
         }
+
+        // 핸들 드래그 닫기 1회 바인딩
+        if (OS.bindHandleDrag) OS.bindHandleDrag();
 
         // 헤더 렌더 (2.js)
         if (OS.renderHeader) OS.renderHeader();
