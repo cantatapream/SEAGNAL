@@ -417,9 +417,5 @@
 
     window.getOceanMap = function () { return oceanMap; };
     window.getOceanMode = function () { return currentMode; };
-    // [임시 stub] Step 1에서 oceanCurrentDate 변수와 날짜 네비게이션을 제거했지만,
-    //  ocean_bottom_sheet.js가 Step 4에서 새 구조로 교체될 때까지 임시 호환층을 유지함.
-    //  Step 4 완료 후 이 함수는 제거 예정.
-    window.getOceanDate = function () { return new Date(); };
 
 })();

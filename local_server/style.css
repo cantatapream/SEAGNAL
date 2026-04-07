@@ -8033,50 +8033,6 @@ line-height: 1.1;
     background: rgba(255,255,255,0.2);
 }
 
-/* 날짜 네비게이션 */
-.ocean-date-navigator {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
-    padding: 10px 15px;
-    background: #0f1b33;
-    border-radius: 10px;
-    margin-bottom: 6px;
-}
-
-.ocean-nav-btn {
-    width: 32px;
-    height: 32px;
-    border: none;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.08);
-    color: rgba(255,255,255,0.7);
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.ocean-nav-btn:hover {
-    background: rgba(255,255,255,0.15);
-}
-
-.ocean-date-display {
-    text-align: center;
-}
-
-.ocean-solar-date {
-    color: #fff;
-    font-size: 0.9rem;
-    font-weight: 600;
-}
-
-.ocean-lunar-date {
-    color: rgba(255,255,255,0.5);
-    font-size: 0.72rem;
-    margin-top: 2px;
-}
-
 /* 위치 검색 */
 .ocean-search-container {
     position: relative;
@@ -8342,13 +8298,6 @@ line-height: 1.1;
     border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
-.ocean-sheet-title {
-    color: #fff;
-    font-size: 1rem;
-    font-weight: 700;
-    margin: 0;
-}
-
 .ocean-sheet-close {
     width: 30px;
     height: 30px;
@@ -8362,6 +8311,13 @@ line-height: 1.1;
 
 .ocean-sheet-body {
     padding: 16px 20px 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* 일반 6카드 그리드 컨테이너 (수심/수온/해류/바람/파고/기온) */
+.ocean-cards-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
@@ -8434,9 +8390,8 @@ line-height: 1.1;
     100% { background-position: -200% 0; }
 }
 
-/* 저질 카드 (2열 병합) */
+/* 저질 카드 */
 .ocean-seabed-card {
-    grid-column: 1 / -1;
     flex-direction: column;
     align-items: stretch;
 }
@@ -8497,7 +8452,7 @@ line-height: 1.1;
 
 /* 반응형 */
 @media (max-width: 400px) {
-    .ocean-sheet-body {
+    .ocean-cards-grid {
         grid-template-columns: 1fr;
     }
 
@@ -8511,4 +8466,390 @@ line-height: 1.1;
         padding: 8px 0;
     }
 }
+
+/* ============================================================
+   바텀시트 신규 컴포넌트 (Step 3 추가)
+   ============================================================ */
+
+/* --- 헤더 3행 레이아웃 --- */
+.ocean-sheet-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 4px;
+    padding: 14px 20px 8px;
+}
+.ocean-sheet-header-row1 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.ocean-date-nav-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ocean-date-nav-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #fff;
+    border-radius: 8px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: background 0.15s;
+}
+.ocean-date-nav-btn:hover:not(:disabled) {
+    background: rgba(255,255,255,0.12);
+}
+.ocean-date-nav-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+.ocean-sheet-solar {
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    min-width: 150px;
+    text-align: center;
+}
+.ocean-sheet-controls {
+    display: flex;
+    gap: 6px;
+}
+.ocean-loc-toggle {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #fff;
+    border-radius: 8px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.15s;
+}
+.ocean-loc-toggle.active {
+    background: rgba(100,180,255,0.25);
+    border-color: rgba(100,180,255,0.6);
+    color: #64b4ff;
+}
+.ocean-sheet-lunar {
+    color: rgba(255,255,255,0.5);
+    font-size: 0.72rem;
+    text-align: center;
+}
+.ocean-sheet-coord {
+    color: rgba(255,255,255,0.55);
+    font-size: 0.72rem;
+    text-align: center;
+    margin-top: 2px;
+}
+
+/* --- 풀폭 카드 (조석/천문) --- */
+.ocean-card-fullwidth {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+}
+.ocean-card-fullwidth:hover {
+    background: transparent !important;
+}
+
+/* --- 무한 진행바 (옵션 C) --- */
+.ocean-progress-bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+}
+.ocean-progress-bar-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 35%;
+    background: linear-gradient(90deg,
+        rgba(100,180,255,0) 0%,
+        rgba(100,180,255,0.7) 50%,
+        rgba(100,180,255,0) 100%);
+    border-radius: 3px;
+    animation: oceanProgressFlow 1.4s linear infinite;
+}
+@keyframes oceanProgressFlow {
+    0% { left: -35%; }
+    100% { left: 100%; }
+}
+
+/* --- 조석 카드 (3 모드: loading / error / detail) --- */
+.ocean-tide-wrap {
+    background: linear-gradient(180deg, #0E1A2C 0%, #0a1422 100%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 16px;
+    position: relative;
+}
+.ocean-tide-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+.ocean-tide-title {
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.ocean-tide-title i {
+    color: #64b4ff;
+}
+.ocean-tide-idw-badge {
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.55);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    padding: 2px 8px;
+}
+
+/* 로딩 (스피너 + 안내문) */
+.ocean-tide-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px 20px;
+    text-align: center;
+}
+.ocean-tide-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid rgba(100,180,255,0.2);
+    border-top-color: #64b4ff;
+    border-radius: 50%;
+    animation: oceanTideSpin 0.9s linear infinite;
+    margin-bottom: 14px;
+}
+@keyframes oceanTideSpin {
+    to { transform: rotate(360deg); }
+}
+.ocean-tide-spinner-text {
+    color: rgba(255,255,255,0.8);
+    font-size: 0.82rem;
+    line-height: 1.6;
+}
+.ocean-tide-spinner-sub {
+    color: rgba(255,255,255,0.4);
+    font-size: 0.7rem;
+    margin-top: 8px;
+}
+
+/* 에러 (육지/격자 밖) */
+.ocean-tide-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 30px 20px;
+    text-align: center;
+}
+.ocean-tide-error i {
+    color: #e74c5e;
+    font-size: 1.3rem;
+}
+.ocean-tide-error-text {
+    color: rgba(255,255,255,0.75);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+/* 상세 - 헤더 (좌:고조 / 가운데:진행바 / 우:저조) */
+.ocean-tide-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.ocean-tide-head-side {
+    font-size: 0.85rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.ocean-tide-head-side.is-high { color: #e74c5e; }
+.ocean-tide-head-side.is-low  { color: #4a9eff; }
+
+.ocean-tide-progress-track {
+    flex: 1;
+    height: 6px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 3px;
+    position: relative;
+}
+.ocean-tide-progress-fill {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #4a9eff, #e74c5e);
+    border-radius: 3px;
+}
+.ocean-tide-progress-marker {
+    position: absolute;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 6px rgba(100,180,255,0.8);
+    transform: translate(-50%, -50%);
+}
+.ocean-tide-progress-remain {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.55);
+    font-size: 0.7rem;
+    white-space: nowrap;
+}
+
+/* 현재 예상 조위 */
+.ocean-tide-current {
+    text-align: center;
+    margin: 22px 0 18px;
+}
+.ocean-tide-current-label {
+    color: rgba(255,255,255,0.6);
+    font-size: 0.78rem;
+}
+.ocean-tide-current-big {
+    color: #fff;
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-left: 6px;
+}
+.ocean-tide-current-arrow {
+    font-size: 1.2rem;
+    margin-left: 4px;
+}
+.ocean-tide-current-arrow.is-up { color: #e74c5e; }
+.ocean-tide-current-arrow.is-down { color: #e74c5e; }
+
+/* 4피크 리스트 */
+.ocean-tide-peaks {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.ocean-tide-peak-group {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+}
+.ocean-tide-peak-label {
+    width: 30px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    letter-spacing: 2px;
+    padding: 6px 0;
+}
+.ocean-tide-peak-label.is-high {
+    color: #e74c5e;
+    border: 1.5px solid rgba(231,76,94,0.6);
+    background: rgba(231,76,94,0.06);
+}
+.ocean-tide-peak-label.is-low {
+    color: #4a9eff;
+    border: 1.5px solid rgba(74,158,255,0.6);
+    background: rgba(74,158,255,0.06);
+}
+.ocean-tide-peak-rows {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+}
+.ocean-tide-peak-row {
+    display: grid;
+    grid-template-columns: 60px 1fr 22px 60px;
+    align-items: center;
+    gap: 8px;
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.ocean-tide-peak-time { color: #fff; }
+.ocean-tide-peak-cm { color: rgba(255,255,255,0.55); font-size: 0.78rem; font-weight: 500; }
+.ocean-tide-peak-arrow { text-align: center; }
+.ocean-tide-peak-arrow.is-high { color: #e74c5e; }
+.ocean-tide-peak-arrow.is-low  { color: #4a9eff; }
+.ocean-tide-peak-diff { text-align: right; font-size: 0.82rem; }
+.ocean-tide-peak-diff.is-high { color: #e74c5e; }
+.ocean-tide-peak-diff.is-low  { color: #4a9eff; }
+
+/* --- 천문 카드 --- */
+.ocean-astro-wrap {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 14px 16px;
+}
+.ocean-astro-title {
+    color: rgba(255,255,255,0.7);
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+.ocean-astro-times {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 14px;
+    color: rgba(255,255,255,0.85);
+    font-size: 0.8rem;
+    margin-bottom: 12px;
+}
+.ocean-astro-divider {
+    height: 1px;
+    background: rgba(255,255,255,0.08);
+    margin: 8px 0;
+}
+.ocean-astro-moon {
+    text-align: center;
+    padding: 6px 0;
+}
+.ocean-astro-moon-icon {
+    font-size: 2.2rem;
+    line-height: 1;
+}
+.ocean-astro-moon-info {
+    color: rgba(255,255,255,0.75);
+    font-size: 0.78rem;
+    margin-top: 6px;
+}
+.ocean-astro-moon-bright {
+    color: rgba(255,255,255,0.55);
+    font-size: 0.72rem;
+    margin-top: 2px;
+}
+
 
