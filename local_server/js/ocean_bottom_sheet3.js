@@ -218,7 +218,7 @@
         var lows  = peaks.filter(function (p) { return p.type === 'low'; }).slice(0, 2);
 
         // 헤더: "다음" 피크 / "그 다음" 피크 (오늘일 때만 진행 막대 표시)
-        var headHtml = renderHeadHtml(prevPeak, nextPeak, todayMode);
+        var headHtml = renderHeadHtml(prevPeak, nextPeak, todayMode, peaks);
 
         // 현재 조위 (오늘만)
         var currentHtml = '';
@@ -261,20 +261,29 @@
     /* --------------------------------------------------------------
      * 내부: 헤더 (좌:다음피크 / 가운데:진행막대 / 우:그 다음 피크)
      * ------------------------------------------------------------ */
-    function renderHeadHtml(prevPeak, nextPeak, todayMode) {
+    function renderHeadHtml(prevPeak, nextPeak, todayMode, peaks) {
         if (!todayMode || !prevPeak || !nextPeak) {
-            // 미래 날짜이거나 피크가 부족한 경우 헤더 단순 표시
             return '';
         }
+        // 좌측 라벨: 다음 피크 (시각 포함)
         var leftCls = nextPeak.type === 'high' ? 'is-high' : 'is-low';
         var leftLabel = (nextPeak.type === 'high' ? '고조 ' : '저조 ') + minutesToHHMM(nextPeak.minutes);
 
-        // 그 다음 피크는 prevPeak의 type 으로 추정 (반대 type)
-        // (단, 더 나은 방법: 시간 기반으로 nextPeak 다음의 첫 피크를 다시 찾아야 하지만
-        //  이 함수는 prev/next만 받음. 호출자가 그 다음을 별도로 넘기지 않으므로
-        //  여기서는 nextPeak의 반대 type을 가정한 라벨만 표시)
-        var rightCls = nextPeak.type === 'high' ? 'is-low' : 'is-high';
-        var rightLabel = (nextPeak.type === 'high' ? '저조 ' : '고조 ') + '';
+        // 우측 라벨: nextPeak 이후의 첫 번째 피크 (peaks 배열에서 시간순으로 다시 찾음)
+        var afterNext = null;
+        if (peaks && peaks.length) {
+            for (var i = 0; i < peaks.length; i++) {
+                if (peaks[i].minutes > nextPeak.minutes) { afterNext = peaks[i]; break; }
+            }
+        }
+        var rightCls, rightLabel;
+        if (afterNext) {
+            rightCls = afterNext.type === 'high' ? 'is-high' : 'is-low';
+            rightLabel = (afterNext.type === 'high' ? '고조 ' : '저조 ') + minutesToHHMM(afterNext.minutes);
+        } else {
+            rightCls = nextPeak.type === 'high' ? 'is-low' : 'is-high';
+            rightLabel = (nextPeak.type === 'high' ? '저조' : '고조');
+        }
 
         var nowMin = nowMinutes();
         var pct = ((nowMin - prevPeak.minutes) / (nextPeak.minutes - prevPeak.minutes)) * 100;
@@ -283,16 +292,20 @@
 
         var remainMin = Math.max(0, nextPeak.minutes - nowMin);
         var remainStr = formatRemain(remainMin);
+        // "고조까지 남은시간 HH:MM" 또는 "저조까지 남은시간 HH:MM"
+        var remainText = (nextPeak.type === 'high' ? '고조까지' : '저조까지') + ' 남은시간 ' + remainStr;
 
         return (
             '<div class="ocean-tide-head">' +
-              '<div class="ocean-tide-head-side ' + leftCls + '">' + leftLabel + '</div>' +
+              '<div class="ocean-tide-head-labels">' +
+                '<div class="ocean-tide-head-side ' + leftCls + '">' + leftLabel + '</div>' +
+                '<div class="ocean-tide-head-side ' + rightCls + '">' + rightLabel + '</div>' +
+              '</div>' +
               '<div class="ocean-tide-progress-track">' +
                 '<div class="ocean-tide-progress-fill" style="width:' + pct.toFixed(1) + '%"></div>' +
                 '<div class="ocean-tide-progress-marker" style="left:' + pct.toFixed(1) + '%"></div>' +
-                '<div class="ocean-tide-progress-remain">' + remainStr + '</div>' +
               '</div>' +
-              '<div class="ocean-tide-head-side ' + rightCls + '">' + rightLabel + '</div>' +
+              '<div class="ocean-tide-progress-remain">' + remainText + '</div>' +
             '</div>'
         );
     }
