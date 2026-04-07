@@ -26,8 +26,14 @@
     // ========================================================================
     let oceanMap = null;           // OpenLayers Map 인스턴스
     let currentMode = 'A';        // 현재 모드: 'A' 조석지도, 'B' 해양현황
-    let baseLayerA = null;         // 모드 A 베이스맵 (OSM 한글)
-    let baseLayerB = null;         // 모드 B 베이스맵 (OSM 한글)
+    let baseLayerA = null;         // 모드 A 베이스맵 (해아름 RLTM3857)
+    let baseLayerB = null;         // 모드 B 베이스맵 (해아름 RLTMCOAST3857)
+
+    // 해아름 API 키
+    const KHOA_KEY = 'FEEFEC76EEBF0FA3676CDCFE6';
+    // 해아름 스크립트가 반환하는 타일 기본 URL (스크립트 로드 후 채워짐)
+    let khoaTileUrlA = null;  // BASEMAP_RLTM3857 (조석지도용)
+    let khoaTileUrlB = null;  // BASEMAP_RLTMCOAST3857 (해양현황용)
 
     // 한반도 남부 + 제주 → 최소 줌 레벨 6
     const DEFAULT_CENTER = [127.0, 34.5];
@@ -36,44 +42,70 @@
     const MAX_ZOOM = 18;
 
     // ========================================================================
-    // 해아름 타일 레이어 생성
+    // 해아름 타일 로드
     // ========================================================================
 
     /**
-     * KHOA 해아름 베이스맵 레이어를 생성합니다.
+     * 해아름 스크립트를 브라우저에서 직접 로드합니다.
      *
-     * 해아름 API는 도메인 인증 기반 브라우저 전용이므로
-     * 직접 XYZ 타일 호출이 불가합니다.
-     * 대신 모드별로 적합한 공개 타일 소스를 사용합니다:
-     * - 모드 A (조석지도): CartoDB Voyager (깔끔한 해안선, 한글 지명)
-     * - 모드 B (해양현황): CartoDB Dark Matter (어두운 배경, 오버레이 가시성)
+     * [동작 방식]
+     * KHOA는 지도 타일을 바로 주는 게 아니라,
+     * "이 주소로 오면 지도 줄게" 라는 URL을 스크립트 형태로 알려줍니다.
+     * 브라우저가 직접 이 스크립트를 받아서 _vectorMapUrl 변수에 저장합니다.
      *
-     * @param {string} mapType - 'A' 또는 'B'
-     * @returns {ol.layer.Tile}
+     * [예시]
+     * 스크립트 로드 → var _vectorMapUrl = 'https://www.khoa.go.kr/...'
+     *              → 이 URL로 지도 사진 조각(타일)을 요청
+     *
+     * @param {string} layer - 레이어명 (BASEMAP_RLTM3857 등)
+     * @returns {Promise<string|null>} 타일 기본 URL 또는 null
      */
-    function createBaseLayer(mapType) {
-        try {
-            // OSM 타일 사용 (한글 라벨 지원)
-            // KHOA 해아름 타일은 도메인 인증 필요하여 직접 사용 불가
-            return new ol.layer.Tile({
-                source: new ol.source.XYZ({
-                    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    crossOrigin: 'anonymous',
-                    maxZoom: 18,
-                    attributions: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                }),
-                visible: true
-            });
-        } catch (e) {
-            console.warn('[OceanMap] 베이스 레이어 생성 실패:', e.message);
-            return createOsmLayer();
-        }
+    function loadKhoaScript(layer) {
+        return new Promise(function (resolve) {
+            var script = document.createElement('script');
+            script.src = 'https://www.khoa.go.kr/oceanmap/' + layer +
+                '/otmsSSLVectormapApi.do?ServiceKey=' + KHOA_KEY + '&version=2';
+
+            script.onload = function () {
+                // 스크립트가 window._vectorMapUrl 변수에 URL을 담아줌
+                var url = window._vectorMapUrl || null;
+                window._vectorMapUrl = null; // 다음 스크립트를 위해 초기화
+                console.log('[OceanMap] 해아름 타일 URL(' + layer + '):', url);
+                resolve(url);
+            };
+
+            script.onerror = function () {
+                console.warn('[OceanMap] 해아름 스크립트 로드 실패:', layer);
+                resolve(null);
+            };
+
+            document.head.appendChild(script);
+        });
     }
 
     /**
-     * OSM 폴백 레이어 생성
+     * 해아름 타일 URL로 OpenLayers 레이어를 만듭니다.
+     * 실패 시 OSM으로 대체합니다.
+     *
+     * @param {string|null} tileUrl - loadKhoaScript()가 반환한 URL
+     * @returns {ol.layer.Tile}
      */
-    function createOsmLayer() {
+    function createKhoaLayer(tileUrl) {
+        if (tileUrl) {
+            // 해아름 타일 URL에 {z}/{x}/{y}.png 패턴 추가
+            return new ol.layer.Tile({
+                source: new ol.source.XYZ({
+                    url: tileUrl + '/{z}/{x}/{y}.png',
+                    crossOrigin: 'anonymous',
+                    maxZoom: 18,
+                    attributions: '&copy; <a href="https://www.khoa.go.kr">국립해양조사원</a>'
+                }),
+                visible: true
+            });
+        }
+
+        // 해아름 실패 시 OSM으로 대체
+        console.warn('[OceanMap] 해아름 타일 없음, OSM으로 대체');
         return new ol.layer.Tile({
             source: new ol.source.OSM(),
             visible: true
@@ -94,10 +126,29 @@
             return;
         }
 
+        // 해아름 스크립트 2개를 순서대로 로드한 뒤 지도 초기화
+        // (A 로드 후 B 로드 → 순서 보장)
+        loadKhoaScript('BASEMAP_RLTM3857').then(function (urlA) {
+            khoaTileUrlA = urlA;
+            return loadKhoaScript('BASEMAP_RLTMCOAST3857');
+        }).then(function (urlB) {
+            khoaTileUrlB = urlB;
+            buildMap();
+        }).catch(function () {
+            // 스크립트 로드 자체가 실패해도 OSM으로 지도 표시
+            buildMap();
+        });
+    };
+
+    /**
+     * 실제 지도를 생성하는 함수.
+     * 해아름 URL 확보 후 호출됩니다.
+     */
+    function buildMap() {
         try {
-            // 베이스 레이어 생성 (모드별 타일)
-            baseLayerA = createBaseLayer('A');
-            baseLayerB = createBaseLayer('B');
+            // 해아름 타일로 레이어 생성 (실패 시 OSM 대체)
+            baseLayerA = createKhoaLayer(khoaTileUrlA);
+            baseLayerB = createKhoaLayer(khoaTileUrlB);
             baseLayerB.setVisible(false);
 
             const layers = [baseLayerA, baseLayerB];
@@ -153,13 +204,11 @@
                 myLocBtn.addEventListener('click', goToMyLocation);
             }
 
-            console.log('[OceanMap] 지도 초기화 완료');
+            console.log('[OceanMap] 지도 초기화 완료 (해아름 타일:', khoaTileUrlA ? '성공' : 'OSM 대체', ')');
         } catch (error) {
             console.error('[OceanMap] 초기화 오류:', error);
         }
-    };
-
-    // (베이스 레이어는 공개 타일 사용으로 별도 API 키 불필요)
+    }
 
     // ========================================================================
     // 모드 전환
