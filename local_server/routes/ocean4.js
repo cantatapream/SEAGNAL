@@ -179,6 +179,62 @@ router.get('/api/ocean/wave', (req, res) => {
 });
 
 // ============================================================================
+// API: 전 해구 예보 데이터 (오버레이용)
+// ============================================================================
+
+/**
+ * GET /api/ocean/zone-forecasts
+ *
+ * 모든 해구의 파고·바람 예보를 반환합니다.
+ * ocean_overlay.js의 바람/파고 오버레이 시각화에 사용됩니다.
+ *
+ * [요청 파라미터]
+ * - time (선택): ISO 날짜 문자열. 없으면 현재 시각 기준.
+ */
+router.get('/api/ocean/zone-forecasts', (req, res) => {
+    try {
+        const filePath = path.join(DATA_DIR, 'zone_forecasts.json');
+        if (!fs.existsSync(filePath)) {
+            return res.json({ success: false, error: '해구별 기상전망 데이터가 없습니다.' });
+        }
+
+        const zoneData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        const targetTime = req.query.time ? new Date(req.query.time) : new Date();
+
+        const result = {};
+        SEA_ZONES.forEach(zone => {
+            const items = zoneData.data?.[zone.lzone];
+            if (!items || items.length === 0) return;
+
+            let closest = items[0], minDiff = Infinity;
+            items.forEach(item => {
+                const s = String(item.tm);
+                const predTime = new Date(Date.UTC(
+                    parseInt(s.substring(0, 4)), parseInt(s.substring(4, 6)) - 1,
+                    parseInt(s.substring(6, 8)), parseInt(s.substring(8, 10))
+                ));
+                const diff = Math.abs(predTime.getTime() - targetTime.getTime());
+                if (diff < minDiff) { minDiff = diff; closest = item; }
+            });
+
+            result[zone.lzone] = {
+                bounds: zone.bounds,   // [ymin, ymax, xmin, xmax]
+                wh: closest.wh || 0,
+                waveDir: closest.waveDir || 0,
+                ws: closest.ws || 0,
+                windDir: closest.windDir || 0,
+                tm: String(closest.tm)
+            };
+        });
+
+        res.json({ success: true, zones: result });
+    } catch (e) {
+        console.error('[Ocean] zone-forecasts 오류:', e.message);
+        res.status(500).json({ success: false, error: '데이터 조회 오류' });
+    }
+});
+
+// ============================================================================
 // API: 종합 해양 데이터 (병렬 호출)
 // ============================================================================
 
