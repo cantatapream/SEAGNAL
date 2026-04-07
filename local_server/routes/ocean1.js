@@ -314,21 +314,46 @@ async function _fetchKhoaStream(date, hour) {
         throw new Error('khoa response not JSON');
     }
 
-    // data 는 2차원 배열로 들어옴 → 1차원으로 평탄화
+    // data 는 보통 2차원 배열, 또는 1차원 배열, 또는 다른 키 이름일 수 있음.
+    // 여러 형태를 모두 대응한다.
     const flat = [];
-    if (Array.isArray(json.data)) {
-        for (const chunk of json.data) {
-            if (!Array.isArray(chunk)) continue;
-            for (const p of chunk) {
-                if (!p || typeof p.lat !== 'number' || typeof p.lon !== 'number') continue;
-                // s=0 이고 d=0 이면 육지/결측 → 단일조회에서는 제외하지만
-                // 오버레이는 색상 0 으로 처리해야 하므로 여기서는 모두 보존.
-                flat.push(p);
+    function _consume(arr) {
+        for (const item of arr) {
+            if (!item) continue;
+            if (Array.isArray(item)) { _consume(item); continue; }
+            if (typeof item.lat === 'number' && typeof item.lon === 'number') {
+                flat.push(item);
             }
         }
     }
+    const candidates = [json.data, json.dataList, json.list, json.points, json.result, json.items];
+    for (const c of candidates) {
+        if (Array.isArray(c)) _consume(c);
+        if (flat.length > 0) break;
+    }
+    if (flat.length === 0) {
+        console.warn('[KHOA-Stream] no points parsed. top-level keys:',
+            Object.keys(json).join(','),
+            'data type:', Array.isArray(json.data) ? ('array len ' + json.data.length) : typeof json.data);
+        if (Array.isArray(json.data) && json.data.length > 0) {
+            console.warn('[KHOA-Stream] data[0] type:', Array.isArray(json.data[0]) ? ('array len ' + json.data[0].length) : typeof json.data[0]);
+            console.warn('[KHOA-Stream] data[0] sample:', JSON.stringify(json.data[0]).slice(0, 300));
+        }
+    }
 
-    const entry = { ts: Date.now(), points: flat, meta: json.meta || {} };
+    const entry = {
+        ts: Date.now(),
+        points: flat,
+        meta: json.meta || {},
+        // 디버그: 점이 0개일 때만 응답에 원본 구조 힌트를 같이 실어 보낸다.
+        _debug: flat.length === 0 ? {
+            topKeys: Object.keys(json),
+            dataType: Array.isArray(json.data) ? ('array len ' + json.data.length) : typeof json.data,
+            dataSample: Array.isArray(json.data) && json.data.length > 0
+                ? JSON.stringify(json.data[0]).slice(0, 400)
+                : JSON.stringify(json.data || null).slice(0, 400)
+        } : null
+    };
     _khoaCache.set(key, entry);
     return entry;
 }
@@ -357,7 +382,8 @@ router.get('/api/ocean/khoa-stream-vector', async (req, res) => {
             hour: hour,
             count: entry.points.length,
             meta: entry.meta,
-            points: entry.points
+            points: entry.points,
+            _debug: entry._debug || undefined
         });
     } catch (e) {
         console.error('[KHOA-Stream] error:', e.message);
