@@ -1080,14 +1080,85 @@ window.switchSubTab = function (targetId) {
  * - fishing-section → fishing.js initFishingMap()
  * - promo-section → promo.js loadPromoPosts()
  */
+/* ============================================================================
+ * 해양종합정보(히든탭) 전용 진입/퇴장 함수
+ * ----------------------------------------------------------------------------
+ *
+ * [왜 별도 함수가 필요한가?]
+ *  switchMainTab() 은 모든 메인탭과 서브탭의 active 상태를 한 번에 정리한 뒤
+ *  목표 섹션만 활성화하도록 설계되어 있다. 이 동작은 일반 탭 전환에는 옳지만,
+ *  해양종합정보 히든탭의 경우 사용자가 보고 있던 메인탭/서브탭을 그대로 두고
+ *  헤더만 숨긴 채 위에 지도 화면을 띄우는 게 요구사항이다.
+ *
+ * [enterOceanMapSection 동작]
+ *  1) #ocean-map-section 만 .active 추가 (다른 탭의 active 는 손대지 않음)
+ *  2) _onSectionActivated('ocean-map-section') 호출
+ *     → .main-header 숨김 + 200ms 후 initOceanMap()
+ *  3) 메인탭/서브탭은 그대로 노출 상태 유지
+ *  4) ocean-map-section 의 fixed 풀스크린 영역이 탭바 아래에서 시작하도록
+ *     CSS 변수 --ocean-top-offset 에 (서브탭 또는 메인탭의 bottom Y) 주입
+ *
+ * [exitOceanMapSection 동작]
+ *  1) #ocean-map-section 의 .active 제거
+ *  2) _onSectionActivated(직전 활성 섹션) 호출
+ *     → .main-header 복원 등
+ *  3) CSS 변수 정리
+ *
+ * [연계]
+ *  - 호출처(진입): js/settings.js (조석정보 10회 탭)
+ *  - 호출처(퇴장): js/ocean_map.js 의 ocean-back-btn 핸들러
+ *  - 사용 CSS  : style.css #ocean-map-section.active { top: var(--ocean-top-offset, 0); }
+ * ========================================================================== */
+window.enterOceanMapSection = function () {
+    var section = document.getElementById('ocean-map-section');
+    if (!section) return;
+
+    // 1) 이미 활성화된 섹션 (예: weather-alert-section) 은 그대로 두고
+    //    ocean-map-section 만 추가 활성화한다.
+    section.classList.add('active');
+
+    // 2) CSS 변수: 탭바(메인탭+서브탭)가 차지하는 화면 위쪽 offset 주입
+    //    서브탭이 보이고 있으면 서브탭 bottom, 아니면 메인탭 bottom 사용
+    var subVisible = document.querySelector('.sub-tabs.sub-tabs-visible');
+    var refEl = subVisible || document.querySelector('.main-tabs');
+    if (refEl) {
+        var rect = refEl.getBoundingClientRect();
+        document.documentElement.style.setProperty('--ocean-top-offset', rect.bottom + 'px');
+    } else {
+        document.documentElement.style.setProperty('--ocean-top-offset', '0px');
+    }
+
+    // 3) 헤더 숨김 + 지도 init (기존 _onSectionActivated 재활용)
+    _onSectionActivated('ocean-map-section');
+};
+
+window.exitOceanMapSection = function () {
+    var section = document.getElementById('ocean-map-section');
+    if (!section) return;
+    section.classList.remove('active');
+
+    // CSS 변수 초기화
+    document.documentElement.style.removeProperty('--ocean-top-offset');
+
+    // 직전에 활성화돼 있던 섹션 (ocean-map-section 외) 을 찾아
+    // _onSectionActivated 호출 → 헤더 복원 등의 후처리 수행
+    var others = document.querySelectorAll('.tab-content.active');
+    var fallbackId = null;
+    for (var i = 0; i < others.length; i++) {
+        if (others[i].id !== 'ocean-map-section') {
+            fallbackId = others[i].id;
+            break;
+        }
+    }
+    _onSectionActivated(fallbackId || '');
+};
+
 function _onSectionActivated(sectionId) {
-    // 해양종합정보 진입/퇴장 시 헤더·탭바 숨김/표시
+    // 해양종합정보 진입/퇴장 시 헤더 숨김/표시
+    // (메인탭 / 서브탭은 손대지 않는다 — enterOceanMapSection 이 따로 관리)
     var mainHeader = document.querySelector('.main-header');
-    var mainTabs = document.querySelector('.main-tabs');
-    var subTabs = document.querySelectorAll('.sub-tabs');
     if (sectionId === 'ocean-map-section') {
         if (mainHeader) mainHeader.style.display = 'none';
-        // 메인 탭과 서브 탭은 유지 (네비게이션 가능하도록)
     } else {
         if (mainHeader) mainHeader.style.display = '';
     }

@@ -36,10 +36,15 @@
     const KHOA_LAYER_B = 'BASEMAP_RLTMCOAST3857'; // 해양현황용
 
     // 한반도 남부 + 제주 → 최소 줌 레벨 6
+    // [중요] MAX_ZOOM 은 KHOA 해아름 WMS 가 안정적으로 타일을 제공하는 한계까지로 제한.
+    //        그 이상으로 확대하면 해아름이 빈 타일을 주고, 사용자는 OpenStreetMap 같은
+    //        다른 지도가 갑자기 나오는 것처럼 느낀다(실제로는 OSM 폴백 코드가 바꾸던 것).
+    //        해아름만 사용한다는 요구사항(2026-04 사용자 지시)에 따라 폴백을 제거하고
+    //        대신 줌 한계를 15 로 고정한다.
     const DEFAULT_CENTER = [127.0, 34.5];
     const DEFAULT_ZOOM = 7;
     const MIN_ZOOM = 6;
-    const MAX_ZOOM = 18;
+    const MAX_ZOOM = 15;
 
     // ========================================================================
     // 해아름 WMS 레이어 생성
@@ -88,20 +93,19 @@
             crossOrigin: 'anonymous'
         });
 
-        // 타일 로드 실패 시 OSM으로 자동 교체
-        var tileLoadErrors = 0;
-        var fallbackTriggered = false;
+        // 타일 레이어 생성
+        // [정책] 사용자 요구사항: "해아름만 나와야 함".
+        //   기존에 있던 'tileloaderror 3회 누적 시 OSM 으로 setSource' 폴백은
+        //   한 번 발동되면 영구적으로 OSM 이 표시되어 줌아웃해도 복구되지 않는
+        //   문제가 있어 제거했다. 대신 MAX_ZOOM 을 KHOA 한계(15)로 고정하여
+        //   해아름이 타일을 못 주는 줌 레벨 자체를 차단한다.
         var tileLayer = new ol.layer.Tile({
             source: wmsSource,
             visible: true
         });
         wmsSource.on('tileloaderror', function () {
-            tileLoadErrors++;
-            if (!fallbackTriggered && tileLoadErrors >= 3) {
-                fallbackTriggered = true;
-                console.warn('[OceanMap] 해아름 WMS 로드 실패(' + layer + '), OSM으로 전환');
-                tileLayer.setSource(new ol.source.OSM());
-            }
+            // 진단 로그만 남기고 폴백은 하지 않는다.
+            console.warn('[OceanMap] 해아름 WMS 타일 로드 실패(' + layer + ')');
         });
 
         console.log('[OceanMap] 해아름 WMS 엔드포인트:', endpoint);
@@ -166,10 +170,16 @@
             bindModeButtons();
 
             // 뒤로가기 버튼
+            // 진입 시 보존해 둔 직전 메인탭/서브탭을 그대로 두기 위해
+            // 일반 switchMainTab 대신 exitOceanMapSection 을 호출한다.
             const backBtn = document.getElementById('ocean-back-btn');
             if (backBtn) {
                 backBtn.addEventListener('click', function () {
-                    window.switchMainTab('tide-section');
+                    if (typeof window.exitOceanMapSection === 'function') {
+                        window.exitOceanMapSection();
+                    } else {
+                        window.switchMainTab('tide-section');
+                    }
                 });
             }
 
@@ -325,28 +335,73 @@
         });
     }
 
+    /**
+     * 위치 검색 (서버 프록시 방식)
+     *
+     * [역할]
+     * 사용자가 검색창에 입력한 키워드(예: "제주항")로 장소를 찾아
+     * 드롭다운에 결과를 보여줍니다. 결과를 클릭하면 지도가 그 좌표로 이동합니다.
+     *
+     * [왜 서버 프록시?]
+     * - 조석정보 탭(tide.js)과 동일하게 우리 서버의 /api/search-place 를 통해 검색합니다.
+     * - 브라우저가 직접 Kakao 자바스크립트 SDK 를 부르지 않으므로
+     *   1) Kakao Maps SDK 스크립트를 페이지에 로드할 필요가 없고
+     *   2) 도메인 인증/배포환경 변경 이슈가 없으며
+     *   3) tide.js 검색에서 이미 검증된 동일 응답 포맷을 그대로 사용합니다.
+     *
+     * [연계]
+     * - 서버: routes/tide.js 의 /api/search-place (Kakao REST API 프록시)
+     * - 호출처: 본 파일 위쪽 input 'input'/'keydown' 이벤트 핸들러
+     * - 결과 표시: showSearchResults() 가 드롭다운 DOM 을 렌더링
+     * - 항목 클릭: 같은 함수 안에서 oceanMap.getView().animate() 로 이동
+     */
     function searchLocation(query) {
-        // Kakao 장소 검색 API 사용 (tide.js와 동일 패턴)
-        if (!window.kakao || !window.kakao.maps || !window.kakao.maps.services) {
-            // Kakao SDK 없으면 드롭다운에 안내
-            showSearchResults([{ name: 'Kakao SDK 로딩 중...', disabled: true }]);
-            return;
-        }
+        // 1) 검색 시작 안내 (사용자가 무언가 진행 중임을 인지)
+        showSearchResults([{ name: '검색 중...', disabled: true }]);
 
-        const ps = new kakao.maps.services.Places();
-        ps.keywordSearch(query, function (data, status) {
-            if (status === kakao.maps.services.Status.OK && data.length > 0) {
-                const results = data.slice(0, 5).map(item => ({
-                    name: item.place_name,
-                    address: item.address_name,
-                    lat: parseFloat(item.y),
-                    lon: parseFloat(item.x)
-                }));
+        // 2) 서버 프록시 호출 — Kakao REST API 응답을 그대로 패스스루
+        fetch('/api/search-place?q=' + encodeURIComponent(query))
+            .then(function (res) {
+                return res.json().then(function (data) {
+                    return { ok: res.ok, data: data };
+                });
+            })
+            .then(function (resp) {
+                // 3-a) 서버 오류 (예: API 키 미설정)
+                if (!resp.ok) {
+                    showSearchResults([{
+                        name: (resp.data && resp.data.error) || '검색 서비스를 사용할 수 없습니다',
+                        disabled: true
+                    }]);
+                    return;
+                }
+
+                var docs = resp.data && resp.data.documents;
+                // 3-b) 결과 없음
+                if (!docs || docs.length === 0) {
+                    showSearchResults([{ name: '검색 결과가 없습니다', disabled: true }]);
+                    return;
+                }
+
+                // 3-c) 정상 결과 → 기존 showSearchResults 가 기대하는 포맷으로 매핑
+                //   - place_name  → name   (드롭다운 굵은 글씨)
+                //   - address_name → address (드롭다운 보조 텍스트)
+                //   - x(경도) / y(위도) → lon / lat (지도 이동에 사용)
+                var results = docs.slice(0, 5).map(function (item) {
+                    return {
+                        name: item.place_name,
+                        address: item.address_name,
+                        lat: parseFloat(item.y),
+                        lon: parseFloat(item.x)
+                    };
+                });
                 showSearchResults(results);
-            } else {
-                showSearchResults([{ name: '검색 결과 없음', disabled: true }]);
-            }
-        });
+            })
+            .catch(function (err) {
+                // 4) 네트워크 오류 등
+                console.error('[OceanMap] 검색 오류:', err && err.message);
+                showSearchResults([{ name: '검색 중 오류가 발생했습니다', disabled: true }]);
+            });
     }
 
     function showSearchResults(results) {
