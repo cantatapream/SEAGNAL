@@ -178,9 +178,6 @@
                 window.initOceanMarkers(oceanMap);
             }
 
-            // 날짜 네비게이션 초기화
-            initDateNav();
-
             // 위치 검색 초기화
             initOceanSearch();
 
@@ -214,7 +211,6 @@
 
         const btnA = document.getElementById('ocean-mode-a-btn');
         const btnB = document.getElementById('ocean-mode-b-btn');
-        const dateNav = document.getElementById('ocean-date-nav');
         const searchContainer = document.getElementById('ocean-search-container');
         const overlayControls = document.getElementById('ocean-overlay-controls');
         const timeline = document.getElementById('ocean-timeline');
@@ -226,7 +222,6 @@
             btnA.classList.add('active');
             btnB.classList.remove('active');
 
-            if (dateNav) dateNav.style.display = '';
             if (searchContainer) searchContainer.style.display = '';
             if (overlayControls) overlayControls.style.display = 'none';
             if (timeline) timeline.style.display = 'none';
@@ -248,7 +243,6 @@
             btnA.classList.remove('active');
             btnB.classList.add('active');
 
-            if (dateNav) dateNav.style.display = 'none';
             if (searchContainer) searchContainer.style.display = 'none';
             if (overlayControls) overlayControls.style.display = '';
             if (timeline) timeline.style.display = '';
@@ -289,36 +283,6 @@
         if (window.showOceanBottomSheet) {
             window.showOceanBottomSheet(lat, lon);
         }
-    }
-
-    // ========================================================================
-    // 날짜 네비게이션 (모드 A)
-    // ========================================================================
-
-    let oceanCurrentDate = new Date();
-
-    function initDateNav() {
-        const prevBtn = document.getElementById('ocean-prev-date');
-        const nextBtn = document.getElementById('ocean-next-date');
-
-        if (prevBtn) prevBtn.addEventListener('click', () => changeDate(-1));
-        if (nextBtn) nextBtn.addEventListener('click', () => changeDate(1));
-
-        updateDateDisplay();
-    }
-
-    function changeDate(delta) {
-        oceanCurrentDate.setDate(oceanCurrentDate.getDate() + delta);
-        updateDateDisplay();
-    }
-
-    function updateDateDisplay() {
-        const el = document.getElementById('ocean-solar-date');
-        if (!el) return;
-
-        const d = oceanCurrentDate;
-        const days = ['일', '월', '화', '수', '목', '금', '토'];
-        el.textContent = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일(${days[d.getDay()]})`;
     }
 
     // ========================================================================
@@ -453,6 +417,9 @@
 
     window.getOceanMap = function () { return oceanMap; };
     window.getOceanMode = function () { return currentMode; };
-    window.getOceanDate = function () { return oceanCurrentDate; };
+    // [임시 stub] Step 1에서 oceanCurrentDate 변수와 날짜 네비게이션을 제거했지만,
+    //  ocean_bottom_sheet.js가 Step 4에서 새 구조로 교체될 때까지 임시 호환층을 유지함.
+    //  Step 4 완료 후 이 함수는 제거 예정.
+    window.getOceanDate = function () { return new Date(); };
 
 })();
