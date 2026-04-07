@@ -397,18 +397,27 @@
             }
             if (lat == null || lon == null) return;
 
+            // -999 결측값 제외
+            var crsp = (layer === 'wind') ? z.ws : z.wh;
+            if (crsp == null || crsp < 0) return;
+
             var val = {
-                crsp:  (layer === 'wind') ? (z.ws  || 0) : (z.wh  || 0),
+                crsp:  crsp,
                 crdir: (layer === 'wind') ? (z.windDir || 0) : (z.waveDir || 0)
             };
-            var key = parseFloat(lat).toFixed(2) + '_' + parseFloat(lon).toFixed(2);
+            // 0.5° 격자에 스냅 (zone_coords.json의 미세 오차 보정: x.24→x.25, x.76→x.75 등)
+            lat = Math.round((parseFloat(lat) - 0.25) / 0.5) * 0.5 + 0.25;
+            lon = Math.round((parseFloat(lon) - 0.25) / 0.5) * 0.5 + 0.25;
+            lat = Math.round(lat * 100) / 100;
+            lon = Math.round(lon * 100) / 100;
+            var key = lat.toFixed(2) + '_' + lon.toFixed(2);
             zoneMap[key] = val;
             zonePts.push({ lat: parseFloat(lat), lon: parseFloat(lon), crsp: val.crsp, crdir: val.crdir });
         });
 
         if (zonePts.length === 0) return [];
 
-        // 0.5° 정규 격자로 전체 한반도 주변 해역 커버 (빈 셀은 nearest-neighbor 채움)
+        // 소해구 데이터가 있는 셀만 표시 (nearest-neighbor 채움 없음)
         var pts = [];
         var STEP = 0.5;
         var LAT_MIN = 24.25, LAT_MAX = 45.75;
@@ -418,11 +427,6 @@
             for (var lon = LON_MIN; lon <= LON_MAX + 0.01; lon = Math.round((lon + STEP) * 100) / 100) {
                 var key = lat.toFixed(2) + '_' + lon.toFixed(2);
                 var val = zoneMap[key];
-
-                if (!val) {
-                    // 빈 셀: 최근접 소해구 값으로 채움 (spiral 탐색 → O(1) 평균)
-                    val = findNearestZoneVal(lat, lon, zoneMap, STEP);
-                }
 
                 if (val) {
                     pts.push({ lat: lat, lon: lon, crsp: val.crsp, crdir: val.crdir });
@@ -575,8 +579,10 @@
         }
         tctx.putImageData(idata, 0, 0);
 
-        // 소해구(0.5°, ~55km) 격자 경계를 부드럽게 블러 처리 (Windy 스타일)
-        var blurPx = Math.max(6, Math.round(w / 80));
+        // 소해구 격자 경계 부드럽게: 줌 레벨에 비례해 최소 blur 적용
+        // (너무 크면 zone 경계가 뭉개짐 → 2~6px 범위로 제한)
+        var zoom = mapRef ? mapRef.getView().getZoom() : 7;
+        var blurPx = Math.max(2, Math.min(6, Math.round((10 - zoom) * 1.5)));
         gridCtx.imageSmoothingEnabled = true;
         gridCtx.imageSmoothingQuality = 'high';
         gridCtx.filter = 'blur(' + blurPx + 'px)';
