@@ -1,105 +1,199 @@
 /**
  * ============================================================================
  * 파일명: routes/ocean5.js
- * 역할: 저질(해저면 성분) AI 판독 API
+ * 역할: 저질(해저면 성분) + 해도 수심 AI 판독 API
  * ============================================================================
  *
  * [설명]
- * 해아름(KHOA) ENC57 해도 타일 이미지를 Gemini 2.0 Flash에 전달하여
- * 해저면 저질 정보를 AI로 판독합니다.
+ * 클릭 좌표를 받아 서버에서 해아름(KHOA) WMS 타일을 직접 요청하고,
+ * Gemini 2.0 Flash에 전달하여 저질 및 수심 정보를 AI로 판독합니다.
  *
- * - POST /api/ocean/seabed → 해도 이미지를 Gemini AI로 분석하여 저질 정보 추출
+ * - POST /api/ocean/seabed → 좌표 수신 → WMS 이미지 취득 → AI 분석 → 반환
+ *
+ * [기존 방식 문제]
+ * 클라이언트(브라우저) 뷰포트를 캡처 → 줌 레벨·레이어 상태에 의존적
+ *
+ * [새 방식]
+ * 서버에서 해아름 WMS GetMap을 직접 호출 → 항상 일정한 해상도·레이어 보장
+ * 클릭 좌표를 중심으로 반경 약 1.5km(768×768px) 타일 이미지를 취득
  *
  * [외부 API]
- * Gemini 2.0 Flash (Multimodal) - 이미지 분석
+ * - KHOA 해아름 WMS (http://www.khoa.go.kr/oceanmap/)
+ * - Gemini 2.0 Flash Multimodal
  *
  * [연계 파일]
- * - ocean1.js → 이 파일을 router.use()로 연결
+ * - ocean1.js → router.use()로 연결
  * - .env → GEMINI_API_KEY
  * ============================================================================
  */
 
 const express = require('express');
-const router = express.Router();
+const router  = express.Router();
 
-/**
- * Gemini AI 클라이언트 초기화
- * - 환경변수 GEMINI_API_KEY 사용
- * - 서버 시작 시 한번만 초기화
- */
+// ── Gemini AI 초기화 ─────────────────────────────────────────────────────────
 let genAI = null;
 try {
     const { GoogleGenAI } = require('@google/genai');
     const apiKey = process.env.GEMINI_API_KEY;
-    if (apiKey) {
-        genAI = new GoogleGenAI({ apiKey });
-    }
+    if (apiKey) genAI = new GoogleGenAI({ apiKey });
 } catch (e) {
-    console.warn('[Ocean] Gemini AI 모듈 로드 실패:', e.message);
+    console.warn('[Ocean5] Gemini AI 모듈 로드 실패:', e.message);
 }
 
-// 저질 판독 프롬프트
-const SEABED_PROMPT = `이 해도(해양 수로도) 이미지를 분석하여 해저면 저질(底質) 정보를 추출해주세요.
+// ── 좌표 변환: WGS84(위경도) → EPSG:3857(Web Mercator 미터) ─────────────────
+function latLonToMercator(lat, lon) {
+    const R = 6378137; // WGS84 장반경 (m)
+    const x = lon * (Math.PI / 180) * R;
+    const y = Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI / 180) / 2)) * R;
+    return { x, y };
+}
 
-해도에서 저질은 다음과 같은 약어로 표기됩니다:
-- S (Sand, 모래)
-- M (Mud, 진흙/니질)
-- G (Gravel, 자갈)
-- R (Rock, 암반)
-- Sh (Shell, 패각/조개껍데기)
-- Co (Coral, 산호)
-- Wd (Weed, 해초)
-- Cy (Clay, 점토)
-- Si (Silt, 미사)
-- St (Stone, 돌)
-- fS (fine Sand, 세사)
-- cS (coarse Sand, 조사)
+// ── 해아름 WMS 이미지 서버 직접 취득 ─────────────────────────────────────────
+/**
+ * 클릭 좌표 중심으로 해아름 WMS 타일 이미지(768×768px)를 서버에서 요청한다.
+ * - 레이어: BASEMAP_RLTM3857 (조석지도 — 수심·저질 기호 포함)
+ * - 반경: 약 1.5km (3km × 3km 영역)
+ * - SRS: EPSG:3857
+ *
+ * @param {number} lat - 위도
+ * @param {number} lon - 경도
+ * @returns {Promise<Buffer|null>} PNG 이미지 버퍼 또는 null(실패)
+ */
+async function fetchKhoaWmsImage(lat, lon) {
+    const { x, y } = latLonToMercator(lat, lon);
+    const half = 1500; // 1500m 반경 → 3km × 3km 영역
+    const bbox = `${x - half},${y - half},${x + half},${y + half}`;
 
-이미지에서 보이는 저질 기호들을 찾아 다음 형식으로 응답해주세요:
+    const layer = 'BASEMAP_RLTM3857';
+    const params = new URLSearchParams({
+        SERVICE:     'WMS',
+        VERSION:     '1.1.1',
+        REQUEST:     'GetMap',
+        FORMAT:      'image/png',
+        TRANSPARENT: 'true',
+        WIDTH:       '768',
+        HEIGHT:      '768',
+        SRS:         'EPSG:3857',
+        BBOX:        bbox
+    });
 
-1. 주요 저질 타입 (가장 많이 보이는 것)
-2. 보조 저질 타입 (있는 경우)
-3. 해저면 특성 요약 (한 줄)
-4. 해당 해역의 특징 (낚시, 양식 등 활용 관점에서 한 줄)
+    const url = `http://www.khoa.go.kr/oceanmap/${layer}/wmsVectordata.do?${params}`;
+    const fetchFn = global.fetch || require('node-fetch');
 
-저질 기호가 보이지 않는 경우 "저질 정보를 식별할 수 없습니다"라고 답해주세요.
-JSON 형식으로 응답하세요:
+    try {
+        const r = await fetchFn(url, {
+            redirect: 'follow',
+            headers: {
+                'Referer':    'http://www.khoa.go.kr/oceanmap/main.do',
+                'User-Agent': 'Mozilla/5.0'
+            },
+            // 타임아웃: node-fetch v2는 AbortSignal 미지원 → timeout 옵션 사용
+            timeout: 12000
+        });
+        if (!r.ok) {
+            console.error('[해아름 WMS] 응답 오류:', r.status);
+            return null;
+        }
+        return Buffer.from(await r.arrayBuffer());
+    } catch (e) {
+        console.error('[해아름 WMS] 이미지 요청 실패:', e.message);
+        return null;
+    }
+}
+
+// ── Gemini 프롬프트 ───────────────────────────────────────────────────────────
+/**
+ * 수심 + 저질 동시 추출 프롬프트
+ * - 이미지 정중앙 = 클릭 지점
+ * - 등심선(배경색)을 기반으로 같은 색상 구역 내 가장 가까운 수심 숫자 판독
+ * - 육지·항내 판별 포함
+ */
+function buildSeabedPrompt(lat, lon) {
+    return `이 이미지는 국립해양조사원(KHOA) 해아름 전자해도입니다.
+이미지의 정중앙이 분석 대상 위치(위도 ${lat.toFixed(5)}, 경도 ${lon.toFixed(5)})입니다.
+
+[1. 육지·항내 판별 — 최우선 확인]
+이미지 중앙 지점이 다음 중 하나이면 isLand: true로 설정하고 나머지 항목은 null로 반환하세요:
+  - 육지(흰색·회색 지형)
+  - 방파제 내측(항구 내부)
+  - 암초 노출 지역
+
+[2. 수심 판독]
+  ① 이미지 중앙 지점의 배경 수색(水色, 바다 배경색)을 먼저 파악하세요.
+     (해아름 해도는 수심 구간마다 다른 파란색 계열 배경색으로 등심선을 표시합니다.)
+  ② 중앙 지점과 동일한 색상 구역 안에 있는 수심 숫자 중 중앙에서 가장 가까운 것을 읽으세요.
+  ③ 수심 숫자는 흰색 또는 밝은 회색 숫자로 표기됩니다 (정수: 25, 소수: 1.5, 0.3).
+  ④ 같은 색상 구역에 수심 숫자가 없는 경우, 인접한 등심선 값에서 추정하세요.
+
+[3. 저질 판독]
+이미지 중앙 근처에서 저질 기호를 찾아 가장 가까운 것을 식별하세요.
+저질 기호(노란색 알파벳):
+  S(모래), M(진흙/니질), G(자갈), R(암반), Sh(패각),
+  Co(산호), Wd(해초), Cy(점토), Si(미사), St(돌), fS(세사), cS(조사)
+
+※ 복합 기호(예: MS, SM, cSM)는 첫 글자가 주성분입니다.
+
+다음 JSON 형식으로만 응답하세요 (추가 설명 없이):
 {
+  "isLand": false,
+  "depth": 25,
+  "depthNote": "등심선 기준 약 25m",
   "primary": "모래(S)",
   "secondary": "진흙(M)",
-  "summary": "모래와 진흙이 혼합된 해저면",
-  "characteristics": "저서생물 서식에 적합한 환경"
-}`;
+  "summary": "해저면 특성 한 줄 설명",
+  "characteristics": "낚시·양식 등 활용 관점 한 줄 설명"
+}
+
+예외 처리:
+- 수심 식별 불가: "depth": null, "depthNote": "수심 식별 불가"
+- 저질 식별 불가: "primary": "식별 불가", "secondary": null
+- 육지·항내:     "isLand": true, "depth": null, "primary": null`;
+}
+
+// ── JSON 파싱 ─────────────────────────────────────────────────────────────────
+function parseSeabedResponse(text) {
+    // ```json ... ``` 블록 추출
+    const jsonMatch = text.match(/```json\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+        try { return JSON.parse(jsonMatch[1].trim()); } catch (_) {}
+    }
+    // 중괄호 JSON 직접 추출
+    const braceMatch = text.match(/\{[\s\S]*\}/);
+    if (braceMatch) {
+        try { return JSON.parse(braceMatch[0]); } catch (_) {}
+    }
+    // 파싱 실패 시 텍스트 그대로
+    return {
+        isLand: false,
+        depth: null,
+        depthNote: null,
+        primary: '판독 불가',
+        secondary: null,
+        summary: text.substring(0, 200),
+        characteristics: ''
+    };
+}
 
 // ============================================================================
-// API: 저질 AI 판독
+// API: POST /api/ocean/seabed
 // ============================================================================
-
 /**
- * POST /api/ocean/seabed
- *
- * 해도 이미지를 Gemini AI로 분석하여 저질 정보를 추출합니다.
- *
- * [동작 흐름]
- * 1. 클라이언트가 해아름 ENC57 타일 이미지를 base64로 전송
- * 2. Gemini 2.0 Flash에 이미지 + 프롬프트 전달
- * 3. AI 응답을 파싱하여 JSON으로 반환
+ * 저질 + 해도 수심 AI 판독
  *
  * [요청 바디]
- * {
- *   "image": "data:image/png;base64,iVBOR...",  // base64 이미지
- *   "lat": 34.5,    // 참고용 좌표 (선택)
- *   "lon": 126.3    // 참고용 좌표 (선택)
- * }
+ * { "lat": 34.5, "lon": 126.3 }
  *
- * [응답 예시]
+ * [응답]
  * {
  *   success: true,
  *   seabed: {
+ *     isLand: false,
+ *     depth: 25,
+ *     depthNote: "등심선 기준 약 25m",
  *     primary: "모래(S)",
- *     secondary: "진흙(M)",
- *     summary: "모래와 진흙이 혼합된 해저면",
- *     characteristics: "저서생물 서식에 적합한 환경"
+ *     secondary: null,
+ *     summary: "...",
+ *     characteristics: "..."
  *   }
  * }
  */
@@ -112,94 +206,46 @@ router.post('/api/ocean/seabed', async (req, res) => {
             });
         }
 
-        const { image, lat, lon } = req.body;
-
-        if (!image) {
-            return res.status(400).json({ success: false, error: '이미지 데이터가 필요합니다.' });
+        const { lat, lon } = req.body;
+        if (lat == null || lon == null) {
+            return res.status(400).json({ success: false, error: '위경도 좌표가 필요합니다.' });
         }
 
-        // base64 이미지 데이터 추출
-        // "data:image/png;base64,iVBOR..." → mimeType + base64Data
-        let mimeType = 'image/png';
-        let base64Data = image;
+        const latNum = parseFloat(lat);
+        const lonNum = parseFloat(lon);
 
-        if (image.startsWith('data:')) {
-            const match = image.match(/^data:([^;]+);base64,(.+)$/);
-            if (match) {
-                mimeType = match[1];
-                base64Data = match[2];
-            }
+        // 서버에서 해아름 WMS 이미지 직접 요청 (클릭 좌표 중심, 최대 줌 수준)
+        const imageBuffer = await fetchKhoaWmsImage(latNum, lonNum);
+        if (!imageBuffer) {
+            return res.json({
+                success: false,
+                error: '해아름 지도 이미지를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.'
+            });
         }
 
-        // 좌표 정보가 있으면 프롬프트에 추가
-        let prompt = SEABED_PROMPT;
-        if (lat && lon) {
-            prompt += `\n\n참고: 이 해도의 대략적 위치는 위도 ${lat}, 경도 ${lon} 부근입니다.`;
-        }
+        const base64Data = imageBuffer.toString('base64');
 
-        // Gemini 2.0 Flash 호출
+        // Gemini 2.0 Flash — 저질 + 수심 동시 판독
         const response = await genAI.models.generateContent({
             model: 'gemini-2.0-flash',
             contents: [{
                 role: 'user',
                 parts: [
-                    {
-                        inlineData: {
-                            mimeType,
-                            data: base64Data
-                        }
-                    },
-                    { text: prompt }
+                    { inlineData: { mimeType: 'image/png', data: base64Data } },
+                    { text: buildSeabedPrompt(latNum, lonNum) }
                 ]
             }]
         });
 
-        const aiText = response.text || '';
+        const aiText  = response.text || '';
+        const seabed  = parseSeabedResponse(aiText);
 
-        // JSON 파싱 시도
-        const seabed = parseSeabedResponse(aiText);
-
-        res.json({
-            success: true,
-            seabed,
-            rawText: aiText
-        });
+        res.json({ success: true, seabed, rawText: aiText });
 
     } catch (e) {
-        console.error('[Ocean] 저질 AI 판독 오류:', e.message);
+        console.error('[Ocean5] 저질 AI 판독 오류:', e.message);
         res.status(500).json({ success: false, error: '저질 분석 중 오류가 발생했습니다.' });
     }
 });
-
-/**
- * Gemini AI 응답에서 JSON을 추출하는 함수
- * - JSON 블록이 있으면 파싱
- * - 없으면 텍스트 그대로 반환
- */
-function parseSeabedResponse(text) {
-    // ```json ... ``` 블록 추출 시도
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-        try {
-            return JSON.parse(jsonMatch[1].trim());
-        } catch (e) { /* 파싱 실패 시 아래로 진행 */ }
-    }
-
-    // 중괄호로 둘러싸인 JSON 추출 시도
-    const braceMatch = text.match(/\{[\s\S]*\}/);
-    if (braceMatch) {
-        try {
-            return JSON.parse(braceMatch[0]);
-        } catch (e) { /* 파싱 실패 시 아래로 진행 */ }
-    }
-
-    // JSON 파싱 실패 시 텍스트 그대로 반환
-    return {
-        primary: '판독 불가',
-        secondary: null,
-        summary: text.substring(0, 200),
-        characteristics: ''
-    };
-}
 
 module.exports = router;
