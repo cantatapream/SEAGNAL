@@ -35,14 +35,29 @@
         OS.showCard('ocean-card-tide');
         OS.showCard('ocean-card-astro');
 
-        // (2) 6개 일반카드 reset → 진행바 표시 + 카드 보이기
+        // (2) 5개 일반카드 reset → 진행바 표시 + 카드 보이기
         ['ocean-val-depth', 'ocean-val-temp', 'ocean-val-current',
-         'ocean-val-wind', 'ocean-val-wave', 'ocean-val-airtemp'
+         'ocean-val-wind', 'ocean-val-wave'
         ].forEach(function (id) { OS.resetCardToProgress(id); });
 
         ['ocean-card-depth', 'ocean-card-temp', 'ocean-card-current',
-         'ocean-card-wind', 'ocean-card-wave', 'ocean-card-airtemp'
+         'ocean-card-wind', 'ocean-card-wave'
         ].forEach(function (id) { OS.showCard(id); });
+
+        // raw 값 초기화 (날짜/위치 변경 시 이전 값 잔류 방지)
+        OS.state.rawCrsp = null; OS.state.rawCrdir = null;
+        OS.state.rawWindSpeed = null; OS.state.rawWindDir = null;
+
+        // KTS 토글 클릭 핸들러 (해류/바람 아이콘)
+        ['ocean-icon-current', 'ocean-icon-wind'].forEach(function (iconId) {
+            var el = document.getElementById(iconId);
+            if (el) {
+                el.onclick = function () {
+                    OS.state.useKts = !OS.state.useKts;
+                    OS.renderCurrentWindValues();
+                };
+            }
+        });
 
         // (3) 천문: 즉시 동기 렌더
         if (OS.renderAstroCard) OS.renderAstroCard(lat, lon, d);
@@ -127,8 +142,9 @@
                     OS.setCardValue('ocean-val-temp', '데이터 없음');
                 }
                 if (data.crsp != null && data.crdir != null) {
-                    OS.setCardValue('ocean-val-current',
-                        OS.windDirToText(data.crdir) + ' ' + data.crsp.toFixed(1) + ' cm/s');
+                    OS.state.rawCrsp = data.crsp;
+                    OS.state.rawCrdir = data.crdir;
+                    OS.renderCurrentWindValues();
                     OS.showCard('ocean-card-current');
                 } else {
                     OS.setCardValue('ocean-val-current', '데이터 없음');
@@ -152,22 +168,16 @@
                     return;
                 }
                 if (data.windDir != null && data.windSpeed != null) {
-                    OS.setCardValue('ocean-val-wind',
-                        OS.windDirToText(data.windDir) + ' ' + data.windSpeed.toFixed(1) + ' m/s');
+                    OS.state.rawWindSpeed = data.windSpeed;
+                    OS.state.rawWindDir = data.windDir;
+                    OS.renderCurrentWindValues();
                     OS.showCard('ocean-card-wind');
                 } else {
                     OS.setCardValue('ocean-val-wind', '데이터 없음');
                 }
-                if (data.temperature != null) {
-                    OS.setCardValue('ocean-val-airtemp', data.temperature.toFixed(1) + '\u00B0C');
-                    OS.showCard('ocean-card-airtemp');
-                } else {
-                    OS.setCardValue('ocean-val-airtemp', '데이터 없음');
-                }
             })
             .catch(function () {
                 OS.setCardValue('ocean-val-wind', '데이터 없음');
-                OS.setCardValue('ocean-val-airtemp', '데이터 없음');
             });
     }
 
@@ -186,6 +196,39 @@
             })
             .catch(function () { OS.setCardValue('ocean-val-wave', '데이터 없음'); });
     }
+
+    /* --------------------------------------------------------------
+     * 해류/바람 단위 렌더 (m/s ↔ kts 토글)
+     * rawCrsp(cm/s), rawWindSpeed(m/s) 원시값으로부터 계산.
+     * 해류/바람 아이콘 클릭 시 호출.
+     * ------------------------------------------------------------ */
+    OS.renderCurrentWindValues = function () {
+        var useKts = OS.state.useKts;
+
+        // 해류 (cm/s → m/s 또는 kts)
+        if (OS.state.rawCrsp != null && OS.state.rawCrdir != null) {
+            var crMs = OS.state.rawCrsp / 100;
+            var crDir = OS.windDirToText(OS.state.rawCrdir);
+            var crText = useKts
+                ? crDir + ' ' + (crMs * 1.944).toFixed(2) + ' kts'
+                : crDir + ' ' + crMs.toFixed(2) + ' m/s';
+            OS.setCardValue('ocean-val-current', crText);
+            var crIcon = document.getElementById('ocean-icon-current');
+            if (crIcon) crIcon.classList.toggle('kts-active', useKts);
+        }
+
+        // 바람 (m/s 또는 kts)
+        if (OS.state.rawWindSpeed != null && OS.state.rawWindDir != null) {
+            var wMs = OS.state.rawWindSpeed;
+            var wDir = OS.windDirToText(OS.state.rawWindDir);
+            var wText = useKts
+                ? wDir + ' ' + (wMs * 1.944).toFixed(1) + ' kts'
+                : wDir + ' ' + wMs.toFixed(1) + ' m/s';
+            OS.setCardValue('ocean-val-wind', wText);
+            var wIcon = document.getElementById('ocean-icon-wind');
+            if (wIcon) wIcon.classList.toggle('kts-active', useKts);
+        }
+    };
 
     /* --------------------------------------------------------------
      * 저질 분석 (기존 로직 이식)

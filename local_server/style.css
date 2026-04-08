@@ -8460,33 +8460,52 @@ body.ocean-map-active .main-header .header-content {
 }
 
 .ocean-card-icon {
-    width: 36px;
-    height: 36px;
+    width: 44px;
     border-radius: 10px;
     background: rgba(100,180,255,0.15);
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     color: #64b4ff;
     font-size: 0.9rem;
     flex-shrink: 0;
+    padding: 7px 4px;
+    gap: 3px;
+    transition: background 0.15s, border-color 0.15s;
 }
 
-.ocean-card-content {
-    min-width: 0;
+.ocean-card-icon-label {
+    font-size: 0.58rem;
+    color: rgba(100,180,255,0.85);
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
 }
 
-.ocean-card-label {
-    color: rgba(255,255,255,0.5);
-    font-size: 0.7rem;
-    margin-bottom: 2px;
+/* 클릭 가능한 아이콘 (해류/바람) */
+.ocean-icon-clickable {
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+.ocean-icon-clickable:hover {
+    background: rgba(100,180,255,0.25);
+}
+.ocean-icon-clickable.kts-active {
+    background: rgba(100,220,160,0.2);
+    border-color: rgba(100,220,160,0.5);
+    color: #64dca0;
+}
+.ocean-icon-clickable.kts-active .ocean-card-icon-label {
+    color: rgba(100,220,160,0.9);
 }
 
 .ocean-card-value {
+    flex: 1;
+    min-width: 0;
     color: #fff;
     font-size: 0.9rem;
     font-weight: 600;
-    /* 작은 화면 + 큰 글자에서도 2열 유지를 위해 줄바꿈 허용 */
     overflow-wrap: anywhere;
     word-break: break-word;
 }
@@ -8961,49 +8980,55 @@ body.ocean-map-active .main-header .header-content {
 .ocean-tide-peak-right.is-high { color: #e74c5e; }
 .ocean-tide-peak-right.is-low  { color: #4a9eff; }
 
-/* --- 천문 카드 --- */
+/* --- 천문 카드 (1줄 레이아웃) --- */
 .ocean-astro-wrap {
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 14px;
-    padding: 14px 16px;
+    padding: 12px 16px;
 }
-.ocean-astro-title {
-    color: rgba(255,255,255,0.7);
-    font-size: 0.78rem;
-    font-weight: 600;
-    margin-bottom: 10px;
+.ocean-astro-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
 }
-.ocean-astro-times {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px 14px;
-    color: rgba(255,255,255,0.85);
-    font-size: 0.8rem;
-    margin-bottom: 12px;
+.ocean-astro-times-col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
 }
-.ocean-astro-divider {
-    height: 1px;
-    background: rgba(255,255,255,0.08);
-    margin: 8px 0;
-}
-.ocean-astro-moon {
-    text-align: center;
-    padding: 6px 0;
-}
-.ocean-astro-moon-icon {
-    font-size: 2.2rem;
-    line-height: 1;
-}
-.ocean-astro-moon-info {
+.ocean-astro-time-line {
     color: rgba(255,255,255,0.75);
-    font-size: 0.78rem;
-    margin-top: 6px;
+    font-size: clamp(0.68rem, 2.3vw, 0.8rem);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
-.ocean-astro-moon-bright {
-    color: rgba(255,255,255,0.55);
-    font-size: 0.72rem;
-    margin-top: 2px;
+.ocean-astro-t {
+    color: #fff;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+.ocean-astro-moon-col {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+.ocean-astro-moon-emoji {
+    font-size: clamp(1.4rem, 4.5vw, 2.0rem);
+    line-height: 1;
+    display: block;
+}
+.ocean-astro-bright {
+    font-size: clamp(0.58rem, 1.8vw, 0.68rem);
+    color: rgba(255,255,255,0.5);
+    margin-top: 3px;
+    white-space: nowrap;
 }
 
 

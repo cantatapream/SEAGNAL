@@ -880,60 +880,51 @@
                         <!-- 조석 카드 (가로 전폭) - JS가 내용 채움 -->
                         <div class="ocean-data-card ocean-card-fullwidth" id="ocean-card-tide"></div>
 
-                        <!-- 일반 6개 카드 그리드 (수심/수온/해류/바람/파고/기온) -->
+                        <!-- 일반 5개 카드 그리드 (수심/수온/해류/바람/파고) -->
                         <div class="ocean-cards-grid" id="ocean-cards-grid">
                             <div class="ocean-data-card" id="ocean-card-depth">
-                                <div class="ocean-card-icon"><i class="fa-solid fa-arrows-down-to-line"></i></div>
-                                <div class="ocean-card-content">
-                                    <div class="ocean-card-label">수심</div>
-                                    <div class="ocean-card-value" id="ocean-val-depth">
-                                        <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
-                                    </div>
+                                <div class="ocean-card-icon">
+                                    <i class="fa-solid fa-arrows-down-to-line"></i>
+                                    <div class="ocean-card-icon-label">수심</div>
+                                </div>
+                                <div class="ocean-card-value" id="ocean-val-depth">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
                             </div>
                             <div class="ocean-data-card" id="ocean-card-temp">
-                                <div class="ocean-card-icon"><i class="fa-solid fa-temperature-half"></i></div>
-                                <div class="ocean-card-content">
-                                    <div class="ocean-card-label">수온</div>
-                                    <div class="ocean-card-value" id="ocean-val-temp">
-                                        <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
-                                    </div>
+                                <div class="ocean-card-icon">
+                                    <i class="fa-solid fa-temperature-half"></i>
+                                    <div class="ocean-card-icon-label">수온</div>
+                                </div>
+                                <div class="ocean-card-value" id="ocean-val-temp">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
                             </div>
                             <div class="ocean-data-card" id="ocean-card-current">
-                                <div class="ocean-card-icon"><i class="fa-solid fa-arrows-spin"></i></div>
-                                <div class="ocean-card-content">
-                                    <div class="ocean-card-label">해류</div>
-                                    <div class="ocean-card-value" id="ocean-val-current">
-                                        <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
-                                    </div>
+                                <div class="ocean-card-icon ocean-icon-clickable" id="ocean-icon-current">
+                                    <i class="fa-solid fa-arrows-spin"></i>
+                                    <div class="ocean-card-icon-label">해류</div>
+                                </div>
+                                <div class="ocean-card-value" id="ocean-val-current">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
                             </div>
                             <div class="ocean-data-card" id="ocean-card-wind">
-                                <div class="ocean-card-icon"><i class="fa-solid fa-wind"></i></div>
-                                <div class="ocean-card-content">
-                                    <div class="ocean-card-label">바람</div>
-                                    <div class="ocean-card-value" id="ocean-val-wind">
-                                        <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
-                                    </div>
+                                <div class="ocean-card-icon ocean-icon-clickable" id="ocean-icon-wind">
+                                    <i class="fa-solid fa-wind"></i>
+                                    <div class="ocean-card-icon-label">바람</div>
+                                </div>
+                                <div class="ocean-card-value" id="ocean-val-wind">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
                             </div>
                             <div class="ocean-data-card" id="ocean-card-wave">
-                                <div class="ocean-card-icon"><i class="fa-solid fa-water"></i></div>
-                                <div class="ocean-card-content">
-                                    <div class="ocean-card-label">파고</div>
-                                    <div class="ocean-card-value" id="ocean-val-wave">
-                                        <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
-                                    </div>
+                                <div class="ocean-card-icon">
+                                    <i class="fa-solid fa-water"></i>
+                                    <div class="ocean-card-icon-label">파고</div>
                                 </div>
-                            </div>
-                            <div class="ocean-data-card" id="ocean-card-airtemp">
-                                <div class="ocean-card-icon"><i class="fa-solid fa-sun"></i></div>
-                                <div class="ocean-card-content">
-                                    <div class="ocean-card-label">기온</div>
-                                    <div class="ocean-card-value" id="ocean-val-airtemp">
-                                        <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
-                                    </div>
+                                <div class="ocean-card-value" id="ocean-val-wave">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
                             </div>
                         </div>

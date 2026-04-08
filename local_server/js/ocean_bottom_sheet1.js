@@ -44,13 +44,18 @@
         date: new Date(), // 현재 시트가 표시 중인 날짜 (오늘 기준 시작)
         coordVisible: false, // 📍 토글 상태
         bound: false,     // 헤더 컨트롤 이벤트 바인딩 여부 (1회만)
+        useKts: false,    // KTS 단위 토글 (해류/바람)
+        rawCrsp: null,    // 해류 원시 속도 (cm/s)
+        rawCrdir: null,   // 해류 원시 방향 (deg)
+        rawWindSpeed: null, // 바람 원시 속도 (m/s)
+        rawWindDir: null,   // 바람 원시 방향 (deg)
     };
 
     /* --------------------------------------------------------------
      * 풍향 도(°) → 16방위 텍스트 변환 (다른 파일에서 재사용)
      * ------------------------------------------------------------ */
-    var WIND_DIR_NAMES = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
-        'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    var WIND_DIR_NAMES = ['북', '북북동', '북동', '동북동', '동', '동남동', '남동', '남남동',
+        '남', '남남서', '남서', '서남서', '서', '서북서', '북서', '북북서'];
     OS.windDirToText = function (deg) {
         if (deg == null || isNaN(deg)) return '--';
         var idx = Math.round(deg / 22.5) % 16;
