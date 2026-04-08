@@ -2318,127 +2318,74 @@ function getAstronomyInfo(lat, lon, date) {
  * @returns {Object|null} { number, label, direction } 또는 null(계산 불가)
  */
 function computeMulddae(todayPeaks, yesterdayPeaks, tomorrowPeaks, tideBedDataRow, dateObj) {
-    // ── 1. 오늘 피크에서 최고/최저 조위 추출 ──────────────────────────────
-    var todayHighs = todayPeaks.filter(function(p) { return p.type === 'high'; });
-    var todayLows  = todayPeaks.filter(function(p) { return p.type === 'low'; });
+    // ── 음력(월령) 기반 물때 계산 ─────────────────────────────────────────
+    // 바다타임과 동일한 방식: SunCalc 월령으로 가장 가까운 조금까지의
+    // 거리를 구하여 물때 번호를 산출한다.
+    //
+    // 물때 주기 구조 (한 반주기 ≈ 14.77일):
+    //   조금(15물) → 1물 → ... → 7물 → 8물(한사리) → 9물 → ... → 14물 → 조금
+    //
+    // 조금 기준점: 상현 직후 ≈ 월령 7.38일, 하현 직후 ≈ 월령 22.14일
+    // ─────────────────────────────────────────────────────────────────────
 
-    // 고조·저조가 모두 있어야 조차를 산출할 수 있음
-    if (todayHighs.length === 0 || todayLows.length === 0) return null;
+    if (!dateObj || typeof SunCalc === 'undefined') return null;
 
-    var todayHigh  = Math.max.apply(null, todayHighs.map(function(p) { return p.level; }));
-    var todayLow   = Math.min.apply(null, todayLows.map(function(p) { return p.level; }));
-    var todayRange = todayHigh - todayLow;   // 오늘 조차 (cm)
+    try {
+        // 1. SunCalc으로 월령(lunar age) 산출 (0 ~ 29.53일)
+        var moonIllum = SunCalc.getMoonIllumination(dateObj);
+        var lunarAge  = moonIllum.phase * 29.53;
 
-    if (todayRange <= 0) return null;
+        // 2. 조금 기준점 목록 (상현 후·하현 후)
+        var JOGEOM_POINTS = [7.38, 22.14];
+        var HALF_CYCLE    = 14.765;          // 29.53 / 2 (반주기, 일)
+        var STEP_SIZE     = HALF_CYCLE / 15; // 물때 1단계 ≈ 0.984일
 
-    // ── 2. 평균 대조차(Mean Spring Range) 계산 ────────────────────────────
-    // TideBED 응답의 조화상수 M2·S2로 이론값 산출: 2 × (M2 + S2)
-    var springRange;
-    if (tideBedDataRow &&
-        tideBedDataRow.m2TconstAmp != null &&
-        tideBedDataRow.s2TconstAmp != null) {
-        var M2 = parseFloat(tideBedDataRow.m2TconstAmp);
-        var S2 = parseFloat(tideBedDataRow.s2TconstAmp);
-        if (!isNaN(M2) && !isNaN(S2) && M2 > 0) {
-            springRange = 2 * (M2 + S2);
-        }
-    }
-
-    // 조화상수 없을 때 폴백: 3일치 전체 피크에서 최대 조차의 1.05배로 추정
-    if (!springRange || springRange <= 0) {
-        var allPeaks = [].concat(
-            yesterdayPeaks || [],
-            todayPeaks,
-            tomorrowPeaks  || []
-        );
-        var allHighs = allPeaks.filter(function(p) { return p.type === 'high'; });
-        var allLows  = allPeaks.filter(function(p) { return p.type === 'low'; });
-        if (allHighs.length > 0 && allLows.length > 0) {
-            var maxH = Math.max.apply(null, allHighs.map(function(p) { return p.level; }));
-            var minL = Math.min.apply(null, allLows.map(function(p) { return p.level; }));
-            springRange = (maxH - minL) / 0.95;   // 관측 최대치가 대조차의 약 95% 수준
-        } else {
-            springRange = todayRange / 0.85;       // 최후 보수적 추정
-        }
-    }
-
-    if (!springRange || springRange <= 0) return null;
-
-    // ── 3. 조차 비율 계산 ─────────────────────────────────────────────────
-    // 비율이 100%를 넘을 수 있음(근지점 보정): 110%로 상한 처리
-    var ratio = Math.min((todayRange / springRange) * 100, 110);
-
-    // ── 4. 방향 판단 (사리 방향 or 조금 방향) ─────────────────────────────
-    var isRising = true;  // 기본값: 사리 방향
-
-    // 1차: 어제 조차와 비교 (변화량 5cm 이상이면 신뢰)
-    var usedLunar = false;
-    if (yesterdayPeaks && yesterdayPeaks.length > 0) {
-        var yHighs = yesterdayPeaks.filter(function(p) { return p.type === 'high'; });
-        var yLows  = yesterdayPeaks.filter(function(p) { return p.type === 'low'; });
-        if (yHighs.length > 0 && yLows.length > 0) {
-            var prevHigh  = Math.max.apply(null, yHighs.map(function(p) { return p.level; }));
-            var prevLow   = Math.min.apply(null, yLows.map(function(p) { return p.level; }));
-            var prevRange = prevHigh - prevLow;
-            if (Math.abs(todayRange - prevRange) >= 5) {
-                isRising = todayRange > prevRange;
-            } else {
-                usedLunar = true;  // 변화 미미 → 월령으로 보완
+        // 3. 가장 가까운 조금까지의 부호 있는 거리 계산
+        //    양수: 조금 이후(사리 방향), 음수: 조금 이전(한사리→조금 방향)
+        var nearestDist = null;
+        JOGEOM_POINTS.forEach(function(jp) {
+            var d = lunarAge - jp;
+            // 29.53일 주기로 정규화 → [-HALF_CYCLE, +HALF_CYCLE] 범위
+            while (d >  HALF_CYCLE) d -= 29.53;
+            while (d < -HALF_CYCLE) d += 29.53;
+            if (nearestDist === null || Math.abs(d) < Math.abs(nearestDist)) {
+                nearestDist = d;
             }
+        });
+
+        if (nearestDist === null) return null;
+
+        // 4. 물때 단계(step) 계산
+        //    step 범위: -7(한사리) ~ 0(조금) ~ +7(한사리 직전)
+        var step = Math.round(nearestDist / STEP_SIZE);
+        step = Math.max(-7, Math.min(7, step));
+
+        // 5. 물때 번호 결정
+        //    step =  0       → 15 (조금)
+        //    step =  1 ~  7  → 1물 ~ 7물  (조금 후, 사리 방향)
+        //    step = -1 ~ -7  → 14물 ~ 8물 (사리 후, 조금 방향)
+        var number;
+        if (step === 0) {
+            number = 15;            // 조금
+        } else if (step > 0) {
+            number = step;          // 1물 ~ 7물
         } else {
-            usedLunar = true;
+            number = 15 + step;     // 8물 ~ 14물 (step이 음수이므로 15에서 뺌)
         }
-    } else {
-        usedLunar = true;
-    }
 
-    // 2차: 월령 기반 방향 보완
-    // 삭(0일)·망(15일)을 향해 가는 구간이면 사리 방향(isRising=true)
-    // SunCalc.getMoonIllumination은 위경도 무관 → 항상 사용 가능
-    if (usedLunar && typeof SunCalc !== 'undefined' && dateObj) {
-        try {
-            var moonIllum = SunCalc.getMoonIllumination(dateObj);
-            var lunarAge  = moonIllum.phase * 29.53;   // 0 ~ 29.53 (일)
-            // 사리로 가는 구간: 상현(7.38)→망(15), 하현(22.14)→삭(29.53/0)
-            isRising = (lunarAge >= 7.38 && lunarAge < 15) || (lunarAge >= 22.14);
-        } catch (e) {
-            // SunCalc 오류 시 기본값(isRising=true) 유지
-        }
-    }
+        // 6. 결과 반환
+        var label     = (number === 15) ? '조금' : (number + '물');
+        var direction = nearestDist >= 0 ? 'rising' : 'falling'; // 사리 방향 or 조금 방향
+        return {
+            number:    number,
+            label:     label,       // '7물', '조금' 등 화면 표시 문자열
+            direction: direction,
+            lunarAge:  Math.round(lunarAge * 10) / 10  // 디버그용 월령(일)
+        };
 
-    // ── 5. 물때 번호 결정 (조차 비율 + 방향 기반) ─────────────────────────
-    // 레퍼런스 표:
-    //   비율      rising(사리방향)  falling(조금방향)
-    //   90~110%  → 7~8물          → 7~8물
-    //   70~90%   → 5~6물          → 9~10물
-    //   50~70%   → 3~4물          → 11~12물
-    //   30~50%   → 2~3물          → 12~13물
-    //   10~30%   → 1물            → 14물
-    //    0~10%   → 조금(15)       → 조금(15)
-    var number;
-    if (ratio >= 90) {
-        // 한사리 근처: 비율이 높을수록 8물에 가까움
-        number = ratio >= 100 ? 8 : (isRising ? 7 : 8);
-    } else if (ratio >= 70) {
-        number = isRising ? (ratio >= 80 ? 6 : 5) : (ratio >= 80 ? 9 : 10);
-    } else if (ratio >= 50) {
-        number = isRising ? (ratio >= 60 ? 4 : 3) : (ratio >= 60 ? 11 : 12);
-    } else if (ratio >= 30) {
-        number = isRising ? (ratio >= 40 ? 3 : 2) : (ratio >= 40 ? 12 : 13);
-    } else if (ratio >= 10) {
-        number = isRising ? 1 : 14;
-    } else {
-        number = 15;  // 조금 (무시)
+    } catch (e) {
+        return null;
     }
-
-    // ── 6. 결과 반환 ───────────────────────────────────────────────────────
-    var label = (number === 15) ? '조금' : (number + '물');
-    return {
-        number:    number,
-        label:     label,          // '7물', '조금' 등 화면 표시 문자열
-        direction: isRising ? 'rising' : 'falling',
-        ratio:     Math.round(ratio)   // 디버그/툴팁용 조차 비율(%)
-    };
 }
 
 function getAstronomyInfoHTML(astro) {
