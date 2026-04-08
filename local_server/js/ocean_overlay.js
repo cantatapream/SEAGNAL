@@ -833,7 +833,7 @@
         // - wind/current: 기존 동일
         if (trailCtx) {
             trailCtx.globalCompositeOperation = 'destination-out';
-            trailCtx.fillStyle = 'rgba(0,0,0,0.15)'; // 모든 레이어 동일 꼬리 길이
+            trailCtx.fillStyle = isWave ? 'rgba(0,0,0,0.22)' : 'rgba(0,0,0,0.15)'; // wave: 꼬리 2/3 길이
             trailCtx.fillRect(0, 0, w, h);
             trailCtx.globalCompositeOperation = 'source-over';
         }
@@ -844,7 +844,7 @@
         // - wind:    crsp=m/s  → spdMps=crsp,       ×10  → px/frame = crsp*0.15  (10m/s  → 1.5px)
         // - wave:    spdMps=1.0(고정),               ×100 → px/frame = 1.5px (항상 동일)
         var resolution = mapRef.getView().getResolution();
-        var SPEED_SCALE = isWave ? (0.015 * resolution * 100)
+        var SPEED_SCALE = isWave ? (0.015 * resolution * 50)
                         : isWind ? (0.015 * resolution * 10)
                                  : (0.015 * resolution * 100);
 
