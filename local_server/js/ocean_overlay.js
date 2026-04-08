@@ -379,81 +379,25 @@
     // ========================================================================
 
     /**
-     * Natural Earth 50m land TopoJSON을 CDN에서 로드하여
-     * 한반도 주변 해역 범위(118-142E, 24-46N) 내 폴리곤 링을 추출합니다.
-     * (50m: 110m 대비 꼭짓점 약 4~5배, 해안선 정밀도 대폭 향상)
-     *
-     * TopoJSON은 별도 라이브러리 없이 직접 파싱합니다.
-     * (delta 좌표 누적 → 절대 좌표 변환)
+     * 서버 /api/ocean/land-mask에서 육지 링 배열을 로드합니다.
+     * 서버가 @geo-maps 10km GeoJSON(가장 정밀) → Natural Earth 50m(fallback)
+     * 순서로 시도하고 한반도 bbox로 잘라 반환합니다.
+     * CDN 요청 없이 로컬 API만 호출 → 더 빠르고 안정적.
      */
     function loadLandMask() {
-        fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/land-50m.json')
+        fetch('/api/ocean/land-mask')
             .then(function (r) { return r.json(); })
-            .then(function (topo) {
-                landRings = extractLandRings(topo);
+            .then(function (data) {
+                if (!data || !data.success || !data.rings) {
+                    console.warn('[OceanOverlay] 육지 마스크 없음');
+                    return;
+                }
+                landRings = data.rings;
                 console.log('[OceanOverlay] 육지 마스크 로드 완료, rings:', landRings.length);
             })
             .catch(function (e) {
                 console.warn('[OceanOverlay] 육지 마스크 로드 실패:', e.message);
             });
-    }
-
-    /**
-     * TopoJSON → 폴리곤 링 배열 (한반도 주변 bbox 필터 포함).
-     * 참조: TopoJSON spec - arc은 delta encoding된 정수 좌표.
-     */
-    function extractLandRings(topo) {
-        var scale = topo.transform.scale;
-        var translate = topo.transform.translate;
-        var arcs = topo.arcs;
-        var BBOX = [118, 24, 142, 46]; // [minLon, minLat, maxLon, maxLat]
-
-        // arc id → 절대 좌표 배열 변환 (delta decoding)
-        function decodeArc(id) {
-            var reversed = id < 0;
-            var arcIdx = reversed ? ~id : id;
-            var raw = arcs[arcIdx];
-            var pts = [];
-            var x = 0, y = 0;
-            for (var i = 0; i < raw.length; i++) {
-                x += raw[i][0];
-                y += raw[i][1];
-                pts.push([x * scale[0] + translate[0], y * scale[1] + translate[1]]);
-            }
-            if (reversed) pts.reverse();
-            return pts;
-        }
-
-        // 링이 bbox 내에 있는지 대략 체크 (꼭짓점 1개라도 bbox 내 → 포함)
-        function ringIntersectsBbox(ring) {
-            for (var i = 0; i < ring.length; i++) {
-                var lon = ring[i][0], lat = ring[i][1];
-                if (lon >= BBOX[0] && lon <= BBOX[2] && lat >= BBOX[1] && lat <= BBOX[3]) return true;
-            }
-            return false;
-        }
-
-        var result = [];
-        var geoms = topo.objects.land.geometries;
-        for (var gi = 0; gi < geoms.length; gi++) {
-            var geom = geoms[gi];
-            var outerRings = (geom.type === 'Polygon') ? [geom.arcs] : geom.arcs;
-            for (var pi = 0; pi < outerRings.length; pi++) {
-                // outerRings[pi][0]: 외곽 링 (내부 홀 제외 — 육지 마스크에는 외곽만 필요)
-                var ring = [];
-                var arcIds = outerRings[pi][0];
-                for (var ai = 0; ai < arcIds.length; ai++) {
-                    var seg = decodeArc(arcIds[ai]);
-                    // 첫 점은 이전 arc의 마지막 점과 동일 → 중복 제거
-                    var start = (ai === 0) ? 0 : 1;
-                    for (var si = start; si < seg.length; si++) {
-                        ring.push(seg[si]);
-                    }
-                }
-                if (ringIntersectsBbox(ring)) result.push(ring);
-            }
-        }
-        return result;
     }
 
     /**

@@ -440,6 +440,117 @@ router.get('/api/ocean/khoa-stream-nearest', async (req, res) => {
 });
 
 // ============================================================================
+// 육지 마스크 API — 한반도 주변 고해상도 육지 폴리곤
+// ============================================================================
+// @geo-maps/earth-land-10km (~10km 해상도, Natural Earth 50m보다 정밀)를
+// 서버에서 캐싱하고 한반도 범위(118-142E, 24-46N)로 잘라 반환.
+// 프론트엔드는 항상 가벼운 로컬 API만 호출 (CDN 의존 없음).
+
+let _landMaskCache = null; // { rings: [...], ts: Date }
+const LAND_MASK_TTL_MS = 24 * 60 * 60 * 1000; // 24시간 캐시
+
+// bbox 안에 꼭짓점 1개라도 있는 링만 통과
+function _ringInBbox(ring, bbox) {
+    for (let i = 0; i < ring.length; i++) {
+        const [lon, lat] = ring[i];
+        if (lon >= bbox[0] && lon <= bbox[2] && lat >= bbox[1] && lat <= bbox[3]) return true;
+    }
+    return false;
+}
+
+// GeoJSON FeatureCollection → 링 배열 (bbox 필터 포함)
+function _extractRingsFromGeojson(geojson, bbox) {
+    const rings = [];
+    const features = geojson.features || [];
+    for (const feat of features) {
+        const geom = feat.geometry;
+        if (!geom) continue;
+        const polys = geom.type === 'Polygon' ? [geom.coordinates]
+                    : geom.type === 'MultiPolygon' ? geom.coordinates : [];
+        for (const poly of polys) {
+            const outer = poly[0]; // 외곽 링만 (홀 제외)
+            if (outer && _ringInBbox(outer, bbox)) rings.push(outer);
+        }
+    }
+    return rings;
+}
+
+router.get('/api/ocean/land-mask', async (req, res) => {
+    try {
+        const now = Date.now();
+        if (_landMaskCache && (now - _landMaskCache.ts) < LAND_MASK_TTL_MS) {
+            return res.json({ success: true, rings: _landMaskCache.rings });
+        }
+
+        const BBOX = [118, 24, 142, 46]; // [minLon, minLat, maxLon, maxLat]
+        const fetchFn = global.fetch || require('node-fetch');
+
+        // 1순위: @geo-maps 10km 해상도 GeoJSON
+        let rings = null;
+        try {
+            const r = await fetchFn(
+                'https://cdn.jsdelivr.net/npm/@geo-maps/earth-land-10km@1.2.0/contents.json',
+                { signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined }
+            );
+            if (r.ok) {
+                const geojson = await r.json();
+                rings = _extractRingsFromGeojson(geojson, BBOX);
+                console.log('[LandMask] @geo-maps 10km 로드 완료, rings:', rings.length);
+            }
+        } catch (e) {
+            console.warn('[LandMask] @geo-maps 로드 실패, 50m fallback:', e.message);
+        }
+
+        // 2순위: Natural Earth 50m TopoJSON (fallback)
+        if (!rings || rings.length === 0) {
+            const r2 = await fetchFn('https://cdn.jsdelivr.net/npm/world-atlas@2/land-50m.json');
+            if (r2.ok) {
+                const topo = await r2.json();
+                const scale = topo.transform.scale;
+                const translate = topo.transform.translate;
+                const arcs = topo.arcs;
+
+                function decodeArc(id) {
+                    const reversed = id < 0;
+                    const raw = arcs[reversed ? ~id : id];
+                    const pts = [];
+                    let x = 0, y = 0;
+                    for (const d of raw) { x += d[0]; y += d[1]; pts.push([x * scale[0] + translate[0], y * scale[1] + translate[1]]); }
+                    if (reversed) pts.reverse();
+                    return pts;
+                }
+
+                rings = [];
+                for (const geom of topo.objects.land.geometries) {
+                    const outerRings = geom.type === 'Polygon' ? [geom.arcs] : geom.arcs;
+                    for (const poly of outerRings) {
+                        let ring = [];
+                        for (let ai = 0; ai < poly[0].length; ai++) {
+                            const seg = decodeArc(poly[0][ai]);
+                            const start = ai === 0 ? 0 : 1;
+                            for (let si = start; si < seg.length; si++) ring.push(seg[si]);
+                        }
+                        if (_ringInBbox(ring, BBOX)) rings.push(ring);
+                    }
+                }
+                console.log('[LandMask] 50m fallback 로드 완료, rings:', rings.length);
+            }
+        }
+
+        if (!rings || rings.length === 0) {
+            return res.json({ success: false, error: '육지 데이터 로드 실패' });
+        }
+
+        _landMaskCache = { rings, ts: now };
+        res.set('Cache-Control', 'public, max-age=86400');
+        res.json({ success: true, rings });
+    } catch (e) {
+        console.error('[LandMask] error:', e.message);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// ============================================================================
 // 하위 라우터 연결 (ocean2~5)
 // ============================================================================
 // 각 파일이 존재할 때만 안전하게 로드
