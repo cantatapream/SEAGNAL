@@ -833,19 +833,19 @@
         // - wind/current: 기존 동일
         if (trailCtx) {
             trailCtx.globalCompositeOperation = 'destination-out';
-            trailCtx.fillStyle = isWave ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0.15)';
+            trailCtx.fillStyle = 'rgba(0,0,0,0.15)'; // 모든 레이어 동일 꼬리 길이
             trailCtx.fillRect(0, 0, w, h);
             trailCtx.globalCompositeOperation = 'source-over';
         }
 
         // ② 입자 이동 + 트레일 그리기
-        // SPEED_SCALE: 레이어별 단위 보정
-        // - current: crsp=cm/s → spdMps=crsp*0.01, SPEED_SCALE=0.015*res*100
-        // - wind:    crsp=m/s  → spdMps=crsp,       SPEED_SCALE=0.015*res
-        // - wave:    파향만 사용, spdMps=1.0(고정),  SPEED_SCALE=0.015*res
+        // SPEED_SCALE: 레이어별 단위 보정 — 모두 1.5 px/frame 기준으로 정규화
+        // - current: crsp=cm/s → spdMps=crsp*0.01, ×100 → px/frame = crsp*0.015 (100cm/s → 1.5px)
+        // - wind:    crsp=m/s  → spdMps=crsp,       ×10  → px/frame = crsp*0.15  (10m/s  → 1.5px)
+        // - wave:    spdMps=1.0(고정),               ×100 → px/frame = 1.5px (항상 동일)
         var resolution = mapRef.getView().getResolution();
-        var SPEED_SCALE = isWave ? (0.015 * resolution)
-                        : isWind ? (0.015 * resolution)
+        var SPEED_SCALE = isWave ? (0.015 * resolution * 100)
+                        : isWind ? (0.015 * resolution * 10)
                                  : (0.015 * resolution * 100);
 
         particles.forEach(function (p) {
