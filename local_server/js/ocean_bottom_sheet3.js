@@ -286,15 +286,14 @@
         // 헤더: "다음" 피크 / "그 다음" 피크 (오늘일 때만 진행 막대 표시)
         var headHtml = renderHeadHtml(prevPeak, nextPeak, todayMode, peaks);
 
-        // 현재 조위 (오늘만)
+        // 현재 조위 (오늘만) — 제목 행에 인라인으로 표시
         var currentHtml = '';
         if (todayMode && prevPeak && nextPeak) {
             var curLevel = interpolateLevel(prevPeak, nextPeak, nowMin);
             var rising = nextPeak.type === 'high';
             currentHtml =
-                '<div class="ocean-tide-current">' +
-                  '<span class="ocean-tide-current-label">현재 예상 조위</span>' +
-                  '<span class="ocean-tide-current-big">' + Math.round(curLevel) + ' cm</span>' +
+                '<div class="ocean-tide-current-top">' +
+                  Math.round(curLevel) + ' cm ' +
                   '<span class="ocean-tide-current-arrow ' + (rising ? 'is-up' : 'is-down') + '">' +
                     (rising ? '▲' : '▼') +
                   '</span>' +
@@ -304,8 +303,8 @@
         // 4피크 리스트
         var peaksHtml =
             '<div class="ocean-tide-peaks">' +
-              renderPeakGroup('고조', 'is-high', highs, '▲') +
-              renderPeakGroup('저조', 'is-low',  lows,  '▼') +
+              renderPeakGroup(['고', '조'], 'is-high', highs, '▲') +
+              renderPeakGroup(['저', '조'], 'is-low',  lows,  '▼') +
             '</div>';
 
         var idwBadge = isIdw
@@ -316,10 +315,10 @@
             '<div class="ocean-tide-wrap">' +
               '<div class="ocean-tide-title-row">' +
                 '<div class="ocean-tide-title"><i class="fa-solid fa-water"></i> 조석</div>' +
+                currentHtml +
                 idwBadge +
               '</div>' +
               headHtml +
-              currentHtml +
               peaksHtml +
             '</div>';
     };
@@ -373,9 +372,10 @@
     /* --------------------------------------------------------------
      * 내부: 4피크 그룹 렌더 (고조 2건 또는 저조 2건)
      * ------------------------------------------------------------ */
-    function renderPeakGroup(labelText, cls, list, arrow) {
+    function renderPeakGroup(chars, cls, list, arrow) {
         if (list.length === 0) return '';
-        var rowsHtml = list.map(function (p) {
+        var rowsHtml = list.map(function (p, idx) {
+            var ch = chars[idx] !== undefined ? chars[idx] : '';
             var diff = p.diff;
             var sign = '';
             var digits = '';
@@ -386,6 +386,7 @@
             }
             return (
                 '<div class="ocean-tide-peak-row">' +
+                  '<div class="ocean-tide-peak-char ' + cls + '">' + ch + '</div>' +
                   '<div class="ocean-tide-peak-left">' +
                     '<span class="ocean-tide-peak-time">' + minutesToHHMM(p.minutes) + '</span>' +
                     '<span class="ocean-tide-peak-cm">(' + Math.round(p.level) + ' cm)</span>' +
@@ -398,12 +399,7 @@
                 '</div>'
             );
         }).join('');
-        return (
-            '<div class="ocean-tide-peak-group">' +
-              '<div class="ocean-tide-peak-label ' + cls + '">' + labelText + '</div>' +
-              '<div class="ocean-tide-peak-rows">' + rowsHtml + '</div>' +
-            '</div>'
-        );
+        return '<div class="ocean-tide-peak-group">' + rowsHtml + '</div>';
     }
 
     /* --------------------------------------------------------------

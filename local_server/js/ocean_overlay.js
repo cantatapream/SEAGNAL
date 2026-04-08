@@ -94,14 +94,17 @@
 
     window.oceanOverlayInit = function (map) {
         mapRef = map;
-        // 모드 B 재진입 시에는 OFF 상태로 초기화 (직전 토글 상태 유지하지 않음)
+        // 모드 B 재진입 시
         if (inited) {
-            streamActive = false;
-            document.querySelectorAll('.ocean-overlay-btn[data-layer="current"]').forEach(function (b) {
-                b.classList.remove('active');
-            });
-            window.oceanOverlayClear();
             resizeCanvas();
+            if (streamActive) {
+                // 이전에 활성화된 레이어가 있었으면 버튼 상태 복원 + 데이터 재로드
+                document.querySelectorAll('.ocean-overlay-btn[data-layer]').forEach(function (b) {
+                    b.classList.toggle('active', b.dataset.layer === activeLayer);
+                });
+                loadOverlayData();
+            }
+            // streamActive=false면 캔버스가 이미 비어있으므로 별도 처리 불필요
             return;
         }
         canvas = document.getElementById('ocean-overlay-canvas');
