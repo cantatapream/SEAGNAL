@@ -8178,6 +8178,62 @@ line-height: 1.1;
     margin-top: 10px;
 }
 
+/* 베이스맵 선택 피커 (모드 A, 지도 좌측 상단) */
+.ocean-basemap-toggle-wrap {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.ocean-basemap-toggle-btn {
+    min-width: 48px;
+}
+
+.ocean-basemap-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.ocean-basemap-item {
+    padding: 7px 12px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(15, 27, 51, 0.88);
+    color: rgba(255,255,255,0.7);
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    white-space: nowrap;
+    text-align: left;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+}
+
+.ocean-basemap-item i {
+    margin-right: 5px;
+    font-size: 0.68rem;
+    opacity: 0.8;
+}
+
+.ocean-basemap-item.active {
+    background: rgba(30, 80, 160, 0.92);
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(30,80,160,0.4);
+}
+
+.ocean-basemap-item:hover {
+    background: rgba(30, 60, 120, 0.9);
+    color: #fff;
+}
+
 /* 범례 (모드 B 하단) */
 .ocean-legend {
     position: absolute;
