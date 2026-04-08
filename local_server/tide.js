@@ -1463,7 +1463,9 @@ function showTidePopup(coordinate, data) {
                 yesterdayPeaks,     // 어제 피크 (방향 판단용)
                 tomorrowPeaks,      // 내일 피크 (평균 대조차 추정 보조)
                 tbRow,              // M2/S2 조화상수
-                currentTideDate     // 기준 날짜 (월령 계산용)
+                currentTideDate,    // 기준 날짜 (월령 계산용)
+                lat,                // 위도 (서해 판별)
+                lon                 // 경도 (서해 판별)
             );
 
             if (tideProgress) {
@@ -2315,9 +2317,26 @@ function getAstronomyInfo(lat, lon, date) {
  * @param {Array}  tomorrowPeaks   - 내일 피크 (평균 대조차 추정 보조, 없으면 null)
  * @param {Object} tideBedDataRow  - TideBED 조화상수 행 {m2TconstAmp, s2TconstAmp, ...}
  * @param {Date}   dateObj         - 기준 날짜 (월령 계산용)
+ * @param {number} [lat]           - 위치 위도 (서해 판별용, 생략 시 남해 기준)
+ * @param {number} [lon]           - 위치 경도 (서해 판별용, 생략 시 남해 기준)
  * @returns {Object|null} { number, label, direction } 또는 null(계산 불가)
  */
-function computeMulddae(todayPeaks, yesterdayPeaks, tomorrowPeaks, tideBedDataRow, dateObj) {
+
+/**
+ * 서해(Yellow Sea) 해역 여부 판별
+ * - 서해안은 무시(無市) 포함 16단계 사이클로 남해보다 물때 번호가 1 낮음
+ * 검증 데이터: 인천·태안·군산·목포·진도 → 서해, 해남·완도·여수·통영·부산·제주 → 남해
+ */
+function isWestSea(lat, lon) {
+    if (typeof lat !== 'number' || typeof lon !== 'number') return false;
+    // ① 경기/충남/전북/전남북부 서해안: 위도 35°N 이상, 경도 128°E 미만
+    if (lat >= 35.0 && lon < 128.0) return true;
+    // ② 전남 서부 (목포·진도·신안 등): 위도 34.3°N 이상, 경도 126.5°E 미만
+    if (lat >= 34.3 && lon < 126.5) return true;
+    return false;
+}
+
+function computeMulddae(todayPeaks, yesterdayPeaks, tomorrowPeaks, tideBedDataRow, dateObj, lat, lon) {
     // ── 음력(월령) 기반 물때 계산 ─────────────────────────────────────────
     // 바다타임과 동일한 방식: SunCalc 월령으로 가장 가까운 조금까지의
     // 거리를 구하여 물때 번호를 산출한다.
@@ -2361,25 +2380,51 @@ function computeMulddae(todayPeaks, yesterdayPeaks, tomorrowPeaks, tideBedDataRo
         step = Math.max(-7, Math.min(7, step));
 
         // 5. 물때 번호 결정
-        //    step =  0       → 15 (조금)
-        //    step =  1 ~  7  → 1물 ~ 7물  (조금 후, 사리 방향)
-        //    step = -1 ~ -7  → 14물 ~ 8물 (사리 후, 조금 방향)
-        var number;
+        //    남해/동해 기준 (공통):
+        //      step =  0       → 15 (조금)
+        //      step =  1 ~  7  → 1물 ~ 7물  (조금 후, 사리 방향)
+        //      step = -1 ~ -7  → 14물 ~ 8물 (사리 후, 조금 방향)
+        //    서해 보정 (-1 shift, 무시 포함):
+        //      step =  0       → 조금 (동일)
+        //      step =  1       → 무시 (조류 극히 약해 조업 의미 없는 날)
+        //      step =  2 ~  7  → 1물 ~ 6물
+        //      step = -1 ~ -7  → 13물 ~ 7물
+        var westSea = isWestSea(lat, lon);
+        var number, label;
+
         if (step === 0) {
-            number = 15;            // 조금
-        } else if (step > 0) {
-            number = step;          // 1물 ~ 7물
+            // 조금: 서해/남해 동일
+            number = 15;
+            label  = '조금';
+        } else if (westSea) {
+            // ── 서해 사이클 (무시 포함) ────────────────────────────────
+            if (step === 1) {
+                number = 0;
+                label  = '무시';                   // 조금 다음날 = 조류 극소
+            } else if (step > 1) {
+                number = step - 1;                 // 2→1물, 3→2물, ..., 7→6물
+                label  = number + '물';
+            } else {
+                number = 14 + step;                // -1→13물, -2→12물, ..., -7→7물
+                label  = number + '물';
+            }
         } else {
-            number = 15 + step;     // 8물 ~ 14물 (step이 음수이므로 15에서 뺌)
+            // ── 남해/동해 사이클 (표준) ───────────────────────────────
+            if (step > 0) {
+                number = step;                     // 1물 ~ 7물
+            } else {
+                number = 15 + step;                // 8물 ~ 14물
+            }
+            label = number + '물';
         }
 
         // 6. 결과 반환
-        var label     = (number === 15) ? '조금' : (number + '물');
         var direction = nearestDist >= 0 ? 'rising' : 'falling'; // 사리 방향 or 조금 방향
         return {
             number:    number,
-            label:     label,       // '7물', '조금' 등 화면 표시 문자열
+            label:     label,       // '7물', '조금', '무시' 등 화면 표시 문자열
             direction: direction,
+            westSea:   westSea,     // 디버그용 해역 구분
             lunarAge:  Math.round(lunarAge * 10) / 10  // 디버그용 월령(일)
         };
 
