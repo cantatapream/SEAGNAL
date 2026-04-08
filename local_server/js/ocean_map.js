@@ -224,7 +224,14 @@
         if (baseLayerCoast) baseLayerCoast.setVisible(currentBase === 'coast');
     }
 
-    /** 베이스맵을 type('rltm' | 'enc' | 'coast')으로 전환한다. */
+    /**
+     * 베이스맵을 지정한 종류로 전환합니다.
+     * @param {string} type - 'rltm'(기본맵) | 'enc'(전자해도) | 'coast'(해안도)
+     *
+     * 기본맵·전자해도로 전환할 경우 파티클 오버레이(조류/바람/파고)를 자동으로 끕니다.
+     * 오버레이는 해안도에서만 의미 있는 시각화이기 때문입니다.
+     * (해안도 → 기본맵으로 돌아가면서 파티클이 남아 있는 것을 방지)
+     */
     function switchBaseLayer(type) {
         currentBase = type;
         applyBaseLayerVisibility();
@@ -239,6 +246,12 @@
         if (toggleLabel) {
             var names = { rltm: '기본맵', enc: '전자해도', coast: '해안도' };
             toggleLabel.textContent = names[type] || '지도';
+        }
+
+        // 기본맵·전자해도로 전환 시 오버레이(파티클+범례+슬라이더) 자동 OFF
+        // coast(해안도)로 전환할 때는 오버레이 상태를 유지합니다.
+        if (type !== 'coast' && window.oceanOverlayTurnOff) {
+            window.oceanOverlayTurnOff();
         }
     }
 

@@ -172,22 +172,13 @@
     };
 
     /* --------------------------------------------------------------
-     * 렌더링 2) 에러 (격자 밖/육지 등)
+     * 렌더링 2) 에러 (격자 밖/육지 등) — 카드 자체를 숨김
+     * 조석 예측정보를 제공하지 않는 해역에서는 해당 란을 아예 표시하지 않음.
      * ------------------------------------------------------------ */
     OS.renderTideError = function (msg) {
         var card = document.getElementById('ocean-card-tide');
         if (!card) return;
-        card.style.display = '';
-        card.innerHTML =
-            '<div class="ocean-tide-wrap">' +
-              '<div class="ocean-tide-title-row">' +
-                '<div class="ocean-tide-title"><i class="fa-solid fa-water"></i> 조석</div>' +
-              '</div>' +
-              '<div class="ocean-tide-error">' +
-                '<i class="fa-solid fa-circle-exclamation"></i>' +
-                '<div class="ocean-tide-error-text">' + escapeHtml(msg) + '</div>' +
-              '</div>' +
-            '</div>';
+        card.style.display = 'none';
     };
 
     /* --------------------------------------------------------------
@@ -300,8 +291,12 @@
                 '</div>';
         }
 
-        // 헤더: "다음" 피크 / "그 다음" 피크 (오늘일 때만 진행 막대 표시)
-        var headHtml = renderHeadHtml(prevPeak, nextPeak, todayMode, peaks, currentHtml);
+        // 일조부등 판별: 하루에 고조 1회·저조 1회(총 2피크 이하)인 경우
+        // → 조석 게이지(진행 막대) 없이 고조/저조 목록만 표시
+        var isDiurnal = (peaks.length <= 2);
+
+        // 헤더: "다음" 피크 / "그 다음" 피크 (오늘 + 반일조 해역에서만 진행 막대 표시)
+        var headHtml = isDiurnal ? '' : renderHeadHtml(prevPeak, nextPeak, todayMode, peaks, currentHtml);
 
         // 4피크 리스트
         var peaksHtml =

@@ -101,14 +101,8 @@
             dateStr = d.getFullYear() +
                 String(d.getMonth() + 1).padStart(2, '0') +
                 String(d.getDate()).padStart(2, '0');
-            // 사용자가 미래 날짜를 보고 있을 수도 있으니 정오를 기본으로
-            var nowD = new Date();
-            var sameDay = (d.getFullYear() === nowD.getFullYear() &&
-                           d.getMonth() === nowD.getMonth() &&
-                           d.getDate() === nowD.getDate());
-            hourStr = sameDay
-                ? String(nowD.getHours()).padStart(2, '0')
-                : '12';
+            // dateObj는 이미 슬라이더 오프셋이 반영된 시각이므로 해당 시각의 시(hour) 사용
+            hourStr = String(d.getHours()).padStart(2, '0');
         } catch (e) { /* fall through */ }
 
         var url = '/api/ocean/khoa-stream-nearest?lat=' + lat + '&lon=' + lon;
@@ -189,29 +183,54 @@
      * rawCrsp(cm/s), rawWindSpeed(m/s) 원시값으로부터 계산.
      * 해류/바람 아이콘 클릭 시 호출.
      * ------------------------------------------------------------ */
+    /* 조류·바람 값을 방향(위)과 수치(아래) 2줄로 렌더링합니다.
+     * 예시:
+     *   동남동       ← 방향 (16방위)
+     *   5.3 m/s      ← 수치 (m/s 또는 kts)
+     *
+     * 아이콘 클릭으로 m/s ↔ kts 전환 시에도 동일 구조를 유지합니다.
+     * 값이 없을 때("데이터 없음")는 이 함수가 호출되지 않으므로
+     * 2줄 구조는 실제 데이터가 있을 때만 적용됩니다. */
     OS.renderCurrentWindValues = function () {
         var useKts = OS.state.useKts;
 
-        // 해류 (cm/s → m/s 또는 kts)
+        // 조류: cm/s → m/s 또는 kts 변환 후 2줄 HTML로 삽입
         if (OS.state.rawCrsp != null && OS.state.rawCrdir != null) {
             var crMs = OS.state.rawCrsp / 100;
             var crDir = OS.windDirToText(OS.state.rawCrdir);
-            var crText = useKts
-                ? crDir + ' ' + (crMs * 1.944).toFixed(2) + ' kts'
-                : crDir + ' ' + crMs.toFixed(2) + ' m/s';
-            OS.setCardValue('ocean-val-current', crText);
+            var crNum = useKts
+                ? (crMs * 1.944).toFixed(2) + ' kts'
+                : crMs.toFixed(2) + ' m/s';
+            var crEl = document.getElementById('ocean-val-current');
+            if (crEl) {
+                crEl.classList.remove('ocean-skeleton');
+                // 방향 한 줄 + 수치 한 줄 구조로 삽입
+                crEl.innerHTML =
+                    '<div class="ocean-val-dir-wrap">' +
+                      '<span class="ocean-val-dir-text">' + crDir + '</span>' +
+                      '<span class="ocean-val-num-text">' + crNum + '</span>' +
+                    '</div>';
+            }
             var crIcon = document.getElementById('ocean-icon-current');
             if (crIcon) crIcon.classList.toggle('kts-active', useKts);
         }
 
-        // 바람 (m/s 또는 kts)
+        // 바람: m/s 또는 kts 변환 후 2줄 HTML로 삽입
         if (OS.state.rawWindSpeed != null && OS.state.rawWindDir != null) {
             var wMs = OS.state.rawWindSpeed;
             var wDir = OS.windDirToText(OS.state.rawWindDir);
-            var wText = useKts
-                ? wDir + ' ' + (wMs * 1.944).toFixed(1) + ' kts'
-                : wDir + ' ' + wMs.toFixed(1) + ' m/s';
-            OS.setCardValue('ocean-val-wind', wText);
+            var wNum = useKts
+                ? (wMs * 1.944).toFixed(1) + ' kts'
+                : wMs.toFixed(1) + ' m/s';
+            var wEl = document.getElementById('ocean-val-wind');
+            if (wEl) {
+                wEl.classList.remove('ocean-skeleton');
+                wEl.innerHTML =
+                    '<div class="ocean-val-dir-wrap">' +
+                      '<span class="ocean-val-dir-text">' + wDir + '</span>' +
+                      '<span class="ocean-val-num-text">' + wNum + '</span>' +
+                    '</div>';
+            }
             var wIcon = document.getElementById('ocean-icon-wind');
             if (wIcon) wIcon.classList.toggle('kts-active', useKts);
         }

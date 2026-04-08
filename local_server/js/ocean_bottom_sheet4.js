@@ -188,12 +188,14 @@
               '<div class="ocean-astro-time-row">' +
                 '<span class="ocean-astro-label">일출/몰</span>' +
                 '<span class="ocean-astro-times"><span class="ocean-astro-t">' + fmt(astro.sunrise) + '</span>/<span class="ocean-astro-t">' + fmt(astro.sunset) + '</span></span>' +
-                '<span class="ocean-astro-moon-emoji">' + phaseObj.icon + '</span>' +
+                '<span class="ocean-astro-moon-wrap">' +
+                  '<span class="ocean-astro-moon-emoji">' + phaseObj.icon + '</span>' +
+                  '<span class="ocean-astro-moon-bright">' + brightPct + '%</span>' +
+                '</span>' +
               '</div>' +
               '<div class="ocean-astro-time-row">' +
                 '<span class="ocean-astro-label">월출/몰</span>' +
                 '<span class="ocean-astro-times"><span class="ocean-astro-t">' + fmt(astro.moonrise) + '</span>/<span class="ocean-astro-t">' + fmt(astro.moonset) + '</span></span>' +
-                '<span class="ocean-astro-bright">밝기 ' + brightPct + '%</span>' +
               '</div>' +
             '</div>';
     };

@@ -264,7 +264,30 @@ router.get('/api/ocean/zone-forecasts', (req, res) => {
             result[lzone] = entry;
         });
 
-        res.json({ success: true, zones: result });
+        // 슬라이더 최대값: 전 해구 중 가장 늦은 예보 시각 기준으로 남은 시간 계산
+        // zone_forecasts 데이터는 3시간 간격이므로 3h 단위로 내림
+        let maxForecastHours = 72;
+        try {
+            let maxDataMs = 0;
+            Object.keys(zoneData.data).forEach(lzone => {
+                const items = zoneData.data[lzone];
+                if (!items || items.length === 0) return;
+                const lastItem = items[items.length - 1];
+                const s = String(lastItem.tm);
+                const predTime = new Date(Date.UTC(
+                    parseInt(s.substring(0, 4)), parseInt(s.substring(4, 6)) - 1,
+                    parseInt(s.substring(6, 8)), parseInt(s.substring(8, 10))
+                ));
+                if (predTime.getTime() > maxDataMs) maxDataMs = predTime.getTime();
+            });
+            if (maxDataMs > 0) {
+                const diffMs = maxDataMs - Date.now();
+                const raw = Math.floor(diffMs / 3600000 / 3) * 3; // 3h 내림
+                maxForecastHours = Math.max(0, Math.min(75, raw));
+            }
+        } catch (e) { /* 계산 실패 시 기본값 72 유지 */ }
+
+        res.json({ success: true, zones: result, maxForecastHours: maxForecastHours });
     } catch (e) {
         console.error('[Ocean] zone-forecasts 오류:', e.message);
         res.status(500).json({ success: false, error: '데이터 조회 오류' });

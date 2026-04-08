@@ -8234,19 +8234,32 @@ line-height: 1.1;
     color: #fff;
 }
 
-/* 범례 (모드 B 하단) */
+/* ============================================================
+   범례 + 타임라인 통합 박스
+   오버레이(조류/바람/파고) 활성 시 지도 하단에 표시됩니다.
+   기본(active 아닐 때)은 일반 position으로, active 상태에서
+   아래쪽 오버라이드 규칙으로 지도 하단에 고정됩니다.
+   ============================================================ */
 .ocean-legend {
-    position: absolute;
-    bottom: 10px;
-    left: 10px;
-    right: 10px;
-    background: rgba(15, 27, 51, 0.85);
-    backdrop-filter: blur(8px);
+    background: rgba(13, 24, 46, 0.93);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     border-radius: 8px;
-    padding: 8px 12px;
+    padding: 10px 14px 6px;
     z-index: 50;
 }
 
+/* 범례 제목: 박스 최상단 중앙 ("조류 속도 (m/s)" 등) */
+.ocean-legend-title {
+    text-align: center;
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.65);
+    margin-bottom: 5px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+}
+
+/* 색상 그라디언트 바: 데이터 값 크기를 색상으로 표현 */
 .ocean-legend-bar {
     height: 8px;
     border-radius: 4px;
@@ -8254,6 +8267,7 @@ line-height: 1.1;
     background: linear-gradient(to right, #1e3c78, #32a0c8, #50c8a0, #a0dc50, #f0b428, #f07828, #dc2828);
 }
 
+/* 수치 라벨: 색상바 아래 숫자들 */
 .ocean-legend-labels {
     display: flex;
     justify-content: space-between;
@@ -8261,19 +8275,20 @@ line-height: 1.1;
     color: rgba(255,255,255,0.5);
 }
 
-.ocean-legend-title {
-    text-align: center;
-    font-size: 0.65rem;
-    color: rgba(255,255,255,0.6);
-    margin-top: 2px;
+/* 구분선: 범례 색상 영역과 슬라이더 영역 사이의 분리선 */
+.ocean-legend-divider {
+    border: none;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    margin: 8px 0 0;
 }
 
-/* 타임라인 (모드 B 하단) */
+/* ============================================================
+   타임라인 슬라이더 (범례 박스 내부에서 사용)
+   독립 박스였을 때의 background/border-radius/padding은 제거하고
+   범례 컨테이너 스타일을 그대로 활용합니다.
+   ============================================================ */
 .ocean-timeline {
-    background: #0f1b33;
-    border-radius: 10px;
-    padding: 12px 16px;
-    margin-bottom: 6px;
+    padding: 6px 0 2px;
 }
 
 .ocean-timeline-label {
@@ -8420,19 +8435,26 @@ body.ocean-map-active .main-header .header-content {
 #ocean-map-section.active .ocean-basemap-toggle-wrap {
     top: 60px;
 }
-/* 타임라인: 지도 하단에 항상 오버레이로 표시 */
-#ocean-map-section.active .ocean-timeline {
+/* 통합 박스(범례+타임라인): 지도 하단 고정
+   범례와 타임라인이 하나의 박스로 합쳐져 지도 맨 아래에 붙습니다.
+   border-radius: 0 → 지도 하단 모서리에 꽉 맞게 직각 처리. */
+#ocean-map-section.active .ocean-legend {
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
     z-index: 20;
-    margin: 0;
     border-radius: 0;
+    padding: 10px 16px 6px;
 }
-/* 범례: 타임라인 위에 표시 (겹침 방지) */
-#ocean-map-section.active .ocean-legend {
-    bottom: 90px;
+
+/* 통합 박스 내부 타임라인: 이미 부모 안에 있으므로 별도 positioning 불필요 */
+#ocean-map-section.active .ocean-legend .ocean-timeline {
+    position: static;
+    background: none;
+    border-radius: 0;
+    padding: 6px 0 2px;
+    margin: 0;
 }
 
 .ocean-bottom-sheet {
@@ -8530,7 +8552,9 @@ body.ocean-map-active .main-header .header-content {
     gap: 10px;
 }
 
-/* 데이터 카드 */
+/* 데이터 카드
+   min-height: 모든 카드(수심/파고/바람/조류/수온/천문)가 동일한 최소 높이를 가져
+   그리드 행 높이가 콘텐츠에 따라 들쭉날쭉해지지 않도록 고정합니다. */
 .ocean-data-card {
     display: flex;
     align-items: center;
@@ -8540,6 +8564,7 @@ body.ocean-map-active .main-header .header-content {
     border-radius: 12px;
     padding: 12px;
     transition: background 0.2s;
+    min-height: 64px;
 }
 
 .ocean-data-card:hover {
@@ -8597,6 +8622,32 @@ body.ocean-map-active .main-header .header-content {
     overflow-wrap: break-word; /* 단어 단위 줄바꿈만 허용 (글자 단위 금지) */
     word-break: normal;        /* break-word 제거 → 한 글자씩 줄바꿈 방지 */
     line-height: 1.35;
+}
+
+/* 조류·바람 카드 2줄 레이아웃
+   방향(동남동)과 수치(5.3 m/s)를 세로로 쌓아 표시합니다.
+   ┌──────────────┐
+   │ 🔄 조류  동남동  │
+   │          5.3 m/s │
+   └──────────────┘  */
+.ocean-val-dir-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+/* 방향 텍스트: 약간 작고 흐릿하게 → 수치 강조 */
+.ocean-val-dir-text {
+    font-size: clamp(0.6rem, 3.0vw, 0.78rem);
+    font-weight: 500;
+    color: rgba(255,255,255,0.65);
+    line-height: 1.2;
+}
+/* 수치 텍스트: 크고 선명하게 */
+.ocean-val-num-text {
+    font-size: clamp(0.68rem, 3.5vw, 0.92rem);
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
 }
 
 /* 스켈레톤 로딩 */
@@ -9100,16 +9151,22 @@ body.ocean-map-active .main-header .header-content {
     color: #fff;
     font-weight: 600;
 }
+.ocean-astro-moon-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 1px;
+}
 .ocean-astro-moon-emoji {
     font-size: clamp(1.0rem, 3.2vw, 1.3rem);
-    flex-shrink: 0;
     line-height: 1;
 }
-.ocean-astro-bright {
-    font-size: clamp(0.58rem, 1.8vw, 0.68rem);
-    color: rgba(255,255,255,0.5);
+.ocean-astro-moon-bright {
+    font-size: clamp(0.55rem, 1.6vw, 0.65rem);
+    color: rgba(255,255,255,0.55);
     white-space: nowrap;
-    flex-shrink: 0;
+    line-height: 1;
 }
 
 

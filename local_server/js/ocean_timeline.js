@@ -73,6 +73,43 @@
     };
 
     /**
+     * 슬라이더 최대값을 동적으로 변경합니다.
+     * zone-forecasts 응답의 maxForecastHours에 따라 호출됩니다.
+     */
+    window.setTimelineMax = function (max) {
+        var slider = document.getElementById('ocean-timeline-slider');
+        var label = document.getElementById('ocean-timeline-label');
+        if (!slider) return;
+
+        slider.max = max;
+
+        // 현재값이 새 최대값을 초과하면 최대값으로 스냅
+        var cur = parseInt(slider.value);
+        if (cur > max) {
+            var step = parseInt(slider.step) || 3;
+            var snapped = Math.floor(max / step) * step;
+            slider.value = snapped;
+            updateTimelineLabel(label, snapped);
+            onTimeChange(snapped);
+        }
+
+        // 눈금 재생성
+        var ticksEl = document.getElementById('ocean-timeline-ticks');
+        if (ticksEl) {
+            var ticks = '';
+            var step2 = parseInt(slider.step) || 3;
+            var interval = max <= 24 ? step2 : 6;
+            if (interval < step2) interval = step2;
+            for (var h = 0; h <= max; h += interval) {
+                var pct = (h / max) * 100;
+                var tickLabel = h === 0 ? '현재' : '+' + h + 'h';
+                ticks += '<div class="ocean-tick" style="left:' + pct + '%"><span>' + tickLabel + '</span></div>';
+            }
+            ticksEl.innerHTML = ticks;
+        }
+    };
+
+    /**
      * 타임라인 라벨 업데이트
      */
     function updateTimelineLabel(label, hours) {
