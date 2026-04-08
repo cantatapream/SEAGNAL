@@ -181,13 +181,20 @@
         card.style.display = '';
         card.innerHTML =
             '<div class="ocean-card-icon">' +
-              '<span class="ocean-astro-moon-emoji">' + phaseObj.icon + '</span>' +
+              '<i class="fa-solid fa-sun"></i>' +
               '<div class="ocean-card-icon-label">천문</div>' +
             '</div>' +
             '<div class="ocean-card-value ocean-astro-value">' +
-              '<div class="ocean-astro-time-line">☀&nbsp;<span class="ocean-astro-t">' + fmt(astro.sunrise) + '</span>/<span class="ocean-astro-t">' + fmt(astro.sunset) + '</span></div>' +
-              '<div class="ocean-astro-time-line">🌙&nbsp;<span class="ocean-astro-t">' + fmt(astro.moonrise) + '</span>/<span class="ocean-astro-t">' + fmt(astro.moonset) + '</span></div>' +
-              '<div class="ocean-astro-bright">' + brightPct + '%</div>' +
+              '<div class="ocean-astro-time-row">' +
+                '<span class="ocean-astro-label">일출/몰</span>' +
+                '<span class="ocean-astro-times"><span class="ocean-astro-t">' + fmt(astro.sunrise) + '</span>/<span class="ocean-astro-t">' + fmt(astro.sunset) + '</span></span>' +
+                '<span class="ocean-astro-moon-emoji">' + phaseObj.icon + '</span>' +
+              '</div>' +
+              '<div class="ocean-astro-time-row">' +
+                '<span class="ocean-astro-label">월출/몰</span>' +
+                '<span class="ocean-astro-times"><span class="ocean-astro-t">' + fmt(astro.moonrise) + '</span>/<span class="ocean-astro-t">' + fmt(astro.moonset) + '</span></span>' +
+                '<span class="ocean-astro-bright">밝기 ' + brightPct + '%</span>' +
+              '</div>' +
             '</div>';
     };
 })();
