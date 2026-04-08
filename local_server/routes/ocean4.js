@@ -199,8 +199,9 @@ router.get('/api/ocean/zone-forecasts', (req, res) => {
             return res.json({ success: false, error: '해구별 기상전망 데이터가 없습니다.' });
         }
 
-        // 소해구 좌표 로드 (없으면 SEA_ZONES bounds 기반 fallback 사용)
-        const coordsPath = path.join(DATA_DIR, 'zone_coords.json');
+        // 소해구 좌표 로드: 정적 파일(Docker 이미지 포함) — 볼륨 경로 밖에서 읽음
+        // DATA_DIR(볼륨)에 넣으면 Fly.io 배포 시 볼륨에 가려져 접근 불가
+        const coordsPath = path.join(__dirname, '..', 'zone_coords.json');
         const zoneCoords = fs.existsSync(coordsPath)
             ? JSON.parse(fs.readFileSync(coordsPath, 'utf8'))
             : null;
