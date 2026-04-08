@@ -474,6 +474,5 @@ router.get('/api/ocean/land-mask', (req, res) => {
 try { router.use(require('./ocean2')); } catch (e) { console.warn('[Ocean] ocean2.js 로드 실패:', e.message); }
 try { router.use(require('./ocean3')); } catch (e) { console.warn('[Ocean] ocean3.js 로드 실패:', e.message); }
 try { router.use(require('./ocean4')); } catch (e) { console.warn('[Ocean] ocean4.js 로드 실패:', e.message); }
-try { router.use(require('./ocean5')); } catch (e) { console.warn('[Ocean] ocean5.js 로드 실패:', e.message); }
 
 module.exports = router;
