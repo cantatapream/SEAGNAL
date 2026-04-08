@@ -779,20 +779,7 @@
             <!-- [연계] js/settings.js 히든 탭 메커니즘, js/ocean_map.js 지도 초기화 -->
             <section id="ocean-map-section" class="tab-content">
 
-                <!-- 모드 전환 헤더 -->
-                <div class="ocean-mode-header">
-                    <button class="ocean-mode-btn active" data-mode="A" id="ocean-mode-a-btn">
-                        <i class="fa-solid fa-water"></i> 조석지도
-                    </button>
-                    <button class="ocean-mode-btn" data-mode="B" id="ocean-mode-b-btn">
-                        <i class="fa-solid fa-wind"></i> 해양현황
-                    </button>
-                    <button class="ocean-back-btn" id="ocean-back-btn" title="돌아가기">
-                        <i class="fa-solid fa-arrow-left"></i>
-                    </button>
-                </div>
-
-                <!-- 모드 A 전용: 위치 검색 -->
+                <!-- 위치 검색 -->
                 <div class="ocean-search-container" id="ocean-search-container">
                     <div class="ocean-search-input-wrap">
                         <i class="fa-solid fa-magnifying-glass ocean-search-icon"></i>
@@ -821,12 +808,15 @@
                             <button class="ocean-basemap-item" data-basemap="enc">
                                 <i class="fa-solid fa-anchor"></i> 전자해도
                             </button>
+                            <button class="ocean-basemap-item" data-basemap="coast">
+                                <i class="fa-solid fa-map-location"></i> 해안도
+                            </button>
                         </div>
                     </div>
 
-                    <!-- 모드 B: 오버레이 토글 버튼 (지도 우측) -->
-                    <div class="ocean-overlay-controls" id="ocean-overlay-controls" style="display:none;">
-                        <button class="ocean-overlay-btn active" data-layer="current" title="해류">
+                    <!-- 오버레이 토글 버튼 + 주요지명 + GPS (지도 우측) -->
+                    <div class="ocean-overlay-controls" id="ocean-overlay-controls">
+                        <button class="ocean-overlay-btn" data-layer="current" title="조류">
                             <i class="fa-solid fa-arrows-spin"></i>
                             <span class="ocean-overlay-label">조 류</span>
                         </button>
@@ -838,6 +828,10 @@
                             <i class="fa-solid fa-water"></i>
                             <span class="ocean-overlay-label">파 고</span>
                         </button>
+                        <button class="ocean-overlay-btn" id="ocean-marker-toggle-btn" title="주요지명">
+                            <i class="fa-solid fa-location-dot"></i>
+                            <span class="ocean-overlay-label">주요지명</span>
+                        </button>
                         <button class="ocean-overlay-btn ocean-myloc-btn" id="ocean-myloc-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                         </button>
@@ -847,14 +841,14 @@
                     <div class="ocean-legend" id="ocean-legend" style="display:none;">
                         <div class="ocean-legend-bar" id="ocean-legend-bar"></div>
                         <div class="ocean-legend-labels" id="ocean-legend-labels"></div>
-                        <div class="ocean-legend-title" id="ocean-legend-title">해류 속도 (cm/s)</div>
+                        <div class="ocean-legend-title" id="ocean-legend-title">조류 속도 (m/s)</div>
                     </div>
 
                     <!-- 캔버스 오버레이 (파티클/색상 그라디언트) -->
                     <canvas id="ocean-overlay-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; border-radius:10px;"></canvas>
                 </div>
 
-                <!-- 모드 B: 타임라인 슬라이더 (72시간 예측) -->
+                <!-- 타임라인 슬라이더 (72시간 예측) -->
                 <div class="ocean-timeline" id="ocean-timeline" style="display:none;">
                     <div class="ocean-timeline-label" id="ocean-timeline-label">현재</div>
                     <input type="range" class="ocean-timeline-slider" id="ocean-timeline-slider" min="0" max="72" value="0" step="1">
@@ -899,7 +893,7 @@
                         <!-- 조석 카드 (가로 전폭) - JS가 내용 채움 -->
                         <div class="ocean-data-card ocean-card-fullwidth" id="ocean-card-tide"></div>
 
-                        <!-- 일반 5개 카드 그리드 (수심/수온/해류/바람/파고) -->
+                        <!-- 카드 그리드: 수심 / 파고 / 바람 / 조류 / 수온 / 일출몰 -->
                         <div class="ocean-cards-grid" id="ocean-cards-grid">
                             <div class="ocean-data-card" id="ocean-card-depth">
                                 <div class="ocean-card-icon">
@@ -907,33 +901,6 @@
                                     <div class="ocean-card-icon-label">수심</div>
                                 </div>
                                 <div class="ocean-card-value" id="ocean-val-depth">
-                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
-                                </div>
-                            </div>
-                            <div class="ocean-data-card" id="ocean-card-temp">
-                                <div class="ocean-card-icon">
-                                    <i class="fa-solid fa-temperature-half"></i>
-                                    <div class="ocean-card-icon-label">수온</div>
-                                </div>
-                                <div class="ocean-card-value" id="ocean-val-temp">
-                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
-                                </div>
-                            </div>
-                            <div class="ocean-data-card" id="ocean-card-current">
-                                <div class="ocean-card-icon ocean-icon-clickable" id="ocean-icon-current">
-                                    <i class="fa-solid fa-arrows-spin"></i>
-                                    <div class="ocean-card-icon-label">해류</div>
-                                </div>
-                                <div class="ocean-card-value" id="ocean-val-current">
-                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
-                                </div>
-                            </div>
-                            <div class="ocean-data-card" id="ocean-card-wind">
-                                <div class="ocean-card-icon ocean-icon-clickable" id="ocean-icon-wind">
-                                    <i class="fa-solid fa-wind"></i>
-                                    <div class="ocean-card-icon-label">바람</div>
-                                </div>
-                                <div class="ocean-card-value" id="ocean-val-wind">
                                     <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
                             </div>
@@ -946,17 +913,37 @@
                                     <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
                             </div>
-                            <!-- 천문 카드 - 파고 옆 그리드 셀 -->
+                            <div class="ocean-data-card" id="ocean-card-wind">
+                                <div class="ocean-card-icon ocean-icon-clickable" id="ocean-icon-wind">
+                                    <i class="fa-solid fa-wind"></i>
+                                    <div class="ocean-card-icon-label">바람</div>
+                                </div>
+                                <div class="ocean-card-value" id="ocean-val-wind">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
+                                </div>
+                            </div>
+                            <div class="ocean-data-card" id="ocean-card-current">
+                                <div class="ocean-card-icon ocean-icon-clickable" id="ocean-icon-current">
+                                    <i class="fa-solid fa-arrows-spin"></i>
+                                    <div class="ocean-card-icon-label">조류</div>
+                                </div>
+                                <div class="ocean-card-value" id="ocean-val-current">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
+                                </div>
+                            </div>
+                            <div class="ocean-data-card" id="ocean-card-temp">
+                                <div class="ocean-card-icon">
+                                    <i class="fa-solid fa-temperature-half"></i>
+                                    <div class="ocean-card-icon-label">수온</div>
+                                </div>
+                                <div class="ocean-card-value" id="ocean-val-temp">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
+                                </div>
+                            </div>
+                            <!-- 천문(일출몰) 카드 -->
                             <div class="ocean-data-card" id="ocean-card-astro"></div>
                         </div>
 
-                        <!-- 저질 확인 버튼 -->
-                        <div class="ocean-data-card ocean-seabed-card" id="ocean-card-seabed">
-                            <button class="ocean-seabed-btn" id="ocean-seabed-btn">
-                                <i class="fa-solid fa-gem"></i> 저질 확인 (AI 분석)
-                            </button>
-                            <div class="ocean-seabed-result" id="ocean-seabed-result" style="display:none;"></div>
-                        </div>
                     </div>
                 </div>
 

@@ -139,6 +139,11 @@
                     streamActive = false;
                     this.classList.remove('active');
                     window.oceanOverlayClear();
+                    // 범례 + 타임라인 숨김
+                    var legendEl = document.getElementById('ocean-legend');
+                    if (legendEl) legendEl.style.display = 'none';
+                    var tlEl = document.getElementById('ocean-timeline');
+                    if (tlEl) tlEl.style.display = 'none';
                 } else {
                     // 레이어 전환 또는 ON
                     streamActive = true;
@@ -146,6 +151,11 @@
                         b.classList.remove('active');
                     });
                     this.classList.add('active');
+                    // 오버레이 활성화 시 배경지도를 해안도로 자동 전환
+                    if (window.switchToCoastBasemap) window.switchToCoastBasemap();
+                    // 타임라인 표시
+                    var tlEl2 = document.getElementById('ocean-timeline');
+                    if (tlEl2) tlEl2.style.display = '';
                     setActiveLayer(layer);
                     loadOverlayData();
                 }
@@ -258,15 +268,23 @@
             var dpr = window.devicePixelRatio || 1;
             ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
         }
+        // 타임라인 스텝 전환: 조류=1h, 바람/파고=3h
+        if (window.setTimelineStep) {
+            window.setTimelineStep(layer === 'current' ? 1 : 3);
+        }
         updateLegend(layer);
     }
 
     function updateLegend(layer) {
         var scale = COLOR_SCALES[layer];
+        var legendEl = document.getElementById('ocean-legend');
         var barEl = document.getElementById('ocean-legend-bar');
         var labelsEl = document.getElementById('ocean-legend-labels');
         var titleEl = document.getElementById('ocean-legend-title');
         if (!barEl || !labelsEl || !titleEl) return;
+
+        // 범례 표시
+        if (legendEl) legendEl.style.display = '';
 
         // 그라디언트 바 생성
         var colors = scale.map(function (s) {
@@ -288,7 +306,7 @@
 
         // 제목
         var titles = {
-            current: '유속 (m/s)',
+            current: '조류 속도 (m/s)',
             wind: '풍속 (m/s)',
             wave: '유의파고 (m)'
         };

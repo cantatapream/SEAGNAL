@@ -8399,14 +8399,15 @@ body.ocean-map-active .main-header .header-content {
     border-radius: 14px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.25);
 }
-/* 검색창: 모드 헤더 아래에 떠 있는 반투명 패널 */
+/* 검색창: 지도 위 상단에 떠 있는 반투명 패널 (오버레이 컨트롤과 겹치지 않게 right 여유) */
+/* z-index: 60 — 베이스맵 피커(50) 보다 높아야 검색 드롭다운이 피커 위에 표시됨 */
 #ocean-map-section.active .ocean-search-container {
     position: absolute;
-    top: 72px;
+    top: 12px;
     left: 12px;
-    right: 12px;
+    right: 66px;   /* 오버레이 버튼 영역(38px + 10px margin + 18px gap) 확보 */
     margin: 0;
-    z-index: 10;
+    z-index: 60;
 }
 #ocean-map-section.active .ocean-search-input-wrap {
     background: rgba(15, 27, 51, 0.55);
@@ -8414,6 +8415,24 @@ body.ocean-map-active .main-header .header-content {
     -webkit-backdrop-filter: blur(8px);
     border-radius: 14px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+/* 베이스맵 피커: 검색창 바로 아래 (top ≈ 12px + 40px height + 8px gap) */
+#ocean-map-section.active .ocean-basemap-toggle-wrap {
+    top: 60px;
+}
+/* 타임라인: 지도 하단에 항상 오버레이로 표시 */
+#ocean-map-section.active .ocean-timeline {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    margin: 0;
+    border-radius: 0;
+}
+/* 범례: 타임라인 위에 표시 (겹침 방지) */
+#ocean-map-section.active .ocean-legend {
+    bottom: 90px;
 }
 
 .ocean-bottom-sheet {
@@ -8572,10 +8591,12 @@ body.ocean-map-active .main-header .header-content {
     flex: 1;
     min-width: 0;
     color: #fff;
-    font-size: 0.9rem;
+    /* clamp: 뷰포트 너비 기준으로 유동적으로 축소 → 작은 화면/큰 시스템 폰트 대응 */
+    font-size: clamp(0.65rem, 3.4vw, 0.9rem);
     font-weight: 600;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    overflow-wrap: break-word; /* 단어 단위 줄바꿈만 허용 (글자 단위 금지) */
+    word-break: normal;        /* break-word 제거 → 한 글자씩 줄바꿈 방지 */
+    line-height: 1.35;
 }
 
 /* 스켈레톤 로딩 */
@@ -8598,72 +8619,28 @@ body.ocean-map-active .main-header .header-content {
 }
 
 /* 저질 카드 */
-.ocean-seabed-card {
-    flex-direction: column;
-    align-items: stretch;
-}
-
-.ocean-seabed-btn {
-    width: 100%;
-    padding: 10px;
-    border: 1.5px solid rgba(100,180,255,0.3);
-    border-radius: 8px;
-    background: rgba(100,180,255,0.08);
-    color: #64b4ff;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.ocean-seabed-btn:hover {
-    background: rgba(100,180,255,0.15);
-    border-color: rgba(100,180,255,0.5);
-}
-
-.ocean-seabed-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.ocean-seabed-result {
-    margin-top: 10px;
-    padding: 12px;
-    background: rgba(255,255,255,0.03);
-    border-radius: 8px;
-}
-
-.ocean-seabed-info {
-    color: rgba(255,255,255,0.8);
-    font-size: 0.8rem;
-    line-height: 1.6;
-}
-
-.ocean-seabed-primary {
-    color: #fff;
-    font-size: 0.85rem;
-    margin-bottom: 4px;
-}
-
-.ocean-seabed-summary {
-    color: rgba(255,255,255,0.6);
-    font-size: 0.75rem;
-    margin-top: 4px;
-}
-
-.ocean-seabed-char {
-    color: rgba(100,180,255,0.7);
-    font-size: 0.72rem;
-    margin-top: 2px;
-}
 
 /* 반응형 */
 @media (max-width: 400px) {
-    /* 작은 화면 + 큰 글자에서도 카드는 2열 유지 (1열로 떨어지면 우측 여백이 비고
-       모든 카드를 보려고 사용자가 과도하게 스크롤해야 한다) */
     .ocean-cards-grid {
         grid-template-columns: 1fr 1fr;
-        gap: 8px;
+        gap: 6px;
+    }
+
+    /* 작은 화면: 카드 내부 여백·아이콘 축소 → 값 표시 영역 최대 확보 */
+    .ocean-data-card {
+        padding: 8px;
+        gap: 7px;
+    }
+
+    .ocean-card-icon {
+        width: 36px;
+        padding: 5px 3px;
+        font-size: 0.78rem;
+    }
+
+    .ocean-card-icon-label {
+        font-size: 0.52rem;
     }
 
     .ocean-mode-header {
