@@ -54,6 +54,25 @@
     };
 
     /**
+     * 슬라이더 스텝을 변경합니다.
+     * 조류=1h, 바람/파고=3h
+     */
+    window.setTimelineStep = function (step) {
+        var slider = document.getElementById('ocean-timeline-slider');
+        var label = document.getElementById('ocean-timeline-label');
+        if (!slider) return;
+
+        slider.step = step;
+
+        // 현재 값을 스텝 경계에 맞게 스냅
+        var cur = parseInt(slider.value);
+        var snapped = Math.round(cur / step) * step;
+        snapped = Math.max(0, Math.min(72, snapped));
+        slider.value = snapped;
+        updateTimelineLabel(label, snapped);
+    };
+
+    /**
      * 타임라인 라벨 업데이트
      */
     function updateTimelineLabel(label, hours) {
