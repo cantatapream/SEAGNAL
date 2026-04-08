@@ -8756,9 +8756,9 @@ body.ocean-map-active .main-header .header-content {
     position: relative;
 }
 .ocean-tide-title-row {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
+    display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 8px;
     margin-bottom: 12px;
 }
@@ -8833,7 +8833,7 @@ body.ocean-map-active .main-header .header-content {
     line-height: 1.5;
 }
 
-/* 상세 - 헤더 (좌:고조 / 가운데:진행바 / 우:저조) */
+/* 상세 - 헤더 (좌:고조 / 가운데:현재조위 / 우:저조) */
 .ocean-tide-head {
     display: flex;
     flex-direction: column;
@@ -8842,14 +8842,30 @@ body.ocean-map-active .main-header .header-content {
     padding: 4px 4px 0;
 }
 .ocean-tide-head-labels {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: end;
+    gap: 8px;
 }
 .ocean-tide-head-side {
     font-size: clamp(0.95rem, 3.2vw, 1.1rem);
     font-weight: 700;
     white-space: nowrap;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.15;
+}
+.ocean-tide-head-side:first-child { justify-self: start; }
+.ocean-tide-head-side:last-child  { justify-self: end; }
+.ocean-tide-head-label-text {
+    font-size: clamp(0.8rem, 2.6vw, 0.92rem);
+    font-weight: 700;
+}
+.ocean-tide-head-time {
+    font-size: clamp(0.95rem, 3.2vw, 1.1rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
 }
 .ocean-tide-head-side.is-high { color: #e74c5e; }
 .ocean-tide-head-side.is-low  { color: #4a9eff; }
@@ -8886,14 +8902,16 @@ body.ocean-map-active .main-header .header-content {
     margin-top: 6px;
 }
 
-/* 현재 예상 조위 (제목 행 인라인) */
+/* 현재 예상 조위 (게이지 바로 위 정 가운데) */
 .ocean-tide-current-top {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     justify-content: center;
     gap: 4px;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
+    justify-self: center;
+    line-height: 1.15;
 }
 .ocean-tide-current-label {
     color: rgba(255,255,255,0.7);
@@ -8901,7 +8919,8 @@ body.ocean-map-active .main-header .header-content {
 }
 .ocean-tide-current-val {
     color: #fff;
-    font-size: clamp(0.88rem, 2.7vw, 1.0rem);
+    /* ### cm 텍스트만 약 2pt 정도 강조 */
+    font-size: clamp(1.05rem, 3.3vw, 1.18rem);
     font-weight: 700;
 }
 .ocean-tide-current-arrow {

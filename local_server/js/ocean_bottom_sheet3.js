@@ -283,10 +283,7 @@
         var highs = peaks.filter(function (p) { return p.type === 'high'; }).slice(0, 2);
         var lows  = peaks.filter(function (p) { return p.type === 'low'; }).slice(0, 2);
 
-        // 헤더: "다음" 피크 / "그 다음" 피크 (오늘일 때만 진행 막대 표시)
-        var headHtml = renderHeadHtml(prevPeak, nextPeak, todayMode, peaks);
-
-        // 현재 조위 (오늘만) — 제목 행에 인라인으로 표시
+        // 현재 조위 (오늘만) — 게이지 바로 위 정 가운데에 삽입
         var currentHtml = '';
         if (todayMode && prevPeak && nextPeak) {
             var curLevel = interpolateLevel(prevPeak, nextPeak, nowMin);
@@ -300,6 +297,9 @@
                   '</span>' +
                 '</div>';
         }
+
+        // 헤더: "다음" 피크 / "그 다음" 피크 (오늘일 때만 진행 막대 표시)
+        var headHtml = renderHeadHtml(prevPeak, nextPeak, todayMode, peaks, currentHtml);
 
         // 4피크 리스트
         var peaksHtml =
@@ -316,7 +316,6 @@
             '<div class="ocean-tide-wrap">' +
               '<div class="ocean-tide-title-row">' +
                 '<div class="ocean-tide-title"><i class="fa-solid fa-water"></i> 조석</div>' +
-                currentHtml +
                 idwBadge +
               '</div>' +
               headHtml +
@@ -327,16 +326,18 @@
     /* --------------------------------------------------------------
      * 내부: 헤더 (좌:다음피크 / 가운데:진행막대 / 우:그 다음 피크)
      * ------------------------------------------------------------ */
-    function renderHeadHtml(prevPeak, nextPeak, todayMode, peaks) {
+    function renderHeadHtml(prevPeak, nextPeak, todayMode, peaks, currentHtml) {
         if (!todayMode || !prevPeak || !nextPeak) {
             return '';
         }
         // tide.js와 동일: 좌측=직전(prev) 피크, 우측=다음(next) 피크
         var leftCls = prevPeak.type === 'high' ? 'is-high' : 'is-low';
-        var leftLabel = (prevPeak.type === 'high' ? '고조 ' : '저조 ') + minutesToHHMM(prevPeak.minutes);
+        var leftLabelText = prevPeak.type === 'high' ? '고조' : '저조';
+        var leftTimeText = minutesToHHMM(prevPeak.minutes);
 
         var rightCls = nextPeak.type === 'high' ? 'is-high' : 'is-low';
-        var rightLabel = (nextPeak.type === 'high' ? '고조 ' : '저조 ') + minutesToHHMM(nextPeak.minutes);
+        var rightLabelText = nextPeak.type === 'high' ? '고조' : '저조';
+        var rightTimeText = minutesToHHMM(nextPeak.minutes);
 
         var nowMin = nowMinutes();
         var pct = ((nowMin - prevPeak.minutes) / (nextPeak.minutes - prevPeak.minutes)) * 100;
@@ -355,11 +356,20 @@
             ? 'linear-gradient(90deg, #991b1b 0%, #ef4444 100%)'
             : 'linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%)';
 
+        var centerHtml = currentHtml || '<div class="ocean-tide-current-top"></div>';
+
         return (
             '<div class="ocean-tide-head">' +
               '<div class="ocean-tide-head-labels">' +
-                '<div class="ocean-tide-head-side ' + leftCls + '">' + leftLabel + '</div>' +
-                '<div class="ocean-tide-head-side ' + rightCls + '">' + rightLabel + '</div>' +
+                '<div class="ocean-tide-head-side ' + leftCls + '">' +
+                  '<div class="ocean-tide-head-label-text">' + leftLabelText + '</div>' +
+                  '<div class="ocean-tide-head-time">' + leftTimeText + '</div>' +
+                '</div>' +
+                centerHtml +
+                '<div class="ocean-tide-head-side ' + rightCls + '">' +
+                  '<div class="ocean-tide-head-label-text">' + rightLabelText + '</div>' +
+                  '<div class="ocean-tide-head-time">' + rightTimeText + '</div>' +
+                '</div>' +
               '</div>' +
               '<div class="ocean-tide-progress-track">' +
                 '<div class="ocean-tide-progress-fill" style="width:' + pct.toFixed(1) + '%; background:' + gradient + ';"></div>' +
