@@ -379,14 +379,15 @@
     // ========================================================================
 
     /**
-     * Natural Earth 110m land TopoJSON을 CDN에서 로드하여
+     * Natural Earth 50m land TopoJSON을 CDN에서 로드하여
      * 한반도 주변 해역 범위(118-142E, 24-46N) 내 폴리곤 링을 추출합니다.
+     * (50m: 110m 대비 꼭짓점 약 4~5배, 해안선 정밀도 대폭 향상)
      *
      * TopoJSON은 별도 라이브러리 없이 직접 파싱합니다.
      * (delta 좌표 누적 → 절대 좌표 변환)
      */
     function loadLandMask() {
-        fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json')
+        fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/land-50m.json')
             .then(function (r) { return r.json(); })
             .then(function (topo) {
                 landRings = extractLandRings(topo);
@@ -457,26 +458,41 @@
 
     /**
      * 그리드 캔버스에 육지 마스크를 적용합니다.
-     * destination-out: 캔버스에 이미 그려진 픽셀 중 육지 폴리곤 내부를 투명하게 제거.
+     *
+     * 별도 maskCanvas에 육지 폴리곤을 먼저 그린 뒤 destination-out으로 합성.
+     * → targetCtx의 transform/state와 독립적으로 렌더링 가능.
+     * → pixel 좌표가 화면 밖인 링은 그리지 않아 경로 오염 방지.
      */
-    function applyLandMask(targetCtx) {
+    function applyLandMask(targetCtx, w, h) {
         if (!landRings || landRings.length === 0 || !mapRef) return;
-        targetCtx.save();
-        targetCtx.globalCompositeOperation = 'destination-out';
-        targetCtx.fillStyle = 'rgba(0,0,0,1)';
+
+        var dpr = window.devicePixelRatio || 1;
+        var maskCanvas = document.createElement('canvas');
+        maskCanvas.width  = Math.round(w * dpr);
+        maskCanvas.height = Math.round(h * dpr);
+        var mCtx = maskCanvas.getContext('2d');
+        mCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        mCtx.fillStyle = 'black';
+
         for (var ri = 0; ri < landRings.length; ri++) {
             var ring = landRings[ri];
-            targetCtx.beginPath();
+            mCtx.beginPath();
+            var valid = false;
             for (var pi = 0; pi < ring.length; pi++) {
                 var projected = ol.proj.fromLonLat(ring[pi]);
                 var pixel = mapRef.getPixelFromCoordinate(projected);
-                if (!pixel) { targetCtx.beginPath(); break; }
-                if (pi === 0) targetCtx.moveTo(pixel[0], pixel[1]);
-                else targetCtx.lineTo(pixel[0], pixel[1]);
+                if (!pixel) { valid = false; break; }
+                if (!valid) { mCtx.moveTo(pixel[0], pixel[1]); valid = true; }
+                else mCtx.lineTo(pixel[0], pixel[1]);
             }
-            targetCtx.closePath();
-            targetCtx.fill();
+            if (valid) { mCtx.closePath(); mCtx.fill(); }
         }
+
+        // 생성된 마스크를 destination-out으로 합성
+        targetCtx.save();
+        targetCtx.globalCompositeOperation = 'destination-out';
+        targetCtx.setTransform(1, 0, 0, 1, 0, 0); // dpr transform 해제
+        targetCtx.drawImage(maskCanvas, 0, 0);
         targetCtx.restore();
     }
 
@@ -722,7 +738,7 @@
         gridCtx.filter = 'none';
 
         // 육지 영역 펀치아웃: 해안선 내측 오버레이 제거
-        applyLandMask(gridCtx);
+        applyLandMask(gridCtx, w, h);
     }
 
     /**
