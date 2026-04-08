@@ -925,13 +925,13 @@
         }
 
         // ② 입자 이동 + 트레일 그리기
-        // SPEED_SCALE: 레이어별 단위 보정 — 모두 1.5 px/frame 기준으로 정규화
-        // - current: crsp=cm/s → spdMps=crsp*0.01, ×100 → px/frame = crsp*0.015 (100cm/s → 1.5px)
-        // - wind:    crsp=m/s  → spdMps=crsp,       ×10  → px/frame = crsp*0.15  (10m/s  → 1.5px)
-        // - wave:    spdMps=1.0(고정),               ×100 → px/frame = 1.5px (항상 동일)
+        // SPEED_SCALE: 레이어별 단위 보정 (바람·파고는 모바일 고속 방지를 위해 기존 대비 1/2)
+        // - current: ×100 (기준 유지)
+        // - wind:    ×10 → ×5  (1/2 감속)
+        // - wave:    ×50 → ×25 (1/2 감속)
         var resolution = mapRef.getView().getResolution();
-        var SPEED_SCALE = isWave ? (0.015 * resolution * 50)
-                        : isWind ? (0.015 * resolution * 10)
+        var SPEED_SCALE = isWave ? (0.015 * resolution * 25)
+                        : isWind ? (0.015 * resolution * 5)
                                  : (0.015 * resolution * 100);
 
         particles.forEach(function (p) {

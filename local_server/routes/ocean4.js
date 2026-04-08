@@ -27,62 +27,27 @@ const fetch = require('node-fetch');
 const { DATA_DIR } = require('../config/server_config');
 
 // ============================================================================
-// 해구 격자 매핑 (좌표 → 해구번호)
+// 한국 해양 서비스 커버리지 + zone_coords 캐시
 // ============================================================================
 
 /**
- * 한반도 주변 해구(해상 예보 구역) 격자 정의
- *
- * 기상청 해구도를 기반으로 대략적인 경위도 범위를 매핑.
- * 좌표 → 해구번호로 변환하여 zone_forecasts.json에서 데이터를 조회.
- *
- * lzone: 해구 번호 (zone_forecasts.json의 키)
- * 범위: [위도하한, 위도상한, 경도하한, 경도상한]
+ * 한국 해역 서비스 범위 (한국 EEZ 대략 기준)
+ * 이 범위를 벗어나면 파고·바람 데이터를 제공하지 않음 (일본 연안 등 제외)
  */
-const SEA_ZONES = [
-    // 서해 (Yellow Sea)
-    { lzone: '474', bounds: [36.0, 38.0, 124.0, 126.0] },  // 서해 북부
-    { lzone: '472', bounds: [34.5, 36.0, 124.0, 126.0] },  // 서해 중부
-    { lzone: '471', bounds: [33.0, 34.5, 124.0, 126.0] },  // 서해 남부
-    // 남해 (South Sea)
-    { lzone: '480', bounds: [33.0, 34.5, 126.0, 128.0] },  // 남해 서부
-    { lzone: '482', bounds: [33.0, 34.5, 128.0, 130.0] },  // 남해 동부
-    // 동해 (East Sea)
-    { lzone: '484', bounds: [34.5, 36.5, 129.0, 132.0] },  // 동해 남부
-    { lzone: '486', bounds: [36.5, 38.5, 129.0, 132.0] },  // 동해 중부
-    { lzone: '488', bounds: [38.5, 40.0, 128.0, 132.0] },  // 동해 북부
-    // 제주 (Jeju)
-    { lzone: '478', bounds: [32.0, 33.5, 125.0, 127.5] },  // 제주 해역
-];
+const KOREA_SEA = { minLat: 32.0, maxLat: 42.0, minLon: 122.0, maxLon: 132.5 };
 
 /**
- * 좌표로부터 가장 가까운 해구를 찾는 함수
- * 좌표가 해구 범위 안에 있으면 해당 해구 반환.
- * 범위 밖이면 중심점 거리가 가장 가까운 해구 반환.
+ * zone_coords.json 캐시 (요청마다 파일 읽기 방지)
+ * { '1': { lat, lon }, '2': { lat, lon }, ... }
  */
-function findZoneByCoord(lat, lon) {
-    // 범위 내 해구 우선 탐색
-    for (const zone of SEA_ZONES) {
-        const [ymin, ymax, xmin, xmax] = zone.bounds;
-        if (lat >= ymin && lat <= ymax && lon >= xmin && lon <= xmax) {
-            return zone.lzone;
-        }
-    }
-
-    // 범위 밖이면 가장 가까운 해구 반환
-    let closest = SEA_ZONES[0].lzone;
-    let minDist = Infinity;
-    for (const zone of SEA_ZONES) {
-        const [ymin, ymax, xmin, xmax] = zone.bounds;
-        const centerLat = (ymin + ymax) / 2;
-        const centerLon = (xmin + xmax) / 2;
-        const dist = Math.pow(lat - centerLat, 2) + Math.pow(lon - centerLon, 2);
-        if (dist < minDist) {
-            minDist = dist;
-            closest = zone.lzone;
-        }
-    }
-    return closest;
+let _zoneCoordsCache = null;
+function getZoneCoords() {
+    if (_zoneCoordsCache !== null) return _zoneCoordsCache;
+    try {
+        const p = path.join(__dirname, '..', 'zone_coords.json');
+        _zoneCoordsCache = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
+    } catch (e) { _zoneCoordsCache = {}; }
+    return _zoneCoordsCache;
 }
 
 // ============================================================================
@@ -125,20 +90,37 @@ router.get('/api/ocean/wave', (req, res) => {
             return res.status(400).json({ success: false, error: '위도(lat)와 경도(lon)를 입력해주세요.' });
         }
 
-        // 좌표 → 해구번호 변환
-        const lzone = findZoneByCoord(lat, lon);
+        // 한국 해역 서비스 범위 확인 (일본 연안 등 범위 외 클릭 차단)
+        if (lat < KOREA_SEA.minLat || lat > KOREA_SEA.maxLat ||
+            lon < KOREA_SEA.minLon || lon > KOREA_SEA.maxLon) {
+            return res.json({ success: false, error: '서비스 커버리지 밖입니다.' });
+        }
 
         // zone_forecasts.json 읽기
         const filePath = path.join(DATA_DIR, 'zone_forecasts.json');
         if (!fs.existsSync(filePath)) {
             return res.json({ success: false, error: '해구별 기상전망 데이터가 아직 수집되지 않았습니다.' });
         }
-
         const zoneData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-        const zoneItems = zoneData.data?.[lzone];
 
+        // zone_coords.json 기준 최단거리 소해구 선택
+        // (오버레이와 동일한 해구를 사용하여 색상-바텀시트 값 일치)
+        const zoneCoords = getZoneCoords();
+        let lzone = null, minZoneDist = Infinity;
+        for (const zoneId of Object.keys(zoneData.data || {})) {
+            const c = zoneCoords[zoneId];
+            if (!c) continue;
+            const dist = (lat - c.lat) ** 2 + (lon - c.lon) ** 2;
+            if (dist < minZoneDist) { minZoneDist = dist; lzone = zoneId; }
+        }
+
+        if (!lzone) {
+            return res.json({ success: false, error: '해당 위치의 파고 데이터가 없습니다.' });
+        }
+
+        const zoneItems = zoneData.data[lzone];
         if (!zoneItems || zoneItems.length === 0) {
-            return res.json({ success: false, error: `해구 ${lzone}의 파고 데이터가 없습니다.` });
+            return res.json({ success: false, error: '해당 해구의 파고 데이터가 없습니다.' });
         }
 
         // 선택된 시각 기준으로 예측 데이터 선택 (time 파라미터 없으면 현재 시각)
@@ -204,25 +186,8 @@ router.get('/api/ocean/zone-forecasts', (req, res) => {
             return res.json({ success: false, error: '해구별 기상전망 데이터가 없습니다.' });
         }
 
-        // 소해구 좌표 로드: 정적 파일(Docker 이미지 포함) — 볼륨 경로 밖에서 읽음
-        // DATA_DIR(볼륨)에 넣으면 Fly.io 배포 시 볼륨에 가려져 접근 불가
-        const coordsPath = path.join(__dirname, '..', 'zone_coords.json');
-        const zoneCoords = fs.existsSync(coordsPath)
-            ? JSON.parse(fs.readFileSync(coordsPath, 'utf8'))
-            : null;
-
-        // zone_coords.json 없을 때 SEA_ZONES bounds → 위치 맵으로 변환
-        const fallbackCoords = {};
-        if (!zoneCoords) {
-            SEA_ZONES.forEach(z => {
-                fallbackCoords[z.lzone] = {
-                    lat: (z.bounds[0] + z.bounds[1]) / 2,
-                    lon: (z.bounds[2] + z.bounds[3]) / 2,
-                    bounds: z.bounds
-                };
-            });
-        }
-        const coordsMap = zoneCoords || fallbackCoords;
+        // 소해구 좌표 로드 (캐시 활용)
+        const coordsMap = getZoneCoords();
 
         const zoneData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
         const targetTime = req.query.time ? new Date(req.query.time) : new Date();

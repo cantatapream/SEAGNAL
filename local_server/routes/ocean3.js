@@ -33,44 +33,46 @@ const { DATA_DIR } = require('../config/server_config');
 const KMA_SFC_URL = 'https://apihub.kma.go.kr/api/typ01/url/sfc_nc_var.php';
 
 // ============================================================================
-// 해구 격자 매핑 (ocean4.js와 동일 — 바람 예보 조회 시 사용)
+// 한국 해역 서비스 커버리지 + zone_coords 캐시 (ocean4.js와 동일 방식)
 // ============================================================================
-const SEA_ZONES = [
-    { lzone: '474', bounds: [36.0, 38.0, 124.0, 126.0] },
-    { lzone: '472', bounds: [34.5, 36.0, 124.0, 126.0] },
-    { lzone: '471', bounds: [33.0, 34.5, 124.0, 126.0] },
-    { lzone: '480', bounds: [33.0, 34.5, 126.0, 128.0] },
-    { lzone: '482', bounds: [33.0, 34.5, 128.0, 130.0] },
-    { lzone: '484', bounds: [34.5, 36.5, 129.0, 132.0] },
-    { lzone: '486', bounds: [36.5, 38.5, 129.0, 132.0] },
-    { lzone: '488', bounds: [38.5, 40.0, 128.0, 132.0] },
-    { lzone: '478', bounds: [32.0, 33.5, 125.0, 127.5] },
-];
+const KOREA_SEA3 = { minLat: 32.0, maxLat: 42.0, minLon: 122.0, maxLon: 132.5 };
 
-function findZoneByCoord3(lat, lon) {
-    for (const zone of SEA_ZONES) {
-        const [ymin, ymax, xmin, xmax] = zone.bounds;
-        if (lat >= ymin && lat <= ymax && lon >= xmin && lon <= xmax) return zone.lzone;
-    }
-    let closest = SEA_ZONES[0].lzone, minDist = Infinity;
-    for (const zone of SEA_ZONES) {
-        const [ymin, ymax, xmin, xmax] = zone.bounds;
-        const d = Math.pow(lat - (ymin + ymax) / 2, 2) + Math.pow(lon - (xmin + xmax) / 2, 2);
-        if (d < minDist) { minDist = d; closest = zone.lzone; }
-    }
-    return closest;
+let _zoneCoordsCache3 = null;
+function getZoneCoords3() {
+    if (_zoneCoordsCache3 !== null) return _zoneCoordsCache3;
+    try {
+        const p = path.join(__dirname, '..', 'zone_coords.json');
+        _zoneCoordsCache3 = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
+    } catch (e) { _zoneCoordsCache3 = {}; }
+    return _zoneCoordsCache3;
 }
 
 /**
  * zone_forecasts.json에서 특정 시각에 가장 가까운 항목 반환.
+ * zone_coords.json 기반 최단거리 소해구 사용 (ocean4.js와 동일 방식).
  * time: JavaScript Date 객체
  */
 function getZoneForecastAt(lat, lon, time) {
+    // 한국 해역 범위 초과 → null
+    if (lat < KOREA_SEA3.minLat || lat > KOREA_SEA3.maxLat ||
+        lon < KOREA_SEA3.minLon || lon > KOREA_SEA3.maxLon) return null;
+
     const filePath = path.join(DATA_DIR, 'zone_forecasts.json');
     if (!fs.existsSync(filePath)) return null;
     const zoneData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    const lzone = findZoneByCoord3(lat, lon);
-    const items = zoneData.data?.[lzone];
+
+    // zone_coords.json 기반 최단거리 소해구 선택
+    const zoneCoords = getZoneCoords3();
+    let lzone = null, minZoneDist = Infinity;
+    for (const zoneId of Object.keys(zoneData.data || {})) {
+        const c = zoneCoords[zoneId];
+        if (!c) continue;
+        const dist = (lat - c.lat) ** 2 + (lon - c.lon) ** 2;
+        if (dist < minZoneDist) { minZoneDist = dist; lzone = zoneId; }
+    }
+    if (!lzone) return null;
+
+    const items = zoneData.data[lzone];
     if (!items || items.length === 0) return null;
 
     let closest = items[0], minDiff = Infinity;
