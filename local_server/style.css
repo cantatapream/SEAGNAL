@@ -8178,6 +8178,26 @@ line-height: 1.1;
     margin-top: 10px;
 }
 
+/* 베이스맵 로드 실패 배너 */
+.ocean-basemap-error {
+    position: absolute;
+    bottom: 48px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    background: rgba(180, 30, 30, 0.88);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 8px;
+    white-space: nowrap;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    pointer-events: none;
+    animation: fadeInUp 0.3s ease;
+}
+
 /* 베이스맵 선택 피커 (모드 A, 지도 좌측 상단) */
 .ocean-basemap-toggle-wrap {
     position: absolute;
