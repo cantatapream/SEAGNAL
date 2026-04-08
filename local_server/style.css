@@ -8139,7 +8139,8 @@ line-height: 1.1;
 
 .ocean-overlay-btn {
     width: 38px;
-    height: 38px;
+    height: auto;
+    padding: 8px 0 6px;
     border: none;
     border-radius: 10px;
     background: rgba(15, 27, 51, 0.85);
@@ -8149,6 +8150,17 @@ line-height: 1.1;
     backdrop-filter: blur(8px);
     transition: all 0.2s;
     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+.ocean-overlay-label {
+    font-size: 0.5rem;
+    line-height: 1;
+    letter-spacing: 0.05em;
+    color: inherit;
+    white-space: nowrap;
 }
 
 .ocean-overlay-btn.active {
@@ -8876,16 +8888,24 @@ body.ocean-map-active .main-header .header-content {
 
 /* 현재 예상 조위 (제목 행 인라인) */
 .ocean-tide-current-top {
-    text-align: center;
-    color: #fff;
-    font-size: clamp(0.92rem, 2.9vw, 1.05rem);
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.ocean-tide-current-label {
+    color: rgba(255,255,255,0.7);
+    font-size: clamp(0.75rem, 2.3vw, 0.85rem);
+}
+.ocean-tide-current-val {
+    color: #fff;
+    font-size: clamp(0.88rem, 2.7vw, 1.0rem);
+    font-weight: 700;
 }
 .ocean-tide-current-arrow {
-    font-size: 0.9em;
-    margin-left: 2px;
+    font-size: clamp(0.85rem, 2.6vw, 0.96rem);
 }
 .ocean-tide-current-arrow.is-up { color: #ef4444; }
 .ocean-tide-current-arrow.is-down { color: #3b82f6; }
@@ -8894,23 +8914,44 @@ body.ocean-map-active .main-header .header-content {
 .ocean-tide-peaks {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 6px;
 }
 .ocean-tide-peak-group {
     display: flex;
+    align-items: stretch;
+    gap: 0.5em;
+}
+.ocean-tide-peak-label {
+    width: 34px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(0.85rem, 2.8vw, 0.95rem);
+    font-weight: 700;
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    letter-spacing: 3px;
+    padding: 6px 0;
+    flex-shrink: 0;
+}
+.ocean-tide-peak-label.is-high {
+    color: #e74c5e;
+    border: 1.5px solid rgba(231,76,94,0.6);
+    background: rgba(231,76,94,0.06);
+}
+.ocean-tide-peak-label.is-low {
+    color: #4a9eff;
+    border: 1.5px solid rgba(74,158,255,0.6);
+    background: rgba(74,158,255,0.06);
+}
+.ocean-tide-peak-rows {
+    flex: 1;
+    display: flex;
     flex-direction: column;
+    justify-content: center;
     gap: 2px;
 }
-/* 각 행 앞 한 글자 레이블 (고/조, 저/조) */
-.ocean-tide-peak-char {
-    width: 1.2em;
-    flex-shrink: 0;
-    font-size: clamp(0.82rem, 2.6vw, 0.92rem);
-    font-weight: 700;
-    text-align: center;
-}
-.ocean-tide-peak-char.is-high { color: #e74c5e; }
-.ocean-tide-peak-char.is-low  { color: #4a9eff; }
 /* 고/저조 행 */
 .ocean-tide-peak-row {
     display: flex;
@@ -8951,33 +8992,48 @@ body.ocean-map-active .main-header .header-content {
 .ocean-tide-peak-right.is-low  { color: #4a9eff; }
 
 /* --- 천문 카드 (그리드 셀 아이콘 박스 레이아웃) --- */
-.ocean-astro-moon-emoji {
-    font-size: clamp(1.3rem, 4.2vw, 1.7rem);
-    line-height: 1;
-}
 .ocean-astro-value {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 3px;
+    gap: 4px;
     min-width: 0;
+    overflow: hidden;
 }
-.ocean-astro-time-line {
-    color: rgba(255,255,255,0.8);
-    font-size: clamp(0.65rem, 2.1vw, 0.78rem);
+.ocean-astro-time-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: clamp(0.63rem, 2.0vw, 0.76rem);
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
     overflow: hidden;
+}
+.ocean-astro-label {
+    color: rgba(255,255,255,0.6);
+    flex-shrink: 0;
+}
+.ocean-astro-times {
+    flex: 1;
+    color: #fff;
+    font-weight: 600;
+    overflow: hidden;
     text-overflow: ellipsis;
-    font-variant-numeric: tabular-nums;
 }
 .ocean-astro-t {
     color: #fff;
     font-weight: 600;
 }
+.ocean-astro-moon-emoji {
+    font-size: clamp(1.0rem, 3.2vw, 1.3rem);
+    flex-shrink: 0;
+    line-height: 1;
+}
 .ocean-astro-bright {
     font-size: clamp(0.58rem, 1.8vw, 0.68rem);
-    color: rgba(255,255,255,0.45);
+    color: rgba(255,255,255,0.5);
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 

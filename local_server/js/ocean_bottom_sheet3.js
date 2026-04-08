@@ -293,7 +293,8 @@
             var rising = nextPeak.type === 'high';
             currentHtml =
                 '<div class="ocean-tide-current-top">' +
-                  Math.round(curLevel) + ' cm ' +
+                  '<span class="ocean-tide-current-label">현재 예상 조위</span>' +
+                  '<span class="ocean-tide-current-val">' + Math.round(curLevel) + ' cm</span>' +
                   '<span class="ocean-tide-current-arrow ' + (rising ? 'is-up' : 'is-down') + '">' +
                     (rising ? '▲' : '▼') +
                   '</span>' +
@@ -303,8 +304,8 @@
         // 4피크 리스트
         var peaksHtml =
             '<div class="ocean-tide-peaks">' +
-              renderPeakGroup(['고', '조'], 'is-high', highs, '▲') +
-              renderPeakGroup(['저', '조'], 'is-low',  lows,  '▼') +
+              renderPeakGroup('고조', 'is-high', highs, '▲') +
+              renderPeakGroup('저조', 'is-low',  lows,  '▼') +
             '</div>';
 
         var idwBadge = isIdw
@@ -372,10 +373,9 @@
     /* --------------------------------------------------------------
      * 내부: 4피크 그룹 렌더 (고조 2건 또는 저조 2건)
      * ------------------------------------------------------------ */
-    function renderPeakGroup(chars, cls, list, arrow) {
+    function renderPeakGroup(labelText, cls, list, arrow) {
         if (list.length === 0) return '';
-        var rowsHtml = list.map(function (p, idx) {
-            var ch = chars[idx] !== undefined ? chars[idx] : '';
+        var rowsHtml = list.map(function (p) {
             var diff = p.diff;
             var sign = '';
             var digits = '';
@@ -386,7 +386,6 @@
             }
             return (
                 '<div class="ocean-tide-peak-row">' +
-                  '<div class="ocean-tide-peak-char ' + cls + '">' + ch + '</div>' +
                   '<div class="ocean-tide-peak-left">' +
                     '<span class="ocean-tide-peak-time">' + minutesToHHMM(p.minutes) + '</span>' +
                     '<span class="ocean-tide-peak-cm">(' + Math.round(p.level) + ' cm)</span>' +
@@ -399,7 +398,12 @@
                 '</div>'
             );
         }).join('');
-        return '<div class="ocean-tide-peak-group">' + rowsHtml + '</div>';
+        return (
+            '<div class="ocean-tide-peak-group">' +
+              '<div class="ocean-tide-peak-label ' + cls + '">' + labelText + '</div>' +
+              '<div class="ocean-tide-peak-rows">' + rowsHtml + '</div>' +
+            '</div>'
+        );
     }
 
     /* --------------------------------------------------------------
