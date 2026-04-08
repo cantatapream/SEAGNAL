@@ -231,70 +231,111 @@
     };
 
     /* --------------------------------------------------------------
-     * 저질 분석 (기존 로직 이식)
+     * 저질 + 해도 수심 AI 분석
+     * - 클라이언트 뷰포트 캡처 방식 제거
+     * - 서버에서 해아름 WMS 이미지를 직접 취득하여 Gemini 분석
      * ------------------------------------------------------------ */
     OS.requestSeabed = function (lat, lon) {
         var resultEl = document.getElementById('ocean-seabed-result');
-        var btn = document.getElementById('ocean-seabed-btn');
+        var btn      = document.getElementById('ocean-seabed-btn');
         if (!resultEl || !btn) return;
 
-        btn.disabled = true;
+        btn.disabled  = true;
         btn.textContent = '분석 중...';
         resultEl.style.display = 'block';
-        resultEl.innerHTML = '<div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>';
+        resultEl.innerHTML =
+            '<div class="ocean-progress-bar">' +
+              '<div class="ocean-progress-bar-fill"></div>' +
+            '</div>';
 
-        captureMapTile(lat, lon)
-            .then(function (imageData) {
-                if (!imageData) {
-                    resultEl.innerHTML = '<p>해도 이미지를 가져올 수 없습니다.</p>';
-                    restoreSeabedBtn();
-                    return null;
-                }
-                return fetch('/api/ocean/seabed', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image: imageData, lat: lat, lon: lon })
-                });
-            })
-            .then(function (r) { return r ? r.json() : null; })
+        // 좌표만 전송 — 이미지는 서버에서 해아름 WMS 직접 요청
+        fetch('/api/ocean/seabed', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ lat: lat, lon: lon })
+        })
+            .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (!data) return;
-                if (data.success && data.seabed) {
-                    var sb = data.seabed;
+                if (!data) { renderError('응답 없음'); return; }
+                if (!data.success || !data.seabed) {
+                    renderError(data.error || '분석 실패');
+                    return;
+                }
+
+                var sb = data.seabed;
+
+                // ── 육지·항내 ────────────────────────────────────────────
+                if (sb.isLand) {
                     resultEl.innerHTML =
                         '<div class="ocean-seabed-info">' +
-                          '<div class="ocean-seabed-primary"><strong>주요 저질:</strong> ' + (sb.primary || '--') + '</div>' +
-                          (sb.secondary ? '<div class="ocean-seabed-secondary"><strong>보조:</strong> ' + sb.secondary + '</div>' : '') +
-                          '<div class="ocean-seabed-summary">' + (sb.summary || '') + '</div>' +
-                          '<div class="ocean-seabed-char">' + (sb.characteristics || '') + '</div>' +
+                          '<div class="ocean-seabed-land">' +
+                            '⚠ 육지 또는 항내로 판단됩니다.<br>' +
+                            '해상 위치를 클릭해주세요.' +
+                          '</div>' +
                         '</div>';
-                } else {
-                    resultEl.innerHTML = '<p>' + (data.error || '분석 실패') + '</p>';
+                    restoreBtn();
+                    return;
                 }
-                restoreSeabedBtn();
+
+                // ── BADA2024 수심 (기존 카드에 표시된 값 참조) ───────────
+                var badaEl   = document.getElementById('ocean-val-depth');
+                var badaText = (badaEl && badaEl.textContent.trim() !== '데이터 없음')
+                    ? badaEl.textContent.trim() : null;
+
+                // ── 해도 수심 행 ─────────────────────────────────────────
+                var depthHtml = '';
+                if (sb.depth != null) {
+                    depthHtml =
+                        '<div class="ocean-seabed-depth">' +
+                          '<strong>해도 수심 (AI):</strong> 약 ' + sb.depth + 'm' +
+                          (sb.depthNote
+                              ? '<span class="ocean-seabed-depth-note"> — ' + sb.depthNote + '</span>'
+                              : '') +
+                        '</div>';
+                    if (badaText) {
+                        depthHtml +=
+                            '<div class="ocean-seabed-bada">' +
+                              '<strong>BADA2024 수심:</strong> ' + badaText +
+                            '</div>';
+                    }
+                }
+
+                // ── 저질 행 ─────────────────────────────────────────────
+                var seabedHtml =
+                    '<div class="ocean-seabed-primary">' +
+                      '<strong>주요 저질:</strong> ' + (sb.primary || '--') +
+                    '</div>' +
+                    (sb.secondary
+                        ? '<div class="ocean-seabed-secondary">' +
+                            '<strong>보조 저질:</strong> ' + sb.secondary +
+                          '</div>'
+                        : '');
+
+                resultEl.innerHTML =
+                    '<div class="ocean-seabed-info">' +
+                      seabedHtml +
+                      depthHtml +
+                      (sb.summary
+                          ? '<div class="ocean-seabed-summary">' + sb.summary + '</div>'
+                          : '') +
+                      (sb.characteristics
+                          ? '<div class="ocean-seabed-char">' + sb.characteristics + '</div>'
+                          : '') +
+                    '</div>';
+
+                restoreBtn();
             })
             .catch(function () {
-                resultEl.innerHTML = '<p>저질 분석 중 오류가 발생했습니다.</p>';
-                restoreSeabedBtn();
+                renderError('저질 분석 중 오류가 발생했습니다.');
             });
 
-        function restoreSeabedBtn() {
+        function renderError(msg) {
+            resultEl.innerHTML = '<p class="ocean-seabed-error">' + msg + '</p>';
+            restoreBtn();
+        }
+        function restoreBtn() {
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-gem"></i> 저질 확인 (AI 분석)';
         }
     };
-
-    function captureMapTile(lat, lon) {
-        return new Promise(function (resolve) {
-            var map = window.getOceanMap ? window.getOceanMap() : null;
-            if (!map) { resolve(null); return; }
-            try {
-                map.once('rendercomplete', function () {
-                    var canvas = map.getViewport().querySelector('canvas');
-                    resolve(canvas ? canvas.toDataURL('image/png') : null);
-                });
-                map.renderSync();
-            } catch (e) { resolve(null); }
-        });
-    }
 })();
