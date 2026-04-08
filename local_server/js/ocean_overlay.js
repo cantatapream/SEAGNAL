@@ -86,6 +86,7 @@
     let streamActive = false;      // 해류 시각화 ON/OFF (사용자 토글)
     let isMoving = false;          // 지도 이동/줌 중 플래그 (잔상 방지)
     let inited = false;            // oceanOverlayInit 1회 가드
+    let landRings = null;          // 육지 마스크용 폴리곤 링 배열 (lon/lat 쌍)
 
     // ========================================================================
     // 초기화
@@ -149,6 +150,9 @@
         });
 
         // 진입 시 자동 로드 안 함 — 사용자가 버튼을 눌러야 시작.
+
+        // 육지 마스크 로드 (CDN: Natural Earth 110m land topojson)
+        if (!landRings) loadLandMask();
     };
 
     window.oceanOverlayRefresh = function (map) {
@@ -368,6 +372,112 @@
                 }
             })
             .catch(function (e) { console.warn('[OceanOverlay] zone-forecasts 로드 실패:', e.message); });
+    }
+
+    // ========================================================================
+    // 육지 마스크 (해안선 내측 오버레이 제거)
+    // ========================================================================
+
+    /**
+     * Natural Earth 110m land TopoJSON을 CDN에서 로드하여
+     * 한반도 주변 해역 범위(118-142E, 24-46N) 내 폴리곤 링을 추출합니다.
+     *
+     * TopoJSON은 별도 라이브러리 없이 직접 파싱합니다.
+     * (delta 좌표 누적 → 절대 좌표 변환)
+     */
+    function loadLandMask() {
+        fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json')
+            .then(function (r) { return r.json(); })
+            .then(function (topo) {
+                landRings = extractLandRings(topo);
+                console.log('[OceanOverlay] 육지 마스크 로드 완료, rings:', landRings.length);
+            })
+            .catch(function (e) {
+                console.warn('[OceanOverlay] 육지 마스크 로드 실패:', e.message);
+            });
+    }
+
+    /**
+     * TopoJSON → 폴리곤 링 배열 (한반도 주변 bbox 필터 포함).
+     * 참조: TopoJSON spec - arc은 delta encoding된 정수 좌표.
+     */
+    function extractLandRings(topo) {
+        var scale = topo.transform.scale;
+        var translate = topo.transform.translate;
+        var arcs = topo.arcs;
+        var BBOX = [118, 24, 142, 46]; // [minLon, minLat, maxLon, maxLat]
+
+        // arc id → 절대 좌표 배열 변환 (delta decoding)
+        function decodeArc(id) {
+            var reversed = id < 0;
+            var arcIdx = reversed ? ~id : id;
+            var raw = arcs[arcIdx];
+            var pts = [];
+            var x = 0, y = 0;
+            for (var i = 0; i < raw.length; i++) {
+                x += raw[i][0];
+                y += raw[i][1];
+                pts.push([x * scale[0] + translate[0], y * scale[1] + translate[1]]);
+            }
+            if (reversed) pts.reverse();
+            return pts;
+        }
+
+        // 링이 bbox 내에 있는지 대략 체크 (꼭짓점 1개라도 bbox 내 → 포함)
+        function ringIntersectsBbox(ring) {
+            for (var i = 0; i < ring.length; i++) {
+                var lon = ring[i][0], lat = ring[i][1];
+                if (lon >= BBOX[0] && lon <= BBOX[2] && lat >= BBOX[1] && lat <= BBOX[3]) return true;
+            }
+            return false;
+        }
+
+        var result = [];
+        var geoms = topo.objects.land.geometries;
+        for (var gi = 0; gi < geoms.length; gi++) {
+            var geom = geoms[gi];
+            var outerRings = (geom.type === 'Polygon') ? [geom.arcs] : geom.arcs;
+            for (var pi = 0; pi < outerRings.length; pi++) {
+                // outerRings[pi][0]: 외곽 링 (내부 홀 제외 — 육지 마스크에는 외곽만 필요)
+                var ring = [];
+                var arcIds = outerRings[pi][0];
+                for (var ai = 0; ai < arcIds.length; ai++) {
+                    var seg = decodeArc(arcIds[ai]);
+                    // 첫 점은 이전 arc의 마지막 점과 동일 → 중복 제거
+                    var start = (ai === 0) ? 0 : 1;
+                    for (var si = start; si < seg.length; si++) {
+                        ring.push(seg[si]);
+                    }
+                }
+                if (ringIntersectsBbox(ring)) result.push(ring);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 그리드 캔버스에 육지 마스크를 적용합니다.
+     * destination-out: 캔버스에 이미 그려진 픽셀 중 육지 폴리곤 내부를 투명하게 제거.
+     */
+    function applyLandMask(targetCtx) {
+        if (!landRings || landRings.length === 0 || !mapRef) return;
+        targetCtx.save();
+        targetCtx.globalCompositeOperation = 'destination-out';
+        targetCtx.fillStyle = 'rgba(0,0,0,1)';
+        for (var ri = 0; ri < landRings.length; ri++) {
+            var ring = landRings[ri];
+            targetCtx.beginPath();
+            for (var pi = 0; pi < ring.length; pi++) {
+                var projected = ol.proj.fromLonLat(ring[pi]);
+                var pixel = mapRef.getPixelFromCoordinate(projected);
+                if (!pixel) { targetCtx.beginPath(); break; }
+                if (pi === 0) targetCtx.moveTo(pixel[0], pixel[1]);
+                else targetCtx.lineTo(pixel[0], pixel[1]);
+            }
+            targetCtx.closePath();
+            targetCtx.fill();
+        }
+        targetCtx.restore();
     }
 
     /**
@@ -610,6 +720,9 @@
         gridCtx.filter = 'blur(' + blurPx + 'px)';
         gridCtx.drawImage(tmp, 0, 0, w, h);
         gridCtx.filter = 'none';
+
+        // 육지 영역 펀치아웃: 해안선 내측 오버레이 제거
+        applyLandMask(gridCtx);
     }
 
     /**
