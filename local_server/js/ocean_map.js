@@ -181,15 +181,11 @@
             // 베이스맵 선택 피커 바인딩
             bindBasemapPicker();
 
-            // 마커 초기화 (기본 숨김 — 주요지명 버튼으로 토글)
+            // 마커 초기화 후 바로 토글 버튼 바인딩
+            // (bindMarkerToggle 내부에서 localStorage 복원 + showOceanMarkers 초기 적용)
             if (window.initOceanMarkers) {
                 window.initOceanMarkers(oceanMap);
             }
-            if (window.showOceanMarkers) {
-                window.showOceanMarkers(false);
-            }
-
-            // 주요지명 토글 버튼 바인딩
             bindMarkerToggle();
 
             // 위치 검색 초기화
@@ -286,11 +282,17 @@
     function bindMarkerToggle() {
         var btn = document.getElementById('ocean-marker-toggle-btn');
         if (!btn) return;
-        var markersVisible = false;
+
+        // localStorage에서 이전 상태 복원 (기본값: 숨김)
+        var markersVisible = localStorage.getItem('seagnal_markers_visible') === 'true';
+        btn.classList.toggle('active', markersVisible);
+        if (window.showOceanMarkers) window.showOceanMarkers(markersVisible);
+
         btn.addEventListener('click', function () {
             markersVisible = !markersVisible;
             btn.classList.toggle('active', markersVisible);
             if (window.showOceanMarkers) window.showOceanMarkers(markersVisible);
+            try { localStorage.setItem('seagnal_markers_visible', markersVisible); } catch (e) {}
         });
     }
 

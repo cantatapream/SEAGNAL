@@ -139,9 +139,11 @@
                     streamActive = false;
                     this.classList.remove('active');
                     window.oceanOverlayClear();
-                    // 범례 숨김
+                    // 범례 + 타임라인 숨김
                     var legendEl = document.getElementById('ocean-legend');
                     if (legendEl) legendEl.style.display = 'none';
+                    var tlEl = document.getElementById('ocean-timeline');
+                    if (tlEl) tlEl.style.display = 'none';
                 } else {
                     // 레이어 전환 또는 ON
                     streamActive = true;
@@ -151,6 +153,9 @@
                     this.classList.add('active');
                     // 오버레이 활성화 시 배경지도를 해안도로 자동 전환
                     if (window.switchToCoastBasemap) window.switchToCoastBasemap();
+                    // 타임라인 표시
+                    var tlEl2 = document.getElementById('ocean-timeline');
+                    if (tlEl2) tlEl2.style.display = '';
                     setActiveLayer(layer);
                     loadOverlayData();
                 }
