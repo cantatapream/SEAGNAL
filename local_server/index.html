@@ -899,7 +899,7 @@
                         <!-- 조석 카드 (가로 전폭) - JS가 내용 채움 -->
                         <div class="ocean-data-card ocean-card-fullwidth" id="ocean-card-tide"></div>
 
-                        <!-- 일반 5개 카드 그리드 (수심/수온/해류/바람/파고) -->
+                        <!-- 카드 그리드: 수심 / 파고 / 바람 / 해류 / 수온 / 일출몰 -->
                         <div class="ocean-cards-grid" id="ocean-cards-grid">
                             <div class="ocean-data-card" id="ocean-card-depth">
                                 <div class="ocean-card-icon">
@@ -907,33 +907,6 @@
                                     <div class="ocean-card-icon-label">수심</div>
                                 </div>
                                 <div class="ocean-card-value" id="ocean-val-depth">
-                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
-                                </div>
-                            </div>
-                            <div class="ocean-data-card" id="ocean-card-temp">
-                                <div class="ocean-card-icon">
-                                    <i class="fa-solid fa-temperature-half"></i>
-                                    <div class="ocean-card-icon-label">수온</div>
-                                </div>
-                                <div class="ocean-card-value" id="ocean-val-temp">
-                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
-                                </div>
-                            </div>
-                            <div class="ocean-data-card" id="ocean-card-current">
-                                <div class="ocean-card-icon ocean-icon-clickable" id="ocean-icon-current">
-                                    <i class="fa-solid fa-arrows-spin"></i>
-                                    <div class="ocean-card-icon-label">해류</div>
-                                </div>
-                                <div class="ocean-card-value" id="ocean-val-current">
-                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
-                                </div>
-                            </div>
-                            <div class="ocean-data-card" id="ocean-card-wind">
-                                <div class="ocean-card-icon ocean-icon-clickable" id="ocean-icon-wind">
-                                    <i class="fa-solid fa-wind"></i>
-                                    <div class="ocean-card-icon-label">바람</div>
-                                </div>
-                                <div class="ocean-card-value" id="ocean-val-wind">
                                     <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
                             </div>
@@ -946,7 +919,34 @@
                                     <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
                             </div>
-                            <!-- 천문 카드 - 파고 옆 그리드 셀 -->
+                            <div class="ocean-data-card" id="ocean-card-wind">
+                                <div class="ocean-card-icon ocean-icon-clickable" id="ocean-icon-wind">
+                                    <i class="fa-solid fa-wind"></i>
+                                    <div class="ocean-card-icon-label">바람</div>
+                                </div>
+                                <div class="ocean-card-value" id="ocean-val-wind">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
+                                </div>
+                            </div>
+                            <div class="ocean-data-card" id="ocean-card-current">
+                                <div class="ocean-card-icon ocean-icon-clickable" id="ocean-icon-current">
+                                    <i class="fa-solid fa-arrows-spin"></i>
+                                    <div class="ocean-card-icon-label">해류</div>
+                                </div>
+                                <div class="ocean-card-value" id="ocean-val-current">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
+                                </div>
+                            </div>
+                            <div class="ocean-data-card" id="ocean-card-temp">
+                                <div class="ocean-card-icon">
+                                    <i class="fa-solid fa-temperature-half"></i>
+                                    <div class="ocean-card-icon-label">수온</div>
+                                </div>
+                                <div class="ocean-card-value" id="ocean-val-temp">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
+                                </div>
+                            </div>
+                            <!-- 천문(일출몰) 카드 -->
                             <div class="ocean-data-card" id="ocean-card-astro"></div>
                         </div>
 
