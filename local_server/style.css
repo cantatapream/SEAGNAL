@@ -8833,7 +8833,11 @@ body.ocean-map-active .main-header .header-content {
     line-height: 1.5;
 }
 
-/* 상세 - 헤더 (좌:고조 / 가운데:현재조위 / 우:저조) */
+/* 상세 - 헤더
+ *  위:   고조(라벨) / 현재 예상 조위 / 저조(라벨)
+ *  중간: 게이지
+ *  아래: 좌시각 / 저조까지 남은시간(가운데) / 우시각
+ */
 .ocean-tide-head {
     display: flex;
     flex-direction: column;
@@ -8848,7 +8852,6 @@ body.ocean-map-active .main-header .header-content {
     gap: 8px;
 }
 .ocean-tide-head-side {
-    font-size: clamp(0.95rem, 3.2vw, 1.1rem);
     font-weight: 700;
     white-space: nowrap;
     display: flex;
@@ -8859,16 +8862,29 @@ body.ocean-map-active .main-header .header-content {
 .ocean-tide-head-side:first-child { justify-self: start; }
 .ocean-tide-head-side:last-child  { justify-self: end; }
 .ocean-tide-head-label-text {
-    font-size: clamp(0.8rem, 2.6vw, 0.92rem);
+    font-size: clamp(0.85rem, 2.8vw, 0.98rem);
     font-weight: 700;
+}
+.ocean-tide-head-side.is-high { color: #e74c5e; }
+.ocean-tide-head-side.is-low  { color: #4a9eff; }
+
+/* 게이지 아래: 좌시각 / 남은시간(가운데) / 우시각 */
+.ocean-tide-head-times {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 8px;
 }
 .ocean-tide-head-time {
     font-size: clamp(0.95rem, 3.2vw, 1.1rem);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
-.ocean-tide-head-side.is-high { color: #e74c5e; }
-.ocean-tide-head-side.is-low  { color: #4a9eff; }
+.ocean-tide-head-times .ocean-tide-head-time:first-child { justify-self: start; }
+.ocean-tide-head-times .ocean-tide-head-time:last-child  { justify-self: end; }
+.ocean-tide-head-time.is-high { color: #e74c5e; }
+.ocean-tide-head-time.is-low  { color: #4a9eff; }
 
 .ocean-tide-progress-track {
     width: 100%;
@@ -8899,7 +8915,7 @@ body.ocean-map-active .main-header .header-content {
     color: rgba(255,255,255,0.7);
     font-size: clamp(0.85rem, 2.8vw, 0.98rem);
     white-space: nowrap;
-    margin-top: 6px;
+    justify-self: center;
 }
 
 /* 현재 예상 조위 (게이지 바로 위 정 가운데) */

@@ -360,22 +360,27 @@
 
         return (
             '<div class="ocean-tide-head">' +
+              // 게이지 상단: 고조 라벨 / 현재 예상 조위 / 저조 라벨
               '<div class="ocean-tide-head-labels">' +
                 '<div class="ocean-tide-head-side ' + leftCls + '">' +
                   '<div class="ocean-tide-head-label-text">' + leftLabelText + '</div>' +
-                  '<div class="ocean-tide-head-time">' + leftTimeText + '</div>' +
                 '</div>' +
                 centerHtml +
                 '<div class="ocean-tide-head-side ' + rightCls + '">' +
                   '<div class="ocean-tide-head-label-text">' + rightLabelText + '</div>' +
-                  '<div class="ocean-tide-head-time">' + rightTimeText + '</div>' +
                 '</div>' +
               '</div>' +
+              // 게이지
               '<div class="ocean-tide-progress-track">' +
                 '<div class="ocean-tide-progress-fill" style="width:' + pct.toFixed(1) + '%; background:' + gradient + ';"></div>' +
                 '<div class="ocean-tide-progress-marker" style="left:' + pct.toFixed(1) + '%"></div>' +
               '</div>' +
-              '<div class="ocean-tide-progress-remain">' + remainText + '</div>' +
+              // 게이지 하단: 좌시각 / 남은시간(가운데) / 우시각
+              '<div class="ocean-tide-head-times">' +
+                '<div class="ocean-tide-head-time ' + leftCls + '">' + leftTimeText + '</div>' +
+                '<div class="ocean-tide-progress-remain">' + remainText + '</div>' +
+                '<div class="ocean-tide-head-time ' + rightCls + '">' + rightTimeText + '</div>' +
+              '</div>' +
             '</div>'
         );
     }
