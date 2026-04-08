@@ -8291,12 +8291,45 @@ line-height: 1.1;
     padding: 6px 0 2px;
 }
 
-.ocean-timeline-label {
-    text-align: center;
-    color: #64b4ff;
-    font-size: 0.8rem;
+/* 슬라이더 래퍼: 말풍선의 position:absolute 기준점 */
+.ocean-slider-wrap {
+    position: relative;
+    padding-top: 32px; /* 말풍선 높이 + 화살표만큼 위 공간 확보 */
+}
+
+/* 말풍선: 기본은 투명, visible 클래스가 붙으면 나타남 */
+.ocean-timeline-tooltip {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    background: rgba(20, 55, 115, 0.95);
+    color: #fff;
+    font-size: 0.72rem;
     font-weight: 600;
-    margin-bottom: 8px;
+    white-space: nowrap;
+    padding: 4px 9px;
+    border-radius: 6px;
+    pointer-events: none;   /* 클릭 이벤트 차단 */
+    opacity: 0;
+    transition: opacity 1s ease; /* fade-out 속도 (1초) */
+    z-index: 10;
+}
+
+/* 아래를 향하는 삼각형 화살표 */
+.ocean-timeline-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: rgba(20, 55, 115, 0.95);
+}
+
+/* visible 클래스: 빠르게 나타남 (0.15초) */
+.ocean-timeline-tooltip.visible {
+    opacity: 1;
+    transition: opacity 0.15s ease;
 }
 
 .ocean-timeline-slider {

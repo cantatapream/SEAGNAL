@@ -20,6 +20,65 @@
 
     let initialized = false;
 
+    // 말풍선 fade-out 타이머 핸들
+    var _fadeTimer = null;
+
+    /**
+     * 슬라이더 손잡이 바로 위에 말풍선을 위치시키고 텍스트를 갱신합니다.
+     *
+     * thumb 중심 x = 9 + pct × (trackWidth - 18)   (thumb 반지름 = 9px)
+     */
+    function updateTooltip(hours) {
+        var tooltip = document.getElementById('ocean-timeline-tooltip');
+        var slider  = document.getElementById('ocean-timeline-slider');
+        if (!tooltip || !slider) return;
+
+        // 텍스트 생성: 0h → "현재", 그 외 → "4.10.(금) 08:00" 형식
+        var text;
+        if (hours === 0) {
+            text = '현재';
+        } else {
+            var DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+            var future = new Date(new Date().getTime() + hours * 60 * 60 * 1000);
+            var mo  = future.getMonth() + 1;
+            var dd  = future.getDate();
+            var day = DAYS[future.getDay()];
+            var hh  = String(future.getHours()).padStart(2, '0');
+            text = mo + '.' + dd + '.(' + day + ') ' + hh + ':00';
+        }
+        tooltip.textContent = text;
+
+        // thumb 중심 x 계산
+        var min = parseFloat(slider.min) || 0;
+        var max = parseFloat(slider.max) || 72;
+        var val = parseFloat(slider.value) || 0;
+        var pct = (val - min) / (max - min || 1);
+        var trackW = slider.getBoundingClientRect().width;
+        var thumbHalf = 9; // thumb 반지름 (18px / 2)
+        var left = thumbHalf + pct * (trackW - thumbHalf * 2);
+        tooltip.style.left = left + 'px';
+    }
+
+    /** 말풍선을 즉시 표시합니다. 진행 중인 fade-out 타이머는 취소합니다. */
+    function showTooltip() {
+        var tooltip = document.getElementById('ocean-timeline-tooltip');
+        if (!tooltip) return;
+        clearTimeout(_fadeTimer);
+        tooltip.classList.add('visible');
+    }
+
+    /**
+     * 1초 후 말풍선을 숨깁니다.
+     * CSS에서 visible 제거 시 transition: opacity 1s ease 가 적용됩니다.
+     */
+    function startFadeOut() {
+        clearTimeout(_fadeTimer);
+        _fadeTimer = setTimeout(function () {
+            var tooltip = document.getElementById('ocean-timeline-tooltip');
+            if (tooltip) tooltip.classList.remove('visible');
+        }, 1000);
+    }
+
     /**
      * 타임라인 슬라이더를 초기화합니다.
      */
@@ -28,7 +87,7 @@
         initialized = true;
 
         var slider = document.getElementById('ocean-timeline-slider');
-        var label = document.getElementById('ocean-timeline-label');
+        var label = document.getElementById('ocean-timeline-label'); // 제거된 요소 — null 허용
         var ticksEl = document.getElementById('ocean-timeline-ticks');
         if (!slider) return;
 
@@ -43,12 +102,28 @@
             ticksEl.innerHTML = ticks;
         }
 
-        // 슬라이더 이벤트
+        // 드래그 시작: 말풍선 표시
+        slider.addEventListener('mousedown', function () {
+            updateTooltip(parseInt(this.value) || 0);
+            showTooltip();
+        });
+        slider.addEventListener('touchstart', function () {
+            updateTooltip(parseInt(this.value) || 0);
+            showTooltip();
+        }, { passive: true });
+
+        // 값 변경 중: 말풍선 위치·텍스트 갱신 + 데이터 갱신
         slider.addEventListener('input', function () {
             var hours = parseInt(this.value);
-            updateTimelineLabel(label, hours);
+            updateTooltip(hours);
+            showTooltip(); // 드래그 중 fade-out 타이머 리셋
+            updateTimelineLabel(label, hours); // label=null 이면 내부에서 조용히 반환
             onTimeChange(hours);
         });
+
+        // 드래그 종료: 1초 후 fade-out
+        slider.addEventListener('mouseup',   function () { startFadeOut(); });
+        slider.addEventListener('touchend',  function () { startFadeOut(); });
 
         updateTimelineLabel(label, 0);
     };
@@ -59,7 +134,6 @@
      */
     window.setTimelineStep = function (step) {
         var slider = document.getElementById('ocean-timeline-slider');
-        var label = document.getElementById('ocean-timeline-label');
         if (!slider) return;
 
         slider.step = step;
@@ -67,9 +141,9 @@
         // 현재 값을 스텝 경계에 맞게 스냅
         var cur = parseInt(slider.value);
         var snapped = Math.round(cur / step) * step;
-        snapped = Math.max(0, Math.min(72, snapped));
+        snapped = Math.max(0, Math.min(parseInt(slider.max) || 72, snapped));
         slider.value = snapped;
-        updateTimelineLabel(label, snapped);
+        updateTimelineLabel(null, snapped); // label 제거됨 — null 전달
     };
 
     /**
@@ -78,7 +152,6 @@
      */
     window.setTimelineMax = function (max) {
         var slider = document.getElementById('ocean-timeline-slider');
-        var label = document.getElementById('ocean-timeline-label');
         if (!slider) return;
 
         slider.max = max;
@@ -89,7 +162,7 @@
             var step = parseInt(slider.step) || 3;
             var snapped = Math.floor(max / step) * step;
             slider.value = snapped;
-            updateTimelineLabel(label, snapped);
+            updateTimelineLabel(null, snapped); // label 제거됨 — null 전달
             onTimeChange(snapped);
         }
 

@@ -849,8 +849,8 @@
                       [색상바]      ← 값의 크기를 색상으로 표현하는 그라디언트 바
                       [수치 라벨]   ← 색상바 아래 숫자들 (예: 0.0 ~ 1.6)
                       [구분선]      ← 범례와 슬라이더 영역을 시각적으로 구분
-                      [시간 라벨]   ← 슬라이더가 가리키는 시각 (예: 4/9 03:00 (+12h))
                       [슬라이더]    ← 0h ~ 최대 예보시간 조절
+                                      드래그/클릭 시 thumb 바로 위에 말풍선으로 시각 표시
                       [눈금]        ← +6h, +12h ... +Nh 눈금 표시
                 -->
                 <div class="ocean-legend" id="ocean-legend" style="display:none;">
@@ -864,10 +864,16 @@
 
                     <!-- 타임라인 슬라이더 영역: 예보 시간 선택 -->
                     <div class="ocean-timeline" id="ocean-timeline">
-                        <!-- 현재 선택된 시각 표시 (예: "현재" 또는 "4/9 03:00 (+12h)") -->
-                        <div class="ocean-timeline-label" id="ocean-timeline-label">현재</div>
-                        <!-- 시간 슬라이더: min=0(현재), max=동적(실제 예보 남은 시간), step=조류1h/바람파고3h -->
-                        <input type="range" class="ocean-timeline-slider" id="ocean-timeline-slider" min="0" max="72" value="0" step="1">
+                        <!--
+                            슬라이더 래퍼: 말풍선(tooltip)의 position:absolute 기준점.
+                            정적 라벨 없음 — 드래그/클릭 시에만 thumb 위에 말풍선 표시.
+                        -->
+                        <div class="ocean-slider-wrap">
+                            <!-- 말풍선: 드래그/클릭 중에만 표시, 손을 떼면 1초 후 fade out -->
+                            <div class="ocean-timeline-tooltip" id="ocean-timeline-tooltip"></div>
+                            <!-- 시간 슬라이더: min=0(현재), max=동적(실제 예보 남은 시간), step=조류1h/바람파고3h -->
+                            <input type="range" class="ocean-timeline-slider" id="ocean-timeline-slider" min="0" max="72" value="0" step="1">
+                        </div>
                         <!-- 눈금: 6시간 간격 텍스트 라벨 -->
                         <div class="ocean-timeline-ticks" id="ocean-timeline-ticks"></div>
                     </div>

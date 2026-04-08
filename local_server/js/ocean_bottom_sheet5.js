@@ -144,8 +144,8 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data || !data.success) {
-                    OS.setCardValue('ocean-val-wind', '데이터 없음');
-                    OS.setCardValue('ocean-val-airtemp', '데이터 없음');
+                    // 데이터 없음(범위 초과 등) → 카드 자체를 숨김
+                    OS.hideCard('ocean-card-wind');
                     return;
                 }
                 if (data.windDir != null && data.windSpeed != null) {
@@ -154,12 +154,10 @@
                     OS.renderCurrentWindValues();
                     OS.showCard('ocean-card-wind');
                 } else {
-                    OS.setCardValue('ocean-val-wind', '데이터 없음');
+                    OS.hideCard('ocean-card-wind');
                 }
             })
-            .catch(function () {
-                OS.setCardValue('ocean-val-wind', '데이터 없음');
-            });
+            .catch(function () { OS.hideCard('ocean-card-wind'); });
     }
 
     function fetchWave(lat, lon, dateObj) {
@@ -172,10 +170,11 @@
                     OS.setCardValue('ocean-val-wave', data.waveHeight.toFixed(1) + ' m');
                     OS.showCard('ocean-card-wave');
                 } else {
-                    OS.setCardValue('ocean-val-wave', '데이터 없음');
+                    // 데이터 없음(범위 초과 등) → 카드 자체를 숨김
+                    OS.hideCard('ocean-card-wave');
                 }
             })
-            .catch(function () { OS.setCardValue('ocean-val-wave', '데이터 없음'); });
+            .catch(function () { OS.hideCard('ocean-card-wave'); });
     }
 
     /* --------------------------------------------------------------
