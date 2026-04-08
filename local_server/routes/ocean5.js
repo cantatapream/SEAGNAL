@@ -57,7 +57,7 @@ function latLonToMercator(lat, lon) {
  *
  * @param {number} lat - 위도
  * @param {number} lon - 경도
- * @returns {Promise<Buffer|null>} PNG 이미지 버퍼 또는 null(실패)
+ * @returns {Promise<Buffer|null>} PNG 이미지 버퍼 또는 null(실패/비PNG)
  */
 async function fetchKhoaWmsImage(lat, lon) {
     const { x, y } = latLonToMercator(lat, lon);
@@ -71,6 +71,8 @@ async function fetchKhoaWmsImage(lat, lon) {
         REQUEST:     'GetMap',
         FORMAT:      'image/png',
         TRANSPARENT: 'true',
+        LAYERS:      '',      // KHOA WMS: 레이어는 URL 경로로 지정하므로 빈 값
+        STYLES:      '',
         WIDTH:       '768',
         HEIGHT:      '768',
         SRS:         'EPSG:3857',
@@ -78,23 +80,37 @@ async function fetchKhoaWmsImage(lat, lon) {
     });
 
     const url = `http://www.khoa.go.kr/oceanmap/${layer}/wmsVectordata.do?${params}`;
-    const fetchFn = global.fetch || require('node-fetch');
+
+    // node-fetch v2 직접 사용 (global.fetch는 timeout 옵션 미지원)
+    const nodeFetch = require('node-fetch');
 
     try {
-        const r = await fetchFn(url, {
+        const r = await nodeFetch(url, {
             redirect: 'follow',
+            timeout:  12000,    // node-fetch v2 timeout (ms)
             headers: {
                 'Referer':    'http://www.khoa.go.kr/oceanmap/main.do',
                 'User-Agent': 'Mozilla/5.0'
-            },
-            // 타임아웃: node-fetch v2는 AbortSignal 미지원 → timeout 옵션 사용
-            timeout: 12000
+            }
         });
+
         if (!r.ok) {
-            console.error('[해아름 WMS] 응답 오류:', r.status);
+            console.error('[해아름 WMS] HTTP 오류:', r.status, r.statusText);
             return null;
         }
-        return Buffer.from(await r.arrayBuffer());
+
+        const buf = Buffer.from(await r.arrayBuffer());
+
+        // PNG 매직 바이트 검증: 0x89 0x50 0x4E 0x47 (‰PNG)
+        // KHOA가 에러 시 HTML/XML을 200으로 반환하는 경우 차단
+        if (buf.length < 8 ||
+            buf[0] !== 0x89 || buf[1] !== 0x50 ||
+            buf[2] !== 0x4E || buf[3] !== 0x47) {
+            console.error('[해아름 WMS] PNG가 아닌 응답 수신 (길이:', buf.length, ')');
+            return null;
+        }
+
+        return buf;
     } catch (e) {
         console.error('[해아름 WMS] 이미지 요청 실패:', e.message);
         return null;
@@ -237,14 +253,27 @@ router.post('/api/ocean/seabed', async (req, res) => {
             }]
         });
 
-        const aiText  = response.text || '';
+        // response.text 안전 접근
+        // @google/genai v1.x: .text getter가 멀티파트 응답 시 throw할 수 있으므로
+        // candidates 경로를 우선하고 .text를 fallback으로 사용
+        let aiText = '';
+        try {
+            const part = response?.candidates?.[0]?.content?.parts?.[0];
+            aiText = (typeof part?.text === 'string')
+                ? part.text
+                : (response.text || '');
+        } catch (_) {
+            aiText = '';
+        }
+
         const seabed  = parseSeabedResponse(aiText);
 
         res.json({ success: true, seabed, rawText: aiText });
 
     } catch (e) {
-        console.error('[Ocean5] 저질 AI 판독 오류:', e.message);
-        res.status(500).json({ success: false, error: '저질 분석 중 오류가 발생했습니다.' });
+        console.error('[Ocean5] 저질 AI 판독 오류:', e.message, e.stack);
+        const msg = e.message && e.message.length < 200 ? e.message : '저질 분석 중 오류가 발생했습니다.';
+        res.status(500).json({ success: false, error: msg });
     }
 });
 

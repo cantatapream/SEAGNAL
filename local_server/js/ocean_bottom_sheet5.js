@@ -259,7 +259,7 @@
                 if (!data) { renderError('응답 없음'); return; }
                 if (!data.success || !data.seabed) {
                     renderError(data.error || '분석 실패');
-                    return;
+                    return; // 에러 내용이 화면에 표시되므로 콘솔 확인 불필요
                 }
 
                 var sb = data.seabed;
