@@ -141,11 +141,9 @@
                     streamActive = false;
                     this.classList.remove('active');
                     window.oceanOverlayClear();
-                    // 범례 + 타임라인 숨김
+                    // 통합 박스(범례+타임라인) 숨김 — 타임라인은 범례 내부에 있으므로 함께 사라집니다
                     var legendEl = document.getElementById('ocean-legend');
                     if (legendEl) legendEl.style.display = 'none';
-                    var tlEl = document.getElementById('ocean-timeline');
-                    if (tlEl) tlEl.style.display = 'none';
                 } else {
                     // 레이어 전환 또는 ON
                     streamActive = true;
@@ -155,14 +153,13 @@
                     this.classList.add('active');
                     // 오버레이 활성화 시 배경지도를 해안도로 자동 전환
                     if (window.switchToCoastBasemap) window.switchToCoastBasemap();
-                    // 타임라인 표시 + 슬라이더 현재(0)로 초기화
+                    // 슬라이더 현재(0)로 초기화
                     timelineOffsetHours = 0;
                     var tlSlider = document.getElementById('ocean-timeline-slider');
                     if (tlSlider) tlSlider.value = 0;
                     // 조류: max 72h 고정 (KHOA 동적 범위 미제공), 바람/파고: 데이터 로드 후 동적 설정
                     if (layer === 'current' && window.setTimelineMax) window.setTimelineMax(72);
-                    var tlEl2 = document.getElementById('ocean-timeline');
-                    if (tlEl2) tlEl2.style.display = '';
+                    // 통합 박스(범례+타임라인)는 setActiveLayer 내부의 updateLegend가 표시하므로 별도 처리 불필요
                     setActiveLayer(layer);  // 내부에서 setTimelineStep, updateLegend 처리
                     loadOverlayData();
                 }
@@ -195,6 +192,26 @@
         // 이동 종료 → 파티클 다시 표시
         isMoving = false;
         if (canvas && streamActive) canvas.style.visibility = 'visible';
+    };
+
+    /**
+     * 오버레이를 강제로 끕니다.
+     * ocean_map.js의 베이스맵 전환(기본맵/전자해도)에서 호출됩니다.
+     * - 이미 OFF 상태이면 아무것도 하지 않습니다.
+     * - ON 상태이면: 파티클 애니메이션 중단 → 캔버스 초기화 → 버튼 active 해제 → 통합박스 숨김
+     */
+    window.oceanOverlayTurnOff = function () {
+        if (!streamActive) return; // 이미 꺼진 상태면 불필요
+        streamActive = false;
+        // 모든 오버레이 버튼의 active 표시 제거
+        document.querySelectorAll('.ocean-overlay-btn[data-layer]').forEach(function (b) {
+            b.classList.remove('active');
+        });
+        // 파티클 및 캔버스 초기화
+        window.oceanOverlayClear();
+        // 통합 박스(범례+타임라인) 숨김
+        var legendEl = document.getElementById('ocean-legend');
+        if (legendEl) legendEl.style.display = 'none';
     };
 
     window.oceanOverlayClear = function () {
