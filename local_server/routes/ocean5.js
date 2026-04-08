@@ -48,66 +48,93 @@ function latLonToMercator(lat, lon) {
     return { x, y };
 }
 
-// ── 해아름 WMS 이미지 취득 (내부 프록시 경유) ────────────────────────────────
+// ── 해아름 WMS 이미지 취득 ─────────────────────────────────────────────────
 /**
- * 클릭 좌표 중심으로 해아름 WMS 타일 이미지(512×512px)를 취득한다.
- * KHOA를 직접 호출하면 ServiceException이 발생하는 경우가 있으므로,
- * 이미 검증된 ocean1.js의 /api/ocean/khoa-wms 프록시를 localhost로 호출한다.
+ * 클릭 좌표를 포함하는 해아름 WMS 타일(zoom 15, 256×256px)을 취득한다.
+ *
+ * KHOA WMS는 GeoWebCache 기반으로 타일-그리드에 정렬된 BBOX만 PNG를 반환한다.
+ * 임의 BBOX(비정렬)는 메인 페이지 HTML로 리다이렉트되므로,
+ * OpenLayers가 보내는 것과 동일한 tile-aligned BBOX를 사용한다.
+ *
+ * 실패 시 zoom 14 → 13 순으로 폴백(시야각은 넓어지지만 데이터는 동일).
  *
  * @param {number} lat - 위도
  * @param {number} lon - 경도
  * @returns {Promise<Buffer|null>} PNG 이미지 버퍼 또는 null(실패/비PNG)
  */
 async function fetchKhoaWmsImage(lat, lon) {
+    const R       = 6378137;
+    const originX = -Math.PI * R;  // ≈ -20037508 m
+    const originY =  Math.PI * R;  // ≈ +20037508 m
+
+    /**
+     * EPSG:3857 좌표 (x, y) 를 포함하는 OpenLayers 타일의
+     * tile-aligned BBOX 문자열을 반환한다.
+     */
+    function tileBbox(x, y, zoom) {
+        const tileSize = 2 * Math.PI * R / Math.pow(2, zoom); // m per tile
+        const tx = Math.floor((x - originX) / tileSize);
+        const ty = Math.floor((originY - y) / tileSize);
+
+        const minX = originX + tx * tileSize;
+        const maxX = minX + tileSize;
+        const maxY = originY - ty * tileSize;
+        const minY = maxY - tileSize;
+        return `${minX},${minY},${maxX},${maxY}`;
+    }
+
     const { x, y } = latLonToMercator(lat, lon);
-    const half = 1500; // 1500m 반경 → 3km × 3km 영역
-    const bbox = `${x - half},${y - half},${x + half},${y + half}`;
-
-    const wmsParams = new URLSearchParams({
-        layer:       'BASEMAP_RLTM3857',
-        SERVICE:     'WMS',
-        VERSION:     '1.1.1',
-        REQUEST:     'GetMap',
-        FORMAT:      'image/png',
-        TRANSPARENT: 'true',
-        LAYERS:      '',
-        STYLES:      '',
-        WIDTH:       '512',
-        HEIGHT:      '512',
-        SRS:         'EPSG:3857',
-        BBOX:        bbox
-    });
-
-    // 이미 검증된 내부 프록시(/api/ocean/khoa-wms)를 localhost로 호출
-    const port = process.env.PORT || 3001;
-    const proxyUrl = `http://localhost:${port}/api/ocean/khoa-wms?${wmsParams}`;
+    const port     = process.env.PORT || 3001;
     const fetchFn  = global.fetch || require('node-fetch');
 
-    try {
-        const r = await fetchFn(proxyUrl);
+    // zoom 15(≈1.2km/tile) → 14(≈2.4km/tile) → 13(≈4.9km/tile) 순으로 시도
+    for (const zoom of [15, 14, 13]) {
+        const bbox = tileBbox(x, y, zoom);
 
-        if (!r.ok) {
-            console.error('[해아름 WMS] 프록시 오류:', r.status);
-            return null;
+        const wmsParams = new URLSearchParams({
+            layer:       'BASEMAP_RLTM3857',
+            SERVICE:     'WMS',
+            VERSION:     '1.1.1',
+            REQUEST:     'GetMap',
+            FORMAT:      'image/png',
+            TRANSPARENT: 'true',
+            LAYERS:      '',
+            STYLES:      '',
+            WIDTH:       '256',
+            HEIGHT:      '256',
+            SRS:         'EPSG:3857',
+            TILED:       'true',   // OpenLayers가 항상 포함하는 파라미터
+            BBOX:        bbox
+        });
+
+        const proxyUrl = `http://localhost:${port}/api/ocean/khoa-wms?${wmsParams}`;
+
+        try {
+            const r = await fetchFn(proxyUrl);
+
+            if (!r.ok) {
+                console.error(`[해아름 WMS] z${zoom} 프록시 오류:`, r.status);
+                continue;
+            }
+
+            const buf = Buffer.from(await r.arrayBuffer());
+
+            // PNG 매직 바이트 검증 (0x89 0x50 = \x89P)
+            if (buf.length < 8 || buf[0] !== 0x89 || buf[1] !== 0x50) {
+                const preview = buf.slice(0, 200).toString('utf8').replace(/[\r\n]+/g, ' ');
+                console.error(`[해아름 WMS] z${zoom} PNG 아님, 길이:${buf.length} | ${preview}`);
+                continue; // 다음 zoom 레벨 시도
+            }
+
+            console.log(`[해아름 WMS] z${zoom} 취득 성공, ${buf.length} bytes, bbox=${bbox}`);
+            return buf;
+
+        } catch (e) {
+            console.error(`[해아름 WMS] z${zoom} 요청 예외:`, e.message);
         }
-
-        const buf = Buffer.from(await r.arrayBuffer());
-
-        // PNG 매직 바이트 검증 (0x89 0x50 0x4E 0x47 = \x89PNG)
-        if (buf.length < 8 || buf[0] !== 0x89 || buf[1] !== 0x50) {
-            // 진단용: 응답 내용 일부 출력
-            const preview = buf.slice(0, 300).toString('utf8').replace(/[\r\n]+/g, ' ');
-            console.error('[해아름 WMS] PNG 아님, 길이:', buf.length, 'bytes | 내용:', preview);
-            return null;
-        }
-
-        console.log('[해아름 WMS] 이미지 취득 성공, 크기:', buf.length, 'bytes');
-        return buf;
-
-    } catch (e) {
-        console.error('[해아름 WMS] 요청 예외:', e.message);
-        return null;
     }
+
+    return null; // 모든 zoom 레벨 실패
 }
 
 // ── Gemini 프롬프트 ───────────────────────────────────────────────────────────
