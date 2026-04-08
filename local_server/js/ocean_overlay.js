@@ -639,7 +639,7 @@
         return { crsp: s, crdir: d };
     }
 
-    /**
+    function sampleAt(lon, lat) {
         if (!lonList || !latList || !gridLookup) return null;
         var li = lowerBound(lonList, lon);
         var la = lowerBound(latList, lat);
