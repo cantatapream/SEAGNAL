@@ -85,10 +85,11 @@
                     OS.setCardValue('ocean-val-depth', data.depth.toFixed(1) + ' m');
                     OS.showCard('ocean-card-depth');
                 } else {
-                    OS.setCardValue('ocean-val-depth', '데이터 없음');
+                    // 수심 데이터 없음 → 카드 자체를 숨김
+                    OS.hideCard('ocean-card-depth');
                 }
             })
-            .catch(function () { OS.setCardValue('ocean-val-depth', '데이터 없음'); });
+            .catch(function () { OS.hideCard('ocean-card-depth'); });
     }
 
     function fetchRoms(lat, lon, dateObj) {

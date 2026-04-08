@@ -8247,6 +8247,7 @@ line-height: 1.1;
     border-radius: 8px;
     padding: 10px 14px 6px;
     z-index: 50;
+    overflow: visible; /* 말풍선 tooltip이 박스 위로 넘어갈 수 있도록 */
 }
 
 /* 범례 제목: 박스 최상단 중앙 ("조류 속도 (m/s)" 등) */
@@ -8291,16 +8292,18 @@ line-height: 1.1;
     padding: 6px 0 2px;
 }
 
-/* 슬라이더 래퍼: 말풍선의 position:absolute 기준점 */
+/* 슬라이더 래퍼: 말풍선의 position:absolute 기준점.
+   상단 여백 없음 — 말풍선은 범례 박스 위로 overflow 허용. */
 .ocean-slider-wrap {
     position: relative;
-    padding-top: 32px; /* 말풍선 높이 + 화살표만큼 위 공간 확보 */
 }
 
-/* 말풍선: 기본은 투명, visible 클래스가 붙으면 나타남 */
+/* 말풍선: 기본은 투명, visible 클래스가 붙으면 나타남.
+   bottom: calc(100% + 2px) → 슬라이더 위로 2px 간격을 두고 표시됨.
+   overflow:visible 된 부모 덕분에 범례 박스 경계를 넘어도 표시됨. */
 .ocean-timeline-tooltip {
     position: absolute;
-    top: 0;
+    bottom: calc(100% + 2px);
     transform: translateX(-50%);
     background: rgba(20, 55, 115, 0.95);
     color: #fff;
