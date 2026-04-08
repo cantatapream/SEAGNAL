@@ -590,10 +590,56 @@
     }
 
     /**
-     * 임의의 (lon, lat) 위치에서 격자 4개를 둘러싸 쌍선형 보간한 결과 반환.
-     * 보간된 crsp(cm/s), crdir(deg) 객체. 격자 외곽이거나 4점 중 결측이면 null.
+     * 바람/파고용 쌍선형 보간 (일부 코너 누락 허용).
+     *
+     * 기존 sampleAt()은 4코너 모두 필요 → 육지 인접 셀에서 null 다발 → 격자 경계 선명.
+     * 이 함수는 1~4개 코너 중 있는 것만으로 가중평균 → 격자 경계가 부드럽게 블렌딩.
+     * (lookupNearest 대비: 셀 중심값 그대로 반환 → 확대 시 직사각형 패턴 발생)
      */
-    function sampleAt(lon, lat) {
+    function sampleAtLenient(lon, lat) {
+        if (!lonList || !latList || !gridLookup) return null;
+        var li = lowerBound(lonList, lon);
+        var la = lowerBound(latList, lat);
+        if (li < 0 || la < 0) return null;
+
+        var p00 = gridLookup[li + '_' + la] || null;
+        var p10 = (li + 1 < lonList.length) ? (gridLookup[(li+1) + '_' + la] || null) : null;
+        var p01 = (la + 1 < latList.length) ? (gridLookup[li + '_' + (la+1)] || null) : null;
+        var p11 = (li + 1 < lonList.length && la + 1 < latList.length)
+                  ? (gridLookup[(li+1) + '_' + (la+1)] || null) : null;
+
+        if (!p00 && !p10 && !p01 && !p11) return null;
+
+        var fx = (li + 1 < lonList.length)
+                 ? (lon - lonList[li]) / (lonList[li+1] - lonList[li]) : 0;
+        var fy = (la + 1 < latList.length)
+                 ? (lat - latList[la]) / (latList[la+1] - latList[la]) : 0;
+
+        var w00 = (1-fx)*(1-fy), w10 = fx*(1-fy);
+        var w01 = (1-fx)*fy,    w11 = fx*fy;
+        var wSum = (p00?w00:0) + (p10?w10:0) + (p01?w01:0) + (p11?w11:0);
+        if (wSum < 0.01) return null;
+
+        var s = 0;
+        if (p00) s += p00.crsp * w00;
+        if (p10) s += p10.crsp * w10;
+        if (p01) s += p01.crsp * w01;
+        if (p11) s += p11.crsp * w11;
+        s /= wSum;
+
+        function vec(d) { var r = d * Math.PI / 180; return [Math.sin(r), Math.cos(r)]; }
+        var sx = 0, sy = 0;
+        if (p00) { var v0=vec(p00.crdir); sx+=v0[0]*w00; sy+=v0[1]*w00; }
+        if (p10) { var v1=vec(p10.crdir); sx+=v1[0]*w10; sy+=v1[1]*w10; }
+        if (p01) { var v2=vec(p01.crdir); sx+=v2[0]*w01; sy+=v2[1]*w01; }
+        if (p11) { var v3=vec(p11.crdir); sx+=v3[0]*w11; sy+=v3[1]*w11; }
+        sx /= wSum; sy /= wSum;
+        var d = Math.atan2(sx, sy) * 180 / Math.PI;
+        if (d < 0) d += 360;
+        return { crsp: s, crdir: d };
+    }
+
+    /**
         if (!lonList || !latList || !gridLookup) return null;
         var li = lowerBound(lonList, lon);
         var la = lowerBound(latList, lat);
@@ -654,8 +700,9 @@
                 if (!coord) continue;
                 var ll = ol.proj.toLonLat(coord);
                 // current(ROMS): 밀집 정규 격자 → bilinear 보간
-                // wind/wave(소해구): 0.5° 격자 + 육지 공백 → nearest-cell 직접 조회
-                var samp = (activeLayer === 'current') ? sampleAt(ll[0], ll[1]) : lookupNearest(ll[0], ll[1]);
+                // wind/wave(소해구): 0.5° 격자 → lenient bilinear(일부 코너 누락 허용)
+                //   lookupNearest 대신 sampleAtLenient: 셀 경계에서 값 보간 → 격자 느낌 제거
+                var samp = (activeLayer === 'current') ? sampleAt(ll[0], ll[1]) : sampleAtLenient(ll[0], ll[1]);
                 if (!samp) continue;
                 // crsp는 레이어별 네이티브 단위:
                 // current=cm/s, wind=m/s, wave=m → 각 COLOR_SCALES과 단위 일치
@@ -671,10 +718,11 @@
         }
         tctx.putImageData(idata, 0, 0);
 
-        // 소해구 격자 경계 부드럽게: 줌 레벨에 비례해 최소 blur 적용
-        // (너무 크면 zone 경계가 뭉개짐 → 2~6px 범위로 제한)
-        var zoom = mapRef ? mapRef.getView().getZoom() : 7;
-        var blurPx = Math.max(2, Math.min(6, Math.round((10 - zoom) * 1.5)));
+        // blur: 0.5° 해구가 화면에서 차지하는 픽셀 크기에 비례 적용
+        // resolution(m/px)로 환산 → 줌인할수록 격자가 크게 보이므로 blur도 크게
+        var resolution = mapRef.getView().getResolution(); // m/px
+        var zonePx = (0.5 * 111000) / resolution;         // 0.5° ≈ 55km → 화면 픽셀 수
+        var blurPx = Math.max(3, Math.min(Math.round(zonePx * 0.18), 60));
         gridCtx.imageSmoothingEnabled = true;
         gridCtx.imageSmoothingQuality = 'high';
         gridCtx.filter = 'blur(' + blurPx + 'px)';
