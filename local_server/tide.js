@@ -985,7 +985,8 @@ function startGaugeAutoRefresh() {
         if (tideProgress) {
             const gaugeWrapper = document.querySelector('.tide-progress-wrapper');
             if (gaugeWrapper) {
-                const newHtml = getTideProgressHTML(tideProgress);
+                // d.mulddaeInfo를 함께 전달해 1분 갱신 후에도 물때 텍스트가 유지되도록 함
+                const newHtml = getTideProgressHTML(tideProgress, d.mulddaeInfo);
                 const temp = document.createElement('div');
                 temp.innerHTML = newHtml;
                 if (temp.firstElementChild) {
@@ -1452,12 +1453,27 @@ function showTidePopup(coordinate, data) {
                 currentTideLevel = tideProgress.currentLevel;
             }
 
+            // 물때 산출: 3일치 피크 데이터와 조화상수(M2/S2) 활용
+            // computeMulddae()는 tide.js에 전역 함수로 선언되어 있음
+            const tbRow = (today.tideBedData && today.tideBedData.length > 0)
+                ? today.tideBedData[0]
+                : null;
+            const mulddaeInfo = computeMulddae(
+                allTides,           // 오늘 피크 (type, level)
+                yesterdayPeaks,     // 어제 피크 (방향 판단용)
+                tomorrowPeaks,      // 내일 피크 (평균 대조차 추정 보조)
+                tbRow,              // M2/S2 조화상수
+                currentTideDate     // 기준 날짜 (월령 계산용)
+            );
+
             if (tideProgress) {
-                html += getTideProgressHTML(tideProgress);
+                // 두 번째 인자로 물때 정보 전달 → 게이지 라벨 행 중앙에 표시
+                html += getTideProgressHTML(tideProgress, mulddaeInfo);
             }
 
             // 게이지 실시간 갱신용 데이터 저장 및 타이머 시작
-            _lastTideDisplayData = { allTides, prevDayLastTide, nextDayFirstTide, todayData: today };
+            // mulddaeInfo도 함께 저장해 1분 자동갱신 시 물때 텍스트가 유지되도록 함
+            _lastTideDisplayData = { allTides, prevDayLastTide, nextDayFirstTide, todayData: today, mulddaeInfo };
             startGaugeAutoRefresh();
         }
 
@@ -2273,6 +2289,158 @@ function getAstronomyInfo(lat, lon, date) {
     }
 }
 
+/**
+ * 물때 번호(1~15) 산출 함수
+ *
+ * [역할]
+ * 오늘/어제/내일 조석 피크 데이터와 조화상수(M2/S2)를 이용해
+ * 물때 번호(1물~14물·조금)를 계산합니다.
+ * tide.js와 ocean_bottom_sheet3.js 양쪽에서 호출할 수 있도록
+ * 전역 함수로 선언합니다.
+ *
+ * [계산 원리]
+ * ① 오늘 조차 = 오늘 최고조위 - 오늘 최저조위
+ * ② 평균 대조차 = 2 × (M2 + S2)  [없으면 3일치 최대로 추정]
+ * ③ 조차 비율 = ① ÷ ② × 100%
+ * ④ 방향 = 어제보다 조차가 크면 사리 방향, 작으면 조금 방향
+ *          (변화량 5cm 미만이면 월령으로 보완)
+ * ⑤ 비율 + 방향 → 물때 번호 결정 (레퍼런스 표 기반)
+ *
+ * [연계]
+ * - tide.js showTidePopup() → getTideProgressHTML() 게이지 라벨 행
+ * - ocean_bottom_sheet3.js renderTideData() → 조석 타이틀 옆 배지
+ *
+ * @param {Array}  todayPeaks      - 오늘 피크 [{type:'high'|'low', level:number}, ...]
+ * @param {Array}  yesterdayPeaks  - 어제 피크 (방향 판단용, 없으면 null)
+ * @param {Array}  tomorrowPeaks   - 내일 피크 (평균 대조차 추정 보조, 없으면 null)
+ * @param {Object} tideBedDataRow  - TideBED 조화상수 행 {m2TconstAmp, s2TconstAmp, ...}
+ * @param {Date}   dateObj         - 기준 날짜 (월령 계산용)
+ * @returns {Object|null} { number, label, direction } 또는 null(계산 불가)
+ */
+function computeMulddae(todayPeaks, yesterdayPeaks, tomorrowPeaks, tideBedDataRow, dateObj) {
+    // ── 1. 오늘 피크에서 최고/최저 조위 추출 ──────────────────────────────
+    var todayHighs = todayPeaks.filter(function(p) { return p.type === 'high'; });
+    var todayLows  = todayPeaks.filter(function(p) { return p.type === 'low'; });
+
+    // 고조·저조가 모두 있어야 조차를 산출할 수 있음
+    if (todayHighs.length === 0 || todayLows.length === 0) return null;
+
+    var todayHigh  = Math.max.apply(null, todayHighs.map(function(p) { return p.level; }));
+    var todayLow   = Math.min.apply(null, todayLows.map(function(p) { return p.level; }));
+    var todayRange = todayHigh - todayLow;   // 오늘 조차 (cm)
+
+    if (todayRange <= 0) return null;
+
+    // ── 2. 평균 대조차(Mean Spring Range) 계산 ────────────────────────────
+    // TideBED 응답의 조화상수 M2·S2로 이론값 산출: 2 × (M2 + S2)
+    var springRange;
+    if (tideBedDataRow &&
+        tideBedDataRow.m2TconstAmp != null &&
+        tideBedDataRow.s2TconstAmp != null) {
+        var M2 = parseFloat(tideBedDataRow.m2TconstAmp);
+        var S2 = parseFloat(tideBedDataRow.s2TconstAmp);
+        if (!isNaN(M2) && !isNaN(S2) && M2 > 0) {
+            springRange = 2 * (M2 + S2);
+        }
+    }
+
+    // 조화상수 없을 때 폴백: 3일치 전체 피크에서 최대 조차의 1.05배로 추정
+    if (!springRange || springRange <= 0) {
+        var allPeaks = [].concat(
+            yesterdayPeaks || [],
+            todayPeaks,
+            tomorrowPeaks  || []
+        );
+        var allHighs = allPeaks.filter(function(p) { return p.type === 'high'; });
+        var allLows  = allPeaks.filter(function(p) { return p.type === 'low'; });
+        if (allHighs.length > 0 && allLows.length > 0) {
+            var maxH = Math.max.apply(null, allHighs.map(function(p) { return p.level; }));
+            var minL = Math.min.apply(null, allLows.map(function(p) { return p.level; }));
+            springRange = (maxH - minL) / 0.95;   // 관측 최대치가 대조차의 약 95% 수준
+        } else {
+            springRange = todayRange / 0.85;       // 최후 보수적 추정
+        }
+    }
+
+    if (!springRange || springRange <= 0) return null;
+
+    // ── 3. 조차 비율 계산 ─────────────────────────────────────────────────
+    // 비율이 100%를 넘을 수 있음(근지점 보정): 110%로 상한 처리
+    var ratio = Math.min((todayRange / springRange) * 100, 110);
+
+    // ── 4. 방향 판단 (사리 방향 or 조금 방향) ─────────────────────────────
+    var isRising = true;  // 기본값: 사리 방향
+
+    // 1차: 어제 조차와 비교 (변화량 5cm 이상이면 신뢰)
+    var usedLunar = false;
+    if (yesterdayPeaks && yesterdayPeaks.length > 0) {
+        var yHighs = yesterdayPeaks.filter(function(p) { return p.type === 'high'; });
+        var yLows  = yesterdayPeaks.filter(function(p) { return p.type === 'low'; });
+        if (yHighs.length > 0 && yLows.length > 0) {
+            var prevHigh  = Math.max.apply(null, yHighs.map(function(p) { return p.level; }));
+            var prevLow   = Math.min.apply(null, yLows.map(function(p) { return p.level; }));
+            var prevRange = prevHigh - prevLow;
+            if (Math.abs(todayRange - prevRange) >= 5) {
+                isRising = todayRange > prevRange;
+            } else {
+                usedLunar = true;  // 변화 미미 → 월령으로 보완
+            }
+        } else {
+            usedLunar = true;
+        }
+    } else {
+        usedLunar = true;
+    }
+
+    // 2차: 월령 기반 방향 보완
+    // 삭(0일)·망(15일)을 향해 가는 구간이면 사리 방향(isRising=true)
+    // SunCalc.getMoonIllumination은 위경도 무관 → 항상 사용 가능
+    if (usedLunar && typeof SunCalc !== 'undefined' && dateObj) {
+        try {
+            var moonIllum = SunCalc.getMoonIllumination(dateObj);
+            var lunarAge  = moonIllum.phase * 29.53;   // 0 ~ 29.53 (일)
+            // 사리로 가는 구간: 상현(7.38)→망(15), 하현(22.14)→삭(29.53/0)
+            isRising = (lunarAge >= 7.38 && lunarAge < 15) || (lunarAge >= 22.14);
+        } catch (e) {
+            // SunCalc 오류 시 기본값(isRising=true) 유지
+        }
+    }
+
+    // ── 5. 물때 번호 결정 (조차 비율 + 방향 기반) ─────────────────────────
+    // 레퍼런스 표:
+    //   비율      rising(사리방향)  falling(조금방향)
+    //   90~110%  → 7~8물          → 7~8물
+    //   70~90%   → 5~6물          → 9~10물
+    //   50~70%   → 3~4물          → 11~12물
+    //   30~50%   → 2~3물          → 12~13물
+    //   10~30%   → 1물            → 14물
+    //    0~10%   → 조금(15)       → 조금(15)
+    var number;
+    if (ratio >= 90) {
+        // 한사리 근처: 비율이 높을수록 8물에 가까움
+        number = ratio >= 100 ? 8 : (isRising ? 7 : 8);
+    } else if (ratio >= 70) {
+        number = isRising ? (ratio >= 80 ? 6 : 5) : (ratio >= 80 ? 9 : 10);
+    } else if (ratio >= 50) {
+        number = isRising ? (ratio >= 60 ? 4 : 3) : (ratio >= 60 ? 11 : 12);
+    } else if (ratio >= 30) {
+        number = isRising ? (ratio >= 40 ? 3 : 2) : (ratio >= 40 ? 12 : 13);
+    } else if (ratio >= 10) {
+        number = isRising ? 1 : 14;
+    } else {
+        number = 15;  // 조금 (무시)
+    }
+
+    // ── 6. 결과 반환 ───────────────────────────────────────────────────────
+    var label = (number === 15) ? '조금' : (number + '물');
+    return {
+        number:    number,
+        label:     label,          // '7물', '조금' 등 화면 표시 문자열
+        direction: isRising ? 'rising' : 'falling',
+        ratio:     Math.round(ratio)   // 디버그/툴팁용 조차 비율(%)
+    };
+}
+
 function getAstronomyInfoHTML(astro) {
     if (!astro) return '';
 
@@ -2399,7 +2567,24 @@ function getTideProgress(sortedTides, currentDate, prevDayTide = null, nextDayTi
     };
 }
 
-function getTideProgressHTML(progress) {
+/**
+ * 조석 진행 게이지 HTML 생성 함수
+ *
+ * [역할]
+ * getTideProgress()가 계산한 진행 상태를 화면 HTML로 변환합니다.
+ * - 상단 라벨행: 고조(좌) / 물때 번호(중앙, 흰색·볼드·+2pt) / 저조(우)
+ * - 진행 바: 색상 그라데이션 + 원형 마커 + 남은시간
+ * - 현재 예상 조위 표시
+ *
+ * [연계]
+ * - showTidePopup()에서 직접 호출 (최초 렌더)
+ * - startGaugeAutoRefresh()에서 1분마다 재호출 (실시간 갱신)
+ *
+ * @param {Object}      progress    - getTideProgress() 반환값
+ * @param {Object|null} mulddaeInfo - computeMulddae() 반환값 (없으면 null → 중앙 공백)
+ * @returns {string} HTML 문자열
+ */
+function getTideProgressHTML(progress, mulddaeInfo) {
     if (!progress) return '';
 
     const { prev, next, percent, currentLevel, status } = progress;
@@ -2413,12 +2598,26 @@ function getTideProgressHTML(progress) {
         ? `linear-gradient(90deg, #991b1b 0%, ${colorRising} 100%)`
         : `linear-gradient(90deg, #1e3a8a 0%, ${colorFalling} 100%)`;
 
-    // 라벨 스타일링 (고조-빨강 / 저조-파랑)
+    // 좌우 라벨 스타일링 (고조-빨강 / 저조-파랑)
     const getLabel = (t) => {
         const color = t.type === 'high' ? '#f87171' : '#60a5fa';
         const typeText = t.type === 'high' ? '고조' : '저조';
         return `<div style="color: ${color}; font-weight: 600;">${typeText} ${t.time}</div>`;
     };
+
+    // 물때 중앙 라벨: 고조/저조 폰트(0.75rem)보다 약 +2pt 크게(≈0.92rem), 흰색·볼드
+    // mulddaeInfo가 없으면 빈 div로 공간만 유지해 좌우 라벨 위치 고정
+    const mulddaeCenterHtml = mulddaeInfo
+        ? `<div style="
+                color: #ffffff;
+                font-weight: 700;
+                font-size: 0.92rem;
+                white-space: nowrap;
+                text-align: center;
+                flex: 1;
+                padding: 0 4px;
+            ">${mulddaeInfo.label}</div>`
+        : `<div style="flex: 1;"></div>`;
 
     return `
         <div class="tide-progress-wrapper" style="
@@ -2429,9 +2628,11 @@ function getTideProgressHTML(progress) {
             padding: 4px 10px;
             border: 1px solid rgba(255, 255, 255, 0.05);
         ">
-            <!-- 타임라인 라벨 -->
-            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 6px;">
+            <!-- 타임라인 라벨: 고조(좌) / 물때(중앙) / 저조(우) -->
+            <!-- space-between + 3자녀 → 자동으로 양끝·중앙 균등 배치 -->
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; margin-bottom: 6px;">
                 ${getLabel(prev)}
+                ${mulddaeCenterHtml}
                 ${getLabel(next)}
             </div>
 

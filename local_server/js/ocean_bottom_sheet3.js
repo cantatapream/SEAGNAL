@@ -311,11 +311,35 @@
         var idwBadge = isIdw
             ? '<div class="ocean-tide-idw-badge">표준항 보간 결과</div>' : '';
 
+        // 물때 산출: tide.js의 computeMulddae() 전역 함수를 사용
+        // peaks(오늘), yPeaks(어제), tPeaks(내일) 피크 배열과 M2/S2 조화상수를 전달
+        // 날짜가 바뀔 때마다 renderTideData가 다시 호출되므로 자동으로 갱신됨
+        var mulddaeBadgeHtml = '';
+        if (typeof computeMulddae === 'function') {
+            var tbRow0 = (data.tideBedData && data.tideBedData.length > 0)
+                ? data.tideBedData[0]
+                : null;
+            var mulddaeInfo = computeMulddae(
+                peaks,    // 오늘 피크 [{type, minutes, level}]
+                yPeaks,   // 어제 피크 (방향 판단용)
+                tPeaks,   // 내일 피크 (평균 대조차 추정 보조)
+                tbRow0,   // M2/S2 조화상수 행
+                dateObj   // 기준 날짜 (월령 계산용)
+            );
+            if (mulddaeInfo) {
+                // '조석' 타이틀 옆에 소괄호 형태로 표시: ≋ 조석  (1물)
+                mulddaeBadgeHtml =
+                    '<span class="ocean-tide-mulddae-badge">(' + mulddaeInfo.label + ')</span>';
+            }
+        }
+
         card.style.display = '';
         card.innerHTML =
             '<div class="ocean-tide-wrap">' +
               '<div class="ocean-tide-title-row">' +
-                '<div class="ocean-tide-title"><i class="fa-solid fa-water"></i> 조석</div>' +
+                '<div class="ocean-tide-title"><i class="fa-solid fa-water"></i> 조석' +
+                  mulddaeBadgeHtml +
+                '</div>' +
                 idwBadge +
               '</div>' +
               headHtml +

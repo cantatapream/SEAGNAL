@@ -8773,6 +8773,14 @@ body.ocean-map-active .main-header .header-content {
 .ocean-tide-title i {
     color: #64b4ff;
 }
+/* 바텀시트 조석 타이틀 옆 물때 배지: (1물), (조금) 형태 */
+.ocean-tide-mulddae-badge {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-left: 4px;
+    white-space: nowrap;
+}
 .ocean-tide-idw-badge {
     font-size: 0.65rem;
     color: rgba(255,255,255,0.55);
