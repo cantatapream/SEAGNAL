@@ -194,12 +194,12 @@ function buildSeabedPrompt(lat, lon) {
   ⑤ 근처에 저질 기호가 전혀 없으면 "식별 불가"로 반환하세요.
      (배경 색상을 근거로 저질을 추측하지 마세요.)
 
-다음 JSON 형식으로만 응답하세요 (추가 설명 없이):
+다음 JSON 형식으로만 응답하세요 (추가 설명 없이, 실제 이미지에서 읽은 값으로 채우세요):
 {
   "isLand": false,
-  "depth": 8.3,
-  "depthNote": "해도 수심 표기 '83' (3이 소수 자리) → 8.3m",
-  "primary": "암반(R)",
+  "depth": <이미지에서 읽은 실제 수심>,
+  "depthNote": "<판독 근거>",
+  "primary": "<이미지에서 읽은 실제 저질 기호>",
   "secondary": null,
   "summary": "해저면 특성 한 줄 설명",
   "characteristics": "낚시·양식 등 활용 관점 한 줄 설명"
