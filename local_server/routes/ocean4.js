@@ -161,6 +161,11 @@ router.get('/api/ocean/wave', (req, res) => {
             }
         });
 
+        // 6시간 초과: 해당 시각에 유효한 예보 없음 → 카드 숨김 트리거
+        if (minDiff > 6 * 3600 * 1000) {
+            return res.json({ success: false, error: '해당 시각의 파고 예보 데이터가 없습니다.' });
+        }
+
         res.json({
             success: true,
             waveHeight: closest.wh,

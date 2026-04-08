@@ -83,6 +83,10 @@ function getZoneForecastAt(lat, lon, time) {
         const diff = Math.abs(predTime.getTime() - time.getTime());
         if (diff < minDiff) { minDiff = diff; closest = item; }
     });
+
+    // 6시간 초과: 유효한 예보 없음 → null 반환 (카드 숨김 트리거)
+    if (minDiff > 6 * 3600 * 1000) return null;
+
     return closest;
 }
 
