@@ -8139,7 +8139,8 @@ line-height: 1.1;
 
 .ocean-overlay-btn {
     width: 38px;
-    height: 38px;
+    height: auto;
+    padding: 8px 0 6px;
     border: none;
     border-radius: 10px;
     background: rgba(15, 27, 51, 0.85);
@@ -8149,6 +8150,17 @@ line-height: 1.1;
     backdrop-filter: blur(8px);
     transition: all 0.2s;
     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+.ocean-overlay-label {
+    font-size: 0.5rem;
+    line-height: 1;
+    letter-spacing: 0.05em;
+    color: inherit;
+    white-space: nowrap;
 }
 
 .ocean-overlay-btn.active {
