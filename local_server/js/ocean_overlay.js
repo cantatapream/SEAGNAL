@@ -74,6 +74,7 @@
     let gridCtx = null;
     let mapRef = null;
     let activeLayer = 'current';   // 현재 표시 중인 오버레이
+    let timelineOffsetHours = 0;   // 타임라인 슬라이더 오프셋 (현재 시각 기준 +N시간)
     let gridData = null;           // ROMS 격자 데이터
     let lonList = null;            // 정렬된 unique lon 배열 (보간용 인덱스)
     let latList = null;            // 정렬된 unique lat 배열
@@ -153,10 +154,13 @@
                     this.classList.add('active');
                     // 오버레이 활성화 시 배경지도를 해안도로 자동 전환
                     if (window.switchToCoastBasemap) window.switchToCoastBasemap();
-                    // 타임라인 표시
+                    // 타임라인 표시 + 슬라이더 현재(0)로 초기화
+                    timelineOffsetHours = 0;
+                    var tlSlider = document.getElementById('ocean-timeline-slider');
+                    if (tlSlider) tlSlider.value = 0;
                     var tlEl2 = document.getElementById('ocean-timeline');
                     if (tlEl2) tlEl2.style.display = '';
-                    setActiveLayer(layer);
+                    setActiveLayer(layer);  // 내부에서 setTimelineStep, updateLegend 처리
                     loadOverlayData();
                 }
             });
@@ -214,6 +218,28 @@
         latList = null;
         gridLookup = null;
     };
+
+    /**
+     * 타임라인 슬라이더에서 호출: 오프셋(시간)을 받아 현재 활성 레이어 데이터를 재로드.
+     * ocean_timeline.js → window.oceanOverlaySetTime(hours)
+     */
+    window.oceanOverlaySetTime = function (hours) {
+        timelineOffsetHours = hours;
+        if (!streamActive) return;
+        loadOverlayData();
+    };
+
+    /** 현재 시각 + offsetHours → KHOA 포맷 { date: 'YYYYMMDD', hour: 'HH' } */
+    function _offsetToDateHour(offsetHours) {
+        var d = new Date();
+        d.setHours(d.getHours() + offsetHours);
+        return {
+            date: String(d.getFullYear()) +
+                  String(d.getMonth() + 1).padStart(2, '0') +
+                  String(d.getDate()).padStart(2, '0'),
+            hour: String(d.getHours()).padStart(2, '0')
+        };
+    }
 
     // ========================================================================
     // 캔버스 크기 조정
@@ -327,8 +353,9 @@
     }
 
     function loadCurrentData() {
+        var dh = _offsetToDateHour(timelineOffsetHours);
         console.log('[OceanOverlay] KHOA stream-vector 로드 시작');
-        fetch('/api/ocean/khoa-stream-vector')
+        fetch('/api/ocean/khoa-stream-vector?date=' + dh.date + '&hour=' + dh.hour)
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data || !data.success || !data.points || data.points.length === 0) {
@@ -360,10 +387,11 @@
      */
     function loadZoneForecastData(layer) {
         var timeParam = '';
-        try {
-            var d = window.OceanSheet && window.OceanSheet.state && window.OceanSheet.state.date;
-            if (d) timeParam = '?time=' + encodeURIComponent(d.toISOString());
-        } catch (e) { /* ignore */ }
+        if (timelineOffsetHours !== 0) {
+            var t = new Date();
+            t.setHours(t.getHours() + timelineOffsetHours);
+            timeParam = '?time=' + encodeURIComponent(t.toISOString());
+        }
 
         fetch('/api/ocean/zone-forecasts' + timeParam)
             .then(function (r) { return r.json(); })

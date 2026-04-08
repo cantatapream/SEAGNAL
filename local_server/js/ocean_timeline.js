@@ -91,33 +91,15 @@
     }
 
     /**
-     * 시간 변경 시 오버레이 갱신
+     * 시간 변경 시 오버레이 데이터 재로드.
+     * 활성 오버레이(조류/바람/파고)의 API를 새 시간으로 다시 호출한다.
+     *   조류  → /api/ocean/khoa-stream-vector?date=YYYYMMDD&hour=HH
+     *   바람/파고 → /api/ocean/zone-forecasts?time=ISO
      */
     function onTimeChange(hours) {
-        var targetTime = new Date();
-        targetTime.setHours(targetTime.getHours() + hours);
-
-        // ROMS 그리드를 해당 시간으로 다시 로드
-        var map = window.getOceanMap ? window.getOceanMap() : null;
-        if (!map) return;
-
-        var view = map.getView();
-        var extent = view.calculateExtent(map.getSize());
-        var bl = ol.proj.toLonLat([extent[0], extent[1]]);
-        var tr = ol.proj.toLonLat([extent[2], extent[3]]);
-
-        fetch('/api/ocean/roms-grid?ymin=' + bl[1].toFixed(2) +
-            '&ymax=' + tr[1].toFixed(2) +
-            '&xmin=' + bl[0].toFixed(2) +
-            '&xmax=' + tr[0].toFixed(2) +
-            '&time=' + targetTime.toISOString())
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (data.success && window.oceanOverlayRefresh) {
-                    window.oceanOverlayRefresh(map);
-                }
-            })
-            .catch(function () { });
+        if (window.oceanOverlaySetTime) {
+            window.oceanOverlaySetTime(hours);
+        }
     }
 
 })();
