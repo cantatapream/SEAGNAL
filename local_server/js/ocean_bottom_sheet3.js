@@ -51,7 +51,8 @@
                 if (result && result.today) {
                     OS.renderTideData(result.today, /*isIdw=*/true, dateObj, {
                         yesterday: result.yesterday,
-                        tomorrow: result.tomorrow
+                        tomorrow: result.tomorrow,
+                        lat: lat, lon: lon   // 서해 판별용 좌표 전달
                     });
                 } else {
                     OS.renderTideError(errMsg ||
@@ -127,7 +128,8 @@
                             // 오늘 데이터 + 현재까지 모인 이웃 데이터로 렌더
                             OS.renderTideData(collected.today, /*isIdw=*/false, dateObj, {
                                 yesterday: collected.yesterday,
-                                tomorrow: collected.tomorrow
+                                tomorrow: collected.tomorrow,
+                                lat: lat, lon: lon   // 서해 판별용 좌표 전달
                             });
                             // 이웃이 아직 비어있으면 백그라운드 보강 폴링
                             if ((!collected.yesterday || !collected.tomorrow)
@@ -319,12 +321,17 @@
             var tbRow0 = (data.tideBedData && data.tideBedData.length > 0)
                 ? data.tideBedData[0]
                 : null;
+            // neighbors에 담아온 좌표로 서해 여부 판별
+            var sheetLat = (neighbors && typeof neighbors.lat === 'number') ? neighbors.lat : null;
+            var sheetLon = (neighbors && typeof neighbors.lon === 'number') ? neighbors.lon : null;
             var mulddaeInfo = computeMulddae(
-                peaks,    // 오늘 피크 [{type, minutes, level}]
-                yPeaks,   // 어제 피크 (방향 판단용)
-                tPeaks,   // 내일 피크 (평균 대조차 추정 보조)
-                tbRow0,   // M2/S2 조화상수 행
-                dateObj   // 기준 날짜 (월령 계산용)
+                peaks,     // 오늘 피크 [{type, minutes, level}]
+                yPeaks,    // 어제 피크 (방향 판단용)
+                tPeaks,    // 내일 피크 (평균 대조차 추정 보조)
+                tbRow0,    // M2/S2 조화상수 행
+                dateObj,   // 기준 날짜 (월령 계산용)
+                sheetLat,  // 위도 (서해 판별)
+                sheetLon   // 경도 (서해 판별)
             );
             if (mulddaeInfo) {
                 // '조석' 타이틀 옆에 소괄호 형태로 표시: ≋ 조석  (1물)
