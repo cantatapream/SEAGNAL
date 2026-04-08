@@ -109,13 +109,34 @@
             source: wmsSource,
             visible: true
         });
+
+        // tileloaderror: TOPO 레이어는 서버 미지원 시 사용자에게 알림
+        var errorCount = 0;
         wmsSource.on('tileloaderror', function () {
-            // 진단 로그만 남기고 폴백은 하지 않는다.
             console.warn('[OceanMap] 해아름 WMS 타일 로드 실패(' + layer + ')');
+            errorCount++;
+            // 3회 이상 연속 실패 + 현재 해당 레이어가 활성화 상태이면 알림
+            if (errorCount >= 3 && tileLayer.getVisible()) {
+                showBasemapError(layer);
+            }
         });
 
         console.log('[OceanMap] 해아름 WMS 엔드포인트:', endpoint);
         return tileLayer;
+    }
+
+    /**
+     * 베이스맵 레이어 로드 실패 알림 (지도 위 플로팅 배너)
+     */
+    function showBasemapError(layer) {
+        var el = document.getElementById('ocean-basemap-error');
+        if (!el) return;
+        el.textContent = '⚠ ' + layer + ' 레이어를 불러오지 못했습니다';
+        el.style.display = '';
+        clearTimeout(el._hideTimer);
+        el._hideTimer = setTimeout(function () {
+            el.style.display = 'none';
+        }, 4000);
     }
 
     // ========================================================================

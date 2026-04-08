@@ -92,7 +92,7 @@ async function fetchKhoaWmsImage(lat, lon) {
         const bbox = tileBbox(x, y, zoom);
 
         const wmsParams = new URLSearchParams({
-            layer:       'BASEMAP_RLTM3857',
+            layer:       'BASEMAP_ENC573857', // 전자해도: 등심선·저질 기호가 상세
             SERVICE:     'WMS',
             VERSION:     '1.1.1',
             REQUEST:     'GetMap',
