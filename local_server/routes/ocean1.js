@@ -361,7 +361,13 @@ async function _fetchKhoaStream(date, hour) {
 // 현재 시각 → KHOA 가 받아들이는 (YYYYMMDD, HH) 로 변환
 function _defaultDateHour(qDate, qHour) {
     if (qDate && qHour != null) {
-        return { date: String(qDate), hour: String(qHour).padStart(2, '0') };
+        // parseInt로 정수 파싱: '11:1', '11:00', '9' 모두 안전하게 처리
+        // padStart는 길이 이상의 문자열을 그대로 통과시키므로 parseInt 필수
+        const hourInt = parseInt(qHour, 10);
+        const hourSafe = (!isNaN(hourInt) && hourInt >= 0 && hourInt <= 23)
+            ? String(hourInt).padStart(2, '0')
+            : String(new Date().getHours()).padStart(2, '0');
+        return { date: String(qDate), hour: hourSafe };
     }
     const d = new Date();
     const y = d.getFullYear();
