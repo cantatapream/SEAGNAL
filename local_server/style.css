@@ -8572,10 +8572,12 @@ body.ocean-map-active .main-header .header-content {
     flex: 1;
     min-width: 0;
     color: #fff;
-    font-size: 0.9rem;
+    /* clamp: 뷰포트 너비 기준으로 유동적으로 축소 → 작은 화면/큰 시스템 폰트 대응 */
+    font-size: clamp(0.65rem, 3.4vw, 0.9rem);
     font-weight: 600;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    overflow-wrap: break-word; /* 단어 단위 줄바꿈만 허용 (글자 단위 금지) */
+    word-break: normal;        /* break-word 제거 → 한 글자씩 줄바꿈 방지 */
+    line-height: 1.35;
 }
 
 /* 스켈레톤 로딩 */
@@ -8601,11 +8603,25 @@ body.ocean-map-active .main-header .header-content {
 
 /* 반응형 */
 @media (max-width: 400px) {
-    /* 작은 화면 + 큰 글자에서도 카드는 2열 유지 (1열로 떨어지면 우측 여백이 비고
-       모든 카드를 보려고 사용자가 과도하게 스크롤해야 한다) */
     .ocean-cards-grid {
         grid-template-columns: 1fr 1fr;
-        gap: 8px;
+        gap: 6px;
+    }
+
+    /* 작은 화면: 카드 내부 여백·아이콘 축소 → 값 표시 영역 최대 확보 */
+    .ocean-data-card {
+        padding: 8px;
+        gap: 7px;
+    }
+
+    .ocean-card-icon {
+        width: 36px;
+        padding: 5px 3px;
+        font-size: 0.78rem;
+    }
+
+    .ocean-card-icon-label {
+        font-size: 0.52rem;
     }
 
     .ocean-mode-header {
