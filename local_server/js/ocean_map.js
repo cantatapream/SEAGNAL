@@ -26,15 +26,20 @@
     // ========================================================================
     let oceanMap = null;           // OpenLayers Map 인스턴스
     let currentMode = 'A';        // 현재 모드: 'A' 조석지도, 'B' 해양현황
-    let baseLayerA = null;         // 모드 A 베이스맵 (해아름 RLTM3857)
-    let baseLayerB = null;         // 모드 B 베이스맵 (해아름 RLTMCOAST3857)
-    let searchResultLayer = null;  // 검색 결과 마커 레이어
+    let baseLayerA    = null;     // 모드 A 기본맵 (BASEMAP_RLTM3857)
+    let baseLayerENC  = null;     // 모드 A 전자해도 (BASEMAP_ENC573857)
+    let baseLayerTopo = null;     // 모드 A 위성지도 (BASEMAP_RLTMTOPO3857)
+    let baseLayerB    = null;     // 모드 B 해양계선 (BASEMAP_RLTMCOAST3857)
+    let currentBaseA  = 'rltm';  // 모드 A 현재 베이스맵: 'rltm' | 'enc' | 'topo'
+    let searchResultLayer = null; // 검색 결과 마커 레이어
 
     // 해아름 WMS 엔드포인트 (F12 캡처로 확인됨)
     // http://www.khoa.go.kr/oceanmap/{LAYER}/wmsVectordata.do?SERVICE=WMS&...
     const KHOA_WMS_BASE = 'https://www.khoa.go.kr/oceanmap/';
-    const KHOA_LAYER_A = 'BASEMAP_RLTM3857';      // 조석지도용
-    const KHOA_LAYER_B = 'BASEMAP_RLTMCOAST3857'; // 해양현황용
+    const KHOA_LAYER_A    = 'BASEMAP_RLTM3857';      // 기본맵 (국문)
+    const KHOA_LAYER_ENC  = 'BASEMAP_ENC573857';     // 전자해도
+    const KHOA_LAYER_TOPO = 'BASEMAP_RLTMTOPO3857';  // 해양 위성지도
+    const KHOA_LAYER_B    = 'BASEMAP_RLTMCOAST3857'; // 해양계선 (모드 B)
 
     // 한반도 남부 + 제주 → 최소 줌 레벨 6
     // [중요] MAX_ZOOM 은 KHOA 해아름 WMS 가 안정적으로 타일을 제공하는 한계까지로 제한.
@@ -137,12 +142,18 @@
      */
     function buildMap() {
         try {
-            // 해아름 WMS 레이어 생성 (실패 시 OSM 대체)
-            baseLayerA = createKhoaLayer(KHOA_LAYER_A);
-            baseLayerB = createKhoaLayer(KHOA_LAYER_B);
+            // 해아름 WMS 레이어 생성
+            baseLayerA    = createKhoaLayer(KHOA_LAYER_A);
+            baseLayerENC  = createKhoaLayer(KHOA_LAYER_ENC);
+            baseLayerTopo = createKhoaLayer(KHOA_LAYER_TOPO);
+            baseLayerB    = createKhoaLayer(KHOA_LAYER_B);
+
+            // 초기 가시성: 기본맵(A)만 표시
+            baseLayerENC.setVisible(false);
+            baseLayerTopo.setVisible(false);
             baseLayerB.setVisible(false);
 
-            const layers = [baseLayerA, baseLayerB];
+            const layers = [baseLayerA, baseLayerENC, baseLayerTopo, baseLayerB];
 
             // 지도 생성
             oceanMap = new ol.Map({
@@ -169,6 +180,9 @@
 
             // 모드 전환 버튼 바인딩
             bindModeButtons();
+
+            // 베이스맵 선택 피커 바인딩
+            bindBasemapPicker();
 
             // 뒤로가기 버튼
             // 진입 시 보존해 둔 직전 메인탭/서브탭을 그대로 두기 위해
@@ -216,6 +230,65 @@
         if (btnB) btnB.addEventListener('click', () => switchMode('B'));
     }
 
+    // ========================================================================
+    // 베이스맵 선택 피커
+    // ========================================================================
+
+    /**
+     * 모드 A 레이어들의 가시성을 설정한다.
+     * show=true 이면 currentBaseA 에 해당하는 레이어만 보이게 한다.
+     * show=false 이면 모두 숨긴다.
+     */
+    function setModeALayersVisible(show) {
+        if (baseLayerA)    baseLayerA.setVisible(show && currentBaseA === 'rltm');
+        if (baseLayerENC)  baseLayerENC.setVisible(show && currentBaseA === 'enc');
+        if (baseLayerTopo) baseLayerTopo.setVisible(show && currentBaseA === 'topo');
+    }
+
+    /** 모드 A 베이스맵을 type 으로 전환한다. */
+    function switchBaseLayer(type) {
+        currentBaseA = type;
+        setModeALayersVisible(true);
+
+        // 피커 버튼 active 상태 갱신
+        document.querySelectorAll('.ocean-basemap-item').forEach(function (btn) {
+            btn.classList.toggle('active', btn.dataset.basemap === type);
+        });
+
+        // 레이어 이름 표시 갱신
+        var toggleLabel = document.getElementById('ocean-basemap-label');
+        if (toggleLabel) {
+            var names = { rltm: '기본맵', enc: '전자해도', topo: '위성지도' };
+            toggleLabel.textContent = names[type] || '지도';
+        }
+    }
+
+    function bindBasemapPicker() {
+        var toggleBtn = document.getElementById('ocean-basemap-toggle');
+        var menu      = document.getElementById('ocean-basemap-menu');
+        if (!toggleBtn || !menu) return;
+
+        // 토글 버튼: 메뉴 열고 닫기
+        toggleBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            menu.style.display = menu.style.display === 'none' ? '' : 'none';
+        });
+
+        // 메뉴 아이템 클릭: 레이어 전환 + 메뉴 닫기
+        document.querySelectorAll('.ocean-basemap-item').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                switchBaseLayer(this.dataset.basemap);
+                menu.style.display = 'none';
+            });
+        });
+
+        // 지도 클릭 시 메뉴 닫기
+        oceanMap.on('click', function () {
+            menu.style.display = 'none';
+        });
+    }
+
     function switchMode(mode) {
         if (mode === currentMode) return;
         currentMode = mode;
@@ -228,19 +301,22 @@
         const legend = document.getElementById('ocean-legend');
         const canvas = document.getElementById('ocean-overlay-canvas');
 
+        const basemapToggleWrap = document.getElementById('ocean-basemap-toggle-wrap');
+
         if (mode === 'A') {
             // 모드 A: 조석지도
             btnA.classList.add('active');
             btnB.classList.remove('active');
 
-            if (searchContainer) searchContainer.style.display = '';
-            if (overlayControls) overlayControls.style.display = 'none';
-            if (timeline) timeline.style.display = 'none';
-            if (legend) legend.style.display = 'none';
-            if (canvas) canvas.style.display = 'none';
+            if (searchContainer)    searchContainer.style.display = '';
+            if (overlayControls)    overlayControls.style.display = 'none';
+            if (timeline)           timeline.style.display = 'none';
+            if (legend)             legend.style.display = 'none';
+            if (canvas)             canvas.style.display = 'none';
+            if (basemapToggleWrap)  basemapToggleWrap.style.display = '';
 
-            // 베이스맵 전환
-            if (baseLayerA) baseLayerA.setVisible(true);
+            // 모드 A 베이스맵: 선택된 레이어만 표시
+            setModeALayersVisible(true);
             if (baseLayerB) baseLayerB.setVisible(false);
 
             // 마커 표시
@@ -254,14 +330,18 @@
             btnA.classList.remove('active');
             btnB.classList.add('active');
 
-            if (searchContainer) searchContainer.style.display = 'none';
-            if (overlayControls) overlayControls.style.display = '';
-            if (timeline) timeline.style.display = '';
-            if (legend) legend.style.display = '';
-            if (canvas) canvas.style.display = '';
+            if (searchContainer)    searchContainer.style.display = 'none';
+            if (overlayControls)    overlayControls.style.display = '';
+            if (timeline)           timeline.style.display = '';
+            if (legend)             legend.style.display = '';
+            if (canvas)             canvas.style.display = '';
+            // 베이스맵 피커 닫고 숨기기
+            const basemapMenu = document.getElementById('ocean-basemap-menu');
+            if (basemapMenu)        basemapMenu.style.display = 'none';
+            if (basemapToggleWrap)  basemapToggleWrap.style.display = 'none';
 
-            // 베이스맵 전환
-            if (baseLayerA) baseLayerA.setVisible(false);
+            // 모드 A 레이어 전부 숨기고 모드 B 레이어 표시
+            setModeALayersVisible(false);
             if (baseLayerB) baseLayerB.setVisible(true);
 
             // 마커 숨김

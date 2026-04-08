@@ -808,6 +808,25 @@
                 <div class="ocean-map-wrapper" style="position: relative;">
                     <div id="ocean-map"></div>
 
+                    <!-- 모드 A: 베이스맵 선택 피커 (지도 좌측 상단) -->
+                    <div id="ocean-basemap-toggle-wrap" class="ocean-basemap-toggle-wrap">
+                        <button id="ocean-basemap-toggle" class="ocean-overlay-btn ocean-basemap-toggle-btn" title="지도 종류 선택">
+                            <i class="fa-solid fa-layer-group"></i>
+                            <span class="ocean-overlay-label" id="ocean-basemap-label">기본맵</span>
+                        </button>
+                        <div id="ocean-basemap-menu" class="ocean-basemap-menu" style="display:none;">
+                            <button class="ocean-basemap-item active" data-basemap="rltm">
+                                <i class="fa-solid fa-map"></i> 기본맵
+                            </button>
+                            <button class="ocean-basemap-item" data-basemap="enc">
+                                <i class="fa-solid fa-anchor"></i> 전자해도
+                            </button>
+                            <button class="ocean-basemap-item" data-basemap="topo">
+                                <i class="fa-solid fa-satellite"></i> 위성지도
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- 모드 B: 오버레이 토글 버튼 (지도 우측) -->
                     <div class="ocean-overlay-controls" id="ocean-overlay-controls" style="display:none;">
                         <button class="ocean-overlay-btn active" data-layer="current" title="해류">
