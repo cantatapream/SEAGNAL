@@ -48,12 +48,11 @@ function latLonToMercator(lat, lon) {
     return { x, y };
 }
 
-// ── 해아름 WMS 이미지 서버 직접 취득 ─────────────────────────────────────────
+// ── 해아름 WMS 이미지 취득 (내부 프록시 경유) ────────────────────────────────
 /**
- * 클릭 좌표 중심으로 해아름 WMS 타일 이미지(768×768px)를 서버에서 요청한다.
- * - 레이어: BASEMAP_RLTM3857 (조석지도 — 수심·저질 기호 포함)
- * - 반경: 약 1.5km (3km × 3km 영역)
- * - SRS: EPSG:3857
+ * 클릭 좌표 중심으로 해아름 WMS 타일 이미지(512×512px)를 취득한다.
+ * KHOA를 직접 호출하면 ServiceException이 발생하는 경우가 있으므로,
+ * 이미 검증된 ocean1.js의 /api/ocean/khoa-wms 프록시를 localhost로 호출한다.
  *
  * @param {number} lat - 위도
  * @param {number} lon - 경도
@@ -64,55 +63,49 @@ async function fetchKhoaWmsImage(lat, lon) {
     const half = 1500; // 1500m 반경 → 3km × 3km 영역
     const bbox = `${x - half},${y - half},${x + half},${y + half}`;
 
-    const layer = 'BASEMAP_RLTM3857';
-    const params = new URLSearchParams({
+    const wmsParams = new URLSearchParams({
+        layer:       'BASEMAP_RLTM3857',
         SERVICE:     'WMS',
         VERSION:     '1.1.1',
         REQUEST:     'GetMap',
         FORMAT:      'image/png',
         TRANSPARENT: 'true',
-        LAYERS:      '',      // KHOA WMS: 레이어는 URL 경로로 지정하므로 빈 값
+        LAYERS:      '',
         STYLES:      '',
-        WIDTH:       '768',
-        HEIGHT:      '768',
+        WIDTH:       '512',
+        HEIGHT:      '512',
         SRS:         'EPSG:3857',
         BBOX:        bbox
     });
 
-    const url = `http://www.khoa.go.kr/oceanmap/${layer}/wmsVectordata.do?${params}`;
-
-    // node-fetch v2 직접 사용 (global.fetch는 timeout 옵션 미지원)
-    const nodeFetch = require('node-fetch');
+    // 이미 검증된 내부 프록시(/api/ocean/khoa-wms)를 localhost로 호출
+    const port = process.env.PORT || 3001;
+    const proxyUrl = `http://localhost:${port}/api/ocean/khoa-wms?${wmsParams}`;
+    const fetchFn  = global.fetch || require('node-fetch');
 
     try {
-        const r = await nodeFetch(url, {
-            redirect: 'follow',
-            timeout:  12000,    // node-fetch v2 timeout (ms)
-            headers: {
-                'Referer':    'http://www.khoa.go.kr/oceanmap/main.do',
-                'User-Agent': 'Mozilla/5.0'
-            }
-        });
+        const r = await fetchFn(proxyUrl);
 
         if (!r.ok) {
-            console.error('[해아름 WMS] HTTP 오류:', r.status, r.statusText);
+            console.error('[해아름 WMS] 프록시 오류:', r.status);
             return null;
         }
 
         const buf = Buffer.from(await r.arrayBuffer());
 
-        // PNG 매직 바이트 검증: 0x89 0x50 0x4E 0x47 (‰PNG)
-        // KHOA가 에러 시 HTML/XML을 200으로 반환하는 경우 차단
-        if (buf.length < 8 ||
-            buf[0] !== 0x89 || buf[1] !== 0x50 ||
-            buf[2] !== 0x4E || buf[3] !== 0x47) {
-            console.error('[해아름 WMS] PNG가 아닌 응답 수신 (길이:', buf.length, ')');
+        // PNG 매직 바이트 검증 (0x89 0x50 0x4E 0x47 = \x89PNG)
+        if (buf.length < 8 || buf[0] !== 0x89 || buf[1] !== 0x50) {
+            // 진단용: 응답 내용 일부 출력
+            const preview = buf.slice(0, 300).toString('utf8').replace(/[\r\n]+/g, ' ');
+            console.error('[해아름 WMS] PNG 아님, 길이:', buf.length, 'bytes | 내용:', preview);
             return null;
         }
 
+        console.log('[해아름 WMS] 이미지 취득 성공, 크기:', buf.length, 'bytes');
         return buf;
+
     } catch (e) {
-        console.error('[해아름 WMS] 이미지 요청 실패:', e.message);
+        console.error('[해아름 WMS] 요청 예외:', e.message);
         return null;
     }
 }
