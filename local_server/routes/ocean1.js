@@ -440,6 +440,32 @@ router.get('/api/ocean/khoa-stream-nearest', async (req, res) => {
 });
 
 // ============================================================================
+// 육지 마스크 API — 한반도 주변 사전 생성된 육지 폴리곤
+// ============================================================================
+// land_mask_korea.json: 사전 클리핑된 정적 파일 (CDN 다운로드 불필요)
+// 재생성: node local_server/scripts/generate_land_mask.js
+
+const _LAND_MASK_PATH = path.join(__dirname, '..', 'land_mask_korea.json');
+let _landMaskData = null; // 서버 기동 후 최초 1회 파일 읽기 후 메모리 유지
+
+router.get('/api/ocean/land-mask', (req, res) => {
+    try {
+        if (!_landMaskData) {
+            if (!fs.existsSync(_LAND_MASK_PATH)) {
+                return res.status(404).json({ success: false, error: 'land_mask_korea.json 없음' });
+            }
+            _landMaskData = JSON.parse(fs.readFileSync(_LAND_MASK_PATH, 'utf8'));
+            console.log('[LandMask] 파일 로드 완료, rings:', _landMaskData.rings.length);
+        }
+        res.set('Cache-Control', 'public, max-age=86400');
+        res.json({ success: true, rings: _landMaskData.rings });
+    } catch (e) {
+        console.error('[LandMask] error:', e.message);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// ============================================================================
 // 하위 라우터 연결 (ocean2~5)
 // ============================================================================
 // 각 파일이 존재할 때만 안전하게 로드
