@@ -26,20 +26,18 @@
     // ========================================================================
     let oceanMap = null;           // OpenLayers Map 인스턴스
     let currentMode = 'A';        // 현재 모드: 'A' 조석지도, 'B' 해양현황
-    let baseLayerA    = null;     // 모드 A 기본맵 (BASEMAP_RLTM3857)
-    let baseLayerENC  = null;     // 모드 A 전자해도 (BASEMAP_ENC573857)
-    let baseLayerTopo = null;     // 모드 A 위성지도 (BASEMAP_RLTMTOPO3857)
-    let baseLayerB    = null;     // 모드 B 해양계선 (BASEMAP_RLTMCOAST3857)
-    let currentBaseA  = 'rltm';  // 모드 A 현재 베이스맵: 'rltm' | 'enc' | 'topo'
+    let baseLayerA   = null;    // 모드 A 기본맵 (BASEMAP_RLTM3857)
+    let baseLayerENC = null;    // 모드 A 전자해도 (BASEMAP_ENC573857)
+    let baseLayerB   = null;    // 모드 B 해양계선 (BASEMAP_RLTMCOAST3857)
+    let currentBaseA = 'rltm'; // 모드 A 현재 베이스맵: 'rltm' | 'enc'
     let searchResultLayer = null; // 검색 결과 마커 레이어
 
     // 해아름 WMS 엔드포인트 (F12 캡처로 확인됨)
     // http://www.khoa.go.kr/oceanmap/{LAYER}/wmsVectordata.do?SERVICE=WMS&...
     const KHOA_WMS_BASE = 'https://www.khoa.go.kr/oceanmap/';
-    const KHOA_LAYER_A    = 'BASEMAP_RLTM3857';      // 기본맵 (국문)
-    const KHOA_LAYER_ENC  = 'BASEMAP_ENC573857';     // 전자해도
-    const KHOA_LAYER_TOPO = 'BASEMAP_RLTMTOPO3857';  // 해양 위성지도
-    const KHOA_LAYER_B    = 'BASEMAP_RLTMCOAST3857'; // 해양계선 (모드 B)
+    const KHOA_LAYER_A   = 'BASEMAP_RLTM3857';      // 기본맵 (국문)
+    const KHOA_LAYER_ENC = 'BASEMAP_ENC573857';     // 전자해도
+    const KHOA_LAYER_B   = 'BASEMAP_RLTMCOAST3857'; // 해양계선 (모드 B)
 
     // 한반도 남부 + 제주 → 최소 줌 레벨 6
     // [중요] MAX_ZOOM 은 KHOA 해아름 WMS 가 안정적으로 타일을 제공하는 한계까지로 제한.
@@ -110,34 +108,14 @@
             visible: true
         });
 
-        // tileloaderror: TOPO 레이어는 서버 미지원 시 사용자에게 알림
-        var errorCount = 0;
         wmsSource.on('tileloaderror', function () {
             console.warn('[OceanMap] 해아름 WMS 타일 로드 실패(' + layer + ')');
-            errorCount++;
-            // 3회 이상 연속 실패 + 현재 해당 레이어가 활성화 상태이면 알림
-            if (errorCount >= 3 && tileLayer.getVisible()) {
-                showBasemapError(layer);
-            }
         });
 
         console.log('[OceanMap] 해아름 WMS 엔드포인트:', endpoint);
         return tileLayer;
     }
 
-    /**
-     * 베이스맵 레이어 로드 실패 알림 (지도 위 플로팅 배너)
-     */
-    function showBasemapError(layer) {
-        var el = document.getElementById('ocean-basemap-error');
-        if (!el) return;
-        el.textContent = '⚠ ' + layer + ' 레이어를 불러오지 못했습니다';
-        el.style.display = '';
-        clearTimeout(el._hideTimer);
-        el._hideTimer = setTimeout(function () {
-            el.style.display = 'none';
-        }, 4000);
-    }
 
     // ========================================================================
     // 지도 초기화
@@ -164,17 +142,15 @@
     function buildMap() {
         try {
             // 해아름 WMS 레이어 생성
-            baseLayerA    = createKhoaLayer(KHOA_LAYER_A);
-            baseLayerENC  = createKhoaLayer(KHOA_LAYER_ENC);
-            baseLayerTopo = createKhoaLayer(KHOA_LAYER_TOPO);
-            baseLayerB    = createKhoaLayer(KHOA_LAYER_B);
+            baseLayerA   = createKhoaLayer(KHOA_LAYER_A);
+            baseLayerENC = createKhoaLayer(KHOA_LAYER_ENC);
+            baseLayerB   = createKhoaLayer(KHOA_LAYER_B);
 
             // 초기 가시성: 기본맵(A)만 표시
             baseLayerENC.setVisible(false);
-            baseLayerTopo.setVisible(false);
             baseLayerB.setVisible(false);
 
-            const layers = [baseLayerA, baseLayerENC, baseLayerTopo, baseLayerB];
+            const layers = [baseLayerA, baseLayerENC, baseLayerB];
 
             // 지도 생성
             oceanMap = new ol.Map({
@@ -261,9 +237,8 @@
      * show=false 이면 모두 숨긴다.
      */
     function setModeALayersVisible(show) {
-        if (baseLayerA)    baseLayerA.setVisible(show && currentBaseA === 'rltm');
-        if (baseLayerENC)  baseLayerENC.setVisible(show && currentBaseA === 'enc');
-        if (baseLayerTopo) baseLayerTopo.setVisible(show && currentBaseA === 'topo');
+        if (baseLayerA)   baseLayerA.setVisible(show && currentBaseA === 'rltm');
+        if (baseLayerENC) baseLayerENC.setVisible(show && currentBaseA === 'enc');
     }
 
     /** 모드 A 베이스맵을 type 으로 전환한다. */
@@ -279,7 +254,7 @@
         // 레이어 이름 표시 갱신
         var toggleLabel = document.getElementById('ocean-basemap-label');
         if (toggleLabel) {
-            var names = { rltm: '기본맵', enc: '전자해도', topo: '위성지도' };
+            var names = { rltm: '기본맵', enc: '전자해도' };
             toggleLabel.textContent = names[type] || '지도';
         }
     }
