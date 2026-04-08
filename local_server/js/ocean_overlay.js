@@ -334,8 +334,8 @@
     /**
      * 해구별 기상전망(zone_forecasts)으로 바람/파고 오버레이 데이터를 로드합니다.
      * layer: 'wind' 또는 'wave'
-     * - wind: crsp = ws(m/s), crdir = windDir → 파티클 애니메이션
-     * - wave: crsp = wh(m),   crdir = waveDir → 배경 색상 (파티클 없음)
+     * - wind: crsp = ws(m/s), crdir = windDir → 속도별 색상 파티클 (배경 없음)
+     * - wave: crsp = wh(m),   crdir = waveDir → 파고 배경 색상 + 파향 흰 파티클
      */
     function loadZoneForecastData(layer) {
         var timeParam = '';
@@ -363,13 +363,7 @@
                 // 캔버스 반드시 표시
                 if (canvas) canvas.style.visibility = 'visible';
                 isMoving = false;
-                if (layer === 'wave') {
-                    // 파고: 배경 색상만 표시 (파티클 없음)
-                    if (animationId) cancelAnimationFrame(animationId);
-                    animationId = requestAnimationFrame(animate);
-                } else {
-                    startParticleAnimation();
-                }
+                startParticleAnimation();
             })
             .catch(function (e) { console.warn('[OceanOverlay] zone-forecasts 로드 실패:', e.message); });
     }
@@ -602,6 +596,14 @@
         var la = lowerBound(latList, lat);
         if (li < 0 || la < 0) return null;
 
+        // 외삽 방지: 데이터 격자 마지막 경계를 0.3° 이상 초과하면 null
+        // (내부 빈 칸은 li+1/la+1이 존재하므로 이 조건에 걸리지 않음)
+        var HALF_STEP = 0.3;
+        if (li + 1 >= lonList.length && lon > lonList[li] + HALF_STEP) return null;
+        if (la + 1 >= latList.length && lat > latList[la] + HALF_STEP) return null;
+        if (lon < lonList[0] - HALF_STEP) return null;
+        if (lat < latList[0] - HALF_STEP) return null;
+
         var p00 = gridLookup[li + '_' + la] || null;
         var p10 = (li + 1 < lonList.length) ? (gridLookup[(li+1) + '_' + la] || null) : null;
         var p01 = (la + 1 < latList.length) ? (gridLookup[li + '_' + (la+1)] || null) : null;
@@ -822,19 +824,16 @@
             return;
         }
 
-        // ─── 파고: 배경 색상만 표시 (파티클 없음) ───
-        if (activeLayer === 'wave') {
-            ctx.clearRect(0, 0, w, h);
-            if (gridCanvas) ctx.drawImage(gridCanvas, 0, 0, w, h);
-            animationId = requestAnimationFrame(animate);
-            return;
-        }
+        // ─── 해류/바람/파고: 파티클 트레일 ───
+        var isWind = (activeLayer === 'wind');
+        var isWave = (activeLayer === 'wave');
 
-        // ─── 해류/바람: 파티클 트레일 ───
-        // ① 트레일 페이드 (꼬리 길이 조정: 값이 클수록 짧아짐)
+        // ① 트레일 페이드
+        // - wave: 꼬리 길이 길게 (값 작을수록 잔상 오래 유지)
+        // - wind/current: 기존 동일
         if (trailCtx) {
             trailCtx.globalCompositeOperation = 'destination-out';
-            trailCtx.fillStyle = 'rgba(0,0,0,0.15)';
+            trailCtx.fillStyle = isWave ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0.15)';
             trailCtx.fillRect(0, 0, w, h);
             trailCtx.globalCompositeOperation = 'source-over';
         }
@@ -842,11 +841,12 @@
         // ② 입자 이동 + 트레일 그리기
         // SPEED_SCALE: 레이어별 단위 보정
         // - current: crsp=cm/s → spdMps=crsp*0.01, SPEED_SCALE=0.015*res*100
-        // - wind:    crsp=m/s  → spdMps=crsp 그대로, SPEED_SCALE=0.015*res
-        // 결과: 둘 다 동일한 시각적 속도 (1단위 → 0.015 px/frame)
+        // - wind:    crsp=m/s  → spdMps=crsp,       SPEED_SCALE=0.015*res
+        // - wave:    파향만 사용, spdMps=1.0(고정),  SPEED_SCALE=0.015*res
         var resolution = mapRef.getView().getResolution();
-        var isWind = (activeLayer === 'wind');
-        var SPEED_SCALE = isWind ? (0.015 * resolution) : (0.015 * resolution * 100);
+        var SPEED_SCALE = isWave ? (0.015 * resolution)
+                        : isWind ? (0.015 * resolution)
+                                 : (0.015 * resolution * 100);
 
         particles.forEach(function (p) {
             var lonLat = ol.proj.toLonLat([p.x, p.y]);
@@ -855,7 +855,9 @@
             var spdValue = 0;
             if (nearest) {
                 var dirRad = (nearest.crdir || 0) * Math.PI / 180;
-                var spdMps = isWind ? (nearest.crsp || 0) : (nearest.crsp || 0) * 0.01;
+                var spdMps = isWave ? 1.0                          // 파고: 파향만 사용, 고정 속도
+                           : isWind ? (nearest.crsp || 0)          // 바람: m/s 그대로
+                                    : (nearest.crsp || 0) * 0.01;  // 해류: cm/s → m/s
                 spdValue = nearest.crsp || 0;
 
                 p.x += Math.sin(dirRad) * spdMps * SPEED_SCALE;
@@ -863,7 +865,9 @@
             }
 
             p.age++;
-            var minSpeed = isWind ? 0.05 : 0.1; // m/s 또는 cm/s 기준 최소속도
+            var minSpeed = isWave ? 0.0    // 파고: 파향 있으면 무조건 표시
+                         : isWind ? 0.05   // 바람: m/s 최소
+                                  : 0.1;   // 해류: cm/s 최소
             if (p.age > p.maxAge || !nearest || spdValue < minSpeed) {
                 var newP = createParticle();
                 p.x = newP.x; p.y = newP.y; p.age = 0;
@@ -883,15 +887,16 @@
             }
 
             if (trailCtx && p.prevPx !== null) {
-                if (isWind) {
-                    // 바람: 배경 색상 위에 흰 트레일 (윈디 스타일)
-                    trailCtx.strokeStyle = 'rgba(255,255,255,0.70)';
-                    trailCtx.lineWidth = 0.8 + Math.min(1.0, spdValue / 15);
+                if (isWave) {
+                    // 파고: 배경 색상 위에 흰 트레일 (파향 방향, 긴 꼬리)
+                    trailCtx.strokeStyle = 'rgba(255,255,255,0.65)';
+                    trailCtx.lineWidth = 1.0;
                 } else {
-                    // 해류: 속도별 색상 트레일
+                    // 바람/해류: 속도별 색상 트레일 (배경 없음)
                     var col = interpolateColor(scale, spdValue);
                     trailCtx.strokeStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0.78)';
-                    trailCtx.lineWidth = 0.8 + Math.min(1.2, spdValue / 40);
+                    trailCtx.lineWidth = isWind ? (0.8 + Math.min(1.2, spdValue / 15))
+                                                : (0.8 + Math.min(1.2, spdValue / 40));
                 }
                 trailCtx.lineCap = 'round';
                 trailCtx.beginPath();
@@ -903,9 +908,11 @@
             p.prevPy = py;
         });
 
-        // ③ 합성: 바람=배경색상+흰트레일, 해류=트레일만
+        // ③ 합성
+        // - 파고: 파고 높이 배경 색상 + 흰 파향 트레일
+        // - 바람/해류: 트레일만 (배경 색상 없음)
         ctx.clearRect(0, 0, w, h);
-        if (isWind && gridCanvas) ctx.drawImage(gridCanvas, 0, 0, w, h);
+        if (isWave && gridCanvas) ctx.drawImage(gridCanvas, 0, 0, w, h);
         if (trailCanvas) ctx.drawImage(trailCanvas, 0, 0, w, h);
 
         animationId = requestAnimationFrame(animate);
