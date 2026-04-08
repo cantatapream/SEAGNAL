@@ -62,20 +62,15 @@ function latLonToMercator(lat, lon) {
  * @param {number} lon - 경도
  * @returns {Promise<Buffer|null>} PNG 이미지 버퍼 또는 null(실패/비PNG)
  */
-async function fetchKhoaWmsImage(lat, lon) {
+async function fetchKhoaWmsImage(lat, lon, startZoom = 15) {
     const R       = 6378137;
     const originX = -Math.PI * R;  // ≈ -20037508 m
     const originY =  Math.PI * R;  // ≈ +20037508 m
 
-    /**
-     * EPSG:3857 좌표 (x, y) 를 포함하는 OpenLayers 타일의
-     * tile-aligned BBOX 문자열을 반환한다.
-     */
     function tileBbox(x, y, zoom) {
-        const tileSize = 2 * Math.PI * R / Math.pow(2, zoom); // m per tile
+        const tileSize = 2 * Math.PI * R / Math.pow(2, zoom);
         const tx = Math.floor((x - originX) / tileSize);
         const ty = Math.floor((originY - y) / tileSize);
-
         const minX = originX + tx * tileSize;
         const maxX = minX + tileSize;
         const maxY = originY - ty * tileSize;
@@ -87,8 +82,8 @@ async function fetchKhoaWmsImage(lat, lon) {
     const port     = process.env.PORT || 3001;
     const fetchFn  = global.fetch || require('node-fetch');
 
-    // zoom 15(≈1.2km/tile) → 14(≈2.4km/tile) → 13(≈4.9km/tile) 순으로 시도
-    for (const zoom of [15, 14, 13]) {
+    // startZoom 부터 최대 2단계 아래까지 PNG 획득 시도
+    for (const zoom of [startZoom, startZoom - 1, startZoom - 2]) {
         const bbox = tileBbox(x, y, zoom);
 
         const wmsParams = new URLSearchParams({
@@ -189,8 +184,6 @@ function buildSeabedPrompt(lat, lon) {
 
   ② 우선순위 규칙 (매우 중요):
      - 이미지 정중앙에서 가장 가까이 있는 저질 기호를 찾으세요.
-     - 중앙에 R(Rock/암반) 기호가 여러 개 보이거나, 중앙이 R 기호들에 둘러싸여 있으면
-       배경 색상이나 멀리 있는 다른 기호보다 R을 최우선으로 선택하세요.
      - 배경 색상(파란 구역 = 물)이 저질을 결정하지 않습니다.
        저질은 반드시 이탤릭 알파벳 기호로만 판단하세요.
 
@@ -283,8 +276,29 @@ router.post('/api/ocean/seabed', async (req, res) => {
         const latNum = parseFloat(lat);
         const lonNum = parseFloat(lon);
 
-        // 서버에서 해아름 WMS 이미지 직접 요청 (클릭 좌표 중심, 최대 줌 수준)
-        const imageBuffer = await fetchKhoaWmsImage(latNum, lonNum);
+        // ── Gemini 호출 공통 함수 ──────────────────────────────────────────────
+        async function analyzeImage(buf) {
+            const b64 = buf.toString('base64');
+            const resp = await genAI.models.generateContent({
+                model: 'gemini-2.0-flash',
+                contents: [{
+                    role: 'user',
+                    parts: [
+                        { inlineData: { mimeType: 'image/png', data: b64 } },
+                        { text: buildSeabedPrompt(latNum, lonNum) }
+                    ]
+                }]
+            });
+            let text = '';
+            try {
+                const part = resp?.candidates?.[0]?.content?.parts?.[0];
+                text = (typeof part?.text === 'string') ? part.text : (resp.text || '');
+            } catch (_) {}
+            return text;
+        }
+
+        // ── 1차 시도: zoom 15 (≈1.2km 타일) ──────────────────────────────────
+        const imageBuffer = await fetchKhoaWmsImage(latNum, lonNum, 15);
         if (!imageBuffer) {
             return res.json({
                 success: false,
@@ -292,34 +306,29 @@ router.post('/api/ocean/seabed', async (req, res) => {
             });
         }
 
-        const base64Data = imageBuffer.toString('base64');
+        let aiText = await analyzeImage(imageBuffer);
+        let seabed = parseSeabedResponse(aiText);
 
-        // Gemini 2.0 Flash — 저질 + 수심 동시 판독
-        const response = await genAI.models.generateContent({
-            model: 'gemini-2.0-flash',
-            contents: [{
-                role: 'user',
-                parts: [
-                    { inlineData: { mimeType: 'image/png', data: base64Data } },
-                    { text: buildSeabedPrompt(latNum, lonNum) }
-                ]
-            }]
-        });
-
-        // response.text 안전 접근
-        // @google/genai v1.x: .text getter가 멀티파트 응답 시 throw할 수 있으므로
-        // candidates 경로를 우선하고 .text를 fallback으로 사용
-        let aiText = '';
-        try {
-            const part = response?.candidates?.[0]?.content?.parts?.[0];
-            aiText = (typeof part?.text === 'string')
-                ? part.text
-                : (response.text || '');
-        } catch (_) {
-            aiText = '';
+        // ── 2차 시도: 저질 식별 불가 → zoom 13(≈4.9km)으로 줌아웃 후 재분석 ──
+        // 줌아웃하면 더 넓은 범위가 256px에 담기므로 주변 저질 기호가 화면에 등장함
+        if (!seabed.isLand && (!seabed.primary || seabed.primary === '식별 불가')) {
+            console.log('[Ocean5] 저질 식별 불가 → zoom 13으로 줌아웃 재시도');
+            const widerBuffer = await fetchKhoaWmsImage(latNum, lonNum, 13);
+            if (widerBuffer) {
+                const widerText = await analyzeImage(widerBuffer);
+                const widerSeabed = parseSeabedResponse(widerText);
+                // 재시도에서 기호를 찾았으면 채택, 수심은 1차 값 유지
+                if (widerSeabed.primary && widerSeabed.primary !== '식별 불가') {
+                    seabed.primary   = widerSeabed.primary;
+                    seabed.secondary = widerSeabed.secondary;
+                    if (!seabed.depth && widerSeabed.depth) {
+                        seabed.depth     = widerSeabed.depth;
+                        seabed.depthNote = widerSeabed.depthNote;
+                    }
+                    aiText = widerText;
+                }
+            }
         }
-
-        const seabed  = parseSeabedResponse(aiText);
 
         res.json({ success: true, seabed, rawText: aiText });
 
