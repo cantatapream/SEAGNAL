@@ -500,6 +500,26 @@
     }
 
     /**
+     * 소해구 격자용 nearest-cell 조회.
+     * bilinear 보간(sampleAt)은 4개 코너 모두 필요 → 육지 경계에서 null 다발.
+     * 이 함수는 가장 가까운 0.5° 셀을 직접 조회 → 있으면 반환, 없으면 null.
+     */
+    function lookupNearest(lon, lat) {
+        if (!lonList || !latList || !gridLookup) return null;
+        // 0.5° 격자(x.25/x.75)에 스냅
+        var snapLon = Math.round((lon - 0.25) / 0.5) * 0.5 + 0.25;
+        var snapLat = Math.round((lat - 0.25) / 0.5) * 0.5 + 0.25;
+        snapLon = Math.round(snapLon * 100) / 100;
+        snapLat = Math.round(snapLat * 100) / 100;
+        var li = lowerBound(lonList, snapLon);
+        var la = lowerBound(latList, snapLat);
+        if (li < 0 || la < 0) return null;
+        // 정확히 일치하는 셀만 반환 (데이터 없는 셀은 null → 투명 처리)
+        if (Math.abs(lonList[li] - snapLon) > 0.01 || Math.abs(latList[la] - snapLat) > 0.01) return null;
+        return gridLookup[li + '_' + la] || null;
+    }
+
+    /**
      * 임의의 (lon, lat) 위치에서 격자 4개를 둘러싸 쌍선형 보간한 결과 반환.
      * 보간된 crsp(cm/s), crdir(deg) 객체. 격자 외곽이거나 4점 중 결측이면 null.
      */
@@ -563,7 +583,9 @@
                 var coord = mapRef.getCoordinateFromPixel([sx, sy]);
                 if (!coord) continue;
                 var ll = ol.proj.toLonLat(coord);
-                var samp = sampleAt(ll[0], ll[1]);
+                // current(ROMS): 밀집 정규 격자 → bilinear 보간
+                // wind/wave(소해구): 0.5° 격자 + 육지 공백 → nearest-cell 직접 조회
+                var samp = (activeLayer === 'current') ? sampleAt(ll[0], ll[1]) : lookupNearest(ll[0], ll[1]);
                 if (!samp) continue;
                 // crsp는 레이어별 네이티브 단위:
                 // current=cm/s, wind=m/s, wave=m → 각 COLOR_SCALES과 단위 일치
@@ -707,7 +729,7 @@
 
         particles.forEach(function (p) {
             var lonLat = ol.proj.toLonLat([p.x, p.y]);
-            var nearest = sampleAt(lonLat[0], lonLat[1]);
+            var nearest = (activeLayer === 'current') ? sampleAt(lonLat[0], lonLat[1]) : lookupNearest(lonLat[0], lonLat[1]);
 
             var spdValue = 0;
             if (nearest) {
