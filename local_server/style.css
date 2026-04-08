@@ -9100,16 +9100,22 @@ body.ocean-map-active .main-header .header-content {
     color: #fff;
     font-weight: 600;
 }
+.ocean-astro-moon-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 1px;
+}
 .ocean-astro-moon-emoji {
     font-size: clamp(1.0rem, 3.2vw, 1.3rem);
-    flex-shrink: 0;
     line-height: 1;
 }
-.ocean-astro-bright {
-    font-size: clamp(0.58rem, 1.8vw, 0.68rem);
-    color: rgba(255,255,255,0.5);
+.ocean-astro-moon-bright {
+    font-size: clamp(0.55rem, 1.6vw, 0.65rem);
+    color: rgba(255,255,255,0.55);
     white-space: nowrap;
-    flex-shrink: 0;
+    line-height: 1;
 }
 
 

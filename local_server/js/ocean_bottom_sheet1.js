@@ -285,10 +285,17 @@
         var sheet = document.getElementById('ocean-bottom-sheet');
         if (!sheet) return;
 
-        // 상태 초기화: 항상 "오늘" 부터 시작
+        // 상태 초기화: 타임라인 슬라이더 오프셋이 있으면 해당 시각 기준으로 시작
         OS.state.lat = lat;
         OS.state.lon = lon;
         OS.state.date = new Date();
+        var tlSlider = document.getElementById('ocean-timeline-slider');
+        if (tlSlider) {
+            var tlHours = parseInt(tlSlider.value) || 0;
+            if (tlHours > 0) {
+                OS.state.date = new Date(OS.state.date.getTime() + tlHours * 60 * 60 * 1000);
+            }
+        }
 
         // 시트 표시 (살짝 지연 후 transition 클래스 부여)
         sheet.style.display = 'block';

@@ -101,14 +101,8 @@
             dateStr = d.getFullYear() +
                 String(d.getMonth() + 1).padStart(2, '0') +
                 String(d.getDate()).padStart(2, '0');
-            // 사용자가 미래 날짜를 보고 있을 수도 있으니 정오를 기본으로
-            var nowD = new Date();
-            var sameDay = (d.getFullYear() === nowD.getFullYear() &&
-                           d.getMonth() === nowD.getMonth() &&
-                           d.getDate() === nowD.getDate());
-            hourStr = sameDay
-                ? String(nowD.getHours()).padStart(2, '0')
-                : '12';
+            // dateObj는 이미 슬라이더 오프셋이 반영된 시각이므로 해당 시각의 시(hour) 사용
+            hourStr = String(d.getHours()).padStart(2, '0');
         } catch (e) { /* fall through */ }
 
         var url = '/api/ocean/khoa-stream-nearest?lat=' + lat + '&lon=' + lon;

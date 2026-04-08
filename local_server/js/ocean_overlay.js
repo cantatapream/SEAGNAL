@@ -80,6 +80,7 @@
     let latList = null;            // 정렬된 unique lat 배열
     let gridLookup = null;         // 'lonIdx_latIdx' → point 사전 (보간용)
     let animationId = null;        // 파티클 애니메이션 RAF ID
+    let lastAnimTime = null;       // 델타타임 계산용 이전 프레임 타임스탬프
     let particles = [];            // 파티클 배열
     const BASE_PARTICLES = 1000;   // 줌 7 기준 입자 수 (실제는 줌에 따라 가변)
     let trailCanvas = null;        // 입자 트레일 전용 오프스크린 (페이드 누적)
@@ -158,6 +159,8 @@
                     timelineOffsetHours = 0;
                     var tlSlider = document.getElementById('ocean-timeline-slider');
                     if (tlSlider) tlSlider.value = 0;
+                    // 조류: max 72h 고정 (KHOA 동적 범위 미제공), 바람/파고: 데이터 로드 후 동적 설정
+                    if (layer === 'current' && window.setTimelineMax) window.setTimelineMax(72);
                     var tlEl2 = document.getElementById('ocean-timeline');
                     if (tlEl2) tlEl2.style.display = '';
                     setActiveLayer(layer);  // 내부에서 setTimelineStep, updateLegend 처리
@@ -217,6 +220,7 @@
         lonList = null;
         latList = null;
         gridLookup = null;
+        lastAnimTime = null;
     };
 
     /**
@@ -399,6 +403,10 @@
                 if (!data || !data.success) {
                     console.warn('[OceanOverlay] zone-forecasts 데이터 없음');
                     return;
+                }
+                // 슬라이더 최대값을 실제 데이터 범위로 업데이트 (초기 로드 시 1회)
+                if (data.maxForecastHours != null && window.setTimelineMax && timelineOffsetHours === 0) {
+                    window.setTimelineMax(data.maxForecastHours);
                 }
                 gridData = buildGridFromZones(data.zones, layer);
                 if (!gridData || gridData.length === 0) {
@@ -833,7 +841,8 @@
             trailCtx.clearRect(0, 0, tw, th);
         }
 
-        animate();
+        lastAnimTime = null; // 델타타임 리셋 (이전 애니메이션 잔류값 방지)
+        animationId = requestAnimationFrame(animate);
     }
 
     /**
@@ -859,8 +868,18 @@
         };
     }
 
-    function animate() {
+    function animate(timestamp) {
         if (!ctx || !canvas || !mapRef || !gridData) return;
+
+        // 델타타임 계산: 화면 주사율(60/90/120Hz)에 관계없이 같은 속도로 이동
+        // delta=1.0이 60fps 기준. 120Hz에서는 delta≈0.5, 30fps에서는 delta≈2.0
+        var delta = 1.0;
+        if (lastAnimTime != null && timestamp != null) {
+            var elapsed = timestamp - lastAnimTime;
+            // 탭 복귀·백그라운드 후 큰 시간 점프 방지: 3프레임 이내로 클램프
+            delta = Math.min(3.0, Math.max(0.1, elapsed / (1000 / 60)));
+        }
+        lastAnimTime = timestamp || null;
 
         var w = canvas.width / (window.devicePixelRatio || 1);
         var h = canvas.height / (window.devicePixelRatio || 1);
@@ -869,6 +888,7 @@
         // 지도 이동/줌 중에는 캔버스를 비우고 대기 (잔상 방지)
         if (isMoving) {
             ctx.clearRect(0, 0, w, h);
+            lastAnimTime = null; // 이동 후 재시작 시 델타 점프 방지
             animationId = requestAnimationFrame(animate);
             return;
         }
@@ -909,8 +929,8 @@
                                     : (nearest.crsp || 0) * 0.01;  // 해류: cm/s → m/s
                 spdValue = nearest.crsp || 0;
 
-                p.x += Math.sin(dirRad) * spdMps * SPEED_SCALE;
-                p.y -= Math.cos(dirRad) * spdMps * SPEED_SCALE;
+                p.x += Math.sin(dirRad) * spdMps * SPEED_SCALE * delta;
+                p.y -= Math.cos(dirRad) * spdMps * SPEED_SCALE * delta;
             }
 
             p.age++;
