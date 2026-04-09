@@ -29,10 +29,11 @@
     // 상태 변수
     // ========================================================================
     let oceanMap = null;              // OpenLayers Map 인스턴스
-    let baseLayerA     = null;        // 기본맵 (BASEMAP_RLTM3857)
-    let baseLayerENC   = null;        // 전자해도 (BASEMAP_ENC573857)
-    let baseLayerCoast = null;        // 해안도 (BASEMAP_RLTMCOAST3857)
-    let currentBase    = 'rltm';      // 현재 베이스맵: 'rltm' | 'enc' | 'coast'
+    let baseLayerA         = null;    // 기본맵 (BASEMAP_RLTM3857)
+    let baseLayerENC       = null;    // 전자해도 (BASEMAP_ENC573857)
+    let baseLayerCoast     = null;    // 해안도 (BASEMAP_RLTMCOAST3857)
+    let baseLayerSatellite = null;    // 위성지도 (국토정보플랫폼 국토위성지도)
+    let currentBase        = 'rltm'; // 현재 베이스맵: 'rltm' | 'enc' | 'coast' | 'satellite'
     let searchResultLayer = null;     // 검색 결과 마커 레이어
 
     // 해아름 WMS 엔드포인트 (F12 캡처로 확인됨)
@@ -119,6 +120,49 @@
         return tileLayer;
     }
 
+    // ========================================================================
+    // 국토정보플랫폼 항공영상 레이어 생성
+    // ========================================================================
+
+    /**
+     * 국토정보플랫폼(NGII) 항공영상 WMTS 레이어를 생성합니다.
+     *
+     * [좌표계]
+     * GoogleMapsCompatible TileMatrixSet = EPSG:3857 기반 타일.
+     * 우리 지도와 좌표계가 동일하므로 마커·오버레이 위치가 그대로 정확합니다.
+     *
+     * [레이어]
+     * AIRPHOTO = 최신 항공사진 (mapMode:9 해당)
+     * 해상도 ~0.25m/픽셀 (국토위성지도보다 고해상도)
+     *
+     * [인증]
+     * URL 파라미터로 apikey 전달 (별도 스크립트 로드 불필요 — OL 내장 WMTS 사용)
+     */
+    function createNgiiSatelliteLayer() {
+        var NGII_KEY = 'E2BC008450A0DDAFEFAFBD606AB7E8DEC6F031C369';
+        var projection = ol.proj.get('EPSG:3857');
+
+        // EPSG:3857 기준 표준 WMTS 타일 격자 생성 (최대 줌 20)
+        var tileGrid = ol.tilegrid.WMTS.createForProjection(projection, 20, [256, 256]);
+
+        var source = new ol.source.WMTS({
+            url: 'https://map.ngii.go.kr/ms/map/getNgiiMap.do?apikey=' + NGII_KEY,
+            layer: 'AIRPHOTO',                   // 항공영상 레이어명 (최신)
+            matrixSet: 'GoogleMapsCompatible',   // EPSG:3857 호환 타일셋
+            format: 'image/png',
+            projection: projection,
+            tileGrid: tileGrid,
+            style: 'default',
+            crossOrigin: 'anonymous',
+            attributions: '&copy; <a href="https://www.ngii.go.kr" target="_blank">국토지리정보원</a>'
+        });
+
+        source.on('tileloaderror', function () {
+            console.warn('[OceanMap] NGII 항공영상 타일 로드 실패');
+        });
+
+        return new ol.layer.Tile({ source: source, visible: false });
+    }
 
     // ========================================================================
     // 지도 초기화
@@ -149,11 +193,15 @@
             baseLayerENC   = createKhoaLayer(KHOA_LAYER_ENC);
             baseLayerCoast = createKhoaLayer(KHOA_LAYER_COAST);
 
+            // 국토정보플랫폼 위성지도 레이어 생성 (EPSG:3857 GoogleMapsCompatible)
+            baseLayerSatellite = createNgiiSatelliteLayer();
+
             // 초기 가시성: 기본맵만 표시
             baseLayerENC.setVisible(false);
             baseLayerCoast.setVisible(false);
+            // baseLayerSatellite는 createNgiiSatelliteLayer()에서 이미 visible:false
 
-            const layers = [baseLayerA, baseLayerENC, baseLayerCoast];
+            const layers = [baseLayerA, baseLayerENC, baseLayerCoast, baseLayerSatellite];
 
             // 지도 생성
             oceanMap = new ol.Map({
@@ -219,9 +267,10 @@
 
     /** 현재 currentBase 에 해당하는 레이어만 표시, 나머지 숨김 */
     function applyBaseLayerVisibility() {
-        if (baseLayerA)     baseLayerA.setVisible(currentBase === 'rltm');
-        if (baseLayerENC)   baseLayerENC.setVisible(currentBase === 'enc');
-        if (baseLayerCoast) baseLayerCoast.setVisible(currentBase === 'coast');
+        if (baseLayerA)         baseLayerA.setVisible(currentBase === 'rltm');
+        if (baseLayerENC)       baseLayerENC.setVisible(currentBase === 'enc');
+        if (baseLayerCoast)     baseLayerCoast.setVisible(currentBase === 'coast');
+        if (baseLayerSatellite) baseLayerSatellite.setVisible(currentBase === 'satellite');
     }
 
     /**
@@ -244,12 +293,12 @@
         // 레이어 이름 표시 갱신
         var toggleLabel = document.getElementById('ocean-basemap-label');
         if (toggleLabel) {
-            var names = { rltm: '기본맵', enc: '전자해도', coast: '해안도' };
+            var names = { rltm: '기본맵', enc: '전자해도', coast: '해안도', satellite: '항공영상' };
             toggleLabel.textContent = names[type] || '지도';
         }
 
-        // 기본맵·전자해도로 전환 시 오버레이(파티클+범례+슬라이더) 자동 OFF
-        // coast(해안도)로 전환할 때는 오버레이 상태를 유지합니다.
+        // 기본맵·전자해도·위성지도로 전환 시 오버레이(파티클+범례+슬라이더) 자동 OFF
+        // coast(해안도)로 전환할 때만 오버레이 상태를 유지합니다.
         if (type !== 'coast' && window.oceanOverlayTurnOff) {
             window.oceanOverlayTurnOff();
         }
