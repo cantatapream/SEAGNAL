@@ -141,85 +141,106 @@
      * wmts_ngiiMap_v6.4.3.js — ngii_wmts.map, wmtEmapOption2() 전역 노출
      */
     function createNgiiSatelliteLayer() {
+        var NGII_KEY = 'E2BC008450A0DDAFEFAFBD606AB7E8DEC6F031C369';
 
-        // ── 1. EPSG:5179 등록 (OL8 재투영용) ────────────────────────────
-        if (typeof proj4 !== 'undefined' && !ol.proj.get('EPSG:5179')) {
+        // ── 1. EPSG:5179 등록 (+towgs84 포함 → EPSG:3857 datum 변환 필수) ──
+        // towgs84가 없으면 proj4가 datum shift를 처리 못해 NaN → 0×0 캔버스 오류
+        if (typeof proj4 !== 'undefined') {
             proj4.defs('EPSG:5179',
                 '+proj=tmerc +lat_0=38 +lon_0=127.5 +k=0.9996 ' +
-                '+x_0=1000000 +y_0=2000000 +ellps=GRS80 +units=m +no_defs');
-            try {
-                ol.proj.addProjection(new ol.proj.Projection({
-                    code: 'EPSG:5179',
-                    extent: [705680.0, 1349270.0, 1388291.0, 2581448.0],
-                    units: 'm'
-                }));
-                ol.proj.addCoordinateTransforms('EPSG:5179', 'EPSG:3857',
-                    function(c) { return proj4('EPSG:5179', 'EPSG:3857', c); },
-                    function(c) { return proj4('EPSG:3857', 'EPSG:5179', c); }
-                );
-                ol.proj.addCoordinateTransforms('EPSG:5179', 'EPSG:4326',
-                    function(c) { return proj4('EPSG:5179', 'EPSG:4326', c); },
-                    function(c) { return proj4('EPSG:4326', 'EPSG:5179', c); }
-                );
-            } catch(e) { /* 이미 등록된 경우 무시 */ }
+                '+x_0=1000000 +y_0=2000000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
+            if (!ol.proj.get('EPSG:5179')) {
+                try {
+                    ol.proj.addProjection(new ol.proj.Projection({
+                        code: 'EPSG:5179',
+                        extent: [705680.0, 1349270.0, 1388291.0, 2581448.0],
+                        units: 'm'
+                    }));
+                    ol.proj.addCoordinateTransforms('EPSG:5179', 'EPSG:3857',
+                        function(c) { return proj4('EPSG:5179', 'EPSG:3857', c); },
+                        function(c) { return proj4('EPSG:3857', 'EPSG:5179', c); }
+                    );
+                    ol.proj.addCoordinateTransforms('EPSG:5179', 'EPSG:4326',
+                        function(c) { return proj4('EPSG:5179', 'EPSG:4326', c); },
+                        function(c) { return proj4('EPSG:4326', 'EPSG:5179', c); }
+                    );
+                } catch(e) { /* 이미 등록된 경우 무시 */ }
+            }
         }
 
-        // ── 2. NGII 항공영상 (hidden 인스턴스로 레이어 추출) ────────────
+        // ── 2. NGII 라이브러리에서 타일그리드 추출 ───────────────────────
+        // 항공영상(우선) → 위성지도 순으로 시도
+        // wmtEmapOption2()가 반환한 source에서 getTileGrid()를 꺼내
+        // 새 ol.source.WMTS를 projection 명시 후 재생성 → 재투영 활성화
+        var airLayerName = null;
         if (typeof ngii_wmts !== 'undefined' && typeof ngii_wmts.map === 'function') {
             try {
-                // hidden div (1×1px, 화면 밖)
-                var helperId = '_ngii_air_helper';
+                // hidden div: 1×1이면 내부 캔버스가 0x0 → drawImage 실패
+                // 256×256으로 설정하여 캔버스 크기 보장
+                var helperId = '_ngii_helper';
                 var helperDiv = document.getElementById(helperId);
                 if (!helperDiv) {
                     helperDiv = document.createElement('div');
                     helperDiv.id = helperId;
                     helperDiv.style.cssText =
                         'position:absolute;left:-9999px;top:-9999px;' +
-                        'width:1px;height:1px;overflow:hidden;';
+                        'width:256px;height:256px;overflow:hidden;';
                     document.body.appendChild(helperDiv);
                 }
-
-                // mapMode 9 = 항공영상
-                var ngiiHelper = new ngii_wmts.map(helperId, { mapMode: 9 });
-                var airList = ngiiHelper._getAirMapList();
-
+                var ngiiInst = new ngii_wmts.map(helperId, { mapMode: 9 });
+                var airList = ngiiInst._getAirMapList();
                 if (airList && airList.length > 0) {
-                    ngiiHelper._setAirMapYear(airList[0]); // 최신 연도 적용
-                }
-
-                // 내부 OL 맵에서 베이스 레이어 소스 추출
-                var internalMap = ngiiHelper._getMap();
-                var layers = internalMap.getLayers().getArray();
-                for (var i = 0; i < layers.length; i++) {
-                    if (layers[i].getVisible && layers[i].getVisible()) {
-                        var src = layers[i].getSource();
-                        if (src) {
-                            console.log('[OceanMap] NGII 항공영상 적용:',
-                                airList && airList[0] ? airList[0] : 'base');
-                            return new ol.layer.Tile({ source: src, visible: false });
-                        }
-                    }
+                    airLayerName = airList[0];
+                    ngiiInst._setAirMapYear(airLayerName);
                 }
             } catch(e) {
-                console.warn('[OceanMap] NGII 항공영상 실패:', e.message);
+                console.warn('[OceanMap] 항공영상 목록 조회 실패:', e.message);
             }
+        }
 
-            // ── 3. NGII 위성지도 폴백 ────────────────────────────────────
-            if (typeof wmtEmapOption2 === 'function') {
+        if (typeof wmtEmapOption2 === 'function') {
+            var candidates = airLayerName ? [airLayerName, 'satellite_map'] : ['satellite_map'];
+
+            for (var i = 0; i < candidates.length; i++) {
                 try {
-                    var satOpts = wmtEmapOption2('satellite_map', false);
-                    if (satOpts) {
-                        console.log('[OceanMap] NGII 위성지도 적용');
-                        return new ol.layer.Tile(satOpts);
+                    var ngiiOpts = wmtEmapOption2(candidates[i], false);
+                    var ngiiSrc = ngiiOpts && ngiiOpts.source;
+                    if (!ngiiSrc) continue;
+
+                    var tileGrid = ngiiSrc.getTileGrid ? ngiiSrc.getTileGrid() : null;
+                    // URL 추출 (OL 버전마다 메서드 다름)
+                    var urls = typeof ngiiSrc.getUrls === 'function' ? ngiiSrc.getUrls() : null;
+                    if (!urls && typeof ngiiSrc.getUrl === 'function') urls = [ngiiSrc.getUrl()];
+                    // 폴백: NGII 기본 Gettile.do URL
+                    if (!urls || !urls.length) {
+                        urls = ['https://map.ngii.go.kr/openapi/Gettile.do?apikey=' + NGII_KEY];
                     }
-                } catch(e2) {
-                    console.warn('[OceanMap] NGII 위성지도 실패:', e2.message);
+                    if (!tileGrid) continue;
+
+                    // projection을 명시적으로 지정한 새 WMTS 소스 생성
+                    // → NGII 원본 소스를 공유하지 않아 캔버스 크기 독립 유지
+                    var wmtsSource = new ol.source.WMTS({
+                        urls: urls,
+                        layer: candidates[i],
+                        matrixSet: 'korean',    // 네트워크 확인값
+                        format: 'image/png',
+                        projection: ol.proj.get('EPSG:5179'),
+                        tileGrid: tileGrid,
+                        style: 'korean',        // 네트워크 확인값
+                        requestEncoding: 'KVP',
+                        crossOrigin: 'anonymous',
+                        attributions: '&copy; <a href="https://www.ngii.go.kr" target="_blank">국토지리정보원</a>'
+                    });
+                    console.log('[OceanMap] NGII 레이어 적용:', candidates[i]);
+                    return new ol.layer.Tile({ source: wmtsSource, visible: false });
+                } catch(e) {
+                    console.warn('[OceanMap] NGII', candidates[i], '실패:', e.message);
                 }
             }
         }
 
-        // ── 4. 최후 폴백: Esri World Imagery ─────────────────────────────
-        console.warn('[OceanMap] NGII 실패 → Esri World Imagery 사용');
+        // ── 3. 최후 폴백: Esri World Imagery ─────────────────────────────
+        console.warn('[OceanMap] NGII 실패 → Esri World Imagery');
         return new ol.layer.Tile({
             source: new ol.source.XYZ({
                 url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
