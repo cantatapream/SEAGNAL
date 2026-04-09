@@ -160,6 +160,9 @@
         var NGII_KEY = 'E2BC008450A0DDAFEFAFBD606AB7E8DEC6F031C369';
 
         // ── 1. EPSG:5179 등록 (+towgs84 포함 → EPSG:3857 datum 변환 필수) ──
+        // worldExtent: OL8 재투영 삼각형 샘플링 범위를 한국 영역으로 제한.
+        //   없으면 OL8이 타일 범위 밖(한국 외부)까지 proj4 변환을 시도하여
+        //   TM 왜곡이 심한 좌표에서 NaN/Infinity → 0×0 canvas drawImage 오류 발생.
         if (typeof proj4 !== 'undefined') {
             proj4.defs('EPSG:5179',
                 '+proj=tmerc +lat_0=38 +lon_0=127.5 +k=0.9996 ' +
@@ -169,6 +172,7 @@
                     ol.proj.addProjection(new ol.proj.Projection({
                         code: 'EPSG:5179',
                         extent: [705680.0, 1349270.0, 1388291.0, 2581448.0],
+                        worldExtent: [124.0, 32.0, 132.0, 44.0],
                         units: 'm'
                     }));
                     ol.proj.addCoordinateTransforms('EPSG:5179', 'EPSG:3857',
@@ -180,6 +184,11 @@
                         function(c) { return proj4('EPSG:4326', 'EPSG:5179', c); }
                     );
                 } catch(e) { /* 이미 등록된 경우 무시 */ }
+            }
+            // 이전에 worldExtent 없이 등록된 경우에도 보완
+            var _p5179 = ol.proj.get('EPSG:5179');
+            if (_p5179 && typeof _p5179.setWorldExtent === 'function' && !_p5179.getWorldExtent()) {
+                _p5179.setWorldExtent([124.0, 32.0, 132.0, 44.0]);
             }
         }
 
@@ -213,6 +222,10 @@
                             var opts = wmtEmapOption2(candidates[i], false);
                             if (opts && opts.source) {
                                 layer.setSource(opts.source);
+                                // Korea 범위로 클리핑: 범위 밖 타일 요청 차단 → 재투영 오류 방지
+                                layer.setExtent(ol.proj.transformExtent(
+                                    [124.0, 32.0, 132.0, 44.0], 'EPSG:4326', 'EPSG:3857'
+                                ));
                                 console.log('[OceanMap] NGII 항공/위성 레이어 확정:', candidates[i]);
                                 return;
                             }
