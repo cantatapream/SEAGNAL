@@ -222,10 +222,6 @@
                             var opts = wmtEmapOption2(candidates[i], false);
                             if (opts && opts.source) {
                                 layer.setSource(opts.source);
-                                // Korea 범위로 클리핑: 범위 밖 타일 요청 차단 → 재투영 오류 방지
-                                layer.setExtent(ol.proj.transformExtent(
-                                    [124.0, 32.0, 132.0, 44.0], 'EPSG:4326', 'EPSG:3857'
-                                ));
                                 console.log('[OceanMap] NGII 항공/위성 레이어 확정:', candidates[i]);
                                 return;
                             }
