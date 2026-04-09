@@ -168,75 +168,28 @@
             }
         }
 
-        // ── 2. NGII 라이브러리에서 타일그리드 추출 ───────────────────────
-        // 항공영상(우선) → 위성지도 순으로 시도
-        // wmtEmapOption2()가 반환한 source에서 getTileGrid()를 꺼내
-        // 새 ol.source.WMTS를 projection 명시 후 재생성 → 재투영 활성화
-        var airLayerName = null;
-        if (typeof ngii_wmts !== 'undefined' && typeof ngii_wmts.map === 'function') {
-            try {
-                // hidden div: 1×1이면 내부 캔버스가 0x0 → drawImage 실패
-                // 256×256으로 설정하여 캔버스 크기 보장
-                var helperId = '_ngii_helper';
-                var helperDiv = document.getElementById(helperId);
-                if (!helperDiv) {
-                    helperDiv = document.createElement('div');
-                    helperDiv.id = helperId;
-                    helperDiv.style.cssText =
-                        'position:absolute;left:-9999px;top:-9999px;' +
-                        'width:256px;height:256px;overflow:hidden;';
-                    document.body.appendChild(helperDiv);
-                }
-                var ngiiInst = new ngii_wmts.map(helperId, { mapMode: 9 });
-                var airList = ngiiInst._getAirMapList();
-                if (airList && airList.length > 0) {
-                    airLayerName = airList[0];
-                    ngiiInst._setAirMapYear(airLayerName);
-                }
-            } catch(e) {
-                console.warn('[OceanMap] 항공영상 목록 조회 실패:', e.message);
-            }
-        }
-
-        // ── 3. 항공영상 source 직접 사용 (내부 맵 레이어에서 추출) ─────────
-        // tileGrid를 꺼내 새 ol.source.WMTS를 만들면 getMatrixId 오류 발생
-        // → NGII 라이브러리가 만든 source를 그대로 사용 (projection 이미 설정됨)
-        if (airLayerName) {
-            var internalMap = null;
-            try {
-                var helperId2 = '_ngii_helper';
-                var helperDiv2 = document.getElementById(helperId2);
-                if (helperDiv2) {
-                    var ngiiInst2 = new ngii_wmts.map(helperId2, { mapMode: 9 });
-                    ngiiInst2._setAirMapYear(airLayerName);
-                    internalMap = ngiiInst2._getMap();
-                }
-            } catch(e) { /* 무시 */ }
-
-            if (internalMap) {
-                var lyrs = internalMap.getLayers().getArray();
-                for (var j = 0; j < lyrs.length; j++) {
-                    if (lyrs[j].getVisible && lyrs[j].getVisible()) {
-                        var airSrc = lyrs[j].getSource();
-                        if (airSrc) {
-                            console.log('[OceanMap] NGII 항공영상 source 적용:', airLayerName);
-                            return new ol.layer.Tile({ source: airSrc, visible: false });
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── 4. 위성지도: wmtEmapOption2 결과 직접 사용 ───────────────────
+        // ── 2. wmtEmapOption2 직접 사용 (ngii_wmts.map 인스턴스 생성 금지) ──
+        // ngii_wmts.map 인스턴스를 생성하면 OL8 내부 상태(projection/renderer)가
+        // 변경되어 기존 KHOA WMS 렌더링이 깨짐 → 인스턴스 생성 없이 전역 함수만 사용
         if (typeof wmtEmapOption2 === 'function') {
-            try {
-                var satOpts = wmtEmapOption2('satellite_map', false);
-                if (satOpts && satOpts.source) {
-                    console.log('[OceanMap] NGII 위성지도 source 적용');
-                    return new ol.layer.Tile(satOpts);
+            // 항공영상 우선: AIRPHOTO_{연도} 레이어명으로 시도
+            var thisYear = new Date().getFullYear();
+            var candidates = [
+                'AIRPHOTO_' + thisYear,
+                'AIRPHOTO_' + (thisYear - 1),
+                'AIRPHOTO_' + (thisYear - 2),
+                'satellite_map'
+            ];
+            for (var i = 0; i < candidates.length; i++) {
+                try {
+                    var opts = wmtEmapOption2(candidates[i], false);
+                    if (opts && opts.source) {
+                        console.log('[OceanMap] NGII 레이어 적용:', candidates[i]);
+                        return new ol.layer.Tile(opts);
+                    }
+                } catch(e) {
+                    // 해당 레이어명 지원 안 함 → 다음 후보로
                 }
-            } catch(e) {
-                console.warn('[OceanMap] NGII 위성지도 실패:', e.message);
             }
         }
 
