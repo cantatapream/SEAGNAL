@@ -121,25 +121,23 @@
     }
 
     // ========================================================================
-    // 국토정보플랫폼 항공영상 레이어 생성
+    // 국토정보플랫폼 위성지도 레이어 생성
     // ========================================================================
 
     /**
-     * 국토정보플랫폼(NGII) 항공영상 WMTS 레이어를 생성합니다.
+     * 국토정보플랫폼(NGII) 국토위성지도 WMTS 레이어를 생성합니다.
      *
      * [좌표계]
      * GoogleMapsCompatible TileMatrixSet = EPSG:3857 기반 타일.
      * 우리 지도와 좌표계가 동일하므로 마커·오버레이 위치가 그대로 정확합니다.
      *
      * [레이어]
-     * AIRPHOTO = 최신 항공사진 (mapMode:9 해당)
-     * 해상도 ~0.25m/픽셀 (국토위성지도보다 고해상도)
+     * satellite_map = NGII WMTS 공식 지원 레이어 (국토위성지도)
+     * 항공영상(AIRPHOTO_YYYY)은 NGII JS 라이브러리 전용 서비스라 직접 접근 불가.
      *
      * [인증]
      * URL 파라미터로 apikey 전달.
      * ol.source.XYZ 사용 — GoogleMapsCompatible 타일셋은 XYZ({z}/{y}/{x}) 구조와 동일.
-     * ol.source.WMTS + ol.tilegrid.WMTS.createForProjection 은 OL 8.2.0 CDN 번들에서
-     * 노출되지 않으므로 XYZ 방식으로 대체합니다.
      */
     function createNgiiSatelliteLayer() {
         var NGII_KEY = 'E2BC008450A0DDAFEFAFBD606AB7E8DEC6F031C369';
@@ -148,7 +146,7 @@
         var source = new ol.source.XYZ({
             url: 'https://map.ngii.go.kr/ms/map/getNgiiMap.do' +
                  '?service=WMTS&request=GetTile&version=1.0.0' +
-                 '&layer=AIRPHOTO&style=default' +
+                 '&layer=satellite_map&style=default' +
                  '&tilematrixset=GoogleMapsCompatible' +
                  '&format=image/png' +
                  '&tilematrix={z}&tilerow={y}&tilecol={x}' +
@@ -158,7 +156,7 @@
         });
 
         source.on('tileloaderror', function () {
-            console.warn('[OceanMap] NGII 항공영상 타일 로드 실패');
+            console.warn('[OceanMap] NGII 위성지도 타일 로드 실패');
         });
 
         return new ol.layer.Tile({ source: source, visible: false });
@@ -293,7 +291,7 @@
         // 레이어 이름 표시 갱신
         var toggleLabel = document.getElementById('ocean-basemap-label');
         if (toggleLabel) {
-            var names = { rltm: '기본맵', enc: '전자해도', coast: '해안도', satellite: '항공영상' };
+            var names = { rltm: '기본맵', enc: '전자해도', coast: '해안도', satellite: '위성지도' };
             toggleLabel.textContent = names[type] || '지도';
         }
 
