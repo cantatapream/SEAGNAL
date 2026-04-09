@@ -136,23 +136,23 @@
      * 해상도 ~0.25m/픽셀 (국토위성지도보다 고해상도)
      *
      * [인증]
-     * URL 파라미터로 apikey 전달 (별도 스크립트 로드 불필요 — OL 내장 WMTS 사용)
+     * URL 파라미터로 apikey 전달.
+     * ol.source.XYZ 사용 — GoogleMapsCompatible 타일셋은 XYZ({z}/{y}/{x}) 구조와 동일.
+     * ol.source.WMTS + ol.tilegrid.WMTS.createForProjection 은 OL 8.2.0 CDN 번들에서
+     * 노출되지 않으므로 XYZ 방식으로 대체합니다.
      */
     function createNgiiSatelliteLayer() {
         var NGII_KEY = 'E2BC008450A0DDAFEFAFBD606AB7E8DEC6F031C369';
-        var projection = ol.proj.get('EPSG:3857');
 
-        // EPSG:3857 기준 표준 WMTS 타일 격자 생성 (최대 줌 20)
-        var tileGrid = ol.tilegrid.WMTS.createForProjection(projection, 20, [256, 256]);
-
-        var source = new ol.source.WMTS({
-            url: 'https://map.ngii.go.kr/ms/map/getNgiiMap.do?apikey=' + NGII_KEY,
-            layer: 'AIRPHOTO',                   // 항공영상 레이어명 (최신)
-            matrixSet: 'GoogleMapsCompatible',   // EPSG:3857 호환 타일셋
-            format: 'image/png',
-            projection: projection,
-            tileGrid: tileGrid,
-            style: 'default',
+        // GoogleMapsCompatible 타일셋 = EPSG:3857, z/y/x 인덱스 동일 → XYZ로 직접 요청
+        var source = new ol.source.XYZ({
+            url: 'https://map.ngii.go.kr/ms/map/getNgiiMap.do' +
+                 '?service=WMTS&request=GetTile&version=1.0.0' +
+                 '&layer=AIRPHOTO&style=default' +
+                 '&tilematrixset=GoogleMapsCompatible' +
+                 '&format=image/png' +
+                 '&tilematrix={z}&tilerow={y}&tilecol={x}' +
+                 '&apikey=' + NGII_KEY,
             crossOrigin: 'anonymous',
             attributions: '&copy; <a href="https://www.ngii.go.kr" target="_blank">국토지리정보원</a>'
         });
