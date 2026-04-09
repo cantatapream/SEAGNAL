@@ -121,26 +121,40 @@
     }
 
     // ========================================================================
-    // 위성지도 레이어 생성 (Esri World Imagery)
+    // 국토정보플랫폼 위성지도 레이어 생성
     // ========================================================================
 
     /**
-     * Esri World Imagery 위성지도 레이어를 생성합니다.
+     * 국토정보플랫폼(NGII) 국토위성지도 WMTS 레이어를 생성합니다.
      *
      * [좌표계]
-     * EPSG:3857 (Web Mercator) — 우리 지도와 동일하여 오버레이·마커 위치 정확.
+     * GoogleMapsCompatible TileMatrixSet = EPSG:3857 기반 타일.
+     * 우리 지도와 좌표계가 동일하므로 마커·오버레이 위치가 그대로 정확합니다.
      *
      * [레이어]
-     * Esri World Imagery: 전 세계 고해상도 위성/항공영상.
-     * API 키 불필요, 무료 공개 타일 서비스.
-     * URL 형식: /MapServer/tile/{z}/{y}/{x}  (level / row / col)
+     * satellite_map = 국토위성지도. 포맷은 image/jpeg (png 요청 시 404).
+     *
+     * [인증]
+     * NGII 개발자 포털에서 활용URL(도메인)을 등록해야 사용 가능.
+     * ol.source.XYZ 사용 — GoogleMapsCompatible = EPSG:3857 z/y/x 구조와 동일.
      */
     function createNgiiSatelliteLayer() {
+        var NGII_KEY = 'E2BC008450A0DDAFEFAFBD606AB7E8DEC6F031C369';
+
         var source = new ol.source.XYZ({
-            url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            url: 'https://map.ngii.go.kr/ms/map/getNgiiMap.do' +
+                 '?service=WMTS&request=GetTile&version=1.0.0' +
+                 '&layer=satellite_map&style=default' +
+                 '&tilematrixset=GoogleMapsCompatible' +
+                 '&format=image/jpeg' +
+                 '&tilematrix={z}&tilerow={y}&tilecol={x}' +
+                 '&apikey=' + NGII_KEY,
             crossOrigin: 'anonymous',
-            maxZoom: 19,
-            attributions: 'Tiles &copy; <a href="https://www.esri.com/" target="_blank">Esri</a>'
+            attributions: '&copy; <a href="https://www.ngii.go.kr" target="_blank">국토지리정보원</a>'
+        });
+
+        source.on('tileloaderror', function () {
+            console.warn('[OceanMap] NGII 위성지도 타일 로드 실패');
         });
 
         return new ol.layer.Tile({ source: source, visible: false });
