@@ -121,43 +121,114 @@
     }
 
     // ========================================================================
-    // 국토정보플랫폼 위성지도 레이어 생성
+    // 위성/항공 영상 레이어 생성
     // ========================================================================
 
     /**
-     * 국토정보플랫폼(NGII) 국토위성지도 WMTS 레이어를 생성합니다.
+     * 위성/항공 영상 베이스맵 레이어를 생성합니다.
      *
-     * [좌표계]
-     * GoogleMapsCompatible TileMatrixSet = EPSG:3857 기반 타일.
-     * 우리 지도와 좌표계가 동일하므로 마커·오버레이 위치가 그대로 정확합니다.
+     * [우선순위]
+     * 1. NGII 항공영상 (_getAirMapList → 최신 연도)
+     * 2. NGII 위성지도 (wmtEmapOption2('satellite_map'))
+     * 3. Esri World Imagery (API 키 불필요, 폴백)
      *
-     * [레이어]
-     * satellite_map = 국토위성지도. 포맷은 image/jpeg (png 요청 시 404).
+     * [NGII 좌표계 처리]
+     * NGII 타일은 EPSG:5179 (한국 좌표계) 전용.
+     * proj4.js로 EPSG:5179를 OL8에 등록하면 자동 재투영됩니다.
+     * (우리 지도 EPSG:3857 유지, 타일만 변환하여 표시)
      *
-     * [인증]
-     * NGII 개발자 포털에서 활용URL(도메인)을 등록해야 사용 가능.
-     * ol.source.XYZ 사용 — GoogleMapsCompatible = EPSG:3857 z/y/x 구조와 동일.
+     * [NGII 라이브러리]
+     * wmts_ngiiMap_v6.4.3.js — ngii_wmts.map, wmtEmapOption2() 전역 노출
      */
     function createNgiiSatelliteLayer() {
-        var NGII_KEY = 'E2BC008450A0DDAFEFAFBD606AB7E8DEC6F031C369';
 
-        var source = new ol.source.XYZ({
-            url: 'https://map.ngii.go.kr/ms/map/getNgiiMap.do' +
-                 '?service=WMTS&request=GetTile&version=1.0.0' +
-                 '&layer=satellite_map&style=default' +
-                 '&tilematrixset=GoogleMapsCompatible' +
-                 '&format=image/jpeg' +
-                 '&tilematrix={z}&tilerow={y}&tilecol={x}' +
-                 '&apikey=' + NGII_KEY,
-            crossOrigin: 'anonymous',
-            attributions: '&copy; <a href="https://www.ngii.go.kr" target="_blank">국토지리정보원</a>'
+        // ── 1. EPSG:5179 등록 (OL8 재투영용) ────────────────────────────
+        if (typeof proj4 !== 'undefined' && !ol.proj.get('EPSG:5179')) {
+            proj4.defs('EPSG:5179',
+                '+proj=tmerc +lat_0=38 +lon_0=127.5 +k=0.9996 ' +
+                '+x_0=1000000 +y_0=2000000 +ellps=GRS80 +units=m +no_defs');
+            try {
+                ol.proj.addProjection(new ol.proj.Projection({
+                    code: 'EPSG:5179',
+                    extent: [705680.0, 1349270.0, 1388291.0, 2581448.0],
+                    units: 'm'
+                }));
+                ol.proj.addCoordinateTransforms('EPSG:5179', 'EPSG:3857',
+                    function(c) { return proj4('EPSG:5179', 'EPSG:3857', c); },
+                    function(c) { return proj4('EPSG:3857', 'EPSG:5179', c); }
+                );
+                ol.proj.addCoordinateTransforms('EPSG:5179', 'EPSG:4326',
+                    function(c) { return proj4('EPSG:5179', 'EPSG:4326', c); },
+                    function(c) { return proj4('EPSG:4326', 'EPSG:5179', c); }
+                );
+            } catch(e) { /* 이미 등록된 경우 무시 */ }
+        }
+
+        // ── 2. NGII 항공영상 (hidden 인스턴스로 레이어 추출) ────────────
+        if (typeof ngii_wmts !== 'undefined' && typeof ngii_wmts.map === 'function') {
+            try {
+                // hidden div (1×1px, 화면 밖)
+                var helperId = '_ngii_air_helper';
+                var helperDiv = document.getElementById(helperId);
+                if (!helperDiv) {
+                    helperDiv = document.createElement('div');
+                    helperDiv.id = helperId;
+                    helperDiv.style.cssText =
+                        'position:absolute;left:-9999px;top:-9999px;' +
+                        'width:1px;height:1px;overflow:hidden;';
+                    document.body.appendChild(helperDiv);
+                }
+
+                // mapMode 9 = 항공영상
+                var ngiiHelper = new ngii_wmts.map(helperId, { mapMode: 9 });
+                var airList = ngiiHelper._getAirMapList();
+
+                if (airList && airList.length > 0) {
+                    ngiiHelper._setAirMapYear(airList[0]); // 최신 연도 적용
+                }
+
+                // 내부 OL 맵에서 베이스 레이어 소스 추출
+                var internalMap = ngiiHelper._getMap();
+                var layers = internalMap.getLayers().getArray();
+                for (var i = 0; i < layers.length; i++) {
+                    if (layers[i].getVisible && layers[i].getVisible()) {
+                        var src = layers[i].getSource();
+                        if (src) {
+                            console.log('[OceanMap] NGII 항공영상 적용:',
+                                airList && airList[0] ? airList[0] : 'base');
+                            return new ol.layer.Tile({ source: src, visible: false });
+                        }
+                    }
+                }
+            } catch(e) {
+                console.warn('[OceanMap] NGII 항공영상 실패:', e.message);
+            }
+
+            // ── 3. NGII 위성지도 폴백 ────────────────────────────────────
+            if (typeof wmtEmapOption2 === 'function') {
+                try {
+                    var satOpts = wmtEmapOption2('satellite_map', false);
+                    if (satOpts) {
+                        console.log('[OceanMap] NGII 위성지도 적용');
+                        return new ol.layer.Tile(satOpts);
+                    }
+                } catch(e2) {
+                    console.warn('[OceanMap] NGII 위성지도 실패:', e2.message);
+                }
+            }
+        }
+
+        // ── 4. 최후 폴백: Esri World Imagery ─────────────────────────────
+        console.warn('[OceanMap] NGII 실패 → Esri World Imagery 사용');
+        return new ol.layer.Tile({
+            source: new ol.source.XYZ({
+                url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                crossOrigin: 'anonymous',
+                maxZoom: 19,
+                attributions: 'Tiles &copy; <a href="https://www.esri.com/" target="_blank">Esri</a>'
+            }),
+            visible: false
         });
-
-        source.on('tileloaderror', function () {
-            console.warn('[OceanMap] NGII 위성지도 타일 로드 실패');
-        });
-
-        return new ol.layer.Tile({ source: source, visible: false });
     }
 
     // ========================================================================
