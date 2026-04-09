@@ -132,23 +132,21 @@
      * 우리 지도와 좌표계가 동일하므로 마커·오버레이 위치가 그대로 정확합니다.
      *
      * [레이어]
-     * satellite_map = NGII WMTS 공식 지원 레이어 (국토위성지도)
-     * 항공영상(AIRPHOTO_YYYY)은 NGII JS 라이브러리 전용 서비스라 직접 접근 불가.
+     * satellite_map = 국토위성지도. 포맷은 image/jpeg (png 요청 시 404).
      *
      * [인증]
-     * URL 파라미터로 apikey 전달.
-     * ol.source.XYZ 사용 — GoogleMapsCompatible 타일셋은 XYZ({z}/{y}/{x}) 구조와 동일.
+     * NGII 개발자 포털에서 활용URL(도메인)을 등록해야 사용 가능.
+     * ol.source.XYZ 사용 — GoogleMapsCompatible = EPSG:3857 z/y/x 구조와 동일.
      */
     function createNgiiSatelliteLayer() {
         var NGII_KEY = 'E2BC008450A0DDAFEFAFBD606AB7E8DEC6F031C369';
 
-        // GoogleMapsCompatible 타일셋 = EPSG:3857, z/y/x 인덱스 동일 → XYZ로 직접 요청
         var source = new ol.source.XYZ({
             url: 'https://map.ngii.go.kr/ms/map/getNgiiMap.do' +
                  '?service=WMTS&request=GetTile&version=1.0.0' +
                  '&layer=satellite_map&style=default' +
                  '&tilematrixset=GoogleMapsCompatible' +
-                 '&format=image/png' +
+                 '&format=image/jpeg' +
                  '&tilematrix={z}&tilerow={y}&tilecol={x}' +
                  '&apikey=' + NGII_KEY,
             crossOrigin: 'anonymous',
