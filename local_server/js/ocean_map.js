@@ -198,44 +198,45 @@
             }
         }
 
-        if (typeof wmtEmapOption2 === 'function') {
-            var candidates = airLayerName ? [airLayerName, 'satellite_map'] : ['satellite_map'];
-
-            for (var i = 0; i < candidates.length; i++) {
-                try {
-                    var ngiiOpts = wmtEmapOption2(candidates[i], false);
-                    var ngiiSrc = ngiiOpts && ngiiOpts.source;
-                    if (!ngiiSrc) continue;
-
-                    var tileGrid = ngiiSrc.getTileGrid ? ngiiSrc.getTileGrid() : null;
-                    // URL 추출 (OL 버전마다 메서드 다름)
-                    var urls = typeof ngiiSrc.getUrls === 'function' ? ngiiSrc.getUrls() : null;
-                    if (!urls && typeof ngiiSrc.getUrl === 'function') urls = [ngiiSrc.getUrl()];
-                    // 폴백: NGII 기본 Gettile.do URL
-                    if (!urls || !urls.length) {
-                        urls = ['https://map.ngii.go.kr/openapi/Gettile.do?apikey=' + NGII_KEY];
-                    }
-                    if (!tileGrid) continue;
-
-                    // projection을 명시적으로 지정한 새 WMTS 소스 생성
-                    // → NGII 원본 소스를 공유하지 않아 캔버스 크기 독립 유지
-                    var wmtsSource = new ol.source.WMTS({
-                        urls: urls,
-                        layer: candidates[i],
-                        matrixSet: 'korean',    // 네트워크 확인값
-                        format: 'image/png',
-                        projection: ol.proj.get('EPSG:5179'),
-                        tileGrid: tileGrid,
-                        style: 'korean',        // 네트워크 확인값
-                        requestEncoding: 'KVP',
-                        crossOrigin: 'anonymous',
-                        attributions: '&copy; <a href="https://www.ngii.go.kr" target="_blank">국토지리정보원</a>'
-                    });
-                    console.log('[OceanMap] NGII 레이어 적용:', candidates[i]);
-                    return new ol.layer.Tile({ source: wmtsSource, visible: false });
-                } catch(e) {
-                    console.warn('[OceanMap] NGII', candidates[i], '실패:', e.message);
+        // ── 3. 항공영상 source 직접 사용 (내부 맵 레이어에서 추출) ─────────
+        // tileGrid를 꺼내 새 ol.source.WMTS를 만들면 getMatrixId 오류 발생
+        // → NGII 라이브러리가 만든 source를 그대로 사용 (projection 이미 설정됨)
+        if (airLayerName) {
+            var internalMap = null;
+            try {
+                var helperId2 = '_ngii_helper';
+                var helperDiv2 = document.getElementById(helperId2);
+                if (helperDiv2) {
+                    var ngiiInst2 = new ngii_wmts.map(helperId2, { mapMode: 9 });
+                    ngiiInst2._setAirMapYear(airLayerName);
+                    internalMap = ngiiInst2._getMap();
                 }
+            } catch(e) { /* 무시 */ }
+
+            if (internalMap) {
+                var lyrs = internalMap.getLayers().getArray();
+                for (var j = 0; j < lyrs.length; j++) {
+                    if (lyrs[j].getVisible && lyrs[j].getVisible()) {
+                        var airSrc = lyrs[j].getSource();
+                        if (airSrc) {
+                            console.log('[OceanMap] NGII 항공영상 source 적용:', airLayerName);
+                            return new ol.layer.Tile({ source: airSrc, visible: false });
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 4. 위성지도: wmtEmapOption2 결과 직접 사용 ───────────────────
+        if (typeof wmtEmapOption2 === 'function') {
+            try {
+                var satOpts = wmtEmapOption2('satellite_map', false);
+                if (satOpts && satOpts.source) {
+                    console.log('[OceanMap] NGII 위성지도 source 적용');
+                    return new ol.layer.Tile(satOpts);
+                }
+            } catch(e) {
+                console.warn('[OceanMap] NGII 위성지도 실패:', e.message);
             }
         }
 
