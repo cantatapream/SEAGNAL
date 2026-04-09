@@ -125,26 +125,41 @@
     // ========================================================================
 
     /**
+     * NGII 타일 한 장을 fetch해서 실제 이미지 응답인지 확인합니다.
+     * wmtEmapOption2()는 레이어명 유효성 검사 없이 source를 생성하므로
+     * 서버 응답의 content-type으로 실제 데이터 존재 여부를 판별합니다.
+     */
+    async function probeNgiiTile(layerName, apiKey) {
+        var url = 'https://map.ngii.go.kr/openapi/Gettile.do' +
+            '?apikey=' + apiKey +
+            '&service=WMTS&request=GetTile&version=1.0.0' +
+            '&layer=' + layerName +
+            '&style=korean&format=image/png' +
+            '&tilematrixset=korean&tilematrix=L05&tilerow=3&tilecol=2';
+        try {
+            var resp = await fetch(url);
+            var ct = resp.headers.get('content-type') || '';
+            return ct.startsWith('image/');
+        } catch(e) {
+            return false;
+        }
+    }
+
+    /**
      * 위성/항공 영상 베이스맵 레이어를 생성합니다.
      *
-     * [우선순위]
-     * 1. NGII 항공영상 (_getAirMapList → 최신 연도)
-     * 2. NGII 위성지도 (wmtEmapOption2('satellite_map'))
-     * 3. Esri World Imagery (API 키 불필요, 폴백)
+     * [전략] Esri를 즉시 반환해 지도가 바로 뜨도록 하고,
+     *        백그라운드에서 NGII 후보 레이어를 probe하여 유효한 것이 확인되면
+     *        레이어 source를 교체합니다 (위성 레이어는 초기에 hidden 상태).
      *
-     * [NGII 좌표계 처리]
-     * NGII 타일은 EPSG:5179 (한국 좌표계) 전용.
-     * proj4.js로 EPSG:5179를 OL8에 등록하면 자동 재투영됩니다.
-     * (우리 지도 EPSG:3857 유지, 타일만 변환하여 표시)
-     *
-     * [NGII 라이브러리]
-     * wmts_ngiiMap_v6.4.3.js — ngii_wmts.map, wmtEmapOption2() 전역 노출
+     * [NGII wmtEmapOption2 한계] 레이어명 검증 없이 source 생성 →
+     *        실제 타일 응답이 text/plain이어도 예외를 던지지 않음
+     *        → fetch probe로 content-type 확인 후 교체하는 방식으로 해결
      */
     function createNgiiSatelliteLayer() {
         var NGII_KEY = 'E2BC008450A0DDAFEFAFBD606AB7E8DEC6F031C369';
 
         // ── 1. EPSG:5179 등록 (+towgs84 포함 → EPSG:3857 datum 변환 필수) ──
-        // towgs84가 없으면 proj4가 datum shift를 처리 못해 NaN → 0×0 캔버스 오류
         if (typeof proj4 !== 'undefined') {
             proj4.defs('EPSG:5179',
                 '+proj=tmerc +lat_0=38 +lon_0=127.5 +k=0.9996 ' +
@@ -168,34 +183,8 @@
             }
         }
 
-        // ── 2. wmtEmapOption2 직접 사용 (ngii_wmts.map 인스턴스 생성 금지) ──
-        // ngii_wmts.map 인스턴스를 생성하면 OL8 내부 상태(projection/renderer)가
-        // 변경되어 기존 KHOA WMS 렌더링이 깨짐 → 인스턴스 생성 없이 전역 함수만 사용
-        if (typeof wmtEmapOption2 === 'function') {
-            // 항공영상 우선: AIRPHOTO_{연도} 레이어명으로 시도
-            var thisYear = new Date().getFullYear();
-            var candidates = [
-                'AIRPHOTO_' + thisYear,
-                'AIRPHOTO_' + (thisYear - 1),
-                'AIRPHOTO_' + (thisYear - 2),
-                'satellite_map'
-            ];
-            for (var i = 0; i < candidates.length; i++) {
-                try {
-                    var opts = wmtEmapOption2(candidates[i], false);
-                    if (opts && opts.source) {
-                        console.log('[OceanMap] NGII 레이어 적용:', candidates[i]);
-                        return new ol.layer.Tile(opts);
-                    }
-                } catch(e) {
-                    // 해당 레이어명 지원 안 함 → 다음 후보로
-                }
-            }
-        }
-
-        // ── 3. 최후 폴백: Esri World Imagery ─────────────────────────────
-        console.warn('[OceanMap] NGII 실패 → Esri World Imagery');
-        return new ol.layer.Tile({
+        // ── 2. Esri를 즉시 반환 (지도 초기화 블로킹 방지) ──────────────────
+        var layer = new ol.layer.Tile({
             source: new ol.source.XYZ({
                 url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
                 crossOrigin: 'anonymous',
@@ -204,6 +193,37 @@
             }),
             visible: false
         });
+
+        // ── 3. 백그라운드 probe: NGII 유효 레이어 확인 후 source 교체 ──────
+        // wmtEmapOption2가 없으면 Esri 유지
+        if (typeof wmtEmapOption2 === 'function') {
+            // AIRPHOTO_YYYY: 최근 데이터 있는 연도부터 (당해연도 데이터는 미공개가 많음)
+            var thisYear = new Date().getFullYear();
+            var candidates = [
+                'AIRPHOTO_' + (thisYear - 2),   // e.g., 2024 (확인된 최신 연도)
+                'AIRPHOTO_' + (thisYear - 3),   // e.g., 2023
+                'AIRPHOTO_' + (thisYear - 1),   // e.g., 2025
+                'satellite_map'
+            ];
+            (async function () {
+                for (var i = 0; i < candidates.length; i++) {
+                    var valid = await probeNgiiTile(candidates[i], NGII_KEY);
+                    if (valid) {
+                        try {
+                            var opts = wmtEmapOption2(candidates[i], false);
+                            if (opts && opts.source) {
+                                layer.setSource(opts.source);
+                                console.log('[OceanMap] NGII 항공/위성 레이어 확정:', candidates[i]);
+                                return;
+                            }
+                        } catch(e) { /* 다음 후보로 */ }
+                    }
+                }
+                console.warn('[OceanMap] NGII 모든 후보 실패 → Esri World Imagery 유지');
+            })();
+        }
+
+        return layer;
     }
 
     // ========================================================================
