@@ -121,15 +121,19 @@
     }
 
     // ========================================================================
-    // 국토정보플랫폼 위성지도 레이어 생성
+    // 국토정보플랫폼 항공영상 레이어 생성
     // ========================================================================
 
     /**
-     * 국토정보플랫폼(NGII) 국토위성지도 WMTS 레이어를 생성합니다.
+     * 국토정보플랫폼(NGII) 항공영상 WMTS 레이어를 생성합니다.
      *
      * [좌표계]
      * GoogleMapsCompatible TileMatrixSet = EPSG:3857 기반 타일.
      * 우리 지도와 좌표계가 동일하므로 마커·오버레이 위치가 그대로 정확합니다.
+     *
+     * [레이어]
+     * AIRPHOTO = 최신 항공사진 (mapMode:9 해당)
+     * 해상도 ~0.25m/픽셀 (국토위성지도보다 고해상도)
      *
      * [인증]
      * URL 파라미터로 apikey 전달 (별도 스크립트 로드 불필요 — OL 내장 WMTS 사용)
@@ -143,8 +147,8 @@
 
         var source = new ol.source.WMTS({
             url: 'https://map.ngii.go.kr/ms/map/getNgiiMap.do?apikey=' + NGII_KEY,
-            layer: 'satellite_map',          // 국토위성지도 레이어명
-            matrixSet: 'GoogleMapsCompatible', // EPSG:3857 호환 타일셋
+            layer: 'AIRPHOTO',                   // 항공영상 레이어명 (최신)
+            matrixSet: 'GoogleMapsCompatible',   // EPSG:3857 호환 타일셋
             format: 'image/png',
             projection: projection,
             tileGrid: tileGrid,
@@ -154,7 +158,7 @@
         });
 
         source.on('tileloaderror', function () {
-            console.warn('[OceanMap] NGII 위성지도 타일 로드 실패');
+            console.warn('[OceanMap] NGII 항공영상 타일 로드 실패');
         });
 
         return new ol.layer.Tile({ source: source, visible: false });
@@ -289,7 +293,7 @@
         // 레이어 이름 표시 갱신
         var toggleLabel = document.getElementById('ocean-basemap-label');
         if (toggleLabel) {
-            var names = { rltm: '기본맵', enc: '전자해도', coast: '해안도', satellite: '위성지도' };
+            var names = { rltm: '기본맵', enc: '전자해도', coast: '해안도', satellite: '항공영상' };
             toggleLabel.textContent = names[type] || '지도';
         }
 
