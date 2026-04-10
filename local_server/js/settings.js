@@ -41,22 +41,18 @@ function initTabs() {
                 clearTimeout(_hiddenTapTimer);
                 _hiddenTapTimer = setTimeout(() => { _hiddenTapCount = 0; }, 3000);
 
-                // 10회 도달 시 해양종합정보 테스트 페이지로 전환
+                // 10회 도달 시 index2 페이지로 이동 (또는 이미 index2이면 종합기상 탭 전환)
                 if (_hiddenTapCount >= 10) {
                     _hiddenTapCount = 0;
                     clearTimeout(_hiddenTapTimer);
-                    // [연계] ocean_map.js initOceanMap() → 해양종합정보 지도 초기화
-                    const oceanSection = document.getElementById('ocean-map-section');
-                    if (oceanSection) {
-                        // 일반 switchMainTab 을 쓰면 메인탭/서브탭이 모두 비활성화되어
-                        // 사용자가 보고 있던 탭바가 사라진다. 히든 탭 전용 진입 함수를 사용한다.
-                        if (typeof window.enterOceanMapSection === 'function') {
-                            window.enterOceanMapSection();
-                        } else {
-                            window.switchMainTab('ocean-map-section');
-                        }
-                        return;
+                    if (window.__SEAGNAL_PAGE === 'index2') {
+                        // 이미 index2 → 종합기상 탭으로 전환
+                        window.switchMainTab('ocean-map-section');
+                    } else {
+                        // index1 → index2 페이지로 이동
+                        window.location.href = 'index2.html';
                     }
+                    return;
                 }
             } else {
                 // 다른 탭 클릭 시 카운터 리셋
