@@ -307,6 +307,12 @@
             }
             bindMarkerToggle();
 
+            // 기상부이 + 통합 클러스터 초기화 (INDEX2 전용, ocean_buoy.js에서 정의)
+            // INDEX1에서는 함수가 없으므로 이 블록 자체가 실행되지 않음
+            if (window.initOceanBuoys) {
+                window.initOceanBuoys(oceanMap);
+            }
+
             // 위치 검색 초기화
             initOceanSearch();
 
@@ -437,6 +443,13 @@
         const coord = ol.proj.toLonLat(evt.coordinate);
         const lon = coord[0];
         const lat = coord[1];
+
+        // 부이/클러스터 클릭 확인 (INDEX2 전용, ocean_buoy.js에서 정의)
+        // INDEX1에서는 함수가 없으므로 이 블록 자체가 실행되지 않음
+        if (window.handleOceanBuoyClick) {
+            const hit = window.handleOceanBuoyClick(oceanMap, evt);
+            if (hit) return;
+        }
 
         // 마커 클릭 확인
         if (window.handleOceanMarkerClick) {
