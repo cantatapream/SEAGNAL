@@ -72,16 +72,24 @@ ${JSON.stringify(ZONE_GROUP_MAP, null, 2)}
   - 해제 예고가 없으면 빈 문자열("")로 설정한다.
 
 ### 4. 출력 형식
-반드시 아래와 같은 JSON 배열 형식으로만 응답해야 한다. 추가적인 설명은 생략한다.
-[
-  {
-    "type": "풍랑예비특보 | 풍랑주의보 | 풍랑경보 | 태풍예비특보 | 태풍주의보 | 태풍경보 | 지진해일주의보 | 지진해일경보 | 폭풍해일예비특보 | 폭풍해일주의보 | 폭풍해일경보",
-    "command": "예비",
-    "tmEf": "2024년 08월 30일 오전(06시~12시)",
-    "zones": ["서해중부안쪽먼바다", "서해중부바깥먼바다"],
-    "tmCc": ""
-  }
-]
+반드시 아래와 같은 JSON 객체 형식으로만 응답해야 한다. 추가적인 설명은 생략한다.
+{
+  "hasContent": true,
+  "events": [
+    {
+      "type": "풍랑예비특보 | 풍랑주의보 | 풍랑경보 | 태풍예비특보 | 태풍주의보 | 태풍경보 | 지진해일주의보 | 지진해일경보 | 폭풍해일예비특보 | 폭풍해일주의보 | 폭풍해일경보",
+      "command": "예비",
+      "tmEf": "2024년 08월 30일 오전(06시~12시)",
+      "zones": ["서해중부안쪽먼바다", "서해중부바깥먼바다"],
+      "tmCc": ""
+    }
+  ]
+}
+
+#### hasContent 필드 규칙
+- **true**: 통보문에 분석 가능한 실질 내용이 있음. 해상 이벤트가 없어도, "내용: 없음"이라고 명시되어 있어도, 육상 특보만 있어도 → true.
+- **false**: 빈 페이지, 빈 양식(구조만 있고 시각/구역이 채워지지 않음), 깨진 텍스트, 또는 의미 있는 내용이 전혀 없는 경우 → false.
+- 해상 특보가 없어서 events가 빈 배열([])이더라도, 통보문 자체에 읽을 수 있는 내용이 있으면 반드시 hasContent를 true로 설정하라.
 
 ### 5. 중요 참고사항
 - 통보문에 '□ 내용' 섹션과 '< 참고사항 >' 섹션이 있을 수 있다. **반드시 '□ 내용' 섹션만 분석**하고 '< 참고사항 >'은 무시한다 (참고사항은 이전 통보문 대비 변경점이므로 중복).
@@ -98,7 +106,7 @@ ${JSON.stringify(ZONE_GROUP_MAP, null, 2)}
 - 총 M개의 블록이 있으면 반드시 M개의 JSON 객체가 반환되어야 한다.
 
 ### 7. 최종 검증 (반드시 수행)
-JSON 배열을 출력하기 전에, 아래 검증을 반드시 수행하라:
+JSON 객체를 출력하기 전에, 아래 검증을 반드시 수행하라:
 - 각 항목의 zones에 포함된 모든 해역이 통보문 원문에 **실제로 명시**되어 있는지 원문과 1:1 대조하라.
 - 부모 해역 뒤에 괄호가 있어 특정 해역만 명시된 경우(예: "서해중부앞바다(충남북부앞바다, 충남남부앞바다)"), 괄호 안에 명시된 해역만 남기고 **원문에 없는 해역은 zones에서 제거**하라.
 - 원문에 근거 없이 추론하거나 확장한 해역이 있으면 반드시 제거하라.
@@ -468,7 +476,22 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
         const text = result.text;
         console.log('[AI Parser] Gemini 응답 수신 완료, 길이:', text.length);
 
-        const parsed = JSON.parse(text);
+        // [AI 응답 파싱] 새 형식(객체 {hasContent, events})과 구 형식(배열 []) 모두 지원
+        // - 새 형식: { hasContent: true/false, events: [{...}] }
+        // - 구 형식(하위호환): [{...}] → hasContent는 true로 간주
+        const rawParsed = JSON.parse(text);
+        let parsed;
+        let hasContent;
+        if (Array.isArray(rawParsed)) {
+            // 구 형식(배열) 호환: AI가 기존 형식으로 응답한 경우
+            parsed = rawParsed;
+            hasContent = true;
+        } else {
+            // 새 형식(객체): events 배열과 hasContent 불리언 추출
+            parsed = rawParsed.events || [];
+            hasContent = rawParsed.hasContent !== undefined ? rawParsed.hasContent : true;
+        }
+        console.log(`[AI Parser] hasContent: ${hasContent}, events: ${parsed.length}건`);
         // [후처리 0] 괄호 한정 패턴 코드레벨 검증
         // 통보문에 "부모해역(자식해역)" 패턴이 있을 때, AI가 괄호 안 해역 대신
         // 보완(complement) 해역을 반환하는 오류를 코드 레벨에서 교정
@@ -555,7 +578,9 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
                 item.tmYn = item.tmCc;
             }
         }
-        return { data: parsed, error: null, separatedText: processedText };
+        // hasContent: AI가 판단한 "통보문에 실질 내용이 있는지 여부"
+        // → report_alert_processor.js에서 재시도 판단에 사용
+        return { data: parsed, error: null, separatedText: processedText, hasContent };
     } catch (error) {
         const msg = `[AI Parser] 분석 중 오류 발생: ${error.message}`;
         console.error(msg);
@@ -563,7 +588,9 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
         const splitFallback = splitNumberedEvents(noticeText);
         const fallbackBase = splitFallback.separated || noticeText;
         const fallbackResolved = resolveParenthesizedZones(fallbackBase);
-        return { data: [], error: msg, separatedText: (fallbackResolved !== noticeText) ? fallbackResolved : null };
+        // AI 오류 시 hasContent: false → 재시도 대상으로 처리
+        // (AI가 일시적으로 실패해도 다음 사이클에서 다시 시도)
+        return { data: [], error: msg, separatedText: (fallbackResolved !== noticeText) ? fallbackResolved : null, hasContent: false };
     }
 }
 
