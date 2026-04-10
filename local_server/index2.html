@@ -5,14 +5,92 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <style>
+        /* ================================================================
+           INDEX2 전용 스타일
+           - 헤더: 특보정보 탭에서만 표시, 나머지 탭에서는 숨김
+           - 탭 바: 화면 하단 고정
+           - 서브탭: 하단 메인탭 바로 위에 표시/숨김
+           - safe-area: 상태표시줄 겹침 방지
+           ================================================================ */
+
         /* 헤더 상태바 겹침 방지 */
         .main-header {
             padding-top: calc(0.25rem + env(safe-area-inset-top)) !important;
         }
-        /* index2: 종합기상 진입 시에도 헤더 항상 표시 */
+
+        /* 헤더: 기본 숨김, 특보정보 탭일 때만 표시 */
+        /* index2_patch.js에서 body에 data-active-tab 속성을 설정하여 제어 */
+        body[data-active-tab="weather-group"] .main-header {
+            display: block !important;
+        }
+        body:not([data-active-tab="weather-group"]) .main-header {
+            display: none !important;
+        }
+        /* 헤더 숨김 시 콘텐츠가 상태표시줄과 겹치지 않도록 상단 패딩 */
+        body:not([data-active-tab="weather-group"]) .content-area {
+            padding-top: calc(0.5rem + env(safe-area-inset-top, 20px)) !important;
+        }
+
+        /* 종합기상(ocean-map) 진입 시에도 헤더 유지 (특보정보 탭일 때만 해당) */
         body.ocean-map-active .main-header .header-utility-bar,
         body.ocean-map-active .main-header .header-content {
             display: flex !important;
+        }
+
+        /* ── 하단 메인탭 바 ── */
+        .bottom-main-tabs {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 9000;
+            display: flex !important;
+            background: rgba(15, 20, 35, 0.95) !important;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin: 0 !important;
+            border-radius: 0 !important;
+            /* safe-area 하단 패딩 (아이폰 홈 인디케이터 등) */
+            padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+        }
+        /* 하단 탭 버튼 높이 확대 (참고 이미지 수준) */
+        .bottom-main-tabs .tab-btn {
+            padding: clamp(12px, 3vw, 18px) 0 !important;
+            font-size: clamp(0.78rem, 3.2vw, 0.92rem) !important;
+            border-bottom: none !important;
+            border-top: 3px solid transparent;
+        }
+        .bottom-main-tabs .tab-btn.active {
+            border-top-color: var(--accent-blue, #448aff);
+            border-bottom: none !important;
+        }
+
+        /* ── 하단 서브탭 (메인탭 바 바로 위) ── */
+        .bottom-sub-tabs {
+            position: fixed !important;
+            left: 0 !important;
+            right: 0 !important;
+            /* bottom 값은 JS에서 메인탭 바 높이에 맞춰 동적 설정 */
+            bottom: 60px;
+            z-index: 8999;
+            background: rgba(20, 25, 45, 0.95) !important;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            /* 기본 숨김: max-height 0 + opacity 0 (기존 sub-tabs 스타일 활용) */
+        }
+
+        /* ── 콘텐츠 영역 하단 패딩 (탭 바에 가려지지 않도록) ── */
+        .content-area {
+            padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important;
+        }
+
+        /* ── 해양종합 지도: 하단 탭 바만큼 bottom 올림 ── */
+        /* 기존 style.css에서 bottom: env(safe-area-inset-bottom) 이지만,
+           INDEX2에서는 하단 고정 탭 바가 있으므로 그만큼 더 올려야 함 */
+        #ocean-map-section.tab-content.active {
+            bottom: calc(60px + env(safe-area-inset-bottom, 0px));
         }
     </style>
     <script>window.__SEAGNAL_PAGE = 'index2';</script>
@@ -340,33 +418,7 @@
             </div>
 
             <!-- 운영 병행 모드 팝업 → body 레벨로 이동됨 -->
-
-            <!-- 탭 네비게이션: 메인탭 4개 + 서브탭 2그룹 -->
-            <!-- [연계] js/marine.js switchMainTab()/switchSubTab(), js/settings.js 이벤트 바인딩 -->
-            <nav class="main-tabs">
-                <button class="tab-btn active" data-target="weather-group">기상정보</button>
-                <button class="tab-btn" data-target="tide-section">조석정보</button>
-                <button class="tab-btn" data-target="ocean-life-group">해양생활</button>
-                <button class="tab-btn" data-target="ocean-map-section">종합기상</button>
-                <button class="tab-btn" data-target="promo-section">공지사항</button>
-            </nav>
-            <!-- 기상정보 서브 탭 (특보 및 전망 | 해구기상 | 태풍정보 | 해안 CCTV) -->
-            <nav class="sub-tabs" id="weather-sub-tabs">
-                <button class="sub-tab-btn active" data-target="weather-alert-section">특보 및 전망</button>
-                <button class="sub-tab-btn" data-target="sea-zone-section">해구기상</button>
-
-                <button class="sub-tab-btn" data-target="typhoon-section">태풍정보</button>
-                <button class="sub-tab-btn" data-target="cctv-section">해안 CCTV</button>
-            </nav>
-            <!-- 해양생활 서브 탭 (바다낚시 | 서핑 | 해수욕 | 스킨스쿠버 | 갯벌체험 | 바다갈라짐) -->
-            <nav class="sub-tabs" id="ocean-life-sub-tabs">
-                <button class="sub-tab-btn active" data-target="fishing-section">바다낚시</button>
-                <button class="sub-tab-btn" data-target="surfing-section">서핑</button>
-                <button class="sub-tab-btn" data-target="swimming-section">해수욕</button>
-                <button class="sub-tab-btn" data-target="scuba-section">스킨스쿠버</button>
-                <button class="sub-tab-btn" data-target="mudflat-section">갯벌체험</button>
-                <button class="sub-tab-btn" data-target="sea-parting-section">바다갈라짐</button>
-            </nav>
+            <!-- 메인탭/서브탭은 하단 고정 바로 이동 (#bottom-tab-bar) -->
         </header>
 
         <!-- Main Content -->
@@ -1304,6 +1356,46 @@
             </section>
 
         </main>
+
+        <!-- ================================================================
+             하단 고정 탭 바 (INDEX2 전용)
+             - 메인탭 4개: 특보정보, 종합기상, 해양생활, 공지사항
+             - 서브탭: 메인탭 클릭 시 위로 올라오고, 서브탭 선택 시 닫힘
+             [연계] js/index2_patch.js → 하단 탭 전환 로직 오버라이드
+             [연계] js/marine.js → switchMainTab()/switchSubTab() 기본 로직
+             ================================================================ -->
+
+        <!-- 서브탭 영역: 메인탭 바로 위에 표시/숨김 -->
+        <!-- 특보정보 서브탭 (특보 및 전망 | 해구기상 | 태풍정보) -->
+        <nav class="sub-tabs bottom-sub-tabs" id="weather-sub-tabs">
+            <button class="sub-tab-btn active" data-target="weather-alert-section">특보 및 전망</button>
+            <button class="sub-tab-btn" data-target="sea-zone-section">해구기상</button>
+            <button class="sub-tab-btn" data-target="typhoon-section">태풍정보</button>
+        </nav>
+        <!-- 종합기상 서브탭 (해양종합 | 조석정보 | 해안 CCTV) -->
+        <nav class="sub-tabs bottom-sub-tabs" id="ocean-sub-tabs">
+            <button class="sub-tab-btn active" data-target="ocean-map-section">해양종합</button>
+            <button class="sub-tab-btn" data-target="tide-section">조석정보</button>
+            <button class="sub-tab-btn" data-target="cctv-section">해안 CCTV</button>
+        </nav>
+        <!-- 해양생활 서브탭 (바다낚시 | 서핑 | 해수욕 | 스킨스쿠버 | 갯벌체험 | 바다갈라짐) -->
+        <nav class="sub-tabs bottom-sub-tabs" id="ocean-life-sub-tabs">
+            <button class="sub-tab-btn active" data-target="fishing-section">바다낚시</button>
+            <button class="sub-tab-btn" data-target="surfing-section">서핑</button>
+            <button class="sub-tab-btn" data-target="swimming-section">해수욕</button>
+            <button class="sub-tab-btn" data-target="scuba-section">스킨스쿠버</button>
+            <button class="sub-tab-btn" data-target="mudflat-section">갯벌체험</button>
+            <button class="sub-tab-btn" data-target="sea-parting-section">바다갈라짐</button>
+        </nav>
+
+        <!-- 메인탭 바 (화면 하단 고정) -->
+        <nav class="main-tabs bottom-main-tabs" id="bottom-tab-bar">
+            <button class="tab-btn active" data-target="weather-group">특보정보</button>
+            <button class="tab-btn" data-target="ocean-group">종합기상</button>
+            <button class="tab-btn" data-target="ocean-life-group">해양생활</button>
+            <button class="tab-btn" data-target="promo-section">공지사항</button>
+        </nav>
+
     </div>
 
     <!-- Templates -->
