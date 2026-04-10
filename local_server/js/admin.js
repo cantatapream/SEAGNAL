@@ -244,8 +244,8 @@ window.showCollectFailureAlert = async function () {
                     <i class="fa-solid fa-magnifying-glass" style="color:#f59e0b;flex-shrink:0;margin-top:2px;"></i>
                     <div style="flex:1;min-width:0;">
                         <div style="color:#fcd34d;font-size:0.85rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.title || r.reportId}</div>
-                        <div style="color:#94a3b8;font-size:0.7rem;margin-top:2px;">본문 없음 · 참고사항에 특보 키워드 · ${time}</div>
                         <div style="color:#d4a276;font-size:0.72rem;margin-top:2px;">${preview}</div>
+                        <div style="color:#94a3b8;font-size:0.68rem;margin-top:2px;">${time}</div>
                     </div>
                 </div>`;
             }).join('');
@@ -490,8 +490,8 @@ async function renderErrorListTab(container) {
                     <i class="fa-solid fa-magnifying-glass" style="color:#f59e0b;flex-shrink:0;font-size:1.1rem;margin-top:2px;"></i>
                     <div style="flex:1;min-width:0;">
                         <div style="color:#fcd34d;font-size:0.9rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.title || r.reportId}</div>
-                        <div style="color:#94a3b8;font-size:0.72rem;margin-top:3px;">본문 "내용 없음" · 참고사항에 특보 키워드 포함 · ${time}</div>
-                        <div style="color:#d4a276;font-size:0.75rem;margin-top:4px;line-height:1.4;background:rgba(245,158,11,0.05);padding:6px 8px;border-radius:6px;">${preview}</div>
+                        <div style="color:#d4a276;font-size:0.75rem;margin-top:3px;line-height:1.4;background:rgba(245,158,11,0.05);padding:6px 8px;border-radius:6px;">${preview}</div>
+                        <div style="color:#94a3b8;font-size:0.68rem;margin-top:3px;">${time}</div>
                     </div>
                     <button onclick="acknowledgeReviewItem('${r.reportId}')" style="background:linear-gradient(135deg,#f59e0b,#d97706);border:none;border-radius:6px;color:#fff;padding:6px 10px;cursor:pointer;font-size:0.72rem;white-space:nowrap;font-weight:600;" title="확인 완료 처리">
                         <i class="fa-solid fa-check"></i> 확인완료
