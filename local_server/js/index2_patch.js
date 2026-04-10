@@ -189,4 +189,34 @@ window.fetchAllData = fetchAllData;
 // settings.js 에서 window.refreshData = fetchAllData 로 캐싱한 참조도 갱신
 window.refreshData = fetchAllData;
 
+// ──────────────────────────────────────────────
+// 5. 푸시알림 완전 차단
+//    - subscribeUser: 서버에 푸시 토큰/구역 전송 → no-op
+//    - capacitor-plugins.js의 initPushNotifications()가 호출해도 구독 안 됨
+//    - settings.js NotificationSettings.set()에서 호출해도 무시됨
+// ──────────────────────────────────────────────
+window.subscribeUser = async function () {
+    // INDEX2: 푸시 구독 차단 (no-op)
+};
+
+// ──────────────────────────────────────────────
+// 6. 특보 관련 보조 함수 차단
+//    - refreshAlertData: 관리자 특보 등록/삭제 후 호출 → no-op
+//    - flattenAlertsData: 특보 JSON → 배열 변환 → no-op
+//    - sortAlertItems: 특보 정렬 → 빈 배열 반환
+// ──────────────────────────────────────────────
+refreshAlertData = async function () {
+    // INDEX2: 특보 데이터 갱신 차단 (no-op)
+};
+window.refreshAlertData = refreshAlertData;
+
+flattenAlertsData = function () {
+    // INDEX2: 특보 데이터 변환 차단 (no-op)
+    if (typeof appState !== 'undefined') {
+        appState.alerts = [];
+        appState.coastalAlerts = {};
+    }
+};
+window.flattenAlertsData = flattenAlertsData;
+
 } // end if (window.__SEAGNAL_PAGE === 'index2')
