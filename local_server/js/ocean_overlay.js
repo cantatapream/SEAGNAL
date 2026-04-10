@@ -1023,4 +1023,17 @@
         return closest;
     }
 
+    // ──────────────────────────────────────────────
+    // 외부 노출: 해당 좌표에 오버레이 데이터가 존재하는지 확인
+    // 0.5° 격자 기준, 최근접 그리드 포인트와의 거리가 0.35° 이내이면 true
+    // ──────────────────────────────────────────────
+    window.hasOceanGridData = function (lat, lon) {
+        var nearest = findNearestGrid(lat, lon);
+        if (!nearest) return false;
+        var dLat = nearest.lat - lat;
+        var dLon = nearest.lon - lon;
+        var dist = Math.sqrt(dLat * dLat + dLon * dLon);
+        return dist <= 0.35;
+    };
+
 })();

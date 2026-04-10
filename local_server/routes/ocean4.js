@@ -90,12 +90,6 @@ router.get('/api/ocean/wave', (req, res) => {
             return res.status(400).json({ success: false, error: '위도(lat)와 경도(lon)를 입력해주세요.' });
         }
 
-        // 한국 해역 서비스 범위 확인 (일본 연안 등 범위 외 클릭 차단)
-        if (lat < KOREA_SEA.minLat || lat > KOREA_SEA.maxLat ||
-            lon < KOREA_SEA.minLon || lon > KOREA_SEA.maxLon) {
-            return res.json({ success: false, error: '서비스 커버리지 밖입니다.' });
-        }
-
         // zone_forecasts.json 읽기
         const filePath = path.join(DATA_DIR, 'zone_forecasts.json');
         if (!fs.existsSync(filePath)) {

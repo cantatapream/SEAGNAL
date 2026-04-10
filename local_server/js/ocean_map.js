@@ -444,8 +444,9 @@
             if (hit) return; // 마커 클릭이면 마커 핸들러에서 처리
         }
 
-        // 빈 영역 클릭 → 바텀시트 표시
+        // 오버레이 데이터가 있는 영역만 바텀시트 표시
         if (window.showOceanBottomSheet) {
+            if (window.hasOceanGridData && !window.hasOceanGridData(lat, lon)) return;
             window.showOceanBottomSheet(lat, lon);
         }
     }
