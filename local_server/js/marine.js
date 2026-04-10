@@ -1012,9 +1012,13 @@ window.switchMainTab = function (targetId) {
         return;
     }
 
-    // 경우 3: 서브 탭이 없는 독립 메인 탭 (조석정보, 공지사항)
-    // 히든 탭(ocean-map-section)은 조석정보에서 진입하므로 조석정보 탭 하이라이트 유지
-    const actualTabTarget = (targetId === 'ocean-map-section') ? 'tide-section' : targetId;
+    // 경우 3: 서브 탭이 없는 독립 메인 탭 (조석정보, 공지사항, 종합기상)
+    // ocean-map-section 전용 탭이 있으면 그것을 활성화, 없으면 조석정보 탭 하이라이트
+    let actualTabTarget = targetId;
+    if (targetId === 'ocean-map-section') {
+        const directTab = document.querySelector('.main-tabs .tab-btn[data-target="ocean-map-section"]');
+        actualTabTarget = directTab ? 'ocean-map-section' : 'tide-section';
+    }
     const mainTab = document.querySelector(`.main-tabs .tab-btn[data-target="${actualTabTarget}"]`);
     if (mainTab) mainTab.classList.add('active');
 
