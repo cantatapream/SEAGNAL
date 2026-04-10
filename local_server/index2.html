@@ -81,9 +81,14 @@
             /* 기본 숨김: max-height 0 + opacity 0 (기존 sub-tabs 스타일 활용) */
         }
 
-        /* ── 콘텐츠 영역 하단 패딩 (탭 바에 가려지지 않도록) ── */
+        /* ── 콘텐츠 영역 하단 패딩 (하단 탭 바 + 서브탭에 가려지지 않도록) ── */
+        /* 메인탭(~60px) + 서브탭이 열릴 수 있는 공간(~40px) + safe-area + 여유 */
         .content-area {
-            padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important;
+            padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)) !important;
+        }
+        /* 각 탭 콘텐츠 섹션 내부에도 하단 여백 확보 */
+        .tab-content {
+            padding-bottom: 30px;
         }
 
         /* ── 해양종합 지도: 상태표시줄 겹침 방지 + 하단 탭 바만큼 올림 ── */
