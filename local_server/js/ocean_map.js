@@ -32,8 +32,7 @@
     let baseLayerA         = null;    // 기본맵 (BASEMAP_RLTM3857)
     let baseLayerENC       = null;    // 전자해도 (BASEMAP_ENC573857)
     let baseLayerCoast     = null;    // 해안도 (BASEMAP_RLTMCOAST3857)
-    let baseLayerSatellite = null;    // 위성지도 (국토정보플랫폼 국토위성지도)
-    let currentBase        = 'rltm'; // 현재 베이스맵: 'rltm' | 'enc' | 'coast' | 'satellite'
+    let currentBase        = 'rltm'; // 현재 베이스맵: 'rltm' | 'enc' | 'coast'
     let searchResultLayer = null;     // 검색 결과 마커 레이어
 
     // 해아름 WMS 엔드포인트 (F12 캡처로 확인됨)
@@ -121,121 +120,6 @@
     }
 
     // ========================================================================
-    // 위성/항공 영상 레이어 생성
-    // ========================================================================
-
-    /**
-     * NGII 타일 한 장을 fetch해서 실제 이미지 응답인지 확인합니다.
-     * wmtEmapOption2()는 레이어명 유효성 검사 없이 source를 생성하므로
-     * 서버 응답의 content-type으로 실제 데이터 존재 여부를 판별합니다.
-     */
-    async function probeNgiiTile(layerName, apiKey) {
-        var url = 'https://map.ngii.go.kr/openapi/Gettile.do' +
-            '?apikey=' + apiKey +
-            '&service=WMTS&request=GetTile&version=1.0.0' +
-            '&layer=' + layerName +
-            '&style=korean&format=image/png' +
-            '&tilematrixset=korean&tilematrix=L05&tilerow=3&tilecol=2';
-        try {
-            var resp = await fetch(url);
-            var ct = resp.headers.get('content-type') || '';
-            return ct.startsWith('image/');
-        } catch(e) {
-            return false;
-        }
-    }
-
-    /**
-     * 위성/항공 영상 베이스맵 레이어를 생성합니다.
-     *
-     * [전략] Esri를 즉시 반환해 지도가 바로 뜨도록 하고,
-     *        백그라운드에서 NGII 후보 레이어를 probe하여 유효한 것이 확인되면
-     *        레이어 source를 교체합니다 (위성 레이어는 초기에 hidden 상태).
-     *
-     * [NGII wmtEmapOption2 한계] 레이어명 검증 없이 source 생성 →
-     *        실제 타일 응답이 text/plain이어도 예외를 던지지 않음
-     *        → fetch probe로 content-type 확인 후 교체하는 방식으로 해결
-     */
-    function createNgiiSatelliteLayer() {
-        var NGII_KEY = 'E2BC008450A0DDAFEFAFBD606AB7E8DEC6F031C369';
-
-        // ── 1. EPSG:5179 등록 (+towgs84 포함 → EPSG:3857 datum 변환 필수) ──
-        // worldExtent: OL8 재투영 삼각형 샘플링 범위를 한국 영역으로 제한.
-        //   없으면 OL8이 타일 범위 밖(한국 외부)까지 proj4 변환을 시도하여
-        //   TM 왜곡이 심한 좌표에서 NaN/Infinity → 0×0 canvas drawImage 오류 발생.
-        if (typeof proj4 !== 'undefined') {
-            proj4.defs('EPSG:5179',
-                '+proj=tmerc +lat_0=38 +lon_0=127.5 +k=0.9996 ' +
-                '+x_0=1000000 +y_0=2000000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
-            if (!ol.proj.get('EPSG:5179')) {
-                try {
-                    ol.proj.addProjection(new ol.proj.Projection({
-                        code: 'EPSG:5179',
-                        extent: [705680.0, 1349270.0, 1388291.0, 2581448.0],
-                        worldExtent: [124.0, 32.0, 132.0, 44.0],
-                        units: 'm'
-                    }));
-                    ol.proj.addCoordinateTransforms('EPSG:5179', 'EPSG:3857',
-                        function(c) { return proj4('EPSG:5179', 'EPSG:3857', c); },
-                        function(c) { return proj4('EPSG:3857', 'EPSG:5179', c); }
-                    );
-                    ol.proj.addCoordinateTransforms('EPSG:5179', 'EPSG:4326',
-                        function(c) { return proj4('EPSG:5179', 'EPSG:4326', c); },
-                        function(c) { return proj4('EPSG:4326', 'EPSG:5179', c); }
-                    );
-                } catch(e) { /* 이미 등록된 경우 무시 */ }
-            }
-            // 이전에 worldExtent 없이 등록된 경우에도 보완
-            var _p5179 = ol.proj.get('EPSG:5179');
-            if (_p5179 && typeof _p5179.setWorldExtent === 'function' && !_p5179.getWorldExtent()) {
-                _p5179.setWorldExtent([124.0, 32.0, 132.0, 44.0]);
-            }
-        }
-
-        // ── 2. Esri를 즉시 반환 (지도 초기화 블로킹 방지) ──────────────────
-        var layer = new ol.layer.Tile({
-            source: new ol.source.XYZ({
-                url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                crossOrigin: 'anonymous',
-                maxZoom: 19,
-                attributions: 'Tiles &copy; <a href="https://www.esri.com/" target="_blank">Esri</a>'
-            }),
-            visible: false
-        });
-
-        // ── 3. 백그라운드 probe: NGII 유효 레이어 확인 후 source 교체 ──────
-        // wmtEmapOption2가 없으면 Esri 유지
-        if (typeof wmtEmapOption2 === 'function') {
-            // AIRPHOTO_YYYY: 최근 데이터 있는 연도부터 (당해연도 데이터는 미공개가 많음)
-            var thisYear = new Date().getFullYear();
-            var candidates = [
-                'AIRPHOTO_' + (thisYear - 2),   // e.g., 2024 (확인된 최신 연도)
-                'AIRPHOTO_' + (thisYear - 3),   // e.g., 2023
-                'AIRPHOTO_' + (thisYear - 1),   // e.g., 2025
-                'satellite_map'
-            ];
-            (async function () {
-                for (var i = 0; i < candidates.length; i++) {
-                    var valid = await probeNgiiTile(candidates[i], NGII_KEY);
-                    if (valid) {
-                        try {
-                            var opts = wmtEmapOption2(candidates[i], false);
-                            if (opts && opts.source) {
-                                layer.setSource(opts.source);
-                                console.log('[OceanMap] NGII 항공/위성 레이어 확정:', candidates[i]);
-                                return;
-                            }
-                        } catch(e) { /* 다음 후보로 */ }
-                    }
-                }
-                console.warn('[OceanMap] NGII 모든 후보 실패 → Esri World Imagery 유지');
-            })();
-        }
-
-        return layer;
-    }
-
-    // ========================================================================
     // 지도 초기화
     // ========================================================================
 
@@ -264,15 +148,11 @@
             baseLayerENC   = createKhoaLayer(KHOA_LAYER_ENC);
             baseLayerCoast = createKhoaLayer(KHOA_LAYER_COAST);
 
-            // 국토정보플랫폼 위성지도 레이어 생성 (EPSG:3857 GoogleMapsCompatible)
-            baseLayerSatellite = createNgiiSatelliteLayer();
-
             // 초기 가시성: 기본맵만 표시
             baseLayerENC.setVisible(false);
             baseLayerCoast.setVisible(false);
-            // baseLayerSatellite는 createNgiiSatelliteLayer()에서 이미 visible:false
 
-            const layers = [baseLayerA, baseLayerENC, baseLayerCoast, baseLayerSatellite];
+            const layers = [baseLayerA, baseLayerENC, baseLayerCoast];
 
             // 지도 생성
             oceanMap = new ol.Map({
@@ -338,10 +218,9 @@
 
     /** 현재 currentBase 에 해당하는 레이어만 표시, 나머지 숨김 */
     function applyBaseLayerVisibility() {
-        if (baseLayerA)         baseLayerA.setVisible(currentBase === 'rltm');
-        if (baseLayerENC)       baseLayerENC.setVisible(currentBase === 'enc');
-        if (baseLayerCoast)     baseLayerCoast.setVisible(currentBase === 'coast');
-        if (baseLayerSatellite) baseLayerSatellite.setVisible(currentBase === 'satellite');
+        if (baseLayerA)     baseLayerA.setVisible(currentBase === 'rltm');
+        if (baseLayerENC)   baseLayerENC.setVisible(currentBase === 'enc');
+        if (baseLayerCoast) baseLayerCoast.setVisible(currentBase === 'coast');
     }
 
     /**
@@ -364,11 +243,11 @@
         // 레이어 이름 표시 갱신
         var toggleLabel = document.getElementById('ocean-basemap-label');
         if (toggleLabel) {
-            var names = { rltm: '기본맵', enc: '전자해도', coast: '해안도', satellite: '위성지도' };
+            var names = { rltm: '기본맵', enc: '전자해도', coast: '해안도' };
             toggleLabel.textContent = names[type] || '지도';
         }
 
-        // 기본맵·전자해도·위성지도로 전환 시 오버레이(파티클+범례+슬라이더) 자동 OFF
+        // 기본맵·전자해도로 전환 시 오버레이(파티클+범례+슬라이더) 자동 OFF
         // coast(해안도)로 전환할 때만 오버레이 상태를 유지합니다.
         if (type !== 'coast' && window.oceanOverlayTurnOff) {
             window.oceanOverlayTurnOff();

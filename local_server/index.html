@@ -45,11 +45,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
     <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
 
-    <!-- proj4 + NGII 지도 라이브러리 (항공/위성 영상 베이스맵) -->
-    <!-- proj4는 OL8 로드 후, NGII 라이브러리는 proj4 로드 후 순서 유지 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.js"></script>
-    <script src="https://map.ngii.go.kr/openapi/wmts_ngiiMap_v6.4.3.js?apikey=E2BC008450A0DDAFEFAFBD606AB7E8DEC6F031C369"></script>
-
     <!-- SunCalc - 천문 정보 계산 (일출몰, 월령 등) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
 
@@ -815,10 +810,6 @@
                             </button>
                             <button class="ocean-basemap-item" data-basemap="coast">
                                 <i class="fa-solid fa-map-location"></i> 해안도
-                            </button>
-                            <!-- 국토정보플랫폼 위성지도 (EPSG:3857 GoogleMapsCompatible) -->
-                            <button class="ocean-basemap-item" data-basemap="satellite">
-                                <i class="fa-solid fa-satellite"></i> 위성지도
                             </button>
                         </div>
                     </div>
