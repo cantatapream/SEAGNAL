@@ -89,6 +89,7 @@
     let isMoving = false;          // 지도 이동/줌 중 플래그 (잔상 방지)
     let inited = false;            // oceanOverlayInit 1회 가드
     let landRings = null;          // 육지 마스크용 폴리곤 링 배열 (lon/lat 쌍)
+    let _zoneCoordsList = null;    // 해구 좌표 캐시 (오버레이 무관, 바텀시트 클릭 판단용)
 
     // ========================================================================
     // 초기화
@@ -167,6 +168,9 @@
         });
 
         // 진입 시 자동 로드 안 함 — 사용자가 버튼을 눌러야 시작.
+
+        // 해구 좌표 캐시 로드 (오버레이 무관, 바텀시트 클릭 판단용 — 1회만)
+        if (!_zoneCoordsList) loadZoneCoordsList();
 
         // 육지 마스크 로드 (CDN: Natural Earth 110m land topojson)
         if (!landRings) loadLandMask();
@@ -1022,5 +1026,44 @@
         }
         return closest;
     }
+
+    // ──────────────────────────────────────────────
+    // 해구 좌표 캐시: 오버레이 상태와 무관하게 1회 로드
+    // 바텀시트 클릭 가능 영역 판단에 사용
+    // ──────────────────────────────────────────────
+    function loadZoneCoordsList() {
+        fetch('/api/ocean/zone-forecasts')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.success || !data.zones) return;
+                _zoneCoordsList = [];
+                var keys = Object.keys(data.zones);
+                for (var i = 0; i < keys.length; i++) {
+                    var z = data.zones[keys[i]];
+                    if (z.lat != null && z.lon != null) {
+                        _zoneCoordsList.push({ lat: z.lat, lon: z.lon });
+                    }
+                }
+            })
+            .catch(function () { /* silent */ });
+    }
+
+    // ──────────────────────────────────────────────
+    // 외부 노출: 해당 좌표에 해구 데이터가 존재하는지 확인
+    // 오버레이 ON/OFF와 무관하게, 해구 좌표 캐시 기준 판단
+    // 최근접 해구와의 거리가 0.35° 이내이면 true
+    // ──────────────────────────────────────────────
+    window.hasOceanGridData = function (lat, lon) {
+        if (!_zoneCoordsList || _zoneCoordsList.length === 0) return false;
+        var minDist = Infinity;
+        for (var i = 0; i < _zoneCoordsList.length; i++) {
+            var item = _zoneCoordsList[i];
+            var dLat = item.lat - lat;
+            var dLon = item.lon - lon;
+            var dist = dLat * dLat + dLon * dLon;
+            if (dist < minDist) minDist = dist;
+        }
+        return Math.sqrt(minDist) <= 0.35;
+    };
 
 })();

@@ -53,10 +53,6 @@ function getZoneCoords3() {
  * time: JavaScript Date 객체
  */
 function getZoneForecastAt(lat, lon, time) {
-    // 한국 해역 범위 초과 → null
-    if (lat < KOREA_SEA3.minLat || lat > KOREA_SEA3.maxLat ||
-        lon < KOREA_SEA3.minLon || lon > KOREA_SEA3.maxLon) return null;
-
     const filePath = path.join(DATA_DIR, 'zone_forecasts.json');
     if (!fs.existsSync(filePath)) return null;
     const zoneData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
