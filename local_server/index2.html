@@ -86,10 +86,12 @@
             padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important;
         }
 
-        /* ── 해양종합 지도: 하단 탭 바만큼 bottom 올림 ── */
-        /* 기존 style.css에서 bottom: env(safe-area-inset-bottom) 이지만,
-           INDEX2에서는 하단 고정 탭 바가 있으므로 그만큼 더 올려야 함 */
+        /* ── 해양종합 지도: 상태표시줄 겹침 방지 + 하단 탭 바만큼 올림 ── */
+        /* 헤더가 숨겨진 상태에서 position:fixed; top:0 이면 상태표시줄과 겹침
+           → top을 safe-area-inset-top만큼 내려서 겹치지 않게 함
+           → bottom을 하단 탭 바 높이만큼 올려서 가려지지 않게 함 */
         #ocean-map-section.tab-content.active {
+            top: env(safe-area-inset-top, 20px) !important;
             bottom: calc(60px + env(safe-area-inset-bottom, 0px));
         }
     </style>
