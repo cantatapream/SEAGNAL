@@ -280,75 +280,74 @@ async function applyNewReports(fullForm) {
 
         console.log(`[ReportProcessor] 총 ${allNewReports.length}건의 신규 통보문 처리 시작.`);
         let changed = false;
-        const RELEVANT_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
+        // 해상 특보 키워드 목록 (참고사항 체크, 캐시 저장용으로만 사용)
+        // ※ 기존에는 이 키워드로 통보문을 필터링했으나, 이제는 모든 통보문을 AI 분석함
+        const SEA_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
+
+        // [재시도 대상 관리] 빈 양식/빈 페이지 통보문의 재시도 정보를 fullForm에 저장
+        // pendingRetries 구조: { "met:202604100400:52": { title, firstSeen, retryCount, lastRetry } }
+        // → weather_alerts.json에 함께 저장되어 서버 재시작 후에도 재시도 상태 유지
+        if (!fullForm.pendingRetries) fullForm.pendingRetries = {};
+        const RETRY_INTERVAL_MS = 10 * 60 * 1000;  // 재시도 간격: 10분
+        const MAX_RETRIES = 36;                      // 최대 재시도 횟수: 36회 = 6시간
 
         for (const report of allNewReports) {
             console.log(`[ReportProcessor] 통보문 확인 중: ${report.title}`);
-            const text = await fetchReportDetail(report.id);
 
-            // [필터링] 내용에 해상 관련 키워드가 포함된 경우에만 AI 분석 수행
-            const hasRelevantKeyword = RELEVANT_KEYWORDS.some(kw => text.includes(kw));
-            if (!hasRelevantKeyword) {
-                // [검토 필요 감지] "□ 내용: 없음"이지만 참고사항에 해상 키워드가 있는 경우
-                // 이 경우는 자동 처리가 불가하므로 관리자에게 알려야 함
-                // 예: "동해중부안쪽먼바다의 풍랑특보는 발표가능성이 낮아져 해제합니다" (참고사항에만 있음)
-                const isContentEmpty = !text.trim() || text.trim() === '□ 내용' || text.includes('없음');
-                if (isContentEmpty) {
-                    // 참고사항 포함된 원본 텍스트를 별도로 가져옴 (기존 text는 참고사항이 잘린 상태)
-                    const fullText = await fetchReportDetail(report.id, { keepReference: true });
-                    // 참고사항 부분만 추출
-                    const refIdx = fullText.indexOf('참고사항');
-                    const referenceText = refIdx !== -1 ? fullText.substring(refIdx).trim() : '';
-                    // 참고사항에 해상 특보 키워드가 포함되어 있는지 확인
-                    const hasKeywordInRef = RELEVANT_KEYWORDS.some(kw => referenceText.includes(kw));
-
-                    if (hasKeywordInRef) {
-                        console.log(`[ReportProcessor] ⚠️ 검토 필요 통보문 감지: ${report.title}`);
-                        console.log(`[ReportProcessor]   → 본문 "내용 없음", 참고사항에 해상 키워드 포함`);
-                        // review_needed.json에 저장 (관리자 확인 대상)
-                        try {
-                            let reviews = [];
-                            if (fs.existsSync(REVIEW_NEEDED_FILE)) {
-                                reviews = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8'));
-                            }
-                            // 같은 통보문 중복 저장 방지
-                            if (!reviews.some(r => r.reportId === report.id)) {
-                                reviews.push({
-                                    reportId: report.id,
-                                    title: report.title,
-                                    referenceText: referenceText,
-                                    detectedAt: new Date().toISOString(),
-                                    acknowledged: false  // 관리자가 [확인완료]를 누르면 true로 변경
-                                });
-                                fs.writeFileSync(REVIEW_NEEDED_FILE, JSON.stringify(reviews, null, 2), 'utf8');
-                                console.log(`[ReportProcessor] 검토 필요 통보문 저장 완료: ${report.id}`);
-
-                                // [관리자 푸시] "내용 없음" 통보문 감지 시 관리자에게 푸시 발송
-                                const { sendAdminPush } = require('./services/admin_push');
-                                sendAdminPush(
-                                    '🔍 검토 필요 통보문',
-                                    `${report.title} - 본문 없음, 참고사항에 특보 키워드 포함`
-                                ).catch(err => console.error('[ReportProcessor] 관리자 푸시 발송 오류:', err.message));
-                            }
-                        } catch (reviewErr) {
-                            console.error('[ReportProcessor] 검토 필요 저장 오류:', reviewErr.message);
+            // ──────────────────────────────────────────────────────────────
+            // [재시도 체크] 이전에 "빈 양식"으로 판정된 통보문인 경우
+            // 10분 간격으로만 재시도하고, 6시간(36회) 초과 시 포기
+            // ──────────────────────────────────────────────────────────────
+            const pending = fullForm.pendingRetries[report.id];
+            if (pending) {
+                const elapsed = now - new Date(pending.lastRetry);
+                // 아직 10분이 안 지났으면 이번 사이클에서는 건너뜀 (API 호출 없음)
+                if (elapsed < RETRY_INTERVAL_MS) {
+                    continue;
+                }
+                // 6시간(36회) 초과: 포기 → processedReportIds에 등록 + 관리자 알림
+                if (pending.retryCount >= MAX_RETRIES) {
+                    console.log(`[ReportProcessor] ⏰ 재시도 상한 도달 (${MAX_RETRIES}회): ${report.title}`);
+                    // review_needed.json에 저장 (관리자센터에서 확인 가능)
+                    try {
+                        let reviews = [];
+                        if (fs.existsSync(REVIEW_NEEDED_FILE)) {
+                            reviews = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8'));
                         }
-                    }
-                }
-
-                console.log(`[ReportProcessor] 해상 특보 키워드 미포함, 건너뜀: ${report.title}`);
-                fullForm.lastReportId = report.id;
-                // [누락 방지] 키워드 미포함 통보문도 processedReportIds에 추가
-                // 추가하지 않으면, 매 사이클마다 같은 통보문의 본문을 반복 조회하게 됨
-                if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
-                if (!fullForm.processedReportIds.includes(report.id)) {
+                        if (!reviews.some(r => r.reportId === report.id)) {
+                            reviews.push({
+                                reportId: report.id,
+                                title: report.title,
+                                referenceText: `6시간(${MAX_RETRIES}회) 재시도 후에도 내용 미게시 상태`,
+                                detectedAt: pending.firstSeen,
+                                acknowledged: false
+                            });
+                            fs.writeFileSync(REVIEW_NEEDED_FILE, JSON.stringify(reviews, null, 2), 'utf8');
+                        }
+                    } catch (e) { console.error('[ReportProcessor] review_needed 저장 오류:', e.message); }
+                    // 관리자에게 FCM 푸시 발송
+                    const { sendAdminPush } = require('./services/admin_push');
+                    sendAdminPush(
+                        '⚠️ 통보문 수집 실패',
+                        `${report.title} - ${MAX_RETRIES}회 재시도 후에도 내용 미게시. 수동 확인 필요`
+                    ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
+                    // processedReportIds에 등록하여 더 이상 재시도하지 않음
+                    if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
                     fullForm.processedReportIds.push(report.id);
+                    delete fullForm.pendingRetries[report.id];
+                    continue;
                 }
-                continue;
+                // 10분 경과 → 재시도 진행 (아래 AI 분석으로 이동)
+                console.log(`[ReportProcessor] 🔄 재시도 ${pending.retryCount + 1}/${MAX_RETRIES}: ${report.title}`);
             }
 
+            // ──────────────────────────────────────────────────────────────
+            // [본문 가져오기 + AI 분석] 모든 [특보]/[예비] 통보문을 AI로 분석
+            // 기존에는 '풍랑','태풍' 등 키워드가 있는 통보문만 분석했으나,
+            // 키워드 필터를 제거하여 누락을 원천 방지함
+            // ──────────────────────────────────────────────────────────────
+            const text = await fetchReportDetail(report.id);
             console.log(`[ReportProcessor] AI 분석 시작: ${report.title}`);
-            // AI를 사용하여 통보문 분석 (번호별 항목 분리 포함)
             const baseDate = extractTmFcFromId(report.id);
             const aiParsed = await aiParser.parseNoticeWithAI(text, baseDate);
             const events = aiParsed.data || [];
@@ -357,93 +356,175 @@ async function applyNewReports(fullForm) {
                 console.error(`[ReportProcessor] AI 분석 오류: ${aiParsed.error}`);
             }
 
-            // [Fix] AI 결과 중복 제거: 동일 type+command+zones 조합의 이벤트 병합
-            const deduplicatedEvents = [];
-            const seenEventKeys = new Set();
-            for (const event of events) {
-                // zones를 정렬하여 순서 무관하게 비교
-                const sortedZones = [...(event.zones || [])].sort().join(',');
-                const eventKey = `${event.type}|${event.command}|${sortedZones}`;
-                if (!seenEventKeys.has(eventKey)) {
-                    seenEventKeys.add(eventKey);
-                    deduplicatedEvents.push(event);
+            // ──────────────────────────────────────────────────────────────
+            // [빈 양식 감지] AI가 "내용 없음"(hasContent=false)으로 판단한 경우
+            // → processedReportIds에 넣지 않고, 10분 뒤 재시도
+            // 예: 기상청 관리자가 양식만 올리고 아직 내용을 안 채운 경우
+            // ──────────────────────────────────────────────────────────────
+            if (!aiParsed.hasContent) {
+                if (!fullForm.pendingRetries[report.id]) {
+                    // 첫 감지: pendingRetries에 등록 + 관리자 알림
+                    fullForm.pendingRetries[report.id] = {
+                        title: report.title,
+                        firstSeen: new Date().toISOString(),
+                        retryCount: 0,
+                        lastRetry: new Date().toISOString()
+                    };
+                    console.log(`[ReportProcessor] ⚠️ 빈 통보문 감지, 재시도 등록: ${report.title}`);
+                    const { sendAdminPush } = require('./services/admin_push');
+                    sendAdminPush(
+                        '🔍 빈 통보문 감지',
+                        `${report.title} - 내용 미게시 상태, 10분 간격 재시도 시작 (최대 6시간)`
+                    ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
                 } else {
-                    console.log(`[ReportProcessor] 중복 이벤트 제거: ${event.type} ${event.command}`);
+                    // 재시도 횟수 증가 + 마지막 재시도 시각 갱신
+                    fullForm.pendingRetries[report.id].retryCount++;
+                    fullForm.pendingRetries[report.id].lastRetry = new Date().toISOString();
+                    console.log(`[ReportProcessor] 재시도 실패 (여전히 빈 양식): ${report.title}`);
                 }
+                continue; // processedReportIds에 넣지 않음 → 다음 사이클에서 재시도
             }
 
-            // [Fix] 동일 통보문 내 같은 기상유형 이벤트 간 tmCc 전파
-            // 예: 풍랑주의보(tmCc 있음)와 풍랑예비특보(tmCc 없음)가 동시 존재 시,
-            // 해제예정은 해당 기상현상 전체에 적용되므로 tmCc가 없는 이벤트에 전파
-            const tmCcByBaseType = {};
-            for (const event of deduplicatedEvents) {
-                const baseType = (event.type || '').replace('예비특보', '').replace('주의보', '').replace('경보', '').trim();
-                if (event.tmCc && !tmCcByBaseType[baseType]) {
-                    tmCcByBaseType[baseType] = event.tmCc;
-                }
+            // ──────────────────────────────────────────────────────────────
+            // [재시도 성공] 이전에 pendingRetries에 있었는데 이제 내용이 채워진 경우
+            // → pendingRetries에서 제거
+            // ──────────────────────────────────────────────────────────────
+            if (fullForm.pendingRetries[report.id]) {
+                console.log(`[ReportProcessor] ✅ 재시도 성공! 내용 확인됨: ${report.title}`);
+                delete fullForm.pendingRetries[report.id];
             }
-            for (const event of deduplicatedEvents) {
-                if (!event.tmCc) {
+
+            // ──────────────────────────────────────────────────────────────
+            // [이벤트 적용] AI가 해상 특보 이벤트를 추출한 경우에만 존 트리에 적용
+            // events가 빈 배열([])이면 해상 무관 통보문 → 캐시만 저장하고 넘어감
+            // ──────────────────────────────────────────────────────────────
+            if (events.length > 0) {
+                // [Fix] AI 결과 중복 제거: 동일 type+command+zones 조합의 이벤트 병합
+                const deduplicatedEvents = [];
+                const seenEventKeys = new Set();
+                for (const event of events) {
+                    const sortedZones = [...(event.zones || [])].sort().join(',');
+                    const eventKey = `${event.type}|${event.command}|${sortedZones}`;
+                    if (!seenEventKeys.has(eventKey)) {
+                        seenEventKeys.add(eventKey);
+                        deduplicatedEvents.push(event);
+                    } else {
+                        console.log(`[ReportProcessor] 중복 이벤트 제거: ${event.type} ${event.command}`);
+                    }
+                }
+
+                // [Fix] 동일 통보문 내 같은 기상유형 이벤트 간 tmCc(해제예정시각) 전파
+                // 예: 풍랑주의보(tmCc 있음)와 풍랑예비특보(tmCc 없음)가 동시에 있을 때,
+                //     해제예정은 해당 기상현상 전체에 적용되므로 tmCc가 없는 이벤트에 복사
+                const tmCcByBaseType = {};
+                for (const event of deduplicatedEvents) {
                     const baseType = (event.type || '').replace('예비특보', '').replace('주의보', '').replace('경보', '').trim();
-                    if (tmCcByBaseType[baseType]) {
-                        event.tmCc = tmCcByBaseType[baseType];
-                        // tmYn도 동기화 (하위 호환)
-                        if (!event.tmYn) event.tmYn = event.tmCc;
-                        console.log(`[ReportProcessor] tmCc 전파: ${event.type} ← ${tmCcByBaseType[baseType]}`);
+                    if (event.tmCc && !tmCcByBaseType[baseType]) {
+                        tmCcByBaseType[baseType] = event.tmCc;
                     }
                 }
-            }
-
-            // 분석된 각 이벤트를 시스템에 적용
-            // [Fix] 같은 통보문 내 동일 type+command로 이미 처리된 구역은 덮어쓰지 않도록 추적
-            const processedZonesInReport = {};
-            for (const event of deduplicatedEvents) {
-                // reportId 및 발표시각(tmFc), 통보문 제목(title) 추가
-                event.reportId = report.id;
-                event.tmFc = extractTmFcFromId(report.id);
-                event.title = report.title || '';
-
-                // [Fix] zones 내 중복 제거
-                event.zones = [...new Set(event.zones || [])];
-
-                const trackingKey = `${event.type}|${event.command}`;
-                if (!processedZonesInReport[trackingKey]) {
-                    processedZonesInReport[trackingKey] = new Set();
+                for (const event of deduplicatedEvents) {
+                    if (!event.tmCc) {
+                        const baseType = (event.type || '').replace('예비특보', '').replace('주의보', '').replace('경보', '').trim();
+                        if (tmCcByBaseType[baseType]) {
+                            event.tmCc = tmCcByBaseType[baseType];
+                            if (!event.tmYn) event.tmYn = event.tmCc;
+                            console.log(`[ReportProcessor] tmCc 전파: ${event.type} ← ${tmCcByBaseType[baseType]}`);
+                        }
+                    }
                 }
 
-                console.log(`[AI Event] ${event.type} ${event.command} (${event.time}) - 구역: ${event.zones.length}개`);
+                // 분석된 각 이벤트를 존 트리(weather_alerts.json의 current)에 적용
+                // 같은 통보문 내 동일 type+command로 이미 처리된 구역은 덮어쓰지 않음
+                const processedZonesInReport = {};
+                for (const event of deduplicatedEvents) {
+                    event.reportId = report.id;
+                    event.tmFc = extractTmFcFromId(report.id);
+                    event.title = report.title || '';
+                    event.zones = [...new Set(event.zones || [])];
 
-                event.zones.forEach(zoneName => {
-                    // [Fix] 같은 통보문의 같은 type+command로 이미 처리된 구역은 건너뜀 (시간 덮어쓰기 방지)
-                    if (processedZonesInReport[trackingKey].has(zoneName)) {
-                        console.log(`[ReportProcessor] 구역 중복 건너뜀: ${zoneName} (${trackingKey}, 이전 이벤트에서 이미 처리됨)`);
-                        return;
+                    const trackingKey = `${event.type}|${event.command}`;
+                    if (!processedZonesInReport[trackingKey]) {
+                        processedZonesInReport[trackingKey] = new Set();
                     }
-                    processedZonesInReport[trackingKey].add(zoneName);
 
-                    if (updateZoneStatus(fullForm.current, zoneName, event)) {
+                    console.log(`[AI Event] ${event.type} ${event.command} (${event.time}) - 구역: ${event.zones.length}개`);
+
+                    event.zones.forEach(zoneName => {
+                        if (processedZonesInReport[trackingKey].has(zoneName)) {
+                            console.log(`[ReportProcessor] 구역 중복 건너뜀: ${zoneName} (${trackingKey}, 이전 이벤트에서 이미 처리됨)`);
+                            return;
+                        }
+                        processedZonesInReport[trackingKey].add(zoneName);
+
+                        if (updateZoneStatus(fullForm.current, zoneName, event)) {
+                            changed = true;
+                        }
+                    });
+                }
+                // [Fix] 통보문의 tmCc를 존 트리 전체에 전파
+                // 특정 해역의 주의보/경보에만 tmCc가 있고 예비 해역에는 없는 경우,
+                // 같은 기상유형의 모든 해역에 tmCc를 적용
+                if (Object.keys(tmCcByBaseType).length > 0) {
+                    const propagatedCount = propagateTmCcToZoneTree(fullForm.current, tmCcByBaseType);
+                    if (propagatedCount > 0) {
+                        console.log(`[ReportProcessor] 존 트리 tmCc 전파: ${propagatedCount}건 업데이트`);
                         changed = true;
                     }
-                });
-            }
-            // [Fix] 통보문의 tmCc를 존 트리 전체에 전파
-            // 통보문이 특정 해역의 주의보/경보에만 tmCc를 포함하고, 예비 해역에는 별도 이벤트가 없는 경우,
-            // 같은 기상유형(예: 풍랑)의 예비/주의보/경보가 걸려있는 모든 해역에 tmCc를 적용
-            if (Object.keys(tmCcByBaseType).length > 0) {
-                const propagatedCount = propagateTmCcToZoneTree(fullForm.current, tmCcByBaseType);
-                if (propagatedCount > 0) {
-                    console.log(`[ReportProcessor] 존 트리 tmCc 전파: ${propagatedCount}건 업데이트`);
-                    changed = true;
+                }
+            } else if (text.includes('없음')) {
+                // ──────────────────────────────────────────────────────────────
+                // [참고사항 해상키워드 체크] AI가 events=[]이고 본문에 "없음"이 포함된 경우
+                // 참고사항에 해상 키워드가 있으면 관리자 확인이 필요할 수 있음
+                // 예: 본문 "○ 내용: 없음"이지만 참고사항에 "풍랑주의보" 언급
+                // ──────────────────────────────────────────────────────────────
+                try {
+                    const fullText = await fetchReportDetail(report.id, { keepReference: true });
+                    const refIdx = fullText.indexOf('참고사항');
+                    if (refIdx !== -1) {
+                        const refSection = fullText.substring(refIdx);
+                        const refKeywords = SEA_KEYWORDS.filter(kw => refSection.includes(kw));
+                        if (refKeywords.length > 0) {
+                            console.log(`[ReportProcessor] ⚠️ "없음" 통보문이지만 참고사항에 해상키워드 발견: ${refKeywords.join(', ')}`);
+                            // review_needed.json에 저장
+                            let reviews = [];
+                            if (fs.existsSync(REVIEW_NEEDED_FILE)) {
+                                reviews = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8'));
+                            }
+                            if (!reviews.some(r => r.reportId === report.id)) {
+                                reviews.push({
+                                    reportId: report.id,
+                                    title: report.title,
+                                    referenceText: `참고사항 해상키워드: ${refKeywords.join(', ')}`,
+                                    detectedAt: new Date().toISOString(),
+                                    acknowledged: false
+                                });
+                                fs.writeFileSync(REVIEW_NEEDED_FILE, JSON.stringify(reviews, null, 2), 'utf8');
+                            }
+                            // 관리자 푸시 발송
+                            const { sendAdminPush } = require('./services/admin_push');
+                            sendAdminPush(
+                                '🔍 참고사항 해상키워드 감지',
+                                `${report.title} - 본문 "없음"이나 참고사항에 ${refKeywords.join(', ')} 포함`
+                            ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
+                        }
+                    }
+                } catch (refErr) {
+                    console.error('[ReportProcessor] 참고사항 체크 오류:', refErr.message);
                 }
             }
 
-            // 수집 결과를 캐시에 저장 (관리자 테스트에서 재조회 시 AI 토큰 소모 방지)
+            // ──────────────────────────────────────────────────────────────
+            // [캐시 저장] 모든 통보문의 AI 분석 결과를 캐시에 저장
+            // 해상 이벤트가 없는 통보문(육상 특보 등)도 [완료][결과]로 관리자센터에 표시됨
+            // 관리자가 수동 수집 테스트에서 재조회 시 AI 토큰 소모를 방지하는 역할도 함
+            // ──────────────────────────────────────────────────────────────
             try {
                 if (!fs.existsSync(COLLECT_CACHE_DIR)) fs.mkdirSync(COLLECT_CACHE_DIR, { recursive: true });
-                const foundKeywords = RELEVANT_KEYWORDS.filter(kw => text.includes(kw));
+                const foundKeywords = SEA_KEYWORDS.filter(kw => text.includes(kw));
                 const cacheData = {
                     success: true, reportId: report.id, title: report.title,
-                    rawText: text, separatedText, aiResult: deduplicatedEvents, foundKeywords,
+                    rawText: text, separatedText, aiResult: events, foundKeywords,
                     applied: changed, aiError: aiParsed.error || null, pushResult: null
                 };
                 const cacheFileName = report.id.replace(/[/:]/g, '_') + '.json';
@@ -452,8 +533,10 @@ async function applyNewReports(fullForm) {
                 console.error('[ReportProcessor] 수집 캐시 저장 오류:', cacheErr.message);
             }
 
+            // ──────────────────────────────────────────────────────────────
+            // [처리 완료 등록] processedReportIds에 추가하여 다음 사이클에서 건너뜀
+            // ──────────────────────────────────────────────────────────────
             fullForm.lastReportId = report.id;
-            // [Fix] 처리 완료 ID 추적 (동시 발표 통보문 재수집 방지)
             if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
             fullForm.processedReportIds.push(report.id);
         }
@@ -472,6 +555,46 @@ async function applyNewReports(fullForm) {
                 }
                 return true; // 파싱 불가한 ID는 유지
             });
+        }
+        // [pendingRetries 안전 정리] 24시간 초과 항목 제거
+        // KMA 목록에서 사라져 for 루프에 진입하지 못한 항목이 영구 잔존하는 것을 방지
+        // (정상적인 경우 6시간 내 MAX_RETRIES 도달로 제거되지만, 목록 누락 시 여기서 처리)
+        if (fullForm.pendingRetries) {
+            const SAFETY_CLEANUP_MS = 24 * 60 * 60 * 1000; // 24시간
+            const cleanupNow = new Date();
+            for (const [id, info] of Object.entries(fullForm.pendingRetries)) {
+                const age = cleanupNow - new Date(info.firstSeen);
+                if (age > SAFETY_CLEANUP_MS) {
+                    console.log(`[ReportProcessor] 🧹 pendingRetries 24시간 초과 정리: ${info.title}`);
+                    // review_needed.json에 기록
+                    try {
+                        let reviews = [];
+                        if (fs.existsSync(REVIEW_NEEDED_FILE)) {
+                            reviews = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8'));
+                        }
+                        if (!reviews.some(r => r.reportId === id)) {
+                            reviews.push({
+                                reportId: id,
+                                title: info.title,
+                                referenceText: '24시간 안전 정리 (KMA 목록에서 사라짐)',
+                                detectedAt: info.firstSeen,
+                                acknowledged: false
+                            });
+                            fs.writeFileSync(REVIEW_NEEDED_FILE, JSON.stringify(reviews, null, 2), 'utf8');
+                        }
+                    } catch (e) { console.error('[ReportProcessor] review_needed 저장 오류:', e.message); }
+                    // 관리자 푸시 발송
+                    const { sendAdminPush } = require('./services/admin_push');
+                    sendAdminPush(
+                        '⚠️ 통보문 수집 실패 (안전 정리)',
+                        `${info.title} - 24시간 경과, KMA 목록 미노출. 수동 확인 필요`
+                    ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
+                    // processedReportIds에 등록하여 재수집 방지
+                    if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
+                    fullForm.processedReportIds.push(id);
+                    delete fullForm.pendingRetries[id];
+                }
+            }
         }
         return changed;
     } catch (e) {
