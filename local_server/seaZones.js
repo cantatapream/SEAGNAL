@@ -1977,6 +1977,40 @@ function showBuoyModal(buoyId, buoyData) {
     const typeName = (typeof BUOY_TYPE_NAMES !== 'undefined' && BUOY_TYPE_NAMES[buoyData.type])
         ? BUOY_TYPE_NAMES[buoyData.type] : '해양기상부이';
 
+    // [INDEX2 전용 확대] 종합기상 페이지(INDEX2)에서만 팝업/텍스트를 크게 표시.
+    // INDEX1(해구기상)은 기존 크기 유지. window.__SEAGNAL_PAGE 플래그로 분기.
+    // displayBuoyDataInModal도 같은 플래그를 사용해 데이터 그리드 폰트를 결정.
+    const isIndex2 = (typeof window !== 'undefined' && window.__SEAGNAL_PAGE === 'index2');
+    const S = isIndex2 ? {
+        padding: '30px 38px',
+        borderRadius: '18px',
+        minWidth: '320px',
+        maxWidth: '92vw',
+        headerMb: '18px',
+        headerGap: '10px',
+        titleFz: '1.55rem',
+        badgeFz: '0.9rem',
+        badgePad: '3px 10px',
+        badgeRadius: '12px',
+        closeFz: '1.75rem',
+        dataMinH: '100px',
+        loadingFz: '1rem'
+    } : {
+        padding: '25px 30px',
+        borderRadius: '16px',
+        minWidth: '250px',
+        maxWidth: 'none',
+        headerMb: '15px',
+        headerGap: '8px',
+        titleFz: '1.3rem',
+        badgeFz: '0.75rem',
+        badgePad: '2px 8px',
+        badgeRadius: '10px',
+        closeFz: '1.5rem',
+        dataMinH: '80px',
+        loadingFz: 'inherit'
+    };
+
     const modal = document.createElement('div');
     modal.id = 'buoy-info-modal';
     modal.style.cssText = `
@@ -1985,25 +2019,26 @@ function showBuoyModal(buoyId, buoyData) {
         transform: translate(-50%, -50%);
         background: linear-gradient(135deg, #1a1a2e, #16213e);
         color: white;
-        padding: 25px 30px;
-        border-radius: 16px;
+        padding: ${S.padding};
+        border-radius: ${S.borderRadius};
         z-index: 10000;
-        min-width: 250px;
+        min-width: ${S.minWidth};
+        max-width: ${S.maxWidth};
         box-shadow: 0 10px 40px rgba(0,0,0,0.5);
         border: 1px solid rgba(255,255,255,0.1);
     `;
 
     modal.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:15px;">
-            <div style="display:flex; align-items:center; gap:8px;">
-                <h3 style="margin:0; font-size:1.3rem;">${cleanName}</h3>
-                <span style="background:#e94560; color:white; padding:2px 8px; border-radius:10px; font-size:0.75rem;">${typeName}</span>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:${S.headerMb};">
+            <div style="display:flex; align-items:center; gap:${S.headerGap};">
+                <h3 style="margin:0; font-size:${S.titleFz};">${cleanName}</h3>
+                <span style="background:#e94560; color:white; padding:${S.badgePad}; border-radius:${S.badgeRadius}; font-size:${S.badgeFz};">${typeName}</span>
             </div>
-            <button onclick="this.closest('#buoy-info-modal').remove(); document.getElementById('buoy-modal-backdrop')?.remove();" 
-                    style="background:none; border:none; color:#888; font-size:1.5rem; cursor:pointer;">&times;</button>
+            <button onclick="this.closest('#buoy-info-modal').remove(); document.getElementById('buoy-modal-backdrop')?.remove();"
+                    style="background:none; border:none; color:#888; font-size:${S.closeFz}; cursor:pointer; line-height:1;">&times;</button>
         </div>
-        <div id="buoy-weather-data" style="min-height:80px;">
-            <div style="text-align:center; color:#888; margin-top:20px;">데이터 로딩 중...</div>
+        <div id="buoy-weather-data" style="min-height:${S.dataMinH};">
+            <div style="text-align:center; color:#888; margin-top:20px; font-size:${S.loadingFz};">데이터 로딩 중...</div>
         </div>
     `;
 
@@ -2153,7 +2188,11 @@ function displayBuoyDataInModal(container, data) {
         { label: '📊 기압', key: 'pa', unit: 'hPa', color: 'white' }
     ];
 
-    let html = '<div style="display:grid; gap:8px; font-size:0.9rem;">';
+    // [INDEX2 전용 확대] 종합기상에서만 데이터 그리드 폰트/간격 확대
+    const isIndex2 = (typeof window !== 'undefined' && window.__SEAGNAL_PAGE === 'index2');
+    const gridGap = isIndex2 ? '11px' : '8px';
+    const gridFz = isIndex2 ? '1.1rem' : '0.9rem';
+    let html = `<div style="display:grid; gap:${gridGap}; font-size:${gridFz};">`;
     let hasData = false;
 
     // 파고 3종 표시 (최대/유의/평균) - 라벨 아래 한 줄 배치
@@ -2210,7 +2249,10 @@ function displayBuoyDataInModal(container, data) {
         timeStr = `${month}월 ${day}일 ${hour}시`;
     }
 
-    html += `<div style="margin-top:15px; font-size:0.75rem; color:#666; text-align:right;">관측 시간 : ${timeStr}</div>`;
+    // [INDEX2 전용 확대] 관측 시간 폰트/여백
+    const timeMt = isIndex2 ? '18px' : '15px';
+    const timeFz = isIndex2 ? '0.9rem' : '0.75rem';
+    html += `<div style="margin-top:${timeMt}; font-size:${timeFz}; color:#666; text-align:right;">관측 시간 : ${timeStr}</div>`;
 
     container.innerHTML = html;
 }
