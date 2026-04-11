@@ -1979,31 +1979,34 @@ function showBuoyModal(buoyId, buoyData) {
 
     const modal = document.createElement('div');
     modal.id = 'buoy-info-modal';
+    // [팝업 크기/가독성 확대] 종합기상(INDEX2)에서 작은 글씨 가독성 개선 요청에 따라
+    // min-width/padding/폰트 크기를 전반적으로 확대. INDEX1 부이 팝업에도 동일하게 적용됨.
     modal.style.cssText = `
         position: fixed;
         top: 50%; left: 50%;
         transform: translate(-50%, -50%);
         background: linear-gradient(135deg, #1a1a2e, #16213e);
         color: white;
-        padding: 25px 30px;
-        border-radius: 16px;
+        padding: 30px 38px;
+        border-radius: 18px;
         z-index: 10000;
-        min-width: 250px;
+        min-width: 320px;
+        max-width: 92vw;
         box-shadow: 0 10px 40px rgba(0,0,0,0.5);
         border: 1px solid rgba(255,255,255,0.1);
     `;
 
     modal.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:15px;">
-            <div style="display:flex; align-items:center; gap:8px;">
-                <h3 style="margin:0; font-size:1.3rem;">${cleanName}</h3>
-                <span style="background:#e94560; color:white; padding:2px 8px; border-radius:10px; font-size:0.75rem;">${typeName}</span>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <h3 style="margin:0; font-size:1.55rem;">${cleanName}</h3>
+                <span style="background:#e94560; color:white; padding:3px 10px; border-radius:12px; font-size:0.9rem;">${typeName}</span>
             </div>
-            <button onclick="this.closest('#buoy-info-modal').remove(); document.getElementById('buoy-modal-backdrop')?.remove();" 
-                    style="background:none; border:none; color:#888; font-size:1.5rem; cursor:pointer;">&times;</button>
+            <button onclick="this.closest('#buoy-info-modal').remove(); document.getElementById('buoy-modal-backdrop')?.remove();"
+                    style="background:none; border:none; color:#888; font-size:1.75rem; cursor:pointer; line-height:1;">&times;</button>
         </div>
-        <div id="buoy-weather-data" style="min-height:80px;">
-            <div style="text-align:center; color:#888; margin-top:20px;">데이터 로딩 중...</div>
+        <div id="buoy-weather-data" style="min-height:100px;">
+            <div style="text-align:center; color:#888; margin-top:20px; font-size:1rem;">데이터 로딩 중...</div>
         </div>
     `;
 
@@ -2153,7 +2156,8 @@ function displayBuoyDataInModal(container, data) {
         { label: '📊 기압', key: 'pa', unit: 'hPa', color: 'white' }
     ];
 
-    let html = '<div style="display:grid; gap:8px; font-size:0.9rem;">';
+    // [가독성 확대] font-size 0.9rem → 1.1rem, gap 8px → 11px
+    let html = '<div style="display:grid; gap:11px; font-size:1.1rem;">';
     let hasData = false;
 
     // 파고 3종 표시 (최대/유의/평균) - 라벨 아래 한 줄 배치
@@ -2210,7 +2214,7 @@ function displayBuoyDataInModal(container, data) {
         timeStr = `${month}월 ${day}일 ${hour}시`;
     }
 
-    html += `<div style="margin-top:15px; font-size:0.75rem; color:#666; text-align:right;">관측 시간 : ${timeStr}</div>`;
+    html += `<div style="margin-top:18px; font-size:0.9rem; color:#666; text-align:right;">관측 시간 : ${timeStr}</div>`;
 
     container.innerHTML = html;
 }

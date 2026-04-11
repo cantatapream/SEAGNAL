@@ -137,7 +137,8 @@ if (window.__SEAGNAL_PAGE === 'index2') {
 
     /** 단일 부이 피처 스타일 */
     function getBuoyStyle(feature, zoom) {
-        var scale = zoom >= 10 ? 0.35 : zoom >= 8 ? 0.3 : 0.25;
+        // [부이 마커 1.5배 확대] 0.35/0.3/0.25 → 0.525/0.45/0.375
+        var scale = zoom >= 10 ? 0.525 : zoom >= 8 ? 0.45 : 0.375;
         var name = feature.get('buoyName');
         var styles = [
             // [모바일 히트 영역 확장]
@@ -146,9 +147,10 @@ if (window.__SEAGNAL_PAGE === 'index2') {
             // 아이콘 뒤에 거의 보이지 않는(alpha 0.01) 꽉 찬 원을 깔아서
             // 손가락 탭을 안정적으로 받도록 함 — 눈에는 안 보이지만 힛 디텍션 캔버스에서는
             // 불투명 픽셀로 처리되어 클릭이 원 전체 영역 어디든 성공.
+            // 아이콘 1.5배 확대에 맞춰 히트 원도 22 → 33 으로 함께 확대.
             new ol.style.Style({
                 image: new ol.style.Circle({
-                    radius: 22,
+                    radius: 33,
                     fill: new ol.style.Fill({ color: 'rgba(0,0,0,0.01)' })
                 })
             }),
@@ -161,14 +163,16 @@ if (window.__SEAGNAL_PAGE === 'index2') {
             })
         ];
         if (zoom >= 8) {
-            var fontSize = zoom >= 10 ? '11px' : '10px';
+            // 아이콘 확대에 맞춰 폰트도 소폭 확대 (11/10 → 13/12)
+            var fontSize = zoom >= 10 ? '13px' : '12px';
             styles.push(new ol.style.Style({
                 text: new ol.style.Text({
                     text: name,
                     font: 'bold ' + fontSize + ' "Pretendard", sans-serif',
                     fill: new ol.style.Fill({ color: '#FDD835' }),
                     stroke: new ol.style.Stroke({ color: '#000', width: 3 }),
-                    offsetY: -24,
+                    // 아이콘 확대에 맞춰 라벨 위치도 위로 이동 (-24 → -36)
+                    offsetY: -36,
                     textAlign: 'center'
                 })
             }));
