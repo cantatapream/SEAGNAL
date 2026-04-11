@@ -371,12 +371,27 @@ if (window.__SEAGNAL_PAGE === 'index2') {
                 if (single.get('markerType') === 'buoy') {
                     // 부이 모달 표시 (seaZones.js의 showBuoyModal 재사용)
                     var buoyId = single.get('buoyId');
+
+                    // [멱등 처리] 같은 부이 모달이 이미 열려 있으면 재생성하지 않음
+                    // - 빠른 연타 시 showBuoyModal 내부의 existing.remove() → 새 모달 생성 사이클이
+                    //   반복되면서 브라우저 paint 전에 모달이 사라지는 flicker 현상 차단
+                    // - 다른 부이 클릭 시에는 buoyId가 달라 이 블록을 통과하므로 정상 전환됨
+                    // - 모달이 닫히면 DOM에서 사라져 dataset도 함께 제거되므로 stale 값 걱정 없음
+                    var existingModal = document.getElementById('buoy-info-modal');
+                    if (existingModal && existingModal.dataset.buoyId === buoyId) {
+                        hit = true;
+                        return;
+                    }
+
                     var buoyData = {
                         name: single.get('buoyName'),
                         type: single.get('buoyType')
                     };
                     if (typeof showBuoyModal === 'function') {
                         showBuoyModal(buoyId, buoyData);
+                        // [멱등 체크용] 새로 만들어진 모달에 현재 부이 ID를 기록
+                        var createdModal = document.getElementById('buoy-info-modal');
+                        if (createdModal) createdModal.dataset.buoyId = buoyId;
                     }
                     hit = true;
                 } else if (single.get('markerType') === 'station') {
@@ -404,6 +419,19 @@ if (window.__SEAGNAL_PAGE === 'index2') {
                 hit = true;
             }
         }, { hitTolerance: 10 });
+
+        // [전파 차단] 부이/클러스터 히트 시 네이티브 click 이벤트의 DOM 전파를 차단
+        // - 해구기상(INDEX1)의 DOM 마커 click 핸들러에서 호출하던 e.stopPropagation()과 동일한 효과
+        // - OL 자체의 이벤트 버스(예: basemap picker 메뉴 닫기)는 evt 객체와 별개로 동작하므로 영향 없음
+        // - originalEvent가 있을 때만 호출 (pointer 기반 합성 이벤트 대비 안전 가드)
+        if (hit && evt.originalEvent) {
+            if (typeof evt.originalEvent.stopPropagation === 'function') {
+                evt.originalEvent.stopPropagation();
+            }
+            if (typeof evt.originalEvent.preventDefault === 'function') {
+                evt.originalEvent.preventDefault();
+            }
+        }
 
         return hit;
     };
