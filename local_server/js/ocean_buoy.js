@@ -140,6 +140,18 @@ if (window.__SEAGNAL_PAGE === 'index2') {
         var scale = zoom >= 10 ? 0.35 : zoom >= 8 ? 0.3 : 0.25;
         var name = feature.get('buoyName');
         var styles = [
+            // [모바일 히트 영역 확장]
+            // 부이 SVG 아이콘은 내부에 투명 픽셀이 많아 OL 힛 테스트가 픽셀 단위로 실패함
+            // (OL은 Icon 스타일에 대해 불투명 픽셀만 피처로 인정).
+            // 아이콘 뒤에 거의 보이지 않는(alpha 0.01) 꽉 찬 원을 깔아서
+            // 손가락 탭을 안정적으로 받도록 함 — 눈에는 안 보이지만 힛 디텍션 캔버스에서는
+            // 불투명 픽셀로 처리되어 클릭이 원 전체 영역 어디든 성공.
+            new ol.style.Style({
+                image: new ol.style.Circle({
+                    radius: 22,
+                    fill: new ol.style.Fill({ color: 'rgba(0,0,0,0.01)' })
+                })
+            }),
             new ol.style.Style({
                 image: new ol.style.Icon({
                     src: BUOY_ICON_SVG,
@@ -418,7 +430,7 @@ if (window.__SEAGNAL_PAGE === 'index2') {
                 });
                 hit = true;
             }
-        }, { hitTolerance: 10 });
+        }, { hitTolerance: 20 });  // 10 → 20: 모바일 손가락 탭 오차(~30~50px) 대응
 
         // [전파 차단] 부이/클러스터 히트 시 네이티브 click 이벤트의 DOM 전파를 차단
         // - 해구기상(INDEX1)의 DOM 마커 click 핸들러에서 호출하던 e.stopPropagation()과 동일한 효과
