@@ -2009,11 +2009,23 @@ function showBuoyModal(buoyId, buoyData) {
 
     const backdrop = document.createElement('div');
     backdrop.id = 'buoy-modal-backdrop';
+    // [모바일 합성 click 관통]
+    // INDEX2(OpenLayers 캔버스)에서 부이를 탭하면 다음 순서로 이벤트가 흐름:
+    //   1) OL이 pointerup을 click으로 합성해 우리 핸들러 실행 → 여기서 모달/백드롭 생성
+    //   2) 브라우저가 별개로 native click 이벤트를 캔버스에 발사
+    //   3) 그 click이 DOM을 타고 올라오다가 방금 깔린 백드롭(풀스크린, z-index 9999)에 착지
+    //   4) backdrop.onclick 발동 → 모달 즉시 제거 → 사용자는 아무것도 못 봄
+    // 해결: 백드롭을 1 프레임(~16ms) 동안 pointer-events: none 으로 깔아서
+    //       합성 click이 백드롭을 그대로 관통(캔버스/body 쪽으로 내려감)하게 하고,
+    //       그 다음 프레임부터 auto로 되돌려 정상적으로 "바깥 클릭 닫기"가 작동하도록 함.
+    // INDEX1 영향: DOM 마커 기반이라 click 이벤트가 1회뿐이고, 사용자가 16ms 내에
+    //              백드롭을 탭하는 것은 물리적으로 불가능하므로 체감 동작 변화 0.
     backdrop.style.cssText = `
         position: fixed;
         top: 0; left: 0; right: 0; bottom: 0;
         background: rgba(0,0,0,0.5);
         z-index: 9999;
+        pointer-events: none;
     `;
     backdrop.onclick = () => {
         modal.remove();
@@ -2022,6 +2034,11 @@ function showBuoyModal(buoyId, buoyData) {
 
     document.body.appendChild(backdrop);
     document.body.appendChild(modal);
+
+    // 다음 프레임에 백드롭의 pointer-events를 auto로 되돌려 정상 클릭 수신 개시
+    requestAnimationFrame(() => {
+        backdrop.style.pointerEvents = 'auto';
+    });
 
     fetchBuoyDataForModal(buoyId);
 }
