@@ -369,32 +369,69 @@ if (window.__SEAGNAL_PAGE === 'index2') {
     window.handleOceanBuoyClick = function (map, evt) {
         if (!_clusterLayer || !_clusterLayer.getVisible()) return false;
 
-        var hit = false;
+        // ================================================================
+        // [인접 부이 선택 안정화]
+        // 기존: forEachFeatureAtPixel + "if (hit) return" → 콜백 순서상
+        //       먼저 걸린 피처만 처리됨. 히트 영역이 확장된(22px 투명 원 +
+        //       hitTolerance 20) 상태에서는 제주·서해·거제 등 밀집 구역의
+        //       인접 부이들이 겹쳐, 사용자가 의도한 부이가 아닌 다른 부이가
+        //       선택되거나 심지어 클러스터 원이 먼저 집혀서 줌 인 되어버림.
+        //
+        // 개선: 히트된 피처를 전부 수집 → 클릭 픽셀과 각 피처 중심 사이의
+        //       픽셀 거리 계산 → 단일 피처(부이/스테이션)를 클러스터보다
+        //       우선, 같은 우선순위 내에서는 거리 최소인 것을 선택.
+        //       해구기상(INDEX1) DOM 마커는 각 DOM 요소가 독립적인 탭
+        //       타겟이라 이 문제가 없었음. OL 벡터 레이어에서도 같은 체감을
+        //       주기 위해 "가장 가까운 것 하나" 규칙을 직접 구현.
+        // ================================================================
+        var singleCandidates = [];   // [{feature, dist}] — 실제 부이/스테이션
+        var clusterCandidates = [];  // [{feature, dist}] — 복수 피처 클러스터
+
         map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
-            if (hit) return;
             if (layer !== _clusterLayer) return;
 
             var clusterFeatures = feature.get('features');
             if (!clusterFeatures || clusterFeatures.length === 0) return;
 
+            // 클러스터 피처의 중심(대표 좌표) → 화면 픽셀 좌표로 변환
+            var geom = feature.getGeometry();
+            if (!geom) return;
+            var centerCoord = geom.getCoordinates();
+            var centerPixel = map.getPixelFromCoordinate(centerCoord);
+            if (!centerPixel) return;
+
+            var dx = centerPixel[0] - evt.pixel[0];
+            var dy = centerPixel[1] - evt.pixel[1];
+            var dist = Math.sqrt(dx * dx + dy * dy);
+
             if (clusterFeatures.length === 1) {
-                // 단일 피처 클릭
-                var single = clusterFeatures[0];
-                if (single.get('markerType') === 'buoy') {
-                    // 부이 모달 표시 (seaZones.js의 showBuoyModal 재사용)
-                    var buoyId = single.get('buoyId');
+                singleCandidates.push({ feature: clusterFeatures[0], dist: dist });
+            } else {
+                clusterCandidates.push({ feature: feature, dist: dist });
+            }
+        }, { hitTolerance: 20 });  // 모바일 손가락 탭 오차(~30~50px) 대응
 
-                    // [멱등 처리] 같은 부이 모달이 이미 열려 있으면 재생성하지 않음
-                    // - 빠른 연타 시 showBuoyModal 내부의 existing.remove() → 새 모달 생성 사이클이
-                    //   반복되면서 브라우저 paint 전에 모달이 사라지는 flicker 현상 차단
-                    // - 다른 부이 클릭 시에는 buoyId가 달라 이 블록을 통과하므로 정상 전환됨
-                    // - 모달이 닫히면 DOM에서 사라져 dataset도 함께 제거되므로 stale 값 걱정 없음
-                    var existingModal = document.getElementById('buoy-info-modal');
-                    if (existingModal && existingModal.dataset.buoyId === buoyId) {
-                        hit = true;
-                        return;
-                    }
+        // 거리 오름차순 정렬 — 가장 가까운 것 선택
+        function byDist(a, b) { return a.dist - b.dist; }
+        singleCandidates.sort(byDist);
+        clusterCandidates.sort(byDist);
 
+        var hit = false;
+
+        if (singleCandidates.length > 0) {
+            // [우선순위 1] 단일 피처 — 부이 또는 조석 표준항
+            var single = singleCandidates[0].feature;
+            if (single.get('markerType') === 'buoy') {
+                // 부이 모달 표시 (seaZones.js의 showBuoyModal 재사용)
+                var buoyId = single.get('buoyId');
+
+                // [멱등 처리] 같은 부이 모달이 이미 열려 있으면 재생성하지 않음
+                // - 빠른 연타 시 showBuoyModal 내부의 existing.remove() → 새 모달 생성 사이클이
+                //   반복되면서 브라우저 paint 전에 모달이 사라지는 flicker 현상 차단
+                // - 다른 부이 클릭 시에는 buoyId가 달라 이 블록을 통과하므로 정상 전환됨
+                // - 모달이 닫히면 DOM에서 사라져 dataset도 함께 제거되므로 stale 값 걱정 없음
+                var existingModal = document.getElementById('buoy-info-modal');
+                if (!(existingModal && existingModal.dataset.buoyId === buoyId)) {
                     var buoyData = {
                         name: single.get('buoyName'),
                         type: single.get('buoyType')
@@ -405,32 +442,34 @@ if (window.__SEAGNAL_PAGE === 'index2') {
                         var createdModal = document.getElementById('buoy-info-modal');
                         if (createdModal) createdModal.dataset.buoyId = buoyId;
                     }
-                    hit = true;
-                } else if (single.get('markerType') === 'station') {
-                    // 주요지명(조석 표준항) → 바텀시트 표시
-                    var lat = single.get('stationLat');
-                    var lon = single.get('stationLon');
-                    var name = single.get('stationName');
-                    var code = single.get('stationCode');
-                    if (window.showOceanBottomSheet) {
-                        window.showOceanBottomSheet(lat, lon, { stationName: name, stationCode: code });
-                    }
-                    hit = true;
                 }
-            } else {
-                // 클러스터 클릭 → 해당 영역으로 줌 인
-                var extent = ol.extent.createEmpty();
-                for (var i = 0; i < clusterFeatures.length; i++) {
-                    ol.extent.extend(extent, clusterFeatures[i].getGeometry().getExtent());
+                hit = true;
+            } else if (single.get('markerType') === 'station') {
+                // 주요지명(조석 표준항) → 바텀시트 표시
+                var lat = single.get('stationLat');
+                var lon = single.get('stationLon');
+                var name = single.get('stationName');
+                var code = single.get('stationCode');
+                if (window.showOceanBottomSheet) {
+                    window.showOceanBottomSheet(lat, lon, { stationName: name, stationCode: code });
                 }
-                map.getView().fit(extent, {
-                    duration: 500,
-                    padding: [80, 80, 80, 80],
-                    maxZoom: 15
-                });
                 hit = true;
             }
-        }, { hitTolerance: 20 });  // 10 → 20: 모바일 손가락 탭 오차(~30~50px) 대응
+        } else if (clusterCandidates.length > 0) {
+            // [우선순위 2] 클러스터(숫자 원) — 해당 영역으로 줌 인
+            var nearestCluster = clusterCandidates[0].feature;
+            var clusterFeatures = nearestCluster.get('features');
+            var extent = ol.extent.createEmpty();
+            for (var i = 0; i < clusterFeatures.length; i++) {
+                ol.extent.extend(extent, clusterFeatures[i].getGeometry().getExtent());
+            }
+            map.getView().fit(extent, {
+                duration: 500,
+                padding: [80, 80, 80, 80],
+                maxZoom: 15
+            });
+            hit = true;
+        }
 
         // [전파 차단] 부이/클러스터 히트 시 네이티브 click 이벤트의 DOM 전파를 차단
         // - 해구기상(INDEX1)의 DOM 마커 click 핸들러에서 호출하던 e.stopPropagation()과 동일한 효과
