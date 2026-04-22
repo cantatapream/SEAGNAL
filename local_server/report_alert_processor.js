@@ -285,27 +285,37 @@ async function applyNewReports(fullForm) {
         const SEA_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
 
         // [재시도 대상 관리] 빈 양식/빈 페이지 통보문의 재시도 정보를 fullForm에 저장
-        // pendingRetries 구조: { "met:202604100400:52": { title, firstSeen, retryCount, lastRetry } }
+        // pendingRetries 구조:
+        //   {
+        //     "met:202604100400:52": {
+        //       title: "[특보] 04-52호 ...",    // 통보문 제목
+        //       firstSeen: "ISO시각",           // 처음 감지된 시각
+        //       retryCount: 0,                  // 현재까지 재시도한 횟수
+        //       lastRetry: "ISO시각",           // 마지막 재시도한 시각 (2분 간격 판단용)
+        //       lastNoticeSent: "ISO시각"       // 마지막 "지속 알림" 푸시 발송 시각 (10분 간격 판단용)
+        //     }
+        //   }
         // → weather_alerts.json에 함께 저장되어 서버 재시작 후에도 재시도 상태 유지
         if (!fullForm.pendingRetries) fullForm.pendingRetries = {};
-        const RETRY_INTERVAL_MS = 10 * 60 * 1000;  // 재시도 간격: 10분
-        const MAX_RETRIES = 36;                      // 최대 재시도 횟수: 36회 = 6시간
+        const RETRY_INTERVAL_MS = 2 * 60 * 1000;    // 재시도 간격: 2분 (AI 재분석 주기)
+        const MAX_RETRIES = 180;                     // 최대 재시도 횟수: 180회 = 2분 × 180 = 6시간
+        const NOTICE_INTERVAL_MS = 10 * 60 * 1000;  // 지속 알림 푸시 간격: 10분 (관리자 알림 주기)
 
         for (const report of allNewReports) {
             console.log(`[ReportProcessor] 통보문 확인 중: ${report.title}`);
 
             // ──────────────────────────────────────────────────────────────
             // [재시도 체크] 이전에 "빈 양식"으로 판정된 통보문인 경우
-            // 10분 간격으로만 재시도하고, 6시간(36회) 초과 시 포기
+            // 2분 간격으로만 AI 재분석하고, 6시간(180회) 초과 시 포기
             // ──────────────────────────────────────────────────────────────
             const pending = fullForm.pendingRetries[report.id];
             if (pending) {
                 const elapsed = now - new Date(pending.lastRetry);
-                // 아직 10분이 안 지났으면 이번 사이클에서는 건너뜀 (API 호출 없음)
+                // 아직 2분이 안 지났으면 이번 사이클에서는 건너뜀 (API 호출 없음)
                 if (elapsed < RETRY_INTERVAL_MS) {
                     continue;
                 }
-                // 6시간(36회) 초과: 포기 → processedReportIds에 등록 + 관리자 알림
+                // 6시간(180회) 초과: 포기 → processedReportIds에 등록 + 관리자 알림
                 if (pending.retryCount >= MAX_RETRIES) {
                     console.log(`[ReportProcessor] ⏰ 재시도 상한 도달 (${MAX_RETRIES}회): ${report.title}`);
                     // review_needed.json에 저장 (관리자센터에서 확인 가능)
@@ -329,7 +339,7 @@ async function applyNewReports(fullForm) {
                     const { sendAdminPush } = require('./services/admin_push');
                     sendAdminPush(
                         '⚠️ 통보문 수집 실패',
-                        `${report.title} - ${MAX_RETRIES}회 재시도 후에도 내용 미게시. 수동 확인 필요`
+                        `${report.title} - 6시간(${MAX_RETRIES}회) 재시도 후에도 내용 미게시. 수동 확인 필요`
                     ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
                     // processedReportIds에 등록하여 더 이상 재시도하지 않음
                     if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
@@ -358,39 +368,70 @@ async function applyNewReports(fullForm) {
 
             // ──────────────────────────────────────────────────────────────
             // [빈 양식 감지] AI가 "내용 없음"(hasContent=false)으로 판단한 경우
-            // → processedReportIds에 넣지 않고, 10분 뒤 재시도
+            // → processedReportIds에 넣지 않고, 2분 뒤 재시도
             // 예: 기상청 관리자가 양식만 올리고 아직 내용을 안 채운 경우
+            //
+            // 푸시 정책:
+            //   - 첫 감지 시: 즉시 "빈 통보문 감지" 푸시 1회
+            //   - 재시도 중 여전히 빈 상태: 10분마다 "지속 알림" 푸시
+            //   - 너무 자주 알림이 가지 않도록 lastNoticeSent로 10분 간격 제어
             // ──────────────────────────────────────────────────────────────
             if (!aiParsed.hasContent) {
+                const nowIso = new Date().toISOString();
                 if (!fullForm.pendingRetries[report.id]) {
-                    // 첫 감지: pendingRetries에 등록 + 관리자 알림
+                    // [첫 감지] pendingRetries에 등록 + 즉시 관리자에게 감지 알림 발송
+                    // lastNoticeSent는 현재 시각으로 설정 → 다음 "지속 알림"은 10분 뒤에 발송됨
                     fullForm.pendingRetries[report.id] = {
                         title: report.title,
-                        firstSeen: new Date().toISOString(),
+                        firstSeen: nowIso,
                         retryCount: 0,
-                        lastRetry: new Date().toISOString()
+                        lastRetry: nowIso,
+                        lastNoticeSent: nowIso  // 첫 감지 푸시를 방금 보냈으므로 "직전 알림 시각"으로 기록
                     };
                     console.log(`[ReportProcessor] ⚠️ 빈 통보문 감지, 재시도 등록: ${report.title}`);
                     const { sendAdminPush } = require('./services/admin_push');
                     sendAdminPush(
                         '🔍 빈 통보문 감지',
-                        `${report.title} - 내용 미게시 상태, 10분 간격 재시도 시작 (최대 6시간)`
+                        `${report.title} - 내용 미게시 상태, 2분 간격 재시도 시작 (최대 6시간)`
                     ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
                 } else {
-                    // 재시도 횟수 증가 + 마지막 재시도 시각 갱신
-                    fullForm.pendingRetries[report.id].retryCount++;
-                    fullForm.pendingRetries[report.id].lastRetry = new Date().toISOString();
-                    console.log(`[ReportProcessor] 재시도 실패 (여전히 빈 양식): ${report.title}`);
+                    // [재시도 실패] 재시도 횟수 증가 + 마지막 재시도 시각 갱신
+                    const pendingEntry = fullForm.pendingRetries[report.id];
+                    pendingEntry.retryCount++;
+                    pendingEntry.lastRetry = nowIso;
+                    console.log(`[ReportProcessor] 재시도 실패 (여전히 빈 양식): ${report.title} (${pendingEntry.retryCount}/${MAX_RETRIES}회)`);
+
+                    // [지속 알림] 10분마다 관리자에게 "아직도 빈 상태"라고 알림
+                    // lastNoticeSent로부터 10분 이상 지났는지 확인하여 스팸 방지
+                    const noticeElapsed = now - new Date(pendingEntry.lastNoticeSent || pendingEntry.firstSeen);
+                    if (noticeElapsed >= NOTICE_INTERVAL_MS) {
+                        const minutesSinceFirst = Math.round((now - new Date(pendingEntry.firstSeen)) / 60000);
+                        const { sendAdminPush } = require('./services/admin_push');
+                        sendAdminPush(
+                            '⏳ 빈 통보문 지속',
+                            `${report.title} - ${minutesSinceFirst}분 경과, 아직 미수집 상태 (재시도 ${pendingEntry.retryCount}/${MAX_RETRIES}회)`
+                        ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
+                        pendingEntry.lastNoticeSent = nowIso; // 다음 지속 알림은 10분 뒤
+                        console.log(`[ReportProcessor] 📣 지속 알림 발송: ${minutesSinceFirst}분 경과`);
+                    }
                 }
                 continue; // processedReportIds에 넣지 않음 → 다음 사이클에서 재시도
             }
 
             // ──────────────────────────────────────────────────────────────
             // [재시도 성공] 이전에 pendingRetries에 있었는데 이제 내용이 채워진 경우
-            // → pendingRetries에서 제거
+            // → pendingRetries에서 제거 + 관리자에게 "수집 완료" 푸시 발송
             // ──────────────────────────────────────────────────────────────
             if (fullForm.pendingRetries[report.id]) {
-                console.log(`[ReportProcessor] ✅ 재시도 성공! 내용 확인됨: ${report.title}`);
+                const recoveredEntry = fullForm.pendingRetries[report.id];
+                const totalMinutes = Math.round((now - new Date(recoveredEntry.firstSeen)) / 60000);
+                console.log(`[ReportProcessor] ✅ 재시도 성공! 내용 확인됨: ${report.title} (${recoveredEntry.retryCount}회 시도, ${totalMinutes}분 경과)`);
+                // 관리자에게 수집 완료 알림 발송 (빈 통보문이 채워져서 정상 수집되었음을 통지)
+                const { sendAdminPush } = require('./services/admin_push');
+                sendAdminPush(
+                    '✅ 빈 통보문 수집 완료',
+                    `${report.title} - 내용 확인됨, 정상 수집 완료 (${recoveredEntry.retryCount}회 재시도 후 성공, 총 ${totalMinutes}분 소요)`
+                ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
                 delete fullForm.pendingRetries[report.id];
             }
 

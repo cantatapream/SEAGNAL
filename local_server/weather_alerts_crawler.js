@@ -130,6 +130,9 @@ function createFullForm() {
         updatedAt: null,
         lastReportId: null,
         processedReportIds: [],
+        // 빈 통보문 재시도 대기 목록 (report_alert_processor.js가 관리)
+        // 예: { "met:202604100900:73": { title, firstSeen, retryCount, lastRetry, lastNoticeSent } }
+        pendingRetries: {},
         previous: createZoneStructure(),
         current: createZoneStructure()
     };
@@ -394,6 +397,10 @@ async function run() {
                 updatedAt: null,
                 lastReportId: existing.lastReportId || null,
                 processedReportIds: existing.processedReportIds || [],
+                // [버그 수정] 빈 통보문 재시도 대기 목록 복사
+                // 이 필드가 빠지면 매 사이클마다 "첫 감지"로 오인되어 푸시가 매분 발송되는 버그 발생
+                // report_alert_processor.js가 이 값을 읽어서 10분 미경과 시 건너뜀
+                pendingRetries: existing.pendingRetries || {},
                 previous: JSON.parse(JSON.stringify(existing.current || createZoneStructure())),
                 current: existing.current || createZoneStructure()
             };
