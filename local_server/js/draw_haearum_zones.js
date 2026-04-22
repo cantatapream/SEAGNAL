@@ -74,15 +74,13 @@
         }, dur || 1800);
     }
     function catalogEntries() {
-        if (typeof window.SEA_ZONE_COORDINATES !== 'object' || !window.SEA_ZONE_COORDINATES) {
-            return [];
-        }
-        return Object.values(window.SEA_ZONE_COORDINATES);
+        if (typeof SEA_ZONE_COORDINATES === 'undefined') return [];
+        return Object.values(SEA_ZONE_COORDINATES);
     }
     function catalogByCode(code) {
         if (!code) return null;
-        if (typeof window.SEA_ZONE_COORDINATES !== 'object' || !window.SEA_ZONE_COORDINATES) return null;
-        return window.SEA_ZONE_COORDINATES[code] || null;
+        if (typeof SEA_ZONE_COORDINATES === 'undefined') return null;
+        return SEA_ZONE_COORDINATES[code] || null;
     }
     function getZone(code) {
         if (!code) return null;
@@ -496,8 +494,24 @@
             var img = $('bg-image');
             img.src = e.target.result;
             img.style.display = 'block';
-            bgTransform = { x: 0, y: 0, scale: 1 };
-            applyBgTransform();
+            // 이미지 로드 완료 후 화면 중앙에 배치
+            img.onload = function () {
+                var wrap = $('bg-image-wrap');
+                var ww = wrap.clientWidth;
+                var wh = wrap.clientHeight;
+                var iw = img.naturalWidth;
+                var ih = img.naturalHeight;
+                // 화면에 맞도록 스케일 조정 (긴 축 기준)
+                var fitScale = Math.min(ww / iw, wh / ih, 1);
+                var scaledW = iw * fitScale;
+                var scaledH = ih * fitScale;
+                bgTransform = {
+                    x: (ww - scaledW) / 2,
+                    y: (wh - scaledH) / 2,
+                    scale: fitScale
+                };
+                applyBgTransform();
+            };
             showToast('배경 이미지 로드 완료 · [A: 정렬] 모드에서 위치/크기를 맞춰주세요');
         };
         reader.readAsDataURL(file);
