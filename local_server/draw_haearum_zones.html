@@ -472,6 +472,17 @@
                 <div class="progress-bar"><div class="progress-bar-fill" id="progress-fill" style="width:0%"></div></div>
             </div>
 
+            <!-- ── 불러오기 ── -->
+            <div class="section">
+                <div class="section-title">불러오기</div>
+                <label for="json-upload" class="file-label">📂 JSON 파일 불러오기</label>
+                <input type="file" id="json-upload" accept=".json,application/json" />
+                <div class="btn-row" style="margin-top: 6px;">
+                    <button class="btn small" id="btn-load-server" title="서버에 올려진 최신 JSON으로 현재 상태를 덮어씁니다.">🌐 서버에서 최신 불러오기</button>
+                </div>
+                <div class="zoom-hint">서버에는 저장소에 커밋된 최신 작업본이 있습니다.</div>
+            </div>
+
             <!-- ── 내보내기 ── -->
             <div class="section">
                 <div class="section-title">내보내기</div>
