@@ -289,7 +289,7 @@ window.showCollectFailureAlert = async function () {
                     <i class="fa-solid ${headerIcon}" style="color:${headerColor};font-size:1.2rem;"></i>
                     <div style="flex:1;">
                         <h4 style="margin:0;color:#fff;font-size:1rem;">관리자 확인 필요 ${totalCount}건</h4>
-                        <div style="color:#94a3b8;font-size:0.75rem;margin-top:2px;">��리자 센터 → 특보 알림 → 특보 수집 오류 탭에서 상세 확인</div>
+                        <div style="color:#94a3b8;font-size:0.75rem;margin-top:2px;">관리자 센터 → 특보 알림 → 특보 수집 오류 탭에서 상세 확인</div>
                     </div>
                     <button onclick="document.getElementById('collect-failure-popup').remove()" style="background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer;">&times;</button>
                 </div>
@@ -535,7 +535,7 @@ async function renderErrorListTab(container) {
             <div>
                 <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
                     <div style="color:#fca5a5;font-size:0.9rem;font-weight:600;">
-                        <i class="fa-solid fa-triangle-exclamation"></i> 수집 ��패 ${failures.length}건
+                        <i class="fa-solid fa-triangle-exclamation"></i> 수집 실패 ${failures.length}건
                     </div>
                     <button onclick="clearAllCollectFailuresAndRefresh()" style="padding:5px 12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:600;">
                         <i class="fa-solid fa-check"></i> 전체 삭제
@@ -559,7 +559,7 @@ window.acknowledgeReviewItem = async function (reportId) {
         // UI 새로고침
         const inner = document.getElementById('alert-top-content');
         if (inner) renderErrorListTab(inner);
-    } catch (e) { /* 무��� */ }
+    } catch (e) { /* 무시 */ }
 };
 
 // [검토 필요] 전체 확인완료 처리
