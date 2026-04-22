@@ -230,6 +230,27 @@
             bottom: calc(var(--main-tab-height) + var(--sub-tab-height)) !important;
         }
 
+        /* ──────────────────────────────────────────────────────────
+           내 위치 마커 z-index 보정
+           ──────────────────────────────────────────────────────────
+           [배경]
+            - 종합기상 지도 위에 깔리는 파티클 캔버스(#ocean-overlay-canvas)가
+              DOM 순서상 .ocean-map-wrapper 의 마지막 자식이라, 기본 상태에서
+              OL Overlay(내 위치 마커)보다 앞에 렌더되어 마커를 덮는 현상 발생.
+              → 이미지 제보: "내 위치 파란 점이 파티클에 가려진다"
+           [해결]
+            - 캔버스를 z-index:1 (낮게) 로 고정
+            - OL 의 overlay container 2종을 z-index:5 (더 위) 로 올림
+            - 캔버스는 pointer-events:none 이라 이벤트 통과 그대로 유지
+           [영향 범위] #ocean-map-section.tab-content.active 조건 한정 → 타 섹션 무관 */
+        #ocean-map-section.tab-content.active #ocean-overlay-canvas {
+            z-index: 1;
+        }
+        #ocean-map-section.tab-content.active .ol-overlaycontainer,
+        #ocean-map-section.tab-content.active .ol-overlaycontainer-stopevent {
+            z-index: 5;
+        }
+
         /* ══════════════════════════════════════════════════════════
            해양생활 (바다낚시 / 서핑) 풀스크린 지도 레이아웃
            ══════════════════════════════════════════════════════════
