@@ -93,17 +93,25 @@
     // ============================================================
     // 스타일
     // ============================================================
-    function pointStyle(idx) {
+    function pointStyle(idx, total, closed) {
+        // 첫 번째 점은 닫기 힌트용으로 강조 (아직 닫히지 않았고 3점 이상일 때)
+        var isFirst = (idx === 0);
+        var highlightFirst = isFirst && !closed && total >= 3;
         return new ol.style.Style({
             image: new ol.style.Circle({
-                radius: 5,
-                fill: new ol.style.Fill({ color: '#4fc3f7' }),
-                stroke: new ol.style.Stroke({ color: '#ffffff', width: 1.5 })
+                radius: highlightFirst ? 8 : 5,
+                fill: new ol.style.Fill({
+                    color: highlightFirst ? '#ff5722' : '#4fc3f7'
+                }),
+                stroke: new ol.style.Stroke({
+                    color: '#ffffff',
+                    width: highlightFirst ? 2.5 : 1.5
+                })
             }),
             text: new ol.style.Text({
                 text: String(idx + 1),
                 font: 'bold 10px sans-serif',
-                offsetY: -12,
+                offsetY: highlightFirst ? -16 : -12,
                 fill: new ol.style.Fill({ color: '#ffffff' }),
                 stroke: new ol.style.Stroke({ color: '#000000', width: 2 })
             })
@@ -147,9 +155,10 @@
 
         if (zone) {
             // 점
+            var totalPts = zone.points.length;
             zone.points.forEach(function (pt, idx) {
                 var f = new ol.Feature({ geometry: new ol.geom.Point(fromLonLat(pt)) });
-                f.setStyle(pointStyle(idx));
+                f.setStyle(pointStyle(idx, totalPts, zone.closed));
                 f.set('_kind', 'point');
                 f.set('_index', idx);
                 vectorSource.addFeature(f);
@@ -346,6 +355,22 @@
             if (zone.closed) {
                 showToast('폴리곤이 닫혀있습니다 — [열기]를 눌러주세요');
                 return;
+            }
+            // 첫 점 근처 클릭 시 자동 폴리곤 닫기 (3점 이상일 때)
+            if (zone.points.length >= 3) {
+                var firstFeat = null;
+                map.forEachFeatureAtPixel(evt.pixel, function (f) {
+                    if (!firstFeat && f.get('_kind') === 'point' && f.get('_index') === 0) {
+                        firstFeat = f;
+                    }
+                }, { hitTolerance: 10 });
+                if (firstFeat) {
+                    zone.closed = true;
+                    snapshot();
+                    render();
+                    showToast('✓ 폴리곤이 닫혔습니다 (' + zone.points.length + '점)');
+                    return;
+                }
             }
             zone.points.push([lon, lat]);
             snapshot();
