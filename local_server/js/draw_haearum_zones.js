@@ -32,6 +32,9 @@
     var WMS_LAYER_BASE = 'BASEMAP_RLTM3857';
     var WMS_LAYER_COAST = 'BASEMAP_RLTMCOAST3857';
 
+    // 서버에 올라가 있는 최신 작업본 (저장소 커밋본)
+    var SERVER_JSON_URL = '/data/haearum_zone_polygons.json';
+
     // ============================================================
     // 상태
     // ============================================================
@@ -446,6 +449,103 @@
     }
 
     // ============================================================
+    // JSON Import (파일 또는 서버)
+    // ============================================================
+    // 도구 입력 포맷은 buildExportJSON() 과 동일 (map/schema/updatedAt/zones)
+    // 단, zones 각 엔트리에 최소 points 배열이 있으면 된다 (name/region/type은 카탈로그 기준으로 보정).
+    function normalizeImportedZones(obj) {
+        if (!obj || typeof obj !== 'object') return null;
+        var raw = obj.zones && typeof obj.zones === 'object' ? obj.zones : null;
+        if (!raw) return null;
+        var out = {};
+        Object.keys(raw).forEach(function (code) {
+            var z = raw[code];
+            if (!z || typeof z !== 'object') return;
+            out[code] = {
+                points: Array.isArray(z.points) ? z.points.slice() : [],
+                center: Array.isArray(z.center) ? z.center.slice() : null,
+                closed: !!z.closed
+            };
+        });
+        return out;
+    }
+
+    function applyImportedZones(newZones, label) {
+        if (!newZones || Object.keys(newZones).length === 0) {
+            showToast('불러온 데이터에 구역이 없습니다');
+            return false;
+        }
+        var count = Object.keys(newZones).length;
+        zones = newZones;
+        history = { stack: [], idx: -1 };
+        snapshot();
+        render();
+        showToast((label || '불러오기') + ' 완료 · ' + count + '개 구역 반영됨');
+        return true;
+    }
+
+    function importFromFile(file) {
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function (e) {
+            try {
+                var obj = JSON.parse(e.target.result);
+                var normalized = normalizeImportedZones(obj);
+                if (!normalized) { showToast('JSON 형식이 올바르지 않습니다'); return; }
+                if (Object.keys(zones).length > 0) {
+                    if (!confirm('현재 작업(localStorage)을 불러온 파일로 덮어쓸까요?')) return;
+                }
+                applyImportedZones(normalized, '파일 불러오기');
+            } catch (err) {
+                showToast('JSON 파싱 실패: ' + err.message);
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function fetchServerJSON(silent) {
+        return fetch(SERVER_JSON_URL, { cache: 'no-store' })
+            .then(function (res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.json();
+            })
+            .then(function (obj) {
+                var normalized = normalizeImportedZones(obj);
+                if (!normalized || Object.keys(normalized).length === 0) {
+                    if (!silent) showToast('서버 JSON이 비어있습니다');
+                    return null;
+                }
+                return normalized;
+            })
+            .catch(function (err) {
+                if (!silent) showToast('서버 불러오기 실패: ' + err.message);
+                return null;
+            });
+    }
+
+    function importFromServer(force) {
+        fetchServerJSON(false).then(function (normalized) {
+            if (!normalized) return;
+            if (!force && Object.keys(zones).length > 0) {
+                if (!confirm('현재 작업(localStorage)을 서버 최신본으로 덮어쓸까요?')) return;
+            }
+            applyImportedZones(normalized, '서버 불러오기');
+        });
+    }
+
+    // 시작 시 localStorage가 비어 있으면 서버 JSON을 자동으로 로드
+    function autoLoadFromServerIfEmpty() {
+        if (Object.keys(zones).length > 0) return Promise.resolve(false);
+        return fetchServerJSON(true).then(function (normalized) {
+            if (!normalized) return false;
+            zones = normalized;
+            // render는 호출측에서
+            console.log('[DrawHaearumZones] 서버 JSON 자동 로드: ' + Object.keys(normalized).length + '개 구역');
+            return true;
+        });
+    }
+
+    // ============================================================
     // JSON Export
     // ============================================================
     function buildExportJSON() {
@@ -773,6 +873,18 @@
             snapshot(); render();
         });
 
+        // 불러오기
+        $('json-upload').addEventListener('change', function (e) {
+            if (e.target.files && e.target.files[0]) {
+                importFromFile(e.target.files[0]);
+                // 같은 파일을 다시 선택할 수 있도록 초기화
+                e.target.value = '';
+            }
+        });
+        $('btn-load-server').addEventListener('click', function () {
+            importFromServer(false);
+        });
+
         // 내보내기
         $('btn-preview').addEventListener('click', exportPreview);
         $('btn-download').addEventListener('click', exportDownload);
@@ -802,10 +914,17 @@
         setupBgInteractions();
         buildZoneList();
         setMode('draw');
-        snapshot();
-        render();
-        syncZoomUI();
-        console.log('[DrawHaearumZones] 초기화 완료 · 구역 수:', catalogEntries().length);
+
+        // localStorage가 비어있을 때만 서버 JSON을 자동 로드
+        autoLoadFromServerIfEmpty().then(function (loaded) {
+            snapshot();
+            render();
+            syncZoomUI();
+            if (loaded) {
+                showToast('서버에서 ' + Object.keys(zones).length + '개 구역을 불러왔습니다');
+            }
+            console.log('[DrawHaearumZones] 초기화 완료 · 카탈로그 구역:', catalogEntries().length);
+        });
     }
 
     if (document.readyState === 'loading') {
