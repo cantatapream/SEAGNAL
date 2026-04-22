@@ -280,45 +280,61 @@ async function applyNewReports(fullForm) {
 
         console.log(`[ReportProcessor] 총 ${allNewReports.length}건의 신규 통보문 처리 시작.`);
         let changed = false;
-        // 해상 특보 키워드 목록 (참고사항 체크, 캐시 저장용으로만 사용)
-        // ※ 기존에는 이 키워드로 통보문을 필터링했으나, 이제는 모든 통보문을 AI 분석함
+        // 해상 특보 키워드 목록
+        // 1) 본문에 이 키워드가 있는 통보문만 AI 분석 대상 (비해상 특보는 AI 건너뛰어 호출량 절약)
+        // 2) 참고사항 해상키워드 체크 안전망 (비해상 통보문에서도 참고사항에 해상 키워드 있으면 관리자 알림)
+        // 3) 캐시 저장 시 foundKeywords 기록용
         const SEA_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
 
-        // [재시도 대상 관리] 빈 양식/빈 페이지 통보문의 재시도 정보를 fullForm에 저장
+        // [재시도 대상 관리] pendingRetries: 빈 통보문 또는 API 오류로 처리되지 못한 통보문의 재시도 정보
+        // weather_alerts.json에 함께 저장되어 서버 재시작 후에도 재시도 상태가 유지됨
         // pendingRetries 구조:
         //   {
         //     "met:202604100400:52": {
-        //       title: "[특보] 04-52호 ...",    // 통보문 제목
-        //       firstSeen: "ISO시각",           // 처음 감지된 시각
-        //       retryCount: 0,                  // 현재까지 재시도한 횟수
-        //       lastRetry: "ISO시각",           // 마지막 재시도한 시각 (2분 간격 판단용)
-        //       lastNoticeSent: "ISO시각"       // 마지막 "지속 알림" 푸시 발송 시각 (10분 간격 판단용)
+        //       title: "[특보] 04-52호 ...",         // 통보문 제목
+        //       firstSeen: "ISO시각",                // 처음 감지된 시각 (6시간 타임아웃 기준점)
+        //       retryCount: 0,                       // 현재까지 재시도한 횟수
+        //       lastRetry: "ISO시각",                // 마지막 재시도 시각 (재시도 간격 판단용)
+        //       lastNoticeSent: "ISO시각",           // 마지막 "지속 알림" 푸시 발송 시각 (10분 간격 제어)
+        //       reason: "EMPTY_CONTENT"               // 재시도 사유:
+        //                                            //   "EMPTY_CONTENT" = 빈 통보문 (1분 재시도, AI 미사용)
+        //                                            //   "API_RATE_LIMIT" = Gemini 429 오류 (10분 재시도)
         //     }
         //   }
-        // → weather_alerts.json에 함께 저장되어 서버 재시작 후에도 재시도 상태 유지
         if (!fullForm.pendingRetries) fullForm.pendingRetries = {};
-        const RETRY_INTERVAL_MS = 2 * 60 * 1000;    // 재시도 간격: 2분 (AI 재분석 주기)
-        const MAX_RETRIES = 180;                     // 최대 재시도 횟수: 180회 = 2분 × 180 = 6시간
-        const NOTICE_INTERVAL_MS = 10 * 60 * 1000;  // 지속 알림 푸시 간격: 10분 (관리자 알림 주기)
+        const EMPTY_RETRY_MS = 1 * 60 * 1000;            // 빈 통보문 재시도 간격: 1분 (AI 호출 없이 본문만 재확인, 부담 없음)
+        const RATE_LIMIT_RETRY_MS = 10 * 60 * 1000;      // API 할당량 초과 재시도 간격: 10분 (빠른 재시도 시 429 악순환 방지)
+        const MAX_RETRY_DURATION_MS = 6 * 60 * 60 * 1000; // 최대 재시도 기간: 6시간 (초과 시 수집 포기, 관리자 수동 확인 필요)
+        const NOTICE_INTERVAL_MS = 10 * 60 * 1000;       // 지속 알림 푸시 간격: 10분 (관리자에게 "아직 미수집" 알림 주기)
 
         for (const report of allNewReports) {
             console.log(`[ReportProcessor] 통보문 확인 중: ${report.title}`);
 
             // ──────────────────────────────────────────────────────────────
-            // [재시도 체크] 이전에 "빈 양식"으로 판정된 통보문인 경우
-            // 2분 간격으로만 AI 재분석하고, 6시간(180회) 초과 시 포기
+            // [재시도 체크] 이전에 pendingRetries에 등록된 통보문인 경우
+            // reason에 따라 다른 간격으로 재시도:
+            //   EMPTY_CONTENT: 1분 (AI 미사용, HTTP로 본문만 재확인)
+            //   API_RATE_LIMIT: 10분 (Gemini 할당량 리셋 대기)
+            // firstSeen 기준 6시간 초과 시 수집 포기
             // ──────────────────────────────────────────────────────────────
             const pending = fullForm.pendingRetries[report.id];
             if (pending) {
+                // reason에 따라 재시도 간격 결정
+                // API_RATE_LIMIT(429 오류): 10분 대기 (빠른 재시도 시 429 악순환 발생)
+                // EMPTY_CONTENT(빈 통보문): 1분 대기 (AI 호출 없이 본문만 재확인, 부담 없음)
+                const retryInterval = pending.reason === 'API_RATE_LIMIT'
+                    ? RATE_LIMIT_RETRY_MS : EMPTY_RETRY_MS;
                 const elapsed = now - new Date(pending.lastRetry);
-                // 아직 2분이 안 지났으면 이번 사이클에서는 건너뜀 (API 호출 없음)
-                if (elapsed < RETRY_INTERVAL_MS) {
+                // 재시도 간격이 아직 안 지났으면 이번 사이클에서는 건너뜀
+                if (elapsed < retryInterval) {
                     continue;
                 }
-                // 6시간(180회) 초과: 포기 → processedReportIds에 등록 + 관리자 알림
-                if (pending.retryCount >= MAX_RETRIES) {
-                    console.log(`[ReportProcessor] ⏰ 재시도 상한 도달 (${MAX_RETRIES}회): ${report.title}`);
-                    // review_needed.json에 저장 (관리자센터에서 확인 가능)
+                // 6시간 경과: 수집 포기 → processedReportIds에 등록 + 관리자 알림
+                const age = now - new Date(pending.firstSeen);
+                if (age > MAX_RETRY_DURATION_MS) {
+                    const reasonLabel = pending.reason === 'API_RATE_LIMIT' ? 'AI 할당량 초과' : '빈 통보문';
+                    console.log(`[ReportProcessor] ⏰ 재시도 시간 초과 (6시간): ${report.title} (사유: ${reasonLabel})`);
+                    // review_needed.json에 저장 (관리자센터 "특보 수집 오류" 탭에서 확인 가능)
                     try {
                         let reviews = [];
                         if (fs.existsSync(REVIEW_NEEDED_FILE)) {
@@ -328,7 +344,7 @@ async function applyNewReports(fullForm) {
                             reviews.push({
                                 reportId: report.id,
                                 title: report.title,
-                                referenceText: `6시간(${MAX_RETRIES}회) 재시도 후에도 내용 미게시 상태`,
+                                referenceText: `6시간 재시도 실패 (사유: ${reasonLabel}, ${pending.retryCount}회 시도)`,
                                 detectedAt: pending.firstSeen,
                                 acknowledged: false
                             });
@@ -339,7 +355,7 @@ async function applyNewReports(fullForm) {
                     const { sendAdminPush } = require('./services/admin_push');
                     sendAdminPush(
                         '⚠️ 통보문 수집 실패',
-                        `${report.title} - 6시간(${MAX_RETRIES}회) 재시도 후에도 내용 미게시. 수동 확인 필요`
+                        `${report.title} - 6시간 재시도 실패 (사유: ${reasonLabel}, ${pending.retryCount}회). 수동 확인 필요`
                     ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
                     // processedReportIds에 등록하여 더 이상 재시도하지 않음
                     if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
@@ -347,18 +363,161 @@ async function applyNewReports(fullForm) {
                     delete fullForm.pendingRetries[report.id];
                     continue;
                 }
-                // 10분 경과 → 재시도 진행 (아래 AI 분석으로 이동)
-                console.log(`[ReportProcessor] 🔄 재시도 ${pending.retryCount + 1}/${MAX_RETRIES}: ${report.title}`);
+                console.log(`[ReportProcessor] 🔄 재시도 ${pending.retryCount + 1}: ${report.title} (사유: ${pending.reason || 'EMPTY_CONTENT'})`);
             }
 
             // ──────────────────────────────────────────────────────────────
-            // [본문 가져오기 + AI 분석] 모든 [특보]/[예비] 통보문을 AI로 분석
-            // 기존에는 '풍랑','태풍' 등 키워드가 있는 통보문만 분석했으나,
-            // 키워드 필터를 제거하여 누락을 원천 방지함
+            // [본문 가져오기] KMA 웹사이트에서 통보문 본문 HTML을 가져와 텍스트로 변환
             // ──────────────────────────────────────────────────────────────
             const text = await fetchReportDetail(report.id);
-            console.log(`[ReportProcessor] AI 분석 시작: ${report.title}`);
             const baseDate = extractTmFcFromId(report.id);
+
+            // ──────────────────────────────────────────────────────────────
+            // [케이스 A: 빈 본문] fetchReportDetail이 빈 문자열을 반환한 경우
+            // 원인: KMA가 양식만 올리고 본문을 아직 안 채웠거나, HTML 구조가 맞지 않음
+            // 대응: 1분마다 본문만 재확인 (AI 호출 없음 → API 부담 없음)
+            // 본문이 채워지면 다음 사이클에서 키워드 검사 후 AI 분석 또는 미수집 판정
+            // ──────────────────────────────────────────────────────────────
+            if (!text || text.trim().length === 0) {
+                const nowIso = new Date().toISOString();
+                if (!fullForm.pendingRetries[report.id]) {
+                    // [첫 감지] pendingRetries에 등록 + 관리자에게 즉시 알림
+                    fullForm.pendingRetries[report.id] = {
+                        title: report.title,
+                        firstSeen: nowIso,
+                        retryCount: 0,
+                        lastRetry: nowIso,
+                        lastNoticeSent: nowIso,
+                        reason: 'EMPTY_CONTENT'
+                    };
+                    console.log(`[ReportProcessor] ⚠️ 빈 통보문 감지 (본문 없음), 재시도 등록: ${report.title}`);
+                    const { sendAdminPush } = require('./services/admin_push');
+                    sendAdminPush(
+                        '🔍 빈 통보문 감지',
+                        `${report.title} - 본문 미게시 상태, 1분 간격 재확인 시작 (최대 6시간)`
+                    ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
+                } else {
+                    // [재시도 실패] 여전히 본문이 비어있음 → 재시도 횟수 증가
+                    const pendingEntry = fullForm.pendingRetries[report.id];
+                    pendingEntry.retryCount++;
+                    pendingEntry.lastRetry = nowIso;
+                    // [reason 자동 갱신] 이전에 API_RATE_LIMIT였더라도 현재 상태는 "빈 본문"이므로 EMPTY_CONTENT로 변경
+                    // → 재시도 간격이 10분(RATE_LIMIT)에서 1분(EMPTY)으로 자동 전환되어 더 빠른 회복 가능
+                    pendingEntry.reason = 'EMPTY_CONTENT';
+                    console.log(`[ReportProcessor] 재시도 실패 (여전히 빈 본문): ${report.title} (${pendingEntry.retryCount}회)`);
+
+                    // [지속 알림] 10분마다 관리자에게 "아직 빈 상태" 알림 (스팸 방지)
+                    const noticeElapsed = now - new Date(pendingEntry.lastNoticeSent || pendingEntry.firstSeen);
+                    if (noticeElapsed >= NOTICE_INTERVAL_MS) {
+                        const minutesSinceFirst = Math.round((now - new Date(pendingEntry.firstSeen)) / 60000);
+                        const { sendAdminPush } = require('./services/admin_push');
+                        sendAdminPush(
+                            '⏳ 빈 통보문 지속',
+                            `${report.title} - ${minutesSinceFirst}분 경과, 아직 본문 미게시 (${pendingEntry.retryCount}회 확인)`
+                        ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
+                        pendingEntry.lastNoticeSent = nowIso;
+                    }
+                }
+                continue; // processedReportIds에 넣지 않음 → 다음 사이클에서 본문 재확인
+            }
+
+            // ──────────────────────────────────────────────────────────────
+            // [해상 키워드 체크] 본문에 풍랑/태풍/지진해일/폭풍해일 키워드가 있는지 검사
+            // 키워드 있음 → AI 분석 필요 (해상 특보가 포함된 통보문)
+            // 키워드 없음 → 비해상 특보 (강풍/대설/한파 등) → AI 건너뛰어 호출량 절약
+            //
+            // 이전에는 모든 통보문을 AI로 보내 Gemini 할당량 초과(429)가 발생했음
+            // 이제는 해상 관련 통보문만 AI에 보내 호출량을 대폭 감축
+            //
+            // 예시:
+            //   [특보] 강풍주의보·풍랑주의보 발표 → 본문에 "풍랑" 있음 → AI 분석 ✅
+            //   [예비] 제04-17호 (제목에 풍랑 없음) → 본문에 "풍랑 예비특보" 있음 → AI 분석 ✅
+            //   [특보] 강풍주의보 발표 → 본문에 해상키워드 없음 → AI 건너뜀 → 호출량 절약
+            // ──────────────────────────────────────────────────────────────
+            const hasSeaKeyword = SEA_KEYWORDS.some(kw => text.includes(kw));
+
+            if (!hasSeaKeyword) {
+                console.log(`[ReportProcessor] 비해상 통보문 (해상 키워드 미포함): ${report.title} → AI 건너뜀`);
+
+                // [빈 통보문에서 복구된 경우] 이전에 빈 통보문이었다가 내용이 채워졌지만 해상 키워드 없음
+                // → 비해상이므로 미수집 처리 + pendingRetries 정리 + 관리자 알림
+                if (fullForm.pendingRetries[report.id]) {
+                    const recovered = fullForm.pendingRetries[report.id];
+                    const totalMinutes = Math.round((now - new Date(recovered.firstSeen)) / 60000);
+                    console.log(`[ReportProcessor] ✅ 빈 통보문 → 내용 확인됨 (비해상): ${report.title} (${totalMinutes}분 경과)`);
+                    const { sendAdminPush } = require('./services/admin_push');
+                    sendAdminPush(
+                        '✅ 빈 통보문 내용 확인',
+                        `${report.title} - 내용 채워짐, 해상 미해당 (${recovered.retryCount}회 확인, ${totalMinutes}분 경과)`
+                    ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
+                    delete fullForm.pendingRetries[report.id];
+                }
+
+                // [참고사항 해상키워드 안전망] 본문에 "없음"이 포함되고 참고사항에 해상 키워드가 있으면
+                // "이 통보문은 관리자 확인이 필요할 수 있음"을 review_needed에 기록
+                // (예: 본문 "○ 내용: 없음"이지만 참고사항에 "풍랑주의보" 언급)
+                if (text.includes('없음')) {
+                    try {
+                        const fullText = await fetchReportDetail(report.id, { keepReference: true });
+                        const refIdx = fullText.indexOf('참고사항');
+                        if (refIdx !== -1) {
+                            const refSection = fullText.substring(refIdx);
+                            const refKeywords = SEA_KEYWORDS.filter(kw => refSection.includes(kw));
+                            if (refKeywords.length > 0) {
+                                console.log(`[ReportProcessor] ⚠️ 비해상 통보문이지만 참고사항에 해상키워드 발견: ${refKeywords.join(', ')}`);
+                                let reviews = [];
+                                if (fs.existsSync(REVIEW_NEEDED_FILE)) {
+                                    reviews = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8'));
+                                }
+                                if (!reviews.some(r => r.reportId === report.id)) {
+                                    reviews.push({
+                                        reportId: report.id,
+                                        title: report.title,
+                                        referenceText: `참고사항 해상키워드: ${refKeywords.join(', ')}`,
+                                        detectedAt: new Date().toISOString(),
+                                        acknowledged: false
+                                    });
+                                    fs.writeFileSync(REVIEW_NEEDED_FILE, JSON.stringify(reviews, null, 2), 'utf8');
+                                }
+                                const { sendAdminPush } = require('./services/admin_push');
+                                sendAdminPush(
+                                    '🔍 참고사항 해상키워드 감지',
+                                    `${report.title} - 본문 "없음"이나 참고사항에 ${refKeywords.join(', ')} 포함`
+                                ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
+                            }
+                        }
+                    } catch (refErr) {
+                        console.error('[ReportProcessor] 참고사항 체크 오류:', refErr.message);
+                    }
+                }
+
+                // [캐시 저장] 비해상 통보문도 캐시에 저장 → 관리자센터에서 [완료][결과] 표시
+                try {
+                    if (!fs.existsSync(COLLECT_CACHE_DIR)) fs.mkdirSync(COLLECT_CACHE_DIR, { recursive: true });
+                    const cacheData = {
+                        success: true, reportId: report.id, title: report.title,
+                        rawText: text, separatedText: null, aiResult: [], foundKeywords: [],
+                        applied: false, aiError: null, pushResult: null
+                    };
+                    const cacheFileName = report.id.replace(/[/:]/g, '_') + '.json';
+                    fs.writeFileSync(path.join(COLLECT_CACHE_DIR, cacheFileName), JSON.stringify(cacheData, null, 2), 'utf8');
+                } catch (cacheErr) {
+                    console.error('[ReportProcessor] 수집 캐시 저장 오류:', cacheErr.message);
+                }
+
+                // processedReportIds에 등록하여 다음 사이클에서 건너뜀
+                fullForm.lastReportId = report.id;
+                if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
+                fullForm.processedReportIds.push(report.id);
+                continue; // 비해상 통보문 처리 완료 → 다음 통보문으로
+            }
+
+            // ──────────────────────────────────────────────────────────────
+            // [AI 분석] 해상 키워드가 포함된 통보문만 Gemini AI로 분석
+            // 이전에는 모든 통보문을 AI로 보내 할당량 초과(429) 문제가 발생했음
+            // 이제는 해상 관련 통보문만 AI에 보내 호출량을 대폭 감축 (약 750건→200건 이하)
+            // ──────────────────────────────────────────────────────────────
+            console.log(`[ReportProcessor] AI 분석 시작 (해상 키워드 발견): ${report.title}`);
             const aiParsed = await aiParser.parseNoticeWithAI(text, baseDate);
             const events = aiParsed.data || [];
             const separatedText = aiParsed.separatedText || null;
@@ -367,70 +526,115 @@ async function applyNewReports(fullForm) {
             }
 
             // ──────────────────────────────────────────────────────────────
-            // [빈 양식 감지] AI가 "내용 없음"(hasContent=false)으로 판단한 경우
-            // → processedReportIds에 넣지 않고, 2분 뒤 재시도
-            // 예: 기상청 관리자가 양식만 올리고 아직 내용을 안 채운 경우
-            //
-            // 푸시 정책:
-            //   - 첫 감지 시: 즉시 "빈 통보문 감지" 푸시 1회
-            //   - 재시도 중 여전히 빈 상태: 10분마다 "지속 알림" 푸시
-            //   - 너무 자주 알림이 가지 않도록 lastNoticeSent로 10분 간격 제어
+            // [케이스 C: API 할당량 초과] Gemini AI가 429 RESOURCE_EXHAUSTED 오류 반환
+            // → 통보문 내용은 정상이지만 AI가 거부한 것 ("빈 통보문"이 아님!)
+            // → 10분 간격으로 재시도 (빠른 재시도 시 429 악순환이 발생하기 때문)
+            // → 할당량이 시간이 지나면 리셋되므로 느리게 재시도하면 성공 가능
             // ──────────────────────────────────────────────────────────────
-            if (!aiParsed.hasContent) {
+            if (aiParsed.isRateLimited) {
                 const nowIso = new Date().toISOString();
                 if (!fullForm.pendingRetries[report.id]) {
-                    // [첫 감지] pendingRetries에 등록 + 즉시 관리자에게 감지 알림 발송
-                    // lastNoticeSent는 현재 시각으로 설정 → 다음 "지속 알림"은 10분 뒤에 발송됨
+                    // [첫 감지] pendingRetries에 등록 (reason: API_RATE_LIMIT, 10분 재시도)
                     fullForm.pendingRetries[report.id] = {
                         title: report.title,
                         firstSeen: nowIso,
                         retryCount: 0,
                         lastRetry: nowIso,
-                        lastNoticeSent: nowIso  // 첫 감지 푸시를 방금 보냈으므로 "직전 알림 시각"으로 기록
+                        lastNoticeSent: nowIso,
+                        reason: 'API_RATE_LIMIT'
                     };
-                    console.log(`[ReportProcessor] ⚠️ 빈 통보문 감지, 재시도 등록: ${report.title}`);
+                    console.log(`[ReportProcessor] ⚠️ AI 할당량 초과 감지: ${report.title}`);
                     const { sendAdminPush } = require('./services/admin_push');
                     sendAdminPush(
-                        '🔍 빈 통보문 감지',
-                        `${report.title} - 내용 미게시 상태, 2분 간격 재시도 시작 (최대 6시간)`
+                        '⚠️ AI 할당량 초과',
+                        `${report.title} - Gemini API 429 오류, 10분 간격 재시도 시작 (최대 6시간)`
                     ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
                 } else {
-                    // [재시도 실패] 재시도 횟수 증가 + 마지막 재시도 시각 갱신
+                    // [재시도 실패] 여전히 429 → 재시도 횟수 증가, reason 갱신
                     const pendingEntry = fullForm.pendingRetries[report.id];
                     pendingEntry.retryCount++;
                     pendingEntry.lastRetry = nowIso;
-                    console.log(`[ReportProcessor] 재시도 실패 (여전히 빈 양식): ${report.title} (${pendingEntry.retryCount}/${MAX_RETRIES}회)`);
+                    // reason 갱신: 빈 통보문이었다가 내용 채워진 후 429 발생 시 EMPTY→RATE_LIMIT 전환
+                    pendingEntry.reason = 'API_RATE_LIMIT';
+                    console.log(`[ReportProcessor] AI 할당량 초과 지속: ${report.title} (${pendingEntry.retryCount}회)`);
 
-                    // [지속 알림] 10분마다 관리자에게 "아직도 빈 상태"라고 알림
-                    // lastNoticeSent로부터 10분 이상 지났는지 확인하여 스팸 방지
+                    // [지속 알림] 10분마다 관리자에게 알림 (스팸 방지)
+                    const noticeElapsed = now - new Date(pendingEntry.lastNoticeSent || pendingEntry.firstSeen);
+                    if (noticeElapsed >= NOTICE_INTERVAL_MS) {
+                        const minutesSinceFirst = Math.round((now - new Date(pendingEntry.firstSeen)) / 60000);
+                        const { sendAdminPush } = require('./services/admin_push');
+                        sendAdminPush(
+                            '⏳ AI 할당량 초과 지속',
+                            `${report.title} - ${minutesSinceFirst}분 경과, AI 할당량 미회복 (${pendingEntry.retryCount}회 시도)`
+                        ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
+                        pendingEntry.lastNoticeSent = nowIso;
+                    }
+                }
+                continue; // processedReportIds에 넣지 않음 → 10분 뒤 재시도
+            }
+
+            // ──────────────────────────────────────────────────────────────
+            // [케이스 D: AI 빈 양식 판단] AI가 정상 응답했지만 hasContent=false
+            // 본문에 해상 키워드는 있지만 AI가 "빈 양식"으로 판단한 드문 케이스
+            // → 빈 통보문과 동일하게 1분 간격 재시도 (KMA가 내용을 채울 때까지 대기)
+            // ──────────────────────────────────────────────────────────────
+            if (!aiParsed.hasContent) {
+                const nowIso = new Date().toISOString();
+                if (!fullForm.pendingRetries[report.id]) {
+                    fullForm.pendingRetries[report.id] = {
+                        title: report.title,
+                        firstSeen: nowIso,
+                        retryCount: 0,
+                        lastRetry: nowIso,
+                        lastNoticeSent: nowIso,
+                        reason: 'EMPTY_CONTENT'
+                    };
+                    console.log(`[ReportProcessor] ⚠️ AI 빈 양식 판단: ${report.title}`);
+                    const { sendAdminPush } = require('./services/admin_push');
+                    sendAdminPush(
+                        '🔍 빈 통보문 감지',
+                        `${report.title} - AI가 빈 양식으로 판단, 1분 간격 재확인 시작 (최대 6시간)`
+                    ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
+                } else {
+                    const pendingEntry = fullForm.pendingRetries[report.id];
+                    pendingEntry.retryCount++;
+                    pendingEntry.lastRetry = nowIso;
+                    // [reason 자동 갱신] 이전에 API_RATE_LIMIT였더라도 현재는 AI 호출이 정상 응답한 상태이므로
+                    // EMPTY_CONTENT로 변경 → 재시도 간격이 10분에서 1분으로 자동 전환
+                    pendingEntry.reason = 'EMPTY_CONTENT';
+                    console.log(`[ReportProcessor] 재시도 실패 (AI 빈 양식 판단 지속): ${report.title} (${pendingEntry.retryCount}회)`);
+
+                    // [지속 알림] 10분마다 관리자 알림 (스팸 방지)
                     const noticeElapsed = now - new Date(pendingEntry.lastNoticeSent || pendingEntry.firstSeen);
                     if (noticeElapsed >= NOTICE_INTERVAL_MS) {
                         const minutesSinceFirst = Math.round((now - new Date(pendingEntry.firstSeen)) / 60000);
                         const { sendAdminPush } = require('./services/admin_push');
                         sendAdminPush(
                             '⏳ 빈 통보문 지속',
-                            `${report.title} - ${minutesSinceFirst}분 경과, 아직 미수집 상태 (재시도 ${pendingEntry.retryCount}/${MAX_RETRIES}회)`
+                            `${report.title} - ${minutesSinceFirst}분 경과, 아직 미수집 (${pendingEntry.retryCount}회 확인)`
                         ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
-                        pendingEntry.lastNoticeSent = nowIso; // 다음 지속 알림은 10분 뒤
-                        console.log(`[ReportProcessor] 📣 지속 알림 발송: ${minutesSinceFirst}분 경과`);
+                        pendingEntry.lastNoticeSent = nowIso;
                     }
                 }
-                continue; // processedReportIds에 넣지 않음 → 다음 사이클에서 재시도
+                continue; // processedReportIds에 넣지 않음 → 1분 뒤 재시도
             }
 
             // ──────────────────────────────────────────────────────────────
-            // [재시도 성공] 이전에 pendingRetries에 있었는데 이제 내용이 채워진 경우
+            // [재시도 성공] 이전에 pendingRetries에 있었는데 이제 내용이 확인된 경우
             // → pendingRetries에서 제거 + 관리자에게 "수집 완료" 푸시 발송
+            // 발생 시나리오:
+            //   - 빈 통보문(EMPTY_CONTENT)이었다가 내용 채워짐 → AI 분석 성공
+            //   - AI 할당량 초과(API_RATE_LIMIT)였다가 할당량 회복 → AI 분석 성공
             // ──────────────────────────────────────────────────────────────
             if (fullForm.pendingRetries[report.id]) {
                 const recoveredEntry = fullForm.pendingRetries[report.id];
                 const totalMinutes = Math.round((now - new Date(recoveredEntry.firstSeen)) / 60000);
-                console.log(`[ReportProcessor] ✅ 재시도 성공! 내용 확인됨: ${report.title} (${recoveredEntry.retryCount}회 시도, ${totalMinutes}분 경과)`);
-                // 관리자에게 수집 완료 알림 발송 (빈 통보문이 채워져서 정상 수집되었음을 통지)
+                const reasonLabel = recoveredEntry.reason === 'API_RATE_LIMIT' ? 'AI 할당량 회복' : '내용 확인';
+                console.log(`[ReportProcessor] ✅ 재시도 성공! ${reasonLabel}: ${report.title} (${recoveredEntry.retryCount}회, ${totalMinutes}분)`);
                 const { sendAdminPush } = require('./services/admin_push');
                 sendAdminPush(
-                    '✅ 빈 통보문 수집 완료',
-                    `${report.title} - 내용 확인됨, 정상 수집 완료 (${recoveredEntry.retryCount}회 재시도 후 성공, 총 ${totalMinutes}분 소요)`
+                    '✅ 수집 완료',
+                    `${report.title} - ${reasonLabel}, 정상 수집 완료 (${recoveredEntry.retryCount}회 재시도, ${totalMinutes}분 소요)`
                 ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
                 delete fullForm.pendingRetries[report.id];
             }

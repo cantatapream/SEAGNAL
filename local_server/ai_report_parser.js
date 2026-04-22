@@ -441,7 +441,8 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
     if (!API_KEY || API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
         const msg = '[AI Parser] GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인하세요.';
         console.warn(msg);
-        return { data: [], error: msg };
+        // hasContent: false → 재시도 대상, isRateLimited: false → API 키 문제이지 할당량 문제 아님
+        return { data: [], error: msg, hasContent: false, isRateLimited: false };
     }
 
     try {
@@ -580,7 +581,8 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
         }
         // hasContent: AI가 판단한 "통보문에 실질 내용이 있는지 여부"
         // → report_alert_processor.js에서 재시도 판단에 사용
-        return { data: parsed, error: null, separatedText: processedText, hasContent };
+        // isRateLimited: false → 정상 응답이므로 API 할당량 문제 아님
+        return { data: parsed, error: null, separatedText: processedText, hasContent, isRateLimited: false };
     } catch (error) {
         const msg = `[AI Parser] 분석 중 오류 발생: ${error.message}`;
         console.error(msg);
@@ -588,9 +590,26 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
         const splitFallback = splitNumberedEvents(noticeText);
         const fallbackBase = splitFallback.separated || noticeText;
         const fallbackResolved = resolveParenthesizedZones(fallbackBase);
-        // AI 오류 시 hasContent: false → 재시도 대상으로 처리
-        // (AI가 일시적으로 실패해도 다음 사이클에서 다시 시도)
-        return { data: [], error: msg, separatedText: (fallbackResolved !== noticeText) ? fallbackResolved : null, hasContent: false };
+
+        // [429 감지] Gemini API 할당량 초과(RESOURCE_EXHAUSTED) 여부를 판별
+        // 429 오류는 "통보문이 비어있는 것"이 아니라 "AI가 거부한 것"이므로
+        // 호출측(report_alert_processor.js)에서 빈 통보문과 구분하여 처리해야 함
+        const errorMsg = error.message || '';
+        const isRateLimited = errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED');
+
+        if (isRateLimited) {
+            console.warn('[AI Parser] ⚠️ Gemini API 할당량 초과 (429). 호출측에서 재시도 간격을 늘려야 합니다.');
+        }
+
+        // hasContent: false → 호출측에서 재시도 대상으로 처리
+        // isRateLimited: true → 호출측에서 "빈 통보문"이 아닌 "API 할당량 초과"로 구분
+        return {
+            data: [],
+            error: msg,
+            separatedText: (fallbackResolved !== noticeText) ? fallbackResolved : null,
+            hasContent: false,
+            isRateLimited
+        };
     }
 }
 
