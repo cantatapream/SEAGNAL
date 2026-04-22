@@ -13,6 +13,21 @@
            - safe-area: 상태표시줄 겹침 방지
            ================================================================ */
 
+        /* ──────────────────────────────────────────────────────────────
+           전역 CSS 변수: 하단 탭 바 높이 (index2 전용)
+           ──────────────────────────────────────────────────────────────
+           [용도]
+            - --main-tab-height : 아이콘+라벨 2단 메인탭 실제 높이
+            - --sub-tab-height  : 펼쳐진 서브탭 바 높이 (max-height 50px 기준)
+           [연계]
+            - 콘텐츠 영역(.content-area)의 하단 패딩 계산
+            - #ocean-map-section.tab-content.active 의 bottom 계산
+            - body.sub-tabs-open 클래스와 조합되어 슬라이더 가림 방지 */
+        :root {
+            --main-tab-height: 68px;
+            --sub-tab-height: 50px;
+        }
+
         /* 헤더 상태바 겹침 방지 */
         .main-header {
             padding-top: calc(0.25rem + env(safe-area-inset-top)) !important;
@@ -54,16 +69,46 @@
             /* safe-area 하단 패딩 (아이폰 홈 인디케이터 등) */
             padding-bottom: env(safe-area-inset-bottom, 0px) !important;
         }
-        /* 하단 탭 버튼 높이 확대 (참고 이미지 수준) */
+        /* ──────────────────────────────────────────────────────────
+           하단 메인탭 버튼: [아이콘 + 라벨] 2단 세로 레이아웃
+           ──────────────────────────────────────────────────────────
+           - 참고 이미지(피싱앱 홈/지도/피싱그램/파트너스/더보기)처럼
+             아이콘(위) + 라벨(아래) 스택 구조로 배치
+           - flex-direction: column 으로 세로 정렬
+           - 버튼 전체 높이 약 60~70px (세로 패딩 + 아이콘 + 라벨 + gap)
+           - border-top 파란 선은 active 탭 표시용 (기존 방식 유지) */
         .bottom-main-tabs .tab-btn {
-            padding: clamp(12px, 3vw, 18px) 0 !important;
-            font-size: clamp(0.78rem, 3.2vw, 0.92rem) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 4px !important;
+            padding: 8px 0 10px !important;      /* 상단 패딩 8 + 하단 10 */
+            font-size: clamp(0.68rem, 2.8vw, 0.78rem) !important;  /* 라벨 기본 크기 */
+            line-height: 1.2 !important;
+            color: var(--text-sub, #888) !important;
             border-bottom: none !important;
-            border-top: 3px solid transparent;
+            border-top: 3px solid transparent;   /* 활성 표시용 상단 선 자리 */
+            min-height: 60px;                     /* 참고 이미지 수준 높이 보장 */
         }
+        /* 아이콘: 라벨보다 크게, 기본 색은 라벨과 동일 (부모 color 상속) */
+        .bottom-main-tabs .tab-btn .tab-btn-icon {
+            font-size: clamp(18px, 5vw, 22px);
+            line-height: 1;
+            color: inherit;
+        }
+        /* 라벨: 아이콘 아래 한 줄, 줄바꿈 방지 */
+        .bottom-main-tabs .tab-btn .tab-btn-label {
+            font-size: inherit;
+            white-space: nowrap;
+            color: inherit;
+        }
+        /* 활성 탭: 파란색으로 강조 (아이콘/라벨 모두) + 상단 선 표시 */
         .bottom-main-tabs .tab-btn.active {
+            color: var(--accent-blue, #448aff) !important;
             border-top-color: var(--accent-blue, #448aff);
             border-bottom: none !important;
+            font-weight: 600;
         }
 
         /* ── 하단 서브탭 (메인탭 바 바로 위) ── */
@@ -81,23 +126,53 @@
             /* 기본 숨김: max-height 0 + opacity 0 (기존 sub-tabs 스타일 활용) */
         }
 
-        /* ── 콘텐츠 영역 하단 패딩 (하단 탭 바 + 서브탭에 가려지지 않도록) ── */
-        /* 메인탭(~60px) + 서브탭이 열릴 수 있는 공간(~40px) + safe-area + 여유 */
+        /* ── 콘텐츠 영역 하단 패딩 (하단 탭 바에 가려지지 않도록) ──
+           [주의] 서브탭이 열렸을 때를 위한 padding 은 아래쪽
+                  "body.sub-tabs-open .content-area" 규칙에서 별도 처리
+           [변수] --main-tab-height : 하단 메인탭 바 실제 높이 */
         .content-area {
-            padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)) !important;
+            padding-bottom: calc(var(--main-tab-height, 68px) + 10px + env(safe-area-inset-bottom, 0px)) !important;
+        }
+        /* 서브탭이 열려 있으면 콘텐츠 하단이 서브탭에 가려지지 않도록 추가 패딩 */
+        body.sub-tabs-open .content-area {
+            padding-bottom: calc(var(--main-tab-height, 68px) + var(--sub-tab-height, 50px) + 10px + env(safe-area-inset-bottom, 0px)) !important;
         }
         /* 각 탭 콘텐츠 섹션 내부에도 하단 여백 확보 */
         .tab-content {
             padding-bottom: 30px;
         }
 
-        /* ── 해양종합 지도: 상태표시줄 겹침 방지 + 하단 탭 바만큼 올림 ── */
-        /* 헤더가 숨겨진 상태에서 position:fixed; top:0 이면 상태표시줄과 겹침
-           → top을 safe-area-inset-top만큼 내려서 겹치지 않게 함
-           → bottom을 하단 탭 바 높이만큼 올려서 가려지지 않게 함 */
+        /* ──────────────────────────────────────────────────────────
+           해양종합 지도: 상태표시줄 겹침 방지 + 하단 탭 바만큼 올림
+           ──────────────────────────────────────────────────────────
+           [배경]
+            - #ocean-map-section 내부의 .ocean-legend 에는 타임라인 슬라이더가
+              position:absolute; bottom:0 로 붙어 있음.
+            - 섹션 자체가 position:fixed 이므로, 섹션의 bottom 값이
+              슬라이더가 실제로 위치하는 "화면 바닥에서의 높이"를 결정함.
+            - 따라서 하단에 떠 있는 메인탭/서브탭을 슬라이더가 피해가려면
+              섹션의 bottom 을 그 바들의 높이만큼 띄워 줘야 함.
+
+           [변수]
+            --main-tab-height : 하단 메인탭 바의 실제 높이 (2단 레이아웃 기준 약 68px)
+            --sub-tab-height  : 서브탭 바 높이 (max-height: 50px 기준)
+
+           [조합]
+            기본(서브탭 닫힘) : bottom = 메인탭 높이
+            서브탭 열림       : bottom = 메인탭 높이 + 서브탭 높이
+              → index2_patch.js에서 body.sub-tabs-open 클래스로 토글
+           [변수 정의] 이 파일 상단 :root 블록 참조
+         */
         #ocean-map-section.tab-content.active {
             top: env(safe-area-inset-top, 20px) !important;
-            bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+            bottom: calc(var(--main-tab-height) + env(safe-area-inset-bottom, 0px));
+        }
+
+        /* 서브탭이 열려 있을 때는 슬라이더가 서브탭 바 위로 밀려 올라가도록
+           섹션 바닥을 추가로 --sub-tab-height 만큼 띄움
+           [연계] js/index2_patch.js → body.sub-tabs-open 클래스 토글 */
+        body.sub-tabs-open #ocean-map-section.tab-content.active {
+            bottom: calc(var(--main-tab-height) + var(--sub-tab-height) + env(safe-area-inset-bottom, 0px));
         }
     </style>
     <script>window.__SEAGNAL_PAGE = 'index2';</script>
@@ -1399,12 +1474,36 @@
             <button class="sub-tab-btn" data-target="sea-parting-section">바다갈라짐</button>
         </nav>
 
-        <!-- 메인탭 바 (화면 하단 고정) -->
+        <!-- 메인탭 바 (화면 하단 고정)
+             [구조] 각 버튼은 [아이콘 + 라벨] 2단 세로 레이아웃
+             - <i class="fa-solid ..."> : Font Awesome 아이콘 (index2.html 헤더에서 로드)
+             - <span class="tab-btn-label"> : 한글 라벨
+             [주의] data-target 속성은 marine.js의 switchMainTab()에서 사용하므로
+                   절대 변경 금지 (그룹 ID 또는 섹션 ID와 1:1 매핑)
+             [연계] settings.js:32 → .tab-btn 클릭 이벤트 바인딩
+                   marine.js:942 → data-target 으로 querySelector
+                   index2_patch.js → 하단탭 동작 오버라이드 -->
         <nav class="main-tabs bottom-main-tabs" id="bottom-tab-bar">
-            <button class="tab-btn active" data-target="weather-group">특보정보</button>
-            <button class="tab-btn" data-target="ocean-group">종합기상</button>
-            <button class="tab-btn" data-target="ocean-life-group">해양생활</button>
-            <button class="tab-btn" data-target="promo-section">공지사항</button>
+            <!-- 특보정보: 경보/주의 의미의 삼각형 경고 아이콘 -->
+            <button class="tab-btn active" data-target="weather-group">
+                <i class="fa-solid fa-triangle-exclamation tab-btn-icon" aria-hidden="true"></i>
+                <span class="tab-btn-label">특보정보</span>
+            </button>
+            <!-- 종합기상: 해 아이콘 (사용자 지정) -->
+            <button class="tab-btn" data-target="ocean-group">
+                <i class="fa-solid fa-sun tab-btn-icon" aria-hidden="true"></i>
+                <span class="tab-btn-label">종합기상</span>
+            </button>
+            <!-- 해양생활: 물고기 아이콘 -->
+            <button class="tab-btn" data-target="ocean-life-group">
+                <i class="fa-solid fa-fish tab-btn-icon" aria-hidden="true"></i>
+                <span class="tab-btn-label">해양생활</span>
+            </button>
+            <!-- 공지사항: 확성기 아이콘 -->
+            <button class="tab-btn" data-target="promo-section">
+                <i class="fa-solid fa-bullhorn tab-btn-icon" aria-hidden="true"></i>
+                <span class="tab-btn-label">공지사항</span>
+            </button>
         </nav>
 
     </div>

@@ -75,19 +75,78 @@ window.addEventListener('resize', updateSubTabsBottomPosition);
 // ──────────────────────────────────────────────────────────────
 // 3. 현재 열려 있는 서브탭 그룹 추적 변수
 //    같은 메인탭을 다시 클릭하면 서브탭을 토글(열기/닫기)하기 위해 사용
+//    - null       : 어떤 서브탭도 열려있지 않음
+//    - 'xxx-group': 해당 그룹의 서브탭이 현재 펼쳐져 있음
 // ──────────────────────────────────────────────────────────────
-var _currentOpenSubGroup = null;  // 현재 열려 있는 서브탭의 그룹 ID (없으면 null)
+var _currentOpenSubGroup = null;
+
+/**
+ * [헬퍼] 모든 하단 서브탭 패널을 닫고 body.sub-tabs-open 클래스도 제거
+ *
+ * [왜 필요한가?]
+ *  - 서브탭이 열려 있으면 #ocean-map-section 하단의 슬라이더 영역을 덮어버림
+ *  - CSS(body.sub-tabs-open #ocean-map-section.tab-content.active)에서
+ *    서브탭이 열려 있을 때는 섹션 바닥을 더 올려서 슬라이더가 보이도록 처리
+ *  - 따라서 서브탭 상태 변화 시 body 클래스도 함께 동기화해야 함
+ *
+ * [호출처]
+ *  - switchMainTab: 탭 전환 전/토글 시
+ *  - switchSubTab : 서브탭 버튼 클릭 시 (선택 후 자동 닫힘)
+ */
+function _closeAllBottomSubTabs() {
+    var allSubNavs = document.querySelectorAll('.bottom-sub-tabs');
+    for (var i = 0; i < allSubNavs.length; i++) {
+        allSubNavs[i].classList.remove('sub-tabs-visible');
+    }
+    // body 클래스 제거 → CSS 원복 (섹션 바닥이 다시 메인탭 높이만큼만 올라감)
+    document.body.classList.remove('sub-tabs-open');
+    _currentOpenSubGroup = null;
+}
+
+/**
+ * [헬퍼] 특정 그룹의 서브탭 패널을 펼침 + body 클래스 동기화
+ *
+ * @param {string} groupId  - 'weather-group' / 'ocean-group' / 'ocean-life-group'
+ *
+ * [동작]
+ *  1) TAB_GROUP_SUBTABS[groupId]로 서브탭 nav 요소를 찾음
+ *  2) 해당 nav에 .sub-tabs-visible 추가 → CSS transition으로 펼쳐짐
+ *  3) body에 .sub-tabs-open 추가 → 섹션 바닥이 서브탭 높이만큼 추가로 올라감
+ *  4) _currentOpenSubGroup 갱신 (재클릭 토글용)
+ */
+function _openSubTabsFor(groupId) {
+    var subNavId = TAB_GROUP_SUBTABS[groupId];
+    if (!subNavId) return;
+    var subNav = document.getElementById(subNavId);
+    if (!subNav) return;
+    subNav.classList.add('sub-tabs-visible');
+    document.body.classList.add('sub-tabs-open');
+    _currentOpenSubGroup = groupId;
+}
 
 // ──────────────────────────────────────────────────────────────
-// 4. switchMainTab 래핑
-//    marine.js의 원본 switchMainTab을 감싸서 INDEX2 전용 동작 추가:
+// 4. switchMainTab 래핑 (INDEX2 전용 동작)
+//    marine.js의 원본 switchMainTab을 감싸서 다음을 추가:
 //    - body[data-active-tab] 설정 → CSS로 헤더 표출/숨김 제어
-//    - 서브탭 토글: 같은 탭 재클릭 → 서브탭 열기/닫기
+//    - 서브탭 "자동 열기" 제거 → 처음 진입 시 서브탭은 접힘 상태
+//    - 같은 메인탭 재클릭 시 서브탭 토글(열기↔닫기)
 //    - ocean-map-active 클래스 관리
+//
+//   [설계 변경 이유]
+//    종합기상(ocean-group) 진입 시 서브탭이 자동으로 펼쳐지면
+//    #ocean-map-section 하단의 슬라이더(범례+타임라인)를 덮어버려
+//    사용자가 슬라이더를 조작할 수 없었음.
+//    → 처음 진입할 때는 서브탭을 접어두고, 사용자가 메인탭을 다시
+//      눌렀을 때만 펼치는 방식으로 변경 (UX 일관성 위해 모든 그룹탭 동일).
 // ──────────────────────────────────────────────────────────────
 var _origSwitchMainTab = window.switchMainTab;
 
 window.switchMainTab = function (targetId) {
+    // ⓘ 이전 활성 그룹 기억 (재클릭 판정용)
+    //   - body[data-active-tab] 은 직전 탭 전환 시 세팅된 값
+    //   - ①에서 덮어쓰기 전에 미리 읽어 두어야 "같은 그룹 재클릭" 을 판정 가능
+    var prevActiveGroup = document.body.getAttribute('data-active-tab');
+
     // ① 활성 탭 속성 설정 (헤더 표출/숨김은 CSS가 처리)
     //    weather-group이면 헤더 표시, 나머지면 숨김
     var activeGroup = targetId;
@@ -104,45 +163,39 @@ window.switchMainTab = function (targetId) {
         document.documentElement.style.removeProperty('--ocean-top-offset');
     }
 
-    // ③ 서브탭 토글 로직
-    //    그룹 탭(서브탭이 있는 탭)을 클릭했을 때:
-    //    - 이미 열려있으면 닫기 (서브탭만 닫고, 콘텐츠는 유지)
-    //    - 닫혀있으면 열기
+    // ③ 그룹탭 재클릭 토글 처리 (원본 switchMainTab 호출 전에 결정)
+    //    [판정 기준] 이전 활성 그룹 === 지금 누른 그룹 → 재클릭
+    //    - 서브탭이 열려있으면 → 닫기
+    //    - 서브탭이 닫혀있으면 → 열기
+    //    - 콘텐츠(섹션)는 이미 표시 중이므로 원본 전환 불필요 → 여기서 return
     var isGroupTab = !!TAB_GROUP_DEFAULTS[targetId];
-    if (isGroupTab) {
-        var subNavId = TAB_GROUP_SUBTABS[targetId];
-        var subNav = document.getElementById(subNavId);
-
-        if (_currentOpenSubGroup === targetId && subNav && subNav.classList.contains('sub-tabs-visible')) {
-            // 같은 그룹 재클릭 → 서브탭 닫기 (콘텐츠는 그대로 유지)
-            subNav.classList.remove('sub-tabs-visible');
-            _currentOpenSubGroup = null;
-            return; // 탭 전환 없이 서브탭만 토글
+    if (isGroupTab && prevActiveGroup === targetId) {
+        var reSubNav = document.getElementById(TAB_GROUP_SUBTABS[targetId]);
+        if (reSubNav && reSubNav.classList.contains('sub-tabs-visible')) {
+            // 이미 열림 → 닫기 (body.sub-tabs-open 도 함께 제거)
+            _closeAllBottomSubTabs();
+        } else {
+            // 닫혀있음 → 열기 (body.sub-tabs-open 추가 → 섹션 바닥 상향)
+            _openSubTabsFor(targetId);
         }
+        return;
     }
 
-    // ④ 모든 하단 서브탭 닫기 (새 탭으로 전환하므로)
-    var allSubNavs = document.querySelectorAll('.bottom-sub-tabs');
-    for (var i = 0; i < allSubNavs.length; i++) {
-        allSubNavs[i].classList.remove('sub-tabs-visible');
-    }
+    // ④ 다른 그룹/섹션으로 전환 → 모든 하단 서브탭 먼저 닫기
+    _closeAllBottomSubTabs();
 
     // ⑤ marine.js 원본 switchMainTab 호출 (실제 탭 전환 수행)
+    //    원본은 내부에서 해당 그룹 서브탭에 .sub-tabs-visible 를 붙이므로,
+    //    호출 직후 다시 한 번 전체 서브탭을 닫아 "처음 진입 시 접힘" 상태 보장.
     _origSwitchMainTab.call(window, targetId);
 
-    // ⑥ 그룹 탭이면 서브탭 열기
-    if (isGroupTab) {
-        var subNavId2 = TAB_GROUP_SUBTABS[targetId];
-        var subNav2 = document.getElementById(subNavId2);
-        if (subNav2) {
-            subNav2.classList.add('sub-tabs-visible');
-        }
-        _currentOpenSubGroup = targetId;
-    } else {
-        _currentOpenSubGroup = null;
-    }
+    // ⑥ 원본이 붙인 .sub-tabs-visible 제거 (자동 open 비활성화)
+    //    - _currentOpenSubGroup도 null 유지
+    //    - body.sub-tabs-open도 제거된 상태 유지 → 섹션 바닥 원복
+    _closeAllBottomSubTabs();
 
     // ⑦ ocean-map-section이 활성화되면 지도 크기 갱신
+    //    (서브탭이 닫힌 상태로 진입하므로 슬라이더가 안 가려짐)
     if (targetId === 'ocean-map-section' || (isGroupTab && targetId === 'ocean-group')) {
         document.body.classList.add('ocean-map-active');
         requestAnimationFrame(function () {
@@ -165,12 +218,9 @@ window.switchSubTab = function (targetId) {
     // ① 원본 switchSubTab 호출 (섹션 전환 수행)
     _origSwitchSubTab.call(window, targetId);
 
-    // ② 서브탭 패널 닫기
-    var allSubNavs = document.querySelectorAll('.bottom-sub-tabs');
-    for (var i = 0; i < allSubNavs.length; i++) {
-        allSubNavs[i].classList.remove('sub-tabs-visible');
-    }
-    _currentOpenSubGroup = null;
+    // ② 서브탭 패널 닫기 + body.sub-tabs-open 제거
+    //    → #ocean-map-section 바닥이 원복되어 슬라이더가 메인탭만 피하는 위치로 복귀
+    _closeAllBottomSubTabs();
 
     // ③ ocean-map-section이 선택되면 ocean-map-active 클래스 추가 + 지도 갱신
     if (targetId === 'ocean-map-section') {
