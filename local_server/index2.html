@@ -41,9 +41,15 @@
         body:not([data-active-tab="weather-group"]) .main-header {
             display: none !important;
         }
-        /* 헤더 숨김 시 콘텐츠가 상태표시줄과 겹치지 않도록 상단 패딩 */
+        /* 헤더 숨김 시 콘텐츠가 상태표시줄과 겹치지 않도록 상단 패딩
+           [값]
+            1.5rem(24px) + safe-area-inset-top
+            - 헤더가 없는 상태에서 콘텐츠 제목이 상태바 경계에 딱 붙지 않도록
+              safe-area 위쪽으로 충분한 여유 공간을 둔다.
+            - 이전엔 0.5rem 이었으나 "제목이 너무 위에 붙는다" 제보로 증가.
+           [대상 탭] 해양생활(모든 하위탭), 공지사항, 종합기상(해안 CCTV 등) */
         body:not([data-active-tab="weather-group"]) .content-area {
-            padding-top: calc(0.5rem + env(safe-area-inset-top, 20px)) !important;
+            padding-top: calc(1.5rem + env(safe-area-inset-top, 20px)) !important;
         }
 
         /* 종합기상(ocean-map) 진입 시에도 헤더 유지 (특보정보 탭일 때만 해당) */
