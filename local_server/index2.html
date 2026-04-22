@@ -223,6 +223,33 @@
         body.sub-tabs-open #ocean-map-section.tab-content.active .ocean-legend {
             bottom: calc(var(--main-tab-height) + var(--sub-tab-height)) !important;
         }
+
+        /* ──────────────────────────────────────────────────────────
+           바텀시트 (지도 포인트 클릭 시 열리는 해양 정보 시트)
+           ──────────────────────────────────────────────────────────
+           [배경]
+            - style.css:8496 에서 .ocean-bottom-sheet 는
+              position:fixed; bottom:0; z-index:1000 로 화면 바닥에 고정됨.
+            - index2 의 하단 메인탭(z:9000)/서브탭(z:8999)은 z-index 가
+              더 높아 바텀시트 하단을 덮어버림 (사용자 제보: "일출몰, 기온
+              등 시트 하단 정보가 가려진다").
+           [해결]
+            - index2 전용으로 바텀시트의 bottom 을 메인탭 실측 높이
+              만큼 올려서, 시트 하단이 메인탭 상단에 딱 맞닿도록 함.
+            - 서브탭이 열려 있을 때는 서브탭 높이만큼 추가로 올림.
+           [safe-area 중복 방지]
+            --main-tab-height 에 이미 env(safe-area-inset-bottom) 이
+            포함되어 있으므로 env() 를 또 더하지 않음.
+            시트 자체의 padding-bottom 에 설정된 env(safe-area-inset-bottom)
+            도 이제는 메인탭이 그 영역을 이미 차지하므로 불필요 → 0 으로 덮어씀.
+         */
+        #ocean-map-section.tab-content.active .ocean-bottom-sheet {
+            bottom: var(--main-tab-height) !important;
+            padding-bottom: 0 !important;
+        }
+        body.sub-tabs-open #ocean-map-section.tab-content.active .ocean-bottom-sheet {
+            bottom: calc(var(--main-tab-height) + var(--sub-tab-height)) !important;
+        }
     </style>
     <script>window.__SEAGNAL_PAGE = 'index2';</script>
     <title>TEST(바다:그 날의 신호)</title>
