@@ -230,6 +230,149 @@
             bottom: calc(var(--main-tab-height) + var(--sub-tab-height)) !important;
         }
 
+        /* ══════════════════════════════════════════════════════════
+           해양생활 (바다낚시 / 서핑) 풀스크린 지도 레이아웃
+           ══════════════════════════════════════════════════════════
+           [의도]
+            - 섹션 상단에 제목 줄(🎣 바다낚시 지수 · 발표시각)만 두고,
+              그 아래 공간 전체를 지도가 차지하도록 풀스크린 배치.
+            - 종합기상(해양종합) 의 구조를 해양생활 섹션에도 일관되게 적용.
+            - 내 위치/유의사항 버튼은 지도 위에 플로팅(absolute) 으로 배치.
+            [연계]
+            - js/fishing.js / js/surfing*.js — 지도 초기화, 컨트롤 바인딩
+            - js/index2_patch.js — 탭 전환 시 풀스크린 활성화 */
+
+        /* 제목 라인: 좌(제목) / 우(발표시각) 플렉스 정렬 */
+        .life-header-row {
+            display: flex !important;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .life-publish-time {
+            font-size: 0.78rem;
+            color: rgba(255, 255, 255, 0.55);
+            white-space: nowrap;
+        }
+
+        /* 풀스크린 지도 컨테이너:
+           - 섹션(#fishing-section / #surfing-section)이 active 일 때만 풀스크린화
+           - top: safe-area + 제목 높이(~52px) 만큼 내려서 제목이 보이게
+           - bottom: 메인탭/서브탭 높이만큼 올림 (--main-tab-height, --sub-tab-height) */
+        #fishing-section.tab-content.active,
+        #surfing-section.tab-content.active {
+            position: fixed !important;
+            top: env(safe-area-inset-top, 20px) !important;
+            bottom: var(--main-tab-height) !important;
+            left: 0 !important;
+            right: 0 !important;
+            max-width: none !important;
+            width: 100%;
+            margin: 0 !important;
+            padding: 0 !important;
+            z-index: 50;
+            background: #0c1a3a;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        body.sub-tabs-open #fishing-section.tab-content.active,
+        body.sub-tabs-open #surfing-section.tab-content.active {
+            bottom: calc(var(--main-tab-height) + var(--sub-tab-height)) !important;
+        }
+
+        /* 제목 줄은 섹션 상단 고정 높이, 지도 영역은 flex-grow 로 나머지 영역 차지 */
+        #fishing-section.tab-content.active > .life-header-row,
+        #surfing-section.tab-content.active > .life-header-row {
+            flex: 0 0 auto;
+            padding: 10px 14px;
+            margin: 0;
+        }
+
+        /* 지도 컨테이너: 섹션 내 남은 공간 전체 */
+        #fishing-section.tab-content.active .life-map-container,
+        #surfing-section.tab-content.active .life-map-container {
+            flex: 1 1 auto;
+            position: relative;   /* 내부 플로팅 컨트롤의 기준 */
+            width: 100%;
+            height: auto;
+            min-height: 0;        /* flex 자식이 부모 넘치지 않게 */
+            margin: 0;
+            padding: 0;
+            border-radius: 0;
+            overflow: hidden;
+        }
+        #fishing-section.tab-content.active #fishing-map,
+        #surfing-section.tab-content.active #surfing-map {
+            position: absolute !important;
+            top: 0; left: 0; right: 0; bottom: 0;
+            width: 100% !important;
+            height: 100% !important;
+            border-radius: 0 !important;
+        }
+
+        /* ── 지도 위 플로팅 컨트롤 ──
+           - 좌측 상단: 갯바위/선상 토글 (바다낚시 전용)
+           - 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 */
+        .life-map-controls-topleft {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            z-index: 10;
+        }
+        .life-map-controls-topright {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        /* 아이콘 버튼: 종합기상 .ocean-myloc-btn 과 동일한 느낌의 라운드 버튼 */
+        .life-map-icon-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(12, 26, 58, 0.72);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            color: #fff;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+            transition: background 0.15s ease, transform 0.1s ease;
+            padding: 0;
+        }
+        .life-map-icon-btn:hover {
+            background: rgba(30, 55, 110, 0.82);
+        }
+        .life-map-icon-btn:active {
+            transform: scale(0.96);
+        }
+
+        /* 바다낚시 갯바위/선상 토글을 지도 내부에서도 읽기 좋게
+           반투명 + 블러 마감 (원래 style.css 의 .fishing-gubun-toggle 은 유지) */
+        #fishing-section.tab-content.active .life-map-controls-topleft .fishing-gubun-toggle {
+            background: rgba(12, 26, 58, 0.72);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+        }
+
+        /* 바텀시트가 풀스크린 지도 위에서도 메인탭/서브탭에 가리지 않도록 위치 보정
+           ( .ocean-bottom-sheet 와 동일한 패턴 — bottom 을 메인탭 높이만큼 올림 ) */
+        #fishing-section.tab-content.active .fishing-bottomsheet {
+            bottom: 0;
+        }
+
         /* ──────────────────────────────────────────────────────────
            바텀시트 (지도 포인트 클릭 시 열리는 해양 정보 시트)
            ──────────────────────────────────────────────────────────
@@ -1289,33 +1432,44 @@
                  ================================================================ -->
             <section id="fishing-section" class="tab-content">
 
-                <div class="section-header-with-info">
+                <!-- 제목 라인: 좌측 아이콘+제목 / 우측 발표시각 (정렬: 좌↔우)
+                     [연계] js/fishing.js _setPublishTime() → #fishing-publish-time 값 갱신 -->
+                <div class="section-header-with-info life-header-row">
                     <h2 class="section-title"><i class="fa-solid fa-fish"></i> 바다낚시 지수</h2>
+                    <span class="life-publish-time" id="fishing-publish-time">발표: -</span>
                 </div>
 
-                <!-- 상단 컨트롤: 갯바위/선상 토글 + 내 위치 버튼 -->
-                <div class="fishing-controls">
-                    <!-- 갯바위/선상 구분 토글 버튼 -->
-                    <div class="fishing-gubun-toggle">
-                        <button class="fishing-gubun-btn active" data-gubun="갯바위">갯바위</button>
-                        <button class="fishing-gubun-btn" data-gubun="선상">선상</button>
-                    </div>
-                    <!-- GPS 기반 내 위치 이동 버튼 -->
-                    <button id="fishing-my-location-btn" class="fishing-my-location-btn" title="내 위치">
-                        <i class="fa-solid fa-location-crosshairs"></i> 내 위치
-                    </button>
-                </div>
-
-                <!-- OpenLayers 지도 컨테이너 -->
-                <div class="fishing-map-container">
+                <!-- ================================================================
+                     지도 영역 (풀스크린 플로팅 레이아웃)
+                     ----------------------------------------------------------------
+                     - .life-map-container : 섹션 남은 공간 전체를 차지
+                     - 내부 컨트롤(갯바위/선상 토글, 내 위치, 유의사항)은
+                       position: absolute 로 지도 위에 떠있음
+                     - 내 위치/유의사항 버튼은 종합기상(ocean-myloc-btn) 스타일 재사용
+                     [연계] js/fishing.js  — 토글/지도/바텀시트 초기화
+                     ================================================================ -->
+                <div class="fishing-map-container life-map-container">
                     <div id="fishing-map" class="fishing-map">
                         <!-- OpenLayers 지도가 렌더링되는 영역 -->
                     </div>
-                </div>
 
-                <!-- 발표시점 (지도 하단 우측 정렬) -->
-                <div class="fishing-map-footer">
-                    <span class="fishing-publish-time" id="fishing-publish-time">발표: -</span>
+                    <!-- 좌측 상단: 갯바위/선상 구분 토글 -->
+                    <div class="life-map-controls-topleft">
+                        <div class="fishing-gubun-toggle">
+                            <button class="fishing-gubun-btn active" data-gubun="갯바위">갯바위</button>
+                            <button class="fishing-gubun-btn" data-gubun="선상">선상</button>
+                        </div>
+                    </div>
+
+                    <!-- 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 -->
+                    <div class="life-map-controls-topright">
+                        <button id="fishing-my-location-btn" class="life-map-icon-btn" title="내 위치">
+                            <i class="fa-solid fa-location-crosshairs"></i>
+                        </button>
+                        <button id="fishing-notice-btn" class="life-map-icon-btn" title="유의사항">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- 바텀시트 오버레이 (마커 클릭 시 표시) -->
@@ -1358,15 +1512,20 @@
                     </div>
                 </div>
 
-                <!-- 하단 안내문 (갯바위용) — 국립해양조사원 공식 안내 문구 -->
-                <!-- [연계] fishing.js _updateDisclaimer() → 갯바위/선상 전환 시 display 토글 -->
-                <div class="fishing-disclaimer" id="fishing-disclaimer-gwbr">
+                <!-- ================================================================
+                     유의사항 팝업 소스 (숨김)
+                     ----------------------------------------------------------------
+                     - 더 이상 화면에 직접 표시하지 않고, 유의사항 버튼 클릭 시
+                       JS 가 이 영역의 HTML 을 읽어 팝업(showSeagnalModal) 으로 표출
+                     - 갯바위/선상 토글에 따라 내용이 달라지므로 2개 유지
+                     [연계] js/fishing.js _openNoticePopup() — 팝업 호출
+                     ================================================================ -->
+                <div class="fishing-disclaimer" id="fishing-disclaimer-gwbr" style="display:none;">
                     <p><i class="fa-solid fa-circle-check"></i> 생활해양예보지수는 수치예측결과를 활용하여 만들어진 참고자료로서 실제와 다를 수 있으니 현장의 해양·기상 상황을 반드시 확인하시기 바랍니다. 따라서 서비스는 사용자의 책임하에 이용되어야하며, 그 정보의 정확성과 법적인 책임은 조사원 및 본 앱에 있지 아니함을 알려드립니다.</p>
                     <p><i class="fa-solid fa-circle-check"></i> 항만법에서 지정한 항만구역 및 항만시설과 지자체 등에서 고시한 낚시 통제 구역에서 낚시 행위를 할 경우 관련 법령에 따라 처벌 받을 수 있으니 출조 지역의 낚시 가능 여부를 반드시 확인 하시기 바랍니다.</p>
                     <p><i class="fa-solid fa-circle-check"></i> '수산자원관리법'에 따라 어종 및 지역별 금어기 시기를 주의하여 낚시 활동을 하시기 바랍니다.</p>
                 </div>
 
-                <!-- 하단 안내문 (선상용) — 출조항 안내 포함 -->
                 <div class="fishing-disclaimer" id="fishing-disclaimer-ship" style="display:none;">
                     <p><i class="fa-solid fa-circle-check"></i> 생활해양예보지수는 수치예측결과를 활용하여 만들어진 참고자료로서 실제와 다를 수 있으니 현장의 해양·기상 상황을 반드시 확인하시기 바랍니다. 따라서 서비스는 사용자의 책임하에 이용되어야하며, 그 정보의 정확성과 법적인 책임은 조사원 및 본 앱에 있지 아니함을 알려드립니다.</p>
                     <p><i class="fa-solid fa-circle-check"></i> 항만법에서 지정한 항만구역 및 항만시설과 지자체 등에서 고시한 낚시 통제 구역에서 낚시 행위를 할 경우 관련 법령에 따라 처벌 받을 수 있으니 출조 지역의 낚시 가능 여부를 반드시 확인 하시기 바랍니다.</p>
@@ -1382,20 +1541,33 @@
                  ================================================================ -->
             <section id="surfing-section" class="tab-content">
 
-                <div class="section-header-with-info">
+                <!-- 제목 라인: 좌측 아이콘+제목 / 우측 발표시각 -->
+                <div class="section-header-with-info life-header-row">
                     <h2 class="section-title"><i class="fa-solid fa-water"></i> 서핑 지수</h2>
+                    <span class="life-publish-time" id="surfing-publish-time">발표: -</span>
                 </div>
 
-                <!-- OpenLayers 지도 컨테이너 -->
-                <div class="surfing-map-container">
+                <!-- ================================================================
+                     지도 영역 (풀스크린 플로팅 레이아웃, 바다낚시와 동일 패턴)
+                     ----------------------------------------------------------------
+                     - .life-map-container : 섹션 남은 공간 전체
+                     - 우측 상단에 내 위치 / 유의사항 플로팅 버튼
+                     [연계] js/surfing*.js — 지도/팝업 초기화
+                     ================================================================ -->
+                <div class="surfing-map-container life-map-container">
                     <div id="surfing-map" class="surfing-map">
                         <!-- OpenLayers 지도가 렌더링되는 영역 -->
                     </div>
-                </div>
 
-                <!-- 발표시점 (지도 하단) -->
-                <div class="surfing-map-footer">
-                    <span class="surfing-publish-time" id="surfing-publish-time">발표: -</span>
+                    <!-- 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 -->
+                    <div class="life-map-controls-topright">
+                        <button id="surfing-my-location-btn" class="life-map-icon-btn" title="내 위치">
+                            <i class="fa-solid fa-location-crosshairs"></i>
+                        </button>
+                        <button id="surfing-notice-btn" class="life-map-icon-btn" title="유의사항">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- 팝업 오버레이 (마커 클릭 시 배경 딤) -->
@@ -1437,8 +1609,14 @@
 
                 <!-- 가이드 팝업 (서핑지수란?): surfing2.js가 동적으로 생성/제거 -->
 
-                <!-- 하단 안내문 -->
-                <div class="surfing-disclaimer" id="surfing-disclaimer">
+                <!-- ================================================================
+                     유의사항 팝업 소스 (숨김)
+                     ----------------------------------------------------------------
+                     - 더 이상 화면에 직접 표시하지 않고, 지도 내 유의사항 버튼
+                       클릭 시 JS 가 이 영역의 HTML 을 읽어 팝업으로 표출
+                     [연계] js/surfing2.js _openSurfingNoticePopup() — 팝업 호출
+                     ================================================================ -->
+                <div class="surfing-disclaimer" id="surfing-disclaimer" style="display:none;">
                     <p><i class="fa-solid fa-circle-check"></i> 생활해양예보지수는 수치예측결과를 활용하여 만들어진 참고자료로서 실제와 다를 수 있으니 현장의 해양·기상 상황을 반드시 확인하시기 바랍니다. 따라서 서비스는 사용자의 책임하에 이용되어야하며, 그 정보의 정확성과 법적인 책임은 조사원 및 본 앱에게 있지 아니함을 알려드립니다.</p>
                     <p><i class="fa-solid fa-circle-check"></i> 서핑지수는 초급자/중급자/상급자로 구분하여 제공됩니다.
                     <span class="surfing-disclaimer-indent">- 초급자: 서핑 입문자 또는 숙련도가 낮아 파도 위에서 라이딩이 어려운 수준으로, 적정 파고 범위는 0.5~0.9m입니다.</span>

@@ -242,9 +242,117 @@
         // 팝업 닫기 버튼, 오버레이 클릭, 날짜 이전/다음 버튼 등
         if (s.bindEvents) s.bindEvents();
 
+        // --- 지도 우측 상단 플로팅 버튼 (내 위치 / 유의사항) ---
+        // [의도] index2 풀스크린 레이아웃에서 지도 위에 떠있는 컨트롤
+        //   - #surfing-my-location-btn : GPS 좌표로 이동 + "내 위치" 마커
+        //   - #surfing-notice-btn      : 유의사항 팝업 표시
+        _bindFloatingControls(s.map);
+
         // --- 데이터 로드 및 마커 표시 ---
         _loadSurfingData();
     };
+
+    // ========================================================================
+    // 내 위치 마커 (종합기상 ocean_map.js 와 동일 스타일 재사용)
+    // ------------------------------------------------------------------------
+    // - ol.Overlay 로 지리 좌표에 고정 (지도 이동/줌 시 자동 따라감)
+    // - 다층 원형(외곽 글로우 + 펄스 + 흰색 테두리 + 파란 중심 + "내 위치" 라벨)
+    // - style.css:4905 의 .sea-zone-my-location-pulse 애니메이션 재사용
+    // ========================================================================
+    var _surfingMyLocOverlay = null;
+
+    function _createSurfingMyLocElement() {
+        var wrap = document.createElement('div');
+        wrap.style.cssText = 'position:relative; width:30px; height:30px; pointer-events:none;';
+        wrap.innerHTML =
+            '<div style="position:absolute; top:0; left:0; width:100%; height:100%;' +
+            ' background:rgba(0,123,255,0.12); border-radius:50%;"></div>' +
+            '<div style="position:absolute; top:10%; left:10%; width:80%; height:80%;' +
+            ' background:rgba(0,123,255,0.22); border-radius:50%;"></div>' +
+            '<div class="sea-zone-my-location-pulse" style="position:absolute;' +
+            ' top:0; left:0; width:100%; height:100%;' +
+            ' background:rgba(0,123,255,0.2); border-radius:50%;"></div>' +
+            '<div style="position:absolute; top:20%; left:20%; width:60%; height:60%;' +
+            ' background:#ffffff; border-radius:50%;' +
+            ' box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>' +
+            '<div style="position:absolute; top:30%; left:30%; width:40%; height:40%;' +
+            ' background:#007bff; border-radius:50%;"></div>' +
+            '<div style="position:absolute; top:-26px; left:50%;' +
+            ' transform:translateX(-50%); background:rgba(10,25,41,0.85);' +
+            ' color:#fff; padding:3px 8px; border-radius:5px; font-size:11px;' +
+            ' white-space:nowrap; font-weight:600;' +
+            ' border:1px solid rgba(255,255,255,0.2);' +
+            ' box-shadow:0 2px 8px rgba(0,0,0,0.4);">내 위치</div>';
+        return wrap;
+    }
+
+    function _showSurfingMyLocMarker(map, lon, lat) {
+        if (!map) return;
+        var coord = ol.proj.fromLonLat([lon, lat]);
+        if (!_surfingMyLocOverlay) {
+            _surfingMyLocOverlay = new ol.Overlay({
+                element: _createSurfingMyLocElement(),
+                positioning: 'center-center',
+                stopEvent: false,
+                insertFirst: false
+            });
+            map.addOverlay(_surfingMyLocOverlay);
+        }
+        _surfingMyLocOverlay.setPosition(coord);
+    }
+
+    /**
+     * GPS 위치로 지도 이동 + "내 위치" 마커 표시
+     */
+    function _goToSurfingMyLocation(map) {
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(
+            function (pos) {
+                var lon = pos.coords.longitude;
+                var lat = pos.coords.latitude;
+                if (!map) return;
+                map.getView().animate({
+                    center: ol.proj.fromLonLat([lon, lat]),
+                    zoom: 12,
+                    duration: 800
+                });
+                _showSurfingMyLocMarker(map, lon, lat);
+            },
+            function () {
+                console.warn('[Surfing] 위치 정보를 가져올 수 없습니다.');
+            },
+            { enableHighAccuracy: true, timeout: 5000 }
+        );
+    }
+
+    /**
+     * 유의사항 팝업: 숨김 안내문(#surfing-disclaimer) 내용을 그대로 모달로 표시
+     * [연계] js/ui_modal.js → window.showSeagnalModal
+     */
+    function _openSurfingNoticePopup() {
+        var src = document.getElementById('surfing-disclaimer');
+        var msgHtml = src ? src.innerHTML : '';
+        if (typeof window.showSeagnalModal === 'function') {
+            window.showSeagnalModal('유의사항', msgHtml, 'info');
+        }
+    }
+
+    /**
+     * 지도 우측 상단의 플로팅 버튼들을 이벤트 바인딩.
+     * 최초 1회만 호출 (initSurfingMap 이 재진입 시 맵만 updateSize 하므로).
+     */
+    function _bindFloatingControls(map) {
+        var gpsBtn = document.getElementById('surfing-my-location-btn');
+        if (gpsBtn && !gpsBtn.dataset.bound) {
+            gpsBtn.addEventListener('click', function () { _goToSurfingMyLocation(map); });
+            gpsBtn.dataset.bound = '1';
+        }
+        var noticeBtn = document.getElementById('surfing-notice-btn');
+        if (noticeBtn && !noticeBtn.dataset.bound) {
+            noticeBtn.addEventListener('click', _openSurfingNoticePopup);
+            noticeBtn.dataset.bound = '1';
+        }
+    }
 
     // ========================================================================
     // 4. 데이터 로드 (3개 API 동시 호출)
