@@ -569,20 +569,108 @@
     }
 
     // ========================================================================
-    // 내 위치
+    // 내 위치 마커 + GPS 이동
+    // ------------------------------------------------------------------------
+    // [역할]
+    //  - 사용자가 GPS 버튼(.ocean-myloc-btn)을 누르면 현재 좌표로 지도를
+    //    이동하고, 그 지점 위에 "내 위치" 마커를 표시한다.
+    //  - 마커 스타일은 index1 해구기상(seaZones.js updateSeaZoneMyLocationMarker)
+    //    과 동일한 다층 원형(외곽 글로우 2겹 + 펄스 + 흰 테두리 + 파란 중심 + 라벨)
+    //    로 통일한다. 펄스 애니메이션은 style.css:4893 의 seaZoneLocationPulse
+    //    키프레임과 .sea-zone-my-location-pulse 클래스를 그대로 재사용한다.
+    //
+    // [구현 포인트]
+    //  - OpenLayers 지도에는 ol.Overlay 로 HTML 요소를 "지리 좌표"에 고정한다.
+    //  - Overlay 는 지도 이동/줌에 따라 자동으로 위치가 갱신되므로
+    //    별도의 수동 업데이트 로직은 불필요하다.
+    //  - 마커 요소는 최초 1회만 생성해 두고, 이후엔 position 만 갱신한다.
     // ========================================================================
 
+    // 내 위치 Overlay 인스턴스 (최초 1회 생성 후 재사용)
+    var _myLocOverlay = null;
+
+    /**
+     * "내 위치" 마커 DOM 을 만든다 (해구기상과 동일 스타일)
+     * @returns {HTMLElement}
+     */
+    function _createMyLocationElement() {
+        var wrap = document.createElement('div');
+        // pointer-events:none → 지도 클릭/드래그를 방해하지 않도록 함
+        wrap.style.cssText = 'position:relative; width:30px; height:30px; pointer-events:none;';
+        wrap.innerHTML = ''
+            // 1) 외곽 은은한 글로우 (가장 큰 원, 투명도 낮음)
+            + '<div style="position:absolute; top:0; left:0; width:100%; height:100%;'
+            +   ' background:rgba(0,123,255,0.12); border-radius:50%;"></div>'
+            // 2) 중간 글로우
+            + '<div style="position:absolute; top:10%; left:10%; width:80%; height:80%;'
+            +   ' background:rgba(0,123,255,0.22); border-radius:50%;"></div>'
+            // 3) 펄스 애니메이션 (style.css .sea-zone-my-location-pulse 재사용)
+            + '<div class="sea-zone-my-location-pulse" style="position:absolute;'
+            +   ' top:0; left:0; width:100%; height:100%;'
+            +   ' background:rgba(0,123,255,0.2); border-radius:50%;"></div>'
+            // 4) 흰색 테두리 원
+            + '<div style="position:absolute; top:20%; left:20%; width:60%; height:60%;'
+            +   ' background:#ffffff; border-radius:50%;'
+            +   ' box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>'
+            // 5) 중심 파란색 점
+            + '<div style="position:absolute; top:30%; left:30%; width:40%; height:40%;'
+            +   ' background:#007bff; border-radius:50%;"></div>'
+            // 6) "내 위치" 라벨 (상단에 말풍선처럼)
+            + '<div style="position:absolute; top:-26px; left:50%;'
+            +   ' transform:translateX(-50%); background:rgba(10,25,41,0.85);'
+            +   ' color:#fff; padding:3px 8px; border-radius:5px; font-size:11px;'
+            +   ' white-space:nowrap; font-weight:600;'
+            +   ' border:1px solid rgba(255,255,255,0.2);'
+            +   ' box-shadow:0 2px 8px rgba(0,0,0,0.4);">내 위치</div>';
+        return wrap;
+    }
+
+    /**
+     * 주어진 경/위도에 "내 위치" 마커를 표시/갱신한다.
+     * @param {number} lon - 경도
+     * @param {number} lat - 위도
+     */
+    function _showMyLocationMarker(lon, lat) {
+        if (!oceanMap) return;
+        var coord = ol.proj.fromLonLat([lon, lat]);
+
+        // 최초 1회만 Overlay 생성, 이후엔 위치만 갱신
+        if (!_myLocOverlay) {
+            _myLocOverlay = new ol.Overlay({
+                element: _createMyLocationElement(),
+                positioning: 'center-center',   // 좌표를 요소 중앙에 맞춤
+                stopEvent: false,               // 지도 드래그/줌 이벤트 통과
+                insertFirst: false              // 다른 Overlay 위에 올림
+            });
+            oceanMap.addOverlay(_myLocOverlay);
+        }
+        _myLocOverlay.setPosition(coord);
+    }
+
+    /**
+     * GPS 버튼 클릭 시 호출: 현재 위치로 지도 이동 + "내 위치" 마커 표시
+     *
+     * [연계]
+     *  - index2.html #ocean-myloc-btn 의 click 이벤트에서 호출
+     *  - Capacitor 네이티브 권한은 사용자의 geolocation API 가 직접 관리
+     */
     function goToMyLocation() {
         if (!navigator.geolocation) return;
 
         navigator.geolocation.getCurrentPosition(
             function (pos) {
+                var lon = pos.coords.longitude;
+                var lat = pos.coords.latitude;
+
                 if (oceanMap) {
+                    // 지도 이동 (애니메이션)
                     oceanMap.getView().animate({
-                        center: ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]),
+                        center: ol.proj.fromLonLat([lon, lat]),
                         zoom: 12,
                         duration: 800
                     });
+                    // "내 위치" 마커 표시 (해구기상과 동일 스타일)
+                    _showMyLocationMarker(lon, lat);
                 }
             },
             function () {

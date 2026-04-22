@@ -4,17 +4,21 @@
  *
  * [역할]
  * 1. 하단 탭 바 구조에 맞춰 탭 그룹 매핑 데이터를 오버라이드
- * 2. switchMainTab / switchSubTab을 래핑하여:
+ *    - ocean-group 신규 추가 (해양종합/조석정보/해안 CCTV)
+ * 2. 하단 메인탭 바의 실측 높이를 CSS 변수(--main-tab-height)로 주입
+ *    → #ocean-map-section 의 슬라이더가 메인탭에 가리지 않도록 bottom 보정
+ * 3. switchMainTab / switchSubTab 을 래핑하여:
  *    - 헤더를 특보정보 탭에서만 표시, 나머지 탭에서 숨김
- *    - 서브탭을 하단 메인탭 위에 토글(열기/닫기)
- *    - 서브탭 선택 시 자동으로 서브탭 닫기
- * 3. enterOceanMapSection / exitOceanMapSection 오버라이드
- * 4. 하단 서브탭 위치(bottom)를 메인탭 바 높이에 맞춰 동적 계산
+ *    - 메인탭 클릭 시 해당 그룹 서브탭 자동 펼침 (body.sub-tabs-open ON)
+ *    - 서브탭 버튼 선택 시 서브탭 닫힘
+ * 4. 본문(콘텐츠/지도) 터치 시 서브탭 자동 닫힘 (capture 리스너)
+ * 5. enterOceanMapSection / exitOceanMapSection 오버라이드
  *
  * [로드 순서] settings.js, marine.js 이후에 로드되어야 함
  *
  * [연계 파일]
  * - index2.html → 하단 탭 바 HTML (#bottom-tab-bar, .bottom-sub-tabs)
+ *                 :root CSS 변수 --main-tab-height / --sub-tab-height
  * - js/marine.js → switchMainTab(), switchSubTab(), TAB_GROUP_DEFAULTS 등
  * - js/settings.js → .tab-btn, .sub-tab-btn 클릭 이벤트 바인딩
  */
@@ -47,30 +51,54 @@ SECTION_TO_GROUP['tide-section'] = 'ocean-group';
 SECTION_TO_GROUP['ocean-map-section'] = 'ocean-group';
 
 // ──────────────────────────────────────────────────────────────
-// 2. 서브탭 bottom 위치 계산
-//    메인탭 바의 실제 높이를 측정하여 서브탭이 그 바로 위에 표시되도록 함
-//    화면 크기 변경 시에도 재계산
+// 2. 메인탭 바 실측 높이 반영
+//    [왜 필요한가?]
+//     - 메인탭이 "아이콘+라벨 2단" 구조로 바뀌면서 버튼 높이가
+//       기기/폰트/safe-area 에 따라 다르게 렌더됨.
+//     - CSS 에서 고정값(68px) 으로 잡으면 실제 높이가 그보다 크면
+//       #ocean-map-section 내부의 ocean-legend 슬라이더가 메인탭
+//       바 뒤로 숨어 안 보이는 문제가 생김.
+//     - 해결: 메인탭 바의 실측 offsetHeight 를 CSS 변수
+//       --main-tab-height 에 주입하여, 섹션 bottom / content-area
+//       padding-bottom / 서브탭 위치가 모두 정확히 맞춰지게 함.
+//
+//    [연계]
+//     - index2.html :root { --main-tab-height: 68px } 기본값을 덮어씀
+//     - #ocean-map-section.tab-content.active { bottom: calc(var(--main-tab-height) + ...) }
+//     - body.sub-tabs-open #ocean-map-section ... 에도 동일 변수 사용
+//     - .bottom-sub-tabs 의 bottom 도 같은 높이로 세팅
 // ──────────────────────────────────────────────────────────────
 
 /**
- * 하단 서브탭의 bottom 위치를 메인탭 바 높이에 맞춰 갱신
- * 메인탭 바가 렌더링된 후 호출해야 정확한 높이를 얻을 수 있음
+ * 하단 메인탭 바의 실측 높이를 측정하여 다음을 갱신:
+ * 1) CSS 변수 --main-tab-height : ocean 섹션/콘텐츠 패딩 계산에 사용
+ * 2) 서브탭 nav 의 bottom : 메인탭 바 바로 위에 붙도록
+ *
+ * [호출 시점]
+ *  - 페이지 초기 로드 직후 (requestAnimationFrame)
+ *  - 윈도우 리사이즈 / 방향 전환 시
+ *  - 탭 전환 등으로 높이가 변할 가능성이 있을 때
  */
 function updateSubTabsBottomPosition() {
     var tabBar = document.getElementById('bottom-tab-bar');
     if (!tabBar) return;
-    // 메인탭 바의 전체 높이 (패딩, safe-area 포함)
+    // 메인탭 바의 전체 높이 (내부 padding + safe-area 하단 포함)
     var barHeight = tabBar.offsetHeight;
-    // 모든 하단 서브탭 nav에 bottom 값 설정
+
+    // ① CSS 변수 주입 : 섹션 bottom 및 content-area padding 계산에 반영
+    document.documentElement.style.setProperty('--main-tab-height', barHeight + 'px');
+
+    // ② 서브탭 nav 의 bottom 값도 동기화 (메인탭 바 바로 위에 붙임)
     var subNavs = document.querySelectorAll('.bottom-sub-tabs');
     for (var i = 0; i < subNavs.length; i++) {
         subNavs[i].style.bottom = barHeight + 'px';
     }
 }
 
-// 초기 실행 + 화면 크기 변경 시 재계산
+// 초기 실행 + 화면 크기/방향 변경 시 재계산
 requestAnimationFrame(updateSubTabsBottomPosition);
 window.addEventListener('resize', updateSubTabsBottomPosition);
+window.addEventListener('orientationchange', updateSubTabsBottomPosition);
 
 // ──────────────────────────────────────────────────────────────
 // 3. 현재 열려 있는 서브탭 그룹 추적 변수
@@ -128,25 +156,19 @@ function _openSubTabsFor(groupId) {
 // 4. switchMainTab 래핑 (INDEX2 전용 동작)
 //    marine.js의 원본 switchMainTab을 감싸서 다음을 추가:
 //    - body[data-active-tab] 설정 → CSS로 헤더 표출/숨김 제어
-//    - 서브탭 "자동 열기" 제거 → 처음 진입 시 서브탭은 접힘 상태
-//    - 같은 메인탭 재클릭 시 서브탭 토글(열기↔닫기)
+//    - 메인탭 클릭 시 해당 그룹 서브탭 자동 열림 (+ body.sub-tabs-open)
 //    - ocean-map-active 클래스 관리
 //
-//   [설계 변경 이유]
-//    종합기상(ocean-group) 진입 시 서브탭이 자동으로 펼쳐지면
-//    #ocean-map-section 하단의 슬라이더(범례+타임라인)를 덮어버려
-//    사용자가 슬라이더를 조작할 수 없었음.
-//    → 처음 진입할 때는 서브탭을 접어두고, 사용자가 메인탭을 다시
-//      눌렀을 때만 펼치는 방식으로 변경 (UX 일관성 위해 모든 그룹탭 동일).
+//   [UX 흐름 — 사용자 지정]
+//    1) 메인탭 클릭 → 대상 섹션 표시 + 서브탭 자동 펼침 (이미지 2 상태)
+//    2) 본문(지도/콘텐츠) 터치 → 서브탭 자동 닫힘 (아래 6번 리스너)
+//    3) 메인탭 재클릭 → 같은 섹션 유지, 서브탭 다시 펼침 (2번 거쳐 닫힌 경우 복원)
+//    → 종합기상에서도 슬라이더는 서브탭 open 시엔 서브탭 위로 밀려서
+//      항상 조작 가능, 본문 터치로 서브탭을 닫으면 풀지도 상태 진입.
 // ──────────────────────────────────────────────────────────────
 var _origSwitchMainTab = window.switchMainTab;
 
 window.switchMainTab = function (targetId) {
-    // ⓘ 이전 활성 그룹 기억 (재클릭 판정용)
-    //   - body[data-active-tab] 은 직전 탭 전환 시 세팅된 값
-    //   - ①에서 덮어쓰기 전에 미리 읽어 두어야 "같은 그룹 재클릭" 을 판정 가능
-    var prevActiveGroup = document.body.getAttribute('data-active-tab');
-
     // ① 활성 탭 속성 설정 (헤더 표출/숨김은 CSS가 처리)
     //    weather-group이면 헤더 표시, 나머지면 숨김
     var activeGroup = targetId;
@@ -163,39 +185,29 @@ window.switchMainTab = function (targetId) {
         document.documentElement.style.removeProperty('--ocean-top-offset');
     }
 
-    // ③ 그룹탭 재클릭 토글 처리 (원본 switchMainTab 호출 전에 결정)
-    //    [판정 기준] 이전 활성 그룹 === 지금 누른 그룹 → 재클릭
-    //    - 서브탭이 열려있으면 → 닫기
-    //    - 서브탭이 닫혀있으면 → 열기
-    //    - 콘텐츠(섹션)는 이미 표시 중이므로 원본 전환 불필요 → 여기서 return
-    var isGroupTab = !!TAB_GROUP_DEFAULTS[targetId];
-    if (isGroupTab && prevActiveGroup === targetId) {
-        var reSubNav = document.getElementById(TAB_GROUP_SUBTABS[targetId]);
-        if (reSubNav && reSubNav.classList.contains('sub-tabs-visible')) {
-            // 이미 열림 → 닫기 (body.sub-tabs-open 도 함께 제거)
-            _closeAllBottomSubTabs();
-        } else {
-            // 닫혀있음 → 열기 (body.sub-tabs-open 추가 → 섹션 바닥 상향)
-            _openSubTabsFor(targetId);
-        }
-        return;
-    }
-
-    // ④ 다른 그룹/섹션으로 전환 → 모든 하단 서브탭 먼저 닫기
+    // ③ 전환 전에 모든 서브탭을 일단 닫아둠 (다음 단계에서 필요 시 다시 연다)
     _closeAllBottomSubTabs();
 
-    // ⑤ marine.js 원본 switchMainTab 호출 (실제 탭 전환 수행)
-    //    원본은 내부에서 해당 그룹 서브탭에 .sub-tabs-visible 를 붙이므로,
-    //    호출 직후 다시 한 번 전체 서브탭을 닫아 "처음 진입 시 접힘" 상태 보장.
+    // ④ marine.js 원본 switchMainTab 호출 (실제 섹션 전환 수행)
+    //    원본은 내부에서 해당 그룹의 서브탭에 .sub-tabs-visible 를 붙이지만,
+    //    우리는 body.sub-tabs-open 클래스도 함께 동기화해야 하므로
+    //    호출 후 한번 정리하고 _openSubTabsFor 로 재오픈함.
     _origSwitchMainTab.call(window, targetId);
 
-    // ⑥ 원본이 붙인 .sub-tabs-visible 제거 (자동 open 비활성화)
-    //    - _currentOpenSubGroup도 null 유지
-    //    - body.sub-tabs-open도 제거된 상태 유지 → 섹션 바닥 원복
-    _closeAllBottomSubTabs();
+    // ⑤ 그룹탭(또는 그룹 내 섹션ID)이면 서브탭 자동 열기
+    //    - targetId 가 그룹ID → 자신이 그룹
+    //    - targetId 가 섹션ID → SECTION_TO_GROUP 으로 그룹 역매핑 후 오픈
+    //    독립 섹션(promo-section 공지사항)은 TAB_GROUP_SUBTABS 매핑이 없어 자동 스킵
+    var groupForSub = TAB_GROUP_DEFAULTS[targetId] ? targetId : SECTION_TO_GROUP[targetId];
+    if (groupForSub && TAB_GROUP_SUBTABS[groupForSub]) {
+        // 원본이 이미 .sub-tabs-visible 을 붙였을 수 있으므로 먼저 리셋 후 open
+        _closeAllBottomSubTabs();
+        _openSubTabsFor(groupForSub);
+    }
 
-    // ⑦ ocean-map-section이 활성화되면 지도 크기 갱신
-    //    (서브탭이 닫힌 상태로 진입하므로 슬라이더가 안 가려짐)
+    // ⑥ ocean-map-section이 활성화되면 지도 크기 갱신
+    //    (서브탭 open 상태로 진입하므로 slider 는 서브탭 위에 위치)
+    var isGroupTab = !!TAB_GROUP_DEFAULTS[targetId];
     if (targetId === 'ocean-map-section' || (isGroupTab && targetId === 'ocean-group')) {
         document.body.classList.add('ocean-map-active');
         requestAnimationFrame(function () {
@@ -237,6 +249,46 @@ window.switchSubTab = function (targetId) {
         document.documentElement.style.removeProperty('--ocean-top-offset');
     }
 };
+
+// ──────────────────────────────────────────────────────────────
+// 5-2. 본문(콘텐츠) 터치 시 서브탭 자동 닫힘 리스너
+//      [UX 요구]
+//       - 메인탭 클릭 시엔 서브탭이 자동으로 열리되,
+//       - 사용자가 "떠있는 화면"(지도/콘텐츠)을 한 번이라도 터치하면
+//         서브탭은 스스로 닫혀서 풀 화면 상태가 되어야 함.
+//
+//      [판정]
+//       - 클릭 타겟이 .bottom-main-tabs 또는 .bottom-sub-tabs 안쪽이면 무시
+//         (메인탭/서브탭 버튼 자체 동작은 보존)
+//       - 그 외의 모든 영역 클릭 → 현재 열려 있는 서브탭을 닫음
+//         (이미 닫혀있으면 아무 일도 하지 않음)
+//
+//      [capture phase 사용 이유]
+//       - 지도/오버레이 버튼들이 자체적으로 stopPropagation() 을 호출할 수
+//         있으므로, bubble phase 에서는 이벤트가 안 올 수 있음.
+//       - capture 로 document 에서 먼저 받아 무조건 실행함.
+//
+//      [주의] 닫기만 수행, 다른 동작(예: 지도 드래그) 에는 영향 없음.
+// ──────────────────────────────────────────────────────────────
+function _handleContentTouchClose(ev) {
+    // 서브탭이 열려있지 않으면 처리할 필요 없음
+    if (!document.body.classList.contains('sub-tabs-open')) return;
+
+    var tgt = ev.target;
+    if (!tgt || !tgt.closest) return;
+
+    // 메인탭/서브탭 바 내부 클릭은 무시 (버튼 자체의 전환 동작 보존)
+    if (tgt.closest('.bottom-main-tabs')) return;
+    if (tgt.closest('.bottom-sub-tabs')) return;
+
+    // 그 외 모든 영역 → 서브탭 닫기
+    _closeAllBottomSubTabs();
+}
+
+// capture 단계에서 등록 (이벤트 흐름 초기에 받아 stopPropagation 영향 최소화)
+document.addEventListener('click', _handleContentTouchClose, true);
+// 모바일 탭 이전에도 반응하도록 touchstart 도 함께 등록
+document.addEventListener('touchstart', _handleContentTouchClose, true);
 
 // ──────────────────────────────────────────────────────────────
 // 6. enterOceanMapSection 오버라이드
