@@ -53,6 +53,9 @@
     var bgTransform      = { x: 0, y: 0, scale: 1 };
     var bgDragState      = null;
     var suppressSaveOnce = false;
+    var locked           = false;   // 배경+지도 잠금 상태
+    var lockSnapshot     = null;    // 잠금 시점의 뷰 상태 기록
+    var dragPanInteraction = null;  // OL DragPan 인터랙션 참조
 
     // ============================================================
     // 유틸
@@ -726,6 +729,7 @@
         //   Shift+휠 = 5%
         //   Alt+휠   = 10%
         $('map-container').addEventListener('wheel', function (e) {
+            if (lockedZoom(e)) return;
             e.preventDefault();
             var view = map.getView();
             var delta = ZOOM_DELTA_1PCT;
@@ -781,8 +785,96 @@
         var view = map.getView();
         var z0 = view.getZoom();
         var z1 = Math.max(MAP_MIN_ZOOM, Math.min(MAP_MAX_ZOOM, z0 + delta));
+        if (z1 === z0) return;
+
+        if (locked) {
+            var resFactor = Math.pow(2, z0 - z1);
+            var wrap = $('bg-image-wrap');
+            var cx = wrap.clientWidth / 2;
+            var cy = wrap.clientHeight / 2;
+            var scaleFactor = 1 / resFactor;
+            bgTransform.x = cx - (cx - bgTransform.x) * scaleFactor;
+            bgTransform.y = cy - (cy - bgTransform.y) * scaleFactor;
+            bgTransform.scale *= scaleFactor;
+            applyBgTransform();
+        }
+
         view.setZoom(z1);
         syncZoomUI();
+    }
+
+    // ============================================================
+    // 잠금 (배경+지도 동기 고정)
+    // ============================================================
+    function findDragPan() {
+        if (dragPanInteraction) return dragPanInteraction;
+        map.getInteractions().forEach(function (inter) {
+            if (inter instanceof ol.interaction.DragPan) dragPanInteraction = inter;
+        });
+        return dragPanInteraction;
+    }
+
+    function toggleLock() {
+        locked = !locked;
+        var btn = $('btn-lock');
+        if (locked) {
+            var view = map.getView();
+            lockSnapshot = {
+                zoom: view.getZoom(),
+                center: view.getCenter().slice(),
+                bgTransform: { x: bgTransform.x, y: bgTransform.y, scale: bgTransform.scale }
+            };
+            var dp = findDragPan();
+            if (dp) dp.setActive(false);
+            if (btn) { btn.textContent = '🔒 잠금 해제'; btn.classList.add('active'); }
+            showToast('잠금 ON · 배경+지도가 고정됩니다');
+        } else {
+            var dp2 = findDragPan();
+            if (dp2) dp2.setActive(true);
+            lockSnapshot = null;
+            if (btn) { btn.textContent = '🔓 잠금'; btn.classList.remove('active'); }
+            showToast('잠금 OFF · 자유 이동/줌');
+        }
+    }
+
+    function lockedZoom(e) {
+        if (!locked || !lockSnapshot) return false;
+        e.preventDefault();
+
+        var view = map.getView();
+        var delta = ZOOM_DELTA_1PCT;
+        if (e.shiftKey) delta = ZOOM_DELTA_5PCT;
+        if (e.altKey)   delta = ZOOM_DELTA_10PCT;
+        var sign = (e.deltaY > 0) ? -1 : +1;
+
+        // 지도 줌 (커서 기준)
+        var anchor = map.getEventCoordinate(e);
+        var res    = view.getResolution();
+        var z0     = view.getZoom();
+        var z1     = Math.max(MAP_MIN_ZOOM, Math.min(MAP_MAX_ZOOM, z0 + sign * delta));
+        if (z1 === z0) return true;
+        var resFactor = Math.pow(2, z0 - z1);
+        var newRes    = res * resFactor;
+        var center    = view.getCenter();
+        var cx = anchor[0] + (center[0] - anchor[0]) * (newRes / res);
+        var cy = anchor[1] + (center[1] - anchor[1]) * (newRes / res);
+        view.setZoom(z1);
+        view.setCenter([cx, cy]);
+
+        // 배경 이미지도 동일 비율로 스케일 (커서 기준)
+        var wrap = $('bg-image-wrap');
+        var rect = wrap.getBoundingClientRect();
+        var mx = e.clientX - rect.left;
+        var my = e.clientY - rect.top;
+        var scaleFactor = 1 / resFactor; // 줌인 → scaleFactor > 1
+        var oldS = bgTransform.scale;
+        var ns   = oldS * scaleFactor;
+        bgTransform.x = mx - (mx - bgTransform.x) * scaleFactor;
+        bgTransform.y = my - (my - bgTransform.y) * scaleFactor;
+        bgTransform.scale = ns;
+        applyBgTransform();
+        syncZoomUI();
+        return true;
     }
 
     // ============================================================
@@ -819,7 +911,20 @@
         // 미세 줌
         $('zoom-slider').addEventListener('input', function (e) {
             var z = parseFloat(e.target.value);
-            map.getView().setZoom(z);
+            var view = map.getView();
+            if (locked) {
+                var z0 = view.getZoom();
+                var resFactor = Math.pow(2, z0 - z);
+                var wrap = $('bg-image-wrap');
+                var cx = wrap.clientWidth / 2;
+                var cy = wrap.clientHeight / 2;
+                var scaleFactor = 1 / resFactor;
+                bgTransform.x = cx - (cx - bgTransform.x) * scaleFactor;
+                bgTransform.y = cy - (cy - bgTransform.y) * scaleFactor;
+                bgTransform.scale *= scaleFactor;
+                applyBgTransform();
+            }
+            view.setZoom(z);
             $('zoom-val').textContent = fmt(z, 2);
         });
         $('btn-zoom-m10').addEventListener('click', function () { nudgeZoom(-ZOOM_DELTA_10PCT); });
@@ -830,6 +935,9 @@
             map.getView().setZoom(INITIAL_ZOOM);
             syncZoomUI();
         });
+
+        // 잠금 토글
+        $('btn-lock').addEventListener('click', toggleLock);
 
         // 모드 버튼
         $$('.mode-btn').forEach(function (b) {
@@ -845,6 +953,7 @@
             else if (k === 'd') { setMode('draw');   e.preventDefault(); }
             else if (k === 'e') { setMode('edit');   e.preventDefault(); }
             else if (k === 'c') { setMode('center'); e.preventDefault(); }
+            else if (k === 'l') { toggleLock(); e.preventDefault(); }
             else if ((e.ctrlKey || e.metaKey) && k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
             else if ((e.ctrlKey || e.metaKey) && (k === 'y' || (e.shiftKey && k === 'z'))) { e.preventDefault(); redo(); }
         });
