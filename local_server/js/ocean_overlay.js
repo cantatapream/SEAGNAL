@@ -90,55 +90,43 @@
     let inited = false;            // oceanOverlayInit 1회 가드
     let landRings = null;          // 육지 마스크용 폴리곤 링 배열 (lon/lat 쌍)
     let _zoneCoordsList = null;    // 해구 좌표 캐시 (오버레이 무관, 바텀시트 클릭 판단용)
-    let _particleHookBound = false; // tile layer postrender 훅 1회 바인딩 가드
+    let _canvasRepositioned = false; // 파티클 캔버스를 OL viewport 로 이동했는지
 
     // ========================================================================
-    // 파티클 합성 훅 (OL tile layer postrender 에 drawImage)
+    // 파티클 캔버스 위치 재배치
     // ------------------------------------------------------------------------
-    // 파티클 캔버스(#ocean-overlay-canvas) 를 OL 합성 캔버스에 합성하여
-    // OL layer 렌더 순서(타일 → 파티클 → 벡터) 사이에 파티클이 끼어들게 함.
+    // 목표: 레이어 쌓임 순서를 아래처럼 만들기
+    //   [아래] tile (OL 기본 z:0)
+    //          파티클 canvas (z:1)
+    //          buoy / markers vector layer (OL setZIndex(100))
+    //   [위]   .ol-overlaycontainer (내 위치 Overlay)
+    //
+    // 방법: 캔버스를 .ol-viewport 의 자식(= .ol-layers 의 형제) 으로 옮긴다.
+    //       같은 viewport stacking context 안에서 z-index 로 정렬되고,
+    //       OL 이 vector layer div 의 style.zIndex 를 setZIndex 값으로
+    //       설정하므로 결과적으로 원하는 순서가 됨.
+    //
+    // 주의: 이전 시도에서 .ol-layers '안' 으로 넣었다가 OL 내부 관리 DOM 을
+    //       건드려 파티클이 렌더 안 되는 회귀가 있었음. 이번엔 .ol-layers
+    //       '밖' (viewport 의 형제 위치) 으로 이동하므로 OL 관리 영역 무침.
     // ========================================================================
-
-    function _hideOverlayCanvasFromDom() {
-        if (!canvas) return;
-        // display:none 해도 canvas 픽셀 데이터/ctx 는 유효함.
-        // 시각적으로만 숨겨서 OL 합성 캔버스의 drawImage 소스로만 사용.
-        canvas.style.display = 'none';
-    }
-
-    function _hookParticleIntoTileLayer() {
-        if (_particleHookBound || !mapRef) return;
-        var layers = mapRef.getLayers && mapRef.getLayers().getArray();
-        if (!layers || layers.length === 0) return;
-
-        // 맨 아래 layer = tile layer (지도 배경). 이 layer 의 postrender 시점이
-        // "배경은 그렸지만 vector(부이/마커) 는 아직 안 그린" 상태이므로
-        // 여기서 파티클을 합성하면 자연스럽게 vector 밑에 깔림.
-        var baseLayer = layers[0];
-        if (!baseLayer || !baseLayer.on) return;
-
-        baseLayer.on('postrender', function (e) {
-            // 렌더 가능 조건 체크 — 하나라도 빠지면 조용히 스킵
-            if (!canvas || !streamActive) return;
-            if (!e || !e.context) return;
-            if (canvas.width === 0 || canvas.height === 0) return;
-
-            try {
-                var targetCtx = e.context;
-                var target = targetCtx.canvas;
-                // OL 의 canvas 는 devicePixelRatio 반영된 픽셀 크기.
-                // 파티클 canvas 도 동일하게 resizeCanvas 에서 DPR 반영했으므로
-                // 1:1 복사 가능.
-                targetCtx.save();
-                targetCtx.setTransform(1, 0, 0, 1, 0, 0);
-                targetCtx.drawImage(canvas, 0, 0, target.width, target.height);
-                targetCtx.restore();
-            } catch (err) {
-                // 어떤 이유로든 합성 실패 시 파티클만 안 보일 뿐, OL 자체는 영향 없음
-            }
-        });
-
-        _particleHookBound = true;
+    function _repositionOverlayCanvas() {
+        if (_canvasRepositioned || !mapRef || !canvas) return;
+        try {
+            var viewport = mapRef.getViewport && mapRef.getViewport();
+            if (!viewport) return;
+            var layersEl = viewport.querySelector('.ol-layers');
+            if (!layersEl) return;
+            // .ol-layers 바로 다음 자리 = layersEl.nextSibling 앞에 삽입
+            // (nextSibling 이 null 이면 appendChild 와 동일)
+            viewport.insertBefore(canvas, layersEl.nextSibling);
+            // viewport stacking context 기준으로 tile(0) 위, vector(100) 아래
+            canvas.style.zIndex = '1';
+            _canvasRepositioned = true;
+        } catch (e) {
+            // 이동 실패 시에도 기능 자체는 유지 (원래 위치에서 동작)
+            console.warn('[OceanOverlay] 캔버스 재배치 실패:', e);
+        }
     }
 
     // ========================================================================
@@ -164,29 +152,9 @@
         if (!canvas) return;
         ctx = canvas.getContext('2d');
 
-        // ──────────────────────────────────────────────────────────
-        // 파티클 DOM 캔버스 숨김 + OL tile layer postrender 합성 훅
-        // ──────────────────────────────────────────────────────────
-        // [배경]
-        //  기존에는 #ocean-overlay-canvas 가 .ocean-map-wrapper 직속으로
-        //  OL 지도 전체(부이 vector layer, 내 위치 overlay 포함) 위에
-        //  덮여 있어 부이/클러스터/내 위치가 파티클에 가려졌음.
-        //
-        // [해결 전략]
-        //  1) DOM 캔버스는 시각적으로 숨김(display:none) — 렌더링 컨텍스트는 유효.
-        //     파티클 애니메이션 루프는 기존 그대로 이 캔버스에 매 프레임 그림.
-        //  2) OL 의 첫 번째 layer(= tile layer) 의 postrender 이벤트에
-        //     훅을 걸어, OL 합성 캔버스에 파티클 캔버스를 drawImage 로 얹음.
-        //     → 쌓임 순서: tile → 파티클(postrender 훅) → 부이 vector
-        //       → 주요지명 vector → (overlay container 의 내 위치 Overlay)
-        //  3) 애니메이션 루프 animate() 마지막에 mapRef.render() 호출해
-        //     OL 재렌더를 트리거 → postrender 훅이 매 프레임 실행.
-        //
-        // [호환성]
-        //  - 파티클 렌더 로직은 그대로 유지 (resizeCanvas, animate, trailCanvas 등)
-        //  - 문제 시 이 블록만 제거하면 완전 롤백
-        _hideOverlayCanvasFromDom();
-        _hookParticleIntoTileLayer();
+        // 파티클 캔버스를 OL viewport 내부로 재배치 (z-index 쌓임 순서 맞추기)
+        // 부이/마커(vector layer zIndex 100) 는 자동으로 파티클(z:1) 위에 쌓임
+        _repositionOverlayCanvas();
         // 입자 트레일 전용 오프스크린 캔버스
         trailCanvas = document.createElement('canvas');
         trailCtx = trailCanvas.getContext('2d');
@@ -1078,11 +1046,6 @@
         ctx.clearRect(0, 0, w, h);
         if (isWave && gridCanvas) ctx.drawImage(gridCanvas, 0, 0, w, h);
         if (trailCanvas) ctx.drawImage(trailCanvas, 0, 0, w, h);
-
-        // OL 에게 재렌더를 요청 → tile layer postrender 훅이 실행되어
-        // 방금 갱신된 파티클 캔버스가 OL 합성 캔버스에 drawImage 됨.
-        // (훅이 바인딩되지 않은 구버전 경로에서는 아무 부작용 없음)
-        if (mapRef && mapRef.render) mapRef.render();
 
         animationId = requestAnimationFrame(animate);
     }
