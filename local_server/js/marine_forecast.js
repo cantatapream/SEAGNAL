@@ -536,7 +536,11 @@ function renderRegionalForecast(data) {
         html += `</div>`;
 
         // 기온 정보
-        if (item.temperature) {
+        // [표시 조건] temperature 객체가 있고, low/high 중 적어도 하나는 값이 있어야 표시.
+        //   둘 다 비어있으면 "🌡️ 오늘 기온" 라벨만 외롭게 남는 것을 방지.
+        //   파싱 단계(regional_forecast_collector.js)에서 신뢰할 수 없는 값은
+        //   null 로 떨어지므로, 여기서는 단순 falsy 체크만 수행.
+        if (item.temperature && (item.temperature.low || item.temperature.high)) {
             html += `<div class="regional-forecast-temp">`;
             html += `<span class="regional-forecast-temp-icon">🌡️</span>`;
             html += `<span class="regional-forecast-temp-label">오늘 기온</span>`;
