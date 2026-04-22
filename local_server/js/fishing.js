@@ -218,7 +218,12 @@
 
     /**
      * 갯바위/선상에 따라 하단 안내문을 전환합니다.
-     * 갯바위 선택 시 갯바위용, 선상 선택 시 선상용 안내문을 표시합니다.
+     *
+     * [참고] index2 에서는 안내문을 지도 위 "유의사항" 버튼 팝업으로 이동시켜
+     *        화면에 직접 표시하지 않음. DOM 요소(#fishing-disclaimer-gwbr /
+     *        #fishing-disclaimer-ship) 는 팝업 콘텐츠 소스로만 사용되며
+     *        기본 display:none 상태. 이 함수는 index1(구 레이아웃) 호환을
+     *        위해 유지되지만, index2 에서는 사실상 no-op 에 가까움.
      *
      * [연계] index.html → #fishing-disclaimer-gwbr, #fishing-disclaimer-ship
      */
@@ -227,6 +232,28 @@
         var ship = document.getElementById('fishing-disclaimer-ship');
         if (gwbr) gwbr.style.display = currentGubun === '선상' ? 'none' : '';
         if (ship) ship.style.display = currentGubun === '선상' ? '' : 'none';
+    }
+
+    /**
+     * 유의사항 팝업을 엽니다 (index2 전용 지도 위 ❗ 버튼).
+     *
+     * [동작]
+     *  1) 현재 선택된 구분(currentGubun) 에 맞는 숨김 DOM 소스 선택
+     *     - '갯바위' → #fishing-disclaimer-gwbr
+     *     - '선상'   → #fishing-disclaimer-ship
+     *  2) 해당 요소의 innerHTML 을 읽어 showSeagnalModal 팝업으로 표시
+     *
+     * [연계]
+     *  - js/ui_modal.js → window.showSeagnalModal(title, html, 'info')
+     *  - index2.html → #fishing-notice-btn 클릭 이벤트에서 호출
+     */
+    function _openNoticePopup() {
+        var srcId = currentGubun === '선상' ? 'fishing-disclaimer-ship' : 'fishing-disclaimer-gwbr';
+        var src = document.getElementById(srcId);
+        var msgHtml = src ? src.innerHTML : '';
+        if (typeof window.showSeagnalModal === 'function') {
+            window.showSeagnalModal('유의사항', msgHtml, 'info');
+        }
     }
 
     /**
@@ -579,6 +606,16 @@
         if (gpsBtn) {
             gpsBtn.addEventListener('click', function () {
                 _moveToMyLocation();
+            });
+        }
+
+        // --- 유의사항 버튼 (지도 우측 상단 느낌표 아이콘) ---
+        // [동작] 현재 선택된 구분(갯바위/선상) 에 맞는 안내문 HTML 을
+        //        showSeagnalModal 팝업으로 표시
+        var noticeBtn = document.getElementById('fishing-notice-btn');
+        if (noticeBtn) {
+            noticeBtn.addEventListener('click', function () {
+                _openNoticePopup();
             });
         }
 
