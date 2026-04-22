@@ -401,6 +401,9 @@ async function applyNewReports(fullForm) {
                     const pendingEntry = fullForm.pendingRetries[report.id];
                     pendingEntry.retryCount++;
                     pendingEntry.lastRetry = nowIso;
+                    // [reason 자동 갱신] 이전에 API_RATE_LIMIT였더라도 현재 상태는 "빈 본문"이므로 EMPTY_CONTENT로 변경
+                    // → 재시도 간격이 10분(RATE_LIMIT)에서 1분(EMPTY)으로 자동 전환되어 더 빠른 회복 가능
+                    pendingEntry.reason = 'EMPTY_CONTENT';
                     console.log(`[ReportProcessor] 재시도 실패 (여전히 빈 본문): ${report.title} (${pendingEntry.retryCount}회)`);
 
                     // [지속 알림] 10분마다 관리자에게 "아직 빈 상태" 알림 (스팸 방지)
@@ -596,6 +599,9 @@ async function applyNewReports(fullForm) {
                     const pendingEntry = fullForm.pendingRetries[report.id];
                     pendingEntry.retryCount++;
                     pendingEntry.lastRetry = nowIso;
+                    // [reason 자동 갱신] 이전에 API_RATE_LIMIT였더라도 현재는 AI 호출이 정상 응답한 상태이므로
+                    // EMPTY_CONTENT로 변경 → 재시도 간격이 10분에서 1분으로 자동 전환
+                    pendingEntry.reason = 'EMPTY_CONTENT';
                     console.log(`[ReportProcessor] 재시도 실패 (AI 빈 양식 판단 지속): ${report.title} (${pendingEntry.retryCount}회)`);
 
                     // [지속 알림] 10분마다 관리자 알림 (스팸 방지)
