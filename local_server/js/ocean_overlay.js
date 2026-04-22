@@ -112,37 +112,6 @@
         }
         canvas = document.getElementById('ocean-overlay-canvas');
         if (!canvas) return;
-
-        // ──────────────────────────────────────────────────────────
-        // 파티클 캔버스를 OL 지도 내부 .ol-layers 로 이동
-        // ──────────────────────────────────────────────────────────
-        // [왜?]
-        //  - 캔버스는 원래 #ocean-map 바깥(.ocean-map-wrapper 직속)에 있어
-        //    OL 지도 내부의 vector layer(부이, 주요지명 마커)와 OL Overlay
-        //    (내 위치) 까지 덮어버림.
-        //  - OL viewport 의 .ol-layers 안으로 옮기면 OL 의 layer z-index
-        //    시스템과 같은 계층에 놓여 tile layer 위, 그러나 zIndex 를
-        //    높인 vector layer 들(부이/마커) 아래에 자연스럽게 쌓임.
-        //
-        // [호환성]
-        //  - canvas.id 는 그대로 유지되어 기존 렌더링/리사이즈 로직 무관
-        //  - pointer-events: none 도 그대로
-        //  - resizeCanvas() 가 getBoundingClientRect 대신 부모 크기를 읽을
-        //    수 있도록 position/top/left/width/height 는 유지
-        try {
-            var viewport = mapRef.getViewport && mapRef.getViewport();
-            var layersEl = viewport && viewport.querySelector('.ol-layers');
-            if (layersEl && canvas.parentElement !== layersEl) {
-                layersEl.appendChild(canvas);
-                // .ol-layers 안에서 파티클은 tile 위, vector 아래에 쌓이도록 z-index:1
-                // (부이/주요지명 Vector layer 는 layer.setZIndex(10) 으로 더 위에 올림)
-                canvas.style.zIndex = '1';
-            }
-        } catch (e) {
-            // 이동 실패해도 기능 자체는 동작하므로 조용히 스킵
-            console.warn('[OceanOverlay] 파티클 캔버스 OL 내부 이동 실패:', e);
-        }
-
         ctx = canvas.getContext('2d');
         // 입자 트레일 전용 오프스크린 캔버스
         trailCanvas = document.createElement('canvas');
