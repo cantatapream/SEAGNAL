@@ -256,11 +256,12 @@
         }
 
         /* 풀스크린 지도 컨테이너:
-           - 섹션(#fishing-section / #surfing-section)이 active 일 때만 풀스크린화
+           - 섹션(#fishing-section / #surfing-section / #cctv-section)이 active 일 때만 풀스크린화
            - top: safe-area + 제목 높이(~52px) 만큼 내려서 제목이 보이게
            - bottom: 메인탭/서브탭 높이만큼 올림 (--main-tab-height, --sub-tab-height) */
         #fishing-section.tab-content.active,
-        #surfing-section.tab-content.active {
+        #surfing-section.tab-content.active,
+        #cctv-section.tab-content.active {
             position: fixed !important;
             top: env(safe-area-inset-top, 20px) !important;
             bottom: var(--main-tab-height) !important;
@@ -277,13 +278,15 @@
             overflow: hidden;
         }
         body.sub-tabs-open #fishing-section.tab-content.active,
-        body.sub-tabs-open #surfing-section.tab-content.active {
+        body.sub-tabs-open #surfing-section.tab-content.active,
+        body.sub-tabs-open #cctv-section.tab-content.active {
             bottom: calc(var(--main-tab-height) + var(--sub-tab-height)) !important;
         }
 
         /* 제목 줄은 섹션 상단 고정 높이, 지도 영역은 flex-grow 로 나머지 영역 차지 */
         #fishing-section.tab-content.active > .life-header-row,
-        #surfing-section.tab-content.active > .life-header-row {
+        #surfing-section.tab-content.active > .life-header-row,
+        #cctv-section.tab-content.active > .life-header-row {
             flex: 0 0 auto;
             padding: 10px 14px;
             margin: 0;
@@ -291,7 +294,8 @@
 
         /* 지도 컨테이너: 섹션 내 남은 공간 전체 */
         #fishing-section.tab-content.active .life-map-container,
-        #surfing-section.tab-content.active .life-map-container {
+        #surfing-section.tab-content.active .life-map-container,
+        #cctv-section.tab-content.active .life-map-container {
             flex: 1 1 auto;
             position: relative;   /* 내부 플로팅 컨트롤의 기준 */
             width: 100%;
@@ -303,12 +307,22 @@
             overflow: hidden;
         }
         #fishing-section.tab-content.active #fishing-map,
-        #surfing-section.tab-content.active #surfing-map {
+        #surfing-section.tab-content.active #surfing-map,
+        #cctv-section.tab-content.active #cctv-map {
             position: absolute !important;
             top: 0; left: 0; right: 0; bottom: 0;
             width: 100% !important;
             height: 100% !important;
             border-radius: 0 !important;
+        }
+
+        /* [방어] 풀스크린 섹션 안에 남아 있는 하단 안내문(.fishing-disclaimer /
+           .surfing-disclaimer)은 팝업 소스로만 사용해야 하므로 무조건 숨김.
+           fishing.js _updateDisclaimer() 가 display:'' 로 되돌리는 케이스도 차단. */
+        #fishing-section.tab-content.active .fishing-disclaimer,
+        #surfing-section.tab-content.active .surfing-disclaimer,
+        #cctv-section.tab-content.active .fishing-disclaimer {
+            display: none !important;
         }
 
         /* ── 지도 위 플로팅 컨트롤 ──
@@ -1055,12 +1069,19 @@
             <!-- [연계] js/cctv4.js showCctvPopup() → #cctv-modal-backdrop 모달 표출 -->
             <!-- [연계] js/cctv6.js CctvFavorites → #cctv-favorites-container 즐겨찾기 버튼 -->
             <section id="cctv-section" class="tab-content">
-                <div class="section-header-with-info">
+                <!-- 제목 라인 (풀스크린 레이아웃용) -->
+                <div class="section-header-with-info life-header-row">
                     <h2 class="section-title"><i class="fa-solid fa-video"></i> 해안 CCTV</h2>
                 </div>
 
-                <!-- 지도 + 즐겨찾기 버튼 래퍼 (즐겨찾기를 지도 위에 절대 위치로 배치) -->
-                <div class="cctv-map-wrapper">
+                <!-- ================================================================
+                     지도 영역 (풀스크린) + 지도 위 플로팅 유의사항 버튼
+                     ----------------------------------------------------------------
+                     - .life-map-container : 섹션 남은 공간 전체 (해양생활과 동일)
+                     - 우측 상단 ❗ 버튼 → 기존 면책 안내문 팝업
+                     [연계] cctv2.js initCctvMap() → #cctv-map 렌더링
+                     ================================================================ -->
+                <div class="cctv-map-wrapper life-map-container">
                     <!-- OpenLayers 지도 컨테이너 -->
                     <div id="cctv-map"></div>
 
@@ -1068,6 +1089,13 @@
                     <!-- cctv6.js CctvFavorites.render()가 이 요소에 버튼을 채웁니다 -->
                     <div id="cctv-favorites-container" class="cctv-favorites-container"
                          style="display: none;"></div>
+
+                    <!-- 우측 상단: 유의사항 아이콘 버튼 (내 위치는 CCTV 특성상 생략) -->
+                    <div class="life-map-controls-topright">
+                        <button id="cctv-notice-btn" class="life-map-icon-btn" title="유의사항">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- 모달 백드롭: 마커 클릭 시 cctv4.js showCctvPopup()이 채우고 표시함 -->
@@ -1075,8 +1103,11 @@
                 <div id="cctv-modal-backdrop" class="cctv-modal-backdrop"
                      style="display: none;"></div>
 
-                <!-- 해안 CCTV 면책 안내 -->
-                <div class="fishing-disclaimer">
+                <!-- ================================================================
+                     유의사항 팝업 소스 (숨김) — 지도 위 ❗ 버튼 클릭 시 모달로 표시
+                     [연계] js/cctv5.js 또는 별도 초기화 블록에서 이벤트 바인딩
+                     ================================================================ -->
+                <div class="fishing-disclaimer" id="cctv-disclaimer" style="display:none;">
                     <p><i class="fa-solid fa-circle-check"></i> 이 해안 CCTV 서비스는 어항 안전상태 및 해상 기상현황 확인 등 공익적 목적으로 운영됩니다.</p>
                     <p><i class="fa-solid fa-circle-check"></i> 제공 영상은 지방자치단체(부산시·거제시·옹진군), 해양수산부 연안포털, KBS 재난센터에서 공공에 공개한 영상을 활용하며, 본 앱은 영상을 수집·저장하지 않습니다.</p>
                     <p><i class="fa-solid fa-circle-check"></i> 영상 정보의 정확성과 이를 활용함에 따른 민·형사상 법적 책임은 정보활용 주체에 있으며, 정보 제공주체 및 본 앱은 이에 대한 책임을 지지 않습니다.</p>

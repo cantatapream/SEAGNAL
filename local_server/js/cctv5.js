@@ -42,4 +42,19 @@ document.addEventListener('DOMContentLoaded', function () {
     if (cctvSection && cctvSection.classList.contains('active')) {
         initCctvMap();
     }
+
+    // ─────────────────────────────────────────────────────────────────
+    // 유의사항 버튼(#cctv-notice-btn) → showSeagnalModal 팝업
+    // [연계] index2.html #cctv-disclaimer (숨김 소스) → innerHTML 을 모달로 전달
+    // ─────────────────────────────────────────────────────────────────
+    const cctvNoticeBtn = document.getElementById('cctv-notice-btn');
+    if (cctvNoticeBtn) {
+        cctvNoticeBtn.addEventListener('click', function () {
+            const src = document.getElementById('cctv-disclaimer');
+            const html = src ? src.innerHTML : '';
+            if (typeof window.showSeagnalModal === 'function') {
+                window.showSeagnalModal('유의사항', html, 'info');
+            }
+        });
+    }
 });

@@ -4850,6 +4850,9 @@ line-height: 1.1;
     font-size: 0.9rem;
     line-height: 1.5;
     margin-bottom: 25px;
+    /* 메시지 본문은 여러 줄 안내문인 경우가 많으므로 읽기 편한 왼쪽 정렬로 고정.
+       (부모 .seagnal-modal-content 의 text-align: center 는 아이콘/제목/버튼용) */
+    text-align: left;
 }
 
 .seagnal-modal-btn {
