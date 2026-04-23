@@ -246,9 +246,34 @@
         #ocean-map-section.tab-content.active #ocean-overlay-canvas {
             z-index: 1;
         }
+        /* 내 위치 Overlay 는 vector layer(zIndex 100) 보다도 위에 와야 하므로
+           200 으로 올림. (.ol-layers stacking context 해제 후엔 모든 요소가
+           viewport 기준으로 평평하게 비교되므로 정확한 값 필요) */
         #ocean-map-section.tab-content.active .ol-overlaycontainer,
         #ocean-map-section.tab-content.active .ol-overlaycontainer-stopevent {
-            z-index: 5;
+            z-index: 200;
+        }
+
+        /* ──────────────────────────────────────────────────────────
+           .ol-layers stacking context 해제 (핵심)
+           ──────────────────────────────────────────────────────────
+           [배경]
+            OL 은 .ol-layers 에 기본적으로 z-index:0 을 부여해 stacking
+            context 를 만듦. 이러면 내부 vector layer 의 style.zIndex:100
+            (부이/마커) 이 외부(viewport) 에선 "통째로 z-index:0 하나"로만
+            보여, 우리가 viewport 자식으로 넣은 파티클 canvas(z:1) 가
+            vector layer 위에 얹힘 → 부이/클러스터가 파티클에 가려짐.
+
+           [해결]
+            .ol-layers 의 z-index 를 auto 로 되돌려 stacking context 를
+            해제. 그러면 내부 layer div 의 z-index(0, 100) 가 viewport
+            기준으로 "평평하게" 해석되어:
+              tile(0) < 파티클(1) < 부이/마커(100)
+            순서로 올바르게 쌓임.
+           [안전] stacking 해석만 바꾸는 CSS 이므로 OL 렌더링/이벤트
+                 처리에는 영향 없음. */
+        #ocean-map-section.tab-content.active .ol-layers {
+            z-index: auto !important;
         }
 
         /* ══════════════════════════════════════════════════════════
