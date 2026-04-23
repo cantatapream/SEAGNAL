@@ -565,8 +565,8 @@
         }
     </style>
     <script>window.__SEAGNAL_PAGE = 'index2';</script>
-    <title>TEST(바다:그 날의 신호)</title>
-    <meta property="og:title" content="TEST(바다:그 날의 신호)">
+    <title>SEA:GNAL(바다:그 날의 신호)</title>
+    <meta property="og:title" content="SEA:GNAL(바다:그 날의 신호)">
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" sizes="48x48" href="./assets/android-launchericon-48-48.png">
@@ -880,7 +880,7 @@
                         <div class="logo-subtitle">바다 : 그 날의 신호</div>
                         <div style="display:flex;align-items:center;gap:10px;">
                             <h1 style="margin:0;">
-                                <span class="logo-text">TEST</span>
+                                <span class="logo-text">SEA<span class="logo-accent">:</span>GNAL</span>
                             </h1>
                             <span id="work-mode-badge" onclick="event.stopPropagation();showWorkModePopup();" style="display:none;padding:3px 10px;border:1.5px solid #d4a017;border-radius:20px;color:#d4a017;font-size:0.6rem;font-weight:700;cursor:pointer;white-space:nowrap;animation:workModeBlink 1s ease-in-out infinite;letter-spacing:0.5px;">기능개선 작업 중</span>
                         </div>
@@ -1226,66 +1226,15 @@
                  [index1 영향 없음] index.html 의 cctv-section 은 변경 없음.
                  ================================================================ -->
 
-            <!-- 섹션 4: 조석 및 일출몰 정보 -->
-            <section id="tide-section" class="tab-content">
-                <div class="section-header-with-info">
-                    <h2 class="section-title"><i class="fa-solid fa-water"></i> 조석 및 일출몰 정보</h2>
-                    <button class="info-btn" onclick="showTideInfoPopup()" title="이용안내">
-                        <i class="fa-solid fa-circle-info" style="color: white;"></i>
-                    </button>
-                </div>
-
-                <!-- 날짜 네비게이션 -->
-                <div class="tide-date-navigator" style="margin-bottom: 0px !important;">
-                    <button class="tide-nav-btn" onclick="prevTideDate()" title="이전 날">
-                        <i class="fa-solid fa-chevron-left"></i>
-                    </button>
-                    <div class="tide-date-display">
-                        <div class="tide-solar-date" id="tide-solar-date">2025년 12월 15일(월)</div>
-                        <div class="tide-lunar-date" id="tide-lunar-date">(음력 2025년 11월 15일)</div>
-                    </div>
-                    <button class="tide-nav-btn" onclick="nextTideDate()" title="다음 날">
-                        <i class="fa-solid fa-chevron-right"></i>
-                    </button>
-                    <button class="tide-calendar-btn" onclick="showTideDatePicker()" title="날짜 선택">
-                        <i class="fa-solid fa-calendar-days"></i>
-                    </button>
-
-                </div>
-
-                <!-- 조석 지도 위치 검색 -->
-                <div class="tide-search-container">
-                    <div class="tide-search-input-wrap">
-                        <i class="fa-solid fa-magnifying-glass tide-search-icon"></i>
-                        <input type="text" id="tide-search-input" placeholder="위치 검색 (예: 속초항, 이호동)" autocomplete="off">
-                        <button id="tide-search-clear" class="tide-search-clear" style="display:none;" title="검색어 지우기">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
-                    </div>
-                    <!-- 검색 결과 드롭다운 (검색 시에만 표시) -->
-                    <div id="tide-search-dropdown" class="tide-search-dropdown" style="display:none;"></div>
-                </div>
-
-                <!-- 조석 지도 -->
-                <div class="sea-zone-map-container" style="margin-top: 5px !important; margin-bottom: 5px; position: relative;">
-                    <div id="tide-map" style="width: 100%; height: 500px; border-radius: 10px; overflow: hidden;"></div>
-                    <!-- 즐겨찾기 목록 (지도 내부 오른쪽) -->
-                    <div id="tide-favorites-container" class="tide-favorites-container"
-                        style="display: none;">
-                        <!-- 즐겨찾기 버튼들이 여기에 추가됨 -->
-                    </div>
-                </div>
-
-                <!-- 출처 정보 -->
-                <div class="map-source">
-                    <a href="https://www.khoa.go.kr/kcom/cnt/selectContentsPage.do?cntId=11501000" target="_blank"
-                        rel="noopener noreferrer">
-                        <span>국립해양조사원 조석예보 API 활용</span>
-                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                    </a>
-                </div>
-
-            </section>
+            <!-- ================================================================
+                 [index2] #tide-section (조석 및 일출몰 정보) 섹션 삭제됨
+                 ----------------------------------------------------------------
+                 사용자 요청으로 index2 에서는 조석정보 탭/섹션 전체 제거.
+                 tide.js / tide_calendar.js 등의 관련 JS 는 공유 파일이지만
+                 DOM(#tide-map, #tide-section 등) 이 없으면 getElementById 결과
+                 null → 자동으로 no-op 처리되어 에러 없음.
+                 [index1 영향 없음] index.html 의 tide-section 은 변경 없음.
+                 ================================================================ -->
 
             <!-- 섹션 4-H: 해양종합정보 (히든 탭 - 조석정보 10회 탭으로 진입) -->
             <!-- [연계] js/settings.js 히든 탭 메커니즘, js/ocean_map.js 지도 초기화 -->
@@ -1912,11 +1861,8 @@
             <button class="sub-tab-btn" data-target="sea-zone-section">해구기상</button>
             <button class="sub-tab-btn" data-target="typhoon-section">태풍정보</button>
         </nav>
-        <!-- 종합기상 서브탭 (해양종합 | 조석정보) — 해안 CCTV 는 해양종합에 통합됨 -->
-        <nav class="sub-tabs bottom-sub-tabs" id="ocean-sub-tabs">
-            <button class="sub-tab-btn active" data-target="ocean-map-section">해양종합</button>
-            <button class="sub-tab-btn" data-target="tide-section">조석정보</button>
-        </nav>
+        <!-- [제거됨] 종합기상 서브탭 (#ocean-sub-tabs) — 조석정보 탭 삭제 및
+             해양종합정보 단일 탭으로 변경되어 서브탭 자체가 불필요해짐. -->
         <!-- 해양생활 서브탭 (바다낚시 | 서핑 | 해수욕 | 스킨스쿠버 | 갯벌체험 | 바다갈라짐) -->
         <nav class="sub-tabs bottom-sub-tabs" id="ocean-life-sub-tabs">
             <button class="sub-tab-btn active" data-target="fishing-section">바다낚시</button>
@@ -1942,10 +1888,14 @@
                 <i class="fa-solid fa-triangle-exclamation tab-btn-icon" aria-hidden="true"></i>
                 <span class="tab-btn-label">특보정보</span>
             </button>
-            <!-- 종합기상: 해 아이콘 (사용자 지정) -->
-            <button class="tab-btn" data-target="ocean-group">
+            <!-- 해양종합정보: 해 아이콘 (사용자 지정)
+                 [변경 이력] 기존 '종합기상' 그룹탭(서브탭 포함) → '해양종합정보'
+                 로 이름 변경 + 서브탭(조석정보) 제거하면서 독립 섹션탭으로 전환.
+                 data-target 이 그룹 ID 가 아닌 섹션 ID(ocean-map-section) 를
+                 직접 가리켜, 메인탭 클릭 시 바로 해양종합 섹션으로 진입한다. -->
+            <button class="tab-btn" data-target="ocean-map-section">
                 <i class="fa-solid fa-sun tab-btn-icon" aria-hidden="true"></i>
-                <span class="tab-btn-label">종합기상</span>
+                <span class="tab-btn-label">해양종합정보</span>
             </button>
             <!-- 해양생활: 물고기 아이콘 -->
             <button class="tab-btn" data-target="ocean-life-group">
@@ -2175,7 +2125,7 @@
             'mudflat': 'mudflat-section',
             'sea-parting': 'sea-parting-section',
             // 메인 독립 탭
-            'tide': 'tide-section',
+            // [제거] 'tide': 'tide-section' — index2 에서 조석정보 섹션 삭제됨
             'promo': 'promo-section',
         };
 

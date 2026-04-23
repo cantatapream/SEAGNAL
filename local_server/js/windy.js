@@ -525,15 +525,30 @@ function createStatusCard(zoneName) {
         transition: all 0.2s ease;
     `;
 
+    // ──────────────────────────────────────────────────────────────
     // === 헤더 영역: 구역명 + 버튼들 ===
+    // [index2] 구역명(줄1) + 버튼 4개 균일 너비(줄2) 2줄 세로 레이아웃
+    // [index1] 기존 그대로 한 줄 [구역명 | 버튼들]
+    //   → __SEAGNAL_PAGE 가드로 헤더 flex-direction 만 분기
+    // ──────────────────────────────────────────────────────────────
+    const _isIndex2Layout = (window.__SEAGNAL_PAGE === 'index2');
     const header = document.createElement('div');
-    header.style.cssText = `
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        flex-wrap: wrap;
-    `;
+    if (_isIndex2Layout) {
+        header.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 8px;
+        `;
+    } else {
+        header.style.cssText = `
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        `;
+    }
 
     // 구역명
     const zoneNameEl = document.createElement('span');
@@ -546,16 +561,30 @@ function createStatusCard(zoneName) {
     `;
     header.appendChild(zoneNameEl);
 
-    // 버튼 컨테이너 (오른쪽 정렬)
+    // 버튼 컨테이너
+    // - index2: width:100%, flex:1 로 균일 4등분 (가운데 버튼 스트레치)
+    // - index1: margin-left:auto (오른쪽 정렬, 기존 동작)
     const btnContainer = document.createElement('div');
-    btnContainer.style.cssText = `
-        display: flex;
-        gap: 6px;
-        margin-left: auto;
-        flex-shrink: 0;
-    `;
+    if (_isIndex2Layout) {
+        btnContainer.style.cssText = `
+            display: flex;
+            gap: 6px;
+            width: 100%;
+        `;
+    } else {
+        btnContainer.style.cssText = `
+            display: flex;
+            gap: 6px;
+            margin-left: auto;
+            flex-shrink: 0;
+        `;
+    }
 
     const isMappedZone = typeof ZONE_NAME_DISPLAY_MAP !== 'undefined' && ZONE_NAME_DISPLAY_MAP[zoneName];
+
+    // [index2] 버튼 4등분 균일 너비를 위해 각 버튼에 flex:1 적용
+    // [index1] flex 미지정 → 내용물 크기에 맞게 오른쪽 정렬 (기존 동작 유지)
+    const _applyFlex = (btn) => { if (_isIndex2Layout) btn.style.flex = '1'; };
 
     // 기상예보 버튼 (앞바다: 단기예보, 먼바다: 해구기상 기반)
     {
@@ -573,6 +602,7 @@ function createStatusCard(zoneName) {
             transition: all 0.2s;
             white-space: nowrap;
         `;
+        _applyFlex(forecastBtn);
         forecastBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             if (typeof showSeaForecastTable === 'function') showSeaForecastTable(zoneName);
@@ -595,6 +625,7 @@ function createStatusCard(zoneName) {
         transition: all 0.2s;
         white-space: nowrap;
     `;
+    _applyFlex(zoneViewBtn);
     zoneViewBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (typeof showZoneOverlay === 'function') showZoneOverlay(zoneName);
@@ -617,11 +648,43 @@ function createStatusCard(zoneName) {
             transition: all 0.2s;
             white-space: nowrap;
         `;
+        _applyFlex(windyBtn);
         windyBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             if (window.showWindyPopup) window.showWindyPopup(zoneName);
         });
         btnContainer.appendChild(windyBtn);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // [index2 전용] 종합정보 버튼
+    // ──────────────────────────────────────────────────────────────
+    // 해양종합정보 탭으로 이동 + 해당 특보구역 중심 좌표 바텀시트 오픈.
+    // ZONE_OVERLAY_CONFIG 에 없거나 window.goToOceanMapByZone 미정의면 미표시.
+    if (_isIndex2Layout
+        && typeof ZONE_OVERLAY_CONFIG !== 'undefined'
+        && ZONE_OVERLAY_CONFIG[zoneName]
+        && typeof window.goToOceanMapByZone === 'function') {
+        const allBtn = document.createElement('button');
+        allBtn.textContent = '종합정보';
+        allBtn.style.cssText = `
+            padding: 5px 10px;
+            background: linear-gradient(135deg, #14b8a6, #0f766e);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        `;
+        _applyFlex(allBtn);
+        allBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.goToOceanMapByZone(zoneName);
+        });
+        btnContainer.appendChild(allBtn);
     }
 
     header.appendChild(btnContainer);
