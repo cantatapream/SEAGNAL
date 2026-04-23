@@ -492,6 +492,21 @@ router.delete('/api/admin/review-needed', (req, res) => {
 });
 
 // ============================================================================
+// Gemini API 키 상태 조회 (공용 클라이언트)
+// ============================================================================
+
+router.get('/api/admin/gemini-status', (req, res) => {
+    try {
+        const geminiClient = require('../services/gemini_client');
+        const keys = geminiClient.getKeysStatus();
+        res.json({ keys, count: keys.length });
+    } catch (e) {
+        console.error('[Admin] gemini-status 조회 오류:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ============================================================================
 // 재시도 대기열 관리 (pendingRetries in weather_alerts.json)
 // → AI 분석 실패(429, 빈 양식 등)로 10분/1분 간격 재시도 중인 통보문 목록
 // → 관리자가 '특보 수정' 탭에서 수동 반영한 경우 수동으로 대기열에서 제거 필요

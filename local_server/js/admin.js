@@ -475,19 +475,22 @@ async function renderErrorListTab(container) {
 
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
 
-    // 세 가지 데이터를 병렬로 조회
+    // 네 가지 데이터를 병렬로 조회 (실패/검토/재시도/Gemini 키 상태)
     let failures = [];
     let reviews = [];
     let pendings = [];
+    let geminiStatus = { keys: [], count: 0 };
     try {
-        const [failRes, reviewRes, pendingRes] = await Promise.all([
+        const [failRes, reviewRes, pendingRes, geminiRes] = await Promise.all([
             fetch('/api/admin/collect-failures'),
             fetch('/api/admin/review-needed'),
-            fetch('/api/admin/pending-retries')
+            fetch('/api/admin/pending-retries'),
+            fetch('/api/admin/gemini-status')
         ]);
         if (failRes.ok) failures = await failRes.json();
         if (reviewRes.ok) reviews = await reviewRes.json();
         if (pendingRes.ok) pendings = await pendingRes.json();
+        if (geminiRes.ok) geminiStatus = await geminiRes.json();
     } catch (e) { /* 무시 */ }
 
     const pendingReviews = (reviews || []).filter(r => !r.acknowledged);
@@ -495,9 +498,13 @@ async function renderErrorListTab(container) {
     const retryCount = (pendings || []).length;
     const failCount = (failures || []).length;
 
-    // 세 영역 모두 비어있으면 정상 상태 표시
+    // Gemini 키 상태 배지 (항상 표시)
+    const geminiBadgeHtml = renderGeminiKeysBadge(geminiStatus);
+
+    // 세 영역 모두 비어있으면 정상 상태 + Gemini 키 상태 표시
     if (reviewCount === 0 && retryCount === 0 && failCount === 0) {
         container.innerHTML = `
+            ${geminiBadgeHtml}
             <div style="text-align:center;padding:60px 20px;color:#64748b;">
                 <i class="fa-solid fa-circle-check" style="font-size:2.5rem;color:#22c55e;margin-bottom:15px;display:block;"></i>
                 <div style="font-size:1rem;font-weight:700;color:#cbd5e1;margin-bottom:6px;">수집 오류 없음</div>
@@ -519,6 +526,7 @@ async function renderErrorListTab(container) {
     };
 
     const tabBarHtml = `
+        ${geminiBadgeHtml}
         <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
             ${tabBtn('review', '<i class="fa-solid fa-magnifying-glass"></i> 검토 필요', reviewCount, '#f59e0b')}
             ${tabBtn('retry',  '<i class="fa-solid fa-rotate"></i> 재시도 중',       retryCount,  '#3b82f6')}
@@ -541,6 +549,45 @@ async function renderErrorListTab(container) {
     } else if (currentErrorSubTab === 'fail') {
         sub.innerHTML = renderFailureSectionHtml(failures);
     }
+}
+
+// [상단 배지] Gemini 키 상태 표시
+function renderGeminiKeysBadge(status) {
+    const keys = (status && status.keys) || [];
+    if (keys.length === 0) {
+        return `
+            <div style="margin-bottom:14px;padding:10px 14px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:10px;color:#fca5a5;font-size:0.82rem;">
+                <i class="fa-solid fa-key"></i> Gemini API 키가 등록되어 있지 않습니다.
+            </div>`;
+    }
+    const items = keys.map(k => {
+        if (k.onCooldown) {
+            const remainMin = Math.ceil(k.remainingMs / 60000);
+            return `
+                <div style="flex:1;min-width:160px;padding:8px 12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:8px;display:flex;align-items:center;gap:8px;">
+                    <i class="fa-solid fa-hourglass-half" style="color:#f59e0b;"></i>
+                    <div style="flex:1;">
+                        <div style="color:#fcd34d;font-size:0.82rem;font-weight:700;">${k.label} 키</div>
+                        <div style="color:#d4a276;font-size:0.7rem;">쿨다운 ${remainMin}분 남음</div>
+                    </div>
+                </div>`;
+        }
+        return `
+            <div style="flex:1;min-width:160px;padding:8px 12px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:8px;display:flex;align-items:center;gap:8px;">
+                <i class="fa-solid fa-circle-check" style="color:#22c55e;"></i>
+                <div style="flex:1;">
+                    <div style="color:#86efac;font-size:0.82rem;font-weight:700;">${k.label} 키</div>
+                    <div style="color:#64748b;font-size:0.7rem;">정상</div>
+                </div>
+            </div>`;
+    }).join('');
+    return `
+        <div style="margin-bottom:14px;">
+            <div style="color:#94a3b8;font-size:0.75rem;font-weight:600;margin-bottom:6px;">
+                <i class="fa-solid fa-key"></i> Gemini API 키 상태
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">${items}</div>
+        </div>`;
 }
 
 // [하위 탭] 검토 필요 섹션 HTML

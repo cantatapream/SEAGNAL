@@ -1,8 +1,9 @@
 const { GoogleGenAI } = require('@google/genai');
 require('dotenv').config();
 
+// [공용 Gemini 클라이언트] 기본 키(GEMINI_API_KEY) + 백업 키(GEMINI_API_KEY_2) 라운드로빈/폴백
+const geminiClient = require('./services/gemini_client');
 const API_KEY = process.env.GEMINI_API_KEY;
-const genAI = new GoogleGenAI({ apiKey: API_KEY });
 
 const ZONE_GROUP_MAP = {
     // 전해상: 해당 해역의 모든 하위 해역 (앞바다 + 먼바다 전체)
@@ -469,13 +470,21 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
             : `현재 시각은 ${new Date().getFullYear()}년 ${new Date().getMonth() + 1}월이다. 이를 기준으로 날짜를 유추하라.`;
 
         const prompt = `${SYSTEM_INSTRUCTION}\n\n${referenceDateInfo}\n\n분석할 통보문:\n${textForAI}`;
-        const result = await genAI.models.generateContent({
+        // [공용 클라이언트] 기본 키가 429일 때 자동으로 백업 키로 폴백
+        const callResult = await geminiClient.callGemini({
             model: 'gemini-2.0-flash',
             contents: prompt,
-            config: { responseMimeType: 'application/json' }
+            config: { responseMimeType: 'application/json' },
+            caller: 'AI Parser'
         });
-        const text = result.text;
-        console.log('[AI Parser] Gemini 응답 수신 완료, 길이:', text.length);
+        if (!callResult.success) {
+            // 예외 경로를 catch 블록과 통일하기 위해 throw하여 하단 catch에서 일관 처리
+            const err = new Error(callResult.error || 'Gemini 호출 실패');
+            err.__isRateLimited = callResult.isRateLimited;
+            throw err;
+        }
+        const text = callResult.text;
+        console.log(`[AI Parser] Gemini 응답 수신 완료 (${callResult.keyLabel} 키 사용), 길이: ${text.length}`);
 
         // [AI 응답 파싱] 새 형식(객체 {hasContent, events})과 구 형식(배열 []) 모두 지원
         // - 새 형식: { hasContent: true/false, events: [{...}] }
@@ -594,8 +603,11 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
         // [429 감지] Gemini API 할당량 초과(RESOURCE_EXHAUSTED) 여부를 판별
         // 429 오류는 "통보문이 비어있는 것"이 아니라 "AI가 거부한 것"이므로
         // 호출측(report_alert_processor.js)에서 빈 통보문과 구분하여 처리해야 함
+        // - geminiClient가 isRateLimited를 전달한 경우(모든 키 쿨다운): 그 값을 사용
+        // - 이외(직접 예외 throw): 메시지 문자열로 판별
         const errorMsg = error.message || '';
-        const isRateLimited = errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED');
+        const isRateLimited = (error && error.__isRateLimited === true)
+            || errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED');
 
         if (isRateLimited) {
             console.warn('[AI Parser] ⚠️ Gemini API 할당량 초과 (429). 호출측에서 재시도 간격을 늘려야 합니다.');
