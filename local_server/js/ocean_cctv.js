@@ -977,16 +977,20 @@
     // ──────────────────────────────────────────────────────────────
     // [역할]
     //  특보구역 이름(zoneName) 으로 ZONE_OVERLAY_CONFIG 의 중심 픽셀을 얻고
-    //  pixelToGps() 로 lat/lon 변환 → 해양종합정보 탭 전환 + 지도 이동 +
-    //  바텀시트 오픈까지 한 번에 처리.
+    //  pixelToGps() 로 lat/lon 변환 → 해양종합정보 탭 전환 + 지도를 해당
+    //  좌표로 "이동만" (현재 줌 유지). 바텀시트는 띄우지 않는다.
+    //
+    // [의도된 동작]
+    //  사용자 요구: "확대도, 바텀시트도 필요없고 그냥 이동되도록만".
+    //   - 확대(zoom 변경) 안 함  → 현재 zoom 그대로 center 만 animate
+    //   - 바텀시트(showOceanBottomSheet) 호출 안 함
     //
     // [연계]
     //  - render.js (해역별 특보현황 카드의 "종합정보" 버튼)
     //  - windy.js  (해역별 기상현황 카드의 "종합정보" 버튼)
     //
-    // [안전]
-    //  ZONE_OVERLAY_CONFIG 에 없는 구역은 false 반환(호출자가 버튼 자체를
-    //  숨기면 이 경로는 안 탐).
+    // [반환]
+    //  성공 true / 실패(매핑 없음 등) false — 호출자는 false 시 무시.
     // ══════════════════════════════════════════════════════════════
     function _goToOceanMapByZone(zoneName) {
         if (typeof ZONE_OVERLAY_CONFIG === 'undefined') return false;
@@ -1001,23 +1005,15 @@
             window.switchMainTab('ocean-map-section');
         }
 
-        // 탭 전환 애니메이션/지도 초기화 완료 대기 후 이동 + 바텀시트
+        // 탭 전환 애니메이션/지도 초기화 완료 대기 후 center 이동(줌 유지)
         setTimeout(function () {
             var map = window.getOceanMap && window.getOceanMap();
             if (map) {
+                // zoom 인자 생략 → 현재 줌 그대로, center 만 부드럽게 이동
                 map.getView().animate({
                     center: ol.proj.fromLonLat([gps.lon, gps.lat]),
-                    zoom: Math.max(map.getView().getZoom() || 6, 10),
                     duration: 400
                 });
-            }
-            // 바텀시트로 해당 해역 정보 오픈 (hasOceanGridData 검사 생략 —
-            // 특보구역 중심점은 보통 해역 내부라 그리드 데이터 있을 확률 높음)
-            if (typeof window.showOceanBottomSheet === 'function') {
-                // 애니메이션 중반에 띄워서 사용자가 이동 완료까지 기다리지 않게
-                setTimeout(function () {
-                    window.showOceanBottomSheet(gps.lat, gps.lon);
-                }, 200);
             }
         }, 300);
 
