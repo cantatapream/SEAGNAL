@@ -1041,8 +1041,30 @@
                                     : (nearest.crsp || 0) * 0.01;  // 해류: cm/s → m/s
                 spdValue = nearest.crsp || 0;
 
-                p.x += Math.sin(dirRad) * spdMps * SPEED_SCALE * delta;
-                p.y -= Math.cos(dirRad) * spdMps * SPEED_SCALE * delta;
+                // ─── 레이어별 이동 공식 (방향 관례 불일치 보정) ───
+                //
+                // [배경] 종래 `p.x += sin(dir); p.y -= cos(dir)` 단일 공식으로
+                //        3개 레이어를 모두 그렸으나, 각 데이터의 방향 관례가
+                //        달라 아래처럼 일관되지 않게 표출되고 있었음.
+                //          · 바람 windDir : "from"(기상학 관례, 불어오는 쪽)
+                //                → 종전 공식은 동·서 축 반전
+                //          · 해류 currentDir : "to"(해양학 관례, 흘러가는 쪽)
+                //                → 종전 공식은 남·북 축 반전
+                //          · 파고 waveDir : "to"(파가 전파되는 방향)
+                //                → 종전 공식은 남·북 축 반전 (해류와 동일)
+                //
+                // [수정] 관례에 맞춰 레이어별로 이동 벡터 기호를 분기.
+                //        OL EPSG:3857 좌표계: p.x ↑=동, p.y ↑=북
+                //          · from 관례 (바람): 이동 = (-sin, -cos)
+                //          · to   관례 (조류·파고): 이동 = (+sin, +cos)
+                if (isWind) {
+                    p.x -= Math.sin(dirRad) * spdMps * SPEED_SCALE * delta;
+                    p.y -= Math.cos(dirRad) * spdMps * SPEED_SCALE * delta;
+                } else {
+                    // current / wave — to 방향 관례
+                    p.x += Math.sin(dirRad) * spdMps * SPEED_SCALE * delta;
+                    p.y += Math.cos(dirRad) * spdMps * SPEED_SCALE * delta;
+                }
             }
 
             p.age++;
