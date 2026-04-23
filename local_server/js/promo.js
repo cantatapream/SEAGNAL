@@ -210,7 +210,18 @@ function updateNewBadges(posts) {
             const badge = document.createElement('span');
             badge.className = 'new-badge';
             badge.textContent = 'N';
-            mainTabBtn.appendChild(badge);
+            // [버튼 내부에 .tab-btn-label 이 있으면 그 안쪽에 인라인 삽입]
+            //  index2 하단 메인탭은 아이콘+라벨 2단(flex column) 구조라, 뱃지를
+            //  버튼 직접 자식으로 append 하면 3번째 자식으로 세로 추가되어
+            //  탭 높이가 증가 → 하단 잘림 발생. 라벨 span 안으로 넣으면 라벨
+            //  텍스트 옆에 인라인으로 붙어 탭 높이가 변하지 않음.
+            //  index1 은 라벨 span 이 없는 단순 텍스트 버튼 → 기존 경로 유지.
+            const labelEl = mainTabBtn.querySelector('.tab-btn-label');
+            if (labelEl) {
+                labelEl.appendChild(badge);
+            } else {
+                mainTabBtn.appendChild(badge);
+            }
         }
     }
 
