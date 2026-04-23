@@ -29,26 +29,22 @@
 if (window.__SEAGNAL_PAGE === 'index2') {
 
 // ──────────────────────────────────────────────────────────────
-// 1. 탭 그룹 매핑 데이터 오버라이드
-//    marine.js에서 정의된 전역 상수를 INDEX2 탭 구조에 맞게 수정
-//    - ocean-group 신규 추가 (해양종합, 조석정보, 해안 CCTV)
-//    - cctv-section을 weather-group → ocean-group으로 이동
-//    - tide-section을 독립 탭 → ocean-group 서브탭으로 이동
+// 1. 탭 그룹 매핑 데이터 (INDEX2 탭 구조)
+//    ──────────────────────────────────────────────────────────
+//    [현재 INDEX2 메인탭 구성]
+//      특보정보(그룹) | 해양종합정보(독립섹션) | 해양생활(그룹) | 공지사항(독립섹션)
+//
+//    [이전 ocean-group 삭제 이력]
+//      - 해안 CCTV 를 해양종합으로 통합 → cctv-section 섹션 삭제
+//      - 조석정보 서브탭/섹션 삭제 (index2 전용)
+//      - 결과적으로 해양종합정보 는 서브탭이 없는 독립 섹션 탭이 됨
+//      → ocean-group (TAB_GROUP_*) 매핑 불필요 → 모두 제거
 // ──────────────────────────────────────────────────────────────
-
-// 그룹 → 기본 서브섹션: 그룹 탭 클릭 시 처음 보여줄 섹션
-TAB_GROUP_DEFAULTS['ocean-group'] = 'ocean-map-section';
-
-// 그룹 → 서브탭 nav ID: 어떤 서브탭 패널을 열지
-TAB_GROUP_SUBTABS['ocean-group'] = 'ocean-sub-tabs';
-
-// 섹션 → 소속 그룹 역매핑 (섹션 ID로 switchMainTab 호출 시 그룹 찾기용)
-// tide-section: 독립 탭에서 ocean-group 서브탭으로 이동
-SECTION_TO_GROUP['tide-section'] = 'ocean-group';
-// ocean-map-section: 독립 탭에서 ocean-group 기본 서브탭으로 이동
-SECTION_TO_GROUP['ocean-map-section'] = 'ocean-group';
-// [제거] cctv-section 매핑 — 해안CCTV 섹션 삭제 후 해양종합 CCTV 토글 버튼으로 통합됨
-// 만약 외부에서 switchMainTab('cctv-section') 을 호출하면 대응 섹션이 없어 무시됨.
+// [제거됨] TAB_GROUP_DEFAULTS['ocean-group']  — 서브탭 없음
+// [제거됨] TAB_GROUP_SUBTABS['ocean-group']   — 서브탭 없음
+// [제거됨] SECTION_TO_GROUP['tide-section']    — 조석정보 섹션 제거
+// [제거됨] SECTION_TO_GROUP['ocean-map-section'] — 독립 섹션탭으로 전환
+// [제거됨] SECTION_TO_GROUP['cctv-section']    — 해안CCTV 섹션 통합됨
 
 // ──────────────────────────────────────────────────────────────
 // 2. 메인탭 바 실측 높이 반영
@@ -179,8 +175,9 @@ window.switchMainTab = function (targetId) {
     document.body.setAttribute('data-active-tab', activeGroup);
 
     // ② ocean-map-active 클래스 관리
-    //    ocean-map-section이 표시되지 않으면 제거
-    if (targetId !== 'ocean-map-section' && activeGroup !== 'ocean-group') {
+    //    ocean-map-section 이 표시되지 않으면 제거
+    //    (해양종합정보 메인탭은 독립 섹션탭이므로 targetId 검사로 충분)
+    if (targetId !== 'ocean-map-section') {
         document.body.classList.remove('ocean-map-active');
         document.documentElement.style.removeProperty('--ocean-top-offset');
     }
@@ -205,10 +202,9 @@ window.switchMainTab = function (targetId) {
         _openSubTabsFor(groupForSub);
     }
 
-    // ⑥ ocean-map-section이 활성화되면 지도 크기 갱신
-    //    (서브탭 open 상태로 진입하므로 slider 는 서브탭 위에 위치)
-    var isGroupTab = !!TAB_GROUP_DEFAULTS[targetId];
-    if (targetId === 'ocean-map-section' || (isGroupTab && targetId === 'ocean-group')) {
+    // ⑥ ocean-map-section 이 활성화되면 지도 크기 갱신
+    //    해양종합정보 메인탭은 이제 독립 섹션탭이므로 targetId 만 체크하면 충분.
+    if (targetId === 'ocean-map-section') {
         document.body.classList.add('ocean-map-active');
         requestAnimationFrame(function () {
             if (window.getOceanMap) {
@@ -292,14 +288,14 @@ document.addEventListener('touchstart', _handleContentTouchClose, true);
 
 // ──────────────────────────────────────────────────────────────
 // 6. enterOceanMapSection 오버라이드
-//    INDEX1에서는 팝업으로 열리지만, INDEX2에서는 종합기상 그룹의
-//    해양종합 서브탭으로 전환
+//    INDEX1에서는 팝업으로 열리지만, INDEX2에서는 "해양종합정보"
+//    메인탭(독립 섹션)으로 바로 전환.
 // ──────────────────────────────────────────────────────────────
 window.enterOceanMapSection = function () {
     var section = document.getElementById('ocean-map-section');
     if (!section) return;
-    // ocean-group(종합기상)의 기본 서브탭이 ocean-map-section(해양종합)
-    window.switchMainTab('ocean-group');
+    // 해양종합정보 메인탭 = ocean-map-section 섹션 (독립탭)
+    window.switchMainTab('ocean-map-section');
 };
 
 // ──────────────────────────────────────────────────────────────
