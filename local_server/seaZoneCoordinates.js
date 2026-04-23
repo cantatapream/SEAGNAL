@@ -229,25 +229,25 @@ const SEA_ZONE_COORDINATES = {
         region: '서해남부',
         type: 'I'
     },
-    '12A30100': {
-        code: '12A30100',
-        name: '서해남부안쪽먼바다',
-        lat: 35.50,
+    '12A30101': {
+        code: '12A30101',
+        name: '서해남부북쪽안쪽먼바다',
+        lat: 35.60,
         lon: 125.50,
         region: '서해남부',
         type: 'H'
     },
-    '12A30200': {
-        code: '12A30200',
-        name: '서해남부바깥먼바다',
-        lat: 35.00,
-        lon: 124.00,
+    '12A30102': {
+        code: '12A30102',
+        name: '서해남부남쪽안쪽먼바다',
+        lat: 34.80,
+        lon: 125.40,
         region: '서해남부',
         type: 'H'
     },
     '12A30201': {
         code: '12A30201',
-        name: '서해남부북쪽먼바다',
+        name: '서해남부북쪽바깥먼바다',
         lat: 35.50,
         lon: 124.00,
         region: '서해남부',
@@ -255,7 +255,7 @@ const SEA_ZONE_COORDINATES = {
     },
     '12A30202': {
         code: '12A30202',
-        name: '서해남부남쪽먼바다',
+        name: '서해남부남쪽바깥먼바다',
         lat: 34.50,
         lon: 124.00,
         region: '서해남부',
@@ -381,7 +381,7 @@ const SEA_ZONE_COORDINATES = {
     },
     '12B10400': {
         code: '12B10400',
-        name: '제주도남쪽안쪽먼바다',
+        name: '제주도남서쪽안쪽먼바다',
         lat: 32.80,
         lon: 126.30,
         region: '제주',
@@ -389,7 +389,7 @@ const SEA_ZONE_COORDINATES = {
     },
     '12B10401': {
         code: '12B10401',
-        name: '제주도남쪽동쪽먼바다',
+        name: '제주도남동쪽안쪽먼바다',
         lat: 32.80,
         lon: 127.50,
         region: '제주',
