@@ -125,6 +125,8 @@ function _closeAllBottomSubTabs() {
     // body 클래스 제거 → CSS 원복 (섹션 바닥이 다시 메인탭 높이만큼만 올라감)
     document.body.classList.remove('sub-tabs-open');
     _currentOpenSubGroup = null;
+    // 섹션 bottom 변화 → 활성 지도 canvas 리사이즈 트리거 (하단 빈 공간 방지)
+    _scheduleActiveMapResize();
 }
 
 /**
@@ -146,6 +148,84 @@ function _openSubTabsFor(groupId) {
     subNav.classList.add('sub-tabs-visible');
     document.body.classList.add('sub-tabs-open');
     _currentOpenSubGroup = groupId;
+    // 서브탭 실측 높이 → --sub-tab-height 변수 동기화
+    //  (CSS :root 기본값은 50px 이지만 실제 버튼 높이는 내용/폰트에 따라
+    //   이보다 작게 렌더링됨. 고정값을 쓰면 섹션이 50px 만큼 올라가는데
+    //   바는 30여 px 밖에 채우지 못해 바 위쪽에 빈 공간이 생김.)
+    _syncSubTabHeightVar(subNav);
+    // 섹션 bottom 변화 → 활성 지도 canvas 리사이즈 트리거 (하단 빈 공간 방지)
+    _scheduleActiveMapResize();
+}
+
+/**
+ * [헬퍼] 현재 열린 서브탭 nav 의 실측 높이를 --sub-tab-height CSS 변수에 주입
+ *  - 즉시(RAF): 트랜지션 시작 시 scrollHeight 기반 추정값
+ *  - 400ms 후 : 트랜지션 종료 후 offsetHeight 기반 실측값
+ *  scrollHeight 는 max-height 제약 무시하므로 CSS 의 max-height(50px) 로 캡.
+ */
+function _syncSubTabHeightVar(subNav) {
+    function _applyRendered() {
+        var h = subNav.offsetHeight;
+        if (h > 0) {
+            document.documentElement.style.setProperty('--sub-tab-height', h + 'px');
+            _scheduleActiveMapResize();
+        }
+    }
+    requestAnimationFrame(function () {
+        var h = subNav.offsetHeight;
+        if (h > 0) {
+            _applyRendered();
+        } else {
+            // 트랜지션 시작 직후엔 max-height 가 아직 0 → 컨텐츠 원본 높이(scrollHeight) 사용
+            var sh = subNav.scrollHeight;
+            if (sh > 0) {
+                document.documentElement.style.setProperty('--sub-tab-height', Math.min(sh, 50) + 'px');
+            }
+        }
+    });
+    setTimeout(_applyRendered, 400);
+}
+
+/**
+ * [헬퍼] 하위탭 토글로 섹션 bottom 이 바뀌면 그에 맞춰 현재 활성화된
+ * OpenLayers 지도 canvas 를 리사이즈한다.
+ *
+ * [왜 필요한가?]
+ *  body.sub-tabs-open 클래스 토글로 섹션의 CSS bottom 이 변하면 DOM 박스는
+ *  줄어들거나 커지지만, 내부의 OL 지도 canvas 는 이전 크기 그대로 렌더되어
+ *  "지도 canvas 가 컨테이너보다 큼/작음" 상태가 됨. 사용자 제보:
+ *   - 하위탭 열림: 지도 하단과 하위탭 사이에 빈 공간 발생
+ *   - 하위탭 닫힘: 지도 하단이 메인탭과 딱 붙음 (정상)
+ *  해결: body 클래스 변경 시점에 각 섹션의 지도 updateSize() 를 호출.
+ *
+ * [타이밍]
+ *  CSS transition(350ms) 이 끝나기 전에 여러 번 호출하도록 RAF + 지연
+ *  조합. 두 번 호출(즉시 + 400ms 후)해 애니메이션 도중/완료 후 모두 갱신.
+ *
+ * [대상 지도]
+ *  - 해양종합정보: window.getOceanMap()
+ *  - 바다낚시:     window.getFishingMap() (fishing.js 가 export)
+ *  - 서핑:         window._surfing.map (surfing1.js)
+ *  각 getter 는 null 가능성 있으므로 방어적으로 호출.
+ */
+function _scheduleActiveMapResize() {
+    function _resizeAll() {
+        try {
+            var m1 = window.getOceanMap && window.getOceanMap();
+            if (m1 && m1.updateSize) m1.updateSize();
+        } catch (e) {}
+        try {
+            var m2 = window.getFishingMap && window.getFishingMap();
+            if (m2 && m2.updateSize) m2.updateSize();
+        } catch (e) {}
+        try {
+            var m3 = (window._surfing && window._surfing.map) || null;
+            if (m3 && m3.updateSize) m3.updateSize();
+        } catch (e) {}
+    }
+    // 즉시 한 번 + transition 완료 후 한 번 (총 2회 호출해 중간 상태/최종 상태 모두 대응)
+    requestAnimationFrame(_resizeAll);
+    setTimeout(_resizeAll, 400);
 }
 
 // ──────────────────────────────────────────────────────────────
