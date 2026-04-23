@@ -472,7 +472,7 @@ async function parseNoticeWithAI(noticeText, baseDate = '') {
         const prompt = `${SYSTEM_INSTRUCTION}\n\n${referenceDateInfo}\n\n분석할 통보문:\n${textForAI}`;
         // [공용 클라이언트] 기본 키가 429일 때 자동으로 백업 키로 폴백
         const callResult = await geminiClient.callGemini({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-2.5-flash-lite',
             contents: prompt,
             config: { responseMimeType: 'application/json' },
             caller: 'AI Parser'
