@@ -3,7 +3,7 @@
   "short_name": "SEA:GNAL",
   "description": "전국 해상 실시간 기상특보 및 해구별 맞춤 기상전망, 조석/일출몰 정보를 제공하는 전문 해역 기상 서비스",
   "id": "/",
-  "start_url": "./index.html",
+  "start_url": "./index2.html",
   "scope": "/",
   "display": "standalone",
   "background_color": "#05070a",
