@@ -124,7 +124,7 @@ cron.schedule('1 15 * * *', () => {
 app.listen(PORT, () => {
     console.log(`\n=================================================`);
     console.log(`🚀 서버 실행 중! Port: ${PORT}`);
-    console.log(`📡 접속 주소: http://localhost:${PORT}/index.html`);
+    console.log(`📡 접속 주소: http://localhost:${PORT}/ (기본 index2.html, 구버전은 /index.html)`);
     console.log(`✅ 라우트 모듈: health, weather, tide, content, stats, archive, push, admin, survey, report, version`);
     console.log(`=================================================\n`);
 });
