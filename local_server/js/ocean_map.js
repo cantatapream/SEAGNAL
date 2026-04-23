@@ -323,6 +323,16 @@
         const lon = coord[0];
         const lat = coord[1];
 
+        // CCTV 마커 클릭 우선 처리 (INDEX2 전용, ocean_cctv.js 에서 정의)
+        // [목적] CCTV 마커를 눌렀을 때 뒤의 빈 해역 클릭이 동시에 감지되어
+        //        영상 팝업과 바텀시트가 함께 뜨는 문제를 방지.
+        // [안전] window.oceanCctv 는 index2 전용 ocean_cctv.js 가 만든 객체.
+        //        INDEX1 에서는 존재하지 않아 이 블록이 통째로 스킵됨 → 무영향.
+        if (window.oceanCctv && typeof window.oceanCctv.tryHandleMapClick === 'function') {
+            const hit = window.oceanCctv.tryHandleMapClick(oceanMap, evt);
+            if (hit) return;
+        }
+
         // 부이/클러스터 클릭 확인 (INDEX2 전용, ocean_buoy.js에서 정의)
         // INDEX1에서는 함수가 없으므로 이 블록 자체가 실행되지 않음
         if (window.handleOceanBuoyClick) {
