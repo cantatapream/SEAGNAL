@@ -302,23 +302,19 @@
     }
 
     /**
-     * 지도 클릭/포인터 훅을 oceanMap 에 바인딩 (1회만).
-     * - handleMapClick(ocean_map.js)은 부이 → 마커 → 바텀시트 순서.
-     *   CCTV 는 우선권이 필요하지는 않으므로 click 시점에 우리가 먼저 feature 체크.
-     *   다만 oceanMap.on('click') 은 ocean_map.js 가 이미 바인딩해 두었으므로,
-     *   capture phase / preventDefault 대신 별도 리스너 등록 후 "이벤트 버블링을
-     *   막을 방법이 OL 에 없으므로" handleMapClick 내부 로직과 공존.
-     *   [현실 동작] 부이 클릭 → 바텀시트 열림 + CCTV 마커 클릭은 별도. 서로 간섭 없음.
+     * 지도 포인터/커서 관련 훅을 oceanMap 에 바인딩 (1회만).
+     *
+     * [click 은 여기서 바인딩하지 않음]
+     *  ocean_map.js 의 handleMapClick 이 이미 click 리스너를 등록해 두었는데,
+     *  여기서 별도 click 리스너를 추가하면 두 핸들러가 동시에 실행되어
+     *  "CCTV 마커 클릭 시 바텀시트도 같이 열리는" 문제가 발생.
+     *  → click 은 handleMapClick 내부에서 window.oceanCctv.tryHandleMapClick 을
+     *    먼저 호출해 CCTV 처리가 끝나면 기존 흐름(부이/마커/바텀시트)을 skip 한다.
+     *    (ocean_map.js 가드는 window.oceanCctv 존재 여부 체크 → index1 무영향)
      */
     function _bindMapHooks(map) {
         if (_mapHooksBound) return;
         _mapHooksBound = true;
-
-        map.on('click', function (evt) {
-            // 다른 마커가 동일 픽셀에 있으면 두 핸들러 모두 호출될 수 있으나,
-            // forEachFeatureAtPixel 에서 우리 레이어만 체크하므로 CCTV 단일 클릭만 처리.
-            _handleCctvClick(map, evt);
-        });
 
         // 포인터 호버 시 커서 변경 (CCTV 활성일 때만)
         map.on('pointermove', function (evt) {
@@ -331,8 +327,7 @@
                 var target = map.getTargetElement();
                 if (target && target.style.cursor !== 'pointer') target.style.cursor = 'pointer';
             }
-            // cursor 해제는 다른 레이어 로직이 담당(ocean_markers 등). 간섭 피하려고
-            // 여기선 설정만 함.
+            // cursor 해제는 다른 레이어 로직(ocean_markers 등)에 위임하여 간섭 방지
         });
     }
 
@@ -415,11 +410,21 @@
     }
 
     // ──────────────────────────────────────────────────────────────
-    // 외부 API (다음 그룹에서 즐겨찾기 연동 시 재사용)
+    // 외부 API
     // ──────────────────────────────────────────────────────────────
+    // [tryHandleMapClick]
+    //  ocean_map.js 의 handleMapClick 내부에서 **가장 먼저** 호출.
+    //  true 반환 시 기존 부이/마커/바텀시트 흐름을 모두 skip 해야 함.
+    //  CCTV 가 OFF 이거나 CCTV 마커에 맞지 않으면 false 반환 → 기존 흐름 진행.
+    //
+    // [isActive / setActive]
+    //  후속 그룹(즐겨찾기)에서 CCTV 상태를 조회/제어하기 위한 API.
     window.oceanCctv = {
         isActive: function () { return _cctvActive; },
-        setActive: _setCctvActive
+        setActive: _setCctvActive,
+        tryHandleMapClick: function (map, evt) {
+            return _handleCctvClick(map, evt);
+        }
     };
 
 })();
