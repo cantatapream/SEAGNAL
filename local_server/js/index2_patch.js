@@ -318,15 +318,27 @@ window.switchMainTab = function (targetId) {
     // ⑥ ocean-map-section 이 활성화되면 지도 크기 갱신 + 오버레이 파티클 재개
     //    해양종합정보 메인탭은 이제 독립 섹션탭이므로 targetId 만 체크하면 충분.
     //
-    //    [오버레이 복귀 이슈]
-    //     ocean_overlay.js 의 resizeCanvas() 는 map viewport 의
-    //     getBoundingClientRect() 기준인데, 섹션이 display:none 상태에서 호출되면
-    //     canvas 가 0x0 으로 줄어들어 _onCompositePrerender 에서 합성 스킵됨.
-    //     → 다른 메인탭 다녀와서 복귀하면 파티클이 안 보이던 원인.
-    //     해결: updateSize() 와 함께 oceanOverlayRefresh(map) 를 호출하여
-    //           canvas 를 현재 viewport 크기로 재맞춤 + 파티클 가시성 복원.
-    //           (내부 streamActive 가 true 이면 그대로 애니메이션 재개)
-    //     타이밍: RAF 즉시 + 400ms 후 (섹션 트랜지션/서브탭 슬라이드 완료 후).
+    //    [오버레이 복귀 이슈 — 두 단계 모두 대응]
+    //     (A) canvas 크기 0x0 문제
+    //         ocean_overlay.js 의 resizeCanvas() 는 map viewport 의
+    //         getBoundingClientRect() 기준인데, 섹션이 display:none 상태에서
+    //         호출되면 canvas 가 0x0 으로 축소되어 이후 _onCompositePrerender
+    //         에서 합성 스킵됨.
+    //     (B) 데이터 소실 문제 (핵심)
+    //         marine.js 의 _onSectionActivated 가 해양종합 아닌 섹션 활성화 시
+    //         window.oceanOverlayClear() 를 호출 → gridData/particles/lonList/
+    //         latList/gridLookup 을 전부 null/[] 로 폐기. (streamActive /
+    //         activeLayer / 버튼 .active 는 보존)
+    //         따라서 단순히 oceanOverlayRefresh() 만으론 gridData 가 null
+    //         이라 복원 불가.
+    //     [해결]
+    //         oceanOverlayInit(map) 재호출. 재진입 분기(ocean_overlay.js
+    //         line 185-195) 는 inited===true 이면 resizeCanvas() 수행 후
+    //         streamActive 이면 버튼 active 복원 + loadOverlayData() 재호출
+    //         → gridData 재로딩 → startParticleAnimation 자동 재개.
+    //         streamActive=false 면 no-op 으로 return.
+    //     [타이밍] RAF 즉시 + 400ms 후 (섹션 트랜지션/서브탭 슬라이드 완료 후)
+    //              두 번 호출. 재진입 분기는 idempotent 하므로 중복 호출 안전.
     if (targetId === 'ocean-map-section') {
         document.body.classList.add('ocean-map-active');
         function _oceanRevive() {
@@ -335,7 +347,8 @@ window.switchMainTab = function (targetId) {
                 var m = window.getOceanMap();
                 if (!m) return;
                 if (m.updateSize) m.updateSize();
-                if (window.oceanOverlayRefresh) window.oceanOverlayRefresh(m);
+                // oceanOverlayInit 재진입으로 canvas 크기 + 데이터(loadOverlayData) 동시 복구
+                if (window.oceanOverlayInit) window.oceanOverlayInit(m);
                 // OL 에 강제 렌더 요청 — prerender 훅을 재호출해 파티클 합성 재개
                 if (m.render) m.render();
             } catch (e) {}
