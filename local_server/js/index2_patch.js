@@ -159,31 +159,39 @@ function _openSubTabsFor(groupId) {
 
 /**
  * [헬퍼] 현재 열린 서브탭 nav 의 실측 높이를 --sub-tab-height CSS 변수에 주입
- *  - 즉시(RAF): 트랜지션 시작 시 scrollHeight 기반 추정값
- *  - 400ms 후 : 트랜지션 종료 후 offsetHeight 기반 실측값
- *  scrollHeight 는 max-height 제약 무시하므로 CSS 의 max-height(50px) 로 캡.
+ *
+ * [타이밍/측정]
+ *  - 즉시(RAF): scrollHeight(컨텐츠 원본 높이) + CSS max-height(50px) 캡
+ *    → max-height 트랜지션이 0→50 으로 진행 중이라 offsetHeight 는 중간값을
+ *      리턴하지만, scrollHeight 는 트랜지션과 무관하게 "컨텐츠가 차지하는
+ *      내재 높이" 이므로 시작 직후에도 올바른 최종값을 얻을 수 있음.
+ *  - 400ms 후 : 트랜지션 종료 후 offsetHeight 실측으로 최종 보정.
+ *
+ *  [왜 scrollHeight?]
+ *    offsetHeight 는 transition 중의 CSS height(= clip 된 값)을 반환하므로
+ *    첫 RAF(≈16ms) 시점에서 매우 작은 값(≈2px)이 찍힘 → 섹션이 너무 길게
+ *    계산되어 서브탭 위쪽으로 지도 컨텐츠가 비쳐 보이는 역효과 발생.
  */
 function _syncSubTabHeightVar(subNav) {
-    function _applyRendered() {
+    function _applyScrollHeight() {
+        var sh = subNav.scrollHeight;
+        if (sh > 0) {
+            // CSS .sub-tabs.sub-tabs-visible { max-height: 50px } 제약 반영
+            document.documentElement.style.setProperty('--sub-tab-height', Math.min(sh, 50) + 'px');
+            _scheduleActiveMapResize();
+        }
+    }
+    function _applyOffsetHeight() {
         var h = subNav.offsetHeight;
         if (h > 0) {
             document.documentElement.style.setProperty('--sub-tab-height', h + 'px');
             _scheduleActiveMapResize();
         }
     }
-    requestAnimationFrame(function () {
-        var h = subNav.offsetHeight;
-        if (h > 0) {
-            _applyRendered();
-        } else {
-            // 트랜지션 시작 직후엔 max-height 가 아직 0 → 컨텐츠 원본 높이(scrollHeight) 사용
-            var sh = subNav.scrollHeight;
-            if (sh > 0) {
-                document.documentElement.style.setProperty('--sub-tab-height', Math.min(sh, 50) + 'px');
-            }
-        }
-    });
-    setTimeout(_applyRendered, 400);
+    // 즉시: 트랜지션과 무관한 내재 높이 기반 추정
+    requestAnimationFrame(_applyScrollHeight);
+    // 트랜지션 종료 후: 최종 렌더 높이 기반 보정
+    setTimeout(_applyOffsetHeight, 400);
 }
 
 /**
