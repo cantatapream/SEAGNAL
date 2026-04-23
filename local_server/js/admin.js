@@ -448,26 +448,55 @@ window.switchUnifiedAdminTab = function (tabId) {
 // ============================================================================
 
 // --- 서브탭 1: 오류 목록 (검토 필요 + 수집 실패 2섹션) ---
+// [상태] 수집 오류 탭의 현재 선택된 하위 탭 및 자동 갱신 타이머
+let currentErrorSubTab = 'review';  // 'review' | 'retry' | 'fail' (기본: 검토 필요)
+let errorListAutoRefreshTimer = null;
+
+function clearErrorListAutoRefresh() {
+    if (errorListAutoRefreshTimer) {
+        clearInterval(errorListAutoRefreshTimer);
+        errorListAutoRefreshTimer = null;
+    }
+}
+
+// 경과 시간(ms)을 "X시간 Y분" 형태로 포맷팅
+function formatElapsed(ms) {
+    if (!ms || ms < 0) return '-';
+    const totalMin = Math.floor(ms / 60000);
+    const hours = Math.floor(totalMin / 60);
+    const mins = totalMin % 60;
+    if (hours > 0) return `${hours}시간 ${mins}분`;
+    return `${mins}분`;
+}
+
 async function renderErrorListTab(container) {
+    // 진입 시 자동 갱신 타이머 정리(중복 방지)
+    clearErrorListAutoRefresh();
+
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
 
-    // 두 가지 데이터를 병렬로 조회
+    // 세 가지 데이터를 병렬로 조회
     let failures = [];
     let reviews = [];
+    let pendings = [];
     try {
-        const [failRes, reviewRes] = await Promise.all([
+        const [failRes, reviewRes, pendingRes] = await Promise.all([
             fetch('/api/admin/collect-failures'),
-            fetch('/api/admin/review-needed')
+            fetch('/api/admin/review-needed'),
+            fetch('/api/admin/pending-retries')
         ]);
         if (failRes.ok) failures = await failRes.json();
         if (reviewRes.ok) reviews = await reviewRes.json();
+        if (pendingRes.ok) pendings = await pendingRes.json();
     } catch (e) { /* 무시 */ }
 
-    // 미확인 검토 필요 항목만 필터
     const pendingReviews = (reviews || []).filter(r => !r.acknowledged);
+    const reviewCount = pendingReviews.length;
+    const retryCount = (pendings || []).length;
+    const failCount = (failures || []).length;
 
-    // 둘 다 없으면 정상 상태 표시
-    if ((!failures || failures.length === 0) && pendingReviews.length === 0) {
+    // 세 영역 모두 비어있으면 정상 상태 표시
+    if (reviewCount === 0 && retryCount === 0 && failCount === 0) {
         container.innerHTML = `
             <div style="text-align:center;padding:60px 20px;color:#64748b;">
                 <i class="fa-solid fa-circle-check" style="font-size:2.5rem;color:#22c55e;margin-bottom:15px;display:block;"></i>
@@ -477,76 +506,208 @@ async function renderErrorListTab(container) {
         return;
     }
 
-    let html = '';
+    // 하위 탭 바 렌더링
+    const tabBtn = (key, label, count, color) => {
+        const active = (currentErrorSubTab === key);
+        const badge = count > 0
+            ? `<span style="display:inline-block;min-width:18px;padding:1px 6px;margin-left:6px;background:${color};color:#fff;border-radius:10px;font-size:0.7rem;font-weight:700;text-align:center;">${count}</span>`
+            : '';
+        const style = active
+            ? `padding:8px 14px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);border-radius:8px;color:#93c5fd;cursor:pointer;font-size:0.82rem;font-weight:700;`
+            : `padding:8px 14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#94a3b8;cursor:pointer;font-size:0.82rem;font-weight:500;`;
+        return `<button onclick="switchErrorSubTab('${key}')" style="${style}">${label}${badge}</button>`;
+    };
 
-    // ── 섹션 1: 검토 필요 (오렌지색) ──
-    if (pendingReviews.length > 0) {
-        const reviewRows = pendingReviews.map(r => {
-            const time = r.detectedAt ? new Date(r.detectedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-';
-            // 참고사항 미리보기 (최대 80자)
-            const preview = (r.referenceText || '').substring(0, 80) + ((r.referenceText || '').length > 80 ? '...' : '');
-            return `
-                <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:10px;margin-bottom:8px;">
-                    <i class="fa-solid fa-magnifying-glass" style="color:#f59e0b;flex-shrink:0;font-size:1.1rem;margin-top:2px;"></i>
-                    <div style="flex:1;min-width:0;">
-                        <div style="color:#fcd34d;font-size:0.9rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.title || r.reportId}</div>
-                        <div style="color:#d4a276;font-size:0.75rem;margin-top:3px;line-height:1.4;background:rgba(245,158,11,0.05);padding:6px 8px;border-radius:6px;">${preview}</div>
-                        <div style="color:#94a3b8;font-size:0.68rem;margin-top:3px;">${time}</div>
-                    </div>
-                    <button onclick="acknowledgeReviewItem('${r.reportId}')" style="background:linear-gradient(135deg,#f59e0b,#d97706);border:none;border-radius:6px;color:#fff;padding:6px 10px;cursor:pointer;font-size:0.72rem;white-space:nowrap;font-weight:600;" title="확인 완료 처리">
-                        <i class="fa-solid fa-check"></i> 확인완료
-                    </button>
-                </div>`;
-        }).join('');
+    const tabBarHtml = `
+        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+            ${tabBtn('review', '<i class="fa-solid fa-magnifying-glass"></i> 검토 필요', reviewCount, '#f59e0b')}
+            ${tabBtn('retry',  '<i class="fa-solid fa-rotate"></i> 재시도 중',       retryCount,  '#3b82f6')}
+            ${tabBtn('fail',   '<i class="fa-solid fa-triangle-exclamation"></i> 수집 실패', failCount, '#ef4444')}
+        </div>
+        <div id="error-sub-tab-content"></div>
+    `;
+    container.innerHTML = tabBarHtml;
 
-        html += `
-            <div style="margin-bottom:16px;">
-                <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
-                    <div style="color:#fcd34d;font-size:0.9rem;font-weight:600;">
-                        <i class="fa-solid fa-magnifying-glass"></i> 검토 필요 ${pendingReviews.length}건
-                    </div>
-                    <button onclick="acknowledgeAllReviews()" style="padding:5px 12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:600;">
-                        <i class="fa-solid fa-check-double"></i> 전체 확인완료
-                    </button>
-                </div>
-                ${reviewRows}
-            </div>`;
+    const sub = document.getElementById('error-sub-tab-content');
+    if (currentErrorSubTab === 'review') {
+        sub.innerHTML = renderReviewSectionHtml(pendingReviews);
+    } else if (currentErrorSubTab === 'retry') {
+        sub.innerHTML = renderPendingRetriesHtml(pendings);
+        // 재시도 중 탭은 30초마다 자동 갱신 (상태 급변 가능)
+        errorListAutoRefreshTimer = setInterval(() => {
+            const inner = document.getElementById('alert-top-content');
+            if (inner) renderErrorListTab(inner);
+        }, 30000);
+    } else if (currentErrorSubTab === 'fail') {
+        sub.innerHTML = renderFailureSectionHtml(failures);
     }
-
-    // ── 섹션 2: 수집 실패 (빨간색) ──
-    if (failures && failures.length > 0) {
-        const failRows = failures.map(f => {
-            const time = f.failedAt ? new Date(f.failedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-';
-            return `
-                <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:10px;margin-bottom:8px;">
-                    <i class="fa-solid fa-circle-xmark" style="color:#ef4444;flex-shrink:0;font-size:1.1rem;"></i>
-                    <div style="flex:1;min-width:0;">
-                        <div style="color:#fca5a5;font-size:0.9rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.title || f.reportId}</div>
-                        <div style="color:#94a3b8;font-size:0.75rem;margin-top:3px;">ID: ${f.reportId} | ${f.retriesUsed || 5}회 시도 | ${time}</div>
-                        <div style="color:#f87171;font-size:0.75rem;margin-top:2px;">${f.error || ''}</div>
-                    </div>
-                    <button onclick="deleteOneCollectFailure('${f.reportId}')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#94a3b8;padding:6px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;" title="이 항목 삭제">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
-                </div>`;
-        }).join('');
-
-        html += `
-            <div>
-                <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
-                    <div style="color:#fca5a5;font-size:0.9rem;font-weight:600;">
-                        <i class="fa-solid fa-triangle-exclamation"></i> 수집 실패 ${failures.length}건
-                    </div>
-                    <button onclick="clearAllCollectFailuresAndRefresh()" style="padding:5px 12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:600;">
-                        <i class="fa-solid fa-check"></i> 전체 삭제
-                    </button>
-                </div>
-                ${failRows}
-            </div>`;
-    }
-
-    container.innerHTML = html;
 }
+
+// [하위 탭] 검토 필요 섹션 HTML
+function renderReviewSectionHtml(pendingReviews) {
+    if (!pendingReviews || pendingReviews.length === 0) {
+        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">검토 필요 항목이 없습니다.</div>`;
+    }
+    const rows = pendingReviews.map(r => {
+        const time = r.detectedAt ? new Date(r.detectedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-';
+        const preview = (r.referenceText || '').substring(0, 80) + ((r.referenceText || '').length > 80 ? '...' : '');
+        return `
+            <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:10px;margin-bottom:8px;">
+                <i class="fa-solid fa-magnifying-glass" style="color:#f59e0b;flex-shrink:0;font-size:1.1rem;margin-top:2px;"></i>
+                <div style="flex:1;min-width:0;">
+                    <div style="color:#fcd34d;font-size:0.9rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.title || r.reportId}</div>
+                    <div style="color:#d4a276;font-size:0.75rem;margin-top:3px;line-height:1.4;background:rgba(245,158,11,0.05);padding:6px 8px;border-radius:6px;">${preview}</div>
+                    <div style="color:#94a3b8;font-size:0.68rem;margin-top:3px;">${time}</div>
+                </div>
+                <button onclick="acknowledgeReviewItem('${r.reportId}')" style="background:linear-gradient(135deg,#f59e0b,#d97706);border:none;border-radius:6px;color:#fff;padding:6px 10px;cursor:pointer;font-size:0.72rem;white-space:nowrap;font-weight:600;" title="확인 완료 처리">
+                    <i class="fa-solid fa-check"></i> 확인완료
+                </button>
+            </div>`;
+    }).join('');
+    return `
+        <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="color:#fcd34d;font-size:0.9rem;font-weight:600;">
+                <i class="fa-solid fa-magnifying-glass"></i> 검토 필요 ${pendingReviews.length}건
+            </div>
+            <button onclick="acknowledgeAllReviews()" style="padding:5px 12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:600;">
+                <i class="fa-solid fa-check-double"></i> 전체 확인완료
+            </button>
+        </div>
+        ${rows}`;
+}
+
+// [하위 탭] 재시도 중 섹션 HTML
+function renderPendingRetriesHtml(pendings) {
+    if (!pendings || pendings.length === 0) {
+        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">현재 재시도 대기 중인 통보문이 없습니다.</div>`;
+    }
+    const rows = pendings.map(p => {
+        const reasonLabel = p.reason === 'API_RATE_LIMIT'
+            ? '<span style="color:#fca5a5;background:rgba(239,68,68,0.1);padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;">⚠️ AI 할당량 초과</span>'
+            : '<span style="color:#fcd34d;background:rgba(245,158,11,0.1);padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;">📝 빈 양식 판정</span>';
+        const firstSeenStr = p.firstSeen ? new Date(p.firstSeen).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-';
+        const elapsedStr = formatElapsed(p.elapsedMs);
+        const safeId = String(p.reportId).replace(/"/g, '&quot;');
+        const rawContainerId = `raw-${safeId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        return `
+            <div style="padding:12px 14px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:10px;margin-bottom:8px;">
+                <div style="display:flex;align-items:flex-start;gap:10px;">
+                    <i class="fa-solid fa-rotate" style="color:#3b82f6;flex-shrink:0;font-size:1.1rem;margin-top:2px;"></i>
+                    <div style="flex:1;min-width:0;">
+                        <div style="color:#cbd5e1;font-size:0.9rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.title || p.reportId}</div>
+                        <div style="margin-top:4px;">${reasonLabel}</div>
+                        <div style="color:#94a3b8;font-size:0.72rem;margin-top:4px;">
+                            최초 감지 ${firstSeenStr} · 경과 ${elapsedStr} · 재시도 ${p.retryCount || 0}회
+                        </div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+                        <button onclick="togglePendingRawText('${safeId}', '${rawContainerId}')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#cbd5e1;padding:6px 10px;cursor:pointer;font-size:0.72rem;white-space:nowrap;font-weight:500;" title="기상청 원문 보기">
+                            <i class="fa-solid fa-file-lines"></i> 원문 보기
+                        </button>
+                        <button onclick="removePendingRetry('${safeId}', '${(p.title || '').replace(/'/g, "\\'")}')" style="background:linear-gradient(135deg,#ef4444,#dc2626);border:none;border-radius:6px;color:#fff;padding:6px 10px;cursor:pointer;font-size:0.72rem;white-space:nowrap;font-weight:600;" title="재시도 대기열에서 제거">
+                            <i class="fa-solid fa-trash"></i> 대기열 제거
+                        </button>
+                    </div>
+                </div>
+                <div id="${rawContainerId}" style="display:none;margin-top:10px;padding:10px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.06);border-radius:6px;color:#cbd5e1;font-size:0.78rem;line-height:1.5;white-space:pre-wrap;max-height:280px;overflow:auto;"></div>
+            </div>`;
+    }).join('');
+    return `
+        <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="color:#93c5fd;font-size:0.9rem;font-weight:600;">
+                <i class="fa-solid fa-rotate"></i> 재시도 중 ${pendings.length}건
+            </div>
+            <div style="color:#64748b;font-size:0.7rem;">30초마다 자동 갱신</div>
+        </div>
+        ${rows}`;
+}
+
+// [하위 탭] 수집 실패 섹션 HTML
+function renderFailureSectionHtml(failures) {
+    if (!failures || failures.length === 0) {
+        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">수집 실패 기록이 없습니다.</div>`;
+    }
+    const rows = failures.map(f => {
+        const time = f.failedAt ? new Date(f.failedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-';
+        return `
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:10px;margin-bottom:8px;">
+                <i class="fa-solid fa-circle-xmark" style="color:#ef4444;flex-shrink:0;font-size:1.1rem;"></i>
+                <div style="flex:1;min-width:0;">
+                    <div style="color:#fca5a5;font-size:0.9rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.title || f.reportId}</div>
+                    <div style="color:#94a3b8;font-size:0.75rem;margin-top:3px;">ID: ${f.reportId} | ${f.retriesUsed || 5}회 시도 | ${time}</div>
+                    <div style="color:#f87171;font-size:0.75rem;margin-top:2px;">${f.error || ''}</div>
+                </div>
+                <button onclick="deleteOneCollectFailure('${f.reportId}')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#94a3b8;padding:6px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;" title="이 항목 삭제">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </div>`;
+    }).join('');
+    return `
+        <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="color:#fca5a5;font-size:0.9rem;font-weight:600;">
+                <i class="fa-solid fa-triangle-exclamation"></i> 수집 실패 ${failures.length}건
+            </div>
+            <button onclick="clearAllCollectFailuresAndRefresh()" style="padding:5px 12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:600;">
+                <i class="fa-solid fa-check"></i> 전체 삭제
+            </button>
+        </div>
+        ${rows}`;
+}
+
+// [하위 탭 전환] 하위 탭 버튼 클릭 시 호출
+window.switchErrorSubTab = function (key) {
+    if (!['review', 'retry', 'fail'].includes(key)) return;
+    currentErrorSubTab = key;
+    const inner = document.getElementById('alert-top-content');
+    if (inner) renderErrorListTab(inner);
+};
+
+// [원문 보기] 재시도 중 항목의 원문 텍스트를 토글 표시
+window.togglePendingRawText = async function (reportId, containerId) {
+    const box = document.getElementById(containerId);
+    if (!box) return;
+    if (box.style.display === 'block') {
+        box.style.display = 'none';
+        return;
+    }
+    box.style.display = 'block';
+    box.textContent = '원문 불러오는 중...';
+    try {
+        const res = await fetch(`/api/admin/pending-retries/${encodeURIComponent(reportId)}/raw`);
+        if (!res.ok) {
+            box.textContent = '원문을 가져오지 못했습니다.';
+            return;
+        }
+        const data = await res.json();
+        box.textContent = data.rawText && data.rawText.trim().length > 0
+            ? data.rawText
+            : '(원문이 비어 있습니다.)';
+    } catch (e) {
+        box.textContent = '원문 조회 오류: ' + e.message;
+    }
+};
+
+// [대기열 제거] 특정 항목을 pendingRetries에서 제거
+window.removePendingRetry = async function (reportId, title) {
+    const confirmMsg = `"${title || reportId}"\n\n재시도 대기열에서 제거하시겠습니까?\n\n` +
+        `· AI 자동 재시도가 중단됩니다\n` +
+        `· 관리자 지속 알림이 더 이상 발송되지 않습니다\n` +
+        `· 이 통보문은 다시 자동 수집 대상이 되지 않습니다\n\n` +
+        `이미 '특보 수정' 탭에서 수동 반영하신 경우 선택하세요.`;
+    if (!confirm(confirmMsg)) return;
+    try {
+        const res = await fetch(`/api/admin/pending-retries/${encodeURIComponent(reportId)}`, { method: 'DELETE' });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            alert('제거 실패: ' + (err.error || res.status));
+            return;
+        }
+        const inner = document.getElementById('alert-top-content');
+        if (inner) renderErrorListTab(inner);
+    } catch (e) {
+        alert('제거 오류: ' + e.message);
+    }
+};
 
 // [검토 필요] 개별 확인완료 처리
 window.acknowledgeReviewItem = async function (reportId) {
@@ -1273,6 +1434,10 @@ async function renderUnifiedAlertContent(container) {
     `;
 
     window.switchAlertTopTab = function (topTabId) {
+        // [정리] 다른 상위 탭으로 전환 시 수집 오류 탭의 자동 갱신 타이머 중단
+        if (topTabId !== 'collect-error' && typeof clearErrorListAutoRefresh === 'function') {
+            clearErrorListAutoRefresh();
+        }
         document.querySelectorAll('.alert-top-tab').forEach(btn => {
             if (btn.dataset.tab === topTabId) btn.classList.add('active');
             else btn.classList.remove('active');

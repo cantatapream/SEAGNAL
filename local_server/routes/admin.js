@@ -492,6 +492,86 @@ router.delete('/api/admin/review-needed', (req, res) => {
 });
 
 // ============================================================================
+// 재시도 대기열 관리 (pendingRetries in weather_alerts.json)
+// → AI 분석 실패(429, 빈 양식 등)로 10분/1분 간격 재시도 중인 통보문 목록
+// → 관리자가 '특보 수정' 탭에서 수동 반영한 경우 수동으로 대기열에서 제거 필요
+// ============================================================================
+
+// [조회] 현재 재시도 대기 중인 통보문 목록
+router.get('/api/admin/pending-retries', (req, res) => {
+    try {
+        const outputFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
+        if (!fs.existsSync(outputFile)) return res.json([]);
+        const fullForm = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+        const pendingRetries = fullForm.pendingRetries || {};
+        const now = Date.now();
+        const items = Object.keys(pendingRetries).map(reportId => {
+            const entry = pendingRetries[reportId];
+            const firstSeenMs = entry.firstSeen ? new Date(entry.firstSeen).getTime() : now;
+            return {
+                reportId,
+                title: entry.title || reportId,
+                reason: entry.reason || 'EMPTY_CONTENT',
+                firstSeen: entry.firstSeen || null,
+                lastRetry: entry.lastRetry || null,
+                lastNoticeSent: entry.lastNoticeSent || null,
+                retryCount: entry.retryCount || 0,
+                elapsedMs: now - firstSeenMs
+            };
+        });
+        // 최초 감지 시각 오래된 순
+        items.sort((a, b) => (a.firstSeen || '').localeCompare(b.firstSeen || ''));
+        res.json(items);
+    } catch (e) {
+        console.error('[Admin] pending-retries 조회 오류:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// [원문 조회] 특정 통보문의 기상청 원문 텍스트
+router.get('/api/admin/pending-retries/:reportId/raw', async (req, res) => {
+    try {
+        const reportId = req.params.reportId;
+        if (!reportId) return res.status(400).json({ error: 'reportId가 필요합니다.' });
+        const rawText = await reportProcessor.fetchReportDetail(reportId);
+        res.json({ reportId, rawText: rawText || '' });
+    } catch (e) {
+        console.error('[Admin] 원문 조회 오류:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// [제거] 특정 통보문을 재시도 대기열에서 제거
+// → 관리자가 '특보 수정' 탭 등으로 이미 수동 반영한 경우 사용
+// → pendingRetries에서 삭제 + processedReportIds에 등록(다음 크롤링에서 재인식 방지)
+router.delete('/api/admin/pending-retries/:reportId', (req, res) => {
+    try {
+        const reportId = req.params.reportId;
+        if (!reportId) return res.status(400).json({ error: 'reportId가 필요합니다.' });
+        const outputFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
+        if (!fs.existsSync(outputFile)) return res.status(404).json({ error: '장부 파일 없음' });
+        const fullForm = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+        if (!fullForm.pendingRetries || !fullForm.pendingRetries[reportId]) {
+            return res.status(404).json({ error: '대기열에 해당 항목이 없습니다.' });
+        }
+        // pendingRetries에서 제거
+        const removed = fullForm.pendingRetries[reportId];
+        delete fullForm.pendingRetries[reportId];
+        // processedReportIds에 등록하여 다음 크롤링에서 재인식 방지
+        if (!fullForm.processedReportIds) fullForm.processedReportIds = [];
+        if (!fullForm.processedReportIds.includes(reportId)) {
+            fullForm.processedReportIds.push(reportId);
+        }
+        fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
+        console.log(`[Admin] 재시도 대기열에서 제거: ${reportId} (${removed.title || ''})`);
+        res.json({ success: true, reportId, removedEntry: removed });
+    } catch (e) {
+        console.error('[Admin] pending-retries 제거 오류:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ============================================================================
 // 수동 특보 등록/해제
 // ============================================================================
 
