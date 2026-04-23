@@ -159,31 +159,39 @@ function _openSubTabsFor(groupId) {
 
 /**
  * [헬퍼] 현재 열린 서브탭 nav 의 실측 높이를 --sub-tab-height CSS 변수에 주입
- *  - 즉시(RAF): 트랜지션 시작 시 scrollHeight 기반 추정값
- *  - 400ms 후 : 트랜지션 종료 후 offsetHeight 기반 실측값
- *  scrollHeight 는 max-height 제약 무시하므로 CSS 의 max-height(50px) 로 캡.
+ *
+ * [타이밍/측정]
+ *  - 즉시(RAF): scrollHeight(컨텐츠 원본 높이) + CSS max-height(50px) 캡
+ *    → max-height 트랜지션이 0→50 으로 진행 중이라 offsetHeight 는 중간값을
+ *      리턴하지만, scrollHeight 는 트랜지션과 무관하게 "컨텐츠가 차지하는
+ *      내재 높이" 이므로 시작 직후에도 올바른 최종값을 얻을 수 있음.
+ *  - 400ms 후 : 트랜지션 종료 후 offsetHeight 실측으로 최종 보정.
+ *
+ *  [왜 scrollHeight?]
+ *    offsetHeight 는 transition 중의 CSS height(= clip 된 값)을 반환하므로
+ *    첫 RAF(≈16ms) 시점에서 매우 작은 값(≈2px)이 찍힘 → 섹션이 너무 길게
+ *    계산되어 서브탭 위쪽으로 지도 컨텐츠가 비쳐 보이는 역효과 발생.
  */
 function _syncSubTabHeightVar(subNav) {
-    function _applyRendered() {
+    function _applyScrollHeight() {
+        var sh = subNav.scrollHeight;
+        if (sh > 0) {
+            // CSS .sub-tabs.sub-tabs-visible { max-height: 50px } 제약 반영
+            document.documentElement.style.setProperty('--sub-tab-height', Math.min(sh, 50) + 'px');
+            _scheduleActiveMapResize();
+        }
+    }
+    function _applyOffsetHeight() {
         var h = subNav.offsetHeight;
         if (h > 0) {
             document.documentElement.style.setProperty('--sub-tab-height', h + 'px');
             _scheduleActiveMapResize();
         }
     }
-    requestAnimationFrame(function () {
-        var h = subNav.offsetHeight;
-        if (h > 0) {
-            _applyRendered();
-        } else {
-            // 트랜지션 시작 직후엔 max-height 가 아직 0 → 컨텐츠 원본 높이(scrollHeight) 사용
-            var sh = subNav.scrollHeight;
-            if (sh > 0) {
-                document.documentElement.style.setProperty('--sub-tab-height', Math.min(sh, 50) + 'px');
-            }
-        }
-    });
-    setTimeout(_applyRendered, 400);
+    // 즉시: 트랜지션과 무관한 내재 높이 기반 추정
+    requestAnimationFrame(_applyScrollHeight);
+    // 트랜지션 종료 후: 최종 렌더 높이 기반 보정
+    setTimeout(_applyOffsetHeight, 400);
 }
 
 /**
@@ -265,6 +273,31 @@ window.switchMainTab = function (targetId) {
     // ③ 전환 전에 모든 서브탭을 일단 닫아둠 (다음 단계에서 필요 시 다시 연다)
     _closeAllBottomSubTabs();
 
+    // ③-2. 그룹탭 클릭 시 기본 하위탭으로 강제 초기화
+    //  [배경] marine.js 원본 switchMainTab 은 "이전에 선택했던 .sub-tab-btn.active
+    //         가 있으면 그 섹션을 표시" 하는 로직이라, 특보정보 탭에서 해구기상을
+    //         보던 사용자가 다른 메인탭 다녀와도 해구기상이 유지됨. 사용자 요구:
+    //         "특보정보 탭을 누르는 순간 무조건 '특보 및 전망' 하위탭".
+    //  [구현] 원본 호출 직전에 해당 그룹의 서브탭 버튼 active 를 모두 제거하고
+    //         기본 섹션(TAB_GROUP_DEFAULTS) 버튼에만 active 부여 → 원본이
+    //         "active 버튼의 섹션" 을 찾을 때 기본 섹션으로 표시됨.
+    //         단, targetId 가 명시적인 섹션ID인 경우는 사용자 의도를 존중해 스킵.
+    var _groupForReset = TAB_GROUP_DEFAULTS[targetId] ? targetId : null;
+    if (_groupForReset) {
+        var _defaultSection = TAB_GROUP_DEFAULTS[_groupForReset];
+        var _subNavId = TAB_GROUP_SUBTABS[_groupForReset];
+        var _subNav = _subNavId && document.getElementById(_subNavId);
+        if (_subNav && _defaultSection) {
+            var _subBtns = _subNav.querySelectorAll('.sub-tab-btn');
+            for (var _i = 0; _i < _subBtns.length; _i++) {
+                _subBtns[_i].classList.toggle(
+                    'active',
+                    _subBtns[_i].getAttribute('data-target') === _defaultSection
+                );
+            }
+        }
+    }
+
     // ④ marine.js 원본 switchMainTab 호출 (실제 섹션 전환 수행)
     //    원본은 내부에서 해당 그룹의 서브탭에 .sub-tabs-visible 를 붙이지만,
     //    우리는 body.sub-tabs-open 클래스도 함께 동기화해야 하므로
@@ -282,16 +315,49 @@ window.switchMainTab = function (targetId) {
         _openSubTabsFor(groupForSub);
     }
 
-    // ⑥ ocean-map-section 이 활성화되면 지도 크기 갱신
+    // ⑥ ocean-map-section 이 활성화되면 지도 크기 갱신 + 오버레이 파티클 재개
     //    해양종합정보 메인탭은 이제 독립 섹션탭이므로 targetId 만 체크하면 충분.
+    //
+    //    [오버레이 복귀 이슈 — 두 단계 모두 대응]
+    //     (A) canvas 크기 0x0 문제
+    //         ocean_overlay.js 의 resizeCanvas() 는 map viewport 의
+    //         getBoundingClientRect() 기준인데, 섹션이 display:none 상태에서
+    //         호출되면 canvas 가 0x0 으로 축소되어 이후 _onCompositePrerender
+    //         에서 합성 스킵됨.
+    //     (B) 데이터 소실 문제 (핵심)
+    //         marine.js 의 _onSectionActivated 가 해양종합 아닌 섹션 활성화 시
+    //         window.oceanOverlayClear() 를 호출 → gridData/particles/lonList/
+    //         latList/gridLookup 을 전부 null/[] 로 폐기. (streamActive /
+    //         activeLayer / 버튼 .active 는 보존)
+    //         따라서 단순히 oceanOverlayRefresh() 만으론 gridData 가 null
+    //         이라 복원 불가.
+    //     [해결]
+    //         oceanOverlayInit(map) 재호출. 재진입 분기(ocean_overlay.js
+    //         line 185-195) 는 inited===true 이면 resizeCanvas() 수행 후
+    //         streamActive 이면 버튼 active 복원 + loadOverlayData() 재호출
+    //         → gridData 재로딩 → startParticleAnimation 자동 재개.
+    //         streamActive=false 면 no-op 으로 return.
+    //     [타이밍] RAF 즉시 + 400ms 후 (섹션 트랜지션/서브탭 슬라이드 완료 후)
+    //              두 번 호출. 재진입 분기는 idempotent 하므로 중복 호출 안전.
     if (targetId === 'ocean-map-section') {
         document.body.classList.add('ocean-map-active');
-        requestAnimationFrame(function () {
-            if (window.getOceanMap) {
+        function _oceanRevive() {
+            try {
+                if (!window.getOceanMap) return;
                 var m = window.getOceanMap();
-                if (m && m.updateSize) m.updateSize();
-            }
-        });
+                if (!m) return;
+                if (m.updateSize) m.updateSize();
+                // oceanOverlayInit 재진입으로 canvas 크기 + 데이터(loadOverlayData) 동시 복구
+                if (window.oceanOverlayInit) window.oceanOverlayInit(m);
+                // OL 에 강제 렌더 요청 — prerender 훅을 재호출해 파티클 합성 재개
+                if (m.render) m.render();
+            } catch (e) {}
+        }
+        requestAnimationFrame(_oceanRevive);
+        setTimeout(_oceanRevive, 400);
+
+        // 세션 최초 진입 상단 토스트 — 같은 세션에서 한 번만 표시
+        _showOceanFirstEntryToastIfNeeded();
     }
 };
 
@@ -409,7 +475,209 @@ window.exitOceanMapSection = function () {
 };
 
 // ──────────────────────────────────────────────────────────────
-// 8. 초기 상태 설정
+// 8. 해양종합 전용 토스트 시스템
+//    ──────────────────────────────────────────────────────────
+//    [용도]
+//     ① 세션 최초 해양종합 진입 안내 (상단, 2초)
+//        "해역을 클릭하여 상세한 정보를 확인하세요"
+//     ② 오버레이 버튼(파고/바람/조류) 클릭 시 설명 (하단, 2초)
+//        - 파고:  "파고 및 파향의 현황을 표출합니다."
+//        - 바람:  "풍향·속의 현황을 표출합니다."
+//        - 조류:  "유향·속의 현황을 표출합니다."
+//        (주요지명/기상부이/CCTV 는 토스트 없음)
+//
+//    [위치 계산 — 하단 토스트]
+//     즐겨찾기 바(#ocean-fav-bar) 가 표시되어 있으면 그 바로 위에 표출.
+//     즐겨찾기 바의 현재 CSS bottom(= --main-tab-height + optional legend + ...)
+//     을 그대로 따라 올라가므로 바 상태(범례 표시 / 서브탭 열림 등) 에 자연히 적응.
+// ──────────────────────────────────────────────────────────────
+
+var _OCEAN_TOAST_ID = 'ocean-ui-toast';
+var _OCEAN_FIRST_ENTRY_SESSION_KEY = 'ocean_first_entry_toast_shown_v1';
+var _oceanToastTimer = null;
+
+function _ensureOceanToastStyles() {
+    if (document.getElementById('ocean-ui-toast-style')) return;
+    var style = document.createElement('style');
+    style.id = 'ocean-ui-toast-style';
+    style.textContent = [
+        '#' + _OCEAN_TOAST_ID + ' {',
+        '  position: fixed;',
+        '  left: 50%;',
+        '  transform: translateX(-50%);',
+        '  background: rgba(15, 23, 42, 0.92);',
+        '  color: #fff;',
+        '  font-size: 0.88rem;',
+        '  font-weight: 500;',
+        '  padding: 10px 18px;',
+        '  border-radius: 999px;',
+        '  border: 1px solid rgba(255,255,255,0.08);',
+        '  box-shadow: 0 6px 20px rgba(0,0,0,0.45);',
+        '  z-index: 9500;',
+        '  pointer-events: none;',
+        '  white-space: nowrap;',
+        '  opacity: 0;',
+        '  transition: opacity 0.2s ease;',
+        '  max-width: calc(100vw - 40px);',
+        '  text-overflow: ellipsis;',
+        '  overflow: hidden;',
+        '}',
+        '#' + _OCEAN_TOAST_ID + '.visible { opacity: 1; }',
+        // 긴 텍스트 허용 (옵션)
+        '#' + _OCEAN_TOAST_ID + '.multi-line { white-space: normal; text-align: center; border-radius: 14px; }'
+    ].join('\n');
+    document.head.appendChild(style);
+}
+
+/**
+ * 토스트 엘리먼트를 얻고(필요 시 생성) 공통 속성 초기화.
+ */
+function _getOceanToastEl() {
+    _ensureOceanToastStyles();
+    var el = document.getElementById(_OCEAN_TOAST_ID);
+    if (!el) {
+        el = document.createElement('div');
+        el.id = _OCEAN_TOAST_ID;
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-live', 'polite');
+        document.body.appendChild(el);
+    }
+    return el;
+}
+
+/**
+ * [공통] 토스트 표시
+ * @param {string} message   표시 문구
+ * @param {string} position  'top' | 'bottom'
+ * @param {number} durationMs  표시 시간 (기본 2000)
+ */
+function _showOceanToast(message, position, durationMs) {
+    if (!message) return;
+    var el = _getOceanToastEl();
+    el.textContent = message;
+    el.classList.remove('multi-line');
+
+    // 위치 계산
+    if (position === 'top') {
+        // 상단: safe-area + 16px
+        el.style.bottom = '';
+        el.style.top = 'calc(env(safe-area-inset-top, 0px) + 16px)';
+    } else {
+        // 하단: 즐겨찾기 바 위 (바가 숨겨져 있으면 메인탭 + 여유)
+        el.style.top = '';
+        el.style.bottom = _computeBottomToastOffsetPx() + 'px';
+    }
+
+    // 재표시 보장: class 토글을 RAF 로 한 틱 띄워 transition 유도
+    el.classList.remove('visible');
+    requestAnimationFrame(function () {
+        el.classList.add('visible');
+    });
+
+    // 이전 타이머 취소 후 새 타이머
+    if (_oceanToastTimer) {
+        clearTimeout(_oceanToastTimer);
+        _oceanToastTimer = null;
+    }
+    var dur = (typeof durationMs === 'number' && durationMs > 0) ? durationMs : 2000;
+    _oceanToastTimer = setTimeout(function () {
+        el.classList.remove('visible');
+        _oceanToastTimer = null;
+    }, dur);
+}
+
+/**
+ * 하단 토스트 bottom 픽셀값 계산.
+ * 즐겨찾기 바가 표시되어 있으면 그 top 바로 위(8px 여유),
+ * 아니면 --main-tab-height + (범례 보이면 +115) + 여유 값.
+ */
+function _computeBottomToastOffsetPx() {
+    var favBar = document.getElementById('ocean-fav-bar');
+    var favVisible = !!(favBar
+        && !favBar.classList.contains('empty')
+        && document.body.classList.contains('ocean-map-active')
+        && !document.body.classList.contains('ocean-sheet-open')
+        && favBar.offsetParent !== null);
+    if (favVisible) {
+        var rect = favBar.getBoundingClientRect();
+        // 바 top 위 8px
+        return Math.max(0, window.innerHeight - rect.top + 8);
+    }
+    // 즐겨찾기 바 없음 → 메인탭(+ 범례) 위로
+    var mainStr = getComputedStyle(document.documentElement).getPropertyValue('--main-tab-height');
+    var mainH = parseInt(mainStr, 10);
+    if (!mainH || isNaN(mainH)) mainH = 68;
+    var legendBoost = document.body.classList.contains('ocean-legend-visible') ? 115 : 0;
+    var subTabBoost = document.body.classList.contains('sub-tabs-open') ? 50 : 0;
+    return mainH + legendBoost + subTabBoost + 12;
+}
+
+/**
+ * 세션 최초 해양종합 진입 시 상단 토스트 1회 표시.
+ *  - sessionStorage 로 같은 세션 내 중복 표시 차단.
+ *  - 새로 앱을 켜면(페이지 새로고침 포함) 다시 1회 표시.
+ */
+function _showOceanFirstEntryToastIfNeeded() {
+    try {
+        if (sessionStorage.getItem(_OCEAN_FIRST_ENTRY_SESSION_KEY) === '1') return;
+        sessionStorage.setItem(_OCEAN_FIRST_ENTRY_SESSION_KEY, '1');
+    } catch (e) { /* SS 접근 불가 환경에서도 동작은 계속 */ }
+    // 섹션 전환 애니메이션 이후에 띄우도록 약간 지연
+    setTimeout(function () {
+        _showOceanToast('해역을 클릭하여 상세한 정보를 확인하세요', 'top', 2000);
+    }, 200);
+}
+
+/**
+ * 오버레이 버튼(파고/바람/조류) 클릭 시 하단 토스트 표출.
+ * ocean_overlay.js 자체 click 핸들러와는 별도로, 동일 버튼에 "추가" 리스너를
+ * bubble 단계로 붙여 기존 동작(레이어 전환)을 방해하지 않음.
+ *
+ * [동작 조건]
+ *  - 버튼 클릭 결과 레이어가 '켜질 때' 만 토스트 표시
+ *    (같은 버튼 재클릭으로 OFF 될 때는 표시 X — 버튼 active 상태로 판정)
+ *  - data-layer 값: 'wave'(파고) | 'wind'(바람) | 'current'(조류)
+ *  - 주요지명 / 기상부이 / CCTV 는 data-layer 미사용 → 이 리스너가 적용되지 않음
+ */
+var _OVERLAY_TOAST_MSG = {
+    wave:    '파고 및 파향의 현황을 표출합니다.',
+    wind:    '풍향·속의 현황을 표출합니다.',
+    current: '유향·속의 현황을 표출합니다.'
+};
+
+function _bindOverlayButtonToasts() {
+    var btns = document.querySelectorAll('.ocean-overlay-btn[data-layer]');
+    for (var i = 0; i < btns.length; i++) {
+        (function (btn) {
+            btn.addEventListener('click', function () {
+                // ocean_overlay.js 의 핸들러가 먼저 실행되어 active 클래스가 갱신된 뒤
+                // 이 리스너가 실행됨. active 이면 "방금 켜진" 상태.
+                // (버블 단계 기본 / 등록 순서가 뒤라 자연스러움)
+                // 다만 동기 보장을 위해 rAF 지연으로 한 프레임 뒤 확인.
+                requestAnimationFrame(function () {
+                    if (!btn.classList.contains('active')) return;
+                    var layer = btn.getAttribute('data-layer');
+                    var msg = _OVERLAY_TOAST_MSG[layer];
+                    if (msg) _showOceanToast(msg, 'bottom', 2000);
+                });
+            });
+        })(btns[i]);
+    }
+}
+
+// DOM 준비 후(혹은 ocean_overlay.js 가 버튼 바인딩한 뒤) 토스트 리스너 부착.
+// DOMContentLoaded 후 한 번 + ocean_map 초기화 이후에도 한 번 — 둘 다 안전.
+function _initOverlayToastsWhenReady() {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', _bindOverlayButtonToasts, { once: true });
+    } else {
+        _bindOverlayButtonToasts();
+    }
+}
+_initOverlayToastsWhenReady();
+
+// ──────────────────────────────────────────────────────────────
+// 9. 초기 상태 설정
 //    페이지 로드 시 기본 탭(특보정보)에 맞춰 body 속성 설정
 // ──────────────────────────────────────────────────────────────
 document.body.setAttribute('data-active-tab', 'weather-group');
