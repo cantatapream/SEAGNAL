@@ -489,9 +489,12 @@
                 this.save();
             },
 
-            /** id 로 제거 */
+            /** id 로 제거 (String 비교 — 숫자/문자열 혼용 방어) */
             removeById: function (id) {
-                this.items = this.items.filter(function (it) { return it.id !== id; });
+                var key = String(id);
+                this.items = this.items.filter(function (it) {
+                    return String(it.id) !== key;
+                });
                 this.save();
             }
         };
@@ -515,8 +518,10 @@
      * [사용] 팝업 헤더의 별 버튼 상태 판정 (그룹3 에서 활용)
      */
     function _cctvHas(id) {
+        // 외부에서 문자열/숫자가 섞여 들어올 수 있으므로 String 비교로 통일.
+        var key = String(id);
         for (var i = 0; i < _favCctv.items.length; i++) {
-            if (_favCctv.items[i].id === id) return true;
+            if (String(_favCctv.items[i].id) === key) return true;
         }
         return false;
     }
@@ -611,8 +616,14 @@
 
         if (kind === 'cctv') {
             var cctv = null;
+            // [타입 주의] chip.dataset.id 는 HTML attribute 특성상 항상 문자열이지만
+            //   저장된 items[i].id 는 cctvId(숫자) 일 수 있어 === 비교가 실패함.
+            //   String() 으로 양쪽 모두 문자열화해 안전하게 매칭.
             for (var i = 0; i < _favCctv.items.length; i++) {
-                if (_favCctv.items[i].id === id) { cctv = _favCctv.items[i]; break; }
+                if (String(_favCctv.items[i].id) === String(id)) {
+                    cctv = _favCctv.items[i];
+                    break;
+                }
             }
             if (!cctv) return;
 
@@ -653,8 +664,12 @@
 
         if (kind === 'location') {
             var loc = null;
+            // 동일한 이유로 String 변환 매칭 (위치 id 는 'loc_…' 문자열이지만 방어적)
             for (var j = 0; j < _favLocation.items.length; j++) {
-                if (_favLocation.items[j].id === id) { loc = _favLocation.items[j]; break; }
+                if (String(_favLocation.items[j].id) === String(id)) {
+                    loc = _favLocation.items[j];
+                    break;
+                }
             }
             if (!loc) return;
 
