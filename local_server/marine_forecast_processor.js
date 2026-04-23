@@ -335,7 +335,7 @@ ${JSON.stringify(codeExtracted, null, 2)}
 
         // [공용 클라이언트 호출] 기본 키 429 시 자동으로 백업 키로 폴백됨
         const callResult = await geminiClient.callGemini({
-            model: 'gemini-2.0-flash',
+            model: 'gemini-2.5-flash',
             contents: FORECAST_AI_PROMPT + '\n\n' + userPrompt,
             config: { responseMimeType: 'application/json' },
             caller: 'MarineForecast'

@@ -96,7 +96,7 @@ function notifyAdmin(title, body) {
 /**
  * Gemini 호출 (자동 키 선택 + 폴백)
  * @param {object} params
- * @param {string} params.model - 'gemini-2.0-flash' 등
+ * @param {string} params.model - 'gemini-2.5-flash' 등
  * @param {string|object} params.contents - 프롬프트 텍스트 또는 contents 객체
  * @param {object} params.config - responseMimeType 등
  * @param {string} params.caller - 호출자 식별용 라벨(예: 'AI Parser', 'MarineForecast')
