@@ -19,18 +19,15 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { GoogleGenAI } = require('@google/genai');
 require('dotenv').config();
+
+// [공용 Gemini 클라이언트] 기본 키 + 백업 키 라운드로빈/폴백 + 공유 쿨다운
+// → 개별 쿨다운 변수는 gemini_client.js 내부로 이관
+// → 특보 분석과 해상 전망이 쿨다운 상태를 공유하여 중복 시도 방지
+const geminiClient = require('./services/gemini_client');
 
 const DATA_FILE = path.join(__dirname, 'data', 'marine_forecast.json');
 const FORECAST_CACHE_DIR = path.join(__dirname, 'data', 'forecast_cache');
-
-// [AI 쿨다운] Gemini API 429 할당량 초과 시 일정 시간 동안 AI 호출을 중단
-// → AI 실패해도 코드 추출 결과로 폴백되므로 서비스 영향 없음
-// → 429 상태에서 무의미한 반복 호출을 막아 할당량 자연 회복 시간을 확보
-// 메모리에만 보관(서버 재시작 시 리셋되어도 무방: 재시작 후 429 나면 다시 설정됨)
-let aiCooldownUntil = 0;                   // timestamp(ms). 이 시각까지는 AI 호출 건너뜀
-const AI_COOLDOWN_MS = 60 * 60 * 1000;     // 쿨다운 기간: 1시간
 
 const CONFIG = {
     LIST_URL: 'https://www.weather.go.kr/w/special-report/list.do',
@@ -318,27 +315,16 @@ const FORECAST_AI_PROMPT = `
 
 /**
  * AI 분석으로 전망 텍스트를 정제한다
+ * - 공용 geminiClient를 사용하여 기본/백업 키 라운드로빈 + 자동 폴백
+ * - AI 호출 실패 시 null 반환 → 호출측이 코드 추출 결과를 사용하여 서비스 영향 없음
  */
 async function analyzeWithAI(rawText, codeExtracted) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    if (!geminiClient.hasAnyKey()) {
         console.log('[MarineForecast] GEMINI_API_KEY 없음, AI 분석 건너뜀');
         return null;
     }
 
-    // [쿨다운 체크] 직전 호출에서 429를 받았으면 쿨다운 동안 AI 호출 건너뜀
-    // → AI 결과가 null이면 호출측이 코드 추출 결과를 사용하므로 사용자 서비스 영향 없음
-    // → 할당량 회복 전까지 무의미한 호출을 막아 전체 시스템 자연 회복 유도
-    const nowMs = Date.now();
-    if (nowMs < aiCooldownUntil) {
-        const remainingMin = Math.ceil((aiCooldownUntil - nowMs) / 60000);
-        console.log(`[MarineForecast] AI 쿨다운 중 (${remainingMin}분 남음), AI 분석 건너뜀`);
-        return null;
-    }
-
     try {
-        const genAI = new GoogleGenAI({ apiKey });
-
         const userPrompt = `## 원문 텍스트
 ${rawText}
 
@@ -347,31 +333,32 @@ ${JSON.stringify(codeExtracted, null, 2)}
 
 위 원문과 코드 추출 결과를 비교 검토하여, 최종 표출용 정제 데이터를 JSON으로 반환하라.`;
 
-        const result = await genAI.models.generateContent({
+        // [공용 클라이언트 호출] 기본 키 429 시 자동으로 백업 키로 폴백됨
+        const callResult = await geminiClient.callGemini({
             model: 'gemini-2.0-flash',
             contents: FORECAST_AI_PROMPT + '\n\n' + userPrompt,
-            config: { responseMimeType: 'application/json' }
+            config: { responseMimeType: 'application/json' },
+            caller: 'MarineForecast'
         });
 
-        const text = result.text;
-        const parsed = JSON.parse(text);
-        console.log('[MarineForecast] AI 분석 완료');
+        if (!callResult.success) {
+            if (callResult.isRateLimited) {
+                console.warn('[MarineForecast] 모든 Gemini 키 쿨다운 중, AI 분석 건너뜀 → 코드 추출 결과 사용');
+            } else {
+                console.error(`[MarineForecast] AI 분석 오류: ${callResult.error}`);
+            }
+            return null;
+        }
+
+        const parsed = JSON.parse(callResult.text);
+        console.log(`[MarineForecast] AI 분석 완료 (${callResult.keyLabel} 키 사용)`);
         if (parsed.issues && parsed.issues.length > 0) {
             console.log('[MarineForecast] AI 발견 이슈:', parsed.issues);
         }
         return parsed;
     } catch (e) {
-        const errorMsg = e.message || '';
-        // [429 감지] Gemini API 할당량 초과(RESOURCE_EXHAUSTED) 여부 판별
-        // 에러 메시지에 "429" 또는 "RESOURCE_EXHAUSTED" 포함 시 쿨다운 설정
-        const isRateLimited = errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED');
-        if (isRateLimited) {
-            aiCooldownUntil = Date.now() + AI_COOLDOWN_MS;
-            const untilStr = new Date(aiCooldownUntil).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-            console.error(`[MarineForecast] ⚠️ AI 할당량 초과 (429). ${untilStr}까지 AI 호출 중단 (1시간 쿨다운)`);
-        } else {
-            console.error(`[MarineForecast] AI 분석 오류: ${e.message}`);
-        }
+        // JSON.parse 실패 등 기타 오류
+        console.error(`[MarineForecast] AI 분석 오류: ${e.message}`);
         return null;
     }
 }
