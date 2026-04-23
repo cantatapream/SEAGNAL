@@ -319,6 +319,16 @@ async function applyNewReports(fullForm) {
             // ──────────────────────────────────────────────────────────────
             const pending = fullForm.pendingRetries[report.id];
             if (pending) {
+                // [하위 호환 마이그레이션] 구버전(reason 필드 없음)에서 쌓인 pendingRetries 항목 안전 처리
+                // 구버전 코드는 2분 간격으로 모든 실패 통보문을 재시도하여 429 폭주의 주원인이었음
+                // → 이런 항목은 대부분 "AI 할당량 초과" 상태였을 가능성이 매우 높음
+                // → 보수적으로 API_RATE_LIMIT(10분 재시도)로 기본 설정하여 429 악순환 방지
+                // 한 번 설정되면 weather_alerts.json에 저장되어 이후 사이클에서는 재실행되지 않음
+                if (!pending.reason) {
+                    pending.reason = 'API_RATE_LIMIT';
+                    console.log(`[ReportProcessor] 🔧 하위 호환: ${report.title} → reason=API_RATE_LIMIT로 전환 (10분 재시도)`);
+                }
+
                 // reason에 따라 재시도 간격 결정
                 // API_RATE_LIMIT(429 오류): 10분 대기 (빠른 재시도 시 429 악순환 발생)
                 // EMPTY_CONTENT(빈 통보문): 1분 대기 (AI 호출 없이 본문만 재확인, 부담 없음)
