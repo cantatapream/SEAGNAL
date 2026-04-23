@@ -88,7 +88,13 @@ function slideUp(element, duration = 300) {
 }
 
 /**
- * 부이 위치를 해구별 기상 지도에서 표시
+ * 부이 위치를 지도에서 표시
+ *
+ * [index2 전용 분기]
+ *   해양종합정보 탭으로 이동 → 기본맵 강제 전환 → 기상부이 레이어 ON →
+ *   부이 좌표로 지도 이동 → showBuoyModal 로 정보 팝업 표출.
+ *   __SEAGNAL_PAGE 가드 안쪽이라 index1 에서는 이 블록을 타지 않고
+ *   기존(해구기상 탭) 로직 그대로 수행됨.
  */
 async function showBuoyLocationOnMap(buoyId) {
     // 부이 좌표 가져오기
@@ -100,6 +106,53 @@ async function showBuoyLocationOnMap(buoyId) {
     const buoyInfo = BUOY_LOCATIONS[buoyId];
     const lon = buoyInfo.lon;
     const lat = buoyInfo.lat;
+
+    // ──────────────────────────────────────────────────────────
+    // [index2] 해양종합정보 탭 경로
+    // ──────────────────────────────────────────────────────────
+    if (window.__SEAGNAL_PAGE === 'index2') {
+        // ① 해양종합정보 탭으로 전환
+        if (typeof window.switchMainTab === 'function') {
+            window.switchMainTab('ocean-map-section');
+        }
+        await new Promise(r => setTimeout(r, 300));
+
+        // ② 기본맵으로 강제 전환 — 피커 안의 rltm 항목 버튼을 JS 로 클릭
+        //   (switchBaseLayer 가 외부 노출되지 않아 우회)
+        const rltmBtn = document.querySelector('.ocean-basemap-item[data-basemap="rltm"]');
+        if (rltmBtn) rltmBtn.click();
+
+        // ③ 기상부이 레이어 ON — 토글 버튼이 비활성 상태일 때만 클릭
+        const buoyBtn = document.getElementById('ocean-buoy-toggle-btn');
+        if (buoyBtn && !buoyBtn.classList.contains('active')) {
+            buoyBtn.click();
+        }
+        await new Promise(r => setTimeout(r, 150));
+
+        // ④ 지도 이동 (애니메이션 400ms)
+        const map = (typeof window.getOceanMap === 'function') ? window.getOceanMap() : null;
+        if (map && window.ol) {
+            map.getView().animate({
+                center: ol.proj.fromLonLat([lon, lat]),
+                zoom: 12,
+                duration: 400
+            });
+            await new Promise(r => setTimeout(r, 450));
+        }
+
+        // ⑤ 부이 정보 모달 (팝업) — 바텀시트 아님
+        if (typeof window.showBuoyModal === 'function') {
+            window.showBuoyModal(buoyId, {
+                name: buoyInfo.name,
+                type: buoyInfo.type || 'B'
+            });
+        }
+        return;
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // [index1] 기존 동작 — 해구기상 이미지 지도에서 부이 표시
+    // ──────────────────────────────────────────────────────────
 
     console.log(`📍 부이 ${buoyInfo.name} 위치: 경도 ${lon}, 위도 ${lat}`);
 

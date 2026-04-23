@@ -1030,6 +1030,34 @@ function createAlertElement(items) {
         actionsContainer.appendChild(windyBtn);
     }
 
+    // ──────────────────────────────────────────────────────────────
+    // [index2 전용] "종합정보" 버튼
+    // ──────────────────────────────────────────────────────────────
+    // - 해양종합정보 탭으로 이동 + 해당 특보구역 중심 좌표 바텀시트 오픈
+    // - index1 에서는 __SEAGNAL_PAGE 가 'index2' 가 아니므로 이 블록 통째 스킵
+    //   → 기존 3버튼만 노출되어 기존 UX 유지
+    // - ZONE_OVERLAY_CONFIG 에 매핑 없는 구역은 좌표 조회 불가라 버튼 미표시
+    // - 실제 클릭 처리는 window.goToOceanMapByZone (js/ocean_cctv.js) 가 담당
+    // - 버튼이 4개가 되므로 기존 3버튼의 padding/font 를 축소해 4등분에 맞춤
+    if (window.__SEAGNAL_PAGE === 'index2'
+        && typeof ZONE_OVERLAY_CONFIG !== 'undefined'
+        && ZONE_OVERLAY_CONFIG[data.zoneName]
+        && typeof window.goToOceanMapByZone === 'function') {
+        const prevBtns = actionsContainer.querySelectorAll('button');
+        prevBtns.forEach((b) => {
+            b.style.padding   = '10px 4px';
+            b.style.fontSize  = '0.78rem';
+        });
+        const allBtn = document.createElement('button');
+        allBtn.innerHTML = '종합정보';
+        allBtn.style.cssText = 'flex: 1; padding: 10px 4px; background: linear-gradient(135deg, #14b8a6, #0f766e); color: white; border: none; border-radius: 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: transform 0.2s; box-shadow: 0 2px 8px rgba(20, 184, 166, 0.3);';
+        allBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.goToOceanMapByZone(data.zoneName);
+        });
+        actionsContainer.appendChild(allBtn);
+    }
+
     details.appendChild(actionsContainer);
     return card;
 }

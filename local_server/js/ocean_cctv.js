@@ -972,6 +972,61 @@
         _bindSheetFavBtn();
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // 공통 네비게이션 헬퍼 (특보 카드/기상현황 카드 "종합정보" 버튼 공용)
+    // ──────────────────────────────────────────────────────────────
+    // [역할]
+    //  특보구역 이름(zoneName) 으로 ZONE_OVERLAY_CONFIG 의 중심 픽셀을 얻고
+    //  pixelToGps() 로 lat/lon 변환 → 해양종합정보 탭 전환 + 지도 이동 +
+    //  바텀시트 오픈까지 한 번에 처리.
+    //
+    // [연계]
+    //  - render.js (해역별 특보현황 카드의 "종합정보" 버튼)
+    //  - windy.js  (해역별 기상현황 카드의 "종합정보" 버튼)
+    //
+    // [안전]
+    //  ZONE_OVERLAY_CONFIG 에 없는 구역은 false 반환(호출자가 버튼 자체를
+    //  숨기면 이 경로는 안 탐).
+    // ══════════════════════════════════════════════════════════════
+    function _goToOceanMapByZone(zoneName) {
+        if (typeof ZONE_OVERLAY_CONFIG === 'undefined') return false;
+        var cfg = ZONE_OVERLAY_CONFIG[zoneName];
+        if (!cfg || !cfg.center) return false;
+        if (typeof pixelToGps !== 'function') return false;
+        var gps = pixelToGps(cfg.center.x, cfg.center.y);
+        if (!gps || gps.lat == null || gps.lon == null) return false;
+
+        // 해양종합정보 탭 전환 (이미 활성이면 no-op)
+        if (typeof window.switchMainTab === 'function') {
+            window.switchMainTab('ocean-map-section');
+        }
+
+        // 탭 전환 애니메이션/지도 초기화 완료 대기 후 이동 + 바텀시트
+        setTimeout(function () {
+            var map = window.getOceanMap && window.getOceanMap();
+            if (map) {
+                map.getView().animate({
+                    center: ol.proj.fromLonLat([gps.lon, gps.lat]),
+                    zoom: Math.max(map.getView().getZoom() || 6, 10),
+                    duration: 400
+                });
+            }
+            // 바텀시트로 해당 해역 정보 오픈 (hasOceanGridData 검사 생략 —
+            // 특보구역 중심점은 보통 해역 내부라 그리드 데이터 있을 확률 높음)
+            if (typeof window.showOceanBottomSheet === 'function') {
+                // 애니메이션 중반에 띄워서 사용자가 이동 완료까지 기다리지 않게
+                setTimeout(function () {
+                    window.showOceanBottomSheet(gps.lat, gps.lon);
+                }, 200);
+            }
+        }, 300);
+
+        return true;
+    }
+
+    // 외부에서 render.js / windy.js 가 호출할 수 있도록 window 로 노출
+    window.goToOceanMapByZone = _goToOceanMapByZone;
+
     // ──────────────────────────────────────────────────────────────
     // 외부 API
     // ──────────────────────────────────────────────────────────────
