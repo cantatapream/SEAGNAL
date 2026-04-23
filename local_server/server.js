@@ -47,8 +47,14 @@ require('./services/upload_manager');
 // ============================================================================
 // 2. 정적 파일 서빙
 // ============================================================================
-app.use(express.static(staticRoot));
-app.use(express.static(path.join(staticRoot, 'assets')));
+// [중요] { index: false } 로 express.static 의 자동 디렉터리 인덱스 응답을 차단.
+//        기본값(true) 이면 GET / 요청에 대해 staticRoot/index.html 을 자동으로
+//        먼저 내려보내 버려서, 아래 routes/health.js 의 router.get('/') 가
+//        호출되지 않음. → 기본 진입점을 index2.html 로 전환하려면 반드시 필요.
+//        개별 파일 이름이 URL 로 오는 경우(예: /index.html, /index2.html) 는
+//        이 옵션과 무관하게 그대로 서빙되므로 롤백 경로(/index.html)는 보존됨.
+app.use(express.static(staticRoot, { index: false }));
+app.use(express.static(path.join(staticRoot, 'assets'), { index: false }));
 app.use('/images', express.static(path.join(staticRoot, 'images')));
 app.use('/tide_data', express.static(path.join(staticRoot, 'tide_data')));
 app.use('/uploads', express.static(UPLOAD_DIR));
