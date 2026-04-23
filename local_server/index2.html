@@ -250,6 +250,141 @@
             z-index: 200;
         }
 
+        /* ──────────────────────────────────────────────────────────
+           해양종합 하단 즐겨찾기 바
+           ──────────────────────────────────────────────────────────
+           [기본 규칙]
+            - 해양종합이 active (body.ocean-map-active) 일 때만 노출
+            - 위치: 메인탭 바로 위 고정(position:fixed)
+            - CCTV 범례(.ocean-legend)가 보이면 그 위로 115px 올림
+              (범례 평균 높이 ≈ title 15 + bar 12 + labels 12 + divider 9
+               + timeline 50 + padding 16 = 114px)
+            - 서브탭이 열려 있으면 --sub-tab-height 만큼 추가로 올림
+            - 바텀시트가 열려 있으면(body.ocean-sheet-open) 숨김
+            - 즐겨찾기가 0개일 때(.empty) 숨김
+           [z-index]
+            범례(.ocean-legend z:51) 보다 위에 항상 보이도록 52 */
+        #ocean-fav-bar {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: var(--main-tab-height);
+            z-index: 52;
+            display: none;
+            padding: 8px 10px;
+            gap: 6px;
+            justify-content: center;
+            align-items: stretch;
+            background: rgba(12, 20, 40, 0.55);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            /* transition 은 의도적으로 생략 — bottom 이 여러 상태에 따라 바뀔 때
+               바텀시트 열고 닫을 때 부자연스러운 애니메이션 방지 */
+        }
+
+        /* 해양종합 active + 내용물 있음 → 표시 */
+        body.ocean-map-active #ocean-fav-bar:not(.empty) {
+            display: flex;
+        }
+
+        /* 바텀시트 열림 시 숨김 (ocean_cctv.js 가 MutationObserver 로 토글) */
+        body.ocean-sheet-open #ocean-fav-bar {
+            display: none !important;
+        }
+
+        /* 서브탭 열림 시 한 층 더 올림 */
+        body.sub-tabs-open #ocean-fav-bar {
+            bottom: calc(var(--main-tab-height) + var(--sub-tab-height));
+        }
+
+        /* 범례(오버레이 ON) 가 보이면 범례 위로 */
+        body.ocean-legend-visible #ocean-fav-bar {
+            bottom: calc(var(--main-tab-height) + 115px);
+        }
+        body.ocean-legend-visible.sub-tabs-open #ocean-fav-bar {
+            bottom: calc(var(--main-tab-height) + var(--sub-tab-height) + 115px);
+        }
+
+        /* 즐겨찾기 칩 */
+        .ocean-fav-chip {
+            flex: 1 1 0;
+            max-width: calc(33.333% - 4px);
+            min-width: 0;
+            height: 36px;
+            border-radius: 18px;
+            background: rgba(22, 35, 65, 0.9);
+            color: #e2e8f0;
+            font-size: 0.78rem;
+            font-weight: 500;
+            padding: 0 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            transition: background 0.15s ease, transform 0.1s ease;
+            white-space: nowrap;
+        }
+        .ocean-fav-chip:hover {
+            background: rgba(36, 56, 100, 0.95);
+        }
+        .ocean-fav-chip:active {
+            transform: scale(0.96);
+        }
+        .ocean-fav-chip .chip-icon {
+            font-size: 0.9rem;
+            color: #fcd34d;   /* 별/아이콘 포인트 색상 */
+            flex: 0 0 auto;
+        }
+        .ocean-fav-chip .chip-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+        }
+
+        /* ──────────────────────────────────────────────────────────
+           바텀시트 헤더 레이아웃 (index2 전용 override)
+           ──────────────────────────────────────────────────────────
+           좌(좌표토글) / 중(날짜네비) / 우(⭐+✕) 3컬럼 정렬.
+           기존 style.css:8758 의 grid-template-columns 는 그대로 두고
+           좌표 토글만 grid-column:1 로 강제 이동. */
+        #ocean-bottom-sheet .ocean-sheet-header-row1 > .ocean-loc-toggle {
+            grid-column: 1;
+            justify-self: start;
+        }
+
+        /* 바텀시트 ⭐ 즐겨찾기 버튼 (기존 .ocean-loc-toggle 와 동일 모양) */
+        .ocean-loc-favorite {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+            transition: background 0.15s ease, transform 0.1s ease;
+        }
+        .ocean-loc-favorite:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+        .ocean-loc-favorite:active {
+            transform: scale(0.94);
+        }
+        /* 활성(즐겨찾기 등록됨) 상태: 노란 별 */
+        .ocean-loc-favorite.active {
+            background: rgba(252, 211, 77, 0.18);
+            border-color: rgba(252, 211, 77, 0.55);
+            color: #fcd34d;
+        }
+
         /* ══════════════════════════════════════════════════════════
            해양생활 (바다낚시 / 서핑) 풀스크린 지도 레이아웃
            ══════════════════════════════════════════════════════════
@@ -1283,9 +1418,18 @@
                     <div class="ocean-sheet-stickytop">
                     <div class="ocean-sheet-handle"></div>
 
-                    <!-- 헤더: 3행 구조 (날짜네비 / 음력 / 좌표토글) -->
+                    <!-- 헤더: 좌(📍좌표토글) / 중(◀날짜▶) / 우(⭐즐겨찾기, ✕닫기) 3열 구조
+                         [index2 전용 레이아웃]
+                         - 좌표 토글(📍)을 날짜 네비 왼쪽으로 이동
+                         - 기존 좌표 토글 자리에 ⭐ 즐겨찾기 버튼 신규 추가
+                         [연계] js/ocean_cctv.js (oceanFav) - ⭐ 클릭 핸들러 / 열릴 때 활성 판정 -->
                     <div class="ocean-sheet-header">
                         <div class="ocean-sheet-header-row1">
+                            <!-- 좌측: 좌표 표시/숨김 토글 (날짜 왼쪽으로 이동) -->
+                            <button class="ocean-loc-toggle" id="ocean-sheet-loc-toggle" title="좌표 표시/숨김">
+                                <i class="fa-solid fa-location-dot"></i>
+                            </button>
+                            <!-- 중앙: 날짜 네비게이션 -->
                             <div class="ocean-date-nav-inline">
                                 <button class="ocean-date-nav-btn" id="ocean-sheet-prev" title="이전 날" disabled>
                                     <i class="fa-solid fa-chevron-left"></i>
@@ -1295,9 +1439,11 @@
                                     <i class="fa-solid fa-chevron-right"></i>
                                 </button>
                             </div>
+                            <!-- 우측: 즐겨찾기(⭐) + 닫기(✕) -->
                             <div class="ocean-sheet-controls">
-                                <button class="ocean-loc-toggle" id="ocean-sheet-loc-toggle" title="좌표 표시/숨김">
-                                    <i class="fa-solid fa-location-dot"></i>
+                                <button class="ocean-loc-favorite" id="ocean-sheet-fav-btn"
+                                        title="즐겨찾기 추가" aria-pressed="false">
+                                    <i class="fa-regular fa-star"></i>
                                 </button>
                                 <button class="ocean-sheet-close" id="ocean-sheet-close" title="닫기">
                                     <i class="fa-solid fa-xmark"></i>
@@ -1733,6 +1879,23 @@
              ================================================================ -->
         <div id="cctv-modal-backdrop" class="cctv-modal-backdrop"
              style="display: none;"></div>
+
+        <!-- ================================================================
+             해양종합 하단 즐겨찾기 바 (index2 전용)
+             ----------------------------------------------------------------
+             [역할]
+              CCTV/위치 즐겨찾기 최대 3개를 가로로 표시하는 공통 UI.
+              해양종합 화면이 active 일 때만, 그리고:
+               - CCTV 버튼 OFF → 위치 즐겨찾기 목록 (있으면)
+               - CCTV 버튼 ON  → CCTV 즐겨찾기 목록 (있으면)
+              을 자동으로 전환하여 보여준다.
+             [연계] js/ocean_cctv.js (ocean_fav 매니저)
+             [index1 무영향]
+              - 이 DOM 은 index2.html 에만 존재
+              - CSS 규칙은 body.ocean-map-active + #ocean-fav-bar 조건부이므로
+                index1 에서 실행되어도 매칭 요소 없음
+             ================================================================ -->
+        <div id="ocean-fav-bar" aria-hidden="true"></div>
 
         <!-- ================================================================
              하단 고정 탭 바 (INDEX2 전용)

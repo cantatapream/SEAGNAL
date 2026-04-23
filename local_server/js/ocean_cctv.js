@@ -374,6 +374,9 @@
         // 버튼 시각 상태 갱신
         var toggleBtn = document.getElementById('ocean-cctv-toggle-btn');
         if (toggleBtn) toggleBtn.classList.toggle('active', _cctvActive);
+
+        // 하단 즐겨찾기 바 내용 전환 (CCTV ↔ 위치)
+        _renderFavBar();
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -409,6 +412,499 @@
         _bindButtons();
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // 즐겨찾기 매니저 (oceanFav)
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // [역할]
+    //   index2 해양종합 전용 즐겨찾기 두 종류를 관리하고, 하단 #ocean-fav-bar
+    //   에 최대 3개 칩을 렌더한다.
+    //     - cctv     : CCTV 지점 즐겨찾기 (localStorage: cctv_favorites_ocean_v1)
+    //     - location : 해역 바텀시트 위치 즐겨찾기 (ocean_location_favorites_v1)
+    //
+    // [index1 독립]
+    //   index1 의 기존 CCTV 즐겨찾기(cctv_favorites_v1)는 전혀 건드리지 않는다.
+    //   키 이름이 다르므로 두 페이지의 즐겨찾기는 완전히 분리되어 저장된다.
+    //
+    // [표시 규칙 (renderAll 이 자동 판단)]
+    //   - 해양종합이 active 가 아니면 표시 안 함
+    //   - CCTV 토글 ON  → CCTV 즐겨찾기만 표시 (위치 즐겨찾기 숨김)
+    //   - CCTV 토글 OFF → 위치 즐겨찾기 표시 (있으면)
+    //   - 목록이 비어있으면 .empty 클래스로 바 자체 숨김 (CSS 에서 display:none)
+    //
+    // [500m 중복 판정 (location)]
+    //   위치 즐겨찾기 중복 여부는 반경 500m 이내로 판단(하버사인 거리).
+    //
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * 두 지점 사이의 거리(m) 계산 (하버사인).
+     * [용도] 위치 즐겨찾기 500m 반경 중복 판정 / 클릭 좌표 매칭
+     */
+    function _haversineMeters(lat1, lon1, lat2, lon2) {
+        var R = 6371000; // 지구 반지름 (m)
+        var toRad = Math.PI / 180;
+        var dLat = (lat2 - lat1) * toRad;
+        var dLon = (lon2 - lon1) * toRad;
+        var a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+              + Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad)
+              * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    }
+
+    /** 저장소 한쪽의 기본 동작 셋 (cctv / location 공통 로직) */
+    function _createFavStore(storageKey, maxCount) {
+        return {
+            MAX: maxCount,
+            STORAGE_KEY: storageKey,
+            items: [],
+
+            /** localStorage 에서 읽어와 items 채움 */
+            load: function () {
+                try {
+                    var raw = localStorage.getItem(this.STORAGE_KEY);
+                    this.items = raw ? JSON.parse(raw) : [];
+                    if (!Array.isArray(this.items)) this.items = [];
+                } catch (e) {
+                    this.items = [];
+                }
+            },
+
+            /** items 를 localStorage 에 기록 */
+            save: function () {
+                try {
+                    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.items));
+                } catch (e) {
+                    console.warn('[oceanFav] 저장 실패:', e);
+                }
+            },
+
+            /** 3개 제한 검사 — 가득이면 false (거부) */
+            canAdd: function () { return this.items.length < this.MAX; },
+
+            /** 항목 추가 (호출자가 먼저 canAdd 확인) */
+            push: function (item) {
+                this.items.push(item);
+                this.save();
+            },
+
+            /** id 로 제거 */
+            removeById: function (id) {
+                this.items = this.items.filter(function (it) { return it.id !== id; });
+                this.save();
+            }
+        };
+    }
+
+    // CCTV 즐겨찾기 저장소
+    // item 구조: { id, cctvId, name, subtitle, providerKey, providerName,
+    //              shareUrl, streamUrl, cnt, sensorName, cameraCount, obsName }
+    var _favCctv = _createFavStore('cctv_favorites_ocean_v1', 3);
+
+    // 위치 즐겨찾기 저장소
+    // item 구조: { id, name, lat, lon, addedAt }
+    var _favLocation = _createFavStore('ocean_location_favorites_v1', 3);
+
+    // 둘 다 초기 로드
+    _favCctv.load();
+    _favLocation.load();
+
+    /**
+     * CCTV 즐겨찾기: id 로 존재 여부 확인.
+     * [사용] 팝업 헤더의 별 버튼 상태 판정 (그룹3 에서 활용)
+     */
+    function _cctvHas(id) {
+        for (var i = 0; i < _favCctv.items.length; i++) {
+            if (_favCctv.items[i].id === id) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 위치 즐겨찾기: 반경 500m 안에 기존 즐겨찾기가 있으면 그 항목 반환, 없으면 null.
+     * [사용] 바텀시트의 ⭐ 버튼 활성 상태 판정 / ⭐ 재클릭 시 제거 대상 찾기
+     */
+    function _locationFindNear(lat, lon) {
+        for (var i = 0; i < _favLocation.items.length; i++) {
+            var it = _favLocation.items[i];
+            var dist = _haversineMeters(lat, lon, it.lat, it.lon);
+            if (dist <= 500) return it;
+        }
+        return null;
+    }
+
+    /** 위치 즐겨찾기: 이름 중복 여부 */
+    function _locationHasName(name) {
+        for (var i = 0; i < _favLocation.items.length; i++) {
+            if (_favLocation.items[i].name === name) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 하단 #ocean-fav-bar 에 현재 상태에 맞는 칩들을 렌더한다.
+     *
+     * [렌더 대상 결정]
+     *  - CCTV 토글 ON  → CCTV 즐겨찾기
+     *  - CCTV 토글 OFF → 위치 즐겨찾기
+     *
+     * [빈 목록 처리]
+     *  렌더 대상이 비어 있으면 .empty 클래스 추가 → CSS 에서 display:none
+     */
+    function _renderFavBar() {
+        var bar = document.getElementById('ocean-fav-bar');
+        if (!bar) return;
+        bar.innerHTML = '';
+
+        var isCctv = _cctvActive;
+        var items  = isCctv ? _favCctv.items : _favLocation.items;
+
+        if (!items || items.length === 0) {
+            bar.classList.add('empty');
+            return;
+        }
+        bar.classList.remove('empty');
+
+        for (var i = 0; i < items.length; i++) {
+            var it = items[i];
+            var chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'ocean-fav-chip';
+            chip.dataset.kind = isCctv ? 'cctv' : 'location';
+            chip.dataset.id   = it.id;
+            // 아이콘: CCTV 는 카메라, 위치는 별
+            var iconClass = isCctv ? 'fa-solid fa-video' : 'fa-solid fa-star';
+            var labelText = (it.name || '').toString();
+            chip.innerHTML = '<i class="chip-icon ' + iconClass + '"></i>'
+                           + '<span class="chip-name"></span>';
+            chip.querySelector('.chip-name').textContent = labelText;
+            chip.addEventListener('click', _handleChipClick);
+            bar.appendChild(chip);
+        }
+    }
+
+    /**
+     * 즐겨찾기 칩 클릭 핸들러.
+     *  - CCTV: 저장된 CCTV 정보로 showCctvPopup 재오픈 (지도 이동 없음)
+     *  - 위치: 지도 해당 좌표로 이동 + 바텀시트 오픈
+     */
+    function _handleChipClick(e) {
+        var chip = e.currentTarget;
+        var kind = chip.dataset.kind;
+        var id   = chip.dataset.id;
+        if (kind === 'cctv') {
+            var cctv = null;
+            for (var i = 0; i < _favCctv.items.length; i++) {
+                if (_favCctv.items[i].id === id) { cctv = _favCctv.items[i]; break; }
+            }
+            if (cctv && typeof window.showCctvPopup === 'function') {
+                window.showCctvPopup(cctv);
+            }
+        } else if (kind === 'location') {
+            var loc = null;
+            for (var j = 0; j < _favLocation.items.length; j++) {
+                if (_favLocation.items[j].id === id) { loc = _favLocation.items[j]; break; }
+            }
+            if (!loc) return;
+            var map = window.getOceanMap && window.getOceanMap();
+            if (map) {
+                map.getView().animate({
+                    center: ol.proj.fromLonLat([loc.lon, loc.lat]),
+                    zoom: Math.max(map.getView().getZoom() || 6, 10),
+                    duration: 400
+                });
+            }
+            if (typeof window.showOceanBottomSheet === 'function') {
+                window.showOceanBottomSheet(loc.lat, loc.lon);
+            }
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // 바텀시트 열림 / 범례 표시 상태 감시 (MutationObserver)
+    // ──────────────────────────────────────────────────────────────
+    /**
+     * .ocean-bottom-sheet 의 class 변화를 감시하여 body.ocean-sheet-open 토글.
+     * 바텀시트 열리면 하단 즐겨찾기 바는 자동 숨김 (CSS 에서 처리).
+     */
+    function _observeBottomSheet() {
+        var sheet = document.getElementById('ocean-bottom-sheet');
+        if (!sheet) return;
+        var sync = function () {
+            document.body.classList.toggle('ocean-sheet-open',
+                sheet.classList.contains('open'));
+        };
+        sync();
+        new MutationObserver(sync).observe(sheet, {
+            attributes: true,
+            attributeFilter: ['class']
+        });
+    }
+
+    /**
+     * .ocean-legend 의 style.display 변화를 감시하여 body.ocean-legend-visible 토글.
+     * 범례(오버레이 ON) 가 뜨면 즐겨찾기 바를 범례 위로 115px 올림.
+     */
+    function _observeLegend() {
+        var legend = document.getElementById('ocean-legend');
+        if (!legend) return;
+        var sync = function () {
+            // 인라인 display:none 이 있으면 숨김, 아니면 표시
+            var hidden = legend.style.display === 'none';
+            document.body.classList.toggle('ocean-legend-visible', !hidden);
+        };
+        sync();
+        new MutationObserver(sync).observe(legend, {
+            attributes: true,
+            attributeFilter: ['style']
+        });
+    }
+
+    // DOM 준비 후 옵저버 바인딩
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () {
+            _observeBottomSheet();
+            _observeLegend();
+            _renderFavBar();
+        });
+    } else {
+        _observeBottomSheet();
+        _observeLegend();
+        _renderFavBar();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // 바텀시트 ⭐ 위치 즐겨찾기 (그룹 4)
+    // ──────────────────────────────────────────────────────────────
+    // [UX 흐름]
+    //  1) 해역 클릭 → 바텀시트 열림 → showOceanBottomSheet(lat, lon) 호출 감지
+    //  2) 현재 좌표를 기준으로 _locationFindNear(500m) 결과가 있으면 ⭐ active
+    //     없으면 ⭐ 비활성
+    //  3) ⭐ 클릭:
+    //     - 비활성 상태: 이름 입력 모달 → 저장 시 oceanFav.locationAdd
+    //       * 실패(꽉참/이름중복/반경중복) 시 각각 안내
+    //     - 활성 상태: 즉시 제거 (oceanFav.locationRemoveNear)
+    //
+    // [좌표 추적]
+    //  ocean_bottom_sheet1.js 의 window.showOceanBottomSheet(lat, lon) 을 감싸
+    //  (monkey-patch) 현재 좌표를 _currentSheetCoord 로 저장.
+    //  index2 전용이므로 __SEAGNAL_PAGE 가드 안쪽이라 index1 은 영향 없음.
+    // ══════════════════════════════════════════════════════════════
+
+    /** 현재 바텀시트에 표시 중인 좌표 { lat, lon } (없으면 null) */
+    var _currentSheetCoord = null;
+
+    /**
+     * 바텀시트 ⭐ 버튼의 활성/비활성 UI 를 _currentSheetCoord 기준으로 갱신.
+     */
+    function _updateSheetFavButton() {
+        var btn = document.getElementById('ocean-sheet-fav-btn');
+        if (!btn) return;
+        var active = false;
+        if (_currentSheetCoord) {
+            var near = _locationFindNear(_currentSheetCoord.lat, _currentSheetCoord.lon);
+            active = !!near;
+        }
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+        btn.title = active ? '즐겨찾기 해제' : '즐겨찾기 추가';
+        var icon = btn.querySelector('i');
+        if (icon) {
+            icon.className = active ? 'fa-solid fa-star' : 'fa-regular fa-star';
+        }
+    }
+
+    /**
+     * showOceanBottomSheet(lat, lon, ...) monkey-patch.
+     * 원본을 호출한 뒤 현재 좌표 저장 + ⭐ 상태 갱신.
+     */
+    (function _patchShowBottomSheet() {
+        function tryPatch() {
+            if (typeof window.showOceanBottomSheet !== 'function') return false;
+            if (window.showOceanBottomSheet.__oceanFavPatched) return true;
+            var orig = window.showOceanBottomSheet;
+            var patched = function (lat, lon, stationInfo) {
+                try {
+                    if (typeof lat === 'number' && typeof lon === 'number') {
+                        _currentSheetCoord = { lat: lat, lon: lon };
+                    } else {
+                        _currentSheetCoord = null;
+                    }
+                } catch (e) { _currentSheetCoord = null; }
+                var ret = orig.apply(this, arguments);
+                // 시트 DOM 이 그려진 다음 프레임에 ⭐ 상태 반영 (원본이 DOM 을 바꿨을 수 있음)
+                requestAnimationFrame(_updateSheetFavButton);
+                return ret;
+            };
+            patched.__oceanFavPatched = true;
+            window.showOceanBottomSheet = patched;
+            return true;
+        }
+        if (tryPatch()) return;
+        // 로드 순서상 ocean_bottom_sheet1.js 이전에 실행될 수 있으므로 DOMContentLoaded 후 재시도
+        document.addEventListener('DOMContentLoaded', function () {
+            if (tryPatch()) return;
+            // 그래도 안 되면 약간의 polling (매우 짧게)
+            var tries = 0;
+            var iv = setInterval(function () {
+                if (tryPatch() || ++tries > 20) clearInterval(iv);
+            }, 100);
+        });
+    })();
+
+    // ──────────────────────────────────────────────────────────────
+    // 이름 입력 모달 (showSeagnalModal 과 유사 스타일의 index2 전용 input 모달)
+    // ──────────────────────────────────────────────────────────────
+    var _NAME_MODAL_ID = 'ocean-loc-fav-name-modal';
+
+    /**
+     * 이름 입력 모달을 띄운다.
+     * @param {Function} onConfirm(name) — 유효 이름으로 확인 누르면 호출
+     */
+    function _openNameInputModal(onConfirm) {
+        // 기존 모달 있으면 제거
+        var existing = document.getElementById(_NAME_MODAL_ID);
+        if (existing) existing.remove();
+
+        var modal = document.createElement('div');
+        modal.id = _NAME_MODAL_ID;
+        modal.className = 'seagnal-modal';
+        modal.innerHTML =
+            '<div class="seagnal-modal-overlay"></div>' +
+            '<div class="seagnal-modal-content">' +
+              '<div class="seagnal-modal-icon"><i class="fa-solid fa-star"></i></div>' +
+              '<div class="seagnal-modal-title">즐겨찾기 이름</div>' +
+              '<div class="seagnal-modal-message">이 위치의 이름을 입력하세요 (최대 10자)</div>' +
+              '<input type="text" id="ocean-loc-fav-name-input" maxlength="10"' +
+                ' style="width:100%; padding:10px 12px; margin-bottom:14px;' +
+                       ' background:#0f172a; color:#fff; font-size:0.95rem;' +
+                       ' border:1px solid rgba(255,255,255,0.15); border-radius:10px;' +
+                       ' box-sizing:border-box;" />' +
+              '<div style="display:flex; gap:8px;">' +
+                '<button class="seagnal-modal-btn" id="ocean-loc-fav-cancel"' +
+                        ' style="flex:1; background:rgba(255,255,255,0.08); color:#e2e8f0;">취소</button>' +
+                '<button class="seagnal-modal-btn" id="ocean-loc-fav-ok"' +
+                        ' style="flex:1;">저장</button>' +
+              '</div>' +
+            '</div>';
+
+        document.body.appendChild(modal);
+        document.body.style.overflow = 'hidden';
+
+        var input = modal.querySelector('#ocean-loc-fav-name-input');
+        var btnOk = modal.querySelector('#ocean-loc-fav-ok');
+        var btnCancel = modal.querySelector('#ocean-loc-fav-cancel');
+        var overlay = modal.querySelector('.seagnal-modal-overlay');
+
+        function close() {
+            modal.classList.add('fade-out');
+            setTimeout(function () {
+                modal.remove();
+                document.body.style.overflow = '';
+            }, 180);
+        }
+
+        function submit() {
+            var name = (input.value || '').trim();
+            // 유효성: 빈값 거부
+            if (!name) {
+                if (typeof window.showSeagnalModal === 'function') {
+                    window.showSeagnalModal('즐겨찾기', '이름을 입력해 주세요.', 'info');
+                }
+                return;
+            }
+            // 10자 초과 (input maxlength 가 있지만 방어)
+            if (name.length > 10) name = name.substring(0, 10);
+            close();
+            onConfirm(name);
+        }
+
+        btnOk.addEventListener('click', submit);
+        btnCancel.addEventListener('click', close);
+        overlay.addEventListener('click', close);
+        input.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter') submit();
+            else if (ev.key === 'Escape') close();
+        });
+
+        // focus 는 약간의 delay 후 (모달 애니메이션 후)
+        setTimeout(function () { input.focus(); }, 60);
+    }
+
+    /**
+     * 바텀시트 ⭐ 버튼 클릭 핸들러
+     *  - 이미 저장됨 → 즉시 제거
+     *  - 저장 안 됨 → 이름 입력 모달 → 저장
+     */
+    function _onSheetFavBtnClick() {
+        if (!_currentSheetCoord) return;
+        var lat = _currentSheetCoord.lat;
+        var lon = _currentSheetCoord.lon;
+
+        var near = _locationFindNear(lat, lon);
+        if (near) {
+            // 이미 등록됨 → 즉시 해제
+            _favLocation.removeById(near.id);
+            _renderFavBar();
+            _updateSheetFavButton();
+            return;
+        }
+
+        // 신규 등록 전 용량/중복 사전 체크
+        if (!_favLocation.canAdd()) {
+            if (typeof window.showSeagnalModal === 'function') {
+                window.showSeagnalModal('즐겨찾기',
+                    '위치 즐겨찾기는 최대 3개까지 저장할 수 있습니다.\n기존 항목을 먼저 해제해 주세요.', 'info');
+            }
+            return;
+        }
+
+        _openNameInputModal(function (name) {
+            // 이름 중복 검사 (저장 직전 재확인)
+            if (_locationHasName(name)) {
+                if (typeof window.showSeagnalModal === 'function') {
+                    window.showSeagnalModal('즐겨찾기',
+                        '같은 이름의 즐겨찾기가 이미 있습니다. 다른 이름을 사용해 주세요.', 'info');
+                }
+                return;
+            }
+            var item = {
+                id: 'loc_' + Date.now(),
+                name: name,
+                lat: lat,
+                lon: lon,
+                addedAt: Date.now()
+            };
+            var result = window.oceanFav.locationAdd(item);
+            if (!result.ok) {
+                var msg = '저장에 실패했습니다.';
+                if (result.reason === 'full')         msg = '위치 즐겨찾기가 가득 찼습니다 (최대 3개).';
+                else if (result.reason === 'name_exists') msg = '같은 이름의 즐겨찾기가 이미 있습니다.';
+                else if (result.reason === 'near_exists') msg = '이미 근처(500m 이내)에 즐겨찾기가 있습니다.';
+                if (typeof window.showSeagnalModal === 'function') {
+                    window.showSeagnalModal('즐겨찾기', msg, 'info');
+                }
+                return;
+            }
+            _updateSheetFavButton();
+        });
+    }
+
+    /** ⭐ 버튼 이벤트 바인딩 (1회) */
+    function _bindSheetFavBtn() {
+        var btn = document.getElementById('ocean-sheet-fav-btn');
+        if (!btn || btn.dataset.bound) return;
+        btn.addEventListener('click', _onSheetFavBtnClick);
+        btn.dataset.bound = '1';
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', _bindSheetFavBtn);
+    } else {
+        _bindSheetFavBtn();
+    }
+
     // ──────────────────────────────────────────────────────────────
     // 외부 API
     // ──────────────────────────────────────────────────────────────
@@ -425,6 +921,130 @@
         tryHandleMapClick: function (map, evt) {
             return _handleCctvClick(map, evt);
         }
+    };
+
+    // ══════════════════════════════════════════════════════════════
+    // window.CctvFavorites shim (index2 전용)
+    // ──────────────────────────────────────────────────────────────
+    // [왜 shim?]
+    //  cctv4.js 의 팝업 헤더 별 버튼은 onclick="toggleCctvFavorite()" 로 바인딩되어
+    //  있고, 그 핸들러는 `window.CctvFavorites.has / add / remove` 를 호출한다.
+    //  index1 에서는 cctv6.js 가 실제 CctvFavorites 를 정의하지만, index2 에서는
+    //  cctv6.js 를 로드하지 않아 이 객체가 undefined → 별 버튼이 무동작.
+    //
+    //  cctv4.js 는 공유 파일이라 수정 금지이므로, index2 에서는 동일 시그니처의
+    //  얇은 shim 을 노출하여 기존 별 버튼 로직이 그대로 oceanFav 매니저에
+    //  위임되도록 함.
+    //
+    // [인터페이스 일치]
+    //  - has(cctvId)      → oceanFav.cctvHas(cctvId) 로 위임
+    //  - remove(cctvId)   → oceanFav.cctvRemove(cctvId)
+    //  - add(obj)         → oceanFav.cctvAdd({ id: obj.cctvId, ...obj })
+    //    * 성공 true / 실패 false 반환 (cctv4.js 시그니처 유지)
+    //    * "full" 거부 시 showSeagnalModal 로 사용자 안내
+    //
+    // [index1 무영향]
+    //  이 파일은 __SEAGNAL_PAGE==='index2' 가드 안에서 실행되므로 index1 에는
+    //  shim 이 설치되지 않음 → index1 의 실제 CctvFavorites 그대로 사용.
+    // ══════════════════════════════════════════════════════════════
+    window.CctvFavorites = {
+        has: function (cctvId) {
+            return _cctvHas(cctvId);
+        },
+        remove: function (cctvId) {
+            _favCctv.removeById(cctvId);
+            _renderFavBar();
+        },
+        add: function (obj) {
+            if (!obj || !obj.cctvId) return false;
+            // 내부 스키마는 id 필드를 primary key 로 사용
+            var item = {
+                id:           obj.cctvId,
+                cctvId:       obj.cctvId,
+                name:         obj.name,
+                subtitle:     obj.subtitle,
+                providerKey:  obj.providerKey,
+                providerName: obj.providerName,
+                shareUrl:     obj.shareUrl,
+                streamUrl:    obj.streamUrl,
+                cameraCount:  obj.cameraCount,
+                obsName:      obj.obsName,
+                sensorName:   obj.sensorName,
+                cnt:          obj.cnt
+            };
+            // 3개 제한 초과 시 거부 + 안내
+            if (!_favCctv.canAdd()) {
+                if (typeof window.showSeagnalModal === 'function') {
+                    window.showSeagnalModal('즐겨찾기',
+                        '즐겨찾기는 최대 3개까지 저장할 수 있습니다.\n기존 항목을 먼저 해제해 주세요.', 'info');
+                }
+                return false;
+            }
+            // 이미 같은 cctvId 가 있으면 중복 거부
+            if (_cctvHas(obj.cctvId)) return false;
+            _favCctv.push(item);
+            _renderFavBar();
+            return true;
+        },
+        /**
+         * render: cctv6.js 원본은 지도 우측 상단에 즐겨찾기 버튼 목록을 그리는
+         * 함수. index2 에서는 하단 #ocean-fav-bar 가 대체하므로 no-op.
+         * 혹시 외부에서 호출되면 하단 바만 갱신.
+         */
+        render: function () { _renderFavBar(); }
+    };
+
+    // ──────────────────────────────────────────────────────────────
+    // 즐겨찾기 외부 API (그룹 3/4 에서 연동)
+    // ──────────────────────────────────────────────────────────────
+    window.oceanFav = {
+        // CCTV 즐겨찾기 관련
+        cctvHas: _cctvHas,
+        cctvAdd: function (item) {
+            // 3개 제한 초과 시 거부
+            if (!_favCctv.canAdd()) return { ok: false, reason: 'full' };
+            if (_cctvHas(item.id)) return { ok: false, reason: 'exists' };
+            _favCctv.push(item);
+            _renderFavBar();
+            return { ok: true };
+        },
+        cctvRemove: function (id) {
+            _favCctv.removeById(id);
+            _renderFavBar();
+        },
+        cctvGetAll: function () { return _favCctv.items.slice(); },
+
+        // 위치 즐겨찾기 관련
+        locationFindNear: _locationFindNear,
+        locationHasName: _locationHasName,
+        locationAdd: function (item) {
+            // 3개 제한 초과 시 거부
+            if (!_favLocation.canAdd()) return { ok: false, reason: 'full' };
+            // 500m 반경 중복 거부
+            if (_locationFindNear(item.lat, item.lon)) return { ok: false, reason: 'near_exists' };
+            // 이름 중복 거부
+            if (_locationHasName(item.name))          return { ok: false, reason: 'name_exists' };
+            _favLocation.push(item);
+            _renderFavBar();
+            return { ok: true };
+        },
+        locationRemoveById: function (id) {
+            _favLocation.removeById(id);
+            _renderFavBar();
+        },
+        locationRemoveNear: function (lat, lon) {
+            var near = _locationFindNear(lat, lon);
+            if (near) {
+                _favLocation.removeById(near.id);
+                _renderFavBar();
+                return true;
+            }
+            return false;
+        },
+        locationGetAll: function () { return _favLocation.items.slice(); },
+
+        // 재렌더 강제
+        rerender: _renderFavBar
     };
 
 })();
