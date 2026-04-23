@@ -21,7 +21,9 @@ const PENDING_PUSH_FILE = path.join(__dirname, 'data', 'pending_pushes.json');
 // 격상/격하 판별을 위한 특보 점수 체계 (app.js getAlertScore와 동일)
 // ============================================================================
 const TYPE_RANK = { '태풍': 100, '풍랑': 10, '강풍': 10, '해일': 10, '호우': 10, '대설': 10, '기타': 0 };
-const LVL_RANK = { '경보': 5, '주의보': 2, '예비': 1, '기타': 0, '해제': 0, '': 0 };
+// '예비'는 실질적으로 '주의보(예정)'를 의미하므로 '주의보'와 동일 점수로 취급
+// (서로 같은 등급으로 비교되어 불필요한 격상/격하 오판을 방지)
+const LVL_RANK = { '경보': 5, '주의보': 2, '예비': 2, '기타': 0, '해제': 0, '': 0 };
 
 function getAlertScore(type, lvl) {
     const tScore = TYPE_RANK[type] || (type && type.includes('태풍') ? 100 : 10);
