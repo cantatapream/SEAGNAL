@@ -90,43 +90,89 @@
     let inited = false;            // oceanOverlayInit 1회 가드
     let landRings = null;          // 육지 마스크용 폴리곤 링 배열 (lon/lat 쌍)
     let _zoneCoordsList = null;    // 해구 좌표 캐시 (오버레이 무관, 바텀시트 클릭 판단용)
-    let _canvasRepositioned = false; // 파티클 캔버스를 OL viewport 로 이동했는지
 
     // ========================================================================
-    // 파티클 캔버스 위치 재배치
+    // 파티클 캔버스 오프스크린화
     // ------------------------------------------------------------------------
-    // 목표: 레이어 쌓임 순서를 아래처럼 만들기
-    //   [아래] tile (OL 기본 z:0)
-    //          파티클 canvas (z:1)
-    //          buoy / markers vector layer (OL setZIndex(100))
-    //   [위]   .ol-overlaycontainer (내 위치 Overlay)
+    // [왜?]
+    //  OpenLayers 8 은 composite 렌더 모드로 tile/vector 를 하나의 합성
+    //  canvas 에 그림. 따라서 DOM z-index 조작만으로는 vector(부이/마커)를
+    //  파티클 위로 올릴 수 없음.
     //
-    // 방법: 캔버스를 .ol-viewport 의 자식(= .ol-layers 의 형제) 으로 옮긴다.
-    //       같은 viewport stacking context 안에서 z-index 로 정렬되고,
-    //       OL 이 vector layer div 의 style.zIndex 를 setZIndex 값으로
-    //       설정하므로 결과적으로 원하는 순서가 됨.
+    //  대신, 파티클 canvas 를 "오프스크린 버퍼" 로 사용하고, vector layer 의
+    //  prerender 이벤트에서 OL 합성 canvas 에 drawImage 로 파티클을 얹는다.
     //
-    // 주의: 이전 시도에서 .ol-layers '안' 으로 넣었다가 OL 내부 관리 DOM 을
-    //       건드려 파티클이 렌더 안 되는 회귀가 있었음. 이번엔 .ol-layers
-    //       '밖' (viewport 의 형제 위치) 으로 이동하므로 OL 관리 영역 무침.
+    // [안전]
+    //  display:none 이어도 Canvas API(getContext / drawImage / clearRect 등)
+    //  는 모두 정상 동작. resizeCanvas() 는 viewport 기준이라 display 영향 없음.
     // ========================================================================
-    function _repositionOverlayCanvas() {
-        if (_canvasRepositioned || !mapRef || !canvas) return;
+    function _hideOverlayCanvas() {
+        if (!canvas) return;
+        canvas.style.display = 'none';
+    }
+
+    // ========================================================================
+    // 파티클 합성 훅: 전용 "합성용 vector layer" 의 prerender 이벤트
+    // ------------------------------------------------------------------------
+    // [역할]
+    //  OL 합성 canvas 에 그려지는 순서에 끼어들어, 오프스크린 파티클
+    //  canvas 를 drawImage 로 얹는다.
+    //  결과 쌓임: tile → 파티클 → (부이/마커 vector) → overlay(내 위치)
+    //
+    // [왜 전용 layer 를 쓰는가?]
+    //  - 기존 vector layer(부이/마커)의 prerender 에 훅을 걸 수도 있지만,
+    //    그 layer 들은 사용자가 "기상부이"/"주요지명" 버튼을 누를 때만
+    //    추가되므로 버튼 OFF 상태에선 훅이 발생하지 않아 파티클이 안 보임.
+    //  - 전용으로 빈 Vector layer 를 즉시 추가하면 항상 존재하므로
+    //    버튼 ON/OFF 에 무관하게 파티클이 합성됨.
+    //  - 빈 source 라 렌더 비용 거의 없음. prerender 이벤트만 이용.
+    //
+    // [왜 prerender 가 postrender 보다 안전?]
+    //  - tile layer 의 postrender: tile 이 캐시되면 이벤트가 skip 될 수 있음
+    //  - vector layer 의 prerender: vector 는 interactive 하여 매 render()
+    //    마다 재렌더 → 이벤트 확실히 발생
+    //
+    // [zIndex]
+    //  - 1 : tile(기본 0) 바로 위, 부이/마커(100) 아래 → 자연스러운 쌓임
+    //
+    // [연계]
+    //  - ocean_buoy.js / ocean_markers.js — vector layer zIndex:100 로 추가
+    //  - .ol-overlaycontainer — 내 위치 Overlay (z-index 200 in index2.html)
+    // ========================================================================
+    let _compositeLayer = null;
+
+    function _onCompositePrerender(re) {
+        // 렌더 가능한 조건이 하나라도 빠지면 조용히 스킵
+        if (!canvas || !streamActive) return;
+        if (!re || !re.context) return;
+        if (canvas.width === 0 || canvas.height === 0) return;
+
         try {
-            var viewport = mapRef.getViewport && mapRef.getViewport();
-            if (!viewport) return;
-            var layersEl = viewport.querySelector('.ol-layers');
-            if (!layersEl) return;
-            // .ol-layers 바로 다음 자리 = layersEl.nextSibling 앞에 삽입
-            // (nextSibling 이 null 이면 appendChild 와 동일)
-            viewport.insertBefore(canvas, layersEl.nextSibling);
-            // viewport stacking context 기준으로 tile(0) 위, vector(100) 아래
-            canvas.style.zIndex = '1';
-            _canvasRepositioned = true;
-        } catch (e) {
-            // 이동 실패 시에도 기능 자체는 유지 (원래 위치에서 동작)
-            console.warn('[OceanOverlay] 캔버스 재배치 실패:', e);
+            var targetCtx = re.context;
+            var target = targetCtx.canvas;
+            // 합성 canvas 와 파티클 canvas 모두 동일한 DPR 반영 픽셀 크기이므로
+            // 1:1 복사 가능. 다른 transform 이 걸려있을 수 있어 reset 후 drawImage.
+            targetCtx.save();
+            targetCtx.setTransform(1, 0, 0, 1, 0, 0);
+            targetCtx.drawImage(canvas, 0, 0, target.width, target.height);
+            targetCtx.restore();
+        } catch (err) {
+            // 어떤 이유로든 합성 실패 시 파티클만 누락될 뿐, OL 자체는 영향 없음
         }
+    }
+
+    function _hookParticleCompositing() {
+        if (_compositeLayer || !mapRef || !window.ol) return;
+        // 빈 vector layer 를 하나 만들어 OL 에 추가.
+        // 실제 그리는 것은 없지만 prerender 이벤트는 매 render() 마다 발생.
+        _compositeLayer = new ol.layer.Vector({
+            source: new ol.source.Vector(),
+            zIndex: 1,
+            updateWhileAnimating: true,
+            updateWhileInteracting: true
+        });
+        _compositeLayer.on('prerender', _onCompositePrerender);
+        mapRef.addLayer(_compositeLayer);
     }
 
     // ========================================================================
@@ -152,9 +198,12 @@
         if (!canvas) return;
         ctx = canvas.getContext('2d');
 
-        // 파티클 캔버스를 OL viewport 내부로 재배치 (z-index 쌓임 순서 맞추기)
-        // 부이/마커(vector layer zIndex 100) 는 자동으로 파티클(z:1) 위에 쌓임
-        _repositionOverlayCanvas();
+        // 파티클 canvas 를 오프스크린 버퍼로 사용 — 화면에서는 숨김.
+        _hideOverlayCanvas();
+
+        // 첫 vector layer 의 prerender 이벤트에 drawImage 훅 바인딩.
+        // 이 시점에 아직 vector layer 가 없으면 layers 'add' 이벤트로 후속 감시.
+        _hookParticleCompositing();
         // 입자 트레일 전용 오프스크린 캔버스
         trailCanvas = document.createElement('canvas');
         trailCtx = trailCanvas.getContext('2d');
@@ -1046,6 +1095,14 @@
         ctx.clearRect(0, 0, w, h);
         if (isWave && gridCanvas) ctx.drawImage(gridCanvas, 0, 0, w, h);
         if (trailCanvas) ctx.drawImage(trailCanvas, 0, 0, w, h);
+
+        // OL 에게 재렌더 요청.
+        // → 첫 vector layer 의 prerender 이벤트가 발생하고, 그 시점에
+        //   바로 위에서 갱신한 파티클 canvas 가 OL 합성 canvas 에
+        //   drawImage 로 얹혀 화면에 표시됨.
+        //   (vector hook 이 아직 안 걸렸거나 streamActive=false 면
+        //    훅 내부에서 early return 이라 부작용 없음)
+        if (mapRef && mapRef.render) mapRef.render();
 
         animationId = requestAnimationFrame(animate);
     }
