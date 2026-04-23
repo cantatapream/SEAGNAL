@@ -25,6 +25,13 @@ require('dotenv').config();
 const DATA_FILE = path.join(__dirname, 'data', 'marine_forecast.json');
 const FORECAST_CACHE_DIR = path.join(__dirname, 'data', 'forecast_cache');
 
+// [AI 쿨다운] Gemini API 429 할당량 초과 시 일정 시간 동안 AI 호출을 중단
+// → AI 실패해도 코드 추출 결과로 폴백되므로 서비스 영향 없음
+// → 429 상태에서 무의미한 반복 호출을 막아 할당량 자연 회복 시간을 확보
+// 메모리에만 보관(서버 재시작 시 리셋되어도 무방: 재시작 후 429 나면 다시 설정됨)
+let aiCooldownUntil = 0;                   // timestamp(ms). 이 시각까지는 AI 호출 건너뜀
+const AI_COOLDOWN_MS = 60 * 60 * 1000;     // 쿨다운 기간: 1시간
+
 const CONFIG = {
     LIST_URL: 'https://www.weather.go.kr/w/special-report/list.do',
     DETAIL_URL: 'https://www.weather.go.kr/w/special-report/list.do'
@@ -319,6 +326,16 @@ async function analyzeWithAI(rawText, codeExtracted) {
         return null;
     }
 
+    // [쿨다운 체크] 직전 호출에서 429를 받았으면 쿨다운 동안 AI 호출 건너뜀
+    // → AI 결과가 null이면 호출측이 코드 추출 결과를 사용하므로 사용자 서비스 영향 없음
+    // → 할당량 회복 전까지 무의미한 호출을 막아 전체 시스템 자연 회복 유도
+    const nowMs = Date.now();
+    if (nowMs < aiCooldownUntil) {
+        const remainingMin = Math.ceil((aiCooldownUntil - nowMs) / 60000);
+        console.log(`[MarineForecast] AI 쿨다운 중 (${remainingMin}분 남음), AI 분석 건너뜀`);
+        return null;
+    }
+
     try {
         const genAI = new GoogleGenAI({ apiKey });
 
@@ -344,7 +361,17 @@ ${JSON.stringify(codeExtracted, null, 2)}
         }
         return parsed;
     } catch (e) {
-        console.error(`[MarineForecast] AI 분석 오류: ${e.message}`);
+        const errorMsg = e.message || '';
+        // [429 감지] Gemini API 할당량 초과(RESOURCE_EXHAUSTED) 여부 판별
+        // 에러 메시지에 "429" 또는 "RESOURCE_EXHAUSTED" 포함 시 쿨다운 설정
+        const isRateLimited = errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED');
+        if (isRateLimited) {
+            aiCooldownUntil = Date.now() + AI_COOLDOWN_MS;
+            const untilStr = new Date(aiCooldownUntil).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+            console.error(`[MarineForecast] ⚠️ AI 할당량 초과 (429). ${untilStr}까지 AI 호출 중단 (1시간 쿨다운)`);
+        } else {
+            console.error(`[MarineForecast] AI 분석 오류: ${e.message}`);
+        }
         return null;
     }
 }
