@@ -583,7 +583,7 @@ function createAlertElement(items) {
 
     const getAlertScore = (type, lvl) => {
         const TYPE_RANK = { '태풍': 100, '풍랑': 10, '강풍': 10, '해일': 10, '호우': 10, '대설': 10, '기타': 0 };
-        const LVL_RANK = { '경보': 5, '주의보': 2, '예비': 1, '기타': 0, '해제': 0, '': 0 };
+        const LVL_RANK = { '경보': 5, '주의보': 2, '예비': 2, '기타': 0, '해제': 0, '': 0 };
         const tScore = TYPE_RANK[type] || (type && type.includes('태풍') ? 100 : 10);
         const lScore = LVL_RANK[lvl] || 0;
         return tScore + lScore;
