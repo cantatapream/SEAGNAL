@@ -2254,6 +2254,10 @@ function renderAlertManageSubTab(container) {
             <div>
                 <i class="fa-solid fa-tower-broadcast" style="color:#ef4444;"></i> 실시간 특보 알림 관리
             </div>
+            <div id="alert-push-total-summary" style="font-size:0.85rem;color:#94a3b8;font-weight:500;display:flex;align-items:center;gap:6px;">
+                <i class="fa-solid fa-chart-simple" style="color:#6366f1;"></i>
+                <span>총 <span id="alert-push-total-sends" style="color:#e2e8f0;font-weight:700;">-</span>회 <span id="alert-push-total-count" style="color:#e2e8f0;font-weight:700;">-</span>개 푸시 발송</span>
+            </div>
         </div>
 
         <div class="admin-sub-tabs">
@@ -2276,6 +2280,29 @@ function renderAlertManageSubTab(container) {
         const innerContainer = document.getElementById('alert-admin-inner-content');
         if (innerContainer) window.renderAlertAdminContent(subTabId, innerContainer);
     };
+
+    // 누적 푸시 발송 요약 표시
+    window.refreshAlertPushTotalSummary = async function () {
+        const sendsEl = document.getElementById('alert-push-total-sends');
+        const countEl = document.getElementById('alert-push-total-count');
+        if (!sendsEl || !countEl) return;
+        try {
+            const res = await fetch('/api/push-history');
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const history = await res.json();
+            const totalSends = Array.isArray(history) ? history.length : 0;
+            const totalCount = Array.isArray(history)
+                ? history.reduce((sum, h) => sum + (Number(h.count) || 0), 0)
+                : 0;
+            sendsEl.textContent = totalSends.toLocaleString();
+            countEl.textContent = totalCount.toLocaleString();
+        } catch (e) {
+            sendsEl.textContent = '?';
+            countEl.textContent = '?';
+            console.warn('[Admin] 푸시 발송 요약 조회 실패:', e.message);
+        }
+    };
+    refreshAlertPushTotalSummary();
 
     switchAlertAdminTabInternal('publish');
 }
