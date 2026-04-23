@@ -345,6 +345,46 @@
             min-width: 0;
         }
 
+        /* ──────────────────────────────────────────────────────────
+           바텀시트 헤더 레이아웃 (index2 전용 override)
+           ──────────────────────────────────────────────────────────
+           좌(좌표토글) / 중(날짜네비) / 우(⭐+✕) 3컬럼 정렬.
+           기존 style.css:8758 의 grid-template-columns 는 그대로 두고
+           좌표 토글만 grid-column:1 로 강제 이동. */
+        #ocean-bottom-sheet .ocean-sheet-header-row1 > .ocean-loc-toggle {
+            grid-column: 1;
+            justify-self: start;
+        }
+
+        /* 바텀시트 ⭐ 즐겨찾기 버튼 (기존 .ocean-loc-toggle 와 동일 모양) */
+        .ocean-loc-favorite {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+            transition: background 0.15s ease, transform 0.1s ease;
+        }
+        .ocean-loc-favorite:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+        .ocean-loc-favorite:active {
+            transform: scale(0.94);
+        }
+        /* 활성(즐겨찾기 등록됨) 상태: 노란 별 */
+        .ocean-loc-favorite.active {
+            background: rgba(252, 211, 77, 0.18);
+            border-color: rgba(252, 211, 77, 0.55);
+            color: #fcd34d;
+        }
+
         /* ══════════════════════════════════════════════════════════
            해양생활 (바다낚시 / 서핑) 풀스크린 지도 레이아웃
            ══════════════════════════════════════════════════════════
@@ -1378,9 +1418,18 @@
                     <div class="ocean-sheet-stickytop">
                     <div class="ocean-sheet-handle"></div>
 
-                    <!-- 헤더: 3행 구조 (날짜네비 / 음력 / 좌표토글) -->
+                    <!-- 헤더: 좌(📍좌표토글) / 중(◀날짜▶) / 우(⭐즐겨찾기, ✕닫기) 3열 구조
+                         [index2 전용 레이아웃]
+                         - 좌표 토글(📍)을 날짜 네비 왼쪽으로 이동
+                         - 기존 좌표 토글 자리에 ⭐ 즐겨찾기 버튼 신규 추가
+                         [연계] js/ocean_cctv.js (oceanFav) - ⭐ 클릭 핸들러 / 열릴 때 활성 판정 -->
                     <div class="ocean-sheet-header">
                         <div class="ocean-sheet-header-row1">
+                            <!-- 좌측: 좌표 표시/숨김 토글 (날짜 왼쪽으로 이동) -->
+                            <button class="ocean-loc-toggle" id="ocean-sheet-loc-toggle" title="좌표 표시/숨김">
+                                <i class="fa-solid fa-location-dot"></i>
+                            </button>
+                            <!-- 중앙: 날짜 네비게이션 -->
                             <div class="ocean-date-nav-inline">
                                 <button class="ocean-date-nav-btn" id="ocean-sheet-prev" title="이전 날" disabled>
                                     <i class="fa-solid fa-chevron-left"></i>
@@ -1390,9 +1439,11 @@
                                     <i class="fa-solid fa-chevron-right"></i>
                                 </button>
                             </div>
+                            <!-- 우측: 즐겨찾기(⭐) + 닫기(✕) -->
                             <div class="ocean-sheet-controls">
-                                <button class="ocean-loc-toggle" id="ocean-sheet-loc-toggle" title="좌표 표시/숨김">
-                                    <i class="fa-solid fa-location-dot"></i>
+                                <button class="ocean-loc-favorite" id="ocean-sheet-fav-btn"
+                                        title="즐겨찾기 추가" aria-pressed="false">
+                                    <i class="fa-regular fa-star"></i>
                                 </button>
                                 <button class="ocean-sheet-close" id="ocean-sheet-close" title="닫기">
                                     <i class="fa-solid fa-xmark"></i>
