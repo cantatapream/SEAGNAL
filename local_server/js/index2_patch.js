@@ -677,7 +677,42 @@ function _initOverlayToastsWhenReady() {
 _initOverlayToastsWhenReady();
 
 // ──────────────────────────────────────────────────────────────
-// 9. 초기 상태 설정
+// 9. index2 전용 CSS 오버라이드 주입
+//    ──────────────────────────────────────────────────────────
+//    [배경]
+//     하단 메인탭 바는 index2 에만 존재. 공유 CSS(style.css) 로 화면
+//     하단에 고정되는 공유 UI(바다낚시 바텀시트, 서핑 팝업 등) 는 index1
+//     기준으로 설계되어 있어 index2 에서는 메인탭 바 뒤로 내용이 가려짐.
+//     index2 한정으로 이들의 top / max-height 를 메인탭 높이 만큼 피하도록
+//     오버라이드.
+//
+//    [영향 범위]
+//     이 style 태그는 __SEAGNAL_PAGE==='index2' 가드 안쪽에서만 주입되므로
+//     index1 에는 전혀 반영되지 않음.
+//
+//    [대상]
+//     - .fishing-bottomsheet : 바다낚시 포인트 상세 팝업
+//     - .surfing-popup       : 서핑 포인트 상세 팝업
+//     - .fishing-guide-popup : 바다낚시 지수 안내 팝업 (동일 구조)
+// ──────────────────────────────────────────────────────────────
+(function _injectIndex2PopupOverrides() {
+    if (document.getElementById('index2-popup-override-style')) return;
+    var style = document.createElement('style');
+    style.id = 'index2-popup-override-style';
+    style.textContent = [
+        // 공통: 상단을 더 올리고, max-height 를 메인탭 높이만큼 빼서 하단 메인탭을 피함
+        '.fishing-bottomsheet,',
+        '.surfing-popup,',
+        '.fishing-guide-popup {',
+        '    top: calc(env(safe-area-inset-top, 0px) + 56px) !important;',
+        '    max-height: calc(100vh - env(safe-area-inset-top, 0px) - 56px - var(--main-tab-height, 68px) - 20px) !important;',
+        '}'
+    ].join('\n');
+    document.head.appendChild(style);
+})();
+
+// ──────────────────────────────────────────────────────────────
+// 10. 초기 상태 설정
 //    페이지 로드 시 기본 탭(특보정보)에 맞춰 body 속성 설정
 // ──────────────────────────────────────────────────────────────
 document.body.setAttribute('data-active-tab', 'weather-group');
