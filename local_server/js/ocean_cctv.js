@@ -692,6 +692,77 @@
         }
     };
 
+    // ══════════════════════════════════════════════════════════════
+    // window.CctvFavorites shim (index2 전용)
+    // ──────────────────────────────────────────────────────────────
+    // [왜 shim?]
+    //  cctv4.js 의 팝업 헤더 별 버튼은 onclick="toggleCctvFavorite()" 로 바인딩되어
+    //  있고, 그 핸들러는 `window.CctvFavorites.has / add / remove` 를 호출한다.
+    //  index1 에서는 cctv6.js 가 실제 CctvFavorites 를 정의하지만, index2 에서는
+    //  cctv6.js 를 로드하지 않아 이 객체가 undefined → 별 버튼이 무동작.
+    //
+    //  cctv4.js 는 공유 파일이라 수정 금지이므로, index2 에서는 동일 시그니처의
+    //  얇은 shim 을 노출하여 기존 별 버튼 로직이 그대로 oceanFav 매니저에
+    //  위임되도록 함.
+    //
+    // [인터페이스 일치]
+    //  - has(cctvId)      → oceanFav.cctvHas(cctvId) 로 위임
+    //  - remove(cctvId)   → oceanFav.cctvRemove(cctvId)
+    //  - add(obj)         → oceanFav.cctvAdd({ id: obj.cctvId, ...obj })
+    //    * 성공 true / 실패 false 반환 (cctv4.js 시그니처 유지)
+    //    * "full" 거부 시 showSeagnalModal 로 사용자 안내
+    //
+    // [index1 무영향]
+    //  이 파일은 __SEAGNAL_PAGE==='index2' 가드 안에서 실행되므로 index1 에는
+    //  shim 이 설치되지 않음 → index1 의 실제 CctvFavorites 그대로 사용.
+    // ══════════════════════════════════════════════════════════════
+    window.CctvFavorites = {
+        has: function (cctvId) {
+            return _cctvHas(cctvId);
+        },
+        remove: function (cctvId) {
+            _favCctv.removeById(cctvId);
+            _renderFavBar();
+        },
+        add: function (obj) {
+            if (!obj || !obj.cctvId) return false;
+            // 내부 스키마는 id 필드를 primary key 로 사용
+            var item = {
+                id:           obj.cctvId,
+                cctvId:       obj.cctvId,
+                name:         obj.name,
+                subtitle:     obj.subtitle,
+                providerKey:  obj.providerKey,
+                providerName: obj.providerName,
+                shareUrl:     obj.shareUrl,
+                streamUrl:    obj.streamUrl,
+                cameraCount:  obj.cameraCount,
+                obsName:      obj.obsName,
+                sensorName:   obj.sensorName,
+                cnt:          obj.cnt
+            };
+            // 3개 제한 초과 시 거부 + 안내
+            if (!_favCctv.canAdd()) {
+                if (typeof window.showSeagnalModal === 'function') {
+                    window.showSeagnalModal('즐겨찾기',
+                        '즐겨찾기는 최대 3개까지 저장할 수 있습니다.\n기존 항목을 먼저 해제해 주세요.', 'info');
+                }
+                return false;
+            }
+            // 이미 같은 cctvId 가 있으면 중복 거부
+            if (_cctvHas(obj.cctvId)) return false;
+            _favCctv.push(item);
+            _renderFavBar();
+            return true;
+        },
+        /**
+         * render: cctv6.js 원본은 지도 우측 상단에 즐겨찾기 버튼 목록을 그리는
+         * 함수. index2 에서는 하단 #ocean-fav-bar 가 대체하므로 no-op.
+         * 혹시 외부에서 호출되면 하단 바만 갱신.
+         */
+        render: function () { _renderFavBar(); }
+    };
+
     // ──────────────────────────────────────────────────────────────
     // 즐겨찾기 외부 API (그룹 3/4 에서 연동)
     // ──────────────────────────────────────────────────────────────
