@@ -450,6 +450,16 @@ async function collectMarineForecasts() {
 
         // 초단기/단기 공통 수집+AI 분석 처리
         async function processForecast(report, typeLabel) {
+            // [중복 처리 방지] 동일 reportId에 대해 이미 AI 분석이 완료된 캐시가 있으면 재사용
+            // → 기상청이 새 전망을 발행하면 reportId가 바뀌므로 자동으로 캐시 miss → 새로 처리됨
+            // → 이전 시도에서 AI 실패(aiResult=null)한 경우는 재시도 필요하므로 aiResult 존재 여부 확인
+            // → 원문 fetch(fetchForecastDetail)도 건너뛰어 기상청 서버 부하도 경감
+            const cached = loadForecastCache(report.id);
+            if (cached && cached.aiResult && cached.categories) {
+                console.log(`[MarineForecast] ${typeLabel} 캐시 사용 (AI 재호출 불필요): ${report.title}`);
+                return cached;
+            }
+
             console.log(`[MarineForecast] ${typeLabel} 수집: ${report.title}`);
             const detail = await fetchForecastDetail(report.id);
             const codeCategories = extractCategories(detail.rawText);
