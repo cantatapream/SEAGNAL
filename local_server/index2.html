@@ -276,12 +276,12 @@
         }
 
         /* 풀스크린 지도 컨테이너:
-           - 섹션(#fishing-section / #surfing-section / #cctv-section)이 active 일 때만 풀스크린화
+           - 섹션(#fishing-section / #surfing-section)이 active 일 때만 풀스크린화
            - top: safe-area + 제목 높이(~52px) 만큼 내려서 제목이 보이게
-           - bottom: 메인탭/서브탭 높이만큼 올림 (--main-tab-height, --sub-tab-height) */
+           - bottom: 메인탭/서브탭 높이만큼 올림 (--main-tab-height, --sub-tab-height)
+           [참고] 기존 #cctv-section 은 해양종합에 통합되어 선택자에서 제거됨 */
         #fishing-section.tab-content.active,
-        #surfing-section.tab-content.active,
-        #cctv-section.tab-content.active {
+        #surfing-section.tab-content.active {
             position: fixed !important;
             top: env(safe-area-inset-top, 20px) !important;
             bottom: var(--main-tab-height) !important;
@@ -298,15 +298,13 @@
             overflow: hidden;
         }
         body.sub-tabs-open #fishing-section.tab-content.active,
-        body.sub-tabs-open #surfing-section.tab-content.active,
-        body.sub-tabs-open #cctv-section.tab-content.active {
+        body.sub-tabs-open #surfing-section.tab-content.active {
             bottom: calc(var(--main-tab-height) + var(--sub-tab-height)) !important;
         }
 
         /* 제목 줄은 섹션 상단 고정 높이, 지도 영역은 flex-grow 로 나머지 영역 차지 */
         #fishing-section.tab-content.active > .life-header-row,
-        #surfing-section.tab-content.active > .life-header-row,
-        #cctv-section.tab-content.active > .life-header-row {
+        #surfing-section.tab-content.active > .life-header-row {
             flex: 0 0 auto;
             padding: 10px 14px;
             margin: 0;
@@ -314,8 +312,7 @@
 
         /* 지도 컨테이너: 섹션 내 남은 공간 전체 */
         #fishing-section.tab-content.active .life-map-container,
-        #surfing-section.tab-content.active .life-map-container,
-        #cctv-section.tab-content.active .life-map-container {
+        #surfing-section.tab-content.active .life-map-container {
             flex: 1 1 auto;
             position: relative;   /* 내부 플로팅 컨트롤의 기준 */
             width: 100%;
@@ -327,8 +324,7 @@
             overflow: hidden;
         }
         #fishing-section.tab-content.active #fishing-map,
-        #surfing-section.tab-content.active #surfing-map,
-        #cctv-section.tab-content.active #cctv-map {
+        #surfing-section.tab-content.active #surfing-map {
             position: absolute !important;
             top: 0; left: 0; right: 0; bottom: 0;
             width: 100% !important;
@@ -340,8 +336,7 @@
            .surfing-disclaimer)은 팝업 소스로만 사용해야 하므로 무조건 숨김.
            fishing.js _updateDisclaimer() 가 display:'' 로 되돌리는 케이스도 차단. */
         #fishing-section.tab-content.active .fishing-disclaimer,
-        #surfing-section.tab-content.active .surfing-disclaimer,
-        #cctv-section.tab-content.active .fishing-disclaimer {
+        #surfing-section.tab-content.active .surfing-disclaimer {
             display: none !important;
         }
 
@@ -1083,58 +1078,18 @@
 
             </section>
 
-            <!-- 섹션 3-4: 해안 CCTV -->
-            <!-- [연계] js/cctv1.js CCTV_PROVIDERS 데이터 -->
-            <!-- [연계] js/cctv2.js initCctvMap() → #cctv-map 렌더링 -->
-            <!-- [연계] js/cctv4.js showCctvPopup() → #cctv-modal-backdrop 모달 표출 -->
-            <!-- [연계] js/cctv6.js CctvFavorites → #cctv-favorites-container 즐겨찾기 버튼 -->
-            <section id="cctv-section" class="tab-content">
-                <!-- 제목 라인 (풀스크린 레이아웃용) -->
-                <div class="section-header-with-info life-header-row">
-                    <h2 class="section-title"><i class="fa-solid fa-video"></i> 해안 CCTV</h2>
-                </div>
-
-                <!-- ================================================================
-                     지도 영역 (풀스크린) + 지도 위 플로팅 유의사항 버튼
-                     ----------------------------------------------------------------
-                     - .life-map-container : 섹션 남은 공간 전체 (해양생활과 동일)
-                     - 우측 상단 ❗ 버튼 → 기존 면책 안내문 팝업
-                     [연계] cctv2.js initCctvMap() → #cctv-map 렌더링
-                     ================================================================ -->
-                <div class="cctv-map-wrapper life-map-container">
-                    <!-- OpenLayers 지도 컨테이너 -->
-                    <div id="cctv-map"></div>
-
-                    <!-- 즐겨찾기 버튼 목록 (지도 오른쪽 상단, 기본 숨김) -->
-                    <!-- cctv6.js CctvFavorites.render()가 이 요소에 버튼을 채웁니다 -->
-                    <div id="cctv-favorites-container" class="cctv-favorites-container"
-                         style="display: none;"></div>
-
-                    <!-- 우측 상단: 유의사항 아이콘 버튼 (내 위치는 CCTV 특성상 생략) -->
-                    <div class="life-map-controls-topright">
-                        <button id="cctv-notice-btn" class="life-map-icon-btn" title="유의사항">
-                            <i class="fa-solid fa-circle-exclamation"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 모달 백드롭: 마커 클릭 시 cctv4.js showCctvPopup()이 채우고 표시함 -->
-                <!-- position:fixed로 화면 전체를 덮으므로 section 안에 있어도 무관 -->
-                <div id="cctv-modal-backdrop" class="cctv-modal-backdrop"
-                     style="display: none;"></div>
-
-                <!-- ================================================================
-                     유의사항 팝업 소스 (숨김) — 지도 위 ❗ 버튼 클릭 시 모달로 표시
-                     [연계] js/cctv5.js 또는 별도 초기화 블록에서 이벤트 바인딩
-                     ================================================================ -->
-                <div class="fishing-disclaimer" id="cctv-disclaimer" style="display:none;">
-                    <p><i class="fa-solid fa-circle-check"></i> 이 해안 CCTV 서비스는 어항 안전상태 및 해상 기상현황 확인 등 공익적 목적으로 운영됩니다.</p>
-                    <p><i class="fa-solid fa-circle-check"></i> 제공 영상은 지방자치단체(부산시·거제시·옹진군), 해양수산부 연안포털, KBS 재난센터에서 공공에 공개한 영상을 활용하며, 본 앱은 영상을 수집·저장하지 않습니다.</p>
-                    <p><i class="fa-solid fa-circle-check"></i> 영상 정보의 정확성과 이를 활용함에 따른 민·형사상 법적 책임은 정보활용 주체에 있으며, 정보 제공주체 및 본 앱은 이에 대한 책임을 지지 않습니다.</p>
-                    <p><i class="fa-solid fa-circle-check"></i> 옹진군 CCTV의 지도 위치는 명칭·지명을 참고하여 수기 배치된 것으로, 실제 설치 위치와 다를 수 있습니다.</p>
-                </div>
-
-            </section>
+            <!-- ================================================================
+                 [index2] 해안 CCTV 섹션 삭제됨 (해양종합에 통합)
+                 ----------------------------------------------------------------
+                 기존 cctv-section 은 해양종합(ocean-map-section) 의 CCTV 토글
+                 버튼으로 통합됨. 삭제 전 섹션 안에 있던 아래 요소들은 섹션 밖으로
+                 옮겨 보존하거나 JS 에서 동적 생성:
+                   - #cctv-modal-backdrop   → body 최상위로 이동 (아래 참조)
+                   - #cctv-disclaimer       → ocean_cctv.js 가 동적 생성
+                   - #cctv-favorites-container → 더 이상 사용 안 함 (하단 바로 대체)
+                 [관련] js/ocean_cctv.js, js/cctv4.js showCctvPopup()
+                 [index1 영향 없음] index.html 의 cctv-section 은 변경 없음.
+                 ================================================================ -->
 
             <!-- 섹션 4: 조석 및 일출몰 정보 -->
             <section id="tide-section" class="tab-content">
@@ -1258,8 +1213,24 @@
                             <i class="fa-solid fa-anchor"></i>
                             <span class="ocean-overlay-label">기상부이</span>
                         </button>
+                        <!-- CCTV 토글: ocean_cctv.js 가 바인딩 (index2 전용)
+                             활성화 시 지도 위에 CCTV 마커/클러스터 표시 + 하단 CCTV 즐겨찾기 바 노출
+                             [연계] js/ocean_cctv.js -->
+                        <button class="ocean-overlay-btn" id="ocean-cctv-toggle-btn" title="해안 CCTV">
+                            <i class="fa-solid fa-video"></i>
+                            <span class="ocean-overlay-label">CCTV</span>
+                        </button>
                         <button class="ocean-overlay-btn ocean-myloc-btn" id="ocean-myloc-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
+                        </button>
+                        <!-- 유의사항 버튼: CCTV ON 시에만 body.ocean-cctv-on 클래스로 display 제어
+                             클릭 시 CCTV 유의사항 팝업 (showSeagnalModal)
+                             id 는 cctv5.js 의 #cctv-notice-btn 과 겹치지 않게 신규 네이밍 사용
+                             [연계] js/ocean_cctv.js -->
+                        <button class="ocean-overlay-btn" id="ocean-cctv-notice-btn"
+                                title="유의사항" style="display:none;">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                            <span class="ocean-overlay-label">유의사항</span>
                         </button>
                     </div>
 
@@ -1751,6 +1722,19 @@
         </main>
 
         <!-- ================================================================
+             CCTV 영상 팝업 백드롭 (cctv4.js showCctvPopup 타겟)
+             ----------------------------------------------------------------
+             기존에는 cctv-section 내부에 있었지만, 섹션을 해양종합으로 통합
+             하면서 삭제되었기 때문에 body/main 최상위로 이동하여 보존.
+             - position:fixed 로 화면 전체를 덮으므로 위치와 무관
+             - 이 백드롭이 없으면 CCTV 마커 클릭 시 영상 팝업이 못 뜸
+             [연계] js/cctv4.js showCctvPopup() — 이 DOM 에 HTML 주입
+             [연계] js/ocean_cctv.js — CCTV 마커 클릭 시 showCctvPopup 호출
+             ================================================================ -->
+        <div id="cctv-modal-backdrop" class="cctv-modal-backdrop"
+             style="display: none;"></div>
+
+        <!-- ================================================================
              하단 고정 탭 바 (INDEX2 전용)
              - 메인탭 4개: 특보정보, 종합기상, 해양생활, 공지사항
              - 서브탭: 메인탭 클릭 시 위로 올라오고, 서브탭 선택 시 닫힘
@@ -1765,11 +1749,10 @@
             <button class="sub-tab-btn" data-target="sea-zone-section">해구기상</button>
             <button class="sub-tab-btn" data-target="typhoon-section">태풍정보</button>
         </nav>
-        <!-- 종합기상 서브탭 (해양종합 | 조석정보 | 해안 CCTV) -->
+        <!-- 종합기상 서브탭 (해양종합 | 조석정보) — 해안 CCTV 는 해양종합에 통합됨 -->
         <nav class="sub-tabs bottom-sub-tabs" id="ocean-sub-tabs">
             <button class="sub-tab-btn active" data-target="ocean-map-section">해양종합</button>
             <button class="sub-tab-btn" data-target="tide-section">조석정보</button>
-            <button class="sub-tab-btn" data-target="cctv-section">해안 CCTV</button>
         </nav>
         <!-- 해양생활 서브탭 (바다낚시 | 서핑 | 해수욕 | 스킨스쿠버 | 갯벌체험 | 바다갈라짐) -->
         <nav class="sub-tabs bottom-sub-tabs" id="ocean-life-sub-tabs">
@@ -1910,14 +1893,24 @@
     <script src="js/backbutton.js"></script>
     <!-- HLS.js: 거제시 등 HLS 스트림 재생 (cctv4.js _initCctvHlsPlayer에서 사용) -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
-    <!-- CCTV 기능 (로딩 순서 중요: 데이터→지도→마커→팝업→초기화) -->
-    <!-- [연계] cctv1: 데이터 | cctv2: 지도초기화 | cctv3: 마커 | cctv4: 팝업 | cctv5: 탭연결 -->
+    <!-- ================================================================
+         CCTV 기능 (index2 에서는 해양종합에 통합)
+         ----------------------------------------------------------------
+         - cctv1.js : CCTV_PROVIDERS 데이터 (공유, 재사용)
+         - cctv4.js : 영상 팝업(showCctvPopup) (공유, 재사용)
+         - ocean_cctv.js : index2 전용 통합 로직 (마커/토글/즐겨찾기)
+         [제외됨]
+         - cctv2.js (#cctv-map 독립 OL 지도 생성) — index2 미사용
+         - cctv3.js (cctvMap 대상 마커) — index2 미사용
+         - cctv5.js (서브탭 클릭 훅) — index2 에선 해안CCTV 서브탭 삭제됨
+         - cctv6.js (CctvFavorites cctvMap 기반) — index2 는 ocean_cctv 내부
+                     전용 즐겨찾기 사용 (localStorage 키 분리)
+         - cctv7.js (관리자 위치 편집 도구) — index2 미사용
+         [주의] index1(index.html) 은 변함없이 cctv1~7.js 전체를 로드함.
+         ================================================================ -->
     <script src="js/cctv1.js"></script>
-    <script src="js/cctv2.js"></script>
-    <script src="js/cctv3.js"></script>
     <script src="js/cctv4.js"></script>
-    <script src="js/cctv5.js"></script>
-    <script src="js/cctv6.js"></script>
+    <script src="js/ocean_cctv.js"></script>
 
     <!-- index2 전용 패치: 종합기상 탭 + 헤더 유지 -->
     <script src="js/index2_patch.js"></script>
@@ -2009,7 +2002,8 @@
             'sea-zone': 'sea-zone-section',
 
             'typhoon': 'typhoon-section',
-            'cctv': 'cctv-section',
+            // [제거] 'cctv': 'cctv-section' — index2 에서 해안CCTV 섹션 삭제됨
+            //        (해양종합 우측 CCTV 토글 버튼으로 통합됨)
             // 해양생활 하위 서브탭
             'fishing': 'fishing-section',
             'surfing': 'surfing-section',
