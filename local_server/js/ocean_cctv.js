@@ -586,28 +586,79 @@
 
     /**
      * 즐겨찾기 칩 클릭 핸들러.
-     *  - CCTV: 저장된 CCTV 정보로 showCctvPopup 재오픈 (지도 이동 없음)
-     *  - 위치: 지도 해당 좌표로 이동 + 바텀시트 오픈
+     *
+     *  - CCTV 칩:
+     *     1) 지도 해당 좌표로 이동 (lat/lng 있으면)
+     *     2) showCctvPopup 으로 영상 팝업 오픈
+     *  - 위치 칩:
+     *     1) 지도 해당 좌표로 이동
+     *     2) showOceanBottomSheet 으로 바텀시트 오픈
+     *
+     * [stopPropagation 이유]
+     *  칩 클릭 이벤트가 상위(#ocean-fav-bar → document)로 버블링되면서
+     *  다른 click 리스너(예: index2_patch.js 의 본문 터치 서브탭 닫기,
+     *  지도 click 핸들러 등)가 원치 않는 부작용을 일으킬 가능성 차단.
+     *  버튼 자체 동작은 이 핸들러에서만 처리.
      */
     function _handleChipClick(e) {
+        // 다른 핸들러 간섭 방지
+        if (e && e.stopPropagation) e.stopPropagation();
+
         var chip = e.currentTarget;
         var kind = chip.dataset.kind;
         var id   = chip.dataset.id;
+        var map  = window.getOceanMap && window.getOceanMap();
+
         if (kind === 'cctv') {
             var cctv = null;
             for (var i = 0; i < _favCctv.items.length; i++) {
                 if (_favCctv.items[i].id === id) { cctv = _favCctv.items[i]; break; }
             }
-            if (cctv && typeof window.showCctvPopup === 'function') {
+            if (!cctv) return;
+
+            // [하위호환] 이전 버전에서 lat/lng 없이 저장된 즐겨찾기는 런타임에
+            // CCTV_PROVIDERS 에서 역조회하여 좌표 복원 후 localStorage 업데이트.
+            if ((cctv.lat == null || cctv.lng == null)
+                && window.CCTV_PROVIDERS && cctv.providerKey) {
+                var prv = window.CCTV_PROVIDERS[cctv.providerKey];
+                if (prv && prv.items) {
+                    for (var m = 0; m < prv.items.length; m++) {
+                        if (prv.items[m].cctvId === cctv.cctvId) {
+                            cctv.lat = parseFloat(prv.items[m].lat);
+                            cctv.lng = parseFloat(prv.items[m].lng);
+                            _favCctv.save();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // ① 지도 해당 좌표로 이동 (lat/lng 저장되어 있을 때)
+            var hasCoord = (typeof cctv.lat === 'number' && !isNaN(cctv.lat)
+                         && typeof cctv.lng === 'number' && !isNaN(cctv.lng));
+            if (map && hasCoord) {
+                map.getView().animate({
+                    center: ol.proj.fromLonLat([cctv.lng, cctv.lat]),
+                    zoom: Math.max(map.getView().getZoom() || 6, 12),
+                    duration: 400
+                });
+            }
+
+            // ② 영상 팝업 오픈 (지도 애니메이션과 겹쳐도 무관)
+            if (typeof window.showCctvPopup === 'function') {
                 window.showCctvPopup(cctv);
             }
-        } else if (kind === 'location') {
+            return;
+        }
+
+        if (kind === 'location') {
             var loc = null;
             for (var j = 0; j < _favLocation.items.length; j++) {
                 if (_favLocation.items[j].id === id) { loc = _favLocation.items[j]; break; }
             }
             if (!loc) return;
-            var map = window.getOceanMap && window.getOceanMap();
+
+            // ① 지도 이동
             if (map) {
                 map.getView().animate({
                     center: ol.proj.fromLonLat([loc.lon, loc.lat]),
@@ -615,6 +666,7 @@
                     duration: 400
                 });
             }
+            // ② 바텀시트 오픈
             if (typeof window.showOceanBottomSheet === 'function') {
                 window.showOceanBottomSheet(loc.lat, loc.lon);
             }
@@ -957,6 +1009,26 @@
         },
         add: function (obj) {
             if (!obj || !obj.cctvId) return false;
+
+            // cctv4.js 의 toggleCctvFavorite 은 좌표를 전달하지 않으므로,
+            // CCTV_PROVIDERS 에서 cctvId + providerKey 로 역조회해 lat/lng 보강.
+            // (하단 바에서 즐겨찾기 칩 클릭 시 지도를 해당 좌표로 이동시키는 데 사용)
+            var lat = null, lng = null;
+            try {
+                if (window.CCTV_PROVIDERS && obj.providerKey) {
+                    var provider = window.CCTV_PROVIDERS[obj.providerKey];
+                    if (provider && Array.isArray(provider.items)) {
+                        for (var k = 0; k < provider.items.length; k++) {
+                            if (provider.items[k].cctvId === obj.cctvId) {
+                                lat = parseFloat(provider.items[k].lat);
+                                lng = parseFloat(provider.items[k].lng);
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (e) { /* 좌표 없으면 지도 이동만 생략, 팝업은 정상 */ }
+
             // 내부 스키마는 id 필드를 primary key 로 사용
             var item = {
                 id:           obj.cctvId,
@@ -970,7 +1042,9 @@
                 cameraCount:  obj.cameraCount,
                 obsName:      obj.obsName,
                 sensorName:   obj.sensorName,
-                cnt:          obj.cnt
+                cnt:          obj.cnt,
+                lat:          lat,
+                lng:          lng
             };
             // 3개 제한 초과 시 거부 + 안내
             if (!_favCctv.canAdd()) {
