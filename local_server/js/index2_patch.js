@@ -43,12 +43,12 @@ TAB_GROUP_DEFAULTS['ocean-group'] = 'ocean-map-section';
 TAB_GROUP_SUBTABS['ocean-group'] = 'ocean-sub-tabs';
 
 // 섹션 → 소속 그룹 역매핑 (섹션 ID로 switchMainTab 호출 시 그룹 찾기용)
-// cctv-section: weather-group에서 ocean-group으로 이동
-SECTION_TO_GROUP['cctv-section'] = 'ocean-group';
 // tide-section: 독립 탭에서 ocean-group 서브탭으로 이동
 SECTION_TO_GROUP['tide-section'] = 'ocean-group';
 // ocean-map-section: 독립 탭에서 ocean-group 기본 서브탭으로 이동
 SECTION_TO_GROUP['ocean-map-section'] = 'ocean-group';
+// [제거] cctv-section 매핑 — 해안CCTV 섹션 삭제 후 해양종합 CCTV 토글 버튼으로 통합됨
+// 만약 외부에서 switchMainTab('cctv-section') 을 호출하면 대응 섹션이 없어 무시됨.
 
 // ──────────────────────────────────────────────────────────────
 // 2. 메인탭 바 실측 높이 반영
