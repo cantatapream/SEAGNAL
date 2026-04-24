@@ -347,6 +347,8 @@ window.switchMainTab = function (targetId) {
                 var m = window.getOceanMap();
                 if (!m) return;
                 if (m.updateSize) m.updateSize();
+                // [최초 1회] 초기 지도 중심 설정 (위치 즐겨찾기 우선, 없으면 한반도 중심)
+                _applyOceanInitialCenter(m);
                 // oceanOverlayInit 재진입으로 canvas 크기 + 데이터(loadOverlayData) 동시 복구
                 if (window.oceanOverlayInit) window.oceanOverlayInit(m);
                 // OL 에 강제 렌더 요청 — prerender 훅을 재호출해 파티클 합성 재개
@@ -360,6 +362,54 @@ window.switchMainTab = function (targetId) {
         _showOceanFirstEntryToastIfNeeded();
     }
 };
+
+// ──────────────────────────────────────────────────────────────
+// 4-2. 해양종합 지도 최초 진입 시 중심 좌표 설정
+//    ──────────────────────────────────────────────────────────
+//    [동작 우선순위]
+//      ① localStorage 'ocean_location_favorites_v1' 의 첫 번째 위치
+//         즐겨찾기(바텀시트 ⭐ 로 저장한 항목) 좌표
+//      ② 없으면 한반도 시각적 중심 (35.914005, 127.572611)
+//
+//    [한 번만 적용]
+//      _oceanInitialCenterApplied 플래그로 페이지 로드당 1회만 실행.
+//      이후 사용자가 지도를 패닝/줌하면 그 위치를 그대로 유지
+//      (다른 탭 다녀와도 다시 리셋되지 않음).
+//
+//    [줌 변경 없음]
+//      ocean_map.js 의 DEFAULT_ZOOM(7) 그대로 유지. setCenter 만 호출.
+// ──────────────────────────────────────────────────────────────
+var _oceanInitialCenterApplied = false;
+function _applyOceanInitialCenter(map) {
+    if (_oceanInitialCenterApplied) return;
+    if (!map || !map.getView) return;
+    if (typeof ol === 'undefined' || !ol.proj) return;
+    _oceanInitialCenterApplied = true;
+
+    var lon = 127.572611;          // 기본: 한반도 시각적 중심
+    var lat = 35.914005;
+
+    try {
+        var raw = localStorage.getItem('ocean_location_favorites_v1');
+        if (raw) {
+            var items = JSON.parse(raw);
+            if (Array.isArray(items) && items.length > 0) {
+                var first = items[0];
+                // lat/lng 또는 lat/lon 모두 지원 (저장 시점 명명 차이 방어)
+                var fLat = parseFloat(first.lat);
+                var fLon = parseFloat(first.lon != null ? first.lon : first.lng);
+                if (!isNaN(fLat) && !isNaN(fLon)) {
+                    lat = fLat;
+                    lon = fLon;
+                }
+            }
+        }
+    } catch (e) { /* localStorage 접근 실패 시 기본 좌표 사용 */ }
+
+    try {
+        map.getView().setCenter(ol.proj.fromLonLat([lon, lat]));
+    } catch (e) {}
+}
 
 // ──────────────────────────────────────────────────────────────
 // 5. switchSubTab 래핑
@@ -613,9 +663,11 @@ function _computeBottomToastOffsetPx() {
 }
 
 /**
- * 세션 최초 해양종합 진입 시 상단 토스트 1회 표시.
+ * 세션 최초 해양종합 진입 시 토스트 1회 표시 (하단, 즐겨찾기 바 위).
  *  - sessionStorage 로 같은 세션 내 중복 표시 차단.
  *  - 새로 앱을 켜면(페이지 새로고침 포함) 다시 1회 표시.
+ *  - 위치는 'bottom' — 파고/바람/조류 토스트와 동일 위치로 통일하여
+ *    안내 메시지의 위치 일관성 확보.
  */
 function _showOceanFirstEntryToastIfNeeded() {
     try {
@@ -624,7 +676,7 @@ function _showOceanFirstEntryToastIfNeeded() {
     } catch (e) { /* SS 접근 불가 환경에서도 동작은 계속 */ }
     // 섹션 전환 애니메이션 이후에 띄우도록 약간 지연
     setTimeout(function () {
-        _showOceanToast('해역을 클릭하여 상세한 정보를 확인하세요', 'top', 2000);
+        _showOceanToast('해역을 클릭하여 상세한 정보를 확인하세요', 'bottom', 2000);
     }, 200);
 }
 
@@ -680,14 +732,24 @@ _initOverlayToastsWhenReady();
 // 9. index2 전용 CSS 오버라이드 주입
 //    ──────────────────────────────────────────────────────────
 //    [배경]
-//     하단 메인탭 바는 index2 에만 존재. 공유 CSS(style.css) 로 화면
-//     하단에 고정되는 공유 UI(바다낚시 바텀시트, 서핑 팝업 등) 는 index1
-//     기준으로 설계되어 있어 index2 에서는 메인탭 바 뒤로 내용이 가려짐.
-//     index2 한정으로 이들의 top / max-height 를 메인탭 높이 만큼 피하도록
-//     오버라이드.
+//     style.css 의 원본 .fishing-bottomsheet / .surfing-popup 은
+//     `top: 32%` 로 화면 위쪽 1/3 지점에 떠 있다. 사용자 요구는
+//     "팝업 중앙이 항상 화면 정중앙에 오고, 크기는 데이터 양에 맞춰
+//      자연 축소" 이므로 index2 한정으로 중앙 정렬로 오버라이드.
+//
+//    [메커니즘]
+//     top: 50% + transform: translate(-50%, -50%) 조합으로 팝업의
+//     기하학적 중심을 화면 중앙에 정확히 일치시킴.
+//     max-height: 65vh 는 원본과 동일하게 유지 → 데이터가 적으면
+//     컨텐츠 크기만큼 자동 축소, 많으면 65vh 까지 확장 후 내부 스크롤.
+//
+//    [메인탭 가림은 별도 해결]
+//     이전엔 top/max-height 를 강제로 줄여 메인탭을 피했으나, 메인탭
+//     z-index 를 60 으로 낮춘 후로는 팝업(z:999) 이 자연히 위로 떠서
+//     불필요. 단순 중앙 정렬만 유지.
 //
 //    [영향 범위]
-//     이 style 태그는 __SEAGNAL_PAGE==='index2' 가드 안쪽에서만 주입되므로
+//     style 태그는 __SEAGNAL_PAGE==='index2' 가드 안쪽에서만 주입되므로
 //     index1 에는 전혀 반영되지 않음.
 //
 //    [대상]
@@ -700,12 +762,19 @@ _initOverlayToastsWhenReady();
     var style = document.createElement('style');
     style.id = 'index2-popup-override-style';
     style.textContent = [
-        // 공통: 상단을 더 올리고, max-height 를 메인탭 높이만큼 빼서 하단 메인탭을 피함
+        // 기본 상태 (열림 직전 / 닫힘): 화면 정중앙에 살짝 축소된 상태
         '.fishing-bottomsheet,',
         '.surfing-popup,',
         '.fishing-guide-popup {',
-        '    top: calc(env(safe-area-inset-top, 0px) + 56px) !important;',
-        '    max-height: calc(100vh - env(safe-area-inset-top, 0px) - 56px - var(--main-tab-height, 68px) - 20px) !important;',
+        '    top: 50% !important;',
+        '    transform: translate(-50%, -50%) scale(0.95) !important;',
+        '    max-height: 65vh !important;',
+        '}',
+        // active 상태 (열림 완료): 동일 중앙 위치 + scale 1
+        '.fishing-bottomsheet.active,',
+        '.surfing-popup.active,',
+        '.fishing-guide-popup.active {',
+        '    transform: translate(-50%, -50%) scale(1) !important;',
         '}'
     ].join('\n');
     document.head.appendChild(style);
