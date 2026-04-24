@@ -576,6 +576,64 @@
         body.sub-tabs-open #ocean-map-section.tab-content.active .ocean-bottom-sheet {
             bottom: calc(var(--main-tab-height) + var(--sub-tab-height)) !important;
         }
+
+        /* ──────────────────────────────────────────────────────────
+           안내사항(ⓘ) 버튼 — 지도 좌측 상단, 기본맵 버튼 오른쪽
+           ──────────────────────────────────────────────────────────
+           - 기본맵 버튼(.ocean-basemap-toggle-wrap)은 top:10, left:10
+             에 위치하고 min-width:48px. 그 오른쪽에 6px 간격으로 배치.
+           - z-index 는 기본맵과 동일(50) 로 맞춰 지도 위 항상 노출. */
+        .ocean-info-btn-wrap {
+            position: absolute;
+            top: 10px;
+            left: 64px;         /* 10(기본맵 left) + 48(min-width) + 6(간격) */
+            z-index: 50;
+        }
+
+        /* ──────────────────────────────────────────────────────────
+           안내사항 팝업 내부 탭 구조 (seagnal-modal 안에 주입되는 HTML)
+           ──────────────────────────────────────────────────────────
+           7개 탭(유향·유속 / 풍향·풍속 / 파고·파향 / 부이 / 수심 / 조석 / CCTV)
+           의 스크롤 가능한 가로 탭바 + 탭별 본문 패널.
+        */
+        .ocean-info-tabs {
+            display: flex;
+            overflow-x: auto;
+            gap: 4px;
+            padding: 4px 0 10px 0;
+            margin: 0 0 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .ocean-info-tabs::-webkit-scrollbar { display: none; }
+        .ocean-info-tab-btn {
+            flex: 0 0 auto;
+            padding: 6px 10px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+        .ocean-info-tab-btn.active {
+            background: rgba(68, 138, 255, 0.18);
+            border-color: rgba(68, 138, 255, 0.45);
+            color: #fff;
+        }
+        .ocean-info-panels { text-align: left; }
+        .ocean-info-panel { display: none; color: #e2e8f0; font-size: 0.9rem; line-height: 1.65; white-space: pre-line; }
+        .ocean-info-panel.active { display: block; }
+        .ocean-info-panel ol,
+        .ocean-info-panel ul {
+            margin: 8px 0 8px 20px;
+            padding: 0;
+        }
+        .ocean-info-panel li { margin: 4px 0; }
     </style>
     <script>window.__SEAGNAL_PAGE = 'index2';</script>
     <title>SEA:GNAL(바다:그 날의 신호)</title>
@@ -1288,19 +1346,28 @@
                         </div>
                     </div>
 
+                    <!-- 상시 노출되는 안내사항(ⓘ) 버튼 — 기본맵 버튼 오른쪽
+                         [연계] js/ocean_cctv.js (_openNoticePopup) — 탭형 안내 팝업 -->
+                    <div id="ocean-info-btn-wrap" class="ocean-info-btn-wrap">
+                        <button id="ocean-info-btn" class="ocean-overlay-btn ocean-basemap-toggle-btn" title="안내사항">
+                            <i class="fa-solid fa-circle-info"></i>
+                            <span class="ocean-overlay-label">안 내</span>
+                        </button>
+                    </div>
+
                     <!-- 오버레이 토글 버튼 + 주요지명 + GPS (지도 우측) -->
                     <div class="ocean-overlay-controls" id="ocean-overlay-controls">
-                        <button class="ocean-overlay-btn" data-layer="current" title="조류">
+                        <button class="ocean-overlay-btn" data-layer="current" title="유향·유속">
                             <i class="fa-solid fa-arrows-spin"></i>
-                            <span class="ocean-overlay-label">조 류</span>
+                            <span class="ocean-overlay-label">유향·유속</span>
                         </button>
-                        <button class="ocean-overlay-btn" data-layer="wind" title="바람">
+                        <button class="ocean-overlay-btn" data-layer="wind" title="풍향·풍속">
                             <i class="fa-solid fa-wind"></i>
-                            <span class="ocean-overlay-label">바 람</span>
+                            <span class="ocean-overlay-label">풍향·풍속</span>
                         </button>
-                        <button class="ocean-overlay-btn" data-layer="wave" title="파고">
+                        <button class="ocean-overlay-btn" data-layer="wave" title="파고·파향">
                             <i class="fa-solid fa-water"></i>
-                            <span class="ocean-overlay-label">파 고</span>
+                            <span class="ocean-overlay-label">파고·파향</span>
                         </button>
                         <button class="ocean-overlay-btn" id="ocean-marker-toggle-btn" title="주요지명">
                             <i class="fa-solid fa-location-dot"></i>
@@ -1320,15 +1387,9 @@
                         <button class="ocean-overlay-btn ocean-myloc-btn" id="ocean-myloc-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
                         </button>
-                        <!-- 유의사항 버튼: CCTV ON 시에만 body.ocean-cctv-on 클래스로 display 제어
-                             클릭 시 CCTV 유의사항 팝업 (showSeagnalModal)
-                             id 는 cctv5.js 의 #cctv-notice-btn 과 겹치지 않게 신규 네이밍 사용
+                        <!-- [제거됨] CCTV ON 시에만 뜨던 유의사항 버튼(#ocean-cctv-notice-btn)
+                             → 지도 좌측 상단 "기본맵" 옆 #ocean-info-btn 으로 상시 노출 대체
                              [연계] js/ocean_cctv.js -->
-                        <button class="ocean-overlay-btn" id="ocean-cctv-notice-btn"
-                                title="유의사항" style="display:none;">
-                            <i class="fa-solid fa-circle-exclamation"></i>
-                            <span class="ocean-overlay-label">유의사항</span>
-                        </button>
                     </div>
 
                     <!-- 캔버스 오버레이 (파티클/색상 그라디언트) -->
