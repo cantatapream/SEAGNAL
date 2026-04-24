@@ -578,16 +578,40 @@
         }
 
         /* ──────────────────────────────────────────────────────────
-           안내사항(ⓘ) 버튼 — 지도 좌측 상단, 기본맵 버튼 오른쪽
+           지도 좌측 상단 컨트롤 그룹 (기본맵 + 안내ⓘ 가로 배치)
            ──────────────────────────────────────────────────────────
-           - 기본맵 버튼(.ocean-basemap-toggle-wrap)은 top:10, left:10
-             에 위치하고 min-width:48px. 그 오른쪽에 6px 간격으로 배치.
-           - z-index 는 기본맵과 동일(50) 로 맞춰 지도 위 항상 노출. */
-        .ocean-info-btn-wrap {
+           - 두 요소를 한 가로 flex 컨테이너에 넣어 서로 나란히 고정.
+           - 공유 CSS 의 .ocean-basemap-toggle-wrap 은 원래 position:absolute
+             + top:10; left:10 이지만, 여기선 부모 컨테이너가 그 좌표를
+             담당하므로 자식 wrap 들은 position:relative 로 재지정해
+             flex 자식으로 동작시킴.
+           - 기본맵 드롭다운(.ocean-basemap-menu) 은 wrap 내부에서
+             absolute top:100% 로 떠서, 메뉴 열려도 가로 폭이 변하지 않음
+             → ⓘ 버튼이 흔들리지 않음. */
+        #ocean-topleft-controls {
             position: absolute;
             top: 10px;
-            left: 64px;         /* 10(기본맵 left) + 48(min-width) + 6(간격) */
+            left: 10px;
             z-index: 50;
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 6px;
+            pointer-events: none;
+        }
+        #ocean-topleft-controls > #ocean-basemap-toggle-wrap,
+        #ocean-topleft-controls > #ocean-info-btn-wrap {
+            position: relative !important;
+            top: auto !important;
+            left: auto !important;
+            pointer-events: auto;
+        }
+        #ocean-topleft-controls #ocean-basemap-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            min-width: max-content;
+            z-index: 51;
         }
 
         /* ──────────────────────────────────────────────────────────
@@ -1327,32 +1351,42 @@
                 <div class="ocean-map-wrapper" style="position: relative;">
                     <div id="ocean-map"></div>
 
-                    <!-- 모드 A: 베이스맵 선택 피커 (지도 좌측 상단) -->
-                    <div id="ocean-basemap-toggle-wrap" class="ocean-basemap-toggle-wrap">
-                        <button id="ocean-basemap-toggle" class="ocean-overlay-btn ocean-basemap-toggle-btn" title="지도 종류 선택">
-                            <i class="fa-solid fa-layer-group"></i>
-                            <span class="ocean-overlay-label" id="ocean-basemap-label">기본맵</span>
-                        </button>
-                        <div id="ocean-basemap-menu" class="ocean-basemap-menu" style="display:none;">
-                            <button class="ocean-basemap-item active" data-basemap="rltm">
-                                <i class="fa-solid fa-map"></i> 기본맵
+                    <!-- 지도 좌측 상단 컨트롤 그룹 (기본맵 + 안내(ⓘ) 가로 배치)
+                         ───────────────────────────────────────────────
+                         [이유] 기본맵 wrap 과 ⓘ wrap 을 각자 absolute 로 좌표
+                         잡으면 기본맵 버튼 실제 폭·검색바 레이어와 어긋나는
+                         문제가 있어(사용자 보고: "ⓘ 가 검색바 뒤로 감"), 두
+                         요소를 한 가로 flex 컨테이너에 넣어 항상 나란히 붙도록
+                         구조화. -->
+                    <div id="ocean-topleft-controls">
+                        <!-- 모드 A: 베이스맵 선택 피커 -->
+                        <div id="ocean-basemap-toggle-wrap" class="ocean-basemap-toggle-wrap">
+                            <button id="ocean-basemap-toggle" class="ocean-overlay-btn ocean-basemap-toggle-btn" title="지도 종류 선택">
+                                <i class="fa-solid fa-layer-group"></i>
+                                <span class="ocean-overlay-label" id="ocean-basemap-label">기본맵</span>
                             </button>
-                            <button class="ocean-basemap-item" data-basemap="enc">
-                                <i class="fa-solid fa-anchor"></i> 전자해도
-                            </button>
-                            <button class="ocean-basemap-item" data-basemap="coast">
-                                <i class="fa-solid fa-map-location"></i> 해안도
+                            <div id="ocean-basemap-menu" class="ocean-basemap-menu" style="display:none;">
+                                <button class="ocean-basemap-item active" data-basemap="rltm">
+                                    <i class="fa-solid fa-map"></i> 기본맵
+                                </button>
+                                <button class="ocean-basemap-item" data-basemap="enc">
+                                    <i class="fa-solid fa-anchor"></i> 전자해도
+                                </button>
+                                <button class="ocean-basemap-item" data-basemap="coast">
+                                    <i class="fa-solid fa-map-location"></i> 해안도
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 상시 노출 안내사항(ⓘ) 버튼 — 기본맵 바로 오른쪽
+                             CCTV ON/OFF 무관 항상 노출. 클릭 시 7탭 팝업 표출.
+                             [연계] js/ocean_cctv.js _openNoticePopup -->
+                        <div id="ocean-info-btn-wrap" class="ocean-info-btn-wrap">
+                            <button id="ocean-info-btn" class="ocean-overlay-btn ocean-basemap-toggle-btn" title="안내사항">
+                                <i class="fa-solid fa-circle-info"></i>
+                                <span class="ocean-overlay-label">안 내</span>
                             </button>
                         </div>
-                    </div>
-
-                    <!-- 상시 노출되는 안내사항(ⓘ) 버튼 — 기본맵 버튼 오른쪽
-                         [연계] js/ocean_cctv.js (_openNoticePopup) — 탭형 안내 팝업 -->
-                    <div id="ocean-info-btn-wrap" class="ocean-info-btn-wrap">
-                        <button id="ocean-info-btn" class="ocean-overlay-btn ocean-basemap-toggle-btn" title="안내사항">
-                            <i class="fa-solid fa-circle-info"></i>
-                            <span class="ocean-overlay-label">안 내</span>
-                        </button>
                     </div>
 
                     <!-- 오버레이 토글 버튼 + 주요지명 + GPS (지도 우측) -->
