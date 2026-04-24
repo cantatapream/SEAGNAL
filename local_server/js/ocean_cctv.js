@@ -240,6 +240,113 @@
     }
 
     // ──────────────────────────────────────────────────────────────
+    // 위치 즐겨찾기 마커 레이어 (★ + 이름 라벨)
+    //   - 바텀시트 ⭐ 로 저장한 위치 즐겨찾기를 지도 위에 항상 표시
+    //   - CCTV 토글 ON/OFF 와 무관하게 항상 visible
+    //   - CCTV 즐겨찾기는 여기 대상이 아님 (하단 바 칩으로만 노출)
+    //   - zIndex 150: 부이/CCTV 마커(100) 위, 내 위치 Overlay(200) 아래
+    // ──────────────────────────────────────────────────────────────
+    var _favLocSrc = null;
+    var _favLocLayer = null;
+
+    /**
+     * 위치 즐겨찾기 피처 스타일.
+     *  - 하단: ★ 금색 텍스트 (검은 아웃라인으로 가독성)
+     *  - 상단: 이름 라벨 (부이 라벨과 동일 톤: 금색 폰트 + 검은 테두리)
+     */
+    function _favLocStyle(feature) {
+        var name = feature.get('name') || '';
+        return [
+            // ★ 아이콘
+            new ol.style.Style({
+                text: new ol.style.Text({
+                    text: '★',
+                    font: 'bold 22px "Pretendard", sans-serif',
+                    fill: new ol.style.Fill({ color: '#fcd34d' }),
+                    stroke: new ol.style.Stroke({ color: '#000', width: 3 }),
+                    offsetY: 2,
+                    textAlign: 'center'
+                })
+            }),
+            // 이름 라벨 (별 위쪽)
+            new ol.style.Style({
+                text: new ol.style.Text({
+                    text: name,
+                    font: 'bold 12px "Pretendard", sans-serif',
+                    fill: new ol.style.Fill({ color: '#FDD835' }),
+                    stroke: new ol.style.Stroke({ color: '#000', width: 3 }),
+                    offsetY: -18,
+                    textAlign: 'center'
+                })
+            })
+        ];
+    }
+
+    /**
+     * 레이어 설치(한 번) + localStorage 기반 초기 피처 반영.
+     * 이미 설치돼 있으면 피처만 재렌더.
+     */
+    function _ensureFavLocLayer(map) {
+        if (_favLocLayer) {
+            _rerenderFavLocFeatures();
+            return _favLocLayer;
+        }
+        _favLocSrc = new ol.source.Vector();
+        _favLocLayer = new ol.layer.Vector({
+            source: _favLocSrc,
+            style: _favLocStyle,
+            zIndex: 150,
+            updateWhileAnimating: true,
+            updateWhileInteracting: true
+        });
+        map.addLayer(_favLocLayer);
+        _rerenderFavLocFeatures();
+        return _favLocLayer;
+    }
+
+    /**
+     * 위치 즐겨찾기 목록 전체를 읽어 source 를 재구성.
+     *  - 최대 3개뿐이라 전체 clear + add 방식이 가장 단순/안전.
+     *  - lat/lon (또는 lng) 둘 다 지원.
+     */
+    function _rerenderFavLocFeatures() {
+        if (!_favLocSrc) return;
+        _favLocSrc.clear();
+        var items = (_favLocation && _favLocation.items) || [];
+        for (var i = 0; i < items.length; i++) {
+            var it = items[i];
+            var lat = parseFloat(it.lat);
+            var lon = parseFloat(it.lon != null ? it.lon : it.lng);
+            if (isNaN(lat) || isNaN(lon)) continue;
+            var f = new ol.Feature({
+                geometry: new ol.geom.Point(ol.proj.fromLonLat([lon, lat])),
+                id: it.id,
+                name: it.name || '',
+                kind: 'location-fav'
+            });
+            _favLocSrc.addFeature(f);
+        }
+    }
+
+    /**
+     * 지도 준비 시점에 위치 즐겨찾기 레이어 설치.
+     * 지도가 아직 없으면 짧게 폴링해 대기.
+     */
+    function _installFavLocLayerWhenReady() {
+        var tries = 0;
+        function _try() {
+            var map = window.getOceanMap && window.getOceanMap();
+            if (map) {
+                _ensureFavLocLayer(map);
+                return;
+            }
+            if (++tries < 40) setTimeout(_try, 250);  // 최대 10초 대기
+        }
+        _try();
+    }
+    _installFavLocLayerWhenReady();
+
+    // ──────────────────────────────────────────────────────────────
     // 지도 클릭 훅 — CCTV 마커/클러스터 클릭 감지
     // ──────────────────────────────────────────────────────────────
     /**
@@ -512,6 +619,10 @@
     // 둘 다 초기 로드
     _favCctv.load();
     _favLocation.load();
+    // 위치 즐겨찾기 → 지도 별 마커 레이어 초기 피처 반영
+    // (레이어가 아직 설치 전이면 _rerenderFavLocFeatures() 가 no-op,
+    //  설치 시점에 _ensureFavLocLayer 가 다시 호출되어 반영됨)
+    _rerenderFavLocFeatures();
 
     /**
      * CCTV 즐겨찾기: id 로 존재 여부 확인.
@@ -1166,17 +1277,20 @@
             if (_locationHasName(item.name))          return { ok: false, reason: 'name_exists' };
             _favLocation.push(item);
             _renderFavBar();
+            _rerenderFavLocFeatures();
             return { ok: true };
         },
         locationRemoveById: function (id) {
             _favLocation.removeById(id);
             _renderFavBar();
+            _rerenderFavLocFeatures();
         },
         locationRemoveNear: function (lat, lon) {
             var near = _locationFindNear(lat, lon);
             if (near) {
                 _favLocation.removeById(near.id);
                 _renderFavBar();
+                _rerenderFavLocFeatures();
                 return true;
             }
             return false;
