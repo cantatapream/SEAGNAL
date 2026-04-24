@@ -741,7 +741,77 @@ window.openPromoEditor = async function (editData = null) {
             }
         });
 
-        // 이미지 업로드 핸들러 (서버로 업로드)
+        // ═══════════════════════════════════════════════════════════════
+        // [자동 이미지 압축] paste / drop / 이미지 파일 선택 시 이미지를
+        //   JPEG 500KB 이하로 자동 축소하여 본문 크기를 제어한다.
+        //   Base64 인라인 방식은 유지(본문 HTML 안에 data:image/jpeg 삽입).
+        //   js/image_compress.js 의 compressImageToJpeg / blobToDataURL 사용.
+        //   서버 body limit(5MB) 범위 내에서 게시글당 수 장 이미지 허용.
+        // ═══════════════════════════════════════════════════════════════
+
+        // 공통 유틸: 이미지 파일/블롭 → 압축 → 에디터 커서 위치에 삽입
+        async function _insertCompressedImage(file) {
+            try {
+                if (!window.compressImageToJpeg || !window.blobToDataURL) {
+                    // 압축 유틸이 로드되지 않은 경우 원본 삽입 (fallback)
+                    const dataUrl = await new Promise((r) => {
+                        const fr = new FileReader();
+                        fr.onload = () => r(fr.result);
+                        fr.readAsDataURL(file);
+                    });
+                    const range = promoQuillEditor.getSelection(true);
+                    promoQuillEditor.insertEmbed(range.index, 'image', dataUrl);
+                    return;
+                }
+                const blob = await window.compressImageToJpeg(file, {
+                    maxWidth: 1600,
+                    targetBytes: 500 * 1024,
+                    minQuality: 0.5,
+                    initialQuality: 0.85
+                });
+                const dataUrl = await window.blobToDataURL(blob);
+                const range = promoQuillEditor.getSelection(true) || { index: promoQuillEditor.getLength() };
+                promoQuillEditor.insertEmbed(range.index, 'image', dataUrl);
+                promoQuillEditor.setSelection(range.index + 1, 0);
+            } catch (err) {
+                alert('이미지 삽입 실패: ' + (err && err.message ? err.message : '알 수 없는 오류'));
+            }
+        }
+
+        // (a) 클립보드 붙여넣기(paste) 훅: Quill Clipboard matcher
+        //     이미지 타입이 있으면 기본 동작(Delta 변환)을 막고 자체 삽입.
+        const editorRoot = promoQuillEditor.root;
+        editorRoot.addEventListener('paste', function (e) {
+            const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+            if (!items) return;
+            for (let i = 0; i < items.length; i++) {
+                const it = items[i];
+                if (it.kind === 'file' && it.type && it.type.indexOf('image/') === 0) {
+                    const file = it.getAsFile();
+                    if (file) {
+                        e.preventDefault();
+                        _insertCompressedImage(file);
+                        return;
+                    }
+                }
+            }
+            // 이미지 아니면 기본 동작 유지 (텍스트/HTML 붙여넣기)
+        });
+
+        // (b) 드래그 드롭 훅
+        editorRoot.addEventListener('drop', function (e) {
+            if (!e.dataTransfer || !e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
+            const file = e.dataTransfer.files[0];
+            if (!file.type || file.type.indexOf('image/') !== 0) return;
+            e.preventDefault();
+            _insertCompressedImage(file);
+        });
+
+        // (c) 툴바 이미지 버튼 핸들러:
+        //     종전에는 /api/upload 로 파일 업로드 후 URL 삽입.
+        //     사용자 요구(500KB 이하 자동 압축 + base64 인라인) 에 맞춰 동일
+        //     _insertCompressedImage 경로로 통일 → 붙여넣기/드롭/버튼 전부
+        //     같은 압축·삽입 로직 사용.
         promoQuillEditor.getModule('toolbar').addHandler('image', function () {
             const input = document.createElement('input');
             input.setAttribute('type', 'file');
@@ -751,9 +821,25 @@ window.openPromoEditor = async function (editData = null) {
             input.onchange = async () => {
                 const file = input.files[0];
                 if (!file) return;
+                await _insertCompressedImage(file);
+            };
+        });
 
-                const formData = new FormData();
-                formData.append('file', file);
+        // [참고] 아래는 이전 /api/upload 경로 (미사용).
+        //        향후 이미지를 URL 참조 방식으로 재전환할 때 복원.
+        if (false) {
+            promoQuillEditor.getModule('toolbar').addHandler('__unused_legacy_image_upload', function () {
+                const input = document.createElement('input');
+                input.setAttribute('type', 'file');
+                input.setAttribute('accept', 'image/*');
+                input.click();
+
+                input.onchange = async () => {
+                    const file = input.files[0];
+                    if (!file) return;
+
+                    const formData = new FormData();
+                    formData.append('file', file);
 
                 // Progress Bar 요소
                 const progressContainer = document.getElementById('promo-upload-progress');
@@ -802,6 +888,7 @@ window.openPromoEditor = async function (editData = null) {
                 xhr.send(formData);
             };
         });
+        } // end if (false) — legacy upload 경로
     }
 
     // 카테고리 드롭다운 동적 채우기
