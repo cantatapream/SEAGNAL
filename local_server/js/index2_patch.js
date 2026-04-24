@@ -691,60 +691,21 @@ _initOverlayToastsWhenReady();
 //     index1 에는 전혀 반영되지 않음.
 //
 //    [대상]
-//     (A) 바다낚시/서핑/낚시안내 팝업 — top + max-height 직접 조정
-//     (B) 풀스크린 오버레이 + flex center 구조 모달 — 오버레이 하단
-//         padding 으로 컨텐츠 위치를 메인탭 위로 밀어냄 + 내부 컨텐츠
-//         max-height 값 보정
-//        · .modal / .modal-content           (공지사항 상세 등 범용)
-//        · .promo-modal-content               (공지사항 상세 래퍼 max 90vh)
-//        · .promo-editor-modal-content        (관리자 게시글 에디터)
-//        · #unified-admin-modal / .unified-admin-wrapper (통합 관리자)
-//        · .seagnal-modal                     (SEAGNAL 시스템 알림)
-//        · .tide-calendar-modal               (조석 달력)
-//        · .cctv-modal-backdrop               (CCTV 영상)
-//        · #alert-detail-popup / .alert-popup-content (푸시 알림 상세)
+//     - .fishing-bottomsheet : 바다낚시 포인트 상세 팝업
+//     - .surfing-popup       : 서핑 포인트 상세 팝업
+//     - .fishing-guide-popup : 바다낚시 지수 안내 팝업 (동일 구조)
 // ──────────────────────────────────────────────────────────────
 (function _injectIndex2PopupOverrides() {
     if (document.getElementById('index2-popup-override-style')) return;
     var style = document.createElement('style');
     style.id = 'index2-popup-override-style';
     style.textContent = [
-        // ── (A) 바다낚시 / 서핑 / 안내 팝업 (상단 고정 + max-height) ──
+        // 공통: 상단을 더 올리고, max-height 를 메인탭 높이만큼 빼서 하단 메인탭을 피함
         '.fishing-bottomsheet,',
         '.surfing-popup,',
         '.fishing-guide-popup {',
         '    top: calc(env(safe-area-inset-top, 0px) + 56px) !important;',
         '    max-height: calc(100vh - env(safe-area-inset-top, 0px) - 56px - var(--main-tab-height, 68px) - 20px) !important;',
-        '}',
-
-        // ── (B) 풀스크린 오버레이 + flex center 모달 공통 처리 ──
-        //   padding-bottom 을 메인탭 높이로 주면 align-items:center 가
-        //   "남은 영역(상단 0 ~ 100vh-메인탭)" 의 중앙을 잡아, 내부 컨텐츠가
-        //   자연스레 메인탭 위로 올라옴.
-        '.modal,',
-        '#unified-admin-modal,',
-        '.seagnal-modal,',
-        '.tide-calendar-modal,',
-        '.cctv-modal-backdrop,',
-        '#alert-detail-popup {',
-        '    padding-bottom: var(--main-tab-height, 68px) !important;',
-        '    box-sizing: border-box;',
-        '}',
-
-        // ── (B-sub) 컨텐츠 max-height 보정 (내부 스크롤이 메인탭 위에서 끝나도록) ──
-        '.modal-content {',
-        '    max-height: calc(80vh - var(--main-tab-height, 68px) - 10px) !important;',
-        '}',
-        '.promo-modal-content,',
-        '.promo-editor-modal-content {',
-        '    max-height: calc(90vh - var(--main-tab-height, 68px) - 10px) !important;',
-        '}',
-        '.unified-admin-wrapper {',
-        '    height: calc(90vh - var(--main-tab-height, 68px) - 10px) !important;',
-        '    max-height: calc(90vh - var(--main-tab-height, 68px) - 10px) !important;',
-        '}',
-        '.alert-popup-content {',
-        '    max-height: calc(80vh - var(--main-tab-height, 68px) - 10px) !important;',
         '}'
     ].join('\n');
     document.head.appendChild(style);
