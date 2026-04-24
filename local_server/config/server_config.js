@@ -34,7 +34,15 @@ const fs = require('fs');
 // ============================================================================
 const app = express();
 app.use(cors());
-app.use(express.json()); // POST 요청의 body를 JSON으로 자동 파싱
+// [limit: 50mb]
+// Quill 에디터에 이미지를 paste 로 붙여넣으면 content HTML 안에 base64
+// 인코딩된 <img src="data:image/...;base64,..."> 가 인라인 삽입됨. 1MB 이미지
+// 하나만 붙여도 base64 로 ~1.3MB 이 되어, Express 기본 body 한도 100kb 를
+// 크게 초과해 413 Payload Too Large 로 저장이 실패함.
+// 이미지 인라인 방식을 유지하면서 게시글·댓글 등 대용량 JSON 본문을 허용하도록
+// 50mb 로 상향 (단일 게시글 기준 충분히 넉넉). urlencoded 도 동일 한도 적용.
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // ============================================================================
 // 경로 상수
