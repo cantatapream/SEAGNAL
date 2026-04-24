@@ -8172,19 +8172,13 @@ line-height: 1.1;
     box-shadow: 0 2px 12px rgba(30,80,160,0.4);
 }
 
-/* :hover 는 실제 호버 가능한 입력장치(마우스 등) 가 있을 때만 적용.
- * 모바일·태블릿 등 터치 기기에서는 탭 후 :hover 가 sticky 하게 남아
- * .active 클래스가 제거된 뒤에도 버튼이 "여전히 켜진 것처럼" 보이는
- * 시각 잔여 현상이 발생함 (hover 색과 active 색이 비슷한 파란 계열).
- * @media (hover: hover) 로 감싸 터치 기기에서는 :hover 자체를 적용하지
- * 않도록 하여 원천 차단. CCTV / 주요지명 / 기상부이 등 모든
- * .ocean-overlay-btn 에 동시 적용됨. */
-@media (hover: hover) {
-    .ocean-overlay-btn:hover {
-        background: rgba(30, 60, 120, 0.9);
-        color: #fff;
-    }
-}
+/* [:hover 스타일 제거 2026-04-24]
+ * 종전 `.ocean-overlay-btn:hover { background: rgba(30,60,120,0.9) }` 규칙은
+ * 모바일 WebView(Capacitor/Android/iOS) 에서 탭 후 :hover 가 sticky 하게
+ * 남아 .active 가 제거된 뒤에도 버튼이 활성 색처럼 보이는 시각 잔여 현상을
+ * 유발함. @media (hover: hover) 래핑은 일부 WebView 가 항상 true 로
+ * 평가하여 효과 없음. 따라서 hover 색 변경 규칙을 아예 제거.
+ * 마우스 사용자 시각 피드백은 생략되지만 .active 상태는 그대로 구분됨. */
 
 .ocean-myloc-btn {
     margin-top: 10px;
