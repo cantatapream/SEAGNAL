@@ -64,7 +64,14 @@
             bottom: 0 !important;
             left: 0 !important;
             right: 0 !important;
-            z-index: 9000;
+            /* [z-index 60] — 섹션/범례/즐겨찾기(z:50~52) 위, 모든 팝업·모달
+               (z:999 이상) 아래에 위치하도록 낮춤. 과거 9000 이었을 때
+               게시글 에디터(.modal z:1000) · 바다낚시 팝업(z:999) · 공지사항
+               상세(z:1000) 등이 메인탭 뒤로 숨어 하단 버튼이 가리는 현상
+               발생 → 60 으로 낮춰 해결. 관리자 센터(z:10000) / 시스템 알림
+               (z:40000) / 푸시 팝업(z:10000) / KMA iframe(z:30000) / 조석
+               달력(z:10000) 은 모두 60 보다 높아 영향 없음. */
+            z-index: 60;
             display: flex !important;
             background: rgba(15, 20, 35, 0.95) !important;
             backdrop-filter: blur(12px);
@@ -124,7 +131,9 @@
             right: 0 !important;
             /* bottom 값은 JS에서 메인탭 바 높이에 맞춰 동적 설정 */
             bottom: 60px;
-            z-index: 8999;
+            /* [z-index 65] — 메인탭(z:60) 바로 위에 슬라이드 업 되므로 메인탭
+               보다 약간 높게. 마찬가지로 모든 팝업·모달(z:999+) 보다 낮음. */
+            z-index: 65;
             background: rgba(20, 25, 45, 0.95) !important;
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
