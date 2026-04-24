@@ -2732,11 +2732,33 @@ window.toggleMaintenanceMode = async function () {
 
     if (!confirm(confirmMsg)) return;
 
+    // [추가] 라디오 상태에 따라 blockedFeatures 결정해 함께 전송
+    //   - "전체 차단"  → 빈 배열 [] 로 PUSH (이전 선택적 차단 잔여값 초기화)
+    //   - "선택적 차단" → 현재 체크된 features 수집해 PUSH
+    //   서버 측 admin.js POST /api/admin/maintenance 가 blockedFeatures 도
+    //   함께 받아 maintenance_config.json 에 기록.
+    //   이전엔 toggleMaintenanceMode 가 active/title/content/blockPush 만
+    //   보내고 blockedFeatures 를 갱신하지 않아, "전체 차단" 라디오로 바꿔도
+    //   서버에 직전 선택값이 남아 사용자 측 가드(length>0 시 차단 화면 스킵)
+    //   에 걸려 차단이 적용되지 않는 버그가 있었음.
+    let blockedFeaturesToSend = [];
+    if (isSelective) {
+        document.querySelectorAll('.maint-feature-cb:checked').forEach(cb => {
+            blockedFeaturesToSend.push(cb.value);
+        });
+    }
+
     try {
         const res = await fetch('/api/admin/maintenance', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ active: newActive, title, content, blockPush })
+            body: JSON.stringify({
+                active: newActive,
+                title,
+                content,
+                blockPush,
+                blockedFeatures: blockedFeaturesToSend
+            })
         });
         const result = await res.json();
         if (result.success) {

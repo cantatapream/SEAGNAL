@@ -333,6 +333,15 @@
             if (hit) return;
         }
 
+        // 위치 즐겨찾기(★) 마커 클릭 우선 처리 (INDEX2 전용)
+        // [목적] 별 마커를 정확히 탭한 경우 그 즐겨찾기 좌표로 바텀시트 즉시 오픈.
+        //        500m 반경 매칭 의존 없이 feature 의 정확한 lat/lon 사용 (b 방식).
+        // [안전] CCTV 가드와 동일하게 window.oceanCctv 존재 여부 체크 → index1 무영향.
+        if (window.oceanCctv && typeof window.oceanCctv.tryHandleFavLocClick === 'function') {
+            const hit = window.oceanCctv.tryHandleFavLocClick(oceanMap, evt);
+            if (hit) return;
+        }
+
         // 부이/클러스터 클릭 확인 (INDEX2 전용, ocean_buoy.js에서 정의)
         // INDEX1에서는 함수가 없으므로 이 블록 자체가 실행되지 않음
         if (window.handleOceanBuoyClick) {
