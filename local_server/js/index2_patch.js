@@ -729,6 +729,54 @@ function _initOverlayToastsWhenReady() {
 _initOverlayToastsWhenReady();
 
 // ──────────────────────────────────────────────────────────────
+// 8-2. 오버레이 버튼 hover-sticky 해제 리스너
+//    ──────────────────────────────────────────────────────────
+//    [배경]
+//     모바일 WebView(Android/iOS Capacitor) 에서 버튼을 탭한 뒤
+//     :hover 가 그대로 남아 버튼 배경색이 계속 강조된 상태로 보이는
+//     알려진 현상. 사용자 증상: 기상부이·CCTV·주요지명·파고·바람·조류
+//     어느 버튼이든 "한번 누른 뒤 꺼도 평소 색으로 돌아오지 않음".
+//     @media (hover: hover) 래핑은 일부 WebView 가 항상 true 로
+//     평가하여 효과가 없으므로, JS 에서 click 직후 hover/focus 상태를
+//     강제 해제하는 트릭을 적용.
+//
+//    [트릭]
+//     1) btn.blur()           — focus 를 해제
+//     2) pointer-events 잠시 'none' → 다음 프레임에 복귀
+//        → 브라우저가 해당 버튼의 hover 판정을 재계산하여 sticky 해제
+//
+//    [대상]
+//     .ocean-overlay-btn 모두 (CCTV/주요지명/기상부이/파고/바람/조류/
+//     내 위치/해안도 지도 종류 등). index2 전용 리스너라 index1 무영향.
+// ──────────────────────────────────────────────────────────────
+function _bindOverlayButtonHoverReset() {
+    var btns = document.querySelectorAll('.ocean-overlay-btn');
+    for (var i = 0; i < btns.length; i++) {
+        (function (btn) {
+            btn.addEventListener('click', function () {
+                // click 처리(active 토글 등)가 완료된 뒤에 실행되도록 지연
+                setTimeout(function () {
+                    try { btn.blur(); } catch (e) {}
+                    var prev = btn.style.pointerEvents;
+                    btn.style.pointerEvents = 'none';
+                    requestAnimationFrame(function () {
+                        btn.style.pointerEvents = prev || '';
+                    });
+                }, 0);
+            });
+        })(btns[i]);
+    }
+}
+function _initOverlayHoverResetWhenReady() {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', _bindOverlayButtonHoverReset, { once: true });
+    } else {
+        _bindOverlayButtonHoverReset();
+    }
+}
+_initOverlayHoverResetWhenReady();
+
+// ──────────────────────────────────────────────────────────────
 // 9. index2 전용 CSS 오버라이드 주입
 //    ──────────────────────────────────────────────────────────
 //    [배경]
