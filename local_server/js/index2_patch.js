@@ -690,13 +690,19 @@ _initOverlayToastsWhenReady();
 //     이 style 태그는 __SEAGNAL_PAGE==='index2' 가드 안쪽에서만 주입되므로
 //     index1 에는 전혀 반영되지 않음.
 //
-//    [대상 — 사용자 요청에 직접 대응한 것만]
+//    [대상]
 //     (A) 바다낚시/서핑/낚시안내 팝업 — top + max-height 직접 조정
-//     (B) 공지사항 게시글 상세 모달(.modal / .promo-modal-content)
-//     (C) 관리자 통합 센터 모달
-//         · #unified-admin-modal (오버레이)
-//         · .unified-admin-wrapper (래퍼 높이)
-//         · .promo-editor-modal-content (관리자 게시글 에디터)
+//     (B) 풀스크린 오버레이 + flex center 구조 모달 — 오버레이 하단
+//         padding 으로 컨텐츠 위치를 메인탭 위로 밀어냄 + 내부 컨텐츠
+//         max-height 값 보정
+//        · .modal / .modal-content           (공지사항 상세 등 범용)
+//        · .promo-modal-content               (공지사항 상세 래퍼 max 90vh)
+//        · .promo-editor-modal-content        (관리자 게시글 에디터)
+//        · #unified-admin-modal / .unified-admin-wrapper (통합 관리자)
+//        · .seagnal-modal                     (SEAGNAL 시스템 알림)
+//        · .tide-calendar-modal               (조석 달력)
+//        · .cctv-modal-backdrop               (CCTV 영상)
+//        · #alert-detail-popup / .alert-popup-content (푸시 알림 상세)
 // ──────────────────────────────────────────────────────────────
 (function _injectIndex2PopupOverrides() {
     if (document.getElementById('index2-popup-override-style')) return;
@@ -711,15 +717,21 @@ _initOverlayToastsWhenReady();
         '    max-height: calc(100vh - env(safe-area-inset-top, 0px) - 56px - var(--main-tab-height, 68px) - 20px) !important;',
         '}',
 
-        // ── (B) 공지사항 게시글 상세 + (C) 관리자 통합 센터 ──
-        //   오버레이에 padding-bottom: --main-tab-height 로 flex center 기준을
-        //   "메인탭 위 남은 영역" 으로 보정 → 내부 컨텐츠가 자연스레 위로 올라옴.
+        // ── (B) 풀스크린 오버레이 + flex center 모달 공통 처리 ──
+        //   padding-bottom 을 메인탭 높이로 주면 align-items:center 가
+        //   "남은 영역(상단 0 ~ 100vh-메인탭)" 의 중앙을 잡아, 내부 컨텐츠가
+        //   자연스레 메인탭 위로 올라옴.
         '.modal,',
-        '#unified-admin-modal {',
+        '#unified-admin-modal,',
+        '.seagnal-modal,',
+        '.tide-calendar-modal,',
+        '.cctv-modal-backdrop,',
+        '#alert-detail-popup {',
         '    padding-bottom: var(--main-tab-height, 68px) !important;',
         '    box-sizing: border-box;',
         '}',
-        // 내부 컨텐츠 max-height 보정 (스크롤이 메인탭 위에서 끝나도록)
+
+        // ── (B-sub) 컨텐츠 max-height 보정 (내부 스크롤이 메인탭 위에서 끝나도록) ──
         '.modal-content {',
         '    max-height: calc(80vh - var(--main-tab-height, 68px) - 10px) !important;',
         '}',
@@ -731,30 +743,8 @@ _initOverlayToastsWhenReady();
         '    height: calc(90vh - var(--main-tab-height, 68px) - 10px) !important;',
         '    max-height: calc(90vh - var(--main-tab-height, 68px) - 10px) !important;',
         '}',
-
-        // ── (D) 관리자 센터 내부에서 생성되는 중첩 모달/팝업 ──
-        //   admin*.js 가 인라인 스타일(position:fixed; inset:0; flex center)
-        //   로 동적 생성하는 backdrop 들에 padding-bottom 을 주어 내부 카드가
-        //   하단 메인탭 위로 올라가도록 보정. 카드 자체의 max-height(80~90vh)
-        //   는 그대로 유지되며, flex 중앙정렬 기준만 "남은 영역" 으로 변경됨.
-        //   [대상 id 목록 — admin.js / admin_collect.js / admin_report.js]
-        '#unified-admin-login-modal,',          // 관리자 로그인
-        '#collect-failure-popup,',              // 수집 실패 안내
-        '#manual-alert-modal,',                 // 특보 수동 발송
-        '#manual-push-modal,',                  // 수동 푸시
-        '#alert-test-modal-overlay,',           // 특보 수집 테스트 backdrop
-        '#atm-result-popup,',                   // 테스트 결과
-        '#forecast-result-modal,',              // 예보 수집 결과
-        '#tidebed-add-key-modal,',              // TideBED 키 추가
-        '#marine-expiry-edit-modal,',           // 해양특보 만료 편집
-        '#board-editor-popup,',                 // 게시판 에디터
-        '#image-viewer-modal,',                 // 제보 이미지 뷰어
-        '#block-user-modal,',                   // 사용자 차단
-        // .notice-popup 공통 클래스(#notice-management-modal /
-        //  #promo-management-modal / #api-management-modal 에 동시 부여됨)
-        '.notice-popup {',
-        '    padding-bottom: var(--main-tab-height, 68px) !important;',
-        '    box-sizing: border-box !important;',
+        '.alert-popup-content {',
+        '    max-height: calc(80vh - var(--main-tab-height, 68px) - 10px) !important;',
         '}'
     ].join('\n');
     document.head.appendChild(style);
