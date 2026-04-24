@@ -55,14 +55,73 @@
     var _mapHooksBound = false;
 
     // ──────────────────────────────────────────────────────────────
-    // 유의사항 문구 (기존 #cctv-disclaimer 에 있던 텍스트를 모듈 내부로 이식)
-    // [이유] cctv-section HTML 삭제로 소스 DOM 이 사라졌으므로 여기서 보유.
+    // 안내사항 팝업(ⓘ) — 탭별 본문 정의
+    //   지도 좌측 상단 #ocean-info-btn 클릭 시 showSeagnalModal 로 표시.
+    //   7개 탭을 한 HTML 문자열로 조합(상단 탭바 + 각 패널).
     // ──────────────────────────────────────────────────────────────
-    var CCTV_NOTICE_HTML = ''
-        + '<p><i class="fa-solid fa-circle-check"></i> 이 해안 CCTV 서비스는 어항 안전상태 및 해상 기상현황 확인 등 공익적 목적으로 운영됩니다.</p>'
-        + '<p><i class="fa-solid fa-circle-check"></i> 제공 영상은 지방자치단체(부산시·거제시·옹진군), 해양수산부 연안포털, KBS 재난센터에서 공공에 공개한 영상을 활용하며, 본 앱은 영상을 수집·저장하지 않습니다.</p>'
-        + '<p><i class="fa-solid fa-circle-check"></i> 영상 정보의 정확성과 이를 활용함에 따른 민·형사상 법적 책임은 정보활용 주체에 있으며, 정보 제공주체 및 본 앱은 이에 대한 책임을 지지 않습니다.</p>'
-        + '<p><i class="fa-solid fa-circle-check"></i> 옹진군 CCTV의 지도 위치는 명칭·지명을 참고하여 수기 배치된 것으로, 실제 설치 위치와 다를 수 있습니다.</p>';
+    var INFO_TAB_ITEMS = [
+        { id: 'current', label: '유향·유속', body:
+            '유향·유속을 표시하며, 아이콘을 누르면 시간대별 상세 보기가 열립니다. '
+          + '국립해양조사원의 ROMS API 기반으로 현재일로부터 7일간 1시간 단위로 제공되어, '
+          + '다른 항목보다 장기 구간을 더 촘촘한 간격으로 확인할 수 있습니다.' },
+        { id: 'wind', label: '풍향·풍속', body:
+            '풍향·풍속을 표시하며, 아이콘을 누르면 시간대별 변화를 확인할 수 있는 상세 보기가 열립니다. '
+          + '기상청의 UM 지역파랑모델(RWW3) API를 기반으로 현재일로부터 75시간에 대해서 3시간 단위로 정보가 제공됩니다.' },
+        { id: 'wave', label: '파고·파향', body:
+            '선택 지점의 유의파고(m)를 시각적 게이지와 함께 보여줍니다. '
+          + '기상청의 UM 지역파랑모델(RWW3) API를 기반으로 현재일로부터 75시간에 대하여 3시간 단위 예보가 제공됩니다.' },
+        { id: 'buoy', label: '부이', body:
+            '기상청 해양기상부이 API 기반 매 시간 관측 결과 제공하며 '
+          + '기상부이·파고부이·등표에 따라 제공 정보 항목이 다를 수 있습니다.' },
+        { id: 'depth', label: '수심', body:
+            '선택 해점의 해저 수심을 표시하며 국립해양조사원에서 격자별 실제 측심한 자료인 "BADA2024"를 기반으로 정보를 제공합니다. '
+          + '하지만 연안에서는 부정확할 수 있으므로 전자해도에서 수심을 확인해주세요.' },
+        { id: 'tide', label: '조석', bodyHtml:
+            '<p>국립해양조사원에서 제공하는 TideBed 기반의 조석 예측정보를 제공합니다.</p>'
+          + '<p style="margin-top:8px;font-weight:600;">TideBed의 조석 예측정보 제공 방식:</p>'
+          + '<ol>'
+          +   '<li>대한민국의 해역을 일정한 기준에 따라 다수의 격자로 나눔</li>'
+          +   '<li>각 격자에 기준이 되는 표준항의 조석 관측소를 지정 (전국 166개)</li>'
+          +   '<li>관측소의 관측 값에 격자의 위치에 따른 조고비·조고시 등 요소를 반영 및 계산하여 조석 예측정보 산출</li>'
+          + '</ol>'
+          + '<p style="margin-top:8px;">예측정보는 비교적 정확하나, 실제와 오차가 있을 수 있으므로 정보 이용에 따른 책임을 지지 않습니다.</p>' },
+        { id: 'cctv', label: 'CCTV', bodyHtml:
+            '<p><i class="fa-solid fa-circle-check"></i> 이 해안 CCTV 서비스는 어항 안전상태 및 해상 기상현황 확인 등 공익적 목적으로 운영됩니다.</p>'
+          + '<p><i class="fa-solid fa-circle-check"></i> 제공 영상은 지방자치단체(부산시·거제시·옹진군), 해양수산부 연안포털, KBS 재난센터에서 공공에 공개한 영상을 활용하며, 본 앱은 영상을 수집·저장하지 않습니다.</p>'
+          + '<p><i class="fa-solid fa-circle-check"></i> 영상 정보의 정확성과 이를 활용함에 따른 민·형사상 법적 책임은 정보활용 주체에 있으며, 정보 제공주체 및 본 앱은 이에 대한 책임을 지지 않습니다.</p>'
+          + '<p><i class="fa-solid fa-circle-check"></i> 옹진군 CCTV의 지도 위치는 명칭·지명을 참고하여 수기 배치된 것으로, 실제 설치 위치와 다를 수 있습니다.</p>' }
+    ];
+
+    /** 탭바 + 패널 HTML 문자열 생성 */
+    function _buildInfoHtml() {
+        var tabsHtml = '<div class="ocean-info-tabs">';
+        var panelsHtml = '<div class="ocean-info-panels">';
+        for (var i = 0; i < INFO_TAB_ITEMS.length; i++) {
+            var it = INFO_TAB_ITEMS[i];
+            var activeCls = (i === 0) ? ' active' : '';
+            tabsHtml += '<button type="button" class="ocean-info-tab-btn' + activeCls
+                      + '" data-info-tab="' + it.id + '" '
+                      + 'onclick="window.__oceanInfoSwitch(\'' + it.id + '\')">' + it.label + '</button>';
+            var inner = it.bodyHtml || ('<p>' + it.body + '</p>');
+            panelsHtml += '<div class="ocean-info-panel' + activeCls + '" data-info-panel="' + it.id + '">'
+                        + inner + '</div>';
+        }
+        tabsHtml += '</div>';
+        panelsHtml += '</div>';
+        return tabsHtml + panelsHtml;
+    }
+
+    // 탭 전환 — showSeagnalModal 본문 내 onclick 에서 호출
+    window.__oceanInfoSwitch = function (tabId) {
+        var tabs = document.querySelectorAll('.ocean-info-tab-btn');
+        for (var i = 0; i < tabs.length; i++) {
+            tabs[i].classList.toggle('active', tabs[i].getAttribute('data-info-tab') === tabId);
+        }
+        var panels = document.querySelectorAll('.ocean-info-panel');
+        for (var j = 0; j < panels.length; j++) {
+            panels[j].classList.toggle('active', panels[j].getAttribute('data-info-panel') === tabId);
+        }
+    };
 
     // ──────────────────────────────────────────────────────────────
     // 클러스터 스타일 헬퍼 (cctv3.js 와 유사하지만 oceanMap 전용으로 별도 구현)
@@ -455,16 +514,12 @@
             _bindMapHooks(map);
             _cctvActive = true;
             document.body.classList.add('ocean-cctv-on');
-            // 유의사항 버튼 표시
-            var noticeBtn = document.getElementById('ocean-cctv-notice-btn');
-            if (noticeBtn) noticeBtn.style.display = '';
+            // [제거됨] 종전 CCTV ON 시만 표출되던 #ocean-cctv-notice-btn 은
+            //          상시 노출 #ocean-info-btn (탭형 팝업) 으로 대체됨.
         } else {
             if (_cctvClusterLayer) _cctvClusterLayer.setVisible(false);
             _cctvActive = false;
             document.body.classList.remove('ocean-cctv-on');
-            // 유의사항 버튼 숨김
-            var noticeBtn2 = document.getElementById('ocean-cctv-notice-btn');
-            if (noticeBtn2) noticeBtn2.style.display = 'none';
             // 열려있던 CCTV 영상 팝업도 함께 닫음 (사용자 요구: CCTV OFF 시 팝업 동기 닫힘)
             if (typeof window.closeCctvPopup === 'function') {
                 window.closeCctvPopup();
@@ -487,11 +542,16 @@
     }
 
     // ──────────────────────────────────────────────────────────────
-    // 유의사항 팝업
+    // 안내사항 팝업 — 7개 탭 (유향·유속 / 풍향·풍속 / 파고·파향 / 부이 /
+    //                       수심 / 조석 / CCTV)
+    //   지도 좌측 상단 #ocean-info-btn 클릭 시 호출.
+    //   showSeagnalModal 은 (title, htmlBody, type) 을 받으므로 본문 전체를
+    //   단일 HTML 문자열로 조합하여 전달. 탭 전환은 본문 내부 onclick 에서
+    //   window.__oceanInfoSwitch(id) 호출 → 패널 display 토글.
     // ──────────────────────────────────────────────────────────────
     function _openNoticePopup() {
         if (typeof window.showSeagnalModal !== 'function') return;
-        window.showSeagnalModal('유의사항', CCTV_NOTICE_HTML, 'info');
+        window.showSeagnalModal('안내사항', _buildInfoHtml(), 'info');
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -505,10 +565,12 @@
             });
             toggleBtn.dataset.bound = '1';
         }
-        var noticeBtn = document.getElementById('ocean-cctv-notice-btn');
-        if (noticeBtn && !noticeBtn.dataset.bound) {
-            noticeBtn.addEventListener('click', _openNoticePopup);
-            noticeBtn.dataset.bound = '1';
+        // 상시 노출 ⓘ 버튼 — 지도 좌측 상단, 기본맵 오른쪽 옆
+        //  CCTV ON/OFF 와 무관하게 언제든 안내사항 팝업(7탭) 을 열 수 있음.
+        var infoBtn = document.getElementById('ocean-info-btn');
+        if (infoBtn && !infoBtn.dataset.bound) {
+            infoBtn.addEventListener('click', _openNoticePopup);
+            infoBtn.dataset.bound = '1';
         }
     }
 
