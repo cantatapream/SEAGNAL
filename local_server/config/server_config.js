@@ -34,15 +34,18 @@ const fs = require('fs');
 // ============================================================================
 const app = express();
 app.use(cors());
-// [limit: 50mb]
-// Quill 에디터에 이미지를 paste 로 붙여넣으면 content HTML 안에 base64
-// 인코딩된 <img src="data:image/...;base64,..."> 가 인라인 삽입됨. 1MB 이미지
-// 하나만 붙여도 base64 로 ~1.3MB 이 되어, Express 기본 body 한도 100kb 를
-// 크게 초과해 413 Payload Too Large 로 저장이 실패함.
-// 이미지 인라인 방식을 유지하면서 게시글·댓글 등 대용량 JSON 본문을 허용하도록
-// 50mb 로 상향 (단일 게시글 기준 충분히 넉넉). urlencoded 도 동일 한도 적용.
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// [limit: 5mb]
+//   Quill 에디터에 이미지를 paste / drop / 파일선택으로 삽입하면 base64 인라인
+//   방식으로 본문 HTML 에 섞여 들어감. 클라이언트 측에서 js/image_compress.js
+//   가 모든 삽입 경로를 후킹하여 이미지를 JPEG 500KB 이하로 자동 축소함.
+//   게시글 하나당 이미지 10장(=5MB) 까지 여유 있게 허용.
+//
+//   과거엔 100kb(기본) 였다가 일시적으로 50mb 까지 올렸으나(b527b1a), 자동
+//   압축 도입으로 5mb 면 충분해져 재조정. limit 을 작게 유지할수록 악의적
+//   POST 요청에 의한 메모리 소진(DoS) 표면이 줄어듦 (Fly.io 512MB 인스턴스
+//   기준 동시 5MB 요청 ~100건까지 감당).
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ limit: '5mb', extended: true }));
 
 // ============================================================================
 // 경로 상수
