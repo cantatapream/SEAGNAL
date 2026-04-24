@@ -1149,8 +1149,49 @@
         setActive: _setCctvActive,
         tryHandleMapClick: function (map, evt) {
             return _handleCctvClick(map, evt);
+        },
+        // [tryHandleFavLocClick]
+        //  ocean_map.js 의 handleMapClick 에서 CCTV hit 처리 직후 호출.
+        //  위치 즐겨찾기(★) 마커가 클릭됐는지 검사 → hit 이면 그 즐겨찾기의
+        //  좌표로 바텀시트 즉시 오픈하고 true 반환 → 일반 지도 클릭 흐름 skip.
+        //  미 hit 이면 false 반환해 평소 처리(빈 해역 클릭 → 좌표 기준 바텀시트)
+        //  가 그대로 진행됨.
+        tryHandleFavLocClick: function (map, evt) {
+            return _handleFavLocClick(map, evt);
         }
     };
+
+    // ──────────────────────────────────────────────────────────────
+    // 위치 즐겨찾기 ★ 마커 클릭 핸들러 (b 방식: 명시적 hit)
+    //  - 클릭 픽셀에서 _favLocLayer 의 피처를 찾아 hit 이면 해당 좌표로
+    //    showOceanBottomSheet 직접 호출 (500m 반경 계산 우회 — 정확 매칭).
+    //  - hitTolerance 8px: 별 아이콘 크기 고려한 약간의 여유.
+    //  - 좌표는 feature 의 geometry 에서 직접 추출 (저장 시점 lat/lon 그대로).
+    // ──────────────────────────────────────────────────────────────
+    function _handleFavLocClick(map, evt) {
+        if (!_favLocLayer || !_favLocSrc) return false;
+        var hit = null;
+        try {
+            map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
+                if (layer === _favLocLayer) {
+                    hit = feature;
+                    return true;
+                }
+            }, { hitTolerance: 8 });
+        } catch (e) { return false; }
+        if (!hit) return false;
+
+        var geom = hit.getGeometry();
+        if (!geom) return false;
+        var coord3857 = geom.getCoordinates();
+        var lonLat;
+        try { lonLat = ol.proj.toLonLat(coord3857); } catch (e) { return false; }
+        var lon = lonLat[0], lat = lonLat[1];
+        if (typeof window.showOceanBottomSheet === 'function') {
+            try { window.showOceanBottomSheet(lat, lon); } catch (e) {}
+        }
+        return true;
+    }
 
     // ══════════════════════════════════════════════════════════════
     // window.CctvFavorites shim (index2 전용)

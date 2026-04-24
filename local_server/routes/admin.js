@@ -894,8 +894,8 @@ router.get('/api/admin/maintenance', (req, res) => {
 /** 점검 모드 설정 (시작/종료/내용 변경) */
 router.post('/api/admin/maintenance', (req, res) => {
     try {
-        const { active, title, content, blockPush } = req.body;
-        let config = { active: false, title: '', content: '', startedAt: null, startedBy: 'admin', blockPush: true };
+        const { active, title, content, blockPush, blockedFeatures } = req.body;
+        let config = { active: false, title: '', content: '', startedAt: null, startedBy: 'admin', blockPush: true, blockedFeatures: [] };
 
         if (fs.existsSync(MAINTENANCE_FILE)) {
             try { config = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8')); } catch (_) {}
@@ -905,6 +905,12 @@ router.post('/api/admin/maintenance', (req, res) => {
         if (typeof title === 'string') config.title = title;
         if (typeof content === 'string') config.content = content;
         if (typeof blockPush === 'boolean') config.blockPush = blockPush;
+        // [추가] blockedFeatures 함께 갱신
+        //  관리자 화면이 라디오 "전체 차단" 을 선택하고 점검 시작 버튼을 누르면
+        //  blockedFeatures: [] 빈 배열이 함께 전송되어 이전에 남아있던 선택값을
+        //  비워야 사용자 측 가드(blockedFeatures.length > 0 일 때 차단 화면 스킵)
+        //  가 풀려 정상적인 전체 차단 화면이 표시됨.
+        if (Array.isArray(blockedFeatures)) config.blockedFeatures = blockedFeatures;
 
         if (active === true) {
             config.startedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
