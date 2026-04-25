@@ -241,16 +241,41 @@ async function collectKmaBuoys() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1-3. marine.kma.go.kr JSON endpoint 4종 수집 (신규 2026-04-25)
-//   - 매시 정시 +3분 KST 에 호출 (1분 master setInterval 안에서 분기)
-//   - 응답을 파싱하지 않고 JSON 자체를 그대로 디스크에 저장
-//   - 클라이언트(js/data.js) 가 sea_obs(baseline) 위에 머지하는 우선순위 패턴
 //
-//   각 함수는 동일 구조:
-//     1) collectProgress.emit('progress',{type:'buoys',...}) — 관리자 진행률 호환
-//     2) fetchWithTimeout 으로 8초 타임아웃 GET
-//     3) 응답이 JSON & code === '0000' 일 때만 saveData
-//     4) 실패 시 lastRunStatus 갱신, 직전 캐시 파일 유지 (graceful)
+//   [무엇을 하는 함수들?]
+//   기상청의 해양기상정보포털(marine.kma.go.kr) 이 내부적으로 사용하는 JSON
+//   API 4종에서 부이 관측 데이터와 시정 관측 데이터를 받아 파일로 저장합니다.
+//   각 함수는 종류만 다를 뿐 동작 방식은 똑같습니다.
+//
+//   [언제 실행되나?]
+//     1) 서버 부팅 시 init() 의 Promise.all 안에서 1회 (최초 캐시 워밍업)
+//     2) 그 이후 매시 정시 +3분 KST 마다 1분 master setInterval 분기에서 호출
+//
+//   [데이터를 어디에 저장하나?]
+//     local_server/data/marine_*.json (Fly.io persistent volume 안)
+//     → 컨테이너 재부팅에도 유실되지 않음
+//
+//   [실패 시 동작?]
+//     try/catch 로 감싸 외부 API 가 다운돼도 다른 수집 작업에 영향이 없음.
+//     실패한 경우 직전 성공한 파일이 그대로 남아 사용자에게 stale 한 데이터가
+//     서빙됨 (graceful degradation).
+//
+//   [연계 흐름]
+//     1) 이 함수가 saveData() 로 marine_*.json 작성
+//     2) services/cache_manager.js 가 5초마다 파일을 읽어 dataCache 갱신
+//     3) routes/weather.js 의 /api/marine-* 라우트가 dataCache 를 응답
+//     4) 클라이언트 js/data.js fetchMarineBuoyData() 가 라우트에서 받아옴
+//     5) 우리 앱 schema 로 매핑 후 화면(부이 모달, 연안 부이 박스)에 표시
+//
+//   [공통 구조 — 4 함수 모두]
+//     1) collectProgress.emit('progress',...) → 관리자 페이지 진행률 표시 호환
+//     2) fetchWithTimeout(url, opts, 8000) → 8초 타임아웃 GET
+//     3) 응답 OK & 응답 JSON code === '0000' 일 때만 파일 저장
+//     4) 실패 시 log 만 남기고 종료 (직전 캐시 유지)
 // ─────────────────────────────────────────────────────────────────────────────
+
+// [C타입 = 파고부이] 한산도(22467) 등 51개. 파고/파주기/수온 위주.
+// 응답 예: { code:'0000', msg:'성공', data:[{ stn_id, kor_nm, sig_wh, max_wh, ave_wh, wp, tw, ... }, ...] }
 async function collectMarineWhBuoys() {
     try {
         collectProgress.emit('progress', { type: 'buoys', step: '부이 데이터', current: 1, total: 4, detail: 'marine wh-buoy(C타입)' });
@@ -258,12 +283,15 @@ async function collectMarineWhBuoys() {
         if (!response.ok) throw new Error('HTTP ' + response.status);
         const json = await response.json();
         if (json.code !== '0000') throw new Error('API code=' + json.code + ' msg=' + json.msg);
+        // saveData 는 services/save_data 헬퍼 — local_server/data/ 디렉터리에 JSON 저장
         saveData('marine_wh_buoys.json', { updatedAt: getNowStr(), data: json.data || [] });
     } catch (e) {
         log(`⚠️ marine wh-buoy 수집 실패: ${e.message}`);
     }
 }
 
+// [B타입 = 해양기상부이] 신안·동해57 등 43개. 파고 + 파주기 + 풍향/풍속(듀얼 센서) +
+// 기온/기압/습도/수온/시정 등 가장 풍부한 측정 데이터 제공.
 async function collectMarineBuoys() {
     try {
         collectProgress.emit('progress', { type: 'buoys', step: '부이 데이터', current: 2, total: 4, detail: 'marine buoy(B타입)' });
@@ -277,6 +305,8 @@ async function collectMarineBuoys() {
     }
 }
 
+// [L타입 = 등표] 이덕서·오륙도·서수도 등 9개. 풍향/풍속(단일 센서) + 최대순간풍속·풍향
+// + 기온/기압/습도 위주. 등표는 파고 측정 안 함.
 async function collectMarineLhBuoys() {
     try {
         collectProgress.emit('progress', { type: 'buoys', step: '부이 데이터', current: 3, total: 4, detail: 'marine lh(등표)' });
@@ -290,7 +320,8 @@ async function collectMarineLhBuoys() {
     }
 }
 
-// 시정계 — UI 표시는 후속 작업, 본 단계에선 캐싱만
+// [시정계] 강진군·임자도·속초 등 181개 station. 시정(visibility, km) 단일 측정.
+// 본 단계에선 캐시 파일과 라우트만 만들어두고, 화면 표시는 후속 작업으로 분리.
 async function collectMarineVs() {
     try {
         collectProgress.emit('progress', { type: 'buoys', step: '부이 데이터', current: 4, total: 4, detail: 'marine vs(시정계)' });

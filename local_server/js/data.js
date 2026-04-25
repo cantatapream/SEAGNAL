@@ -498,17 +498,42 @@ function parseKmaBuoyData(text) {
 }
 
 // ============================================================================
-// [신규 2026-04-25] marine.kma.go.kr JSON endpoint 통합 fetch
+// [메인] fetchMarineBuoyData()  — 신규 2026-04-25
 //
-// 우리 서버의 캐시 라우트 /api/marine-buoys, /api/marine-wh-buoys,
-// /api/marine-lh-buoys 3개를 병렬 fetch 하여 stnId 단위로 통합 schema 객체 반환.
-// (시정계 /api/marine-vs 는 본 단계에선 미사용 — UI 표시는 후속 작업)
+//   [무엇을 하는가?]
+//   서버의 marine 캐시 라우트 3개(/api/marine-buoys, -wh-buoys, -lh-buoys)를
+//   동시에 호출해 부이 종류별 데이터를 받아오고, 우리 앱의 통일된 객체 schema
+//   로 변환해 stnId(부이 식별번호) 단위로 묶어 반환.
 //
-// 반환 형태: { [stnId]: { tm, waveHeight, waveHeightMax, waveHeightSig,
-//                         waveHeightAvg, wavePeriod, waveDir, windSpeed,
-//                         windDirection, windGust, waterTemp, airTemp,
-//                         pressure, humidity, visibility } }
-// 결측값(null) 은 그대로 보존 — 표시 단계에서 분기 처리.
+//   [왜 따로 만들었나?]
+//   기존에는 sea_obs.php(api/buoys) 한 곳에서만 부이 데이터를 받았는데, 여기엔
+//   파주기/파향/시정/최대파고 등이 포함되지 않거나 일부 부이만 커버됨. marine
+//   포털의 endpoint 가 더 풍부한 정보를 제공하므로 그쪽으로 보강하는 것이
+//   목적.
+//
+//   [어떻게 동작하나?]
+//     1) Promise.allSettled 로 3 endpoint 동시 호출
+//        → 한 곳이 실패해도 다른 곳 결과는 머지 진행 (부분 성공 허용)
+//     2) 각 endpoint 응답의 data 배열을 부이 종류별 매퍼(mapMarineBuoyB/C/L)로
+//        우리 schema 로 변환
+//     3) result[stnId] 에 객체 단위로 저장해 반환
+//
+//   [반환 객체의 키 schema]
+//     id, name, tm,                      // 식별·시각
+//     waveHeight, waveHeightMax,         // 파고 (단일/최대)
+//     waveHeightSig, waveHeightAvg,      // 파고 (유의/평균)
+//     wavePeriod, waveDir,               // 파주기·파향
+//     windSpeed, windDirection, windGust,// 풍속·풍향·돌풍
+//     waterTemp, airTemp,                // 수온·기온
+//     pressure, humidity,                // 기압·습도
+//     visibility                         // 시정 (m 단위)
+//
+//   [상위 호출 함수]
+//   fetchBuoyData() 가 sea_obs.php 데이터 위에 이 결과를 _mergeNonNull 로 머지.
+//
+//   [실패 시 동작]
+//   3 endpoint 모두 실패하면 빈 객체 반환 → fetchBuoyData() 머지 단계에서
+//   sea_obs baseline 만으로 동작 (graceful degradation).
 // ============================================================================
 async function fetchMarineBuoyData() {
     const result = {};
@@ -542,10 +567,22 @@ async function fetchMarineBuoyData() {
     return result;
 }
 
-// non-null 필드만 dst 에 덮어쓰기. marine 응답이 결측(null)인 필드는
-// baseline(sea_obs.php) 의 정상값을 보존하기 위해 사용.
-// 단, 마린 매핑에서 항상 set 하는 식별자(id, name, tm) 은 null/빈문자열도 허용해
-// 갱신되도록 dst 의 falsy 도 함께 덮어씀.
+// ─────────────────────────────────────────────────────────────────────────────
+// [헬퍼] _mergeNonNull(dst, src)
+//
+//   [무엇을 하는가?]
+//   객체 src 의 필드 중 null/undefined/빈문자열 이 아닌 것만 dst 에 덮어쓰기.
+//
+//   [왜 필요한가?]
+//   marine API 가 어떤 필드를 결측(null) 으로 보낼 때, 단순 Object.assign 을
+//   쓰면 sea_obs.php(baseline) 의 정상값을 null 로 덮어쓰는 버그가 발생함.
+//   예: baseline 에 pressure=1018 이 있는데 marine 가 pa=null 이면 결과가
+//       pressure=null 이 되어 화면에서 "기압" 항목이 사라짐.
+//   → 이 함수가 null/undefined/'' 인 src 필드는 무시해 baseline 값을 보존.
+//
+//   [예외]
+//   tm(관측시각) 은 항상 최신값으로 갱신되어야 하므로 별도 처리.
+// ─────────────────────────────────────────────────────────────────────────────
 function _mergeNonNull(dst, src) {
     if (!src) return dst;
     Object.keys(src).forEach(k => {
@@ -559,15 +596,43 @@ function _mergeNonNull(dst, src) {
     return dst;
 }
 
-// "2026.04.25 16:05:00" → "202604251605" 12자리 표준 변환
-// (기존 displayBuoyDataInModal 의 timeMatch 정규식과 호환)
+// ─────────────────────────────────────────────────────────────────────────────
+// [헬퍼] _marineObsTmToTm(s)
+//
+//   [무엇을 하는가?]
+//   marine API 가 보내주는 사람이 읽는 형식 "2026.04.25 16:05:00" 을
+//   기존 우리 앱이 사용하는 12자리 숫자 형식 "202604251605" 로 변환.
+//
+//   [왜 필요한가?]
+//   기존 부이 모달(seaZones.js displayBuoyDataInModal)이 시각 표시할 때
+//   `/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/` 정규식으로 매칭하므로, 마침표·
+//   공백·콜론이 섞인 marine 형식을 그대로 두면 매칭 실패해 시각이 안 보임.
+//
+//   [입력이 비정상이면?]
+//   원본 그대로 반환 (downstream 코드가 시각 표시를 자동 스킵).
+// ─────────────────────────────────────────────────────────────────────────────
 function _marineObsTmToTm(s) {
     if (!s) return '';
     const m = String(s).match(/(\d{4})[.\-\/]?(\d{2})[.\-\/]?(\d{2})\s+(\d{2}):(\d{2})/);
     return m ? (m[1] + m[2] + m[3] + m[4] + m[5]) : String(s);
 }
 
-// 결측 정규화 — marine API 는 보통 null 을 사용하지만 -99/-9999 도 방어
+// ─────────────────────────────────────────────────────────────────────────────
+// [헬퍼] _mvVal(v)
+//
+//   [무엇을 하는가?]
+//   marine API 응답의 한 필드값을 안전한 number 또는 null 로 정규화.
+//
+//   [왜 필요한가?]
+//   marine API 는 결측값을 null 로 보내지만 가끔 -99 / -9999 같은 sentinel
+//   숫자가 섞여 있는 경우가 있고, 문자열 "12.3" 형식도 있을 수 있음.
+//   화면 표시 단계에서 sentinel 숫자가 그대로 노출되면 사용자에게 -99 가
+//   보이는 사고가 나므로, 이 함수가 한곳에서 일관 처리.
+//
+//   [반환]
+//   null  : 결측·sentinel·NaN 인 경우
+//   숫자  : 그 외 정상 측정값
+// ─────────────────────────────────────────────────────────────────────────────
 function _mvVal(v) {
     if (v === null || v === undefined) return null;
     const n = parseFloat(v);
@@ -576,8 +641,17 @@ function _mvVal(v) {
     return n;
 }
 
-// B타입(해양기상부이) marine → 우리 schema
-//   풍속/풍향: ws_1/wd_1 사용 (사용자 결정 — 위쪽 센서)
+// ─────────────────────────────────────────────────────────────────────────────
+// [매퍼] mapMarineBuoyB(it)  — B타입(해양기상부이) raw → 우리 schema
+//
+//   [입력]  marine /buoy/list 응답의 한 부이 항목 (it)
+//   [출력]  우리 앱이 사용하는 통일 schema 객체
+//
+//   [중요 결정 사항]
+//   - 풍속/풍향: B타입은 듀얼 센서(상·하단 두 개)를 가지므로 ws_1/wd_1·ws_2/wd_2
+//     두 쌍이 응답에 있음. 사용자 결정대로 위쪽 센서(ws_1/wd_1) 사용.
+//   - 시정(vs): m 단위. 화면 표시 단계에서 km 로 환산.
+// ─────────────────────────────────────────────────────────────────────────────
 function mapMarineBuoyB(it) {
     return {
         id: String(it.stn_id || ''),
@@ -600,8 +674,13 @@ function mapMarineBuoyB(it) {
     };
 }
 
-// C타입(파고부이) marine → 우리 schema
-//   파고 + 파주기 + 수온만 측정 (풍속·풍향·기온·기압 등은 미측정 → null 유지)
+// ─────────────────────────────────────────────────────────────────────────────
+// [매퍼] mapMarineBuoyC(it)  — C타입(파고부이) raw → 우리 schema
+//
+//   [특징]
+//   파고부이는 파고·파주기·수온만 측정하는 단순 부이. 풍속·풍향·기온·기압 등은
+//   장비 자체에 없으므로 null 그대로 둠. (한산도 22467 이 대표적인 C 타입)
+// ─────────────────────────────────────────────────────────────────────────────
 function mapMarineBuoyC(it) {
     return {
         id: String(it.stn_id || ''),
@@ -616,9 +695,18 @@ function mapMarineBuoyC(it) {
     };
 }
 
-// L타입(등표) marine → 우리 schema
-//   풍속/풍향: 단일 ws/wd, 돌풍은 max_ins_ws (최대순간풍속)
-//   기압 필드명이 ps (B타입의 pa 와 다름) — 우리 schema 는 pressure 로 일원화
+// ─────────────────────────────────────────────────────────────────────────────
+// [매퍼] mapMarineBuoyL(it)  — L타입(등표) raw → 우리 schema
+//
+//   [특징]
+//   등표는 파고를 측정하지 않고 풍속·풍향·기온·기압·습도만 측정. 풍속/풍향은
+//   B타입과 달리 단일 센서이므로 ws/wd 로 끝남. 돌풍 측정값은 따로 없고
+//   "최대순간풍속(max_ins_ws)" 을 우리 windGust 에 매핑.
+//
+//   [필드명 차이 주의]
+//   기압이 B타입은 pa, L타입은 ps 로 다름. 우리 schema 의 pressure 필드 하나로
+//   일원화해 화면 표시 코드에서 분기 없이 같은 키로 접근.
+// ─────────────────────────────────────────────────────────────────────────────
 function mapMarineBuoyL(it) {
     return {
         id: String(it.stn_id || ''),
