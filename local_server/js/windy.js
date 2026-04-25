@@ -605,10 +605,14 @@ function createStatusCard(zoneName) {
     nameRow.appendChild(zoneNameEl);
 
     if (window.ZoneAvg && typeof window.ZoneAvg.createBox === 'function') {
-        // 첫 시도: ZoneAvg.init() 이 이미 완료된 빠른 기기에서는 이 한 번에 성공.
-        // 느린 기기는 STATE.loaded=false 라 null 반환 → 아래 onReady 후처리.
+        // 첫 시도: ZoneAvg.init() 이 이미 완료된 경우(=두 번째 이후 렌더)에는
+        // 이 한 번에 성공. init 미완료(첫 렌더)면 null 반환 → onReady 후처리.
+        //
+        // [중요] isConnected 체크 금지 — tryAttach 가 createStatusCard 동기
+        // 흐름 안에서 호출될 때 nameRow 는 아직 부모(header)에 append 되기 전
+        // 이라 isConnected=false. 분리 노드에 append 는 무해하고, 곧 카드와
+        // 함께 DOM 에 진입한다.
         const tryAttach = () => {
-            if (!nameRow.isConnected) return;                 // 카드가 이미 제거됨
             if (nameRow.querySelector('.zone-avg-box')) return; // 이미 붙음
             const box = window.ZoneAvg.createBox(zoneName, { inline: true });
             // marginLeft:auto 는 .zone-avg-box.inline CSS 에서도 보장 (refreshAll
