@@ -717,13 +717,37 @@ function _bindOverlayButtonToasts() {
     }
 }
 
+/**
+ * 해구도 토글(#ocean-marine-zone-toggle-btn) ON 시 안내 토스트.
+ * 동작 원리는 위의 오버레이 버튼 토스트와 동일:
+ *   - ocean_map.js 의 bindMarineZoneGridToggle 가 먼저 실행되어 active 클래스 갱신
+ *   - 그 뒤 이 리스너가 rAF 한 프레임 후 active 여부를 확인
+ *   - active(=방금 켜진 상태) 일 때만 토스트.
+ * 메시지: "해구를 2번 클릭하면 해구별 기상전망이 표출됩니다."
+ *   2-step 클릭(첫 클릭=하이라이트 / 두 번째 클릭=모달) 흐름을 사용자에게 알림.
+ */
+function _bindMarineZoneToggleToast() {
+    var btn = document.getElementById('ocean-marine-zone-toggle-btn');
+    if (!btn) return;   // index2 가 아니거나 버튼 자체가 없는 경우
+    btn.addEventListener('click', function () {
+        requestAnimationFrame(function () {
+            if (!btn.classList.contains('active')) return;
+            _showOceanToast('해구를 2번 클릭하면 해구별 기상전망이 표출됩니다.', 'bottom', 2500);
+        });
+    });
+}
+
 // DOM 준비 후(혹은 ocean_overlay.js 가 버튼 바인딩한 뒤) 토스트 리스너 부착.
 // DOMContentLoaded 후 한 번 + ocean_map 초기화 이후에도 한 번 — 둘 다 안전.
 function _initOverlayToastsWhenReady() {
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', _bindOverlayButtonToasts, { once: true });
+        document.addEventListener('DOMContentLoaded', function () {
+            _bindOverlayButtonToasts();
+            _bindMarineZoneToggleToast();
+        }, { once: true });
     } else {
         _bindOverlayButtonToasts();
+        _bindMarineZoneToggleToast();
     }
 }
 _initOverlayToastsWhenReady();
