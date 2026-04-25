@@ -31,9 +31,10 @@
         var lon = OS.state.lon;
         var d = OS.state.date;
 
-        // (1) 조석/천문 카드 일단 표시 (3.js, 4.js가 채울 자리)
+        // (1) 조석/천문/월상 카드 일단 표시 (3.js, 4.js가 채울 자리)
         OS.showCard('ocean-card-tide');
         OS.showCard('ocean-card-astro');
+        OS.showCard('ocean-card-moon');
 
         // (2) 5개 일반카드 reset → 진행바 표시 + 카드 보이기
         ['ocean-val-depth', 'ocean-val-temp', 'ocean-val-current',
@@ -59,8 +60,9 @@
             }
         });
 
-        // (3) 천문: 즉시 동기 렌더
+        // (3) 천문 / 월상: 즉시 동기 렌더
         if (OS.renderAstroCard) OS.renderAstroCard(lat, lon, d);
+        if (OS.renderMoonCard) OS.renderMoonCard(lat, lon, d);
 
         // (4) 조석: 비동기 로딩
         if (OS.fetchTideForSheet) OS.fetchTideForSheet(lat, lon, d);
