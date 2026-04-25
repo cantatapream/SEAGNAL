@@ -822,6 +822,12 @@ function createAlertElement(items) {
     const details = clone.querySelector('.alert-details');
     details.innerHTML = '';
 
+    // 평균 파고/풍속 박스 (헤더와 발표시각 사이, 노란 점선 + 1초 깜빡임)
+    if (window.ZoneAvg && typeof window.ZoneAvg.createBox === 'function') {
+        const avgBox = window.ZoneAvg.createBox(data.zoneName);
+        if (avgBox) details.appendChild(avgBox);
+    }
+
     const formatAlertTime = (timeStr) => {
         // [수정] 연도/월 표기 제거 (예: "2026년 2월 10일" -> "10일", "2월 15일 오전(06시~12시)" -> "15일 오전(06시~12시)")
         const formatted = formatWarningTime(timeStr);

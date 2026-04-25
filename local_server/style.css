@@ -441,6 +441,65 @@ line-height: 1.1;
     border: 1px solid rgba(105, 240, 174, 0.3);
 }
 
+/* 해역 평균 파고/풍속 박스 (노란 점선 + 1초 깜빡임) */
+@keyframes zoneAvgBlink {
+    0%, 100% { border-color: #ffd700; }
+    50%      { border-color: rgba(255, 215, 0, 0.15); }
+}
+.zone-avg-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 6px 10px;
+    border: 2px dashed #ffd700;
+    border-radius: 8px;
+    background: transparent;
+    font-size: 0.78rem;
+    color: #e6edf3;
+    margin: 6px 0;
+    animation: zoneAvgBlink 1s infinite;
+}
+.zone-avg-box .zone-avg-time {
+    color: #8b949e;
+    font-size: 0.72rem;
+    white-space: nowrap;
+}
+.zone-avg-box .zone-avg-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.zone-avg-box .zone-avg-badge.wave {
+    background: rgba(79, 195, 247, 0.18);
+    color: #81d4fa;
+    border: 1px solid rgba(79, 195, 247, 0.4);
+}
+.zone-avg-box .zone-avg-badge.wind {
+    background: rgba(255, 167, 38, 0.18);
+    color: #ffcc80;
+    border: 1px solid rgba(255, 167, 38, 0.4);
+}
+.zone-avg-box .zone-avg-badge .lbl { opacity: 0.85; font-weight: 500; }
+.zone-avg-box.empty {
+    opacity: 0.55;
+    font-size: 0.72rem;
+    color: #8b949e;
+}
+/* 기상현황(windy.js) 카드에서 zone명 옆 인라인 배치용 */
+.zone-avg-box.inline {
+    margin: 0;
+    padding: 4px 8px;
+    flex: 1;
+    min-width: 0;
+}
+
 /* Alert Details Container */
 .alert-details {
     background-color: rgba(0, 0, 0, 0.25);

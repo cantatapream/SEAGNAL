@@ -585,7 +585,28 @@ function createStatusCard(zoneName) {
         color: #e0e0e0;
         flex-shrink: 0;
     `;
-    header.appendChild(zoneNameEl);
+
+    // 구역명 + 평균 파고/풍속 박스를 한 줄로 묶음
+    // - index2(column): 이 줄이 헤더 첫 줄, 다음 줄에 버튼들
+    // - index1(row)   : 이 줄이 왼쪽, 같은 헤더 안 오른쪽에 btnContainer
+    const nameRow = document.createElement('div');
+    nameRow.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        ${_isIndex2Layout ? 'width: 100%;' : 'flex: 1; min-width: 0;'}
+    `;
+    nameRow.appendChild(zoneNameEl);
+
+    if (window.ZoneAvg && typeof window.ZoneAvg.createBox === 'function') {
+        const avgBox = window.ZoneAvg.createBox(zoneName, { inline: true });
+        if (avgBox) {
+            avgBox.style.marginLeft = 'auto';
+            nameRow.appendChild(avgBox);
+        }
+    }
+
+    header.appendChild(nameRow);
 
     // 버튼 컨테이너
     // - index2: width:100%, flex:1 로 균일 4등분 (가운데 버튼 스트레치)

@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>특보구역 ↔ 대해구/소해구 매핑 툴</title>
+
+    <!-- 기존 데이터 재사용 -->
+    <script src="/seaZonesData.js"></script>
+    <script src="/gridCalibrationData.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; padding: 0;
+            height: 100%; width: 100%;
+            font-family: "Pretendard", "Noto Sans KR", sans-serif;
+            overflow: hidden;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            user-select: none;
+        }
+
+        #root { display: flex; width: 100%; height: 100%; flex-direction: column; }
+
+        /* 상단 툴바 */
+        #toolbar {
+            background: #16213e;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 8px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+        #toolbar h1 {
+            font-size: 14px;
+            margin: 0;
+            color: #4fc3f7;
+            margin-right: 8px;
+        }
+        .mode-toggle { display: inline-flex; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
+        .mode-toggle button {
+            padding: 6px 14px;
+            background: #1e2a4a;
+            color: #bbb;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+        }
+        .mode-toggle button.active {
+            background: #1976d2;
+            color: white;
+        }
+        .btn {
+            padding: 6px 12px;
+            background: #2d3a5f;
+            color: #e0e0e0;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+        }
+        .btn:hover { background: #3d4a6f; }
+        .btn.primary { background: #1976d2; border-color: #1976d2; }
+        .btn.primary:hover { background: #2186e2; }
+        .btn.danger { background: #c62828; border-color: #c62828; }
+        .btn.danger:hover { background: #d63838; }
+        #status {
+            margin-left: auto;
+            font-size: 11px;
+            color: #888;
+        }
+
+        /* 메인 영역 */
+        #main { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+        /* 좌측 패널 */
+        #zone-panel {
+            width: 300px;
+            min-width: 300px;
+            background: #16213e;
+            border-right: 1px solid rgba(255,255,255,0.1);
+            overflow-y: auto;
+            padding: 10px;
+        }
+        .zone-panel-header {
+            font-size: 11px;
+            color: #4fc3f7;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+        .region-group { margin-bottom: 14px; }
+        .region-title {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 4px;
+            padding-left: 4px;
+        }
+        .zone-item {
+            padding: 8px 10px;
+            margin-bottom: 4px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 6px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.15s;
+        }
+        .zone-item:hover { background: rgba(255,255,255,0.08); }
+        .zone-item.active {
+            background: rgba(255, 193, 7, 0.15);
+            border-color: #ffc107;
+            color: #ffc107;
+        }
+        .zone-item.done {
+            opacity: 0.5;
+        }
+        .zone-item.done .zone-name::before {
+            content: '✓ ';
+            color: #4caf50;
+            font-weight: bold;
+        }
+        .zone-item .zone-name { flex: 1; }
+        .zone-item .zone-counts {
+            font-size: 10px;
+            color: #888;
+            margin-left: 6px;
+        }
+
+        /* 지도 영역 */
+        #map-wrap {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: #0a0a14;
+        }
+        #map-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+        }
+        #map-inner {
+            position: absolute;
+            transform-origin: 0 0;
+        }
+        #map-inner img {
+            position: absolute;
+            left: 0; top: 0;
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+        #map-inner canvas {
+            position: absolute;
+            left: 0; top: 0;
+        }
+
+        /* 줌 컨트롤 */
+        #zoom-controls {
+            position: absolute;
+            right: 14px;
+            top: 14px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            background: rgba(22, 33, 62, 0.9);
+            padding: 6px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        #zoom-controls button {
+            width: 36px;
+            height: 36px;
+            background: #2d3a5f;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 18px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        #zoom-controls button:hover { background: #3d4a6f; }
+
+        /* 정보 표시 */
+        #map-info {
+            position: absolute;
+            left: 14px;
+            top: 14px;
+            z-index: 10;
+            background: rgba(22, 33, 62, 0.92);
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            font-size: 12px;
+            line-height: 1.6;
+            min-width: 220px;
+        }
+        #map-info .row { display: flex; justify-content: space-between; gap: 12px; }
+        #map-info .label { color: #888; }
+        #map-info .value { color: #fff; font-weight: 600; }
+        #map-info .value.major { color: #ffc107; }
+        #map-info .value.small { color: #4fc3f7; }
+
+        /* 모달 알림 */
+        .toast {
+            position: fixed;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(25, 118, 210, 0.95);
+            color: white;
+            padding: 10px 24px;
+            border-radius: 6px;
+            font-size: 13px;
+            z-index: 1000;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+            animation: toastIn 0.2s ease;
+        }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translate(-50%, -10px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+        }
+    </style>
+</head>
+<body>
+<div id="root">
+    <div id="toolbar">
+        <h1>🗺️ 특보구역 ↔ 해구 매핑 툴</h1>
+        <div class="mode-toggle">
+            <button id="mode-major" class="active" onclick="setMode('major')">대해구 모드</button>
+            <button id="mode-small" onclick="setMode('small')">소해구 모드</button>
+        </div>
+        <button class="btn" onclick="document.getElementById('upload-input').click()">JSON 업로드</button>
+        <input type="file" id="upload-input" accept=".json" style="display:none" onchange="handleUpload(event)">
+        <button class="btn primary" onclick="handleDownload()">JSON 다운로드</button>
+        <button class="btn danger" onclick="clearCurrent()">현재 구역 초기화</button>
+        <span id="status"></span>
+    </div>
+
+    <div id="main">
+        <div id="zone-panel">
+            <div class="zone-panel-header">📍 특보구역 목록</div>
+            <div id="zone-list"></div>
+        </div>
+
+        <div id="map-wrap">
+            <div id="map-info">
+                <div class="row"><span class="label">선택 중인 특보구역</span><span class="value" id="info-zone">-</span></div>
+                <div class="row"><span class="label">대해구</span><span class="value major" id="info-major-count">0개</span></div>
+                <div class="row"><span class="label">소해구</span><span class="value small" id="info-small-count">0개</span></div>
+                <div class="row"><span class="label">현재 모드</span><span class="value" id="info-mode">대해구</span></div>
+            </div>
+
+            <div id="zoom-controls">
+                <button onclick="zoom(1.25)">＋</button>
+                <button onclick="zoom(0.8)">－</button>
+                <button onclick="resetView()" style="font-size:14px">⌂</button>
+            </div>
+
+            <div id="map-container">
+                <div id="map-inner">
+                    <img id="map-img" src="/images/haegudo.gif" alt="해구도">
+                    <canvas id="overlay-canvas"></canvas>
+                    <canvas id="click-canvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================================
+// 상태
+// ============================================================
+const STATE = {
+    mode: 'major',                  // 'major' | 'small'
+    currentZoneCode: null,          // 현재 편집 중인 특보구역 코드
+    mappings: {},                   // { code: { name, region, majorZones: [], smallZones: [] } }
+    polygonsData: null,             // /data/haearum_zone_polygons.json
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+    isDragging: false,
+    dragStartX: 0,
+    dragStartY: 0,
+    hasMoved: false,
+    imageLoaded: false,
+};
+
+const IMAGE_W = 2225;
+const IMAGE_H = 2659;
+
+// ============================================================
+// DOM 캐시
+// ============================================================
+const mapContainer = document.getElementById('map-container');
+const mapInner = document.getElementById('map-inner');
+const mapImg = document.getElementById('map-img');
+const overlayCanvas = document.getElementById('overlay-canvas');
+const clickCanvas = document.getElementById('click-canvas');
+const overlayCtx = overlayCanvas.getContext('2d');
+const clickCtx = clickCanvas.getContext('2d');
+
+overlayCanvas.width = IMAGE_W;
+overlayCanvas.height = IMAGE_H;
+clickCanvas.width = IMAGE_W;
+clickCanvas.height = IMAGE_H;
+
+// ============================================================
+// 데이터 로드
+// ============================================================
+async function loadPolygons() {
+    const res = await fetch('/data/haearum_zone_polygons.json');
+    STATE.polygonsData = await res.json();
+
+    // 매핑 상태 초기화 (zones 모두 등록, 비어있는 상태)
+    for (const code of Object.keys(STATE.polygonsData.zones)) {
+        const z = STATE.polygonsData.zones[code];
+        if (!STATE.mappings[code]) {
+            STATE.mappings[code] = {
+                name: z.name,
+                region: z.region,
+                majorZones: [],
+                smallZones: []
+            };
+        }
+    }
+
+    renderZoneList();
+    redraw();
+}
+
+// ============================================================
+// 좌측 특보구역 목록 렌더
+// ============================================================
+function renderZoneList() {
+    const listEl = document.getElementById('zone-list');
+    listEl.innerHTML = '';
+
+    if (!STATE.polygonsData) return;
+
+    const grouped = {};
+    for (const code of Object.keys(STATE.polygonsData.zones)) {
+        const z = STATE.polygonsData.zones[code];
+        const region = z.region || '기타';
+        if (!grouped[region]) grouped[region] = [];
+        grouped[region].push(z);
+    }
+
+    for (const region of Object.keys(grouped).sort()) {
+        const group = document.createElement('div');
+        group.className = 'region-group';
+        const title = document.createElement('div');
+        title.className = 'region-title';
+        title.textContent = region;
+        group.appendChild(title);
+
+        for (const z of grouped[region]) {
+            const item = document.createElement('div');
+            item.className = 'zone-item';
+            const m = STATE.mappings[z.code];
+            const mCount = m ? m.majorZones.length : 0;
+            const sCount = m ? m.smallZones.length : 0;
+
+            if (mCount > 0 || sCount > 0) item.classList.add('done');
+            if (z.code === STATE.currentZoneCode) item.classList.add('active');
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'zone-name';
+            nameSpan.textContent = z.name;
+            item.appendChild(nameSpan);
+
+            const counts = document.createElement('span');
+            counts.className = 'zone-counts';
+            counts.textContent = `대${mCount}/소${sCount}`;
+            item.appendChild(counts);
+
+            item.onclick = () => selectZone(z.code);
+            group.appendChild(item);
+        }
+
+        listEl.appendChild(group);
+    }
+}
+
+// ============================================================
+// 특보구역 선택
+// ============================================================
+function selectZone(code) {
+    STATE.currentZoneCode = code;
+    const m = STATE.mappings[code];
+    document.getElementById('info-zone').textContent = m ? m.name : code;
+    updateInfoPanel();
+    renderZoneList();
+    centerOnZone(code);
+    redraw();
+}
+
+function updateInfoPanel() {
+    const m = STATE.mappings[STATE.currentZoneCode];
+    document.getElementById('info-major-count').textContent = m ? `${m.majorZones.length}개` : '0개';
+    document.getElementById('info-small-count').textContent = m ? `${m.smallZones.length}개` : '0개';
+    document.getElementById('info-mode').textContent = STATE.mode === 'major' ? '대해구' : '소해구';
+}
+
+// ============================================================
+// 모드 토글
+// ============================================================
+function setMode(mode) {
+    STATE.mode = mode;
+    document.getElementById('mode-major').classList.toggle('active', mode === 'major');
+    document.getElementById('mode-small').classList.toggle('active', mode === 'small');
+    updateInfoPanel();
+    redraw();
+}
+
+// ============================================================
+// 격자 셀 좌표 계산 (대해구)
+// ============================================================
+function getCellCoords(key) {
+    const [lonPart, latPart] = key.split('_');
+    const [lonStart, lonEnd] = lonPart.split('-');
+    const [latStart, latEnd] = latPart.split('-');
+
+    if (!GRID_DATA.lon[lonStart] || !GRID_DATA.lon[lonEnd]
+        || !GRID_DATA.lat[latStart] || !GRID_DATA.lat[latEnd]) return null;
+
+    const x1 = GRID_DATA.lon[lonStart].val;
+    const x2 = GRID_DATA.lon[lonEnd].val;
+    const y1 = GRID_DATA.lat[latStart].val;
+    const y2 = GRID_DATA.lat[latEnd].val;
+    return { x1, x2, y1, y2 };
+}
+
+// 픽셀 위치에서 대해구 셀 키 + 번호 찾기
+function findCellAtPixel(px, py) {
+    for (const [key, zoneNum] of Object.entries(SEA_ZONES_DATA)) {
+        if (!zoneNum || zoneNum === '0') continue;
+        const c = getCellCoords(key);
+        if (!c) continue;
+        if (px >= c.x1 && px < c.x2 && py >= c.y1 && py < c.y2) {
+            return { key, zoneNum, coords: c };
+        }
+    }
+    return null;
+}
+
+// 픽셀 위치에서 소해구 ID (zoneNum-1~9)
+function getSmallZoneIdAt(px, py, coords, zoneNum) {
+    const cellW = (coords.x2 - coords.x1) / 3;
+    const cellH = (coords.y2 - coords.y1) / 3;
+    const col = Math.max(0, Math.min(2, Math.floor((px - coords.x1) / cellW)));
+    const row = Math.max(0, Math.min(2, Math.floor((py - coords.y1) / cellH)));
+    return `${zoneNum}-${row * 3 + col + 1}`;
+}
+
+// 소해구 ID -> {zoneNum, idx, coords}
+function getSmallZoneCoords(smallId) {
+    const [zoneNumStr, idxStr] = smallId.split('-');
+    const idx = parseInt(idxStr);
+    if (!idx) return null;
+    for (const [key, zNum] of Object.entries(SEA_ZONES_DATA)) {
+        if (String(zNum) === zoneNumStr) {
+            const c = getCellCoords(key);
+            if (!c) return null;
+            const cellW = (c.x2 - c.x1) / 3;
+            const cellH = (c.y2 - c.y1) / 3;
+            const row = Math.floor((idx - 1) / 3);
+            const col = (idx - 1) % 3;
+            return {
+                x1: c.x1 + col * cellW,
+                y1: c.y1 + row * cellH,
+                x2: c.x1 + col * cellW + cellW,
+                y2: c.y1 + row * cellH + cellH
+            };
+        }
+    }
+    return null;
+}
+
+// ============================================================
+// 그리기
+// ============================================================
+function redraw() {
+    redrawOverlay();
+    applyTransform();
+}
+
+function redrawOverlay() {
+    overlayCtx.clearRect(0, 0, IMAGE_W, IMAGE_H);
+
+    // 1. 대해구 격자 (옅은 회색)
+    overlayCtx.strokeStyle = 'rgba(255,255,255,0.18)';
+    overlayCtx.lineWidth = 1;
+    for (const [key, zoneNum] of Object.entries(SEA_ZONES_DATA)) {
+        if (!zoneNum || zoneNum === '0') continue;
+        const c = getCellCoords(key);
+        if (!c) continue;
+        overlayCtx.strokeRect(c.x1, c.y1, c.x2 - c.x1, c.y2 - c.y1);
+    }
+
+    // 2. 소해구 격자 (옅은 파랑) - 모드와 관계없이 항상 표시
+    overlayCtx.strokeStyle = 'rgba(100,200,255,0.25)';
+    overlayCtx.lineWidth = 0.5;
+    for (const [key, zoneNum] of Object.entries(SEA_ZONES_DATA)) {
+        if (!zoneNum || zoneNum === '0') continue;
+        const c = getCellCoords(key);
+        if (!c) continue;
+        const cellW = (c.x2 - c.x1) / 3;
+        const cellH = (c.y2 - c.y1) / 3;
+        for (let i = 1; i < 3; i++) {
+            overlayCtx.beginPath();
+            overlayCtx.moveTo(c.x1, c.y1 + cellH * i);
+            overlayCtx.lineTo(c.x2, c.y1 + cellH * i);
+            overlayCtx.moveTo(c.x1 + cellW * i, c.y1);
+            overlayCtx.lineTo(c.x1 + cellW * i, c.y2);
+            overlayCtx.stroke();
+        }
+    }
+
+    // 3. 모든 매핑된 특보구역의 선택된 해구 (반투명 노랑/하늘색)
+    for (const [code, m] of Object.entries(STATE.mappings)) {
+        const isCurrent = code === STATE.currentZoneCode;
+        const majorAlpha = isCurrent ? 0.35 : 0.10;
+        const smallAlpha = isCurrent ? 0.40 : 0.12;
+
+        // 대해구 fill
+        for (const num of m.majorZones) {
+            for (const [key, zNum] of Object.entries(SEA_ZONES_DATA)) {
+                if (String(zNum) !== String(num)) continue;
+                const c = getCellCoords(key);
+                if (!c) continue;
+                overlayCtx.fillStyle = `rgba(255, 193, 7, ${majorAlpha})`;
+                overlayCtx.fillRect(c.x1, c.y1, c.x2 - c.x1, c.y2 - c.y1);
+                if (isCurrent) {
+                    overlayCtx.strokeStyle = '#ffc107';
+                    overlayCtx.lineWidth = 2;
+                    overlayCtx.strokeRect(c.x1, c.y1, c.x2 - c.x1, c.y2 - c.y1);
+                }
+                break;
+            }
+        }
+
+        // 소해구 fill
+        for (const sid of m.smallZones) {
+            const sc = getSmallZoneCoords(sid);
+            if (!sc) continue;
+            overlayCtx.fillStyle = `rgba(79, 195, 247, ${smallAlpha})`;
+            overlayCtx.fillRect(sc.x1, sc.y1, sc.x2 - sc.x1, sc.y2 - sc.y1);
+            if (isCurrent) {
+                overlayCtx.strokeStyle = '#4fc3f7';
+                overlayCtx.lineWidth = 1.5;
+                overlayCtx.strokeRect(sc.x1, sc.y1, sc.x2 - sc.x1, sc.y2 - sc.y1);
+            }
+        }
+    }
+
+    // 4. 특보구역 폴리곤
+    if (STATE.polygonsData) {
+        for (const [code, z] of Object.entries(STATE.polygonsData.zones)) {
+            const isCurrent = code === STATE.currentZoneCode;
+            overlayCtx.strokeStyle = isCurrent ? '#ff4081' : 'rgba(255, 64, 129, 0.5)';
+            overlayCtx.lineWidth = isCurrent ? 4 : 2;
+            overlayCtx.setLineDash(isCurrent ? [] : [6, 4]);
+            overlayCtx.beginPath();
+            const pts = z.points || [];
+            pts.forEach((p, i) => {
+                const px = gpsToPixel(p[0], p[1]);
+                if (i === 0) overlayCtx.moveTo(px.x, px.y);
+                else overlayCtx.lineTo(px.x, px.y);
+            });
+            if (z.closed) overlayCtx.closePath();
+            overlayCtx.stroke();
+        }
+        overlayCtx.setLineDash([]);
+    }
+}
+
+// ============================================================
+// 변환 적용
+// ============================================================
+function applyTransform() {
+    mapInner.style.transform = `translate(${STATE.translateX}px, ${STATE.translateY}px) scale(${STATE.scale})`;
+}
+
+function resetView() {
+    if (!mapContainer) return;
+    const w = mapContainer.clientWidth;
+    const h = mapContainer.clientHeight;
+    STATE.scale = Math.min(w / IMAGE_W, h / IMAGE_H) * 0.95;
+    STATE.translateX = (w - IMAGE_W * STATE.scale) / 2;
+    STATE.translateY = (h - IMAGE_H * STATE.scale) / 2;
+    applyTransform();
+}
+
+function zoom(factor) {
+    const w = mapContainer.clientWidth;
+    const h = mapContainer.clientHeight;
+    const cx = w / 2;
+    const cy = h / 2;
+    const newScale = Math.max(0.1, Math.min(10, STATE.scale * factor));
+    const ratio = newScale / STATE.scale;
+    STATE.translateX = cx - (cx - STATE.translateX) * ratio;
+    STATE.translateY = cy - (cy - STATE.translateY) * ratio;
+    STATE.scale = newScale;
+    applyTransform();
+}
+
+// 특정 특보구역 중심으로 화면 이동
+function centerOnZone(code) {
+    if (!STATE.polygonsData) return;
+    const z = STATE.polygonsData.zones[code];
+    if (!z || !z.center) return;
+    const px = gpsToPixel(z.center[0], z.center[1]);
+    const w = mapContainer.clientWidth;
+    const h = mapContainer.clientHeight;
+    // 줌은 유지하면서 중심만 이동
+    if (STATE.scale < 0.5) STATE.scale = 0.6;
+    STATE.translateX = w / 2 - px.x * STATE.scale;
+    STATE.translateY = h / 2 - px.y * STATE.scale;
+    applyTransform();
+}
+
+// ============================================================
+// 클릭 핸들러
+// ============================================================
+function getImagePixel(clientX, clientY) {
+    const rect = mapContainer.getBoundingClientRect();
+    const x = (clientX - rect.left - STATE.translateX) / STATE.scale;
+    const y = (clientY - rect.top - STATE.translateY) / STATE.scale;
+    return { x, y };
+}
+
+function handleClick(clientX, clientY) {
+    if (!STATE.currentZoneCode) {
+        showToast('먼저 좌측에서 특보구역을 선택하세요');
+        return;
+    }
+    const { x, y } = getImagePixel(clientX, clientY);
+    const cell = findCellAtPixel(x, y);
+    if (!cell) return;
+
+    const m = STATE.mappings[STATE.currentZoneCode];
+    if (!m) return;
+
+    if (STATE.mode === 'major') {
+        // 대해구 토글: 대해구 number 자체와 9개 소해구 모두 토글
+        const num = parseInt(cell.zoneNum);
+        const isOn = m.majorZones.includes(num);
+        if (isOn) {
+            m.majorZones = m.majorZones.filter(n => n !== num);
+            // 해당 대해구의 소해구도 모두 제거
+            m.smallZones = m.smallZones.filter(sid => {
+                const [zNumStr] = sid.split('-');
+                return zNumStr !== String(num);
+            });
+        } else {
+            m.majorZones.push(num);
+            // 해당 대해구의 소해구 9개 추가
+            for (let i = 1; i <= 9; i++) {
+                const sid = `${num}-${i}`;
+                if (!m.smallZones.includes(sid)) m.smallZones.push(sid);
+            }
+        }
+    } else {
+        // 소해구 토글: 개별 소해구만 토글 (대해구 set은 건드리지 않음)
+        const sid = getSmallZoneIdAt(x, y, cell.coords, cell.zoneNum);
+        const isOn = m.smallZones.includes(sid);
+        if (isOn) {
+            m.smallZones = m.smallZones.filter(s => s !== sid);
+        } else {
+            m.smallZones.push(sid);
+        }
+    }
+
+    updateInfoPanel();
+    renderZoneList();
+    redraw();
+}
+
+// ============================================================
+// 마우스 이벤트
+// ============================================================
+mapContainer.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    STATE.isDragging = true;
+    STATE.hasMoved = false;
+    STATE.dragStartX = e.clientX - STATE.translateX;
+    STATE.dragStartY = e.clientY - STATE.translateY;
+    e.preventDefault();
+});
+
+window.addEventListener('mousemove', (e) => {
+    if (!STATE.isDragging) return;
+    const nx = e.clientX - STATE.dragStartX;
+    const ny = e.clientY - STATE.dragStartY;
+    if (Math.abs(nx - STATE.translateX) + Math.abs(ny - STATE.translateY) > 3) {
+        STATE.hasMoved = true;
+    }
+    STATE.translateX = nx;
+    STATE.translateY = ny;
+    applyTransform();
+});
+
+window.addEventListener('mouseup', (e) => {
+    if (!STATE.isDragging) return;
+    STATE.isDragging = false;
+    if (!STATE.hasMoved) {
+        handleClick(e.clientX, e.clientY);
+    }
+});
+
+mapContainer.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = mapContainer.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.15 : 0.87;
+    const newScale = Math.max(0.1, Math.min(10, STATE.scale * factor));
+    const ratio = newScale / STATE.scale;
+    STATE.translateX = cx - (cx - STATE.translateX) * ratio;
+    STATE.translateY = cy - (cy - STATE.translateY) * ratio;
+    STATE.scale = newScale;
+    applyTransform();
+}, { passive: false });
+
+// ============================================================
+// 업로드/다운로드
+// ============================================================
+function handleUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const json = JSON.parse(e.target.result);
+            // 형식: { code: { name, region, majorZones, smallZones } }
+            let count = 0;
+            for (const [code, m] of Object.entries(json)) {
+                if (!m) continue;
+                if (!STATE.mappings[code]) {
+                    // 아직 등록 안 된 코드도 받아둠 (나중에 폴리곤 데이터에 없어도 보존)
+                    STATE.mappings[code] = {
+                        name: m.name || code,
+                        region: m.region || '기타',
+                        majorZones: [],
+                        smallZones: []
+                    };
+                }
+                STATE.mappings[code].majorZones = Array.isArray(m.majorZones) ? m.majorZones.map(Number) : [];
+                STATE.mappings[code].smallZones = Array.isArray(m.smallZones) ? m.smallZones.map(String) : [];
+                if (m.name) STATE.mappings[code].name = m.name;
+                if (m.region) STATE.mappings[code].region = m.region;
+                count++;
+            }
+            renderZoneList();
+            updateInfoPanel();
+            redraw();
+            showToast(`업로드 완료: ${count}개 특보구역 매핑 반영됨`);
+        } catch (err) {
+            alert('JSON 파싱 실패: ' + err.message);
+        }
+        event.target.value = '';
+    };
+    reader.readAsText(file);
+}
+
+function handleDownload() {
+    // 비어있는 항목은 제외하고 매핑된 것만 저장
+    const out = {};
+    for (const [code, m] of Object.entries(STATE.mappings)) {
+        if (m.majorZones.length === 0 && m.smallZones.length === 0) continue;
+        out[code] = {
+            name: m.name,
+            region: m.region,
+            majorZones: [...m.majorZones].sort((a, b) => a - b),
+            smallZones: [...m.smallZones].sort((a, b) => {
+                const [aN, aI] = a.split('-').map(Number);
+                const [bN, bI] = b.split('-').map(Number);
+                return aN - bN || aI - bI;
+            })
+        };
+    }
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'zone_grid_map.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`다운로드: ${Object.keys(out).length}개 특보구역`);
+}
+
+function clearCurrent() {
+    if (!STATE.currentZoneCode) {
+        showToast('선택된 특보구역이 없습니다');
+        return;
+    }
+    const m = STATE.mappings[STATE.currentZoneCode];
+    if (!m) return;
+    if (!confirm(`"${m.name}" 의 매핑을 모두 비우시겠습니까?`)) return;
+    m.majorZones = [];
+    m.smallZones = [];
+    updateInfoPanel();
+    renderZoneList();
+    redraw();
+}
+
+function showToast(text) {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = text;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2200);
+}
+
+// ============================================================
+// 초기화
+// ============================================================
+mapImg.addEventListener('load', () => {
+    STATE.imageLoaded = true;
+    resetView();
+    redraw();
+});
+mapImg.addEventListener('error', () => {
+    document.getElementById('status').textContent = '⚠ 해구도 이미지 로드 실패';
+});
+
+window.addEventListener('resize', () => {
+    if (STATE.imageLoaded) {
+        // 줌/이동 그대로 두고 캔버스만 재그리기
+        applyTransform();
+    }
+});
+
+(async function init() {
+    document.getElementById('status').textContent = '데이터 로딩 중...';
+    try {
+        await loadPolygons();
+        document.getElementById('status').textContent = `특보구역 ${Object.keys(STATE.polygonsData.zones).length}개 로드 완료`;
+    } catch (err) {
+        document.getElementById('status').textContent = '⚠ 폴리곤 로드 실패';
+        console.error(err);
+    }
+})();
+</script>
+</body>
+</html>
