@@ -27,18 +27,31 @@
     // ------------------------------------------------------------
     // 데이터 로드
     // ------------------------------------------------------------
+    // 이름 정규화 (가운뎃점·점·공백 차이 흡수)
+    function _normalizeName(name) {
+        if (!name) return '';
+        return String(name).replace(/[·.\s]+/g, '');
+    }
+
     function _buildNameIndex() {
         const idx = {};
         // 1) 매핑 JSON 자체에 name 있음 → 1차 인덱스
         if (STATE.gridMap) {
             for (const [code, m] of Object.entries(STATE.gridMap)) {
-                if (m && m.name) idx[m.name] = code;
+                if (m && m.name) {
+                    idx[m.name] = code;
+                    idx[_normalizeName(m.name)] = code;
+                }
             }
         }
         // 2) seaZoneCoordinates (전체 카탈로그) → 보강
         if (typeof SEA_ZONE_COORDINATES !== 'undefined') {
             for (const [code, info] of Object.entries(SEA_ZONE_COORDINATES)) {
-                if (info && info.name && !idx[info.name]) idx[info.name] = code;
+                if (info && info.name) {
+                    if (!idx[info.name]) idx[info.name] = code;
+                    const norm = _normalizeName(info.name);
+                    if (!idx[norm]) idx[norm] = code;
+                }
             }
         }
         STATE.nameToCode = idx;
@@ -98,22 +111,47 @@
         return best;
     }
 
+    // 평균 계산에 사용할 대해구 번호 목록 산출
+    //  - majorZones 가 있으면 그대로 사용
+    //  - 비어있으면 smallZones 에서 부모 번호를 distinct 하게 추출 (앞바다 등 좁은 구역)
+    function _resolveLzones(m) {
+        if (!m) return [];
+        if (Array.isArray(m.majorZones) && m.majorZones.length > 0) {
+            return m.majorZones.map(String);
+        }
+        if (Array.isArray(m.smallZones) && m.smallZones.length > 0) {
+            const set = new Set();
+            for (const sid of m.smallZones) {
+                const parent = String(sid).split('-')[0];
+                if (parent) set.add(parent);
+            }
+            return [...set];
+        }
+        return [];
+    }
+
     // ------------------------------------------------------------
     // 평균 계산
     // ------------------------------------------------------------
     function getAverages(zoneName) {
         if (!STATE.loaded || !STATE.gridMap || !STATE.forecasts) return null;
-        const code = STATE.nameToCode ? STATE.nameToCode[zoneName] : null;
+        let code = STATE.nameToCode ? STATE.nameToCode[zoneName] : null;
+        // 정규화된 이름으로 재조회 (가운뎃점/공백 차이 흡수)
+        if (!code && STATE.nameToCode) {
+            code = STATE.nameToCode[_normalizeName(zoneName)];
+        }
         if (!code) return null;
         const m = STATE.gridMap[code];
-        if (!m || !Array.isArray(m.majorZones) || m.majorZones.length === 0) return null;
+        if (!m) return null;
+        const lzones = _resolveLzones(m);
+        if (lzones.length === 0) return null;
 
         const now = new Date();
         const items = [];
         let representativeTm = null;
 
-        for (const num of m.majorZones) {
-            const series = STATE.forecasts[String(num)];
+        for (const num of lzones) {
+            const series = STATE.forecasts[num];
             if (!series) continue;
             const item = _nearestForecast(series, now);
             if (!item) continue;
