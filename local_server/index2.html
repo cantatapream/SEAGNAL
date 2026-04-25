@@ -1416,6 +1416,13 @@
                             <i class="fa-solid fa-anchor"></i>
                             <span class="ocean-overlay-label">기상부이</span>
                         </button>
+                        <!-- 특보구역 토글: ocean_warn_zone.js 가 바인딩
+                             KMA 해상 예특보구역(44개) 폴리곤 outline 을 지도에 표시
+                             [연계] js/ocean_warn_zone.js, /api/warn-zones (GeoJSON) -->
+                        <button class="ocean-overlay-btn" id="ocean-warn-zone-toggle-btn" title="특보구역">
+                            <i class="fa-solid fa-draw-polygon"></i>
+                            <span class="ocean-overlay-label">특보구역</span>
+                        </button>
                         <!-- CCTV 토글: ocean_cctv.js 가 바인딩 (index2 전용)
                              활성화 시 지도 위에 CCTV 마커/클러스터 표시 + 하단 CCTV 즐겨찾기 바 노출
                              [연계] js/ocean_cctv.js -->
@@ -2104,6 +2111,7 @@
     <script src="js/ocean_bottom_sheet5.js"></script>
     <script src="js/ocean_overlay.js"></script>
     <script src="js/ocean_buoy.js"></script>
+    <script src="js/ocean_warn_zone.js"></script>
     <script src="js/ocean_timeline.js"></script>
 
     <script src="js/admin_trigger.js"></script>
