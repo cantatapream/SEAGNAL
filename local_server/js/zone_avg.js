@@ -1,0 +1,211 @@
+// ============================================================
+// 🌊 해역 평균 파고/풍속 모듈
+// ------------------------------------------------------------
+//  특보구역(예: 제주도남부앞바다) 별로 사전에 매핑된 대해구
+//  목록을 이용해, 가장 가까운 3시간 예보 슬롯의 wh/ws 평균을
+//  계산하여 노란 점선 박스를 생성한다.
+//
+//  데이터 소스:
+//   - /data/zone_grid_map.json    : 매퍼 툴에서 다운받아 배치한 매핑
+//                                   { code: { name, region, majorZones, smallZones } }
+//   - /api/marine-zone-forecasts  : 대해구별 3시간 예보(시계열)
+//
+//  외부 노출(window.ZoneAvg):
+//    - init()                      : 데이터 비동기 로드
+//    - createBox(zoneName, opts)   : DOM 노드 반환 (없으면 null)
+//    - refreshAll()                : 화면의 모든 .zone-avg-box 갱신
+// ============================================================
+(function () {
+    const STATE = {
+        gridMap: null,        // { code: { name, majorZones, smallZones } }
+        nameToCode: null,     // { '울산앞바다': '12C10101', ... }
+        forecasts: null,      // { '1': [ {tm, wh, ws, ...}, ... ], ... }
+        loaded: false,
+        loadPromise: null,
+    };
+
+    // ------------------------------------------------------------
+    // 데이터 로드
+    // ------------------------------------------------------------
+    function _buildNameIndex() {
+        const idx = {};
+        // 1) 매핑 JSON 자체에 name 있음 → 1차 인덱스
+        if (STATE.gridMap) {
+            for (const [code, m] of Object.entries(STATE.gridMap)) {
+                if (m && m.name) idx[m.name] = code;
+            }
+        }
+        // 2) seaZoneCoordinates (전체 카탈로그) → 보강
+        if (typeof SEA_ZONE_COORDINATES !== 'undefined') {
+            for (const [code, info] of Object.entries(SEA_ZONE_COORDINATES)) {
+                if (info && info.name && !idx[info.name]) idx[info.name] = code;
+            }
+        }
+        STATE.nameToCode = idx;
+    }
+
+    async function init() {
+        if (STATE.loadPromise) return STATE.loadPromise;
+        STATE.loadPromise = (async () => {
+            // grid map (없을 수 있음)
+            try {
+                const r = await fetch('/data/zone_grid_map.json', { cache: 'no-store' });
+                if (r.ok) STATE.gridMap = await r.json();
+            } catch (e) { /* 매핑 없음 → graceful */ }
+
+            // forecasts
+            try {
+                const r = await fetch('/api/marine-zone-forecasts', { cache: 'no-store' });
+                if (r.ok) {
+                    const raw = await r.json();
+                    STATE.forecasts = raw.data || raw; // 호환
+                }
+            } catch (e) { /* 예보 로드 실패 */ }
+
+            _buildNameIndex();
+            STATE.loaded = true;
+        })();
+        return STATE.loadPromise;
+    }
+
+    // ------------------------------------------------------------
+    // 시간 파싱 (KMA tm: "YYYYMMDDHH")
+    // ------------------------------------------------------------
+    function _parseTm(tm) {
+        const s = String(tm);
+        if (s.length < 10) return null;
+        const y = +s.substring(0, 4);
+        const m = +s.substring(4, 6) - 1;
+        const d = +s.substring(6, 8);
+        const h = +s.substring(8, 10);
+        return new Date(y, m, d, h, 0, 0);
+    }
+
+    // 현재 시각에 가장 가까운 예보 항목
+    function _nearestForecast(arr, now) {
+        if (!arr || arr.length === 0) return null;
+        let best = null;
+        let bestDiff = Infinity;
+        for (const item of arr) {
+            const t = _parseTm(item.tm);
+            if (!t) continue;
+            const diff = Math.abs(t - now);
+            if (diff < bestDiff) {
+                bestDiff = diff;
+                best = item;
+            }
+        }
+        return best;
+    }
+
+    // ------------------------------------------------------------
+    // 평균 계산
+    // ------------------------------------------------------------
+    function getAverages(zoneName) {
+        if (!STATE.loaded || !STATE.gridMap || !STATE.forecasts) return null;
+        const code = STATE.nameToCode ? STATE.nameToCode[zoneName] : null;
+        if (!code) return null;
+        const m = STATE.gridMap[code];
+        if (!m || !Array.isArray(m.majorZones) || m.majorZones.length === 0) return null;
+
+        const now = new Date();
+        const items = [];
+        let representativeTm = null;
+
+        for (const num of m.majorZones) {
+            const series = STATE.forecasts[String(num)];
+            if (!series) continue;
+            const item = _nearestForecast(series, now);
+            if (!item) continue;
+            if (typeof item.wh === 'number' && typeof item.ws === 'number') {
+                items.push(item);
+                if (!representativeTm) representativeTm = item.tm;
+            }
+        }
+
+        if (items.length === 0) return null;
+
+        const avgWh = items.reduce((s, it) => s + Number(it.wh), 0) / items.length;
+        const avgWs = items.reduce((s, it) => s + Number(it.ws), 0) / items.length;
+
+        return {
+            tm: representativeTm,
+            avgWh: Math.round(avgWh * 10) / 10,
+            avgWs: Math.round(avgWs * 10) / 10,
+            count: items.length
+        };
+    }
+
+    function _formatHour(tm) {
+        const d = _parseTm(tm);
+        if (!d) return '--';
+        return String(d.getHours()).padStart(2, '0') + '시';
+    }
+
+    // ------------------------------------------------------------
+    // DOM 박스 생성
+    // ------------------------------------------------------------
+    // opts.inline = true → 기상현황 카드(zone명 옆 인라인 배치)용 컴팩트 스타일
+    function createBox(zoneName, opts) {
+        opts = opts || {};
+        const result = getAverages(zoneName);
+        if (!result) return null; // 매핑/예보 없음 → 박스 생성 안 함
+
+        const box = document.createElement('div');
+        box.className = 'zone-avg-box' + (opts.inline ? ' inline' : '');
+        box.dataset.zoneName = zoneName;
+
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'zone-avg-time';
+        timeSpan.textContent = `${_formatHour(result.tm)} 기준`;
+        box.appendChild(timeSpan);
+
+        const waveBadge = document.createElement('span');
+        waveBadge.className = 'zone-avg-badge wave';
+        waveBadge.innerHTML = `<span class="lbl">평균 유의파고</span> ${result.avgWh.toFixed(1)}m`;
+        box.appendChild(waveBadge);
+
+        const windBadge = document.createElement('span');
+        windBadge.className = 'zone-avg-badge wind';
+        windBadge.innerHTML = `<span class="lbl">평균 풍속</span> ${result.avgWs.toFixed(1)}m/s`;
+        box.appendChild(windBadge);
+
+        return box;
+    }
+
+    // 화면의 모든 박스를 새로 그림 (3시간 슬롯 변경 시)
+    function refreshAll() {
+        const boxes = document.querySelectorAll('.zone-avg-box');
+        boxes.forEach((old) => {
+            const name = old.dataset.zoneName;
+            if (!name) return;
+            const fresh = createBox(name, { inline: old.classList.contains('inline') });
+            if (fresh) old.replaceWith(fresh);
+        });
+    }
+
+    // ------------------------------------------------------------
+    // 자동 주기 갱신 (5분마다 가장 가까운 예보 슬롯 재평가)
+    // ------------------------------------------------------------
+    setInterval(() => {
+        if (STATE.loaded) refreshAll();
+    }, 5 * 60 * 1000);
+
+    // ------------------------------------------------------------
+    // export
+    // ------------------------------------------------------------
+    window.ZoneAvg = {
+        init,
+        createBox,
+        refreshAll,
+        getAverages, // 디버그용
+        _state: STATE
+    };
+
+    // 자동 초기화 (DOM 로드 직후, 다른 모듈은 createBox 호출 전 init() await 권장)
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => init());
+    } else {
+        init();
+    }
+})();
