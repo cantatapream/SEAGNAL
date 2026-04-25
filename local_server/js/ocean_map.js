@@ -40,6 +40,12 @@
     let marineZoneSubGridLayer = null;  // 소해구 (대해구 3×3 분할, 확대 시만)
     let marineZoneLabelLayer   = null;  // 대해구 번호 라벨
 
+    // 2-step 클릭으로 선택된 feature 추적 (메인/서브 별도). seaZones.js 의
+    //   selectedZoneKey / selectedSmallZoneKey 와 동일 역할.
+    let _selectedMainZoneFeature = null;  // 첫 클릭으로 하이라이트 된 대해구 feature
+    let _selectedSubZoneFeature  = null;  // 첫 클릭으로 하이라이트 된 소해구 feature
+    let _selectedZoneId          = null;  // "105" 또는 "105-3" 형식, 같은 셀 재클릭 판정용
+
     // 해아름 WMS 엔드포인트 (F12 캡처로 확인됨)
     // http://www.khoa.go.kr/oceanmap/{LAYER}/wmsVectordata.do?SERVICE=WMS&...
     const KHOA_WMS_BASE = 'https://www.khoa.go.kr/oceanmap/';
@@ -413,7 +419,143 @@
             visible = !visible;
             apply(visible);
             try { localStorage.setItem('seagnal_marine_zone_visible', String(visible)); } catch (e) {}
+            // OFF 로 돌아갈 때는 "선택 상태" 도 같이 비워서 다음에 켤 때 깨끗하게 시작.
+            if (!visible) _resetMarineZoneSelection();
         });
+    }
+
+    // ========================================================================
+    // 해구도 클릭 — 2-step 선택 → 기상 모달
+    // ========================================================================
+    //
+    // [전체 흐름]
+    //   1) 사용자가 해구도 토글을 ON 으로 켠 상태에서 격자 셀(대해구/소해구)을 클릭.
+    //   2) 첫 클릭   : 해당 셀 테두리를 시안색으로 강조 (하이라이트). 모달은 안 뜸.
+    //   3) 같은 셀 두 번째 클릭 : window.getMarineZoneData(zoneId) 호출 →
+    //                           기존 "해구별 기상" 모달이 그대로 떠서 시계열 표시.
+    //   4) 다른 셀을 클릭하면    : 기존 하이라이트 해제 + 새 셀에 하이라이트 (다시 1단계).
+    //
+    // [zoneId 규칙 — 기존 seaZones.js 와 동일]
+    //   - 대해구 클릭 : "105"          (marine_zone_no 그대로 문자열)
+    //   - 소해구 클릭 : "105-3"        (parent_marine_zone_no + "-" + sub_no(1..9))
+    //
+    // [데이터/모달 의존]
+    //   - window.getMarineZoneData (js/marine.js)         — fetch + 모달 호출
+    //   - window.showMarineZoneModal (js/marine.js)        — 모달 자체 (마린이 호출)
+    //   - /api/marine-zone-forecasts → zone_forecasts.json — 부모 대해구 키만 사용
+    //   index2.html 은 위 스크립트들을 모두 로드하므로 추가 의존 없음.
+    //
+    // [클릭 우선순위]
+    //   handleMapClick 에서 다른 마커(CCTV/부이/마커)가 먼저 처리되고, 모두 hit
+    //   가 아닌 경우에만 격자 hit-test 로 내려옴. 격자 hit 이면 바텀시트도 뜨지
+    //   않도록 true 를 반환.
+    // ========================================================================
+
+    /** 줌 레벨이 sub 레이어가 보이는 임계값(>8) 이상인지 */
+    function _isSubVisibleZoom() {
+        if (!oceanMap) return false;
+        const z = oceanMap.getView().getZoom();
+        return typeof z === 'number' && z > 8;   // marineZoneSubGridLayer.minZoom 과 동일
+    }
+
+    /** main feature 하이라이트 스타일 (시안 굵은 테두리) */
+    function _styleSelectedMainFeature() {
+        return new ol.style.Style({
+            stroke: new ol.style.Stroke({ color: '#4fc3f7', width: 2.5 })
+        });
+    }
+
+    /** sub feature 하이라이트 스타일 (노랑 굵은 테두리) */
+    function _styleSelectedSubFeature() {
+        return new ol.style.Style({
+            stroke: new ol.style.Stroke({ color: '#ffeb3b', width: 2 })
+        });
+    }
+
+    /**
+     * 현재 선택된 main/sub feature 의 임시 스타일을 모두 원복하고 추적 변수 초기화.
+     * - feature.setStyle(undefined) : 레이어 기본 스타일로 되돌리는 OL 의 표준 방식.
+     * - 토글 OFF / 다른 셀 클릭 / 빈 곳 클릭 시 호출.
+     */
+    function _resetMarineZoneSelection() {
+        if (_selectedMainZoneFeature) {
+            _selectedMainZoneFeature.setStyle(undefined);
+            _selectedMainZoneFeature = null;
+        }
+        if (_selectedSubZoneFeature) {
+            _selectedSubZoneFeature.setStyle(undefined);
+            _selectedSubZoneFeature = null;
+        }
+        _selectedZoneId = null;
+    }
+
+    /**
+     * 해구도 격자 클릭 hit-test + 2-step 선택 처리.
+     *
+     * @param {ol.MapBrowserEvent} evt - handleMapClick 이 받은 OL 클릭 이벤트
+     * @returns {boolean} true 면 "격자 셀이 처리됨" → 호출자(handleMapClick) 가
+     *                    뒤따르는 바텀시트/위치 표시 로직을 건너뛰어야 함.
+     */
+    function tryHandleMarineZoneClick(evt) {
+        // 토글 OFF 거나 레이어 자체가 없으면 통째로 스킵 → 다른 핸들러에 양보.
+        if (!marineZoneGridLayer || !marineZoneGridLayer.getVisible()) return false;
+
+        // sub 레이어가 보이는 줌이라면 sub 우선 검사 (사용자 경험상 더 작은 셀 우선).
+        // 그 외엔 main 만 검사.
+        const layersInPriority = _isSubVisibleZoom()
+            ? [marineZoneSubGridLayer, marineZoneGridLayer]
+            : [marineZoneGridLayer];
+
+        // forEachFeatureAtPixel 은 callback 에서 truthy 를 반환하면 즉시 종료.
+        // layerFilter 로 우리 격자 레이어로 한정 → 다른 벡터 레이어와 섞이지 않음.
+        let hitFeature = null;
+        let hitLayer   = null;
+        for (const targetLayer of layersInPriority) {
+            if (!targetLayer || !targetLayer.getVisible()) continue;
+            oceanMap.forEachFeatureAtPixel(evt.pixel, function (feature, lyr) {
+                if (lyr === targetLayer) { hitFeature = feature; hitLayer = lyr; return true; }
+            }, { layerFilter: function (l) { return l === targetLayer; } });
+            if (hitFeature) break;
+        }
+        if (!hitFeature) return false;   // 격자 hit 아님 → 호출자가 다른 처리 계속
+
+        // hit 한 feature 가 어느 종류(main/sub) 인지로 zoneId 만든다.
+        const isSub = (hitLayer === marineZoneSubGridLayer);
+        const props = hitFeature.getProperties();
+        let zoneId;
+        if (isSub) {
+            const parent = props.parent_marine_zone_no || '';
+            const subNo  = props.sub_no || '';
+            if (!parent || !subNo) return false;
+            zoneId = parent + '-' + subNo;
+        } else {
+            zoneId = String(props.marine_zone_no || props.name || '');
+            if (!zoneId) return false;
+        }
+
+        // ── 2-step 판정 ─────────────────────────────────────────────
+        if (_selectedZoneId === zoneId) {
+            // Step 2: 같은 셀 재클릭 → 기상 모달 호출.
+            //   기존 seaZones.js 패턴과 동일: getMarineZoneData 가 정의되어 있으면 호출.
+            if (typeof window.getMarineZoneData === 'function') {
+                window.getMarineZoneData(zoneId);
+            } else {
+                console.warn('[OceanMap] window.getMarineZoneData 미로드 — 모달 호출 불가');
+            }
+            // 선택 상태는 그대로 둔다(모달 닫고 같은 곳 다시 누르면 또 뜨도록).
+        } else {
+            // Step 1: 새 선택 → 이전 하이라이트 해제 후 새 feature 에 임시 스타일 부여.
+            _resetMarineZoneSelection();
+            if (isSub) {
+                _selectedSubZoneFeature = hitFeature;
+                hitFeature.setStyle(_styleSelectedSubFeature());
+            } else {
+                _selectedMainZoneFeature = hitFeature;
+                hitFeature.setStyle(_styleSelectedMainFeature());
+            }
+            _selectedZoneId = zoneId;
+        }
+        return true;   // 격자 셀이 처리되었음 → 호출자는 다른 액션 중단
     }
 
     // ========================================================================
@@ -657,6 +799,12 @@
             const hit = window.handleOceanMarkerClick(oceanMap, evt);
             if (hit) return; // 마커 클릭이면 마커 핸들러에서 처리
         }
+
+        // 해구도 격자 클릭 (해구도 토글 ON 일 때만)
+        // [목적] 격자 셀을 두 번 누르면 기존 "해구별 기상" 모달을 띄움.
+        //        2-step (선택 → 모달) 흐름은 seaZones.js 의 이미지 지도와 동일.
+        // [충돌 방지] hit 이면 true 반환 → 아래 바텀시트 로직이 추가로 뜨는 것을 막음.
+        if (tryHandleMarineZoneClick(evt)) return;
 
         // 오버레이 데이터가 있는 영역만 바텀시트 표시
         if (window.showOceanBottomSheet) {
