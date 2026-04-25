@@ -69,6 +69,22 @@ router.get('/api/warn-zones', (req, res) => {
     }
 });
 
+// 1-2. 해상 예특보구역의 자식 구역 (연안바다/평수구역) 폴리곤
+//      KMA mmis:warnArea2Poly202106 레이어 (WFS) 의 GeoJSON.
+//      특보구역 토글이 켜진 상태에서 충분히 줌인하면 표시됨.
+router.get('/api/warn-zones-sub', (req, res) => {
+    try {
+        const filePath = path.join(__dirname, '..', 'assets', 'warn_zones_sub.geojson');
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: 'warn_zones_sub.geojson not found' });
+        }
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.sendFile(filePath);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // 2. 부이 정보
 router.get('/api/buoys', (req, res) => {
     if (dataCache.buoys) res.json(dataCache.buoys);
