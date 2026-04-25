@@ -169,7 +169,7 @@
         return fullName;
     }
 
-    /** 자식 구역 (연안바다/평수구역) 폴리곤 스타일 — 더 옅은 청록 톤으로 시각 구분 */
+    /** 자식 구역 (연안바다/평수구역) 폴리곤 스타일 — 청록 톤으로 메인(노란)과 시각 구분 */
     function _subZoneStyle(feature) {
         var code = feature.get('WarnCode');
         var fullName = SUBZONE_LABEL_MAP[code];
@@ -178,9 +178,10 @@
         var label = _shortLabel(fullName);
         return new ol.style.Style({
             stroke: new ol.style.Stroke({
-                color: 'rgba(120, 220, 255, 0.85)',
-                width: 1.0,
-                lineDash: [3, 3]
+                // 진한 청록 + 완전 불투명 + 굵기 1.8 로 가독성 강화
+                color: 'rgba(80, 200, 255, 1.0)',
+                width: 1.8,
+                lineDash: [5, 3]
             }),
             fill: new ol.style.Fill({
                 color: 'rgba(120, 220, 255, 0.05)'
