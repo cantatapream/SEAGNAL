@@ -164,6 +164,16 @@
             var one = features[0];
             var name = one.get('name') || '';
             return [
+                // [모바일 히트 영역 확장] — 부이 마커와 동일 패턴
+                // CCTV 아이콘(scale 0.07)은 작고 내부에 투명 픽셀이 많아
+                // OL 힛 테스트가 픽셀 단위로 실패함 (Icon 스타일은 불투명 픽셀만 인정).
+                // 거의 보이지 않는(alpha 0.01) 꽉 찬 원을 깔아 손가락 탭을 안정적으로 받도록 함.
+                new ol.style.Style({
+                    image: new ol.style.Circle({
+                        radius: 22,
+                        fill: new ol.style.Fill({ color: 'rgba(0,0,0,0.01)' })
+                    })
+                }),
                 new ol.style.Style({
                     image: new ol.style.Icon({
                         src: '/images/cctv_image.png',
@@ -425,7 +435,7 @@
         map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
             if (layer !== _cctvClusterLayer) return;
             if (!hitFeature) hitFeature = feature;
-        }, { hitTolerance: 6 });
+        }, { hitTolerance: 20 });  // 6 → 20: 모바일 손가락 탭 오차(~30~50px) 대응 (부이와 동일)
 
         if (!hitFeature) return false;
 
@@ -488,7 +498,7 @@
             var hit = false;
             map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
                 if (layer === _cctvClusterLayer) hit = true;
-            }, { hitTolerance: 6 });
+            }, { hitTolerance: 20 });  // click 핸들러와 동일 값 — 커서 hover 와 클릭 영역 일치
             if (hit) {
                 var target = map.getTargetElement();
                 if (target && target.style.cursor !== 'pointer') target.style.cursor = 'pointer';
