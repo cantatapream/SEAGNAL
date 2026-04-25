@@ -35,6 +35,11 @@
     let currentBase        = 'rltm'; // 현재 베이스맵: 'rltm' | 'enc' | 'coast'
     let searchResultLayer = null;     // 검색 결과 마커 레이어
 
+    // 해구도 격자 레이어 (KMA marine_zone/area 정적 GeoJSON 기반)
+    let marineZoneGridLayer    = null;  // 대해구 outline (항상 표시)
+    let marineZoneSubGridLayer = null;  // 소해구 (대해구 3×3 분할, 확대 시만)
+    let marineZoneLabelLayer   = null;  // 대해구 번호 라벨
+
     // 해아름 WMS 엔드포인트 (F12 캡처로 확인됨)
     // http://www.khoa.go.kr/oceanmap/{LAYER}/wmsVectordata.do?SERVICE=WMS&...
     const KHOA_WMS_BASE = 'https://www.khoa.go.kr/oceanmap/';
@@ -111,12 +116,298 @@
             visible: true
         });
 
-        wmsSource.on('tileloaderror', function () {
-            console.warn('[OceanMap] 해아름 WMS 타일 로드 실패(' + layer + ')');
-        });
+        // [노이즈 제거 2026-04-25] tileloaderror 는 타일 한 장당 발화한다.
+        //   KHOA 해아름은 한반도 외곽 BBOX 에서 빈 타일을 주는 게 정상 동작이라
+        //   화면당 수십 장이 자연스레 실패하고 콘솔이 도배된다. 화면에는
+        //   투명 타일로 처리되어 사용자 영향이 없으므로 로그를 제거.
 
         console.log('[OceanMap] 해아름 WMS 엔드포인트:', endpoint);
         return tileLayer;
+    }
+
+    // ========================================================================
+    // 해구도 격자 레이어 (KMA marine_zone/area 기반)
+    // ========================================================================
+    //
+    // [데이터 출처]
+    //   KMA 해양기상기후정보포털 — https://marine.kma.go.kr/mmis_marine_api/v1/kma/mdl/marine_zone/area
+    //   응답 GeoJSON FeatureCollection, CRS84(EPSG:4326), 1331개 0.5°×0.5° 셀.
+    //   래퍼(code/msg/data) 벗긴 순수 GeoJSON 을 local_server/data/ 에 정적 저장.
+    //   격자 자체는 거의 정적 데이터라 한 번 받아두면 반영구적으로 재사용 가능.
+    //
+    // [3-레이어 구성]
+    //   1) 대해구 outline   — 항상 표시, 얇은 흰선
+    //   2) 소해구 (3×3 분할) — 클라이언트에서 계산해 줌인 시 (≥9) 만 표시, 더 흐림
+    //                           KMA 자체도 소해구 폴리곤 endpoint 가 없어 분할 방식 채택.
+    //   3) 대해구 번호 라벨  — 셀 중앙, 흐린 흰색, 줌 ≥8 에서만 표시
+    //
+    // [성능 메모]
+    //   소해구 = 1331 × 9 ≈ 12000 폴리곤. 줌 임계값으로 시야 밖일 때 렌더 차단.
+    const MARINE_ZONE_GEOJSON_URL = '/data/marine_zone_area.json';
+
+    /**
+     * [헬퍼] 폴리곤 외곽선의 좌표 배열을 받아 그 도형을 감싸는 최소
+     *        직사각형(bounding box)의 네 모서리 좌표를 돌려준다.
+     *
+     * 무엇을 하나?
+     *   - 입력: GeoJSON Polygon 의 outer ring 배열.
+     *           각 원소는 [경도, 위도] 한 점. 예: [[127, 34], [127.5, 34], ...]
+     *   - 출력: [lonMin, latMin, lonMax, latMax]
+     *           즉 "왼쪽아래 점의 경위도" + "오른쪽위 점의 경위도".
+     *
+     * 왜 필요한가?
+     *   해구 셀은 0.5° × 0.5° 사각형이지만 GeoJSON 에 들어 있는 점 순서를
+     *   믿을 수 없을 때가 있다. 셀을 9분할하거나 셀 중앙에 라벨을 찍으려면
+     *   "이 셀의 좌하/우상 좌표는 어디인가?" 가 필요하므로, 모든 점을
+     *   훑어 최소/최대를 직접 구해 안전하게 처리한다.
+     *
+     * 어디서 쓰이나?
+     *   - initMarineZoneGridLayers() 안의 소해구 3×3 분할 좌표 계산.
+     *
+     * @param {Array<[number, number]>} ring - 폴리곤 외곽선의 [경도,위도] 점 목록
+     * @returns {[number, number, number, number]} [lonMin, latMin, lonMax, latMax]
+     */
+    function _bboxOfRing(ring) {
+        // Infinity 로 시작해서 점을 순회하며 더 작은/큰 값을 찾아 갱신하는
+        // 표준 패턴. 점 1개라도 있으면 항상 정상값으로 끝난다.
+        let lonMin = Infinity, lonMax = -Infinity, latMin = Infinity, latMax = -Infinity;
+        for (const p of ring) {
+            if (p[0] < lonMin) lonMin = p[0]; // 경도 최소
+            if (p[0] > lonMax) lonMax = p[0]; // 경도 최대
+            if (p[1] < latMin) latMin = p[1]; // 위도 최소
+            if (p[1] > latMax) latMax = p[1]; // 위도 최대
+        }
+        return [lonMin, latMin, lonMax, latMax];
+    }
+
+    /**
+     * [핵심] 해구도 격자 레이어 3종을 만들어 OpenLayers 지도에 추가한다.
+     *
+     * ─────────────────────────────────────────────────────────────────
+     * 무엇을 하나? (4단계로 동작)
+     *   ① 우리 서버에 미리 받아둔 GeoJSON 파일을 fetch 로 가져온다.
+     *      (KMA marine_zone/area 응답을 한 번만 받아 정적 저장한 것)
+     *   ② OL 의 GeoJSON 포맷터를 써서 좌표계를 EPSG:4326 → EPSG:3857 로 변환.
+     *      (지도는 3857 로 그리지만, KMA 데이터는 일반 경위도 4326 으로 옴)
+     *   ③ 3개의 Vector 레이어를 만든다.
+     *        Layer1) 대해구 outline   — 0.5°×0.5° 셀 1331 개의 외곽선
+     *        Layer2) 소해구 outline   — 각 대해구 셀을 3×3 으로 클라가 분할 (12000 개)
+     *        Layer3) 대해구 번호 라벨 — 각 셀 중앙에 marine_zone_no 텍스트
+     *   ④ 세 레이어 모두 visible:false 로 만들고 지도에 추가.
+     *      → 화면에는 안 보이는 상태. bindMarineZoneGridToggle 가 버튼과
+     *        연결해 사용자가 "해구도" 버튼을 누를 때만 ON 으로 바뀐다.
+     *
+     * 왜 클라이언트에서 소해구를 분할하나?
+     *   KMA 페이지 자체도 소해구(105-1 ~ 105-9) 도형을 별도로 그려주지
+     *   않는다(역공학 결과 확인됨). 우리도 대해구 셀의 경위도 범위를
+     *   균등 3×3 분할하는 동일 방식을 쓴다.
+     *
+     * 어디서 호출되나?
+     *   - buildMap() 안에서 window.__SEAGNAL_PAGE === 'index2' 일 때만 호출.
+     *   - 호출 후 .then(bindMarineZoneGridToggle) 으로 토글 버튼을 묶는다.
+     *
+     * 데이터 의존:
+     *   - /data/marine_zone_area.json  (정적 GeoJSON, 약 300KB)
+     *   - 갱신이 필요하면 KMA endpoint 다시 받아 같은 경로에 덮어쓰기만 하면 됨.
+     *
+     * @param {ol.Map} map - 격자 레이어를 얹을 OL 지도 인스턴스
+     * @returns {Promise<void>} fetch + 레이어 생성 완료를 알리는 Promise
+     */
+    async function initMarineZoneGridLayers(map) {
+        // ── ① 정적 GeoJSON 파일 로드 ─────────────────────────────────
+        // 네트워크 / 파일 경로 문제가 생겨도 지도 다른 부분은 영향받지 않도록
+        // try/catch 로 완전히 감싸고, 실패 시엔 console.warn 만 남긴다.
+        let geojson;
+        try {
+            const r = await fetch(MARINE_ZONE_GEOJSON_URL);
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            geojson = await r.json();
+        } catch (e) {
+            console.warn('[OceanMap] 해구도 격자 로드 실패:', e.message);
+            return;   // 레이어 안 만들고 종료. 토글 버튼은 비활성화 상태로 남음.
+        }
+
+        // ── ② 좌표계 변환기 준비 ────────────────────────────────────
+        // KMA 응답: WGS84 경위도 (EPSG:4326) → 우리 OL 지도: 웹 메르카토르 (EPSG:3857)
+        // OL 의 GeoJSON 포맷터는 readFeatures 호출 시 자동으로 좌표를 변환해 준다.
+        const fmt = new ol.format.GeoJSON({
+            dataProjection: 'EPSG:4326',     // 입력 GeoJSON 의 좌표계
+            featureProjection: 'EPSG:3857'   // OL 지도가 사용하는 좌표계
+        });
+        const mainFeatures = fmt.readFeatures(geojson);
+
+        // ── ③-1 Layer1: 대해구 outline ──────────────────────────────
+        // 1331 개 사각형 셀의 테두리만 그린다. 채움(fill)은 안 줘서
+        // 베이스맵이 그대로 보이도록. visible:false 로 시작 → 버튼으로 ON.
+        marineZoneGridLayer = new ol.layer.Vector({
+            source: new ol.source.Vector({ features: mainFeatures }),
+            style: new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: 'rgba(255,255,255,0.35)',  // 흰색에 alpha 0.35 → 흐리게
+                    width: 1
+                })
+            }),
+            visible: false,
+            zIndex: 50    // 베이스맵보다는 위, 라벨(51)보다는 아래
+        });
+
+        // ── ③-2 Layer2: 소해구 (대해구 3×3 분할) ─────────────────────
+        // 각 대해구 셀의 경위도 범위를 9등분해서 12000 개 사각형 GeoJSON 을
+        // 메모리에서 만든 뒤, OL 에게 한 번에 readFeatures 로 넘긴다.
+        // 분할은 CPU 잠깐 쓰지만 한 번만 일어나므로 부담 없음.
+        const subGeo = { type: 'FeatureCollection', features: [] };
+        for (const f of geojson.features) {
+            // 일부 feature 가 비정상이면 건너뛴다 (방어 코드)
+            const ring = (f.geometry && f.geometry.coordinates && f.geometry.coordinates[0])
+                ? f.geometry.coordinates[0][0] : null;
+            if (!ring || ring.length < 4) continue;
+
+            // 셀의 사각형 범위 계산 → 가로/세로를 3 으로 나눠 작은 셀의 한 변 길이를 얻는다.
+            const [lonMin, latMin, lonMax, latMax] = _bboxOfRing(ring);
+            const lonStep = (lonMax - lonMin) / 3;
+            const latStep = (latMax - latMin) / 3;
+            const parentNo = (f.properties && f.properties.marine_zone_no) || '';
+
+            // 3 × 3 = 9 개 작은 셀 생성. row/col 인덱스로 sub_no 1~9 부여.
+            // (예: 부모 105 → 105-1 .. 105-9 처럼 식별 가능)
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 3; col++) {
+                    const x0 = lonMin + col * lonStep;
+                    const x1 = x0 + lonStep;
+                    const y0 = latMin + row * latStep;
+                    const y1 = y0 + latStep;
+                    subGeo.features.push({
+                        type: 'Feature',
+                        properties: {
+                            parent_marine_zone_no: parentNo,    // 어느 대해구의 자식인지
+                            sub_no: row * 3 + col + 1           // 1 .. 9
+                        },
+                        geometry: {
+                            type: 'Polygon',
+                            // GeoJSON Polygon: [[outer ring]] → 점은 닫힌 형태로 끝점 = 시작점
+                            coordinates: [[
+                                [x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]
+                            ]]
+                        }
+                    });
+                }
+            }
+        }
+        const subFeatures = fmt.readFeatures(subGeo);
+        marineZoneSubGridLayer = new ol.layer.Vector({
+            source: new ol.source.Vector({ features: subFeatures }),
+            style: new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: 'rgba(255,255,255,0.18)',  // 더 흐림 (대해구 0.35 보다 옅음)
+                    width: 0.5
+                })
+            }),
+            // minZoom: 줌 레벨이 이 값 "초과" 일 때만 레이어 렌더링.
+            // 줌 8 이하에서는 12000 셀이 너무 빽빽해 보이므로 차단.
+            minZoom: 8,
+            visible: false,
+            zIndex: 49    // 대해구 outline(50) 보다 살짝 아래로 깔아둠
+        });
+
+        // ── ③-3 Layer3: 대해구 번호 라벨 ─────────────────────────────
+        // 각 대해구 셀의 중앙에 marine_zone_no 텍스트를 찍는다.
+        // 도형이 아니라 Point geometry + Text 스타일로 표시 → 줌 변해도 글자 크기 일정.
+        const labelFeatures = mainFeatures.map(function (mf) {
+            // mf 는 이미 EPSG:3857 로 변환된 상태. extent 도 3857 좌표.
+            const ext = mf.getGeometry().getExtent();   // [minX, minY, maxX, maxY]
+            const cx = (ext[0] + ext[2]) / 2;            // 셀 중앙 X (3857)
+            const cy = (ext[1] + ext[3]) / 2;            // 셀 중앙 Y (3857)
+            const props = mf.getProperties();
+            const f = new ol.Feature({ geometry: new ol.geom.Point([cx, cy]) });
+            // 라벨 텍스트는 marine_zone_no 우선, 없으면 name 사용 (방어).
+            f.set('label', String(props.marine_zone_no || props.name || ''));
+            return f;
+        });
+        marineZoneLabelLayer = new ol.layer.Vector({
+            source: new ol.source.Vector({ features: labelFeatures }),
+            // style 을 함수로 주면 feature 마다 다른 텍스트를 그릴 수 있다.
+            style: function (feature) {
+                return new ol.style.Style({
+                    text: new ol.style.Text({
+                        text: feature.get('label'),
+                        font: '11px sans-serif',
+                        fill: new ol.style.Fill({ color: 'rgba(255,255,255,0.55)' }),
+                        // 검은 외곽선을 두텁게 깔아서 어떤 베이스맵 위에서도 가독성 확보
+                        stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.55)', width: 2 })
+                    })
+                });
+            },
+            // 줌 7 이하에서는 1331 개 라벨이 겹쳐서 알아볼 수 없으므로 숨김.
+            minZoom: 7,
+            visible: false,
+            zIndex: 51    // 가장 위에 그려져야 글자가 가려지지 않음
+        });
+
+        // ── ④ 지도에 레이어 추가 ─────────────────────────────────────
+        map.addLayer(marineZoneGridLayer);
+        map.addLayer(marineZoneSubGridLayer);
+        map.addLayer(marineZoneLabelLayer);
+
+        console.log('[OceanMap] 해구도 격자 로드 완료:', mainFeatures.length, '개 셀');
+    }
+
+    /**
+     * [토글] "해구도" 버튼과 격자 레이어 3종을 연결한다.
+     *
+     * 무엇을 하나?
+     *   ① index2.html 의 #ocean-marine-zone-toggle-btn 버튼을 찾는다.
+     *   ② 페이지가 처음 열릴 때, 사용자의 이전 선택을 localStorage 에서 복원해
+     *      그 상태(켜짐/꺼짐) 그대로 시작한다.
+     *   ③ 버튼을 누를 때마다 visible 플래그를 뒤집고
+     *      세 레이어(대해구/소해구/라벨) 의 setVisible 을 같은 값으로 호출.
+     *   ④ 새 상태를 다시 localStorage 에 저장 → 새로고침해도 유지.
+     *
+     * 어디서 호출되나?
+     *   - buildMap() 에서 initMarineZoneGridLayers() 가 끝난 뒤 .then 으로 연결.
+     *     레이어가 만들어지지 않았으면(데이터 로드 실패) 토글 자체를 비활성화.
+     *
+     * 주의사항:
+     *   - 소해구·라벨 레이어는 minZoom 으로 줌에 따라 자동 가/숨 처리되므로,
+     *     이 함수에서는 단순히 visible(전체 ON/OFF) 만 제어하면 된다.
+     *   - localStorage 가 막힌 환경(시크릿모드 등) 에서도 죽지 않도록 try/catch.
+     *
+     * 연계:
+     *   - HTML : index2.html 의 <button id="ocean-marine-zone-toggle-btn">
+     *   - 레이어: marineZoneGridLayer / marineZoneSubGridLayer / marineZoneLabelLayer
+     *           (initMarineZoneGridLayers 가 만들어 둔 모듈 변수)
+     *   - 스타일: 버튼이 active 클래스를 갖고 있을 때 CSS 가 강조 색을 입힘
+     *           (다른 ocean-overlay-btn 들과 동일한 패턴)
+     */
+    function bindMarineZoneGridToggle() {
+        // ── ① DOM 요소 + 레이어 존재 확인 ───────────────────────────
+        const btn = document.getElementById('ocean-marine-zone-toggle-btn');
+        if (!btn) return;                     // index2 가 아니거나 버튼 자체가 없는 경우
+        if (!marineZoneGridLayer) return;     // 데이터 로드 실패 시 토글 비활성화
+
+        // ── ② localStorage 에서 이전 상태 복원 ──────────────────────
+        // 처음 방문 또는 저장 안 된 경우 false (꺼짐) 가 기본값.
+        let visible;
+        try {
+            visible = localStorage.getItem('seagnal_marine_zone_visible') === 'true';
+        } catch (e) { visible = false; }
+
+        // ── ③ "현재 상태를 화면+레이어에 적용" 헬퍼 ─────────────────
+        // 같은 동작을 초기화 시점과 클릭 시점에 둘 다 써야 하므로 함수로 묶음.
+        const apply = (v) => {
+            btn.classList.toggle('active', v);   // 버튼 색 강조 ON/OFF
+            // sub/label 은 minZoom 으로 자동 가/숨 → 토글에서는 visible 만 제어.
+            if (marineZoneGridLayer)    marineZoneGridLayer.setVisible(v);
+            if (marineZoneSubGridLayer) marineZoneSubGridLayer.setVisible(v);
+            if (marineZoneLabelLayer)   marineZoneLabelLayer.setVisible(v);
+        };
+        apply(visible);   // 페이지 진입 시 복원된 상태를 즉시 반영
+
+        // ── ④ 클릭 핸들러: 상태 뒤집고 저장 ─────────────────────────
+        btn.addEventListener('click', function () {
+            visible = !visible;
+            apply(visible);
+            try { localStorage.setItem('seagnal_marine_zone_visible', String(visible)); } catch (e) {}
+        });
     }
 
     // ========================================================================
@@ -210,6 +501,12 @@
             // 타임라인 초기화 (항상 표시)
             if (window.initOceanTimeline) {
                 window.initOceanTimeline();
+            }
+
+            // 해구도 격자 레이어 (index2 전용 — 토글 버튼이 index2.html 에만 있음)
+            // 레이어 자체는 init 후에도 visible:false 유지, 버튼 클릭 시에만 ON.
+            if (window.__SEAGNAL_PAGE === 'index2') {
+                initMarineZoneGridLayers(oceanMap).then(bindMarineZoneGridToggle);
             }
 
             console.log('[OceanMap] 지도 초기화 완료 (해아름 WMS)');
