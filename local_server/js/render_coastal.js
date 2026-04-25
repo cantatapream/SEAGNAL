@@ -136,6 +136,10 @@ function displayBuoyInfo(buoy, container) {
     if (buoyData.windGust !== null) {
         detailHTML += `<div><span style="color:#8b949e">돌풍</span> <span style="color:#fff">${buoyData.windGust} m/s</span></div>`;
     }
+    // [NEW 2026-04-25] 파주기 — marine.kma.go.kr endpoint 도입으로 노출
+    if (buoyData.wavePeriod !== null && buoyData.wavePeriod !== undefined) {
+        detailHTML += `<div><span style="color:#8b949e">파주기</span> <span style="color:#fff">${buoyData.wavePeriod} 초</span></div>`;
+    }
     if (buoyData.airTemp !== null) {
         detailHTML += `<div><span style="color:#8b949e">기온</span> <span style="color:#fff">${buoyData.airTemp}°C</span></div>`;
     }
@@ -144,6 +148,11 @@ function displayBuoyInfo(buoy, container) {
     }
     if (buoyData.humidity !== null) {
         detailHTML += `<div><span style="color:#8b949e">습도</span> <span style="color:#fff">${buoyData.humidity}%</span></div>`;
+    }
+    // [NEW 2026-04-25] 시정 — marine API m 단위를 km 환산
+    if (typeof buoyData.visibility === 'number' && !isNaN(buoyData.visibility)) {
+        const vsKm = Math.round(buoyData.visibility / 100) / 10;
+        detailHTML += `<div><span style="color:#8b949e">시정</span> <span style="color:#fff">${vsKm} km</span></div>`;
     }
     if (buoyData.tm) {
         detailHTML += `<div style="grid-column:1/-1;margin-top:4px;padding-top:4px;border-top:1px dashed rgba(255,255,255,0.1)"><span style="color:#8b949e">관측시간</span> <span style="color:#fff">${formatBuoyTime(buoyData.tm)}</span></div>`;

@@ -92,8 +92,34 @@ router.get('/api/buoys', (req, res) => {
 });
 
 // 2-1. 부이 상세 파고 정보 (kma_buoy.php)
+//
+// [DEPRECATED 2026-04-25]
+//   더 이상 갱신되지 않는 캐시(scheduler.collectKmaBuoys 가 noop 처리됨).
+//   라우트 자체는 외부 호환을 위해 유지하되, dataCache.kmaBuoys 는 마지막 성공
+//   시점의 stale 데이터일 수 있음. 신규 정보는 /api/marine-buoys 로 이동.
 router.get('/api/kma-buoys', (req, res) => {
     if (dataCache.kmaBuoys) res.json(dataCache.kmaBuoys);
+    else res.status(404).json({ error: '데이터 준비 중' });
+});
+
+// 2-2. marine.kma.go.kr JSON endpoint 캐시 응답 (신규 2026-04-25)
+//   - 매시 정시 +3분 KST 에 scheduler.collectMarine* 가 저장한 JSON 을 그대로 반환
+//   - 클라이언트(js/data.js fetchMarineBuoyData)가 sea_obs baseline 위에 머지
+router.get('/api/marine-buoys', (req, res) => {
+    if (dataCache.marineBuoys) res.json(dataCache.marineBuoys);
+    else res.status(404).json({ error: '데이터 준비 중' });
+});
+router.get('/api/marine-wh-buoys', (req, res) => {
+    if (dataCache.marineWhBuoys) res.json(dataCache.marineWhBuoys);
+    else res.status(404).json({ error: '데이터 준비 중' });
+});
+router.get('/api/marine-lh-buoys', (req, res) => {
+    if (dataCache.marineLhBuoys) res.json(dataCache.marineLhBuoys);
+    else res.status(404).json({ error: '데이터 준비 중' });
+});
+router.get('/api/marine-vs', (req, res) => {
+    // 시정계 station — 본 단계에선 캐시·라우트만, UI 표시는 후속 작업
+    if (dataCache.marineVs) res.json(dataCache.marineVs);
     else res.status(404).json({ error: '데이터 준비 중' });
 });
 
@@ -134,8 +160,14 @@ router.get('/api/force-update/:type/stream', async (req, res) => {
 
     try {
         if (type === 'buoys') {
+            // [2026-04-25] sea_obs.php(J타입 baseline) 유지 + marine 4종(B/C/L + 시정계).
+            //   collectKmaBuoys 는 DEPRECATED — 호출해도 즉시 return (호환 유지).
             await scheduler.collectBuoys();
-            await scheduler.collectKmaBuoys();
+            await scheduler.collectKmaBuoys();           // noop (deprecated)
+            await scheduler.collectMarineBuoys();
+            await scheduler.collectMarineWhBuoys();
+            await scheduler.collectMarineLhBuoys();
+            await scheduler.collectMarineVs();
         }
         else if (type === 'general') {
             await scheduler.collectGeneralForecasts();
@@ -174,8 +206,13 @@ router.post('/api/force-update/:type', async (req, res) => {
     console.log(`🔄 수동 업데이트 요청: ${type}`);
     try {
         if (type === 'buoys') {
+            // [2026-04-25] 위 SSE 분기와 동일 — marine 4종 추가, kma_buoy 는 noop 유지
             await scheduler.collectBuoys();
             await scheduler.collectKmaBuoys();
+            await scheduler.collectMarineBuoys();
+            await scheduler.collectMarineWhBuoys();
+            await scheduler.collectMarineLhBuoys();
+            await scheduler.collectMarineVs();
         }
         else if (type === 'general') {
             await scheduler.collectGeneralForecasts();
