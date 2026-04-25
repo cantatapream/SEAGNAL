@@ -1480,10 +1480,18 @@
                     <div class="ocean-sheet-stickytop">
                     <div class="ocean-sheet-handle"></div>
 
-                    <!-- 헤더: 좌(📍좌표토글) / 중(◀날짜▶) / 우(⭐즐겨찾기, ✕닫기) 3열 구조
+                    <!-- 닫기(✕) 버튼: 핸들과 같은 라인의 우상단 모서리에 absolute 배치
+                         - 헤더 row1 에서 분리하여 ⭐/📍/날짜와 시각적 충돌 방지
+                         - hit area 가 핸들 드래그 영역과 겹치지 않도록 z-index/위치 분리 -->
+                    <button class="ocean-sheet-close" id="ocean-sheet-close" title="닫기">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+
+                    <!-- 헤더: 좌(📍좌표토글) / 중(◀날짜▶) / 우(⭐즐겨찾기) 3열 구조
                          [index2 전용 레이아웃]
                          - 좌표 토글(📍)을 날짜 네비 왼쪽으로 이동
                          - 기존 좌표 토글 자리에 ⭐ 즐겨찾기 버튼 신규 추가
+                         - ✕ 닫기는 stickytop 우상단으로 분리(위 absolute 버튼)
                          [연계] js/ocean_cctv.js (oceanFav) - ⭐ 클릭 핸들러 / 열릴 때 활성 판정 -->
                     <div class="ocean-sheet-header">
                         <div class="ocean-sheet-header-row1">
@@ -1501,14 +1509,11 @@
                                     <i class="fa-solid fa-chevron-right"></i>
                                 </button>
                             </div>
-                            <!-- 우측: 즐겨찾기(⭐) + 닫기(✕) -->
+                            <!-- 우측: 즐겨찾기(⭐) -->
                             <div class="ocean-sheet-controls">
                                 <button class="ocean-loc-favorite" id="ocean-sheet-fav-btn"
                                         title="즐겨찾기 추가" aria-pressed="false">
                                     <i class="fa-regular fa-star"></i>
-                                </button>
-                                <button class="ocean-sheet-close" id="ocean-sheet-close" title="닫기">
-                                    <i class="fa-solid fa-xmark"></i>
                                 </button>
                             </div>
                         </div>

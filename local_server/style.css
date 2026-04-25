@@ -8570,6 +8570,10 @@ body.ocean-map-active .main-header .header-content {
 }
 
 .ocean-sheet-close {
+    /* 핸들과 같은 라인의 우상단 모서리 (stickytop = sticky → containing block) */
+    position: absolute;
+    top: 8px;
+    right: 12px;
     width: 30px;
     height: 30px;
     border: none;
@@ -8578,6 +8582,16 @@ body.ocean-map-active .main-header .header-content {
     color: rgba(255,255,255,0.6);
     font-size: 0.85rem;
     cursor: pointer;
+    /* 핸들 ::before 의 넓은 hit area(좌우 80px) 위에 떠 있어야 클릭 가능 */
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+}
+.ocean-sheet-close:hover {
+    background: rgba(255,255,255,0.18);
+    color: #fff;
 }
 
 .ocean-sheet-body {
@@ -9227,20 +9241,26 @@ body.ocean-map-active .main-header .header-content {
 }
 .ocean-moon-row {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: clamp(0.63rem, 2.0vw, 0.76rem);
+    align-items: baseline;
+    gap: 8px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     overflow: hidden;
+    line-height: 1.2;
 }
 .ocean-moon-label {
-    color: rgba(255,255,255,0.6);
+    color: rgba(255,255,255,0.65);
+    font-size: clamp(0.6rem, 3.0vw, 0.78rem);
+    font-weight: 500;
     flex-shrink: 0;
 }
 .ocean-moon-data {
     color: #fff;
-    font-weight: 600;
+    font-size: clamp(0.68rem, 3.5vw, 0.92rem);
+    font-weight: 700;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 
