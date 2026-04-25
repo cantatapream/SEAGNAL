@@ -285,17 +285,33 @@
 
             // 3 × 3 = 9 개 작은 셀 생성. row/col 인덱스로 sub_no 1~9 부여.
             // (예: 부모 105 → 105-1 .. 105-9 처럼 식별 가능)
+            //
+            // [번호 매김 규칙 — KMA 표준]
+            //   북쪽이 위. 좌→우, 위→아래 순으로 1..9.
+            //     1 2 3   ← 북(latMax)
+            //     4 5 6
+            //     7 8 9   ← 남(latMin)
+            //
+            // [주의 — 좌표계 차이]
+            //   seaZones.js 의 이미지 지도는 imgY 가 아래로 증가(이미지 좌표) 하므로
+            //   `row*3+col+1` 만 써도 자연스럽게 위 규칙과 일치한다.
+            //   반면 OL 은 지리 위도(lat) 가 위로 증가하기 때문에, row=0 일 때
+            //   latMin 부터(=남쪽부터) 시작한다. 따라서 sub_no 를 그대로
+            //   `row*3+col+1` 로 매기면 1·2·3 이 남쪽에 가서 표준과 정반대가 된다.
+            //   → row 를 (2 - row) 로 뒤집어 북쪽 행이 1·2·3 이 되도록 보정.
             for (let row = 0; row < 3; row++) {
                 for (let col = 0; col < 3; col++) {
                     const x0 = lonMin + col * lonStep;
                     const x1 = x0 + lonStep;
                     const y0 = latMin + row * latStep;
                     const y1 = y0 + latStep;
+                    // 북쪽 = 표준 1·2·3 이 되도록 row 반전
+                    const subNo = (2 - row) * 3 + col + 1;
                     subGeo.features.push({
                         type: 'Feature',
                         properties: {
                             parent_marine_zone_no: parentNo,    // 어느 대해구의 자식인지
-                            sub_no: row * 3 + col + 1           // 1 .. 9
+                            sub_no: subNo                        // 1..9 (KMA 표준 배열)
                         },
                         geometry: {
                             type: 'Polygon',
@@ -456,7 +472,24 @@
     //   않도록 true 를 반환.
     // ========================================================================
 
-    /** 줌 레벨이 sub 레이어가 보이는 임계값(>8) 이상인지 */
+    /**
+     * [헬퍼] 현재 줌 레벨에서 소해구(sub) 레이어가 보이는지 판정.
+     *
+     * 무엇을 하나?
+     *   OL 뷰의 현재 줌 값을 읽어 marineZoneSubGridLayer 의 minZoom(=8) 보다
+     *   큰지 비교한다. 결과는 boolean.
+     *
+     * 왜 필요한가?
+     *   tryHandleMarineZoneClick 이 클릭 hit-test 를 할 때, 소해구가 화면에
+     *   보이는 줌이면 소해구 레이어를 먼저 검사해야 한다 (작은 셀이 큰 셀
+     *   안에 있으니 사용자 의도는 작은 셀일 가능성이 높음). 안 보이는 줌이면
+     *   대해구만 검사하면 된다.
+     *
+     * 어디서 호출되나?
+     *   - tryHandleMarineZoneClick 에서 layersInPriority 결정용으로 한 번 호출.
+     *
+     * @returns {boolean} 줌 > 8 이면 true (= 소해구 레이어 가시)
+     */
     function _isSubVisibleZoom() {
         if (!oceanMap) return false;
         const z = oceanMap.getView().getZoom();
@@ -464,9 +497,24 @@
     }
 
     /**
-     * main feature 하이라이트 스타일 (시안 굵은 테두리).
-     * 레이어 기본 스타일과 마찬가지로 투명 fill 을 같이 줘야 두 번째 클릭이
-     * 같은 셀 내부에서도 정상 hit 된다.
+     * [헬퍼] 첫 클릭으로 선택된 대해구 셀에 입힐 임시 하이라이트 스타일.
+     *
+     * 무엇을 하나?
+     *   시안색(#4fc3f7) 의 굵은 테두리 + 투명 fill 을 가진 ol.style.Style 객체를
+     *   매번 새로 만들어 돌려준다.
+     *
+     * 왜 필요한가?
+     *   - 사용자에게 "이 셀이 선택됐다"는 시각적 피드백을 주기 위해 1단계 클릭
+     *     시 feature.setStyle 로 잠시 덮어쓴다.
+     *   - 투명 fill 을 같이 주는 이유: OL 의 hit-test 는 fill 이 없는 폴리곤을
+     *     stroke 픽셀에서만 hit 으로 인정하므로, 두 번째 클릭(모달 호출) 이
+     *     같은 셀 내부에서 또 미스되지 않으려면 fill 이 반드시 있어야 한다.
+     *
+     * 어디서 호출되나?
+     *   - tryHandleMarineZoneClick 의 Step 1 분기에서 `hitFeature.setStyle(...)`.
+     *   - 매 클릭마다 새 Style 인스턴스를 만들기 위해 함수로 분리.
+     *
+     * @returns {ol.style.Style} 시안색 테두리 + 투명 fill 한 set
      */
     function _styleSelectedMainFeature() {
         return new ol.style.Style({
@@ -475,7 +523,22 @@
         });
     }
 
-    /** sub feature 하이라이트 스타일 (노랑 굵은 테두리). 투명 fill 동일 이유. */
+    /**
+     * [헬퍼] 첫 클릭으로 선택된 소해구 셀에 입힐 임시 하이라이트 스타일.
+     *
+     * 무엇을 하나?
+     *   노랑(#ffeb3b) 의 굵은 테두리 + 투명 fill ol.style.Style 객체 반환.
+     *
+     * 왜 필요한가?
+     *   - 대해구 하이라이트(시안)와 색을 다르게 해서 사용자가 "지금 큰 해구를
+     *     골랐는지 작은 해구를 골랐는지" 한눈에 구분 가능.
+     *   - 투명 fill 을 같이 두는 이유는 _styleSelectedMainFeature 와 동일.
+     *
+     * 어디서 호출되나?
+     *   - tryHandleMarineZoneClick 의 Step 1 분기 중 isSub === true 일 때.
+     *
+     * @returns {ol.style.Style} 노랑 테두리 + 투명 fill 한 set
+     */
     function _styleSelectedSubFeature() {
         return new ol.style.Style({
             fill: new ol.style.Fill({ color: 'rgba(0,0,0,0)' }),
