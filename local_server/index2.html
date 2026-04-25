@@ -1424,7 +1424,8 @@
                         <!-- 해구도 토글: ocean_map.js 의 bindMarineZoneGridToggle 가 바인딩
                              KMA marine_zone/area GeoJSON(1331개 0.5°×0.5° 셀)을 outline 으로 표시.
                              클라이언트 측에서 각 셀을 3×3 분할해 줌인 시 소해구도 함께 그림.
-                             [데이터] /data/marine_zone_area.json (정적, KMA 응답 래퍼 벗긴 GeoJSON) -->
+                             [데이터] /marine_zone_area.json (local_server/ 루트 직속, 정적 GeoJSON)
+                                      data/ 가 .dockerignore + fly.io 볼륨 마운트라 루트로 이동시킴 -->
                         <button class="ocean-overlay-btn" id="ocean-marine-zone-toggle-btn" title="해구도">
                             <i class="fa-solid fa-table-cells"></i>
                             <span class="ocean-overlay-label">해구도</span>
