@@ -27,13 +27,8 @@ const CONFIG = {
     // API 엔드포인트 (로컬 서버)
     API_BASE: '',  // 로컬 서버 기준 상대 경로 (빈 문자열)
     KMA_API_URL: 'api/warnings', // warnings.json (KMA + AFSO)
-    BUOY_API_URL: 'api/buoys',   // buoys.json (sea_obs.php — J타입 baseline 등)
-    KMA_BUOY_API_URL: 'api/kma-buoys', // [DEPRECATED 2026-04-25] kma_buoys.json — 갱신 중단, 호환 유지
-    // [신규 2026-04-25] marine.kma.go.kr JSON endpoint 캐시 — 풍부 필드 (WP, WO, vs 포함)
-    MARINE_BUOY_API_URL:    'api/marine-buoys',     // B타입(해양기상부이)
-    MARINE_WH_BUOY_API_URL: 'api/marine-wh-buoys',  // C타입(파고부이) — 한산도 등
-    MARINE_LH_API_URL:      'api/marine-lh-buoys',  // L타입(등표)
-    MARINE_VS_API_URL:      'api/marine-vs',        // 시정계 — UI 표시 후속, 캐시만
+    BUOY_API_URL: 'api/buoys',   // buoys.json
+    KMA_BUOY_API_URL: 'api/kma-buoys', // kma_buoys.json (최대/유의/평균 파고)
     NOTICE_API_URL: 'api/notice', // notice.json
 
     // CORS 프록시 설정 - 로컬 서버 사용으로 불필요

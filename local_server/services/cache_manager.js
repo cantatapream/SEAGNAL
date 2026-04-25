@@ -32,12 +32,7 @@ const { DATA_DIR } = require('../config/server_config');
 const dataCache = {
     warnings: null,
     buoys: null,
-    kmaBuoys: null,           // [DEPRECATED 2026-04-25] kma_buoy.php 캐시 — 갱신 중단, 호환을 위해 유지
-    // [신규 2026-04-25] marine.kma.go.kr JSON endpoint 캐시
-    marineBuoys: null,        // B타입 (해양기상부이) — buoy/list
-    marineWhBuoys: null,      // C타입 (파고부이)     — wh-buoy/list
-    marineLhBuoys: null,      // L타입 (등표)         — lh/list
-    marineVs: null,           // 시정계 station       — vs/list (UI 표시는 후속, 캐시만)
+    kmaBuoys: null,
     forecasts: null,
     zoneForecasts: null,
     midTermSeaForecasts: null,
@@ -59,12 +54,7 @@ function refreshCache() {
     const files = {
         warnings: 'weather_alerts.json',
         buoys: 'buoys.json',
-        kmaBuoys: 'kma_buoys.json',                  // DEPRECATED — 마지막 성공 캐시 그대로 유지
-        // [신규 2026-04-25] marine.kma.go.kr JSON endpoint 4종 (매시 :03 KST 갱신)
-        marineBuoys: 'marine_buoys.json',
-        marineWhBuoys: 'marine_wh_buoys.json',
-        marineLhBuoys: 'marine_lh_buoys.json',
-        marineVs: 'marine_vs.json',                  // 시정계 — UI 표시 후속, 캐시만
+        kmaBuoys: 'kma_buoys.json',
         forecasts: 'general_forecasts.json',
         zoneForecasts: 'zone_forecasts.json',
         midTermSeaForecasts: 'mid_term_sea_forecasts.json',

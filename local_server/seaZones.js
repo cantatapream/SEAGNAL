@@ -2094,26 +2094,17 @@ async function fetchBuoyDataForModal(buoyId) {
         const cached = window.appState.buoyData[buoyId];
 
         // 데이터 매핑 (app.js 필드명 -> seaZones.js 필드명)
-        // [2026-04-25 확장] marine endpoint 도입으로 wp(파주기), wo(파향),
-        //   visibility(시정 m) 추가 매핑.
-        // [버그수정] 기존 `cached.X || null` 은 측정값이 0(예: 파고 0m, 시정 0m)
-        //   인 경우에도 falsy 로 처리해 null 로 바뀌는 문제 → `!= null` 비교로
-        //   null/undefined 만 null 처리하고 0 은 그대로 보존.
-        const _orNull = (v) => (v != null ? v : null);
         const mappedData = {
             time: cached.tm,
             wh: cached.waveHeight,
-            whMax: _orNull(cached.waveHeightMax),
-            whSig: _orNull(cached.waveHeightSig),
-            whAvg: _orNull(cached.waveHeightAvg),
-            wp: _orNull(cached.wavePeriod),        // [NEW] 파주기 (s)
-            wo: _orNull(cached.waveDir),           // [NEW] 파향 (도) — 모달에는 미표출, 데이터만 보존
+            whMax: cached.waveHeightMax || null,
+            whSig: cached.waveHeightSig || null,
+            whAvg: cached.waveHeightAvg || null,
             ws: cached.windSpeed,
             wd: cached.windDirection,
             ta: cached.airTemp,
             tw: cached.waterTemp,
-            pa: cached.pressure,
-            visibility: _orNull(cached.visibility) // [NEW] 시정 (m) — 표시 단계에서 km 환산
+            pa: cached.pressure
         };
 
         displayBuoyDataInModal(container, mappedData);
@@ -2189,23 +2180,12 @@ function parseBuoyDataForModal(text, buoyId) {
  * 부이 데이터 모달에 표시
  */
 function displayBuoyDataInModal(container, data) {
-    // [2026-04-25 확장] marine.kma.go.kr endpoint 도입 → 파주기(wp), 시정(vsKm) 신규 노출.
-    //   - 시정은 marine API 가 m 단위 → km 환산 후 표시
-    //   - data 가 null 인 필드는 metrics 분기에서 자동 스킵 (기존 패턴 그대로)
-    if (data && typeof data.visibility === 'number' && !isNaN(data.visibility)) {
-        data.vsKm = Math.round(data.visibility / 100) / 10;   // m → km, 소수 1자리
-    } else if (data) {
-        data.vsKm = null;
-    }
-
     const metrics = [
         { label: '💨 풍속', key: 'ws', unit: 'm/s', color: '#81c784' },
         { label: '🧭 풍향', key: 'wd', unit: '°', color: 'white' },
-        { label: '🌀 파주기', key: 'wp', unit: '초', color: '#4fc3f7' },  // [NEW]
-        { label: '🌊 수온', key: 'tw', unit: '°C', color: '#64b5f6' },
         { label: '🌡 기온', key: 'ta', unit: '°C', color: 'white' },
-        { label: '📊 기압', key: 'pa', unit: 'hPa', color: 'white' },
-        { label: '🌫 시정', key: 'vsKm', unit: 'km', color: 'white' }    // [NEW]
+        { label: '🌊 수온', key: 'tw', unit: '°C', color: '#64b5f6' },
+        { label: '📊 기압', key: 'pa', unit: 'hPa', color: 'white' }
     ];
 
     // [INDEX2 전용 확대] 종합기상에서만 데이터 그리드 폰트/간격 확대
@@ -2215,27 +2195,22 @@ function displayBuoyDataInModal(container, data) {
     let html = `<div style="display:grid; gap:${gridGap}; font-size:${gridFz};">`;
     let hasData = false;
 
-    // [버그수정 2026-04-25] 기존 `!== null` 비교는 undefined 를 false 로 거르지
-    //   못해(undefined !== null === true), parseBuoyDataForModal 같은 fallback
-    //   path 에서 whMax 등이 정의되지 않은 객체를 받으면 "undefined m(최대)" 가
-    //   렌더링되는 잠재 버그가 있었음. `!= null` 로 바꿔 null·undefined 둘 다 차단.
-
     // 파고 3종 표시 (최대/유의/평균) - 라벨 아래 한 줄 배치
-    const hasDetailedWave = data.whMax != null || data.whSig != null || data.whAvg != null;
+    const hasDetailedWave = data.whMax !== null || data.whSig !== null || data.whAvg !== null;
     if (hasDetailedWave) {
         const valStyle = 'color:#4fc3f7;font-weight:600;font-size:1em;';
         const unitStyle = 'font-size:0.75em;font-weight:400;color:#888;';
         const sepStyle = 'color:#555;margin:0 1px;';
         const parts = [];
-        if (data.whMax != null) parts.push(`<span style="${valStyle}">${data.whMax}</span><span style="${unitStyle}">m(최대)</span>`);
-        if (data.whAvg != null) parts.push(`<span style="${valStyle}">${data.whAvg}</span><span style="${unitStyle}">m(평균)</span>`);
-        if (data.whSig != null) parts.push(`<span style="${valStyle}">${data.whSig}</span><span style="${unitStyle}">m(유의)</span>`);
+        if (data.whMax !== null) parts.push(`<span style="${valStyle}">${data.whMax}</span><span style="${unitStyle}">m(최대)</span>`);
+        if (data.whAvg !== null) parts.push(`<span style="${valStyle}">${data.whAvg}</span><span style="${unitStyle}">m(평균)</span>`);
+        if (data.whSig !== null) parts.push(`<span style="${valStyle}">${data.whSig}</span><span style="${unitStyle}">m(유의)</span>`);
         html += `<div style="margin-bottom:2px;">
             <div style="color:#888;margin-bottom:4px;">🌊 파고</div>
             <div>${parts.join(`<span style="${sepStyle}">|</span>`)}</div>
         </div>`;
         hasData = true;
-    } else if (data.wh != null) {
+    } else if (data.wh !== null) {
         html += `<div style="display:flex; justify-content:space-between;">
             <span style="color:#888;">🌊 파고</span>
             <span style="color:#4fc3f7; font-weight:500;">${data.wh}<span style="font-size:0.75em;font-weight:400;color:#888;">m</span></span>
@@ -2244,9 +2219,7 @@ function displayBuoyDataInModal(container, data) {
     }
 
     metrics.forEach(m => {
-        // `!= null` 로 null·undefined 모두 차단 (기존 fallback path 에서 새 필드가
-        //  미정의일 때 "undefined" 가 화면에 찍히는 것 방지)
-        if (data[m.key] != null) {
+        if (data[m.key] !== null) {
             html += `<div style="display:flex; justify-content:space-between;">
                 <span style="color:#888;">${m.label}</span>
                 <span style="color:${m.color}; font-weight:500;">${data[m.key]}${m.unit}</span>
