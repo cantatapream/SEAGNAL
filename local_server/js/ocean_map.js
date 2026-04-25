@@ -249,11 +249,14 @@
         const mainFeatures = fmt.readFeatures(geojson);
 
         // ── ③-1 Layer1: 대해구 outline ──────────────────────────────
-        // 1331 개 사각형 셀의 테두리만 그린다. 채움(fill)은 안 줘서
-        // 베이스맵이 그대로 보이도록. visible:false 로 시작 → 버튼으로 ON.
+        // 1331 개 사각형 셀의 테두리만 그린다. 채움(fill)은 시각적으로는 투명이지만
+        // 클릭 hit-test 를 위해 반드시 필요. fill 이 없으면 OL 은 stroke 픽셀만
+        // hit 으로 인정해 셀 내부 빈 공간을 누르면 클릭이 통과되어 버린다.
+        // visible:false 로 시작 → 버튼으로 ON.
         marineZoneGridLayer = new ol.layer.Vector({
             source: new ol.source.Vector({ features: mainFeatures }),
             style: new ol.style.Style({
+                fill: new ol.style.Fill({ color: 'rgba(0,0,0,0)' }),  // 투명 fill = 클릭 영역 확보
                 stroke: new ol.style.Stroke({
                     color: 'rgba(255,255,255,0.35)',  // 흰색에 alpha 0.35 → 흐리게
                     width: 1
@@ -309,6 +312,8 @@
         marineZoneSubGridLayer = new ol.layer.Vector({
             source: new ol.source.Vector({ features: subFeatures }),
             style: new ol.style.Style({
+                // 투명 fill — 대해구와 동일 이유 (클릭 hit-test 영역 확보)
+                fill: new ol.style.Fill({ color: 'rgba(0,0,0,0)' }),
                 stroke: new ol.style.Stroke({
                     color: 'rgba(255,255,255,0.18)',  // 더 흐림 (대해구 0.35 보다 옅음)
                     width: 0.5
@@ -458,16 +463,22 @@
         return typeof z === 'number' && z > 8;   // marineZoneSubGridLayer.minZoom 과 동일
     }
 
-    /** main feature 하이라이트 스타일 (시안 굵은 테두리) */
+    /**
+     * main feature 하이라이트 스타일 (시안 굵은 테두리).
+     * 레이어 기본 스타일과 마찬가지로 투명 fill 을 같이 줘야 두 번째 클릭이
+     * 같은 셀 내부에서도 정상 hit 된다.
+     */
     function _styleSelectedMainFeature() {
         return new ol.style.Style({
+            fill: new ol.style.Fill({ color: 'rgba(0,0,0,0)' }),
             stroke: new ol.style.Stroke({ color: '#4fc3f7', width: 2.5 })
         });
     }
 
-    /** sub feature 하이라이트 스타일 (노랑 굵은 테두리) */
+    /** sub feature 하이라이트 스타일 (노랑 굵은 테두리). 투명 fill 동일 이유. */
     function _styleSelectedSubFeature() {
         return new ol.style.Style({
+            fill: new ol.style.Fill({ color: 'rgba(0,0,0,0)' }),
             stroke: new ol.style.Stroke({ color: '#ffeb3b', width: 2 })
         });
     }
