@@ -463,6 +463,27 @@
             }
 
             _flashFeature = feature;
+
+            // ── 화면 맞춤 (zoom + center) ──────────────────────────────
+            // 부모 특보구역 폴리곤이 화면에 "충분히 크게" 보이도록 fit().
+            //   - padding 60px : 사방 여백, 폴리곤이 화면 가장자리까지 안 가게
+            //   - maxZoom 9    : 너무 확대돼서 베이스맵 디테일이 사라지지 않도록
+            //                    (실제 부모 zone 들이 대체로 커서 9 정도면 1.5~2 화면)
+            //   - duration 500 : 부드러운 줌·이동
+            // goToOceanMapByZone 의 center animate(400ms) 와 잠시 겹칠 수 있으나
+            // fit 이 나중에 적용되어 최종 상태는 항상 일관.
+            var oceanMap_ = window.getOceanMap && window.getOceanMap();
+            if (oceanMap_) {
+                try {
+                    var extent = feature.getGeometry().getExtent();
+                    oceanMap_.getView().fit(extent, {
+                        padding: [60, 60, 60, 60],
+                        duration: 500,
+                        maxZoom: 9
+                    });
+                } catch (e) { /* fit 실패해도 깜빡임은 계속 진행 */ }
+            }
+
             var brightStyle = new ol.style.Style({
                 stroke: new ol.style.Stroke({
                     color: '#ff5252',     // 강렬한 빨강
