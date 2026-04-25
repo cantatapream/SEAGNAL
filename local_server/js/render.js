@@ -1018,7 +1018,27 @@ function createAlertElement(items) {
     const zoneViewBtn = document.createElement('button');
     zoneViewBtn.innerHTML = '해구기상';
     zoneViewBtn.style.cssText = 'flex: 1; padding: 12px 8px; background: linear-gradient(135deg, #e94560, #0f3460); color: white; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: transform 0.2s;';
-    zoneViewBtn.addEventListener('click', (e) => { e.stopPropagation(); if (typeof showZoneOverlay === 'function') showZoneOverlay(data.zoneName); });
+    // [클릭 동작]
+    //   index2(해양종합정보가 있는 페이지) : 해구도 토글 ON + 해당 해역 중심으로
+    //                                       이동 → 그 자리에서 해구를 두 번 눌러
+    //                                       기상 모달까지 자연스럽게 이어짐.
+    //   그 외(index1 등)                   : 기존 동작 유지 (특보정보 탭 →
+    //                                       해구기상 서브탭으로 전환).
+    //   매핑(ZONE_OVERLAY_CONFIG) 이 없는 해역은 좌표를 못 구하므로
+    //   index2 라도 fallback 으로 showZoneOverlay 호출.
+    zoneViewBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (window.__SEAGNAL_PAGE === 'index2'
+            && typeof window.goToOceanMapByZone === 'function'
+            && typeof ZONE_OVERLAY_CONFIG !== 'undefined'
+            && ZONE_OVERLAY_CONFIG[data.zoneName]) {
+            if (typeof window.setMarineZoneGridVisible === 'function') {
+                window.setMarineZoneGridVisible(true);   // 해구도 격자 강제 ON
+            }
+            if (window.goToOceanMapByZone(data.zoneName)) return;
+        }
+        if (typeof showZoneOverlay === 'function') showZoneOverlay(data.zoneName);
+    });
     actionsContainer.appendChild(zoneViewBtn);
 
 

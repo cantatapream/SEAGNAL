@@ -445,6 +445,42 @@
         });
     }
 
+    /**
+     * [외부 API] 해구도 토글을 프로그래밍 방식으로 켜고 끈다.
+     *
+     * 무엇을 하나?
+     *   #ocean-marine-zone-toggle-btn 의 현재 active 상태를 읽어
+     *   원하는 상태(visible) 와 다르면 버튼을 클릭한 효과를 발생시킨다.
+     *   이 한 번의 click() 으로 다음 부수효과가 모두 동기화된다:
+     *     - bindMarineZoneGridToggle 의 click 핸들러 → visible 플래그 반전,
+     *       3개 레이어 setVisible, localStorage 저장
+     *     - index2_patch.js 의 _bindMarineZoneToggleToast → 안내 토스트 표시
+     *
+     * 왜 필요한가?
+     *   "해구기상" 버튼 같은 외부 진입 경로에서 해양종합정보 탭으로 이동할 때
+     *   격자가 자동으로 보이도록 강제 ON 하고 싶지만, 우리 토글 함수의 visible
+     *   상태가 클로저 안에 갇혀 있어 직접 setVisible 만 부르면 토스트/스토리지
+     *   가 어긋난다. 같은 결과를 안전하게 내려면 버튼 클릭을 흉내 내는 것이
+     *   가장 확실. (이미 ON 인 상태에서 또 클릭하면 OFF 로 가버리므로
+     *   active 클래스로 현재 상태를 먼저 점검한 뒤 필요할 때만 click 호출.)
+     *
+     * 어디서 호출되나?
+     *   - js/render.js / js/windy.js 의 "해구기상" 버튼 클릭 핸들러
+     *     (index2 분기에서 해구도 ON 보장 후 goToOceanMapByZone 호출 전)
+     *
+     * @param {boolean} visible - 원하는 가시 상태 (true=ON, false=OFF)
+     * @returns {boolean} 토글 버튼이 존재해 처리 가능했으면 true
+     */
+    window.setMarineZoneGridVisible = function (visible) {
+        const btn = document.getElementById('ocean-marine-zone-toggle-btn');
+        if (!btn) return false;
+        const isActive = btn.classList.contains('active');
+        if (isActive !== !!visible) {
+            btn.click();   // 토글 핸들러 + 토스트가 같이 발화 → 상태 일관성 보장
+        }
+        return true;
+    };
+
     // ========================================================================
     // 해구도 클릭 — 2-step 선택 → 기상 모달
     // ========================================================================
