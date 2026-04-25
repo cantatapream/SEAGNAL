@@ -1423,6 +1423,14 @@
                             <i class="fa-solid fa-draw-polygon"></i>
                             <span class="ocean-overlay-label">특보구역</span>
                         </button>
+                        <!-- 해구도 토글: ocean_map.js 의 bindMarineZoneGridToggle 가 바인딩
+                             KMA marine_zone/area GeoJSON(1331개 0.5°×0.5° 셀)을 outline 으로 표시.
+                             클라이언트 측에서 각 셀을 3×3 분할해 줌인 시 소해구도 함께 그림.
+                             [데이터] /data/marine_zone_area.json (정적, KMA 응답 래퍼 벗긴 GeoJSON) -->
+                        <button class="ocean-overlay-btn" id="ocean-marine-zone-toggle-btn" title="해구도">
+                            <i class="fa-solid fa-table-cells"></i>
+                            <span class="ocean-overlay-label">해구도</span>
+                        </button>
                         <!-- CCTV 토글: ocean_cctv.js 가 바인딩 (index2 전용)
                              활성화 시 지도 위에 CCTV 마커/클러스터 표시 + 하단 CCTV 즐겨찾기 바 노출
                              [연계] js/ocean_cctv.js -->

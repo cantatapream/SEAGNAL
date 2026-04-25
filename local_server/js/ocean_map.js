@@ -35,6 +35,11 @@
     let currentBase        = 'rltm'; // 현재 베이스맵: 'rltm' | 'enc' | 'coast'
     let searchResultLayer = null;     // 검색 결과 마커 레이어
 
+    // 해구도 격자 레이어 (KMA marine_zone/area 정적 GeoJSON 기반)
+    let marineZoneGridLayer    = null;  // 대해구 outline (항상 표시)
+    let marineZoneSubGridLayer = null;  // 소해구 (대해구 3×3 분할, 확대 시만)
+    let marineZoneLabelLayer   = null;  // 대해구 번호 라벨
+
     // 해아름 WMS 엔드포인트 (F12 캡처로 확인됨)
     // http://www.khoa.go.kr/oceanmap/{LAYER}/wmsVectordata.do?SERVICE=WMS&...
     const KHOA_WMS_BASE = 'https://www.khoa.go.kr/oceanmap/';
@@ -118,6 +123,181 @@
 
         console.log('[OceanMap] 해아름 WMS 엔드포인트:', endpoint);
         return tileLayer;
+    }
+
+    // ========================================================================
+    // 해구도 격자 레이어 (KMA marine_zone/area 기반)
+    // ========================================================================
+    //
+    // [데이터 출처]
+    //   KMA 해양기상기후정보포털 — https://marine.kma.go.kr/mmis_marine_api/v1/kma/mdl/marine_zone/area
+    //   응답 GeoJSON FeatureCollection, CRS84(EPSG:4326), 1331개 0.5°×0.5° 셀.
+    //   래퍼(code/msg/data) 벗긴 순수 GeoJSON 을 local_server/data/ 에 정적 저장.
+    //   격자 자체는 거의 정적 데이터라 한 번 받아두면 반영구적으로 재사용 가능.
+    //
+    // [3-레이어 구성]
+    //   1) 대해구 outline   — 항상 표시, 얇은 흰선
+    //   2) 소해구 (3×3 분할) — 클라이언트에서 계산해 줌인 시 (≥9) 만 표시, 더 흐림
+    //                           KMA 자체도 소해구 폴리곤 endpoint 가 없어 분할 방식 채택.
+    //   3) 대해구 번호 라벨  — 셀 중앙, 흐린 흰색, 줌 ≥8 에서만 표시
+    //
+    // [성능 메모]
+    //   소해구 = 1331 × 9 ≈ 12000 폴리곤. 줌 임계값으로 시야 밖일 때 렌더 차단.
+    const MARINE_ZONE_GEOJSON_URL = '/data/marine_zone_area.json';
+
+    function _bboxOfRing(ring) {
+        let lonMin = Infinity, lonMax = -Infinity, latMin = Infinity, latMax = -Infinity;
+        for (const p of ring) {
+            if (p[0] < lonMin) lonMin = p[0];
+            if (p[0] > lonMax) lonMax = p[0];
+            if (p[1] < latMin) latMin = p[1];
+            if (p[1] > latMax) latMax = p[1];
+        }
+        return [lonMin, latMin, lonMax, latMax];
+    }
+
+    async function initMarineZoneGridLayers(map) {
+        let geojson;
+        try {
+            const r = await fetch(MARINE_ZONE_GEOJSON_URL);
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            geojson = await r.json();
+        } catch (e) {
+            console.warn('[OceanMap] 해구도 격자 로드 실패:', e.message);
+            return;
+        }
+
+        const fmt = new ol.format.GeoJSON({
+            dataProjection: 'EPSG:4326',
+            featureProjection: 'EPSG:3857'
+        });
+        const mainFeatures = fmt.readFeatures(geojson);
+
+        // 1) 대해구 outline
+        // 기본 visible:false — 토글 버튼으로만 켠다.
+        marineZoneGridLayer = new ol.layer.Vector({
+            source: new ol.source.Vector({ features: mainFeatures }),
+            style: new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: 'rgba(255,255,255,0.35)',
+                    width: 1
+                })
+            }),
+            visible: false,
+            zIndex: 50
+        });
+
+        // 2) 소해구 — 대해구 셀을 3×3 균등 분할해 GeoJSON 으로 재구성한 뒤 OL 에 위임
+        const subGeo = { type: 'FeatureCollection', features: [] };
+        for (const f of geojson.features) {
+            const ring = (f.geometry && f.geometry.coordinates && f.geometry.coordinates[0])
+                ? f.geometry.coordinates[0][0] : null;
+            if (!ring || ring.length < 4) continue;
+            const [lonMin, latMin, lonMax, latMax] = _bboxOfRing(ring);
+            const lonStep = (lonMax - lonMin) / 3;
+            const latStep = (latMax - latMin) / 3;
+            const parentNo = (f.properties && f.properties.marine_zone_no) || '';
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 3; col++) {
+                    const x0 = lonMin + col * lonStep;
+                    const x1 = x0 + lonStep;
+                    const y0 = latMin + row * latStep;
+                    const y1 = y0 + latStep;
+                    subGeo.features.push({
+                        type: 'Feature',
+                        properties: {
+                            parent_marine_zone_no: parentNo,
+                            sub_no: row * 3 + col + 1
+                        },
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [[
+                                [x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]
+                            ]]
+                        }
+                    });
+                }
+            }
+        }
+        const subFeatures = fmt.readFeatures(subGeo);
+        marineZoneSubGridLayer = new ol.layer.Vector({
+            source: new ol.source.Vector({ features: subFeatures }),
+            style: new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: 'rgba(255,255,255,0.18)',
+                    width: 0.5
+                })
+            }),
+            // 줌 9 이상에서만 표시. minZoom 은 exclusive.
+            minZoom: 8,
+            visible: false,
+            zIndex: 49
+        });
+
+        // 3) 대해구 번호 라벨 — 셀 중앙
+        const labelFeatures = mainFeatures.map(function (mf) {
+            const ext = mf.getGeometry().getExtent();   // [minX,minY,maxX,maxY] in EPSG:3857
+            const cx = (ext[0] + ext[2]) / 2;
+            const cy = (ext[1] + ext[3]) / 2;
+            const props = mf.getProperties();
+            const f = new ol.Feature({ geometry: new ol.geom.Point([cx, cy]) });
+            f.set('label', String(props.marine_zone_no || props.name || ''));
+            return f;
+        });
+        marineZoneLabelLayer = new ol.layer.Vector({
+            source: new ol.source.Vector({ features: labelFeatures }),
+            style: function (feature) {
+                return new ol.style.Style({
+                    text: new ol.style.Text({
+                        text: feature.get('label'),
+                        font: '11px sans-serif',
+                        fill: new ol.style.Fill({ color: 'rgba(255,255,255,0.55)' }),
+                        stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.55)', width: 2 })
+                    })
+                });
+            },
+            // 줌 7.5 이하면 라벨이 너무 빽빽하므로 차단.
+            minZoom: 7,
+            visible: false,
+            zIndex: 51
+        });
+
+        map.addLayer(marineZoneGridLayer);
+        map.addLayer(marineZoneSubGridLayer);
+        map.addLayer(marineZoneLabelLayer);
+
+        console.log('[OceanMap] 해구도 격자 로드 완료:', mainFeatures.length, '개 셀');
+    }
+
+    /**
+     * 해구도 토글 버튼 바인딩 — 3개 레이어 동시 가/숨.
+     * 버튼 ID: ocean-marine-zone-toggle-btn (index2.html 에만 존재).
+     * 상태 영속: localStorage 'seagnal_marine_zone_visible'.
+     */
+    function bindMarineZoneGridToggle() {
+        const btn = document.getElementById('ocean-marine-zone-toggle-btn');
+        if (!btn) return;
+        if (!marineZoneGridLayer) return;   // 데이터 로드 실패 시 토글 자체를 비활성화
+
+        let visible;
+        try {
+            visible = localStorage.getItem('seagnal_marine_zone_visible') === 'true';
+        } catch (e) { visible = false; }
+
+        const apply = (v) => {
+            btn.classList.toggle('active', v);
+            // sub/label 은 minZoom 으로 자동 가/숨 → 토글에서는 visible 만 제어.
+            if (marineZoneGridLayer)    marineZoneGridLayer.setVisible(v);
+            if (marineZoneSubGridLayer) marineZoneSubGridLayer.setVisible(v);
+            if (marineZoneLabelLayer)   marineZoneLabelLayer.setVisible(v);
+        };
+        apply(visible);
+
+        btn.addEventListener('click', function () {
+            visible = !visible;
+            apply(visible);
+            try { localStorage.setItem('seagnal_marine_zone_visible', String(visible)); } catch (e) {}
+        });
     }
 
     // ========================================================================
@@ -211,6 +391,12 @@
             // 타임라인 초기화 (항상 표시)
             if (window.initOceanTimeline) {
                 window.initOceanTimeline();
+            }
+
+            // 해구도 격자 레이어 (index2 전용 — 토글 버튼이 index2.html 에만 있음)
+            // 레이어 자체는 init 후에도 visible:false 유지, 버튼 클릭 시에만 ON.
+            if (window.__SEAGNAL_PAGE === 'index2') {
+                initMarineZoneGridLayers(oceanMap).then(bindMarineZoneGridToggle);
             }
 
             console.log('[OceanMap] 지도 초기화 완료 (해아름 WMS)');
