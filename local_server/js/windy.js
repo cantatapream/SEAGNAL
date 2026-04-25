@@ -301,8 +301,23 @@ function renderOtherButtonsForStatus(zoneName, container) {
             zoneViewBtn.style.transform = 'translateY(0)';
             zoneViewBtn.style.boxShadow = 'none';
         });
+        // [클릭 동작]
+        //   index2 : 해구도 토글 ON + 해당 해역 중심으로 지도 이동 (render.js
+        //           해구기상 버튼과 동일한 패턴).
+        //   index1 등 : 기존 동작 유지 (특보정보 탭 → 해구기상 서브탭).
+        //   매핑(ZONE_OVERLAY_CONFIG) 이 없는 해역은 좌표를 못 구하므로
+        //   index2 라도 fallback 으로 showZoneOverlay 호출.
         zoneViewBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (window.__SEAGNAL_PAGE === 'index2'
+                && typeof window.goToOceanMapByZone === 'function'
+                && typeof ZONE_OVERLAY_CONFIG !== 'undefined'
+                && ZONE_OVERLAY_CONFIG[zoneName]) {
+                if (typeof window.setMarineZoneGridVisible === 'function') {
+                    window.setMarineZoneGridVisible(true);
+                }
+                if (window.goToOceanMapByZone(zoneName)) return;
+            }
             if (typeof showZoneOverlay === 'function') showZoneOverlay(zoneName);
         });
         btnContainer.appendChild(zoneViewBtn);
@@ -626,8 +641,22 @@ function createStatusCard(zoneName) {
         white-space: nowrap;
     `;
     _applyFlex(zoneViewBtn);
+    // [클릭 동작]
+    //   index2 : 해구도 토글 ON + 해당 해역 중심으로 지도 이동.
+    //   index1 등 : 기존 동작 유지 (특보정보 탭 → 해구기상 서브탭).
+    //   매핑(ZONE_OVERLAY_CONFIG) 이 없는 해역은 좌표를 못 구하므로
+    //   index2 라도 fallback 으로 showZoneOverlay 호출.
     zoneViewBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (window.__SEAGNAL_PAGE === 'index2'
+            && typeof window.goToOceanMapByZone === 'function'
+            && typeof ZONE_OVERLAY_CONFIG !== 'undefined'
+            && ZONE_OVERLAY_CONFIG[zoneName]) {
+            if (typeof window.setMarineZoneGridVisible === 'function') {
+                window.setMarineZoneGridVisible(true);
+            }
+            if (window.goToOceanMapByZone(zoneName)) return;
+        }
         if (typeof showZoneOverlay === 'function') showZoneOverlay(zoneName);
     });
     btnContainer.appendChild(zoneViewBtn);
