@@ -1989,10 +1989,13 @@
              ================================================================ -->
 
         <!-- 서브탭 영역: 메인탭 바로 위에 표시/숨김 -->
-        <!-- 특보정보 서브탭 (특보 및 전망 | 해구기상 | 태풍정보) -->
+        <!-- 특보정보 서브탭 (특보 및 전망 | 태풍정보)
+             [제거됨] 해구기상 서브탭 — 해양종합정보 탭의 해구도 격자 + 해구별 기상
+                      모달로 기능이 통합되어 index2 에서는 더 이상 필요 없음.
+                      해구기상 카드 버튼도 index2 에서는 해양종합정보로 이동하도록
+                      이미 변경됨(00b1d4c). index1 에서는 기존대로 유지. -->
         <nav class="sub-tabs bottom-sub-tabs" id="weather-sub-tabs">
             <button class="sub-tab-btn active" data-target="weather-alert-section">특보 및 전망</button>
-            <button class="sub-tab-btn" data-target="sea-zone-section">해구기상</button>
             <button class="sub-tab-btn" data-target="typhoon-section">태풍정보</button>
         </nav>
         <!-- [제거됨] 종합기상 서브탭 (#ocean-sub-tabs) — 조석정보 탭 삭제 및
