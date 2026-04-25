@@ -6,7 +6,9 @@
 //  계산하여 노란 점선 박스를 생성한다.
 //
 //  데이터 소스:
-//   - /data/zone_grid_map.json    : 매퍼 툴에서 다운받아 배치한 매핑
+//   - /zone_grid_map.json         : 매퍼 툴에서 다운받아 배치한 매핑
+//                                   (local_server/assets/ 에 두어 /app/data
+//                                   볼륨 마운트가 가리지 않는 경로로 서빙)
 //                                   { code: { name, region, majorZones, smallZones } }
 //   - /api/marine-zone-forecasts  : 대해구별 3시간 예보(시계열)
 //
@@ -62,7 +64,7 @@
         STATE.loadPromise = (async () => {
             // grid map (없을 수 있음)
             try {
-                const r = await fetch('/data/zone_grid_map.json', { cache: 'no-store' });
+                const r = await fetch('/zone_grid_map.json', { cache: 'no-store' });
                 if (r.ok) STATE.gridMap = await r.json();
             } catch (e) { /* 매핑 없음 → graceful */ }
 
