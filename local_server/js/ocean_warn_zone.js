@@ -30,9 +30,21 @@
     var _loaded = false;          // GeoJSON 로딩 완료 플래그 (중복 fetch 방지)
     var _loading = false;         // 현재 fetch 중 플래그
 
+    /**
+     * 특보구역명을 우리 앱 표기 규칙으로 정규화.
+     * - KMA WFS 원본은 공백·마침표가 섞임 (예: "동해남부 북쪽 안쪽먼바다", "인천.경기북부앞바다")
+     * - 우리 앱 표준 (seaZoneCoordinates.js, zoneOverlayConfig.js, regional_forecast_collector.js)
+     *   은 공백 제거 + 마침표 대신 중점(·)
+     */
+    function _normalizeZoneName(name) {
+        return (name || '')
+            .replace(/\./g, '·')   // 인천.경기 → 인천·경기
+            .replace(/\s+/g, '');  // 동해남부 북쪽 안쪽먼바다 → 동해남부북쪽안쪽먼바다
+    }
+
     /** 특보구역 폴리곤 스타일: 라인만 그리고 채움 없음 (지도가 가려지지 않게) */
     function _zoneStyle(feature) {
-        var name = feature.get('name') || '';
+        var name = _normalizeZoneName(feature.get('name'));
         return new ol.style.Style({
             stroke: new ol.style.Stroke({
                 color: 'rgba(255, 200, 80, 0.85)',
