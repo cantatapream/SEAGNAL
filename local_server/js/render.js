@@ -824,14 +824,15 @@ function createAlertElement(items) {
 
     // 평균 파고/풍속 박스 (헤더와 발표시각 사이)
     // 박스는 inline-flex 로 컨텐츠 폭에 맞춰지므로 .zone-avg-row 래퍼로 우측 정렬
-    // 빈 row 를 미리 만들어 두고, 첫 시도 → 실패 시 onReady 로 재시도 (느린
-    // 기기에서 ZoneAvg.init() 가 카드 렌더 후 완료되는 race 대응)
+    // 빈 row 를 미리 만들어 두고, 첫 시도 → 실패 시 onReady 로 재시도.
+    // [중요] isConnected 체크 금지 — clone(carddetails) 자체가 아직 document
+    //        에 attach 되기 전이라 row.isConnected=false. 분리 노드에 append
+    //        는 무해.
     if (window.ZoneAvg && typeof window.ZoneAvg.createBox === 'function') {
         const row = document.createElement('div');
         row.className = 'zone-avg-row';
         details.appendChild(row);
         const tryAttach = () => {
-            if (!row.isConnected) return;
             if (row.querySelector('.zone-avg-box')) return;
             const box = window.ZoneAvg.createBox(data.zoneName);
             if (box) row.appendChild(box);
