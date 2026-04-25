@@ -294,7 +294,19 @@
         render();
         var info = catalogByCode(code);
         if (info && typeof info.lon === 'number' && typeof info.lat === 'number' && map) {
-            map.getView().animate({ center: fromLonLat([info.lon, info.lat]), duration: 300 });
+            var view = map.getView();
+            var newCenter = fromLonLat([info.lon, info.lat]);
+            if (locked) {
+                // 잠금 상태: 배경 이미지를 동일 픽셀 변위로 함께 이동시켜 정렬 유지
+                var oldCenter = view.getCenter();
+                var res = view.getResolution();
+                bgTransform.x += (oldCenter[0] - newCenter[0]) / res;
+                bgTransform.y += (newCenter[1] - oldCenter[1]) / res;
+                applyBgTransform();
+                view.setCenter(newCenter); // 애니메이션 없이 즉시 이동 (배경과 동기)
+            } else {
+                view.animate({ center: newCenter, duration: 300 });
+            }
         }
     }
     function updateInfo() {
@@ -932,7 +944,22 @@
         $('btn-zoom-p1') .addEventListener('click', function () { nudgeZoom(+ZOOM_DELTA_1PCT);  });
         $('btn-zoom-p10').addEventListener('click', function () { nudgeZoom(+ZOOM_DELTA_10PCT); });
         $('btn-zoom-reset').addEventListener('click', function () {
-            map.getView().setZoom(INITIAL_ZOOM);
+            var view = map.getView();
+            var z0 = view.getZoom();
+            var z1 = INITIAL_ZOOM;
+            if (locked && z1 !== z0) {
+                // 잠금 상태: 배경 이미지도 화면 중심 기준으로 동일 비율 스케일
+                var resFactor = Math.pow(2, z0 - z1);
+                var wrap = $('bg-image-wrap');
+                var cx = wrap.clientWidth / 2;
+                var cy = wrap.clientHeight / 2;
+                var scaleFactor = 1 / resFactor;
+                bgTransform.x = cx - (cx - bgTransform.x) * scaleFactor;
+                bgTransform.y = cy - (cy - bgTransform.y) * scaleFactor;
+                bgTransform.scale *= scaleFactor;
+                applyBgTransform();
+            }
+            view.setZoom(z1);
             syncZoomUI();
         });
 
