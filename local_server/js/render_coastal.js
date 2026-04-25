@@ -23,13 +23,39 @@ function displayBuoyInfo(buoy, container) {
     const buoyData = appState.buoyData[buoy.id];
     const typeInfo = BUOY_TYPES[buoy.type] || { name: '부이', icon: '📍' };
 
-    // marine.kma.go.kr 응답이 float32 → JS Number 로 들어와 0.800000011920929
-    // 같은 부동소수점 잔여 자리가 그대로 노출되던 이슈 수정.
-    // 풍향(각도)·습도(%)는 정수 의미라 round, 그 외 수치는 소수 1자리로 통일.
+    /**
+     * [헬퍼] 부이 데이터 한 값을 사람이 읽기 좋은 문자열로 다듬는다.
+     *
+     * 왜 필요한가?
+     *   marine.kma.go.kr 가 보내주는 값은 float32 라서 JS 로 받으면
+     *   "0.800000011920929" 같은 부동소수점 잔여 자리가 길게 붙는다.
+     *   해역별 특보/기상현황 아코디언 안의 부이 카드(displayBuoyInfo) 에서도
+     *   동일한 잔여 자리가 그대로 노출되던 문제를 잡기 위한 헬퍼.
+     *
+     * 동작 규칙:
+     *   - null / undefined / NaN 같이 숫자가 아닌 값은 그대로 통과(파괴 X).
+     *   - key 가 'windDirection'(각도) 또는 'humidity'(%) 이면 정수로 round.
+     *   - 그 외 (파고/풍속/돌풍/파주기/수온/기온/기압) → toFixed(1) 로
+     *     소수 1자리 고정. 예: 0.800000011920929 → "0.8"
+     *
+     * seaZones.js 의 _fmt 와 같은 역할이지만 키 이름이 다른 데이터 모델
+     *   (마린 API 의 짧은 키 vs 우리 내부 객체의 긴 키)
+     *   을 다루므로 이 파일에 별도 정의되어 있음.
+     *
+     * 어디서 쓰이나? (이 파일 안에서만 호출, displayBuoyInfo 내부)
+     *   - 파고 3종(waveHeightMax / waveHeightAvg / waveHeightSig)
+     *   - 단일 파고(waveHeight)
+     *   - 풍속(windSpeed) / 수온(waterTemp)
+     *   - 돌풍(windGust) / 파주기(wavePeriod) / 기온(airTemp) / 기압(pressure) / 습도(humidity)
+     *
+     * @param {*} v   - 우리 내부 buoyData 객체에 들어있는 값
+     * @param {string} key - 항목 식별. 'windDirection'·'humidity' 만 정수, 그 외 1자리
+     * @returns {*} 포맷된 문자열 또는 변환 불가 시 원래 값
+     */
     const _fmt = (v, key) => {
-        if (v == null) return v;
-        const n = typeof v === 'number' ? v : parseFloat(v);
-        if (!Number.isFinite(n)) return v;
+        if (v == null) return v;                              // null/undefined → 그대로
+        const n = typeof v === 'number' ? v : parseFloat(v);  // 문자열 숫자도 받아줌
+        if (!Number.isFinite(n)) return v;                    // NaN/Infinity → 그대로
         return (key === 'windDirection' || key === 'humidity') ? String(Math.round(n)) : n.toFixed(1);
     };
 

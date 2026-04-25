@@ -2208,14 +2208,35 @@ function displayBuoyDataInModal(container, data) {
         { label: '🌫 시정', key: 'vsKm', unit: 'km', color: 'white' }    // [NEW]
     ];
 
-    // marine.kma.go.kr 응답이 float32 → JS Number 로 들어와 1.7000000476837158
-    // 같은 부동소수점 잔여 자리가 그대로 노출되던 이슈 수정.
-    // 풍향(wd)은 각도라 정수, 그 외 수치는 소수 1자리로 통일.
+    /**
+     * [헬퍼] 부이 데이터 한 값을 사람이 읽기 좋은 문자열로 다듬는다.
+     *
+     * 왜 필요한가?
+     *   marine.kma.go.kr 가 보내주는 값은 내부적으로 32비트 실수(float32) 라
+     *   JS Number(64비트) 로 받을 때 "1.7000000476837158" 처럼 부동소수점
+     *   잔여 자리가 길게 붙는 경우가 있다. 화면에 그대로 노출되면 보기 흉해
+     *   사용자가 PR #557 로 이전 PR 을 리버트했던 이슈의 핵심 원인.
+     *
+     * 동작 규칙:
+     *   - null / undefined / NaN 같이 숫자가 아닌 값은 그대로 통과(파괴 X).
+     *   - key 가 'wd'(풍향) 이면 → Math.round 로 정수 (각도라 소수 무의미).
+     *   - 그 외 (파고/풍속/수온/기온/기압/파주기/시정 등) → toFixed(1) 로
+     *     소수 1자리 고정. 예: 1.7000000476837158 → "1.7"
+     *
+     * 어디서 쓰이나? (이 파일 안에서만 호출)
+     *   - 파고 3종(whMax / whAvg / whSig) 표시
+     *   - 단일 파고(wh) 표시
+     *   - metrics 배열 순회 시 각 측정값(ws / wp / tw / ta / pa / vsKm)
+     *
+     * @param {*} v   - API 가 보내준 원시 값 (대개 Number 지만 string/null 도 가능)
+     * @param {string} key - 어떤 항목인지 식별 ('wd' 만 정수 처리, 그 외는 1자리)
+     * @returns {*} 포맷된 문자열 또는 변환 불가 시 원래 값
+     */
     const _fmt = (v, key) => {
-        if (v == null) return v;
-        const n = typeof v === 'number' ? v : parseFloat(v);
-        if (!Number.isFinite(n)) return v;
-        return key === 'wd' ? String(Math.round(n)) : n.toFixed(1);
+        if (v == null) return v;                                        // null/undefined → 그대로
+        const n = typeof v === 'number' ? v : parseFloat(v);            // 문자열 숫자도 받아줌
+        if (!Number.isFinite(n)) return v;                              // NaN/Infinity → 그대로
+        return key === 'wd' ? String(Math.round(n)) : n.toFixed(1);     // 풍향만 정수
     };
 
     // [INDEX2 전용 확대] 종합기상에서만 데이터 그리드 폰트/간격 확대

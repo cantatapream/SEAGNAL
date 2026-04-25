@@ -623,19 +623,17 @@
            안내사항 팝업 내부 탭 구조 (seagnal-modal 안에 주입되는 HTML)
            ──────────────────────────────────────────────────────────
            7개 탭(유향·유속 / 풍향·풍속 / 파고·파향 / 부이 / 수심 / 조석 / CCTV)
-           의 스크롤 가능한 가로 탭바 + 탭별 본문 패널.
+           을 모달 가로 폭에 맞춰 자동 줄바꿈으로 2~3 줄에 한꺼번에 표시.
+           (이전: 가로 스크롤 한 줄 → 사용자가 좌우 드래그 해야 보였음)
         */
         .ocean-info-tabs {
             display: flex;
-            overflow-x: auto;
-            gap: 4px;
+            flex-wrap: wrap;            /* 한 줄을 넘기면 다음 줄로 이어짐 */
+            gap: 6px;                   /* row + column 간격 동일하게 */
             padding: 4px 0 10px 0;
             margin: 0 0 10px 0;
             border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
         }
-        .ocean-info-tabs::-webkit-scrollbar { display: none; }
         .ocean-info-tab-btn {
             flex: 0 0 auto;
             padding: 6px 10px;
@@ -645,7 +643,7 @@
             border-radius: 8px;
             font-size: 0.78rem;
             font-weight: 600;
-            white-space: nowrap;
+            white-space: nowrap;        /* 각 라벨은 한 줄 유지 (전체 줄바꿈은 컨테이너) */
             cursor: pointer;
             transition: background 0.15s ease, color 0.15s ease;
         }
