@@ -151,12 +151,31 @@
         });
     }
 
+    /**
+     * fullName 에서 부모해역 부분을 떼어내 leaf 라벨만 반환.
+     * 우리 앱 COASTAL_MAPPING 의 name 필드와 동일한 규칙:
+     *   1) "중" 뒤의 부분을 우선 사용
+     *      예: 제주도북부앞바다중연안바다 → 연안바다
+     *      예: 인천·경기남부앞바다중북부앞평수구역 → 북부앞평수구역
+     *   2) "울릉도" 접두 제거 (지역 prefix)
+     *      예: 울릉도울릉읍연안바다 → 울릉읍연안바다
+     *   3) 그 외는 그대로 (이미 leaf 인 천수만평수구역·당진평수구역 등)
+     */
+    function _shortLabel(fullName) {
+        if (!fullName) return '';
+        var idx = fullName.lastIndexOf('중');
+        if (idx >= 0) return fullName.substring(idx + 1);
+        if (fullName.indexOf('울릉도') === 0) return fullName.substring(3);
+        return fullName;
+    }
+
     /** 자식 구역 (연안바다/평수구역) 폴리곤 스타일 — 더 옅은 청록 톤으로 시각 구분 */
     function _subZoneStyle(feature) {
         var code = feature.get('WarnCode');
-        var label = SUBZONE_LABEL_MAP[code];
+        var fullName = SUBZONE_LABEL_MAP[code];
         // 매핑 테이블에 없는 코드는 KMA 원본 name 을 정규화해서 사용 (안전망)
-        if (!label) label = _normalizeZoneName(feature.get('name'));
+        if (!fullName) fullName = _normalizeZoneName(feature.get('name'));
+        var label = _shortLabel(fullName);
         return new ol.style.Style({
             stroke: new ol.style.Stroke({
                 color: 'rgba(120, 220, 255, 0.85)',
