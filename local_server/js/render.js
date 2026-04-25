@@ -822,15 +822,23 @@ function createAlertElement(items) {
     const details = clone.querySelector('.alert-details');
     details.innerHTML = '';
 
-    // 평균 파고/풍속 박스 (헤더와 발표시각 사이, 노란 점선 + 3초 깜빡임)
+    // 평균 파고/풍속 박스 (헤더와 발표시각 사이)
     // 박스는 inline-flex 로 컨텐츠 폭에 맞춰지므로 .zone-avg-row 래퍼로 우측 정렬
+    // 빈 row 를 미리 만들어 두고, 첫 시도 → 실패 시 onReady 로 재시도 (느린
+    // 기기에서 ZoneAvg.init() 가 카드 렌더 후 완료되는 race 대응)
     if (window.ZoneAvg && typeof window.ZoneAvg.createBox === 'function') {
-        const avgBox = window.ZoneAvg.createBox(data.zoneName);
-        if (avgBox) {
-            const row = document.createElement('div');
-            row.className = 'zone-avg-row';
-            row.appendChild(avgBox);
-            details.appendChild(row);
+        const row = document.createElement('div');
+        row.className = 'zone-avg-row';
+        details.appendChild(row);
+        const tryAttach = () => {
+            if (!row.isConnected) return;
+            if (row.querySelector('.zone-avg-box')) return;
+            const box = window.ZoneAvg.createBox(data.zoneName);
+            if (box) row.appendChild(box);
+        };
+        tryAttach();
+        if (typeof window.ZoneAvg.onReady === 'function') {
+            window.ZoneAvg.onReady(tryAttach);
         }
     }
 
