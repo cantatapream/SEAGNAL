@@ -822,10 +822,16 @@ function createAlertElement(items) {
     const details = clone.querySelector('.alert-details');
     details.innerHTML = '';
 
-    // 평균 파고/풍속 박스 (헤더와 발표시각 사이, 노란 점선 + 1초 깜빡임)
+    // 평균 파고/풍속 박스 (헤더와 발표시각 사이, 노란 점선 + 3초 깜빡임)
+    // 박스는 inline-flex 로 컨텐츠 폭에 맞춰지므로 .zone-avg-row 래퍼로 우측 정렬
     if (window.ZoneAvg && typeof window.ZoneAvg.createBox === 'function') {
         const avgBox = window.ZoneAvg.createBox(data.zoneName);
-        if (avgBox) details.appendChild(avgBox);
+        if (avgBox) {
+            const row = document.createElement('div');
+            row.className = 'zone-avg-row';
+            row.appendChild(avgBox);
+            details.appendChild(row);
+        }
     }
 
     const formatAlertTime = (timeStr) => {
