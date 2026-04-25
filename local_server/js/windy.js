@@ -752,9 +752,31 @@ function createStatusCard(zoneName) {
             white-space: nowrap;
         `;
         _applyFlex(allBtn);
+        // [클릭 동작] 해구기상 버튼과 동일한 패턴이지만 레이어 조합이 다름
+        //   1) 특보구역 ON  (setWarnZoneVisible(true))
+        //   2) 해구도   OFF (setMarineZoneGridVisible(false))
+        //   3) 기상부이 ON  (#ocean-buoy-toggle-btn 클릭 - 이미 active 면 스킵)
+        //   4) goToOceanMapByZone (지도 줌/이동)
+        //   5) 800ms 뒤 flashWarnZone (해당 특보구역 테두리 깜빡임)
         allBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            window.goToOceanMapByZone(zoneName);
+            if (typeof window.setWarnZoneVisible === 'function') {
+                window.setWarnZoneVisible(true);
+            }
+            if (typeof window.setMarineZoneGridVisible === 'function') {
+                window.setMarineZoneGridVisible(false);
+            }
+            const buoyBtn = document.getElementById('ocean-buoy-toggle-btn');
+            if (buoyBtn && !buoyBtn.classList.contains('active')) {
+                buoyBtn.click();
+            }
+            if (window.goToOceanMapByZone(zoneName)) {
+                setTimeout(function () {
+                    if (typeof window.flashWarnZone === 'function') {
+                        window.flashWarnZone(zoneName);
+                    }
+                }, 800);
+            }
         });
         btnContainer.appendChild(allBtn);
     }

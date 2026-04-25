@@ -1100,9 +1100,28 @@ function createAlertElement(items) {
         const allBtn = document.createElement('button');
         allBtn.innerHTML = '종합정보';
         allBtn.style.cssText = 'flex: 1; padding: 10px 4px; background: linear-gradient(135deg, #14b8a6, #0f766e); color: white; border: none; border-radius: 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: transform 0.2s; box-shadow: 0 2px 8px rgba(20, 184, 166, 0.3);';
+        // [클릭 동작] windy.js 의 종합정보 버튼과 동일 (해구기상과는 레이어 조합만 다름)
+        //   1) 특보구역 ON  / 2) 해구도 OFF / 3) 기상부이 ON
+        //   4) goToOceanMapByZone → 5) 800ms 뒤 flashWarnZone
         allBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            window.goToOceanMapByZone(data.zoneName);
+            if (typeof window.setWarnZoneVisible === 'function') {
+                window.setWarnZoneVisible(true);
+            }
+            if (typeof window.setMarineZoneGridVisible === 'function') {
+                window.setMarineZoneGridVisible(false);
+            }
+            const buoyBtn = document.getElementById('ocean-buoy-toggle-btn');
+            if (buoyBtn && !buoyBtn.classList.contains('active')) {
+                buoyBtn.click();
+            }
+            if (window.goToOceanMapByZone(data.zoneName)) {
+                setTimeout(function () {
+                    if (typeof window.flashWarnZone === 'function') {
+                        window.flashWarnZone(data.zoneName);
+                    }
+                }, 800);
+            }
         });
         actionsContainer.appendChild(allBtn);
     }
