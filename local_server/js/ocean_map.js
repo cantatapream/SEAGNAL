@@ -111,9 +111,10 @@
             visible: true
         });
 
-        wmsSource.on('tileloaderror', function () {
-            console.warn('[OceanMap] 해아름 WMS 타일 로드 실패(' + layer + ')');
-        });
+        // [노이즈 제거 2026-04-25] tileloaderror 는 타일 한 장당 발화한다.
+        //   KHOA 해아름은 한반도 외곽 BBOX 에서 빈 타일을 주는 게 정상 동작이라
+        //   화면당 수십 장이 자연스레 실패하고 콘솔이 도배된다. 화면에는
+        //   투명 타일로 처리되어 사용자 영향이 없으므로 로그를 제거.
 
         console.log('[OceanMap] 해아름 WMS 엔드포인트:', endpoint);
         return tileLayer;
