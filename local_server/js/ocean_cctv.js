@@ -389,17 +389,17 @@
 
     /**
      * 지도 준비 시점에 위치 즐겨찾기 레이어 설치.
-     * 지도가 아직 없으면 짧게 폴링해 대기.
+     * 지도가 만들어질 때까지(사용자가 해양종합정보 탭에 진입할 때까지)
+     * 시간 제한 없이 계속 폴링한다. 한 번 설치되면 _try() 가 return 으로 종료.
      */
     function _installFavLocLayerWhenReady() {
-        var tries = 0;
         function _try() {
             var map = window.getOceanMap && window.getOceanMap();
             if (map) {
                 _ensureFavLocLayer(map);
                 return;
             }
-            if (++tries < 40) setTimeout(_try, 250);  // 최대 10초 대기
+            setTimeout(_try, 250);
         }
         _try();
     }
