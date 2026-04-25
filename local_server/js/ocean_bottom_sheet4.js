@@ -195,4 +195,48 @@
               '</div>' +
             '</div>';
     };
+
+    /* ==============================================================
+     *  월상 카드 (달 위상 이모지 / 월령 / 밝기)
+     *  - 라벨(ocean-card-icon-label) 없이 이모지만 아이콘 박스에 표출
+     *  - 우측에 '월령 #.#일' / '밝기 ##%' 두 줄
+     * ============================================================ */
+    OS.renderMoonCard = function (lat, lon, dateObj) {
+        var card = document.getElementById('ocean-card-moon');
+        if (!card) return;
+
+        if (typeof SunCalc === 'undefined') {
+            card.style.display = 'none';
+            return;
+        }
+
+        var moonInfo;
+        try {
+            moonInfo = SunCalc.getMoonIllumination(dateObj);
+        } catch (e) {
+            card.style.display = 'none';
+            return;
+        }
+
+        var phaseObj = pickMoonPhase(moonInfo.phase);
+        var lunarAge = (moonInfo.phase * 29.53).toFixed(1);
+        var brightPct = Math.round((moonInfo.fraction || 0) * 100);
+
+        card.style.display = '';
+        card.innerHTML =
+            '<div class="ocean-card-icon ocean-moon-icon">' +
+              '<span class="ocean-moon-emoji">' + phaseObj.icon + '</span>' +
+              '<div class="ocean-card-icon-label">월상</div>' +
+            '</div>' +
+            '<div class="ocean-card-value ocean-moon-value">' +
+              '<div class="ocean-moon-row">' +
+                '<span class="ocean-moon-label">월령</span>' +
+                '<span class="ocean-moon-data">' + lunarAge + ' 일</span>' +
+              '</div>' +
+              '<div class="ocean-moon-row">' +
+                '<span class="ocean-moon-label">밝기</span>' +
+                '<span class="ocean-moon-data">' + brightPct + ' %</span>' +
+              '</div>' +
+            '</div>';
+    };
 })();

@@ -9211,4 +9211,36 @@ body.ocean-map-active .main-header .header-content {
     line-height: 1;
 }
 
+/* --- 월상 카드 (달 이모지 / 월령 / 밝기) --- */
+/* 이모지 + '월상' 라벨이 다른 카드(천문 등)와 동일한 톤이 되도록 */
+.ocean-moon-emoji {
+    font-size: clamp(1.0rem, 3.2vw, 1.3rem);
+    line-height: 1;
+}
+.ocean-moon-value {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    overflow: hidden;
+}
+.ocean-moon-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: clamp(0.63rem, 2.0vw, 0.76rem);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+}
+.ocean-moon-label {
+    color: rgba(255,255,255,0.6);
+    flex-shrink: 0;
+}
+.ocean-moon-data {
+    color: #fff;
+    font-weight: 600;
+}
+
 
