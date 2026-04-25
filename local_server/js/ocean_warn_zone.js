@@ -9,8 +9,10 @@
  * - 자식 구역 (연안바다/평수구역, 50개 폴리곤) — /api/warn-zones-sub
  *   (mmis:warnArea2Poly202106 1회 fetch)
  * - 같은 토글 버튼(#ocean-warn-zone-toggle-btn)이 두 layer 모두 제어.
- * - 자식 구역 layer 는 minZoom 8 로 설정 → 줌 레벨 9 이상일 때만 자동 표시
- *   (DEFAULT_ZOOM=7 의 전국 뷰에서는 시각적 혼란 방지).
+ * - 자식 구역 layer 는 minZoom 7 로 설정 → 줌 레벨 8 이상일 때만 자동 표시
+ *   (DEFAULT_ZOOM=7 의 전국 뷰에서는 50개 라벨 겹침 방지, 한 단계만 줌인하면 표시).
+ * - 자식 라벨은 overflow:true 로 폴리곤 폭을 넘어도 그대로 표시(작은 구역이라
+ *   라벨이 통째로 숨겨지지 않도록).
  *
  * [자식 구역 명칭 정규화]
  * KMA 원본 name 은 공백·마침표·언더스코어가 섞여 있어 우리 앱 표기
@@ -97,9 +99,11 @@
 
     var EXCLUDED_SUBZONE_CODES = { 'S2320600': true };
 
-    // 자식 구역 layer 가시 줌 임계값 — DEFAULT_ZOOM(7) 보다 충분히 줌인된 시점.
-    // OL minZoom 은 "exclusive": 이 값보다 큰 줌에서만 표시 → 8 이면 zoom 9+ 에서 보임.
-    var SUBZONE_MIN_ZOOM = 8;
+    // 자식 구역 layer 가시 줌 임계값.
+    // OL minZoom 은 "exclusive": 이 값보다 큰 줌에서만 표시.
+    // 7 → zoom 8+ 에서 표시 (DEFAULT_ZOOM=7 의 전국 뷰에서 50개 라벨이 겹치는
+    //                         과밀 방지 + 한 단계만 줌인하면 바로 보이는 균형점).
+    var SUBZONE_MIN_ZOOM = 7;
 
     // ─────────────────────────────────────────────────────────────
 
@@ -167,7 +171,9 @@
                 font: '600 10px "Pretendard", sans-serif',
                 fill: new ol.style.Fill({ color: '#a5dfff' }),
                 stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
-                overflow: false,
+                // overflow: true → 폴리곤 픽셀 폭보다 라벨이 넓어도 그대로 표시.
+                //   (false 면 작은 자식 구역은 라벨이 통째로 숨겨져 매우 줌인해야 보임)
+                overflow: true,
                 placement: 'point'
             })
         });
