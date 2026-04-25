@@ -2094,17 +2094,22 @@ async function fetchBuoyDataForModal(buoyId) {
         const cached = window.appState.buoyData[buoyId];
 
         // 데이터 매핑 (app.js 필드명 -> seaZones.js 필드명)
+        // [2026-04-25 확장] marine endpoint 도입으로 wp(파주기), wo(파향),
+        //   visibility(시정 m) 추가 매핑.
         const mappedData = {
             time: cached.tm,
             wh: cached.waveHeight,
             whMax: cached.waveHeightMax || null,
             whSig: cached.waveHeightSig || null,
             whAvg: cached.waveHeightAvg || null,
+            wp: cached.wavePeriod || null,        // [NEW] 파주기 (s)
+            wo: cached.waveDir || null,           // [NEW] 파향 (도) — 모달에는 미표출, 데이터만 보존
             ws: cached.windSpeed,
             wd: cached.windDirection,
             ta: cached.airTemp,
             tw: cached.waterTemp,
-            pa: cached.pressure
+            pa: cached.pressure,
+            visibility: cached.visibility || null // [NEW] 시정 (m) — 표시 단계에서 km 환산
         };
 
         displayBuoyDataInModal(container, mappedData);
@@ -2180,12 +2185,23 @@ function parseBuoyDataForModal(text, buoyId) {
  * 부이 데이터 모달에 표시
  */
 function displayBuoyDataInModal(container, data) {
+    // [2026-04-25 확장] marine.kma.go.kr endpoint 도입 → 파주기(wp), 시정(vsKm) 신규 노출.
+    //   - 시정은 marine API 가 m 단위 → km 환산 후 표시
+    //   - data 가 null 인 필드는 metrics 분기에서 자동 스킵 (기존 패턴 그대로)
+    if (data && typeof data.visibility === 'number' && !isNaN(data.visibility)) {
+        data.vsKm = Math.round(data.visibility / 100) / 10;   // m → km, 소수 1자리
+    } else if (data) {
+        data.vsKm = null;
+    }
+
     const metrics = [
         { label: '💨 풍속', key: 'ws', unit: 'm/s', color: '#81c784' },
         { label: '🧭 풍향', key: 'wd', unit: '°', color: 'white' },
-        { label: '🌡 기온', key: 'ta', unit: '°C', color: 'white' },
+        { label: '🌀 파주기', key: 'wp', unit: '초', color: '#4fc3f7' },  // [NEW]
         { label: '🌊 수온', key: 'tw', unit: '°C', color: '#64b5f6' },
-        { label: '📊 기압', key: 'pa', unit: 'hPa', color: 'white' }
+        { label: '🌡 기온', key: 'ta', unit: '°C', color: 'white' },
+        { label: '📊 기압', key: 'pa', unit: 'hPa', color: 'white' },
+        { label: '🌫 시정', key: 'vsKm', unit: 'km', color: 'white' }    // [NEW]
     ];
 
     // [INDEX2 전용 확대] 종합기상에서만 데이터 그리드 폰트/간격 확대

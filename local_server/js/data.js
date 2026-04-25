@@ -12,6 +12,24 @@
  * - processSingleAlert(): 개별 특보 정규화
  * - ApiStatusManager: API 상태 추적 객체
  *
+ * ┌────────────────────────────────────────────────────────────────────────┐
+ * │ [부이 데이터 소스 우선순위 / 2026-04-25 갱신]                          │
+ * │                                                                        │
+ * │  ① /api/buoys (sea_obs.php) — baseline                                │
+ * │     - 모든 타입 단일 wh + 풍속/풍향/수온/기온/기압/습도                │
+ * │     - J타입(기상1호 22003) 은 marine API 미커버라 baseline 필수        │
+ * │                                                                        │
+ * │  ② /api/marine-buoys / -wh-buoys / -lh-buoys (marine.kma.go.kr)       │
+ * │     - 풍부 필드 (max/sig/ave 파고 + WP/WO + 시정)                      │
+ * │     - sea_obs baseline 위에 _mergeNonNull 로 덮어씀 (null 결측은 보존) │
+ * │                                                                        │
+ * │  [DEPRECATED] /api/kma-buoys (kma_buoy.php) — fetchKmaBuoyData         │
+ * │     호환 위해 함수·상수 보존, 호출 사이트만 주석 처리.                 │
+ * │                                                                        │
+ * │  [후속] /api/marine-vs (시정계 station 181개) — 캐시만 운영,           │
+ * │     UI 표시는 별도 작업.                                               │
+ * └────────────────────────────────────────────────────────────────────────┘
+ *
  * [로딩 순서] 4번째 (utils.js 이후)
  * ============================================================================
  */
@@ -283,12 +301,22 @@ function transformLevel(lvl) {
 }
 
 
-// --- BUOY API (해양관측 데이터) ---
+// ============================================================================
+// [부이 데이터 수집 — 데이터 소스 우선순위 / 2026-04-25 갱신]
+// ----------------------------------------------------------------------------
+//  1) sea_obs.php (api/buoys) — baseline. 모든 타입(B/C/L/J) 단일 wh + 풍속/풍향/
+//     수온/기온/기압/습도. J타입(기상1호 22003) 은 marine API 미커버라 baseline 필수.
+//  2) marine.kma.go.kr JSON endpoint (api/marine-*) — 풍부 필드로 baseline 위에 덮어씀.
+//       buoy/list    (B): max/sig/ave 파고 + WP(파주기) + WO(파향) + 듀얼 풍속/풍향 +
+//                          시정(vs) 등 풀 데이터
+//       wh-buoy/list (C): 파고 3종 + WP + 수온
+//       lh/list      (L): 풍속/풍향 + 최대순간풍속/풍향 + 기온/기압/습도 + 최고/최저 기온
+//  [DEPRECATED] kma_buoy.php (api/kma-buoys, fetchKmaBuoyData) — marine 으로 대체.
+//   호환 위해 상수/라우트/함수 정의는 보존, 호출만 차단.
+// ============================================================================
 async function fetchBuoyData() {
     // 로컬 서버 buoys.json 조회
     const url = CONFIG.BUOY_API_URL;
-
-    // console.log('Fetching Buoy Data (Local):', url);
 
     try {
         const response = await fetch(url);
@@ -301,30 +329,45 @@ async function fetchBuoyData() {
         // buoys.json 구조: { updatedAt: ..., raw: "RAW TEXT" }
         const text = jsonData.raw || '';
 
-        // console.log('Buoy Raw Response (first 500 chars):', text.substring(0, 500));
-        // console.log('Buoys Updated At:', jsonData.updatedAt);
-
         const parsed = parseBuoyData(text);
 
-        // KMA 부이 상세 데이터 병합 (최대/유의/평균 파고)
+        // [DEPRECATED 2026-04-25] KMA 부이 상세 데이터 병합 (최대/유의/평균 파고)
+        //   marine endpoint 로 대체. 재활성화 시 아래 try 블록 주석 해제.
+        // try {
+        //     const kmaBuoyData = await fetchKmaBuoyData();
+        //     for (const stnId of Object.keys(parsed)) {
+        //         if (kmaBuoyData[stnId]) {
+        //             parsed[stnId].waveHeightMax = kmaBuoyData[stnId].waveHeightMax;
+        //             parsed[stnId].waveHeightSig = kmaBuoyData[stnId].waveHeightSig;
+        //             parsed[stnId].waveHeightAvg = kmaBuoyData[stnId].waveHeightAvg;
+        //         }
+        //     }
+        // } catch (e) { }
+
+        // [신규 2026-04-25] marine.kma.go.kr JSON endpoint 데이터 머지
+        //   - 3개 endpoint(B/C/L) 병렬 fetch
+        //   - 각 타입 매핑 후 stnId 단위로 baseline 위에 덮어씀
+        //   - [중요] marine 응답이 결측(null)인 필드는 baseline 값을 보존
+        //     (단순 Object.assign 으로 덮으면 marine 의 null 이 sea_obs 의 정상값을
+        //      지우는 버그가 생길 수 있어 mergeNonNull 로 분리 처리)
+        //   - 실패해도 baseline 은 그대로 남음 (graceful fallback)
         try {
-            const kmaBuoyData = await fetchKmaBuoyData();
-            for (const stnId of Object.keys(parsed)) {
-                if (kmaBuoyData[stnId]) {
-                    parsed[stnId].waveHeightMax = kmaBuoyData[stnId].waveHeightMax;
-                    parsed[stnId].waveHeightSig = kmaBuoyData[stnId].waveHeightSig;
-                    parsed[stnId].waveHeightAvg = kmaBuoyData[stnId].waveHeightAvg;
+            const marineData = await fetchMarineBuoyData();
+            for (const stnId of Object.keys(marineData)) {
+                if (parsed[stnId]) {
+                    _mergeNonNull(parsed[stnId], marineData[stnId]);
+                } else {
+                    parsed[stnId] = marineData[stnId];                // baseline 에 없는 부이 추가
                 }
             }
-        } catch (e) { }
+        } catch (e) {
+            // marine 실패 — sea_obs baseline 만 사용 (graceful)
+        }
 
         return parsed;
     } catch (e) {
-        // console.warn(`Local Buoy Fetch failed:`, e.message);
         return getMockBuoyData();
     }
-
-    return getMockBuoyData();
 }
 
 function parseBuoyData(text) {
@@ -404,7 +447,11 @@ function parseBuoyData(text) {
     return buoyData;
 }
 
-// KMA 부이 상세 데이터 fetch (최대/유의/평균 파고)
+// [DEPRECATED 2026-04-25] ─────────────────────────────────────────────────────
+//   kma_buoy.php 데이터 fetch — marine.kma.go.kr 로 대체.
+//   호환을 위해 함수 정의는 보존하되 fetchBuoyData() 의 호출 사이트 주석 처리됨.
+//   재활성화 방법: fetchBuoyData() 안의 try 블록 주석 해제.
+// ─────────────────────────────────────────────────────────────────────────────
 async function fetchKmaBuoyData() {
     try {
         const response = await fetch(CONFIG.KMA_BUOY_API_URL);
@@ -417,7 +464,7 @@ async function fetchKmaBuoyData() {
     }
 }
 
-// kma_buoy.php 응답 파싱
+// [DEPRECATED 2026-04-25] kma_buoy.php 응답 파싱 — marine endpoint 로 대체.
 // 포맷: TM(0), STN(1), WD1(2), WS1(3), WS1_GST(4), WD2(5), WS2(6), WS2_GST(7),
 //        PA(8), HM(9), TA(10), TW(11), WH_MAX(12), WH_SIG(13), WH_AVE(14), WP(15), WO(16)
 function parseKmaBuoyData(text) {
@@ -448,6 +495,143 @@ function parseKmaBuoyData(text) {
     });
 
     return result;
+}
+
+// ============================================================================
+// [신규 2026-04-25] marine.kma.go.kr JSON endpoint 통합 fetch
+//
+// 우리 서버의 캐시 라우트 /api/marine-buoys, /api/marine-wh-buoys,
+// /api/marine-lh-buoys 3개를 병렬 fetch 하여 stnId 단위로 통합 schema 객체 반환.
+// (시정계 /api/marine-vs 는 본 단계에선 미사용 — UI 표시는 후속 작업)
+//
+// 반환 형태: { [stnId]: { tm, waveHeight, waveHeightMax, waveHeightSig,
+//                         waveHeightAvg, wavePeriod, waveDir, windSpeed,
+//                         windDirection, windGust, waterTemp, airTemp,
+//                         pressure, humidity, visibility } }
+// 결측값(null) 은 그대로 보존 — 표시 단계에서 분기 처리.
+// ============================================================================
+async function fetchMarineBuoyData() {
+    const result = {};
+
+    // 3개 endpoint 병렬 호출 (각자 실패해도 다른 것은 머지)
+    const [bRes, cRes, lRes] = await Promise.allSettled([
+        fetch(CONFIG.MARINE_BUOY_API_URL).then(r => r.ok ? r.json() : null),
+        fetch(CONFIG.MARINE_WH_BUOY_API_URL).then(r => r.ok ? r.json() : null),
+        fetch(CONFIG.MARINE_LH_API_URL).then(r => r.ok ? r.json() : null)
+    ]);
+
+    const pickArr = (settled) => (settled.status === 'fulfilled' && settled.value && Array.isArray(settled.value.data)) ? settled.value.data : [];
+
+    pickArr(bRes).forEach(item => {
+        const id = String(item.stn_id || '');
+        if (!id) return;
+        result[id] = mapMarineBuoyB(item);
+    });
+    pickArr(cRes).forEach(item => {
+        const id = String(item.stn_id || '');
+        if (!id) return;
+        // 같은 stnId 가 B 와 C 에 동시 등장하지 않으므로 단순 set
+        result[id] = mapMarineBuoyC(item);
+    });
+    pickArr(lRes).forEach(item => {
+        const id = String(item.stn_id || '');
+        if (!id) return;
+        result[id] = mapMarineBuoyL(item);
+    });
+
+    return result;
+}
+
+// non-null 필드만 dst 에 덮어쓰기. marine 응답이 결측(null)인 필드는
+// baseline(sea_obs.php) 의 정상값을 보존하기 위해 사용.
+// 단, 마린 매핑에서 항상 set 하는 식별자(id, name, tm) 은 null/빈문자열도 허용해
+// 갱신되도록 dst 의 falsy 도 함께 덮어씀.
+function _mergeNonNull(dst, src) {
+    if (!src) return dst;
+    Object.keys(src).forEach(k => {
+        const v = src[k];
+        if (v === null || v === undefined) return;       // 결측은 보존
+        if (typeof v === 'string' && v.length === 0) return; // 빈 문자열도 보존
+        dst[k] = v;
+    });
+    // [예외] tm 은 marine 의 신선한 관측시각으로 갱신 (있을 때만)
+    if (src.tm) dst.tm = src.tm;
+    return dst;
+}
+
+// "2026.04.25 16:05:00" → "202604251605" 12자리 표준 변환
+// (기존 displayBuoyDataInModal 의 timeMatch 정규식과 호환)
+function _marineObsTmToTm(s) {
+    if (!s) return '';
+    const m = String(s).match(/(\d{4})[.\-\/]?(\d{2})[.\-\/]?(\d{2})\s+(\d{2}):(\d{2})/);
+    return m ? (m[1] + m[2] + m[3] + m[4] + m[5]) : String(s);
+}
+
+// 결측 정규화 — marine API 는 보통 null 을 사용하지만 -99/-9999 도 방어
+function _mvVal(v) {
+    if (v === null || v === undefined) return null;
+    const n = parseFloat(v);
+    if (isNaN(n)) return null;
+    if (n <= -99 || n <= -9999) return null;
+    return n;
+}
+
+// B타입(해양기상부이) marine → 우리 schema
+//   풍속/풍향: ws_1/wd_1 사용 (사용자 결정 — 위쪽 센서)
+function mapMarineBuoyB(it) {
+    return {
+        id: String(it.stn_id || ''),
+        name: it.kor_nm || '',
+        tm: _marineObsTmToTm(it.obs_tm),
+        waveHeight:    _mvVal(it.sig_wh),
+        waveHeightMax: _mvVal(it.max_wh),
+        waveHeightSig: _mvVal(it.sig_wh),
+        waveHeightAvg: _mvVal(it.ave_wh),
+        wavePeriod:    _mvVal(it.wp),
+        waveDir:       _mvVal(it.wo),
+        windSpeed:     _mvVal(it.ws_1),
+        windDirection: _mvVal(it.wd_1),
+        windGust:      _mvVal(it.ws_1_gst),
+        waterTemp:     _mvVal(it.tw),
+        airTemp:       _mvVal(it.ta),
+        pressure:      _mvVal(it.pa),
+        humidity:      _mvVal(it.hm),
+        visibility:    _mvVal(it.vs)   // 단위: m (표시 시 km 환산)
+    };
+}
+
+// C타입(파고부이) marine → 우리 schema
+//   파고 + 파주기 + 수온만 측정 (풍속·풍향·기온·기압 등은 미측정 → null 유지)
+function mapMarineBuoyC(it) {
+    return {
+        id: String(it.stn_id || ''),
+        name: it.kor_nm || '',
+        tm: _marineObsTmToTm(it.obs_tm),
+        waveHeight:    _mvVal(it.sig_wh),
+        waveHeightMax: _mvVal(it.max_wh),
+        waveHeightSig: _mvVal(it.sig_wh),
+        waveHeightAvg: _mvVal(it.ave_wh),
+        wavePeriod:    _mvVal(it.wp),
+        waterTemp:     _mvVal(it.tw)
+    };
+}
+
+// L타입(등표) marine → 우리 schema
+//   풍속/풍향: 단일 ws/wd, 돌풍은 max_ins_ws (최대순간풍속)
+//   기압 필드명이 ps (B타입의 pa 와 다름) — 우리 schema 는 pressure 로 일원화
+function mapMarineBuoyL(it) {
+    return {
+        id: String(it.stn_id || ''),
+        name: it.kor_nm || '',
+        tm: _marineObsTmToTm(it.obs_tm),
+        windSpeed:     _mvVal(it.ws),
+        windDirection: _mvVal(it.wd),
+        windGust:      _mvVal(it.max_ins_ws),
+        airTemp:       _mvVal(it.ta),
+        pressure:      _mvVal(it.ps),
+        humidity:      _mvVal(it.hm)
+        // 등표는 파고/수온/시정 미측정 → 해당 필드는 baseline(sea_obs) 값 보존
+    };
 }
 
 // 부이 데이터 없음 (API 실패 시)
