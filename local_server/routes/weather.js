@@ -49,6 +49,23 @@ router.get('/api/weather-alerts', (req, res) => {
     }
 });
 
+// 1-1. 해상 예특보구역 폴리곤 (정적 GeoJSON)
+//      해양종합정보 지도의 "특보구역" 토글 버튼이 호출
+//      KMA marine 포털(geoserver/mmis/wms)의 mmis:shp_wrn_poly 레이어를
+//      WFS GetFeature 로 1회 받아 저장한 GeoJSON. 행정 경계 변경 시에만 갱신.
+router.get('/api/warn-zones', (req, res) => {
+    try {
+        const filePath = path.join(DATA_DIR, 'warn_zones.geojson');
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: 'warn_zones.geojson not found' });
+        }
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.sendFile(filePath);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // 2. 부이 정보
 router.get('/api/buoys', (req, res) => {
     if (dataCache.buoys) res.json(dataCache.buoys);
