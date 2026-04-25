@@ -285,17 +285,33 @@
 
             // 3 × 3 = 9 개 작은 셀 생성. row/col 인덱스로 sub_no 1~9 부여.
             // (예: 부모 105 → 105-1 .. 105-9 처럼 식별 가능)
+            //
+            // [번호 매김 규칙 — KMA 표준]
+            //   북쪽이 위. 좌→우, 위→아래 순으로 1..9.
+            //     1 2 3   ← 북(latMax)
+            //     4 5 6
+            //     7 8 9   ← 남(latMin)
+            //
+            // [주의 — 좌표계 차이]
+            //   seaZones.js 의 이미지 지도는 imgY 가 아래로 증가(이미지 좌표) 하므로
+            //   `row*3+col+1` 만 써도 자연스럽게 위 규칙과 일치한다.
+            //   반면 OL 은 지리 위도(lat) 가 위로 증가하기 때문에, row=0 일 때
+            //   latMin 부터(=남쪽부터) 시작한다. 따라서 sub_no 를 그대로
+            //   `row*3+col+1` 로 매기면 1·2·3 이 남쪽에 가서 표준과 정반대가 된다.
+            //   → row 를 (2 - row) 로 뒤집어 북쪽 행이 1·2·3 이 되도록 보정.
             for (let row = 0; row < 3; row++) {
                 for (let col = 0; col < 3; col++) {
                     const x0 = lonMin + col * lonStep;
                     const x1 = x0 + lonStep;
                     const y0 = latMin + row * latStep;
                     const y1 = y0 + latStep;
+                    // 북쪽 = 표준 1·2·3 이 되도록 row 반전
+                    const subNo = (2 - row) * 3 + col + 1;
                     subGeo.features.push({
                         type: 'Feature',
                         properties: {
                             parent_marine_zone_no: parentNo,    // 어느 대해구의 자식인지
-                            sub_no: row * 3 + col + 1           // 1 .. 9
+                            sub_no: subNo                        // 1..9 (KMA 표준 배열)
                         },
                         geometry: {
                             type: 'Polygon',
