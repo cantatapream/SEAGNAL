@@ -132,8 +132,14 @@
     // [데이터 출처]
     //   KMA 해양기상기후정보포털 — https://marine.kma.go.kr/mmis_marine_api/v1/kma/mdl/marine_zone/area
     //   응답 GeoJSON FeatureCollection, CRS84(EPSG:4326), 1331개 0.5°×0.5° 셀.
-    //   래퍼(code/msg/data) 벗긴 순수 GeoJSON 을 local_server/data/ 에 정적 저장.
+    //   래퍼(code/msg/data) 벗긴 순수 GeoJSON 을 정적 파일로 저장.
     //   격자 자체는 거의 정적 데이터라 한 번 받아두면 반영구적으로 재사용 가능.
+    //
+    // [파일 경로 주의]
+    //   local_server/marine_zone_area.json (프로젝트 루트 직속).
+    //   local_server/data/ 는 .dockerignore 와 fly.io persistent volume 마운트로
+    //   git 커밋 파일이 운영에 반영되지 않는 디렉터리이므로 절대 거기 두지 말 것.
+    //   land_mask_korea.json 과 같은 정적 GeoJSON 컨벤션(루트 직속)을 따른다.
     //
     // [3-레이어 구성]
     //   1) 대해구 outline   — 항상 표시, 얇은 흰선
@@ -143,7 +149,7 @@
     //
     // [성능 메모]
     //   소해구 = 1331 × 9 ≈ 12000 폴리곤. 줌 임계값으로 시야 밖일 때 렌더 차단.
-    const MARINE_ZONE_GEOJSON_URL = '/data/marine_zone_area.json';
+    const MARINE_ZONE_GEOJSON_URL = '/marine_zone_area.json';
 
     /**
      * [헬퍼] 폴리곤 외곽선의 좌표 배열을 받아 그 도형을 감싸는 최소
