@@ -325,4 +325,133 @@
     } else {
         _installWhenReady();
     }
+
+    // ==================================================================
+    // 외부 API
+    // ==================================================================
+
+    /**
+     * [외부 API] 특보구역 토글을 프로그래밍으로 ON/OFF.
+     *
+     * 무엇을 하나?
+     *   #ocean-warn-zone-toggle-btn 의 active 클래스를 보고, 원하는 상태와
+     *   다르면 버튼을 click() 으로 흉내 내어 _bindToggle 의 핸들러가 자연스럽게
+     *   실행되게 한다. 그 한 번의 click 으로 다음이 모두 동기화됨:
+     *     - 클로저의 _visible 플래그 반전
+     *     - _layer / _subLayer 의 setVisible
+     *     - localStorage('seagnal_warn_zone_visible') 저장
+     *     - 처음 켜질 때 _loadMain() / _loadSub() 자동 호출 (lazy fetch)
+     *
+     * 왜 필요한가?
+     *   "해구기상" 버튼 같은 외부 진입 경로에서 해양종합정보 탭으로 이동하면
+     *   특보구역도 자동으로 켜져야 한다. 직접 _layer.setVisible 만 하면
+     *   클로저 _visible 과 어긋나고 데이터 lazy fetch 도 트리거되지 않아
+     *   토글 버튼 흉내가 가장 안전.
+     *
+     * 어디서 호출되나?
+     *   - js/render.js / js/windy.js 의 "해구기상" 버튼 클릭 핸들러 (index2 분기)
+     *
+     * @param {boolean} visible - 원하는 가시 상태 (true=ON, false=OFF)
+     * @returns {boolean} 토글 버튼이 존재해 처리 가능했으면 true
+     */
+    window.setWarnZoneVisible = function (visible) {
+        var btn = document.getElementById('ocean-warn-zone-toggle-btn');
+        if (!btn) return false;
+        var isActive = btn.classList.contains('active');
+        if (isActive !== !!visible) btn.click();
+        return true;
+    };
+
+    // 현재 깜빡임 진행 중인 feature/타이머 — 새 깜빡임 시작 시 정리용
+    var _flashFeature = null;
+    var _flashTimer = null;
+
+    /**
+     * [외부 API] 특보구역 폴리곤을 잠시 깜빡여 강조.
+     *
+     * 무엇을 하나?
+     *   _source 에 들어 있는 특보구역 features 중 name 이 zoneName 과 일치하는
+     *   하나를 찾아 5 초 동안 빨간 강조 스타일과 원본 스타일을 500ms 간격으로
+     *   교차로 setStyle 한다. 끝나면 setStyle(undefined) 로 정상 복구.
+     *
+     * 왜 필요한가?
+     *   "해구기상" 버튼으로 해양종합정보 지도로 이동했을 때, 사용자가 어느
+     *   특보구역을 보러 왔는지 한눈에 알아볼 수 있도록 시각 피드백을 준다.
+     *   index1(이미지 지도) 의 seaZones.js 가 하던 깜빡임 효과의 OL 버전.
+     *
+     * 어디서 호출되나?
+     *   - js/render.js / js/windy.js 의 "해구기상" 버튼 클릭 핸들러 (index2 분기)
+     *     goToOceanMapByZone 직후 약 0.8초 지연을 두고 호출.
+     *     특보구역 데이터가 lazy fetch 인 점을 고려해 내부에서 짧은 retry
+     *     (200ms × 최대 8회) 로 features 가 도착할 때까지 기다린다.
+     *
+     * 안전성:
+     *   - 같은 함수가 연속 호출돼도 이전 _flashTimer / _flashFeature 를 정리
+     *     해서 스타일이 영구 덮어쓰이는 일이 없다.
+     *   - feature 를 못 찾으면 그냥 종료 (오류 throw 안 함).
+     *
+     * @param {string} zoneName - 깜빡일 특보구역 이름 (예: "울산앞바다")
+     */
+    window.flashWarnZone = function (zoneName) {
+        var target = _normalizeZoneName(zoneName);
+        if (!target) return;
+
+        // 이전 깜빡임 정리
+        if (_flashTimer) { clearInterval(_flashTimer); _flashTimer = null; }
+        if (_flashFeature) { _flashFeature.setStyle(undefined); _flashFeature = null; }
+
+        var attempts = 0;
+        var MAX_ATTEMPTS = 8;        // 200ms × 8 = 최대 1.6초 대기
+        var WAIT_MS = 200;
+
+        function tryFlash() {
+            if (!_source) {
+                if (++attempts <= MAX_ATTEMPTS) setTimeout(tryFlash, WAIT_MS);
+                return;
+            }
+            var feats = _source.getFeatures();
+            var feature = null;
+            for (var i = 0; i < feats.length; i++) {
+                if (_normalizeZoneName(feats[i].get('name')) === target) {
+                    feature = feats[i];
+                    break;
+                }
+            }
+            if (!feature) {
+                if (++attempts <= MAX_ATTEMPTS) setTimeout(tryFlash, WAIT_MS);
+                return;
+            }
+
+            _flashFeature = feature;
+            var brightStyle = new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: '#ff5252',     // 강렬한 빨강
+                    width: 4,
+                    lineDash: [6, 4]
+                }),
+                fill: new ol.style.Fill({
+                    color: 'rgba(255, 82, 82, 0.18)'
+                })
+            });
+
+            var phase = 0;
+            var TOTAL_PHASES = 10;       // 500ms × 10 = 5초
+            _flashTimer = setInterval(function () {
+                if (phase % 2 === 0) {
+                    feature.setStyle(brightStyle);          // ON 프레임
+                } else {
+                    feature.setStyle(undefined);             // OFF 프레임 (레이어 기본 스타일)
+                }
+                phase++;
+                if (phase >= TOTAL_PHASES) {
+                    clearInterval(_flashTimer);
+                    _flashTimer = null;
+                    feature.setStyle(undefined);             // 정상 복구
+                    _flashFeature = null;
+                }
+            }, 500);
+        }
+
+        tryFlash();
+    };
 })();

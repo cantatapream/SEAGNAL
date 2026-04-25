@@ -302,8 +302,9 @@ function renderOtherButtonsForStatus(zoneName, container) {
             zoneViewBtn.style.boxShadow = 'none';
         });
         // [클릭 동작]
-        //   index2 : 해구도 토글 ON + 해당 해역 중심으로 지도 이동 (render.js
-        //           해구기상 버튼과 동일한 패턴).
+        //   index2 : 해구도 + 특보구역 토글 ON, 해당 해역 중심으로 지도 이동,
+        //           그 특보구역 테두리를 5초간 깜빡여 강조 (render.js 해구기상
+        //           버튼과 동일한 패턴).
         //   index1 등 : 기존 동작 유지 (특보정보 탭 → 해구기상 서브탭).
         //   매핑(ZONE_OVERLAY_CONFIG) 이 없는 해역은 좌표를 못 구하므로
         //   index2 라도 fallback 으로 showZoneOverlay 호출.
@@ -316,7 +317,17 @@ function renderOtherButtonsForStatus(zoneName, container) {
                 if (typeof window.setMarineZoneGridVisible === 'function') {
                     window.setMarineZoneGridVisible(true);
                 }
-                if (window.goToOceanMapByZone(zoneName)) return;
+                if (typeof window.setWarnZoneVisible === 'function') {
+                    window.setWarnZoneVisible(true);
+                }
+                if (window.goToOceanMapByZone(zoneName)) {
+                    setTimeout(function () {
+                        if (typeof window.flashWarnZone === 'function') {
+                            window.flashWarnZone(zoneName);
+                        }
+                    }, 800);
+                    return;
+                }
             }
             if (typeof showZoneOverlay === 'function') showZoneOverlay(zoneName);
         });
@@ -642,7 +653,8 @@ function createStatusCard(zoneName) {
     `;
     _applyFlex(zoneViewBtn);
     // [클릭 동작]
-    //   index2 : 해구도 토글 ON + 해당 해역 중심으로 지도 이동.
+    //   index2 : 해구도 + 특보구역 토글 ON, 해당 해역 중심으로 지도 이동,
+    //           그 특보구역 테두리를 5초간 깜빡여 강조.
     //   index1 등 : 기존 동작 유지 (특보정보 탭 → 해구기상 서브탭).
     //   매핑(ZONE_OVERLAY_CONFIG) 이 없는 해역은 좌표를 못 구하므로
     //   index2 라도 fallback 으로 showZoneOverlay 호출.
@@ -655,7 +667,17 @@ function createStatusCard(zoneName) {
             if (typeof window.setMarineZoneGridVisible === 'function') {
                 window.setMarineZoneGridVisible(true);
             }
-            if (window.goToOceanMapByZone(zoneName)) return;
+            if (typeof window.setWarnZoneVisible === 'function') {
+                window.setWarnZoneVisible(true);
+            }
+            if (window.goToOceanMapByZone(zoneName)) {
+                setTimeout(function () {
+                    if (typeof window.flashWarnZone === 'function') {
+                        window.flashWarnZone(zoneName);
+                    }
+                }, 800);
+                return;
+            }
         }
         if (typeof showZoneOverlay === 'function') showZoneOverlay(zoneName);
     });
