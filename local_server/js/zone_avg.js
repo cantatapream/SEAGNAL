@@ -186,6 +186,28 @@
     // DOM 박스 생성
     // ------------------------------------------------------------
     // opts.inline = true → 기상현황 카드(zone명 옆 인라인 배치)용 컴팩트 스타일
+    const TOOLTIP_TEXT = '해당 특보구역에 속하는 소해구에 대한\n파고 및 풍속 예측정보의 평균 값입니다.\n예측정보는 실제환경과 다를 수 있습니다.';
+
+    function _attachTooltipHandler(box) {
+        box.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const prev = box.querySelector('.zone-avg-tooltip');
+            if (prev) prev.remove();
+            if (box._tooltipTimer) {
+                clearTimeout(box._tooltipTimer);
+                box._tooltipTimer = null;
+            }
+            const tip = document.createElement('div');
+            tip.className = 'zone-avg-tooltip';
+            tip.textContent = TOOLTIP_TEXT;
+            box.appendChild(tip);
+            box._tooltipTimer = setTimeout(() => {
+                tip.remove();
+                box._tooltipTimer = null;
+            }, 2000);
+        });
+    }
+
     function createBox(zoneName, opts) {
         opts = opts || {};
         const result = getAverages(zoneName);
@@ -194,11 +216,6 @@
         const box = document.createElement('div');
         box.className = 'zone-avg-box' + (opts.inline ? ' inline' : '');
         box.dataset.zoneName = zoneName;
-
-        const timeSpan = document.createElement('span');
-        timeSpan.className = 'zone-avg-time';
-        timeSpan.textContent = `${_formatHour(result.tm)} 기준`;
-        box.appendChild(timeSpan);
 
         const waveBadge = document.createElement('span');
         waveBadge.className = 'zone-avg-badge wave';
@@ -209,6 +226,8 @@
         windBadge.className = 'zone-avg-badge wind';
         windBadge.innerHTML = `<span class="lbl">평균 풍속</span> ${result.avgWs.toFixed(1)}m/s`;
         box.appendChild(windBadge);
+
+        _attachTooltipHandler(box);
 
         return box;
     }

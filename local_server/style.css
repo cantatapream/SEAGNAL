@@ -441,30 +441,26 @@ line-height: 1.1;
     border: 1px solid rgba(105, 240, 174, 0.3);
 }
 
-/* 해역 평균 파고/풍속 박스 (노란 점선 + 1초 깜빡임) */
+/* 해역 평균 파고/풍속 박스 (노란 점선 + 3초 깜빡임) */
 @keyframes zoneAvgBlink {
     0%, 100% { border-color: #ffd700; }
     50%      { border-color: rgba(255, 215, 0, 0.15); }
 }
 .zone-avg-box {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
     gap: 8px;
-    flex-wrap: wrap;
-    padding: 6px 10px;
+    padding: 4px 8px;
     border: 2px dashed #ffd700;
     border-radius: 8px;
     background: transparent;
     font-size: 0.78rem;
     color: #e6edf3;
     margin: 6px 0;
-    animation: zoneAvgBlink 1s infinite;
-}
-.zone-avg-box .zone-avg-time {
-    color: #8b949e;
-    font-size: 0.72rem;
-    white-space: nowrap;
+    animation: zoneAvgBlink 3s infinite;
+    cursor: pointer;
+    position: relative;
+    width: fit-content;
 }
 .zone-avg-box .zone-avg-badge {
     display: inline-flex;
@@ -492,12 +488,50 @@ line-height: 1.1;
     font-size: 0.72rem;
     color: #8b949e;
 }
-/* 기상현황(windy.js) 카드에서 zone명 옆 인라인 배치용 */
+/* 기상현황(windy.js) 카드 헤더에서 zone명 옆 인라인 배치용 */
 .zone-avg-box.inline {
     margin: 0;
-    padding: 4px 8px;
-    flex: 1;
-    min-width: 0;
+}
+
+/* 평균 박스 우측 정렬용 행 (popup details 등 block 컨테이너 안에서 사용) */
+.zone-avg-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+}
+
+/* 클릭 시 박스 위쪽에 뜨는 말풍선 (2초 자동 닫힘) */
+.zone-avg-tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    background: rgba(20, 20, 20, 0.96);
+    color: #e6edf3;
+    border: 1px solid rgba(255, 215, 0, 0.55);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    white-space: pre-line;
+    z-index: 10000;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.55);
+    max-width: 280px;
+    width: max-content;
+    text-align: left;
+    animation: zoneAvgTooltipFade 0.18s ease-out;
+}
+.zone-avg-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    right: 16px;
+    border: 6px solid transparent;
+    border-top-color: rgba(20, 20, 20, 0.96);
+}
+@keyframes zoneAvgTooltipFade {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 /* Alert Details Container */
