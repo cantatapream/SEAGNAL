@@ -2208,6 +2208,16 @@ function displayBuoyDataInModal(container, data) {
         { label: '🌫 시정', key: 'vsKm', unit: 'km', color: 'white' }    // [NEW]
     ];
 
+    // marine.kma.go.kr 응답이 float32 → JS Number 로 들어와 1.7000000476837158
+    // 같은 부동소수점 잔여 자리가 그대로 노출되던 이슈 수정.
+    // 풍향(wd)은 각도라 정수, 그 외 수치는 소수 1자리로 통일.
+    const _fmt = (v, key) => {
+        if (v == null) return v;
+        const n = typeof v === 'number' ? v : parseFloat(v);
+        if (!Number.isFinite(n)) return v;
+        return key === 'wd' ? String(Math.round(n)) : n.toFixed(1);
+    };
+
     // [INDEX2 전용 확대] 종합기상에서만 데이터 그리드 폰트/간격 확대
     const isIndex2 = (typeof window !== 'undefined' && window.__SEAGNAL_PAGE === 'index2');
     const gridGap = isIndex2 ? '11px' : '8px';
@@ -2227,9 +2237,9 @@ function displayBuoyDataInModal(container, data) {
         const unitStyle = 'font-size:0.75em;font-weight:400;color:#888;';
         const sepStyle = 'color:#555;margin:0 1px;';
         const parts = [];
-        if (data.whMax != null) parts.push(`<span style="${valStyle}">${data.whMax}</span><span style="${unitStyle}">m(최대)</span>`);
-        if (data.whAvg != null) parts.push(`<span style="${valStyle}">${data.whAvg}</span><span style="${unitStyle}">m(평균)</span>`);
-        if (data.whSig != null) parts.push(`<span style="${valStyle}">${data.whSig}</span><span style="${unitStyle}">m(유의)</span>`);
+        if (data.whMax != null) parts.push(`<span style="${valStyle}">${_fmt(data.whMax, 'whMax')}</span><span style="${unitStyle}">m(최대)</span>`);
+        if (data.whAvg != null) parts.push(`<span style="${valStyle}">${_fmt(data.whAvg, 'whAvg')}</span><span style="${unitStyle}">m(평균)</span>`);
+        if (data.whSig != null) parts.push(`<span style="${valStyle}">${_fmt(data.whSig, 'whSig')}</span><span style="${unitStyle}">m(유의)</span>`);
         html += `<div style="margin-bottom:2px;">
             <div style="color:#888;margin-bottom:4px;">🌊 파고</div>
             <div>${parts.join(`<span style="${sepStyle}">|</span>`)}</div>
@@ -2238,7 +2248,7 @@ function displayBuoyDataInModal(container, data) {
     } else if (data.wh != null) {
         html += `<div style="display:flex; justify-content:space-between;">
             <span style="color:#888;">🌊 파고</span>
-            <span style="color:#4fc3f7; font-weight:500;">${data.wh}<span style="font-size:0.75em;font-weight:400;color:#888;">m</span></span>
+            <span style="color:#4fc3f7; font-weight:500;">${_fmt(data.wh, 'wh')}<span style="font-size:0.75em;font-weight:400;color:#888;">m</span></span>
         </div>`;
         hasData = true;
     }
@@ -2249,7 +2259,7 @@ function displayBuoyDataInModal(container, data) {
         if (data[m.key] != null) {
             html += `<div style="display:flex; justify-content:space-between;">
                 <span style="color:#888;">${m.label}</span>
-                <span style="color:${m.color}; font-weight:500;">${data[m.key]}${m.unit}</span>
+                <span style="color:${m.color}; font-weight:500;">${_fmt(data[m.key], m.key)}${m.unit}</span>
             </div>`;
             hasData = true;
         }
