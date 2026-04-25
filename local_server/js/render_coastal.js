@@ -23,6 +23,16 @@ function displayBuoyInfo(buoy, container) {
     const buoyData = appState.buoyData[buoy.id];
     const typeInfo = BUOY_TYPES[buoy.type] || { name: '부이', icon: '📍' };
 
+    // marine.kma.go.kr 응답이 float32 → JS Number 로 들어와 0.800000011920929
+    // 같은 부동소수점 잔여 자리가 그대로 노출되던 이슈 수정.
+    // 풍향(각도)·습도(%)는 정수 의미라 round, 그 외 수치는 소수 1자리로 통일.
+    const _fmt = (v, key) => {
+        if (v == null) return v;
+        const n = typeof v === 'number' ? v : parseFloat(v);
+        if (!Number.isFinite(n)) return v;
+        return (key === 'windDirection' || key === 'humidity') ? String(Math.round(n)) : n.toFixed(1);
+    };
+
     // 헤더
     const header = document.createElement('div');
     header.style.display = 'flex';
@@ -102,9 +112,9 @@ function displayBuoyInfo(buoy, container) {
         const unitStyle = 'font-size:0.75rem;font-weight:400;color:#8b949e;';
         const sepStyle = 'color:#555;margin:0 2px;';
         const parts = [];
-        if (buoyData.waveHeightMax !== null) parts.push(`<span style="${valStyle}">${buoyData.waveHeightMax}</span><span style="${unitStyle}">m(최대)</span>`);
-        if (buoyData.waveHeightAvg !== null) parts.push(`<span style="${valStyle}">${buoyData.waveHeightAvg}</span><span style="${unitStyle}">m(평균)</span>`);
-        if (buoyData.waveHeightSig !== null) parts.push(`<span style="${valStyle}">${buoyData.waveHeightSig}</span><span style="${unitStyle}">m(유의)</span>`);
+        if (buoyData.waveHeightMax !== null) parts.push(`<span style="${valStyle}">${_fmt(buoyData.waveHeightMax, 'waveHeightMax')}</span><span style="${unitStyle}">m(최대)</span>`);
+        if (buoyData.waveHeightAvg !== null) parts.push(`<span style="${valStyle}">${_fmt(buoyData.waveHeightAvg, 'waveHeightAvg')}</span><span style="${unitStyle}">m(평균)</span>`);
+        if (buoyData.waveHeightSig !== null) parts.push(`<span style="${valStyle}">${_fmt(buoyData.waveHeightSig, 'waveHeightSig')}</span><span style="${unitStyle}">m(유의)</span>`);
         const waveDiv = document.createElement('div');
         waveDiv.style.cssText = 'width:100%;margin-bottom:-10px;';
         waveDiv.innerHTML = `
@@ -113,18 +123,18 @@ function displayBuoyInfo(buoy, container) {
         `;
         mainData.appendChild(waveDiv);
     } else if (buoyData.waveHeight !== null) {
-        const waveBox = createDataBox('🌊 파고', buoyData.waveHeight, 'm', '#4fc3f7');
+        const waveBox = createDataBox('🌊 파고', _fmt(buoyData.waveHeight, 'waveHeight'), 'm', '#4fc3f7');
         mainData.appendChild(waveBox);
     }
 
     if (buoyData.windSpeed !== null) {
         const windDir = buoyData.windDirection !== null ? getWindDirectionText(buoyData.windDirection) : '';
-        const windBox = createDataBox('💨 풍속', buoyData.windSpeed, `m/s ${windDir}`, '#81c784');
+        const windBox = createDataBox('💨 풍속', _fmt(buoyData.windSpeed, 'windSpeed'), `m/s ${windDir}`, '#81c784');
         mainData.appendChild(windBox);
     }
 
     if (buoyData.waterTemp !== null) {
-        const tempBox = createDataBox('🌡️ 수온', buoyData.waterTemp, '°C', '#ffb74d');
+        const tempBox = createDataBox('🌡️ 수온', _fmt(buoyData.waterTemp, 'waterTemp'), '°C', '#ffb74d');
         mainData.appendChild(tempBox);
     }
 
@@ -134,20 +144,20 @@ function displayBuoyInfo(buoy, container) {
     let detailHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem;background:rgba(0,0,0,0.2);padding:10px;border-radius:6px">';
 
     if (buoyData.windGust !== null) {
-        detailHTML += `<div><span style="color:#8b949e">돌풍</span> <span style="color:#fff">${buoyData.windGust} m/s</span></div>`;
+        detailHTML += `<div><span style="color:#8b949e">돌풍</span> <span style="color:#fff">${_fmt(buoyData.windGust, 'windGust')} m/s</span></div>`;
     }
     // [NEW 2026-04-25] 파주기 — marine.kma.go.kr endpoint 도입으로 노출
     if (buoyData.wavePeriod !== null && buoyData.wavePeriod !== undefined) {
-        detailHTML += `<div><span style="color:#8b949e">파주기</span> <span style="color:#fff">${buoyData.wavePeriod} 초</span></div>`;
+        detailHTML += `<div><span style="color:#8b949e">파주기</span> <span style="color:#fff">${_fmt(buoyData.wavePeriod, 'wavePeriod')} 초</span></div>`;
     }
     if (buoyData.airTemp !== null) {
-        detailHTML += `<div><span style="color:#8b949e">기온</span> <span style="color:#fff">${buoyData.airTemp}°C</span></div>`;
+        detailHTML += `<div><span style="color:#8b949e">기온</span> <span style="color:#fff">${_fmt(buoyData.airTemp, 'airTemp')}°C</span></div>`;
     }
     if (buoyData.pressure !== null) {
-        detailHTML += `<div><span style="color:#8b949e">기압</span> <span style="color:#fff">${buoyData.pressure} hPa</span></div>`;
+        detailHTML += `<div><span style="color:#8b949e">기압</span> <span style="color:#fff">${_fmt(buoyData.pressure, 'pressure')} hPa</span></div>`;
     }
     if (buoyData.humidity !== null) {
-        detailHTML += `<div><span style="color:#8b949e">습도</span> <span style="color:#fff">${buoyData.humidity}%</span></div>`;
+        detailHTML += `<div><span style="color:#8b949e">습도</span> <span style="color:#fff">${_fmt(buoyData.humidity, 'humidity')}%</span></div>`;
     }
     // [NEW 2026-04-25] 시정 — marine API m 단위를 km 환산
     if (typeof buoyData.visibility === 'number' && !isNaN(buoyData.visibility)) {
