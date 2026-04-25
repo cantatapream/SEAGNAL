@@ -443,7 +443,7 @@ line-height: 1.1;
 
 /* 해역 평균 파고/풍속 박스
  * - 박스 자체 테두리/배경 없음 (단순 wrapper)
- * - 각 뱃지의 테두리가 3초 주기로 깜빡임 (CSS 변수로 색상별 분리)
+ * - 각 뱃지의 테두리가 2초 주기로 깜빡임 (CSS 변수로 색상별 분리)
  */
 @keyframes zoneAvgBadgeBlink {
     0%, 100% { border-color: var(--zab-strong); }
@@ -473,7 +473,7 @@ line-height: 1.1;
     font-weight: 600;
     white-space: nowrap;
     border: 1px solid var(--zab-strong);
-    animation: zoneAvgBadgeBlink 3s infinite;
+    animation: zoneAvgBadgeBlink 2s infinite;
 }
 .zone-avg-box .zone-avg-badge.wave {
     --zab-strong: rgba(79, 195, 247, 0.9);
@@ -493,9 +493,16 @@ line-height: 1.1;
     font-size: 0.72rem;
     color: #8b949e;
 }
-/* 기상현황(windy.js) 카드 헤더에서 zone명 옆 인라인 배치용 */
+/* 기상현황(windy.js) 카드 헤더에서 zone명 옆 인라인 배치용
+ * - margin-left: auto : 같은 줄/wrap 된 줄 모두에서 우측 정렬 보장
+ * - flex-shrink: 0    : 폭 좁아질 때 줄어들지 않고 통째로 wrap
+ *                       → 좁은 화면(폰트 큰 모바일)에서 zone명 아래로 떨어져
+ *                          두 뱃지가 같이 우측 정렬된 상태로 표시됨
+ */
 .zone-avg-box.inline {
     margin: 0;
+    margin-left: auto;
+    flex-shrink: 0;
 }
 
 /* 평균 박스 우측 정렬용 행 (popup details 등 block 컨테이너 안에서 사용) */

@@ -589,10 +589,16 @@ function createStatusCard(zoneName) {
     // 구역명 + 평균 파고/풍속 박스를 한 줄로 묶음
     // - index2(column): 이 줄이 헤더 첫 줄, 다음 줄에 버튼들
     // - index1(row)   : 이 줄이 왼쪽, 같은 헤더 안 오른쪽에 btnContainer
+    // - flex-wrap: wrap → 좁은 화면(큰 폰트 모바일)에서 avgBox 가 같은 줄에
+    //                     안 들어가면 다음 줄로 떨어짐. CSS 의 .zone-avg-box.inline
+    //                     이 margin-left:auto + flex-shrink:0 을 보장해서
+    //                     wrap 된 줄에서도 두 뱃지가 우측 정렬 상태 유지
+    //                     (위치: zone명 ↓ / 버튼 ↑ 사이)
     const nameRow = document.createElement('div');
     nameRow.style.cssText = `
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 10px;
         ${_isIndex2Layout ? 'width: 100%;' : 'flex: 1; min-width: 0;'}
     `;
@@ -601,7 +607,8 @@ function createStatusCard(zoneName) {
     if (window.ZoneAvg && typeof window.ZoneAvg.createBox === 'function') {
         const avgBox = window.ZoneAvg.createBox(zoneName, { inline: true });
         if (avgBox) {
-            avgBox.style.marginLeft = 'auto';
+            // marginLeft:auto 는 .zone-avg-box.inline CSS 에서도 보장 (refreshAll
+            // 시 인라인 스타일이 새 노드에 안 옮겨가도 우측 정렬 유지되도록)
             nameRow.appendChild(avgBox);
         }
     }
