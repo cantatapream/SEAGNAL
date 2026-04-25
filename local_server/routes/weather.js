@@ -53,9 +53,12 @@ router.get('/api/weather-alerts', (req, res) => {
 //      해양종합정보 지도의 "특보구역" 토글 버튼이 호출
 //      KMA marine 포털(geoserver/mmis/wms)의 mmis:shp_wrn_poly 레이어를
 //      WFS GetFeature 로 1회 받아 저장한 GeoJSON. 행정 경계 변경 시에만 갱신.
+//      [경로 주의] DATA_DIR(=local_server/data) 은 Fly.io persistent volume
+//                  으로 마운트되어 있어 이미지에 포함된 정적 파일이 가려진다.
+//                  → assets/ 디렉터리에서 읽어야 production 에서도 노출됨.
 router.get('/api/warn-zones', (req, res) => {
     try {
-        const filePath = path.join(DATA_DIR, 'warn_zones.geojson');
+        const filePath = path.join(__dirname, '..', 'assets', 'warn_zones.geojson');
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'warn_zones.geojson not found' });
         }
