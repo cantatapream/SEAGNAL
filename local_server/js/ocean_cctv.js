@@ -164,13 +164,19 @@
             var one = features[0];
             var name = one.get('name') || '';
             return [
-                // [모바일 히트 영역 확장] — 부이 마커와 동일 패턴
-                // CCTV 아이콘(scale 0.07)은 작고 내부에 투명 픽셀이 많아
+                // [모바일 히트 영역 확장] — 부이 마커와 동일 패턴 + CCTV 특수성 보정
+                // CCTV 아이콘(scale 0.07)은 작고 PNG 내부에 투명 픽셀이 많아
                 // OL 힛 테스트가 픽셀 단위로 실패함 (Icon 스타일은 불투명 픽셀만 인정).
                 // 거의 보이지 않는(alpha 0.01) 꽉 찬 원을 깔아 손가락 탭을 안정적으로 받도록 함.
+                //
+                // [부이와 다른 점] CCTV 아이콘 anchor=[0.5, 1.0] 이라 아이콘이 geometry 점 위쪽에만 그려지고
+                // 라벨은 offsetY=-24 로 더 위에 떠 있음. 따라서 geometry 중앙 원만으로는
+                // 시각 영역(라벨 + 아이콘 위쪽)이 히트 영역 밖으로 벗어남 → displacement 로 위로 올려 정렬.
+                // 반경 28 + displacement [0, 14] → 라벨 상단(~Y-30) ~ 아이콘 하단(Y0) 전체를 덮음.
                 new ol.style.Style({
                     image: new ol.style.Circle({
-                        radius: 22,
+                        radius: 28,
+                        displacement: [0, 14],
                         fill: new ol.style.Fill({ color: 'rgba(0,0,0,0.01)' })
                     })
                 }),
@@ -435,7 +441,7 @@
         map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
             if (layer !== _cctvClusterLayer) return;
             if (!hitFeature) hitFeature = feature;
-        }, { hitTolerance: 20 });  // 6 → 20: 모바일 손가락 탭 오차(~30~50px) 대응 (부이와 동일)
+        }, { hitTolerance: 24 });  // 모바일 손가락 탭 오차(~30~50px) 대응 — 부이(20)보다 살짝 큼: CCTV 아이콘이 더 작아 보정 필요
 
         if (!hitFeature) return false;
 
@@ -498,7 +504,7 @@
             var hit = false;
             map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
                 if (layer === _cctvClusterLayer) hit = true;
-            }, { hitTolerance: 20 });  // click 핸들러와 동일 값 — 커서 hover 와 클릭 영역 일치
+            }, { hitTolerance: 24 });  // click 핸들러와 동일 값 — 커서 hover 와 클릭 영역 일치
             if (hit) {
                 var target = map.getTargetElement();
                 if (target && target.style.cursor !== 'pointer') target.style.cursor = 'pointer';
