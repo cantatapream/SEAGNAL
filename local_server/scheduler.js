@@ -80,6 +80,17 @@ const CONFIG = {
     URLS: {
         BUOY: 'https://apihub.kma.go.kr/api/typ01/url/sea_obs.php',
         KMA_BUOY: 'https://apihub.kma.go.kr/api/typ01/url/kma_buoy.php',
+        // [신규 2026-04-25] marine.kma.go.kr 내부 JSON API
+        //   - 인증키 불필요, 응답 구조 풍부 (B타입 풍속/파주기/파향/시정 + C/L 모두 커버)
+        //   - 부이 종류별 분리:
+        //       buoy/list    → B타입(해양기상부이) ~43개
+        //       wh-buoy/list → C타입(파고부이)     ~51개  (한산도 포함)
+        //       lh/list      → L타입(등표)         ~9개
+        //       vs/list      → 시정계 station       ~181개  (UI 표시는 후속, 캐싱만)
+        MARINE_BUOY:    'https://marine.kma.go.kr/mmis_marine_api/v1/kma/obs/buoy/list',
+        MARINE_WH_BUOY: 'https://marine.kma.go.kr/mmis_marine_api/v1/kma/obs/wh-buoy/list',
+        MARINE_LH:      'https://marine.kma.go.kr/mmis_marine_api/v1/kma/obs/lh/list',
+        MARINE_VS:      'https://marine.kma.go.kr/mmis_marine_api/v1/kma/obs/vs/list',
         SEA_FORECAST: 'https://apihub.kma.go.kr/api/typ01/url/fct_afs_dl.php',
         SEA_ZONE_LARGE: 'https://apihub.kma.go.kr/api/typ06/url/marine_large_zone.php'
     }
@@ -181,7 +192,30 @@ async function collectBuoys() {
 }
 
 // 1-2. 해양기상부이 상세 데이터 수집 (최대/유의/평균 파고)
+//
+// [DEPRECATED 2026-04-25] ─────────────────────────────────────────────────────
+//   기존: KMA API hub 의 kma_buoy.php (EUC-KR 공백구분 텍스트, B타입만 커버,
+//         파주기 WP / 파향 WO 가 응답에 있어도 클라이언트 파서에서 추출 안 함)
+//   비활성 사유:
+//     - marine.kma.go.kr 의 buoy/wh-buoy/lh JSON endpoint 가
+//       B + C + L 모든 타입을 더 풍부한 필드(WP, WO, 시정 vs 등)로 제공
+//     - 한산도(C타입 22467) 등 파고부이가 kma_buoy.php 응답에 미등재되어
+//       단일 wh 만 표시되던 문제 해결
+//     - 응답이 JSON 이라 파싱·머지 단순
+//   재활성화 방법:
+//     1) 아래 함수 본문의 early-return 주석 해제
+//     2) init() 의 Promise.all 에서 호출 라인 주석 해제 (line ~1216)
+//     3) 1분 마스터 setInterval 의 호출 라인 주석 해제 (line ~1252)
+//     4) 클라이언트 js/data.js 의 fetchKmaBuoyData() 호출 주석 해제
+//   호환:
+//     - module.exports.collectKmaBuoys 는 그대로 유지 (외부 호출 호환)
+//     - /api/kma-buoys 라우트와 dataCache.kmaBuoys 도 유지 (마지막 성공 캐시
+//       파일을 그대로 응답)
+// ─────────────────────────────────────────────────────────────────────────────
 async function collectKmaBuoys() {
+    // [DEPRECATED] 호출되더라도 외부 API 를 때리지 않고 즉시 종료.
+    return;
+    /* ─── 이전 구현 (보존, 재활성화 시 복원) ───────────────────────────────
     try {
         collectProgress.emit('progress', { type: 'buoys', step: '부이 데이터', current: 2, total: 2, detail: '해양기상부이' });
         const url = `${CONFIG.URLS.KMA_BUOY}?stn=0&help=0&authKey=${CONFIG.KMA_HUB_KEY}`;
@@ -201,6 +235,103 @@ async function collectKmaBuoys() {
         } catch (e2) {
             log(`⚠️ KMA 부이 상세 프록시 수집도 실패: ${e2.message}`);
         }
+    }
+    ─────────────────────────────────────────────────────────────────────────*/
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1-3. marine.kma.go.kr JSON endpoint 4종 수집 (신규 2026-04-25)
+//
+//   [무엇을 하는 함수들?]
+//   기상청의 해양기상정보포털(marine.kma.go.kr) 이 내부적으로 사용하는 JSON
+//   API 4종에서 부이 관측 데이터와 시정 관측 데이터를 받아 파일로 저장합니다.
+//   각 함수는 종류만 다를 뿐 동작 방식은 똑같습니다.
+//
+//   [언제 실행되나?]
+//     1) 서버 부팅 시 init() 의 Promise.all 안에서 1회 (최초 캐시 워밍업)
+//     2) 그 이후 매시 정시 +3분 KST 마다 1분 master setInterval 분기에서 호출
+//
+//   [데이터를 어디에 저장하나?]
+//     local_server/data/marine_*.json (Fly.io persistent volume 안)
+//     → 컨테이너 재부팅에도 유실되지 않음
+//
+//   [실패 시 동작?]
+//     try/catch 로 감싸 외부 API 가 다운돼도 다른 수집 작업에 영향이 없음.
+//     실패한 경우 직전 성공한 파일이 그대로 남아 사용자에게 stale 한 데이터가
+//     서빙됨 (graceful degradation).
+//
+//   [연계 흐름]
+//     1) 이 함수가 saveData() 로 marine_*.json 작성
+//     2) services/cache_manager.js 가 5초마다 파일을 읽어 dataCache 갱신
+//     3) routes/weather.js 의 /api/marine-* 라우트가 dataCache 를 응답
+//     4) 클라이언트 js/data.js fetchMarineBuoyData() 가 라우트에서 받아옴
+//     5) 우리 앱 schema 로 매핑 후 화면(부이 모달, 연안 부이 박스)에 표시
+//
+//   [공통 구조 — 4 함수 모두]
+//     1) collectProgress.emit('progress',...) → 관리자 페이지 진행률 표시 호환
+//     2) fetchWithTimeout(url, opts, 8000) → 8초 타임아웃 GET
+//     3) 응답 OK & 응답 JSON code === '0000' 일 때만 파일 저장
+//     4) 실패 시 log 만 남기고 종료 (직전 캐시 유지)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// [C타입 = 파고부이] 한산도(22467) 등 51개. 파고/파주기/수온 위주.
+// 응답 예: { code:'0000', msg:'성공', data:[{ stn_id, kor_nm, sig_wh, max_wh, ave_wh, wp, tw, ... }, ...] }
+async function collectMarineWhBuoys() {
+    try {
+        collectProgress.emit('progress', { type: 'buoys', step: '부이 데이터', current: 1, total: 4, detail: 'marine wh-buoy(C타입)' });
+        const response = await fetchWithTimeout(CONFIG.URLS.MARINE_WH_BUOY, { headers: { 'Accept': 'application/json' } }, 8000);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const json = await response.json();
+        if (json.code !== '0000') throw new Error('API code=' + json.code + ' msg=' + json.msg);
+        // saveData 는 services/save_data 헬퍼 — local_server/data/ 디렉터리에 JSON 저장
+        saveData('marine_wh_buoys.json', { updatedAt: getNowStr(), data: json.data || [] });
+    } catch (e) {
+        log(`⚠️ marine wh-buoy 수집 실패: ${e.message}`);
+    }
+}
+
+// [B타입 = 해양기상부이] 신안·동해57 등 43개. 파고 + 파주기 + 풍향/풍속(듀얼 센서) +
+// 기온/기압/습도/수온/시정 등 가장 풍부한 측정 데이터 제공.
+async function collectMarineBuoys() {
+    try {
+        collectProgress.emit('progress', { type: 'buoys', step: '부이 데이터', current: 2, total: 4, detail: 'marine buoy(B타입)' });
+        const response = await fetchWithTimeout(CONFIG.URLS.MARINE_BUOY, { headers: { 'Accept': 'application/json' } }, 8000);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const json = await response.json();
+        if (json.code !== '0000') throw new Error('API code=' + json.code + ' msg=' + json.msg);
+        saveData('marine_buoys.json', { updatedAt: getNowStr(), data: json.data || [] });
+    } catch (e) {
+        log(`⚠️ marine buoy 수집 실패: ${e.message}`);
+    }
+}
+
+// [L타입 = 등표] 이덕서·오륙도·서수도 등 9개. 풍향/풍속(단일 센서) + 최대순간풍속·풍향
+// + 기온/기압/습도 위주. 등표는 파고 측정 안 함.
+async function collectMarineLhBuoys() {
+    try {
+        collectProgress.emit('progress', { type: 'buoys', step: '부이 데이터', current: 3, total: 4, detail: 'marine lh(등표)' });
+        const response = await fetchWithTimeout(CONFIG.URLS.MARINE_LH, { headers: { 'Accept': 'application/json' } }, 8000);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const json = await response.json();
+        if (json.code !== '0000') throw new Error('API code=' + json.code + ' msg=' + json.msg);
+        saveData('marine_lh_buoys.json', { updatedAt: getNowStr(), data: json.data || [] });
+    } catch (e) {
+        log(`⚠️ marine lh 수집 실패: ${e.message}`);
+    }
+}
+
+// [시정계] 강진군·임자도·속초 등 181개 station. 시정(visibility, km) 단일 측정.
+// 본 단계에선 캐시 파일과 라우트만 만들어두고, 화면 표시는 후속 작업으로 분리.
+async function collectMarineVs() {
+    try {
+        collectProgress.emit('progress', { type: 'buoys', step: '부이 데이터', current: 4, total: 4, detail: 'marine vs(시정계)' });
+        const response = await fetchWithTimeout(CONFIG.URLS.MARINE_VS, { headers: { 'Accept': 'application/json' } }, 8000);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const json = await response.json();
+        if (json.code !== '0000') throw new Error('API code=' + json.code + ' msg=' + json.msg);
+        saveData('marine_vs.json', { updatedAt: getNowStr(), data: json.data || [] });
+    } catch (e) {
+        log(`⚠️ marine vs 수집 실패: ${e.message}`);
     }
 }
 
@@ -1213,7 +1344,14 @@ async function init() {
     try {
         await Promise.all([
             collectBuoys().then(() => log('✅ 부이 데이터 수집 완료')),
-            collectKmaBuoys().then(() => log('✅ 부이 상세(파고) 데이터 수집 완료')),
+            // [DEPRECATED 2026-04-25] kma_buoy.php — marine.kma.go.kr endpoint 로 대체.
+            //   재활성화 시 아래 라인의 주석 해제 + collectKmaBuoys() 본문 early-return 제거.
+            // collectKmaBuoys().then(() => log('✅ 부이 상세(파고) 데이터 수집 완료')),
+            // [신규 2026-04-25] marine.kma.go.kr JSON endpoint 4종 — B/C/L 풍부 데이터 + 시정계 캐시
+            collectMarineBuoys().then(() => log('✅ marine 기상부이(B) 수집 완료')),
+            collectMarineWhBuoys().then(() => log('✅ marine 파고부이(C) 수집 완료')),
+            collectMarineLhBuoys().then(() => log('✅ marine 등표(L) 수집 완료')),
+            collectMarineVs().then(() => log('✅ marine 시정계 수집 완료')),
             collectGeneralForecasts().then(() => log('✅ 일반예보 데이터 수집 완료')),
             collectZoneForecasts().then(() => log('✅ 해구별 예보 데이터 수집 완료')),
             collectMidTermSeaForecasts(),
@@ -1246,10 +1384,21 @@ async function init() {
         const hm = `${String(kstDate.getHours()).padStart(2, '0')}:${String(kstDate.getMinutes()).padStart(2, '0')}`;
         const min = kstDate.getMinutes();
 
-        // 부이: 매시 5분, 35분
+        // 부이(sea_obs.php): 매시 5분, 35분 — J타입(기상1호 22003) baseline 유지용으로 그대로 운영
         if (min % 30 === 5) {
             collectBuoys();
-            collectKmaBuoys();
+            // [DEPRECATED 2026-04-25] collectKmaBuoys 는 marine.kma.go.kr endpoint 로 대체. 재활성화 시 주석 해제.
+            // collectKmaBuoys();
+        }
+
+        // [신규 2026-04-25] marine.kma.go.kr JSON endpoint 4종 — 매시 정시 +3분 KST
+        //   - KMA 부이 데이터 발표(정시 갱신) 후 약 3분 여유를 두고 fetch → 가장 fresh 한 데이터
+        //   - 4 endpoint 동시 호출 (각각 ~5~25KB JSON, 8초 타임아웃)
+        if (min === 3) {
+            collectMarineBuoys();
+            collectMarineWhBuoys();
+            collectMarineLhBuoys();
+            collectMarineVs();
         }
 
         // 기상예보: 하루 2회 (05:15, 17:15)
@@ -1317,7 +1466,11 @@ init();
 
 module.exports = {
     collectBuoys,
-    collectKmaBuoys,
+    collectKmaBuoys,           // DEPRECATED 함수, export 는 호환을 위해 유지 (호출 시 즉시 return)
+    collectMarineBuoys,        // [신규] B타입 marine API
+    collectMarineWhBuoys,      // [신규] C타입 marine API
+    collectMarineLhBuoys,      // [신규] L타입 marine API
+    collectMarineVs,           // [신규] 시정계 marine API (UI 표시는 후속)
     collectGeneralForecasts,
     collectZoneForecasts,
     collectMidTermSeaForecasts,
