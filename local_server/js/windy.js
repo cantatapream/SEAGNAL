@@ -605,11 +605,19 @@ function createStatusCard(zoneName) {
     nameRow.appendChild(zoneNameEl);
 
     if (window.ZoneAvg && typeof window.ZoneAvg.createBox === 'function') {
-        const avgBox = window.ZoneAvg.createBox(zoneName, { inline: true });
-        if (avgBox) {
+        // 첫 시도: ZoneAvg.init() 이 이미 완료된 빠른 기기에서는 이 한 번에 성공.
+        // 느린 기기는 STATE.loaded=false 라 null 반환 → 아래 onReady 후처리.
+        const tryAttach = () => {
+            if (!nameRow.isConnected) return;                 // 카드가 이미 제거됨
+            if (nameRow.querySelector('.zone-avg-box')) return; // 이미 붙음
+            const box = window.ZoneAvg.createBox(zoneName, { inline: true });
             // marginLeft:auto 는 .zone-avg-box.inline CSS 에서도 보장 (refreshAll
             // 시 인라인 스타일이 새 노드에 안 옮겨가도 우측 정렬 유지되도록)
-            nameRow.appendChild(avgBox);
+            if (box) nameRow.appendChild(box);
+        };
+        tryAttach();
+        if (typeof window.ZoneAvg.onReady === 'function') {
+            window.ZoneAvg.onReady(tryAttach);
         }
     }
 

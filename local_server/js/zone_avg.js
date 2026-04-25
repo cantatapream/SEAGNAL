@@ -26,6 +26,29 @@
         loadPromise: null,
     };
 
+    // init() 완료 후 실행될 콜백 큐
+    //   왜 필요한가: createBox() 가 동기 함수인데 init() 은 비동기라서,
+    //   느린 기기/네트워크에서는 카드가 먼저 렌더되고 init 이 나중에 끝나는
+    //   레이스가 발생. 그러면 첫 렌더 때는 STATE.loaded=false → null 반환 →
+    //   박스가 영영 안 붙고 사용자는 "어떤 기기는 되고 어떤 기기는 안 됨"
+    //   증상을 보게 됨. 호출자(windy.js, render.js)가 onReady 로 후처리할 수
+    //   있게 콜백 큐를 노출.
+    const _readyCallbacks = [];
+    function onReady(cb) {
+        if (typeof cb !== 'function') return;
+        if (STATE.loaded) {
+            try { cb(); } catch (e) { /* 콜백 에러는 다른 콜백에 영향 안 주게 무시 */ }
+        } else {
+            _readyCallbacks.push(cb);
+        }
+    }
+    function _flushReady() {
+        while (_readyCallbacks.length) {
+            const cb = _readyCallbacks.shift();
+            try { cb(); } catch (e) { /* 무시 */ }
+        }
+    }
+
     // ------------------------------------------------------------
     // 데이터 로드
     // ------------------------------------------------------------
@@ -79,6 +102,7 @@
 
             _buildNameIndex();
             STATE.loaded = true;
+            _flushReady();
         })();
         return STATE.loadPromise;
     }
@@ -255,6 +279,7 @@
     // ------------------------------------------------------------
     window.ZoneAvg = {
         init,
+        onReady,        // init 완료 후 1회 실행 콜백 등록 (느린 기기 race 대응)
         createBox,
         refreshAll,
         getAverages, // 디버그용

@@ -1196,16 +1196,26 @@
         }
 
         // 탭 전환 애니메이션/지도 초기화 완료 대기 후 center 이동(줌 유지)
-        setTimeout(function () {
+        //
+        // [retry 도입 이유]
+        //   첫 진입 시 OL 지도가 아직 생성 전이라 getOceanMap() 이 null 인
+        //   경우가 있다. 기존엔 단발 setTimeout(300ms) 후 null 이면 조용히
+        //   스킵돼서 "처음 클릭은 줌/깜빡임 안 됨, 두번째부터 됨" 증상 발생.
+        //   100ms × 최대 20회(=2초) 폴링으로 map 이 준비되면 즉시 animate.
+        var attempt = 0;
+        var MAX_ATTEMPT = 20;
+        function tryAnimate() {
             var map = window.getOceanMap && window.getOceanMap();
-            if (map) {
-                // zoom 인자 생략 → 현재 줌 그대로, center 만 부드럽게 이동
+            if (map && typeof map.getView === 'function') {
                 map.getView().animate({
                     center: ol.proj.fromLonLat([gps.lon, gps.lat]),
                     duration: 400
                 });
+                return;
             }
-        }, 300);
+            if (++attempt < MAX_ATTEMPT) setTimeout(tryAnimate, 100);
+        }
+        setTimeout(tryAnimate, 300);
 
         return true;
     }
