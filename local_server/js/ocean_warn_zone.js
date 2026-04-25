@@ -325,4 +325,173 @@
     } else {
         _installWhenReady();
     }
+
+    // ==================================================================
+    // 외부 API
+    // ==================================================================
+
+    /**
+     * [외부 API] 특보구역 토글을 프로그래밍으로 ON/OFF.
+     *
+     * 무엇을 하나?
+     *   #ocean-warn-zone-toggle-btn 의 active 클래스를 보고, 원하는 상태와
+     *   다르면 버튼을 click() 으로 흉내 내어 _bindToggle 의 핸들러가 자연스럽게
+     *   실행되게 한다. 그 한 번의 click 으로 다음이 모두 동기화됨:
+     *     - 클로저의 _visible 플래그 반전
+     *     - _layer / _subLayer 의 setVisible
+     *     - localStorage('seagnal_warn_zone_visible') 저장
+     *     - 처음 켜질 때 _loadMain() / _loadSub() 자동 호출 (lazy fetch)
+     *
+     * 왜 필요한가?
+     *   "해구기상" 버튼 같은 외부 진입 경로에서 해양종합정보 탭으로 이동하면
+     *   특보구역도 자동으로 켜져야 한다. 직접 _layer.setVisible 만 하면
+     *   클로저 _visible 과 어긋나고 데이터 lazy fetch 도 트리거되지 않아
+     *   토글 버튼 흉내가 가장 안전.
+     *
+     * 어디서 호출되나?
+     *   - js/render.js / js/windy.js 의 "해구기상" 버튼 클릭 핸들러 (index2 분기)
+     *
+     * @param {boolean} visible - 원하는 가시 상태 (true=ON, false=OFF)
+     * @returns {boolean} 토글 버튼이 존재해 처리 가능했으면 true
+     */
+    window.setWarnZoneVisible = function (visible) {
+        var btn = document.getElementById('ocean-warn-zone-toggle-btn');
+        if (!btn) return false;
+        var isActive = btn.classList.contains('active');
+        if (isActive !== !!visible) btn.click();
+        return true;
+    };
+
+    // 현재 깜빡임 진행 중인 feature/타이머 — 새 깜빡임 시작 시 정리용
+    var _flashFeature = null;
+    var _flashTimer = null;
+
+    /**
+     * [외부 API] 특보구역(부모, 44개) 폴리곤을 잠시 깜빡여 강조.
+     *
+     * 무엇을 하나?
+     *   주어진 zoneName 이 어느 부모 특보구역 안에 있는지 찾아 그 폴리곤을 5초간
+     *   깜빡인다. 부모 zone 결정 우선순위:
+     *     ① ZONE_OVERLAY_CONFIG[zoneName].center 픽셀 → pixelToGps → 위경도 →
+     *        EPSG:3857 좌표 → _source 의 features 중 geometry 가 그 좌표를
+     *        "공간적으로 포함" 하는 부모 zone 1 개 (대부분 케이스).
+     *     ② 좌표 기반으로 못 찾은 경우 fallback: features 의 name 이 zoneName
+     *        과 정규화 일치하는 1 개.
+     *
+     * 왜 좌표 기반인가?
+     *   사용자 카드(예: "울산앞바다") 의 zoneName 은 자식/이름이 다른 구역인
+     *   경우가 많아 부모 특보구역(예: "남해동부앞바다") name 과 직접 매칭
+     *   되지 않는다. 부모 폴리곤은 자식 좌표를 공간적으로 항상 포함하므로
+     *   좌표 기반 검색이 가장 안전하고 일관적.
+     *
+     * 깜빡임 동작:
+     *   강조 스타일(빨강 width:4) ↔ 원본 스타일을 500ms 간격으로 10회(=5초)
+     *   교차 setStyle. 끝나면 setStyle(undefined) 로 정상 복귀.
+     *
+     * 어디서 호출되나?
+     *   - js/render.js / js/windy.js 의 "해구기상" 버튼 클릭 핸들러 (index2 분기)
+     *     goToOceanMapByZone 직후 약 0.8초 지연 호출.
+     *
+     * 안전성:
+     *   - 데이터 lazy fetch 라 features 가 비었을 수 있어 200ms × 8회 retry.
+     *   - 같은 함수 연속 호출 시 이전 _flashTimer / _flashFeature 정리 → 스타일
+     *     영구 덮어쓰기 방지.
+     *   - 좌표/이름 모두 못 찾으면 조용히 종료 (오류 throw 안 함).
+     *
+     * @param {string} zoneName - 깜빡일 부모 특보구역의 식별자(자식 이름이어도 됨)
+     */
+    window.flashWarnZone = function (zoneName) {
+        var target = _normalizeZoneName(zoneName);
+        if (!target) return;
+
+        // 좌표 기반 검색을 위해 zoneName 의 중심 GPS 좌표(EPSG:3857) 미리 계산.
+        // ZONE_OVERLAY_CONFIG / pixelToGps 가 없거나 매핑 없으면 null → name match 만 사용.
+        var coord3857 = null;
+        try {
+            if (typeof ZONE_OVERLAY_CONFIG !== 'undefined'
+                && typeof pixelToGps === 'function'
+                && typeof ol !== 'undefined') {
+                var cfg = ZONE_OVERLAY_CONFIG[zoneName];
+                if (cfg && cfg.center) {
+                    var gps = pixelToGps(cfg.center.x, cfg.center.y);
+                    if (gps && gps.lat != null && gps.lon != null) {
+                        coord3857 = ol.proj.fromLonLat([gps.lon, gps.lat]);
+                    }
+                }
+            }
+        } catch (e) { coord3857 = null; }
+
+        // 이전 깜빡임 정리
+        if (_flashTimer) { clearInterval(_flashTimer); _flashTimer = null; }
+        if (_flashFeature) { _flashFeature.setStyle(undefined); _flashFeature = null; }
+
+        var attempts = 0;
+        var MAX_ATTEMPTS = 8;        // 200ms × 8 = 최대 1.6초 대기
+        var WAIT_MS = 200;
+
+        function tryFlash() {
+            if (!_source) {
+                if (++attempts <= MAX_ATTEMPTS) setTimeout(tryFlash, WAIT_MS);
+                return;
+            }
+            var feats = _source.getFeatures();
+            var feature = null;
+
+            // ① 좌표 기반 — 부모 폴리곤이 좌표를 포함하는지 검사 (정상 경로)
+            if (coord3857) {
+                for (var i = 0; i < feats.length; i++) {
+                    var geom = feats[i].getGeometry();
+                    if (geom && typeof geom.intersectsCoordinate === 'function'
+                        && geom.intersectsCoordinate(coord3857)) {
+                        feature = feats[i];
+                        break;
+                    }
+                }
+            }
+            // ② fallback — 이름 정규화 일치
+            if (!feature) {
+                for (var j = 0; j < feats.length; j++) {
+                    if (_normalizeZoneName(feats[j].get('name')) === target) {
+                        feature = feats[j];
+                        break;
+                    }
+                }
+            }
+            if (!feature) {
+                if (++attempts <= MAX_ATTEMPTS) setTimeout(tryFlash, WAIT_MS);
+                return;
+            }
+
+            _flashFeature = feature;
+            var brightStyle = new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: '#ff5252',     // 강렬한 빨강
+                    width: 4,
+                    lineDash: [6, 4]
+                }),
+                fill: new ol.style.Fill({
+                    color: 'rgba(255, 82, 82, 0.18)'
+                })
+            });
+
+            var phase = 0;
+            var TOTAL_PHASES = 10;       // 500ms × 10 = 5초
+            _flashTimer = setInterval(function () {
+                if (phase % 2 === 0) {
+                    feature.setStyle(brightStyle);          // ON 프레임
+                } else {
+                    feature.setStyle(undefined);             // OFF 프레임 (레이어 기본 스타일)
+                }
+                phase++;
+                if (phase >= TOTAL_PHASES) {
+                    clearInterval(_flashTimer);
+                    _flashTimer = null;
+                    feature.setStyle(undefined);             // 정상 복구
+                    _flashFeature = null;
+                }
+            }, 500);
+        }
+
+        tryFlash();
+    };
 })();

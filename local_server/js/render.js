@@ -1019,8 +1019,10 @@ function createAlertElement(items) {
     zoneViewBtn.innerHTML = '해구기상';
     zoneViewBtn.style.cssText = 'flex: 1; padding: 12px 8px; background: linear-gradient(135deg, #e94560, #0f3460); color: white; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: transform 0.2s;';
     // [클릭 동작]
-    //   index2(해양종합정보가 있는 페이지) : 해구도 토글 ON + 해당 해역 중심으로
-    //                                       이동 → 그 자리에서 해구를 두 번 눌러
+    //   index2(해양종합정보가 있는 페이지) : 해구도 + 특보구역 토글 ON, 해당
+    //                                       해역 중심으로 이동, 그 특보구역
+    //                                       테두리를 5초간 깜빡여 강조.
+    //                                       그 자리에서 해구를 두 번 누르면
     //                                       기상 모달까지 자연스럽게 이어짐.
     //   그 외(index1 등)                   : 기존 동작 유지 (특보정보 탭 →
     //                                       해구기상 서브탭으로 전환).
@@ -1032,10 +1034,25 @@ function createAlertElement(items) {
             && typeof window.goToOceanMapByZone === 'function'
             && typeof ZONE_OVERLAY_CONFIG !== 'undefined'
             && ZONE_OVERLAY_CONFIG[data.zoneName]) {
+            // 해구도 + 특보구역 둘 다 강제 ON
             if (typeof window.setMarineZoneGridVisible === 'function') {
-                window.setMarineZoneGridVisible(true);   // 해구도 격자 강제 ON
+                window.setMarineZoneGridVisible(true);
             }
-            if (window.goToOceanMapByZone(data.zoneName)) return;
+            if (typeof window.setWarnZoneVisible === 'function') {
+                window.setWarnZoneVisible(true);
+            }
+            if (window.goToOceanMapByZone(data.zoneName)) {
+                // goToOceanMapByZone 내부 setTimeout(300) + animate(400) 후
+                // 깜빡임 시작 → 사용자가 화면 다 본 뒤 강조 효과 인지.
+                // 또한 setWarnZoneVisible(true) 로 막 시작된 lazy fetch 가
+                // 끝날 시간을 같이 벌어주는 효과 (flashWarnZone 내부 retry 도 있음).
+                setTimeout(function () {
+                    if (typeof window.flashWarnZone === 'function') {
+                        window.flashWarnZone(data.zoneName);
+                    }
+                }, 800);
+                return;
+            }
         }
         if (typeof showZoneOverlay === 'function') showZoneOverlay(data.zoneName);
     });
