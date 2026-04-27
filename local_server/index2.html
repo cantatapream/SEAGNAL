@@ -1335,17 +1335,17 @@
                 </div>
 
                 <!-- 자료종류 카테고리 4탭 (수치파랑/폭풍해일/해양순환/해수면온도)
-                     공지사항 promo-tabs 와 동일한 톤의 컴팩트 pill 형태.
-                     모든 화면 폭에서 한 줄 유지. -->
+                     모든 카테고리 활성화됨. 각 카테고리는 별도의 컨트롤 그룹을 가짐. -->
                 <div class="mc-category-tabs" id="mc-category-tabs">
                     <button class="mc-cat-btn active" data-cat="wave">수치파랑</button>
-                    <button class="mc-cat-btn" data-cat="surge" data-disabled="true">폭풍해일</button>
-                    <button class="mc-cat-btn" data-cat="current" data-disabled="true">해양순환</button>
-                    <button class="mc-cat-btn" data-cat="sst" data-disabled="true">해수면온도</button>
+                    <button class="mc-cat-btn" data-cat="surge">폭풍해일</button>
+                    <button class="mc-cat-btn" data-cat="current">해양순환</button>
+                    <button class="mc-cat-btn" data-cat="sst">해수면온도</button>
                 </div>
 
-                <!-- 영역 / 변수 / 청별 드롭다운 -->
-                <div class="mc-controls">
+                <!-- ========== 카테고리 1: 수치파랑 (wave) 컨트롤 그룹 ==========
+                     영역 / 변수 / 청별(연안) / 부이(BUOY 스펙트럼) -->
+                <div class="mc-controls mc-controls-wave" id="mc-controls-wave">
                     <label class="mc-field">
                         <span class="mc-field-label">영역</span>
                         <select id="mc-type">
@@ -1373,11 +1373,52 @@
                             <option value="gawn">강원청</option>
                         </select>
                     </label>
-                    <!-- 부이(STN) — BUOY 스펙트럼 변수 선택 시만 노출.
-                         JS 가 청 변경 시 그 청의 부이 목록으로 옵션을 동적 갱신. -->
+                    <!-- 부이(STN) — BUOY 스펙트럼 변수 선택 시만 노출 -->
                     <label class="mc-field mc-field-stn" id="mc-field-stn" hidden>
                         <span class="mc-field-label">부이</span>
                         <select id="mc-stn"></select>
+                    </label>
+                </div>
+
+                <!-- ========== 카테고리 2: 폭풍해일 (surge) 컨트롤 그룹 ==========
+                     변수 + 시계열-지방(지)청 선택 시 지방청 드롭다운 노출 -->
+                <div class="mc-controls mc-controls-surge" id="mc-controls-surge" hidden>
+                    <label class="mc-field">
+                        <span class="mc-field-label">변수</span>
+                        <select id="mc-surge-data"><!-- JS 동적 --></select>
+                    </label>
+                    <label class="mc-field mc-field-surge-stn" id="mc-field-surge-stn" hidden>
+                        <span class="mc-field-label">지방청</span>
+                        <select id="mc-surge-stn"><!-- JS 동적 --></select>
+                    </label>
+                </div>
+
+                <!-- ========== 카테고리 3: 해양순환 (current) 컨트롤 그룹 ==========
+                     변수(해류/수온/염분) + 수심 -->
+                <div class="mc-controls mc-controls-current" id="mc-controls-current" hidden>
+                    <label class="mc-field">
+                        <span class="mc-field-label">변수</span>
+                        <select id="mc-current-data"><!-- JS 동적 --></select>
+                    </label>
+                    <label class="mc-field">
+                        <span class="mc-field-label">수심</span>
+                        <select id="mc-current-depth"><!-- JS 동적 --></select>
+                    </label>
+                </div>
+
+                <!-- ========== 카테고리 4: 해수면온도 (sst) 컨트롤 그룹 ==========
+                     영역 + 평균기간 -->
+                <div class="mc-controls mc-controls-sst" id="mc-controls-sst" hidden>
+                    <label class="mc-field">
+                        <span class="mc-field-label">영역</span>
+                        <select id="mc-sst-region">
+                            <option value="ea020lc" selected>동아시아</option>
+                            <option value="ko020lc">한반도</option>
+                        </select>
+                    </label>
+                    <label class="mc-field">
+                        <span class="mc-field-label">변수</span>
+                        <select id="mc-sst-period"><!-- JS 동적 --></select>
                     </label>
                 </div>
 

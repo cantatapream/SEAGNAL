@@ -43,17 +43,35 @@ const router = express.Router();
 const fetch = require('node-fetch');
 
 const KMA_HOST = 'https://www.weather.go.kr';
-const KMA_LIST_URL = `${KMA_HOST}/w/wnuri-img/rest/cht/images/ocean-wave.do`;
-const KMA_REFERER = `${KMA_HOST}/w/image/chart/ocean/wave-model.do`;
+// 카테고리별 KMA 엔드포인트
+const KMA_ENDPOINTS = {
+    wave:    `${KMA_HOST}/w/wnuri-img/rest/cht/images/ocean-wave.do`,
+    surge:   `${KMA_HOST}/w/wnuri-img/rest/cht/images/ocean-forecast.do`,
+    current: `${KMA_HOST}/w/wnuri-img/rest/cht/images/ocean-forecast.do`,
+    sst:     `${KMA_HOST}/w/wnuri-img/rest/cht/images/ocean-forecast.do`,
+};
+// 카테고리별 Referer (KMA 가 referer 검증 시 페이지 URL 일치 필요)
+const KMA_REFERERS = {
+    wave:    `${KMA_HOST}/w/image/chart/ocean/wave-model.do`,
+    surge:   `${KMA_HOST}/w/image/chart/ocean/surge-height.do`,
+    current: `${KMA_HOST}/w/image/chart/ocean/current.do`,
+    sst:     `${KMA_HOST}/w/image/chart/ocean/water-temp.do`,
+};
 
 // 허용 영역 코드 화이트리스트 (오타·임의값 방어)
-const ALLOWED_TYPES = new Set(['G6', 'A6', 'R3', 'C', 'RWW3']);
+// wave: G6/A6/R3/C/RWW3, 그 외 카테고리: S(단기) / 해수면온도 영역코드(ea020lc, ko020lc)
+const ALLOWED_TYPES = new Set(['G6', 'A6', 'R3', 'C', 'RWW3', 'S', 'ea020lc', 'ko020lc']);
+
+// 허용 카테고리
+const ALLOWED_CATS = new Set(['wave', 'surge', 'current', 'sst']);
 
 // 자료 prefix 검증: 영문/숫자/언더스코어/대괄호만 허용 (KMA 카탈로그 패턴)
 const DATA_PATTERN = /^[A-Za-z0-9_\[\]]+$/;
 
 router.get('/api/marine-chart/list', async (req, res) => {
-    const { type, data, area, stn } = req.query;
+    const { type, data, area, stn, cat } = req.query;
+    // 카테고리 (wave/surge/current/sst) — 미지정 시 wave 호환성 유지
+    const category = cat && ALLOWED_CATS.has(cat) ? cat : 'wave';
 
     if (!type || !ALLOWED_TYPES.has(type)) {
         return res.status(400).json({ error: 'invalid type' });
@@ -62,12 +80,8 @@ router.get('/api/marine-chart/list', async (req, res) => {
         return res.status(400).json({ error: 'invalid data' });
     }
 
-    // KMA 의 ocean-wave.do 는 data 의 [AREA]/[STN] 자리표시자를 server-side 에서
-    // 직접 치환한다. 클라이언트(공식 사이트의 form serialize)는 [AREA] 를 literal
-    // 로 그대로 보내고 area/stn 을 별도 파라미터로 전달.
-    //
-    // 이전에는 백엔드에서 [AREA] 를 미리 치환했더니 KMA 가 매칭 실패 → fallback
-    // 으로 G6(전구) 자료를 반환하는 버그 발생. → 치환 제거, area/stn 그대로 전달.
+    // KMA 는 data 의 [AREA]/[STN] 자리표시자를 server-side 에서 치환.
+    // 우리는 area/stn 을 별도 파라미터로 그대로 전달 (선치환 X).
     const params = new URLSearchParams({
         type,
         data,
@@ -75,28 +89,38 @@ router.get('/api/marine-chart/list', async (req, res) => {
         leaflet: '0',
         kmap: '0',
     });
-    // 연안(C) 일 때만 area 전달. 검증은 query string 안전성 확보.
-    if (type === 'C' && area) {
+    // 연안(C) 일 때만 area 전달 — wave 카테고리 한정
+    if (category === 'wave' && type === 'C' && area) {
         if (!/^[a-z]+$/.test(area)) {
             return res.status(400).json({ error: 'invalid area' });
         }
         params.set('area', area);
     }
-    // BUOY 스펙트럼 변수일 때만 stn 전달.
-    if (type === 'C' && stn) {
-        if (!/^[A-Z0-9]+$/.test(stn)) {
+    // 해양순환은 area 가 수심 코드 (000/010 등 3자리 숫자)
+    if (category === 'current' && area) {
+        if (!/^[0-9]{3}$/.test(area)) {
+            return res.status(400).json({ error: 'invalid area' });
+        }
+        params.set('area', area);
+    }
+    // BUOY 스펙트럼 / 폭풍해일 시계열-지방청 변수일 때 stn 전달
+    if (stn) {
+        if (!/^[A-Za-z0-9_]+$/.test(stn)) {
             return res.status(400).json({ error: 'invalid stn' });
         }
         params.set('stn', stn);
     }
 
+    const endpoint = KMA_ENDPOINTS[category];
+    const referer = KMA_REFERERS[category];
+
     try {
-        const upstream = await fetch(`${KMA_LIST_URL}?${params}`, {
+        const upstream = await fetch(`${endpoint}?${params}`, {
             headers: {
                 'User-Agent': 'Mozilla/5.0',
                 'Accept': 'application/json, text/javascript, */*; q=0.01',
                 'X-Requested-With': 'XMLHttpRequest',
-                'Referer': KMA_REFERER,
+                'Referer': referer,
             },
             timeout: 8000,
         });

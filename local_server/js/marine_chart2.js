@@ -59,18 +59,31 @@
 
         try {
             const params = new URLSearchParams({
+                cat:  state.category,    // 카테고리 (wave/surge/current/sst)
                 type: state.type,
                 data: state.data,
             });
-            // 연안 자료는 청 코드도 함께 전달 — 백엔드가 KMA 에 그대로 area 파라미터로 전달
-            // (KMA 가 server-side 에서 data 의 [AREA] 를 area 값으로 치환)
-            if (state.type === 'C' && state.area) {
-                params.set('area', state.area);
+            if (state.category === 'wave') {
+                // 연안일 때만 청 코드 (KMA 가 [AREA] server-side 치환)
+                if (state.type === 'C' && state.area) {
+                    params.set('area', state.area);
+                }
+                // BUOY 스펙트럼 변수: [STN] 자리표시자 + stn 전송
+                if (state.type === 'C' && state.data && state.data.includes('[STN]') && state.stn) {
+                    params.set('stn', state.stn);
+                }
+            } else if (state.category === 'surge') {
+                // 폭풍해일 시계열-지방청 (data='kim_rtsm_jibang') 일 때만 stn 전송
+                if (state.data === 'kim_rtsm_jibang' && state.stn) {
+                    params.set('stn', state.stn);
+                }
+            } else if (state.category === 'current') {
+                // 해양순환은 항상 area=수심 전송
+                if (state.area) {
+                    params.set('area', state.area);
+                }
             }
-            // BUOY 스펙트럼 변수: data 에 [STN] 자리표시자가 있으면 stn 도 전송
-            if (state.type === 'C' && state.data && state.data.includes('[STN]') && state.stn) {
-                params.set('stn', state.stn);
-            }
+            // sst 는 type/data 만으로 충분 (영역=type, 평균기간=data)
             const res = await fetch(`/api/marine-chart/list?${params}`, {
                 signal: ac.signal,
             });
