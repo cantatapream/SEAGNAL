@@ -1270,5 +1270,16 @@ function _onSectionActivated(sectionId) {
             }
         }, 200);
     }
+    // 해상일기도 탭 활성화 시 — KMA 날씨누리 GIF 차트 모듈 초기화
+    // [연계] js/marine_chart1.js ~ marine_chart5.js
+    // [동작] 첫 진입: 즐겨찾기 적용 → 변수 옵션 채움 → fetchList → 첫 GIF 로드
+    //        재진입: 이벤트 재바인딩 없이 기존 state 유지 (자동재생 끊김 없음)
+    if (sectionId === 'marine-chart-section') {
+        setTimeout(() => {
+            if (window.MarineChart && typeof window.MarineChart.init === 'function') {
+                window.MarineChart.init();
+            }
+        }, 100);
+    }
 }
 
