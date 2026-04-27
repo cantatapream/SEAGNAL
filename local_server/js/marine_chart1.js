@@ -217,11 +217,20 @@
             });
         }
 
-        // 즐겨찾기 별표 — 클릭 시 현재 옵션 저장 + 토스트
+        // 즐겨찾기 별표 — 토글 동작
+        // [동작] ☆ → 클릭 → ★ (저장 + "추가" 토스트)
+        //        ★ → 클릭 → ☆ (해제 + "해제" 토스트)
+        // [판정 기준] 데이터 일치 여부(loadFavorite + state 비교) — DOM 클래스가
+        //              아닌 실제 저장값 기준이라 시각 ↔ 데이터 어긋남 방지.
         if (el.favBtn) {
             el.favBtn.addEventListener('click', () => {
-                saveFavorite();
-                showToast('다음부터는 이 옵션부터 화면이 시작합니다');
+                if (isFavoriteActive()) {
+                    clearFavorite();
+                    showToast('즐겨찾기에서 해제되었습니다');
+                } else {
+                    saveFavorite();
+                    showToast('다음부터는 이 옵션부터 화면이 시작합니다');
+                }
                 updateFavButton();
             });
         }
@@ -305,6 +314,34 @@
     }
 
     /**
+     * localStorage 의 즐겨찾기 항목 삭제 (해제).
+     * 시크릿 모드 등에서 차단되면 무시 — 다음 진입 시 그냥 기본값으로 시작.
+     */
+    function clearFavorite() {
+        try {
+            localStorage.removeItem(FAV_KEY);
+        } catch (e) {
+            console.warn('[marine_chart] localStorage 삭제 실패:', e);
+        }
+    }
+
+    /**
+     * 현재 state(영역/변수/청) 가 저장된 즐겨찾기와 일치하는지 판정.
+     * - 일치 = 사용자가 보기에 별이 ★ 채워진 상태
+     * - 불일치 = ☆ 비활성
+     * updateFavButton 의 매칭 로직과 동일 — 클릭 핸들러에서 재사용.
+     */
+    function isFavoriteActive() {
+        const fav = loadFavorite();
+        if (!fav) return false;
+        if (fav.type !== state.type) return false;
+        if (fav.data !== state.data) return false;
+        // 연안일 때만 청 비교 (다른 영역에선 area 무관)
+        if (state.type === 'C' && fav.area !== state.area) return false;
+        return true;
+    }
+
+    /**
      * localStorage 에서 즐겨찾기 읽기. 없거나 손상되면 null.
      */
     function loadFavorite() {
@@ -340,16 +377,12 @@
 
     /**
      * 별 버튼 활성/비활성 시각화.
-     * 현재 state 가 저장된 즐겨찾기와 일치하면 ★(채움), 다르면 ☆(외곽선).
+     * 활성 판정은 isFavoriteActive() 단일 함수에 위임 → 클릭 핸들러와 일관.
      */
     function updateFavButton() {
         if (!el.favBtn) return;
-        const fav = loadFavorite();
-        const matches = fav
-            && fav.type === state.type
-            && fav.data === state.data
-            && (state.type !== 'C' || fav.area === state.area);
-        el.favBtn.classList.toggle('is-active', !!matches);
+        const matches = isFavoriteActive();
+        el.favBtn.classList.toggle('is-active', matches);
         // FontAwesome 아이콘 토글 (외곽선 ↔ 채움)
         const icon = el.favBtn.querySelector('i');
         if (icon) {
@@ -430,6 +463,8 @@
         showToast,
         saveFavorite,
         loadFavorite,
+        clearFavorite,
+        isFavoriteActive,
         applyFavorite,
         updateFavButton,
     });
