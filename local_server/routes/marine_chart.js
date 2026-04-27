@@ -67,8 +67,9 @@ const ALLOWED_TYPES = new Set(['G6', 'A6', 'R3', 'C', 'RWW3', 'S', 'ea020lc', 'k
 // 허용 카테고리
 const ALLOWED_CATS = new Set(['wave', 'surge', 'current', 'sst']);
 
-// 자료 prefix 검증: 영문/숫자/언더스코어/대괄호만 허용 (KMA 카탈로그 패턴)
-const DATA_PATTERN = /^[A-Za-z0-9_\[\]]+$/;
+// 자료 prefix 검증: 영문/숫자/언더스코어/대괄호/하이픈만 허용 (KMA 카탈로그 패턴)
+// 하이픈은 SST 자료(sst-1dm, sst-5dm, sst-10dm) 등에서 사용됨.
+const DATA_PATTERN = /^[A-Za-z0-9_\[\]\-]+$/;
 
 router.get('/api/marine-chart/list', async (req, res) => {
     const { type, data, area, stn, cat } = req.query;
