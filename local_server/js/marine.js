@@ -1282,5 +1282,13 @@ function _onSectionActivated(sectionId) {
             }
         }, 100);
     }
+    // 해상일기도 외 다른 섹션으로 이동 시 자동재생 중지
+    // [이유] play() 가 setInterval 로 GIF src 를 계속 갱신하므로, 화면에 안
+    //        보이는 상태에서도 KMA 에 네트워크 요청이 누적됨.
+    //        _onSectionActivated 는 모든 탭 전환 경로(switchMainTab/switchSubTab)
+    //        에서 공통 호출되므로 여기 한 곳에서 정리.
+    else if (window.MarineChart && typeof window.MarineChart.pause === 'function') {
+        window.MarineChart.pause();
+    }
 }
 

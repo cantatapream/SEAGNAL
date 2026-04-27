@@ -9404,31 +9404,24 @@ body.ocean-map-active .main-header .header-content {
     color: #4dabf7;
 }
 
-/* 자료종류 행: [4탭 그룹] + [즐겨찾기 별표]
-   align-items: center 가 핵심 — 4탭이 1행이든 2×2든 별은 항상 세로 중앙. */
-.mc-category-row {
+/* 자료종류 4탭 (수치파랑/폭풍해일/해양순환/해수면온도)
+   공지사항(promo-tabs) 패턴과 일관된 컴팩트 pill 형태. 4개가 한 줄에 들어가도록
+   여유롭게 분포. flex 1 로 균등 분배해서 모든 화면 폭에서 1행 유지. */
+.mc-category-tabs {
     display: flex;
-    align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 6px;
     margin-bottom: 16px;
 }
 
-/* 자료종류 4탭 (수치파랑/폭풍해일/해양순환/해수면온도) — pill 형태, 가운데 정렬,
-   flex-wrap 으로 좁은 화면에서 자동 2×2 전환 */
-.mc-category-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 8px;
-}
-
-/* 즐겨찾기 별 버튼 — 4탭 우측에 위치. 활성 상태(저장된 옵션과 일치)일 때 노란색.
-   사용자가 옵션을 바꾸면 JS 가 비활성으로 토글. */
+/* 즐겨찾기 별 버튼 — 헤더(.section-header-with-info) 우측 끝에 배치.
+   margin-left:auto 로 자동으로 우측 정렬. 활성 상태(저장된 옵션과 일치)일
+   때 노란색. 사용자가 옵션을 바꾸면 JS 가 비활성으로 토글. */
 .mc-fav-btn {
+    margin-left: auto;
     flex-shrink: 0;
-    width: 38px;
-    height: 38px;
+    width: 32px;
+    height: 32px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.04);
@@ -9437,7 +9430,7 @@ body.ocean-map-active .main-header .header-content {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
+    font-size: 0.9rem;
     transition: all 0.15s ease;
 }
 .mc-fav-btn:hover {
@@ -9451,20 +9444,20 @@ body.ocean-map-active .main-header .header-content {
     color: #fbbf24;
     box-shadow: 0 2px 8px rgba(255, 215, 0, 0.25);
 }
-.mc-fav-btn.is-active i {
-    /* 채워진 별 아이콘으로 시각화: JS 에서 클래스 토글 */
-}
+/* 컴팩트 pill — 4개가 모든 화면 폭에서 한 줄에 들어가도록 padding/font-size 축소.
+   flex:1 로 가용폭 균등 분배. white-space:nowrap 으로 한글 줄바꿈 방지. */
 .mc-cat-btn {
-    flex: 0 1 auto;
-    min-width: 90px;
-    padding: 10px 18px;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 7px 6px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.04);
     color: #cbd5e1;
-    font-size: 0.9rem;
+    font-size: 0.78rem;
     font-weight: 500;
     cursor: pointer;
+    white-space: nowrap;
     transition: all 0.15s ease;
 }
 .mc-cat-btn:hover {
@@ -9487,15 +9480,6 @@ body.ocean-map-active .main-header .header-content {
     background: rgba(255, 255, 255, 0.04);
     border-color: rgba(255, 255, 255, 0.12);
     color: #cbd5e1;
-}
-
-/* 좁은 화면(가로 480px 이하)에서는 4개 탭이 자연스럽게 2×2 배치되도록
-   각 버튼이 화면의 약 45% 폭을 차지 */
-@media (max-width: 480px) {
-    .mc-cat-btn {
-        flex: 0 1 calc(50% - 8px);
-        min-width: 0;
-    }
 }
 
 /* 드롭다운 컨트롤 영역 */
@@ -9618,6 +9602,14 @@ body.ocean-map-active .main-header .header-content {
 }
 .mc-image-error {
     color: #ef4444;
+}
+/* [hidden] 속성으로 숨김 토글 가능하도록 명시.
+   위 .mc-image-loading/.mc-image-error 의 display:flex 가 specificity 우위로
+   브라우저 기본 [hidden] 동작을 덮어쓰는 문제 방지. JS 의
+   el.imageLoading.hidden = true/false 가 그대로 작동하게 함. */
+.mc-image-loading[hidden],
+.mc-image-error[hidden] {
+    display: none !important;
 }
 
 /* 인라인 재생 컨트롤 */
