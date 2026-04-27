@@ -147,10 +147,14 @@ if (window.__SEAGNAL_PAGE === 'index2') {
             // 아이콘 뒤에 거의 보이지 않는(alpha 0.01) 꽉 찬 원을 깔아서
             // 손가락 탭을 안정적으로 받도록 함 — 눈에는 안 보이지만 힛 디텍션 캔버스에서는
             // 불투명 픽셀로 처리되어 클릭이 원 전체 영역 어디든 성공.
-            // 아이콘 1.5배 확대에 맞춰 히트 원도 22 → 33 으로 함께 확대.
+            //
+            // [영역 축소 — 사용자 보고]
+            // 이전 radius 33 + hitTolerance 20 (총 53px) 은 시각 아이콘(52.5px)
+            // 의 2배라 부이 옆 빈 공간 탭에도 팝업이 떴음.
+            // → radius 20 으로 축소 (총 28px = 시각 아이콘 절반, 손가락 탭 보정 포함)
             new ol.style.Style({
                 image: new ol.style.Circle({
-                    radius: 33,
+                    radius: 20,
                     fill: new ol.style.Fill({ color: 'rgba(0,0,0,0.01)' })
                 })
             }),
@@ -376,8 +380,8 @@ if (window.__SEAGNAL_PAGE === 'index2') {
         // ================================================================
         // [인접 부이 선택 안정화]
         // 기존: forEachFeatureAtPixel + "if (hit) return" → 콜백 순서상
-        //       먼저 걸린 피처만 처리됨. 히트 영역이 확장된(22px 투명 원 +
-        //       hitTolerance 20) 상태에서는 제주·서해·거제 등 밀집 구역의
+        //       먼저 걸린 피처만 처리됨. 이전엔 히트 영역이 확장된(33px 투명 원 +
+        //       hitTolerance 20) 상태에서 제주·서해·거제 등 밀집 구역의
         //       인접 부이들이 겹쳐, 사용자가 의도한 부이가 아닌 다른 부이가
         //       선택되거나 심지어 클러스터 원이 먼저 집혀서 줌 인 되어버림.
         //
@@ -413,7 +417,7 @@ if (window.__SEAGNAL_PAGE === 'index2') {
             } else {
                 clusterCandidates.push({ feature: feature, dist: dist });
             }
-        }, { hitTolerance: 20 });  // 모바일 손가락 탭 오차(~30~50px) 대응
+        }, { hitTolerance: 8 });  // 손가락 탭 오차 보정 (이전 20→8, 부이 옆 빈공간 오인식 방지)
 
         // 거리 오름차순 정렬 — 가장 가까운 것 선택
         function byDist(a, b) { return a.dist - b.dist; }
