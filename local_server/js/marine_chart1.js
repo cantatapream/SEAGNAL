@@ -106,7 +106,7 @@
         playTimer: null,                      // setInterval id
         playIntervalMs: 600,                  // 자동재생 간격
         initialized: false,                   // init() 1회만
-        listLoading: false,                   // 중복 fetch 방지
+        fetchAbort: null,                     // AbortController — fetchList race condition 방지
     };
 
     // ── DOM 참조 캐시 (init 시 1회 채움) ──
@@ -354,6 +354,11 @@
             const opts = CATALOG[fav.type].options;
             const dataValid = opts.some(o => o.code === fav.data);
             if (!dataValid) return null;
+            // 연안 자료는 청 코드도 유효성 검증 (외부 변조·구버전 호환 방어)
+            if (fav.type === 'C' && fav.area) {
+                const areaValid = AREAS.some(a => a.code === fav.area);
+                if (!areaValid) return null;
+            }
             return fav;
         } catch (e) {
             return null;
