@@ -1,31 +1,39 @@
 /**
  * ============================================================================
  * 파일명: js/marine_chart3.js
- * 역할: 해상일기도 — 전체화면 진입/종료 + 안드로이드 백버튼 처리
+ * 역할: 해상일기도 — 전체화면 진입/종료 (SEAGNAL 통합 PopupStack 패턴)
  * ============================================================================
  *
  * [개요]
  *   인라인 영역의 GIF 를 클릭하면 #mc-fullscreen 오버레이가 풀스크린으로 표출.
  *   - 진입: 인라인 이미지 클릭 → enterFullscreen()
- *   - 종료: 우상단 ✕ 클릭, 또는 휴대폰 ← 백버튼
+ *   - 종료: 우상단 ✕ 클릭, 또는 휴대폰 ← 백버튼, 또는 다른 탭 클릭
  *
- * [백버튼 처리 패턴]
- *   js/marine.js 의 enterOceanMapSection() 패턴을 그대로 차용.
- *   - 진입 시 history.pushState({ mcFullscreen: true }, '') 로 더미 1개 push
- *   - popstate 이벤트가 발생하면 (사용자가 ← 누름)
- *       오버레이가 열려 있는 경우 → exitFullscreen(true) 로 닫기 (history.back X)
+ * [백버튼 처리 — SEAGNAL 통합 PopupStack 패턴 사용]
+ *   본 모듈은 직접 history.pushState / popstate 를 다루지 않는다.
+ *   대신 backbutton.js 가 운영하는 전역 PopupStack 에 등록:
+ *
+ *     enterFullscreen() → PopupStack.push('mc-fullscreen', exitFullscreen)
+ *     exitFullscreen()  → PopupStack.remove('mc-fullscreen')
+ *
+ *   휴대폰 ← 또는 브라우저 뒤로가기 발생 시 backbutton.js 의 단일 popstate
+ *   핸들러가 PopupStack.popLast() 를 호출 → 우리 exitFullscreen() 자동 실행.
+ *   다른 modal/sheet 가 위에 떠 있으면 LIFO 순서대로 자연스럽게 닫힘.
+ *
+ *   이 패턴은 ocean_bottom_sheet1.js, fishing.js 등 SEAGNAL 의 모든
+ *   modal/sheet 가 공통으로 사용 (marine.js:1136-1142 주석 참조).
  *
  * [상태 동기]
  *   재생 중이거나 슬라이더 위치가 어디든, 전체화면 진입 후에도 그대로 이어짐.
  *   (state.currentIndex / state.playing 가 단일 source of truth)
  *
  * [전역 노출] window.MarineChart 에 추가:
- *   enterFullscreen(), exitFullscreen(fromPopstate)
+ *   enterFullscreen(), exitFullscreen()
  *
  * [초보자 안내]
- *   "더미 1개 push" 는 "사용자가 백버튼을 눌렀을 때 앱 전체가 종료되지 않고
- *   '한 단계 뒤로'(전체화면만 닫기) 가도록" 하는 트릭이에요. 진입 직전에 가짜
- *   히스토리 항목을 1개 만들어두면, 백버튼 한 번은 우리가 가로챌 수 있습니다.
+ *   PopupStack 은 SEAGNAL 의 백버튼 시스템 핵심. 모든 popup/modal 이 여기에
+ *   "내가 열렸어요, 닫는 법은 이거예요" 라고 등록 → 백버튼 누르면 가장 최근
+ *   등록된 것부터 차례로 닫힘. 이 모듈도 같은 약속을 따릅니다.
  * ============================================================================
  */
 
@@ -38,23 +46,22 @@
         return;
     }
 
-    // 더미 히스토리 push 한 적 있는지 추적 (중복 방지)
-    let dummyPushed = false;
-    // popstate 가 우리 의도로 발생했는지 표시 (다른 핸들러와 충돌 방지)
-    let suppressPopstate = false;
+    const POPUP_ID = 'mc-fullscreen';
 
     /**
      * 인라인 이미지 클릭 → 전체화면 진입.
      * - 오버레이 표시
      * - body 클래스 토글 (메인 헤더/탭바 숨김)
      * - 현재 프레임 정보를 풀스크린 라벨에 즉시 반영
-     * - history 더미 push (백버튼 가로채기 준비)
+     * - PopupStack 에 본인 등록 (백버튼 가로채기 위임)
      */
     function enterFullscreen() {
         const { el, state } = MC;
         if (!el.fullscreen) return;
         // 자료 없을 때는 진입 무시
         if (!state.list || state.list.length === 0) return;
+        // 이미 열려 있으면 무시 (중복 진입 방지)
+        if (!el.fullscreen.hasAttribute('hidden')) return;
 
         // 풀스크린 이미지에 현재 인덱스의 GIF 적용 (인라인과 동일한 url)
         const item = state.list[state.currentIndex];
@@ -76,24 +83,33 @@
         // 핀치줌 변환 초기화 (마지막 transform 잔존 방지)
         if (MC.resetTransform) MC.resetTransform();
 
-        // 백버튼 처리용 더미 히스토리 push
-        if (!dummyPushed) {
-            try {
-                history.pushState({ mcFullscreen: true }, '');
-                dummyPushed = true;
-            } catch (e) {
-                // 일부 환경에서 pushState 실패 시 백버튼 처리만 안 됨, 나머지 정상
-                console.warn('[marine_chart] pushState 실패:', e);
-            }
+        // PopupStack 등록 — 백버튼/다른 modal 통합 처리에 위임
+        if (window.PopupStack) {
+            window.PopupStack.push(POPUP_ID, function () {
+                // popLast 가 호출 → 풀스크린 닫기. PopupStack 이 자동으로
+                // 본인을 pop 하므로 여기서는 시각적 닫기만.
+                _doClose();
+            });
         }
     }
 
     /**
-     * 전체화면 종료.
-     * @param fromPopstate true 면 popstate 핸들러가 호출 (이미 history 가 pop 된 상태).
-     *                     false (기본) 면 사용자가 ✕ 클릭 → 우리가 history.back() 해야 함.
+     * 사용자가 명시적으로 종료 (✕ 클릭 등). PopupStack 에서 자기 자신 제거 후
+     * 시각적 닫기.
      */
-    function exitFullscreen(fromPopstate) {
+    function exitFullscreen() {
+        // PopupStack 에서 제거 (popLast 가 부른 경우엔 이미 pop 되었지만 안전)
+        if (window.PopupStack) {
+            window.PopupStack.remove(POPUP_ID);
+        }
+        _doClose();
+    }
+
+    /**
+     * 실제 시각적 닫기 동작 (내부 전용).
+     * PopupStack 이 호출하든 ✕ 가 호출하든 동일하게 실행.
+     */
+    function _doClose() {
         const { el } = MC;
         if (!el.fullscreen) return;
         if (el.fullscreen.hasAttribute('hidden')) return; // 이미 닫힘
@@ -105,23 +121,6 @@
 
         // 페이드 타이머 정리
         if (MC.cancelFadeTimer) MC.cancelFadeTimer();
-
-        // 더미 히스토리 정리
-        if (dummyPushed) {
-            if (fromPopstate) {
-                // 백버튼으로 들어왔으므로 history 는 이미 pop 됨 → 추가 작업 X
-                dummyPushed = false;
-            } else {
-                // ✕ 클릭 — 우리가 직접 호출. 가짜 더미 1개를 pop 해야 함.
-                suppressPopstate = true;
-                try {
-                    history.back();
-                } catch (e) {
-                    console.warn('[marine_chart] history.back 실패:', e);
-                }
-                dummyPushed = false;
-            }
-        }
     }
 
     // ── 이벤트 바인딩 ──
@@ -148,35 +147,14 @@
     function bindExitTrigger() {
         const { el } = MC;
         if (el.fsClose) {
-            el.fsClose.addEventListener('click', () => exitFullscreen(false));
+            el.fsClose.addEventListener('click', exitFullscreen);
         }
     }
 
     /**
-     * popstate 핸들러 — 휴대폰 ← 백버튼 또는 브라우저 뒤로가기 처리.
-     * 풀스크린이 열려 있으면 가로채고, 아니면 다른 핸들러(예: marine.js)에 위임.
-     */
-    function bindPopstate() {
-        window.addEventListener('popstate', (e) => {
-            // 우리가 호출한 history.back() 으로 발생한 popstate 는 무시
-            if (suppressPopstate) {
-                suppressPopstate = false;
-                return;
-            }
-            const { el } = MC;
-            // 풀스크린 열려 있는 경우만 가로채기
-            if (el.fullscreen && !el.fullscreen.hasAttribute('hidden')) {
-                exitFullscreen(true);
-            }
-            // 그 외에는 marine.js 의 다른 popstate 핸들러가 자체 처리
-        });
-    }
-
-    /**
      * 메인탭/서브탭 전환 시 풀스크린이 열려 있으면 자동 종료.
-     * (사용자가 풀스크린 켜놓고 다른 탭 클릭하는 케이스)
-     * marine.js 의 switchMainTab/switchSubTab 호출 직전에 가로챌 수는 없으므로,
-     * 탭 버튼 클릭을 캡처 단계에서 감지.
+     * (PopupStack 은 백버튼만 처리하므로, 탭 클릭 시 명시적으로 닫기 호출)
+     * capture phase 에서 가로채 다른 탭 핸들러보다 먼저 실행.
      */
     function bindTabGuard() {
         document.addEventListener('click', (e) => {
@@ -184,16 +162,15 @@
             if (!tabBtn) return;
             const { el } = MC;
             if (el.fullscreen && !el.fullscreen.hasAttribute('hidden')) {
-                exitFullscreen(false);
+                exitFullscreen();
             }
-        }, true); // capture: tab handler 보다 먼저 실행되도록
+        }, true); // capture: tab handler 보다 먼저 실행
     }
 
     // ── 초기화 — DOMContentLoaded 후 1회 ──
     function setup() {
         bindEnterTrigger();
         bindExitTrigger();
-        bindPopstate();
         bindTabGuard();
     }
 

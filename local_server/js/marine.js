@@ -910,6 +910,7 @@ const SECTION_TO_GROUP = {
     'weather-alert-section': 'weather-group',
     'sea-zone-section': 'weather-group',
 'typhoon-section': 'weather-group',
+    'marine-chart-section': 'weather-group',  // KMA 날씨누리 해상일기도 (특보정보 그룹)
     'cctv-section': 'weather-group',
     'fishing-section': 'ocean-life-group',
     'surfing-section': 'ocean-life-group',
