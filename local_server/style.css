@@ -9528,6 +9528,12 @@ body.ocean-map-active .main-header .header-content {
     display: none !important;
 }
 
+/* 부이(STN) 드롭다운: BUOY 스펙트럼 변수 선택 시만 노출.
+   .mc-field 가 display:flex 라서 [hidden] 속성이 무시되는 것 방지. */
+.mc-field-stn[hidden] {
+    display: none !important;
+}
+
 /* 기준시각 라벨 + 시간 점프 7버튼 */
 .mc-time-row {
     margin-bottom: 8px;
