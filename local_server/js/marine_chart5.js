@@ -265,12 +265,24 @@
         }
     }
 
+    // 마지막 touchend 시각 — 모바일 단일 탭 후 브라우저가 자동 발화하는
+    // synthetic click 을 무시하기 위해 사용 (이중 토글 방지).
+    let lastTouchEndTime = 0;
+
     function onTouchEnd(e) {
         if (touchMode === 'tap') {
             const dt = Date.now() - tapStartTime;
             if (dt <= TAP_MAX_DURATION_MS) {
-                // 짧고 이동 거의 없는 탭 → 컨트롤 토글
-                if (MC.toggleControls) MC.toggleControls();
+                // 짧고 이동 거의 없는 탭 → 더블탭 vs 단일탭 판정 후 처리.
+                // 더블탭이면 줌 토글, 단일탭이면 컨트롤 토글.
+                if (!checkDoubleTap()) {
+                    if (MC.toggleControls) MC.toggleControls();
+                }
+                // 후속 synthetic click 차단 — touch 후 브라우저가 자동 발화하는
+                // click 이벤트가 다시 toggleControls 호출해서 net=0 (사용자 체감
+                // 변화 없음) 되는 문제 해결.
+                if (e.cancelable) e.preventDefault();
+                lastTouchEndTime = Date.now();
             }
         }
         // 두 손가락 중 하나만 떼졌을 때: pinch → pan/tap 으로 전환되는 케이스가
@@ -334,8 +346,12 @@
         stage.addEventListener('touchend', onTouchEnd, { passive: false });
         stage.addEventListener('touchcancel', onTouchEnd, { passive: false });
 
-        // 데스크톱 보조: 클릭 → 컨트롤 토글, 더블 클릭 → 줌 토글
+        // 데스크톱 보조: 마우스 클릭 → 컨트롤 토글, 더블 클릭 → 줌 토글.
+        // 모바일에서는 touchend 가 이미 처리하므로 후속 synthetic click 무시
+        // (touchend preventDefault 가 대부분 환경에서 차단하지만, 일부 환경에서
+        //  안 막히는 경우 대비 — lastTouchEndTime 기준 500ms 이내면 무시).
         stage.addEventListener('click', (e) => {
+            if (Date.now() - lastTouchEndTime < 500) return; // 모바일 중복 차단
             if (e.target === stage || e.target.id === 'mc-fs-image') {
                 if (!checkDoubleTap()) {
                     if (MC.toggleControls) MC.toggleControls();

@@ -160,13 +160,15 @@
         if (el.slider)   el.slider.value = index;
         if (el.fsSlider) el.fsSlider.value = index;
 
-        // 시각 라벨
-        const tmLabel = formatTm(item.tm);
-        const stmLabel = formatStm(item.stm);
-        if (el.timeValue) el.timeValue.textContent = `${tmLabel}${stmLabel ? ' (' + stmLabel + ')' : ''}`;
-        if (el.fsTime)    el.fsTime.textContent = tmLabel;
-        if (el.fsStep)    el.fsStep.textContent = stmLabel;
-        if (el.stepLabel) el.stepLabel.textContent = stmLabel;
+        // 시각 라벨 — ftm(발효시각, 표출 자료의 절대 시각) 만 사용.
+        // "+nH" 같은 offset 표기 제거 — 사용자가 "직관적이지 않다" 보고.
+        // 형식: "YYYY년 MM월 DD일 HH시"
+        const ftmLabel = formatFtm(item.ftm || item.tm);
+        if (el.timeValue) el.timeValue.textContent = ftmLabel;
+        if (el.fsTime)    el.fsTime.textContent = ftmLabel;
+        // stepLabel/fsStep 은 보조 정보 — 사용자 요구상 +H 제거. 빈값으로.
+        if (el.stepLabel) el.stepLabel.textContent = '';
+        if (el.fsStep)    el.fsStep.textContent = '';
     }
 
     /**
@@ -311,6 +313,15 @@
     function formatTm(tm) {
         if (!tm || tm.length < 10) return '--';
         return `${tm.slice(0, 4)}.${tm.slice(4, 6)}.${tm.slice(6, 8)} ${tm.slice(8, 10)} KST`;
+    }
+
+    /**
+     * KMA ftm(발효시각, "yyyymmddhh") → "YYYY년 MM월 DD일 HH시" 형식.
+     * 사용자가 직관적으로 읽을 수 있는 표시 — render() 의 시각 라벨에 사용.
+     */
+    function formatFtm(ftm) {
+        if (!ftm || ftm.length < 10) return '--';
+        return `${ftm.slice(0, 4)}년 ${ftm.slice(4, 6)}월 ${ftm.slice(6, 8)}일 ${ftm.slice(8, 10)}시`;
     }
 
     /**
