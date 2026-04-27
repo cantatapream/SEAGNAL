@@ -66,16 +66,11 @@
             if (state.type === 'C' && state.area) {
                 params.set('area', state.area);
             }
-            // [DIAG] 진단용 — 추후 제거
-            console.log('[MC] fetchList → /api/marine-chart/list?' + params.toString());
             const res = await fetch(`/api/marine-chart/list?${params}`, {
                 signal: ac.signal,
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const list = await res.json();
-            // [DIAG] 진단용 — 추후 제거
-            console.log('[MC] fetchList ← ' + (Array.isArray(list) ? list.length : '?') + ' items, first url:',
-                Array.isArray(list) && list[0] ? list[0].url : '(none)');
             // 이 시점에 더 최신 fetch 가 시작됐으면 결과 무시
             if (state.fetchAbort !== ac) return;
             if (!Array.isArray(list) || list.length === 0) {
@@ -133,9 +128,6 @@
         if (index < 0 || index >= state.list.length) return;
         state.currentIndex = index;
         const item = state.list[index];
-
-        // [DIAG] 진단용 — 추후 제거
-        console.log('[MC] render(' + index + ') → img.src =', item && item.url);
 
         // 두 이미지 동시 갱신 (브라우저 캐시로 1회만 실제 다운로드)
         if (el.image && item.url) {

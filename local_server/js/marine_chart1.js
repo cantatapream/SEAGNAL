@@ -272,8 +272,6 @@
         if (el.dataSel.options.length > 0) {
             state.data = el.dataSel.options[0].value;
         }
-        // [DIAG] 드롭다운/화면 불일치 진단용 — 추후 제거
-        console.log('[MC] onTypeChange →', { type: state.type, data: state.data, area: state.area });
         updateFavButton();
         if (window.MarineChart.fetchList) window.MarineChart.fetchList();
     }
@@ -283,8 +281,6 @@
      */
     function onDataChange() {
         state.data = el.dataSel.value;
-        // [DIAG] 진단용 — 추후 제거
-        console.log('[MC] onDataChange →', { type: state.type, data: state.data, area: state.area });
         updateFavButton();
         if (window.MarineChart.fetchList) window.MarineChart.fetchList();
     }
@@ -294,8 +290,6 @@
      */
     function onAreaChange() {
         state.area = el.areaSel.value;
-        // [DIAG] 진단용 — 추후 제거
-        console.log('[MC] onAreaChange →', { type: state.type, data: state.data, area: state.area });
         updateFavButton();
         if (window.MarineChart.fetchList) window.MarineChart.fetchList();
     }
