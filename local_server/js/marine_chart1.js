@@ -139,7 +139,6 @@
         { code: '010', label: '10m' },
         { code: '020', label: '20m' },
         { code: '050', label: '50m' },
-        { code: '075', label: '75m' },
         { code: '100', label: '100m' },
     ];
 

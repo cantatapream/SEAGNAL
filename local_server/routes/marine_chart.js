@@ -44,11 +44,13 @@ const fetch = require('node-fetch');
 
 const KMA_HOST = 'https://www.weather.go.kr';
 // 카테고리별 KMA 엔드포인트
+// - wave/surge/current: 해양 차트 계열 (cht/images/...)
+// - sst: 위성 영상 계열 (sat/images/water-temp) — 다른 경로 + 다른 form 필드 (type 없음)
 const KMA_ENDPOINTS = {
     wave:    `${KMA_HOST}/w/wnuri-img/rest/cht/images/ocean-wave.do`,
     surge:   `${KMA_HOST}/w/wnuri-img/rest/cht/images/ocean-forecast.do`,
     current: `${KMA_HOST}/w/wnuri-img/rest/cht/images/ocean-forecast.do`,
-    sst:     `${KMA_HOST}/w/wnuri-img/rest/cht/images/ocean-forecast.do`,
+    sst:     `${KMA_HOST}/w/wnuri-img/rest/sat/images/water-temp.do`,
 };
 // 카테고리별 Referer (KMA 가 referer 검증 시 페이지 URL 일치 필요)
 const KMA_REFERERS = {
@@ -80,35 +82,52 @@ router.get('/api/marine-chart/list', async (req, res) => {
         return res.status(400).json({ error: 'invalid data' });
     }
 
-    // KMA 는 data 의 [AREA]/[STN] 자리표시자를 server-side 에서 치환.
-    // 우리는 area/stn 을 별도 파라미터로 그대로 전달 (선치환 X).
-    const params = new URLSearchParams({
-        type,
-        data,
-        unit: 'km/h',
-        leaflet: '0',
-        kmap: '0',
-    });
-    // 연안(C) 일 때만 area 전달 — wave 카테고리 한정
-    if (category === 'wave' && type === 'C' && area) {
-        if (!/^[a-z]+$/.test(area)) {
-            return res.status(400).json({ error: 'invalid area' });
+    // 카테고리별로 KMA 가 받는 query 형식이 다름 — 분기 처리.
+    let params;
+    if (category === 'sst') {
+        // 해수면온도는 위성영상 계열 — type 필드 없이 area + data 만 보냄.
+        // 프론트의 state.type 을 KMA 의 area 로 매핑 (영역 코드 ea020lc/ko020lc).
+        if (!/^[a-z0-9]+$/.test(type)) {
+            return res.status(400).json({ error: 'invalid type for sst' });
         }
-        params.set('area', area);
-    }
-    // 해양순환은 area 가 수심 코드 (000/010 등 3자리 숫자)
-    if (category === 'current' && area) {
-        if (!/^[0-9]{3}$/.test(area)) {
-            return res.status(400).json({ error: 'invalid area' });
+        params = new URLSearchParams({
+            area: type,    // 프론트 type → KMA area
+            data,
+            unit: 'km/h',
+            leaflet: '0',
+            kmap: '0',
+        });
+    } else {
+        // 해양차트 계열 (wave/surge/current) — type + data + 보조 파라미터
+        // KMA 는 data 의 [AREA]/[STN] 자리표시자를 server-side 에서 치환.
+        params = new URLSearchParams({
+            type,
+            data,
+            unit: 'km/h',
+            leaflet: '0',
+            kmap: '0',
+        });
+        // 연안(C) 일 때만 area 전달 — wave 카테고리 한정
+        if (category === 'wave' && type === 'C' && area) {
+            if (!/^[a-z]+$/.test(area)) {
+                return res.status(400).json({ error: 'invalid area' });
+            }
+            params.set('area', area);
         }
-        params.set('area', area);
-    }
-    // BUOY 스펙트럼 / 폭풍해일 시계열-지방청 변수일 때 stn 전달
-    if (stn) {
-        if (!/^[A-Za-z0-9_]+$/.test(stn)) {
-            return res.status(400).json({ error: 'invalid stn' });
+        // 해양순환은 area 가 수심 코드 (000/010 등 3자리 숫자)
+        if (category === 'current' && area) {
+            if (!/^[0-9]{3}$/.test(area)) {
+                return res.status(400).json({ error: 'invalid area' });
+            }
+            params.set('area', area);
         }
-        params.set('stn', stn);
+        // BUOY 스펙트럼 / 폭풍해일 시계열-지방청 변수일 때 stn 전달
+        if (stn) {
+            if (!/^[A-Za-z0-9_]+$/.test(stn)) {
+                return res.status(400).json({ error: 'invalid stn' });
+            }
+            params.set('stn', stn);
+        }
     }
 
     const endpoint = KMA_ENDPOINTS[category];
