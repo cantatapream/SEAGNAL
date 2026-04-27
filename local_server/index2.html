@@ -1325,25 +1325,23 @@
                     <h2 class="section-title">
                         <i class="fa-solid fa-chart-area"></i> 해상일기도
                     </h2>
-                </div>
-
-                <!-- 자료종류 카테고리 + 즐겨찾기 별표
-                     [구조] flex 1행 컨테이너에 [4탭 그룹] + [별표] 두 자식.
-                            4탭이 좁은 화면에서 2×2로 wrap 돼도 별표는 항상
-                            우측 세로 중앙에 자동 정렬됨 (align-items: center).
-                     [즐겨찾기] 별표 클릭 시 현재 영역/변수/청 옵션을
-                                localStorage 에 저장 → 다음 진입 시 기본값. -->
-                <div class="mc-category-row">
-                    <div class="mc-category-tabs" id="mc-category-tabs">
-                        <button class="mc-cat-btn active" data-cat="wave">수치파랑</button>
-                        <button class="mc-cat-btn" data-cat="surge" data-disabled="true">폭풍해일</button>
-                        <button class="mc-cat-btn" data-cat="current" data-disabled="true">해양순환</button>
-                        <button class="mc-cat-btn" data-cat="sst" data-disabled="true">해수면온도</button>
-                    </div>
+                    <!-- 즐겨찾기 별표 — 헤더 우측 끝.
+                         클릭 시 현재 영역/변수/청 옵션을 localStorage 에 저장,
+                         다음 진입 시 그 옵션부터 화면 시작. -->
                     <button class="mc-fav-btn" id="mc-fav-btn" type="button"
                             aria-label="즐겨찾기로 추가" title="현재 옵션을 다음 진입 기본값으로 저장">
                         <i class="fa-regular fa-star"></i>
                     </button>
+                </div>
+
+                <!-- 자료종류 카테고리 4탭 (수치파랑/폭풍해일/해양순환/해수면온도)
+                     공지사항 promo-tabs 와 동일한 톤의 컴팩트 pill 형태.
+                     모든 화면 폭에서 한 줄 유지. -->
+                <div class="mc-category-tabs" id="mc-category-tabs">
+                    <button class="mc-cat-btn active" data-cat="wave">수치파랑</button>
+                    <button class="mc-cat-btn" data-cat="surge" data-disabled="true">폭풍해일</button>
+                    <button class="mc-cat-btn" data-cat="current" data-disabled="true">해양순환</button>
+                    <button class="mc-cat-btn" data-cat="sst" data-disabled="true">해수면온도</button>
                 </div>
 
                 <!-- 영역 / 변수 / 청별 드롭다운 -->
@@ -1418,7 +1416,7 @@
                 </div>
 
                 <p class="mc-note">
-                    출처: 기상청 날씨누리 (weather.go.kr) — 이미지는 사용자 기기에서 직접 로드됩니다.
+                    기상청 날씨누리 (weather.go.kr)
                 </p>
             </section>
 
