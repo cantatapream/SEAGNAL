@@ -78,6 +78,7 @@ app.use(require('./routes/survey'));
 app.use(require('./routes/report'));
 app.use(require('./routes/version'));
 app.use(require('./routes/fishing'));  // 바다낚시 지수 API
+app.use(require('./routes/marine_chart'));  // 해상일기도 GIF 메타데이터 프록시 (KMA 날씨누리)
 app.use(require('./routes/comment')); // 게시글 댓글 API
 app.use(require('./routes/reaction')); // 게시글 리액션 API
 app.use(require('./routes/comment_report')); // 댓글 신고 API
