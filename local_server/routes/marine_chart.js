@@ -62,29 +62,33 @@ router.get('/api/marine-chart/list', async (req, res) => {
         return res.status(400).json({ error: 'invalid data' });
     }
 
-    // 연안 자료는 [AREA] 자리표시자를 실제 청 코드로 치환
-    let dataParam = data;
-    if (type === 'C' && area) {
-        if (!/^[a-z]+$/.test(area)) {
-            return res.status(400).json({ error: 'invalid area' });
-        }
-        dataParam = dataParam.replace('[AREA]', area);
-    }
-    // BUOY 스펙트럼류는 [STN] 도 같이 치환
-    if (type === 'C' && stn) {
-        if (!/^[A-Z0-9]+$/.test(stn)) {
-            return res.status(400).json({ error: 'invalid stn' });
-        }
-        dataParam = dataParam.replace('[STN]', stn);
-    }
-
+    // KMA 의 ocean-wave.do 는 data 의 [AREA]/[STN] 자리표시자를 server-side 에서
+    // 직접 치환한다. 클라이언트(공식 사이트의 form serialize)는 [AREA] 를 literal
+    // 로 그대로 보내고 area/stn 을 별도 파라미터로 전달.
+    //
+    // 이전에는 백엔드에서 [AREA] 를 미리 치환했더니 KMA 가 매칭 실패 → fallback
+    // 으로 G6(전구) 자료를 반환하는 버그 발생. → 치환 제거, area/stn 그대로 전달.
     const params = new URLSearchParams({
         type,
-        data: dataParam,
+        data,
         unit: 'km/h',
         leaflet: '0',
         kmap: '0',
     });
+    // 연안(C) 일 때만 area 전달. 검증은 query string 안전성 확보.
+    if (type === 'C' && area) {
+        if (!/^[a-z]+$/.test(area)) {
+            return res.status(400).json({ error: 'invalid area' });
+        }
+        params.set('area', area);
+    }
+    // BUOY 스펙트럼 변수일 때만 stn 전달.
+    if (type === 'C' && stn) {
+        if (!/^[A-Z0-9]+$/.test(stn)) {
+            return res.status(400).json({ error: 'invalid stn' });
+        }
+        params.set('stn', stn);
+    }
 
     try {
         const upstream = await fetch(`${KMA_LIST_URL}?${params}`, {
