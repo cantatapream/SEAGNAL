@@ -1373,6 +1373,12 @@
                             <option value="gawn">강원청</option>
                         </select>
                     </label>
+                    <!-- 부이(STN) — BUOY 스펙트럼 변수 선택 시만 노출.
+                         JS 가 청 변경 시 그 청의 부이 목록으로 옵션을 동적 갱신. -->
+                    <label class="mc-field mc-field-stn" id="mc-field-stn" hidden>
+                        <span class="mc-field-label">부이</span>
+                        <select id="mc-stn"></select>
+                    </label>
                 </div>
 
                 <!-- 기준시각 + 시간 점프 버튼 -->

@@ -64,6 +64,11 @@
                 { code: 'kim_rww3_wind_ft03_pa4_', label: '해상풍(풍향,풍속)' },
                 { code: 'kim_rww3_total_ft03_pa4_', label: '3시간 해상풍과 파고' },
                 { code: 'kim_rww3_total_ft12_pa4_', label: '12시간 해상풍과 파고' },
+                // 해역별 시계열 4종 — KMA 공식과 동등 노출
+                { code: 'kim_rww3_series01_wavhgt_pa4_', label: '해역별 파고시계열(앞바다)' },
+                { code: 'kim_rww3_series01_wind_pa4_',   label: '해역별 해상풍시계열(앞바다)' },
+                { code: 'kim_rww3_series02_wavhgt_pa4_', label: '해역별 파고시계열(먼바다)' },
+                { code: 'kim_rww3_series02_wind_pa4_',   label: '해역별 해상풍시계열(먼바다)' },
             ],
         },
         C: {
@@ -73,7 +78,11 @@
                 { code: 'kim_cww3_[AREA]_wave_',  label: '해상풍/유의파고' },
                 { code: 'kim_cww3_[AREA]_wdpr_',  label: '파주기/파향' },
                 { code: 'kim_cww3_[AREA]_wind_',  label: '해상풍(풍향,풍속)' },
+                // BUOY 스펙트럼 — 부이(STN) 추가 드롭다운 노출
+                { code: 'kim_cww3_[AREA]_total_spec_[STN]_pa4_', label: 'BUOY 스펙트럼 예상종합장', useStn: true },
                 { code: 'kim_cww3_[AREA]_wswl_',  label: '너울파고/파향' },
+                // 너울파고 시계열 — 강원청 전용
+                { code: 'kim_cww3_[AREA]_wavhgt_swell_point_pa4_', label: '해역별 너울파고 시계열', gawnOnly: true },
             ],
         },
         RWW3: {
@@ -93,6 +102,16 @@
         { code: 'gawn', label: '강원청' },
     ];
 
+    // 부이(STN) 코드 — BUOY 스펙트럼 변수 선택 시만 사용. 청별로 다름.
+    // KMA 공식 app-ocean-chart-wave-model.js 의 STNS 그대로.
+    const STNS = {
+        dajn: [{ code: 'B22101', label: '덕적도' }, { code: 'B22108', label: '외연도' }],
+        gwju: [{ code: 'B22102', label: '칠발도' }, { code: 'B22103', label: '거문도' }],
+        jeju: [{ code: 'B22107', label: '마라도' }],
+        busn: [{ code: 'B22104', label: '거제도' }, { code: 'B22106', label: '포항' }],
+        gawn: [{ code: 'B22105', label: '동해' }],
+    };
+
     // ── 전역 상태 (단일 source of truth) ──
     // 인라인 영역과 전체화면이 모두 이 state 를 공유 → 자동재생 끊김 없음
     const state = {
@@ -100,6 +119,7 @@
         type: 'R3',                           // 영역
         data: 'kim_rww3_wave_ft03_pa4_',      // 자료 prefix (첫 진입 기본값)
         area: 'jeju',                         // 청 코드
+        stn: 'B22107',                        // 부이 코드 (BUOY 스펙트럼 시만 사용, 기본=마라도)
         list: [],                             // 가용 시각 목록
         currentIndex: 0,                      // 현재 표시 중인 인덱스
         playing: false,                       // 자동재생 여부
@@ -127,6 +147,8 @@
         el.dataSel       = document.getElementById('mc-data');
         el.areaSel       = document.getElementById('mc-area');
         el.areaField     = document.getElementById('mc-field-area');
+        el.stnSel        = document.getElementById('mc-stn');
+        el.stnField      = document.getElementById('mc-field-stn');
         el.timeValue     = document.getElementById('mc-time-value');
         el.timeJump      = document.getElementById('mc-time-jump');
         el.image         = document.getElementById('mc-image');
@@ -165,6 +187,7 @@
                 el.dataSel.value = state.data;
             }
             toggleAreaField();      // 영역=연안일 때만 청 노출
+            applyVariableConstraints(); // 변수별 청·부이 제약 반영
             updateFavButton();      // 별 활성 상태 표시
             bindEvents();
             state.initialized = true;
@@ -203,6 +226,11 @@
         // 청 드롭다운 (연안일 때만 노출) → 데이터 재조회
         if (el.areaSel) {
             el.areaSel.addEventListener('change', onAreaChange);
+        }
+
+        // 부이(STN) 드롭다운 (BUOY 스펙트럼 변수일 때만 노출)
+        if (el.stnSel) {
+            el.stnSel.addEventListener('change', onStnChange);
         }
 
         // 시간 점프 7개 버튼 (-48H/-24H/-12H/현재/+12H/+24H/+48H)
@@ -259,39 +287,128 @@
 
     /**
      * 영역 드롭다운 변경 핸들러.
-     * - 변수 옵션을 새로 채우고
-     * - 영역=연안 일 때만 청별 드롭다운 노출
-     * - 새 자료 prefix 로 데이터 재조회
-     * - 즐겨찾기와 일치 여부 갱신
      */
     function onTypeChange() {
         state.type = el.typeSel.value;
         refreshDataOptions();
         toggleAreaField();
-        // 데이터 prefix 도 새 영역의 첫 옵션으로 갱신
         if (el.dataSel.options.length > 0) {
             state.data = el.dataSel.options[0].value;
         }
+        // 변수가 바뀌었으니 청·부이 드롭다운 가용성도 재평가
+        applyVariableConstraints();
         updateFavButton();
         if (window.MarineChart.fetchList) window.MarineChart.fetchList();
     }
 
     /**
      * 변수 드롭다운 변경 핸들러.
+     * 변수에 따라 청 드롭다운 옵션이 바뀌거나(너울 시계열 → 강원청만) 부이
+     * 드롭다운이 노출(BUOY 스펙트럼) 될 수 있어 제약 재평가 필요.
      */
     function onDataChange() {
         state.data = el.dataSel.value;
+        applyVariableConstraints();
         updateFavButton();
         if (window.MarineChart.fetchList) window.MarineChart.fetchList();
     }
 
     /**
      * 청 드롭다운 변경 핸들러 (영역=연안일 때만 활성).
+     * 청이 바뀌면 그 청의 부이 옵션으로 부이 드롭다운 갱신.
      */
     function onAreaChange() {
         state.area = el.areaSel.value;
+        refreshStnOptions();
         updateFavButton();
         if (window.MarineChart.fetchList) window.MarineChart.fetchList();
+    }
+
+    /**
+     * 부이(STN) 드롭다운 변경 핸들러 (BUOY 스펙트럼 변수일 때만 활성).
+     */
+    function onStnChange() {
+        state.stn = el.stnSel.value;
+        updateFavButton();
+        if (window.MarineChart.fetchList) window.MarineChart.fetchList();
+    }
+
+    /**
+     * 현재 변수의 메타정보 반환 (useStn, gawnOnly 등).
+     * CATALOG 의 옵션 객체 — 없으면 null.
+     */
+    function getCurrentDataConfig() {
+        const cat = CATALOG[state.type];
+        if (!cat) return null;
+        return cat.options.find(o => o.code === state.data) || null;
+    }
+
+    /**
+     * 변수 제약사항을 청·부이 드롭다운에 반영.
+     * - gawnOnly 변수 → 청 옵션 [강원청] 만, state.area='gawn' 강제
+     * - useStn 변수 → 부이 드롭다운 노출 + 현재 청의 부이 옵션 채움
+     * - 그 외 → 청 옵션 5개 전체 복원, 부이 드롭다운 숨김
+     */
+    function applyVariableConstraints() {
+        const cfg = getCurrentDataConfig();
+        const gawnOnly = !!(cfg && cfg.gawnOnly);
+        const useStn = !!(cfg && cfg.useStn);
+        refreshAreaOptions(gawnOnly);
+        toggleStnField(useStn);
+        if (useStn) refreshStnOptions();
+    }
+
+    /**
+     * 청 드롭다운(<select id="mc-area">) 의 옵션을 갱신.
+     * @param {boolean} gawnOnly true 면 강원청 1개, false 면 5개 전체.
+     */
+    function refreshAreaOptions(gawnOnly) {
+        if (!el.areaSel) return;
+        const list = gawnOnly
+            ? AREAS.filter(a => a.code === 'gawn')
+            : AREAS;
+        el.areaSel.innerHTML = list.map(a =>
+            `<option value="${a.code}">${a.label}</option>`
+        ).join('');
+        if (gawnOnly) {
+            // gawnOnly 변수는 강원청만 가능 → state.area 강제 동기화
+            state.area = 'gawn';
+            el.areaSel.value = 'gawn';
+        } else {
+            // 5개 복원: 이전 선택을 우선 유지, 없으면 첫 번째
+            const exists = list.some(a => a.code === state.area);
+            if (exists) {
+                el.areaSel.value = state.area;
+            } else {
+                state.area = list[0].code;
+                el.areaSel.value = state.area;
+            }
+        }
+    }
+
+    /**
+     * 부이(STN) 드롭다운 옵션을 현재 청에 맞게 갱신.
+     */
+    function refreshStnOptions() {
+        if (!el.stnSel) return;
+        const list = STNS[state.area] || [];
+        el.stnSel.innerHTML = list.map(s =>
+            `<option value="${s.code}">${s.label}</option>`
+        ).join('');
+        const exists = list.some(s => s.code === state.stn);
+        if (!exists && list.length > 0) {
+            state.stn = list[0].code;
+        }
+        if (list.length > 0) el.stnSel.value = state.stn;
+    }
+
+    /**
+     * 부이 드롭다운 노출/숨김 토글.
+     */
+    function toggleStnField(show) {
+        if (!el.stnField) return;
+        if (show) el.stnField.removeAttribute('hidden');
+        else el.stnField.setAttribute('hidden', '');
     }
 
     // ── 즐겨찾기 (localStorage) ─────────────────────────────────────
@@ -304,6 +421,7 @@
             type: state.type,
             data: state.data,
             area: state.area,
+            stn:  state.stn,    // BUOY 스펙트럼 변수일 때만 의미. 그 외엔 무시됨.
         };
         try {
             localStorage.setItem(FAV_KEY, JSON.stringify(fav));
@@ -338,6 +456,9 @@
         if (fav.data !== state.data) return false;
         // 연안일 때만 청 비교 (다른 영역에선 area 무관)
         if (state.type === 'C' && fav.area !== state.area) return false;
+        // BUOY 스펙트럼(useStn) 일 때만 부이 코드도 비교
+        const cfg = getCurrentDataConfig();
+        if (cfg && cfg.useStn && fav.stn !== state.stn) return false;
         return true;
     }
 
@@ -352,12 +473,20 @@
             // 검증: CATALOG 변경으로 무효해진 옵션은 무시
             if (!fav || !fav.type || !CATALOG[fav.type]) return null;
             const opts = CATALOG[fav.type].options;
-            const dataValid = opts.some(o => o.code === fav.data);
-            if (!dataValid) return null;
-            // 연안 자료는 청 코드도 유효성 검증 (외부 변조·구버전 호환 방어)
+            const optMatch = opts.find(o => o.code === fav.data);
+            if (!optMatch) return null;
+            // 연안 자료는 청 코드도 유효성 검증
             if (fav.type === 'C' && fav.area) {
                 const areaValid = AREAS.some(a => a.code === fav.area);
                 if (!areaValid) return null;
+            }
+            // 너울 시계열(gawnOnly) 인 경우 area='gawn' 이어야 유효
+            if (optMatch.gawnOnly && fav.area !== 'gawn') return null;
+            // BUOY 스펙트럼(useStn) 인 경우 부이 코드 유효성 검증
+            if (optMatch.useStn && fav.stn) {
+                const stnList = STNS[fav.area] || [];
+                const stnValid = stnList.some(s => s.code === fav.stn);
+                if (!stnValid) return null;
             }
             return fav;
         } catch (e) {
@@ -374,10 +503,12 @@
         state.type = fav.type;
         state.data = fav.data;
         if (fav.area) state.area = fav.area;
+        if (fav.stn)  state.stn  = fav.stn;
         // DOM 동기
         if (el.typeSel) el.typeSel.value = fav.type;
         if (el.areaSel && fav.area) el.areaSel.value = fav.area;
-        // 변수 드롭다운은 refreshDataOptions() 후 값을 세팅해야 함 — init() 에서 처리
+        // 변수·부이 드롭다운은 refreshDataOptions / refreshStnOptions 후 적용 — init() 의
+        // applyVariableConstraints 흐름에서 처리됨
     }
 
     /**
@@ -457,14 +588,21 @@
         el,
         CATALOG,
         AREAS,
+        STNS,
         FAV_KEY,
         init,
         refreshDataOptions,
+        refreshAreaOptions,
+        refreshStnOptions,
         toggleAreaField,
+        toggleStnField,
+        applyVariableConstraints,
+        getCurrentDataConfig,
         onCategoryClick,
         onTypeChange,
         onDataChange,
         onAreaChange,
+        onStnChange,
         showToast,
         saveFavorite,
         loadFavorite,

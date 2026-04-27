@@ -62,9 +62,14 @@
                 type: state.type,
                 data: state.data,
             });
-            // 연안 자료는 청 코드도 함께 (백엔드가 [AREA] 자리표시자 치환)
+            // 연안 자료는 청 코드도 함께 전달 — 백엔드가 KMA 에 그대로 area 파라미터로 전달
+            // (KMA 가 server-side 에서 data 의 [AREA] 를 area 값으로 치환)
             if (state.type === 'C' && state.area) {
                 params.set('area', state.area);
+            }
+            // BUOY 스펙트럼 변수: data 에 [STN] 자리표시자가 있으면 stn 도 전송
+            if (state.type === 'C' && state.data && state.data.includes('[STN]') && state.stn) {
+                params.set('stn', state.stn);
             }
             const res = await fetch(`/api/marine-chart/list?${params}`, {
                 signal: ac.signal,
