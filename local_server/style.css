@@ -9368,4 +9368,443 @@ body.ocean-map-active .main-header .header-content {
     text-overflow: ellipsis;
 }
 
+/* ============================================================================
+ * 해상일기도 (Marine Chart) — KMA 날씨누리 차트 표출
+ * ----------------------------------------------------------------------------
+ * [구성]
+ *   1) 인라인 영역 (#marine-chart-section 내부)
+ *      - 자료종류 4탭(.mc-category-tabs)
+ *      - 영역/변수/청별 드롭다운(.mc-controls + .mc-field)
+ *      - 시간 점프 7버튼(.mc-time-jump)
+ *      - GIF 표시 영역(.mc-image-wrap)
+ *      - 재생 컨트롤(.mc-player)
+ *   2) 전체화면 오버레이 (#mc-fullscreen, body 직속)
+ *      - 상단 페이드 영역(.mc-fs-top): 시각 + 닫기
+ *      - 이미지 무대(.mc-fs-stage): 핀치줌·팬 가능
+ *      - 하단 페이드 영역(.mc-fs-bottom): 재생 컨트롤
+ * [페이드 동작]
+ *   - 평소: 상·하단 영역은 opacity:0 + pointer-events:none (클릭 통과)
+ *   - .show-controls 클래스 부여 시 opacity:1 + pointer-events:auto
+ *   - JS 가 5초 타이머로 클래스 토글
+ * ============================================================================ */
+
+/* ── 인라인 섹션 ──────────────────────────────────────────────────────── */
+
+#marine-chart-section {
+    padding: 16px;
+}
+#marine-chart-section .section-title {
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 16px 0;
+}
+#marine-chart-section .section-title i {
+    color: #4dabf7;
+}
+
+/* 자료종류 행: [4탭 그룹] + [즐겨찾기 별표]
+   align-items: center 가 핵심 — 4탭이 1행이든 2×2든 별은 항상 세로 중앙. */
+.mc-category-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+/* 자료종류 4탭 (수치파랑/폭풍해일/해양순환/해수면온도) — pill 형태, 가운데 정렬,
+   flex-wrap 으로 좁은 화면에서 자동 2×2 전환 */
+.mc-category-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+
+/* 즐겨찾기 별 버튼 — 4탭 우측에 위치. 활성 상태(저장된 옵션과 일치)일 때 노란색.
+   사용자가 옵션을 바꾸면 JS 가 비활성으로 토글. */
+.mc-fav-btn {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.04);
+    color: #94a3b8;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    transition: all 0.15s ease;
+}
+.mc-fav-btn:hover {
+    background: rgba(255, 215, 0, 0.12);
+    border-color: rgba(255, 215, 0, 0.4);
+    color: #fbbf24;
+}
+.mc-fav-btn.is-active {
+    background: rgba(255, 215, 0, 0.18);
+    border-color: rgba(255, 215, 0, 0.6);
+    color: #fbbf24;
+    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.25);
+}
+.mc-fav-btn.is-active i {
+    /* 채워진 별 아이콘으로 시각화: JS 에서 클래스 토글 */
+}
+.mc-cat-btn {
+    flex: 0 1 auto;
+    min-width: 90px;
+    padding: 10px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #cbd5e1;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.mc-cat-btn:hover {
+    background: rgba(77, 171, 247, 0.12);
+    border-color: rgba(77, 171, 247, 0.4);
+    color: #fff;
+}
+.mc-cat-btn.active {
+    background: linear-gradient(135deg, #4dabf7, #339af0);
+    border-color: transparent;
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(77, 171, 247, 0.3);
+}
+.mc-cat-btn[data-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.mc-cat-btn[data-disabled="true"]:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #cbd5e1;
+}
+
+/* 좁은 화면(가로 480px 이하)에서는 4개 탭이 자연스럽게 2×2 배치되도록
+   각 버튼이 화면의 약 45% 폭을 차지 */
+@media (max-width: 480px) {
+    .mc-cat-btn {
+        flex: 0 1 calc(50% - 8px);
+        min-width: 0;
+    }
+}
+
+/* 드롭다운 컨트롤 영역 */
+.mc-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.mc-field {
+    flex: 1 1 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.mc-field-label {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    font-weight: 500;
+    padding-left: 4px;
+}
+.mc-field select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    color: #e2e8f0;
+    font-size: 0.9rem;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='%2394a3b8' d='M6 8L0 0h12z'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+}
+.mc-field select:focus {
+    outline: none;
+    border-color: rgba(77, 171, 247, 0.5);
+    box-shadow: 0 0 0 3px rgba(77, 171, 247, 0.15);
+}
+
+/* 청별 드롭다운: HTML hidden 속성으로 기본 숨김.
+   영역=연안 선택 시 JS 가 hidden 제거 → 자연스럽게 노출 */
+.mc-field-area[hidden] {
+    display: none !important;
+}
+
+/* 기준시각 라벨 + 시간 점프 7버튼 */
+.mc-time-row {
+    margin-bottom: 8px;
+    color: #94a3b8;
+    font-size: 0.85rem;
+}
+.mc-time-row .mc-time-value {
+    color: #e2e8f0;
+    font-weight: 600;
+    margin-left: 4px;
+}
+.mc-time-jump {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+.mc-time-jump button {
+    flex: 1 1 auto;
+    min-width: 60px;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    color: #cbd5e1;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+.mc-time-jump button:hover:not(.active):not(:disabled) {
+    background: rgba(77, 171, 247, 0.1);
+    color: #fff;
+}
+.mc-time-jump button.active {
+    background: rgba(77, 171, 247, 0.2);
+    border-color: rgba(77, 171, 247, 0.5);
+    color: #fff;
+    font-weight: 600;
+}
+.mc-time-jump button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* GIF 이미지 영역 */
+.mc-image-wrap {
+    position: relative;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    min-height: 200px;
+}
+.mc-image-wrap img {
+    display: block;
+    width: 100%;
+    height: auto;
+    cursor: zoom-in;
+}
+.mc-image-loading,
+.mc-image-error {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    font-size: 0.9rem;
+    background: rgba(0, 0, 0, 0.6);
+}
+.mc-image-error {
+    color: #ef4444;
+}
+
+/* 인라인 재생 컨트롤 */
+.mc-player {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.mc-player button {
+    width: 36px;
+    height: 36px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #e2e8f0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s ease;
+}
+.mc-player button:hover {
+    background: rgba(77, 171, 247, 0.15);
+}
+.mc-player input[type="range"] {
+    flex: 1;
+    accent-color: #4dabf7;
+}
+.mc-step-label {
+    color: #94a3b8;
+    font-size: 0.8rem;
+    min-width: 50px;
+    text-align: right;
+}
+.mc-note {
+    color: #64748b;
+    font-size: 0.75rem;
+    margin: 8px 0 0 0;
+    text-align: center;
+}
+
+/* ── 전체화면 오버레이 ─────────────────────────────────────────────────── */
+
+.mc-fullscreen {
+    position: fixed;
+    inset: 0;
+    /* 100000: 기존 modal/popup(9999~10001) 보다 위에 와야 함.
+       body.mc-fullscreen-active 가 main-header 도 함께 숨겨 헤더 침범 방지 */
+    z-index: 100000;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    /* 모바일 노치/홈인디케이터 영역 회피 */
+    padding-top: env(safe-area-inset-top, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.mc-fullscreen[hidden] {
+    display: none;
+}
+
+/* 전체화면 활성 시 메인 헤더/하단 탭바 숨김 (시각적 겹침 방지) */
+body.mc-fullscreen-active .main-header,
+body.mc-fullscreen-active .bottom-main-tabs,
+body.mc-fullscreen-active .bottom-sub-tabs {
+    visibility: hidden !important;
+}
+
+/* 상단 페이드 영역: 시각 정보 + 닫기 버튼 */
+.mc-fs-top {
+    position: absolute;
+    top: env(safe-area-inset-top, 0);
+    left: 0;
+    right: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+.mc-fs-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: #fff;
+}
+.mc-fs-time {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+.mc-fs-step {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.75);
+}
+.mc-fs-close {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease;
+}
+.mc-fs-close:hover {
+    background: rgba(0, 0, 0, 0.75);
+}
+
+/* 이미지 무대: 핀치줌·팬 처리. 브라우저 기본 제스처 차단 */
+.mc-fs-stage {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    touch-action: none;       /* 핀치 줌·스와이프 모두 우리가 직접 처리 */
+    user-select: none;
+    -webkit-user-select: none;
+}
+.mc-fs-stage img {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    transform: translate(-50%, -50%);
+    transform-origin: center center;
+    pointer-events: none;     /* 이미지 자체 드래그·고스트 방지 */
+    will-change: transform;
+}
+
+/* 하단 페이드 영역: 이전/재생/다음 + 슬라이더 */
+.mc-fs-bottom {
+    position: absolute;
+    bottom: env(safe-area-inset-bottom, 0);
+    left: 0;
+    right: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px 16px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+.mc-fs-ctrl {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    transition: background 0.15s ease;
+}
+.mc-fs-ctrl:hover {
+    background: rgba(77, 171, 247, 0.5);
+}
+.mc-fs-slider {
+    flex: 1;
+    accent-color: #4dabf7;
+}
+
+/* 페이드 표출 트리거: JS 가 .show-controls 클래스 토글 */
+.mc-fullscreen.show-controls .mc-fs-top,
+.mc-fullscreen.show-controls .mc-fs-bottom {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* 전체화면 진입 중 body 스크롤 잠금 (선택) */
+body.mc-fullscreen-active {
+    overflow: hidden;
+}
 

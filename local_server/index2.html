@@ -1312,6 +1312,117 @@
             </section>
 
             <!-- ================================================================
+                 섹션: 해상일기도 (KMA 날씨누리 차트 프록시)
+                 [구조] 자료종류 4탭(수치파랑/폭풍해일/해양순환/해수면온도)
+                        → 영역 드롭다운 → 변수 드롭다운 → (조건부)청별 드롭다운
+                        → 시간 컨트롤(7개 버튼 + 슬라이더 + 재생) → GIF 표시
+                 [데이터] /api/marine-chart/list (백엔드 프록시) → JSON 시각 목록
+                          이미지 자체는 weather.go.kr 에서 클라이언트가 직접 로드
+                 [연계] js/marine_chart.js → 모든 동적 동작
+                 ================================================================ -->
+            <section id="marine-chart-section" class="tab-content">
+                <div class="section-header-with-info">
+                    <h2 class="section-title">
+                        <i class="fa-solid fa-chart-area"></i> 해상일기도
+                    </h2>
+                </div>
+
+                <!-- 자료종류 카테고리 + 즐겨찾기 별표
+                     [구조] flex 1행 컨테이너에 [4탭 그룹] + [별표] 두 자식.
+                            4탭이 좁은 화면에서 2×2로 wrap 돼도 별표는 항상
+                            우측 세로 중앙에 자동 정렬됨 (align-items: center).
+                     [즐겨찾기] 별표 클릭 시 현재 영역/변수/청 옵션을
+                                localStorage 에 저장 → 다음 진입 시 기본값. -->
+                <div class="mc-category-row">
+                    <div class="mc-category-tabs" id="mc-category-tabs">
+                        <button class="mc-cat-btn active" data-cat="wave">수치파랑</button>
+                        <button class="mc-cat-btn" data-cat="surge" data-disabled="true">폭풍해일</button>
+                        <button class="mc-cat-btn" data-cat="current" data-disabled="true">해양순환</button>
+                        <button class="mc-cat-btn" data-cat="sst" data-disabled="true">해수면온도</button>
+                    </div>
+                    <button class="mc-fav-btn" id="mc-fav-btn" type="button"
+                            aria-label="즐겨찾기로 추가" title="현재 옵션을 다음 진입 기본값으로 저장">
+                        <i class="fa-regular fa-star"></i>
+                    </button>
+                </div>
+
+                <!-- 영역 / 변수 / 청별 드롭다운 -->
+                <div class="mc-controls">
+                    <label class="mc-field">
+                        <span class="mc-field-label">영역</span>
+                        <select id="mc-type">
+                            <option value="G6">전구(6시간간격)</option>
+                            <option value="A6">아시아(6시간간격)</option>
+                            <option value="R3" selected>지역(3시간간격)</option>
+                            <option value="C">연안(국지)</option>
+                            <option value="RWW3">파랑실황도</option>
+                        </select>
+                    </label>
+
+                    <label class="mc-field">
+                        <span class="mc-field-label">변수</span>
+                        <select id="mc-data"><!-- JS 동적 생성 --></select>
+                    </label>
+
+                    <!-- 청별 (영역=연안 일 때만 노출) -->
+                    <label class="mc-field mc-field-area" id="mc-field-area" hidden>
+                        <span class="mc-field-label">청별</span>
+                        <select id="mc-area">
+                            <option value="dajn">대전청</option>
+                            <option value="gwju">광주청</option>
+                            <option value="jeju" selected>제주청</option>
+                            <option value="busn">부산청</option>
+                            <option value="gawn">강원청</option>
+                        </select>
+                    </label>
+                </div>
+
+                <!-- 기준시각 + 시간 점프 버튼 -->
+                <div class="mc-time-row">
+                    <span class="mc-time-label">기준시각:</span>
+                    <span class="mc-time-value" id="mc-time-value">--</span>
+                </div>
+                <div class="mc-time-jump" id="mc-time-jump">
+                    <button data-jump="-48">-48H</button>
+                    <button data-jump="-24">-24H</button>
+                    <button data-jump="-12">-12H</button>
+                    <button class="active" data-jump="0">현재</button>
+                    <button data-jump="12">+12H</button>
+                    <button data-jump="24">+24H</button>
+                    <button data-jump="48">+48H</button>
+                </div>
+
+                <!-- GIF 표시 영역
+                     [상호작용] 이미지 클릭/탭 시 전체화면 오버레이(#mc-fullscreen)로 진입
+                                실제 클릭 핸들러 바인딩은 js/marine_chart.js
+                     [접근성] tabindex=0 으로 키보드 포커스 가능, title 로 호버 안내 -->
+                <div class="mc-image-wrap">
+                    <div class="mc-image-loading" id="mc-image-loading" hidden>로딩 중...</div>
+                    <div class="mc-image-error" id="mc-image-error" hidden>자료를 불러올 수 없습니다.</div>
+                    <img id="mc-image" alt="해상일기도" tabindex="0" title="클릭하여 확대" />
+                </div>
+
+                <!-- 재생 컨트롤 + 슬라이더 -->
+                <div class="mc-player">
+                    <button id="mc-play-prev" title="이전" aria-label="이전">
+                        <i class="fa-solid fa-backward-step"></i>
+                    </button>
+                    <button id="mc-play-toggle" title="재생/정지" aria-label="재생">
+                        <i class="fa-solid fa-play"></i>
+                    </button>
+                    <button id="mc-play-next" title="다음" aria-label="다음">
+                        <i class="fa-solid fa-forward-step"></i>
+                    </button>
+                    <input type="range" id="mc-slider" min="0" max="0" step="1" value="0" />
+                    <span class="mc-step-label" id="mc-step-label">--</span>
+                </div>
+
+                <p class="mc-note">
+                    출처: 기상청 날씨누리 (weather.go.kr) — 이미지는 사용자 기기에서 직접 로드됩니다.
+                </p>
+            </section>
+
+            <!-- ================================================================
                  [index2] 해안 CCTV 섹션 삭제됨 (해양종합에 통합)
                  ----------------------------------------------------------------
                  기존 cctv-section 은 해양종합(ocean-map-section) 의 CCTV 토글
@@ -1997,6 +2108,7 @@
         <nav class="sub-tabs bottom-sub-tabs" id="weather-sub-tabs">
             <button class="sub-tab-btn active" data-target="weather-alert-section">특보 및 전망</button>
             <button class="sub-tab-btn" data-target="typhoon-section">태풍정보</button>
+            <button class="sub-tab-btn" data-target="marine-chart-section">해상일기도</button>
         </nav>
         <!-- [제거됨] 종합기상 서브탭 (#ocean-sub-tabs) — 조석정보 탭 삭제 및
              해양종합정보 단일 탭으로 변경되어 서브탭 자체가 불필요해짐. -->
@@ -2104,6 +2216,14 @@
     <script src="js/forecast.js"></script>
     <script src="js/windy.js"></script>
     <script src="js/marine_forecast.js"></script>
+    <!-- 해상일기도 (KMA 날씨누리 GIF 차트) — 5개 파일 분할
+         1: 카탈로그/상태/init/드롭다운/즐겨찾기  2: fetch/render/슬라이더/재생
+         3: 전체화면 진입/종료/백버튼  4: 컨트롤 페이드  5: 핀치줌·팬·탭 -->
+    <script src="js/marine_chart1.js"></script>
+    <script src="js/marine_chart2.js"></script>
+    <script src="js/marine_chart3.js"></script>
+    <script src="js/marine_chart4.js"></script>
+    <script src="js/marine_chart5.js"></script>
     <script src="js/fishing.js"></script>
     <script src="js/surfing1.js"></script>
     <script src="js/surfing2.js"></script>
@@ -2838,6 +2958,55 @@
             <div id="blocked-feature-popup-content" style="color:#cbd5e1;font-size:0.85rem;line-height:1.7;padding:12px 14px;background:rgba(255,255,255,0.05);border-radius:8px;border:1px solid rgba(255,255,255,0.08);white-space:pre-line;"></div>
         </div>
         <button onclick="closeBlockedFeaturePopup()" style="width:100%;padding:12px;background:linear-gradient(135deg,#475569,#334155);color:#e2e8f0;border:1px solid rgba(255,255,255,0.1);border-radius:10px;cursor:pointer;font-weight:600;font-size:0.9rem;">확인</button>
+    </div>
+</div>
+
+<!-- ====================================================================
+     해상일기도 전체화면 오버레이 (body 직속)
+     --------------------------------------------------------------------
+     [용도] 인라인 GIF(#mc-image) 클릭 시 전체화면으로 확대 표출.
+            동영상 플레이어 패턴: 평소 컨트롤 숨김 → 화면 탭 시 5초간 노출 →
+            그 사이 다시 탭하면 즉시 숨김.
+     [구조]
+       .mc-fs-top    : 상단 페이드 영역 (시각 + 예측시간 + 닫기 ✕)
+       .mc-fs-stage  : 이미지 무대 (두 손가락 핀치줌, 한 손가락 팬 가능)
+                       transform: scale/translate 로 확대·이동 처리
+       .mc-fs-bottom : 하단 페이드 영역 (이전/재생/다음 + 슬라이더)
+     [상태 동기]
+       전체화면 오버레이는 인라인 영역과 동일한 state.currentIndex 를 공유.
+       자동재생 중 진입해도 그대로 이어지고, 닫으면 인라인 슬라이더에 위치 유지.
+     [백버튼] history.pushState 로 더미 1개 push → popstate 시 자동 종료
+     [연계] js/marine_chart.js — 모든 동작 로직
+     ==================================================================== -->
+<div id="mc-fullscreen" class="mc-fullscreen" hidden aria-hidden="true">
+    <!-- 상단: 시각 정보 + 닫기 버튼 -->
+    <div class="mc-fs-top" id="mc-fs-top">
+        <div class="mc-fs-info">
+            <span class="mc-fs-time" id="mc-fs-time">--</span>
+            <span class="mc-fs-step" id="mc-fs-step">--</span>
+        </div>
+        <button class="mc-fs-close" id="mc-fs-close" type="button" aria-label="전체화면 닫기">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+    </div>
+
+    <!-- 가운데: 이미지 무대 (핀치줌·팬·탭 처리 컨테이너) -->
+    <div class="mc-fs-stage" id="mc-fs-stage">
+        <img id="mc-fs-image" alt="해상일기도 (전체화면)" draggable="false" />
+    </div>
+
+    <!-- 하단: 재생 컨트롤 + 슬라이더 -->
+    <div class="mc-fs-bottom" id="mc-fs-bottom">
+        <button class="mc-fs-ctrl" id="mc-fs-prev" type="button" aria-label="이전">
+            <i class="fa-solid fa-backward-step"></i>
+        </button>
+        <button class="mc-fs-ctrl mc-fs-toggle" id="mc-fs-toggle" type="button" aria-label="재생/정지">
+            <i class="fa-solid fa-play"></i>
+        </button>
+        <button class="mc-fs-ctrl" id="mc-fs-next" type="button" aria-label="다음">
+            <i class="fa-solid fa-forward-step"></i>
+        </button>
+        <input type="range" class="mc-fs-slider" id="mc-fs-slider" min="0" max="0" step="1" value="0" aria-label="시간 슬라이더" />
     </div>
 </div>
 
