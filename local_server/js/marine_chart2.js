@@ -35,11 +35,25 @@
     /**
      * 백엔드 프록시(/api/marine-chart/list)에서 가용 시각 목록을 받아 state.list 갱신.
      * 성공 시 첫 진입 인덱스(현재시각 = +0H에 가장 가까운 항목) 로 자동 render.
+     *
+     * [Race condition 방지 — AbortController 패턴]
+     * 사용자가 빠르게 영역/변수/청 드롭다운을 연속 변경하면 fetchList 가 여러 번
+     * 호출됨. 이전엔 state.listLoading 으로 lock 을 걸어 후속 호출을 무시했지만,
+     * 그 결과 첫 호출(이전 선택)의 응답이 화면에 적용되어 드롭다운/화면 불일치 발생.
+     *
+     * 해결: 새 fetch 시작 시 이전 fetch 를 abort. 그러면 이전 응답은 도착하지
+     * 않거나(취소됨) AbortError 로 떨어져 catch 에서 무시됨. 항상 마지막 호출의
+     * 결과만 화면에 반영.
      */
     async function fetchList() {
-        const { state, el, showToast } = MC;
-        if (state.listLoading) return;
-        state.listLoading = true;
+        const { state } = MC;
+        // 이전 진행 중 fetch 가 있으면 취소
+        if (state.fetchAbort) {
+            try { state.fetchAbort.abort(); } catch (e) {}
+        }
+        const ac = new AbortController();
+        state.fetchAbort = ac;
+
         showLoading(true);
         showError(false);
 
@@ -52,9 +66,13 @@
             if (state.type === 'C' && state.area) {
                 params.set('area', state.area);
             }
-            const res = await fetch(`/api/marine-chart/list?${params}`);
+            const res = await fetch(`/api/marine-chart/list?${params}`, {
+                signal: ac.signal,
+            });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const list = await res.json();
+            // 이 시점에 더 최신 fetch 가 시작됐으면 결과 무시
+            if (state.fetchAbort !== ac) return;
             if (!Array.isArray(list) || list.length === 0) {
                 throw new Error('자료가 없습니다');
             }
@@ -65,12 +83,18 @@
             render(firstIdx);
             highlightJumpButton(0);
         } catch (err) {
+            // 취소 에러는 정상 흐름이므로 무시 (새 fetch 가 진행 중이라는 의미)
+            if (err.name === 'AbortError') return;
             console.error('[marine_chart] fetchList 실패:', err);
             state.list = [];
             showError(true, err.message || '자료를 불러올 수 없습니다.');
         } finally {
-            state.listLoading = false;
-            showLoading(false);
+            // 자기 자신이 최신 ac 인 경우에만 로딩 인디케이터/abort 슬롯 정리
+            // (더 최신 fetch 가 진행 중이면 그쪽이 알아서 정리)
+            if (state.fetchAbort === ac) {
+                state.fetchAbort = null;
+                showLoading(false);
+            }
         }
     }
 

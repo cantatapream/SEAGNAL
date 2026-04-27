@@ -42,11 +42,12 @@
     /**
      * 컨트롤 표시 + 5초 타이머 재시작.
      * - 풀스크린 오버레이가 열린 상태에서만 의미 있음
+     * MC.el 캐시 대신 직접 조회로 init() 시점 의존성 제거.
      */
     function showControls() {
-        const { el } = MC;
-        if (!el.fullscreen) return;
-        el.fullscreen.classList.add('show-controls');
+        const overlay = document.getElementById('mc-fullscreen');
+        if (!overlay) return;
+        overlay.classList.add('show-controls');
         cancelFadeTimer();
         fadeTimer = setTimeout(hideControls, HIDE_DELAY_MS);
     }
@@ -55,9 +56,9 @@
      * 컨트롤 즉시 숨김.
      */
     function hideControls() {
-        const { el } = MC;
-        if (!el.fullscreen) return;
-        el.fullscreen.classList.remove('show-controls');
+        const overlay = document.getElementById('mc-fullscreen');
+        if (!overlay) return;
+        overlay.classList.remove('show-controls');
         cancelFadeTimer();
     }
 
@@ -67,9 +68,9 @@
      * - 숨겨진 상태 → 표시 + 5초 타이머 재시작
      */
     function toggleControls() {
-        const { el } = MC;
-        if (!el.fullscreen) return;
-        if (el.fullscreen.classList.contains('show-controls')) {
+        const overlay = document.getElementById('mc-fullscreen');
+        if (!overlay) return;
+        if (overlay.classList.contains('show-controls')) {
             hideControls();
         } else {
             showControls();
@@ -89,13 +90,15 @@
     /**
      * 컨트롤 영역(상단/하단/슬라이더) 의 사용자 인터랙션은 페이드를 연장.
      * - 슬라이더 드래그 중 컨트롤이 사라지면 곤란하므로
+     *
+     * [중요] DOMContentLoaded 시점엔 MC.el 이 아직 비어있어 직접 DOM 조회 사용.
      */
     function bindActivityRefresh() {
-        const { el } = MC;
-        const refreshable = [
-            el.fsTop, el.fsBottom, el.fsSlider, el.fsPrev, el.fsToggle, el.fsNext, el.fsClose,
-        ].filter(Boolean);
-        refreshable.forEach(node => {
+        const ids = ['mc-fs-top', 'mc-fs-bottom', 'mc-fs-slider',
+                     'mc-fs-prev', 'mc-fs-toggle', 'mc-fs-next', 'mc-fs-close'];
+        ids.forEach(id => {
+            const node = document.getElementById(id);
+            if (!node) return;
             // 컨트롤 영역 내 클릭/입력이 발생하면 5초 타이머 리셋
             ['click', 'input', 'pointerdown'].forEach(evt => {
                 node.addEventListener(evt, () => showControls());
@@ -108,12 +111,12 @@
      * - input 이벤트가 페이드를 계속 연장해도 OK 지만, 안전장치로 명시적 잠금.
      */
     function bindSliderHold() {
-        const { el } = MC;
-        if (!el.fsSlider) return;
+        const slider = document.getElementById('mc-fs-slider');
+        if (!slider) return;
         let holding = false;
         const onDown = () => { holding = true; cancelFadeTimer(); };
         const onUp   = () => { if (holding) { holding = false; showControls(); } };
-        el.fsSlider.addEventListener('pointerdown', onDown);
+        slider.addEventListener('pointerdown', onDown);
         document.addEventListener('pointerup', onUp);
         document.addEventListener('pointercancel', onUp);
     }

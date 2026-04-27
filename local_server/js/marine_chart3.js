@@ -128,12 +128,16 @@
     /**
      * 인라인 이미지 클릭 → 진입.
      * tabindex=0 이라 키보드(Enter/Space) 로도 진입 가능하도록 keydown 도 처리.
+     *
+     * [중요] DOMContentLoaded 시점엔 MC.el 이 아직 비어있다(init() 호출 전).
+     *        그래서 MC.el.* 캐시 대신 document.getElementById 로 직접 조회.
+     *        DOM 요소 자체는 HTML 파싱 시점에 이미 존재함.
      */
     function bindEnterTrigger() {
-        const { el } = MC;
-        if (!el.image) return;
-        el.image.addEventListener('click', enterFullscreen);
-        el.image.addEventListener('keydown', (e) => {
+        const img = document.getElementById('mc-image');
+        if (!img) return;
+        img.addEventListener('click', enterFullscreen);
+        img.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 enterFullscreen();
@@ -145,9 +149,9 @@
      * 우상단 ✕ 버튼 클릭 → 종료.
      */
     function bindExitTrigger() {
-        const { el } = MC;
-        if (el.fsClose) {
-            el.fsClose.addEventListener('click', exitFullscreen);
+        const closeBtn = document.getElementById('mc-fs-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', exitFullscreen);
         }
     }
 
@@ -160,8 +164,8 @@
         document.addEventListener('click', (e) => {
             const tabBtn = e.target.closest('.tab-btn, .sub-tab-btn');
             if (!tabBtn) return;
-            const { el } = MC;
-            if (el.fullscreen && !el.fullscreen.hasAttribute('hidden')) {
+            const overlay = document.getElementById('mc-fullscreen');
+            if (overlay && !overlay.hasAttribute('hidden')) {
                 exitFullscreen();
             }
         }, true); // capture: tab handler 보다 먼저 실행

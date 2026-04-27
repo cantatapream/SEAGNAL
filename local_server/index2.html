@@ -2977,15 +2977,23 @@
      [연계] js/marine_chart.js — 모든 동작 로직
      ==================================================================== -->
 <div id="mc-fullscreen" class="mc-fullscreen" hidden aria-hidden="true">
-    <!-- 상단: 시각 정보 + 닫기 버튼 -->
+    <!-- 상단: 시각 정보 + 액션 버튼 그룹 (회전, 닫기) -->
     <div class="mc-fs-top" id="mc-fs-top">
         <div class="mc-fs-info">
             <span class="mc-fs-time" id="mc-fs-time">--</span>
             <span class="mc-fs-step" id="mc-fs-step">--</span>
         </div>
-        <button class="mc-fs-close" id="mc-fs-close" type="button" aria-label="전체화면 닫기">
-            <i class="fa-solid fa-xmark"></i>
-        </button>
+        <div class="mc-fs-actions">
+            <!-- 화면 회전: 클릭 시 이미지 0° ↔ 90° 토글.
+                 .is-rotated 활성 시 노란색 + 아이콘 180° 시각 피드백. -->
+            <button class="mc-fs-rotate" id="mc-fs-rotate" type="button"
+                    aria-label="화면 회전" title="화면 회전 (가로/세로)">
+                <i class="fa-solid fa-rotate-right"></i>
+            </button>
+            <button class="mc-fs-close" id="mc-fs-close" type="button" aria-label="전체화면 닫기">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
     </div>
 
     <!-- 가운데: 이미지 무대 (핀치줌·팬·탭 처리 컨테이너) -->
