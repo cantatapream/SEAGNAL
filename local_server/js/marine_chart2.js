@@ -62,20 +62,20 @@
                 type: state.type,
                 data: state.data,
             });
-            // 연안 자료는 청 코드도 함께 (백엔드가 [AREA] 자리표시자 치환)
+            // 연안 자료는 청 코드도 함께 전달 — 백엔드가 KMA 에 그대로 area 파라미터로 전달
+            // (KMA 가 server-side 에서 data 의 [AREA] 를 area 값으로 치환)
             if (state.type === 'C' && state.area) {
                 params.set('area', state.area);
             }
-            // [DIAG] 진단용 — 추후 제거
-            console.log('[MC] fetchList → /api/marine-chart/list?' + params.toString());
+            // BUOY 스펙트럼 변수: data 에 [STN] 자리표시자가 있으면 stn 도 전송
+            if (state.type === 'C' && state.data && state.data.includes('[STN]') && state.stn) {
+                params.set('stn', state.stn);
+            }
             const res = await fetch(`/api/marine-chart/list?${params}`, {
                 signal: ac.signal,
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const list = await res.json();
-            // [DIAG] 진단용 — 추후 제거
-            console.log('[MC] fetchList ← ' + (Array.isArray(list) ? list.length : '?') + ' items, first url:',
-                Array.isArray(list) && list[0] ? list[0].url : '(none)');
             // 이 시점에 더 최신 fetch 가 시작됐으면 결과 무시
             if (state.fetchAbort !== ac) return;
             if (!Array.isArray(list) || list.length === 0) {
@@ -133,9 +133,6 @@
         if (index < 0 || index >= state.list.length) return;
         state.currentIndex = index;
         const item = state.list[index];
-
-        // [DIAG] 진단용 — 추후 제거
-        console.log('[MC] render(' + index + ') → img.src =', item && item.url);
 
         // 두 이미지 동시 갱신 (브라우저 캐시로 1회만 실제 다운로드)
         if (el.image && item.url) {
