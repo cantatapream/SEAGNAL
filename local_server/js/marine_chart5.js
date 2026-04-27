@@ -64,9 +64,10 @@
 
     /**
      * 현재 transform 값을 이미지에 반영.
+     * MC.el.fsImage 캐시 대신 직접 조회 — init() 호출 시점에 무관하게 동작.
      */
     function applyTransform() {
-        const img = MC.el && MC.el.fsImage;
+        const img = document.getElementById('mc-fs-image');
         if (!img) return;
         // CSS 의 top/left:50% + 자체 translate(-50%,-50%) 와 결합되도록
         // translate3d 사용 (GPU 가속 + 서브픽셀 정밀도)
@@ -81,7 +82,7 @@
         transform.scale = 1;
         transform.panX = 0;
         transform.panY = 0;
-        const img = MC.el && MC.el.fsImage;
+        const img = document.getElementById('mc-fs-image');
         if (img) {
             // CSS 기본값으로 되돌림 (translate(-50%,-50%) 만)
             img.style.transform = 'translate(-50%, -50%)';
@@ -102,7 +103,7 @@
      * 줌이 클수록 더 멀리 팬 가능.
      */
     function clampPan() {
-        const stage = MC.el && MC.el.fsStage;
+        const stage = document.getElementById('mc-fs-stage');
         if (!stage) return;
         const w = stage.clientWidth;
         const h = stage.clientHeight;
@@ -242,8 +243,10 @@
     }
 
     // ── 이벤트 바인딩 ──
+    // [중요] DOMContentLoaded 시점엔 MC.el 이 비어있으므로 직접 DOM 조회.
+    // 풀스크린 DOM 자체는 HTML 파싱 시점부터 존재함.
     function setup() {
-        const stage = MC.el && MC.el.fsStage;
+        const stage = document.getElementById('mc-fs-stage');
         if (!stage) return;
 
         // 패시브 false 로 preventDefault 가능하게
@@ -264,7 +267,7 @@
 
         // 화면 회전·리사이즈 시 transform 리셋 (이미지 사이즈 바뀌면 좌표 무효)
         window.addEventListener('resize', () => {
-            const overlay = MC.el && MC.el.fullscreen;
+            const overlay = document.getElementById('mc-fullscreen');
             if (overlay && !overlay.hasAttribute('hidden')) {
                 resetTransform();
             }
