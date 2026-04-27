@@ -64,20 +64,9 @@ function renderCommentList(listEl) {
 
     var html = '';
     topLevelComments.forEach(function(comment) {
-        // 최상위 댓글 HTML 생성
-        html += renderCommentItem(comment, myDeviceId, isAdmin, false);
-
-        // 이 댓글의 답글 목록 (parentId = 해당 댓글 id인 것들, 시간순)
-        var replies = _commentsList.filter(function(c) {
-            return c.parentId === comment.id;
-        });
-        if (replies.length > 0) {
-            html += '<div class="comment-replies">';
-            replies.forEach(function(reply) {
-                html += renderCommentItem(reply, myDeviceId, isAdmin, true);
-            });
-            html += '</div>';
-        }
+        // 재귀 렌더링 — 답글의 답글까지 모든 깊이를 펼쳐서 표시.
+        // depth=0 (최상위) 부터 시작.
+        html += _renderCommentSubtree(comment, myDeviceId, isAdmin, 0);
 
         // 모든 사용자가 최상위 댓글에 답글 달 수 있음
         // 단, 삭제된 댓글 또는 내용이 가려진 비밀 댓글(타인 작성)에는 버튼 숨김
@@ -91,6 +80,43 @@ function renderCommentList(listEl) {
     });
 
     listEl.innerHTML = html;
+}
+
+/**
+ * 한 댓글과 그 모든 자손 답글들을 재귀적으로 렌더링.
+ *
+ * [기존 한계] renderCommentList 가 1단계 답글만 그리던 구조라, 답글에 단
+ * 답글(2단계 이상 깊이)은 어떤 forEach 분기에도 들어가지 않아 화면에서 누락.
+ * [개선] 재귀 호출로 모든 깊이를 펼쳐 표시. CSS .comment-replies 의 들여쓰기
+ * 가 누적되어 자연스럽게 깊어짐. 모바일 좁은 화면 대비 최대 4단계까지만
+ * 들여쓰기 누적, 그 이상은 같은 들여쓰기 유지.
+ *
+ * @param {Object}  comment    - 현재 그릴 댓글
+ * @param {string}  myDeviceId - 현재 사용자 기기 ID
+ * @param {boolean} isAdmin    - 관리자 여부
+ * @param {number}  depth      - 0=최상위, 1=답글, 2=답글의 답글 ...
+ * @returns {string} HTML 문자열 (이 댓글 + 자손 답글들)
+ */
+function _renderCommentSubtree(comment, myDeviceId, isAdmin, depth) {
+    // depth=0 이면 최상위 댓글 (큰 박스), 그 외는 답글 (들여쓰기 박스)
+    var isReply = depth > 0;
+    var html = renderCommentItem(comment, myDeviceId, isAdmin, isReply);
+
+    // 직접 자식 답글들
+    var children = _commentsList.filter(function(c) {
+        return c.parentId === comment.id;
+    });
+    if (children.length > 0) {
+        // 깊이 4 이상이면 더 이상 들여쓰기 누적하지 않음 (모바일 화면 보호).
+        // 데이터는 빠짐없이 다 그려지지만 시각적 들여쓰기만 같은 레벨 유지.
+        var capDepth = Math.min(depth + 1, 4);
+        html += '<div class="comment-replies comment-replies-d' + capDepth + '">';
+        children.forEach(function(child) {
+            html += _renderCommentSubtree(child, myDeviceId, isAdmin, depth + 1);
+        });
+        html += '</div>';
+    }
+    return html;
 }
 
 // ============================================================================
