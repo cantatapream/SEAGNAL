@@ -316,12 +316,23 @@
     }
 
     /**
-     * KMA ftm(발효시각, "yyyymmddhh") → "YYYY년 MM월 DD일 HH시" 형식.
+     * KMA ftm(발효시각, "yyyymmddhh") → "'YY. M. D.(요일) HH시 기준" 형식.
      * 사용자가 직관적으로 읽을 수 있는 표시 — render() 의 시각 라벨에 사용.
+     * 예: "2026043003" → "'26. 4. 30.(목) 03시 기준"
+     *
+     * 요일 계산: Date.UTC + getUTCDay() — 사용자 로컬 타임존과 무관하게
+     * 일정 (KST 시각의 날짜 부분만 사용, 요일은 그 날짜 기준).
      */
     function formatFtm(ftm) {
         if (!ftm || ftm.length < 10) return '--';
-        return `${ftm.slice(0, 4)}년 ${ftm.slice(4, 6)}월 ${ftm.slice(6, 8)}일 ${ftm.slice(8, 10)}시`;
+        var yyyy = parseInt(ftm.slice(0, 4), 10);
+        var yy   = ftm.slice(2, 4);                       // '26'
+        var mm   = parseInt(ftm.slice(4, 6), 10);         // 4 (앞 0 제거)
+        var dd   = parseInt(ftm.slice(6, 8), 10);         // 30
+        var hh   = ftm.slice(8, 10);                      // '03' (2자리 유지)
+        var dateObj = new Date(Date.UTC(yyyy, mm - 1, dd));
+        var dayKor = ['일','월','화','수','목','금','토'][dateObj.getUTCDay()];
+        return "'" + yy + ". " + mm + ". " + dd + ".(" + dayKor + ") " + hh + "시 기준";
     }
 
     /**
