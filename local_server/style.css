@@ -9727,6 +9727,46 @@ body.mc-fullscreen-active .bottom-sub-tabs {
     background: rgba(0, 0, 0, 0.75);
 }
 
+/* 풀스크린 우상단 액션 버튼 그룹 (회전, 닫기) */
+.mc-fs-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 회전 버튼 — ✕ 와 같은 사이즈/모양, hover/활성 시 노란빛 강조 */
+.mc-fs-rotate {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-size: 1.05rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.mc-fs-rotate:hover {
+    background: rgba(0, 0, 0, 0.75);
+    color: #fbbf24;
+}
+.mc-fs-rotate.is-rotated {
+    background: rgba(77, 171, 247, 0.45);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(77, 171, 247, 0.35);
+}
+/* 활성 시 아이콘 자체도 시각적으로 회전 (안 ③ 토글 효과) */
+.mc-fs-rotate.is-rotated i {
+    transform: rotate(180deg);
+    transition: transform 0.2s ease;
+}
+.mc-fs-rotate i {
+    transition: transform 0.2s ease;
+}
+
 /* 이미지 무대: 핀치줌·팬 처리. 브라우저 기본 제스처 차단 */
 .mc-fs-stage {
     flex: 1;

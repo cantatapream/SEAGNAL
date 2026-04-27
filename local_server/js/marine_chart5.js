@@ -41,11 +41,13 @@
         return;
     }
 
-    // ── 줌·팬 상태 ──
+    // ── 줌·팬·회전 상태 ──
+    // rotation: 0 또는 90 (사용자가 가로보기 버튼으로 토글). 핀치줌과 결합.
     const transform = {
         scale: 1,
         panX: 0,
         panY: 0,
+        rotation: 0,
     };
     const MIN_SCALE = 1;
     const MAX_SCALE = 4;
@@ -65,28 +67,101 @@
     /**
      * 현재 transform 값을 이미지에 반영.
      * MC.el.fsImage 캐시 대신 직접 조회 — init() 호출 시점에 무관하게 동작.
+     * 변환 순서: scale → rotate → translate → center (CSS 는 우→좌 순서로 적용)
      */
     function applyTransform() {
         const img = document.getElementById('mc-fs-image');
         if (!img) return;
-        // CSS 의 top/left:50% + 자체 translate(-50%,-50%) 와 결합되도록
-        // translate3d 사용 (GPU 가속 + 서브픽셀 정밀도)
         img.style.transform =
-            `translate(-50%, -50%) translate3d(${transform.panX}px, ${transform.panY}px, 0) scale(${transform.scale})`;
+            `translate(-50%, -50%) translate3d(${transform.panX}px, ${transform.panY}px, 0) ` +
+            `rotate(${transform.rotation}deg) scale(${transform.scale})`;
     }
 
     /**
-     * transform 초기화 — 풀스크린 종료 시 호출.
+     * transform 전체 초기화 — 풀스크린 종료/진입 시 호출.
+     * rotation 까지 0 으로 리셋, 회전 버튼 활성 표시 해제.
      */
     function resetTransform() {
         transform.scale = 1;
         transform.panX = 0;
         transform.panY = 0;
+        transform.rotation = 0;
         const img = document.getElementById('mc-fs-image');
         if (img) {
-            // CSS 기본값으로 되돌림 (translate(-50%,-50%) 만)
             img.style.transform = 'translate(-50%, -50%)';
         }
+        const rotateBtn = document.getElementById('mc-fs-rotate');
+        if (rotateBtn) rotateBtn.classList.remove('is-rotated');
+    }
+
+    /**
+     * 줌·팬만 초기화 (회전 상태 유지).
+     * 더블탭 줌 리셋, window.resize 같은 부분 리셋 시 사용.
+     * 회전된 상태에선 fit-scale 재계산해서 컨테이너에 다시 꽉 차게.
+     */
+    function resetZoomPan() {
+        transform.scale = 1;
+        transform.panX = 0;
+        transform.panY = 0;
+        // 회전 중이면 fit-scale 다시 계산 (리사이즈 후에도 올바른 크기 유지)
+        if (transform.rotation === 90) {
+            const stage = document.getElementById('mc-fs-stage');
+            const img = document.getElementById('mc-fs-image');
+            if (stage && img) {
+                const W = img.offsetWidth || img.naturalWidth || 0;
+                const H = img.offsetHeight || img.naturalHeight || 0;
+                if (W > 0 && H > 0) {
+                    const fitScale = Math.min(
+                        stage.clientHeight / W,
+                        stage.clientWidth / H
+                    );
+                    if (fitScale < 1) transform.scale = fitScale;
+                }
+            }
+        }
+        applyTransform();
+    }
+
+    /**
+     * 화면 회전 토글 — 0° ↔ 90°.
+     * 회전 시 줌·팬 초기화, 90° 일 때 이미지가 컨테이너에 꽉 차도록 자동 fit-scale.
+     * 거기서 사용자가 추가 핀치줌 가능.
+     */
+    function toggleRotation() {
+        const stage = document.getElementById('mc-fs-stage');
+        const img = document.getElementById('mc-fs-image');
+        const rotateBtn = document.getElementById('mc-fs-rotate');
+        if (!stage || !img) return;
+
+        // 토글
+        transform.rotation = transform.rotation === 0 ? 90 : 0;
+        // 회전 시 줌·팬 초기화 (이전 좌표가 회전 후엔 무의미)
+        transform.panX = 0;
+        transform.panY = 0;
+        transform.scale = 1;
+
+        if (transform.rotation === 90) {
+            // 회전 후 이미지의 가시 폭/높이는 원본의 height/width 와 swap.
+            // 컨테이너 안에 꽉 차도록 fit-scale 계산.
+            const W = img.offsetWidth || img.naturalWidth || 0;
+            const H = img.offsetHeight || img.naturalHeight || 0;
+            if (W > 0 && H > 0) {
+                const fitScale = Math.min(
+                    stage.clientHeight / W,    // 회전 후 가시 높이 = 원본 width
+                    stage.clientWidth / H      // 회전 후 가시 폭 = 원본 height
+                );
+                // 이미지가 컨테이너보다 작으면 1배 유지, 크면 축소
+                if (fitScale < 1) transform.scale = fitScale;
+            }
+        }
+
+        applyTransform();
+
+        // 버튼 시각 피드백 (CSS .is-rotated 가 색상·아이콘 변경)
+        if (rotateBtn) rotateBtn.classList.toggle('is-rotated', transform.rotation === 90);
+
+        // 회전 직후 컨트롤 잠시 표시 (사용자가 변화 인지)
+        if (MC.showControls) MC.showControls();
     }
 
     /**
@@ -214,9 +289,13 @@
     function checkDoubleTap() {
         const now = Date.now();
         if (now - lastTapTime < DOUBLE_TAP_GAP_MS) {
-            // 더블탭
-            if (transform.scale > 1) {
-                resetTransform();
+            // 더블탭 — 줌·팬만 토글, 회전 상태는 보존
+            // (회전 중일 때 fit-scale 이상이면 그게 1배 — 더블탭으로 2배 ↔ 1배)
+            const baseScale = transform.rotation === 90
+                ? Math.max(1, transform.scale)
+                : 1;
+            if (transform.scale > baseScale) {
+                resetZoomPan();
             } else {
                 transform.scale = 2;
                 transform.panX = 0;
@@ -265,13 +344,19 @@
         });
         stage.addEventListener('wheel', onWheel, { passive: false });
 
-        // 화면 회전·리사이즈 시 transform 리셋 (이미지 사이즈 바뀌면 좌표 무효)
+        // 화면 회전·리사이즈 시 줌·팬만 리셋 (회전 상태는 보존, fit-scale 재계산)
         window.addEventListener('resize', () => {
             const overlay = document.getElementById('mc-fullscreen');
             if (overlay && !overlay.hasAttribute('hidden')) {
-                resetTransform();
+                resetZoomPan();
             }
         });
+
+        // 회전 버튼 클릭 → 0° ↔ 90° 토글
+        const rotateBtn = document.getElementById('mc-fs-rotate');
+        if (rotateBtn) {
+            rotateBtn.addEventListener('click', toggleRotation);
+        }
     }
 
     if (document.readyState === 'loading') {
@@ -283,6 +368,7 @@
     // ── 전역 노출 ──
     Object.assign(MC, {
         resetTransform,
+        toggleRotation,
         _transform: transform, // 디버그용
     });
 })();
