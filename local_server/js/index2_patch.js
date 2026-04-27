@@ -462,9 +462,18 @@ window.switchSubTab = function (targetId) {
 //
 //      [주의] 닫기만 수행, 다른 동작(예: 지도 드래그) 에는 영향 없음.
 // ──────────────────────────────────────────────────────────────
+// 초기 진입 보호 가드: 페이지 로드 직후 init 과정에서 발생하는 자동
+// 클릭/터치(폰트 로드, 이미지 로드, 다른 init 코드의 부수 트리거 등) 에
+// 의해 펼쳐진 서브탭이 즉시 닫히는 문제 방지.
+// 사용자 요구: "매 접속 시 시작은 서브탭 펼침". 800ms 동안만 닫기 무시.
+var _initialOpenGuardUntil = Date.now() + 800;
+
 function _handleContentTouchClose(ev) {
     // 서브탭이 열려있지 않으면 처리할 필요 없음
     if (!document.body.classList.contains('sub-tabs-open')) return;
+
+    // 초기 진입 보호 시간 동안은 자동 이벤트로 닫히지 않게 무시
+    if (Date.now() < _initialOpenGuardUntil) return;
 
     var tgt = ev.target;
     if (!tgt || !tgt.closest) return;
@@ -857,5 +866,36 @@ _initOverlayHoverResetWhenReady();
 //    페이지 로드 시 기본 탭(특보정보)에 맞춰 body 속성 설정
 // ──────────────────────────────────────────────────────────────
 document.body.setAttribute('data-active-tab', 'weather-group');
+
+// ──────────────────────────────────────────────────────────────
+// 11. 첫 진입 시 서브탭 펼침 보장
+//    사용자 요구: 매 접속 시 처음에는 특보정보 서브탭이 표출된 상태로 시작.
+//    app_init.js 의 switchMainTab 초기 호출이 우리 wrapper 를 통해 서브탭을
+//    열지만, 폰트/이미지 로드 등 init 과정의 부수 이벤트로 닫힐 가능성 방어.
+//    DOMContentLoaded 와 load 두 시점 모두에서 명시적으로 한번 더 펼침.
+// ──────────────────────────────────────────────────────────────
+function _ensureInitialSubTabsOpen() {
+    // 차단된 탭이면 스킵 (사용자가 이미 다른 탭으로 이동한 경우 등)
+    var activeMain = document.querySelector('.main-tabs .tab-btn.active');
+    if (!activeMain) return;
+    var targetGroup = activeMain.getAttribute('data-target');
+    // 섹션 ID 인 경우 그룹으로 변환
+    if (SECTION_TO_GROUP && SECTION_TO_GROUP[targetGroup]) {
+        targetGroup = SECTION_TO_GROUP[targetGroup];
+    }
+    if (TAB_GROUP_SUBTABS && TAB_GROUP_SUBTABS[targetGroup]) {
+        _openSubTabsFor(targetGroup);
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _ensureInitialSubTabsOpen);
+} else {
+    _ensureInitialSubTabsOpen();
+}
+window.addEventListener('load', function () {
+    // load 시점엔 이미 모든 init 코드가 끝난 상태 — 한번 더 보장
+    setTimeout(_ensureInitialSubTabsOpen, 50);
+});
 
 } // end if (window.__SEAGNAL_PAGE === 'index2')
