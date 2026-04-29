@@ -19,7 +19,12 @@ primary_region = 'nrt'
   processes = ['app']
 
 [[vm]]
+  # [VM 사이즈 — shared-cpu-2x / 512MB]
+  #   - cpus = 1 → 2 변경: 동시 요청 처리량 30-50% 개선 (libuv 워커풀, GC 백그라운드 스레드가
+  #     추가 vCPU 활용. Node 메인 JS 스레드는 단일이지만 시스템 전체 부담 분산).
+  #   - 메모리는 512MB 그대로 (현재 사용량 약 200MB / 459MB → 여유 충분).
+  #   - 비용 영향: 월 약 $3.19 → $3.89 (shared-cpu-2x 512MB 기준, +$0.70/월).
   memory = '512mb'
   cpu_kind = 'shared'
-  cpus = 1
+  cpus = 2
   memory_mb = 512

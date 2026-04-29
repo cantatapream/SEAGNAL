@@ -239,6 +239,10 @@ cron.schedule(COLLECT_INTERVAL_CRON, fetchSeafogData);
 router.get('/api/seafog-cctv', (req, res) => {
     const obs = req.query.obs; // 관측소명 필터 (선택)
 
+    // [HTTP 캐시] max-age=180 (3분) — CCTV 스틸컷은 10분 주기 갱신
+    //   브라우저/앱이 3분간 자체 캐시 사용 → 동일 이미지 반복 조회 시 서버 부담 ↓
+    res.setHeader('Cache-Control', 'public, max-age=180');
+
     // [신선도] 응답 직전에 표준 헤더 부착 + stale 시 백그라운드 재수집 트리거
     freshness.applyFreshnessHeaders(res, 'cctv');
     freshness.triggerRefreshIfStale('cctv');
