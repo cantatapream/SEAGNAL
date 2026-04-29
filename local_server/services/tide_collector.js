@@ -31,7 +31,8 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { DATA_DIR, IS_FLY_IO } = require('../config/server_config');
+// IS_FLY_IO 는 디스크 캐시 분기에 사용되었으나 디스크 캐시 제거로 미사용 → import 에서 제외.
+const { DATA_DIR } = require('../config/server_config');
 const { tideCache } = require('./cache_manager');
 const { findTidePeaks } = require('../peak_finder');
 
@@ -240,22 +241,9 @@ async function getGridHash(lat, lon, reqDate) {
 // 유틸리티 함수
 // ============================================================================
 
-/**
- * 캐시 파일 자동 삭제 타이머 관리
- */
-const _fileCleanupTimers = {};
-function scheduleFileCleanup(filePath, delayMs = 60000) {
-    if (_fileCleanupTimers[filePath]) clearTimeout(_fileCleanupTimers[filePath]);
-    _fileCleanupTimers[filePath] = setTimeout(() => {
-        try {
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
-                console.log(`🗑️ 캐시 삭제: ${path.basename(filePath)}`);
-            }
-        } catch (e) { /* ignore */ }
-        delete _fileCleanupTimers[filePath];
-    }, delayMs);
-}
+// [제거됨] scheduleFileCleanup — 디스크 캐시 자동 삭제 타이머
+//   디스크 캐시 자체가 제거되어 더 이상 정리할 파일이 없으므로 dead code 가 됨.
+//   외부 사용처도 0건이라 안전하게 제거.
 
 /**
  * YYYYMMDD 정수에서 전일/당일/익일 날짜 계산
@@ -285,7 +273,7 @@ function getAdjacentDates(dateInt) {
  * 단일 날짜 수집 + 피크 분석 + 파일 저장 통합 함수 (패딩 지원)
  */
 async function collectAndSaveTideData(lat, lon, dateInt, time, fileName, paddedItems = null) {
-    const filePath = path.join(DATA_DIR, fileName);
+    // (디스크 캐시 제거로 filePath 미사용 — 메모리 캐시(tideCache)만 사용)
     const reqDateStr = String(dateInt);
     const adj = getAdjacentDates(dateInt);
 
@@ -317,10 +305,9 @@ async function collectAndSaveTideData(lat, lon, dateInt, time, fileName, paddedI
             tideBedData: dayOnlyItems
         };
 
+        // 메모리 캐시(tideCache LRU)에만 저장. 디스크 파일 저장은 제거됨
+        // (캐시 적중률 낮고 파일 누적 부담이 더 컸음 — 메모리 캐시로 충분).
         tideCache.set(fileName, completeData);
-        if (!IS_FLY_IO) {
-            fs.writeFileSync(filePath, JSON.stringify(completeData, null, 2), 'utf8');
-        }
 
         return completeData;
     } catch (err) {
@@ -335,10 +322,8 @@ async function collectAndSaveTideData(lat, lon, dateInt, time, fileName, paddedI
             tideBedError: err.message,
             tideBedData: []
         };
+        // 에러 결과도 메모리에만 캐시 (짧은 시간 동안 같은 요청 반복 차단)
         tideCache.set(fileName, errorData);
-        if (!IS_FLY_IO) {
-            fs.writeFileSync(filePath, JSON.stringify(errorData, null, 2), 'utf8');
-        }
         return errorData;
     }
 }
@@ -351,6 +336,6 @@ module.exports = {
     collectTideBedData,
     getGridHash,
     getAdjacentDates,
-    collectAndSaveTideData,
-    scheduleFileCleanup
+    collectAndSaveTideData
+    // scheduleFileCleanup 제거됨 — 디스크 캐시 제거로 dead code (사용처 0건)
 };
