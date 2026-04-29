@@ -335,15 +335,29 @@ router.get('/api/forecasts', (req, res) => {
 });
 
 // 4. 해구별 기상전망
+//    [수집 주기] 하루 2회 (09:30, 21:30 KST), zone_forecasts.json
+//    [응답 크기] 약 3.18 MB (압축 후 ~452 KB) — 큰 응답이라 캐시 효과 큼
+//    [HTTP 캐시] 정상 응답에만 max-age=1800 (30분), 빈 응답은 no-store.
+//                zone_avg.js 는 자체 cache:'no-store' 로 강제 우회 — 영향 없음.
 router.get('/api/marine-zone-forecasts', (req, res) => {
-    if (dataCache.zoneForecasts) res.json(dataCache.zoneForecasts);
-    else res.status(404).json({ error: '데이터 준비 중' });
+    if (!dataCache.zoneForecasts) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(404).json({ error: '데이터 준비 중' });
+    }
+    res.setHeader('Cache-Control', 'public, max-age=1800');
+    res.json(dataCache.zoneForecasts);
 });
 
 // 4-1. 중기해상예보
+//    [수집 주기] 하루 2회 (06:15, 18:15 KST), mid_term_sea_forecasts.json
+//    [HTTP 캐시] 정상 응답에만 max-age=1800 (30분), 빈 응답은 no-store.
 router.get('/api/mid-term-sea-forecasts', (req, res) => {
-    if (dataCache.midTermSeaForecasts) res.json(dataCache.midTermSeaForecasts);
-    else res.status(404).json({ error: '데이터 준비 중' });
+    if (!dataCache.midTermSeaForecasts) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(404).json({ error: '데이터 준비 중' });
+    }
+    res.setHeader('Cache-Control', 'public, max-age=1800');
+    res.json(dataCache.midTermSeaForecasts);
 });
 
 // 5. 해상 기상 전망 (초단기/단기)
@@ -366,12 +380,15 @@ router.get('/api/marine-forecast', (req, res) => {
 });
 
 // 5-1. 지방기상청 단기예보 (종합 전망 + 기온)
+//    [수집 주기] 하루 3회 (05:10, 11:10, 17:10 KST), regional_forecast.json
+//    [HTTP 캐시] 정상 응답에만 max-age=600 (10분), 빈 응답은 no-store.
 router.get('/api/regional-forecast', (req, res) => {
     try {
         const filePath = path.join(DATA_DIR, 'regional_forecast.json');
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'regional_forecast.json not found' });
         }
+        res.setHeader('Cache-Control', 'public, max-age=600');
         res.sendFile(filePath);
     } catch (e) {
         res.status(500).json({ error: e.message });
