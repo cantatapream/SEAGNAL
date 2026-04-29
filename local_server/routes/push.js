@@ -30,8 +30,40 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
-const webpush = require('web-push');
-const admin = require('firebase-admin');
+// [Lazy] web-push SDK + VAPID 설정도 첫 발송 시점까지 미룬다.
+//        require + setVapidDetails 가 startup 에서 약 2초를 소비하던 것을 절약.
+//        getWebPush() 를 통해 webpush 인스턴스에 접근한다.
+let _webpush = null;
+let _vapidConfigured = false;
+let _webpushInitDone = false;
+function getWebPush() {
+    if (_webpushInitDone) return _webpush;
+    _webpushInitDone = true;
+    try {
+        _webpush = require('web-push');
+        if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+            try {
+                _webpush.setVapidDetails(
+                    process.env.VAPID_SUBJECT || 'mailto:seagnal_admin@example.com',
+                    process.env.VAPID_PUBLIC_KEY,
+                    process.env.VAPID_PRIVATE_KEY
+                );
+                _vapidConfigured = true;
+                console.log('🔔 Web Push VAPID 설정 완료 (lazy)');
+            } catch (err) {
+                console.error('⚠️ VAPID 설정 실패 (푸시 비활성화):', err.message);
+            }
+        }
+    } catch (e) {
+        console.error('⚠️ web-push 모듈 로딩 실패:', e && e.message);
+        _webpush = null;
+    }
+    return _webpush;
+}
+
+// [Lazy] firebase-admin SDK 는 services/firebase_admin_lazy.js 의 getAdmin() 으로 첫 사용 시 로딩.
+//        admin.* 사용 부분에서 getAdmin() 호출 후 null 체크하여 사용한다.
+const { getAdmin } = require('../services/firebase_admin_lazy');
 const { DATA_DIR, FILES } = require('../config/server_config');
 const { expandToMinorZones, getMatchedZones, generateMessage } = require('../services/push_helpers');
 
@@ -99,22 +131,9 @@ function recordSubscriberEvent(eventType, count) {
 }
 
 // ============================================================================
-// VAPID 설정
+// VAPID 설정 — getWebPush() 안으로 이동 (lazy).
+// 첫 푸시 발송 또는 vapid 관련 호출 시점에 require + setVapidDetails 가 1회 수행됨.
 // ============================================================================
-let vapidConfigured = false;
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-    try {
-        webpush.setVapidDetails(
-            process.env.VAPID_SUBJECT || 'mailto:seagnal_admin@example.com',
-            process.env.VAPID_PUBLIC_KEY,
-            process.env.VAPID_PRIVATE_KEY
-        );
-        vapidConfigured = true;
-        console.log('🔔 Web Push VAPID 설정 완료');
-    } catch (err) {
-        console.error('⚠️ VAPID 설정 실패 (푸시 비활성화):', err.message);
-    }
-}
 
 // ============================================================================
 // 구독 관리 API
@@ -330,7 +349,9 @@ router.post('/api/push-custom', async (req, res) => {
                     const url = `${BASE_URL}/?tab=weather-alert-section&${params.toString()}`;
 
                     if (user.type === 'fcm' && user.token) {
-                        if (admin.apps.length > 0) {
+                        // [Lazy] 여기서 처음으로 firebase-admin 이 로딩되고 initializeApp 이 호출됨
+                        const admin = getAdmin();
+                        if (admin && admin.apps.length > 0) {
                             try {
                                 await admin.messaging().send({
                                     token: user.token,
@@ -351,6 +372,11 @@ router.post('/api/push-custom', async (req, res) => {
                     } else if (user.subscription) {
                         try {
                             const pushPayload = JSON.stringify({ title: finalTitle, body: finalBody, url: url });
+                            // [Lazy] 첫 호출 시 web-push 로딩 + VAPID 설정
+                            const webpush = getWebPush();
+                            if (!webpush) {
+                                throw new Error('web-push SDK 사용 불가');
+                            }
                             await webpush.sendNotification(user.subscription, pushPayload, {
                                 TTL: 86400,
                                 urgency: 'high'
