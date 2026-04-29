@@ -531,7 +531,10 @@ function loadBulletinContent(entry, zoneName, container) {
 
     var encodedId = encodeURIComponent(entry.reportId);
 
-    fetch('/api/bulletin-cache/' + encodedId + '?_t=' + Date.now())
+    // [캐시] 통보문은 reportId 별 immutable (한 번 발행 후 변하지 않음) → URL 자체가
+    //        자연 캐시 키 역할. ?_t=Date.now() 는 매번 다른 URL 만들어 캐시 무효화하던
+    //        것이라 제거. 같은 reportId 펼침 시 브라우저 캐시 재사용으로 즉시 표시됨.
+    fetch('/api/bulletin-cache/' + encodedId)
         .then(function (resp) {
             if (!resp.ok) throw new Error('NOT_FOUND');
             return resp.json();
