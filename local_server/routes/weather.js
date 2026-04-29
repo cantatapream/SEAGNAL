@@ -35,14 +35,25 @@ const { DATA_DIR } = require('../config/server_config');
 const { dataCache, refreshCache } = require('../services/cache_manager');
 const scheduler = require('../scheduler');
 const regionalForecastCollector = require('../regional_forecast_collector');
+// [신규] 캐시 신선도 검사 + 응답 헤더 부착 + 백그라운드 재수집 트리거
+//        services/freshness.js 의 POLICY 에 정의된 데이터(특보/부이/해상기상전망)에 한해
+//        응답 헤더(X-Data-Updated-At, X-Data-Age-Seconds, X-Data-Fresh)를 자동 부착하고,
+//        허용 묵음 시간을 넘긴 경우 백그라운드(60초 debounce)로 재수집을 트리거한다.
+//        응답 body 형식은 변경하지 않으므로 기존 클라이언트 호환성에 영향 없음.
+const freshness = require('../services/freshness');
 
 // 1. 특보 정보 (통합 크롤러 데이터)
+//    [신선도] cacheKey='warnings' — 1분 주기 수집, 5분 안쪽이면 fresh.
+//             stale 감지 시 weatherAlertsCrawler.run() 을 백그라운드로 트리거.
 router.get('/api/weather-alerts', (req, res) => {
     try {
         const filePath = path.join(DATA_DIR, 'weather_alerts.json');
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'weather_alerts.json not found' });
         }
+        // 응답 헤더는 res.sendFile / res.json 호출 전에 부착해야 함
+        freshness.applyFreshnessHeaders(res, 'warnings');
+        freshness.triggerRefreshIfStale('warnings');
         res.sendFile(filePath);
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -85,8 +96,12 @@ router.get('/api/warn-zones-sub', (req, res) => {
     }
 });
 
-// 2. 부이 정보
+// 2. 부이 정보 (sea_obs.php — J타입 baseline)
+//    [신선도] cacheKey='buoys' — 30분 주기 수집, 60분 안쪽이면 fresh.
+//             stale 감지 시 scheduler.collectBuoys() 를 백그라운드로 트리거.
 router.get('/api/buoys', (req, res) => {
+    freshness.applyFreshnessHeaders(res, 'buoys');
+    freshness.triggerRefreshIfStale('buoys');
     if (dataCache.buoys) res.json(dataCache.buoys);
     else res.status(404).json({ error: '데이터 준비 중' });
 });
@@ -105,15 +120,23 @@ router.get('/api/kma-buoys', (req, res) => {
 // 2-2. marine.kma.go.kr JSON endpoint 캐시 응답 (신규 2026-04-25)
 //   - 매시 정시 +3분 KST 에 scheduler.collectMarine* 가 저장한 JSON 을 그대로 반환
 //   - 클라이언트(js/data.js fetchMarineBuoyData)가 sea_obs baseline 위에 머지
+// [신선도] marine 부이 3종 — 모두 매시 정시 +3분에 수집(60분 주기), 90분 안쪽이면 fresh.
+//          stale 감지 시 각자의 scheduler.collectMarine*() 를 백그라운드로 트리거.
 router.get('/api/marine-buoys', (req, res) => {
+    freshness.applyFreshnessHeaders(res, 'marineBuoys');
+    freshness.triggerRefreshIfStale('marineBuoys');
     if (dataCache.marineBuoys) res.json(dataCache.marineBuoys);
     else res.status(404).json({ error: '데이터 준비 중' });
 });
 router.get('/api/marine-wh-buoys', (req, res) => {
+    freshness.applyFreshnessHeaders(res, 'marineWhBuoys');
+    freshness.triggerRefreshIfStale('marineWhBuoys');
     if (dataCache.marineWhBuoys) res.json(dataCache.marineWhBuoys);
     else res.status(404).json({ error: '데이터 준비 중' });
 });
 router.get('/api/marine-lh-buoys', (req, res) => {
+    freshness.applyFreshnessHeaders(res, 'marineLhBuoys');
+    freshness.triggerRefreshIfStale('marineLhBuoys');
     if (dataCache.marineLhBuoys) res.json(dataCache.marineLhBuoys);
     else res.status(404).json({ error: '데이터 준비 중' });
 });
@@ -296,12 +319,16 @@ router.get('/api/mid-term-sea-forecasts', (req, res) => {
 });
 
 // 5. 해상 기상 전망 (초단기/단기)
+//    [신선도] cacheKey='marineForecasts' — 매 10분 수집, 30분 안쪽이면 fresh.
+//             stale 감지 시 marine_forecast_processor.collectMarineForecasts() 를 백그라운드로 트리거.
 router.get('/api/marine-forecast', (req, res) => {
     try {
         const filePath = path.join(DATA_DIR, 'marine_forecast.json');
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'marine_forecast.json not found' });
         }
+        freshness.applyFreshnessHeaders(res, 'marineForecasts');
+        freshness.triggerRefreshIfStale('marineForecasts');
         res.sendFile(filePath);
     } catch (e) {
         res.status(500).json({ error: e.message });
