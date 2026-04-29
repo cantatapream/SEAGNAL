@@ -45,6 +45,8 @@ const freshness = require('../services/freshness');
 // 1. 특보 정보 (통합 크롤러 데이터)
 //    [신선도] cacheKey='warnings' — 1분 주기 수집, 5분 안쪽이면 fresh.
 //             stale 감지 시 weatherAlertsCrawler.run() 을 백그라운드로 트리거.
+//    [HTTP 캐시] max-age=30 — 30초 동안은 브라우저/앱이 자체 캐시 사용 → 서버 부담 ↓
+//                특보는 1분 주기 수집이라 30초 캐시 시 최대 묵음 약 30초.
 router.get('/api/weather-alerts', (req, res) => {
     try {
         const filePath = path.join(DATA_DIR, 'weather_alerts.json');
@@ -52,6 +54,7 @@ router.get('/api/weather-alerts', (req, res) => {
             return res.status(404).json({ error: 'weather_alerts.json not found' });
         }
         // 응답 헤더는 res.sendFile / res.json 호출 전에 부착해야 함
+        res.setHeader('Cache-Control', 'public, max-age=30');
         freshness.applyFreshnessHeaders(res, 'warnings');
         freshness.triggerRefreshIfStale('warnings');
         res.sendFile(filePath);
@@ -99,11 +102,18 @@ router.get('/api/warn-zones-sub', (req, res) => {
 // 2. 부이 정보 (sea_obs.php — J타입 baseline)
 //    [신선도] cacheKey='buoys' — 30분 주기 수집, 60분 안쪽이면 fresh.
 //             stale 감지 시 scheduler.collectBuoys() 를 백그라운드로 트리거.
+//    [HTTP 캐시] 정상 응답에만 max-age=300 (5분) 부착.
+//                "데이터 준비 중" 404 응답은 no-store 로 캐시 차단 →
+//                실제 데이터가 곧 준비되어도 사용자가 옛 404 를 계속 보지 않도록 보호.
 router.get('/api/buoys', (req, res) => {
     freshness.applyFreshnessHeaders(res, 'buoys');
     freshness.triggerRefreshIfStale('buoys');
-    if (dataCache.buoys) res.json(dataCache.buoys);
-    else res.status(404).json({ error: '데이터 준비 중' });
+    if (!dataCache.buoys) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(404).json({ error: '데이터 준비 중' });
+    }
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json(dataCache.buoys);
 });
 
 // 2-1. 부이 상세 파고 정보 (kma_buoy.php)
@@ -122,23 +132,36 @@ router.get('/api/kma-buoys', (req, res) => {
 //   - 클라이언트(js/data.js fetchMarineBuoyData)가 sea_obs baseline 위에 머지
 // [신선도] marine 부이 3종 — 모두 매시 정시 +3분에 수집(60분 주기), 90분 안쪽이면 fresh.
 //          stale 감지 시 각자의 scheduler.collectMarine*() 를 백그라운드로 트리거.
+// [HTTP 캐시] 정상 응답에만 max-age=600 (10분) 부착, "데이터 준비 중" 404 는 no-store.
 router.get('/api/marine-buoys', (req, res) => {
     freshness.applyFreshnessHeaders(res, 'marineBuoys');
     freshness.triggerRefreshIfStale('marineBuoys');
-    if (dataCache.marineBuoys) res.json(dataCache.marineBuoys);
-    else res.status(404).json({ error: '데이터 준비 중' });
+    if (!dataCache.marineBuoys) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(404).json({ error: '데이터 준비 중' });
+    }
+    res.setHeader('Cache-Control', 'public, max-age=600');
+    res.json(dataCache.marineBuoys);
 });
 router.get('/api/marine-wh-buoys', (req, res) => {
     freshness.applyFreshnessHeaders(res, 'marineWhBuoys');
     freshness.triggerRefreshIfStale('marineWhBuoys');
-    if (dataCache.marineWhBuoys) res.json(dataCache.marineWhBuoys);
-    else res.status(404).json({ error: '데이터 준비 중' });
+    if (!dataCache.marineWhBuoys) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(404).json({ error: '데이터 준비 중' });
+    }
+    res.setHeader('Cache-Control', 'public, max-age=600');
+    res.json(dataCache.marineWhBuoys);
 });
 router.get('/api/marine-lh-buoys', (req, res) => {
     freshness.applyFreshnessHeaders(res, 'marineLhBuoys');
     freshness.triggerRefreshIfStale('marineLhBuoys');
-    if (dataCache.marineLhBuoys) res.json(dataCache.marineLhBuoys);
-    else res.status(404).json({ error: '데이터 준비 중' });
+    if (!dataCache.marineLhBuoys) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(404).json({ error: '데이터 준비 중' });
+    }
+    res.setHeader('Cache-Control', 'public, max-age=600');
+    res.json(dataCache.marineLhBuoys);
 });
 router.get('/api/marine-vs', (req, res) => {
     // 시정계 station — 본 단계에선 캐시·라우트만, UI 표시는 후속 작업
@@ -300,10 +323,15 @@ router.post('/api/config', (req, res) => {
     }
 });
 
-// 3. 기상 전망
+// 3. 기상 전망 (일반예보 — 하루 2회 수집: 05:15, 17:15)
+//    [HTTP 캐시] 정상 응답에만 max-age=1800 (30분) 부착, "데이터 준비 중" 404 는 no-store.
 router.get('/api/forecasts', (req, res) => {
-    if (dataCache.forecasts) res.json(dataCache.forecasts);
-    else res.status(404).json({ error: '데이터 준비 중' });
+    if (!dataCache.forecasts) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(404).json({ error: '데이터 준비 중' });
+    }
+    res.setHeader('Cache-Control', 'public, max-age=1800');
+    res.json(dataCache.forecasts);
 });
 
 // 4. 해구별 기상전망
@@ -321,12 +349,14 @@ router.get('/api/mid-term-sea-forecasts', (req, res) => {
 // 5. 해상 기상 전망 (초단기/단기)
 //    [신선도] cacheKey='marineForecasts' — 매 10분 수집, 30분 안쪽이면 fresh.
 //             stale 감지 시 marine_forecast_processor.collectMarineForecasts() 를 백그라운드로 트리거.
+//    [HTTP 캐시] max-age=180 (3분) — 10분 주기 수집의 1/3.3, 신선도와 캐시 효과 균형
 router.get('/api/marine-forecast', (req, res) => {
     try {
         const filePath = path.join(DATA_DIR, 'marine_forecast.json');
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'marine_forecast.json not found' });
         }
+        res.setHeader('Cache-Control', 'public, max-age=180');
         freshness.applyFreshnessHeaders(res, 'marineForecasts');
         freshness.triggerRefreshIfStale('marineForecasts');
         res.sendFile(filePath);
