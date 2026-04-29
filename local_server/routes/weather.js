@@ -102,13 +102,18 @@ router.get('/api/warn-zones-sub', (req, res) => {
 // 2. 부이 정보 (sea_obs.php — J타입 baseline)
 //    [신선도] cacheKey='buoys' — 30분 주기 수집, 60분 안쪽이면 fresh.
 //             stale 감지 시 scheduler.collectBuoys() 를 백그라운드로 트리거.
-//    [HTTP 캐시] max-age=300 (5분) — 30분 주기 수집의 1/6, 신선도와 캐시 효과 균형
+//    [HTTP 캐시] 정상 응답에만 max-age=300 (5분) 부착.
+//                "데이터 준비 중" 404 응답은 no-store 로 캐시 차단 →
+//                실제 데이터가 곧 준비되어도 사용자가 옛 404 를 계속 보지 않도록 보호.
 router.get('/api/buoys', (req, res) => {
-    res.setHeader('Cache-Control', 'public, max-age=300');
     freshness.applyFreshnessHeaders(res, 'buoys');
     freshness.triggerRefreshIfStale('buoys');
-    if (dataCache.buoys) res.json(dataCache.buoys);
-    else res.status(404).json({ error: '데이터 준비 중' });
+    if (!dataCache.buoys) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(404).json({ error: '데이터 준비 중' });
+    }
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json(dataCache.buoys);
 });
 
 // 2-1. 부이 상세 파고 정보 (kma_buoy.php)
@@ -127,27 +132,36 @@ router.get('/api/kma-buoys', (req, res) => {
 //   - 클라이언트(js/data.js fetchMarineBuoyData)가 sea_obs baseline 위에 머지
 // [신선도] marine 부이 3종 — 모두 매시 정시 +3분에 수집(60분 주기), 90분 안쪽이면 fresh.
 //          stale 감지 시 각자의 scheduler.collectMarine*() 를 백그라운드로 트리거.
-// [HTTP 캐시] max-age=600 (10분) — 60분 주기 수집의 1/6, 신선도와 캐시 효과 균형
+// [HTTP 캐시] 정상 응답에만 max-age=600 (10분) 부착, "데이터 준비 중" 404 는 no-store.
 router.get('/api/marine-buoys', (req, res) => {
-    res.setHeader('Cache-Control', 'public, max-age=600');
     freshness.applyFreshnessHeaders(res, 'marineBuoys');
     freshness.triggerRefreshIfStale('marineBuoys');
-    if (dataCache.marineBuoys) res.json(dataCache.marineBuoys);
-    else res.status(404).json({ error: '데이터 준비 중' });
+    if (!dataCache.marineBuoys) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(404).json({ error: '데이터 준비 중' });
+    }
+    res.setHeader('Cache-Control', 'public, max-age=600');
+    res.json(dataCache.marineBuoys);
 });
 router.get('/api/marine-wh-buoys', (req, res) => {
-    res.setHeader('Cache-Control', 'public, max-age=600');
     freshness.applyFreshnessHeaders(res, 'marineWhBuoys');
     freshness.triggerRefreshIfStale('marineWhBuoys');
-    if (dataCache.marineWhBuoys) res.json(dataCache.marineWhBuoys);
-    else res.status(404).json({ error: '데이터 준비 중' });
+    if (!dataCache.marineWhBuoys) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(404).json({ error: '데이터 준비 중' });
+    }
+    res.setHeader('Cache-Control', 'public, max-age=600');
+    res.json(dataCache.marineWhBuoys);
 });
 router.get('/api/marine-lh-buoys', (req, res) => {
-    res.setHeader('Cache-Control', 'public, max-age=600');
     freshness.applyFreshnessHeaders(res, 'marineLhBuoys');
     freshness.triggerRefreshIfStale('marineLhBuoys');
-    if (dataCache.marineLhBuoys) res.json(dataCache.marineLhBuoys);
-    else res.status(404).json({ error: '데이터 준비 중' });
+    if (!dataCache.marineLhBuoys) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(404).json({ error: '데이터 준비 중' });
+    }
+    res.setHeader('Cache-Control', 'public, max-age=600');
+    res.json(dataCache.marineLhBuoys);
 });
 router.get('/api/marine-vs', (req, res) => {
     // 시정계 station — 본 단계에선 캐시·라우트만, UI 표시는 후속 작업
@@ -310,11 +324,14 @@ router.post('/api/config', (req, res) => {
 });
 
 // 3. 기상 전망 (일반예보 — 하루 2회 수집: 05:15, 17:15)
-//    [HTTP 캐시] max-age=1800 (30분) — 12시간 주기 수집이라 30분 캐시는 매우 안전
+//    [HTTP 캐시] 정상 응답에만 max-age=1800 (30분) 부착, "데이터 준비 중" 404 는 no-store.
 router.get('/api/forecasts', (req, res) => {
+    if (!dataCache.forecasts) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(404).json({ error: '데이터 준비 중' });
+    }
     res.setHeader('Cache-Control', 'public, max-age=1800');
-    if (dataCache.forecasts) res.json(dataCache.forecasts);
-    else res.status(404).json({ error: '데이터 준비 중' });
+    res.json(dataCache.forecasts);
 });
 
 // 4. 해구별 기상전망

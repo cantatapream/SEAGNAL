@@ -239,16 +239,16 @@ cron.schedule(COLLECT_INTERVAL_CRON, fetchSeafogData);
 router.get('/api/seafog-cctv', (req, res) => {
     const obs = req.query.obs; // 관측소명 필터 (선택)
 
-    // [HTTP 캐시] max-age=180 (3분) — CCTV 스틸컷은 10분 주기 갱신
-    //   브라우저/앱이 3분간 자체 캐시 사용 → 동일 이미지 반복 조회 시 서버 부담 ↓
-    res.setHeader('Cache-Control', 'public, max-age=180');
-
     // [신선도] 응답 직전에 표준 헤더 부착 + stale 시 백그라운드 재수집 트리거
     freshness.applyFreshnessHeaders(res, 'cctv');
     freshness.triggerRefreshIfStale('cctv');
 
     // 캐시가 비어 있으면 수집 중 안내
+    // [HTTP 캐시] "데이터 수집 중" 응답은 no-store 로 캐시 차단.
+    //   서버 재시작 직후 1-2초의 빈 윈도우에 요청한 사용자가 max-age 동안
+    //   계속 빈 응답을 보지 않도록 보호 (정상 응답이 들어오면 즉시 보이게).
     if (Object.keys(_cache).length === 0) {
+        res.setHeader('Cache-Control', 'no-store');
         return res.json({
             ok: false,
             message: '데이터 수집 중입니다. 잠시 후 다시 시도해 주세요.',
@@ -256,6 +256,10 @@ router.get('/api/seafog-cctv', (req, res) => {
             stations: {}
         });
     }
+
+    // [HTTP 캐시] 정상 응답에만 max-age=180 (3분) — CCTV 스틸컷은 10분 주기 갱신
+    //   브라우저/앱이 3분간 자체 캐시 사용 → 동일 이미지 반복 조회 시 서버 부담 ↓
+    res.setHeader('Cache-Control', 'public, max-age=180');
 
     // obs 파라미터가 있으면 해당 지점만, 없으면 전체 반환
     let stations;
