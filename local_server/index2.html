@@ -833,6 +833,11 @@
             color: #1f2937;
             user-select: none;
             pointer-events: none;  /* 지도 클릭 방해 방지 — 범례는 정보 표출만 */
+            /* 안전망: 종류 추가로 범례가 위로 자라다 viewport 위쪽까지 침범하지
+               않도록 최대 높이 제한 + 내부 스크롤. 메인 탭바(68) + 여유(12) +
+               상단 여유(60) 정도 확보. */
+            max-height: calc(100vh - var(--main-tab-height, 68px) - 80px);
+            overflow-y: auto;
         }
         .warn-active-legend-table {
             border-collapse: collapse;
@@ -1859,39 +1864,9 @@
                     <!-- 활성 특보 색칠 범례
                          [표출 조건] state.active === true 일 때만 (ocean_warn_active4.js 가 토글)
                          [위치] 지도 컨테이너 우측 하단 (메인 탭바 위, CSS position:absolute)
-                         [내용] 종류(풍랑/폭풍해일/태풍) × 단계(발표/주의보/경보) 매트릭스 -->
-                    <div id="ocean-warn-active-legend" class="warn-active-legend" style="display:none;" aria-hidden="true">
-                        <table class="warn-active-legend-table">
-                            <thead>
-                                <tr>
-                                    <th></th>
-                                    <th>발표</th>
-                                    <th>주의보</th>
-                                    <th>경보</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr data-type="wave">
-                                    <th>풍랑</th>
-                                    <td><span class="wal-swatch" data-stage="upcoming"></span></td>
-                                    <td><span class="wal-swatch" data-stage="watch"></span></td>
-                                    <td><span class="wal-swatch" data-stage="warn"></span></td>
-                                </tr>
-                                <tr data-type="surge">
-                                    <th>폭풍해일</th>
-                                    <td><span class="wal-swatch" data-stage="upcoming"></span></td>
-                                    <td><span class="wal-swatch" data-stage="watch"></span></td>
-                                    <td><span class="wal-swatch" data-stage="warn"></span></td>
-                                </tr>
-                                <tr data-type="typhoon">
-                                    <th>태풍</th>
-                                    <td><span class="wal-swatch" data-stage="upcoming"></span></td>
-                                    <td><span class="wal-swatch" data-stage="watch"></span></td>
-                                    <td><span class="wal-swatch" data-stage="warn"></span></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                         [내용] 현재 활성 특보(state.activeMap) 에 존재하는 종류·단계만 동적 표출
+                                — ocean_warn_active4.js _renderLegend() 가 매번 <table> 을 다시 빌드 -->
+                    <div id="ocean-warn-active-legend" class="warn-active-legend" style="display:none;" aria-hidden="true"></div>
                 </div>
 
                 <!--

@@ -60,11 +60,88 @@
     }
 
     /**
+     * 범례 박스 내부 <table> 을 현재 활성 맵(state.activeMap) 기준으로 다시 빌드.
+     *
+     * [필터링 정책]
+     *   - 행(row, 종류)   : state.activeMap 안에 paletteKey 가 있는 종류만 표출
+     *                       (예: 풍랑만 활성 → 풍랑 행만, 태풍 추가 → 태풍 행도)
+     *   - 열(col, 단계)   : 위 종류들 중 실제 등장한 단계만 표출
+     *                       (예: 풍랑주의보만 → 주의보 열만, 경보 추가 → 경보 열도)
+     *   - 셀(cell, 패치)  : 행×열 매트릭스 전체에 색상 패치 표시. 사용자가 매트릭스
+     *                       구조로 직관 식별 가능 (실제 활성된 셀 + 그 종류의 다른
+     *                       단계 셀 = "이 종류는 이런 진하기 단계가 있다" 시각 학습).
+     *   - 활성 항목 0건   : 범례 자체 숨김 (_setLegendVisible(false)).
+     *
+     * [호출 시점]
+     *   - _setLegendVisible(true) 진입 시
+     *   - _onAlertsChanged (5.js) 에서 활성 모드일 때 데이터 갱신 후
+     *   - 외부 강제 새로고침 ns.refresh() 경로
+     */
+    ns._renderLegend = function () {
+        var lg = document.getElementById('ocean-warn-active-legend');
+        if (!lg) return;
+
+        // 활성 맵 스캔 — 어떤 종류·단계가 등장하는지 집계
+        var typesPresent  = {};   // 'wave'|'surge'|'typhoon' → true
+        var stagesPresent = {};   // 'upcoming'|'watch'|'warn' → true
+
+        var keys = Object.keys(state.activeMap);
+        for (var i = 0; i < keys.length; i++) {
+            var info = state.activeMap[keys[i]];
+            if (!info || !info.paletteKey) continue;
+            typesPresent[info.paletteKey] = true;
+            // _buildActiveMap 의 stage 값 ('upcoming'/'주의보'/'경보') →
+            // 범례 CSS 의 data-stage 값('upcoming'/'watch'/'warn') 으로 매핑
+            var stageKey =
+                (info.stage === 'upcoming') ? 'upcoming' :
+                (info.stage === '경보')     ? 'warn' :
+                                              'watch';     // '주의보' 또는 기타
+            stagesPresent[stageKey] = true;
+        }
+
+        // 표출 순서: 풍랑 → 폭풍해일 → 태풍 / 발표 → 주의보 → 경보
+        var TYPE_ORDER  = ['wave', 'surge', 'typhoon'];
+        var TYPE_LABELS = { wave: '풍랑', surge: '폭풍해일', typhoon: '태풍' };
+        var STAGE_ORDER  = ['upcoming', 'watch', 'warn'];
+        var STAGE_LABELS = { upcoming: '발표', watch: '주의보', warn: '경보' };
+
+        var visTypes  = TYPE_ORDER.filter(function (t) { return typesPresent[t]; });
+        var visStages = STAGE_ORDER.filter(function (s) { return stagesPresent[s]; });
+
+        // 활성 항목 0건 → 범례 비움 + 숨김
+        if (visTypes.length === 0 || visStages.length === 0) {
+            lg.innerHTML = '';
+            lg.style.display = 'none';
+            lg.setAttribute('aria-hidden', 'true');
+            return;
+        }
+
+        // 테이블 빌드
+        var html = '<table class="warn-active-legend-table"><thead><tr><th></th>';
+        for (var s = 0; s < visStages.length; s++) {
+            html += '<th>' + STAGE_LABELS[visStages[s]] + '</th>';
+        }
+        html += '</tr></thead><tbody>';
+        for (var t = 0; t < visTypes.length; t++) {
+            var type = visTypes[t];
+            html += '<tr data-type="' + type + '"><th>' + TYPE_LABELS[type] + '</th>';
+            for (var s2 = 0; s2 < visStages.length; s2++) {
+                html += '<td><span class="wal-swatch" data-stage="' + visStages[s2] + '"></span></td>';
+            }
+            html += '</tr>';
+        }
+        html += '</tbody></table>';
+        lg.innerHTML = html;
+    };
+
+    /**
      * 범례 박스 표출/숨김. 4.js 의 _activate / _deactivate 가 호출.
+     * 표출 시 _renderLegend() 로 현재 활성 맵 기준 테이블 빌드 → display 토글.
      */
     function _setLegendVisible(show) {
         var lg = document.getElementById('ocean-warn-active-legend');
         if (!lg) return;
+        if (show) ns._renderLegend();   // 표출 직전 최신 데이터로 빌드
         lg.style.display = show ? '' : 'none';
         lg.setAttribute('aria-hidden', show ? 'false' : 'true');
     }
