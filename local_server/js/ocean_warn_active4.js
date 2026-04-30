@@ -98,7 +98,11 @@
             btn.style.display = 'none';
             return;
         }
-        btn.style.display = '';   // CSS 기본값 복귀 (특보구역 ON 일 때 보이도록)
+        // 표출 — 명시적으로 'flex' 사용 (style.css:8261 의 .ocean-overlay-btn 기본값과 동일).
+        // [중요] 빈 문자열('') 로 두면 인라인 스타일이 비워져 CSS 의
+        //   `#ocean-warn-active-toggle-btn.ocean-warn-active-toggle { display: none }`
+        // 규칙으로 fallback 되어 영원히 숨김 상태가 됨. 명시적 'flex' 가 안전.
+        btn.style.display = 'flex';
 
         var hasActive = ns._hasAnyColorableActive();
         var isOn = state.active && hasActive;

@@ -274,6 +274,14 @@
     /**
      * document 의 capture-phase pointerdown 으로 박스 외부 클릭 감지.
      * 박스 내부 클릭은 contains 검사로 무시.
+     *
+     * [중요 — "닫기만, 연쇄 동작 X" 정책]
+     *   외부 클릭으로 박스를 닫을 때 state.boxJustClosedAt 에 현재 시각을
+     *   기록한다. 같은 click 으로 잠시 후 발생할 map singleclick → handleMapClick
+     *   → tryHandleClick 이 그 timestamp 를 보고 일정 시간(현재 400ms) 안의
+     *   호출은 "방금 박스 닫는 의도였음" 으로 간주, 새 박스/바텀시트 호출 없이
+     *   true 만 반환한다. → 결과: 외부 클릭 1번 = 박스 닫힘만, 다음 클릭부터
+     *   새 박스/동작 가능 (요구사항).
      */
     function _bindOutsideClose() {
         if (state.boxOutsideHandler) return; // 중복 방지
@@ -281,6 +289,7 @@
             if (!state.box) return;
             if (state.box.contains(e.target)) return; // 박스 안 클릭은 유지
             ns._hideBox();
+            state.boxJustClosedAt = Date.now();
         };
         document.addEventListener('pointerdown', state.boxOutsideHandler, true);
     }
@@ -295,26 +304,45 @@
     // ────────────────────────────────────────────────────────────────────
 
     /**
+     * 활성 모드에서 호출되는 지도 클릭 가드.
+     *
+     * [반환값 정책]
+     *   - state.active === false → false 반환 (바텀시트 흐름 그대로 진행)
+     *   - state.active === true  → 항상 true 반환 (바텀시트 차단)
+     *     · 요구사항: 활성 모드일 때는 비활성 zone 클릭에서도 바텀시트(드롭박스)가
+     *       뜨지 않아야 함. 바텀시트는 OFF 상태 전용.
+     *     · CCTV/부이/마커 등은 handleMapClick 에서 우리 가드 이전에 처리되므로
+     *       그쪽 동작은 영향 없음 (정상 작동).
+     *
+     * [박스 외부 클릭 가드 (boxJustClosedAt)]
+     *   외부 클릭으로 박스가 막 닫혔다면 같은 click 으로 발생한 이번 호출은
+     *   "닫기 의도" 로 간주, 새 박스 표출 없이 즉시 true 반환.
+     *   → 외부 클릭 1번 = 박스 닫힘 한 번만, 다음 클릭부터 새 박스 표출 가능.
+     *
      * @param {ol.Map} map
      * @param {ol.MapBrowserEvent} evt
      * @returns {boolean} true → 이 모듈이 처리함 (바텀시트 스킵).
-     *                   false → 처리 안 함 (바텀시트 흐름 계속).
+     *                   false → 처리 안 함 (바텀시트 흐름 계속, OFF 상태에서만).
      */
     ns.tryHandleClick = function (map, evt) {
         // active 모드 아닐 때는 절대 처리 안 함 → 기존 바텀시트 흐름 유지
         if (!state.active) return false;
         if (!evt || !evt.pixel) return false;
 
+        // [닫기 의도 가드] 외부 클릭으로 박스가 막 닫힌 click 이면 후속 동작 차단
+        // 윈도우 400ms — pointerdown → singleclick 통상 100ms 이내라 충분히 여유
+        if (state.boxJustClosedAt && (Date.now() - state.boxJustClosedAt) < 400) {
+            state.boxJustClosedAt = 0;
+            return true;  // 새 박스/바텀시트 모두 차단
+        }
+
         var parentZone = _findHitParentZone(map, evt.pixel);
-        if (!parentZone) return false;
-
-        // activeMap 에 없으면 = 해제됐거나 처음부터 특보 없음 → 박스 표출 안 함
-        // (요구사항: 해당 특보 구역을 클릭해도 정보가 아무것도 없으면 박스 X)
-        var info = state.activeMap[parentZone];
-        if (!info) return false;
-
-        // 박스 표시 — true 반환하여 바텀시트 호출 차단
-        ns._showBox(parentZone, evt.pixel);
+        // activeMap 에 있는 zone(=현재/다가오는 특보 보유) 만 박스 표출 대상
+        var info = parentZone ? state.activeMap[parentZone] : null;
+        if (info) {
+            ns._showBox(parentZone, evt.pixel);
+        }
+        // 활성 모드에서는 비활성 zone 클릭/빈 해역 클릭도 바텀시트 표출 차단
         return true;
     };
 
