@@ -1367,6 +1367,108 @@ async function init() {
 
     const weatherAlertsCrawler = require('./weather_alerts_crawler'); // 크롤러 모듈 추가
 
+    // [Subregion] 자식해역 처리 모듈 (방재기상 기반, index1 검증 단계)
+    const afsoPoller = require('./services/afso_poller');
+    const subregionJudge = require('./services/subregion_judge');
+    const subregionComparator = require('./services/subregion_comparator');
+
+    /**
+     * 자식해역 파이프라인 — 매 1분 통보문 크롤러 다음에 실행
+     * 1. 방재기상 API 폴링
+     * 2. 통보문 부모해역 상태 추출 (weather_alerts.json 트리에서)
+     * 3. 종합 판정 → subregion_lifecycle.json 갱신
+     * 4. 비교 검증 → subregion_error_log.json 갱신 + 푸시 (상이성 발견 시)
+     *
+     * 환경변수 AFSO_ENABLED=false 시 즉시 비활성화 (롤백용).
+     * 모든 단계가 try/catch로 격리되어 한 단계 실패가 다른 단계에 영향 없음.
+     */
+    async function runSubregionPipeline() {
+        try {
+            // Step 1: 방재기상 폴링
+            const afsoResult = await afsoPoller.pollAfso();
+            if (!afsoResult.success) {
+                log(`⚠️ [Subregion] AFSO 폴링 실패: ${afsoResult.error ? afsoResult.error.type : 'unknown'}`);
+                // 실패해도 비교는 진행 (이전 lifecycle 상태로)
+            }
+
+            // Step 2: 통보문 부모해역 상태 추출
+            // weather_alerts.json 트리에서 부모해역의 current 정보 추출
+            // (간소화 형태로 전달; 더 정밀한 매핑은 향후 보완)
+            let parentTongbomunMap = {};
+            try {
+                const waPath = path.join(__dirname, 'data', 'weather_alerts.json');
+                const waJson = JSON.parse(fs.readFileSync(waPath, 'utf8'));
+                parentTongbomunMap = extractParentTongbomunMap(waJson);
+            } catch (e) {
+                log(`⚠️ [Subregion] 통보문 상태 추출 실패: ${e.message}`);
+            }
+
+            // Step 3: 종합 판정 (afsoResult가 success가 아니어도 이전 상태 유지)
+            if (afsoResult.success) {
+                await subregionJudge.runJudgement(parentTongbomunMap, afsoResult);
+            }
+
+            // Step 4: 비교 검증 (parentTongbomunMap이 비어도 비교는 가능)
+            await subregionComparator.runComparison(buildParentNameMap(parentTongbomunMap));
+        } catch (e) {
+            log(`⚠️ [Subregion] 파이프라인 오류: ${e.message}`);
+        }
+    }
+
+    /**
+     * weather_alerts.json 트리에서 부모해역(레벨 4: 앞바다/먼바다)의
+     * 통보문 current 상태를 추출하여 매핑 객체 반환.
+     * key는 우리 앱 부모해역 이름. AFSO regId 매핑은 region_alias_map 통해 별도 처리.
+     */
+    function extractParentTongbomunMap(weatherAlerts) {
+        const map = {};
+        function walk(node, ancestorChainHasZone) {
+            if (!node || typeof node !== 'object') return;
+            const isZoneNode = ('current' in node && 'children' in node);
+            if (isZoneNode) {
+                // 본 노드의 current 추출 (이름 키는 호출자 측에서 매핑)
+                // 노드 자체는 부모 키 (zone name) 으로 식별되어야 하므로
+                // 부모 객체에서 키와 값으로 보아야 함 — 본 함수는 단순 트리 순회만 함
+            }
+            for (const [key, val] of Object.entries(node)) {
+                if (key === 'current' || key === 'upcoming' || key === 'history' || key === 'children') continue;
+                if (val && typeof val === 'object') {
+                    if (val.current !== undefined && val.children !== undefined) {
+                        // val 자체가 zone 노드 → key 가 부모 이름
+                        // AFSO regId로 매핑하기 위해 region_alias_map의 parents 섹션 사용
+                        // 여기서는 key (한글 이름)을 그대로 사용
+                        map[key] = {
+                            current: val.current,
+                            upcoming: val.upcoming
+                        };
+                    }
+                    walk(val, ancestorChainHasZone);
+                }
+            }
+        }
+        walk(weatherAlerts, false);
+
+        // 추가: AFSO regId로 변환한 매핑 생성 (subregionJudge가 사용)
+        const aliasMap = subregionJudge.loadAliasMap();
+        const result = {};
+        if (aliasMap && aliasMap.parents) {
+            for (const [afsoRegId, info] of Object.entries(aliasMap.parents)) {
+                const parentNameApp = info.appRegKo;
+                if (map[parentNameApp]) {
+                    result[afsoRegId] = map[parentNameApp];
+                }
+            }
+        }
+        return result;
+    }
+
+    function buildParentNameMap(parentTongbomunMap) {
+        // parentTongbomunMap (regId → state) 에서 regId → 이름 매핑은
+        // comparator 가 alias_map 을 직접 사용하므로 빈 객체 OK
+        return {};
+    }
+
+
     // ... (중략) ...
 
     // 1분 주기 작업 (실제로는 부이/예보/특보 주기 체크)
@@ -1435,6 +1537,14 @@ async function init() {
         if (!crawlPaused) {
             log('🔎 기상특보 크롤러 실행...');
             weatherAlertsCrawler.run().catch(err => log(`⚠️ 크롤러 오류: ${err.message}`));
+
+            // [Subregion] 자식해역 처리 (방재기상 기반, index1 검증 단계)
+            // 환경변수 AFSO_ENABLED=false 시 즉시 비활성화
+            if (process.env.AFSO_ENABLED !== 'false') {
+                runSubregionPipeline().catch(err =>
+                    log(`⚠️ [Subregion] 파이프라인 최외곽 오류: ${err.message}`)
+                );
+            }
         } else {
             log('⏸️ 기상특보 크롤링 일시정지 상태');
         }
