@@ -822,6 +822,13 @@
         }
     };
 
+    /**
+     * [외부 API] 베이스맵 종류 조회 / 설정.
+     * ocean_warn_active.js 가 ON 진입 시 이전 베이스맵을 기억했다가 OFF 시 복귀하기 위함.
+     */
+    window.oceanGetBasemap = function () { return currentBase; };
+    window.oceanSetBasemap = function (type) { switchBaseLayer(type); };
+
     function bindBasemapPicker() {
         var toggleBtn = document.getElementById('ocean-basemap-toggle');
         var menu      = document.getElementById('ocean-basemap-menu');
@@ -915,6 +922,14 @@
         //        2-step (선택 → 모달) 흐름은 seaZones.js 의 이미지 지도와 동일.
         // [충돌 방지] hit 이면 true 반환 → 아래 바텀시트 로직이 추가로 뜨는 것을 막음.
         if (tryHandleMarineZoneClick(evt)) return;
+
+        // 활성 특보 색칠 모드(특보 ON 토글) — 부모 특보구역 클릭 시 특보 박스 표출.
+        // [충돌 방지] hit 이면 true 반환 → 바텀시트 표출 스킵.
+        // [정책] 활성/다가오는 특보가 있는 부모 zone 폴리곤만 hit. 자식 폴리곤을
+        //        클릭한 경우라도 부모 특보 정보를 표출 (자식 단위 정보는 표출 안 함).
+        if (window.OceanWarnActive && typeof window.OceanWarnActive.tryHandleClick === 'function') {
+            if (window.OceanWarnActive.tryHandleClick(oceanMap, evt)) return;
+        }
 
         // 오버레이 데이터가 있는 영역만 바텀시트 표시
         if (window.showOceanBottomSheet) {
