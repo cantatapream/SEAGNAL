@@ -293,6 +293,17 @@
         };
         document.addEventListener('pointerdown', state.boxOutsideHandler, true);
     }
+    /**
+     * _bindOutsideClose 의 역동작 — document 의 pointerdown 리스너 해제.
+     *
+     * [호출 시점]
+     *   - _hideBox 시 (박스가 사라졌으므로 외부 클릭 listener 도 더 이상 불필요)
+     *   - listener leak 방지: 박스가 떠 있는 동안만 등록 → 사라지면 해제
+     *
+     * [안전성]
+     *   state.boxOutsideHandler 가 null 이면 (이미 해제됐거나 등록한 적 없으면)
+     *   바로 return — 중복 해제 무해.
+     */
     function _unbindOutsideClose() {
         if (!state.boxOutsideHandler) return;
         document.removeEventListener('pointerdown', state.boxOutsideHandler, true);
@@ -428,6 +439,22 @@
         tick();
     }
 
+    /**
+     * 모듈 1회 초기화 — _bootWhenReady 가 모든 의존성(버튼/지도/특보구역 모듈)이
+     * 준비됐다고 판단하면 호출.
+     *
+     * [수행 작업]
+     *   1) appState.alerts 기준 첫 활성 맵 빌드
+     *   2) 토글 버튼 + 베이스맵 피커 + 특보구역 버튼 동기 listener 바인딩
+     *   3) 토글 버튼 첫 표시 (대부분 특보구역 OFF 라 display:none 으로 시작)
+     *   4) data.js 가 발화하는 'seagnal:alerts-changed' 이벤트 listen
+     *   5) 지도 movestart 시 박스 자동 닫기 — 사용자가 화면 이동/줌 시작하면
+     *      박스가 덜렁덜렁 따라다니지 않도록.
+     *
+     * [재호출 방지]
+     *   _bootWhenReady 가 1회 성공 후 자체 종료. _bindButton 도 dataset 으로
+     *   중복 등록 방지하므로 만약 우연히 재호출돼도 안전.
+     */
     function _initialize(map) {
         // 1) 활성 맵 1차 빌드 (이미 데이터 있을 수 있음)
         ns._buildActiveMap();
