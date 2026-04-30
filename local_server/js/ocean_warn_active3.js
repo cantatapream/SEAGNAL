@@ -75,6 +75,17 @@
 
         var style = new ol.style.Style({ stroke: stroke, fill: fill });
 
+        // 선택된 zone 은 같은 layer 안에서 최상단으로 그려지도록 zIndex 1000 부여.
+        // [이유] 인접 zone 의 stroke 가 일부 구간에서 선택 테두리를 덮는 현상 방지.
+        //        OL Style.zIndex 는 같은 layer 내 렌더 순서를 결정 (높을수록 위).
+        // [한계] 메인 layer(zIndex 80) 와 자식 layer(zIndex 81) 사이의 cross-layer
+        //        순위는 layer 자체 zIndex 가 결정. 선택된 zone 은 자식 sub feature
+        //        도 함께 노란 테두리이므로(_styler 가 isSelected 동일하게 적용),
+        //        결과적으로 zone 영역 전체 외곽이 노란 테두리로 또렷이 보임.
+        if (isSelected) {
+            style.setZIndex(1000);
+        }
+
         // 메인 feature 만 라벨 부여 (기존 _zoneStyle 의 라벨 위치/폰트 유지)
         if (kind === 'main' && feature) {
             // ocean_warn_zone.js 의 _normalizeZoneName 과 동일 규칙
