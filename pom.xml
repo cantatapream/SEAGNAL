@@ -1,4 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  pom.xml — Maven 빌드 정의 (eGovFramework 기반 Java/Spring 프로젝트)
+  ============================================================================
+  [역할]
+    SEAGNAL 의 레거시 Java 컴포넌트(전자정부 표준프레임워크 기반) 를 Maven
+    으로 빌드. 현재 메인 앱은 Node.js (local_server/) 로 마이그레이션됐고,
+    이 Maven 프로젝트는 일부 정부 인증 모듈/연계 모듈을 위한 보조 빌드.
+
+  [패키징] war — 톰캣/eGov WAS 배포용
+
+  [의존성 핵심]
+    - Spring Framework 4.0.9
+    - eGovFramework Runtime 3.5.0
+
+  [연계]
+    - 메인 앱은 Node.js (Dockerfile/fly.toml 참조)
+    - 본 Maven 빌드는 별도 트랙(필요 시 mvn package)
+  ============================================================================
+-->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
