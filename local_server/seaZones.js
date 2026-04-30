@@ -139,6 +139,15 @@ let selectedZoneKey = null; // 현재 선택된 격자 키 (대해구)
 let selectedSmallZoneKey = null; // 현재 선택된 소해구 ID (예: "123-5")
 let ctx = null; // 캔버스 컨텍스트
 
+/**
+ * 해구도 이미지 지도(특보정보 탭의 해역 맵) 초기화 — 1회 호출.
+ * - 컨테이너 size 측정 + 이미지 transform 초기 설정
+ * - 마우스/터치 이벤트 (드래그·줌) 바인딩
+ * - 핀치 줌 + 휠 줌 + 더블탭 줌 모두 지원
+ * - PC 에선 내 위치 버튼 숨김
+ *
+ * [연계] index.html #sea-zone-map 영역, 해구별 클릭 시 alertManager 와 연계.
+ */
 function initSeaZoneMap() {
     // [UI Change] PC 브라우저에서는 내 위치 버튼 숨김 (모바일/앱 전용)
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -373,10 +382,12 @@ window.zoomToPixelWithMarkerAnimated = function (pixelX, pixelY, targetScale = 4
     const duration = 800; // 0.8초
     const startTime = performance.now();
 
+    /** 큐빅 ease-out 가속도 곡선 (0→1). 줌 애니메이션 부드러움 강화. */
     function easeOutCubic(t) {
         return 1 - Math.pow(1 - t, 3);
     }
 
+    /** requestAnimationFrame 으로 호출되는 줌 애니메이션 루프 — easeOutCubic 적용. */
     function animate(currentTime) {
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / duration, 1);
@@ -463,6 +474,12 @@ function getFitScale() {
     return baseScale * 0.98; // 여백을 줄여서 더 크게 보이게 함
 }
 
+/**
+ * 현재 scale + translateX/Y 값을 #sea-zone-map 이미지에 CSS transform 으로 적용.
+ * 적용 전 clampTranslation 으로 경계 밖 평행이동 방지.
+ *
+ * [호출 시점] 줌·드래그·휠 등 사용자 조작 후 또는 animate 루프 내부.
+ */
 function applyTransform() {
     // 경계 제한 적용
     clampTranslation();
@@ -674,6 +691,7 @@ function showClickHintMessage() {
 }
 
 
+/** 마우스 이동 핸들러 — 드래그 중이면 translateX/Y 갱신 후 applyTransform. */
 function onMouseMove(e) {
     if (isDraggingMap) {
         translateX = e.clientX - startDragX;
@@ -682,10 +700,15 @@ function onMouseMove(e) {
     }
 }
 
+/** 마우스 업 — 드래그 종료 플래그만 끔. translate 값은 그대로 유지. */
 function onMouseUp() {
     isDraggingMap = false;
 }
 
+/**
+ * 마우스 휠 이벤트 — 휠 위(scroll up) 면 줌 인, 아래면 줌 아웃.
+ * 마우스 커서 위치를 중심으로 줌 (마우스 좌표를 anchor 로 scale 변경 후 translate 보정).
+ */
 function onWheel(e) {
     e.preventDefault();
     const zoomIntensity = 0.1;
@@ -829,6 +852,7 @@ function drawZoneHighlight(key) {
     }
 }
 
+/** 해구 강조 캔버스를 지움. zone 선택 해제 또는 다른 zone 선택 직전에 호출. */
 function clearHighlight() {
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1125,6 +1149,12 @@ window.showZoneOverlay = function (zoneName) {
     }, 200);
 };
 
+/**
+ * 특정 특보구역에 시각 오버레이(반투명 색칠 + 발광 효과) 적용.
+ * ZONE_OVERLAY_CONFIG[zoneName] 설정의 좌표/색을 기반으로 캔버스에 그림.
+ *
+ * [연계] 특보 발효 시 또는 사용자 zone 클릭 시 호출.
+ */
 function applyZoneOverlay(zoneName) {
     // 설정 확인
     if (typeof ZONE_OVERLAY_CONFIG === 'undefined') {
@@ -1361,6 +1391,10 @@ function calculateTargetScale(config) {
     return Math.max(1.0, Math.min(scaleX, scaleY, 3.0));
 }
 
+/**
+ * 해구 강조 발광(glow) 애니메이션 시작 — pulse 효과로 사용자 시선 유도.
+ * 이미 실행 중이면 새로 시작하지 않음. requestAnimationFrame 으로 호출.
+ */
 function startGlowAnimation() {
     if (!overlayCanvas) return;
 
@@ -1377,6 +1411,7 @@ function startGlowAnimation() {
     animate();
 }
 
+/** 발광 애니메이션 정지 — cancelAnimationFrame 으로 RAF 루프 종료 + 식별자 초기화. */
 function stopGlowAnimation() {
     if (glowAnimationId) {
         cancelAnimationFrame(glowAnimationId);
@@ -1562,6 +1597,7 @@ function zoomToZoneCenter(config) {
     const duration = 1000; // 1초 (부드럽게)
     const startTime = performance.now();
 
+    /** 부드러운 줌 애니메이션 — 시작 scale 에서 목표 scale 까지 easeOutCubic 으로 보간. */
     function animateZoom(currentTime) {
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / duration, 1);
@@ -1725,6 +1761,12 @@ window.moveSeaZoneMapToMyLocation = async function () {
     }
 };
 
+/**
+ * 사용자 GPS 위치를 해구도 이미지 좌표로 변환하여 별 마커로 표시.
+ * seaZoneMyLocation { lat, lon } → 이미지 좌표 → 별 아이콘 위치 transform.
+ *
+ * [호출 시점] 내 위치 버튼 클릭 또는 GPS 갱신 후.
+ */
 function updateSeaZoneMyLocationMarker() {
     if (!mapContainer || !seaZoneMyLocation) return;
 
@@ -2461,6 +2503,14 @@ function renderSmallGrids() {
     }
 }
 
+/**
+ * 이미지 좌표(imgX, imgY)와 해구 키(zoneNum) 로 소해구 ID 산출.
+ *
+ * [절차]
+ *   1) key 에서 경도/위도 범위 파싱 ("121-122_35-36" 형식)
+ *   2) 해구를 3×3 분할하여 imgX/Y 가 어느 셀인지 판정
+ *   3) 셀 인덱스(0~8) 를 zoneNum 과 결합해 "<zoneNum>-<sub>" 반환
+ */
 function getSmallZoneId(imgX, imgY, key, zoneNum) {
     const [lonPart, latPart] = key.split('_');
     const [lonStart, lonEnd] = lonPart.split('-');

@@ -635,6 +635,12 @@ function showTideToast(message, anchorCoord, duration = 3000) {
     toast._hideTimer = setTimeout(() => { toast.style.opacity = '0'; }, duration);
 }
 
+/**
+ * 조석 검색 결과 항목 클릭 시 — 검색창 텍스트 갱신 + 지도 이동 + 조석 팝업 표출.
+ * @param {number} lat - 위도
+ * @param {number} lon - 경도
+ * @param {string} name - 표시명 (예: 부산항)
+ */
 function selectTideSearchResult(lat, lon, name) {
     // 검색창에 선택한 장소명 표시
     const input = document.getElementById('tide-search-input');
@@ -946,6 +952,10 @@ function stopGaugeAutoRefresh() {
     }
 }
 
+/**
+ * 조석 게이지(현재 시점 만조/간조 진행도) 자동 갱신 타이머 시작.
+ * 1분 간격으로 게이지 갱신. 시작 전 기존 타이머 정리하여 중복 방지.
+ */
 function startGaugeAutoRefresh() {
     stopGaugeAutoRefresh();
     _gaugeUpdateTimer = setInterval(() => {
@@ -1049,6 +1059,10 @@ async function processEastSeaNorthException(lat, lon, coord) {
     }
 }
 
+/**
+ * 조석 지도 클릭 핸들러 — 즐겨찾기 마커 / 표준항 마커 hit 검사 후 조석 팝업.
+ * 마커가 hit 되면 그 위치로, 빈 해역이면 IDW 보간으로 인근 표준항 평균 데이터 표출.
+ */
 async function handleTideMapClick(event) {
     // 클릭한 위치에 즐겨찾기 마커나 표준항 마커가 있는지 확인
     let feature = null;
@@ -1578,6 +1592,11 @@ function getSelectedTideDate() {
     return parseInt(formatYMD(currentTideDate));
 }
 
+/**
+ * Date → "YYYYMMDD" 형식 문자열. TideBED API 의 reqDate 파라미터 등에 사용.
+ * @param {Date} dateObj
+ * @returns {string} - 예: "20260430"
+ */
 function formatYMD(dateObj) {
     const year = dateObj.getFullYear();
     const month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -1639,6 +1658,11 @@ function getClientAdjacentDates(baseDateObj) {
     };
 }
 
+/**
+ * 주어진 좌표에서 가까운 표준항 N개 반환 (거리 기준 오름차순).
+ * 데이터 보유 여부와 무관하게 순수 거리 기준 — 데이터 없는 항도 포함될 수 있음.
+ * @param {number} count - 반환 개수 (기본 3)
+ */
 function findNearestStations(lat, lon, count = 3) {
     const stationsWithDist = stationData.map(station => ({
         ...station,
@@ -1649,6 +1673,12 @@ function findNearestStations(lat, lon, count = 3) {
     return stationsWithDist.slice(0, count);
 }
 
+/**
+ * 주어진 좌표 + 일자에 대해, 그 날짜의 조석 데이터를 보유한 표준항만
+ * 가까운 순으로 N개 반환. IDW 보간의 "유효" 표준항 선정 함수.
+ * @param {number} selectedDate - "YYYYMMDD" 정수
+ * @param {number} count - 반환 개수 (기본 3)
+ */
 function findNearestStationsWithData(lat, lon, selectedDate, count = 3) {
     const stationsWithDataAndDist = stationData.map(station => ({
         ...station,
@@ -1661,6 +1691,10 @@ function findNearestStationsWithData(lat, lon, selectedDate, count = 3) {
     return stationsWithDataAndDist.slice(0, count);
 }
 
+/**
+ * 두 위경도 좌표 사이 거리 계산 (Haversine 공식). 단위: km.
+ * 평균 지구 반지름 R=6371km 사용. 표준항 거리 정렬 + IDW 가중치 산출 입력.
+ */
 function calculateDistance(lat1, lon1, lat2, lon2) {
     const R = 6371;
     const dLat = toRad(lat2 - lat1);
@@ -1672,10 +1706,18 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
+/** 도(°) 단위 각도를 라디안으로 변환. Haversine 공식의 sin/cos 입력에 사용. */
 function toRad(degrees) {
     return degrees * Math.PI / 180;
 }
 
+/**
+ * 표준항 이름과 날짜 정수(YYYYMMDD) 로 그 날짜의 조석 데이터(만조/간조 4개) 조회.
+ * 연도별로 분리 적재된 stationData 에서 stationName.tideInfoByYear[year][dateNum] 접근.
+ *
+ * @param {string} stationName
+ * @param {number} dateNum - "YYYYMMDD" 정수
+ */
 function getTideDataForDate(stationName, dateNum) {
     const year = String(dateNum).substring(0, 4);
 
@@ -1709,6 +1751,17 @@ function getTideDataForDate(stationName, dateNum) {
     return partialMatch || null;
 }
 
+/**
+ * 가까운 표준항 N곳의 조석 데이터를 IDW(Inverse Distance Weighting) 로 보간.
+ *
+ * [공식]
+ *   각 항의 가중치 = 1 / distance^2
+ *   보간값 = Σ(가중치 × 값) / Σ(가중치)
+ *
+ * [반환] 보간된 만조/간조 4개 + method 표시 + sourceStations 배열.
+ *
+ * [특수 케이스] stationsWithData.length === 1 → 단일 표준항 그대로 사용.
+ */
 function interpolateTideByIDW(stationsWithData) {
     if (stationsWithData.length === 1) {
         return { ...stationsWithData[0].tideInfo, method: 'single', sourceStations: [stationsWithData[0].name] };
@@ -1815,6 +1868,11 @@ function interpolateTideByIDW(stationsWithData) {
     return result;
 }
 
+/**
+ * 시각 문자열(또는 정수) 을 0시 0분 기준 분 단위로 변환.
+ * 입력 형식: "HHMM" 또는 "HH:MM" 모두 허용. 잘못되면 0.
+ * @returns {number} - 0~1439
+ */
 function timeToMinutes(timeStr) {
     if (!timeStr && timeStr !== 0) return 0;
     const s = String(timeStr);
@@ -1828,12 +1886,19 @@ function timeToMinutes(timeStr) {
     return hours * 60 + minutes;
 }
 
+/**
+ * 분(0~1439) 을 "HH:MM" 형식 문자열로 변환. 24h 모듈로 처리하여 24:00 같은 값 정상화.
+ */
 function minutesToTime(totalMinutes) {
     const hours = Math.floor(totalMinutes / 60) % 24;
     const minutes = Math.round(totalMinutes % 60);
     return parseInt(String(hours).padStart(2, '0') + String(minutes).padStart(2, '0'));
 }
 
+/**
+ * "HHMM" 정수/문자열 을 "HH:MM" 으로 포맷. 빈값/null 은 '--:--' 로 fallback.
+ * 화면 표시용 시각 라벨링.
+ */
 function formatTime(timeInt) {
     if (timeInt === undefined || timeInt === null || timeInt === '') return '--:--';
     const str = String(timeInt).padStart(4, '0');
@@ -1864,18 +1929,21 @@ function updateTideDateDisplay() {
     }
 }
 
+/** 조석 날짜를 하루 전으로 이동. 화면/팝업 자동 갱신. */
 function prevTideDate() {
     currentTideDate.setDate(currentTideDate.getDate() - 1);
     updateTideDateDisplay();
     refreshPopupIfOpen();
 }
 
+/** 조석 날짜를 다음 날로 이동. 화면/팝업 자동 갱신. */
 function nextTideDate() {
     currentTideDate.setDate(currentTideDate.getDate() + 1);
     updateTideDateDisplay();
     refreshPopupIfOpen();
 }
 
+/** 숨겨진 native 날짜 picker(<input type="date">) 를 프로그래밍으로 열기. 모바일 친화적 입력. */
 function showTideDatePicker() {
     const hiddenPicker = document.getElementById('tide-date-picker-hidden');
     if (hiddenPicker) {
@@ -1883,6 +1951,7 @@ function showTideDatePicker() {
     }
 }
 
+/** 날짜 picker 의 change 이벤트 핸들러 — 선택된 일자로 currentTideDate 갱신 + 화면/팝업 갱신. */
 function onTideDatePickerChange() {
     const hiddenPicker = document.getElementById('tide-date-picker-hidden');
     if (hiddenPicker && hiddenPicker.value) {
@@ -1893,6 +1962,10 @@ function onTideDatePickerChange() {
     }
 }
 
+/**
+ * 조석 팝업이 떠 있다면 마지막 클릭 좌표 기준으로 다시 fetch + 재렌더.
+ * 날짜 변경/팝업 새로고침 등에서 호출 — 사용자가 같은 위치를 다시 클릭할 필요 없게.
+ */
 async function refreshPopupIfOpen() {
     if (!lastClickedCoordinate || !lastClickedLonLat || !tidePopupOverlay || !tidePopupOverlay.getPosition()) return;
 
@@ -2212,6 +2285,12 @@ function getLunarDate(year, month, date) {
     return `${lunarYear}년 ${leapText}${lunarMonth}월 ${Math.floor(lunarDay)}일`;
 }
 
+/**
+ * 양력 일자를 음력으로 근사 변환 — 정밀 음력 계산 라이브러리 부재 시 fallback.
+ * 2024-01-01 을 기준점으로 평균 음력 주기(29.53일) 사용.
+ *
+ * [한계] 윤달/대소월 변화 미반영 → 약 ±1일 오차 가능. 정확한 음력은 getLunarDate 사용.
+ */
 function getLunarDateApprox(year, month, date) {
     const baseDate = new Date(2024, 0, 1);
     const baseLunarYear = 2023;
@@ -2246,6 +2325,13 @@ function getLunarDateApprox(year, month, date) {
     return `${lunarYear}년 ${lunarMonth}월 ${Math.floor(lunarDay)}일`;
 }
 
+/**
+ * 주어진 좌표·일자의 천문 정보(일출·일몰·월출·월몰·월령·달밝기) 반환.
+ * SunCalc 라이브러리에 의존 — 미로드 시 null 반환.
+ *
+ * [반환] { sunrise, sunset, moonrise, moonset, moonPhase, moonIllumination, lunar }
+ * [연계] 조석 팝업 + ocean_bottom_sheet4.js 천문 카드.
+ */
 function getAstronomyInfo(lat, lon, date) {
     if (typeof SunCalc === 'undefined') {
         console.warn('SunCalc 라이브러리가 로드되지 않았습니다.');
@@ -2336,6 +2422,13 @@ function isWestSea(lat, lon) {
     return false;
 }
 
+/**
+ * 음력(월령) 기반 물때(만조·간조 강도) 계산 — 바다타임과 동일 방식.
+ * SunCalc 월령으로 가장 가까운 조금(neap) 까지의 거리로 물때 결정.
+ *
+ * [반환] { mul, name, descr } — 1~15 사이 정수 + "조금"/"한사리" 등 명칭.
+ * [연계] 조석 팝업 카드 + 어업 정보 표출.
+ */
 function computeMulddae(todayPeaks, yesterdayPeaks, tomorrowPeaks, tideBedDataRow, dateObj, lat, lon) {
     // ── 음력(월령) 기반 물때 계산 ─────────────────────────────────────────
     // 바다타임과 동일한 방식: SunCalc 월령으로 가장 가까운 조금까지의
@@ -2433,6 +2526,10 @@ function computeMulddae(todayPeaks, yesterdayPeaks, tomorrowPeaks, tideBedDataRo
     }
 }
 
+/**
+ * getAstronomyInfo 결과 객체를 카드형 HTML 문자열로 변환.
+ * 일출/일몰/월령/달밝기 + 음력 일자 표시. 빈 입력은 빈 문자열.
+ */
 function getAstronomyInfoHTML(astro) {
     if (!astro) return '';
 
