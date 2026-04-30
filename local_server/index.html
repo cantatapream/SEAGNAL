@@ -13,6 +13,9 @@
     <title>SEA:GNAL(바다:그 날의 신호)</title>
     <meta property="og:title" content="SEA:GNAL(바다:그 날의 신호)">
 
+    <!-- 페이지 식별 플래그 (자식해역 표출 모듈 등에서 분기 사용) -->
+    <script>window.__SEAGNAL_PAGE = 'index1';</script>
+
     <!-- Favicon -->
     <link rel="icon" type="image/png" sizes="48x48" href="./assets/android-launchericon-48-48.png">
     <link rel="icon" type="image/png" sizes="96x96" href="./assets/android-launchericon-96-96.png">
@@ -28,6 +31,9 @@
     <!-- Styles -->
     <link rel="stylesheet" href="style.css?v=Margin_Final_v5">
     <link rel="stylesheet" href="splash.css?v=Badge_Update_20260101">
+
+    <!-- 자식해역 신규 표출 (index1 전용 비교 검증) -->
+    <link rel="stylesheet" href="subregion.css?v=Step1_Initial_20260501">
 
 
     <!-- Font Awesome -->
@@ -471,6 +477,12 @@
                     <div id="loading-indicator" class="loading-container">
                         <div class="spinner"></div>
                         <p>기상 정보를 불러오는 중입니다...</p>
+                    </div>
+
+                    <!-- 자식해역 신규 표출 영역 (방재기상 기반, index1 전용 비교 검증) -->
+                    <!-- 4단계(프론트엔드)에서 js/subregion_display.js가 동적으로 채움 -->
+                    <div id="subregion-section" class="subregion-section hidden">
+                        <!-- 신규 표출 컨텐츠가 여기에 렌더됨 -->
                     </div>
 
                     <!-- Alert Containers -->

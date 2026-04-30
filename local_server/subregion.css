@@ -1,0 +1,46 @@
+/* subregion.css — 자식해역 신규 표출 영역 스타일 (index1 전용)
+ *
+ * 이 스타일은 index.html(index1)에서만 link되며 index2.html에서는 로드되지 않습니다.
+ * 4단계(프론트엔드 표출)에서 본격적으로 확장됩니다.
+ */
+
+/* ============================================
+ * 컨테이너
+ * ============================================ */
+.subregion-section {
+    margin-top: 16px;
+    padding: 12px;
+    background-color: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* 초기 비표시 (4단계에서 데이터 있으면 표시 처리) */
+.subregion-section.hidden {
+    display: none;
+}
+
+/* ============================================
+ * 헤더 (4단계에서 활용)
+ * ============================================ */
+.subregion-section-header {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #aaa;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ============================================
+ * 자식해역 항목 (4단계에서 본격 정의)
+ * ============================================ */
+.subregion-item {
+    /* 4단계 작업 시 본격 정의 */
+}
+
+/* 상이성 표시 (비교 검증 결과 기존과 다른 경우) */
+.subregion-item.diff-mismatch {
+    /* 4단계 작업 시 본격 정의 */
+}

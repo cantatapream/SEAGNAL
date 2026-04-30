@@ -73,18 +73,34 @@
 - 로컬 root: `tide.js`, `tide_calendar.js`, `seaZonesData.js`, `zoneOverlayConfig.js`, `gridCalibrationData.js`, `fix_popup_logic.js`, `auto_refresh.js`, `buoyLocations.js`, `seaZoneCoordinates.js`, `seaZones.js`
 - `js/` 폴더: `config.js`, `mappings.js`, `utils.js`, `data.js`, `zone_avg.js`, `render.js`, `alert_history.js`, `render_coastal.js`, `marine.js`, `settings.js`, `forecast.js`, `windy.js`, `marine_forecast.js`, `fishing.js`, `surfing1~5.js`, `sea_parting.js`, `ocean_map.js`, `ocean_markers.js`, `ocean_bottom_sheet1~5.js`, `ocean_overlay.js`, `ocean_timeline.js`, `admin_trigger.js`, `image_compress.js`, `promo.js`, `promo_comment1~3.js`, `admin.js`, `admin_collect.js`, `admin_survey.js`, `admin_report.js`, `report_user.js`, `survey_user.js`, `zone_guide.js`, `alert_push.js`, `ui_modal.js`, `app_init.js`, `backbutton.js`
 
-### 4.2 index1 전용 (6개)
+### 4.2 index1 전용 (4개)
 
 ```
-js/cctv1.js
 js/cctv2.js
 js/cctv3.js
-js/cctv4.js
 js/cctv5.js
 js/cctv6.js
 ```
 
-→ 구버전 CCTV 모듈. index2에서는 통합된 `js/ocean_cctv.js`로 대체됨.
+→ 구버전 CCTV 모듈 일부. 안전 삭제 가능 (index2에서 로드/참조 안 함).
+
+### 4.3 사실상 공유 — `cctv1.js` / `cctv4.js`
+
+**중요 정정 (2026-05-01)**: 이전 분석에서 'index1 전용'으로 잘못 분류했던 두 파일은 사실상 양 페이지에서 사용됨.
+
+```
+js/cctv1.js  -- window.CCTV_PROVIDERS 정의
+js/cctv4.js  -- showCctvPopup, toggleCctvFavorite 정의
+```
+
+확인된 의존:
+- `index2.html:2599` `<script src="js/cctv1.js">` 로드
+- `index2.html:2600` `<script src="js/cctv4.js">` 로드
+- `js/ocean_cctv.js:26, 246, 855-856, 1357-1358` — `window.CCTV_PROVIDERS` 사용 (cctv1.js 정의)
+- `js/ocean_cctv.js:275-276` — `showCctvPopup()` 호출 (cctv4.js 정의)
+- `js/ocean_cctv.js:1341-1378` — `window.CctvFavorites` shim → `toggleCctvFavorite()` (cctv4.js 정의)
+
+**의미**: `cctv1.js` 또는 `cctv4.js`를 삭제하면 index2의 ocean_cctv 동작이 깨짐. **index1 즉시 삭제 시에도 이 두 파일은 보존 필요**.
 
 ### 4.3 index2 전용 (16개 + CDN 2개)
 
