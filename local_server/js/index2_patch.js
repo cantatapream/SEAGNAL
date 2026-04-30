@@ -582,8 +582,23 @@ function _ensureOceanToastStyles() {
         '  overflow: hidden;',
         '}',
         '#' + _OCEAN_TOAST_ID + '.visible { opacity: 1; }',
-        // 긴 텍스트 허용 (옵션). pre-line: 메시지의 \n 을 줄바꿈으로 보존.
-        '#' + _OCEAN_TOAST_ID + '.multi-line { white-space: pre-line; text-align: center; border-radius: 14px; }'
+        // 긴 텍스트 허용 (옵션).
+        //  - pre-line: 메시지의 \n 을 줄바꿈으로 보존
+        //  - keep-all: 한국어 단어 사이에서만 줄바꿈 허용 (자모 사이 안 쪼개짐)
+        //  - max-width 를 (100vw - 16px) 로 확대해 좌우 여백 8px 만 남김
+        //  - padding 좌우 14px 로 줄여 텍스트 영역을 한 단계 더 확보
+        //  - box-sizing: border-box 로 padding 포함된 max-width 계산
+        '#' + _OCEAN_TOAST_ID + '.multi-line {',
+        '  white-space: pre-line;',
+        '  text-align: center;',
+        '  border-radius: 14px;',
+        '  word-break: keep-all;',
+        '  overflow-wrap: anywhere;',
+        '  max-width: calc(100vw - 16px);',
+        '  padding: 10px 14px;',
+        '  box-sizing: border-box;',
+        '  text-overflow: clip;',
+        '}'
     ].join('\n');
     document.head.appendChild(style);
 }
@@ -615,6 +630,8 @@ function _showOceanToast(message, position, durationMs, multiLine) {
     if (!message) return;
     var el = _getOceanToastEl();
     el.textContent = message;
+    // 폰트 크기는 매 호출 시 원복 — 직전 호출에서 축소돼 있을 수 있음
+    el.style.fontSize = '';
     if (multiLine) el.classList.add('multi-line');
     else el.classList.remove('multi-line');
 
@@ -633,6 +650,8 @@ function _showOceanToast(message, position, durationMs, multiLine) {
     el.classList.remove('visible');
     requestAnimationFrame(function () {
         el.classList.add('visible');
+        // multi-line 인 경우, 컨테이너 폭에 들어가는지 확인 후 필요 시 폰트 동적 축소
+        if (multiLine) _shrinkToastFontIfWraps(el, message);
     });
 
     // 이전 타이머 취소 후 새 타이머
@@ -645,6 +664,43 @@ function _showOceanToast(message, position, durationMs, multiLine) {
         el.classList.remove('visible');
         _oceanToastTimer = null;
     }, dur);
+}
+
+/**
+ * multi-line 토스트가 의도하지 않은 줄바꿈(=텍스트 wrap)을 일으키는지 확인하고,
+ * 발생 시 font-size 를 1px 단위로 축소해 \n 으로 만든 줄 수와 실제 줄 수를 일치시킨다.
+ *
+ *  - 메시지의 \n 개수 + 1 = 기대하는 줄 수 (예: "A\nB" → 2줄)
+ *  - 실제 그려진 줄 수: scrollHeight / lineHeight 로 추정
+ *  - 차이가 있으면 폰트를 줄여 다시 측정
+ *  - 하한 11px, 안전 가드(최대 8회) 로 무한루프 방지
+ *
+ *  [왜 필요한가?]
+ *  좁은 화면(예: 320px iPhone SE)에서 한 줄 텍스트가 컨테이너 폭을 초과하면 자동
+ *  줄바꿈이 일어나 "원하는 \n + 의도치 않은 wrap" 이 결합돼 3줄 이상으로 보임.
+ *  word-break: keep-all 로 최대한 보호하지만, 단어 자체가 컨테이너보다 넓으면
+ *  결국 wrap 발생 → 폰트 축소가 마지막 보루.
+ */
+function _shrinkToastFontIfWraps(el, message) {
+    if (!el || !message) return;
+    var expectedLines = message.split('\n').length;
+    var minPx = 11;
+    var safety = 0;
+    // getComputedStyle 결과에 line-height 가 'normal' 이면 fontSize × 1.2 로 추정
+    function _measure() {
+        var cs = getComputedStyle(el);
+        var fz = parseFloat(cs.fontSize) || 14;
+        var lh = parseFloat(cs.lineHeight);
+        if (!lh || isNaN(lh)) lh = fz * 1.2;
+        var actual = Math.round(el.scrollHeight / lh);
+        return { fz: fz, actual: actual };
+    }
+    var m = _measure();
+    while (m.actual > expectedLines && m.fz > minPx && safety < 8) {
+        el.style.fontSize = (m.fz - 1) + 'px';
+        safety++;
+        m = _measure();
+    }
 }
 
 /**
