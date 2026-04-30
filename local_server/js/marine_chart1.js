@@ -62,13 +62,14 @@
                 { code: 'kim_rww3_wave_ft03_pa4_', label: '해상풍과 파고' },
                 { code: 'kim_rww3_wdpr_ft03_pa4_', label: '최대파주기와 평균파향' },
                 { code: 'kim_rww3_wind_ft03_pa4_', label: '해상풍(풍향,풍속)' },
-                { code: 'kim_rww3_total_ft03_pa4_', label: '3시간 해상풍과 파고' },
-                { code: 'kim_rww3_total_ft12_pa4_', label: '12시간 해상풍과 파고' },
-                // 해역별 시계열 4종 — KMA 공식과 동등 노출
-                { code: 'kim_rww3_series01_wavhgt_pa4_', label: '해역별 파고시계열(앞바다)' },
-                { code: 'kim_rww3_series01_wind_pa4_',   label: '해역별 해상풍시계열(앞바다)' },
-                { code: 'kim_rww3_series02_wavhgt_pa4_', label: '해역별 파고시계열(먼바다)' },
-                { code: 'kim_rww3_series02_wind_pa4_',   label: '해역별 해상풍시계열(먼바다)' },
+                // 단일 프레임/시계열 차트 — 슬라이더·재생 컨트롤 불필요
+                { code: 'kim_rww3_total_ft03_pa4_', label: '3시간 해상풍과 파고', noSlider: true },
+                { code: 'kim_rww3_total_ft12_pa4_', label: '12시간 해상풍과 파고', noSlider: true },
+                // 해역별 시계열 4종 — KMA 공식과 동등 노출 (정적 차트 → 슬라이더 숨김)
+                { code: 'kim_rww3_series01_wavhgt_pa4_', label: '해역별 파고시계열(앞바다)', noSlider: true },
+                { code: 'kim_rww3_series01_wind_pa4_',   label: '해역별 해상풍시계열(앞바다)', noSlider: true },
+                { code: 'kim_rww3_series02_wavhgt_pa4_', label: '해역별 파고시계열(먼바다)', noSlider: true },
+                { code: 'kim_rww3_series02_wind_pa4_',   label: '해역별 해상풍시계열(먼바다)', noSlider: true },
             ],
         },
         C: {
@@ -78,17 +79,18 @@
                 { code: 'kim_cww3_[AREA]_wave_',  label: '해상풍/유의파고' },
                 { code: 'kim_cww3_[AREA]_wdpr_',  label: '파주기/파향' },
                 { code: 'kim_cww3_[AREA]_wind_',  label: '해상풍(풍향,풍속)' },
-                // BUOY 스펙트럼 — 부이(STN) 추가 드롭다운 노출
-                { code: 'kim_cww3_[AREA]_total_spec_[STN]_pa4_', label: 'BUOY 스펙트럼 예상종합장', useStn: true },
+                // BUOY 스펙트럼 — 부이(STN) 추가 드롭다운 노출 (단일 차트 → 슬라이더 숨김)
+                { code: 'kim_cww3_[AREA]_total_spec_[STN]_pa4_', label: 'BUOY 스펙트럼 예상종합장', useStn: true, noSlider: true },
                 { code: 'kim_cww3_[AREA]_wswl_',  label: '너울파고/파향' },
-                // 너울파고 시계열 — 강원청 전용
-                { code: 'kim_cww3_[AREA]_wavhgt_swell_point_pa4_', label: '해역별 너울파고 시계열', gawnOnly: true },
+                // 너울파고 시계열 — 강원청 전용 (시계열 차트 → 슬라이더 숨김)
+                { code: 'kim_cww3_[AREA]_wavhgt_swell_point_pa4_', label: '해역별 너울파고 시계열', gawnOnly: true, noSlider: true },
             ],
         },
         RWW3: {
             label: '파랑실황도',
             options: [
-                { code: 'kim_rww3_wave_anal_', label: '파랑실황도' },
+                // 실황도 단일 프레임 — 슬라이더·재생 컨트롤 불필요
+                { code: 'kim_rww3_wave_anal_', label: '파랑실황도', noSlider: true },
             ],
         },
     };
@@ -101,8 +103,9 @@
             label: '단기',
             options: [
                 { code: 'kim_rtsm_post_grph_ft03_surg_pa4_',     label: '폭풍해일모델' },
-                { code: 'kim_rtsm_post_grph_ft03_surg_all_pa4_', label: '해일고종합' },
-                { code: 'kim_rtsm_jibang',                        label: '시계열-지방(지)청', useSurgeStn: true },
+                // 해일고종합 / 시계열-지방청은 단일/시계열 차트 → 슬라이더 숨김
+                { code: 'kim_rtsm_post_grph_ft03_surg_all_pa4_', label: '해일고종합', noSlider: true },
+                { code: 'kim_rtsm_jibang',                        label: '시계열-지방(지)청', useSurgeStn: true, noSlider: true },
             ],
         },
     };
@@ -284,6 +287,8 @@
         el.sstPeriodSel = document.getElementById('mc-sst-period');
         el.timeValue     = document.getElementById('mc-time-value');
         el.timeJump      = document.getElementById('mc-time-jump');
+        // 시각 라벨 컨테이너 (timeValue 의 부모) — noSlider 변수에서 통째로 숨김
+        el.timeRow       = el.timeValue && el.timeValue.parentElement;
         el.image         = document.getElementById('mc-image');
         el.imageWrap     = el.image && el.image.parentElement;
         el.imageLoading  = document.getElementById('mc-image-loading');
@@ -294,6 +299,9 @@
         el.slider        = document.getElementById('mc-slider');
         el.stepLabel     = document.getElementById('mc-step-label');
         el.favBtn        = document.getElementById('mc-fav-btn');
+        // 슬라이더·재생 컨트롤 컨테이너 (noSlider 변수에서 통째로 숨김 처리)
+        el.player        = el.section ? el.section.querySelector('.mc-player') : null;
+        el.speedRow      = el.section ? el.section.querySelector('.mc-speed-row') : null;
 
         // 전체화면 오버레이 DOM (3~5번 파일이 사용)
         el.fullscreen    = document.getElementById('mc-fullscreen');
@@ -496,6 +504,10 @@
             refreshSstPeriodOptions();
             if (el.sstPeriodSel) el.sstPeriodSel.value = state.data;
         }
+        // current/sst 경로는 자체 constraints 함수가 없으므로 여기서 직접 호출 —
+        // 이전에 noSlider wave/surge 변수에서 카테고리 전환 시 컨트롤이 숨겨진
+        // 상태로 남는 것을 방지.
+        applyPlayerVisibility();
     }
 
     // ── 폭풍해일 핸들러 ─────────────────────────────────────────────
@@ -527,6 +539,7 @@
             else el.surgeStnField.setAttribute('hidden', '');
         }
         if (showStn) refreshSurgeStnOptions();
+        applyPlayerVisibility();
     }
     /** 해일 변수 드롭다운 change 핸들러 — state.data 갱신 + 지방청 제약 적용 + 차트 다시 fetch. */
     function onSurgeDataChange() {
@@ -669,6 +682,32 @@
         refreshAreaOptions(gawnOnly);
         toggleStnField(useStn);
         if (useStn) refreshStnOptions();
+        applyPlayerVisibility();
+    }
+
+    /**
+     * 현재 변수가 noSlider 면 인라인·풀스크린 재생 컨트롤·슬라이더 +
+     * 시각 라벨 + 시간 점프 버튼까지 통째로 숨김.
+     * 단일 프레임 또는 정적 시계열 차트(예: 파랑실황도, 해일고종합, BUOY 스펙트럼,
+     * 해역별 시계열 차트들) 에서는 시간 이동/재생이 의미 없어 UI 잡음만 됨.
+     */
+    function applyPlayerVisibility() {
+        const cfg = getCurrentDataConfig();
+        const hide = !!(cfg && cfg.noSlider);
+        const setHidden = (node, on) => {
+            if (!node) return;
+            if (on) node.setAttribute('hidden', '');
+            else    node.removeAttribute('hidden');
+        };
+        setHidden(el.player,   hide);
+        setHidden(el.speedRow, hide);
+        setHidden(el.fsBottom, hide);
+        setHidden(el.timeRow,  hide);
+        setHidden(el.timeJump, hide);
+        // 재생 중이면 정지 (컨트롤이 사라진 상태에서 자동재생되는 것을 방지)
+        if (hide && window.MarineChart && window.MarineChart.pause) {
+            window.MarineChart.pause();
+        }
     }
 
     /**
@@ -948,6 +987,7 @@
         toggleAreaField,
         toggleStnField,
         applyVariableConstraints,
+        applyPlayerVisibility,
         getCurrentDataConfig,
         onCategoryClick,
         onTypeChange,
