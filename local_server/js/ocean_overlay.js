@@ -161,6 +161,11 @@
         }
     }
 
+    /**
+     * 파티클 캔버스를 OL Layer 위에 합성(compositing) 시키기 위한 hook 설정.
+     * 이미 _compositeLayer 가 있거나 지도 미준비면 no-op.
+     * 한 번만 호출되며 _compositeLayer 가 설정되면 다시 진입 안 함 (멱등).
+     */
     function _hookParticleCompositing() {
         if (_compositeLayer || !mapRef || !window.ol) return;
         // 빈 vector layer 를 하나 만들어 OL 에 추가.
@@ -417,6 +422,12 @@
         updateLegend(layer);
     }
 
+    /**
+     * 화면 하단 범례(#ocean-legend) 를 현재 레이어(layer)에 맞춰 갱신.
+     * COLOR_SCALES[layer] 의 색·값 범위를 기반으로 그라디언트 막대 + 수치 라벨 빌드.
+     *
+     * @param {string} layer - 'current'|'wind'|'wave' 등
+     */
     function updateLegend(layer) {
         var scale = COLOR_SCALES[layer];
         var legendEl = document.getElementById('ocean-legend');
@@ -468,6 +479,13 @@
         }
     }
 
+    /**
+     * 현재 시각 또는 타임라인 슬라이더 오프셋에 해당하는 KHOA stream-vector
+     * 격자 데이터를 fetch 후 gridData / gridLookup 캐시 갱신.
+     * loadComplete 후 _hookParticleCompositing → animate 가 시작되어 파티클이 그려짐.
+     *
+     * [연계] /api/ocean/khoa-stream-vector?date=&hour= 엔드포인트.
+     */
     function loadCurrentData() {
         var dh = _offsetToDateHour(timelineOffsetHours);
         console.log('[OceanOverlay] KHOA stream-vector 로드 시작');
@@ -798,6 +816,7 @@
         if (p11) s += p11.crsp * w11;
         s /= wSum;
 
+        /** 방위각 d(°) → 단위 벡터 [sin, cos] 변환. 4개 격자 점의 방향 평균에 사용. */
         function vec(d) { var r = d * Math.PI / 180; return [Math.sin(r), Math.cos(r)]; }
         var sx = 0, sy = 0;
         if (p00) { var v0=vec(p00.crdir); sx+=v0[0]*w00; sy+=v0[1]*w00; }
@@ -810,6 +829,12 @@
         return { crsp: s, crdir: d };
     }
 
+    /**
+     * 임의 좌표(lon, lat) 위치의 (속도, 방향) 을 격자 데이터에서 양선형 보간으로 산출.
+     * 격자 사각형의 4 코너 점을 가중 평균 (속도) + 단위 벡터 평균 (방향) 으로 보간.
+     *
+     * @returns {{crsp: number, crdir: number}|null} - 격자 밖 또는 데이터 없음 시 null
+     */
     function sampleAt(lon, lat) {
         if (!lonList || !latList || !gridLookup) return null;
         var li = lowerBound(lonList, lon);
@@ -980,6 +1005,13 @@
         };
     }
 
+    /**
+     * 파티클 애니메이션 루프 — requestAnimationFrame 으로 매 프레임 실행.
+     * 각 파티클의 위치를 sampleAt() 결과에 따라 이동시키고, 잔상(trail) 형태로
+     * canvas 에 그림. 수명이 끝난 파티클은 무작위 위치에 재배치.
+     *
+     * [성능] 격자 밖 파티클은 즉시 재배치하여 무의미한 계산 방지.
+     */
     function animate(timestamp) {
         if (!ctx || !canvas || !mapRef || !gridData) return;
 
@@ -1129,6 +1161,11 @@
         animationId = requestAnimationFrame(animate);
     }
 
+    /**
+     * 주어진 (lat, lon) 에 가장 가까운 격자 점을 brute-force 선형 검색으로 찾기.
+     * 검색 비용이 높아 자주 호출하면 안 됨 — sampleAt 의 양선형 보간 보다 정확도가 낮을 때
+     * fallback 용도. (예: 사용자 클릭 좌표 정확 매칭이 필요할 때)
+     */
     function findNearestGrid(lat, lon) {
         if (!gridData || gridData.length === 0) return null;
 

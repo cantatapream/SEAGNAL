@@ -225,6 +225,7 @@
         highlightJumpButton(NaN); // 슬라이더 직접 이동은 어떤 시간 점프와도 매칭 안 됨
     }
 
+    /** 차트 슬라이드 이전(idx - 1) 으로 이동. 첫 항목이면 마지막으로 wrap-around. */
     function goPrev() {
         const { state } = MC;
         if (state.list.length === 0) return;
@@ -234,6 +235,7 @@
         render(idx);
     }
 
+    /** 차트 슬라이드 다음(idx + 1) 으로 이동. 마지막 항목이면 첫 항목으로 wrap-around. */
     function goNext() {
         const { state } = MC;
         if (state.list.length === 0) return;
@@ -305,6 +307,7 @@
         updatePlayButtonIcons();
     }
 
+    /** 자동재생 ON/OFF 토글 — 현재 playing 상태에 따라 pause/play 분기. */
     function togglePlay() {
         if (MC.state.playing) pause();
         else play();
@@ -367,6 +370,7 @@
         });
     }
 
+    /** 재생 속도 칩(0.5x/1x/2x...) 활성 표시를 ms 값에 맞춰 동기화. 일반/풀스크린 두 그룹 모두 갱신. */
     function syncSpeedChipsActive(ms) {
         const { el } = MC;
         [el.speedChips, el.fsSpeedChips].forEach(group => {
@@ -437,6 +441,11 @@
         const { el } = MC;
         if (el.imageLoading) el.imageLoading.hidden = !on;
     }
+    /**
+     * 차트 이미지 로딩 실패 시 에러 메시지 표출/숨김.
+     * @param {boolean} on - true 면 표시, false 면 숨김
+     * @param {string=} msg - 표시할 메시지 (생략 시 기본 메시지)
+     */
     function showError(on, msg) {
         const { el } = MC;
         if (el.imageError) {

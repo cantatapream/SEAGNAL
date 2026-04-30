@@ -11,11 +11,36 @@ import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebViewClient;
 
+/**
+ * SEAGNAL Android 앱의 메인 Activity (Capacitor BridgeActivity 확장).
+ *
+ * [역할]
+ *   - WebView 기본 설정 (텍스트 줌 100% 고정, 핀치 줌 활성화)
+ *   - 네트워크 오류 시 커스텀 오프라인 페이지 표출
+ *   - Capacitor 브릿지 기능 유지 (BridgeWebViewClient 상속)
+ *
+ * [WebView 정책]
+ *   - setTextZoom(100): 시스템 폰트 크기(접근성 설정) 무시 — 모든 사용자에게
+ *     동일한 레이아웃 보장. 텍스트 크기는 앱 자체 설정(설정 모달)으로 조정.
+ *   - 핀치 줌: 지도/이미지 확대 가능. zoom controls 버튼은 숨김.
+ *   - 메인 프레임 로딩 실패 → 다크 테마 오프라인 HTML 로 fallback
+ *     (서브 리소스 실패는 Capacitor 기본 처리)
+ *
+ * [연계]
+ *   - capacitor.config.json: server.url 또는 androidScheme 설정
+ *   - 웹뷰 안의 JS — capacitor-plugins.js 가 native API 호출
+ */
 public class MainActivity extends BridgeActivity {
 
+    /** 현재 오프라인 에러 페이지가 표시 중인지 여부 — onPageStarted 에서 reset. */
     private boolean isShowingError = false;
+    /** 마지막으로 실패한 URL — "다시 시도" 버튼이 이 URL 로 재로드 시도. */
     private String lastFailedUrl = null;
 
+    /**
+     * Activity 시작 시점 hook — WebView 가 준비된 직후 폰트 줌/핀치 줌 설정 +
+     * 커스텀 WebViewClient 등록.
+     */
     @Override
     public void onStart() {
         super.onStart();

@@ -26,6 +26,10 @@ const { DATA_DIR } = require('../config/server_config');
 
 const REACTIONS_FILE = path.join(DATA_DIR, 'reactions.json');
 
+/**
+ * 게시글/댓글 리액션(❤️👍😮) 전체 데이터 읽기. 객체 형식: { postId: { type: count, users: [...] } }.
+ * 파일 없거나 파싱 실패 시 빈 객체.
+ */
 function getReactions() {
     try {
         if (!fs.existsSync(REACTIONS_FILE)) return {};
@@ -33,6 +37,7 @@ function getReactions() {
     } catch (e) { return {}; }
 }
 
+/** 리액션 데이터 객체를 indent 2 로 동기 저장. */
 function saveReactions(data) {
     fs.writeFileSync(REACTIONS_FILE, JSON.stringify(data, null, 2), 'utf8');
 }

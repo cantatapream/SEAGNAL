@@ -530,6 +530,20 @@ window.deleteNotice = async function () {
     await requestNoticeUpdate(payload);
 };
 
+/**
+ * 공지사항 등록/수정/내림 요청을 서버로 전송.
+ *
+ * [동작]
+ *   1) 신규 다중 공지 API (POST /api/notices) 우선 시도
+ *   2) 실패 시 레거시 단일 공지 API (CONFIG.NOTICE_API_URL) 로 자동 폴백
+ *
+ * [호출 경로]
+ *   - 공지 등록 버튼 click → payload {isActive:true, ...} 전달
+ *   - 공지 내림 버튼 click → payload {isActive:false, id, title:"", content:""} 전달
+ *
+ * @param {Object} payload - 공지 등록 페이로드
+ * @returns {Promise<void>}
+ */
 async function requestNoticeUpdate(payload) {
     try {
         // 새로운 다중 공지 API 사용

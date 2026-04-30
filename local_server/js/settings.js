@@ -75,6 +75,10 @@ function initTabs() {
     });
 }
 
+/**
+ * 설정 모달 내 탭 UI 의 CSS 를 <style id="tab-styles"> 로 1회 주입.
+ * 이미 주입되어 있으면 중복 방지(early return). DOMContentLoaded 후 호출.
+ */
 function injectTabStyles() {
     if (document.getElementById('tab-styles')) return;
 
@@ -366,6 +370,13 @@ const NotificationSettings = {
 };
 NotificationSettings.init();
 
+/**
+ * 푸시 알림 설정 UI 초기화 — 라디오/체크박스/마스터 토글에 현재 저장값 반영.
+ * 매번 localStorage 에서 최신 값을 다시 읽어 capacitor-plugins.js 가 직접
+ * 저장한 값(앱 권한 변경 등) 도 즉시 반영되도록 한다.
+ *
+ * [연계] 설정 모달이 열릴 때마다 호출(openSettingsModal).
+ */
 function initNotificationUI() {
     // 매번 localStorage에서 최신 값을 다시 읽어옴 (capacitor-plugins.js에서 직접 저장한 값 반영)
     NotificationSettings.init();
@@ -449,6 +460,10 @@ function initNotificationUI() {
         };
     });
 
+    /**
+     * 라디오 버튼의 시각적 활성/비활성 상태(채워짐 ↔ 빈 원)를 next sibling label
+     * 의 클래스로 동기화. 같은 name 그룹 안에서 활성 1개만 강조되도록 함.
+     */
     function updateRadioVisual(radio) {
         const content = radio.nextElementSibling;
         if (!content) return;
@@ -470,6 +485,11 @@ function initNotificationUI() {
     if (optNight) optNight.checked = s.night;
 }
 
+/**
+ * 푸시 마스터 토글(전체 ON/OFF) 상태에 따라 세부 설정 영역(#push-detail-settings)
+ * 의 시각/상호작용 상태를 흐림(40%) + pointerEvents 차단으로 처리.
+ * "마스터가 OFF 면 세부 설정 변경 의미 없음" 을 시각적으로 안내.
+ */
 function updateMasterState(isEnabled) {
     const details = document.getElementById('push-detail-settings');
     if (!details) return;
@@ -482,6 +502,12 @@ function updateMasterState(isEnabled) {
     }
 }
 
+/**
+ * 알림 설정 UI 의 현재 상태를 NotificationSettings 에 저장.
+ * 마스터 토글 + 대상(전체/관심) + 우선순위 + 야간 음소거 등을 모아 1회 set.
+ *
+ * [호출 시점] 설정 모달의 "저장" 버튼(saveSettingsAndClose) 또는 모달 닫기 직전.
+ */
 function saveNotificationUI() {
     const master = document.getElementById('push-master-toggle');
     if (!master) return;
@@ -523,6 +549,15 @@ window.switchSettingsTab = function (tabId) {
     }
 };
 
+/**
+ * 설정 모달을 화면에 표시 + 현재 설정값 스냅샷 저장.
+ * 사용자가 변경 후 "취소" 로 닫으면 스냅샷으로 원복(closeSettingsModal) 됨.
+ *
+ * [연계]
+ *   - UserSettings._snapshot, NotificationSettings._snapshot, _fontSizeSnapshot
+ *     세 가지 스냅샷을 저장 (저장 시 saveSettingsAndClose 가 비움)
+ *   - injectTabStyles + initNotificationUI 도 모달 열 때 호출
+ */
 function openSettingsModal() {
     const modal = document.getElementById('settings-modal');
     if (!modal) return;
@@ -549,6 +584,15 @@ function openSettingsModal() {
     window._fontSizeSnapshot = window.FontSizeManager ? FontSizeManager.get() : null;
 }
 
+/**
+ * 설정 모달 닫기 — 변경사항이 저장되지 않았다면 스냅샷으로 원복.
+ *
+ * [복원 정책]
+ *   _snapshot 이 남아있는 경우(=사용자가 "저장" 안 함) UserSettings/
+ *   NotificationSettings/FontSizeManager 모두 스냅샷 시점으로 되돌림.
+ *   "저장" 으로 닫혔으면 saveSettingsAndClose 가 미리 _snapshot 을 null 로
+ *   세팅하므로 여기서 복원이 발동하지 않음.
+ */
 function closeSettingsModal() {
     const modal = document.getElementById('settings-modal');
     if (modal) modal.classList.add('hidden');
@@ -568,6 +612,16 @@ function closeSettingsModal() {
     }
 }
 
+/**
+ * 설정 모달의 변경사항을 확정 저장하고 모달 닫기.
+ *
+ * [순서]
+ *   1) 세 스냅샷 모두 null 로 비움 (closeSettingsModal 의 복원 차단)
+ *   2) saveNotificationUI() — 알림 설정 저장
+ *   3) UserSettings.save() — 관심해역 등 저장
+ *   4) closeSettingsModal — 화면 닫기
+ *   5) 필요 시 loadRegionalForecast 다시 호출 (관심해역 변경 반영)
+ */
 function saveSettingsAndClose() {
     // 스냅샷 제거 (저장 확정이므로 closeSettingsModal에서 복원하지 않도록)
     UserSettings._snapshot = null;
@@ -595,6 +649,11 @@ function saveSettingsAndClose() {
     }
 }
 
+/**
+ * 관심해역 설정 일괄 초기화 — 모든 zone 을 활성화 상태로 되돌림.
+ * 메모리만 초기화하고 localStorage 는 사용자가 "저장" 버튼을 눌러야 반영됨
+ * (실수 클릭 보호).
+ */
 function resetSettings() {
     if (confirm('모든 설정을 초기화하여 전체 해역을 표시하시겠습니까?')) {
         // 메모리만 초기화 (저장 버튼을 눌러야 실제 반영)
@@ -788,6 +847,14 @@ function getExpandedAccordionIds(container) {
     return expanded;
 }
 
+/**
+ * 관심해역 설정 화면의 한 항목(zone) 체크박스 row HTML 생성.
+ * 부모 zone 이 OFF 이면 자식도 자동으로 체크 해제·비활성 표시.
+ *
+ * @param {string} zoneName  - 자식 zone 이름
+ * @param {string} parentKey - 부모 zone 키 (가시성 종속 판정용)
+ * @returns {string} - innerHTML 으로 삽입할 마크업
+ */
 function createSettingItem(zoneName, parentKey) {
     const isVisible = UserSettings.get(zoneName);
     const parentVisible = UserSettings.get(parentKey);
@@ -812,6 +879,16 @@ function createSettingItem(zoneName, parentKey) {
     return div;
 }
 
+/**
+ * 설정 체크박스 토글 핸들러 — UserSettings 갱신 + 부모/자식 종속 처리.
+ *
+ * [부모/자식 종속]
+ *   - 부모 OFF → 자식도 모두 OFF 처리 (자식 단독 ON 의미 없음)
+ *   - 자식 ON → 부모 자동 ON (부모 OFF 인 채 자식만 ON 은 모순)
+ *
+ * @param {string} key - zone 이름 (또는 부모 zone 키)
+ * @param {boolean} isChecked - 새 체크 상태
+ */
 function toggleSetting(key, isChecked) {
     // 1. 현재 항목 설정
     UserSettings.set(key, isChecked);

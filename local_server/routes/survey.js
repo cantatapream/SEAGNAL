@@ -66,14 +66,24 @@ function readSurveys() {
     }
 }
 
+/** 설문 마스터 목록(전체 설문 메타) 을 SURVEYS_FILE 에 동기 저장. */
 function writeSurveys(surveys) {
     fs.writeFileSync(SURVEYS_FILE, JSON.stringify(surveys, null, 2), 'utf8');
 }
 
+/**
+ * 특정 설문(surveyId) 의 응답 모음 파일 경로 반환.
+ * 파일명 규칙: survey_responses_<surveyId>.json (DATA_DIR 안).
+ * 응답을 설문별 분리 저장하여 큰 응답 데이터셋을 효율적으로 관리.
+ */
 function getResponsesFile(surveyId) {
     return path.join(DATA_DIR, `survey_responses_${surveyId}.json`);
 }
 
+/**
+ * 특정 설문의 응답 배열을 동기 읽기. 파일 없거나 JSON 파싱 실패 시 빈 배열.
+ * 응답 등록/조회 핸들러가 모두 이 헬퍼를 통해 접근.
+ */
 function readResponses(surveyId) {
     const file = getResponsesFile(surveyId);
     if (!fs.existsSync(file)) return [];
@@ -84,6 +94,7 @@ function readResponses(surveyId) {
     }
 }
 
+/** 특정 설문의 응답 배열을 indent 2 로 동기 저장. */
 function writeResponses(surveyId, responses) {
     fs.writeFileSync(getResponsesFile(surveyId), JSON.stringify(responses, null, 2), 'utf8');
 }

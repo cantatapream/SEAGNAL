@@ -87,6 +87,10 @@ if (fs.existsSync(TIDEBED_CONFIG_FILE)) {
     saveTideBedConfig();
 }
 
+/**
+ * TideBED API 키 사용량/현재 인덱스 등 설정을 TIDEBED_CONFIG_FILE 에 동기 저장.
+ * 실패 시 콘솔 경고만 (예외 throw 안 함) — 다음 정상 갱신에서 자동 복구.
+ */
 function saveTideBedConfig() {
     try {
         fs.writeFileSync(TIDEBED_CONFIG_FILE, JSON.stringify(tideBedConfig, null, 2), 'utf8');
@@ -95,6 +99,11 @@ function saveTideBedConfig() {
     }
 }
 
+/**
+ * TideBED API 키를 다음 순번으로 회전 (라운드 로빈).
+ * 일일 호출 한도 도달 또는 일시 차단 발생 시 호출 — 즉시 다른 키로 전환하여
+ * 서비스 중단 없이 계속 데이터 수집. 회전 후 saveTideBedConfig 로 즉시 영속화.
+ */
 function rotateTideBedKey() {
     tideBedConfig.currentIndex = (tideBedConfig.currentIndex + 1) % tideBedConfig.keys.length;
     console.log(`🔄 TideBED API Key가 ${tideBedConfig.currentIndex + 1}번으로 전환되었습니다.`);

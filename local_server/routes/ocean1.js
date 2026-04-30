@@ -277,8 +277,16 @@ const KHOA_STREAM_BASE =
 const _khoaCache = new Map();
 const KHOA_CACHE_TTL_MS = 60 * 60 * 1000; // 1시간
 
+/** KHOA stream-vector 캐시 키 생성 — 'YYYYMMDD_HH' 형식. _khoaCache.get/set 의 키. */
 function _cacheKey(date, hour) { return date + '_' + hour; }
 
+/**
+ * KHOA 해아름 stream-vector(전 해역 격자) 데이터를 fetch. 1시간 TTL 메모리 캐시 적용.
+ * 같은 (date, hour) 조합은 1시간 동안 외부 API 한 번만 호출.
+ *
+ * [반환] { features, lonList, latList, gridLookup, ts } 형식 객체.
+ * [연계] /api/ocean/khoa-stream-vector, /api/ocean/khoa-stream-nearest 두 라우트가 사용.
+ */
 async function _fetchKhoaStream(date, hour) {
     const key = _cacheKey(date, hour);
     const cached = _khoaCache.get(key);
@@ -377,6 +385,12 @@ function _defaultDateHour(qDate, qHour) {
     return { date: y + m + day, hour: h };
 }
 
+/**
+ * [GET /api/ocean/khoa-stream-vector]
+ * KHOA 해아름 stream-vector 격자 데이터를 클라이언트에 그대로 전달.
+ * query: ?date=YYYYMMDD&hour=HH (생략 시 현재 시각).
+ * 응답: 격자 features 배열 + 격자 인덱스. ocean_overlay.js (파티클) 가 사용.
+ */
 router.get('/api/ocean/khoa-stream-vector', async (req, res) => {
     try {
         const { date, hour } = _defaultDateHour(req.query.date, req.query.hour);
@@ -397,6 +411,12 @@ router.get('/api/ocean/khoa-stream-vector', async (req, res) => {
     }
 });
 
+/**
+ * [GET /api/ocean/khoa-stream-nearest]
+ * KHOA stream-vector 격자에서 ?lat=&lon= 좌표에 가장 가까운 점 1개 반환.
+ * ocean_bottom_sheet5.js fetchRoms 가 호출 — 단일 좌표 조회 최적화 경로.
+ * 응답: { success, wtem, crsp, crdir } 또는 { success: false }.
+ */
 router.get('/api/ocean/khoa-stream-nearest', async (req, res) => {
     try {
         const lat = parseFloat(req.query.lat);
@@ -448,6 +468,12 @@ router.get('/api/ocean/khoa-stream-nearest', async (req, res) => {
 const _LAND_MASK_PATH = path.join(__dirname, '..', 'land_mask_korea.json');
 let _landMaskData = null; // 서버 기동 후 최초 1회 파일 읽기 후 메모리 유지
 
+/**
+ * [GET /api/ocean/land-mask]
+ * 한반도 육지 마스크 GeoJSON 반환 — 파티클이 육지에 표시되지 않도록
+ * ocean_overlay.js 의 sampleAt 이 격자 점이 육지 안인지 검사할 때 사용.
+ * 캐시: _landMaskData 메모리 캐시 (서버 시작 시 1회 로드).
+ */
 router.get('/api/ocean/land-mask', (req, res) => {
     try {
         if (!_landMaskData) {

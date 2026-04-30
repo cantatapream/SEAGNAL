@@ -1,3 +1,31 @@
+/**
+ * ============================================================================
+ * 파일명: scheduler.js
+ * 역할 : 서버 측 데이터 수집 스케줄러 — KMA·KHOA 등 외부 데이터 소스를 주기적으로
+ *        fetch 하여 로컬 JSON 캐시에 저장하고, 관리자 알림·DuckDNS 갱신 등
+ *        백그라운드 작업을 수행.
+ * ============================================================================
+ *
+ * [주요 작업]
+ *   - 일반 기상예보 (3시간 간격)
+ *   - 해상 기상예보 / 해상 특보 (1시간 간격)
+ *   - 부이 관측 데이터 (10분 간격)
+ *   - 중기 해상예보 (하루 2회)
+ *   - DuckDNS 동적 IP 갱신 (5분 간격)
+ *   - 관리자 알림 (오류/실패 누적 시)
+ *
+ * [연계 모듈]
+ *   - services/tide_collector.js : TideBED 조석 데이터 수집 (별도 스케줄)
+ *   - services/firebase_admin_lazy.js : push 알림용 Firebase Admin (lazy init)
+ *   - routes/admin.js : 작업 모드(점검 모드) 설정 — loadWorkModeConfig
+ *
+ * [환경변수]
+ *   - DUCKDNS_TOKEN, DUCKDNS_DOMAIN : DDNS 갱신용
+ *   - KMA_API_KEY, KHOA_API_KEY     : 외부 API 키
+ *   - WORK_MODE                     : 'on' 이면 자동 수집 정지 (점검용)
+ * ============================================================================
+ */
+
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
@@ -37,14 +65,20 @@ async function syncTime() {
     });
 }
 
+/**
+ * 시스템 시계 오차(timeDriftOffset) 를 보정한 현재 Date 반환.
+ * 컨테이너 환경에서 시계가 약간 어긋날 수 있어 NTP 동기 결과를 offset 으로 적용.
+ */
 function getCorrectedDate() {
     return new Date(Date.now() + timeDriftOffset);
 }
 
+/** 현재 KST 시각을 사람이 읽기 좋은 한국어 포맷 문자열로 반환. log() 가 사용. */
 function getNowStr() {
     return getCorrectedDate().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
 }
 
+/** 시각 prefix 가 붙은 콘솔 로그 — 모든 스케줄 작업이 이 함수로 출력. */
 function log(msg) {
     console.log(`[${getNowStr()}] ${msg}`);
 }
@@ -117,6 +151,10 @@ if (!fs.existsSync(CONFIG.DATA_DIR)) {
     fs.mkdirSync(CONFIG.DATA_DIR);
 }
 
+/**
+ * DuckDNS 동적 DNS IP 갱신 — 5분 간격 호출.
+ * DUCKDNS_CONFIG.ENABLED 가 false 면 no-op. 환경변수 DUCKDNS_TOKEN/DOMAIN 으로 설정.
+ */
 async function updateDuckDNS() {
     if (!DUCKDNS_CONFIG.ENABLED) return;
     try {
@@ -131,6 +169,10 @@ const PROD_DATA_DIR = path.join(__dirname, '../../Production/local_server/data')
 const IS_FLY_IO = !!process.env.FLY_ALLOC_ID;
 const PROD_API_BASE = 'https://seagnal-server.fly.dev';
 
+/**
+ * 수집한 데이터를 DATA_DIR 하위 파일에 동기 저장. indent 2.
+ * 모든 collect* 함수의 출력 단계에서 호출.
+ */
 function saveData(filename, data) {
     const jsonStr = JSON.stringify(data, null, 2);
     try {
@@ -141,6 +183,10 @@ function saveData(filename, data) {
     } catch (e) { }
 }
 
+/**
+ * Date → "YYYYMMDDHHmm" UTC 12자리 문자열.
+ * KMA API 의 tm 파라미터(UTC 기반) 에 사용.
+ */
 function getUtcTm(date) {
     const y = date.getUTCFullYear();
     const m = String(date.getUTCMonth() + 1).padStart(2, '0');
@@ -149,6 +195,15 @@ function getUtcTm(date) {
     return `${y}${m}${d}${h}`;
 }
 
+/**
+ * AbortController 를 이용한 타임아웃 지원 fetch 래퍼.
+ * 외부 API 응답 지연 시 무한 대기 방지 — 기본 10초.
+ *
+ * @param {string} url
+ * @param {RequestInit} options
+ * @param {number} timeout - ms
+ * @returns {Promise<Response>}
+ */
 async function fetchWithTimeout(url, options = {}, timeout = 10000) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
@@ -343,6 +398,10 @@ const SEA_FORECAST_ZONES = [
     '22A30101', '22A30102', '22A30103', '22A30104', '22A30105'
 ];
 
+/**
+ * 일반 기상예보 (육상 단기예보) 수집 — KMA API 호출 후 forecasts.json 갱신.
+ * 3시간 간격으로 호출 — KMA 발표 주기 (02/05/08/11/14/17/20/23시) 직후.
+ */
 async function collectGeneralForecasts() {
     try {
         const results = {};
@@ -398,6 +457,10 @@ function parseKmaTable(text) {
     }
     return rows;
 }
+/**
+ * 해상 zone 별 단기예보(파고/바람/날씨) 수집 — zone_forecasts.json 갱신.
+ * 동시 실행 방지: isCollectingZone 플래그.
+ */
 async function collectZoneForecasts() {
     if (isCollectingZone) return;
     isCollectingZone = true;
@@ -479,6 +542,10 @@ const MID_TERM_SEA_REG_IDS = [
     '12C30000', // 동해북부
 ];
 
+/**
+ * 중기 해상예보(3~10일 후) 수집 — mid_term_sea_forecasts.json 갱신.
+ * KMA 발표 주기 06:00 / 18:00 KST 에 맞춰 그 직후 한 번씩 호출.
+ */
 async function collectMidTermSeaForecasts() {
     try {
         // 최근 06:00 또는 18:00 KST 발표시각 계산
@@ -1281,6 +1348,10 @@ async function _fetchSurfingData() {
 const REVIEW_NEEDED_FILE = path.join(CONFIG.DATA_DIR, 'review_needed.json');
 const COLLECT_FAILURES_FILE = path.join(CONFIG.DATA_DIR, 'collect_failures.json');
 
+/**
+ * 운영자에게 처리 대기 누적 알림 발송 — 신고/검토 대기가 일정 임계 이상이면 푸시.
+ * 1시간 간격 호출. 동일 운영자에게 스팸하지 않도록 마지막 알림 시각 추적.
+ */
 async function checkAndSendAdminReminder() {
     try {
         let pendingReviews = 0;
@@ -1325,6 +1396,14 @@ async function checkAndSendAdminReminder() {
     }
 }
 
+/**
+ * 스케줄러 초기화 — 서버 부팅 시 1회 호출.
+ *
+ * [절차]
+ *   1) syncTime() — NTP 기반 시계 보정
+ *   2) 각 collect* 함수를 setInterval 로 등록 (주기는 함수별 상이)
+ *   3) DuckDNS / 관리자 알림 / 작업 모드 감시 등 부수 작업 시작
+ */
 async function init() {
     // [중요] 외부 서버와 시각 동기화
     await syncTime();

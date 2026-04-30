@@ -45,6 +45,7 @@ try {
     sendAdminPush = require('../services/admin_push').sendAdminPush;
 } catch (e) { /* admin_push 서비스 미설치 시 무시 */ }
 
+/** 댓글 신고 목록을 COMMENT_REPORTS_FILE 에서 읽기. 파일 없거나 파싱 실패 시 빈 배열. */
 function getCommentReports() {
     try {
         if (!fs.existsSync(COMMENT_REPORTS_FILE)) return [];
@@ -52,10 +53,15 @@ function getCommentReports() {
     } catch (e) { return []; }
 }
 
+/** 댓글 신고 목록을 indent 2 로 동기 저장. */
 function saveCommentReports(reports) {
     fs.writeFileSync(COMMENT_REPORTS_FILE, JSON.stringify(reports, null, 2), 'utf8');
 }
 
+/**
+ * 현재 시각을 KST 기준 'YYYY-MM-DD HH:mm:ss' 형식으로 반환.
+ * 댓글 신고 등록 시 createdAt 등 타임스탬프 포맷 통일.
+ */
 function getKstString() {
     const now = new Date();
     const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);

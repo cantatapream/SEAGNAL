@@ -173,6 +173,13 @@
         popup.id = 'survey-user-popup';
         popup.style.cssText = 'position:fixed;inset:0;z-index:10100;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);display:flex;flex-direction:column;animation:svFadeIn 0.2s ease-out;';
 
+        /**
+         * 현재 페이지(currentPage) 에 해당하는 질문들을 popup 안에 다시 그림.
+         * QUESTIONS_PER_PAGE 단위로 페이지 분할되며, 진행률(%) / 이전·다음 버튼
+         * 활성 상태 등도 같이 갱신.
+         *
+         * [호출 시점] 페이지 이동 (이전/다음) 또는 응답 입력 후.
+         */
         function render() {
             const startIdx = currentPage * QUESTIONS_PER_PAGE;
             const endIdx = Math.min(startIdx + QUESTIONS_PER_PAGE, questions.length);
@@ -423,6 +430,13 @@
     function escSurveyHtml(str) {
         return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
+    /**
+     * HTML 속성 값(attribute) 용 escape — 따옴표·꺾쇠 모두 안전 변환.
+     * escSurveyHtml 과 거의 같지만 속성 컨텍스트에서 더 엄격히 적용.
+     *
+     * @param {string} str
+     * @returns {string}
+     */
     function escSurveyAttr(str) {
         return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }

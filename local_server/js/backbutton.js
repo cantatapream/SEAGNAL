@@ -604,6 +604,12 @@
     var BACK_PRESS_INTERVAL = 2500; // 2.5초 이내에 다시 누르면 종료
     var toastTimer = null;
 
+    /**
+     * "한 번 더 누르면 종료" 안내 토스트를 화면에 표시.
+     * 이미 표시된 토스트는 제거 후 새로 만듦. 일정 시간 후 자동 제거.
+     *
+     * [호출 시점] 뒤로가기 버튼이 1단계 종료 직전 상태에서 눌렸을 때.
+     */
     function showExitToast() {
         // 기존 토스트가 있으면 제거
         var existing = document.getElementById('back-exit-toast');
@@ -671,6 +677,13 @@
         return true;
     }
 
+    /**
+     * Capacitor 네이티브 환경에서 뒤로가기 버튼 핸들러 초기화.
+     * 웹 환경에서는 false 반환하여 fallback (initHistoryTrapBackButton).
+     *
+     * [동작] App.addListener('backButton', ...) 으로 Android 하드웨어 뒤로가기를 가로채
+     *  모달/시트/홈 으로 단계적 이동. 더 이상 갈 곳 없으면 토스트 → 한번 더 누르면 종료.
+     */
     function initCapacitorBackButton() {
         if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return false;
 
@@ -731,6 +744,11 @@
         history.pushState(HISTORY_TRAP_STATE, '');
     }
 
+    /**
+     * 웹 환경(브라우저 / Capacitor 미사용) 용 뒤로가기 핸들러 초기화.
+     * history.pushState 를 미리 1번 push 해서 사용자가 뒤로 누르면 popstate
+     * 이벤트로 가로채는 방식. Capacitor 가 없을 때만 사용.
+     */
     function initHistoryTrapBackButton() {
         // 히스토리 트랩 설치
         pushHistoryTrap();

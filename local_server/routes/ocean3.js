@@ -38,6 +38,12 @@ const KMA_SFC_URL = 'https://apihub.kma.go.kr/api/typ01/url/sfc_nc_var.php';
 const KOREA_SEA3 = { minLat: 32.0, maxLat: 42.0, minLon: 122.0, maxLon: 132.5 };
 
 let _zoneCoordsCache3 = null;
+/**
+ * zone_coords.json (특보구역 → 좌표 매핑) 을 lazy 로드 + 메모리 캐시.
+ * 파일 없거나 파싱 실패 시 빈 객체 — 다음 호출도 같은 빈 객체 반환 (재시도 안 함).
+ *
+ * [용도] ocean3 라우트가 좌표 → 특보구역 변환 시 사용.
+ */
 function getZoneCoords3() {
     if (_zoneCoordsCache3 !== null) return _zoneCoordsCache3;
     try {

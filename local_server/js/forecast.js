@@ -264,6 +264,15 @@ const MID_TERM_WEATHER_EMOJI = {
     '흐리고 소나기': '🌦️'
 };
 
+/**
+ * 중기 해상예보의 날씨 텍스트(예: "맑음", "구름많음") 를 이모지로 변환.
+ * 매핑 없는 값은 '❓' 로 fallback. 빈 값/'-' 은 '-' 그대로.
+ *
+ * [연계] 중기해상예보 카드 렌더에서 호출 (날씨 컬럼 시각 표시).
+ *
+ * @param {string} text - KMA 중기예보 날씨 텍스트
+ * @returns {string} - 이모지 또는 '-'
+ */
 function midTermWeatherToEmoji(text) {
     if (!text || text === '-') return '-';
     return MID_TERM_WEATHER_EMOJI[text] || '❓';

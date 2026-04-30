@@ -67,6 +67,11 @@ async function fetchKhoaWmsImage(lat, lon, startZoom = 15) {
     const originX = -Math.PI * R;  // ≈ -20037508 m
     const originY =  Math.PI * R;  // ≈ +20037508 m
 
+    /**
+     * Web Mercator(EPSG:3857) 좌표 (x, y) 가 속한 타일의 bbox 반환.
+     * 타일 시스템: 줌 레벨 zoom 에서 2^zoom × 2^zoom 격자.
+     * @returns {{minX, minY, maxX, maxY, tx, ty}} - 타일 인덱스(tx, ty) 와 사각형
+     */
     function tileBbox(x, y, zoom) {
         const tileSize = 2 * Math.PI * R / Math.pow(2, zoom);
         const tx = Math.floor((x - originX) / tileSize);

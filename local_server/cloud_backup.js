@@ -32,6 +32,12 @@ const DATA_DIR = path.join(__dirname, 'data');
 let _bucket = null;            // 캐시된 bucket 인스턴스
 let _bucketInitDone = false;   // 첫 초기화 시도가 끝났는지 여부
 
+/**
+ * GCS bucket 인스턴스 lazy init + 캐시.
+ * 환경변수(BUCKET 키 등) 미설정이거나 SDK 미설치 시 null 반환 → 호출자가 backup skip.
+ *
+ * [멱등성] _bucketInitDone 플래그로 1회만 초기화.
+ */
 function getBucket() {
     if (_bucketInitDone) return _bucket;
     _bucketInitDone = true;

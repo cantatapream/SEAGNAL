@@ -1,3 +1,23 @@
+# =============================================================================
+# Dockerfile — SEAGNAL 서버 컨테이너 이미지 빌드 정의
+# =============================================================================
+# [역할]
+#   Node.js 20 기반 Slim 이미지에 SEAGNAL 서버(local_server/) 를 빌드하여
+#   Fly.io NRT(도쿄) 리전에 배포할 수 있는 컨테이너 이미지 생성.
+#
+# [환경 특이사항]
+#   - Fly.io NRT: IPv6 외부 연결 불가 → DNS 우선순위를 IPv4 first 로 강제
+#   - 의존성: 루트 package.json 에 통합 (local_server/package.json 도 복사하여 안전망)
+#   - 데이터 디렉토리: /app/data (fly volume mount)
+#
+# [빌드/실행]
+#   fly deploy : Fly.io 가 자동으로 이 Dockerfile 빌드 후 NRT 배포
+#
+# [연계]
+#   - fly.toml      : 마운트/리전/머신 사양 정의
+#   - package.json  : start 스크립트 = "node local_server/server.js"
+# =============================================================================
+
 FROM node:20-slim
 WORKDIR /app
 

@@ -143,6 +143,11 @@ router.get('/api/marine-buoys', (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=600');
     res.json(dataCache.marineBuoys);
 });
+/**
+ * [GET /api/marine-wh-buoys]
+ * 파고 부이(WH = Wave Height) 메타 데이터 응답. dataCache.marineWhBuoys 사용.
+ * 부이 마커 표시 + 상세 모달의 항목 결정 데이터.
+ */
 router.get('/api/marine-wh-buoys', (req, res) => {
     freshness.applyFreshnessHeaders(res, 'marineWhBuoys');
     freshness.triggerRefreshIfStale('marineWhBuoys');
@@ -153,6 +158,11 @@ router.get('/api/marine-wh-buoys', (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=600');
     res.json(dataCache.marineWhBuoys);
 });
+/**
+ * [GET /api/marine-lh-buoys]
+ * 등표(LH = Light House) 부이 메타 데이터 응답. dataCache.marineLhBuoys 사용.
+ * 등표는 일반 부이보다 항해 안전 우선이라 별도 분리 제공.
+ */
 router.get('/api/marine-lh-buoys', (req, res) => {
     freshness.applyFreshnessHeaders(res, 'marineLhBuoys');
     freshness.triggerRefreshIfStale('marineLhBuoys');
@@ -163,6 +173,11 @@ router.get('/api/marine-lh-buoys', (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=600');
     res.json(dataCache.marineLhBuoys);
 });
+/**
+ * [GET /api/marine-vs]
+ * 가시거리(VS = Visibility) 관측 데이터 응답. 안개/시정 정보용.
+ * 안개구역 + CCTV 안개 표출과 연계.
+ */
 router.get('/api/marine-vs', (req, res) => {
     // 시정계 station — 본 단계에선 캐시·라우트만, UI 표시는 후속 작업
     if (dataCache.marineVs) res.json(dataCache.marineVs);

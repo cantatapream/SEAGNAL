@@ -159,6 +159,11 @@ window.renderAlertAdminContent = async function (tabId, targetContainer) {
         var isLevelChange = item.command === '변경' || (item.level && item.level.includes('경보'));
         var statusType = (item.level && item.level.includes('경보')) ? '격상' : ((item.level && item.level.includes('주의보') && item.command === '변경') ? '격하' : '정규');
 
+        /**
+         * 표시용 일자 문자열을 정렬 가능한 숫자 키로 변환.
+         * '정보 없음' / '미정' / 빈값 등은 가장 큰 값('999999999999') 으로 두어 정렬 시 뒤로.
+         * tmFc/tmEf 가 비어있는 알림이 시간순 정렬에서 자연스럽게 끝에 위치하도록 함.
+         */
         var getCompareValue = function(dStr) {
             if (!dStr || dStr === '정보 없음' || dStr === '미정' || dStr.trim() === '일') return '999999999999';
             var numeric = dStr.replace(/[^0-9]/g, '');

@@ -108,6 +108,19 @@ function _selectEditFeature(innerFeature) {
         innerFeature.get('name'), innerFeature.get('subtitle'));
 }
 
+/**
+ * 현재 선택된 CCTV 마커(_editSelectedFeature) 를 새 좌표로 이동.
+ *
+ * [동작]
+ *   - feature 의 geometry 좌표 갱신
+ *   - _editChanges 객체에 변경 이력 저장 (providerKey:cctvId 키)
+ *   - 클러스터 소스 changed() 알림 → 화면 자동 재렌더
+ *   - 편집 패널의 좌표 라벨 갱신
+ *
+ * [연계] _onEditMapClick (지도 빈 곳 탭) 가 호출.
+ *
+ * @param {Array<number>} coordinate - EPSG:3857 [x, y]
+ */
 function _moveSelectedFeature(coordinate) {
     const lonLat = ol.proj.toLonLat(coordinate);
     const lat = lonLat[1];
@@ -138,6 +151,14 @@ function _moveSelectedFeature(coordinate) {
     _setEditMsg('위치 이동 완료. 계속 이동하거나 다른 마커를 선택하세요.');
 }
 
+/**
+ * 현재 선택된 마커의 강조 스타일 해제 + 선택 상태 초기화.
+ * _origStyle 이 저장되어 있으면 원본 스타일로 복귀시키고, 그 백업 속성도 삭제.
+ *
+ * [호출 시점]
+ *   - 다른 마커를 선택했을 때 (이전 선택 해제)
+ *   - 편집 모드 종료 시
+ */
 function _clearEditSelection() {
     if (_editSelectedFeature) {
         if (_editSelectedFeature._origStyle !== undefined) {
@@ -169,6 +190,10 @@ function _updateEditPanel(lat, lng, name, subtitle) {
     _setEditMsg(name ? '지도 빈 곳을 탭하면 이 위치로 이동합니다.' : '');
 }
 
+/**
+ * 편집 패널 하단의 안내 메시지 영역(#cctv-edit-msg) 텍스트 갱신.
+ * msg 가 빈 문자열이면 메시지 영역을 비움.
+ */
 function _setEditMsg(msg) {
     const msgEl = document.getElementById('cctv-edit-msg');
     if (msgEl) msgEl.textContent = msg;
@@ -214,11 +239,24 @@ function exportCctvEditChanges() {
     }
 }
 
+/**
+ * exportCctvEditChanges 가 띄운 모달을 닫음.
+ * #cctv-edit-export-modal 의 display 만 'none' 으로 전환.
+ */
 function closeCctvEditExport() {
     const modal = document.getElementById('cctv-edit-export-modal');
     if (modal) modal.style.display = 'none';
 }
 
+/**
+ * 모달 textarea 안의 export 텍스트(JS 코드 스니펫) 를 클립보드로 복사.
+ *
+ * [동작]
+ *   1) textarea 전체 select
+ *   2) document.execCommand('copy') 시도 (구버전 브라우저)
+ *   3) 실패 시 navigator.clipboard.writeText 폴백 (모던 환경)
+ *   4) 복사 버튼 라벨을 잠시 "복사됨 ✓" 으로 표시 후 2초 뒤 원복
+ */
 function copyCctvEditChanges() {
     const textarea = document.getElementById('cctv-edit-export-text');
     if (!textarea) return;

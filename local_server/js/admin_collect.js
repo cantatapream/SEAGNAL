@@ -22,9 +22,18 @@ window._atmTestMode = false; // 모달 내 테스트 모드 토글 상태
 function isAdminTestMode() {
     return window._atmTestMode === true;
 }
+/**
+ * 푸시 알림 인증 토큰을 localStorage 에서 조회.
+ * 관리자 API 요청의 Authorization 헤더 또는 쿼리 파라미터에 사용.
+ */
 function getAdminToken() {
     return localStorage.getItem('push_token') || null;
 }
+/**
+ * 관리자 테스트 모드(_atmTestMode) 가 켜져 있을 때만 적용할 추가 query
+ * 파라미터를 반환. 일반 모드에서는 빈 객체.
+ * fetch URL 쿼리에 spread 로 합쳐 사용.
+ */
 function getTestModeParams() {
     if (!isAdminTestMode()) return {};
     return { testMode: true, adminToken: getAdminToken() };
@@ -2580,6 +2589,12 @@ async function renderUnifiedStatsContent(container) {
     }
 }
 
+/**
+ * 관리자 통계 요약(오늘 가입/푸시 발송 수 등) 카드를 갱신.
+ * KST 기준 today 키로 data 에서 값 추출 후 DOM 라벨 갱신.
+ *
+ * @param {Object} data - 서버 통계 응답 (날짜별 키)
+ */
 function updateStatsSummary(data) {
     const kstNow = new Date(new Date().getTime() + (9 * 60 * 60 * 1000));
     const todayStr = kstNow.toISOString().split('T')[0];
@@ -3173,6 +3188,12 @@ window.showPromoManagementModal = async function () {
     await loadPromoListForAdmin();
 };
 
+/**
+ * 관리자 화면의 홍보 게시글 관리 탭 — 게시글 목록을 fetch 해서 렌더.
+ * 각 항목에 삭제·고정 등 관리 버튼 포함.
+ *
+ * [연계] /api/promo-posts (GET) — 전체 목록.
+ */
 async function loadPromoListForAdmin() {
     const content = document.getElementById('promo-management-content');
     if (!content) return;
@@ -3224,6 +3245,10 @@ async function loadPromoListForAdmin() {
     }
 }
 
+/**
+ * 관리자 권한으로 홍보 게시글 1건 삭제. confirm 으로 사용자 확인 받은 뒤
+ * /api/promo-posts/:postId (DELETE) 호출. 성공 시 loadPromoListForAdmin 재호출.
+ */
 async function deletePromoPostFromAdmin(postId) {
     if (!confirm('정말로 이 게시글을 삭제하시겠습니까?')) return;
 
@@ -3527,6 +3552,11 @@ window.forceUpdateApi = async function (type) {
     }
 };
 
+/**
+ * 색 hex (#RRGGBB) 문자열을 'r,g,b' 콤마 구분 문자열로 변환.
+ * 차트 배경 등에 rgba(<hex>, 0.2) 형태로 alpha 를 추가할 때 유용.
+ * 잘못된 hex 면 '255,255,255' (흰색) fallback.
+ */
 function hexToRgb(hex) {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result ? `${parseInt(result[1], 16)},${parseInt(result[2], 16)},${parseInt(result[3], 16)}` : '255,255,255';

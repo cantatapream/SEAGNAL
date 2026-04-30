@@ -1215,6 +1215,15 @@ window.exitOceanMapSection = function () {
     }
 };
 
+/**
+ * 메인 섹션(해양종합정보/특보정보/해양생활/공지사항 등) 활성화 hook.
+ * switchMainTab 의 후처리 — 진입/퇴장 시 로고/탭바 등 부가 UI 동기.
+ *
+ * [연계] body 의 ocean-map-active 클래스 + style.css !important 규칙이
+ *  실질적인 표시 제어. 이 함수는 그 외 보조 처리(예: 차트 init) 만 담당.
+ *
+ * @param {string} sectionId - 활성된 섹션의 DOM id
+ */
 function _onSectionActivated(sectionId) {
     // 해양종합정보 진입/퇴장 시 SEAGNAL 로고 영역 숨김/표시는
     // body.ocean-map-active 클래스 + style.css 의 !important 규칙이 담당한다.
