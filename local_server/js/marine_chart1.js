@@ -287,6 +287,8 @@
         el.sstPeriodSel = document.getElementById('mc-sst-period');
         el.timeValue     = document.getElementById('mc-time-value');
         el.timeJump      = document.getElementById('mc-time-jump');
+        // 시각 라벨 컨테이너 (timeValue 의 부모) — noSlider 변수에서 통째로 숨김
+        el.timeRow       = el.timeValue && el.timeValue.parentElement;
         el.image         = document.getElementById('mc-image');
         el.imageWrap     = el.image && el.image.parentElement;
         el.imageLoading  = document.getElementById('mc-image-loading');
@@ -675,7 +677,8 @@
     }
 
     /**
-     * 현재 변수가 noSlider 면 인라인·풀스크린 재생 컨트롤·슬라이더를 숨김.
+     * 현재 변수가 noSlider 면 인라인·풀스크린 재생 컨트롤·슬라이더 +
+     * 시각 라벨 + 시간 점프 버튼까지 통째로 숨김.
      * 단일 프레임 또는 정적 시계열 차트(예: 파랑실황도, 해일고종합, BUOY 스펙트럼,
      * 해역별 시계열 차트들) 에서는 시간 이동/재생이 의미 없어 UI 잡음만 됨.
      */
@@ -690,6 +693,8 @@
         setHidden(el.player,   hide);
         setHidden(el.speedRow, hide);
         setHidden(el.fsBottom, hide);
+        setHidden(el.timeRow,  hide);
+        setHidden(el.timeJump, hide);
         // 재생 중이면 정지 (컨트롤이 사라진 상태에서 자동재생되는 것을 방지)
         if (hide && window.MarineChart && window.MarineChart.pause) {
             window.MarineChart.pause();
