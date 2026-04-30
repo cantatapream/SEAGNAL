@@ -382,6 +382,11 @@
         if (state.active && window.OceanWarnZone) {
             window.OceanWarnZone.refresh();
         }
+        // 활성 모드일 때 범례도 새 활성 맵 기준으로 다시 빌드
+        // (예: 새로 태풍 특보가 추가되면 태풍 행이 자동으로 범례에 등장)
+        if (state.active && typeof ns._renderLegend === 'function') {
+            ns._renderLegend();
+        }
         // 박스가 떠 있다면 닫음 — 이전 시점 데이터일 수 있어 안전하게 닫기
         if (state.box) ns._hideBox();
     }

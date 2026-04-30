@@ -815,7 +815,12 @@
         .warn-active-legend {
             position: absolute;
             right: 12px;
-            bottom: 12px;
+            /* [중요] 메인 하단 탭바(--main-tab-height) 위로 12px 여유.
+               이전 bottom:12px 는 지도 컨테이너 기준 12px 였는데, 메인 탭바가
+               지도 영역의 하단을 덮어 범례가 잘려보이는 문제 발생 → 탭바 높이만큼
+               띄워서 항상 가시 영역 안에 유지. (지도 컨테이너 자체가 viewport 끝까지
+               늘어나는 구조이기 때문) */
+            bottom: calc(var(--main-tab-height, 68px) + 12px);
             z-index: 1100;        /* 우측 컨트롤 스택 위, 정보박스(10500) 보다 아래 */
             background: rgba(255, 255, 255, 0.88);
             backdrop-filter: blur(2px);
@@ -828,14 +833,11 @@
             color: #1f2937;
             user-select: none;
             pointer-events: none;  /* 지도 클릭 방해 방지 — 범례는 정보 표출만 */
-        }
-        .warn-active-legend-title {
-            font-size: 11px;
-            font-weight: 700;
-            color: #0f1c3d;
-            margin-bottom: 5px;
-            text-align: center;
-            letter-spacing: 0.3px;
+            /* 안전망: 종류 추가로 범례가 위로 자라다 viewport 위쪽까지 침범하지
+               않도록 최대 높이 제한 + 내부 스크롤. 메인 탭바(68) + 여유(12) +
+               상단 여유(60) 정도 확보. */
+            max-height: calc(100vh - var(--main-tab-height, 68px) - 80px);
+            overflow-y: auto;
         }
         .warn-active-legend-table {
             border-collapse: collapse;
@@ -1862,40 +1864,9 @@
                     <!-- 활성 특보 색칠 범례
                          [표출 조건] state.active === true 일 때만 (ocean_warn_active4.js 가 토글)
                          [위치] 지도 컨테이너 우측 하단 (메인 탭바 위, CSS position:absolute)
-                         [내용] 종류(풍랑/폭풍해일/태풍) × 단계(발표/주의보/경보) 매트릭스 -->
-                    <div id="ocean-warn-active-legend" class="warn-active-legend" style="display:none;" aria-hidden="true">
-                        <div class="warn-active-legend-title">해상특보</div>
-                        <table class="warn-active-legend-table">
-                            <thead>
-                                <tr>
-                                    <th></th>
-                                    <th>발표</th>
-                                    <th>주의보</th>
-                                    <th>경보</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr data-type="wave">
-                                    <th>풍랑</th>
-                                    <td><span class="wal-swatch" data-stage="upcoming"></span></td>
-                                    <td><span class="wal-swatch" data-stage="watch"></span></td>
-                                    <td><span class="wal-swatch" data-stage="warn"></span></td>
-                                </tr>
-                                <tr data-type="surge">
-                                    <th>폭풍해일</th>
-                                    <td><span class="wal-swatch" data-stage="upcoming"></span></td>
-                                    <td><span class="wal-swatch" data-stage="watch"></span></td>
-                                    <td><span class="wal-swatch" data-stage="warn"></span></td>
-                                </tr>
-                                <tr data-type="typhoon">
-                                    <th>태풍</th>
-                                    <td><span class="wal-swatch" data-stage="upcoming"></span></td>
-                                    <td><span class="wal-swatch" data-stage="watch"></span></td>
-                                    <td><span class="wal-swatch" data-stage="warn"></span></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                         [내용] 현재 활성 특보(state.activeMap) 에 존재하는 종류·단계만 동적 표출
+                                — ocean_warn_active4.js _renderLegend() 가 매번 <table> 을 다시 빌드 -->
+                    <div id="ocean-warn-active-legend" class="warn-active-legend" style="display:none;" aria-hidden="true"></div>
                 </div>
 
                 <!--
