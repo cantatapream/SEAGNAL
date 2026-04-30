@@ -683,19 +683,34 @@
         .ocean-info-panel li { margin: 4px 0; }
 
         /* ============================================================
-         * 활성 특보 색칠 토글 + 정보박스
+         * 활성 특보 색칠 토글 + 정보박스 + 범례
          * 연계 파일: js/ocean_warn_active1~5.js
-         * 버튼 ID : #ocean-warn-active-toggle-btn (특보구역 버튼 왼쪽)
+         * 버튼 ID : #ocean-warn-active-toggle-btn (특보구역 버튼 좌측, 동적)
          * 박스 클래스: .warn-active-box
+         * 범례 ID : #ocean-warn-active-legend
          * ============================================================ */
 
-        /* 비활성(특보 없음) 상태 — 버튼은 살아 있되 클릭해도 무반응 */
+        /* ── 토글 버튼 가로 배치 wrapper ───────────────────────────
+           특보구역 버튼을 기준점으로, 특보 ON/OFF 버튼을 왼쪽에 absolute 배치.
+           wrapper 자체는 vertical stack 의 1개 슬롯을 차지 (특보구역만큼). */
+        .ocean-warn-zone-wrap {
+            position: relative;
+            /* 부모 .ocean-overlay-controls 가 flex 컬럼 — wrap 도 자연스럽게 한 슬롯 */
+        }
+        /* 특보 ON 토글 — 기본은 숨김. 특보구역 버튼이 ON 일 때만 4.js 가 표출 */
+        #ocean-warn-active-toggle-btn.ocean-warn-active-toggle {
+            position: absolute;
+            top: 0;
+            right: calc(100% + 6px);  /* 특보구역 버튼 좌측 6px 여백 */
+            display: none;             /* 초기 숨김 (4.js 가 동적 토글) */
+        }
         #ocean-warn-active-toggle-btn.warn-active-disabled {
             opacity: 0.55;
             cursor: not-allowed;
         }
-        #ocean-warn-active-toggle-btn.warn-active-disabled .ocean-overlay-label {
-            font-size: 9.5px; /* "특보 없음" 4글자가 들어가도록 살짝 축소 */
+        #ocean-warn-active-toggle-btn .ocean-overlay-label {
+            font-size: 9.5px; /* "특보 없음"/"특보 ON"/"특보 OFF" 5글자까지 들어가도록 */
+            white-space: nowrap;
         }
 
         /* 정보박스 — 어두운 남색 배경 */
@@ -752,12 +767,13 @@
             margin-bottom: 4px;
             letter-spacing: 0.3px;
         }
-        /* 다가오는 특보 섹션은 좌측 노란 보더로 시각 구분 */
+        /* 다가오는 특보 섹션 — 발효중 섹션과 가로 구분선으로 분리.
+           [표출 조건] 발효중 + 다가오는 특보가 동시 존재할 때만 (5.js _showBox).
+           단독으로 다가오는 특보만 있는 경우엔 헤더/구분선 모두 미표출. */
         .warn-active-section-upcoming {
-            border-left: 3px dashed #fbbf24;
-            padding-left: 8px;
-            background: rgba(251, 191, 36, 0.05);
-            border-radius: 0 6px 6px 0;
+            border-top: 1px solid rgba(251, 191, 36, 0.45);
+            padding-top: 8px;
+            margin-top: 4px;
         }
         .warn-active-section-upcoming .warn-active-section-title { color: #fbbf24; }
 
@@ -791,6 +807,79 @@
             color: #e5edff;
             font-size: 11.5px;
         }
+
+        /* ── 범례 박스 ─────────────────────────────────────────────
+           [표출 조건] 4.js 가 state.active=true 시 display:'' 로 표출
+           [위치] 지도 컨테이너 우측 하단 absolute
+           [디자인] 반투명 흰색 배경 + 종류×단계 매트릭스 */
+        .warn-active-legend {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            z-index: 1100;        /* 우측 컨트롤 스택 위, 정보박스(10500) 보다 아래 */
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(2px);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 8px;
+            padding: 8px 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+            font-family: "Pretendard", sans-serif;
+            font-size: 11px;
+            color: #1f2937;
+            user-select: none;
+            pointer-events: none;  /* 지도 클릭 방해 방지 — 범례는 정보 표출만 */
+        }
+        .warn-active-legend-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: #0f1c3d;
+            margin-bottom: 5px;
+            text-align: center;
+            letter-spacing: 0.3px;
+        }
+        .warn-active-legend-table {
+            border-collapse: collapse;
+        }
+        .warn-active-legend-table th,
+        .warn-active-legend-table td {
+            padding: 2px 5px;
+            text-align: center;
+            font-weight: 500;
+        }
+        .warn-active-legend-table thead th {
+            font-size: 10px;
+            color: #6b7280;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        }
+        .warn-active-legend-table tbody th {
+            text-align: right;
+            padding-right: 6px;
+            font-size: 10.5px;
+            color: #1f2937;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        /* 색상 패치 — 실제 지도 색과 동일 (RGB+alpha) */
+        .wal-swatch {
+            display: inline-block;
+            width: 22px;
+            height: 14px;
+            border-radius: 3px;
+            vertical-align: middle;
+        }
+        /* 풍랑 (초록) */
+        tr[data-type="wave"]    .wal-swatch[data-stage="upcoming"] { background: rgba(34,197,94,0.25); border:1px solid rgba(34,197,94,0.95); }
+        tr[data-type="wave"]    .wal-swatch[data-stage="watch"]    { background: rgba(34,197,94,0.50); border:1px solid rgba(34,197,94,0.95); }
+        tr[data-type="wave"]    .wal-swatch[data-stage="warn"]     { background: rgba(34,197,94,0.75); border:1px solid rgba(34,197,94,0.95); }
+        /* 폭풍해일 (카키) */
+        tr[data-type="surge"]   .wal-swatch[data-stage="upcoming"] { background: rgba(202,138,4,0.25); border:1px solid rgba(202,138,4,0.95); }
+        tr[data-type="surge"]   .wal-swatch[data-stage="watch"]    { background: rgba(202,138,4,0.50); border:1px solid rgba(202,138,4,0.95); }
+        tr[data-type="surge"]   .wal-swatch[data-stage="warn"]     { background: rgba(202,138,4,0.75); border:1px solid rgba(202,138,4,0.95); }
+        /* 태풍 (빨강) */
+        tr[data-type="typhoon"] .wal-swatch[data-stage="upcoming"] { background: rgba(220,38,38,0.25); border:1px solid rgba(220,38,38,0.95); }
+        tr[data-type="typhoon"] .wal-swatch[data-stage="watch"]    { background: rgba(220,38,38,0.50); border:1px solid rgba(220,38,38,0.95); }
+        tr[data-type="typhoon"] .wal-swatch[data-stage="warn"]     { background: rgba(220,38,38,0.75); border:1px solid rgba(220,38,38,0.95); }
     </style>
     <script>window.__SEAGNAL_PAGE = 'index2';</script>
     <title>SEA:GNAL(바다:그 날의 신호)</title>
@@ -1719,22 +1808,30 @@
                             <i class="fa-solid fa-anchor"></i>
                             <span class="ocean-overlay-label">기상부이</span>
                         </button>
-                        <!-- 활성 특보 색칠 토글 (특보구역 버튼 왼쪽)
-                             ON 시: 베이스맵 → 해안도 자동 전환, 부모/자식 폴리곤을 특보 종류·단계별로 색칠
-                             OFF 시: 직전 베이스맵 복귀, 색 제거 (특보구역도 outline 만 유지)
-                             3-state: "특보 없음"(disabled) / "ON"(회색 경광등) / "OFF"(빨간 경광등)
-                             [연계] js/ocean_warn_active1~5.js -->
-                        <button class="ocean-overlay-btn" id="ocean-warn-active-toggle-btn" title="활성 특보 색칠">
-                            <i class="fa-solid fa-bell"></i>
-                            <span class="ocean-overlay-label">ON</span>
-                        </button>
-                        <!-- 특보구역 토글: ocean_warn_zone.js 가 바인딩
-                             KMA 해상 예특보구역(44개) 폴리곤 outline 을 지도에 표시
-                             [연계] js/ocean_warn_zone.js, /api/warn-zones (GeoJSON) -->
-                        <button class="ocean-overlay-btn" id="ocean-warn-zone-toggle-btn" title="특보구역">
-                            <i class="fa-solid fa-draw-polygon"></i>
-                            <span class="ocean-overlay-label">특보구역</span>
-                        </button>
+                        <!-- 특보구역 + 활성 특보 색칠 토글 묶음
+                             [HTML 구조 의도]
+                               .ocean-warn-zone-wrap (relative) 안에:
+                                 ① #ocean-warn-active-toggle-btn  — absolute, 특보구역 버튼 좌측에 가로 배치
+                                                                    특보구역 버튼이 active 일 때만 display
+                                 ② #ocean-warn-zone-toggle-btn    — 기존 그대로
+                             [동적 표출] ocean_warn_active4.js 가 _renderButton 에서 특보구역 버튼의
+                                         active 클래스를 보고 ① 의 display 를 토글.
+                             [연계] js/ocean_warn_zone.js (특보구역 토글), js/ocean_warn_active1~5.js (색칠) -->
+                        <div class="ocean-warn-zone-wrap">
+                            <!-- 활성 특보 색칠 토글 — 3-state:
+                                 "특보 없음"(disabled) / "특보 ON"(회색 경광등) / "특보 OFF"(빨간 경광등) -->
+                            <button class="ocean-overlay-btn ocean-warn-active-toggle" id="ocean-warn-active-toggle-btn" title="활성 특보 색칠">
+                                <i class="fa-solid fa-bell"></i>
+                                <span class="ocean-overlay-label">특보 ON</span>
+                            </button>
+                            <!-- 특보구역 토글: ocean_warn_zone.js 가 바인딩
+                                 KMA 해상 예특보구역(44개) 폴리곤 outline 을 지도에 표시
+                                 [연계] js/ocean_warn_zone.js, /api/warn-zones (GeoJSON) -->
+                            <button class="ocean-overlay-btn" id="ocean-warn-zone-toggle-btn" title="특보구역">
+                                <i class="fa-solid fa-draw-polygon"></i>
+                                <span class="ocean-overlay-label">특보구역</span>
+                            </button>
+                        </div>
                         <!-- 해구도 토글: ocean_map.js 의 bindMarineZoneGridToggle 가 바인딩
                              KMA marine_zone/area GeoJSON(1331개 0.5°×0.5° 셀)을 outline 으로 표시.
                              클라이언트 측에서 각 셀을 3×3 분할해 줌인 시 소해구도 함께 그림.
@@ -1761,6 +1858,44 @@
 
                     <!-- 캔버스 오버레이 (파티클/색상 그라디언트) -->
                     <canvas id="ocean-overlay-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; border-radius:10px;"></canvas>
+
+                    <!-- 활성 특보 색칠 범례
+                         [표출 조건] state.active === true 일 때만 (ocean_warn_active4.js 가 토글)
+                         [위치] 지도 컨테이너 우측 하단 (메인 탭바 위, CSS position:absolute)
+                         [내용] 종류(풍랑/폭풍해일/태풍) × 단계(발표/주의보/경보) 매트릭스 -->
+                    <div id="ocean-warn-active-legend" class="warn-active-legend" style="display:none;" aria-hidden="true">
+                        <div class="warn-active-legend-title">해상특보</div>
+                        <table class="warn-active-legend-table">
+                            <thead>
+                                <tr>
+                                    <th></th>
+                                    <th>발표</th>
+                                    <th>주의보</th>
+                                    <th>경보</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr data-type="wave">
+                                    <th>풍랑</th>
+                                    <td><span class="wal-swatch" data-stage="upcoming"></span></td>
+                                    <td><span class="wal-swatch" data-stage="watch"></span></td>
+                                    <td><span class="wal-swatch" data-stage="warn"></span></td>
+                                </tr>
+                                <tr data-type="surge">
+                                    <th>폭풍해일</th>
+                                    <td><span class="wal-swatch" data-stage="upcoming"></span></td>
+                                    <td><span class="wal-swatch" data-stage="watch"></span></td>
+                                    <td><span class="wal-swatch" data-stage="warn"></span></td>
+                                </tr>
+                                <tr data-type="typhoon">
+                                    <th>태풍</th>
+                                    <td><span class="wal-swatch" data-stage="upcoming"></span></td>
+                                    <td><span class="wal-swatch" data-stage="watch"></span></td>
+                                    <td><span class="wal-swatch" data-stage="warn"></span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <!--

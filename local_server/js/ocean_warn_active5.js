@@ -85,41 +85,69 @@
     // ────────────────────────────────────────────────────────────────────
 
     /**
+     * 알림 종류·등급 라벨을 우리 표기 규칙으로 정규화.
+     *
+     * [입력 예시]    [출력]
+     *   warnType="풍랑",     level="주의보", isUpcoming=false → "풍랑주의보 발효"
+     *   warnType="풍랑",     level="경보",   isUpcoming=false → "풍랑경보 발효"
+     *   warnType="풍랑",     level="주의보", isUpcoming=true  → "풍랑주의보 발표"
+     *   warnType="풍랑예비", level="예비",   isUpcoming=true  → "풍랑주의보 발표"
+     *   warnType="태풍",     level="경보",   isUpcoming=false → "태풍경보 발효"
+     *
+     * [정규화 규칙]
+     *   - warnType 끝의 "예비" 제거 (KMA raw "풍랑예비" → "풍랑")
+     *   - level === "예비" → "주의보" (예비 = 풍랑주의보가 곧 발효 예정 상태)
+     *   - 상태 접미사: isUpcoming(=isPreliminary)=true → " 발표", false → " 발효"
+     */
+    function _buildTypeText(a, isUpcoming) {
+        var type = (a.warnType || '').replace(/예비$/, '');     // "풍랑예비" → "풍랑"
+        var lvl  = (a.level === '예비') ? '주의보' : (a.level || '');
+        var state = isUpcoming ? '발표' : '발효';
+        return type + lvl + ' ' + state;
+    }
+
+    /**
      * 한 알림(alertItem) 을 박스 한 블록으로 렌더링.
      *
-     * [표시 라인]
-     *   - 종류·등급 (예: "풍랑경보" / "태풍주의보(발효 예정)")
-     *   - 발표 (tmFc)         — 값 있을 때만
-     *   - 발효 / 발효 예정    — 값 있을 때만 (upcoming 이면 "발효 예정")
-     *   - 해제 (tmCc)         — 값 있을 때만
-     *   - 격상/격하           — command='변경' + prevLevel 있을 때만
+     * [표시 라인 — 데이터 있을 때만]
+     *   - 종류·등급·상태 (예: "풍랑경보 발효" / "태풍주의보 발표")
+     *   - 발표 (tmFc)
+     *   - 발효 / 발효 예정 (tmEf, isUpcoming 분기)
+     *   - 해제 / 해제 예정 (tmCc, 있으면 "해제 예정" 으로 표기)
+     *   - 격상/격하 (command='변경' + prevLevel)
      *
-     * @param {Object} a       - alertItem
-     * @param {boolean} isUpcoming - true 면 "발효 예정" 라벨 사용
+     * @param {Object} a          - alertItem (appState.alerts[])
+     * @param {boolean} isUpcoming - true 면 "발표/발효 예정" 라벨 사용
      */
     function _renderAlertBlock(a, isUpcoming) {
         var lines = [];
-        var typeText = (a.warnType || '') + (a.level || '');
-        if (isUpcoming) typeText += ' (발효 예정)';
-        lines.push('<div class="warn-active-line warn-active-type">• ' + _esc(typeText) + '</div>');
+
+        // 종류·등급·상태 라벨 (예: "풍랑주의보 발표")
+        lines.push('<div class="warn-active-line warn-active-type">• '
+            + _esc(_buildTypeText(a, isUpcoming)) + '</div>');
 
         if (a.tmFc) {
             lines.push('<div class="warn-active-line"><span class="warn-active-key">발표</span>'
                 + '<span class="warn-active-val">' + _esc(_fmtTime(a.tmFc)) + '</span></div>');
         }
         if (a.tmEf) {
+            // isUpcoming=true 면 "발효 예정", false 면 "발효"
             var efLabel = isUpcoming ? '발효 예정' : '발효';
             lines.push('<div class="warn-active-line"><span class="warn-active-key">' + efLabel + '</span>'
                 + '<span class="warn-active-val">' + _esc(_fmtTime(a.tmEf)) + '</span></div>');
         }
+        // 해제 시각이 잡혀 있으면 "해제 예정" 으로 표기.
+        // [근거] appState.alerts 에는 아직 활성 또는 다가오는 알림만 들어감
+        //        (이미 해제된 알림은 제외) → tmCc 가 있다면 향후 해제 예정 시각.
         if (a.tmCc) {
-            lines.push('<div class="warn-active-line"><span class="warn-active-key">해제</span>'
+            lines.push('<div class="warn-active-line"><span class="warn-active-key">해제 예정</span>'
                 + '<span class="warn-active-val">' + _esc(_fmtTime(a.tmCc)) + '</span></div>');
         }
         // 격상/격하 — data.js 에서 command='변경' + prevLevel 채워줌
         if (a.command === '변경' && a.prevLevel) {
             // 이전 등급 → 현재 등급 (예: "주의보 → 경보")
-            var arrow = a.prevLevel + ' → ' + (a.level || '');
+            var curLvl = (a.level === '예비') ? '주의보' : (a.level || '');
+            var arrow = a.prevLevel + ' → ' + curLvl;
             lines.push('<div class="warn-active-line"><span class="warn-active-key">격상/격하</span>'
                 + '<span class="warn-active-val">' + _esc(arrow) + '</span></div>');
         }
@@ -163,18 +191,29 @@
 
         var hasCurrent = info.allCurrents.length > 0;
         var hasUpcoming = info.allUpcomings.length > 0;
+        // "다가오는 특보" 섹션 헤더는 '둘 다 있을 때' 만 표출 (요구사항).
+        // 단독으로 다가오는 특보만 있는 경우엔 "현재 발효 중" 등 헤더 없이
+        // 그 알림 블록만 표출 → 사용자에게 혼동을 주지 않음.
+        var showSectionHeaders = hasCurrent && hasUpcoming;
 
         if (hasCurrent) {
             html += '<div class="warn-active-section">';
-            html += '  <div class="warn-active-section-title">현재 발효 중</div>';
+            // 둘 다 있을 때만 명시적 헤더. 단독이면 zone 명 아래 바로 알림 블록.
+            // (현재 발효 중 헤더는 다가오는 특보 헤더와의 시각적 균형을 위해 단독엔 생략)
             for (var i = 0; i < info.allCurrents.length; i++) {
                 html += '<div class="warn-active-item">' + _renderAlertBlock(info.allCurrents[i], false) + '</div>';
             }
             html += '</div>';
         }
         if (hasUpcoming) {
-            html += '<div class="warn-active-section warn-active-section-upcoming">';
-            html += '  <div class="warn-active-section-title">다가오는 특보</div>';
+            // 단독이면 일반 섹션, 둘 다면 "다가오는 특보" 헤더 + 가로 구분선 표시
+            var sectionClass = showSectionHeaders
+                ? 'warn-active-section warn-active-section-upcoming'
+                : 'warn-active-section';
+            html += '<div class="' + sectionClass + '">';
+            if (showSectionHeaders) {
+                html += '  <div class="warn-active-section-title">다가오는 특보</div>';
+            }
             for (var j = 0; j < info.allUpcomings.length; j++) {
                 html += '<div class="warn-active-item">' + _renderAlertBlock(info.allUpcomings[j], true) + '</div>';
             }
