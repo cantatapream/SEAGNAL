@@ -152,7 +152,6 @@ local_server/data/subregion_error_log.json
 | `PARENT_CHILD_MISMATCH` | 부모-자식 데이터 불일치 | 부모 미발효인데 자식 발효 등 |
 | `STALE_PARENT` | 부모 통보문 24시간 무변화 | 안전장치 트리거 |
 | `RANGE_TIME_PARENT` | 부모 통보문 범위형 시각 | 통보문 갱신 대기 |
-| `DUPLICATE_ROW` | 응답에 같은 regId 중복 (드묾) | 데이터 무결성 이상 |
 
 ### 4.2 오류 유형 추가 시
 

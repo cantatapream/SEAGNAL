@@ -25,6 +25,52 @@
 
 ---
 
+## 1-A. 동일 해역의 다중 특보 처리 정책 (전제)
+
+### 1-A.1 단일 특보 전제 (사용자 결정 사항)
+
+본 작업은 다음을 전제로 합니다.
+
+- **동일 자식해역에 두 종류의 특보(예: 풍랑 + 폭풍해일)가 동시에 발효되는 경우는 없음**
+- 이는 사용자 결정 사항이며, 자연 발생적으로도 매우 드문 케이스
+- upcoming(예비) 형태로는 동시에 존재할 수 있음 (예: 풍랑 발효 + 폭풍해일 예비)
+
+### 1-A.2 만약 발생할 경우의 폴백 정책 — 풍랑 우선
+
+데이터 이상 또는 매우 드문 케이스로 동일 자식해역에 두 종류의 특보가 동시에 발효 행으로 들어올 경우의 폴백 정책:
+
+- **풍랑을 우선 표시**
+- 다른 종류는 무시 (오류 로그 기록)
+
+### 1-A.3 함수 형태
+
+```
+function selectPrimaryWarning(rows):
+  # 동일 regId 행이 여러 종류로 들어온 경우
+  windRows = rows.filter(r => r.wrnTp == "풍랑" and not isEmptyRow(r))
+  otherRows = rows.filter(r => r.wrnTp != "풍랑" and not isEmptyRow(r))
+
+  if windRows.length > 0 and otherRows.length > 0:
+    log("[데이터 이상] 동일 해역에 풍랑과 다른 종류 특보 동시 발효 — 풍랑 우선")
+    return windRows[0]
+
+  if windRows.length > 0:
+    return windRows[0]
+
+  if otherRows.length > 0:
+    return otherRows[0]
+
+  return null
+```
+
+### 1-A.4 정책의 근거
+
+- 풍랑은 해상에서 가장 자주 발효되는 특보 종류
+- 사용자(선원)에게 가장 직접적인 영향
+- 만약 두 종류가 함께 들어왔다면 사용자에게 가장 중요한 풍랑을 우선 노출하는 것이 안전 측
+
+---
+
 ## 2. 자식해역에 예비특보가 등장하는 패턴
 
 ### 2.1 패턴 A — 자식이 다른 발효 중 + 별종 예비특보 등장
