@@ -681,6 +681,116 @@
             padding: 0;
         }
         .ocean-info-panel li { margin: 4px 0; }
+
+        /* ============================================================
+         * 활성 특보 색칠 토글 + 정보박스
+         * 연계 파일: js/ocean_warn_active1~5.js
+         * 버튼 ID : #ocean-warn-active-toggle-btn (특보구역 버튼 왼쪽)
+         * 박스 클래스: .warn-active-box
+         * ============================================================ */
+
+        /* 비활성(특보 없음) 상태 — 버튼은 살아 있되 클릭해도 무반응 */
+        #ocean-warn-active-toggle-btn.warn-active-disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+        #ocean-warn-active-toggle-btn.warn-active-disabled .ocean-overlay-label {
+            font-size: 9.5px; /* "특보 없음" 4글자가 들어가도록 살짝 축소 */
+        }
+
+        /* 정보박스 — 어두운 남색 배경 */
+        .warn-active-box {
+            position: fixed;
+            z-index: 10500;          /* 지도 컨트롤(1000~) 보다 위, 모달(20000) 보다 아래 */
+            min-width: 240px;
+            max-width: 340px;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+            background: #0f1c3d;
+            color: #e5edff;
+            border: 1px solid rgba(120, 160, 220, 0.35);
+            border-radius: 10px;
+            box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+            font-family: "Pretendard", sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .warn-active-box-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px 8px;
+            border-bottom: 1px solid rgba(120, 160, 220, 0.18);
+        }
+        .warn-active-box-title {
+            font-weight: 700;
+            font-size: 13px;
+            color: #ffffff;
+        }
+        .warn-active-box-close {
+            background: transparent;
+            border: none;
+            color: #cbd5e1;
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0 4px;
+        }
+        .warn-active-box-close:hover { color: #ffffff; }
+        .warn-active-box-body {
+            padding: 8px 12px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .warn-active-section { padding: 4px 0; }
+        .warn-active-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #a8b8d8;
+            margin-bottom: 4px;
+            letter-spacing: 0.3px;
+        }
+        /* 다가오는 특보 섹션은 좌측 노란 보더로 시각 구분 */
+        .warn-active-section-upcoming {
+            border-left: 3px dashed #fbbf24;
+            padding-left: 8px;
+            background: rgba(251, 191, 36, 0.05);
+            border-radius: 0 6px 6px 0;
+        }
+        .warn-active-section-upcoming .warn-active-section-title { color: #fbbf24; }
+
+        .warn-active-item {
+            padding: 4px 0;
+        }
+        .warn-active-item + .warn-active-item {
+            border-top: 1px dotted rgba(120, 160, 220, 0.18);
+            margin-top: 4px;
+            padding-top: 6px;
+        }
+        .warn-active-line {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+            margin: 1px 0;
+        }
+        .warn-active-type {
+            font-weight: 700;
+            color: #ffffff;
+            font-size: 12.5px;
+            margin-bottom: 2px;
+        }
+        .warn-active-key {
+            flex: 0 0 64px;
+            color: #93a3c4;
+            font-size: 11px;
+        }
+        .warn-active-val {
+            flex: 1 1 auto;
+            color: #e5edff;
+            font-size: 11.5px;
+        }
     </style>
     <script>window.__SEAGNAL_PAGE = 'index2';</script>
     <title>SEA:GNAL(바다:그 날의 신호)</title>
@@ -1609,6 +1719,15 @@
                             <i class="fa-solid fa-anchor"></i>
                             <span class="ocean-overlay-label">기상부이</span>
                         </button>
+                        <!-- 활성 특보 색칠 토글 (특보구역 버튼 왼쪽)
+                             ON 시: 베이스맵 → 해안도 자동 전환, 부모/자식 폴리곤을 특보 종류·단계별로 색칠
+                             OFF 시: 직전 베이스맵 복귀, 색 제거 (특보구역도 outline 만 유지)
+                             3-state: "특보 없음"(disabled) / "ON"(회색 경광등) / "OFF"(빨간 경광등)
+                             [연계] js/ocean_warn_active1~5.js -->
+                        <button class="ocean-overlay-btn" id="ocean-warn-active-toggle-btn" title="활성 특보 색칠">
+                            <i class="fa-solid fa-bell"></i>
+                            <span class="ocean-overlay-label">ON</span>
+                        </button>
                         <!-- 특보구역 토글: ocean_warn_zone.js 가 바인딩
                              KMA 해상 예특보구역(44개) 폴리곤 outline 을 지도에 표시
                              [연계] js/ocean_warn_zone.js, /api/warn-zones (GeoJSON) -->
@@ -2327,6 +2446,12 @@
     <script src="js/ocean_overlay.js"></script>
     <script src="js/ocean_buoy.js"></script>
     <script src="js/ocean_warn_zone.js"></script>
+    <!-- 활성 특보 색칠 모듈 (5개 파일 분할, 의존: ocean_warn_zone.js + data.js + ocean_map.js) -->
+    <script src="js/ocean_warn_active1.js"></script>
+    <script src="js/ocean_warn_active2.js"></script>
+    <script src="js/ocean_warn_active3.js"></script>
+    <script src="js/ocean_warn_active4.js"></script>
+    <script src="js/ocean_warn_active5.js"></script>
     <script src="js/ocean_timeline.js"></script>
 
     <script src="js/admin_trigger.js"></script>
