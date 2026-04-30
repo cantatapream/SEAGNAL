@@ -43,6 +43,7 @@ function loadPendingPushes() {
     return [];
 }
 
+/** 발송 대기열 객체를 PENDING_PUSH_FILE 에 동기 저장 (재시작 후에도 보존). */
 function savePendingPushes(pending) {
     try {
         fs.writeFileSync(PENDING_PUSH_FILE, JSON.stringify(pending, null, 2), 'utf8');
@@ -51,6 +52,7 @@ function savePendingPushes(pending) {
     }
 }
 
+/** 발송 완료/실패 정리 후 대기열 파일 삭제 — 다음 사이클에서 깨끗한 상태로 시작. */
 function clearPendingPushes() {
     try {
         if (fs.existsSync(PENDING_PUSH_FILE)) {
@@ -321,6 +323,10 @@ async function retryPendingPushes() {
     }
 }
 
+/**
+ * 같은 (template, type, level) 알림을 한 그룹에 모아 묶음 발송 효율화.
+ * key = 'templateId_typeName_level' 로 중복 검출 → groups[key].items 에 push.
+ */
 function addToGroup(groups, templateId, typeName, level, itemData) {
     const key = `${templateId}_${typeName}_${level}`;
 

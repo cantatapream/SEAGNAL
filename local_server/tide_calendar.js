@@ -1,11 +1,21 @@
-// ===========================
-// 커스텀 달력 모달
-// ===========================
+// ============================================================================
+// tide_calendar.js — 커스텀 달력 모달
+// ----------------------------------------------------------------------------
+// [역할] 조석 정보 화면에서 날짜 선택 시 띄우는 한국형 달력 모달.
+//        native <input type="date"> 대신 직접 빌드한 모달(연도·월 드롭다운 +
+//        7×6 격자) 로 모바일/PC 양쪽에서 일관된 UX 제공.
+// [데이터 범위] 2026~2028 년 (조석 데이터 보유 연도). 그 외는 네비/선택 차단.
+// [연계] tide.js 의 currentTideDate 전역 변수 + updateTideDateDisplay 호출.
+// ============================================================================
 
 let calendarModal = null;
 let calendarYear = new Date().getFullYear();
 let calendarMonth = new Date().getMonth();
 
+/**
+ * 조석 날짜 선택 모달을 띄움 — 첫 호출 시 createCalendarModal 로 DOM 생성.
+ * 현재 선택된 날짜를 기준으로 달력 위치 설정 후 렌더 + body 스크롤 잠금.
+ */
 function showTideDatePicker() {
     // 모달이 없으면 생성
     if (!calendarModal) {
@@ -21,6 +31,7 @@ function showTideDatePicker() {
     document.body.style.overflow = 'hidden';
 }
 
+/** 달력 모달 닫기 — show 클래스 제거 + body 스크롤 잠금 해제. */
 function hideCalendarModal() {
     if (calendarModal) {
         calendarModal.classList.remove('show');
@@ -28,6 +39,11 @@ function hideCalendarModal() {
     }
 }
 
+/**
+ * 달력 모달 DOM 1회 생성 — 첫 호출에서만 동작 (calendarModal 캐시).
+ * 헤더(이전/다음 월·연도 select·닫기), 요일, 날짜 영역, 오늘 버튼 포함.
+ * 연도 select 는 2026/2027/2028 만 노출 (조석 데이터 범위).
+ */
 function createCalendarModal() {
     const modal = document.createElement('div');
     modal.className = 'tide-calendar-modal';
@@ -101,6 +117,12 @@ function createCalendarModal() {
     });
 }
 
+/**
+ * 달력 본문(7×6 격자) 을 calendarYear/calendarMonth 기준으로 다시 그림.
+ * - 이전 달 끝 일자 일부 + 현재 달 + 다음 달 첫 일자 일부로 6주분 표시
+ * - 오늘 날짜 / 선택 날짜 강조 (today / selected 클래스)
+ * - 클릭 핸들러는 selectCalendarDate(date) 로 등록
+ */
 function renderCalendar() {
     const yearSelect = document.getElementById('tide-calendar-year');
     const monthSelect = document.getElementById('tide-calendar-month');
@@ -155,6 +177,10 @@ function renderCalendar() {
     daysContainer.innerHTML = html;
 }
 
+/**
+ * 이전 달로 이동 — 데이터 범위 하한(2026년 1월) 미만이면 차단.
+ * year underflow(month -1 → 12월/이전년) 처리.
+ */
 function prevCalendarMonth() {
     let nextMonth = calendarMonth - 1;
     let nextYear = calendarYear;
@@ -171,6 +197,10 @@ function prevCalendarMonth() {
     renderCalendar();
 }
 
+/**
+ * 다음 달로 이동 — 데이터 범위 상한(2028년 12월) 초과면 차단.
+ * year overflow(month 12 → 0/다음년) 처리.
+ */
 function nextCalendarMonth() {
     let nextMonth = calendarMonth + 1;
     let nextYear = calendarYear;
@@ -187,12 +217,19 @@ function nextCalendarMonth() {
     renderCalendar();
 }
 
+/**
+ * 달력 날짜 셀 클릭 — currentTideDate 갱신 + 화면/팝업 갱신 + 모달 닫기.
+ */
 function selectCalendarDate(date) {
     currentTideDate = new Date(calendarYear, calendarMonth, date);
     updateTideDateDisplay();
     hideCalendarModal();
 }
 
+/**
+ * "오늘" 버튼 — 달력 표시를 오늘 일자로 점프 + currentTideDate 도 오늘로 갱신.
+ * 데이터 범위(2026~2028) 밖 오늘이라도 일단 시도 — 화면 동기화는 유지.
+ */
 function selectToday() {
     currentTideDate = new Date();
     calendarYear = currentTideDate.getFullYear();

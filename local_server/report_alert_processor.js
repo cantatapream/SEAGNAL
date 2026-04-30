@@ -1,3 +1,23 @@
+/**
+ * ============================================================================
+ * 파일명: report_alert_processor.js
+ * 역할 : KMA 특보 통보문(특보 발표/해제/격상격하) 페이지를 크롤링하여
+ *        weather_alerts.json 의 zone tree 를 갱신.
+ * ============================================================================
+ *
+ * [수집 흐름]
+ *   1) /w/special-report/list.do 에서 최근 통보문 목록 fetch
+ *   2) 각 통보문 상세를 fetch + ai_report_parser 로 zone/type/level 추출
+ *   3) 기존 weather_alerts.json 의 해당 zone 노드를 새 정보로 갱신
+ *
+ * [캐시] data/collect_cache/ — 통보문 원본 HTML 캐시 (중복 fetch 방지)
+ *
+ * [연계]
+ *   - ai_report_parser.js : 자연어 통보문 → 구조화
+ *   - scheduler.js        : 1시간 간격으로 이 모듈 호출
+ * ============================================================================
+ */
+
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
@@ -39,6 +59,10 @@ const ZONE_GROUP_MAP = {
     "제주도먼바다": ["제주도남쪽바깥먼바다", "제주도남동쪽안쪽먼바다", "제주도남서쪽안쪽먼바다"]
 };
 
+/**
+ * 단순 HTTPS GET 후 본문 텍스트(UTF-8) 반환.
+ * KMA 특보 페이지가 https.get 의 raw 출력을 그대로 받기 좋아 fetch 대신 사용.
+ */
 async function fetchHtml(url) {
     return new Promise((resolve, reject) => {
         https.get(url, {
@@ -113,6 +137,12 @@ function parseKmaTime(timeStr) {
     return new Date(`${y}-${m}-${d}T${h}:${min}:00+09:00`);
 }
 
+/**
+ * weather_alerts.json 트리에서 targetZone 을 찾아 event(발표/발효/해제/변경)
+ * 로 상태 갱신. 재귀로 깊은 트리 탐색 — children 도 포함.
+ *
+ * @returns {boolean} - 매칭된 zone 을 찾아 갱신했으면 true
+ */
 function updateZoneStatus(obj, targetZone, event, referenceTime) {
     if (!obj || typeof obj !== 'object') return false;
     for (const [key, value] of Object.entries(obj)) {
@@ -188,6 +218,17 @@ function updateZoneStatus(obj, targetZone, event, referenceTime) {
     return false;
 }
 
+/**
+ * 신규 통보문을 fetch 후 fullForm(전체 트리) 에 적용 — 본 모듈의 진입점.
+ *
+ * [절차]
+ *   1) lastReportId 보다 새로운 통보문 ID 목록 조회
+ *   2) 각 통보문 상세를 fetch + AI parser 로 추출
+ *   3) updateZoneStatus 로 해당 zone 노드 갱신
+ *   4) lastReportId 갱신 후 반환
+ *
+ * @param {Object} fullForm - createFullForm() 결과
+ */
 async function applyNewReports(fullForm) {
     console.log(`[ReportProcessor] 체크 중... (LastId: ${fullForm.lastReportId})`);
     try {

@@ -125,6 +125,10 @@ function createZoneStructure() {
     };
 }
 
+/**
+ * weather_alerts.json 의 빈 골격(full form) 생성 — 첫 수집 시 또는 reset 시 사용.
+ * 동/서/남/제주 4 sea 트리 + updatedAt 메타.
+ */
 function createFullForm() {
     return {
         updatedAt: null,
@@ -169,6 +173,10 @@ function parseChildWarnings(html, form) {
     const activeChildren = new Set();
     const allChildren = [];
 
+    /**
+     * full form 트리 재귀 순회 — 자식해역(children) 만 모음.
+     * coastalMap 같은 부수 데이터 빌드 시 사용.
+     */
     function collectChildren(obj) {
         if (!obj || typeof obj !== 'object') return;
         if (obj.children) {
@@ -340,6 +348,10 @@ function resolvePendingStatuses(obj, zoneName = null, referenceTime = null) {
 function detectChanges(previous, current) {
     const changes = [];
 
+    /**
+     * 이전 트리(prevNode) 와 현재 트리(currNode) 를 동시에 재귀 순회하여
+     * 변경 사항(추가/해제/격상격하) 을 path 배열에 누적 — diff 알고리즘.
+     */
     function traverse(prevNode, currNode, path = []) {
         if (!currNode || typeof currNode !== 'object') return;
 

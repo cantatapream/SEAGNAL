@@ -1034,6 +1034,10 @@ const COASTAL_ZONE_ALIASES = {
     '인천·경기남부앞바다': '경기남부앞바다',
 };
 
+/**
+ * 지역 예보(regional_forecasts.json) 에서 연안 정보만 추출해 반환.
+ * 연안바다(coastal) 단위 표출이 필요한 화면(특보 카드 등) 에서 사용.
+ */
 function loadCoastalForecasts() {
     const regional = loadRegionalForecasts();
     const result = {};

@@ -1,5 +1,17 @@
+/**
+ * ============================================================================
+ * 파일명: _fetch_reports.js
+ * 역할 : 개발/디버그용 1회성 스크립트 — KMA 특보 통보문 30건의 본문 텍스트를
+ *        콘솔에 출력하여 ai_report_parser 의 입력 샘플 확보 + 파싱 검증.
+ *
+ *        파일명 _ 접두사: 운영 코드와 분리(서버 startup 에 require 안 됨).
+ *        실행: node local_server/_fetch_reports.js
+ * ============================================================================
+ */
+
 const https = require("https");
 
+/** KMA 특보 페이지 HTML 본문 fetch (User-Agent 헤더로 봇 차단 회피). */
 function fetchHtml(url) {
     return new Promise((resolve, reject) => {
         https.get(url, {
@@ -12,6 +24,10 @@ function fetchHtml(url) {
     });
 }
 
+/**
+ * 통보문 reportId(예: "108:20260430:abcd") 의 상세 페이지에서 본문 텍스트 추출.
+ * cmp-view-content 영역을 정규식으로 파싱 + HTML 태그 제거 후 텍스트만 반환.
+ */
 async function fetchReportDetail(reportId) {
     const parts = reportId.split(':');
     const dateStr = parts[1] || '';
@@ -41,6 +57,10 @@ async function fetchReportDetail(reportId) {
     return text;
 }
 
+/**
+ * 스크립트 진입점 — 1~3 페이지의 통보문 ID 목록 수집 후 각 통보문 본문을
+ * 차례로 fetch + 콘솔 출력. 최대 30건까지. "참고사항" 이후 부분은 잘라냄.
+ */
 async function main() {
     // Step 1: Get report list (pages 1-3)
     const allReports = [];
