@@ -19,12 +19,16 @@ primary_region = 'nrt'
   processes = ['app']
 
 [[vm]]
-  # [VM 사이즈 — shared-cpu-2x / 512MB]
-  #   - cpus = 1 → 2 변경: 동시 요청 처리량 30-50% 개선 (libuv 워커풀, GC 백그라운드 스레드가
-  #     추가 vCPU 활용. Node 메인 JS 스레드는 단일이지만 시스템 전체 부담 분산).
-  #   - 메모리는 512MB 그대로 (현재 사용량 약 200MB / 459MB → 여유 충분).
-  #   - 비용 영향: 월 약 $3.19 → $3.89 (shared-cpu-2x 512MB 기준, +$0.70/월).
-  memory = '512mb'
+  # [VM 사이즈 — shared-cpu-2x / 1GB]
+  #   - cpus = 2 (shared) — 동시 요청 처리량 30-50% 개선 (libuv 워커풀,
+  #     GC 백그라운드 스레드가 추가 vCPU 활용).
+  #   - 메모리 1GB — 이전 512MB 에서 OOM 발생 사례 있어 증액.
+  #     OOM 원인: lazy 로드된 SDK들(firebase-admin/cloudinary/GCS/Gemini)이
+  #     누적 + 트래픽 증가 + 큰 응답(zone_forecasts.json 5.85MB) 압축 버퍼
+  #     누적으로 512MB 한계 초과.
+  #     1GB 면 평상시 ~300MB 사용 + 안전 마진 700MB 확보.
+  #   - 비용 영향: 월 약 $3.89 → $6.39 (shared-cpu-2x 1GB 기준, +$2.50/월).
+  memory = '1gb'
   cpu_kind = 'shared'
   cpus = 2
-  memory_mb = 512
+  memory_mb = 1024
