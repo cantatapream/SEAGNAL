@@ -63,14 +63,14 @@
      * 범례 박스 내부 <table> 을 현재 활성 맵(state.activeMap) 기준으로 다시 빌드.
      *
      * [필터링 정책]
-     *   - 행(row, 종류)   : state.activeMap 안에 paletteKey 가 있는 종류만 표출
-     *                       (예: 풍랑만 활성 → 풍랑 행만, 태풍 추가 → 태풍 행도)
-     *   - 열(col, 단계)   : 위 종류들 중 실제 등장한 단계만 표출
-     *                       (예: 풍랑주의보만 → 주의보 열만, 경보 추가 → 경보 열도)
-     *   - 셀(cell, 패치)  : 행×열 매트릭스 전체에 색상 패치 표시. 사용자가 매트릭스
-     *                       구조로 직관 식별 가능 (실제 활성된 셀 + 그 종류의 다른
-     *                       단계 셀 = "이 종류는 이런 진하기 단계가 있다" 시각 학습).
-     *   - 활성 항목 0건   : 범례 자체 숨김 (_setLegendVisible(false)).
+     *   - 열(col, 단계) : 항상 3개 고정 (발표 / 주의보 / 경보).
+     *                     단계는 전부 표출해 사용자가 단계별 색 진하기를 항상 비교 가능.
+     *   - 행(row, 종류): 현재 발효중인 특보의 paletteKey + 다가오는 특보의
+     *                     paletteKey 의 합집합. 즉 "지금은 풍랑경보만 발효 중이지만
+     *                     같은 zone 에 태풍주의보가 다가오고 있다" 면 풍랑·태풍 두 행
+     *                     모두 표출 (사용자에게 향후 변화를 미리 알림).
+     *   - 행 순서       : 풍랑 → 태풍 → 폭풍해일 (사용자 합의).
+     *   - 활성 항목 0건 : 범례 자체 숨김.
      *
      * [호출 시점]
      *   - _setLegendVisible(true) 진입 시
@@ -81,52 +81,56 @@
         var lg = document.getElementById('ocean-warn-active-legend');
         if (!lg) return;
 
-        // 활성 맵 스캔 — 어떤 종류·단계가 등장하는지 집계
-        var typesPresent  = {};   // 'wave'|'surge'|'typhoon' → true
-        var stagesPresent = {};   // 'upcoming'|'watch'|'warn' → true
+        // 활성 맵 스캔 — 현재 + 다가오는 양쪽을 모두 본다.
+        // info.currents / info.upcomings 는 이미 paletteKey 가 있는 알림만 포함됨
+        // (active2.js _buildActiveMap 에서 분류 시 _resolvePaletteKey null 항목 제외).
+        // 단, 종류 식별을 위해 다시 한 번 _resolvePaletteKey 로 확정 (안전).
+        var typesPresent = {};   // 'wave'|'surge'|'typhoon' → true
 
         var keys = Object.keys(state.activeMap);
         for (var i = 0; i < keys.length; i++) {
             var info = state.activeMap[keys[i]];
-            if (!info || !info.paletteKey) continue;
-            typesPresent[info.paletteKey] = true;
-            // _buildActiveMap 의 stage 값 ('upcoming'/'주의보'/'경보') →
-            // 범례 CSS 의 data-stage 값('upcoming'/'watch'/'warn') 으로 매핑
-            var stageKey =
-                (info.stage === 'upcoming') ? 'upcoming' :
-                (info.stage === '경보')     ? 'warn' :
-                                              'watch';     // '주의보' 또는 기타
-            stagesPresent[stageKey] = true;
+            if (!info) continue;
+            // 현재 발효중 (paletteKey 있는 항목들)
+            for (var c = 0; c < info.currents.length; c++) {
+                var pkC = ns._resolvePaletteKey(info.currents[c].warnType);
+                if (pkC) typesPresent[pkC] = true;
+            }
+            // 다가오는(upcoming) — 지도 색이 풍랑이어도 다가오는 게 태풍이면 태풍 행 표출
+            for (var u = 0; u < info.upcomings.length; u++) {
+                var pkU = ns._resolvePaletteKey(info.upcomings[u].warnType);
+                if (pkU) typesPresent[pkU] = true;
+            }
         }
 
-        // 표출 순서: 풍랑 → 폭풍해일 → 태풍 / 발표 → 주의보 → 경보
-        var TYPE_ORDER  = ['wave', 'surge', 'typhoon'];
-        var TYPE_LABELS = { wave: '풍랑', surge: '폭풍해일', typhoon: '태풍' };
+        // 행 순서: 풍랑 → 태풍 → 폭풍해일 (사용자 합의)
+        var TYPE_ORDER  = ['wave', 'typhoon', 'surge'];
+        var TYPE_LABELS = { wave: '풍랑', typhoon: '태풍', surge: '폭풍해일' };
+        // 열은 항상 3개 고정 (발표 → 주의보 → 경보)
         var STAGE_ORDER  = ['upcoming', 'watch', 'warn'];
         var STAGE_LABELS = { upcoming: '발표', watch: '주의보', warn: '경보' };
 
-        var visTypes  = TYPE_ORDER.filter(function (t) { return typesPresent[t]; });
-        var visStages = STAGE_ORDER.filter(function (s) { return stagesPresent[s]; });
+        var visTypes = TYPE_ORDER.filter(function (t) { return typesPresent[t]; });
 
-        // 활성 항목 0건 → 범례 비움 + 숨김
-        if (visTypes.length === 0 || visStages.length === 0) {
+        // 활성 종류 0건 → 범례 비움 + 숨김
+        if (visTypes.length === 0) {
             lg.innerHTML = '';
             lg.style.display = 'none';
             lg.setAttribute('aria-hidden', 'true');
             return;
         }
 
-        // 테이블 빌드
+        // 테이블 빌드 — 열은 STAGE_ORDER 모두, 행은 visTypes 만
         var html = '<table class="warn-active-legend-table"><thead><tr><th></th>';
-        for (var s = 0; s < visStages.length; s++) {
-            html += '<th>' + STAGE_LABELS[visStages[s]] + '</th>';
+        for (var s = 0; s < STAGE_ORDER.length; s++) {
+            html += '<th>' + STAGE_LABELS[STAGE_ORDER[s]] + '</th>';
         }
         html += '</tr></thead><tbody>';
         for (var t = 0; t < visTypes.length; t++) {
             var type = visTypes[t];
             html += '<tr data-type="' + type + '"><th>' + TYPE_LABELS[type] + '</th>';
-            for (var s2 = 0; s2 < visStages.length; s2++) {
-                html += '<td><span class="wal-swatch" data-stage="' + visStages[s2] + '"></span></td>';
+            for (var s2 = 0; s2 < STAGE_ORDER.length; s2++) {
+                html += '<td><span class="wal-swatch" data-stage="' + STAGE_ORDER[s2] + '"></span></td>';
             }
             html += '</tr>';
         }
