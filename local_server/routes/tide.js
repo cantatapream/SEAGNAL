@@ -32,7 +32,8 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch'); // 서버→서버 HTTP 요청용 (Kakao REST API 호출에 사용)
-const { DATA_DIR, IS_FLY_IO, FILES } = require('../config/server_config');
+// IS_FLY_IO 는 디스크 캐시 분기에 사용되었으나 디스크 캐시 제거로 미사용 → import 에서 제외.
+const { DATA_DIR, FILES } = require('../config/server_config');
 const { tideCache } = require('../services/cache_manager');
 const tideCollector = require('../services/tide_collector');
 
@@ -162,24 +163,17 @@ router.post('/api/save_tide_input', async (req, res) => {
 
         for (const pair of datePairs) {
             const fileName = `tide_${pair.date}_${gridHash}.json`;
-            const filePath = path.join(DATA_DIR, fileName);
+            // (디스크 캐시 제거로 filePath 미사용 — fileName 만 메모리 캐시 키 + 클라이언트 폴링 식별자로 사용)
             fileMap[pair.key] = fileName;
 
             let cached = false;
 
-            // [1순위] 메모리 캐시 확인
+            // [캐시 확인] 메모리 캐시(tideCache LRU)만 사용.
+            //   디스크 파일 캐시는 제거됨 — 사용자가 매번 다른 위치를 클릭하므로
+            //   디스크 캐시 적중률이 낮고 파일이 누적되는 부담이 더 컸음.
+            //   메모리 캐시는 같은 사용자 / 동일 격자 재클릭 시 빠른 응답 보장.
             if (tideCache.has(fileName)) {
                 cached = true;
-            }
-            // [2순위] 파일 캐시 확인 (로컬 전용)
-            else if (!IS_FLY_IO && fs.existsSync(filePath)) {
-                try {
-                    const existing = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-                    if (existing.tideBedStatus === 'complete') {
-                        cached = true;
-                        tideCache.set(fileName, existing); // 메모리 로드 (Warm-up)
-                    }
-                } catch (e) { /* corrupt file */ }
             }
 
             if (!cached) {
@@ -189,9 +183,8 @@ router.post('/api/save_tide_input', async (req, res) => {
 
         console.log(`📦 캐시 히트: ${3 - toCollect.length}건, 수집 필요: ${toCollect.length}건`);
 
-        // 3단계: collecting 상태 초기화
+        // 3단계: collecting 상태 초기화 (메모리 캐시에만 — 디스크 저장 제거됨)
         for (const item of toCollect) {
-            const filePath = path.join(DATA_DIR, item.fileName);
             const initData = {
                 requestDate: item.date,
                 requestTime: time,
@@ -202,10 +195,8 @@ router.post('/api/save_tide_input', async (req, res) => {
                 tideBedData: []
             };
 
+            // 메모리 캐시(tideCache LRU)에만 저장. 디스크 파일 저장 제거.
             tideCache.set(item.fileName, initData);
-            if (!IS_FLY_IO) {
-                fs.writeFileSync(filePath, JSON.stringify(initData, null, 2), 'utf8');
-            }
         }
 
         // 클라이언트에 즉시 응답 (격자 해시 + 파일명 포함)
@@ -232,15 +223,9 @@ router.post('/api/save_tide_input', async (req, res) => {
                 // 캐시 안에 이미 있는 raw 는 즉시 채워 놓고 시작
                 for (const dayValue of allNeededDays) {
                     const fname = `tide_${dayValue}_${gridHash}.json`;
+                    // 메모리 캐시(tideCache)만 확인. 디스크 캐시 제거됨 (main 정책).
                     if (tideCache.has(fname) && tideCache.get(fname).tideBedStatus === 'complete') {
                         rawItemsMap[dayValue] = tideCache.get(fname).tideBedData;
-                    } else if (!IS_FLY_IO && fs.existsSync(path.join(DATA_DIR, fname))) {
-                        try {
-                            const existing = JSON.parse(fs.readFileSync(path.join(DATA_DIR, fname), 'utf8'));
-                            if (existing.tideBedStatus === 'complete') {
-                                rawItemsMap[dayValue] = existing.tideBedData;
-                            }
-                        } catch (e) { /* corrupt — skip */ }
                     }
                 }
 

@@ -25,7 +25,8 @@
 
 const express = require('express');
 const router = express.Router();
-const admin = require('firebase-admin');
+// [Lazy] firebase-admin SDK 는 services/firebase_admin_lazy.js 의 getAdmin() 으로 첫 사용 시 로딩.
+const { getAdmin } = require('../services/firebase_admin_lazy');
 
 // ============================================================================
 // Mock 시나리오 정의
@@ -275,8 +276,9 @@ router.post('/api/test-push', async (req, res) => {
         });
     }
 
-    // 실제 FCM 발송
-    if (admin.apps.length === 0) {
+    // [Lazy] 실제 FCM 발송 — 첫 호출에서 firebase-admin 이 로딩됨
+    const admin = getAdmin();
+    if (!admin || admin.apps.length === 0) {
         return res.status(500).json({ error: 'Firebase Admin이 초기화되지 않았습니다.' });
     }
 

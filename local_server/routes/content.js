@@ -53,8 +53,11 @@ router.post('/api/notice', (req, res) => {
         const filePath = path.join(DATA_DIR, 'notice.json');
         fs.writeFileSync(filePath, JSON.stringify(newNotice, null, 2), 'utf8');
 
+        // 메모리 캐시 즉시 갱신 (5초 주기 refreshCache 기다리지 않고 사용자에게 즉시 반영)
+        // [참고] dataCache.lastUpdate.notice 는 이전에 Date.now() 로 set 했으나
+        //   누구도 read 하지 않는 dead code 라 제거. cache_manager 의 refreshCache 가
+        //   파일 mtime 으로 자동 갱신하므로 일관성에 영향 없음.
         dataCache.notice = newNotice;
-        dataCache.lastUpdate.notice = Date.now();
 
         res.json({ success: true, message: '공지사항이 저장되었습니다.' });
     } catch (e) {
@@ -234,7 +237,7 @@ router.post('/api/boards', (req, res) => {
 
         fs.writeFileSync(filePath, JSON.stringify(boards, null, 2), 'utf8');
         dataCache.boards = boards;
-        dataCache.lastUpdate.boards = Date.now();
+        // dataCache.lastUpdate.boards 는 dead code 로 제거 (refreshCache 가 mtime 으로 자동 갱신)
 
         res.json({ success: true, boards });
     } catch (e) {
@@ -267,7 +270,7 @@ router.post('/api/boards/reorder', (req, res) => {
 
         fs.writeFileSync(filePath, JSON.stringify(boards, null, 2), 'utf8');
         dataCache.boards = boards;
-        dataCache.lastUpdate.boards = Date.now();
+        // dataCache.lastUpdate.boards 는 dead code 로 제거 (refreshCache 가 mtime 으로 자동 갱신)
 
         res.json({ success: true, boards });
     } catch (e) {
@@ -309,7 +312,7 @@ router.delete('/api/boards/:id', (req, res) => {
         boards = boards.filter(b => b.id !== id);
         fs.writeFileSync(filePath, JSON.stringify(boards, null, 2), 'utf8');
         dataCache.boards = boards;
-        dataCache.lastUpdate.boards = Date.now();
+        // dataCache.lastUpdate.boards 는 dead code 로 제거 (refreshCache 가 mtime 으로 자동 갱신)
 
         res.json({ success: true });
     } catch (e) {
@@ -370,7 +373,7 @@ router.get('/api/promo/:id', (req, res) => {
         fs.writeFileSync(filePath, JSON.stringify(posts, null, 2), 'utf8');
 
         dataCache.promo = posts;
-        dataCache.lastUpdate.promo = Date.now();
+        // dataCache.lastUpdate.promo 는 dead code 로 제거 (refreshCache 가 mtime 으로 자동 갱신)
 
         res.json(posts[index]);
     } catch (e) {
@@ -446,7 +449,7 @@ router.post('/api/promo', (req, res) => {
         fs.writeFileSync(filePath, JSON.stringify(posts, null, 2), 'utf8');
 
         dataCache.promo = posts;
-        dataCache.lastUpdate.promo = Date.now();
+        // dataCache.lastUpdate.promo 는 dead code 로 제거 (refreshCache 가 mtime 으로 자동 갱신)
 
         res.json({ success: true, message: '게시글이 저장되었습니다.' });
     } catch (e) {

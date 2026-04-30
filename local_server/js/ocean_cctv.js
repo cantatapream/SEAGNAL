@@ -686,14 +686,14 @@
         };
     }
 
-    // CCTV 즐겨찾기 저장소
+    // CCTV 즐겨찾기 저장소 (변경 없음 — 최대 3개)
     // item 구조: { id, cctvId, name, subtitle, providerKey, providerName,
     //              shareUrl, streamUrl, cnt, sensorName, cameraCount, obsName }
     var _favCctv = _createFavStore('cctv_favorites_ocean_v1', 3);
 
-    // 위치 즐겨찾기 저장소
+    // 위치 즐겨찾기 저장소 (최대 6개 — 한 줄 3개 × 최대 2줄)
     // item 구조: { id, name, lat, lon, addedAt }
-    var _favLocation = _createFavStore('ocean_location_favorites_v1', 3);
+    var _favLocation = _createFavStore('ocean_location_favorites_v1', 6);
 
     // 둘 다 초기 로드
     _favCctv.load();
@@ -741,8 +741,19 @@
      * 하단 #ocean-fav-bar 에 현재 상태에 맞는 칩들을 렌더한다.
      *
      * [렌더 대상 결정]
-     *  - CCTV 토글 ON  → CCTV 즐겨찾기
-     *  - CCTV 토글 OFF → 위치 즐겨찾기
+     *  - CCTV 토글 ON  → CCTV 즐겨찾기 (최대 3개, 한 줄)
+     *  - CCTV 토글 OFF → 위치 즐겨찾기 (최대 6개, 3개씩 두 줄)
+     *
+     * [행 단위 렌더]
+     *  3개씩 .fav-row div 로 묶어 한 줄에 정확히 3개를 강제. flex-wrap 으로
+     *  자동 줄바꿈을 쓰지 않는 이유: 짧은 칩 4개가 한 줄에 들어가버려
+     *  "한 줄에 3개" 규칙이 깨질 수 있음.
+     *
+     * [긴 칩만 폰트 축소]
+     *  렌더 직후 requestAnimationFrame 으로 각 칩의 .chip-name 이 컨테이너를
+     *  넘치는지(scrollWidth > clientWidth) 측정. 넘치면 그 칩에만 .shrunk
+     *  클래스 부여 → 폰트 한 단계 축소. 그래도 넘치면 CSS 의 ellipsis 가
+     *  자동으로 잘라줌(... 처리).
      *
      * [빈 목록 처리]
      *  렌더 대상이 비어 있으면 .empty 클래스 추가 → CSS 에서 display:none
@@ -761,7 +772,14 @@
         }
         bar.classList.remove('empty');
 
+        var ROW_SIZE = 3;
+        var row = null;
         for (var i = 0; i < items.length; i++) {
+            if (i % ROW_SIZE === 0) {
+                row = document.createElement('div');
+                row.className = 'fav-row';
+                bar.appendChild(row);
+            }
             var it = items[i];
             var chip = document.createElement('button');
             chip.type = 'button';
@@ -775,7 +793,21 @@
                            + '<span class="chip-name"></span>';
             chip.querySelector('.chip-name').textContent = labelText;
             chip.addEventListener('click', _handleChipClick);
-            bar.appendChild(chip);
+            row.appendChild(chip);
+        }
+
+        // 렌더 후 한 프레임 뒤에 overflow 측정 (layout 완료 보장)
+        // 긴 칩만 .shrunk 클래스 부여해 폰트 축소. 그래도 넘치면 CSS ellipsis.
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(function () {
+                var chips = bar.querySelectorAll('.ocean-fav-chip');
+                for (var k = 0; k < chips.length; k++) {
+                    var nm = chips[k].querySelector('.chip-name');
+                    if (nm && nm.scrollWidth > nm.clientWidth + 1) {
+                        chips[k].classList.add('shrunk');
+                    }
+                }
+            });
         }
     }
 
@@ -1112,7 +1144,7 @@
         if (!_favLocation.canAdd()) {
             if (typeof window.showSeagnalModal === 'function') {
                 window.showSeagnalModal('즐겨찾기',
-                    '위치 즐겨찾기는 최대 3개까지 저장할 수 있습니다.\n기존 항목을 먼저 해제해 주세요.', 'info');
+                    '위치 즐겨찾기는 최대 6개까지 저장할 수 있습니다.\n기존 항목을 먼저 해제해 주세요.', 'info');
             }
             return;
         }
@@ -1136,7 +1168,7 @@
             var result = window.oceanFav.locationAdd(item);
             if (!result.ok) {
                 var msg = '저장에 실패했습니다.';
-                if (result.reason === 'full')         msg = '위치 즐겨찾기가 가득 찼습니다 (최대 3개).';
+                if (result.reason === 'full')         msg = '위치 즐겨찾기가 가득 찼습니다 (최대 6개).';
                 else if (result.reason === 'name_exists') msg = '같은 이름의 즐겨찾기가 이미 있습니다.';
                 else if (result.reason === 'near_exists') msg = '이미 근처(500m 이내)에 즐겨찾기가 있습니다.';
                 if (typeof window.showSeagnalModal === 'function') {

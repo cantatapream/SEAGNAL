@@ -34,11 +34,10 @@ const path = require('path');
 const multer = require('multer');
 const { DATA_DIR, UPLOAD_DIR, FILES } = require('../config/server_config');
 
-// Firebase Admin (푸시 알림용)
-let firebaseAdmin;
-try {
-    firebaseAdmin = require('firebase-admin');
-} catch (e) { /* Firebase 미설치 시 무시 */ }
+// [Lazy] Firebase Admin (푸시 알림용)
+//   기존: 파일 상단에서 require('firebase-admin') → startup require 체인에서 ~3초 소요.
+//   변경: services/firebase_admin_lazy.js 의 getAdmin() 으로 실제 사용 시점(푸시 발송)에 로딩.
+const { getAdmin } = require('../services/firebase_admin_lazy');
 
 /**
  * 관리자 기기 푸시 알림 서비스
@@ -725,6 +724,8 @@ function deleteAttachments(attachments) {
 // 헬퍼: FCM 푸시 발송 (deviceId 기반)
 // ============================================================================
 async function sendReportPush(deviceId, body) {
+    // [Lazy] 첫 호출 시 firebase-admin SDK 가 require + initializeApp 됨
+    const firebaseAdmin = getAdmin();
     if (!firebaseAdmin || firebaseAdmin.apps.length === 0) {
         console.warn('[Report] Firebase 미초기화, 푸시 발송 불가');
         return;

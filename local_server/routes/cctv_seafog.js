@@ -37,6 +37,10 @@ const express  = require('express');
 const router   = express.Router();
 const cron     = require('node-cron');
 const fetch    = require('node-fetch');
+// [신규] 신선도 모듈 — 자체 메모리 캐시(_lastUpdated) 를 freshness 의 외부 source 로 등록하여
+//        /api/seafog-cctv 응답에 X-Data-Updated-At / X-Data-Age-Seconds / X-Data-Fresh 헤더 부착
+//        + stale 시 fetchSeafogData() 백그라운드 트리거. (POLICY 의 키 'cctv' 사용)
+const freshness = require('../services/freshness');
 
 // ============================================================================
 // 상수 정의
@@ -167,15 +171,33 @@ async function fetchSeafogData() {
 }
 
 // ============================================================================
-// 서버 시작 시 초기 수집 + 10분 주기 cron 등록
+// 신선도 모듈에 외부 source 등록
 // ============================================================================
+// CCTV 데이터는 cache_manager 의 dataCache 에 들어가지 않고 자체 메모리(_cache)
+// 에 저장되므로, freshness.registerSource() 로 직접 등록한다.
+// - getUpdatedAt: _lastUpdated(ISO 문자열)를 ms epoch 으로 변환해 반환
+// - maxAgeMs: 20분 (수집 주기 10분 × 2)
+// - refreshFn: stale 감지 시 백그라운드(60초 debounce)로 fetchSeafogData() 호출
+freshness.registerSource(
+    'cctv',
+    () => (_lastUpdated ? new Date(_lastUpdated).getTime() : null),
+    {
+        maxAgeMs: 20 * 60 * 1000,
+        refreshFn: () => fetchSeafogData()
+    }
+);
 
-// 서버 시작 즉시 1회 수집 (최초 요청 시 캐시가 비어있지 않도록)
-fetchSeafogData();
+// ============================================================================
+// 10분 주기 cron 등록
+// ============================================================================
+// [중요] 과거에는 require 시점에 fetchSeafogData() 를 즉시 호출했으나,
+//        외부 API 응답 지연이 서버 startup 을 늦추는 문제가 있었다.
+//        대신 server.js 가 app.listen() 콜백에서 module.exports.kickoffInitialFetch
+//        를 호출하여 listen 이후에 백그라운드로 첫 수집을 시작한다.
 
 /**
  * 10분마다 자동 수집
- * - '* /10 * * * *' 형태로 표현되는 매 10분마다 실행 패턴
+ * - '1,11,21,31,41,51 * * * *' = 매 시간 1분, 11분, ... 51분에 실행
  * - 공공API가 10분 단위로 스틸컷을 업데이트하므로 주기를 일치시킵니다.
  */
 cron.schedule(COLLECT_INTERVAL_CRON, fetchSeafogData);
@@ -217,8 +239,16 @@ cron.schedule(COLLECT_INTERVAL_CRON, fetchSeafogData);
 router.get('/api/seafog-cctv', (req, res) => {
     const obs = req.query.obs; // 관측소명 필터 (선택)
 
+    // [신선도] 응답 직전에 표준 헤더 부착 + stale 시 백그라운드 재수집 트리거
+    freshness.applyFreshnessHeaders(res, 'cctv');
+    freshness.triggerRefreshIfStale('cctv');
+
     // 캐시가 비어 있으면 수집 중 안내
+    // [HTTP 캐시] "데이터 수집 중" 응답은 no-store 로 캐시 차단.
+    //   서버 재시작 직후 1-2초의 빈 윈도우에 요청한 사용자가 max-age 동안
+    //   계속 빈 응답을 보지 않도록 보호 (정상 응답이 들어오면 즉시 보이게).
     if (Object.keys(_cache).length === 0) {
+        res.setHeader('Cache-Control', 'no-store');
         return res.json({
             ok: false,
             message: '데이터 수집 중입니다. 잠시 후 다시 시도해 주세요.',
@@ -226,6 +256,10 @@ router.get('/api/seafog-cctv', (req, res) => {
             stations: {}
         });
     }
+
+    // [HTTP 캐시] 정상 응답에만 max-age=180 (3분) — CCTV 스틸컷은 10분 주기 갱신
+    //   브라우저/앱이 3분간 자체 캐시 사용 → 동일 이미지 반복 조회 시 서버 부담 ↓
+    res.setHeader('Cache-Control', 'public, max-age=180');
 
     // obs 파라미터가 있으면 해당 지점만, 없으면 전체 반환
     let stations;
@@ -243,4 +277,9 @@ router.get('/api/seafog-cctv', (req, res) => {
     });
 });
 
+// router 객체에 부가 함수를 attach 하여 export.
+// - kickoffInitialFetch: server.js 의 app.listen() 콜백에서 호출되어
+//   listen 이후 백그라운드로 첫 데이터 수집을 시작한다.
+//   (require 시점에 호출하면 외부 API 응답이 startup 을 지연시키므로 분리.)
 module.exports = router;
+module.exports.kickoffInitialFetch = fetchSeafogData;

@@ -52,7 +52,9 @@ async function fetchAllData() {
 
     try {
         // 1. 특보 데이터 (crawler가 생성한 JSON 파일) — 스플래시 종료 조건
-        const alertsResponse = await fetch('/api/weather-alerts?_t=' + Date.now());
+        // [캐시] 서버 Cache-Control: max-age=30 — 30초 안의 자동 재호출은 브라우저 캐시 사용
+        //        이전엔 ?_t=Date.now() 로 캐시를 강제 우회했으나 max-age 가 짧아 신선도 충분.
+        const alertsResponse = await fetch('/api/weather-alerts');
         if (alertsResponse.ok) {
             const rootData = await alertsResponse.json();
             flattenAlertsData(rootData);
@@ -125,7 +127,11 @@ async function loadBackgroundData() {
  */
 async function refreshAlertData() {
     try {
-        const resp = await fetch('/api/weather-alerts?_t=' + Date.now());
+        // [캐시 강제 우회] 관리자가 특보 수동 등록·삭제 직후 즉시 새 데이터를 보장해야 하므로
+        //   `cache: 'no-cache'` 옵션으로 브라우저에 "캐시 사용 말고 서버 검증" 요청.
+        //   이전엔 ?_t=Date.now() 로 URL 변형해서 우회했으나, 이 방식이 더 표준적이고 깔끔함.
+        //   (서버는 여전히 max-age=30 응답을 보내지만 이 옵션이 우선)
+        const resp = await fetch('/api/weather-alerts', { cache: 'no-cache' });
         if (resp.ok) {
             const rootData = await resp.json();
             flattenAlertsData(rootData);

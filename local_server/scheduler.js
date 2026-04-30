@@ -2,18 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-// [Push] Firebase Admin 초기화
-const admin = require('firebase-admin');
-
-try {
-    const serviceAccount = require('./serviceAccountKey.json');
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
-    console.log('🔥 Firebase Admin 초기화 완료');
-} catch (e) {
-    console.warn('⚠️ Firebase serviceAccountKey.json 없음 (FCM 불가):', e.message);
-}
+// [Push] Firebase Admin 초기화는 services/firebase_admin_lazy.js 로 이동.
+//   - 본 파일에서는 admin 자체를 사용하지 않으므로 require 자체를 제거하여
+//     서버 startup 의 require 체인에서 ~3초 분량을 절약한다.
+//   - 실제 admin 인스턴스가 필요한 routes/push.js, routes/push_test.js,
+//     services/admin_push.js, routes/report.js 가 getAdmin() 을 호출할 때
+//     처음으로 SDK 가 로딩되고 initializeApp 이 수행된다 (lazy).
 
 // [Time Correction] 서버 시각 오차 보정용
 let timeDriftOffset = 0;

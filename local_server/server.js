@@ -82,7 +82,10 @@ app.use(require('./routes/marine_chart'));  // 해상일기도 GIF 메타데이�
 app.use(require('./routes/comment')); // 게시글 댓글 API
 app.use(require('./routes/reaction')); // 게시글 리액션 API
 app.use(require('./routes/comment_report')); // 댓글 신고 API
-app.use(require('./routes/cctv_seafog'));   // 해무 CCTV 스틸컷 API (국립해양조사원)
+// 해무 CCTV 스틸컷 API (국립해양조사원).
+// router 모듈에 attach 된 kickoffInitialFetch 를 listen 콜백에서 호출하기 위해 참조 유지.
+const cctvSeafogRouter = require('./routes/cctv_seafog');
+app.use(cctvSeafogRouter);
 app.use(require('./routes/ocean1'));        // 해양종합정보 API (수심/ROMS/기상/파고/저질)
 app.use(require('./routes/ocean2'));        // ROMS 격자/저질 API
 app.use(require('./routes/ocean3'));        // 해양현황 날씨/바람 API (zone_forecasts 기반)
@@ -102,8 +105,10 @@ cron.schedule('55 14 * * *', () => {
     console.log('⏰ [Daily Schedule] 구독자 스냅샷 기록을 시작합니다.');
     subscriberSnapshot.takeSnapshot();
 });
-// 서버 시작 시에도 오늘 스냅샷이 없으면 즉시 기록 (서버 재시작 시 누락 방지)
-subscriberSnapshot.takeSnapshot();
+// [이동됨] 서버 시작 시 오늘 스냅샷이 없으면 즉시 기록하던 호출은 require 단계에서
+//          파일 I/O 를 동기적으로 수행하여 startup 을 늘리는 원인이었다.
+//          → app.listen() 콜백 안으로 이동하여 listen 이후에 비동기로 실행한다.
+//          누락 방지 효과는 동일 (listen 직후 한 번 실행).
 
 // 매일 KST 00:05 (UTC 15:05)에 클라우드 백업 자동 실행
 cron.schedule('5 15 * * *', () => {
@@ -128,10 +133,35 @@ cron.schedule('1 15 * * *', () => {
 // ============================================================================
 // 5. 서버 시작
 // ============================================================================
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n=================================================`);
     console.log(`🚀 서버 실행 중! Port: ${PORT}`);
     console.log(`📡 접속 주소: http://localhost:${PORT}/ (기본 index2.html, 구버전은 /index.html)`);
     console.log(`✅ 라우트 모듈: health, weather, tide, content, stats, archive, push, admin, survey, report, version`);
     console.log(`=================================================\n`);
+
+    // ============================================================================
+    // listen 이후 백그라운드 초기화
+    // ============================================================================
+    // listen 을 막지 않기 위해 다음 tick 에서 비동기로 실행한다.
+    // - subscriberSnapshot.takeSnapshot(): 오늘 스냅샷 누락 방지용 즉시 1회 기록 (파일 I/O)
+    // - cctvSeafogRouter.kickoffInitialFetch(): 해무 CCTV 첫 수집 (외부 API 호출)
+    // 각 작업의 실패는 console.error 로만 기록하고 다른 작업/응답에 영향 주지 않는다.
+    setImmediate(() => {
+        try {
+            subscriberSnapshot.takeSnapshot();
+        } catch (e) {
+            console.error('[startup] subscriberSnapshot 실패:', e && e.message);
+        }
+        try {
+            if (cctvSeafogRouter && typeof cctvSeafogRouter.kickoffInitialFetch === 'function') {
+                const p = cctvSeafogRouter.kickoffInitialFetch();
+                if (p && typeof p.catch === 'function') {
+                    p.catch(err => console.error('[startup] CCTV 초기수집 실패:', err && err.message));
+                }
+            }
+        } catch (e) {
+            console.error('[startup] CCTV 초기수집 트리거 실패:', e && e.message);
+        }
+    });
 });

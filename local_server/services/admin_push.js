@@ -9,11 +9,10 @@ const fs = require('fs');
 const path = require('path');
 const { DATA_DIR } = require('../config/server_config');
 
-// Firebase Admin SDK (런타임에 한 번만 로드)
-let firebaseAdmin;
-try {
-    firebaseAdmin = require('firebase-admin');
-} catch (e) { /* Firebase 미설치 시 무시 */ }
+// [Lazy] Firebase Admin SDK 는 services/firebase_admin_lazy.js 의 getAdmin() 으로 첫 사용 시 로딩.
+//   기존: 모듈 require 시 firebase-admin 도 같이 require 되어 startup ~3초 소요.
+//   변경: 실제 푸시 발송 함수(sendAdminPush) 내부에서 getAdmin() 호출.
+const { getAdmin } = require('./firebase_admin_lazy');
 
 const ADMIN_DEVICES_FILE = path.join(DATA_DIR, 'admin_devices.json');
 
@@ -28,7 +27,8 @@ const ADMIN_DEVICES_FILE = path.join(DATA_DIR, 'admin_devices.json');
  */
 async function sendAdminPush(title, body, data = {}) {
     try {
-        // Firebase 초기화 확인
+        // [Lazy] 첫 호출 시 firebase-admin SDK 로딩 + initializeApp
+        const firebaseAdmin = getAdmin();
         if (!firebaseAdmin || firebaseAdmin.apps.length === 0) {
             console.warn('[AdminPush] Firebase 미초기화, 관리자 푸시 발송 불가');
             return { sent: 0, failed: 0 };

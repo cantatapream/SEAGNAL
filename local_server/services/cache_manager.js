@@ -52,8 +52,21 @@ const dataCache = {
 
 /**
  * JSON 파일들을 메모리에 로드하는 함수
- * 5초마다 자동 실행되며, Docker 환경에서의 파일 감지 이슈를 방지하기 위해
- * 무조건 파일을 새로 읽어서 캐시를 갱신합니다.
+ *
+ * [동작]
+ *   5초마다 setInterval 로 호출됨. 각 파일의 mtime(마지막 수정 시각)을 먼저 stat 으로
+ *   확인하여, **변경된 파일만** read + parse 하여 메모리 캐시를 갱신한다.
+ *   변경되지 않은 파일은 stat 만 하고 read/parse 를 스킵 (CPU 부담 절감).
+ *
+ * [mtime 기반 read 최적화 도입 배경]
+ *   zone_forecasts.json (5.85 MB) 같은 큰 파일은 하루 2회만 갱신되는데,
+ *   기존 코드는 5초마다 무조건 read + JSON.parse 하여 12시간 동안 8,640번
+ *   같은 작업을 반복했음. mtime 비교로 변경 시에만 read 하도록 변경.
+ *
+ * [정확성 보장]
+ *   - 첫 호출: dataCache.lastUpdate[key] 가 undefined 라 read 됨 (정상)
+ *   - cron 등 외부에서 파일 갱신 시: mtime 변경 → 다음 5초 주기에 read
+ *   - 따라서 데이터 갱신 정확성은 동일하게 유지됨
  */
 function refreshCache() {
     const files = {
@@ -82,6 +95,14 @@ function refreshCache() {
             try {
                 const stats = fs.statSync(filePath);
                 const mtime = stats.mtimeMs;
+
+                // [최적화] mtime 이 같으면 read/parse 스킵 (이미 메모리에 있음).
+                //   첫 호출 시 dataCache.lastUpdate[key] 가 undefined 라 자연스럽게 read 됨.
+                if (dataCache.lastUpdate[key] === mtime) {
+                    return;
+                }
+
+                // 변경된 경우에만 실제 read + parse
                 const data = fs.readFileSync(filePath, 'utf8');
                 dataCache[key] = JSON.parse(data);
                 dataCache.lastUpdate[key] = mtime;
@@ -99,10 +120,15 @@ refreshCache(); // 초기 로드
 // ============================================================================
 // 2. 조석 데이터 LRU 캐시
 // ============================================================================
+// [max 500 → 50 조정 배경]
+//   tide 데이터는 격자별 1MB 정도. 이전 max=500 은 이론상 최대 500MB 메모리
+//   사용 가능 → 서버 메모리(512MB)를 압박할 위험. 한국 격자 약 50~100개 안쪽이고
+//   동시에 활성화된 격자는 통상 50개 이내라 max=50 으로 안전 마진 확보.
+//   updateAgeOnGet:true 라 폴링 중인 항목은 자동 갱신되어 evict 안 됨.
 const tideCache = new LRU({
-    max: 500,                    // 최대 500건 보관
-    ttl: 1000 * 60 * 60,        // 1시간 후 자동 만료
-    updateAgeOnGet: true         // 조회 시 TTL 갱신
+    max: 50,                     // 최대 50건 (이론상 메모리 ~50MB)
+    ttl: 1000 * 60 * 60,        // 1시간 후 자동 만료 (그대로)
+    updateAgeOnGet: true         // 조회 시 TTL 갱신 — 폴링 중인 항목 보호
 });
 
 module.exports = {

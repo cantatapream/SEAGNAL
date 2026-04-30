@@ -267,7 +267,9 @@ function renderForecastSection(data, titleId, bodyId) {
  */
 async function loadMarineForecast() {
     try {
-        const response = await fetch('/api/marine-forecast?_t=' + Date.now());
+        // [캐시] 서버 Cache-Control: max-age=180 — 3분 안의 재호출은 브라우저 캐시 사용
+        //        이전엔 ?_t=Date.now() 로 캐시 우회했으나 max-age 짧아 신선도 충분.
+        const response = await fetch('/api/marine-forecast');
         if (!response.ok) {
             renderForecastSection(null, 'ultra-short-forecast-title', 'ultra-short-forecast-body');
             renderForecastSection(null, 'short-term-forecast-title', 'short-term-forecast-body');
@@ -564,7 +566,8 @@ function renderRegionalForecast(data) {
  */
 async function loadRegionalForecast() {
     try {
-        const response = await fetch('/api/regional-forecast?_t=' + Date.now());
+        // [캐시] 서버 Cache-Control: max-age=600 (10분) — 하루 3회 수집 데이터라 10분 캐시 안전.
+        const response = await fetch('/api/regional-forecast');
         if (!response.ok) {
             renderRegionalForecast(null);
             return;
