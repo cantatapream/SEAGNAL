@@ -582,8 +582,8 @@ function _ensureOceanToastStyles() {
         '  overflow: hidden;',
         '}',
         '#' + _OCEAN_TOAST_ID + '.visible { opacity: 1; }',
-        // 긴 텍스트 허용 (옵션)
-        '#' + _OCEAN_TOAST_ID + '.multi-line { white-space: normal; text-align: center; border-radius: 14px; }'
+        // 긴 텍스트 허용 (옵션). pre-line: 메시지의 \n 을 줄바꿈으로 보존.
+        '#' + _OCEAN_TOAST_ID + '.multi-line { white-space: pre-line; text-align: center; border-radius: 14px; }'
     ].join('\n');
     document.head.appendChild(style);
 }
@@ -606,15 +606,17 @@ function _getOceanToastEl() {
 
 /**
  * [공통] 토스트 표시
- * @param {string} message   표시 문구
+ * @param {string} message   표시 문구 (multiLine=true 일 때 \n 으로 줄바꿈 가능)
  * @param {string} position  'top' | 'bottom'
  * @param {number} durationMs  표시 시간 (기본 2000)
+ * @param {boolean} multiLine  true 면 .multi-line 클래스 적용 — 둥근 사각형 + pre-line(줄바꿈 허용)
  */
-function _showOceanToast(message, position, durationMs) {
+function _showOceanToast(message, position, durationMs, multiLine) {
     if (!message) return;
     var el = _getOceanToastEl();
     el.textContent = message;
-    el.classList.remove('multi-line');
+    if (multiLine) el.classList.add('multi-line');
+    else el.classList.remove('multi-line');
 
     // 위치 계산
     if (position === 'top') {
@@ -746,6 +748,29 @@ function _bindMarineZoneToggleToast() {
     });
 }
 
+/**
+ * 특보구역 토글(#ocean-warn-zone-toggle-btn) ON 시 안내 토스트.
+ *  - ocean_warn_zone.js 의 _bindToggle() 가 먼저 실행되어 active 클래스 갱신
+ *  - 그 뒤 이 리스너가 rAF 한 프레임 후 active 여부를 확인 → ON 일 때만 표시
+ *  - 메시지가 길어 multiLine 옵션으로 2줄 표출 (둥근 사각형 + 줄바꿈)
+ *  - 하단(B/C) 위치 — 다른 오버레이 토스트와 동일하게 즐겨찾기 바/메인탭 위
+ */
+function _bindWarnZoneToggleToast() {
+    var btn = document.getElementById('ocean-warn-zone-toggle-btn');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+        requestAnimationFrame(function () {
+            if (!btn.classList.contains('active')) return;
+            _showOceanToast(
+                '특보구역은 참고용으로 활용하시고,\n정확한 경계는 관할 해경 파출소에 확인 바랍니다.',
+                'bottom',
+                3500,
+                true
+            );
+        });
+    });
+}
+
 // DOM 준비 후(혹은 ocean_overlay.js 가 버튼 바인딩한 뒤) 토스트 리스너 부착.
 // DOMContentLoaded 후 한 번 + ocean_map 초기화 이후에도 한 번 — 둘 다 안전.
 function _initOverlayToastsWhenReady() {
@@ -753,10 +778,12 @@ function _initOverlayToastsWhenReady() {
         document.addEventListener('DOMContentLoaded', function () {
             _bindOverlayButtonToasts();
             _bindMarineZoneToggleToast();
+            _bindWarnZoneToggleToast();
         }, { once: true });
     } else {
         _bindOverlayButtonToasts();
         _bindMarineZoneToggleToast();
+        _bindWarnZoneToggleToast();
     }
 }
 _initOverlayToastsWhenReady();
