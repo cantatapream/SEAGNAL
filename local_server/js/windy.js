@@ -200,6 +200,11 @@ function getSeaRegion(zoneName) {
     return 'other';
 }
 
+/**
+ * 해상기상현황 카드 안에 부이 버튼 목록을 렌더.
+ * BUOY_MAPPING[zoneName] 매핑 없으면 no-op. 각 부이 버튼 클릭 시
+ * 해당 부이 상세 모달이 열림.
+ */
 function renderBuoyButtonsForStatus(zoneName, container) {
     if (typeof BUOY_MAPPING === 'undefined' || !BUOY_MAPPING[zoneName]) return;
 
@@ -229,6 +234,10 @@ function renderBuoyButtonsForStatus(zoneName, container) {
     container.appendChild(buoyContainer);
 }
 
+/**
+ * 해상기상현황 카드 안에 부이 외 추가 버튼(해구기상, 평수구역 등) 을 렌더.
+ * ZONE_OVERLAY_CONFIG[zoneName] 매핑된 구역에만 적용 — 매핑 없으면 no-op.
+ */
 function renderOtherButtonsForStatus(zoneName, container) {
     if (typeof ZONE_OVERLAY_CONFIG !== 'undefined' && ZONE_OVERLAY_CONFIG[zoneName]) {
         // 매핑된 구역인지 확인
@@ -370,6 +379,14 @@ function renderOtherButtonsForStatus(zoneName, container) {
     }
 }
 
+/**
+ * 해상기상현황(마린 웨더 스테이터스) 탭의 동/서/남해/제주 4개 영역을
+ * 비동기 fetch 결과로 렌더. zone 카드 + 부이/추가 버튼까지 모두 그림.
+ *
+ * [연계]
+ *   - renderBuoyButtonsForStatus, renderOtherButtonsForStatus
+ *   - 데이터: appState.marineForecast / 부이 fetch 결과
+ */
 async function renderMarineWeatherStatus() {
     const containers = {
         '동해': document.getElementById('status-east-sea-list'),

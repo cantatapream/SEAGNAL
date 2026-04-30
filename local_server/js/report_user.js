@@ -468,6 +468,11 @@
         reader.readAsDataURL(file);
     };
 
+    /**
+     * 신고서 첨부 이미지 미리보기 영역(#report-attach-previews) 갱신.
+     * 사용자가 추가한 _attachFiles 배열을 기반으로 썸네일 + 삭제 버튼 렌더.
+     * 첨부 추가/삭제 후 호출되어 UI 동기화.
+     */
     function renderAttachPreviews() {
         const container = document.getElementById('report-attach-previews');
         if (!container) return;
@@ -584,6 +589,12 @@
         } catch (e) { /* 무시 */ }
     }
 
+    /**
+     * 운영자가 작성한 신고 답변을 사용자에게 보여주는 팝업.
+     * 같은 ID 의 팝업이 떠 있으면 제거 후 새로 그림 (중복 방지).
+     *
+     * @param {Object} data - { title, content, answeredAt, ... }
+     */
     function showAnswerPopup(data) {
         const existing = document.getElementById('report-answer-popup');
         if (existing) existing.remove();

@@ -42,6 +42,13 @@ function getSeaArea(zoneName) {
     return '기타';
 }
 
+/**
+ * KMA 형식 또는 ISO 일자 문자열을 한국어 표기로 변환 ("YYYY년 MM월 DD일 HH시 mm분").
+ * 빈 값/잘못된 값은 '정보 없음' 반환. 화면 표시용 일관 포맷팅.
+ *
+ * @param {string} dateStr - "YYYYMMDDHHmm" 또는 "YYYY-MM-DD HH:mm" 등
+ * @returns {string}
+ */
 function formatDate(dateStr) {
     if (!dateStr || dateStr.trim() === '') return '정보 없음';
 
@@ -176,6 +183,12 @@ function formatWarningTime(tmEf, isEndTime = false) {
 }
 
 
+/**
+ * 현재 KST 시각을 KMA 형식 "YYYYMMDDHHmm" 12자리 문자열로 반환.
+ * tmEf/tmFc 등 KMA 시간 필드와 직접 비교하여 미래/과거 판정에 사용.
+ *
+ * @returns {string} 예: "202604301530"
+ */
 function getKfTime() {
     const now = new Date();
     const y = now.getFullYear();
@@ -186,6 +199,15 @@ function getKfTime() {
     return `${y}${m}${d}${h}${min}`;
 }
 
+/**
+ * 외부 URL 을 CORS 프록시(CONFIG.CORS_PROXY) 로 감싸 반환.
+ * CONFIG.USE_CORS_PROXY 가 false 면 원본 URL 그대로.
+ *
+ * [용도] 브라우저 CORS 제약을 회피해야 하는 외부 KMA/KHOA API 호출 시 사용.
+ *
+ * @param {string} url
+ * @returns {string}
+ */
 function getProxiedUrl(url) {
     if (CONFIG.USE_CORS_PROXY) {
         return CONFIG.CORS_PROXY + encodeURIComponent(url);

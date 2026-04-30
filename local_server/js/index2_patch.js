@@ -181,6 +181,11 @@ function _syncSubTabHeightVar(subNav) {
             _scheduleActiveMapResize();
         }
     }
+    /**
+     * 서브탭 바(subNav) 의 실측 높이를 CSS 변수 --sub-tab-height 로 주입.
+     * ResizeObserver / MutationObserver 가 호출 — 서브탭 표시 토글이나 레이아웃
+     * 변동 시 #ocean-map-section 등의 padding-bottom 이 자동으로 따라 조정됨.
+     */
     function _applyOffsetHeight() {
         var h = subNav.offsetHeight;
         if (h > 0) {
@@ -555,6 +560,11 @@ var _OCEAN_TOAST_ID = 'ocean-ui-toast';
 var _OCEAN_FIRST_ENTRY_SESSION_KEY = 'ocean_first_entry_toast_shown_v1';
 var _oceanToastTimer = null;
 
+/**
+ * 토스트 스타일(<style id="ocean-ui-toast-style">) 을 1회 주입.
+ * 이미 주입돼 있으면 중복 방지(early return).
+ * _showOceanToast 호출 직전에 _getOceanToastEl 가 호출.
+ */
 function _ensureOceanToastStyles() {
     if (document.getElementById('ocean-ui-toast-style')) return;
     var style = document.createElement('style');
@@ -799,6 +809,13 @@ var _OVERLAY_TOAST_MSG = {
     current: '유향·속의 현황을 표출합니다.'
 };
 
+/**
+ * 오버레이 버튼(파고/바람/조류) 에 click 보조 listener 등록 — 켜질 때만
+ * 안내 토스트 1회 표출. 메시지는 _OVERLAY_TOAST_MSG 매핑에서 가져옴.
+ *
+ * [구현 노트] ocean_overlay.js 자체 핸들러가 active 클래스를 갱신한 다음
+ * rAF 한 프레임 뒤 active 여부를 보고 토스트 표시 — 동기 보장.
+ */
 function _bindOverlayButtonToasts() {
     var btns = document.querySelectorAll('.ocean-overlay-btn[data-layer]');
     for (var i = 0; i < btns.length; i++) {
@@ -918,6 +935,13 @@ function _bindOverlayButtonHoverReset() {
         })(btns[i]);
     }
 }
+/**
+ * DOM 준비 직후 _bindOverlayButtonHoverReset 1회 실행 — 모바일 WebView
+ * 의 hover-sticky 현상 방지 listener 를 .ocean-overlay-btn 모두에 등록.
+ *
+ * [의도] WebView 에서 버튼을 한 번 누르면 :hover 스타일이 그대로 남아있는
+ * 알려진 현상을 click 후 blur+pointer-events 토글로 해소.
+ */
 function _initOverlayHoverResetWhenReady() {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', _bindOverlayButtonHoverReset, { once: true });

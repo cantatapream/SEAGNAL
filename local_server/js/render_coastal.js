@@ -606,6 +606,12 @@ window.toggleSection = function (id) {
     }
 };
 
+/**
+ * 전역 로딩 상태 토글 — appState.isLoading 갱신 + 로딩 인디케이터 DOM 표시/숨김.
+ * fetchAllData 등의 진입/퇴장 시 호출.
+ *
+ * @param {boolean} isLoading - true 면 인디케이터 표시
+ */
 function updateLoading(isLoading) {
     appState.isLoading = isLoading;
     const indicator = document.getElementById('loading-indicator');

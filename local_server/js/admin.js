@@ -452,6 +452,10 @@ window.switchUnifiedAdminTab = function (tabId) {
 let currentErrorSubTab = 'review';  // 'review' | 'retry' | 'fail' (기본: 검토 필요)
 let errorListAutoRefreshTimer = null;
 
+/**
+ * 에러 리스트 탭의 자동 새로고침 타이머 정지.
+ * 탭 이탈 시 또는 탭 재진입 직전(중복 방지) 에 호출.
+ */
 function clearErrorListAutoRefresh() {
     if (errorListAutoRefreshTimer) {
         clearInterval(errorListAutoRefreshTimer);
@@ -469,6 +473,12 @@ function formatElapsed(ms) {
     return `${mins}분`;
 }
 
+/**
+ * 관리자 화면의 에러 리스트 탭을 렌더 + 자동 새로고침 타이머 등록.
+ * 진입 시 기존 타이머 정리 → 새 fetch → setInterval 로 주기 갱신 시작.
+ *
+ * [연계] /api/error-logs (GET) — 서버 에러 로그.
+ */
 async function renderErrorListTab(container) {
     // 진입 시 자동 갱신 타이머 정리(중복 방지)
     clearErrorListAutoRefresh();

@@ -71,6 +71,13 @@ function slideDown(element, duration = 300) {
     }, duration);
 }
 
+/**
+ * 아코디언 등에 사용하는 슬라이드-업(접기) 애니메이션.
+ * height 를 점진적으로 0 으로 줄인 뒤 display:none 으로 완전히 감춤.
+ *
+ * @param {HTMLElement} element
+ * @param {number=} duration - ms 단위 (기본 300)
+ */
 function slideUp(element, duration = 300) {
     if (!element || element.style.display === 'none') return;
 

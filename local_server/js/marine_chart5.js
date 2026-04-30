@@ -226,6 +226,10 @@
         }
     }
 
+    /**
+     * 풀스크린 차트 모드의 touchmove 핸들러 — 핀치 줌, 한 손가락 드래그 모두 처리.
+     * preventDefault 로 브라우저 기본 스크롤·줌 차단 후 자체 transform 으로 조작.
+     */
     function onTouchMove(e) {
         const touches = e.touches;
         // 풀스크린에선 페이지 스크롤·줌 모두 우리가 처리하므로 기본 막기

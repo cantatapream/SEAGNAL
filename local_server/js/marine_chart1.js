@@ -506,6 +506,7 @@
             `<option value="${o.code}">${o.label}</option>`
         ).join('');
     }
+    /** 해일 지방청(stn) 드롭다운을 SURGE_STNS 로 다시 채움. 현재 state.stn 이 목록에 없으면 첫 항목으로 보정. */
     function refreshSurgeStnOptions() {
         if (!el.surgeStnSel) return;
         el.surgeStnSel.innerHTML = SURGE_STNS.map(s =>
@@ -516,6 +517,7 @@
         if (!exists) state.stn = SURGE_STNS[0].code;
         el.surgeStnSel.value = state.stn;
     }
+    /** 해일 변수 종류(state.data) 에 따라 지방청 드롭다운 노출/숨김 제어 (시계열-지방청 변수일 때만). */
     function applySurgeConstraints() {
         // 시계열-지방청(useSurgeStn) 변수일 때만 지방청 드롭다운 노출
         const opt = CATALOG_SURGE.S.options.find(o => o.code === state.data);
@@ -526,12 +528,14 @@
         }
         if (showStn) refreshSurgeStnOptions();
     }
+    /** 해일 변수 드롭다운 change 핸들러 — state.data 갱신 + 지방청 제약 적용 + 차트 다시 fetch. */
     function onSurgeDataChange() {
         state.data = el.surgeDataSel.value;
         applySurgeConstraints();
         updateFavButton();
         if (window.MarineChart.fetchList) window.MarineChart.fetchList();
     }
+    /** 해일 지방청(stn) 드롭다운 change 핸들러 — state.stn 갱신 + 차트 다시 fetch. */
     function onSurgeStnChange() {
         state.stn = el.surgeStnSel.value;
         updateFavButton();
@@ -546,17 +550,20 @@
             `<option value="${o.code}">${o.label}</option>`
         ).join('');
     }
+    /** 해양순환 수심(depth) 드롭다운을 CURRENT_DEPTHS 로 다시 채움. */
     function refreshCurrentDepthOptions() {
         if (!el.currentDepthSel) return;
         el.currentDepthSel.innerHTML = CURRENT_DEPTHS.map(d =>
             `<option value="${d.code}">${d.label}</option>`
         ).join('');
     }
+    /** 해양순환 변수 드롭다운 change 핸들러 — state.data 갱신 + 차트 다시 fetch. */
     function onCurrentDataChange() {
         state.data = el.currentDataSel.value;
         updateFavButton();
         if (window.MarineChart.fetchList) window.MarineChart.fetchList();
     }
+    /** 해양순환 수심 드롭다운 change 핸들러 — state.area 에 수심값 저장(해양순환 한정) + 차트 다시 fetch. */
     function onCurrentDepthChange() {
         state.area = el.currentDepthSel.value;  // 해양순환에선 area 가 수심
         updateFavButton();
@@ -572,6 +579,7 @@
             `<option value="${o.code}">${o.label}</option>`
         ).join('');
     }
+    /** 해수면온도 region 드롭다운 change 핸들러 — state.type 갱신 + period 옵션 재빌드 + 첫 옵션으로 데이터 동기 + 차트 다시 fetch. */
     function onSstRegionChange() {
         state.type = el.sstRegionSel.value;
         refreshSstPeriodOptions();
@@ -582,6 +590,7 @@
         updateFavButton();
         if (window.MarineChart.fetchList) window.MarineChart.fetchList();
     }
+    /** 해수면온도 기간(period) 드롭다운 change 핸들러 — state.data 갱신 + 차트 다시 fetch. */
     function onSstPeriodChange() {
         state.data = el.sstPeriodSel.value;
         updateFavButton();
