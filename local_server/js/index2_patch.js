@@ -672,36 +672,69 @@ function _showOceanToast(message, position, durationMs, multiLine) {
  * multi-line 토스트가 의도하지 않은 줄바꿈(=텍스트 wrap)을 일으키는지 확인하고,
  * 발생 시 font-size 를 1px 단위로 축소해 \n 으로 만든 줄 수와 실제 줄 수를 일치시킨다.
  *
- *  - 메시지의 \n 개수 + 1 = 기대하는 줄 수 (예: "A\nB" → 2줄)
- *  - 실제 그려진 줄 수: scrollHeight / lineHeight 로 추정
- *  - 차이가 있으면 폰트를 줄여 다시 측정
- *  - 하한 11px, 안전 가드(최대 8회) 로 무한루프 방지
+ *  [측정 방식]
+ *  숨김 span 측정자(white-space: pre + 동일 폰트 속성)에 message 의 각 라인을
+ *  하나씩 넣어 offsetWidth 를 잰 뒤, 가장 넓은 라인이 컨테이너의 콘텐츠 폭(=
+ *  clientWidth - padding) 안에 들어가는지 확인. 넘치면 fontSize 1px 축소 후
+ *  다시 측정. 하한 11px / 최대 10회 가드.
+ *
+ *  [기존 scrollHeight / lineHeight 방식의 버그]
+ *  scrollHeight 가 padding 까지 포함하기 때문에, padding=10+10=20px 환경에서
+ *  2줄 텍스트의 scrollHeight = 34 + 20 = 54 → 54/17 ≈ 3 줄로 오판 → 줄바꿈 없는
+ *  경우에도 폰트가 끝까지 축소되는 문제가 있었다. 직접 라인 폭 측정으로 변경.
  *
  *  [왜 필요한가?]
- *  좁은 화면(예: 320px iPhone SE)에서 한 줄 텍스트가 컨테이너 폭을 초과하면 자동
- *  줄바꿈이 일어나 "원하는 \n + 의도치 않은 wrap" 이 결합돼 3줄 이상으로 보임.
- *  word-break: keep-all 로 최대한 보호하지만, 단어 자체가 컨테이너보다 넓으면
- *  결국 wrap 발생 → 폰트 축소가 마지막 보루.
+ *  좁은 화면에서 한 줄 텍스트가 컨테이너 폭을 초과하면 자동 줄바꿈이 일어나
+ *  "원하는 \n + 의도치 않은 wrap" 이 결합돼 3줄 이상으로 보임. word-break:
+ *  keep-all 로 최대한 보호하지만, 단어 자체가 컨테이너보다 넓으면 결국 wrap
+ *  발생 → 폰트 축소가 마지막 보루.
  */
 function _shrinkToastFontIfWraps(el, message) {
     if (!el || !message) return;
-    var expectedLines = message.split('\n').length;
-    var minPx = 11;
-    var safety = 0;
-    // getComputedStyle 결과에 line-height 가 'normal' 이면 fontSize × 1.2 로 추정
-    function _measure() {
-        var cs = getComputedStyle(el);
-        var fz = parseFloat(cs.fontSize) || 14;
-        var lh = parseFloat(cs.lineHeight);
-        if (!lh || isNaN(lh)) lh = fz * 1.2;
-        var actual = Math.round(el.scrollHeight / lh);
-        return { fz: fz, actual: actual };
-    }
-    var m = _measure();
-    while (m.actual > expectedLines && m.fz > minPx && safety < 8) {
-        el.style.fontSize = (m.fz - 1) + 'px';
-        safety++;
-        m = _measure();
+    var cs = getComputedStyle(el);
+    var contentWidth = el.clientWidth
+        - (parseFloat(cs.paddingLeft) || 0)
+        - (parseFloat(cs.paddingRight) || 0);
+    if (contentWidth <= 0) return;
+
+    var measurer = document.createElement('span');
+    measurer.style.cssText = [
+        'position: absolute',
+        'visibility: hidden',
+        'pointer-events: none',
+        'left: -99999px',
+        'top: -99999px',
+        'white-space: pre',           // \n 그대로 유지(자동 wrap 차단) — 라인 단위 측정 위해
+        'word-break: keep-all',
+        'font-family: ' + (cs.fontFamily || 'inherit'),
+        'font-weight: ' + (cs.fontWeight || 'inherit'),
+        'letter-spacing: ' + (cs.letterSpacing || 'inherit')
+    ].join(';');
+    document.body.appendChild(measurer);
+
+    try {
+        var minPx = 11;
+        var initialFz = parseFloat(cs.fontSize) || 14;
+        var fz = initialFz;
+        var lines = message.split('\n');
+        for (var i = 0; i < 10; i++) {
+            measurer.style.fontSize = fz + 'px';
+            var maxWidth = 0;
+            for (var li = 0; li < lines.length; li++) {
+                measurer.textContent = lines[li];
+                var w = measurer.offsetWidth;
+                if (w > maxWidth) maxWidth = w;
+            }
+            // 1px slack for sub-pixel rendering
+            if (maxWidth <= contentWidth + 1) break;
+            if (fz <= minPx) break;
+            fz--;
+        }
+        if (fz < initialFz) {
+            el.style.fontSize = fz + 'px';
+        }
+    } finally {
+        if (measurer.parentNode) measurer.parentNode.removeChild(measurer);
     }
 }
 
