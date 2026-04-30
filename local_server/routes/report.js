@@ -104,6 +104,10 @@ function readJSON(filePath, defaultValue) {
     return defaultValue;
 }
 
+/**
+ * JSON 파일에 객체를 indent 2 로 동기 저장. 실패 시 콘솔 에러만 기록(throw 안 함).
+ * 호출자가 readJSON 으로 읽고 수정 후 writeJSON 으로 저장하는 패턴.
+ */
 function writeJSON(filePath, data) {
     try {
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
@@ -112,22 +116,31 @@ function writeJSON(filePath, data) {
     }
 }
 
+/** 신고 목록 전체를 FILES.REPORTS 파일에서 읽어 반환. 파일 없으면 빈 배열. */
 function getReports() {
     return readJSON(FILES.REPORTS, []);
 }
 
+/** 신고 목록을 FILES.REPORTS 파일에 덮어쓰기. */
 function saveReports(reports) {
     writeJSON(FILES.REPORTS, reports);
 }
 
+/** 차단 목록(reportBlocks/tideBlocks/appBlocks 3그룹) 을 FILES.BLOCKS 에서 읽기. */
 function getBlocks() {
     return readJSON(FILES.BLOCKS, { reportBlocks: [], tideBlocks: [], appBlocks: [] });
 }
 
+/** 차단 목록을 FILES.BLOCKS 파일에 덮어쓰기. */
 function saveBlocks(blocks) {
     writeJSON(FILES.BLOCKS, blocks);
 }
 
+/**
+ * 신고 ID 생성 — "rpt_YYYYMMDD_NNN" 형식.
+ * 같은 날짜 안에서 무작위 3자리 시퀀스로 충돌 가능성 최소화.
+ * 동시 다발 신고 시 충돌 가능성은 1/1000 — 운영 부하 수준에선 안전.
+ */
 function generateReportId() {
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -135,6 +148,10 @@ function generateReportId() {
     return `rpt_${dateStr}_${seq}`;
 }
 
+/**
+ * 현재 시각을 KST(UTC+9) 기준 ISO 문자열로 반환 (예: "2026-04-30T15:30:00.000+09:00").
+ * 신고 createdAt/updatedAt 등 타임스탬프 일관성 확보.
+ */
 function getKSTNow() {
     return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().replace('Z', '+09:00');
 }

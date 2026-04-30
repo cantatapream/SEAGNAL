@@ -51,15 +51,28 @@ function getTideUsage() {
     return {};
 }
 
+/** 조석 검색 사용량(deviceId 별 일일 카운트) 을 FILES.TIDE_USAGE 에 동기 저장. */
 function saveTideUsage(usage) {
     fs.writeFileSync(FILES.TIDE_USAGE, JSON.stringify(usage, null, 2), 'utf8');
 }
 
+/** 현재 KST 일자 'YYYY-MM-DD' 반환. checkTideRateLimit 의 일일 키. */
 function getTodayKST() {
     const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
     return now.toISOString().slice(0, 10);
 }
 
+/**
+ * 조석 검색 일일 호출 한도(TIDE_DAILY_LIMIT) 검사 — 디바이스 단위 rate limit.
+ *
+ * [동작]
+ *   - usage[YYYY-MM-DD][deviceId] 카운터 사용
+ *   - 한도 초과 시 자동으로 FILES.BLOCKS 에 tideBlocks 항목 추가 (자동 차단)
+ *   - 미초과면 카운터 +1 후 { allowed: true }
+ *
+ * @param {string} deviceId - 클라이언트 디바이스 식별자 (없으면 free pass)
+ * @returns {{allowed: boolean, reason?: string}}
+ */
 function checkTideRateLimit(deviceId) {
     if (!deviceId) return { allowed: true };
 

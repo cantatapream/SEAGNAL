@@ -36,6 +36,15 @@ const path = require('path');
 let _webpush = null;
 let _vapidConfigured = false;
 let _webpushInitDone = false;
+/**
+ * web-push 라이브러리 lazy init + VAPID 키 설정.
+ * 패키지 미설치 또는 환경변수 미설정 시 null 반환 — 호출자는 푸시 발송 스킵.
+ *
+ * [멱등성] _webpushInitDone 플래그로 1회만 require + 설정. 두 번째 호출은 캐시.
+ *
+ * [환경변수]
+ *   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY — Web Push VAPID 인증 키
+ */
 function getWebPush() {
     if (_webpushInitDone) return _webpush;
     _webpushInitDone = true;

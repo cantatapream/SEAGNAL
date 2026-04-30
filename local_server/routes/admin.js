@@ -401,6 +401,12 @@ router.get('/api/admin/collect-failures', (req, res) => {
     } catch (e) { res.json([]); }
 });
 
+/**
+ * [POST /api/admin/collect-failures]
+ * 데이터 수집 실패 이벤트 1건을 COLLECT_FAILURES_FILE 에 추가.
+ * scheduler / collector 가 통보문 수집 실패 시 자동 호출 — 운영자가
+ * 관리자 화면에서 누적 실패 목록 확인하여 재수집 트리거.
+ */
 router.post('/api/admin/collect-failures', async (req, res) => {
     try {
         const { reportId, title, error, retriesUsed } = req.body;
@@ -424,6 +430,11 @@ router.post('/api/admin/collect-failures', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+/**
+ * [DELETE /api/admin/collect-failures]
+ * 누적된 수집 실패 목록을 모두 비움 — COLLECT_FAILURES_FILE 자체 삭제.
+ * 운영자가 관리자 화면의 "초기화" 버튼으로 호출.
+ */
 router.delete('/api/admin/collect-failures', (req, res) => {
     try {
         if (fs.existsSync(COLLECT_FAILURES_FILE)) fs.unlinkSync(COLLECT_FAILURES_FILE);
@@ -983,6 +994,11 @@ const DEFAULT_WORK_MESSAGE = `현재 관리자가 SEA:GNAL의 쾌적한 사용 �
 하지만 작업 소요시간은 오래 걸리지 않으니 사용 중 문제가 발생하지 않도록 신속하게 마무리하겠습니다.
 이용해주셔서 감사합니다.`;
 
+/**
+ * 작업 모드(Work Mode) 설정을 WORK_MODE_FILE 에서 읽기.
+ * 작업 모드: 운영자가 일시적으로 알림 발송이나 수집 동작을 멈출 때 사용 (점검 모드).
+ * 파일 없거나 파싱 실패 시 기본값(작업 모드 OFF) 반환.
+ */
 function loadWorkModeConfig() {
     try {
         if (fs.existsSync(WORK_MODE_FILE)) {
