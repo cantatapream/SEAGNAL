@@ -121,6 +121,15 @@
     }
 
     /**
+     * "비활성 자식" 용 빈 스타일 — 활성 모드에서 자식이 활성 부모를 갖지 않는
+     * 경우 사용. ol.style.Style 인스턴스이지만 stroke/fill/text 모두 없어
+     * 렌더 결과가 0 (사실상 숨김). null 을 반환하면 ocean_warn_zone.js 의 기본
+     * _subZoneStyle 로 fallback 되어 청록 점선 + 한국어 라벨이 줌 6~8 에서도
+     * 모두 보이게 되는데, 활성 모드의 시각 의도(활성 zone 부각)에 반하므로 숨김.
+     */
+    var _EMPTY_STYLE = new ol.style.Style({});
+
+    /**
      * OceanWarnZone 에 등록할 스타일러 본체.
      *
      * @param {ol.Feature} feature - 그려질 폴리곤 feature
@@ -150,11 +159,13 @@
             return _coloredStyle(info, kind, feature);
         }
 
-        // 활성 zone 아님 (해제됐거나 처음부터 특보 없음)
-        //   - 메인은 옅은 회색 점선으로 죽여서 활성 zone 부각
-        //   - 자식은 null → 기존 청록 점선 (active 모드여도 자식까지 죽이면
-        //     활성 자식 fullName 매칭 실패 case 와 구분 어려워짐)
-        if (kind === 'main') return _dimmedOutlineStyle(kind, feature);
-        return null;
+        // 활성 zone 아님 (해제됐거나 처음부터 색칠 가능 특보 없음)
+        if (kind === 'main') {
+            // 메인은 옅은 회색 점선 + 라벨 → 활성 zone 을 시각적으로 부각
+            return _dimmedOutlineStyle(kind, feature);
+        }
+        // 자식은 빈 스타일로 숨김 — 활성 모드에서 minZoom 해제로 모든 줌에서 그려지므로
+        // 비활성 자식까지 청록 점선/라벨로 보이면 시각 노이즈 + 베이스맵 가독성 저하.
+        return _EMPTY_STYLE;
     };
 })();
