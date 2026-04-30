@@ -353,9 +353,25 @@
      * 내부: 헤더 (좌:다음피크 / 가운데:진행막대 / 우:그 다음 피크)
      * ------------------------------------------------------------ */
     function renderHeadHtml(prevPeak, nextPeak, todayMode, peaks, currentHtml) {
-        if (!todayMode || !prevPeak || !nextPeak) {
-            return '';
+        // 어제/내일 보기 (todayMode=false) — 게이지 영역 자체 없음.
+        if (!todayMode) return '';
+
+        // 오늘 보기인데 직전·다음 피크 계산 불가 — 일반적으로 다음 두 경우:
+        //  ① 새벽/심야 — 어제(yesterday) 또는 내일(tomorrow) 의 피크가 필요한데
+        //     아직 폴링에서 도착 안 함 (조석 점진 로딩 중)
+        //  ② 이웃 데이터 도착 후에도 듀레이션 무효(>780분 또는 ≤0)
+        // 첫 케이스는 곧 도착할 가능성이 큼 → 게이지 자리에 로딩 스피너 표시.
+        // 4피크 리스트는 별도로 정상 표시되므로 사용자는 이미 핵심 정보(고조/저조 시각)
+        // 를 볼 수 있고, 게이지만 잠시 후 채워짐.
+        if (!prevPeak || !nextPeak) {
+            return (
+                '<div class="ocean-tide-head ocean-tide-head-loading">' +
+                  '<div class="ocean-tide-gauge-spinner"></div>' +
+                  '<div class="ocean-tide-gauge-spinner-text">게이지 정보를 불러오는 중...</div>' +
+                '</div>'
+            );
         }
+
         // tide.js와 동일: 좌측=직전(prev) 피크, 우측=다음(next) 피크
         var leftCls = prevPeak.type === 'high' ? 'is-high' : 'is-low';
         var leftLabelText = prevPeak.type === 'high' ? '고조' : '저조';

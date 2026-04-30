@@ -9067,6 +9067,30 @@ body.ocean-map-active .main-header .header-content {
     margin-top: 8px;
 }
 
+/* 게이지 영역 전용 스피너 (오늘 데이터는 도착했지만 어제/내일 미도착 시).
+   첫 화면 .ocean-tide-spinner 보다 작고 컴팩트. */
+.ocean-tide-head-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 18px 12px;
+    margin-bottom: 8px;
+}
+.ocean-tide-gauge-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(100,180,255,0.2);
+    border-top-color: #64b4ff;
+    border-radius: 50%;
+    animation: oceanTideSpin 0.9s linear infinite;
+    flex-shrink: 0;
+}
+.ocean-tide-gauge-spinner-text {
+    color: rgba(255,255,255,0.55);
+    font-size: 0.78rem;
+}
+
 /* 에러 (육지/격자 밖) */
 .ocean-tide-error {
     display: flex;
