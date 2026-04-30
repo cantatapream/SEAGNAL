@@ -585,15 +585,17 @@ function _ensureOceanToastStyles() {
         // 긴 텍스트 허용 (옵션).
         //  - pre-line: 메시지의 \n 을 줄바꿈으로 보존
         //  - keep-all: 한국어 단어 사이에서만 줄바꿈 허용 (자모 사이 안 쪼개짐)
-        //  - max-width 를 (100vw - 16px) 로 확대해 좌우 여백 8px 만 남김
+        //  - width: min(75vw, 600px) — 박스 폭을 화면 75% 로 강제(태블릿 600px 상한)
+        //    max-width 만 있으면 콘텐츠 폭에 맞춰 줄어들어 좁게 보이는 문제 방지
         //  - padding 좌우 14px 로 줄여 텍스트 영역을 한 단계 더 확보
-        //  - box-sizing: border-box 로 padding 포함된 max-width 계산
+        //  - box-sizing: border-box 로 padding 포함된 width 계산
         '#' + _OCEAN_TOAST_ID + '.multi-line {',
         '  white-space: pre-line;',
         '  text-align: center;',
         '  border-radius: 14px;',
         '  word-break: keep-all;',
         '  overflow-wrap: anywhere;',
+        '  width: min(75vw, 600px);',
         '  max-width: calc(100vw - 16px);',
         '  padding: 10px 14px;',
         '  box-sizing: border-box;',
