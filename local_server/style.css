@@ -9569,6 +9569,15 @@ body.ocean-map-active .main-header .header-content {
     display: none !important;
 }
 
+/* 슬라이더·재생 컨트롤·속도 칩 컨테이너: noSlider 변수에서 통째로 숨김.
+   .mc-player / .mc-speed-row / .mc-fs-bottom 모두 display:flex 라
+   [hidden] 속성이 그대로는 무시됨 → 명시적으로 display:none 강제. */
+.mc-player[hidden],
+.mc-speed-row[hidden],
+.mc-fs-bottom[hidden] {
+    display: none !important;
+}
+
 /* 기준시각 라벨 + 시간 점프 7버튼 */
 .mc-time-row {
     margin-bottom: 8px;
