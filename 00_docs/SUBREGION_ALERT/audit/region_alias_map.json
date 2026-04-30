@@ -436,14 +436,13 @@
       "parentRegId": "S1232210"
     }
   },
-  "unmapped": [
+  "unmapped": [],
+  "removedFromAppTree": [
     {
-      "afsoRegId": null,
-      "afsoRegKo": null,
       "appRegKo": "인천·경기북부앞바다중연안바다",
       "parentRegKoApp": "인천·경기북부앞바다",
-      "note": "우리 앱에는 정의되어 있으나 방재기상 응답에 행이 없음. 추후 등장 여부 모니터링 필요.",
-      "firstNotedAt": "2026-05-01T03:12:41+09:00"
+      "note": "전수조사 시 우리 앱 트리에 정의되어 있었으나 방재기상 응답에 등장하지 않음. 사용처 전수조사 결과 사용처 0건 (좀비 항목)으로 확인되어 제거 처리. 제거 위치: weather_alerts_crawler.js:77, weather_alerts.json (961, 2123줄), empty_tree.json.",
+      "removedAt": "2026-05-01T03:30:00+09:00"
     }
   ]
 }
