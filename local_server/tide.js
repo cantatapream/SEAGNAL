@@ -1188,13 +1188,13 @@ async function handleTideMapClick(event) {
             // 아직 완료되지 않은 파일만 체크 (병렬)
             const checks = [];
             if (!completedData.today) checks.push(
-                fetch(`/data/${files.today}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.today = d; }).catch(() => {})
+                fetch(`/data/${files.today}?` + Date.now()).then(r => r.json()).then(d => { if ((d.tideBedStatus === 'complete' || d.tideBedStatus === 'complete-quick')) completedData.today = d; }).catch(() => {})
             );
             if (!completedData.tomorrow) checks.push(
-                fetch(`/data/${files.tomorrow}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.tomorrow = d; }).catch(() => {})
+                fetch(`/data/${files.tomorrow}?` + Date.now()).then(r => r.json()).then(d => { if ((d.tideBedStatus === 'complete' || d.tideBedStatus === 'complete-quick')) completedData.tomorrow = d; }).catch(() => {})
             );
             if (!completedData.yesterday) checks.push(
-                fetch(`/data/${files.yesterday}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.yesterday = d; }).catch(() => {})
+                fetch(`/data/${files.yesterday}?` + Date.now()).then(r => r.json()).then(d => { if ((d.tideBedStatus === 'complete' || d.tideBedStatus === 'complete-quick')) completedData.yesterday = d; }).catch(() => {})
             );
 
             await Promise.all(checks);
@@ -1443,7 +1443,7 @@ function showTidePopup(coordinate, data) {
         // 게이지 표시 (getTideProgress) - 데이터가 온전하고(complete), 일조부등(2회 이하)이 아닐 경우만 표시
         // 동해 해역 등 타이드배드 미제공 구역 대응
         const totalTideCount = allTides.length;
-        const isTideBedProvided = today.tideBedStatus === 'complete';
+        const isTideBedProvided = (today.tideBedStatus === 'complete' || today.tideBedStatus === 'complete-quick');
 
         if (totalTideCount > 2 && isTideBedProvided) {
             const tideProgress = getTideProgress(allTides, currentTideDate, prevDayLastTide, nextDayFirstTide, currentTideLevel);
@@ -2008,13 +2008,13 @@ async function refreshPopupIfOpen() {
         try {
             const checks = [];
             if (!completedData.today) checks.push(
-                fetch(`/data/${files.today}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.today = d; }).catch(() => {})
+                fetch(`/data/${files.today}?` + Date.now()).then(r => r.json()).then(d => { if ((d.tideBedStatus === 'complete' || d.tideBedStatus === 'complete-quick')) completedData.today = d; }).catch(() => {})
             );
             if (!completedData.tomorrow) checks.push(
-                fetch(`/data/${files.tomorrow}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.tomorrow = d; }).catch(() => {})
+                fetch(`/data/${files.tomorrow}?` + Date.now()).then(r => r.json()).then(d => { if ((d.tideBedStatus === 'complete' || d.tideBedStatus === 'complete-quick')) completedData.tomorrow = d; }).catch(() => {})
             );
             if (!completedData.yesterday) checks.push(
-                fetch(`/data/${files.yesterday}?` + Date.now()).then(r => r.json()).then(d => { if (d.tideBedStatus === 'complete') completedData.yesterday = d; }).catch(() => {})
+                fetch(`/data/${files.yesterday}?` + Date.now()).then(r => r.json()).then(d => { if ((d.tideBedStatus === 'complete' || d.tideBedStatus === 'complete-quick')) completedData.yesterday = d; }).catch(() => {})
             );
 
             await Promise.all(checks);
@@ -2860,9 +2860,9 @@ window.showTideDetailForLocation = async function (lat, lon, placeName) {
         }
         try {
             var checks = [];
-            if (!completedData.today) checks.push(fetch('/data/' + files.today + '?' + Date.now()).then(function (r) { return r.json(); }).then(function (d) { if (d.tideBedStatus === 'complete') completedData.today = d; }).catch(function () {}));
-            if (!completedData.tomorrow) checks.push(fetch('/data/' + files.tomorrow + '?' + Date.now()).then(function (r) { return r.json(); }).then(function (d) { if (d.tideBedStatus === 'complete') completedData.tomorrow = d; }).catch(function () {}));
-            if (!completedData.yesterday) checks.push(fetch('/data/' + files.yesterday + '?' + Date.now()).then(function (r) { return r.json(); }).then(function (d) { if (d.tideBedStatus === 'complete') completedData.yesterday = d; }).catch(function () {}));
+            if (!completedData.today) checks.push(fetch('/data/' + files.today + '?' + Date.now()).then(function (r) { return r.json(); }).then(function (d) { if ((d.tideBedStatus === 'complete' || d.tideBedStatus === 'complete-quick')) completedData.today = d; }).catch(function () {}));
+            if (!completedData.tomorrow) checks.push(fetch('/data/' + files.tomorrow + '?' + Date.now()).then(function (r) { return r.json(); }).then(function (d) { if ((d.tideBedStatus === 'complete' || d.tideBedStatus === 'complete-quick')) completedData.tomorrow = d; }).catch(function () {}));
+            if (!completedData.yesterday) checks.push(fetch('/data/' + files.yesterday + '?' + Date.now()).then(function (r) { return r.json(); }).then(function (d) { if ((d.tideBedStatus === 'complete' || d.tideBedStatus === 'complete-quick')) completedData.yesterday = d; }).catch(function () {}));
             await Promise.all(checks);
             var done = (completedData.today ? 1 : 0) + (completedData.tomorrow ? 1 : 0) + (completedData.yesterday ? 1 : 0);
             if (done === 3) {
@@ -3045,7 +3045,7 @@ function _buildTideDetailContent(lat, lon, tideBed) {
 
     // 게이지 표시 (데이터 충분 + complete 상태)
     var totalTideCount = allTides.length;
-    var isTideBedProvided = today.tideBedStatus === 'complete';
+    var isTideBedProvided = (today.tideBedStatus === 'complete' || today.tideBedStatus === 'complete-quick');
     if (totalTideCount > 2 && isTideBedProvided) {
         var tideProgress = getTideProgress(allTides, new Date(), prevDayLastTide, nextDayFirstTide, currentTideLevel);
         if (tideProgress && (currentTideLevel === null || isNaN(currentTideLevel))) {

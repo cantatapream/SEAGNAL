@@ -235,8 +235,12 @@ router.post('/api/save_tide_input', async (req, res) => {
                     rawItemsMap[dayValue] = await tideCollector.collectTideBedData(lat, lon, String(dayValue));
                 }
 
-                // 단일 날짜 패딩 분석 + 'complete' 저장 헬퍼
-                async function analyzeAndSave(item) {
+                // 단일 날짜 패딩 분석 + 'complete' 저장 헬퍼.
+                // opts.quick=true 면 이웃 padding 없이 단독 분석한 결과를
+                // 'complete-quick' 상태로 표시 → 클라이언트가 임시 결과로
+                // 인식하고 final 'complete' (이웃 도착 후 재분석) 를 기다림.
+                async function analyzeAndSave(item, opts) {
+                    opts = opts || {};
                     const dateInt = item.date;
                     const itemAdj = tideCollector.getAdjacentDates(dateInt);
                     // 이웃 raw 가 없으면 빈 배열 → padding 0 으로 단독 분석
@@ -246,22 +250,41 @@ router.post('/api/save_tide_input', async (req, res) => {
                         ...(rawItemsMap[itemAdj.next] || []).slice(0, 180)
                     ];
                     await tideCollector.collectAndSaveTideData(lat, lon, dateInt, time, item.fileName, paddedItems);
+
+                    // quick 모드 — 'complete' 를 'complete-quick' 으로 표시.
+                    // (이웃 도착 후 재분석 시 다시 'complete' 로 덮어쓰여 클라이언트가
+                    //  새 데이터를 가져갈 수 있음)
+                    if (opts.quick) {
+                        const cached = tideCache.get(item.fileName);
+                        if (cached && cached.tideBedStatus === 'complete') {
+                            cached.tideBedStatus = 'complete-quick';
+                            tideCache.set(item.fileName, cached);
+                        }
+                    }
                 }
 
-                // ── ① today 우선 (직렬) ──────────────────────────────
+                // ── ① today 우선 (직렬, quick 모드) ─────────────────
                 const todayItem = toCollect.find(it => it.date === adj.current);
                 if (todayItem) {
-                    await ensureRaw(adj.current);    // today raw
-                    await analyzeAndSave(todayItem); // padding 없이 단독 분석 → 'complete'
-                    console.log(`⚡ [Quick] today(${adj.current}) 우선 분석 완료 — 클라이언트 즉시 사용 가능`);
+                    await ensureRaw(adj.current);             // today raw
+                    await analyzeAndSave(todayItem, { quick: true }); // padding 없이 단독 분석 → 'complete-quick'
+                    console.log(`⚡ [Quick] today(${adj.current}) 우선 분석 완료 (quick) — 클라이언트 즉시 사용 가능`);
                 }
 
-                // ── ② 이웃(yesterday/tomorrow) 병렬, 백그라운드 ─────
+                // ── ② 이웃(yesterday/tomorrow) 병렬 + today 재분석 ──
+                //    이웃 도착 후 today 를 padded 로 다시 분석해 'complete' 로
+                //    덮어쓰기 → 클라이언트의 추가 폴링이 final 결과를 가져감.
+                //    (새벽/심야 첫·마지막 피크 정확도 보강)
                 const neighborItems = toCollect.filter(it => it.date !== adj.current);
                 const neighborDays = [adj.prev, adj.next].filter(d => !rawItemsMap[d]);
                 Promise.all(neighborDays.map(ensureRaw))
-                    .then(() => Promise.all(neighborItems.map(analyzeAndSave)))
-                    .then(() => {
+                    .then(() => Promise.all(neighborItems.map(it => analyzeAndSave(it))))
+                    .then(async () => {
+                        // today 재분석 — 이웃 raw 가 (적어도 일부는) 도착했을 때
+                        if (todayItem && (rawItemsMap[adj.prev] || rawItemsMap[adj.next])) {
+                            await analyzeAndSave(todayItem); // quick 없이 → 'complete'
+                            console.log(`✓ today(${adj.current}) padded 재분석 완료 → 'complete' 갱신`);
+                        }
                         console.log(`🎉 [Padding Analysis] 이웃 ${neighborItems.length}일치 분석 완료`);
                     })
                     .catch(err => console.error('❌ 이웃 백그라운드 수집 오류:', err.message));

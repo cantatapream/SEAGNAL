@@ -107,14 +107,32 @@
             var tries = 0;
             var collected = { yesterday: null, today: null, tomorrow: null };
 
+            // 단일 파일 폴링.
+            // 인정 상태:
+            //   'complete'        — final 결과 (padding 분석 완료) — 더 이상 폴링 안 함
+            //   'complete (IDW)'  — IDW 보간 결과 — final 로 간주
+            //   'complete-quick'  — today 우선 분석 임시 결과 (이웃 padding 없음).
+            //                       collected 에 저장하되 다음 loop 에서 다시 가져와
+            //                       final 'complete' 도착 시 갱신.
+            //   'error'           — 백엔드 수집 실패. collected 에 저장 후 빠른 실패 처리.
             function fetchOne(key) {
                 var fname = files[key];
-                if (!fname || collected[key]) return Promise.resolve();
+                if (!fname) return Promise.resolve();
+                // final 'complete' 또는 'error' 면 더 이상 폴링 안 함
+                var cur = collected[key];
+                if (cur && (cur.tideBedStatus === 'complete'
+                            || cur.tideBedStatus === 'complete (IDW)'
+                            || cur.tideBedStatus === 'error')) {
+                    return Promise.resolve();
+                }
                 return fetch('/data/' + fname)
                     .then(function (r) { return r.json(); })
                     .then(function (d) {
-                        if (d && (d.tideBedStatus === 'complete'
-                            || d.tideBedStatus === 'complete (IDW)')) {
+                        if (!d) return;
+                        if (d.tideBedStatus === 'complete'
+                            || d.tideBedStatus === 'complete (IDW)'
+                            || d.tideBedStatus === 'complete-quick'
+                            || d.tideBedStatus === 'error') {
                             collected[key] = d;
                         }
                     })
@@ -124,6 +142,11 @@
             (function loop() {
                 Promise.all([fetchOne('yesterday'), fetchOne('today'), fetchOne('tomorrow')])
                     .then(function () {
+                        // today 의 백엔드 수집이 실패했으면 빠른 실패 (60초 timeout 기다리지 않음)
+                        if (collected.today && collected.today.tideBedStatus === 'error') {
+                            OS.renderTideError('조석 데이터 수집에 실패했습니다.');
+                            return;
+                        }
                         if (collected.today) {
                             // 오늘 데이터 + 현재까지 모인 이웃 데이터로 렌더
                             OS.renderTideData(collected.today, /*isIdw=*/false, dateObj, {
@@ -131,9 +154,15 @@
                                 tomorrow: collected.tomorrow,
                                 lat: lat, lon: lon   // 서해 판별용 좌표 전달
                             });
-                            // 이웃이 아직 비어있으면 백그라운드 보강 폴링
-                            if ((!collected.yesterday || !collected.tomorrow)
-                                && ++tries < POLL_MAX_TRIES) {
+                            // 추가 폴링이 필요한 조건:
+                            //   - today 가 'complete-quick' (이웃 도착 후 final 'complete' 기다림)
+                            //   - 또는 yesterday/tomorrow 미도착
+                            var stillPolling = (
+                                collected.today.tideBedStatus === 'complete-quick'
+                                || !collected.yesterday
+                                || !collected.tomorrow
+                            );
+                            if (stillPolling && ++tries < POLL_MAX_TRIES) {
                                 setTimeout(loop, POLL_INTERVAL_MS);
                             }
                             return;
