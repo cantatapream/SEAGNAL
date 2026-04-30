@@ -260,6 +260,10 @@
         el.stnSel        = document.getElementById('mc-stn');
         el.stnField      = document.getElementById('mc-field-stn');
 
+        // 재생 속도 칩 그룹 (인라인 + 풀스크린)
+        el.speedChips    = document.getElementById('mc-speed-chips');
+        el.fsSpeedChips  = document.getElementById('mc-fs-speed-chips');
+
         // 카테고리별 컨트롤 그룹 wrapper
         el.controlsWave    = document.getElementById('mc-controls-wave');
         el.controlsSurge   = document.getElementById('mc-controls-surge');
