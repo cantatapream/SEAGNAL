@@ -504,6 +504,15 @@ function _startCoastImageRefresh(provider, data) {
     }, 3000);
 }
 
+/**
+ * 해안 CCTV 이미지 자동 새로고침 타이머 정지.
+ *
+ * [호출 시점]
+ *   - 팝업 닫을 때 (closeCctvPopup) — 보이지 않는 이미지 갱신을 막아 네트워크 절약
+ *   - 새 _startCoastImageRefresh 시작 직전 (이중 타이머 방지)
+ *
+ * [안전성] 타이머가 없으면 (_cctvImageRefreshTimer === null) 그냥 통과.
+ */
 function _stopCoastImageRefresh() {
     if (_cctvImageRefreshTimer) {
         clearInterval(_cctvImageRefreshTimer);
