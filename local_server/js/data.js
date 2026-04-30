@@ -192,6 +192,12 @@ function flattenAlertsData(rootData) {
 
     appState.alerts = alerts;
     appState.coastalAlerts = coastalMap;
+
+    // ocean_warn_active.js (지도 위 활성 특보 색칠/박스) 가 listen.
+    // appState.alerts 가 갱신될 때마다 발화 → 색칠과 클릭 박스가 최신 상태로 동기화.
+    try {
+        window.dispatchEvent(new CustomEvent('seagnal:alerts-changed'));
+    } catch (e) { /* CustomEvent 미지원 환경 무시 */ }
 }
 
 /**

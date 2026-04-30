@@ -118,6 +118,11 @@
     var _subLoaded = false;
     var _subLoading = false;
 
+    // 활성 특보 색칠 모듈(ocean_warn_active.js)이 주입하는 스타일 함수.
+    // 시그니처: (feature, kind: 'main'|'sub') → ol.style.Style | ol.style.Style[] | null
+    // null 반환 시 기본 outline 스타일로 fallback.
+    var _activeStyler = null;
+
     /**
      * 메인 특보구역명 정규화 (공백 제거 + 마침표 → 중점)
      * 자식 구역은 SUBZONE_LABEL_MAP 으로 변환되므로 이 함수 미사용.
@@ -130,6 +135,10 @@
 
     /** 메인 특보구역 폴리곤 스타일 (44개) */
     function _zoneStyle(feature) {
+        if (_activeStyler) {
+            var override = _activeStyler(feature, 'main');
+            if (override) return override;
+        }
         var name = _normalizeZoneName(feature.get('name'));
         return new ol.style.Style({
             stroke: new ol.style.Stroke({
@@ -171,6 +180,10 @@
 
     /** 자식 구역 (연안바다/평수구역) 폴리곤 스타일 — 청록 톤으로 메인(노란)과 시각 구분 */
     function _subZoneStyle(feature) {
+        if (_activeStyler) {
+            var override = _activeStyler(feature, 'sub');
+            if (override) return override;
+        }
         var code = feature.get('WarnCode');
         var fullName = SUBZONE_LABEL_MAP[code];
         // 매핑 테이블에 없는 코드는 KMA 원본 name 을 정규화해서 사용 (안전망)
@@ -232,7 +245,12 @@
     function _loadMain() {
         if (_loaded || _loading) return;
         _loading = true;
-        fetch('/api/warn-zones')
+        // [캐시 무력화 v=20260430] 메인 특보구역 GeoJSON 좌표를 KMA wrnArea 정식
+        //   데이터로 교체(c09bf2a). 이전 응답은 routes/weather.js 의
+        //   Cache-Control: max-age=86400 으로 클라이언트(앱 WebView) 에 24시간
+        //   캐시되어 새 데이터 미적용 → URL 키 변경(?v=20260430) 으로 1회성 무력화.
+        //   다음 GeoJSON 갱신이 필요해지면 v 값을 다시 올려 같은 방식으로 처리.
+        fetch('/api/warn-zones?v=20260430')
             .then(function (res) {
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 return res.json();
@@ -257,7 +275,9 @@
     function _loadSub() {
         if (_subLoaded || _subLoading) return;
         _subLoading = true;
-        fetch('/api/warn-zones-sub')
+        // [캐시 무력화 v=20260430] 자식 특보구역 GeoJSON 도 함께 1회 무력화
+        //   (메인과 동일 사유 — 위 _loadMain 주석 참조)
+        fetch('/api/warn-zones-sub?v=20260430')
             .then(function (res) {
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 return res.json();
@@ -360,6 +380,52 @@
         var isActive = btn.classList.contains('active');
         if (isActive !== !!visible) btn.click();
         return true;
+    };
+
+    /**
+     * [외부 API] 활성 특보 색칠 모듈(ocean_warn_active.js) 연동용 네임스페이스.
+     *
+     * - setActiveStyler(fn): 메인/자식 폴리곤 그릴 때 우선 호출되는 스타일 함수 등록.
+     *                       fn(feature, kind) 가 truthy 반환 시 그 스타일이 사용되고,
+     *                       null/undefined 반환 시 기존 outline 스타일로 fallback.
+     *                       null 전달 시 등록 해제.
+     * - refresh(): 두 layer 의 스타일을 즉시 재평가 (특보 갱신 후 호출).
+     * - setSubMinZoomDisabled(bool): true 면 자식 layer 의 minZoom 제약을 풀어 멀리서도
+     *                                자식구역이 색칠되어 보이게 함. false 면 원복.
+     * - getMainSource() / getSubSource(): feature 검색용 (forEachFeatureAtPixel 의
+     *                                     layerFilter 에 _layer / _subLayer 사용).
+     * - getMainLayer() / getSubLayer(): 클릭 hit 테스트용 layer 참조.
+     * - getSubFullName(feature): 자식 feature 의 우리 앱 fullName 반환 (SUBZONE_LABEL_MAP).
+     */
+    window.OceanWarnZone = {
+        setActiveStyler: function (fn) {
+            _activeStyler = (typeof fn === 'function') ? fn : null;
+            this.refresh();
+        },
+        refresh: function () {
+            if (_layer)    _layer.changed();
+            if (_subLayer) _subLayer.changed();
+        },
+        setSubMinZoomDisabled: function (disabled) {
+            if (!_subLayer) return;
+            // OL Layer 의 minZoom 은 생성 시 옵션. set('minZoom', ...) 으로 동적 변경 가능.
+            _subLayer.setMinZoom(disabled ? -Infinity : SUBZONE_MIN_ZOOM);
+        },
+        getMainSource: function () { return _source; },
+        getSubSource:  function () { return _subSource; },
+        getMainLayer:  function () { return _layer; },
+        getSubLayer:   function () { return _subLayer; },
+        getSubFullName: function (feature) {
+            if (!feature) return '';
+            var code = feature.get('WarnCode');
+            return SUBZONE_LABEL_MAP[code] || _normalizeZoneName(feature.get('name'));
+        },
+        // 메인 feature 의 정규화된 zone 이름 (appState.alerts[].zoneName 과 매칭용)
+        getMainZoneName: function (feature) {
+            return feature ? _normalizeZoneName(feature.get('name')) : '';
+        },
+        normalizeZoneName: _normalizeZoneName,
+        isLoaded: function () { return _loaded && _subLoaded; }
     };
 
     // 현재 깜빡임 진행 중인 feature/타이머 — 새 깜빡임 시작 시 정리용
