@@ -94,6 +94,21 @@
             .catch(function () { OS.hideCard('ocean-card-depth'); });
     }
 
+    /**
+     * 수온(wtem) + 유향·유속(crsp/crdir) 카드를 KHOA 해아름 stream-vector
+     * 격자 캐시로 채움. 이전엔 공공데이터포털 ROMS API 단일좌표 호출이었지만
+     * 격자 캐시(서버 1시간 TTL) 가 더 빠르고 안정적이라 교체된 형태.
+     *
+     * [표시 동작]
+     *   - data.wtem 있음 → ocean-val-temp 갱신 + ocean-card-temp 표시
+     *   - data.crsp/crdir 있음 → state.rawCrsp/rawCrdir 저장 후
+     *     OS.renderCurrentWindValues() 가 단위·방향 텍스트 합성
+     *   - 데이터 없음/오류 → "데이터 없음" 텍스트
+     *
+     * @param {number} lat
+     * @param {number} lon
+     * @param {Date=} dateObj - 미지정 시 now
+     */
     function fetchRoms(lat, lon, dateObj) {
         // KHOA 해아름 stream-vector(전 해역 격자) 캐시에서 가장 가까운 점 1개 조회.
         // 기존 공공데이터포털 ROMS API 단일좌표 호출보다 빠르고, 같은 시각이면
@@ -140,6 +155,15 @@
             });
     }
 
+    /**
+     * 풍향·풍속 카드를 /api/ocean/weather 로부터 채움.
+     * data.windDir/windSpeed 있을 때만 표시, 없으면 카드 자체 숨김.
+     * (예: 좌표가 예보 범위 밖이거나 응답 실패)
+     *
+     * @param {number} lat
+     * @param {number} lon
+     * @param {Date=} dateObj - 슬라이더 시각 (있으면 ISO 문자열로 ?time=...)
+     */
     function fetchWeather(lat, lon, dateObj) {
         var url = '/api/ocean/weather?lat=' + lat + '&lon=' + lon;
         if (dateObj) url += '&time=' + encodeURIComponent(dateObj.toISOString());
@@ -163,6 +187,14 @@
             .catch(function () { OS.hideCard('ocean-card-wind'); });
     }
 
+    /**
+     * 파고 카드를 /api/ocean/wave 로부터 채움.
+     * data.waveHeight 있을 때만 표시, 없으면 카드 자체 숨김.
+     *
+     * @param {number} lat
+     * @param {number} lon
+     * @param {Date=} dateObj - 슬라이더 시각 (있으면 ISO 문자열로 ?time=...)
+     */
     function fetchWave(lat, lon, dateObj) {
         var url = '/api/ocean/wave?lat=' + lat + '&lon=' + lon;
         if (dateObj) url += '&time=' + encodeURIComponent(dateObj.toISOString());

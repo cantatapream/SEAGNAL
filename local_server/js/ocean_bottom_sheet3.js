@@ -527,6 +527,10 @@
         for (var i = 0; i < arr.length; i++) if (arr[i].type === type) return arr[i];
         return null;
     }
+    /**
+     * 배열을 뒤에서부터 훑어 마지막으로 type 이 일치하는 항목 반환.
+     * firstOfType 의 역순. 만조/간조 분기 시 "오늘 마지막 만조" 추적용.
+     */
     function lastOfType(arr, type) {
         for (var i = arr.length - 1; i >= 0; i--) if (arr[i].type === type) return arr[i];
         return null;
@@ -551,10 +555,21 @@
         var d = new Date();
         return String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
     }
+    /**
+     * 현재 시각을 "0시 0분으로부터의 분" 단위로 반환 (0~1439).
+     * 조석 피크와 비교용 — interpolateLevel 의 currentMin 계산.
+     */
     function nowMinutes() {
         var d = new Date();
         return d.getHours() * 60 + d.getMinutes();
     }
+    /**
+     * "HH:MM" 또는 "HHMM" 문자열을 분(0~1439)으로 변환.
+     * ':' 포함 여부로 두 포맷 모두 지원.
+     *
+     * @param {string|null} s
+     * @returns {number}
+     */
     function hhmmToMinutes(s) {
         if (!s) return 0;
         s = String(s);
@@ -565,6 +580,10 @@
         s = s.padStart(4, '0');
         return parseInt(s.substring(0, 2), 10) * 60 + parseInt(s.substring(2, 4), 10);
     }
+    /**
+     * 분(0 또는 외 값)을 "HH:MM" 으로 변환. 음수·1440+ 값도 24h 모듈로 정규화.
+     * 자정 넘김(cross-day) 보정으로 안전.
+     */
     function minutesToHHMM(m) {
         // cross-day 보정으로 음수 또는 1440 이상 값이 들어올 수 있음 → 24h 모듈로
         var n = ((m % 1440) + 1440) % 1440;
@@ -572,11 +591,19 @@
         var mm = n % 60;
         return String(h).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
     }
+    /**
+     * 분 단위 잔여 시간을 "HH:MM" 으로 포맷 ("다음 만조까지 02:14" 등).
+     * minutesToHHMM 과 비슷하지만 모듈로 처리 안 함 (잔여시간은 0 이상이 보장됨).
+     */
     function formatRemain(m) {
         var h = Math.floor(m / 60);
         var mm = m % 60;
         return String(h).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
     }
+    /**
+     * HTML 안전 escape — 사용자 입력이 들어가는 위치(메시지/이름 등) 에 사용.
+     * &, <, >, ", ' 5종 모두 처리.
+     */
     function escapeHtml(s) {
         return String(s).replace(/[&<>"']/g, function (c) {
             return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];

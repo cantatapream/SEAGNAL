@@ -100,6 +100,13 @@ function escSvAttr(str) {
 let _surveyQuestions = [];
 let _editingSurveyId = null;
 
+/**
+ * 설문 생성/편집 탭 본문(container) 을 렌더.
+ * _surveyQuestions 배열을 비운 뒤 빈 입력 폼 + "질문 추가" 버튼 등을 그림.
+ * 편집 모드(_editingSurveyId 셋팅됨) 면 기존 질문 데이터를 미리 채움.
+ *
+ * [연계] 관리자 메뉴의 "설문 생성" 버튼이 호출. _editingSurveyId 는 다른 곳에서 set.
+ */
 async function renderSurveyCreateTab(container) {
     _surveyQuestions = [];
     _editingSurveyId = null;
@@ -202,6 +209,10 @@ window.removeSurveyOption = function (qi, oi) {
     renderQuestionsList();
 };
 
+/**
+ * _surveyQuestions 배열을 기반으로 화면의 질문 목록(#sv-questions-list) 을 다시 그림.
+ * 질문 추가/삭제/순서 변경 후 이 함수를 호출하면 UI 가 동기화됨.
+ */
 function renderQuestionsList() {
     const listEl = document.getElementById('sv-questions-list');
     const countEl = document.getElementById('sv-q-count');
@@ -346,6 +357,15 @@ async function renderSurveyStatusTab(container) {
     }
 }
 
+/**
+ * 설문 1건(s)을 카드 HTML 문자열로 변환.
+ * status 별 배지 색(active=초록 / draft=주황 / closed=회색) + 제목·기간·응답수·버튼.
+ *
+ * [입력] s = { id, title, status, startAt, endAt, responseCount, ... }
+ * [연계] 관리자 설문 목록 탭에서 각 설문 카드를 그릴 때 호출.
+ *
+ * @returns {string} - innerHTML 으로 삽입할 카드 마크업
+ */
 function buildSurveyCard(s) {
     const colors = { active: '#10b981', draft: '#f59e0b', closed: '#64748b' };
     const labels = { active: '진행 중', draft: '초안', closed: '마감' };
@@ -583,6 +603,15 @@ window.loadSurveyResult = async function () {
     }
 };
 
+/**
+ * 객관식 응답 집계(counts) 를 가로 막대 + 비율(%) 텍스트로 표시하는 HTML 빌드.
+ *
+ * [입력]
+ *   counts = { '선택지A': 12, '선택지B': 7, ... }
+ *   total  = 전체 응답 수 (비율 계산용)
+ *
+ * [출력] HTML 문자열 — 응답 결과 카드에 innerHTML 으로 삽입.
+ */
 function buildBarSummary(counts, total) {
     let html = '<div style="margin-top:8px;">';
     Object.entries(counts).forEach(([label, count]) => {
@@ -610,6 +639,12 @@ function createDoughnutChart(id, counts) {
     _surveyCharts.push(c);
 }
 
+/**
+ * 가로 막대(Horizontal Bar) Chart.js 차트 생성 후 _surveyCharts 에 등록.
+ * 응답이 많아 라벨이 길 때 좋은 표현 (indexAxis:'y').
+ *
+ * [입력] id = canvas 의 DOM id, counts = { 라벨: 갯수 } 객체.
+ */
 function createHBarChart(id, counts) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -621,6 +656,15 @@ function createHBarChart(id, counts) {
     _surveyCharts.push(c);
 }
 
+/**
+ * 세로 막대(Vertical Bar) Chart.js 차트 생성 후 _surveyCharts 에 등록.
+ * createHBarChart 와 달리 labels/values 배열을 직접 받음 — 척도형 응답에 적합.
+ *
+ * @param {string} id     - canvas DOM id
+ * @param {Array<string>} labels - x 축 라벨 배열
+ * @param {Array<number>} values - 각 라벨의 값
+ * @param {string=} color - 막대 색 (미지정 시 파랑)
+ */
 function createVBarChart(id, labels, values, color) {
     const el = document.getElementById(id);
     if (!el) return;

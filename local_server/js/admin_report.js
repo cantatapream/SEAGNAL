@@ -104,6 +104,12 @@ window._switchReportSubTab = function(tab) {
 let _allReports = [];
 let _currentFilter = 'all';
 
+/**
+ * 게시글 신고 목록을 서버에서 조회 → renderReportList 로 화면 갱신.
+ * 관리자 화면 진입 시 + 신고 처리 후 다시 호출되어 목록을 최신 상태로 유지.
+ *
+ * [연계] /api/reports 응답을 _reports 전역에 저장.
+ */
 async function loadReportList() {
     try {
         const res = await fetch(CONFIG.API_BASE + '/api/reports');
@@ -115,6 +121,12 @@ async function loadReportList() {
     renderReportList();
 }
 
+/**
+ * _reports 배열을 카드 형태로 #report-list 에 렌더.
+ * 각 카드는 신고자/사유/대상 게시글 미리보기 + "처리/무시" 버튼 포함.
+ *
+ * [호출 시점] loadReportList 직후 + 처리 결과 반영 후.
+ */
 function renderReportList() {
     const container = document.getElementById('report-list');
     if (!container) return;
@@ -206,6 +218,10 @@ window._bulkDeleteReports = async function () {
 
 let _allCommentReports = [];
 
+/**
+ * 댓글 신고 목록을 서버에서 조회 → _renderCommentReportList 로 화면 갱신.
+ * loadReportList 의 댓글 버전 — 같은 패턴, 다른 엔드포인트.
+ */
 async function _loadCommentReportList() {
     try {
         const res = await fetch(CONFIG.API_BASE + '/api/comment-reports');
@@ -214,6 +230,10 @@ async function _loadCommentReportList() {
     _renderCommentReportList();
 }
 
+/**
+ * _commentReports 배열을 카드로 #comment-report-list 에 렌더.
+ * renderReportList 의 댓글 버전 — 신고된 댓글 본문/작성자/처리 버튼.
+ */
 function _renderCommentReportList() {
     const container = document.getElementById('comment-report-list');
     if (!container) return;
@@ -557,10 +577,18 @@ window._openImageViewer = function (reportId, startIndex) {
     modal.id = 'image-viewer-modal';
     modal.style.cssText = 'position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;';
 
+    /**
+     * 첨부파일명을 받아 서버 다운로드 URL 생성. 외부 링크 a[download] href 에 사용.
+     */
     function getDownloadUrl(filename) {
         return CONFIG.API_BASE + '/api/reports/' + reportId + '/download/' + encodeURIComponent(filename);
     }
 
+    /**
+     * 모달 본문(이미지 + 좌우 네비/다운로드 버튼) 을 다시 그림.
+     * currentIndex 변경 후 호출되어 이미지 src 와 인디케이터(1/N) 를 갱신.
+     * 줌 상태(scale, translateX/Y) 는 매 render 시 1배·중앙 으로 초기화.
+     */
     function render() {
         const filename = attachments[currentIndex];
         const src = '/uploads/reports/' + filename;
@@ -600,12 +628,20 @@ window._openImageViewer = function (reportId, startIndex) {
         bindEvents();
     }
 
+    /**
+     * 인덱스 idx 의 첨부파일로 이동(범위 밖이면 무시) + render 재호출.
+     * 스와이프/이전·다음 버튼/스와이프 제스처가 호출.
+     */
     function goTo(idx) {
         if (idx < 0 || idx >= attachments.length) return;
         currentIndex = idx;
         render();
     }
 
+    /**
+     * 모달의 모든 인터랙션(닫기/네비/줌/스와이프/드래그) 이벤트를 한 번에 등록.
+     * render 가 innerHTML 을 다시 쓸 때마다 새 DOM 에 다시 바인딩.
+     */
     function bindEvents() {
         const img = document.getElementById('iv-image');
         const container = document.getElementById('iv-container');
@@ -619,10 +655,18 @@ window._openImageViewer = function (reportId, startIndex) {
         if (prevBtn) prevBtn.onclick = (e) => { e.stopPropagation(); goTo(currentIndex - 1); };
         if (nextBtn) nextBtn.onclick = (e) => { e.stopPropagation(); goTo(currentIndex + 1); };
 
+        /**
+         * 현재 scale + translate 값으로 img 의 CSS transform 갱신.
+         * scale, translateX/Y 가 closure 변수로 공유되어 모든 핸들러가 사용.
+         */
         function updateTransform() {
             img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
         }
 
+        /**
+         * 새 줌 배율 적용 — 1.0~10.0 범위로 클램프.
+         * scale=1 이 되면 평행이동 누적값(translateX/Y) 도 0 으로 리셋.
+         */
         function zoomTo(newScale) {
             scale = Math.max(1, Math.min(10, newScale));
             if (scale === 1) { translateX = 0; translateY = 0; }
@@ -743,6 +787,11 @@ window._openImageViewer = function (reportId, startIndex) {
         };
     }
 
+    /**
+     * 모달 닫기 직전 호출 — bindEvents 에서 등록한 document 단위 listener
+     * (mousemove/mouseup 등) 를 해제하기 위한 hook.
+     * modal._cleanup 은 bindEvents 안에서 closure 로 만들어진 해제 함수.
+     */
     function cleanup() {
         if (modal._cleanup) modal._cleanup();
     }
@@ -789,6 +838,11 @@ window._addAnswerAttachment = function (input) {
     reader.readAsDataURL(file);
 };
 
+/**
+ * 신고 답변 임시저장 미리보기를 #admin-answer-previews 에 렌더.
+ * 작성 중인 답변(localStorage 등에 임시 저장된 것) 을 카드로 보여 줘 다시
+ * 신고 처리할 때 작성을 이어갈 수 있게 도와줌.
+ */
 function _renderAnswerPreviews() {
     const container = document.getElementById('admin-answer-previews');
     if (!container) return;
@@ -1000,6 +1054,10 @@ window.renderUnifiedBlockContent = async function (body) {
 let _allBlocks = { reportBlocks: [], tideBlocks: [], appBlocks: [] };
 let _currentBlockFilter = 'all';
 
+/**
+ * 차단 목록을 서버에서 조회 → renderBlockList 로 화면 갱신.
+ * 관리자 차단 관리 탭 진입 + 차단 추가/해제 후 다시 호출.
+ */
 async function loadBlockList() {
     try {
         const res = await fetch(CONFIG.API_BASE + '/api/blocks');
@@ -1011,6 +1069,10 @@ async function loadBlockList() {
     renderBlockList();
 }
 
+/**
+ * _blocks 배열을 카드로 #block-list 에 렌더.
+ * 사용자별 차단 사유, 등록 일시, 해제 버튼 표시.
+ */
 function renderBlockList() {
     const container = document.getElementById('block-list');
     if (!container) return;

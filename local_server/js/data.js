@@ -307,6 +307,15 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
     }
 }
 
+/**
+ * KMA wrnLvl 값 ("주의"/"경보"/"예비") 을 화면 표기용으로 정규화.
+ * 현재는 "주의" → "주의보" 만 변환하고, 나머지는 그대로 통과.
+ *
+ * [연계] processSingleAlert 가 displayLevel 결정 시 호출.
+ *
+ * @param {string} lvl - 원본 wrnLvl
+ * @returns {string} - 정규화된 등급 표기
+ */
 function transformLevel(lvl) {
     if (lvl === '주의') return '주의보';
     return lvl;
@@ -382,6 +391,23 @@ async function fetchBuoyData() {
     }
 }
 
+/**
+ * KMA 부이 데이터 텍스트(공백 구분 라인 형식) 을 파싱하여 객체 맵으로 반환.
+ *
+ * [입력 포맷]
+ *   '#' 으로 시작하는 라인은 헤더/주석으로 무시.
+ *   각 데이터 라인은 공백으로 구분된 컬럼 (지점코드, 시각, 풍속, 파고 등).
+ *
+ * [반환]
+ *   { stationCode: { 시각, 풍속, 파고, ... } } 형태의 맵.
+ *
+ * [연계]
+ *   - fetchBuoyData() 응답을 받아 호출
+ *   - 결과는 appState.buoyData 에 저장되어 부이 마커/카드 렌더에 사용
+ *
+ * @param {string} text - 원본 부이 데이터 텍스트
+ * @returns {Object<string, Object>}
+ */
 function parseBuoyData(text) {
     const lines = text.trim().split('\n');
     const buoyData = {};
@@ -825,6 +851,12 @@ const ApiStatusManager = {
     }
 };
 
+/**
+ * 화면 우측 API 상태 패널을 다시 그림.
+ * ApiStatusManager.update() 의 얇은 래퍼 — 외부에서 함수명 그대로 호출하기 쉽게.
+ *
+ * [호출 시점] fetchAllData / 각 부분 fetch 결과 후 appState.apiStatus 갱신 직후.
+ */
 function updateApiStatusDisplay() {
     ApiStatusManager.update();
 }

@@ -253,6 +253,23 @@ let currentSearchKeyword = ''; // 현재 검색어
 const PROMO_ITEMS_PER_PAGE = 10; // 페이지당 게시글 수
 let currentPromoPage = 1; // 현재 페이지
 
+/**
+ * 홍보 게시글 목록을 화면에 렌더링.
+ *
+ * [입력] posts (선택) — 처음 로드 시 전역 allPromoPosts 에 저장.
+ *        후속 호출(필터/검색/페이지 변경) 에서는 인자 없이 호출하여
+ *        기존 allPromoPosts 를 재사용.
+ *
+ * [필터링/검색]
+ *   - 카테고리 필터
+ *   - 검색어 (currentSearchKeyword)
+ *   - 페이지네이션 (PROMO_ITEMS_PER_PAGE 단위)
+ *
+ * [연계] currentPromoPage / currentSearchKeyword / 카테고리 필터 변경 시
+ *        이 함수를 다시 호출하여 화면 갱신.
+ *
+ * @param {Array<Object>=} posts - 게시글 배열 (최초 1회만 전달)
+ */
 function renderPromoPosts(posts) {
     // 렌더링 시 전역 변수 업데이트 (최초 로드 시)
     if (posts) allPromoPosts = posts;
@@ -1070,6 +1087,23 @@ async function _initPromoReactions(postId) {
     }
 }
 
+/**
+ * 게시글 하단 리액션(❤️👍😮) 버튼 영역을 렌더링.
+ *
+ * [입력 data]
+ *   - heartCount/thumbsCount/wowCount : 각 종류별 카운트
+ *   - myReaction : 사용자의 현재 리액션 ('heart'|'thumbs'|'wow'|null)
+ *
+ * [동작]
+ *   - 각 버튼에 active 클래스로 사용자가 누른 것 강조
+ *   - 클릭 시 toggleReaction(postId, type) 호출 → 서버 갱신 후 다시 _renderReactions 호출
+ *
+ * [연계] toggleReaction (전역) — 버튼 onclick 핸들러
+ *
+ * @param {HTMLElement} wrap - 리액션이 들어갈 wrapper div
+ * @param {number} postId
+ * @param {Object} data
+ */
 function _renderReactions(wrap, postId, data) {
     const { heartCount, thumbsCount, wowCount, myReaction } = data;
 

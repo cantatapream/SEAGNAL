@@ -43,6 +43,28 @@
         runIdw(lat, lon, dateObj, callback);
     };
 
+    /**
+     * 동해북부 등 TideBED 미커버 좌표를 위한 IDW(역거리 가중) 보간 실행.
+     *
+     * [절차]
+     *   1) 어제/오늘/내일 3일치 일자 추출 (getClientAdjacentDates)
+     *   2) 일자별 연도가 다를 수 있어 필요한 모든 연도의 표준항 데이터 fetch
+     *   3) 각 일자마다 가까운 표준항 3곳 선택 → IDW 보간 → TideBED 형식 변환
+     *   4) callback(result, error) 으로 비동기 결과 반환
+     *
+     * [실패 케이스]
+     *   - 인근 표준항 0개
+     *   - IDW 계산 실패
+     *   - 변환 실패 (TideBED 포맷 부적합)
+     *   각각 callback(null, '<원인 메시지>') 으로 통지.
+     *
+     * [연계] OS.runTideIdw 외부 API 가 이 내부 함수를 호출.
+     *
+     * @param {number} lat
+     * @param {number} lon
+     * @param {Date} dateObj
+     * @param {Function} callback - (result|null, error|null)
+     */
     function runIdw(lat, lon, dateObj, callback) {
         try {
             var dates = getClientAdjacentDates(dateObj);
@@ -57,6 +79,10 @@
             years[dates.tomorrowObj.getFullYear()] = true;
             var pending = Object.keys(years);
 
+            /**
+             * 모든 연도 데이터 로드 끝난 뒤 실행 — 어제/오늘/내일 각각 IDW 적용.
+             * 한 일자라도 실패하면 즉시 callback 으로 에러 통지하고 종료.
+             */
             function afterLoads() {
                 try {
                     for (var key in keyMap) {
@@ -85,6 +111,11 @@
                 }
             }
 
+            /**
+             * pending 큐에서 연도 한 개씩 꺼내 loadTideData(year) 호출.
+             * Promise 가 resolve/reject 어느 쪽이든 다음 항목 진행 (실패해도 계속).
+             * 모든 연도 처리 끝나면 afterLoads 호출.
+             */
             function loadNext() {
                 if (pending.length === 0) { afterLoads(); return; }
                 var yr = pending.shift();
@@ -122,6 +153,13 @@
         { max: 1.0001, icon: '🌑', name: '그믐' }
     ];
 
+    /**
+     * SunCalc 가 제공하는 달 위상 phase(0~1) 값을 8단계 객체로 매핑.
+     * MOON_PHASES 배열의 max 임계값을 순차 비교하여 첫 번째 일치 항목 반환.
+     *
+     * @param {number} phase - 0~1 (0=그믐, 0.5=보름)
+     * @returns {{max: number, icon: string, name: string}}
+     */
     function pickMoonPhase(phase) {
         for (var i = 0; i < MOON_PHASES.length; i++) {
             if (phase <= MOON_PHASES[i].max) return MOON_PHASES[i];
@@ -168,6 +206,10 @@
             } catch (e) { lunarStr = ''; }
         }
 
+        /**
+         * Date 또는 시각값을 "HH:MM" 으로 포맷 (renderAstroCard 내부 헬퍼).
+         * 일출/일몰/월출/월몰 표시용.
+         */
         function fmt(t) {
             if (!t) return '--:--';
             if (t instanceof Date) {
