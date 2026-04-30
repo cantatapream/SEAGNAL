@@ -243,7 +243,8 @@ async function collectKmaBuoys() {
 //
 //   [언제 실행되나?]
 //     1) 서버 부팅 시 init() 의 Promise.all 안에서 1회 (최초 캐시 워밍업)
-//     2) 그 이후 매시 정시 +3분 KST 마다 1분 master setInterval 분기에서 호출
+//     2) 그 이후 매시 +3분, +13분 KST 마다 1분 master setInterval 분기에서 호출
+//        (+3분 시점 KMA 미발표 케이스를 대비해 10분 뒤 1회 더 재시도)
 //
 //   [데이터를 어디에 저장하나?]
 //     local_server/data/marine_*.json (Fly.io persistent volume 안)
@@ -1385,10 +1386,12 @@ async function init() {
             // collectKmaBuoys();
         }
 
-        // [신규 2026-04-25] marine.kma.go.kr JSON endpoint 4종 — 매시 정시 +3분 KST
+        // [신규 2026-04-25] marine.kma.go.kr JSON endpoint 4종 — 매시 +3분, +13분 KST
         //   - KMA 부이 데이터 발표(정시 갱신) 후 약 3분 여유를 두고 fetch → 가장 fresh 한 데이터
+        //   - +3분 시점에 KMA 가 아직 새 obs 를 발표 안 한 케이스를 대비해 +13분에 1회 더 시도
+        //     (관측 시각이 stale 한 채로 다음 시까지 1시간 stale 노출되던 문제 완화)
         //   - 4 endpoint 동시 호출 (각각 ~5~25KB JSON, 8초 타임아웃)
-        if (min === 3) {
+        if (min === 3 || min === 13) {
             collectMarineBuoys();
             collectMarineWhBuoys();
             collectMarineLhBuoys();
