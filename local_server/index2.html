@@ -1463,6 +1463,19 @@
                     <span class="mc-step-label" id="mc-step-label">--</span>
                 </div>
 
+                <!-- 재생 속도 칩 (0.3 / 0.5 / 1 / 2 / 3 초)
+                     클릭 시 state.playIntervalMs 변경 + 자동재생 중이면 즉시 적용. -->
+                <div class="mc-speed-row">
+                    <span class="mc-speed-label">속도</span>
+                    <div class="mc-speed-chips" id="mc-speed-chips">
+                        <button class="mc-speed-chip" data-speed="300">0.3s</button>
+                        <button class="mc-speed-chip active" data-speed="500">0.5s</button>
+                        <button class="mc-speed-chip" data-speed="1000">1s</button>
+                        <button class="mc-speed-chip" data-speed="2000">2s</button>
+                        <button class="mc-speed-chip" data-speed="3000">3s</button>
+                    </div>
+                </div>
+
                 <p class="mc-note">
                     기상청 날씨누리 (weather.go.kr)
                 </p>
@@ -3051,16 +3064,29 @@
 
     <!-- 하단: 재생 컨트롤 + 슬라이더 -->
     <div class="mc-fs-bottom" id="mc-fs-bottom">
-        <button class="mc-fs-ctrl" id="mc-fs-prev" type="button" aria-label="이전">
-            <i class="fa-solid fa-backward-step"></i>
-        </button>
-        <button class="mc-fs-ctrl mc-fs-toggle" id="mc-fs-toggle" type="button" aria-label="재생/정지">
-            <i class="fa-solid fa-play"></i>
-        </button>
-        <button class="mc-fs-ctrl" id="mc-fs-next" type="button" aria-label="다음">
-            <i class="fa-solid fa-forward-step"></i>
-        </button>
-        <input type="range" class="mc-fs-slider" id="mc-fs-slider" min="0" max="0" step="1" value="0" aria-label="시간 슬라이더" />
+        <div class="mc-fs-bottom-row">
+            <button class="mc-fs-ctrl" id="mc-fs-prev" type="button" aria-label="이전">
+                <i class="fa-solid fa-backward-step"></i>
+            </button>
+            <button class="mc-fs-ctrl mc-fs-toggle" id="mc-fs-toggle" type="button" aria-label="재생/정지">
+                <i class="fa-solid fa-play"></i>
+            </button>
+            <button class="mc-fs-ctrl" id="mc-fs-next" type="button" aria-label="다음">
+                <i class="fa-solid fa-forward-step"></i>
+            </button>
+            <input type="range" class="mc-fs-slider" id="mc-fs-slider" min="0" max="0" step="1" value="0" aria-label="시간 슬라이더" />
+        </div>
+        <!-- 풀스크린 재생 속도 칩 (인라인과 동일 5단계) -->
+        <div class="mc-speed-row mc-fs-speed-row">
+            <span class="mc-speed-label">속도</span>
+            <div class="mc-speed-chips" id="mc-fs-speed-chips">
+                <button class="mc-speed-chip" data-speed="300">0.3s</button>
+                <button class="mc-speed-chip active" data-speed="500">0.5s</button>
+                <button class="mc-speed-chip" data-speed="1000">1s</button>
+                <button class="mc-speed-chip" data-speed="2000">2s</button>
+                <button class="mc-speed-chip" data-speed="3000">3s</button>
+            </div>
+        </div>
     </div>
 </div>
 

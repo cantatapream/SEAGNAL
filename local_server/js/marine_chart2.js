@@ -244,22 +244,62 @@
     }
 
     /**
-     * 자동재생 시작 — setInterval 로 0.6초마다 goNext().
+     * 자동재생 시작 — 로드 체인 패턴 (setInterval 대신).
+     *
+     * 이전엔 setInterval 로 0.6초마다 goNext() 호출 → render() 가 img.src 를
+     * 변경 → 슬라이더는 즉시 갱신되지만 GIF 다운로드는 비동기. 큰 파일이거나
+     * 느린 네트워크에선 슬라이더가 이미지보다 앞서 나가는 문제.
+     *
+     * 새 패턴:
+     *   1) 다음 인덱스의 GIF 를 먼저 preload (별도 Image 객체)
+     *   2) onload 발화 시 render() 호출 — 브라우저 캐시에 이미 있어 즉시 표시
+     *   3) state.playIntervalMs 만큼 대기 후 다음 frame
+     *
+     * → 슬라이더와 화면 이미지가 항상 동기. 사용자가 속도 칩을 변경하면
+     *   다음 대기 시간부터 즉시 적용.
      */
     function play() {
-        const { state, el } = MC;
+        const { state } = MC;
         if (state.playing || state.list.length <= 1) return;
         state.playing = true;
-        state.playTimer = setInterval(goNext, state.playIntervalMs);
         updatePlayButtonIcons();
+        _scheduleNextFrame();
     }
 
     /**
-     * 자동재생 중지.
+     * 다음 프레임을 미리 받고, 받은 즉시 render + 일정 시간 대기 → 재귀.
+     * pause() 가 호출되면 state.playing=false 가 되어 체인이 자연스럽게 종료됨.
+     */
+    function _scheduleNextFrame() {
+        const { state } = MC;
+        if (!state.playing || state.list.length <= 1) return;
+
+        // 다음 인덱스 (마지막이면 처음으로 wrap)
+        const nextIdx = state.currentIndex < state.list.length - 1
+            ? state.currentIndex + 1 : 0;
+        const item = state.list[nextIdx];
+        if (!item || !item.url) return;
+
+        // preload Image 로 다운로드 → onload 시 화면 갱신
+        const preload = new Image();
+        const proceed = () => {
+            if (!state.playing) return;
+            render(nextIdx);
+            // 화면에 표시한 뒤 사용자가 바꾼 최신 속도로 대기
+            state.playTimer = setTimeout(_scheduleNextFrame, state.playIntervalMs);
+        };
+        preload.onload = proceed;
+        preload.onerror = proceed;   // 로드 실패해도 진행 (스킵 효과)
+        preload.src = item.url;
+    }
+
+    /**
+     * 자동재생 중지. 체인은 state.playing=false 만으로 끊기지만 안전을 위해
+     * pending setTimeout 도 정리.
      */
     function pause() {
         const { state } = MC;
-        if (state.playTimer) clearInterval(state.playTimer);
+        if (state.playTimer) clearTimeout(state.playTimer);
         state.playTimer = null;
         state.playing = false;
         updatePlayButtonIcons();
@@ -303,6 +343,38 @@
         if (el.fsPrev)     el.fsPrev.addEventListener('click', goPrev);
         if (el.fsNext)     el.fsNext.addEventListener('click', goNext);
         if (el.fsToggle)   el.fsToggle.addEventListener('click', togglePlay);
+
+        // 속도 칩 — 인라인 + 풀스크린 동일 핸들러로 묶음 (둘 다 state 공유)
+        bindSpeedChips(el.speedChips);
+        bindSpeedChips(el.fsSpeedChips);
+    }
+
+    /**
+     * 속도 칩 그룹에 클릭 핸들러 바인딩.
+     * 클릭 시 state.playIntervalMs 변경 + 양쪽 칩 그룹의 active 시각 동기.
+     * 자동재생 중이면 다음 _scheduleNextFrame 의 setTimeout 부터 즉시 적용.
+     */
+    function bindSpeedChips(group) {
+        if (!group) return;
+        group.addEventListener('click', (e) => {
+            const btn = e.target.closest('.mc-speed-chip');
+            if (!btn) return;
+            const ms = parseInt(btn.dataset.speed, 10);
+            if (!isFinite(ms) || ms <= 0) return;
+            MC.state.playIntervalMs = ms;
+            // 인라인·풀스크린 양쪽 칩 그룹 모두 active 동기
+            syncSpeedChipsActive(ms);
+        });
+    }
+
+    function syncSpeedChipsActive(ms) {
+        const { el } = MC;
+        [el.speedChips, el.fsSpeedChips].forEach(group => {
+            if (!group) return;
+            group.querySelectorAll('.mc-speed-chip').forEach(b => {
+                b.classList.toggle('active', parseInt(b.dataset.speed, 10) === ms);
+            });
+        });
     }
 
     // ── 시각 포맷터 ──

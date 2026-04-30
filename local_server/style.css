@@ -9693,6 +9693,71 @@ body.ocean-map-active .main-header .header-content {
     text-align: center;
 }
 
+/* 재생 속도 칩 그룹 — 인라인 + 풀스크린 공통 */
+.mc-speed-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+}
+.mc-speed-label {
+    color: #94a3b8;
+    font-size: 0.78rem;
+    flex-shrink: 0;
+}
+.mc-speed-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex: 1;
+}
+.mc-speed-chip {
+    flex: 1 1 auto;
+    min-width: 48px;
+    padding: 5px 0;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px;
+    background: rgba(255,255,255,0.04);
+    color: #cbd5e1;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.12s ease;
+}
+.mc-speed-chip:hover:not(.active) {
+    background: rgba(77,171,247,0.10);
+    color: #fff;
+}
+.mc-speed-chip.active {
+    background: linear-gradient(135deg, #4dabf7, #339af0);
+    border-color: transparent;
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(77,171,247,0.3);
+}
+
+/* 풀스크린 하단 — 컨트롤 줄과 속도 줄 분리 */
+.mc-fs-bottom-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.mc-fs-speed-row {
+    margin-top: 8px;
+}
+.mc-fs-speed-row .mc-speed-label {
+    color: rgba(255,255,255,0.7);
+}
+.mc-fs-speed-row .mc-speed-chip {
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.85);
+}
+.mc-fs-speed-row .mc-speed-chip.active {
+    background: linear-gradient(135deg, #4dabf7, #339af0);
+    color: #fff;
+}
+
 /* ── 전체화면 오버레이 ─────────────────────────────────────────────────── */
 
 .mc-fullscreen {
@@ -9838,9 +9903,10 @@ body.mc-fullscreen-active .bottom-sub-tabs {
     left: 0;
     right: 0;
     z-index: 2;
+    /* 두 줄 레이아웃: 위(컨트롤 + 슬라이더), 아래(속도 칩) */
     display: flex;
-    align-items: center;
-    gap: 10px;
+    flex-direction: column;
+    gap: 6px;
     padding: 12px 16px 16px;
     background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
     opacity: 0;
