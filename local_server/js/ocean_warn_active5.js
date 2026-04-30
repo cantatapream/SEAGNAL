@@ -181,6 +181,14 @@
         var info = state.activeMap[parentZone];
         if (!info) return;
 
+        // 선택 강조 — _styler 가 이 zone 의 main + sub feature 테두리를
+        // 노란색(OFF 상태 outline 색) 으로 렌더하도록 알린다.
+        // refresh 후 OL layer 가 즉시 재평가되어 색이 바뀜.
+        state.selectedZone = parentZone;
+        if (window.OceanWarnZone && typeof window.OceanWarnZone.refresh === 'function') {
+            window.OceanWarnZone.refresh();
+        }
+
         // 박스 콘텐츠 빌드
         var html = ''
             + '<div class="warn-active-box-header">'
@@ -269,6 +277,16 @@
         }
         state.box = null;
         _unbindOutsideClose();
+
+        // 선택 강조 해제 — _styler 가 다음 렌더부터 일반 색상으로 복귀.
+        // active 모드일 때만 layer 재평가 (OFF 상태면 styler 가 이미 null).
+        if (state.selectedZone) {
+            state.selectedZone = null;
+            if (state.active && window.OceanWarnZone
+                && typeof window.OceanWarnZone.refresh === 'function') {
+                window.OceanWarnZone.refresh();
+            }
+        }
     };
 
     /**

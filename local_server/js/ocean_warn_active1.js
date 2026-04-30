@@ -120,7 +120,12 @@
         // 박스 외부 클릭으로 박스가 막 닫힌 시각 (Date.now()).
         // tryHandleClick (5.js) 이 일정 윈도우(예: 400ms) 안의 클릭은 "닫기 의도"로 간주
         // 새 박스/바텀시트 호출을 차단 → 그 다음 클릭부터 정상 동작.
-        boxJustClosedAt: 0
+        boxJustClosedAt: 0,
+        // 현재 정보박스가 표출 중인 부모 zone 이름 (선택 강조 표시용).
+        // _showBox 가 set, _hideBox 가 null 로 reset.
+        // _styler (3.js) 가 이 값과 일치하는 feature 의 테두리 색을 노란색으로
+        // 강조하여 사용자가 어느 zone 을 선택했는지 시각적으로 식별 가능.
+        selectedZone: null
     };
 
     // 외부 파일에서 접근할 수 있도록 네임스페이스에 장착
