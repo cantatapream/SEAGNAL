@@ -32,12 +32,19 @@
      *   - 메인(부모) feature 는 라벨 표시(기존과 동일하게 흰색 글씨 + 검은 외곽)
      *   - 자식 feature 는 라벨 미표시 (부모 색을 따라가는 것이므로 라벨 중복 방지)
      *
+     * [선택 강조 모드 (isSelected=true)]
+     *   stroke 색을 OFF 상태 메인 outline 과 동일한 노란색
+     *   (rgba(255, 200, 80, 0.95)) + 굵기 2.5px + 실선 으로 변경.
+     *   fill 색은 그대로 유지하여 종류·단계 정보는 보존하되, 사용자가 어느 zone
+     *   을 선택했는지 즉시 식별 가능.
+     *
      * @param {Object} info - state.activeMap[zoneName] 항목
      * @param {string} kind - 'main' | 'sub'
      * @param {ol.Feature} feature - 라벨 텍스트 추출용
+     * @param {boolean} isSelected - true 면 선택 강조 (노란 테두리)
      * @returns {ol.style.Style}
      */
-    function _coloredStyle(info, kind, feature) {
+    function _coloredStyle(info, kind, feature, isSelected) {
         var palette = ns._const.ALERT_COLORS[info.paletteKey];
         if (!palette) return null;
 
@@ -45,12 +52,23 @@
         var fillAlpha = info.fillAlpha;
         var strokeAlpha = ns._const.STROKE_ALPHA;
 
-        var stroke = new ol.style.Stroke({
-            color: 'rgba(' + rgb + ',' + strokeAlpha + ')',
-            width: (kind === 'main') ? 2.0 : 1.6,
-            // 메인은 실선 (활성 강조), 자식은 점선 (구분 유지)
-            lineDash: (kind === 'main') ? null : [5, 3]
-        });
+        var stroke;
+        if (isSelected) {
+            // 선택 강조: ocean_warn_zone.js OFF 상태 메인 outline 색(노란) 사용
+            // 굵기·실선으로 종류 색(초록/카키/빨강) 위에서도 또렷이 식별
+            stroke = new ol.style.Stroke({
+                color: 'rgba(255, 200, 80, 0.95)',
+                width: 2.5,
+                lineDash: null
+            });
+        } else {
+            stroke = new ol.style.Stroke({
+                color: 'rgba(' + rgb + ',' + strokeAlpha + ')',
+                width: (kind === 'main') ? 2.0 : 1.6,
+                // 메인은 실선 (활성 강조), 자식은 점선 (구분 유지)
+                lineDash: (kind === 'main') ? null : [5, 3]
+            });
+        }
         var fill = new ol.style.Fill({
             color: 'rgba(' + rgb + ',' + fillAlpha + ')'
         });
@@ -153,10 +171,14 @@
         }
 
         var info = parentZone ? ns._state.activeMap[parentZone] : null;
+        // 사용자가 클릭하여 정보박스가 떠 있는 zone 인지 — 선택 강조 표시 용도.
+        // 부모/자식 모두 같은 selectedZone(=부모) 을 공유하므로 해당 영역 전체가
+        // 노란 테두리로 강조됨 (자식 클릭도 부모로 환원되는 정책과 시각 일관성).
+        var isSelected = !!parentZone && parentZone === ns._state.selectedZone;
 
         // 활성 맵에 항목 있고 paletteKey 까지 있으면 색칠
         if (info && info.paletteKey) {
-            return _coloredStyle(info, kind, feature);
+            return _coloredStyle(info, kind, feature, isSelected);
         }
 
         // 활성 zone 아님 (해제됐거나 처음부터 색칠 가능 특보 없음)
