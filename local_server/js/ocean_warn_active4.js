@@ -306,13 +306,29 @@
 
     /**
      * 버튼 click 핸들러.
-     * - disabled 상태(특보 없음) 면 무반응
+     * - disabled 상태(특보 없음) 면 안내 토스트 표출 후 무반응
      * - 그 외에는 active 상태 toggle
+     *
+     * [토스트 메시지]
+     *   "현재 발표된 해상특보가 없습니다." 를 하단(bottom) 위치로 표출.
+     *   index2_patch.js 의 _showOceanToast (top-level 함수, window 노출) 사용 —
+     *   이미 다른 토스트(파고/바람/조류 안내 등) 와 동일 패턴이라 위치 계산
+     *   (즐겨찾기 바/메인탭 회피) 자동 보장.
      */
     function _onToggleClick(e) {
         e.preventDefault();
         var btn = _getButton();
-        if (!btn || btn.classList.contains('warn-active-disabled')) return;
+        if (!btn) return;
+        if (btn.classList.contains('warn-active-disabled')) {
+            // 비활성(특보 없음) 상태에서 클릭 — 안내 토스트.
+            // _showOceanToast 는 index2_patch.js 가 늦게 로드되더라도 click 시점엔
+            // 이미 정의되어 있음(스크립트 로드는 모두 동기). typeof 가드로 만일
+            // 미정의여도 안전 skip.
+            if (typeof window._showOceanToast === 'function') {
+                window._showOceanToast('현재 발표된 해상특보가 없습니다.', 'bottom', 2000);
+            }
+            return;
+        }
         if (state.active) ns._deactivate();
         else              ns._activate();
     }
