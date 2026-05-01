@@ -15,7 +15,8 @@ const path = require('path');
 const { DATA_DIR } = require('../config/server_config');
 const { sendAdminPush } = require('./admin_push');
 
-const ALIAS_MAP_FILE = path.join(DATA_DIR, 'region_alias_map.json');
+// region_alias_map.json은 볼륨 외부 (빌드 이미지에 영구 포함, subregion_judge.js와 동일 경로)
+const ALIAS_MAP_FILE = path.join(__dirname, '..', 'region_alias_map.json');
 const LIFECYCLE_FILE = path.join(DATA_DIR, 'subregion_lifecycle.json');
 const WEATHER_ALERTS_FILE = path.join(DATA_DIR, 'weather_alerts.json');
 const ERROR_LOG_FILE = path.join(DATA_DIR, 'subregion_error_log.json');

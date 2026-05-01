@@ -25,7 +25,9 @@ const path = require('path');
 const { DATA_DIR } = require('../config/server_config');
 
 const LIFECYCLE_FILE = path.join(DATA_DIR, 'subregion_lifecycle.json');
-const ALIAS_MAP_FILE = path.join(DATA_DIR, 'region_alias_map.json');
+// region_alias_map.json은 정적 메타데이터로 Fly.io 볼륨 마운트(/app/local_server/data) 외부에 둡니다.
+// 빌드 이미지에 영구 포함되어 배포할 때마다 자동 반영됩니다.
+const ALIAS_MAP_FILE = path.join(__dirname, '..', 'region_alias_map.json');
 
 // 매핑 테이블 캐시
 let aliasMapCache = null;
