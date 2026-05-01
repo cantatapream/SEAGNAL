@@ -304,7 +304,9 @@
         if (!lg) return;
         var def = LEGEND_DEF[shrtType];
         if (!def) { lg.innerHTML = ''; lg.style.display = 'none'; return; }
-        var html = '<div class="shrt-fcst-legend-title">' + def.title + '</div>';
+        // 사용자 요청: 제목(예: "하늘상태") 미표시. 항목만 가로로 나열.
+        // CSS .shrt-fcst-legend 가 display:flex 라 자동으로 가로 정렬.
+        var html = '';
         for (var i = 0; i < def.items.length; i++) {
             var it = def.items[i];
             html += '<div class="shrt-fcst-legend-row">'
