@@ -192,9 +192,12 @@
         var map = getOceanMap();
         if (!map || typeof ol === 'undefined') return;
 
+        // crossOrigin 미지정: KMA 가 PNG 응답에 ACAO 헤더를 주지 않아
+        // crossOrigin:'anonymous' 로 요청하면 Capacitor WebView 에서 이미지 로드 실패.
+        // OL 의 ImageStatic 은 canvas getImageData 를 직접 호출하지 않으므로
+        // tainted canvas 여도 화면 표시는 정상 동작.
         var src = new ol.source.ImageStatic({
             url: url,
-            crossOrigin: 'anonymous',
             imageExtent: DFS_EXTENT_4326,
             projection: 'EPSG:4326'
         });
@@ -220,7 +223,7 @@
     function preloadImg(url) {
         if (state.preloadedImgs[url]) return;
         var img = new Image();
-        img.crossOrigin = 'anonymous';
+        // crossOrigin 미지정 — buildOrUpdateLayer 와 동일 사유 (앱 환경 호환).
         img.src = KMA_BASE + url;
         state.preloadedImgs[url] = img;
     }
@@ -329,7 +332,41 @@
         setSliderProgress(slider);
         bar.style.display = '';
         bar.setAttribute('aria-hidden', 'false');
+        renderTicks();
         updateTooltip();
+    }
+
+    // 시간 눈금 동적 생성: 첫 프레임 / 매 6h 단위 / 마지막 프레임 위치에 라벨 배치.
+    // frame 의 fct_tm 을 기반으로 절대 시각 (예: "5/2", "06시", "12시", "5/3", ...)
+    function renderTicks() {
+        var ticksEl = $('shrt-fcst-ticks');
+        if (!ticksEl) { return; }
+        ticksEl.innerHTML = '';
+        if (!state.frames.length) return;
+        var n = state.frames.length;
+        // 6시간 간격 + 첫/마지막 frame 표시
+        // frame 시각 차이를 보고 step 결정 — 가장 흔한 1h 단위 가정 시 6 frame 간격
+        // 더 안전하게: frame 의 KST 시각의 hour 가 0/6/12/18 인 frame 위치에 라벨
+        var labelsAdded = {};
+        for (var i = 0; i < n; i++) {
+            var f = state.frames[i];
+            var m = /(\d+)\.(\d+)\.\(.\)\s+(\d{2}):(\d{2})/.exec(f.label);
+            if (!m) continue;
+            var hh = +m[3];
+            // 자정(00시) 또는 6h 단위만 라벨로 표시
+            var isMidnight = (hh === 0);
+            if (!(isMidnight || hh === 6 || hh === 12 || hh === 18)) continue;
+            var key = m[1] + '-' + m[2] + '-' + hh;
+            if (labelsAdded[key]) continue;
+            labelsAdded[key] = 1;
+            var pct = (i / Math.max(1, n - 1)) * 100;
+            var text = isMidnight ? (m[1] + '/' + m[2]) : (hh + '시');
+            var div = document.createElement('div');
+            div.className = 'shrt-fcst-tick';
+            div.style.left = pct + '%';
+            div.textContent = text;
+            ticksEl.appendChild(div);
+        }
     }
     function hideSliderBar() {
         var bar = $('shrt-fcst-slider-bar');
@@ -357,6 +394,13 @@
     function activate(shrtType) {
         if (state.activeType === shrtType) { deactivate(); return; }
         deactivate();
+
+        // [Mutual Exclusion] 다른 ocean overlay (current/wind/wave) 가 활성 상태면 끔
+        // ocean_overlay.js 가 export 한 turn-off 핸들러 사용.
+        if (typeof window.oceanOverlayTurnOff === 'function') {
+            try { window.oceanOverlayTurnOff(); } catch (e) {}
+        }
+
         state.activeType = shrtType;
 
         var btn = document.querySelector('.ocean-other-wx-item[data-shrt="' + shrtType + '"]');
@@ -458,5 +502,11 @@
         initialized = true;
         if (oceanMap) state.oceanMap = oceanMap;
         bindUi();
+    };
+
+    // [Mutual Exclusion 반대방향] ocean_overlay.js 가 토글 ON 시 호출하여
+    // 우리 모듈이 활성 상태면 끄기. 활성 아니면 no-op.
+    window._shrtForecastDeactivate = function () {
+        if (state.activeType) deactivate();
     };
 })();

@@ -912,31 +912,32 @@
            [위치] 지도 컨테이너 하단 가운데, 메인 탭바 위 약 12px
            [구성] 재생버튼 + 슬라이더 + 말풍선
            [표출] shrt_forecast_layer.js 가 레이어 ON 시 display:''           */
+        /* ── 단기예보 슬라이더 바 ─────────────────────────────────
+           [위치] 하단 메인 탭(--main-tab-height) 바로 위, 가로 100%
+           [구성] 좌측 재생버튼 + 슬라이더 + (위쪽 좌측에) 범례 + 슬라이더 핸들 위 항상 표시 말풍선
+           [표출] shrt_forecast_layer.js 가 레이어 ON 시 display:''           */
         .shrt-fcst-slider-bar {
             position: absolute;
-            left: 50%;
-            transform: translateX(-50%);
-            bottom: calc(var(--main-tab-height, 68px) + 12px);
+            left: 0;
+            right: 0;
+            bottom: var(--main-tab-height, 68px);  /* 메인 탭 바로 위에 딱 붙음 */
             z-index: 1100;
             display: flex;
             align-items: center;
-            gap: 10px;
-            background: rgba(255, 255, 255, 0.92);
+            gap: 12px;
+            background: rgba(15, 25, 50, 0.92);
             backdrop-filter: blur(2px);
-            border: 1px solid rgba(0, 0, 0, 0.08);
-            border-radius: 8px;
-            padding: 8px 12px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
-            min-width: 280px;
-            max-width: calc(100vw - 40px);
+            border-top: 1px solid rgba(120, 150, 200, 0.25);
+            padding: 10px 16px 8px;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.35);
         }
         .shrt-fcst-play-btn {
             flex: 0 0 auto;
-            width: 30px;
-            height: 30px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
-            border: 1px solid rgba(0, 0, 0, 0.12);
-            background: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            background: rgba(255, 255, 255, 0.92);
             color: #1f2937;
             cursor: pointer;
             display: flex;
@@ -945,56 +946,60 @@
             font-size: 12px;
             padding: 0;
         }
-        .shrt-fcst-play-btn:hover { background: #f3f4f6; }
+        .shrt-fcst-play-btn:hover { background: #ffffff; }
         .shrt-fcst-play-btn.playing { color: #2563eb; }
         .shrt-fcst-slider-wrap {
             position: relative;
             flex: 1 1 auto;
-            min-width: 220px;
-            display: flex;
-            align-items: center;
+            min-width: 0;
+            padding-top: 22px;     /* 위쪽: 항상 표시 말풍선 공간 */
+            padding-bottom: 18px;  /* 아래쪽: 시간 눈금 라벨 공간 */
         }
         .shrt-fcst-slider {
             width: 100%;
             -webkit-appearance: none;
             appearance: none;
-            height: 6px;
-            background: linear-gradient(to right, #2563eb 0%, #2563eb var(--shrt-progress, 0%), #e5e7eb var(--shrt-progress, 0%), #e5e7eb 100%);
-            border-radius: 3px;
+            height: 4px;
+            background: linear-gradient(to right, #60a5fa 0%, #60a5fa var(--shrt-progress, 0%), rgba(200, 210, 230, 0.30) var(--shrt-progress, 0%), rgba(200, 210, 230, 0.30) 100%);
+            border-radius: 2px;
             outline: none;
+            margin: 0;
         }
         .shrt-fcst-slider::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
             border-radius: 50%;
-            background: #2563eb;
+            background: #60a5fa;
             border: 2px solid #ffffff;
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
             cursor: pointer;
         }
         .shrt-fcst-slider::-moz-range-thumb {
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
             border-radius: 50%;
-            background: #2563eb;
+            background: #60a5fa;
             border: 2px solid #ffffff;
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
             cursor: pointer;
         }
+        /* 항상 표시 말풍선 — 슬라이더 핸들 위에 떠있음 (재생 중에도 계속 보임) */
         .shrt-fcst-tooltip {
             position: absolute;
-            top: -28px;
+            top: 0;
             transform: translateX(-50%);
             background: #1f2937;
             color: #ffffff;
-            padding: 3px 8px;
+            padding: 3px 9px;
             border-radius: 4px;
             font-family: "Pretendard", sans-serif;
             font-size: 11px;
+            font-weight: 600;
             white-space: nowrap;
             pointer-events: none;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
         }
         .shrt-fcst-tooltip::after {
             content: '';
@@ -1005,13 +1010,48 @@
             border: 4px solid transparent;
             border-top-color: #1f2937;
         }
+        /* 시간 눈금 (절대 시각: "MM/DD" 또는 "HH시"). JS 가 frame 시각 기반으로 동적 생성. */
+        .shrt-fcst-ticks {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 16px;
+            pointer-events: none;
+        }
+        .shrt-fcst-tick {
+            position: absolute;
+            transform: translateX(-50%);
+            color: rgba(220, 230, 245, 0.75);
+            font-family: "Pretendard", sans-serif;
+            font-size: 10px;
+            white-space: nowrap;
+        }
 
-        /* 단기예보 범례 — .warn-active-legend 와 동일한 카드 디자인,
-           내부 색상 패치는 .shrt-swatch 로 별도 정의 */
+        /* 단기예보 범례 — 슬라이더 바 위 좌측 정렬 (어두운 톤) */
+        .shrt-fcst-legend {
+            position: absolute;
+            left: 12px;
+            bottom: calc(var(--main-tab-height, 68px) + 78px);  /* 슬라이더 바 위 8px */
+            z-index: 1100;
+            background: rgba(15, 25, 50, 0.92);
+            backdrop-filter: blur(2px);
+            border: 1px solid rgba(120, 150, 200, 0.25);
+            border-radius: 6px;
+            padding: 8px 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+            font-family: "Pretendard", sans-serif;
+            font-size: 11px;
+            color: #e5edff;
+            user-select: none;
+            pointer-events: none;
+            min-width: 140px;
+            max-width: calc(100vw - 24px);
+        }
         .shrt-fcst-legend .shrt-fcst-legend-title {
             font-size: 11px;
             font-weight: 700;
-            color: #1f2937;
+            color: #ffffff;
             margin-bottom: 4px;
         }
         .shrt-fcst-legend .shrt-fcst-legend-row {
@@ -1025,7 +1065,7 @@
             width: 22px;
             height: 14px;
             border-radius: 3px;
-            border: 1px solid rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.18);
         }
     </style>
     <script>window.__SEAGNAL_PAGE = 'index2';</script>
@@ -2058,8 +2098,11 @@
                             <i class="fa-solid fa-play"></i>
                         </button>
                         <div class="shrt-fcst-slider-wrap">
+                            <!-- 항상 표시 말풍선: slider 핸들 위에 떠있고, 재생 중에도 계속 보임 -->
                             <div class="shrt-fcst-tooltip" id="shrt-fcst-tooltip"></div>
                             <input type="range" class="shrt-fcst-slider" id="shrt-fcst-slider" min="0" max="0" value="0" step="1">
+                            <!-- 시간 눈금 (절대 시각). JS 가 frame 시각 기반으로 동적 생성. -->
+                            <div class="shrt-fcst-ticks" id="shrt-fcst-ticks"></div>
                         </div>
                     </div>
 
