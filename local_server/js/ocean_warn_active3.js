@@ -172,19 +172,28 @@
         // 이미 해제되어 있지만 race condition 대비)
         if (!ns._state.active) return null;
 
-        // 어느 부모 zone 에 속하는지 결정
-        var parentZone;
-        if (kind === 'main') {
-            parentZone = window.OceanWarnZone.getMainZoneName(feature);
-        } else { // 'sub'
-            var fullName = window.OceanWarnZone.getSubFullName(feature);
-            parentZone = ns._resolveParentByFullName(fullName);
-        }
+        // [중요] 자식(sub) feature 는 활성 모드에서 일체 그리지 않음.
+        //
+        // [이유] 자식 zone polygon 은 부모 zone polygon 내부 영역의 부분집합.
+        //   두 polygon 모두 fill 을 그리면 같은 영역에 fill 이 두 번 겹쳐
+        //   alpha 합성으로 색이 진해짐 (예: 주의보 0.5 + 0.5 ≒ 0.75 → 경보처럼 보임).
+        //   부모 main 의 polygon 이 이미 자식 영역까지 덮고 있으므로 자식을 별도로
+        //   그릴 필요가 전혀 없음.
+        //
+        // [정책 일관성] 사용자 합의 — 자식해역 분리 기능이 고도화되기 전까지는
+        //   부모 특보가 자식 영역에도 그대로 적용되며 시각적 분리 X.
+        //
+        // [클릭 hit] 자식 영역의 어떤 픽셀을 클릭해도 부모 main polygon 이 그 좌표
+        //   를 포함하므로 forEachFeatureAtPixel 이 부모 main 을 hit → tryHandleClick
+        //   이 부모 zone 으로 박스 표출. 자식이 hidden 이어도 클릭 동작 정상.
+        if (kind === 'sub') return _EMPTY_STYLE;
 
+        // 이하 메인(부모) feature 만 처리.
+        var parentZone = window.OceanWarnZone.getMainZoneName(feature);
         var info = parentZone ? ns._state.activeMap[parentZone] : null;
         // 사용자가 클릭하여 정보박스가 떠 있는 zone 인지 — 선택 강조 표시 용도.
-        // 부모/자식 모두 같은 selectedZone(=부모) 을 공유하므로 해당 영역 전체가
-        // 노란 테두리로 강조됨 (자식 클릭도 부모로 환원되는 정책과 시각 일관성).
+        // 부모 main 의 polygon 이 zone 영역 전체 외곽을 한 줄로 그리므로
+        // 노란 테두리가 영역 전체에 깔끔히 적용됨.
         var isSelected = !!parentZone && parentZone === ns._state.selectedZone;
 
         // 활성 맵에 항목 있고 paletteKey 까지 있으면 색칠
@@ -193,12 +202,7 @@
         }
 
         // 활성 zone 아님 (해제됐거나 처음부터 색칠 가능 특보 없음)
-        if (kind === 'main') {
-            // 메인은 옅은 회색 점선 + 라벨 → 활성 zone 을 시각적으로 부각
-            return _dimmedOutlineStyle(kind, feature);
-        }
-        // 자식은 빈 스타일로 숨김 — 활성 모드에서 minZoom 해제로 모든 줌에서 그려지므로
-        // 비활성 자식까지 청록 점선/라벨로 보이면 시각 노이즈 + 베이스맵 가독성 저하.
-        return _EMPTY_STYLE;
+        // 메인은 옅은 회색 점선 + 라벨 → 활성 zone 을 시각적으로 부각
+        return _dimmedOutlineStyle(kind, feature);
     };
 })();
