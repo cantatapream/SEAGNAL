@@ -66,11 +66,14 @@
     // 해상 단기예보 sterm 응답에는 DB02 가 발표되지 않음 — 2024개 응답
     // 전수 조사 결과 DB01/DB03/DB04 만 등장. marine.kma.go.kr 도 범례를
     // 3개로 표시. 향후 등장 시 대비해 색상 정의는 유지하고 범례만 3개 노출.)
+    // alpha 는 sea_sterm_zones.geojson 이 부모(44) + 자식(평수구역 등) 중첩 polygon
+    // 구조라 같은 좌표에 fill 이 두 번 적용될 수 있어 0.55 로 낮춰 결과 채도가 marine.kma.go.kr 과
+    // 유사하게 보이도록 조정.
     var SKY_COLOR = {
-        DB01: 'rgba(255, 255, 255, 0.85)',    // 맑음
-        DB02: 'rgba(220, 232, 244, 0.85)',    // 구름조금 (해상 sterm 미사용)
-        DB03: 'rgba(174, 200, 224, 0.85)',    // 구름많음
-        DB04: 'rgba(99,  138, 178, 0.85)'     // 흐림
+        DB01: 'rgba(255, 255, 255, 0.55)',    // 맑음
+        DB02: 'rgba(220, 232, 244, 0.55)',    // 구름조금 (해상 sterm 미사용 — 정의만 유지)
+        DB03: 'rgba(174, 200, 224, 0.55)',    // 구름많음
+        DB04: 'rgba(99,  138, 178, 0.55)'     // 흐림
     };
     // sky 범례 — 해상 단기예보 실제 발표 카테고리 3종만 (marine.kma.go.kr 와 동일)
     var SKY_LEGEND = [
@@ -288,29 +291,25 @@
         if (!map || state.zoneLayer) return Promise.resolve();
         if (state.zoneGeoJsonLoaded) return Promise.resolve();
 
-        return fetch('/api/warn-zones')
-            .then(function (r) { return r.ok ? r.json() : Promise.reject('warn-zones HTTP ' + r.status); })
+        // [데이터 소스] /api/sea-sterm-zones — KMA mmis:fcst_area WFS 추출본.
+        //   properties.sterm_parent → sea/sterm/list 응답의 kor_nm.
+        //   부모(44) + 자식(평수구역/연안바다 등) 통합 112 feature, 자식도 부모 색으로 칠해
+        //   marine.kma.go.kr 와 동일한 조밀한 polygon 표현.
+        return fetch('/api/sea-sterm-zones')
+            .then(function (r) { return r.ok ? r.json() : Promise.reject('sea-sterm-zones HTTP ' + r.status); })
             .then(function (gj) {
                 var features = new ol.format.GeoJSON().readFeatures(gj, {
                     dataProjection:    'EPSG:4326',
                     featureProjection: 'EPSG:3857'
                 });
-                // ground=='sea' 인 44개만 이용
-                features = features.filter(function (f) {
-                    return f.get('ground') === 'sea';
-                });
-
-                // 정규화된 name → feature 매핑 캐시
-                state.zoneFeaturesByName = {};
-                features.forEach(function (f) {
-                    var n = normalizeZoneName(f.get('name'));
-                    (state.zoneFeaturesByName[n] = state.zoneFeaturesByName[n] || []).push(f);
-                });
 
                 var src = new ol.source.Vector({ features: features });
                 state.zoneLayer = new ol.layer.Vector({
                     source: src,
-                    zIndex: 49,                           // PNG 보다 약간 아래 (PNG 가 land 만 cover, 해상에는 PNG 가 거의 투명이므로 zone fill 이 자연스럽게 보임)
+                    // PNG(zIndex=50) 위에 올려 PNG 의 alpha 영역이 투명이어도 zone fill 이
+                    // 명확히 보이도록 함. 자식 polygon 도 같은 색으로 fill 되어 marine.kma.go.kr
+                    // 과 동일한 조밀한 영역 표현이 됨.
+                    zIndex: 51,
                     style: zoneStyleFn
                 });
                 map.addLayer(state.zoneLayer);
@@ -342,9 +341,11 @@
         if (ef == null) return null;
         var byZone = state.seaByEfNo[ef];
         if (!byZone) return null;
-        var localName = feature.get('name');
-        var key = MANUAL_NAME_MAP[normalizeZoneName(localName)] || normalizeZoneName(localName);
-        return byZone[normalizeZoneName(key)] || null;
+        // sea_sterm_zones.geojson 의 feature 는 sterm_parent 에 sea/sterm/list 의
+        // kor_nm 이 그대로 들어있음 → 정규화만으로 즉시 매칭.
+        var parent = feature.get('sterm_parent');
+        if (!parent) return null;
+        return byZone[normalizeZoneName(parent)] || null;
     }
 
     function _zoneFillColor(type, zoneData) {
