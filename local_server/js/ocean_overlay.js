@@ -243,6 +243,10 @@
                     if (legendEl) legendEl.style.display = 'none';
                 } else {
                     // 레이어 전환 또는 ON
+                    // [Mutual Exclusion] 단기예보 raster (기타기상) 가 활성 상태면 끔
+                    if (typeof window._shrtForecastDeactivate === 'function') {
+                        try { window._shrtForecastDeactivate(); } catch (e) {}
+                    }
                     streamActive = true;
                     document.querySelectorAll('.ocean-overlay-btn[data-layer]').forEach(function (b) {
                         b.classList.remove('active');
