@@ -110,8 +110,6 @@ async function performBackup() {
         'notices.json',
         'promo.json',
         'surveys.json'
-        // region_alias_map.json은 빌드 이미지 안에 영구 포함되므로 클라우드 백업 대상 아님
-        // (위치: local_server/region_alias_map.json — 볼륨 외부)
     ];
 
     for (const file of targetFiles) {

@@ -449,8 +449,7 @@ window.switchUnifiedAdminTab = function (tabId) {
 
 // --- 서브탭 1: 오류 목록 (검토 필요 + 수집 실패 2섹션) ---
 // [상태] 수집 오류 탭의 현재 선택된 하위 탭 및 자동 갱신 타이머
-let currentErrorSubTab = 'review';  // 'review' | 'retry' | 'fail' | 'subregionMismatch' (기본: 검토 필요)
-                                    // 'subregionMismatch'는 index1·index2 양쪽에서 표시 (자식해역 비교 불일치)
+let currentErrorSubTab = 'review';  // 'review' | 'retry' | 'fail' (기본: 검토 필요)
 let errorListAutoRefreshTimer = null;
 
 function clearErrorListAutoRefresh() {
@@ -476,43 +475,34 @@ async function renderErrorListTab(container) {
 
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
 
-    // 다섯 가지 데이터를 병렬로 조회
-    // 자식해역 비교 불일치 탭은 index1·index2 양쪽에서 표시 (운영자가 어디서든 확인 가능)
+    // 네 가지 데이터를 병렬로 조회 (실패/검토/재시도/Gemini 키 상태)
     let failures = [];
     let reviews = [];
     let pendings = [];
     let geminiStatus = { keys: [], count: 0 };
-    let subregionMismatches = [];
     try {
-        const responses = await Promise.all([
+        const [failRes, reviewRes, pendingRes, geminiRes] = await Promise.all([
             fetch('/api/admin/collect-failures'),
             fetch('/api/admin/review-needed'),
             fetch('/api/admin/pending-retries'),
-            fetch('/api/admin/gemini-status'),
-            fetch('/api/subregion/error-log?errorType=COMPARISON_MISMATCH&acknowledged=false')
+            fetch('/api/admin/gemini-status')
         ]);
-        const [failRes, reviewRes, pendingRes, geminiRes, subregionRes] = responses;
         if (failRes.ok) failures = await failRes.json();
         if (reviewRes.ok) reviews = await reviewRes.json();
         if (pendingRes.ok) pendings = await pendingRes.json();
         if (geminiRes.ok) geminiStatus = await geminiRes.json();
-        if (subregionRes && subregionRes.ok) {
-            const data = await subregionRes.json();
-            subregionMismatches = (data && data.errors) || [];
-        }
     } catch (e) { /* 무시 */ }
 
     const pendingReviews = (reviews || []).filter(r => !r.acknowledged);
     const reviewCount = pendingReviews.length;
     const retryCount = (pendings || []).length;
     const failCount = (failures || []).length;
-    const mismatchCount = subregionMismatches.length;
 
     // Gemini 키 상태 배지 (항상 표시)
     const geminiBadgeHtml = renderGeminiKeysBadge(geminiStatus);
 
-    // 모든 영역 비어있으면 정상 상태 + Gemini 키 상태 표시
-    if (reviewCount === 0 && retryCount === 0 && failCount === 0 && mismatchCount === 0) {
+    // 세 영역 모두 비어있으면 정상 상태 + Gemini 키 상태 표시
+    if (reviewCount === 0 && retryCount === 0 && failCount === 0) {
         container.innerHTML = `
             ${geminiBadgeHtml}
             <div style="text-align:center;padding:60px 20px;color:#64748b;">
@@ -535,132 +525,31 @@ async function renderErrorListTab(container) {
         return `<button onclick="switchErrorSubTab('${key}')" style="${style}">${label}${badge}</button>`;
     };
 
-    // 자식해역 비교 불일치 탭 — index1·index2 양쪽에서 표시
-    const subregionTabBtn = tabBtn('subregionMismatch', '<i class="fa-solid fa-water"></i> 자식해역 비교 불일치', mismatchCount, '#a855f7');
-
     const tabBarHtml = `
         ${geminiBadgeHtml}
         <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
             ${tabBtn('review', '<i class="fa-solid fa-magnifying-glass"></i> 검토 필요', reviewCount, '#f59e0b')}
             ${tabBtn('retry',  '<i class="fa-solid fa-rotate"></i> 재시도 중',       retryCount,  '#3b82f6')}
             ${tabBtn('fail',   '<i class="fa-solid fa-triangle-exclamation"></i> 수집 실패', failCount, '#ef4444')}
-            ${subregionTabBtn}
         </div>
         <div id="error-sub-tab-content"></div>
     `;
     container.innerHTML = tabBarHtml;
 
-    const activeSubTab = currentErrorSubTab;
     const sub = document.getElementById('error-sub-tab-content');
-    if (activeSubTab === 'review') {
+    if (currentErrorSubTab === 'review') {
         sub.innerHTML = renderReviewSectionHtml(pendingReviews);
-    } else if (activeSubTab === 'retry') {
+    } else if (currentErrorSubTab === 'retry') {
         sub.innerHTML = renderPendingRetriesHtml(pendings);
         // 재시도 중 탭은 30초마다 자동 갱신 (상태 급변 가능)
         errorListAutoRefreshTimer = setInterval(() => {
             const inner = document.getElementById('alert-top-content');
             if (inner) renderErrorListTab(inner);
         }, 30000);
-    } else if (activeSubTab === 'fail') {
+    } else if (currentErrorSubTab === 'fail') {
         sub.innerHTML = renderFailureSectionHtml(failures);
-    } else if (activeSubTab === 'subregionMismatch') {
-        sub.innerHTML = renderSubregionMismatchHtml(subregionMismatches);
     }
 }
-
-/**
- * 자식해역 비교 불일치 항목 렌더링 (index1 전용)
- * 코드 형식 (developerInfo JSON 펼치기) + 서술 형식 (narrativeDescription)
- * 모두 표시. (separation/06_comparison_validation.md §4)
- */
-function renderSubregionMismatchHtml(mismatches) {
-    if (!mismatches || mismatches.length === 0) {
-        return `
-            <div style="text-align:center;padding:40px 20px;color:#64748b;">
-                <i class="fa-solid fa-circle-check" style="font-size:2rem;color:#22c55e;margin-bottom:12px;display:block;"></i>
-                <div style="font-size:0.95rem;font-weight:600;color:#cbd5e1;margin-bottom:4px;">자식해역 비교 결과 일치</div>
-                <div style="font-size:0.8rem;">기존 로직과 방재기상 로직 결과가 모두 일치합니다.</div>
-            </div>
-        `;
-    }
-
-    return mismatches.map(m => renderMismatchCard(m)).join('');
-}
-
-function renderMismatchCard(mismatch) {
-    const sev = mismatch.severity || 'MEDIUM';
-    const sevColor = sev === 'HIGH' ? '#ef4444' : (sev === 'MEDIUM' ? '#f59e0b' : '#64748b');
-    const occurredAt = new Date(mismatch.occurredAt).toLocaleString('ko-KR');
-    const lastOccurredAt = mismatch.lastOccurredAt ? new Date(mismatch.lastOccurredAt).toLocaleString('ko-KR') : occurredAt;
-    const occurrenceCount = mismatch.occurrenceCount || 1;
-
-    const escapeHtml = (s) => String(s == null ? '' : s)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-    const narrativeText = mismatch.narrativeDescription || '(서술 정보 없음)';
-    const developerJson = JSON.stringify(mismatch.developerInfo || {}, null, 2);
-    const actionRequired = mismatch.actionRequired || '';
-
-    const subregionName = (mismatch.developerInfo && mismatch.developerInfo.subregionName) || '(미상)';
-    const diffType = (mismatch.developerInfo && mismatch.developerInfo.diffType) || '';
-
-    return `
-        <div style="margin-bottom:14px;padding:14px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.2);border-radius:8px;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">
-                <div>
-                    <div style="font-weight:700;color:#e9d5ff;font-size:0.95rem;">
-                        <i class="fa-solid fa-water"></i> 자식해역 비교 불일치
-                        <span style="display:inline-block;padding:1px 6px;margin-left:6px;background:${sevColor};color:#fff;border-radius:4px;font-size:0.7rem;font-weight:700;">${sev}</span>
-                    </div>
-                    <div style="color:#c4b5fd;font-size:0.85rem;margin-top:4px;">${escapeHtml(subregionName)} — ${escapeHtml(diffType)}</div>
-                </div>
-                <button onclick="ackSubregionError('${escapeHtml(mismatch.id)}')" style="padding:6px 12px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;white-space:nowrap;">확인 완료</button>
-            </div>
-
-            <div style="font-size:0.75rem;color:#94a3b8;margin-bottom:10px;">
-                최초 발생: ${escapeHtml(occurredAt)} · 마지막 발생: ${escapeHtml(lastOccurredAt)} · 누적 ${occurrenceCount}회
-            </div>
-
-            <div style="margin-top:10px;padding:10px;background:rgba(0,0,0,0.2);border-radius:6px;">
-                <div style="font-size:0.78rem;font-weight:700;color:#cbd5e1;margin-bottom:6px;">📝 서술 정보</div>
-                <pre style="margin:0;font-size:0.78rem;color:#e2e8f0;white-space:pre-wrap;line-height:1.5;font-family:'Noto Sans KR',sans-serif;">${escapeHtml(narrativeText)}</pre>
-            </div>
-
-            ${actionRequired ? `
-            <div style="margin-top:8px;padding:8px 10px;background:rgba(59,130,246,0.08);border-left:3px solid #3b82f6;border-radius:4px;">
-                <div style="font-size:0.78rem;font-weight:700;color:#93c5fd;margin-bottom:4px;">📋 조치 안내</div>
-                <div style="font-size:0.78rem;color:#cbd5e1;line-height:1.5;">${escapeHtml(actionRequired)}</div>
-            </div>
-            ` : ''}
-
-            <details style="margin-top:8px;">
-                <summary style="font-size:0.75rem;color:#94a3b8;cursor:pointer;padding:4px 0;">🔧 개발자 정보 (코드 형식)</summary>
-                <pre style="margin:6px 0 0 0;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px;font-size:0.7rem;color:#cbd5e1;overflow-x:auto;line-height:1.4;">${escapeHtml(developerJson)}</pre>
-            </details>
-        </div>
-    `;
-}
-
-window.ackSubregionError = async function (errorId) {
-    if (!errorId) return;
-    try {
-        const adminId = (typeof getCurrentAdminId === 'function') ? getCurrentAdminId() : 'admin';
-        const res = await fetch('/api/subregion/error-ack', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ errorId, adminId })
-        });
-        if (res.ok) {
-            // 화면 갱신
-            const inner = document.getElementById('alert-top-content');
-            if (inner) renderErrorListTab(inner);
-        } else {
-            console.error('[ackSubregionError] 실패:', res.status);
-        }
-    } catch (e) {
-        console.error('[ackSubregionError] 오류:', e);
-    }
-};
 
 // [상단 배지] Gemini 키 상태 표시
 function renderGeminiKeysBadge(status) {
@@ -814,7 +703,7 @@ function renderFailureSectionHtml(failures) {
 
 // [하위 탭 전환] 하위 탭 버튼 클릭 시 호출
 window.switchErrorSubTab = function (key) {
-    if (!['review', 'retry', 'fail', 'subregionMismatch'].includes(key)) return;
+    if (!['review', 'retry', 'fail'].includes(key)) return;
     currentErrorSubTab = key;
     const inner = document.getElementById('alert-top-content');
     if (inner) renderErrorListTab(inner);
@@ -3123,77 +3012,4 @@ window.toggleMaintenanceMode = async function () {
         alert('오류: ' + e.message);
     }
 };
-
-// ============================================================================
-// [딥링크 자동 진입] ?openAdmin=<key> URL 파라미터 처리
-// ============================================================================
-// 보라색 자식해역 비교 불일치 푸시 알림에서 호출되는 진입 경로.
-// FCM 푸시 data.url = '/?openAdmin=subregionMismatch' → SW가 해당 URL로 이동 → 본 핸들러가 모달 자동 오픈.
-//
-// 보안: 모달은 비밀번호 인증을 거치므로, 자동 오픈만으로 권한이 부여되지 않음.
-// 관리자 모드(localStorage 'seagnal_admin_mode')가 켜진 경우 모달 본체로 직행하고,
-// 그렇지 않으면 통합 관리자 로그인 모달부터 표시한다.
-(function () {
-    function openSubregionMismatch() {
-        // 1) 통합 관리자 모달 (특보 알림 탭)
-        if (typeof window.showUnifiedAdminModal === 'function') {
-            window.showUnifiedAdminModal('alert');
-        }
-        // 2) 상위 탭: 특보 수집 오류 → 하위 탭: 자식해역 비교 불일치
-        //    showUnifiedAdminModal 내부 렌더가 비동기적으로 진행되므로 약간 지연.
-        setTimeout(() => {
-            currentErrorSubTab = 'subregionMismatch';
-            if (typeof window.switchAlertTopTab === 'function') {
-                window.switchAlertTopTab('collect-error');
-            }
-        }, 200);
-    }
-
-    function handleDeeplink() {
-        try {
-            const params = new URLSearchParams(window.location.search);
-            const openKey = params.get('openAdmin');
-            if (!openKey) return;
-
-            // 처리 후 URL 정리 (새로고침 시 재진입 방지)
-            const cleanUrl = window.location.pathname + window.location.hash;
-            window.history.replaceState({}, '', cleanUrl);
-
-            if (openKey === 'subregionMismatch') {
-                const isAdminMode = localStorage.getItem('seagnal_admin_mode') === 'true';
-                if (isAdminMode) {
-                    openSubregionMismatch();
-                } else if (typeof window.showUnifiedLoginModal === 'function') {
-                    // 인증 후 자동 진입을 위해 플래그 설정
-                    window._pendingDeeplink = 'subregionMismatch';
-                    window.showUnifiedLoginModal('alert', '관리자 인증', 'fa-user-shield');
-                }
-            }
-        } catch (e) { /* 무시 */ }
-    }
-
-    // 인증 성공 후 대기 중인 딥링크가 있으면 진입
-    const _origShow = window.showUnifiedAdminModal;
-    if (typeof _origShow === 'function') {
-        window.showUnifiedAdminModal = function (initialTab) {
-            const ret = _origShow.apply(this, arguments);
-            if (window._pendingDeeplink === 'subregionMismatch') {
-                window._pendingDeeplink = null;
-                setTimeout(() => {
-                    currentErrorSubTab = 'subregionMismatch';
-                    if (typeof window.switchAlertTopTab === 'function') {
-                        window.switchAlertTopTab('collect-error');
-                    }
-                }, 200);
-            }
-            return ret;
-        };
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', handleDeeplink);
-    } else {
-        handleDeeplink();
-    }
-})();
 
