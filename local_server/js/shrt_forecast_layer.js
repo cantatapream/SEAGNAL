@@ -295,7 +295,8 @@
         //   properties.sterm_parent → sea/sterm/list 응답의 kor_nm.
         //   부모(44) + 자식(평수구역/연안바다 등) 통합 112 feature, 자식도 부모 색으로 칠해
         //   marine.kma.go.kr 와 동일한 조밀한 polygon 표현.
-        return fetch('/api/sea-sterm-zones')
+        //   v= 는 GeoJSON 변경 시 사용자 브라우저 24h 캐시 무력화용.
+        return fetch('/api/sea-sterm-zones?v=20260501b')
             .then(function (r) { return r.ok ? r.json() : Promise.reject('sea-sterm-zones HTTP ' + r.status); })
             .then(function (gj) {
                 var features = new ol.format.GeoJSON().readFeatures(gj, {
@@ -327,9 +328,11 @@
             });
         }
         var color = _zoneFillColor(state.activeType, data);
+        // marine.kma.go.kr 처럼 부모+자식 polygon 분할이 시각적으로 드러나도록
+        // 옅은 outline 을 추가. 부모와 자식 색이 같아도 윤곽선이 영역 분할을 표현.
         return new ol.style.Style({
-            fill: new ol.style.Fill({ color: color }),
-            stroke: null     // outline 은 ocean_warn_zone.js 가 별도로 그림
+            fill:   new ol.style.Fill({ color: color }),
+            stroke: new ol.style.Stroke({ color: 'rgba(40, 60, 90, 0.35)', width: 0.6 })
         });
     }
 
