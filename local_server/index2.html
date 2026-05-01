@@ -882,6 +882,151 @@
         tr[data-type="typhoon"] .wal-swatch[data-stage="upcoming"] { background: rgba(220,38,38,0.25); border:1px solid rgba(220,38,38,0.95); }
         tr[data-type="typhoon"] .wal-swatch[data-stage="watch"]    { background: rgba(220,38,38,0.50); border:1px solid rgba(220,38,38,0.95); }
         tr[data-type="typhoon"] .wal-swatch[data-stage="warn"]     { background: rgba(220,38,38,0.75); border:1px solid rgba(220,38,38,0.95); }
+
+        /* ============================================================
+         * 기타 기상 (KMA 단기예보 PNG 오버레이) — 토글/팝아웃/슬라이더/범례
+         * 연계 파일: js/shrt_forecast_layer.js
+         * ============================================================ */
+
+        /* 토글 버튼 wrapper (특보구역 wrap 과 동일 패턴: 부모 flex 컬럼의 1슬롯) */
+        .ocean-other-wx-wrap {
+            position: relative;
+        }
+        /* 팝아웃 컨테이너 — 기타 기상 버튼 좌측에 absolute. 기본 숨김.
+           popup-open 클래스 부착 시 표출. 5개 서브버튼이 세로로 쌓임. */
+        .ocean-other-wx-popup {
+            position: absolute;
+            top: 0;
+            right: calc(100% + 6px);
+            display: none;
+            flex-direction: column;
+            gap: 4px;            /* 우측 컨트롤 stack 의 gap 과 동일 톤 */
+        }
+        .ocean-other-wx-wrap.popup-open .ocean-other-wx-popup {
+            display: flex;
+        }
+        /* 활성화된 서브버튼 (현재 표출 중인 레이어) — 기존 .ocean-overlay-btn.active 스타일 재사용 가능,
+           동일 active 클래스를 토글로 부여. 별도 색 강조가 필요하면 여기에 추가. */
+
+        /* ── 시간 슬라이더 바 ─────────────────────────────────────
+           [위치] 지도 컨테이너 하단 가운데, 메인 탭바 위 약 12px
+           [구성] 재생버튼 + 슬라이더 + 말풍선
+           [표출] shrt_forecast_layer.js 가 레이어 ON 시 display:''           */
+        .shrt-fcst-slider-bar {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(var(--main-tab-height, 68px) + 12px);
+            z-index: 1100;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(2px);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 8px;
+            padding: 8px 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+            min-width: 280px;
+            max-width: calc(100vw - 40px);
+        }
+        .shrt-fcst-play-btn {
+            flex: 0 0 auto;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            background: #ffffff;
+            color: #1f2937;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            padding: 0;
+        }
+        .shrt-fcst-play-btn:hover { background: #f3f4f6; }
+        .shrt-fcst-play-btn.playing { color: #2563eb; }
+        .shrt-fcst-slider-wrap {
+            position: relative;
+            flex: 1 1 auto;
+            min-width: 220px;
+            display: flex;
+            align-items: center;
+        }
+        .shrt-fcst-slider {
+            width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            background: linear-gradient(to right, #2563eb 0%, #2563eb var(--shrt-progress, 0%), #e5e7eb var(--shrt-progress, 0%), #e5e7eb 100%);
+            border-radius: 3px;
+            outline: none;
+        }
+        .shrt-fcst-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #2563eb;
+            border: 2px solid #ffffff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+            cursor: pointer;
+        }
+        .shrt-fcst-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #2563eb;
+            border: 2px solid #ffffff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+            cursor: pointer;
+        }
+        .shrt-fcst-tooltip {
+            position: absolute;
+            top: -28px;
+            transform: translateX(-50%);
+            background: #1f2937;
+            color: #ffffff;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: "Pretendard", sans-serif;
+            font-size: 11px;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        .shrt-fcst-tooltip::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 100%;
+            transform: translateX(-50%);
+            border: 4px solid transparent;
+            border-top-color: #1f2937;
+        }
+
+        /* 단기예보 범례 — .warn-active-legend 와 동일한 카드 디자인,
+           내부 색상 패치는 .shrt-swatch 로 별도 정의 */
+        .shrt-fcst-legend .shrt-fcst-legend-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 4px;
+        }
+        .shrt-fcst-legend .shrt-fcst-legend-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 2px 0;
+        }
+        .shrt-swatch {
+            display: inline-block;
+            width: 22px;
+            height: 14px;
+            border-radius: 3px;
+            border: 1px solid rgba(0, 0, 0, 0.15);
+        }
     </style>
     <script>window.__SEAGNAL_PAGE = 'index2';</script>
     <title>SEA:GNAL(바다:그 날의 신호)</title>
@@ -1843,6 +1988,41 @@
                             <i class="fa-solid fa-table-cells"></i>
                             <span class="ocean-overlay-label">해구도</span>
                         </button>
+                        <!-- 기타 기상 토글: js/shrt_forecast_layer.js 가 바인딩
+                             클릭 시 좌측으로 5개 단기예보 서브버튼 팝아웃
+                             (강수확률·강수량·적설·하늘상태·강수형태) — 하나 선택 시 팝아웃이 접히면서
+                             해당 KMA 단기예보 PNG 래스터를 ImageStatic 레이어로 지도에 표출
+                             [데이터] marine.kma.go.kr/mmis_marine_api/v1/kma/shrt/imgList?shrtType=
+                             [연계] js/shrt_forecast_layer.js -->
+                        <div class="ocean-other-wx-wrap" id="ocean-other-wx-wrap">
+                            <button class="ocean-overlay-btn" id="ocean-other-wx-toggle-btn" title="기타 기상">
+                                <i class="fa-solid fa-cloud-sun-rain"></i>
+                                <span class="ocean-overlay-label">기타 기상</span>
+                            </button>
+                            <!-- 팝아웃: 기타 기상 버튼 좌측에 세로로 5개 정렬. 기본 숨김. -->
+                            <div class="ocean-other-wx-popup" id="ocean-other-wx-popup" aria-hidden="true">
+                                <button class="ocean-overlay-btn ocean-other-wx-item" data-shrt="pop" title="강수확률">
+                                    <i class="fa-solid fa-percent"></i>
+                                    <span class="ocean-overlay-label">강수확률</span>
+                                </button>
+                                <button class="ocean-overlay-btn ocean-other-wx-item" data-shrt="pcp" title="강수량">
+                                    <i class="fa-solid fa-cloud-rain"></i>
+                                    <span class="ocean-overlay-label">강수량</span>
+                                </button>
+                                <button class="ocean-overlay-btn ocean-other-wx-item" data-shrt="sno" title="적설">
+                                    <i class="fa-solid fa-snowflake"></i>
+                                    <span class="ocean-overlay-label">적설</span>
+                                </button>
+                                <button class="ocean-overlay-btn ocean-other-wx-item" data-shrt="sky" title="하늘상태">
+                                    <i class="fa-solid fa-cloud-sun"></i>
+                                    <span class="ocean-overlay-label">하늘상태</span>
+                                </button>
+                                <button class="ocean-overlay-btn ocean-other-wx-item" data-shrt="pty" title="강수형태">
+                                    <i class="fa-solid fa-cloud-bolt"></i>
+                                    <span class="ocean-overlay-label">강수형태</span>
+                                </button>
+                            </div>
+                        </div>
                         <!-- CCTV 토글: ocean_cctv.js 가 바인딩 (index2 전용)
                              활성화 시 지도 위에 CCTV 마커/클러스터 표시 + 하단 CCTV 즐겨찾기 바 노출
                              [연계] js/ocean_cctv.js -->
@@ -1867,6 +2047,27 @@
                          [내용] 현재 활성 특보(state.activeMap) 에 존재하는 종류·단계만 동적 표출
                                 — ocean_warn_active4.js _renderLegend() 가 매번 <table> 을 다시 빌드 -->
                     <div id="ocean-warn-active-legend" class="warn-active-legend" style="display:none;" aria-hidden="true"></div>
+
+                    <!-- 단기예보(KMA shrt) 시간 슬라이더 + 재생버튼
+                         [표출 조건] js/shrt_forecast_layer.js 가 레이어 ON 시 display:'' 로 표출
+                         [위치] 지도 컨테이너 하단 가운데 (메인 탭바 위)
+                         [연계] js/shrt_forecast_layer.js
+                         초기 슬라이더 max=0 — 데이터 수신 후 동적 갱신 -->
+                    <div id="shrt-fcst-slider-bar" class="shrt-fcst-slider-bar" style="display:none;" aria-hidden="true">
+                        <button id="shrt-fcst-play-btn" class="shrt-fcst-play-btn" type="button" title="재생/일시정지">
+                            <i class="fa-solid fa-play"></i>
+                        </button>
+                        <div class="shrt-fcst-slider-wrap">
+                            <div class="shrt-fcst-tooltip" id="shrt-fcst-tooltip"></div>
+                            <input type="range" class="shrt-fcst-slider" id="shrt-fcst-slider" min="0" max="0" value="0" step="1">
+                        </div>
+                    </div>
+
+                    <!-- 단기예보 범례 (특보 ON 범례와 동일 디자인)
+                         [표출 조건] js/shrt_forecast_layer.js 가 레이어 ON 시 표출
+                         [위치] 지도 컨테이너 우측 하단 (특보 범례와 동일 좌표 — 동시 표출 안 함)
+                         [내용] 활성 shrtType 에 따라 색상-라벨 매트릭스 (sky=3종, pty=4종 등) -->
+                    <div id="shrt-fcst-legend" class="warn-active-legend shrt-fcst-legend" style="display:none;" aria-hidden="true"></div>
                 </div>
 
                 <!--
@@ -2559,6 +2760,8 @@
     <script src="js/ocean_warn_active4.js"></script>
     <script src="js/ocean_warn_active5.js"></script>
     <script src="js/ocean_timeline.js"></script>
+    <!-- 기타 기상 (KMA 단기예보 PNG 오버레이): 토글 버튼 + 5개 서브버튼 + 슬라이더/재생 + 범례 -->
+    <script src="js/shrt_forecast_layer.js"></script>
 
     <script src="js/admin_trigger.js"></script>
     <script src="js/image_compress.js"></script>
