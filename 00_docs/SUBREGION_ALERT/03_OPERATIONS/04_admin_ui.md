@@ -113,7 +113,7 @@
 function renderSubregionErrorTab() {
   // local_server/js/admin.js에 추가 예정
 
-  fetch('/api/admin/subregion-errors')
+  fetch('/api/subregion/error-log')
     .then(r => r.json())
     .then(errors => {
       const container = document.getElementById('subregion-error-tab')
@@ -158,7 +158,7 @@ function renderErrorItem(error) {
 
 ```javascript
 function acknowledgeError(errorId) {
-  fetch('/api/admin/subregion-errors/acknowledge', {
+  fetch('/api/subregion/error-ack', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ errorId, adminId: getCurrentAdminId() })
@@ -169,7 +169,7 @@ function acknowledgeError(errorId) {
 function acknowledgeAllErrors() {
   if (!confirm('모든 미확인 오류를 확인 완료 처리하시겠습니까?')) return
 
-  fetch('/api/admin/subregion-errors/acknowledge-all', {
+  fetch('/api/subregion/error-ack-all', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ adminId: getCurrentAdminId() })
@@ -185,7 +185,7 @@ function acknowledgeAllErrors() {
 ### 5.1 오류 목록 조회
 
 ```
-GET /api/admin/subregion-errors
+GET /api/subregion/error-log
 
 응답:
 {
@@ -205,7 +205,7 @@ GET /api/admin/subregion-errors
 ```javascript
 // local_server/routes/admin.js에 추가
 
-router.get('/api/admin/subregion-errors', (req, res) => {
+router.get('/api/subregion/error-log', (req, res) => {
   const filePath = path.join(DATA_DIR, 'subregion_error_log.json')
   if (!fs.existsSync(filePath)) {
     return res.json({ errors: [], stats: { totalErrors: 0 } })
@@ -218,7 +218,7 @@ router.get('/api/admin/subregion-errors', (req, res) => {
 ### 5.2 개별 오류 확인 처리
 
 ```
-POST /api/admin/subregion-errors/acknowledge
+POST /api/subregion/error-ack
 Body: { errorId: "err_...", adminId: "..." }
 
 응답: { success: true }
@@ -227,7 +227,7 @@ Body: { errorId: "err_...", adminId: "..." }
 구현 예시:
 
 ```javascript
-router.post('/api/admin/subregion-errors/acknowledge', (req, res) => {
+router.post('/api/subregion/error-ack', (req, res) => {
   const { errorId, adminId } = req.body
   const filePath = path.join(DATA_DIR, 'subregion_error_log.json')
   const data = JSON.parse(fs.readFileSync(filePath, 'utf8'))
@@ -249,7 +249,7 @@ router.post('/api/admin/subregion-errors/acknowledge', (req, res) => {
 ### 5.3 모두 확인 처리
 
 ```
-POST /api/admin/subregion-errors/acknowledge-all
+POST /api/subregion/error-ack-all
 Body: { adminId: "..." }
 
 응답: { success: true, acknowledgedCount: N }
@@ -260,8 +260,8 @@ Body: { adminId: "..." }
 본 작업의 사용자 정책상 **삭제 API는 만들지 않습니다**. 따라서 다음과 같은 엔드포인트는 추가하지 않음:
 
 ```
-DELETE /api/admin/subregion-errors/{errorId}  ← 미제공
-DELETE /api/admin/subregion-errors            ← 미제공
+DELETE /api/subregion/error-log/{errorId}  ← 미제공
+DELETE /api/subregion/error-log            ← 미제공
 ```
 
 ---
@@ -361,9 +361,9 @@ local_server/js/admin.js
   - 추가 함수: renderSubregionErrorTab(), renderErrorList(), renderErrorItem() 등
 
 local_server/routes/admin.js
-  - 추가 엔드포인트: GET /api/admin/subregion-errors,
-                    POST /api/admin/subregion-errors/acknowledge,
-                    POST /api/admin/subregion-errors/acknowledge-all
+  - 추가 엔드포인트: GET /api/subregion/error-log,
+                    POST /api/subregion/error-ack,
+                    POST /api/subregion/error-ack-all
 ```
 
 ---

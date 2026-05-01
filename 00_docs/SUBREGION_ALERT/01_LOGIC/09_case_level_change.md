@@ -214,20 +214,36 @@ function detectParentLevelChange(parentRegId, currentTongbomun, previousTongbomu
   return null
 ```
 
-### 5.2 변경 감지 후 자식 일괄 갱신
+### 5.2 부모 통보문 갱신 → 자식 자연 따라감 (cascade가 아닌 캡 풀림)
 
-부모 통보문 변경이 감지되면, 그 부모의 모든 자식을 일괄 갱신합니다.
+**중요 표현 정정 (2026-05-01)**:
+
+기존 표현은 "부모 변경 감지 시 자식 일괄 갱신"이라는 적극적 cascade 트리거로 보일 수 있으나, 실제 코드 동작은 다음과 같습니다.
+
+- 매 사이클의 캡 규칙(LOGIC 13): `자식 레벨 = min(방재기상 자식 레벨, 부모 통보문 레벨)`
+- 통보문 부모가 격상되면 → **캡이 풀리며** 자식이 자연스럽게 새 레벨로 표시됨
+- 통보문 부모가 격하되면 → 동일 패턴 (단, 시나리오 ② 사전 격하 차단 정책 결합)
+
+따라서 "cascade 트리거" 보다는 **"매 사이클 캡 자동 적용의 부수 효과로 자식이 부모를 따라감"** 으로 이해해야 정확합니다.
 
 ```
-function cascadeParentLevelChange(parentRegId, change):
-  for child in getChildrenOf(parentRegId):
-    if child.current == null:
-      continue  # 자식 미발효이면 격상/격하 대상 아님
+function applyCapEachCycle(childRow, parentTongbomun, prevChild):
+  # 매 사이클 자동 적용
+  newLvl = min(childRow.wrnLvl, parentTongbomun.currentLevel)
 
-    # 캡 적용으로 자동 처리되지만 라벨 명시적 갱신
-    child.eventLabel = (change.direction == "UPGRADE") ? "격상됨" : "격하됨"
-    log("[자식 " + child.eventLabel + "] " + child.regKo + " " + change.from + " → " + change.to)
+  # 직전 사이클 자식 레벨과 비교하여 라벨 추정
+  if prevChild.current.wrnLvl != newLvl:
+    if newLvl > prevChild.current.wrnLvl: child.eventLabel = "격상됨"
+    elif newLvl < prevChild.current.wrnLvl: child.eventLabel = "격하됨"
+
+  child.current.wrnLvl = newLvl
 ```
+
+### 5.2-A 자식 단독 격상/격하
+
+부모 통보문 변동 없이 자식만 변동하는 케이스 (LOGIC 06 자식 단독 해제와 대칭):
+- 자식 단독 격상 (자식이 부모 레벨까지 격상) → 캡으로 부모 레벨로 막힘 (정상, 또는 부모와 같아짐)
+- 자식 단독 격하 → 즉시 적용 (방재기상 부모 행도 그대로일 때, §4.5-A 참조)
 
 ---
 
