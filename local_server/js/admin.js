@@ -450,7 +450,7 @@ window.switchUnifiedAdminTab = function (tabId) {
 // --- 서브탭 1: 오류 목록 (검토 필요 + 수집 실패 2섹션) ---
 // [상태] 수집 오류 탭의 현재 선택된 하위 탭 및 자동 갱신 타이머
 let currentErrorSubTab = 'review';  // 'review' | 'retry' | 'fail' | 'subregionMismatch' (기본: 검토 필요)
-                                    // 'subregionMismatch'는 index1에서만 표시 (자식해역 비교 불일치)
+                                    // 'subregionMismatch'는 index1·index2 양쪽에서 표시 (자식해역 비교 불일치)
 let errorListAutoRefreshTimer = null;
 
 /**
@@ -486,32 +486,27 @@ async function renderErrorListTab(container) {
 
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
 
-    // 네 가지(또는 다섯) 데이터를 병렬로 조회
-    // 자식해역 비교 불일치는 index1에서만 fetch (옵션 b: 페이지 가드)
-    const isIndex1 = window.__SEAGNAL_PAGE === 'index1';
-
+    // 다섯 가지 데이터를 병렬로 조회
+    // 자식해역 비교 불일치 탭은 index1·index2 양쪽에서 표시 (운영자가 어디서든 확인 가능)
     let failures = [];
     let reviews = [];
     let pendings = [];
     let geminiStatus = { keys: [], count: 0 };
     let subregionMismatches = [];
     try {
-        const requests = [
+        const responses = await Promise.all([
             fetch('/api/admin/collect-failures'),
             fetch('/api/admin/review-needed'),
             fetch('/api/admin/pending-retries'),
-            fetch('/api/admin/gemini-status')
-        ];
-        if (isIndex1) {
-            requests.push(fetch('/api/subregion/error-log?errorType=COMPARISON_MISMATCH&acknowledged=false'));
-        }
-        const responses = await Promise.all(requests);
+            fetch('/api/admin/gemini-status'),
+            fetch('/api/subregion/error-log?errorType=COMPARISON_MISMATCH&acknowledged=false')
+        ]);
         const [failRes, reviewRes, pendingRes, geminiRes, subregionRes] = responses;
         if (failRes.ok) failures = await failRes.json();
         if (reviewRes.ok) reviews = await reviewRes.json();
         if (pendingRes.ok) pendings = await pendingRes.json();
         if (geminiRes.ok) geminiStatus = await geminiRes.json();
-        if (isIndex1 && subregionRes && subregionRes.ok) {
+        if (subregionRes && subregionRes.ok) {
             const data = await subregionRes.json();
             subregionMismatches = (data && data.errors) || [];
         }
@@ -550,10 +545,8 @@ async function renderErrorListTab(container) {
         return `<button onclick="switchErrorSubTab('${key}')" style="${style}">${label}${badge}</button>`;
     };
 
-    // 자식해역 비교 불일치 탭 — index1 에서만 표시 (옵션 b: 페이지 가드)
-    const subregionTabBtn = isIndex1
-        ? tabBtn('subregionMismatch', '<i class="fa-solid fa-water"></i> 자식해역 비교 불일치', mismatchCount, '#a855f7')
-        : '';
+    // 자식해역 비교 불일치 탭 — index1·index2 양쪽에서 표시
+    const subregionTabBtn = tabBtn('subregionMismatch', '<i class="fa-solid fa-water"></i> 자식해역 비교 불일치', mismatchCount, '#a855f7');
 
     const tabBarHtml = `
         ${geminiBadgeHtml}
@@ -567,13 +560,7 @@ async function renderErrorListTab(container) {
     `;
     container.innerHTML = tabBarHtml;
 
-    // index2 사용자가 'subregionMismatch' 탭 상태로 진입한 경우 (저장된 상태 등)
-    // 이 탭은 표시되지 않으므로 'review'로 폴백
-    let activeSubTab = currentErrorSubTab;
-    if (activeSubTab === 'subregionMismatch' && !isIndex1) {
-        activeSubTab = 'review';
-    }
-
+    const activeSubTab = currentErrorSubTab;
     const sub = document.getElementById('error-sub-tab-content');
     if (activeSubTab === 'review') {
         sub.innerHTML = renderReviewSectionHtml(pendingReviews);
@@ -837,7 +824,7 @@ function renderFailureSectionHtml(failures) {
 
 // [하위 탭 전환] 하위 탭 버튼 클릭 시 호출
 window.switchErrorSubTab = function (key) {
-    if (!['review', 'retry', 'fail'].includes(key)) return;
+    if (!['review', 'retry', 'fail', 'subregionMismatch'].includes(key)) return;
     currentErrorSubTab = key;
     const inner = document.getElementById('alert-top-content');
     if (inner) renderErrorListTab(inner);
@@ -3146,4 +3133,77 @@ window.toggleMaintenanceMode = async function () {
         alert('오류: ' + e.message);
     }
 };
+
+// ============================================================================
+// [딥링크 자동 진입] ?openAdmin=<key> URL 파라미터 처리
+// ============================================================================
+// 보라색 자식해역 비교 불일치 푸시 알림에서 호출되는 진입 경로.
+// FCM 푸시 data.url = '/?openAdmin=subregionMismatch' → SW가 해당 URL로 이동 → 본 핸들러가 모달 자동 오픈.
+//
+// 보안: 모달은 비밀번호 인증을 거치므로, 자동 오픈만으로 권한이 부여되지 않음.
+// 관리자 모드(localStorage 'seagnal_admin_mode')가 켜진 경우 모달 본체로 직행하고,
+// 그렇지 않으면 통합 관리자 로그인 모달부터 표시한다.
+(function () {
+    function openSubregionMismatch() {
+        // 1) 통합 관리자 모달 (특보 알림 탭)
+        if (typeof window.showUnifiedAdminModal === 'function') {
+            window.showUnifiedAdminModal('alert');
+        }
+        // 2) 상위 탭: 특보 수집 오류 → 하위 탭: 자식해역 비교 불일치
+        //    showUnifiedAdminModal 내부 렌더가 비동기적으로 진행되므로 약간 지연.
+        setTimeout(() => {
+            currentErrorSubTab = 'subregionMismatch';
+            if (typeof window.switchAlertTopTab === 'function') {
+                window.switchAlertTopTab('collect-error');
+            }
+        }, 200);
+    }
+
+    function handleDeeplink() {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const openKey = params.get('openAdmin');
+            if (!openKey) return;
+
+            // 처리 후 URL 정리 (새로고침 시 재진입 방지)
+            const cleanUrl = window.location.pathname + window.location.hash;
+            window.history.replaceState({}, '', cleanUrl);
+
+            if (openKey === 'subregionMismatch') {
+                const isAdminMode = localStorage.getItem('seagnal_admin_mode') === 'true';
+                if (isAdminMode) {
+                    openSubregionMismatch();
+                } else if (typeof window.showUnifiedLoginModal === 'function') {
+                    // 인증 후 자동 진입을 위해 플래그 설정
+                    window._pendingDeeplink = 'subregionMismatch';
+                    window.showUnifiedLoginModal('alert', '관리자 인증', 'fa-user-shield');
+                }
+            }
+        } catch (e) { /* 무시 */ }
+    }
+
+    // 인증 성공 후 대기 중인 딥링크가 있으면 진입
+    const _origShow = window.showUnifiedAdminModal;
+    if (typeof _origShow === 'function') {
+        window.showUnifiedAdminModal = function (initialTab) {
+            const ret = _origShow.apply(this, arguments);
+            if (window._pendingDeeplink === 'subregionMismatch') {
+                window._pendingDeeplink = null;
+                setTimeout(() => {
+                    currentErrorSubTab = 'subregionMismatch';
+                    if (typeof window.switchAlertTopTab === 'function') {
+                        window.switchAlertTopTab('collect-error');
+                    }
+                }, 200);
+            }
+            return ret;
+        };
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', handleDeeplink);
+    } else {
+        handleDeeplink();
+    }
+})();
 

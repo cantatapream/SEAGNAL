@@ -401,24 +401,39 @@ async function runComparison(parentTongbomunNameMap = {}) {
             e.developerInfo.diffType === mismatch.diffType
         );
 
-        let isNewOrReactivated = false;
+        // [지연 푸시 정책]
+        //   기존 텍스트 스크래핑(weather_alerts.json)과 방재기상시스템(AFSO) 사이엔 자연스러운
+        //   1~3분 시차가 존재한다. 첫 감지 즉시 푸시하면 자동 동기화로 곧 사라질
+        //   transient 불일치까지 알림이 가서 노이즈가 커진다.
+        //   → 같은 diffKey 가 2 사이클 이상 (≈ 2분 +) 연속 감지되어야 푸시.
+        //   첫 사이클은 어드민 패널/배지에 즉시 표시되므로 어드민이 보고 있다면 인지 가능.
+        //
+        // [pushPending 플래그]
+        //   첫 감지에서 pushPending=true 로 마킹 → 다음 사이클에서도 동일 항목이
+        //   존재하면 (occurrenceCount≥2) 그때 푸시. 이후 ack 또는 자연 해소되면 리셋.
+        let isNewlyEligibleForPush = false;
         if (existing) {
             // 누적 갱신
             existing.occurrenceCount = (existing.occurrenceCount || 1) + 1;
             existing.lastOccurredAt = new Date().toISOString();
-            // 확인 후 재발 시 재활성화
+            // 확인 후 재발 시 재활성화 — 이때는 즉시 푸시 (운영자가 이미 본 적 있는 항목 재발)
             if (existing.acknowledged) {
                 existing.acknowledged = false;
                 existing.acknowledgedAt = null;
                 existing.acknowledgedBy = null;
-                isNewOrReactivated = true;
+                existing.pushPending = false;
+                isNewlyEligibleForPush = true;
+            } else if (existing.pushPending && existing.occurrenceCount >= 2) {
+                // 첫 사이클(pushPending=true) 후 두 번째 사이클에 도달 → 정식 푸시
+                existing.pushPending = false;
+                isNewlyEligibleForPush = true;
             }
             // 최신 데이터로 갱신
             existing.developerInfo = developerInfo;
             existing.narrativeDescription = narrative;
             existing.severity = mismatch.severity;
         } else {
-            // 신규
+            // 신규 — 첫 감지는 푸시 보류 (pushPending), 다음 사이클에서 결정
             const id = generateErrorId();
             errorLog.errors.push({
                 id: id,
@@ -432,18 +447,21 @@ async function runComparison(parentTongbomunNameMap = {}) {
                 narrativeDescription: narrative,
                 actionRequired: actionRequired,
                 occurrenceCount: 1,
-                lastOccurredAt: new Date().toISOString()
+                lastOccurredAt: new Date().toISOString(),
+                pushPending: true   // 다음 사이클까지 푸시 보류 (transient 필터)
             });
-            isNewOrReactivated = true;
             newMismatches.push(developerInfo);
         }
 
-        // 푸시 발송 정책 검사
-        if (isNewOrReactivated && shouldSendComparisonPush(mismatch.severity, signature)) {
+        // 푸시 발송 정책 검사 (지연 통과 + 빈도 제어 모두 만족 시)
+        if (isNewlyEligibleForPush && shouldSendComparisonPush(mismatch.severity, signature)) {
             const title = '자식해역 비교 불일치 감지';
             const body = `${appName} (${parentName}) — ${mismatch.diffType}`;
+            // 푸시 클릭 시 통합 관리자 센터의 자식해역 불일치 탭으로 직행하는 딥링크
+            const PUSH_BASE_URL = 'https://seagnal-server.fly.dev';
             try {
                 await sendAdminPush(title, body, {
+                    url: `${PUSH_BASE_URL}/?openAdmin=subregionMismatch`,
                     category: 'subregion_comparison_mismatch',
                     severity: mismatch.severity,
                     subregionRegId: afsoRegId,
