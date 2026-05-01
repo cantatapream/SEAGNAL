@@ -217,6 +217,27 @@ async function runJudgement(parentTongbomunState, afsoResult, recordError = null
     // Step 3.2: 통보문 건전성 (호출 측에서 빈 객체 가능)
     const tongbomunHealthy = parentTongbomunState != null;
 
+    // ============================================================
+    // Step 3.3: 부모 자동 해제 연동 (LOGIC 11)
+    // 통보문상 부모해역이 미발효(current=null)인데 lifecycle 자식이 활성이면
+    // → 부모 자동 해제 시점에 자식도 함께 정리되어야 함 (고아 자식 방지)
+    // ============================================================
+    const now0 = new Date().toISOString();
+    if (tongbomunHealthy) {
+        for (const [regId, child] of Object.entries(newState.subregions)) {
+            if (!child.current) continue;  // 이미 미발효
+            const parentTb = parentTongbomunState[child.parentRegId];
+            if (parentTb && parentTb.current == null) {
+                // 부모 통보문 미발효 → 자식 일괄 정리
+                console.log(`[subregion_judge] 부모 자동 해제 연동: ${child.regKoApp} (parent=${child.parentRegId})`);
+                child.current = null;
+                child.lastReleasedAt = now0;
+                child.status = 'released';
+                child.releaseReason = 'PARENT_AUTO_RELEASE';
+            }
+        }
+    }
+
     // Step 3.4: 행 분류
     const classified = classifyRows(afsoResult.metData);
 
@@ -353,8 +374,78 @@ async function runJudgement(parentTongbomunState, afsoResult, recordError = null
         }
     }
 
-    // Step 3.8: 동시 사라짐 잠금 검사 (간소화 — 5단계에서 전체 구현)
-    // 현재 단계에서는 위 missedCount 로직만 적용
+    // ============================================================
+    // Step 3.8: 동시 사라짐 잠금 검사 (LOGIC 7)
+    //
+    // 한 부모해역에 속한 모든 자식이 같은 사이클에 응답에서 빠졌고
+    // (= 빈 행이거나 행 자체 누락), 부모는 통보문상 살아있다면
+    // → "지금 해제"가 아닌 "미래 해제 예정"으로 추정
+    // → 자식들을 status='pending_release'로 잠금
+    // → tmEd = parentTongbomun.tmCc
+    //
+    // 단, 직전 사이클에 자식들이 활성이었어야 동시 사라짐 의미가 있음.
+    // ============================================================
+    if (tongbomunHealthy) {
+        // 부모 regId별로 자식 그룹 빌드
+        const parentChildMap = {};
+        for (const [regId, child] of Object.entries(newState.subregions)) {
+            const pId = child.parentRegId;
+            if (!parentChildMap[pId]) parentChildMap[pId] = [];
+            parentChildMap[pId].push({ regId, child });
+        }
+
+        for (const [parentRegId, children] of Object.entries(parentChildMap)) {
+            const parentTb = parentTongbomunState[parentRegId];
+
+            // 부모 통보문상 살아있어야 잠금 의미 있음
+            if (!parentTb || !parentTb.current) continue;
+
+            // 직전 사이클 활성 자식 (이번 사이클 시작 시점 기준)
+            const prevActive = children.filter(({ regId, child }) => {
+                const prev = previousState.subregions[regId];
+                return prev && prev.current != null;
+            });
+
+            if (prevActive.length === 0) continue;  // 직전 활성 자식 없음
+
+            // 직전 활성 자식이 모두 이번 사이클에 미발효(빠짐)인지 확인
+            const allMissingNow = prevActive.every(({ regId, child }) => {
+                return child.current == null;
+            });
+
+            if (!allMissingNow) continue;  // 일부만 빠짐 (자식 단독 해제 케이스)
+
+            // 부모-자식 동시 사라짐 → 잠금 적용
+            const parentTmCc = parentTb.current.tmCc || null;
+            for (const { regId, child } of prevActive) {
+                const prev = previousState.subregions[regId];
+                console.log(`[subregion_judge] 동시 사라짐 잠금: ${child.regKoApp} → 부모 해제시각(${parentTmCc || '미정'})까지 유지`);
+
+                // 직전 활성 정보 복원하여 잠금
+                child.current = prev.current ? { ...prev.current } : null;
+                child.status = 'pending_release';
+                child.confidence = 'STRONGLY_ESTIMATED';
+                child.estimationReason = 'CONCURRENT_DISAPPEAR_LOCK';
+                child.tmEdNote = null;
+
+                // 종료 시각: 부모 tmCc 적용 (자식이 더 짧으면 자식 시각 유지)
+                if (child.current) {
+                    if (parentTmCc) {
+                        const childEnd = child.current.tmEd ? timeToTimestamp(child.current.tmEd) : null;
+                        const parentEnd = timeToTimestamp(parentTmCc);
+                        if (parentEnd != null && (childEnd == null || childEnd > parentEnd)) {
+                            child.current.tmEd = parentTmCc;
+                        }
+                    } else {
+                        // 부모 tmCc 미정 (범위형 등) → 자식 시각도 미정으로
+                        child.current.tmEd = null;
+                        child.tmEdNote = '부모 통보문 갱신 대기 (범위형 또는 미명시)';
+                    }
+                }
+            }
+        }
+    }
+
 
     // Step 3.9: 영속화
     let activeCount = 0;
