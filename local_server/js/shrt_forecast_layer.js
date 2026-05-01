@@ -371,9 +371,12 @@
                 if (!labelsAdded[key]) {
                     labelsAdded[key] = 1;
                     var label = document.createElement('div');
-                    label.className = 'shrt-fcst-tick-label';
+                    // 자정 → 날짜, 위쪽 정렬 (.top)
+                    // 정오 → 시간, 아래쪽 정렬 (.bottom)
+                    var isMid = (hh === 0);
+                    label.className = 'shrt-fcst-tick-label ' + (isMid ? 'top' : 'bottom');
                     label.style.left = pct + '%';
-                    label.textContent = (hh === 0) ? (+m[1] + '/' + +m[2]) : '12시';
+                    label.textContent = isMid ? (+m[1] + '/' + +m[2]) : '12시';
                     frag.appendChild(label);
                 }
             }

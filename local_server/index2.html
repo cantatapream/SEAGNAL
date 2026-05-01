@@ -929,7 +929,7 @@
             background: rgba(15, 25, 50, 0.92);
             backdrop-filter: blur(2px);
             border-top: 1px solid rgba(120, 150, 200, 0.25);
-            padding: 4px 14px;
+            padding: 4px 14px 0;     /* 하단 padding 0 — 메인탭에 정확히 붙음 */
             box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.35);
         }
         .shrt-fcst-play-btn {
@@ -953,8 +953,10 @@
             position: relative;
             flex: 1 1 auto;
             min-width: 0;
-            padding-top: 20px;    /* 위쪽: 항상 표시 말풍선 공간 (컴팩트) */
-            padding-bottom: 12px; /* 아래쪽: 시간 눈금 라벨 공간 (컴팩트) */
+            /* 위쪽: 항상 표시 말풍선 (~20px) + 날짜 라벨 (~12px) = 32px
+               아래쪽: 시간 라벨 (~12px) */
+            padding-top: 32px;
+            padding-bottom: 12px;
         }
         .shrt-fcst-slider {
             width: 100%;
@@ -1016,31 +1018,31 @@
             filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.08));
         }
 
-        /* 시간 눈금 영역 — 슬라이더 트랙 바로 아래에 위치
-           구성:
-             1) 1h 단위 짧은 tick (모든 frame)
-             2) 12h 단위 중간 tick + 시각 라벨 ("12시", 자정엔 일자 "5/2")
-           라벨 겹침 방지를 위해 12h 단위만 텍스트로 표시 */
+        /* 시간 눈금 영역 — 슬라이더 트랙을 가운데 두고 위/아래 라벨 분리
+           - tick line: 슬라이더 트랙 바로 아래 (1h minor / 12h major)
+           - 날짜 라벨 (.top): 트랙 위쪽 (자정 위치) — "5/2"
+           - 시간 라벨 (.bottom): 트랙 아래쪽 (정오 위치) — "12시"
+           위/아래 분리로 텍스트 겹침 방지. */
         .shrt-fcst-ticks {
             position: absolute;
             left: 0;
             right: 0;
+            top: 20px;       /* 말풍선(20px) 아래부터 시작 */
             bottom: 0;
-            height: 12px;
             pointer-events: none;
         }
         .shrt-fcst-tick {
             position: absolute;
-            top: 0;
             transform: translateX(-50%);
             width: 1px;
             background: rgba(220, 230, 245, 0.40);
+            /* 슬라이더 트랙(바 가운데, top:24px 부근) 바로 아래 */
+            top: 14px;
         }
-        .shrt-fcst-tick.minor { height: 3px; }              /* 1h 단위 */
-        .shrt-fcst-tick.major { height: 6px; background: rgba(220, 230, 245, 0.85); }   /* 12h 단위 */
+        .shrt-fcst-tick.minor { height: 3px; }
+        .shrt-fcst-tick.major { height: 6px; background: rgba(220, 230, 245, 0.85); }
         .shrt-fcst-tick-label {
             position: absolute;
-            bottom: 0;
             transform: translateX(-50%);
             color: rgba(220, 230, 245, 0.85);
             font-family: "Pretendard", sans-serif;
@@ -1049,13 +1051,20 @@
             white-space: nowrap;
             font-weight: 600;
         }
+        /* 날짜 라벨 (자정) — 슬라이더 트랙 위쪽 */
+        .shrt-fcst-tick-label.top    { top: 0; }
+        /* 시간 라벨 (정오) — 슬라이더 트랙 아래쪽 (tick 끝 아래) */
+        .shrt-fcst-tick-label.bottom { top: 22px; }
 
         /* 단기예보 범례 — 슬라이더 바 위 좌측 정렬, 흰색 카드 + 항목 가로 정렬
-           예: [ㅁ 맑음   ㅁ 구름많음   ㅁ 흐림]  (제목 없음) */
+           예: [ㅁ 맑음   ㅁ 구름많음   ㅁ 흐림]  (제목 없음)
+           [폭] inline-flex 로 콘텐츠 너비만큼만 차지 (max-width 만 안전망)
+           [위치] 슬라이더 바 상단으로부터 약 6px 위 (사용자 요구: 슬라이더-메인탭 간격의 절반) */
         .shrt-fcst-legend {
             position: absolute;
             left: 12px;
-            bottom: calc(var(--main-tab-height, 68px) + 60px);  /* 슬라이더 바 위 약간 띄움 */
+            /* 슬라이더 바 height(약 60px) + 6px 여백 */
+            bottom: calc(var(--main-tab-height, 68px) + 66px);
             z-index: 1100;
             background: rgba(255, 255, 255, 0.92);
             backdrop-filter: blur(2px);
@@ -1068,10 +1077,11 @@
             color: #1f2937;
             user-select: none;
             pointer-events: none;
-            max-width: calc(100vw - 24px);
+            max-width: calc(100vw - 24px);   /* 안전망: 화면 폭 초과 시 wrap */
 
-            /* 항목들을 가로 한 줄로 — 너비 자동, 항목별 간격 12px */
-            display: flex;
+            /* 콘텐츠 폭만큼만 차지 — inline-flex 로 폭 자동 결정 */
+            display: inline-flex;
+            width: max-content;
             flex-wrap: wrap;
             align-items: center;
             gap: 6px 14px;
