@@ -83,6 +83,26 @@ router.get('/api/warn-zones', (req, res) => {
     }
 });
 
+// 1-1b. 해상 단기예보(sterm) 전용 zone polygon 모음
+//        KMA marine.kma.go.kr 의 WFS mmis:fcst_area 에서 sterm 발표 zone(44개)
+//        + 자식 영역(평수구역/연안바다 등) 까지 포함해 총 112 feature.
+//        properties.sterm_parent → sea/sterm/list 응답의 kor_nm 와 매칭 키.
+//        [용도] js/shrt_forecast_layer.js 에서 단기예보 zone fill 용 polygon 으로 사용.
+//        [근거] warn_zones.geojson 의 polygon 은 polygon 단순화 정도가 거칠어
+//               marine.kma.go.kr 와 외곽선이 다름 → KMA 원본 폴리곤으로 보정.
+router.get('/api/sea-sterm-zones', (req, res) => {
+    try {
+        const filePath = path.join(__dirname, '..', 'assets', 'sea_sterm_zones.geojson');
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: 'sea_sterm_zones.geojson not found' });
+        }
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.sendFile(filePath);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // 1-2. 해상 예특보구역의 자식 구역 (연안바다/평수구역) 폴리곤
 //      KMA mmis:warnArea2Poly202106 레이어 (WFS) 의 GeoJSON.
 //      특보구역 토글이 켜진 상태에서 충분히 줌인하면 표시됨.
