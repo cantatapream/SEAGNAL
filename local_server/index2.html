@@ -914,22 +914,24 @@
            [표출] shrt_forecast_layer.js 가 레이어 ON 시 display:''           */
         /* ── 단기예보 슬라이더 바 ─────────────────────────────────
            [위치] 하단 메인 탭(--main-tab-height) 바로 위, 가로 100%
-           [구성] 좌측 재생버튼 + 슬라이더 + (위쪽 좌측에) 범례 + 슬라이더 핸들 위 항상 표시 말풍선
-           [표출] shrt_forecast_layer.js 가 레이어 ON 시 display:''
-           [컴팩트] padding 최소화 — 위/아래 여백을 줄여 메인탭 바로 위에 얇은 바 형태 */
+           [구성] 좌측 재생버튼 + 슬라이더 트랙(투명) + tick + 라벨 (모두 vertical 중앙선 정렬)
+           [높이] 60px 고정 — bar 의 vertical 중앙 = 슬라이더 트랙 = 재생버튼 가운데
+           [표출] shrt_forecast_layer.js 가 레이어 ON 시 display:''           */
         .shrt-fcst-slider-bar {
             position: absolute;
             left: 0;
             right: 0;
-            bottom: var(--main-tab-height, 68px);  /* 메인 탭 바로 위에 딱 붙음 */
+            bottom: var(--main-tab-height, 68px);
             z-index: 1100;
             display: flex;
-            align-items: center;
+            align-items: center;            /* 재생버튼이 bar vertical 중앙에 align */
             gap: 10px;
             background: rgba(15, 25, 50, 0.92);
             backdrop-filter: blur(2px);
             border-top: 1px solid rgba(120, 150, 200, 0.25);
-            padding: 4px 14px 0;     /* 하단 padding 0 — 메인탭에 정확히 붙음 */
+            padding: 0 14px;                /* 위/아래 padding 0 — bar 박스 끝 = 메인탭 시작 */
+            height: 60px;                   /* 명시: 말풍선(위) + 날짜 + 트랙 + tick + 시간(아래) 안정 배치 */
+            box-sizing: border-box;
             box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.35);
         }
         .shrt-fcst-play-btn {
@@ -953,20 +955,32 @@
             position: relative;
             flex: 1 1 auto;
             min-width: 0;
-            /* 위쪽: 항상 표시 말풍선 (~20px) + 날짜 라벨 (~12px) = 32px
-               아래쪽: 시간 라벨 (~12px) */
-            padding-top: 32px;
-            padding-bottom: 12px;
+            height: 100%;                   /* bar 와 동일 — 모든 자식을 50% 기준 절대 배치 */
         }
+        /* 슬라이더 input — 트랙은 투명, vertical 중앙 정렬.
+           회색 가로 바를 시각적으로 제거하고 thumb 만 보이게. tick line 들이 트랙 역할 대체. */
         .shrt-fcst-slider {
-            width: 100%;
+            position: absolute;
+            top: 50%;                       /* bar 가운데 = 재생버튼 가운데 */
+            transform: translateY(-50%);
+            left: 0; right: 0;
             -webkit-appearance: none;
             appearance: none;
+            width: 100%;
             height: 4px;
-            background: linear-gradient(to right, #60a5fa 0%, #60a5fa var(--shrt-progress, 0%), rgba(200, 210, 230, 0.30) var(--shrt-progress, 0%), rgba(200, 210, 230, 0.30) 100%);
+            background: transparent;        /* 회색 그라디언트 제거 */
             border-radius: 2px;
             outline: none;
             margin: 0;
+        }
+        /* WebKit/Chrome — runnable-track 도 투명 (background 만으론 일부 OS 에서 잔여 트랙 보임) */
+        .shrt-fcst-slider::-webkit-slider-runnable-track {
+            background: transparent;
+            height: 4px;
+        }
+        .shrt-fcst-slider::-moz-range-track {
+            background: transparent;
+            height: 4px;
         }
         .shrt-fcst-slider::-webkit-slider-thumb {
             -webkit-appearance: none;
@@ -978,6 +992,7 @@
             border: 2px solid #ffffff;
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
             cursor: pointer;
+            margin-top: -6px;               /* track height 4px 위로 thumb 가운데 정렬 */
         }
         .shrt-fcst-slider::-moz-range-thumb {
             width: 16px;
@@ -988,11 +1003,10 @@
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
             cursor: pointer;
         }
-        /* 항상 표시 말풍선 — 슬라이더 핸들 위에 떠있음 (재생 중에도 계속 보임)
-           [디자인] 흰색 배경 + 검정 글씨 (어두운 슬라이더 바 위에서 가독성 ↑) */
+        /* 항상 표시 말풍선 — slider thumb 위 (bar 박스 살짝 벗어남, overflow:visible) */
         .shrt-fcst-tooltip {
             position: absolute;
-            top: 0;
+            top: 6px;                       /* bar top 에서 6px 아래 → 라벨 박스 가운데가 thumb 위쪽 살짝 위 */
             transform: translateX(-50%);
             background: #ffffff;
             color: #111827;
@@ -1005,6 +1019,7 @@
             pointer-events: none;
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
             border: 1px solid rgba(0, 0, 0, 0.08);
+            z-index: 2;
         }
         .shrt-fcst-tooltip::after {
             content: '';
@@ -1014,33 +1029,26 @@
             transform: translateX(-50%);
             border: 4px solid transparent;
             border-top-color: #ffffff;
-            /* 화살표 그림자 단정하게 */
             filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.08));
         }
 
-        /* 시간 눈금 영역 — 슬라이더 트랙을 가운데 두고 위/아래 라벨 분리
-           - tick line: 슬라이더 트랙 바로 아래 (1h minor / 12h major)
-           - 날짜 라벨 (.top): 트랙 위쪽 (자정 위치) — "5/2"
-           - 시간 라벨 (.bottom): 트랙 아래쪽 (정오 위치) — "12시"
-           위/아래 분리로 텍스트 겹침 방지. */
+        /* tick + 라벨 — 모두 50% (=트랙=재생버튼) 기준으로 위/아래 배치 */
         .shrt-fcst-ticks {
             position: absolute;
-            left: 0;
-            right: 0;
-            top: 20px;       /* 말풍선(20px) 아래부터 시작 */
-            bottom: 0;
+            inset: 0;                       /* bar wrap 전체 영역 */
             pointer-events: none;
         }
+        /* tick line — 트랙 가운데에서 위/아래로 짧게 뻗는 vertical line */
         .shrt-fcst-tick {
             position: absolute;
-            transform: translateX(-50%);
+            top: 50%;
+            transform: translate(-50%, -50%);
             width: 1px;
             background: rgba(220, 230, 245, 0.40);
-            /* 슬라이더 트랙(바 가운데, top:24px 부근) 바로 아래 */
-            top: 14px;
         }
-        .shrt-fcst-tick.minor { height: 3px; }
-        .shrt-fcst-tick.major { height: 6px; background: rgba(220, 230, 245, 0.85); }
+        .shrt-fcst-tick.minor { height: 4px; }
+        .shrt-fcst-tick.major { height: 8px; background: rgba(220, 230, 245, 0.85); }
+
         .shrt-fcst-tick-label {
             position: absolute;
             transform: translateX(-50%);
@@ -1051,10 +1059,10 @@
             white-space: nowrap;
             font-weight: 600;
         }
-        /* 날짜 라벨 (자정) — 슬라이더 트랙 위쪽 */
-        .shrt-fcst-tick-label.top    { top: 0; }
-        /* 시간 라벨 (정오) — 슬라이더 트랙 아래쪽 (tick 끝 아래) */
-        .shrt-fcst-tick-label.bottom { top: 22px; }
+        /* 날짜 라벨 (자정) — 트랙 위쪽 */
+        .shrt-fcst-tick-label.top    { bottom: calc(50% + 8px); }
+        /* 시간 라벨 (정오) — 트랙 아래쪽 */
+        .shrt-fcst-tick-label.bottom { top: calc(50% + 8px); }
 
         /* 단기예보 범례 — 슬라이더 바 위 좌측 정렬, 흰색 카드 + 항목 가로 정렬
            예: [ㅁ 맑음   ㅁ 구름많음   ㅁ 흐림]  (제목 없음)
@@ -1063,7 +1071,7 @@
         .shrt-fcst-legend {
             position: absolute;
             left: 12px;
-            /* 슬라이더 바 height(약 60px) + 6px 여백 */
+            /* slider bar height 60px + 6px 여백 = 메인탭 위로 66px */
             bottom: calc(var(--main-tab-height, 68px) + 66px);
             z-index: 1100;
             background: rgba(255, 255, 255, 0.92);
