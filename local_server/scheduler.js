@@ -1383,17 +1383,18 @@ async function init() {
      * 모든 단계가 try/catch로 격리되어 한 단계 실패가 다른 단계에 영향 없음.
      */
     async function runSubregionPipeline() {
+        // 임시 오류 수집 (이번 사이클에 발생한 캡/매핑 누락/STALE 등)
+        const collectedErrors = [];
+        const recordError = (err) => collectedErrors.push(err);
+
         try {
             // Step 1: 방재기상 폴링
             const afsoResult = await afsoPoller.pollAfso();
             if (!afsoResult.success) {
                 log(`⚠️ [Subregion] AFSO 폴링 실패: ${afsoResult.error ? afsoResult.error.type : 'unknown'}`);
-                // 실패해도 비교는 진행 (이전 lifecycle 상태로)
             }
 
             // Step 2: 통보문 부모해역 상태 추출
-            // weather_alerts.json 트리에서 부모해역의 current 정보 추출
-            // (간소화 형태로 전달; 더 정밀한 매핑은 향후 보완)
             let parentTongbomunMap = {};
             try {
                 const waPath = path.join(__dirname, 'data', 'weather_alerts.json');
@@ -1403,69 +1404,134 @@ async function init() {
                 log(`⚠️ [Subregion] 통보문 상태 추출 실패: ${e.message}`);
             }
 
-            // Step 3: 종합 판정 (afsoResult가 success가 아니어도 이전 상태 유지)
+            // Step 3: 종합 판정 — recordError 콜백 주입 (Agent 리뷰 P15 반영)
             if (afsoResult.success) {
-                await subregionJudge.runJudgement(parentTongbomunMap, afsoResult);
+                await subregionJudge.runJudgement(parentTongbomunMap, afsoResult, recordError);
             }
 
-            // Step 4: 비교 검증 (parentTongbomunMap이 비어도 비교는 가능)
-            await subregionComparator.runComparison(buildParentNameMap(parentTongbomunMap));
+            // 수집된 오류를 subregion_error_log.json 에 기록
+            if (collectedErrors.length > 0) {
+                try {
+                    await persistJudgeErrors(collectedErrors);
+                } catch (e) {
+                    log(`⚠️ [Subregion] 오류 영속화 실패: ${e.message}`);
+                }
+            }
+
+            // Step 4: 비교 검증
+            await subregionComparator.runComparison({});
         } catch (e) {
             log(`⚠️ [Subregion] 파이프라인 오류: ${e.message}`);
         }
     }
 
     /**
-     * weather_alerts.json 트리에서 부모해역(레벨 4: 앞바다/먼바다)의
-     * 통보문 current 상태를 추출하여 매핑 객체 반환.
-     * key는 우리 앱 부모해역 이름. AFSO regId 매핑은 region_alias_map 통해 별도 처리.
+     * judge에서 발견된 오류들을 subregion_error_log.json 에 영속화.
+     * 같은 시그니처의 오류는 누적 (재발생 카운트 증가).
+     */
+    async function persistJudgeErrors(errors) {
+        const logPath = path.join(__dirname, 'data', 'subregion_error_log.json');
+        let log_;
+        try {
+            log_ = JSON.parse(fs.readFileSync(logPath, 'utf8'));
+        } catch (e) {
+            log_ = { schema_version: '1.0', lastUpdated: null, errors: [], stats: { totalErrors: 0, unacknowledged: 0, byType: {} } };
+        }
+        const now = new Date().toISOString();
+        for (const err of errors) {
+            const sig = `${err.type}::${err.afsoRegId || err.parentRegId || 'unknown'}`;
+            const existing = log_.errors.find(e => e.errorType === err.type &&
+                ((err.afsoRegId && e.developerInfo && e.developerInfo.afsoRegId === err.afsoRegId) ||
+                 (err.parentRegId && e.developerInfo && e.developerInfo.parentRegId === err.parentRegId)));
+            if (existing) {
+                existing.occurrenceCount = (existing.occurrenceCount || 1) + 1;
+                existing.lastOccurredAt = now;
+                if (existing.acknowledged) {
+                    existing.acknowledged = false;
+                    existing.acknowledgedAt = null;
+                    existing.acknowledgedBy = null;
+                }
+            } else {
+                log_.errors.push({
+                    id: `err_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                    errorType: err.type,
+                    occurredAt: now,
+                    acknowledged: false,
+                    acknowledgedAt: null,
+                    acknowledgedBy: null,
+                    developerInfo: err,
+                    narrativeDescription: buildJudgeErrorNarrative(err),
+                    actionRequired: '통합관리자 센터에서 확인 후 매핑 또는 데이터 점검을 진행하세요.',
+                    occurrenceCount: 1,
+                    lastOccurredAt: now
+                });
+            }
+        }
+        log_.lastUpdated = now;
+        log_.stats = log_.stats || {};
+        log_.stats.totalErrors = log_.errors.length;
+        log_.stats.unacknowledged = log_.errors.filter(e => !e.acknowledged).length;
+        log_.stats.byType = {};
+        for (const e of log_.errors) {
+            log_.stats.byType[e.errorType] = (log_.stats.byType[e.errorType] || 0) + 1;
+        }
+        const tmp = logPath + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify(log_, null, 2));
+        fs.renameSync(tmp, logPath);
+    }
+
+    function buildJudgeErrorNarrative(err) {
+        const t = new Date().toISOString();
+        switch (err.type) {
+            case 'MAPPING_MISSING':
+                return `${t}, 방재기상시스템에서 받은 자식해역 '${err.afsoRegId} (${err.afsoRegKo})' 에 대해 우리 앱의 매핑 테이블에 등록된 이름이 없습니다. 부모해역: ${err.parentRegId}, 발효 특보: ${err.wrnTp || ''} ${err.wrnLvlName || ''}.`;
+            case 'LEVEL_CAP_APPLIED':
+                return `${t}, ${err.appName || err.afsoRegId} 자식해역의 방재기상 레벨이 부모해역 통보문 레벨보다 높습니다 (자식=${err.rawLvl} 부모=${err.parentLvl}). 안전을 위해 부모 레벨로 캡 적용했습니다.`;
+            case 'TIME_CAP_APPLIED':
+                return `${t}, ${err.appName || err.afsoRegId} 자식해역의 방재기상 종료 시각이 부모 통보문 시각보다 늦습니다. 부모 시각으로 캡 적용했습니다.`;
+            case 'STALE_PARENT':
+                return `${t}, 부모해역 '${err.parentRegKo || err.parentRegId}' 의 통보문이 ${err.hours || 24}시간 이상 변화 없이 유지되고 있습니다 (현재 ${err.wrnTp} ${err.wrnLvlName} 발효). 통보문 시스템 점검이 필요할 수 있습니다.`;
+            default:
+                return `${t}, ${err.type} 오류 발생: ${JSON.stringify(err)}`;
+        }
+    }
+
+    /**
+     * weather_alerts.json 트리에서 부모해역의 통보문 current 상태를 추출하여
+     * AFSO regId → 통보문 객체 매핑 반환.
      */
     function extractParentTongbomunMap(weatherAlerts) {
-        const map = {};
-        function walk(node, ancestorChainHasZone) {
+        const byAppName = {};
+        function walk(node) {
             if (!node || typeof node !== 'object') return;
-            const isZoneNode = ('current' in node && 'children' in node);
-            if (isZoneNode) {
-                // 본 노드의 current 추출 (이름 키는 호출자 측에서 매핑)
-                // 노드 자체는 부모 키 (zone name) 으로 식별되어야 하므로
-                // 부모 객체에서 키와 값으로 보아야 함 — 본 함수는 단순 트리 순회만 함
-            }
             for (const [key, val] of Object.entries(node)) {
                 if (key === 'current' || key === 'upcoming' || key === 'history' || key === 'children') continue;
                 if (val && typeof val === 'object') {
                     if (val.current !== undefined && val.children !== undefined) {
-                        // val 자체가 zone 노드 → key 가 부모 이름
-                        // AFSO regId로 매핑하기 위해 region_alias_map의 parents 섹션 사용
-                        // 여기서는 key (한글 이름)을 그대로 사용
-                        map[key] = {
+                        // val 자체가 zone 노드 → key 가 부모 한글 이름
+                        byAppName[key] = {
                             current: val.current,
                             upcoming: val.upcoming
                         };
                     }
-                    walk(val, ancestorChainHasZone);
+                    walk(val);
                 }
             }
         }
-        walk(weatherAlerts, false);
+        walk(weatherAlerts);
 
-        // 추가: AFSO regId로 변환한 매핑 생성 (subregionJudge가 사용)
+        // AFSO regId로 변환한 매핑 생성
         const aliasMap = subregionJudge.loadAliasMap();
         const result = {};
         if (aliasMap && aliasMap.parents) {
             for (const [afsoRegId, info] of Object.entries(aliasMap.parents)) {
                 const parentNameApp = info.appRegKo;
-                if (map[parentNameApp]) {
-                    result[afsoRegId] = map[parentNameApp];
+                if (byAppName[parentNameApp]) {
+                    result[afsoRegId] = byAppName[parentNameApp];
                 }
             }
         }
         return result;
-    }
-
-    function buildParentNameMap(parentTongbomunMap) {
-        // parentTongbomunMap (regId → state) 에서 regId → 이름 매핑은
-        // comparator 가 alias_map 을 직접 사용하므로 빈 객체 OK
-        return {};
     }
 
 

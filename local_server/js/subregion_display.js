@@ -98,9 +98,10 @@
             if (!child.current) continue;  // 미발효 자식 제외
             const parentRegId = child.parentRegId;
             if (!parentMap.has(parentRegId)) {
+                // 매핑 누락 시 사용자에게 코드(S1xxxx) 노출 방지 — 일반 명칭 사용
                 parentMap.set(parentRegId, {
                     parentRegId,
-                    parentName: child.parentRegId,  // 매핑 누락 시 코드 그대로
+                    parentName: '(매핑 미완)',
                     children: []
                 });
             }

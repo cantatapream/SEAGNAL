@@ -97,16 +97,60 @@ function parseAfsoTime(timeStr) {
 }
 
 /**
- * 통보문 시각을 비교 가능한 timestamp 로 정규화
- * (현재는 단순 ISO 비교, 추후 통보문 시각 형식에 따라 보완)
+ * 통보문 시각을 비교 가능한 timestamp 로 정규화.
+ * 통보문에서 오는 한글 시각("2026년 04월 30일 14시 00분") + AFSO ISO 모두 처리.
  */
-function timeToTimestamp(isoStr) {
-    if (!isoStr) return null;
+function timeToTimestamp(timeStr) {
+    if (!timeStr) return null;
+    // 한글 형식 매칭: YYYY년 MM월 DD일 HH시 MM분
+    const m = String(timeStr).match(/^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(\d{1,2})시\s*(\d{1,2})분/);
+    if (m) {
+        const iso = `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}T${String(m[4]).padStart(2,'0')}:${String(m[5]).padStart(2,'0')}:00+09:00`;
+        const t = new Date(iso).getTime();
+        return Number.isFinite(t) ? t : null;
+    }
     try {
-        return new Date(isoStr).getTime();
+        const t = new Date(timeStr).getTime();
+        return Number.isFinite(t) ? t : null;
     } catch (e) {
         return null;
     }
+}
+
+/**
+ * 범위형 시각 식별 (LOGIC 12)
+ * 정확 시각(파싱 가능) 외의 모든 형식을 범위형으로 간주.
+ */
+function isRangeTime(timeStr) {
+    if (!timeStr || timeStr === '') return false;
+    return timeToTimestamp(timeStr) == null;
+}
+
+/**
+ * 통보문 시각을 통보문 ISO 형식 그대로 ISO 정규화하여 자식 tmEd로 사용.
+ * 한글 형식이면 ISO로 변환, 그 외면 null.
+ */
+function normalizeParentTimeForChild(parentTimeStr) {
+    if (!parentTimeStr) return null;
+    const m = String(parentTimeStr).match(/^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(\d{1,2})시\s*(\d{1,2})분/);
+    if (m) {
+        return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}T${String(m[4]).padStart(2,'0')}:${String(m[5]).padStart(2,'0')}:00+09:00`;
+    }
+    // ISO 형식이거나 파싱 가능한 형식
+    const t = timeToTimestamp(parentTimeStr);
+    if (t != null) {
+        return new Date(t).toISOString();
+    }
+    return null;
+}
+
+/**
+ * 안전한 정수 파싱 (Agent 리뷰 반영: parseInt(x) || null 패턴 위험성)
+ */
+function safeParseInt(v) {
+    if (v == null || v === '') return null;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? n : null;
 }
 
 /**
@@ -120,12 +164,17 @@ function applyLevelCap(childLvl, parentLvl) {
 
 /**
  * 자식 시각 캡 적용 (LOGIC 13 §3)
+ * 부모 시각이 범위형(파싱 불가)이면 자식 시각 그대로 반환.
+ * 캡 적용 시 ISO 형식으로 정규화하여 일관성 유지.
  */
 function applyTimeCap(childEnd, parentEnd) {
     const childT = timeToTimestamp(childEnd);
     const parentT = timeToTimestamp(parentEnd);
     if (childT == null || parentT == null) return childEnd;
-    if (childT > parentT) return parentEnd;
+    if (childT > parentT) {
+        // 부모 시각으로 캡 — ISO 정규화하여 반환
+        return normalizeParentTimeForChild(parentEnd) || childEnd;
+    }
     return childEnd;
 }
 
@@ -241,14 +290,15 @@ async function runJudgement(parentTongbomunState, afsoResult, recordError = null
     // Step 3.4: 행 분류
     const classified = classifyRows(afsoResult.metData);
 
-    // 응답에 등장한 자식의 regId 집합
-    const respondedRegIds = new Set();
-    for (const row of classified.children) respondedRegIds.add(row.regId);
-    for (const row of classified.empty) respondedRegIds.add(row.regId);
-
-    // Step 3.5: 매핑 적용
+    // Step 3.5: 매핑 적용 (먼저 — 매핑된 자식만 후속 처리에서 추적)
     const mappedActive = applyMapping(classified.children, aliasMap, recordError);
-    const mappedEmpty = applyMapping(classified.empty, aliasMap, null); // 빈 행은 매핑 누락 로그 안 함
+    const mappedEmpty = applyMapping(classified.empty, aliasMap, null);
+
+    // 응답에 등장한 매핑된 자식의 regId 집합
+    // (매핑 누락 행은 추적 대상에서 제외 — Agent 리뷰 HIGH 반영: stuck 방지)
+    const respondedRegIds = new Set();
+    for (const item of mappedActive) respondedRegIds.add(item.row.regId);
+    for (const item of mappedEmpty) respondedRegIds.add(item.row.regId);
 
     const now = new Date().toISOString();
 
@@ -258,7 +308,7 @@ async function runJudgement(parentTongbomunState, afsoResult, recordError = null
         const parentTongbomun = parentTongbomunState[item.parentRegId];
 
         // 부모 통보문 상태가 알려져 있으면 캡 적용
-        let cappedLvl = parseInt(row.wrnLvl) || null;
+        let cappedLvl = safeParseInt(row.wrnLvl);
         let cappedTmEd = parseAfsoTime(row.tmEd);
         let estimationReason = null;
         let confidence = 'CONFIRMED';
@@ -305,8 +355,17 @@ async function runJudgement(parentTongbomunState, afsoResult, recordError = null
             }
         }
 
-        // 자식 상태 객체 빌드/갱신
+        // 격상/격하 라벨 자동 감지 (LOGIC 09)
+        // 직전 사이클의 자식 레벨과 비교 — 부모 통보문 변화는 lifecycle.parents 추적으로 별도 가능
         const prev = newState.subregions[row.regId];
+        let eventLabel = '발효됨';
+        if (prev && prev.current && prev.current.wrnLvl != null && cappedLvl != null) {
+            if (cappedLvl > prev.current.wrnLvl) eventLabel = '격상됨';
+            else if (cappedLvl < prev.current.wrnLvl) eventLabel = '격하됨';
+            else eventLabel = prev.eventLabel || '발효됨';
+        }
+
+        // 자식 상태 객체 빌드/갱신
         newState.subregions[row.regId] = {
             regId: row.regId,
             regKoApp: item.appName,
@@ -321,7 +380,7 @@ async function runJudgement(parentTongbomunState, afsoResult, recordError = null
                 tmEd: cappedTmEd
             },
             rawFromAfso: {
-                wrnLvl: parseInt(row.wrnLvl) || null,
+                wrnLvl: safeParseInt(row.wrnLvl),
                 tmEd: parseAfsoTime(row.tmEd)
             },
             status: 'active',
@@ -331,7 +390,7 @@ async function runJudgement(parentTongbomunState, afsoResult, recordError = null
             lastSeenAt: now,
             firstActivatedAt: prev ? prev.firstActivatedAt : now,
             lastReleasedAt: prev ? prev.lastReleasedAt : null,
-            eventLabel: prev && prev.current ? prev.eventLabel : '발효됨',
+            eventLabel: eventLabel,
             tmEdNote: null,
             history: prev ? (prev.history || []).slice(-50) : []
         };
@@ -446,6 +505,73 @@ async function runJudgement(parentTongbomunState, afsoResult, recordError = null
         }
     }
 
+
+    // ============================================================
+    // Step 3.9-pre: 부모 통보문 변화 추적 + STALE_PARENT 감지 (OPERATIONS 07)
+    // 24시간 이상 통보문 변화 없는 부모해역 발효 중인 경우
+    // → STALE_PARENT 오류 기록 + 일별 1회 푸시 (스팸 방지)
+    // ============================================================
+    if (tongbomunHealthy && parentTongbomunState) {
+        const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+        const PUSH_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+        // newState.parentSnapshots: { [parentRegId]: { lastChangeAt, lastSig, lastStalePushAt } }
+        if (!newState.parentSnapshots) {
+            newState.parentSnapshots = previousState.parentSnapshots || {};
+        }
+
+        for (const [parentRegId, parentTb] of Object.entries(parentTongbomunState)) {
+            if (!parentTb || !parentTb.current) continue;  // 미발효 부모는 추적 안 함
+
+            // 부모 상태 시그니처 (변화 감지용)
+            const sig = JSON.stringify({
+                wrnTp: parentTb.current.wrnTp,
+                wrnLvl: parentTb.current.wrnLvl,
+                tmEf: parentTb.current.tmEf,
+                tmCc: parentTb.current.tmCc
+            });
+
+            const snap = newState.parentSnapshots[parentRegId] || {};
+
+            if (snap.lastSig !== sig) {
+                // 변화 감지 — 시그니처 갱신
+                newState.parentSnapshots[parentRegId] = {
+                    lastChangeAt: now,
+                    lastSig: sig,
+                    lastStalePushAt: snap.lastStalePushAt || null
+                };
+            } else {
+                // 변화 없음 — 시간 누적 검사
+                const lastChangeAt = snap.lastChangeAt || now;
+                const elapsed = Date.now() - new Date(lastChangeAt).getTime();
+                if (elapsed >= STALE_THRESHOLD_MS) {
+                    // STALE 감지 — 푸시 빈도 제어
+                    const lastPushed = snap.lastStalePushAt ? new Date(snap.lastStalePushAt).getTime() : null;
+                    if (lastPushed == null || (Date.now() - lastPushed) >= PUSH_INTERVAL_MS) {
+                        const aliasParent = aliasMap.parents[parentRegId];
+                        const parentName = aliasParent ? aliasParent.appRegKo : parentRegId;
+                        if (recordError) {
+                            recordError({
+                                type: 'STALE_PARENT',
+                                parentRegId: parentRegId,
+                                parentRegKo: parentName,
+                                lastChangeAt: lastChangeAt,
+                                hours: Math.floor(elapsed / (60 * 60 * 1000)),
+                                wrnTp: parentTb.current.wrnTp,
+                                wrnLvlName: parentTb.current.wrnLvlName || parentTb.current.wrnLvl
+                            });
+                        }
+                        snap.lastStalePushAt = now;
+                        newState.parentSnapshots[parentRegId] = {
+                            lastChangeAt: lastChangeAt,
+                            lastSig: sig,
+                            lastStalePushAt: now
+                        };
+                    }
+                }
+            }
+        }
+    }
 
     // Step 3.9: 영속화
     let activeCount = 0;

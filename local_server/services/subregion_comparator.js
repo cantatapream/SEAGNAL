@@ -75,29 +75,24 @@ function saveErrorLog(log) {
  */
 function extractLegacyResults(weatherAlerts) {
     const results = new Map();
-    function walk(node, parentInherited) {
+    // walk는 부모 노드의 키 (한글 이름)를 자식에게 전달하여 parentName 정확히 채움
+    function walk(node, parentNodeName) {
         if (!node || typeof node !== 'object') return;
 
-        // 본 노드가 zone 노드인지 (current/upcoming/history/children 보유)
         const isZoneNode =
             ('current' in node && 'children' in node);
 
-        let inheritedForChildren = parentInherited;
-
         if (isZoneNode) {
-            // 부모 zone 의 발효 정보를 자식이 상속
-            if (node.current) {
-                inheritedForChildren = {
-                    wrnTp: node.current.wrnTp || node.current.type || '',
+            // 부모 zone 의 발효 정보를 자식이 상속 (이 부분의 parentName은 본 zone 자기 이름)
+            const inheritedForChildren = node.current
+                ? {
+                    wrnTp: ((node.current.wrnTp || node.current.type) || '').trim(),
                     wrnLvl: levelStringToInt(node.current.wrnLvl || node.current.level || ''),
-                    wrnLvlName: node.current.wrnLvl || node.current.level || '',
-                    parentName: '<parent>'
-                };
-            } else {
-                inheritedForChildren = null;
-            }
+                    wrnLvlName: (node.current.wrnLvl || node.current.level || '').trim(),
+                    parentName: parentNodeName || '(미상)'
+                }
+                : null;
 
-            // 본 노드의 children 처리
             if (node.children) {
                 for (const [childName, status] of Object.entries(node.children)) {
                     const isActive = status === 'Y';
@@ -107,7 +102,7 @@ function extractLegacyResults(weatherAlerts) {
                             wrnTp: inheritedForChildren.wrnTp,
                             wrnLvl: inheritedForChildren.wrnLvl,
                             wrnLvlName: inheritedForChildren.wrnLvlName,
-                            parentName: '<parent>'
+                            parentName: parentNodeName || '(미상)'
                         });
                     } else {
                         results.set(childName, {
@@ -115,18 +110,20 @@ function extractLegacyResults(weatherAlerts) {
                             wrnTp: null,
                             wrnLvl: null,
                             wrnLvlName: null,
-                            parentName: '<parent>'
+                            parentName: parentNodeName || '(미상)'
                         });
                     }
                 }
             }
         }
 
-        // 자식 노드(트리 하위) 재귀
+        // 자식 노드(트리 하위) 재귀 — key가 zone 이름이면 다음 walk에서 그게 parentNodeName이 됨
         for (const [key, val] of Object.entries(node)) {
             if (key === 'current' || key === 'upcoming' || key === 'history' || key === 'children') continue;
             if (val && typeof val === 'object') {
-                walk(val, inheritedForChildren);
+                // val이 zone 노드(current/children 보유)면 key가 그 zone 이름 → 자식의 parent
+                const isChildZone = ('current' in val && 'children' in val);
+                walk(val, isChildZone ? key : parentNodeName);
             }
         }
     }
@@ -135,11 +132,20 @@ function extractLegacyResults(weatherAlerts) {
     return results;
 }
 
+/**
+ * 한글 레벨 문자열 → 정수 변환.
+ * Agent 리뷰 반영: 정확 매칭 우선 (substring 매칭은 false-positive 위험).
+ */
 function levelStringToInt(s) {
     if (!s) return null;
-    if (s.includes('예비')) return 1;
-    if (s.includes('경보')) return 3;
-    if (s.includes('주의')) return 2;
+    const trimmed = String(s).trim();
+    // 정확 매칭 우선
+    const exact = { '예비': 1, '예비특보': 1, '주의보': 2, '경보': 3 };
+    if (exact[trimmed] != null) return exact[trimmed];
+    // 폴백 — 단어 시작 매칭으로 false-positive 최소화
+    if (/^예비/.test(trimmed)) return 1;
+    if (/^주의/.test(trimmed)) return 2;
+    if (/^경보/.test(trimmed)) return 3;
     return null;
 }
 
@@ -178,12 +184,14 @@ function compareSubregion(subregionInfo, legacy, afso) {
         };
     }
 
-    // 둘 다 활성 — 세부 비교
-    if (legacy.wrnTp !== afso.current.wrnTp) {
+    // 둘 다 활성 — 세부 비교 (Agent 리뷰 반영: trim 후 비교)
+    const legacyWrnTp = (legacy.wrnTp || '').trim();
+    const afsoWrnTp = (afso.current.wrnTp || '').trim();
+    if (legacyWrnTp !== afsoWrnTp) {
         return {
             diffType: 'BOTH_ACTIVE_DIFFERENT_TYPE',
             severity: 'HIGH',
-            diff: [{ field: 'wrnTp', legacy: legacy.wrnTp, afso: afso.current.wrnTp }]
+            diff: [{ field: 'wrnTp', legacy: legacyWrnTp, afso: afsoWrnTp }]
         };
     }
 
