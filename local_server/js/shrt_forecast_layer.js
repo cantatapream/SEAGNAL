@@ -328,11 +328,12 @@
             });
         }
         var color = _zoneFillColor(state.activeType, data);
-        // marine.kma.go.kr 처럼 부모+자식 polygon 분할이 시각적으로 드러나도록
-        // 옅은 outline 을 추가. 부모와 자식 색이 같아도 윤곽선이 영역 분할을 표현.
+        // KMA fcst_area 의 바깥먼바다 polygon 들이 본래 9 vertex 단순 형태라 fill 만으로는
+        // 큰 사각형 1개로 보임. marine.kma.go.kr 와 동일한 분할 외관을 위해 outline 을
+        // 진하게/두껍게 그려 부모/자식 polygon 분할이 또렷이 드러나도록 함.
         return new ol.style.Style({
             fill:   new ol.style.Fill({ color: color }),
-            stroke: new ol.style.Stroke({ color: 'rgba(40, 60, 90, 0.35)', width: 0.6 })
+            stroke: new ol.style.Stroke({ color: 'rgba(30, 50, 80, 0.7)', width: 1 })
         });
     }
 
