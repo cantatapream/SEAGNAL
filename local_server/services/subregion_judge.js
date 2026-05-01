@@ -83,7 +83,9 @@ function isEmptyRow(row) {
 }
 
 /**
- * AFSO 시각 (YYYYMMDDHHMI) → ISO 문자열
+ * AFSO 시각 (YYYYMMDDHHMI) → 한글 형식 ("YYYY년 MM월 DD일 HH시 MM분")
+ * 기존 앱(통보문)이 한글 형식을 사용하므로 통일.
+ * 비교는 timeToTimestamp()로 내부 변환 후 수행.
  */
 function parseAfsoTime(timeStr) {
     if (!timeStr || timeStr === '') return null;
@@ -93,7 +95,28 @@ function parseAfsoTime(timeStr) {
     const d = timeStr.substring(6, 8);
     const h = timeStr.substring(8, 10);
     const mi = timeStr.substring(10, 12);
-    return `${y}-${mo}-${d}T${h}:${mi}:00+09:00`;
+    return `${y}년 ${mo}월 ${d}일 ${h}시 ${mi}분`;
+}
+
+/**
+ * 부모 통보문 시각을 자식 시각으로 사용 시 한글 형식 정규화.
+ * 통보문이 이미 한글이면 그대로, ISO 형식이면 한글로 변환.
+ */
+function normalizeParentTimeForChild(parentTimeStr) {
+    if (!parentTimeStr) return null;
+    // 한글 형식이면 그대로
+    if (/^\d{4}년/.test(parentTimeStr)) return parentTimeStr;
+    // ISO 형식이면 한글로 변환
+    const t = timeToTimestamp(parentTimeStr);
+    if (t == null) return null;
+    const d = new Date(t);
+    const kst = new Date(t + (d.getTimezoneOffset() * 60000) + (9 * 3600000));
+    const y = kst.getUTCFullYear();
+    const mo = String(kst.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(kst.getUTCDate()).padStart(2, '0');
+    const hh = String(kst.getUTCHours()).padStart(2, '0');
+    const mi = String(kst.getUTCMinutes()).padStart(2, '0');
+    return `${y}년 ${mo}월 ${dd}일 ${hh}시 ${mi}분`;
 }
 
 /**
@@ -124,24 +147,6 @@ function timeToTimestamp(timeStr) {
 function isRangeTime(timeStr) {
     if (!timeStr || timeStr === '') return false;
     return timeToTimestamp(timeStr) == null;
-}
-
-/**
- * 통보문 시각을 통보문 ISO 형식 그대로 ISO 정규화하여 자식 tmEd로 사용.
- * 한글 형식이면 ISO로 변환, 그 외면 null.
- */
-function normalizeParentTimeForChild(parentTimeStr) {
-    if (!parentTimeStr) return null;
-    const m = String(parentTimeStr).match(/^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(\d{1,2})시\s*(\d{1,2})분/);
-    if (m) {
-        return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}T${String(m[4]).padStart(2,'0')}:${String(m[5]).padStart(2,'0')}:00+09:00`;
-    }
-    // ISO 형식이거나 파싱 가능한 형식
-    const t = timeToTimestamp(parentTimeStr);
-    if (t != null) {
-        return new Date(t).toISOString();
-    }
-    return null;
 }
 
 /**
@@ -302,62 +307,122 @@ async function runJudgement(parentTongbomunState, afsoResult, recordError = null
 
     const now = new Date().toISOString();
 
-    // Step 3.6 + 신규 처리: 발효 행 처리 (캡 적용)
+    // 방재기상 응답에서 부모 행 빠르게 조회 (시나리오 ②/④ 분기 판정용)
+    const parentRowMap = {};
+    for (const row of classified.parents) parentRowMap[row.regId] = row;
+    for (const row of classified.empty) {
+        if (row.regId === row.regUp) parentRowMap[row.regId] = row;
+    }
+
+    // Step 3.6 + 신규 처리: 발효 행 처리 (캡 적용 + 시나리오 ②/④ 분기)
     for (const item of mappedActive) {
         const row = item.row;
         const parentTongbomun = parentTongbomunState[item.parentRegId];
 
-        // 부모 통보문 상태가 알려져 있으면 캡 적용
+        // ============================================================
+        // 시나리오 ④ — 신규 발효 사전 차단
+        // 부모 통보문 미발효인데 자식 행 등장 → 통보문 발효까지 자식 무시
+        // (사용자 정책: 통보문 = 부모해역 변동의 절대 기준)
+        // ============================================================
+        if (!parentTongbomun || !parentTongbomun.current) {
+            if (recordError) {
+                recordError({
+                    type: 'PARENT_CHILD_MISMATCH',
+                    afsoRegId: row.regId,
+                    appName: item.appName,
+                    parentRegId: item.parentRegId,
+                    wrnTp: row.wrnTp,
+                    wrnLvlName: row.wrnLvlName,
+                    note: '방재기상 자식 등장했으나 통보문 부모 미발효 — 통보문 발효까지 대기'
+                });
+            }
+            // 자식 추가하지 않음 (현재 사이클에서 무시)
+            // 단 직전 사이클에 활성이었다면 그대로 유지 (newState.subregions[row.regId]는 previousState에서 spread됨)
+            continue;
+        }
+
+        // 캡 적용
         let cappedLvl = safeParseInt(row.wrnLvl);
         let cappedTmEd = parseAfsoTime(row.tmEd);
         let estimationReason = null;
         let confidence = 'CONFIRMED';
+        const prev = newState.subregions[row.regId];
 
-        if (parentTongbomun && parentTongbomun.current) {
-            const parentLvl = parentTongbomun.current.wrnLvl || null;
-            const parentEnd = parentTongbomun.current.tmCc || null;
+        const parentLvl = parentTongbomun.current.wrnLvl || null;
+        const parentLvlInt = (typeof parentLvl === 'number')
+            ? parentLvl
+            : (parentLvl ? (parentLvl.includes('경보') ? 3 : parentLvl.includes('주의') ? 2 : 1) : null);
+        const parentEnd = parentTongbomun.current.tmCc || null;
 
-            const newCappedLvl = applyLevelCap(cappedLvl, parentLvl);
-            const newCappedEnd = applyTimeCap(cappedTmEd, parentEnd);
+        // 시나리오 ② — 격하 사전 차단
+        // 자식이 격하되었는데 방재기상 부모 행도 함께 격하/빠짐 → 사전 격하 → 자식 부모 레벨 유지
+        // 자식만 격하 (부모 행 그대로) → 단독 격하 → 즉시 적용
+        if (parentLvlInt != null && cappedLvl != null && cappedLvl < parentLvlInt &&
+            prev?.current?.wrnLvl === parentLvlInt) {
 
-            if (newCappedLvl !== cappedLvl) {
-                estimationReason = 'LEVEL_CAPPED';
+            const parentRow = parentRowMap[item.parentRegId];
+            const parentRowLvl = parentRow ? safeParseInt(parentRow.wrnLvl) : null;
+            const parentLowered = !parentRow || isEmptyRow(parentRow) ||
+                                  (parentRowLvl != null && parentRowLvl < parentLvlInt);
+
+            if (parentLowered) {
+                // 사전 격하 — 부모 레벨 유지 (통보문 격하까지 대기)
+                cappedLvl = parentLvlInt;
+                estimationReason = 'PRE_DOWNGRADE_LOCK';
                 confidence = 'WEAKLY_ESTIMATED';
                 if (recordError) {
                     recordError({
-                        type: 'LEVEL_CAP_APPLIED',
+                        type: 'PRE_DOWNGRADE_LOCKED',
                         afsoRegId: row.regId,
                         appName: item.appName,
-                        rawLvl: cappedLvl,
-                        cappedLvl: newCappedLvl,
-                        parentLvl: parentLvl
+                        rawLvl: safeParseInt(row.wrnLvl),
+                        keptLvl: parentLvlInt,
+                        note: '방재기상 자식 격하 + 부모 행도 함께 격하 — 통보문 격하까지 부모 레벨 유지'
                     });
                 }
-                cappedLvl = newCappedLvl;
             }
+            // else: 자식 단독 격하 — cappedLvl 그대로 사용 (즉시 적용)
+        }
 
-            if (newCappedEnd !== cappedTmEd) {
-                if (estimationReason === null) {
-                    estimationReason = 'TIME_CAPPED';
-                    confidence = 'WEAKLY_ESTIMATED';
-                }
-                if (recordError) {
-                    recordError({
-                        type: 'TIME_CAP_APPLIED',
-                        afsoRegId: row.regId,
-                        appName: item.appName,
-                        rawEnd: cappedTmEd,
-                        cappedEnd: newCappedEnd,
-                        parentEnd: parentEnd
-                    });
-                }
-                cappedTmEd = newCappedEnd;
+        // 캡 — 격상 차단 (자식 > 부모)
+        const newCappedLvl = applyLevelCap(cappedLvl, parentLvlInt);
+        const newCappedEnd = applyTimeCap(cappedTmEd, parentEnd);
+
+        if (newCappedLvl !== cappedLvl) {
+            estimationReason = estimationReason || 'LEVEL_CAPPED';
+            confidence = 'WEAKLY_ESTIMATED';
+            if (recordError) {
+                recordError({
+                    type: 'LEVEL_CAP_APPLIED',
+                    afsoRegId: row.regId,
+                    appName: item.appName,
+                    rawLvl: cappedLvl,
+                    cappedLvl: newCappedLvl,
+                    parentLvl: parentLvlInt
+                });
             }
+            cappedLvl = newCappedLvl;
+        }
+
+        if (newCappedEnd !== cappedTmEd) {
+            if (estimationReason == null) {
+                estimationReason = 'TIME_CAPPED';
+                confidence = 'WEAKLY_ESTIMATED';
+            }
+            if (recordError) {
+                recordError({
+                    type: 'TIME_CAP_APPLIED',
+                    afsoRegId: row.regId,
+                    appName: item.appName,
+                    rawEnd: cappedTmEd,
+                    cappedEnd: newCappedEnd,
+                    parentEnd: parentEnd
+                });
+            }
+            cappedTmEd = newCappedEnd;
         }
 
         // 격상/격하 라벨 자동 감지 (LOGIC 09)
-        // 직전 사이클의 자식 레벨과 비교 — 부모 통보문 변화는 lifecycle.parents 추적으로 별도 가능
-        const prev = newState.subregions[row.regId];
         let eventLabel = '발효됨';
         if (prev && prev.current && prev.current.wrnLvl != null && cappedLvl != null) {
             if (cappedLvl > prev.current.wrnLvl) eventLabel = '격상됨';

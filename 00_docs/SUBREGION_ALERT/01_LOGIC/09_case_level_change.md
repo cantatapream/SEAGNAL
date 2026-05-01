@@ -144,21 +144,41 @@ function applyCapEachCycle(childRow, parentTongbomun):
 - 통보문상 부모가 아직 경보 발효 중 → 자식도 경보 유지
 - 14:00 시점에 부모가 주의보로 갱신 → 그때 자식도 주의보로 갱신
 
-이를 위한 추가 캡:
+### 4.5-A 정정 — 신호 변경 (2026-05-01)
+
+**기존 정책의 한계**: `parentTongbomun.upcomingDowngrade` 신호는 통보문 갱신 시점에만 감지 가능. 그러나 방재기상은 통보문보다 빠르게 격하를 표시하므로, 그 시점에는 통보문에 `upcomingDowngrade`가 아직 없음 → 정책 발동 안 됨.
+
+**정정 정책**: 신호를 **방재기상 부모 행 변동**으로 변경.
+- 같은 사이클의 방재기상 응답에서 부모 행도 함께 격하/빠짐 → 사전 격하 → 자식 레벨 유지
+- 방재기상 부모 행은 그대로 → 자식 단독 격하 → 즉시 적용 (LOGIC 06 자식 단독 해제와 대칭)
 
 ```
-function applyDowngradeProtection(childRow, parentTongbomun, previousChild):
-  # 격하 발표가 미리 떴을 때 자식이 사전 격하로 표시되는 것을 방지
+function applyDowngradeProtection(childRow, parentTongbomun, previousChild, parentRowFromAfso):
+  # 자식 격하 감지 + 직전 사이클에 자식 = 부모 레벨이었던 경우만
+  if childRow.wrnLvl < parentTongbomun.current.wrnLvl and
+     previousChild and previousChild.current.wrnLvl == parentTongbomun.current.wrnLvl:
 
-  if parentTongbomun.upcomingDowngrade:
-    # 부모 통보문에 격하 예고가 있는 경우
-    if childRow.wrnLvl < previousChild.wrnLvl:
-      # 방재기상이 사전 격하 표시를 시작했음
-      log("[격하 사전 캡] 부모 격하 예정시각 전 — 자식 레벨 유지")
-      return previousChild.wrnLvl
+    # 방재기상 부모 행도 함께 격하/빠짐?
+    parentLowered = (parentRowFromAfso == null) or
+                    isEmptyRow(parentRowFromAfso) or
+                    parentRowFromAfso.wrnLvl < parentTongbomun.current.wrnLvl
 
+    if parentLowered:
+      # 사전 격하 — 부모 레벨 유지 (통보문 격하까지 대기)
+      log("[격하 사전 캡] 방재기상 부모-자식 동시 격하 감지 — 통보문 격하까지 부모 레벨 유지")
+      return parentTongbomun.current.wrnLvl
+
+  # 자식 단독 격하 또는 격하 아님 — 즉시 적용
   return childRow.wrnLvl
 ```
+
+### 4.5-B 자식 단독 격하 (LOGIC 06과 대칭)
+
+부모해역 통보문 그대로 + 방재기상 부모 행 그대로 + 자식만 격하 = **자식 단독 격하**.
+
+- 즉시 적용 (LOGIC 06의 자식 단독 해제 정책과 대칭)
+- 자식이 부모와 다른 레벨인 것은 자연 가능 (LOGIC 02 §3.5)
+- 캡 규칙으로 자동 통과 (자식 < 부모이므로 절단 없음)
 
 ### 4.6 정책의 효과
 
