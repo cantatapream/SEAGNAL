@@ -390,6 +390,24 @@
     // 팝아웃 토글 + 서브버튼 바인딩
     // ─────────────────────────────────────────────────────────────
 
+    // [잠금 해제 패턴] 일반 사용자에게는 토스트로 미구현 안내,
+    // 토글 버튼을 10회 연속 클릭하면 그 세션 동안 잠금 해제 (개발/검수용).
+    // — 마지막 클릭으로부터 RESET_MS 이상 지나면 카운터 초기화.
+    var UNLOCK_CLICKS = 10;
+    var RESET_MS = 3000;
+    var _unlocked = false;
+    var _clickCount = 0;
+    var _resetTimer = null;
+
+    function _toast(msg) {
+        if (typeof window._showOceanToast === 'function') {
+            window._showOceanToast(msg, 'bottom', 1800, false);
+        } else {
+            // 폴백 — _showOceanToast 가 아직 init 전인 초반 클릭
+            console.log('[shrt-toast]', msg);
+        }
+    }
+
     function bindUi() {
         var wrap = $('ocean-other-wx-wrap');
         var toggleBtn = $('ocean-other-wx-toggle-btn');
@@ -398,6 +416,28 @@
 
         toggleBtn.addEventListener('click', function (e) {
             e.stopPropagation();
+
+            // 잠금 상태: 토스트만 띄우고 클릭 카운트 누적 — 10회 도달 시 해제
+            if (!_unlocked) {
+                _clickCount++;
+                clearTimeout(_resetTimer);
+                _resetTimer = setTimeout(function () { _clickCount = 0; }, RESET_MS);
+
+                if (_clickCount >= UNLOCK_CLICKS) {
+                    _unlocked = true;
+                    _clickCount = 0;
+                    clearTimeout(_resetTimer);
+                    _toast('기타 기상 잠금 해제됨 (검수 모드)');
+                    // 첫 해제 클릭은 그대로 팝아웃 열기
+                    wrap.classList.add('popup-open');
+                    popup.setAttribute('aria-hidden', 'false');
+                    return;
+                }
+                _toast('미구현 상태입니다.');
+                return;
+            }
+
+            // 잠금 해제 후 일반 토글 동작
             wrap.classList.toggle('popup-open');
             popup.setAttribute('aria-hidden', wrap.classList.contains('popup-open') ? 'false' : 'true');
         });
