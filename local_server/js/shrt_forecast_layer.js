@@ -62,17 +62,19 @@
     };
 
     // ── 색상 팔레트 ───────────────────────────────────────────────
-    // sky 카테고리: KMA 표준 SKY 코드 DB01~DB04
+    // sky 카테고리: KMA 표준 SKY 코드 DB01~DB04 (4개 정의되어 있으나
+    // 해상 단기예보 sterm 응답에는 DB02 가 발표되지 않음 — 2024개 응답
+    // 전수 조사 결과 DB01/DB03/DB04 만 등장. marine.kma.go.kr 도 범례를
+    // 3개로 표시. 향후 등장 시 대비해 색상 정의는 유지하고 범례만 3개 노출.)
     var SKY_COLOR = {
         DB01: 'rgba(255, 255, 255, 0.85)',    // 맑음
-        DB02: 'rgba(220, 232, 244, 0.85)',    // 구름조금
+        DB02: 'rgba(220, 232, 244, 0.85)',    // 구름조금 (해상 sterm 미사용)
         DB03: 'rgba(174, 200, 224, 0.85)',    // 구름많음
         DB04: 'rgba(99,  138, 178, 0.85)'     // 흐림
     };
-    // sky 범례 (4단계 + nm 보조 라벨)
+    // sky 범례 — 해상 단기예보 실제 발표 카테고리 3종만 (marine.kma.go.kr 와 동일)
     var SKY_LEGEND = [
         { code: 'DB01', label: '맑음',     color: SKY_COLOR.DB01 },
-        { code: 'DB02', label: '구름조금', color: SKY_COLOR.DB02 },
         { code: 'DB03', label: '구름많음', color: SKY_COLOR.DB03 },
         { code: 'DB04', label: '흐림',     color: SKY_COLOR.DB04 }
     ];
