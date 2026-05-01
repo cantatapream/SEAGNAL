@@ -93,12 +93,20 @@
             });
         }
 
-        // 자식해역들을 부모별로 분류 (활성 자식만)
+        // 자식해역들을 부모별로 분류 (활성 자식 또는 예비만 있는 자식)
+        // LOGIC 10 §3:
+        //   패턴 A (자식 발효 + 다른 종류 예비) → current만 표시
+        //   패턴 B (자식 미발효 + 예비만) → upcoming 표시 (라벨 "예비특보 발표")
+        //   패턴 C (자식 발효 + 같은 종류 격상/격하 예비) → current만 표시
         for (const [regId, child] of Object.entries(state.subregions)) {
-            if (!child.current) continue;  // 미발효 자식 제외
+            // current가 있으면 표시 (패턴 A, C 모두 current 우선)
+            // current 없고 upcoming만 있으면 표시 (패턴 B)
+            const hasCurrent = child.current != null;
+            const hasUpcoming = child.upcoming != null;
+            if (!hasCurrent && !hasUpcoming) continue;
+
             const parentRegId = child.parentRegId;
             if (!parentMap.has(parentRegId)) {
-                // 매핑 누락 시 사용자에게 코드(S1xxxx) 노출 방지 — 일반 명칭 사용
                 parentMap.set(parentRegId, {
                     parentRegId,
                     parentName: '(매핑 미완)',
@@ -135,15 +143,20 @@
     }
 
     function renderItem(child) {
-        const status = child.current
-            ? `${escapeHtml(child.current.wrnTp || '')} ${escapeHtml(child.current.wrnLvlName || '')}`.trim()
+        // current 우선, 없으면 upcoming(예비특보 발표 케이스 — 패턴 B)
+        const display = child.current || child.upcoming;
+        const status = display
+            ? `${escapeHtml(display.wrnTp || '')} ${escapeHtml(display.wrnLvlName || '')}`.trim()
             : '미발효';
 
         const marker = renderConfidenceMarker(child.confidence, child.estimationReason);
         const eventLabel = child.eventLabel ? `<span class="subregion-event-label">${escapeHtml(child.eventLabel)}</span>` : '';
 
+        // 예비특보 표시 시 시각적 구분 클래스
+        const itemClass = (!child.current && child.upcoming) ? 'subregion-item subregion-item-preliminary' : 'subregion-item';
+
         return `
-            <div class="subregion-item" data-reg-id="${escapeHtml(child.regId)}">
+            <div class="${itemClass}" data-reg-id="${escapeHtml(child.regId)}">
                 <span class="subregion-item-name">${escapeHtml(child.regKoApp)}</span>
                 <span class="subregion-item-status">${status}</span>
                 ${marker}

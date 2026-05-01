@@ -272,6 +272,30 @@ async function runJudgement(parentTongbomunState, afsoResult, recordError = null
     const tongbomunHealthy = parentTongbomunState != null;
 
     // ============================================================
+    // Step 3.2-A: upcoming → current 시각 도달 자동 승격 (LOGIC 12)
+    // 사용자 시나리오: "풍랑경보 발효 중 풍랑주의보 격하 발표 → 발효시각 도달 시
+    //                 자동으로 풍랑주의보로 전환, 기존 경보 사라짐"
+    // 부모해역의 resolvePendingStatuses 패턴과 동일.
+    // ============================================================
+    const nowMs = Date.now();
+    for (const [regId, child] of Object.entries(newState.subregions)) {
+        if (!child.upcoming) continue;
+        const upcomingTmEf = child.upcoming.tmEf;
+        if (!upcomingTmEf) continue;
+        const t = timeToTimestamp(upcomingTmEf);
+        if (t == null) continue;
+        if (t <= nowMs) {
+            // 시각 도달 — upcoming → current 승격
+            console.log(`[subregion_judge] upcoming → current 자동 승격: ${child.regKoApp}`);
+            child.current = { ...child.upcoming };
+            child.upcoming = null;
+            // eventLabel 추정: 직전 current와 비교
+            // (직전 current 정보는 lifecycle history에 있으나 본 단순 보완에서는 '발효됨' 으로 처리)
+            child.eventLabel = '발효됨';
+        }
+    }
+
+    // ============================================================
     // Step 3.3: 부모 자동 해제 연동 (LOGIC 11)
     // 통보문상 부모해역이 미발효(current=null)인데 lifecycle 자식이 활성이면
     // → 부모 자동 해제 시점에 자식도 함께 정리되어야 함 (고아 자식 방지)
@@ -314,10 +338,62 @@ async function runJudgement(parentTongbomunState, afsoResult, recordError = null
         if (row.regId === row.regUp) parentRowMap[row.regId] = row;
     }
 
+    // ============================================================
+    // [신규] 같은 regId 행을 발효/예비로 그룹화 (LOGIC 10 §1-A)
+    // 한 자식해역에 발효 행 + 예비/upcoming 행이 동시에 들어올 수 있음
+    // 같은 종류 격하/격상 예비, 다른 종류 예비 등
+    // ============================================================
+    const groupedByRegId = {};
+    for (const item of mappedActive) {
+        const regId = item.row.regId;
+        if (!groupedByRegId[regId]) {
+            groupedByRegId[regId] = { active: [], preliminary: [], primaryItem: null };
+        }
+        const lvl = safeParseInt(item.row.wrnLvl);
+        if (lvl === 1) {
+            groupedByRegId[regId].preliminary.push(item);
+        } else if (lvl >= 2) {
+            groupedByRegId[regId].active.push(item);
+        }
+    }
+
+    // 그룹 안에서 우선순위:
+    //  - 발효 행이 있으면 → current 슬롯 (풍랑 우선, 그 외 첫 행)
+    //  - 예비 행만 있으면 → upcoming 슬롯
+    // (동일 자식해역에 발효 두 개 동시는 사용자 정책상 없음, 보호 차원에서 풍랑 우선)
+    for (const regId of Object.keys(groupedByRegId)) {
+        const g = groupedByRegId[regId];
+        // 활성 행 정렬: 풍랑 우선 (LOGIC 10 §1-A.2 폴백 정책)
+        g.active.sort((a, b) => {
+            if (a.row.wrnTp === '풍랑' && b.row.wrnTp !== '풍랑') return -1;
+            if (b.row.wrnTp === '풍랑' && a.row.wrnTp !== '풍랑') return 1;
+            return 0;
+        });
+        g.preliminary.sort((a, b) => {
+            if (a.row.wrnTp === '풍랑' && b.row.wrnTp !== '풍랑') return -1;
+            if (b.row.wrnTp === '풍랑' && a.row.wrnTp !== '풍랑') return 1;
+            return 0;
+        });
+        // primaryItem = 발효 우선, 없으면 예비
+        g.primaryItem = g.active[0] || g.preliminary[0] || null;
+    }
+
     // Step 3.6 + 신규 처리: 발효 행 처리 (캡 적용 + 시나리오 ②/④ 분기)
+    // 같은 regId가 여러 번 처리되지 않도록 처리 완료 set 관리
+    const processedRegIds = new Set();
     for (const item of mappedActive) {
         const row = item.row;
         const parentTongbomun = parentTongbomunState[item.parentRegId];
+
+        // 같은 regId 중복 처리 방지 (그룹의 primary만 처리)
+        if (processedRegIds.has(row.regId)) continue;
+        const group = groupedByRegId[row.regId];
+        if (!group || group.primaryItem !== item) {
+            // 같은 regId의 다른 행 — 본 루프에서는 건너뜀
+            // (예비 행은 후속 별도 루프에서 upcoming으로 처리)
+            continue;
+        }
+        processedRegIds.add(row.regId);
 
         // ============================================================
         // 시나리오 ④ — 신규 발효 사전 차단
@@ -430,32 +506,67 @@ async function runJudgement(parentTongbomunState, afsoResult, recordError = null
             else eventLabel = prev.eventLabel || '발효됨';
         }
 
+        // 본 primaryItem이 발효(>=2)인지 예비(=1)인지 판별
+        const primaryIsActive = group.active.length > 0;
+
+        // current vs upcoming 슬롯 분기
+        const builtCurrent = primaryIsActive ? {
+            wrnTp: row.wrnTp,
+            wrnLvl: cappedLvl,
+            wrnLvlName: row.wrnLvlName,
+            tmFc: parseAfsoTime(row.tmFc),
+            tmEf: parseAfsoTime(row.tmEf),
+            tmEd: cappedTmEd
+        } : null;
+
+        const builtUpcoming = !primaryIsActive ? {
+            wrnTp: row.wrnTp,
+            wrnLvl: cappedLvl,
+            wrnLvlName: row.wrnLvlName,
+            tmFc: parseAfsoTime(row.tmFc),
+            tmEf: parseAfsoTime(row.tmEf),
+            tmEd: cappedTmEd
+        } : null;
+
+        // 추가 — 같은 regId의 예비 행이 있으면 upcoming에 보관
+        // (current=발효, upcoming=같은 종류의 격상/격하 예비 또는 다른 종류 예비)
+        let extraUpcoming = builtUpcoming;
+        if (primaryIsActive && group.preliminary.length > 0) {
+            const prelimItem = group.preliminary[0];
+            const prelimRow = prelimItem.row;
+            const prelimLvl = safeParseInt(prelimRow.wrnLvl);
+            extraUpcoming = {
+                wrnTp: prelimRow.wrnTp,
+                wrnLvl: prelimLvl,
+                wrnLvlName: prelimRow.wrnLvlName,
+                tmFc: parseAfsoTime(prelimRow.tmFc),
+                tmEf: parseAfsoTime(prelimRow.tmEf),
+                tmEd: parseAfsoTime(prelimRow.tmEd)
+            };
+            // 같은 regId의 prelim도 처리 완료 표시
+            processedRegIds.add(prelimRow.regId);
+        }
+
         // 자식 상태 객체 빌드/갱신
         newState.subregions[row.regId] = {
             regId: row.regId,
             regKoApp: item.appName,
             regKoAfso: (row.regKo || '').trim(),
             parentRegId: item.parentRegId,
-            current: {
-                wrnTp: row.wrnTp,
-                wrnLvl: cappedLvl,
-                wrnLvlName: row.wrnLvlName,
-                tmFc: parseAfsoTime(row.tmFc),
-                tmEf: parseAfsoTime(row.tmEf),
-                tmEd: cappedTmEd
-            },
+            current: builtCurrent,
+            upcoming: extraUpcoming,
             rawFromAfso: {
                 wrnLvl: safeParseInt(row.wrnLvl),
                 tmEd: parseAfsoTime(row.tmEd)
             },
-            status: 'active',
+            status: builtCurrent ? 'active' : 'preliminary',
             confidence: confidence,
             estimationReason: estimationReason,
             missedCount: 0,  // 정상 등장 → 카운터 리셋
             lastSeenAt: now,
             firstActivatedAt: prev ? prev.firstActivatedAt : now,
             lastReleasedAt: prev ? prev.lastReleasedAt : null,
-            eventLabel: eventLabel,
+            eventLabel: builtCurrent ? eventLabel : '예비특보 발표',
             tmEdNote: null,
             history: prev ? (prev.history || []).slice(-50) : []
         };
@@ -465,9 +576,10 @@ async function runJudgement(parentTongbomunState, afsoResult, recordError = null
     for (const item of mappedEmpty) {
         const row = item.row;
         const prev = newState.subregions[row.regId];
-        if (prev && prev.current != null) {
+        if (prev && (prev.current != null || prev.upcoming != null)) {
             console.log(`[subregion_judge] 즉시 해제 (빈 행): ${item.appName}`);
             prev.current = null;
+            prev.upcoming = null;  // 자식 해제 시 upcoming 함께 폐기 (사용자 결정 — 권장안)
             prev.lastReleasedAt = now;
             prev.status = 'released';
         }
@@ -490,6 +602,7 @@ async function runJudgement(parentTongbomunState, afsoResult, recordError = null
         if (child.missedCount >= 2) {
             console.log(`[subregion_judge] 2회 누락 해제: ${child.regKoApp}`);
             child.current = null;
+            child.upcoming = null;  // 자식 해제 시 upcoming 함께 폐기 (권장안)
             child.lastReleasedAt = now;
             child.status = 'released';
         } else {
@@ -547,6 +660,7 @@ async function runJudgement(parentTongbomunState, afsoResult, recordError = null
 
                 // 직전 활성 정보 복원하여 잠금
                 child.current = prev.current ? { ...prev.current } : null;
+                child.upcoming = null;  // 동시 사라짐 잠금 시 upcoming 폐기 (옵션 b — 사용자 결정)
                 child.status = 'pending_release';
                 child.confidence = 'STRONGLY_ESTIMATED';
                 child.estimationReason = 'CONCURRENT_DISAPPEAR_LOCK';
