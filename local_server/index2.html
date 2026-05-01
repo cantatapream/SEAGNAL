@@ -1071,8 +1071,8 @@
         .shrt-fcst-legend {
             position: absolute;
             left: 12px;
-            /* slider bar height 60px + 6px 여백 = 메인탭 위로 66px */
-            bottom: calc(var(--main-tab-height, 68px) + 66px);
+            /* slider bar height 60px + 약 14px 여백 (이전 layout 의 범례-슬라이더 거리 유지) */
+            bottom: calc(var(--main-tab-height, 68px) + 74px);
             z-index: 1100;
             background: rgba(255, 255, 255, 0.92);
             backdrop-filter: blur(2px);
