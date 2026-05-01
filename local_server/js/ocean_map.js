@@ -767,6 +767,13 @@
                 initMarineZoneGridLayers(oceanMap).then(bindMarineZoneGridToggle);
             }
 
+            // [기타 기상] KMA 단기예보 PNG 오버레이 모듈 (index2 전용)
+            // shrt_forecast_layer.js 가 ImageStatic 으로 추가/제거하기 위해 oceanMap 핸들 노출.
+            window.__getOceanMap = function () { return oceanMap; };
+            if (window.__SEAGNAL_PAGE === 'index2' && window.initShrtForecastLayer) {
+                window.initShrtForecastLayer(oceanMap);
+            }
+
             console.log('[OceanMap] 지도 초기화 완료 (해아름 WMS)');
         } catch (error) {
             console.error('[OceanMap] 초기화 오류:', error);
