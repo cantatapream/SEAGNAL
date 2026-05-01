@@ -304,7 +304,9 @@
         if (!lg) return;
         var def = LEGEND_DEF[shrtType];
         if (!def) { lg.innerHTML = ''; lg.style.display = 'none'; return; }
-        var html = '<div class="shrt-fcst-legend-title">' + def.title + '</div>';
+        // 사용자 요청: 제목(예: "하늘상태") 미표시. 항목만 가로로 나열.
+        // CSS .shrt-fcst-legend 가 display:flex 라 자동으로 가로 정렬.
+        var html = '';
         for (var i = 0; i < def.items.length; i++) {
             var it = def.items[i];
             html += '<div class="shrt-fcst-legend-row">'
@@ -336,37 +338,47 @@
         updateTooltip();
     }
 
-    // 시간 눈금 동적 생성: 첫 프레임 / 매 6h 단위 / 마지막 프레임 위치에 라벨 배치.
-    // frame 의 fct_tm 을 기반으로 절대 시각 (예: "5/2", "06시", "12시", "5/3", ...)
+    // 시간 눈금 동적 생성:
+    //   1) 모든 frame 위치에 작은 tick (height 3px, 옅은 색)
+    //   2) 12h 단위 (00시 / 12시) 에만 큰 tick (height 6px) + 텍스트 라벨
+    //      - 자정엔 "M/D" (예: "5/2")
+    //      - 정오엔 "12시"
+    //   1h 단위 텍스트는 모바일 화면에서 겹치므로 생략 — tick line 만 표시.
     function renderTicks() {
         var ticksEl = $('shrt-fcst-ticks');
-        if (!ticksEl) { return; }
+        if (!ticksEl) return;
         ticksEl.innerHTML = '';
         if (!state.frames.length) return;
         var n = state.frames.length;
-        // 6시간 간격 + 첫/마지막 frame 표시
-        // frame 시각 차이를 보고 step 결정 — 가장 흔한 1h 단위 가정 시 6 frame 간격
-        // 더 안전하게: frame 의 KST 시각의 hour 가 0/6/12/18 인 frame 위치에 라벨
         var labelsAdded = {};
+        var frag = document.createDocumentFragment();
+
         for (var i = 0; i < n; i++) {
             var f = state.frames[i];
             var m = /(\d+)\.(\d+)\.\(.\)\s+(\d{2}):(\d{2})/.exec(f.label);
             if (!m) continue;
             var hh = +m[3];
-            // 자정(00시) 또는 6h 단위만 라벨로 표시
-            var isMidnight = (hh === 0);
-            if (!(isMidnight || hh === 6 || hh === 12 || hh === 18)) continue;
-            var key = m[1] + '-' + m[2] + '-' + hh;
-            if (labelsAdded[key]) continue;
-            labelsAdded[key] = 1;
             var pct = (i / Math.max(1, n - 1)) * 100;
-            var text = isMidnight ? (m[1] + '/' + m[2]) : (hh + '시');
-            var div = document.createElement('div');
-            div.className = 'shrt-fcst-tick';
-            div.style.left = pct + '%';
-            div.textContent = text;
-            ticksEl.appendChild(div);
+            var isMajor = (hh === 0 || hh === 12);
+
+            var tick = document.createElement('div');
+            tick.className = 'shrt-fcst-tick ' + (isMajor ? 'major' : 'minor');
+            tick.style.left = pct + '%';
+            frag.appendChild(tick);
+
+            if (isMajor) {
+                var key = m[1] + '-' + m[2] + '-' + hh;
+                if (!labelsAdded[key]) {
+                    labelsAdded[key] = 1;
+                    var label = document.createElement('div');
+                    label.className = 'shrt-fcst-tick-label';
+                    label.style.left = pct + '%';
+                    label.textContent = (hh === 0) ? (+m[1] + '/' + +m[2]) : '12시';
+                    frag.appendChild(label);
+                }
+            }
         }
+        ticksEl.appendChild(frag);
     }
     function hideSliderBar() {
         var bar = $('shrt-fcst-slider-bar');
