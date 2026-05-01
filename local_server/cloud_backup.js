@@ -115,7 +115,8 @@ async function performBackup() {
         'notice.json',
         'notices.json',
         'promo.json',
-        'surveys.json'
+        'surveys.json',
+        'region_alias_map.json'  // 자식해역 매핑 메타데이터 (정적, 운영자 관리)
     ];
 
     for (const file of targetFiles) {

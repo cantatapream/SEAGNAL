@@ -74,6 +74,7 @@ app.use(require('./routes/archive'));
 app.use(require('./routes/push'));
 app.use(require('./routes/push_test'));
 app.use(require('./routes/admin'));
+app.use(require('./routes/subregion'));  // 자식해역 라이프사이클/오류 API (방재기상 기반, 신규)
 app.use(require('./routes/survey'));
 app.use(require('./routes/report'));
 app.use(require('./routes/version'));
