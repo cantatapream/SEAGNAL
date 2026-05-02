@@ -208,8 +208,18 @@
     // 유틸
     // ─────────────────────────────────────────────────────────────
 
+    /** document.getElementById 의 짧은 alias — DOM 접근을 가독성 있게. */
     function $(id) { return document.getElementById(id); }
 
+    /**
+     * 화면 하단에 짧은 토스트 메시지 표출 (1.8초 후 자동 사라짐).
+     *
+     * 무엇을 하나?
+     *   index2_patch.js 의 전역 _showOceanToast 함수가 있으면 호출, 없으면 console.log.
+     *
+     * 어디서 쓰이나?
+     *   잠금 패턴에서 "미구현 상태입니다" / "천기 잠금 해제됨" 등의 안내 메시지.
+     */
     function _toast(msg) {
         if (typeof window._showOceanToast === 'function') {
             window._showOceanToast(msg, 'bottom', 1800, false);
@@ -218,6 +228,16 @@
         }
     }
 
+    /**
+     * KMA imgList 응답의 시각 문자열을 사용자 친화 한국어 표기로 변환.
+     *
+     * 예) "2026.05.03 14:00" → "5.3.(월) 14:00"
+     *
+     * 어디서 쓰이나?
+     *   - 슬라이더 말풍선 (updateTooltip) — frame 시각 표시
+     *   - 슬라이더 큰 tick 의 날짜 라벨 (renderTicks)
+     *   - 클릭 팝업 헤더 (fmtPopupTm 와는 별개 포맷)
+     */
     function fmtFcstTm(s) {
         if (!s) return '';
         var m = /^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/.exec(s);
@@ -227,6 +247,18 @@
         return (+m[2]) + '.' + (+m[3]) + '.(' + DAYS[d.getDay()] + ') ' + m[4] + ':' + m[5];
     }
 
+    /**
+     * 슬라이더 트랙의 진행 비율을 CSS 변수 `--shrt-progress` 로 publish.
+     *
+     * 무엇을 하나?
+     *   slider.value 가 min~max 사이 어디인지 % 로 계산해 CSS 변수에 저장.
+     *   CSS 의 ::-webkit-slider-runnable-track / progress fill 그라디언트가 이 변수를
+     *   참조해 트랙 좌측에 채워진 색을 표시 (현재까지 재생된 위치 시각화).
+     *
+     * 언제 호출?
+     *   - showSliderBar() 초기화 시
+     *   - showFrame() 매번 (재생 / 드래그 중 슬라이더 위치 변경 시)
+     */
     function setSliderProgress(slider) {
         var min = parseFloat(slider.min) || 0;
         var max = parseFloat(slider.max) || 0;
@@ -292,6 +324,20 @@
         tip.style.setProperty('--shrt-arrow-x', arrowX + 'px');
     }
 
+    /**
+     * 해양 지도 OL 인스턴스를 가져옴 (lazy + cached).
+     *
+     * 무엇을 하나?
+     *   ocean_map.js 가 노출한 window.__getOceanMap() 으로 OL Map 객체를 1번만 가져와
+     *   state.oceanMap 에 저장 후 재사용.
+     *
+     * 왜 lazy?
+     *   shrt_forecast_layer.js 가 ocean_map.js 보다 먼저 로드될 수 있어서 init 시점엔
+     *   map 이 아직 없을 수 있음. 실제로 필요한 시점 (activate / buildOrUpdateLayer) 에
+     *   가져와 안전하게 처리.
+     *
+     * 연계: ocean_map.js (window.__getOceanMap), index2.html script 순서.
+     */
     function getOceanMap() {
         if (state.oceanMap) return state.oceanMap;
         if (typeof window.__getOceanMap === 'function') {
@@ -373,6 +419,24 @@
     // 데이터 fetch
     // ─────────────────────────────────────────────────────────────
 
+    /**
+     * KMA imgList API 호출 — 활성 카테고리의 frame 목록을 가져옴.
+     *
+     * 무엇을 하나?
+     *   GET https://marine.kma.go.kr/.../imgList?shrtType=<pop|pcp|sno|sky|pty>
+     *   응답: { fct_tm_list: ["2026.05.03 14:00", ...], img_list: ["/resources/.../...png", ...] }
+     *   응답을 파싱해서 frame 객체 배열로 변환.
+     *
+     * 반환 frame 형식:
+     *   - url: KMA PNG 경로 (지도 raster 표출용)
+     *   - label: "5.3.(월) 14:00" 화면 표시용 한국어 포맷
+     *   - fct_tm: KMA 원본 포맷 "2026.05.03 14:00" — 클릭 팝업 sampling 시 키 매칭용
+     *
+     * 언제 호출?
+     *   - activate(shrtType) 에서 활성 카테고리의 frame 목록 가져올 때
+     *
+     * [클릭 팝업 sampling 의 다른 4 카테고리 imgList 는 _fetchImgListFor() 가 별도 처리]
+     */
     function fetchImgList(shrtType) {
         var url = IMG_LIST_URL + '?shrtType=' + encodeURIComponent(shrtType);
         return fetch(url, { credentials: 'omit' })
@@ -384,9 +448,6 @@
                 var n = Math.min(times.length, imgs.length);
                 var frames = [];
                 for (var i = 0; i < n; i++) {
-                    // url: KMA PNG 경로
-                    // label: 화면 표시용 한국어 포맷 ("5.3.(월) 14:00")
-                    // fct_tm: KMA 원본 포맷 ("2026.05.03 14:00") — 서버 점데이터 호출 시 사용
                     frames.push({ url: imgs[i], label: fmtFcstTm(times[i]), fct_tm: times[i] });
                 }
                 return frames;
@@ -667,6 +728,27 @@
     // 활성화 / 비활성화
     // ─────────────────────────────────────────────────────────────
 
+    /**
+     * 천기 레이어 비활성화 — 모든 자원 정리 + UI 원복.
+     *
+     * 무엇을 정리?
+     *   1) 재생 중이면 정지 (stopPlay)
+     *   2) 지도 PNG 레이어 제거 (removeLayer)
+     *   3) 슬라이더 바 / 범례 / 활성 서브버튼 표시 해제
+     *   4) 말풍선 fade-out 클래스 제거
+     *   5) state.activeType / frames / frameIdx 초기화
+     *   6) [T3] CSS 변수 --shrt-stack-height 0px → 특보 범례 원위치 복귀
+     *   7) [T2] 열린 클릭 팝업 닫기 (window._shrtForecastHidePointPopup 호출)
+     *
+     * 언제 호출?
+     *   - 사용자가 활성 카테고리 버튼 다시 클릭 시 (토글 OFF)
+     *   - 다른 카테고리로 전환 시 (activate 가 먼저 deactivate 호출)
+     *   - 다른 ocean overlay 활성 시 (window._shrtForecastDeactivate 경유)
+     *   - imgList 응답이 비었을 때 (안전 fallback)
+     *
+     * 연계: stopPlay, removeLayer, hideSliderBar, hideLegend, clearShrtStackHeight,
+     *      window._shrtForecastHidePointPopup
+     */
     function deactivate() {
         stopPlay();
         removeLayer();
@@ -689,6 +771,26 @@
         }
     }
 
+    /**
+     * 천기 레이어 활성화 — 한 카테고리의 PNG/슬라이더/범례 + 클릭 팝업 인프라 가동.
+     *
+     * 무엇을 하나?
+     *   1) 같은 카테고리 재클릭이면 deactivate (토글 OFF)
+     *   2) 다른 카테고리면 deactivate 후 새로 시작
+     *   3) [Mutual Exclusion] 유향유속/풍향풍속/파고파향 overlay 가 켜져있으면 끔
+     *   4) 활성 서브버튼 표시 (.active 클래스)
+     *   5) 정량형(pop/pcp/sno) 은 말풍선 처음 숨김, 카테고리형(sky/pty) 은 처음부터 보임
+     *   6) imgList API 호출 → frame 배열 받아 슬라이더/범례/지도 PNG 표출
+     *   7) 모든 frame PNG preload (백그라운드)
+     *   8) [T3] requestAnimationFrame 으로 스택 높이 측정 → 특보 범례 위치 조정
+     *
+     * @param {string} shrtType - 'sky' | 'pty' | 'pop' | 'pcp' | 'sno'
+     *
+     * 연계:
+     *   - window.oceanOverlayTurnOff (ocean_overlay.js)
+     *   - fetchImgList → KMA imgList API
+     *   - showSliderBar / renderLegend / showFrame / preloadImg / updateShrtStackHeight
+     */
     function activate(shrtType) {
         if (state.activeType === shrtType) { deactivate(); return; }
         deactivate();
@@ -741,6 +843,20 @@
     // UI 바인딩
     // ─────────────────────────────────────────────────────────────
 
+    /**
+     * UI 이벤트 바인딩 — 페이지 로드 시 1번만 호출 (initShrtForecastLayer 에서).
+     *
+     * 무엇을 바인딩?
+     *   1) 우측 컨트롤 "천기" 토글 버튼 click — 잠금 해제 패턴 (10회 연속 클릭) 또는
+     *      잠금 해제 후엔 5개 서브버튼 popup 토글.
+     *   2) document click — popup 영역 외부 클릭 시 popup 자동 닫힘.
+     *   3) 5개 서브버튼 (.ocean-other-wx-item) click — activate(shrtType) 호출.
+     *   4) 슬라이더 input — 드래그 중 헤더만 갱신 + 200ms debounce sample.
+     *   5) 슬라이더 change — 손 놓은 시점에 sample 1번 (debounce 해제 후 즉시).
+     *   6) 재생 버튼 click — togglePlay (재생 ↔ 정지 전환).
+     *
+     * 연계: ENABLED_TYPES, activate/deactivate, stopPlay/togglePlay, refreshPopupContents.
+     */
     function bindUi() {
         var wrap = $('ocean-other-wx-wrap');
         var toggleBtn = $('ocean-other-wx-toggle-btn');
@@ -917,13 +1033,29 @@
             });
     }
 
-    // ── 이미지 로더 캐시 ──
-    //   같은 URL 의 PNG 를 두 번 다운로드 안 함. 브라우저 HTTP 캐시도 적용되지만
-    //   우리 메모리 안에서도 HTMLImageElement 인스턴스를 재사용하면 빠름.
-    //   key = 절대 URL string. 가벼움 (이미지 자체는 브라우저가 관리).
-    var _imgElemCache = {};
+    // ── 이미지 로더 캐시 (LRU) ──
+    //   같은 URL 의 PNG 를 두 번 다운로드 안 함. 브라우저 HTTP 캐시도 있지만 거기까지
+    //   가지 않고 우리 메모리에서 HTMLImageElement 를 재사용하면 더 빠름.
+    //
+    //   [메모리 안전 — 중요]
+    //     무한히 캐시하면 슬라이더 재생 시 모든 frame 의 PNG (5MB × 200) 가 메모리에
+    //     남아 모바일 폰 OOM. Map 의 insert-order 를 활용한 LRU 로 캡 둠.
+    //     20 entry × ~5MB ≈ 100MB 상한 (모바일 폰에서 안전 범위).
+    //     evict 시 가장 오래된 (앞에 추가된) entry 의 Promise 참조만 끊음 → GC 대상.
+    //
+    //   [재방문 시 빠르게]
+    //     같은 key 재요청 시 delete + set 으로 Map 끝으로 이동 (LRU 'touch').
+    //     자주 쓰이는 PNG 는 evict 안 됨.
+    var _imgElemCache = new Map();
+    var IMG_CACHE_MAX = 20;
     function _loadImgViaProxy(kmaPath) {
-        if (_imgElemCache[kmaPath]) return _imgElemCache[kmaPath];
+        // 캐시 적중 — Map 끝으로 이동 (LRU touch)
+        if (_imgElemCache.has(kmaPath)) {
+            var existing = _imgElemCache.get(kmaPath);
+            _imgElemCache.delete(kmaPath);
+            _imgElemCache.set(kmaPath, existing);
+            return existing;
+        }
         // path 만 query 로 보내면 서버 라우트가 marine.kma.go.kr 에 fetch + CORS 헤더 부착
         var proxyUrl = '/api/kma-png-proxy?path=' + encodeURIComponent(kmaPath);
         var p = new Promise(function (resolve, reject) {
@@ -931,12 +1063,17 @@
             img.crossOrigin = 'anonymous';   // canvas getImageData 가능하도록 CORS 모드
             img.onload = function () { resolve(img); };
             img.onerror = function () {
-                delete _imgElemCache[kmaPath];   // 실패 시 다음에 재시도 가능
+                _imgElemCache.delete(kmaPath);   // 실패 시 다음에 재시도 가능
                 reject(new Error('img load fail: ' + kmaPath));
             };
             img.src = proxyUrl;
         });
-        _imgElemCache[kmaPath] = p;
+        _imgElemCache.set(kmaPath, p);
+        // LRU 한도 초과 시 가장 오래된 entry 제거
+        if (_imgElemCache.size > IMG_CACHE_MAX) {
+            var oldestKey = _imgElemCache.keys().next().value;
+            _imgElemCache.delete(oldestKey);
+        }
         return p;
     }
 

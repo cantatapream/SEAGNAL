@@ -514,13 +514,34 @@
      * - getMainSource() / getSubSource(): feature 검색용 (forEachFeatureAtPixel 의
      *                                     layerFilter 에 _layer / _subLayer 사용).
      * - getMainLayer() / getSubLayer(): 클릭 hit 테스트용 layer 참조.
+     *   ▸ [T4 변경] fill layer 를 반환하도록 변경. 이유: stroke layer 는 외곽선만
+     *     렌더되어 그 layer 의 hit detection 캔버스가 외곽선 픽셀만 포함 → polygon
+     *     내부 클릭 시 hit 안 됨. fill layer 는 polygon 전체 면적이 hit canvas 에
+     *     포함되어 어디 클릭해도 정상 hit. (active5.js _findHitParentZone 의 폴리곤
+     *     내부 클릭 호환성 유지)
      * - getSubFullName(feature): 자식 feature 의 우리 앱 fullName 반환 (SUBZONE_LABEL_MAP).
      */
     window.OceanWarnZone = {
+        /**
+         * [공개 API] 활성 특보 색칠 모듈이 사용할 스타일 함수 등록.
+         * fn(feature, kind) 가 ol.style.Style (또는 배열) 반환 → 그 스타일 사용.
+         * fn 이 null/undefined 반환 → 기본 outline 스타일 fallback.
+         * [연계] ocean_warn_active3.js 의 _styler() 가 fn 으로 등록됨.
+         */
         setActiveStyler: function (fn) {
             _activeStyler = (typeof fn === 'function') ? fn : null;
             this.refresh();
         },
+        /**
+         * [공개 API] 4개 layer 의 스타일을 즉시 재평가.
+         *
+         * 언제 호출?
+         *   - 활성 특보 데이터가 갱신되어 색칠을 새로 적용해야 할 때 (active4.js)
+         *   - 사용자가 zone 을 클릭해 selected 상태로 강조해야 할 때 (active5.js)
+         *
+         * 4개 layer (메인 fill+stroke, 자식 fill+stroke) 모두 .changed() 호출 →
+         * OL 이 다음 render 시 _zoneStyle / _subZoneStyle 을 다시 호출 → 새 스타일 반영.
+         */
         refresh: function () {
             // 4개 layer 모두 스타일 재평가 (특보 갱신 후 색칠/외곽선 양쪽 모두 다시 그림)
             if (_layer)        _layer.changed();
@@ -528,6 +549,15 @@
             if (_subLayer)     _subLayer.changed();
             if (_subFillLayer) _subFillLayer.changed();
         },
+        /**
+         * [공개 API] 자식구역의 minZoom (확대 임계값) 일시 해제.
+         *
+         * @param {boolean} disabled - true 면 멀리서도 자식구역이 보이게 (active 색칠 모드용)
+         *
+         * 활성 특보가 자식구역 단위로 발효된 경우 (예: 평수구역만 발효) 멀리서도 색칠
+         * 영역이 보이도록 minZoom 제약을 일시 해제. 비활성 시 다시 8(=zoom9+) 로 복귀.
+         * [연계] ocean_warn_active4.js 의 _activate / _deactivate 에서 호출.
+         */
         setSubMinZoomDisabled: function (disabled) {
             if (!_subLayer) return;
             // OL Layer 의 minZoom 은 생성 시 옵션. set('minZoom', ...) 으로 동적 변경 가능.
@@ -535,20 +565,37 @@
             _subLayer.setMinZoom(disabled ? -Infinity : SUBZONE_MIN_ZOOM);
             if (_subFillLayer) _subFillLayer.setMinZoom(disabled ? -Infinity : SUBZONE_MIN_ZOOM);
         },
+        /** [공개 API] 메인구역 / 자식구역 feature 저장소 (Vector source) — feature 순회용. */
         getMainSource: function () { return _source; },
         getSubSource:  function () { return _subSource; },
-        getMainLayer:  function () { return _layer; },
-        getSubLayer:   function () { return _subLayer; },
+        /**
+         * [공개 API] 메인구역 / 자식구역 클릭 hit detection 용 layer.
+         *
+         * [T4 이후 — 중요]
+         *   stroke layer (_layer / _subLayer) 가 아닌 **fill layer (_fillLayer /
+         *   _subFillLayer) 를 반환**. 이유:
+         *     - OL Vector layer 의 hit detection 은 layer 의 hit canvas 픽셀로 결정
+         *     - stroke layer 는 외곽선 픽셀만 hit canvas 에 포함 → polygon 내부
+         *       클릭 시 hit 못함
+         *     - fill layer 는 polygon 전체 면적이 hit canvas 에 포함 → 어디 클릭해도 OK
+         *   features 자체는 두 layer 가 같은 source 를 공유하므로 동일.
+         *   active5.js 의 _findHitParentZone 에서 layerFilter 로 사용 → 정상 동작.
+         */
+        getMainLayer: function () { return _fillLayer || _layer; },
+        getSubLayer:  function () { return _subFillLayer || _subLayer; },
+        /** 자식 feature 의 우리 앱 fullName 변환 (KMA WarnCode → COASTAL_MAPPING name) */
         getSubFullName: function (feature) {
             if (!feature) return '';
             var code = feature.get('WarnCode');
             return SUBZONE_LABEL_MAP[code] || _normalizeZoneName(feature.get('name'));
         },
-        // 메인 feature 의 정규화된 zone 이름 (appState.alerts[].zoneName 과 매칭용)
+        /** 메인 feature 의 정규화된 zone 이름 (appState.alerts[].zoneName 매칭용) */
         getMainZoneName: function (feature) {
             return feature ? _normalizeZoneName(feature.get('name')) : '';
         },
+        /** 외부에서도 사용 가능한 zone name 정규화 함수 (공백/마침표 처리) */
         normalizeZoneName: _normalizeZoneName,
+        /** GeoJSON 두 종류 모두 로드 완료됐는지 — 데이터 의존 동작 트리거 전에 확인 */
         isLoaded: function () { return _loaded && _subLoaded; }
     };
 
