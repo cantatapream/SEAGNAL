@@ -1130,6 +1130,14 @@
             align-items: center;
             gap: 0.3125rem;                 /* 5px @ 16 */
         }
+        /* [P3] 로딩/에러 상태 메시지 — imgList 응답 대기 중 또는 실패 시 표시.
+           카테고리형 컴팩트 박스 안에 한 줄 텍스트로 노출. */
+        .shrt-fcst-legend .shrt-fcst-legend-loading {
+            font-size: 0.75rem;             /* 12px @ 16 */
+            color: #c5d0e5;
+            padding: 0.125rem 0.25rem;
+            font-style: italic;
+        }
         .shrt-swatch {
             display: inline-block;
             width: 1.125rem;                /* 18px @ 16 */
@@ -2253,6 +2261,11 @@
                                 <button class="ocean-overlay-btn ocean-other-wx-item" data-shrt="pty" title="강수형태">
                                     <i class="fa-solid fa-cloud-bolt"></i>
                                     <span class="ocean-overlay-label">강수형태</span>
+                                </button>
+                                <!-- 6번째 — 기온 (KMA marine.kma.go.kr 동일 카테고리, shrtType="tmp") -->
+                                <button class="ocean-overlay-btn ocean-other-wx-item" data-shrt="tmp" title="기온">
+                                    <i class="fa-solid fa-temperature-half"></i>
+                                    <span class="ocean-overlay-label">기온</span>
                                 </button>
                             </div>
                         </div>
