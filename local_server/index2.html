@@ -918,19 +918,19 @@
            [높이] 60px 고정 — bar 의 vertical 중앙 = 슬라이더 트랙 = 재생버튼 가운데
            [표출] shrt_forecast_layer.js 가 레이어 ON 시 display:''           */
         .shrt-fcst-slider-bar {
-            position: absolute;
+            position: fixed;                 /* viewport 기준 — PC/모바일 일관 동작 */
             left: 0;
             right: 0;
             bottom: var(--main-tab-height, 68px);
             z-index: 1100;
             display: flex;
-            align-items: center;            /* 재생버튼이 bar vertical 중앙에 align */
+            align-items: center;
             gap: 10px;
             background: rgba(15, 25, 50, 0.92);
             backdrop-filter: blur(2px);
             border-top: 1px solid rgba(120, 150, 200, 0.25);
-            padding: 0 14px;                /* 위/아래 padding 0 — bar 박스 끝 = 메인탭 시작 */
-            height: 60px;                   /* 명시: 말풍선(위) + 날짜 + 트랙 + tick + 시간(아래) 안정 배치 */
+            padding: 0 14px;
+            height: 50px;                    /* 12시 라벨 제거에 따라 60→50 컴팩트 */
             box-sizing: border-box;
             box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.35);
         }
@@ -1071,11 +1071,10 @@
            [폭] inline-flex 로 콘텐츠 너비만큼만 차지 (max-width 만 안전망)
            [위치] 슬라이더 바 상단으로부터 약 6px 위 (사용자 요구: 슬라이더-메인탭 간격의 절반) */
         .shrt-fcst-legend {
-            position: absolute;
+            position: fixed;                 /* slider-bar 와 동일한 stacking 기준으로 */
             left: 12px;
-            /* 범례 절대 vertical 위치 — 슬라이더 layout 변화와 무관하게 같은 자리 유지.
-               슬라이더가 메인탭에 더 가까워지면 범례-슬라이더 거리는 자연스럽게 늘어남. */
-            bottom: calc(var(--main-tab-height, 68px) + 66px);
+            /* slider bar height 50 + 약 14px 여백 = 메인탭 위로 64px */
+            bottom: calc(var(--main-tab-height, 68px) + 64px);
             z-index: 1100;
             background: rgba(255, 255, 255, 0.92);
             backdrop-filter: blur(2px);
