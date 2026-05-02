@@ -613,4 +613,54 @@ router.post('/api/admin/forecast-collect', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. KMA 단기예보 PNG 프록시 (천기 — 클라이언트 픽셀 sampling 용)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// [무엇을 하나?]
+//   KMA marine.kma.go.kr 의 단기예보 PNG 를 그대로 클라이언트로 흘려보내되
+//   브라우저가 canvas getImageData 를 쓸 수 있도록 CORS 헤더를 부착.
+//   서버는 디코딩하지 않고 단순히 byte stream 을 통과시킴 → 메모리/CPU 부담 0.
+//
+// [왜 필요한가?]
+//   천기 클릭 팝업은 클릭한 좌표의 5개 카테고리 데이터를 추출해야 함.
+//   KMA PNG 는 응답에 Access-Control-Allow-Origin 헤더가 없어서 브라우저
+//   canvas 에 그리면 "tainted canvas" 가 되어 getImageData 가 차단됨.
+//   우리 서버가 같은 PNG 를 받아 CORS 헤더를 추가해 재전송하면 브라우저가
+//   crossOrigin="anonymous" 로 로드하여 canvas 픽셀 추출 가능.
+//
+// [요청 파라미터]
+//   - path (필수): KMA PNG 의 path. 보안 위해 prefix 를 화이트리스트로 제한.
+//                  예: /resources/fct/shrt_gemd_img/202605/03/14/DFS_..._POP_H024.png
+//
+// [캐시]
+//   - HTTP Cache-Control: public, max-age=3600 → 브라우저가 1시간 자동 캐시.
+//     같은 PNG 재방문 시 우리 서버 / KMA 호출 0 회.
+//
+// [의존]
+//   - node-fetch (transitive 의존, 다른 라우트에서도 이미 사용)
+const _kmaPngFetch = require('node-fetch');
+router.get('/api/kma-png-proxy', async (req, res) => {
+    try {
+        const path = (req.query.path || '').trim();
+        // 보안: KMA 의 단기예보 PNG 경로만 허용 (다른 임의 경로 프록시 방지)
+        if (!path.startsWith('/resources/fct/shrt_gemd_img/')) {
+            return res.status(400).send('invalid path');
+        }
+        const upstreamUrl = 'https://marine.kma.go.kr' + path;
+        const upstream = await _kmaPngFetch(upstreamUrl, { timeout: 20000 });
+        if (!upstream.ok) return res.status(502).send('upstream ' + upstream.status);
+        res.set({
+            'Content-Type': 'image/png',
+            'Cache-Control': 'public, max-age=3600',
+            'Access-Control-Allow-Origin': '*'
+        });
+        // node-fetch v2 의 res.body 는 Node.js Readable stream — pipe 로 그대로 흘림
+        upstream.body.pipe(res);
+    } catch (e) {
+        console.error('[kma-png-proxy] 실패:', e.message);
+        res.status(500).send('proxy error');
+    }
+});
+
 module.exports = router;

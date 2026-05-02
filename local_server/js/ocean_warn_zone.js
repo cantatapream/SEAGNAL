@@ -24,6 +24,15 @@
  *      KMA 본 사이트에서도 더 이상 사용 안 함 → 렌더에서 완전 제외.
  *   2) S2120100 (경북북부 — 울진+영덕 두 폴리곤이 같은 코드 공유) — KMA 데이터
  *      결함이지만 둘 다 "경북북부앞바다중연안바다" 의 일부라 둘 다 그리되 동일 라벨.
+ *
+ * [T4 — z-order 분리 (천기 레이어와 공존)]
+ *   사용자 요구: 특보 색칠은 천기 레이어 아래, 특보구역 선은 천기 위.
+ *   구현: 한 source 를 두 layer 가 공유.
+ *     - _fillLayer (zIndex 40)    : 색칠만 그림 (천기 PNG 50 보다 아래)
+ *     - _layer (zIndex 80)        : 외곽선 + 라벨 (천기 PNG 50 보다 위)
+ *     - _subFillLayer (zIndex 41) : 자식구역 색칠
+ *     - _subLayer (zIndex 81)     : 자식구역 외곽선 + 라벨
+ *   _onlyFill / _onlyStrokeAndText 가 _zoneStyle 결과를 분해해서 각 layer 에 전달.
  * ============================================================================
  */
 
@@ -107,10 +116,23 @@
 
     // ─────────────────────────────────────────────────────────────
 
-    var _layer = null;
-    var _source = null;
-    var _subLayer = null;
-    var _subSource = null;
+    // ─────────────────────────────────────────────────────────────
+    // OL Layer/Source 핸들러
+    //   ▸ 한 source 를 두 layer 가 공유하는 패턴 (OpenLayers 표준 기능):
+    //     - _fillLayer    : 색칠(fill) 만 그리는 layer  → zIndex 40 (천기 PNG 50 보다 아래)
+    //     - _layer        : 외곽선(stroke) + 라벨(text) 만 그리는 layer → zIndex 80 (천기 위)
+    //     - _source       : 두 layer 공통 feature 저장소 (한 번 add 하면 두 layer 자동 반영)
+    //   ▸ 같은 패턴을 자식구역(sub) 에도 적용 → _subFillLayer (41) + _subLayer (81)
+    //   ▸ [왜 분리?] 사용자 요구: "특보 색칠은 천기 레이어 아래, 특보구역 선은 천기 위"
+    //                즉 한 layer 의 fill+stroke 묶음은 layer-level zIndex 하나만 가지므로
+    //                fill 과 stroke 가 천기 PNG 의 위·아래로 갈라질 수 없음 → layer 분리 필수.
+    // ─────────────────────────────────────────────────────────────
+    var _layer = null;          // 메인구역 외곽선+라벨 layer (zIndex 80, 천기 위)
+    var _fillLayer = null;      // 메인구역 색칠 layer (zIndex 40, 천기 아래)
+    var _source = null;         // 메인구역 feature source (두 layer 공유)
+    var _subLayer = null;       // 자식구역 외곽선+라벨 layer (zIndex 81, 천기 위)
+    var _subFillLayer = null;   // 자식구역 색칠 layer (zIndex 41, 천기 아래)
+    var _subSource = null;      // 자식구역 feature source (두 layer 공유)
     var _visible = false;
 
     var _loaded = false;
@@ -212,13 +234,92 @@
         });
     }
 
-    /** 메인 + 자식 Vector Layer 를 한 번만 만들어 지도에 추가 */
+    // ─────────────────────────────────────────────────────────────
+    // Style 분리 헬퍼 — ol.style.Style 1개를 fill 전용 / stroke+text 전용 으로 쪼개기
+    //
+    // [왜 필요?]
+    //   _zoneStyle / _subZoneStyle 은 fill + stroke + text 를 묶어 1 개의 Style 로 반환.
+    //   이 묶음을 fill 전용 Style 과 stroke+text 전용 Style 두 개로 쪼개야
+    //   각각 다른 layer (zIndex) 에서 렌더할 수 있다.
+    //
+    // [동작]
+    //   _onlyFill(s)         → s 에서 fill 부분만 추출한 새 Style. fill 없으면 null 반환.
+    //   _onlyStrokeAndText(s) → s 에서 stroke + text 부분만 추출한 새 Style.
+    //
+    // [성능]
+    //   feature 수 = 메인 44 + 자식 50 ≈ 94 개. 두 layer 가 각각 _zoneStyle 호출하므로
+    //   re-render 당 약 188 회 호출이지만 ol.style.* 객체 생성이 가벼워 부담 없음.
+    // ─────────────────────────────────────────────────────────────
+    function _onlyFill(style) {
+        if (!style) return null;
+        if (Array.isArray(style)) style = style[0];
+        if (!style || !style.getFill) return null;
+        var f = style.getFill();
+        if (!f) return null;
+        var ns = new ol.style.Style({ fill: f });
+        var z = style.getZIndex();
+        if (z != null) ns.setZIndex(z);
+        return ns;
+    }
+    function _onlyStrokeAndText(style) {
+        if (!style) return null;
+        if (Array.isArray(style)) style = style[0];
+        if (!style || !style.getStroke) return null;
+        var s = style.getStroke();
+        var t = style.getText && style.getText();
+        if (!s && !t) return null;
+        var opts = {};
+        if (s) opts.stroke = s;
+        if (t) opts.text = t;
+        var ns = new ol.style.Style(opts);
+        var z = style.getZIndex();
+        if (z != null) ns.setZIndex(z);
+        return ns;
+    }
+
+    // 두 layer 가 각각 호출할 style 함수 — 본 _zoneStyle 결과를 split.
+    function _zoneFillOnlyStyle(feature)    { return _onlyFill(_zoneStyle(feature)); }
+    function _zoneStrokeOnlyStyle(feature)  { return _onlyStrokeAndText(_zoneStyle(feature)); }
+    function _subZoneFillOnlyStyle(feature) { return _onlyFill(_subZoneStyle(feature)); }
+    function _subZoneStrokeOnlyStyle(feature) { return _onlyStrokeAndText(_subZoneStyle(feature)); }
+
+    /**
+     * 메인 + 자식 Vector Layer 를 한 번만 만들어 지도에 추가
+     *
+     * [구조]
+     *   메인구역  : _fillLayer (zIndex 40, 색칠) + _layer (zIndex 80, 선+라벨)
+     *   자식구역  : _subFillLayer (zIndex 41, 색칠) + _subLayer (zIndex 81, 선+라벨)
+     *
+     * [zIndex 의미]
+     *   - 천기(KMA 단기예보 PNG) layer 가 zIndex 50 → 그 사이로 갈리도록 fill 은 40, stroke 는 80
+     *   - 결과: 사용자가 본 화면 — 색칠(특보 발효 색) → 천기 → 특보구역 선 + 라벨
+     *
+     * [source 공유]
+     *   같은 _source 를 두 layer 에 넘겨서, 한 번 addFeatures 하면 두 layer 가 자동 동기화.
+     *   OL 의 정식 패턴으로 메모리/일관성 둘 다 깔끔.
+     */
     function _ensureLayers(map) {
+        // source 먼저 보장 (layer 생성 시 source 가 필요)
+        if (!_source) _source = new ol.source.Vector();
+        if (!_subSource) _subSource = new ol.source.Vector();
+
+        // [메인구역] 색칠 layer — 천기 PNG (zIndex 50) 보다 아래에 위치
+        if (!_fillLayer) {
+            _fillLayer = new ol.layer.Vector({
+                source: _source,
+                style: _zoneFillOnlyStyle,
+                zIndex: 40,
+                visible: _visible,
+                updateWhileAnimating: false,
+                updateWhileInteracting: false
+            });
+            map.addLayer(_fillLayer);
+        }
+        // [메인구역] 외곽선+라벨 layer — 천기 PNG 위에 위치 (사용자가 라인 보이도록)
         if (!_layer) {
-            _source = new ol.source.Vector();
             _layer = new ol.layer.Vector({
                 source: _source,
-                style: _zoneStyle,
+                style: _zoneStrokeOnlyStyle,
                 zIndex: 80,
                 visible: _visible,
                 updateWhileAnimating: false,
@@ -226,11 +327,24 @@
             });
             map.addLayer(_layer);
         }
+        // [자식구역] 색칠 layer
+        if (!_subFillLayer) {
+            _subFillLayer = new ol.layer.Vector({
+                source: _subSource,
+                style: _subZoneFillOnlyStyle,
+                zIndex: 41,
+                visible: _visible,
+                minZoom: SUBZONE_MIN_ZOOM,
+                updateWhileAnimating: false,
+                updateWhileInteracting: false
+            });
+            map.addLayer(_subFillLayer);
+        }
+        // [자식구역] 외곽선+라벨 layer
         if (!_subLayer) {
-            _subSource = new ol.source.Vector();
             _subLayer = new ol.layer.Vector({
                 source: _subSource,
-                style: _subZoneStyle,
+                style: _subZoneStrokeOnlyStyle,
                 zIndex: 81,            // 메인 위에 그려져 라벨이 가려지지 않게
                 visible: _visible,
                 minZoom: SUBZONE_MIN_ZOOM,  // OL: zoom > minZoom 에서만 표시 (즉 9+)
@@ -312,15 +426,20 @@
         } catch (e) { _visible = false; }
 
         btn.classList.toggle('active', _visible);
-        if (_layer)    _layer.setVisible(_visible);
-        if (_subLayer) _subLayer.setVisible(_visible);   // minZoom 으로 자동 가/숨 됨
+        // 4개 layer 모두 동기화 (메인/자식 × 색칠/외곽선)
+        if (_layer)        _layer.setVisible(_visible);
+        if (_fillLayer)    _fillLayer.setVisible(_visible);
+        if (_subLayer)     _subLayer.setVisible(_visible);   // minZoom 으로 자동 가/숨 됨
+        if (_subFillLayer) _subFillLayer.setVisible(_visible);
         if (_visible) { _loadMain(); _loadSub(); }
 
         btn.addEventListener('click', function () {
             _visible = !_visible;
             btn.classList.toggle('active', _visible);
-            if (_layer)    _layer.setVisible(_visible);
-            if (_subLayer) _subLayer.setVisible(_visible);
+            if (_layer)        _layer.setVisible(_visible);
+            if (_fillLayer)    _fillLayer.setVisible(_visible);
+            if (_subLayer)     _subLayer.setVisible(_visible);
+            if (_subFillLayer) _subFillLayer.setVisible(_visible);
             if (_visible) { _loadMain(); _loadSub(); }
             try { localStorage.setItem('seagnal_warn_zone_visible', String(_visible)); } catch (e) {}
         });
@@ -395,36 +514,88 @@
      * - getMainSource() / getSubSource(): feature 검색용 (forEachFeatureAtPixel 의
      *                                     layerFilter 에 _layer / _subLayer 사용).
      * - getMainLayer() / getSubLayer(): 클릭 hit 테스트용 layer 참조.
+     *   ▸ [T4 변경] fill layer 를 반환하도록 변경. 이유: stroke layer 는 외곽선만
+     *     렌더되어 그 layer 의 hit detection 캔버스가 외곽선 픽셀만 포함 → polygon
+     *     내부 클릭 시 hit 안 됨. fill layer 는 polygon 전체 면적이 hit canvas 에
+     *     포함되어 어디 클릭해도 정상 hit. (active5.js _findHitParentZone 의 폴리곤
+     *     내부 클릭 호환성 유지)
      * - getSubFullName(feature): 자식 feature 의 우리 앱 fullName 반환 (SUBZONE_LABEL_MAP).
      */
     window.OceanWarnZone = {
+        /**
+         * [공개 API] 활성 특보 색칠 모듈이 사용할 스타일 함수 등록.
+         * fn(feature, kind) 가 ol.style.Style (또는 배열) 반환 → 그 스타일 사용.
+         * fn 이 null/undefined 반환 → 기본 outline 스타일 fallback.
+         * [연계] ocean_warn_active3.js 의 _styler() 가 fn 으로 등록됨.
+         */
         setActiveStyler: function (fn) {
             _activeStyler = (typeof fn === 'function') ? fn : null;
             this.refresh();
         },
+        /**
+         * [공개 API] 4개 layer 의 스타일을 즉시 재평가.
+         *
+         * 언제 호출?
+         *   - 활성 특보 데이터가 갱신되어 색칠을 새로 적용해야 할 때 (active4.js)
+         *   - 사용자가 zone 을 클릭해 selected 상태로 강조해야 할 때 (active5.js)
+         *
+         * 4개 layer (메인 fill+stroke, 자식 fill+stroke) 모두 .changed() 호출 →
+         * OL 이 다음 render 시 _zoneStyle / _subZoneStyle 을 다시 호출 → 새 스타일 반영.
+         */
         refresh: function () {
-            if (_layer)    _layer.changed();
-            if (_subLayer) _subLayer.changed();
+            // 4개 layer 모두 스타일 재평가 (특보 갱신 후 색칠/외곽선 양쪽 모두 다시 그림)
+            if (_layer)        _layer.changed();
+            if (_fillLayer)    _fillLayer.changed();
+            if (_subLayer)     _subLayer.changed();
+            if (_subFillLayer) _subFillLayer.changed();
         },
+        /**
+         * [공개 API] 자식구역의 minZoom (확대 임계값) 일시 해제.
+         *
+         * @param {boolean} disabled - true 면 멀리서도 자식구역이 보이게 (active 색칠 모드용)
+         *
+         * 활성 특보가 자식구역 단위로 발효된 경우 (예: 평수구역만 발효) 멀리서도 색칠
+         * 영역이 보이도록 minZoom 제약을 일시 해제. 비활성 시 다시 8(=zoom9+) 로 복귀.
+         * [연계] ocean_warn_active4.js 의 _activate / _deactivate 에서 호출.
+         */
         setSubMinZoomDisabled: function (disabled) {
             if (!_subLayer) return;
             // OL Layer 의 minZoom 은 생성 시 옵션. set('minZoom', ...) 으로 동적 변경 가능.
+            // 자식구역 외곽선/색칠 layer 둘 다 같은 minZoom 정책 유지.
             _subLayer.setMinZoom(disabled ? -Infinity : SUBZONE_MIN_ZOOM);
+            if (_subFillLayer) _subFillLayer.setMinZoom(disabled ? -Infinity : SUBZONE_MIN_ZOOM);
         },
+        /** [공개 API] 메인구역 / 자식구역 feature 저장소 (Vector source) — feature 순회용. */
         getMainSource: function () { return _source; },
         getSubSource:  function () { return _subSource; },
-        getMainLayer:  function () { return _layer; },
-        getSubLayer:   function () { return _subLayer; },
+        /**
+         * [공개 API] 메인구역 / 자식구역 클릭 hit detection 용 layer.
+         *
+         * [T4 이후 — 중요]
+         *   stroke layer (_layer / _subLayer) 가 아닌 **fill layer (_fillLayer /
+         *   _subFillLayer) 를 반환**. 이유:
+         *     - OL Vector layer 의 hit detection 은 layer 의 hit canvas 픽셀로 결정
+         *     - stroke layer 는 외곽선 픽셀만 hit canvas 에 포함 → polygon 내부
+         *       클릭 시 hit 못함
+         *     - fill layer 는 polygon 전체 면적이 hit canvas 에 포함 → 어디 클릭해도 OK
+         *   features 자체는 두 layer 가 같은 source 를 공유하므로 동일.
+         *   active5.js 의 _findHitParentZone 에서 layerFilter 로 사용 → 정상 동작.
+         */
+        getMainLayer: function () { return _fillLayer || _layer; },
+        getSubLayer:  function () { return _subFillLayer || _subLayer; },
+        /** 자식 feature 의 우리 앱 fullName 변환 (KMA WarnCode → COASTAL_MAPPING name) */
         getSubFullName: function (feature) {
             if (!feature) return '';
             var code = feature.get('WarnCode');
             return SUBZONE_LABEL_MAP[code] || _normalizeZoneName(feature.get('name'));
         },
-        // 메인 feature 의 정규화된 zone 이름 (appState.alerts[].zoneName 과 매칭용)
+        /** 메인 feature 의 정규화된 zone 이름 (appState.alerts[].zoneName 매칭용) */
         getMainZoneName: function (feature) {
             return feature ? _normalizeZoneName(feature.get('name')) : '';
         },
+        /** 외부에서도 사용 가능한 zone name 정규화 함수 (공백/마침표 처리) */
         normalizeZoneName: _normalizeZoneName,
+        /** GeoJSON 두 종류 모두 로드 완료됐는지 — 데이터 의존 동작 트리거 전에 확인 */
         isLoaded: function () { return _loaded && _subLoaded; }
     };
 
