@@ -125,12 +125,12 @@
         var hasAny  = hasSky || hasRain || hasSno || hasTmp;
         if (!hasAny) { _show(false); return; }
 
-        _setCell('sky',  hasSky ? data.sky.label                          : '하늘 정보 없음');
-        _setCell('rain', _buildRainText(data.pty, data.pcp, data.pop));     // 자체적으로 8 case 처리 (없으면 "강수 정보 없음")
-        _setCell('sno',  hasSno ? (_fmtNum(data.sno.value) + 'cm')         : '적설 예보 없음');
-        // 기온 — 정상값에도 "기온 " prefix 부착. 이유: 같은 시트에 수온 카드 (17°C 식)
-        // 가 있어 "17°C" 만으로는 어느 것인지 식별 곤란 — 사용자 요구로 카테고리명 노출.
-        _setCell('tmp',  hasTmp ? ('기온 ' + _fmtNum(data.tmp.value) + '°C') : '기온 정보 없음');
+        _setCell('sky',  hasSky ? data.sky.label                              : '하늘 정보 없음');
+        _setCell('rain', _buildRainText(data.pty, data.pcp, data.pop));         // 자체적으로 8 case 처리 (없으면 "강수 정보 없음")
+        // 적설 — 정상값에도 "적설 " prefix 부착. cm 단위만으로는 어느 카테고리인지 모호 → 사용자 요구.
+        _setCell('sno',  hasSno ? ('적설 ' + _fmtNum(data.sno.value) + 'cm')   : '적설 예보 없음');
+        // 기온 — 정상값에도 "기온 " prefix 부착. 같은 시트의 수온 카드(17°C)와 식별 분리.
+        _setCell('tmp',  hasTmp ? ('기온 ' + _fmtNum(data.tmp.value) + '°C')   : '기온 정보 없음');
         _show(true);
     }
 

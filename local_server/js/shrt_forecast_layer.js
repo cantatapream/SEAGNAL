@@ -991,7 +991,7 @@
         }).catch(function (e) {
             console.error('[shrt] activate failed:', e);
             // 에러 시: 로딩 메시지를 에러로 교체
-            renderLegendError(shrtType, '데이터를 불러올 수 없습니다.');
+            renderLegendError(shrtType, '기상청 단기예보 데이터를 일시적으로 불러올 수 없습니다.');
             // 슬라이더는 그대로 두고 사용자가 다른 카테고리 선택하거나 토글 OFF 할 수 있게.
         });
     }
