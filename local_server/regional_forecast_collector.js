@@ -213,130 +213,6 @@ async function fetchRegionalPdf(officeCode) {
 }
 
 /**
- * PDF 텍스트에서 종합 전망을 추출
- * 패턴: □ (종합) ... 부터 기온 테이블 또는 다른 섹션 시작까지
- */
-function parseSummaryForecast(text) {
-    if (!text) return null;
-
-    // 날씨종합 섹션 찾기
-    // □ (종합) 으로 시작하는 부분, 기온 테이블이나 다음 섹션 전까지
-    const summaryMatch = text.match(/□\s*\(종합\)\s*([\s\S]*?)(?=평년\s*\(오늘\)|기온\s*평년|기온\s*\n|기온\s*\(℃\)|기온\(℃\)|파고|천문정보|쪽수|$)/);
-    if (!summaryMatch) return null;
-
-    let summaryText = summaryMatch[0].trim();
-
-    // ※ 참고 문구도 포함 (한 줄로 제한하여 기온 테이블 포함 방지)
-    const noteMatch = text.match(/※\s*\d+일까지의[^\n]*참고하기 바랍니다\./);
-    if (noteMatch) {
-        if (!summaryText.includes('참고하기 바랍니다')) {
-            summaryText += '\n' + noteMatch[0].trim();
-        }
-    }
-
-    // 혹시 포함된 기온 테이블 잔여 텍스트 제거
-    summaryText = summaryText.replace(/평년\s*\(오늘\)[\s\S]*/g, '');
-    summaryText = summaryText.replace(/최저[\d.\-~\s]+$/gm, '');
-    summaryText = summaryText.replace(/최고[\d.\-~\s]+$/gm, '');
-
-    // 줄바꿈 정리
-    summaryText = summaryText
-        .replace(/\n{3,}/g, '\n\n')
-        .replace(/[ \t]+/g, ' ')
-        .trim();
-
-    return summaryText;
-}
-
-/**
- * PDF 텍스트에서 오늘 기온(최저/최고)을 추출
- *
- * PDF 텍스트에서 기온 테이블은 공백 없이 셀이 연결되어 추출됨:
- * "최저6.1 ~ 8.35.6 ~ 8.35.0 ~ 9.39 ~ 1010 ~ 11117 ~ 9"
- * 기온표 구조: 평년(오늘) | 어제 | 오늘 | 내일 | 모레 | 글피 | 그글피
- * 각 셀은 "숫자 ~ 숫자" 범위. 셀 간 구분자 없이 연결됨.
- *
- * 파싱 전략: ~ 기호를 기준으로 분할하여 3번째 ~ 앞뒤에서 오늘 값 추출
- * 3번째 ~ = 오늘 셀의 범위 구분자
- * ~ 앞: ...이전셀high + 오늘low → 끝에서 온도값 추출
- * ~ 뒤: 오늘high + 다음셀... → 앞에서 온도값 추출
- */
-function parseTodayTemperature(text) {
-    if (!text) return null;
-
-    let low = null;
-    let high = null;
-
-    // 최저 기온 행에서 오늘 값 추출
-    const lowLineMatch = text.match(/최저[^\n]*/);
-    if (lowLineMatch) {
-        low = extractTodayValueFromLine(lowLineMatch[0].replace(/^최저\s*/, ''));
-    }
-
-    // 최고 기온 행에서 오늘 값 추출
-    const highLineMatch = text.match(/최고[^\n]*/);
-    if (highLineMatch) {
-        high = extractTodayValueFromLine(highLineMatch[0].replace(/^최고\s*/, ''));
-    }
-
-    if (!low && !high) return null;
-    return { low, high };
-}
-
-/**
- * 기온 행에서 3번째 ~ 기호를 기준으로 오늘 값(범위)을 추출
- *
- * 전략: ~ 기호들 사이의 세그먼트에는 인접한 두 셀의 값이 연결되어 있음.
- * 세그먼트(tilde#1~tilde#2) = 어제high + 오늘low
- * 세그먼트(tilde#2~tilde#3) = 오늘high + 내일low
- * 각 세그먼트에서 온도값 패턴으로 분리 후 마지막/첫번째 값을 취함.
- *
- * 예: "6.1~8.35.6~8.35.0~9.39~10..." → seg1-2="8.35.0" → [8.3, 5.0]
- */
-function extractTodayValueFromLine(data) {
-    // ~ 위치 찾기
-    const tildePositions = [];
-    for (let i = 0; i < data.length; i++) {
-        if (data[i] === '~') tildePositions.push(i);
-    }
-
-    // [정합성 검증] 정상적인 기온 행이라면 셀별로 ~ 가 1개씩 들어감.
-    //   평년(오늘) | 어제 | 오늘 | 내일 | 모레 | 글피 | 그글피
-    //   → 정상 발표는 6~7개의 ~. 따라서 6개 미만이면 어딘가 셀이 비어있다는 뜻.
-    //
-    // [왜 6개 미만이면 거부?]
-    //   05시 발표처럼 '오늘' 셀이 "-" (빈값) 으로 나오면 ~ 가 1개 사라져 5개가 됨.
-    //   기존 코드는 "4개 이상"이면 진행했지만, 그 경우 tilde 인덱스가 한 칸씩
-    //   밀려서 "내일 셀"을 "오늘"로 잘못 읽고, 더불어 빈칸 "-" 문자가 다음 숫자에
-    //   붙어 "-12" 같은 음수로 오인되는 문제 발생.
-    //   → 차라리 잘못 표시하느니 표시하지 않는 게 안전.
-    if (tildePositions.length < 6) return null;
-
-    // 온도값 패턴: -12.3, 8.8, -3, 20 등 (1~2자리 정수 + 선택적 소수점1자리)
-    const tempPattern = /-?\d{1,2}(?:\.\d)?/g;
-
-    // 세그먼트: tilde#1 ~ tilde#2 사이 = 어제high + 오늘low
-    const segBefore = data.substring(tildePositions[1] + 1, tildePositions[2]).trim();
-    const beforeTemps = segBefore.match(tempPattern);
-    if (!beforeTemps || beforeTemps.length < 2) return null;
-    const todayLow = beforeTemps[beforeTemps.length - 1]; // 마지막 = 오늘low
-
-    // 세그먼트: tilde#2 ~ tilde#3 사이 = 오늘high + 내일low
-    const segAfter = data.substring(tildePositions[2] + 1, tildePositions[3]).trim();
-    const afterTemps = segAfter.match(tempPattern);
-    if (!afterTemps || afterTemps.length < 2) return null;
-    const todayHigh = afterTemps[0]; // 첫번째 = 오늘high
-
-    const lowVal = parseFloat(todayLow);
-    const highVal = parseFloat(todayHigh);
-
-    // 유효성 검증: 한국 기온 범위 (-30 ~ 50)
-    if (lowVal < -30 || lowVal > 50 || highVal < -30 || highVal > 50) return null;
-
-    return `${todayLow} ~ ${todayHigh}`;
-}
-
-/**
  * PDF 텍스트에서 발표 시각을 추출
  */
 function parsePublishTime(text) {
@@ -380,8 +256,9 @@ async function collectOneOffice(officeCode) {
             fs.writeFileSync(path.join(debugDir, `pdf_text_${officeCode}.txt`), text, 'utf8');
         } catch (_) {}
 
-        const summary = parseSummaryForecast(text);
-        const temperature = parseTodayTemperature(text);
+        // [책임 분리]
+        //   summary / temperature 는 regional_bulletin_collector(통보문 AI 파이프라인)이
+        //   채운다. 이 모듈은 PDF 에서만 뽑을 수 있는 marine/coastal 시간대별 표만 책임.
         const publishTime = parsePublishTime(text);
         const { farSeaZones: marineForecast, coastalZones: coastalForecast } = parseMarineForecast(text, result.timestamp);
 
@@ -391,18 +268,16 @@ async function collectOneOffice(officeCode) {
             console.log(`[RegionalForecast] ${office.name}: 해상예보 먼바다 ${marineCount}개, 앞바다 ${coastalCount}개 구역 파싱 완료`);
         }
 
-        if (!summary) {
-            console.log(`[RegionalForecast] ${office.name}: 종합 전망 추출 실패`);
-            // 해상예보만이라도 반환
-            if (marineCount === 0 && coastalCount === 0) return null;
+        // marine/coastal 둘 다 비어있으면 PDF 에서 더 가져올 게 없음 → 저장 스킵
+        if (marineCount === 0 && coastalCount === 0) {
+            console.log(`[RegionalForecast] ${office.name}: 해상예보 추출 실패 (구역 0건)`);
+            return null;
         }
 
         return {
             officeCode,
             officeName: office.name,
             publishTime: publishTime || result.timestamp,
-            summary,
-            temperature,
             marineForecast,
             coastalForecast,
             collectedAt: new Date().toISOString()
@@ -483,9 +358,25 @@ async function collectRegionalForecasts(progressEmitter) {
         }
     } catch (_) {}
 
+    // [partial-merge] 통보문 수집기(regional_bulletin_collector)가 채운 필드를 보존한다.
+    //   - 보존: bulletinReportId, bulletinPublishTime, summary, temperature
+    //   - 갱신: officeCode, officeName, publishTime(=PDF 발표시각), marineForecast,
+    //           coastalForecast, collectedAt
+    //   PDF 수집(05/11/17 +10분)이 통보문 수집(04/16시 윈도우)보다 늦게 돌면서 통째로
+    //   덮어쓰는 버그가 있었음 — 그 결과 04:30 발표분 단기 전망이 05:10 사이클에서
+    //   소멸하던 문제를 여기서 막는다.
     const merged = { ...existing };
     for (const [code, data] of Object.entries(results)) {
-        merged[code] = data;
+        const prev = merged[code] || {};
+        merged[code] = {
+            ...prev,
+            officeCode: data.officeCode,
+            officeName: data.officeName,
+            publishTime: data.publishTime,
+            marineForecast: data.marineForecast,
+            coastalForecast: data.coastalForecast,
+            collectedAt: data.collectedAt,
+        };
     }
     merged._lastUpdated = new Date().toISOString();
 
@@ -570,8 +461,19 @@ async function retryMissingOffices() {
         try {
             const data = await collectOneOffice(code);
             if (data) {
-                data._fetchTimestamp = currentTs;
-                existing[code] = data;
+                // [partial-merge] 통보문 수집기가 채운 필드(bulletinReportId/bulletinPublishTime/
+                // summary/temperature)를 보존하고 PDF 출처 필드만 갱신.
+                const prev = existing[code] || {};
+                existing[code] = {
+                    ...prev,
+                    officeCode: data.officeCode,
+                    officeName: data.officeName,
+                    publishTime: data.publishTime,
+                    marineForecast: data.marineForecast,
+                    coastalForecast: data.coastalForecast,
+                    collectedAt: data.collectedAt,
+                    _fetchTimestamp: currentTs,
+                };
             }
             await new Promise(r => setTimeout(r, 500));
         } catch (e) {
