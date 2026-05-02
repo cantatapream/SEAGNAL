@@ -75,34 +75,35 @@
         { label: '비/눈', color: '#3dc4e6' },   // 청록
         { label: '눈',     color: '#8e8ee6' }    // 보라
     ];
-    // pop: 강수확률 0/20/40/60/80/100% — KMA raster 색상 + 임계값별 매핑
+    // pop: 강수확률 0/20/40/60/80/100% — KMA raster 색상 + 임계값별 매핑.
+    //   label 은 boundary 표시값만, 단위(%) 는 renderLegend 에서 일괄 부착.
     var POP_LEGEND = [
-        { label: '0',         color: '#ffea6e' },   // 연노랑 (베이스)
-        { label: '20',        color: '#ffdc1f' },   // 진노랑
-        { label: '40',        color: '#69fc69' },   // 연녹
-        { label: '60',        color: '#00a400' },   // 진녹
-        { label: '80',        color: '#1f219d' },   // 남
-        { label: '100 (%)',   color: '#8e8ee6' }    // 보라 (raster 외삽)
+        { label: '0',   color: '#ffea6e' },   // 연노랑 (베이스)
+        { label: '20',  color: '#ffdc1f' },   // 진노랑
+        { label: '40',  color: '#69fc69' },   // 연녹
+        { label: '60',  color: '#00a400' },   // 진녹
+        { label: '80',  color: '#1f219d' },   // 남
+        { label: '100', color: '#8e8ee6' }    // 보라 (raster 외삽)
     ];
     // pcp: 강수량 0/0.8/4/9/30/80/700 mm — KMA raster + 임계값
     var PCP_LEGEND = [
-        { label: '0.0',       color: '#ffffff' },   // 흰 (무강수)
-        { label: '0.8',       color: '#ffea6e' },   // 연노랑
-        { label: '4.0',       color: '#ffdc1f' },   // 진노랑
-        { label: '9.0',       color: '#69fc69' },   // 연녹
-        { label: '30',        color: '#00a400' },   // 진녹
-        { label: '80',        color: '#3ec1ff' },   // 청
-        { label: '700 (mm)',  color: '#1f219d' }    // 남 (raster #1f219d 빈도 매우 낮음 → 극값)
+        { label: '0',   color: '#ffffff' },   // 흰 (무강수)
+        { label: '0.8', color: '#ffea6e' },   // 연노랑 (소수 유지)
+        { label: '4',   color: '#ffdc1f' },   // 진노랑
+        { label: '9',   color: '#69fc69' },   // 연녹
+        { label: '30',  color: '#00a400' },   // 진녹
+        { label: '80',  color: '#3ec1ff' },   // 청
+        { label: '700', color: '#1f219d' }    // 남
     ];
     // sno: 적설 0.1/0.8/4/9/18/40/90 cm
     var SNO_LEGEND = [
-        { label: '0.1',       color: '#ffffff' },
-        { label: '0.8',       color: '#ffea6e' },
-        { label: '4.0',       color: '#ffdc1f' },
-        { label: '9.0',       color: '#69fc69' },
-        { label: '18',        color: '#00a400' },
-        { label: '40',        color: '#3ec1ff' },
-        { label: '90 (cm)',   color: '#1f219d' }
+        { label: '0.1', color: '#ffffff' },
+        { label: '0.8', color: '#ffea6e' },
+        { label: '4',   color: '#ffdc1f' },
+        { label: '9',   color: '#69fc69' },
+        { label: '18',  color: '#00a400' },
+        { label: '40',  color: '#3ec1ff' },
+        { label: '90',  color: '#1f219d' }
     ];
     var LEGEND_DEF = {
         sky: { title: '하늘상태', style: 'category', items: SKY_LEGEND },
@@ -364,22 +365,34 @@
 
         var html = '';
         if (def.style === 'gradient') {
-            // KMA 사이트 동일 스타일: 단계 블록 (그라디언트 X) + boundary 라벨 + 우측 단위.
-            // N 개 라벨 → N-1 개 색상 블록 (라벨 사이마다 한 색).
-            // flex 로 블록 균등 분배 → 라벨 (justify-content: space-between) 이 정확히 boundary 에 위치.
+            // KMA 사이트 동일 스타일 (색상표만):
+            //   1) 색상 바: 인접 색상 간 linear-gradient 보간 → 연속형 띠 (KMA 와 동일).
+            //   2) 라벨: boundary 위치에 absolute 배치, 단위(%/mm/cm) 는 라벨 텍스트에 직접 부착.
+            //   3) 별도 헤더 / 우하단 단위 표시 없음.
+            var items = def.items;
+            var unit = def.unit || '';
             var blocksHtml = '';
-            for (var bi = 0; bi < def.items.length - 1; bi++) {
-                blocksHtml += '<div class="shrt-fcst-grad-block" style="background:' + def.items[bi].color + ';"></div>';
+            for (var bi = 0; bi < items.length - 1; bi++) {
+                var c1 = items[bi].color, c2 = items[bi + 1].color;
+                blocksHtml += '<div class="shrt-fcst-grad-block" style="background:'
+                            + 'linear-gradient(to right, ' + c1 + ', ' + c2 + ');"></div>';
             }
             html += '<div class="shrt-fcst-grad-bar">' + blocksHtml + '</div>';
             html += '<div class="shrt-fcst-grad-labels">';
-            def.items.forEach(function (it) {
-                html += '<span>' + it.label + '</span>';
-            });
-            html += '</div>';
-            if (def.unit) {
-                html += '<div class="shrt-fcst-grad-unit">(' + def.unit + ')</div>';
+            // N 라벨 → 정확한 boundary 좌표는 i/(N-1)*100% (i=0..N-1).
+            // 첫/마지막은 좌우 가장자리에 정렬, 중간은 boundary 중심정렬.
+            var lastIdx = items.length - 1;
+            for (var li = 0; li < items.length; li++) {
+                var pct = (li / lastIdx) * 100;
+                var tx;
+                if (li === 0)              tx = '0';
+                else if (li === lastIdx)   tx = '-100%';
+                else                       tx = '-50%';
+                html += '<span style="left:' + pct + '%;transform:translateX(' + tx + ');">'
+                      +   items[li].label + unit
+                      + '</span>';
             }
+            html += '</div>';
             lg.classList.add('gradient-mode');
         } else {
             // 카테고리형: swatch + label 가로 정렬 (sky, pty)
