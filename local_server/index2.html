@@ -1059,10 +1059,12 @@
             white-space: nowrap;
             font-weight: 600;
         }
-        /* 날짜 라벨 (자정) — 트랙 위쪽 */
+        /* 날짜 라벨 (자정) — 트랙 위쪽 (50% 기준 정렬, 트랙과 균등 거리) */
         .shrt-fcst-tick-label.top    { bottom: calc(50% + 8px); }
-        /* 시간 라벨 (정오) — 트랙 아래쪽 */
-        .shrt-fcst-tick-label.bottom { top: calc(50% + 8px); }
+        /* 시간 라벨 (정오) — bar 의 bottom 에 직접 붙임.
+           label.bottom 끝 = bar 끝 = 메인탭 시작 → 슬라이더와 메인탭 사이 빈 공간(공백 2) 제거.
+           범례 절대 위치는 그대로 유지 → 슬라이더와 범례 간격(공백 1)은 자동 보존. */
+        .shrt-fcst-tick-label.bottom { bottom: 0; }
 
         /* 단기예보 범례 — 슬라이더 바 위 좌측 정렬, 흰색 카드 + 항목 가로 정렬
            예: [ㅁ 맑음   ㅁ 구름많음   ㅁ 흐림]  (제목 없음)
