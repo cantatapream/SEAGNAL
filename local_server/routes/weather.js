@@ -613,4 +613,60 @@ router.post('/api/admin/forecast-collect', async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. KMA 단기예보 점 데이터 (천기 클릭 팝업용)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// [무엇을 하나?]
+//   사용자가 지도에서 한 지점을 클릭하면, 그 좌표(lat/lon) 와 시각(fct_tm) 의
+//   KMA 단기예보 5개 카테고리(sky/pty/pop/pcp/sno) 데이터를 한 번에 반환.
+//
+// [동작 흐름]
+//   1) 클라이언트(js/shrt_forecast_layer.js) 가 클릭한 lon/lat + 슬라이더 현재 시각
+//      을 query string 으로 GET 호출.
+//   2) services/shrt_fcst_point.js 가 KMA PNG 5장을 fetch (캐시) + 그 좌표 픽셀의
+//      RGB 를 색상 팔레트와 매칭하여 단계 값으로 변환.
+//   3) 5개 카테고리 결과를 합쳐 종합 JSON 응답.
+//
+// [요청 파라미터]
+//   - lat (필수): 위도 (예: 35.123)
+//   - lon (필수): 경도 (예: 129.456)
+//   - fct_tm (필수): "YYYY.MM.DD HH:mm" 포맷 (KMA imgList 응답과 동일).
+//
+// [응답 예]
+//   {
+//     "ok": true,
+//     "data": {
+//       "fct_tm": "2026.05.03 14:00",
+//       "lat": 35.123, "lon": 129.456,
+//       "sky": { "label": "구름많음", "rgb": [...] },
+//       "pty": { "label": "비",       "rgb": [...] },
+//       "pop": { "value": 24,         "bandIdx": 6, ... },
+//       "pcp": { "value": null,       "reason": "no_data" },
+//       "sno": { "value": null,       "reason": "no_data" }
+//     }
+//   }
+//
+// [캐시 / 성능]
+//   서비스 모듈이 자체 메모리 캐시 운용 (PNG 60분 TTL).
+//   warm 응답 < 50ms, cold 응답 < 1초 (PNG 5장 병렬 fetch + 디코딩).
+const shrtFcstPointSvc = require('../services/shrt_fcst_point');
+router.get('/api/shrt-fcst-point', async (req, res) => {
+    try {
+        const lat = parseFloat(req.query.lat);
+        const lon = parseFloat(req.query.lon);
+        const fctTm = (req.query.fct_tm || '').trim();
+        if (!isFinite(lat) || !isFinite(lon) || !fctTm) {
+            return res.status(400).json({ ok: false, error: 'lat/lon/fct_tm 필수' });
+        }
+        // 30 초 클라이언트 캐시 — 동일 lat/lon/fct_tm 재요청 시 네트워크 절약
+        res.set('Cache-Control', 'public, max-age=30');
+        const data = await shrtFcstPointSvc.sampleFiveAt(lat, lon, fctTm);
+        res.json({ ok: true, data });
+    } catch (e) {
+        console.error('[shrt-fcst-point] 실패:', e.message);
+        res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
 module.exports = router;
