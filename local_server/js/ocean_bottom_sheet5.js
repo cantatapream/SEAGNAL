@@ -70,7 +70,10 @@
         // (5) 천기 카드: KMA 단기예보 6 카테고리 종합 (해당 좌표가 KMA extent 안일 때만 표시).
         //     ocean_bottom_sheet_weather.js 가 자체적으로 fct_tm round + sample + 4셀 채움.
         //     데이터 전혀 없으면 카드 자체 hide.
-        if (OS.loadWeatherCard) OS.loadWeatherCard(lat, lon, d);
+        //     forceRefresh=true → loadAllForDate 는 사용자 의도적 호출 (해점 클릭 / 날짜 nav)
+        //     이므로 imgList 캐시 무효화 + KMA 새 fetch. 슬라이더 이동(onTimelineChanged) 은
+        //     forceRefresh 미지정 (false) → 기존 캐시 사용 → KMA 부하 절약.
+        if (OS.loadWeatherCard) OS.loadWeatherCard(lat, lon, d, /*forceRefresh*/ true);
 
         // (5) 6개 일반 카드: 일단 모든 날짜에서 호출 (안A)
         //     백엔드 정상화 전까지 카드 자동 숨김도 임시 해제 — 실패 시 "데이터 없음" 텍스트 표출
