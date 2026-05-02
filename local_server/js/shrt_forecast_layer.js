@@ -105,11 +105,11 @@
         { label: '90 (cm)',   color: '#1f219d' }
     ];
     var LEGEND_DEF = {
-        sky: { title: '하늘상태', items: SKY_LEGEND },
-        pty: { title: '강수형태', items: PTY_LEGEND },
-        pop: { title: '강수확률', items: POP_LEGEND },
-        pcp: { title: '강수량',   items: PCP_LEGEND },
-        sno: { title: '적설',     items: SNO_LEGEND }
+        sky: { title: '하늘상태', style: 'category', items: SKY_LEGEND },
+        pty: { title: '강수형태', style: 'category', items: PTY_LEGEND },
+        pop: { title: '강수확률', style: 'gradient', unit: '%',  items: POP_LEGEND },
+        pcp: { title: '강수량',   style: 'gradient', unit: 'mm', items: PCP_LEGEND },
+        sno: { title: '적설',     style: 'gradient', unit: 'cm', items: SNO_LEGEND }
     };
 
     // ── 잠금 해제 패턴 ───────────────────────────────────────────
@@ -352,14 +352,35 @@
         if (!lg) return;
         var def = LEGEND_DEF[shrtType];
         if (!def) { lg.innerHTML = ''; lg.style.display = 'none'; return; }
-        // 사용자 요청: 제목(예: "하늘상태") 미표시. 항목만 가로로 나열.
-        // CSS .shrt-fcst-legend 가 display:flex 라 자동으로 가로 정렬.
+
         var html = '';
-        for (var i = 0; i < def.items.length; i++) {
-            var it = def.items[i];
-            html += '<div class="shrt-fcst-legend-row">'
-                  +   '<span class="shrt-swatch" style="background:' + it.color + ';"></span>'
-                  +   '<span>' + it.label + '</span></div>';
+        if (def.style === 'gradient') {
+            // KMA 사이트 동일 스타일: 가로 그라디언트 바 + 균등 분포 임계값 라벨 + 우측 정렬 단위.
+            // 헤더(카테고리명)는 사용자 요구로 제외.
+            var n = Math.max(1, def.items.length - 1);
+            var stops = def.items.map(function (it, i) {
+                return it.color + ' ' + ((i / n) * 100) + '%';
+            }).join(', ');
+
+            html += '<div class="shrt-fcst-grad-bar" style="background: linear-gradient(to right, ' + stops + ');"></div>';
+            html += '<div class="shrt-fcst-grad-labels">';
+            def.items.forEach(function (it) {
+                html += '<span>' + it.label + '</span>';
+            });
+            html += '</div>';
+            if (def.unit) {
+                html += '<div class="shrt-fcst-grad-unit">(' + def.unit + ')</div>';
+            }
+            lg.classList.add('gradient-mode');
+        } else {
+            // 카테고리형: swatch + label 가로 정렬 (sky, pty)
+            for (var i = 0; i < def.items.length; i++) {
+                var it = def.items[i];
+                html += '<div class="shrt-fcst-legend-row">'
+                      +   '<span class="shrt-swatch" style="background:' + it.color + ';"></span>'
+                      +   '<span>' + it.label + '</span></div>';
+            }
+            lg.classList.remove('gradient-mode');
         }
         lg.innerHTML = html;
         lg.style.display = '';
