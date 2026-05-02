@@ -930,16 +930,6 @@
         // [충돌 방지] hit 이면 true 반환 → 아래 바텀시트 로직이 추가로 뜨는 것을 막음.
         if (tryHandleMarineZoneClick(evt)) return;
 
-        // [T5] 천기(KMA 단기예보) 레이어 활성 시 — 천기 점데이터 정보 박스 우선 표출.
-        // [정책] 천기와 특보가 함께 켜져 있을 때, 사용자 요구 — "천기 정보가 우선".
-        //        천기 가드를 특보 가드 위에 배치 → 천기 OFF 일 때만 아래의 특보 가드 평가.
-        // [구현] js/shrt_forecast_layer.js 가 window._shrtForecastTryHandleClick 노출.
-        //        활성 + KMA extent 내부 + frame 있음 → 박스 띄우고 true 반환 (클릭 소비).
-        //        그 외엔 false 반환 → 다음 가드 (특보 / 바텀시트) 진행.
-        if (typeof window._shrtForecastTryHandleClick === 'function') {
-            if (window._shrtForecastTryHandleClick(oceanMap, evt)) return;
-        }
-
         // 활성 특보 색칠 모드(특보 ON 토글) — 부모 특보구역 클릭 시 특보 박스 표출.
         // [충돌 방지] hit 이면 true 반환 → 바텀시트 표출 스킵.
         // [정책] 활성/다가오는 특보가 있는 부모 zone 폴리곤만 hit. 자식 폴리곤을
