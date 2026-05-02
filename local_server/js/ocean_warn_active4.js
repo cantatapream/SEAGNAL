@@ -215,7 +215,7 @@
             if (label) {
                 label.textContent = '특보 OFF';
                 label.setAttribute('data-line1', '특보');
-                label.setAttribute('data-line2', '끄기');   // 사용자 명세 — 한글 "끄기"
+                label.setAttribute('data-line2', 'OFF');   // 큰 모드 표출 — 보통 모드 textContent 와 일치
             }
         } else {
             // (b) OFF — 회색 경광등 + "특보 ON" 라벨 (누르면 ON)
@@ -227,7 +227,7 @@
             if (label) {
                 label.textContent = '특보 ON';
                 label.setAttribute('data-line1', '특보');
-                label.setAttribute('data-line2', '켜기');   // 사용자 명세 — 한글 "켜기"
+                label.setAttribute('data-line2', 'ON');   // 큰 모드 표출 — 보통 모드 textContent 와 일치
             }
         }
     };

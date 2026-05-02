@@ -8311,7 +8311,9 @@ html[data-font-size="large"] .ocean-overlay-btn i {
 
 /* 큰 텍스트 모드 — 원본 라벨 텍스트(예: "유향·유속") 는 hide,
    대신 data-line1/data-line2 속성을 ::before / ::after 로 두 줄 표시.
-   data-line2 가 없는 1행 라벨 (예: "기본맵") 은 ::before 만 표시. */
+   data-line2 가 없는 1행 라벨 (예: "기본맵") 은 ::before 만 표시.
+   [버튼 크기 통일] min-height 1.5rem — 1줄 라벨 버튼도 2줄 버튼과 동일 키 유지
+   (예: 해구·천기·강수량·적설·기온 — 라벨 1줄이지만 버튼 자체 크기는 다른 버튼과 일치) */
 html[data-font-size="large"] .ocean-overlay-label[data-line1] {
     font-size: 0;          /* 원본 텍스트 (예: 유향·유속) hide */
     line-height: 1;
@@ -8320,6 +8322,14 @@ html[data-font-size="large"] .ocean-overlay-label[data-line1] {
     justify-content: center;
     align-items: center;
     gap: 0.0625rem;        /* 1px @ 16 — 두 줄 사이 약간 띄움 */
+    min-height: 1.5rem;    /* 24px @ 16 — 2줄 라벨 동등 높이 보장 */
+}
+/* 큰 텍스트 모드 — warn-active 버튼 (#ocean-warn-active-toggle-btn) 의
+   font-size: 9.5px (index2.html ln 711) 오버라이드를 무력화.
+   그렇지 않으면 ID 셀렉터 우선순위로 원본 textContent("특보 ON") 가 9.5px 로
+   보여 ::before/::after 와 함께 3줄 표출되는 문제. */
+html[data-font-size="large"] #ocean-warn-active-toggle-btn .ocean-overlay-label {
+    font-size: 0;
 }
 html[data-font-size="large"] .ocean-overlay-label[data-line1]::before,
 html[data-font-size="large"] .ocean-overlay-label[data-line2]::after {
