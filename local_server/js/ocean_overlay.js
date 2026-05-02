@@ -343,6 +343,7 @@
     window.oceanOverlayTurnOff = function () {
         if (!streamActive) return; // 이미 꺼진 상태면 불필요
         streamActive = false;
+        activeLayer = null;
         // 모든 오버레이 버튼의 active 표시 제거
         document.querySelectorAll('.ocean-overlay-btn[data-layer]').forEach(function (b) {
             b.classList.remove('active');
@@ -352,6 +353,9 @@
         // 통합 박스(범례+타임라인) 숨김
         var legendEl = document.getElementById('ocean-legend');
         if (legendEl) legendEl.style.display = 'none';
+        // 색상 범례 hide → 특보 범례 위치 계산식이 0 이 되도록 변수 reset.
+        // (이 한 줄이 빠지면 특보 범례가 80px 떠 있는 채로 남는 회귀 발생)
+        document.documentElement.style.setProperty('--ocean-legend-height', '0px');
     };
 
     window.oceanOverlayClear = function () {
@@ -504,6 +508,60 @@
      *
      * @param {string} layer - 'current'|'wind'|'wave' 등
      */
+    /**
+     * [색상 범례 높이 publish]
+     * #ocean-legend (그라디언트 + 슬라이더 박스) 의 실측 높이를 CSS 변수
+     * `--ocean-legend-height` 로 publish.
+     *
+     * 왜?
+     *   특보 범례(.warn-active-legend) 의 bottom 계산식이 이 변수를 더해
+     *   색상 범례 위로 밀려 올라간다. 색상 범례 OFF 면 0px → 원위치.
+     *
+     * 언제 호출?
+     *   - setActiveLayer 안에서 updateLegend 호출 직후 (레이어 ON)
+     *   - oceanOverlayTurnOff 에서 0px 로 reset (레이어 OFF — 직접 setProperty)
+     *   - ResizeObserver 가 폰트 크기 변경 등으로 높이 변할 때 자동 호출
+     *
+     * rAF 양보:
+     *   display='' 직후엔 layout 미적용 → offsetHeight 0 일 수 있음.
+     *   requestAnimationFrame 1tick 양보 후 측정.
+     */
+    function _publishOceanLegendHeight() {
+        var apply = function () {
+            var el = document.getElementById('ocean-legend');
+            var h = 0;
+            if (el && el.offsetHeight && el.style.display !== 'none') {
+                var rect = el.getBoundingClientRect();
+                h = Math.round(rect.height);
+            }
+            document.documentElement.style.setProperty(
+                '--ocean-legend-height', h + 'px'
+            );
+        };
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(apply);
+        } else {
+            apply();
+        }
+    }
+
+    /**
+     * #ocean-legend 의 크기 변동 (폰트 크기, 슬라이더 tick 재배치 등) 추적.
+     * init 시 1회만 등록. 변동 시마다 _publishOceanLegendHeight 자동 호출 →
+     * 특보 범례 위치 자동 보정.
+     */
+    var _oceanLegendRO = null;
+    function _setupOceanLegendResizeObserver() {
+        if (_oceanLegendRO) return; // 이미 등록됨
+        if (typeof ResizeObserver !== 'function') return; // 구형 브라우저 — 안전 fallback
+        var el = document.getElementById('ocean-legend');
+        if (!el) return;
+        _oceanLegendRO = new ResizeObserver(function () {
+            _publishOceanLegendHeight();
+        });
+        _oceanLegendRO.observe(el);
+    }
+
     function updateLegend(layer) {
         var scale = COLOR_SCALES[layer];
         var legendEl = document.getElementById('ocean-legend');
@@ -514,6 +572,10 @@
 
         // 범례 표시
         if (legendEl) legendEl.style.display = '';
+        // 색상 범례 표출 직후 실측 높이를 CSS 변수로 publish — 특보 범례가
+        // 그만큼 위로 올라가도록. ResizeObserver 도 init.
+        _setupOceanLegendResizeObserver();
+        _publishOceanLegendHeight();
 
         // 그라디언트 바 생성
         var colors = scale.map(function (s) {

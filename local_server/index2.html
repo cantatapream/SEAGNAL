@@ -826,8 +826,23 @@
                스택이 붙어있다. 그 스택이 특보 범례를 가려버리는 문제 → 천기 모듈
                (js/shrt_forecast_layer.js) 이 activate/deactivate 시점에
                --shrt-stack-height CSS 변수를 갱신하면, 그 값만큼 특보 범례가 위로 상승.
-               천기 OFF 일 때는 변수가 0px → 원래 위치 복귀. */
-            bottom: calc(var(--main-tab-height, 68px) + 12px + var(--shrt-stack-height, 0px));
+               천기 OFF 일 때는 변수가 0px → 원래 위치 복귀.
+
+               [유향유속·풍향풍속·파고파향 색상 범례와의 충돌 회피 — 동적]
+               해당 레이어 활성 시 #ocean-legend (색상 그라디언트 + 슬라이더 박스) 가
+               메인탭 바로 위에 고정되어 약 70~90px 차지. 특보 범례가 그 위로
+               밀려나도록 ocean_overlay.js (setActiveLayer/oceanOverlayTurnOff) 가
+               --ocean-legend-height CSS 변수를 publish.
+                 - 레이어 OFF (오버레이 미활성) → 0px → 메인탭 위 12px (원위치)
+                 - 레이어 ON  → 색상 범례 실측 높이만큼 위로 상승 → 슬라이더 위
+                특보 범례 자체는 bottom-anchored 라 1줄/2줄/3줄 늘어나면 자동으로
+                위로 자라남 (별도 처리 불필요). */
+            bottom: calc(
+                var(--main-tab-height, 68px)
+                + 12px
+                + var(--shrt-stack-height, 0px)
+                + var(--ocean-legend-height, 0px)
+            );
             z-index: 1100;        /* 우측 컨트롤 스택 위, 정보박스(10500) 보다 아래 */
             background: rgba(255, 255, 255, 0.88);
             backdrop-filter: blur(2px);
