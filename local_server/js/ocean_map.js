@@ -924,21 +924,22 @@
             if (hit) return; // 마커 클릭이면 마커 핸들러에서 처리
         }
 
+        // [T5 — 가드 순서 변경] 천기(KMA 단기예보) 레이어 활성 시 가장 우선.
+        // [정책] 사용자 요구 — "해구도/특보가 같이 켜져있어도 천기가 1순위".
+        //        해구도 가드 위로 옮겨져 천기가 활성이면 빈 영역 클릭은 천기 박스로 소비.
+        //        CCTV/부이/마커는 우리 위에 있어 그 아이콘 클릭 시 정상 동작 (사용자 명세).
+        // [구현] js/shrt_forecast_layer.js 가 window._shrtForecastTryHandleClick 노출.
+        //        활성 + KMA extent 내부 + frame 있음 → 박스 띄우고 true 반환 (클릭 소비).
+        //        그 외엔 false 반환 → 다음 가드 (해구도 / 특보 / 바텀시트) 진행.
+        if (typeof window._shrtForecastTryHandleClick === 'function') {
+            if (window._shrtForecastTryHandleClick(oceanMap, evt)) return;
+        }
+
         // 해구도 격자 클릭 (해구도 토글 ON 일 때만)
         // [목적] 격자 셀을 두 번 누르면 기존 "해구별 기상" 모달을 띄움.
         //        2-step (선택 → 모달) 흐름은 seaZones.js 의 이미지 지도와 동일.
         // [충돌 방지] hit 이면 true 반환 → 아래 바텀시트 로직이 추가로 뜨는 것을 막음.
         if (tryHandleMarineZoneClick(evt)) return;
-
-        // [T5] 천기(KMA 단기예보) 레이어 활성 시 — 천기 점데이터 정보 박스 우선 표출.
-        // [정책] 천기와 특보가 함께 켜져 있을 때, 사용자 요구 — "천기 정보가 우선".
-        //        천기 가드를 특보 가드 위에 배치 → 천기 OFF 일 때만 아래의 특보 가드 평가.
-        // [구현] js/shrt_forecast_layer.js 가 window._shrtForecastTryHandleClick 노출.
-        //        활성 + KMA extent 내부 + frame 있음 → 박스 띄우고 true 반환 (클릭 소비).
-        //        그 외엔 false 반환 → 다음 가드 (특보 / 바텀시트) 진행.
-        if (typeof window._shrtForecastTryHandleClick === 'function') {
-            if (window._shrtForecastTryHandleClick(oceanMap, evt)) return;
-        }
 
         // 활성 특보 색칠 모드(특보 ON 토글) — 부모 특보구역 클릭 시 특보 박스 표출.
         // [충돌 방지] hit 이면 true 반환 → 바텀시트 표출 스킵.
