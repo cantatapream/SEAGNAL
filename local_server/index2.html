@@ -918,7 +918,7 @@
            [높이] 60px 고정 — bar 의 vertical 중앙 = 슬라이더 트랙 = 재생버튼 가운데
            [표출] shrt_forecast_layer.js 가 레이어 ON 시 display:''           */
         .shrt-fcst-slider-bar {
-            position: fixed;                 /* viewport 기준 — PC/모바일 일관 동작 */
+            position: absolute;             /* fixed 는 모바일 WebView 에서 ancestor transform 등으로 보이지 않는 케이스 발생 → absolute 유지 */
             left: 0;
             right: 0;
             bottom: var(--main-tab-height, 68px);
@@ -1071,7 +1071,7 @@
            [폭] inline-flex 로 콘텐츠 너비만큼만 차지 (max-width 만 안전망)
            [위치] 슬라이더 바 상단으로부터 약 6px 위 (사용자 요구: 슬라이더-메인탭 간격의 절반) */
         .shrt-fcst-legend {
-            position: fixed;                 /* slider-bar 와 동일한 stacking 기준으로 */
+            position: absolute;             /* slider-bar 와 동일한 absolute */
             left: 12px;
             /* slider bar height 50 + 약 14px 여백 = 메인탭 위로 64px */
             bottom: calc(var(--main-tab-height, 68px) + 64px);
