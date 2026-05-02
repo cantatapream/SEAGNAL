@@ -171,18 +171,25 @@ const REGIONAL_BULLETIN_AI_PROMPT = `
 /**
  * 단순 HTTPS GET → UTF-8 텍스트 반환.
  * (다른 모듈의 fetchHtml 과 동일 패턴 — 의존성 최소화 위해 자체 구현)
+ *
+ * [timeout] 15초 — 응답 없는 KMA 사이트에 영원히 매달리지 않도록.
+ *   다른 수집 모듈(regional_forecast_collector.fetchPdf 등)과 동일 값.
+ *   timeout 시 reject → 호출측이 캐시 저장 안 하고 다음 5분 사이클에 재시도.
  */
 function fetchHtml(url) {
     return new Promise((resolve, reject) => {
-        https.get(url, {
+        const req = https.get(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
+            },
+            timeout: 15000
         }, (res) => {
             const chunks = [];
             res.on('data', c => chunks.push(c));
             res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-        }).on('error', reject);
+        });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
     });
 }
 
