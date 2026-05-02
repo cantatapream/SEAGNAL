@@ -62,41 +62,47 @@
         sky: '하늘상태', pty: '강수형태'
     };
 
-    // 범례 — KMA 표준 카테고리/단계.
+    // 범례 — KMA raster 픽셀 sampling 으로 추출한 정확한 색상 (12 frame 합산 통계).
     // sky 는 해상 단기예보에 DB02 미사용 → 3단계만 (marine.kma.go.kr 와 동일)
     var SKY_LEGEND = [
         { label: '맑음',     color: 'rgba(255, 255, 255, 0.85)' },
         { label: '구름많음', color: 'rgba(174, 200, 224, 0.85)' },
-        { label: '흐림',     color: 'rgba(99,  138, 178, 0.85)' }
+        { label: '흐림',     color: 'rgba(56,  120, 152, 0.85)' }   // KMA #387898
     ];
+    // pty: 강수형태 3종 — KMA raster 색상 추출
     var PTY_LEGEND = [
-        { label: '비',     color: 'rgba(76,  175, 80,  0.85)' },
-        { label: '비/눈', color: 'rgba(33,  150, 243, 0.85)' },
-        { label: '눈',     color: 'rgba(156, 39,  176, 0.85)' }
+        { label: '비',     color: '#60d47e' },   // 녹  (KMA raster 비율 99%)
+        { label: '비/눈', color: '#3dc4e6' },   // 청록
+        { label: '눈',     color: '#8e8ee6' }    // 보라
     ];
+    // pop: 강수확률 0/20/40/60/80/100% — KMA raster 색상 + 임계값별 매핑
     var POP_LEGEND = [
-        { label: '0',   color: 'rgba(255, 255, 200, 0.85)' },
-        { label: '20',  color: 'rgba(232, 232, 100, 0.85)' },
-        { label: '40',  color: 'rgba(160, 200, 80,  0.85)' },
-        { label: '60',  color: 'rgba(80,  170, 200, 0.85)' },
-        { label: '80',  color: 'rgba(80,  100, 200, 0.85)' },
-        { label: '100 (%)', color: 'rgba(150, 60,  200, 0.85)' }
+        { label: '0',         color: '#ffea6e' },   // 연노랑 (베이스)
+        { label: '20',        color: '#ffdc1f' },   // 진노랑
+        { label: '40',        color: '#69fc69' },   // 연녹
+        { label: '60',        color: '#00a400' },   // 진녹
+        { label: '80',        color: '#1f219d' },   // 남
+        { label: '100 (%)',   color: '#8e8ee6' }    // 보라 (raster 외삽)
     ];
+    // pcp: 강수량 0/0.8/4/9/30/80/700 mm — KMA raster + 임계값
     var PCP_LEGEND = [
-        { label: '0.0',   color: 'rgba(255, 250, 220, 0.85)' },
-        { label: '0.8',   color: 'rgba(255, 220, 100, 0.85)' },
-        { label: '4.0',   color: 'rgba(120, 200, 100, 0.85)' },
-        { label: '9.0',   color: 'rgba(100, 200, 200, 0.85)' },
-        { label: '30.0',  color: 'rgba(150, 100, 200, 0.85)' },
-        { label: '80.0',  color: 'rgba(180, 60,  120, 0.85)' },
-        { label: '700 (mm)', color: 'rgba(200, 30,  30,  0.85)' }
+        { label: '0.0',       color: '#ffffff' },   // 흰 (무강수)
+        { label: '0.8',       color: '#ffea6e' },   // 연노랑
+        { label: '4.0',       color: '#ffdc1f' },   // 진노랑
+        { label: '9.0',       color: '#69fc69' },   // 연녹
+        { label: '30',        color: '#00a400' },   // 진녹
+        { label: '80',        color: '#3ec1ff' },   // 청
+        { label: '700 (mm)',  color: '#1f219d' }    // 남 (raster #1f219d 빈도 매우 낮음 → 극값)
     ];
+    // sno: 적설 0.1/0.8/4/9/18/40/90 cm
     var SNO_LEGEND = [
-        { label: '0',  color: 'rgba(240, 248, 255, 0.85)' },
-        { label: '1',  color: 'rgba(180, 220, 240, 0.85)' },
-        { label: '5',  color: 'rgba(120, 180, 220, 0.85)' },
-        { label: '10', color: 'rgba(80,  140, 200, 0.85)' },
-        { label: '30 (cm)', color: 'rgba(40,  80,  180, 0.85)' }
+        { label: '0.1',       color: '#ffffff' },
+        { label: '0.8',       color: '#ffea6e' },
+        { label: '4.0',       color: '#ffdc1f' },
+        { label: '9.0',       color: '#69fc69' },
+        { label: '18',        color: '#00a400' },
+        { label: '40',        color: '#3ec1ff' },
+        { label: '90 (cm)',   color: '#1f219d' }
     ];
     var LEGEND_DEF = {
         sky: { title: '하늘상태', items: SKY_LEGEND },
@@ -161,19 +167,61 @@
         slider.style.setProperty('--shrt-progress', pct + '%');
     }
 
+    /**
+     * 말풍선 위치/화살표 동적 계산.
+     *
+     * [디자인 의도]
+     *   - 말풍선 본체: viewport 좌·우 가장자리 안쪽으로 항상 가두기 (텍스트 잘림 방지)
+     *   - 화살표 (::after, --shrt-arrow-x): 슬라이더 thumb 위치를 향해 좌/중/우 동적 이동
+     *
+     * [폰트 크기 동적 대응]
+     *   매 호출 시 tip.getBoundingClientRect().width 로 실제 width 측정 → 폰트 크기
+     *   변경 시 자동으로 새 width 반영 (rem 기반 layout 이라 reflow 자동).
+     */
     function updateTooltip() {
         var tip = $('shrt-fcst-tooltip');
         var slider = $('shrt-fcst-slider');
         if (!tip || !slider) return;
         var idx = parseInt(slider.value, 10) || 0;
         var frame = state.frames[idx];
-        tip.textContent = frame ? frame.label : '';
+        if (!frame) return;
+        tip.textContent = frame.label;
+
+        // 1) reset — 정확한 width 측정 위해 transform/left 초기화
+        tip.style.left = '0px';
+        tip.style.transform = 'none';
+
+        // 2) thumb 의 viewport 절대 좌표
+        var sliderRect = slider.getBoundingClientRect();
         var min = parseFloat(slider.min) || 0;
         var max = parseFloat(slider.max) || 0;
         var pct = max > min ? ((idx - min) / (max - min)) : 0;
-        var w = slider.getBoundingClientRect().width;
-        var thumbHalf = 9;
-        tip.style.left = (thumbHalf + pct * (w - thumbHalf * 2)) + 'px';
+        var thumbHalf = 9;   // thumb 반지름 (px) — CSS thumb width 16의 절반 + border 등 고려
+        var thumbXViewport = sliderRect.left + thumbHalf + pct * (sliderRect.width - thumbHalf * 2);
+
+        // 3) 말풍선 측정 (텍스트 변경 후 재측정)
+        var tipRect = tip.getBoundingClientRect();
+        var tipW = tipRect.width;
+
+        // 4) 말풍선 left = thumb 가운데 정렬, viewport 좌·우 4px padding 안에서 clamping
+        var pad = 4;
+        var minLV = pad;
+        var maxLV = window.innerWidth - tipW - pad;
+        var idealLV = thumbXViewport - tipW / 2;
+        var clampedLV = Math.max(minLV, Math.min(idealLV, maxLV));
+
+        // 5) wrap (slider-wrap = parent of tooltip) 기준 left 로 변환
+        var wrapRect = tip.parentElement.getBoundingClientRect();
+        var leftInWrap = clampedLV - wrapRect.left;
+        tip.style.left = leftInWrap + 'px';
+
+        // 6) 화살표 x (말풍선 안에서 thumb 가리키는 위치).
+        //    말풍선이 가두어졌더라도 화살표는 thumb 방향으로 비스듬히 이동.
+        //    좌·우 8px 안쪽으로 clamping (화살표가 말풍선 모서리 밖으로 안 나가게)
+        var arrowX = thumbXViewport - clampedLV;
+        var arrowMin = 8, arrowMax = tipW - 8;
+        arrowX = Math.max(arrowMin, Math.min(arrowX, arrowMax));
+        tip.style.setProperty('--shrt-arrow-x', arrowX + 'px');
     }
 
     function getOceanMap() {

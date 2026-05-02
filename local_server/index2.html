@@ -937,18 +937,17 @@
             background: rgba(15, 25, 50, 0.92);
             backdrop-filter: blur(2px);
             border-top: 1px solid rgba(120, 150, 200, 0.25);
-            padding: 0 14px;
-            /* 박스 height 컴팩트화: thumb(50% 가운데) 아래쪽 빈 공간을 줄여
-               시각적으로 메인탭에 더 가깝게 붙어 보이도록 함.
-               36px = 날짜라벨(10) + 트랙·thumb 영역(16) + 시간라벨 baseline(10) */
-            height: 36px;
+            padding: 0 0.875rem;            /* 14px @ 16px root */
+            /* 박스 height — rem 기반 (폰트 크기 설정에 비례 조정).
+               medium(16px): 36px / large(20px): 45px */
+            height: 2.25rem;
             box-sizing: border-box;
             box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.35);
         }
         .shrt-fcst-play-btn {
             flex: 0 0 auto;
-            width: 28px;
-            height: 28px;
+            width: 1.75rem;                 /* 28px @ 16 */
+            height: 1.75rem;
             border-radius: 50%;
             border: 1px solid rgba(255, 255, 255, 0.35);
             background: rgba(255, 255, 255, 0.92);
@@ -957,7 +956,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 11px;
+            font-size: 0.6875rem;           /* 11px @ 16 */
             padding: 0;
         }
         .shrt-fcst-play-btn:hover { background: #ffffff; }
@@ -1014,31 +1013,37 @@
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
             cursor: pointer;
         }
-        /* 항상 표시 말풍선 — slider thumb 위 (bar 박스 살짝 벗어남, overflow:visible) */
+        /* 항상 표시 말풍선 — slider thumb 위 (bar 박스 살짝 벗어남, overflow:visible).
+           [동적 크기] padding/font-size/top 모두 rem → 폰트 크기 설정에 비례 조정.
+           [동적 위치] left 와 화살표(::after) 위치를 JS updateTooltip() 가 매 호출 시 갱신.
+                       말풍선은 viewport 좌·우 가두기 (텍스트 잘림 방지),
+                       화살표만 thumb 향해 좌/중/우로 비스듬히 이동. */
         .shrt-fcst-tooltip {
             position: absolute;
-            top: -22px;                     /* bar top 위로 22px (말풍선 height ~22, thumb 위쪽에 떠있음) */
-            transform: translateX(-50%);
+            top: -1.375rem;                /* -22px @ 16 — bar top 위로 떠있음 */
             background: #ffffff;
             color: #111827;
-            padding: 3px 9px;
-            border-radius: 4px;
+            padding: 0.1875rem 0.5625rem;  /* 3 9px @ 16 */
+            border-radius: 0.25rem;
             font-family: "Pretendard", sans-serif;
-            font-size: 11px;
+            font-size: 0.6875rem;          /* 11px @ 16 */
             font-weight: 700;
             white-space: nowrap;
             pointer-events: none;
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
             border: 1px solid rgba(0, 0, 0, 0.08);
             z-index: 2;
+            /* JS 가 left, --shrt-arrow-x 를 inline 으로 설정. 초기 transform 없음. */
         }
         .shrt-fcst-tooltip::after {
             content: '';
             position: absolute;
-            left: 50%;
+            /* 화살표 left — JS updateTooltip() 이 thumb 위치에 따라 동적으로 설정.
+               기본 50% (말풍선 가운데). thumb 가 우/좌 끝에 있으면 화살표만 그쪽으로. */
+            left: var(--shrt-arrow-x, 50%);
             top: 100%;
             transform: translateX(-50%);
-            border: 4px solid transparent;
+            border: 0.25rem solid transparent;
             border-top-color: #ffffff;
             filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.08));
         }
@@ -1065,7 +1070,7 @@
             transform: translateX(-50%);
             color: rgba(220, 230, 245, 0.85);
             font-family: "Pretendard", sans-serif;
-            font-size: 10px;
+            font-size: 0.625rem;            /* 10px @ 16 */
             line-height: 1;
             white-space: nowrap;
             font-weight: 600;
@@ -1082,42 +1087,43 @@
            [위치] 슬라이더 바 상단으로부터 약 6px 위 (사용자 요구: 슬라이더-메인탭 간격의 절반) */
         .shrt-fcst-legend {
             position: absolute;
-            left: 12px;
+            left: 0.75rem;                  /* 12px @ 16 */
             /* slider bottom 과 동일하게 safe-area 보정.
-               그 위로 slider height(36) + 말풍선 위 영역(22) + 7px 여백 = 65px
-               (말풍선 top 과 범례 bottom 거리 14 → 7 으로 1/2 축소) */
-            bottom: calc(var(--main-tab-height, 68px) - env(safe-area-inset-bottom, 0px) + 65px);
+               그 위로 slider height(2.25rem) + 말풍선 위 영역(1.375rem) + 0.4375rem 여백
+               = 약 4.0625rem (= 65px @ 16). 폰트 크기 설정에 비례 조정.
+               base 부분(--main-tab-height, env)은 시스템 측정값이라 px 그대로. */
+            bottom: calc(var(--main-tab-height, 68px) - env(safe-area-inset-bottom, 0px) + 4.0625rem);
             z-index: 1100;
             background: rgba(255, 255, 255, 0.92);
             backdrop-filter: blur(2px);
             border: 1px solid rgba(0, 0, 0, 0.08);
-            border-radius: 6px;
-            padding: 6px 10px;
+            border-radius: 0.375rem;        /* 6px @ 16 */
+            padding: 0.375rem 0.625rem;     /* 6 10px @ 16 */
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
             font-family: "Pretendard", sans-serif;
-            font-size: 11px;
+            font-size: 0.6875rem;           /* 11px @ 16 */
             color: #1f2937;
             user-select: none;
             pointer-events: none;
-            max-width: calc(100vw - 24px);   /* 안전망: 화면 폭 초과 시 wrap */
+            max-width: calc(100vw - 1.5rem); /* 안전망: 화면 폭 초과 시 wrap */
 
             /* 콘텐츠 폭만큼만 차지 — inline-flex 로 폭 자동 결정 */
             display: inline-flex;
             width: max-content;
             flex-wrap: wrap;
             align-items: center;
-            gap: 6px 14px;
+            gap: 0.375rem 0.875rem;         /* 6 14px @ 16 */
         }
         .shrt-fcst-legend .shrt-fcst-legend-row {
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 0.3125rem;                 /* 5px @ 16 */
         }
         .shrt-swatch {
             display: inline-block;
-            width: 18px;
-            height: 12px;
-            border-radius: 2px;
+            width: 1.125rem;                /* 18px @ 16 */
+            height: 0.75rem;                /* 12px @ 16 */
+            border-radius: 0.125rem;        /* 2px @ 16 */
             border: 1px solid rgba(0, 0, 0, 0.20);
         }
     </style>
