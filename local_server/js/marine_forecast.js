@@ -318,11 +318,62 @@ async function loadMarineForecast() {
         renderForecastSection(data.ultraShort, 'ultra-short-forecast-title', 'ultra-short-forecast-body');
         renderForecastSection(data.shortTerm, 'short-term-forecast-title', 'short-term-forecast-body');
 
+        // [최초 1회] 초단기/단기 중 더 최근 발표분만 펼친 상태로 시작.
+        applyMarineForecastDefaultExpansion(data);
+
     } catch (e) {
         console.error('[MarineForecast] 로드 오류:', e);
         renderForecastSection(null, 'ultra-short-forecast-title', 'ultra-short-forecast-body');
         renderForecastSection(null, 'short-term-forecast-title', 'short-term-forecast-body');
     }
+}
+
+/**
+ * 초단기/단기 전망 아코디언의 시작 상태 결정.
+ *
+ * 둘 다 표시될 때 한꺼번에 펼쳐져 화면이 산만해지는 문제 해소 —
+ * 가장 최근 발표분만 펼친 상태로 두고 나머지 하나는 닫는다.
+ *
+ * 적용 시점: 페이지 로드 후 1회 (이후 사용자 클릭 보존).
+ *   세션당 한 번만 동작하도록 _marineForecastDefaultApplied 플래그로 가드.
+ *   사용자가 양쪽 다 펼쳐 보다가 자동 새로고침이 돌아도 그 상태가 유지됨.
+ *
+ * 비교 기준: reportId 안의 12자리 발표 타임스탬프(YYYYMMDDHHMM) — 문자열 비교만으로 시간순 정렬 가능.
+ */
+let _marineForecastDefaultApplied = false;
+function applyMarineForecastDefaultExpansion(data) {
+    if (_marineForecastDefaultApplied) return;
+
+    const ultraBody = document.getElementById('ultra-short-forecast-body');
+    const shortBody = document.getElementById('short-term-forecast-body');
+    if (!ultraBody || !shortBody) return;
+    const ultraSection = ultraBody.closest('.marine-forecast-sub-accordion');
+    const shortSection = shortBody.closest('.marine-forecast-sub-accordion');
+    if (!ultraSection || !shortSection) return;
+
+    // 데이터가 둘 다 비어 있으면 손대지 않음 (디폴트 HTML 의 .open 그대로)
+    if (!data || (!data.ultraShort && !data.shortTerm)) return;
+
+    function tsOf(forecast) {
+        if (!forecast || !forecast.reportId) return '';
+        return (forecast.reportId.split(':')[1] || '').substring(0, 12); // "202605021620"
+    }
+    const ultraTs = tsOf(data.ultraShort);
+    const shortTs = tsOf(data.shortTerm);
+
+    let openSection;
+    if (!ultraTs && !shortTs) return;
+    if (!ultraTs) openSection = shortSection;
+    else if (!shortTs) openSection = ultraSection;
+    else openSection = (ultraTs >= shortTs) ? ultraSection : shortSection;
+
+    // 한쪽만 .open 으로 — toggle 대신 명시적으로 add/remove 해서 멱등 보장
+    [ultraSection, shortSection].forEach(s => {
+        if (s === openSection) s.classList.add('open');
+        else s.classList.remove('open');
+    });
+
+    _marineForecastDefaultApplied = true;
 }
 
 /**
@@ -587,6 +638,29 @@ function renderRegionalForecast(data) {
 
     titleEl.textContent = `종합 예보 (${relevantData.length}개 지방청)`;
 
+    // [아코디언 시작 상태 결정]
+    //   - 첫 렌더(이전에 카드가 0개)인 경우:
+    //       지방청 1개 → 그 카드 자동 펼침 (어차피 하나뿐이라 두 번 누를 일 없도록)
+    //       지방청 2개 이상 → 모두 닫음 (사용자가 필요한 것만 펼침)
+    //   - 재렌더(자동 새로고침 등)인 경우:
+    //       사용자가 직전에 펼쳐둔 지방청 코드 그대로 유지 (선택 보존)
+    //   판정: 본문 div 안에 .regional-forecast-office 가 이미 있는가로 첫/재렌더 구분.
+    const prevOfficeEls = bodyEl.querySelectorAll('.regional-forecast-office');
+    const isFirstRender = prevOfficeEls.length === 0;
+    const openCodes = new Set();
+    if (isFirstRender) {
+        if (relevantData.length === 1 && relevantData[0].officeCode) {
+            openCodes.add(relevantData[0].officeCode);
+        }
+    } else {
+        prevOfficeEls.forEach(el => {
+            if (el.classList.contains('open')) {
+                const code = el.getAttribute('data-office-code');
+                if (code) openCodes.add(code);
+            }
+        });
+    }
+
     let html = '';
     for (const item of relevantData) {
         // [발표 시각] 통보문(단기 전망) 발표시각만 표시.
@@ -613,7 +687,8 @@ function renderRegionalForecast(data) {
         //   여러 지방청이 동시에 표시될 때 모든 본문이 한꺼번에 펼쳐져 스크롤이
         //   너무 길어지는 문제 해소 — 사용자는 보고 싶은 지방청만 열어 본다.
         //   기본 상태: 닫힘. 데이터 속성 data-office-code 로 토글 대상 식별.
-        html += `<div class="regional-forecast-office" data-office-code="${escapeHtml(item.officeCode || '')}">`;
+        const openClass = openCodes.has(item.officeCode) ? ' open' : '';
+        html += `<div class="regional-forecast-office${openClass}" data-office-code="${escapeHtml(item.officeCode || '')}">`;
         html += `<div class="regional-forecast-office-header" onclick="toggleRegionalOffice('${escapeHtml(item.officeCode || '')}')">`;
         // [헤더 라벨] "단기예보" → "단기 전망" — list.do [해설] 통보문 본문 기반으로 변경되었음을 반영
         html += `<span class="regional-forecast-office-name">${escapeHtml(item.officeName)} 단기 전망</span>`;
@@ -626,19 +701,33 @@ function renderRegionalForecast(data) {
         // 아코디언 본문 — 헤더 아래의 모든 콘텐츠는 .open 일 때만 표시
         html += `<div class="regional-forecast-office-body">`;
 
-        // [기온 박스] 헤더 바로 아래에 표시. 라벨 "오늘 기온" 고정.
-        //   표기 형식: "최저 X ~ Y℃ | 최고 X ~ Y℃" 두 값 모두 범위형(range).
-        //   둘 중 하나라도 값이 있어야 박스 자체를 그린다 — 박스 라벨만 외롭게 남는 것 방지.
+        // [기온 박스] 헤더 바로 아래에 2단 그리드로 표시.
+        //   레이아웃: 🌡️ 기온  | 최저          | 최고
+        //                       | 7.2 ~ 13.7℃ | 19.1 ~ 23.9℃
+        //   라벨(최저/최고)이 위, 값이 아래에 들어가는 컬럼 형식.
+        //   둘 중 하나라도 값이 있어야 박스 자체를 그린다.
+        //   둘 다 있을 때만 가운데 분리선(|) 출력.
         if (hasTemp) {
             html += `<div class="regional-forecast-temp">`;
             html += `<span class="regional-forecast-temp-icon">🌡️</span>`;
-            html += `<span class="regional-forecast-temp-label">오늘 기온</span>`;
+            html += `<span class="regional-forecast-temp-label">기온</span>`;
+            html += `<div class="regional-forecast-temp-grid">`;
             if (lowText) {
-                html += `<span class="regional-forecast-temp-value temp-low">최저 <b>${escapeHtml(lowText)}℃</b></span>`;
+                html += `<div class="regional-forecast-temp-cell temp-low">`;
+                html += `<span class="regional-forecast-temp-cell-label">최저</span>`;
+                html += `<span class="regional-forecast-temp-cell-value">${escapeHtml(lowText)}℃</span>`;
+                html += `</div>`;
+            }
+            if (lowText && highText) {
+                html += `<span class="regional-forecast-temp-divider">|</span>`;
             }
             if (highText) {
-                html += `<span class="regional-forecast-temp-value temp-high">최고 <b>${escapeHtml(highText)}℃</b></span>`;
+                html += `<div class="regional-forecast-temp-cell temp-high">`;
+                html += `<span class="regional-forecast-temp-cell-label">최고</span>`;
+                html += `<span class="regional-forecast-temp-cell-value">${escapeHtml(highText)}℃</span>`;
+                html += `</div>`;
             }
+            html += `</div>`;
             html += `</div>`;
         }
 
