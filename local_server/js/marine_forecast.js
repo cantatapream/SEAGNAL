@@ -272,15 +272,26 @@ function renderForecastSection(data, titleId, bodyId) {
  *   - null / undefined: JS 의 falsy 값
  *   - "" (빈 문자열) 또는 공백만: trim 결과 길이 0
  *   - 문자열 "null" / "undefined" (대소문자 무관): 서버가 보낸 sentinel
+ *   - 객체 {main, sub} 형태: main 과 sub 모두 의미 없으면 false
+ *     (AI 결과는 객체 형식 — main 안에 'null' 문자열이 들어올 수 있어 재귀 검사)
  *
  * 왜 필요?
  *   KMA 응답이 미발표 카테고리에 대해 가끔 문자열 "null" 을 보내옴 →
  *   기존 if (text) 가드는 truthy 판정 → "강풍 : null" 같이 어색한 표시.
+ *   AI 분석본은 {main: "null", sub: []} 객체 형식으로 옴 → 재귀로 main/sub 모두 검사.
  *
- * 호출자: renderForecastSection (위), renderRegionalForecast (아래)
+ * 호출자: renderForecastSection
  */
 function _isMeaningfulText(t) {
     if (t == null) return false;
+    // 객체 형태 ({main, sub}) — main 또는 sub 중 하나라도 의미 있어야 true
+    if (typeof t === 'object') {
+        var mainOk = _isMeaningfulText(t.main);
+        var subOk = Array.isArray(t.sub) && t.sub.some(function (s) {
+            return _isMeaningfulText(s);
+        });
+        return mainOk || subOk;
+    }
     var s = String(t).trim();
     if (!s) return false;
     var low = s.toLowerCase();
