@@ -39,6 +39,7 @@
     "multer-storage-cloudinary": "^4.0.0",
     "node-cron": "^4.2.1",
     "pdf-parse": "^1.1.1",
+    "pngjs": "^7.0.0",
     "web-push": "^3.6.7"
   }
 }
