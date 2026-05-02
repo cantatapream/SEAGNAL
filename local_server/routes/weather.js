@@ -414,16 +414,22 @@ router.get('/api/marine-forecast', (req, res) => {
     }
 });
 
-// 5-1. 지방기상청 단기예보 (종합 전망 + 기온)
-//    [수집 주기] 하루 3회 (05:10, 11:10, 17:10 KST), regional_forecast.json
-//    [HTTP 캐시] 정상 응답에만 max-age=600 (10분), 빈 응답은 no-store.
+// 5-1. 지방기상청 단기 전망 + 해상예보(먼바다/앞바다)
+//    [수집 주기]
+//      - 단기 전망(summary/temperature): 통보문 — KST 04:01~04:56 / 16:01~16:56 5분 간격
+//      - PDF marine/coastal           : KST 05:10 / 11:10 / 17:10
+//      두 수집기가 같은 regional_forecast.json 을 partial-merge 로 공유.
+//    [HTTP 캐시] max-age=60 (1분).
+//      통보문 발표(04:30, 16:20~16:30) 직후 1분 안에 사용자 화면에 반영되도록 단축.
+//      이전엔 600초(10분)라 04:31 갱신 데이터가 최대 04:35~04:39 까지 옛 값으로
+//      보이는 문제가 있었음. JSON 정적 송출이라 1분 캐시도 부담 없음.
 router.get('/api/regional-forecast', (req, res) => {
     try {
         const filePath = path.join(DATA_DIR, 'regional_forecast.json');
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'regional_forecast.json not found' });
         }
-        res.setHeader('Cache-Control', 'public, max-age=600');
+        res.setHeader('Cache-Control', 'public, max-age=60');
         res.sendFile(filePath);
     } catch (e) {
         res.status(500).json({ error: e.message });

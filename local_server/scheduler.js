@@ -139,6 +139,9 @@ loadApiConfig();
 
 const marineForecastProcessor = require('./marine_forecast_processor');
 const regionalForecastCollector = require('./regional_forecast_collector');
+// [지방청 단기 전망] list.do 통보문 기반 — PDF 수집기와 같은 regional_forecast.json 을
+// partial-merge 로 공유. summary / temperature / bulletin* 필드만 이 모듈이 채운다.
+const regionalBulletinCollector = require('./regional_bulletin_collector');
 
 
 const DUCKDNS_CONFIG = {
@@ -1431,12 +1434,27 @@ async function init() {
             collectMidTermSeaForecasts(),
             marineForecastProcessor.collectMarineForecasts().then(() => log('✅ 해상 기상 전망 수집 완료')),
             regionalForecastCollector.collectRegionalForecasts().then(() => log('✅ 지방기상청 단기예보 수집 완료')),
+            // [주의] regionalBulletinCollector 는 Promise.all 안에 두지 않는다.
+            //   PDF 수집기와 같은 regional_forecast.json 을 partial-merge 로 갱신하기 때문에
+            //   둘이 동시에 출발하면 부팅 시 race(빈 메모리 스냅샷이 상대방 write 를 덮어씀)가
+            //   발생할 수 있음. PDF 가 끝난 뒤 직렬로 실행하도록 Promise.all 외부로 분리.
             collectFishingIndex().then(() => log('✅ 바다낚시 지수 수집 완료')),
             collectSeaSplitIndex().then(() => log('✅ 바다갈라짐 체험지수 수집 완료')),
             collectSurfingIndex().then(() => log('✅ 서핑지수 수집 완료'))
         ]);
     } catch (e) {
         log(`⚠️ 일부 수집 중 오류: ${e.message}`);
+    }
+
+    // [부팅 직렬화] PDF 수집(Promise.all 안)이 모두 완료된 뒤에 통보문 수집을 실행.
+    //   같은 regional_forecast.json 을 partial-merge 로 공유하므로 동시 실행 시
+    //   첫 read 가 빈 스냅샷을 들고 가 상대 write 를 덮어쓰는 race 가 발생.
+    //   순서를 보장해 부팅 직후 단기 전망 데이터 소실을 방지.
+    try {
+        await regionalBulletinCollector.collectAllRegionalBulletins();
+        log('✅ 지방청 단기 전망(통보문) 수집 완료');
+    } catch (err) {
+        log(`⚠️ 지방청 단기 전망 수집 오류: ${err.message}`);
     }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -1503,9 +1521,28 @@ async function init() {
         }
 
         // 지방기상청 단기예보: 미수집 지방청 재시도 (30분 간격)
-        if (min % 30 === 10 && !['05:10', '11:10', '17:10'].includes(hm)) {
+        // [통보문 윈도우 회피] 04~05시 / 16~17시 KST 는 통보문 수집 윈도우와 겹쳐
+        //   같은 regional_forecast.json 을 둘이 read↔long-fetch↔write 패턴으로
+        //   갱신할 때 race(낡은 메모리 스냅샷이 통보문 write 를 덮어씀)가 발생함.
+        //   이 시간대는 retry 자체를 건너뛴다 — 어차피 04:10/04:40 시점엔 다음
+        //   PDF 발표(05:00) 까지 새 데이터가 없어 의미 있는 호출도 아님.
+        if (min % 30 === 10 && !['05:10', '11:10', '17:10'].includes(hm)
+            && kstDate.getHours() !== 4 && kstDate.getHours() !== 16) {
             regionalForecastCollector.retryMissingOffices()
                 .catch(err => log(`⚠️ 지방기상청 재수집 오류: ${err.message}`));
+        }
+
+        // [지방청 단기 전망 통보문] list.do?stn={지방청} 에서 [해설] 단기 전망 수집
+        //   발표시각: KST 04:30 / 16:20~16:30 (지방청별 다름) — 하루 2회
+        //   수집 윈도우: 04:01~04:56, 16:01~16:56 KST 안에서 5분 간격으로 시도
+        //                (분이 1, 6, 11, ... 56 일 때 — min % 5 === 1)
+        //   동일 reportId 캐시 hit 이면 모듈 내부에서 즉시 스킵하므로 같은 윈도우에서
+        //   여러 번 호출되어도 실제 fetch/AI 는 신규 발표분에 대해서만 1회 발생.
+        //   PDF 수집기(05/11/17 +10분)와는 시간대가 겹치지 않아 race condition 없음.
+        if ((kstDate.getHours() === 4 || kstDate.getHours() === 16) && (min % 5 === 1)) {
+            regionalBulletinCollector.collectAllRegionalBulletins()
+                .then(() => log('✅ 지방청 단기 전망(통보문) 수집 사이클 완료'))
+                .catch(err => log(`⚠️ 지방청 단기 전망 수집 오류: ${err.message}`));
         }
 
 
