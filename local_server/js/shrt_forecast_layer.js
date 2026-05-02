@@ -234,12 +234,9 @@
         tmp: { title: '기온',     style: 'gradient', unit: '°C', colors: TMP_COLORS, dynamicLabels: _getTmpLabels }
     };
 
-    // ── 잠금 해제 패턴 ───────────────────────────────────────────
-    var UNLOCK_CLICKS = 10;
-    var RESET_MS = 3000;
-
     // ─────────────────────────────────────────────────────────────
     // 모듈 상태
+    //   (이전: 10회 연속 클릭 잠금 패턴 — 사용자 요구로 폐지)
     // ─────────────────────────────────────────────────────────────
 
     var state = {
@@ -253,9 +250,6 @@
         preloadedImgs: {}
     };
 
-    var _unlocked = false;
-    var _clickCount = 0;
-    var _resetTimer = null;
     var initialized = false;
 
     // ─────────────────────────────────────────────────────────────
@@ -272,7 +266,7 @@
      *   index2_patch.js 의 전역 _showOceanToast 함수가 있으면 호출, 없으면 console.log.
      *
      * 어디서 쓰이나?
-     *   잠금 패턴에서 "미구현 상태입니다" / "천기 잠금 해제됨" 등의 안내 메시지.
+     *   안내 메시지 표출용 (예: 에러/상태 알림 — 잠금 패턴은 폐지됨).
      */
     function _toast(msg) {
         if (typeof window._showOceanToast === 'function') {
@@ -900,6 +894,11 @@
         hideLegend();
         var items = document.querySelectorAll('.ocean-other-wx-item.active');
         for (var i = 0; i < items.length; i++) items[i].classList.remove('active');
+        // [P2] 천기 토글 버튼 active 클래스 제거 — 다른 버튼들과 동일한 패턴.
+        //   특보구역(ocean_warn_zone.js)/CCTV(ocean_cctv.js)/특보 ON 버튼이
+        //   .active 클래스로 시각적 ON 상태 표시하는 것과 일관성 유지.
+        var toggleBtn = $('ocean-other-wx-toggle-btn');
+        if (toggleBtn) toggleBtn.classList.remove('active');
         // tooltip-suppressed 클래스 제거 (다음 카테고리형 활성 시 즉시 보이도록)
         var bar = $('shrt-fcst-slider-bar');
         if (bar) bar.classList.remove('tooltip-suppressed');
@@ -949,6 +948,11 @@
 
         var btn = document.querySelector('.ocean-other-wx-item[data-shrt="' + shrtType + '"]');
         if (btn) btn.classList.add('active');
+        // [P2] 천기 토글 버튼도 active 표시 — 천기 레이어가 ON 상태임을 시각적으로 보여줌.
+        //   서브버튼 popup 닫혀도 토글 버튼이 active 상태로 남아있어 사용자가
+        //   "천기 켜져있구나" 인지 가능 (다른 버튼과 동일 패턴).
+        var toggleBtn = $('ocean-other-wx-toggle-btn');
+        if (toggleBtn) toggleBtn.classList.add('active');
 
         // [말풍선 노출 정책]
         // - 카테고리형(sky/pty): 항상 표출 (현재처럼)
@@ -1018,24 +1022,7 @@
 
         toggleBtn.addEventListener('click', function (e) {
             e.stopPropagation();
-            if (!_unlocked) {
-                _clickCount++;
-                clearTimeout(_resetTimer);
-                _resetTimer = setTimeout(function () { _clickCount = 0; }, RESET_MS);
-                if (_clickCount >= UNLOCK_CLICKS) {
-                    _unlocked = true;
-                    _clickCount = 0;
-                    clearTimeout(_resetTimer);
-                    _toast('천기 잠금 해제됨 (검수 모드)');
-                    wrap.classList.add('popup-open');
-                    popup.setAttribute('aria-hidden', 'false');
-                    // [P3] 잠금 해제 후 popup 열림 시 prefetch — 사용자가 서브버튼 고르는 동안 캐시 채움
-                    prefetchAllImgLists();
-                    return;
-                }
-                _toast('미구현 상태입니다.');
-                return;
-            }
+            // [잠금 패턴 폐지 — 사용자 요구] 바로 popup 토글.
             var willOpen = !wrap.classList.contains('popup-open');
             wrap.classList.toggle('popup-open');
             popup.setAttribute('aria-hidden', willOpen ? 'false' : 'true');
@@ -1072,13 +1059,29 @@
             //     - 그 위치 1번 sample
             //     - 정량형이고 재생 중 아니면 1초 fade-out 다시 적용
             //
+            // [드래그 + 말풍선 표시 — 사용자 요구]
+            //   드래그 중 (손/마우스 잡고 있는 동안):
+            //     - 본문 sample 안 함 (네트워크/CPU 절약, 헤더 시각만 갱신)
+            //     - 말풍선은 항상 표시 (시각 정보 보이게)
+            //   손 놓은 시점:
+            //     - 마지막 위치 1번 sample
+            //     - 정량형이고 재생 중 아니면 1초 fade-out 다시 적용
+            //
+            // [pointerdown/up 으로 드래그 상태 명시 추적]
+            //   이전엔 input 핸들러의 200ms debounce 안에서 _restoreTooltipPolicy 호출 →
+            //   사용자가 잡고 가만히 있으면 200ms 후 말풍선 사라지는 버그.
+            //   pointerdown/up 으로 명확히 추적하여 손 떼는 순간만 정책 복원.
+            //
             // 이벤트 흐름:
-            //   - 'input': 드래그 도중 매번 발화 (range 슬라이더 표준)
-            //              → showFrame(idx, true) 헤더+지도 즉시 갱신, sample skip
-            //              → tooltip-suppressed 제거 (말풍선 강제 표시)
-            //   - 'change': 손 뗀 시점 발화 → sample 트리거 + 말풍선 정책 복원
-            //   - 200ms idle 안전망: input 후 추가 input 없으면 강제 sample
+            //   - pointerdown: _inDrag = true, 말풍선 강제 표시
+            //   - input (드래그 도중 매번): _inDrag 면 헤더/지도만 갱신, sample skip
+            //                              _inDrag 아니면 (예: 키보드 조작) 즉시 sample
+            //   - pointerup: _inDrag = false, sample 1번 + 정책 복원
+            //   - pointercancel: 안전망 — 정책 복원
+            //   - change (fallback): pointer 이벤트 안 발화 시 sample + 복원
             var _dragSampleTimer = null;
+            var _inDrag = false;
+
             /**
              * 드래그 종료 후 말풍선 정책 복원 — 정량형이고 재생 중 아니면 fade-out.
              * 카테고리형(sky/pty)은 항상 표시 정책이라 무영향.
@@ -1092,21 +1095,44 @@
                     bar.classList.add('tooltip-suppressed');
                 }
             }
+
+            /** 드래그 종료 처리 — sample 1번 + 정책 복원 + idle timer 정리. */
+            function _onDragEnd() {
+                _inDrag = false;
+                clearTimeout(_dragSampleTimer);
+                if (popupState.box && popupState.latLon) refreshPopupContents();
+                _restoreTooltipPolicy();
+            }
+
+            slider.addEventListener('pointerdown', function () {
+                _inDrag = true;
+                stopPlay();
+                // 드래그 시작 → 말풍선 강제 표시 (재생 fade-out 정책 일시 무력화)
+                var bar = $('shrt-fcst-slider-bar');
+                if (bar) bar.classList.remove('tooltip-suppressed');
+            });
+            slider.addEventListener('pointerup',     _onDragEnd);
+            slider.addEventListener('pointercancel', _onDragEnd);
+
             slider.addEventListener('input', function () {
                 stopPlay();
-                // [P1 수정] 드래그 중 말풍선 강제 표시 — stopPlay 가 .tooltip-suppressed 를
-                //   추가했어도 여기서 즉시 제거. 사용자가 어느 시각으로 가는지 보이게.
                 var bar = $('shrt-fcst-slider-bar');
                 if (bar) bar.classList.remove('tooltip-suppressed');
                 var idx = parseInt(slider.value, 10) || 0;
                 showFrame(idx, true);   // skipSample=true → 본문은 정지, 헤더/지도만 갱신
-                clearTimeout(_dragSampleTimer);
-                _dragSampleTimer = setTimeout(function () {
-                    if (popupState.box && popupState.latLon) refreshPopupContents();
-                    _restoreTooltipPolicy();
-                }, 200);
+                if (!_inDrag) {
+                    // 키보드 등 pointer 외 조작 — 즉시 sample (드래그 아님)
+                    clearTimeout(_dragSampleTimer);
+                    _dragSampleTimer = setTimeout(function () {
+                        if (popupState.box && popupState.latLon) refreshPopupContents();
+                        _restoreTooltipPolicy();
+                    }, 200);
+                }
+                // _inDrag 인 동안엔 idle 타이머 동작 안 함 — pointerup 까지 대기
             });
+            // 안전망: pointer 이벤트 미지원 환경 또는 pointerup 누락 시 change 가 마무리.
             slider.addEventListener('change', function () {
+                if (_inDrag) return;   // pointerup 이 처리한 경우는 skip
                 clearTimeout(_dragSampleTimer);
                 if (popupState.box && popupState.latLon) refreshPopupContents();
                 _restoreTooltipPolicy();

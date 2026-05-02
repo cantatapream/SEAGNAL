@@ -306,12 +306,16 @@ if (window.__SEAGNAL_PAGE === 'index2') {
         });
 
         // 클러스터 레이어
+        //   [zIndex 130 — 사용자 요구로 보강] 이전 100.
+        //   천기(50) / 특보 외곽선(80) 보다 위, 위치 Overlay(200) 보다는 아래.
+        //   천기 PNG 색상이 진할 때 주요지명/부이 마커가 시각적으로 가려지는 문제 완화.
+        //   (CCTV 마커 100 과 같은 영역이라 둘 다 켜져있으면 자연스럽게 stack — 그대로 둠)
         _clusterLayer = new ol.layer.Vector({
             source: _clusterSource,
             updateWhileAnimating: true,
             updateWhileInteracting: true,
             style: clusterStyleFunction,
-            zIndex: 100
+            zIndex: 130
         });
 
         map.addLayer(_clusterLayer);
