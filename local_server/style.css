@@ -8294,6 +8294,55 @@ line-height: 1.1;
     white-space: nowrap;
 }
 
+/* ===========================================================================
+ * [큰 텍스트 모드 — 우측 컨트롤 버튼 한글 라벨]
+ *   FontSizeManager 가 'large' (가장 크게) 모드일 때 자동 적용.
+ *   이유: 작은 이모지 + 더 작은 라벨 텍스트 → 노약자가 식별 어려움.
+ *   해결: 이모지 hide + 라벨을 2줄 한글로 (버튼 내 공간 가득).
+ * =========================================================================== */
+
+/* 큰 텍스트 모드 — 모든 .ocean-overlay-btn 의 Font Awesome 아이콘 hide */
+html[data-font-size="large"] .ocean-overlay-btn .fa-solid,
+html[data-font-size="large"] .ocean-overlay-btn .fa-regular,
+html[data-font-size="large"] .ocean-overlay-btn .fa-brands,
+html[data-font-size="large"] .ocean-overlay-btn i {
+    display: none;
+}
+
+/* 큰 텍스트 모드 — 원본 라벨 텍스트(예: "유향·유속") 는 hide,
+   대신 data-line1/data-line2 속성을 ::before / ::after 로 두 줄 표시.
+   data-line2 가 없는 1행 라벨 (예: "기본맵") 은 ::before 만 표시. */
+html[data-font-size="large"] .ocean-overlay-label[data-line1] {
+    font-size: 0;          /* 원본 텍스트 (예: 유향·유속) hide */
+    line-height: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0.0625rem;        /* 1px @ 16 — 두 줄 사이 약간 띄움 */
+}
+html[data-font-size="large"] .ocean-overlay-label[data-line1]::before,
+html[data-font-size="large"] .ocean-overlay-label[data-line2]::after {
+    display: block;
+    text-align: center;
+    font-size: 0.7rem;     /* 큰 텍스트 모드 라벨 사이즈 */
+    line-height: 1.05;
+    letter-spacing: 0;
+    color: inherit;
+    font-weight: 600;
+}
+html[data-font-size="large"] .ocean-overlay-label[data-line1]::before {
+    content: attr(data-line1);
+}
+html[data-font-size="large"] .ocean-overlay-label[data-line2]::after {
+    content: attr(data-line2);
+}
+/* 버튼 자체의 padding/gap 도 큰 모드에서는 좀 더 압축 — 텍스트 영역 확보 */
+html[data-font-size="large"] .ocean-overlay-btn {
+    gap: 0;
+    padding: 6px 4px;
+}
+
 .ocean-overlay-btn.active {
     background: rgba(30, 80, 160, 0.9);
     color: #fff;
@@ -8384,7 +8433,9 @@ line-height: 1.1;
     overflow: visible; /* 말풍선 tooltip이 박스 위로 넘어갈 수 있도록 */
 }
 
-/* 범례 제목: 박스 최상단 중앙 ("조류 속도 (m/s)" 등) */
+/* 범례 제목 — 사용자 요구로 비워둠 (한글 헤더 제거). element 자체는 남기되
+   :empty 셀렉터로 완전 hide → 위 여백(margin-bottom 5px) 도 자동 제거.
+   비어있지 않은 경우 (특수 표시) 만 표시. */
 .ocean-legend-title {
     text-align: center;
     font-size: 0.65rem;
@@ -8392,6 +8443,9 @@ line-height: 1.1;
     margin-bottom: 5px;
     font-weight: 500;
     letter-spacing: 0.02em;
+}
+.ocean-legend-title:empty {
+    display: none;
 }
 
 /* 색상 그라디언트 바: 데이터 값 크기를 색상으로 표현 */
@@ -8432,35 +8486,45 @@ line-height: 1.1;
     position: relative;
 }
 
-/* 말풍선: 기본은 투명, visible 클래스가 붙으면 나타남.
-   bottom: calc(100% + 2px) → 슬라이더 위로 2px 간격을 두고 표시됨.
-   overflow:visible 된 부모 덕분에 범례 박스 경계를 넘어도 표시됨. */
+/* 말풍선 — 천기 슬라이더 (.shrt-fcst-tooltip) 와 동일 스타일.
+   [bottom 위치] 슬라이더 위로 약간 떠있음.
+   [width] 자동 (텍스트 길이만큼). 폰트 크기에 따라 동적 폭.
+   [동적 위치] JS updateTooltip() 이 매 호출 시 left 직접 계산.
+              transform 은 사용하지 않음 (좌표 계산을 단순화하기 위해).
+   [화살표] ::after 가 thumb 방향을 가리킴. 위치는 CSS 변수 --tl-arrow-x.
+   [폰트 크기] rem 기반 — FontSizeManager 의 작게/보통/크게 변동 시 자동 비례. */
 .ocean-timeline-tooltip {
     position: absolute;
-    bottom: calc(100% + 2px);
-    transform: translateX(-50%);
-    background: rgba(20, 55, 115, 0.95);
-    color: #fff;
-    font-size: 0.72rem;
-    font-weight: 600;
+    top: -1.375rem;                /* 22px @ 16 — 슬라이더 위로 떠있음 (천기 동일) */
+    left: 0;                        /* 초기값 — JS 가 매 호출 시 갱신 */
+    background: #ffffff;
+    color: #111827;
+    font-family: "Pretendard", sans-serif;
+    font-size: 0.6875rem;           /* 11px @ 16 (천기 tooltip 과 동일) */
+    font-weight: 700;
     white-space: nowrap;
-    padding: 4px 9px;
-    border-radius: 6px;
-    pointer-events: none;   /* 클릭 이벤트 차단 */
+    padding: 0.1875rem 0.5625rem;   /* 3 9px @ 16 */
+    border-radius: 0.25rem;
+    pointer-events: none;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(0, 0, 0, 0.08);
     opacity: 0;
-    transition: opacity 1s ease; /* fade-out 속도 (1초) */
+    transition: opacity 1s ease;    /* fade-out 1 초 */
     z-index: 10;
 }
 
-/* 아래를 향하는 삼각형 화살표 */
+/* 화살표 — 말풍선 안 thumb 방향을 가리킴.
+   [동적 위치] JS 가 --tl-arrow-x 변수에 px 값 설정 (말풍선 좌측 기준).
+              clamping 으로 말풍선이 가두어졌을 때 화살표만 thumb 방향 비스듬. */
 .ocean-timeline-tooltip::after {
     content: '';
     position: absolute;
+    left: var(--tl-arrow-x, 50%);   /* JS 가 매 호출 시 설정 — 기본 50% (가운데) */
     top: 100%;
-    left: 50%;
     transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: rgba(20, 55, 115, 0.95);
+    border: 0.25rem solid transparent;
+    border-top-color: #ffffff;
+    filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.08));
 }
 
 /* visible 클래스: 빠르게 나타남 (0.15초) */
@@ -9668,6 +9732,33 @@ body.ocean-map-active .main-header .header-content {
     color: #e2e8f0;
     font-weight: 600;
     margin-left: 4px;
+}
+/* [신규 — 이미지 박스 바로 위 라벨]
+   사용자 요구: 시각 텍스트를 일기도 그림 영역 바로 위에 약간 더 큰 글씨로 표출.
+     - 점프 버튼 아래 + 이미지 박스 위 위치 (HTML 순서로 보장)
+     - 폰트 1.05rem (기존 0.85rem 대비 ~24% 증가)
+     - 큰 텍스트 모드 (data-font-size="large") 에서도 화면 너비 안에 수렴하도록
+       max-width 100% + word-break 허용 (단, 보통 모드는 한 줄)
+     - 가운데 정렬 — 라벨이 짧고 이미지 박스 위에 시선 집중. */
+.mc-time-row-above-chart {
+    margin-top: 4px;
+    margin-bottom: 6px;
+    text-align: center;
+    font-size: 1.05rem;            /* 17px @ base 16 — 기존보다 큼 */
+    line-height: 1.3;
+    word-break: keep-all;          /* 한국어 단어 단위 줄바꿈 */
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mc-time-row-above-chart .mc-time-value {
+    color: #e2e8f0;
+    font-weight: 700;
+    margin-left: 0;
+}
+/* 큰 텍스트 모드 — 텍스트 크기 약간 더 키우되 화면 안에 수렴 보장 */
+html[data-font-size="large"] .mc-time-row-above-chart {
+    font-size: 1.15rem;            /* base 가 +4px 이미 들어가 있음 → 실 크기 ~22px */
 }
 .mc-time-jump {
     display: flex;
