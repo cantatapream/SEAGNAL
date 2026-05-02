@@ -2406,22 +2406,44 @@
                     </div>
                     </div><!-- /.ocean-sheet-stickytop -->
 
-                    <!-- 바디: 조석(풀폭) / 천문(풀폭) / 6카드 그리드 / 저질 -->
+                    <!-- 바디: 조석(풀폭) / 천기(풀폭) / 그리드 / 풀폭 카드 -->
+                    <!-- 카드 순서 (사용자 명세):
+                         조석 → 천기(풀폭) → 파고 → 풍향·속 → 유향·속 → 수온 → 수심 → 천문 → 월상 -->
                     <div class="ocean-sheet-body" id="ocean-sheet-body">
                         <!-- 조석 카드 (가로 전폭) - JS가 내용 채움 -->
                         <div class="ocean-data-card ocean-card-fullwidth" id="ocean-card-tide"></div>
 
-                        <!-- 카드 그리드: 수심 / 파고 / 바람 / 조류 / 수온 / 일출몰 -->
-                        <div class="ocean-cards-grid" id="ocean-cards-grid">
-                            <div class="ocean-data-card" id="ocean-card-depth">
-                                <div class="ocean-card-icon">
-                                    <i class="fa-solid fa-arrows-down-to-line"></i>
-                                    <div class="ocean-card-icon-label">수심</div>
+                        <!-- 천기 카드 (가로 전폭) — js/ocean_bottom_sheet_weather.js 가 내용 채움.
+                             하늘상태 / 강수량(pty+pcp+pop 종합) / 적설 / 기온 4개를 2×2 형태로 표시.
+                             [디자인] 라벨/콜론 없이 값만 4셀에 배치 — 사용자 요구로 폭 압박 해소.
+                             값 자체에 카테고리명 포함 ("적설 예보 없음" 등) 으로 식별 가능.
+                             데이터: 천기 popup 의 samplePointAt 함수 재사용. -->
+                        <div class="ocean-data-card ocean-card-fullwidth ocean-card-weather" id="ocean-card-weather" style="display:none;">
+                            <div class="ocean-card-icon">
+                                <i class="fa-solid fa-cloud-sun-rain"></i>
+                                <div class="ocean-card-icon-label">천기</div>
+                            </div>
+                            <div class="ocean-card-weather-grid" id="ocean-weather-grid">
+                                <!-- 4개 셀 (Row1: 하늘상태/강수량, Row2: 적설/기온).
+                                     라벨 없이 값만 — JS 가 진단된 카테고리명 포함된 텍스트로 채움.
+                                     초기값은 progress-bar 스켈레톤. -->
+                                <div class="ocean-weather-cell" id="ocean-val-wx-sky">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
-                                <div class="ocean-card-value" id="ocean-val-depth">
+                                <div class="ocean-weather-cell" id="ocean-val-wx-rain">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
+                                </div>
+                                <div class="ocean-weather-cell" id="ocean-val-wx-sno">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
+                                </div>
+                                <div class="ocean-weather-cell" id="ocean-val-wx-tmp">
                                     <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- 카드 그리드: 파고 / 풍향·속 / 유향·속 / 수온 / 수심 / 천문 / 월상 -->
+                        <div class="ocean-cards-grid" id="ocean-cards-grid">
                             <div class="ocean-data-card" id="ocean-card-wave">
                                 <div class="ocean-card-icon">
                                     <i class="fa-solid fa-water"></i>
@@ -2434,7 +2456,7 @@
                             <div class="ocean-data-card" id="ocean-card-wind">
                                 <div class="ocean-card-icon ocean-icon-clickable" id="ocean-icon-wind">
                                     <i class="fa-solid fa-wind"></i>
-                                    <div class="ocean-card-icon-label">바람</div>
+                                    <div class="ocean-card-icon-label">풍향·속</div>
                                 </div>
                                 <div class="ocean-card-value" id="ocean-val-wind">
                                     <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
@@ -2443,7 +2465,7 @@
                             <div class="ocean-data-card" id="ocean-card-current">
                                 <div class="ocean-card-icon ocean-icon-clickable" id="ocean-icon-current">
                                     <i class="fa-solid fa-arrows-spin"></i>
-                                    <div class="ocean-card-icon-label">조류</div>
+                                    <div class="ocean-card-icon-label">유향·속</div>
                                 </div>
                                 <div class="ocean-card-value" id="ocean-val-current">
                                     <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
@@ -2455,6 +2477,15 @@
                                     <div class="ocean-card-icon-label">수온</div>
                                 </div>
                                 <div class="ocean-card-value" id="ocean-val-temp">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
+                                </div>
+                            </div>
+                            <div class="ocean-data-card" id="ocean-card-depth">
+                                <div class="ocean-card-icon">
+                                    <i class="fa-solid fa-arrows-down-to-line"></i>
+                                    <div class="ocean-card-icon-label">수심</div>
+                                </div>
+                                <div class="ocean-card-value" id="ocean-val-depth">
                                     <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
                             </div>
@@ -2999,6 +3030,8 @@
     <script src="js/ocean_bottom_sheet3.js"></script>
     <script src="js/ocean_bottom_sheet4.js"></script>
     <script src="js/ocean_bottom_sheet5.js"></script>
+    <!-- 천기 카드 (해점 클릭 시 KMA 단기예보 6 카테고리 종합 표시) — sheet1~5 의존 -->
+    <script src="js/ocean_bottom_sheet_weather.js"></script>
     <script src="js/ocean_overlay.js"></script>
     <script src="js/ocean_buoy.js"></script>
     <script src="js/ocean_warn_zone.js"></script>
