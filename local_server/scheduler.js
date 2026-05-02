@@ -139,6 +139,9 @@ loadApiConfig();
 
 const marineForecastProcessor = require('./marine_forecast_processor');
 const regionalForecastCollector = require('./regional_forecast_collector');
+// [지방청 단기 전망] list.do 통보문 기반 — PDF 수집기와 같은 regional_forecast.json 을
+// partial-merge 로 공유. summary / temperature / bulletin* 필드만 이 모듈이 채운다.
+const regionalBulletinCollector = require('./regional_bulletin_collector');
 
 
 const DUCKDNS_CONFIG = {
@@ -1431,6 +1434,10 @@ async function init() {
             collectMidTermSeaForecasts(),
             marineForecastProcessor.collectMarineForecasts().then(() => log('✅ 해상 기상 전망 수집 완료')),
             regionalForecastCollector.collectRegionalForecasts().then(() => log('✅ 지방기상청 단기예보 수집 완료')),
+            // [서버 시작 시 1회] 지방청 단기 전망(list.do 통보문) 초기 수집.
+            //   캐시 hit 이면 fetch/AI 호출 0회로 즉시 끝나고, miss 면 7개 지방청만큼만 호출.
+            //   서버 재시작 직후 빈 화면 방지 목적.
+            regionalBulletinCollector.collectAllRegionalBulletins().then(() => log('✅ 지방청 단기 전망(통보문) 수집 완료')).catch(err => log(`⚠️ 지방청 단기 전망 수집 오류: ${err.message}`)),
             collectFishingIndex().then(() => log('✅ 바다낚시 지수 수집 완료')),
             collectSeaSplitIndex().then(() => log('✅ 바다갈라짐 체험지수 수집 완료')),
             collectSurfingIndex().then(() => log('✅ 서핑지수 수집 완료'))
@@ -1506,6 +1513,19 @@ async function init() {
         if (min % 30 === 10 && !['05:10', '11:10', '17:10'].includes(hm)) {
             regionalForecastCollector.retryMissingOffices()
                 .catch(err => log(`⚠️ 지방기상청 재수집 오류: ${err.message}`));
+        }
+
+        // [지방청 단기 전망 통보문] list.do?stn={지방청} 에서 [해설] 단기 전망 수집
+        //   발표시각: KST 04:30 / 16:20~16:30 (지방청별 다름) — 하루 2회
+        //   수집 윈도우: 04:01~04:56, 16:01~16:56 KST 안에서 5분 간격으로 시도
+        //                (분이 1, 6, 11, ... 56 일 때 — min % 5 === 1)
+        //   동일 reportId 캐시 hit 이면 모듈 내부에서 즉시 스킵하므로 같은 윈도우에서
+        //   여러 번 호출되어도 실제 fetch/AI 는 신규 발표분에 대해서만 1회 발생.
+        //   PDF 수집기(05/11/17 +10분)와는 시간대가 겹치지 않아 race condition 없음.
+        if ((kstDate.getHours() === 4 || kstDate.getHours() === 16) && (min % 5 === 1)) {
+            regionalBulletinCollector.collectAllRegionalBulletins()
+                .then(() => log('✅ 지방청 단기 전망(통보문) 수집 사이클 완료'))
+                .catch(err => log(`⚠️ 지방청 단기 전망 수집 오류: ${err.message}`));
         }
 
 
