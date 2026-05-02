@@ -921,10 +921,15 @@
             position: absolute;
             left: 0;
             right: 0;
-            /* parent (.ocean-map-wrapper) 가 viewport 끝까지 늘어나는 구조 + overflow:hidden.
-               bottom:0 으로 두면 메인탭 영역 안에 그려져 잘림 → 안 보임.
-               → bottom: var(--main-tab-height) 으로 메인탭 위쪽에 위치. */
-            bottom: var(--main-tab-height, 68px);
+            /* [핵심] parent(#ocean-map-section.active) 의 bottom 은 style.css:8541 에서
+               'env(safe-area-inset-bottom, 0)' 로 덮어써짐 (인라인 var(--main-tab-height) 는
+               late-cascade 로 무력화). 즉 parent 의 visual bottom = viewport - safe-area.
+               메인탭 top = viewport - --main-tab-height (= safe-area + 메인탭 자체 높이).
+               → slider visual bottom == 메인탭 top 을 만들려면 parent bottom 으로부터
+                 (--main-tab-height - safe-area) 만큼 위에 위치해야 함.
+               PC (safe-area 0): bottom = --main-tab-height (~68px) → 정확히 메인탭 위에 붙음
+               iPhone (safe-area 34): bottom = 102-34 = 68px → 정확히 메인탭 위에 붙음 */
+            bottom: calc(var(--main-tab-height, 68px) - env(safe-area-inset-bottom, 0px));
             z-index: 1100;
             display: flex;
             align-items: center;
@@ -1078,8 +1083,9 @@
         .shrt-fcst-legend {
             position: absolute;
             left: 12px;
-            /* slider-bar(height 36) + 말풍선 위 영역(22) + 14px 여백 = 메인탭 위로 72px */
-            bottom: calc(var(--main-tab-height, 68px) + 72px);
+            /* slider bottom 과 동일하게 safe-area 보정.
+               그 위로 slider height(36) + 말풍선(22) + 여백(14) = 72px */
+            bottom: calc(var(--main-tab-height, 68px) - env(safe-area-inset-bottom, 0px) + 72px);
             z-index: 1100;
             background: rgba(255, 255, 255, 0.92);
             backdrop-filter: blur(2px);
