@@ -62,8 +62,10 @@
         sky: '하늘상태', pty: '강수형태'
     };
 
-    // 범례 — KMA raster 픽셀 sampling 으로 추출한 정확한 색상 (12 frame 합산 통계).
-    // sky 는 해상 단기예보에 DB02 미사용 → 3단계만 (marine.kma.go.kr 와 동일)
+    // 범례 — KMA marine.kma.go.kr 와 동일 형식. 정량형(pop/pcp/sno) 은 단계 블록(discrete band).
+    //   colors[] : 지도 raster 에 등장하는 실제 색상을 단계별로 나열 (보간 X, 균등 폭 단색 블록).
+    //   labels[] : 별도의 라벨 텍스트 (균등 위치). 색상 단계 갯수와 라벨 갯수는 독립.
+    //   sky 는 해상 단기예보에 DB02 미사용 → 3단계만 (marine.kma.go.kr 와 동일).
     var SKY_LEGEND = [
         { label: '맑음',     color: 'rgba(255, 255, 255, 0.85)' },
         { label: '구름많음', color: 'rgba(174, 200, 224, 0.85)' },
@@ -75,42 +77,36 @@
         { label: '비/눈', color: '#3dc4e6' },   // 청록
         { label: '눈',     color: '#8e8ee6' }    // 보라
     ];
-    // pop: 강수확률 0/20/40/60/80/100% — KMA raster 색상 + 임계값별 매핑.
-    //   label 은 boundary 표시값만, 단위(%) 는 renderLegend 에서 일괄 부착.
-    var POP_LEGEND = [
-        { label: '0',   color: '#ffea6e' },   // 연노랑 (베이스)
-        { label: '20',  color: '#ffdc1f' },   // 진노랑
-        { label: '40',  color: '#69fc69' },   // 연녹
-        { label: '60',  color: '#00a400' },   // 진녹
-        { label: '80',  color: '#1f219d' },   // 남
-        { label: '100', color: '#8e8ee6' }    // 보라 (raster 외삽)
+    // pop: 강수확률 0~100% — KMA raster 픽셀 통계로 추출한 9단계 색상 (anti-aliasing 제외).
+    //   라벨은 사용자 가독성을 위해 6개 (0/20/40/60/80/100) 만 표시 — KMA 사이트와 동일.
+    var POP_COLORS = [
+        '#ffea6e', '#ffdc1f', '#e0b900',
+        '#69fc69', '#1ef31e', '#00d500', '#00a400',
+        '#1f219d', '#b3b4de'
     ];
-    // pcp: 강수량 0/0.8/4/9/30/80/700 mm — KMA raster + 임계값
-    var PCP_LEGEND = [
-        { label: '0',   color: '#ffffff' },   // 흰 (무강수)
-        { label: '0.8', color: '#ffea6e' },   // 연노랑 (소수 유지)
-        { label: '4',   color: '#ffdc1f' },   // 진노랑
-        { label: '9',   color: '#69fc69' },   // 연녹
-        { label: '30',  color: '#00a400' },   // 진녹
-        { label: '80',  color: '#3ec1ff' },   // 청
-        { label: '700', color: '#1f219d' }    // 남
+    var POP_LABELS = ['0', '20', '40', '60', '80', '100'];
+
+    // pcp: 강수량 임계값별 7단계 색상 (KMA raster 픽셀 통계 기반).
+    //   KMA 의 정확한 임계값/색상 매핑을 미확보하여, 라벨 갯수=색상 갯수=7 로 균등 분배.
+    var PCP_COLORS = [
+        '#ffffff', '#ffea6e', '#ffdc1f',
+        '#69fc69', '#00a400', '#3ec1ff', '#1f219d'
     ];
-    // sno: 적설 0.1/0.8/4/9/18/40/90 cm
-    var SNO_LEGEND = [
-        { label: '0.1', color: '#ffffff' },
-        { label: '0.8', color: '#ffea6e' },
-        { label: '4',   color: '#ffdc1f' },
-        { label: '9',   color: '#69fc69' },
-        { label: '18',  color: '#00a400' },
-        { label: '40',  color: '#3ec1ff' },
-        { label: '90',  color: '#1f219d' }
+    var PCP_LABELS = ['0', '0.8', '4', '9', '30', '80', '700'];
+
+    // sno: 적설 7단계 색상 (KMA raster + 임계값)
+    var SNO_COLORS = [
+        '#ffffff', '#ffea6e', '#ffdc1f',
+        '#69fc69', '#00a400', '#3ec1ff', '#1f219d'
     ];
+    var SNO_LABELS = ['0.1', '0.8', '4', '9', '18', '40', '90'];
+
     var LEGEND_DEF = {
         sky: { title: '하늘상태', style: 'category', items: SKY_LEGEND },
         pty: { title: '강수형태', style: 'category', items: PTY_LEGEND },
-        pop: { title: '강수확률', style: 'gradient', unit: '%',  items: POP_LEGEND },
-        pcp: { title: '강수량',   style: 'gradient', unit: 'mm', items: PCP_LEGEND },
-        sno: { title: '적설',     style: 'gradient', unit: 'cm', items: SNO_LEGEND }
+        pop: { title: '강수확률', style: 'gradient', unit: '%',  colors: POP_COLORS, labels: POP_LABELS },
+        pcp: { title: '강수량',   style: 'gradient', unit: 'mm', colors: PCP_COLORS, labels: PCP_LABELS },
+        sno: { title: '적설',     style: 'gradient', unit: 'cm', colors: SNO_COLORS, labels: SNO_LABELS }
     };
 
     // ── 잠금 해제 패턴 ───────────────────────────────────────────
@@ -365,31 +361,32 @@
 
         var html = '';
         if (def.style === 'gradient') {
-            // KMA 사이트 동일 스타일 (색상표만):
-            //   1) 색상 바: 인접 색상 간 linear-gradient 보간 → 연속형 띠 (KMA 와 동일).
-            //   2) 라벨: boundary 위치에 absolute 배치, 단위(%/mm/cm) 는 라벨 텍스트에 직접 부착.
+            // KMA 사이트 동일 형식 — 단계 블록(discrete band):
+            //   1) 색상 바: N 개 단색 블록 (균등 폭, 하드 엣지). 보간 없음 → 지도 raster 의
+            //      실제 픽셀 색상과 1:1 매칭 (지도에 없는 중간색이 범례에 표시되는 문제 해결).
+            //   2) 라벨: M 개 (색상 갯수와 독립), 균등 위치. 단위(%/mm/cm) 는 라벨에 직접 부착.
             //   3) 별도 헤더 / 우하단 단위 표시 없음.
-            var items = def.items;
+            var colors = def.colors || [];
+            var labels = def.labels || [];
             var unit = def.unit || '';
+
             var blocksHtml = '';
-            for (var bi = 0; bi < items.length - 1; bi++) {
-                var c1 = items[bi].color, c2 = items[bi + 1].color;
-                blocksHtml += '<div class="shrt-fcst-grad-block" style="background:'
-                            + 'linear-gradient(to right, ' + c1 + ', ' + c2 + ');"></div>';
+            for (var bi = 0; bi < colors.length; bi++) {
+                blocksHtml += '<div class="shrt-fcst-grad-block" style="background:' + colors[bi] + ';"></div>';
             }
             html += '<div class="shrt-fcst-grad-bar">' + blocksHtml + '</div>';
+
+            // 라벨 — i/(M-1)*100% 위치, 첫/마지막은 가장자리 정렬, 중간은 중심정렬.
             html += '<div class="shrt-fcst-grad-labels">';
-            // N 라벨 → 정확한 boundary 좌표는 i/(N-1)*100% (i=0..N-1).
-            // 첫/마지막은 좌우 가장자리에 정렬, 중간은 boundary 중심정렬.
-            var lastIdx = items.length - 1;
-            for (var li = 0; li < items.length; li++) {
-                var pct = (li / lastIdx) * 100;
+            var lastIdx = labels.length - 1;
+            for (var li = 0; li < labels.length; li++) {
+                var pct = lastIdx > 0 ? (li / lastIdx) * 100 : 0;
                 var tx;
                 if (li === 0)              tx = '0';
                 else if (li === lastIdx)   tx = '-100%';
                 else                       tx = '-50%';
                 html += '<span style="left:' + pct + '%;transform:translateX(' + tx + ');">'
-                      +   items[li].label + unit
+                      +   labels[li] + unit
                       + '</span>';
             }
             html += '</div>';
