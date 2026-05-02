@@ -508,6 +508,50 @@ window.onOfficeToggleChange = onOfficeToggleChange;
 window.resetOfficeManualSettings = resetOfficeManualSettings;
 
 /**
+ * PDF 발표시각의 날짜(MM.DD)가 KST 오늘과 같은지 판정.
+ *
+ * [왜 필요?]
+ *   PDF 의 "오늘" 셀 값은 PDF 발행일 기준이라, 자정을 넘긴 직후엔 그 값이
+ *   실제로는 "어제" 의 기온이 된다. 다음 PDF 사이클(KST 05:10) 에서 새 PDF 가
+ *   수집되어야 비로소 진짜 "오늘" 기온이 들어옴.
+ *   그 사이엔 기온 박스를 숨겨 사용자에게 옛 정보를 보이지 않도록 함.
+ *
+ * [형식] item.publishTime 은 PDF 의 "MM.DD. HH:MM" 또는 "YYYYMMDDHH00" 형식.
+ *   둘 다 안전하게 파싱.
+ *
+ * @returns true = 오늘 데이터, false = 어제 이하 / 파싱 실패
+ */
+function isPdfTemperatureForToday(publishTime) {
+    if (!publishTime) return false;
+
+    let pdfMonth = null, pdfDay = null;
+
+    // 패턴 A: "05.02. 17:00" (parsePublishTime 정상 결과)
+    const formattedMatch = String(publishTime).match(/^(\d{1,2})\.(\d{1,2})\.\s*(\d{1,2}):(\d{1,2})/);
+    if (formattedMatch) {
+        pdfMonth = parseInt(formattedMatch[1], 10);
+        pdfDay = parseInt(formattedMatch[2], 10);
+    } else {
+        // 패턴 B: "202605021700" 14자리 raw 타임스탬프 (parsePublishTime 실패 시 폴백 저장값)
+        const tsMatch = String(publishTime).match(/^\d{4}(\d{2})(\d{2})\d{2}\d{2}/);
+        if (tsMatch) {
+            pdfMonth = parseInt(tsMatch[1], 10);
+            pdfDay = parseInt(tsMatch[2], 10);
+        }
+    }
+    if (pdfMonth === null) return false;
+
+    // 현재 KST 날짜 — 서버 timezone 무관하게 동일 결과
+    const now = new Date();
+    const kstMs = now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600000);
+    const kst = new Date(kstMs);
+    const todayMonth = kst.getUTCMonth() + 1;
+    const todayDay = kst.getUTCDate();
+
+    return pdfMonth === todayMonth && pdfDay === todayDay;
+}
+
+/**
  * 종합 예보 (지방기상청 단기예보) 렌더링
  */
 function renderRegionalForecast(data) {
@@ -545,49 +589,50 @@ function renderRegionalForecast(data) {
 
     let html = '';
     for (const item of relevantData) {
-        // [발표 시각] 통보문 출처(bulletinPublishTime)가 있으면 우선 표시.
-        //   없으면 PDF 출처 publishTime 으로 폴백 — 통보문 수집 직전 첫 사이클 등
-        //   과도기 시점에서도 헤더가 비지 않도록 함.
-        const publishLabel = item.bulletinPublishTime || item.publishTime || '';
+        // [발표 시각] 통보문(단기 전망) 발표시각만 표시.
+        //   PDF 발표시각과 통보문 발표시각이 다를 수 있는데, 화면 본문이
+        //   통보문 본문이므로 그것의 발표시각을 명시하는 게 사용자에게 일관됨.
+        //   bulletinPublishTime 이 비어 있으면 발표시각 라벨 자체를 생략.
+        const publishLabel = item.bulletinPublishTime || '';
 
-        // [기온 정보 결정] 신·구 포맷 호환
-        //   신규(통보문 AI 출처): { morningLow: "11 ~ 13", dayHigh: "15 ~ 17", basis: "today"|"tomorrow" }
-        //   옛 (PDF 파싱 출처) : { low: "X ~ Y", high: "X ~ Y" }
-        //   통보문 데이터가 들어오면 그것을 우선 사용. 못 들어왔다면 PDF 폴백.
+        // [기온 정보 결정] PDF 파싱 출처 — 형식 { low: "X ~ Y", high: "X ~ Y" }
+        //   라벨은 항상 "오늘 기온" 고정 (단기 전망 통보문은 본문만 책임,
+        //   기온은 PDF 의 "오늘" 셀에서 추출).
+        //
+        // [신선도 체크] PDF 발표시각이 KST 오늘 날짜와 일치할 때만 표시.
+        //   이유: PDF 의 "오늘" 셀은 PDF 발행일 기준이라, 자정을 넘기면 그 값이
+        //   사실 "어제" 가 됨. 다음 PDF 사이클(05:10 +) 까지 옛 데이터가 노출되는
+        //   걸 막기 위해 박스 자체를 숨긴다.
         const t = item.temperature;
-        let tempLabel = '오늘 기온';
-        let lowText = '';
-        let highText = '';
-        if (t) {
-            if (t.morningLow !== undefined || t.dayHigh !== undefined || t.basis !== undefined) {
-                tempLabel = (t.basis === 'tomorrow') ? '내일 기온' : '오늘 기온';
-                if (t.morningLow) lowText = String(t.morningLow);
-                if (t.dayHigh) highText = String(t.dayHigh);
-            } else {
-                // 옛 포맷 폴백 — Step 2(PDF 모듈 정리) 전까지의 과도기 호환용
-                if (t.low) lowText = String(t.low);
-                if (t.high) highText = String(t.high);
-            }
-        }
-        const hasTemp = !!(lowText || highText);
+        const lowText = (t && t.low) ? String(t.low) : '';
+        const highText = (t && t.high) ? String(t.high) : '';
+        const hasTempValue = !!(lowText || highText);
+        const hasTemp = hasTempValue && isPdfTemperatureForToday(item.publishTime);
 
-        html += `<div class="regional-forecast-office">`;
-        html += `<div class="regional-forecast-office-header">`;
+        // [지방청별 아코디언] 헤더 클릭 시 본문(기온+요약) 영역만 토글.
+        //   여러 지방청이 동시에 표시될 때 모든 본문이 한꺼번에 펼쳐져 스크롤이
+        //   너무 길어지는 문제 해소 — 사용자는 보고 싶은 지방청만 열어 본다.
+        //   기본 상태: 닫힘. 데이터 속성 data-office-code 로 토글 대상 식별.
+        html += `<div class="regional-forecast-office" data-office-code="${escapeHtml(item.officeCode || '')}">`;
+        html += `<div class="regional-forecast-office-header" onclick="toggleRegionalOffice('${escapeHtml(item.officeCode || '')}')">`;
         // [헤더 라벨] "단기예보" → "단기 전망" — list.do [해설] 통보문 본문 기반으로 변경되었음을 반영
         html += `<span class="regional-forecast-office-name">${escapeHtml(item.officeName)} 단기 전망</span>`;
         if (publishLabel) {
             html += `<span class="regional-forecast-publish-time">(${escapeHtml(publishLabel)} 발표)</span>`;
         }
+        html += `<i class="fa-solid fa-chevron-down regional-forecast-office-icon"></i>`;
         html += `</div>`;
 
-        // [기온 박스] 헤더 바로 아래로 이동 (이전엔 본문 하단에 있었음).
-        //   라벨은 basis 에 따라 "오늘 기온"(04:30 발표분) / "내일 기온"(16:20~16:30 발표분).
+        // 아코디언 본문 — 헤더 아래의 모든 콘텐츠는 .open 일 때만 표시
+        html += `<div class="regional-forecast-office-body">`;
+
+        // [기온 박스] 헤더 바로 아래에 표시. 라벨 "오늘 기온" 고정.
         //   표기 형식: "최저 X ~ Y℃ | 최고 X ~ Y℃" 두 값 모두 범위형(range).
-        //   둘 중 하나라도 값이 있어야 박스 자체를 그린다.
+        //   둘 중 하나라도 값이 있어야 박스 자체를 그린다 — 박스 라벨만 외롭게 남는 것 방지.
         if (hasTemp) {
             html += `<div class="regional-forecast-temp">`;
             html += `<span class="regional-forecast-temp-icon">🌡️</span>`;
-            html += `<span class="regional-forecast-temp-label">${escapeHtml(tempLabel)}</span>`;
+            html += `<span class="regional-forecast-temp-label">오늘 기온</span>`;
             if (lowText) {
                 html += `<span class="regional-forecast-temp-value temp-low">최저 <b>${escapeHtml(lowText)}℃</b></span>`;
             }
@@ -602,6 +647,7 @@ function renderRegionalForecast(data) {
         //     renderMarineMarkup() 이 색상 span 으로 변환 (escape 도 내부 처리).
         //   - 마크업이 없는 라인(옛 PDF 출처 등)은 자동 패턴 감지로 동일 색상 적용.
         //   - 라인 prefix(□/○/-/*) 별 스타일 클래스는 그대로 유지.
+        //   - 본문 영역은 CSS max-height + overflow-y 로 카드 안에서 스크롤된다.
         const lines = item.summary.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         html += `<div class="regional-forecast-summary">`;
         for (const line of lines) {
@@ -624,11 +670,24 @@ function renderRegionalForecast(data) {
         }
         html += `</div>`;
 
-        html += `</div>`;
+        html += `</div>`; // /regional-forecast-office-body
+        html += `</div>`; // /regional-forecast-office
     }
 
     bodyEl.innerHTML = html;
 }
+
+/**
+ * 지방청 단위 아코디언 토글.
+ *   data-office-code 속성으로 해당 지방청 카드를 찾아 .open 클래스 토글.
+ *   CSS 가 .open 일 때만 .regional-forecast-office-body 를 표시하도록 처리.
+ *   여러 지방청 카드가 같은 코드로 중복될 일은 없지만 querySelectorAll 로 안전하게 처리.
+ */
+window.toggleRegionalOffice = function (code) {
+    if (!code) return;
+    const els = document.querySelectorAll('.regional-forecast-office[data-office-code="' + code + '"]');
+    els.forEach(el => el.classList.toggle('open'));
+};
 
 /**
  * 종합 예보 데이터 로드
