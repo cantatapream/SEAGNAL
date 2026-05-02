@@ -545,52 +545,84 @@ function renderRegionalForecast(data) {
 
     let html = '';
     for (const item of relevantData) {
-        const publishLabel = item.publishTime || '';
+        // [발표 시각] 통보문 출처(bulletinPublishTime)가 있으면 우선 표시.
+        //   없으면 PDF 출처 publishTime 으로 폴백 — 통보문 수집 직전 첫 사이클 등
+        //   과도기 시점에서도 헤더가 비지 않도록 함.
+        const publishLabel = item.bulletinPublishTime || item.publishTime || '';
+
+        // [기온 정보 결정] 신·구 포맷 호환
+        //   신규(통보문 AI 출처): { morningLow: "11 ~ 13", dayHigh: "15 ~ 17", basis: "today"|"tomorrow" }
+        //   옛 (PDF 파싱 출처) : { low: "X ~ Y", high: "X ~ Y" }
+        //   통보문 데이터가 들어오면 그것을 우선 사용. 못 들어왔다면 PDF 폴백.
+        const t = item.temperature;
+        let tempLabel = '오늘 기온';
+        let lowText = '';
+        let highText = '';
+        if (t) {
+            if (t.morningLow !== undefined || t.dayHigh !== undefined || t.basis !== undefined) {
+                tempLabel = (t.basis === 'tomorrow') ? '내일 기온' : '오늘 기온';
+                if (t.morningLow) lowText = String(t.morningLow);
+                if (t.dayHigh) highText = String(t.dayHigh);
+            } else {
+                // 옛 포맷 폴백 — Step 2(PDF 모듈 정리) 전까지의 과도기 호환용
+                if (t.low) lowText = String(t.low);
+                if (t.high) highText = String(t.high);
+            }
+        }
+        const hasTemp = !!(lowText || highText);
 
         html += `<div class="regional-forecast-office">`;
         html += `<div class="regional-forecast-office-header">`;
-        html += `<span class="regional-forecast-office-name">${escapeHtml(item.officeName)} 단기예보</span>`;
+        // [헤더 라벨] "단기예보" → "단기 전망" — list.do [해설] 통보문 본문 기반으로 변경되었음을 반영
+        html += `<span class="regional-forecast-office-name">${escapeHtml(item.officeName)} 단기 전망</span>`;
         if (publishLabel) {
             html += `<span class="regional-forecast-publish-time">(${escapeHtml(publishLabel)} 발표)</span>`;
         }
         html += `</div>`;
 
-        // 종합 전망 내용
-        const lines = item.summary.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        html += `<div class="regional-forecast-summary">`;
-        for (const line of lines) {
-            if (line.startsWith('□') || line.startsWith('*') || line.startsWith('※')) {
-                // 종합 제목 또는 참고 사항
-                html += `<div class="regional-forecast-line regional-forecast-main">${escapeHtml(line)}</div>`;
-            } else if (line.startsWith('○')) {
-                // 일별 전망
-                html += `<div class="regional-forecast-line regional-forecast-day">${escapeHtml(line)}</div>`;
-            } else if (line.startsWith('-')) {
-                // 하위 항목
-                html += `<div class="regional-forecast-line regional-forecast-sub">${escapeHtml(line)}</div>`;
-            } else {
-                html += `<div class="regional-forecast-line">${escapeHtml(line)}</div>`;
-            }
-        }
-        html += `</div>`;
-
-        // 기온 정보
-        // [표시 조건] temperature 객체가 있고, low/high 중 적어도 하나는 값이 있어야 표시.
-        //   둘 다 비어있으면 "🌡️ 오늘 기온" 라벨만 외롭게 남는 것을 방지.
-        //   파싱 단계(regional_forecast_collector.js)에서 신뢰할 수 없는 값은
-        //   null 로 떨어지므로, 여기서는 단순 falsy 체크만 수행.
-        if (item.temperature && (item.temperature.low || item.temperature.high)) {
+        // [기온 박스] 헤더 바로 아래로 이동 (이전엔 본문 하단에 있었음).
+        //   라벨은 basis 에 따라 "오늘 기온"(04:30 발표분) / "내일 기온"(16:20~16:30 발표분).
+        //   표기 형식: "최저 X ~ Y℃ | 최고 X ~ Y℃" 두 값 모두 범위형(range).
+        //   둘 중 하나라도 값이 있어야 박스 자체를 그린다.
+        if (hasTemp) {
             html += `<div class="regional-forecast-temp">`;
             html += `<span class="regional-forecast-temp-icon">🌡️</span>`;
-            html += `<span class="regional-forecast-temp-label">오늘 기온</span>`;
-            if (item.temperature.low) {
-                html += `<span class="regional-forecast-temp-value temp-low">최저 <b>${escapeHtml(item.temperature.low)}℃</b></span>`;
+            html += `<span class="regional-forecast-temp-label">${escapeHtml(tempLabel)}</span>`;
+            if (lowText) {
+                html += `<span class="regional-forecast-temp-value temp-low">최저 <b>${escapeHtml(lowText)}℃</b></span>`;
             }
-            if (item.temperature.high) {
-                html += `<span class="regional-forecast-temp-value temp-high">최고 <b>${escapeHtml(item.temperature.high)}℃</b></span>`;
+            if (highText) {
+                html += `<span class="regional-forecast-temp-value temp-high">최고 <b>${escapeHtml(highText)}℃</b></span>`;
             }
             html += `</div>`;
         }
+
+        // [종합 전망 본문]
+        //   - AI 마크업 태그({{loc:}}/{{num:}}/{{warn:}})가 들어와 있으면
+        //     renderMarineMarkup() 이 색상 span 으로 변환 (escape 도 내부 처리).
+        //   - 마크업이 없는 라인(옛 PDF 출처 등)은 자동 패턴 감지로 동일 색상 적용.
+        //   - 라인 prefix(□/○/-/*) 별 스타일 클래스는 그대로 유지.
+        const lines = item.summary.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        html += `<div class="regional-forecast-summary">`;
+        for (const line of lines) {
+            const renderedLine = (typeof renderMarineMarkup === 'function')
+                ? renderMarineMarkup(line)
+                : escapeHtml(line);
+            if (line.startsWith('□') || line.startsWith('*') || line.startsWith('※')) {
+                // 종합 제목 또는 참고 사항
+                html += `<div class="regional-forecast-line regional-forecast-main">${renderedLine}</div>`;
+            } else if (line.startsWith('○')) {
+                // 일별 전망 / 카테고리 (○ (강풍), ○ (해상) 등)
+                html += `<div class="regional-forecast-line regional-forecast-day">${renderedLine}</div>`;
+            } else if (line.startsWith('-')) {
+                // 하위 항목
+                html += `<div class="regional-forecast-line regional-forecast-sub">${renderedLine}</div>`;
+            } else {
+                // 그 외 (섹션 헤더 <중점 사항> 등 포함)
+                html += `<div class="regional-forecast-line">${renderedLine}</div>`;
+            }
+        }
+        html += `</div>`;
 
         html += `</div>`;
     }
