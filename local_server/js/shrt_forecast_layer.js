@@ -62,44 +62,80 @@
         sky: '하늘상태', pty: '강수형태'
     };
 
-    // 범례 — KMA marine.kma.go.kr 와 동일 형식. 정량형(pop/pcp/sno) 은 단계 블록(discrete band).
-    //   colors[] : 지도 raster 에 등장하는 실제 색상을 단계별로 나열 (보간 X, 균등 폭 단색 블록).
-    //   labels[] : 별도의 라벨 텍스트 (균등 위치). 색상 단계 갯수와 라벨 갯수는 독립.
-    //   sky 는 해상 단기예보에 DB02 미사용 → 3단계만 (marine.kma.go.kr 와 동일).
+    // 범례 — KMA marine.kma.go.kr chunk-common JS 에서 추출한 정확한 정의 (단계/색상/임계값/visible-marks).
+    //   colors[]  : KMA 단계별 색상 (25/30/30) — 단색 블록 균등 폭으로 렌더 (보간 X).
+    //   labels[]  : { t: 라벨텍스트, p: 위치% } — KMA visible-marks 기반 비균등 위치 + max 우측 끝 추가.
+    //   sky/pty   : 카테고리형 (KMA 표시 동일).
     var SKY_LEGEND = [
         { label: '맑음',     color: 'rgba(255, 255, 255, 0.85)' },
         { label: '구름많음', color: 'rgba(174, 200, 224, 0.85)' },
         { label: '흐림',     color: 'rgba(56,  120, 152, 0.85)' }   // KMA #387898
     ];
-    // pty: 강수형태 3종 — KMA raster 색상 추출
     var PTY_LEGEND = [
-        { label: '비',     color: '#60d47e' },   // 녹  (KMA raster 비율 99%)
-        { label: '비/눈', color: '#3dc4e6' },   // 청록
-        { label: '눈',     color: '#8e8ee6' }    // 보라
+        { label: '비',     color: '#60d47e' },
+        { label: '비/눈', color: '#3dc4e6' },
+        { label: '눈',     color: '#8e8ee6' }
     ];
-    // pop: 강수확률 0~100% — KMA raster 픽셀 통계로 추출한 9단계 색상 (anti-aliasing 제외).
-    //   라벨은 사용자 가독성을 위해 6개 (0/20/40/60/80/100) 만 표시 — KMA 사이트와 동일.
+
+    // POP — 강수확률 25 단계 (4% 간격), 라벨 균등 0/20/40/60/80/100.
+    //   KMA visible-marks=[0,5,10,15,20,25] → idx/25*100% 위치, idx 25 는 max (100).
     var POP_COLORS = [
-        '#ffea6e', '#ffdc1f', '#e0b900',
-        '#69fc69', '#1ef31e', '#00d500', '#00a400',
-        '#1f219d', '#b3b4de'
+        '#ffea6e', '#ffdc1f', '#f9cd00', '#e0b900', '#ccaa00',
+        '#69fc69', '#1ef31e', '#00d500', '#00a400', '#008000',
+        '#87d9ff', '#3ec1ff', '#07abff', '#008dde', '#0077b3',
+        '#b3b4de', '#8081c7', '#4c4eb1', '#1f219d', '#000390',
+        '#da87ff', '#c23eff', '#ad07ff', '#9200e4', '#7f00bf'
     ];
-    var POP_LABELS = ['0', '20', '40', '60', '80', '100'];
+    var POP_LABELS = [
+        { t: '0',   p: 0 },
+        { t: '20',  p: 20 },
+        { t: '40',  p: 40 },
+        { t: '60',  p: 60 },
+        { t: '80',  p: 80 },
+        { t: '100', p: 100 }
+    ];
 
-    // pcp: 강수량 임계값별 7단계 색상 (KMA raster 픽셀 통계 기반).
-    //   KMA 의 정확한 임계값/색상 매핑을 미확보하여, 라벨 갯수=색상 갯수=7 로 균등 분배.
+    // PCP — 강수량 30 단계 (비균등 임계값), 라벨 7개 (visible-marks 6 + max=700 우측 끝).
+    //   KMA visible-marks=[0,4,9,14,20,25] / 30 = 0/13.33/30/46.67/66.67/83.33%, 700 = 100%.
+    //   [임계값] 0/.2/.4/.6/.8/1/1.5/2/3/4/5/6/7/8/9/10/14/18/22/26/30/40/50/60/70/80/160/320/480/640~700
     var PCP_COLORS = [
-        '#ffffff', '#ffea6e', '#ffdc1f',
-        '#69fc69', '#00a400', '#3ec1ff', '#1f219d'
+        '#ffea6e', '#ffdc1f', '#f9cd00', '#e0b900', '#ccaa00',
+        '#69fc69', '#1ef31e', '#00d500', '#00a400', '#008000',
+        '#87d9ff', '#3ec1ff', '#07abff', '#008dde', '#0077b3',
+        '#b3b4de', '#8081c7', '#4c4eb1', '#1f219d', '#000390',
+        '#da87ff', '#c23eff', '#ad07ff', '#9200e4', '#7f00bf',
+        '#fa8585', '#f63e3e', '#ee0b0b', '#d50000', '#bf0000'   // 마지막 5단계 빨강 (KMA 와 동일)
     ];
-    var PCP_LABELS = ['0', '0.8', '4', '9', '30', '80', '700'];
+    var PCP_LABELS = [
+        { t: '0',   p: 0 },
+        { t: '0.8', p: 4 / 30 * 100 },
+        { t: '4',   p: 9 / 30 * 100 },
+        { t: '9',   p: 14 / 30 * 100 },
+        { t: '30',  p: 20 / 30 * 100 },
+        { t: '80',  p: 25 / 30 * 100 },
+        { t: '700', p: 100 }
+    ];
 
-    // sno: 적설 7단계 색상 (KMA raster + 임계값)
+    // SNO — 적설 30 단계 (비균등 임계값), 라벨 7개 (visible-marks 6 + max=90 우측 끝).
+    //   KMA visible-marks=[0,4,9,14,19,24] / 30 = 0/13.33/30/46.67/63.33/80%, 90 = 100%.
+    //   [임계값] 0.1/.2/.4/.6/.8/1/1.5/2/3/4/5/6/7/8/9/10/12/14/16/18/20/25/30/35/40/45/50/60/70/80~90
     var SNO_COLORS = [
-        '#ffffff', '#ffea6e', '#ffdc1f',
-        '#69fc69', '#00a400', '#3ec1ff', '#1f219d'
+        '#ffea6e', '#ffdc1f', '#f9cd00', '#e0b900', '#ccaa00',
+        '#69fc69', '#1ef31e', '#00d500', '#00a400', '#008000',
+        '#87d9ff', '#3ec1ff', '#07abff', '#008dde', '#0077b3',
+        '#b3b4de', '#8081c7', '#4c4eb1', '#1f219d', '#000390',
+        '#da87ff', '#c23eff', '#ad07ff', '#9200e4', '#7f00bf',
+        '#fa8585', '#f63e3e', '#ee0b0b', '#d50000', '#bf0000'
     ];
-    var SNO_LABELS = ['0.1', '0.8', '4', '9', '18', '40', '90'];
+    var SNO_LABELS = [
+        { t: '0.1', p: 0 },
+        { t: '0.8', p: 4 / 30 * 100 },
+        { t: '4',   p: 9 / 30 * 100 },
+        { t: '9',   p: 14 / 30 * 100 },
+        { t: '18',  p: 19 / 30 * 100 },
+        { t: '40',  p: 24 / 30 * 100 },
+        { t: '90',  p: 100 }
+    ];
 
     var LEGEND_DEF = {
         sky: { title: '하늘상태', style: 'category', items: SKY_LEGEND },
@@ -376,17 +412,18 @@
             }
             html += '<div class="shrt-fcst-grad-bar">' + blocksHtml + '</div>';
 
-            // 라벨 — i/(M-1)*100% 위치, 첫/마지막은 가장자리 정렬, 중간은 중심정렬.
+            // 라벨 — KMA visible-marks 기반 비균등 위치 ({t,p} 객체 배열).
+            //   p: 위치% (0~100). 0% → 좌가장자리 정렬, 100% → 우가장자리 정렬, 그 외 중심정렬.
             html += '<div class="shrt-fcst-grad-labels">';
-            var lastIdx = labels.length - 1;
             for (var li = 0; li < labels.length; li++) {
-                var pct = lastIdx > 0 ? (li / lastIdx) * 100 : 0;
+                var lab = labels[li];
+                var pct = lab.p;
                 var tx;
-                if (li === 0)              tx = '0';
-                else if (li === lastIdx)   tx = '-100%';
-                else                       tx = '-50%';
+                if (pct <= 0)        tx = '0';
+                else if (pct >= 100) tx = '-100%';
+                else                 tx = '-50%';
                 html += '<span style="left:' + pct + '%;transform:translateX(' + tx + ');">'
-                      +   labels[li] + unit
+                      +   lab.t + unit
                       + '</span>';
             }
             html += '</div>';
