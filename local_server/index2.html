@@ -819,8 +819,15 @@
                이전 bottom:12px 는 지도 컨테이너 기준 12px 였는데, 메인 탭바가
                지도 영역의 하단을 덮어 범례가 잘려보이는 문제 발생 → 탭바 높이만큼
                띄워서 항상 가시 영역 안에 유지. (지도 컨테이너 자체가 viewport 끝까지
-               늘어나는 구조이기 때문) */
-            bottom: calc(var(--main-tab-height, 68px) + 12px);
+               늘어나는 구조이기 때문)
+
+               [천기 레이어와의 충돌 회피 — 동적]
+               천기(KMA 단기예보) 레이어가 켜져 있으면 화면 하단에 슬라이더 + 천기 범례
+               스택이 붙어있다. 그 스택이 특보 범례를 가려버리는 문제 → 천기 모듈
+               (js/shrt_forecast_layer.js) 이 activate/deactivate 시점에
+               --shrt-stack-height CSS 변수를 갱신하면, 그 값만큼 특보 범례가 위로 상승.
+               천기 OFF 일 때는 변수가 0px → 원래 위치 복귀. */
+            bottom: calc(var(--main-tab-height, 68px) + 12px + var(--shrt-stack-height, 0px));
             z-index: 1100;        /* 우측 컨트롤 스택 위, 정보박스(10500) 보다 아래 */
             background: rgba(255, 255, 255, 0.88);
             backdrop-filter: blur(2px);
@@ -1177,6 +1184,77 @@
             position: absolute;
             top: 0;
             white-space: nowrap;
+        }
+
+        /* ── 천기 클릭 팝업 (.shrt-fcst-point-box) ───────────────────
+           [무엇?] 천기 레이어 활성 상태에서 지도를 클릭했을 때 그 좌표의 5개
+                    카테고리(sky/pty/pop/pcp/sno) 데이터를 박스 형태로 표시.
+           [참고]  ocean_warn_active5.js 의 .warn-active-box 와 동일 패턴.
+                    body 에 absolute, 클릭 픽셀 +12px 우/하단, viewport clamping.
+                    JS 가 좌표 계산 후 inline left/top 설정.
+           [닫기]  외부 클릭, X 버튼, 천기 레이어 OFF 시.
+           [재생 동기] 슬라이더 frame 변경 시마다 JS 가 textContent 갱신. */
+        .shrt-fcst-point-box {
+            position: absolute;
+            z-index: 1300;
+            min-width: 14rem;
+            max-width: calc(100vw - 1rem);
+            background: rgba(15, 25, 50, 0.96);
+            backdrop-filter: blur(2px);
+            border: 1px solid rgba(120, 150, 200, 0.30);
+            border-radius: 0.5rem;
+            box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.45);
+            color: #e5edff;
+            font-family: "Pretendard", sans-serif;
+            font-size: 0.8125rem;        /* 13px @ 16 base */
+            line-height: 1.4;
+            user-select: none;
+        }
+        .shrt-fcst-point-box-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0.5rem 0.625rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+        .shrt-fcst-point-box-close {
+            background: transparent;
+            border: none;
+            color: #c5d0e5;
+            font-size: 1.125rem;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0 0.25rem;
+        }
+        .shrt-fcst-point-box-close:hover { color: #ffffff; }
+        .shrt-fcst-point-box-body {
+            padding: 0.5rem 0.625rem 0.625rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        .shrt-fcst-point-row {
+            display: flex;
+            gap: 0.5rem;
+            align-items: baseline;
+        }
+        .shrt-fcst-point-row-label {
+            color: #b0bdd9;
+            min-width: 4.5rem;
+            font-size: 0.75rem;
+        }
+        .shrt-fcst-point-row-value {
+            color: #f0f5ff;
+            font-weight: 500;
+        }
+        .shrt-fcst-point-loading {
+            padding: 0.75rem 0.625rem;
+            color: #b0bdd9;
+            font-size: 0.8125rem;
+            text-align: center;
         }
     </style>
     <script>window.__SEAGNAL_PAGE = 'index2';</script>
@@ -2139,18 +2217,18 @@
                             <i class="fa-solid fa-table-cells"></i>
                             <span class="ocean-overlay-label">해구도</span>
                         </button>
-                        <!-- 기타 기상 토글: js/shrt_forecast_layer.js 가 바인딩
+                        <!-- 천기 토글: js/shrt_forecast_layer.js 가 바인딩 (이전 이름: "기타 기상")
                              클릭 시 좌측으로 5개 단기예보 서브버튼 팝아웃
                              (강수확률·강수량·적설·하늘상태·강수형태) — 하나 선택 시 팝아웃이 접히면서
                              해당 KMA 단기예보 PNG 래스터를 ImageStatic 레이어로 지도에 표출
                              [데이터] marine.kma.go.kr/mmis_marine_api/v1/kma/shrt/imgList?shrtType=
                              [연계] js/shrt_forecast_layer.js -->
                         <div class="ocean-other-wx-wrap" id="ocean-other-wx-wrap">
-                            <button class="ocean-overlay-btn" id="ocean-other-wx-toggle-btn" title="기타 기상">
+                            <button class="ocean-overlay-btn" id="ocean-other-wx-toggle-btn" title="천기">
                                 <i class="fa-solid fa-cloud-sun-rain"></i>
-                                <span class="ocean-overlay-label">기타 기상</span>
+                                <span class="ocean-overlay-label">천기</span>
                             </button>
-                            <!-- 팝아웃: 기타 기상 버튼 좌측에 세로로 5개 정렬. 기본 숨김. -->
+                            <!-- 팝아웃: 천기 버튼 좌측에 세로로 5개 정렬. 기본 숨김. -->
                             <div class="ocean-other-wx-popup" id="ocean-other-wx-popup" aria-hidden="true">
                                 <button class="ocean-overlay-btn ocean-other-wx-item" data-shrt="pop" title="강수확률">
                                     <i class="fa-solid fa-percent"></i>
@@ -2914,7 +2992,7 @@
     <script src="js/ocean_warn_active4.js"></script>
     <script src="js/ocean_warn_active5.js"></script>
     <script src="js/ocean_timeline.js"></script>
-    <!-- 기타 기상 (KMA 단기예보 PNG 오버레이): 토글 버튼 + 5개 서브버튼 + 슬라이더/재생 + 범례 -->
+    <!-- 천기 (KMA 단기예보 PNG 오버레이): 토글 버튼 + 5개 서브버튼 + 슬라이더/재생 + 범례 + 클릭 팝업 -->
     <script src="js/shrt_forecast_layer.js"></script>
 
     <script src="js/admin_trigger.js"></script>
