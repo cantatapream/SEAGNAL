@@ -944,6 +944,14 @@
             try { window.oceanOverlayTurnOff(); } catch (e) {}
         }
 
+        // [C-cache] 사용자가 의식적으로 천기 카테고리를 활성화 → 캐시 무효화 + 강제 새 fetch.
+        //   사유: 평상시 5분 TTL 캐시가 있지만, 사용자가 KMA 점진 발표를 기다리거나
+        //         stale 데이터 의심 시 OFF→ON 토글로 즉시 갱신을 원할 수 있음.
+        //   동작: 해당 카테고리만 캐시/inflight 무효화. 다른 카테고리는 그대로
+        //         (popup/바텀시트 sampling 에서 공유되므로 부분 무효화로 충분).
+        delete _imgListCache[shrtType];
+        delete _imgListInflight[shrtType];
+
         state.activeType = shrtType;
 
         var btn = document.querySelector('.ocean-other-wx-item[data-shrt="' + shrtType + '"]');
@@ -991,7 +999,7 @@
         }).catch(function (e) {
             console.error('[shrt] activate failed:', e);
             // 에러 시: 로딩 메시지를 에러로 교체
-            renderLegendError(shrtType, '데이터를 불러올 수 없습니다.');
+            renderLegendError(shrtType, '기상청 단기예보 데이터를 일시적으로 불러올 수 없습니다.');
             // 슬라이더는 그대로 두고 사용자가 다른 카테고리 선택하거나 토글 OFF 할 수 있게.
         });
     }
@@ -1337,9 +1345,64 @@
      * @returns {Promise<Object>} 정량형: { value, rgb, alpha, bandIdx } 또는 { value: null, reason }
      *                             카테고리형: { label, rgb } 또는 { label: null, reason }
      */
+    /**
+     * "YYYY.MM.DD HH:mm" 형식의 KMA fct_tm 문자열을 epoch ms 로 변환.
+     * 매칭 실패 시 null. (정시 외 다른 단위가 들어올 수도 있어 robust 하게 분/초까지 파싱.)
+     */
+    function _parseFctTmMs(s) {
+        if (!s) return null;
+        var m = /^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/.exec(s);
+        if (!m) return null;
+        return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime();
+    }
+
+    /**
+     * imgList.frames 배열에서 targetFctTm 과 시간 차가 가장 작은 frame 을 찾되,
+     * 차이가 maxDeltaMs 를 넘으면 null 반환 (너무 멀어 부정확).
+     *
+     * 왜 필요한가?
+     *   사용자(또는 바텀시트) 가 요청한 fctTm 이 imgList 에 정확히 없을 때 —
+     *   예: 현재시각 20:18 → round("20:00") 인데 KMA 는 21:00 부터만 제공.
+     *   이런 경우 가장 가까운 frame 의 데이터로 fallback.
+     *
+     *   maxDeltaMs 제한은 너무 먼 시각 (예: imgList 끝 + 24시간) 을 매핑해서
+     *   사용자에게 잘못된 데이터를 보여주는 것을 방지.
+     */
+    function _findNearestFrame(frames, targetFctTm, maxDeltaMs) {
+        if (!frames || !frames.length) return null;
+        var t = _parseFctTmMs(targetFctTm);
+        if (t == null) return null;
+        var best = null, bestDelta = Infinity;
+        for (var i = 0; i < frames.length; i++) {
+            var ft = _parseFctTmMs(frames[i].fct_tm);
+            if (ft == null) continue;
+            var d = Math.abs(ft - t);
+            if (d < bestDelta) { best = frames[i]; bestDelta = d; }
+        }
+        if (bestDelta > maxDeltaMs) return null;
+        return best;
+    }
+
+    /**
+     * 가까운 frame fallback 의 거리 한도 — 90 분.
+     * 근거:
+     *   KMA 단기예보는 1시간 단위 frame. 현재시각이 발표 직후 갭에 있어도 보통 60분 안.
+     *   90분 제한 = 1.5 frame 거리 — 자연스러운 가까운 fallback.
+     *   이보다 멀면 사용자가 의도적으로 먼 시각을 본 것 → 데이터 없음 표시가 옳음.
+     */
+    var FCTTM_FALLBACK_MAX_DELTA_MS = 90 * 60 * 1000;
+
     function _samplePointForType(shrtType, fctTm, lon, lat) {
         return _getImgListEntry(shrtType).then(function (list) {
             var imgPath = list.fctMap[fctTm];
+            // [A-fctTm fallback] 정확 매칭 실패 시 가장 가까운 frame 으로 (90분 안에서)
+            //   사유: KMA imgList 는 미래 frame 만 제공. 현재시각 20:18 round → 20:00 인데
+            //         imgList 첫 frame 이 21:00 이면 정확 매칭 실패. 21:00 데이터를 fallback.
+            //         거리 90분 초과는 사용자 의도적 먼 시각 → null 반환 (카드 hide).
+            if (!imgPath) {
+                var nearest = _findNearestFrame(list.frames, fctTm, FCTTM_FALLBACK_MAX_DELTA_MS);
+                if (nearest) imgPath = nearest.url;
+            }
             if (!imgPath) return { value: null, label: null, reason: 'no_url' };
             return _loadImgViaProxy(imgPath).then(function (img) {
                 var px = _lonLatToPx(lon, lat, img.naturalWidth, img.naturalHeight);
@@ -1396,6 +1459,19 @@
         var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
         return d.getFullYear() + '.' + pad(d.getMonth() + 1) + '.' + pad(d.getDate())
              + ' ' + pad(d.getHours()) + ':00';
+    };
+    /**
+     * [외부 노출] imgList 캐시 + inflight Promise 전체 무효화 (6 카테고리 모두).
+     * 다음 sample 호출 시 KMA 에 새 fetch.
+     *
+     * 호출자: 바텀시트 천기 카드 (해점 클릭/날짜 nav 시 forceRefresh).
+     *         사용자 의도적 갱신 시 stale 캐시 우회 — KMA 점진 발표 진행 즉시 반영.
+     */
+    window._shrtForecastInvalidateImgListCache = function () {
+        var keys = Object.keys(_imgListCache);
+        for (var i = 0; i < keys.length; i++) delete _imgListCache[keys[i]];
+        keys = Object.keys(_imgListInflight);
+        for (var j = 0; j < keys.length; j++) delete _imgListInflight[keys[j]];
     };
 
     var popupState = {

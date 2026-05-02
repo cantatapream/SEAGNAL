@@ -125,10 +125,12 @@
         var hasAny  = hasSky || hasRain || hasSno || hasTmp;
         if (!hasAny) { _show(false); return; }
 
-        _setCell('sky',  hasSky ? data.sky.label                          : '하늘 정보 없음');
-        _setCell('rain', _buildRainText(data.pty, data.pcp, data.pop));     // 자체적으로 8 case 처리 (없으면 "강수 정보 없음")
-        _setCell('sno',  hasSno ? (_fmtNum(data.sno.value) + 'cm')         : '적설 예보 없음');
-        _setCell('tmp',  hasTmp ? (_fmtNum(data.tmp.value) + '°C')         : '기온 정보 없음');
+        _setCell('sky',  hasSky ? data.sky.label                              : '하늘 정보 없음');
+        _setCell('rain', _buildRainText(data.pty, data.pcp, data.pop));         // 자체적으로 8 case 처리 (없으면 "강수 정보 없음")
+        // 적설 — 정상값에도 "적설 " prefix 부착. cm 단위만으로는 어느 카테고리인지 모호 → 사용자 요구.
+        _setCell('sno',  hasSno ? ('적설 ' + _fmtNum(data.sno.value) + 'cm')   : '적설 예보 없음');
+        // 기온 — 정상값에도 "기온 " prefix 부착. 같은 시트의 수온 카드(17°C)와 식별 분리.
+        _setCell('tmp',  hasTmp ? ('기온 ' + _fmtNum(data.tmp.value) + '°C')   : '기온 정보 없음');
         _show(true);
     }
 
@@ -138,20 +140,22 @@
      * @param {number} lat - 위도 (EPSG:4326)
      * @param {number} lon - 경도
      * @param {Date}   date - 표시할 시각 (KMA 가장 가까운 정시로 round)
+     * @param {boolean} [forceRefresh=false] - true 면 imgList 캐시 무시 + 새 KMA fetch 강제.
      *
      * 호출 시점:
-     *   - 바텀시트가 열린 직후 (ocean_bottom_sheet5.js loadAllForDate)
-     *   - 타임라인 슬라이더 이동 시 (OS.onTimelineChanged 가 자체 호출하거나
-     *     loadAllForDate 가 매 변경 시 다시 호출)
+     *   - 바텀시트가 열린 직후 (해점 클릭) → forceRefresh=true (사용자 의도적 갱신)
+     *   - 날짜 nav ◀▶ 버튼 → loadAllForDate → forceRefresh=true (새 날짜 = 새 데이터 의도)
+     *   - 타임라인 슬라이더 이동 (OS.onTimelineChanged) → forceRefresh=false (캐시 사용)
      *
      * 동작:
      *   1) 좌표가 KMA extent 밖이면 카드 hide (이른 종료)
-     *   2) date → fct_tm 변환 (window._shrtForecastNearestFctTm)
-     *   3) 4 셀 스켈레톤 표시 + 카드 show
-     *   4) samplePointAt 호출 → 응답 받으면 텍스트로 교체
-     *   5) 응답 사이 슬라이더 이동 → token 검증으로 오래된 응답 무시
+     *   2) [신규 — forceRefresh] 6 카테고리 imgList 캐시 무효화
+     *   3) date → fct_tm 변환 (window._shrtForecastNearestFctTm)
+     *   4) 4 셀 스켈레톤 표시 + 카드 show
+     *   5) samplePointAt 호출 → 응답 받으면 텍스트로 교체
+     *   6) 응답 사이 슬라이더 이동 → token 검증으로 오래된 응답 무시
      */
-    OS.loadWeatherCard = function (lat, lon, date) {
+    OS.loadWeatherCard = function (lat, lon, date, forceRefresh) {
         var card = document.getElementById('ocean-card-weather');
         if (!card) return;
 
@@ -165,6 +169,13 @@
             typeof window._shrtForecastNearestFctTm !== 'function') {
             _show(false);
             return;
+        }
+
+        // [C-cache] 사용자 의도적 갱신 (해점 클릭 / 날짜 nav) 시 imgList 캐시 무효화 →
+        //   다음 sample 이 KMA 에서 새로 fetch. 슬라이더 이동은 forceRefresh=false 라
+        //   캐시 사용 → KMA 부하 절약.
+        if (forceRefresh && typeof window._shrtForecastInvalidateImgListCache === 'function') {
+            window._shrtForecastInvalidateImgListCache();
         }
 
         var fctTm = window._shrtForecastNearestFctTm(date || new Date());

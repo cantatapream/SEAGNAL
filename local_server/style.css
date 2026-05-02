@@ -9008,15 +9008,19 @@ body.ocean-map-active .main-header .header-content {
     min-width: 44px;
 }
 /* 우측 4셀 그리드 — 2행×2열. 라벨/콜론 없이 값만 (사용자 요구로 폭 단순화).
-   각 셀 = 한 카테고리의 결과 텍스트만 표시 ("흐림", "비 0.5mm (32%)", "적설 예보 없음", "17°C" 등).
-   값 텍스트 자체에 카테고리명 포함 (값이 짧을 땐 단위 + 값, 데이터 없음 땐 "{카테고리} 정보 없음" 형태) → 라벨 불필요. */
+   각 셀 = 한 카테고리의 결과 텍스트만 표시 ("흐림", "강수 0mm (32%)", "적설 0.5cm", "기온 17°C").
+   값 텍스트 자체에 카테고리명 포함 → 라벨 불필요.
+   [정렬 — 사용자 요구]
+     1fr 1fr (50/50) 분할 시 두 번째 컬럼이 카드 가운데부터 시작 → 좌측 공백.
+     auto auto + justify-content: start 로 두 컬럼이 자기 텍스트 폭만 차지 → 좌측 정렬. */
 .ocean-card-weather-grid {
     flex: 1 1 auto;
     display: grid;
-    grid-template-columns: 1fr 1fr;        /* 좌/우 50:50 */
+    grid-template-columns: auto auto;      /* 각 컬럼 자기 텍스트 폭만 */
     grid-template-rows: auto auto;
     gap: 4px 16px;                         /* row 4px, col 16px */
     align-items: center;
+    justify-content: start;                /* 그리드 자체를 컨테이너 좌측 정렬 */
     min-width: 0;                          /* flex 자식이 overflow 안 하도록 */
 }
 /* 셀 — 한 카테고리 값. 한 줄로 표시, 길면 ellipsis. */
