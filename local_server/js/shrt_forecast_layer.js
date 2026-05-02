@@ -1381,6 +1381,23 @@
         });
     }
 
+    /**
+     * [외부 노출] 바텀시트 천기 카드 등 다른 모듈이 점데이터 sampling 사용하도록.
+     * 동일한 캐시 (imgList + image cache) 활용 → 천기 popup 과 시너지.
+     */
+    window._shrtForecastSamplePointAt = samplePointAt;
+    /** [외부 노출] 임의 시각 → KMA 가장 가까운 정시 frame 의 fct_tm 문자열. */
+    window._shrtForecastNearestFctTm = function (date) {
+        var d = new Date(date);
+        if (isNaN(d.getTime())) d = new Date();
+        // 30분 이상이면 다음 정시로 올림, 미만이면 내림 (가장 가까운 정시)
+        if (d.getMinutes() >= 30) d.setHours(d.getHours() + 1);
+        d.setMinutes(0, 0, 0);
+        var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+        return d.getFullYear() + '.' + pad(d.getMonth() + 1) + '.' + pad(d.getDate())
+             + ' ' + pad(d.getHours()) + ':00';
+    };
+
     var popupState = {
         box: null,
         latLon: null,
