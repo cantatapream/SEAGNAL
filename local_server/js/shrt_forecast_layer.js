@@ -6,9 +6,10 @@
  * ============================================================================
  *
  * [한 줄 설명]
- *   사용자가 우측 컨트롤의 "천기" 버튼 → 5개 서브버튼 중 하나를 누르면, KMA 의
- *   단기예보 PNG raster 가 지도에 깔리고, 하단에 슬라이더+범례가 나타난다.
- *   추가로 지도 위 어느 점이든 클릭하면 그 좌표의 5개 카테고리 종합 정보가
+ *   사용자가 우측 컨트롤의 "천기" 버튼 → **6개 서브버튼** (강수확률/강수량/적설/
+ *   하늘상태/강수형태/기온) 중 하나를 누르면, KMA 의 단기예보 PNG raster 가
+ *   지도에 깔리고, 하단에 슬라이더+범례가 나타난다.
+ *   추가로 지도 위 어느 점이든 클릭하면 그 좌표의 6개 카테고리 종합 정보가
  *   작은 박스로 뜬다 — **클라이언트(브라우저) 가 PNG 를 직접 canvas 로 그려
  *   픽셀 색상을 추출** 후 색상 팔레트와 매칭해서 단계 값으로 변환.
  *   서버는 단순 CORS 프록시 (/api/kma-png-proxy) 만 제공 — 메모리/CPU 부담 0.
@@ -24,7 +25,7 @@
  *
  * [UI 구성]
  *   - 우측 컨트롤 스택의 "천기" 버튼 (이전 이름: "기타 기상")
- *     → 좌측으로 5개 서브버튼 팝아웃 (강수확률/강수량/적설/하늘상태/강수형태)
+ *     → 좌측으로 6개 서브버튼 팝아웃 (강수확률/강수량/적설/하늘상태/강수형태/기온)
  *   - 서브버튼 클릭 시 팝아웃 닫힘 + 해당 GEMD raster 표출 + 슬라이더/범례/재생
  *   - 동일 레이어 다시 클릭 시 OFF
  *
@@ -90,11 +91,11 @@
     var PLAY_INTERVAL_MS = 500;
 
     // 5개 카테고리 모두 활성 (잠금 해제 후 사용)
-    var ENABLED_TYPES = { sky: true, pty: true, pop: true, pcp: true, sno: true };
+    var ENABLED_TYPES = { sky: true, pty: true, pop: true, pcp: true, sno: true, tmp: true };
 
     var TYPE_LABELS = {
         pop: '강수확률', pcp: '강수량', sno: '적설',
-        sky: '하늘상태', pty: '강수형태'
+        sky: '하늘상태', pty: '강수형태', tmp: '기온'
     };
 
     // 범례 — KMA marine.kma.go.kr chunk-common JS 에서 추출한 정확한 정의 (단계/색상/임계값/visible-marks).
@@ -172,12 +173,65 @@
         { t: '90',  p: 100 }
     ];
 
+    // ── TMP — 기온 60단계 (KMA marine.kma.go.kr chunk-common.js 추출) ──
+    //   현재 월에 따라 임계값 범위(min~max) 가 동적 변동. 단계 갯수 60 고정.
+    //   색상: 보라(저온) → 파랑 → 청 → 녹 → 노랑 → 빨강(고온) — 6 색상군 × 10단계.
+    //   visible-marks: [0, 10, 20, 30, 40, 50, 60] = 7개 라벨 (각 군 경계).
+    //   step = (max - min) / 60 → 보통 0.5°C 단위.
+    var TMP_COLORS = [
+        '#e5acff','#da87ff','#cd61ff','#c23eff','#b71fff','#ad07ff','#a000f7','#9200e4','#8700ce','#7f00bf',
+        '#cbcce8','#b3b4de','#9a9bd3','#8081c7','#6567bc','#4c4eb1','#3436a7','#1f219d','#0d1096','#000390',
+        '#ace5ff','#87d9ff','#61cdff','#3ec1ff','#1fb5ff','#07abff','#009df6','#008dde','#0080c4','#0077b3',
+        '#96fe96','#69fc69','#40f940','#1ef31e','#08e908','#00d500','#00bd00','#00a400','#008e00','#008000',
+        '#fff09a','#ffea6e','#ffe343','#ffdc1f','#ffd604','#f9cd00','#edc300','#e0b900','#d4b000','#ccaa00',
+        '#fcabab','#fa8585','#f86060','#f63e3e','#f32121','#ee0b0b','#e30000','#d50000','#c80000','#bf0000'
+    ];
+
+    /**
+     * 현재 월에 따라 기온 범례 [min, max] 반환 (KMA chunk-common.js 동적 로직 1:1 동일).
+     * step = (max - min) / 60 = 보통 0.5°C 단위.
+     * 60단계 → 인덱스 i 의 임계값 = min + i * step.
+     */
+    function _getTmpRange() {
+        var m = (new Date()).getMonth() + 1;   // 1..12
+        if (m === 1 || m === 2 || m === 12) return { min: -15, max: 15 };
+        if (m === 3 || m === 11)             return { min: -10, max: 20 };
+        if (m === 4 || m === 10)             return { min: -5,  max: 25 };
+        if (m === 5 || m === 9)              return { min: 5,   max: 35 };
+        return { min: 10, max: 40 };           // 6, 7, 8 월
+    }
+
+    /** 현재 월의 60단계 임계값 배열 (각 색상이 시작되는 °C). */
+    function _getTmpThresholds() {
+        var r = _getTmpRange();
+        var step = (r.max - r.min) / 60;
+        var arr = [];
+        for (var i = 0; i < 60; i++) arr.push(Math.round((r.min + step * i) * 10) / 10);
+        return arr;
+    }
+
+    /** 현재 월의 7개 라벨 ({t,p} 형태). visible-marks=[0,10,20,30,40,50,60] / 60 = 0/16.67/.../100. */
+    function _getTmpLabels() {
+        var r = _getTmpRange();
+        var step = (r.max - r.min) / 60;
+        // visible-marks 인덱스 → 표시 위치% + 라벨 텍스트 (해당 인덱스의 °C 값)
+        var marks = [0, 10, 20, 30, 40, 50, 60];
+        return marks.map(function (idx) {
+            var pct = (idx / 60) * 100;
+            // 정수면 정수로, 소수면 그대로
+            var v = Math.round((r.min + step * idx) * 10) / 10;
+            return { t: String(v), p: pct };
+        });
+    }
+
     var LEGEND_DEF = {
         sky: { title: '하늘상태', style: 'category', items: SKY_LEGEND },
         pty: { title: '강수형태', style: 'category', items: PTY_LEGEND },
         pop: { title: '강수확률', style: 'gradient', unit: '%',  colors: POP_COLORS, labels: POP_LABELS },
         pcp: { title: '강수량',   style: 'gradient', unit: 'mm', colors: PCP_COLORS, labels: PCP_LABELS },
-        sno: { title: '적설',     style: 'gradient', unit: 'cm', colors: SNO_COLORS, labels: SNO_LABELS }
+        sno: { title: '적설',     style: 'gradient', unit: 'cm', colors: SNO_COLORS, labels: SNO_LABELS },
+        // 기온 — 동적 라벨이라 함수형 (renderLegend 가 호출 시 생성).
+        tmp: { title: '기온',     style: 'gradient', unit: '°C', colors: TMP_COLORS, dynamicLabels: _getTmpLabels }
     };
 
     // ── 잠금 해제 패턴 ───────────────────────────────────────────
@@ -419,39 +473,92 @@
     // 데이터 fetch
     // ─────────────────────────────────────────────────────────────
 
+    // ── imgList 통합 캐시 (5분 TTL) ──
+    //   activate 와 클릭 팝업 sampling 양쪽이 같은 캐시 공유. 한 번 받으면 5분간 즉답.
+    //   _imgListCache[shrtType] = { ts, frames, fctMap }
+    //   _imgListInflight[shrtType] = Promise — 동시 호출 시 dedup (같은 fetch 한 번만)
+    var _imgListCache = {};
+    var _imgListInflight = {};
+    var IMG_LIST_TTL_MS = 5 * 60 * 1000;
+
     /**
-     * KMA imgList API 호출 — 활성 카테고리의 frame 목록을 가져옴.
+     * 한 카테고리의 imgList entry 를 가져옴 (캐시 + dedup).
      *
-     * 무엇을 하나?
-     *   GET https://marine.kma.go.kr/.../imgList?shrtType=<pop|pcp|sno|sky|pty>
-     *   응답: { fct_tm_list: ["2026.05.03 14:00", ...], img_list: ["/resources/.../...png", ...] }
-     *   응답을 파싱해서 frame 객체 배열로 변환.
+     * 동작:
+     *   1) 캐시 valid (TTL 5분 안) 이면 즉시 entry 반환
+     *   2) 같은 카테고리 fetch 가 이미 진행 중이면 그 Promise 재사용 (네트워크 중복 방지)
+     *   3) 그 외 새로 fetch + 캐시 저장 + entry 반환
      *
-     * 반환 frame 형식:
-     *   - url: KMA PNG 경로 (지도 raster 표출용)
-     *   - label: "5.3.(월) 14:00" 화면 표시용 한국어 포맷
-     *   - fct_tm: KMA 원본 포맷 "2026.05.03 14:00" — 클릭 팝업 sampling 시 키 매칭용
+     * @returns {Promise<{ts, frames:[{url,fct_tm,label}], fctMap:{fct_tm→url}}>}
      *
-     * 언제 호출?
-     *   - activate(shrtType) 에서 활성 카테고리의 frame 목록 가져올 때
-     *
-     * [클릭 팝업 sampling 의 다른 4 카테고리 imgList 는 _fetchImgListFor() 가 별도 처리]
+     * 호출자:
+     *   - fetchImgList()      — activate 시 frame 배열 추출
+     *   - _samplePointForType — 팝업 sampling 시 fctMap 활용
+     *   - prefetchAllImgLists — 천기 토글 시 6개 동시 prefetch
      */
-    function fetchImgList(shrtType) {
+    function _getImgListEntry(shrtType) {
+        var c = _imgListCache[shrtType];
+        if (c && (Date.now() - c.ts) < IMG_LIST_TTL_MS) return Promise.resolve(c);
+        if (_imgListInflight[shrtType]) return _imgListInflight[shrtType];
+
         var url = IMG_LIST_URL + '?shrtType=' + encodeURIComponent(shrtType);
-        return fetch(url, { credentials: 'omit' })
-            .then(function (r) { if (!r.ok) throw new Error('imgList ' + r.status); return r.json(); })
+        var p = fetch(url, { credentials: 'omit' })
+            .then(function (r) { if (!r.ok) throw new Error('imgList ' + shrtType + ' ' + r.status); return r.json(); })
             .then(function (j) {
-                if (!j || j.code !== '0000' || !j.data) throw new Error('imgList bad: ' + (j && j.msg));
+                if (!j || j.code !== '0000' || !j.data) throw new Error('imgList ' + shrtType + ' bad');
                 var times = j.data.fct_tm_list || [];
                 var imgs  = j.data.img_list || [];
                 var n = Math.min(times.length, imgs.length);
-                var frames = [];
+                var frames = [], fctMap = {};
                 for (var i = 0; i < n; i++) {
-                    frames.push({ url: imgs[i], label: fmtFcstTm(times[i]), fct_tm: times[i] });
+                    frames.push({ url: imgs[i], fct_tm: times[i], label: fmtFcstTm(times[i]) });
+                    fctMap[times[i]] = imgs[i];
                 }
-                return frames;
-            });
+                var entry = { ts: Date.now(), frames: frames, fctMap: fctMap };
+                _imgListCache[shrtType] = entry;
+                return entry;
+            })
+            .finally(function () { delete _imgListInflight[shrtType]; });
+        _imgListInflight[shrtType] = p;
+        return p;
+    }
+
+    /**
+     * KMA imgList API 호출 — 활성 카테고리의 frame 목록을 가져옴.
+     *
+     * [통합 캐시 사용]
+     *   _getImgListEntry 경유 → 5분 캐시 + dedup. 같은 카테고리 재활성화 즉답.
+     *
+     * 반환 frame 형식:
+     *   - url: KMA PNG 경로 (지도 raster 표출용)
+     *   - label: "5.3.(월) 14:00" 화면 표시용
+     *   - fct_tm: KMA 원본 "2026.05.03 14:00" — 팝업 sampling 키 매칭용
+     */
+    function fetchImgList(shrtType) {
+        return _getImgListEntry(shrtType).then(function (entry) { return entry.frames; });
+    }
+
+    /**
+     * 모든 카테고리의 imgList 를 백그라운드 prefetch.
+     *
+     * [언제 호출?]
+     *   사용자가 "천기" 토글 버튼을 눌러 서브버튼 popup 이 열리는 시점.
+     *   사용자가 서브버튼을 고르는 데 보통 1-2초 걸리는 그 시간 동안 미리 캐시 채움.
+     *
+     * [효과]
+     *   사용자가 어떤 서브버튼을 선택하든 imgList 캐시 적중 → activate 즉답.
+     *
+     * [비용]
+     *   각 imgList ~30 KB JSON × 카테고리 수. 사용자가 천기 안 쓰고 닫아도 다운로드 발생하지만
+     *   180 KB 정도라 모바일 데이터 부담 매우 작음.
+     *
+     * [에러 처리]
+     *   각 fetch 가 독립적으로 실패해도 다른 fetch 영향 X (.catch noop).
+     *   실제 사용 시 그 카테고리만 다시 fetch 하면 됨.
+     */
+    function prefetchAllImgLists() {
+        var types = Object.keys(ENABLED_TYPES).filter(function (t) { return ENABLED_TYPES[t]; });
+        types.forEach(function (t) { _getImgListEntry(t).catch(function () {}); });
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -566,7 +673,8 @@
             //   2) 라벨: M 개 (색상 갯수와 독립), 균등 위치. 단위(%/mm/cm) 는 라벨에 직접 부착.
             //   3) 별도 헤더 / 우하단 단위 표시 없음.
             var colors = def.colors || [];
-            var labels = def.labels || [];
+            // 동적 라벨 (예: 기온 — 월별 변동) 또는 정적 라벨
+            var labels = def.dynamicLabels ? def.dynamicLabels() : (def.labels || []);
             var unit = def.unit || '';
 
             var blocksHtml = '';
@@ -605,6 +713,42 @@
         lg.style.display = '';
         lg.setAttribute('aria-hidden', 'false');
     }
+
+    /**
+     * [P3] 로딩 상태 범례 — imgList 응답 전 임시 표출.
+     *
+     * 무엇을 하나?
+     *   범례 박스 자리에 "데이터를 불러오는 중…" 메시지 표시. activate 진입 즉시 호출.
+     *   응답 도착 후 renderLegend() 가 정상 범례로 덮어씀.
+     *
+     * 디자인:
+     *   기존 카테고리형 (sky/pty) 범례 스타일과 동일한 어두운 박스 + 흰톤 텍스트.
+     *   gradient-mode 클래스는 빼서 카테고리형 컴팩트 박스로 표시.
+     */
+    function renderLegendLoading(shrtType) {
+        var lg = $('shrt-fcst-legend');
+        if (!lg) return;
+        lg.classList.remove('gradient-mode');
+        lg.innerHTML = '<div class="shrt-fcst-legend-loading">데이터를 불러오는 중…</div>';
+        lg.style.display = '';
+        lg.setAttribute('aria-hidden', 'false');
+    }
+
+    /**
+     * [P3] 에러 상태 범례 — imgList 호출 실패 시 사용자에게 알림.
+     *
+     * @param {string} shrtType - 카테고리 (참고용, 메시지 결정에는 사용 X)
+     * @param {string} msg - 표시할 에러 메시지
+     */
+    function renderLegendError(shrtType, msg) {
+        var lg = $('shrt-fcst-legend');
+        if (!lg) return;
+        lg.classList.remove('gradient-mode');
+        lg.innerHTML = '<div class="shrt-fcst-legend-loading">' + msg + '</div>';
+        lg.style.display = '';
+        lg.setAttribute('aria-hidden', 'false');
+    }
+
     function hideLegend() {
         var lg = $('shrt-fcst-legend');
         if (!lg) return;
@@ -817,6 +961,14 @@
             bar.classList.remove('tooltip-suppressed');
         }
 
+        // [P3 — 즉시 로딩 UI]
+        //   imgList 응답 전이라도 슬라이더 바와 범례 영역을 미리 띄워 사용자에게
+        //   "로딩 중" 시각 피드백 제공. 응답 후 정상 데이터로 자연스럽게 전환.
+        //   슬라이더는 max=0 으로 비활성 — 사용자 input 무시.
+        showSliderBar(0);
+        renderLegendLoading(shrtType);
+        requestAnimationFrame(updateShrtStackHeight);
+
         fetchImgList(shrtType).then(function (frames) {
             if (state.activeType !== shrtType) return;
             if (!frames.length) {
@@ -831,11 +983,12 @@
             showFrame(0);
             for (var i = 0; i < frames.length; i++) preloadImg(frames[i].url);
             // [T3] DOM 이 그려진 직후 (microtask) 스택 높이 측정 → CSS 변수 반영.
-            //   rAF 으로 한 frame 양보 → offsetHeight 가 정확한 px 값 반환.
             requestAnimationFrame(updateShrtStackHeight);
         }).catch(function (e) {
             console.error('[shrt] activate failed:', e);
-            deactivate();
+            // 에러 시: 로딩 메시지를 에러로 교체
+            renderLegendError(shrtType, '데이터를 불러올 수 없습니다.');
+            // 슬라이더는 그대로 두고 사용자가 다른 카테고리 선택하거나 토글 OFF 할 수 있게.
         });
     }
 
@@ -876,13 +1029,18 @@
                     _toast('천기 잠금 해제됨 (검수 모드)');
                     wrap.classList.add('popup-open');
                     popup.setAttribute('aria-hidden', 'false');
+                    // [P3] 잠금 해제 후 popup 열림 시 prefetch — 사용자가 서브버튼 고르는 동안 캐시 채움
+                    prefetchAllImgLists();
                     return;
                 }
                 _toast('미구현 상태입니다.');
                 return;
             }
+            var willOpen = !wrap.classList.contains('popup-open');
             wrap.classList.toggle('popup-open');
-            popup.setAttribute('aria-hidden', wrap.classList.contains('popup-open') ? 'false' : 'true');
+            popup.setAttribute('aria-hidden', willOpen ? 'false' : 'true');
+            // [P3] popup 이 새로 열리는 시점에만 prefetch (이미 열려있다 닫는 경우 제외)
+            if (willOpen) prefetchAllImgLists();
         });
 
         document.addEventListener('click', function (e) {
@@ -906,28 +1064,52 @@
 
         var slider = $('shrt-fcst-slider');
         if (slider) {
-            // [드래그 debounce — 사용자 요구]
-            //   드래그 중에는 본문 sample 안 함 (헤더 시각만 갱신, 지도 PNG 는 즉시 반영).
-            //   손 놓은 후 (debounce 200ms 또는 'change' 이벤트) 그 위치만 1번 sample.
+            // [드래그 debounce + 말풍선 표시 — 사용자 요구]
+            //   드래그 중:
+            //     - 본문 sample 안 함 (네트워크/CPU 절약, 헤더 시각만 갱신)
+            //     - 말풍선은 강제 표시 (사용자가 어느 시간으로 가는지 알 수 있도록)
+            //   손 놓은 후 (debounce 200ms 또는 'change' 이벤트):
+            //     - 그 위치 1번 sample
+            //     - 정량형이고 재생 중 아니면 1초 fade-out 다시 적용
             //
             // 이벤트 흐름:
             //   - 'input': 드래그 도중 매번 발화 (range 슬라이더 표준)
-            //              → showFrame(idx, true) 로 헤더 시각/지도 PNG 만 갱신, sample skip
-            //   - 'change': 손을 뗀 시점 발화 (또는 keyboard 조작 종료) → sample 트리거
-            //   - 추가 안전망: input 후 200ms 안에 추가 input 없으면 강제 sample 트리거
+            //              → showFrame(idx, true) 헤더+지도 즉시 갱신, sample skip
+            //              → tooltip-suppressed 제거 (말풍선 강제 표시)
+            //   - 'change': 손 뗀 시점 발화 → sample 트리거 + 말풍선 정책 복원
+            //   - 200ms idle 안전망: input 후 추가 input 없으면 강제 sample
             var _dragSampleTimer = null;
+            /**
+             * 드래그 종료 후 말풍선 정책 복원 — 정량형이고 재생 중 아니면 fade-out.
+             * 카테고리형(sky/pty)은 항상 표시 정책이라 무영향.
+             */
+            function _restoreTooltipPolicy() {
+                var bar = $('shrt-fcst-slider-bar');
+                if (!bar) return;
+                if (state.playing) return;   // 재생 중이면 그대로 표시
+                var def = state.activeType ? LEGEND_DEF[state.activeType] : null;
+                if (def && def.style === 'gradient') {
+                    bar.classList.add('tooltip-suppressed');
+                }
+            }
             slider.addEventListener('input', function () {
                 stopPlay();
+                // [P1 수정] 드래그 중 말풍선 강제 표시 — stopPlay 가 .tooltip-suppressed 를
+                //   추가했어도 여기서 즉시 제거. 사용자가 어느 시각으로 가는지 보이게.
+                var bar = $('shrt-fcst-slider-bar');
+                if (bar) bar.classList.remove('tooltip-suppressed');
                 var idx = parseInt(slider.value, 10) || 0;
                 showFrame(idx, true);   // skipSample=true → 본문은 정지, 헤더/지도만 갱신
                 clearTimeout(_dragSampleTimer);
                 _dragSampleTimer = setTimeout(function () {
                     if (popupState.box && popupState.latLon) refreshPopupContents();
+                    _restoreTooltipPolicy();
                 }, 200);
             });
             slider.addEventListener('change', function () {
                 clearTimeout(_dragSampleTimer);
                 if (popupState.box && popupState.latLon) refreshPopupContents();
+                _restoreTooltipPolicy();
             });
         }
         var playBtn = $('shrt-fcst-play-btn');
@@ -994,6 +1176,7 @@
     var _POP_RGB = POP_COLORS.map(_hex2rgb);
     var _PCP_RGB = PCP_COLORS.map(_hex2rgb);
     var _SNO_RGB = SNO_COLORS.map(_hex2rgb);
+    var _TMP_RGB = TMP_COLORS.map(_hex2rgb);   // 60단계 기온 RGB (월 무관, 색상은 인덱스 기준)
 
     // 카테고리형 (sky/pty) 팔레트 — 라벨과 매칭 (rgba 의 rgb 부분만 사용).
     var _SKY_PALETTE = [
@@ -1007,31 +1190,8 @@
         { rgb: [0x8e, 0x8e, 0xe6], label: '눈' }
     ];
 
-    // ── imgList 캐시 (5분 TTL) ──
-    //   카테고리별 KMA imgList 응답을 메모리에 보관하여 매번 fetch 하지 않도록.
-    //   _imgListCache[shrtType] = { ts, frames: [{url,fct_tm,label}], fctMap: { fct_tm → url } }
-    var _imgListCache = {};
-    var IMG_LIST_TTL_MS = 5 * 60 * 1000;
-    function _fetchImgListFor(shrtType) {
-        var c = _imgListCache[shrtType];
-        if (c && (Date.now() - c.ts) < IMG_LIST_TTL_MS) return Promise.resolve(c);
-        return fetch(IMG_LIST_URL + '?shrtType=' + encodeURIComponent(shrtType), { credentials: 'omit' })
-            .then(function (r) { if (!r.ok) throw new Error('imgList ' + shrtType + ' ' + r.status); return r.json(); })
-            .then(function (j) {
-                if (!j || j.code !== '0000' || !j.data) throw new Error('imgList ' + shrtType + ' bad');
-                var times = j.data.fct_tm_list || [];
-                var imgs  = j.data.img_list || [];
-                var n = Math.min(times.length, imgs.length);
-                var frames = [], fctMap = {};
-                for (var i = 0; i < n; i++) {
-                    frames.push({ url: imgs[i], fct_tm: times[i], label: fmtFcstTm(times[i]) });
-                    fctMap[times[i]] = imgs[i];
-                }
-                var entry = { ts: Date.now(), frames: frames, fctMap: fctMap };
-                _imgListCache[shrtType] = entry;
-                return entry;
-            });
-    }
+    // ── imgList 캐시는 모듈 상단 _getImgListEntry() 와 통합 (단계 3 작업) ──
+    //   더 이상 별도 _fetchImgListFor 없음. _samplePointForType 가 _getImgListEntry 직접 호출.
 
     // ── 이미지 로더 캐시 (LRU) ──
     //   같은 URL 의 PNG 를 두 번 다운로드 안 함. 브라우저 HTTP 캐시도 있지만 거기까지
@@ -1152,7 +1312,7 @@
      *                             카테고리형: { label, rgb } 또는 { label: null, reason }
      */
     function _samplePointForType(shrtType, fctTm, lon, lat) {
-        return _fetchImgListFor(shrtType).then(function (list) {
+        return _getImgListEntry(shrtType).then(function (list) {
             var imgPath = list.fctMap[fctTm];
             if (!imgPath) return { value: null, label: null, reason: 'no_url' };
             return _loadImgViaProxy(imgPath).then(function (img) {
@@ -1170,9 +1330,13 @@
                     return (ptyIdx < 0) ? { label: null, reason: 'palette_mismatch', rgb: [s.r,s.g,s.b] }
                                         : { label: _PTY_PALETTE[ptyIdx].label, rgb: [s.r,s.g,s.b] };
                 }
-                // 정량형 (pop/pcp/sno)
-                var pal = (shrtType === 'pop') ? _POP_RGB : (shrtType === 'pcp') ? _PCP_RGB : _SNO_RGB;
-                var thr = (shrtType === 'pop') ? POP_THRESHOLDS : (shrtType === 'pcp') ? PCP_THRESHOLDS : SNO_THRESHOLDS;
+                // 정량형 (pop/pcp/sno/tmp)
+                //   tmp 는 임계값이 월별 동적 — _getTmpThresholds() 호출. 색상 팔레트는 고정.
+                var pal, thr;
+                if      (shrtType === 'pop') { pal = _POP_RGB; thr = POP_THRESHOLDS; }
+                else if (shrtType === 'pcp') { pal = _PCP_RGB; thr = PCP_THRESHOLDS; }
+                else if (shrtType === 'sno') { pal = _SNO_RGB; thr = SNO_THRESHOLDS; }
+                else /* tmp */               { pal = _TMP_RGB; thr = _getTmpThresholds(); }
                 var idx = _matchRgb(s.r, s.g, s.b, pal);
                 if (idx < 0) return { value: null, reason: 'palette_mismatch', rgb: [s.r,s.g,s.b] };
                 return { value: thr[idx], rgb: [s.r,s.g,s.b], alpha: s.a, bandIdx: idx };
@@ -1180,14 +1344,14 @@
         });
     }
 
-    /** 5개 카테고리 동시 sampling — Promise.all 로 병렬. 실패한 카테고리는 null. */
+    /** 6개 카테고리 동시 sampling — Promise.all 로 병렬. 실패한 카테고리는 null. */
     function samplePointAt(lat, lon, fctTm) {
-        var types = ['sky','pty','pop','pcp','sno'];
+        var types = ['sky','pty','pop','pcp','sno','tmp'];
         return Promise.all(types.map(function (t) {
             return _samplePointForType(t, fctTm, lon, lat).catch(function () { return null; });
         })).then(function (arr) {
             return { fct_tm: fctTm, lat: lat, lon: lon,
-                     sky: arr[0], pty: arr[1], pop: arr[2], pcp: arr[3], sno: arr[4] };
+                     sky: arr[0], pty: arr[1], pop: arr[2], pcp: arr[3], sno: arr[4], tmp: arr[5] };
         });
     }
 
@@ -1211,24 +1375,88 @@
     }
 
     /**
-     * 박스 본문 HTML 빌드 — 5개 카테고리 종합 (사용자 명세).
-     *   · 하늘 상태 : sky.label
-     *   · 강수량   : pty.label + pcp.value mm + (pop.value%)
-     *   · 적설     : sno.value cm  또는  "예보 없음"
+     * 작은 숫자 포맷 헬퍼 — 0 이면 '0', 그 외엔 소수점 1자리.
+     * 예) 0 → '0', 0.5 → '0.5', 4 → '4', 12.34 → '12.3'
+     */
+    function _fmtNum(v) {
+        if (v == null) return '';
+        if (v === 0) return '0';
+        return String(Math.round(v * 10) / 10);
+    }
+
+    /**
+     * "강수량" 라인의 본문 문자열 빌드 — 8가지 데이터 유무 조합 처리.
+     *
+     * [입력]
+     *   pty: { label: '비'|'비/눈'|'눈' }  또는 null  (강수형태)
+     *   pcp: { value: number }              또는 null  (강수량 mm)
+     *   pop: { value: number }              또는 null  (강수확률 %)
+     *
+     * [출력 케이스]
+     *   pty ✓ pcp ✓ pop ✓ → "비 0.5mm (60%)"
+     *   pty ✓ pcp ✓ pop ✗ → "비 0.5mm"
+     *   pty ✓ pcp ✗ pop ✓ → "비 (60%)"
+     *   pty ✓ pcp ✗ pop ✗ → "비"
+     *   pty ✗ pcp ✓ pop ✓ → "강수 0.5mm (60%)"
+     *   pty ✗ pcp ✓ pop ✗ → "강수 0.5mm"
+     *   pty ✗ pcp ✗ pop ✓ → "강수확률 60%"
+     *   pty ✗ pcp ✗ pop ✗ → "강수 정보 없음"
+     *
+     * [의도]
+     *   사용자가 "0%" 와 "데이터 없음" 을 명확히 구분할 수 있도록.
+     *   기존 코드는 모두 null 일 때 "없음 0mm (0%)" 식으로 어색.
+     */
+    function _buildRainText(pty, pcp, pop) {
+        var hasPty = !!(pty && pty.label);
+        var hasPcp = !!(pcp && pcp.value != null);
+        var hasPop = !!(pop && pop.value != null);
+        var ptyText = hasPty ? pty.label : '강수';
+        var pcpText = hasPcp ? (_fmtNum(pcp.value) + 'mm') : null;
+        var popText = hasPop ? (pop.value + '%') : null;
+
+        // 8가지 케이스 (pty 기준 분기)
+        if (hasPty) {
+            // 비/눈/비눈 정보 있음
+            if (hasPcp && hasPop)  return ptyText + ' ' + pcpText + ' (' + pop.value + '%)';
+            if (hasPcp && !hasPop) return ptyText + ' ' + pcpText;
+            if (!hasPcp && hasPop) return ptyText + ' (' + pop.value + '%)';
+            return ptyText;   // pty 만 있음
+        }
+        // pty 없음 — "강수" 일반 표현
+        if (hasPcp && hasPop)  return '강수 ' + pcpText + ' (' + pop.value + '%)';
+        if (hasPcp && !hasPop) return '강수 ' + pcpText;
+        if (!hasPcp && hasPop) return '강수확률 ' + pop.value + '%';
+        return '강수 정보 없음';
+    }
+
+    /**
+     * 박스 본문 HTML 빌드 — 6개 카테고리 종합 (사용자 명세).
+     *
+     * 라인 구성:
+     *   · 하늘 상태 : sky.label  ('맑음'/'구름많음'/'흐림') or '정보 없음'
+     *   · 강수량   : _buildRainText(pty, pcp, pop) — 8 케이스 분기
+     *   · 적설     : sno.value cm or '예보 없음'
+     *   · 기온     : tmp.value °C or '정보 없음'
+     *
+     * [데이터 없음 표현]
+     *   - 하늘 상태/기온: '정보 없음'
+     *   - 적설: '예보 없음' (사용자 명세 — 적설은 보통 봄/여름 데이터 없음이 정상)
      */
     function buildPopupBodyHtml(data) {
-        var skyLabel = (data.sky && data.sky.label) || '예보 없음';
-        var ptyLabel = (data.pty && data.pty.label) || '없음';
-        var pcpVal   = (data.pcp && data.pcp.value != null) ? data.pcp.value : 0;
-        var popVal   = (data.pop && data.pop.value != null) ? data.pop.value : 0;
-        var pcpStr   = (pcpVal === 0) ? '0' : (Math.round(pcpVal * 10) / 10);
-        var rainStr  = ptyLabel + ' ' + pcpStr + 'mm (' + popVal + '%)';
+        var skyLabel = (data.sky && data.sky.label) || '정보 없음';
+        var rainStr  = _buildRainText(data.pty, data.pcp, data.pop);
         var snoStr;
         if (data.sno && data.sno.value != null) {
-            var v = data.sno.value;
-            snoStr = ((v === 0) ? '0' : (Math.round(v * 10) / 10)) + 'cm';
+            snoStr = _fmtNum(data.sno.value) + 'cm';
         } else {
             snoStr = '예보 없음';
+        }
+        // 기온 — tmp.value 가 있으면 °C 부착, 없으면 '정보 없음'
+        var tmpStr;
+        if (data.tmp && data.tmp.value != null) {
+            tmpStr = _fmtNum(data.tmp.value) + '°C';
+        } else {
+            tmpStr = '정보 없음';
         }
         return '<div class="shrt-fcst-point-row">'
             +    '<span class="shrt-fcst-point-row-label">하늘 상태</span>'
@@ -1241,6 +1469,10 @@
             +  '<div class="shrt-fcst-point-row">'
             +    '<span class="shrt-fcst-point-row-label">적설</span>'
             +    '<span class="shrt-fcst-point-row-value">' + snoStr + '</span>'
+            +  '</div>'
+            +  '<div class="shrt-fcst-point-row">'
+            +    '<span class="shrt-fcst-point-row-label">기온</span>'
+            +    '<span class="shrt-fcst-point-row-value">' + tmpStr + '</span>'
             +  '</div>';
     }
 
