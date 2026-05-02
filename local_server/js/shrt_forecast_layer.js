@@ -366,17 +366,16 @@
             tick.style.left = pct + '%';
             frag.appendChild(tick);
 
-            if (isMajor) {
+            // 자정만 날짜 라벨 표시 (정오 "12시" 라벨은 제거 — 사용자 요구).
+            // 정오엔 큰 tick 만 표시되어 시각적 reference 역할.
+            if (isMajor && hh === 0) {
                 var key = m[1] + '-' + m[2] + '-' + hh;
                 if (!labelsAdded[key]) {
                     labelsAdded[key] = 1;
                     var label = document.createElement('div');
-                    // 자정 → 날짜, 위쪽 정렬 (.top)
-                    // 정오 → 시간, 아래쪽 정렬 (.bottom)
-                    var isMid = (hh === 0);
-                    label.className = 'shrt-fcst-tick-label ' + (isMid ? 'top' : 'bottom');
+                    label.className = 'shrt-fcst-tick-label top';
                     label.style.left = pct + '%';
-                    label.textContent = isMid ? (+m[1] + '/' + +m[2]) : '12시';
+                    label.textContent = +m[1] + '/' + +m[2];
                     frag.appendChild(label);
                 }
             }
