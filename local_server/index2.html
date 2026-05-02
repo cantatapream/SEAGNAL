@@ -918,10 +918,14 @@
            [높이] 60px 고정 — bar 의 vertical 중앙 = 슬라이더 트랙 = 재생버튼 가운데
            [표출] shrt_forecast_layer.js 가 레이어 ON 시 display:''           */
         .shrt-fcst-slider-bar {
-            position: absolute;             /* fixed 는 모바일 WebView 에서 ancestor transform 등으로 보이지 않는 케이스 발생 → absolute 유지 */
+            position: absolute;
             left: 0;
             right: 0;
-            bottom: var(--main-tab-height, 68px);
+            /* parent (#ocean-map-section.active → .ocean-map-wrapper) 가 이미
+               bottom: var(--main-tab-height) 로 메인탭 위쪽까지만 차지함.
+               여기서 또 빼면 double-counting → 슬라이더가 메인탭 위로 한 번 더 떠있게 됨.
+               → bottom: 0 으로 parent 의 bottom edge (= 메인탭 위쪽) 에 정확히 붙임. */
+            bottom: 0;
             z-index: 1100;
             display: flex;
             align-items: center;
@@ -1071,10 +1075,11 @@
            [폭] inline-flex 로 콘텐츠 너비만큼만 차지 (max-width 만 안전망)
            [위치] 슬라이더 바 상단으로부터 약 6px 위 (사용자 요구: 슬라이더-메인탭 간격의 절반) */
         .shrt-fcst-legend {
-            position: absolute;             /* slider-bar 와 동일한 absolute */
+            position: absolute;
             left: 12px;
-            /* slider bar height 50 + 약 14px 여백 = 메인탭 위로 64px */
-            bottom: calc(var(--main-tab-height, 68px) + 64px);
+            /* parent 가 이미 메인탭 위쪽까지만 차지 → slider-bar(height 50) + 14px 여백
+               = parent bottom 으로부터 64px (--main-tab-height 빼지 않음) */
+            bottom: 64px;
             z-index: 1100;
             background: rgba(255, 255, 255, 0.92);
             backdrop-filter: blur(2px);
