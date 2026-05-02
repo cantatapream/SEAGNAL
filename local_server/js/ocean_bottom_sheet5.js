@@ -56,6 +56,11 @@
                 el.onclick = function () {
                     OS.state.useKts = !OS.state.useKts;
                     OS.renderCurrentWindValues();
+                    // [양방향 동기] 카드 아이콘 클릭으로도 지도 범례 갱신 — 사용자가 어디서
+                    //   토글하든 범례/카드 단위 일관성 유지 (사용자 명세).
+                    if (typeof window.oceanOverlayUpdateLegend === 'function') {
+                        try { window.oceanOverlayUpdateLegend(); } catch (e) {}
+                    }
                 };
             }
         });

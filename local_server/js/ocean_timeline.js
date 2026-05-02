@@ -26,14 +26,30 @@
     /**
      * 슬라이더 손잡이 바로 위에 말풍선을 위치시키고 텍스트를 갱신합니다.
      *
-     * thumb 중심 x = 9 + pct × (trackWidth - 18)   (thumb 반지름 = 9px)
+     * [천기 슬라이더와 동일한 동작 — viewport clamping]
+     *   1) thumb 의 화면 절대 좌표 계산 (slider rect + pct × 트랙 폭)
+     *   2) 말풍선 너비 측정 (텍스트 변경 후 reflow)
+     *   3) 말풍선 left = thumb 가운데 정렬 — viewport 좌·우 4px 안에 가두기 (clamping)
+     *      → 우측 끝에서도 말풍선이 화면 밖으로 나가지 않음
+     *   4) 화살표 (::after) 는 thumb 방향으로 이동 — clamping 됐어도 손잡이 가리키게
+     *      → CSS 변수 --tl-arrow-x 로 동적 위치 설정
+     *
+     * [폰트 크기 동적 대응]
+     *   매 호출 시 tooltip.getBoundingClientRect().width 로 실제 width 측정.
+     *   FontSizeManager 가 작게/보통/크게 변경 시 자동으로 새 width 반영
+     *   (rem 기반 layout 이라 reflow 자동).
+     *
+     * 호출 시점:
+     *   - 슬라이더 mousedown/touchstart (드래그 시작 시 위치 갱신)
+     *   - 슬라이더 input (드래그 중 매번)
+     *   - setTimelineStep / setTimelineMax (외부 API 가 슬라이더 값 변경 시)
      */
     function updateTooltip(hours) {
         var tooltip = document.getElementById('ocean-timeline-tooltip');
         var slider  = document.getElementById('ocean-timeline-slider');
         if (!tooltip || !slider) return;
 
-        // 텍스트 생성: 0h → "현재", 그 외 → "4.10.(금) 08:00" 형식
+        // 1) 텍스트 생성: 0h → "현재", 그 외 → "5.7.(목) 00:00" 형식
         var text;
         if (hours === 0) {
             text = '현재';
@@ -48,15 +64,41 @@
         }
         tooltip.textContent = text;
 
-        // thumb 중심 x 계산
+        // 2) reset — 정확한 width 측정 위해 left/transform 초기화
+        tooltip.style.left = '0px';
+
+        // 3) thumb 의 viewport 절대 좌표
+        var sliderRect = slider.getBoundingClientRect();
         var min = parseFloat(slider.min) || 0;
         var max = parseFloat(slider.max) || 72;
         var val = parseFloat(slider.value) || 0;
-        var pct = (val - min) / (max - min || 1);
-        var trackW = slider.getBoundingClientRect().width;
-        var thumbHalf = 9; // thumb 반지름 (18px / 2)
-        var left = thumbHalf + pct * (trackW - thumbHalf * 2);
-        tooltip.style.left = left + 'px';
+        var pct = (max > min) ? (val - min) / (max - min) : 0;
+        var thumbHalf = 9;   // thumb 반지름 (18px / 2 — 슬라이더 thumb 크기 기반)
+        var thumbXViewport = sliderRect.left + thumbHalf + pct * (sliderRect.width - thumbHalf * 2);
+
+        // 4) 말풍선 측정 (텍스트 변경 후 재측정 — 폰트 크기 자동 반영)
+        var tipRect = tooltip.getBoundingClientRect();
+        var tipW = tipRect.width;
+
+        // 5) 말풍선 left = thumb 가운데 정렬, viewport 좌·우 4px 안에 clamping
+        var pad = 4;
+        var minLV = pad;
+        var maxLV = window.innerWidth - tipW - pad;
+        var idealLV = thumbXViewport - tipW / 2;
+        var clampedLV = Math.max(minLV, Math.min(idealLV, maxLV));
+
+        // 6) 부모(slider 의 부모) 기준 left 로 변환 — tooltip 이 absolute 면 그 부모 기준
+        var parentRect = tooltip.parentElement.getBoundingClientRect();
+        var leftInParent = clampedLV - parentRect.left;
+        tooltip.style.left = leftInParent + 'px';
+
+        // 7) 화살표 x — 말풍선 안에서 thumb 가리키는 위치.
+        //    말풍선이 가두어졌더라도 화살표는 thumb 방향으로 비스듬히 이동.
+        //    좌·우 8px 안쪽으로 clamping (화살표가 말풍선 모서리 밖으로 안 나가게)
+        var arrowX = thumbXViewport - clampedLV;
+        var arrowMin = 8, arrowMax = tipW - 8;
+        arrowX = Math.max(arrowMin, Math.min(arrowX, arrowMax));
+        tooltip.style.setProperty('--tl-arrow-x', arrowX + 'px');
     }
 
     /** 말풍선을 즉시 표시합니다. 진행 중인 fade-out 타이머는 취소합니다. */

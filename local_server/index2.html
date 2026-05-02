@@ -2034,12 +2034,7 @@
                     </label>
                 </div>
 
-                <!-- 시각 라벨 + 시간 점프 버튼
-                     포맷: "'YY. M. D.(요일) HH시 기준" — 끝에 "기준" 단어가 있어
-                     별도 라벨(예: "기준시각:") 없이도 의미 명확. -->
-                <div class="mc-time-row">
-                    <span class="mc-time-value" id="mc-time-value">--</span>
-                </div>
+                <!-- 시간 점프 버튼 — 라벨보다 위로 배치 -->
                 <div class="mc-time-jump" id="mc-time-jump">
                     <button data-jump="-48">-48H</button>
                     <button data-jump="-24">-24H</button>
@@ -2048,6 +2043,14 @@
                     <button data-jump="12">+12H</button>
                     <button data-jump="24">+24H</button>
                     <button data-jump="48">+48H</button>
+                </div>
+
+                <!-- 시각 라벨 — 이미지 박스 바로 위 (사용자 요구).
+                     포맷: "'YY. M. D.(요일) HH시 기준" — "기준" 단어 자체가 라벨 역할.
+                     크기: 일반 텍스트보다 약간 크게 (1rem~1.05rem). 큰 텍스트 모드에서도
+                     화면에 수렴하도록 max-width 제한 + 줄바꿈 허용. -->
+                <div class="mc-time-row mc-time-row-above-chart">
+                    <span class="mc-time-value" id="mc-time-value">--</span>
                 </div>
 
                 <!-- GIF 표시 영역
@@ -2148,7 +2151,7 @@
                         <div id="ocean-basemap-toggle-wrap" class="ocean-basemap-toggle-wrap">
                             <button id="ocean-basemap-toggle" class="ocean-overlay-btn ocean-basemap-toggle-btn" title="지도 종류 선택">
                                 <i class="fa-solid fa-layer-group"></i>
-                                <span class="ocean-overlay-label" id="ocean-basemap-label">기본맵</span>
+                                <span class="ocean-overlay-label" id="ocean-basemap-label" data-line1="기본맵">기본맵</span>
                             </button>
                             <div id="ocean-basemap-menu" class="ocean-basemap-menu" style="display:none;">
                                 <button class="ocean-basemap-item active" data-basemap="rltm">
@@ -2169,7 +2172,7 @@
                         <div id="ocean-info-btn-wrap" class="ocean-info-btn-wrap">
                             <button id="ocean-info-btn" class="ocean-overlay-btn ocean-basemap-toggle-btn" title="안내사항">
                                 <i class="fa-solid fa-circle-info"></i>
-                                <span class="ocean-overlay-label">안 내</span>
+                                <span class="ocean-overlay-label" data-line1="안내">안 내</span>
                             </button>
                         </div>
                     </div>
@@ -2178,23 +2181,23 @@
                     <div class="ocean-overlay-controls" id="ocean-overlay-controls">
                         <button class="ocean-overlay-btn" data-layer="current" title="유향·유속">
                             <i class="fa-solid fa-arrows-spin"></i>
-                            <span class="ocean-overlay-label">유향·유속</span>
+                            <span class="ocean-overlay-label" data-line1="유향" data-line2="유속">유향·유속</span>
                         </button>
                         <button class="ocean-overlay-btn" data-layer="wind" title="풍향·풍속">
                             <i class="fa-solid fa-wind"></i>
-                            <span class="ocean-overlay-label">풍향·풍속</span>
+                            <span class="ocean-overlay-label" data-line1="풍향" data-line2="풍속">풍향·풍속</span>
                         </button>
                         <button class="ocean-overlay-btn" data-layer="wave" title="파고·파향">
                             <i class="fa-solid fa-water"></i>
-                            <span class="ocean-overlay-label">파고·파향</span>
+                            <span class="ocean-overlay-label" data-line1="파고" data-line2="파향">파고·파향</span>
                         </button>
                         <button class="ocean-overlay-btn" id="ocean-marker-toggle-btn" title="주요지명">
                             <i class="fa-solid fa-location-dot"></i>
-                            <span class="ocean-overlay-label">주요지명</span>
+                            <span class="ocean-overlay-label" data-line1="주요" data-line2="지명">주요지명</span>
                         </button>
                         <button class="ocean-overlay-btn" id="ocean-buoy-toggle-btn" title="기상부이">
                             <i class="fa-solid fa-anchor"></i>
-                            <span class="ocean-overlay-label">기상부이</span>
+                            <span class="ocean-overlay-label" data-line1="기상" data-line2="부이">기상부이</span>
                         </button>
                         <!-- 특보구역 + 활성 특보 색칠 토글 묶음
                              [HTML 구조 의도]
@@ -2210,14 +2213,14 @@
                                  "특보 없음"(disabled) / "특보 ON"(회색 경광등) / "특보 OFF"(빨간 경광등) -->
                             <button class="ocean-overlay-btn ocean-warn-active-toggle" id="ocean-warn-active-toggle-btn" title="활성 특보 색칠">
                                 <i class="fa-solid fa-bell"></i>
-                                <span class="ocean-overlay-label">특보 ON</span>
+                                <span class="ocean-overlay-label" data-line1="특보" data-line2="ON">특보 ON</span>
                             </button>
                             <!-- 특보구역 토글: ocean_warn_zone.js 가 바인딩
                                  KMA 해상 예특보구역(44개) 폴리곤 outline 을 지도에 표시
                                  [연계] js/ocean_warn_zone.js, /api/warn-zones (GeoJSON) -->
                             <button class="ocean-overlay-btn" id="ocean-warn-zone-toggle-btn" title="특보구역">
                                 <i class="fa-solid fa-draw-polygon"></i>
-                                <span class="ocean-overlay-label">특보구역</span>
+                                <span class="ocean-overlay-label" data-line1="특보" data-line2="구역">특보구역</span>
                             </button>
                         </div>
                         <!-- 해구도 토글: ocean_map.js 의 bindMarineZoneGridToggle 가 바인딩
@@ -2227,7 +2230,7 @@
                                       data/ 가 .dockerignore + fly.io 볼륨 마운트라 루트로 이동시킴 -->
                         <button class="ocean-overlay-btn" id="ocean-marine-zone-toggle-btn" title="해구도">
                             <i class="fa-solid fa-table-cells"></i>
-                            <span class="ocean-overlay-label">해구도</span>
+                            <span class="ocean-overlay-label" data-line1="해구">해구도</span>
                         </button>
                         <!-- 천기 토글: js/shrt_forecast_layer.js 가 바인딩 (이전 이름: "기타 기상")
                              클릭 시 좌측으로 5개 단기예보 서브버튼 팝아웃
@@ -2238,34 +2241,34 @@
                         <div class="ocean-other-wx-wrap" id="ocean-other-wx-wrap">
                             <button class="ocean-overlay-btn" id="ocean-other-wx-toggle-btn" title="천기">
                                 <i class="fa-solid fa-cloud-sun-rain"></i>
-                                <span class="ocean-overlay-label">천기</span>
+                                <span class="ocean-overlay-label" data-line1="천기">천기</span>
                             </button>
                             <!-- 팝아웃: 천기 버튼 좌측에 세로로 5개 정렬. 기본 숨김. -->
                             <div class="ocean-other-wx-popup" id="ocean-other-wx-popup" aria-hidden="true">
                                 <button class="ocean-overlay-btn ocean-other-wx-item" data-shrt="pop" title="강수확률">
                                     <i class="fa-solid fa-percent"></i>
-                                    <span class="ocean-overlay-label">강수확률</span>
+                                    <span class="ocean-overlay-label" data-line1="강수" data-line2="확률">강수확률</span>
                                 </button>
                                 <button class="ocean-overlay-btn ocean-other-wx-item" data-shrt="pcp" title="강수량">
                                     <i class="fa-solid fa-cloud-rain"></i>
-                                    <span class="ocean-overlay-label">강수량</span>
+                                    <span class="ocean-overlay-label" data-line1="강수량">강수량</span>
                                 </button>
                                 <button class="ocean-overlay-btn ocean-other-wx-item" data-shrt="sno" title="적설">
                                     <i class="fa-solid fa-snowflake"></i>
-                                    <span class="ocean-overlay-label">적설</span>
+                                    <span class="ocean-overlay-label" data-line1="적설">적설</span>
                                 </button>
                                 <button class="ocean-overlay-btn ocean-other-wx-item" data-shrt="sky" title="하늘상태">
                                     <i class="fa-solid fa-cloud-sun"></i>
-                                    <span class="ocean-overlay-label">하늘상태</span>
+                                    <span class="ocean-overlay-label" data-line1="하늘" data-line2="상태">하늘상태</span>
                                 </button>
                                 <button class="ocean-overlay-btn ocean-other-wx-item" data-shrt="pty" title="강수형태">
                                     <i class="fa-solid fa-cloud-bolt"></i>
-                                    <span class="ocean-overlay-label">강수형태</span>
+                                    <span class="ocean-overlay-label" data-line1="강수" data-line2="형태">강수형태</span>
                                 </button>
                                 <!-- 6번째 — 기온 (KMA marine.kma.go.kr 동일 카테고리, shrtType="tmp") -->
                                 <button class="ocean-overlay-btn ocean-other-wx-item" data-shrt="tmp" title="기온">
                                     <i class="fa-solid fa-temperature-half"></i>
-                                    <span class="ocean-overlay-label">기온</span>
+                                    <span class="ocean-overlay-label" data-line1="기온">기온</span>
                                 </button>
                             </div>
                         </div>
@@ -2274,10 +2277,13 @@
                              [연계] js/ocean_cctv.js -->
                         <button class="ocean-overlay-btn" id="ocean-cctv-toggle-btn" title="해안 CCTV">
                             <i class="fa-solid fa-video"></i>
-                            <span class="ocean-overlay-label">CCTV</span>
+                            <span class="ocean-overlay-label" data-line1="CC" data-line2="TV">CCTV</span>
                         </button>
                         <button class="ocean-overlay-btn ocean-myloc-btn" id="ocean-myloc-btn" title="내 위치">
                             <i class="fa-solid fa-location-crosshairs"></i>
+                            <!-- 큰 텍스트 모드 전용 라벨 — 보통 모드에선 .ocean-overlay-label[data-line1] CSS
+                                 의 font-size: 0 가 적용되어 보이지 않음. 큰 모드에서만 ::before/::after 표출. -->
+                            <span class="ocean-overlay-label" data-line1="내" data-line2="위치"></span>
                         </button>
                         <!-- [제거됨] CCTV ON 시에만 뜨던 유의사항 버튼(#ocean-cctv-notice-btn)
                              → 지도 좌측 상단 "기본맵" 옆 #ocean-info-btn 으로 상시 노출 대체

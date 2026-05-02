@@ -269,11 +269,47 @@
 
         // 진입 시 자동 로드 안 함 — 사용자가 버튼을 눌러야 시작.
 
+        // [kts 토글] 범례 영역 클릭 시 단위 m/s ↔ kts 전환 (current/wind 만, wave 무관).
+        //   바텀시트의 OS.state.useKts 와 연동 — 범례에서 토글하면 바텀시트 카드의
+        //   풍속/유속 값도 동시에 변경. 사용자가 어디서 토글하든 일관된 단위 표시.
+        //   wave 는 m 단위 고정이므로 클릭 무시 (cursor 도 default 유지).
+        var legendBox = document.getElementById('ocean-legend');
+        if (legendBox) {
+            legendBox.addEventListener('click', function (e) {
+                // 클릭 가능한 layer 만 (current/wind). wave 면 무시.
+                if (activeLayer !== 'current' && activeLayer !== 'wind') return;
+                // OS 가 없으면 (시트 미열림 환경) 자체 fallback 변수 사용.
+                if (!window.OceanSheet) window.OceanSheet = {};
+                if (!window.OceanSheet.state) window.OceanSheet.state = {};
+                window.OceanSheet.state.useKts = !window.OceanSheet.state.useKts;
+                // 1) 범례 라벨 즉시 갱신
+                updateLegend(activeLayer);
+                // 2) 슬라이더 말풍선은 시각만 표시 (단위 무관) — 갱신 불필요
+                // 3) 바텀시트 카드 — 시트 열려있으면 즉시 갱신
+                if (window.OceanSheet && typeof window.OceanSheet.renderCurrentWindValues === 'function') {
+                    try { window.OceanSheet.renderCurrentWindValues(); } catch (e2) {}
+                }
+            });
+            // 클릭 가능 시각 단서 — current/wind 활성 시에만 cursor pointer.
+            //   activeLayer 변경 시 setActiveLayer 가 다시 호출되어 자동 갱신되지만,
+            //   여기는 init 시점이라 default 둠. setActiveLayer 안에서 cursor 갱신.
+        }
+
         // 해구 좌표 캐시 로드 (오버레이 무관, 바텀시트 클릭 판단용 — 1회만)
         if (!_zoneCoordsList) loadZoneCoordsList();
 
         // 육지 마스크 로드 (CDN: Natural Earth 110m land topojson)
         if (!landRings) loadLandMask();
+    };
+
+    /**
+     * [외부 노출] 지도 범례를 현재 활성 레이어 기준으로 다시 그림.
+     *
+     * 호출자: 바텀시트 카드 아이콘 클릭 시 (kts 토글) — 카드 + 지도 범례 양방향 동기.
+     * 활성 레이어가 없거나 wave 면 단위 표시 변화 없음 → 안전 호출 (no-op).
+     */
+    window.oceanOverlayUpdateLegend = function () {
+        if (activeLayer) updateLegend(activeLayer);
     };
 
     window.oceanOverlayRefresh = function (map) {
@@ -424,11 +460,47 @@
             window.setTimelineStep(layer === 'current' ? 1 : 3);
         }
         updateLegend(layer);
+
+        // [kts 토글 시각 단서] current/wind 면 범례 클릭 가능 → cursor: pointer.
+        //   wave 는 단위 고정 (m) → cursor: default 유지. 사용자가 클릭 가능 여부 시각 식별.
+        var legendBox = document.getElementById('ocean-legend');
+        if (legendBox) {
+            legendBox.style.cursor = (layer === 'current' || layer === 'wind') ? 'pointer' : '';
+        }
+    }
+
+    /**
+     * 현재 단위 — kts 모드 여부.
+     * 바텀시트 (OS.state.useKts) 와 연동. true 면 m/s 값을 kts 로 변환해 표시.
+     * 단위 변환: 1 m/s ≈ 1.94384 kts (해양 표준).
+     * 토글 트리거: 범례 영역 클릭 (current/wind 만), 또는 바텀시트 카드 아이콘 클릭.
+     */
+    function _useKts() {
+        return !!(window.OceanSheet && window.OceanSheet.state && window.OceanSheet.state.useKts);
+    }
+    /** m/s → kts 변환 (소수점 1자리 반올림). 변환 비율은 해양 표준 1.94384. */
+    function _msToKts(v) {
+        return Math.round(v * 1.94384 * 10) / 10;
+    }
+    /**
+     * 라벨 한 개 포맷 — 숫자 + 단위 부착 (사용자 요구).
+     * 정수면 정수 그대로, 소수면 1자리.
+     */
+    function _fmtLabelValue(v) {
+        if (v == null) return '';
+        if (Number.isInteger(v)) return String(v);
+        return v.toFixed(1);
     }
 
     /**
      * 화면 하단 범례(#ocean-legend) 를 현재 레이어(layer)에 맞춰 갱신.
      * COLOR_SCALES[layer] 의 색·값 범위를 기반으로 그라디언트 막대 + 수치 라벨 빌드.
+     *
+     * [디자인 — 사용자 요구]
+     *   - 한글 헤더 ("유의파고 (m)" 등) 제거. 헤더 element 는 비워두고 :empty CSS 로
+     *     완전 hide → 위 여백도 같이 사라짐.
+     *   - 단위는 각 숫자 옆에 직접 부착 ("0m/s", "0.3m/s" 등) — 천기 범례와 동일 패턴.
+     *   - kts 모드면 current/wind 의 라벨 자동 변환 (wave 는 m 단위 그대로).
      *
      * @param {string} layer - 'current'|'wind'|'wave' 등
      */
@@ -438,7 +510,7 @@
         var barEl = document.getElementById('ocean-legend-bar');
         var labelsEl = document.getElementById('ocean-legend-labels');
         var titleEl = document.getElementById('ocean-legend-title');
-        if (!barEl || !labelsEl || !titleEl) return;
+        if (!barEl || !labelsEl) return;
 
         // 범례 표시
         if (legendEl) legendEl.style.display = '';
@@ -449,25 +521,31 @@
         });
         barEl.style.background = 'linear-gradient(to right, ' + colors.join(', ') + ')';
 
-        // 라벨: current=바다누리 m/s 기준, wind=m/s, wave=m
+        // 단위 결정 — current/wind 는 kts 모드 여부에 따라 m/s ↔ kts, wave 는 항상 m
+        var unit;
+        if (layer === 'wave') {
+            unit = 'm';
+        } else {
+            unit = _useKts() ? 'kts' : 'm/s';
+        }
+
+        // 라벨 빌드 — 각 숫자 + 단위
         if (layer === 'current') {
+            // 바다누리 m/s 기준값 (정해진 7 단계)
             var knLabels = [0.0, 0.3, 0.5, 0.8, 1.1, 1.4, 1.6];
             labelsEl.innerHTML = knLabels.map(function (v) {
-                return '<span>' + v.toFixed(1) + '</span>';
+                var displayV = _useKts() ? _msToKts(v) : v;
+                return '<span>' + _fmtLabelValue(displayV) + unit + '</span>';
             }).join('');
         } else {
             labelsEl.innerHTML = scale.map(function (s) {
-                return '<span>' + (Number.isInteger(s.val) ? s.val : s.val.toFixed(1)) + '</span>';
+                var displayV = (layer === 'wave' || !_useKts()) ? s.val : _msToKts(s.val);
+                return '<span>' + _fmtLabelValue(displayV) + unit + '</span>';
             }).join('');
         }
 
-        // 제목
-        var titles = {
-            current: '조류 속도 (m/s)',
-            wind: '풍속 (m/s)',
-            wave: '유의파고 (m)'
-        };
-        titleEl.textContent = titles[layer] || '';
+        // 헤더 — 비워둠 (CSS :empty 가 자동 hide)
+        if (titleEl) titleEl.textContent = '';
     }
 
     // ========================================================================

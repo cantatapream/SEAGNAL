@@ -249,7 +249,10 @@ function renderForecastSection(data, titleId, bodyId) {
     for (const key of MARINE_FORECAST_ORDER) {
         // "바다안개"와 "바다 안개" 모두 체크
         const text = data.categories[key] || data.categories[key.replace('안개', ' 안개')];
-        if (text) {
+        // [가드 강화] 의미 없는 값 (null/undefined/빈문자/문자열 'null'/공백만) 은 라인 자체 hide.
+        //   서버 응답에 KMA 미발표 항목이 문자열 'null' 로 들어와도 '강풍 : null' 같이
+        //   어색한 표시가 안 되도록.
+        if (_isMeaningfulText(text)) {
             html += renderCategoryHtml(key, text);
             hasAny = true;
         }
@@ -260,6 +263,29 @@ function renderForecastSection(data, titleId, bodyId) {
     }
 
     bodyEl.innerHTML = html;
+}
+
+/**
+ * 의미 있는 텍스트인지 판별 — 데이터가 실제로 있는 경우만 true.
+ *
+ * 무엇을 거름?
+ *   - null / undefined: JS 의 falsy 값
+ *   - "" (빈 문자열) 또는 공백만: trim 결과 길이 0
+ *   - 문자열 "null" / "undefined" (대소문자 무관): 서버가 보낸 sentinel
+ *
+ * 왜 필요?
+ *   KMA 응답이 미발표 카테고리에 대해 가끔 문자열 "null" 을 보내옴 →
+ *   기존 if (text) 가드는 truthy 판정 → "강풍 : null" 같이 어색한 표시.
+ *
+ * 호출자: renderForecastSection (위), renderRegionalForecast (아래)
+ */
+function _isMeaningfulText(t) {
+    if (t == null) return false;
+    var s = String(t).trim();
+    if (!s) return false;
+    var low = s.toLowerCase();
+    if (low === 'null' || low === 'undefined') return false;
+    return true;
 }
 
 /**
