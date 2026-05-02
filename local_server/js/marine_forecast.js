@@ -701,19 +701,33 @@ function renderRegionalForecast(data) {
         // 아코디언 본문 — 헤더 아래의 모든 콘텐츠는 .open 일 때만 표시
         html += `<div class="regional-forecast-office-body">`;
 
-        // [기온 박스] 헤더 바로 아래에 표시. 라벨 "오늘 기온" 고정.
-        //   표기 형식: "최저 X ~ Y℃ | 최고 X ~ Y℃" 두 값 모두 범위형(range).
-        //   둘 중 하나라도 값이 있어야 박스 자체를 그린다 — 박스 라벨만 외롭게 남는 것 방지.
+        // [기온 박스] 헤더 바로 아래에 2단 그리드로 표시.
+        //   레이아웃: 🌡️ 기온  | 최저          | 최고
+        //                       | 7.2 ~ 13.7℃ | 19.1 ~ 23.9℃
+        //   라벨(최저/최고)이 위, 값이 아래에 들어가는 컬럼 형식.
+        //   둘 중 하나라도 값이 있어야 박스 자체를 그린다.
+        //   둘 다 있을 때만 가운데 분리선(|) 출력.
         if (hasTemp) {
             html += `<div class="regional-forecast-temp">`;
             html += `<span class="regional-forecast-temp-icon">🌡️</span>`;
-            html += `<span class="regional-forecast-temp-label">오늘 기온</span>`;
+            html += `<span class="regional-forecast-temp-label">기온</span>`;
+            html += `<div class="regional-forecast-temp-grid">`;
             if (lowText) {
-                html += `<span class="regional-forecast-temp-value temp-low">최저 <b>${escapeHtml(lowText)}℃</b></span>`;
+                html += `<div class="regional-forecast-temp-cell temp-low">`;
+                html += `<span class="regional-forecast-temp-cell-label">최저</span>`;
+                html += `<span class="regional-forecast-temp-cell-value">${escapeHtml(lowText)}℃</span>`;
+                html += `</div>`;
+            }
+            if (lowText && highText) {
+                html += `<span class="regional-forecast-temp-divider">|</span>`;
             }
             if (highText) {
-                html += `<span class="regional-forecast-temp-value temp-high">최고 <b>${escapeHtml(highText)}℃</b></span>`;
+                html += `<div class="regional-forecast-temp-cell temp-high">`;
+                html += `<span class="regional-forecast-temp-cell-label">최고</span>`;
+                html += `<span class="regional-forecast-temp-cell-value">${escapeHtml(highText)}℃</span>`;
+                html += `</div>`;
             }
+            html += `</div>`;
             html += `</div>`;
         }
 
