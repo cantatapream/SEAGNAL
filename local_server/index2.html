@@ -1017,7 +1017,9 @@
            [동적 크기] padding/font-size/top 모두 rem → 폰트 크기 설정에 비례 조정.
            [동적 위치] left 와 화살표(::after) 위치를 JS updateTooltip() 가 매 호출 시 갱신.
                        말풍선은 viewport 좌·우 가두기 (텍스트 잘림 방지),
-                       화살표만 thumb 향해 좌/중/우로 비스듬히 이동. */
+                       화살표만 thumb 향해 좌/중/우로 비스듬히 이동.
+           [fade-out] 정량형(pop/pcp/sno) 카테고리에서 정지 시 1초 fade-out.
+                      bar 에 .tooltip-suppressed 클래스 토글로 제어. */
         .shrt-fcst-tooltip {
             position: absolute;
             top: -1.375rem;                /* -22px @ 16 — bar top 위로 떠있음 */
@@ -1033,7 +1035,12 @@
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
             border: 1px solid rgba(0, 0, 0, 0.08);
             z-index: 2;
-            /* JS 가 left, --shrt-arrow-x 를 inline 으로 설정. 초기 transform 없음. */
+            opacity: 1;
+            transition: opacity 1s ease;   /* 정지 시 1초 fade-out */
+        }
+        /* 정량형 + 정지 상태 → 말풍선 1초 fade-out 으로 사라짐 */
+        .shrt-fcst-slider-bar.tooltip-suppressed .shrt-fcst-tooltip {
+            opacity: 0;
         }
         .shrt-fcst-tooltip::after {
             content: '';
@@ -1081,38 +1088,31 @@
         /* 시간 라벨 (정오) — 제거 (사용자 요구). renderTicks() 에서 그리지 않음. */
         .shrt-fcst-tick-label.bottom { display: none; }
 
-        /* 단기예보 범례 — 슬라이더 바 위 좌측 정렬, 흰색 카드 + 항목 가로 정렬
-           예: [ㅁ 맑음   ㅁ 구름많음   ㅁ 흐림]  (제목 없음)
-           [폭] inline-flex 로 콘텐츠 너비만큼만 차지 (max-width 만 안전망)
-           [위치] 슬라이더 바 상단으로부터 약 6px 위 (사용자 요구: 슬라이더-메인탭 간격의 절반) */
+        /* 단기예보 범례 공통 — 어두운 남색 톤 (슬라이더 바와 동일 색상) */
         .shrt-fcst-legend {
             position: absolute;
-            left: 0.75rem;                  /* 12px @ 16 */
-            /* slider bottom 과 동일하게 safe-area 보정.
-               그 위로 slider height(2.25rem) + 말풍선 위 영역(1.375rem) + 0.4375rem 여백
-               = 약 4.0625rem (= 65px @ 16). 폰트 크기 설정에 비례 조정.
-               base 부분(--main-tab-height, env)은 시스템 측정값이라 px 그대로. */
+            left: 0.75rem;                  /* 12px @ 16, 카테고리형 기본 */
             bottom: calc(var(--main-tab-height, 68px) - env(safe-area-inset-bottom, 0px) + 4.0625rem);
             z-index: 1100;
-            background: rgba(255, 255, 255, 0.92);
+            background: rgba(15, 25, 50, 0.92);    /* 슬라이더 바와 동일 어두운 남색 */
             backdrop-filter: blur(2px);
-            border: 1px solid rgba(0, 0, 0, 0.08);
-            border-radius: 0.375rem;        /* 6px @ 16 */
-            padding: 0.375rem 0.625rem;     /* 6 10px @ 16 */
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+            border: 1px solid rgba(120, 150, 200, 0.25);
+            border-radius: 0.375rem;
+            padding: 0.375rem 0.625rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
             font-family: "Pretendard", sans-serif;
-            font-size: 0.6875rem;           /* 11px @ 16 */
-            color: #1f2937;
+            font-size: 0.6875rem;
+            color: #e5edff;                  /* 어두운 배경에 흰톤 텍스트 */
             user-select: none;
             pointer-events: none;
-            max-width: calc(100vw - 1.5rem); /* 안전망: 화면 폭 초과 시 wrap */
+            max-width: calc(100vw - 1.5rem);
 
-            /* 콘텐츠 폭만큼만 차지 — inline-flex 로 폭 자동 결정 */
+            /* 카테고리형 (sky/pty) 기본 — 콘텐츠 폭, 가로 정렬 */
             display: inline-flex;
             width: max-content;
             flex-wrap: wrap;
             align-items: center;
-            gap: 0.375rem 0.875rem;         /* 6 14px @ 16 */
+            gap: 0.375rem 0.875rem;
         }
         .shrt-fcst-legend .shrt-fcst-legend-row {
             display: flex;
@@ -1124,29 +1124,50 @@
             width: 1.125rem;                /* 18px @ 16 */
             height: 0.75rem;                /* 12px @ 16 */
             border-radius: 0.125rem;        /* 2px @ 16 */
-            border: 1px solid rgba(0, 0, 0, 0.20);
+            border: 1px solid rgba(255, 255, 255, 0.30);  /* 어두운 배경에 적합 */
         }
         /* ── 정량형(gradient) 범례 — KMA 사이트와 동일 스타일 (pop/pcp/sno) ──
-           카테고리명 헤더는 표시하지 않고, 가로 그라디언트 바 + 균등 분포 임계값 라벨 +
-           우측 정렬 단위만 표출. */
+           [폭] 슬라이더와 동일하게 화면 폭 100%
+           [위치] 슬라이더 상단에 정확히 밀착 (여백 0)
+           [색상] 단계 블록 (그라디언트 X, 각 색이 딱딱 끊김)
+           [라벨] 색상 boundary 위치에 정확히 맞춤 */
         .shrt-fcst-legend.gradient-mode {
             display: flex;
             flex-direction: column;
-            width: 16rem;                    /* 256px @ 16, 폰트 크기에 비례 확대 */
-            max-width: calc(100vw - 1.5rem);
-            gap: 0.125rem;                   /* 바 ↔ 라벨 ↔ 단위 사이 미세 여백 */
+            left: 0;
+            right: 0;
+            width: auto;
+            max-width: none;
+            /* slider bar height(2.25rem) 위 = 슬라이더 상단에 정확히 밀착 (여백 0) */
+            bottom: calc(var(--main-tab-height, 68px) - env(safe-area-inset-bottom, 0px) + 2.25rem);
+            border-radius: 0;
+            border-left: none;
+            border-right: none;
+            border-bottom: none;
+            padding: 0.375rem 0.875rem 0.4375rem;  /* 14px 좌우, 7px 하단 여백 */
+            gap: 0.1875rem;
         }
+        /* 색상 단계 블록 — flex 로 균등 분배, 그라디언트 없이 각 색 그대로 */
         .shrt-fcst-grad-bar {
+            display: flex;
             width: 100%;
             height: 0.625rem;                /* 10px @ 16 */
-            border: 1px solid rgba(0, 0, 0, 0.18);
+            border: 1px solid rgba(255, 255, 255, 0.20);
             border-radius: 0.125rem;
+            overflow: hidden;
         }
+        .shrt-fcst-grad-block {
+            flex: 1 1 0;
+            height: 100%;
+        }
+        /* 임계값 라벨 — 색상 boundary 에 정확히 위치 (N 라벨, N-1 블록).
+           justify-content: space-between → 첫/마지막 라벨이 양 끝에 붙고 중간은 균등.
+           color 흰톤 (어두운 배경 가독성). */
         .shrt-fcst-grad-labels {
             display: flex;
             justify-content: space-between;
-            font-size: 0.5625rem;            /* 9px @ 16 */
-            color: #4b5563;
+            font-size: 0.5625rem;
+            color: #e5edff;
             line-height: 1;
         }
         .shrt-fcst-grad-labels span {
@@ -1155,7 +1176,7 @@
         .shrt-fcst-grad-unit {
             align-self: flex-end;
             font-size: 0.5625rem;
-            color: #4b5563;
+            color: #e5edff;
             line-height: 1;
         }
     </style>
