@@ -1,15 +1,8 @@
 /**
  * ============================================================================
  * 파일명: js/shrt_forecast_layer.js
- * 역할: KMA 단기예보 (천기 — 강수확률/강수량/적설/하늘상태/강수형태) 오버레이 +
- *       범례 + 슬라이더 + 클릭 시 점데이터 종합 팝업
+ * 역할: KMA 단기예보 GEMD raster 오버레이 (강수확률/강수량/적설/하늘상태/강수형태)
  * ============================================================================
- *
- * [한 줄 설명]
- *   사용자가 우측 컨트롤의 "천기" 버튼 → 5개 서브버튼 중 하나를 누르면, KMA 의
- *   단기예보 PNG raster 가 지도에 깔리고, 하단에 슬라이더+범례가 나타난다.
- *   추가로 지도 위 어느 점이든 클릭하면 그 좌표의 5개 카테고리 종합 정보가
- *   작은 박스로 뜬다 (서버 /api/shrt-fcst-point 가 PNG 픽셀을 sampling).
  *
  * [데이터 소스]
  *   GET /mmis_marine_api/v1/kma/shrt/netcdf/imgList?shrtType={pop|pcp|sno|sky|pty}
@@ -20,43 +13,23 @@
  *   특징: 한반도 + 근해 (황해/동해/제주근해 등) 모두 cover. α=0(투명) 약 27%.
  *         marine.kma.go.kr 사이트의 sky/pty/pop/pcp/sno 레이어가 이 raster 사용.
  *
+ * [기존 LAND PNG (DFS_SHRT_GRD_GRB5_*) 와의 차이]
+ *   - LAND 는 한반도 본토만 (α=0 80%) → 해상 영역에 데이터 없음
+ *   - GEMD 는 한반도 + 근해 모두 (α=0 27%) → 별도 zone polygon fill 불필요
+ *
  * [UI 구성]
- *   - 우측 컨트롤 스택의 "천기" 버튼 (이전 이름: "기타 기상")
- *     → 좌측으로 5개 서브버튼 팝아웃 (강수확률/강수량/적설/하늘상태/강수형태)
+ *   - 우측 컨트롤 stack 의 "기타 기상" 버튼 → 좌측으로 5개 서브버튼 팝아웃
  *   - 서브버튼 클릭 시 팝아웃 닫힘 + 해당 GEMD raster 표출 + 슬라이더/범례/재생
  *   - 동일 레이어 다시 클릭 시 OFF
- *
- * [범례 색상 — KMA 1:1 매칭]
- *   POP 25 / PCP 30 / SNO 30 단계. KMA marine.kma.go.kr 의 chunk-common.js 에서
- *   추출한 정확한 hex 시퀀스 (보간 없음, 단색 단계 블록). 라벨 위치도 KMA 의
- *   visible-marks 그대로 (0/20/40/60/80/100 또는 비균등).
- *
- * [클릭 팝업 — T2]
- *   - 천기 활성 + 지도 클릭 → window._shrtForecastTryHandleClick(map, evt) 호출
- *   - 활성 상태이고 KMA extent 안이면 박스 표출 + true 반환 → 다음 가드 (특보 등) 차단
- *   - 슬라이더 frame 변경 시 popupState.latLon 으로 자동 재호출 (재생 중 동기 갱신)
- *   - 외부 클릭 / X 버튼 / 천기 OFF 시 자동 닫기
  *
  * [잠금 패턴]
  *   기본 토글 클릭 시 토스트 안내 + 차단.
  *   3초 idle 안에 10회 연속 클릭하면 그 세션 동안 잠금 해제.
  *
- * [외부와의 인터페이스]
- *   - window.initShrtForecastLayer(oceanMap)       → 초기화 (한 번만)
- *   - window._shrtForecastDeactivate()             → 다른 overlay 활성 시 강제 OFF
- *   - window._shrtForecastTryHandleClick(map, evt) → handleMapClick 가드 (T5)
- *   - window._shrtForecastHidePointPopup()         → 외부에서 팝업 닫기
- *
- * [CSS 변수]
- *   --shrt-stack-height : 슬라이더+범례 스택 픽셀 높이. 활성 시 px, 비활성 시 0px.
- *                         특보 범례(.warn-active-legend) 가 이 값만큼 위로 상승하여
- *                         천기 스택에 가려지지 않음 (T3).
- *
  * [의존]
  *   - OpenLayers 6+ (ol.layer.Image, ol.source.ImageStatic, ol.proj)
  *   - window._showOceanToast (index2_patch.js)
  *   - window.__getOceanMap (ocean_map.js 가 노출)
- *   - GET /api/shrt-fcst-point (routes/weather.js + services/shrt_fcst_point.js)
  * ============================================================================
  */
 
@@ -349,11 +322,6 @@
             setSliderProgress(slider);
         }
         updateTooltip();
-        // [T2] 클릭 팝업이 열려 있으면 그 좌표의 데이터를 새 frame 시각으로 자동 갱신.
-        //   슬라이더 재생 중에도 매 frame 변경 시 함께 동기화 (사용자 요구).
-        if (popupState && popupState.box && popupState.latLon) {
-            refreshPopupContents();
-        }
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -371,10 +339,7 @@
                 var n = Math.min(times.length, imgs.length);
                 var frames = [];
                 for (var i = 0; i < n; i++) {
-                    // url: KMA PNG 경로
-                    // label: 화면 표시용 한국어 포맷 ("5.3.(월) 14:00")
-                    // fct_tm: KMA 원본 포맷 ("2026.05.03 14:00") — 서버 점데이터 호출 시 사용
-                    frames.push({ url: imgs[i], label: fmtFcstTm(times[i]), fct_tm: times[i] });
+                    frames.push({ url: imgs[i], label: fmtFcstTm(times[i]) });
                 }
                 return frames;
             });
@@ -549,53 +514,6 @@
         bar.setAttribute('aria-hidden', 'true');
     }
 
-    /**
-     * [T3] 천기 스택의 시각적 점유 높이를 CSS 변수 `--shrt-stack-height` 로 publish.
-     *
-     * 무엇을 하나?
-     *   천기 활성 시 화면 하단에 슬라이더 + 범례 두 요소가 절대 위치로 떠있다.
-     *   이 둘 중 *가장 위에 있는 픽셀 좌표* (top) 부터 메인탭 바 위까지의 거리를 잰다.
-     *   그 값만큼 `.warn-active-legend` (특보 범례) 가 위로 상승해 가려지지 않음.
-     *
-     * 왜 그냥 height 합산이 아니라 bounding rect 인가?
-     *   카테고리형(sky/pty) 에서 슬라이더와 범례 사이에 갭이 있어 단순 합산은 underestimate.
-     *   bounding rect 로 실제 화면상 점유 영역을 측정하면 정확하다.
-     *
-     * 언제 호출?
-     *   - activate() 직후 — frames 로드 완료 후 requestAnimationFrame 으로 1tick 양보 후
-     *   - 또는 외부에서 스택 갱신이 필요하면 직접 호출
-     *
-     * 천기 OFF 시 clearShrtStackHeight() 가 0px 로 reset → 특보 범례 원위치.
-     */
-    function updateShrtStackHeight() {
-        var bar = $('shrt-fcst-slider-bar');
-        var lg  = $('shrt-fcst-legend');
-        var mainTabRaw = getComputedStyle(document.documentElement).getPropertyValue('--main-tab-height');
-        var mainTabH = parseFloat(mainTabRaw) || 68;
-
-        var topMost = window.innerHeight;     // 가장 위 (작은 y) 좌표 추적용
-        var found = false;
-        function track(el) {
-            if (!el || el.style.display === 'none' || !el.offsetHeight) return;
-            var rect = el.getBoundingClientRect();
-            if (rect.top < topMost) topMost = rect.top;
-            found = true;
-        }
-        track(bar);
-        track(lg);
-
-        var stackH = 0;
-        if (found) {
-            // 메인탭 바 위까지의 거리 = (viewport 높이 - main tab) - topMost
-            var tabBarTop = window.innerHeight - mainTabH;
-            stackH = Math.max(0, tabBarTop - topMost);
-        }
-        document.documentElement.style.setProperty('--shrt-stack-height', stackH + 'px');
-    }
-    function clearShrtStackHeight() {
-        document.documentElement.style.setProperty('--shrt-stack-height', '0px');
-    }
-
     // ─────────────────────────────────────────────────────────────
     // 활성화 / 비활성화
     // ─────────────────────────────────────────────────────────────
@@ -613,13 +531,6 @@
         state.activeType = null;
         state.frames = [];
         state.frameIdx = 0;
-        // [T3] 천기 OFF → 특보 범례 위치 변수 초기화 (특보 범례가 원위치로 복귀)
-        clearShrtStackHeight();
-        // [T2] 클릭 팝업도 함께 닫기 (천기가 꺼지면 컨텍스트가 없어지므로).
-        //   hidePointPopup 은 이 모듈 하단에 정의 → window 노출본 사용.
-        if (typeof window._shrtForecastHidePointPopup === 'function') {
-            window._shrtForecastHidePointPopup();
-        }
     }
 
     function activate(shrtType) {
@@ -661,9 +572,6 @@
             renderLegend(shrtType);
             showFrame(0);
             for (var i = 0; i < frames.length; i++) preloadImg(frames[i].url);
-            // [T3] DOM 이 그려진 직후 (microtask) 스택 높이 측정 → CSS 변수 반영.
-            //   rAF 으로 한 frame 양보 → offsetHeight 가 정확한 px 값 반환.
-            requestAnimationFrame(updateShrtStackHeight);
         }).catch(function (e) {
             console.error('[shrt] activate failed:', e);
             deactivate();
@@ -690,7 +598,7 @@
                     _unlocked = true;
                     _clickCount = 0;
                     clearTimeout(_resetTimer);
-                    _toast('천기 잠금 해제됨 (검수 모드)');
+                    _toast('기타 기상 잠금 해제됨 (검수 모드)');
                     wrap.classList.add('popup-open');
                     popup.setAttribute('aria-hidden', 'false');
                     return;
@@ -737,237 +645,6 @@
             });
         }
     }
-
-    // ─────────────────────────────────────────────────────────────
-    // [T2] 클릭 팝업 — 5개 카테고리 종합 정보 박스
-    //
-    //   [트리거] 천기 레이어 활성 상태 + 지도 클릭 (handleMapClick 가 우리 가드 호출).
-    //   [내용]   서버 /api/shrt-fcst-point 호출 → sky/pty/pop/pcp/sno 종합 박스 표시.
-    //   [위치]   .warn-active-box 와 동일 패턴 — 클릭 픽셀 +12px 우하단, viewport
-    //            가장자리 침범 시 반대쪽으로 flip.
-    //   [재생 동기] 슬라이더 frame 변경 시 popupState.lastLatLon 으로 자동 재호출.
-    //   [닫기]   외부 클릭 / X 버튼 / 천기 레이어 OFF / 카테고리 변경.
-    // ─────────────────────────────────────────────────────────────
-    var popupState = {
-        box: null,           // DOM 요소
-        latLon: null,        // [lat, lon] - frame 변경 시 재호출용
-        pixelXY: null,       // [px, py] - 박스 위치
-        lastFctTm: null,     // 마지막으로 fetch 한 시각 (중복 호출 방지)
-        outsideClickHandler: null
-    };
-
-    /** 한국어 요일 + 시간 포맷팅: "5.3 (월) 14:00" 형태 */
-    function fmtPopupTm(s) {
-        if (!s) return '';
-        var m = /^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/.exec(s);
-        if (!m) return s;
-        var DAYS = ['일','월','화','수','목','금','토'];
-        var d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
-        return (+m[2]) + '월 ' + (+m[3]) + '일 (' + DAYS[d.getDay()] + ') ' + m[4] + ':' + m[5];
-    }
-
-    /**
-     * [T2] 천기 점 데이터 응답을 박스 본문 HTML 로 빌드.
-     *
-     * [표출 정책 — 사용자 명세]
-     *   · 하늘 상태 : sky.label
-     *   · 강수량   : pty.label + pcp.value mm + (pop.value%)
-     *               예) "비/눈 0mm (0%)" — pty 가 null 이면 "없음" 으로 표시
-     *   · 적설     : sno.value cm  또는 "예보 없음" (값 null/no_data/palette_mismatch 모두 동일 처리)
-     */
-    function buildPopupBodyHtml(data) {
-        function nv(x) { return (x == null) ? null : x; }
-
-        // 1) 하늘 상태
-        var skyLabel = (data.sky && data.sky.label) || '예보 없음';
-
-        // 2) 강수량 (pty + pcp + pop)
-        var ptyLabel = (data.pty && data.pty.label) || '없음';
-        var pcpVal   = (data.pcp && data.pcp.value != null) ? data.pcp.value : 0;
-        var popVal   = (data.pop && data.pop.value != null) ? data.pop.value : 0;
-        var pcpStr   = (pcpVal === 0) ? '0' : (Math.round(pcpVal * 10) / 10);
-        var rainStr  = ptyLabel + ' ' + pcpStr + 'mm (' + popVal + '%)';
-
-        // 3) 적설
-        var snoStr;
-        if (data.sno && data.sno.value != null) {
-            var v = data.sno.value;
-            snoStr = ((v === 0) ? '0' : (Math.round(v * 10) / 10)) + 'cm';
-        } else {
-            snoStr = '예보 없음';
-        }
-
-        return '<div class="shrt-fcst-point-row">'
-            +    '<span class="shrt-fcst-point-row-label">하늘 상태</span>'
-            +    '<span class="shrt-fcst-point-row-value">' + skyLabel + '</span>'
-            +  '</div>'
-            +  '<div class="shrt-fcst-point-row">'
-            +    '<span class="shrt-fcst-point-row-label">강수량</span>'
-            +    '<span class="shrt-fcst-point-row-value">' + rainStr + '</span>'
-            +  '</div>'
-            +  '<div class="shrt-fcst-point-row">'
-            +    '<span class="shrt-fcst-point-row-label">적설</span>'
-            +    '<span class="shrt-fcst-point-row-value">' + snoStr + '</span>'
-            +  '</div>';
-    }
-
-    /** [T2] 박스 하나 생성 후 body 에 부착하고 외부클릭 핸들러 등록. */
-    function ensurePopupBox() {
-        if (popupState.box) return popupState.box;
-        var box = document.createElement('div');
-        box.className = 'shrt-fcst-point-box';
-        box.innerHTML = ''
-            + '<div class="shrt-fcst-point-box-header">'
-            +   '<span class="shrt-fcst-point-box-title">불러오는 중…</span>'
-            +   '<button type="button" class="shrt-fcst-point-box-close" aria-label="닫기">&times;</button>'
-            + '</div>'
-            + '<div class="shrt-fcst-point-box-body">'
-            +   '<div class="shrt-fcst-point-loading">데이터를 불러오는 중입니다…</div>'
-            + '</div>';
-        document.body.appendChild(box);
-        popupState.box = box;
-
-        // X 버튼
-        var closeBtn = box.querySelector('.shrt-fcst-point-box-close');
-        if (closeBtn) closeBtn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            hidePointPopup();
-        });
-
-        // [외부 클릭 닫기] 박스 영역 밖 + 지도 영역 밖 클릭 시 박스 닫기.
-        //   - 박스 안 클릭 → 무시 (사용자가 박스 안 콘텐츠 클릭한 것)
-        //   - 지도 안 클릭 → 무시 (handleMapClick → _shrtForecastTryHandleClick 이
-        //                         박스를 새 위치로 이동시키므로 여기서 닫으면 충돌)
-        //   - 그 외 (탭바, 헤더, 사이드 컨트롤 등) 클릭 → 닫기
-        popupState.outsideClickHandler = function (e) {
-            if (!popupState.box) return;
-            if (popupState.box.contains(e.target)) return;
-            var mapEl = document.getElementById('ocean-map');
-            if (mapEl && mapEl.contains(e.target)) return;
-            hidePointPopup();
-        };
-        document.addEventListener('click', popupState.outsideClickHandler);
-
-        return box;
-    }
-
-    /**
-     * [T2] 박스를 클릭 픽셀 +12px 우하단에 배치 (viewport clamping).
-     *
-     * 좌표 인자는 지도 컨테이너 기준의 픽셀 좌표 (evt.pixel).
-     * 화면 우/하단 침범 시 반대쪽으로 flip — .warn-active-box 와 동일.
-     */
-    function positionPopupBox(box, mapPixelXY) {
-        var mapEl = document.getElementById('ocean-map');
-        var rect = mapEl ? mapEl.getBoundingClientRect() : { left: 0, top: 0 };
-        var pageX = rect.left + (mapPixelXY[0] || 0);
-        var pageY = rect.top  + (mapPixelXY[1] || 0);
-        var bw = box.offsetWidth;
-        var bh = box.offsetHeight;
-        var vw = window.innerWidth;
-        var vh = window.innerHeight;
-        var left = pageX + 12;
-        var top  = pageY + 12;
-        if (left + bw + 12 > vw) left = pageX - bw - 12;
-        if (top + bh + 12 > vh)  top  = pageY - bh - 12;
-        if (left < 8) left = 8;
-        if (top < 8)  top  = 8;
-        box.style.left = left + 'px';
-        box.style.top  = top + 'px';
-    }
-
-    /**
-     * [T2] 서버 /api/shrt-fcst-point 호출 → 박스 내용 갱신.
-     *   - 같은 fctTm 으로 짧은 시간 안에 중복 호출 방지 (popupState.lastFctTm)
-     *   - 호출 중에는 "불러오는 중" 메시지 유지, 응답 후 본문 교체
-     */
-    function refreshPopupContents() {
-        if (!popupState.box || !popupState.latLon) return;
-        var frame = state.frames[state.frameIdx];
-        if (!frame) return;
-        var fctTm = frame.fct_tm || frame.label;   // imgList 응답 그대로 사용
-        var lat = popupState.latLon[0];
-        var lon = popupState.latLon[1];
-        var url = '/api/shrt-fcst-point?lat=' + encodeURIComponent(lat)
-                + '&lon=' + encodeURIComponent(lon)
-                + '&fct_tm=' + encodeURIComponent(fctTm);
-        var box = popupState.box;
-        var titleEl = box.querySelector('.shrt-fcst-point-box-title');
-        var bodyEl  = box.querySelector('.shrt-fcst-point-box-body');
-        if (titleEl) titleEl.textContent = fmtPopupTm(fctTm);
-        // 같은 fctTm/좌표 재호출이면 body 그대로 — frame 변경시에만 갱신 의미
-        popupState.lastFctTm = fctTm;
-        fetch(url, { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(function (j) {
-                if (!popupState.box || popupState.lastFctTm !== fctTm) return;  // 그 사이 닫혔거나 다른 frame 으로 진행됨
-                if (!j || !j.ok || !j.data) {
-                    if (bodyEl) bodyEl.innerHTML = '<div class="shrt-fcst-point-loading">데이터를 불러올 수 없습니다.</div>';
-                    return;
-                }
-                if (bodyEl) bodyEl.innerHTML = buildPopupBodyHtml(j.data);
-            })
-            .catch(function (e) {
-                if (!popupState.box) return;
-                if (bodyEl) bodyEl.innerHTML = '<div class="shrt-fcst-point-loading">네트워크 오류: ' + (e && e.message ? e.message : '알 수 없음') + '</div>';
-            });
-    }
-
-    /**
-     * [T2] 외부 진입점 — handleMapClick 에서 호출.
-     *
-     * 천기 레이어 활성 상태이면 그 좌표에 박스를 띄우고 true 반환 (클릭 소비됨).
-     * 비활성 상태면 false 반환 → 호출자가 다음 가드 (특보 / 바텀시트) 진행.
-     *
-     * @param {ol.Map} map - OpenLayers 맵 객체
-     * @param {ol.MapBrowserEvent} evt - 'click' 이벤트
-     * @returns {boolean} 처리 여부
-     */
-    window._shrtForecastTryHandleClick = function (map, evt) {
-        if (!state.activeType) return false;            // 천기 OFF — 다음 가드로
-        if (!state.frames || !state.frames.length) return false;
-        if (typeof ol === 'undefined' || !evt || !evt.coordinate) return false;
-        var ll = ol.proj.toLonLat(evt.coordinate);
-        var lon = ll[0], lat = ll[1];
-        // KMA extent 바깥 — 천기 데이터가 없는 영역. 우리 가드 비활성화 → 다음 가드로.
-        if (lon < 123.27 || lon > 132.88 || lat < 31.58 || lat > 43.45) return false;
-
-        popupState.latLon = [lat, lon];
-        popupState.pixelXY = evt.pixel ? [evt.pixel[0], evt.pixel[1]] : [0, 0];
-        var box = ensurePopupBox();
-        // 박스 위치 — 첫 렌더 후 offsetWidth/Height 가 측정되므로 일단 보이지 않게 둠
-        box.style.visibility = 'hidden';
-        box.style.display = '';
-        var titleEl = box.querySelector('.shrt-fcst-point-box-title');
-        if (titleEl) titleEl.textContent = '불러오는 중…';
-        var bodyEl = box.querySelector('.shrt-fcst-point-box-body');
-        if (bodyEl) bodyEl.innerHTML = '<div class="shrt-fcst-point-loading">데이터를 불러오는 중입니다…</div>';
-        // 다음 microtask 에 위치 계산 (offsetWidth 측정 가능)
-        requestAnimationFrame(function () {
-            if (!popupState.box) return;
-            positionPopupBox(popupState.box, popupState.pixelXY);
-            popupState.box.style.visibility = '';
-        });
-        refreshPopupContents();
-        return true;
-    };
-
-    /** [T2] 박스 닫기 + 외부클릭 핸들러 해제 + 상태 초기화. */
-    function hidePointPopup() {
-        if (popupState.outsideClickHandler) {
-            document.removeEventListener('click', popupState.outsideClickHandler);
-            popupState.outsideClickHandler = null;
-        }
-        if (popupState.box && popupState.box.parentNode) {
-            popupState.box.parentNode.removeChild(popupState.box);
-        }
-        popupState.box = null;
-        popupState.latLon = null;
-        popupState.pixelXY = null;
-        popupState.lastFctTm = null;
-    }
-    // 모듈 외부 (deactivate) 도 부를 수 있게 노출
-    window._shrtForecastHidePointPopup = hidePointPopup;
 
     // ─────────────────────────────────────────────────────────────
     // 초기화
