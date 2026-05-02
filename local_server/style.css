@@ -8988,6 +8988,69 @@ body.ocean-map-active .main-header .header-content {
     background: transparent !important;
 }
 
+/* --- 천기 카드 (풀폭이지만 다른 그리드 카드처럼 padding/border 유지) --- */
+/* 일반 .ocean-card-fullwidth 의 transparent/no-padding 을 다시 원래 카드처럼 복원.
+   좌측 아이콘 (천기 라벨) + 우측 4셀 그리드 (2×2) 구조. */
+.ocean-card-weather.ocean-card-fullwidth {
+    flex-direction: row !important;
+    align-items: stretch !important;
+    background: rgba(255,255,255,0.05) !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    padding: 12px !important;
+    gap: 10px;
+}
+.ocean-card-weather.ocean-card-fullwidth:hover {
+    background: rgba(255,255,255,0.08) !important;
+}
+/* 좌측 아이콘 (다른 카드와 동일 사이즈) */
+.ocean-card-weather > .ocean-card-icon {
+    align-self: stretch;       /* 두 행 높이 합 만큼 늘어남 */
+    min-width: 44px;
+}
+/* 우측 4셀 그리드 — 2행×2열, 라벨/값 정렬 */
+.ocean-card-weather-grid {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 6px 12px;             /* row gap 6px, col gap 12px */
+    align-items: center;
+    min-width: 0;              /* flex 자식이 overflow 안 하도록 */
+}
+/* 셀 내부 — 라벨(고정폭) + 값(가변폭) — 콜론 위치가 4셀 모두 정렬됨 */
+.ocean-weather-cell {
+    display: grid;
+    grid-template-columns: 4.25rem 1fr;   /* 68px @16 base — "하늘 상태" 한국어 4자 + 여유 */
+    align-items: center;
+    gap: 4px;
+    font-size: 0.78rem;
+    line-height: 1.3;
+}
+.ocean-weather-lbl {
+    color: rgba(255,255,255,0.55);
+    white-space: nowrap;
+    font-size: 0.72rem;
+}
+.ocean-weather-lbl::after {
+    content: ':';                          /* 라벨 끝 콜론 — 정렬 일관성 */
+    margin-left: 0.25rem;
+    color: rgba(255,255,255,0.35);
+}
+.ocean-weather-val {
+    color: #f0f5ff;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+/* 천기 카드 안의 progress-bar 는 셀 안에 inline 으로 — 다른 카드와 동일 디자인 */
+.ocean-weather-val .ocean-progress-bar {
+    margin: 0;
+    width: 80%;
+    max-width: 6rem;
+}
+
 /* --- 무한 진행바 (옵션 C) --- */
 .ocean-progress-bar {
     width: 100%;
