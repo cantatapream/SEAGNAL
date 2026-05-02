@@ -1071,8 +1071,9 @@
         .shrt-fcst-legend {
             position: absolute;
             left: 12px;
-            /* slider bar height 60px + 약 14px 여백 (이전 layout 의 범례-슬라이더 거리 유지) */
-            bottom: calc(var(--main-tab-height, 68px) + 74px);
+            /* 범례 절대 vertical 위치 — 슬라이더 layout 변화와 무관하게 같은 자리 유지.
+               슬라이더가 메인탭에 더 가까워지면 범례-슬라이더 거리는 자연스럽게 늘어남. */
+            bottom: calc(var(--main-tab-height, 68px) + 66px);
             z-index: 1100;
             background: rgba(255, 255, 255, 0.92);
             backdrop-filter: blur(2px);
