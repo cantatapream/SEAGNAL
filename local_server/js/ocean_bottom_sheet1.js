@@ -177,10 +177,6 @@
         if (window.PopupStack) {
             window.PopupStack.remove('ocean-bottom-sheet');
         }
-
-        // 3) 천기 카드 진행 중 fetch 토큰 무효화 + display:none — 잔여 응답 무시.
-        //    INDEX1 등 이 모듈 미로드 환경은 자동 skip (typeof check).
-        if (typeof OS.hideWeatherCard === 'function') OS.hideWeatherCard();
     };
 
     /* --------------------------------------------------------------

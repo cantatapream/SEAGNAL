@@ -32,40 +32,22 @@
     OS.renderHeader = function () {
         var d = OS.state.date;
 
-        // (1) 양력 — 새 포맷: "'26. 5. 2.(토) 17:00"
-        //   - 'YY: 연도 끝 두 자리, 앞에 ' 부착 (예: "26" → "'26")
-        //   - 월/일: leading zero 없음 (예: 5월 2일 → "5. 2.")
-        //   - 요일: (토) 형태
-        //   - 시간: HH:MM 24시 (OS.state.date 의 시각 — 슬라이더 이동 시 이 함수가 재호출)
+        // (1) 양력
         var solarEl = document.getElementById('ocean-sheet-solar');
         if (solarEl) {
-            var yy = String(d.getFullYear()).slice(-2);
-            var hh = String(d.getHours()).padStart(2, '0');
-            var mi = String(d.getMinutes()).padStart(2, '0');
             solarEl.textContent =
-                "'" + yy + ". " +
-                (d.getMonth() + 1) + ". " +
-                d.getDate() + ".(" + WEEKDAYS_KO[d.getDay()] + ") " +
-                hh + ":" + mi;
+                d.getFullYear() + '년 ' +
+                (d.getMonth() + 1) + '월 ' +
+                d.getDate() + '일(' + WEEKDAYS_KO[d.getDay()] + ')';
         }
 
-        // (2) 음력 — 새 포맷: "(음력 '26. 3. 16.)"
-        //   tide.js 의 getLunarDate("YYYY년 (윤)?M월 D일") 결과를 점 표기로 변환.
-        //   윤달 표기 (윤) 는 월 앞에 그대로 보존.
+        // (2) 음력 — tide.js의 getLunarDate 재사용
         var lunarEl = document.getElementById('ocean-sheet-lunar');
         if (lunarEl) {
             if (typeof getLunarDate === 'function') {
                 try {
-                    var lunarRaw = getLunarDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
-                    // "2026년 (윤)3월 16일" 또는 "2026년 3월 16일" 두 형태 모두 매칭
-                    var m = /^(\d{4})년\s+(\(윤\))?(\d+)월\s+(\d+)일$/.exec(lunarRaw);
-                    if (m) {
-                        var lyy = m[1].slice(-2);
-                        var leap = m[2] || '';
-                        lunarEl.textContent = "(음력 '" + lyy + ". " + leap + m[3] + ". " + m[4] + ".)";
-                    } else {
-                        lunarEl.textContent = '(음력 ' + lunarRaw + ')';   // fallback
-                    }
+                    var lunarStr = getLunarDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
+                    lunarEl.textContent = '(음력 ' + lunarStr + ')';
                 } catch (e) {
                     lunarEl.textContent = '';
                 }
@@ -101,35 +83,6 @@
         if (locBtn) {
             if (OS.state.coordVisible) locBtn.classList.add('active');
             else locBtn.classList.remove('active');
-        }
-    };
-
-    /* --------------------------------------------------------------
-     * [외부 hook] 타임라인 슬라이더 이동 시 호출되는 진입점.
-     *
-     * 무엇을 하나?
-     *   ocean_timeline.js 의 onTimeChange(hours) 에서 이 함수 호출.
-     *   슬라이더 값(0~72시간) 을 OS.state.date 에 반영하고 헤더 다시 그림.
-     *   → 사용자가 슬라이더 잡고 움직이면 헤더의 시간 표시가 따라 움직임.
-     *
-     * [정책]
-     *   - 슬라이더 시간 = 현재 시각 + N 시간 (sheet 처음 열 때와 동일 방식)
-     *   - 시트가 닫혀있으면 무시 (OS.state.date 는 그대로)
-     *
-     * [의존]
-     *   - ocean_timeline.js 가 onTimeChange 안에서 이 함수 호출
-     *   - OS.state, OS.renderHeader
-     */
-    OS.onTimelineChanged = function (hours) {
-        var sheet = document.getElementById('ocean-bottom-sheet');
-        if (!sheet || sheet.style.display === 'none') return;
-        var n = parseInt(hours, 10);
-        if (!isFinite(n)) n = 0;
-        OS.state.date = new Date(Date.now() + n * 60 * 60 * 1000);
-        OS.renderHeader();
-        // 천기 카드 — 새 시각으로 다시 sample. 캐시 적중 시 즉답.
-        if (typeof OS.loadWeatherCard === 'function' && OS.state.lat != null && OS.state.lon != null) {
-            OS.loadWeatherCard(OS.state.lat, OS.state.lon, OS.state.date);
         }
     };
 

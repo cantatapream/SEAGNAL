@@ -206,23 +206,9 @@
      *   조류  → /api/ocean/khoa-stream-vector?date=YYYYMMDD&hour=HH
      *   바람/파고 → /api/ocean/zone-forecasts?time=ISO
      */
-    /**
-     * 슬라이더 값 변경 시 호출 — 의존 모듈에 시각 변경 알림.
-     *
-     * 호출 대상:
-     *   1) window.oceanOverlaySetTime(hours): 지도 overlay (current/wind/wave) 시각 갱신
-     *   2) window.OceanSheet.onTimelineChanged(hours): 바텀시트 헤더 시각 표시 갱신
-     *      (시트가 닫혀있으면 OceanSheet 가 자체적으로 무시 — 안전)
-     *
-     * @param {number} hours - 슬라이더 값 (0~72, 현재시각으로부터 시간)
-     */
     function onTimeChange(hours) {
         if (window.oceanOverlaySetTime) {
             window.oceanOverlaySetTime(hours);
-        }
-        // 바텀시트 헤더 — 시각 표시 동기 (천기 카드 등 추후 추가될 시각 의존 데이터도 자동 반영)
-        if (window.OceanSheet && typeof window.OceanSheet.onTimelineChanged === 'function') {
-            window.OceanSheet.onTimelineChanged(hours);
         }
     }
 
