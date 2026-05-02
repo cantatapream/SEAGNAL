@@ -9,7 +9,9 @@
  *   사용자가 우측 컨트롤의 "천기" 버튼 → 5개 서브버튼 중 하나를 누르면, KMA 의
  *   단기예보 PNG raster 가 지도에 깔리고, 하단에 슬라이더+범례가 나타난다.
  *   추가로 지도 위 어느 점이든 클릭하면 그 좌표의 5개 카테고리 종합 정보가
- *   작은 박스로 뜬다 (서버 /api/shrt-fcst-point 가 PNG 픽셀을 sampling).
+ *   작은 박스로 뜬다 — **클라이언트(브라우저) 가 PNG 를 직접 canvas 로 그려
+ *   픽셀 색상을 추출** 후 색상 팔레트와 매칭해서 단계 값으로 변환.
+ *   서버는 단순 CORS 프록시 (/api/kma-png-proxy) 만 제공 — 메모리/CPU 부담 0.
  *
  * [데이터 소스]
  *   GET /mmis_marine_api/v1/kma/shrt/netcdf/imgList?shrtType={pop|pcp|sno|sky|pty}
@@ -31,11 +33,16 @@
  *   추출한 정확한 hex 시퀀스 (보간 없음, 단색 단계 블록). 라벨 위치도 KMA 의
  *   visible-marks 그대로 (0/20/40/60/80/100 또는 비균등).
  *
- * [클릭 팝업 — T2]
+ * [클릭 팝업 — T2 (클라이언트 sampling 방식)]
  *   - 천기 활성 + 지도 클릭 → window._shrtForecastTryHandleClick(map, evt) 호출
  *   - 활성 상태이고 KMA extent 안이면 박스 표출 + true 반환 → 다음 가드 (특보 등) 차단
- *   - 슬라이더 frame 변경 시 popupState.latLon 으로 자동 재호출 (재생 중 동기 갱신)
+ *   - 클라이언트가 직접 5개 카테고리 PNG (CORS 프록시 경유) 를 다운로드 → canvas
+ *     로 클릭 좌표 주변 3x3 영역 픽셀 추출 → 색상 팔레트 매칭하여 단계 값 변환.
+ *   - 슬라이더 frame 변경 시 popupState.latLon 으로 자동 재샘플링 (재생 중 동기 갱신)
  *   - 외부 클릭 / X 버튼 / 천기 OFF 시 자동 닫기
+ *   - 슬라이더 ▶ 재생 시: 0.5초 간격이지만 데이터 (PNG 로드 + 샘플링) 가 끝나야
+ *     다음 frame 진행 (data-driven sync). 느릴 땐 자동으로 그만큼 늘어남.
+ *   - 슬라이더 드래그 시: 드래그 중에는 fetch 안 함, 손 놓은 위치만 1번 fetch.
  *
  * [잠금 패턴]
  *   기본 토글 클릭 시 토스트 안내 + 차단.
@@ -56,7 +63,8 @@
  *   - OpenLayers 6+ (ol.layer.Image, ol.source.ImageStatic, ol.proj)
  *   - window._showOceanToast (index2_patch.js)
  *   - window.__getOceanMap (ocean_map.js 가 노출)
- *   - GET /api/shrt-fcst-point (routes/weather.js + services/shrt_fcst_point.js)
+ *   - GET /api/kma-png-proxy?path=... (routes/weather.js — CORS 프록시)
+ *   - 브라우저 native: HTMLImageElement, Canvas 2D, getImageData
  * ============================================================================
  */
 
@@ -336,7 +344,12 @@
         state.preloadedImgs[url] = img;
     }
 
-    function showFrame(idx) {
+    /**
+     * @param {number} idx - 표시할 frame 인덱스
+     * @param {boolean} [skipSample] - true 면 팝업 본문 sample 스킵 (드래그 중 사용).
+     *                                  헤더 시각만 갱신, 지도 PNG 는 정상 표시.
+     */
+    function showFrame(idx, skipSample) {
         if (!state.frames.length) return;
         if (idx < 0) idx = 0;
         if (idx >= state.frames.length) idx = state.frames.length - 1;
@@ -349,10 +362,10 @@
             setSliderProgress(slider);
         }
         updateTooltip();
-        // [T2] 클릭 팝업이 열려 있으면 그 좌표의 데이터를 새 frame 시각으로 자동 갱신.
+        // [T2] 팝업이 열려 있으면 새 frame 시각으로 본문 갱신 — skipSample 시 헤더만.
         //   슬라이더 재생 중에도 매 frame 변경 시 함께 동기화 (사용자 요구).
         if (popupState && popupState.box && popupState.latLon) {
-            refreshPopupContents();
+            refreshPopupContents(skipSample);
         }
     }
 
@@ -392,6 +405,49 @@
             : '<i class="fa-solid fa-play"></i>';
         btn.classList.toggle('playing', !!playing);
     }
+    /**
+     * [재생 동기화 — 사용자 요구]
+     *   재생 버튼 ▶ 누르면 0.5초 간격으로 다음 frame 으로 진행하되, 데이터 (PNG +
+     *   팝업 sampling) 가 0.5초 안에 끝나지 않으면 다음 frame 을 안 넘김.
+     *
+     * 동작:
+     *   1) 다음 frame 결정 → showFrame(next) 호출 (지도 PNG 갱신 + 팝업 sample 시작)
+     *   2) waitForFrameDataReady(next) → PNG 로드 + 팝업 sample 완료 대기
+     *   3) 동시에 최소 PLAY_INTERVAL_MS 만큼 wait
+     *   4) Promise.all → 둘 다 끝나면 다시 다음 frame 으로 setTimeout (재귀)
+     *
+     * 캐시 적중 시: 즉시 끝남 → 0.5초 간격 그대로 유지
+     * 캐시 미스 시: 데이터 로드가 0.5초 넘으면 자동으로 그만큼 늘어남 → 사용자에게 데이터와 화면 일치 보장
+     */
+    function _waitMs(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+    /**
+     * 한 frame 의 모든 데이터가 준비될 때까지 대기.
+     * - 지도 PNG: ImageStatic 의 onload 콜백을 hook 하기 어려워, image preload 사용.
+     * - 팝업 데이터: 팝업이 열려 있으면 refreshPopupContents() 의 Promise 를 기다림.
+     * - 팝업 닫혔으면 PNG preload 만 기다림.
+     */
+    function waitForFrameDataReady(idx) {
+        var frame = state.frames[idx];
+        if (!frame) return Promise.resolve();
+        // 지도 PNG preload — 이미 캐시되어 있으면 즉답
+        var pngP = new Promise(function (resolve) {
+            var pre = state.preloadedImgs[frame.url];
+            if (pre && pre.complete) return resolve();
+            if (pre) { pre.addEventListener('load', resolve); pre.addEventListener('error', resolve); return; }
+            var img = new Image();
+            img.onload = function () { resolve(); };
+            img.onerror = function () { resolve(); };
+            img.src = KMA_BASE + frame.url;
+            state.preloadedImgs[frame.url] = img;
+        });
+        // 팝업 데이터 — 열려 있으면 sample 완료 기다림
+        var popupP = (popupState.box && popupState.latLon)
+            ? refreshPopupContents()
+            : Promise.resolve();
+        return Promise.all([pngP, popupP]);
+    }
+
     function startPlay() {
         if (state.playing || !state.frames.length) return;
         state.playing = true;
@@ -399,18 +455,29 @@
         // 재생 시작 → 말풍선 표출 (1초 fade-in, opacity transition)
         var bar = $('shrt-fcst-slider-bar');
         if (bar) bar.classList.remove('tooltip-suppressed');
-        state.playTimer = setInterval(function () {
+
+        // 재귀 형태의 데이터-기반 재생 루프 (setInterval 대신 setTimeout 체이닝).
+        // setInterval 은 데이터 로드 시간 무시하고 강제 진행 → 화면-데이터 불일치.
+        function _step() {
+            if (!state.playing) return;
             var next = state.frameIdx + 1;
             if (next >= state.frames.length) next = 0;
-            showFrame(next);
-        }, PLAY_INTERVAL_MS);
+            showFrame(next);   // 지도 + 팝업 sample 시작 (showFrame 안에서 refreshPopupContents 호출)
+            // 데이터 준비 + 최소 간격 둘 다 기다림 → 둘 중 늦은 쪽이 다음 frame timing 결정
+            Promise.all([
+                waitForFrameDataReady(next),
+                _waitMs(PLAY_INTERVAL_MS)
+            ]).then(function () {
+                if (state.playing) _step();
+            });
+        }
+        _step();
     }
     function stopPlay() {
         if (!state.playing) return;
         state.playing = false;
         setPlayBtnIcon(false);
-        clearInterval(state.playTimer);
-        state.playTimer = null;
+        // 진행 중인 _step 의 Promise 는 state.playing 을 다음 사이클에서 false 로 보고 종료.
         // 정지 → 정량형이면 말풍선 1초 fade-out, 카테고리형은 그대로 표출
         var bar = $('shrt-fcst-slider-bar');
         var def = state.activeType ? LEGEND_DEF[state.activeType] : null;
@@ -723,9 +790,28 @@
 
         var slider = $('shrt-fcst-slider');
         if (slider) {
+            // [드래그 debounce — 사용자 요구]
+            //   드래그 중에는 본문 sample 안 함 (헤더 시각만 갱신, 지도 PNG 는 즉시 반영).
+            //   손 놓은 후 (debounce 200ms 또는 'change' 이벤트) 그 위치만 1번 sample.
+            //
+            // 이벤트 흐름:
+            //   - 'input': 드래그 도중 매번 발화 (range 슬라이더 표준)
+            //              → showFrame(idx, true) 로 헤더 시각/지도 PNG 만 갱신, sample skip
+            //   - 'change': 손을 뗀 시점 발화 (또는 keyboard 조작 종료) → sample 트리거
+            //   - 추가 안전망: input 후 200ms 안에 추가 input 없으면 강제 sample 트리거
+            var _dragSampleTimer = null;
             slider.addEventListener('input', function () {
                 stopPlay();
-                showFrame(parseInt(slider.value, 10) || 0);
+                var idx = parseInt(slider.value, 10) || 0;
+                showFrame(idx, true);   // skipSample=true → 본문은 정지, 헤더/지도만 갱신
+                clearTimeout(_dragSampleTimer);
+                _dragSampleTimer = setTimeout(function () {
+                    if (popupState.box && popupState.latLon) refreshPopupContents();
+                }, 200);
+            });
+            slider.addEventListener('change', function () {
+                clearTimeout(_dragSampleTimer);
+                if (popupState.box && popupState.latLon) refreshPopupContents();
             });
         }
         var playBtn = $('shrt-fcst-play-btn');
@@ -739,24 +825,245 @@
     }
 
     // ─────────────────────────────────────────────────────────────
-    // [T2] 클릭 팝업 — 5개 카테고리 종합 정보 박스
+    // [T2] 클릭 팝업 — 클라이언트 PNG 샘플링 방식 (서버 메모리 부담 0)
     //
-    //   [트리거] 천기 레이어 활성 상태 + 지도 클릭 (handleMapClick 가 우리 가드 호출).
-    //   [내용]   서버 /api/shrt-fcst-point 호출 → sky/pty/pop/pcp/sno 종합 박스 표시.
-    //   [위치]   .warn-active-box 와 동일 패턴 — 클릭 픽셀 +12px 우하단, viewport
-    //            가장자리 침범 시 반대쪽으로 flip.
-    //   [재생 동기] 슬라이더 frame 변경 시 popupState.lastLatLon 으로 자동 재호출.
-    //   [닫기]   외부 클릭 / X 버튼 / 천기 레이어 OFF / 카테고리 변경.
+    //   [철학]   해상일기도와 동일 — 브라우저가 직접 KMA PNG 를 다운로드 + 픽셀 추출.
+    //            서버는 단순 CORS 프록시 (/api/kma-png-proxy) 만 제공.
+    //
+    //   [트리거] 천기 레이어 활성 상태 + 지도 클릭 → handleMapClick 가 우리 가드 호출.
+    //
+    //   [동작 흐름]
+    //     1) 클릭 좌표 → KMA extent 안인지 확인 (밖이면 우리 처리 X)
+    //     2) 그 좌표를 PNG 픽셀 좌표 (959 × 1186) 로 변환
+    //     3) 활성 frame 의 5개 카테고리 PNG URL 을 imgList 캐시에서 lookup
+    //     4) 5장 모두 <img crossOrigin="anonymous"> 로 동시 로드
+    //        (브라우저 HTTP 캐시 적중 시 즉답 — Cache-Control: max-age=3600)
+    //     5) 각 이미지의 클릭 좌표 주변 3x3 영역을 캔버스에 그려 픽셀 추출 (mode-filter)
+    //     6) 픽셀 RGB 를 색상 팔레트와 매칭 → 단계 값 / 카테고리 라벨 결정
+    //     7) 종합해서 박스 본문 표시
+    //
+    //   [성능]
+    //     - 캔버스: 3 × 3 전용 (이미지 전체 그리기 대신 source-crop 으로 9픽셀만 복사)
+    //     - 메모리: 캔버스 36 byte, 이미지 5장은 브라우저가 자체 관리
+    //     - CPU: drawImage(3x3 crop) ≈ 1 ms × 5 = 5 ms (현대폰 기준)
+    //
+    //   [캐시]
+    //     - imgList 응답 (URL 매핑): 5분 TTL, 카테고리별 메모리 캐시
+    //     - PNG 자체: 브라우저 HTTP 캐시 (1시간) — 우리가 별도 캐시 안 씀
+    //
+    //   [재생 동기]
+    //     - 슬라이더 ▶ 재생 시 매 frame 마다 sample 재호출.
+    //     - 0.5 초 / frame 이지만 데이터 (5 PNG 로드 + 샘플링) 가 끝나야 다음 frame 진행.
+    //     - 캐시 적중 시 ~5–50 ms → 0.5 초 간격 그대로 유지.
+    //     - 캐시 미스 시 ~500 ms 다운로드 → 자연스럽게 1초 간격으로 늘어남.
+    //
+    //   [드래그]
+    //     - 슬라이더 input 이벤트 (드래그 중) 에는 sample 안 함, 헤더 시각만 갱신.
+    //     - 손 놓은 시점 (change 이벤트 또는 input 후 짧은 idle) 에 1번 sample.
+    //
+    //   [닫기] 외부 클릭 / X 버튼 / 천기 레이어 OFF / 카테고리 변경.
     // ─────────────────────────────────────────────────────────────
+
+    // ── 색상 팔레트 (서버 services/shrt_fcst_point.js 의 팔레트와 1:1 동일) ──
+    // 각 정량형 카테고리의 단계별 RGB 와 임계값 매핑 — 픽셀 RGB 와 가장 가까운 단계
+    // 를 찾아 그 임계값을 반환하기 위함.
+    var POP_THRESHOLDS = [0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60,64,68,72,76,80,84,88,92,96];
+    var PCP_THRESHOLDS = [0,0.2,0.4,0.6,0.8,1,1.5,2,3,4,5,6,7,8,9,10,14,18,22,26,30,40,50,60,70,80,160,320,480,640];
+    var SNO_THRESHOLDS = [0.1,0.2,0.4,0.6,0.8,1,1.5,2,3,4,5,6,7,8,9,10,12,14,16,18,20,25,30,35,40,45,50,60,70,80];
+
+    function _hex2rgb(h) {
+        var v = parseInt(h.replace('#',''), 16);
+        return [(v>>16)&0xff, (v>>8)&0xff, v&0xff];
+    }
+    var _POP_RGB = POP_COLORS.map(_hex2rgb);
+    var _PCP_RGB = PCP_COLORS.map(_hex2rgb);
+    var _SNO_RGB = SNO_COLORS.map(_hex2rgb);
+
+    // 카테고리형 (sky/pty) 팔레트 — 라벨과 매칭 (rgba 의 rgb 부분만 사용).
+    var _SKY_PALETTE = [
+        { rgb: [255, 255, 255], label: '맑음' },
+        { rgb: [174, 200, 224], label: '구름많음' },
+        { rgb: [56,  120, 152], label: '흐림' }
+    ];
+    var _PTY_PALETTE = [
+        { rgb: [0x60, 0xd4, 0x7e], label: '비' },
+        { rgb: [0x3d, 0xc4, 0xe6], label: '비/눈' },
+        { rgb: [0x8e, 0x8e, 0xe6], label: '눈' }
+    ];
+
+    // ── imgList 캐시 (5분 TTL) ──
+    //   카테고리별 KMA imgList 응답을 메모리에 보관하여 매번 fetch 하지 않도록.
+    //   _imgListCache[shrtType] = { ts, frames: [{url,fct_tm,label}], fctMap: { fct_tm → url } }
+    var _imgListCache = {};
+    var IMG_LIST_TTL_MS = 5 * 60 * 1000;
+    function _fetchImgListFor(shrtType) {
+        var c = _imgListCache[shrtType];
+        if (c && (Date.now() - c.ts) < IMG_LIST_TTL_MS) return Promise.resolve(c);
+        return fetch(IMG_LIST_URL + '?shrtType=' + encodeURIComponent(shrtType), { credentials: 'omit' })
+            .then(function (r) { if (!r.ok) throw new Error('imgList ' + shrtType + ' ' + r.status); return r.json(); })
+            .then(function (j) {
+                if (!j || j.code !== '0000' || !j.data) throw new Error('imgList ' + shrtType + ' bad');
+                var times = j.data.fct_tm_list || [];
+                var imgs  = j.data.img_list || [];
+                var n = Math.min(times.length, imgs.length);
+                var frames = [], fctMap = {};
+                for (var i = 0; i < n; i++) {
+                    frames.push({ url: imgs[i], fct_tm: times[i], label: fmtFcstTm(times[i]) });
+                    fctMap[times[i]] = imgs[i];
+                }
+                var entry = { ts: Date.now(), frames: frames, fctMap: fctMap };
+                _imgListCache[shrtType] = entry;
+                return entry;
+            });
+    }
+
+    // ── 이미지 로더 캐시 ──
+    //   같은 URL 의 PNG 를 두 번 다운로드 안 함. 브라우저 HTTP 캐시도 적용되지만
+    //   우리 메모리 안에서도 HTMLImageElement 인스턴스를 재사용하면 빠름.
+    //   key = 절대 URL string. 가벼움 (이미지 자체는 브라우저가 관리).
+    var _imgElemCache = {};
+    function _loadImgViaProxy(kmaPath) {
+        if (_imgElemCache[kmaPath]) return _imgElemCache[kmaPath];
+        // path 만 query 로 보내면 서버 라우트가 marine.kma.go.kr 에 fetch + CORS 헤더 부착
+        var proxyUrl = '/api/kma-png-proxy?path=' + encodeURIComponent(kmaPath);
+        var p = new Promise(function (resolve, reject) {
+            var img = new Image();
+            img.crossOrigin = 'anonymous';   // canvas getImageData 가능하도록 CORS 모드
+            img.onload = function () { resolve(img); };
+            img.onerror = function () {
+                delete _imgElemCache[kmaPath];   // 실패 시 다음에 재시도 가능
+                reject(new Error('img load fail: ' + kmaPath));
+            };
+            img.src = proxyUrl;
+        });
+        _imgElemCache[kmaPath] = p;
+        return p;
+    }
+
+    // ── 작은 캔버스 (3 × 3) ──
+    //   매 sampling 마다 새 캔버스 만들지 않고 재사용. 3 × 3 만 그려도 되므로 작음.
+    var _sampleCanvas = null, _sampleCtx = null;
+    function _getSampleCtx() {
+        if (!_sampleCanvas) {
+            _sampleCanvas = document.createElement('canvas');
+            _sampleCanvas.width = 3;
+            _sampleCanvas.height = 3;
+            _sampleCtx = _sampleCanvas.getContext('2d', { willReadFrequently: true });
+        }
+        return _sampleCtx;
+    }
+
+    /**
+     * 이미지의 (x, y) 주변 3 × 3 영역에서 픽셀 색을 추출.
+     * α=0 픽셀은 무시. 알파>0 픽셀들 중 가장 빈도 높은 RGB 를 채택 (anti-aliasing 완화).
+     * 반환: { r, g, b, a }  또는  null (모두 α=0 인 영역)
+     */
+    function _sampleImgArea(img, cx, cy) {
+        var ctx = _getSampleCtx();
+        ctx.clearRect(0, 0, 3, 3);
+        // drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh) — img 의 (cx-1, cy-1, 3, 3) 영역만
+        // 캔버스 (0, 0, 3, 3) 으로 복사. 이미지 전체 그리기보다 훨씬 빠름.
+        try {
+            ctx.drawImage(img, cx - 1, cy - 1, 3, 3, 0, 0, 3, 3);
+        } catch (e) {
+            return null;   // tainted canvas 등의 보안 에러
+        }
+        var data = ctx.getImageData(0, 0, 3, 3).data;   // 9 픽셀 × 4 byte = 36 byte
+        var counts = {}, alphaSum = 0, alphaCnt = 0;
+        for (var i = 0; i < 9; i++) {
+            var off = i * 4;
+            var a = data[off + 3];
+            if (a === 0) continue;
+            var r = data[off], g = data[off + 1], b = data[off + 2];
+            var key = r + ',' + g + ',' + b;
+            counts[key] = (counts[key] || 0) + 1;
+            alphaSum += a; alphaCnt++;
+        }
+        if (alphaCnt === 0) return null;
+        var bestKey = '0,0,0', bestN = -1;
+        for (var k in counts) if (counts[k] > bestN) { bestN = counts[k]; bestKey = k; }
+        var parts = bestKey.split(',');
+        return { r: +parts[0], g: +parts[1], b: +parts[2], a: Math.round(alphaSum / alphaCnt) };
+    }
+
+    /** RGB → 가장 가까운 팔레트 색상 인덱스 (유클리드 거리). 거리 너무 크면 -1 (매칭 실패). */
+    function _matchRgb(r, g, b, paletteRgb, maxDist) {
+        var bestI = -1, bestD = Infinity;
+        for (var i = 0; i < paletteRgb.length; i++) {
+            var p = paletteRgb[i];
+            var d = (r - p[0])*(r - p[0]) + (g - p[1])*(g - p[1]) + (b - p[2])*(b - p[2]);
+            if (d < bestD) { bestD = d; bestI = i; }
+        }
+        var thr = (maxDist || 60); thr = thr * thr;
+        if (bestD > thr) return -1;
+        return bestI;
+    }
+
+    /** lon/lat → PNG 픽셀 좌표 (extent 안에 있을 때만 반환). */
+    function _lonLatToPx(lon, lat, w, h) {
+        var EX = DFS_EXTENT_4326;   // [lonMin, latMin, lonMax, latMax]
+        if (lon < EX[0] || lon > EX[2] || lat < EX[1] || lat > EX[3]) return null;
+        var x = Math.round((lon - EX[0]) / (EX[2] - EX[0]) * (w - 1));
+        var y = Math.round((EX[3] - lat) / (EX[3] - EX[1]) * (h - 1));
+        if (x < 0 || x >= w || y < 0 || y >= h) return null;
+        return { x: x, y: y };
+    }
+
+    /**
+     * 한 카테고리의 점 데이터 추출 — imgList 캐시 → 이미지 로드 → 픽셀 sampling → 매칭.
+     * @returns {Promise<Object>} 정량형: { value, rgb, alpha, bandIdx } 또는 { value: null, reason }
+     *                             카테고리형: { label, rgb } 또는 { label: null, reason }
+     */
+    function _samplePointForType(shrtType, fctTm, lon, lat) {
+        return _fetchImgListFor(shrtType).then(function (list) {
+            var imgPath = list.fctMap[fctTm];
+            if (!imgPath) return { value: null, label: null, reason: 'no_url' };
+            return _loadImgViaProxy(imgPath).then(function (img) {
+                var px = _lonLatToPx(lon, lat, img.naturalWidth, img.naturalHeight);
+                if (!px) return { value: null, label: null, reason: 'out_of_extent' };
+                var s = _sampleImgArea(img, px.x, px.y);
+                if (!s) return { value: null, label: null, reason: 'no_data' };
+                if (shrtType === 'sky') {
+                    var skyIdx = _matchRgb(s.r, s.g, s.b, _SKY_PALETTE.map(function(p){return p.rgb;}), 80);
+                    return (skyIdx < 0) ? { label: null, reason: 'palette_mismatch', rgb: [s.r,s.g,s.b] }
+                                        : { label: _SKY_PALETTE[skyIdx].label, rgb: [s.r,s.g,s.b] };
+                }
+                if (shrtType === 'pty') {
+                    var ptyIdx = _matchRgb(s.r, s.g, s.b, _PTY_PALETTE.map(function(p){return p.rgb;}), 80);
+                    return (ptyIdx < 0) ? { label: null, reason: 'palette_mismatch', rgb: [s.r,s.g,s.b] }
+                                        : { label: _PTY_PALETTE[ptyIdx].label, rgb: [s.r,s.g,s.b] };
+                }
+                // 정량형 (pop/pcp/sno)
+                var pal = (shrtType === 'pop') ? _POP_RGB : (shrtType === 'pcp') ? _PCP_RGB : _SNO_RGB;
+                var thr = (shrtType === 'pop') ? POP_THRESHOLDS : (shrtType === 'pcp') ? PCP_THRESHOLDS : SNO_THRESHOLDS;
+                var idx = _matchRgb(s.r, s.g, s.b, pal);
+                if (idx < 0) return { value: null, reason: 'palette_mismatch', rgb: [s.r,s.g,s.b] };
+                return { value: thr[idx], rgb: [s.r,s.g,s.b], alpha: s.a, bandIdx: idx };
+            });
+        });
+    }
+
+    /** 5개 카테고리 동시 sampling — Promise.all 로 병렬. 실패한 카테고리는 null. */
+    function samplePointAt(lat, lon, fctTm) {
+        var types = ['sky','pty','pop','pcp','sno'];
+        return Promise.all(types.map(function (t) {
+            return _samplePointForType(t, fctTm, lon, lat).catch(function () { return null; });
+        })).then(function (arr) {
+            return { fct_tm: fctTm, lat: lat, lon: lon,
+                     sky: arr[0], pty: arr[1], pop: arr[2], pcp: arr[3], sno: arr[4] };
+        });
+    }
+
     var popupState = {
-        box: null,           // DOM 요소
-        latLon: null,        // [lat, lon] - frame 변경 시 재호출용
-        pixelXY: null,       // [px, py] - 박스 위치
-        lastFctTm: null,     // 마지막으로 fetch 한 시각 (중복 호출 방지)
+        box: null,
+        latLon: null,
+        pixelXY: null,
+        lastFctTm: null,
+        currentFetchToken: 0,    // 동시성 제어 — frame 빠르게 변경 시 오래된 응답 무시
         outsideClickHandler: null
     };
 
-    /** 한국어 요일 + 시간 포맷팅: "5.3 (월) 14:00" 형태 */
+    /** 한국어 요일 + 시간 포맷팅: "5월 3일 (월) 14:00" 형태 */
     function fmtPopupTm(s) {
         if (!s) return '';
         var m = /^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/.exec(s);
@@ -767,28 +1074,18 @@
     }
 
     /**
-     * [T2] 천기 점 데이터 응답을 박스 본문 HTML 로 빌드.
-     *
-     * [표출 정책 — 사용자 명세]
+     * 박스 본문 HTML 빌드 — 5개 카테고리 종합 (사용자 명세).
      *   · 하늘 상태 : sky.label
      *   · 강수량   : pty.label + pcp.value mm + (pop.value%)
-     *               예) "비/눈 0mm (0%)" — pty 가 null 이면 "없음" 으로 표시
-     *   · 적설     : sno.value cm  또는 "예보 없음" (값 null/no_data/palette_mismatch 모두 동일 처리)
+     *   · 적설     : sno.value cm  또는  "예보 없음"
      */
     function buildPopupBodyHtml(data) {
-        function nv(x) { return (x == null) ? null : x; }
-
-        // 1) 하늘 상태
         var skyLabel = (data.sky && data.sky.label) || '예보 없음';
-
-        // 2) 강수량 (pty + pcp + pop)
         var ptyLabel = (data.pty && data.pty.label) || '없음';
         var pcpVal   = (data.pcp && data.pcp.value != null) ? data.pcp.value : 0;
         var popVal   = (data.pop && data.pop.value != null) ? data.pop.value : 0;
         var pcpStr   = (pcpVal === 0) ? '0' : (Math.round(pcpVal * 10) / 10);
         var rainStr  = ptyLabel + ' ' + pcpStr + 'mm (' + popVal + '%)';
-
-        // 3) 적설
         var snoStr;
         if (data.sno && data.sno.value != null) {
             var v = data.sno.value;
@@ -796,7 +1093,6 @@
         } else {
             snoStr = '예보 없음';
         }
-
         return '<div class="shrt-fcst-point-row">'
             +    '<span class="shrt-fcst-point-row-label">하늘 상태</span>'
             +    '<span class="shrt-fcst-point-row-value">' + skyLabel + '</span>'
@@ -811,7 +1107,7 @@
             +  '</div>';
     }
 
-    /** [T2] 박스 하나 생성 후 body 에 부착하고 외부클릭 핸들러 등록. */
+    /** 박스 DOM 생성 + 외부클릭 핸들러 등록. */
     function ensurePopupBox() {
         if (popupState.box) return popupState.box;
         var box = document.createElement('div');
@@ -826,19 +1122,12 @@
             + '</div>';
         document.body.appendChild(box);
         popupState.box = box;
-
-        // X 버튼
         var closeBtn = box.querySelector('.shrt-fcst-point-box-close');
         if (closeBtn) closeBtn.addEventListener('click', function (e) {
             e.stopPropagation();
             hidePointPopup();
         });
-
-        // [외부 클릭 닫기] 박스 영역 밖 + 지도 영역 밖 클릭 시 박스 닫기.
-        //   - 박스 안 클릭 → 무시 (사용자가 박스 안 콘텐츠 클릭한 것)
-        //   - 지도 안 클릭 → 무시 (handleMapClick → _shrtForecastTryHandleClick 이
-        //                         박스를 새 위치로 이동시키므로 여기서 닫으면 충돌)
-        //   - 그 외 (탭바, 헤더, 사이드 컨트롤 등) 클릭 → 닫기
+        // 외부 클릭 닫기 — 박스 안 / 지도 안 클릭은 무시 (handleMapClick 가 이동 처리)
         popupState.outsideClickHandler = function (e) {
             if (!popupState.box) return;
             if (popupState.box.contains(e.target)) return;
@@ -847,16 +1136,9 @@
             hidePointPopup();
         };
         document.addEventListener('click', popupState.outsideClickHandler);
-
         return box;
     }
 
-    /**
-     * [T2] 박스를 클릭 픽셀 +12px 우하단에 배치 (viewport clamping).
-     *
-     * 좌표 인자는 지도 컨테이너 기준의 픽셀 좌표 (evt.pixel).
-     * 화면 우/하단 침범 시 반대쪽으로 flip — .warn-active-box 와 동일.
-     */
     function positionPopupBox(box, mapPixelXY) {
         var mapEl = document.getElementById('ocean-map');
         var rect = mapEl ? mapEl.getBoundingClientRect() : { left: 0, top: 0 };
@@ -866,8 +1148,7 @@
         var bh = box.offsetHeight;
         var vw = window.innerWidth;
         var vh = window.innerHeight;
-        var left = pageX + 12;
-        var top  = pageY + 12;
+        var left = pageX + 12, top = pageY + 12;
         if (left + bw + 12 > vw) left = pageX - bw - 12;
         if (top + bh + 12 > vh)  top  = pageY - bh - 12;
         if (left < 8) left = 8;
@@ -877,72 +1158,61 @@
     }
 
     /**
-     * [T2] 서버 /api/shrt-fcst-point 호출 → 박스 내용 갱신.
-     *   - 같은 fctTm 으로 짧은 시간 안에 중복 호출 방지 (popupState.lastFctTm)
-     *   - 호출 중에는 "불러오는 중" 메시지 유지, 응답 후 본문 교체
+     * 박스 내용 갱신 — 클라이언트가 직접 5 PNG sample 후 본문 빌드.
+     *
+     * @param {boolean} headerOnly - true 면 헤더 시각만 갱신 (드래그 중 사용)
+     * @returns {Promise<void>} 데이터 로드+sampling 완료 시 resolve. 슬라이더 재생 동기화에 사용.
      */
-    function refreshPopupContents() {
-        if (!popupState.box || !popupState.latLon) return;
+    function refreshPopupContents(headerOnly) {
+        if (!popupState.box || !popupState.latLon) return Promise.resolve();
         var frame = state.frames[state.frameIdx];
-        if (!frame) return;
-        var fctTm = frame.fct_tm || frame.label;   // imgList 응답 그대로 사용
-        var lat = popupState.latLon[0];
-        var lon = popupState.latLon[1];
-        var url = '/api/shrt-fcst-point?lat=' + encodeURIComponent(lat)
-                + '&lon=' + encodeURIComponent(lon)
-                + '&fct_tm=' + encodeURIComponent(fctTm);
+        if (!frame) return Promise.resolve();
+        var fctTm = frame.fct_tm || frame.label;
         var box = popupState.box;
         var titleEl = box.querySelector('.shrt-fcst-point-box-title');
         var bodyEl  = box.querySelector('.shrt-fcst-point-box-body');
         if (titleEl) titleEl.textContent = fmtPopupTm(fctTm);
-        // 같은 fctTm/좌표 재호출이면 body 그대로 — frame 변경시에만 갱신 의미
+        if (headerOnly) return Promise.resolve();   // 드래그 중: 본문 그대로
+
+        // 동시성 제어 — frame 이 빠르게 바뀔 때 오래된 응답이 새 데이터를 덮지 않도록
+        var token = ++popupState.currentFetchToken;
         popupState.lastFctTm = fctTm;
-        fetch(url, { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(function (j) {
-                if (!popupState.box || popupState.lastFctTm !== fctTm) return;  // 그 사이 닫혔거나 다른 frame 으로 진행됨
-                if (!j || !j.ok || !j.data) {
-                    if (bodyEl) bodyEl.innerHTML = '<div class="shrt-fcst-point-loading">데이터를 불러올 수 없습니다.</div>';
-                    return;
-                }
-                if (bodyEl) bodyEl.innerHTML = buildPopupBodyHtml(j.data);
+        var lat = popupState.latLon[0], lon = popupState.latLon[1];
+
+        return samplePointAt(lat, lon, fctTm)
+            .then(function (data) {
+                if (!popupState.box || token !== popupState.currentFetchToken) return;
+                if (bodyEl) bodyEl.innerHTML = buildPopupBodyHtml(data);
             })
             .catch(function (e) {
-                if (!popupState.box) return;
-                if (bodyEl) bodyEl.innerHTML = '<div class="shrt-fcst-point-loading">네트워크 오류: ' + (e && e.message ? e.message : '알 수 없음') + '</div>';
+                if (!popupState.box || token !== popupState.currentFetchToken) return;
+                if (bodyEl) bodyEl.innerHTML = '<div class="shrt-fcst-point-loading">데이터 오류: '
+                    + (e && e.message ? e.message : '알 수 없음') + '</div>';
             });
     }
 
     /**
-     * [T2] 외부 진입점 — handleMapClick 에서 호출.
-     *
-     * 천기 레이어 활성 상태이면 그 좌표에 박스를 띄우고 true 반환 (클릭 소비됨).
-     * 비활성 상태면 false 반환 → 호출자가 다음 가드 (특보 / 바텀시트) 진행.
-     *
-     * @param {ol.Map} map - OpenLayers 맵 객체
-     * @param {ol.MapBrowserEvent} evt - 'click' 이벤트
-     * @returns {boolean} 처리 여부
+     * 외부 진입점 — handleMapClick 에서 호출.
+     * 천기 활성 + KMA extent 안이면 박스 띄우고 true 반환 (클릭 소비).
      */
     window._shrtForecastTryHandleClick = function (map, evt) {
-        if (!state.activeType) return false;            // 천기 OFF — 다음 가드로
+        if (!state.activeType) return false;
         if (!state.frames || !state.frames.length) return false;
         if (typeof ol === 'undefined' || !evt || !evt.coordinate) return false;
         var ll = ol.proj.toLonLat(evt.coordinate);
         var lon = ll[0], lat = ll[1];
-        // KMA extent 바깥 — 천기 데이터가 없는 영역. 우리 가드 비활성화 → 다음 가드로.
-        if (lon < 123.27 || lon > 132.88 || lat < 31.58 || lat > 43.45) return false;
+        if (lon < DFS_EXTENT_4326[0] || lon > DFS_EXTENT_4326[2] ||
+            lat < DFS_EXTENT_4326[1] || lat > DFS_EXTENT_4326[3]) return false;
 
         popupState.latLon = [lat, lon];
         popupState.pixelXY = evt.pixel ? [evt.pixel[0], evt.pixel[1]] : [0, 0];
         var box = ensurePopupBox();
-        // 박스 위치 — 첫 렌더 후 offsetWidth/Height 가 측정되므로 일단 보이지 않게 둠
         box.style.visibility = 'hidden';
         box.style.display = '';
         var titleEl = box.querySelector('.shrt-fcst-point-box-title');
         if (titleEl) titleEl.textContent = '불러오는 중…';
         var bodyEl = box.querySelector('.shrt-fcst-point-box-body');
         if (bodyEl) bodyEl.innerHTML = '<div class="shrt-fcst-point-loading">데이터를 불러오는 중입니다…</div>';
-        // 다음 microtask 에 위치 계산 (offsetWidth 측정 가능)
         requestAnimationFrame(function () {
             if (!popupState.box) return;
             positionPopupBox(popupState.box, popupState.pixelXY);
@@ -952,7 +1222,6 @@
         return true;
     };
 
-    /** [T2] 박스 닫기 + 외부클릭 핸들러 해제 + 상태 초기화. */
     function hidePointPopup() {
         if (popupState.outsideClickHandler) {
             document.removeEventListener('click', popupState.outsideClickHandler);
@@ -965,8 +1234,8 @@
         popupState.latLon = null;
         popupState.pixelXY = null;
         popupState.lastFctTm = null;
+        popupState.currentFetchToken++;
     }
-    // 모듈 외부 (deactivate) 도 부를 수 있게 노출
     window._shrtForecastHidePointPopup = hidePointPopup;
 
     // ─────────────────────────────────────────────────────────────

@@ -614,58 +614,52 @@ router.post('/api/admin/forecast-collect', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6. KMA 단기예보 점 데이터 (천기 클릭 팝업용)
+// 6. KMA 단기예보 PNG 프록시 (천기 — 클라이언트 픽셀 sampling 용)
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // [무엇을 하나?]
-//   사용자가 지도에서 한 지점을 클릭하면, 그 좌표(lat/lon) 와 시각(fct_tm) 의
-//   KMA 단기예보 5개 카테고리(sky/pty/pop/pcp/sno) 데이터를 한 번에 반환.
+//   KMA marine.kma.go.kr 의 단기예보 PNG 를 그대로 클라이언트로 흘려보내되
+//   브라우저가 canvas getImageData 를 쓸 수 있도록 CORS 헤더를 부착.
+//   서버는 디코딩하지 않고 단순히 byte stream 을 통과시킴 → 메모리/CPU 부담 0.
 //
-// [동작 흐름]
-//   1) 클라이언트(js/shrt_forecast_layer.js) 가 클릭한 lon/lat + 슬라이더 현재 시각
-//      을 query string 으로 GET 호출.
-//   2) services/shrt_fcst_point.js 가 KMA PNG 5장을 fetch (캐시) + 그 좌표 픽셀의
-//      RGB 를 색상 팔레트와 매칭하여 단계 값으로 변환.
-//   3) 5개 카테고리 결과를 합쳐 종합 JSON 응답.
+// [왜 필요한가?]
+//   천기 클릭 팝업은 클릭한 좌표의 5개 카테고리 데이터를 추출해야 함.
+//   KMA PNG 는 응답에 Access-Control-Allow-Origin 헤더가 없어서 브라우저
+//   canvas 에 그리면 "tainted canvas" 가 되어 getImageData 가 차단됨.
+//   우리 서버가 같은 PNG 를 받아 CORS 헤더를 추가해 재전송하면 브라우저가
+//   crossOrigin="anonymous" 로 로드하여 canvas 픽셀 추출 가능.
 //
 // [요청 파라미터]
-//   - lat (필수): 위도 (예: 35.123)
-//   - lon (필수): 경도 (예: 129.456)
-//   - fct_tm (필수): "YYYY.MM.DD HH:mm" 포맷 (KMA imgList 응답과 동일).
+//   - path (필수): KMA PNG 의 path. 보안 위해 prefix 를 화이트리스트로 제한.
+//                  예: /resources/fct/shrt_gemd_img/202605/03/14/DFS_..._POP_H024.png
 //
-// [응답 예]
-//   {
-//     "ok": true,
-//     "data": {
-//       "fct_tm": "2026.05.03 14:00",
-//       "lat": 35.123, "lon": 129.456,
-//       "sky": { "label": "구름많음", "rgb": [...] },
-//       "pty": { "label": "비",       "rgb": [...] },
-//       "pop": { "value": 24,         "bandIdx": 6, ... },
-//       "pcp": { "value": null,       "reason": "no_data" },
-//       "sno": { "value": null,       "reason": "no_data" }
-//     }
-//   }
+// [캐시]
+//   - HTTP Cache-Control: public, max-age=3600 → 브라우저가 1시간 자동 캐시.
+//     같은 PNG 재방문 시 우리 서버 / KMA 호출 0 회.
 //
-// [캐시 / 성능]
-//   서비스 모듈이 자체 메모리 캐시 운용 (PNG 60분 TTL).
-//   warm 응답 < 50ms, cold 응답 < 1초 (PNG 5장 병렬 fetch + 디코딩).
-const shrtFcstPointSvc = require('../services/shrt_fcst_point');
-router.get('/api/shrt-fcst-point', async (req, res) => {
+// [의존]
+//   - node-fetch (transitive 의존, 다른 라우트에서도 이미 사용)
+const _kmaPngFetch = require('node-fetch');
+router.get('/api/kma-png-proxy', async (req, res) => {
     try {
-        const lat = parseFloat(req.query.lat);
-        const lon = parseFloat(req.query.lon);
-        const fctTm = (req.query.fct_tm || '').trim();
-        if (!isFinite(lat) || !isFinite(lon) || !fctTm) {
-            return res.status(400).json({ ok: false, error: 'lat/lon/fct_tm 필수' });
+        const path = (req.query.path || '').trim();
+        // 보안: KMA 의 단기예보 PNG 경로만 허용 (다른 임의 경로 프록시 방지)
+        if (!path.startsWith('/resources/fct/shrt_gemd_img/')) {
+            return res.status(400).send('invalid path');
         }
-        // 30 초 클라이언트 캐시 — 동일 lat/lon/fct_tm 재요청 시 네트워크 절약
-        res.set('Cache-Control', 'public, max-age=30');
-        const data = await shrtFcstPointSvc.sampleFiveAt(lat, lon, fctTm);
-        res.json({ ok: true, data });
+        const upstreamUrl = 'https://marine.kma.go.kr' + path;
+        const upstream = await _kmaPngFetch(upstreamUrl, { timeout: 20000 });
+        if (!upstream.ok) return res.status(502).send('upstream ' + upstream.status);
+        res.set({
+            'Content-Type': 'image/png',
+            'Cache-Control': 'public, max-age=3600',
+            'Access-Control-Allow-Origin': '*'
+        });
+        // node-fetch v2 의 res.body 는 Node.js Readable stream — pipe 로 그대로 흘림
+        upstream.body.pipe(res);
     } catch (e) {
-        console.error('[shrt-fcst-point] 실패:', e.message);
-        res.status(500).json({ ok: false, error: e.message });
+        console.error('[kma-png-proxy] 실패:', e.message);
+        res.status(500).send('proxy error');
     }
 });
 
