@@ -921,11 +921,10 @@
             position: absolute;
             left: 0;
             right: 0;
-            /* parent (#ocean-map-section.active → .ocean-map-wrapper) 가 이미
-               bottom: var(--main-tab-height) 로 메인탭 위쪽까지만 차지함.
-               여기서 또 빼면 double-counting → 슬라이더가 메인탭 위로 한 번 더 떠있게 됨.
-               → bottom: 0 으로 parent 의 bottom edge (= 메인탭 위쪽) 에 정확히 붙임. */
-            bottom: 0;
+            /* parent (.ocean-map-wrapper) 가 viewport 끝까지 늘어나는 구조 + overflow:hidden.
+               bottom:0 으로 두면 메인탭 영역 안에 그려져 잘림 → 안 보임.
+               → bottom: var(--main-tab-height) 으로 메인탭 위쪽에 위치. */
+            bottom: var(--main-tab-height, 68px);
             z-index: 1100;
             display: flex;
             align-items: center;
@@ -934,7 +933,10 @@
             backdrop-filter: blur(2px);
             border-top: 1px solid rgba(120, 150, 200, 0.25);
             padding: 0 14px;
-            height: 50px;                    /* 12시 라벨 제거에 따라 60→50 컴팩트 */
+            /* 박스 height 컴팩트화: thumb(50% 가운데) 아래쪽 빈 공간을 줄여
+               시각적으로 메인탭에 더 가깝게 붙어 보이도록 함.
+               36px = 날짜라벨(10) + 트랙·thumb 영역(16) + 시간라벨 baseline(10) */
+            height: 36px;
             box-sizing: border-box;
             box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.35);
         }
@@ -1010,7 +1012,7 @@
         /* 항상 표시 말풍선 — slider thumb 위 (bar 박스 살짝 벗어남, overflow:visible) */
         .shrt-fcst-tooltip {
             position: absolute;
-            top: 6px;                       /* bar top 에서 6px 아래 → 라벨 박스 가운데가 thumb 위쪽 살짝 위 */
+            top: -22px;                     /* bar top 위로 22px (말풍선 height ~22, thumb 위쪽에 떠있음) */
             transform: translateX(-50%);
             background: #ffffff;
             color: #111827;
@@ -1063,12 +1065,11 @@
             white-space: nowrap;
             font-weight: 600;
         }
-        /* 날짜 라벨 (자정) — 트랙 위쪽 (50% 기준 정렬, 트랙과 균등 거리) */
-        .shrt-fcst-tick-label.top    { bottom: calc(50% + 8px); }
-        /* 시간 라벨 (정오) — bar 의 bottom 에 직접 붙임.
-           label.bottom 끝 = bar 끝 = 메인탭 시작 → 슬라이더와 메인탭 사이 빈 공간(공백 2) 제거.
-           범례 절대 위치는 그대로 유지 → 슬라이더와 범례 간격(공백 1)은 자동 보존. */
-        .shrt-fcst-tick-label.bottom { bottom: 0; }
+        /* 날짜 라벨 (자정) — 트랙 위쪽 (bar height 36 기준)
+           50% = 18, 라벨 height ~10 → bottom: calc(50% + 6px) = bar top 으로부터 12px 위치 → 2-12 영역 */
+        .shrt-fcst-tick-label.top    { bottom: calc(50% + 6px); }
+        /* 시간 라벨 (정오) — 제거 (사용자 요구). renderTicks() 에서 그리지 않음. */
+        .shrt-fcst-tick-label.bottom { display: none; }
 
         /* 단기예보 범례 — 슬라이더 바 위 좌측 정렬, 흰색 카드 + 항목 가로 정렬
            예: [ㅁ 맑음   ㅁ 구름많음   ㅁ 흐림]  (제목 없음)
@@ -1077,9 +1078,8 @@
         .shrt-fcst-legend {
             position: absolute;
             left: 12px;
-            /* parent 가 이미 메인탭 위쪽까지만 차지 → slider-bar(height 50) + 14px 여백
-               = parent bottom 으로부터 64px (--main-tab-height 빼지 않음) */
-            bottom: 64px;
+            /* slider-bar(height 36) + 말풍선 위 영역(22) + 14px 여백 = 메인탭 위로 72px */
+            bottom: calc(var(--main-tab-height, 68px) + 72px);
             z-index: 1100;
             background: rgba(255, 255, 255, 0.92);
             backdrop-filter: blur(2px);
