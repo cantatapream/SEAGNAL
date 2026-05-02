@@ -383,6 +383,72 @@ function saveCache(officeCode, reportId, data) {
 }
 
 // ============================================================================
+// 발표 사이클 ID — 같은 사이클이면 수집 생략 (KMA list.do 호출 자체 절감)
+// ============================================================================
+//
+// KMA 단기 전망 발표 주기:
+//   AM 사이클: 04:30 발표 (모든 지방청 동일)
+//   PM 사이클: 16:20 발표 (부산/강원) 또는 16:30 발표 (광주/대전/대구/제주/수도권)
+//
+// 사이클 경계 (KST):
+//   00:00 ~ 04:29  → 어제 PM 사이클
+//   04:30 ~ 16:19  → 오늘 AM 사이클
+//   16:20 ~ 23:59  → 오늘 PM 사이클
+//
+// 저장된 통보문의 사이클 ID 와 현재 시각의 기대 사이클 ID 가 일치하면
+// "이미 최신 데이터 보유" 로 판단 → list.do 호출 자체를 생략한다.
+// 일치하지 않으면 새 사이클이 도래했거나 미보유 상태이므로 수집을 진행.
+//
+// 부팅 시 + 윈도우 안 5분마다 트리거 모두에 동일 적용 → 사이클 전환 시각
+// (04:31, 16:21 또는 16:31) 직후 1회만 실제 KMA 호출 발생.
+
+/**
+ * 저장된 통보문의 발표시각 문자열로부터 사이클 ID 를 만든다.
+ *   "2026.05.02 04:30" → "20260502-am"
+ *   "2026.05.02 16:20" → "20260502-pm"
+ *   파싱 실패 시 null (저장된 게 없거나 포맷이 맞지 않음)
+ */
+function getStoredCycleId(bulletinPublishTime) {
+    if (!bulletinPublishTime) return null;
+    const m = String(bulletinPublishTime).match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})$/);
+    if (!m) return null;
+    const hh = parseInt(m[4], 10);
+    // 시(hour)가 10 미만이면 AM, 10 이상이면 PM (KMA 발표시각 04:30 vs 16:20-30 분리에 충분)
+    const half = hh < 10 ? 'am' : 'pm';
+    return `${m[1]}${m[2]}${m[3]}-${half}`;
+}
+
+/**
+ * 현재 시각이 어느 발표 사이클에 속하는지 ID 로 반환.
+ * 서버가 UTC 컨테이너에서 돌아도 KST 기준으로 일관 동작.
+ */
+function getCurrentExpectedCycleId(now) {
+    // 서버 timezone 무관하게 KST 시각 도출
+    const kstMs = now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600000);
+    const kst = new Date(kstMs);
+    const minOfDay = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+
+    const AM_BOUNDARY = 4 * 60 + 30;   // 04:30
+    const PM_BOUNDARY = 16 * 60 + 20;  // 16:20 (PM 발표 중 가장 이른 시각)
+
+    // 사이클이 가리키는 "날짜" — 자정~04:29 사이엔 어제 날짜로 떨어진다
+    let date = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()));
+    let half;
+    if (minOfDay < AM_BOUNDARY) {
+        date = new Date(date.getTime() - 24 * 3600000);
+        half = 'pm';
+    } else if (minOfDay < PM_BOUNDARY) {
+        half = 'am';
+    } else {
+        half = 'pm';
+    }
+    const y = date.getUTCFullYear();
+    const mo = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(date.getUTCDate()).padStart(2, '0');
+    return `${y}${mo}${d}-${half}`;
+}
+
+// ============================================================================
 // 한 지방청 단위 처리
 // ============================================================================
 
@@ -473,9 +539,24 @@ async function collectAllRegionalBulletins() {
 
     let updated = 0;
     let cacheHits = 0;
+    let cycleSkips = 0;
     let failed = 0;
 
+    // 현재 시각이 어느 발표 사이클인지 한 번만 계산 (이 사이클 안에선 모든 지방청 동일 기준)
+    const expectedCycle = getCurrentExpectedCycleId(new Date());
+
     for (const office of BULLETIN_OFFICES) {
+        // [사이클 사전 스킵] 이미 보유한 통보문이 현재 발표 사이클과 일치하면
+        // list.do 호출조차 하지 않고 즉시 다음 지방청으로 넘어간다.
+        // 부팅 직후나 윈도우 안 반복 호출에서 KMA 부담을 크게 절감.
+        const storedEntry = store[office.code];
+        const storedCycle = storedEntry ? getStoredCycleId(storedEntry.bulletinPublishTime) : null;
+        if (storedCycle && storedCycle === expectedCycle) {
+            console.log(`[RegionalBulletin] ${office.name}: 발표 사이클 일치(${expectedCycle}), 수집 생략`);
+            cycleSkips++;
+            continue;
+        }
+
         const result = await processOneOffice(office);
         if (!result) { failed++; continue; }
 
@@ -510,7 +591,7 @@ async function collectAllRegionalBulletins() {
         console.error(`[RegionalBulletin] 저장 오류: ${e.message}`);
     }
 
-    console.log(`[RegionalBulletin] 완료: 신규 ${updated}건 / 캐시 ${cacheHits}건 / 실패 ${failed}건`);
+    console.log(`[RegionalBulletin] 완료: 신규 ${updated}건 / 캐시 ${cacheHits}건 / 사이클스킵 ${cycleSkips}건 / 실패 ${failed}건`);
     return store;
 }
 
