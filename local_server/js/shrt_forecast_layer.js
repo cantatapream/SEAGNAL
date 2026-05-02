@@ -328,6 +328,9 @@
         if (state.playing || !state.frames.length) return;
         state.playing = true;
         setPlayBtnIcon(true);
+        // 재생 시작 → 말풍선 표출 (1초 fade-in, opacity transition)
+        var bar = $('shrt-fcst-slider-bar');
+        if (bar) bar.classList.remove('tooltip-suppressed');
         state.playTimer = setInterval(function () {
             var next = state.frameIdx + 1;
             if (next >= state.frames.length) next = 0;
@@ -340,6 +343,12 @@
         setPlayBtnIcon(false);
         clearInterval(state.playTimer);
         state.playTimer = null;
+        // 정지 → 정량형이면 말풍선 1초 fade-out, 카테고리형은 그대로 표출
+        var bar = $('shrt-fcst-slider-bar');
+        var def = state.activeType ? LEGEND_DEF[state.activeType] : null;
+        if (bar && def && def.style === 'gradient') {
+            bar.classList.add('tooltip-suppressed');
+        }
     }
     function togglePlay() { state.playing ? stopPlay() : startPlay(); }
 
@@ -355,14 +364,14 @@
 
         var html = '';
         if (def.style === 'gradient') {
-            // KMA 사이트 동일 스타일: 가로 그라디언트 바 + 균등 분포 임계값 라벨 + 우측 정렬 단위.
-            // 헤더(카테고리명)는 사용자 요구로 제외.
-            var n = Math.max(1, def.items.length - 1);
-            var stops = def.items.map(function (it, i) {
-                return it.color + ' ' + ((i / n) * 100) + '%';
-            }).join(', ');
-
-            html += '<div class="shrt-fcst-grad-bar" style="background: linear-gradient(to right, ' + stops + ');"></div>';
+            // KMA 사이트 동일 스타일: 단계 블록 (그라디언트 X) + boundary 라벨 + 우측 단위.
+            // N 개 라벨 → N-1 개 색상 블록 (라벨 사이마다 한 색).
+            // flex 로 블록 균등 분배 → 라벨 (justify-content: space-between) 이 정확히 boundary 에 위치.
+            var blocksHtml = '';
+            for (var bi = 0; bi < def.items.length - 1; bi++) {
+                blocksHtml += '<div class="shrt-fcst-grad-block" style="background:' + def.items[bi].color + ';"></div>';
+            }
+            html += '<div class="shrt-fcst-grad-bar">' + blocksHtml + '</div>';
             html += '<div class="shrt-fcst-grad-labels">';
             def.items.forEach(function (it) {
                 html += '<span>' + it.label + '</span>';
@@ -469,6 +478,9 @@
         hideLegend();
         var items = document.querySelectorAll('.ocean-other-wx-item.active');
         for (var i = 0; i < items.length; i++) items[i].classList.remove('active');
+        // tooltip-suppressed 클래스 제거 (다음 카테고리형 활성 시 즉시 보이도록)
+        var bar = $('shrt-fcst-slider-bar');
+        if (bar) bar.classList.remove('tooltip-suppressed');
         state.activeType = null;
         state.frames = [];
         state.frameIdx = 0;
@@ -488,6 +500,17 @@
 
         var btn = document.querySelector('.ocean-other-wx-item[data-shrt="' + shrtType + '"]');
         if (btn) btn.classList.add('active');
+
+        // [말풍선 노출 정책]
+        // - 카테고리형(sky/pty): 항상 표출 (현재처럼)
+        // - 정량형(pop/pcp/sno): 처음엔 숨김, 재생 시작 시 표출, 정지 시 1초 fade-out
+        var bar = $('shrt-fcst-slider-bar');
+        var def = LEGEND_DEF[shrtType];
+        if (bar && def && def.style === 'gradient') {
+            bar.classList.add('tooltip-suppressed');
+        } else if (bar) {
+            bar.classList.remove('tooltip-suppressed');
+        }
 
         fetchImgList(shrtType).then(function (frames) {
             if (state.activeType !== shrtType) return;
