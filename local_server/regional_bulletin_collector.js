@@ -1,8 +1,9 @@
 /**
  * ============================================================================
  * 파일명: regional_bulletin_collector.js
- * 역할 : 지방기상청 [해설] 단기 전망 통보문을 수집해 AI 로 정제 + 기온을 추출,
- *        regional_forecast.json 의 summary / temperature / bulletin* 필드를 갱신
+ * 역할 : 지방기상청 [해설] 단기 전망 통보문을 수집해 AI 로 정제,
+ *        regional_forecast.json 의 summary / bulletin* 필드를 갱신.
+ *        (기온은 PDF 파이프라인이 책임 — 본 모듈은 본문만 다룸)
  * ============================================================================
  *
  * [수집 대상] 7개 지방기상청 — 앱 기존 표시 순서 유지
@@ -36,8 +37,7 @@
  *   - bulletinReportId    : 이번에 수집된 통보문 ID
  *   - bulletinPublishTime : "2026.05.02 04:30" 형식의 발표시각 (헤더용)
  *   - summary             : 마크업이 적용된 전체 본문 텍스트
- *   - temperature         : { morningLow, dayHigh, basis } 또는 null
- *   PDF 출처 필드(publishTime, marineForecast, coastalForecast)는 그대로 유지된다.
+ *   PDF 출처 필드(publishTime, temperature, marineForecast, coastalForecast)는 그대로 유지.
  *
  * [연계]
  *   - scheduler.js                : 윈도우 시각에 collectAllRegionalBulletins() 호출
@@ -87,7 +87,8 @@ const LIST_URL = 'https://www.weather.go.kr/w/special-report/list.do';
 //   - 본 모듈                  : 전체 본문(마크업 적용) + 대표 기온 추출
 const REGIONAL_BULLETIN_AI_PROMPT = `
 너는 대한민국 지방기상청 [해설] 단기 전망 통보문 전문 분석가이다.
-주어진 통보문 본문을 분석하여 (1) 마크업이 적용된 전체 본문과 (2) 대표 기온을 JSON으로 반환한다.
+주어진 통보문 본문을 분석하여 마크업이 적용된 전체 본문 텍스트를 JSON으로 반환한다.
+(기온 추출은 별도 PDF 파이프라인이 담당하므로 본 프롬프트에서는 다루지 않는다.)
 
 ### 1. 키워드 강조 마크업 (3종)
 원문 텍스트 안에서 중요 키워드를 아래 마크업 태그로 감싼다.
@@ -115,52 +116,10 @@ const REGIONAL_BULLETIN_AI_PROMPT = `
 - "날씨해설 다운로드", "첨부파일 다운로드" 같은 부가 텍스트는 제거.
 - 원문에 없는 내용은 추가하지 않고, 텍스트 자체는 변경하지 않으며 마크업만 추가.
 
-### 3. 대표 기온 추출 (매우 중요)
+### 3. 출력 형식 (반드시 JSON만, 추가 설명 금지)
 
-**3-1. 기준 시점 판정 (basis)**
-본문에서 가장 먼저 나오는 "(오늘|내일)(N일) 아침최저기온은 …" 또는
-"(오늘|내일)(N일) 낮최고기온은 …" 블록을 찾는다.
-- "오늘"로 시작 → basis="today"
-- "내일"로 시작 → basis="tomorrow"
-
-**3-2. 추출 우선순위 (위에서부터 시도)**
-
-(1) "등 X~Y℃" 패턴이 있으면 그 X~Y 사용.
-    예: "서울 13℃, 인천 13℃, 수원 13℃ 등 11~13℃" → "11 ~ 13"
-
-(2) 단독 범위 "X~Y℃"만 있으면 그 X~Y 사용.
-    "(평년 …)", "(오늘 …, 6~15℃)", "보다 1~7℃ 높겠고" 등 비교/괄호는 무시.
-    예: "내일 아침최저기온은 12~14℃" → "12 ~ 14"
-    예: "낮최고기온은 19~21℃(평년 19~21℃)" → "19 ~ 21"
-
-(3) 여러 지역명+범위가 콤마로 나열되면, 모든 범위(및 단일 값)의
-    최솟값~최댓값으로 묶어 반환.
-    예: "강원내륙 10~12℃, 강원산지 8~9℃, 강원동해안 13~14℃" → "8 ~ 14"
-    예: "부산 14℃, 울산 14℃, 경상남도 11~14℃로 …" → "11 ~ 14"
-
-**3-3. 형식**
-- "X ~ Y" 형태의 문자열 (정수 또는 한 자리 소수).
-- 값이 -30 ~ 50 범위를 벗어나면 신뢰 불가 → null.
-
-**3-4. 추출 불가 시**
-- 본문에 위 어떤 패턴도 없으면 temperature 전체를 null 로 반환.
-
-### 4. 출력 형식 (반드시 JSON만, 추가 설명 금지)
-
-성공:
 {
-  "summary": "마크업이 적용된 전체 본문 텍스트 (줄바꿈 보존)",
-  "temperature": {
-    "morningLow": "11 ~ 13",
-    "dayHigh":    "15 ~ 17",
-    "basis":      "tomorrow"
-  }
-}
-
-기온 추출 실패:
-{
-  "summary": "마크업이 적용된 전체 본문 텍스트",
-  "temperature": null
+  "summary": "마크업이 적용된 전체 본문 텍스트 (줄바꿈 보존)"
 }
 `;
 
@@ -288,7 +247,7 @@ async function fetchBulletinBody(officeCode, reportId) {
 // ============================================================================
 
 /**
- * 본문을 Gemini 에 보내 { summary, temperature } 형식으로 정제 반환.
+ * 본문을 Gemini 에 보내 { summary } 형식으로 정제 반환.
  * 실패(키 없음/쿨다운/JSON 파싱 오류 등) 시 null — 호출측이 캐시 저장 안 하고 다음 사이클에 재시도.
  */
 async function analyzeBulletinWithAI(rawText) {
@@ -316,31 +275,11 @@ async function analyzeBulletinWithAI(rawText) {
     }
 
     try {
-        const parsed = JSON.parse(callResult.text);
-        // sanity: 기온이 한국 기온 범위(-30~50) 안에 있는지 검증. 벗어나면 통째로 폐기.
-        if (parsed.temperature) {
-            const ok = isValidTempRange(parsed.temperature.morningLow)
-                    && isValidTempRange(parsed.temperature.dayHigh);
-            if (!ok) parsed.temperature = null;
-        }
-        return parsed;
+        return JSON.parse(callResult.text);
     } catch (e) {
         console.error(`[RegionalBulletin] AI 응답 JSON 파싱 실패: ${e.message}`);
         return null;
     }
-}
-
-/**
- * "X ~ Y" 형식 문자열이 한국 기온 합리 범위(-30 ~ 50℃) 안인지 검증.
- * AI 가 강수량/풍속 등 다른 수치를 잘못 넣은 경우를 차단.
- */
-function isValidTempRange(s) {
-    if (typeof s !== 'string') return false;
-    const m = s.match(/^\s*(-?\d{1,2}(?:\.\d)?)\s*~\s*(-?\d{1,2}(?:\.\d)?)\s*$/);
-    if (!m) return false;
-    const a = parseFloat(m[1]);
-    const b = parseFloat(m[2]);
-    return a >= -30 && a <= 50 && b >= -30 && b <= 50;
 }
 
 // ============================================================================
@@ -383,6 +322,72 @@ function saveCache(officeCode, reportId, data) {
 }
 
 // ============================================================================
+// 발표 사이클 ID — 같은 사이클이면 수집 생략 (KMA list.do 호출 자체 절감)
+// ============================================================================
+//
+// KMA 단기 전망 발표 주기:
+//   AM 사이클: 04:30 발표 (모든 지방청 동일)
+//   PM 사이클: 16:20 발표 (부산/강원) 또는 16:30 발표 (광주/대전/대구/제주/수도권)
+//
+// 사이클 경계 (KST):
+//   00:00 ~ 04:29  → 어제 PM 사이클
+//   04:30 ~ 16:19  → 오늘 AM 사이클
+//   16:20 ~ 23:59  → 오늘 PM 사이클
+//
+// 저장된 통보문의 사이클 ID 와 현재 시각의 기대 사이클 ID 가 일치하면
+// "이미 최신 데이터 보유" 로 판단 → list.do 호출 자체를 생략한다.
+// 일치하지 않으면 새 사이클이 도래했거나 미보유 상태이므로 수집을 진행.
+//
+// 부팅 시 + 윈도우 안 5분마다 트리거 모두에 동일 적용 → 사이클 전환 시각
+// (04:31, 16:21 또는 16:31) 직후 1회만 실제 KMA 호출 발생.
+
+/**
+ * 저장된 통보문의 발표시각 문자열로부터 사이클 ID 를 만든다.
+ *   "2026.05.02 04:30" → "20260502-am"
+ *   "2026.05.02 16:20" → "20260502-pm"
+ *   파싱 실패 시 null (저장된 게 없거나 포맷이 맞지 않음)
+ */
+function getStoredCycleId(bulletinPublishTime) {
+    if (!bulletinPublishTime) return null;
+    const m = String(bulletinPublishTime).match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})$/);
+    if (!m) return null;
+    const hh = parseInt(m[4], 10);
+    // 시(hour)가 10 미만이면 AM, 10 이상이면 PM (KMA 발표시각 04:30 vs 16:20-30 분리에 충분)
+    const half = hh < 10 ? 'am' : 'pm';
+    return `${m[1]}${m[2]}${m[3]}-${half}`;
+}
+
+/**
+ * 현재 시각이 어느 발표 사이클에 속하는지 ID 로 반환.
+ * 서버가 UTC 컨테이너에서 돌아도 KST 기준으로 일관 동작.
+ */
+function getCurrentExpectedCycleId(now) {
+    // 서버 timezone 무관하게 KST 시각 도출
+    const kstMs = now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600000);
+    const kst = new Date(kstMs);
+    const minOfDay = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+
+    const AM_BOUNDARY = 4 * 60 + 30;   // 04:30
+    const PM_BOUNDARY = 16 * 60 + 20;  // 16:20 (PM 발표 중 가장 이른 시각)
+
+    // 사이클이 가리키는 "날짜" — 자정~04:29 사이엔 어제 날짜로 떨어진다
+    let date = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()));
+    let half;
+    if (minOfDay < AM_BOUNDARY) {
+        date = new Date(date.getTime() - 24 * 3600000);
+        half = 'pm';
+    } else if (minOfDay < PM_BOUNDARY) {
+        half = 'am';
+    } else {
+        half = 'pm';
+    }
+    const y = date.getUTCFullYear();
+    const mo = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(date.getUTCDate()).padStart(2, '0');
+    return `${y}${mo}${d}-${half}`;
+}
+
+// ============================================================================
 // 한 지방청 단위 처리
 // ============================================================================
 
@@ -393,7 +398,7 @@ function saveCache(officeCode, reportId, data) {
  *   3) 캐시 miss → 본문 fetch → AI 분석 → 캐시 저장
  *
  * 반환:
- *   { reportId, title, publishTime, rawText, summary, temperature, collectedAt, fromCache }
+ *   { reportId, title, publishTime, rawText, summary, collectedAt, fromCache }
  *   또는 null (수집/분석 실패)
  */
 async function processOneOffice(office) {
@@ -431,7 +436,6 @@ async function processOneOffice(office) {
             publishTime: parsePublishTimeFromTitle(found.title),
             rawText,
             summary: ai.summary,
-            temperature: ai.temperature || null,
             collectedAt: new Date().toISOString()
         };
 
@@ -449,9 +453,9 @@ async function processOneOffice(office) {
 
 /**
  * 7개 지방청을 순회하며 단기 전망을 수집하고, regional_forecast.json 의
- * summary / temperature / bulletin* 필드를 partial-merge 한다.
+ * summary / bulletin* 필드를 partial-merge 한다.
  *
- * PDF 출처 필드(publishTime, marineForecast, coastalForecast)는 보존한다.
+ * PDF 출처 필드(publishTime, temperature, marineForecast, coastalForecast)는 보존한다.
  *
  * 호출 시점: scheduler.js 가 04:01~04:56, 16:01~16:56 KST 에 5분마다 호출.
  * 모든 지방청 캐시가 hit 이면 fetch/AI 호출이 0회로 끝나 부담 없음.
@@ -473,16 +477,32 @@ async function collectAllRegionalBulletins() {
 
     let updated = 0;
     let cacheHits = 0;
+    let cycleSkips = 0;
     let failed = 0;
 
+    // 현재 시각이 어느 발표 사이클인지 한 번만 계산 (이 사이클 안에선 모든 지방청 동일 기준)
+    const expectedCycle = getCurrentExpectedCycleId(new Date());
+
     for (const office of BULLETIN_OFFICES) {
+        // [사이클 사전 스킵] 이미 보유한 통보문이 현재 발표 사이클과 일치하면
+        // list.do 호출조차 하지 않고 즉시 다음 지방청으로 넘어간다.
+        // 부팅 직후나 윈도우 안 반복 호출에서 KMA 부담을 크게 절감.
+        const storedEntry = store[office.code];
+        const storedCycle = storedEntry ? getStoredCycleId(storedEntry.bulletinPublishTime) : null;
+        if (storedCycle && storedCycle === expectedCycle) {
+            console.log(`[RegionalBulletin] ${office.name}: 발표 사이클 일치(${expectedCycle}), 수집 생략`);
+            cycleSkips++;
+            continue;
+        }
+
         const result = await processOneOffice(office);
         if (!result) { failed++; continue; }
 
         if (result.fromCache) cacheHits++; else updated++;
 
-        // partial merge: prev 의 PDF 필드(publishTime, marineForecast, coastalForecast 등)는
-        // 보존하고 통보문 출처 필드만 덮어쓴다.
+        // partial merge: prev 의 PDF 필드(publishTime, temperature, marineForecast,
+        // coastalForecast 등)는 보존하고 통보문 출처 필드만 덮어쓴다.
+        // (temperature 는 PDF 파이프라인이 책임 — 본 모듈이 건드리지 않음)
         const prev = store[office.code] || {};
         store[office.code] = {
             ...prev,
@@ -492,7 +512,6 @@ async function collectAllRegionalBulletins() {
             bulletinReportId: result.reportId,
             bulletinPublishTime: result.publishTime,
             summary: result.summary,
-            temperature: result.temperature,
             collectedAt: result.collectedAt,
         };
 
@@ -510,7 +529,7 @@ async function collectAllRegionalBulletins() {
         console.error(`[RegionalBulletin] 저장 오류: ${e.message}`);
     }
 
-    console.log(`[RegionalBulletin] 완료: 신규 ${updated}건 / 캐시 ${cacheHits}건 / 실패 ${failed}건`);
+    console.log(`[RegionalBulletin] 완료: 신규 ${updated}건 / 캐시 ${cacheHits}건 / 사이클스킵 ${cycleSkips}건 / 실패 ${failed}건`);
     return store;
 }
 
@@ -520,7 +539,6 @@ module.exports = {
     findBulletinForOffice,
     fetchBulletinBody,
     analyzeBulletinWithAI,
-    isValidTempRange,
     BULLETIN_OFFICES,
     REGIONAL_BULLETIN_AI_PROMPT,
 };

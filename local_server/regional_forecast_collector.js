@@ -213,6 +213,88 @@ async function fetchRegionalPdf(officeCode) {
 }
 
 /**
+ * PDF 텍스트에서 오늘 기온(최저/최고)을 추출
+ *
+ * [PDF 기온표 구조]
+ *   pdf-parse 로 텍스트만 추출하면 셀 구분자가 사라져 한 줄로 합쳐짐:
+ *     "최저6.1 ~ 8.35.6 ~ 8.35.0 ~ 9.39 ~ 1010 ~ 11117 ~ 9"
+ *   기온표 셀 순서: 평년(오늘) | 어제 | 오늘 | 내일 | 모레 | 글피 | 그글피
+ *   각 셀은 "X ~ Y" 범위. 셀 사이 구분자 없이 연결되어 출력됨.
+ *
+ * [추출 전략]
+ *   ~ 기호 위치를 인덱스로 잡아 셀 경계를 식별:
+ *     ~#1 ~ ~#2 사이 = "어제high + 오늘low"  → 마지막 숫자 = 오늘low
+ *     ~#2 ~ ~#3 사이 = "오늘high + 내일low"  → 첫 숫자   = 오늘high
+ */
+function parseTodayTemperature(text) {
+    if (!text) return null;
+
+    let low = null;
+    let high = null;
+
+    // 최저 기온 행에서 오늘 값 추출
+    const lowLineMatch = text.match(/최저[^\n]*/);
+    if (lowLineMatch) {
+        low = extractTodayValueFromLine(lowLineMatch[0].replace(/^최저\s*/, ''));
+    }
+
+    // 최고 기온 행에서 오늘 값 추출
+    const highLineMatch = text.match(/최고[^\n]*/);
+    if (highLineMatch) {
+        high = extractTodayValueFromLine(highLineMatch[0].replace(/^최고\s*/, ''));
+    }
+
+    if (!low && !high) return null;
+    return { low, high };
+}
+
+/**
+ * 기온 행에서 ~ 기호를 기준으로 오늘 셀 값(범위)을 추출
+ *
+ * [정합성 검증]
+ *   정상 발표는 셀별로 ~ 가 1개씩(평년~그글피 7개) 들어감 → 6~7개 ~ 정상.
+ *   6개 미만이면 어딘가 셀이 비어있다는 뜻 → 거부 (오작동 방지).
+ *
+ *   예: 05시 발표는 "오늘" 셀이 "-" 으로 비어 ~ 가 1개 사라져 5개가 됨.
+ *       기존 "4개 이상이면 진행" 코드는 tilde 인덱스가 한 칸씩 밀려서
+ *       "내일 셀"을 "오늘"로 잘못 읽고 빈칸 "-" 가 다음 숫자에 붙어
+ *       "-12" 같은 음수로 오인되는 문제가 있었음.
+ *       → 차라리 표시 안 하는 게 안전 (null 반환).
+ */
+function extractTodayValueFromLine(data) {
+    // ~ 위치 찾기
+    const tildePositions = [];
+    for (let i = 0; i < data.length; i++) {
+        if (data[i] === '~') tildePositions.push(i);
+    }
+
+    if (tildePositions.length < 6) return null;
+
+    // 온도값 패턴: -12.3, 8.8, -3, 20 등 (1~2자리 정수 + 선택적 소수점1자리)
+    const tempPattern = /-?\d{1,2}(?:\.\d)?/g;
+
+    // 세그먼트 ~#1 ~ ~#2 = 어제high + 오늘low
+    const segBefore = data.substring(tildePositions[1] + 1, tildePositions[2]).trim();
+    const beforeTemps = segBefore.match(tempPattern);
+    if (!beforeTemps || beforeTemps.length < 2) return null;
+    const todayLow = beforeTemps[beforeTemps.length - 1]; // 마지막 = 오늘low
+
+    // 세그먼트 ~#2 ~ ~#3 = 오늘high + 내일low
+    const segAfter = data.substring(tildePositions[2] + 1, tildePositions[3]).trim();
+    const afterTemps = segAfter.match(tempPattern);
+    if (!afterTemps || afterTemps.length < 2) return null;
+    const todayHigh = afterTemps[0]; // 첫번째 = 오늘high
+
+    const lowVal = parseFloat(todayLow);
+    const highVal = parseFloat(todayHigh);
+
+    // 한국 기온 범위 (-30 ~ 50) 밖이면 신뢰 불가
+    if (lowVal < -30 || lowVal > 50 || highVal < -30 || highVal > 50) return null;
+
+    return `${todayLow} ~ ${todayHigh}`;
+}
+
+/**
  * PDF 텍스트에서 발표 시각을 추출
  */
 function parsePublishTime(text) {
@@ -257,9 +339,10 @@ async function collectOneOffice(officeCode) {
         } catch (_) {}
 
         // [책임 분리]
-        //   summary / temperature 는 regional_bulletin_collector(통보문 AI 파이프라인)이
-        //   채운다. 이 모듈은 PDF 에서만 뽑을 수 있는 marine/coastal 시간대별 표만 책임.
+        //   summary 는 regional_bulletin_collector(통보문 AI 파이프라인)가 채운다.
+        //   temperature 와 marine/coastal 은 PDF 에서만 안정적으로 뽑을 수 있어 이 모듈이 책임.
         const publishTime = parsePublishTime(text);
+        const temperature = parseTodayTemperature(text);
         const { farSeaZones: marineForecast, coastalZones: coastalForecast } = parseMarineForecast(text, result.timestamp);
 
         const marineCount = Object.keys(marineForecast).length;
@@ -269,6 +352,7 @@ async function collectOneOffice(officeCode) {
         }
 
         // marine/coastal 둘 다 비어있으면 PDF 에서 더 가져올 게 없음 → 저장 스킵
+        // (단, 기온이라도 추출되면 그것만 살릴 수도 있으나 운영상 marine/coastal 도 같이 실패할 가능성이 더 큼)
         if (marineCount === 0 && coastalCount === 0) {
             console.log(`[RegionalForecast] ${office.name}: 해상예보 추출 실패 (구역 0건)`);
             return null;
@@ -278,6 +362,7 @@ async function collectOneOffice(officeCode) {
             officeCode,
             officeName: office.name,
             publishTime: publishTime || result.timestamp,
+            temperature,
             marineForecast,
             coastalForecast,
             collectedAt: new Date().toISOString()
@@ -359,9 +444,9 @@ async function collectRegionalForecasts(progressEmitter) {
     } catch (_) {}
 
     // [partial-merge] 통보문 수집기(regional_bulletin_collector)가 채운 필드를 보존한다.
-    //   - 보존: bulletinReportId, bulletinPublishTime, summary, temperature
-    //   - 갱신: officeCode, officeName, publishTime(=PDF 발표시각), marineForecast,
-    //           coastalForecast, collectedAt
+    //   - 보존: bulletinReportId, bulletinPublishTime, summary
+    //   - 갱신: officeCode, officeName, publishTime(=PDF 발표시각), temperature,
+    //           marineForecast, coastalForecast, collectedAt
     //   PDF 수집(05/11/17 +10분)이 통보문 수집(04/16시 윈도우)보다 늦게 돌면서 통째로
     //   덮어쓰는 버그가 있었음 — 그 결과 04:30 발표분 단기 전망이 05:10 사이클에서
     //   소멸하던 문제를 여기서 막는다.
@@ -373,6 +458,7 @@ async function collectRegionalForecasts(progressEmitter) {
             officeCode: data.officeCode,
             officeName: data.officeName,
             publishTime: data.publishTime,
+            temperature: data.temperature,
             marineForecast: data.marineForecast,
             coastalForecast: data.coastalForecast,
             collectedAt: data.collectedAt,
@@ -461,14 +547,15 @@ async function retryMissingOffices() {
         try {
             const data = await collectOneOffice(code);
             if (data) {
-                // [partial-merge] 통보문 수집기가 채운 필드(bulletinReportId/bulletinPublishTime/
-                // summary/temperature)를 보존하고 PDF 출처 필드만 갱신.
+                // [partial-merge] 통보문 수집기가 채운 필드(bulletinReportId/
+                // bulletinPublishTime/summary)를 보존하고 PDF 출처 필드만 갱신.
                 const prev = existing[code] || {};
                 existing[code] = {
                     ...prev,
                     officeCode: data.officeCode,
                     officeName: data.officeName,
                     publishTime: data.publishTime,
+                    temperature: data.temperature,
                     marineForecast: data.marineForecast,
                     coastalForecast: data.coastalForecast,
                     collectedAt: data.collectedAt,

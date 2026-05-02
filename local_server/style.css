@@ -5104,8 +5104,59 @@ line-height: 1.1;
     color: #64748b;
 }
 
+/* ============================================================================
+ * 지방청별 아코디언 — 헤더 클릭 시 본문(기온+요약) 영역만 토글된다.
+ *   기본 상태: 닫힘 (.open 클래스 없음 → body 비표시, 화살표 아래 향함)
+ *   열림 상태: .open 클래스 부여 → body 표시 + 화살표 위로 회전
+ * ============================================================================ */
+.regional-forecast-office-header {
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.regional-forecast-office-icon {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    transition: transform 0.2s ease;
+}
+.regional-forecast-office.open .regional-forecast-office-icon {
+    transform: rotate(180deg);
+}
+.regional-forecast-office-body {
+    display: none;
+}
+.regional-forecast-office.open .regional-forecast-office-body {
+    display: block;
+}
+
 .regional-forecast-summary {
     margin-bottom: 8px;
+    /* [내부 스크롤] 본문이 길어 카드가 무한히 늘어나는 것을 방지.
+       헤더 + 기온 박스는 고정으로 보이고 본문만 박스 안에서 스크롤된다.
+       max-height 는 약 280px ≈ 단기 전망 본문 8~10 줄 수준 — 사용자 보기에
+       대략 원본 길이의 3/4 정도가 한 번에 보이고 나머지는 스크롤로 확인. */
+    max-height: 280px;
+    overflow-y: auto;
+    /* 다크 테마 매칭 스크롤바 (Firefox + WebKit) */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+    padding-right: 4px;
+}
+.regional-forecast-summary::-webkit-scrollbar {
+    width: 6px;
+}
+.regional-forecast-summary::-webkit-scrollbar-track {
+    background: transparent;
+}
+.regional-forecast-summary::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 3px;
+}
+.regional-forecast-summary::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
 }
 
 .regional-forecast-line {
@@ -5139,6 +5190,7 @@ line-height: 1.1;
     background: rgba(255, 255, 255, 0.04);
     border-radius: 8px;
     margin-top: 8px;
+    margin-bottom: 8px; /* 헤더↓→기온→본문 순서로 변경된 후 본문과의 간격 확보 */
 }
 
 .regional-forecast-temp-icon {
