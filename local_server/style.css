@@ -5084,15 +5084,6 @@ line-height: 1.1;
     margin-bottom: 0;
 }
 
-.regional-forecast-office-header {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    margin-bottom: 10px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-}
-
 .regional-forecast-office-name {
     font-size: 0.88rem;
     font-weight: 700;
@@ -5108,13 +5099,23 @@ line-height: 1.1;
  * 지방청별 아코디언 — 헤더 클릭 시 본문(기온+요약) 영역만 토글된다.
  *   기본 상태: 닫힘 (.open 클래스 없음 → body 비표시, 화살표 아래 향함)
  *   열림 상태: .open 클래스 부여 → body 표시 + 화살표 위로 회전
+ *
+ * [핵심] 닫힘 상태에서는 헤더에 어떤 하단 여백/구분선도 없도록 한다.
+ *   기존엔 헤더에 항상 margin-bottom + padding-bottom + border-bottom 이 있어
+ *   본문이 닫혀있어도 그 자리에 빈 공간이 남는 시각적 문제 발생.
+ *   하단 separator 류는 .open 상태에서만 적용해 닫힘 상태가 깔끔하게 보이도록 한다.
  * ============================================================================ */
 .regional-forecast-office-header {
-    cursor: pointer;
-    user-select: none;
     display: flex;
     align-items: center;
     gap: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+.regional-forecast-office.open .regional-forecast-office-header {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
 }
 .regional-forecast-office-icon {
     margin-left: auto;
