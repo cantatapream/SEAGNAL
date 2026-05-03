@@ -674,6 +674,101 @@
     }
 
     /**
+     * 해류 격자 데이터에 5×5 가우시안 평활화를 적용해 새 배열로 반환.
+     *
+     * [이 함수의 역할 — 한 줄 요약]
+     *   ROMS 원본의 셀 단위 국소 변동(작은 잡음·고변동 셀)을 인접 25셀
+     *   가중평균으로 부드럽게 만들어 시각화의 얼룩 패턴을 줄임.
+     *
+     * [왜 필요?]
+     *   풍속·파고는 buildGridFromZones 가 빈 셀을 인근 값으로 채워 인접 셀이
+     *   비슷해지지만, 해류는 ROMS 원본 그대로라 인접 셀 값 차이가 클수록 색이
+     *   격하게 변해 시각이 얼룩덜룩해짐. 데이터 자체를 가벼운 평활 처리로
+     *   해결하면 색상 매핑 단계에서 자동으로 부드러워짐.
+     *
+     * [정확성 보존 이유]
+     *   가중평균 결과는 "이 해역 약 35km 의 평균 유속" 으로 물리적으로 해석
+     *   가능한 값. 단순 이미지 블러처럼 색을 섞는 게 아님. 5×5 정도 (~35km)
+     *   는 와류·강류 같은 mesoscale 특징은 보존하면서 작은 잡음만 제거.
+     *
+     * [방향 평균]
+     *   crdir 은 단위 벡터(sin, cos) 분해 후 가중평균 → atan2 복원.
+     *   (도 단위 직접 평균하면 0°/360° 경계에서 정반대 방향으로 깨짐 — 기존
+     *   sampleAtLenient 와 동일한 패턴)
+     *
+     * [성능]
+     *   ~10000 셀 × 25 이웃 ≈ 250k op. 레이어 활성/타임라인 변경 시 1회만.
+     */
+    function _smoothCurrentGrid5x5(rawData) {
+        if (!rawData || rawData.length === 0) return rawData;
+
+        // 5×5 가우시안 가중치 (sigma ≈ 1, 합 256)
+        var W = [
+            [1,  4,  6,  4, 1],
+            [4, 16, 24, 16, 4],
+            [6, 24, 36, 24, 6],
+            [4, 16, 24, 16, 4],
+            [1,  4,  6,  4, 1]
+        ];
+
+        // 1) 정렬된 unique lon/lat 리스트 + (li,lj) → 원본 점 인덱스
+        //    (buildGridIndex 와 같은 방식이지만 전용 스코프로 격리해
+        //     모듈 변수 lonList/latList/gridLookup 을 건드리지 않음)
+        var lonSet = {}, latSet = {};
+        for (var i = 0; i < rawData.length; i++) {
+            lonSet[rawData[i].lon] = true;
+            latSet[rawData[i].lat] = true;
+        }
+        var lonArr = Object.keys(lonSet).map(parseFloat).sort(function (a, b) { return a - b; });
+        var latArr = Object.keys(latSet).map(parseFloat).sort(function (a, b) { return a - b; });
+        var lonIdx = {}, latIdx = {};
+        for (var i = 0; i < lonArr.length; i++) lonIdx[lonArr[i]] = i;
+        for (var i = 0; i < latArr.length; i++) latIdx[latArr[i]] = i;
+        var grid = {};
+        for (var i = 0; i < rawData.length; i++) {
+            var p = rawData[i];
+            grid[lonIdx[p.lon] + '_' + latIdx[p.lat]] = p;
+        }
+
+        // 2) 각 점에 대해 5×5 이웃 가중평균 계산 → 새 객체 생성
+        //    원본 객체를 변경하지 않아 데이터 의존 충돌(이미 평활된 이웃을
+        //    또 평활하는 일) 없음.
+        var out = new Array(rawData.length);
+        for (var i = 0; i < rawData.length; i++) {
+            var p = rawData[i];
+            var li = lonIdx[p.lon];
+            var lj = latIdx[p.lat];
+            var sumSpd = 0, sumX = 0, sumY = 0, sumW = 0;
+            for (var dy = -2; dy <= 2; dy++) {
+                for (var dx = -2; dx <= 2; dx++) {
+                    var np = grid[(li + dx) + '_' + (lj + dy)];
+                    if (!np) continue;  // 이웃 없음(육지·격자 끝) — 건너뜀
+                    var w = W[dy + 2][dx + 2];
+                    sumSpd += np.crsp * w;
+                    var rad = (np.crdir || 0) * Math.PI / 180;
+                    sumX += Math.sin(rad) * w;
+                    sumY += Math.cos(rad) * w;
+                    sumW += w;
+                }
+            }
+            // 모든 이웃이 비어있는 비현실적 경우(자기 자신 가중 36 이라 사실상 발생 X) 방어
+            if (sumW === 0) {
+                out[i] = { lat: p.lat, lon: p.lon, crsp: p.crsp, crdir: p.crdir };
+                continue;
+            }
+            var newDir = Math.atan2(sumX, sumY) * 180 / Math.PI;
+            if (newDir < 0) newDir += 360;
+            out[i] = {
+                lat: p.lat,
+                lon: p.lon,
+                crsp: sumSpd / sumW,
+                crdir: newDir
+            };
+        }
+        return out;
+    }
+
+    /**
      * 해류(current) 격자 데이터를 서버에서 받아와 gridData 캐시를 채우는 함수.
      *
      * [이 함수의 역할 — 한 줄 요약]
@@ -692,8 +787,11 @@
      *   4. startParticleAnimation()  ← 흰 파티클 RAF 루프 시작
      *
      * [데이터 가공]
-     *   API 응답의 단위(s = m/s)를 cm/s 로 환산(`crsp = s * 100`)해서 저장.
-     *   이유: COLOR_SCALES.current 가 cm/s 단위로 정의되어 있어 단위 일치 필요.
+     *   1. API 응답의 단위(s = m/s)를 cm/s 로 환산(`crsp = s * 100`).
+     *      이유: COLOR_SCALES.current 가 cm/s 단위로 정의되어 있어 단위 일치 필요.
+     *   2. _smoothCurrentGrid5x5() 로 5×5 가우시안 평활화 1회 통과.
+     *      이유: ROMS 원본은 셀 단위 변동이 커서 시각화가 얼룩덜룩 해짐.
+     *      가중평균은 "약 35km 평균 유속" 으로 물리 의미를 보존.
      */
     function loadCurrentData() {
         var dh = _offsetToDateHour(timelineOffsetHours);
@@ -712,6 +810,11 @@
                     if (p.s === 0 && p.d === 0 && p.temp === 0 && p.salt === 0 && p.zeta === 0) continue;
                     gridData.push({ lat: p.lat, lon: p.lon, crsp: p.s * 100, crdir: p.d });
                 }
+                // ROMS 원본의 셀 단위 변동(인접 셀 5cm/s vs 60cm/s 같은 점프) 으로 인해
+                // 시각화가 얼룩덜룩 해지는 것을 완화. 5×5 가우시안 평활화 1회 통과.
+                // 풍속·파고는 buildGridFromZones 의 densification + lenient bilinear 가
+                // 비슷한 평활 효과를 이미 가지고 있어 별도 처리 불필요.
+                gridData = _smoothCurrentGrid5x5(gridData);
                 console.log('[OceanOverlay] KHOA 격자 점 수:', gridData.length);
                 updateLegend('current');
                 renderGridToOffscreen();
