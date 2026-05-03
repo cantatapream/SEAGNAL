@@ -898,22 +898,25 @@
          *   warn(경보)     : 단색 + 빨간(red-600) 대각선 빗금 — 위급 신호
          *
          *   alpha 도 지도와 동일하게 보정: 0.25 / 0.40 / 0.55 (빗금 추가 보정).
-         *   repeating-linear-gradient 의 첫 layer 가 빗금, 두 번째 layer 가 베이스 색.
-         *   투명 stop(0~3px) + 빗금 색 stop(3~5px) → 8px 주기로 반복.
-         *   지도 _stripeFillPattern(8×8 캔버스, lineWidth 2) 와 시각적으로 동일. */
+         *
+         *   repeating-linear-gradient(135deg, ...) 사용:
+         *   135deg 는 / 방향(forward slash) 대각선 — 지도의 _stripeFillPattern 과
+         *   동일 방향. (45deg 면 \ 방향이라 지도와 어긋남)
+         *   투명 stop(0~7px) + 빗금색 stop(7~9.5px) → 약 9.5px 주기, 빗금 두께
+         *   2.5px → 지도 캔버스 패턴(타일 14 CSS px, perpendicular 9.9 px) 과 매칭. */
 
         /* 풍랑 (초록) */
         tr[data-type="wave"]    .wal-swatch[data-stage="upcoming"] { background: rgba(34,197,94,0.25); border:1px solid rgba(34,197,94,0.95); }
-        tr[data-type="wave"]    .wal-swatch[data-stage="watch"]    { background: repeating-linear-gradient(45deg, transparent 0 3px, rgba(75,85,99,0.65) 3px 5px), rgba(34,197,94,0.40); border:1px solid rgba(34,197,94,0.95); }
-        tr[data-type="wave"]    .wal-swatch[data-stage="warn"]     { background: repeating-linear-gradient(45deg, transparent 0 3px, rgba(220,38,38,0.85) 3px 5px), rgba(34,197,94,0.55); border:1px solid rgba(34,197,94,0.95); }
+        tr[data-type="wave"]    .wal-swatch[data-stage="watch"]    { background: repeating-linear-gradient(135deg, transparent 0 7px, rgba(75,85,99,0.65) 7px 9.5px), rgba(34,197,94,0.40); border:1px solid rgba(34,197,94,0.95); }
+        tr[data-type="wave"]    .wal-swatch[data-stage="warn"]     { background: repeating-linear-gradient(135deg, transparent 0 7px, rgba(220,38,38,0.85) 7px 9.5px), rgba(34,197,94,0.55); border:1px solid rgba(34,197,94,0.95); }
         /* 폭풍해일 (카키) */
         tr[data-type="surge"]   .wal-swatch[data-stage="upcoming"] { background: rgba(202,138,4,0.25); border:1px solid rgba(202,138,4,0.95); }
-        tr[data-type="surge"]   .wal-swatch[data-stage="watch"]    { background: repeating-linear-gradient(45deg, transparent 0 3px, rgba(75,85,99,0.65) 3px 5px), rgba(202,138,4,0.40); border:1px solid rgba(202,138,4,0.95); }
-        tr[data-type="surge"]   .wal-swatch[data-stage="warn"]     { background: repeating-linear-gradient(45deg, transparent 0 3px, rgba(220,38,38,0.85) 3px 5px), rgba(202,138,4,0.55); border:1px solid rgba(202,138,4,0.95); }
+        tr[data-type="surge"]   .wal-swatch[data-stage="watch"]    { background: repeating-linear-gradient(135deg, transparent 0 7px, rgba(75,85,99,0.65) 7px 9.5px), rgba(202,138,4,0.40); border:1px solid rgba(202,138,4,0.95); }
+        tr[data-type="surge"]   .wal-swatch[data-stage="warn"]     { background: repeating-linear-gradient(135deg, transparent 0 7px, rgba(220,38,38,0.85) 7px 9.5px), rgba(202,138,4,0.55); border:1px solid rgba(202,138,4,0.95); }
         /* 태풍 (빨강) */
         tr[data-type="typhoon"] .wal-swatch[data-stage="upcoming"] { background: rgba(220,38,38,0.25); border:1px solid rgba(220,38,38,0.95); }
-        tr[data-type="typhoon"] .wal-swatch[data-stage="watch"]    { background: repeating-linear-gradient(45deg, transparent 0 3px, rgba(75,85,99,0.65) 3px 5px), rgba(220,38,38,0.40); border:1px solid rgba(220,38,38,0.95); }
-        tr[data-type="typhoon"] .wal-swatch[data-stage="warn"]     { background: repeating-linear-gradient(45deg, transparent 0 3px, rgba(220,38,38,0.85) 3px 5px), rgba(220,38,38,0.55); border:1px solid rgba(220,38,38,0.95); }
+        tr[data-type="typhoon"] .wal-swatch[data-stage="watch"]    { background: repeating-linear-gradient(135deg, transparent 0 7px, rgba(75,85,99,0.65) 7px 9.5px), rgba(220,38,38,0.40); border:1px solid rgba(220,38,38,0.95); }
+        tr[data-type="typhoon"] .wal-swatch[data-stage="warn"]     { background: repeating-linear-gradient(135deg, transparent 0 7px, rgba(220,38,38,0.85) 7px 9.5px), rgba(220,38,38,0.55); border:1px solid rgba(220,38,38,0.95); }
 
         /* ============================================================
          * 기타 기상 (KMA 단기예보 PNG 오버레이) — 토글/팝아웃/슬라이더/범례

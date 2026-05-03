@@ -29,39 +29,58 @@
     //
     // [용도]
     //   주의보·경보 단계 fill 에 사용할 CanvasPattern 을 생성/캐시.
-    //   같은 (베이스 색상, 빗금 색상) 조합에 대해 매 스타일러 호출마다 캔버스를
-    //   다시 만들면 낭비 → 키 'baseRgba|stripeRgba' 로 한 번만 생성하고 재사용.
+    //   같은 (베이스 색상, 빗금 색상, dpr) 조합에 대해 매 스타일러 호출마다
+    //   캔버스를 다시 만들면 낭비 → 키로 한 번만 생성하고 재사용.
+    //
+    // [DPR 인지 — 모바일에서 점처럼 보이지 않게 하는 핵심]
+    //   OL 의 합성 캔버스는 HiDPI(devicePixelRatio 배율) 로 렌더되며,
+    //   createPattern 의 tiling 단위는 CSS 픽셀이 아닌 캔버스 device 픽셀.
+    //   → 단순히 14×14 캔버스를 만들면 DPR=3 폰에서 14/3 ≈ 4.67 CSS px 로
+    //     너무 좁게 표출되어 빗금이 점처럼 보임.
+    //   → 캔버스 크기를 TILE_CSS * dpr 로 두고 ctx.scale(dpr,dpr) 로 보정해
+    //     "어느 디바이스에서도 동일한 CSS 픽셀 수의 간격" 을 보장.
+    //
+    // [지도 줌 무관성]
+    //   CanvasPattern 은 화면(픽셀) 단위로 tile 되므로 지도 줌 변경에 영향
+    //   받지 않음 — 사용자가 줌인/아웃 해도 빗금 간격은 항상 동일 px.
     //
     // [패턴 사양]
-    //   8×8 px 캔버스에 베이스 색을 채우고, 좌상단→우하단 대각선 방향으로
-    //   2px 두께 줄을 3개 그어 timing 이 8px 마다 반복되도록 구성.
-    //   → 모바일 망막 디스플레이에서도 또렷이 보이는 표준 굵기.
+    //   14 CSS px 타일에 / 방향(forward slash) 대각선 1줄 + 좌상/우하 모서리
+    //   짧은 보정선 → 인접 타일과 끊김 없이 자연스럽게 이어짐.
+    //   빗금 두께 2.5 CSS px, perpendicular 간격 약 14/√2 ≈ 9.9 CSS px.
     // ────────────────────────────────────────────────────────────────────
     var _patternCache = {};
 
     function _stripeFillPattern(baseRgba, stripeRgba) {
-        var key = baseRgba + '|' + stripeRgba;
+        var dpr = window.devicePixelRatio || 1;
+        var key = baseRgba + '|' + stripeRgba + '|' + dpr;
         if (_patternCache[key]) return _patternCache[key];
 
+        var TILE_CSS = 14;     // 타일 변 길이 (CSS px)
+        var LINE_W = 2.5;      // 빗금 두께 (CSS px)
+
         var c = document.createElement('canvas');
-        c.width = 8;
-        c.height = 8;
+        c.width = Math.round(TILE_CSS * dpr);
+        c.height = Math.round(TILE_CSS * dpr);
         var x = c.getContext('2d');
+        x.scale(dpr, dpr);  // 이후 모든 좌표는 CSS px 기준
 
-        // 1) 베이스 색 (특보 종류색 + 단계별 알파)
+        // 1) 베이스 색 (특보 종류색 + 단계별 알파) — 타일 전체
         x.fillStyle = baseRgba;
-        x.fillRect(0, 0, 8, 8);
+        x.fillRect(0, 0, TILE_CSS, TILE_CSS);
 
-        // 2) 좌상단 → 우하단 대각선 빗금 (반복 timing 8px)
-        //    좌상·중앙·우하 3개 선분으로 8×8 격자가 좌우상하로 tile 될 때
-        //    이음새가 자연스럽게 연결되도록 함.
+        // 2) 대각선 빗금 (/ 방향: 좌하단 → 우상단)
+        //    좌상단 보정선 + 메인 가로지르는 1줄 + 우하단 보정선 → 시원한 간격
         x.strokeStyle = stripeRgba;
-        x.lineWidth = 2;
-        x.lineCap = 'butt';
+        x.lineWidth = LINE_W;
+        x.lineCap = 'square';
         x.beginPath();
-        x.moveTo(-2, 4); x.lineTo(4, -2);   // 좌상단 모서리 통과
-        x.moveTo(0, 8);  x.lineTo(8, 0);    // 캔버스 본체 대각선
-        x.moveTo(4, 10); x.lineTo(10, 4);   // 우하단 모서리 통과
+        x.moveTo(-3, 3);                          // 좌상단 모서리 보정 (이전 타일 연속)
+        x.lineTo(3, -3);
+        x.moveTo(0, TILE_CSS);                    // 메인선 (타일 중앙 가로지름)
+        x.lineTo(TILE_CSS, 0);
+        x.moveTo(TILE_CSS - 3, TILE_CSS + 3);     // 우하단 모서리 보정 (다음 타일 시작)
+        x.lineTo(TILE_CSS + 3, TILE_CSS - 3);
         x.stroke();
 
         var pattern = x.createPattern(c, 'repeat');
