@@ -9,10 +9,10 @@
  * 해류/바람/파고 데이터를 색상 그라디언트 + 파티클 애니메이션으로 표현합니다.
  * Windy 스타일의 세련된 시각화를 구현합니다.
  *
- * [오버레이 레이어]
- * - current: 해류 (ROMS 유향·유속) → 파란색~빨간색 그라디언트 + 흐름 파티클
- * - wind: 바람 (기상청 풍향·풍속) → 초록색~보라색 그라디언트 + 바람 파티클
- * - wave: 파고 (해구 예보) → 청색~주황색 그라디언트
+ * [오버레이 레이어] — 모두 배경 색상(히트맵) + 흰 파티클 트레일
+ * - current: 해류 (ROMS 유향·유속) → 청색~빨강 배경 + 흰 파티클 (속도별 굵기)
+ * - wind:    바람 (기상청 풍향·풍속) → 보라~빨강 배경 + 흰 파티클 (속도별 굵기)
+ * - wave:    파고 (해구 예보)        → 보라~빨강 배경 + 흰 파티클 (파향, 굵기 고정)
  *
  * [연계 파일]
  * - ocean_map.js → oceanOverlayInit(), oceanOverlayRefresh(), oceanOverlayClear()
@@ -660,8 +660,8 @@
     /**
      * 해구별 기상전망(zone_forecasts)으로 바람/파고 오버레이 데이터를 로드합니다.
      * layer: 'wind' 또는 'wave'
-     * - wind: crsp = ws(m/s), crdir = windDir → 속도별 색상 파티클 (배경 없음)
-     * - wave: crsp = wh(m),   crdir = waveDir → 파고 배경 색상 + 파향 흰 파티클
+     * - wind: crsp = ws(m/s), crdir = windDir → 풍속 배경 색상 + 흰 파티클(속도별 굵기)
+     * - wave: crsp = wh(m),   crdir = waveDir → 파고 배경 색상 + 흰 파티클(파향, 굵기 고정)
      */
     function loadZoneForecastData(layer) {
         var timeParam = '';
@@ -1266,14 +1266,16 @@
             }
 
             if (trailCtx && p.prevPx !== null) {
+                // 모든 레이어: 배경 히트맵(범례 색상) 위에 흰색 트레일.
+                // 강도(풍속·유속·파고)는 배경 색상으로 읽고, 파티클은 흐름의 방향만 표현.
+                // - wave  : 굵기 1.0 고정 (파향만 표시, 속력은 배경 단독)
+                // - wind  : 굵기를 풍속에 비례 (강한 바람일수록 굵게) — 동적 표현 유지
+                // - current: 굵기를 유속에 비례 (강한 해류일수록 굵게) — 동적 표현 유지
                 if (isWave) {
-                    // 파고: 배경 색상 위에 흰 트레일 (파향 방향, 긴 꼬리)
                     trailCtx.strokeStyle = 'rgba(255,255,255,0.65)';
                     trailCtx.lineWidth = 1.0;
                 } else {
-                    // 바람/해류: 속도별 색상 트레일 (배경 없음)
-                    var col = interpolateColor(scale, spdValue);
-                    trailCtx.strokeStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0.78)';
+                    trailCtx.strokeStyle = 'rgba(255,255,255,0.78)';
                     trailCtx.lineWidth = isWind ? (0.8 + Math.min(1.2, spdValue / 15))
                                                 : (0.8 + Math.min(1.2, spdValue / 40));
                 }
@@ -1288,10 +1290,11 @@
         });
 
         // ③ 합성
-        // - 파고: 파고 높이 배경 색상 + 흰 파향 트레일
-        // - 바람/해류: 트레일만 (배경 색상 없음)
+        // 모든 레이어 공통: 강도는 배경 색상(히트맵)으로, 방향은 흰색 트레일로 표현.
+        // (renderGridToOffscreen() 은 loadCurrentData / loadZoneForecastData 에서
+        //  레이어 종류와 무관하게 호출되므로, gridCanvas 는 항상 최신 상태)
         ctx.clearRect(0, 0, w, h);
-        if (isWave && gridCanvas) ctx.drawImage(gridCanvas, 0, 0, w, h);
+        if (gridCanvas) ctx.drawImage(gridCanvas, 0, 0, w, h);
         if (trailCanvas) ctx.drawImage(trailCanvas, 0, 0, w, h);
 
         // OL 에게 재렌더 요청.
