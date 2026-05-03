@@ -605,13 +605,21 @@
         _publishOceanLegendHeight();
 
         // 그라디언트 바 생성
-        // 각 stop 의 실제 알파(s.color[3]) 그대로 사용 → 범례가 지도 히트맵과 1:1 동일.
-        // (예: 해류 val=0 알파 0.05 → 범례 좌측이 거의 투명, "잠잠한 바다" 직관 인지.)
-        // CSS linear-gradient 가 RGB·알파 모두 stop 사이에서 자동 보간 → interpolateColor 와
-        // 동일한 결과. 알파가 정의 안 된 경우(폴백) 0.8 사용.
+        // [왜 알파를 직접 안 쓰고 흰색에 미리 블렌드하나?]
+        //   .ocean-legend 컨테이너 배경이 rgba(13,24,46,0.93) 진한 네이비라,
+        //   알파 0.05 같은 옅은 색을 그대로 깔면 컨테이너 색이 95% 비쳐서 결국
+        //   어둡게 보임 (사용자가 의도한 fade 가 시각으로 안 드러남).
+        //   → 각 stop 을 흰색 배경에 미리 알파 블렌드한 "불투명 RGB" 로 변환해서
+        //     gradient 에 사용. 알파 0.05 → 거의 흰색 → 어두운 컨테이너 위에서
+        //     명확히 대비되어 "이 구간은 비어있다" 를 한눈에 인지.
+        //   지도 위 실제 표출과 직접적 1:1 은 아니지만 의미는 동일하게 전달.
+        var BG_R = 255, BG_G = 255, BG_B = 255;  // 블렌드 배경: 흰색
         var colors = scale.map(function (s) {
             var a = (s.color[3] != null) ? s.color[3] : 0.8;
-            return 'rgba(' + s.color[0] + ',' + s.color[1] + ',' + s.color[2] + ',' + a + ')';
+            var r = Math.round(BG_R * (1 - a) + s.color[0] * a);
+            var g = Math.round(BG_G * (1 - a) + s.color[1] * a);
+            var b = Math.round(BG_B * (1 - a) + s.color[2] * a);
+            return 'rgb(' + r + ',' + g + ',' + b + ')';
         });
         barEl.style.background = 'linear-gradient(to right, ' + colors.join(', ') + ')';
 
