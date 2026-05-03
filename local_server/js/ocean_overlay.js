@@ -31,7 +31,12 @@
         // 해류 속도 (cm/s): 바다누리 범례 기준 m/s 환산
         // 0.0m/s=0  0.3m/s=30  0.5m/s=50  0.8m/s=80  1.1m/s=110  1.4m/s=140  1.6m/s=160
         current: [
-            { val: 0,   color: [10,  30,  180, 0.85] },  // 진파랑  (0.0 m/s)
+            // val=0 알파를 거의 투명(0.05)으로 두어, 잠잠한 바다(<0.1 m/s)는 지도 배경이
+            // 그대로 보이도록 함. interpolateColor 가 알파도 선형 보간 → 0~0.3 m/s 구간이
+            // 자연스러운 fade-in (0.0=거의투명 → 0.1=옅은파랑 → 0.3=선명한파랑).
+            // 주의: 0(falsy)으로 두면 renderGridToOffscreen 의 `color[3] || 0.6` 폴백에
+            // 걸려 오히려 진해짐. 반드시 truthy 한 0.05 사용.
+            { val: 0,   color: [10,  30,  180, 0.05] },  // 진파랑(거의 투명) (0.0 m/s)
             { val: 30,  color: [30,  110, 235, 0.85] },  // 파랑    (0.3 m/s)
             { val: 50,  color: [30,  200, 210, 0.85] },  // 청록    (0.5 m/s)
             { val: 80,  color: [80,  220, 60,  0.85] },  // 연두    (0.8 m/s)
@@ -1076,7 +1081,7 @@
      *
      * [피호출자]
      *   1. buildGridIndex()        ← lonList/latList 인덱스 없으면 생성
-     *   2. sampleAt() 또는 sampleAtLenient()  ← 위경도 → 보간된 값
+     *   2. sampleAtLenient()  ← 위경도 → 보간된 값 (모든 레이어 lenient 통일)
      *   3. interpolateColor()      ← 값 → RGBA 색상
      *   4. applyLandMask()         ← 육지 영역 색상 펀치아웃
      *
@@ -1119,10 +1124,16 @@
                 var coord = mapRef.getCoordinateFromPixel([sx, sy]);
                 if (!coord) continue;
                 var ll = ol.proj.toLonLat(coord);
-                // current(ROMS): 밀집 정규 격자 → bilinear 보간
-                // wind/wave(소해구): 0.5° 격자 → lenient bilinear(일부 코너 누락 허용)
-                //   lookupNearest 대신 sampleAtLenient: 셀 경계에서 값 보간 → 격자 느낌 제거
-                var samp = (activeLayer === 'current') ? sampleAt(ll[0], ll[1]) : sampleAtLenient(ll[0], ll[1]);
+                // 모든 레이어 공통: lenient bilinear (1~4 코너 중 있는 것만 가중평균).
+                // [왜 모두 lenient 인가?]
+                //   해류(ROMS) 가 엄격 sampleAt 을 쓰면 빈 코너에서 null → 사각형 빈 칸이
+                //   생기고, 모바일처럼 줌이 낮을 때 blur 강도가 작아(8px 수준) 그 직선
+                //   모서리가 그대로 노출됨 ("뚝 끊기는" 격자 느낌).
+                //   lenient 로 통일하면 빈 칸이 인접 코너 가중평균으로 채워져 부드러워짐.
+                // [주의]
+                //   파티클 이동(animate 내부)은 정확한 벡터값이 필요하므로 여전히
+                //   sampleAt(엄격) 사용. 즉 "배경 색상은 lenient, 파티클은 strict" 분리.
+                var samp = sampleAtLenient(ll[0], ll[1]);
                 if (!samp) continue;
                 // crsp는 레이어별 네이티브 단위:
                 // current=cm/s, wind=m/s, wave=m → 각 COLOR_SCALES과 단위 일치
