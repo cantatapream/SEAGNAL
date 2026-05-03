@@ -57,7 +57,8 @@
         if (_patternCache[key]) return _patternCache[key];
 
         var TILE_CSS = 14;     // 타일 변 길이 (CSS px)
-        var LINE_W = 2.5;      // 빗금 두께 (CSS px)
+        var LINE_W = 1.25;     // 빗금 두께 (CSS px) — 사용자 피드백으로 2.5 → 1.25
+                               // 14 CSS px 타일 대비 약 9% → 또렷하지만 답답하지 않음
 
         var c = document.createElement('canvas');
         c.width = Math.round(TILE_CSS * dpr);
