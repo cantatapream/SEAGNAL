@@ -443,6 +443,28 @@
     // 오버레이 레이어 전환
     // ========================================================================
 
+    /**
+     * 사용자가 "유향유속/풍향풍속/파고파향" 버튼을 누르면 호출되는 진입점.
+     *
+     * [이 함수의 역할 — 한 줄 요약]
+     *   "지금 보여주는 레이어가 바뀌었으니, 캔버스 다 비우고 새 레이어용으로
+     *    범례·타임라인을 갈아끼우자" — 데이터 fetch 자체는 바깥에서 시작됨.
+     *
+     * [호출자 (이 함수를 누가 부르나?)]
+     *   - oceanOverlayInit() 내부의 .ocean-overlay-btn[data-layer] 클릭 핸들러
+     *
+     * [피호출자 (이 함수가 다음에 뭘 부르나?)]
+     *   1. trailCanvas/gridCanvas/메인 canvas 모두 clearRect 로 비움
+     *      → 이전 레이어의 색상이 잠깐이라도 남지 않게 잔상 제거
+     *   2. window.setTimelineStep(1 또는 3)
+     *      → 조류는 1시간 간격, 바람·파고는 3시간 간격으로 슬라이더 스텝 조절
+     *   3. updateLegend(layer)
+     *      → 화면 하단 색상 범례를 새 레이어 팔레트로 다시 그림
+     *
+     * [주의]
+     *   이 함수는 데이터 fetch 를 직접 하지 않음. 호출 후 loadOverlayData()
+     *   가 별도로 호출되어 loadCurrentData / loadZoneForecastData 가 실행됨.
+     */
     function setActiveLayer(layer) {
         activeLayer = layer;
         // 레이어 전환 시 이전 데이터 및 캔버스 모두 초기화
@@ -624,11 +646,26 @@
     }
 
     /**
-     * 현재 시각 또는 타임라인 슬라이더 오프셋에 해당하는 KHOA stream-vector
-     * 격자 데이터를 fetch 후 gridData / gridLookup 캐시 갱신.
-     * loadComplete 후 _hookParticleCompositing → animate 가 시작되어 파티클이 그려짐.
+     * 해류(current) 격자 데이터를 서버에서 받아와 gridData 캐시를 채우는 함수.
      *
-     * [연계] /api/ocean/khoa-stream-vector?date=&hour= 엔드포인트.
+     * [이 함수의 역할 — 한 줄 요약]
+     *   KHOA(국립해양조사원) ROMS 모델의 정밀 격자 데이터를 fetch 해서
+     *   "어느 위경도에 유속·유향이 얼마"인지 메모리에 저장하고, 화면에
+     *   배경 히트맵을 그려달라고 renderGridToOffscreen() 을 호출.
+     *
+     * [호출자]
+     *   - loadOverlayData() — activeLayer === 'current' 일 때
+     *   - 타임라인 슬라이더 변경 시 oceanOverlaySetTime() 경유로도 호출됨
+     *
+     * [피호출자]
+     *   1. fetch('/api/ocean/khoa-stream-vector?date=&hour=')  ← 백엔드 엔드포인트
+     *   2. updateLegend('current')  ← 범례 갱신
+     *   3. renderGridToOffscreen()  ← 받은 데이터로 배경 히트맵 그림
+     *   4. startParticleAnimation()  ← 흰 파티클 RAF 루프 시작
+     *
+     * [데이터 가공]
+     *   API 응답의 단위(s = m/s)를 cm/s 로 환산(`crsp = s * 100`)해서 저장.
+     *   이유: COLOR_SCALES.current 가 cm/s 단위로 정의되어 있어 단위 일치 필요.
      */
     function loadCurrentData() {
         var dh = _offsetToDateHour(timelineOffsetHours);
@@ -658,10 +695,30 @@
     }
 
     /**
-     * 해구별 기상전망(zone_forecasts)으로 바람/파고 오버레이 데이터를 로드합니다.
-     * layer: 'wind' 또는 'wave'
-     * - wind: crsp = ws(m/s), crdir = windDir → 풍속 배경 색상 + 흰 파티클(속도별 굵기)
-     * - wave: crsp = wh(m),   crdir = waveDir → 파고 배경 색상 + 흰 파티클(파향, 굵기 고정)
+     * 바람(wind) 또는 파고(wave) 격자 데이터를 서버에서 받아오는 함수.
+     *
+     * [이 함수의 역할 — 한 줄 요약]
+     *   기상청 소해구(작은 해역 단위) 예보를 fetch 해서, 0.5° 정규 격자
+     *   형태로 변환하고, 화면에 배경 히트맵 + 흰 파티클을 그려달라고 요청.
+     *
+     * [호출자]
+     *   - loadOverlayData() — activeLayer 가 'wind' 또는 'wave' 일 때
+     *   - 타임라인 슬라이더 변경 시에도 호출됨
+     *
+     * [피호출자]
+     *   1. fetch('/api/ocean/zone-forecasts?time=...')  ← 백엔드 엔드포인트
+     *   2. buildGridFromZones(zones, layer)  ← 소해구 → 0.5° 격자 변환
+     *   3. buildGridIndex()  ← 빠른 보간을 위한 정렬 인덱스 생성
+     *   4. updateLegend(layer)  ← 범례 갱신
+     *   5. renderGridToOffscreen()  ← 배경 히트맵 그림
+     *   6. startParticleAnimation()  ← 흰 파티클 RAF 루프 시작
+     *
+     * [레이어별 데이터 의미 (gridData 의 crsp/crdir 의미가 다름!)]
+     *   - layer='wind': crsp = 풍속(m/s),  crdir = 풍향(기상학 관례, "from")
+     *   - layer='wave': crsp = 파고(m),    crdir = 파향(해양학 관례, "to")
+     *
+     *   * 같은 변수명(crsp, crdir)에 의미가 다른 값이 들어가는 점을 주의.
+     *   * 방향 관례 차이는 animate() 안의 이동 공식 분기로 보정 (`if (isWind)` 분기).
      */
     function loadZoneForecastData(layer) {
         var timeParam = '';
@@ -1005,11 +1062,34 @@
     }
 
     /**
-     * 색상 격자 렌더링 — 화면을 저해상도(STEP px)로 샘플링하여
-     * 각 픽셀에서 sampleAt() 으로 쌍선형 보간한 값을 색으로 환산.
-     * 이 저해상도 ImageData 를 캔버스 크기로 부드럽게 확대(drawImage smoothing)
-     * 해서 매끄러운 색면을 얻는다. 줌인할수록 같은 격자 영역에 더 많은 픽셀이
-     * 들어가 자동으로 더 섬세해 보인다.
+     * 격자 데이터를 배경 히트맵(색상 면) 으로 그려서 gridCanvas 에 저장.
+     *
+     * [이 함수의 역할 — 한 줄 요약]
+     *   "위경도별 수치(유속/풍속/파고) 데이터 → 화면 픽셀 색상" 변환을 담당.
+     *   결과는 오프스크린 캔버스(gridCanvas)에 누적되고, animate() 가 매 프레임
+     *   메인 캔버스로 합성함. 즉, 매 프레임이 아닌 데이터·줌 변경 시에만 갱신.
+     *
+     * [호출자]
+     *   - loadCurrentData()         (데이터 도착 시)
+     *   - loadZoneForecastData()    (데이터 도착 시)
+     *   - oceanOverlayRefresh()     (지도 줌·이동 종료 시)
+     *
+     * [피호출자]
+     *   1. buildGridIndex()        ← lonList/latList 인덱스 없으면 생성
+     *   2. sampleAt() 또는 sampleAtLenient()  ← 위경도 → 보간된 값
+     *   3. interpolateColor()      ← 값 → RGBA 색상
+     *   4. applyLandMask()         ← 육지 영역 색상 펀치아웃
+     *
+     * [성능 트릭]
+     *   화면 전체를 4픽셀 단위로 샘플링(STEP=4) → 작은 ImageData 생성
+     *   → blur 필터로 부드럽게 확대. 이래야 한반도 전체 화면을 30fps 로 갱신해도
+     *   부담이 없음. 줌인하면 같은 격자 셀에 픽셀이 더 많이 들어가 자동으로
+     *   섬세해 보임.
+     *
+     * [모든 레이어 공통]
+     *   직전 변경(2026-05) 으로 wind/current 도 wave 와 같은 방식의 배경 히트맵을
+     *   사용. 이 함수는 activeLayer 에 따라 색 팔레트(COLOR_SCALES)와 보간 방법만
+     *   바꿔서 동일한 출력 흐름으로 처리.
      */
     function renderGridToOffscreen() {
         if (!gridCtx || !gridCanvas || !gridData || !mapRef) return;
@@ -1150,11 +1230,35 @@
     }
 
     /**
-     * 파티클 애니메이션 루프 — requestAnimationFrame 으로 매 프레임 실행.
-     * 각 파티클의 위치를 sampleAt() 결과에 따라 이동시키고, 잔상(trail) 형태로
-     * canvas 에 그림. 수명이 끝난 파티클은 무작위 위치에 재배치.
+     * 매 프레임(보통 60fps) 호출되는 메인 애니메이션 루프.
      *
-     * [성능] 격자 밖 파티클은 즉시 재배치하여 무의미한 계산 방지.
+     * [이 함수의 역할 — 한 줄 요약]
+     *   파티클을 1프레임 만큼 이동시키고, 흰 트레일을 그린 뒤,
+     *   "배경 히트맵(gridCanvas) + 트레일(trailCanvas)" 두 장을
+     *   메인 캔버스에 차례로 합성해서 화면에 표시.
+     *
+     * [호출자]
+     *   - startParticleAnimation()  → requestAnimationFrame(animate)
+     *   - 자기 자신 (함수 끝의 requestAnimationFrame(animate) 로 다음 프레임 예약)
+     *
+     * [피호출자]
+     *   1. sampleAt() / lookupNearest()  ← 파티클이 위치한 곳의 풍속·유속·파향
+     *   2. createParticle()              ← 수명 끝난 파티클 재배치
+     *   3. interpolateColor()는 호출 안 함 ← 직전 변경(2026-05) 으로 파티클 색은
+     *      흰색 고정, 색은 배경(gridCanvas) 에서만 사용
+     *   4. mapRef.render()               ← OpenLayers 합성 캔버스로 결과 전송
+     *
+     * [3개 레이어 공통 처리 + 차이점]
+     *   공통: 배경 히트맵 + 흰 파티클
+     *   차이:
+     *     - wave  : 파티클 이동 속도 고정(1.0), 트레일 굵기 1.0 고정 (방향만 표시)
+     *     - wind  : 파티클 이동 속도 = 풍속에 비례, 트레일 굵기 = 풍속 비례
+     *     - current: 파티클 이동 속도 = 유속에 비례, 트레일 굵기 = 유속 비례
+     *
+     * [성능 가드]
+     *   1. isMoving 중에는 캔버스를 비우고 다음 프레임 대기 (잔상 방지)
+     *   2. 격자 밖으로 나간 파티클은 즉시 재배치 (무의미한 계산 방지)
+     *   3. delta 클램프(0.1~3.0) 로 탭 복귀·백그라운드 후 점프 방지
      */
     function animate(timestamp) {
         if (!ctx || !canvas || !mapRef || !gridData) return;
@@ -1171,7 +1275,6 @@
 
         var w = canvas.width / (window.devicePixelRatio || 1);
         var h = canvas.height / (window.devicePixelRatio || 1);
-        var scale = COLOR_SCALES[activeLayer];
 
         // 지도 이동/줌 중에는 캔버스를 비우고 대기 (잔상 방지)
         if (isMoving) {
