@@ -605,8 +605,13 @@
         _publishOceanLegendHeight();
 
         // 그라디언트 바 생성
+        // 각 stop 의 실제 알파(s.color[3]) 그대로 사용 → 범례가 지도 히트맵과 1:1 동일.
+        // (예: 해류 val=0 알파 0.05 → 범례 좌측이 거의 투명, "잠잠한 바다" 직관 인지.)
+        // CSS linear-gradient 가 RGB·알파 모두 stop 사이에서 자동 보간 → interpolateColor 와
+        // 동일한 결과. 알파가 정의 안 된 경우(폴백) 0.8 사용.
         var colors = scale.map(function (s) {
-            return 'rgba(' + s.color[0] + ',' + s.color[1] + ',' + s.color[2] + ',0.8)';
+            var a = (s.color[3] != null) ? s.color[3] : 0.8;
+            return 'rgba(' + s.color[0] + ',' + s.color[1] + ',' + s.color[2] + ',' + a + ')';
         });
         barEl.style.background = 'linear-gradient(to right, ' + colors.join(', ') + ')';
 
