@@ -8749,13 +8749,41 @@ body.ocean-map-active .main-header .header-content {
 }
 /* 검색창: 지도 위 상단에 떠 있는 반투명 패널 (오버레이 컨트롤과 겹치지 않게 right 여유) */
 /* z-index: 60 — 베이스맵 피커(50) 보다 높아야 검색 드롭다운이 피커 위에 표시됨 */
+/* right 산정:
+ *   .ocean-overlay-controls(우측 vertical column) right margin 10 + 유향·유속 38
+ *   + gap 6 + 진북 버튼 38 + gap 6 = 98 → 진북 버튼 좌측 6px 여유에서 검색창 끝.
+ *   기존 66 → 98 (32px 만큼 검색창 폭 양보)
+ */
 #ocean-map-section.active .ocean-search-container {
     position: absolute;
     top: 12px;
     left: 12px;
-    right: 66px;   /* 오버레이 버튼 영역(38px + 10px margin + 18px gap) 확보 */
+    right: 98px;
     margin: 0;
     z-index: 60;
+}
+
+/* 진북(North Up) 버튼 — 검색창 우측, 유향·유속 버튼 좌측 사이에 배치
+ *   top 10 (.ocean-overlay-controls 와 동일 라인) / right 54 (10 + 38 + 6 gap)
+ *   .ocean-overlay-btn 클래스 시각 그대로 사용. 상태별 배경색만 분기. */
+#ocean-map-section.active #ocean-northup-btn {
+    position: absolute;
+    top: 10px;
+    right: 54px;
+    z-index: 60;
+}
+
+/* 진북 정렬 — 회전이 0 으로 정렬됐고 자유 회전 가능한 일시 상태. 옅은 파랑 강조. */
+#ocean-northup-btn.northup-aligned {
+    background: rgba(60, 120, 200, 0.85);
+    color: #fff;
+}
+
+/* 진북 고정 — 회전 잠금. 더 진한 파랑 + 외곽 box-shadow 로 "잠금" 시각 신호. */
+#ocean-northup-btn.northup-locked {
+    background: rgba(30, 80, 160, 0.95);
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(30, 80, 160, 0.5);
 }
 #ocean-map-section.active .ocean-search-input-wrap {
     background: rgba(15, 27, 51, 0.55);

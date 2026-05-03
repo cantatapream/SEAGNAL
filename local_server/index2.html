@@ -2164,6 +2164,17 @@
                     <div id="ocean-search-dropdown" class="ocean-search-dropdown" style="display:none;"></div>
                 </div>
 
+                <!-- 진북(North Up) 버튼 — 검색창 우측, 유향·유속 버튼 좌측에 배치
+                     [3-state cycle]
+                       free → aligned : 진북으로 회전 (자유 회전 유지)
+                       aligned → locked : 진북 고정 (회전 잠금)
+                       locked → free   : 자유 회전 복귀
+                     [연계 파일] js/ocean_northup.js -->
+                <button id="ocean-northup-btn" class="ocean-overlay-btn" title="진북 (North Up)">
+                    <i class="fa-solid fa-arrow-up"></i>
+                    <span class="ocean-overlay-label" data-line1="진북">진북</span>
+                </button>
+
                 <!-- 지도 컨테이너 -->
                 <div class="ocean-map-wrapper" style="position: relative;">
                     <div id="ocean-map"></div>
@@ -3068,6 +3079,8 @@
     <!-- 천기 카드 (해점 클릭 시 KMA 단기예보 6 카테고리 종합 표시) — sheet1~5 의존 -->
     <script src="js/ocean_bottom_sheet_weather.js"></script>
     <script src="js/ocean_overlay.js"></script>
+    <!-- 진북(North Up) 회전 컨트롤 — 3-state 사이클 + 잠금 상태 localStorage 보존 -->
+    <script src="js/ocean_northup.js"></script>
     <script src="js/ocean_buoy.js"></script>
     <script src="js/ocean_warn_zone.js"></script>
     <!-- 활성 특보 색칠 모듈 (5개 파일 분할, 의존: ocean_warn_zone.js + data.js + ocean_map.js) -->
