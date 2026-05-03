@@ -23,11 +23,61 @@
     var ns = window.OceanWarnActive;
     if (!ns) return;
 
+    // ────────────────────────────────────────────────────────────────────
+    // 빗금 패턴 캐시
+    // ────────────────────────────────────────────────────────────────────
+    //
+    // [용도]
+    //   주의보·경보 단계 fill 에 사용할 CanvasPattern 을 생성/캐시.
+    //   같은 (베이스 색상, 빗금 색상) 조합에 대해 매 스타일러 호출마다 캔버스를
+    //   다시 만들면 낭비 → 키 'baseRgba|stripeRgba' 로 한 번만 생성하고 재사용.
+    //
+    // [패턴 사양]
+    //   8×8 px 캔버스에 베이스 색을 채우고, 좌상단→우하단 대각선 방향으로
+    //   2px 두께 줄을 3개 그어 timing 이 8px 마다 반복되도록 구성.
+    //   → 모바일 망막 디스플레이에서도 또렷이 보이는 표준 굵기.
+    // ────────────────────────────────────────────────────────────────────
+    var _patternCache = {};
+
+    function _stripeFillPattern(baseRgba, stripeRgba) {
+        var key = baseRgba + '|' + stripeRgba;
+        if (_patternCache[key]) return _patternCache[key];
+
+        var c = document.createElement('canvas');
+        c.width = 8;
+        c.height = 8;
+        var x = c.getContext('2d');
+
+        // 1) 베이스 색 (특보 종류색 + 단계별 알파)
+        x.fillStyle = baseRgba;
+        x.fillRect(0, 0, 8, 8);
+
+        // 2) 좌상단 → 우하단 대각선 빗금 (반복 timing 8px)
+        //    좌상·중앙·우하 3개 선분으로 8×8 격자가 좌우상하로 tile 될 때
+        //    이음새가 자연스럽게 연결되도록 함.
+        x.strokeStyle = stripeRgba;
+        x.lineWidth = 2;
+        x.lineCap = 'butt';
+        x.beginPath();
+        x.moveTo(-2, 4); x.lineTo(4, -2);   // 좌상단 모서리 통과
+        x.moveTo(0, 8);  x.lineTo(8, 0);    // 캔버스 본체 대각선
+        x.moveTo(4, 10); x.lineTo(10, 4);   // 우하단 모서리 통과
+        x.stroke();
+
+        var pattern = x.createPattern(c, 'repeat');
+        _patternCache[key] = pattern;
+        return pattern;
+    }
+
     /**
      * 색칠된 OL Style 객체 생성.
      *
      * [디자인]
-     *   - fill: 종류별 RGB + 단계별 alpha (3단계)
+     *   - fill:
+     *       · upcoming(예비): 종류별 RGB + 알파 0.25 (단색만)
+     *       · 주의보       : 종류별 RGB + 알파 0.40 + 회색 대각선 빗금 (gray-600)
+     *       · 경보         : 종류별 RGB + 알파 0.55 + 빨간 대각선 빗금 (red-600)
+     *     단계별 빗금 패턴은 _stripeFillPattern() 로 8×8 CanvasPattern 생성 → 캐시.
      *   - stroke: 종류별 RGB + 0.95 alpha (모든 단계 동일) — 윤곽선 또렷
      *   - 메인(부모) feature 는 라벨 표시(기존과 동일하게 흰색 글씨 + 검은 외곽)
      *   - 자식 feature 는 라벨 미표시 (부모 색을 따라가는 것이므로 라벨 중복 방지)
@@ -69,9 +119,18 @@
                 lineDash: (kind === 'main') ? null : [5, 3]
             });
         }
-        var fill = new ol.style.Fill({
-            color: 'rgba(' + rgb + ',' + fillAlpha + ')'
-        });
+        // fill: 단계별 분기.
+        // - upcoming        : 단색 fill (기존 동작 유지)
+        // - 주의보 / 경보   : 단색 베이스 + 대각선 빗금 패턴 (신규)
+        //   STAGE_STRIPE_RGBA 에서 단계별 빗금 색을 가져와 _stripeFillPattern 으로
+        //   캔버스 패턴 생성. 결과 CanvasPattern 을 ol.style.Fill 의 color 에 직접
+        //   넘김 (OL Fill 은 string·CanvasPattern 둘 다 지원).
+        var baseRgba = 'rgba(' + rgb + ',' + fillAlpha + ')';
+        var stripeRgba = ns._const.STAGE_STRIPE_RGBA[info.stage];
+        var fillColorOrPattern = stripeRgba
+            ? _stripeFillPattern(baseRgba, stripeRgba)
+            : baseRgba;
+        var fill = new ol.style.Fill({ color: fillColorOrPattern });
 
         var style = new ol.style.Style({ stroke: stroke, fill: fill });
 
