@@ -604,23 +604,33 @@
         _setupOceanLegendResizeObserver();
         _publishOceanLegendHeight();
 
-        // 그라디언트 바 생성
-        // [왜 알파를 직접 안 쓰고 흰색에 미리 블렌드하나?]
-        //   .ocean-legend 컨테이너 배경이 rgba(13,24,46,0.93) 진한 네이비라,
-        //   알파 0.05 같은 옅은 색을 그대로 깔면 컨테이너 색이 95% 비쳐서 결국
-        //   어둡게 보임 (사용자가 의도한 fade 가 시각으로 안 드러남).
-        //   → 각 stop 을 흰색 배경에 미리 알파 블렌드한 "불투명 RGB" 로 변환해서
-        //     gradient 에 사용. 알파 0.05 → 거의 흰색 → 어두운 컨테이너 위에서
-        //     명확히 대비되어 "이 구간은 비어있다" 를 한눈에 인지.
-        //   지도 위 실제 표출과 직접적 1:1 은 아니지만 의미는 동일하게 전달.
-        var BG_R = 255, BG_G = 255, BG_B = 255;  // 블렌드 배경: 흰색
-        var colors = scale.map(function (s) {
-            var a = (s.color[3] != null) ? s.color[3] : 0.8;
-            var r = Math.round(BG_R * (1 - a) + s.color[0] * a);
-            var g = Math.round(BG_G * (1 - a) + s.color[1] * a);
-            var b = Math.round(BG_B * (1 - a) + s.color[2] * a);
-            return 'rgb(' + r + ',' + g + ',' + b + ')';
-        });
+        // 그라디언트 바 생성 — 레이어별 분기
+        // [왜 분기?]
+        //   - 해류: val=0 알파가 0.05 (의도된 fade) → 컨테이너 진한 네이비에 그대로
+        //     깔면 묻혀버림. 흰색 배경에 사전 알파 블렌드한 불투명 RGB 로 변환 →
+        //     알파 0.05 → 거의 흰색 → 어두운 컨테이너 위에서 "이 구간 비어있다"
+        //     시각 강조.
+        //   - 풍속/파고: 모든 stop 알파가 0.68~0.88 로 비교적 균일하고, 컨테이너
+        //     위에서도 충분히 시인 가능. 흰색 블렌드 시 지도 표출(지도 바다색 위에
+        //     알파 합성) 과 색이 어긋나는 부수 영향만 발생 → 원래 동작(0.8 고정)
+        //     유지하여 지도와 비슷한 톤 보존.
+        var colors;
+        if (layer === 'current') {
+            // 흰색 사전 블렌드 → fade 시각 강조 (사용자 명시 요구)
+            var BG_R = 255, BG_G = 255, BG_B = 255;
+            colors = scale.map(function (s) {
+                var a = (s.color[3] != null) ? s.color[3] : 0.8;
+                var r = Math.round(BG_R * (1 - a) + s.color[0] * a);
+                var g = Math.round(BG_G * (1 - a) + s.color[1] * a);
+                var b = Math.round(BG_B * (1 - a) + s.color[2] * a);
+                return 'rgb(' + r + ',' + g + ',' + b + ')';
+            });
+        } else {
+            // 풍속/파고: 알파 0.8 고정 (원래 동작 — 손대지 말라는 사용자 명시 요구)
+            colors = scale.map(function (s) {
+                return 'rgba(' + s.color[0] + ',' + s.color[1] + ',' + s.color[2] + ',0.8)';
+            });
+        }
         barEl.style.background = 'linear-gradient(to right, ' + colors.join(', ') + ')';
 
         // 단위 결정 — current/wind 는 kts 모드 여부에 따라 m/s ↔ kts, wave 는 항상 m
