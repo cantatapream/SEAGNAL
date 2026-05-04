@@ -171,9 +171,40 @@ function updateZoneStatus(obj, targetZone, event, referenceTime) {
             const tmCc = event.tmCc || '';
 
             if (event.command === '해제') {
+                // ────────────────────────────────────────────────────────────
+                // [해제 통보 처리]
+                // 역할: 기상청에서 "풍랑주의보 해제" 같은 해제 통보가 도착했을 때
+                //       해당 zone의 발효 중인 특보(current)와 발표예정 예비특보(upcoming)를 정리.
+                // 분기:
+                //   - 미래 해제(effTime > now): 해제 예정 시각만 표시(아직 발효 중)
+                //   - 즉시/과거 해제(effTime <= now): 모두 즉시 정리
+                // 연계: weatherAlertsCrawler.detectChanges() 가 이 변화를 감지하여
+                //       사용자 푸시(push_sender.js)와 weather_alerts.json 갱신을 트리거함.
+                // ────────────────────────────────────────────────────────────
+
+                // 해제 통보의 특보 종류 추출 (예: "풍랑주의보 해제" → "풍랑")
+                // 동일 종류의 예비특보(upcoming)만 함께 정리하기 위한 안전 키
+                const releasedType = event.type
+                    ? event.type.replace('주의보', '').replace('경보', '').replace('예비특보', '').replace('해제', '').trim()
+                    : '';
+
                 if (effTime && effTime > now) {
-                    if (value.current) { value.current.tmRelease = event.time; value.current.tmYn = event.time; value.current.tmCc = tmEfOriginal; }
+                    // [미래 해제] 발효 중인 특보가 있으면 해제 예정 시각만 표시
+                    if (value.current) {
+                        value.current.tmRelease = event.time;
+                        value.current.tmYn = event.time;
+                        value.current.tmCc = tmEfOriginal;
+                    }
+                    // [Fix] 발표예정인 예비특보(upcoming)가 있고 해제 통보의 종류와 일치하면 함께 정리
+                    // 이유: 해제 통보가 도착했다는 것은 발효 자체가 취소된다는 뜻이므로,
+                    //       발표예정 상태인 예비특보도 함께 취소되어야 정상.
+                    // 안전: 종류(wrnTp)가 다르면 보존하여 다른 종류의 예비특보가 오삭제되지 않도록 함.
+                    //       (releasedType이 비어있을 때는 zone당 한 종류만 추적하는 구조 특성상 정리해도 안전)
+                    if (value.upcoming && (!releasedType || value.upcoming.wrnTp === releasedType)) {
+                        value.upcoming = null;
+                    }
                 } else {
+                    // [즉시 해제] 발효시각이 현재/과거이면 current·upcoming·history 모두 즉시 정리
                     value.current = null; value.upcoming = null; value.history = [];
                 }
             } else if (event.command === '예비') {
@@ -414,12 +445,25 @@ async function applyNewReports(fullForm) {
             const baseDate = extractTmFcFromId(report.id);
 
             // ──────────────────────────────────────────────────────────────
-            // [케이스 A: 빈 본문] fetchReportDetail이 빈 문자열을 반환한 경우
-            // 원인: KMA가 양식만 올리고 본문을 아직 안 채웠거나, HTML 구조가 맞지 않음
+            // [케이스 A: 빈/미완성 본문] fetchReportDetail이 빈 문자열을 반환했거나
+            //                            헤더(□)만 있고 본문 항목((1) ...)이 비어있는 미완성 상태인 경우
+            // 원인: KMA가 통보문 게시 시 헤더(□ 발효시각, □ 해당구역, □ 내용)만 먼저 올리고
+            //       본문 (1) 항목 라인들은 잠시 후 채워 넣는 경우가 있음.
+            //       이 미완성 상태로 처리하면 본문에 키워드(풍랑/태풍/지진해일/폭풍해일)가 없어
+            //       비해상 특보로 오분류되고 processedReportIds에 영구 등록되어
+            //       KMA가 본문을 채워 넣은 뒤에도 다시 처리되지 않는 누락 버그가 있었음.
             // 대응: 1분마다 본문만 재확인 (AI 호출 없음 → API 부담 없음)
-            // 본문이 채워지면 다음 사이클에서 키워드 검사 후 AI 분석 또는 미수집 판정
+            //       본문이 채워지면 다음 사이클에서 키워드 검사 후 AI 분석 또는 미수집 판정
+            // 검사 기준:
+            //   1) text 자체가 비어있음
+            //   2) 헤더만 있고 (1)/(2)/... 항목 라인이 하나도 없으며 "없음" 표시도 없음 (미완성)
+            //   ※ "내용 없음" 등 정상적으로 빈 통보문은 hasExplicitNone로 정상 통과 처리
             // ──────────────────────────────────────────────────────────────
-            if (!text || text.trim().length === 0) {
+            const hasContentLines = /\(\d+\)/.test(text || '');     // (1), (2) 등 항목 번호가 본문에 있는가
+            const hasExplicitNone = /없음/.test(text || '');         // "내용 없음" 같은 명시적 빈 본문 표시
+            const isIncompleteBody = !!(text && text.trim().length > 0 && !hasContentLines && !hasExplicitNone);
+
+            if (!text || text.trim().length === 0 || isIncompleteBody) {
                 const nowIso = new Date().toISOString();
                 if (!fullForm.pendingRetries[report.id]) {
                     // [첫 감지] pendingRetries에 등록 + 관리자에게 즉시 알림
@@ -431,11 +475,13 @@ async function applyNewReports(fullForm) {
                         lastNoticeSent: nowIso,
                         reason: 'EMPTY_CONTENT'
                     };
-                    console.log(`[ReportProcessor] ⚠️ 빈 통보문 감지 (본문 없음), 재시도 등록: ${report.title}`);
+                    // 미완성 상태(헤더만 있음)와 완전 빈 본문을 로그에서 구분
+                    const stateLabel = isIncompleteBody ? '본문 미완성(헤더만 있음)' : '본문 없음';
+                    console.log(`[ReportProcessor] ⚠️ 빈 통보문 감지 (${stateLabel}), 재시도 등록: ${report.title}`);
                     const { sendAdminPush } = require('./services/admin_push');
                     sendAdminPush(
                         '🔍 빈 통보문 감지',
-                        `${report.title} - 본문 미게시 상태, 1분 간격 재확인 시작 (최대 6시간)`
+                        `${report.title} - ${stateLabel}, 1분 간격 재확인 시작 (최대 6시간)`
                     ).catch(err => console.error('[ReportProcessor] 관리자 푸시 오류:', err.message));
                 } else {
                     // [재시도 실패] 여전히 본문이 비어있음 → 재시도 횟수 증가
