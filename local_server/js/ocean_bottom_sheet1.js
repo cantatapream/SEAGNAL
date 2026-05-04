@@ -169,9 +169,31 @@
         var sheet = document.getElementById('ocean-bottom-sheet');
         if (!sheet) return;
 
-        // 1) 시각적으로 시트 내려가기
+        // 1) 시각적으로 시트 내려가기 — fade-out 후 display:none.
+        //    [중요] 타이머 핸들을 OS.state._closeHideTimer 에 저장해서 새 시트 오픈 시
+        //    캔슬할 수 있게 함. 캔슬 안 하면 "close → 300ms 안에 재오픈" 시 이 setTimeout
+        //    이 발화해서 새 시트도 hide 됨 (race).
         sheet.classList.remove('open');
-        setTimeout(function () { sheet.style.display = 'none'; }, 300);
+        if (OS.state._closeHideTimer) clearTimeout(OS.state._closeHideTimer);
+        OS.state._closeHideTimer = setTimeout(function () {
+            sheet.style.display = 'none';
+            OS.state._closeHideTimer = null;
+        }, 300);
+
+        // 1.5) 시트 슬라이더 정리 — 말풍선 즉시 제거
+        if (OS.SheetTL && typeof OS.SheetTL.teardown === 'function') {
+            OS.SheetTL.teardown();
+        }
+
+        // 1.7) 진행 중인 zone-forecasts fetch 취소 — 닫힌 시트의 setMaxHours 발화 방지
+        if (OS.state && OS.state._zoneFetchAbort) {
+            try { OS.state._zoneFetchAbort.abort(); } catch (e) { /* 일부 브라우저 미지원 무시 */ }
+            OS.state._zoneFetchAbort = null;
+        }
+
+        // 1.8) 진행 중인 비동기 fetch 응답이 닫힌 시트를 갱신하지 않도록 epoch 무효화
+        //      (다음 sheet open 시 _loadEpoch 재발급, stale 응답은 무시됨)
+        if (OS.state) OS.state._loadEpoch = (OS.state._loadEpoch || 0) + 1;
 
         // 2) PopupStack 에서 본인 제거 (popLast 가 부른 경우엔 이미 pop 되었지만 안전)
         if (window.PopupStack) {
@@ -289,6 +311,26 @@
         var sheet = document.getElementById('ocean-bottom-sheet');
         if (!sheet) return;
 
+        // [시트 열림 가드 — 사용자 합의 Q3]
+        // 시트가 이미 열린 상태에서 다른 해점/마커/부이 클릭은 조용히 무시.
+        // ocean_map.js click handler 외에도 ocean_markers.js, ocean_buoy.js 가 직접
+        // showOceanBottomSheet 를 호출 가능 → 여기서 통합 차단. 토스트 X.
+        if (sheet.style.display !== 'none' && sheet.classList.contains('open')) {
+            return;
+        }
+
+        // [close→재오픈 race 차단] 직전 closeSheet 의 fade-out 타이머가 살아있으면 캔슬.
+        // 안 그러면 새 시트 오픈 후 ~300ms 내에 그 타이머가 발화해서 display='none' 으로
+        // 새 시트가 사라짐.
+        if (OS.state._closeHideTimer) {
+            clearTimeout(OS.state._closeHideTimer);
+            OS.state._closeHideTimer = null;
+        }
+
+        // [캐시 클리어] 직전 시트의 _tideTodayCache 가 남아있으면 좌표 검증으로 차단되지만,
+        // 명시적 clear 로 stale 표시 가능성 추가 차단.
+        OS.state._tideTodayCache = null;
+
         // 상태 초기화: 타임라인 슬라이더 오프셋이 있으면 해당 시각 기준으로 시작
         OS.state.lat = lat;
         OS.state.lon = lon;
@@ -324,11 +366,64 @@
         // 핸들 드래그 닫기 1회 바인딩
         if (OS.bindHandleDrag) OS.bindHandleDrag();
 
-        // 헤더 렌더 (2.js)
+        // [시트 슬라이더 init — loadAllForDate 보다 먼저!]
+        // STL.init 은 OS.state.date 를 슬라이더 시각으로 동기시킴 (value=0 → real now).
+        // loadAllForDate 가 OS.state.date 기반으로 카드 fetch 하므로,
+        // 슬라이더 시각으로 OS.state.date 를 먼저 맞춰놔야 카드 데이터와 헤더 표시 시각이 일치.
+        // - initialLayerHours = 레이어 슬라이더 현재 value
+        // - initZoneMax = 레이어 슬라이더 max (wave/wind 활성 시 이미 maxForecastHours 반영)
+        //   정확한 wave/wind 한계는 zone-forecasts 비동기 호출 후 STL.setMaxHours 로 갱신
+        if (OS.SheetTL && typeof OS.SheetTL.init === 'function') {
+            var initLayerHours = 0;
+            var initZoneMax = 72;
+            if (tlSlider) {
+                initLayerHours = parseFloat(tlSlider.value) || 0;
+                initZoneMax = parseFloat(tlSlider.max) || 72;
+            }
+            OS.SheetTL.init(initLayerHours, initZoneMax);
+        }
+
+        // 헤더 렌더 (2.js) — STL.init 이 OS.state.date 갱신했으니 그 시각으로 표시
         if (OS.renderHeader) OS.renderHeader();
 
-        // 전체 데이터 로딩 시작 (5.js)
+        // 전체 데이터 로딩 시작 (5.js) — OS.state.date = 슬라이더 시각, 카드 데이터와 헤더 일치
         if (OS.loadAllForDate) OS.loadAllForDate();
+
+        // [예보 범위 외 가시성 안전 가드]
+        if (typeof OS._enforceForecastRangeVisibility === 'function') {
+            OS._enforceForecastRangeVisibility();
+        }
+
+        // [zone-forecasts 정확한 max 비동기 조회 — 캐시 X, 매 시트 오픈마다 호출]
+        // AbortController 로 닫힐 때 취소 → 닫힌 시트의 setMaxHours 자동 onRelease 폭주 방지.
+        var ac = (typeof AbortController === 'function') ? new AbortController() : null;
+        OS.state._zoneFetchAbort = ac;
+        var fetchOpts = ac ? { signal: ac.signal } : {};
+        fetch('/api/ocean/zone-forecasts', fetchOpts)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || typeof data.maxForecastHours !== 'number') return;
+                // 응답 도착 시 시트가 이미 닫혀있으면 무동작
+                var sheetEl = document.getElementById('ocean-bottom-sheet');
+                if (!sheetEl || sheetEl.style.display === 'none' ||
+                    !sheetEl.classList.contains('open')) return;
+
+                var newMax = data.maxForecastHours;
+
+                if (OS.SheetTL && typeof OS.SheetTL.setMaxHours === 'function') {
+                    OS.SheetTL.setMaxHours(newMax);
+                }
+                // 레이어 슬라이더 max 도 일관성 위해 동기
+                var tl2 = document.getElementById('ocean-timeline-slider');
+                if (tl2 && typeof window.setTimelineMax === 'function' &&
+                    parseFloat(tl2.max) !== newMax) {
+                    window.setTimelineMax(newMax);
+                }
+                if (typeof OS._enforceForecastRangeVisibility === 'function') {
+                    OS._enforceForecastRangeVisibility();
+                }
+            })
+            .catch(function () { /* AbortError or 네트워크 실패 — 디폴트 max 유지 */ });
     };
 
     /* --------------------------------------------------------------

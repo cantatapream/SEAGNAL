@@ -158,6 +158,14 @@
         OS.state.date = d;
         OS.renderHeader();
         if (OS.loadAllForDate) OS.loadAllForDate();
+        // [시트 슬라이더 동기] OS.state.date 변경됐으니 슬라이더 위치도 따라가게
+        if (OS.SheetTL && typeof OS.SheetTL.syncToStateDate === 'function') {
+            OS.SheetTL.syncToStateDate();
+        }
+        // [예보 범위 외 처리] 새 날짜가 wave/wind 범위 안인지 판정
+        if (typeof OS._enforceForecastRangeVisibility === 'function') {
+            OS._enforceForecastRangeVisibility();
+        }
         // 날짜 변경 시 시트 본문 스크롤을 최상단으로 되돌림
         var sheet = document.getElementById('ocean-bottom-sheet');
         if (sheet) sheet.scrollTop = 0;
@@ -172,6 +180,14 @@
         OS.state.date = d;
         OS.renderHeader();
         if (OS.loadAllForDate) OS.loadAllForDate();
+        // [시트 슬라이더 동기]
+        if (OS.SheetTL && typeof OS.SheetTL.syncToStateDate === 'function') {
+            OS.SheetTL.syncToStateDate();
+        }
+        // [예보 범위 외 처리]
+        if (typeof OS._enforceForecastRangeVisibility === 'function') {
+            OS._enforceForecastRangeVisibility();
+        }
         // 날짜 변경 시 시트 본문 스크롤을 최상단으로 되돌림
         var sheet = document.getElementById('ocean-bottom-sheet');
         if (sheet) sheet.scrollTop = 0;
@@ -184,4 +200,52 @@
         OS.state.coordVisible = !OS.state.coordVisible;
         OS.renderHeader();
     };
+
+    /* --------------------------------------------------------------
+     * [시트 슬라이더 release 콜백 wire]
+     *
+     * 사용자가 시트 헤더 슬라이더 손잡이를 잡고 움직이다 놓는 순간 호출.
+     * - 같은 날 (sameDay=true)
+     *     1) 조석 API 호출 X — 게이지/예상조위 라벨만 클라이언트 재계산
+     *     2) 천문(일출몰/월령) skip — 날짜 같으면 결과 동일
+     *     3) 시간 의존 카드(천기/파고/풍/유향속/수온) loadAllForDate({skipHeavy:true}) 재호출
+     * - 다른 날: 풀 재로드
+     *
+     * @param {number} hours    - 슬라이더 value (0, 3, 6, 9, ...)
+     * @param {boolean} sameDay - 직전 release/init 시점과 같은 날인지
+     * @param {Date} newDate    - 새 슬라이더 시각
+     * ------------------------------------------------------------ */
+    if (window.OceanSheet && window.OceanSheet.SheetTL) {
+        window.OceanSheet.SheetTL.onRelease = function (hours, sameDay, newDate) {
+            var sheet = document.getElementById('ocean-bottom-sheet');
+            if (!sheet || sheet.style.display === 'none') return;
+            if (OS.state.lat == null || OS.state.lon == null) return;
+
+            // OS.state.date 는 드래그 중 syncHeaderToSlider 가 매번 갱신했지만 안전을 위해 명시.
+            OS.state.date = newDate;
+
+            if (sameDay) {
+                if (typeof OS.refreshTideGaugeForTime === 'function') {
+                    OS.refreshTideGaugeForTime(newDate);
+                }
+                if (typeof OS.loadAllForDate === 'function') {
+                    OS.loadAllForDate({ skipHeavy: true });
+                }
+            } else {
+                if (typeof OS.loadAllForDate === 'function') {
+                    OS.loadAllForDate();
+                }
+            }
+
+            // 레이어 슬라이더 동기 + 활성 오버레이 reload
+            if (typeof OS._syncLayerSliderToSheet === 'function') {
+                OS._syncLayerSliderToSheet();
+            }
+
+            // 예보 범위 외 처리 (방어 — 일반적으로 in-range 보장)
+            if (typeof OS._enforceForecastRangeVisibility === 'function') {
+                OS._enforceForecastRangeVisibility();
+            }
+        };
+    }
 })();

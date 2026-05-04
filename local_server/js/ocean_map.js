@@ -949,6 +949,15 @@
             if (window.OceanWarnActive.tryHandleClick(oceanMap, evt)) return;
         }
 
+        // [시트 열림 가드 — 사용자 합의 Q3]
+        // 시트가 이미 열려 있으면 새 해점 클릭 무시 (조용히, 토스트 X).
+        // showOceanBottomSheet 진입에도 동일 가드 있음 — 여기서는 빠른 early-return.
+        const _sheetEl = document.getElementById('ocean-bottom-sheet');
+        if (_sheetEl && _sheetEl.style.display !== 'none' &&
+            _sheetEl.classList.contains('open')) {
+            return;
+        }
+
         // 오버레이 데이터가 있는 영역만 바텀시트 표시
         if (window.showOceanBottomSheet) {
             if (window.hasOceanGridData && !window.hasOceanGridData(lat, lon)) return;

@@ -25,11 +25,28 @@
 
     /* --------------------------------------------------------------
      * 오케스트레이터
+     *
+     * @param {Object} [opts]
+     *   - skipHeavy {boolean}: true 면 조석 API + 천문 렌더 skip.
+     *       시트 슬라이더 release 가 "같은 날 안의 시간 변경" 인 경우 사용.
+     *       이 때 호출자가 별도로 OS.refreshTideGaugeForTime() 을 호출해 게이지만 갱신.
+     *       시간 의존 카드(천기/파고/풍/유향속/수온) 는 skipHeavy 무관하게 항상 갱신.
+     *
+     * [fetch race 토큰]
+     *   진입 시 OS.state._loadEpoch++. 각 fetch 응답 시 epoch 비교해 stale 응답 무시.
+     *   ◀/▶ 빠른 연타 / closeSheet 직후 응답 도착 / 슬라이더 release 후 사용자 즉시 다른 동작
+     *   같은 race 시나리오에서 카드 데이터 비대칭 (wind 만 보이는 등) 방지.
      * ------------------------------------------------------------ */
-    OS.loadAllForDate = function () {
+    OS.loadAllForDate = function (opts) {
+        opts = opts || {};
+        var skipHeavy = !!opts.skipHeavy;
         var lat = OS.state.lat;
         var lon = OS.state.lon;
         var d = OS.state.date;
+
+        // epoch 토큰 발급 — 이번 호출의 응답만 유효
+        OS.state._loadEpoch = (OS.state._loadEpoch || 0) + 1;
+        var myEpoch = OS.state._loadEpoch;
 
         // (1) 조석/천문/월상 카드 일단 표시 (3.js, 4.js가 채울 자리)
         OS.showCard('ocean-card-tide');
@@ -65,46 +82,48 @@
             }
         });
 
-        // (3) 천문 / 월상: 즉시 동기 렌더
-        if (OS.renderAstroCard) OS.renderAstroCard(lat, lon, d);
-        if (OS.renderMoonCard) OS.renderMoonCard(lat, lon, d);
+        // (3) 천문 / 월상 / 조석 — heavy. 같은 날 갱신 시 skip.
+        if (!skipHeavy) {
+            if (OS.renderAstroCard) OS.renderAstroCard(lat, lon, d);
+            if (OS.renderMoonCard)  OS.renderMoonCard(lat, lon, d);
+            if (OS.fetchTideForSheet) OS.fetchTideForSheet(lat, lon, d);
+        }
 
-        // (4) 조석: 비동기 로딩
-        if (OS.fetchTideForSheet) OS.fetchTideForSheet(lat, lon, d);
+        // (4) 천기 카드 — forceRefresh: 풀 재로드만 imgList 캐시 무효화.
+        if (OS.loadWeatherCard) OS.loadWeatherCard(lat, lon, d, /*forceRefresh*/ !skipHeavy);
 
-        // (5) 천기 카드: KMA 단기예보 6 카테고리 종합 (해당 좌표가 KMA extent 안일 때만 표시).
-        //     ocean_bottom_sheet_weather.js 가 자체적으로 fct_tm round + sample + 4셀 채움.
-        //     데이터 전혀 없으면 카드 자체 hide.
-        //     forceRefresh=true → loadAllForDate 는 사용자 의도적 호출 (해점 클릭 / 날짜 nav)
-        //     이므로 imgList 캐시 무효화 + KMA 새 fetch. 슬라이더 이동(onTimelineChanged) 은
-        //     forceRefresh 미지정 (false) → 기존 캐시 사용 → KMA 부하 절약.
-        if (OS.loadWeatherCard) OS.loadWeatherCard(lat, lon, d, /*forceRefresh*/ true);
-
-        // (5) 6개 일반 카드: 일단 모든 날짜에서 호출 (안A)
-        //     백엔드 정상화 전까지 카드 자동 숨김도 임시 해제 — 실패 시 "데이터 없음" 텍스트 표출
-        fetchDepth(lat, lon);
-        fetchRoms(lat, lon, d);
-        fetchWeather(lat, lon, d);
-        fetchWave(lat, lon, d);
+        // (5) 시간 의존 카드 — 항상 호출. epoch 토큰으로 stale 응답 차단.
+        fetchDepth(lat, lon, myEpoch);
+        fetchRoms(lat, lon, d, myEpoch);
+        fetchWeather(lat, lon, d, myEpoch);
+        fetchWave(lat, lon, d, myEpoch);
 
     };
+
+    /** epoch 검증 — fetch 응답 도착 시 myEpoch 가 현재 _loadEpoch 와 일치하지 않으면 stale. */
+    function _isStaleEpoch(myEpoch) {
+        return myEpoch !== (OS.state && OS.state._loadEpoch);
+    }
 
     /* --------------------------------------------------------------
      * 6개 일반 카드 fetch — 응답이 없거나 실패하면 카드 숨김
      * ------------------------------------------------------------ */
-    function fetchDepth(lat, lon) {
+    function fetchDepth(lat, lon, myEpoch) {
         fetch('/api/ocean/depth?lat=' + lat + '&lon=' + lon)
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                if (_isStaleEpoch(myEpoch)) return;  // stale 응답 무시
                 if (data && data.success && data.depth != null) {
                     OS.setCardValue('ocean-val-depth', data.depth.toFixed(1) + ' m');
                     OS.showCard('ocean-card-depth');
                 } else {
-                    // 수심 데이터 없음 → 카드 자체를 숨김
                     OS.hideCard('ocean-card-depth');
                 }
             })
-            .catch(function () { OS.hideCard('ocean-card-depth'); });
+            .catch(function () {
+                if (_isStaleEpoch(myEpoch)) return;
+                OS.hideCard('ocean-card-depth');
+            });
     }
 
     /**
@@ -122,7 +141,7 @@
      * @param {number} lon
      * @param {Date=} dateObj - 미지정 시 now
      */
-    function fetchRoms(lat, lon, dateObj) {
+    function fetchRoms(lat, lon, dateObj, myEpoch) {
         // KHOA 해아름 stream-vector(전 해역 격자) 캐시에서 가장 가까운 점 1개 조회.
         // 기존 공공데이터포털 ROMS API 단일좌표 호출보다 빠르고, 같은 시각이면
         // 서버 캐시(1시간 TTL)로 즉시 응답된다.
@@ -142,6 +161,7 @@
         fetch(url)
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                if (_isStaleEpoch(myEpoch)) return;
                 if (!data || !data.success) {
                     OS.setCardValue('ocean-val-temp', '데이터 없음');
                     OS.setCardValue('ocean-val-current', '데이터 없음');
@@ -163,6 +183,7 @@
                 }
             })
             .catch(function () {
+                if (_isStaleEpoch(myEpoch)) return;
                 OS.setCardValue('ocean-val-temp', '데이터 없음');
                 OS.setCardValue('ocean-val-current', '데이터 없음');
             });
@@ -177,14 +198,14 @@
      * @param {number} lon
      * @param {Date=} dateObj - 슬라이더 시각 (있으면 ISO 문자열로 ?time=...)
      */
-    function fetchWeather(lat, lon, dateObj) {
+    function fetchWeather(lat, lon, dateObj, myEpoch) {
         var url = '/api/ocean/weather?lat=' + lat + '&lon=' + lon;
         if (dateObj) url += '&time=' + encodeURIComponent(dateObj.toISOString());
         fetch(url)
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                if (_isStaleEpoch(myEpoch)) return;
                 if (!data || !data.success) {
-                    // 데이터 없음(범위 초과 등) → 카드 자체를 숨김
                     OS.hideCard('ocean-card-wind');
                     return;
                 }
@@ -197,7 +218,10 @@
                     OS.hideCard('ocean-card-wind');
                 }
             })
-            .catch(function () { OS.hideCard('ocean-card-wind'); });
+            .catch(function () {
+                if (_isStaleEpoch(myEpoch)) return;
+                OS.hideCard('ocean-card-wind');
+            });
     }
 
     /**
@@ -208,21 +232,24 @@
      * @param {number} lon
      * @param {Date=} dateObj - 슬라이더 시각 (있으면 ISO 문자열로 ?time=...)
      */
-    function fetchWave(lat, lon, dateObj) {
+    function fetchWave(lat, lon, dateObj, myEpoch) {
         var url = '/api/ocean/wave?lat=' + lat + '&lon=' + lon;
         if (dateObj) url += '&time=' + encodeURIComponent(dateObj.toISOString());
         fetch(url)
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                if (_isStaleEpoch(myEpoch)) return;
                 if (data && data.success && data.waveHeight != null) {
                     OS.setCardValue('ocean-val-wave', data.waveHeight.toFixed(1) + ' m');
                     OS.showCard('ocean-card-wave');
                 } else {
-                    // 데이터 없음(범위 초과 등) → 카드 자체를 숨김
                     OS.hideCard('ocean-card-wave');
                 }
             })
-            .catch(function () { OS.hideCard('ocean-card-wave'); });
+            .catch(function () {
+                if (_isStaleEpoch(myEpoch)) return;
+                OS.hideCard('ocean-card-wave');
+            });
     }
 
     /* --------------------------------------------------------------
@@ -288,4 +315,79 @@
      * - 클라이언트 뷰포트 캡처 방식 제거
      * - 서버에서 해아름 WMS 이미지를 직접 취득하여 Gemini 분석
      * ------------------------------------------------------------ */
+
+    /* --------------------------------------------------------------
+     * [예보 범위 외 가시성 정책]
+     *
+     * 시트의 현재 표시 시각(OS.state.date) 이 wave/wind 예보 범위 안인지 판정해서
+     * 슬라이더 + 5개 예보 의존 카드의 표시 여부 결정.
+     *
+     * - 범위 안: 슬라이더 표시. 5개 카드는 fetch 결과로 자체 표시/숨김.
+     * - 범위 밖: 슬라이더 숨김. 5개 카드(wave/wind/current/temp/weather) 강제 hide.
+     *   조석/천문/수심 3개만 표시.
+     *
+     * [판정 기준 — 새 정책]
+     *   value=0 ↔ real now (deltaH ≈ 0). 슬라이더의 left edge 가 항상 "지금".
+     *   ◀ 가 today 차단이라 음수 deltaH 거의 없음 (1분 buffer 만으로 충분).
+     *   ▶ 로 미래 진입 가능 → deltaH 가 lmax 초과면 out-of-range.
+     * ------------------------------------------------------------ */
+    OS._enforceForecastRangeVisibility = function () {
+        var sheetDate = OS.state && OS.state.date;
+        if (!sheetDate) return;
+
+        var nowMs = Date.now();
+        var sheetMs = sheetDate.getTime();
+
+        var layerSlider = document.getElementById('ocean-timeline-slider');
+        var lmax = layerSlider ? (parseFloat(layerSlider.max) || 72) : 72;
+
+        // 1분 과거 buffer (init/release 사이 미세 클럭 드리프트 흡수)
+        var inRange = (sheetMs >= nowMs - 60000) && (sheetMs <= nowMs + lmax * 3600000);
+
+        if (inRange) {
+            if (OS.SheetTL && typeof OS.SheetTL.setVisible === 'function') {
+                OS.SheetTL.setVisible(true);
+            }
+            // 5개 카드는 loadAllForDate 가 fetch 결과로 자체 처리
+        } else {
+            if (OS.SheetTL && typeof OS.SheetTL.setVisible === 'function') {
+                OS.SheetTL.setVisible(false);
+            }
+            ['ocean-card-wave', 'ocean-card-wind', 'ocean-card-current',
+             'ocean-card-temp', 'ocean-card-weather'].forEach(function (id) {
+                if (typeof OS.hideCard === 'function') OS.hideCard(id);
+            });
+        }
+    };
+
+    /* --------------------------------------------------------------
+     * [시트 ↔ 레이어 슬라이더 동기]
+     *
+     * 시트 슬라이더 release 시점에 호출 (ocean_bottom_sheet2.js OS.SheetTL.onRelease 안).
+     * 시트 슬라이더 시각 → 레이어 슬라이더 value 로 변환 + 활성 레이어 reload.
+     *
+     * 단방향 — 시트 슬라이더 → 레이어 슬라이더만 동기 (시트 열린 동안 레이어
+     * 슬라이더 가려져 사용자 조작 불가).
+     * ------------------------------------------------------------ */
+    OS._syncLayerSliderToSheet = function () {
+        if (!OS.SheetTL) return;
+        var layerSlider = document.getElementById('ocean-timeline-slider');
+        if (!layerSlider) return;
+
+        var sheetDate = OS.SheetTL.getCurrentDate();
+        var deltaH = (sheetDate.getTime() - Date.now()) / 3600000;
+        var layerHours = Math.max(0, Math.round(deltaH));
+
+        var step = parseInt(layerSlider.step, 10) || 3;
+        layerHours = Math.round(layerHours / step) * step;
+
+        var lmax = parseFloat(layerSlider.max) || 72;
+        layerHours = Math.min(layerHours, lmax);
+
+        layerSlider.value = layerHours;
+
+        if (typeof window.oceanOverlaySetTime === 'function') {
+            try { window.oceanOverlaySetTime(layerHours); } catch (e) { /* swallow */ }
+        }
+    };
 })();
