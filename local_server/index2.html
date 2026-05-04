@@ -2169,13 +2169,15 @@
                        free → aligned : 진북으로 회전 (자유 회전 유지) — 토스트 "North up 정렬"
                        aligned → locked : 진북 고정 (회전 잠금)        — 토스트 "North up fixed"
                        locked → free   : 자유 회전 복귀
-                     [라벨]
-                       작은/일반 글자 모드 : "진북 Fix" 표시
-                       큰 글자 모드        : data-line1/2 의 "진북" + "Fix" 두 줄로 표시
+                     [라벨 동적 토글]
+                       free / aligned : "진북 정렬"
+                       locked         : "진북 Fix"
+                       _renderButton() 이 currentState 변경 시마다 textContent +
+                       data-line1/2 + title 을 모두 동기화. 큰 글자 모드도 자동 반영.
                      [연계 파일] js/ocean_northup.js -->
-                <button id="ocean-northup-btn" class="ocean-overlay-btn" title="진북 Fix (North Up)">
+                <button id="ocean-northup-btn" class="ocean-overlay-btn" title="진북 정렬 (North Up Align)">
                     <i class="fa-solid fa-arrow-up"></i>
-                    <span class="ocean-overlay-label" data-line1="진북" data-line2="Fix">진북 Fix</span>
+                    <span class="ocean-overlay-label" data-line1="진북" data-line2="정렬">진북 정렬</span>
                 </button>
 
                 <!-- 지도 컨테이너 -->

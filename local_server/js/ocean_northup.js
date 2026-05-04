@@ -56,17 +56,50 @@
     var inited = false;
 
     /**
-     * 현재 상태에 맞춰 버튼 클래스 갱신 (배경색).
-     * .ocean-overlay-btn 의 기본 색은 그대로 두고, .northup-aligned /
-     * .northup-locked 클래스만 토글. 큰 글자 모드는 무관하게 동작.
+     * 현재 상태에 맞춰 버튼 클래스 + 라벨 텍스트 + title 을 모두 갱신.
+     *
+     * [라벨 동적 토글 정책]
+     *   - free / aligned : "진북 정렬"  (data-line1="진북" data-line2="정렬")
+     *   - locked         : "진북 Fix"   (data-line1="진북" data-line2="Fix")
+     *   사용자 요구로 잠금(locked) 상태일 때만 "Fix" 라고 표시. 평소는 "정렬".
+     *
+     * [큰 글자 모드 호환]
+     *   data-line1/data-line2 속성을 setAttribute 로 갱신하면 CSS 의
+     *   ::before(content: attr(data-line1)) / ::after(content: attr(data-line2))
+     *   가 자동으로 새 값을 반영함. textContent 변경은 일반 모드용.
+     *
+     * [배경색 클래스]
+     *   .northup-aligned (옅파랑) / .northup-locked (진파랑+그림자) 만 토글.
+     *   .ocean-overlay-btn 기본 어두운 반투명 색은 그대로 유지.
      */
     function _renderButton() {
         if (!btnEl) return;
+
+        // 1) 배경색 클래스
         btnEl.classList.remove('northup-aligned', 'northup-locked');
         if (currentState === STATES.ALIGNED) {
             btnEl.classList.add('northup-aligned');
         } else if (currentState === STATES.LOCKED) {
             btnEl.classList.add('northup-locked');
+        }
+
+        // 2) 라벨 텍스트 + 큰글자 모드용 data 속성 + title 동기 갱신
+        var labelEl = btnEl.querySelector('.ocean-overlay-label');
+        if (currentState === STATES.LOCKED) {
+            if (labelEl) {
+                labelEl.textContent = '진북 Fix';
+                labelEl.setAttribute('data-line1', '진북');
+                labelEl.setAttribute('data-line2', 'Fix');
+            }
+            btnEl.title = '진북 Fix (North Up Fixed)';
+        } else {
+            // free 또는 aligned — 동일 라벨
+            if (labelEl) {
+                labelEl.textContent = '진북 정렬';
+                labelEl.setAttribute('data-line1', '진북');
+                labelEl.setAttribute('data-line2', '정렬');
+            }
+            btnEl.title = '진북 정렬 (North Up Align)';
         }
     }
 
