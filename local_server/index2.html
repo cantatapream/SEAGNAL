@@ -915,14 +915,31 @@
             position: relative;
         }
         /* 팝아웃 컨테이너 — 기타 기상 버튼 좌측에 absolute. 기본 숨김.
-           popup-open 클래스 부착 시 표출. 5개 서브버튼이 세로로 쌓임. */
+           popup-open 클래스 부착 시 표출. 6개 서브버튼이 세로로 쌓임.
+
+           [z-index = 100] 색상 범례(.ocean-legend, z:51) / 슬라이더 스택보다
+             위로 → 가로 모드처럼 세로 짧은 화면에서 팝업이 색상범례·슬라이더에
+             가려져 클릭 불가능했던 문제 해소. 모달/정보박스(10500) 보다 아래.
+
+           [bottom anchor] 팝업의 하단을 천기 버튼 하단에 정렬 → 위로 자라남.
+             기존 top:0 (아래로 자람) 은 천기 버튼이 column 하단에 위치하므로
+             짧은 화면에서 화면 밖(또는 legend 영역) 으로 뻗는 문제 발생.
+             위로 자라면 지도 영역의 빈 공간을 사용하므로 가시성 양호.
+
+           [max-height/overflow] 매우 짧은 화면 (가로 모드 등) 에서 팝업이
+             viewport 위쪽까지도 넘치지 않도록 화면 높이 - 100px 안에서
+             내부 스크롤 처리 — 마지막 안전망. */
         .ocean-other-wx-popup {
             position: absolute;
-            top: 0;
+            top: auto;
+            bottom: 0;
             right: calc(100% + 6px);
             display: none;
             flex-direction: column;
             gap: 4px;            /* 우측 컨트롤 stack 의 gap 과 동일 톤 */
+            z-index: 100;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
         }
         .ocean-other-wx-wrap.popup-open .ocean-other-wx-popup {
             display: flex;
