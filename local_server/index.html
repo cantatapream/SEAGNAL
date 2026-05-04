@@ -916,8 +916,16 @@
                                 </button>
                             </div>
                         </div>
-                        <!-- 향후 기능 확장 슬롯 (기존 음력이 있던 자리) -->
-                        <div class="ocean-sheet-subrow" id="ocean-sheet-subrow"></div>
+                        <!-- 향후 기능 확장 슬롯 (기존 음력이 있던 자리)
+                             — index2.html 와 동일 구조 (rollback 시 동일 동작 보장) -->
+                        <div class="ocean-sheet-subrow" id="ocean-sheet-subrow">
+                            <div class="ocean-sheet-slider-wrap is-hidden" id="ocean-sheet-slider-wrap">
+                                <div class="ocean-sheet-tooltip" id="ocean-sheet-tooltip"></div>
+                                <input type="range" class="ocean-sheet-slider" id="ocean-sheet-slider"
+                                       min="0" max="0" value="0" step="3" disabled>
+                                <div class="ocean-sheet-ticks" id="ocean-sheet-ticks"></div>
+                            </div>
+                        </div>
                         <div class="ocean-sheet-coord" id="ocean-sheet-coord" style="display:none;"></div>
                     </div>
                     </div><!-- /.ocean-sheet-stickytop -->
@@ -1368,6 +1376,8 @@
     <script src="js/ocean_map.js"></script>
     <script src="js/ocean_markers.js"></script>
     <script src="js/ocean_bottom_sheet1.js"></script>
+    <!-- 시트 슬라이더 모듈 — bottom_sheet2.js 가 STL.onRelease 를 wire 하므로 그 전에 로드되어야 함. -->
+    <script src="js/ocean_sheet_timeline.js"></script>
     <script src="js/ocean_bottom_sheet2.js"></script>
     <script src="js/ocean_bottom_sheet3.js"></script>
     <script src="js/ocean_bottom_sheet4.js"></script>
