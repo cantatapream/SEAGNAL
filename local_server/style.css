@@ -8773,6 +8773,17 @@ body.ocean-map-active .main-header .header-content {
     z-index: 60;
 }
 
+/* "진북 Fix" 텍스트가 38px 폭을 초과해 흘러넘치지 않도록 줄바꿈 허용.
+ *   기본 .ocean-overlay-label 은 white-space: nowrap → 한 줄 강제이지만,
+ *   진북 버튼만 "진북 Fix" (공백 포함 6자) 라 폭 부족 가능 → 공백 위치에서
+ *   자동 2줄 분리. 큰 글자 모드는 ::before/::after 가 별도 표시 (textContent
+ *   는 font-size:0 으로 hide) 라 이 규칙 무관하게 동작. */
+#ocean-northup-btn .ocean-overlay-label {
+    white-space: normal;
+    text-align: center;
+    line-height: 1.05;
+}
+
 /* 진북 정렬 — 회전이 0 으로 정렬됐고 자유 회전 가능한 일시 상태. 옅은 파랑 강조. */
 #ocean-northup-btn.northup-aligned {
     background: rgba(60, 120, 200, 0.85);

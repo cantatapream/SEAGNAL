@@ -32,8 +32,10 @@
  *   영구 보존 의미 없음).
  *
  * [토스트]
- *   진북 정렬 (free → aligned) 진입 시 "North up 상태입니다." 를 bottom 토스트
- *   로 1회 표시. 잠금/해제는 색상 변경으로 충분히 식별되므로 토스트 없음.
+ *   - free → aligned (정렬) 진입 : "North up 정렬"  (bottom, 2초)
+ *   - aligned → locked (고정) 진입 : "North up fixed"  (bottom, 2초)
+ *   - locked → free (해제) 진입 : 토스트 없음 (배경색 변경으로 식별)
+ *   - 자동 복원(localStorage 잠금) 시 : 토스트 없음 (사용자 액션 아님)
  *
  * [연계 파일]
  *   - index2.html       — #ocean-northup-btn DOM, 검색창 폭 양보(right 98px)
@@ -127,14 +129,16 @@
             _rotateToNorth(map);
             _setRotateInteraction(map, true);
             try { localStorage.removeItem(LS_KEY); } catch (e) {}
-            if (!silentToast) _toast('North up 상태입니다.');
+            if (!silentToast) _toast('North up 정렬');
         } else if (newState === STATES.LOCKED) {
             _rotateToNorth(map);
             _setRotateInteraction(map, false);
             try { localStorage.setItem(LS_KEY, 'true'); } catch (e) {}
+            if (!silentToast) _toast('North up fixed');
         } else {  // FREE
             _setRotateInteraction(map, true);
             try { localStorage.removeItem(LS_KEY); } catch (e) {}
+            // 잠금 해제(자유) 진입은 토스트 없음 — 색상 변경으로 식별
         }
 
         _renderButton();

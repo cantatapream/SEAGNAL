@@ -2166,13 +2166,16 @@
 
                 <!-- 진북(North Up) 버튼 — 검색창 우측, 유향·유속 버튼 좌측에 배치
                      [3-state cycle]
-                       free → aligned : 진북으로 회전 (자유 회전 유지)
-                       aligned → locked : 진북 고정 (회전 잠금)
+                       free → aligned : 진북으로 회전 (자유 회전 유지) — 토스트 "North up 정렬"
+                       aligned → locked : 진북 고정 (회전 잠금)        — 토스트 "North up fixed"
                        locked → free   : 자유 회전 복귀
+                     [라벨]
+                       작은/일반 글자 모드 : "진북 Fix" 표시
+                       큰 글자 모드        : data-line1/2 의 "진북" + "Fix" 두 줄로 표시
                      [연계 파일] js/ocean_northup.js -->
-                <button id="ocean-northup-btn" class="ocean-overlay-btn" title="진북 (North Up)">
+                <button id="ocean-northup-btn" class="ocean-overlay-btn" title="진북 Fix (North Up)">
                     <i class="fa-solid fa-arrow-up"></i>
-                    <span class="ocean-overlay-label" data-line1="진북">진북</span>
+                    <span class="ocean-overlay-label" data-line1="진북" data-line2="Fix">진북 Fix</span>
                 </button>
 
                 <!-- 지도 컨테이너 -->
