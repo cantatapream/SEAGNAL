@@ -103,6 +103,15 @@
 
     // ========================================================================
     // 화면 1: 초대 팝업 (참여하기 / 나중에)
+    // ------------------------------------------------------------------------
+    // [시스템 네비게이션 바 처리]
+    //   카드는 align-items:center / justify-content:center 로 viewport 중앙에
+    //   배치되므로 일반적으로 안전하지만, 작은 폰 + 긴 설명문 조합에서는
+    //   카드가 화면을 거의 꽉 채워 하단이 네비바와 가까워질 수 있음.
+    //   컨테이너 padding 에 env(safe-area-inset-top/bottom) 을 적용하고
+    //   box-sizing:border-box 를 더해, 콘텐츠 가용 영역 = (viewport − 안전영역)
+    //   이 되어 카드가 시스템 영역을 절대 침범하지 않게 한다.
+    //   ⤷ 적용 위치: popup 컨테이너 인라인 style (카드 자체는 손대지 않음).
     // ========================================================================
     function showSurveyInvitePopup(survey) {
         const old = document.getElementById('survey-user-popup');
@@ -113,7 +122,7 @@
 
         const popup = document.createElement('div');
         popup.id = 'survey-user-popup';
-        popup.style.cssText = 'position:fixed;inset:0;z-index:10100;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;animation:svFadeIn 0.3s ease-out;';
+        popup.style.cssText = 'position:fixed;inset:0;z-index:10100;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);box-sizing:border-box;animation:svFadeIn 0.3s ease-out;';
 
         popup.innerHTML = `
             <style>
@@ -158,6 +167,20 @@
 
     // ========================================================================
     // 화면 2: 설문 진행 (페이지당 3문항씩 표시)
+    // ------------------------------------------------------------------------
+    // [시스템 네비게이션 바 처리]
+    //   팝업이 position:fixed; inset:0 으로 viewport 전체를 덮기 때문에,
+    //   하단 버튼 컨테이너의 padding-bottom 에 env(safe-area-inset-bottom) 을
+    //   더해 시스템 영역(안드로이드 네비바 / iOS 홈 인디케이터) 위로 버튼이
+    //   자동으로 올라가도록 한다.
+    //   ⤷ 적용 위치: render() 안의 하단 버튼 <div> (이전·다음·제출하기 버튼).
+    //   ⤷ 폰별 효과:
+    //       - 안드로이드 3버튼 네비바  → env() ≈ 48dp → 버튼이 네비바 위로
+    //       - 안드로이드 스와이프 제스처 → env() ≈ 0~24dp → 미세 여유
+    //       - iOS 홈 인디케이터       → env() ≈ 34pt → 인디케이터 위로
+    //       - 그 외(env 미지원·PC)    → fallback 0px → 기존 동작 유지
+    //   ⤷ 전제: viewport 메타에 viewport-fit=cover 가 설정돼 있어야 동작
+    //         (index.html / index2.html 의 <meta name="viewport">에서 확인됨).
     // ========================================================================
     const QUESTIONS_PER_PAGE = 3;
 
@@ -226,7 +249,7 @@
                         </div>`;
                     }).join('')}
                 </div>
-                <div style="padding:16px 20px; display:flex; gap:10px; border-top:1px solid rgba(255,255,255,0.06);">
+                <div style="padding:16px 20px calc(16px + env(safe-area-inset-bottom, 0px)); display:flex; gap:10px; border-top:1px solid rgba(255,255,255,0.06);">
                     ${!isFirst ? `<button id="sv-btn-prev" style="flex:1; padding:14px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:12px; color:#94a3b8; font-size:0.92rem; cursor:pointer; font-weight:600;"><i class="fa-solid fa-chevron-left"></i> 이전</button>` : ''}
                     <button id="sv-btn-next" style="flex:2; padding:14px; background:linear-gradient(135deg,#10b981,#059669); border:none; border-radius:12px; color:#fff; font-size:0.95rem; cursor:pointer; font-weight:700; box-shadow:0 4px 15px rgba(16,185,129,0.3);">
                         ${isLast ? '<i class="fa-solid fa-check"></i> 제출하기' : '다음 <i class="fa-solid fa-chevron-right"></i>'}
@@ -396,13 +419,19 @@
 
     // ========================================================================
     // 화면 3: 완료 화면
+    // ------------------------------------------------------------------------
+    // [시스템 네비게이션 바 처리]
+    //   화면 2 의 popup(flex column)의 innerHTML 만 갈아끼우는 방식이라,
+    //   popup 컨테이너는 손대지 않고 안쪽 콘텐츠 박스의 padding-bottom 에만
+    //   env(safe-area-inset-bottom) 을 더해 닫기 버튼이 시스템 영역과 겹치지
+    //   않도록 함. (상단/좌우 40px 은 그대로 유지하여 시각적 변화 최소화)
     // ========================================================================
     function showSurveyComplete(popup) {
         popup.innerHTML = `
             <style>
                 @keyframes svBounce { 0% { transform:scale(0); } 50% { transform:scale(1.2); } 100% { transform:scale(1); } }
             </style>
-            <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:40px;">
+            <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:40px 40px calc(40px + env(safe-area-inset-bottom, 0px));">
                 <div style="text-align:center;">
                     <div style="width:80px;height:80px;margin:0 auto 20px;background:linear-gradient(135deg,#10b981,#059669);border-radius:50%;display:flex;align-items:center;justify-content:center;animation:svBounce 0.5s ease-out;">
                         <i class="fa-solid fa-check" style="font-size:2rem;color:#fff;"></i>
