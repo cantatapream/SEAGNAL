@@ -8,27 +8,32 @@
  *   바텀시트 헤더의 양력 날짜(예: '26.5.5.(화) 07:42) 바로 아래.
  *   기존 음력 표기가 있던 자리(.ocean-sheet-subrow) 안.
  *
- * [시간 매핑 정책 — 사용자 합의]
- *   슬라이더 step = 3시간 (KMA wave/wind 예보 단위)
+ * [시간 매핑 정책 — 사용자 합의 (안 A)]
+ *   슬라이더 step = 3시간
  *
  *   value = 0  → 진짜 현재 시각 (Date.now() 호출 시점, 분/초 그대로)
- *   value = 3  → floor3(현재 시각) + 3시간   ← KMA 다음 발효 시점에 정렬
- *   value = 6  → floor3(현재 시각) + 6시간
- *   value = 9  → floor3(현재 시각) + 9시간
+ *   value = 3  → 현재 시각 + 3시간   ← 정확히 +3h 후 (분/초 보존)
+ *   value = 6  → 현재 시각 + 6시간
+ *   value = 9  → 현재 시각 + 9시간
  *   ...
  *
- *   예: 현재 시각이 07:42 라면
- *     value=0  → 07:42  (real now)
- *     value=3  → 09:00  (06:00 + 3h)
- *     value=6  → 12:00  (06:00 + 6h)
- *     value=9  → 15:00  (06:00 + 9h)
+ *   예: 현재 시각이 08:00:00 라면
+ *     value=0  → 08:00  (real now)
+ *     value=3  → 11:00  (08:00 + 3h)
+ *     value=6  → 14:00  (08:00 + 6h)
+ *     value=9  → 17:00  (08:00 + 9h)
  *
- *   조석은 분 단위 보간이 가능하므로 어떤 value 든 정확한 게이지 표시.
- *   KMA 데이터(파고/풍/천기)는 backend 가 가장 가까운 frame 으로 매핑.
+ *   레이어 슬라이더(ocean_timeline.js)도 동일 좌표계 (value = 지금 + N*h) 사용 →
+ *   시트와 레이어가 정확히 같은 시각을 표시. step 차이만 round 영향.
+ *
+ *   조석 게이지/예상조위 라벨도 dateObj 시각 그대로 사용 → 슬라이더와 동일 시각 표시.
+ *   조석은 분 단위 보간이 가능해 어떤 시각이든 정확.
+ *   KMA wave/wind 데이터는 backend 가 가장 가까운 frame (예: 11:00 → 12:00 frame)으로 매핑.
  *
  * [자정 눈금]
- *   floor3(현재) + N*h 가 24:00 / 48:00 / 72:00 ... 인 N 위치에만 짧은 세로 막대.
- *   텍스트 없음. 사용자 합의: "날짜 바뀌는 지점만 세로줄".
+ *   "지금 + N*h" 가 자정(00:00)이 되는 N 위치에 짧은 세로 막대 (텍스트 없음).
+ *   N 은 step=3 격자에 안 떨어질 수 있지만(예: now=08:30 이면 다음 자정 v=15.5)
+ *   시각적 막대 위치만 의미하므로 무관 (사용자가 그 위치에 손잡이 못 멈춤).
  *
  * [말풍선]
  *   천기 슬라이더와 동일 패턴 — viewport clamp + 화살표 추적 + 1초 fade-out.
@@ -85,27 +90,10 @@
     function $(id) { return document.getElementById(id); }
 
     /**
-     * ms 시각의 "지난 3시간 경계" (00, 03, 06, 09, 12, 15, 18, 21 시 중 직전).
-     * 분/초/밀리초 0 으로 잘라냄.
-     *
-     * 예: 07:42:33 → 06:00:00.000
-     * 예: 09:00:00 → 09:00:00.000 (정시면 그 정시)
-     */
-    function floor3h(ms) {
-        var d = new Date(ms);
-        var h = d.getHours();
-        d.setHours(Math.floor(h / 3) * 3, 0, 0, 0);
-        return d.getTime();
-    }
-
-    /**
      * 슬라이더 value 가 표현하는 시각 (epoch ms) 계산.
      *
-     * - value = 0 → Date.now() (호출 시점의 실제 현재 시각, 분/초 그대로)
-     * - value = N (N≥3) → floor3(Date.now()) + N*3600000
-     *
-     * 매번 Date.now() 호출 — "real now" 시간이 흘러도 자연스럽게 따라감.
-     * 같은 호출자 안에서는 동일 nowMs 를 재사용하도록 nowMs 인자 받음.
+     * 정책 안 A: value = N → Date.now() + N*h (모든 N).
+     * 분/초 그대로 보존. 시트와 레이어 슬라이더가 동일 좌표계.
      *
      * @param {number} v - 슬라이더 value (0, 3, 6, 9, ...)
      * @param {number} [nowMs] - 명시적 nowMs. 미지정 시 Date.now() 호출.
@@ -113,8 +101,7 @@
      */
     function displayTimeMs(v, nowMs) {
         var n = (typeof nowMs === 'number') ? nowMs : Date.now();
-        if (v === 0) return n;
-        return floor3h(n) + v * 3600000;
+        return n + v * 3600000;
     }
 
     /**
@@ -129,53 +116,38 @@
     /**
      * 레이어 슬라이더 hours (0~max, "지금으로부터 N시간") → 시트 슬라이더 value 변환.
      *
-     * 새 정책에서 시트 value 의 의미:
-     *   v=0 → real now
-     *   v=N (N≥3) → floor3(now) + N*h
-     *
-     * 입력 lh 가 0 이면 v=0 (real now 일치).
-     * lh > 0 이면 시트 value 중 가장 가까운 것을 찾음:
-     *   target = now + lh*h
-     *   sheet candidates: {floor3(now) + 3, +6, +9, ...}
-     *   둘 차이 = (now - floor3(now)) + (3 - lh) ... 결국:
-     *   v = round((lh + (now - floor3(now))/h) / 3) * 3, 단 v ≥ 3
+     * 정책 안 A: 시트와 레이어 좌표계 동일 (둘 다 "지금 + N*h").
+     * 단순 round to step=3 + max clamp.
      */
     function sheetValueFromLayerHours(lh) {
-        var lh0 = lh || 0;
-        if (lh0 <= 0) return 0;
-        var now = Date.now();
-        var offsetH = (now - floor3h(now)) / 3600000;  // 0 ≤ offsetH < 3
-        var v = Math.round((lh0 + offsetH) / 3) * 3;
-        if (v < 3) v = 3;
+        var v = Math.round((lh || 0) / 3) * 3;
         return Math.max(0, Math.min(_maxHours, v));
     }
 
     // ── 자정 눈금 ────────────────────────────────────────────
     /**
-     * 슬라이더 트랙 위 "자정 (00:00)" 위치들의 % 배열.
+     * 슬라이더 트랙 위 "자정 (00:00)" 위치들의 v 값 배열.
      *
-     * 새 정책에선 슬라이더 value 들이 표현하는 시각이:
-     *   v=0 → real now,  v=3,6,9,... → floor3(now) + N*h
-     * 따라서 자정 (=다음 날 00:00:00) 에 해당하는 v 는:
-     *   v = (24:00 - floor3(now).getHours()) ~ 다음 자정까지의 거리.
-     *   예: now=07:42, floor3=06:00 → v=18 → floor3+18h = 다음날 06:00 + 18 = 24:00 ✓
+     * 정책 안 A 에선 v = (target_time - now) / h.
+     * 다음 자정 = 오늘 24:00. v 는 분 포함 실수 가능 (slider step=3 격자에 안 떨어질 수 있지만
+     * 시각적 막대 위치로만 사용 — 손잡이는 그 위치에 못 멈춤).
      *
-     * % 위치 = v / _maxHours * 100. v=0 위치(0%)는 제외 (real now).
+     * 예: now=08:00:00 → 다음 자정 = +16h → v=16 (66% 위치 / max=72 일 때)
+     * 예: now=08:30:00 → 다음 자정 = +15.5h → v=15.5
+     *
+     * 24h 마다 자정. _maxHours 안에서 모두 표시.
      */
     function computeMidnightTickValues() {
         var arr = [];
         if (_maxHours <= 0) return arr;
         var now = Date.now();
-        var f3 = floor3h(now);
         // 다음 자정 (오늘 24:00 = 내일 00:00)
         var nextMidnight = new Date(now);
         nextMidnight.setHours(24, 0, 0, 0);
-        // 자정에 해당하는 v
-        var firstV = (nextMidnight.getTime() - f3) / 3600000;
-        // 24의 배수만큼 이후 자정 (다다음 자정 등)
+        // 자정에 해당하는 v (실수 가능)
+        var firstV = (nextMidnight.getTime() - now) / 3600000;
         for (var v = firstV; v <= _maxHours; v += 24) {
-            // v 가 정확히 3의 배수인지 검증 (자정은 3h 격자에 항상 떨어짐: floor3 + 24*k 형태)
-            if (v >= 3 && v % 3 === 0) arr.push(v);
+            if (v > 0) arr.push(v);
         }
         return arr;
     }
@@ -433,24 +405,14 @@
      * OS.state.date 시각 → 슬라이더 value 동기.
      * 사용 예: ◀/▶ 로 OS.state.date 가 ±24h 변경됐을 때 슬라이더 손잡이 위치도 따라가야 함.
      *
-     * 새 정책에선 ◀/▶ 가 분 단위 정확히 보존하지 않을 수 있음 (slider step=3h 격자라).
-     * round to 3-step + max clamp.
+     * 정책 안 A: 단순 (state.date - now) / h 계산 후 step=3 round + max clamp.
+     * ◀/▶ 가 +24h 단위라 v 도 24h 만큼 이동 (24%3=0 이라 격자 정확히 떨어짐).
      */
     STL.syncToStateDate = function () {
         var slider = $('ocean-sheet-slider');
         if (!slider || !OS.state || !OS.state.date) return;
-        var now = Date.now();
-        var deltaH = (OS.state.date.getTime() - now) / 3600000;
-        // deltaH 가 거의 0 (분 단위 차이) → value=0 (real now)
-        var v;
-        if (Math.abs(deltaH) < 1.5) {
-            v = 0;
-        } else {
-            // value≥3 매핑: target = floor3(now) + v*h  →  v = (target - floor3(now))/h
-            var f3 = floor3h(now);
-            v = Math.round((OS.state.date.getTime() - f3) / 3600000 / 3) * 3;
-            if (v < 3) v = 3;
-        }
+        var deltaH = (OS.state.date.getTime() - Date.now()) / 3600000;
+        var v = Math.round(deltaH / 3) * 3;
         v = Math.max(0, Math.min(_maxHours, v));
         slider.value = v;
         _lastSettledDayKey = _dayKey(OS.state.date);
