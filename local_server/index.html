@@ -892,14 +892,17 @@
                     <div class="ocean-sheet-stickytop">
                     <div class="ocean-sheet-handle"></div>
 
-                    <!-- 헤더: 3행 구조 (날짜네비 / 음력 / 좌표토글) -->
+                    <!-- 헤더: row1 (양력+음력 스택 / 좌표토글) / row2 향후 확장 슬롯 / 좌표 -->
                     <div class="ocean-sheet-header">
                         <div class="ocean-sheet-header-row1">
                             <div class="ocean-date-nav-inline">
                                 <button class="ocean-date-nav-btn" id="ocean-sheet-prev" title="이전 날" disabled>
                                     <i class="fa-solid fa-chevron-left"></i>
                                 </button>
-                                <div class="ocean-sheet-solar" id="ocean-sheet-solar">--</div>
+                                <div class="ocean-sheet-date-stack">
+                                    <div class="ocean-sheet-solar" id="ocean-sheet-solar">--</div>
+                                    <div class="ocean-sheet-lunar" id="ocean-sheet-lunar"></div>
+                                </div>
                                 <button class="ocean-date-nav-btn" id="ocean-sheet-next" title="다음 날">
                                     <i class="fa-solid fa-chevron-right"></i>
                                 </button>
@@ -913,7 +916,8 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="ocean-sheet-lunar" id="ocean-sheet-lunar"></div>
+                        <!-- 향후 기능 확장 슬롯 (기존 음력이 있던 자리) -->
+                        <div class="ocean-sheet-subrow" id="ocean-sheet-subrow"></div>
                         <div class="ocean-sheet-coord" id="ocean-sheet-coord" style="display:none;"></div>
                     </div>
                     </div><!-- /.ocean-sheet-stickytop -->

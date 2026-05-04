@@ -9095,7 +9095,7 @@ body.ocean-map-active .main-header .header-content {
    바텀시트 신규 컴포넌트 (Step 3 추가)
    ============================================================ */
 
-/* --- 헤더 3행 레이아웃 --- */
+/* --- 헤더 레이아웃 --- */
 .ocean-sheet-header {
     flex-direction: column !important;
     align-items: stretch !important;
@@ -9114,6 +9114,22 @@ body.ocean-map-active .main-header .header-content {
     display: flex;
     align-items: center;
     gap: 8px;
+}
+/* 양력 + 음력 세로 스택: 음력이 양력 바로 아래 딱 붙도록 */
+.ocean-sheet-date-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    line-height: 1.15;
+}
+/* 향후 기능 확장 슬롯 (기존 음력이 있던 자리) */
+.ocean-sheet-subrow {
+    min-height: 0;
+}
+.ocean-sheet-subrow:empty {
+    display: none;
 }
 .ocean-date-nav-btn {
     background: rgba(255,255,255,0.06);
@@ -9142,6 +9158,7 @@ body.ocean-map-active .main-header .header-content {
     font-weight: 600;
     min-width: 170px;
     text-align: center;
+    line-height: 1.2;
 }
 .ocean-sheet-controls {
     display: flex;
@@ -9170,6 +9187,11 @@ body.ocean-map-active .main-header .header-content {
     color: rgba(255,255,255,0.6);
     font-size: clamp(0.8rem, 2.6vw, 0.9rem);
     text-align: center;
+    line-height: 1.15;
+    margin-top: 1px;
+}
+.ocean-sheet-lunar:empty {
+    display: none;
 }
 .ocean-sheet-coord {
     color: rgba(255,255,255,0.55);
