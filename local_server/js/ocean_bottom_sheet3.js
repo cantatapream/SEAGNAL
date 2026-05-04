@@ -236,10 +236,7 @@
         tPeaks.sort(function (a, b) { return a.minutes - b.minutes; });
 
         var todayMode = OS.isToday(dateObj);
-        // [시트 슬라이더 연계] dateObj 는 슬라이더가 가리키는 시각.
-        // 같은 날 안에서 시각만 변할 때 게이지/예상조위 라벨이 그 시각 기준으로 표기되어야 하므로
-        // nowMin 은 실제 now() 가 아닌 dateObj 의 minutes-of-day 를 사용.
-        var nowMin = dateObj.getHours() * 60 + dateObj.getMinutes();
+        var nowMin = nowMinutes();
 
         // 직전·다음 피크 계산 — tide.js getTideProgress와 동일한 fallback 트리
         // (1) 일반: 오늘 피크들 사이
@@ -309,18 +306,13 @@
         var lows  = peaks.filter(function (p) { return p.type === 'low'; }).slice(0, 2);
 
         // 현재 조위 (오늘만) — 게이지 바로 위 정 가운데에 삽입
-        // [시트 슬라이더 연계] 라벨은 슬라이더 시각의 HH:MM 그대로 표기.
-        // 예: 슬라이더 12:00 → "12:00 예상 조위", 슬라이더 15:00 → "15:00 예상 조위".
         var currentHtml = '';
         if (todayMode && prevPeak && nextPeak) {
             var curLevel = interpolateLevel(prevPeak, nextPeak, nowMin);
             var rising = nextPeak.type === 'high';
-            var lblHH = String(dateObj.getHours()).padStart(2, '0');
-            var lblMM = String(dateObj.getMinutes()).padStart(2, '0');
-            var labelText = lblHH + ':' + lblMM + ' 예상 조위';
             currentHtml =
                 '<div class="ocean-tide-current-top">' +
-                  '<span class="ocean-tide-current-label">' + labelText + '</span>' +
+                  '<span class="ocean-tide-current-label">현재 예상 조위</span>' +
                   '<span class="ocean-tide-current-val">' + Math.round(curLevel) + ' cm</span>' +
                   '<span class="ocean-tide-current-arrow ' + (rising ? 'is-up' : 'is-down') + '">' +
                     (rising ? '▲' : '▼') +
@@ -332,9 +324,8 @@
         // → 조석 게이지(진행 막대) 없이 고조/저조 목록만 표시
         var isDiurnal = (peaks.length <= 2);
 
-        // 헤더: "다음" 피크 / "그 다음" 피크 (오늘 + 반일조 해역에서만 진행 막대 표시).
-        // nowMin 을 명시적으로 전달 (dateObj 시각 기준) — 슬라이더로 시간 변경 시 진행바 위치 일치.
-        var headHtml = isDiurnal ? '' : renderHeadHtml(prevPeak, nextPeak, todayMode, peaks, currentHtml, nowMin);
+        // 헤더: "다음" 피크 / "그 다음" 피크 (오늘 + 반일조 해역에서만 진행 막대 표시)
+        var headHtml = isDiurnal ? '' : renderHeadHtml(prevPeak, nextPeak, todayMode, peaks, currentHtml);
 
         // 4피크 리스트
         var peaksHtml =
@@ -385,124 +376,12 @@
               headHtml +
               peaksHtml +
             '</div>';
-
-        // [시트 슬라이더 연계] 캐시 저장 — 같은 날 안에서 슬라이더 시간만 변할 때
-        // 조석 API 재호출 없이 게이지/예상조위만 클라이언트에서 재계산하기 위함.
-        // 다음 호출(다른 날)에서 덮어씀.
-        OS.state._tideTodayCache = {
-            peaks: peaks.slice(),                                  // 오늘 피크 (정렬됨)
-            yPeaks: yPeaks.slice(),                                // 어제 피크 (cross-day 보강용)
-            tPeaks: tPeaks.slice(),                                // 내일 피크 (cross-day 보강용)
-            dataDayKey: dateObj.getFullYear() + '-' +
-                        (dateObj.getMonth() + 1) + '-' +
-                        dateObj.getDate()
-        };
-    };
-
-    /* --------------------------------------------------------------
-     * 시트 슬라이더 release (같은 날) 시 호출 — 조석 API 재호출 없이
-     * 게이지 막대 / 예상 조위 / 라벨(HH:MM 예상 조위) / 진행 % / 남은시간 만 갱신.
-     *
-     * @param {Date} sheetDate - 슬라이더가 가리키는 새 시각 (오늘 안)
-     *
-     * 동작:
-     *  1) _tideTodayCache 가 없거나 같은 날이 아니면 무동작
-     *  2) 슬라이더 시각의 minutes-of-day 로 prev/next 피크 재산정 (cross-day 보강 동일)
-     *  3) interpolateLevel 로 curLevel 재계산
-     *  4) DOM 부분 갱신:
-     *     - .ocean-tide-current-label  → "HH:MM 예상 조위"
-     *     - .ocean-tide-current-val    → "NNN cm"
-     *     - .ocean-tide-current-arrow  → ▲/▼ + is-up/is-down
-     *     - .ocean-tide-progress-fill  → width %, 색 그라데이션
-     *     - .ocean-tide-progress-marker→ left %
-     *     - .ocean-tide-progress-remain→ "고조까지 남은시간 ..."
-     * ------------------------------------------------------------ */
-    OS.refreshTideGaugeForTime = function (sheetDate) {
-        var cache = OS.state && OS.state._tideTodayCache;
-        if (!cache) return;
-        var sheetKey = sheetDate.getFullYear() + '-' +
-                       (sheetDate.getMonth() + 1) + '-' +
-                       sheetDate.getDate();
-        if (sheetKey !== cache.dataDayKey) return;
-        if (!OS.isToday(sheetDate)) return;  // 미래/과거 날짜는 게이지 자체 없음
-
-        var nowMin = sheetDate.getHours() * 60 + sheetDate.getMinutes();
-        var peaks = cache.peaks;
-        if (!peaks || peaks.length === 0) return;
-
-        // prev/next 피크 — renderTideData 와 동일 알고리즘
-        var prevPeak = null, nextPeak = null;
-        for (var i = 0; i < peaks.length; i++) {
-            if (peaks[i].minutes > nowMin) {
-                nextPeak = peaks[i];
-                if (i > 0) {
-                    prevPeak = peaks[i - 1];
-                } else if (cache.yPeaks && cache.yPeaks.length > 0) {
-                    var yLast = cache.yPeaks[cache.yPeaks.length - 1];
-                    prevPeak = { type: yLast.type, level: yLast.level, minutes: yLast.minutes - 1440 };
-                }
-                break;
-            }
-        }
-        if (!nextPeak) {
-            if (peaks.length > 0) prevPeak = peaks[peaks.length - 1];
-            if (cache.tPeaks && cache.tPeaks.length > 0) {
-                var tFirst = cache.tPeaks[0];
-                nextPeak = { type: tFirst.type, level: tFirst.level, minutes: tFirst.minutes + 1440 };
-            }
-        }
-        if (!prevPeak || !nextPeak) return;
-        var dur = nextPeak.minutes - prevPeak.minutes;
-        if (dur > 780 || dur <= 0) return;
-
-        var curLevel = interpolateLevel(prevPeak, nextPeak, nowMin);
-        var rising = nextPeak.type === 'high';
-        var pctVal = ((nowMin - prevPeak.minutes) / dur) * 100;
-        if (pctVal < 0) pctVal = 0;
-        if (pctVal > 100) pctVal = 100;
-
-        // DOM 부분 갱신 — card scope 안에서만 검색 (전역 querySelector 사용 시 향후 다른
-        // 페이지에 같은 클래스가 있으면 오인식 위험. ocean-card-tide 안으로 한정).
-        var card = document.getElementById('ocean-card-tide');
-        if (!card) return;
-        var labelEl  = card.querySelector('.ocean-tide-current-label');
-        var valEl    = card.querySelector('.ocean-tide-current-val');
-        var arrowEl  = card.querySelector('.ocean-tide-current-arrow');
-        var fillEl   = card.querySelector('.ocean-tide-progress-fill');
-        var markerEl = card.querySelector('.ocean-tide-progress-marker');
-        var remainEl = card.querySelector('.ocean-tide-progress-remain');
-
-        if (labelEl) {
-            var hh = String(sheetDate.getHours()).padStart(2, '0');
-            var mm = String(sheetDate.getMinutes()).padStart(2, '0');
-            labelEl.textContent = hh + ':' + mm + ' 예상 조위';
-        }
-        if (valEl) valEl.textContent = Math.round(curLevel) + ' cm';
-        if (arrowEl) {
-            // 클래스 + 텍스트 둘 다 갱신 (CSS 색은 클래스 기반)
-            arrowEl.classList.toggle('is-up', rising);
-            arrowEl.classList.toggle('is-down', !rising);
-            arrowEl.textContent = rising ? '▲' : '▼';
-        }
-        var gradient = rising
-            ? 'linear-gradient(90deg, #991b1b 0%, #ef4444 100%)'
-            : 'linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%)';
-        if (fillEl) {
-            fillEl.style.width = pctVal.toFixed(1) + '%';
-            fillEl.style.background = gradient;
-        }
-        if (markerEl) markerEl.style.left = pctVal.toFixed(1) + '%';
-        if (remainEl) {
-            var remainStr = formatRemain(Math.max(0, nextPeak.minutes - nowMin));
-            remainEl.textContent =
-                (rising ? '고조까지' : '저조까지') + ' 남은시간 ' + remainStr;
-        }
     };
 
     /* --------------------------------------------------------------
      * 내부: 헤더 (좌:다음피크 / 가운데:진행막대 / 우:그 다음 피크)
      * ------------------------------------------------------------ */
-    function renderHeadHtml(prevPeak, nextPeak, todayMode, peaks, currentHtml, nowMinArg) {
+    function renderHeadHtml(prevPeak, nextPeak, todayMode, peaks, currentHtml) {
         // 어제/내일 보기 (todayMode=false) — 게이지 영역 자체 없음.
         if (!todayMode) return '';
 
@@ -531,8 +410,7 @@
         var rightLabelText = nextPeak.type === 'high' ? '고조' : '저조';
         var rightTimeText = minutesToHHMM(nextPeak.minutes);
 
-        // nowMinArg: renderTideData 가 dateObj 시각 기반으로 전달. 미전달 시 (구 호출 호환) 실제 now 사용.
-        var nowMin = (typeof nowMinArg === 'number') ? nowMinArg : nowMinutes();
+        var nowMin = nowMinutes();
         var pct = ((nowMin - prevPeak.minutes) / (nextPeak.minutes - prevPeak.minutes)) * 100;
         if (pct < 0) pct = 0;
         if (pct > 100) pct = 100;

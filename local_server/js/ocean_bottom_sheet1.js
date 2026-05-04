@@ -173,18 +173,6 @@
         sheet.classList.remove('open');
         setTimeout(function () { sheet.style.display = 'none'; }, 300);
 
-        // 1.5) 시트 슬라이더 정리 — 말풍선 즉시 제거 (드래그 중 닫혔어도 잔상 X)
-        if (OS.SheetTL && typeof OS.SheetTL.teardown === 'function') {
-            OS.SheetTL.teardown();
-        }
-
-        // 1.7) 진행 중인 zone-forecasts fetch 취소 — 닫힌 시트의 STL.setMaxHours 발화 방지.
-        //      애니메이션 300ms 윈도우 안에 응답 도착 시 onRelease 자동 발화 가능성 차단.
-        if (OS.state && OS.state._zoneFetchAbort) {
-            try { OS.state._zoneFetchAbort.abort(); } catch (e) { /* 일부 브라우저 미지원 무시 */ }
-            OS.state._zoneFetchAbort = null;
-        }
-
         // 2) PopupStack 에서 본인 제거 (popLast 가 부른 경우엔 이미 pop 되었지만 안전)
         if (window.PopupStack) {
             window.PopupStack.remove('ocean-bottom-sheet');
@@ -301,14 +289,6 @@
         var sheet = document.getElementById('ocean-bottom-sheet');
         if (!sheet) return;
 
-        // [시트 열림 가드 — 사용자 합의 Q3 / 모든 진입 경로 커버]
-        // 시트가 이미 열린 상태에서 다른 해점/마커/부이 클릭은 조용히 무시.
-        // ocean_map.js click handler 외에도 ocean_markers.js, ocean_buoy.js 가
-        // 직접 showOceanBottomSheet 를 호출 가능 → 여기서 통합 차단.
-        if (sheet.style.display !== 'none' && sheet.classList.contains('open')) {
-            return;
-        }
-
         // 상태 초기화: 타임라인 슬라이더 오프셋이 있으면 해당 시각 기준으로 시작
         OS.state.lat = lat;
         OS.state.lon = lon;
@@ -344,75 +324,11 @@
         // 핸들 드래그 닫기 1회 바인딩
         if (OS.bindHandleDrag) OS.bindHandleDrag();
 
-        // [시트 슬라이더 init — loadAllForDate 보다 먼저!]
-        // STL.init 은 OS.state.date 를 슬라이더의 firstFrame 시각으로 동기시킴.
-        // loadAllForDate 가 OS.state.date 기반으로 카드 fetch 하므로,
-        // 슬라이더 시각으로 OS.state.date 를 먼저 맞춰놔야 카드 데이터와 헤더 표시 시각이 일치.
-        // (slider value=0 의 firstFrame ≈ now 에 가장 가까운 3h 경계 — real now 와 약간 다름)
-        // - 초기 슬라이더 값 = 레이어 타임라인 슬라이더 현재 value (0~72 시간)
-        // - 초기 max = 레이어 슬라이더 현재 max (wave/wind 활성 상태였다면 이미 maxForecastHours 반영됨)
-        // - max 의 정확한 wave/wind 한계는 Phase 9 (zone-forecasts 비동기 호출) 에서 STL.setMaxHours 로 갱신
-        if (OS.SheetTL && typeof OS.SheetTL.init === 'function') {
-            var initLayerHours = 0;
-            var initZoneMax = 72;
-            if (tlSlider) {
-                initLayerHours = parseFloat(tlSlider.value) || 0;
-                initZoneMax = parseFloat(tlSlider.max) || 72;
-            }
-            OS.SheetTL.init(initLayerHours, initZoneMax);
-        }
-
-        // 헤더 렌더 (2.js) — STL.init 이 OS.state.date 갱신했으니 그 시각으로 표시
+        // 헤더 렌더 (2.js)
         if (OS.renderHeader) OS.renderHeader();
 
-        // 전체 데이터 로딩 시작 (5.js) — OS.state.date = firstFrame 시각, 카드 데이터와 헤더 일치
+        // 전체 데이터 로딩 시작 (5.js)
         if (OS.loadAllForDate) OS.loadAllForDate();
-
-        // [예보 범위 외 가시성 정책 — 안전 가드]
-        // 시트 첫 오픈 시 OS.state.date 가 진짜 "now" 라 항상 in-range 이지만,
-        // tlSlider.value 가 +수십시간으로 잡힌 경우엔 OS.state.date 도 그만큼 미래. 안전하게 호출.
-        if (typeof OS._enforceForecastRangeVisibility === 'function') {
-            OS._enforceForecastRangeVisibility();
-        }
-
-        // [Phase 9 — zone-forecasts 정확한 max 조회]
-        // 시트 슬라이더 max 의 신뢰값은 zone-forecasts 응답의 maxForecastHours.
-        // 정책: 캐시 X. 시트 열 때마다 비동기 호출 (40ms 평균, 사용자 인지 X).
-        // AbortController 로 닫힐 때 취소 → 닫힌 시트의 setMaxHours 자동 onRelease 폭주 방지.
-        var ac = (typeof AbortController === 'function') ? new AbortController() : null;
-        OS.state._zoneFetchAbort = ac;
-        var fetchOpts = ac ? { signal: ac.signal } : {};
-        fetch('/api/ocean/zone-forecasts', fetchOpts)
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (!data || typeof data.maxForecastHours !== 'number') return;
-                // 응답 도착 시 시트가 이미 닫혀있으면 무동작
-                var sheetEl = document.getElementById('ocean-bottom-sheet');
-                if (!sheetEl || sheetEl.style.display === 'none' ||
-                    !sheetEl.classList.contains('open')) return;
-
-                var newMax = data.maxForecastHours;
-
-                // 시트 슬라이더 max 갱신 — STL 자체가 value 클램프 + onRelease 자동 발화
-                if (OS.SheetTL && typeof OS.SheetTL.setMaxHours === 'function') {
-                    OS.SheetTL.setMaxHours(newMax);
-                }
-
-                // 레이어 슬라이더 max 도 일관성 위해 동기 (wave/wind 비활성 상태에서도)
-                var tl2 = document.getElementById('ocean-timeline-slider');
-                if (tl2 && typeof window.setTimelineMax === 'function' &&
-                    parseFloat(tl2.max) !== newMax) {
-                    window.setTimelineMax(newMax);
-                }
-
-                // max 갱신 후 범위 재판정 (sheetDate 가 새 max 너머로 밀려난 경우)
-                if (typeof OS._enforceForecastRangeVisibility === 'function') {
-                    OS._enforceForecastRangeVisibility();
-                }
-            })
-            .catch(function (err) {
-                // AbortError (시트 닫힘) 또는 네트워크 실패 — 둘 다 디폴트 max 유지하면 됨
-            });
     };
 
     /* --------------------------------------------------------------
