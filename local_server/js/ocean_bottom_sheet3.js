@@ -390,13 +390,16 @@
 
         // [시트 슬라이더 연계] 캐시 저장 — 같은 날 안에서 슬라이더 시간만 변할 때
         // 조석 API 재호출 없이 게이지/예상조위만 클라이언트에서 재계산.
+        // lat/lon 도 저장 — 같은 날 다른 좌표로 시트 재오픈 시 stale 캐시 차단.
         OS.state._tideTodayCache = {
             peaks: peaks.slice(),
             yPeaks: yPeaks.slice(),
             tPeaks: tPeaks.slice(),
             dataDayKey: dateObj.getFullYear() + '-' +
                         (dateObj.getMonth() + 1) + '-' +
-                        dateObj.getDate()
+                        dateObj.getDate(),
+            lat: OS.state.lat,
+            lon: OS.state.lon
         };
     };
 
@@ -413,6 +416,9 @@
                        (sheetDate.getMonth() + 1) + '-' +
                        sheetDate.getDate();
         if (sheetKey !== cache.dataDayKey) return;
+        // [좌표 일치 검증] 같은 날 다른 좌표로 시트 재오픈된 직후 슬라이더 release 시
+        // 이전 좌표의 stale peaks 로 게이지 표시되지 않도록 차단.
+        if (cache.lat !== OS.state.lat || cache.lon !== OS.state.lon) return;
         if (!OS.isToday(sheetDate)) return;  // 미래/과거 날짜는 게이지 자체 없음
 
         var nowMin = sheetDate.getHours() * 60 + sheetDate.getMinutes();

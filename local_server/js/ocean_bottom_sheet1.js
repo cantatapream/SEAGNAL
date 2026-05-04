@@ -169,9 +169,16 @@
         var sheet = document.getElementById('ocean-bottom-sheet');
         if (!sheet) return;
 
-        // 1) 시각적으로 시트 내려가기
+        // 1) 시각적으로 시트 내려가기 — fade-out 후 display:none.
+        //    [중요] 타이머 핸들을 OS.state._closeHideTimer 에 저장해서 새 시트 오픈 시
+        //    캔슬할 수 있게 함. 캔슬 안 하면 "close → 300ms 안에 재오픈" 시 이 setTimeout
+        //    이 발화해서 새 시트도 hide 됨 (race).
         sheet.classList.remove('open');
-        setTimeout(function () { sheet.style.display = 'none'; }, 300);
+        if (OS.state._closeHideTimer) clearTimeout(OS.state._closeHideTimer);
+        OS.state._closeHideTimer = setTimeout(function () {
+            sheet.style.display = 'none';
+            OS.state._closeHideTimer = null;
+        }, 300);
 
         // 1.5) 시트 슬라이더 정리 — 말풍선 즉시 제거
         if (OS.SheetTL && typeof OS.SheetTL.teardown === 'function') {
@@ -311,6 +318,18 @@
         if (sheet.style.display !== 'none' && sheet.classList.contains('open')) {
             return;
         }
+
+        // [close→재오픈 race 차단] 직전 closeSheet 의 fade-out 타이머가 살아있으면 캔슬.
+        // 안 그러면 새 시트 오픈 후 ~300ms 내에 그 타이머가 발화해서 display='none' 으로
+        // 새 시트가 사라짐.
+        if (OS.state._closeHideTimer) {
+            clearTimeout(OS.state._closeHideTimer);
+            OS.state._closeHideTimer = null;
+        }
+
+        // [캐시 클리어] 직전 시트의 _tideTodayCache 가 남아있으면 좌표 검증으로 차단되지만,
+        // 명시적 clear 로 stale 표시 가능성 추가 차단.
+        OS.state._tideTodayCache = null;
 
         // 상태 초기화: 타임라인 슬라이더 오프셋이 있으면 해당 시각 기준으로 시작
         OS.state.lat = lat;
