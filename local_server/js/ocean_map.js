@@ -949,6 +949,17 @@
             if (window.OceanWarnActive.tryHandleClick(oceanMap, evt)) return;
         }
 
+        // [시트 열림 가드 — 사용자 합의 Q3]
+        // 해양종합정보 바텀시트가 이미 열려있으면 다른 해점 클릭은 조용히 무시.
+        // 사용자가 시트를 닫고 다시 클릭해야 새 위치 시트가 뜸 (토스트/알림 X).
+        // 이유: 시트 안 슬라이더로 이동한 시각이 새 해점에 동기화되는 혼란 방지 +
+        //       시트 슬라이더 ↔ 레이어 슬라이더 동기 일관성 유지.
+        const _sheetEl = document.getElementById('ocean-bottom-sheet');
+        if (_sheetEl && _sheetEl.style.display !== 'none' &&
+            _sheetEl.classList.contains('open')) {
+            return;
+        }
+
         // 오버레이 데이터가 있는 영역만 바텀시트 표시
         if (window.showOceanBottomSheet) {
             if (window.hasOceanGridData && !window.hasOceanGridData(lat, lon)) return;

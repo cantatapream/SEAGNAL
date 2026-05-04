@@ -158,6 +158,14 @@
         OS.state.date = d;
         OS.renderHeader();
         if (OS.loadAllForDate) OS.loadAllForDate();
+        // [시트 슬라이더 동기 — Q5=c] OS.state.date 변경됐으니 슬라이더 위치도 같은 시:분 유지로 갱신.
+        if (OS.SheetTL && typeof OS.SheetTL.syncToStateDate === 'function') {
+            OS.SheetTL.syncToStateDate();
+        }
+        // [예보 범위 외 처리] 새 날짜가 wave/wind 범위 안인지 판정 → 슬라이더 + 5개 카드 visibility 결정.
+        if (typeof OS._enforceForecastRangeVisibility === 'function') {
+            OS._enforceForecastRangeVisibility();
+        }
         // 날짜 변경 시 시트 본문 스크롤을 최상단으로 되돌림
         var sheet = document.getElementById('ocean-bottom-sheet');
         if (sheet) sheet.scrollTop = 0;
@@ -172,6 +180,15 @@
         OS.state.date = d;
         OS.renderHeader();
         if (OS.loadAllForDate) OS.loadAllForDate();
+        // [시트 슬라이더 동기 — Q5=c] OS.state.date 변경됐으니 슬라이더 위치도 같은 시:분 유지로 갱신.
+        if (OS.SheetTL && typeof OS.SheetTL.syncToStateDate === 'function') {
+            OS.SheetTL.syncToStateDate();
+        }
+        // [예보 범위 외 처리] ▶ 로 미래 무한 진입 가능 — 새 날짜가 wave/wind 범위 안인지 판정.
+        // 범위 밖이면 슬라이더 + 파고/풍/유향속/천기/수온 카드 숨김 (조석/천문/수심만 표시).
+        if (typeof OS._enforceForecastRangeVisibility === 'function') {
+            OS._enforceForecastRangeVisibility();
+        }
         // 날짜 변경 시 시트 본문 스크롤을 최상단으로 되돌림
         var sheet = document.getElementById('ocean-bottom-sheet');
         if (sheet) sheet.scrollTop = 0;
@@ -184,4 +201,66 @@
         OS.state.coordVisible = !OS.state.coordVisible;
         OS.renderHeader();
     };
+
+    /* --------------------------------------------------------------
+     * 시트 슬라이더 release 콜백 wire
+     *
+     * [언제 호출되나]
+     *   사용자가 시트 헤더 안 시간 슬라이더 손잡이를 잡고 움직이다 놓는 순간.
+     *   ocean_sheet_timeline.js 내부의 'change' 이벤트가 STL.onRelease 발화.
+     *
+     * [정책]
+     *   - 같은 날 (sameDay=true)
+     *       1) 조석 API 호출 X — 게이지/예상조위 라벨만 클라이언트 재계산
+     *          (OS.refreshTideGaugeForTime — ocean_bottom_sheet3.js)
+     *       2) 천문(일출몰/월령) skip — 날짜 같으면 결과 동일
+     *       3) 시간 의존 카드(천기/파고/풍/유향속/수온) 는 재호출 — loadAllForDate({skipHeavy:true})
+     *   - 다른 날 (sameDay=false)
+     *       모든 카드 풀 재로드 — loadAllForDate()
+     *
+     * [레이어 슬라이더 동기]
+     *   Phase 5 에서 OS._syncLayerSliderToSheet 추가. 여기서 호출만.
+     *
+     * @param {number} hours    - 새 시트 슬라이더 값 (firstFrame 기준 시간)
+     * @param {boolean} sameDay - 직전 release/init 시점과 같은 캘린더 날짜인지
+     * @param {Date} newDate    - 새 슬라이더 시각의 Date 객체
+     * ------------------------------------------------------------ */
+    if (window.OceanSheet && window.OceanSheet.SheetTL) {
+        window.OceanSheet.SheetTL.onRelease = function (hours, sameDay, newDate) {
+            var sheet = document.getElementById('ocean-bottom-sheet');
+            if (!sheet || sheet.style.display === 'none') return;
+            if (OS.state.lat == null || OS.state.lon == null) return;
+
+            // OS.state.date 는 드래그 중 syncHeaderToSlider 가 매번 갱신했지만,
+            // 안전을 위해 release 시점의 newDate 로 명시 동기.
+            OS.state.date = newDate;
+
+            if (sameDay) {
+                // 같은 날 — 조석/천문 skip + 게이지만 클라이언트 재계산
+                if (typeof OS.refreshTideGaugeForTime === 'function') {
+                    OS.refreshTideGaugeForTime(newDate);
+                }
+                if (typeof OS.loadAllForDate === 'function') {
+                    OS.loadAllForDate({ skipHeavy: true });
+                }
+            } else {
+                // 다른 날 — 풀 재로드 (조석 API 포함)
+                if (typeof OS.loadAllForDate === 'function') {
+                    OS.loadAllForDate();
+                }
+            }
+
+            // 레이어 슬라이더 동기 — Phase 5 에서 정의될 함수
+            if (typeof OS._syncLayerSliderToSheet === 'function') {
+                OS._syncLayerSliderToSheet();
+            }
+
+            // [예보 범위 외 처리 — 방어]
+            // 시트 슬라이더 release 는 항상 슬라이더 max 안 (in-range) 이지만,
+            // setMaxHours 갱신 직후 등 경계 케이스 안전 가드.
+            if (typeof OS._enforceForecastRangeVisibility === 'function') {
+                OS._enforceForecastRangeVisibility();
+            }
+        };
+    }
 })();
