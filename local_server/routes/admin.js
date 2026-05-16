@@ -128,31 +128,64 @@ router.post('/api/admin/alerts-reset', (req, res) => {
 // 통보문 수집 (날짜별 목록 조회 + 단일/일괄 수집)
 // ============================================================================
 
+// ─────────────────────────────────────────────────────────────────────────────
 // 특정 날짜 통보문 목록 조회 (제목에 [특보]/[예비]/[해설] 포함 필터링)
+//
+// [9 광역 수집 정책 — 정책 01_COLLECTION_SCOPE.md]
+//   기존 stn=108 (전국) 1회 호출 → 9 광역 병렬 호출로 변경.
+//   stn 파라미터 옵션:
+//     - 미지정 또는 stn=all → 9 광역 모두 합산 (dedup)
+//     - stn={광역코드}      → 해당 광역만 조회
+//   응답에 r.stn (어느 광역에서 발견되었는지) 정보 포함.
+// ─────────────────────────────────────────────────────────────────────────────
+const STN_CODES_FULL = [105, 109, 133, 143, 146, 156, 159, 184];
+
 router.get('/api/admin/reports', async (req, res) => {
     try {
         const date = req.query.date; // YYYY-MM-DD
         if (!date) return res.status(400).json({ error: 'date 파라미터가 필요합니다 (YYYY-MM-DD)' });
 
-        const fetchPage = (pageIndex) => {
+        // stn 파라미터: 'all' / 미지정 / 특정 광역 코드
+        let targetStns = STN_CODES_FULL.slice();
+        if (req.query.stn && req.query.stn !== 'all') {
+            const s = parseInt(req.query.stn, 10);
+            if (!isNaN(s)) targetStns = [s];
+        }
+
+        const fetchPage = (stn, pageIndex) => {
             return new Promise((resolve, reject) => {
-                const url = `https://www.weather.go.kr/w/special-report/list.do?stn=108&date=${date}&pageIndex=${pageIndex}`;
+                const url = `https://www.weather.go.kr/w/special-report/list.do?stn=${stn}&date=${date}&pageIndex=${pageIndex}`;
                 https.get(url, {
                     headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
                 }, (resp) => {
                     const chunks = [];
                     resp.on('data', c => chunks.push(c));
-                    resp.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+                    resp.on('end', () => resolve({ stn, html: Buffer.concat(chunks).toString('utf8') }));
                 }).on('error', reject);
             });
         };
 
+        // 각 (광역, 페이지) 조합을 병렬로 호출
+        const stnPagePairs = [];
+        for (const stn of targetStns) {
+            for (let page = 1; page <= 3; page++) {
+                stnPagePairs.push({ stn, page });
+            }
+        }
+        const settled = await Promise.allSettled(
+            stnPagePairs.map(({ stn, page }) => fetchPage(stn, page))
+        );
+
         const allReports = [];
         const seenIds = new Set();
-        for (let page = 1; page <= 3; page++) {
-            const html = await fetchPage(page);
+        const stnCounts = {};  // 광역별 카운트
+
+        for (let i = 0; i < settled.length; i++) {
+            const { stn, page } = stnPagePairs[i];
+            if (settled[i].status === 'rejected') continue;
+            const html = settled[i].value.html;
             const selectMatch = html.match(/<select id="select-list"[^>]*>([\s\S]*?)<\/select>/);
-            if (!selectMatch) break;
+            if (!selectMatch) continue;
 
             const pattern = /<option value="([^"]+)"[^>]*>([^<]+)<\/option>/g;
             let match;
@@ -167,15 +200,97 @@ router.get('/api/admin/reports', async (req, res) => {
                         const reqDate = date.replace(/-/g, '');
                         if (idDate === reqDate) {
                             seenIds.add(id);
-                            allReports.push({ id, title });
+                            allReports.push({ id, title, stn });
+                            stnCounts[stn] = (stnCounts[stn] || 0) + 1;
                         }
                     }
                 }
             }
-            if (allReports.length === 0 && page === 1) break;
         }
 
-        res.json({ date, reports: allReports, count: allReports.length });
+        res.json({ date, reports: allReports, count: allReports.length, stnCounts });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 광역별 통보문 통계 (수집/실패/대기 카운트 — 사이드바용)
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/api/admin/reports-stats', async (req, res) => {
+    try {
+        const date = req.query.date;
+        if (!date) return res.status(400).json({ error: 'date 파라미터가 필요합니다 (YYYY-MM-DD)' });
+
+        const STN_NAMES = {
+            105: '강원특별자치도',
+            109: '서울·인천·경기도',
+            133: '대전·세종·충청남도',
+            143: '대구·경상북도',
+            146: '전북특별자치도',
+            156: '광주·전라남도',
+            159: '부산·울산·경상남도',
+            184: '제주특별자치도'
+        };
+        const STN_ABBR = {
+            105: '강원', 109: '서울인천경기', 133: '대전세종충남',
+            143: '대구경북', 146: '전북', 156: '광주전남',
+            159: '부산울산경남', 184: '제주'
+        };
+
+        // 자기 자신의 reports 엔드포인트를 재사용 — 내부 호출하지 않고 동일 로직
+        const fetchPage = (stn, pageIndex) => {
+            return new Promise((resolve) => {
+                const url = `https://www.weather.go.kr/w/special-report/list.do?stn=${stn}&date=${date}&pageIndex=${pageIndex}`;
+                https.get(url, {
+                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+                }, (resp) => {
+                    const chunks = [];
+                    resp.on('data', c => chunks.push(c));
+                    resp.on('end', () => resolve({ stn, html: Buffer.concat(chunks).toString('utf8') }));
+                }).on('error', () => resolve({ stn, html: '' }));
+            });
+        };
+
+        // 광역별 통보문 ID 추출 (간단 카운트)
+        const stnPageResults = await Promise.all(
+            STN_CODES_FULL.flatMap(stn => [1, 2, 3].map(p => fetchPage(stn, p)))
+        );
+
+        const stns = {};
+        const reqDateCompact = date.replace(/-/g, '');
+        const allSeen = new Set();
+        for (const { stn, html } of stnPageResults) {
+            const selectMatch = html.match(/<select id="select-list"[^>]*>([\s\S]*?)<\/select>/);
+            if (!selectMatch) continue;
+
+            const pattern = /<option value="([^"]+)"[^>]*>([^<]+)<\/option>/g;
+            let match;
+            while ((match = pattern.exec(selectMatch[1])) !== null) {
+                const id = match[1];
+                const title = match[2].trim();
+                if (allSeen.has(`${stn}:${id}`)) continue;
+                allSeen.add(`${stn}:${id}`);
+                if (id.includes(':') && (title.includes('[특보]') || title.includes('[예비]') || title.includes('[해설]'))) {
+                    const parts = id.split(':');
+                    if (parts.length >= 2 && parts[1].substring(0, 8) === reqDateCompact) {
+                        if (!stns[stn]) {
+                            stns[stn] = { name: STN_NAMES[stn], abbr: STN_ABBR[stn], total: 0 };
+                        }
+                        stns[stn].total++;
+                    }
+                }
+            }
+        }
+
+        // 빠진 광역은 0건으로 채움
+        for (const stn of STN_CODES_FULL) {
+            if (!stns[stn]) stns[stn] = { name: STN_NAMES[stn], abbr: STN_ABBR[stn], total: 0 };
+        }
+
+        // 전체 합산
+        const total = Object.values(stns).reduce((s, v) => s + v.total, 0);
+        res.json({ date, total, stns });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

@@ -209,6 +209,22 @@ window.atmCrawlToggle = async function () {
 };
 
 // --- [통보문 수집] 탭 ---
+// 광역 사이드바 — 정책 05_COLLECTION_TEST_UI.md
+//  9 광역(충북 제외)을 좌측 사이드바로 표시. 클릭 시 해당 광역 통보문만 필터링.
+//  '전체' 항목은 9 광역 합산.
+const ATM_STN_LIST = [
+    { stn: 'all', abbr: '⦿ 전체', name: '전체' },
+    { stn: 105, abbr: '강원', name: '강원특별자치도' },
+    { stn: 109, abbr: '서울인천경기', name: '서울·인천·경기도' },
+    { stn: 133, abbr: '대전세종충남', name: '대전·세종·충청남도' },
+    { stn: 143, abbr: '대구경북', name: '대구·경상북도' },
+    { stn: 146, abbr: '전북', name: '전북특별자치도' },
+    { stn: 156, abbr: '광주전남', name: '광주·전라남도' },
+    { stn: 159, abbr: '부산울산경남', name: '부산·울산·경상남도' },
+    { stn: 184, abbr: '제주', name: '제주특별자치도' }
+];
+window._atmActiveStn = window._atmActiveStn || 'all';   // 선택 광역
+
 function renderATMCollect(container) {
     const today = new Date().toISOString().substring(0, 10);
     container.innerHTML = `
@@ -261,8 +277,37 @@ function renderATMCollect(container) {
                 <div id="atm-progress-bar" style="background:linear-gradient(90deg,#6366f1,#8b5cf6);height:100%;width:0%;transition:width 0.3s;border-radius:4px;"></div>
             </div>
         </div>
-        <div id="atm-report-list" style="color:#94a3b8;font-size:0.9rem;">날짜를 선택하고 [조회] 버튼을 눌러주세요.</div>
-        <div id="atm-forecast-list" style="margin-top:16px;"></div>`;
+        <!-- ─────────── 광역 사이드바 + 통보문 리스트 ─────────── -->
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+            <!-- 좌측 사이드바 -->
+            <div id="atm-stn-sidebar" style="flex:0 0 180px;border:1px solid rgba(255,255,255,0.08);border-radius:8px;background:rgba(0,0,0,0.2);padding:8px;">
+                <div style="font-size:0.7rem;color:#64748b;font-weight:700;padding:4px 8px;text-transform:uppercase;letter-spacing:0.5px;">📍 광역지역</div>
+                <div id="atm-stn-buttons" style="display:flex;flex-direction:column;gap:2px;margin-top:6px;">
+                    ${ATM_STN_LIST.map(s => `
+                        <button data-stn="${s.stn}" class="atm-stn-btn" onclick="atmSelectStn('${s.stn}')"
+                            style="text-align:left;padding:6px 10px;background:transparent;border:1px solid transparent;border-radius:6px;color:#cbd5e1;font-size:0.78rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+                            <span>${s.abbr}</span>
+                            <span class="atm-stn-count" style="color:#64748b;font-size:0.72rem;font-weight:600;">-</span>
+                        </button>
+                    `).join('')}
+                </div>
+                <div style="margin-top:10px;padding:8px;border-top:1px solid rgba(255,255,255,0.05);font-size:0.65rem;color:#64748b;line-height:1.6;">
+                    <div style="font-weight:700;margin-bottom:4px;color:#94a3b8;">— 범례 —</div>
+                    <div>✅ 수집됨</div>
+                    <div>⏳ 대기 중</div>
+                    <div>❌ 수집 실패</div>
+                    <div>⚪ 미수집</div>
+                </div>
+            </div>
+            <!-- 우측 통보문 리스트 -->
+            <div style="flex:1;min-width:0;">
+                <div id="atm-report-list" style="color:#94a3b8;font-size:0.9rem;">날짜를 선택하고 [조회] 버튼을 눌러주세요.</div>
+                <div id="atm-forecast-list" style="margin-top:16px;"></div>
+            </div>
+        </div>`;
+
+    // 초기 사이드바 상태 — _atmActiveStn 에 따라 active 클래스 (인라인 스타일로) 설정
+    setTimeout(() => atmHighlightStn(window._atmActiveStn), 0);
 
     // 푸시 알림 토글 이벤트 바인딩
     const pushToggleWrap = document.getElementById('atm-push-toggle-wrap');
@@ -291,9 +336,98 @@ function renderATMCollect(container) {
 window._atmResults = {};
 window._atmReports = [];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 광역 사이드바 헬퍼 — 정책 05_COLLECTION_TEST_UI.md
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 사이드바 버튼 하이라이트 — 선택된 광역 표시
+ */
+function atmHighlightStn(stnValue) {
+    const buttons = document.querySelectorAll('.atm-stn-btn');
+    buttons.forEach(btn => {
+        const isActive = btn.getAttribute('data-stn') === String(stnValue);
+        btn.style.background = isActive ? 'rgba(99,102,241,0.18)' : 'transparent';
+        btn.style.borderColor = isActive ? 'rgba(99,102,241,0.4)' : 'transparent';
+        btn.style.color = isActive ? '#a5b4fc' : '#cbd5e1';
+        btn.style.fontWeight = isActive ? '700' : '400';
+    });
+}
+
+/**
+ * 사이드바 카운트 갱신 — /api/admin/reports-stats?date=... 응답으로 광역별 통보문 수 표시
+ */
+async function atmRefreshStnCounts(date) {
+    try {
+        const res = await fetch(`/api/admin/reports-stats?date=${date}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const total = data.total || 0;
+        const buttons = document.querySelectorAll('.atm-stn-btn');
+        buttons.forEach(btn => {
+            const stn = btn.getAttribute('data-stn');
+            const countEl = btn.querySelector('.atm-stn-count');
+            if (!countEl) return;
+            if (stn === 'all') {
+                countEl.textContent = total > 0 ? `${total}` : '-';
+            } else {
+                const s = parseInt(stn, 10);
+                const cnt = (data.stns && data.stns[s]) ? data.stns[s].total : 0;
+                countEl.textContent = cnt > 0 ? `${cnt}` : '0';
+            }
+        });
+    } catch (e) {
+        console.warn('[ATM] stn counts 로드 실패:', e.message);
+    }
+}
+
+/**
+ * 광역 선택 — 버튼 클릭 핸들러
+ */
+window.atmSelectStn = function (stnValue) {
+    window._atmActiveStn = stnValue;
+    atmHighlightStn(stnValue);
+    // 이미 조회 결과가 있다면 필터링 재렌더
+    if (window._atmReports && window._atmReports.length > 0) {
+        atmRenderFilteredReports();
+    }
+};
+
+/**
+ * 현재 선택된 광역 기준으로 _atmReports 를 필터링하여 리스트 재렌더
+ */
+function atmRenderFilteredReports() {
+    const stn = window._atmActiveStn;
+    const listEl = document.getElementById('atm-report-list');
+    if (!listEl) return;
+    const all = window._atmReports || [];
+    const filtered = (stn === 'all') ? all : all.filter(r => String(r.stn) === String(stn));
+
+    if (filtered.length === 0) {
+        listEl.innerHTML = `<div style="text-align:center;padding:20px;color:#94a3b8;">선택한 광역에 통보문이 없습니다.</div>`;
+        return;
+    }
+
+    // 처리 상태별 분류는 atmFetchReports 의 main 렌더 로직 재활용
+    if (typeof window._atmRenderAlertList === 'function') {
+        window._atmRenderAlertList(filtered);
+    } else {
+        // fallback: 단순 리스트
+        listEl.innerHTML = filtered.map(r =>
+            `<div style="padding:10px 14px;background:rgba(255,255,255,0.04);border-radius:8px;margin-bottom:6px;color:#e2e8f0;font-size:0.85rem;">
+                <span style="background:rgba(99,102,241,0.18);color:#a5b4fc;padding:1px 6px;border-radius:4px;font-size:0.7rem;font-weight:700;margin-right:6px;">stn=${r.stn || '-'}</span>
+                ${r.title} <span style="color:#64748b;font-size:0.72rem;">${r.id}</span>
+             </div>`
+        ).join('');
+    }
+}
+
 window.atmFetchReports = async function () {
     const date = document.getElementById('atm-date-input').value;
     if (!date) return alert('날짜를 선택해주세요.');
+
+    // 사이드바 카운트 동시 로딩
+    atmRefreshStnCounts(date);
     const listEl = document.getElementById('atm-report-list');
     listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">통보문 목록을 불러오는 중...</div>';
     try {
