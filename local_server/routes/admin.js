@@ -37,6 +37,12 @@ const path = require('path');
 const https = require('https');
 const { DATA_DIR } = require('../config/server_config');
 
+// [관리자 인증] Phase 4-A 보안 강화 — 토큰 기반 인증
+//   - issueToken: 비밀번호 검증 후 토큰 발급 (POST /api/admin/login)
+//   - verifyPassword: 비밀번호 직접 검증 (점검 우회용, 토큰 없음)
+//   - requireAdminToken: X-Admin-Token 헤더 검증 미들웨어
+const adminAuth = require('../services/admin_auth');
+
 // 외부 모듈 (server.js와 동일 레벨)
 const weatherAlertsCrawler = require('../weather_alerts_crawler');
 const reportProcessor = require('../report_alert_processor');
@@ -45,6 +51,58 @@ const pushSender = require('../push_sender');
 const scheduler = require('../scheduler');
 // [관리자 푸시] 독립 서비스 모듈 (순환 참조 방지)
 const { sendAdminPush } = require('../services/admin_push');
+
+// ============================================================================
+// 관리자 인증 — 로그인 / 점검 우회 (Phase 4-A)
+// ============================================================================
+//
+// [중요] 이 두 엔드포인트는 인증 미들웨어 적용 이전에 등록해야 합니다.
+//        - login : 인증을 받는 곳 (당연히 인증 면제)
+//        - maintenance-bypass-verify : 점검 화면에서 일회성 검증 (토큰 발급 안 함)
+//        나머지 /api/admin/* 라우트는 본 블록 아래쪽에서 requireAdminToken
+//        미들웨어가 일괄 적용됩니다.
+
+/**
+ * POST /api/admin/login
+ * 본문: { password: string, longTerm?: boolean }
+ * 응답: 200 { token, expiresAt }    실패 시 401 { error }
+ *
+ * longTerm=true (체크박스 "비밀번호 저장") → 토큰 만료 30일
+ * longTerm=false (기본) → 토큰 만료 24시간
+ *
+ * 클라이언트는 응답의 token 을 sessionStorage(또는 localStorage)에 저장하고,
+ * 이후 모든 admin API 호출에 X-Admin-Token 헤더로 동봉합니다.
+ */
+router.post('/api/admin/login', (req, res) => {
+    const { password, longTerm } = req.body || {};
+    const result = adminAuth.issueToken(password, !!longTerm);
+    if (!result) {
+        return res.status(401).json({ error: '비밀번호가 일치하지 않습니다.' });
+    }
+    res.json(result);
+});
+
+/**
+ * POST /api/admin/maintenance-bypass-verify
+ * 본문: { password: string }
+ * 응답: 200 { ok: true }    실패 시 401 { error }
+ *
+ * 점검 화면에서 관리자가 "10회 클릭 → 비밀번호 입력"으로 우회 진입할 때 사용.
+ * 토큰을 발급하지 않고 일회성 검증만 수행 (sessionStorage 의 maintenance_bypass
+ * 플래그는 클라이언트가 직접 설정).
+ */
+router.post('/api/admin/maintenance-bypass-verify', (req, res) => {
+    const { password } = req.body || {};
+    if (adminAuth.verifyPassword(password)) {
+        return res.json({ ok: true });
+    }
+    return res.status(401).json({ error: '비밀번호가 일치하지 않습니다.' });
+});
+
+// ============================================================================
+// 인증 미들웨어 적용 — 이 라인 이후 등록되는 /api/admin/* 라우트는 토큰 필요
+// ============================================================================
+router.use('/api/admin', adminAuth.requireAdminToken);
 
 const COLLECT_FAILURES_FILE = path.join(DATA_DIR, 'collect_failures.json');
 const COLLECT_CACHE_DIR = path.join(DATA_DIR, 'collect_cache');

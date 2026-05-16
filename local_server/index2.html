@@ -4,6 +4,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+    <!-- ====================================================================
+         [앱 시작 속도 개선] 우리 서버에 미리 연결 워밍업 (작업 1-1)
+         ----------------------------------------------------------------
+         브라우저가 이 두 줄을 만나면 HTML 파싱과 동시에 백그라운드에서
+         seagnal-server.fly.dev 에 대해 DNS 조회 + TCP/TLS 핸드셰이크를
+         미리 시작합니다. 후속 fetch 요청이 도착할 때는 연결이 이미
+         준비되어 있어 콜드 스타트 시 0.2~0.5초 단축 효과.
+         (같은 origin 이므로 crossorigin 속성은 붙이지 않음)
+         ==================================================================== -->
+    <link rel="preconnect" href="https://seagnal-server.fly.dev">
+    <link rel="dns-prefetch" href="https://seagnal-server.fly.dev">
+
     <style>
         /* ================================================================
            INDEX2 전용 스타일
@@ -1324,40 +1337,45 @@
     <link rel="icon" type="image/png" sizes="96x96" href="./assets/android-launchericon-96-96.png">
     <link rel="apple-touch-icon" sizes="192x192" href="./assets/android-launchericon-192-192.png">
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@400;500;700&display=swap"
-        rel="stylesheet">
+    <!-- Fonts (자체 호스팅 — A안 단위 2-C 적용)
+         이전: Google Fonts 외부 CDN (fonts.googleapis.com / fonts.gstatic.com)
+         변경: assets/vendor/fonts/fonts.css (493 @font-face, unicode-range 보존)
+         → font-family 이름은 동일 (Inter / Noto Sans KR / Nanum Pen Script)
+         → style.css / splash.css 등의 font-family 선언 변경 불필요 -->
+    <link rel="stylesheet" href="/assets/vendor/fonts/fonts.css">
 
     <!-- Styles -->
     <link rel="stylesheet" href="style.css?v=Margin_Final_v5">
     <link rel="stylesheet" href="splash.css?v=Badge_Update_20260101">
 
 
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Font Awesome (자체 호스팅 — A안 단위 2-D 적용)
+         CSS 안의 ../webfonts/ 상대경로가 동일 디렉토리 구조로 보존됨 -->
+    <link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
 
-    <!-- Quill Editor (게시판 에디터) -->
-    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-    <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+    <!-- Quill Editor (게시판 에디터) — 자체 호스팅 -->
+    <link href="/assets/vendor/quill/quill.snow.css" rel="stylesheet">
+    <script src="/assets/vendor/quill/quill.min.js"></script>
 
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <!-- Chart.js — 자체 호스팅 (다운로드 시점 latest = 4.5.1 로 잠금) -->
+    <script src="/assets/vendor/chartjs/chart.umd.min.js"></script>
+    <script src="/assets/vendor/chartjs/chartjs-plugin-datalabels.min.js"></script>
 
-    <!-- OpenLayers for Tide Map -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
-    <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
+    <!-- OpenLayers for Tide Map — 자체 호스팅 -->
+    <link rel="stylesheet" href="/assets/vendor/ol/ol.css">
+    <script src="/assets/vendor/ol/ol.js"></script>
 
-    <!-- proj4 + NGII 지도 라이브러리 (항공/위성 영상 베이스맵) -->
-    <!-- proj4는 OL8 로드 후, NGII 라이브러리는 proj4 로드 후 순서 유지 -->
+    <!-- proj4 - 좌표계 변환 라이브러리 (OL8 와 함께 사용)
+         [현재] 외부 CDN 유지 — 코드에서 사용처 0건이지만 향후 좌표계 확장
+                가능성을 위해 보존. 추후 사용처 확정 시 자체 호스팅으로 전환 가능.
+         [제거됨] NGII (국토지리정보원) 베이스맵 라이브러리 — dead dependency
+         - 과거에 항공/위성 영상 베이스맵 용도로 로드됐으나 실제 호출 코드 0건 확인
+         - 그냥 매 페이지 로드마다 외부 서버에서 받아오기만 하고 사용처가 없어 제거
+         - 향후 항공/위성 베이스맵 도입 시 다시 추가하면 됨 (도메인 락/API key 종속) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.js"></script>
-    <script src="https://map.ngii.go.kr/openapi/wmts_ngiiMap_v6.4.3.js?apikey=E2BC008450A0DDAFEFAFBD606AB7E8DEC6F031C369"></script>
 
-    <!-- SunCalc - 천문 정보 계산 (일출몰, 월령 등) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
+    <!-- SunCalc - 천문 정보 계산 (일출몰, 월령 등) — 자체 호스팅 -->
+    <script src="/assets/vendor/suncalc/suncalc.min.js"></script>
 
     <!-- [제거됨] Korean Lunar Calendar CDN 의존성 — dead dependency
          - 이 스크립트는 https://cdn.jsdelivr.net/npm/korean-lunar-calendar@0.3.6/lib/...
@@ -1484,88 +1502,192 @@
         </div>
     </div>
 
+    <!-- ====================================================================
+         [점검 정보 인젝션 마커] 작업 1-2 와 연계
+         ----------------------------------------------------------------
+         서버 routes/health.js 가 GET / 응답을 만들 때, 이 마커를
+         <script>window.__MAINTENANCE__ = {active, title, content, blockedFeatures};</script>
+         로 치환합니다. 그 결과 아래 IIFE 가 fetch 없이 점검 상태를
+         즉시 알 수 있어 통신 왕복 1회가 절약됩니다.
+
+         이 마커는 절대 삭제하지 마세요. 삭제되면 인젝션이 일어나지 않아
+         속도 개선 효과가 사라지고, 클라이언트는 자동으로 옛 fetch 방식으로
+         폴백 동작합니다 (기능적 영향은 없지만 느려짐).
+         ==================================================================== -->
+    <!--MAINTENANCE_INJECT-->
     <script>
-    // 점검 모드 확인 및 차단 로직
+    /* ====================================================================
+       [점검 모드 확인 및 차단 로직] (B안 ④ 작업 1-3 적용)
+       --------------------------------------------------------------------
+       [목적]
+         앱이 켜질 때 운영자가 설정한 점검 모드 상태를 확인하여,
+         점검 중이면 점검 화면을 표시하고 일반 앱 진입을 차단합니다.
+
+       [동작 흐름]
+         1순위 (정상):  서버가 HTML 에 박아 보낸 window.__MAINTENANCE__ 를
+                       동기적으로 읽음 → 0ms, 통신 왕복 1회 절약.
+         2순위 (폴백):  window.__MAINTENANCE__ 가 없으면(인젝션 실패/구버전)
+                       기존 fetch('/api/maintenance-status') 로 자동 폴백.
+
+       [실행 시점]
+         DOMContentLoaded 이후에 실행하여 splash-screen, app-container 등
+         body 안의 DOM 요소가 모두 만들어진 상태를 보장합니다.
+
+       [연계]
+         - routes/health.js : window.__MAINTENANCE__ 를 HTML 안에 박음
+         - routes/admin.js  : 관리자가 점검 모드를 토글하면 maintenance_config.json 갱신
+         - #maintenance-screen, #maintenance-bypass-modal : 차단 화면 DOM
+         - sessionStorage[maintenance_bypass] : 관리자 우회 인증 플래그
+    ==================================================================== */
     (function() {
         var _maintClickCount = 0;
         var _maintClickTimer = null;
-        var ADMIN_PASSWORD = 'zaqxsw12!wlstjq';
+        // [Phase 4-C] 클라이언트 측 하드코딩 비밀번호 제거.
+        // 비밀번호 검증은 서버 POST /api/admin/maintenance-bypass-verify 가 담당.
+        // (서버는 .env 의 ADMIN_PASSWORD 와 timingSafeEqual 비교 — 코드에 비번 노출 0)
 
-        // 관리자 우회 확인 (세션 단위)
-        if (sessionStorage.getItem('maintenance_bypass') === 'true') {
-            return; // 이미 우회 인증됨 → 정상 진행
+        /**
+         * 점검 화면 표시 처리 (실제 UI 변경 로직).
+         * 양쪽 경로(동기/폴백)가 공유하는 함수.
+         *
+         * @param {object} data { active, title, content, blockedFeatures }
+         */
+        function applyMaintenanceState(data) {
+            // 안전 가드: data 없거나 점검 아님 → 그대로 진행
+            if (!data || !data.active) return;
+
+            // blockedFeatures 가 있으면 전체 차단 안 함 (부분 차단 모드: checkBlockStatus 가 처리)
+            if (data.blockedFeatures && data.blockedFeatures.length > 0) {
+                return;
+            }
+
+            // 점검 화면 표시
+            var screen = document.getElementById('maintenance-screen');
+            var titleEl = document.getElementById('maintenance-title');
+            var contentEl = document.getElementById('maintenance-content');
+
+            if (titleEl) titleEl.textContent = data.title || '서버 점검 중';
+            if (contentEl) contentEl.textContent = data.content || '점검이 완료되면 정상적으로 이용하실 수 있습니다.';
+            if (screen) screen.style.display = 'flex';
+
+            // 스플래시와 앱 컨테이너 숨기기
+            // (DOMContentLoaded 후 실행되므로 이 시점에 모든 요소가 DOM 에 존재함을 보장)
+            var splash = document.getElementById('splash-screen');
+            var appContainer = document.querySelector('.app-container');
+            if (splash) splash.style.display = 'none';
+            if (appContainer) appContainer.style.display = 'none';
+
+            // 점검 화면 로고 10회 클릭 → 관리자 비밀번호 모달
+            var logo = document.getElementById('maintenance-logo');
+            if (logo) {
+                logo.addEventListener('click', function() {
+                    _maintClickCount++;
+                    if (_maintClickTimer) clearTimeout(_maintClickTimer);
+                    _maintClickTimer = setTimeout(function() { _maintClickCount = 0; }, 3000);
+
+                    if (_maintClickCount >= 10) {
+                        _maintClickCount = 0;
+                        var modal = document.getElementById('maintenance-bypass-modal');
+                        if (modal) {
+                            modal.style.display = 'flex';
+                            setTimeout(function() {
+                                var pw = document.getElementById('maintenance-bypass-pw');
+                                if (pw) { pw.value = ''; pw.focus(); }
+                            }, 100);
+                        }
+                    }
+                });
+            }
+
+            // 엔터키 입력으로 비밀번호 검증 트리거
+            var pwInput = document.getElementById('maintenance-bypass-pw');
+            if (pwInput) {
+                pwInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') verifyMaintenanceBypass();
+                });
+            }
         }
 
-        // 점검 상태 확인
-        fetch('/api/maintenance-status', { cache: 'no-store' })
-            .then(function(res) { return res.json(); })
-            .then(function(data) {
-                if (!data.active) return; // 점검 아님 → 정상 진행
+        /**
+         * 점검 확인 메인 진입점.
+         * 1) 세션 우회 확인  2) 서버 인젝션 동기 확인  3) 실패 시 fetch 폴백
+         */
+        function runMaintenanceCheck() {
+            // 관리자 우회 확인 (세션 단위) — 우회 인증된 사용자는 점검 확인 자체를 건너뜀
+            if (sessionStorage.getItem('maintenance_bypass') === 'true') {
+                return;
+            }
 
-                // 선택적 차단 모드: blockedFeatures가 있으면 전체 차단하지 않음
-                if (data.blockedFeatures && data.blockedFeatures.length > 0) {
-                    return; // checkBlockStatus()에서 처리
-                }
+            // 1순위: 서버가 HTML 안에 박아 보낸 동기 데이터 사용 (정상 경로, 0ms)
+            if (window.__MAINTENANCE__) {
+                applyMaintenanceState(window.__MAINTENANCE__);
+                return;
+            }
 
-                // 전체 차단 → 점검 페이지 표시
-                var screen = document.getElementById('maintenance-screen');
-                var titleEl = document.getElementById('maintenance-title');
-                var contentEl = document.getElementById('maintenance-content');
+            // 2순위: 인젝션 실패/마커 누락/구버전 서버 → 옛 fetch 방식으로 자동 폴백
+            // (이 경로는 100% 옛 동작과 동일하며, 안전망 역할만 함)
+            fetch('/api/maintenance-status', { cache: 'no-store' })
+                .then(function(res) { return res.json(); })
+                .then(function(data) { applyMaintenanceState(data); })
+                .catch(function() {
+                    // 통신 실패 시 정상 진행(fail-open) — 기존 동작 보존
+                });
+        }
 
-                if (titleEl) titleEl.textContent = data.title || '서버 점검 중';
-                if (contentEl) contentEl.textContent = data.content || '점검이 완료되면 정상적으로 이용하실 수 있습니다.';
-                if (screen) screen.style.display = 'flex';
+        // DOM 준비 여부에 따라 실행 시점 결정.
+        // 'loading' 상태이면 DOMContentLoaded 를 기다리고,
+        // 이미 'interactive'/'complete' 면 즉시 실행 (예: 서버가 매우 빠르게 응답한 경우).
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', runMaintenanceCheck);
+        } else {
+            runMaintenanceCheck();
+        }
 
-                // 스플래시와 앱 컨테이너 숨기기
-                var splash = document.getElementById('splash-screen');
-                var appContainer = document.querySelector('.app-container');
-                if (splash) splash.style.display = 'none';
-                if (appContainer) appContainer.style.display = 'none';
-
-                // 10회 클릭 → 관리자 비밀번호 입력
-                var logo = document.getElementById('maintenance-logo');
-                if (logo) {
-                    logo.addEventListener('click', function() {
-                        _maintClickCount++;
-                        if (_maintClickTimer) clearTimeout(_maintClickTimer);
-                        _maintClickTimer = setTimeout(function() { _maintClickCount = 0; }, 3000);
-
-                        if (_maintClickCount >= 10) {
-                            _maintClickCount = 0;
-                            var modal = document.getElementById('maintenance-bypass-modal');
-                            if (modal) {
-                                modal.style.display = 'flex';
-                                setTimeout(function() {
-                                    var pw = document.getElementById('maintenance-bypass-pw');
-                                    if (pw) { pw.value = ''; pw.focus(); }
-                                }, 100);
-                            }
-                        }
-                    });
-                }
-
-                // 엔터키 지원
-                var pwInput = document.getElementById('maintenance-bypass-pw');
-                if (pwInput) {
-                    pwInput.addEventListener('keydown', function(e) {
-                        if (e.key === 'Enter') verifyMaintenanceBypass();
-                    });
-                }
-            })
-            .catch(function() {
-                // API 실패 시 정상 진행 (점검 아닌 것으로 간주)
-            });
-
-        // 관리자 비밀번호 검증
-        window.verifyMaintenanceBypass = function() {
+        /**
+         * 관리자 비밀번호 검증 — Phase 4-C: 서버에 위임 (보안 강화)
+         *
+         * [변경 전 동작]
+         *   클라이언트에서 if (pw.value === ADMIN_PASSWORD) 직접 비교.
+         *   비밀번호가 이 파일에 박혀있어 소스 보기로 노출.
+         *
+         * [변경 후 동작]
+         *   비밀번호를 서버 POST /api/admin/maintenance-bypass-verify 에 보냄.
+         *   서버가 .env 의 ADMIN_PASSWORD 와 timingSafeEqual 비교 후 200/401 응답.
+         *   200 받으면 기존과 동일하게 sessionStorage 플래그 + reload.
+         *
+         * [엔드포인트 특이점]
+         *   이 API 는 routes/admin.js 의 인증 미들웨어 적용 이전에 등록되어 있어,
+         *   토큰 없이도 호출 가능 (점검 화면 진입 자체가 인증 발급 전 상태이므로).
+         *
+         * [인라인 onclick 호환]
+         *   이 함수는 모달 버튼의 onclick="verifyMaintenanceBypass()" 에서 호출됨.
+         *   async 로 변경되어도 호출 측은 반환 Promise 를 무시해도 동작에 영향 없음.
+         */
+        window.verifyMaintenanceBypass = async function() {
             var pw = document.getElementById('maintenance-bypass-pw');
             if (!pw) return;
 
-            if (pw.value === ADMIN_PASSWORD) {
+            var password = pw.value;
+
+            try {
+                var res = await fetch('/api/admin/maintenance-bypass-verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: password })
+                });
+
+                if (!res.ok) {
+                    // 비밀번호 불일치 또는 기타 인증 실패 (정보 누출 방지 위해 동일 메시지)
+                    alert('비밀번호가 일치하지 않습니다.');
+                    pw.value = '';
+                    pw.focus();
+                    return;
+                }
+
                 // 인증 성공 → 세션에 우회 플래그 저장
                 sessionStorage.setItem('maintenance_bypass', 'true');
 
-                // 점검 페이지 숨기고 앱 표시
+                // 점검 페이지 숨기고 앱 표시 후 페이지 리로드
                 var screen = document.getElementById('maintenance-screen');
                 var modal = document.getElementById('maintenance-bypass-modal');
                 var splash = document.getElementById('splash-screen');
@@ -1576,15 +1698,46 @@
                 if (splash) splash.style.display = '';
                 if (appContainer) appContainer.style.display = '';
 
-                // 페이지 리로드로 정상 초기화
+                // 페이지 리로드로 정상 초기화 (점검 우회 후 fresh start)
                 window.location.reload();
-            } else {
-                alert('비밀번호가 일치하지 않습니다.');
+            } catch (e) {
+                // 네트워크 오류 — 친근한 안내. (점검 모드는 차단 의도이므로 fail-closed)
+                alert('서버와 통신할 수 없습니다. 인터넷 연결을 확인하세요.');
+                console.error('[maintenance] 우회 검증 실패:', e && e.message);
                 pw.value = '';
                 pw.focus();
             }
         };
     })();
+    </script>
+
+    <!-- ====================================================================
+         [서비스 워커 등록] 정적 자원 캐시 + 푸시 알림 (C안 단위 3-C)
+         ----------------------------------------------------------------
+         페이지 로드(load) 이벤트 후에 서비스워커를 등록합니다. 이렇게 하면
+         페이지의 초기 렌더링이 차단되지 않고, 다음 진입부터 캐시 효과 발현.
+
+         [동작]
+           - 첫 진입:  SW install → activate (현재 탭 즉시 제어)
+                       이후 GET 요청들이 SW 의 fetch 핸들러를 거침
+                       (블랙리스트는 네트워크 직통, 그 외 정적 자원은 캐시 + SWR)
+           - 두 번째 진입: 캐시된 정적 자원 즉시 응답 → 시작 속도 단축
+
+         [실패 시]
+           catch 로 잡아 console.warn 만 출력. 앱 동작에는 영향 없음.
+
+         [지원 안 함 환경]
+           'serviceWorker' in navigator 체크 → 미지원 환경(매우 옛 WebView)
+           에선 등록 자체를 건너뜀.
+         ==================================================================== -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+            navigator.serviceWorker.register('/sw.js').catch(function (err) {
+                console.warn('[SW] 등록 실패:', err && err.message);
+            });
+        });
+    }
     </script>
 
     <!-- Splash Screen -->
@@ -3156,8 +3309,8 @@
     <script src="js/ui_modal.js"></script>
     <script src="js/app_init.js"></script>
     <script src="js/backbutton.js"></script>
-    <!-- HLS.js: 거제시 등 HLS 스트림 재생 (cctv4.js _initCctvHlsPlayer에서 사용) -->
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+    <!-- HLS.js: 거제시 등 HLS 스트림 재생 (cctv4.js _initCctvHlsPlayer에서 사용) — 자체 호스팅 -->
+    <script src="/assets/vendor/hls.js/hls.min.js"></script>
     <!-- ================================================================
          CCTV 기능 (index2 에서는 해양종합에 통합)
          ----------------------------------------------------------------

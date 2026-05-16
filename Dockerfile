@@ -35,6 +35,11 @@ RUN npm install --legacy-peer-deps
 # 전체 소스 복사
 COPY . .
 
+# 서비스 워커 캐시 버전 자동 bump (C안 단위 3-B)
+# sw.js 의 __CACHE_VERSION__ 플레이스홀더를 빌드 시점 타임스탬프로 치환.
+# 매 배포마다 새 캐시 키가 되어 사용자의 옛 캐시가 자동 무효화됨.
+RUN node local_server/scripts/bump_cache_version.js
+
 # 포트 노출
 EXPOSE 3001
 
