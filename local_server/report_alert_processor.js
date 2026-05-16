@@ -3,6 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const aiParser = require('./ai_report_parser');
 const subregionParser = require('./subregion_parser');
+const subregionAdminPush = require('./services/subregion_admin_push');
+const subregionNormalizer = require('./services/subregion_normalizer');
 
 const COLLECT_CACHE_DIR = path.join(__dirname, 'data', 'collect_cache');
 // [검토 필요 통보문] "내용 없음"이지만 참고사항에 해상 키워드가 포함된 통보문 저장
@@ -589,9 +591,80 @@ async function applyNewReports(fullForm) {
                     aiParsed.children = childrenInfo;
                     console.log(`[ReportProcessor] 자식해역 추출 ${childrenInfo.length}건:`,
                         childrenInfo.map(c => `${c.parent}(${c.child}${c.excluded ? ' 제외' : ''})`).join(', '));
+
+                    // ──────────────────────────────────────────────────────────
+                    // [자식해역 관련 관리자 푸시 — 정책 06_ADMIN_PUSH_POLICY.md]
+                    //   각 추출 케이스마다 관리자에게 푸시 발송. 빈도 제어 내장.
+                    //   ①·② 자동 처리, ⑥ 신규 명칭 감지.
+                    //   ③·④·⑧ 은 장부 적용 단계에서 별도 발송.
+                    // ──────────────────────────────────────────────────────────
+                    for (const ch of childrenInfo) {
+                        try {
+                            // ⑥ 신규 자식해역 명칭 (카탈로그 미등록)
+                            if (subregionNormalizer.isKnownParent(ch.parent)
+                                && !subregionNormalizer.isKnownChild(ch.parent, ch.child)
+                                && !subregionNormalizer.isDeprecated(ch.child)) {
+                                subregionAdminPush.sendUnknownChildName({
+                                    reportId: report.id,
+                                    stn: report.stn,
+                                    parentRegion: ch.parent,
+                                    detectedChildName: ch.child
+                                });
+                            }
+                            // ② P1 제외 처리
+                            if (ch.excluded) {
+                                subregionAdminPush.sendP1Excluded({
+                                    reportId: report.id,
+                                    stn: report.stn,
+                                    parentRegion: ch.parent,
+                                    childRegion: ch.child
+                                });
+                            } else {
+                                // ① P2 단독 발효 (excluded=false)
+                                subregionAdminPush.sendP2SoloActive({
+                                    reportId: report.id,
+                                    stn: report.stn,
+                                    parentRegion: ch.parent,
+                                    childRegion: ch.child,
+                                    wrnTp: events[0] && events[0].type,
+                                    wrnLvl: events[0] && events[0].command,
+                                    tmEf: events[0] && events[0].tmEf
+                                });
+                            }
+                        } catch (e) {
+                            console.error('[ReportProcessor] 자식해역 관리자 푸시 오류:', e.message);
+                        }
+                    }
                 }
             } catch (e) {
                 console.error('[ReportProcessor] 자식해역 파서 오류:', e.message);
+            }
+
+            // ──────────────────────────────────────────────────────────────────
+            // [방식 A: 예비특보 자연어 해제] — kind=pwn 통보문의 참고사항 절
+            // "발표 가능성이 낮[아어]져 해제" 매칭 시 자동 해제 X, 관리자 확인 대기.
+            // ──────────────────────────────────────────────────────────────────
+            if (report.id.startsWith('pwn:')) {
+                try {
+                    // 참고사항 절을 보존해서 다시 가져오기
+                    const fullText = await fetchReportDetail(report.id, { keepReference: true, stn: report.stn });
+                    const refIdx = fullText.indexOf('참고사항');
+                    if (refIdx !== -1) {
+                        const referenceBlock = fullText.substring(refIdx);
+                        const cancels = subregionParser.extractPrelimNaturalCancel(referenceBlock);
+                        for (const c of cancels) {
+                            subregionAdminPush.sendPrelimNaturalCancel({
+                                reportId: report.id,
+                                stn: report.stn,
+                                affectedRegion: c.region,
+                                affectedKind: c.kind,
+                                detectedPhrase: c.detectedPhrase
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.error('[ReportProcessor] 예비특보 자연어 해제 매칭 오류:', e.message);
+                }
             }
 
             // ──────────────────────────────────────────────────────────────
