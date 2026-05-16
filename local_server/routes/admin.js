@@ -794,6 +794,24 @@ router.post('/api/admin/manual-alert', (req, res) => {
             }
         }
 
+        // 6.5. 자식해역 inherit 자동 동기화 — 부모 시각이 수동으로 바뀌었으므로
+        //      그 산하 inherit 자식들의 시각도 부모 따라 갱신.
+        //      (정책 02 §3-2 — source: "inherit" 자식 자동 동기화)
+        try {
+            function syncWalk(node, parentName) {
+                if (!node || typeof node !== 'object') return;
+                if (node.current !== undefined && node.children) {
+                    node.children = subregionLedger.syncInheritChildren(node.current, node.children);
+                }
+                for (const [k, v] of Object.entries(node)) {
+                    if (v && typeof v === 'object') syncWalk(v, k);
+                }
+            }
+            syncWalk(fullForm.current);
+        } catch (e) {
+            console.error('[Admin] 자식 동기화 오류:', e.message);
+        }
+
         // 7. 저장
         fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
         fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');

@@ -592,6 +592,17 @@ async function applyNewReports(fullForm) {
                     aiParsed.children = childrenInfo;
                     console.log(`[ReportProcessor] 자식해역 추출 ${childrenInfo.length}건:`,
                         childrenInfo.map(c => `${c.parent}(${c.child}${c.excluded ? ' 제외' : ''})`).join(', '));
+                } else {
+                    // [케이스 ⑤ — 자식해역 파서 실패 감지]
+                    //   본문에 자식해역 키워드(연안바다·평수구역)는 있으나 정규식이 추출 실패한 경우
+                    //   = 비정상 형식 또는 신규 패턴 가능성 → 관리자 알림
+                    if (/연안바다|평수구역/.test(text)) {
+                        subregionAdminPush.sendParserFailure({
+                            reportId: report.id,
+                            stn: report.stn,
+                            rawSnippet: text.match(/.{0,80}(연안바다|평수구역).{0,80}/)?.[0] || ''
+                        });
+                    }
                 }
 
                 // ──────────────────────────────────────────────────────────

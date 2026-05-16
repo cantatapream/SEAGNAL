@@ -114,6 +114,11 @@ function makeChildObject(existingChild, updates = {}, opts = {}) {
 /**
  * 부모 시각 변경 시 inherit 자식들 자동 갱신
  *
+ * [활용 예정]
+ *   현재 정규 흐름은 weather_alerts_crawler.js 의 mapDataToForm 이
+ *   매 사이클 inherit 자식을 새로 만들어 덮어쓰므로 결과적으로 동일 효과.
+ *   본 함수는 그 외 경로 (부모 수동 수정 후 자식 일괄 동기화 등) 에서 활용.
+ *
  * @param {object} parentCurrent — 부모해역의 current 객체 (wrnTp/wrnLvl/tmFc/tmEf/tmCc)
  * @param {object} children — 부모의 children 객체
  * @returns {object} 갱신된 children (mutation 안 함)
@@ -171,6 +176,11 @@ function cascadeRelease(children) {
 /**
  * 자식해역 변화 감지 — prev vs curr 비교
  * status 가 달라지면 변화로 본다.
+ *
+ * [활용 예정]
+ *   현재 자식해역 변화는 통보문 파싱 시점에서 직접 감지(extractChildrenFromBody)
+ *   하여 케이스 ①·② 푸시로 처리됨. 본 함수는 detectChanges (부모) 와 짝이 되는
+ *   자식 차원의 변화 감지 — 후속 운영 모니터링 단계에서 활용 (격상/격하·연장 추적용).
  *
  * @returns {Array<{ childName, prevStatus, currStatus, changeType }>}
  */

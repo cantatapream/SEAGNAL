@@ -74,33 +74,12 @@ function validateBulkChildStatus({ parentCurrent, targetChildStatus, children })
     };
 }
 
-/**
- * 부모 해제 시 자식 강제 처리 — 모든 자식 status null
- *
- * @param {object} children — 부모해역의 children 객체
- * @returns {object} 강제 해제 처리된 children 객체
- */
-function cascadeParentRelease(children) {
-    if (!children || typeof children !== 'object') return children;
-    const result = {};
-    for (const [name, child] of Object.entries(children)) {
-        if (child && typeof child === 'object') {
-            result[name] = {
-                ...child,
-                status: null,
-                lastUpdated: new Date().toISOString(),
-                cascadedBy: 'parent_release'
-            };
-        } else {
-            // 구 형식 (단순 "Y"/null 값) 처리
-            result[name] = null;
-        }
-    }
-    return result;
-}
+// [제거 — 중복 함수]
+// cascadeParentRelease 는 subregion_ledger.cascadeRelease 와 중복 기능이었으나
+// 호출처 0건으로 dead code. ledger 의 단순 null 적용 방식이 표준.
+// 자세한 메타 보존은 lastUpdated/cascadedBy 등 별도 추가 시 활용 가능.
 
 module.exports = {
     validateChildStatus,
-    validateBulkChildStatus,
-    cascadeParentRelease
+    validateBulkChildStatus
 };
