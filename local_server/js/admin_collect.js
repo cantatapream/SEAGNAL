@@ -579,7 +579,7 @@ window.atmCollectOne = async function (i, refTimeOverride) {
             await new Promise(r => setTimeout(r, 1500));
         }
         try {
-            const res = await fetch('/api/admin/report-collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: report.id, title: report.title, referenceTime, skipPush, ...getTestModeParams() }) });
+            const res = await fetch('/api/admin/report-collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: report.id, title: report.title, stn: report.stn, referenceTime, skipPush, ...getTestModeParams() }) });
             lastOk = res.ok;
             lastData = await res.json();
         } catch (e) {

@@ -299,11 +299,12 @@ router.get('/api/admin/reports-stats', async (req, res) => {
 // 단일 통보문 수집 (AI 분석 포함, 장부 반영)
 router.post('/api/admin/report-collect', async (req, res) => {
     try {
-        const { reportId, title, referenceTime, skipPush, testMode, adminToken } = req.body;
+        const { reportId, title, referenceTime, skipPush, testMode, adminToken, stn } = req.body;
         if (!reportId) return res.status(400).json({ error: 'reportId가 필요합니다' });
 
-        // 1. 통보문 본문 가져오기
-        const rawText = await reportProcessor.fetchReportDetail(reportId);
+        // 1. 통보문 본문 가져오기 — 정책 01: 광역(stn) 일치 필수
+        //    KMA 서버는 stn 이 reportId 광역과 다르면 reportId 무시하고 최신 통보문 반환
+        const rawText = await reportProcessor.fetchReportDetail(reportId, { stn });
         if (!rawText) return res.json({ success: false, rawText: '', aiResult: [], message: '통보문 내용을 가져올 수 없습니다.' });
 
         // 2. 키워드 필터링
@@ -662,8 +663,10 @@ router.get('/api/admin/pending-retries', (req, res) => {
 router.get('/api/admin/pending-retries/:reportId/raw', async (req, res) => {
     try {
         const reportId = req.params.reportId;
+        const stn = req.query.stn;
         if (!reportId) return res.status(400).json({ error: 'reportId가 필요합니다.' });
-        const rawText = await reportProcessor.fetchReportDetail(reportId);
+        // 정책 01: stn 일치 필수 (없으면 fallback 108)
+        const rawText = await reportProcessor.fetchReportDetail(reportId, { stn });
         res.json({ reportId, rawText: rawText || '' });
     } catch (e) {
         console.error('[Admin] 원문 조회 오류:', e.message);
@@ -1177,7 +1180,8 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
         const results = [];
         for (const report of reports) {
             try {
-                const rawText = await reportProcessor.fetchReportDetail(report.id);
+                // 정책 01: report.stn 전달 필수 (없으면 fallback 108)
+                const rawText = await reportProcessor.fetchReportDetail(report.id, { stn: report.stn });
                 const RELEVANT_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
                 const foundKeywords = RELEVANT_KEYWORDS.filter(kw => rawText.includes(kw));
 
