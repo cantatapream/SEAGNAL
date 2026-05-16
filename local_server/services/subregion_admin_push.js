@@ -16,10 +16,16 @@
 const fs = require('fs');
 const path = require('path');
 const { sendAdminPush } = require('./admin_push');
+const pushQueue = require('./subregion_push_queue');
 
 const THROTTLE_FILE = path.join(__dirname, '..', 'data', 'admin_push_throttle.json');
 
 const PUSH_BASE_URL = 'https://seagnal-server.fly.dev';
+
+// [큐 모드 — 정책 13 일괄 묶음 발송]
+//   true 시 즉시 발송 X, 사이클 종료 시 한 번에 묶음 발송 (정책 13 충족).
+//   false 면 기존처럼 즉시 발송 (긴급 케이스나 디버그 시 활용 가능).
+const USE_BUNDLE_QUEUE = true;
 
 // ============================================================================
 // 통보문 표기 변환 — reportId → 사람 친화 표기
@@ -112,14 +118,17 @@ async function sendP2SoloActive({ reportId, stn, parentRegion, childRegion, wrnT
     const key = `p2:${reportId}:${parentRegion}:${childRegion}`;
     if (!shouldSend(key, 60 * 60 * 1000)) return;
     const label = formatReportLabel(reportId, stn);
-    const title = '🆕 자식해역 단독 발효';
-    const body = `${label} ${wrnTp || ''}${wrnLvl ? ' ' + wrnLvl : ''} ${action || '발효'} / ${parentRegion}(${childRegion}) — 부모와 별개로 단독 발효`;
-    await sendAdminPush(title, body, {
+    const line = `${label} ${wrnTp || ''}${wrnLvl ? ' ' + wrnLvl : ''} ${action || '발효'} / ${parentRegion}(${childRegion})`;
+    const data = {
         url: `${PUSH_BASE_URL}/?openAdmin=collectTest&stn=${stn}&reportId=${encodeURIComponent(reportId)}`,
-        category: 'subregion_p2_solo_active',
-        severity: 'MEDIUM',
         reportId, stn, parentRegion, childRegion, wrnTp, wrnLvl, tmEf
-    }).catch(err => console.error('[SubregionAdminPush] ① 발송 오류:', err.message));
+    };
+    if (USE_BUNDLE_QUEUE) {
+        pushQueue.enqueue('subregion_p2_solo_active', line, data);
+    } else {
+        sendAdminPush('🆕 자식해역 단독 발효', line, { ...data, category: 'subregion_p2_solo_active', severity: 'MEDIUM' })
+            .catch(err => console.error('[SubregionAdminPush] ① 발송 오류:', err.message));
+    }
 }
 
 /**
@@ -129,14 +138,17 @@ async function sendP1Excluded({ reportId, stn, parentRegion, childRegion }) {
     const key = `p1:${parentRegion}:${childRegion}`;
     if (!shouldSend(key, 6 * 60 * 60 * 1000)) return;
     const label = formatReportLabel(reportId, stn);
-    const title = '⊘ 자식해역 제외 처리';
-    const body = `${label} / ${parentRegion}(${childRegion} 제외) — ${childRegion}는 미발효 처리됨`;
-    await sendAdminPush(title, body, {
+    const line = `${label} / ${parentRegion}(${childRegion} 제외)`;
+    const data = {
         url: `${PUSH_BASE_URL}/?openAdmin=collectTest&stn=${stn}&reportId=${encodeURIComponent(reportId)}`,
-        category: 'subregion_p1_excluded',
-        severity: 'LOW',
         reportId, stn, parentRegion, childRegion
-    }).catch(err => console.error('[SubregionAdminPush] ② 발송 오류:', err.message));
+    };
+    if (USE_BUNDLE_QUEUE) {
+        pushQueue.enqueue('subregion_p1_excluded', line, data);
+    } else {
+        sendAdminPush('⊘ 자식해역 제외 처리', `${line} — 미발효 처리됨`, { ...data, category: 'subregion_p1_excluded', severity: 'LOW' })
+            .catch(err => console.error('[SubregionAdminPush] ② 발송 오류:', err.message));
+    }
 }
 
 /**
@@ -144,19 +156,22 @@ async function sendP1Excluded({ reportId, stn, parentRegion, childRegion }) {
  */
 async function sendCrossCheckMismatch({ reportId, stn, parentRegion, aiChildren, regexChildren }) {
     const key = `mismatch:${reportId}`;
-    if (!shouldSend(key, 1000)) return;   // 즉시 발송
+    if (!shouldSend(key, 1000)) return;
     const label = formatReportLabel(reportId, stn);
-    const title = '⚠️ 자식해역 추출 불일치 — 검토 필요';
     const aiStr = (aiChildren || []).join(', ') || '(없음)';
     const regexStr = (regexChildren || []).join(', ') || '(없음)';
-    const body = `${label} / ${parentRegion} — AI: [${aiStr}] / 정규식: [${regexStr}] / 정규식 결과로 반영. 검토 부탁`;
-    await sendAdminPush(title, body, {
+    const line = `${label} / ${parentRegion} — AI:[${aiStr}] / 정규식:[${regexStr}]`;
+    const data = {
         url: `${PUSH_BASE_URL}/?openAdmin=collectTest&stn=${stn}&reportId=${encodeURIComponent(reportId)}`,
-        category: 'subregion_cross_check_mismatch',
-        severity: 'MEDIUM',
-        reportId, stn, parentRegion,
-        aiChildren, regexChildren
-    }).catch(err => console.error('[SubregionAdminPush] ③ 발송 오류:', err.message));
+        reportId, stn, parentRegion, aiChildren, regexChildren
+    };
+    if (USE_BUNDLE_QUEUE) {
+        pushQueue.enqueue('subregion_cross_check_mismatch', line, data);
+    } else {
+        sendAdminPush('⚠️ 자식해역 추출 불일치 — 검토 필요', `${line} / 정규식 결과로 반영. 검토 부탁`,
+            { ...data, category: 'subregion_cross_check_mismatch', severity: 'MEDIUM' })
+            .catch(err => console.error('[SubregionAdminPush] ③ 발송 오류:', err.message));
+    }
 }
 
 /**
@@ -166,14 +181,18 @@ async function sendPrincipleViolation({ reportId, stn, parentRegion, childRegion
     const key = `violation:${reportId}:${parentRegion}:${childRegion}`;
     if (!shouldSend(key, 1000)) return;
     const label = formatReportLabel(reportId, stn);
-    const title = '❌ 데이터 원칙 위반 — 자동 보정';
-    const body = `${label} / 부모해역(${parentRegion}) 없이 자식(${childRegion}) 단독 발효 시도 — 자동 보정 적용`;
-    await sendAdminPush(title, body, {
+    const line = `${label} / 부모(${parentRegion}) 없이 자식(${childRegion}) 단독 발효 시도 — 자동 보정`;
+    const data = {
         url: `${PUSH_BASE_URL}/?openAdmin=collectTest&stn=${stn}&reportId=${encodeURIComponent(reportId)}`,
-        category: 'subregion_principle_violation',
-        severity: 'HIGH',
         reportId, stn, parentRegion, childRegion
-    }).catch(err => console.error('[SubregionAdminPush] ④ 발송 오류:', err.message));
+    };
+    if (USE_BUNDLE_QUEUE) {
+        pushQueue.enqueue('subregion_principle_violation', line, data);
+    } else {
+        sendAdminPush('❌ 데이터 원칙 위반 — 자동 보정', line,
+            { ...data, category: 'subregion_principle_violation', severity: 'HIGH' })
+            .catch(err => console.error('[SubregionAdminPush] ④ 발송 오류:', err.message));
+    }
 }
 
 /**
@@ -183,15 +202,19 @@ async function sendParserFailure({ reportId, stn, rawSnippet }) {
     const key = `parser_fail:${reportId}`;
     if (!shouldSend(key, 1000)) return;
     const label = formatReportLabel(reportId, stn);
-    const title = '🐛 자식해역 파서 실패';
-    const body = `${label} — 본문에 자식해역 명시 있으나 AI·정규식 모두 추출 실패. 패턴 비정상. 즉시 검토 필요`;
-    await sendAdminPush(title, body, {
+    const line = `${label} — 본문에 자식해역 명시 있으나 추출 실패. 검토 필요`;
+    const data = {
         url: `${PUSH_BASE_URL}/?openAdmin=collectError&reportId=${encodeURIComponent(reportId)}`,
-        category: 'subregion_parser_failure',
-        severity: 'HIGH',
         reportId, stn,
         rawSnippet: (rawSnippet || '').slice(0, 200)
-    }).catch(err => console.error('[SubregionAdminPush] ⑤ 발송 오류:', err.message));
+    };
+    if (USE_BUNDLE_QUEUE) {
+        pushQueue.enqueue('subregion_parser_failure', line, data);
+    } else {
+        sendAdminPush('🐛 자식해역 파서 실패', line,
+            { ...data, category: 'subregion_parser_failure', severity: 'HIGH' })
+            .catch(err => console.error('[SubregionAdminPush] ⑤ 발송 오류:', err.message));
+    }
 }
 
 /**
@@ -199,16 +222,20 @@ async function sendParserFailure({ reportId, stn, rawSnippet }) {
  */
 async function sendUnknownChildName({ reportId, stn, parentRegion, detectedChildName }) {
     const key = `unknown:${detectedChildName}`;
-    if (!shouldSend(key, 24 * 60 * 60 * 1000)) return;  // 1일
+    if (!shouldSend(key, 24 * 60 * 60 * 1000)) return;
     const label = formatReportLabel(reportId, stn);
-    const title = '🆕 신규 자식해역 명칭 감지 — 카탈로그 갱신 검토';
-    const body = `${label} — "${detectedChildName}" 명칭 등장 / ${parentRegion} 산하 / subregion_catalog.json 추가 검토`;
-    await sendAdminPush(title, body, {
+    const line = `${label} — "${detectedChildName}" 명칭 / ${parentRegion} 산하 / 카탈로그 추가 검토`;
+    const data = {
         url: `${PUSH_BASE_URL}/?openAdmin=collectError&reportId=${encodeURIComponent(reportId)}`,
-        category: 'subregion_unknown_name',
-        severity: 'HIGH',
         reportId, stn, parentRegion, detectedChildName
-    }).catch(err => console.error('[SubregionAdminPush] ⑥ 발송 오류:', err.message));
+    };
+    if (USE_BUNDLE_QUEUE) {
+        pushQueue.enqueue('subregion_unknown_name', line, data);
+    } else {
+        sendAdminPush('🆕 신규 자식해역 명칭 감지 — 카탈로그 갱신 검토', line,
+            { ...data, category: 'subregion_unknown_name', severity: 'HIGH' })
+            .catch(err => console.error('[SubregionAdminPush] ⑥ 발송 오류:', err.message));
+    }
 }
 
 /**
@@ -218,14 +245,18 @@ async function sendPrelimNaturalCancel({ reportId, stn, affectedRegion, affected
     const key = `prelim_natural:${reportId}`;
     if (!shouldSend(key, 60 * 60 * 1000)) return;
     const label = formatReportLabel(reportId, stn);
-    const title = '📩 예비특보 취소 확인 요청';
-    const body = `${label} — ${affectedRegion} ${affectedKind} 예비특보 / "${(detectedPhrase || '').slice(0, 60)}" / 어드민 확인 후 적용`;
-    await sendAdminPush(title, body, {
+    const line = `${label} — ${affectedRegion} ${affectedKind} 예비특보 / 어드민 확인 후 적용`;
+    const data = {
         url: `${PUSH_BASE_URL}/?openAdmin=reviewNeeded&category=prelim_natural_cancel`,
-        category: 'subregion_prelim_natural_cancel',
-        severity: 'HIGH',
         reportId, stn, affectedRegion, affectedKind, detectedPhrase
-    }).catch(err => console.error('[SubregionAdminPush] ⑦ 발송 오류:', err.message));
+    };
+    if (USE_BUNDLE_QUEUE) {
+        pushQueue.enqueue('subregion_prelim_natural_cancel', line, data);
+    } else {
+        sendAdminPush('📩 예비특보 취소 확인 요청', `${line} / "${(detectedPhrase || '').slice(0, 60)}"`,
+            { ...data, category: 'subregion_prelim_natural_cancel', severity: 'HIGH' })
+            .catch(err => console.error('[SubregionAdminPush] ⑦ 발송 오류:', err.message));
+    }
 }
 
 /**
@@ -235,14 +266,18 @@ async function sendTimeMonotonicity({ reportId, stn, parentRegion, childRegion, 
     const key = `mono:${reportId}:${childRegion}`;
     if (!shouldSend(key, 60 * 60 * 1000)) return;
     const label = formatReportLabel(reportId, stn);
-    const title = '⏪ 시각 갱신 이상';
-    const body = `${label} — ${childRegion} 이전 ${previousTmEf} → 새 ${newTmEf} / 시간상 뒤로 가는 갱신. 검토 필요`;
-    await sendAdminPush(title, body, {
+    const line = `${label} — ${childRegion} 이전 ${previousTmEf} → 새 ${newTmEf}`;
+    const data = {
         url: `${PUSH_BASE_URL}/?openAdmin=collectTest&stn=${stn}&reportId=${encodeURIComponent(reportId)}`,
-        category: 'subregion_time_monotonicity',
-        severity: 'MEDIUM',
         reportId, stn, parentRegion, childRegion, previousTmEf, newTmEf
-    }).catch(err => console.error('[SubregionAdminPush] ⑧ 발송 오류:', err.message));
+    };
+    if (USE_BUNDLE_QUEUE) {
+        pushQueue.enqueue('subregion_time_monotonicity', line, data);
+    } else {
+        sendAdminPush('⏪ 시각 갱신 이상', `${line} / 시간상 뒤로 가는 갱신. 검토 필요`,
+            { ...data, category: 'subregion_time_monotonicity', severity: 'MEDIUM' })
+            .catch(err => console.error('[SubregionAdminPush] ⑧ 발송 오류:', err.message));
+    }
 }
 
 /**

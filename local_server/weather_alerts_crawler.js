@@ -505,6 +505,18 @@ async function run() {
         fs.writeFileSync(CONFIG.OUTPUT_FILE, JSON.stringify(fullForm, null, 2), 'utf8');
         console.log(`[Crawler] 저장 완료`);
 
+        // 6. 자식해역 관련 관리자 푸시 묶음 발송 — 정책 13 (일괄 묶음)
+        //    1 사이클 동안 enqueue 된 케이스들을 category 별로 그룹화 + 텍스트 한도 분할 후 발송.
+        try {
+            const subregionPushQueue = require('./services/subregion_push_queue');
+            if (subregionPushQueue.size() > 0) {
+                const result = await subregionPushQueue.flush();
+                console.log(`[Crawler] 자식해역 관리자 푸시 묶음 발송 ${result.sent}건`);
+            }
+        } catch (qerr) {
+            console.error('[Crawler] 자식해역 푸시 큐 flush 오류:', qerr.message);
+        }
+
         return changes;
     } catch (e) {
         console.error(`[Crawler] 오류: ${e.message}`);
