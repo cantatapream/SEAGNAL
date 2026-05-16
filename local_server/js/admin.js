@@ -954,9 +954,350 @@ function buildZoneAccordion(zoneName, alerts) {
                         <i class="fa-solid fa-bell"></i> 푸시 발송
                     </button>
                 </div>
+                ${buildChildZoneSection(zoneName)}
             </div>
         </div>`;
 }
+
+// ============================================================================
+// [자식해역(연안바다·평수구역) 수동 수정 — 정책 07_MANUAL_EDIT_UI.md]
+// ============================================================================
+// 부모해역 카드 내부에 자식해역 영역을 추가. 체크박스 다중 선택 + 일괄 처리.
+// 백엔드 API:
+//   PUT /api/admin/manual-child-alert       (단일)
+//   PUT /api/admin/manual-child-alert/bulk  (다중 일괄)
+//   DELETE /api/admin/manual-child-alert    (삭제)
+//   GET /api/admin/check-child-principle    (사전 검증)
+
+/**
+ * 부모해역의 자식해역 영역 HTML 생성
+ * 자식해역 목록은 COASTAL_MAPPING(mappings.js) 에서 조회.
+ */
+function buildChildZoneSection(parentZoneName) {
+    // COASTAL_MAPPING 은 mappings.js 의 전역 변수 (앱 매핑)
+    if (typeof COASTAL_MAPPING === 'undefined') return '';
+    const children = COASTAL_MAPPING[parentZoneName];
+    if (!children || children.length === 0) return '';
+
+    const sectionId = `ef-children-${parentZoneName.replace(/[·\s]/g, '_')}`;
+    const escapedParent = parentZoneName.replace(/'/g, "\\'");
+
+    const childRows = children.map((c, idx) => {
+        const childFullName = c.fullName || c.name;
+        const childShortName = c.name || childFullName;
+        const childId = `${sectionId}-${idx}`;
+        const escapedChild = childFullName.replace(/'/g, "\\'");
+        return `
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(0,0,0,0.15);border-radius:4px;">
+                <input type="checkbox" id="cb-${childId}"
+                    class="child-zone-cb"
+                    data-parent="${parentZoneName}"
+                    data-child="${childFullName}"
+                    style="cursor:pointer;accent-color:#3b82f6;flex-shrink:0;">
+                <label for="cb-${childId}" style="flex:1;font-size:0.78rem;color:#cbd5e1;cursor:pointer;">${childShortName}</label>
+                <span id="status-${childId}" style="font-size:0.7rem;color:#64748b;">ⓘ 미발효</span>
+                <div style="display:flex;gap:4px;">
+                    <button onclick="openEditChildAlertModal('${escapedParent}', '${escapedChild}')"
+                        style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;padding:3px 6px;border-radius:4px;cursor:pointer;font-size:0.65rem;" title="수정">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                    <button onclick="deleteChildAlert('${escapedParent}', '${escapedChild}')"
+                        style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#f87171;padding:3px 6px;border-radius:4px;cursor:pointer;font-size:0.65rem;" title="삭제">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            </div>`;
+    }).join('');
+
+    return `
+        <div style="margin-top:12px;padding:10px;border-top:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.1);border-radius:0 0 6px 6px;">
+            <div style="font-size:0.72rem;color:#94a3b8;font-weight:700;margin-bottom:6px;text-transform:uppercase;">
+                <i class="fa-solid fa-water"></i> 자식해역 (연안바다·평수구역)
+            </div>
+            <div id="${sectionId}-list" style="display:flex;flex-direction:column;gap:4px;">
+                ${childRows}
+            </div>
+            <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+                <button onclick="toggleSelectAllChildren('${sectionId}-list')"
+                    style="padding:4px 10px;background:rgba(99,102,241,0.18);border:1px solid rgba(99,102,241,0.4);color:#a5b4fc;border-radius:4px;cursor:pointer;font-size:0.72rem;">
+                    <i class="fa-solid fa-check-double"></i> 전체 선택
+                </button>
+                <button onclick="openBulkAddChildAlertModal('${escapedParent}', '${sectionId}-list')"
+                    style="padding:4px 10px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.72rem;font-weight:600;">
+                    <i class="fa-solid fa-plus"></i> 선택 자식에 특보 추가
+                </button>
+                <button onclick="bulkExcludeChildren('${escapedParent}', '${sectionId}-list')"
+                    style="padding:4px 10px;background:rgba(107,114,128,0.2);border:1px solid rgba(107,114,128,0.4);color:#9ca3af;border-radius:4px;cursor:pointer;font-size:0.72rem;">
+                    ⊘ 선택 자식 EXCLUDED 처리
+                </button>
+                <button onclick="bulkRemoveChildAlerts('${escapedParent}', '${sectionId}-list')"
+                    style="padding:4px 10px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#f87171;border-radius:4px;cursor:pointer;font-size:0.72rem;">
+                    <i class="fa-solid fa-trash"></i> 선택 자식 해제
+                </button>
+            </div>
+            <div style="margin-top:6px;font-size:0.65rem;color:#64748b;">
+                <i class="fa-solid fa-info-circle"></i> 자식해역 수정은 사용자 푸시를 발송하지 않으며 어드민 장부에만 반영됩니다.
+            </div>
+        </div>`;
+}
+
+// 전체 선택/해제 토글
+window.toggleSelectAllChildren = function (listId) {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    const cbs = list.querySelectorAll('.child-zone-cb');
+    const allChecked = Array.from(cbs).every(cb => cb.checked);
+    cbs.forEach(cb => { cb.checked = !allChecked; });
+};
+
+// 선택된 자식해역 이름들 추출
+function getSelectedChildren(listId) {
+    const list = document.getElementById(listId);
+    if (!list) return [];
+    return Array.from(list.querySelectorAll('.child-zone-cb:checked'))
+        .map(cb => cb.dataset.child);
+}
+
+// 자식해역 단일 수정 모달
+window.openEditChildAlertModal = function (parentZone, childZone) {
+    const existing = document.getElementById('child-alert-edit-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'child-alert-edit-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+    modal.innerHTML = `
+        <div style="background:#1e293b;border-radius:12px;width:95%;max-width:480px;padding:20px;border:1px solid rgba(255,255,255,0.08);">
+            <h4 style="color:#fff;margin:0 0 14px;font-size:1rem;">
+                <i class="fa-solid fa-pen" style="color:#60a5fa;"></i>
+                자식해역 특보 수정
+            </h4>
+            <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:14px;">
+                <div>부모해역: <span style="color:#cbd5e1;font-weight:600;">${parentZone}</span></div>
+                <div>자식해역: <span style="color:#fff;font-weight:600;">${childZone}</span></div>
+            </div>
+            <div style="margin-bottom:12px;">
+                <label style="display:block;color:#cbd5e1;font-size:0.8rem;margin-bottom:4px;font-weight:600;">상태</label>
+                <select id="cae-status" style="width:100%;padding:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#fff;font-size:0.85rem;">
+                    <option value="Y">발효 중 (Y)</option>
+                    <option value="null">미발효</option>
+                    <option value="EXCLUDED">EXCLUDED (제외 처리)</option>
+                </select>
+            </div>
+            <div id="cae-alert-fields">
+                <div style="margin-bottom:10px;">
+                    <label style="display:block;color:#cbd5e1;font-size:0.8rem;margin-bottom:4px;">특보 종류</label>
+                    <select id="cae-wrnTp" style="width:100%;padding:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#fff;font-size:0.85rem;">
+                        <option value="풍랑">풍랑</option>
+                        <option value="태풍">태풍</option>
+                        <option value="폭풍해일">폭풍해일</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="display:block;color:#cbd5e1;font-size:0.8rem;margin-bottom:4px;">등급</label>
+                    <select id="cae-wrnLvl" style="width:100%;padding:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#fff;font-size:0.85rem;">
+                        <option value="주의">주의보</option>
+                        <option value="경보">경보</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="display:block;color:#cbd5e1;font-size:0.8rem;margin-bottom:4px;">발효시각 (정확형 또는 범위형)</label>
+                    <input type="text" id="cae-tmEf" placeholder="2026년 05월 16일 22시 00분 또는 2026년 05월 16일 밤(21시~24시)" style="width:100%;padding:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#fff;font-size:0.82rem;">
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="display:block;color:#cbd5e1;font-size:0.8rem;margin-bottom:4px;">해제예정 (선택)</label>
+                    <input type="text" id="cae-tmCc" placeholder="17일 새벽(03시~06시)" style="width:100%;padding:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#fff;font-size:0.82rem;">
+                </div>
+            </div>
+            <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);padding:8px;border-radius:6px;font-size:0.72rem;color:#fca5a5;margin-bottom:12px;">
+                ⚠️ 자식해역 수정은 사용자 푸시를 발송하지 않으며 어드민 장부에만 반영됩니다.
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;">
+                <button onclick="document.getElementById('child-alert-edit-modal').remove()" style="padding:8px 16px;background:rgba(255,255,255,0.06);color:#94a3b8;border:none;border-radius:6px;cursor:pointer;">취소</button>
+                <button onclick="submitChildAlertEdit('${parentZone.replace(/'/g, "\\'")}', '${childZone.replace(/'/g, "\\'")}')" style="padding:8px 16px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">저장</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // status === 'null' 또는 'EXCLUDED' 일 때 alertFields 숨김
+    const statusEl = document.getElementById('cae-status');
+    const fieldsEl = document.getElementById('cae-alert-fields');
+    statusEl.addEventListener('change', () => {
+        fieldsEl.style.display = statusEl.value === 'Y' ? 'block' : 'none';
+    });
+};
+
+window.submitChildAlertEdit = async function (parentZone, childZone) {
+    const statusVal = document.getElementById('cae-status').value;
+    const status = statusVal === 'null' ? null : statusVal;
+    const alertData = {
+        wrnTp: document.getElementById('cae-wrnTp').value,
+        wrnLvl: document.getElementById('cae-wrnLvl').value,
+        tmEf: document.getElementById('cae-tmEf').value,
+        tmCc: document.getElementById('cae-tmCc').value,
+        source: 'report'
+    };
+    try {
+        const res = await fetch('/api/admin/manual-child-alert', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parentZone, childZone, status, alertData })
+        });
+        const data = await res.json();
+        if (data.error === 'PRINCIPLE_VIOLATION') {
+            alert(`사용자 원칙 위반: ${data.reason}\n부모해역이 발효 중이 아니므로 자식해역 단독 발효 불가합니다.`);
+            return;
+        }
+        if (!res.ok) {
+            alert('수정 실패: ' + (data.error || res.statusText));
+            return;
+        }
+        document.getElementById('child-alert-edit-modal').remove();
+        alert('자식해역 수정 완료');
+    } catch (e) {
+        alert('수정 오류: ' + e.message);
+    }
+};
+
+window.deleteChildAlert = async function (parentZone, childZone) {
+    if (!confirm(`${parentZone} 의 ${childZone} 자식해역을 해제하시겠습니까?`)) return;
+    try {
+        const url = `/api/admin/manual-child-alert?parentZone=${encodeURIComponent(parentZone)}&childZone=${encodeURIComponent(childZone)}`;
+        const res = await fetch(url, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) {
+            alert('삭제 실패: ' + (data.error || res.statusText));
+            return;
+        }
+        alert('자식해역 해제 완료');
+    } catch (e) {
+        alert('삭제 오류: ' + e.message);
+    }
+};
+
+window.openBulkAddChildAlertModal = async function (parentZone, listId) {
+    const selected = getSelectedChildren(listId);
+    if (selected.length === 0) {
+        alert('자식해역을 1개 이상 선택해주세요.');
+        return;
+    }
+
+    const existing = document.getElementById('child-alert-bulk-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'child-alert-bulk-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+    modal.innerHTML = `
+        <div style="background:#1e293b;border-radius:12px;width:95%;max-width:520px;padding:20px;border:1px solid rgba(255,255,255,0.08);">
+            <h4 style="color:#fff;margin:0 0 14px;font-size:1rem;">
+                <i class="fa-solid fa-layer-group" style="color:#60a5fa;"></i>
+                자식해역 일괄 특보 추가
+            </h4>
+            <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;">
+                <div style="margin-bottom:6px;">부모해역: <span style="color:#cbd5e1;font-weight:600;">${parentZone}</span></div>
+                <div>대상 (${selected.length}개):</div>
+                <ul style="margin:6px 0 0;padding-left:18px;color:#cbd5e1;font-size:0.82rem;">
+                    ${selected.map(c => `<li>${c}</li>`).join('')}
+                </ul>
+            </div>
+            <div style="margin-bottom:10px;">
+                <label style="display:block;color:#cbd5e1;font-size:0.8rem;margin-bottom:4px;">특보 종류</label>
+                <select id="bulk-wrnTp" style="width:100%;padding:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#fff;font-size:0.85rem;">
+                    <option value="풍랑">풍랑</option><option value="태풍">태풍</option><option value="폭풍해일">폭풍해일</option>
+                </select>
+            </div>
+            <div style="margin-bottom:10px;">
+                <label style="display:block;color:#cbd5e1;font-size:0.8rem;margin-bottom:4px;">등급</label>
+                <select id="bulk-wrnLvl" style="width:100%;padding:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#fff;font-size:0.85rem;">
+                    <option value="주의">주의보</option><option value="경보">경보</option>
+                </select>
+            </div>
+            <div style="margin-bottom:10px;">
+                <label style="display:block;color:#cbd5e1;font-size:0.8rem;margin-bottom:4px;">발효시각</label>
+                <input type="text" id="bulk-tmEf" placeholder="2026년 05월 16일 16시 00분" style="width:100%;padding:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#fff;font-size:0.82rem;">
+            </div>
+            <div style="margin-bottom:10px;">
+                <label style="display:block;color:#cbd5e1;font-size:0.8rem;margin-bottom:4px;">해제예정 (선택)</label>
+                <input type="text" id="bulk-tmCc" placeholder="17일 새벽(03시~06시)" style="width:100%;padding:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#fff;font-size:0.82rem;">
+            </div>
+            <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);padding:8px;border-radius:6px;font-size:0.72rem;color:#fca5a5;margin-bottom:12px;">
+                ⚠️ 사용자 푸시 발송 안 함. 부모해역 발효 중이 아니면 차단됩니다.
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;">
+                <button onclick="document.getElementById('child-alert-bulk-modal').remove()" style="padding:8px 16px;background:rgba(255,255,255,0.06);color:#94a3b8;border:none;border-radius:6px;cursor:pointer;">취소</button>
+                <button onclick='submitBulkChildAlert(${JSON.stringify(parentZone)}, ${JSON.stringify(selected)})' style="padding:8px 16px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">저장 (${selected.length}건)</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+};
+
+window.submitBulkChildAlert = async function (parentZone, children) {
+    const alertData = {
+        wrnTp: document.getElementById('bulk-wrnTp').value,
+        wrnLvl: document.getElementById('bulk-wrnLvl').value,
+        tmEf: document.getElementById('bulk-tmEf').value,
+        tmCc: document.getElementById('bulk-tmCc').value,
+        source: 'report'
+    };
+    try {
+        const res = await fetch('/api/admin/manual-child-alert/bulk', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parentZone, children, status: 'Y', alertData })
+        });
+        const data = await res.json();
+        if (!res.ok) { alert('일괄 추가 실패: ' + (data.error || res.statusText)); return; }
+        document.getElementById('child-alert-bulk-modal').remove();
+        let msg = `적용: ${data.applied}건`;
+        if (data.skipped > 0) msg += `\n차단: ${data.skipped}건 (${data.reason || ''})\n차단 자식: ${(data.skippedChildren || []).join(', ')}`;
+        alert(msg);
+    } catch (e) {
+        alert('일괄 추가 오류: ' + e.message);
+    }
+};
+
+window.bulkExcludeChildren = async function (parentZone, listId) {
+    const selected = getSelectedChildren(listId);
+    if (selected.length === 0) { alert('자식해역을 1개 이상 선택해주세요.'); return; }
+    if (!confirm(`선택한 ${selected.length}개 자식해역을 EXCLUDED 상태로 변경합니까?`)) return;
+    try {
+        const res = await fetch('/api/admin/manual-child-alert/bulk', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parentZone, children: selected, status: 'EXCLUDED' })
+        });
+        const data = await res.json();
+        if (!res.ok) { alert('일괄 EXCLUDED 실패: ' + (data.error || res.statusText)); return; }
+        alert(`EXCLUDED 적용: ${data.applied}건`);
+    } catch (e) {
+        alert('오류: ' + e.message);
+    }
+};
+
+window.bulkRemoveChildAlerts = async function (parentZone, listId) {
+    const selected = getSelectedChildren(listId);
+    if (selected.length === 0) { alert('자식해역을 1개 이상 선택해주세요.'); return; }
+    if (!confirm(`선택한 ${selected.length}개 자식해역의 특보를 모두 해제합니까?`)) return;
+    try {
+        const res = await fetch('/api/admin/manual-child-alert/bulk', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parentZone, children: selected, status: null })
+        });
+        const data = await res.json();
+        if (!res.ok) { alert('일괄 해제 실패: ' + (data.error || res.statusText)); return; }
+        alert(`해제 적용: ${data.applied}건`);
+    } catch (e) {
+        alert('오류: ' + e.message);
+    }
+};
 
 // 시각 변환 헬퍼 (12자리 숫자 → datetime-local 형식)
 function toLocalDatetime(s) {
