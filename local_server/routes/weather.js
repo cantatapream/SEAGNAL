@@ -42,11 +42,70 @@ const regionalForecastCollector = require('../regional_forecast_collector');
 //        응답 body 형식은 변경하지 않으므로 기존 클라이언트 호환성에 영향 없음.
 const freshness = require('../services/freshness');
 
+// ============================================================================
+// [신규] dmdw 자식 해역 데이터 머지 헬퍼
+// ----------------------------------------------------------------------------
+// 역할: weather_alerts.json (부모 해역 트리) 의 children 필드를
+//       dmdw_alerts.json (자식 해역 상세) 데이터로 덮어쓴 머지 결과를 반환.
+//
+// 동작 원칙:
+//  1. 부모 노드가 발효 중(current !== null) 일 때만 자식 머지 — "무기한 대기 게이트"
+//     (부모 통보문이 아직 안 잡혔는데 dmdw 만 먼저 잡은 자식은 노출 보류)
+//  2. 디스크 weather_alerts.json 은 절대 수정하지 않음 — 메모리에서만 머지
+//     (기존 weather_alerts_crawler.js 의 사전삭제 방어 로직 영향 0)
+//  3. dmdw_alerts.json 부재/깨짐 → 머지 skip, 원본 그대로 반환
+//
+// 머지 후 children 값 변화:
+//   "Y"   → { wrnTp, wrnLvl, tmFc, tmEf, parentZone, ... }  (dmdw 데이터로 교체)
+//   null  → 그대로 유지 (자식 비활성)
+//   "Y" + dmdw 자식 부재 → "Y" 그대로 (기존 동작 fallback)
+// ============================================================================
+function mergeDmdwChildren(weatherTree, dmdwAlerts) {
+    if (!dmdwAlerts || !dmdwAlerts.children || typeof dmdwAlerts.children !== 'object') {
+        return weatherTree; // dmdw 데이터 없거나 비정상 → 원본 그대로
+    }
+    const dmdwChildren = dmdwAlerts.children;
+
+    // 재귀 함수: tree 의 모든 노드를 훑으며 "current/children 필드를 가진" 부모 노드 발견 시 머지
+    function walk(node) {
+        if (!node || typeof node !== 'object') return;
+        // 이 노드가 zone 노드인가? (current 또는 upcoming + children 보유)
+        const hasZoneShape = Object.prototype.hasOwnProperty.call(node, 'current')
+                          && Object.prototype.hasOwnProperty.call(node, 'children');
+        if (hasZoneShape) {
+            // 게이트: 부모 발효 중일 때만 머지 (current 가 객체)
+            const parentActive = node.current !== null && typeof node.current === 'object';
+            if (parentActive && node.children && typeof node.children === 'object') {
+                for (const childKey of Object.keys(node.children)) {
+                    const dmdwState = dmdwChildren[childKey];
+                    if (dmdwState && typeof dmdwState === 'object') {
+                        // dmdw 가 이 자식의 정밀 상태를 알고 있음 → 덮어쓰기
+                        node.children[childKey] = dmdwState;
+                    }
+                    // dmdw 에 없으면 기존 "Y"/null 그대로 유지 (부모 상속 fallback)
+                }
+            }
+        }
+        // 자식 노드들 재귀 (zone 노드든 그룹 노드든 무관)
+        for (const v of Object.values(node)) {
+            if (v && typeof v === 'object' && !Array.isArray(v)) walk(v);
+        }
+    }
+    if (weatherTree && weatherTree.current && typeof weatherTree.current === 'object') {
+        walk(weatherTree.current);
+    }
+    return weatherTree;
+}
+
 // 1. 특보 정보 (통합 크롤러 데이터)
 //    [신선도] cacheKey='warnings' — 1분 주기 수집, 5분 안쪽이면 fresh.
 //             stale 감지 시 weatherAlertsCrawler.run() 을 백그라운드로 트리거.
 //    [HTTP 캐시] max-age=30 — 30초 동안은 브라우저/앱이 자체 캐시 사용 → 서버 부담 ↓
 //                특보는 1분 주기 수집이라 30초 캐시 시 최대 묵음 약 30초.
+//    [신규 — dmdw 머지]
+//      weather_alerts.json + dmdw_alerts.json 을 메모리에서 합쳐 응답.
+//      자식 해역(연안바다/평수구역) 의 정밀 wrnTp/wrnLvl 이 dmdw 데이터에 있으면
+//      children[fullName] 값이 "Y" → { wrnTp, wrnLvl, ... } 객체로 교체된다.
 router.get('/api/weather-alerts', (req, res) => {
     try {
         const filePath = path.join(DATA_DIR, 'weather_alerts.json');
@@ -57,7 +116,29 @@ router.get('/api/weather-alerts', (req, res) => {
         res.setHeader('Cache-Control', 'public, max-age=30');
         freshness.applyFreshnessHeaders(res, 'warnings');
         freshness.triggerRefreshIfStale('warnings');
-        res.sendFile(filePath);
+
+        // weather_alerts.json 로드
+        let weatherTree;
+        try {
+            weatherTree = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        } catch (parseErr) {
+            // 파싱 실패 시 안전망: 원본 파일을 그대로 전송 (이전 동작 유지)
+            console.log(`[/api/weather-alerts] parse fail (${parseErr.message}) → sendFile fallback`);
+            return res.sendFile(filePath);
+        }
+
+        // dmdw_alerts.json 로드 (있으면 머지, 없거나 깨졌으면 원본 그대로)
+        const dmdwPath = path.join(DATA_DIR, 'dmdw_alerts.json');
+        if (fs.existsSync(dmdwPath)) {
+            try {
+                const dmdwAlerts = JSON.parse(fs.readFileSync(dmdwPath, 'utf8'));
+                mergeDmdwChildren(weatherTree, dmdwAlerts);
+            } catch (mergeErr) {
+                console.log(`[/api/weather-alerts] dmdw merge skip (${mergeErr.message})`);
+            }
+        }
+
+        res.json(weatherTree);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
