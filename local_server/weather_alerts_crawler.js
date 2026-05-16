@@ -13,7 +13,6 @@ const fs = require('fs');
 const path = require('path');
 const pushSender = require('./push_sender');
 const reportProcessor = require('./report_alert_processor');
-const subregionLedger = require('./services/subregion_ledger');
 
 const CONFIG = {
     URL: 'https://www.weather.go.kr/w/wnuri-fct2021/weather/warning.do',
@@ -216,14 +215,12 @@ function mapDataToForm(form, activeChildren) {
 
             if (obj.current === null && obj.upcoming === null) {
                 // [상속 룰] 부모가 발효 중인 특보도 없고 예정된 특보도 없다면 자식도 강제 해제
-                // (정책 02_SUBREGION_DISPLAY.md §3-3: 부모 없이 자식 단독 발효 불가)
-                obj.children = subregionLedger.cascadeRelease(obj.children);
+                for (const childName of childNames) {
+                    obj.children[childName] = null;
+                }
             } else {
                 // 부모가 활성 상태(발효 또는 발표)
-                // 신·구 형식 모두 처리하기 위해 헬퍼로 status 추출
-                const prevActive = childNames.filter(name =>
-                    subregionLedger.getChildStatus(obj.children[name]) === 'Y'
-                );
+                const prevActive = childNames.filter(name => obj.children[name] === 'Y');
 
                 if (prevActive.length > 0) {
                     // 이전에 활성화된 자식이 있었음
@@ -234,50 +231,14 @@ function mapDataToForm(form, activeChildren) {
                         console.log(`[Crawler] 사전삭제 감지: 부모 특보 활성 중 자식 ${prevActive.length}개 전체 소멸 → 이전 상태 유지 (${prevActive.join(', ')})`);
                     } else {
                         // 일부 자식이 크롤링에 존재 → 크롤링 결과를 신뢰
-                        // ★ 자식해역 객체 구조 마이그레이션:
-                        //   기존 EXCLUDED·report 정보는 보존하면서 status 만 갱신.
-                        //   activeChildren 에 있으면 'Y', 없으면 null (단 EXCLUDED 는 유지).
                         for (const childName of childNames) {
-                            const existing = obj.children[childName];
-                            const existingStatus = subregionLedger.getChildStatus(existing);
-                            // EXCLUDED 자식해역은 크롤링에 안 잡혀도 유지 (P1 패턴 보존)
-                            if (existingStatus === 'EXCLUDED') continue;
-                            const newStatus = activeChildren.has(childName) ? 'Y' : null;
-                            if (newStatus === null) {
-                                obj.children[childName] = null;
-                            } else {
-                                // 부모 시각 상속 (inherit)
-                                obj.children[childName] = subregionLedger.makeChildObject(existing, {
-                                    status: 'Y',
-                                    source: 'inherit',
-                                    wrnTp: obj.current.wrnTp || null,
-                                    wrnLvl: obj.current.wrnLvl || null,
-                                    tmFc: obj.current.tmFc || null,
-                                    tmEf: obj.current.tmEf || null,
-                                    tmCc: obj.current.tmCc || null
-                                });
-                            }
+                            obj.children[childName] = activeChildren.has(childName) ? 'Y' : null;
                         }
                     }
                 } else {
                     // 이전에 활성화된 자식 없음 → 크롤링 결과 그대로 반영
                     for (const childName of childNames) {
-                        const existing = obj.children[childName];
-                        const existingStatus = subregionLedger.getChildStatus(existing);
-                        if (existingStatus === 'EXCLUDED') continue;
-                        if (activeChildren.has(childName)) {
-                            obj.children[childName] = subregionLedger.makeChildObject(existing, {
-                                status: 'Y',
-                                source: 'inherit',
-                                wrnTp: obj.current.wrnTp || null,
-                                wrnLvl: obj.current.wrnLvl || null,
-                                tmFc: obj.current.tmFc || null,
-                                tmEf: obj.current.tmEf || null,
-                                tmCc: obj.current.tmCc || null
-                            });
-                        } else {
-                            obj.children[childName] = null;
-                        }
+                        obj.children[childName] = activeChildren.has(childName) ? 'Y' : null;
                     }
                 }
             }
@@ -516,18 +477,6 @@ async function run() {
         fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
         fs.writeFileSync(CONFIG.OUTPUT_FILE, JSON.stringify(fullForm, null, 2), 'utf8');
         console.log(`[Crawler] 저장 완료`);
-
-        // 6. 자식해역 관련 관리자 푸시 묶음 발송 — 정책 13 (일괄 묶음)
-        //    1 사이클 동안 enqueue 된 케이스들을 category 별로 그룹화 + 텍스트 한도 분할 후 발송.
-        try {
-            const subregionPushQueue = require('./services/subregion_push_queue');
-            if (subregionPushQueue.size() > 0) {
-                const result = await subregionPushQueue.flush();
-                console.log(`[Crawler] 자식해역 관리자 푸시 묶음 발송 ${result.sent}건`);
-            }
-        } catch (qerr) {
-            console.error('[Crawler] 자식해역 푸시 큐 flush 오류:', qerr.message);
-        }
 
         return changes;
     } catch (e) {
