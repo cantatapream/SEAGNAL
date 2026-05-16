@@ -995,7 +995,9 @@ function buildChildZoneSection(parentZoneName) {
                     data-child="${childFullName}"
                     style="cursor:pointer;accent-color:#3b82f6;flex-shrink:0;">
                 <label for="cb-${childId}" style="flex:1;font-size:0.78rem;color:#cbd5e1;cursor:pointer;">${childShortName}</label>
-                <span id="status-${childId}" style="font-size:0.7rem;color:#64748b;">ⓘ 미발효</span>
+                <span id="status-${childId}"
+                      data-child-name="${childFullName}"
+                      style="font-size:0.7rem;color:#64748b;">ⓘ 로딩…</span>
                 <div style="display:flex;gap:4px;">
                     <button onclick="openEditChildAlertModal('${escapedParent}', '${escapedChild}')"
                         style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;padding:3px 6px;border-radius:4px;cursor:pointer;font-size:0.65rem;" title="수정">
@@ -1335,7 +1337,70 @@ window.toggleEfAccordion = function (id) {
     const isOpen = body.style.display !== 'none';
     body.style.display = isOpen ? 'none' : 'block';
     if (arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+
+    // 부모해역 아코디언 펼침 시 자식해역 상태 갱신 (정책 07 §3-1)
+    if (!isOpen && id.startsWith('ef-zone-')) {
+        const parentName = id.replace('ef-zone-', '').replace(/_/g, ' ').replace(/ /g, '·');
+        // _ 를 다시 변환하는 건 zoneId 생성 규칙의 역. 정확한 매칭은 status span 의 data-child-name 으로 처리
+        refreshChildStatusInSection(body, id);
+    }
 };
+
+/**
+ * 자식해역 카드의 상태 표시를 백엔드에서 받아 갱신 (정책 07 §3-1)
+ * 부모 카드 펼침 시 호출됨.
+ */
+async function refreshChildStatusInSection(bodyEl, zoneId) {
+    try {
+        // 자식해역 컨테이너에서 부모 이름 추출 (체크박스 data-parent 사용)
+        const firstCb = bodyEl.querySelector('.child-zone-cb');
+        if (!firstCb) return;
+        const parentZone = firstCb.getAttribute('data-parent');
+        if (!parentZone) return;
+
+        const res = await fetch(`/api/admin/child-status?parentZone=${encodeURIComponent(parentZone)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const children = data.children || {};
+
+        // 각 자식해역 status span 갱신
+        const statusSpans = bodyEl.querySelectorAll('[id^="status-"]');
+        statusSpans.forEach(span => {
+            const childName = span.getAttribute('data-child-name');
+            if (!childName) return;
+            const childData = children[childName];
+            span.innerHTML = renderChildStatusBadge(childData);
+        });
+    } catch (e) {
+        console.warn('[admin] 자식해역 상태 로딩 실패:', e.message);
+    }
+}
+
+/**
+ * 자식해역 상태 → 사람 친화 배지 텍스트
+ */
+function renderChildStatusBadge(childData) {
+    if (childData === null || childData === undefined) {
+        return '<span style="color:#64748b;">ⓘ 미발효</span>';
+    }
+    if (typeof childData === 'string') {
+        // 구식 "Y" 호환
+        if (childData === 'Y') return '<span style="color:#22c55e;">🔴 발효중</span>';
+        return '<span style="color:#64748b;">ⓘ 미발효</span>';
+    }
+    if (typeof childData === 'object') {
+        const status = childData.status;
+        if (status === 'EXCLUDED') return '<span style="color:#9ca3af;">⊘ EXCLUDED</span>';
+        if (status === 'PENDING') return '<span style="color:#f59e0b;">⏳ 예비</span>';
+        if (status === 'Y') {
+            const typeName = childData.wrnTp || '특보';
+            const lvl = childData.wrnLvl === '경보' ? '경보' : '주의보';
+            const color = childData.wrnLvl === '경보' ? '#ef4444' : '#22c55e';
+            return `<span style="color:${color};">🔴 ${typeName}${lvl}</span>`;
+        }
+    }
+    return '<span style="color:#64748b;">ⓘ 미발효</span>';
+}
 
 /**
  * 시간대명 드롭다운 선택 시 기본 시작/종료 시간을 자동 세팅하는 함수

@@ -1156,6 +1156,34 @@ router.get('/api/admin/check-child-principle', (req, res) => {
 });
 
 /**
+ * 부모해역의 자식해역 현재 status 조회 — 어드민 카드 동적 표시용
+ * GET /api/admin/child-status?parentZone=...
+ *
+ * 응답: { parentZone, children: { [childName]: { status, wrnTp, wrnLvl, tmEf, ... } } }
+ */
+router.get('/api/admin/child-status', (req, res) => {
+    try {
+        const { parentZone, testMode } = req.query;
+        if (!parentZone) return res.status(400).json({ error: 'parentZone 필수' });
+
+        const outputFile = getOutputFile(testMode === 'true');
+        if (!fs.existsSync(outputFile)) return res.status(404).json({ error: '장부 파일 없음' });
+
+        const fullForm = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+        const parentNode = findZoneNode(fullForm.current || fullForm, parentZone);
+        if (!parentNode) return res.status(404).json({ error: `부모해역 미존재: ${parentZone}` });
+
+        res.json({
+            parentZone,
+            parentCurrent: parentNode.current || null,
+            children: parentNode.children || {}
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/**
  * 자식해역 삭제 (status null 적용)
  * DELETE /api/admin/manual-child-alert?parentZone=...&childZone=...
  */
