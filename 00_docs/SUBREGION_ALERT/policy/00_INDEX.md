@@ -10,7 +10,7 @@
 
 | 번호 | 파일 | 핵심 내용 |
 |---|---|---|
-| 01 | [`01_COLLECTION_SCOPE.md`](./01_COLLECTION_SCOPE.md) | 9개 광역(충북·전국 제외) 병렬 수집 + 1분 사이클 |
+| 01 | [`01_COLLECTION_SCOPE.md`](./01_COLLECTION_SCOPE.md) | 8개 광역(충북·전국 제외) 병렬 수집 + 1분 사이클 |
 | 02 | [`02_SUBREGION_DISPLAY.md`](./02_SUBREGION_DISPLAY.md) | 자식해역 라이프사이클 + 장부 구조 + 아코디언 |
 | 03 | [`03_CODE_FIXES.md`](./03_CODE_FIXES.md) | 오타·엔티티·명칭 정규화 + 카탈로그 25개 |
 | 04 | [`04_PRELIM_CANCEL_REVIEW.md`](./04_PRELIM_CANCEL_REVIEW.md) | 예비특보 자연어 해제(방식 A) — 관리자 확인 흐름 |
@@ -23,7 +23,7 @@
 ## 🎯 합의된 핵심 원칙 (모든 정책 공통)
 
 ### 데이터 수집
-- **9개 광역 병렬 호출** (충북·전국 제외)
+- **8개 광역 병렬 호출** (충북·전국 제외)
 - **1분 사이클**, 평상시 ~1.4초, 격변기 ~22초
 - 본문 reportId dedup 후 unique 만 fetch
 
@@ -43,7 +43,7 @@
 - **사용자 푸시**: 부모해역 변화만 (기존 9가지 양식)
 - **자식해역 변화**: 사용자 푸시 X
 - **관리자 푸시**: 자식해역 관련 9가지 케이스 (정책 ⑥)
-- **일괄 발송**: 9 광역 수집 후 1회 묶음
+- **일괄 발송**: 8 광역 수집 후 1회 묶음
 
 ### UI
 - **사용자 화면(index2)**: 부모 카드 → 자식 아코디언 펼침 활성화
@@ -71,7 +71,7 @@
 - `data/subregion_catalog.json` (자식해역 사전)
 
 ### 3단계 — 핵심 로직 변경
-- `weather_alerts_crawler.js` 9 광역 병렬 호출
+- `weather_alerts_crawler.js` 8 광역 병렬 호출
 - `report_alert_processor.js` Dual Validation + 자식해역 파싱
 - `weather_alerts.json` children 객체 구조 마이그레이션
 - `js/data.js` 자식 시각 우선순위 분기

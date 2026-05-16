@@ -12,7 +12,7 @@
 | 정책 | `cd9c46d` | 7개 정책 문서 작성 (1497 라인) |
 | 1단계 | `6ba0f2c` | empty_tree 오타 + HTML 엔티티 디코딩 |
 | 2단계 | `30dd1f3` | 신규 모듈 4개 (parser·normalizer·validator + 카탈로그) |
-| 3-1·3-2 | `01f0520` | 9 광역 병렬 수집 + 자식해역 파서 통합 |
+| 3-1·3-2 | `01f0520` | 8 광역 병렬 수집 + 자식해역 파서 통합 |
 | 3-3·3-4 | `da64333` | children 객체 구조 마이그레이션 + 클라이언트 호환 |
 | 4-1 | `396e54e` | 인라인 특보 수집 테스트 탭 통일 (3개) |
 | 4-2·4-3 | `728ab73` | 광역별 통보문 API + 사이드바 UI |
@@ -98,7 +98,7 @@ makeChildObject(null, {status:"Y", tmEf:"5/16 14:00"}) → { status, tmEf, lastU
 
 | 정책 | 적용 위치 |
 |---|---|
-| 01 — 9 광역 수집 | `report_alert_processor.js` `CONFIG.STN_CODES`, `applyNewReports` |
+| 01 — 8 광역 수집 | `report_alert_processor.js` `CONFIG.STN_CODES`, `applyNewReports` |
 | 02 — 자식해역 라이프사이클 | `subregion_ledger.js`, `weather_alerts_crawler.js`, `data.js` |
 | 03 — 코드 정정 + 명칭 정규화 | `empty_tree.json`, `subregion_normalizer.js`, `subregion_catalog.json` |
 | 04 — 예비특보 자연어 해제 | `subregion_parser.js`, `report_alert_processor.js` (pwn 분기) |
@@ -145,7 +145,7 @@ makeChildObject(null, {status:"Y", tmEf:"5/16 14:00"}) → { status, tmEf, lastU
 - 자식해역 추출은 정규식만 사용 (CPU 비용 미미)
 
 ### 6-3. 기상청 서버 부담
-- 시간당 호출 횟수: 9 광역 × 3 페이지 × 60 사이클 = **1,620 회/시간**
+- 시간당 호출 횟수: 8 광역 × 3 페이지 × 60 사이클 = **1,620 회/시간**
 - User-Agent 명시
 - 일반 사용자 새로고침 수준이므로 무리 없음
 

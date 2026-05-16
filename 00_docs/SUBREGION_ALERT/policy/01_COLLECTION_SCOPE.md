@@ -25,7 +25,7 @@
 
 ### 1-2. 수집 방식
 
-- 1분 사이클로 9개 광역 `list.do` **병렬 호출**
+- 1분 사이클로 8개 광역 `list.do` **병렬 호출**
 - `kind=met` (특보) + `kind=pwn` (예비특보) 모두 수집
 - 같은 reportId 가 광역간 중복되므로 dedup 필수
 - 본문(`fetchReportDetail`) 은 unique reportId 만 호출
@@ -35,7 +35,7 @@
 ## 2. 1분 사이클 흐름
 
 ```
-[Step 1] 9개 광역 list.do 병렬 호출 (~1.3초)
+[Step 1] 8개 광역 list.do 병렬 호출 (~1.3초)
 [Step 2] reportId dedup (~0.1초)
 [Step 3] 신규 reportId 의 본문 fetch 병렬 (~0.5초/건)
 [Step 4] AI 파서 + 자식해역 정규식 파서 (Dual Validation)
@@ -62,7 +62,7 @@ https://www.weather.go.kr/w/special-report/list.do?stn={STN}&kind=pwn&date={YYYY
 
 ## 3. 일괄 푸시 정책
 
-- 9 광역 수집 완료 후 직전 장부와 diff 계산
+- 8 광역 수집 완료 후 직전 장부와 diff 계산
 - **부모해역 변화만** 푸시 발송 (자식해역 변화는 푸시 X)
 - 같은 사용자의 여러 광역 변화는 **한 알림으로 묶어 발송**
 - 푸시 양식은 기존 `push_helpers.js` 의 9가지 시나리오 유지
