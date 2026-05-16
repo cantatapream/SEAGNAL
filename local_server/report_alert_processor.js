@@ -86,6 +86,19 @@ async function fetchReportDetail(reportId, options) {
         .replace(/<p[^>]*>/g, '\n').replace(/<\/p>/g, '\n').replace(/<br\s*\/?>/g, '\n')
         .replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/[ ]+/g, ' ').trim();
 
+    // [HTML 엔티티 디코딩 강화 — 자식해역 명칭 보존용]
+    // 기상청 통보문에 가끔 미디코딩 엔티티가 잔존하여 자식해역 매칭이 실패함.
+    // 예: "태안&middot;서산 북쪽 평수구역" → "태안·서산 북쪽 평수구역" 으로 정규화.
+    text = text
+        .replace(/&middot;/g, '·')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&#183;/g, '·')
+        .replace(/&#xb7;/gi, '·');
+
     // [핵심 수정] "참고사항" 섹션 제거 — AI가 중복 이벤트를 생성하는 주요 원인
     // 참고사항에는 "현재 발효 중인 전체 특보 현황"이 나열되어 있어,
     // AI가 이를 새로운 이벤트로 오해하여 이미 발효 중인 해역까지 중복 처리함
