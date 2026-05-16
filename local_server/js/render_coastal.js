@@ -472,7 +472,12 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
         // 시각적 강조 (가장 높은 등급 기준)
         const hasWarning = sortedAlerts.some(a => !a.isPreliminary);
         item.style.borderLeft = `3px solid ${hasWarning ? '#ff6b6b' : '#ffb74d'}`;
-        item.style.cursor = 'pointer';
+        // [정책 — 사용자 명시 요구]
+        //  자식 해역(연안바다/평수구역) 카드는 클릭에 반응하지 않는다.
+        //  • dmdw 머지 자식: 통보문이 없어 펼침으로 보여줄 추가 정보가 없음
+        //  • 부모 상속 자식: detail box 정보가 부모 카드와 동일해 가치 0
+        //  → cursor 도 default 로 두어 클릭 가능한 듯한 시각적 단서 제거.
+        item.style.cursor = 'default';
 
         item.appendChild(header);
 
@@ -560,11 +565,10 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
 
         item.appendChild(detailBox);
 
-        item.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isVisible = detailBox.style.display === 'block';
-            detailBox.style.display = isVisible ? 'none' : 'block';
-        });
+        // [정책 — 사용자 명시 요구]
+        //  자식 카드 클릭 시 detailBox 토글 동작은 제거.
+        //  detailBox 자체는 DOM 에 생성되어 있으나(display:none) 영원히 펼쳐지지 않음.
+        //  → 자식 카드는 "발효 중 뱃지" 표시 전용으로만 동작.
 
     } else {
         // 특보가 없는 경우
