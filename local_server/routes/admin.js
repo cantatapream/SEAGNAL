@@ -186,31 +186,64 @@ router.post('/api/admin/alerts-reset', (req, res) => {
 // 통보문 수집 (날짜별 목록 조회 + 단일/일괄 수집)
 // ============================================================================
 
+// ─────────────────────────────────────────────────────────────────────────────
 // 특정 날짜 통보문 목록 조회 (제목에 [특보]/[예비]/[해설] 포함 필터링)
+//
+// [9 광역 수집 정책 — 정책 01_COLLECTION_SCOPE.md]
+//   기존 stn=108 (전국) 1회 호출 → 9 광역 병렬 호출로 변경.
+//   stn 파라미터 옵션:
+//     - 미지정 또는 stn=all → 9 광역 모두 합산 (dedup)
+//     - stn={광역코드}      → 해당 광역만 조회
+//   응답에 r.stn (어느 광역에서 발견되었는지) 정보 포함.
+// ─────────────────────────────────────────────────────────────────────────────
+const STN_CODES_FULL = [105, 109, 133, 143, 146, 156, 159, 184];
+
 router.get('/api/admin/reports', async (req, res) => {
     try {
         const date = req.query.date; // YYYY-MM-DD
         if (!date) return res.status(400).json({ error: 'date 파라미터가 필요합니다 (YYYY-MM-DD)' });
 
-        const fetchPage = (pageIndex) => {
+        // stn 파라미터: 'all' / 미지정 / 특정 광역 코드
+        let targetStns = STN_CODES_FULL.slice();
+        if (req.query.stn && req.query.stn !== 'all') {
+            const s = parseInt(req.query.stn, 10);
+            if (!isNaN(s)) targetStns = [s];
+        }
+
+        const fetchPage = (stn, pageIndex) => {
             return new Promise((resolve, reject) => {
-                const url = `https://www.weather.go.kr/w/special-report/list.do?stn=108&date=${date}&pageIndex=${pageIndex}`;
+                const url = `https://www.weather.go.kr/w/special-report/list.do?stn=${stn}&date=${date}&pageIndex=${pageIndex}`;
                 https.get(url, {
                     headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
                 }, (resp) => {
                     const chunks = [];
                     resp.on('data', c => chunks.push(c));
-                    resp.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+                    resp.on('end', () => resolve({ stn, html: Buffer.concat(chunks).toString('utf8') }));
                 }).on('error', reject);
             });
         };
 
+        // 각 (광역, 페이지) 조합을 병렬로 호출
+        const stnPagePairs = [];
+        for (const stn of targetStns) {
+            for (let page = 1; page <= 3; page++) {
+                stnPagePairs.push({ stn, page });
+            }
+        }
+        const settled = await Promise.allSettled(
+            stnPagePairs.map(({ stn, page }) => fetchPage(stn, page))
+        );
+
         const allReports = [];
         const seenIds = new Set();
-        for (let page = 1; page <= 3; page++) {
-            const html = await fetchPage(page);
+        const stnCounts = {};  // 광역별 카운트
+
+        for (let i = 0; i < settled.length; i++) {
+            const { stn, page } = stnPagePairs[i];
+            if (settled[i].status === 'rejected') continue;
+            const html = settled[i].value.html;
             const selectMatch = html.match(/<select id="select-list"[^>]*>([\s\S]*?)<\/select>/);
-            if (!selectMatch) break;
+            if (!selectMatch) continue;
 
             const pattern = /<option value="([^"]+)"[^>]*>([^<]+)<\/option>/g;
             let match;
@@ -225,15 +258,97 @@ router.get('/api/admin/reports', async (req, res) => {
                         const reqDate = date.replace(/-/g, '');
                         if (idDate === reqDate) {
                             seenIds.add(id);
-                            allReports.push({ id, title });
+                            allReports.push({ id, title, stn });
+                            stnCounts[stn] = (stnCounts[stn] || 0) + 1;
                         }
                     }
                 }
             }
-            if (allReports.length === 0 && page === 1) break;
         }
 
-        res.json({ date, reports: allReports, count: allReports.length });
+        res.json({ date, reports: allReports, count: allReports.length, stnCounts });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 광역별 통보문 통계 (수집/실패/대기 카운트 — 사이드바용)
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/api/admin/reports-stats', async (req, res) => {
+    try {
+        const date = req.query.date;
+        if (!date) return res.status(400).json({ error: 'date 파라미터가 필요합니다 (YYYY-MM-DD)' });
+
+        const STN_NAMES = {
+            105: '강원특별자치도',
+            109: '서울·인천·경기도',
+            133: '대전·세종·충청남도',
+            143: '대구·경상북도',
+            146: '전북특별자치도',
+            156: '광주·전라남도',
+            159: '부산·울산·경상남도',
+            184: '제주특별자치도'
+        };
+        const STN_ABBR = {
+            105: '강원', 109: '서울인천경기', 133: '대전세종충남',
+            143: '대구경북', 146: '전북', 156: '광주전남',
+            159: '부산울산경남', 184: '제주'
+        };
+
+        // 자기 자신의 reports 엔드포인트를 재사용 — 내부 호출하지 않고 동일 로직
+        const fetchPage = (stn, pageIndex) => {
+            return new Promise((resolve) => {
+                const url = `https://www.weather.go.kr/w/special-report/list.do?stn=${stn}&date=${date}&pageIndex=${pageIndex}`;
+                https.get(url, {
+                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+                }, (resp) => {
+                    const chunks = [];
+                    resp.on('data', c => chunks.push(c));
+                    resp.on('end', () => resolve({ stn, html: Buffer.concat(chunks).toString('utf8') }));
+                }).on('error', () => resolve({ stn, html: '' }));
+            });
+        };
+
+        // 광역별 통보문 ID 추출 (간단 카운트)
+        const stnPageResults = await Promise.all(
+            STN_CODES_FULL.flatMap(stn => [1, 2, 3].map(p => fetchPage(stn, p)))
+        );
+
+        const stns = {};
+        const reqDateCompact = date.replace(/-/g, '');
+        const allSeen = new Set();
+        for (const { stn, html } of stnPageResults) {
+            const selectMatch = html.match(/<select id="select-list"[^>]*>([\s\S]*?)<\/select>/);
+            if (!selectMatch) continue;
+
+            const pattern = /<option value="([^"]+)"[^>]*>([^<]+)<\/option>/g;
+            let match;
+            while ((match = pattern.exec(selectMatch[1])) !== null) {
+                const id = match[1];
+                const title = match[2].trim();
+                if (allSeen.has(`${stn}:${id}`)) continue;
+                allSeen.add(`${stn}:${id}`);
+                if (id.includes(':') && (title.includes('[특보]') || title.includes('[예비]') || title.includes('[해설]'))) {
+                    const parts = id.split(':');
+                    if (parts.length >= 2 && parts[1].substring(0, 8) === reqDateCompact) {
+                        if (!stns[stn]) {
+                            stns[stn] = { name: STN_NAMES[stn], abbr: STN_ABBR[stn], total: 0 };
+                        }
+                        stns[stn].total++;
+                    }
+                }
+            }
+        }
+
+        // 빠진 광역은 0건으로 채움
+        for (const stn of STN_CODES_FULL) {
+            if (!stns[stn]) stns[stn] = { name: STN_NAMES[stn], abbr: STN_ABBR[stn], total: 0 };
+        }
+
+        // 전체 합산
+        const total = Object.values(stns).reduce((s, v) => s + v.total, 0);
+        res.json({ date, total, stns });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -242,11 +357,12 @@ router.get('/api/admin/reports', async (req, res) => {
 // 단일 통보문 수집 (AI 분석 포함, 장부 반영)
 router.post('/api/admin/report-collect', async (req, res) => {
     try {
-        const { reportId, title, referenceTime, skipPush, testMode, adminToken } = req.body;
+        const { reportId, title, referenceTime, skipPush, testMode, adminToken, stn } = req.body;
         if (!reportId) return res.status(400).json({ error: 'reportId가 필요합니다' });
 
-        // 1. 통보문 본문 가져오기
-        const rawText = await reportProcessor.fetchReportDetail(reportId);
+        // 1. 통보문 본문 가져오기 — 정책 01: 광역(stn) 일치 필수
+        //    KMA 서버는 stn 이 reportId 광역과 다르면 reportId 무시하고 최신 통보문 반환
+        const rawText = await reportProcessor.fetchReportDetail(reportId, { stn });
         if (!rawText) return res.json({ success: false, rawText: '', aiResult: [], message: '통보문 내용을 가져올 수 없습니다.' });
 
         // 2. 키워드 필터링
@@ -616,8 +732,10 @@ router.get('/api/admin/pending-retries', (req, res) => {
 router.get('/api/admin/pending-retries/:reportId/raw', async (req, res) => {
     try {
         const reportId = req.params.reportId;
+        const stn = req.query.stn;
         if (!reportId) return res.status(400).json({ error: 'reportId가 필요합니다.' });
-        const rawText = await reportProcessor.fetchReportDetail(reportId);
+        // 정책 01: stn 일치 필수 (없으면 fallback 108)
+        const rawText = await reportProcessor.fetchReportDetail(reportId, { stn });
         res.json({ reportId, rawText: rawText || '' });
     } catch (e) {
         console.error('[Admin] 원문 조회 오류:', e.message);
@@ -745,6 +863,24 @@ router.post('/api/admin/manual-alert', (req, res) => {
             }
         }
 
+        // 6.5. 자식해역 inherit 자동 동기화 — 부모 시각이 수동으로 바뀌었으므로
+        //      그 산하 inherit 자식들의 시각도 부모 따라 갱신.
+        //      (정책 02 §3-2 — source: "inherit" 자식 자동 동기화)
+        try {
+            function syncWalk(node, parentName) {
+                if (!node || typeof node !== 'object') return;
+                if (node.current !== undefined && node.children) {
+                    node.children = subregionLedger.syncInheritChildren(node.current, node.children);
+                }
+                for (const [k, v] of Object.entries(node)) {
+                    if (v && typeof v === 'object') syncWalk(v, k);
+                }
+            }
+            syncWalk(fullForm.current);
+        } catch (e) {
+            console.error('[Admin] 자식 동기화 오류:', e.message);
+        }
+
         // 7. 저장
         fullForm.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
         fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
@@ -811,6 +947,344 @@ router.post('/api/admin/manual-alert-release', (req, res) => {
 });
 
 // ============================================================================
+// 자식해역 수동 수정 — 정책 07_MANUAL_EDIT_UI.md
+// ============================================================================
+//
+// 통보문 자동 수집 외에 관리자가 수동으로 자식해역 status·시각을 조정할 수 있는 API.
+// status 값: "Y" | null | "EXCLUDED" | "PENDING"
+// 사용자 원칙 검증: 부모 current null 인데 자식 Y 시도 시 차단 (정책 02 §1).
+//
+// 변경 시 사용자 푸시 발송 X (정책 02 §7-2 — 자식해역 변화는 사용자 푸시 없음).
+// 변경 이력은 data/manual_edit_history.json 에 누적 기록.
+
+const subregionLedger = require('../services/subregion_ledger');
+const childAlertValidator = require('../services/child_alert_validator');
+const subregionAdminPush = require('../services/subregion_admin_push');
+
+const MANUAL_EDIT_HISTORY_FILE = path.join(__dirname, '..', 'data', 'manual_edit_history.json');
+
+/**
+ * 트리에서 부모해역 노드 찾기 (DFS)
+ */
+function findZoneNode(tree, parentZoneName) {
+    if (!tree || typeof tree !== 'object') return null;
+    if (tree.current !== undefined && tree.children !== undefined) {
+        // 부모 노드 자체일 가능성 (zoneName 은 트리 상위에서 알아야 하므로 호출자 책임)
+    }
+    for (const [key, val] of Object.entries(tree)) {
+        if (key === 'current' || key === 'upcoming' || key === 'history' || key === 'children' || key === 'missingCount') continue;
+        if (key === parentZoneName && val && val.current !== undefined && val.children) {
+            return val;
+        }
+        if (val && typeof val === 'object') {
+            const found = findZoneNode(val, parentZoneName);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+
+/**
+ * 변경 이력 기록
+ */
+function appendEditHistory(record) {
+    try {
+        let history = { items: [] };
+        if (fs.existsSync(MANUAL_EDIT_HISTORY_FILE)) {
+            history = JSON.parse(fs.readFileSync(MANUAL_EDIT_HISTORY_FILE, 'utf8'));
+        }
+        const entry = {
+            id: `edit_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+            timestamp: new Date().toISOString(),
+            ...record
+        };
+        history.items.push(entry);
+        // 최근 1000건만 유지 (오래된 것 trim)
+        if (history.items.length > 1000) history.items = history.items.slice(-1000);
+        fs.writeFileSync(MANUAL_EDIT_HISTORY_FILE, JSON.stringify(history, null, 2), 'utf8');
+    } catch (e) {
+        console.error('[Admin] manual-edit-history 기록 실패:', e.message);
+    }
+}
+
+/**
+ * 단일 자식해역 수정
+ * Body: { parentZone, childZone, status, alertData?, testMode?, adminToken? }
+ */
+router.put('/api/admin/manual-child-alert', (req, res) => {
+    try {
+        const { parentZone, childZone, status, alertData = {}, testMode } = req.body;
+        if (!parentZone || !childZone) {
+            return res.status(400).json({ error: 'parentZone, childZone 필수' });
+        }
+
+        const outputFile = getOutputFile(testMode);
+        if (!fs.existsSync(outputFile)) return res.status(404).json({ error: '장부 파일 없음' });
+
+        const fullForm = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+        const parentNode = findZoneNode(fullForm.current || fullForm, parentZone);
+        if (!parentNode) return res.status(404).json({ error: `부모해역을 찾을 수 없음: ${parentZone}` });
+        if (!parentNode.children) parentNode.children = {};
+
+        // 사용자 원칙 검증
+        const validation = childAlertValidator.validateChildStatus({
+            parentCurrent: parentNode.current,
+            targetChildStatus: status
+        });
+        if (!validation.allowed) {
+            // [케이스 ④ — 사용자 원칙 위반 발송 (정책 06 ④)]
+            subregionAdminPush.sendPrincipleViolation({
+                reportId: 'manual-edit',
+                stn: null,
+                parentRegion: parentZone,
+                childRegion: childZone
+            });
+            return res.status(409).json({
+                error: 'PRINCIPLE_VIOLATION',
+                reason: validation.reason,
+                correctedStatus: validation.correctedStatus
+            });
+        }
+
+        // status 적용 — 시각 단조성 위반 시 콜백 발송 (케이스 ⑧)
+        if (status === null || status === undefined) {
+            parentNode.children[childZone] = null;
+        } else {
+            parentNode.children[childZone] = subregionLedger.makeChildObject(
+                parentNode.children[childZone],
+                {
+                    status,
+                    source: alertData.source || 'report',
+                    wrnTp: alertData.wrnTp || (parentNode.current && parentNode.current.wrnTp) || null,
+                    wrnLvl: alertData.wrnLvl || (parentNode.current && parentNode.current.wrnLvl) || null,
+                    tmFc: alertData.tmFc || (parentNode.current && parentNode.current.tmFc) || null,
+                    tmEf: alertData.tmEf || (parentNode.current && parentNode.current.tmEf) || null,
+                    tmCc: alertData.tmCc || (parentNode.current && parentNode.current.tmCc) || null,
+                    sourceReportId: 'manual-edit',
+                    modifiedBy: 'admin-manual'
+                },
+                {
+                    parentRegion: parentZone,
+                    childRegion: childZone,
+                    violationCallback: (info) => {
+                        subregionAdminPush.sendTimeMonotonicity({
+                            reportId: 'manual-edit',
+                            stn: null,
+                            parentRegion: info.parentRegion,
+                            childRegion: info.childRegion,
+                            previousTmEf: info.previousTmEf,
+                            newTmEf: info.newTmEf
+                        });
+                    }
+                }
+            );
+        }
+
+        fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
+        appendEditHistory({
+            type: 'child-alert-update',
+            parentZone, childZone, status, alertData,
+            testMode: !!testMode
+        });
+
+        res.json({ success: true, parentZone, childZone, status });
+    } catch (e) {
+        console.error('[Admin] manual-child-alert 오류:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/**
+ * 다중 자식해역 일괄 수정 — 체크박스 다중 선택
+ * Body: { parentZone, children: [...], status, alertData?, testMode? }
+ */
+router.put('/api/admin/manual-child-alert/bulk', (req, res) => {
+    try {
+        const { parentZone, children, status, alertData = {}, testMode } = req.body;
+        if (!parentZone || !Array.isArray(children) || children.length === 0) {
+            return res.status(400).json({ error: 'parentZone, children 배열 필수' });
+        }
+
+        const outputFile = getOutputFile(testMode);
+        if (!fs.existsSync(outputFile)) return res.status(404).json({ error: '장부 파일 없음' });
+
+        const fullForm = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+        const parentNode = findZoneNode(fullForm.current || fullForm, parentZone);
+        if (!parentNode) return res.status(404).json({ error: `부모해역을 찾을 수 없음: ${parentZone}` });
+        if (!parentNode.children) parentNode.children = {};
+
+        // 사용자 원칙 일괄 검증
+        const bulkValidation = childAlertValidator.validateBulkChildStatus({
+            parentCurrent: parentNode.current,
+            targetChildStatus: status,
+            children
+        });
+
+        // [케이스 ④ — 차단된 자식들에 대해 위반 알림 (정책 06 ④)]
+        if (bulkValidation.blockedChildren && bulkValidation.blockedChildren.length > 0) {
+            for (const blockedChild of bulkValidation.blockedChildren) {
+                subregionAdminPush.sendPrincipleViolation({
+                    reportId: 'manual-edit-bulk',
+                    stn: null,
+                    parentRegion: parentZone,
+                    childRegion: blockedChild
+                });
+            }
+        }
+
+        let appliedCount = 0;
+        const appliedChildren = [];
+        for (const childZone of bulkValidation.allowedChildren) {
+            if (status === null || status === undefined) {
+                parentNode.children[childZone] = null;
+            } else {
+                parentNode.children[childZone] = subregionLedger.makeChildObject(
+                    parentNode.children[childZone],
+                    {
+                        status,
+                        source: alertData.source || 'report',
+                        wrnTp: alertData.wrnTp || (parentNode.current && parentNode.current.wrnTp) || null,
+                        wrnLvl: alertData.wrnLvl || (parentNode.current && parentNode.current.wrnLvl) || null,
+                        tmFc: alertData.tmFc || (parentNode.current && parentNode.current.tmFc) || null,
+                        tmEf: alertData.tmEf || (parentNode.current && parentNode.current.tmEf) || null,
+                        tmCc: alertData.tmCc || (parentNode.current && parentNode.current.tmCc) || null,
+                        sourceReportId: 'manual-edit-bulk',
+                        modifiedBy: 'admin-manual'
+                    },
+                    {
+                        parentRegion: parentZone,
+                        childRegion: childZone,
+                        violationCallback: (info) => {
+                            subregionAdminPush.sendTimeMonotonicity({
+                                reportId: 'manual-edit-bulk',
+                                stn: null,
+                                parentRegion: info.parentRegion,
+                                childRegion: info.childRegion,
+                                previousTmEf: info.previousTmEf,
+                                newTmEf: info.newTmEf
+                            });
+                        }
+                    }
+                );
+            }
+            appliedCount++;
+            appliedChildren.push(childZone);
+        }
+
+        fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
+        appendEditHistory({
+            type: 'child-alert-bulk-update',
+            parentZone,
+            children: appliedChildren,
+            status, alertData,
+            skipped: bulkValidation.blockedChildren,
+            testMode: !!testMode
+        });
+
+        res.json({
+            success: true,
+            applied: appliedCount,
+            skipped: bulkValidation.blockedChildren.length,
+            skippedChildren: bulkValidation.blockedChildren,
+            reason: bulkValidation.reason || null
+        });
+    } catch (e) {
+        console.error('[Admin] manual-child-alert/bulk 오류:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/**
+ * 사용자 원칙 사전 검증 — 모달 열기 전 호출
+ * GET /api/admin/check-child-principle?parentZone=...&status=Y
+ */
+router.get('/api/admin/check-child-principle', (req, res) => {
+    try {
+        const { parentZone, status, testMode } = req.query;
+        if (!parentZone || !status) return res.status(400).json({ error: 'parentZone, status 필수' });
+
+        const outputFile = getOutputFile(testMode === 'true');
+        if (!fs.existsSync(outputFile)) return res.status(404).json({ error: '장부 파일 없음' });
+
+        const fullForm = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+        const parentNode = findZoneNode(fullForm.current || fullForm, parentZone);
+        if (!parentNode) return res.status(404).json({ error: `부모해역 미존재: ${parentZone}` });
+
+        const validation = childAlertValidator.validateChildStatus({
+            parentCurrent: parentNode.current,
+            targetChildStatus: status
+        });
+        res.json({
+            allowed: validation.allowed,
+            reason: validation.reason || null,
+            parentCurrent: parentNode.current
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/**
+ * 부모해역의 자식해역 현재 status 조회 — 어드민 카드 동적 표시용
+ * GET /api/admin/child-status?parentZone=...
+ *
+ * 응답: { parentZone, children: { [childName]: { status, wrnTp, wrnLvl, tmEf, ... } } }
+ */
+router.get('/api/admin/child-status', (req, res) => {
+    try {
+        const { parentZone, testMode } = req.query;
+        if (!parentZone) return res.status(400).json({ error: 'parentZone 필수' });
+
+        const outputFile = getOutputFile(testMode === 'true');
+        if (!fs.existsSync(outputFile)) return res.status(404).json({ error: '장부 파일 없음' });
+
+        const fullForm = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+        const parentNode = findZoneNode(fullForm.current || fullForm, parentZone);
+        if (!parentNode) return res.status(404).json({ error: `부모해역 미존재: ${parentZone}` });
+
+        res.json({
+            parentZone,
+            parentCurrent: parentNode.current || null,
+            children: parentNode.children || {}
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/**
+ * 자식해역 삭제 (status null 적용)
+ * DELETE /api/admin/manual-child-alert?parentZone=...&childZone=...
+ */
+router.delete('/api/admin/manual-child-alert', (req, res) => {
+    try {
+        const { parentZone, childZone, testMode } = req.query;
+        if (!parentZone || !childZone) return res.status(400).json({ error: 'parentZone, childZone 필수' });
+
+        const outputFile = getOutputFile(testMode === 'true');
+        if (!fs.existsSync(outputFile)) return res.status(404).json({ error: '장부 파일 없음' });
+
+        const fullForm = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+        const parentNode = findZoneNode(fullForm.current || fullForm, parentZone);
+        if (!parentNode || !parentNode.children) return res.status(404).json({ error: '부모해역 또는 자식해역 미존재' });
+
+        parentNode.children[childZone] = null;
+        fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
+
+        appendEditHistory({
+            type: 'child-alert-delete',
+            parentZone, childZone,
+            testMode: testMode === 'true'
+        });
+
+        res.json({ success: true });
+    } catch (e) {
+        console.error('[Admin] manual-child-alert DELETE 오류:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ============================================================================
 // 전체 통보문 일괄 수집
 // ============================================================================
 router.post('/api/admin/reports-collect-all', async (req, res) => {
@@ -821,7 +1295,8 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
         const results = [];
         for (const report of reports) {
             try {
-                const rawText = await reportProcessor.fetchReportDetail(report.id);
+                // 정책 01: report.stn 전달 필수 (없으면 fallback 108)
+                const rawText = await reportProcessor.fetchReportDetail(report.id, { stn: report.stn });
                 const RELEVANT_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
                 const foundKeywords = RELEVANT_KEYWORDS.filter(kw => rawText.includes(kw));
 

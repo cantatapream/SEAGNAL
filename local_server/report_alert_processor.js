@@ -22,6 +22,10 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const aiParser = require('./ai_report_parser');
+const subregionParser = require('./subregion_parser');
+const subregionAdminPush = require('./services/subregion_admin_push');
+const subregionNormalizer = require('./services/subregion_normalizer');
+const subregionCrossCheck = require('./services/subregion_cross_check');
 
 const COLLECT_CACHE_DIR = path.join(__dirname, 'data', 'collect_cache');
 // [검토 필요 통보문] "내용 없음"이지만 참고사항에 해상 키워드가 포함된 통보문 저장
@@ -30,7 +34,13 @@ const REVIEW_NEEDED_FILE = path.join(__dirname, 'data', 'review_needed.json');
 const CONFIG = {
     LIST_URL: 'https://www.weather.go.kr/w/special-report/list.do',
     DETAIL_URL: 'https://www.weather.go.kr/w/special-report/list.do',
-    TARGET_TYPES: []
+    TARGET_TYPES: [],
+    // [9 광역 수집 정책 — 정책 01_COLLECTION_SCOPE.md]
+    // 충북(131)은 5년치 해상특보 0건으로 수집 제외, 전국(108)은 광역 중복이라 폐지.
+    // 이 9 광역에서 reportId 합집합을 만들어 unique 한 통보문만 처리.
+    STN_CODES: [105, 109, 133, 143, 146, 156, 159, 184],
+    // 광역별 페이지네이션 최대 페이지 수 (광역당 1~2페이지면 보통 충분)
+    MAX_PAGES_PER_STN: 3
 };
 
 const ZONE_GROUP_MAP = {
@@ -82,11 +92,16 @@ async function fetchHtml(url) {
 // 기본값은 참고사항 제거 (기존 AI 분석에 영향 없도록)
 async function fetchReportDetail(reportId, options) {
     const parts = reportId.split(':');
+    const kind = parts[0] || 'met';   // 'met' | 'pwn' 등
     const dateStr = parts[1] || '';
     const dateParam = dateStr.substring(0, 4) + '-' + dateStr.substring(4, 6) + '-' + dateStr.substring(6, 8);
-    // [Fix] kind 파라미터 제거 — KMA 서버는 kind가 포함되면 reportId를 무시하고
-    // 해당 kind의 최신 통보문만 반환함. kind 없이 prevStn+reportId만 보내야 정상 동작.
-    const url = `${CONFIG.DETAIL_URL}?prevStn=108&stn=108&date=${dateParam}&reportId=${reportId}`;
+
+    // [URL 정확화 — 정책 01_COLLECTION_SCOPE.md]
+    //   광역(stn) 별로 발표된 통보문 본문을 가져오려면 prevStn=stn=해당광역 + kind=해당종류 명시 필수.
+    //   stn 이 reportId 와 일치하지 않으면 KMA 서버가 reportId 를 무시하고 최신 통보문만 반환함.
+    //   options.stn 이 없으면 fallback 으로 stn=108 (이전 동작 유지).
+    const stn = (options && options.stn) || 108;
+    const url = `${CONFIG.DETAIL_URL}?prevStn=${stn}&prevKind=${kind}&prevCmtCd=&stn=${stn}&kind=${kind}&date=${dateParam}&reportId=${encodeURIComponent(reportId)}`;
 
     const html = await fetchHtml(url);
 
@@ -109,6 +124,19 @@ async function fetchReportDetail(reportId, options) {
     let text = contentHtml
         .replace(/<p[^>]*>/g, '\n').replace(/<\/p>/g, '\n').replace(/<br\s*\/?>/g, '\n')
         .replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/[ ]+/g, ' ').trim();
+
+    // [HTML 엔티티 디코딩 강화 — 자식해역 명칭 보존용]
+    // 기상청 통보문에 가끔 미디코딩 엔티티가 잔존하여 자식해역 매칭이 실패함.
+    // 예: "태안&middot;서산 북쪽 평수구역" → "태안·서산 북쪽 평수구역" 으로 정규화.
+    text = text
+        .replace(/&middot;/g, '·')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&#183;/g, '·')
+        .replace(/&#xb7;/gi, '·');
 
     // [핵심 수정] "참고사항" 섹션 제거 — AI가 중복 이벤트를 생성하는 주요 원인
     // 참고사항에는 "현재 발효 중인 전체 특보 현황"이 나열되어 있어,
@@ -279,16 +307,48 @@ async function applyNewReports(fullForm) {
         const now = new Date();
         const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
-        let allProcessedOnPage = false; // 현재 페이지의 통보문이 전부 처리 완료인지
-        for (let page = 1; page <= 5; page++) {
-            const html = await fetchHtml(`${CONFIG.LIST_URL}?pageIndex=${page}`);
+        // ──────────────────────────────────────────────────────────────────────
+        // [9 광역 병렬 호출 — 정책 01_COLLECTION_SCOPE.md]
+        //   전국(stn=108) 1회 호출 → 9 광역(105, 109, 133, 143, 146, 156, 159, 184)
+        //   병렬 호출로 변경. 전국은 자식해역(연안바다·평수구역) 정보를 제공하지 않으므로
+        //   광역별 수집 필수.
+        //
+        //   각 광역마다 페이지네이션(최대 MAX_PAGES_PER_STN)으로 통보문 목록 수집.
+        //   seenReportIds 로 광역간 중복 제거.
+        //
+        //   성능: 9 광역 병렬 호출 ~1.3초 (실측). 1분 사이클 내 충분히 처리 가능.
+        // ──────────────────────────────────────────────────────────────────────
+        const pattern = /<option value="([^"]+)"[^>]*>([^<]+)<\/option>/g;
+
+        // 각 (stn, page) 의 URL 을 미리 만든다.
+        const stnPageUrls = [];
+        for (const stn of CONFIG.STN_CODES) {
+            for (let page = 1; page <= CONFIG.MAX_PAGES_PER_STN; page++) {
+                stnPageUrls.push({ stn, page, url: `${CONFIG.LIST_URL}?stn=${stn}&pageIndex=${page}` });
+            }
+        }
+
+        // 9 광역 × 3 페이지 = 최대 27 요청. 병렬 호출.
+        // 일부 실패해도 다른 광역 결과는 살려서 진행 (다음 사이클 재시도).
+        const settled = await Promise.allSettled(
+            stnPageUrls.map(({ url }) => fetchHtml(url))
+        );
+
+        for (let i = 0; i < settled.length; i++) {
+            const { stn, page } = stnPageUrls[i];
+            const result = settled[i];
+            if (result.status === 'rejected') {
+                console.warn(`[ReportProcessor] stn=${stn} page=${page} 요청 실패: ${result.reason?.message || result.reason}`);
+                continue;
+            }
+            const html = result.value;
             const selectListMatch = html.match(/<select id="select-list"[^>]*>([\s\S]*?)<\/select>/);
             if (!selectListMatch) {
-                console.log(`[ReportProcessor] ${page}페이지에서 select-list를 찾지 못했습니다.`);
-                break;
+                continue;  // 해당 stn/page 에서 통보문 없음 (정상 케이스도 많음)
             }
-            const pattern = /<option value="([^"]+)"[^>]*>([^<]+)<\/option>/g;
+
             const pageReports = [];
+            pattern.lastIndex = 0;
             let match;
             while ((match = pattern.exec(selectListMatch[1])) !== null) {
                 const id = match[1];
@@ -297,40 +357,29 @@ async function applyNewReports(fullForm) {
                 if (id.includes(':') && (title.includes('[특보]') || title.includes('[예비]'))) {
                     if (!seenReportIds.has(id)) {
                         seenReportIds.add(id);
-                        pageReports.push({ id, title });
+                        pageReports.push({ id, title, stn });
                     }
                 }
             }
-            console.log(`[ReportProcessor] ${page}페이지에서 ${pageReports.length}건의 통보문 발견.`);
+            if (pageReports.length > 0) {
+                console.log(`[ReportProcessor] stn=${stn} page=${page} 통보문 ${pageReports.length}건`);
+            }
 
-            // [누락 방지] processedIds에 없으면 무조건 수집 대상 (타임스탬프 순서 무관)
-            let newOnThisPage = 0;
+            // [누락 방지] processedIds에 없으면 무조건 수집 대상
             for (const r of pageReports) {
-                // 이미 처리 완료된 통보문이면 건너뜀
                 if (processedIds.has(r.id)) continue;
 
-                // 통보문 ID에서 발표 시각 추출하여 30일 이내인지 확인
-                // (processedReportIds에서 정리된 오래된 통보문이 재수집되는 것을 방지)
                 const rTs = (r.id.split(':')[1] || '').substring(0, 12);
                 if (rTs.length >= 12) {
                     const reportDate = new Date(`${rTs.substring(0,4)}-${rTs.substring(4,6)}-${rTs.substring(6,8)}T${rTs.substring(8,10)}:${rTs.substring(10,12)}:00+09:00`);
                     if (now - reportDate > THIRTY_DAYS_MS) {
-                        continue; // 30일 이상 지난 통보문은 수집하지 않음
+                        continue;  // 30일 이상 지난 통보문은 수집하지 않음
                     }
                 }
-
                 allNewReports.push(r);
-                newOnThisPage++;
             }
-
-            // 이 페이지에서 새 통보문이 없고, 통보문 자체도 있었다면 → 다음 페이지 탐색 불필요
-            // (더 오래된 페이지에는 새 통보문이 있을 가능성이 매우 낮음)
-            if (newOnThisPage === 0 && pageReports.length > 0) {
-                allProcessedOnPage = true;
-                break;
-            }
-            if (pageReports.length === 0) break;
         }
+        console.log(`[ReportProcessor] 9 광역 수집 합계: 신규 통보문 ${allNewReports.length}건 (dedup 후)`);
 
         if (allNewReports.length === 0) {
             console.log('[ReportProcessor] 처리할 새로운 통보문이 없습니다.');
@@ -441,7 +490,8 @@ async function applyNewReports(fullForm) {
             // ──────────────────────────────────────────────────────────────
             // [본문 가져오기] KMA 웹사이트에서 통보문 본문 HTML을 가져와 텍스트로 변환
             // ──────────────────────────────────────────────────────────────
-            const text = await fetchReportDetail(report.id);
+            // report.stn 은 9 광역 수집 시 광역 코드가 들어있음 (없으면 fallback 108)
+            const text = await fetchReportDetail(report.id, { stn: report.stn });
             const baseDate = extractTmFcFromId(report.id);
 
             // ──────────────────────────────────────────────────────────────
@@ -545,7 +595,7 @@ async function applyNewReports(fullForm) {
                 // (예: 본문 "○ 내용: 없음"이지만 참고사항에 "풍랑주의보" 언급)
                 if (text.includes('없음')) {
                     try {
-                        const fullText = await fetchReportDetail(report.id, { keepReference: true });
+                        const fullText = await fetchReportDetail(report.id, { keepReference: true, stn: report.stn });
                         const refIdx = fullText.indexOf('참고사항');
                         if (refIdx !== -1) {
                             const refSection = fullText.substring(refIdx);
@@ -610,6 +660,170 @@ async function applyNewReports(fullForm) {
             const separatedText = aiParsed.separatedText || null;
             if (aiParsed.error) {
                 console.error(`[ReportProcessor] AI 분석 오류: ${aiParsed.error}`);
+            }
+
+            // ──────────────────────────────────────────────────────────────
+            // [자식해역 정규식 파서 — Dual Validation 의 한 축]
+            //   ai_report_parser 는 부모해역 단위로 zones 를 반환하지만,
+            //   "○○앞바다(○○연안바다)" 같은 자식해역 명시는 별도 처리되지 않는다.
+            //   subregion_parser 가 본문 전체에서 P1·P2 정규식으로 자식해역을 추출하여
+            //   events 와 별도로 aiParsed.children 에 저장한다.
+            //   장부 갱신(weather_alerts_crawler.js)에서 events + children 을 결합 적용.
+            //
+            //   AI 와 정규식 결과 비교는 별도 모듈(subregion_cross_check)에서 처리하며,
+            //   불일치 시 관리자 푸시 발송 (정책 06_ADMIN_PUSH_POLICY.md case ③).
+            // ──────────────────────────────────────────────────────────────
+            try {
+                const childrenInfo = subregionParser.extractChildrenFromBody(text);
+                if (childrenInfo.length > 0) {
+                    aiParsed.children = childrenInfo;
+                    console.log(`[ReportProcessor] 자식해역 추출 ${childrenInfo.length}건:`,
+                        childrenInfo.map(c => `${c.parent}(${c.child}${c.excluded ? ' 제외' : ''})`).join(', '));
+                } else {
+                    // [케이스 ⑤ — 자식해역 파서 실패 감지]
+                    //   본문에 자식해역 키워드(연안바다·평수구역)는 있으나 정규식이 추출 실패한 경우
+                    //   = 비정상 형식 또는 신규 패턴 가능성 → 관리자 알림
+                    if (/연안바다|평수구역/.test(text)) {
+                        subregionAdminPush.sendParserFailure({
+                            reportId: report.id,
+                            stn: report.stn,
+                            rawSnippet: text.match(/.{0,80}(연안바다|평수구역).{0,80}/)?.[0] || ''
+                        });
+                    }
+                }
+
+                // ──────────────────────────────────────────────────────────
+                // [Dual Validation 교차 검증 — 정책 06 케이스 ③]
+                //   AI 파서 결과(events.zones) 와 정규식 파서 결과(children) 를 비교.
+                //   AI 가 자식해역명을 zones 에 잘못 넣었거나 (hallucination),
+                //   정규식이 잡은 자식을 AI 가 누락한 경우 등 불일치 시 관리자 푸시.
+                //   결과적으로 정규식 결과(aiParsed.children) 를 신뢰값으로 채택.
+                // ──────────────────────────────────────────────────────────
+                subregionCrossCheck.runCrossCheck({
+                    reportId: report.id,
+                    stn: report.stn,
+                    aiParsed
+                });
+            } catch (e) {
+                console.error('[ReportProcessor] 자식해역 cross-check 오류:', e.message);
+            }
+
+            try {
+                const childrenInfo = aiParsed.children || [];
+                if (childrenInfo.length > 0) {
+
+                    // ──────────────────────────────────────────────────────────
+                    // [자식해역 관련 관리자 푸시 — 정책 06_ADMIN_PUSH_POLICY.md]
+                    //   각 추출 케이스마다 관리자에게 푸시 발송. 빈도 제어 내장.
+                    //   ①·② 자동 처리, ⑥ 신규 명칭 감지.
+                    //   ③·④·⑧ 은 장부 적용 단계에서 별도 발송.
+                    // ──────────────────────────────────────────────────────────
+                    for (const ch of childrenInfo) {
+                        try {
+                            // ⑥ 신규 자식해역 명칭 (카탈로그 미등록)
+                            if (subregionNormalizer.isKnownParent(ch.parent)
+                                && !subregionNormalizer.isKnownChild(ch.parent, ch.child)
+                                && !subregionNormalizer.isDeprecated(ch.child)) {
+                                subregionAdminPush.sendUnknownChildName({
+                                    reportId: report.id,
+                                    stn: report.stn,
+                                    parentRegion: ch.parent,
+                                    detectedChildName: ch.child
+                                });
+                            }
+                            // ② P1 제외 처리
+                            if (ch.excluded) {
+                                subregionAdminPush.sendP1Excluded({
+                                    reportId: report.id,
+                                    stn: report.stn,
+                                    parentRegion: ch.parent,
+                                    childRegion: ch.child
+                                });
+                            } else {
+                                // ① P2 단독 발효 (excluded=false)
+                                subregionAdminPush.sendP2SoloActive({
+                                    reportId: report.id,
+                                    stn: report.stn,
+                                    parentRegion: ch.parent,
+                                    childRegion: ch.child,
+                                    wrnTp: events[0] && events[0].type,
+                                    wrnLvl: events[0] && events[0].command,
+                                    tmEf: events[0] && events[0].tmEf
+                                });
+                            }
+                        } catch (e) {
+                            console.error('[ReportProcessor] 자식해역 관리자 푸시 오류:', e.message);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('[ReportProcessor] 자식해역 파서 오류:', e.message);
+            }
+
+            // ──────────────────────────────────────────────────────────────────
+            // [방식 A: 예비특보 자연어 해제] — kind=pwn 통보문의 참고사항 절
+            // "발표 가능성이 낮[아어]져 해제" 매칭 시 자동 해제 X, 관리자 확인 대기.
+            // ──────────────────────────────────────────────────────────────────
+            if (report.id.startsWith('pwn:')) {
+                try {
+                    // 참고사항 절을 보존해서 다시 가져오기
+                    const fullText = await fetchReportDetail(report.id, { keepReference: true, stn: report.stn });
+                    const refIdx = fullText.indexOf('참고사항');
+                    if (refIdx !== -1) {
+                        const referenceBlock = fullText.substring(refIdx);
+                        const cancels = subregionParser.extractPrelimNaturalCancel(referenceBlock);
+                        for (const c of cancels) {
+                            // 1) 관리자 푸시 발송 (정책 06 ⑦)
+                            subregionAdminPush.sendPrelimNaturalCancel({
+                                reportId: report.id,
+                                stn: report.stn,
+                                affectedRegion: c.region,
+                                affectedKind: c.kind,
+                                detectedPhrase: c.detectedPhrase
+                            });
+
+                            // 2) review_needed.json 저장 — 정책 04 §3
+                            //    어드민이 확인하지 않으면 추적이 안 되므로 누적 기록 필수.
+                            //    같은 reportId 의 같은 region+kind 가 이미 있으면 중복 저장 X.
+                            try {
+                                let reviews = [];
+                                if (fs.existsSync(REVIEW_NEEDED_FILE)) {
+                                    reviews = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8'));
+                                }
+                                const dupKey = `${report.id}|${c.region}|${c.kind}`;
+                                const exists = reviews.some(r =>
+                                    r.category === 'prelim_natural_cancel' &&
+                                    r.reportId === report.id &&
+                                    r.details && r.details.affectedRegion === c.region &&
+                                    r.details.affectedKind === c.kind
+                                );
+                                if (!exists) {
+                                    reviews.push({
+                                        id: `rev_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                                        reportId: report.id,
+                                        category: 'prelim_natural_cancel',
+                                        severity: 'HIGH',
+                                        createdAt: new Date().toISOString(),
+                                        acknowledged: false,
+                                        acknowledgedAt: null,
+                                        acknowledgedBy: null,
+                                        details: {
+                                            affectedRegion: c.region,
+                                            affectedKind: c.kind,
+                                            detectedPhrase: c.detectedPhrase,
+                                            stn: report.stn || null
+                                        }
+                                    });
+                                    fs.writeFileSync(REVIEW_NEEDED_FILE, JSON.stringify(reviews, null, 2), 'utf8');
+                                }
+                            } catch (e) {
+                                console.error('[ReportProcessor] review_needed 저장 오류 (자연어 해제):', e.message);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error('[ReportProcessor] 예비특보 자연어 해제 매칭 오류:', e.message);
+                }
             }
 
             // ──────────────────────────────────────────────────────────────
@@ -811,7 +1025,7 @@ async function applyNewReports(fullForm) {
                 // 예: 본문 "○ 내용: 없음"이지만 참고사항에 "풍랑주의보" 언급
                 // ──────────────────────────────────────────────────────────────
                 try {
-                    const fullText = await fetchReportDetail(report.id, { keepReference: true });
+                    const fullText = await fetchReportDetail(report.id, { keepReference: true, stn: report.stn });
                     const refIdx = fullText.indexOf('참고사항');
                     if (refIdx !== -1) {
                         const refSection = fullText.substring(refIdx);

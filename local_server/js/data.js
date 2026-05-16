@@ -288,24 +288,44 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
 
     alertsArr.push(alertItem);
 
-    // 연안바다(Children) 처리
+    // ──────────────────────────────────────────────────────────────────────
+    // [자식해역 처리 — 신·구 형식 호환]
+    //   children[name] 의 값이 두 가지 형식을 가질 수 있다.
+    //     (구) "Y" 또는 null
+    //     (신) { status: "Y"|"EXCLUDED"|null, tmFc, tmEf, tmCc, source, ... }
+    //   정책 02_SUBREGION_DISPLAY.md 의 객체 구조 마이그레이션.
+    //
+    //   "Y" 자식만 발효로 간주. EXCLUDED 는 표시는 하되 발효 X.
+    //   신 형식이면 자식 고유 시각(report) 우선, 없으면 부모 상속(inherit).
+    // ──────────────────────────────────────────────────────────────────────
     if (childrenObj) {
-        for (const [childName, status] of Object.entries(childrenObj)) {
-            // status가 'Y'인 경우 부모 특보 적용
-            if (status === 'Y') {
-                if (!coastalMap[childName]) coastalMap[childName] = [];
-                // 부모 특보 정보를 상속받아 연안바다 특보 객체 생성
-                // [Fix] history는 연안바다에 불필요 (통보문이 연안바다 단위로 발표되지 않으므로)
-                const childAlert = {
-                    ...alertItem,
-                    zoneName: childName,
-                    isCoastal: true,
-                    parentZone: zoneName,
-                    history: [], // 연안바다는 히스토리 미표시
-                    id: `auto_${childName}_${alertObj.wrnTp}_${reallyUpcoming ? 'pre' : 'act'}`
-                };
-                coastalMap[childName].push(childAlert);
-            }
+        for (const [childName, childRaw] of Object.entries(childrenObj)) {
+            const childStatus = (childRaw === null || childRaw === undefined)
+                ? null
+                : (typeof childRaw === 'string' ? childRaw : childRaw.status);
+
+            if (childStatus !== 'Y') continue;  // 발효 자식만 처리
+
+            if (!coastalMap[childName]) coastalMap[childName] = [];
+
+            // 자식 고유 시각이 있으면 우선 사용, 없으면 부모 상속
+            const isObj = childRaw !== null && typeof childRaw === 'object';
+            const childAlert = {
+                ...alertItem,                                       // 부모에서 상속 (fallback)
+                zoneName: childName,
+                isCoastal: true,
+                parentZone: zoneName,
+                history: [],                                        // 자식해역은 히스토리 미표시
+                id: `auto_${childName}_${alertObj.wrnTp}_${reallyUpcoming ? 'pre' : 'act'}`,
+                // 자식 객체에 시각 정보 있으면 덮어쓰기
+                ...(isObj && childRaw.tmFc ? { tmFc: childRaw.tmFc } : {}),
+                ...(isObj && childRaw.tmEf ? { tmEf: childRaw.tmEf } : {}),
+                ...(isObj && childRaw.tmCc ? { tmCc: childRaw.tmCc } : {}),
+                ...(isObj && childRaw.wrnTp ? { warnType: childRaw.wrnTp } : {}),
+                ...(isObj && childRaw.wrnLvl ? { level: childRaw.wrnLvl } : {}),
+                source: isObj ? (childRaw.source || 'inherit') : 'inherit'
+            };
+            coastalMap[childName].push(childAlert);
         }
     }
 }
