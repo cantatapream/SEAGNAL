@@ -38,21 +38,72 @@ function isChildObject(child) {
 }
 
 /**
+ * 시각 형식이 정확형인지 (YYYY년 MM월 DD일 HH시 MM분) 판단
+ * 범위형(예: "밤(21시~24시)") 은 false 반환.
+ */
+function isExactTime(timeStr) {
+    if (!timeStr || typeof timeStr !== 'string') return false;
+    // "YYYY년 MM월 DD일 HH시 MM분" 패턴
+    return /\d{4}년\s*\d{1,2}월\s*\d{1,2}일\s*\d{1,2}시\s*\d{1,2}분\s*$/.test(timeStr);
+}
+
+/**
+ * 시각 단조성 검증 — 이전 시각이 정확형이고 새 시각이 범위형이면 위반
+ *
+ * @returns {{ violated: boolean, reason?: string }}
+ */
+function checkMonotonicity(prevTmEf, newTmEf) {
+    if (!prevTmEf || !newTmEf) return { violated: false };
+    if (prevTmEf === newTmEf) return { violated: false };
+    if (isExactTime(prevTmEf) && !isExactTime(newTmEf)) {
+        return {
+            violated: true,
+            reason: `이전 정확형(${prevTmEf}) → 새 범위형(${newTmEf}) — 시간상 뒤로 가는 갱신`
+        };
+    }
+    return { violated: false };
+}
+
+/**
  * 자식해역 값을 객체 형식으로 변환 (기존 정보 보존)
  *
  * @param {*} existingChild — 현재 children[childName] 값
  * @param {object} updates — 적용할 새 정보
  *   - status, source, sourceReportId, wrnTp, wrnLvl, tmFc, tmEf, tmCc
+ * @param {object} [opts]
+ *   - opts.violationCallback: 시각 단조성 위반 시 호출되는 콜백 (시각 위반 알림용)
+ *   - opts.parentRegion / opts.childRegion: 콜백 인자
  *
  * @returns {object|null} — 객체 또는 null (status === null 일 때)
  */
-function makeChildObject(existingChild, updates = {}) {
+function makeChildObject(existingChild, updates = {}, opts = {}) {
     const base = isChildObject(existingChild) ? { ...existingChild } : {};
     const merged = { ...base, ...updates };
 
     // status === null 이면 null 반환 (장부에 null 로 저장)
     if (merged.status === null || merged.status === undefined) {
         return null;
+    }
+
+    // [시각 단조성 검증 — 정책 06 케이스 ⑧]
+    //   이전 자식 객체에 tmEf 가 있고 새 tmEf 와 비교했을 때 단조성 위반이면
+    //   콜백으로 알림. 적용은 강제하지 않음 (정정 가능성 고려).
+    if (isChildObject(existingChild) && existingChild.tmEf && updates.tmEf
+        && opts.violationCallback) {
+        const monoCheck = checkMonotonicity(existingChild.tmEf, updates.tmEf);
+        if (monoCheck.violated) {
+            try {
+                opts.violationCallback({
+                    parentRegion: opts.parentRegion,
+                    childRegion: opts.childRegion,
+                    previousTmEf: existingChild.tmEf,
+                    newTmEf: updates.tmEf,
+                    reason: monoCheck.reason
+                });
+            } catch (e) {
+                console.error('[subregion_ledger] violationCallback 오류:', e.message);
+            }
+        }
     }
 
     // 기본 메타 채움
@@ -150,5 +201,7 @@ module.exports = {
     makeChildObject,
     syncInheritChildren,
     cascadeRelease,
-    detectChildChanges
+    detectChildChanges,
+    isExactTime,
+    checkMonotonicity
 };

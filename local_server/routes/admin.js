@@ -869,6 +869,7 @@ router.post('/api/admin/manual-alert-release', (req, res) => {
 
 const subregionLedger = require('../services/subregion_ledger');
 const childAlertValidator = require('../services/child_alert_validator');
+const subregionAdminPush = require('../services/subregion_admin_push');
 
 const MANUAL_EDIT_HISTORY_FILE = path.join(__dirname, '..', 'data', 'manual_edit_history.json');
 
@@ -941,6 +942,13 @@ router.put('/api/admin/manual-child-alert', (req, res) => {
             targetChildStatus: status
         });
         if (!validation.allowed) {
+            // [케이스 ④ — 사용자 원칙 위반 발송 (정책 06 ④)]
+            subregionAdminPush.sendPrincipleViolation({
+                reportId: 'manual-edit',
+                stn: null,
+                parentRegion: parentZone,
+                childRegion: childZone
+            });
             return res.status(409).json({
                 error: 'PRINCIPLE_VIOLATION',
                 reason: validation.reason,
@@ -948,21 +956,38 @@ router.put('/api/admin/manual-child-alert', (req, res) => {
             });
         }
 
-        // status 적용
+        // status 적용 — 시각 단조성 위반 시 콜백 발송 (케이스 ⑧)
         if (status === null || status === undefined) {
             parentNode.children[childZone] = null;
         } else {
-            parentNode.children[childZone] = subregionLedger.makeChildObject(parentNode.children[childZone], {
-                status,
-                source: alertData.source || 'report',
-                wrnTp: alertData.wrnTp || (parentNode.current && parentNode.current.wrnTp) || null,
-                wrnLvl: alertData.wrnLvl || (parentNode.current && parentNode.current.wrnLvl) || null,
-                tmFc: alertData.tmFc || (parentNode.current && parentNode.current.tmFc) || null,
-                tmEf: alertData.tmEf || (parentNode.current && parentNode.current.tmEf) || null,
-                tmCc: alertData.tmCc || (parentNode.current && parentNode.current.tmCc) || null,
-                sourceReportId: 'manual-edit',
-                modifiedBy: 'admin-manual'
-            });
+            parentNode.children[childZone] = subregionLedger.makeChildObject(
+                parentNode.children[childZone],
+                {
+                    status,
+                    source: alertData.source || 'report',
+                    wrnTp: alertData.wrnTp || (parentNode.current && parentNode.current.wrnTp) || null,
+                    wrnLvl: alertData.wrnLvl || (parentNode.current && parentNode.current.wrnLvl) || null,
+                    tmFc: alertData.tmFc || (parentNode.current && parentNode.current.tmFc) || null,
+                    tmEf: alertData.tmEf || (parentNode.current && parentNode.current.tmEf) || null,
+                    tmCc: alertData.tmCc || (parentNode.current && parentNode.current.tmCc) || null,
+                    sourceReportId: 'manual-edit',
+                    modifiedBy: 'admin-manual'
+                },
+                {
+                    parentRegion: parentZone,
+                    childRegion: childZone,
+                    violationCallback: (info) => {
+                        subregionAdminPush.sendTimeMonotonicity({
+                            reportId: 'manual-edit',
+                            stn: null,
+                            parentRegion: info.parentRegion,
+                            childRegion: info.childRegion,
+                            previousTmEf: info.previousTmEf,
+                            newTmEf: info.newTmEf
+                        });
+                    }
+                }
+            );
         }
 
         fs.writeFileSync(outputFile, JSON.stringify(fullForm, null, 2), 'utf8');
@@ -1005,23 +1030,52 @@ router.put('/api/admin/manual-child-alert/bulk', (req, res) => {
             children
         });
 
+        // [케이스 ④ — 차단된 자식들에 대해 위반 알림 (정책 06 ④)]
+        if (bulkValidation.blockedChildren && bulkValidation.blockedChildren.length > 0) {
+            for (const blockedChild of bulkValidation.blockedChildren) {
+                subregionAdminPush.sendPrincipleViolation({
+                    reportId: 'manual-edit-bulk',
+                    stn: null,
+                    parentRegion: parentZone,
+                    childRegion: blockedChild
+                });
+            }
+        }
+
         let appliedCount = 0;
         const appliedChildren = [];
         for (const childZone of bulkValidation.allowedChildren) {
             if (status === null || status === undefined) {
                 parentNode.children[childZone] = null;
             } else {
-                parentNode.children[childZone] = subregionLedger.makeChildObject(parentNode.children[childZone], {
-                    status,
-                    source: alertData.source || 'report',
-                    wrnTp: alertData.wrnTp || (parentNode.current && parentNode.current.wrnTp) || null,
-                    wrnLvl: alertData.wrnLvl || (parentNode.current && parentNode.current.wrnLvl) || null,
-                    tmFc: alertData.tmFc || (parentNode.current && parentNode.current.tmFc) || null,
-                    tmEf: alertData.tmEf || (parentNode.current && parentNode.current.tmEf) || null,
-                    tmCc: alertData.tmCc || (parentNode.current && parentNode.current.tmCc) || null,
-                    sourceReportId: 'manual-edit-bulk',
-                    modifiedBy: 'admin-manual'
-                });
+                parentNode.children[childZone] = subregionLedger.makeChildObject(
+                    parentNode.children[childZone],
+                    {
+                        status,
+                        source: alertData.source || 'report',
+                        wrnTp: alertData.wrnTp || (parentNode.current && parentNode.current.wrnTp) || null,
+                        wrnLvl: alertData.wrnLvl || (parentNode.current && parentNode.current.wrnLvl) || null,
+                        tmFc: alertData.tmFc || (parentNode.current && parentNode.current.tmFc) || null,
+                        tmEf: alertData.tmEf || (parentNode.current && parentNode.current.tmEf) || null,
+                        tmCc: alertData.tmCc || (parentNode.current && parentNode.current.tmCc) || null,
+                        sourceReportId: 'manual-edit-bulk',
+                        modifiedBy: 'admin-manual'
+                    },
+                    {
+                        parentRegion: parentZone,
+                        childRegion: childZone,
+                        violationCallback: (info) => {
+                            subregionAdminPush.sendTimeMonotonicity({
+                                reportId: 'manual-edit-bulk',
+                                stn: null,
+                                parentRegion: info.parentRegion,
+                                childRegion: info.childRegion,
+                                previousTmEf: info.previousTmEf,
+                                newTmEf: info.newTmEf
+                            });
+                        }
+                    }
+                );
             }
             appliedCount++;
             appliedChildren.push(childZone);
