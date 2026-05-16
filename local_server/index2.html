@@ -1365,14 +1365,21 @@
     <link rel="stylesheet" href="/assets/vendor/ol/ol.css">
     <script src="/assets/vendor/ol/ol.js"></script>
 
-    <!-- proj4 - 좌표계 변환 라이브러리 (OL8 와 함께 사용)
-         [현재] 외부 CDN 유지 — 코드에서 사용처 0건이지만 향후 좌표계 확장
-                가능성을 위해 보존. 추후 사용처 확정 시 자체 호스팅으로 전환 가능.
+    <!-- [제거됨] proj4 (좌표계 변환 라이브러리) — dead dependency
+         - 코드에서 proj4 함수 호출 0건 확인 (전체 grep 결과).
+         - 한국 좌표계(EPSG:5179 등) 실제 사용 0건. ocean_map.js:83 의
+           EPSG:5179 언급은 주석 안 예시일 뿐이며 실제로는 EPSG:3857 사용
+           (ocean_map.js:86 명시).
+         - OpenLayers 8 은 EPSG:4326 / EPSG:3857 만 기본 내장으로 사용 →
+           proj4 없이도 동작.
+         - 외부 CDN 의존 1개 + 약 90KB 다운로드 절약 + Edge Tracking
+           Prevention 콘솔 경고 제거.
+         - 향후 한국 좌표계 변환 필요 시 다시 추가: vendor 자체호스팅 권장.
+
          [제거됨] NGII (국토지리정보원) 베이스맵 라이브러리 — dead dependency
          - 과거에 항공/위성 영상 베이스맵 용도로 로드됐으나 실제 호출 코드 0건 확인
          - 그냥 매 페이지 로드마다 외부 서버에서 받아오기만 하고 사용처가 없어 제거
          - 향후 항공/위성 베이스맵 도입 시 다시 추가하면 됨 (도메인 락/API key 종속) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.js"></script>
 
     <!-- SunCalc - 천문 정보 계산 (일출몰, 월령 등) — 자체 호스팅 -->
     <script src="/assets/vendor/suncalc/suncalc.min.js"></script>
