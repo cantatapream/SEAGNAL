@@ -38,11 +38,39 @@ const { app, PORT, staticRoot, UPLOAD_DIR } = require('./config/server_config');
 const express = require('express');
 const path = require('path');
 const cron = require('node-cron');
+const compression = require('compression');
 const cloudBackup = require('./cloud_backup');
 
 // 서비스 초기화 (import 시 자동으로 캐시 갱신 시작, 업로드 설정 완료)
 require('./services/cache_manager');
 require('./services/upload_manager');
+
+// ============================================================================
+// 1-A. HTTP 응답 압축 (gzip/brotli)
+// ============================================================================
+// [목적]
+//   라우트/정적파일이 응답하기 전에 등록되어, 모든 텍스트 기반 응답
+//   (HTML, JS, CSS, JSON 등) 을 자동으로 gzip 압축합니다.
+//
+// [효과 - A안 자체호스팅 보완]
+//   외부 CDN 시절엔 CDN 이 자동 압축을 해줬는데, vendor/ 로 자체호스팅
+//   하면서 이 혜택을 잃었음. 이 미들웨어로 회복:
+//     ol.js        808KB → ~250KB (-69%)
+//     hls.min.js   413KB → ~120KB (-71%)
+//     fonts.css    340KB → ~50KB  (-85%)
+//     기타 라이브러리 평균 -70%
+//
+// [자동 처리]
+//   - 클라이언트 Accept-Encoding 헤더에 따라 gzip/deflate 협상
+//   - text/html, application/javascript, text/css 등 텍스트 자동 압축
+//   - woff2/png/jpg 등 이미 압축된 바이너리는 자동 스킵 (Content-Type 기반)
+//   - 1KB 미만 작은 응답은 압축 안 함 (네트워크 비용 < CPU 비용)
+//   - Vary: Accept-Encoding 헤더 자동 추가
+//
+// [등록 위치 중요]
+//   express.static 과 모든 라우트보다 먼저 등록해야 그 응답들이 압축됨.
+// ============================================================================
+app.use(compression());
 
 // ============================================================================
 // 2. 정적 파일 서빙
