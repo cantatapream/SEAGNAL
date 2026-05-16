@@ -686,6 +686,7 @@ async function applyNewReports(fullForm) {
                         const referenceBlock = fullText.substring(refIdx);
                         const cancels = subregionParser.extractPrelimNaturalCancel(referenceBlock);
                         for (const c of cancels) {
+                            // 1) 관리자 푸시 발송 (정책 06 ⑦)
                             subregionAdminPush.sendPrelimNaturalCancel({
                                 reportId: report.id,
                                 stn: report.stn,
@@ -693,6 +694,44 @@ async function applyNewReports(fullForm) {
                                 affectedKind: c.kind,
                                 detectedPhrase: c.detectedPhrase
                             });
+
+                            // 2) review_needed.json 저장 — 정책 04 §3
+                            //    어드민이 확인하지 않으면 추적이 안 되므로 누적 기록 필수.
+                            //    같은 reportId 의 같은 region+kind 가 이미 있으면 중복 저장 X.
+                            try {
+                                let reviews = [];
+                                if (fs.existsSync(REVIEW_NEEDED_FILE)) {
+                                    reviews = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8'));
+                                }
+                                const dupKey = `${report.id}|${c.region}|${c.kind}`;
+                                const exists = reviews.some(r =>
+                                    r.category === 'prelim_natural_cancel' &&
+                                    r.reportId === report.id &&
+                                    r.details && r.details.affectedRegion === c.region &&
+                                    r.details.affectedKind === c.kind
+                                );
+                                if (!exists) {
+                                    reviews.push({
+                                        id: `rev_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                                        reportId: report.id,
+                                        category: 'prelim_natural_cancel',
+                                        severity: 'HIGH',
+                                        createdAt: new Date().toISOString(),
+                                        acknowledged: false,
+                                        acknowledgedAt: null,
+                                        acknowledgedBy: null,
+                                        details: {
+                                            affectedRegion: c.region,
+                                            affectedKind: c.kind,
+                                            detectedPhrase: c.detectedPhrase,
+                                            stn: report.stn || null
+                                        }
+                                    });
+                                    fs.writeFileSync(REVIEW_NEEDED_FILE, JSON.stringify(reviews, null, 2), 'utf8');
+                                }
+                            } catch (e) {
+                                console.error('[ReportProcessor] review_needed 저장 오류 (자연어 해제):', e.message);
+                            }
                         }
                     }
                 } catch (e) {
