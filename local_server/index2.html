@@ -1542,7 +1542,9 @@
     (function() {
         var _maintClickCount = 0;
         var _maintClickTimer = null;
-        var ADMIN_PASSWORD = 'zaqxsw12!wlstjq';
+        // [Phase 4-C] 클라이언트 측 하드코딩 비밀번호 제거.
+        // 비밀번호 검증은 서버 POST /api/admin/maintenance-bypass-verify 가 담당.
+        // (서버는 .env 의 ADMIN_PASSWORD 와 timingSafeEqual 비교 — 코드에 비번 노출 0)
 
         /**
          * 점검 화면 표시 처리 (실제 UI 변경 로직).
@@ -1642,15 +1644,46 @@
         }
 
         /**
-         * 관리자 비밀번호 검증 (점검 화면의 "확인" 버튼이 호출).
-         * 인라인 onclick 에서 호출하므로 window 전역으로 등록.
-         * IIFE 진입 즉시 등록되어 DOMContentLoaded 이전에도 사용 가능.
+         * 관리자 비밀번호 검증 — Phase 4-C: 서버에 위임 (보안 강화)
+         *
+         * [변경 전 동작]
+         *   클라이언트에서 if (pw.value === ADMIN_PASSWORD) 직접 비교.
+         *   비밀번호가 이 파일에 박혀있어 소스 보기로 노출.
+         *
+         * [변경 후 동작]
+         *   비밀번호를 서버 POST /api/admin/maintenance-bypass-verify 에 보냄.
+         *   서버가 .env 의 ADMIN_PASSWORD 와 timingSafeEqual 비교 후 200/401 응답.
+         *   200 받으면 기존과 동일하게 sessionStorage 플래그 + reload.
+         *
+         * [엔드포인트 특이점]
+         *   이 API 는 routes/admin.js 의 인증 미들웨어 적용 이전에 등록되어 있어,
+         *   토큰 없이도 호출 가능 (점검 화면 진입 자체가 인증 발급 전 상태이므로).
+         *
+         * [인라인 onclick 호환]
+         *   이 함수는 모달 버튼의 onclick="verifyMaintenanceBypass()" 에서 호출됨.
+         *   async 로 변경되어도 호출 측은 반환 Promise 를 무시해도 동작에 영향 없음.
          */
-        window.verifyMaintenanceBypass = function() {
+        window.verifyMaintenanceBypass = async function() {
             var pw = document.getElementById('maintenance-bypass-pw');
             if (!pw) return;
 
-            if (pw.value === ADMIN_PASSWORD) {
+            var password = pw.value;
+
+            try {
+                var res = await fetch('/api/admin/maintenance-bypass-verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: password })
+                });
+
+                if (!res.ok) {
+                    // 비밀번호 불일치 또는 기타 인증 실패 (정보 누출 방지 위해 동일 메시지)
+                    alert('비밀번호가 일치하지 않습니다.');
+                    pw.value = '';
+                    pw.focus();
+                    return;
+                }
+
                 // 인증 성공 → 세션에 우회 플래그 저장
                 sessionStorage.setItem('maintenance_bypass', 'true');
 
@@ -1667,8 +1700,10 @@
 
                 // 페이지 리로드로 정상 초기화 (점검 우회 후 fresh start)
                 window.location.reload();
-            } else {
-                alert('비밀번호가 일치하지 않습니다.');
+            } catch (e) {
+                // 네트워크 오류 — 친근한 안내. (점검 모드는 차단 의도이므로 fail-closed)
+                alert('서버와 통신할 수 없습니다. 인터넷 연결을 확인하세요.');
+                console.error('[maintenance] 우회 검증 실패:', e && e.message);
                 pw.value = '';
                 pw.focus();
             }
