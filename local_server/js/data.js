@@ -105,10 +105,13 @@ async function loadBackgroundData() {
             updateBuoyButtonColors();
         }
 
-        // 3-2. 해구도 이미지 프리로드
-        if (window.preloadSeaZoneImage) {
-            window.preloadSeaZoneImage();
-        }
+        // [제거됨] 해구도 이미지 프리로드 (/images/haegudo.gif)
+        //   - 이 이미지는 구버전(index.html, sea-zone-section) 의 정적 지도 전용.
+        //   - 현재 운영되는 index2.html 에서는 OpenLayers 기반 ocean-map-section 만 사용
+        //     하므로 더 이상 필요 없음.
+        //   - 호출 제거로 시작 시 약 600KB 다운로드 + console.log 노이즈 절약.
+        //   - 향후 index.html 통째 삭제 시 seaZones.js 의 preloadSeaZoneImage 함수
+        //     와 haegudo.gif 파일도 함께 정리 예정.
     } catch (error) {
         console.error('Background data loading error:', error);
     }

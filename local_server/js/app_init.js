@@ -236,6 +236,15 @@ window.showAdminAlertBanner = async function () {
     // 관리자 모드가 아니면 표시하지 않음
     if (localStorage.getItem('seagnal_admin_mode') !== 'true') return;
 
+    // [Phase 4-B 보완] 인증 토큰이 없으면 admin API 호출 자체를 건너뜀.
+    //   - admin 모드 토글(localStorage)은 UI 가드일 뿐, 서버 인증과 별개.
+    //   - 토큰 없는 상태에서 호출하면 서버가 401 응답 → fetch 래퍼가
+    //     "인증 만료" 콘솔 경고를 출력 → 사용자 콘솔 노이즈.
+    //   - admin.js 의 getStoredAdminToken() 헬퍼는 admin.js 가 본 파일보다
+    //     먼저 로드되므로 (index2.html 스크립트 순서: admin.js < app_init.js)
+    //     이 시점에 사용 가능.
+    if (typeof getStoredAdminToken === 'function' && !getStoredAdminToken()) return;
+
     try {
         const [failRes, reviewRes] = await Promise.all([
             fetch('/api/admin/collect-failures'),
