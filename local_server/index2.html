@@ -1676,6 +1676,35 @@
     })();
     </script>
 
+    <!-- ====================================================================
+         [서비스 워커 등록] 정적 자원 캐시 + 푸시 알림 (C안 단위 3-C)
+         ----------------------------------------------------------------
+         페이지 로드(load) 이벤트 후에 서비스워커를 등록합니다. 이렇게 하면
+         페이지의 초기 렌더링이 차단되지 않고, 다음 진입부터 캐시 효과 발현.
+
+         [동작]
+           - 첫 진입:  SW install → activate (현재 탭 즉시 제어)
+                       이후 GET 요청들이 SW 의 fetch 핸들러를 거침
+                       (블랙리스트는 네트워크 직통, 그 외 정적 자원은 캐시 + SWR)
+           - 두 번째 진입: 캐시된 정적 자원 즉시 응답 → 시작 속도 단축
+
+         [실패 시]
+           catch 로 잡아 console.warn 만 출력. 앱 동작에는 영향 없음.
+
+         [지원 안 함 환경]
+           'serviceWorker' in navigator 체크 → 미지원 환경(매우 옛 WebView)
+           에선 등록 자체를 건너뜀.
+         ==================================================================== -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+            navigator.serviceWorker.register('/sw.js').catch(function (err) {
+                console.warn('[SW] 등록 실패:', err && err.message);
+            });
+        });
+    }
+    </script>
+
     <!-- Splash Screen -->
     <div id="splash-screen" class="splash-screen">
         <div class="splash-content">
