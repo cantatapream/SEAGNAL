@@ -20,3 +20,8 @@ local_server/data/debug_pdf/
 
 # 수심 데이터 (Fly.io Volume에 저장)
 local_server/data/bathymetry/
+
+# 관리자 토큰 파일 (Fly.io Volume에 저장, 절대 git 추적 금지)
+# 토큰 자체가 인증 자격증명이므로 노출 시 임의 사용자가 admin 접근 가능
+local_server/data/admin_tokens.json
+local_server/data/admin_tokens.json.tmp

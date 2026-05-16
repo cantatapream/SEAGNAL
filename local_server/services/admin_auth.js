@@ -42,6 +42,8 @@
  */
 
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 // ============================================================================
 // 환경변수에서 비밀번호 로드 (서버 시작 시 1회)
@@ -73,7 +75,29 @@ const TOKEN_TTL_LONG_MS = 30 * 24 * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 
 // ============================================================================
-// 토큰 저장소 — 서버 메모리
+// 토큰 디스크 영속화 — Fly.io 볼륨 활용 (data/admin_tokens.json)
+// ============================================================================
+//
+// [왜 디스크 저장이 필요한가]
+//   기존: 토큰을 서버 메모리(Map)에만 저장 → 배포로 서버 재시작 시 모든 토큰
+//         무효 → 사용자가 "비밀번호 저장(30일)" 체크해도 매 배포마다 재로그인.
+//   개선: data/admin_tokens.json 에 동기화. Fly.io 의 mount 된 볼륨이므로
+//         컨테이너 재시작에도 데이터 유지 → 진짜 30일 자동 로그인 동작.
+//
+// [보안]
+//   - 토큰 파일은 .gitignore 에 추가하여 git 추적 차단.
+//   - Fly.io 볼륨은 같은 앱 내에서만 접근 가능 (외부 노출 없음).
+//   - 토큰 자체는 256bit 무작위라 파일이 유출되어도 추측 불가.
+//
+// [동시성]
+//   토큰 발급/만료는 자주 일어나지 않으므로 단순 atomic write 패턴 충분:
+//   임시 파일에 쓰고 rename 으로 교체 → 도중에 크래시 나도 옛 파일 보존.
+
+const TOKENS_FILE = path.join(__dirname, '..', 'data', 'admin_tokens.json');
+const TOKENS_FILE_TMP = TOKENS_FILE + '.tmp';
+
+// ============================================================================
+// 토큰 저장소 — 서버 메모리 (디스크와 양방향 동기화)
 // ============================================================================
 //
 // key   : 토큰 문자열 (64자 hex)
@@ -129,6 +153,75 @@ function verifyPassword(input) {
 }
 
 // ============================================================================
+// 디스크 입출력 — 토큰 영속화
+// ============================================================================
+
+/**
+ * 메모리 Map 의 현재 상태를 data/admin_tokens.json 에 atomic 하게 저장.
+ *
+ * [atomic write 패턴]
+ *   1) tmp 파일에 먼저 씀
+ *   2) tmp 를 실제 파일명으로 rename (원자적 교체)
+ *   → 도중 크래시가 나도 옛 파일이 그대로 남아 자료 손실 방지.
+ *
+ * [실패 시]
+ *   조용히 로그만 남기고 무시. 토큰 동작 자체는 메모리만으로도 유지됨.
+ *   다음 발급/청소 시 다시 시도.
+ */
+function saveTokensToDisk() {
+    try {
+        const obj = {};
+        for (const [token, entry] of tokens.entries()) {
+            obj[token] = { expiresAt: entry.expiresAt };
+        }
+        fs.writeFileSync(TOKENS_FILE_TMP, JSON.stringify(obj), 'utf8');
+        fs.renameSync(TOKENS_FILE_TMP, TOKENS_FILE);
+    } catch (e) {
+        console.warn('[admin_auth] 토큰 디스크 저장 실패:', e && e.message);
+    }
+}
+
+/**
+ * 서버 시작 시 1회 호출. data/admin_tokens.json 에서 토큰 복원.
+ *
+ * [동작]
+ *   - 파일이 없거나 깨졌으면 빈 Map 으로 시작 (안전 폴백)
+ *   - 만료된 토큰은 로드하지 않음 (자연 청소)
+ *   - 정상 토큰만 메모리 Map 에 적재 → 배포 후에도 자동 로그인 유지
+ */
+function loadTokensFromDisk() {
+    try {
+        if (!fs.existsSync(TOKENS_FILE)) {
+            return;       // 첫 배포 등 — 빈 상태로 시작
+        }
+        const raw = fs.readFileSync(TOKENS_FILE, 'utf8');
+        const obj = JSON.parse(raw);
+        const now = Date.now();
+        let loaded = 0;
+        let expired = 0;
+        for (const token of Object.keys(obj)) {
+            const entry = obj[token];
+            if (entry && typeof entry.expiresAt === 'number' && entry.expiresAt > now) {
+                tokens.set(token, { expiresAt: entry.expiresAt });
+                loaded++;
+            } else {
+                expired++;
+            }
+        }
+        if (loaded + expired > 0) {
+            console.log(`[admin_auth] 디스크에서 토큰 복원: 유효 ${loaded} / 만료 ${expired}`);
+        }
+        // 만료 토큰을 정리한 새 상태를 다시 저장 (디스크 청소)
+        if (expired > 0) saveTokensToDisk();
+    } catch (e) {
+        console.warn('[admin_auth] 토큰 디스크 로드 실패 (빈 상태로 시작):', e && e.message);
+    }
+}
+
+// 서버 시작 시 1회 — 모듈 로드 즉시 실행
+loadTokensFromDisk();
+
+// ============================================================================
 // 토큰 발급 / 검증
 // ============================================================================
 
@@ -149,6 +242,7 @@ function issueToken(password, longTerm) {
     const expiresAt = Date.now() + ttl;
 
     tokens.set(token, { expiresAt });
+    saveTokensToDisk();   // [영속화] 발급 즉시 디스크 동기화
     return { token, expiresAt };
 }
 
@@ -166,6 +260,7 @@ function verifyToken(token) {
     if (!entry) return false;
     if (entry.expiresAt < Date.now()) {
         tokens.delete(token);    // 만료된 토큰 즉시 제거
+        saveTokensToDisk();      // [영속화] 만료 정리 즉시 반영
         return false;
     }
     return true;
@@ -188,6 +283,7 @@ setInterval(() => {
     }
     if (removed > 0) {
         console.log(`[admin_auth] 만료 토큰 ${removed} 개 청소 완료. 잔여: ${tokens.size}`);
+        saveTokensToDisk();   // [영속화] 정기 청소 결과 반영
     }
 }, CLEANUP_INTERVAL_MS);
 
