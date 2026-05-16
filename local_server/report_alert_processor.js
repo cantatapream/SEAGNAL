@@ -5,6 +5,7 @@ const aiParser = require('./ai_report_parser');
 const subregionParser = require('./subregion_parser');
 const subregionAdminPush = require('./services/subregion_admin_push');
 const subregionNormalizer = require('./services/subregion_normalizer');
+const subregionCrossCheck = require('./services/subregion_cross_check');
 
 const COLLECT_CACHE_DIR = path.join(__dirname, 'data', 'collect_cache');
 // [검토 필요 통보문] "내용 없음"이지만 참고사항에 해상 키워드가 포함된 통보문 저장
@@ -591,6 +592,27 @@ async function applyNewReports(fullForm) {
                     aiParsed.children = childrenInfo;
                     console.log(`[ReportProcessor] 자식해역 추출 ${childrenInfo.length}건:`,
                         childrenInfo.map(c => `${c.parent}(${c.child}${c.excluded ? ' 제외' : ''})`).join(', '));
+                }
+
+                // ──────────────────────────────────────────────────────────
+                // [Dual Validation 교차 검증 — 정책 06 케이스 ③]
+                //   AI 파서 결과(events.zones) 와 정규식 파서 결과(children) 를 비교.
+                //   AI 가 자식해역명을 zones 에 잘못 넣었거나 (hallucination),
+                //   정규식이 잡은 자식을 AI 가 누락한 경우 등 불일치 시 관리자 푸시.
+                //   결과적으로 정규식 결과(aiParsed.children) 를 신뢰값으로 채택.
+                // ──────────────────────────────────────────────────────────
+                subregionCrossCheck.runCrossCheck({
+                    reportId: report.id,
+                    stn: report.stn,
+                    aiParsed
+                });
+            } catch (e) {
+                console.error('[ReportProcessor] 자식해역 cross-check 오류:', e.message);
+            }
+
+            try {
+                const childrenInfo = aiParsed.children || [];
+                if (childrenInfo.length > 0) {
 
                     // ──────────────────────────────────────────────────────────
                     // [자식해역 관련 관리자 푸시 — 정책 06_ADMIN_PUSH_POLICY.md]
