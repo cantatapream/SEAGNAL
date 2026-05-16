@@ -2376,6 +2376,9 @@ function renderCollectTestSubTab(container) {
             <button id="atm-tab-collect" onclick="switchAlertTestTab('collect')" class="atm-tab" style="flex:1;padding:12px;background:transparent;color:#94a3b8;border:none;cursor:pointer;font-weight:600;font-size:0.9rem;border-bottom:2px solid transparent;">
                 <i class="fa-solid fa-download"></i> 통보문 수집
             </button>
+            <button id="atm-tab-forecast" onclick="switchAlertTestTab('forecast')" class="atm-tab" style="flex:1;padding:12px;background:transparent;color:#94a3b8;border:none;cursor:pointer;font-weight:600;font-size:0.9rem;border-bottom:2px solid transparent;">
+                <i class="fa-solid fa-water"></i> 전망 수집
+            </button>
         </div>
         <div id="atm-content"></div>
     `;
