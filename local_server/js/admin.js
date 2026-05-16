@@ -26,6 +26,143 @@ const adminAuthenticated = {
     alert: false
 };
 
+// ============================================================================
+// [Phase 4-B] 관리자 토큰 기반 인증 (보안 강화)
+// ============================================================================
+//
+// [왜 이 블록이 생겼는가]
+//   기존: 비밀번호가 이 파일에 하드코딩 + 클라이언트 측에서 직접 비교.
+//         소스 보기로 비번 노출 + 서버 admin API 는 누구나 호출 가능.
+//   변경: 비밀번호는 서버 .env 에만 존재. 클라이언트는 서버에 비번 보내고
+//         토큰을 받아 sessionStorage(또는 "비밀번호 저장" 체크 시 localStorage)
+//         에 보관. 이후 모든 /api/admin/* 호출에 X-Admin-Token 헤더 자동 첨부.
+//
+// [핵심 헬퍼]
+//   getStoredAdminToken / saveAdminToken / clearAdminToken
+//   setAdminAuthState  - adminAuthenticated.* 플래그 일괄 갱신
+//
+// [fetch 래퍼]
+//   window.fetch 를 1회 감싸서 /api/admin/* 호출에 헤더 자동 첨부 + 401 자동 정리.
+//   호출처 34곳의 fetch 코드는 그대로 둠 (래퍼가 가로채므로).
+//
+// [예외 URL — 헤더 안 붙이는 곳]
+//   /api/admin/login                   (인증을 발급하는 곳, 당연히 면제)
+//   /api/admin/maintenance-bypass-verify (점검 우회 일회성 검증, 토큰 무관)
+
+const ADMIN_TOKEN_KEY = 'seagnal_admin_token';
+
+/** localStorage(영구) > sessionStorage(세션) 순으로 토큰 조회. 없으면 null. */
+function getStoredAdminToken() {
+    try {
+        return localStorage.getItem(ADMIN_TOKEN_KEY) ||
+               sessionStorage.getItem(ADMIN_TOKEN_KEY) || null;
+    } catch (_) { return null; }
+}
+
+/**
+ * 토큰 저장.
+ * @param {string}  token   서버에서 받은 토큰
+ * @param {boolean} persist true 면 localStorage(영구), false 면 sessionStorage(탭 단위)
+ *
+ * 양쪽 저장소를 먼저 비우고 한 쪽에만 저장 → 중복으로 옛 토큰이 남는 사고 방지.
+ */
+function saveAdminToken(token, persist) {
+    try {
+        localStorage.removeItem(ADMIN_TOKEN_KEY);
+        sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+        if (persist) {
+            localStorage.setItem(ADMIN_TOKEN_KEY, token);
+        } else {
+            sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
+        }
+    } catch (_) { /* private mode 등 — 조용히 무시 */ }
+}
+
+/** 양쪽 저장소에서 토큰 모두 제거 (만료/로그아웃) */
+function clearAdminToken() {
+    try {
+        localStorage.removeItem(ADMIN_TOKEN_KEY);
+        sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+    } catch (_) { /* 무시 */ }
+}
+
+/** adminAuthenticated 플래그 4개를 한꺼번에 설정. UI 가드용 */
+function setAdminAuthState(authed) {
+    adminAuthenticated.api = !!authed;
+    adminAuthenticated.notice = !!authed;
+    adminAuthenticated.promo = !!authed;
+    adminAuthenticated.alert = !!authed;
+}
+
+// 원본 fetch 보존 (래퍼 안에서 호출 + 외부에서 비-admin 호출에 활용)
+const _origFetch = window.fetch.bind(window);
+
+/**
+ * window.fetch 글로벌 래퍼.
+ *
+ * [동작]
+ *   - URL 이 /api/admin/* 이고 예외(login, bypass-verify)가 아닐 때만 처리
+ *     1) 저장된 토큰이 있으면 X-Admin-Token 헤더 첨부
+ *     2) 응답이 401 이면 토큰을 즉시 무효화 + 인증 상태 해제
+ *        → 다음 admin 작업 시 로그인 모달이 다시 뜸
+ *   - 그 외 URL 은 손대지 않고 원본 fetch 그대로 호출 (회귀 위험 최소화)
+ *
+ * [멱등성]
+ *   이 파일이 두 번 로드되어도(이론상) 같은 함수로 다시 감싸지 않도록
+ *   _origFetch 는 모듈 스코프에 한 번만 캡처됨.
+ */
+window.fetch = function adminAwareFetch(input, init) {
+    let url = '';
+    try {
+        if (typeof input === 'string') url = input;
+        else if (input && typeof input.url === 'string') url = input.url;
+    } catch (_) { /* 무시 */ }
+
+    const isAdminApi = url.indexOf('/api/admin/') !== -1;
+    const isExempt = isAdminApi && (
+        url.indexOf('/api/admin/login') !== -1 ||
+        url.indexOf('/api/admin/maintenance-bypass-verify') !== -1
+    );
+    const shouldAttachToken = isAdminApi && !isExempt;
+
+    if (shouldAttachToken) {
+        const token = getStoredAdminToken();
+        if (token) {
+            init = init || {};
+            // Headers 객체로 변환 (init.headers 가 plain object/Headers/배열 모두 가능)
+            const headers = new Headers(init.headers || {});
+            headers.set('X-Admin-Token', token);
+            init.headers = headers;
+        }
+    }
+
+    const promise = _origFetch(input, init);
+
+    if (shouldAttachToken) {
+        return promise.then(function (res) {
+            if (res && res.status === 401) {
+                // 토큰 만료 또는 무효 — 정리. 다음 admin 작업 시 로그인 모달 표시됨.
+                clearAdminToken();
+                setAdminAuthState(false);
+                console.warn('[admin] 인증 만료/무효 — 다시 로그인이 필요합니다.');
+            }
+            return res;
+        });
+    }
+    return promise;
+};
+
+// ============================================================================
+// [Phase 4-B] 페이지 로드 시 저장된 토큰 복원
+// ============================================================================
+//   토큰 자체의 유효성은 첫 API 호출에서 확인됨 (401 받으면 fetch 래퍼가 정리).
+//   네트워크 없이 즉시 UI 상태 복원 → 자동 로그인 UX.
+(function _restoreAdminAuthOnLoad() {
+    if (getStoredAdminToken()) {
+        setAdminAuthState(true);
+    }
+})();
+
 // 1. 통합 로그인 모달 (Mode: 'api' | 'notice' | 'promo')
 window.showUnifiedLoginModal = function (mode, title, icon) {
     const existing = document.getElementById('unified-admin-login-modal');
@@ -37,17 +174,31 @@ window.showUnifiedLoginModal = function (mode, title, icon) {
     modal.id = 'unified-admin-login-modal';
     modal.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s ease-out;';
 
+    // "비밀번호 저장" 체크 여부: 직전에 영구 저장된 토큰이 있던 사용자에겐
+    // 체크박스가 미리 체크되어 있도록 기본값 결정 (UX — 본인 기기 사용자 편의).
+    const rememberDefault = !!(function(){
+        try { return localStorage.getItem(ADMIN_TOKEN_KEY); } catch(_) { return null; }
+    })();
+
     modal.innerHTML = `
         <div style="background:#1e2435;border-radius:12px;padding:20px;max-width:320px;width:90%;text-align:center;box-shadow:0 10px 25px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.08);">
             <h3 style="color:#fff;margin:0 0 15px;font-size:1.1rem;display:flex;align-items:center;justify-content:center;gap:8px;">
                 <i class="fa-solid ${icon}" style="color:${iconColor};"></i>${title}
             </h3>
-            <input type="password" id="unified-admin-password" placeholder="관리자 비밀번호" 
-                   style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;background:rgba(0,0,0,0.3);color:#fff;font-size:1rem;box-sizing:border-box;margin-bottom:15px;outline:none;text-align:center;">
+            <input type="password" id="unified-admin-password" placeholder="관리자 비밀번호"
+                   style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;background:rgba(0,0,0,0.3);color:#fff;font-size:1rem;box-sizing:border-box;margin-bottom:10px;outline:none;text-align:center;">
+            <!-- [Phase 4-B] "비밀번호 저장" 체크박스 — 체크 시 토큰을 localStorage 에
+                  영구 저장하고 만료를 30 일로 연장 (본 기기에서만 사용한다는 전제) -->
+            <label style="display:flex;align-items:center;justify-content:center;gap:6px;
+                          color:#aaa;font-size:0.85rem;margin-bottom:15px;cursor:pointer;user-select:none;">
+                <input type="checkbox" id="unified-admin-remember" ${rememberDefault ? 'checked' : ''}
+                       style="width:14px;height:14px;cursor:pointer;accent-color:${iconColor};">
+                이 기기에서 비밀번호 저장 (30일)
+            </label>
             <div style="display:flex;gap:10px;">
-                <button onclick="document.getElementById('unified-admin-login-modal').remove();" 
+                <button onclick="document.getElementById('unified-admin-login-modal').remove();"
                         style="flex:1;padding:10px;background:rgba(255,255,255,0.05);border:none;border-radius:6px;color:#aaa;cursor:pointer;transition:background 0.2s;">취소</button>
-                <button onclick="verifyUnifiedAdminPassword('${mode}');" 
+                <button onclick="verifyUnifiedAdminPassword('${mode}');"
                         style="flex:1;padding:10px;background:linear-gradient(135deg,${iconColor},${iconColor}cc);border:none;border-radius:6px;color:#1a1f2e;font-weight:600;cursor:pointer;box-shadow:0 4px 12px ${iconColor}33;">확인</button>
             </div>
         </div>
@@ -67,25 +218,65 @@ window.showUnifiedLoginModal = function (mode, title, icon) {
     }, 100);
 };
 
-window.verifyUnifiedAdminPassword = function (mode) {
+/**
+ * [Phase 4-B] 관리자 비밀번호 검증 — 서버에 위임 (보안 강화)
+ *
+ * 기존: 클라이언트에서 if (password === '하드코딩') 직접 비교
+ *        → 소스 보기로 비번 노출, 서버 admin API 도 무방비
+ * 변경: 비밀번호를 서버 POST /api/admin/login 에 보내 검증
+ *        → 서버는 .env 의 ADMIN_PASSWORD 와 timingSafeEqual 비교
+ *        → 성공 시 토큰 발급 → 클라이언트 저장 → 이후 모든 admin API 호출에 첨부
+ *
+ * 체크박스 "비밀번호 저장" 켜져 있으면:
+ *   - 서버에 longTerm=true 로 요청 → 30일 만료 토큰
+ *   - localStorage 에 저장 (브라우저 닫아도 유지)
+ * 체크 꺼져 있으면:
+ *   - longTerm=false → 24시간 만료 토큰
+ *   - sessionStorage 에 저장 (탭 닫으면 사라짐)
+ */
+window.verifyUnifiedAdminPassword = async function (mode) {
     const input = document.getElementById('unified-admin-password');
     if (!input) return;
 
     const password = input.value;
+    const rememberCb = document.getElementById('unified-admin-remember');
+    const longTerm = !!(rememberCb && rememberCb.checked);
 
-    if (password === 'zaqxsw12!wlstjq') {
-        // 모든 권한을 한 번에 부여 (통합 모달이므로)
-        adminAuthenticated.api = true;
-        adminAuthenticated.notice = true;
-        adminAuthenticated.promo = true;
-        adminAuthenticated.alert = true;
+    try {
+        // [중요] 원본 fetch 사용 — fetch 래퍼는 login URL 예외 처리하지만
+        //        명시적으로 _origFetch 를 써서 어떤 환경에서도 헤더 첨부 시도 0 보장.
+        const res = await _origFetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password, longTerm })
+        });
+
+        if (!res.ok) {
+            // 서버가 401 또는 기타 에러 — 사용자에겐 동일 메시지 (정보 누출 방지)
+            alert('비밀번호가 일치하지 않습니다.');
+            input.value = '';
+            input.focus();
+            return;
+        }
+
+        const data = await res.json();
+        if (!data || !data.token) {
+            alert('서버 응답이 올바르지 않습니다. 잠시 후 다시 시도하세요.');
+            return;
+        }
+
+        // 토큰 저장 + 인증 상태 표시
+        saveAdminToken(data.token, longTerm);
+        setAdminAuthState(true);
 
         document.getElementById('unified-admin-login-modal').remove();
 
         // 통합 관리자 모달 호출 (인증된 모드로 시작)
         showUnifiedAdminModal(mode);
-    } else {
-        alert('비밀번호가 일치하지 않습니다.');
+    } catch (e) {
+        // 네트워크 오류 등 — 사용자에게 친근한 메시지
+        alert('서버와 통신할 수 없습니다. 인터넷 연결을 확인하세요.');
+        console.error('[admin] 로그인 실패:', e && e.message);
         input.value = '';
         input.focus();
     }
