@@ -4,6 +4,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+    <!-- ====================================================================
+         [앱 시작 속도 개선] 우리 서버에 미리 연결 워밍업 (작업 1-1)
+         ----------------------------------------------------------------
+         브라우저가 이 두 줄을 만나면 HTML 파싱과 동시에 백그라운드에서
+         seagnal-server.fly.dev 에 대해 DNS 조회 + TCP/TLS 핸드셰이크를
+         미리 시작합니다. 후속 fetch 요청이 도착할 때는 연결이 이미
+         준비되어 있어 콜드 스타트 시 0.2~0.5초 단축 효과.
+         (같은 origin 이므로 crossorigin 속성은 붙이지 않음)
+         ==================================================================== -->
+    <link rel="preconnect" href="https://seagnal-server.fly.dev">
+    <link rel="dns-prefetch" href="https://seagnal-server.fly.dev">
+
     <style>
         /* ================================================================
            INDEX2 전용 스타일
@@ -1484,79 +1497,150 @@
         </div>
     </div>
 
+    <!-- ====================================================================
+         [점검 정보 인젝션 마커] 작업 1-2 와 연계
+         ----------------------------------------------------------------
+         서버 routes/health.js 가 GET / 응답을 만들 때, 이 마커를
+         <script>window.__MAINTENANCE__ = {active, title, content, blockedFeatures};</script>
+         로 치환합니다. 그 결과 아래 IIFE 가 fetch 없이 점검 상태를
+         즉시 알 수 있어 통신 왕복 1회가 절약됩니다.
+
+         이 마커는 절대 삭제하지 마세요. 삭제되면 인젝션이 일어나지 않아
+         속도 개선 효과가 사라지고, 클라이언트는 자동으로 옛 fetch 방식으로
+         폴백 동작합니다 (기능적 영향은 없지만 느려짐).
+         ==================================================================== -->
+    <!--MAINTENANCE_INJECT-->
     <script>
-    // 점검 모드 확인 및 차단 로직
+    /* ====================================================================
+       [점검 모드 확인 및 차단 로직] (B안 ④ 작업 1-3 적용)
+       --------------------------------------------------------------------
+       [목적]
+         앱이 켜질 때 운영자가 설정한 점검 모드 상태를 확인하여,
+         점검 중이면 점검 화면을 표시하고 일반 앱 진입을 차단합니다.
+
+       [동작 흐름]
+         1순위 (정상):  서버가 HTML 에 박아 보낸 window.__MAINTENANCE__ 를
+                       동기적으로 읽음 → 0ms, 통신 왕복 1회 절약.
+         2순위 (폴백):  window.__MAINTENANCE__ 가 없으면(인젝션 실패/구버전)
+                       기존 fetch('/api/maintenance-status') 로 자동 폴백.
+
+       [실행 시점]
+         DOMContentLoaded 이후에 실행하여 splash-screen, app-container 등
+         body 안의 DOM 요소가 모두 만들어진 상태를 보장합니다.
+
+       [연계]
+         - routes/health.js : window.__MAINTENANCE__ 를 HTML 안에 박음
+         - routes/admin.js  : 관리자가 점검 모드를 토글하면 maintenance_config.json 갱신
+         - #maintenance-screen, #maintenance-bypass-modal : 차단 화면 DOM
+         - sessionStorage[maintenance_bypass] : 관리자 우회 인증 플래그
+    ==================================================================== */
     (function() {
         var _maintClickCount = 0;
         var _maintClickTimer = null;
         var ADMIN_PASSWORD = 'zaqxsw12!wlstjq';
 
-        // 관리자 우회 확인 (세션 단위)
-        if (sessionStorage.getItem('maintenance_bypass') === 'true') {
-            return; // 이미 우회 인증됨 → 정상 진행
+        /**
+         * 점검 화면 표시 처리 (실제 UI 변경 로직).
+         * 양쪽 경로(동기/폴백)가 공유하는 함수.
+         *
+         * @param {object} data { active, title, content, blockedFeatures }
+         */
+        function applyMaintenanceState(data) {
+            // 안전 가드: data 없거나 점검 아님 → 그대로 진행
+            if (!data || !data.active) return;
+
+            // blockedFeatures 가 있으면 전체 차단 안 함 (부분 차단 모드: checkBlockStatus 가 처리)
+            if (data.blockedFeatures && data.blockedFeatures.length > 0) {
+                return;
+            }
+
+            // 점검 화면 표시
+            var screen = document.getElementById('maintenance-screen');
+            var titleEl = document.getElementById('maintenance-title');
+            var contentEl = document.getElementById('maintenance-content');
+
+            if (titleEl) titleEl.textContent = data.title || '서버 점검 중';
+            if (contentEl) contentEl.textContent = data.content || '점검이 완료되면 정상적으로 이용하실 수 있습니다.';
+            if (screen) screen.style.display = 'flex';
+
+            // 스플래시와 앱 컨테이너 숨기기
+            // (DOMContentLoaded 후 실행되므로 이 시점에 모든 요소가 DOM 에 존재함을 보장)
+            var splash = document.getElementById('splash-screen');
+            var appContainer = document.querySelector('.app-container');
+            if (splash) splash.style.display = 'none';
+            if (appContainer) appContainer.style.display = 'none';
+
+            // 점검 화면 로고 10회 클릭 → 관리자 비밀번호 모달
+            var logo = document.getElementById('maintenance-logo');
+            if (logo) {
+                logo.addEventListener('click', function() {
+                    _maintClickCount++;
+                    if (_maintClickTimer) clearTimeout(_maintClickTimer);
+                    _maintClickTimer = setTimeout(function() { _maintClickCount = 0; }, 3000);
+
+                    if (_maintClickCount >= 10) {
+                        _maintClickCount = 0;
+                        var modal = document.getElementById('maintenance-bypass-modal');
+                        if (modal) {
+                            modal.style.display = 'flex';
+                            setTimeout(function() {
+                                var pw = document.getElementById('maintenance-bypass-pw');
+                                if (pw) { pw.value = ''; pw.focus(); }
+                            }, 100);
+                        }
+                    }
+                });
+            }
+
+            // 엔터키 입력으로 비밀번호 검증 트리거
+            var pwInput = document.getElementById('maintenance-bypass-pw');
+            if (pwInput) {
+                pwInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') verifyMaintenanceBypass();
+                });
+            }
         }
 
-        // 점검 상태 확인
-        fetch('/api/maintenance-status', { cache: 'no-store' })
-            .then(function(res) { return res.json(); })
-            .then(function(data) {
-                if (!data.active) return; // 점검 아님 → 정상 진행
+        /**
+         * 점검 확인 메인 진입점.
+         * 1) 세션 우회 확인  2) 서버 인젝션 동기 확인  3) 실패 시 fetch 폴백
+         */
+        function runMaintenanceCheck() {
+            // 관리자 우회 확인 (세션 단위) — 우회 인증된 사용자는 점검 확인 자체를 건너뜀
+            if (sessionStorage.getItem('maintenance_bypass') === 'true') {
+                return;
+            }
 
-                // 선택적 차단 모드: blockedFeatures가 있으면 전체 차단하지 않음
-                if (data.blockedFeatures && data.blockedFeatures.length > 0) {
-                    return; // checkBlockStatus()에서 처리
-                }
+            // 1순위: 서버가 HTML 안에 박아 보낸 동기 데이터 사용 (정상 경로, 0ms)
+            if (window.__MAINTENANCE__) {
+                applyMaintenanceState(window.__MAINTENANCE__);
+                return;
+            }
 
-                // 전체 차단 → 점검 페이지 표시
-                var screen = document.getElementById('maintenance-screen');
-                var titleEl = document.getElementById('maintenance-title');
-                var contentEl = document.getElementById('maintenance-content');
+            // 2순위: 인젝션 실패/마커 누락/구버전 서버 → 옛 fetch 방식으로 자동 폴백
+            // (이 경로는 100% 옛 동작과 동일하며, 안전망 역할만 함)
+            fetch('/api/maintenance-status', { cache: 'no-store' })
+                .then(function(res) { return res.json(); })
+                .then(function(data) { applyMaintenanceState(data); })
+                .catch(function() {
+                    // 통신 실패 시 정상 진행(fail-open) — 기존 동작 보존
+                });
+        }
 
-                if (titleEl) titleEl.textContent = data.title || '서버 점검 중';
-                if (contentEl) contentEl.textContent = data.content || '점검이 완료되면 정상적으로 이용하실 수 있습니다.';
-                if (screen) screen.style.display = 'flex';
+        // DOM 준비 여부에 따라 실행 시점 결정.
+        // 'loading' 상태이면 DOMContentLoaded 를 기다리고,
+        // 이미 'interactive'/'complete' 면 즉시 실행 (예: 서버가 매우 빠르게 응답한 경우).
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', runMaintenanceCheck);
+        } else {
+            runMaintenanceCheck();
+        }
 
-                // 스플래시와 앱 컨테이너 숨기기
-                var splash = document.getElementById('splash-screen');
-                var appContainer = document.querySelector('.app-container');
-                if (splash) splash.style.display = 'none';
-                if (appContainer) appContainer.style.display = 'none';
-
-                // 10회 클릭 → 관리자 비밀번호 입력
-                var logo = document.getElementById('maintenance-logo');
-                if (logo) {
-                    logo.addEventListener('click', function() {
-                        _maintClickCount++;
-                        if (_maintClickTimer) clearTimeout(_maintClickTimer);
-                        _maintClickTimer = setTimeout(function() { _maintClickCount = 0; }, 3000);
-
-                        if (_maintClickCount >= 10) {
-                            _maintClickCount = 0;
-                            var modal = document.getElementById('maintenance-bypass-modal');
-                            if (modal) {
-                                modal.style.display = 'flex';
-                                setTimeout(function() {
-                                    var pw = document.getElementById('maintenance-bypass-pw');
-                                    if (pw) { pw.value = ''; pw.focus(); }
-                                }, 100);
-                            }
-                        }
-                    });
-                }
-
-                // 엔터키 지원
-                var pwInput = document.getElementById('maintenance-bypass-pw');
-                if (pwInput) {
-                    pwInput.addEventListener('keydown', function(e) {
-                        if (e.key === 'Enter') verifyMaintenanceBypass();
-                    });
-                }
-            })
-            .catch(function() {
-                // API 실패 시 정상 진행 (점검 아닌 것으로 간주)
-            });
-
-        // 관리자 비밀번호 검증
+        /**
+         * 관리자 비밀번호 검증 (점검 화면의 "확인" 버튼이 호출).
+         * 인라인 onclick 에서 호출하므로 window 전역으로 등록.
+         * IIFE 진입 즉시 등록되어 DOMContentLoaded 이전에도 사용 가능.
+         */
         window.verifyMaintenanceBypass = function() {
             var pw = document.getElementById('maintenance-bypass-pw');
             if (!pw) return;
@@ -1565,7 +1649,7 @@
                 // 인증 성공 → 세션에 우회 플래그 저장
                 sessionStorage.setItem('maintenance_bypass', 'true');
 
-                // 점검 페이지 숨기고 앱 표시
+                // 점검 페이지 숨기고 앱 표시 후 페이지 리로드
                 var screen = document.getElementById('maintenance-screen');
                 var modal = document.getElementById('maintenance-bypass-modal');
                 var splash = document.getElementById('splash-screen');
@@ -1576,7 +1660,7 @@
                 if (splash) splash.style.display = '';
                 if (appContainer) appContainer.style.display = '';
 
-                // 페이지 리로드로 정상 초기화
+                // 페이지 리로드로 정상 초기화 (점검 우회 후 fresh start)
                 window.location.reload();
             } else {
                 alert('비밀번호가 일치하지 않습니다.');
