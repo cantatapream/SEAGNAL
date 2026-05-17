@@ -89,14 +89,20 @@ router.get('/api/comment-reports/pending-count', (req, res) => {
 
 router.get('/api/comment-reports', (req, res) => {
     const reports = getCommentReports();
+    // 최신순 정렬. 동일 시각(createdAt 분 단위 동률) 일 때 id 의 ms 부분으로
+    // tiebreaker — 'cr_<ms>_<rand>' 포맷이라 localeCompare desc 로 ms 큰 쪽이 먼저.
     reports.sort((a, b) => {
-        const da = new Date(a.createdAt.replace(/\./g, '-'));
-        const db = new Date(b.createdAt.replace(/\./g, '-'));
-        return db - da; // 기존 최신순 정렬 유지
+        const da = new Date((a.createdAt || '').replace(/\./g, '-'));
+        const db = new Date((b.createdAt || '').replace(/\./g, '-'));
+        const t = db - da;
+        if (t !== 0) return t;
+        return (b.id || '').localeCompare(a.id || '');
     });
 
-    // ?page= 가 있을 때만 새 포맷 { data, pagination } 응답.
+    // ?page= 가 있을 때만 새 포맷 { data, pagination, pendingTotal } 응답.
     // 없으면 기존 raw array 응답을 그대로 반환하여 하위 호환 유지.
+    // [방어 코드] raw array 분기: 현재 admin 호출자는 항상 ?page= 동반.
+    // 외부/legacy 호출자 보호를 위해 분기 자체는 보존.
     if (req.query.page != null) {
         const page = Math.max(1, parseInt(req.query.page, 10) || 1);
         const rawLimit = parseInt(req.query.limit, 10) || 20;
@@ -106,7 +112,9 @@ router.get('/api/comment-reports', (req, res) => {
         const offset = (page - 1) * limit;
         return res.json({
             data: reports.slice(offset, offset + limit),
-            pagination: { page, limit, total, totalPages }
+            pagination: { page, limit, total, totalPages },
+            // 페이지와 무관하게 전체 pending 카운트(뱃지 정확화용)
+            pendingTotal: reports.filter(r => r.status === 'pending').length
         });
     }
     res.json(reports);

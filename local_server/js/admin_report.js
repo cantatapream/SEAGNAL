@@ -95,16 +95,35 @@ window.renderUnifiedReportContent = async function (body) {
     }
 
     _currentReportSubTab = 'feature';
+    // [탭 재진입 리셋] 메인 제보 관리 탭 첫 진입 시 두 서브탭 모두 1페이지로 리셋.
+    // (같은 탭 내 페이지 클릭/필터는 보존, 탭을 떠났다 돌아오면 1페이지.)
+    _reportPage = 1;
+    _commentReportPage = 1;
     await loadReportList();
     await _loadCommentReportList();
 };
 
 window._switchReportSubTab = function(tab) {
+    // [탭 재진입 리셋] 서브탭 전환 시 해당 탭 페이지를 1로 리셋.
+    // 사용자 정신 모델: 다른 탭에 갔다가 오면 처음부터.
+    if (tab === 'feature') {
+        _reportPage = 1;
+    } else if (tab === 'comment') {
+        _commentReportPage = 1;
+        // 댓글 신고는 페이지가 바뀌면 재 fetch 가 필요하므로 명시적으로 호출.
+        // (기능 제보는 클라이언트 슬라이스라 renderReportList 만 다시 그리면 됨)
+        if (typeof _loadCommentReportList === 'function') {
+            _loadCommentReportList();
+        }
+    }
     _currentReportSubTab = tab;
     document.getElementById('report-panel-feature').style.display = tab === 'feature' ? 'block' : 'none';
     document.getElementById('report-panel-comment').style.display = tab === 'comment' ? 'block' : 'none';
     document.getElementById('report-subtab-feature').classList.toggle('active', tab === 'feature');
     document.getElementById('report-subtab-comment').classList.toggle('active', tab === 'comment');
+    if (tab === 'feature' && typeof renderReportList === 'function') {
+        renderReportList();
+    }
 };
 
 let _allReports = [];
@@ -112,6 +131,10 @@ let _currentFilter = 'all';
 // 페이지네이션 상태 (1-based) — 필터 변경 시 1 로 리셋
 let _reportPage = 1;
 const _REPORT_LIMIT = 20;
+// fetch race 가드: 동시 다발 fetch 시 가장 마지막 요청 응답만 적용.
+// (페이지 빠른 연타 / 처리 직후 reload 등 인터리브 보호)
+let _reportSeq = 0;
+let _commentReportSeq = 0;
 
 /**
  * 게시글 신고 목록을 서버에서 조회 → renderReportList 로 화면 갱신.
@@ -124,8 +147,10 @@ const _REPORT_LIMIT = 20;
  *  - 서버 페이지네이션은 다른 호출자가 큰 데이터를 줄일 수 있도록 라우트에 추가되어 있음.
  */
 async function loadReportList() {
+    const myReq = ++_reportSeq;
     try {
         const res = await fetch(CONFIG.API_BASE + '/api/reports');
+        if (myReq !== _reportSeq) return; // race: 더 최신 요청이 떴으므로 폐기
         if (!res.ok) throw new Error('API 오류');
         const raw = await res.json();
         // 공용 normalize 로 future-proof: 라우트가 { data, pagination } 으로
@@ -133,9 +158,17 @@ async function loadReportList() {
         const norm = (window.PaginationHelper && typeof window.PaginationHelper.normalize === 'function')
             ? window.PaginationHelper.normalize(raw)
             : { items: Array.isArray(raw) ? raw : [], pagination: null };
+        if (myReq !== _reportSeq) return;
         _allReports = norm.items;
     } catch (e) {
+        if (myReq !== _reportSeq) return;
         _allReports = [];
+    }
+    if (myReq !== _reportSeq) return;
+    // [빈 결과 가드] 데이터가 0건이면 다음 진입 시 1페이지부터.
+    // 사용자가 깊은 페이지에 있다가 모든 항목이 삭제된 경우 안전.
+    if (_allReports.length === 0) {
+        _reportPage = 1;
     }
     renderReportList();
 }
@@ -290,14 +323,22 @@ let _commentReportPagination = { page: 1, limit: _COMMENT_REPORT_LIMIT, total: 0
  * 기존 raw array 를 그대로 응답하여 하위 호환을 유지.
  */
 async function _loadCommentReportList() {
+    // race 가드: 페이지 빠른 클릭 / 처리 후 reload 인터리브에서 오래된 응답 폐기.
+    const myReq = ++_commentReportSeq;
+    // 응답에서 받아온 전체 pending 카운트 (페이지와 무관하게 뱃지에 사용)
+    let pendingTotalFromServer = null;
     try {
         const url = CONFIG.API_BASE
             + '/api/comment-reports?page=' + _commentReportPage
             + '&limit=' + _COMMENT_REPORT_LIMIT;
         const res = await fetch(url);
+        if (myReq !== _commentReportSeq) return; // race: 폐기
         if (res.ok) {
             const result = await res.json();
-            // 공용 normalize 로 raw array / { data, pagination } 두 포맷 통합 처리
+            if (myReq !== _commentReportSeq) return;
+            // 공용 normalize 로 raw array / { data, pagination } 두 포맷 통합 처리.
+            // [방어 코드] raw array fallback: 현재 admin 호출자는 항상 ?page= 동반이라
+            // 신 포맷이지만, 외부/legacy 호출자 대비 분기 자체는 유지.
             const norm = (window.PaginationHelper && typeof window.PaginationHelper.normalize === 'function')
                 ? window.PaginationHelper.normalize(result)
                 : (Array.isArray(result)
@@ -314,13 +355,25 @@ async function _loadCommentReportList() {
                     totalPages: Math.max(1, Math.ceil(norm.items.length / _COMMENT_REPORT_LIMIT))
                 };
             }
+            // 서버 응답에 pendingTotal 가 있으면 그대로 사용 — 페이지 슬라이스 기반
+            // 클라이언트 filter 카운트보다 정확.
+            if (result && typeof result === 'object' && typeof result.pendingTotal === 'number') {
+                pendingTotalFromServer = result.pendingTotal;
+            }
         } else {
             _allCommentReports = [];
             _commentReportPagination = { page: 1, limit: _COMMENT_REPORT_LIMIT, total: 0, totalPages: 1 };
         }
     } catch (e) {
+        if (myReq !== _commentReportSeq) return;
         _allCommentReports = [];
         _commentReportPagination = { page: 1, limit: _COMMENT_REPORT_LIMIT, total: 0, totalPages: 1 };
+    }
+    if (myReq !== _commentReportSeq) return;
+
+    // [빈 결과 가드] total === 0 이면 다음 진입을 위해 1페이지로 명시적 리셋.
+    if (_commentReportPagination.total === 0) {
+        _commentReportPage = 1;
     }
 
     // 데이터 변동으로 현재 페이지가 totalPages 초과한 경우 마지막 가능한 페이지로 재요청
@@ -331,7 +384,7 @@ async function _loadCommentReportList() {
         return _loadCommentReportList();
     }
 
-    _renderCommentReportList();
+    _renderCommentReportList(pendingTotalFromServer);
 }
 
 /**
@@ -341,7 +394,7 @@ async function _loadCommentReportList() {
  * [페이지네이션] 현재 페이지의 항목만 _allCommentReports 에 들어있으므로
  * 슬라이스 없이 그대로 렌더하고, 페이지 버튼은 공용 helper 로 그려준다.
  */
-function _renderCommentReportList() {
+function _renderCommentReportList(pendingTotalFromServer) {
     const container = document.getElementById('comment-report-list');
     if (!container) return;
 
@@ -359,13 +412,14 @@ function _renderCommentReportList() {
         return el;
     };
 
-    // 댓글 신고 뱃지 업데이트
-    // (현재 페이지만 알면 pending 정확 카운트 불가 → 전역 카운트는
-    //  pending-count 호출자(updateReportBadge 등)가 별도 책임)
-    // 여기서는 페이지 내 pending 수만 보조 표시: 0 이면 숨김.
+    // 댓글 신고 뱃지 업데이트.
+    // 서버 응답의 pendingTotal (페이지와 무관한 전체 pending 카운트) 을 우선 사용.
+    // 누락(legacy/raw array) 시에만 현재 페이지 슬라이스 기반 filter 카운트로 fallback.
     const badge = document.getElementById('comment-report-badge');
     if (badge) {
-        const count = _allCommentReports.filter(r => r.status === 'pending').length;
+        const count = (typeof pendingTotalFromServer === 'number')
+            ? pendingTotalFromServer
+            : _allCommentReports.filter(r => r.status === 'pending').length;
         badge.textContent = count > 0 ? String(count) : '';
         badge.style.display = count > 0 ? 'inline' : 'none';
     }

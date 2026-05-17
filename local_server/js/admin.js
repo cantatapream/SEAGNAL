@@ -653,6 +653,9 @@ let _pendingRetriesPage = 1;
 const _COLLECT_FAILURES_LIMIT = 30;
 const _REVIEW_NEEDED_LIMIT = 30;
 const _PENDING_RETRIES_LIMIT = 30;
+// fetch race 가드: 30초 자동 갱신 + 페이지 클릭 + 사용자 액션 후 reload 인터리브에서
+// 가장 마지막 요청 응답만 화면에 적용.
+let _errorListSeq = 0;
 
 /**
  * 에러 리스트 탭의 자동 새로고침 타이머 정지.
@@ -685,6 +688,7 @@ async function renderErrorListTab(container) {
     // 진입 시 자동 갱신 타이머 정리(중복 방지)
     clearErrorListAutoRefresh();
 
+    const myReq = ++_errorListSeq;
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
 
     // 네 가지 데이터를 병렬로 조회 (실패/검토/재시도/Gemini 키 상태)
@@ -709,6 +713,8 @@ async function renderErrorListTab(container) {
             fetch(pendingUrl),
             fetch('/api/admin/gemini-status')
         ]);
+        // race: 더 최신 요청이 떴으면 폐기 (자동 갱신/페이지 클릭 인터리브 안전)
+        if (myReq !== _errorListSeq) return;
         if (failRes.ok) {
             const body = await failRes.json();
             if (body && Array.isArray(body.data) && body.pagination) {
@@ -743,6 +749,13 @@ async function renderErrorListTab(container) {
         }
         if (geminiRes.ok) geminiStatus = await geminiRes.json();
     } catch (e) { /* 무시 */ }
+    // race: body 파싱/렌더 직전 한 번 더 확인 — await json() 들이 모두 끝난 후
+    if (myReq !== _errorListSeq) return;
+
+    // [빈 결과 가드] 세 리스트 모두 0건이면 다음 진입을 위해 페이지 변수 모두 1로 리셋.
+    if (failuresPagination.total === 0) _collectFailuresPage = 1;
+    if (reviewsPagination.total === 0) _reviewNeededPage = 1;
+    if (pendingsPagination.total === 0) _pendingRetriesPage = 1;
 
     // 페이지 클램프: 응답 totalPages 보다 크면 1 페이지로 리셋하고 자기 자신 재호출.
     // 데이터가 줄어들어 빈 페이지가 잡힌 경우 (예: 마지막 항목 삭제) 자동 보정.
@@ -2578,6 +2591,11 @@ async function renderUnifiedAlertContent(container) {
         } else if (topTabId === 'collect-test') {
             renderCollectTestSubTab(topContent);
         } else if (topTabId === 'collect-error') {
+            // [탭 재진입 리셋] 수집 오류 상위 탭 첫 진입 시 3개 페이지 변수 모두 1로 리셋.
+            // (탭 내 페이지 클릭/하위탭 전환/30초 자동 갱신은 페이지 보존)
+            _collectFailuresPage = 1;
+            _reviewNeededPage = 1;
+            _pendingRetriesPage = 1;
             renderErrorListTab(topContent);
         } else if (topTabId === 'manual-edit') {
             renderManualInputTab(topContent);

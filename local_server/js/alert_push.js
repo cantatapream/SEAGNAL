@@ -120,7 +120,14 @@ window.renderAlertAdminContent = async function (tabId, targetContainer) {
     var container = targetContainer || document.getElementById('alert-management-content');
     if (!container) return;
     if (tabId === 'custom') { window.renderCustomPushTab(container); return; }
-    if (tabId === 'history') { window.renderHistoryTab(container); return; }
+    if (tabId === 'history') {
+        // [탭 재진입 리셋] 발송 이력 탭 첫 진입 시 1페이지부터 시작.
+        // 같은 탭 내 페이지 클릭/필터 변경은 renderHistoryTab 을 직접 호출하므로
+        // 여기서 리셋해도 영향 없음.
+        _pushHistoryPage = 1;
+        window.renderHistoryTab(container);
+        return;
+    }
 
     var pushHistory = [];
     try { var hRes = await fetch('/api/push-history'); if (hRes.ok) pushHistory = await hRes.json(); } catch (e) { }
@@ -490,12 +497,16 @@ var _PUSH_HISTORY_LIMIT = 20;
 //    (c) 사용자가 탭을 떠났다가 돌아오는 케이스는 캐시 신선도 vs UX 트레이드오프 — 일단 유지.
 // 구조: { history: [...], subscriberStats: {...} | null }
 var _historyCache = null;
+// fetch race 가드: 캐시 무효화 직후 같은 컨테이너로 동시에 들어온 호출들 중
+// 가장 마지막 응답만 화면에 적용한다.
+var _historySeq = 0;
 
 function _invalidateHistoryCache() {
     _historyCache = null;
 }
 
 window.renderHistoryTab = async function (container) {
+    var myReq = ++_historySeq;
     // 캐시 미스일 때만 로딩 표시 + 네트워크 호출
     // (페이지 클릭 / 필터 변경으로 재호출되어도 캐시가 있으면 깜빡임 없음)
     if (!_historyCache) {
@@ -511,19 +522,24 @@ window.renderHistoryTab = async function (container) {
                 fetch('/api/push-subscriber-stats')
             ]);
             var rawHist = histRes.ok ? await histRes.json() : [];
+            if (myReq !== _historySeq) return; // race: 더 최신 요청이 떴으므로 폐기
             // 공용 normalize 로 { data, pagination } / raw array 양쪽 처리
             var normalized = (window.PaginationHelper && typeof window.PaginationHelper.normalize === 'function')
                 ? window.PaginationHelper.normalize(rawHist)
                 : { items: Array.isArray(rawHist) ? rawHist : [], pagination: null };
+            var statsParsed = statsRes.ok ? await statsRes.json() : null;
+            if (myReq !== _historySeq) return;
             _historyCache = {
                 history: normalized.items,
-                subscriberStats: statsRes.ok ? await statsRes.json() : null
+                subscriberStats: statsParsed
             };
         } catch (e) {
+            if (myReq !== _historySeq) return;
             container.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">오류 발생: ' + e.message + '</div>';
             return;
         }
     }
+    if (myReq !== _historySeq) return;
 
     try {
         var history = _historyCache.history;
@@ -538,6 +554,8 @@ window.renderHistoryTab = async function (container) {
         //   (1 페이지로 리셋이 아니라 사용자 위치 보존)
         var totalItems = filtered.length;
         var totalPages = Math.max(1, Math.ceil(totalItems / _PUSH_HISTORY_LIMIT));
+        // [빈 결과 가드] filter 후 0건이면 다음 진입을 위해 1페이지로 명시적 리셋.
+        if (totalItems === 0) _pushHistoryPage = 1;
         if (_pushHistoryPage > totalPages) _pushHistoryPage = Math.max(1, totalPages);
         var pageStart = (_pushHistoryPage - 1) * _PUSH_HISTORY_LIMIT;
         var pagedItems = filtered.slice(pageStart, pageStart + _PUSH_HISTORY_LIMIT);
