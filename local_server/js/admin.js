@@ -834,7 +834,11 @@ function _attachErrorListPagination(kind, pagination) {
         else if (kind === 'retry') _pendingRetriesPage = page;
         else _collectFailuresPage = page;
         const inner = document.getElementById('alert-top-content');
-        if (inner) renderErrorListTab(inner);
+        if (inner) {
+            renderErrorListTab(inner);
+            // 페이지 전환 시 컨테이너 상단으로 부드럽게 스크롤 (다른 페이지네이션 화면과 동일 UX)
+            inner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     });
 }
 

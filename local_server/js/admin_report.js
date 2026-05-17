@@ -58,16 +58,22 @@ window.renderUnifiedReportContent = async function (body) {
                         <i class="fa-solid fa-trash"></i> 일괄 삭제
                     </button>
                 </div>
-                <!-- 제보 목록 -->
-                <div id="report-list" style="display:flex;flex-direction:column;gap:8px;">
-                    <div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>
+                <!-- 제보 목록 + 페이지네이션 (wrapper 로 함께 묶음 → 부모 트리 재렌더 영향 격리) -->
+                <div id="report-list-wrapper">
+                    <div id="report-list" style="display:flex;flex-direction:column;gap:8px;">
+                        <div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>
+                    </div>
+                    <div id="report-list-pagination" class="pagination"></div>
                 </div>
             </div>
 
             <!-- 댓글 신고 패널 (초기 숨김) -->
             <div id="report-panel-comment" style="display:none;">
-                <div id="comment-report-list" style="display:flex;flex-direction:column;gap:8px;">
-                    <div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>
+                <div id="comment-report-list-wrapper">
+                    <div id="comment-report-list" style="display:flex;flex-direction:column;gap:8px;">
+                        <div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>
+                    </div>
+                    <div id="comment-report-pagination" class="pagination"></div>
                 </div>
             </div>
         </div>
@@ -121,7 +127,13 @@ async function loadReportList() {
     try {
         const res = await fetch(CONFIG.API_BASE + '/api/reports');
         if (!res.ok) throw new Error('API 오류');
-        _allReports = await res.json();
+        const raw = await res.json();
+        // 공용 normalize 로 future-proof: 라우트가 { data, pagination } 으로
+        // 바뀌어도 클라이언트 변경 없이 안전 동작.
+        const norm = (window.PaginationHelper && typeof window.PaginationHelper.normalize === 'function')
+            ? window.PaginationHelper.normalize(raw)
+            : { items: Array.isArray(raw) ? raw : [], pagination: null };
+        _allReports = norm.items;
     } catch (e) {
         _allReports = [];
     }
@@ -156,17 +168,17 @@ function renderReportList() {
         featureBadge.style.display = pendingCount > 0 ? 'inline' : 'none';
     }
 
-    // 페이지네이션 컨테이너 헬퍼 — 목록 바로 아래에 위치하도록 매번 생성/이동
-    // (renderReportList 가 호출될 때마다 container 가 통째로 갱신되기 때문)
+    // 페이지네이션 컨테이너 헬퍼 — 정적 wrapper(#report-list-wrapper) 자식으로 이미 존재.
+    // (renderReportList 가 container.innerHTML 만 갱신하므로 형제 페이지네이션은 보존됨)
+    // 만에 하나 wrapper 가 없는 환경(legacy) 대비 fallback 생성도 유지.
     const ensurePaginationEl = () => {
         let el = document.getElementById('report-list-pagination');
         if (!el) {
             el = document.createElement('div');
             el.id = 'report-list-pagination';
             el.className = 'pagination';
-            container.parentNode.insertBefore(el, container.nextSibling);
-        } else if (el.previousElementSibling !== container) {
-            container.parentNode.insertBefore(el, container.nextSibling);
+            const wrapper = document.getElementById('report-list-wrapper') || container.parentNode;
+            wrapper.appendChild(el);
         }
         return el;
     };
@@ -183,9 +195,10 @@ function renderReportList() {
         return;
     }
 
-    // 페이지네이션: 현재 페이지가 totalPages 를 넘으면 1 로 리셋
+    // 페이지네이션: 현재 페이지가 totalPages 를 넘으면 마지막 가능한 페이지로 클램프
+    // (1 페이지로 리셋이 아니라 사용자 위치 보존 — 마지막 페이지 1건 삭제 케이스 등)
     const totalPages = Math.max(1, Math.ceil(filtered.length / _REPORT_LIMIT));
-    if (_reportPage > totalPages) _reportPage = 1;
+    if (_reportPage > totalPages) _reportPage = Math.max(1, totalPages);
     const startIdx = (_reportPage - 1) * _REPORT_LIMIT;
     const pageItems = filtered.slice(startIdx, startIdx + _REPORT_LIMIT);
 
@@ -284,19 +297,21 @@ async function _loadCommentReportList() {
         const res = await fetch(url);
         if (res.ok) {
             const result = await res.json();
-            // 새 포맷 우선, 혹시 모를 raw array 응답도 안전하게 처리
-            if (Array.isArray(result)) {
-                _allCommentReports = result;
+            // 공용 normalize 로 raw array / { data, pagination } 두 포맷 통합 처리
+            const norm = (window.PaginationHelper && typeof window.PaginationHelper.normalize === 'function')
+                ? window.PaginationHelper.normalize(result)
+                : (Array.isArray(result)
+                    ? { items: result, pagination: null }
+                    : { items: Array.isArray(result && result.data) ? result.data : [], pagination: (result && result.pagination) || null });
+            _allCommentReports = norm.items;
+            if (norm.pagination) {
+                _commentReportPagination = norm.pagination;
+            } else {
+                // raw array → 페이지네이션 없음으로 간주, 클라이언트에서 totalPages 계산
                 _commentReportPagination = {
                     page: 1, limit: _COMMENT_REPORT_LIMIT,
-                    total: result.length,
-                    totalPages: Math.max(1, Math.ceil(result.length / _COMMENT_REPORT_LIMIT))
-                };
-            } else {
-                _allCommentReports = Array.isArray(result.data) ? result.data : [];
-                _commentReportPagination = result.pagination || {
-                    page: _commentReportPage, limit: _COMMENT_REPORT_LIMIT,
-                    total: _allCommentReports.length, totalPages: 1
+                    total: norm.items.length,
+                    totalPages: Math.max(1, Math.ceil(norm.items.length / _COMMENT_REPORT_LIMIT))
                 };
             }
         } else {
@@ -308,10 +323,11 @@ async function _loadCommentReportList() {
         _commentReportPagination = { page: 1, limit: _COMMENT_REPORT_LIMIT, total: 0, totalPages: 1 };
     }
 
-    // 데이터 변동으로 현재 페이지가 totalPages 초과한 경우 1 페이지로 재요청
+    // 데이터 변동으로 현재 페이지가 totalPages 초과한 경우 마지막 가능한 페이지로 재요청
+    // (1 페이지가 아니라 사용자 위치 보존)
     if (_commentReportPagination.total > 0
         && _commentReportPage > _commentReportPagination.totalPages) {
-        _commentReportPage = 1;
+        _commentReportPage = Math.max(1, _commentReportPagination.totalPages);
         return _loadCommentReportList();
     }
 
@@ -329,17 +345,16 @@ function _renderCommentReportList() {
     const container = document.getElementById('comment-report-list');
     if (!container) return;
 
-    // 페이지네이션 컨테이너 헬퍼 — 목록 바로 아래에 매번 위치 보정
-    // (제보 관리 패널과 동일한 패턴: container 가 통째로 갱신되어도 OK)
+    // 페이지네이션 컨테이너 헬퍼 — 정적 wrapper(#comment-report-list-wrapper) 자식.
+    // 동적 형제 삽입을 안 하므로 부모 트리 영향 없음. legacy fallback 만 유지.
     const ensurePaginationEl = () => {
         let el = document.getElementById('comment-report-pagination');
         if (!el) {
             el = document.createElement('div');
             el.id = 'comment-report-pagination';
             el.className = 'pagination';
-            container.parentNode.insertBefore(el, container.nextSibling);
-        } else if (el.previousElementSibling !== container) {
-            container.parentNode.insertBefore(el, container.nextSibling);
+            const wrapper = document.getElementById('comment-report-list-wrapper') || container.parentNode;
+            wrapper.appendChild(el);
         }
         return el;
     };
