@@ -234,13 +234,15 @@ async function markRecoveredIfNeeded() {
     const recoveredTitle = '✅ 방재기상플랫폼 자식 해역 특보 수집 정상화';
     const recoveredBody = `직전 약 ${durMin}분간 중단되었던 자식 해역(연안바다·평수구역) 특보 자동 갱신이 정상적으로 재개되었습니다.`;
 
-    // 1) 디스크 기록 — 정상화 사건 자체도 이력 한 줄 (선택적 안전망)
-    //    + 직전 미확인 오류 항목 모두 자동 ack 처리
+    // 1) 미확인 오류 항목 모두 자동 ack 처리
+    //    [M10] 이전엔 'recovered' 항목도 디스크에 한 줄 기록했으나, 200건
+    //          한도에서 정상화 항목이 절반 이상을 차지하는 노이즈 발생.
+    //          정상화 사실은 푸시 알림으로 충분히 전달되므로 디스크 기록 생략.
+    //          기존 미확인 오류 항목 자동 ack 만 유지 — 핵심 기능.
     try {
-        dmdwErrorLog.appendError('recovered', recoveredTitle, recoveredBody, `from=${prevIssue}, dur=${durMin}min`);
         const r = dmdwErrorLog.acknowledgeAllUnack('auto-recovered');
         if (r.count > 0) {
-            console.log(`[dmdw] error log: auto-acknowledged ${r.count} unack item(s) on recovery`);
+            console.log(`[dmdw] error log: auto-acknowledged ${r.count} unack item(s) on recovery (from=${prevIssue}, dur=${durMin}min)`);
         }
     } catch (e) {
         console.log(`[dmdw] error log recovery handling failed: ${e.message}`);
@@ -513,7 +515,17 @@ async function fetchTimeline(typ, sDate, eDate) {
         type: typ, sDate, eDate, specYn: 'yes'
     });
     if (res.statusCode !== 200) throw new Error(`timeline HTTP ${res.statusCode}`);
-    const j = JSON.parse(res.text);
+    // [M5] JSON 파싱 보호 — KMA 서버가 가끔 HTML 에러 페이지를 200 으로 위장해
+    //   보낼 수 있음. 그 경우 JSON.parse 가 "Unexpected token <" 같은 알 수 없는
+    //   에러로 throw 되어 디버깅 곤란 + 관리자 알림 본문이 모호함.
+    //   try-catch 로 감싸 명확한 메시지 + 응답 본문 일부 noteback 으로 진단 편의 ↑.
+    let j;
+    try {
+        j = JSON.parse(res.text);
+    } catch (e) {
+        const preview = String(res.text || '').substring(0, 120).replace(/\s+/g, ' ');
+        throw new Error(`timeline JSON parse fail (HTTP ${res.statusCode}): ${preview}`);
+    }
     if (j.statusCode !== 200 || !Array.isArray(j.body)) {
         throw new Error(`timeline status=${j.statusCode}`);
     }
