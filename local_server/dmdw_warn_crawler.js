@@ -716,14 +716,20 @@ async function runBackfill() {
         console.log('[dmdw] backfill already in progress — skip');
         return;
     }
+    // [H2] 정기 run() 과 같은 dmdw_alerts.json 에 동시 쓰는 race 방지를 위해
+    //   "백필 진행 중" 락을 함수 최상단에서 즉시 set. 이전에는 loadState() 후에
+    //   set 되어, 그 사이 1분 사이클이 loadState→saveState 수행 후 백필이 덮어쓰는
+    //   race window 가 약 1초 존재했음. 락 위치 이동으로 race 사라짐.
+    backfillInProgress = true;
+
     // 이미 백필 완료된 상태면 skip (정상 재시작 후 빠르게 1분 사이클로 진입)
     const prev = loadState();
     if (prev.backfillReady && !process.env.SERVER_RESTART_FORCE_REBACKFILL) {
         console.log('[dmdw] backfill already ready (from disk) — skipping');
+        backfillInProgress = false; // skip 분기에서 락 즉시 해제
         return;
     }
 
-    backfillInProgress = true;
     const startMs = Date.now();
     console.log('[dmdw] backfill START — 직전 24시간 자식 해역 상태 재구성 시작');
 
@@ -853,9 +859,26 @@ async function runBackfill() {
 
         console.log(`[dmdw] backfill DONE — ${Math.round(elapsedMs / 1000)}초, children=${Object.keys(state.children).length}, upcoming=${Object.keys(state._upcoming).length}, skip=${skipCount}`);
     } catch (e) {
-        // 백필이 실패해도 backfillReady=false 인 채로 디스크에 남아있으니
-        // 다음 서버 재시작 시 자동 재시도. 1분 사이클이 점진적으로 누적도 가능.
-        console.log(`[dmdw] backfill FAILED: ${e.message} — backfillReady=false 유지, 1분 사이클 진행`);
+        // [H3] 백필 실패 시 영구 머지 보류 방지.
+        //   이전 동작: backfillReady=false 유지 → 다음 서버 재시작까지 자식 머지
+        //              영구 보류 → 자식 폴리곤·박스 안 보임.
+        //   변경 동작: 부분 성공이라도 backfillReady=true 마킹 → 1분 사이클이
+        //              누적해서 점진적으로 정확한 상태에 수렴. 사용자 입장에선
+        //              자식 데이터가 평소처럼 보이며, 첫 사이클들은 약간 불완전할
+        //              수 있으나 분 단위로 자동 보정됨.
+        //   안전망: state 객체가 정상이면 부분 데이터라도 disk 에 저장.
+        console.log(`[dmdw] backfill FAILED: ${e.message} — backfillReady=true 마킹 후 1분 사이클로 누적 보정`);
+        try {
+            const state = loadState();
+            state.backfillReady = true;   // 부분 성공으로 간주 — 자식 머지 활성화
+            state.backfillCompletedAt = new Date().toISOString();
+            saveState(state, {
+                phase: 'backfill_failed_but_marked_ready',
+                backfillError: String(e.message || '').substring(0, 200)
+            });
+        } catch (saveErr) {
+            console.log(`[dmdw] backfill catch — saveState failed: ${saveErr.message}`);
+        }
     } finally {
         backfillInProgress = false;
     }
@@ -926,13 +949,24 @@ async function run() {
                 for (const ent of extractChildEntries(row)) {
                     const key = makeChildKey(ent.parent, ent.childRaw);
                     seenChildrenThisCycle.add(key);
+                    // [H1] 자식 객체 전체 재대입 시 직전 사이클의 presentInLastFc 마킹 손실
+                    //   방지. 이번 사이클에 신규 FC 코드가 0건이면 갱신 블록(line 1010~)
+                    //   이 실행 안 되어 마킹이 undefined 로 잔존 → 자식 박스의
+                    //   "해제 예정" 표시가 분 단위로 깜빡이는 현상 발생.
+                    //   해결: 기존 객체의 presentInLastFc 가 boolean 이면 보존.
+                    const prevPresentInLastFc = state.children[key]
+                        && typeof state.children[key].presentInLastFc === 'boolean'
+                        ? state.children[key].presentInLastFc
+                        : undefined;
                     state.children[key] = {
                         parentZone: ent.parent,
                         wrnTp: ent.wrnTp, wrnTpNm: ent.wrnTpNm,
                         wrnLvl: ent.wrnLvl, wrnLvlNm: ent.wrnLvlNm,
                         tmFc: ent.tmFc, tmEf: ent.tmEf,
                         since: `EF|${code}`,
-                        lastCmd: ent.cmd
+                        lastCmd: ent.cmd,
+                        // 직전 값 보존 — 이번 사이클 FC 처리에서 새 값으로 덮어쓸 수 있음
+                        presentInLastFc: prevPresentInLastFc
                     };
                 }
             }
