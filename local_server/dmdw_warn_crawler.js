@@ -65,6 +65,11 @@ const { URLSearchParams } = require('url');
 // require 자체는 동기·가벼움 (firebase-admin 은 lazy 로딩이라 첫 발송 시점에 초기화).
 const adminPush = require('./services/admin_push');
 
+// [관리자 페이지 오류 기록] 푸시 알림이 발송된 모든 사건을 디스크에 누적 기록.
+// 관리자 페이지의 "특보 알림 ▸ 특보 수집 오류 ▸ dmdw 오류" 하위 탭에서 목록·확인·삭제 가능.
+// 푸시 쿨다운(30분) 과 무관하게 매 발생 시 기록 → 관리자가 페이지 열면 모든 이력 확인 가능.
+const dmdwErrorLog = require('./services/dmdw_error_log');
+
 // ============================================================================
 // 1. 환경변수 + 자격증명 게이트
 // ============================================================================
@@ -192,17 +197,30 @@ async function notifyAdmin(type, title, body) {
     }
 }
 
-// 에러 발생 마킹 + 알림 발송 진입점. 본문 텍스트는 사람이 읽고 바로 이해 가능한 형태.
-async function markIssueAndNotify(type, title, body) {
+// 에러 발생 마킹 + 알림 발송 + 디스크 기록 진입점.
+//  - 푸시 알림(notifyAdmin) 은 30분 쿨다운으로 동일 type 반복 발송 차단
+//  - 디스크 기록(dmdwErrorLog.appendError) 은 쿨다운과 무관하게 매번 누적
+//    → 관리자가 페이지 열어보면 모든 발생 이력 시간순으로 확인 가능
+async function markIssueAndNotify(type, title, body, detail) {
     // 새 에러가 시작되는 시점이면 failedSinceMs 기록
     if (alertState.activeIssue !== type) {
         alertState.activeIssue = type;
         alertState.failedSinceMs = Date.now();
     }
+    // 디스크 기록 — 실패해도 본 흐름 영향 0
+    try {
+        dmdwErrorLog.appendError(type, title, body, detail || '');
+    } catch (e) {
+        console.log(`[dmdw] error log append failed: ${e.message}`);
+    }
+    // 푸시 알림 (쿨다운 적용)
     await notifyAdmin(type, title, body);
 }
 
-// 정상화 시 호출: 직전에 에러 상태였으면 "정상화" 알림 1회 후 상태 리셋.
+// 정상화 시 호출: 직전에 에러 상태였으면 "정상화" 알림 1회 + 미확인 오류 자동 ack 후 상태 리셋.
+//  - 미확인 오류 자동 ack: 운영자가 페이지 안 열어봐도 정상화된 이슈는 회색 처리
+//    → 관리자 페이지 알림 피로 ↓
+//  - 정상화 자체도 이력으로 기록 (type='recovered') — 관리자가 사후 경과 시간 확인 가능
 async function markRecoveredIfNeeded() {
     if (!alertState.activeIssue) return;
     const prevIssue = alertState.activeIssue;
@@ -212,10 +230,27 @@ async function markRecoveredIfNeeded() {
     alertState.failedSinceMs = 0;
     // 동일 에러 재발 시 즉시 알림 발송 가능하도록 해당 에러 쿨다운 초기화
     delete alertState.lastSentAt[prevIssue];
+
+    const recoveredTitle = '✅ 방재기상플랫폼 자식 해역 특보 수집 정상화';
+    const recoveredBody = `직전 약 ${durMin}분간 중단되었던 자식 해역(연안바다·평수구역) 특보 자동 갱신이 정상적으로 재개되었습니다.`;
+
+    // 1) 디스크 기록 — 정상화 사건 자체도 이력 한 줄 (선택적 안전망)
+    //    + 직전 미확인 오류 항목 모두 자동 ack 처리
+    try {
+        dmdwErrorLog.appendError('recovered', recoveredTitle, recoveredBody, `from=${prevIssue}, dur=${durMin}min`);
+        const r = dmdwErrorLog.acknowledgeAllUnack('auto-recovered');
+        if (r.count > 0) {
+            console.log(`[dmdw] error log: auto-acknowledged ${r.count} unack item(s) on recovery`);
+        }
+    } catch (e) {
+        console.log(`[dmdw] error log recovery handling failed: ${e.message}`);
+    }
+
+    // 2) 푸시 알림
     try {
         await adminPush.sendAdminPush(
-            '✅ 방재기상플랫폼 자식 해역 특보 수집 정상화',
-            `직전 약 ${durMin}분간 중단되었던 자식 해역(연안바다·평수구역) 특보 자동 갱신이 정상적으로 재개되었습니다.`,
+            recoveredTitle,
+            recoveredBody,
             { type: 'dmdw_recovered' }
         );
         console.log(`[dmdw] admin push sent: recovered (after ${durMin}min)`);
@@ -444,7 +479,8 @@ async function login() {
             `방재기상플랫폼(dmdw.kma.go.kr) 로그인이 거부되었습니다. ` +
             `사유: ${stateMeaning}. ID/비밀번호 또는 계정 승인 상태를 확인해 주세요. ` +
             `현재 자식 해역(연안바다·평수구역) 특보 자동 갱신이 중단된 상태입니다. ` +
-            `해소 후 다음 1분 사이클에 자동으로 정상화됩니다.`
+            `해소 후 다음 1분 사이클에 자동으로 정상화됩니다.`,
+            `statecode=${state}`   // detail — 디버깅용 짧은 원본 코드
         );
         throw new Error(`login failed: statecode=${state} msg=${loginJson.message || ''}`);
     }
@@ -801,8 +837,8 @@ async function run() {
                 `방재기상플랫폼(dmdw.kma.go.kr) 과의 통신에 문제가 발생하여 자식 해역 ` +
                 `(연안바다·평수구역) 특보 자동 갱신이 일시 중단되었습니다. ` +
                 `1분 후 자동으로 재시도되며, 일시적 네트워크 장애일 가능성이 높습니다. ` +
-                `30분 이상 지속되면 KMA 서버 상태 또는 방화벽 변경을 확인해 주세요. ` +
-                `(상세: ${msg.substring(0, 100)})`
+                `30분 이상 지속되면 KMA 서버 상태 또는 방화벽 변경을 확인해 주세요.`,
+                msg.substring(0, 200)   // detail — 원본 에러 메시지
             );
         }
     } finally {
