@@ -26,10 +26,6 @@
  *   조석은 분 단위 보간이 가능하므로 어떤 value 든 정확한 게이지 표시.
  *   KMA 데이터(파고/풍/천기)는 backend 가 가장 가까운 frame 으로 매핑.
  *
- * [자정 눈금]
- *   floor3(현재) + N*h 가 24:00 / 48:00 / 72:00 ... 인 N 위치에만 짧은 세로 막대.
- *   텍스트 없음. 사용자 합의: "날짜 바뀌는 지점만 세로줄".
- *
  * [말풍선]
  *   천기 슬라이더와 동일 패턴 — viewport clamp + 화살표 추적 + 1초 fade-out.
  *   텍스트: "'26. 5. 5.(화) 07:42" 형식.
@@ -56,7 +52,7 @@
  *
  * [의존]
  *   - window.OceanSheet (OS): OS.state, OS.renderHeader
- *   - DOM: #ocean-sheet-slider-wrap, #ocean-sheet-slider, #ocean-sheet-tooltip, #ocean-sheet-ticks
+ *   - DOM: #ocean-sheet-slider-wrap, #ocean-sheet-slider, #ocean-sheet-tooltip
  * ============================================================================
  */
 
@@ -150,50 +146,6 @@
         return Math.max(0, Math.min(_maxHours, v));
     }
 
-    // ── 자정 눈금 ────────────────────────────────────────────
-    /**
-     * 슬라이더 트랙 위 "자정 (00:00)" 위치들의 % 배열.
-     *
-     * 새 정책에선 슬라이더 value 들이 표현하는 시각이:
-     *   v=0 → real now,  v=3,6,9,... → floor3(now) + N*h
-     * 따라서 자정 (=다음 날 00:00:00) 에 해당하는 v 는:
-     *   v = (24:00 - floor3(now).getHours()) ~ 다음 자정까지의 거리.
-     *   예: now=07:42, floor3=06:00 → v=18 → floor3+18h = 다음날 06:00 + 18 = 24:00 ✓
-     *
-     * % 위치 = v / _maxHours * 100. v=0 위치(0%)는 제외 (real now).
-     */
-    function computeMidnightTickValues() {
-        var arr = [];
-        if (_maxHours <= 0) return arr;
-        var now = Date.now();
-        var f3 = floor3h(now);
-        // 다음 자정 (오늘 24:00 = 내일 00:00)
-        var nextMidnight = new Date(now);
-        nextMidnight.setHours(24, 0, 0, 0);
-        // 자정에 해당하는 v
-        var firstV = (nextMidnight.getTime() - f3) / 3600000;
-        // 24의 배수만큼 이후 자정 (다다음 자정 등)
-        for (var v = firstV; v <= _maxHours; v += 24) {
-            // v 가 정확히 3의 배수인지 검증 (자정은 3h 격자에 항상 떨어짐: floor3 + 24*k 형태)
-            if (v >= 3 && v % 3 === 0) arr.push(v);
-        }
-        return arr;
-    }
-
-    /**
-     * 자정 눈금 DOM 채움. ticks 컨테이너의 좌우 패딩(9px)이 thumb 끝에 맞춰져 있어
-     * % 계산은 트랙 가로 길이를 1로 본 비율 그대로 사용 가능.
-     */
-    function renderTicks() {
-        var ticksEl = $('ocean-sheet-ticks');
-        if (!ticksEl) return;
-        var values = computeMidnightTickValues();
-        ticksEl.innerHTML = values.map(function (v) {
-            var pct = (v / _maxHours) * 100;
-            return '<div class="ocean-sheet-tick" style="left:' + pct.toFixed(2) + '%"></div>';
-        }).join('');
-    }
-
     // ── 말풍선 ───────────────────────────────────────────────
     /**
      * 손잡이 위에 말풍선 위치/텍스트 갱신.
@@ -225,7 +177,7 @@
         var min = parseFloat(slider.min) || 0;
         var max = parseFloat(slider.max) || 0;
         var pct = (max > min) ? (v - min) / (max - min) : 0;
-        var thumbHalf = 7;
+        var thumbHalf = 8;
         var thumbXVp = sliderRect.left + thumbHalf + pct * (sliderRect.width - thumbHalf * 2);
 
         // 말풍선 측정 (텍스트 변경 후 재측정 → 폰트 크기 자동 반영)
@@ -364,17 +316,14 @@
         // 4) 초기값 = 레이어 슬라이더 값 → 시트 슬라이더 value 변환
         slider.value = sheetValueFromLayerHours(initialLayerHours || 0);
 
-        // 5) 자정 눈금 렌더
-        renderTicks();
-
-        // 6) 이벤트 바인딩 (한 번만)
+        // 5) 이벤트 바인딩 (한 번만)
         bindEvents();
 
-        // 7) 헤더 동기 — 슬라이더 시각 → OS.state.date → renderHeader
+        // 6) 헤더 동기 — 슬라이더 시각 → OS.state.date → renderHeader
         //    value=0 이면 OS.state.date = real now, 헤더에 "07:42" 표시.
         syncHeaderToSlider();
 
-        // 8) "마지막 정착 날짜" 캡처
+        // 7) "마지막 정착 날짜" 캡처
         _lastSettledDayKey = _dayKey(STL.getCurrentDate());
     };
 
@@ -415,8 +364,6 @@
                 STL.onRelease(_maxHours, sameDay, newDate);
             }
         }
-
-        renderTicks();
     };
 
     /** 외부에서 슬라이더 값 강제 설정 (이벤트 발화 X). */
