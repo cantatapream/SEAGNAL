@@ -330,6 +330,11 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
                     isPreliminary: false,
                     command: '발효',
                     source: 'CRAWLER+DMDW',
+                    // [S9-E] dmdw 가 마킹한 "마지막 FC 사이클 등장 여부" — 자식 클릭 팝업이
+                    //   이 값을 보고 === false 인 경우만 "해제 예정" 텍스트 한 줄 표시.
+                    //   undefined/true 면 표시 안 함 (보수적 fallback).
+                    presentInLastFc: (typeof status.presentInLastFc === 'boolean')
+                        ? status.presentInLastFc : undefined,
                     id: `dmdw_${childName}_${status.wrnTp}_${status.wrnLvl}`
                 });
             }
