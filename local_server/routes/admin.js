@@ -574,6 +574,38 @@ router.get('/api/admin/review-needed', (req, res) => {
     }
 });
 
+// [페이지네이션 전용] 검토 필요(unacknowledged) 통보문만 페이지 단위로 반환
+//   - 기존 /api/admin/review-needed 는 raw array(전체, 옛 호출자 하위호환 + 페이지 모드 양쪽)를 유지하고,
+//     관리자 화면 페이지네이션은 본 신규 엔드포인트를 사용하도록 분리.
+//   - ?page=&limit= 쿼리를 받아 항상 { data, pagination } 포맷으로 응답 (page 가 없어도 1페이지).
+//   - acknowledged=false 만 detectedAt 역순 정렬.
+router.get('/api/admin/review-needed/pending', (req, res) => {
+    try {
+        let data = [];
+        if (fs.existsSync(REVIEW_NEEDED_FILE)) {
+            data = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8')) || [];
+        }
+        const filtered = data.filter(r => !r.acknowledged);
+        filtered.sort((a, b) => {
+            const ta = new Date(a.detectedAt || 0).getTime();
+            const tb = new Date(b.detectedAt || 0).getTime();
+            return tb - ta;
+        });
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 30));
+        const total = filtered.length;
+        const totalPages = Math.max(1, Math.ceil(total / limit));
+        const start = (page - 1) * limit;
+        const pageData = filtered.slice(start, start + limit);
+        res.json({
+            data: pageData,
+            pagination: { page, limit, total, totalPages }
+        });
+    } catch (e) {
+        res.json({ data: [], pagination: { page: 1, limit: 30, total: 0, totalPages: 1 } });
+    }
+});
+
 // [확인완료] 특정 통보문을 관리자가 확인 처리 (반복 푸시 중단 조건)
 router.post('/api/admin/review-needed/acknowledge', (req, res) => {
     try {
