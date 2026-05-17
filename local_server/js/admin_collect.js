@@ -2286,6 +2286,22 @@ async function renderUnifiedPromoContent(container) {
     };
 
     // ========== 게시글 관리 영역 ==========
+    // ------------------------------------------------------------------------
+    // 통합 관리자(unified-admin-modal) > "게시판 관리" 메인 탭 > "게시글 관리" 서브탭.
+    // - 서버 /api/promo 는 raw 배열을 반환(?page= 없이 호출 — 일반 사용자 화면과 공유).
+    // - 클라이언트가 카테고리/제목 필터 → isPinned 우선 정렬 → 페이지 슬라이스 수행.
+    //   (필터·검색과 자연스럽게 결합 + 데이터량이 수천 건 안쪽이라 충분히 빠름.)
+    // - 페이지네이션 UI 는 공용 helper window.renderStandardPagination 사용.
+    // ------------------------------------------------------------------------
+    let _postMgmtPage = 1;
+    const _POST_MGMT_LIMIT = 15;
+    // fetch 결과 캐시: 페이지 전환 시 매번 서버 호출하지 않도록 모듈-로컬에 보관.
+    // 저장(작성/수정)·삭제 시 invalidate.
+    let _postMgmtCache = null;       // { posts: [], boardMap: {} } | null
+    window._invalidatePostMgmtCache = function () { _postMgmtCache = null; };
+    // 외부(promo.js 의 save 콜백)에서 현재 페이지를 1로 리셋할 때 사용.
+    window.__resetPostMgmtPage = function () { _postMgmtPage = 1; };
+
     async function renderPostManagement(el) {
         // 게시판 목록을 불러와서 필터 드롭다운 생성
         let boards = [];
@@ -2297,12 +2313,12 @@ async function renderUnifiedPromoContent(container) {
         el.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
                 <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                    <select id="admin-post-filter" onchange="loadUnifiedPromoList()" style="padding:8px 12px; background:#0f172a; border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:#fff; font-size:0.85rem;">
+                    <select id="admin-post-filter" onchange="__resetPostMgmtPage(); loadUnifiedPromoList()" style="padding:8px 12px; background:#0f172a; border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:#fff; font-size:0.85rem;">
                         <option value="ALL">전체 게시판</option>
                         ${boards.map(b => `<option value="${b.id}">${b.name}</option>`).join('')}
                     </select>
                     <div style="position:relative;">
-                        <input type="text" id="admin-post-search" placeholder="제목 검색..." onkeyup="loadUnifiedPromoList()"
+                        <input type="text" id="admin-post-search" placeholder="제목 검색..." onkeyup="__resetPostMgmtPage(); loadUnifiedPromoList()"
                             style="padding:8px 12px 8px 32px; background:#0f172a; border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:#fff; font-size:0.85rem; width:180px;">
                         <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#64748b; font-size:0.8rem;"></i>
                     </div>
@@ -2315,14 +2331,21 @@ async function renderUnifiedPromoContent(container) {
             <div id="unified-promo-list-container">
                 <div style="text-align:center; padding:30px; color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 불러오는 중...</div>
             </div>
+            <!-- 페이지네이션 컨테이너 (공용 helper 가 렌더). 목록 바로 아래. -->
+            <div id="post-mgmt-pagination" class="pagination" style="margin-top:12px;"></div>
         `;
+        // 서브탭 진입 시 1페이지부터 + 캐시 무효화하여 최신 데이터로 시작
+        _postMgmtPage = 1;
+        _postMgmtCache = null;
         loadUnifiedPromoList();
     }
 
-    // 게시글 목록 로드 (필터, 검색 포함)
+    // 게시글 목록 로드 (필터, 검색, 페이지네이션 포함)
+    // 노출 함수명/시그니처는 그대로 유지(기존 호출자 호환).
     window.loadUnifiedPromoList = async function () {
         const listEl = document.getElementById('unified-promo-list-container');
         if (!listEl) return;
+        const pagerEl = document.getElementById('post-mgmt-pagination');
 
         const filterEl = document.getElementById('admin-post-filter');
         const searchEl = document.getElementById('admin-post-search');
@@ -2330,18 +2353,24 @@ async function renderUnifiedPromoContent(container) {
         const searchKeyword = searchEl ? searchEl.value.trim().toLowerCase() : '';
 
         try {
-            const [promoRes, boardsRes] = await Promise.all([
-                fetch(CONFIG.API_BASE + '/api/promo'),
-                fetch(CONFIG.API_BASE + '/api/boards')
-            ]);
-            const posts = await promoRes.json();
-            const boards = await boardsRes.json();
+            // 캐시 미스면 서버 fetch (raw 배열) + 게시판 매핑 동시 로드
+            if (!_postMgmtCache) {
+                const [promoRes, boardsRes] = await Promise.all([
+                    fetch(CONFIG.API_BASE + '/api/promo'),
+                    fetch(CONFIG.API_BASE + '/api/boards')
+                ]);
+                const posts = await promoRes.json();
+                const boards = await boardsRes.json();
+                const boardMap = {};
+                (boards || []).forEach(b => { boardMap[b.id] = b; });
+                _postMgmtCache = {
+                    posts: Array.isArray(posts) ? posts : [],
+                    boardMap: boardMap
+                };
+            }
+            const { posts, boardMap } = _postMgmtCache;
 
-            // 게시판 맵 생성
-            const boardMap = {};
-            boards.forEach(b => { boardMap[b.id] = b; });
-
-            // 필터링
+            // 1) 필터링
             let filtered = posts;
             if (filterCategory !== 'ALL') {
                 filtered = filtered.filter(p => p.category === filterCategory);
@@ -2350,12 +2379,31 @@ async function renderUnifiedPromoContent(container) {
                 filtered = filtered.filter(p => (p.title || '').toLowerCase().includes(searchKeyword));
             }
 
-            if (filtered.length === 0) {
+            // 2) 정렬: isPinned 우선, 그 다음 createdAt 역순 (공용 사용자 화면과 동일 패턴)
+            filtered = filtered.slice().sort((a, b) => {
+                if (a.isPinned && b.isPinned) return new Date(b.createdAt) - new Date(a.createdAt);
+                if (a.isPinned) return -1;
+                if (b.isPinned) return 1;
+                return new Date(b.createdAt) - new Date(a.createdAt);
+            });
+
+            const total = filtered.length;
+            const totalPages = Math.max(1, Math.ceil(total / _POST_MGMT_LIMIT));
+            // 페이지 범위 보정 (삭제 등으로 마지막 페이지가 사라진 경우)
+            if (_postMgmtPage > totalPages) _postMgmtPage = totalPages;
+            if (_postMgmtPage < 1) _postMgmtPage = 1;
+
+            if (total === 0) {
                 listEl.innerHTML = '<div style="text-align:center; padding:40px; color:#64748b;">조건에 맞는 게시글이 없습니다.</div>';
+                if (pagerEl) pagerEl.innerHTML = '';
                 return;
             }
 
-            listEl.innerHTML = filtered.map(post => {
+            // 3) 현재 페이지에 해당하는 slice 만 렌더
+            const offset = (_postMgmtPage - 1) * _POST_MGMT_LIMIT;
+            const pagePosts = filtered.slice(offset, offset + _POST_MGMT_LIMIT);
+
+            listEl.innerHTML = pagePosts.map(post => {
                 const board = boardMap[post.category];
                 const badgeColor = board ? board.badgeColor : '#94a3b8';
                 const badgeText = board ? board.badgeText : (post.category || '기타');
@@ -2367,6 +2415,7 @@ async function renderUnifiedPromoContent(container) {
                                 background:${hexToRgba(badgeColor, 0.15)}; color:${badgeColor}; border:1px solid ${hexToRgba(badgeColor, 0.4)};">
                                 ${badgeText}
                             </span>
+                            ${post.isPinned ? '<i class="fa-solid fa-thumbtack" style="color:#ff5252; margin-right:4px;"></i>' : ''}
                             <span style="font-weight:700; color:#fff; font-size:0.95rem;">${post.title}</span>
                             <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">${post.createdAt} | 조회수: ${post.views || 0}</div>
                         </div>
@@ -2381,14 +2430,30 @@ async function renderUnifiedPromoContent(container) {
                     </div>
                 </div>`;
             }).join('');
+
+            // 4) 페이지네이션 UI 렌더 (공용 helper 재사용)
+            if (pagerEl && typeof window.renderStandardPagination === 'function') {
+                window.renderStandardPagination(
+                    pagerEl,
+                    _postMgmtPage,
+                    totalPages,
+                    function (page) {
+                        _postMgmtPage = page;
+                        loadUnifiedPromoList();
+                    }
+                );
+            }
         } catch (e) {
             listEl.innerHTML = '<div style="text-align:center; padding:40px; color:#ef4444;">게시글 로드 실패</div>';
+            if (pagerEl) pagerEl.innerHTML = '';
         }
     };
 
     window.deletePromoPostUnified = async function (id) {
         if (!confirm('정말 삭제하시겠습니까?')) return;
         await fetch(CONFIG.API_BASE + '/api/promo/' + id, { method: 'DELETE' });
+        // 캐시 무효화 후 재 fetch — 페이지 범위는 loadUnifiedPromoList 가 보정.
+        _postMgmtCache = null;
         loadUnifiedPromoList();
     };
 
@@ -3015,8 +3080,9 @@ function renderVisitorChart(labels, values, type, alertMarkers) {
 }
 
 // 기존 관리 함수들 리다이렉션 (하위 호환성 유지)
+// 홍보 게시글 관리는 통합 관리자(unified-admin-modal) > "게시판 관리" 탭에서 처리.
+// 별도 오렌지 팝업(showPromoManagementModal) 은 제거됨.
 window.showNoticeManagementModal = () => showUnifiedAdminModal('notice');
-window.showPromoManagementModal = () => showUnifiedAdminModal('promo');
 window.showApiManagementModal = () => showUnifiedAdminModal('api');
 window.showAlertManagementModal = () => showUnifiedAdminModal('alert');
 
@@ -3148,175 +3214,6 @@ window.showNoticeManagementModal = async function () {
     document.getElementById('notice-expire-hour').value = nextHour.getHours();
     document.getElementById('notice-expire-minute').value = 0;
 };
-
-// (B) 게시판 관리 - 오렌지 테마 모달 (왼쪽 목록 팝업)
-window.showPromoManagementModal = async function () {
-    if (!adminAuthenticated.promo) return;
-
-    const existingModal = document.getElementById('promo-management-modal');
-    if (existingModal) existingModal.remove();
-
-    const modal = document.createElement('div');
-    modal.id = 'promo-management-modal';
-    modal.className = 'notice-popup';
-    modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.8);';
-
-    modal.innerHTML = `
-        <div style="background:linear-gradient(135deg,#1a1f2e,#252b3b);border-radius:16px;max-width:500px;width:95%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
-            <div style="background:linear-gradient(135deg,#ff7043,#e64a19);padding:16px 20px;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between;">
-                <h3 style="margin:0;color:#fff;font-size:1.1rem;display:flex;align-items:center;gap:10px;">
-                    <i class="fa-solid fa-bullhorn"></i> 게시판 관리
-                </h3>
-                <button onclick="document.getElementById('promo-management-modal').remove();" 
-                        style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:1.2rem;">×</button>
-            </div>
-            <div style="padding:16px;" id="promo-management-content">
-                <div style="text-align:center;padding:30px;color:#aaa;">
-                    <i class="fa-solid fa-spinner fa-spin fa-2x"></i>
-                    <p style="margin-top:10px;">게시글 목록을 불러오는 중...</p>
-                </div>
-            </div>
-            <!-- 관리자 게시글 목록 페이지네이션 (공용 helper 가 렌더) -->
-            <div id="promo-admin-pagination" class="pagination" style="padding:0 16px 8px;"></div>
-            <div style="padding:12px 16px;background:rgba(0,0,0,0.2);border-radius:0 0 16px 16px;text-align:center;">
-                <button onclick="openPromoEditor();" 
-                        style="padding:10px 20px;background:linear-gradient(135deg,#ff7043,#e64a19);border:none;border-radius:8px;color:#fff;font-weight:600;cursor:pointer;font-size:0.9rem;">
-                    <i class="fa-solid fa-plus" style="margin-right:6px;"></i>새 게시글 작성
-                </button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    // 모달을 새로 열 때마다 1페이지부터 시작
-    _promoAdminPage = 1;
-    await loadPromoListForAdmin();
-};
-
-// ============================================================================
-// 관리자 홍보 게시글 페이지네이션 (모듈-로컬 상태)
-// ----------------------------------------------------------------------------
-// 일반 사용자 홍보 게시판(promo.js)은 ?page= 없이 호출하여 raw 배열을 받고
-// 자체적으로 client-side slice 하므로, 서버 응답 포맷은 본 admin 모달에서만
-// `?page=` 를 붙여 새 포맷({ data, pagination })을 받는다.
-// ============================================================================
-let _promoAdminPage = 1;
-const _PROMO_ADMIN_LIMIT = 15;
-
-/**
- * 관리자 화면의 홍보 게시글 관리 탭 — 게시글 목록을 fetch 해서 렌더.
- * 각 항목에 삭제·수정 등 관리 버튼 포함.
- *
- * [연계] GET /api/promo?page=&limit= — 새 포맷 { data, pagination } 사용.
- * 페이지네이션 UI 는 공용 helper window.renderStandardPagination 으로 그린다.
- */
-async function loadPromoListForAdmin() {
-    const content = document.getElementById('promo-management-content');
-    if (!content) return;
-    const pager = document.getElementById('promo-admin-pagination');
-
-    try {
-        const url = CONFIG.API_BASE + '/api/promo?page=' + _promoAdminPage
-            + '&limit=' + _PROMO_ADMIN_LIMIT;
-        const res = await fetch(url);
-        const result = await res.json();
-
-        // 새 포맷({ data, pagination }) 우선, 만에 하나 raw 배열이 오면 fallback.
-        const posts = Array.isArray(result) ? result : (result && result.data) || [];
-        const pagination = (result && result.pagination) || {
-            page: _promoAdminPage,
-            limit: _PROMO_ADMIN_LIMIT,
-            total: posts.length,
-            totalPages: 1
-        };
-
-        // 삭제 등으로 현재 페이지가 비었지만 앞쪽에 데이터가 남아있는 경우 → 1페이지로 리셋 후 재호출.
-        if (posts.length === 0 && pagination.total > 0 && _promoAdminPage > 1) {
-            _promoAdminPage = 1;
-            return loadPromoListForAdmin();
-        }
-
-        if (!posts || posts.length === 0) {
-            content.innerHTML = `
-                <div style="text-align:center;padding:30px;color:#888;">
-                    <i class="fa-solid fa-inbox fa-2x"></i>
-                    <p style="margin-top:10px;">등록된 게시글이 없습니다.</p>
-                </div>
-            `;
-            if (pager) pager.innerHTML = '';
-            return;
-        }
-
-        let html = '';
-        posts.forEach(post => {
-            const date = post.createdAt ? new Date(post.createdAt).toLocaleDateString('ko-KR') : '-';
-            html += `
-                <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;margin-bottom:10px;border:1px solid rgba(255,255,255,0.1);">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-                        <div style="color:#fff;font-weight:600;font-size:0.95rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${post.title || '제목 없음'}</div>
-                        <span style="color:#888;font-size:0.75rem;margin-left:10px;">${date}</span>
-                    </div>
-                    <div style="display:flex;gap:8px;justify-content:flex-end;">
-                        <button onclick="editPromoPost(${post.id}); document.getElementById('promo-management-modal').remove();"
-                                style="background:rgba(79,195,247,0.15);border:1px solid rgba(79,195,247,0.3);color:#4fc3f7;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.75rem;">
-                            <i class="fa-solid fa-edit"></i> 수정
-                        </button>
-                        <button onclick="deletePromoPostFromAdmin(${post.id});"
-                                style="background:rgba(244,67,54,0.15);border:1px solid rgba(244,67,54,0.3);color:#f44336;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.75rem;">
-                            <i class="fa-solid fa-trash"></i> 삭제
-                        </button>
-                    </div>
-                </div>
-            `;
-        });
-        content.innerHTML = html;
-
-        // 페이지네이션 UI 렌더 (공용 helper 재사용)
-        if (pager && typeof window.renderStandardPagination === 'function') {
-            window.renderStandardPagination(
-                pager,
-                pagination.page,
-                pagination.totalPages,
-                function (page) {
-                    _promoAdminPage = page;
-                    loadPromoListForAdmin();
-                    // 페이지 전환 시 모달 내부 스크롤을 최상단으로
-                    const modal = document.getElementById('promo-management-modal');
-                    const scroller = modal && modal.querySelector('[style*="overflow-y:auto"]');
-                    if (scroller) scroller.scrollTop = 0;
-                }
-            );
-        }
-    } catch (e) {
-        content.innerHTML = `
-            <div style="text-align:center;padding:30px;color:#f44336;">
-                <i class="fa-solid fa-exclamation-circle fa-2x"></i>
-                <p style="margin-top:10px;">게시글 목록을 불러올 수 없습니다.</p>
-            </div>
-        `;
-        if (pager) pager.innerHTML = '';
-    }
-}
-
-/**
- * 관리자 권한으로 홍보 게시글 1건 삭제. confirm 으로 사용자 확인 받은 뒤
- * /api/promo-posts/:postId (DELETE) 호출. 성공 시 loadPromoListForAdmin 재호출.
- */
-async function deletePromoPostFromAdmin(postId) {
-    if (!confirm('정말로 이 게시글을 삭제하시겠습니까?')) return;
-
-    try {
-        const res = await fetch(CONFIG.API_BASE + '/api/promo/' + postId, { method: 'DELETE' });
-        const result = await res.json();
-        if (result.success) {
-            loadPromoListForAdmin();
-            loadPromoPosts();
-        } else {
-            alert('삭제 실패');
-        }
-    } catch (e) {
-        alert('삭제 중 오류 발생: ' + e.message);
-    }
-}
 
 // 헬퍼: 공지 수정 모드
 window.editNotice = async function (id) {

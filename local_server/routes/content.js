@@ -333,11 +333,12 @@ router.get('/api/promo', (req, res) => {
     const all = Array.isArray(dataCache.promo) ? dataCache.promo : [];
 
     if (req.query.page != null) {
-        // 최신순 정렬: id 가 모두 있으면 id 역순, 아니면 createdAt 역순으로 fallback.
-        const sorted = all.slice().sort((a, b) => {
-            if (a && a.id != null && b && b.id != null) return (b.id || 0) - (a.id || 0);
-            return new Date(b && b.createdAt || 0) - new Date(a && a.createdAt || 0);
-        });
+        // 최신순 정렬: 항목별 단일 정렬 키 산출(id 우선, 없으면 createdAt → epoch)
+        // 후 키 역순 비교. 한쪽에만 id 가 있는 혼합 데이터에서도 일관된 결과.
+        const keyOf = p => (p && p.id != null)
+            ? p.id
+            : new Date((p && p.createdAt) || 0).getTime();
+        const sorted = all.slice().sort((a, b) => keyOf(b) - keyOf(a));
         const page = Math.max(1, parseInt(req.query.page, 10) || 1);
         const rawLimit = parseInt(req.query.limit, 10) || 15;
         const limit = Math.min(200, Math.max(1, rawLimit));

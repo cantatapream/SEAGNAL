@@ -30,7 +30,7 @@
  * [현재 사용처]
  *   - js/alert_push.js renderHistoryTab() (특보 발송 이력)
  *   - js/admin_report.js renderReportList() (제보 관리)
- *   - js/admin_collect.js loadPromoListForAdmin() (홍보 관리)
+ *   - js/admin_collect.js loadUnifiedPromoList() (통합 관리자 게시글 관리)
  *   - js/admin_survey.js 설문 목록 / 응답 모달
  *   - js/admin.js 에러 리스트 3종 (검토필요/재시도/수집실패)
  *
