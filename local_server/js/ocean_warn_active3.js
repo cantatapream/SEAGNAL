@@ -180,6 +180,8 @@
                 placement: 'point'
             }));
         }
+        // 자식(sub) feature 의 라벨은 _styler 가 _subLabelOnlyStyle 로 분기해 처리.
+        // 여기까지 'sub' kind 가 도달하지 않으므로 별도 분기 불필요.
 
         return style;
     }
@@ -225,17 +227,43 @@
                 placement: 'point'
             }));
         }
+        // 자식(sub) feature 의 라벨은 _styler 가 _subLabelOnlyStyle 로 분기해 처리.
+        // 여기까지 'sub' kind 가 도달하지 않으므로 별도 분기 불필요.
         return style;
     }
 
     /**
-     * "비활성 자식" 용 빈 스타일 — 활성 모드에서 자식이 활성 부모를 갖지 않는
-     * 경우 사용. ol.style.Style 인스턴스이지만 stroke/fill/text 모두 없어
-     * 렌더 결과가 0 (사실상 숨김). null 을 반환하면 ocean_warn_zone.js 의 기본
-     * _subZoneStyle 로 fallback 되어 청록 점선 + 한국어 라벨이 줌 6~8 에서도
-     * 모두 보이게 되는데, 활성 모드의 시각 의도(활성 zone 부각)에 반하므로 숨김.
+     * "자식 라벨 전용" 스타일 — 활성 모드에서 자식해역의 fill/stroke 는 그리지
+     * 않고 라벨만 표출한다.
+     *
+     * [왜 라벨만?]
+     *   - fill/stroke 정책: 자식 polygon 의 fill 은 부모 main polygon 과 영역이
+     *     겹쳐 alpha 합성으로 색이 진해지는 부작용(예: 주의보→경보로 오인) 이 있어
+     *     활성 모드에선 자식 fill/stroke 를 그리지 않는 정책 유지.
+     *   - 라벨만: 사용자 요청 — 자식 라벨은 일반 모드와 같은 위치/텍스트로 표출해
+     *     활성 모드 전환 시 자식해역 식별 가능성을 잃지 않게 한다.
+     *
+     * [텍스트/오프셋 규칙]
+     *   ocean_warn_zone.js 의 _buildSubZoneTextStyle 공유 — SUBZONE_LABEL_MAP,
+     *   _shortLabel, SUBZONE_LABEL_OFFSET 동일 적용. 색만 활성 색칠 위 가독성을
+     *   위해 흰색 + 검은 stroke 3.5px 로 오버라이드.
+     *
+     * @param {ol.Feature} feature
+     * @returns {ol.style.Style}
      */
-    var _EMPTY_STYLE = new ol.style.Style({});
+    function _subLabelOnlyStyle(feature) {
+        var style = new ol.style.Style({});
+        if (feature && window.OceanWarnZone
+            && window.OceanWarnZone.buildSubZoneTextStyle) {
+            var subText = window.OceanWarnZone.buildSubZoneTextStyle(feature, {
+                fillColor: '#ffffff',
+                strokeColor: 'rgba(0,0,0,0.95)',
+                strokeWidth: 3.5
+            });
+            if (subText) style.setText(subText);
+        }
+        return style;
+    }
 
     /**
      * OceanWarnZone 에 등록할 스타일러 본체.
@@ -251,21 +279,22 @@
         // 이미 해제되어 있지만 race condition 대비)
         if (!ns._state.active) return null;
 
-        // [중요] 자식(sub) feature 는 활성 모드에서 일체 그리지 않음.
+        // [자식(sub) feature 정책 — 라벨만 표출]
         //
-        // [이유] 자식 zone polygon 은 부모 zone polygon 내부 영역의 부분집합.
+        // [fill/stroke 미표출] 자식 zone polygon 은 부모 zone polygon 의 부분집합.
         //   두 polygon 모두 fill 을 그리면 같은 영역에 fill 이 두 번 겹쳐
         //   alpha 합성으로 색이 진해짐 (예: 주의보 0.5 + 0.5 ≒ 0.75 → 경보처럼 보임).
-        //   부모 main 의 polygon 이 이미 자식 영역까지 덮고 있으므로 자식을 별도로
-        //   그릴 필요가 전혀 없음.
+        //   따라서 활성 모드에서 자식 fill/stroke 는 그리지 않는 정책 유지.
         //
-        // [정책 일관성] 사용자 합의 — 자식해역 분리 기능이 고도화되기 전까지는
-        //   부모 특보가 자식 영역에도 그대로 적용되며 시각적 분리 X.
+        // [라벨만 표출] 사용자 요청 — 일반 모드(_subZoneStyle) 와 활성 모드에서
+        //   자식해역 라벨이 동일한 위치·텍스트로 보여야 UX 일관. 부모 라벨과 자식
+        //   라벨이 함께 보여 사용자가 자식해역 단위까지 식별 가능.
+        //   텍스트/오프셋 규칙은 ocean_warn_zone.js 의 _buildSubZoneTextStyle 공유.
         //
         // [클릭 hit] 자식 영역의 어떤 픽셀을 클릭해도 부모 main polygon 이 그 좌표
         //   를 포함하므로 forEachFeatureAtPixel 이 부모 main 을 hit → tryHandleClick
-        //   이 부모 zone 으로 박스 표출. 자식이 hidden 이어도 클릭 동작 정상.
-        if (kind === 'sub') return _EMPTY_STYLE;
+        //   이 부모 zone 으로 박스 표출. 라벨만 그려도 클릭 동작 정상.
+        if (kind === 'sub') return _subLabelOnlyStyle(feature);
 
         // 이하 메인(부모) feature 만 처리.
         var parentZone = window.OceanWarnZone.getMainZoneName(feature);
