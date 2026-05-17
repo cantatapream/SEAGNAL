@@ -251,31 +251,21 @@
         // 이미 해제되어 있지만 race condition 대비)
         if (!ns._state.active) return null;
 
-        // [S9-D 변경] 자식(sub) 폴리곤 — 부모 종속 색칠을 폐지하고
-        //   dmdw 머지 결과(appState.coastalAlerts) 기반으로 독립 판정·색칠.
+        // [중요] 자식(sub) feature 는 활성 모드에서 일체 그리지 않음.
         //
-        // 이전 정책: 자식 항상 _EMPTY_STYLE (사실상 숨김) — 부모 색이 자식 영역도 덮음.
-        // 신규 정책:
-        //   • 자식에 active 한 dmdw 데이터가 있으면 자식 자체의 (wrnTp, wrnLvl) 로
-        //     부모와 동일 팔레트 재활용해 색칠. 자식 fillLayer 의 zIndex=41 이
-        //     부모 fillLayer zIndex=40 보다 위 → 자식 색이 부모 색을 정확히 덮음.
-        //   • 자식 active 없으면 기존 _EMPTY_STYLE (부모는 부모 로직대로 색칠).
+        // [이유] 자식 zone polygon 은 부모 zone polygon 내부 영역의 부분집합.
+        //   두 polygon 모두 fill 을 그리면 같은 영역에 fill 이 두 번 겹쳐
+        //   alpha 합성으로 색이 진해짐 (예: 주의보 0.5 + 0.5 ≒ 0.75 → 경보처럼 보임).
+        //   부모 main 의 polygon 이 이미 자식 영역까지 덮고 있으므로 자식을 별도로
+        //   그릴 필요가 전혀 없음.
         //
-        // [클릭 hit] 자식 폴리곤 클릭 처리는 S9-E 에서 별도 변경 — 자식 active 인
-        //   경우 자식 전용 팝업, 그렇지 않으면 기존대로 부모로 환원.
-        if (kind === 'sub') {
-            var subFullName = window.OceanWarnZone && typeof window.OceanWarnZone.getSubFullName === 'function'
-                ? window.OceanWarnZone.getSubFullName(feature)
-                : null;
-            if (!subFullName) return _EMPTY_STYLE;
-            var subInfo = ns._buildChildInfoForStyle(subFullName);
-            if (subInfo && subInfo.paletteKey) {
-                // 자식은 현재 isSelected 강조 미지원 (선택 박스가 자식 단위로
-                // 떠 있는 상태는 S9-E 의 자식 팝업 도입 후 별도로 표시 정책 검토).
-                return _coloredStyle(subInfo, kind, feature, false);
-            }
-            return _EMPTY_STYLE;
-        }
+        // [정책 일관성] 사용자 합의 — 자식해역 분리 기능이 고도화되기 전까지는
+        //   부모 특보가 자식 영역에도 그대로 적용되며 시각적 분리 X.
+        //
+        // [클릭 hit] 자식 영역의 어떤 픽셀을 클릭해도 부모 main polygon 이 그 좌표
+        //   를 포함하므로 forEachFeatureAtPixel 이 부모 main 을 hit → tryHandleClick
+        //   이 부모 zone 으로 박스 표출. 자식이 hidden 이어도 클릭 동작 정상.
+        if (kind === 'sub') return _EMPTY_STYLE;
 
         // 이하 메인(부모) feature 만 처리.
         var parentZone = window.OceanWarnZone.getMainZoneName(feature);

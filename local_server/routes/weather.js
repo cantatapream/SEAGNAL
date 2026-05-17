@@ -42,189 +42,22 @@ const regionalForecastCollector = require('../regional_forecast_collector');
 //        응답 body 형식은 변경하지 않으므로 기존 클라이언트 호환성에 영향 없음.
 const freshness = require('../services/freshness');
 
-// ============================================================================
-// [신규] dmdw 자식 해역 데이터 머지 헬퍼
-// ----------------------------------------------------------------------------
-// 역할: weather_alerts.json (부모 해역 트리) 의 children 필드를
-//       dmdw_alerts.json (자식 해역 상세) 데이터로 덮어쓴 머지 결과를 반환.
-//
-// 동작 원칙:
-//  1. 부모 노드가 발효 중(current !== null) 일 때만 자식 머지 — "무기한 대기 게이트"
-//     (부모 통보문이 아직 안 잡혔는데 dmdw 만 먼저 잡은 자식은 노출 보류)
-//  2. 디스크 weather_alerts.json 은 절대 수정하지 않음 — 메모리에서만 머지
-//     (기존 weather_alerts_crawler.js 의 사전삭제 방어 로직 영향 0)
-//  3. dmdw_alerts.json 부재/깨짐 → 머지 skip, 원본 그대로 반환
-//
-// 머지 후 children 값 변화:
-//   "Y"   → { wrnTp, wrnLvl, tmFc, tmEf, parentZone, ... }  (dmdw 데이터로 교체)
-//   null  → 그대로 유지 (자식 비활성)
-//   "Y" + dmdw 자식 부재 → "Y" 그대로 (기존 동작 fallback)
-// ============================================================================
-function mergeDmdwChildren(weatherTree, dmdwAlerts) {
-    if (!dmdwAlerts || !dmdwAlerts.children || typeof dmdwAlerts.children !== 'object') {
-        return weatherTree; // dmdw 데이터 없거나 비정상 → 원본 그대로
-    }
-    // [S9-C] 백필 미완료 시 자식 머지 보류 — 부모만 응답.
-    //  서버 재시작 직후 dmdw 가 직전 24시간 데이터를 백필하는 동안 자식 정보가
-    //  불완전할 수 있으므로 일관성을 위해 머지를 잠시 미룬다.
-    //  사용자 정책 (해석 ①·A 옵션): 부모 데이터는 끊김 없이 응답, 자식만 ~10~80초
-    //  후 백필 완료 시점에 다음 폴링에서 자연 합류.
-    if (dmdwAlerts.backfillReady !== true) {
-        return weatherTree;
-    }
-    const dmdwChildren = dmdwAlerts.children;
-
-    // 재귀 함수: tree 의 모든 노드를 훑으며 "current/children 필드를 가진" 부모 노드 발견 시 머지
-    function walk(node) {
-        if (!node || typeof node !== 'object') return;
-        // 이 노드가 zone 노드인가? (current 또는 upcoming + children 보유)
-        const hasZoneShape = Object.prototype.hasOwnProperty.call(node, 'current')
-                          && Object.prototype.hasOwnProperty.call(node, 'children');
-        if (hasZoneShape) {
-            // 게이트: 부모 발효 중일 때만 머지 (current 가 객체)
-            const parentActive = node.current !== null && typeof node.current === 'object';
-            if (parentActive && node.children && typeof node.children === 'object') {
-                for (const childKey of Object.keys(node.children)) {
-                    const dmdwState = dmdwChildren[childKey];
-                    if (dmdwState && typeof dmdwState === 'object') {
-                        // dmdw 가 이 자식의 정밀 상태를 알고 있음 → 덮어쓰기
-                        node.children[childKey] = dmdwState;
-                    }
-                    // dmdw 에 없으면 기존 "Y"/null 그대로 유지 (부모 상속 fallback)
-                }
-            }
-        }
-        // 자식 노드들 재귀 (zone 노드든 그룹 노드든 무관)
-        for (const v of Object.values(node)) {
-            if (v && typeof v === 'object' && !Array.isArray(v)) walk(v);
-        }
-    }
-    if (weatherTree && weatherTree.current && typeof weatherTree.current === 'object') {
-        walk(weatherTree.current);
-    }
-    return weatherTree;
-}
-
-// ============================================================================
-// [S10-D] /api/weather-alerts 하이브리드 메모리 캐시 (M4 + M6 동시 해결)
-// ----------------------------------------------------------------------------
-// [배경]
-//  매 요청마다 weather_alerts.json + dmdw_alerts.json 두 파일을 디스크에서
-//  sync read 하고 머지·stringify 하면, Node.js 단일 스레드 특성상 동시 요청이
-//  많아질 때 누적 지연이 커진다 (사용자 100명 동시 ≈ 100~300ms 지연, 1000명
-//  ≈ 4초). 사용자 트래픽이 늘어날수록 명확한 병목.
-//
-// [방식 — 하이브리드 (변경 감지 + stat 캐시)]
-//  1) 응답 결과(JSON string)를 메모리에 보관.
-//  2) 매 요청 시 (현재 시각 - 마지막 stat 시각) < 1초 → stat 도 생략, 캐시 즉시 반환.
-//  3) 1초 지난 첫 요청 시 stat 1회 → 두 파일 mtime 이 캐시한 시각과 같으면 캐시 유지.
-//                              → mtime 다르면 read + merge + stringify → 캐시 갱신.
-//
-// [성능 — 사용자 1000명 동시 시점]
-//  무캐시:    1000 × read 2회 ≈ 4초
-//  하이브리드: 1000 × 메모리 응답 ≈ 10ms (1초 안의 첫 요청만 stat)
-//
-// [M6 자동 해결]
-//  캐시를 string 으로 보관 → mergeDmdwChildren 이 mutate 해도 다음 캐시 갱신 시
-//  새 JSON.parse 객체에 적용되므로 격리. 객체 mutate 부작용 0.
-//
-// [데이터 신선도]
-//  최대 1초 stale 가능 (stat 캐시 구간). 우리 데이터는 분 단위 갱신이라
-//  1초 차이는 의미 없음.
-// ============================================================================
-const STAT_CACHE_TTL_MS = 1000;  // stat 호출 자체도 1초 캐시
-const _weatherCache = {
-    responseJson: null,    // 캐시된 응답 JSON 문자열 (res.send 대상)
-    weatherMtime: 0,       // 캐시 만들 때의 weather_alerts.json mtime (ms)
-    dmdwMtime: 0,          // 캐시 만들 때의 dmdw_alerts.json mtime (ms)
-    lastStatAt: 0          // 마지막 stat 호출 시각 (Date.now ms)
-};
-
-/**
- * 캐시된 응답을 반환하거나 필요 시 새로 빌드.
- *  - null 반환 시: weather_alerts.json 부재 또는 파싱 실패 → 호출자가 fallback 처리
- *  - string 반환 시: 그대로 res.send 가능 (Content-Type: application/json)
- */
-function getWeatherAlertsResponse() {
-    const now = Date.now();
-
-    // [1단계] stat 도 1초 캐시 — 최근 1초 안에 검사했으면 stat 도 생략
-    if (_weatherCache.responseJson && (now - _weatherCache.lastStatAt) < STAT_CACHE_TTL_MS) {
-        return _weatherCache.responseJson;
-    }
-
-    // [2단계] stat 으로 두 파일 mtime 확인 (파일 내용은 안 읽음 — 매우 가벼움)
-    const weatherPath = path.join(DATA_DIR, 'weather_alerts.json');
-    const dmdwPath = path.join(DATA_DIR, 'dmdw_alerts.json');
-
-    let weatherMtime = 0;
-    try { weatherMtime = fs.statSync(weatherPath).mtimeMs; } catch (e) { /* 파일 없음 */ }
-    let dmdwMtime = 0;
-    try { dmdwMtime = fs.statSync(dmdwPath).mtimeMs; } catch (e) { /* 파일 없음 — 0 유지 */ }
-
-    _weatherCache.lastStatAt = now;
-
-    // [3단계] mtime 변경 없으면 캐시 그대로 반환
-    if (_weatherCache.responseJson
-        && weatherMtime === _weatherCache.weatherMtime
-        && dmdwMtime === _weatherCache.dmdwMtime) {
-        return _weatherCache.responseJson;
-    }
-
-    // [4단계] 파일이 바뀜 — 새로 read + merge + stringify
-    if (weatherMtime === 0) {
-        // weather_alerts.json 자체 부재 → null 반환 → 호출자가 404 처리
-        return null;
-    }
-
-    let weatherTree;
-    try {
-        weatherTree = JSON.parse(fs.readFileSync(weatherPath, 'utf8'));
-    } catch (parseErr) {
-        console.log(`[/api/weather-alerts] parse fail (${parseErr.message}) → fallback`);
-        return null; // 호출자 fallback (sendFile)
-    }
-
-    if (dmdwMtime > 0) {
-        try {
-            const dmdwAlerts = JSON.parse(fs.readFileSync(dmdwPath, 'utf8'));
-            mergeDmdwChildren(weatherTree, dmdwAlerts);
-        } catch (mergeErr) {
-            console.log(`[/api/weather-alerts] dmdw merge skip (${mergeErr.message})`);
-        }
-    }
-
-    _weatherCache.responseJson = JSON.stringify(weatherTree);
-    _weatherCache.weatherMtime = weatherMtime;
-    _weatherCache.dmdwMtime = dmdwMtime;
-    return _weatherCache.responseJson;
-}
-
 // 1. 특보 정보 (통합 크롤러 데이터)
 //    [신선도] cacheKey='warnings' — 1분 주기 수집, 5분 안쪽이면 fresh.
 //             stale 감지 시 weatherAlertsCrawler.run() 을 백그라운드로 트리거.
 //    [HTTP 캐시] max-age=30 — 30초 동안은 브라우저/앱이 자체 캐시 사용 → 서버 부담 ↓
 //                특보는 1분 주기 수집이라 30초 캐시 시 최대 묵음 약 30초.
-//    [서버 메모리 캐시] 1초 stat 캐시 + mtime 변경 감지 — 동시 트래픽 폭주 시 결정적.
 router.get('/api/weather-alerts', (req, res) => {
     try {
-        // 응답 헤더는 res.send / res.json / res.sendFile 호출 전에 부착해야 함
+        const filePath = path.join(DATA_DIR, 'weather_alerts.json');
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: 'weather_alerts.json not found' });
+        }
+        // 응답 헤더는 res.sendFile / res.json 호출 전에 부착해야 함
         res.setHeader('Cache-Control', 'public, max-age=30');
         freshness.applyFreshnessHeaders(res, 'warnings');
         freshness.triggerRefreshIfStale('warnings');
-
-        const cachedJson = getWeatherAlertsResponse();
-        if (cachedJson === null) {
-            // 캐시 빌드 실패 — fallback: 원본 파일 직접 전송 (이전 동작)
-            const filePath = path.join(DATA_DIR, 'weather_alerts.json');
-            if (!fs.existsSync(filePath)) {
-                return res.status(404).json({ error: 'weather_alerts.json not found' });
-            }
-            return res.sendFile(filePath);
-        }
-
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.send(cachedJson);
+        res.sendFile(filePath);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
