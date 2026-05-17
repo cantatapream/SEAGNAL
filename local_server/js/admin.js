@@ -643,6 +643,17 @@ window.switchUnifiedAdminTab = function (tabId) {
 let currentErrorSubTab = 'review';  // 'review' | 'retry' | 'fail' (기본: 검토 필요)
 let errorListAutoRefreshTimer = null;
 
+// [페이지네이션] 세 리스트 각각 별도 페이지 번호 보관
+// - 자동 갱신(30초) 시 현재 페이지를 그대로 재요청하기 위해 모듈-로컬 상태로 유지
+// - 하위 탭 전환 시에도 보존 (각 탭 자체의 페이지 컨텍스트 유지)
+// - 페이지 클릭 시에만 갱신되고, 응답 totalPages 보다 크면 자동 클램프
+let _collectFailuresPage = 1;
+let _reviewNeededPage = 1;
+let _pendingRetriesPage = 1;
+const _COLLECT_FAILURES_LIMIT = 30;
+const _REVIEW_NEEDED_LIMIT = 30;
+const _PENDING_RETRIES_LIMIT = 30;
+
 /**
  * 에러 리스트 탭의 자동 새로고침 타이머 정지.
  * 탭 이탈 시 또는 탭 재진입 직전(중복 방지) 에 호출.
@@ -677,27 +688,75 @@ async function renderErrorListTab(container) {
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
 
     // 네 가지 데이터를 병렬로 조회 (실패/검토/재시도/Gemini 키 상태)
-    let failures = [];
-    let reviews = [];
-    let pendings = [];
+    // 세 리스트는 페이지네이션 모드(?page=)로 호출 → { data, pagination } 응답 사용.
+    // - data: 현재 페이지 항목만
+    // - pagination.total: 전체 항목 수 (배지/헤더 카운트용)
+    // - 검토 필요 페이지네이션 응답은 unacknowledged 만 포함하므로 별도 필터 불필요.
+    let failuresData = [];
+    let failuresPagination = { page: 1, limit: _COLLECT_FAILURES_LIMIT, total: 0, totalPages: 1 };
+    let reviewsData = [];
+    let reviewsPagination = { page: 1, limit: _REVIEW_NEEDED_LIMIT, total: 0, totalPages: 1 };
+    let pendingsData = [];
+    let pendingsPagination = { page: 1, limit: _PENDING_RETRIES_LIMIT, total: 0, totalPages: 1 };
     let geminiStatus = { keys: [], count: 0 };
     try {
+        const failUrl = `/api/admin/collect-failures?page=${_collectFailuresPage}&limit=${_COLLECT_FAILURES_LIMIT}`;
+        const reviewUrl = `/api/admin/review-needed?page=${_reviewNeededPage}&limit=${_REVIEW_NEEDED_LIMIT}`;
+        const pendingUrl = `/api/admin/pending-retries?page=${_pendingRetriesPage}&limit=${_PENDING_RETRIES_LIMIT}`;
         const [failRes, reviewRes, pendingRes, geminiRes] = await Promise.all([
-            fetch('/api/admin/collect-failures'),
-            fetch('/api/admin/review-needed'),
-            fetch('/api/admin/pending-retries'),
+            fetch(failUrl),
+            fetch(reviewUrl),
+            fetch(pendingUrl),
             fetch('/api/admin/gemini-status')
         ]);
-        if (failRes.ok) failures = await failRes.json();
-        if (reviewRes.ok) reviews = await reviewRes.json();
-        if (pendingRes.ok) pendings = await pendingRes.json();
+        if (failRes.ok) {
+            const body = await failRes.json();
+            if (body && Array.isArray(body.data) && body.pagination) {
+                failuresData = body.data;
+                failuresPagination = body.pagination;
+            } else if (Array.isArray(body)) {
+                // 방어적 폴백: 서버가 옛 포맷을 반환한 경우
+                failuresData = body;
+                failuresPagination = { page: 1, limit: _COLLECT_FAILURES_LIMIT, total: body.length, totalPages: 1 };
+            }
+        }
+        if (reviewRes.ok) {
+            const body = await reviewRes.json();
+            if (body && Array.isArray(body.data) && body.pagination) {
+                reviewsData = body.data;
+                reviewsPagination = body.pagination;
+            } else if (Array.isArray(body)) {
+                const filt = body.filter(r => !r.acknowledged);
+                reviewsData = filt;
+                reviewsPagination = { page: 1, limit: _REVIEW_NEEDED_LIMIT, total: filt.length, totalPages: 1 };
+            }
+        }
+        if (pendingRes.ok) {
+            const body = await pendingRes.json();
+            if (body && Array.isArray(body.data) && body.pagination) {
+                pendingsData = body.data;
+                pendingsPagination = body.pagination;
+            } else if (Array.isArray(body)) {
+                pendingsData = body;
+                pendingsPagination = { page: 1, limit: _PENDING_RETRIES_LIMIT, total: body.length, totalPages: 1 };
+            }
+        }
         if (geminiRes.ok) geminiStatus = await geminiRes.json();
     } catch (e) { /* 무시 */ }
 
-    const pendingReviews = (reviews || []).filter(r => !r.acknowledged);
-    const reviewCount = pendingReviews.length;
-    const retryCount = (pendings || []).length;
-    const failCount = (failures || []).length;
+    // 페이지 클램프: 응답 totalPages 보다 크면 1 페이지로 리셋하고 자기 자신 재호출.
+    // 데이터가 줄어들어 빈 페이지가 잡힌 경우 (예: 마지막 항목 삭제) 자동 보정.
+    let needReload = false;
+    if (_collectFailuresPage > failuresPagination.totalPages) { _collectFailuresPage = 1; needReload = true; }
+    if (_reviewNeededPage > reviewsPagination.totalPages) { _reviewNeededPage = 1; needReload = true; }
+    if (_pendingRetriesPage > pendingsPagination.totalPages) { _pendingRetriesPage = 1; needReload = true; }
+    if (needReload) {
+        return renderErrorListTab(container);
+    }
+
+    const reviewCount = reviewsPagination.total;
+    const retryCount = pendingsPagination.total;
+    const failCount = failuresPagination.total;
 
     // Gemini 키 상태 배지 (항상 표시)
     const geminiBadgeHtml = renderGeminiKeysBadge(geminiStatus);
@@ -739,17 +798,44 @@ async function renderErrorListTab(container) {
 
     const sub = document.getElementById('error-sub-tab-content');
     if (currentErrorSubTab === 'review') {
-        sub.innerHTML = renderReviewSectionHtml(pendingReviews);
+        sub.innerHTML = renderReviewSectionHtml(reviewsData, reviewsPagination);
+        _attachErrorListPagination('review', reviewsPagination);
     } else if (currentErrorSubTab === 'retry') {
-        sub.innerHTML = renderPendingRetriesHtml(pendings);
+        sub.innerHTML = renderPendingRetriesHtml(pendingsData, pendingsPagination);
+        _attachErrorListPagination('retry', pendingsPagination);
         // 재시도 중 탭은 30초마다 자동 갱신 (상태 급변 가능)
+        // → 현재 페이지(_pendingRetriesPage 등) 그대로 유지하며 재요청
         errorListAutoRefreshTimer = setInterval(() => {
             const inner = document.getElementById('alert-top-content');
             if (inner) renderErrorListTab(inner);
         }, 30000);
     } else if (currentErrorSubTab === 'fail') {
-        sub.innerHTML = renderFailureSectionHtml(failures);
+        sub.innerHTML = renderFailureSectionHtml(failuresData, failuresPagination);
+        _attachErrorListPagination('fail', failuresPagination);
     }
+}
+
+/**
+ * 세 에러 리스트 페이지네이션 UI를 공용 helper 로 렌더 + 클릭 핸들러 부착.
+ * - kind: 'review' | 'retry' | 'fail'
+ * - pagination: { page, limit, total, totalPages }
+ * 페이지 클릭 시 해당 리스트 페이지만 갱신하고 전체 탭을 재렌더 (다른 페이지는 보존).
+ */
+function _attachErrorListPagination(kind, pagination) {
+    const containerId = kind === 'review' ? 'review-needed-pagination'
+        : kind === 'retry' ? 'pending-retries-pagination'
+            : 'collect-failures-pagination';
+    const el = document.getElementById(containerId);
+    if (!el || typeof window.renderStandardPagination !== 'function') return;
+    const total = (pagination && pagination.totalPages) || 1;
+    const cur = (pagination && pagination.page) || 1;
+    window.renderStandardPagination(el, cur, total, (page) => {
+        if (kind === 'review') _reviewNeededPage = page;
+        else if (kind === 'retry') _pendingRetriesPage = page;
+        else _collectFailuresPage = page;
+        const inner = document.getElementById('alert-top-content');
+        if (inner) renderErrorListTab(inner);
+    });
 }
 
 // [상단 배지] Gemini 키 상태 표시
@@ -792,11 +878,14 @@ function renderGeminiKeysBadge(status) {
 }
 
 // [하위 탭] 검토 필요 섹션 HTML
-function renderReviewSectionHtml(pendingReviews) {
-    if (!pendingReviews || pendingReviews.length === 0) {
-        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">검토 필요 항목이 없습니다.</div>`;
+// items: 현재 페이지 항목, pagination: 전체 카운트/페이지 정보
+function renderReviewSectionHtml(items, pagination) {
+    const total = (pagination && pagination.total) || 0;
+    if (!items || items.length === 0) {
+        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">검토 필요 항목이 없습니다.</div>
+            <div id="review-needed-pagination" class="pagination"></div>`;
     }
-    const rows = pendingReviews.map(r => {
+    const rows = items.map(r => {
         const time = r.detectedAt ? new Date(r.detectedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-';
         const preview = (r.referenceText || '').substring(0, 80) + ((r.referenceText || '').length > 80 ? '...' : '');
         return `
@@ -815,21 +904,25 @@ function renderReviewSectionHtml(pendingReviews) {
     return `
         <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
             <div style="color:#fcd34d;font-size:0.9rem;font-weight:600;">
-                <i class="fa-solid fa-magnifying-glass"></i> 검토 필요 ${pendingReviews.length}건
+                <i class="fa-solid fa-magnifying-glass"></i> 검토 필요 ${total}건
             </div>
             <button onclick="acknowledgeAllReviews()" style="padding:5px 12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:600;">
                 <i class="fa-solid fa-check-double"></i> 전체 확인완료
             </button>
         </div>
-        ${rows}`;
+        ${rows}
+        <div id="review-needed-pagination" class="pagination"></div>`;
 }
 
 // [하위 탭] 재시도 중 섹션 HTML
-function renderPendingRetriesHtml(pendings) {
-    if (!pendings || pendings.length === 0) {
-        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">현재 재시도 대기 중인 통보문이 없습니다.</div>`;
+// items: 현재 페이지 항목, pagination: 전체 카운트/페이지 정보
+function renderPendingRetriesHtml(items, pagination) {
+    const total = (pagination && pagination.total) || 0;
+    if (!items || items.length === 0) {
+        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">현재 재시도 대기 중인 통보문이 없습니다.</div>
+            <div id="pending-retries-pagination" class="pagination"></div>`;
     }
-    const rows = pendings.map(p => {
+    const rows = items.map(p => {
         const reasonLabel = p.reason === 'API_RATE_LIMIT'
             ? '<span style="color:#fca5a5;background:rgba(239,68,68,0.1);padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;">⚠️ AI 할당량 초과</span>'
             : '<span style="color:#fcd34d;background:rgba(245,158,11,0.1);padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;">📝 빈 양식 판정</span>';
@@ -863,19 +956,23 @@ function renderPendingRetriesHtml(pendings) {
     return `
         <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
             <div style="color:#93c5fd;font-size:0.9rem;font-weight:600;">
-                <i class="fa-solid fa-rotate"></i> 재시도 중 ${pendings.length}건
+                <i class="fa-solid fa-rotate"></i> 재시도 중 ${total}건
             </div>
             <div style="color:#64748b;font-size:0.7rem;">30초마다 자동 갱신</div>
         </div>
-        ${rows}`;
+        ${rows}
+        <div id="pending-retries-pagination" class="pagination"></div>`;
 }
 
 // [하위 탭] 수집 실패 섹션 HTML
-function renderFailureSectionHtml(failures) {
-    if (!failures || failures.length === 0) {
-        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">수집 실패 기록이 없습니다.</div>`;
+// items: 현재 페이지 항목, pagination: 전체 카운트/페이지 정보
+function renderFailureSectionHtml(items, pagination) {
+    const total = (pagination && pagination.total) || 0;
+    if (!items || items.length === 0) {
+        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">수집 실패 기록이 없습니다.</div>
+            <div id="collect-failures-pagination" class="pagination"></div>`;
     }
-    const rows = failures.map(f => {
+    const rows = items.map(f => {
         const time = f.failedAt ? new Date(f.failedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-';
         return `
             <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:10px;margin-bottom:8px;">
@@ -893,13 +990,14 @@ function renderFailureSectionHtml(failures) {
     return `
         <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
             <div style="color:#fca5a5;font-size:0.9rem;font-weight:600;">
-                <i class="fa-solid fa-triangle-exclamation"></i> 수집 실패 ${failures.length}건
+                <i class="fa-solid fa-triangle-exclamation"></i> 수집 실패 ${total}건
             </div>
             <button onclick="clearAllCollectFailuresAndRefresh()" style="padding:5px 12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:600;">
                 <i class="fa-solid fa-check"></i> 전체 삭제
             </button>
         </div>
-        ${rows}`;
+        ${rows}
+        <div id="collect-failures-pagination" class="pagination"></div>`;
 }
 
 // [하위 탭 전환] 하위 탭 버튼 클릭 시 호출
