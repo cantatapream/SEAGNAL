@@ -60,6 +60,11 @@ const fs = require('fs');
 const path = require('path');
 const { URLSearchParams } = require('url');
 
+// [관리자 푸시 알림] 로그인 실패·서버 장애 등 운영자가 인지해야 할 사건 발생 시
+// admin_devices.json 에 등록된 관리자 기기로만 자연어 본문의 푸시 알림 발송.
+// require 자체는 동기·가벼움 (firebase-admin 은 lazy 로딩이라 첫 발송 시점에 초기화).
+const adminPush = require('./services/admin_push');
+
 // ============================================================================
 // 1. 환경변수 + 자격증명 게이트
 // ============================================================================
@@ -140,6 +145,84 @@ const sessionState = {
 
 // run() 동시 실행 방지 락 (scheduler 가 다음 사이클을 일찍 트리거하는 경우 대비)
 let runInProgress = false;
+
+// ============================================================================
+// 3-1. 관리자 알림 — 쿨다운 + 정상화 추적
+// ============================================================================
+//
+// [목적] 운영자(관리자 등록 기기 소유자)에게 dmdw 크롤러의 비정상 상황을
+//        사람이 읽어서 즉시 이해할 수 있는 자연어 문장으로 푸시 발송.
+//
+// [폭주 방지]
+//   - 같은 종류 알림(type)은 ALERT_COOLDOWN_MS 이내 1회만 발송
+//   - 단 "에러가 해소되고 다시 에러"인 경우에는 즉시 발송 (한 번 정상화 후엔 쿨다운 리셋)
+//
+// [상태 추적]
+//   - alertState.lastSentAt[type] : 마지막 발송 시각 (epoch ms)
+//   - alertState.activeIssue      : 현재 미해소 상태인 에러 유형 (null = 정상)
+//   - alertState.failedSinceMs    : 에러 시작 시각 (정상화 알림에 경과 시간 포함)
+//
+// [알림 유형]
+//   'login_fail_credential' — 자격증명 거부 (statecode != '10')
+//   'login_fail_network'    — 로그인 자체가 throw (서버 다운 / CSRF 등)
+//   'recovered'             — 정상화 (issue 해소 직후 1회)
+
+const ALERT_COOLDOWN_MS = 30 * 60 * 1000;  // 30분
+const alertState = {
+    lastSentAt: {},      // { 'login_fail_credential': 1700000000000, ... }
+    activeIssue: null,   // 현재 진행 중인 issue 유형 (null = 정상)
+    failedSinceMs: 0     // 에러 시작 시각
+};
+
+// 자연어 문장으로 관리자 알림 발송. 발송 자체 실패는 조용히 흡수.
+async function notifyAdmin(type, title, body) {
+    const now = Date.now();
+    const last = alertState.lastSentAt[type] || 0;
+    // 쿨다운: 같은 type 알림은 30분 안에 1회만 (정상화 알림은 별 type 이라 별도 카운트)
+    if (now - last < ALERT_COOLDOWN_MS) {
+        return;
+    }
+    alertState.lastSentAt[type] = now;
+    try {
+        await adminPush.sendAdminPush(title, body, { type: `dmdw_${type}` });
+        console.log(`[dmdw] admin push sent: ${type}`);
+    } catch (e) {
+        // 알림 자체가 실패해도 크롤러 본체 영향 0
+        console.log(`[dmdw] admin push failed (${type}): ${e.message}`);
+    }
+}
+
+// 에러 발생 마킹 + 알림 발송 진입점. 본문 텍스트는 사람이 읽고 바로 이해 가능한 형태.
+async function markIssueAndNotify(type, title, body) {
+    // 새 에러가 시작되는 시점이면 failedSinceMs 기록
+    if (alertState.activeIssue !== type) {
+        alertState.activeIssue = type;
+        alertState.failedSinceMs = Date.now();
+    }
+    await notifyAdmin(type, title, body);
+}
+
+// 정상화 시 호출: 직전에 에러 상태였으면 "정상화" 알림 1회 후 상태 리셋.
+async function markRecoveredIfNeeded() {
+    if (!alertState.activeIssue) return;
+    const prevIssue = alertState.activeIssue;
+    const durMin = Math.max(1, Math.round((Date.now() - alertState.failedSinceMs) / 60000));
+    // 상태 먼저 리셋해서 알림 발송 중 중복 진입 방지
+    alertState.activeIssue = null;
+    alertState.failedSinceMs = 0;
+    // 동일 에러 재발 시 즉시 알림 발송 가능하도록 해당 에러 쿨다운 초기화
+    delete alertState.lastSentAt[prevIssue];
+    try {
+        await adminPush.sendAdminPush(
+            '✅ 방재기상플랫폼 자식 해역 특보 수집 정상화',
+            `직전 약 ${durMin}분간 중단되었던 자식 해역(연안바다·평수구역) 특보 자동 갱신이 정상적으로 재개되었습니다.`,
+            { type: 'dmdw_recovered' }
+        );
+        console.log(`[dmdw] admin push sent: recovered (after ${durMin}min)`);
+    } catch (e) {
+        console.log(`[dmdw] admin push failed (recovered): ${e.message}`);
+    }
+}
 
 // ============================================================================
 // 4. 헬퍼 — 인코딩, 정규화, 시간
@@ -347,7 +430,22 @@ async function login() {
     const state = loginJson && loginJson.body && loginJson.body.result
         && loginJson.body.result.statecode;
     if (state !== '10') {
-        // 00=등록되지 않은 계정, 01=승인대기, 11=비밀번호 만료 등
+        // statecode 의미: 00=등록되지 않은 계정, 01=승인대기, 11=비밀번호 만료
+        //                 그 외 비정상 상태 (10 이외는 모두 실패)
+        // [관리자 알림] 자격증명 자체의 문제로 즉시 운영자 개입이 필요한 케이스.
+        const stateMeaning = {
+            '00': '등록되지 않은 계정',
+            '01': '승인 대기 상태인 계정',
+            '11': '비밀번호 만료'
+        }[String(state)] || `알 수 없는 상태(${state})`;
+        await markIssueAndNotify(
+            'login_fail_credential',
+            '🔐 방재기상플랫폼 로그인 실패',
+            `방재기상플랫폼(dmdw.kma.go.kr) 로그인이 거부되었습니다. ` +
+            `사유: ${stateMeaning}. ID/비밀번호 또는 계정 승인 상태를 확인해 주세요. ` +
+            `현재 자식 해역(연안바다·평수구역) 특보 자동 갱신이 중단된 상태입니다. ` +
+            `해소 후 다음 1분 사이클에 자동으로 정상화됩니다.`
+        );
         throw new Error(`login failed: statecode=${state} msg=${loginJson.message || ''}`);
     }
 
@@ -681,10 +779,32 @@ async function run() {
         });
 
         console.log(`[dmdw] cycle done — efNew=${sortedNewEf.length} fcNew=${sortedNewFc.length} skip=${skipCount} children=${Object.keys(state.children).length} upcoming=${Object.keys(state._upcoming).length} (${elapsedMs}ms)`);
+
+        // [관리자 알림 — 정상화]
+        //  직전 사이클들에서 issue(로그인 실패 등) 가 있었다면 이번 사이클이 끝까지
+        //  성공적으로 돌았다는 의미 → 정상화 알림 1회 발송.
+        await markRecoveredIfNeeded();
     } catch (e) {
         // 어떠한 예외도 상위(scheduler) 로 던지지 않음 — 다음 사이클에 재시도.
         // 자격증명 실패류는 ensureSession() 안에서 재로그인 시도, 그래도 실패면 메시지만.
         console.log(`[dmdw] cycle error: ${e.message}`);
+
+        // [관리자 알림 — 비-자격증명 계열 장애 분기]
+        //  자격증명 실패(statecode != 10)는 login() 안에서 이미 markIssueAndNotify 처리됨.
+        //  여기서는 그 외 사유로 사이클이 중단된 경우만 다룬다 (네트워크/CSRF/타임아웃 등).
+        //  e.message 에 'statecode=' 가 포함되어 있으면 login() 의 throw 라 중복 발송 방지.
+        const msg = String(e.message || '');
+        if (!msg.includes('statecode=')) {
+            await markIssueAndNotify(
+                'login_fail_network',
+                '🌐 방재기상플랫폼 접속/통신 실패',
+                `방재기상플랫폼(dmdw.kma.go.kr) 과의 통신에 문제가 발생하여 자식 해역 ` +
+                `(연안바다·평수구역) 특보 자동 갱신이 일시 중단되었습니다. ` +
+                `1분 후 자동으로 재시도되며, 일시적 네트워크 장애일 가능성이 높습니다. ` +
+                `30분 이상 지속되면 KMA 서버 상태 또는 방화벽 변경을 확인해 주세요. ` +
+                `(상세: ${msg.substring(0, 100)})`
+            );
+        }
     } finally {
         runInProgress = false;
     }
