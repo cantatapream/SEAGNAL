@@ -3176,6 +3176,8 @@ window.showPromoManagementModal = async function () {
                     <p style="margin-top:10px;">게시글 목록을 불러오는 중...</p>
                 </div>
             </div>
+            <!-- 관리자 게시글 목록 페이지네이션 (공용 helper 가 렌더) -->
+            <div id="promo-admin-pagination" class="pagination" style="padding:0 16px 8px;"></div>
             <div style="padding:12px 16px;background:rgba(0,0,0,0.2);border-radius:0 0 16px 16px;text-align:center;">
                 <button onclick="openPromoEditor();" 
                         style="padding:10px 20px;background:linear-gradient(135deg,#ff7043,#e64a19);border:none;border-radius:8px;color:#fff;font-weight:600;cursor:pointer;font-size:0.9rem;">
@@ -3185,22 +3187,53 @@ window.showPromoManagementModal = async function () {
         </div>
     `;
     document.body.appendChild(modal);
+    // 모달을 새로 열 때마다 1페이지부터 시작
+    _promoAdminPage = 1;
     await loadPromoListForAdmin();
 };
 
+// ============================================================================
+// 관리자 홍보 게시글 페이지네이션 (모듈-로컬 상태)
+// ----------------------------------------------------------------------------
+// 일반 사용자 홍보 게시판(promo.js)은 ?page= 없이 호출하여 raw 배열을 받고
+// 자체적으로 client-side slice 하므로, 서버 응답 포맷은 본 admin 모달에서만
+// `?page=` 를 붙여 새 포맷({ data, pagination })을 받는다.
+// ============================================================================
+let _promoAdminPage = 1;
+const _PROMO_ADMIN_LIMIT = 15;
+
 /**
  * 관리자 화면의 홍보 게시글 관리 탭 — 게시글 목록을 fetch 해서 렌더.
- * 각 항목에 삭제·고정 등 관리 버튼 포함.
+ * 각 항목에 삭제·수정 등 관리 버튼 포함.
  *
- * [연계] /api/promo-posts (GET) — 전체 목록.
+ * [연계] GET /api/promo?page=&limit= — 새 포맷 { data, pagination } 사용.
+ * 페이지네이션 UI 는 공용 helper window.renderStandardPagination 으로 그린다.
  */
 async function loadPromoListForAdmin() {
     const content = document.getElementById('promo-management-content');
     if (!content) return;
+    const pager = document.getElementById('promo-admin-pagination');
 
     try {
-        const res = await fetch(CONFIG.API_BASE + '/api/promo');
-        const posts = await res.json();
+        const url = CONFIG.API_BASE + '/api/promo?page=' + _promoAdminPage
+            + '&limit=' + _PROMO_ADMIN_LIMIT;
+        const res = await fetch(url);
+        const result = await res.json();
+
+        // 새 포맷({ data, pagination }) 우선, 만에 하나 raw 배열이 오면 fallback.
+        const posts = Array.isArray(result) ? result : (result && result.data) || [];
+        const pagination = (result && result.pagination) || {
+            page: _promoAdminPage,
+            limit: _PROMO_ADMIN_LIMIT,
+            total: posts.length,
+            totalPages: 1
+        };
+
+        // 삭제 등으로 현재 페이지가 비었지만 앞쪽에 데이터가 남아있는 경우 → 1페이지로 리셋 후 재호출.
+        if (posts.length === 0 && pagination.total > 0 && _promoAdminPage > 1) {
+            _promoAdminPage = 1;
+            return loadPromoListForAdmin();
+        }
 
         if (!posts || posts.length === 0) {
             content.innerHTML = `
@@ -3209,6 +3242,7 @@ async function loadPromoListForAdmin() {
                     <p style="margin-top:10px;">등록된 게시글이 없습니다.</p>
                 </div>
             `;
+            if (pager) pager.innerHTML = '';
             return;
         }
 
@@ -3222,11 +3256,11 @@ async function loadPromoListForAdmin() {
                         <span style="color:#888;font-size:0.75rem;margin-left:10px;">${date}</span>
                     </div>
                     <div style="display:flex;gap:8px;justify-content:flex-end;">
-                        <button onclick="editPromoPost(${post.id}); document.getElementById('promo-management-modal').remove();" 
+                        <button onclick="editPromoPost(${post.id}); document.getElementById('promo-management-modal').remove();"
                                 style="background:rgba(79,195,247,0.15);border:1px solid rgba(79,195,247,0.3);color:#4fc3f7;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.75rem;">
                             <i class="fa-solid fa-edit"></i> 수정
                         </button>
-                        <button onclick="deletePromoPostFromAdmin(${post.id});" 
+                        <button onclick="deletePromoPostFromAdmin(${post.id});"
                                 style="background:rgba(244,67,54,0.15);border:1px solid rgba(244,67,54,0.3);color:#f44336;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.75rem;">
                             <i class="fa-solid fa-trash"></i> 삭제
                         </button>
@@ -3235,6 +3269,23 @@ async function loadPromoListForAdmin() {
             `;
         });
         content.innerHTML = html;
+
+        // 페이지네이션 UI 렌더 (공용 helper 재사용)
+        if (pager && typeof window.renderStandardPagination === 'function') {
+            window.renderStandardPagination(
+                pager,
+                pagination.page,
+                pagination.totalPages,
+                function (page) {
+                    _promoAdminPage = page;
+                    loadPromoListForAdmin();
+                    // 페이지 전환 시 모달 내부 스크롤을 최상단으로
+                    const modal = document.getElementById('promo-management-modal');
+                    const scroller = modal && modal.querySelector('[style*="overflow-y:auto"]');
+                    if (scroller) scroller.scrollTop = 0;
+                }
+            );
+        }
     } catch (e) {
         content.innerHTML = `
             <div style="text-align:center;padding:30px;color:#f44336;">
@@ -3242,6 +3293,7 @@ async function loadPromoListForAdmin() {
                 <p style="margin-top:10px;">게시글 목록을 불러올 수 없습니다.</p>
             </div>
         `;
+        if (pager) pager.innerHTML = '';
     }
 }
 
