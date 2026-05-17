@@ -58,6 +58,14 @@
          'ocean-val-wind', 'ocean-val-wave'
         ].forEach(function (id) { OS.resetCardToProgress(id); });
 
+        // 천기 카드 4셀도 동일하게 스켈레톤 초기화.
+        // (다른 5개 카드와 달리 천기는 loadWeatherCard 내부에서만 _renderLoading() 을
+        //  호출했는데, 캐시 hit / 빠른 응답 경로에서 _renderLoading → _renderData 가
+        //  한 tick 에 묶여 스켈레톤이 화면에 안 보이는 회귀가 있었음. 다른 카드와 동일하게
+        //  먼저 progress-bar 를 깔아 항상 보이도록 보장.)
+        ['ocean-val-wx-sky', 'ocean-val-wx-rain', 'ocean-val-wx-sno', 'ocean-val-wx-tmp']
+            .forEach(function (id) { OS.resetCardToProgress(id); });
+
         ['ocean-card-depth', 'ocean-card-temp', 'ocean-card-current',
          'ocean-card-wind', 'ocean-card-wave'
         ].forEach(function (id) { OS.showCard(id); });
