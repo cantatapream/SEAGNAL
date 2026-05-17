@@ -1472,6 +1472,18 @@ async function init() {
     //  - 자격증명(KMA_DMDW_USER_ID/PWD) 미설정 시 enabled=false 로 silent disable.
     const dmdwWarnCrawler = require('./dmdw_warn_crawler');
 
+    // [S9-B] 서버 시작 직후 1회 백필 — 직전 24시간 자식 해역 데이터 재구성.
+    //   - 백그라운드 fire-and-forget: 1분 사이클 등록을 막지 않음.
+    //   - 진행 동안 dmdw_alerts.json 의 backfillReady=false 유지 → routes/weather.js 의
+    //     머지 게이트가 자식 머지를 보류 (부모 데이터만 응답).
+    //   - 백필 완료 후 backfillReady=true → 다음 폴링부터 자식 데이터 자연 합류.
+    //   - 이미 backfillReady=true 인 상태로 디스크에 있으면 함수 내부에서 즉시 skip.
+    if (dmdwWarnCrawler.enabled && typeof dmdwWarnCrawler.runBackfill === 'function') {
+        dmdwWarnCrawler.runBackfill().catch(err =>
+            log(`⚠️ [dmdw] 백필 오류: ${err.message}`)
+        );
+    }
+
     // ... (중략) ...
 
     // 1분 주기 작업 (실제로는 부이/예보/특보 주기 체크)

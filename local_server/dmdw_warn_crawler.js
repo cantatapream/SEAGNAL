@@ -638,7 +638,7 @@ function isFuture(tmEf, now) {
 // ============================================================================
 
 function loadState() {
-    // 시작 시 기존 dmdw_alerts.json 이 있으면 children/_upcoming 만 메모리로 복원.
+    // 시작 시 기존 dmdw_alerts.json 이 있으면 children/_upcoming + 백필 메타를 복원.
     // 첫 실행이거나 파일이 깨졌으면 빈 상태로 시작.
     try {
         if (fs.existsSync(OUTPUT_FILE)) {
@@ -646,13 +646,20 @@ function loadState() {
             return {
                 children: j.children || {},
                 _upcoming: j._upcoming || {},
-                lastCode: j.lastCode || { EF: '', FC: '' }
+                lastCode: j.lastCode || { EF: '', FC: '' },
+                // [S9-B] 백필 메타 — 디스크에 남아있는 상태를 그대로 이어감
+                backfillReady: j.backfillReady === true,
+                backfillStartedAt: j.backfillStartedAt || null,
+                backfillCompletedAt: j.backfillCompletedAt || null
             };
         }
     } catch (e) {
         console.log(`[dmdw] state load failed (${e.message}) — 빈 상태로 시작`);
     }
-    return { children: {}, _upcoming: {}, lastCode: { EF: '', FC: '' } };
+    return {
+        children: {}, _upcoming: {}, lastCode: { EF: '', FC: '' },
+        backfillReady: false, backfillStartedAt: null, backfillCompletedAt: null
+    };
 }
 
 function saveState(state, stats) {
@@ -663,6 +670,10 @@ function saveState(state, stats) {
         lastCode: state.lastCode,
         loginAt: sessionState.loginAt ? new Date(sessionState.loginAt).toISOString() : null,
         stats: stats || {},
+        // [S9-B] 백필 메타 — routes/weather.js 머지 게이트가 backfillReady 만 확인
+        backfillReady: state.backfillReady === true,
+        backfillStartedAt: state.backfillStartedAt || null,
+        backfillCompletedAt: state.backfillCompletedAt || null,
         children: state.children,
         _upcoming: state._upcoming
     };
@@ -675,9 +686,190 @@ function saveState(state, stats) {
 // 11. 메인 run() — 1분 사이클 진입점
 // ============================================================================
 
+// ============================================================================
+// 11-B. runBackfill() — 서버 재시작 시 1회 백필
+// ============================================================================
+//
+// [목적]
+//  서버가 재시작되면 메모리는 비고 디스크엔 직전 상태만 남는다. 그 사이에
+//  KMA 에 어떤 변화가 있었는지 모르므로, 직전 24시간 EF + FC 코드를 모두
+//  훑어 자식 상태(state.children / _upcoming / presentInLastFc) 를 완전히
+//  재구성한 뒤 정상 1분 사이클로 진입.
+//
+// [실행 정책]
+//  - 호출 시점: scheduler.js 가 서버 시작 후 1회만 호출
+//  - dmdw_alerts.json 이 backfillReady=true 로 이미 마킹되어 있으면 skip
+//    (단 SERVER_RESTART_FORCE_REBACKFILL 환경변수가 있으면 강제 재실행 — 디버그용)
+//  - 진행 중에는 backfillReady=false 유지 → routes/weather.js 머지 게이트에서
+//    자식 머지 보류 (부모 데이터만 응답 — 사용자 결정 A 옵션)
+//  - 백필 완료 후 backfillReady=true, backfillCompletedAt 마킹 + 저장
+//  - 동시 실행 방지: backfillInProgress 락
+//
+// [실행 시간 추정]
+//  평소: ~10초 (1일치 코드 ~25개 × 2 type × 200ms)
+//  활동기(태풍): ~60~80초 (1일치 코드 ~100개)
+
+let backfillInProgress = false;
+
+async function runBackfill() {
+    if (backfillInProgress) {
+        console.log('[dmdw] backfill already in progress — skip');
+        return;
+    }
+    // 이미 백필 완료된 상태면 skip (정상 재시작 후 빠르게 1분 사이클로 진입)
+    const prev = loadState();
+    if (prev.backfillReady && !process.env.SERVER_RESTART_FORCE_REBACKFILL) {
+        console.log('[dmdw] backfill already ready (from disk) — skipping');
+        return;
+    }
+
+    backfillInProgress = true;
+    const startMs = Date.now();
+    console.log('[dmdw] backfill START — 직전 24시간 자식 해역 상태 재구성 시작');
+
+    // 시작 즉시 디스크에 "백필 진행 중" 마킹 → routes/weather.js 가 자식 머지 보류
+    const state = loadState();
+    state.backfillReady = false;
+    state.backfillStartedAt = new Date().toISOString();
+    saveState(state, { phase: 'backfill_start' });
+
+    let skipCount = 0;
+
+    try {
+        await ensureSession();
+
+        // 폴링 윈도우: 직전 24시간 (BACKFILL_HOURS)
+        const BACKFILL_HOURS = 24;
+        const nowDt = new Date();
+        const nowStr = toDmdwTime(nowDt);
+        const sDt = new Date(nowDt.getTime() - BACKFILL_HOURS * 3600 * 1000);
+        const sDate = toDmdwTime(sDt);
+        const eDate = toDmdwTime(nowDt);
+
+        const [efCodes, fcCodes] = await Promise.all([
+            fetchTimeline('EF', sDate, eDate).catch(e => {
+                console.log(`[dmdw] backfill EF timeline fail: ${e.message}`); return [];
+            }),
+            fetchTimeline('FC', sDate, eDate).catch(e => {
+                console.log(`[dmdw] backfill FC timeline fail: ${e.message}`); return [];
+            })
+        ]);
+
+        console.log(`[dmdw] backfill — EF codes=${efCodes.length}, FC codes=${fcCodes.length} (예상 시간 ~${Math.round((efCodes.length + fcCodes.length) * 0.4)}초)`);
+
+        // EF 처리 — 시간순 (오래된 → 최신)
+        const sortedEf = [...efCodes].sort();
+        const seenChildrenInBackfill = new Set();
+        for (const code of sortedEf) {
+            let rows;
+            try {
+                rows = await fetchDetail(code, 'EF');
+            } catch (e) {
+                console.log(`[dmdw] backfill SKIP EF ${code}: ${e.message}`);
+                skipCount++;
+                continue;
+            }
+            for (const row of rows) {
+                for (const ent of extractChildEntries(row)) {
+                    const key = makeChildKey(ent.parent, ent.childRaw);
+                    seenChildrenInBackfill.add(key);
+                    state.children[key] = {
+                        parentZone: ent.parent,
+                        wrnTp: ent.wrnTp, wrnTpNm: ent.wrnTpNm,
+                        wrnLvl: ent.wrnLvl, wrnLvlNm: ent.wrnLvlNm,
+                        tmFc: ent.tmFc, tmEf: ent.tmEf,
+                        since: `EF|${code}`,
+                        lastCmd: ent.cmd
+                    };
+                }
+            }
+            state.lastCode.EF = code;
+            await new Promise(r => setTimeout(r, DETAIL_DELAY_MS));
+        }
+
+        // 백필 완료 시점에 한 번도 안 나타난 자식 → 해제됨 (children 에서 제거)
+        // 단 전체 EF 코드가 0건이면 데이터 자체가 없는 것이므로 skip
+        if (sortedEf.length > 0) {
+            for (const key of Object.keys(state.children)) {
+                if (!seenChildrenInBackfill.has(key)) delete state.children[key];
+            }
+        }
+
+        // FC 처리 — 미래 발효 예정 + presentInLastFc 갱신용 등장 set
+        const sortedFc = [...fcCodes].sort();
+        const fcSeenInBackfill = new Set();
+        for (const code of sortedFc) {
+            let rows;
+            try {
+                rows = await fetchDetail(code, 'FC');
+            } catch (e) {
+                console.log(`[dmdw] backfill SKIP FC ${code}: ${e.message}`);
+                skipCount++;
+                continue;
+            }
+            for (const row of rows) {
+                for (const ent of extractChildEntries(row)) {
+                    const key = makeChildKey(ent.parent, ent.childRaw);
+                    fcSeenInBackfill.add(key);
+                    if (isFuture(ent.tmEf, nowStr)) {
+                        state._upcoming[key] = {
+                            parentZone: ent.parent,
+                            wrnTp: ent.wrnTp, wrnTpNm: ent.wrnTpNm,
+                            wrnLvl: ent.wrnLvl, wrnLvlNm: ent.wrnLvlNm,
+                            tmFc: ent.tmFc, tmEf: ent.tmEf,
+                            announcedAt: `FC|${code}`
+                        };
+                    }
+                }
+            }
+            state.lastCode.FC = code;
+            await new Promise(r => setTimeout(r, DETAIL_DELAY_MS));
+        }
+
+        // presentInLastFc 갱신 — 백필 전체 사이클 기준 (1일치 통째로 본 결과)
+        if (sortedFc.length > 0) {
+            for (const key of Object.keys(state.children)) {
+                state.children[key].presentInLastFc = fcSeenInBackfill.has(key);
+            }
+        }
+
+        // _upcoming 정리 — 백필 시점 nowStr 기준 과거 항목 제거
+        for (const key of Object.keys(state._upcoming)) {
+            const u = state._upcoming[key];
+            if (!u || !u.tmEf || u.tmEf <= nowStr) delete state._upcoming[key];
+        }
+
+        // 백필 성공 마킹
+        state.backfillReady = true;
+        state.backfillCompletedAt = new Date().toISOString();
+        const elapsedMs = Date.now() - startMs;
+        saveState(state, {
+            phase: 'backfill_complete',
+            backfillMs: elapsedMs,
+            backfillSkipCount: skipCount,
+            backfillEfCodes: sortedEf.length,
+            backfillFcCodes: sortedFc.length
+        });
+
+        console.log(`[dmdw] backfill DONE — ${Math.round(elapsedMs / 1000)}초, children=${Object.keys(state.children).length}, upcoming=${Object.keys(state._upcoming).length}, skip=${skipCount}`);
+    } catch (e) {
+        // 백필이 실패해도 backfillReady=false 인 채로 디스크에 남아있으니
+        // 다음 서버 재시작 시 자동 재시도. 1분 사이클이 점진적으로 누적도 가능.
+        console.log(`[dmdw] backfill FAILED: ${e.message} — backfillReady=false 유지, 1분 사이클 진행`);
+    } finally {
+        backfillInProgress = false;
+    }
+}
+
 async function run() {
     if (runInProgress) {
         console.log('[dmdw] previous cycle still running — skip');
+        return;
+    }
+    // [S9-B] 백필이 진행 중이면 1분 사이클은 보류 — 같은 state 파일 동시 쓰기 방지.
+    //         백필 완료 후 다음 1분에 자연스럽게 다시 진입.
+    if (backfillInProgress) {
+        console.log('[dmdw] backfill in progress — defer regular cycle');
         return;
     }
     runInProgress = true;
@@ -792,6 +984,22 @@ async function run() {
             }
         }
 
+        // [발표(FC) 사이클 등장 여부 갱신 — presentInLastFc]
+        //   각 자식별로 "이번 사이클 FC 응답에 등장했는가" 를 boolean 으로 기록.
+        //   해제 감지(EF set-diff) 와 동일 정책: 신규 FC 코드가 1건 이상일 때만 갱신.
+        //   0건이면 직전 사이클 값 그대로 유지 (오인 방지).
+        //
+        //   해석:
+        //     true  → 통보문에 자식이 여전히 살아있음 (정상 발효 중)
+        //     false → 통보문에서 빠짐 = 해제될 것 예고 단계 (S9-E 팝업에서 "해제 예정" 표시 대상)
+        //     undefined (필드 자체 없음) → 새로 추가된 자식, FC 사이클 정보 부재
+        //                                  S9-E 는 === false 일 때만 표시하므로 안전 fallback
+        if (sortedNewFc.length > 0) {
+            for (const key of Object.keys(state.children)) {
+                state.children[key].presentInLastFc = fcSeenThisCycle.has(key);
+            }
+        }
+
         // _upcoming 정리:
         //   1) tmEf 가 이미 과거가 된 항목 (이미 EF 에 흡수됐을 것) 제거
         //   2) FC 사이클에 안 나타난 항목 (예고 취소 / 해제) → 보수적으로 제거
@@ -852,5 +1060,8 @@ async function run() {
 
 module.exports = {
     enabled: true,
-    run
+    run,
+    // [S9-B] 서버 시작 시 1회 호출되는 백필 함수.
+    //         backfillReady 가 false 인 동안 routes/weather.js 가 자식 머지를 보류.
+    runBackfill
 };

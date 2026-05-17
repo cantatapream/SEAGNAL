@@ -64,6 +64,14 @@ function mergeDmdwChildren(weatherTree, dmdwAlerts) {
     if (!dmdwAlerts || !dmdwAlerts.children || typeof dmdwAlerts.children !== 'object') {
         return weatherTree; // dmdw 데이터 없거나 비정상 → 원본 그대로
     }
+    // [S9-C] 백필 미완료 시 자식 머지 보류 — 부모만 응답.
+    //  서버 재시작 직후 dmdw 가 직전 24시간 데이터를 백필하는 동안 자식 정보가
+    //  불완전할 수 있으므로 일관성을 위해 머지를 잠시 미룬다.
+    //  사용자 정책 (해석 ①·A 옵션): 부모 데이터는 끊김 없이 응답, 자식만 ~10~80초
+    //  후 백필 완료 시점에 다음 폴링에서 자연 합류.
+    if (dmdwAlerts.backfillReady !== true) {
+        return weatherTree;
+    }
     const dmdwChildren = dmdwAlerts.children;
 
     // 재귀 함수: tree 의 모든 노드를 훑으며 "current/children 필드를 가진" 부모 노드 발견 시 머지
