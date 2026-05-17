@@ -474,12 +474,19 @@ window.renderCustomPushTab = async function (container) {
 // (G) 발송 이력 탭
 // ============================================================================
 var historyFilter = { cat: 'all', type: 'all' };
+// 페이지네이션 상태 (모듈 로컬, 1-based)
+// - cat / type 필터가 바뀌면 _pushHistoryPage = 1 로 리셋
+// - 페이지당 항목 수 = 20
+var _pushHistoryPage = 1;
+var _PUSH_HISTORY_LIMIT = 20;
 
 window.renderHistoryTab = async function (container) {
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
     try {
         // 발송 이력과 구독자 통계를 동시에 가져옴
-        // - histRes: 발송 이력 목록
+        // - histRes: 발송 이력 목록 (전체 - 클라이언트 필터 cat/type 적용을 위해 전체를 가져옴)
+        //   서버는 `?page=` 가 있을 때만 새 포맷, 없으면 raw array 반환하므로
+        //   여기서는 cat/type 필터 적용 후 클라이언트에서 페이지네이션
         // - statsRes: 해역별 현재 구독자 수 (접이식 패널에서 사용)
         var [histRes, statsRes] = await Promise.all([
             fetch('/api/push-history'),
@@ -490,6 +497,15 @@ window.renderHistoryTab = async function (container) {
         var filtered = history.filter(function(h) {
             return (historyFilter.cat === 'all' || h.tab === historyFilter.cat) && (historyFilter.type === 'all' || h.type === historyFilter.type);
         });
+
+        // 페이지네이션 적용
+        // - filtered 가 비면 totalPages=0 이지만 UI 측에서는 1 페이지 취급
+        // - 현재 페이지가 totalPages 를 초과하면 1 로 리셋
+        var totalItems = filtered.length;
+        var totalPages = Math.max(1, Math.ceil(totalItems / _PUSH_HISTORY_LIMIT));
+        if (_pushHistoryPage > totalPages) _pushHistoryPage = 1;
+        var pageStart = (_pushHistoryPage - 1) * _PUSH_HISTORY_LIMIT;
+        var pagedItems = filtered.slice(pageStart, pageStart + _PUSH_HISTORY_LIMIT);
 
         var categories = [
             { id: 'all', name: '전체' }, { id: 'publish', name: '발표' },
@@ -509,7 +525,7 @@ window.renderHistoryTab = async function (container) {
         // - 각 항목: 체크박스, 시간, 수신자 수 배지, 자동/수동 배지, 삭제 버튼, 제목, 본문
         // - 본문 내 줄바꿈(\n)을 <br>로 변환하여 실제 푸시 알림과 동일한 형태로 표시
         // - h.count: 해당 알림이 발송된 수신자 수 (push.js에서 발송 성공 시 기록)
-        var itemsHtml = filtered.map(function(h) {
+        var itemsHtml = pagedItems.map(function(h) {
             // 본문 줄바꿈 변환 (서버에서 \n으로 저장된 내용을 HTML 줄바꿈으로 표시)
             var contentHtml = (h.content || '').replace(/\n/g, '<br>');
             // 수신자 수 배지 (0명이거나 값이 없으면 미표시)
@@ -564,7 +580,17 @@ window.renderHistoryTab = async function (container) {
                 + '</div></div>';
         }).join('');
 
-        container.innerHTML = '<div style="margin-bottom:20px;"><div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.05);">' + catHtml + '</div>' + typeHtml + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;padding:0 6px;"><div style="display:flex;gap:12px;align-items:center;"><input type="checkbox" id="hist-check-all" onchange="window.toggleAllHistoryChecks(this.checked)" style="width:16px;height:16px;cursor:pointer;"><label for="hist-check-all" style="color:#94a3b8;font-size:0.85rem;cursor:pointer;">전체 선택</label></div><button onclick="window.deleteSelectedHistory()" style="padding:6px 12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#ef4444;border-radius:6px;font-size:0.8rem;cursor:pointer;font-weight:600;">선택 삭제</button></div><div id="history-items-container">' + itemsHtml + (filtered.length === 0 ? '<div style="text-align:center;padding:50px;color:#64748b;">이력이 없습니다.</div>' : '') + '</div>' + (history.length > 0 ? '<div style="text-align:center;margin-top:20px;"><button onclick="window.clearAllHistory()" style="background:none;border:none;color:#64748b;font-size:0.8rem;text-decoration:underline;cursor:pointer;">전체 이력 초기화</button></div>' : '') + '</div>';
+        container.innerHTML = '<div style="margin-bottom:20px;"><div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.05);">' + catHtml + '</div>' + typeHtml + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;padding:0 6px;"><div style="display:flex;gap:12px;align-items:center;"><input type="checkbox" id="hist-check-all" onchange="window.toggleAllHistoryChecks(this.checked)" style="width:16px;height:16px;cursor:pointer;"><label for="hist-check-all" style="color:#94a3b8;font-size:0.85rem;cursor:pointer;">전체 선택</label><span style="color:#475569;font-size:0.75rem;">총 ' + totalItems + '건</span></div><button onclick="window.deleteSelectedHistory()" style="padding:6px 12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#ef4444;border-radius:6px;font-size:0.8rem;cursor:pointer;font-weight:600;">선택 삭제</button></div><div id="history-items-container">' + itemsHtml + (totalItems === 0 ? '<div style="text-align:center;padding:50px;color:#64748b;">이력이 없습니다.</div>' : '') + '</div><div id="push-history-pagination" class="pagination"></div>' + (history.length > 0 ? '<div style="text-align:center;margin-top:20px;"><button onclick="window.clearAllHistory()" style="background:none;border:none;color:#64748b;font-size:0.8rem;text-decoration:underline;cursor:pointer;">전체 이력 초기화</button></div>' : '') + '</div>';
+
+        // 공용 페이지네이션 helper 로 페이지 버튼 렌더
+        // - 페이지 변경 시 _pushHistoryPage 갱신 후 renderHistoryTab 재호출
+        var pagEl = document.getElementById('push-history-pagination');
+        if (pagEl && typeof window.renderStandardPagination === 'function') {
+            window.renderStandardPagination(pagEl, _pushHistoryPage, totalPages, function (page) {
+                _pushHistoryPage = page;
+                window.renderHistoryTab(container);
+            });
+        }
     } catch (e) {
         container.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">오류 발생: ' + e.message + '</div>';
     }
@@ -576,6 +602,9 @@ window.renderHistoryTab = async function (container) {
 window.updateHistoryFilter = function (key, val) {
     historyFilter[key] = val;
     if (historyFilter.cat === 'custom') historyFilter.type = 'all';
+    // 필터가 바뀌면 첫 페이지로 리셋 (다른 필터에서 깊은 페이지에 있다가 데이터가 적은 필터로
+    // 전환될 때 빈 페이지가 보이는 문제 방지)
+    _pushHistoryPage = 1;
     var container = document.getElementById('alert-admin-inner-content') || document.getElementById('alert-management-content');
     if (container) window.renderHistoryTab(container);
 };

@@ -3316,13 +3316,15 @@ line-height: 1.1;
 }
 
 /* 페이지네이션 스타일 */
-.promo-pagination {
+.promo-pagination,
+.pagination {
     display: flex;
     justify-content: center;
     align-items: center;
     gap: 5px;
     margin-top: 20px;
     padding-bottom: 20px;
+    flex-wrap: wrap;
 }
 
 .pagination-btn {

@@ -2530,6 +2530,9 @@ function renderAlertManageSubTab(container) {
     };
 
     // 누적 푸시 발송 요약 표시
+    // - 누적 발송 건수(totalSends)와 누적 수신자 수(totalCount=Σh.count)를 모두 표시해야 하므로
+    //   전체 이력을 합산해야 함 → 페이지네이션 응답 포맷이 아닌 legacy(raw array) 모드를 사용
+    // - 서버 라우트는 ?page= 쿼리가 없으면 전체 배열을 그대로 반환 (하위호환 유지)
     window.refreshAlertPushTotalSummary = async function () {
         const sendsEl = document.getElementById('alert-push-total-sends');
         const countEl = document.getElementById('alert-push-total-count');

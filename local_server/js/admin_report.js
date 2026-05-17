@@ -103,12 +103,19 @@ window._switchReportSubTab = function(tab) {
 
 let _allReports = [];
 let _currentFilter = 'all';
+// 페이지네이션 상태 (1-based) — 필터 변경 시 1 로 리셋
+let _reportPage = 1;
+const _REPORT_LIMIT = 20;
 
 /**
  * 게시글 신고 목록을 서버에서 조회 → renderReportList 로 화면 갱신.
  * 관리자 화면 진입 시 + 신고 처리 후 다시 호출되어 목록을 최신 상태로 유지.
  *
- * [연계] /api/reports 응답을 _reports 전역에 저장.
+ * [연계]
+ *  - /api/reports 응답을 _allReports 전역에 저장.
+ *  - 필터 (status/category) 적용은 서버에서 가능하지만, 뱃지(접수 미읽음 카운트)
+ *    계산을 위해 전체 목록이 필요하므로 클라이언트에서 필터링/페이지네이션을 수행.
+ *  - 서버 페이지네이션은 다른 호출자가 큰 데이터를 줄일 수 있도록 라우트에 추가되어 있음.
  */
 async function loadReportList() {
     try {
@@ -149,16 +156,40 @@ function renderReportList() {
         featureBadge.style.display = pendingCount > 0 ? 'inline' : 'none';
     }
 
+    // 페이지네이션 컨테이너 헬퍼 — 목록 바로 아래에 위치하도록 매번 생성/이동
+    // (renderReportList 가 호출될 때마다 container 가 통째로 갱신되기 때문)
+    const ensurePaginationEl = () => {
+        let el = document.getElementById('report-list-pagination');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'report-list-pagination';
+            el.className = 'pagination';
+            container.parentNode.insertBefore(el, container.nextSibling);
+        } else if (el.previousElementSibling !== container) {
+            container.parentNode.insertBefore(el, container.nextSibling);
+        }
+        return el;
+    };
+
     if (filtered.length === 0) {
         container.innerHTML = `
             <div style="text-align:center;padding:50px;color:#64748b;">
                 <i class="fa-solid fa-inbox" style="font-size:2rem;margin-bottom:10px;display:block;"></i>
                 <div>제보가 없습니다.</div>
             </div>`;
+        // 빈 목록일 때도 페이지네이션 컨테이너는 비워서 잔존 버튼 제거
+        const pagEl = ensurePaginationEl();
+        pagEl.innerHTML = '';
         return;
     }
 
-    container.innerHTML = filtered.map(r => {
+    // 페이지네이션: 현재 페이지가 totalPages 를 넘으면 1 로 리셋
+    const totalPages = Math.max(1, Math.ceil(filtered.length / _REPORT_LIMIT));
+    if (_reportPage > totalPages) _reportPage = 1;
+    const startIdx = (_reportPage - 1) * _REPORT_LIMIT;
+    const pageItems = filtered.slice(startIdx, startIdx + _REPORT_LIMIT);
+
+    container.innerHTML = pageItems.map(r => {
         const date = new Date(r.createdAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         const statusIcon = r.status === '접수' ? '🔴' : '✅';
         const hasAttach = r.attachments && r.attachments.length > 0 ? `<span style="color:#64748b;font-size:0.65rem;"><i class="fa-solid fa-paperclip"></i> ${r.attachments.length}장</span>` : '';
@@ -180,10 +211,23 @@ function renderReportList() {
             </div>
         `;
     }).join('');
+
+    // 페이지네이션 UI 렌더 (공용 helper)
+    const pagEl = ensurePaginationEl();
+    if (typeof window.renderStandardPagination === 'function') {
+        window.renderStandardPagination(pagEl, _reportPage, totalPages, (page) => {
+            _reportPage = page;
+            renderReportList();
+            // 페이지 전환 시 목록 상단으로 스크롤 (큰 페이지 이동 시 UX 개선)
+            container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    }
 }
 
 window._filterReports = function (filter) {
     _currentFilter = filter;
+    // 필터 전환 시 첫 페이지로 리셋
+    _reportPage = 1;
     document.querySelectorAll('.report-filter-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.filter === filter);
     });
