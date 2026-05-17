@@ -92,8 +92,23 @@ router.get('/api/comment-reports', (req, res) => {
     reports.sort((a, b) => {
         const da = new Date(a.createdAt.replace(/\./g, '-'));
         const db = new Date(b.createdAt.replace(/\./g, '-'));
-        return db - da;
+        return db - da; // 기존 최신순 정렬 유지
     });
+
+    // ?page= 가 있을 때만 새 포맷 { data, pagination } 응답.
+    // 없으면 기존 raw array 응답을 그대로 반환하여 하위 호환 유지.
+    if (req.query.page != null) {
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const rawLimit = parseInt(req.query.limit, 10) || 20;
+        const limit = Math.min(200, Math.max(1, rawLimit));
+        const total = reports.length;
+        const totalPages = Math.max(1, Math.ceil(total / limit));
+        const offset = (page - 1) * limit;
+        return res.json({
+            data: reports.slice(offset, offset + limit),
+            pagination: { page, limit, total, totalPages }
+        });
+    }
     res.json(reports);
 });
 

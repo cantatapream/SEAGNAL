@@ -261,28 +261,93 @@ window._bulkDeleteReports = async function () {
 // ============================================================================
 
 let _allCommentReports = [];
+// 댓글 신고 페이지네이션 상태 (1-based). 기능 제보 탭과 동일한 패턴.
+// 페이지 전환 시 fetch 를 다시 호출(서버 페이지네이션) — 클라이언트 슬라이스 X.
+let _commentReportPage = 1;
+const _COMMENT_REPORT_LIMIT = 20;
+// 마지막 응답의 페이지네이션 메타 (pending 뱃지 계산 시 total 사용 등)
+let _commentReportPagination = { page: 1, limit: _COMMENT_REPORT_LIMIT, total: 0, totalPages: 1 };
 
 /**
  * 댓글 신고 목록을 서버에서 조회 → _renderCommentReportList 로 화면 갱신.
  * loadReportList 의 댓글 버전 — 같은 패턴, 다른 엔드포인트.
+ *
+ * [페이지네이션] ?page=&limit= 를 항상 전달하여 서버 새 포맷
+ * { data, pagination } 응답을 사용한다. 라우트는 ?page= 미전달 시
+ * 기존 raw array 를 그대로 응답하여 하위 호환을 유지.
  */
 async function _loadCommentReportList() {
     try {
-        const res = await fetch(CONFIG.API_BASE + '/api/comment-reports');
-        _allCommentReports = res.ok ? await res.json() : [];
-    } catch (e) { _allCommentReports = []; }
+        const url = CONFIG.API_BASE
+            + '/api/comment-reports?page=' + _commentReportPage
+            + '&limit=' + _COMMENT_REPORT_LIMIT;
+        const res = await fetch(url);
+        if (res.ok) {
+            const result = await res.json();
+            // 새 포맷 우선, 혹시 모를 raw array 응답도 안전하게 처리
+            if (Array.isArray(result)) {
+                _allCommentReports = result;
+                _commentReportPagination = {
+                    page: 1, limit: _COMMENT_REPORT_LIMIT,
+                    total: result.length,
+                    totalPages: Math.max(1, Math.ceil(result.length / _COMMENT_REPORT_LIMIT))
+                };
+            } else {
+                _allCommentReports = Array.isArray(result.data) ? result.data : [];
+                _commentReportPagination = result.pagination || {
+                    page: _commentReportPage, limit: _COMMENT_REPORT_LIMIT,
+                    total: _allCommentReports.length, totalPages: 1
+                };
+            }
+        } else {
+            _allCommentReports = [];
+            _commentReportPagination = { page: 1, limit: _COMMENT_REPORT_LIMIT, total: 0, totalPages: 1 };
+        }
+    } catch (e) {
+        _allCommentReports = [];
+        _commentReportPagination = { page: 1, limit: _COMMENT_REPORT_LIMIT, total: 0, totalPages: 1 };
+    }
+
+    // 데이터 변동으로 현재 페이지가 totalPages 초과한 경우 1 페이지로 재요청
+    if (_commentReportPagination.total > 0
+        && _commentReportPage > _commentReportPagination.totalPages) {
+        _commentReportPage = 1;
+        return _loadCommentReportList();
+    }
+
     _renderCommentReportList();
 }
 
 /**
  * _commentReports 배열을 카드로 #comment-report-list 에 렌더.
  * renderReportList 의 댓글 버전 — 신고된 댓글 본문/작성자/처리 버튼.
+ *
+ * [페이지네이션] 현재 페이지의 항목만 _allCommentReports 에 들어있으므로
+ * 슬라이스 없이 그대로 렌더하고, 페이지 버튼은 공용 helper 로 그려준다.
  */
 function _renderCommentReportList() {
     const container = document.getElementById('comment-report-list');
     if (!container) return;
 
+    // 페이지네이션 컨테이너 헬퍼 — 목록 바로 아래에 매번 위치 보정
+    // (제보 관리 패널과 동일한 패턴: container 가 통째로 갱신되어도 OK)
+    const ensurePaginationEl = () => {
+        let el = document.getElementById('comment-report-pagination');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'comment-report-pagination';
+            el.className = 'pagination';
+            container.parentNode.insertBefore(el, container.nextSibling);
+        } else if (el.previousElementSibling !== container) {
+            container.parentNode.insertBefore(el, container.nextSibling);
+        }
+        return el;
+    };
+
     // 댓글 신고 뱃지 업데이트
+    // (현재 페이지만 알면 pending 정확 카운트 불가 → 전역 카운트는
+    //  pending-count 호출자(updateReportBadge 등)가 별도 책임)
+    // 여기서는 페이지 내 pending 수만 보조 표시: 0 이면 숨김.
     const badge = document.getElementById('comment-report-badge');
     if (badge) {
         const count = _allCommentReports.filter(r => r.status === 'pending').length;
@@ -290,8 +355,14 @@ function _renderCommentReportList() {
         badge.style.display = count > 0 ? 'inline' : 'none';
     }
 
-    if (_allCommentReports.length === 0) {
+    const total = _commentReportPagination.total != null
+        ? _commentReportPagination.total
+        : _allCommentReports.length;
+
+    if (total === 0) {
         container.innerHTML = `<div style="text-align:center;padding:50px;color:#64748b;"><i class="fa-solid fa-flag" style="font-size:2rem;margin-bottom:10px;display:block;"></i><div>신고된 댓글이 없습니다.</div></div>`;
+        const pagEl = ensurePaginationEl();
+        pagEl.innerHTML = '';
         return;
     }
 
@@ -335,6 +406,20 @@ function _renderCommentReportList() {
             ` : `<div style="font-size:0.7rem;color:#64748b;">처리됨: ${r.processedAt || ''}</div>`}
         </div>`;
     }).join('');
+
+    // 페이지네이션 UI 렌더 (공용 helper) — 제보 관리 탭과 동일 패턴
+    const pagEl = ensurePaginationEl();
+    if (typeof window.renderStandardPagination === 'function') {
+        const curPage = _commentReportPagination.page || _commentReportPage;
+        const totalPages = _commentReportPagination.totalPages || 1;
+        window.renderStandardPagination(pagEl, curPage, totalPages, (page) => {
+            _commentReportPage = page;
+            _loadCommentReportList().then(() => {
+                // 페이지 전환 시 목록 상단으로 스크롤 (기능 제보와 동일한 UX)
+                container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
+    }
 }
 
 window._processCommentReport = async function(id, status) {
