@@ -1464,26 +1464,6 @@ async function init() {
 
     const weatherAlertsCrawler = require('./weather_alerts_crawler'); // 크롤러 모듈 추가
 
-    // [신규] dmdw 방재기상플랫폼 자식 해역 크롤러
-    //  - 부모 해역(앞바다) 단위 weatherAlertsCrawler 와 별도로 자식 해역
-    //    (연안바다/평수구역) 단위 발효·발표·해제·격상·격하·종류전환을 추적.
-    //  - data/dmdw_alerts.json 에 별도 저장. /api/weather-alerts 응답 시점에
-    //    routes/weather.js 가 weather_alerts.json 과 머지하여 응답.
-    //  - 자격증명(KMA_DMDW_USER_ID/PWD) 미설정 시 enabled=false 로 silent disable.
-    const dmdwWarnCrawler = require('./dmdw_warn_crawler');
-
-    // [S9-B] 서버 시작 직후 1회 백필 — 직전 24시간 자식 해역 데이터 재구성.
-    //   - 백그라운드 fire-and-forget: 1분 사이클 등록을 막지 않음.
-    //   - 진행 동안 dmdw_alerts.json 의 backfillReady=false 유지 → routes/weather.js 의
-    //     머지 게이트가 자식 머지를 보류 (부모 데이터만 응답).
-    //   - 백필 완료 후 backfillReady=true → 다음 폴링부터 자식 데이터 자연 합류.
-    //   - 이미 backfillReady=true 인 상태로 디스크에 있으면 함수 내부에서 즉시 skip.
-    if (dmdwWarnCrawler.enabled && typeof dmdwWarnCrawler.runBackfill === 'function') {
-        dmdwWarnCrawler.runBackfill().catch(err =>
-            log(`⚠️ [dmdw] 백필 오류: ${err.message}`)
-        );
-    }
-
     // ... (중략) ...
 
     // 1분 주기 작업 (실제로는 부이/예보/특보 주기 체크)
@@ -1573,15 +1553,6 @@ async function init() {
             weatherAlertsCrawler.run().catch(err => log(`⚠️ 크롤러 오류: ${err.message}`));
         } else {
             log('⏸️ 기상특보 크롤링 일시정지 상태');
-        }
-
-        // [신규] dmdw 자식 해역 크롤러 (매 1분, 부모 크롤러와 병행)
-        //   - fire-and-forget: 부모 사이클 시간에 영향 주지 않도록 await 안 함.
-        //   - 내부 runInProgress 락이 중복 실행 방지.
-        //   - 자격증명 미설정 또는 KMA_DMDW_DISABLE=1 이면 enabled=false → 호출 자체 skip.
-        //   - 부모 크롤러 일시정지(crawlPaused)와 동기화: 운영자가 한 번에 둘 다 정지 가능.
-        if (!crawlPaused && dmdwWarnCrawler.enabled) {
-            dmdwWarnCrawler.run().catch(err => log(`⚠️ [dmdw] 크롤러 오류: ${err.message}`));
         }
 
         // [New] 해상 기상 전망 수집 (매 10분마다)

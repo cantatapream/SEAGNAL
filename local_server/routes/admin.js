@@ -561,52 +561,6 @@ router.delete('/api/admin/review-needed', (req, res) => {
 });
 
 // ============================================================================
-// dmdw 자식 해역 크롤러 오류 로그 (dmdw_errors.json)
-//  - 모듈: services/dmdw_error_log.js (lazy require — 부담 최소)
-//  - 관리자 페이지 "특보 알림 ▸ 특보 수집 오류 ▸ dmdw 오류" 하위 탭에서 사용
-// ============================================================================
-
-// [조회] dmdw 오류 목록 (최신순)
-router.get('/api/admin/dmdw-errors', (req, res) => {
-    try {
-        const dmdwErrorLog = require('../services/dmdw_error_log');
-        res.json(dmdwErrorLog.listErrors());
-    } catch (e) { res.json([]); }
-});
-
-// [확인완료] dmdw 오류 1건 확인 처리 (이력은 보존, acknowledged=true 마킹)
-router.post('/api/admin/dmdw-errors/:id/acknowledge', (req, res) => {
-    try {
-        const dmdwErrorLog = require('../services/dmdw_error_log');
-        const r = dmdwErrorLog.acknowledgeError(req.params.id, 'manual');
-        if (!r.found) return res.status(404).json({ success: false, message: '해당 항목 없음' });
-        console.log(`[Admin] dmdw 오류 확인완료: ${req.params.id}`);
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// [개별 삭제] dmdw 오류 1건 영구 삭제
-router.delete('/api/admin/dmdw-errors/:id', (req, res) => {
-    try {
-        const dmdwErrorLog = require('../services/dmdw_error_log');
-        const r = dmdwErrorLog.deleteError(req.params.id);
-        if (!r.found) return res.status(404).json({ success: false, message: '해당 항목 없음' });
-        console.log(`[Admin] dmdw 오류 삭제: ${req.params.id}`);
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// [전체 삭제] dmdw 오류 전체 초기화
-router.delete('/api/admin/dmdw-errors', (req, res) => {
-    try {
-        const dmdwErrorLog = require('../services/dmdw_error_log');
-        dmdwErrorLog.deleteAllErrors();
-        console.log('[Admin] dmdw 오류 전체 초기화');
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// ============================================================================
 // Gemini API 키 상태 조회 (공용 클라이언트)
 // ============================================================================
 

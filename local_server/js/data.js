@@ -291,8 +291,7 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
     // 연안바다(Children) 처리
     if (childrenObj) {
         for (const [childName, status] of Object.entries(childrenObj)) {
-            // [기존] status가 'Y'인 경우 — 부모 크롤러(weather.go.kr)만 자식 활성을 알려준 케이스
-            //         자식의 정밀한 wrnTp/wrnLvl 정보는 없으므로 부모 상속.
+            // status가 'Y'인 경우 부모 특보 적용
             if (status === 'Y') {
                 if (!coastalMap[childName]) coastalMap[childName] = [];
                 // 부모 특보 정보를 상속받아 연안바다 특보 객체 생성
@@ -307,38 +306,6 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
                 };
                 coastalMap[childName].push(childAlert);
             }
-            // [신규] status가 객체인 경우 — dmdw 크롤러가 자식 정밀 상태를 알려준 케이스
-            //         routes/weather.js 의 mergeDmdwChildren 가 children[childName] 을
-            //         "Y" → { wrnTp, wrnLvl, wrnTpNm, wrnLvlNm, tmFc, tmEf, parentZone, ... }
-            //         객체로 덮어쓴 결과. 자식 고유 종류·등급(예: 부모는 풍랑경보인데
-            //         자식만 태풍주의보)을 그대로 화면에 반영하기 위해 부모 상속을 덮어씀.
-            else if (status && typeof status === 'object' && status.wrnTp) {
-                if (!coastalMap[childName]) coastalMap[childName] = [];
-                coastalMap[childName].push({
-                    ...alertItem,                              // 기본 메타(zoneName 등)는 부모에서 상속
-                    zoneName: childName,
-                    isCoastal: true,
-                    parentZone: zoneName,
-                    history: [],
-                    // [핵심] dmdw 가 알고 있는 자식 고유 (wrnTp, wrnLvl) 로 덮어쓰기
-                    warnType: status.wrnTpNm || status.wrnTp,  // 한글명 우선 ("태풍" 등)
-                    level: status.wrnLvlNm
-                        || (String(status.wrnLvl) === '3' ? '경보' : '주의보'),
-                    tmFc: status.tmFc || alertItem.tmFc,
-                    tmEf: status.tmEf || alertItem.tmEf,
-                    // dmdw children 은 EF 타임라인에서 잡힌 것만 들어오므로 항상 발효 상태
-                    isPreliminary: false,
-                    command: '발효',
-                    source: 'CRAWLER+DMDW',
-                    // [S9-E] dmdw 가 마킹한 "마지막 FC 사이클 등장 여부" — 자식 클릭 팝업이
-                    //   이 값을 보고 === false 인 경우만 "해제 예정" 텍스트 한 줄 표시.
-                    //   undefined/true 면 표시 안 함 (보수적 fallback).
-                    presentInLastFc: (typeof status.presentInLastFc === 'boolean')
-                        ? status.presentInLastFc : undefined,
-                    id: `dmdw_${childName}_${status.wrnTp}_${status.wrnLvl}`
-                });
-            }
-            // status === null 또는 그 외 값: 자식 비활성 — 처리 없음 (기존 동작과 동일)
         }
     }
 }
