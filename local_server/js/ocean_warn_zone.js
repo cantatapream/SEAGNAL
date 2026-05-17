@@ -108,6 +108,14 @@
 
     var EXCLUDED_SUBZONE_CODES = { 'S2320600': true };
 
+    // 부모 라벨과 좌표가 거의 같아 글자가 겹쳐 보이는 자식해역만 라벨을 픽셀 단위로 비킴.
+    // 값은 [offsetX, offsetY] (양수 Y = 아래, 음수 Y = 위). 겹침이 추가로 발견되면 한 줄씩 등록.
+    var SUBZONE_LABEL_OFFSET = {
+        // S2310300 (경남중부남해앞바다중평수구역) — 부모 '경남중부남해앞바다' 라벨과 같은
+        // 위치에 찍혀 글자가 뒤엉켜 보임. 자식 라벨만 위로 14px 비킴.
+        'S2310300': [0, -14]
+    };
+
     // 자식 구역 layer 가시 줌 임계값.
     // OL minZoom 은 "exclusive": 이 값보다 큰 줌에서만 표시.
     // 8 → zoom 9+ 에서 표시. (zoom 8 은 권역 뷰라 50개 라벨이 너무 많이
@@ -211,6 +219,21 @@
         // 매핑 테이블에 없는 코드는 KMA 원본 name 을 정규화해서 사용 (안전망)
         if (!fullName) fullName = _normalizeZoneName(feature.get('name'));
         var label = _shortLabel(fullName);
+        var textOpts = {
+            text: label,
+            font: '600 10px "Pretendard", sans-serif',
+            fill: new ol.style.Fill({ color: '#a5dfff' }),
+            stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
+            // overflow: true → 폴리곤 픽셀 폭보다 라벨이 넓어도 그대로 표시.
+            //   (false 면 작은 자식 구역은 라벨이 통째로 숨겨져 매우 줌인해야 보임)
+            overflow: true,
+            placement: 'point'
+        };
+        var off = SUBZONE_LABEL_OFFSET[code];
+        if (off) {
+            textOpts.offsetX = off[0];
+            textOpts.offsetY = off[1];
+        }
         return new ol.style.Style({
             stroke: new ol.style.Stroke({
                 // 진한 청록 + 완전 불투명 + 굵기 1.8 로 가독성 강화
@@ -221,16 +244,7 @@
             fill: new ol.style.Fill({
                 color: 'rgba(120, 220, 255, 0.05)'
             }),
-            text: new ol.style.Text({
-                text: label,
-                font: '600 10px "Pretendard", sans-serif',
-                fill: new ol.style.Fill({ color: '#a5dfff' }),
-                stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
-                // overflow: true → 폴리곤 픽셀 폭보다 라벨이 넓어도 그대로 표시.
-                //   (false 면 작은 자식 구역은 라벨이 통째로 숨겨져 매우 줌인해야 보임)
-                overflow: true,
-                placement: 'point'
-            })
+            text: new ol.style.Text(textOpts)
         });
     }
 
