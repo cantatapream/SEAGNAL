@@ -124,17 +124,38 @@ function autoUpdateStatus(survey) {
 // ============================================================================
 
 // 설문 목록 조회 (전체)
+// - 기본(쿼리 없음): 기존 raw 배열 반환 — 하위호환 (관리자 결과탭/이력탭/사용자측 등 기존 호출자)
+// - ?page= 동반 시: { data, pagination } 새 포맷. 현재 페이지(slice 결과) 에 대해서만
+//   readResponses() 로 응답 카운트를 산출하여 디스크 IO 절감.
 router.get('/api/surveys', (req, res) => {
     try {
         let surveys = readSurveys();
-        surveys = surveys.map(s => {
-            s = autoUpdateStatus(s);
-            s.responseCount = readResponses(s.id).length;
-            return s;
-        });
-        // 기한 만료로 상태 변경된 것 저장
+        // 1차: 상태 자동 갱신만 (응답 카운트는 페이지별로 별도 계산)
+        surveys = surveys.map(s => autoUpdateStatus(s));
         writeSurveys(surveys);
-        res.json(surveys);
+
+        // 최신 먼저 (id 역순 — Date.now() 기반이므로 생성순서와 일치)
+        surveys.sort((a, b) => (b.id || 0) - (a.id || 0));
+
+        if (req.query.page != null) {
+            const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+            const rawLimit = parseInt(req.query.limit, 10) || 25;
+            const limit = Math.min(200, Math.max(1, rawLimit));
+            const total = surveys.length;
+            const totalPages = Math.max(1, Math.ceil(total / limit));
+            const offset = (page - 1) * limit;
+            // 현재 페이지에 해당하는 설문만 응답 카운트 산출 → 전체 N개 → limit 개로 IO 절감
+            const pageData = surveys.slice(offset, offset + limit)
+                .map(s => ({ ...s, responseCount: readResponses(s.id).length }));
+            return res.json({
+                data: pageData,
+                pagination: { page, limit, total, totalPages }
+            });
+        }
+
+        // 하위호환: 기존 raw array — 전체 responseCount 포함
+        const withCounts = surveys.map(s => ({ ...s, responseCount: readResponses(s.id).length }));
+        res.json(withCounts);
     } catch (e) {
         console.error('설문 목록 조회 실패:', e);
         res.status(500).json({ error: '조회 실패' });
@@ -287,10 +308,28 @@ router.post('/api/surveys/:id/duplicate', (req, res) => {
 });
 
 // 응답 조회 (관리자용)
+// - 기본(쿼리 없음): 기존 raw 배열 반환 — 하위호환 (결과/분석 탭의 차트 집계 등)
+// - ?page= 동반 시: { data, pagination } 새 포맷. responseId 역순(최신 먼저).
 router.get('/api/surveys/:id/responses', (req, res) => {
     try {
         const id = Number(req.params.id);
         const responses = readResponses(id);
+        // 최신 먼저
+        responses.sort((a, b) => (b.responseId || 0) - (a.responseId || 0));
+
+        if (req.query.page != null) {
+            const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+            const rawLimit = parseInt(req.query.limit, 10) || 50;
+            const limit = Math.min(500, Math.max(1, rawLimit));
+            const total = responses.length;
+            const totalPages = Math.max(1, Math.ceil(total / limit));
+            const offset = (page - 1) * limit;
+            return res.json({
+                data: responses.slice(offset, offset + limit),
+                pagination: { page, limit, total, totalPages }
+            });
+        }
+
         res.json(responses);
     } catch (e) {
         res.status(500).json({ error: '응답 조회 실패' });
