@@ -702,17 +702,19 @@ async function renderErrorListTab(container) {
     // Gemini 키 상태 배지 (항상 표시)
     const geminiBadgeHtml = renderGeminiKeysBadge(geminiStatus);
 
-    // 세 영역 모두 비어있으면 정상 상태 + Gemini 키 상태 표시
-    if (reviewCount === 0 && retryCount === 0 && failCount === 0) {
-        container.innerHTML = `
-            ${geminiBadgeHtml}
-            <div style="text-align:center;padding:60px 20px;color:#64748b;">
-                <i class="fa-solid fa-circle-check" style="font-size:2.5rem;color:#22c55e;margin-bottom:15px;display:block;"></i>
-                <div style="font-size:1rem;font-weight:700;color:#cbd5e1;margin-bottom:6px;">수집 오류 없음</div>
-                <div style="font-size:0.85rem;">현재 확인이 필요한 항목이 없습니다.</div>
-            </div>`;
-        return;
-    }
+    // [정책 — 사용자 요구]
+    //  세 영역(검토 필요/재시도 중/수집 실패) 모두 비어있어도 탭바는 항상 표시한다.
+    //  이전 동작: 모두 0건이면 "수집 오류 없음" 메시지만 보여주고 함수가 종료 → 사용자가
+    //  하위 탭 메뉴 구조 자체를 인지할 수 없어 메뉴 일관성 깨짐.
+    //  변경 동작: 탭바는 항상 그리고, 모두 0건인 경우만 탭바 위에 작은 "모든 항목 정상"
+    //  안내 한 줄을 보강 노출. 각 탭 내용은 섹션 렌더 함수가 빈 상태 메시지를 자체 처리.
+    const allEmpty = (reviewCount === 0 && retryCount === 0 && failCount === 0);
+    const allClearBannerHtml = allEmpty
+        ? `<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;margin-bottom:12px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:8px;color:#86efac;font-size:0.85rem;font-weight:600;">
+                <i class="fa-solid fa-circle-check"></i>
+                모든 항목 정상 — 표시할 오류 없음
+           </div>`
+        : '';
 
     // 하위 탭 바 렌더링
     const tabBtn = (key, label, count, color) => {
@@ -728,6 +730,7 @@ async function renderErrorListTab(container) {
 
     const tabBarHtml = `
         ${geminiBadgeHtml}
+        ${allClearBannerHtml}
         <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
             ${tabBtn('review', '<i class="fa-solid fa-magnifying-glass"></i> 검토 필요', reviewCount, '#f59e0b')}
             ${tabBtn('retry',  '<i class="fa-solid fa-rotate"></i> 재시도 중',       retryCount,  '#3b82f6')}
