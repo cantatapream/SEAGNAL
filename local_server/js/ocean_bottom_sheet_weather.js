@@ -18,9 +18,11 @@
  *   4) 응답 도착 → 4셀 채움 (sky / 강수량 통합 / sno / tmp)
  *   5) 4 셀 모두 데이터 없음 → 카드 hide
  *
- * [로딩 표시]
- *   호출 즉시 4셀 모두 .ocean-progress-bar 스켈레톤 → 응답 후 텍스트로 교체.
- *   다른 카드 (파고/바람/조류 등) 와 동일한 로딩 패턴.
+ * [로딩 표시 — 단일 소유 패턴]
+ *   스켈레톤(.ocean-progress-bar) 초기화는 5.js 의 loadAllForDate 가 다른 5개 카드와
+ *   함께 OS.resetCardToProgress 로 4셀 일괄 처리(경로 A). 슬라이더 release 등 5.js 를
+ *   거치지 않는 단독 진입(경로 B) 에서는 본 파일 진입부의 _ensureLoadingSkeleton() 이
+ *   "비어있을 때만" 깔아 보강. 응답 도착 후 _renderData 가 텍스트로 교체.
  *
  * [데이터 없음 정책]
  *   - 하늘 상태 없음 → "정보 없음"
@@ -87,12 +89,35 @@
         }
     }
 
-    /** 4 셀 모두 스켈레톤 (로딩 상태) */
+    /**
+     * 4 셀 모두 스켈레톤 (로딩 상태).
+     *
+     * 호출자:
+     *   - (현재) 외부에서 명시적으로 호출하는 경로 없음. 스켈레톤 초기화는 5.js 의
+     *     `OS.loadAllForDate` 가 `OS.resetCardToProgress` 로 4셀 일괄 처리(단일 소유 패턴).
+     *   - `loadWeatherCard` 진입부는 _ensureLoadingSkeleton() 으로 "비어있을 때만" 깔아
+     *     이중 innerHTML 덮어쓰기 방지.
+     *   - 함수 자체는 보존 — 향후 단독 호출 경로에서 명시적으로 필요할 수 있음.
+     */
     function _renderLoading() {
         _setCell('sky', null);
         _setCell('rain', null);
         _setCell('sno', null);
         _setCell('tmp', null);
+    }
+
+    /**
+     * 4 셀에 스켈레톤이 없으면 깔기 — 슬라이더 release 등 5.js 를 거치지 않는
+     * 단독 진입 경로에서 스켈레톤 누락 방지. 이미 progress-bar 가 있으면 그대로 둠.
+     */
+    function _ensureLoadingSkeleton() {
+        ['sky', 'rain', 'sno', 'tmp'].forEach(function (id) {
+            var el = document.getElementById('ocean-val-wx-' + id);
+            if (!el) return;
+            if (!el.querySelector('.ocean-progress-bar')) {
+                _setCell(id, null);
+            }
+        });
     }
 
     /** 카드 보임/숨김 */
@@ -151,7 +176,7 @@
      *   1) 좌표가 KMA extent 밖이면 카드 hide (이른 종료)
      *   2) [신규 — forceRefresh] 6 카테고리 imgList 캐시 무효화
      *   3) date → fct_tm 변환 (window._shrtForecastNearestFctTm)
-     *   4) 4 셀 스켈레톤 표시 + 카드 show
+     *   4) 카드 show + (단독 진입 보강) 4 셀 스켈레톤이 없으면 깔기 — 5.js 가 이미 깔았으면 noop
      *   5) samplePointAt 호출 → 응답 받으면 텍스트로 교체
      *   6) 응답 사이 슬라이더 이동 → token 검증으로 오래된 응답 무시
      */
@@ -181,7 +206,11 @@
         var fctTm = window._shrtForecastNearestFctTm(date || new Date());
         var token = ++_fetchToken;
         _show(true);
-        _renderLoading();
+        // 스켈레톤 초기화 — 5.js 의 loadAllForDate 가 4셀에 progress-bar 를 먼저 깔아주는
+        //   단일 소유 패턴(경로 A: 해점 클릭/날짜 nav). 슬라이더 release(경로 B) 등 5.js 를
+        //   거치지 않는 단독 진입에서도 누락되지 않도록 "없으면 깔기" 조건부 처리.
+        //   동일 tick 에서 5.js + 여기가 함께 깔아 innerHTML 을 두 번 덮어쓰던 이중 호출 제거.
+        _ensureLoadingSkeleton();
 
         window._shrtForecastSamplePointAt(lat, lon, fctTm)
             .then(function (data) {
