@@ -80,6 +80,39 @@
         return found;
     }
 
+    /**
+     * [S9-E] 클릭 위치의 hit 정보 (kind 포함) 반환.
+     *   _findHitParentZone 의 확장 버전 — 자식이 hit 되었는지 부모가 hit 되었는지
+     *   구분해서 알려준다. 자식 active 여부에 따라 자식 박스 / 부모 박스 분기에 사용.
+     *
+     * @returns {{kind:'main'|'sub', fullName?:string, parent:string} | null}
+     */
+    function _findHit(map, pixel) {
+        var mainLayer = window.OceanWarnZone && window.OceanWarnZone.getMainLayer();
+        var subLayer  = window.OceanWarnZone && window.OceanWarnZone.getSubLayer();
+        if (!mainLayer && !subLayer) return null;
+
+        var hit = null;
+        map.forEachFeatureAtPixel(pixel, function (feature, layer) {
+            if (hit) return;
+            if (layer === subLayer) {
+                var fullName = window.OceanWarnZone.getSubFullName(feature);
+                if (fullName) {
+                    var parent = ns._resolveParentByFullName(fullName);
+                    hit = { kind: 'sub', fullName: fullName, parent: parent || '' };
+                }
+            } else if (layer === mainLayer) {
+                var name = window.OceanWarnZone.getMainZoneName(feature);
+                if (name) hit = { kind: 'main', parent: name };
+            }
+        }, {
+            layerFilter: function (l) { return l === mainLayer || l === subLayer; },
+            hitTolerance: 2
+        });
+
+        return hit;
+    }
+
     // ────────────────────────────────────────────────────────────────────
     // 박스 DOM 빌드
     // ────────────────────────────────────────────────────────────────────
@@ -365,14 +398,152 @@
             return true;  // 새 박스/바텀시트 모두 차단
         }
 
-        var parentZone = _findHitParentZone(map, evt.pixel);
-        // activeMap 에 있는 zone(=현재/다가오는 특보 보유) 만 박스 표출 대상
-        var info = parentZone ? state.activeMap[parentZone] : null;
-        if (info) {
-            ns._showBox(parentZone, evt.pixel);
+        // [S9-E] hit 정보를 kind 까지 확보. 자식 폴리곤이 active 한 경우 자식 박스,
+        //   그 외엔 기존대로 부모 박스로 환원.
+        var hit = _findHit(map, evt.pixel);
+
+        if (hit && hit.kind === 'sub') {
+            // 자식 hit — coastalAlerts 에서 active 한 dmdw 데이터가 있는지 확인
+            var coastalMap = (window.appState && window.appState.coastalAlerts) || {};
+            var childArr = coastalMap[hit.fullName] || [];
+            var hasActiveChild = childArr.some(function (a) {
+                // 색칠 가능한 종류이며 (paletteKey 있음) 발효 또는 다가오는 상태 둘 다
+                return a && ns._resolvePaletteKey(a.warnType);
+            });
+            if (hasActiveChild) {
+                ns._showChildBox(hit.fullName, hit.parent, evt.pixel);
+                return true;
+            }
+            // 자식이 active 아닌 경우 — 기존대로 부모로 환원해서 부모 박스 표출
+            var info = hit.parent ? state.activeMap[hit.parent] : null;
+            if (info) ns._showBox(hit.parent, evt.pixel);
+            return true;
         }
+
+        if (hit && hit.kind === 'main') {
+            var parentInfo = state.activeMap[hit.parent];
+            if (parentInfo) ns._showBox(hit.parent, evt.pixel);
+            return true;
+        }
+
         // 활성 모드에서는 비활성 zone 클릭/빈 해역 클릭도 바텀시트 표출 차단
         return true;
+    };
+
+    /**
+     * [S9-E] 자식 해역(연안바다·평수구역) 전용 박스 표출.
+     *
+     * @param {string} fullName    - 자식 fullName (예: "제주도서부앞바다중북서연안바다")
+     * @param {string} parentZone  - 부모 zone (강조 표시용)
+     * @param {Array<number>} pixel - [x, y]
+     *
+     * [표시 정책 — 사용자 요구]
+     *   • 발표시각 (tmFc) + 발효시각 (tmEf) 표시
+     *   • 해제 예정 시각은 dmdw 가 제공 안 함. 단:
+     *       presentInLastFc === false 인 경우 (마지막 FC 사이클에서 사라짐)
+     *       → "해제 예정" 텍스트 한 줄만 표시 (시각 없음, 라벨 없음)
+     *       presentInLastFc === true / undefined → 해제 예정 행 자체 없음
+     *   • 대표 alert 1건만 표시 (자식 색칠과 동일 우선순위 룰):
+     *       발효 중 우선 → 같은 종류 내 경보 > 주의보 > 예비
+     */
+    ns._showChildBox = function (fullName, parentZone, pixel) {
+        ns._hideBox();
+
+        var coastalMap = (window.appState && window.appState.coastalAlerts) || {};
+        var arr = coastalMap[fullName] || [];
+        if (!arr.length) return;
+
+        // 대표 alert 선택 — _buildChildInfoForStyle 과 동일한 우선순위.
+        var currents = arr.filter(function (a) { return a && !a.isPreliminary; });
+        var pick;
+        if (currents.length) {
+            currents.sort(function (x, y) {
+                return (x.level === '경보' ? 0 : 1) - (y.level === '경보' ? 0 : 1);
+            });
+            pick = currents[0];
+        } else {
+            pick = arr[0];
+        }
+        if (!pick) return;
+
+        var isUpcoming = !!pick.isPreliminary;
+
+        // 선택 강조 — 자식 단위 selectedZone 미지원이므로 부모 zone 단위로 강조.
+        // (자식 폴리곤도 자식 색이 _coloredStyle 로 칠해져 있으므로 부모-자식 둘 다
+        // 시각적으로 표시됨. S9-D 단계 isSelected 강조는 자식 미적용이지만, 박스
+        // 위치가 자식 위에 표시되므로 사용자가 어떤 자식을 보고 있는지 명확.)
+        state.selectedZone = parentZone || null;
+        if (window.OceanWarnZone && typeof window.OceanWarnZone.refresh === 'function') {
+            window.OceanWarnZone.refresh();
+        }
+
+        // 박스 콘텐츠 구성
+        var html = ''
+            + '<div class="warn-active-box-header">'
+            +   '<span class="warn-active-box-title">' + _esc(fullName) + '</span>'
+            +   '<button type="button" class="warn-active-box-close" aria-label="닫기">&times;</button>'
+            + '</div>'
+            + '<div class="warn-active-box-body">'
+            +   '<div class="warn-active-section">'
+            +     '<div class="warn-active-item">';
+
+        // 종류·등급·상태 (예: "풍랑주의보 발효")
+        html += '<div class="warn-active-line warn-active-type">• '
+              + _esc(_buildTypeText(pick, isUpcoming)) + '</div>';
+
+        // 발표시각
+        if (pick.tmFc) {
+            html += '<div class="warn-active-line"><span class="warn-active-key">발표</span>'
+                  + '<span class="warn-active-val">' + _esc(_fmtTime(pick.tmFc)) + '</span></div>';
+        }
+        // 발효시각 (or 발효 예정)
+        if (pick.tmEf) {
+            var efLabel = isUpcoming ? '발효 예정' : '발효';
+            html += '<div class="warn-active-line"><span class="warn-active-key">' + efLabel + '</span>'
+                  + '<span class="warn-active-val">' + _esc(_fmtTime(pick.tmEf)) + '</span></div>';
+        }
+
+        // [S9-E 핵심] "해제 예정" 조건부 표시
+        //   • 발효 중(!isUpcoming) 일 때만 의미 있음
+        //   • presentInLastFc === false 인 경우만 → "해제 예정" 한 줄
+        //   • 시각·라벨 없이 텍스트만 (dmdw 가 정확한 해제 시각 제공 안 함)
+        if (!isUpcoming && pick.presentInLastFc === false) {
+            html += '<div class="warn-active-line warn-active-release-pending">'
+                  + '<span class="warn-active-val">해제 예정</span></div>';
+        }
+
+        html += '</div></div></div>';
+
+        // 박스 DOM 생성 + 위치 조정 (_showBox 와 동일 로직 — 단순성 위해 인라인 복제)
+        var box = document.createElement('div');
+        box.className = 'warn-active-box';
+        box.innerHTML = html;
+        document.body.appendChild(box);
+
+        var mapEl = document.getElementById('ocean-map');
+        var rect = mapEl ? mapEl.getBoundingClientRect() : { left: 0, top: 0 };
+        var px = (pixel && pixel[0] != null) ? pixel[0] : 0;
+        var py = (pixel && pixel[1] != null) ? pixel[1] : 0;
+        var pageX = rect.left + px;
+        var pageY = rect.top + py;
+        var bw = box.offsetWidth;
+        var bh = box.offsetHeight;
+        var vw = window.innerWidth;
+        var vh = window.innerHeight;
+        var left = pageX + 12;
+        var top  = pageY + 12;
+        if (left + bw + 12 > vw) left = pageX - bw - 12;
+        if (top + bh + 12 > vh)  top  = pageY - bh - 12;
+        if (left < 8) left = 8;
+        if (top < 8)  top  = 8;
+        box.style.left = left + 'px';
+        box.style.top  = top + 'px';
+
+        var closeBtn = box.querySelector('.warn-active-box-close');
+        if (closeBtn) closeBtn.addEventListener('click', ns._hideBox);
+
+        state.box = box;
+        _bindOutsideClose();
     };
 
     /**
