@@ -277,6 +277,13 @@ const KHOA_STREAM_BASE =
 const _khoaCache = new Map();
 const KHOA_CACHE_TTL_MS = 60 * 60 * 1000; // 1시간
 
+// [실패 캐시 — 2026-05]
+//   KHOA upstream 이 일시 장애(500 등)일 때 매 사용자 요청마다 외부 호출 →
+//   소스 폭주 + 콘솔 노이즈. 같은 (date, hour) 의 실패는 30초간 캐시해 즉시
+//   빈 응답 반환 → 우리 서버에서 폭주 자체를 차단.
+const _khoaFailCache = new Map();
+const KHOA_FAIL_TTL_MS = 30 * 1000; // 30초
+
 /** KHOA stream-vector 캐시 키 생성 — 'YYYYMMDD_HH' 형식. _khoaCache.get/set 의 키. */
 function _cacheKey(date, hour) { return date + '_' + hour; }
 
@@ -292,6 +299,11 @@ async function _fetchKhoaStream(date, hour) {
     const cached = _khoaCache.get(key);
     if (cached && (Date.now() - cached.ts) < KHOA_CACHE_TTL_MS) {
         return cached;
+    }
+    // 실패 캐시 hit → 즉시 빈 결과 반환 (외부 호출 안 함)
+    const failed = _khoaFailCache.get(key);
+    if (failed && (Date.now() - failed.ts) < KHOA_FAIL_TTL_MS) {
+        return { ts: Date.now(), points: [], meta: {}, _failed: true, _reason: failed.reason };
     }
 
     const upstream = KHOA_STREAM_BASE +
@@ -392,8 +404,9 @@ function _defaultDateHour(qDate, qHour) {
  * 응답: 격자 features 배열 + 격자 인덱스. ocean_overlay.js (파티클) 가 사용.
  */
 router.get('/api/ocean/khoa-stream-vector', async (req, res) => {
+    let date, hour;
     try {
-        const { date, hour } = _defaultDateHour(req.query.date, req.query.hour);
+        ({ date, hour } = _defaultDateHour(req.query.date, req.query.hour));
         const entry = await _fetchKhoaStream(date, hour);
         res.set('Cache-Control', 'public, max-age=600');
         res.json({
@@ -406,8 +419,14 @@ router.get('/api/ocean/khoa-stream-vector', async (req, res) => {
             _debug: entry._debug || undefined
         });
     } catch (e) {
-        console.error('[KHOA-Stream] error:', e.message);
-        res.status(500).json({ success: false, error: e.message });
+        // [2026-05] KHOA upstream 장애는 우리 책임이 아니므로 status 200 으로
+        // 반환해 클라이언트 콘솔의 500 에러 노이즈를 제거. success:false 본문 유지.
+        // 실패 30초 캐시로 같은 (date, hour) 반복 요청 시 외부 호출 폭주 차단.
+        if (date && hour) {
+            _khoaFailCache.set(_cacheKey(date, hour), { ts: Date.now(), reason: e.message });
+        }
+        console.warn('[KHOA-Stream] upstream 실패 (외부 KHOA 문제):', e.message);
+        res.status(200).json({ success: false, error: e.message, upstreamFailed: true });
     }
 });
 
@@ -418,13 +437,14 @@ router.get('/api/ocean/khoa-stream-vector', async (req, res) => {
  * 응답: { success, wtem, crsp, crdir } 또는 { success: false }.
  */
 router.get('/api/ocean/khoa-stream-nearest', async (req, res) => {
+    let date, hour;
     try {
         const lat = parseFloat(req.query.lat);
         const lon = parseFloat(req.query.lon);
         if (isNaN(lat) || isNaN(lon)) {
             return res.status(400).json({ success: false, error: 'lat/lon 필수' });
         }
-        const { date, hour } = _defaultDateHour(req.query.date, req.query.hour);
+        ({ date, hour } = _defaultDateHour(req.query.date, req.query.hour));
         const entry = await _fetchKhoaStream(date, hour);
 
         let best = null;
@@ -454,8 +474,13 @@ router.get('/api/ocean/khoa-stream-nearest', async (req, res) => {
             zeta: best.zeta
         });
     } catch (e) {
-        console.error('[KHOA-Nearest] error:', e.message);
-        res.status(500).json({ success: false, error: e.message });
+        // [2026-05] KHOA upstream 장애는 우리 책임이 아니므로 status 200 반환 +
+        // 30초 실패 캐시 (외부 호출 폭주 차단). 클라이언트는 기존대로 success:false 처리.
+        if (date && hour) {
+            _khoaFailCache.set(_cacheKey(date, hour), { ts: Date.now(), reason: e.message });
+        }
+        console.warn('[KHOA-Nearest] upstream 실패 (외부 KHOA 문제):', e.message);
+        res.status(200).json({ success: false, error: e.message, upstreamFailed: true });
     }
 });
 
