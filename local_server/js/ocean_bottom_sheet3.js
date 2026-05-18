@@ -69,7 +69,156 @@
      *   별도로 다음/현재/이전 day 의 peaks 가 필요한 게이지 계산은
      *   refreshTideGaugeForTime 에서 days[dayKey], days[prevKey], days[nextKey] 를
      *   조합해 동적으로 산출한다.
+     *
+     * [차등 캐싱 — 2026-05 사용자 합의]
+     *   - 비즐겨찾기 해점: 메모리 캐시(OS.state._tideMultiDayCache)만 사용.
+     *     바텀시트 닫힐 때 dropMemoryCacheIfNotFavorite() 에서 폐기.
+     *   - 즐겨찾기 해점: localStorage('tideCache:v1') 에 영속 저장.
+     *     dayKey 만료(어제/오늘/내일 이외) 자동 purge, 50 point LRU evict.
+     *   - 즐겨찾기 추가/해제 시 promoteMemoryCacheToPersist / dropFromPersist 호출.
      * ------------------------------------------------------------ */
+
+    /* localStorage 영속 캐시 — 즐겨찾기 해점 전용. 키 형식:
+     *   { '<lat5>_<lon5>': { days: { 'YYYY-MM-DD': {data,isIdw,neighbors}, ... },
+     *                        lastUsed: <ms> }, ... }
+     */
+    var PERSIST_KEY = 'tideCache:v1';
+    var MAX_PERSIST_POINTS = 50;
+
+    /** 좌표 양자화 키 — 5소수점 (≈1m). pointKey 와 round 가 동일해야 캐시 hit. */
+    function pointKey(lat, lon) {
+        return (Math.round(lat * 100000) / 100000) + '_' +
+               (Math.round(lon * 100000) / 100000);
+    }
+
+    /**
+     * 즐겨찾기 해점인지 동기 판정.
+     * ocean_cctv.js 의 window.oceanFav.locationFindNear 는 반경 500m 매칭.
+     * 미로드(예: index1) 환경에서는 항상 false → localStorage 미사용.
+     */
+    function isFavoritePoint(lat, lon) {
+        try {
+            if (window.oceanFav && typeof window.oceanFav.locationFindNear === 'function') {
+                return !!window.oceanFav.locationFindNear(lat, lon);
+            }
+        } catch (e) { /* ignore */ }
+        return false;
+    }
+
+    /**
+     * localStorage 에서 영속 캐시 load — 만료 dayKey 자동 purge.
+     * 만료 기준: dayKey < 어제 (yKey). 오늘/내일 이후만 유지.
+     */
+    function loadPersistCache() {
+        try {
+            var raw = localStorage.getItem(PERSIST_KEY);
+            if (!raw) return {};
+            var parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object') return {};
+            var today = new Date();
+            var yKey = dayKeyOf(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1));
+            var changed = false;
+            for (var pk in parsed) {
+                if (!Object.prototype.hasOwnProperty.call(parsed, pk)) continue;
+                var pt = parsed[pk];
+                if (!pt || !pt.days) { delete parsed[pk]; changed = true; continue; }
+                for (var dk in pt.days) {
+                    if (!Object.prototype.hasOwnProperty.call(pt.days, dk)) continue;
+                    if (dk < yKey) { delete pt.days[dk]; changed = true; }
+                }
+                if (!Object.keys(pt.days).length) {
+                    delete parsed[pk];
+                    changed = true;
+                }
+            }
+            if (changed) savePersistCache(parsed);
+            return parsed;
+        } catch (e) {
+            return {};
+        }
+    }
+
+    /** localStorage 에 영속 캐시 save — quota 초과 등 실패는 silent. */
+    function savePersistCache(obj) {
+        try { localStorage.setItem(PERSIST_KEY, JSON.stringify(obj)); }
+        catch (e) { /* quota 초과 등 silent */ }
+    }
+
+    /**
+     * 즐겨찾기 신규 추가 시 호출 — 메모리 캐시 _tideMultiDayCache 통째 localStorage 로 승격.
+     * (lat,lon) 이 현재 메모리 캐시 좌표와 일치할 때만 승격. 좌표는 5소수점 round.
+     */
+    OS.promoteMemoryCacheToPersist = function (lat, lon) {
+        var c = OS.state && OS.state._tideMultiDayCache;
+        if (!c) return;
+        var rLat = Math.round(lat * 100000) / 100000;
+        var rLon = Math.round(lon * 100000) / 100000;
+        var cLat = Math.round(c.lat * 100000) / 100000;
+        var cLon = Math.round(c.lon * 100000) / 100000;
+        if (rLat !== cLat || rLon !== cLon) return;
+        var persist = loadPersistCache();
+        var pk = pointKey(lat, lon);
+        var daysCopy = {};
+        for (var k in c.days) {
+            if (Object.prototype.hasOwnProperty.call(c.days, k)) daysCopy[k] = c.days[k];
+        }
+        persist[pk] = { days: daysCopy, lastUsed: Date.now() };
+        // LRU evict — 50 point 초과 시 lastUsed 오래된 항목부터 제거
+        var entries = Object.keys(persist).map(function (k) {
+            return [k, persist[k].lastUsed || 0];
+        });
+        if (entries.length > MAX_PERSIST_POINTS) {
+            entries.sort(function (a, b) { return b[1] - a[1]; });
+            for (var i = MAX_PERSIST_POINTS; i < entries.length; i++) {
+                delete persist[entries[i][0]];
+            }
+        }
+        savePersistCache(persist);
+    };
+
+    /** 즐겨찾기 해제 시 호출 — localStorage 의 해당 좌표 항목 삭제. */
+    OS.dropFromPersist = function (lat, lon) {
+        var persist = loadPersistCache();
+        delete persist[pointKey(lat, lon)];
+        savePersistCache(persist);
+    };
+
+    /**
+     * 바텀시트 닫힐 때 호출 — 비즐겨찾기 해점이면 메모리 캐시 폐기.
+     * 즐겨찾기 해점은 메모리 캐시 그대로 유지 (다음 오픈 시 prefill 없이 즉시 hit).
+     * _tideRenderState 는 항상 clear (다른 좌표 재오픈 시 stale 차단).
+     */
+    OS.dropMemoryCacheIfNotFavorite = function () {
+        if (OS.state) {
+            var c = OS.state._tideMultiDayCache;
+            if (c && !isFavoritePoint(c.lat, c.lon)) {
+                OS.state._tideMultiDayCache = null;
+            }
+            OS.state._tideRenderState = null;
+        }
+    };
+
+    /**
+     * 좌표가 즐겨찾기면 localStorage 에서 메모리 캐시로 prefill.
+     * 시트 오픈 시 다른 좌표일 때 호출 — _tideMultiDayCache 가 null 인 상태에서
+     * localStorage 항목이 있으면 그 days 를 메모리에 복사 (API 호출 skip 가능).
+     */
+    OS.prefillMemoryCacheFromPersist = function (lat, lon) {
+        if (!OS.state) return;
+        if (!isFavoritePoint(lat, lon)) return;
+        var persist = loadPersistCache();
+        var pk = pointKey(lat, lon);
+        var pt = persist[pk];
+        if (!pt || !pt.days || !Object.keys(pt.days).length) return;
+        var daysCopy = {};
+        for (var k in pt.days) {
+            if (Object.prototype.hasOwnProperty.call(pt.days, k)) daysCopy[k] = pt.days[k];
+        }
+        OS.state._tideMultiDayCache = { lat: lat, lon: lon, days: daysCopy };
+        // lastUsed 갱신 — LRU evict 기준
+        pt.lastUsed = Date.now();
+        savePersistCache(persist);
+    };
     /** dateObj → 'YYYY-MM-DD' (0-padded). dayKey 비교용. */
     function dayKeyOf(dateObj) {
         return dateObj.getFullYear() + '-' +
@@ -94,31 +243,77 @@
 
     /**
      * 좌표 (lat, lon) + dayKey 에 해당하는 캐시 엔트리 조회.
-     * (좌표 불일치 시 null — 호출자가 캐시 reset 결정)
+     * 우선순위: 메모리 _tideMultiDayCache → localStorage (즐겨찾기 영속 캐시).
+     * 좌표는 5소수점 round 로 비교 (부동소수점 noise 로 인한 false-miss 방지).
      */
     function getCachedDay(lat, lon, key) {
+        var rLat = Math.round(lat * 100000) / 100000;
+        var rLon = Math.round(lon * 100000) / 100000;
         var c = OS.state && OS.state._tideMultiDayCache;
-        if (!c) return null;
-        if (c.lat !== lat || c.lon !== lon) return null;
-        return c.days[key] || null;
+        if (c) {
+            var cLat = Math.round(c.lat * 100000) / 100000;
+            var cLon = Math.round(c.lon * 100000) / 100000;
+            if (cLat === rLat && cLon === rLon) {
+                var m = c.days[key];
+                if (m) return m;
+            }
+        }
+        // localStorage (즐겨찾기 영속 캐시) — 메모리 hit 없을 때만 fallback
+        try {
+            var persist = loadPersistCache();
+            var pt = persist[pointKey(lat, lon)];
+            if (pt && pt.days && pt.days[key]) return pt.days[key];
+        } catch (e) { /* ignore */ }
+        return null;
     }
 
     /**
      * 캐시에 (lat, lon, dayKey, entry) 저장.
      * 좌표가 다르면 days 통째 reset 후 새 좌표로 시작.
+     * 즐겨찾기 해점이면 localStorage 에도 동시 저장 (50 point LRU evict 적용).
      */
     function putCachedDay(lat, lon, key, entry) {
         if (!OS.state) return;
+        var rLat = Math.round(lat * 100000) / 100000;
+        var rLon = Math.round(lon * 100000) / 100000;
         var c = OS.state._tideMultiDayCache;
-        if (!c || c.lat !== lat || c.lon !== lon) {
+        if (c) {
+            var cLat = Math.round(c.lat * 100000) / 100000;
+            var cLon = Math.round(c.lon * 100000) / 100000;
+            if (cLat !== rLat || cLon !== rLon) c = null;
+        }
+        if (!c) {
             c = OS.state._tideMultiDayCache = { lat: lat, lon: lon, days: {} };
         }
         c.days[key] = entry;
+
+        // 즐겨찾기 해점이면 localStorage 에도 저장
+        if (isFavoritePoint(lat, lon)) {
+            try {
+                var persist = loadPersistCache();
+                var pk = pointKey(lat, lon);
+                if (!persist[pk]) persist[pk] = { days: {}, lastUsed: Date.now() };
+                persist[pk].days[key] = entry;
+                persist[pk].lastUsed = Date.now();
+                // LRU evict — 50 point 초과 시 lastUsed 오래된 항목부터 제거
+                var entries = Object.keys(persist).map(function (k) {
+                    return [k, persist[k].lastUsed || 0];
+                });
+                if (entries.length > MAX_PERSIST_POINTS) {
+                    entries.sort(function (a, b) { return b[1] - a[1]; });
+                    for (var i = MAX_PERSIST_POINTS; i < entries.length; i++) {
+                        delete persist[entries[i][0]];
+                    }
+                }
+                savePersistCache(persist);
+            } catch (e) { /* ignore quota */ }
+        }
     }
 
     /**
      * (lat, lon, dayKey) 가 캐시되어 있는지 외부에서 조회.
      * STL.onRelease 가 cache hit 여부 판단해 풀 fetch skip 결정에 사용.
+     * 메모리 + localStorage 둘 다 확인 (즐겨찾기 해점은 영속 캐시 hit 가능).
      */
     OS.hasTideCacheFor = function (lat, lon, dateObj) {
         return !!getCachedDay(lat, lon, dayKeyOf(dateObj));
@@ -180,7 +375,12 @@
      * ------------------------------------------------------------ */
     OS.fetchTideKhoa = function (lat, lon, dateObj) {
         var dateInt = OS.formatDateInt(dateObj);
-        var body = { lat: lat, lon: lon, date: dateInt, time: nowHHMM() };
+        // [좌표 양자화 2026-05] 부동소수점 noise 로 같은 격자에서 다른 lat/lon 이
+        // 전송돼 서버 캐시(grid hash) 도 같은 격자임에도 false-miss 가 나는 것을
+        // 막기 위해 5소수점(≈1m) round. pointKey() 와 동일한 quantization 사용.
+        var qLat = Math.round(lat * 100000) / 100000;
+        var qLon = Math.round(lon * 100000) / 100000;
+        var body = { lat: qLat, lon: qLon, date: dateInt, time: nowHHMM() };
 
         fetch('/api/save_tide_input', {
             method: 'POST',

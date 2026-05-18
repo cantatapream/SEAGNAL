@@ -265,24 +265,14 @@ async function collectTideBedData(lat, lon, reqDate) {
 /**
  * 격자 해시 조회 (1건만 빠르게 조회하여 격자 식별)
  *
- * [좌표→해시 메모리 캐시 — 이슈 1 (조석 응답 latency) 대응]
- *   같은 (lat,lon) 은 격자가 동일 → 매 요청마다 외부 API 호출 불필요.
- *   slider 연타·재클릭 시 사용자 응답 latency 의 가장 큰 부분(0.3~1초)을 제거.
- *   좌표를 0.001° (≈100m) 단위로 양자화 — 격자 단위가 1~5km 라 충돌 위험 없음.
- *   TTL 12시간 (조위 조석 격자는 사실상 영구 불변).
+ * [원복 — 2026-05 사용자 합의]
+ *   기존: 좌표→해시 메모리 캐시 (0.001° 양자화, TTL 12h) 로 latency 개선.
+ *   변경: 사용자 간 공유 캐시 제거 정책에 따라 메모리 캐시 제거.
+ *   매 호출마다 fetchTideBedPage 1회 호출. 클라이언트 측 차등 캐싱
+ *   (localStorage 즐겨찾기 영속 + 비즐겨찾기 메모리) 으로 사용자 단말 내
+ *   재방문 latency 는 보존.
  */
-const _gridHashCache = new Map();
-const _GRID_HASH_TTL_MS = 12 * 60 * 60 * 1000;
-function _gridCacheKey(lat, lon) {
-    // 0.001° 양자화 (≈100m) — 같은 격자(보통 1km 이상) 안에서는 항상 같은 키
-    return `${Math.round(lat * 1000)}_${Math.round(lon * 1000)}`;
-}
 async function getGridHash(lat, lon, reqDate) {
-    const ckey = _gridCacheKey(lat, lon);
-    const hit = _gridHashCache.get(ckey);
-    if (hit && (Date.now() - hit.ts) < _GRID_HASH_TTL_MS) {
-        return hit.hash;
-    }
     try {
         const result = await fetchTideBedPage(lat, lon, reqDate, 1, 1);
         const body = result?.response?.body || result?.body;
@@ -291,9 +281,7 @@ async function getGridHash(lat, lon, reqDate) {
             if (item && item.m2TconstAmp !== undefined && item.m2TconstTlag !== undefined) {
                 const amp = Math.round(parseFloat(item.m2TconstAmp) * 1000);
                 const tlag = Math.round(parseFloat(item.m2TconstTlag) * 1000);
-                const hash = `${amp}_${tlag}`;
-                _gridHashCache.set(ckey, { hash, ts: Date.now() });
-                return hash;
+                return `${amp}_${tlag}`;
             }
         }
     } catch (e) {

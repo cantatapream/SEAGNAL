@@ -120,34 +120,17 @@ refreshCache(); // 초기 로드
 // ============================================================================
 // 2. 조석 데이터 LRU 캐시
 // ============================================================================
-// [max 50 → 200 — 이슈 1 (격자 다양성 부족) 대응]
-//   1요청당 3일치 × 격자별로 3 entry 사용. max=50 이면 격자 16개만 보유 가능
-//   → 슬라이더 연타·여러 좌표 클릭 시 캐시 evict 발생하여 같은 좌표 재방문도
-//   외부 API 재호출. 한국 활성 격자 100여 개 + 3일치 = ~300 entry 안전 마진을
-//   고려하면 200 (~600 entry 분량) 이 적절. 격자 entry 1개당 ~300~500KB →
-//   200개 * 500KB ≈ 100MB (서버 512MB 한도 안에서 충분).
-//   updateAgeOnGet:true 라 폴링 중인 항목은 자동 갱신되어 evict 안 됨.
-//
-//   에러 캐시는 per-item TTL=30초 로 set 측에서 지정 (정상 데이터 1시간 유지).
+// [원복 200 → 50 — 사용자 합의 2026-05]
+//   "모든 사용자가 같은 해점을 클릭한다는 보장이 없고… 휴대폰 내에만 캐싱하고
+//   캐싱 내용이 서버 등에 공유될 필요는 없어."
+//   → 클라이언트(localStorage/메모리)에서 차등 캐싱하므로 서버는 단일 요청 내
+//   3일 병렬 폴링 / 같은 응답 폴링 재사용 정도의 최소 메모리만 사용.
+//   error 캐시 자동 TTL 30초 wrapper 도 제거 — 호출 측이 명시한 TTL 만 사용.
 const tideCache = new LRU({
-    max: 200,                    // 최대 200건 (이전 50 → 200, 격자 다양성 확보)
+    max: 50,                     // 단일 응답 폴링 재사용 용도의 최소 메모리
     ttl: 1000 * 60 * 60,        // 1시간 후 자동 만료 (정상 데이터)
     updateAgeOnGet: true         // 조회 시 TTL 갱신 — 폴링 중인 항목 보호
 });
-
-// [에러 항목 TTL 단축 래퍼 — 안전망]
-//   tideCache.set 호출 시 value.tideBedStatus === 'error' 이면 자동으로
-//   per-item TTL=30초만 적용. 호출 측이 깜빡 잊고 일반 set 으로 저장해도
-//   사용자 재클릭 시 빠른 재시도가 가능하도록 보장. 호출 측에서 명시적으로
-//   opts 를 넘기면 (예: 특별한 TTL 정책) 그쪽이 우선 — wrapper 는 opts 미지정
-//   상태에서만 개입한다.
-const _origTideCacheSet = tideCache.set.bind(tideCache);
-tideCache.set = function (key, value, opts) {
-    if (value && value.tideBedStatus === 'error' && !opts) {
-        return _origTideCacheSet(key, value, { ttl: 30 * 1000 });
-    }
-    return _origTideCacheSet(key, value, opts);
-};
 
 module.exports = {
     dataCache,

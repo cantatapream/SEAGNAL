@@ -402,4 +402,17 @@
             }
         }, _SYNC_LAYER_DEBOUNCE_MS);
     };
+
+    /**
+     * 닫기 시 호출 — 보류 중인 _syncLayerSliderToSheet debounce 캔슬.
+     * 250ms 이내에 release → close 가 연속 발생하면 timer 가 살아남아
+     * 닫힌 시트의 의도로 oceanOverlaySetTime 이 발화될 수 있다. closeSheet 에서
+     * 이 함수를 호출해 명시적으로 캔슬한다.
+     */
+    OS._cancelSyncLayerDebounce = function () {
+        if (_syncLayerDebounceTimer) {
+            clearTimeout(_syncLayerDebounceTimer);
+            _syncLayerDebounceTimer = null;
+        }
+    };
 })();

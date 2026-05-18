@@ -159,6 +159,28 @@ cron.schedule('1 15 * * *', () => {
 });
 
 // ============================================================================
+// 4.5 Graceful shutdown — Fly.io SIGTERM 대응
+// ----------------------------------------------------------------------------
+// Fly.io / 컨테이너 환경은 종료 시 SIGTERM 을 먼저 보낸 뒤 약간의 grace period
+// 후 SIGKILL. beforeExit 만으로는 SIGTERM 직후 강제 종료 시 디바운스 보류 중인
+// tideBedConfig 변경이 누락될 수 있다. SIGTERM 핸들에서 즉시 flush 수행.
+// ============================================================================
+function _gracefulShutdown(signal) {
+    try {
+        const tideCollector = require('./services/tide_collector');
+        if (typeof tideCollector.saveTideBedConfig === 'function') {
+            tideCollector.saveTideBedConfig({ flush: true });
+        }
+    } catch (e) {
+        console.error('[shutdown] saveTideBedConfig flush 실패:', e && e.message);
+    }
+    console.log(`🛑 ${signal} 수신 — graceful shutdown.`);
+    process.exit(0);
+}
+process.on('SIGTERM', () => _gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => _gracefulShutdown('SIGINT'));
+
+// ============================================================================
 // 5. 서버 시작
 // ============================================================================
 app.listen(PORT, '0.0.0.0', () => {

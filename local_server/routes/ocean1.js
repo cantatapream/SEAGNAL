@@ -326,12 +326,29 @@ async function _fetchKhoaStream(date, hour) {
         throw new Error('khoa upstream ' + r.status);
     }
     const text = await r.text();
+    // [부분 응답 처리 — 2026-05] KHOA 가 200 OK 를 주면서 body 가 비어있거나
+    // 잘린 응답을 내려보내는 경우가 있음. JSON.parse 가 throw 되면 catch 로 가지만,
+    // 0-byte / whitespace 만 들어온 경우를 명시적으로 빠른 실패로 분기해
+    // _khoaFailCache 와 동일한 30초 실패 경로로 들어가도록 한다.
+    if (!text || !text.trim()) {
+        console.error('[KHOA-Stream] upstream returned empty body. url:', upstream);
+        throw new Error('khoa empty body');
+    }
     let json;
     try {
         json = JSON.parse(text);
     } catch (parseErr) {
         console.error('[KHOA-Stream] JSON parse fail. body:', text.slice(0, 300));
         throw new Error('khoa response not JSON');
+    }
+    // [부분 응답 처리 — 2026-05] 200 OK + 유효 JSON 이지만 data/dataList/list 등
+    // 데이터 컨테이너 자체가 없거나 명시적으로 success:false 면 부분 응답으로 간주.
+    // (0-points 정상 케이스(육지 격자 등) 와는 구분 — data 키가 존재하면 통과시킨다.)
+    const hasAnyContainer = ['data', 'dataList', 'list', 'points', 'result', 'items']
+        .some(k => json && Object.prototype.hasOwnProperty.call(json, k));
+    if (!hasAnyContainer || json.success === false) {
+        console.error('[KHOA-Stream] partial response — no data container. body:', text.slice(0, 300));
+        throw new Error('khoa partial response');
     }
 
     // data 는 보통 2차원 배열, 또는 1차원 배열, 또는 다른 키 이름일 수 있음.
