@@ -137,6 +137,9 @@ router.get('/data/:filename', (req, res, next) => {
 // ============================================================================
 router.post('/api/save_tide_input', async (req, res) => {
     const { date, time, lat, lon, deviceId } = req.body;
+    // ❹ 클라이언트 격자ID 캐시 — body 에 동봉되어 오면 KHOA 사전 조회 1회 절감.
+    // 잘못된 값을 보내도 후속 KHOA 호출이 그 격자에서 실패할 뿐 다른 사용자에 영향 없음.
+    const clientGridHash = req.body && req.body.gridHash ? String(req.body.gridHash) : null;
 
     // 조석 조회 횟수 제한 체크
     if (deviceId) {
@@ -154,7 +157,14 @@ router.post('/api/save_tide_input', async (req, res) => {
 
     try {
         // 1단계: 격자 해시 조회 (1건 사전 조회)
-        const gridHash = await tideCollector.getGridHash(lat, lon, date);
+        // ❹ 클라이언트가 caching 한 gridHash 를 보내왔다면 KHOA 사전 조회 skip.
+        let gridHash;
+        if (clientGridHash) {
+            gridHash = clientGridHash;
+            console.log(`⚡ 클라이언트 격자 캐시 사용: ${gridHash} (KHOA 사전 조회 skip)`);
+        } else {
+            gridHash = await tideCollector.getGridHash(lat, lon, date);
+        }
         if (!gridHash) {
             console.error('❌ 격자 해시를 확인할 수 없습니다.');
             res.json({ success: false, error: 'Grid hash unavailable' });
@@ -259,10 +269,11 @@ router.post('/api/save_tide_input', async (req, res) => {
                     opts = opts || {};
                     const dateInt = item.date;
                     const itemAdj = tideCollector.getAdjacentDates(dateInt);
+                    // ❸ padding 12h 확대 (3h → 12h, 180 → 720) — 자정 ±12h 피크 detect 가능
                     const paddedItems = [
-                        ...(rawItemsMap[itemAdj.prev] || []).slice(-180),
+                        ...(rawItemsMap[itemAdj.prev] || []).slice(-720),
                         ...(rawItemsMap[dateInt] || []),
-                        ...(rawItemsMap[itemAdj.next] || []).slice(0, 180)
+                        ...(rawItemsMap[itemAdj.next] || []).slice(0, 720)
                     ];
                     await tideCollector.collectAndSaveTideData(lat, lon, dateInt, time, item.fileName, paddedItems);
 

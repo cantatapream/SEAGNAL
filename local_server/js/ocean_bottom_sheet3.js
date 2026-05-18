@@ -40,6 +40,93 @@
     var POLL_MAX_TRIES = 120; // 60초
 
     /* --------------------------------------------------------------
+     * ❷ 첫 렌더 성공 플래그 — 폴링 중 'error' 응답으로 카드 사라짐 방지.
+     * renderTideData 가 한 번이라도 호출되면 true. 시트 close / 좌표 변경 /
+     * 날짜 변경 시 OS.resetTideFirstRender() 로 reset.
+     * ------------------------------------------------------------ */
+    var _tideFirstRenderSucceeded = false;
+    OS.markTideFirstRender = function () { _tideFirstRenderSucceeded = true; };
+    OS.resetTideFirstRender = function () { _tideFirstRenderSucceeded = false; };
+    OS.tideFirstRenderSucceeded = function () { return _tideFirstRenderSucceeded; };
+
+    /* --------------------------------------------------------------
+     * ❹ 클라이언트 격자ID 캐시 — KHOA 외부 호출 1회 절감.
+     * key = pointKey(lat,lon) (5소수점 양자화), value = { gridHash, fileName }.
+     *
+     * 정책:
+     *  - 비즐겨찾기: 메모리에만 (시트 닫히면 사실상 폐기 — 다른 좌표 선택 시 누적)
+     *  - 즐겨찾기: localStorage 'gridHashCache:v1' 영속 (TTL 30일)
+     *    격자ID 는 KHOA 가 거의 안 바꿈 → 긴 TTL 안전.
+     * ------------------------------------------------------------ */
+    var _gridHashByPoint = {};
+    var GRID_HASH_LS_KEY = 'gridHashCache:v1';
+    var GRID_HASH_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30일
+
+    function gridPointKey(lat, lon) {
+        var qLat = Math.round(lat * 100000) / 100000;
+        var qLon = Math.round(lon * 100000) / 100000;
+        return qLat + ',' + qLon;
+    }
+
+    function loadGridHashLS() {
+        try {
+            var raw = localStorage.getItem(GRID_HASH_LS_KEY);
+            if (!raw) return;
+            var obj = JSON.parse(raw);
+            if (!obj || typeof obj !== 'object') return;
+            var now = Date.now();
+            var changed = false;
+            Object.keys(obj).forEach(function (k) {
+                var v = obj[k];
+                if (!v || !v.ts || (now - v.ts) > GRID_HASH_TTL_MS) {
+                    delete obj[k];
+                    changed = true;
+                    return;
+                }
+                _gridHashByPoint[k] = { gridHash: v.gridHash, fileName: v.fileName };
+            });
+            if (changed) {
+                localStorage.setItem(GRID_HASH_LS_KEY, JSON.stringify(obj));
+            }
+        } catch (e) { /* localStorage 미사용 환경 */ }
+    }
+    loadGridHashLS();
+
+    function isFavoritePoint(lat, lon) {
+        try {
+            if (typeof OS.isFavoriteCoord === 'function') return !!OS.isFavoriteCoord(lat, lon);
+            if (window.Favorites && typeof window.Favorites.isFavorite === 'function') {
+                return !!window.Favorites.isFavorite(lat, lon);
+            }
+        } catch (e) {}
+        return false;
+    }
+
+    function persistGridHashIfFavorite(lat, lon, gridHash, fileName) {
+        if (!isFavoritePoint(lat, lon)) return;
+        try {
+            var raw = localStorage.getItem(GRID_HASH_LS_KEY);
+            var obj = raw ? JSON.parse(raw) : {};
+            if (!obj || typeof obj !== 'object') obj = {};
+            obj[gridPointKey(lat, lon)] = {
+                gridHash: gridHash, fileName: fileName, ts: Date.now()
+            };
+            localStorage.setItem(GRID_HASH_LS_KEY, JSON.stringify(obj));
+        } catch (e) {}
+    }
+
+    function rememberGridHash(lat, lon, gridHash, fileName) {
+        if (!gridHash) return;
+        var k = gridPointKey(lat, lon);
+        _gridHashByPoint[k] = { gridHash: gridHash, fileName: fileName || null };
+        persistGridHashIfFavorite(lat, lon, gridHash, fileName);
+    }
+
+    function lookupGridHash(lat, lon) {
+        return _gridHashByPoint[gridPointKey(lat, lon)] || null;
+    }
+
+    /* --------------------------------------------------------------
      * [조석 멀티 데이 캐시 — 2026-05]
      *
      * 사용자 의도:
@@ -382,6 +469,13 @@
         var qLon = Math.round(lon * 100000) / 100000;
         var body = { lat: qLat, lon: qLon, date: dateInt, time: nowHHMM() };
 
+        // ❹ 클라이언트 격자 캐시 — 있으면 body 에 동봉, 서버는 KHOA 호출 skip
+        var cachedGrid = lookupGridHash(lat, lon);
+        if (cachedGrid) {
+            body.gridHash = cachedGrid.gridHash;
+            if (cachedGrid.fileName) body.fileName = cachedGrid.fileName;
+        }
+
         fetch('/api/save_tide_input', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -389,6 +483,11 @@
         })
             .then(function (r) { return r.json(); })
             .then(function (resp) {
+                // ❹ 응답의 gridHash 저장 (즐겨찾기면 localStorage 영속화)
+                if (resp && resp.success && resp.gridHash) {
+                    var fname = (resp.files && resp.files.today) || null;
+                    rememberGridHash(lat, lon, resp.gridHash, fname);
+                }
                 if (!resp.success) {
                     var em = (resp.error || '') + '';
                     if (em.indexOf('Grid hash unavailable') >= 0) {
@@ -451,8 +550,13 @@
             (function loop() {
                 Promise.all([fetchOne('yesterday'), fetchOne('today'), fetchOne('tomorrow')])
                     .then(function () {
-                        // today 의 백엔드 수집이 실패했으면 빠른 실패 (60초 timeout 기다리지 않음)
+                        // ❷ today 가 'error' 라도 이미 첫 렌더 성공했으면 무시
+                        // (폴링 재 fetch 중 server padded 빈 결과로 'error' 덮어쓰기 보호).
                         if (collected.today && collected.today.tideBedStatus === 'error') {
+                            if (_tideFirstRenderSucceeded) {
+                                // 이미 화면에 카드 정상 표시 중 → error 무시, 폴링도 더 안 함
+                                return;
+                            }
                             OS.renderTideError('조석 데이터 수집에 실패했습니다.');
                             return;
                         }
@@ -463,6 +567,8 @@
                                 tomorrow: collected.tomorrow,
                                 lat: lat, lon: lon   // 서해 판별용 좌표 전달
                             });
+                            // ❷ 첫 렌더 성공 마킹
+                            _tideFirstRenderSucceeded = true;
                             // 추가 폴링이 필요한 조건:
                             //   - today 가 'complete-quick' (이웃 도착 후 final 'complete' 기다림)
                             //   - 또는 yesterday/tomorrow 미도착
@@ -615,8 +721,9 @@
             p.diff = dprev ? (p.level - dprev.level) : null;
         }
 
-        var highs = peaks.filter(function (p) { return p.type === 'high'; }).slice(0, 2);
-        var lows  = peaks.filter(function (p) { return p.type === 'low'; }).slice(0, 2);
+        // ❸ 모든 피크 표시 (각 최대 4개) — slice(0,2) cap 제거
+        var highs = peaks.filter(function (p) { return p.type === 'high'; }).slice(0, 4);
+        var lows  = peaks.filter(function (p) { return p.type === 'low'; }).slice(0, 4);
 
         // 현재 조위 (오늘만) — 게이지 바로 위 정 가운데에 삽입.
         // [시트 슬라이더 연계] 라벨은 슬라이더 시각의 HH:MM 그대로 표기.
@@ -753,6 +860,9 @@
             lat: OS.state.lat,
             lon: OS.state.lon
         };
+
+        // ❷ 첫 렌더 성공 표시 — 이후 폴링에서 'error' 와도 카드 유지
+        _tideFirstRenderSucceeded = true;
     };
 
     /* --------------------------------------------------------------

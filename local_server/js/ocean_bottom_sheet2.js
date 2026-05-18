@@ -156,6 +156,8 @@
         var d = new Date(OS.state.date);
         d.setDate(d.getDate() - 1);
         OS.state.date = d;
+        // ❷ 날짜 변경 시 첫 렌더 플래그 reset
+        if (typeof OS.resetTideFirstRender === 'function') OS.resetTideFirstRender();
         OS.renderHeader();
         if (OS.loadAllForDate) OS.loadAllForDate();
         // [시트 슬라이더 동기] OS.state.date 변경됐으니 슬라이더 위치도 따라가게
@@ -184,6 +186,8 @@
         var d = new Date(OS.state.date);
         d.setDate(d.getDate() + 1);
         OS.state.date = d;
+        // ❷ 날짜 변경 시 첫 렌더 플래그 reset
+        if (typeof OS.resetTideFirstRender === 'function') OS.resetTideFirstRender();
         OS.renderHeader();
         if (OS.loadAllForDate) OS.loadAllForDate();
         // [시트 슬라이더 동기]
