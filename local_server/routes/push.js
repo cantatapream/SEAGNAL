@@ -457,7 +457,13 @@ router.post('/api/push-custom', async (req, res) => {
             count: successCount,
             status: 'sent',
             type: req.body.type || 'manual',
-            tab: isManualGroupSend ? (payload.templateId && payload.templateId.startsWith('level_') ? 'level' : (payload.templateId || 'active')) : 'custom',
+            tab: isManualGroupSend
+                ? (payload.templateId && payload.templateId.startsWith('level_')
+                    ? 'level'
+                    : (payload.templateId === 'time_ef_change' || payload.templateId === 'time_yn_change'
+                        ? 'change-time'
+                        : (payload.templateId || 'active')))
+                : 'custom',
             tmRef: isManualGroupSend ? (payload.items[0].tmFc || payload.items[0].tmEf || '') : ''
         };
         history.unshift(newLog);
