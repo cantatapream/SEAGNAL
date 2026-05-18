@@ -61,8 +61,21 @@ window.getMarineZoneData = async function (zoneId) {
     }
 
     try {
-        // 로컬 서버에서 데이터 가져오기
-        const response = await fetch('/api/marine-zone-forecasts');
+        // ============================================================
+        // [성능 최적화 — 4순위] 단일 해구 라우트 사용
+        // ------------------------------------------------------------
+        // 예전: /api/marine-zone-forecasts        (전체 5.86 MB 다운로드)
+        // 지금: /api/marine-zone-forecasts/:zone  (해당 zone 1개만, 약 30 KB)
+        //
+        // 모달은 사용자가 클릭한 단 1개 해구만 보여주므로 전체 응답을 받을 필요 없음.
+        // 서버는 dataCache.zoneForecasts.data[lZone] 만 골라 똑같은 구조로 응답해 주므로
+        // 아래의 json.data[lZone] 파싱 로직은 그대로 사용할 수 있다.
+        //
+        // 참고: zone_avg.js / surfing1.js 는 전체 데이터를 자체 가공하므로
+        //       여전히 기존 /api/marine-zone-forecasts (전체 dump) 라우트를 사용한다.
+        //       즉, 두 라우트가 공존하며 서로 영향 주지 않는다.
+        // ============================================================
+        const response = await fetch(`/api/marine-zone-forecasts/${encodeURIComponent(lZone)}`);
         if (!response.ok) throw new Error('로컬 서버 응답 오류');
 
         const json = await response.json();

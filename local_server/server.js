@@ -37,9 +37,23 @@
 const { app, PORT, staticRoot, UPLOAD_DIR } = require('./config/server_config');
 const express = require('express');
 const path = require('path');
+const { spawn } = require('child_process');
 const cron = require('node-cron');
-const compression = require('compression');
+const expressStaticGzip = require('express-static-gzip');
 const cloudBackup = require('./cloud_backup');
+
+// ============================================================================
+// 백그라운드 정적 자원 사전 압축 프로세스 핸들 (graceful shutdown 에서 cleanup)
+// ----------------------------------------------------------------------------
+// build-gzip.js 는 더 이상 npm prestart 훅으로 동기 실행되지 않는다 (옵션 B).
+// 대신 app.listen() 직후 spawn 으로 자식 프로세스에서 실행하여 서버 부팅과
+// 헬스체크를 막지 않는다. 빌드 완료 전 들어온 요청은 express-static-gzip
+// 의 자동 fallback 으로 원본 파일이 응답되므로 정상 처리된다 (= 첫 사용자
+// 일부는 비압축 응답을 받을 수 있음, 의도된 trade-off).
+//
+// 핸들을 전역으로 보관해 SIGTERM/SIGINT 수신 시 자식도 함께 종료한다.
+// ============================================================================
+let _buildGzipChild = null;
 
 // 서비스 초기화 (import 시 자동으로 캐시 갱신 시작, 업로드 설정 완료)
 require('./services/cache_manager');
@@ -48,43 +62,60 @@ require('./services/upload_manager');
 // ============================================================================
 // 1-A. HTTP 응답 압축 (gzip/brotli)
 // ============================================================================
-// [목적]
-//   라우트/정적파일이 응답하기 전에 등록되어, 모든 텍스트 기반 응답
-//   (HTML, JS, CSS, JSON 등) 을 자동으로 gzip 압축합니다.
+// [현재 구조 — 5순위 작업으로 변경됨]
+//   compression() 미들웨어는 이제 config/server_config.js 에서 단 1회만
+//   등록되며, 정적 자원 경로(/assets/, /js/, /css/, /images/, /tide_data/)
+//   는 filter 에서 제외됨. 즉 동적 응답(/, /api/*, /uploads/* 등) 만
+//   실시간 gzip 압축한다.
 //
-// [효과 - A안 자체호스팅 보완]
-//   외부 CDN 시절엔 CDN 이 자동 압축을 해줬는데, vendor/ 로 자체호스팅
-//   하면서 이 혜택을 잃었음. 이 미들웨어로 회복:
-//     ol.js        808KB → ~250KB (-69%)
-//     hls.min.js   413KB → ~120KB (-71%)
-//     fonts.css    340KB → ~50KB  (-85%)
-//     기타 라이브러리 평균 -70%
-//
-// [자동 처리]
-//   - 클라이언트 Accept-Encoding 헤더에 따라 gzip/deflate 협상
-//   - text/html, application/javascript, text/css 등 텍스트 자동 압축
-//   - woff2/png/jpg 등 이미 압축된 바이너리는 자동 스킵 (Content-Type 기반)
-//   - 1KB 미만 작은 응답은 압축 안 함 (네트워크 비용 < CPU 비용)
-//   - Vary: Accept-Encoding 헤더 자동 추가
-//
-// [등록 위치 중요]
-//   express.static 과 모든 라우트보다 먼저 등록해야 그 응답들이 압축됨.
+//   정적 자원은 아래 2. 의 expressStaticGzip 이 빌드 타임에 미리 만들어 둔
+//   .gz / .br (build-gzip.js 가 prestart 에서 생성) 를 그대로 전송하므로
+//   서버는 더 이상 매 요청마다 압축할 필요가 없다 → 요청당 80~100ms CPU 절약.
 // ============================================================================
-app.use(compression());
 
 // ============================================================================
-// 2. 정적 파일 서빙
+// 2. 정적 파일 서빙 (사전 압축 .gz / .br 우선)
 // ============================================================================
-// [중요] { index: false } 로 express.static 의 자동 디렉터리 인덱스 응답을 차단.
-//        기본값(true) 이면 GET / 요청에 대해 staticRoot/index.html 을 자동으로
-//        먼저 내려보내 버려서, 아래 routes/health.js 의 router.get('/') 가
-//        호출되지 않음. → 기본 진입점을 index2.html 로 전환하려면 반드시 필요.
-//        개별 파일 이름이 URL 로 오는 경우(예: /index.html, /index2.html) 는
-//        이 옵션과 무관하게 그대로 서빙되므로 롤백 경로(/index.html)는 보존됨.
-app.use(express.static(staticRoot, { index: false }));
-app.use(express.static(path.join(staticRoot, 'assets'), { index: false }));
-app.use('/images', express.static(path.join(staticRoot, 'images')));
-app.use('/tide_data', express.static(path.join(staticRoot, 'tide_data')));
+// [왜 바꿨나]
+//   기존엔 express.static + compression() 이 매 요청마다 정적 자원을
+//   실시간 gzip 압축했음. CPU 1 코어를 차지하는 무거운 작업이라 동시
+//   접속자가 늘면 서버 응답이 느려졌다.
+//
+//   express-static-gzip 은 같은 디렉토리에 미리 만들어 둔 <원본>.br /
+//   <원본>.gz 가 있으면, 클라이언트의 Accept-Encoding 헤더에 맞춰
+//   그 압축본을 그대로 전송한다 (Content-Encoding 헤더 자동 부착).
+//   미리 만들어 둔 파일이 없으면 자동으로 원본을 응답하므로 fallback 안전.
+//
+// [동작 원리 — express-static-gzip]
+//   요청: GET /js/forecast.js,  Accept-Encoding: br, gzip
+//   → forecast.js.br 존재 시 그 파일 + Content-Encoding: br
+//   → 없으면 forecast.js.gz + Content-Encoding: gzip
+//   → 그것도 없으면 forecast.js 원본
+//   → ETag / Last-Modified 는 원본 기준으로 정확히 설정됨 → 304 정상 동작
+//
+// [중요 — index: false]
+//   GET / 요청에 대해 staticRoot/index.html 을 자동으로 응답해 버리면
+//   routes/health.js 의 동적 점검 인젝션이 무시된다. 따라서 모든 정적
+//   루트에 { index: false } 를 그대로 유지.
+//
+// [/uploads — 사전 압축 제외]
+//   업로드는 사용자 동적 파일이라 빌드 시 압축 대상이 아니다. 따라서
+//   기존 express.static + compression() 으로 실시간 응답 / 압축 유지.
+// ============================================================================
+const STATIC_GZIP_OPTS = {
+    enableBrotli: true,
+    orderPreference: ['br', 'gz'],          // brotli 우선, 없으면 gzip
+    index: false                            // 동적 GET / 우선 보장
+};
+
+app.use(expressStaticGzip(staticRoot, STATIC_GZIP_OPTS));
+app.use(expressStaticGzip(path.join(staticRoot, 'assets'), STATIC_GZIP_OPTS));
+app.use('/images', expressStaticGzip(path.join(staticRoot, 'images'), STATIC_GZIP_OPTS));
+app.use('/tide_data', expressStaticGzip(path.join(staticRoot, 'tide_data'), STATIC_GZIP_OPTS));
+
+// /uploads — 동적 업로드 파일은 사전 압축 대상이 아니므로 그대로 express.static.
+// compression() 필터(/assets·/js·/css·/images·/tide_data 만 제외)에는 포함되어
+// 텍스트형 업로드(예: .json) 응답 시 실시간 압축이 정상 적용된다.
 app.use('/uploads', express.static(UPLOAD_DIR));
 app.use('/uploads/reports', express.static(path.join(UPLOAD_DIR, 'reports')));
 
@@ -174,6 +205,31 @@ function _gracefulShutdown(signal) {
     } catch (e) {
         console.error('[shutdown] saveTideBedConfig flush 실패:', e && e.message);
     }
+    // [추가] 방문 통계 메모리 큐를 디스크에 동기 flush.
+    //   - routes/stats.js 의 /api/visit 는 더 이상 매 요청마다 디스크에 쓰지 않고,
+    //     services/visit_queue.js 의 메모리 카운터만 갱신합니다 (5초마다 비동기 flush).
+    //   - 따라서 SIGTERM 직후 flush 가 안 되면 최대 5초치 카운트가 유실될 수 있어,
+    //     여기서 동기 flushSync 로 보장합니다. 데이터 손실 0.
+    try {
+        const visitQueue = require('./services/visit_queue');
+        if (typeof visitQueue.flushSync === 'function') {
+            visitQueue.flushSync();
+        }
+    } catch (e) {
+        console.error('[shutdown] visitQueue flushSync 실패:', e && e.message);
+    }
+    // [추가] 백그라운드 빌드(build-gzip) 자식 프로세스가 아직 살아있다면 함께 종료.
+    //   - 부팅 직후 종료가 빠르게 일어나면 압축이 진행 중일 수 있고, 좀비 프로세스로
+    //     남으면 컨테이너 종료 grace period 가 지나 SIGKILL 로 강제 종료될 위험이 있다.
+    //   - SIGTERM 을 먼저 보내 정상 종료 기회를 주고, 핸들 참조를 끊는다.
+    try {
+        if (_buildGzipChild && _buildGzipChild.exitCode === null && !_buildGzipChild.killed) {
+            _buildGzipChild.kill('SIGTERM');
+            console.log('🛑 [shutdown] build-gzip 자식 프로세스 SIGTERM 전송.');
+        }
+    } catch (e) {
+        console.error('[shutdown] build-gzip 종료 실패:', e && e.message);
+    }
     console.log(`🛑 ${signal} 수신 — graceful shutdown.`);
     process.exit(0);
 }
@@ -212,6 +268,45 @@ app.listen(PORT, '0.0.0.0', () => {
             }
         } catch (e) {
             console.error('[startup] CCTV 초기수집 트리거 실패:', e && e.message);
+        }
+
+        // ====================================================================
+        // [옵션 B] 정적 자원 사전 압축(build-gzip) 백그라운드 실행
+        // --------------------------------------------------------------------
+        // 과거: package.json 의 prestart 훅에서 동기 실행 (~26초 소요).
+        //       Fly.io 헬스체크가 부팅 30초 내에 응답을 기대하므로 빠듯했다.
+        // 현재: listen() 완료 후 자식 프로세스에서 비동기로 실행.
+        //   - 서버는 즉시 응답 가능 → 헬스체크 안전.
+        //   - 빌드 완료 전 정적 자원 요청이 오면 .gz/.br 가 없어
+        //     express-static-gzip 이 원본 파일로 자동 fallback (정상 응답).
+        //   - mtime 비교로 이미 최신이면 빠르게 종료하므로 재시작 부담 미미.
+        //   - 자식 stdout/stderr 는 메인 로그로 그대로 흘려보낸다.
+        //   - 자식 실패해도 서버는 계속 가동 (압축본 없는 상태로 동작).
+        // ====================================================================
+        try {
+            _buildGzipChild = spawn(process.execPath, [path.join(__dirname, 'build-gzip.js')], {
+                cwd: __dirname,
+                stdio: ['ignore', 'inherit', 'inherit'],
+                env: process.env,
+            });
+            _buildGzipChild.on('exit', (code, signal) => {
+                if (signal) {
+                    console.log(`[build-gzip] 자식 프로세스 종료 (signal=${signal})`);
+                } else if (code === 0) {
+                    console.log('[build-gzip] 자식 프로세스 정상 종료');
+                } else {
+                    console.error(`[build-gzip] 자식 프로세스 비정상 종료 (code=${code})`);
+                }
+                _buildGzipChild = null;
+            });
+            _buildGzipChild.on('error', (err) => {
+                console.error('[build-gzip] spawn 오류:', err && err.message);
+                _buildGzipChild = null;
+            });
+            console.log(`[build-gzip] 백그라운드 빌드 시작 (pid=${_buildGzipChild.pid})`);
+        } catch (e) {
+            console.error('[startup] build-gzip spawn 실패:', e && e.message);
+            _buildGzipChild = null;
         }
     });
 });

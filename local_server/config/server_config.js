@@ -64,7 +64,31 @@ app.use(cors());
 //   - server.js → 라우트 응답이 자동 압축됨 (라우트 코드 변경 불필요)
 //   - routes/* → 응답 본문은 그대로 작성, 압축은 미들웨어가 처리
 //   - X-Data-* 헤더 (services/freshness.js) 와 함께 동작 — 헤더는 비압축, 본문만 압축
-app.use(compression());
+//
+// [5순위 갱신 — 정적 자원 사전 압축 도입]
+//   server.js 의 정적 자원은 이제 express-static-gzip 으로 빌드된 .gz / .br
+//   를 그대로 전송한다 (build-gzip.js 가 prestart 에서 미리 생성). 따라서
+//   여기 compression() 은 "정적 자원이 아닌 동적 응답만" 압축해야 중복 압축
+//   / CPU 낭비를 막을 수 있다.
+//
+//   필터 규칙:
+//     - 정적 자원 경로 (/assets/, /js/, /css/, /images/, /tide_data/) → false
+//       (express-static-gzip 이 사전 압축본을 응답하므로 통과)
+//     - 그 외 (동적 GET /, API /api/*, /uploads/* 등) → compression.filter
+//       (기본 동작 = Accept-Encoding + Content-Type 으로 자동 판단)
+//
+//   /uploads/* 는 사용자 업로드 동적 파일이라 사전 압축 대상이 아니므로
+//   여기서 실시간 압축을 그대로 유지한다.
+const STATIC_PREFIXES = ['/assets/', '/js/', '/css/', '/images/', '/tide_data/'];
+app.use(compression({
+    filter: (req, res) => {
+        const p = req.path || '';
+        for (const prefix of STATIC_PREFIXES) {
+            if (p.startsWith(prefix)) return false;
+        }
+        return compression.filter(req, res);
+    }
+}));
 // [limit: 5mb]
 //   Quill 에디터에 이미지를 paste / drop / 파일선택으로 삽입하면 base64 인라인
 //   방식으로 본문 HTML 에 섞여 들어감. 클라이언트 측에서 js/image_compress.js
