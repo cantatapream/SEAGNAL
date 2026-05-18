@@ -125,7 +125,7 @@
         var stroke;
         if (isSelected) {
             // 선택 강조: ocean_warn_zone.js OFF 상태 메인 outline 색(노란) 사용
-            // 굵기·실선으로 종류 색(초록/카키/빨강) 위에서도 또렷이 식별
+            // 굵기·실선으로 종류 색(초록/빨강) 위에서도 또렷이 식별
             stroke = new ol.style.Stroke({
                 color: 'rgba(255, 200, 80, 0.95)',
                 width: 2.5,

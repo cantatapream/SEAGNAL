@@ -249,15 +249,15 @@ router.post('/api/admin/report-collect', async (req, res) => {
         const rawText = await reportProcessor.fetchReportDetail(reportId);
         if (!rawText) return res.json({ success: false, rawText: '', aiResult: [], message: '통보문 내용을 가져올 수 없습니다.' });
 
-        // 2. 키워드 필터링
-        const RELEVANT_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
+        // 2. 키워드 필터링 (폭풍해일은 수집 대상이 아니므로 제외)
+        const RELEVANT_KEYWORDS = ['풍랑', '태풍', '지진해일'];
         const foundKeywords = RELEVANT_KEYWORDS.filter(kw => rawText.includes(kw));
 
         if (foundKeywords.length === 0) {
             return res.json({
                 success: true, reportId, title, rawText,
                 aiResult: [], foundKeywords: [],
-                message: '해상 특보 키워드(풍랑/태풍/지진해일/폭풍해일)가 포함되지 않은 통보문입니다.',
+                message: '해상 특보 키워드(풍랑/태풍/지진해일)가 포함되지 않은 통보문입니다.',
                 applied: false
             });
         }
@@ -265,7 +265,8 @@ router.post('/api/admin/report-collect', async (req, res) => {
         // 3. AI 분석 (번호별 항목 분리 포함)
         const baseDate = extractTmFcFromReportId(reportId);
         const aiParsed = await aiParser.parseNoticeWithAI(rawText, baseDate);
-        const aiResult = aiParsed.data || [];
+        // 폭풍해일 이벤트는 수집 제외 — AI가 반환해도 결과/장부 반영에서 모두 제거
+        const aiResult = (aiParsed.data || []).filter(ev => !(ev && (ev.type || '').includes('폭풍해일')));
         const aiError = aiParsed.error || null;
         const separatedText = aiParsed.separatedText || null;
 
@@ -982,7 +983,8 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
         for (const report of reports) {
             try {
                 const rawText = await reportProcessor.fetchReportDetail(report.id);
-                const RELEVANT_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
+                // 폭풍해일은 수집 대상이 아니므로 키워드에서 제외
+                const RELEVANT_KEYWORDS = ['풍랑', '태풍', '지진해일'];
                 const foundKeywords = RELEVANT_KEYWORDS.filter(kw => rawText.includes(kw));
 
                 if (foundKeywords.length === 0) {
@@ -992,7 +994,8 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
 
                 const baseDate = extractTmFcFromReportId(report.id);
                 const aiParsed = await aiParser.parseNoticeWithAI(rawText, baseDate);
-                const aiResult = aiParsed.data || [];
+                // 폭풍해일 이벤트 방어 필터 (수집 제외)
+                const aiResult = (aiParsed.data || []).filter(ev => !(ev && (ev.type || '').includes('폭풍해일')));
                 const aiError = aiParsed.error || null;
 
                 // 장부 반영

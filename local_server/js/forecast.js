@@ -1370,7 +1370,7 @@ function showWeatherAlertInfoPopup() {
                         <i class="fa-solid fa-database"></i> 제공정보 (기상청 API 등)
                     </div>
                     <ul class="info-list">
-                        <li>각 해역 특보구역별 특보(태풍, 풍랑, 폭풍해일, 지진해일) 현황 및 변경사항</li>
+                        <li>각 해역 특보구역별 특보(태풍, 풍랑, 지진해일) 현황 및 변경사항</li>
                         <li>특보구역 내 위치 중인 부이의 관측 데이터 (매시간 발표)</li>
                         <li>앞바다의 기상예보 (05시, 17시 발표)</li>
                         <li>해구별 기상전망</li>
