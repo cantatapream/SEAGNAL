@@ -376,12 +376,18 @@
         }
         OS.state._tideRenderState = null;
 
-        // 상태 초기화: 시트가 열릴 때는 배경 layerSlider 위치와 무관하게
-        // 항상 현재 시각 (real now) 으로 시작. (사용자 결정 ❶)
+        // 상태 초기화: 배경 layerSlider 가 옮겨져 있으면 그 시점의 데이터를 표시
+        // (사용자가 슬라이더로 미래 시점 해역 상황을 보다가 해점을 클릭하는 흐름을 보존).
         OS.state.lat = lat;
         OS.state.lon = lon;
         OS.state.date = new Date();
         var tlSlider = document.getElementById('ocean-timeline-slider');
+        if (tlSlider) {
+            var tlHours = parseFloat(tlSlider.value);
+            if (!isNaN(tlHours) && tlHours > 0) {
+                OS.state.date = new Date(OS.state.date.getTime() + tlHours * 3600000);
+            }
+        }
 
         // 시트 표시 (살짝 지연 후 transition 클래스 부여)
         sheet.style.display = 'block';
@@ -414,10 +420,11 @@
         // - initZoneMax = 레이어 슬라이더 max (wave/wind 활성 시 이미 maxForecastHours 반영)
         //   정확한 wave/wind 한계는 zone-forecasts 비동기 호출 후 STL.setMaxHours 로 갱신
         if (OS.SheetTL && typeof OS.SheetTL.init === 'function') {
-            // ❶ 시트 슬라이더는 항상 0 (현재 시각) 으로 초기화 — layerSlider.value 무시.
+            // 시트 슬라이더 시작값을 배경 layerSlider 위치에 맞춤.
             var initLayerHours = 0;
             var initZoneMax = 72;
             if (tlSlider) {
+                initLayerHours = parseFloat(tlSlider.value) || 0;
                 initZoneMax = parseFloat(tlSlider.max) || 72;
             }
             OS.SheetTL.init(initLayerHours, initZoneMax);
