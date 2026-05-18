@@ -38,7 +38,7 @@ const { app, PORT, staticRoot, UPLOAD_DIR } = require('./config/server_config');
 const express = require('express');
 const path = require('path');
 const cron = require('node-cron');
-const compression = require('compression');
+const expressStaticGzip = require('express-static-gzip');
 const cloudBackup = require('./cloud_backup');
 
 // 서비스 초기화 (import 시 자동으로 캐시 갱신 시작, 업로드 설정 완료)
@@ -48,43 +48,60 @@ require('./services/upload_manager');
 // ============================================================================
 // 1-A. HTTP 응답 압축 (gzip/brotli)
 // ============================================================================
-// [목적]
-//   라우트/정적파일이 응답하기 전에 등록되어, 모든 텍스트 기반 응답
-//   (HTML, JS, CSS, JSON 등) 을 자동으로 gzip 압축합니다.
+// [현재 구조 — 5순위 작업으로 변경됨]
+//   compression() 미들웨어는 이제 config/server_config.js 에서 단 1회만
+//   등록되며, 정적 자원 경로(/assets/, /js/, /css/, /images/, /tide_data/)
+//   는 filter 에서 제외됨. 즉 동적 응답(/, /api/*, /uploads/* 등) 만
+//   실시간 gzip 압축한다.
 //
-// [효과 - A안 자체호스팅 보완]
-//   외부 CDN 시절엔 CDN 이 자동 압축을 해줬는데, vendor/ 로 자체호스팅
-//   하면서 이 혜택을 잃었음. 이 미들웨어로 회복:
-//     ol.js        808KB → ~250KB (-69%)
-//     hls.min.js   413KB → ~120KB (-71%)
-//     fonts.css    340KB → ~50KB  (-85%)
-//     기타 라이브러리 평균 -70%
-//
-// [자동 처리]
-//   - 클라이언트 Accept-Encoding 헤더에 따라 gzip/deflate 협상
-//   - text/html, application/javascript, text/css 등 텍스트 자동 압축
-//   - woff2/png/jpg 등 이미 압축된 바이너리는 자동 스킵 (Content-Type 기반)
-//   - 1KB 미만 작은 응답은 압축 안 함 (네트워크 비용 < CPU 비용)
-//   - Vary: Accept-Encoding 헤더 자동 추가
-//
-// [등록 위치 중요]
-//   express.static 과 모든 라우트보다 먼저 등록해야 그 응답들이 압축됨.
+//   정적 자원은 아래 2. 의 expressStaticGzip 이 빌드 타임에 미리 만들어 둔
+//   .gz / .br (build-gzip.js 가 prestart 에서 생성) 를 그대로 전송하므로
+//   서버는 더 이상 매 요청마다 압축할 필요가 없다 → 요청당 80~100ms CPU 절약.
 // ============================================================================
-app.use(compression());
 
 // ============================================================================
-// 2. 정적 파일 서빙
+// 2. 정적 파일 서빙 (사전 압축 .gz / .br 우선)
 // ============================================================================
-// [중요] { index: false } 로 express.static 의 자동 디렉터리 인덱스 응답을 차단.
-//        기본값(true) 이면 GET / 요청에 대해 staticRoot/index.html 을 자동으로
-//        먼저 내려보내 버려서, 아래 routes/health.js 의 router.get('/') 가
-//        호출되지 않음. → 기본 진입점을 index2.html 로 전환하려면 반드시 필요.
-//        개별 파일 이름이 URL 로 오는 경우(예: /index.html, /index2.html) 는
-//        이 옵션과 무관하게 그대로 서빙되므로 롤백 경로(/index.html)는 보존됨.
-app.use(express.static(staticRoot, { index: false }));
-app.use(express.static(path.join(staticRoot, 'assets'), { index: false }));
-app.use('/images', express.static(path.join(staticRoot, 'images')));
-app.use('/tide_data', express.static(path.join(staticRoot, 'tide_data')));
+// [왜 바꿨나]
+//   기존엔 express.static + compression() 이 매 요청마다 정적 자원을
+//   실시간 gzip 압축했음. CPU 1 코어를 차지하는 무거운 작업이라 동시
+//   접속자가 늘면 서버 응답이 느려졌다.
+//
+//   express-static-gzip 은 같은 디렉토리에 미리 만들어 둔 <원본>.br /
+//   <원본>.gz 가 있으면, 클라이언트의 Accept-Encoding 헤더에 맞춰
+//   그 압축본을 그대로 전송한다 (Content-Encoding 헤더 자동 부착).
+//   미리 만들어 둔 파일이 없으면 자동으로 원본을 응답하므로 fallback 안전.
+//
+// [동작 원리 — express-static-gzip]
+//   요청: GET /js/forecast.js,  Accept-Encoding: br, gzip
+//   → forecast.js.br 존재 시 그 파일 + Content-Encoding: br
+//   → 없으면 forecast.js.gz + Content-Encoding: gzip
+//   → 그것도 없으면 forecast.js 원본
+//   → ETag / Last-Modified 는 원본 기준으로 정확히 설정됨 → 304 정상 동작
+//
+// [중요 — index: false]
+//   GET / 요청에 대해 staticRoot/index.html 을 자동으로 응답해 버리면
+//   routes/health.js 의 동적 점검 인젝션이 무시된다. 따라서 모든 정적
+//   루트에 { index: false } 를 그대로 유지.
+//
+// [/uploads — 사전 압축 제외]
+//   업로드는 사용자 동적 파일이라 빌드 시 압축 대상이 아니다. 따라서
+//   기존 express.static + compression() 으로 실시간 응답 / 압축 유지.
+// ============================================================================
+const STATIC_GZIP_OPTS = {
+    enableBrotli: true,
+    orderPreference: ['br', 'gz'],          // brotli 우선, 없으면 gzip
+    index: false                            // 동적 GET / 우선 보장
+};
+
+app.use(expressStaticGzip(staticRoot, STATIC_GZIP_OPTS));
+app.use(expressStaticGzip(path.join(staticRoot, 'assets'), STATIC_GZIP_OPTS));
+app.use('/images', expressStaticGzip(path.join(staticRoot, 'images'), STATIC_GZIP_OPTS));
+app.use('/tide_data', expressStaticGzip(path.join(staticRoot, 'tide_data'), STATIC_GZIP_OPTS));
+
+// /uploads — 동적 업로드 파일은 사전 압축 대상이 아니므로 그대로 express.static.
+// compression() 필터(/assets·/js·/css·/images·/tide_data 만 제외)에는 포함되어
+// 텍스트형 업로드(예: .json) 응답 시 실시간 압축이 정상 적용된다.
 app.use('/uploads', express.static(UPLOAD_DIR));
 app.use('/uploads/reports', express.static(path.join(UPLOAD_DIR, 'reports')));
 
