@@ -40,9 +40,313 @@
     var POLL_MAX_TRIES = 120; // 60초
 
     /* --------------------------------------------------------------
+     * [조석 멀티 데이 캐시 — 2026-05]
+     *
+     * 사용자 의도:
+     *   1) 같은 해점 + 같은 날 시간 이동:
+     *      조석 정보(고저조 시각/조위) 변화 X, 게이지/예상조위만 변화 → API 호출 X
+     *   2) 같은 해점 + 다른 날짜 갔다가 처음 캐시한 날짜로 복귀:
+     *      처음 캐시한 데이터 그대로 재사용 → API 호출 X
+     *   3) 같은 해점에서 새 날짜 첫 방문:
+     *      API 호출 후 days[dayKey] 에 누적 저장 (이전 날짜 캐시 유지)
+     *   4) 다른 해점 선택:
+     *      캐시 통째 reset
+     *
+     * 구조:
+     *   OS.state._tideMultiDayCache = {
+     *       lat:  Number,   // 캐시 키 — 좌표 변경 시 통째 invalidate
+     *       lon:  Number,
+     *       days: {
+     *           'YYYY-MM-DD': {
+     *               data:      Object,   // /data/tide_*.json 원본 (renderTideData 입력)
+     *               isIdw:     Boolean,  // 동해북부 IDW 결과 여부
+     *               neighbors: Object    // { yesterday, tomorrow, lat, lon }
+     *           }, ...
+     *       }
+     *   }
+     *
+     *   renderTideData 가 매번 peaks 를 재계산하므로 raw data 만 보관하면 충분.
+     *   별도로 다음/현재/이전 day 의 peaks 가 필요한 게이지 계산은
+     *   refreshTideGaugeForTime 에서 days[dayKey], days[prevKey], days[nextKey] 를
+     *   조합해 동적으로 산출한다.
+     *
+     * [차등 캐싱 — 2026-05 사용자 합의]
+     *   - 비즐겨찾기 해점: 메모리 캐시(OS.state._tideMultiDayCache)만 사용.
+     *     바텀시트 닫힐 때 dropMemoryCacheIfNotFavorite() 에서 폐기.
+     *   - 즐겨찾기 해점: localStorage('tideCache:v1') 에 영속 저장.
+     *     dayKey 만료(어제/오늘/내일 이외) 자동 purge, 50 point LRU evict.
+     *   - 즐겨찾기 추가/해제 시 promoteMemoryCacheToPersist / dropFromPersist 호출.
+     * ------------------------------------------------------------ */
+
+    /* localStorage 영속 캐시 — 즐겨찾기 해점 전용. 키 형식:
+     *   { '<lat5>_<lon5>': { days: { 'YYYY-MM-DD': {data,isIdw,neighbors}, ... },
+     *                        lastUsed: <ms> }, ... }
+     */
+    var PERSIST_KEY = 'tideCache:v1';
+    var MAX_PERSIST_POINTS = 50;
+
+    /** 좌표 양자화 키 — 5소수점 (≈1m). pointKey 와 round 가 동일해야 캐시 hit. */
+    function pointKey(lat, lon) {
+        return (Math.round(lat * 100000) / 100000) + '_' +
+               (Math.round(lon * 100000) / 100000);
+    }
+
+    /**
+     * 즐겨찾기 해점인지 동기 판정.
+     * ocean_cctv.js 의 window.oceanFav.locationFindNear 는 반경 500m 매칭.
+     * 미로드(예: index1) 환경에서는 항상 false → localStorage 미사용.
+     */
+    function isFavoritePoint(lat, lon) {
+        try {
+            if (window.oceanFav && typeof window.oceanFav.locationFindNear === 'function') {
+                return !!window.oceanFav.locationFindNear(lat, lon);
+            }
+        } catch (e) { /* ignore */ }
+        return false;
+    }
+
+    /**
+     * localStorage 에서 영속 캐시 load — 만료 dayKey 자동 purge.
+     * 만료 기준: dayKey < 어제 (yKey). 오늘/내일 이후만 유지.
+     */
+    function loadPersistCache() {
+        try {
+            var raw = localStorage.getItem(PERSIST_KEY);
+            if (!raw) return {};
+            var parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object') return {};
+            var today = new Date();
+            var yKey = dayKeyOf(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1));
+            var changed = false;
+            for (var pk in parsed) {
+                if (!Object.prototype.hasOwnProperty.call(parsed, pk)) continue;
+                var pt = parsed[pk];
+                if (!pt || !pt.days) { delete parsed[pk]; changed = true; continue; }
+                for (var dk in pt.days) {
+                    if (!Object.prototype.hasOwnProperty.call(pt.days, dk)) continue;
+                    if (dk < yKey) { delete pt.days[dk]; changed = true; }
+                }
+                if (!Object.keys(pt.days).length) {
+                    delete parsed[pk];
+                    changed = true;
+                }
+            }
+            if (changed) savePersistCache(parsed);
+            return parsed;
+        } catch (e) {
+            return {};
+        }
+    }
+
+    /** localStorage 에 영속 캐시 save — quota 초과 등 실패는 silent. */
+    function savePersistCache(obj) {
+        try { localStorage.setItem(PERSIST_KEY, JSON.stringify(obj)); }
+        catch (e) { /* quota 초과 등 silent */ }
+    }
+
+    /**
+     * 즐겨찾기 신규 추가 시 호출 — 메모리 캐시 _tideMultiDayCache 통째 localStorage 로 승격.
+     * (lat,lon) 이 현재 메모리 캐시 좌표와 일치할 때만 승격. 좌표는 5소수점 round.
+     */
+    OS.promoteMemoryCacheToPersist = function (lat, lon) {
+        var c = OS.state && OS.state._tideMultiDayCache;
+        if (!c) return;
+        var rLat = Math.round(lat * 100000) / 100000;
+        var rLon = Math.round(lon * 100000) / 100000;
+        var cLat = Math.round(c.lat * 100000) / 100000;
+        var cLon = Math.round(c.lon * 100000) / 100000;
+        if (rLat !== cLat || rLon !== cLon) return;
+        var persist = loadPersistCache();
+        var pk = pointKey(lat, lon);
+        var daysCopy = {};
+        for (var k in c.days) {
+            if (Object.prototype.hasOwnProperty.call(c.days, k)) daysCopy[k] = c.days[k];
+        }
+        persist[pk] = { days: daysCopy, lastUsed: Date.now() };
+        // LRU evict — 50 point 초과 시 lastUsed 오래된 항목부터 제거
+        var entries = Object.keys(persist).map(function (k) {
+            return [k, persist[k].lastUsed || 0];
+        });
+        if (entries.length > MAX_PERSIST_POINTS) {
+            entries.sort(function (a, b) { return b[1] - a[1]; });
+            for (var i = MAX_PERSIST_POINTS; i < entries.length; i++) {
+                delete persist[entries[i][0]];
+            }
+        }
+        savePersistCache(persist);
+    };
+
+    /** 즐겨찾기 해제 시 호출 — localStorage 의 해당 좌표 항목 삭제. */
+    OS.dropFromPersist = function (lat, lon) {
+        var persist = loadPersistCache();
+        delete persist[pointKey(lat, lon)];
+        savePersistCache(persist);
+    };
+
+    /**
+     * 바텀시트 닫힐 때 호출 — 비즐겨찾기 해점이면 메모리 캐시 폐기.
+     * 즐겨찾기 해점은 메모리 캐시 그대로 유지 (다음 오픈 시 prefill 없이 즉시 hit).
+     * _tideRenderState 는 항상 clear (다른 좌표 재오픈 시 stale 차단).
+     */
+    OS.dropMemoryCacheIfNotFavorite = function () {
+        if (OS.state) {
+            var c = OS.state._tideMultiDayCache;
+            if (c && !isFavoritePoint(c.lat, c.lon)) {
+                OS.state._tideMultiDayCache = null;
+            }
+            OS.state._tideRenderState = null;
+        }
+    };
+
+    /**
+     * 좌표가 즐겨찾기면 localStorage 에서 메모리 캐시로 prefill.
+     * 시트 오픈 시 다른 좌표일 때 호출 — _tideMultiDayCache 가 null 인 상태에서
+     * localStorage 항목이 있으면 그 days 를 메모리에 복사 (API 호출 skip 가능).
+     */
+    OS.prefillMemoryCacheFromPersist = function (lat, lon) {
+        if (!OS.state) return;
+        if (!isFavoritePoint(lat, lon)) return;
+        var persist = loadPersistCache();
+        var pk = pointKey(lat, lon);
+        var pt = persist[pk];
+        if (!pt || !pt.days || !Object.keys(pt.days).length) return;
+        var daysCopy = {};
+        for (var k in pt.days) {
+            if (Object.prototype.hasOwnProperty.call(pt.days, k)) daysCopy[k] = pt.days[k];
+        }
+        OS.state._tideMultiDayCache = { lat: lat, lon: lon, days: daysCopy };
+        // lastUsed 갱신 — LRU evict 기준
+        pt.lastUsed = Date.now();
+        savePersistCache(persist);
+    };
+    /** dateObj → 'YYYY-MM-DD' (0-padded). dayKey 비교용. */
+    function dayKeyOf(dateObj) {
+        return dateObj.getFullYear() + '-' +
+            String(dateObj.getMonth() + 1).padStart(2, '0') + '-' +
+            String(dateObj.getDate()).padStart(2, '0');
+    }
+
+    /** dayKey 'YYYY-MM-DD' → Date(0시 정각). dayDiff 산출용. */
+    function dayKeyToDate(key) {
+        var parts = key.split('-');
+        return new Date(parseInt(parts[0], 10),
+            parseInt(parts[1], 10) - 1,
+            parseInt(parts[2], 10));
+    }
+
+    /** dateObj 기준 ±N 일 dayKey 산출. neighbors 조합용. */
+    function shiftDayKey(dateObj, deltaDays) {
+        var d = new Date(dateObj.getFullYear(), dateObj.getMonth(),
+            dateObj.getDate() + deltaDays);
+        return dayKeyOf(d);
+    }
+
+    /**
+     * 좌표 (lat, lon) + dayKey 에 해당하는 캐시 엔트리 조회.
+     * 우선순위: 메모리 _tideMultiDayCache → localStorage (즐겨찾기 영속 캐시).
+     * 좌표는 5소수점 round 로 비교 (부동소수점 noise 로 인한 false-miss 방지).
+     */
+    function getCachedDay(lat, lon, key) {
+        var rLat = Math.round(lat * 100000) / 100000;
+        var rLon = Math.round(lon * 100000) / 100000;
+        var c = OS.state && OS.state._tideMultiDayCache;
+        if (c) {
+            var cLat = Math.round(c.lat * 100000) / 100000;
+            var cLon = Math.round(c.lon * 100000) / 100000;
+            if (cLat === rLat && cLon === rLon) {
+                var m = c.days[key];
+                if (m) return m;
+            }
+        }
+        // localStorage (즐겨찾기 영속 캐시) — 메모리 hit 없을 때만 fallback
+        try {
+            var persist = loadPersistCache();
+            var pt = persist[pointKey(lat, lon)];
+            if (pt && pt.days && pt.days[key]) return pt.days[key];
+        } catch (e) { /* ignore */ }
+        return null;
+    }
+
+    /**
+     * 캐시에 (lat, lon, dayKey, entry) 저장.
+     * 좌표가 다르면 days 통째 reset 후 새 좌표로 시작.
+     * 즐겨찾기 해점이면 localStorage 에도 동시 저장 (50 point LRU evict 적용).
+     */
+    function putCachedDay(lat, lon, key, entry) {
+        if (!OS.state) return;
+        var rLat = Math.round(lat * 100000) / 100000;
+        var rLon = Math.round(lon * 100000) / 100000;
+        var c = OS.state._tideMultiDayCache;
+        if (c) {
+            var cLat = Math.round(c.lat * 100000) / 100000;
+            var cLon = Math.round(c.lon * 100000) / 100000;
+            if (cLat !== rLat || cLon !== rLon) c = null;
+        }
+        if (!c) {
+            c = OS.state._tideMultiDayCache = { lat: lat, lon: lon, days: {} };
+        }
+        c.days[key] = entry;
+
+        // 즐겨찾기 해점이면 localStorage 에도 저장
+        if (isFavoritePoint(lat, lon)) {
+            try {
+                var persist = loadPersistCache();
+                var pk = pointKey(lat, lon);
+                if (!persist[pk]) persist[pk] = { days: {}, lastUsed: Date.now() };
+                persist[pk].days[key] = entry;
+                persist[pk].lastUsed = Date.now();
+                // LRU evict — 50 point 초과 시 lastUsed 오래된 항목부터 제거
+                var entries = Object.keys(persist).map(function (k) {
+                    return [k, persist[k].lastUsed || 0];
+                });
+                if (entries.length > MAX_PERSIST_POINTS) {
+                    entries.sort(function (a, b) { return b[1] - a[1]; });
+                    for (var i = MAX_PERSIST_POINTS; i < entries.length; i++) {
+                        delete persist[entries[i][0]];
+                    }
+                }
+                savePersistCache(persist);
+            } catch (e) { /* ignore quota */ }
+        }
+    }
+
+    /**
+     * (lat, lon, dayKey) 가 캐시되어 있는지 외부에서 조회.
+     * STL.onRelease 가 cache hit 여부 판단해 풀 fetch skip 결정에 사용.
+     * 메모리 + localStorage 둘 다 확인 (즐겨찾기 해점은 영속 캐시 hit 가능).
+     */
+    OS.hasTideCacheFor = function (lat, lon, dateObj) {
+        return !!getCachedDay(lat, lon, dayKeyOf(dateObj));
+    };
+
+    /* --------------------------------------------------------------
      * 외부 진입점: 조석 카드 로딩 시작
+     *
+     * [캐시 적용]
+     *   동일 (lat, lon, dayKey) 조합이 캐시되어 있으면 즉시 renderTideData 만
+     *   호출하고 API 호출은 skip. neighbors (어제/내일 데이터) 도 캐시에서 조합.
      * ------------------------------------------------------------ */
     OS.fetchTideForSheet = function (lat, lon, dateObj) {
+        // 캐시 hit — API 호출 없이 즉시 렌더
+        var key = dayKeyOf(dateObj);
+        var cached = getCachedDay(lat, lon, key);
+        if (cached) {
+            // neighbors 도 캐시에서 동적으로 조합 (저장 시점 neighbors 가 stale 일 수 있음).
+            // 저장된 neighbors 가 있으면 우선 사용, 없으면 days[prev/next] 에서 조합.
+            var neighbors = cached.neighbors || {};
+            var yKey = shiftDayKey(dateObj, -1);
+            var tKey = shiftDayKey(dateObj, +1);
+            var yCached = getCachedDay(lat, lon, yKey);
+            var tCached = getCachedDay(lat, lon, tKey);
+            var mergedNeighbors = {
+                yesterday: (yCached && yCached.data) || neighbors.yesterday || null,
+                tomorrow:  (tCached && tCached.data) || neighbors.tomorrow  || null,
+                lat: lat, lon: lon
+            };
+            OS.renderTideData(cached.data, cached.isIdw, dateObj, mergedNeighbors);
+            return;
+        }
+
         OS.renderTideLoading();
 
         // 동해북부 우회 (4.js)
@@ -71,7 +375,12 @@
      * ------------------------------------------------------------ */
     OS.fetchTideKhoa = function (lat, lon, dateObj) {
         var dateInt = OS.formatDateInt(dateObj);
-        var body = { lat: lat, lon: lon, date: dateInt, time: nowHHMM() };
+        // [좌표 양자화 2026-05] 부동소수점 noise 로 같은 격자에서 다른 lat/lon 이
+        // 전송돼 서버 캐시(grid hash) 도 같은 격자임에도 false-miss 가 나는 것을
+        // 막기 위해 5소수점(≈1m) round. pointKey() 와 동일한 quantization 사용.
+        var qLat = Math.round(lat * 100000) / 100000;
+        var qLon = Math.round(lon * 100000) / 100000;
+        var body = { lat: qLat, lon: qLon, date: dateInt, time: nowHHMM() };
 
         fetch('/api/save_tide_input', {
             method: 'POST',
@@ -388,42 +697,108 @@
               peaksHtml +
             '</div>';
 
-        // [시트 슬라이더 연계] 캐시 저장 — 같은 날 안에서 슬라이더 시간만 변할 때
-        // 조석 API 재호출 없이 게이지/예상조위만 클라이언트에서 재계산.
-        // lat/lon 도 저장 — 같은 날 다른 좌표로 시트 재오픈 시 stale 캐시 차단.
-        OS.state._tideTodayCache = {
+        // [멀티 데이 캐시 저장 — 2026-05]
+        // 같은 해점에서 방문한 모든 날짜를 누적 보관.
+        //   - 같은 날 시간 이동: refreshTideGaugeForTime 이 캐시의 peaks 로 게이지만 재계산
+        //   - 다른 날 방문했다가 복귀: fetchTideForSheet 진입 시 캐시 hit → API skip
+        //   - 다른 좌표로 이동: putCachedDay 가 좌표 불일치 감지하면 days 통째 reset
+        //
+        // raw data + neighbors 를 그대로 저장 — 재방문 시 renderTideData 가 동일한
+        // 입력으로 호출되어 동일한 DOM 을 생성. peaks 자체도 OS.state._tideRenderState 에
+        // 저장 (게이지 부분 갱신용; 매 렌더 시 갱신).
+        var cacheLat = OS.state.lat;
+        var cacheLon = OS.state.lon;
+        putCachedDay(cacheLat, cacheLon, dayKeyOf(dateObj), {
+            data: data,
+            isIdw: !!isIdw,
+            neighbors: neighbors || null
+        });
+
+        // [Bonus 캐시] 같은 호출에서 폴링된 yesterday/tomorrow raw data 도 별도 dayKey 로 저장.
+        // 사용자가 슬라이더로 어제/내일 이동 시 즉시 캐시 hit (API skip).
+        // 이미 명시적으로 그 dayKey 가 캐시되어 있으면 덮어쓰지 않음 (그 날의 풀 render 결과
+        // 가 더 정확한 isIdw/neighbors 를 갖고 있을 수 있음).
+        if (neighbors) {
+            if (neighbors.yesterday) {
+                var yKey = shiftDayKey(dateObj, -1);
+                if (!getCachedDay(cacheLat, cacheLon, yKey)) {
+                    putCachedDay(cacheLat, cacheLon, yKey, {
+                        data: neighbors.yesterday,
+                        isIdw: !!isIdw,
+                        neighbors: null  // 어제의 어제/내일은 별도 fetch 없이는 알 수 없음
+                    });
+                }
+            }
+            if (neighbors.tomorrow) {
+                var tKey = shiftDayKey(dateObj, +1);
+                if (!getCachedDay(cacheLat, cacheLon, tKey)) {
+                    putCachedDay(cacheLat, cacheLon, tKey, {
+                        data: neighbors.tomorrow,
+                        isIdw: !!isIdw,
+                        neighbors: null
+                    });
+                }
+            }
+        }
+
+        // [게이지 부분 갱신용 작업 캐시]
+        // refreshTideGaugeForTime 은 "현재 카드에 표시 중인 날짜" 의 peaks 가 필요.
+        // 매번 days 에서 재계산해도 되지만, 직전 렌더 결과를 보관해 두면 부분 갱신이
+        // 즉각적 (peaks 재추출 skip). 좌표/dayKey 도 함께 저장해 stale 차단.
+        OS.state._tideRenderState = {
             peaks: peaks.slice(),
             yPeaks: yPeaks.slice(),
             tPeaks: tPeaks.slice(),
-            dataDayKey: dateObj.getFullYear() + '-' +
-                        (dateObj.getMonth() + 1) + '-' +
-                        dateObj.getDate(),
+            dataDayKey: dayKeyOf(dateObj),
             lat: OS.state.lat,
             lon: OS.state.lon
         };
     };
 
     /* --------------------------------------------------------------
-     * 시트 슬라이더 release (같은 날) 시 호출 — 조석 API 호출 없이
+     * 시트 슬라이더 release 시 호출 — 조석 API 호출 없이
      * 게이지/예상조위/라벨/진행%/남은시간만 갱신.
      *
-     * @param {Date} sheetDate - 슬라이더가 가리키는 새 시각 (오늘 안)
+     * [캐시 정책 — 2026-05 멀티 데이]
+     *   사용자 의도: "같은 해점이면 슬라이더 어디로 가도 캐시 사용 (API 호출 X)".
+     *
+     *   처리 분기:
+     *   - sheetDate 가 _tideRenderState.dataDayKey 와 같은 날 (현재 카드에 그려진 날):
+     *       카드 DOM 그대로 두고 게이지(label/val/arrow/fill/marker/remain) 만 부분 갱신.
+     *   - sheetDate 가 카드 표시 날짜와 다르지만 _tideMultiDayCache 에 있는 경우:
+     *       fetchTideForSheet 가 캐시 hit 으로 풀 renderTideData 호출 → 새 날짜 카드 그림.
+     *       이 함수는 false 반환해 호출자가 fetchTideForSheet 경로로 가도록 유도.
+     *       (반환값은 "이미 처리 완료" 의미가 아니라 "부분 갱신으로 처리 완료" 의미.)
+     *   - 캐시 자체 없음/좌표 mismatch: false 반환.
+     *
+     * @param {Date} sheetDate - 슬라이더가 가리키는 새 시각
+     * @returns {boolean} 게이지 부분 갱신만으로 처리 완료된 경우 true.
+     *                    (false 면 호출자가 fetchTideForSheet 로 풀 재렌더 필요 — 캐시 hit 이어도
+     *                     API 는 안 나가지만 renderTideData 풀 호출이 필요.)
      * ------------------------------------------------------------ */
     OS.refreshTideGaugeForTime = function (sheetDate) {
-        var cache = OS.state && OS.state._tideTodayCache;
-        if (!cache) return;
-        var sheetKey = sheetDate.getFullYear() + '-' +
-                       (sheetDate.getMonth() + 1) + '-' +
-                       sheetDate.getDate();
-        if (sheetKey !== cache.dataDayKey) return;
-        // [좌표 일치 검증] 같은 날 다른 좌표로 시트 재오픈된 직후 슬라이더 release 시
+        var renderState = OS.state && OS.state._tideRenderState;
+        if (!renderState) return false;
+
+        // [좌표 일치 검증] 다른 좌표로 시트 재오픈된 직후 슬라이더 release 시
         // 이전 좌표의 stale peaks 로 게이지 표시되지 않도록 차단.
-        if (cache.lat !== OS.state.lat || cache.lon !== OS.state.lon) return;
-        if (!OS.isToday(sheetDate)) return;  // 미래/과거 날짜는 게이지 자체 없음
+        if (renderState.lat !== OS.state.lat || renderState.lon !== OS.state.lon) return false;
+
+        // 현재 카드에 그려진 날짜와 sheetDate 가 같은 날인지 확인.
+        // 다르면 부분 갱신으로 처리 불가 — false 반환해 호출자가 풀 renderTideData 경로로 보냄.
+        // (단, fetchTideForSheet 는 multi-day cache 적중 시 API 호출 없이 즉시 렌더하므로
+        // 사용자가 느끼는 비용은 DOM 재구성뿐.)
+        if (renderState.dataDayKey !== dayKeyOf(sheetDate)) return false;
+
+        var peaks = renderState.peaks;
+        var yPeaksLocal = renderState.yPeaks;
+        var tPeaksLocal = renderState.tPeaks;
+
+        // 게이지는 오늘만 표시 — 미래/과거 일 때는 캐시로 처리는 성공이지만 게이지 갱신은 skip.
+        if (!OS.isToday(sheetDate)) return true;
 
         var nowMin = sheetDate.getHours() * 60 + sheetDate.getMinutes();
-        var peaks = cache.peaks;
-        if (!peaks || peaks.length === 0) return;
+        if (!peaks || peaks.length === 0) return true;
 
         // prev/next 피크 — renderTideData 와 동일 알고리즘
         var prevPeak = null, nextPeak = null;
@@ -432,8 +807,8 @@
                 nextPeak = peaks[i];
                 if (i > 0) {
                     prevPeak = peaks[i - 1];
-                } else if (cache.yPeaks && cache.yPeaks.length > 0) {
-                    var yLast = cache.yPeaks[cache.yPeaks.length - 1];
+                } else if (yPeaksLocal && yPeaksLocal.length > 0) {
+                    var yLast = yPeaksLocal[yPeaksLocal.length - 1];
                     prevPeak = { type: yLast.type, level: yLast.level, minutes: yLast.minutes - 1440 };
                 }
                 break;
@@ -441,14 +816,14 @@
         }
         if (!nextPeak) {
             if (peaks.length > 0) prevPeak = peaks[peaks.length - 1];
-            if (cache.tPeaks && cache.tPeaks.length > 0) {
-                var tFirst = cache.tPeaks[0];
+            if (tPeaksLocal && tPeaksLocal.length > 0) {
+                var tFirst = tPeaksLocal[0];
                 nextPeak = { type: tFirst.type, level: tFirst.level, minutes: tFirst.minutes + 1440 };
             }
         }
-        if (!prevPeak || !nextPeak) return;
+        if (!prevPeak || !nextPeak) return true;
         var dur = nextPeak.minutes - prevPeak.minutes;
-        if (dur > 780 || dur <= 0) return;
+        if (dur > 780 || dur <= 0) return true;
 
         var curLevel = interpolateLevel(prevPeak, nextPeak, nowMin);
         var rising = nextPeak.type === 'high';
@@ -458,7 +833,7 @@
 
         // DOM 부분 갱신 — card scope 안에서만 (전역 querySelector 충돌 방지)
         var card = document.getElementById('ocean-card-tide');
-        if (!card) return;
+        if (!card) return true;
         var labelEl  = card.querySelector('.ocean-tide-current-label');
         var valEl    = card.querySelector('.ocean-tide-current-val');
         var arrowEl  = card.querySelector('.ocean-tide-current-arrow');
@@ -490,6 +865,7 @@
             remainEl.textContent =
                 (rising ? '고조까지' : '저조까지') + ' 남은시간 ' + remainStr;
         }
+        return true;
     };
 
     /* --------------------------------------------------------------

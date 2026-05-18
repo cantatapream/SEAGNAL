@@ -2486,6 +2486,16 @@ async function renderUnifiedPromoContent(container) {
                     function (page) {
                         _postMgmtPage = page;
                         loadUnifiedPromoList();
+                        // 페이지 전환 시 목록 상단으로 스크롤 (큰 페이지 이동 시 UX 개선).
+                        // 통합 관리자 모달의 본문(.unified-admin-body)이 실제 스크롤러.
+                        const scroller = document.getElementById('unified-admin-body');
+                        if (scroller) {
+                            if (typeof scroller.scroll === 'function') {
+                                scroller.scroll({ top: 0, behavior: 'smooth' });
+                            } else {
+                                scroller.scrollTop = 0;
+                            }
+                        }
                     }
                 );
             }

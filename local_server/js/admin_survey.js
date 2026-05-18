@@ -425,8 +425,14 @@ async function _loadSurveyStatusPage(container) {
                 function (page) {
                     _surveyListPage = page;
                     _loadSurveyStatusPage(container);
-                    // 페이지 전환 시 목록 상단으로 스크롤 (큰 페이지 이동 시 UX 개선)
-                    container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    // 페이지 전환 시 목록 상단으로 스크롤 (큰 페이지 이동 시 UX 개선).
+                    // container 가 스크롤러 자체일 수 있어 scrollIntoView 는 no-op 가능 →
+                    // 자체 scrollTop 을 0 으로 (alert_push 와 동일 패턴).
+                    if (typeof container.scroll === 'function') {
+                        container.scroll({ top: 0, behavior: 'smooth' });
+                    } else {
+                        container.scrollTop = 0;
+                    }
                 }
             );
         }

@@ -78,26 +78,61 @@ if (fs.existsSync(TIDEBED_CONFIG_FILE)) {
                 tideBedConfig.lastResetDate = todayStr;
                 needsSave = true;
             }
-            if (needsSave) saveTideBedConfig();
+            // 초기 로드 시 마이그레이션/리셋은 중요 영속화 — flush
+            if (needsSave) saveTideBedConfig({ flush: true });
         }
     } catch (e) {
         console.error('⚠️ TideBED Config 로드 실패:', e.message);
     }
 } else {
-    saveTideBedConfig();
+    // 최초 파일 생성도 flush
+    saveTideBedConfig({ flush: true });
 }
 
 /**
- * TideBED API 키 사용량/현재 인덱스 등 설정을 TIDEBED_CONFIG_FILE 에 동기 저장.
- * 실패 시 콘솔 경고만 (예외 throw 안 함) — 다음 정상 갱신에서 자동 복구.
+ * TideBED API 키 사용량/현재 인덱스 등 설정을 TIDEBED_CONFIG_FILE 에 저장.
+ *
+ * [디바운싱 — 이슈 1 (조석 버벅임) 대응]
+ *   기존: 매 API 응답마다 fs.writeFileSync 동기 호출 (3일치 5페이지×3 = 최대 15회/요청).
+ *   변경: 호출은 즉시 디바운스 타이머 예약만, 실제 fs.writeFileSync 는 5초 후 1회.
+ *   슬라이더 연타/매 응답마다 발생하던 디스크 IO 폭주를 제거 → 응답 latency 절감.
+ *   `flush=true` 전달 시 즉시 동기 저장 (키 회전/삭제 등 중요한 영속화 보장).
+ *
+ *   실패 시 콘솔 경고만 (예외 throw 안 함) — 다음 정상 갱신에서 자동 복구.
  */
-function saveTideBedConfig() {
+let _saveDebounceTimer = null;
+const _SAVE_DEBOUNCE_MS = 5000;
+function _doWriteConfig() {
     try {
         fs.writeFileSync(TIDEBED_CONFIG_FILE, JSON.stringify(tideBedConfig, null, 2), 'utf8');
     } catch (e) {
         console.error('⚠️ TideBED Config 저장 실패:', e.message);
     }
 }
+function saveTideBedConfig(opts) {
+    const flush = !!(opts && opts.flush);
+    if (flush) {
+        // 키 등록/삭제/회전 등 영속화 필수 시점: 즉시 저장 + 보류 타이머 취소
+        if (_saveDebounceTimer) { clearTimeout(_saveDebounceTimer); _saveDebounceTimer = null; }
+        _doWriteConfig();
+        return;
+    }
+    // 일반 사용량 카운트 갱신: 5초 디바운스 (마지막 호출 후 5초 뒤 1회만 기록)
+    if (_saveDebounceTimer) return; // 이미 예약돼 있으면 누적 안 함
+    _saveDebounceTimer = setTimeout(() => {
+        _saveDebounceTimer = null;
+        _doWriteConfig();
+    }, _SAVE_DEBOUNCE_MS);
+}
+
+// 프로세스 종료 시 누락 방지 — 디바운스 타이머에 보류 중인 변경 강제 flush
+process.on('beforeExit', () => {
+    if (_saveDebounceTimer) {
+        clearTimeout(_saveDebounceTimer);
+        _saveDebounceTimer = null;
+        _doWriteConfig();
+    }
+});
 
 /**
  * TideBED API 키를 다음 순번으로 회전 (라운드 로빈).
@@ -107,7 +142,8 @@ function saveTideBedConfig() {
 function rotateTideBedKey() {
     tideBedConfig.currentIndex = (tideBedConfig.currentIndex + 1) % tideBedConfig.keys.length;
     console.log(`🔄 TideBED API Key가 ${tideBedConfig.currentIndex + 1}번으로 전환되었습니다.`);
-    saveTideBedConfig();
+    // 키 회전은 영속화 중요 — flush 로 즉시 저장
+    saveTideBedConfig({ flush: true });
 }
 
 // ============================================================================
@@ -131,7 +167,8 @@ async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retr
         tideBedConfig.keys.forEach(k => k.used = 0);
         tideBedConfig.currentIndex = 0;
         tideBedConfig.lastResetDate = todayStr;
-        saveTideBedConfig();
+        // 일일 리셋은 중요 영속화 — flush
+        saveTideBedConfig({ flush: true });
     }
 
     const currentKeyData = tideBedConfig.keys[tideBedConfig.currentIndex];
@@ -227,6 +264,13 @@ async function collectTideBedData(lat, lon, reqDate) {
 
 /**
  * 격자 해시 조회 (1건만 빠르게 조회하여 격자 식별)
+ *
+ * [원복 — 2026-05 사용자 합의]
+ *   기존: 좌표→해시 메모리 캐시 (0.001° 양자화, TTL 12h) 로 latency 개선.
+ *   변경: 사용자 간 공유 캐시 제거 정책에 따라 메모리 캐시 제거.
+ *   매 호출마다 fetchTideBedPage 1회 호출. 클라이언트 측 차등 캐싱
+ *   (localStorage 즐겨찾기 영속 + 비즐겨찾기 메모리) 으로 사용자 단말 내
+ *   재방문 latency 는 보존.
  */
 async function getGridHash(lat, lon, reqDate) {
     try {
@@ -331,8 +375,10 @@ async function collectAndSaveTideData(lat, lon, dateInt, time, fileName, paddedI
             tideBedError: err.message,
             tideBedData: []
         };
-        // 에러 결과도 메모리에만 캐시 (짧은 시간 동안 같은 요청 반복 차단)
-        tideCache.set(fileName, errorData);
+        // [이슈 1 대응] 에러 캐시는 30초만 유지 — 1시간 캐시되면 같은 좌표
+        // 재클릭/슬라이더 이동 시에도 계속 'error' 응답 (사용자 보고: "데이터를
+        // 받아오지 못하는 경우 발생"). 짧은 TTL 로 자동 재시도 가능하게 함.
+        tideCache.set(fileName, errorData, { ttl: 30 * 1000 });
         return errorData;
     }
 }

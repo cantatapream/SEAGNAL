@@ -80,6 +80,7 @@ window.showAlertManagementModal = function () {
     const tabs = [
         { id: 'publish', name: '발표', icon: 'fa-bullhorn' },
         { id: 'active', name: '발효', icon: 'fa-check-circle' },
+        { id: 'change-time', name: '시각변경', icon: 'fa-clock' },
         { id: 'release', name: '해제', icon: 'fa-check' },
         { id: 'level', name: '격상/격하', icon: 'fa-arrow-up-right-dots' },
         { id: 'custom', name: '직접 발송', icon: 'fa-paper-plane' },
@@ -137,10 +138,15 @@ window.renderAlertAdminContent = async function (tabId, targetContainer) {
     var filteredItems = [];
     if (tabId === 'publish') {
         filteredItems = allAlerts.filter(function(a) {
-            return (a.isPreliminary || a.command === '1' || a.command === '발표' || a.command === '2' || a.command === '시각변경') && !(a.command === '변경' || a.command === '변경발표' || a.command === '6');
+            return (a.isPreliminary || a.command === '1' || a.command === '발표') && !(a.command === '변경' || a.command === '변경발표' || a.command === '6' || a.command === '2' || a.command === '시각변경');
         });
     } else if (tabId === 'active') {
         filteredItems = allAlerts.filter(function(a) { return a.command !== '3' && a.command !== '해제'; });
+    } else if (tabId === 'change-time') {
+        // [시각변경] 발표시각/발효시각 변경 명령만 별도 탭으로 분리.
+        // command === '2' 또는 '시각변경' 인 항목들이 여기에 모인다.
+        // 기존에는 publish 탭에 묶여 있어 시각 변경 발송 흐름이 발표와 섞였음.
+        filteredItems = allAlerts.filter(function(a) { return a.command === '2' || a.command === '시각변경'; });
     } else if (tabId === 'release') {
         filteredItems = allAlerts.filter(function(a) {
             return a.command === '3' || a.command === '해제' || ((!a.isPreliminary || a.tmCcExplicit) && a.tmEd && a.tmEd.trim() !== '' && a.tmEd !== '정보 없음' && a.tmEd !== '미정' && !a.tmEd.includes('00일'));
@@ -292,10 +298,11 @@ window.renderAlertAdminContent = async function (tabId, targetContainer) {
 
         var statusBadge = '<div style="font-size:0.75rem;font-weight:700;display:flex;align-items:center;">' + statusText + '</div>';
         var displayLevel = group.level || '';
-        if ((displayLevel === '예비' || group.isPreliminary) && (tabId === 'active' || tabId === 'release' || tabId === 'level' || tabId === 'publish')) displayLevel = '주의보';
+        if ((displayLevel === '예비' || group.isPreliminary) && (tabId === 'active' || tabId === 'release' || tabId === 'level' || tabId === 'publish' || tabId === 'change-time')) displayLevel = '주의보';
 
         var tabSymbol = '🔔'; var tabLabel = '발표';
         if (tabId === 'active') { tabSymbol = '⚠️'; tabLabel = '발효'; }
+        else if (tabId === 'change-time') { tabSymbol = '🕐'; tabLabel = '시각변경'; }
         else if (tabId === 'release') { tabSymbol = '✅'; tabLabel = '해제'; }
         else if (tabId === 'level') {
             var isUp = (group.level || '').includes('경보');
@@ -323,7 +330,7 @@ window.renderAlertAdminContent = async function (tabId, targetContainer) {
                 if (tabId === 'active') {
                     var ed = typeof formatDate === 'function' ? formatDate(sub.tmYn) : sub.tmYn;
                     subInfo = '<div style="color:#94a3b8;font-size:0.85rem;margin-top:2px;">- 해제예정: <span style="color:#69f0ae;">' + ed + '</span></div>';
-                } else if (tabId === 'publish') {
+                } else if (tabId === 'publish' || tabId === 'change-time') {
                     var ef = typeof formatDate === 'function' ? formatDate(sub.tmEf) : sub.tmEf;
                     subInfo = '<div style="color:#94a3b8;font-size:0.85rem;margin-top:2px;">- 발효예정: <span style="color:#fff;">' + ef + '</span></div>';
                 } else if (tabId === 'level') {
@@ -348,7 +355,7 @@ window.renderAlertAdminContent = async function (tabId, targetContainer) {
         }
 
         var titleIcon = group.isTimeChanged ? '🕐' : tabSymbol;
-        var titleSuffix = group.isTimeChanged ? (tabId === 'publish' ? '발효시각 변경' : '해제시각 변경') : (group.isWaiting && tabId === 'level' ? (group.statusType + ' 예정') : displayLabelText);
+        var titleSuffix = group.isTimeChanged ? ((tabId === 'publish' || tabId === 'change-time') ? '발효시각 변경' : '해제시각 변경') : (group.isWaiting && tabId === 'level' ? (group.statusType + ' 예정') : displayLabelText);
 
         html += '<div style="background:rgba(30,41,59,0.5);border:1px solid rgba(255,255,255,0.1);border-radius:12px;margin-bottom:18px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);"><div style="padding:12px 16px;background:rgba(255,255,255,0.03);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.05);"><div style="font-size:0.85rem;font-weight:700;color:#cbd5e1;display:flex;align-items:center;"><i class="fa-regular fa-calendar-check" style="margin-right:8px;"></i> ' + timeDisplay + ' <span style="color:rgba(255,255,255,0.1);margin:0 10px;">|</span> ' + statusBadge + '</div>' + buttonArea + '</div><div style="padding:16px;"><div style="font-size:1.05rem;color:#fff;font-weight:800;margin-bottom:15px;display:flex;align-items:center;gap:8px;">' + titleIcon + ' ' + fullTitle + ' ' + titleSuffix + '</div>' + subContent + '</div></div>';
     });
@@ -581,7 +588,8 @@ window.renderHistoryTab = async function (container) {
 
         var categories = [
             { id: 'all', name: '전체' }, { id: 'publish', name: '발표' },
-            { id: 'active', name: '발효' }, { id: 'release', name: '해제' },
+            { id: 'active', name: '발효' }, { id: 'change-time', name: '시각변경' },
+            { id: 'release', name: '해제' },
             { id: 'level', name: '격상/격하' }, { id: 'custom', name: '직접 발송' }
         ];
 

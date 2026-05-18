@@ -268,8 +268,14 @@ function renderReportList() {
         window.renderStandardPagination(pagEl, _reportPage, totalPages, (page) => {
             _reportPage = page;
             renderReportList();
-            // 페이지 전환 시 목록 상단으로 스크롤 (큰 페이지 이동 시 UX 개선)
-            container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            // 페이지 전환 시 목록 상단으로 스크롤 (큰 페이지 이동 시 UX 개선).
+            // container 가 스크롤러 자체일 수 있어 scrollIntoView 는 no-op 가능 →
+            // 자체 scrollTop 을 0 으로 (alert_push 와 동일 패턴).
+            if (typeof container.scroll === 'function') {
+                container.scroll({ top: 0, behavior: 'smooth' });
+            } else {
+                container.scrollTop = 0;
+            }
         });
     }
 }
@@ -484,8 +490,14 @@ function _renderCommentReportList(pendingTotalFromServer) {
         window.renderStandardPagination(pagEl, curPage, totalPages, (page) => {
             _commentReportPage = page;
             _loadCommentReportList().then(() => {
-                // 페이지 전환 시 목록 상단으로 스크롤 (기능 제보와 동일한 UX)
-                container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // 페이지 전환 시 목록 상단으로 스크롤 (기능 제보와 동일한 UX).
+                // container 가 스크롤러 자체일 수 있어 scrollIntoView 는 no-op 가능 →
+                // 자체 scrollTop 을 0 으로 (alert_push 와 동일 패턴).
+                if (typeof container.scroll === 'function') {
+                    container.scroll({ top: 0, behavior: 'smooth' });
+                } else {
+                    container.scrollTop = 0;
+                }
             });
         });
     }
