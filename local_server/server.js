@@ -174,6 +174,19 @@ function _gracefulShutdown(signal) {
     } catch (e) {
         console.error('[shutdown] saveTideBedConfig flush 실패:', e && e.message);
     }
+    // [추가] 방문 통계 메모리 큐를 디스크에 동기 flush.
+    //   - routes/stats.js 의 /api/visit 는 더 이상 매 요청마다 디스크에 쓰지 않고,
+    //     services/visit_queue.js 의 메모리 카운터만 갱신합니다 (5초마다 비동기 flush).
+    //   - 따라서 SIGTERM 직후 flush 가 안 되면 최대 5초치 카운트가 유실될 수 있어,
+    //     여기서 동기 flushSync 로 보장합니다. 데이터 손실 0.
+    try {
+        const visitQueue = require('./services/visit_queue');
+        if (typeof visitQueue.flushSync === 'function') {
+            visitQueue.flushSync();
+        }
+    } catch (e) {
+        console.error('[shutdown] visitQueue flushSync 실패:', e && e.message);
+    }
     console.log(`🛑 ${signal} 수신 — graceful shutdown.`);
     process.exit(0);
 }
