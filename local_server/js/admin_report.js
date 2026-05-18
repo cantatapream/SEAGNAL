@@ -23,18 +23,27 @@ function escapeHTML(str) {
 // ============================================================================
 
 let _currentReportSubTab = 'feature'; // 'feature' | 'comment'
+// [D-2] 직전 서브탭 기억 — 메인 제보 관리 탭에서 다른 메뉴로 갔다가 돌아왔을 때
+// 마지막으로 보던 서브탭을 그대로 복원한다. 첫 진입(null)이면 기본 'feature'.
+// (페이지는 이전 PR 정책대로 1로 리셋되지만, 어느 서브탭을 보고 있었는지는 보존)
+let _lastReportSubTab = null;
 
 window.renderUnifiedReportContent = async function (body) {
+    // [D-2] 진입 시 복원 대상 결정 — 직전 기억이 있으면 그 탭, 없으면 'feature'.
+    const initialTab = (_lastReportSubTab === 'feature' || _lastReportSubTab === 'comment')
+        ? _lastReportSubTab
+        : 'feature';
+    const isFeature = initialTab === 'feature';
     body.innerHTML = `
         <div style="padding:15px;">
             <!-- 하위탭 선택 -->
             <div style="display:flex;gap:6px;margin-bottom:14px;">
-                <button id="report-subtab-feature" class="report-subtab-btn active"
+                <button id="report-subtab-feature" class="report-subtab-btn${isFeature ? ' active' : ''}"
                         onclick="window._switchReportSubTab('feature')">
                     <i class="fa-solid fa-envelope"></i> 기능 제보
                     <span id="feature-report-badge" style="display:none;background:#ef4444;color:#fff;font-size:0.6rem;padding:1px 5px;border-radius:8px;margin-left:3px;"></span>
                 </button>
-                <button id="report-subtab-comment" class="report-subtab-btn"
+                <button id="report-subtab-comment" class="report-subtab-btn${isFeature ? '' : ' active'}"
                         onclick="window._switchReportSubTab('comment')">
                     <i class="fa-solid fa-flag"></i> 댓글 신고
                     <span id="comment-report-badge" style="display:none;background:#ef4444;color:#fff;font-size:0.6rem;padding:1px 5px;border-radius:8px;margin-left:3px;"></span>
@@ -42,7 +51,7 @@ window.renderUnifiedReportContent = async function (body) {
             </div>
 
             <!-- 기능 제보 패널 -->
-            <div id="report-panel-feature">
+            <div id="report-panel-feature" style="display:${isFeature ? 'block' : 'none'};">
                 <!-- 필터 탭 -->
                 <div id="report-filter-tabs" style="display:flex;gap:6px;margin-bottom:15px;flex-wrap:wrap;">
                     <button class="report-filter-btn active" data-filter="all" onclick="window._filterReports('all')">전체</button>
@@ -67,8 +76,8 @@ window.renderUnifiedReportContent = async function (body) {
                 </div>
             </div>
 
-            <!-- 댓글 신고 패널 (초기 숨김) -->
-            <div id="report-panel-comment" style="display:none;">
+            <!-- 댓글 신고 패널 -->
+            <div id="report-panel-comment" style="display:${isFeature ? 'none' : 'block'};">
                 <div id="comment-report-list-wrapper">
                     <div id="comment-report-list" style="display:flex;flex-direction:column;gap:8px;">
                         <div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>
@@ -94,7 +103,9 @@ window.renderUnifiedReportContent = async function (body) {
         document.head.appendChild(style);
     }
 
-    _currentReportSubTab = 'feature';
+    // [D-2] 진입 시 서브탭 상태를 복원한 값으로 동기화. (직전 기억 → 그 탭, 없으면 feature)
+    _currentReportSubTab = initialTab;
+    _lastReportSubTab = initialTab;
     // [탭 재진입 리셋] 메인 제보 관리 탭 첫 진입 시 두 서브탭 모두 1페이지로 리셋.
     // (같은 탭 내 페이지 클릭/필터는 보존, 탭을 떠났다 돌아오면 1페이지.)
     _reportPage = 1;
@@ -117,6 +128,8 @@ window._switchReportSubTab = function(tab) {
         }
     }
     _currentReportSubTab = tab;
+    // [D-2] 사용자가 명시적으로 선택한 서브탭을 기억 → 다음 탭 재진입 시 복원에 사용.
+    _lastReportSubTab = tab;
     document.getElementById('report-panel-feature').style.display = tab === 'feature' ? 'block' : 'none';
     document.getElementById('report-panel-comment').style.display = tab === 'comment' ? 'block' : 'none';
     document.getElementById('report-subtab-feature').classList.toggle('active', tab === 'feature');
@@ -201,20 +214,11 @@ function renderReportList() {
         featureBadge.style.display = pendingCount > 0 ? 'inline' : 'none';
     }
 
-    // 페이지네이션 컨테이너 헬퍼 — 정적 wrapper(#report-list-wrapper) 자식으로 이미 존재.
-    // (renderReportList 가 container.innerHTML 만 갱신하므로 형제 페이지네이션은 보존됨)
-    // 만에 하나 wrapper 가 없는 환경(legacy) 대비 fallback 생성도 유지.
-    const ensurePaginationEl = () => {
-        let el = document.getElementById('report-list-pagination');
-        if (!el) {
-            el = document.createElement('div');
-            el.id = 'report-list-pagination';
-            el.className = 'pagination';
-            const wrapper = document.getElementById('report-list-wrapper') || container.parentNode;
-            wrapper.appendChild(el);
-        }
-        return el;
-    };
+    // [I-4] 페이지네이션 컨테이너 조회 — 정적 wrapper(#report-list-wrapper) 의 자식으로
+    // renderUnifiedReportContent 마크업에서 항상 함께 생성되며, renderReportList 는
+    // container.innerHTML 만 갱신하므로 형제 페이지네이션 엘리먼트는 보존된다.
+    // (이전에 있던 동적 생성 fallback 분기는 정적 wrapper 도입 후 도달 불가 dead path 라 제거)
+    const ensurePaginationEl = () => document.getElementById('report-list-pagination');
 
     if (filtered.length === 0) {
         container.innerHTML = `
@@ -322,7 +326,12 @@ let _commentReportPagination = { page: 1, limit: _COMMENT_REPORT_LIMIT, total: 0
  * { data, pagination } 응답을 사용한다. 라우트는 ?page= 미전달 시
  * 기존 raw array 를 그대로 응답하여 하위 호환을 유지.
  */
-async function _loadCommentReportList() {
+async function _loadCommentReportList(depth = 0) {
+    // [F-1] 재귀 depth 가드: 빈 페이지 폴백 시 자기 자신을 재호출하는 경로가 있는데,
+    // 비정상 응답(예: totalPages 가 NaN/0 인데 total > 0) 에서 무한 루프가 될 수 있다.
+    // 정상 흐름에서 재귀는 최대 1회 (현재 페이지 > totalPages → 마지막 페이지로 재요청)
+    // 이므로 depth>1 이면 즉시 차단.
+    if (depth > 1) return;
     // race 가드: 페이지 빠른 클릭 / 처리 후 reload 인터리브에서 오래된 응답 폐기.
     const myReq = ++_commentReportSeq;
     // 응답에서 받아온 전체 pending 카운트 (페이지와 무관하게 뱃지에 사용)
@@ -381,7 +390,7 @@ async function _loadCommentReportList() {
     if (_commentReportPagination.total > 0
         && _commentReportPage > _commentReportPagination.totalPages) {
         _commentReportPage = Math.max(1, _commentReportPagination.totalPages);
-        return _loadCommentReportList();
+        return _loadCommentReportList(depth + 1);
     }
 
     _renderCommentReportList(pendingTotalFromServer);
@@ -398,19 +407,10 @@ function _renderCommentReportList(pendingTotalFromServer) {
     const container = document.getElementById('comment-report-list');
     if (!container) return;
 
-    // 페이지네이션 컨테이너 헬퍼 — 정적 wrapper(#comment-report-list-wrapper) 자식.
-    // 동적 형제 삽입을 안 하므로 부모 트리 영향 없음. legacy fallback 만 유지.
-    const ensurePaginationEl = () => {
-        let el = document.getElementById('comment-report-pagination');
-        if (!el) {
-            el = document.createElement('div');
-            el.id = 'comment-report-pagination';
-            el.className = 'pagination';
-            const wrapper = document.getElementById('comment-report-list-wrapper') || container.parentNode;
-            wrapper.appendChild(el);
-        }
-        return el;
-    };
+    // [I-4] 페이지네이션 컨테이너 조회 — 정적 wrapper(#comment-report-list-wrapper) 의 자식.
+    // _renderCommentReportList 는 container.innerHTML 만 갱신하므로 형제 페이지네이션은 보존된다.
+    // (이전에 있던 동적 생성 fallback 분기는 정적 wrapper 도입 후 도달 불가 dead path 라 제거)
+    const ensurePaginationEl = () => document.getElementById('comment-report-pagination');
 
     // 댓글 신고 뱃지 업데이트.
     // 서버 응답의 pendingTotal (페이지와 무관한 전체 pending 카운트) 을 우선 사용.
