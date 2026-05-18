@@ -37,9 +37,23 @@
 const { app, PORT, staticRoot, UPLOAD_DIR } = require('./config/server_config');
 const express = require('express');
 const path = require('path');
+const { spawn } = require('child_process');
 const cron = require('node-cron');
 const expressStaticGzip = require('express-static-gzip');
 const cloudBackup = require('./cloud_backup');
+
+// ============================================================================
+// 백그라운드 정적 자원 사전 압축 프로세스 핸들 (graceful shutdown 에서 cleanup)
+// ----------------------------------------------------------------------------
+// build-gzip.js 는 더 이상 npm prestart 훅으로 동기 실행되지 않는다 (옵션 B).
+// 대신 app.listen() 직후 spawn 으로 자식 프로세스에서 실행하여 서버 부팅과
+// 헬스체크를 막지 않는다. 빌드 완료 전 들어온 요청은 express-static-gzip
+// 의 자동 fallback 으로 원본 파일이 응답되므로 정상 처리된다 (= 첫 사용자
+// 일부는 비압축 응답을 받을 수 있음, 의도된 trade-off).
+//
+// 핸들을 전역으로 보관해 SIGTERM/SIGINT 수신 시 자식도 함께 종료한다.
+// ============================================================================
+let _buildGzipChild = null;
 
 // 서비스 초기화 (import 시 자동으로 캐시 갱신 시작, 업로드 설정 완료)
 require('./services/cache_manager');
@@ -204,6 +218,18 @@ function _gracefulShutdown(signal) {
     } catch (e) {
         console.error('[shutdown] visitQueue flushSync 실패:', e && e.message);
     }
+    // [추가] 백그라운드 빌드(build-gzip) 자식 프로세스가 아직 살아있다면 함께 종료.
+    //   - 부팅 직후 종료가 빠르게 일어나면 압축이 진행 중일 수 있고, 좀비 프로세스로
+    //     남으면 컨테이너 종료 grace period 가 지나 SIGKILL 로 강제 종료될 위험이 있다.
+    //   - SIGTERM 을 먼저 보내 정상 종료 기회를 주고, 핸들 참조를 끊는다.
+    try {
+        if (_buildGzipChild && _buildGzipChild.exitCode === null && !_buildGzipChild.killed) {
+            _buildGzipChild.kill('SIGTERM');
+            console.log('🛑 [shutdown] build-gzip 자식 프로세스 SIGTERM 전송.');
+        }
+    } catch (e) {
+        console.error('[shutdown] build-gzip 종료 실패:', e && e.message);
+    }
     console.log(`🛑 ${signal} 수신 — graceful shutdown.`);
     process.exit(0);
 }
@@ -242,6 +268,45 @@ app.listen(PORT, '0.0.0.0', () => {
             }
         } catch (e) {
             console.error('[startup] CCTV 초기수집 트리거 실패:', e && e.message);
+        }
+
+        // ====================================================================
+        // [옵션 B] 정적 자원 사전 압축(build-gzip) 백그라운드 실행
+        // --------------------------------------------------------------------
+        // 과거: package.json 의 prestart 훅에서 동기 실행 (~26초 소요).
+        //       Fly.io 헬스체크가 부팅 30초 내에 응답을 기대하므로 빠듯했다.
+        // 현재: listen() 완료 후 자식 프로세스에서 비동기로 실행.
+        //   - 서버는 즉시 응답 가능 → 헬스체크 안전.
+        //   - 빌드 완료 전 정적 자원 요청이 오면 .gz/.br 가 없어
+        //     express-static-gzip 이 원본 파일로 자동 fallback (정상 응답).
+        //   - mtime 비교로 이미 최신이면 빠르게 종료하므로 재시작 부담 미미.
+        //   - 자식 stdout/stderr 는 메인 로그로 그대로 흘려보낸다.
+        //   - 자식 실패해도 서버는 계속 가동 (압축본 없는 상태로 동작).
+        // ====================================================================
+        try {
+            _buildGzipChild = spawn(process.execPath, [path.join(__dirname, 'build-gzip.js')], {
+                cwd: __dirname,
+                stdio: ['ignore', 'inherit', 'inherit'],
+                env: process.env,
+            });
+            _buildGzipChild.on('exit', (code, signal) => {
+                if (signal) {
+                    console.log(`[build-gzip] 자식 프로세스 종료 (signal=${signal})`);
+                } else if (code === 0) {
+                    console.log('[build-gzip] 자식 프로세스 정상 종료');
+                } else {
+                    console.error(`[build-gzip] 자식 프로세스 비정상 종료 (code=${code})`);
+                }
+                _buildGzipChild = null;
+            });
+            _buildGzipChild.on('error', (err) => {
+                console.error('[build-gzip] spawn 오류:', err && err.message);
+                _buildGzipChild = null;
+            });
+            console.log(`[build-gzip] 백그라운드 빌드 시작 (pid=${_buildGzipChild.pid})`);
+        } catch (e) {
+            console.error('[startup] build-gzip spawn 실패:', e && e.message);
+            _buildGzipChild = null;
         }
     });
 });

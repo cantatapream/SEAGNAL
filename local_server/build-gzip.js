@@ -59,6 +59,7 @@ let scanned = 0;
 let compressed = 0;
 let skippedFresh = 0;
 let skippedSmall = 0;
+let failed = 0;                                             // 압축 실패 건수 (이슈 2)
 let totalOriginal = 0;
 let totalGzip = 0;
 let totalBrotli = 0;
@@ -85,53 +86,66 @@ function walk(dir, cb) {
  * 한 파일에 대해 gzip / brotli 압축본 생성.
  *  - 원본보다 .gz / .br 가 새것이면 스킵 (mtime 비교)
  *  - 이미 .gz / .br 인 파일은 건너뜀 (재귀 방지)
+ *
+ * [이슈 2 — try/catch 로 단일 파일 실패 격리]
+ *   디스크 권한/공간/손상 등으로 한 파일 압축이 실패해도 전체 빌드가 중단되면
+ *   안 된다 (= 서버는 백그라운드 빌드 결과와 무관하게 동작해야 함).
+ *   이 함수는 어떤 예외든 catch 해서 console.error 로 기록하고 다음 파일로
+ *   진행한다. 호출자(walk)는 한 파일 실패를 알 필요 없이 계속 순회한다.
  */
 function compressOne(srcPath) {
-    const ext = path.extname(srcPath).toLowerCase();
-    if (ext === '.gz' || ext === '.br') return;       // 이미 압축본
-    if (!TARGET_EXTS.has(ext)) return;                // 대상 확장자 아님
+    try {
+        const ext = path.extname(srcPath).toLowerCase();
+        if (ext === '.gz' || ext === '.br') return;       // 이미 압축본
+        if (!TARGET_EXTS.has(ext)) return;                // 대상 확장자 아님
 
-    const stat = fs.statSync(srcPath);
-    scanned++;
-    if (stat.size < MIN_SIZE) { skippedSmall++; return; }
+        const stat = fs.statSync(srcPath);
+        scanned++;
+        if (stat.size < MIN_SIZE) { skippedSmall++; return; }
 
-    const gzPath = srcPath + '.gz';
-    const brPath = srcPath + '.br';
+        const gzPath = srcPath + '.gz';
+        const brPath = srcPath + '.br';
 
-    // mtime 비교: 둘 다 최신이면 작업 없음
-    const gzFresh = fs.existsSync(gzPath) && fs.statSync(gzPath).mtimeMs >= stat.mtimeMs;
-    const brFresh = fs.existsSync(brPath) && fs.statSync(brPath).mtimeMs >= stat.mtimeMs;
-    if (gzFresh && brFresh) { skippedFresh++; return; }
+        // mtime 비교: 둘 다 최신이면 작업 없음
+        const gzFresh = fs.existsSync(gzPath) && fs.statSync(gzPath).mtimeMs >= stat.mtimeMs;
+        const brFresh = fs.existsSync(brPath) && fs.statSync(brPath).mtimeMs >= stat.mtimeMs;
+        if (gzFresh && brFresh) { skippedFresh++; return; }
 
-    const buf = fs.readFileSync(srcPath);
-    totalOriginal += stat.size;
+        const buf = fs.readFileSync(srcPath);
+        totalOriginal += stat.size;
 
-    if (!gzFresh) {
-        const gz = zlib.gzipSync(buf, { level: zlib.constants.Z_BEST_COMPRESSION });
-        fs.writeFileSync(gzPath, gz);
-        totalGzip += gz.length;
-    } else {
-        totalGzip += fs.statSync(gzPath).size;
+        if (!gzFresh) {
+            const gz = zlib.gzipSync(buf, { level: zlib.constants.Z_BEST_COMPRESSION });
+            fs.writeFileSync(gzPath, gz);
+            totalGzip += gz.length;
+        } else {
+            totalGzip += fs.statSync(gzPath).size;
+        }
+
+        if (!brFresh) {
+            // brotli 는 텍스트 압축률이 gzip 보다 ~15% 더 좋음.
+            // 큰 파일은 quality 6 으로 낮춰 빌드시간 폭증 방지 (압축률 차이 미미).
+            const quality = stat.size > STREAM_THRESHOLD
+                ? 6
+                : zlib.constants.BROTLI_MAX_QUALITY;
+            const br = zlib.brotliCompressSync(buf, {
+                params: {
+                    [zlib.constants.BROTLI_PARAM_QUALITY]: quality,
+                }
+            });
+            fs.writeFileSync(brPath, br);
+            totalBrotli += br.length;
+        } else {
+            totalBrotli += fs.statSync(brPath).size;
+        }
+
+        compressed++;
+    } catch (e) {
+        // 한 파일 실패가 전체 빌드를 멈추지 않게 격리.
+        // (예: ENOSPC 디스크 부족, EACCES 권한 부족, ENOMEM 메모리 부족 등)
+        failed++;
+        console.error(`[build-gzip] 압축 실패: ${srcPath} — ${e && e.message}`);
     }
-
-    if (!brFresh) {
-        // brotli 는 텍스트 압축률이 gzip 보다 ~15% 더 좋음.
-        // 큰 파일은 quality 6 으로 낮춰 빌드시간 폭증 방지 (압축률 차이 미미).
-        const quality = stat.size > STREAM_THRESHOLD
-            ? 6
-            : zlib.constants.BROTLI_MAX_QUALITY;
-        const br = zlib.brotliCompressSync(buf, {
-            params: {
-                [zlib.constants.BROTLI_PARAM_QUALITY]: quality,
-            }
-        });
-        fs.writeFileSync(brPath, br);
-        totalBrotli += br.length;
-    } else {
-        totalBrotli += fs.statSync(brPath).size;
-    }
-
-    compressed++;
 }
 
 // ---------------------------------------------------------------------------
@@ -148,7 +162,13 @@ const elapsed = ((Date.now() - startedAt) / 1000).toFixed(2);
 const ratio = totalOriginal > 0 ? ((1 - totalGzip / totalOriginal) * 100).toFixed(1) : '0.0';
 console.log(
     `[build-gzip] 완료: ${compressed}개 압축 / ${scanned}개 스캔 ` +
-    `(최신 스킵 ${skippedFresh}, 1KB 미만 스킵 ${skippedSmall}) — ` +
+    `(최신 스킵 ${skippedFresh}, 1KB 미만 스킵 ${skippedSmall}, 실패 ${failed}) — ` +
     `원본 ${(totalOriginal / 1024).toFixed(1)}KB → gzip ${(totalGzip / 1024).toFixed(1)}KB ` +
     `(${ratio}% 절감), brotli ${(totalBrotli / 1024).toFixed(1)}KB, ${elapsed}초`
 );
+
+// 실패가 1건 이상이면 별도 경고로 가시성 높이기 (집계는 위에 포함).
+// 단, 프로세스 종료 코드는 0 유지 — 부분 성공도 정상으로 본다.
+if (failed > 0) {
+    console.warn(`[build-gzip] 경고: ${failed}개 파일 압축 실패 — 위 로그 참조. 서버는 원본으로 fallback 동작.`);
+}

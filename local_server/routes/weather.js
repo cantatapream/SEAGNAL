@@ -562,6 +562,23 @@ const _zoneForecastsCache = {
     builtAtMtime: 0        // 이 캐시를 만들 때의 zone_forecasts.json mtime (ms)
 };
 
+// ----------------------------------------------------------------------------
+// [이슈 3 — Thundering Herd 보호 플래그]
+// ----------------------------------------------------------------------------
+// 데이터 갱신 직후, 한꺼번에 들어온 동시 요청들이 모두 캐시 미스로 판정되어
+// 각각 5.86MB JSON.stringify() 를 시도하면 50~150ms 동안 이벤트 루프가 막혀
+// 다른 요청의 응답이 지연되는 현상을 방지한다.
+//
+// 작동 방식:
+//   - stringify 가 진행 중인 동안 들어온 요청은, "옛 캐시" 가 남아 있다면
+//     그것을 반환한다 (= stale-while-revalidate). 사용자가 보는 데이터는
+//     50~150ms 만큼만 옛것이며 다음 요청부터는 새 캐시가 응답된다.
+//   - Node.js 단일 스레드이므로 JSON.stringify 자체가 atomic 하게 끝난다.
+//     따라서 동기 함수 내에서 플래그가 누수될 일은 거의 없지만, 만에 하나
+//     stringify 가 예외를 던지더라도 try/finally 로 플래그를 반드시 해제한다.
+// ----------------------------------------------------------------------------
+let _stringifyInProgress = false;
+
 /**
  * 해구별 기상전망 응답 JSON 문자열을 반환한다.
  *
@@ -601,16 +618,29 @@ function getZoneForecastsResponse() {
         return _zoneForecastsCache.responseJson;
     }
 
-    // [4] 캐시 미스 — 데이터가 바뀌었거나 첫 호출
-    //     stringify 한 번 수행하고 캐시에 보관
-    _zoneForecastsCache.responseJson = JSON.stringify(dataCache.zoneForecasts);
-    _zoneForecastsCache.builtAtMtime = currentMtime;
+    // [3-B] Thundering Herd 보호 — stringify 진행 중이고 옛 캐시가 남아 있으면
+    //       그 옛 캐시를 반환한다 (stale-while-revalidate, 윈도우 약 50~150ms).
+    //       동시 요청 N 건이 모두 stringify 를 다시 돌리는 사태를 막아준다.
+    //       옛 캐시조차 없는 "최초 빌드" 상황에서는 이 분기를 통과해 [4] 로 진행.
+    if (_stringifyInProgress && _zoneForecastsCache.responseJson) {
+        return _zoneForecastsCache.responseJson;
+    }
+
+    // [4] 캐시 미스 — 데이터가 바뀌었거나 첫 호출.
+    //     try/finally 로 플래그를 반드시 해제 (예외 누수 시에도 영구 true 방지).
+    _stringifyInProgress = true;
+    try {
+        _zoneForecastsCache.responseJson = JSON.stringify(dataCache.zoneForecasts);
+        _zoneForecastsCache.builtAtMtime = currentMtime;
+    } finally {
+        _stringifyInProgress = false;
+    }
     return _zoneForecastsCache.responseJson;
 }
 
 // 4. 해구별 기상전망
 //    [수집 주기] 하루 2회 (09:30, 21:30 KST), zone_forecasts.json
-//    [응답 크기] 약 3.18 MB (압축 후 ~452 KB) — 큰 응답이라 캐시 효과 큼
+//    [응답 크기] 약 5.86 MB (압축 후 ~700 KB) — 큰 응답이라 캐시 효과 큼
 //    [HTTP 캐시] 정상 응답에만 max-age=1800 (30분), 빈 응답은 no-store.
 //                zone_avg.js 는 자체 cache:'no-store' 로 강제 우회 — 영향 없음.
 //
