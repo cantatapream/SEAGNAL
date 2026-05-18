@@ -312,6 +312,9 @@
         slider.min = 0;
         slider.max = _maxHours;
         slider.step = 3;
+        // 트랙 stripe 분할 수 = ceil(_maxHours / 24) — 24h 면 1(stripe 없음),
+        // 48h 면 2(자정 1개), 72h 면 3(자정 2개). CSS repeating-linear-gradient 와 연동.
+        slider.style.setProperty('--shtl-day-count', Math.max(1, Math.ceil(_maxHours / 24)));
 
         // 4) 초기값 = 레이어 슬라이더 값 → 시트 슬라이더 value 변환
         slider.value = sheetValueFromLayerHours(initialLayerHours || 0);
@@ -350,6 +353,8 @@
         wrap.classList.remove('is-hidden');
         slider.disabled = false;
         slider.max = _maxHours;
+        // 트랙 stripe 분할 수 갱신 (init 과 동일 규칙).
+        slider.style.setProperty('--shtl-day-count', Math.max(1, Math.ceil(_maxHours / 24)));
 
         var v = parseFloat(slider.value) || 0;
         if (v > _maxHours) {

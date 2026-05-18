@@ -9230,10 +9230,20 @@ body.ocean-map-active .main-header .header-content {
 }
 .ocean-sheet-slider:disabled { cursor: default; opacity: 0.4; }
 
-/* 글래스모피즘 적용: frosted 트랙 + 진행 그라데이션 */
+/* 글래스모피즘 적용: frosted 트랙 + 진행 그라데이션
+   + 24시간 주기 미세 stripe (자정 경계 시각 단서; --shtl-day-count = ceil(_maxHours/24))
+   stripe 는 트랙을 N등분 하는 우측 끝 1px 세로선이며, 마지막 끝(=트랙 우측 가장자리)에
+   걸리는 라인은 트랙 가장자리에 가려 사실상 N-1 개의 자정 경계만 시각화됨. */
 .ocean-sheet-slider::-webkit-slider-runnable-track {
     height: 8px;
     background:
+        repeating-linear-gradient(
+            90deg,
+            transparent 0,
+            transparent calc(100% / var(--shtl-day-count, 1) - 1px),
+            rgba(255, 255, 255, 0.18) calc(100% / var(--shtl-day-count, 1) - 1px),
+            rgba(255, 255, 255, 0.18) calc(100% / var(--shtl-day-count, 1))
+        ),
         linear-gradient(90deg, rgba(100,180,255,0.45) 0%, rgba(100,180,255,0.30) 100%),
         rgba(140, 200, 255, 0.10);
     border: 1px solid rgba(255, 255, 255, 0.18);
@@ -9272,6 +9282,13 @@ body.ocean-map-active .main-header .header-content {
 .ocean-sheet-slider::-moz-range-track {
     height: 8px;
     background:
+        repeating-linear-gradient(
+            90deg,
+            transparent 0,
+            transparent calc(100% / var(--shtl-day-count, 1) - 1px),
+            rgba(255, 255, 255, 0.18) calc(100% / var(--shtl-day-count, 1) - 1px),
+            rgba(255, 255, 255, 0.18) calc(100% / var(--shtl-day-count, 1))
+        ),
         linear-gradient(90deg, rgba(100,180,255,0.45) 0%, rgba(100,180,255,0.30) 100%),
         rgba(140, 200, 255, 0.10);
     border: 1px solid rgba(255, 255, 255, 0.18);
