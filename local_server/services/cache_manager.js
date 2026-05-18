@@ -135,6 +135,20 @@ const tideCache = new LRU({
     updateAgeOnGet: true         // 조회 시 TTL 갱신 — 폴링 중인 항목 보호
 });
 
+// [에러 항목 TTL 단축 래퍼 — 안전망]
+//   tideCache.set 호출 시 value.tideBedStatus === 'error' 이면 자동으로
+//   per-item TTL=30초만 적용. 호출 측이 깜빡 잊고 일반 set 으로 저장해도
+//   사용자 재클릭 시 빠른 재시도가 가능하도록 보장. 호출 측에서 명시적으로
+//   opts 를 넘기면 (예: 특별한 TTL 정책) 그쪽이 우선 — wrapper 는 opts 미지정
+//   상태에서만 개입한다.
+const _origTideCacheSet = tideCache.set.bind(tideCache);
+tideCache.set = function (key, value, opts) {
+    if (value && value.tideBedStatus === 'error' && !opts) {
+        return _origTideCacheSet(key, value, { ttl: 30 * 1000 });
+    }
+    return _origTideCacheSet(key, value, opts);
+};
+
 module.exports = {
     dataCache,
     tideCache,
