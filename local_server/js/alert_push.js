@@ -120,7 +120,14 @@ window.renderAlertAdminContent = async function (tabId, targetContainer) {
     var container = targetContainer || document.getElementById('alert-management-content');
     if (!container) return;
     if (tabId === 'custom') { window.renderCustomPushTab(container); return; }
-    if (tabId === 'history') { window.renderHistoryTab(container); return; }
+    if (tabId === 'history') {
+        // [탭 재진입 리셋] 발송 이력 탭 첫 진입 시 1페이지부터 시작.
+        // 같은 탭 내 페이지 클릭/필터 변경은 renderHistoryTab 을 직접 호출하므로
+        // 여기서 리셋해도 영향 없음.
+        _pushHistoryPage = 1;
+        window.renderHistoryTab(container);
+        return;
+    }
 
     var pushHistory = [];
     try { var hRes = await fetch('/api/push-history'); if (hRes.ok) pushHistory = await hRes.json(); } catch (e) { }
@@ -379,7 +386,13 @@ window.sendManualPushFromGroup = async function (groupKey, tabId) {
                 }
             })
         });
-        if (res.ok) { alert('성공적으로 발송 요청되었습니다.'); window.switchAlertAdminTab(tabId); }
+        if (res.ok) {
+            // 새 이력이 추가되었으므로 캐시 무효화 — 이력 탭 재진입 시 최신 fetch
+            // (executeCustomPush 와 동일 패턴)
+            _invalidateHistoryCache();
+            alert('성공적으로 발송 요청되었습니다.');
+            window.switchAlertAdminTab(tabId);
+        }
         else { var err = await res.text(); alert('발송 실패: ' + err); if (btn) btn.innerText = originalText; }
     } catch (e) { alert('네트워크 오류: ' + e.message); }
 };
@@ -474,22 +487,97 @@ window.renderCustomPushTab = async function (container) {
 // (G) 발송 이력 탭
 // ============================================================================
 var historyFilter = { cat: 'all', type: 'all' };
+// 페이지네이션 상태 (모듈 로컬, 1-based)
+// - cat / type 필터가 바뀌면 _pushHistoryPage = 1 로 리셋
+// - 페이지당 항목 수 = 20
+var _pushHistoryPage = 1;
+var _PUSH_HISTORY_LIMIT = 20;
+
+// 발송 이력 응답 캐시 (모듈 로컬)
+// - 페이지 클릭마다 /api/push-history + /api/push-subscriber-stats 를 다시 fetch 하지
+//   않도록 첫 fetch 결과를 보관. 페이지 클릭 시엔 캐시에서 slice 만 다시 한다.
+// - 무효화 시점:
+//    (a) 필터(cat/type) 변경 — 데이터는 그대로지만 일관성 위해 굳이 무효화 안 함.
+//        실제로 필터 적용은 캐시된 history 에 대해 .filter() 로 처리하므로 OK.
+//    (b) 삭제/추가/일괄삭제 액션 후 — 명시적으로 _invalidateHistoryCache() 호출.
+//    (c) 사용자가 탭을 떠났다가 돌아오는 케이스는 캐시 신선도 vs UX 트레이드오프 — 일단 유지.
+// 구조: { history: [...], subscriberStats: {...} | null }
+var _historyCache = null;
+// 캐시가 채워진 시점의 타임스탬프 (ms). TTL 만료 판단용.
+var _historyCacheTs = 0;
+// 캐시 신선도 TTL: 외부 트리거(자동 발송 등)로 추가된 이력이 너무 오래
+// 보이지 않는 것을 막기 위해 일정 시간 경과 시 자동 재fetch.
+// 캐시 hit 의 성능 이점은 살리되 stale 시간을 제한.
+const _HISTORY_CACHE_TTL_MS = 30000;
+// fetch race 가드: 캐시 무효화 직후 같은 컨테이너로 동시에 들어온 호출들 중
+// 가장 마지막 응답만 화면에 적용한다.
+var _historySeq = 0;
+
+function _invalidateHistoryCache() {
+    _historyCache = null;
+    _historyCacheTs = 0;
+}
 
 window.renderHistoryTab = async function (container) {
-    container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
+    var myReq = ++_historySeq;
+    // TTL 만료 검사: 캐시는 있지만 오래되었다면 무효화하여 재fetch.
+    // 외부 트리거(자동 발송, 다른 관리자 동시 작업 등)로 추가된 이력 반영용.
+    if (_historyCache && (Date.now() - _historyCacheTs) > _HISTORY_CACHE_TTL_MS) {
+        _invalidateHistoryCache();
+    }
+    // 캐시 미스일 때만 로딩 표시 + 네트워크 호출
+    // (페이지 클릭 / 필터 변경으로 재호출되어도 캐시가 있으면 깜빡임 없음)
+    if (!_historyCache) {
+        container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
+        try {
+            // 발송 이력과 구독자 통계를 동시에 가져옴
+            // - histRes: 발송 이력 목록 (전체 - 클라이언트 필터 cat/type 적용을 위해 전체를 가져옴)
+            //   서버는 `?page=` 가 있을 때만 새 포맷, 없으면 raw array 반환하므로
+            //   여기서는 cat/type 필터 적용 후 클라이언트에서 페이지네이션
+            // - statsRes: 해역별 현재 구독자 수 (접이식 패널에서 사용)
+            var [histRes, statsRes] = await Promise.all([
+                fetch('/api/push-history'),
+                fetch('/api/push-subscriber-stats')
+            ]);
+            var rawHist = histRes.ok ? await histRes.json() : [];
+            if (myReq !== _historySeq) return; // race: 더 최신 요청이 떴으므로 폐기
+            // 공용 normalize 로 { data, pagination } / raw array 양쪽 처리
+            var normalized = (window.PaginationHelper && typeof window.PaginationHelper.normalize === 'function')
+                ? window.PaginationHelper.normalize(rawHist)
+                : { items: Array.isArray(rawHist) ? rawHist : [], pagination: null };
+            var statsParsed = statsRes.ok ? await statsRes.json() : null;
+            if (myReq !== _historySeq) return;
+            _historyCache = {
+                history: normalized.items,
+                subscriberStats: statsParsed
+            };
+            _historyCacheTs = Date.now();
+        } catch (e) {
+            if (myReq !== _historySeq) return;
+            container.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">오류 발생: ' + e.message + '</div>';
+            return;
+        }
+    }
+    if (myReq !== _historySeq) return;
+
     try {
-        // 발송 이력과 구독자 통계를 동시에 가져옴
-        // - histRes: 발송 이력 목록
-        // - statsRes: 해역별 현재 구독자 수 (접이식 패널에서 사용)
-        var [histRes, statsRes] = await Promise.all([
-            fetch('/api/push-history'),
-            fetch('/api/push-subscriber-stats')
-        ]);
-        var history = histRes.ok ? await histRes.json() : [];
-        var subscriberStats = statsRes.ok ? await statsRes.json() : null;
+        var history = _historyCache.history;
+        var subscriberStats = _historyCache.subscriberStats;
         var filtered = history.filter(function(h) {
             return (historyFilter.cat === 'all' || h.tab === historyFilter.cat) && (historyFilter.type === 'all' || h.type === historyFilter.type);
         });
+
+        // 페이지네이션 적용
+        // - filtered 가 비면 totalPages=0 이지만 UI 측에서는 1 페이지 취급
+        // - 현재 페이지가 totalPages 를 초과하면 마지막 가능한 페이지로 클램프
+        //   (1 페이지로 리셋이 아니라 사용자 위치 보존)
+        var totalItems = filtered.length;
+        var totalPages = Math.max(1, Math.ceil(totalItems / _PUSH_HISTORY_LIMIT));
+        // [빈 결과 가드] filter 후 0건이면 다음 진입을 위해 1페이지로 명시적 리셋.
+        if (totalItems === 0) _pushHistoryPage = 1;
+        if (_pushHistoryPage > totalPages) _pushHistoryPage = Math.max(1, totalPages);
+        var pageStart = (_pushHistoryPage - 1) * _PUSH_HISTORY_LIMIT;
+        var pagedItems = filtered.slice(pageStart, pageStart + _PUSH_HISTORY_LIMIT);
 
         var categories = [
             { id: 'all', name: '전체' }, { id: 'publish', name: '발표' },
@@ -509,7 +597,7 @@ window.renderHistoryTab = async function (container) {
         // - 각 항목: 체크박스, 시간, 수신자 수 배지, 자동/수동 배지, 삭제 버튼, 제목, 본문
         // - 본문 내 줄바꿈(\n)을 <br>로 변환하여 실제 푸시 알림과 동일한 형태로 표시
         // - h.count: 해당 알림이 발송된 수신자 수 (push.js에서 발송 성공 시 기록)
-        var itemsHtml = filtered.map(function(h) {
+        var itemsHtml = pagedItems.map(function(h) {
             // 본문 줄바꿈 변환 (서버에서 \n으로 저장된 내용을 HTML 줄바꿈으로 표시)
             var contentHtml = (h.content || '').replace(/\n/g, '<br>');
             // 수신자 수 배지 (0명이거나 값이 없으면 미표시)
@@ -564,7 +652,26 @@ window.renderHistoryTab = async function (container) {
                 + '</div></div>';
         }).join('');
 
-        container.innerHTML = '<div style="margin-bottom:20px;"><div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.05);">' + catHtml + '</div>' + typeHtml + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;padding:0 6px;"><div style="display:flex;gap:12px;align-items:center;"><input type="checkbox" id="hist-check-all" onchange="window.toggleAllHistoryChecks(this.checked)" style="width:16px;height:16px;cursor:pointer;"><label for="hist-check-all" style="color:#94a3b8;font-size:0.85rem;cursor:pointer;">전체 선택</label></div><button onclick="window.deleteSelectedHistory()" style="padding:6px 12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#ef4444;border-radius:6px;font-size:0.8rem;cursor:pointer;font-weight:600;">선택 삭제</button></div><div id="history-items-container">' + itemsHtml + (filtered.length === 0 ? '<div style="text-align:center;padding:50px;color:#64748b;">이력이 없습니다.</div>' : '') + '</div>' + (history.length > 0 ? '<div style="text-align:center;margin-top:20px;"><button onclick="window.clearAllHistory()" style="background:none;border:none;color:#64748b;font-size:0.8rem;text-decoration:underline;cursor:pointer;">전체 이력 초기화</button></div>' : '') + '</div>';
+        container.innerHTML = '<div style="margin-bottom:20px;"><div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.05);">' + catHtml + '</div>' + typeHtml + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;padding:0 6px;"><div style="display:flex;gap:12px;align-items:center;"><input type="checkbox" id="hist-check-all" onchange="window.toggleAllHistoryChecks(this.checked)" style="width:16px;height:16px;cursor:pointer;"><label for="hist-check-all" style="color:#94a3b8;font-size:0.85rem;cursor:pointer;">전체 선택</label><span style="color:#475569;font-size:0.75rem;">총 ' + totalItems + '건</span></div><button onclick="window.deleteSelectedHistory()" style="padding:6px 12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#ef4444;border-radius:6px;font-size:0.8rem;cursor:pointer;font-weight:600;">선택 삭제</button></div><div id="history-items-container">' + itemsHtml + (totalItems === 0 ? '<div style="text-align:center;padding:50px;color:#64748b;">이력이 없습니다.</div>' : '') + '</div><div id="push-history-pagination" class="pagination"></div>' + (history.length > 0 ? '<div style="text-align:center;margin-top:20px;"><button onclick="window.clearAllHistory()" style="background:none;border:none;color:#64748b;font-size:0.8rem;text-decoration:underline;cursor:pointer;">전체 이력 초기화</button></div>' : '') + '</div>';
+
+        // 공용 페이지네이션 helper 로 페이지 버튼 렌더
+        // - 페이지 변경 시 _pushHistoryPage 갱신 후 renderHistoryTab 재호출
+        //   캐시 hit 이므로 fetch 없음 + "로딩 중..." 깜빡임 없음.
+        // - 페이지 클릭 후 컨테이너 상단으로 부드럽게 스크롤 (큰 페이지 이동 UX).
+        var pagEl = document.getElementById('push-history-pagination');
+        if (pagEl && typeof window.renderStandardPagination === 'function') {
+            window.renderStandardPagination(pagEl, _pushHistoryPage, totalPages, function (page) {
+                _pushHistoryPage = page;
+                window.renderHistoryTab(container);
+                // container 는 #alert-management-content 등 스크롤러 자체이므로
+                // scrollIntoView 대신 자체 scrollTop 을 0 으로 (부드럽게).
+                if (typeof container.scroll === 'function') {
+                    container.scroll({ top: 0, behavior: 'smooth' });
+                } else {
+                    container.scrollTop = 0;
+                }
+            });
+        }
     } catch (e) {
         container.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">오류 발생: ' + e.message + '</div>';
     }
@@ -576,6 +683,10 @@ window.renderHistoryTab = async function (container) {
 window.updateHistoryFilter = function (key, val) {
     historyFilter[key] = val;
     if (historyFilter.cat === 'custom') historyFilter.type = 'all';
+    // 필터가 바뀌면 첫 페이지로 리셋 (다른 필터에서 깊은 페이지에 있다가 데이터가 적은 필터로
+    // 전환될 때 빈 페이지가 보이는 문제 방지)
+    _pushHistoryPage = 1;
+    // 필터 변경은 캐시된 데이터로 충분 — 무효화 없음 (재 fetch 회피)
     var container = document.getElementById('alert-admin-inner-content') || document.getElementById('alert-management-content');
     if (container) window.renderHistoryTab(container);
 };
@@ -589,6 +700,8 @@ window.deleteSingleHistory = async function (id) {
     try {
         var res = await fetch('/api/push-history/' + id, { method: 'DELETE' });
         if (res.ok) {
+            // 액션 후 캐시 무효화 → 다음 render 에서 재 fetch
+            _invalidateHistoryCache();
             var container = document.getElementById('alert-admin-inner-content') || document.getElementById('alert-management-content');
             if (container) window.renderHistoryTab(container);
         }
@@ -602,6 +715,7 @@ window.deleteSelectedHistory = async function () {
     try {
         var res = await fetch('/api/push-history', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: checked }) });
         if (res.ok) {
+            _invalidateHistoryCache();
             var container = document.getElementById('alert-admin-inner-content') || document.getElementById('alert-management-content');
             if (container) window.renderHistoryTab(container);
         }
@@ -613,6 +727,7 @@ window.clearAllHistory = async function () {
     try {
         var res = await fetch('/api/push-history', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
         if (res.ok) {
+            _invalidateHistoryCache();
             var container = document.getElementById('alert-admin-inner-content') || document.getElementById('alert-management-content');
             if (container) window.renderHistoryTab(container);
         }
@@ -756,7 +871,12 @@ window.executeCustomPush = async function () {
             body: JSON.stringify({ title: title, content: content, targetZones: targetZones, sendToAllSubscribers: sendAllSubs })
         });
         var result = await response.json();
-        if (result.success) { alert('✅ 푸시 발송 완료\n성공: ' + result.successCount + '건 / 실패: ' + result.failCount + '건'); window.switchAlertAdminTab('custom'); }
+        if (result.success) {
+            // 새 이력이 추가되었으므로 캐시 무효화 — 이력 탭 재진입 시 최신 fetch
+            _invalidateHistoryCache();
+            alert('✅ 푸시 발송 완료\n성공: ' + result.successCount + '건 / 실패: ' + result.failCount + '건');
+            window.switchAlertAdminTab('custom');
+        }
         else { alert('❌ 발송 실패: ' + (result.error || '알 수 없는 오류')); document.getElementById('custom-push-confirm-overlay').style.display = 'none'; }
     } catch (e) { alert('❌ 서버 통신 오류: ' + e.message); }
     finally { btn.disabled = false; btn.textContent = '지금 발송'; }

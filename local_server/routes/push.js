@@ -476,13 +476,40 @@ router.post('/api/push-custom', async (req, res) => {
 // ============================================================================
 
 // 이력 조회
+// - 기본(쿼리 page 없음): 전체 배열을 그대로 반환 (하위호환 — 기존 호출자 영향 없음)
+// - page 쿼리 있을 때: { data, pagination } 형태로 반환
+//   (정렬은 항상 id 역순(최신 우선) — 기존 데이터는 unshift 로 이미 최신순이지만
+//    안전을 위해 명시적으로 정렬)
 router.get('/api/push-history', (req, res) => {
     try {
+        let history = [];
         if (fs.existsSync(HISTORY_FILE)) {
-            res.json(JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8')));
-        } else {
-            res.json([]);
+            history = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8'));
         }
+
+        // 최신순 정렬 (id 가 Date.now 기반이라 큰 값일수록 최신)
+        if (Array.isArray(history)) {
+            history.sort((a, b) => (b.id || 0) - (a.id || 0));
+        }
+
+        // 페이지네이션 요청 여부
+        const hasPageQuery = Object.prototype.hasOwnProperty.call(req.query, 'page');
+        if (!hasPageQuery) {
+            // 하위호환: 기존처럼 raw array 반환
+            return res.json(history);
+        }
+
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 20));
+        const total = history.length;
+        const totalPages = Math.max(1, Math.ceil(total / limit));
+        const start = (page - 1) * limit;
+        const data = history.slice(start, start + limit);
+
+        res.json({
+            data,
+            pagination: { page, limit, total, totalPages }
+        });
     } catch (e) {
         res.status(500).json({ error: '이력 조회 실패' });
     }

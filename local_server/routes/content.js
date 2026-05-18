@@ -326,9 +326,33 @@ router.delete('/api/boards/:id', (req, res) => {
 // ============================================================================
 
 // 게시글 목록 조회
+// - 기본(쿼리 없음): 일반 사용자 홍보 게시판(promo.js)이 자체적으로 client-side
+//   slice 로 페이지네이션 하므로 기존처럼 raw 배열을 그대로 반환 (하위호환).
+// - ?page= 있을 때만: 최신순 정렬 + { data, pagination } 새 포맷 (관리자 모달 전용).
 router.get('/api/promo', (req, res) => {
-    if (dataCache.promo) res.json(dataCache.promo);
-    else res.json([]);
+    const all = Array.isArray(dataCache.promo) ? dataCache.promo : [];
+
+    if (req.query.page != null) {
+        // 최신순 정렬: 항목별 단일 정렬 키 산출(id 우선, 없으면 createdAt → epoch)
+        // 후 키 역순 비교. 한쪽에만 id 가 있는 혼합 데이터에서도 일관된 결과.
+        const keyOf = p => (p && p.id != null)
+            ? p.id
+            : new Date((p && p.createdAt) || 0).getTime();
+        const sorted = all.slice().sort((a, b) => keyOf(b) - keyOf(a));
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const rawLimit = parseInt(req.query.limit, 10) || 15;
+        const limit = Math.min(200, Math.max(1, rawLimit));
+        const total = sorted.length;
+        const totalPages = Math.max(1, Math.ceil(total / limit));
+        const offset = (page - 1) * limit;
+        return res.json({
+            data: sorted.slice(offset, offset + limit),
+            pagination: { page, limit, total, totalPages }
+        });
+    }
+
+    // 기존 동작: raw array (일반 사용자 화면 호환)
+    res.json(all);
 });
 
 // 게시글 상세 조회 (조회수 증가)

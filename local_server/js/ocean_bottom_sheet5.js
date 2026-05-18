@@ -58,6 +58,13 @@
          'ocean-val-wind', 'ocean-val-wave'
         ].forEach(function (id) { OS.resetCardToProgress(id); });
 
+        // 천기 카드 4셀도 동일하게 스켈레톤 초기화 — 단일 소유 패턴.
+        // (스켈레톤 초기화는 본 함수가 모든 카드에 대해 책임. loadWeatherCard 는
+        //  단독 진입 경로(슬라이더 release) 보강용 _ensureLoadingSkeleton (없으면 깔기)
+        //  만 수행해 동일 tick 이중 innerHTML 덮어쓰기를 피한다.)
+        ['ocean-val-wx-sky', 'ocean-val-wx-rain', 'ocean-val-wx-sno', 'ocean-val-wx-tmp']
+            .forEach(function (id) { OS.resetCardToProgress(id); });
+
         ['ocean-card-depth', 'ocean-card-temp', 'ocean-card-current',
          'ocean-card-wind', 'ocean-card-wave'
         ].forEach(function (id) { OS.showCard(id); });

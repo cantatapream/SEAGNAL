@@ -3316,13 +3316,15 @@ line-height: 1.1;
 }
 
 /* 페이지네이션 스타일 */
-.promo-pagination {
+.promo-pagination,
+.pagination {
     display: flex;
     justify-content: center;
     align-items: center;
     gap: 5px;
     margin-top: 20px;
     padding-bottom: 20px;
+    flex-wrap: wrap;
 }
 
 .pagination-btn {
@@ -9203,7 +9205,6 @@ body.ocean-map-active .main-header .header-content {
 /* ============================================================
    [시트 슬라이더] 양력 날짜 바로 아래(.ocean-sheet-subrow) 위치
    - 음력이 있던 자리에 얇게 배치
-   - 트랙 위에 자정 경계만 짧은 세로줄로 표시 (텍스트 X)
    - 손잡이 위에 말풍선 (천기 슬라이더와 동일 패턴)
    - max=0 또는 .is-hidden 시 wrap 비표시
    ============================================================ */
@@ -9229,65 +9230,132 @@ body.ocean-map-active .main-header .header-content {
 }
 .ocean-sheet-slider:disabled { cursor: default; opacity: 0.4; }
 
+/* 글래스모피즘 적용: frosted 트랙 + 진행 그라데이션
+   + 24시간 주기 미세 stripe (자정 경계 시각 단서; --shtl-day-count = ceil(_maxHours/24))
+   stripe 는 트랙을 N등분 하는 우측 끝 1px 세로선이며, 마지막 끝(=트랙 우측 가장자리)에
+   걸리는 라인은 트랙 가장자리에 가려 사실상 N-1 개의 자정 경계만 시각화됨. */
 .ocean-sheet-slider::-webkit-slider-runnable-track {
-    height: 4px;
-    background: rgba(255,255,255,0.18);
-    border-radius: 2px;
+    height: 8px;
+    background:
+        repeating-linear-gradient(
+            90deg,
+            transparent 0,
+            transparent calc(100% / var(--shtl-day-count, 1) - 1px),
+            rgba(255, 255, 255, 0.18) calc(100% / var(--shtl-day-count, 1) - 1px),
+            rgba(255, 255, 255, 0.18) calc(100% / var(--shtl-day-count, 1))
+        ),
+        linear-gradient(90deg, rgba(100,180,255,0.45) 0%, rgba(100,180,255,0.30) 100%),
+        rgba(140, 200, 255, 0.10);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 4px;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.25);
 }
+/* 글래스모피즘 적용: halo + 흰 테두리 + radial gem thumb (3중 구조) */
 .ocean-sheet-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
-    background: #64b4ff;
+    background: radial-gradient(circle at 35% 30%, #dff2ff 0%, #64b4ff 60%, #2a78c8 100%);
     border: 2px solid #fff;
-    margin-top: -5px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-    cursor: pointer;
+    margin-top: -6px;
+    box-shadow:
+        0 0 12px rgba(100,180,255,0.6),
+        0 0 24px rgba(100,180,255,0.3),
+        0 1px 3px rgba(0,0,0,0.4);
+    cursor: grab;
+    transition: width 0.18s ease, height 0.18s ease, margin-top 0.18s ease, box-shadow 0.18s ease;
+}
+.ocean-sheet-slider:active::-webkit-slider-thumb {
+    width: 15px;
+    height: 15px;
+    margin-top: -5.5px;
+    cursor: grabbing;
+    box-shadow:
+        0 0 14px rgba(100,180,255,0.75),
+        0 0 24px rgba(100,180,255,0.45),
+        0 1px 3px rgba(0,0,0,0.4);
 }
 .ocean-sheet-slider::-moz-range-track {
-    height: 4px;
-    background: rgba(255,255,255,0.18);
-    border-radius: 2px;
+    height: 8px;
+    background:
+        repeating-linear-gradient(
+            90deg,
+            transparent 0,
+            transparent calc(100% / var(--shtl-day-count, 1) - 1px),
+            rgba(255, 255, 255, 0.18) calc(100% / var(--shtl-day-count, 1) - 1px),
+            rgba(255, 255, 255, 0.18) calc(100% / var(--shtl-day-count, 1))
+        ),
+        linear-gradient(90deg, rgba(100,180,255,0.45) 0%, rgba(100,180,255,0.30) 100%),
+        rgba(140, 200, 255, 0.10);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 4px;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.25);
 }
 .ocean-sheet-slider::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
-    background: #64b4ff;
+    background: radial-gradient(circle at 35% 30%, #dff2ff 0%, #64b4ff 60%, #2a78c8 100%);
     border: 2px solid #fff;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-    cursor: pointer;
+    margin-top: -6px;
+    box-shadow:
+        0 0 12px rgba(100,180,255,0.6),
+        0 0 24px rgba(100,180,255,0.3),
+        0 1px 3px rgba(0,0,0,0.4);
+    cursor: grab;
+    transition: width 0.18s ease, height 0.18s ease, margin-top 0.18s ease, box-shadow 0.18s ease;
+}
+.ocean-sheet-slider:active::-moz-range-thumb {
+    width: 15px;
+    height: 15px;
+    margin-top: -5.5px;
+    cursor: grabbing;
+    box-shadow:
+        0 0 14px rgba(100,180,255,0.75),
+        0 0 24px rgba(100,180,255,0.45),
+        0 1px 3px rgba(0,0,0,0.4);
 }
 
-.ocean-sheet-ticks {
-    position: absolute;
-    top: 0;
-    left: 9px;
-    right: 9px;
-    height: 18px;
-    pointer-events: none;
-    z-index: 1;
-}
-.ocean-sheet-tick {
-    position: absolute;
-    top: 4px;
-    width: 1px;
-    height: 10px;
-    background: rgba(255,255,255,0.35);
-    transform: translateX(-0.5px);
+/* hover 상태는 데스크톱(마우스) 전용 — 모바일 sticky-hover 회피 */
+@media (hover: hover) {
+    .ocean-sheet-slider:hover::-webkit-slider-thumb {
+        width: 18px;
+        height: 18px;
+        margin-top: -7px;
+        box-shadow:
+            0 0 12px rgba(100,180,255,0.7),
+            0 0 24px rgba(100,180,255,0.4),
+            0 1px 3px rgba(0,0,0,0.4);
+    }
+    .ocean-sheet-slider:hover::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        margin-top: -7px;
+        box-shadow:
+            0 0 12px rgba(100,180,255,0.7),
+            0 0 24px rgba(100,180,255,0.4),
+            0 1px 3px rgba(0,0,0,0.4);
+    }
 }
 
+/* 글래스모피즘 적용: frosted 말풍선 */
 .ocean-sheet-tooltip {
     position: absolute;
-    top: -1.625rem;
+    top: -1.75rem;
     left: 0;
-    padding: 3px 8px;
-    background: rgba(20, 30, 50, 0.95);
-    border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 6px;
-    color: #fff;
+    padding: 4px 10px;
+    background: rgba(140, 200, 255, 0.12);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 12px;
+    color: #e8f4ff;
     font-size: 0.72rem;
     font-weight: 600;
     white-space: nowrap;
@@ -9295,6 +9363,7 @@ body.ocean-map-active .main-header .header-content {
     opacity: 0;
     transition: opacity 1s ease;
     z-index: 3;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
 }
 .ocean-sheet-tooltip.visible {
     opacity: 1;
@@ -9305,9 +9374,18 @@ body.ocean-map-active .main-header .header-content {
     position: absolute;
     top: 100%;
     left: var(--shtl-arrow-x, 50%);
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: rgba(20, 30, 50, 0.95);
+    width: 10px;
+    height: 10px;
+    margin-top: -6px;
+    transform: translateX(-50%) rotate(45deg);
+    background: rgba(140, 200, 255, 0.12);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border-right: 1px solid rgba(255,255,255,0.35);
+    border-bottom: 1px solid rgba(255,255,255,0.35);
+    border-top: none;
+    border-left: none;
+    border-radius: 0 0 3px 0;
 }
 
 /* --- 풀폭 카드 (조석/천문) --- */

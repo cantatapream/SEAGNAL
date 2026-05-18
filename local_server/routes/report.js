@@ -249,7 +249,31 @@ router.get('/api/reports', (req, res) => {
         filtered = filtered.filter(r => r.category === category);
     }
 
-    res.json(filtered);
+    // 필터 적용 후 createdAt 역순 정렬 (최신 우선)
+    filtered.sort((a, b) => {
+        const ta = new Date(a.createdAt || 0).getTime();
+        const tb = new Date(b.createdAt || 0).getTime();
+        return tb - ta;
+    });
+
+    // 페이지네이션 (쿼리에 page 가 있을 때만 새 응답 포맷)
+    // - 하위호환: page 가 없으면 기존처럼 raw array 반환
+    const hasPageQuery = Object.prototype.hasOwnProperty.call(req.query, 'page');
+    if (!hasPageQuery) {
+        return res.json(filtered);
+    }
+
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const start = (page - 1) * limit;
+    const data = filtered.slice(start, start + limit);
+
+    res.json({
+        data,
+        pagination: { page, limit, total, totalPages }
+    });
 });
 
 // ============================================================================
