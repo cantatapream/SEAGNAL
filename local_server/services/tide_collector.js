@@ -350,13 +350,28 @@ async function collectAndSaveTideData(lat, lon, dateInt, time, fileName, paddedI
             timestamp: new Date().toISOString(),
             tideBedStatus: dayOnlyItems.length > 0 ? 'complete' : 'error',
             tideBedCount: dayOnlyItems.length,
+            // ❸ 모든 피크 (H/L 각 최대 4개) 전달 — peak_finder 가 채워준 키만 정의됨
             highTide1: peakResult.highTide1,
             highTide2: peakResult.highTide2,
+            highTide3: peakResult.highTide3,
+            highTide4: peakResult.highTide4,
             lowTide1: peakResult.lowTide1,
             lowTide2: peakResult.lowTide2,
+            lowTide3: peakResult.lowTide3,
+            lowTide4: peakResult.lowTide4,
             peakCount: peakResult.peakCount,
             tideBedData: dayOnlyItems
         };
+
+        // ❷-B 서버 가드: 이미 같은 fileName 이 complete/complete-quick 으로 캐시돼
+        // 있는데 새 결과가 'error' (빈 padded 결과) 면 덮어쓰지 않음.
+        const existing = tideCache.get(fileName);
+        if (existing
+            && (existing.tideBedStatus === 'complete' || existing.tideBedStatus === 'complete-quick' || existing.tideBedStatus === 'complete (IDW)')
+            && completeData.tideBedStatus === 'error') {
+            console.log(`🛡️  ${fileName}: 기존 ${existing.tideBedStatus} 유지 — error 덮어쓰기 차단`);
+            return existing;
+        }
 
         // 메모리 캐시(tideCache LRU)에만 저장. 디스크 파일 저장은 제거됨
         // (캐시 적중률 낮고 파일 누적 부담이 더 컸음 — 메모리 캐시로 충분).

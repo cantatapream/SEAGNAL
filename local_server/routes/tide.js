@@ -137,6 +137,9 @@ router.get('/data/:filename', (req, res, next) => {
 // ============================================================================
 router.post('/api/save_tide_input', async (req, res) => {
     const { date, time, lat, lon, deviceId } = req.body;
+    // ❹ 클라이언트 격자ID 캐시 — body 에 동봉되어 오면 KHOA 사전 조회 1회 절감.
+    // 잘못된 값을 보내도 후속 KHOA 호출이 그 격자에서 실패할 뿐 다른 사용자에 영향 없음.
+    const clientGridHash = req.body && req.body.gridHash ? String(req.body.gridHash) : null;
 
     // 조석 조회 횟수 제한 체크
     if (deviceId) {
@@ -154,7 +157,15 @@ router.post('/api/save_tide_input', async (req, res) => {
 
     try {
         // 1단계: 격자 해시 조회 (1건 사전 조회)
-        const gridHash = await tideCollector.getGridHash(lat, lon, date);
+        // ❹ 클라이언트가 caching 한 gridHash 를 보내왔다면 KHOA 사전 조회 skip.
+        let gridHash;
+        let gridHashRefreshed = false; // 클라이언트 캐시 무효 감지 → 자동 갱신 시 true
+        if (clientGridHash) {
+            gridHash = clientGridHash;
+            console.log(`⚡ 클라이언트 격자 캐시 사용: ${gridHash} (KHOA 사전 조회 skip)`);
+        } else {
+            gridHash = await tideCollector.getGridHash(lat, lon, date);
+        }
         if (!gridHash) {
             console.error('❌ 격자 해시를 확인할 수 없습니다.');
             res.json({ success: false, error: 'Grid hash unavailable' });
@@ -171,26 +182,52 @@ router.post('/api/save_tide_input', async (req, res) => {
             { key: 'tomorrow', date: adj.next }
         ];
 
-        const fileMap = {};
-        const toCollect = [];
-
-        for (const pair of datePairs) {
-            const fileName = `tide_${pair.date}_${gridHash}.json`;
-            // (디스크 캐시 제거로 filePath 미사용 — fileName 만 메모리 캐시 키 + 클라이언트 폴링 식별자로 사용)
-            fileMap[pair.key] = fileName;
-
-            let cached = false;
-
-            // [캐시 확인] 메모리 캐시(tideCache LRU)만 사용.
-            //   디스크 파일 캐시는 제거됨 — 사용자가 매번 다른 위치를 클릭하므로
-            //   디스크 캐시 적중률이 낮고 파일이 누적되는 부담이 더 컸음.
-            //   메모리 캐시는 같은 사용자 / 동일 격자 재클릭 시 빠른 응답 보장.
-            if (tideCache.has(fileName)) {
-                cached = true;
+        const computeFiles = () => {
+            const fileMap = {};
+            const toCollect = [];
+            for (const pair of datePairs) {
+                const fileName = `tide_${pair.date}_${gridHash}.json`;
+                fileMap[pair.key] = fileName;
+                // [캐시 확인] 메모리 캐시(tideCache LRU)만 사용.
+                //   디스크 파일 캐시는 제거됨 — 사용자가 매번 다른 위치를 클릭하므로
+                //   디스크 캐시 적중률이 낮고 파일이 누적되는 부담이 더 컸음.
+                //   메모리 캐시는 같은 사용자 / 동일 격자 재클릭 시 빠른 응답 보장.
+                if (!tideCache.has(fileName)) {
+                    toCollect.push({ key: pair.key, date: pair.date, fileName });
+                }
             }
+            return { fileMap, toCollect };
+        };
 
-            if (!cached) {
-                toCollect.push({ key: pair.key, date: pair.date, fileName });
+        let { fileMap, toCollect } = computeFiles();
+
+        // ❹+ 클라이언트 gridHash 자동 invalidate
+        //   클라이언트가 동봉한 gridHash 가 더 이상 유효하지 않을 때
+        //   (KHOA 격자 정책 변경 / 더 정확한 격자 분할 등) 클라이언트 localStorage 의
+        //   잘못된 gridHash 가 영구히 남아 같은 좌표 클릭 시 매번 실패가 발생하는 문제 방지.
+        //
+        //   전략: clientGridHash 가 있어도 모든 파일이 cache MISS 면 (= 새 수집 필요)
+        //         서버가 직접 getGridHash 를 1회 호출해 검증. 결과가 다르면 fresh 값으로
+        //         교체하고 응답에 gridHashRefreshed:true + 새 gridHash 동봉.
+        //         클라이언트는 이 값을 받아 localStorage 갱신 (또는 invalidGridHash:true
+        //         로도 같은 효과 — 본 구현은 자동 복구 방식 채택).
+        //   비용: cache hit 면 검증 skip (즐겨찾기 재방문 fast path 100% 보존).
+        //         cache miss 면 어차피 collectTideBedData 가 KHOA 5페이지 호출하므로
+        //         추가 1회 (numOfRows=1) 는 무시할만한 추가 비용.
+        if (clientGridHash && toCollect.length === datePairs.length) {
+            try {
+                const verified = await tideCollector.getGridHash(lat, lon, date);
+                if (verified && verified !== clientGridHash) {
+                    console.warn(`♻️ clientGridHash 불일치 감지: ${clientGridHash} → ${verified} (자동 갱신)`);
+                    gridHash = verified;
+                    gridHashRefreshed = true;
+                    ({ fileMap, toCollect } = computeFiles());
+                } else if (!verified) {
+                    // 검증 결과 자체가 실패 — 단순 KHOA 일시 장애일 수 있으니 기존 값 유지.
+                    console.warn(`⚠️ clientGridHash 검증 실패 (KHOA 응답 없음). 기존값 유지.`);
+                }
+            } catch (e) {
+                console.warn(`⚠️ clientGridHash 검증 중 예외: ${e.message}`);
             }
         }
 
@@ -213,9 +250,12 @@ router.post('/api/save_tide_input', async (req, res) => {
         }
 
         // 클라이언트에 즉시 응답 (격자 해시 + 파일명 포함)
+        // gridHashRefreshed:true 인 경우 클라이언트는 localStorage gridHashCache:v1 의
+        // 해당 좌표 항목을 새 gridHash 로 갱신해야 함 (ocean_bottom_sheet3.js 참조).
         res.json({
             success: true,
             gridHash,
+            gridHashRefreshed,
             files: fileMap,
             cached: 3 - toCollect.length,
             collecting: toCollect.length
@@ -259,10 +299,11 @@ router.post('/api/save_tide_input', async (req, res) => {
                     opts = opts || {};
                     const dateInt = item.date;
                     const itemAdj = tideCollector.getAdjacentDates(dateInt);
+                    // ❸ padding 12h 확대 (3h → 12h, 180 → 720) — 자정 ±12h 피크 detect 가능
                     const paddedItems = [
-                        ...(rawItemsMap[itemAdj.prev] || []).slice(-180),
+                        ...(rawItemsMap[itemAdj.prev] || []).slice(-720),
                         ...(rawItemsMap[dateInt] || []),
-                        ...(rawItemsMap[itemAdj.next] || []).slice(0, 180)
+                        ...(rawItemsMap[itemAdj.next] || []).slice(0, 720)
                     ];
                     await tideCollector.collectAndSaveTideData(lat, lon, dateInt, time, item.fileName, paddedItems);
 

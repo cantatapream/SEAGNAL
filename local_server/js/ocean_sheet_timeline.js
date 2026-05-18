@@ -222,6 +222,91 @@
         return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
     }
 
+    /* ❺ 날짜 구분선 — 실제 자정 ms 위치의 % 에 동적 element 생성 ----
+     * - displayTimeMs(0)        = real now (호출 시점)
+     * - displayTimeMs(_maxHours) = floor3h(now) + _maxHours*3600000
+     * 트랙 위에 absolute-positioned .ocean-sheet-divider 자식 생성.
+     * 1분 setInterval 로 자동 갱신 (real now 가 흘러서 자정 % 가 변함).
+     */
+    var _dividerLayer = null;
+    var _dividerTimer = null;
+
+    function ensureDividerLayer() {
+        if (_dividerLayer && _dividerLayer.isConnected) return _dividerLayer;
+        var wrap = $('ocean-sheet-slider-wrap');
+        if (!wrap) return null;
+        // 이미 만들어진 게 있으면 재사용
+        _dividerLayer = wrap.querySelector('.ocean-sheet-slider-dividers');
+        if (!_dividerLayer) {
+            _dividerLayer = document.createElement('div');
+            _dividerLayer.className = 'ocean-sheet-slider-dividers';
+            // 슬라이더 자체와 위치를 맞춰 absolute 로 띄움 (CSS 에서 처리)
+            wrap.appendChild(_dividerLayer);
+        }
+        return _dividerLayer;
+    }
+
+    function updateDayDividers() {
+        var slider = $('ocean-sheet-slider');
+        if (!slider) return;
+        var layer = ensureDividerLayer();
+        if (!layer) return;
+        // 슬라이더가 hidden 이면 비움
+        var wrap = $('ocean-sheet-slider-wrap');
+        if (wrap && wrap.classList.contains('is-hidden')) {
+            layer.innerHTML = '';
+            return;
+        }
+        if (!_maxHours || _maxHours <= 0) {
+            layer.innerHTML = '';
+            return;
+        }
+
+        var nowMs = displayTimeMs(0);
+        var endMs = displayTimeMs(_maxHours);
+        if (!(endMs > nowMs)) {
+            layer.innerHTML = '';
+            return;
+        }
+
+        // 다음 자정부터 endMs 이전까지 24h 간격
+        var cursor = new Date(nowMs);
+        cursor.setHours(24, 0, 0, 0); // 익일 00:00
+        var positions = [];
+        while (cursor.getTime() < endMs) {
+            var pct = (cursor.getTime() - nowMs) / (endMs - nowMs) * 100;
+            positions.push(pct);
+            cursor = new Date(cursor.getTime() + 86400000);
+        }
+
+        // DOM 재구성 (positions 갯수와 다르면 새로 그림, 같으면 left 만 갱신)
+        var existing = layer.querySelectorAll('.ocean-sheet-divider');
+        if (existing.length !== positions.length) {
+            layer.innerHTML = '';
+            for (var i = 0; i < positions.length; i++) {
+                var d = document.createElement('div');
+                d.className = 'ocean-sheet-divider';
+                d.style.left = positions[i].toFixed(3) + '%';
+                layer.appendChild(d);
+            }
+        } else {
+            for (var j = 0; j < positions.length; j++) {
+                existing[j].style.left = positions[j].toFixed(3) + '%';
+            }
+        }
+    }
+
+    function startDividerAutoUpdate() {
+        if (_dividerTimer) return;
+        _dividerTimer = setInterval(function () {
+            // 슬라이더가 보일 때만 갱신
+            var wrap = $('ocean-sheet-slider-wrap');
+            if (wrap && !wrap.classList.contains('is-hidden')) {
+                updateDayDividers();
+            }
+        }, 60000); // 1분
+    }
+
     // ── 헤더 동기 (드래그 중 호출) ──────────────────────────────
     /**
      * 슬라이더 현재값 → OS.state.date 갱신 + 헤더 다시 그림.
@@ -312,9 +397,10 @@
         slider.min = 0;
         slider.max = _maxHours;
         slider.step = 3;
-        // 트랙 stripe 분할 수 = ceil(_maxHours / 24) — 24h 면 1(stripe 없음),
-        // 48h 면 2(자정 1개), 72h 면 3(자정 2개). CSS repeating-linear-gradient 와 연동.
-        slider.style.setProperty('--shtl-day-count', Math.max(1, Math.ceil(_maxHours / 24)));
+        // ❺ 날짜 구분선: 실제 자정 ms 기반 % 위치로 동적 element 생성
+        // (기존 --shtl-day-count repeating-linear-gradient 방식은 등간격이라 부정확했음)
+        updateDayDividers();
+        startDividerAutoUpdate();
 
         // 4) 초기값 = 레이어 슬라이더 값 → 시트 슬라이더 value 변환
         slider.value = sheetValueFromLayerHours(initialLayerHours || 0);
@@ -353,8 +439,8 @@
         wrap.classList.remove('is-hidden');
         slider.disabled = false;
         slider.max = _maxHours;
-        // 트랙 stripe 분할 수 갱신 (init 과 동일 규칙).
-        slider.style.setProperty('--shtl-day-count', Math.max(1, Math.ceil(_maxHours / 24)));
+        // ❺ max 변경 시 구분선 재계산
+        updateDayDividers();
 
         var v = parseFloat(slider.value) || 0;
         if (v > _maxHours) {

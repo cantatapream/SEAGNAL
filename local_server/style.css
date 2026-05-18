@@ -9231,19 +9231,12 @@ body.ocean-map-active .main-header .header-content {
 .ocean-sheet-slider:disabled { cursor: default; opacity: 0.4; }
 
 /* 글래스모피즘 적용: frosted 트랙 + 진행 그라데이션
-   + 24시간 주기 미세 stripe (자정 경계 시각 단서; --shtl-day-count = ceil(_maxHours/24))
-   stripe 는 트랙을 N등분 하는 우측 끝 1px 세로선이며, 마지막 끝(=트랙 우측 가장자리)에
-   걸리는 라인은 트랙 가장자리에 가려 사실상 N-1 개의 자정 경계만 시각화됨. */
+   ❺ 자정 stripe 는 등간격 repeating-linear-gradient 가 아닌
+   JS 가 실제 자정 ms 위치에 동적 생성하는 .ocean-sheet-divider 가 담당
+   (등간격 stripe 는 현재 시각이 14:30 일 때 첫 자정 % 와 무관하게 1/N 위치에 그려져 부정확) */
 .ocean-sheet-slider::-webkit-slider-runnable-track {
     height: 8px;
     background:
-        repeating-linear-gradient(
-            90deg,
-            transparent 0,
-            transparent calc(100% / var(--shtl-day-count, 1) - 1px),
-            rgba(255, 255, 255, 0.18) calc(100% / var(--shtl-day-count, 1) - 1px),
-            rgba(255, 255, 255, 0.18) calc(100% / var(--shtl-day-count, 1))
-        ),
         linear-gradient(90deg, rgba(100,180,255,0.45) 0%, rgba(100,180,255,0.30) 100%),
         rgba(140, 200, 255, 0.10);
     border: 1px solid rgba(255, 255, 255, 0.18);
@@ -9282,13 +9275,6 @@ body.ocean-map-active .main-header .header-content {
 .ocean-sheet-slider::-moz-range-track {
     height: 8px;
     background:
-        repeating-linear-gradient(
-            90deg,
-            transparent 0,
-            transparent calc(100% / var(--shtl-day-count, 1) - 1px),
-            rgba(255, 255, 255, 0.18) calc(100% / var(--shtl-day-count, 1) - 1px),
-            rgba(255, 255, 255, 0.18) calc(100% / var(--shtl-day-count, 1))
-        ),
         linear-gradient(90deg, rgba(100,180,255,0.45) 0%, rgba(100,180,255,0.30) 100%),
         rgba(140, 200, 255, 0.10);
     border: 1px solid rgba(255, 255, 255, 0.18);
@@ -9296,6 +9282,29 @@ body.ocean-map-active .main-header .header-content {
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
     box-shadow: inset 0 1px 2px rgba(0,0,0,0.25);
+}
+
+/* ❺ 자정 구분선 — JS 가 동적 생성 (.ocean-sheet-divider 자식들).
+   슬라이더 트랙(.ocean-sheet-slider) 위에 absolute 로 띄움. */
+.ocean-sheet-slider-dividers {
+    position: absolute;
+    /* wrap 의 inner padding 과 thumb 반경 고려해 슬라이더 트랙 영역과 정렬 */
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 8px;
+    transform: translateY(-50%);
+    pointer-events: none;
+    z-index: 1; /* 트랙(0)과 thumb(2) 사이 */
+}
+.ocean-sheet-divider {
+    position: absolute;
+    top: 0;
+    width: 1px;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.45);
+    transform: translateX(-0.5px);
+    pointer-events: none;
 }
 .ocean-sheet-slider::-moz-range-thumb {
     width: 16px;
