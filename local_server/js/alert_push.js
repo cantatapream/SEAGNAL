@@ -386,7 +386,13 @@ window.sendManualPushFromGroup = async function (groupKey, tabId) {
                 }
             })
         });
-        if (res.ok) { alert('성공적으로 발송 요청되었습니다.'); window.switchAlertAdminTab(tabId); }
+        if (res.ok) {
+            // 새 이력이 추가되었으므로 캐시 무효화 — 이력 탭 재진입 시 최신 fetch
+            // (executeCustomPush 와 동일 패턴)
+            _invalidateHistoryCache();
+            alert('성공적으로 발송 요청되었습니다.');
+            window.switchAlertAdminTab(tabId);
+        }
         else { var err = await res.text(); alert('발송 실패: ' + err); if (btn) btn.innerText = originalText; }
     } catch (e) { alert('네트워크 오류: ' + e.message); }
 };
@@ -497,16 +503,28 @@ var _PUSH_HISTORY_LIMIT = 20;
 //    (c) 사용자가 탭을 떠났다가 돌아오는 케이스는 캐시 신선도 vs UX 트레이드오프 — 일단 유지.
 // 구조: { history: [...], subscriberStats: {...} | null }
 var _historyCache = null;
+// 캐시가 채워진 시점의 타임스탬프 (ms). TTL 만료 판단용.
+var _historyCacheTs = 0;
+// 캐시 신선도 TTL: 외부 트리거(자동 발송 등)로 추가된 이력이 너무 오래
+// 보이지 않는 것을 막기 위해 일정 시간 경과 시 자동 재fetch.
+// 캐시 hit 의 성능 이점은 살리되 stale 시간을 제한.
+const _HISTORY_CACHE_TTL_MS = 30000;
 // fetch race 가드: 캐시 무효화 직후 같은 컨테이너로 동시에 들어온 호출들 중
 // 가장 마지막 응답만 화면에 적용한다.
 var _historySeq = 0;
 
 function _invalidateHistoryCache() {
     _historyCache = null;
+    _historyCacheTs = 0;
 }
 
 window.renderHistoryTab = async function (container) {
     var myReq = ++_historySeq;
+    // TTL 만료 검사: 캐시는 있지만 오래되었다면 무효화하여 재fetch.
+    // 외부 트리거(자동 발송, 다른 관리자 동시 작업 등)로 추가된 이력 반영용.
+    if (_historyCache && (Date.now() - _historyCacheTs) > _HISTORY_CACHE_TTL_MS) {
+        _invalidateHistoryCache();
+    }
     // 캐시 미스일 때만 로딩 표시 + 네트워크 호출
     // (페이지 클릭 / 필터 변경으로 재호출되어도 캐시가 있으면 깜빡임 없음)
     if (!_historyCache) {
@@ -533,6 +551,7 @@ window.renderHistoryTab = async function (container) {
                 history: normalized.items,
                 subscriberStats: statsParsed
             };
+            _historyCacheTs = Date.now();
         } catch (e) {
             if (myReq !== _historySeq) return;
             container.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">오류 발생: ' + e.message + '</div>';
@@ -644,7 +663,13 @@ window.renderHistoryTab = async function (container) {
             window.renderStandardPagination(pagEl, _pushHistoryPage, totalPages, function (page) {
                 _pushHistoryPage = page;
                 window.renderHistoryTab(container);
-                container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // container 는 #alert-management-content 등 스크롤러 자체이므로
+                // scrollIntoView 대신 자체 scrollTop 을 0 으로 (부드럽게).
+                if (typeof container.scroll === 'function') {
+                    container.scroll({ top: 0, behavior: 'smooth' });
+                } else {
+                    container.scrollTop = 0;
+                }
             });
         }
     } catch (e) {
