@@ -90,25 +90,11 @@
     }
 
     /**
-     * 4 셀 모두 스켈레톤 (로딩 상태).
-     *
-     * 호출자:
-     *   - (현재) 외부에서 명시적으로 호출하는 경로 없음. 스켈레톤 초기화는 5.js 의
-     *     `OS.loadAllForDate` 가 `OS.resetCardToProgress` 로 4셀 일괄 처리(단일 소유 패턴).
-     *   - `loadWeatherCard` 진입부는 _ensureLoadingSkeleton() 으로 "비어있을 때만" 깔아
-     *     이중 innerHTML 덮어쓰기 방지.
-     *   - 함수 자체는 보존 — 향후 단독 호출 경로에서 명시적으로 필요할 수 있음.
-     */
-    function _renderLoading() {
-        _setCell('sky', null);
-        _setCell('rain', null);
-        _setCell('sno', null);
-        _setCell('tmp', null);
-    }
-
-    /**
      * 4 셀에 스켈레톤이 없으면 깔기 — 슬라이더 release 등 5.js 를 거치지 않는
      * 단독 진입 경로에서 스켈레톤 누락 방지. 이미 progress-bar 가 있으면 그대로 둠.
+     *
+     * 스켈레톤 초기화는 5.js 의 `OS.loadAllForDate` 가 `OS.resetCardToProgress` 로 4셀
+     * 일괄 처리(단일 소유 패턴); 본 함수는 그 경로를 거치지 않는 단독 호출에서만 사용.
      */
     function _ensureLoadingSkeleton() {
         ['sky', 'rain', 'sno', 'tmp'].forEach(function (id) {
