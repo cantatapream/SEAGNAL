@@ -327,9 +327,18 @@
             OS.state._closeHideTimer = null;
         }
 
-        // [캐시 클리어] 직전 시트의 _tideTodayCache 가 남아있으면 좌표 검증으로 차단되지만,
-        // 명시적 clear 로 stale 표시 가능성 추가 차단.
-        OS.state._tideTodayCache = null;
+        // [조석 캐시 처리 — 멀티 데이 캐시 2026-05]
+        // 다른 해점으로 시트가 열릴 때만 캐시 reset. 같은 해점이면 누적된 days 그대로
+        // 유지해 (재방문 시 API 호출 절대 X) 사용자 의도 만족.
+        //   - 같은 해점: 캐시 그대로 두고 _tideRenderState 만 clear (DOM 부분 갱신 차단).
+        //     putCachedDay 가 좌표 비교를 하므로 lat/lon 가 같다면 days 가 그대로 유지됨.
+        //   - 다른 해점: 캐시 자체 invalidate (putCachedDay 에서도 다시 reset 되지만
+        //     명시적 null 로 stale 참조 가능성 차단).
+        var prevCache = OS.state._tideMultiDayCache;
+        if (!prevCache || prevCache.lat !== lat || prevCache.lon !== lon) {
+            OS.state._tideMultiDayCache = null;
+        }
+        OS.state._tideRenderState = null;
 
         // 상태 초기화: 타임라인 슬라이더 오프셋이 있으면 해당 시각 기준으로 시작
         OS.state.lat = lat;

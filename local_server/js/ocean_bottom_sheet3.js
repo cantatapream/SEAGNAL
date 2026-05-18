@@ -40,9 +40,118 @@
     var POLL_MAX_TRIES = 120; // 60초
 
     /* --------------------------------------------------------------
+     * [조석 멀티 데이 캐시 — 2026-05]
+     *
+     * 사용자 의도:
+     *   1) 같은 해점 + 같은 날 시간 이동:
+     *      조석 정보(고저조 시각/조위) 변화 X, 게이지/예상조위만 변화 → API 호출 X
+     *   2) 같은 해점 + 다른 날짜 갔다가 처음 캐시한 날짜로 복귀:
+     *      처음 캐시한 데이터 그대로 재사용 → API 호출 X
+     *   3) 같은 해점에서 새 날짜 첫 방문:
+     *      API 호출 후 days[dayKey] 에 누적 저장 (이전 날짜 캐시 유지)
+     *   4) 다른 해점 선택:
+     *      캐시 통째 reset
+     *
+     * 구조:
+     *   OS.state._tideMultiDayCache = {
+     *       lat:  Number,   // 캐시 키 — 좌표 변경 시 통째 invalidate
+     *       lon:  Number,
+     *       days: {
+     *           'YYYY-MM-DD': {
+     *               data:      Object,   // /data/tide_*.json 원본 (renderTideData 입력)
+     *               isIdw:     Boolean,  // 동해북부 IDW 결과 여부
+     *               neighbors: Object    // { yesterday, tomorrow, lat, lon }
+     *           }, ...
+     *       }
+     *   }
+     *
+     *   renderTideData 가 매번 peaks 를 재계산하므로 raw data 만 보관하면 충분.
+     *   별도로 다음/현재/이전 day 의 peaks 가 필요한 게이지 계산은
+     *   refreshTideGaugeForTime 에서 days[dayKey], days[prevKey], days[nextKey] 를
+     *   조합해 동적으로 산출한다.
+     * ------------------------------------------------------------ */
+    /** dateObj → 'YYYY-MM-DD' (0-padded). dayKey 비교용. */
+    function dayKeyOf(dateObj) {
+        return dateObj.getFullYear() + '-' +
+            String(dateObj.getMonth() + 1).padStart(2, '0') + '-' +
+            String(dateObj.getDate()).padStart(2, '0');
+    }
+
+    /** dayKey 'YYYY-MM-DD' → Date(0시 정각). dayDiff 산출용. */
+    function dayKeyToDate(key) {
+        var parts = key.split('-');
+        return new Date(parseInt(parts[0], 10),
+            parseInt(parts[1], 10) - 1,
+            parseInt(parts[2], 10));
+    }
+
+    /** dateObj 기준 ±N 일 dayKey 산출. neighbors 조합용. */
+    function shiftDayKey(dateObj, deltaDays) {
+        var d = new Date(dateObj.getFullYear(), dateObj.getMonth(),
+            dateObj.getDate() + deltaDays);
+        return dayKeyOf(d);
+    }
+
+    /**
+     * 좌표 (lat, lon) + dayKey 에 해당하는 캐시 엔트리 조회.
+     * (좌표 불일치 시 null — 호출자가 캐시 reset 결정)
+     */
+    function getCachedDay(lat, lon, key) {
+        var c = OS.state && OS.state._tideMultiDayCache;
+        if (!c) return null;
+        if (c.lat !== lat || c.lon !== lon) return null;
+        return c.days[key] || null;
+    }
+
+    /**
+     * 캐시에 (lat, lon, dayKey, entry) 저장.
+     * 좌표가 다르면 days 통째 reset 후 새 좌표로 시작.
+     */
+    function putCachedDay(lat, lon, key, entry) {
+        if (!OS.state) return;
+        var c = OS.state._tideMultiDayCache;
+        if (!c || c.lat !== lat || c.lon !== lon) {
+            c = OS.state._tideMultiDayCache = { lat: lat, lon: lon, days: {} };
+        }
+        c.days[key] = entry;
+    }
+
+    /**
+     * (lat, lon, dayKey) 가 캐시되어 있는지 외부에서 조회.
+     * STL.onRelease 가 cache hit 여부 판단해 풀 fetch skip 결정에 사용.
+     */
+    OS.hasTideCacheFor = function (lat, lon, dateObj) {
+        return !!getCachedDay(lat, lon, dayKeyOf(dateObj));
+    };
+
+    /* --------------------------------------------------------------
      * 외부 진입점: 조석 카드 로딩 시작
+     *
+     * [캐시 적용]
+     *   동일 (lat, lon, dayKey) 조합이 캐시되어 있으면 즉시 renderTideData 만
+     *   호출하고 API 호출은 skip. neighbors (어제/내일 데이터) 도 캐시에서 조합.
      * ------------------------------------------------------------ */
     OS.fetchTideForSheet = function (lat, lon, dateObj) {
+        // 캐시 hit — API 호출 없이 즉시 렌더
+        var key = dayKeyOf(dateObj);
+        var cached = getCachedDay(lat, lon, key);
+        if (cached) {
+            // neighbors 도 캐시에서 동적으로 조합 (저장 시점 neighbors 가 stale 일 수 있음).
+            // 저장된 neighbors 가 있으면 우선 사용, 없으면 days[prev/next] 에서 조합.
+            var neighbors = cached.neighbors || {};
+            var yKey = shiftDayKey(dateObj, -1);
+            var tKey = shiftDayKey(dateObj, +1);
+            var yCached = getCachedDay(lat, lon, yKey);
+            var tCached = getCachedDay(lat, lon, tKey);
+            var mergedNeighbors = {
+                yesterday: (yCached && yCached.data) || neighbors.yesterday || null,
+                tomorrow:  (tCached && tCached.data) || neighbors.tomorrow  || null,
+                lat: lat, lon: lon
+            };
+            OS.renderTideData(cached.data, cached.isIdw, dateObj, mergedNeighbors);
+            return;
+        }
+
         OS.renderTideLoading();
 
         // 동해북부 우회 (4.js)
@@ -388,42 +497,108 @@
               peaksHtml +
             '</div>';
 
-        // [시트 슬라이더 연계] 캐시 저장 — 같은 날 안에서 슬라이더 시간만 변할 때
-        // 조석 API 재호출 없이 게이지/예상조위만 클라이언트에서 재계산.
-        // lat/lon 도 저장 — 같은 날 다른 좌표로 시트 재오픈 시 stale 캐시 차단.
-        OS.state._tideTodayCache = {
+        // [멀티 데이 캐시 저장 — 2026-05]
+        // 같은 해점에서 방문한 모든 날짜를 누적 보관.
+        //   - 같은 날 시간 이동: refreshTideGaugeForTime 이 캐시의 peaks 로 게이지만 재계산
+        //   - 다른 날 방문했다가 복귀: fetchTideForSheet 진입 시 캐시 hit → API skip
+        //   - 다른 좌표로 이동: putCachedDay 가 좌표 불일치 감지하면 days 통째 reset
+        //
+        // raw data + neighbors 를 그대로 저장 — 재방문 시 renderTideData 가 동일한
+        // 입력으로 호출되어 동일한 DOM 을 생성. peaks 자체도 OS.state._tideRenderState 에
+        // 저장 (게이지 부분 갱신용; 매 렌더 시 갱신).
+        var cacheLat = OS.state.lat;
+        var cacheLon = OS.state.lon;
+        putCachedDay(cacheLat, cacheLon, dayKeyOf(dateObj), {
+            data: data,
+            isIdw: !!isIdw,
+            neighbors: neighbors || null
+        });
+
+        // [Bonus 캐시] 같은 호출에서 폴링된 yesterday/tomorrow raw data 도 별도 dayKey 로 저장.
+        // 사용자가 슬라이더로 어제/내일 이동 시 즉시 캐시 hit (API skip).
+        // 이미 명시적으로 그 dayKey 가 캐시되어 있으면 덮어쓰지 않음 (그 날의 풀 render 결과
+        // 가 더 정확한 isIdw/neighbors 를 갖고 있을 수 있음).
+        if (neighbors) {
+            if (neighbors.yesterday) {
+                var yKey = shiftDayKey(dateObj, -1);
+                if (!getCachedDay(cacheLat, cacheLon, yKey)) {
+                    putCachedDay(cacheLat, cacheLon, yKey, {
+                        data: neighbors.yesterday,
+                        isIdw: !!isIdw,
+                        neighbors: null  // 어제의 어제/내일은 별도 fetch 없이는 알 수 없음
+                    });
+                }
+            }
+            if (neighbors.tomorrow) {
+                var tKey = shiftDayKey(dateObj, +1);
+                if (!getCachedDay(cacheLat, cacheLon, tKey)) {
+                    putCachedDay(cacheLat, cacheLon, tKey, {
+                        data: neighbors.tomorrow,
+                        isIdw: !!isIdw,
+                        neighbors: null
+                    });
+                }
+            }
+        }
+
+        // [게이지 부분 갱신용 작업 캐시]
+        // refreshTideGaugeForTime 은 "현재 카드에 표시 중인 날짜" 의 peaks 가 필요.
+        // 매번 days 에서 재계산해도 되지만, 직전 렌더 결과를 보관해 두면 부분 갱신이
+        // 즉각적 (peaks 재추출 skip). 좌표/dayKey 도 함께 저장해 stale 차단.
+        OS.state._tideRenderState = {
             peaks: peaks.slice(),
             yPeaks: yPeaks.slice(),
             tPeaks: tPeaks.slice(),
-            dataDayKey: dateObj.getFullYear() + '-' +
-                        (dateObj.getMonth() + 1) + '-' +
-                        dateObj.getDate(),
+            dataDayKey: dayKeyOf(dateObj),
             lat: OS.state.lat,
             lon: OS.state.lon
         };
     };
 
     /* --------------------------------------------------------------
-     * 시트 슬라이더 release (같은 날) 시 호출 — 조석 API 호출 없이
+     * 시트 슬라이더 release 시 호출 — 조석 API 호출 없이
      * 게이지/예상조위/라벨/진행%/남은시간만 갱신.
      *
-     * @param {Date} sheetDate - 슬라이더가 가리키는 새 시각 (오늘 안)
+     * [캐시 정책 — 2026-05 멀티 데이]
+     *   사용자 의도: "같은 해점이면 슬라이더 어디로 가도 캐시 사용 (API 호출 X)".
+     *
+     *   처리 분기:
+     *   - sheetDate 가 _tideRenderState.dataDayKey 와 같은 날 (현재 카드에 그려진 날):
+     *       카드 DOM 그대로 두고 게이지(label/val/arrow/fill/marker/remain) 만 부분 갱신.
+     *   - sheetDate 가 카드 표시 날짜와 다르지만 _tideMultiDayCache 에 있는 경우:
+     *       fetchTideForSheet 가 캐시 hit 으로 풀 renderTideData 호출 → 새 날짜 카드 그림.
+     *       이 함수는 false 반환해 호출자가 fetchTideForSheet 경로로 가도록 유도.
+     *       (반환값은 "이미 처리 완료" 의미가 아니라 "부분 갱신으로 처리 완료" 의미.)
+     *   - 캐시 자체 없음/좌표 mismatch: false 반환.
+     *
+     * @param {Date} sheetDate - 슬라이더가 가리키는 새 시각
+     * @returns {boolean} 게이지 부분 갱신만으로 처리 완료된 경우 true.
+     *                    (false 면 호출자가 fetchTideForSheet 로 풀 재렌더 필요 — 캐시 hit 이어도
+     *                     API 는 안 나가지만 renderTideData 풀 호출이 필요.)
      * ------------------------------------------------------------ */
     OS.refreshTideGaugeForTime = function (sheetDate) {
-        var cache = OS.state && OS.state._tideTodayCache;
-        if (!cache) return;
-        var sheetKey = sheetDate.getFullYear() + '-' +
-                       (sheetDate.getMonth() + 1) + '-' +
-                       sheetDate.getDate();
-        if (sheetKey !== cache.dataDayKey) return;
-        // [좌표 일치 검증] 같은 날 다른 좌표로 시트 재오픈된 직후 슬라이더 release 시
+        var renderState = OS.state && OS.state._tideRenderState;
+        if (!renderState) return false;
+
+        // [좌표 일치 검증] 다른 좌표로 시트 재오픈된 직후 슬라이더 release 시
         // 이전 좌표의 stale peaks 로 게이지 표시되지 않도록 차단.
-        if (cache.lat !== OS.state.lat || cache.lon !== OS.state.lon) return;
-        if (!OS.isToday(sheetDate)) return;  // 미래/과거 날짜는 게이지 자체 없음
+        if (renderState.lat !== OS.state.lat || renderState.lon !== OS.state.lon) return false;
+
+        // 현재 카드에 그려진 날짜와 sheetDate 가 같은 날인지 확인.
+        // 다르면 부분 갱신으로 처리 불가 — false 반환해 호출자가 풀 renderTideData 경로로 보냄.
+        // (단, fetchTideForSheet 는 multi-day cache 적중 시 API 호출 없이 즉시 렌더하므로
+        // 사용자가 느끼는 비용은 DOM 재구성뿐.)
+        if (renderState.dataDayKey !== dayKeyOf(sheetDate)) return false;
+
+        var peaks = renderState.peaks;
+        var yPeaksLocal = renderState.yPeaks;
+        var tPeaksLocal = renderState.tPeaks;
+
+        // 게이지는 오늘만 표시 — 미래/과거 일 때는 캐시로 처리는 성공이지만 게이지 갱신은 skip.
+        if (!OS.isToday(sheetDate)) return true;
 
         var nowMin = sheetDate.getHours() * 60 + sheetDate.getMinutes();
-        var peaks = cache.peaks;
-        if (!peaks || peaks.length === 0) return;
+        if (!peaks || peaks.length === 0) return true;
 
         // prev/next 피크 — renderTideData 와 동일 알고리즘
         var prevPeak = null, nextPeak = null;
@@ -432,8 +607,8 @@
                 nextPeak = peaks[i];
                 if (i > 0) {
                     prevPeak = peaks[i - 1];
-                } else if (cache.yPeaks && cache.yPeaks.length > 0) {
-                    var yLast = cache.yPeaks[cache.yPeaks.length - 1];
+                } else if (yPeaksLocal && yPeaksLocal.length > 0) {
+                    var yLast = yPeaksLocal[yPeaksLocal.length - 1];
                     prevPeak = { type: yLast.type, level: yLast.level, minutes: yLast.minutes - 1440 };
                 }
                 break;
@@ -441,14 +616,14 @@
         }
         if (!nextPeak) {
             if (peaks.length > 0) prevPeak = peaks[peaks.length - 1];
-            if (cache.tPeaks && cache.tPeaks.length > 0) {
-                var tFirst = cache.tPeaks[0];
+            if (tPeaksLocal && tPeaksLocal.length > 0) {
+                var tFirst = tPeaksLocal[0];
                 nextPeak = { type: tFirst.type, level: tFirst.level, minutes: tFirst.minutes + 1440 };
             }
         }
-        if (!prevPeak || !nextPeak) return;
+        if (!prevPeak || !nextPeak) return true;
         var dur = nextPeak.minutes - prevPeak.minutes;
-        if (dur > 780 || dur <= 0) return;
+        if (dur > 780 || dur <= 0) return true;
 
         var curLevel = interpolateLevel(prevPeak, nextPeak, nowMin);
         var rising = nextPeak.type === 'high';
@@ -458,7 +633,7 @@
 
         // DOM 부분 갱신 — card scope 안에서만 (전역 querySelector 충돌 방지)
         var card = document.getElementById('ocean-card-tide');
-        if (!card) return;
+        if (!card) return true;
         var labelEl  = card.querySelector('.ocean-tide-current-label');
         var valEl    = card.querySelector('.ocean-tide-current-val');
         var arrowEl  = card.querySelector('.ocean-tide-current-arrow');
@@ -490,6 +665,7 @@
             remainEl.textContent =
                 (rising ? '고조까지' : '저조까지') + ' 남은시간 ' + remainStr;
         }
+        return true;
     };
 
     /* --------------------------------------------------------------
