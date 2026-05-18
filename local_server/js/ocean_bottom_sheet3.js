@@ -92,15 +92,11 @@
     }
     loadGridHashLS();
 
-    function isFavoritePoint(lat, lon) {
-        try {
-            if (typeof OS.isFavoriteCoord === 'function') return !!OS.isFavoriteCoord(lat, lon);
-            if (window.Favorites && typeof window.Favorites.isFavorite === 'function') {
-                return !!window.Favorites.isFavorite(lat, lon);
-            }
-        } catch (e) {}
-        return false;
-    }
+    // isFavoritePoint 는 아래 차등 캐싱 섹션(라인 ~186) 에서 단일 정의됨.
+    // 두 정의가 동일 헬퍼 의미로 통일됨 — window.oceanFav.locationFindNear (500m 반경) 위임.
+    // (이전 버전에 OS.isFavoriteCoord / window.Favorites.isFavorite fallback 분기가
+    //  있었으나 실제 코드베이스에 존재하지 않는 API 였으므로 제거. 차등 캐싱 헬퍼와
+    //  완전 동일한 판정으로 격자ID 캐시 영속화 정책 일관성 확보.)
 
     function persistGridHashIfFavorite(lat, lon, gridHash, fileName) {
         if (!isFavoritePoint(lat, lon)) return;
@@ -120,6 +116,30 @@
         var k = gridPointKey(lat, lon);
         _gridHashByPoint[k] = { gridHash: gridHash, fileName: fileName || null };
         persistGridHashIfFavorite(lat, lon, gridHash, fileName);
+    }
+
+    /**
+     * 격자ID 캐시(메모리 + localStorage) 의 특정 좌표 항목을 즉시 제거.
+     *
+     * 사용 시점:
+     *   - 서버가 invalidGridHash:true 응답으로 stale gridHash 보고 시
+     *   - (gridHashRefreshed:true 경로는 rememberGridHash() 가 새 값으로 덮어쓰므로
+     *      별도 forget 불필요 — 단, 비즐겨찾기 시 localStorage 에 남은 stale 항목은
+     *      forgetGridHash 로 제거)
+     */
+    function forgetGridHash(lat, lon) {
+        var k = gridPointKey(lat, lon);
+        delete _gridHashByPoint[k];
+        try {
+            var raw = localStorage.getItem(GRID_HASH_LS_KEY);
+            if (raw) {
+                var obj = JSON.parse(raw);
+                if (obj && typeof obj === 'object' && obj[k]) {
+                    delete obj[k];
+                    localStorage.setItem(GRID_HASH_LS_KEY, JSON.stringify(obj));
+                }
+            }
+        } catch (e) { /* ignore */ }
     }
 
     function lookupGridHash(lat, lon) {
@@ -261,13 +281,41 @@
             }
         }
         savePersistCache(persist);
+
+        // 격자ID 캐시도 함께 영속화 (즐겨찾기 신규 추가 시 메모리 → localStorage 승격).
+        // 메모리에 _gridHashByPoint 항목이 있으면 gridHashCache:v1 에 즉시 기록.
+        try {
+            var ghKey = gridPointKey(lat, lon);
+            var gh = _gridHashByPoint[ghKey];
+            if (gh && gh.gridHash) {
+                var ghRaw = localStorage.getItem(GRID_HASH_LS_KEY);
+                var ghObj = ghRaw ? JSON.parse(ghRaw) : {};
+                if (!ghObj || typeof ghObj !== 'object') ghObj = {};
+                ghObj[ghKey] = {
+                    gridHash: gh.gridHash, fileName: gh.fileName || null, ts: Date.now()
+                };
+                localStorage.setItem(GRID_HASH_LS_KEY, JSON.stringify(ghObj));
+            }
+        } catch (e) { /* ignore */ }
     };
 
-    /** 즐겨찾기 해제 시 호출 — localStorage 의 해당 좌표 항목 삭제. */
+    /** 즐겨찾기 해제 시 호출 — localStorage 의 해당 좌표 항목 삭제.
+     *  격자ID 캐시(gridHashCache:v1) 의 동일 좌표 항목도 함께 제거. */
     OS.dropFromPersist = function (lat, lon) {
         var persist = loadPersistCache();
         delete persist[pointKey(lat, lon)];
         savePersistCache(persist);
+        // 격자ID 영속 캐시도 함께 삭제 (즐겨찾기 해제 = 영속 보존할 이유 없음)
+        try {
+            var raw = localStorage.getItem(GRID_HASH_LS_KEY);
+            if (raw) {
+                var obj = JSON.parse(raw);
+                if (obj && typeof obj === 'object') {
+                    delete obj[gridPointKey(lat, lon)];
+                    localStorage.setItem(GRID_HASH_LS_KEY, JSON.stringify(obj));
+                }
+            }
+        } catch (e) { /* ignore */ }
     };
 
     /**
@@ -483,6 +531,18 @@
         })
             .then(function (r) { return r.json(); })
             .then(function (resp) {
+                // ❹+ 서버가 clientGridHash 무효 감지 → 자동 갱신을 알려온 경우.
+                //   기존 localStorage 항목은 stale 이므로 우선 제거 후 새 값으로 재기록.
+                //   (비즐겨찾기 좌표 시 rememberGridHash 는 localStorage 영속화를 skip 하므로
+                //    forgetGridHash 로 명시적으로 stale 항목을 지운다.)
+                if (resp && resp.success && resp.gridHashRefreshed) {
+                    try { forgetGridHash(lat, lon); } catch (e) {}
+                }
+                // 서버가 명시적으로 invalidGridHash 시그널을 보낸 경우 (호환용 — 현재 서버는
+                //   주로 gridHashRefreshed 경로로 응답하지만, 미래 호환 위해 처리 유지.)
+                if (resp && resp.invalidGridHash) {
+                    try { forgetGridHash(lat, lon); } catch (e) {}
+                }
                 // ❹ 응답의 gridHash 저장 (즐겨찾기면 localStorage 영속화)
                 if (resp && resp.success && resp.gridHash) {
                     var fname = (resp.files && resp.files.today) || null;
