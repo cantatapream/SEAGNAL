@@ -283,6 +283,10 @@
             legendBox.addEventListener('click', function (e) {
                 // 클릭 가능한 layer 만 (current/wind). wave 면 무시.
                 if (activeLayer !== 'current' && activeLayer !== 'wind') return;
+                // 색상 범례(타이틀/색상바/라벨)에서 발생한 클릭만 토글 처리.
+                // 슬라이더(#ocean-timeline-slider) 트랙/손잡이 클릭이 부모로 버블링되어
+                // 단위가 의도치 않게 토글되는 회귀 방지.
+                if (!e.target.closest('.ocean-legend-title, .ocean-legend-bar, .ocean-legend-labels')) return;
                 // OS 가 없으면 (시트 미열림 환경) 자체 fallback 변수 사용.
                 if (!window.OceanSheet) window.OceanSheet = {};
                 if (!window.OceanSheet.state) window.OceanSheet.state = {};
@@ -816,6 +820,10 @@
                 // 비슷한 평활 효과를 이미 가지고 있어 별도 처리 불필요.
                 gridData = _smoothCurrentGrid5x5(gridData);
                 console.log('[OceanOverlay] KHOA 격자 점 수:', gridData.length);
+                // gridData 가 새 객체 배열로 교체됐으므로 lonList/latList/gridLookup 도
+                // 무효. 초기화해야 renderGridToOffscreen 이 buildGridIndex 재호출 →
+                // gridLookup 이 새 객체를 가리키도록 갱신. (없으면 옛 데이터로 렌더링)
+                lonList = null;
                 updateLegend('current');
                 renderGridToOffscreen();
                 if (canvas) canvas.style.visibility = 'visible';

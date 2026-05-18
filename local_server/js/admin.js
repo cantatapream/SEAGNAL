@@ -708,11 +708,12 @@ async function renderErrorListTab(container, depth = 0) {
     _retrySeq++;
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
 
-    // 네 가지 데이터를 병렬로 조회 (실패/검토/재시도/Gemini 키 상태)
-    // 세 리스트는 페이지네이션 모드(?page=)로 호출 → { data, pagination } 응답 사용.
+    // 다섯 가지 데이터를 병렬로 조회 (실패/검토/재시도/Gemini 키 상태/dmdw 오류).
+    // 세 리스트(fail/review/retry)는 페이지네이션 모드(?page=)로 호출 → { data, pagination }.
     // - data: 현재 페이지 항목만
     // - pagination.total: 전체 항목 수 (배지/헤더 카운트용)
-    // - 검토 필요는 신규 페이지네이션 전용 엔드포인트(review-needed/pending)를 사용.
+    // - 검토 필요는 신규 페이지네이션 전용 엔드포인트(review-needed/pending) 사용.
+    // dmdw 오류는 페이지네이션 없이 raw array (main 패턴 유지).
     let failuresData = [];
     let failuresPagination = { page: 1, limit: _COLLECT_FAILURES_LIMIT, total: 0, totalPages: 1 };
     let reviewsData = [];
@@ -720,6 +721,7 @@ async function renderErrorListTab(container, depth = 0) {
     let pendingsData = [];
     let pendingsPagination = { page: 1, limit: _PENDING_RETRIES_LIMIT, total: 0, totalPages: 1 };
     let geminiStatus = { keys: [], count: 0 };
+    let dmdwErrors = [];  // dmdw 자식 해역 크롤러 오류 로그
     // 섹션 단위 fetch 에러 플래그 (allSettled 결과 → 섹션별 분리)
     let failError = false;
     let reviewError = false;
@@ -733,12 +735,13 @@ async function renderErrorListTab(container, depth = 0) {
         fetch(failUrl).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))),
         fetch(reviewUrl).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))),
         fetch(pendingUrl).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))),
-        fetch('/api/admin/gemini-status').then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+        fetch('/api/admin/gemini-status').then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))),
+        fetch('/api/admin/dmdw-errors').then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
     ]);
     // race: body 파싱/렌더 직전 시퀀스 토큰 재확인 — 더 최신 요청이 떴으면 폐기
     if (myReq !== _errorListSeq) return;
 
-    const [failR, reviewR, pendingR, geminiR] = settled;
+    const [failR, reviewR, pendingR, geminiR, dmdwR] = settled;
     if (failR.status === 'fulfilled') {
         const body = failR.value;
         if (body && Array.isArray(body.data) && body.pagination) {
@@ -779,6 +782,10 @@ async function renderErrorListTab(container, depth = 0) {
     if (geminiR.status === 'fulfilled') {
         geminiStatus = geminiR.value || { keys: [], count: 0 };
     }
+    if (dmdwR.status === 'fulfilled') {
+        dmdwErrors = Array.isArray(dmdwR.value) ? dmdwR.value : [];
+    }
+    // dmdw 는 fetch 실패해도 그대로 빈 배열 유지 — dmdw 탭만 빈 상태로 표시.
 
     // [빈 결과 가드] 세 리스트 모두 0건이면 다음 진입을 위해 페이지 변수 모두 1로 리셋.
     if (!failError && failuresPagination.total === 0) _collectFailuresPage = 1;
@@ -805,23 +812,28 @@ async function renderErrorListTab(container, depth = 0) {
     const reviewCount = reviewsPagination.total;
     const retryCount = pendingsPagination.total;
     const failCount = failuresPagination.total;
+    // dmdw 미확인 항목 카운트 — acknowledged=false 만 셈 (확인된 이력은 회색으로 잔존).
+    const dmdwUnackCount = dmdwErrors.filter(e => !e.acknowledged).length;
 
     // Gemini 키 상태 배지 (항상 표시)
     const geminiBadgeHtml = renderGeminiKeysBadge(geminiStatus);
 
-    // 세 영역 모두 비어있고 에러도 없으면 정상 상태 + Gemini 키 상태 표시
-    if (!failError && !reviewError && !retryError &&
-        reviewCount === 0 && retryCount === 0 && failCount === 0) {
-        container.innerHTML = `
-            ${geminiBadgeHtml}
-            <div style="text-align:center;padding:60px 20px;color:#64748b;">
-                <i class="fa-solid fa-circle-check" style="font-size:2.5rem;color:#22c55e;margin-bottom:15px;display:block;"></i>
-                <div style="font-size:1rem;font-weight:700;color:#cbd5e1;margin-bottom:6px;">수집 오류 없음</div>
-                <div style="font-size:0.85rem;">현재 확인이 필요한 항목이 없습니다.</div>
-            </div>`;
-        _registerErrorListAutoRefresh(container);
-        return;
-    }
+    // [정책 — main 사용자 요구]
+    //   네 영역(검토/재시도/수집실패/dmdw) 모두 비어있어도 탭바는 항상 표시.
+    //   이전 동작: 모두 0건이면 "수집 오류 없음" 메시지만 노출하고 return → 메뉴 구조 인지 불가.
+    //   변경 동작: 탭바는 항상 그리고, 모두 0건인 경우만 탭바 위에 작은 "모든 항목 정상" 배너 노출.
+    //   각 탭 내용은 섹션 렌더 함수가 빈 상태 메시지를 자체 처리.
+    //   에러 섹션은 allEmpty 계산에서 제외 — 에러 상태도 사용자가 인지해야 하므로.
+    const allEmpty = (
+        !failError && !reviewError && !retryError &&
+        reviewCount === 0 && retryCount === 0 && failCount === 0 && dmdwUnackCount === 0
+    );
+    const allClearBannerHtml = allEmpty
+        ? `<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;margin-bottom:12px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:8px;color:#86efac;font-size:0.85rem;font-weight:600;">
+                <i class="fa-solid fa-circle-check"></i>
+                모든 항목 정상 — 표시할 오류 없음
+           </div>`
+        : '';
 
     // 하위 탭 바 렌더링
     // [D-4] 배지 span 에 명시적 id 부여 → 부분 갱신 시 in-place 카운트 업데이트.
@@ -841,10 +853,12 @@ async function renderErrorListTab(container, depth = 0) {
 
     const tabBarHtml = `
         ${geminiBadgeHtml}
+        ${allClearBannerHtml}
         <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
             ${tabBtn('review', '<i class="fa-solid fa-magnifying-glass"></i> 검토 필요', reviewCount, '#f59e0b')}
             ${tabBtn('retry',  '<i class="fa-solid fa-rotate"></i> 재시도 중',       retryCount,  '#3b82f6')}
             ${tabBtn('fail',   '<i class="fa-solid fa-triangle-exclamation"></i> 수집 실패', failCount, '#ef4444')}
+            ${tabBtn('dmdw',   '<i class="fa-solid fa-globe"></i> dmdw 오류',         dmdwUnackCount, '#06b6d4')}
         </div>
         <div id="error-sub-tab-content"></div>
     `;
@@ -868,6 +882,9 @@ async function renderErrorListTab(container, depth = 0) {
             ? _renderSectionErrorHtml('fail', '수집 실패')
             : renderFailureSectionHtml(failuresData, failuresPagination);
         _attachErrorListPagination('fail', failuresPagination);
+    } else if (currentErrorSubTab === 'dmdw') {
+        // [신규] dmdw 자식 해역 크롤러 오류 — 미확인 진하게, 확인됨 흐리게. 페이지네이션 없음.
+        sub.innerHTML = renderDmdwErrorsSectionHtml(dmdwErrors);
     }
 
     // 자동 갱신은 서브탭 무관하게 항상 등록 (3개 서브탭 모두에서 30초 주기 동작)
@@ -1360,14 +1377,151 @@ function _renderFailureListInnerHtml(items) {
 }
 
 // [하위 탭 전환] 하위 탭 버튼 클릭 시 호출
+//  - 허용 키: review(검토 필요), retry(재시도 중), fail(수집 실패), dmdw(dmdw 오류 — 신규)
 window.switchErrorSubTab = function (key) {
-    if (!['review', 'retry', 'fail'].includes(key)) return;
+    if (!['review', 'retry', 'fail', 'dmdw'].includes(key)) return;
     currentErrorSubTab = key;
     const inner = document.getElementById('alert-top-content');
     if (inner) renderErrorListTab(inner);
 };
 
-// [원문 보기] 재시도 중 항목의 원문 텍스트를 토글 표시.
+// ============================================================================
+// [신규] dmdw 자식 해역 크롤러 오류 섹션 렌더링 + 액션
+// ----------------------------------------------------------------------------
+// 데이터 소스: GET /api/admin/dmdw-errors (data/dmdw_errors.json 의 항목 배열)
+// 표시 정책:
+//   - 미확인(acknowledged=false): 진한 배경 + [확인] 버튼 + [삭제] 버튼
+//   - 사용자 확인 (manual): 흐릿 + ✓ 표시 + [삭제] 버튼만
+//   - 자동 확인 (auto-recovered): 흐릿 + "자동확인" 라벨 + [삭제] 버튼만
+//   - type 'recovered': 초록 톤
+//   - type 'login_fail_credential': 빨간 톤
+//   - type 'login_fail_network': 노란 톤
+// ============================================================================
+
+function renderDmdwErrorsSectionHtml(items) {
+    if (!items || items.length === 0) {
+        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">dmdw 오류 기록이 없습니다.</div>`;
+    }
+
+    // 타입별 색상 팔레트
+    const palette = {
+        'recovered':              { bg: 'rgba(34,197,94,0.08)',  bd: 'rgba(34,197,94,0.25)',  ic: '#22c55e' },
+        'login_fail_credential':  { bg: 'rgba(239,68,68,0.08)',  bd: 'rgba(239,68,68,0.25)',  ic: '#ef4444' },
+        'login_fail_network':     { bg: 'rgba(245,158,11,0.08)', bd: 'rgba(245,158,11,0.25)', ic: '#f59e0b' }
+    };
+    const defaultPal = { bg: 'rgba(100,116,139,0.08)', bd: 'rgba(100,116,139,0.25)', ic: '#94a3b8' };
+
+    const rows = items.map(e => {
+        const pal = palette[e.type] || defaultPal;
+        const time = e.detectedAt ? new Date(e.detectedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-';
+        const isAck = !!e.acknowledged;
+        const ackBadge = isAck
+            ? (e.acknowledgedReason === 'auto-recovered'
+                ? `<span style="display:inline-block;padding:2px 8px;background:rgba(59,130,246,0.15);color:#93c5fd;border-radius:6px;font-size:0.7rem;font-weight:600;">자동확인</span>`
+                : `<span style="display:inline-block;padding:2px 8px;background:rgba(34,197,94,0.15);color:#86efac;border-radius:6px;font-size:0.7rem;font-weight:600;">✓ 확인됨</span>`)
+            : '';
+        const ackTime = isAck && e.acknowledgedAt
+            ? `<span style="font-size:0.7rem;color:#94a3b8;margin-left:6px;">${new Date(e.acknowledgedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</span>`
+            : '';
+        const opacity = isAck ? '0.55' : '1';
+        const detailLine = e.detail
+            ? `<div style="margin-top:4px;font-size:0.72rem;color:#64748b;"><i class="fa-solid fa-code" style="margin-right:4px;"></i>${escapeHtml(e.detail)}</div>`
+            : '';
+        const ackBtn = isAck
+            ? ''
+            : `<button onclick="acknowledgeDmdwError('${e.id}')" style="padding:5px 10px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.72rem;font-weight:600;margin-right:4px;">
+                    <i class="fa-solid fa-check"></i> 확인
+               </button>`;
+        const delBtn = `<button onclick="deleteDmdwError('${e.id}')" style="padding:5px 10px;background:rgba(239,68,68,0.15);color:#fca5a5;border:1px solid rgba(239,68,68,0.3);border-radius:6px;cursor:pointer;font-size:0.72rem;font-weight:600;">
+                            <i class="fa-solid fa-trash"></i> 삭제
+                        </button>`;
+
+        return `
+            <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:${pal.bg};border:1px solid ${pal.bd};border-radius:10px;margin-bottom:8px;opacity:${opacity};">
+                <i class="fa-solid fa-circle-exclamation" style="color:${pal.ic};flex-shrink:0;font-size:1.1rem;margin-top:2px;"></i>
+                <div style="flex:1;min-width:0;">
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
+                        <span style="font-size:0.88rem;font-weight:700;color:#e2e8f0;">${escapeHtml(e.title)}</span>
+                        ${ackBadge}${ackTime}
+                    </div>
+                    <div style="font-size:0.78rem;color:#94a3b8;margin-bottom:4px;">📅 ${time}</div>
+                    <div style="font-size:0.8rem;color:#cbd5e1;line-height:1.5;">${escapeHtml(e.body)}</div>
+                    ${detailLine}
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+                    ${ackBtn}
+                    ${delBtn}
+                </div>
+            </div>`;
+    }).join('');
+
+    return `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <span style="font-size:0.85rem;color:#94a3b8;">${items.length} 건 (최신순)</span>
+            <button onclick="deleteAllDmdwErrors()" style="padding:5px 12px;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:600;">
+                <i class="fa-solid fa-trash"></i> 전체 삭제
+            </button>
+        </div>
+        ${rows}`;
+}
+
+// HTML 이스케이프 헬퍼 (XSS 방지)
+//  - 메시지 본문에 <, >, &, " 같은 문자가 있어도 안전하게 표시
+function escapeHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// [액션] 개별 확인
+//  - POST /api/admin/dmdw-errors/:id/acknowledge
+//  - 성공 시 해당 탭 다시 그리기
+window.acknowledgeDmdwError = async function (id) {
+    try {
+        const r = await fetch(`/api/admin/dmdw-errors/${encodeURIComponent(id)}/acknowledge`, { method: 'POST' });
+        if (!r.ok) {
+            alert('확인 처리 실패');
+            return;
+        }
+        const inner = document.getElementById('alert-top-content');
+        if (inner) renderErrorListTab(inner);
+    } catch (e) { alert('확인 처리 오류: ' + e.message); }
+};
+
+// [액션] 개별 삭제
+//  - DELETE /api/admin/dmdw-errors/:id
+window.deleteDmdwError = async function (id) {
+    if (!confirm('이 dmdw 오류 기록을 영구 삭제하시겠습니까?')) return;
+    try {
+        const r = await fetch(`/api/admin/dmdw-errors/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (!r.ok) {
+            alert('삭제 실패');
+            return;
+        }
+        const inner = document.getElementById('alert-top-content');
+        if (inner) renderErrorListTab(inner);
+    } catch (e) { alert('삭제 오류: ' + e.message); }
+};
+
+// [액션] 전체 삭제 (초기화)
+//  - DELETE /api/admin/dmdw-errors
+window.deleteAllDmdwErrors = async function () {
+    if (!confirm('dmdw 오류 기록을 모두 삭제하시겠습니까? (이력 복구 불가)')) return;
+    try {
+        const r = await fetch(`/api/admin/dmdw-errors`, { method: 'DELETE' });
+        if (!r.ok) {
+            alert('전체 삭제 실패');
+            return;
+        }
+        const inner = document.getElementById('alert-top-content');
+        if (inner) renderErrorListTab(inner);
+    } catch (e) { alert('전체 삭제 오류: ' + e.message); }
+};
+
+// [원문 보기] 재시도 중 항목의 원문 텍스트를 토글 표시
 // [D-7] 펼침/접힘 상태를 _expandedRawIds 에 기록 →
 //   자동 갱신(30초)/부분 갱신 후 _restoreExpandedRawTexts() 가 복원.
 window.togglePendingRawText = async function (reportId, containerId) {

@@ -279,22 +279,51 @@
         // 이미 해제되어 있지만 race condition 대비)
         if (!ns._state.active) return null;
 
-        // [자식(sub) feature 정책 — 라벨만 표출]
+        // [자식(sub) feature 정책 — main S9-D 자체 색칠 + 우리 자식 라벨 결합]
         //
-        // [fill/stroke 미표출] 자식 zone polygon 은 부모 zone polygon 의 부분집합.
-        //   두 polygon 모두 fill 을 그리면 같은 영역에 fill 이 두 번 겹쳐
-        //   alpha 합성으로 색이 진해짐 (예: 주의보 0.5 + 0.5 ≒ 0.75 → 경보처럼 보임).
-        //   따라서 활성 모드에서 자식 fill/stroke 는 그리지 않는 정책 유지.
+        // 두 개의 머지된 정책을 함께 적용:
         //
-        // [라벨만 표출] 사용자 요청 — 일반 모드(_subZoneStyle) 와 활성 모드에서
-        //   자식해역 라벨이 동일한 위치·텍스트로 보여야 UX 일관. 부모 라벨과 자식
-        //   라벨이 함께 보여 사용자가 자식해역 단위까지 식별 가능.
-        //   텍스트/오프셋 규칙은 ocean_warn_zone.js 의 _buildSubZoneTextStyle 공유.
+        // (A) main S9-D — 자식 폴리곤 독립 색칠:
+        //   자식에 active 한 dmdw 데이터가 있으면 자식 자체의 (wrnTp, wrnLvl) 로
+        //   부모 팔레트 재활용해 색칠. 자식 fillLayer (zIndex=41) 가 부모(zIndex=40) 위라
+        //   자식 색이 부모 색을 정확히 덮음.
         //
-        // [클릭 hit] 자식 영역의 어떤 픽셀을 클릭해도 부모 main polygon 이 그 좌표
-        //   를 포함하므로 forEachFeatureAtPixel 이 부모 main 을 hit → tryHandleClick
-        //   이 부모 zone 으로 박스 표출. 라벨만 그려도 클릭 동작 정상.
-        if (kind === 'sub') return _subLabelOnlyStyle(feature);
+        // (B) 우리 라벨 정책 — 자식 라벨 항상 표출:
+        //   일반 모드(_subZoneStyle) 와 활성 모드에서 자식해역 라벨이 동일한
+        //   위치·텍스트로 보여야 UX 일관. 부모와 자식 라벨이 함께 보여 자식해역
+        //   단위 식별 가능. 텍스트/오프셋은 ocean_warn_zone.js 의 buildSubZoneTextStyle 공유.
+        //
+        // 결합 동작:
+        //   • 자식 자체 active dmdw → _coloredStyle(자체 색칠) + 자식 라벨
+        //   • 자식 active 없음     → 라벨만 (_subLabelOnlyStyle), 부모 색이 영역 덮음
+        //
+        // [클릭 hit] 자식 active 면 자식 전용 팝업(S9-E), 아니면 부모 main polygon 으로 환원.
+        if (kind === 'sub') {
+            var subFullName = window.OceanWarnZone && typeof window.OceanWarnZone.getSubFullName === 'function'
+                ? window.OceanWarnZone.getSubFullName(feature)
+                : null;
+            if (subFullName) {
+                var subInfo = ns._buildChildInfoForStyle(subFullName);
+                if (subInfo && subInfo.paletteKey) {
+                    // 자식 자체 active → 색칠 + 라벨 결합. _coloredStyle 은 sub 일 때 라벨 미설정 →
+                    // 공용 빌더로 만든 라벨을 명시적으로 setText.
+                    var coloredStyle = _coloredStyle(subInfo, kind, feature, false);
+                    if (coloredStyle) {
+                        var subText = window.OceanWarnZone && typeof window.OceanWarnZone.buildSubZoneTextStyle === 'function'
+                            ? window.OceanWarnZone.buildSubZoneTextStyle(feature, {
+                                fillColor: '#ffffff',
+                                strokeColor: 'rgba(0,0,0,0.95)',
+                                strokeWidth: 3.5
+                            })
+                            : null;
+                        if (subText) coloredStyle.setText(subText);
+                        return coloredStyle;
+                    }
+                }
+            }
+            // 자식 active 없음 → 라벨만 (부모 색이 자식 영역 덮음).
+            return _subLabelOnlyStyle(feature);
+        }
 
         // 이하 메인(부모) feature 만 처리.
         var parentZone = window.OceanWarnZone.getMainZoneName(feature);
