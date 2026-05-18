@@ -9369,24 +9369,6 @@ body.ocean-map-active .main-header .header-content {
     opacity: 1;
     transition: opacity 0s;
 }
-.ocean-sheet-tooltip::after {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: var(--shtl-arrow-x, 50%);
-    width: 10px;
-    height: 10px;
-    margin-top: -6px;
-    transform: translateX(-50%) rotate(45deg);
-    background: rgba(140, 200, 255, 0.12);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    border-right: 1px solid rgba(255,255,255,0.35);
-    border-bottom: 1px solid rgba(255,255,255,0.35);
-    border-top: none;
-    border-left: none;
-    border-radius: 0 0 3px 0;
-}
 
 /* --- 풀폭 카드 (조석/천문) --- */
 .ocean-card-fullwidth {
