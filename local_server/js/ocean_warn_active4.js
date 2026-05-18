@@ -69,7 +69,7 @@
      *                     paletteKey 의 합집합. 즉 "지금은 풍랑경보만 발효 중이지만
      *                     같은 zone 에 태풍주의보가 다가오고 있다" 면 풍랑·태풍 두 행
      *                     모두 표출 (사용자에게 향후 변화를 미리 알림).
-     *   - 행 순서       : 풍랑 → 태풍 → 폭풍해일 (사용자 합의).
+     *   - 행 순서       : 풍랑 → 태풍 (사용자 합의; 폭풍해일은 수집 제외).
      *   - 활성 항목 0건 : 범례 자체 숨김.
      *
      * [호출 시점]
@@ -85,7 +85,7 @@
         // info.currents / info.upcomings 는 이미 paletteKey 가 있는 알림만 포함됨
         // (active2.js _buildActiveMap 에서 분류 시 _resolvePaletteKey null 항목 제외).
         // 단, 종류 식별을 위해 다시 한 번 _resolvePaletteKey 로 확정 (안전).
-        var typesPresent = {};   // 'wave'|'surge'|'typhoon' → true
+        var typesPresent = {};   // 'wave'|'typhoon' → true (폭풍해일은 수집 제외)
 
         var keys = Object.keys(state.activeMap);
         for (var i = 0; i < keys.length; i++) {
@@ -103,9 +103,9 @@
             }
         }
 
-        // 행 순서: 풍랑 → 태풍 → 폭풍해일 (사용자 합의)
-        var TYPE_ORDER  = ['wave', 'typhoon', 'surge'];
-        var TYPE_LABELS = { wave: '풍랑', typhoon: '태풍', surge: '폭풍해일' };
+        // 행 순서: 풍랑 → 태풍 (사용자 합의; 폭풍해일은 수집 제외)
+        var TYPE_ORDER  = ['wave', 'typhoon'];
+        var TYPE_LABELS = { wave: '풍랑', typhoon: '태풍' };
         // 열은 항상 3개 고정 (발표 → 주의보 → 경보)
         var STAGE_ORDER  = ['upcoming', 'watch', 'warn'];
         var STAGE_LABELS = { upcoming: '발표', watch: '주의보', warn: '경보' };
