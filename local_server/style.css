@@ -9418,6 +9418,11 @@ body.ocean-map-active .main-header .header-content {
     min-width: 0;                          /* flex 자식이 overflow 안 하도록 */
 }
 /* 셀 — 한 카테고리 값. 한 줄로 표시, 길면 ellipsis. */
+/* [이슈 2 — 천기 스켈레톤 collapse 회귀 수정]
+   grid-template-columns: auto auto + .ocean-progress-bar { width: 80% } 조합에서
+   스켈레톤 단계(텍스트 빈 상태)는 셀 intrinsic width=0 → 80% × 0 = 0px 가 되어
+   진행바가 시각적으로 collapse (KMA 내측 천기 카드 4셀이 비어 보이는 회귀).
+   min-width: 6rem 으로 빈 셀 최소 폭 보장 — 데이터 도착 시 텍스트로 자연 확장. */
 .ocean-weather-cell {
     color: #f0f5ff;
     font-size: 0.82rem;
@@ -9426,7 +9431,7 @@ body.ocean-map-active .main-header .header-content {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    min-width: 0;
+    min-width: 6rem;          /* 스켈레톤 단계 폭 보장 (이슈 2) */
 }
 /* 천기 카드 안의 progress-bar 는 셀 안에 inline 으로 — 다른 카드와 동일 디자인 */
 .ocean-weather-cell .ocean-progress-bar {

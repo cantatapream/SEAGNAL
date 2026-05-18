@@ -58,13 +58,6 @@
          'ocean-val-wind', 'ocean-val-wave'
         ].forEach(function (id) { OS.resetCardToProgress(id); });
 
-        // 천기 카드 4셀도 동일하게 스켈레톤 초기화 — 단일 소유 패턴.
-        // (스켈레톤 초기화는 본 함수가 모든 카드에 대해 책임. loadWeatherCard 는
-        //  단독 진입 경로(슬라이더 release) 보강용 _ensureLoadingSkeleton (없으면 깔기)
-        //  만 수행해 동일 tick 이중 innerHTML 덮어쓰기를 피한다.)
-        ['ocean-val-wx-sky', 'ocean-val-wx-rain', 'ocean-val-wx-sno', 'ocean-val-wx-tmp']
-            .forEach(function (id) { OS.resetCardToProgress(id); });
-
         ['ocean-card-depth', 'ocean-card-temp', 'ocean-card-current',
          'ocean-card-wind', 'ocean-card-wave'
         ].forEach(function (id) { OS.showCard(id); });
@@ -376,6 +369,12 @@
      * 단방향 — 시트 슬라이더 → 레이어 슬라이더만 동기 (시트 열린 동안 레이어
      * 슬라이더 가려져 사용자 조작 불가).
      * ------------------------------------------------------------ */
+    // [이슈 1.6 대응] ◀/▶ 버튼 연타·슬라이더 release 가 짧은 시간에 연달아
+    // 발생할 때 oceanOverlaySetTime() 이 매 호출마다 무거운 히트맵 fetch 를
+    // 트리거. 250ms debounce 로 마지막 의도 1건만 실행 — 사용자가 멈춘 시각의
+    // 배경만 그려 KHOA / 격자 fetch 부담 절감.
+    var _syncLayerDebounceTimer = null;
+    var _SYNC_LAYER_DEBOUNCE_MS = 250;
     OS._syncLayerSliderToSheet = function () {
         if (!OS.SheetTL) return;
         var layerSlider = document.getElementById('ocean-timeline-slider');
@@ -391,10 +390,16 @@
         var lmax = parseFloat(layerSlider.max) || 72;
         layerHours = Math.min(layerHours, lmax);
 
+        // 슬라이더 DOM 값은 즉시 반영 (UI 일관성)
         layerSlider.value = layerHours;
 
-        if (typeof window.oceanOverlaySetTime === 'function') {
-            try { window.oceanOverlaySetTime(layerHours); } catch (e) { /* swallow */ }
-        }
+        // 무거운 히트맵 reload 만 debounce
+        if (_syncLayerDebounceTimer) clearTimeout(_syncLayerDebounceTimer);
+        _syncLayerDebounceTimer = setTimeout(function () {
+            _syncLayerDebounceTimer = null;
+            if (typeof window.oceanOverlaySetTime === 'function') {
+                try { window.oceanOverlaySetTime(layerHours); } catch (e) { /* swallow */ }
+            }
+        }, _SYNC_LAYER_DEBOUNCE_MS);
     };
 })();
