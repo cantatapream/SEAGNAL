@@ -640,6 +640,73 @@ router.get('/api/marine-zone-forecasts', (req, res) => {
     res.send(cached);
 });
 
+// ============================================================================
+// 4-α. 해구별 기상전망 — "단일 해구" 응답 (모달용 경량 엔드포인트)
+// ----------------------------------------------------------------------------
+// [왜 추가했나? — 4순위 작업]
+//   기존 /api/marine-zone-forecasts 는 전체 1,330개 해구 × 시계열 = 약 5.86 MB
+//   (압축 후 ~452 KB) 응답을 내려준다.
+//   그런데 marine.js 의 해구 모달은 사용자가 클릭한 "단 1개 해구" 만 보여주므로
+//   나머지 1,329개 해구 데이터는 전부 버려진다.
+//   이를 줄이기 위해 :zoneId 경로 파라미터로 받은 1개 해구만 잘라서 응답하는
+//   경량 라우트를 별도로 둔다.
+//
+// [기존 라우트와의 관계 — 둘 다 유지]
+//   - /api/marine-zone-forecasts          : 전체 dump (zone_avg.js, surfing1.js 가 사용)
+//   - /api/marine-zone-forecasts/:zoneId  : 단일 해구 (marine.js 모달이 사용) ← 이 라우트
+//   두 라우트 모두 같은 dataCache.zoneForecasts 를 참조하므로 데이터 일관성 보장.
+//
+// [응답 구조 — 기존과 100% 호환]
+//   {
+//     "baseTmUtf": "<기존 값>",          // 기준 시각 (전체 응답과 동일)
+//     "updatedAt": "<기존 값>",          // 갱신 시각 (전체 응답과 동일)
+//     "data": { "<zoneId>": [...] }     // 해당 zone 의 시계열 배열만 포함
+//   }
+//   클라이언트는 기존과 동일하게 json.data[zoneId] 로 꺼내 쓸 수 있다.
+//
+// [캐시 설계 — 별도 객체 캐시를 두지 않는 이유]
+//   응답 크기가 약 30 KB 수준이라 JSON.stringify 비용이 1~2 ms 로 매우 가볍다.
+//   1,330개 zone × 30 KB ≈ 40 MB 캐시를 메모리에 박아두는 건 낭비이므로
+//   매 요청마다 그때그때 직렬화한다. (Cache-Control 30분으로 브라우저/CDN 단에서 캐싱)
+//
+// [404 처리]
+//   - dataCache.zoneForecasts 자체가 null  → 데이터 미수집 (스케줄러 부팅 직전)
+//   - data[zoneId] 가 없거나 빈 배열       → 존재하지 않는 해구번호
+//   둘 다 404 로 응답하여 클라이언트가 동일하게 에러 처리하도록 한다.
+//
+// [HTTP 캐시] 기존 라우트와 동일하게 max-age=1800 (30분)
+//
+// [호출 클라이언트]
+//   - js/marine.js : 해구 모달 (5.86 MB → 30 KB, ~99.5% 절감)
+// ============================================================================
+router.get('/api/marine-zone-forecasts/:zoneId', (req, res) => {
+    // [1] 데이터 미수집 — 스케줄러가 아직 zone_forecasts.json 을 못 읽었을 때
+    if (!dataCache.zoneForecasts || !dataCache.zoneForecasts.data) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(404).json({ error: '데이터 준비 중' });
+    }
+
+    // [2] 경로 파라미터에서 해구번호 추출 (URL 디코딩은 express 가 자동 처리)
+    const zoneId = req.params.zoneId;
+    const zoneSeries = dataCache.zoneForecasts.data[zoneId];
+
+    // [3] 해당 해구 데이터가 없거나 빈 배열 → 404
+    //     (소해구 "123-4" 등 잘못된 키가 들어와도 여기서 안전하게 차단)
+    if (!Array.isArray(zoneSeries) || zoneSeries.length === 0) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(404).json({ error: '해당 해구의 데이터가 없습니다.' });
+    }
+
+    // [4] 기존 응답 구조와 동일한 형태로 감싸서 전송 (data[zoneId] 키 패턴 유지)
+    //     marine.js 가 json.data[lZone] 으로 꺼내 쓰는 기존 로직을 그대로 사용할 수 있게 함
+    res.setHeader('Cache-Control', 'public, max-age=1800');
+    res.json({
+        baseTmUtf: dataCache.zoneForecasts.baseTmUtf,
+        updatedAt: dataCache.zoneForecasts.updatedAt,
+        data: { [zoneId]: zoneSeries }
+    });
+});
+
 // 4-1. 중기해상예보
 //    [수집 주기] 하루 2회 (06:15, 18:15 KST), mid_term_sea_forecasts.json
 //    [HTTP 캐시] 정상 응답에만 max-age=1800 (30분), 빈 응답은 no-store.
