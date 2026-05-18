@@ -135,8 +135,17 @@ function autoUpdateStatus(survey) {
 router.get('/api/surveys', (req, res) => {
     try {
         const surveys = readSurveys();
-        // 1차: 상태 자동 갱신 (mutate)
-        surveys.forEach(s => autoUpdateStatus(s));
+        // [G-1] dirty flag: 실제로 변경(상태 자동 갱신 or responseCount 차이)이 있을
+        //   때에만 writeSurveys() 호출. read-only GET 이 매번 디스크 write 를
+        //   유발하던 문제 해결 — mtime/내용 변동 없으면 IO 생략.
+        let dirty = false;
+
+        // 1차: 상태 자동 갱신 (mutate) — 변경 여부 추적
+        surveys.forEach(s => {
+            const prev = s.status;
+            autoUpdateStatus(s);
+            if (s.status !== prev) dirty = true;
+        });
 
         if (req.query.page != null) {
             // 최신 먼저 (id 역순 — Date.now() 기반이므로 생성순서와 일치)
@@ -150,9 +159,15 @@ router.get('/api/surveys', (req, res) => {
             // 현재 페이지에 해당하는 설문만 응답 카운트 산출 → mutate (sorted 의 항목은
             // surveys 와 동일 reference 이므로 disk 저장 시에도 반영)
             const pageData = sorted.slice(offset, offset + limit);
-            pageData.forEach(s => { s.responseCount = readResponses(s.id).length; });
-            // 디스크 동기화 (상태 자동 갱신 + 페이지 내 responseCount)
-            writeSurveys(surveys);
+            pageData.forEach(s => {
+                const next = readResponses(s.id).length;
+                if (s.responseCount !== next) {
+                    s.responseCount = next;
+                    dirty = true;
+                }
+            });
+            // [G-1] 실제 변경분이 있을 때만 디스크 동기화
+            if (dirty) writeSurveys(surveys);
             return res.json({
                 data: pageData,
                 pagination: { page, limit, total, totalPages }
@@ -160,9 +175,15 @@ router.get('/api/surveys', (req, res) => {
         }
 
         // 하위호환: 기존 raw array (파일 저장 순서 그대로) — 전체 responseCount 포함
-        // mutate 로 갱신하여 disk 동기화 (변경 전 패턴 복원).
-        surveys.forEach(s => { s.responseCount = readResponses(s.id).length; });
-        writeSurveys(surveys);
+        // mutate 로 갱신하되, [G-1] 실제 변경분이 있을 때만 disk 저장.
+        surveys.forEach(s => {
+            const next = readResponses(s.id).length;
+            if (s.responseCount !== next) {
+                s.responseCount = next;
+                dirty = true;
+            }
+        });
+        if (dirty) writeSurveys(surveys);
         res.json(surveys);
     } catch (e) {
         console.error('설문 목록 조회 실패:', e);

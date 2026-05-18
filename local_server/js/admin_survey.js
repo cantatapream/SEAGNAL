@@ -556,6 +556,11 @@ window.editSurvey = async function (id) {
 // 서브탭 3: 결과/분석
 // ============================================================================
 let _surveyCharts = [];
+// [C-1] loadSurveyResult 가 fetch 한 현재 설문 객체를 모듈-로컬에 캐싱.
+// viewSurveyResponses(surveyId) 가 이를 참조하여 모달 헤더 제목을 lookup
+// → onclick 인라인 핸들러에 surveyTitle 을 직접 박지 않아도 됨
+//   (제목에 따옴표/백슬래시가 포함될 때의 JS SyntaxError 회피).
+let _currentSurveyResult = null;
 
 async function renderSurveyResultTab(container) {
     container.innerHTML = '<div style="text-align:center; padding:40px; color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
@@ -614,6 +619,8 @@ window.loadSurveyResult = async function () {
         const responses = await rRes.json();
         const survey = surveys.find(s => s.id === surveyId);
         if (!survey) { body.innerHTML = '<div style="color:#ef4444;">설문 데이터 없음</div>'; return; }
+        // [C-1] viewSurveyResponses 가 모달 헤더 제목 lookup 에 사용할 수 있도록 캐싱
+        _currentSurveyResult = survey;
 
         const questions = survey.questions || [];
         let html = `
@@ -623,7 +630,7 @@ window.loadSurveyResult = async function () {
                     <div style="color:#94a3b8; font-size:0.8rem; margin-top:2px;">총 ${responses.length}건 | ${survey.startDate || ''} ~ ${survey.endDate || ''}</div>
                 </div>
                 <div style="display:flex; gap:8px;">
-                    <button onclick="viewSurveyResponses(${surveyId}, &quot;${escSvAttr(survey.title || '')}&quot;)" style="padding:8px 14px; background:linear-gradient(135deg,#8b5cf6,#6d28d9); border:none; border-radius:8px; color:#fff; cursor:pointer; font-size:0.82rem; font-weight:600;">
+                    <button onclick="viewSurveyResponses(${surveyId})" style="padding:8px 14px; background:linear-gradient(135deg,#8b5cf6,#6d28d9); border:none; border-radius:8px; color:#fff; cursor:pointer; font-size:0.82rem; font-weight:600;">
                         <i class="fa-solid fa-list-check"></i> 응답 목록
                     </button>
                     <button onclick="downloadSurveyCsv(${surveyId})" style="padding:8px 14px; background:linear-gradient(135deg,#3b82f6,#2563eb); border:none; border-radius:8px; color:#fff; cursor:pointer; font-size:0.82rem; font-weight:600;">
@@ -793,13 +800,15 @@ let _surveyResponseSeq = 0;
 /**
  * 응답 목록 모달 열기.
  *
- * [#6] 컨텍스트 명확화를 위해 surveyTitle 을 옵션 매개변수로 받아 헤더에 표시한다.
- *      (호출처가 제목을 모르면 미지정 OK — 헤더는 "응답 목록" 만 표시)
+ * [C-1] 시그니처 단순화: surveyTitle 매개변수 제거.
+ *   인라인 onclick 으로 제목을 넘기면 제목에 `"` / `\` / `'` 등이 포함된 경우
+ *   HTML escape 만으로는 JS 문자열 리터럴 안전을 보장할 수 없어 SyntaxError 가
+ *   발생했다. 대신 모듈-로컬 캐시(_currentSurveyResult) 에서 surveyId 로 제목을
+ *   lookup 하여 헤더에 표시한다. lookup 실패 시 헤더는 "응답 목록" 만 표시.
  *
  * @param {number} surveyId
- * @param {string=} surveyTitle - 모달 헤더에 표시할 설문 제목 (선택)
  */
-window.viewSurveyResponses = function (surveyId, surveyTitle) {
+window.viewSurveyResponses = function (surveyId) {
     // 같은 surveyId 든 다른 것이든 모달을 열 때마다 1페이지로 리셋
     _surveyResponsePage = 1;
     _surveyResponseModalSurveyId = Number(surveyId);
@@ -808,6 +817,10 @@ window.viewSurveyResponses = function (surveyId, surveyTitle) {
     const prev = document.getElementById('survey-response-modal');
     if (prev) prev.remove();
 
+    // [C-1] 캐시에서 제목 lookup — 일치하는 surveyId 의 결과만 신뢰
+    const surveyTitle = (_currentSurveyResult && _currentSurveyResult.id === Number(surveyId))
+        ? (_currentSurveyResult.title || '')
+        : '';
     const titlePart = surveyTitle
         ? ` <span style="color:#cbd5e1; font-weight:600; font-size:0.85rem;">— "${escSvAttr(surveyTitle)}"</span>`
         : '';
@@ -990,6 +1003,15 @@ window.duplicateSurvey = async function (id) {
     try {
         await fetch(CONFIG.API_BASE + `/api/surveys/${id}/duplicate`, { method: 'POST' });
         alert('설문이 복제되었습니다.');
-        switchSurveySubTab('survey-status');
+        // [D-1] 마감/발행/삭제와 동일한 패턴: 진행 현황 탭에서 호출됐다면 보던 페이지 유지.
+        //  - status 탭이 활성: 같은 탭의 데이터만 갱신(_reloadSurveyStatusKeepPage)
+        //  - 그 외(예: 이력 관리 탭): 결과 확인을 위해 status 탭으로 전환 + 1페이지 리셋
+        const activeBtn = document.querySelector('.survey-sub-tab.active');
+        const activeTabId = activeBtn ? activeBtn.dataset.tab : null;
+        if (activeTabId === 'survey-status') {
+            await _reloadSurveyStatusKeepPage();
+        } else {
+            switchSurveySubTab('survey-status');
+        }
     } catch (e) { alert('복제 실패: ' + e.message); }
 };
