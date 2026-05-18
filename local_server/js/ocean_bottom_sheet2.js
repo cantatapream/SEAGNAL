@@ -162,6 +162,12 @@
         if (OS.SheetTL && typeof OS.SheetTL.syncToStateDate === 'function') {
             OS.SheetTL.syncToStateDate();
         }
+        // [레이어 슬라이더 + 배경 오버레이 동기] 슬라이더 release 핸들러와 동일하게
+        // 새 시각의 배경 히트맵을 다시 로드. (이전엔 호출 누락으로 ◀ 후 카드는
+        // 갱신되지만 배경 색은 옛 시각에 멈춰 있던 회귀)
+        if (typeof OS._syncLayerSliderToSheet === 'function') {
+            OS._syncLayerSliderToSheet();
+        }
         // [예보 범위 외 처리] 새 날짜가 wave/wind 범위 안인지 판정
         if (typeof OS._enforceForecastRangeVisibility === 'function') {
             OS._enforceForecastRangeVisibility();
@@ -183,6 +189,11 @@
         // [시트 슬라이더 동기]
         if (OS.SheetTL && typeof OS.SheetTL.syncToStateDate === 'function') {
             OS.SheetTL.syncToStateDate();
+        }
+        // [레이어 슬라이더 + 배경 오버레이 동기] ▶ 후에도 배경 히트맵을 새 시각으로
+        // 다시 로드. (goPrev 와 동일 — 슬라이더 release 핸들러와 같은 시각 갱신 흐름)
+        if (typeof OS._syncLayerSliderToSheet === 'function') {
+            OS._syncLayerSliderToSheet();
         }
         // [예보 범위 외 처리]
         if (typeof OS._enforceForecastRangeVisibility === 'function') {
