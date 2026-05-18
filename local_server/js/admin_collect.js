@@ -2298,9 +2298,40 @@ async function renderUnifiedPromoContent(container) {
     // fetch 결과 캐시: 페이지 전환 시 매번 서버 호출하지 않도록 모듈-로컬에 보관.
     // 저장(작성/수정)·삭제 시 invalidate.
     let _postMgmtCache = null;       // { posts: [], boardMap: {} } | null
-    window._invalidatePostMgmtCache = function () { _postMgmtCache = null; };
-    // 외부(promo.js 의 save 콜백)에서 현재 페이지를 1로 리셋할 때 사용.
-    window.__resetPostMgmtPage = function () { _postMgmtPage = 1; };
+    let _postMgmtCacheAt = 0;        // 캐시 채워진 시각(ms). 0 이면 미 채워짐.
+    // 다중 어드민 환경에서 stale 캐시 방지용 TTL.
+    // 30초 지나면 페이지 이동/필터 변경 시점에 자동 무효화 + 재 fetch.
+    const _POST_MGMT_CACHE_TTL_MS = 30000;
+    // 빠른 키 입력 race 가드: loadUnifiedPromoList 진입마다 시퀀스 토큰 증가.
+    // await 후 토큰 불일치면 stale 응답으로 간주, 렌더 skip.
+    let _postMgmtSeq = 0;
+    // 검색 입력 debounce 핸들 (200ms). 마지막 keyup 만 fetch 트리거.
+    let _postMgmtSearchDebounce = null;
+
+    function _isPostMgmtCacheFresh() {
+        return _postMgmtCache && (Date.now() - _postMgmtCacheAt) < _POST_MGMT_CACHE_TTL_MS;
+    }
+
+    // (I-5) 외부에서 호출되는 hook 을 한 객체로 묶어 prefix 통일.
+    // - invalidateCache(): 저장/삭제 후 캐시 무효화.
+    // - resetPage(): save 콜백에서 현재 페이지를 1로 리셋.
+    window.__postMgmt = {
+        invalidateCache: function () { _postMgmtCache = null; _postMgmtCacheAt = 0; },
+        resetPage: function () { _postMgmtPage = 1; }
+    };
+    // (B-2 보조) 검색 입력에서 호출되는 debounced 트리거.
+    // - 200ms 동안 추가 입력이 없으면 페이지 리셋 + loadUnifiedPromoList 호출.
+    window.__postMgmtSearchInput = function () {
+        if (_postMgmtSearchDebounce) clearTimeout(_postMgmtSearchDebounce);
+        _postMgmtSearchDebounce = setTimeout(function () {
+            _postMgmtSearchDebounce = null;
+            _postMgmtPage = 1;
+            if (typeof window.loadUnifiedPromoList === 'function') window.loadUnifiedPromoList();
+        }, 200);
+    };
+    // 하위 호환: 기존 명세를 참조하는 외부 코드가 있을 경우 대비한 얇은 alias.
+    window._invalidatePostMgmtCache = function () { window.__postMgmt.invalidateCache(); };
+    window.__resetPostMgmtPage = function () { window.__postMgmt.resetPage(); };
 
     async function renderPostManagement(el) {
         // 게시판 목록을 불러와서 필터 드롭다운 생성
@@ -2313,12 +2344,12 @@ async function renderUnifiedPromoContent(container) {
         el.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
                 <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                    <select id="admin-post-filter" onchange="__resetPostMgmtPage(); loadUnifiedPromoList()" style="padding:8px 12px; background:#0f172a; border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:#fff; font-size:0.85rem;">
+                    <select id="admin-post-filter" onchange="window.__postMgmt.resetPage(); loadUnifiedPromoList()" style="padding:8px 12px; background:#0f172a; border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:#fff; font-size:0.85rem;">
                         <option value="ALL">전체 게시판</option>
                         ${boards.map(b => `<option value="${b.id}">${b.name}</option>`).join('')}
                     </select>
                     <div style="position:relative;">
-                        <input type="text" id="admin-post-search" placeholder="제목 검색..." onkeyup="__resetPostMgmtPage(); loadUnifiedPromoList()"
+                        <input type="text" id="admin-post-search" placeholder="제목 검색..." onkeyup="window.__postMgmtSearchInput()"
                             style="padding:8px 12px 8px 32px; background:#0f172a; border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:#fff; font-size:0.85rem; width:180px;">
                         <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#64748b; font-size:0.8rem;"></i>
                     </div>
@@ -2337,6 +2368,7 @@ async function renderUnifiedPromoContent(container) {
         // 서브탭 진입 시 1페이지부터 + 캐시 무효화하여 최신 데이터로 시작
         _postMgmtPage = 1;
         _postMgmtCache = null;
+        _postMgmtCacheAt = 0;
         loadUnifiedPromoList();
     }
 
@@ -2347,27 +2379,41 @@ async function renderUnifiedPromoContent(container) {
         if (!listEl) return;
         const pagerEl = document.getElementById('post-mgmt-pagination');
 
+        // (B-2) race 가드용 시퀀스 토큰. await 후 본인 토큰이 최신인지 확인.
+        const myReq = ++_postMgmtSeq;
+
         const filterEl = document.getElementById('admin-post-filter');
         const searchEl = document.getElementById('admin-post-search');
         const filterCategory = filterEl ? filterEl.value : 'ALL';
         const searchKeyword = searchEl ? searchEl.value.trim().toLowerCase() : '';
 
         try {
+            // (A-3) TTL 초과 시 캐시 자동 무효화 — 다른 어드민이 동시에 수정한 변경분 반영.
+            if (_postMgmtCache && !_isPostMgmtCacheFresh()) {
+                _postMgmtCache = null;
+                _postMgmtCacheAt = 0;
+            }
             // 캐시 미스면 서버 fetch (raw 배열) + 게시판 매핑 동시 로드
             if (!_postMgmtCache) {
                 const [promoRes, boardsRes] = await Promise.all([
                     fetch(CONFIG.API_BASE + '/api/promo'),
                     fetch(CONFIG.API_BASE + '/api/boards')
                 ]);
+                // 더 새로운 요청이 들어왔으면 이 응답은 버린다.
+                if (myReq !== _postMgmtSeq) return;
                 const posts = await promoRes.json();
                 const boards = await boardsRes.json();
+                if (myReq !== _postMgmtSeq) return;
                 const boardMap = {};
                 (boards || []).forEach(b => { boardMap[b.id] = b; });
                 _postMgmtCache = {
                     posts: Array.isArray(posts) ? posts : [],
                     boardMap: boardMap
                 };
+                _postMgmtCacheAt = Date.now();
             }
+            // 캐시 히트 경로에서도 race 가드 — 동기 경로지만 일관성 위해 점검.
+            if (myReq !== _postMgmtSeq) return;
             const { posts, boardMap } = _postMgmtCache;
 
             // 1) 필터링
@@ -2444,6 +2490,8 @@ async function renderUnifiedPromoContent(container) {
                 );
             }
         } catch (e) {
+            // stale 응답이면 UI 덮어쓰지 않음.
+            if (myReq !== _postMgmtSeq) return;
             listEl.innerHTML = '<div style="text-align:center; padding:40px; color:#ef4444;">게시글 로드 실패</div>';
             if (pagerEl) pagerEl.innerHTML = '';
         }
@@ -2451,9 +2499,21 @@ async function renderUnifiedPromoContent(container) {
 
     window.deletePromoPostUnified = async function (id) {
         if (!confirm('정말 삭제하시겠습니까?')) return;
-        await fetch(CONFIG.API_BASE + '/api/promo/' + id, { method: 'DELETE' });
+        // (F-2) 응답 success 검증. 실패 시 alert + 캐시 무효화/재로드 skip.
+        //   promo.js 의 deletePromoPost 와 동일 패턴.
+        try {
+            const res = await fetch(CONFIG.API_BASE + '/api/promo/' + id, { method: 'DELETE' });
+            const result = await res.json().catch(() => ({}));
+            if (!res.ok || !result.success) {
+                alert('삭제에 실패했습니다.');
+                return;
+            }
+        } catch (e) {
+            alert('삭제에 실패했습니다.');
+            return;
+        }
         // 캐시 무효화 후 재 fetch — 페이지 범위는 loadUnifiedPromoList 가 보정.
-        _postMgmtCache = null;
+        window.__postMgmt.invalidateCache();
         loadUnifiedPromoList();
     };
 

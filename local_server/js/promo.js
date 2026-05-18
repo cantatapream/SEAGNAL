@@ -1012,14 +1012,16 @@ window.savePromoPost = async function () {
             closePromoEditor();
             loadPromoPosts(); // 목록 새로고침
             // (A) 통합 관리자 게시글 관리 탭이 열려있다면 캐시 무효화 + 1페이지로 리셋
-            if (typeof window._invalidatePostMgmtCache === 'function') {
-                window._invalidatePostMgmtCache();
+            if (window.__postMgmt && typeof window.__postMgmt.invalidateCache === 'function') {
+                window.__postMgmt.invalidateCache();
             }
             if (typeof loadUnifiedPromoList === 'function') {
                 // 모듈-로컬 _postMgmtPage 는 외부 접근 불가 → onchange 와 같은 패턴으로
                 // 검색/필터 변경 후 호출 시점에도 page 가 1로 보정되도록 helper 의 첫 진입에서
                 // 검사하지만, 명시적으로도 리셋: filter 셀렉터 변경과 동일하게 통보.
-                if (window.__resetPostMgmtPage) window.__resetPostMgmtPage();
+                if (window.__postMgmt && typeof window.__postMgmt.resetPage === 'function') {
+                    window.__postMgmt.resetPage();
+                }
                 loadUnifiedPromoList();
             }
         } else {
@@ -1060,8 +1062,8 @@ window.deletePromoPost = async function (postId) {
         if (result.success) {
             alert('삭제되었습니다.');
             // (A) 통합 관리자 게시글 관리 탭 캐시 무효화 후 재로드
-            if (typeof window._invalidatePostMgmtCache === 'function') {
-                window._invalidatePostMgmtCache();
+            if (window.__postMgmt && typeof window.__postMgmt.invalidateCache === 'function') {
+                window.__postMgmt.invalidateCache();
             }
             if (typeof loadUnifiedPromoList === 'function') loadUnifiedPromoList();
             loadPromoPosts();
