@@ -192,7 +192,7 @@ async function checkNoticeStatus() {
 }
 
 // 3. 관리자 비밀번호 입력 모달 (Legacy removed - using showUnifiedLoginModal)
-// 3-1. 게시글 관리 모달 (Legacy removed - using showPromoManagementModal)
+// 3-1. 게시글 관리 모달 (Legacy removed - 통합 관리자 모달 > "게시판 관리" 탭에서 처리)
 
 // 4. 공지사항 팝업 작성/관리 모달 (태풍정보 탭 15회 클릭 시)
 async function showAdminNoticeModal() {

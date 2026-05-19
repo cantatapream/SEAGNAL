@@ -249,15 +249,15 @@ router.post('/api/admin/report-collect', async (req, res) => {
         const rawText = await reportProcessor.fetchReportDetail(reportId);
         if (!rawText) return res.json({ success: false, rawText: '', aiResult: [], message: '통보문 내용을 가져올 수 없습니다.' });
 
-        // 2. 키워드 필터링
-        const RELEVANT_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
+        // 2. 키워드 필터링 (폭풍해일은 수집 대상이 아니므로 제외)
+        const RELEVANT_KEYWORDS = ['풍랑', '태풍', '지진해일'];
         const foundKeywords = RELEVANT_KEYWORDS.filter(kw => rawText.includes(kw));
 
         if (foundKeywords.length === 0) {
             return res.json({
                 success: true, reportId, title, rawText,
                 aiResult: [], foundKeywords: [],
-                message: '해상 특보 키워드(풍랑/태풍/지진해일/폭풍해일)가 포함되지 않은 통보문입니다.',
+                message: '해상 특보 키워드(풍랑/태풍/지진해일)가 포함되지 않은 통보문입니다.',
                 applied: false
             });
         }
@@ -265,7 +265,8 @@ router.post('/api/admin/report-collect', async (req, res) => {
         // 3. AI 분석 (번호별 항목 분리 포함)
         const baseDate = extractTmFcFromReportId(reportId);
         const aiParsed = await aiParser.parseNoticeWithAI(rawText, baseDate);
-        const aiResult = aiParsed.data || [];
+        // 폭풍해일 이벤트는 수집 제외 — AI가 반환해도 결과/장부 반영에서 모두 제거
+        const aiResult = (aiParsed.data || []).filter(ev => !(ev && (ev.type || '').includes('폭풍해일')));
         const aiError = aiParsed.error || null;
         const separatedText = aiParsed.separatedText || null;
 
@@ -453,10 +454,40 @@ router.get('/api/admin/report-cache/:reportId', (req, res) => {
 
 router.get('/api/admin/collect-failures', (req, res) => {
     try {
-        if (!fs.existsSync(COLLECT_FAILURES_FILE)) return res.json([]);
-        const data = JSON.parse(fs.readFileSync(COLLECT_FAILURES_FILE, 'utf8'));
-        res.json(data);
-    } catch (e) { res.json([]); }
+        let data = [];
+        if (fs.existsSync(COLLECT_FAILURES_FILE)) {
+            data = JSON.parse(fs.readFileSync(COLLECT_FAILURES_FILE, 'utf8')) || [];
+        }
+
+        // 정렬: failedAt 역순 (최신 실패가 위)
+        data.sort((a, b) => {
+            const ta = new Date(a.failedAt || 0).getTime();
+            const tb = new Date(b.failedAt || 0).getTime();
+            return tb - ta;
+        });
+
+        // 페이지네이션 (쿼리에 page 가 있을 때만 새 응답 포맷)
+        // - 하위호환: page 가 없으면 기존처럼 raw array 반환
+        const hasPageQuery = Object.prototype.hasOwnProperty.call(req.query, 'page');
+        if (!hasPageQuery) return res.json(data);
+
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 30));
+        const total = data.length;
+        const totalPages = Math.max(1, Math.ceil(total / limit));
+        const start = (page - 1) * limit;
+        const pageData = data.slice(start, start + limit);
+
+        res.json({
+            data: pageData,
+            pagination: { page, limit, total, totalPages }
+        });
+    } catch (e) {
+        if (Object.prototype.hasOwnProperty.call(req.query, 'page')) {
+            return res.json({ data: [], pagination: { page: 1, limit: 30, total: 0, totalPages: 1 } });
+        }
+        res.json([]);
+    }
 });
 
 /**
@@ -505,12 +536,75 @@ router.delete('/api/admin/collect-failures', (req, res) => {
 // ============================================================================
 
 // [조회] 검토 필요 통보문 목록 반환
+//   - 하위호환: ?page= 없으면 기존 raw array (모든 항목, 미정렬) 반환
+//   - 페이지네이션 모드(?page=)일 때는 unacknowledged 만 detectedAt 역순으로 정렬해 페이지 분할
 router.get('/api/admin/review-needed', (req, res) => {
     try {
-        if (!fs.existsSync(REVIEW_NEEDED_FILE)) return res.json([]);
-        const data = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8'));
-        res.json(data);
-    } catch (e) { res.json([]); }
+        let data = [];
+        if (fs.existsSync(REVIEW_NEEDED_FILE)) {
+            data = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8')) || [];
+        }
+
+        const hasPageQuery = Object.prototype.hasOwnProperty.call(req.query, 'page');
+        if (!hasPageQuery) return res.json(data);
+
+        // 페이지네이션 모드: 미확인(acknowledged=false) 만 + detectedAt 역순
+        const filtered = data.filter(r => !r.acknowledged);
+        filtered.sort((a, b) => {
+            const ta = new Date(a.detectedAt || 0).getTime();
+            const tb = new Date(b.detectedAt || 0).getTime();
+            return tb - ta;
+        });
+
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 30));
+        const total = filtered.length;
+        const totalPages = Math.max(1, Math.ceil(total / limit));
+        const start = (page - 1) * limit;
+        const pageData = filtered.slice(start, start + limit);
+
+        res.json({
+            data: pageData,
+            pagination: { page, limit, total, totalPages }
+        });
+    } catch (e) {
+        if (Object.prototype.hasOwnProperty.call(req.query, 'page')) {
+            return res.json({ data: [], pagination: { page: 1, limit: 30, total: 0, totalPages: 1 } });
+        }
+        res.json([]);
+    }
+});
+
+// [페이지네이션 전용] 검토 필요(unacknowledged) 통보문만 페이지 단위로 반환
+//   - 기존 /api/admin/review-needed 는 raw array(전체, 옛 호출자 하위호환 + 페이지 모드 양쪽)를 유지하고,
+//     관리자 화면 페이지네이션은 본 신규 엔드포인트를 사용하도록 분리.
+//   - ?page=&limit= 쿼리를 받아 항상 { data, pagination } 포맷으로 응답 (page 가 없어도 1페이지).
+//   - acknowledged=false 만 detectedAt 역순 정렬.
+router.get('/api/admin/review-needed/pending', (req, res) => {
+    try {
+        let data = [];
+        if (fs.existsSync(REVIEW_NEEDED_FILE)) {
+            data = JSON.parse(fs.readFileSync(REVIEW_NEEDED_FILE, 'utf8')) || [];
+        }
+        const filtered = data.filter(r => !r.acknowledged);
+        filtered.sort((a, b) => {
+            const ta = new Date(a.detectedAt || 0).getTime();
+            const tb = new Date(b.detectedAt || 0).getTime();
+            return tb - ta;
+        });
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 30));
+        const total = filtered.length;
+        const totalPages = Math.max(1, Math.ceil(total / limit));
+        const start = (page - 1) * limit;
+        const pageData = filtered.slice(start, start + limit);
+        res.json({
+            data: pageData,
+            pagination: { page, limit, total, totalPages }
+        });
+    } catch (e) {
+        res.json({ data: [], pagination: { page: 1, limit: 30, total: 0, totalPages: 1 } });
+    }
 });
 
 // [확인완료] 특정 통보문을 관리자가 확인 처리 (반복 푸시 중단 조건)
@@ -628,10 +722,18 @@ router.get('/api/admin/gemini-status', (req, res) => {
 // ============================================================================
 
 // [조회] 현재 재시도 대기 중인 통보문 목록
+//   - 정렬: firstSeen 오름차순(오래된 것 먼저) — 빨리 처리해야 할 항목이 위로
+//   - 하위호환: ?page= 없으면 기존처럼 raw array 반환
 router.get('/api/admin/pending-retries', (req, res) => {
     try {
         const outputFile = weatherAlertsCrawler.CONFIG.OUTPUT_FILE;
-        if (!fs.existsSync(outputFile)) return res.json([]);
+        const hasPageQuery = Object.prototype.hasOwnProperty.call(req.query, 'page');
+        if (!fs.existsSync(outputFile)) {
+            if (hasPageQuery) {
+                return res.json({ data: [], pagination: { page: 1, limit: 30, total: 0, totalPages: 1 } });
+            }
+            return res.json([]);
+        }
         const fullForm = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
         const pendingRetries = fullForm.pendingRetries || {};
         const now = Date.now();
@@ -649,9 +751,22 @@ router.get('/api/admin/pending-retries', (req, res) => {
                 elapsedMs: now - firstSeenMs
             };
         });
-        // 최초 감지 시각 오래된 순
+        // 최초 감지 시각 오래된 순 (UX: 빨리 처리해야 할 항목이 위)
         items.sort((a, b) => (a.firstSeen || '').localeCompare(b.firstSeen || ''));
-        res.json(items);
+
+        if (!hasPageQuery) return res.json(items);
+
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 30));
+        const total = items.length;
+        const totalPages = Math.max(1, Math.ceil(total / limit));
+        const start = (page - 1) * limit;
+        const pageData = items.slice(start, start + limit);
+
+        res.json({
+            data: pageData,
+            pagination: { page, limit, total, totalPages }
+        });
     } catch (e) {
         console.error('[Admin] pending-retries 조회 오류:', e.message);
         res.status(500).json({ error: e.message });
@@ -868,7 +983,8 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
         for (const report of reports) {
             try {
                 const rawText = await reportProcessor.fetchReportDetail(report.id);
-                const RELEVANT_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
+                // 폭풍해일은 수집 대상이 아니므로 키워드에서 제외
+                const RELEVANT_KEYWORDS = ['풍랑', '태풍', '지진해일'];
                 const foundKeywords = RELEVANT_KEYWORDS.filter(kw => rawText.includes(kw));
 
                 if (foundKeywords.length === 0) {
@@ -878,7 +994,8 @@ router.post('/api/admin/reports-collect-all', async (req, res) => {
 
                 const baseDate = extractTmFcFromReportId(report.id);
                 const aiParsed = await aiParser.parseNoticeWithAI(rawText, baseDate);
-                const aiResult = aiParsed.data || [];
+                // 폭풍해일 이벤트 방어 필터 (수집 제외)
+                const aiResult = (aiParsed.data || []).filter(ev => !(ev && (ev.type || '').includes('폭풍해일')));
                 const aiError = aiParsed.error || null;
 
                 // 장부 반영

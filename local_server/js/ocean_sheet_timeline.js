@@ -26,10 +26,6 @@
  *   조석은 분 단위 보간이 가능하므로 어떤 value 든 정확한 게이지 표시.
  *   KMA 데이터(파고/풍/천기)는 backend 가 가장 가까운 frame 으로 매핑.
  *
- * [자정 눈금]
- *   floor3(현재) + N*h 가 24:00 / 48:00 / 72:00 ... 인 N 위치에만 짧은 세로 막대.
- *   텍스트 없음. 사용자 합의: "날짜 바뀌는 지점만 세로줄".
- *
  * [말풍선]
  *   천기 슬라이더와 동일 패턴 — viewport clamp + 화살표 추적 + 1초 fade-out.
  *   텍스트: "'26. 5. 5.(화) 07:42" 형식.
@@ -56,7 +52,7 @@
  *
  * [의존]
  *   - window.OceanSheet (OS): OS.state, OS.renderHeader
- *   - DOM: #ocean-sheet-slider-wrap, #ocean-sheet-slider, #ocean-sheet-tooltip, #ocean-sheet-ticks
+ *   - DOM: #ocean-sheet-slider-wrap, #ocean-sheet-slider, #ocean-sheet-tooltip
  * ============================================================================
  */
 
@@ -150,50 +146,6 @@
         return Math.max(0, Math.min(_maxHours, v));
     }
 
-    // ── 자정 눈금 ────────────────────────────────────────────
-    /**
-     * 슬라이더 트랙 위 "자정 (00:00)" 위치들의 % 배열.
-     *
-     * 새 정책에선 슬라이더 value 들이 표현하는 시각이:
-     *   v=0 → real now,  v=3,6,9,... → floor3(now) + N*h
-     * 따라서 자정 (=다음 날 00:00:00) 에 해당하는 v 는:
-     *   v = (24:00 - floor3(now).getHours()) ~ 다음 자정까지의 거리.
-     *   예: now=07:42, floor3=06:00 → v=18 → floor3+18h = 다음날 06:00 + 18 = 24:00 ✓
-     *
-     * % 위치 = v / _maxHours * 100. v=0 위치(0%)는 제외 (real now).
-     */
-    function computeMidnightTickValues() {
-        var arr = [];
-        if (_maxHours <= 0) return arr;
-        var now = Date.now();
-        var f3 = floor3h(now);
-        // 다음 자정 (오늘 24:00 = 내일 00:00)
-        var nextMidnight = new Date(now);
-        nextMidnight.setHours(24, 0, 0, 0);
-        // 자정에 해당하는 v
-        var firstV = (nextMidnight.getTime() - f3) / 3600000;
-        // 24의 배수만큼 이후 자정 (다다음 자정 등)
-        for (var v = firstV; v <= _maxHours; v += 24) {
-            // v 가 정확히 3의 배수인지 검증 (자정은 3h 격자에 항상 떨어짐: floor3 + 24*k 형태)
-            if (v >= 3 && v % 3 === 0) arr.push(v);
-        }
-        return arr;
-    }
-
-    /**
-     * 자정 눈금 DOM 채움. ticks 컨테이너의 좌우 패딩(9px)이 thumb 끝에 맞춰져 있어
-     * % 계산은 트랙 가로 길이를 1로 본 비율 그대로 사용 가능.
-     */
-    function renderTicks() {
-        var ticksEl = $('ocean-sheet-ticks');
-        if (!ticksEl) return;
-        var values = computeMidnightTickValues();
-        ticksEl.innerHTML = values.map(function (v) {
-            var pct = (v / _maxHours) * 100;
-            return '<div class="ocean-sheet-tick" style="left:' + pct.toFixed(2) + '%"></div>';
-        }).join('');
-    }
-
     // ── 말풍선 ───────────────────────────────────────────────
     /**
      * 손잡이 위에 말풍선 위치/텍스트 갱신.
@@ -225,7 +177,7 @@
         var min = parseFloat(slider.min) || 0;
         var max = parseFloat(slider.max) || 0;
         var pct = (max > min) ? (v - min) / (max - min) : 0;
-        var thumbHalf = 7;
+        var thumbHalf = 8;
         var thumbXVp = sliderRect.left + thumbHalf + pct * (sliderRect.width - thumbHalf * 2);
 
         // 말풍선 측정 (텍스트 변경 후 재측정 → 폰트 크기 자동 반영)
@@ -268,6 +220,91 @@
     /** Date → "YYYY-M-D" 키. 같은 날 판정용. */
     function _dayKey(d) {
         return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+    }
+
+    /* ❺ 날짜 구분선 — 실제 자정 ms 위치의 % 에 동적 element 생성 ----
+     * - displayTimeMs(0)        = real now (호출 시점)
+     * - displayTimeMs(_maxHours) = floor3h(now) + _maxHours*3600000
+     * 트랙 위에 absolute-positioned .ocean-sheet-divider 자식 생성.
+     * 1분 setInterval 로 자동 갱신 (real now 가 흘러서 자정 % 가 변함).
+     */
+    var _dividerLayer = null;
+    var _dividerTimer = null;
+
+    function ensureDividerLayer() {
+        if (_dividerLayer && _dividerLayer.isConnected) return _dividerLayer;
+        var wrap = $('ocean-sheet-slider-wrap');
+        if (!wrap) return null;
+        // 이미 만들어진 게 있으면 재사용
+        _dividerLayer = wrap.querySelector('.ocean-sheet-slider-dividers');
+        if (!_dividerLayer) {
+            _dividerLayer = document.createElement('div');
+            _dividerLayer.className = 'ocean-sheet-slider-dividers';
+            // 슬라이더 자체와 위치를 맞춰 absolute 로 띄움 (CSS 에서 처리)
+            wrap.appendChild(_dividerLayer);
+        }
+        return _dividerLayer;
+    }
+
+    function updateDayDividers() {
+        var slider = $('ocean-sheet-slider');
+        if (!slider) return;
+        var layer = ensureDividerLayer();
+        if (!layer) return;
+        // 슬라이더가 hidden 이면 비움
+        var wrap = $('ocean-sheet-slider-wrap');
+        if (wrap && wrap.classList.contains('is-hidden')) {
+            layer.innerHTML = '';
+            return;
+        }
+        if (!_maxHours || _maxHours <= 0) {
+            layer.innerHTML = '';
+            return;
+        }
+
+        var nowMs = displayTimeMs(0);
+        var endMs = displayTimeMs(_maxHours);
+        if (!(endMs > nowMs)) {
+            layer.innerHTML = '';
+            return;
+        }
+
+        // 다음 자정부터 endMs 이전까지 24h 간격
+        var cursor = new Date(nowMs);
+        cursor.setHours(24, 0, 0, 0); // 익일 00:00
+        var positions = [];
+        while (cursor.getTime() < endMs) {
+            var pct = (cursor.getTime() - nowMs) / (endMs - nowMs) * 100;
+            positions.push(pct);
+            cursor = new Date(cursor.getTime() + 86400000);
+        }
+
+        // DOM 재구성 (positions 갯수와 다르면 새로 그림, 같으면 left 만 갱신)
+        var existing = layer.querySelectorAll('.ocean-sheet-divider');
+        if (existing.length !== positions.length) {
+            layer.innerHTML = '';
+            for (var i = 0; i < positions.length; i++) {
+                var d = document.createElement('div');
+                d.className = 'ocean-sheet-divider';
+                d.style.left = positions[i].toFixed(3) + '%';
+                layer.appendChild(d);
+            }
+        } else {
+            for (var j = 0; j < positions.length; j++) {
+                existing[j].style.left = positions[j].toFixed(3) + '%';
+            }
+        }
+    }
+
+    function startDividerAutoUpdate() {
+        if (_dividerTimer) return;
+        _dividerTimer = setInterval(function () {
+            // 슬라이더가 보일 때만 갱신
+            var wrap = $('ocean-sheet-slider-wrap');
+            if (wrap && !wrap.classList.contains('is-hidden')) {
+                updateDayDividers();
+            }
+        }, 60000); // 1분
     }
 
     // ── 헤더 동기 (드래그 중 호출) ──────────────────────────────
@@ -360,21 +397,22 @@
         slider.min = 0;
         slider.max = _maxHours;
         slider.step = 3;
+        // ❺ 날짜 구분선: 실제 자정 ms 기반 % 위치로 동적 element 생성
+        // (기존 --shtl-day-count repeating-linear-gradient 방식은 등간격이라 부정확했음)
+        updateDayDividers();
+        startDividerAutoUpdate();
 
         // 4) 초기값 = 레이어 슬라이더 값 → 시트 슬라이더 value 변환
         slider.value = sheetValueFromLayerHours(initialLayerHours || 0);
 
-        // 5) 자정 눈금 렌더
-        renderTicks();
-
-        // 6) 이벤트 바인딩 (한 번만)
+        // 5) 이벤트 바인딩 (한 번만)
         bindEvents();
 
-        // 7) 헤더 동기 — 슬라이더 시각 → OS.state.date → renderHeader
+        // 6) 헤더 동기 — 슬라이더 시각 → OS.state.date → renderHeader
         //    value=0 이면 OS.state.date = real now, 헤더에 "07:42" 표시.
         syncHeaderToSlider();
 
-        // 8) "마지막 정착 날짜" 캡처
+        // 7) "마지막 정착 날짜" 캡처
         _lastSettledDayKey = _dayKey(STL.getCurrentDate());
     };
 
@@ -401,6 +439,8 @@
         wrap.classList.remove('is-hidden');
         slider.disabled = false;
         slider.max = _maxHours;
+        // ❺ max 변경 시 구분선 재계산
+        updateDayDividers();
 
         var v = parseFloat(slider.value) || 0;
         if (v > _maxHours) {
@@ -415,8 +455,6 @@
                 STL.onRelease(_maxHours, sameDay, newDate);
             }
         }
-
-        renderTicks();
     };
 
     /** 외부에서 슬라이더 값 강제 설정 (이벤트 발화 X). */

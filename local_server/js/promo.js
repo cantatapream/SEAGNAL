@@ -655,15 +655,14 @@ function escapeHtml(text) {
 // ============================================================================
 // [관리자] 홍보 게시판 관리 기능
 // ============================================================================
-// Legacy openPromoAdminPanel removed. Using showPromoManagementModal instead.
+// 통합 관리자(unified-admin-modal) > "게시판 관리" 탭 > "게시글 관리" 서브탭에서
+// 사용. 별도 오렌지 팝업(showPromoManagementModal) 은 제거됨.
 
 // 8. 새 글 작성 에디터 열기
 window.openPromoEditor = async function (editData = null) {
     // 기존 모달 닫기
     const adminModal = document.getElementById('admin-modal');
     if (adminModal) adminModal.classList.add('hidden');
-    const promoMgmtModal = document.getElementById('promo-management-modal');
-    if (promoMgmtModal) promoMgmtModal.remove();
     const unifiedModal = document.getElementById('unified-admin-modal');
     if (unifiedModal) unifiedModal.style.display = 'none'; // 편집 중에는 잠깐 숨김
 
@@ -1012,8 +1011,19 @@ window.savePromoPost = async function () {
             alert(currentEditingPromoId ? '게시글이 수정되었습니다.' : '게시글이 등록되었습니다.');
             closePromoEditor();
             loadPromoPosts(); // 목록 새로고침
-            if (typeof loadPromoListForAdmin === 'function') loadPromoListForAdmin();
-            if (typeof loadUnifiedPromoList === 'function') loadUnifiedPromoList();
+            // (A) 통합 관리자 게시글 관리 탭이 열려있다면 캐시 무효화 + 1페이지로 리셋
+            if (window.__postMgmt && typeof window.__postMgmt.invalidateCache === 'function') {
+                window.__postMgmt.invalidateCache();
+            }
+            if (typeof loadUnifiedPromoList === 'function') {
+                // 모듈-로컬 _postMgmtPage 는 외부 접근 불가 → onchange 와 같은 패턴으로
+                // 검색/필터 변경 후 호출 시점에도 page 가 1로 보정되도록 helper 의 첫 진입에서
+                // 검사하지만, 명시적으로도 리셋: filter 셀렉터 변경과 동일하게 통보.
+                if (window.__postMgmt && typeof window.__postMgmt.resetPage === 'function') {
+                    window.__postMgmt.resetPage();
+                }
+                loadUnifiedPromoList();
+            }
         } else {
             alert('저장 실패: ' + (result.error || '알 수 없는 오류'));
         }
@@ -1051,7 +1061,11 @@ window.deletePromoPost = async function (postId) {
 
         if (result.success) {
             alert('삭제되었습니다.');
-            if (typeof loadPromoListForAdmin === 'function') loadPromoListForAdmin();
+            // (A) 통합 관리자 게시글 관리 탭 캐시 무효화 후 재로드
+            if (window.__postMgmt && typeof window.__postMgmt.invalidateCache === 'function') {
+                window.__postMgmt.invalidateCache();
+            }
+            if (typeof loadUnifiedPromoList === 'function') loadUnifiedPromoList();
             loadPromoPosts();
         } else {
             alert('삭제 실패: ' + (result.error || '알 수 없는 오류'));

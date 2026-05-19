@@ -64,6 +64,26 @@ app.use(cors());
 //   - server.js → 라우트 응답이 자동 압축됨 (라우트 코드 변경 불필요)
 //   - routes/* → 응답 본문은 그대로 작성, 압축은 미들웨어가 처리
 //   - X-Data-* 헤더 (services/freshness.js) 와 함께 동작 — 헤더는 비압축, 본문만 압축
+//
+// [5순위 갱신 — 정적 자원 사전 압축 도입]
+//   server.js 의 정적 자원은 이제 express-static-gzip 으로 빌드된 .gz / .br
+//   를 그대로 전송한다 (build-gzip.js 가 prestart 에서 미리 생성). 따라서
+//   여기 compression() 은 "정적 자원이 아닌 동적 응답만" 압축해야 중복 압축
+//   / CPU 낭비를 막을 수 있다.
+//
+//   필터 규칙:
+//   [hotfix — 정적 prefix 제외 제거]
+//     운영 환경에서 express-static-gzip 이 .br/.gz 응답을 생성하지 못하는
+//     문제가 발견되어(파일은 디스크에 정상 생성됨에도 미들웨어가 압축본을
+//     선택하지 못함), 정적 prefix 를 compression 제외 대상에서 다시 포함해
+//     실시간 압축으로 안전망을 둔다.
+//   동작 시나리오:
+//     A) express-static-gzip 이 사전 압축본(.br/.gz)을 응답 → 이미 Content-Encoding
+//        헤더가 있으므로 compression 미들웨어가 자동으로 재압축 안 함 (정상 통과).
+//     B) express-static-gzip 이 원본 파일로 fallback → compression 미들웨어가
+//        Accept-Encoding + Content-Type 보고 실시간 gzip/brotli 적용.
+//   결과: 두 경로 어느 쪽이든 압축 응답 보장. 5순위 CPU 절감 효과는 A 케이스에서만
+//        나타나며, B 케이스는 기존(5순위 전) 수준으로 회귀.
 app.use(compression());
 // [limit: 5mb]
 //   Quill 에디터에 이미지를 paste / drop / 파일선택으로 삽입하면 base64 인라인

@@ -1134,9 +1134,17 @@
         var near = _locationFindNear(lat, lon);
         if (near) {
             // 이미 등록됨 → 즉시 해제
+            var removedLat = near.lat, removedLon = near.lon;
             _favLocation.removeById(near.id);
             _renderFavBar();
+            _rerenderFavLocFeatures();
             _updateSheetFavButton();
+            // [차등 캐싱 — 2026-05] 영속 조석 캐시 삭제
+            try {
+                if (window.OceanSheet && typeof window.OceanSheet.dropFromPersist === 'function') {
+                    window.OceanSheet.dropFromPersist(removedLat, removedLon);
+                }
+            } catch (e) { /* ignore */ }
             return;
         }
 
@@ -1440,19 +1448,49 @@
             _favLocation.push(item);
             _renderFavBar();
             _rerenderFavLocFeatures();
+            // [차등 캐싱 — 2026-05] 즐겨찾기 신규 추가 시 현재 메모리의 조석 캐시를
+            // localStorage 로 즉시 승격. 다음 세션에서도 API 호출 없이 즉시 hit.
+            try {
+                if (window.OceanSheet && typeof window.OceanSheet.promoteMemoryCacheToPersist === 'function') {
+                    window.OceanSheet.promoteMemoryCacheToPersist(item.lat, item.lon);
+                }
+            } catch (e) { /* ignore */ }
             return { ok: true };
         },
         locationRemoveById: function (id) {
+            // 삭제 전 좌표 캡처 — 영속 캐시 정리에 필요
+            var removedLat = null, removedLon = null;
+            for (var i = 0; i < _favLocation.items.length; i++) {
+                if (String(_favLocation.items[i].id) === String(id)) {
+                    removedLat = _favLocation.items[i].lat;
+                    removedLon = _favLocation.items[i].lon;
+                    break;
+                }
+            }
             _favLocation.removeById(id);
             _renderFavBar();
             _rerenderFavLocFeatures();
+            // [차등 캐싱 — 2026-05] 즐겨찾기 해제 시 localStorage 영속 캐시 삭제.
+            try {
+                if (removedLat !== null && removedLon !== null
+                    && window.OceanSheet && typeof window.OceanSheet.dropFromPersist === 'function') {
+                    window.OceanSheet.dropFromPersist(removedLat, removedLon);
+                }
+            } catch (e) { /* ignore */ }
         },
         locationRemoveNear: function (lat, lon) {
             var near = _locationFindNear(lat, lon);
             if (near) {
+                var removedLat = near.lat, removedLon = near.lon;
                 _favLocation.removeById(near.id);
                 _renderFavBar();
                 _rerenderFavLocFeatures();
+                // [차등 캐싱 — 2026-05] 즐겨찾기 해제 시 localStorage 영속 캐시 삭제.
+                try {
+                    if (window.OceanSheet && typeof window.OceanSheet.dropFromPersist === 'function') {
+                        window.OceanSheet.dropFromPersist(removedLat, removedLon);
+                    }
+                } catch (e) { /* ignore */ }
                 return true;
             }
             return false;

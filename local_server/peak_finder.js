@@ -145,14 +145,16 @@ function findTidePeaks(tideBedData, targetDateStr = null) {
     const finalHighs = filterPeaks(allPeaks.filter(p => p.type === 'high'));
     const finalLows = filterPeaks(allPeaks.filter(p => p.type === 'low'));
 
-    // 결과 구성
+    // 결과 구성 — H/L 각 최대 4개 (12h padding 확대로 자정 ±12h 피크까지 노출 가능)
     return {
         highTide1: finalHighs[0] ? { time: finalHighs[0].midpointTime, height: finalHighs[0].height } : null,
         highTide2: finalHighs[1] ? { time: finalHighs[1].midpointTime, height: finalHighs[1].height } : null,
         highTide3: finalHighs[2] ? { time: finalHighs[2].midpointTime, height: finalHighs[2].height } : null,
+        highTide4: finalHighs[3] ? { time: finalHighs[3].midpointTime, height: finalHighs[3].height } : null,
         lowTide1: finalLows[0] ? { time: finalLows[0].midpointTime, height: finalLows[0].height } : null,
         lowTide2: finalLows[1] ? { time: finalLows[1].midpointTime, height: finalLows[1].height } : null,
         lowTide3: finalLows[2] ? { time: finalLows[2].midpointTime, height: finalLows[2].height } : null,
+        lowTide4: finalLows[3] ? { time: finalLows[3].midpointTime, height: finalLows[3].height } : null,
         peakCount: { high: finalHighs.length, low: finalLows.length }
     };
 }

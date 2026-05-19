@@ -156,6 +156,8 @@
         var d = new Date(OS.state.date);
         d.setDate(d.getDate() - 1);
         OS.state.date = d;
+        // ❷ 날짜 변경 시 첫 렌더 플래그 reset
+        if (typeof OS.resetTideFirstRender === 'function') OS.resetTideFirstRender();
         OS.renderHeader();
         if (OS.loadAllForDate) OS.loadAllForDate();
         // [시트 슬라이더 동기] OS.state.date 변경됐으니 슬라이더 위치도 따라가게
@@ -184,6 +186,8 @@
         var d = new Date(OS.state.date);
         d.setDate(d.getDate() + 1);
         OS.state.date = d;
+        // ❷ 날짜 변경 시 첫 렌더 플래그 reset
+        if (typeof OS.resetTideFirstRender === 'function') OS.resetTideFirstRender();
         OS.renderHeader();
         if (OS.loadAllForDate) OS.loadAllForDate();
         // [시트 슬라이더 동기]
@@ -235,14 +239,38 @@
             // OS.state.date 는 드래그 중 syncHeaderToSlider 가 매번 갱신했지만 안전을 위해 명시.
             OS.state.date = newDate;
 
-            if (sameDay) {
-                if (typeof OS.refreshTideGaugeForTime === 'function') {
-                    OS.refreshTideGaugeForTime(newDate);
-                }
+            // [조석 캐시 처리 — 멀티 데이 캐시 2026-05]
+            //   사용자 의도:
+            //     ① 같은 해점 + 같은 날 시간 이동:
+            //        조석 정보 그대로, 게이지(현재 조위)/시간 라벨만 변화 → API 호출 X
+            //     ② 같은 해점 + 다른 날 이동 (캐시 보유):
+            //        캐시된 raw data 로 풀 renderTideData → API 호출 X
+            //     ③ 같은 해점 + 캐시 없는 새 날짜:
+            //        fetchTideForSheet 호출 (API), 캐시에 누적 저장.
+            //
+            //   refreshTideGaugeForTime 는 "현재 카드에 그려진 날짜" 와 sheetDate 가
+            //   같을 때만 true (게이지 DOM 부분 갱신만으로 처리 완료) 반환.
+            //   sameDay 이면 항상 true. sameDay 아니어도 (드물지만) "현재 카드가 그날인" 케이스
+            //   에선 true 가능 — 일반적으로 sameDay 와 동치.
+            //
+            //   사용자 의도 1: sameDay → 게이지만 부분 갱신 + 시간 의존 카드 skipHeavy 재호출.
+            //   사용자 의도 2,3: sameDay X → 풀 재로드. fetchTideForSheet 내부에서 캐시 검사 →
+            //     캐시 hit 면 API skip, miss 면 API 호출 후 누적. 결과는 동일하게 풀 카드 갱신.
+            var tideGaugeHandled = false;
+            if (typeof OS.refreshTideGaugeForTime === 'function') {
+                tideGaugeHandled = !!OS.refreshTideGaugeForTime(newDate);
+            }
+
+            if (sameDay && tideGaugeHandled) {
+                // 같은 날 + 게이지 부분 갱신 완료 — 시간 의존 카드만 갱신
+                // (조석/천문 skipHeavy 로 차단; fetchTideForSheet 자체가 호출 안 됨).
                 if (typeof OS.loadAllForDate === 'function') {
                     OS.loadAllForDate({ skipHeavy: true });
                 }
             } else {
+                // 다른 날 (또는 게이지 부분 갱신 불가) — 풀 재로드.
+                // fetchTideForSheet 가 (lat, lon, dayKey) 캐시 검사 후
+                // hit 이면 API 호출 없이 즉시 renderTideData 만 호출 → API 호출 X 보장.
                 if (typeof OS.loadAllForDate === 'function') {
                     OS.loadAllForDate();
                 }
