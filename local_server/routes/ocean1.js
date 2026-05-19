@@ -266,105 +266,23 @@ router.get('/api/ocean/khoa-wms', async (req, res) => {
 // 따로 부르던 기존 방식보다 훨씬 빠르고, 시각화에도 그대로 쓸 수 있다.
 //
 // GET /api/ocean/khoa-stream-vector?date=YYYYMMDD&hour=HH
-//   → 원본 JSON 그대로 (오버레이용)
+//   → 가공된 격자 JSON (오버레이용)
 // GET /api/ocean/khoa-stream-nearest?lat=&lon=&date=&hour=
 //   → 주어진 좌표에 가장 가까운 점 1개 (단일 좌표 조회용)
+//
+// [2026-05 리팩토링]
+//   메모리 캐시·외부 fetch·5×5 평활화·양자화·결측점 필터·in-flight 중복제거·
+//   gzip 디스크 백업 로직은 모두 services/khoa_stream_cache.js 로 이관.
+//   이 라우트는 캐시 모듈의 getStream(date, hour) 을 호출만 한다.
+//
+// 변경 이유:
+//   1) scheduler.js 가 30분 주기로 미리 캐시를 채워두면, 사용자 요청은 캐시 hit
+//      가 되어 첫 화면 표시까지의 지연이 사라진다.
+//   2) 평활화·필터링·양자화를 서버에서 한 번만 수행 → 클라이언트는 즉시 렌더.
+//   3) 같은 (date, hour) 동시 요청은 단일 in-flight Promise 공유 (Pattern A).
+//   4) gzip 디스크 백업 → 컨테이너 재시작 시 cold-start 회피.
 
-const KHOA_STREAM_BASE =
-    'https://www.khoa.go.kr/oceandata/oceaninfo/prediction/dynamic-stream-vector.do';
-
-// 메모리 캐시: { 'YYYYMMDD_HH': { ts, points: [{lat,lon,s,d,temp,...}], meta } }
-const _khoaCache = new Map();
-const KHOA_CACHE_TTL_MS = 60 * 60 * 1000; // 1시간
-
-/** KHOA stream-vector 캐시 키 생성 — 'YYYYMMDD_HH' 형식. _khoaCache.get/set 의 키. */
-function _cacheKey(date, hour) { return date + '_' + hour; }
-
-/**
- * KHOA 해아름 stream-vector(전 해역 격자) 데이터를 fetch. 1시간 TTL 메모리 캐시 적용.
- * 같은 (date, hour) 조합은 1시간 동안 외부 API 한 번만 호출.
- *
- * [반환] { features, lonList, latList, gridLookup, ts } 형식 객체.
- * [연계] /api/ocean/khoa-stream-vector, /api/ocean/khoa-stream-nearest 두 라우트가 사용.
- */
-async function _fetchKhoaStream(date, hour) {
-    const key = _cacheKey(date, hour);
-    const cached = _khoaCache.get(key);
-    if (cached && (Date.now() - cached.ts) < KHOA_CACHE_TTL_MS) {
-        return cached;
-    }
-
-    const upstream = KHOA_STREAM_BASE +
-        '?obsCheck=EYS&pre_date=' + encodeURIComponent(date) +
-        '&pre_hour=' + encodeURIComponent(hour);
-
-    const fetchFn = global.fetch || require('node-fetch');
-    const headers = {
-        'Referer': 'https://www.khoa.go.kr/oceandata/oceaninfo/prediction/predictionDynamicStream.do',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Origin': 'https://www.khoa.go.kr'
-    };
-    let r = await fetchFn(upstream, { redirect: 'follow', headers: headers });
-    if (!r.ok) {
-        const body = await r.text();
-        console.error('[KHOA-Stream] upstream', r.status, 'url:', upstream, 'body:', body.slice(0, 300));
-        throw new Error('khoa upstream ' + r.status);
-    }
-    const text = await r.text();
-    let json;
-    try {
-        json = JSON.parse(text);
-    } catch (parseErr) {
-        console.error('[KHOA-Stream] JSON parse fail. body:', text.slice(0, 300));
-        throw new Error('khoa response not JSON');
-    }
-
-    // data 는 보통 2차원 배열, 또는 1차원 배열, 또는 다른 키 이름일 수 있음.
-    // 여러 형태를 모두 대응한다.
-    const flat = [];
-    function _consume(arr) {
-        for (const item of arr) {
-            if (!item) continue;
-            if (Array.isArray(item)) { _consume(item); continue; }
-            if (typeof item.lat === 'number' && typeof item.lon === 'number') {
-                flat.push(item);
-            }
-        }
-    }
-    const candidates = [json.data, json.dataList, json.list, json.points, json.result, json.items];
-    for (const c of candidates) {
-        if (Array.isArray(c)) _consume(c);
-        if (flat.length > 0) break;
-    }
-    if (flat.length === 0) {
-        console.warn('[KHOA-Stream] no points parsed. top-level keys:',
-            Object.keys(json).join(','),
-            'data type:', Array.isArray(json.data) ? ('array len ' + json.data.length) : typeof json.data);
-        if (Array.isArray(json.data) && json.data.length > 0) {
-            console.warn('[KHOA-Stream] data[0] type:', Array.isArray(json.data[0]) ? ('array len ' + json.data[0].length) : typeof json.data[0]);
-            console.warn('[KHOA-Stream] data[0] sample:', JSON.stringify(json.data[0]).slice(0, 300));
-        }
-    }
-
-    const entry = {
-        ts: Date.now(),
-        points: flat,
-        meta: json.meta || {},
-        // 디버그: 점이 0개일 때만 응답에 원본 구조 힌트를 같이 실어 보낸다.
-        _debug: flat.length === 0 ? {
-            topKeys: Object.keys(json),
-            dataType: Array.isArray(json.data) ? ('array len ' + json.data.length) : typeof json.data,
-            dataSample: Array.isArray(json.data) && json.data.length > 0
-                ? JSON.stringify(json.data[0]).slice(0, 400)
-                : JSON.stringify(json.data || null).slice(0, 400)
-        } : null
-    };
-    _khoaCache.set(key, entry);
-    return entry;
-}
+const khoaCache = require('../services/khoa_stream_cache');
 
 // 현재 시각 → KHOA 가 받아들이는 (YYYYMMDD, HH) 로 변환
 function _defaultDateHour(qDate, qHour) {
@@ -387,14 +305,18 @@ function _defaultDateHour(qDate, qHour) {
 
 /**
  * [GET /api/ocean/khoa-stream-vector]
- * KHOA 해아름 stream-vector 격자 데이터를 클라이언트에 그대로 전달.
+ * KHOA 해아름 stream-vector 격자 데이터(서버측 가공 완료)를 클라이언트에 전달.
  * query: ?date=YYYYMMDD&hour=HH (생략 시 현재 시각).
- * 응답: 격자 features 배열 + 격자 인덱스. ocean_overlay.js (파티클) 가 사용.
+ * 응답: { success, date, hour, count, meta, points, preprocessed }
+ *   - points: [{lat, lon, s(m/s), d(deg), temp(°C)}] — 결측점 제거, 양자화, 5×5
+ *     가우시안 평활화 완료. ocean_overlay.js (파티클) 가 즉시 렌더 가능.
+ *   - preprocessed: true — 클라이언트가 재평활화를 건너뛰게 하는 플래그.
  */
 router.get('/api/ocean/khoa-stream-vector', async (req, res) => {
+    let date, hour;
     try {
-        const { date, hour } = _defaultDateHour(req.query.date, req.query.hour);
-        const entry = await _fetchKhoaStream(date, hour);
+        ({ date, hour } = _defaultDateHour(req.query.date, req.query.hour));
+        const entry = await khoaCache.getStream(date, hour);
         res.set('Cache-Control', 'public, max-age=600');
         res.json({
             success: true,
@@ -403,11 +325,15 @@ router.get('/api/ocean/khoa-stream-vector', async (req, res) => {
             count: entry.points.length,
             meta: entry.meta,
             points: entry.points,
-            _debug: entry._debug || undefined
+            // 서버에서 5×5 가우시안 평활화·양자화 완료 표시 — 클라이언트가 재평활화를 건너뛰게 한다.
+            preprocessed: true
         });
     } catch (e) {
-        console.error('[KHOA-Stream] error:', e.message);
-        res.status(500).json({ success: false, error: e.message });
+        // [2026-05] KHOA upstream 장애는 우리 책임이 아니므로 status 200 으로
+        // 반환해 클라이언트 콘솔의 500 에러 노이즈를 제거. success:false 본문 유지.
+        // (실패 캐시 등록은 khoa_stream_cache.js 내부에서 자동 처리)
+        console.warn('[KHOA-Stream] upstream 실패 (외부 KHOA 문제):', e.message);
+        res.status(200).json({ success: false, error: e.message, upstreamFailed: true });
     }
 });
 
@@ -418,20 +344,21 @@ router.get('/api/ocean/khoa-stream-vector', async (req, res) => {
  * 응답: { success, wtem, crsp, crdir } 또는 { success: false }.
  */
 router.get('/api/ocean/khoa-stream-nearest', async (req, res) => {
+    let date, hour;
     try {
         const lat = parseFloat(req.query.lat);
         const lon = parseFloat(req.query.lon);
         if (isNaN(lat) || isNaN(lon)) {
             return res.status(400).json({ success: false, error: 'lat/lon 필수' });
         }
-        const { date, hour } = _defaultDateHour(req.query.date, req.query.hour);
-        const entry = await _fetchKhoaStream(date, hour);
+        ({ date, hour } = _defaultDateHour(req.query.date, req.query.hour));
+        const entry = await khoaCache.getStream(date, hour);
 
         let best = null;
         let bestD = Infinity;
         for (const p of entry.points) {
-            // 결측점 제외 (육지 등)
-            if (p.s === 0 && p.d === 0 && p.temp === 0 && p.salt === 0 && p.zeta === 0) continue;
+            // [참고] khoa_stream_cache 가 이미 결측점(s/d/temp 모두 0)을 필터링했으므로
+            //   여기서는 별도 결측 검사 없이 거리 비교만 한다. salt/zeta 는 미제공.
             const dLat = p.lat - lat;
             const dLon = p.lon - lon;
             const dist = dLat * dLat + dLon * dLon;
@@ -440,7 +367,9 @@ router.get('/api/ocean/khoa-stream-nearest', async (req, res) => {
         if (!best) {
             return res.json({ success: false, error: '주변 격자점 없음' });
         }
-        // 클라이언트 기존 포맷 호환: crdir(deg), crsp(cm/s), wtem(°C)
+        // 클라이언트 기존 포맷 호환: crdir(deg), crsp(cm/s), wtem(°C).
+        // [응답 호환] salt/zeta 는 더 이상 보내지 않는다 — ocean_bottom_sheet5.js
+        //   fetchRoms 가 wtem/crsp/crdir 만 사용함을 확인. 기존 키 형태는 그대로.
         res.json({
             success: true,
             date: date,
@@ -449,13 +378,13 @@ router.get('/api/ocean/khoa-stream-nearest', async (req, res) => {
             lon: best.lon,
             crdir: best.d,
             crsp: best.s * 100, // m/s → cm/s
-            wtem: best.temp,
-            salt: best.salt,
-            zeta: best.zeta
+            wtem: best.temp
         });
     } catch (e) {
-        console.error('[KHOA-Nearest] error:', e.message);
-        res.status(500).json({ success: false, error: e.message });
+        // [2026-05] KHOA upstream 장애는 우리 책임이 아니므로 status 200 반환.
+        // (실패 캐시 등록은 khoa_stream_cache.js 내부에서 자동 처리)
+        console.warn('[KHOA-Nearest] upstream 실패 (외부 KHOA 문제):', e.message);
+        res.status(200).json({ success: false, error: e.message, upstreamFailed: true });
     }
 });
 
