@@ -570,8 +570,14 @@ window.renderHistoryTab = async function (container) {
     try {
         var history = _historyCache.history;
         var subscriberStats = _historyCache.subscriberStats;
+        // templateId(time_ef_change/time_yn_change) 두 종류 → '시각변경' 카테고리(change-time)로 통합 매칭.
+        // 서버 push.js:460 의 tab 결정이 templateId 를 그대로 쓰기 때문에 정규화가 필요.
+        var normalizeTab = function(t) {
+            if (t === 'time_ef_change' || t === 'time_yn_change') return 'change-time';
+            return t;
+        };
         var filtered = history.filter(function(h) {
-            return (historyFilter.cat === 'all' || h.tab === historyFilter.cat) && (historyFilter.type === 'all' || h.type === historyFilter.type);
+            return (historyFilter.cat === 'all' || normalizeTab(h.tab) === historyFilter.cat) && (historyFilter.type === 'all' || h.type === historyFilter.type);
         });
 
         // 페이지네이션 적용
