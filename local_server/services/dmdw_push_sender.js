@@ -75,6 +75,18 @@ const LVL_RANK = { '경보': 5, '주의보': 2, '예비': 2, '해제': 0, '': 0 
 /** 격상/격하 판별을 위한 종류 점수. 태풍은 별격. */
 const TYPE_RANK = { '태풍': 100, '풍랑': 10, '강풍': 10, '해일': 10, '호우': 10, '대설': 10 };
 
+// ----------------------------------------------------------------------------
+// [M1] _sentKeys 메모리 누수 방지용 상수
+// ----------------------------------------------------------------------------
+// 정책: TTL(24시간) + 최대 사이즈(8000) 결합.
+//   - TTL: 24시간 지나면 자동 제거 → 같은 자식이 하루 뒤 다시 같은 등급으로 떠도
+//          새 푸시로 인지된다. (실 운영에선 tmEf 가 매번 달라지므로 같은 키 재출현
+//          빈도는 매우 낮지만, 안전망으로 TTL 둠.)
+//   - MAX_SIZE: 폭증 상황 대비 상한. 초과 시 가장 오래된 것부터 정리.
+//     Map 의 삽입 순서 = 발송 순서 이므로 자연스러운 LRU 가 된다.
+const SENT_KEY_TTL_MS = 24 * 60 * 60 * 1000;   // 24h
+const SENT_KEY_MAX = 8000;                      // 상한
+
 // ============================================================================
 // 모듈 상태 (메모리)
 // ============================================================================
@@ -103,13 +115,45 @@ const _queue = new Map();
 
 /**
  * 발송 이력 (중복 방지용).
- *   Set<dedupKey>
+ *
+ * [M1 변경 — 메모리 누수 방지]
+ *   Set → Map<dedupKey, insertedAt(ms)> 로 교체.
+ *   - 값에 적재 시각을 보관해 TTL(24h) 자동 정리 가능.
+ *   - Map 의 삽입 순서가 유지되므로 사이즈 한도(8000) 초과 시
+ *     가장 오래된 키부터 제거 (자연스러운 LRU).
+ *   - 외부 노출 API (forgetChild 등) 는 동작 동일하게 유지 — Set 메서드 대신 Map 메서드 사용.
+ *
  * dedupKey 구성: `${childKey}|${wrnTpNm}|${wrnLvlNm}|${tmEf}|${eventType}`
  *   - childKey   : 자식 식별 (부모|자식 조합)
  *   - eventType  : publish/active/release/격상/격하 까지 다 포함해
  *                  같은 자식의 발표→발효 흐름이 둘 다 보장되도록 분리
  */
-const _sentKeys = new Set();
+const _sentKeys = new Map();
+
+/**
+ * [M1] _sentKeys 정리 — TTL 경과 항목 제거 + 사이즈 한도 LRU 제거.
+ *  - flush() 끝에 호출되어 매 사이클마다 가벼운 정리 수행.
+ *  - 정리 비용은 O(n) 이지만 SENT_KEY_MAX(8000) 이내라 무시 가능.
+ *  - 외부 forgetChild 호출이 없어도 자식 이력이 24시간 후 자동 만료.
+ */
+function _gcSentKeys() {
+    const now = Date.now();
+    // (1) TTL 경과 항목 제거
+    for (const [k, ts] of _sentKeys) {
+        if (now - ts > SENT_KEY_TTL_MS) _sentKeys.delete(k);
+        else break; // Map 삽입 순서 = 시각 오름차순. 첫 살아있는 항목 만나면 이후도 모두 살아있음.
+    }
+    // (2) 사이즈 한도 초과 시 가장 오래된 것부터 제거
+    if (_sentKeys.size > SENT_KEY_MAX) {
+        const over = _sentKeys.size - SENT_KEY_MAX;
+        let removed = 0;
+        for (const k of _sentKeys.keys()) {
+            if (removed >= over) break;
+            _sentKeys.delete(k);
+            removed++;
+        }
+    }
+}
 
 /**
  * 디버그/테스트용: 마지막 flush 결과를 보관 — 시뮬레이션 검증 시 사용.
@@ -176,8 +220,20 @@ function fmtTime(str) {
     return str;
 }
 
-/** 등급+종류 종합 점수 — 격상/격하 판별. */
+/** 등급+종류 종합 점수 — 격상/격하 판별.
+ *
+ * [M2 변경 — '해제' 처리]
+ *   기존 로직: TYPE_RANK ≥ 10 이 항상 더해져 lvlName='해제' 도 점수 ≥ 10 이었음.
+ *   문제: release 직후 (자식이 children 에서 사라진 상태) 어떤 호출자가
+ *         prev={wrnLvlNm:'해제'} 로 enqueueLevelChange 를 호출하면
+ *         "10(타입) + 0(해제) = 10" vs "10(타입) + 2(주의보) = 12" → 격상 오판.
+ *   해결: lvlName === '해제' 또는 빈 값/없음 이면 0 을 반환해
+ *         release 상태와 active 상태 사이의 자연스러운 격상 판정을 막는다.
+ *         (호출자는 이 경우 enqueueActive 를 호출해야 함)
+ */
 function _score(typeName, lvlName) {
+    // 해제·공백 등급은 "특보 없음" 상태로 간주 → 0점.
+    if (!lvlName || lvlName === '해제') return 0;
     const t = TYPE_RANK[typeName] || (typeName && typeName.includes('태풍') ? 100 : 10);
     const l = LVL_RANK[lvlName] || 0;
     return t + l;
@@ -186,8 +242,18 @@ function _score(typeName, lvlName) {
 /**
  * 두 wrn 상태를 비교해 격상/격하 방향을 결정.
  * @returns 'upgrade' | 'downgrade' | 'same'
+ *
+ * [M2 추가 가드 — Q 결과에서 흡수]
+ *   _score 가 '해제'를 0 으로 반환하더라도, 점수 비교만으로는 release 경계에서
+ *   호출자가 enqueueLevelChange 를 잘못 호출할 때(예: prev=해제, curr=주의보)
+ *   curr 점수가 더 높아 'upgrade' 로 잡힐 수 있다. 호출자가 forgetChild 로 prev 를
+ *   지웠다면 enqueueLevelChange 자체가 안 불리지만, 깜빡 누락 대비 이중 안전망:
+ *     prev 또는 curr 한쪽의 등급이 '해제' 이면 항상 'same' 반환 → enqueueLevelChange
+ *     가 false 반환하여 푸시 발송되지 않음. 호출자는 release 또는 active 를 별도로
+ *     호출해 정확한 의미의 푸시를 보내야 한다.
  */
 function compareLevel(prevTpNm, prevLvlNm, currTpNm, currLvlNm) {
+    if (prevLvlNm === '해제' || currLvlNm === '해제') return 'same';
     const p = _score(prevTpNm, prevLvlNm);
     const c = _score(currTpNm, currLvlNm);
     if (c > p) return 'upgrade';
@@ -374,6 +440,7 @@ function enqueue(ev) {
     const k = _dedupKey(ev);
     if (_sentKeys.has(k)) {
         // 이미 발송된 동일 키 → 재발송 방지
+        // (M1: Map 으로 바뀌었지만 has() 시멘틱 동일)
         return false;
     }
     if (!_queue.has(ev.cycleId)) _queue.set(ev.cycleId, []);
@@ -387,8 +454,36 @@ function enqueue(ev) {
 /**
  * 편의 함수: 자식 발표 이벤트 적재 (FC 응답에 새 자식 잡힌 경우).
  * tmFc < tmEf 인 미래 발효 건만 발표로 처리한다.
+ *
+ * [M3 변경 — 시각 검증]
+ *   기존: 주석엔 "tmFc < tmEf 미래 발효만" 이라 했으나 실제 검증 없음.
+ *         호출자가 tmFc >= tmEf 인 데이터로 호출하면 silent 발송 발생.
+ *   변경: 함수 안에서 tmFc, tmEf 비교 후 위배 시 console.warn + false 반환.
+ *         - tmFc/tmEf 형식이 다양해(KMA "YYYY-MM-DD HH:mm", "YYYYMMDDHHmm",
+ *           dmdw "YYYY.MM.DD.HH:mm" 등) 단순 문자열 비교만으론 위험 → 둘 다
+ *           숫자만 추출하여 비교한다. 형식 추출 실패 시는 보수적으로 통과시킴
+ *           (False negative 보다 False positive 가 더 위험 — 발표 자체를 막아버리면
+ *            운영자가 알림을 못 받음).
  */
+function _digits(s) {
+    return s ? String(s).replace(/[^0-9]/g, '') : '';
+}
 function enqueuePublish(cycleId, parentZone, childName, child) {
+    const fcD = _digits(child && child.tmFc);
+    const efD = _digits(child && child.tmEf);
+    // 둘 다 12자리(YYYYMMDDHHmm) 이상으로 정상 추출됐을 때만 비교 수행.
+    if (fcD && efD && fcD.length >= 8 && efD.length >= 8) {
+        // 동일 자리수로 잘라 비교 (둘이 다른 자리수일 때 사전식 오인 방지)
+        const len = Math.min(fcD.length, efD.length);
+        if (fcD.substring(0, len) >= efD.substring(0, len)) {
+            console.warn(
+                `[DmdwPush] enqueuePublish 거부: tmFc(${child.tmFc}) >= tmEf(${child.tmEf}) — ` +
+                `즉시 발효 건은 enqueueActive 로 호출해야 합니다. ` +
+                `parent=${parentZone} child=${childName}`
+            );
+            return false;
+        }
+    }
     return enqueue({
         cycleId,
         eventType: 'publish',
@@ -493,7 +588,9 @@ async function flush(cycleId, opts = {}) {
         try {
             await sendAdminPush(push.title, push.body, push.data);
             // 성공 시 해당 이벤트들을 sentKeys 에 기록 (중복 방지)
-            for (const ev of recordable) _sentKeys.add(_dedupKey(ev));
+            // [M1] Map.set(key, ts) — ts 는 TTL 기준 시각
+            const now = Date.now();
+            for (const ev of recordable) _sentKeys.set(_dedupKey(ev), now);
             _lastFlushed.push({ ...push, cycleId });
         } catch (e) {
             // admin_push 자체가 내부에서 try/catch 하지만 만약 throw 되더라도
@@ -501,6 +598,8 @@ async function flush(cycleId, opts = {}) {
             console.error('[DmdwPush] 발송 실패 (무시하고 계속):', e && e.message);
         }
     }
+    // [M1] 매 flush 끝에 가벼운 GC — TTL 만료 + 사이즈 한도 정리
+    _gcSentKeys();
     return _lastFlushed.slice();
 }
 
@@ -511,7 +610,8 @@ async function flush(cycleId, opts = {}) {
  */
 function forgetChild(parentZone, childName) {
     const prefix = `${_childKey(parentZone, childName)}|`;
-    for (const k of _sentKeys) {
+    // [M1] Map 으로 변경 — keys() 순회는 Map 도 동일하게 동작.
+    for (const k of _sentKeys.keys()) {
         if (k.startsWith(prefix)) _sentKeys.delete(k);
     }
 }
@@ -526,6 +626,21 @@ function _resetForTest() {
 /** 테스트/디버그 전용: 최근 flush 결과 조회. */
 function _getLastFlushed() {
     return _lastFlushed.slice();
+}
+
+/** 테스트/디버그 전용: _sentKeys 의 (키, 적재시각) 직접 주입 — TTL 시뮬레이션용. */
+function _setSentKeyForTest(key, ts) {
+    _sentKeys.set(key, ts);
+}
+
+/** 테스트/디버그 전용: _sentKeys 의 현재 크기. */
+function _getSentKeysSize() {
+    return _sentKeys.size;
+}
+
+/** 테스트/디버그 전용: 강제 GC 호출. */
+function _runGcForTest() {
+    _gcSentKeys();
 }
 
 module.exports = {
@@ -548,5 +663,8 @@ module.exports = {
     buildParentLine,
     // 테스트용 (앞에 _ 가 붙은 것은 외부에서 호출하지 말 것)
     _resetForTest,
-    _getLastFlushed
+    _getLastFlushed,
+    _setSentKeyForTest,
+    _getSentKeysSize,
+    _runGcForTest
 };
