@@ -138,15 +138,15 @@ window.renderAlertAdminContent = async function (tabId, targetContainer) {
     var filteredItems = [];
     if (tabId === 'publish') {
         filteredItems = allAlerts.filter(function(a) {
-            return (a.isPreliminary || a.command === '1' || a.command === '발표') && !(a.command === '변경' || a.command === '변경발표' || a.command === '6' || a.command === '2' || a.command === '시각변경');
+            return (a.isPreliminary || a.command === '1' || a.command === '발표') && !(a.command === '변경' || a.command === '변경발표' || a.command === '6' || a.command === '2' || a.command === '시각변경' || a.command === '연장');
         });
     } else if (tabId === 'active') {
         filteredItems = allAlerts.filter(function(a) { return a.command !== '3' && a.command !== '해제'; });
     } else if (tabId === 'change-time') {
         // [시각변경] 발표시각/발효시각 변경 명령만 별도 탭으로 분리.
-        // command === '2' 또는 '시각변경' 인 항목들이 여기에 모인다.
-        // 기존에는 publish 탭에 묶여 있어 시각 변경 발송 흐름이 발표와 섞였음.
-        filteredItems = allAlerts.filter(function(a) { return a.command === '2' || a.command === '시각변경'; });
+        // command === '2' / '시각변경' / '연장' 인 항목들이 여기에 모인다.
+        // ('연장' 은 AI 통보문 파서가 분류한 값. 별도 표출 라벨 없이 시각변경에 통합.)
+        filteredItems = allAlerts.filter(function(a) { return a.command === '2' || a.command === '시각변경' || a.command === '연장'; });
     } else if (tabId === 'release') {
         filteredItems = allAlerts.filter(function(a) {
             return a.command === '3' || a.command === '해제' || ((!a.isPreliminary || a.tmCcExplicit) && a.tmEd && a.tmEd.trim() !== '' && a.tmEd !== '정보 없음' && a.tmEd !== '미정' && !a.tmEd.includes('00일'));
