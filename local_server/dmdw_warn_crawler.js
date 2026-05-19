@@ -70,6 +70,11 @@ const adminPush = require('./services/admin_push');
 // 푸시 쿨다운(30분) 과 무관하게 매 발생 시 기록 → 관리자가 페이지 열면 모든 이력 확인 가능.
 const dmdwErrorLog = require('./services/dmdw_error_log');
 
+// [자식 해역 푸시 발송기] 자식 단위 발효/발표/해제/격상/격하 등 6종 이벤트를 큐에 적재 후
+// 사이클 끝에 flush() 1회 호출로 그룹화·200자 분할·중복방지 적용해 관리자 기기에만 발송.
+// 백필 사이클(runBackfill) 중에는 enqueue/flush 호출 자체를 안 한다 (1일치 데이터 한꺼번에 → 폭주 방지).
+const dmdwPushSender = require('./services/dmdw_push_sender');
+
 // ============================================================================
 // 1. 환경변수 + 자격증명 게이트
 // ============================================================================
@@ -239,15 +244,13 @@ async function markRecoveredIfNeeded() {
     const recoveredTitle = '✅ 방재기상플랫폼 자식 해역 특보 수집 정상화';
     const recoveredBody = `직전 약 ${durMin}분간 중단되었던 자식 해역(연안바다·평수구역) 특보 자동 갱신이 정상적으로 재개되었습니다.`;
 
-    // 1) 미확인 오류 항목 모두 자동 ack 처리
-    //    [M10] 이전엔 'recovered' 항목도 디스크에 한 줄 기록했으나, 200건
-    //          한도에서 정상화 항목이 절반 이상을 차지하는 노이즈 발생.
-    //          정상화 사실은 푸시 알림으로 충분히 전달되므로 디스크 기록 생략.
-    //          기존 미확인 오류 항목 자동 ack 만 유지 — 핵심 기능.
+    // 1) 디스크 기록 — 정상화 사건 자체도 이력 한 줄 (선택적 안전망)
+    //    + 직전 미확인 오류 항목 모두 자동 ack 처리
     try {
+        dmdwErrorLog.appendError('recovered', recoveredTitle, recoveredBody, `from=${prevIssue}, dur=${durMin}min`);
         const r = dmdwErrorLog.acknowledgeAllUnack('auto-recovered');
         if (r.count > 0) {
-            console.log(`[dmdw] error log: auto-acknowledged ${r.count} unack item(s) on recovery (from=${prevIssue}, dur=${durMin}min)`);
+            console.log(`[dmdw] error log: auto-acknowledged ${r.count} unack item(s) on recovery`);
         }
     } catch (e) {
         console.log(`[dmdw] error log recovery handling failed: ${e.message}`);
@@ -520,17 +523,7 @@ async function fetchTimeline(typ, sDate, eDate) {
         type: typ, sDate, eDate, specYn: 'yes'
     });
     if (res.statusCode !== 200) throw new Error(`timeline HTTP ${res.statusCode}`);
-    // [M5] JSON 파싱 보호 — KMA 서버가 가끔 HTML 에러 페이지를 200 으로 위장해
-    //   보낼 수 있음. 그 경우 JSON.parse 가 "Unexpected token <" 같은 알 수 없는
-    //   에러로 throw 되어 디버깅 곤란 + 관리자 알림 본문이 모호함.
-    //   try-catch 로 감싸 명확한 메시지 + 응답 본문 일부 noteback 으로 진단 편의 ↑.
-    let j;
-    try {
-        j = JSON.parse(res.text);
-    } catch (e) {
-        const preview = String(res.text || '').substring(0, 120).replace(/\s+/g, ' ');
-        throw new Error(`timeline JSON parse fail (HTTP ${res.statusCode}): ${preview}`);
-    }
+    const j = JSON.parse(res.text);
     if (j.statusCode !== 200 || !Array.isArray(j.body)) {
         throw new Error(`timeline status=${j.statusCode}`);
     }
@@ -623,6 +616,20 @@ function makeChildKey(parent, childRaw) {
     const NO_JOONG = new Set(['당진평수구역', '안면도서쪽평수구역', '천수만평수구역', '태안·서산북쪽평수구역']);
     if (NO_JOONG.has(c)) return c;
     return `${p}중${c}`;
+}
+
+// makeChildKey() 의 역함수에 가까운 표시용 자식 이름 복원.
+// state.children[key] 객체에 raw childName 이 따로 저장되지 않으므로,
+// 푸시 발송 시 화면에 표시할 짧은 자식 이름을 key + parentZone 에서 유도한다.
+//   "제주도서부앞바다중북서연안바다" + parent="제주도서부앞바다" → "북서연안바다"
+//   "울릉도울릉읍연안바다" → 그대로 (울릉도 prefix 예외)
+//   "당진평수구역" → 그대로 (NO_JOONG 예외)
+function _childDisplayNameFromKey(parentZone, key) {
+    if (!key) return '';
+    const p = normalizeChildName(parentZone || '');
+    const joiner = `${p}중`;
+    if (p && key.startsWith(joiner)) return key.substring(joiner.length);
+    return key;
 }
 
 // ============================================================================
@@ -926,6 +933,44 @@ async function run() {
         const state = loadState();
         // state.children, state._upcoming 가 기준 — 이번 사이클의 갱신을 누적 반영
 
+        // ====================================================================
+        // [자식 푸시] 직전 사이클 스냅샷 — 변화 감지용
+        // ====================================================================
+        //
+        // 이번 사이클이 어떤 자식을 새로 추가/변경/제거하는지 탐지하려면
+        // 갱신 전 시점의 children/_upcoming 상태를 가벼운 사본으로 보관한다.
+        //
+        // 정책:
+        //  - 사본은 shallow copy 면 충분. 비교 키는 wrnTpNm/wrnLvlNm/tmEf 정도이고
+        //    각 자식 객체는 매 사이클 새 객체로 재대입되므로 reference 공유 무관.
+        //  - 이번 사이클이 push 발송에 실패해도 다음 사이클이 같은 스냅샷-비교로
+        //    재시도(중복은 dmdwPushSender 내부 _sentKeys 가 막음).
+        //  - 이번 사이클이 정기 사이클인지(백필 아님)는 위 함수 진입 시점에 이미 확인됨.
+        const prevChildrenSnap = {};
+        for (const k of Object.keys(state.children || {})) {
+            const c = state.children[k];
+            prevChildrenSnap[k] = {
+                wrnTp: c.wrnTp, wrnTpNm: c.wrnTpNm,
+                wrnLvl: c.wrnLvl, wrnLvlNm: c.wrnLvlNm,
+                tmFc: c.tmFc, tmEf: c.tmEf,
+                parentZone: c.parentZone
+            };
+        }
+        const prevUpcomingSnap = {};
+        for (const k of Object.keys(state._upcoming || {})) {
+            const u = state._upcoming[k];
+            prevUpcomingSnap[k] = {
+                wrnTp: u.wrnTp, wrnTpNm: u.wrnTpNm,
+                wrnLvl: u.wrnLvl, wrnLvlNm: u.wrnLvlNm,
+                tmFc: u.tmFc, tmEf: u.tmEf,
+                parentZone: u.parentZone
+            };
+        }
+
+        // 이번 사이클의 cycleId — flush() 호출 시 같은 사이클의 적재 이벤트들을 한꺼번에 발송.
+        // cycleStart(ms) 를 그대로 사용 (사이클 내 단조성·고유성 보장).
+        const pushCycleId = cycleStart;
+
         // 폴링 윈도우: 최근 N시간
         const nowDt = new Date();
         const nowStr = toDmdwTime(nowDt);
@@ -994,6 +1039,38 @@ async function run() {
             await new Promise(r => setTimeout(r, DETAIL_DELAY_MS));
         }
 
+        // ====================================================================
+        // [자식 푸시 — EF 변화 감지]
+        // ====================================================================
+        // EF 코드 전체 처리가 끝난 뒤(자식별 최종 상태가 모두 결정된 후)
+        // 직전 스냅샷과 비교하여 다음을 적재한다.
+        //   - 신규 자식 등장 → enqueueActive
+        //   - 기존 자식의 wrnTpNm/wrnLvlNm 변경 → enqueueLevelChange('active')
+        //
+        // 시간순 누적 결과만 본다 (한 사이클 내 중간 상태는 무시 — 운영자 입장
+        // 에서 의미 있는 변화는 "이번 사이클 끝 시점의 상태").
+        if (sortedNewEf.length > 0) {
+            try {
+                for (const key of seenChildrenThisCycle) {
+                    const curr = state.children[key];
+                    if (!curr) continue;
+                    const prev = prevChildrenSnap[key];
+                    const childRawName = _childDisplayNameFromKey(curr.parentZone, key);
+                    if (!prev) {
+                        // 신규 자식 추가
+                        dmdwPushSender.enqueueActive(pushCycleId, curr.parentZone, childRawName, curr);
+                    } else if (prev.wrnTpNm !== curr.wrnTpNm || prev.wrnLvlNm !== curr.wrnLvlNm) {
+                        // 등급 또는 종류 변경
+                        dmdwPushSender.enqueueLevelChange(
+                            pushCycleId, curr.parentZone, childRawName, prev, curr, 'active'
+                        );
+                    }
+                }
+            } catch (e) {
+                console.log(`[dmdw] push enqueue (EF active/level) failed: ${e.message}`);
+            }
+        }
+
         // FC 처리 — 미래 발효 예정만 _upcoming 에 보관
         const sortedNewFc = [...newFc].sort();
         const fcSeenThisCycle = new Set();
@@ -1025,6 +1102,46 @@ async function run() {
             await new Promise(r => setTimeout(r, DETAIL_DELAY_MS));
         }
 
+        // ====================================================================
+        // [자식 푸시 — FC 변화 감지]
+        // ====================================================================
+        // FC 사이클 끝에서 _upcoming 의 직전 vs 현재 비교:
+        //   - 신규 미래 발효 자식 (직전 _upcoming 에 없고 이번 사이클에 새로 등장) → enqueuePublish
+        //   - 기존 미래 발효의 wrnTpNm/wrnLvlNm 변경 → enqueueLevelChange('publish')
+        //
+        // 추가 안전장치:
+        //   - 즉시 발효(tmFc==tmEf) 케이스는 FC 응답에선 isFuture(tmEf, nowStr) 가 false 라
+        //     state._upcoming 에 들어가지도 않음 → 자연히 publish 알림 대상 아님.
+        //   - 그래도 push sender 의 M3 검증이 이중 안전망으로 작동.
+        //   - 이미 EF children 에 있는 자식의 "동일 등급" 미래 발효는 publish 알림 의미가 약함.
+        //     하지만 dedupKey 가 tmEf 까지 포함하므로 같은 자식의 다른 tmEf publish 는
+        //     별개 이벤트로 인지된다 (사용자 합의: 미래 발효 잡혀도 알림 발송 — 운영자 가시성 우선).
+        if (sortedNewFc.length > 0) {
+            try {
+                for (const key of Object.keys(state._upcoming)) {
+                    const curr = state._upcoming[key];
+                    if (!curr) continue;
+                    const prev = prevUpcomingSnap[key];
+                    const childRawName = _childDisplayNameFromKey(curr.parentZone, key);
+                    if (!prev) {
+                        // 새 미래 발효
+                        dmdwPushSender.enqueuePublish(pushCycleId, curr.parentZone, childRawName, curr);
+                    } else if (prev.wrnTpNm !== curr.wrnTpNm || prev.wrnLvlNm !== curr.wrnLvlNm) {
+                        // 같은 자식의 등급/종류 변경 (예: 풍랑주의보→풍랑경보 격상 발표)
+                        dmdwPushSender.enqueueLevelChange(
+                            pushCycleId, curr.parentZone, childRawName, prev, curr, 'publish'
+                        );
+                    } else if (prev.tmEf !== curr.tmEf) {
+                        // 등급은 같지만 tmEf 가 바뀐 발표 — 발효 시각 재안내 의미.
+                        // (dedupKey 에 tmEf 가 들어가므로 별개 푸시로 인지됨)
+                        dmdwPushSender.enqueuePublish(pushCycleId, curr.parentZone, childRawName, curr);
+                    }
+                }
+            } catch (e) {
+                console.log(`[dmdw] push enqueue (FC publish/level) failed: ${e.message}`);
+            }
+        }
+
         // [해제 감지 — set-diff]
         //   "이전 EF 사이클에 children 에 있었으나 이번 사이클에 한 번도 안 나타난" 자식
         //   = 해제됨. children 에서 제거.
@@ -1032,6 +1149,19 @@ async function run() {
         if (sortedNewEf.length > 0) {
             for (const key of Object.keys(state.children)) {
                 if (!seenChildrenThisCycle.has(key)) {
+                    // [자식 푸시 — 해제] 직전 스냅샷에서 해제 정보(이전 종류/등급/tmEf) 회수.
+                    //   prev 가 없다면(스냅샷에 못 들어간 경우) push 는 건너뛰고 state 제거만 수행.
+                    try {
+                        const prev = prevChildrenSnap[key];
+                        if (prev && prev.parentZone) {
+                            const childRawName = _childDisplayNameFromKey(prev.parentZone, key);
+                            dmdwPushSender.enqueueRelease(pushCycleId, prev.parentZone, childRawName, prev);
+                            // forgetChild — 같은 자식이 나중에 다시 발효될 때 푸시가 다시 가도록 이력 정리.
+                            dmdwPushSender.forgetChild(prev.parentZone, childRawName);
+                        }
+                    } catch (e) {
+                        console.log(`[dmdw] push enqueue (release) failed: ${e.message}`);
+                    }
                     // 자식이 사라짐 — 해제 발효 확정
                     delete state.children[key];
                 }
@@ -1077,6 +1207,22 @@ async function run() {
         });
 
         console.log(`[dmdw] cycle done — efNew=${sortedNewEf.length} fcNew=${sortedNewFc.length} skip=${skipCount} children=${Object.keys(state.children).length} upcoming=${Object.keys(state._upcoming).length} (${elapsedMs}ms)`);
+
+        // ====================================================================
+        // [자식 푸시 — 사이클 flush]
+        // ====================================================================
+        // 이번 사이클에 적재된 모든 enqueue* 이벤트를 그룹화·200자 분할·중복방지 적용해
+        // 관리자 기기로 발송. push sender 내부에서 admin_push 실패는 흡수되며,
+        // 그래도 throw 가 새 나가는 극단 케이스를 대비해 try/catch 로 한 번 더 감싼다.
+        // (크롤러 본체에는 어떤 영향도 끼치지 않는 것이 본 통합의 핵심 원칙.)
+        try {
+            const flushed = await dmdwPushSender.flush(pushCycleId);
+            if (flushed && flushed.length > 0) {
+                console.log(`[dmdw] child push flushed: ${flushed.length} push(es)`);
+            }
+        } catch (e) {
+            console.log(`[dmdw] push flush failed: ${e.message}`);
+        }
 
         // [관리자 알림 — 정상화]
         //  직전 사이클들에서 issue(로그인 실패 등) 가 있었다면 이번 사이클이 끝까지
