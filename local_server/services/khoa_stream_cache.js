@@ -64,6 +64,11 @@ const FAIL_TTL_MS = 30 * 1000;
 // 디스크 백업 파일 경로
 const DISK_BACKUP_PATH = path.join(DATA_DIR, 'khoa_stream_cache.json.gz');
 
+// [stale 보호] KHOA 가 장시간(>1h) 다운된 후 서버 재시작 시 캐시 전부 만료 →
+// 빈 화면 노출 위험. MAX_STALE_MS(24h) 이내라면 stale flag 와 함께라도 복원해
+// "오래된 데이터지만 일단 표시" → "아무것도 안 보임" 보다 사용자 경험 우수.
+const MAX_STALE_MS = 24 * 60 * 60 * 1000;
+
 // 스케줄러 순차 fetch 시 KHOA 부하 회피용 슬립
 const SEQUENTIAL_DELAY_MS = 500;
 
@@ -308,9 +313,15 @@ async function getStream(date, hour) {
         return cached;
     }
 
-    // 2) 실패 캐시 hit — 즉시 빈 응답 (외부 호출 폭주 차단)
+    // 2) 실패 캐시 hit — stale 폴백 우선, 없으면 빈 응답
+    //    KHOA 일시 장애 + 디스크 hydrate 로 옛 데이터 보유 시: 빈 화면 대신
+    //    옛 데이터라도 stale 플래그 부착해 노출 (사용자 경험 우수).
     const failed = _failCache.get(key);
     if (failed && (Date.now() - failed.ts) < FAIL_TTL_MS) {
+        if (cached && (Date.now() - cached.ts) < MAX_STALE_MS) {
+            return { ts: cached.ts, points: cached.points, meta: cached.meta,
+                     stale: true, _failed: true, _reason: failed.reason };
+        }
         return { ts: Date.now(), points: [], meta: {}, _failed: true, _reason: failed.reason };
     }
 
@@ -330,7 +341,13 @@ async function getStream(date, hour) {
             return entry;
         } catch (e) {
             _failCache.set(key, { ts: Date.now(), reason: e.message });
-            // 호출자(routes/ocean1.js) 가 success:false 응답을 만들 수 있도록 throw
+            // [stale 폴백] upstream 실패해도 24h 이내 옛 데이터 보유 시 그것 반환.
+            // 호출자(routes/ocean1.js) 가 success:true 로 처리하되 stale 플래그로 구분 가능.
+            if (cached && (Date.now() - cached.ts) < MAX_STALE_MS) {
+                return { ts: cached.ts, points: cached.points, meta: cached.meta,
+                         stale: true, _failed: true, _reason: e.message };
+            }
+            // 정말 폴백할 데이터도 없을 때만 throw → 호출자가 success:false 만듦
             throw e;
         } finally {
             // in-flight 항목은 성공/실패 무관 즉시 제거
@@ -363,7 +380,12 @@ function persistToDisk() {
         if (!fs.existsSync(DATA_DIR)) {
             try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (_) {}
         }
-        fs.writeFileSync(DISK_BACKUP_PATH, gz);
+        // [원자적 쓰기] 부팅 직후 fire-and-forget refreshCycle 과 cron tick 이 우연히
+        // 겹쳐 persistToDisk 가 동시에 호출돼도 파일이 깨지지 않도록 tmp → rename 패턴.
+        // rename(2) 은 POSIX 에서 원자적 — 어느 시점에 누가 읽어도 항상 완성된 파일.
+        const tmpPath = DISK_BACKUP_PATH + '.tmp';
+        fs.writeFileSync(tmpPath, gz);
+        fs.renameSync(tmpPath, DISK_BACKUP_PATH);
     } catch (e) {
         console.warn('[KHOA-Cache] 디스크 백업 실패:', e.message);
     }
@@ -380,16 +402,30 @@ function hydrateFromDisk() {
         const payload = JSON.parse(zlib.gunzipSync(gz).toString('utf8'));
         const entries = payload && payload.entries;
         if (!entries) return 0;
-        let restored = 0;
+        let restored = 0, stale = 0;
         const now = Date.now();
         for (const k of Object.keys(entries)) {
             const e = entries[k];
             if (!e || !Array.isArray(e.points)) continue;
-            if (typeof e.ts !== 'number' || (now - e.ts) > CACHE_TTL_MS) continue;
-            _cache.set(k, { ts: e.ts, points: e.points, meta: e.meta || {} });
+            if (typeof e.ts !== 'number') continue;
+            const age = now - e.ts;
+            // 24시간 초과 → 정말 너무 오래된 데이터, 폐기.
+            if (age > MAX_STALE_MS) continue;
+            // 1시간 이내 → 신선 (정상 entry).
+            // 1~24시간 → stale 플래그 부여하여 복원 (다음 refreshCycle 가 덮어쓰기 전까지
+            //   빈 화면 대신 옛 데이터라도 노출).
+            const isStale = age > CACHE_TTL_MS;
+            _cache.set(k, {
+                ts: e.ts,
+                points: e.points,
+                meta: e.meta || {},
+                stale: isStale || undefined
+            });
+            if (isStale) stale++;
             restored++;
         }
-        console.log('[KHOA-Cache] 디스크 백업 복원: ' + restored + ' 슬롯');
+        console.log('[KHOA-Cache] 디스크 백업 복원: ' + restored + ' 슬롯' +
+            (stale > 0 ? ' (그 중 ' + stale + ' 슬롯은 1h 초과 stale)' : ''));
         return restored;
     } catch (e) {
         console.warn('[KHOA-Cache] 디스크 백업 복원 실패:', e.message);
@@ -416,6 +452,12 @@ function _toDateHour(d) {
     return { date: y + m + day, hour: h };
 }
 
+// [동시 실행 가드] 부팅 직후 fire-and-forget refreshCycle 과 분 단위 cron tick 이
+// 우연히 겹치는 경우(또는 한 사이클이 30분을 넘기는 비정상 상황) 두 사이클이 동시에
+// 돌면 KHOA 부담이 두 배가 되고 캐시 갱신 순서가 꼬일 수 있다. 한 번에 한 사이클만
+// 보장하기 위한 단순 부울 락.
+let _refreshInProgress = false;
+
 /**
  * 현재 시각 ~ +REFRESH_HOURS_AHEAD 시각까지 (현재 포함 총 73 슬롯) 순차 fetch.
  *
@@ -423,31 +465,43 @@ function _toDateHour(d) {
  * 슬롯 실패는 다음 슬롯으로 그냥 진행 — _failCache 가 30초 후 자동 재시도 허용.
  *
  * 마지막에 persistToDisk() 1회 호출 — 매 슬롯마다 쓰면 디스크 I/O 가 큼.
+ *
+ * 중복 호출 방지: _refreshInProgress 가 true 면 즉시 skip + 로그.
  */
 async function refreshCycle(opts) {
     const log = (opts && opts.log) || console.log;
+    if (_refreshInProgress) {
+        log('[KHOA-Cache] 정기 수집 skip — 이전 사이클 진행 중');
+        return { ok: 0, fail: 0, elapsedMs: 0, skipped: true };
+    }
+    _refreshInProgress = true;
     const t0 = Date.now();
     log('[KHOA-Cache] 정기 수집 시작 (73 슬롯, ~' +
         Math.round(REFRESH_HOURS_AHEAD * SEQUENTIAL_DELAY_MS / 1000) + '초 예상)');
 
     const base = new Date();
     let ok = 0, fail = 0;
-    for (let off = 0; off <= REFRESH_HOURS_AHEAD; off++) {
-        const t = new Date(base.getTime() + off * 3600 * 1000);
-        const { date, hour } = _toDateHour(t);
-        try {
-            await getStream(date, hour);
-            ok++;
-        } catch (e) {
-            fail++;
-            // 개별 슬롯 실패는 noisy 하므로 첫 3건만 출력
-            if (fail <= 3) log('[KHOA-Cache] 슬롯 실패 ' + date + ' ' + hour + ': ' + e.message);
+    try {
+        for (let off = 0; off <= REFRESH_HOURS_AHEAD; off++) {
+            const t = new Date(base.getTime() + off * 3600 * 1000);
+            const { date, hour } = _toDateHour(t);
+            try {
+                await getStream(date, hour);
+                ok++;
+            } catch (e) {
+                fail++;
+                // 개별 슬롯 실패는 noisy 하므로 첫 3건만 출력
+                if (fail <= 3) log('[KHOA-Cache] 슬롯 실패 ' + date + ' ' + hour + ': ' + e.message);
+            }
+            if (off < REFRESH_HOURS_AHEAD) {
+                await _sleep(SEQUENTIAL_DELAY_MS);
+            }
         }
-        if (off < REFRESH_HOURS_AHEAD) {
-            await _sleep(SEQUENTIAL_DELAY_MS);
-        }
+        persistToDisk();
+    } finally {
+        // 예외/중단 무관 항상 락 해제 — 다음 cron tick 이 정상 진행되도록
+        _refreshInProgress = false;
     }
-    persistToDisk();
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
     log('[KHOA-Cache] 정기 수집 완료: 성공 ' + ok + ' / 실패 ' + fail + ' (소요 ' + elapsed + '초)');
     return { ok, fail, elapsedMs: Date.now() - t0 };
