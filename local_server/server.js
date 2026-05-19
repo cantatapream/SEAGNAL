@@ -59,6 +59,16 @@ let _buildGzipChild = null;
 require('./services/cache_manager');
 require('./services/upload_manager');
 
+// [KHOA 정기 수집 — 2026-05]
+//   부팅 시 gzip 디스크 백업(data/khoa_stream_cache.json.gz)을 읽어 메모리
+//   캐시 복원 — 컨테이너 재시작 후 첫 사용자 요청도 캐시 hit 되도록.
+//   이후 30분 주기 갱신은 scheduler.js 가 담당.
+try {
+    require('./services/khoa_stream_cache').hydrateFromDisk();
+} catch (e) {
+    console.warn('[startup] KHOA 캐시 hydrate 실패:', e && e.message);
+}
+
 // ============================================================================
 // 1-A. HTTP 응답 압축 (gzip/brotli)
 // ============================================================================

@@ -142,6 +142,11 @@ const regionalForecastCollector = require('./regional_forecast_collector');
 // [지방청 단기 전망] list.do 통보문 기반 — PDF 수집기와 같은 regional_forecast.json 을
 // partial-merge 로 공유. summary / temperature / bulletin* 필드만 이 모듈이 채운다.
 const regionalBulletinCollector = require('./regional_bulletin_collector');
+// [KHOA 정기 수집 — 2026-05]
+//   국립해양조사원 유향유속 격자 데이터(73시간 슬롯)를 30분 주기로 미리 캐시.
+//   사용자 첫 요청 시점에 외부 호출이 발생하지 않도록 사전 적재 + gzip 디스크 백업.
+//   변경 사유 및 동작은 services/khoa_stream_cache.js 모듈 헤더 참고.
+const khoaStreamCache = require('./services/khoa_stream_cache');
 
 
 const DUCKDNS_CONFIG = {
@@ -1462,6 +1467,15 @@ async function init() {
 
     setInterval(updateDuckDNS, 30 * 60 * 1000);
 
+    // [KHOA 정기 수집 부팅 시 1회 — 2026-05]
+    //   디스크 백업 hydrate 는 server.js 가 처리. 여기서는 백그라운드로 73 슬롯
+    //   재적재를 트리거 (디스크 백업이 stale 할 수 있고, 새 시각 슬롯도 채워야 함).
+    //   fire-and-forget — 다른 수집 사이클을 막지 않는다. 30분 주기 갱신은
+    //   아래 1분 마스터 setInterval 의 min === 0/30 분기에서 호출.
+    khoaStreamCache.refreshCycle({ log }).catch(err =>
+        log(`⚠️ [KHOA] 초기 정기 수집 오류: ${err.message}`)
+    );
+
     const weatherAlertsCrawler = require('./weather_alerts_crawler'); // 크롤러 모듈 추가
 
     // [신규] dmdw 방재기상플랫폼 자식 해역 크롤러
@@ -1595,6 +1609,17 @@ async function init() {
         if (min === 0) {
             checkAndSendAdminReminder().catch(err =>
                 log(`⚠️ 관리자 반복 푸시 오류: ${err.message}`)
+            );
+        }
+
+        // [KHOA 정기 수집 — 2026-05]
+        //   매시 0/30분에 73 슬롯(현재 ~ +72h) 캐시 갱신. 한 사이클이 ~37초
+        //   (500ms × 73) 소요되므로 fire-and-forget 으로 다른 작업을 막지 않는다.
+        //   각 슬롯 사이 500ms 슬립으로 KHOA 폭주 회피.
+        //   결과는 메모리 캐시 + gzip 디스크 백업(data/khoa_stream_cache.json.gz).
+        if (min === 0 || min === 30) {
+            khoaStreamCache.refreshCycle({ log }).catch(err =>
+                log(`⚠️ [KHOA] 정기 수집 오류: ${err.message}`)
             );
         }
 
