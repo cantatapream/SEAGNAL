@@ -57,8 +57,9 @@ const freshness = require('../services/freshness');
 //
 // 머지 후 children 값 변화:
 //   "Y"   → { wrnTp, wrnLvl, tmFc, tmEf, parentZone, ... }  (dmdw 데이터로 교체)
+//   객체  → { ...dmdw, tmFc: 종합기상 객체의 tmFc }          (V3 — tmFc 영구 유지)
 //   null  → 그대로 유지 (자식 비활성)
-//   "Y" + dmdw 자식 부재 → "Y" 그대로 (기존 동작 fallback)
+//   객체 + dmdw 부재 → 객체 그대로 (V3 종합기상 출처만)
 // ============================================================================
 function mergeDmdwChildren(weatherTree, dmdwAlerts) {
     if (!dmdwAlerts || !dmdwAlerts.children || typeof dmdwAlerts.children !== 'object') {
@@ -86,11 +87,23 @@ function mergeDmdwChildren(weatherTree, dmdwAlerts) {
             if (parentActive && node.children && typeof node.children === 'object') {
                 for (const childKey of Object.keys(node.children)) {
                     const dmdwState = dmdwChildren[childKey];
+                    const bulletinState = node.children[childKey];
                     if (dmdwState && typeof dmdwState === 'object') {
-                        // dmdw 가 이 자식의 정밀 상태를 알고 있음 → 덮어쓰기
-                        node.children[childKey] = dmdwState;
+                        // [V3] 머지 정책: tmFc 는 종합기상 우선(영구 유지), 그 외는 dmdw 우선.
+                        //   - 종합기상 객체 + dmdw 객체 모두 존재: tmFc 종합기상, 나머지 dmdw.
+                        //   - 종합기상 'Y' (후방호환) 또는 부재: dmdw 그대로.
+                        const bulletinTmFc = (bulletinState && typeof bulletinState === 'object')
+                            ? (bulletinState.tmFc || '') : '';
+                        const merged = {
+                            ...dmdwState,
+                            source: 'BULLETIN_TEXT+DMDW'
+                        };
+                        if (bulletinTmFc) {
+                            merged.tmFc = bulletinTmFc;
+                        }
+                        node.children[childKey] = merged;
                     }
-                    // dmdw 에 없으면 기존 "Y"/null 그대로 유지 (부모 상속 fallback)
+                    // dmdw 에 없으면 종합기상 객체/null/'Y' 그대로 유지 (V3 종합기상 출처만 노출).
                 }
             }
         }

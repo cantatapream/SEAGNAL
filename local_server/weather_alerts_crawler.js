@@ -173,23 +173,57 @@ async function fetchHtml(url) {
 }
 
 /**
- * 자식 해역 파싱 (warning.do의 특정관리해역 섹션에서 활성화 여부 추출)
+ * 자식 해역 파싱 (warning.do의 특정관리해역 섹션에서 활성화 여부 + 종류·등급 추출)
+ *
+ * [V3] 반환 타입 변경: Set<자식fullName> → Map<자식fullName, {wrnTp, wrnLvl}>
+ *   - V2 까지는 부모 통보문의 wrnTp/wrnLvl 을 자식에 상속 적용.
+ *   - V3 부터는 종합기상 텍스트 줄별로 정규식 매칭하여 자식별 정확한 종류·등급을 추출.
+ *     (부모는 풍랑 경보인데 자식만 풍랑 예비인 케이스 등 자식 고유 단계를 보존)
+ *
+ * 텍스트 줄 분리 정책:
+ *   - HTML 태그 제거 후 'o' 마커 또는 줄바꿈 단위 분리 (KMA HTML 의 자식 항목은
+ *     "o XX특보 발표 (...자식영역명...)" 패턴으로 나열됨).
+ *   - 각 줄에서 (태풍|호우|강풍|풍랑|폭풍해일|건조|한파|대설)(예비특보|주의보|경보)\s*발표 매칭.
+ *   - 등급 매핑: '예비특보' → '예비', '주의보' → '주의보', '경보' → '경보'.
+ *   - 자식 영역명은 줄에 포함된 자식 fullName(공백···.\s 제거 비교) 으로 식별.
+ *
+ * 자식 종류·등급 정보가 빈 줄에 매치되는 경우(드물지만 KMA 포맷 흔들림 대비)에는
+ * 부모 메타 fallback 없이 wrnTp='', wrnLvl='' 인 객체로 표시 — 호출자가 알아서 처리.
  */
 function parseChildWarnings(html, form) {
     const startIdx = html.indexOf('특정관리해역');
-    if (startIdx === -1) return new Set();
+    if (startIdx === -1) return new Map();
 
     const section = html.substring(startIdx);
     const endIdx = section.indexOf('참고사항');
     const targetText = (endIdx !== -1 ? section.substring(0, endIdx) : section)
-        .replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/[\s]+/g, ' ');
+        .replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ');
 
-    const activeChildren = new Set();
+    // 줄 단위 분리 — 'o' 마커, 줄바꿈, '\r' 모두 분리자로 사용.
+    //   normalize whitespace 는 줄 내부에서만 적용해 줄 경계는 보존.
+    const lines = targetText
+        .split(/[\r\n]+|(?:^|\s)o(?=\s)/)
+        .map(s => s.replace(/[\s]+/g, ' ').trim())
+        .filter(s => s.length > 0);
+
+    // 줄별 (종류, 등급, 발표 키워드) 매칭 정규식.
+    //   wrnTp 그룹: 풍랑, 태풍, 호우, 강풍, 폭풍해일, 건조, 한파, 대설
+    //   wrnLvl  : 예비특보 | 주의보 | 경보
+    const lineRe = /(태풍|호우|강풍|풍랑|폭풍해일|건조|한파|대설)\s*(예비특보|주의보|경보)\s*(발표|발효|해제)?/;
+
+    function normalizeForCompare(s) {
+        return String(s || '').replace(/[\s·\.]/g, '');
+    }
+    function mapLvl(raw) {
+        if (raw === '예비특보') return '예비';
+        return raw; // '주의보' | '경보'
+    }
+
+    const activeChildren = new Map();
     const allChildren = [];
 
     /**
      * full form 트리 재귀 순회 — 자식해역(children) 만 모음.
-     * coastalMap 같은 부수 데이터 빌드 시 사용.
      */
     function collectChildren(obj) {
         if (!obj || typeof obj !== 'object') return;
@@ -200,15 +234,58 @@ function parseChildWarnings(html, form) {
     }
     collectChildren(form);
 
-    for (const childName of allChildren) {
-        const normalizedChild = childName.replace(/[\s·\.]/g, '');
-        const normalizedText = targetText.replace(/[\s·\.]/g, '');
+    // 자식별 매치 후보 수집:
+    //   각 줄에 대해 자식 fullName 포함 여부를 검사하고, 종류·등급 매치가 있으면 기록.
+    //   하나의 자식이 여러 줄에 등장하면 가장 강한 등급(경보>주의보>예비)을 채택.
+    const lvlRank = { '예비': 1, '주의보': 2, '경보': 3 };
+    const normalizedLines = lines.map(l => ({ raw: l, norm: normalizeForCompare(l) }));
 
-        if (normalizedText.includes(normalizedChild)) {
-            activeChildren.add(childName);
+    for (const childName of allChildren) {
+        const normalizedChild = normalizeForCompare(childName);
+        // 1) 줄별 자식명 포함 여부 검사 + 종류·등급 매칭.
+        let bestTp = '';
+        let bestLvl = '';
+        let foundAny = false;
+        for (const { raw, norm } of normalizedLines) {
+            if (!norm.includes(normalizedChild)) continue;
+            foundAny = true;
+            const m = raw.match(lineRe);
+            if (m) {
+                const tp = m[1];
+                const lvl = mapLvl(m[2]);
+                if (!bestLvl || (lvlRank[lvl] || 0) > (lvlRank[bestLvl] || 0)) {
+                    bestTp = tp;
+                    bestLvl = lvl;
+                }
+            }
+        }
+        // 2) 줄 단위에서 못 잡았지만 전체 텍스트엔 포함된 케이스 — V2 후방호환.
+        //    이 경우 wrnTp/wrnLvl 은 빈 값 → mapDataToForm 이 객체 보존 시점에 처리.
+        if (!foundAny) {
+            const fullNorm = normalizeForCompare(targetText);
+            if (fullNorm.includes(normalizedChild)) {
+                foundAny = true;
+            }
+        }
+        if (foundAny) {
+            activeChildren.set(childName, { wrnTp: bestTp, wrnLvl: bestLvl });
         }
     }
     return activeChildren;
+}
+
+/**
+ * [V3] 현재 KST 시각 - 1분 보정 → "YYYY년 MM월 DD일 HH시 mm분" 포맷.
+ *   - KMA 가 17:00 정시 발표 → 크롤러 17:01 수집 → tmFc=17:00 으로 기록.
+ *   - 단순 Date.now() - 60_000 적용 후 KST 가정 (Dockerfile TZ=Asia/Seoul 보장).
+ *   - 자식 객체의 tmFc 영구 유지 — 한 번 부여하면 dmdw 정식 등록되어도 덮어쓰지 않음.
+ */
+function _collectedAtMinus1Min(nowMs) {
+    const ms = (typeof nowMs === 'number' ? nowMs : Date.now()) - 60 * 1000;
+    const d = new Date(ms);
+    const pad = n => String(n).padStart(2, '0');
+    // 컨테이너 TZ=Asia/Seoul 보장 환경에서 로컬 시각 = KST.
+    return `${d.getFullYear()}년 ${pad(d.getMonth() + 1)}월 ${pad(d.getDate())}일 ${pad(d.getHours())}시 ${pad(d.getMinutes())}분`;
 }
 
 /**
@@ -219,8 +296,37 @@ function parseChildWarnings(html, form) {
  * 부모 특보가 살아있는데 "이전에 활성화된 자식 전부"가 동시에 사라지면 사전삭제로 간주하여
  * 이전 상태를 유지한다. 일부만 사라진 경우는 정상 해제로 처리한다.
  * 사전삭제로 유지된 자식은 부모 해제 시 함께 자동 해제된다.
+ *
+ * [V3] children 값 변경: 'Y' | null → 객체 | null
+ *   activeChildren: Map<자식fullName, {wrnTp, wrnLvl}>  (parseChildWarnings 출력)
+ *   객체 형태:
+ *     { source: 'BULLETIN_TEXT', wrnTp, wrnLvl, tmFc, tmEf:'', tmCc:'', tmEd:'' }
+ *   - 직전 children[X] 가 객체(활성) 이고 curr 도 활성 → 기존 tmFc 유지, wrnTp/wrnLvl 갱신.
+ *   - 직전 children[X] 가 null(또는 'Y' 후방호환) 이고 curr 활성 → 새 객체 생성 (tmFc=수집-1분).
+ *   - 비활성 → null.
  */
 function mapDataToForm(form, activeChildren) {
+    // 이번 사이클 1분 보정 시각 (한 번만 계산해 모든 자식 신규 활성에 공통 적용).
+    const tmFcNew = _collectedAtMinus1Min(Date.now());
+
+    function isActiveChildValue(v) {
+        // 'Y' (V2 후방호환) 또는 객체 형태 모두 활성으로 간주.
+        return v === 'Y' || (v && typeof v === 'object');
+    }
+
+    function newChildMeta(childName) {
+        const m = activeChildren.get(childName) || { wrnTp: '', wrnLvl: '' };
+        return {
+            source: 'BULLETIN_TEXT',
+            wrnTp: m.wrnTp || '',
+            wrnLvl: m.wrnLvl || '',
+            tmFc: tmFcNew,
+            tmEf: '',
+            tmCc: '',
+            tmEd: ''
+        };
+    }
+
     function updateChildren(obj) {
         if (!obj || typeof obj !== 'object') return;
 
@@ -234,7 +340,7 @@ function mapDataToForm(form, activeChildren) {
                 }
             } else {
                 // 부모가 활성 상태(발효 또는 발표)
-                const prevActive = childNames.filter(name => obj.children[name] === 'Y');
+                const prevActive = childNames.filter(name => isActiveChildValue(obj.children[name]));
 
                 if (prevActive.length > 0) {
                     // 이전에 활성화된 자식이 있었음
@@ -246,13 +352,33 @@ function mapDataToForm(form, activeChildren) {
                     } else {
                         // 일부 자식이 크롤링에 존재 → 크롤링 결과를 신뢰
                         for (const childName of childNames) {
-                            obj.children[childName] = activeChildren.has(childName) ? 'Y' : null;
+                            const prev = obj.children[childName];
+                            if (activeChildren.has(childName)) {
+                                if (prev && typeof prev === 'object') {
+                                    // [V3] 영구 유지: 기존 객체의 tmFc 보존, wrnTp/wrnLvl 갱신.
+                                    const m = activeChildren.get(childName) || {};
+                                    obj.children[childName] = {
+                                        ...prev,
+                                        wrnTp: m.wrnTp || prev.wrnTp || '',
+                                        wrnLvl: m.wrnLvl || prev.wrnLvl || ''
+                                    };
+                                } else {
+                                    // null 또는 'Y' (V2 후방호환) → 새 객체 생성 (tmFc=수집-1분).
+                                    obj.children[childName] = newChildMeta(childName);
+                                }
+                            } else {
+                                obj.children[childName] = null;
+                            }
                         }
                     }
                 } else {
                     // 이전에 활성화된 자식 없음 → 크롤링 결과 그대로 반영
                     for (const childName of childNames) {
-                        obj.children[childName] = activeChildren.has(childName) ? 'Y' : null;
+                        if (activeChildren.has(childName)) {
+                            obj.children[childName] = newChildMeta(childName);
+                        } else {
+                            obj.children[childName] = null;
+                        }
                     }
                 }
             }
@@ -522,17 +648,26 @@ function _bulletinChildDisplayName(parentZone, childFullName) {
 }
 
 /**
- * 두 zone tree 를 동시 재귀 순회하며 children 의 null↔'Y' 전이를 수집한다.
- *   prev / curr 노드 구조: { current, upcoming, history, children: { name: 'Y'|null } }
+ * 두 zone tree 를 동시 재귀 순회하며 children 의 비활성↔활성 전이를 수집한다.
+ *   prev / curr 노드 구조: { current, upcoming, history, children: { name: 객체|null } }
+ *
+ * [V3] children 값이 객체 형태로 변경되어, 활성 판정은 "객체 존재 여부" 로 수행.
+ *   prevChildren 의 V2 'Y' 후방호환도 활성으로 간주.
+ *
  * @returns {{candidates, releasedYToNull}}
- *   candidates : Array<{parentZone, childName, parentMeta}>  (null→'Y' 발표 후보)
- *   releasedYToNull : Array<{parentZone, childName}>          ('Y'→null 해제 — 마커 정리용)
+ *   candidates : Array<{parentZone, childName, childMeta, parentMeta}>
+ *                (비활성→활성 발표 후보, childMeta=자식 객체, parentMeta=부모 통보문 — 시간 필터용)
+ *   releasedYToNull : Array<{parentZone, childName}>  (활성→null 해제 — 마커 정리용)
  *   parentMeta = upcoming 우선 (예비 단계엔 upcoming 만 채워짐), 없으면 current.
- *     둘 다 없으면 candidate 자체 제외 (mapDataToForm 강제 해제 정책상 발생 불가).
+ *     둘 다 없으면 candidate 자체 제외.
  */
 function collectBulletinPublishCandidates(prevTree, currTree) {
     const candidates = [];
     const releasedYToNull = [];
+
+    function isActive(v) {
+        return v === 'Y' || (v && typeof v === 'object');
+    }
 
     function walk(prevNode, currNode, lastParentKey) {
         if (!currNode || typeof currNode !== 'object') return;
@@ -549,32 +684,28 @@ function collectBulletinPublishCandidates(prevTree, currTree) {
             const currChildren = currNode.children || {};
 
             // 부모 메타 — upcoming 우선 (예비 단계엔 upcoming 만 채워짐), 없으면 current.
+            //   시간 필터 (PUBLISH_PUSH_WINDOW_HOURS) 가 사용. V3 에서도 동일 정책 유지.
             const meta = currNode.upcoming || currNode.current || null;
 
-            // [V2] prev / curr 양쪽 키 합집합 순회 (U3 채택) — 자식이 curr 에서 완전히
-            //      빠진 'Y'→null 케이스도 놓치지 않음 (mapDataToForm 가 빈 children 으로
-            //      덮어쓰는 케이스 대응).
             const allNames = new Set([
                 ...Object.keys(prevChildren),
                 ...Object.keys(currChildren)
             ]);
             for (const childName of allNames) {
-                const wasY = prevChildren[childName] === 'Y';
-                const isY = currChildren[childName] === 'Y';
-                if (!wasY && isY) {
-                    // null → 'Y' 전이 — 발표 푸시 후보.
-                    //   부모 스키마 주의: report_alert_processor 산출은 wrnTp/wrnLvl 만 채움
-                    //   (wrnTpNm/wrnLvlNm 미존재). 본 경로에서는 wrnTp 존재만 검사하면 충분하나,
-                    //   향후 dmdw 메타가 같은 함수 입력으로 들어올 가능성 대비해 OR 유지.
+                const wasActive = isActive(prevChildren[childName]);
+                const isActiveNow = isActive(currChildren[childName]);
+                if (!wasActive && isActiveNow) {
+                    // 비활성 → 활성 전이 — 발표 푸시 후보.
+                    //   childMeta: 자식 객체 (V3 종합기상 텍스트 출처 — wrnTp/wrnLvl 정확).
+                    //   parentMeta: 부모 통보문 — 시간 필터 (tmFc 12h 이내) 용도.
+                    const childMeta = (currChildren[childName] && typeof currChildren[childName] === 'object')
+                        ? currChildren[childName]
+                        : null;
                     if (meta && (meta.wrnTpNm || meta.wrnTp)) {
-                        candidates.push({ parentZone, childName, parentMeta: meta });
+                        candidates.push({ parentZone, childName, childMeta, parentMeta: meta });
                     }
-                    // 부모 메타 없으면 push skip — mapDataToForm 의 강제 해제 정책상
-                    // 거의 발생 불가능 케이스지만 보수적 처리.
-                } else if (wasY && !isY) {
-                    // 'Y' → null 전이. dmdw EF release 경로가 이미 forgetChild 를
-                    // 호출할 수 있으나, 종합기상에서 먼저 사라진 경우 dmdw 경로가
-                    // 누락될 수 있어 여기서도 보수적으로 publish 마커 정리 대상에 포함.
+                } else if (wasActive && !isActiveNow) {
+                    // 활성 → null 전이 — publish 마커 정리.
                     releasedYToNull.push({ parentZone, childName });
                 }
             }
@@ -659,25 +790,31 @@ async function dispatchBulletinPublishPushes(prevTree, currTree, windowHoursOver
         let enq = 0;
         for (const c of passed) {
             try {
-                const m = c.parentMeta || {};
+                const parentMeta = c.parentMeta || {};
+                // [V3] 자식 종류·등급은 childMeta(종합기상 텍스트 줄별 파싱 결과) 우선.
+                //   parseChildWarnings 가 자식 줄에서 못 잡은 경우엔 wrnTp/wrnLvl 이 빈 값일
+                //   수 있으므로 부모 메타로 fallback.
+                const childMeta = c.childMeta || {};
+                const wrnTpRaw = childMeta.wrnTp || parentMeta.wrnTp || '';
+                const wrnLvlRaw = childMeta.wrnLvl || parentMeta.wrnLvl || '';
                 // 표시용 짧은 자식명 — dmdw_warn_crawler 와 동일 정책으로 dedup key 일치.
                 const displayName = _bulletinChildDisplayName(c.parentZone, c.childName);
-                // 부모 스키마(report_alert_processor 산출): wrnTp(한글명), wrnLvl ('예비'|'주의보'|'경보')
-                //   — wrnTpNm/wrnLvlNm 필드는 본 경로(종합기상 텍스트)에서는 존재하지 않음.
-                // dmdw 스키마: wrnTpNm/wrnLvlNm 분리.
-                // 두 스키마 dedup key 일치를 위해 매핑 (R-U3 정리: wrnTpNm 죽은 분기 제거):
-                //   wrnTp / wrnTpNm  ← 부모.wrnTp 동일 값 (예: '풍랑') — 두 필드에 채워 dmdw FC 정합.
-                //   wrnLvl / wrnLvlNm ← 부모.wrnLvl 인데 '예비' 는 '주의보' 로 정규화.
+                // dmdw 스키마 dedup key 일치를 위해 매핑 (V2 정규화 정책 그대로):
+                //   wrnTp / wrnTpNm  ← 자식 wrnTp (예: '풍랑') — 두 필드에 동일 값.
+                //   wrnLvl / wrnLvlNm ← 자식 wrnLvl. '예비' 는 푸시 본문·dedup 키 일관성 위해 '주의보' 정규화.
                 //   사용자 정의: "예비는 추후 발효예정인 주의보". 앱 배지·dmdw 도 '주의보' 표기.
                 //   → 종합기상 → dmdw FC 정식 발표 dedup key 자연 일치 → 중복 차단.
-                const wrnTpNorm = m.wrnTp || '';
-                const wrnLvlNorm = m.wrnLvl === '예비' ? '주의보' : (m.wrnLvl || '');
+                //   (자식 객체 저장값은 '예비' 그대로 — 배지에 '예비' 표시 가능)
+                const wrnTpNorm = wrnTpRaw;
+                const wrnLvlNorm = wrnLvlRaw === '예비' ? '주의보' : wrnLvlRaw;
+                // tmFc: 자식 객체의 첫 수집 시각(영구 유지) 사용. 부재 시 부모 통보문 tmFc 로 fallback.
+                const tmFcForPush = childMeta.tmFc || parentMeta.tmFc || '';
                 if (dmdwPushSender.enqueuePublishFromBulletin(cycleId, c.parentZone, displayName, {
                     wrnTp: wrnTpNorm,
                     wrnTpNm: wrnTpNorm,
                     wrnLvl: wrnLvlNorm,
                     wrnLvlNm: wrnLvlNorm,
-                    tmFc: m.tmFc || ''
+                    tmFc: tmFcForPush
                 })) {
                     enq++;
                 }

@@ -517,11 +517,14 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
         };
 
         uniqueCoastalAlerts.forEach((alert, index) => {
-            const tmFcFormatted = stripYearMonth(alert.tmFc);
-            const tmEfFormatted = stripYearMonth(alert.tmEf);
-            let tmEdFormatted = '정보 없음';
+            // [V3] 빈 시각 값은 빈 문자열 반환 → 줄 자체를 미표시 (자식이 종합기상
+            //   텍스트 출처만일 때 tmEf/tmCc/tmEd 가 빈 값이므로 정보 노이즈 제거).
+            const hasValue = v => !!(v && String(v).trim().length > 0);
+            const tmFcFormatted = hasValue(alert.tmFc) ? stripYearMonth(alert.tmFc) : '';
+            const tmEfFormatted = hasValue(alert.tmEf) ? stripYearMonth(alert.tmEf) : '';
+            let tmEdFormatted = '';
             const releaseVal = alert.tmCc || alert.tmEd || '';
-            if (releaseVal && releaseVal.trim().length > 2 && (!alert.isPreliminary || alert.tmCcExplicit)) {
+            if (hasValue(releaseVal) && releaseVal.trim().length > 2 && (!alert.isPreliminary || alert.tmCcExplicit)) {
                 tmEdFormatted = stripYearMonth(releaseVal);
             }
 
@@ -549,18 +552,20 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
                     <span style="color: ${color || '#e6edf3'}; font-weight: 500;">${value}</span>
                 </div>`;
 
-            const infoHtml =
-                createRow('발표시각', tmFcFormatted) +
-                createRow('발효시각', tmEfFormatted) +
-                createRow('해제예정', tmEdFormatted, '#69f0ae'); // 무조건 초록색
+            // [V3] 빈 값 줄은 미표시. 3줄 모두 빈 값이면 정보 영역 자체를 추가하지 않음.
+            let infoHtml = '';
+            if (tmFcFormatted) infoHtml += createRow('발표시각', tmFcFormatted);
+            if (tmEfFormatted) infoHtml += createRow('발효시각', tmEfFormatted);
+            if (tmEdFormatted) infoHtml += createRow('해제예정', tmEdFormatted, '#69f0ae');
 
-            const infoContainer = document.createElement('div');
-            infoContainer.innerHTML = infoHtml;
-            // 마지막 요소가 아니면 마진
-            if (index < uniqueCoastalAlerts.length - 1) {
-                infoContainer.style.marginBottom = '10px';
+            if (infoHtml) {
+                const infoContainer = document.createElement('div');
+                infoContainer.innerHTML = infoHtml;
+                if (index < uniqueCoastalAlerts.length - 1) {
+                    infoContainer.style.marginBottom = '10px';
+                }
+                detailBox.appendChild(infoContainer);
             }
-            detailBox.appendChild(infoContainer);
         });
 
         item.appendChild(detailBox);
