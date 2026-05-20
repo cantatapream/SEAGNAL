@@ -185,6 +185,9 @@ async function renderATMStatus(container) {
                 <button onclick="renderATMStatus(document.getElementById('atm-content'))" style="padding:8px 16px;background:rgba(255,255,255,0.1);color:#94a3b8;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;">
                     <i class="fa-solid fa-refresh"></i> 새로고침
                 </button>
+                <button onclick="atmResetChildren()" title="부모 current/upcoming/history 보존, 자식 children 만 null 로 리셋. 다음 1분 사이클에 종합기상 텍스트로 재마킹되며 시간 필터(12h) 통과 자식만 푸시 발송." style="padding:8px 16px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
+                    <i class="fa-solid fa-water"></i> 자식해역 리셋
+                </button>
             </div>
             <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;overflow:auto;max-height:55vh;">
                 <pre style="margin:0;color:#e2e8f0;font-size:0.75rem;white-space:pre-wrap;word-break:break-all;font-family:'Courier New',monospace;">${JSON.stringify(displayData, null, 2)}</pre>
@@ -215,6 +218,31 @@ window.atmCrawlToggle = async function () {
         await fetch('/api/admin/crawl-toggle', { method: 'POST' });
         renderATMStatus(document.getElementById('atm-content'));
     } catch (e) { alert('상태 변경 실패: ' + e.message); }
+};
+
+// 자식 해역 장부만 리셋 — V2 종합기상 텍스트 발표 푸시 검증용
+// 부모 current/upcoming/history 보존 → 부모 푸시 시스템 무영향
+// 자식 children 만 null → 다음 1분 사이클에 종합기상 'Y' 재마킹 → V2 시간 필터 통과 자식 push 발송
+window.atmResetChildren = async function () {
+    const testParams = getTestModeParams();
+    const confirmMsg = testParams.testMode
+        ? '테스트 자식 해역 장부를 초기화하시겠습니까?\n부모 데이터는 보존되며 자식 children 만 null 로 리셋됩니다.\n(관리자 테스트 모드: 사용자에게 영향 없음)'
+        : '자식 해역 장부만 초기화하시겠습니까?\n\n• 부모 current/upcoming/history 보존 → 부모 푸시 영향 없음\n• 자식 children 만 null 로 리셋\n• 다음 1분 사이클에 종합기상 텍스트로 자동 재마킹\n• 시간 필터(12h) 통과한 자식만 관리자 푸시 발송';
+    if (!confirm(confirmMsg)) return;
+    try {
+        const res = await fetch('/api/admin/children-reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(testParams)
+        });
+        const data = await res.json();
+        if (data.success === false) {
+            alert('자식 해역 리셋 실패: ' + (data.error || '알 수 없는 오류'));
+            return;
+        }
+        alert(data.message || '자식 해역 리셋 완료');
+        renderATMStatus(document.getElementById('atm-content'));
+    } catch (e) { alert('자식 해역 리셋 실패: ' + e.message); }
 };
 
 // --- [통보문 수집] 탭 ---
