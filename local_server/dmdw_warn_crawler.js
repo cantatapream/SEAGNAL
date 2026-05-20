@@ -72,7 +72,10 @@ const dmdwErrorLog = require('./services/dmdw_error_log');
 
 // [자식 해역 푸시 발송기] 자식 단위 발효/발표/해제/격상/격하 등 6종 이벤트를 큐에 적재 후
 // 사이클 끝에 flush() 1회 호출로 그룹화·200자 분할·중복방지 적용해 관리자 기기에만 발송.
-// 백필 사이클(runBackfill) 중에는 enqueue/flush 호출 자체를 안 한다 (1일치 데이터 한꺼번에 → 폭주 방지).
+// 백필 사이클(runBackfill) 도 24시간치를 한꺼번에 훑은 뒤, 직전 디스크 스냅샷과 비교해
+// "최근 BACKFILL_PUSH_WINDOW_HOURS 안의 변화"만 enqueue + flush 한다 (5종: active /
+// level-active / release / publish / level-publish). 변화 수가 BACKFILL_PUSH_MAX 이상이면
+// 안전망 차원에서 전부 skip 하고 관리자 sentinel 1건만 발송 (사용자 누락 인지 수단).
 const dmdwPushSender = require('./services/dmdw_push_sender');
 
 // ============================================================================
@@ -132,6 +135,21 @@ const DETAIL_DELAY_MS = 120;             // detail 호출 사이 간격 (서버 
 const HTTP_TIMEOUT_MS = 15000;           // 각 HTTP 요청 타임아웃
 const SESSION_REFRESH_MS = 4 * 60 * 60 * 1000; // 4시간마다 예방적 재로그인
 const RETRY_MAX = 3;                     // detail 호출 재시도 횟수
+
+// ----------------------------------------------------------------------------
+// [백필 푸시 정책 상수 — 2026-05]
+// ----------------------------------------------------------------------------
+// runBackfill() 은 서버 재시작 직후 24시간치 EF/FC 를 한꺼번에 훑는다. 그대로
+// enqueue 하면 1일치 자식 변화가 한꺼번에 푸시로 폭주하므로, 사용자 합의 정책:
+//   - 백필 시작 직전 children/_upcoming 스냅샷 → 백필 후 비교해 변화만 push
+//   - "최근 BACKFILL_PUSH_WINDOW_HOURS 안에 발생한 변화" 만 enqueue (시간 필터)
+//   - 변화 수가 BACKFILL_PUSH_MAX 이상이면 안전망 — 전체 skip + 관리자 sentinel
+//     1건 발송 (운영자가 누락 인지 가능하도록)
+// 시간대 버그 같은 사고로 누락된 최근 자식 발효/해제/격상 알림을 사용자가 늦게라도
+// 받게 하되, 너무 오래된 변화(이미 무의미한 알림) 는 차단.
+// ----------------------------------------------------------------------------
+const BACKFILL_PUSH_WINDOW_HOURS = 12;   // 최근 N시간 안에 발생한 변화만 푸시
+const BACKFILL_PUSH_MAX = 100;           // 변화가 이보다 많으면 안전망 발동 (전체 skip)
 
 const DATA_DIR = path.join(__dirname, 'data');
 const OUTPUT_FILE = path.join(DATA_DIR, 'dmdw_alerts.json');
@@ -660,6 +678,34 @@ function isFuture(tmEf, now) {
     return tmEf > now;
 }
 
+// ----------------------------------------------------------------------------
+// [백필 푸시 정책용 헬퍼] dmdw / KMA 시각 문자열을 Date 객체로 파싱
+// ----------------------------------------------------------------------------
+// runBackfill() 의 "최근 N시간 안의 변화만 푸시" 필터에서 tmEf/tmFc 와 현재 시각의
+// 차이를 ms 단위로 계산하기 위함. dmdw_push_sender.js 의 _digits()/fmtTime() 와 동일한
+// 입력 규칙 (숫자만 추출 후 위치 기준 절단) — 다음 포맷 호환:
+//   "YYYY.MM.DD.HH:mm"      (dmdw 자체 포맷)
+//   "YYYY-MM-DD HH:mm"      (KMA 공통)
+//   "YYYYMMDDHHmm"          (12자리 숫자)
+//   "YYYYMMDDHHmmss"        (14자리 숫자)
+// 파싱 실패 시 null 반환. 호출 측은 null 이면 보수적으로 "필터 통과 불가(skip)" 로
+// 처리한다 (시점 모름 → 안 보내는 게 안전 — 정기 사이클이 다음 분에 재검출).
+// 컨테이너 TZ=Asia/Seoul (Dockerfile) 전제 → new Date(y,m,d,hh,mm) 가 KST 로 해석됨.
+function parseDmdwTimeToDate(s) {
+    if (!s) return null;
+    const digits = String(s).replace(/[^0-9]/g, '');
+    if (digits.length < 12) return null;
+    const y = parseInt(digits.substring(0, 4), 10);
+    const mo = parseInt(digits.substring(4, 6), 10) - 1;
+    const d = parseInt(digits.substring(6, 8), 10);
+    const hh = parseInt(digits.substring(8, 10), 10);
+    const mm = parseInt(digits.substring(10, 12), 10);
+    if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)
+        || !Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+    const dt = new Date(y, mo, d, hh, mm, 0, 0);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
 // ============================================================================
 // 10. 디스크 저장 (atomic write)
 // ============================================================================
@@ -677,7 +723,12 @@ function loadState() {
                 // [S9-B] 백필 메타 — 디스크에 남아있는 상태를 그대로 이어감
                 backfillReady: j.backfillReady === true,
                 backfillStartedAt: j.backfillStartedAt || null,
-                backfillCompletedAt: j.backfillCompletedAt || null
+                backfillCompletedAt: j.backfillCompletedAt || null,
+                // [M1] 백필 push 1회 실행 가드 — ISO 8601 timestamp (또는 null).
+                //   SERVER_RESTART_FORCE_REBACKFILL=1 이 fly.toml 에 영구로 남아 머신이
+                //   여러 번 재시작돼도 백필 push 는 1회만 발송되도록 디스크 마크로 제어.
+                //   운영자가 다시 발송하고 싶을 때는 dmdw_alerts.json 의 이 필드만 삭제.
+                backfillPushConsumedAt: j.backfillPushConsumedAt || null
             };
         }
     } catch (e) {
@@ -685,7 +736,9 @@ function loadState() {
     }
     return {
         children: {}, _upcoming: {}, lastCode: { EF: '', FC: '' },
-        backfillReady: false, backfillStartedAt: null, backfillCompletedAt: null
+        backfillReady: false, backfillStartedAt: null, backfillCompletedAt: null,
+        // [M1] 첫 실행 시 null — 첫 백필 push 정책 정상 완료 후 ISO timestamp 마크.
+        backfillPushConsumedAt: null
     };
 }
 
@@ -701,6 +754,8 @@ function saveState(state, stats) {
         backfillReady: state.backfillReady === true,
         backfillStartedAt: state.backfillStartedAt || null,
         backfillCompletedAt: state.backfillCompletedAt || null,
+        // [M1] 백필 push self-clear 마크 — 디스크 영속화하여 머신 재시작 후에도 1회 가드 유지.
+        backfillPushConsumedAt: state.backfillPushConsumedAt || null,
         children: state.children,
         _upcoming: state._upcoming
     };
@@ -765,6 +820,35 @@ async function runBackfill() {
     state.backfillReady = false;
     state.backfillStartedAt = new Date().toISOString();
     saveState(state, { phase: 'backfill_start' });
+
+    // ------------------------------------------------------------------------
+    // [백필 푸시 정책] — 백필 직전 children/_upcoming 스냅샷 (shallow copy)
+    // ------------------------------------------------------------------------
+    // 정기 run() 의 prevChildrenSnap/prevUpcomingSnap 와 같은 형태로,
+    // 백필이 24시간치를 한꺼번에 훑은 결과 만들어낸 "변화" 를 검출하는 기준값.
+    // 비교 키: parentZone / wrnTp / wrnTpNm / wrnLvl / wrnLvlNm / tmFc / tmEf.
+    // shallow copy 로 충분 — 비교 키는 string primitive 이고 객체 자체는 백필
+    // 본체가 state.children[key] 를 새 객체로 재대입하므로 reference 공유 무관.
+    const backfillPrevChildrenSnap = {};
+    for (const k of Object.keys(state.children || {})) {
+        const c = state.children[k] || {};
+        backfillPrevChildrenSnap[k] = {
+            parentZone: c.parentZone,
+            wrnTp: c.wrnTp, wrnTpNm: c.wrnTpNm,
+            wrnLvl: c.wrnLvl, wrnLvlNm: c.wrnLvlNm,
+            tmFc: c.tmFc, tmEf: c.tmEf
+        };
+    }
+    const backfillPrevUpcomingSnap = {};
+    for (const k of Object.keys(state._upcoming || {})) {
+        const u = state._upcoming[k] || {};
+        backfillPrevUpcomingSnap[k] = {
+            parentZone: u.parentZone,
+            wrnTp: u.wrnTp, wrnTpNm: u.wrnTpNm,
+            wrnLvl: u.wrnLvl, wrnLvlNm: u.wrnLvlNm,
+            tmFc: u.tmFc, tmEf: u.tmEf
+        };
+    }
 
     let skipCount = 0;
 
@@ -871,6 +955,295 @@ async function runBackfill() {
             const u = state._upcoming[key];
             if (!u || !u.tmEf || u.tmEf <= nowStr) delete state._upcoming[key];
         }
+
+        // ====================================================================
+        // [백필 푸시 정책] — 스냅샷 비교 → 시간 윈도우 + 안전망 + enqueue + flush
+        // ====================================================================
+        // 정책 (사용자 합의):
+        //  · 백필이 24시간치를 한꺼번에 훑어 children/_upcoming 을 재구성한 결과,
+        //    backfillPrevChildrenSnap / backfillPrevUpcomingSnap 와 비교해 5종 변화 식별:
+        //      (a) children 신규           → enqueueActive
+        //      (b) children wrnTpNm/wrnLvlNm 변경 → enqueueLevelChange('active')
+        //      (c) children 사라짐         → enqueueRelease (+ forgetChild)
+        //      (d) _upcoming 신규          → enqueuePublish
+        //      (e) _upcoming wrnTpNm/wrnLvlNm 변경 → enqueueLevelChange('publish')
+        //         (정기 사이클이 분 단위로 잡는 격상/격하 흐름을 백필도 동일하게 처리.
+        //          R2 권고: P2 가 누락한 _upcoming 격상/격하 분기 반드시 포함.)
+        //  · 시간 필터: tmEf 또는 tmFc 가 "현재 - BACKFILL_PUSH_WINDOW_HOURS" 보다
+        //    오래된 변화는 skip. 파싱 실패는 보수적으로 skip (시점 모름 → 안 보냄).
+        //    → 시간필터 skip 과 신규자식 분기 모두 "보수: 안 보냄" 방향으로 통일.
+        //  · 안전망: 변화 총 개수가 BACKFILL_PUSH_MAX 이상이면 모두 skip + 경고 로그 +
+        //    관리자 sentinel 1건 발송 (R1/R2/R3 권고 — 사용자 누락 인지 수단).
+        //  · 푸시 실패는 try-catch 로 흡수 — 백필 본체 흐름에 영향 0.
+        //  · 중복 방지: dmdwPushSender 내부 _sentKeys / _dedupKey 자연 dedup 활용 (우회 금지).
+        // ====================================================================
+        // [M1] 백필 push 정책 1회 실행 가드 — 디스크 마크 self-clear
+        //   목적: SERVER_RESTART_FORCE_REBACKFILL=1 이 fly.toml 에 영구로 남아 머신이
+        //         여러 번 재시작돼도 백필 push 는 1회만 발송되도록 자동 제어.
+        //   동작: state.backfillPushConsumedAt 이 이미 set 되어 있으면 push 정책 블록
+        //         전체를 skip (백필 본체는 정상 진행). 미설정이면 정책 실행 후 정상 완료
+        //         시점에 ISO timestamp 로 마크 → 다음 재시작 시 자동 skip.
+        //   재실행: 운영자가 다시 push 정책을 돌리고 싶을 땐 디스크의 이 필드만 삭제.
+        //   에러 격리: 정책 블록이 throw 했다면 마크 안 됨 → 다음 재시작 시 재시도 기회 부여.
+        if (state.backfillPushConsumedAt) {
+            console.log(
+                `[dmdw] backfill push policy — 이전에 1회 발송 완료(${state.backfillPushConsumedAt}) — skip`
+            );
+        } else {
+        // [M1] 정책 블록 정상 완료 여부 — catch 진입 시 false 유지되어 마크 미적용.
+        //   try-catch 외부 변수로 두어, catch 분기에서 별도 loadState 가 마크를 덮어쓰는 경합 회피.
+        let backfillPushPolicyOk = false;
+        // [M2] parseDmdwTimeToDate 실패 카운트 — KMA dmdw 응답 포맷 변경 사전 감지.
+        //   try 외부 선언: catch 진입해도 sentinel 평가 블록에서 안전하게 참조 가능.
+        let parseFailCount = 0;
+        const parseFailSamples = []; // 처음 3건의 { key, tmEf, tmFc }
+        let detectedTotalForParse = 0; // sentinel 평가용 — pending + skipped 합
+        try {
+            const backfillPushCycleId = startMs;
+            const windowFromMs = Date.now() - BACKFILL_PUSH_WINDOW_HOURS * 3600 * 1000;
+
+            // 시간 필터 — tmEf 또는 tmFc 중 하나라도 cutoff 이후면 통과.
+            // 둘 다 파싱 불가/없으면 보수적으로 skip (false 반환).
+            // [M2] tmEf·tmFc 둘 다 값이 있는데 둘 다 파싱 실패한 경우 parseFailCount +1
+            //      (원본 값이 비어있는 정상 케이스는 카운트 대상 아님).
+            function withinWindow(child, key) {
+                if (!child) return false;
+                const efDt = parseDmdwTimeToDate(child.tmEf);
+                const fcDt = parseDmdwTimeToDate(child.tmFc);
+                if (!efDt && !fcDt && (child.tmEf || child.tmFc)) {
+                    parseFailCount++;
+                    if (parseFailSamples.length < 3) {
+                        parseFailSamples.push({
+                            key: key || '(unknown)',
+                            tmEf: child.tmEf || '',
+                            tmFc: child.tmFc || ''
+                        });
+                    }
+                }
+                if (efDt && efDt.getTime() >= windowFromMs) return true;
+                if (fcDt && fcDt.getTime() >= windowFromMs) return true;
+                return false;
+            }
+
+            // 1단계: 변화 목록 수집 (실제 enqueue 호출 전에 개수만 카운트)
+            //   각 항목: { kind, key, parentZone, childRawName, prev?, curr? }
+            const pendingChanges = [];
+            const skippedByWindow = []; // 디버깅용 — 시간 필터에 걸린 항목 (앞 5건 로그)
+
+            // (a) (b) children 변화 — 신규 + 등급 변경
+            for (const key of Object.keys(state.children || {})) {
+                const curr = state.children[key];
+                if (!curr || !curr.parentZone) continue;
+                const prev = backfillPrevChildrenSnap[key];
+                const childRawName = _childDisplayNameFromKey(curr.parentZone, key);
+                if (!prev) {
+                    if (withinWindow(curr, key)) {
+                        pendingChanges.push({ kind: 'active', key, parentZone: curr.parentZone, childRawName, curr });
+                    } else {
+                        skippedByWindow.push({ kind: 'active', key, tmEf: curr.tmEf });
+                    }
+                } else if (prev.wrnTpNm !== curr.wrnTpNm || prev.wrnLvlNm !== curr.wrnLvlNm) {
+                    if (withinWindow(curr, key)) {
+                        pendingChanges.push({ kind: 'level_active', key, parentZone: curr.parentZone, childRawName, prev, curr });
+                    } else {
+                        skippedByWindow.push({ kind: 'level_active', key, tmEf: curr.tmEf });
+                    }
+                }
+            }
+
+            // (c) children 사라짐 — 해제
+            //   정기 run() 정책과 동일하게 EF 코드 1건 이상일 때만 release 판단 (오인 방지).
+            if (sortedEf.length > 0) {
+                for (const key of Object.keys(backfillPrevChildrenSnap)) {
+                    if (state.children[key]) continue; // 여전히 살아있으면 release 아님
+                    const prev = backfillPrevChildrenSnap[key];
+                    if (!prev || !prev.parentZone) continue;
+                    const childRawName = _childDisplayNameFromKey(prev.parentZone, key);
+                    if (withinWindow(prev, key)) {
+                        pendingChanges.push({ kind: 'release', key, parentZone: prev.parentZone, childRawName, prev });
+                    } else {
+                        skippedByWindow.push({ kind: 'release', key, tmEf: prev.tmEf });
+                    }
+                }
+            }
+
+            // (d) (e) _upcoming 변화 — 신규 미래 발효 + 격상/격하
+            //   children 에서 이미 처리된 키는 active/level_active 가 우선 (중복 방지).
+            for (const key of Object.keys(state._upcoming || {})) {
+                const curr = state._upcoming[key];
+                if (!curr || !curr.parentZone) continue;
+                if (state.children[key]) continue; // children 분기에서 이미 다룸
+                const prev = backfillPrevUpcomingSnap[key];
+                const childRawName = _childDisplayNameFromKey(curr.parentZone, key);
+                if (!prev) {
+                    if (withinWindow(curr, key)) {
+                        pendingChanges.push({ kind: 'publish', key, parentZone: curr.parentZone, childRawName, curr });
+                    } else {
+                        skippedByWindow.push({ kind: 'publish', key, tmEf: curr.tmEf });
+                    }
+                } else if (prev.wrnTpNm !== curr.wrnTpNm || prev.wrnLvlNm !== curr.wrnLvlNm) {
+                    // R2 권고 — _upcoming 격상/격하 누락 방지. 정기 사이클과 동일 처리.
+                    if (withinWindow(curr, key)) {
+                        pendingChanges.push({ kind: 'level_publish', key, parentZone: curr.parentZone, childRawName, prev, curr });
+                    } else {
+                        skippedByWindow.push({ kind: 'level_publish', key, tmEf: curr.tmEf });
+                    }
+                }
+            }
+
+            // 디버깅: 시간 필터에 걸린 변화 처음 5건 로그 (운영 중 정책 튜닝 참고용)
+            if (skippedByWindow.length > 0) {
+                const sample = skippedByWindow.slice(0, 5).map(s => `${s.kind}|${s.key}|tmEf=${s.tmEf}`);
+                console.log(
+                    `[dmdw] backfill push — window 필터 skip ${skippedByWindow.length}건 ` +
+                    `(window=${BACKFILL_PUSH_WINDOW_HOURS}h) 샘플 5건: ${sample.join(' | ')}`
+                );
+            }
+
+            // 2단계: 안전망 — 변화 수가 BACKFILL_PUSH_MAX 이상이면 폭주 방지로 전체 skip
+            //         + 관리자 sentinel 1건 발송 (R1/R2/R3 공통 권고).
+            if (pendingChanges.length >= BACKFILL_PUSH_MAX) {
+                console.log(
+                    `[dmdw] backfill push SAFETY-NET 발동 — 변화 ${pendingChanges.length}건 ` +
+                    `≥ BACKFILL_PUSH_MAX(${BACKFILL_PUSH_MAX}). 모두 skip (폭주 방지). ` +
+                    `사용자에게 sentinel 1건만 발송.`
+                );
+                try {
+                    await adminPush.sendAdminPush(
+                        '[자식 해역] 백필 푸시 안전망 발동',
+                        `서버 재시작 후 백필이 ${pendingChanges.length}건의 자식 변화를 감지했습니다 ` +
+                        `(허용치 ${BACKFILL_PUSH_MAX}건 초과). 폭주 방지를 위해 개별 자식 푸시는 ` +
+                        `발송하지 않았습니다. 자세한 내역은 서버 로그를 확인하세요.`,
+                        { type: 'dmdw_backfill_safety_net', count: String(pendingChanges.length) }
+                    );
+                } catch (sentErr) {
+                    console.log(`[dmdw] backfill safety-net sentinel push 실패: ${sentErr.message}`);
+                }
+            } else if (pendingChanges.length === 0) {
+                console.log(
+                    `[dmdw] backfill push — 최근 ${BACKFILL_PUSH_WINDOW_HOURS}h 안 변화 0건, flush 생략`
+                );
+            } else {
+                // 3단계: 실제 enqueue (각 항목 개별 try-catch — 한 건 실패가 전체 막지 않도록)
+                let enqOk = 0;
+                for (const ch of pendingChanges) {
+                    try {
+                        if (ch.kind === 'active') {
+                            dmdwPushSender.enqueueActive(backfillPushCycleId, ch.parentZone, ch.childRawName, ch.curr);
+                            enqOk++;
+                        } else if (ch.kind === 'level_active') {
+                            dmdwPushSender.enqueueLevelChange(
+                                backfillPushCycleId, ch.parentZone, ch.childRawName, ch.prev, ch.curr, 'active'
+                            );
+                            enqOk++;
+                        } else if (ch.kind === 'release') {
+                            dmdwPushSender.enqueueRelease(backfillPushCycleId, ch.parentZone, ch.childRawName, ch.prev);
+                            // forgetChild — 같은 자식 재발효 시 푸시가 다시 가도록 sender 이력 정리
+                            try { dmdwPushSender.forgetChild(ch.parentZone, ch.childRawName); } catch (_) {}
+                            enqOk++;
+                        } else if (ch.kind === 'publish') {
+                            dmdwPushSender.enqueuePublish(backfillPushCycleId, ch.parentZone, ch.childRawName, ch.curr);
+                            enqOk++;
+                        } else if (ch.kind === 'level_publish') {
+                            dmdwPushSender.enqueueLevelChange(
+                                backfillPushCycleId, ch.parentZone, ch.childRawName, ch.prev, ch.curr, 'publish'
+                            );
+                            enqOk++;
+                        }
+                    } catch (innerErr) {
+                        // 개별 enqueue 실패는 흡수 — 다른 건 발송에 영향 없음.
+                        console.log(`[dmdw] backfill push enqueue 실패 (${ch.kind}/${ch.key}): ${innerErr.message}`);
+                    }
+                }
+                console.log(
+                    `[dmdw] backfill push enqueued=${enqOk}/${pendingChanges.length} ` +
+                    `(window=${BACKFILL_PUSH_WINDOW_HOURS}h)`
+                );
+
+                // 4단계: flush — 사이클 끝에 1회 (실패 흡수)
+                try {
+                    const flushed = await dmdwPushSender.flush(backfillPushCycleId);
+                    if (flushed && flushed.length > 0) {
+                        console.log(`[dmdw] backfill push flushed: ${flushed.length} push(es)`);
+                    } else {
+                        console.log(`[dmdw] backfill push flush — 실제 발송 0건 (자연 dedup 등)`);
+                    }
+                } catch (e) {
+                    console.log(`[dmdw] backfill push flush 실패: ${e.message}`);
+                }
+            }
+            // [M2] 평가용 총 항목 수 — try 내부에서 산출 후 외부 변수에 반영.
+            //      (catch 진입 시에는 0 유지 — 평가 자체가 무의미하므로 sentinel 미발송.)
+            detectedTotalForParse = pendingChanges.length + skippedByWindow.length;
+            // [M1] 여기 도달 = 정책 블록이 throw 없이 끝까지 진행됨.
+            //      enqueue/flush 등 개별 단계의 catch 는 흡수되므로 정책 전체로는 성공으로 간주.
+            backfillPushPolicyOk = true;
+        } catch (e) {
+            // 푸시 정책 블록 전체 실패도 흡수 — 백필 본체 흐름은 계속.
+            // (R1/R3 권고대로 3중 격리: 정책-개별enqueue-flush 각 try-catch 단계)
+            // [M1] 여기로 오면 backfillPushPolicyOk=false 유지 → 마크 미적용 → 다음 재시작 시 재시도.
+            console.log(`[dmdw] backfill push policy block 실패 (백필 본체와 격리): ${e.message}`);
+        }
+
+        // ================================================================
+        // [M2] 파싱 실패 카운트 알림 — KMA 응답 포맷 변경 사전 감지
+        // ================================================================
+        //   임계치: parseFailCount >= 5  OR  parseFailCount / detectedTotal >= 0.30 (30%)
+        //   충족 시 adminPush.sendAdminPush 직접 호출 (안전망 sentinel 과 동일 패턴, 쿨다운 우회).
+        //   평가 자체 실패도 try-catch 로 흡수 — 백필 본체 영향 0.
+        try {
+            const PARSE_FAIL_ABS = 5;
+            const PARSE_FAIL_RATIO = 0.30;
+            const ratio = detectedTotalForParse > 0 ? (parseFailCount / detectedTotalForParse) : 0;
+            if (parseFailCount >= PARSE_FAIL_ABS || (detectedTotalForParse > 0 && ratio >= PARSE_FAIL_RATIO)) {
+                const pct = Math.round(ratio * 100);
+                // 디버깅 샘플 로그 — 처음 3건 (key/tmEf/tmFc)
+                for (const s of parseFailSamples) {
+                    console.log(
+                        `[dmdw] backfill parse-fail sample: ${s.key} ` +
+                        `tmEf="${s.tmEf}" tmFc="${s.tmFc}"`
+                    );
+                }
+                console.log(
+                    `[dmdw] backfill parse-fail 임계치 도달 — ${parseFailCount}건/${detectedTotalForParse}건 (${pct}%). sentinel 발송 시도.`
+                );
+                try {
+                    await adminPush.sendAdminPush(
+                        '[자식 해역] dmdw 시각 파싱 실패 다수 감지',
+                        `백필 push 정책에서 dmdw 시각 파싱 실패 ${parseFailCount}건/${detectedTotalForParse}건 ` +
+                        `(${pct}%) 발생했습니다. KMA dmdw 응답 포맷 변경 가능성. ` +
+                        `fly logs 에서 'parseDmdwTime' 또는 'parse-fail sample' 검색 권장.`,
+                        {
+                            type: 'dmdw_backfill_parse_fail',
+                            failCount: String(parseFailCount),
+                            totalCount: String(detectedTotalForParse),
+                            percent: String(pct)
+                        }
+                    );
+                } catch (sentErr) {
+                    console.log(`[dmdw] backfill parse-fail sentinel push 실패: ${sentErr.message}`);
+                }
+            }
+        } catch (mErr) {
+            // 파싱 실패 알림 평가 자체의 오류도 흡수 — 백필 본체 영향 0.
+            console.log(`[dmdw] backfill parse-fail 평가 블록 실패: ${mErr.message}`);
+        }
+
+        // ================================================================
+        // [M1] 백필 push 정책 정상 완료 → 디스크 self-clear 마크 set.
+        // ================================================================
+        //   정책 블록이 throw 없이 끝까지 도달했을 때만(backfillPushPolicyOk=true) 마크.
+        //   throw 발생 시엔 마크 안 됨 → 다음 재시작에 재시도 기회 확보.
+        //   마크 적용 자체 실패도 try-catch 로 흡수 (희박하나 안전).
+        //   디스크 영속화는 직후 saveState() 에서 이루어짐 — 별도 호출 불필요.
+        if (backfillPushPolicyOk) {
+            try {
+                state.backfillPushConsumedAt = new Date().toISOString();
+            } catch (markErr) {
+                console.log(`[dmdw] backfill push consumed 마크 적용 실패 (무시): ${markErr.message}`);
+            }
+        }
+        } // [M1] state.backfillPushConsumedAt 가드 else 종결
 
         // 백필 성공 마킹
         state.backfillReady = true;
