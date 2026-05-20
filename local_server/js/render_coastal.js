@@ -516,12 +516,31 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
             return formatted ? formatted.replace(/\d{4}년\s*/g, '').replace(/^\d+월\s*/, '').replace(/\s\d+월\s*/, ' ') : formatted;
         };
 
+        // [V3.1] 정확한 단일 시각 판정 — data.js 의 동명 헬퍼 폴백.
+        //   범위형 ('(' 또는 '~' 포함) / 한글 시간대 단독 / 빈 값 → false.
+        //   자식 카드 발효시각 줄 표시 여부에만 사용 (부모 카드 영향 없음).
+        const isExactSingleTime = (typeof _isExactSingleTime === 'function')
+            ? _isExactSingleTime
+            : function (s) {
+                if (s === null || s === undefined) return false;
+                const str = String(s).trim();
+                if (!str) return false;
+                if (str.indexOf('(') !== -1 || str.indexOf('~') !== -1) return false;
+                if (/(오전|오후|새벽|밤|저녁|아침)/.test(str)) return false;
+                if (/\d{4}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일\s*\d{1,2}\s*시\s*\d{1,2}\s*분/.test(str)) return true;
+                if (/\d{4}\.\d{1,2}\.\d{1,2}\.\d{1,2}:\d{1,2}/.test(str)) return true;
+                return str.replace(/[^0-9]/g, '').length === 12;
+            };
+
         uniqueCoastalAlerts.forEach((alert, index) => {
             // [V3] 빈 시각 값은 빈 문자열 반환 → 줄 자체를 미표시 (자식이 종합기상
             //   텍스트 출처만일 때 tmEf/tmCc/tmEd 가 빈 값이므로 정보 노이즈 제거).
+            // [V3.1] 자식(isCoastal) 의 tmEf 가 범위형/시간대 표기면 빈 문자열 처리
+            //   → 발효시각 줄 미표시 (V3 빈 값 분기 활용). 부모 카드는 변경 없음.
             const hasValue = v => !!(v && String(v).trim().length > 0);
             const tmFcFormatted = hasValue(alert.tmFc) ? stripYearMonth(alert.tmFc) : '';
-            const tmEfFormatted = hasValue(alert.tmEf) ? stripYearMonth(alert.tmEf) : '';
+            const tmEfDisplayable = hasValue(alert.tmEf) && (alert.isCoastal === true ? isExactSingleTime(alert.tmEf) : true);
+            const tmEfFormatted = tmEfDisplayable ? stripYearMonth(alert.tmEf) : '';
             let tmEdFormatted = '';
             const releaseVal = alert.tmCc || alert.tmEd || '';
             if (hasValue(releaseVal) && releaseVal.trim().length > 2 && (!alert.isPreliminary || alert.tmCcExplicit)) {
