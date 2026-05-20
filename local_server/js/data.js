@@ -291,54 +291,73 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
     // 연안바다(Children) 처리
     if (childrenObj) {
         for (const [childName, status] of Object.entries(childrenObj)) {
-            // [기존] status가 'Y'인 경우 — 부모 크롤러(weather.go.kr)만 자식 활성을 알려준 케이스
-            //         자식의 정밀한 wrnTp/wrnLvl 정보는 없으므로 부모 상속.
+            // [V2 후방호환] 'Y' 값 — 디스크 weather_alerts.json 의 구버전 데이터.
+            //   V3 mapDataToForm 가 다음 사이클에 객체로 변환하지만, 그 전 1사이클
+            //   에 한해 'Y' 가 잔존할 수 있어 부모 상속 그대로 처리.
             if (status === 'Y') {
                 if (!coastalMap[childName]) coastalMap[childName] = [];
-                // 부모 특보 정보를 상속받아 연안바다 특보 객체 생성
-                // [Fix] history는 연안바다에 불필요 (통보문이 연안바다 단위로 발표되지 않으므로)
                 const childAlert = {
                     ...alertItem,
                     zoneName: childName,
                     isCoastal: true,
                     parentZone: zoneName,
-                    history: [], // 연안바다는 히스토리 미표시
+                    history: [],
                     id: `auto_${childName}_${alertObj.wrnTp}_${reallyUpcoming ? 'pre' : 'act'}`
                 };
                 coastalMap[childName].push(childAlert);
             }
-            // [신규] status가 객체인 경우 — dmdw 크롤러가 자식 정밀 상태를 알려준 케이스
-            //         routes/weather.js 의 mergeDmdwChildren 가 children[childName] 을
-            //         "Y" → { wrnTp, wrnLvl, wrnTpNm, wrnLvlNm, tmFc, tmEf, parentZone, ... }
-            //         객체로 덮어쓴 결과. 자식 고유 종류·등급(예: 부모는 풍랑경보인데
-            //         자식만 태풍주의보)을 그대로 화면에 반영하기 위해 부모 상속을 덮어씀.
-            else if (status && typeof status === 'object' && status.wrnTp) {
+            // [V3] status 가 객체 — 두 경로:
+            //   (a) 종합기상 텍스트 출처만: source='BULLETIN_TEXT', tmEf/tmCc/tmEd 빈 값.
+            //   (b) dmdw 정식 등록 후 머지 결과: source='BULLETIN_TEXT+DMDW' 또는 dmdw 객체
+            //       그대로 (mergeDmdwChildren 가 tmFc 만 종합기상 객체에서 유지).
+            //   자식 wrnTp/wrnLvl 은 객체 그대로 사용 (배지에 '예비' 표시 OK).
+            //   빈 시각 값은 빈 값 그대로 전달 → render_coastal 가 줄 미표시 처리.
+            else if (status && typeof status === 'object') {
                 if (!coastalMap[childName]) coastalMap[childName] = [];
+
+                // wrnTp/wrnLvl 정규화 — wrnTpNm/wrnLvlNm 한글명 우선, 미존재 시 wrnTp/wrnLvl.
+                //   dmdw 머지: wrnLvlNm 문자열 ('주의보'|'경보').
+                //   종합기상 단독: wrnLvl 이 '예비'|'주의보'|'경보' 그대로.
+                const warnType = status.wrnTpNm || status.wrnTp || alertItem.warnType || '';
+                let level;
+                if (status.wrnLvlNm) {
+                    level = status.wrnLvlNm;
+                } else if (status.wrnLvl) {
+                    // 숫자 코드 ('3'='경보') 또는 한글 그대로.
+                    level = String(status.wrnLvl) === '3' ? '경보' : status.wrnLvl;
+                } else {
+                    level = alertItem.level || '';
+                }
+
+                const isFromBulletinOnly = status.source === 'BULLETIN_TEXT'
+                    || (!status.tmEf && !status.tmCc && !status.tmEd);
+                const isPrelim = level === '예비' || isFromBulletinOnly;
+
                 coastalMap[childName].push({
-                    ...alertItem,                              // 기본 메타(zoneName 등)는 부모에서 상속
+                    ...alertItem,                              // 기본 메타(zoneName 등) 상속
                     zoneName: childName,
                     isCoastal: true,
                     parentZone: zoneName,
                     history: [],
-                    // [핵심] dmdw 가 알고 있는 자식 고유 (wrnTp, wrnLvl) 로 덮어쓰기
-                    warnType: status.wrnTpNm || status.wrnTp,  // 한글명 우선 ("태풍" 등)
-                    level: status.wrnLvlNm
-                        || (String(status.wrnLvl) === '3' ? '경보' : '주의보'),
-                    tmFc: status.tmFc || alertItem.tmFc,
-                    tmEf: status.tmEf || alertItem.tmEf,
-                    // dmdw children 은 EF 타임라인에서 잡힌 것만 들어오므로 항상 발효 상태
-                    isPreliminary: false,
-                    command: '발효',
-                    source: 'CRAWLER+DMDW',
-                    // [S9-E] dmdw 가 마킹한 "마지막 FC 사이클 등장 여부" — 자식 클릭 팝업이
-                    //   이 값을 보고 === false 인 경우만 "해제 예정" 텍스트 한 줄 표시.
-                    //   undefined/true 면 표시 안 함 (보수적 fallback).
+                    warnType: warnType,
+                    level: level,
+                    // [V3] 자식 객체의 시각 그대로 — 빈 값이면 빈 값 (render_coastal 가 줄 미표시).
+                    //   - tmFc: 종합기상 첫 수집 시점 (영구) 또는 dmdw 머지 결과의 보존된 tmFc.
+                    //   - tmEf/tmCc/tmEd: 종합기상 단독은 빈 값, dmdw 머지 후엔 정확한 값.
+                    tmFc: status.tmFc || '',
+                    tmEf: status.tmEf || '',
+                    tmCc: status.tmCc || '',
+                    tmCcExplicit: !!status.tmCcExplicit,
+                    tmEd: status.tmEd || status.tmYn || status.tmCc || '',
+                    isPreliminary: isPrelim,
+                    command: isPrelim ? '발표' : '발효',
+                    source: status.source || (status.tmEf ? 'CRAWLER+DMDW' : 'BULLETIN_TEXT'),
                     presentInLastFc: (typeof status.presentInLastFc === 'boolean')
                         ? status.presentInLastFc : undefined,
-                    id: `dmdw_${childName}_${status.wrnTp}_${status.wrnLvl}`
+                    id: `child_${childName}_${status.wrnTp || ''}_${status.wrnLvl || ''}`
                 });
             }
-            // status === null 또는 그 외 값: 자식 비활성 — 처리 없음 (기존 동작과 동일)
+            // status === null 또는 그 외 값: 자식 비활성 — 처리 없음.
         }
     }
 }
