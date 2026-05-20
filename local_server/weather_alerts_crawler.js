@@ -574,6 +574,41 @@ function detectChanges(previous, current) {
 const PUBLISH_PUSH_WINDOW_HOURS = 12;
 
 /**
+ * [V3.3] 단일 정확 시각 형식인지 판별 — 범위형/시간대 어휘 차단.
+ *
+ *   허용:
+ *     "2026년 05월 20일 07시 00분"     (한글 정형)
+ *     "2026-05-20 07:00"               (weather.go.kr ISO 형식)
+ *     "2026.05.20.07:00"               (dmdw 형식)
+ *     "202605200700"                   (12자리 숫자만)
+ *   차단:
+ *     "2026년 05월 21일 오전(06시~12시)"  (범위형)
+ *     "오늘 밤(21시~24시)"                (시간대 어휘)
+ *     "2026-05-21 새벽(00시~06시)"        (범위형)
+ *
+ *   [도입 배경]
+ *     _parseBulletinTimeToMs 의 digit-only fallback 이 범위형 입력의 앞쪽 12자리만
+ *     잘라 잘못된 단일 시각으로 오인 파싱하는 결함을 차단. 예) "오전(06시~12시)"
+ *     → digits "20260521 06 12" → 5/21 06:12 로 오인 → 현재 시각 07:10 이면 pastTmEf
+ *     로 차단 → 사실은 아직 발효 전이므로 차단되면 안 되는 자식이 누락.
+ *     본 가드 추가 후 범위형 입력은 null 반환 → _publishCandidateRejectReason 의
+ *     보수적 통과 정책 (line 613) 에 따라 정상 통과.
+ */
+function _isExactSingleTime(s) {
+    if (!s) return false;
+    const str = String(s).trim();
+    // 한글 정형: "YYYY년 MM월 DD일 HH시 mm분"
+    if (/^\d{4}년\s*\d{1,2}월\s*\d{1,2}일\s*\d{1,2}시\s*\d{1,2}분$/.test(str)) return true;
+    // ISO 정형: "YYYY-MM-DD HH:mm" (초/공백 변형 허용)
+    if (/^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}(?::\d{2})?$/.test(str)) return true;
+    // dmdw 형식: "YYYY.MM.DD.HH:mm"
+    if (/^\d{4}\.\d{2}\.\d{2}\.\d{2}:\d{2}$/.test(str)) return true;
+    // 12자리 숫자: "YYYYMMDDHHmm"
+    if (/^\d{12}$/.test(str)) return true;
+    return false;
+}
+
+/**
  * [V2] KMA 통보문 시각 문자열 → epoch ms — 다중 포맷 흡수 파서 (U3 권고).
  *   parseKmaTime ("YYYY년 MM월 DD일 HH시 mm분") 우선 시도 후,
  *   실패 시 디지트-only 위치 파싱으로 fallback. 두 단계로 다음 포맷 흡수:
@@ -584,9 +619,15 @@ const PUBLISH_PUSH_WINDOW_HOURS = 12;
  *   범위형 "오늘 밤(21시~24시)" 등 비정형 입력은 두 파서 모두 실패 → null
  *   → 호출자(_publishCandidateRejectReason)가 tmEf 경로에선 보수적 통과 결정.
  *   TZ=Asia/Seoul 컨테이너 환경에서 KST 로 해석됨 (Dockerfile 보장).
+ *
+ * [V3.3] _isExactSingleTime 사전 가드 추가 — digit fallback 의 범위형 오인 차단.
+ *   기존엔 "오전(06시~12시)" 가 digits "20260521 06 12" (12자) 로 잘라져 06:12 로
+ *   파싱되어 pastTmEf 오판 → 자식 푸시 누락. 이제 단일 정확 시각만 통과.
  */
 function _parseBulletinTimeToMs(s) {
     if (!s) return null;
+    // [V3.3] 단일 정확 시각 형식이 아니면 즉시 null — 범위형/시간대 어휘는 미확정 처리.
+    if (!_isExactSingleTime(s)) return null;
     // 1) 한글 포맷 우선 — 본 파일의 기존 parseKmaTime 헬퍼 활용.
     try {
         const dt = parseKmaTime(s);
