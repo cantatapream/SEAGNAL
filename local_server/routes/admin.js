@@ -196,11 +196,27 @@ router.post('/api/admin/alerts-reset', (req, res) => {
 //   4. 부모 current/upcoming/history 는 손대지 않음 → 부모 푸시 시스템 무영향
 router.post('/api/admin/children-reset', (req, res) => {
     try {
-        const { testMode } = req.body || {};
+        const { testMode, windowHours } = req.body || {};
         const outputFile = getOutputFile(testMode);
         if (!fs.existsSync(outputFile)) {
             return res.status(404).json({ success: false, error: 'weather_alerts.json 없음' });
         }
+
+        // windowHours 검증: 0 ~ 72, 6 배수만 허용 (admin UI 드롭다운 값과 일치)
+        // 미지정 시 null → 평소 윈도우 (12h) 사용
+        let normalizedWindowHours = null;
+        if (windowHours !== undefined && windowHours !== null) {
+            const n = parseInt(windowHours, 10);
+            if (!isNaN(n) && n >= 0 && n <= 72 && n % 6 === 0) {
+                normalizedWindowHours = n;
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    error: 'windowHours 는 0~72 사이의 6 배수여야 합니다 (0, 6, 12, ..., 72)'
+                });
+            }
+        }
+
         const data = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
 
         // tree 재귀: zone leaf 의 children 만 null 로
@@ -232,15 +248,26 @@ router.post('/api/admin/children-reset', (req, res) => {
         }
         countLeaves(data.current);
 
+        // 1회용 윈도우 override 저장 — 다음 1분 사이클의 dispatchBulletinPublishPushes
+        // 가 우선 사용 후 즉시 null 로 reset.
+        if (normalizedWindowHours !== null) {
+            data.oneTimeBulletinWindowOverride = normalizedWindowHours;
+        }
+
         data.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
         fs.writeFileSync(outputFile, JSON.stringify(data, null, 2), 'utf8');
-        console.log(`[Admin] 자식 해역 장부 초기화 완료 — ${resetCount}개 zone leaf${testMode ? ' (테스트 모드)' : ''}`);
+
+        const windowLabel = normalizedWindowHours === null
+            ? '평소 12h'
+            : (normalizedWindowHours === 0 ? '0h (push 발송 안 함)' : `${normalizedWindowHours}h`);
+        console.log(`[Admin] 자식 해역 장부 초기화 완료 — ${resetCount}개 zone leaf, window=${windowLabel}${testMode ? ' (테스트 모드)' : ''}`);
         res.json({
             success: true,
             message: testMode
-                ? `테스트 자식 해역 장부가 초기화되었습니다 (${resetCount} zone). 다음 1분 사이클에 자동 재마킹됩니다.`
-                : `자식 해역 장부가 초기화되었습니다 (${resetCount} zone). 다음 1분 사이클에 자동 재마킹되며, 시간 필터(12h) 통과한 자식만 푸시 발송됩니다.`,
+                ? `테스트 자식 해역 장부가 초기화되었습니다 (${resetCount} zone, window=${windowLabel}). 다음 1분 사이클에 자동 재마킹됩니다.`
+                : `자식 해역 장부가 초기화되었습니다 (${resetCount} zone, window=${windowLabel}). 다음 1분 사이클에 자동 재마킹되며, 선택한 시간 윈도우 안의 자식만 관리자 푸시 발송됩니다.`,
             resetCount,
+            windowHours: normalizedWindowHours,
             testMode: !!testMode
         });
     } catch (e) {

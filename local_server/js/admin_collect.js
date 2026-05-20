@@ -185,7 +185,22 @@ async function renderATMStatus(container) {
                 <button onclick="renderATMStatus(document.getElementById('atm-content'))" style="padding:8px 16px;background:rgba(255,255,255,0.1);color:#94a3b8;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;">
                     <i class="fa-solid fa-refresh"></i> 새로고침
                 </button>
-                <button onclick="atmResetChildren()" title="부모 current/upcoming/history 보존, 자식 children 만 null 로 리셋. 다음 1분 사이클에 종합기상 텍스트로 재마킹되며 시간 필터(12h) 통과 자식만 푸시 발송." style="padding:8px 16px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
+                <select id="atm-children-window-hours" title="자식해역 리셋 후 푸시 발송 시간 필터 (1회용)" style="padding:8px 10px;background:rgba(15,23,42,0.6);color:#e2e8f0;border:1px solid rgba(255,255,255,0.15);border-radius:8px;cursor:pointer;font-size:0.85rem;">
+                    <option value="0">윈도우 0h (푸시 없음)</option>
+                    <option value="6">윈도우 6h</option>
+                    <option value="12" selected>윈도우 12h (기본)</option>
+                    <option value="18">윈도우 18h</option>
+                    <option value="24">윈도우 24h</option>
+                    <option value="30">윈도우 30h</option>
+                    <option value="36">윈도우 36h</option>
+                    <option value="42">윈도우 42h</option>
+                    <option value="48">윈도우 48h</option>
+                    <option value="54">윈도우 54h</option>
+                    <option value="60">윈도우 60h</option>
+                    <option value="66">윈도우 66h</option>
+                    <option value="72">윈도우 72h</option>
+                </select>
+                <button onclick="atmResetChildren()" title="부모 current/upcoming/history 보존, 자식 children 만 null 로 리셋. 다음 1분 사이클에 종합기상 텍스트로 재마킹되며 선택한 시간 윈도우 안 발표분만 푸시 발송." style="padding:8px 16px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
                     <i class="fa-solid fa-water"></i> 자식해역 리셋
                 </button>
             </div>
@@ -225,15 +240,21 @@ window.atmCrawlToggle = async function () {
 // 자식 children 만 null → 다음 1분 사이클에 종합기상 'Y' 재마킹 → V2 시간 필터 통과 자식 push 발송
 window.atmResetChildren = async function () {
     const testParams = getTestModeParams();
+    // 드롭다운 선택값 — 0 ~ 72, 6 배수. 미선택 시 12 기본.
+    const dropdown = document.getElementById('atm-children-window-hours');
+    const windowHours = dropdown ? parseInt(dropdown.value, 10) : 12;
+    const windowLabel = windowHours === 0
+        ? '0h (푸시 발송 없음 — 자식 리셋만 수행)'
+        : `${windowHours}h (최근 ${windowHours}시간 안 발표된 자식만 푸시)`;
     const confirmMsg = testParams.testMode
-        ? '테스트 자식 해역 장부를 초기화하시겠습니까?\n부모 데이터는 보존되며 자식 children 만 null 로 리셋됩니다.\n(관리자 테스트 모드: 사용자에게 영향 없음)'
-        : '자식 해역 장부만 초기화하시겠습니까?\n\n• 부모 current/upcoming/history 보존 → 부모 푸시 영향 없음\n• 자식 children 만 null 로 리셋\n• 다음 1분 사이클에 종합기상 텍스트로 자동 재마킹\n• 시간 필터(12h) 통과한 자식만 관리자 푸시 발송';
+        ? `테스트 자식 해역 장부를 초기화하시겠습니까?\n시간 윈도우: ${windowLabel}\n(관리자 테스트 모드: 사용자에게 영향 없음)`
+        : `자식 해역 장부만 초기화하시겠습니까?\n\n• 시간 윈도우: ${windowLabel}\n• 부모 current/upcoming/history 보존 → 부모 푸시 영향 없음\n• 자식 children 만 null 로 리셋\n• 다음 1분 사이클에 종합기상 텍스트로 자동 재마킹\n• 선택한 윈도우 안 발표분만 관리자 푸시 발송 (1회용)`;
     if (!confirm(confirmMsg)) return;
     try {
         const res = await fetch('/api/admin/children-reset', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(testParams)
+            body: JSON.stringify({ ...testParams, windowHours })
         });
         const data = await res.json();
         if (data.success === false) {

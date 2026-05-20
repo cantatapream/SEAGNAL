@@ -143,8 +143,14 @@ function createFullForm() {
         // 예: { "met:202604100900:73": { title, firstSeen, retryCount, lastRetry, lastNoticeSent } }
         pendingRetries: {},
         // [V2] 부트스트랩 플래그 제거 — 첫 부팅 폭주는 부모 통보문 tmFc 12h 시간 필터로 자동 차단.
-        //      디스크 stale 'Y' 케이스도 묵은 tmFc (>12h) 가 자연 skip.
-        //      (PUBLISH_TRIGGER_V2_SPEC.md "제거할 로직" — bulletinPushBootstrapDone 삭제)
+        // [자식 리셋 1회용 윈도우 override] admin 페이지의 "자식해역 리셋" 버튼이
+        //   드롭다운(0~72h, 6h 간격) 선택값을 여기에 임시 저장. 다음 1분 사이클의
+        //   dispatchBulletinPublishPushes 가 이 값을 우선 사용하고 즉시 null 로 reset.
+        //   평소 동작(새 발표 push)은 영구 12h 윈도우(PUBLISH_PUSH_WINDOW_HOURS) 그대로.
+        //     null : 평소 (12h 적용)
+        //     0    : 1회 push skip (자식 리셋 후 발송 없이)
+        //     6~72 : 1회 그 시간 안 발표분만 push
+        oneTimeBulletinWindowOverride: null,
         previous: createZoneStructure(),
         current: createZoneStructure()
     };
@@ -484,8 +490,10 @@ function _parseBulletinTimeToMs(s) {
  * @returns {string|null} skip 사유 키 또는 null(통과)
  *                        — R-U1 권고: 운영 디버깅용 breakdown 카운터 키.
  */
-function _publishCandidateRejectReason(parentMeta, nowMs) {
-    const cutoffMs = nowMs - PUBLISH_PUSH_WINDOW_HOURS * 3600 * 1000;
+function _publishCandidateRejectReason(parentMeta, nowMs, windowHours) {
+    const effectiveWindowHours = (typeof windowHours === 'number' && windowHours >= 0)
+        ? windowHours : PUBLISH_PUSH_WINDOW_HOURS;
+    const cutoffMs = nowMs - effectiveWindowHours * 3600 * 1000;
     const tmFcMs = _parseBulletinTimeToMs(parentMeta && parentMeta.tmFc);
     if (tmFcMs === null) return 'parseFailedFc';
     if (tmFcMs < cutoffMs) return 'staleTmFc';
@@ -598,7 +606,7 @@ function collectBulletinPublishCandidates(prevTree, currTree) {
  *   - flush() 1회.
  *   모든 오류는 흡수 — 크롤러 본체 흐름 무영향.
  */
-async function dispatchBulletinPublishPushes(prevTree, currTree) {
+async function dispatchBulletinPublishPushes(prevTree, currTree, windowHoursOverride) {
     try {
         const { candidates, releasedYToNull } = collectBulletinPublishCandidates(prevTree, currTree);
 
@@ -613,13 +621,22 @@ async function dispatchBulletinPublishPushes(prevTree, currTree) {
 
         if (candidates.length === 0) return;
 
+        // [V2 + 1회용 윈도우 override]
+        //   windowHoursOverride 인자는 admin "자식해역 리셋" 버튼이 드롭다운 선택값을
+        //   weather_alerts.json.oneTimeBulletinWindowOverride 로 저장하면 run() 이 이
+        //   함수 호출 시 한 번만 전달. 호출자가 다음 사이클부터는 null 전달 → 평소
+        //   PUBLISH_PUSH_WINDOW_HOURS (12) 적용.
+        //   override === 0 인 경우엔 모든 후보가 staleTmFc 로 차단되어 0건 발송 (의도된 동작).
+        const useOverride = typeof windowHoursOverride === 'number' && windowHoursOverride >= 0;
+        const effectiveWindowHours = useOverride ? windowHoursOverride : PUBLISH_PUSH_WINDOW_HOURS;
+
         // [V2] 시간 필터 — 부트스트랩 가드 / 100건 안전망 / corrupt reset 통합 대체.
         //      reject 사유별 breakdown 카운터로 운영 디버깅 가시성 확보 (R-U1 권고).
         const nowMs = Date.now();
         const passed = [];
         const rejectCounts = { staleTmFc: 0, pastTmEf: 0, parseFailedFc: 0 };
         for (const c of candidates) {
-            const reason = _publishCandidateRejectReason(c.parentMeta, nowMs);
+            const reason = _publishCandidateRejectReason(c.parentMeta, nowMs, effectiveWindowHours);
             if (reason === null) {
                 passed.push(c);
             } else {
@@ -629,10 +646,11 @@ async function dispatchBulletinPublishPushes(prevTree, currTree) {
         const totalRejected =
             rejectCounts.staleTmFc + rejectCounts.pastTmEf + rejectCounts.parseFailedFc;
         if (totalRejected > 0) {
+            const windowLabel = useOverride ? `${effectiveWindowHours}h (override)` : `${effectiveWindowHours}h`;
             console.log(
                 `[Crawler] bulletin publish 시간필터 차단: ${totalRejected}건 ` +
                 `(staleTmFc=${rejectCounts.staleTmFc} · pastTmEf=${rejectCounts.pastTmEf} · ` +
-                `parseFailedFc=${rejectCounts.parseFailedFc} / window=${PUBLISH_PUSH_WINDOW_HOURS}h)`
+                `parseFailedFc=${rejectCounts.parseFailedFc} / window=${windowLabel})`
             );
         }
         if (passed.length === 0) return;
@@ -717,6 +735,12 @@ async function run() {
                 pendingRetries: existing.pendingRetries || {},
                 // [V2] bulletinPushBootstrapDone 디스크 복원 제거 — 첫 부팅·재시작 폭주는
                 //      dispatchBulletinPublishPushes 의 12h 시간 필터로 자동 차단.
+                // [1회용 윈도우 override] admin "자식해역 리셋" 버튼이 저장한 값을 복원.
+                //   이번 사이클의 dispatch 가 사용 후 즉시 null 로 reset.
+                oneTimeBulletinWindowOverride:
+                    (typeof existing.oneTimeBulletinWindowOverride === 'number'
+                        && existing.oneTimeBulletinWindowOverride >= 0)
+                        ? existing.oneTimeBulletinWindowOverride : null,
                 previous: JSON.parse(JSON.stringify(existing.current || createZoneStructure())),
                 current: existing.current || createZoneStructure()
             };
@@ -760,7 +784,17 @@ async function run() {
         //   - 부모 푸시 / detectChanges / pushSender 동작 영향 없음 (별도 경로).
         //   - 실패 시 본체 무영향 (함수 내부 try-catch 흡수, 호출부 외부 try-catch 이중 격리).
         try {
-            await dispatchBulletinPublishPushes(fullForm.previous, fullForm.current);
+            // [1회용 윈도우 override] admin "자식해역 리셋" 버튼이 드롭다운 선택값을
+            //   fullForm.oneTimeBulletinWindowOverride 에 저장. 이 사이클에 사용 후 즉시 null reset.
+            //   override=0 → 모든 후보 staleTmFc 차단으로 0건 발송 (의도된 skip 모드).
+            const override = (typeof fullForm.oneTimeBulletinWindowOverride === 'number'
+                && fullForm.oneTimeBulletinWindowOverride >= 0)
+                ? fullForm.oneTimeBulletinWindowOverride : null;
+            if (override !== null) {
+                console.log(`[Crawler] bulletin publish 1회용 윈도우 override 적용: ${override}h`);
+                fullForm.oneTimeBulletinWindowOverride = null;  // 사용 후 즉시 reset (saveState 시 영속화)
+            }
+            await dispatchBulletinPublishPushes(fullForm.previous, fullForm.current, override);
         } catch (e) {
             console.error(`[Crawler] 자식 발표 push 처리 오류 (부모 흐름엔 영향 없음): ${e.message}`);
         }
