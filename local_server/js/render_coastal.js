@@ -558,9 +558,11 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
                     font-weight: 700;
                     font-size: 0.75rem;
                 `;
-                // 명칭 구성: 예비 단계이면 '풍랑 주의보 예정' 등
+                // 발효 전엔 '예비' 표시, 발효 후엔 자식 텍스트 등급(주의보/경보) 그대로.
+                // V3.2: "예정" 표기 폐지 — 발효 전은 통일하여 '예비' 라벨.
                 const isPrelim = alert.isPreliminary || (alert.rawTmEf && getKfTime() < alert.rawTmEf.replace(/[^0-9]/g, ''));
-                alertTitle.textContent = `● ${alert.warnType} ${alert.level}${isPrelim ? ' 예정' : ''}`;
+                const displayLevel = isPrelim ? '예비' : alert.level;
+                alertTitle.textContent = `● ${alert.warnType} ${displayLevel}`;
                 detailBox.appendChild(alertTitle);
             }
 
