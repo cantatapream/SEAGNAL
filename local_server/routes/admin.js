@@ -182,6 +182,99 @@ router.post('/api/admin/alerts-reset', (req, res) => {
     }
 });
 
+// 자식 해역 장부 초기화 (children 만 null, 부모 current/upcoming/history 보존)
+//
+// [용도]
+//   V2 종합기상 텍스트 기반 발표 푸시 검증용. 부모 푸시는 영향 없이 자식 단위만
+//   null 로 리셋 → 다음 1분 사이클에 종합기상 'Y' 마킹 재적용 → dispatchBulletinPublishPushes
+//   가 null→'Y' 전이로 감지 → 시간 필터(12h) 통과한 자식만 push 발송.
+//
+// [동작]
+//   1. weather_alerts.json 의 current 및 previous 트리를 재귀 순회
+//   2. zone leaf 노드 (current+children 필드 보유) 만 식별
+//   3. children 객체의 모든 키를 null 로 리셋 (key 자체는 유지)
+//   4. 부모 current/upcoming/history 는 손대지 않음 → 부모 푸시 시스템 무영향
+router.post('/api/admin/children-reset', (req, res) => {
+    try {
+        const { testMode, windowHours } = req.body || {};
+        const outputFile = getOutputFile(testMode);
+        if (!fs.existsSync(outputFile)) {
+            return res.status(404).json({ success: false, error: 'weather_alerts.json 없음' });
+        }
+
+        // windowHours 검증: 0 ~ 72, 6 배수만 허용 (admin UI 드롭다운 값과 일치)
+        // 미지정 시 null → 평소 윈도우 (12h) 사용
+        let normalizedWindowHours = null;
+        if (windowHours !== undefined && windowHours !== null) {
+            const n = parseInt(windowHours, 10);
+            if (!isNaN(n) && n >= 0 && n <= 72 && n % 6 === 0) {
+                normalizedWindowHours = n;
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    error: 'windowHours 는 0~72 사이의 6 배수여야 합니다 (0, 6, 12, ..., 72)'
+                });
+            }
+        }
+
+        const data = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+
+        // tree 재귀: zone leaf 의 children 만 null 로
+        function resetChildrenInTree(node) {
+            if (!node || typeof node !== 'object') return;
+            const isZoneLeaf = Object.prototype.hasOwnProperty.call(node, 'current')
+                && Object.prototype.hasOwnProperty.call(node, 'children')
+                && node.children && typeof node.children === 'object';
+            if (isZoneLeaf) {
+                for (const k of Object.keys(node.children)) {
+                    node.children[k] = null;
+                }
+            }
+            for (const v of Object.values(node)) {
+                if (v && typeof v === 'object' && !Array.isArray(v)) resetChildrenInTree(v);
+            }
+        }
+
+        let resetCount = 0;
+        if (data.current) resetChildrenInTree(data.current);
+        if (data.previous) resetChildrenInTree(data.previous);
+        // 디버그: 리셋된 leaf 수 카운트 (정보성)
+        function countLeaves(node) {
+            if (!node || typeof node !== 'object') return;
+            if (Object.prototype.hasOwnProperty.call(node, 'children') && node.children) resetCount++;
+            for (const v of Object.values(node)) {
+                if (v && typeof v === 'object' && !Array.isArray(v)) countLeaves(v);
+            }
+        }
+        countLeaves(data.current);
+
+        // 1회용 윈도우 override 저장 — 다음 1분 사이클의 dispatchBulletinPublishPushes
+        // 가 우선 사용 후 즉시 null 로 reset.
+        if (normalizedWindowHours !== null) {
+            data.oneTimeBulletinWindowOverride = normalizedWindowHours;
+        }
+
+        data.updatedAt = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+        fs.writeFileSync(outputFile, JSON.stringify(data, null, 2), 'utf8');
+
+        const windowLabel = normalizedWindowHours === null
+            ? '평소 12h'
+            : (normalizedWindowHours === 0 ? '0h (push 발송 안 함)' : `${normalizedWindowHours}h`);
+        console.log(`[Admin] 자식 해역 장부 초기화 완료 — ${resetCount}개 zone leaf, window=${windowLabel}${testMode ? ' (테스트 모드)' : ''}`);
+        res.json({
+            success: true,
+            message: testMode
+                ? `테스트 자식 해역 장부가 초기화되었습니다 (${resetCount} zone, window=${windowLabel}). 다음 1분 사이클에 자동 재마킹됩니다.`
+                : `자식 해역 장부가 초기화되었습니다 (${resetCount} zone, window=${windowLabel}). 다음 1분 사이클에 자동 재마킹되며, 선택한 시간 윈도우 안의 자식만 관리자 푸시 발송됩니다.`,
+            resetCount,
+            windowHours: normalizedWindowHours,
+            testMode: !!testMode
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 // ============================================================================
 // 통보문 수집 (날짜별 목록 조회 + 단일/일괄 수집)
 // ============================================================================

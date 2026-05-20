@@ -170,13 +170,39 @@ function _childKey(parentZone, childName) {
     return `${parentZone || ''}|${childName || ''}`;
 }
 
-/** 중복 방지 키. */
+/** 중복 방지 키.
+ *
+ * [발표(publish) 계열은 tmEf 를 dedup 키에서 제외]
+ *   기존: childKey|wrnTpNm|wrnLvlNm|tmEf|eventType
+ *   변경: publish / level_upgrade_publish / level_downgrade_publish 의 경우
+ *         tmEf 부분을 '' 로 고정.
+ *
+ *   이유:
+ *     - 종합기상(weather.go.kr "특정관리해역" 텍스트) 트리거는 "예비" 단계라
+ *       tmEf 가 미상('') 으로 들어온다.
+ *     - 같은 자식을 dmdw FC 가 후속 정식 발표(tmEf 명시) 로 잡아도 같은 dedup
+ *       키로 묶여 자연 차단된다 — 운영자가 두 번 받지 않음.
+ *     - 정책 표 (PUBLISH_TRIGGER_SPEC.md): "이미 발표 푸시 보낸 자식의 dmdw 정식
+ *       발표는 추가 푸시 없음. 단 시각 정보만 정확해짐". 정확해진 시각은
+ *       발효(active) 푸시에서 별도 안내된다.
+ *
+ *   active / release / level_*_active 는 종전과 동일 — tmEf 포함하여
+ *   시점 단위 별개 이벤트로 인지 (한 자식의 여러 발효 시각은 별개 푸시).
+ *
+ *   [회귀 노트] dmdw_warn_crawler.js 의 "tmEf 변경 재안내" publish 분기
+ *   (같은 자식·같은 등급에서 tmEf 만 바뀐 케이스) 는 본 변경 이후 dedup
+ *   적중으로 silent skip 된다. 사용자 의도 "단계별 푸시 1회씩" 에 부합하므로
+ *   의도된 동작으로 수용 — 재안내된 정확한 시각은 후속 active 푸시가 안내.
+ */
 function _dedupKey(ev) {
+    const isPublishKind = ev.eventType === 'publish'
+        || ev.eventType === 'level_upgrade_publish'
+        || ev.eventType === 'level_downgrade_publish';
     return [
         _childKey(ev.parentZone, ev.childName),
         ev.wrnTpNm || ev.wrnTp || '',
         ev.wrnLvlNm || ev.wrnLvl || '',
-        ev.tmEf || '',
+        isPublishKind ? '' : (ev.tmEf || ''),
         ev.eventType || ''
     ].join('|');
 }
@@ -329,6 +355,9 @@ function buildParentLine(parentZone, childNames, eventType, tmEf) {
         || eventType === 'level_upgrade_publish'
         || eventType === 'level_downgrade_publish';
     if (isPublish) {
+        // tmEf 가 비어있으면 (종합기상 텍스트 트리거 — 예비 단계, 발효 시각 미정)
+        // "발효예정" 줄을 생략. 정확한 시각은 후속 발효(active) 푸시에서 안내.
+        if (!tmEf) return head;
         return `${head}\n   - 발효예정 : ${fmtTime(tmEf)}`;
     }
     return head;
@@ -495,6 +524,37 @@ function enqueuePublish(cycleId, parentZone, childName, child) {
 }
 
 /**
+ * 편의 함수: 종합기상(weather.go.kr "특정관리해역" 텍스트) 트리거 발표 적재.
+ *
+ *   사양 (PUBLISH_TRIGGER_SPEC.md):
+ *     - 종합기상 텍스트는 "예비" 단계부터 자식 이름을 노출 (dmdw 는 미수록).
+ *     - 직전 사이클의 children('Y'/null) 상태와 diff 하여 null→'Y' 전이 시 발표 푸시.
+ *     - 부모 통보문의 wrnTp/wrnLvl 을 자식이 상속 (자식 정밀 정보 없음).
+ *     - tmEf 알 수 없음 → '' 로 적재.
+ *     - _dedupKey 가 publish 계열에서 tmEf 를 무시하므로 dmdw FC 후속 발표와 자연 dedup.
+ *     - buildParentLine 이 tmEf 빈 값일 때 "발효예정" 줄 자동 생략.
+ *     - enqueuePublish 의 tmFc>=tmEf 거부 가드는 efD 빈 값이면 자연 skip (기존 동작).
+ *
+ *   info 구조:
+ *     {
+ *       wrnTp, wrnTpNm,    // 부모 상속 (예: '풍랑')
+ *       wrnLvl, wrnLvlNm,  // 부모 상속 ('주의보' — 호출자가 '예비'→'주의보' 정규화)
+ *       tmFc               // 부모 통보문 발표 시각 — 옵션 (로그·디버그용)
+ *     }
+ */
+function enqueuePublishFromBulletin(cycleId, parentZone, childName, info) {
+    return enqueue({
+        cycleId,
+        eventType: 'publish',
+        parentZone, childName,
+        wrnTp: info.wrnTp, wrnTpNm: info.wrnTpNm,
+        wrnLvl: info.wrnLvl, wrnLvlNm: info.wrnLvlNm,
+        tmFc: info.tmFc || '',
+        tmEf: ''   // 종합기상 텍스트엔 발효 시각 정보 없음 — 명시적 빈 문자열
+    });
+}
+
+/**
  * 편의 함수: 자식 발효 이벤트 적재 (EF 응답에 새 자식 잡힌 경우).
  */
 function enqueueActive(cycleId, parentZone, childName, child) {
@@ -650,6 +710,7 @@ module.exports = {
     // 적재 API
     enqueue,
     enqueuePublish,
+    enqueuePublishFromBulletin,
     enqueueActive,
     enqueueRelease,
     enqueueLevelChange,

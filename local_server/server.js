@@ -111,17 +111,79 @@ try {
 // [/uploads — 사전 압축 제외]
 //   업로드는 사용자 동적 파일이라 빌드 시 압축 대상이 아니다. 따라서
 //   기존 express.static + compression() 으로 실시간 응답 / 압축 유지.
+//
+// [hotfix — 사전 압축본 응답 활성화 (lazy rebind)]
+//   원인 진단: express-static-gzip 은 미들웨어 생성 시점(=서버 부팅 시점)
+//   에 root 디렉토리를 1회 스캔하여 .br/.gz 파일 목록을 메모리 캐시에
+//   담아 둔다. 그 후엔 캐시에 없는 파일은 절대 압축본으로 응답하지 않는다.
+//   본 프로젝트는 build-gzip.js 를 Dockerfile 빌드 단계가 아닌 런타임
+//   app.listen() 직후 spawn 으로 비동기 실행하므로, 미들웨어가 생성될
+//   때는 .br/.gz 파일이 존재하지 않아 캐시가 빈 채로 굳어 버린다.
+//   → 5순위 작업의 사전 압축본은 디스크에 정상 생성되지만 미들웨어가
+//      메모리 캐시 기준으로만 매칭하므로 응답에 단 한 번도 적용되지 않음.
+//   해결: 미들웨어 인스턴스를 변경 가능한 reference 로 감싼 wrapper 를
+//        라우터에 등록한다. build-gzip 자식 프로세스 종료 시 reload()
+//        를 호출해 미들웨어를 새로 만들어 reference 만 교체 — 라우터
+//        스택 구조는 그대로 유지되므로 다른 라우트 / 미들웨어에 영향 0.
+//
+// [orderPreference: 'gzip']
+//   express-static-gzip 내부에서 gzip 의 encodingName 은 표준값 'gzip'
+//   으로 등록된다 (fileExtension 은 'gz'). preference 도 동일 표준값
+//   을 써야 매칭된다. 과거 'gz' 는 indexOf 매칭 실패로 우선순위 영향
+//   이 없어졌고, 결과적으로 brotli 만 우선 동작했었다 (gzip 클라이언트
+//   는 무의미한 fallback 경로로 흘러갔음).
 // ============================================================================
 const STATIC_GZIP_OPTS = {
     enableBrotli: true,
-    orderPreference: ['br', 'gz'],          // brotli 우선, 없으면 gzip
+    orderPreference: ['br', 'gzip'],        // brotli 우선, 없으면 gzip (표준 encodingName)
     index: false                            // 동적 GET / 우선 보장
 };
 
-app.use(expressStaticGzip(staticRoot, STATIC_GZIP_OPTS));
-app.use(expressStaticGzip(path.join(staticRoot, 'assets'), STATIC_GZIP_OPTS));
-app.use('/images', expressStaticGzip(path.join(staticRoot, 'images'), STATIC_GZIP_OPTS));
-app.use('/tide_data', expressStaticGzip(path.join(staticRoot, 'tide_data'), STATIC_GZIP_OPTS));
+/**
+ * Lazy-rebindable expressStaticGzip wrapper.
+ * 라우터 스택에는 동일한 wrapper 함수 1개가 등록되어 절대 자리를 옮기지 않는다.
+ * 내부 reference (`active`) 만 갈아끼우는 방식으로 캐시를 통째로 갱신한다.
+ *
+ * @param {string} root         정적 자원 루트 디렉토리
+ * @param {object} opts         expressStaticGzip 옵션
+ * @returns {{handler: Function, reload: Function}}
+ */
+function createLazyStaticGzip(root, opts) {
+    let active = expressStaticGzip(root, opts);
+    const handler = function lazyStaticGzipHandler(req, res, next) {
+        return active(req, res, next);
+    };
+    const reload = function reloadStaticGzipCache() {
+        try {
+            active = expressStaticGzip(root, opts);
+        } catch (e) {
+            console.error(`[static-gzip] reload 실패 (${root}):`, e && e.message);
+        }
+    };
+    return { handler, reload };
+}
+
+const _staticRootGzip   = createLazyStaticGzip(staticRoot,                              STATIC_GZIP_OPTS);
+const _assetsGzip       = createLazyStaticGzip(path.join(staticRoot, 'assets'),         STATIC_GZIP_OPTS);
+const _imagesGzip       = createLazyStaticGzip(path.join(staticRoot, 'images'),         STATIC_GZIP_OPTS);
+const _tideDataGzip     = createLazyStaticGzip(path.join(staticRoot, 'tide_data'),      STATIC_GZIP_OPTS);
+
+app.use(_staticRootGzip.handler);
+app.use(_assetsGzip.handler);
+app.use('/images', _imagesGzip.handler);
+app.use('/tide_data', _tideDataGzip.handler);
+
+/**
+ * build-gzip 자식 프로세스 종료 시 호출 — 디스크에 새로 생성된 .br/.gz 파일을
+ * 미들웨어 메모리 캐시에 반영하기 위해 4개 인스턴스를 모두 재생성한다.
+ */
+function reloadAllStaticGzipMiddlewares() {
+    _staticRootGzip.reload();
+    _assetsGzip.reload();
+    _imagesGzip.reload();
+    _tideDataGzip.reload();
+    console.log('[static-gzip] 사전 압축 파일 캐시를 갱신했습니다 (4 mounts).');
+}
 
 // /uploads — 동적 업로드 파일은 사전 압축 대상이 아니므로 그대로 express.static.
 // compression() 필터(/assets·/js·/css·/images·/tide_data 만 제외)에는 포함되어
@@ -308,6 +370,16 @@ app.listen(PORT, '0.0.0.0', () => {
                     console.error(`[build-gzip] 자식 프로세스 비정상 종료 (code=${code})`);
                 }
                 _buildGzipChild = null;
+                // [hotfix] build-gzip 가 새로 만든 .br/.gz 파일을 미들웨어 메모리
+                // 캐시에 반영. 부팅 시점엔 캐시가 비어 사전 압축본이 응답되지 않
+                // 았으나, 본 호출 이후부턴 정상적으로 .br/.gz 가 송출된다.
+                // signal 종료(SIGTERM) 의 경우엔 builder 가 도중에 죽었을 수 있으나
+                // 부분 결과라도 캐시에 반영하는 것이 안전 (없는 파일은 fallthrough).
+                try {
+                    reloadAllStaticGzipMiddlewares();
+                } catch (e) {
+                    console.error('[static-gzip] reload 호출 실패:', e && e.message);
+                }
             });
             _buildGzipChild.on('error', (err) => {
                 console.error('[build-gzip] spawn 오류:', err && err.message);

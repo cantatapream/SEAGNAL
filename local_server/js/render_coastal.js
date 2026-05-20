@@ -516,12 +516,34 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
             return formatted ? formatted.replace(/\d{4}년\s*/g, '').replace(/^\d+월\s*/, '').replace(/\s\d+월\s*/, ' ') : formatted;
         };
 
+        // [V3.1] 정확한 단일 시각 판정 — data.js 의 동명 헬퍼 폴백.
+        //   범위형 ('(' 또는 '~' 포함) / 한글 시간대 단독 / 빈 값 → false.
+        //   자식 카드 발효시각 줄 표시 여부에만 사용 (부모 카드 영향 없음).
+        const isExactSingleTime = (typeof _isExactSingleTime === 'function')
+            ? _isExactSingleTime
+            : function (s) {
+                if (s === null || s === undefined) return false;
+                const str = String(s).trim();
+                if (!str) return false;
+                if (str.indexOf('(') !== -1 || str.indexOf('~') !== -1) return false;
+                if (/(오전|오후|새벽|밤|저녁|아침)/.test(str)) return false;
+                if (/\d{4}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일\s*\d{1,2}\s*시\s*\d{1,2}\s*분/.test(str)) return true;
+                if (/\d{4}\.\d{1,2}\.\d{1,2}\.\d{1,2}:\d{1,2}/.test(str)) return true;
+                return str.replace(/[^0-9]/g, '').length === 12;
+            };
+
         uniqueCoastalAlerts.forEach((alert, index) => {
-            const tmFcFormatted = stripYearMonth(alert.tmFc);
-            const tmEfFormatted = stripYearMonth(alert.tmEf);
-            let tmEdFormatted = '정보 없음';
+            // [V3] 빈 시각 값은 빈 문자열 반환 → 줄 자체를 미표시 (자식이 종합기상
+            //   텍스트 출처만일 때 tmEf/tmCc/tmEd 가 빈 값이므로 정보 노이즈 제거).
+            // [V3.1] 자식(isCoastal) 의 tmEf 가 범위형/시간대 표기면 빈 문자열 처리
+            //   → 발효시각 줄 미표시 (V3 빈 값 분기 활용). 부모 카드는 변경 없음.
+            const hasValue = v => !!(v && String(v).trim().length > 0);
+            const tmFcFormatted = hasValue(alert.tmFc) ? stripYearMonth(alert.tmFc) : '';
+            const tmEfDisplayable = hasValue(alert.tmEf) && (alert.isCoastal === true ? isExactSingleTime(alert.tmEf) : true);
+            const tmEfFormatted = tmEfDisplayable ? stripYearMonth(alert.tmEf) : '';
+            let tmEdFormatted = '';
             const releaseVal = alert.tmCc || alert.tmEd || '';
-            if (releaseVal && releaseVal.trim().length > 2 && (!alert.isPreliminary || alert.tmCcExplicit)) {
+            if (hasValue(releaseVal) && releaseVal.trim().length > 2 && (!alert.isPreliminary || alert.tmCcExplicit)) {
                 tmEdFormatted = stripYearMonth(releaseVal);
             }
 
@@ -536,9 +558,11 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
                     font-weight: 700;
                     font-size: 0.75rem;
                 `;
-                // 명칭 구성: 예비 단계이면 '풍랑 주의보 예정' 등
+                // 발효 전엔 '예비' 표시, 발효 후엔 자식 텍스트 등급(주의보/경보) 그대로.
+                // V3.2: "예정" 표기 폐지 — 발효 전은 통일하여 '예비' 라벨.
                 const isPrelim = alert.isPreliminary || (alert.rawTmEf && getKfTime() < alert.rawTmEf.replace(/[^0-9]/g, ''));
-                alertTitle.textContent = `● ${alert.warnType} ${alert.level}${isPrelim ? ' 예정' : ''}`;
+                const displayLevel = isPrelim ? '예비' : alert.level;
+                alertTitle.textContent = `● ${alert.warnType} ${displayLevel}`;
                 detailBox.appendChild(alertTitle);
             }
 
@@ -549,18 +573,20 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
                     <span style="color: ${color || '#e6edf3'}; font-weight: 500;">${value}</span>
                 </div>`;
 
-            const infoHtml =
-                createRow('발표시각', tmFcFormatted) +
-                createRow('발효시각', tmEfFormatted) +
-                createRow('해제예정', tmEdFormatted, '#69f0ae'); // 무조건 초록색
+            // [V3] 빈 값 줄은 미표시. 3줄 모두 빈 값이면 정보 영역 자체를 추가하지 않음.
+            let infoHtml = '';
+            if (tmFcFormatted) infoHtml += createRow('발표시각', tmFcFormatted);
+            if (tmEfFormatted) infoHtml += createRow('발효시각', tmEfFormatted);
+            if (tmEdFormatted) infoHtml += createRow('해제예정', tmEdFormatted, '#69f0ae');
 
-            const infoContainer = document.createElement('div');
-            infoContainer.innerHTML = infoHtml;
-            // 마지막 요소가 아니면 마진
-            if (index < uniqueCoastalAlerts.length - 1) {
-                infoContainer.style.marginBottom = '10px';
+            if (infoHtml) {
+                const infoContainer = document.createElement('div');
+                infoContainer.innerHTML = infoHtml;
+                if (index < uniqueCoastalAlerts.length - 1) {
+                    infoContainer.style.marginBottom = '10px';
+                }
+                detailBox.appendChild(infoContainer);
             }
-            detailBox.appendChild(infoContainer);
         });
 
         item.appendChild(detailBox);
