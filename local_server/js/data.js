@@ -204,6 +204,33 @@ function flattenAlertsData(rootData) {
 }
 
 /**
+ * [V3.1] 정확한 단일 시각 판정 헬퍼.
+ *   - 빈 값 → false
+ *   - 범위형 ('(' 또는 '~' 포함, "오전(06시~12시)" 등) → false
+ *   - 한글 시간대(오전/오후/새벽/밤/저녁/아침) 단독 표기 → false (정확 시각 미상)
+ *   - 정확 단일 시각: "YYYY년 MM월 DD일 HH시 mm분" / "YYYY.MM.DD.HH:mm"
+ *     또는 12자리(YYYYMMDDHHmm) 숫자 → true
+ *   자식(isCoastal) 의 발효 여부 보수 판정에 사용 — 범위형 tmEf 는 '아직 발효 안 함'.
+ */
+function _isExactSingleTime(s) {
+    if (s === null || s === undefined) return false;
+    const str = String(s).trim();
+    if (!str) return false;
+    // 범위형 표기 — '(' 또는 '~' 포함 시 범위.
+    if (str.indexOf('(') !== -1 || str.indexOf('~') !== -1) return false;
+    // 한글 시간대 표기 — 정확 시각 미상.
+    if (/(오전|오후|새벽|밤|저녁|아침)/.test(str)) return false;
+    // 정확 포맷 1: "YYYY년 MM월 DD일 HH시 mm분"
+    if (/\d{4}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일\s*\d{1,2}\s*시\s*\d{1,2}\s*분/.test(str)) return true;
+    // 정확 포맷 2: "YYYY.MM.DD.HH:mm" (구분자 일부 변형 허용).
+    if (/\d{4}\.\d{1,2}\.\d{1,2}\.\d{1,2}:\d{1,2}/.test(str)) return true;
+    // 정확 포맷 3: 12자리 digits.
+    const digits = str.replace(/[^0-9]/g, '');
+    if (digits.length === 12) return true;
+    return false;
+}
+
+/**
  * 단일 특보 객체를 처리하고 연안바다 정보를 매핑
  */
 function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenObj, coastalMap, history) {
@@ -331,7 +358,21 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
 
                 const isFromBulletinOnly = status.source === 'BULLETIN_TEXT'
                     || (!status.tmEf && !status.tmCc && !status.tmEd);
-                const isPrelim = level === '예비' || isFromBulletinOnly;
+                // [V3.1] 자식 발효 여부 보수 판정:
+                //   - tmEf 가 정확한 단일 시각이 아니면 (범위형/한글시간대/빈값) 발효 전.
+                //   - tmEf 가 정확하지만 미래면 발효 전.
+                //   기존 (level==='예비' 또는 출처 단독) 조건과 OR 결합.
+                let childEfNotYet = false;
+                const childRawTmEf = status.tmEf || '';
+                if (!_isExactSingleTime(childRawTmEf)) {
+                    childEfNotYet = true;
+                } else {
+                    const childEfDigits = childRawTmEf.replace(/[^0-9]/g, '').substring(0, 12);
+                    if (childEfDigits.length === 12 && now < childEfDigits) {
+                        childEfNotYet = true;
+                    }
+                }
+                const isPrelim = level === '예비' || isFromBulletinOnly || childEfNotYet;
 
                 coastalMap[childName].push({
                     ...alertItem,                              // 기본 메타(zoneName 등) 상속
