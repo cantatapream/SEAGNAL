@@ -1507,11 +1507,16 @@ async function run() {
                     } else if (prev.tmEf !== curr.tmEf) {
                         // 등급은 같지만 tmEf 가 바뀐 발표 — 발효 시각 재안내 의도였음.
                         //
-                        // [회귀 주의 — silent 무력화] dmdw_push_sender._dedupKey 가 publish 계열에서
-                        //   tmEf 를 제외하도록 변경됨에 따라, 본 enqueue 호출은 이미 발송된
+                        // [V2 silent 정책 — PUBLISH_TRIGGER_V2_SPEC.md "유지할 로직"]
+                        //   dmdw_push_sender._dedupKey 가 publish 계열에서 tmEf 부분을 ''
+                        //   고정 처리하도록 변경됨에 따라, 본 enqueue 호출은 이미 발송된
                         //   (parent|child|wrnTpNm|wrnLvlNm||publish) 키와 충돌하여 자연 dedup.
-                        //   사용자 의도 "단계별 푸시 1회씩" 에 부합하므로 의도된 silent 동작.
-                        //   정확해진 시각은 후속 active 푸시(tmEf 포함, 별개 dedup) 가 안내 → 운영자 알림 누락 없음.
+                        //
+                        //   사용자 의도 ("같은 자식에 대해서 발표/발효/해제 단계가 변할 때 푸시 1회씩")
+                        //   에 부합하므로 의도된 silent 동작. 재안내는 부수적이며, 정확해진 시각은
+                        //   후속 active 푸시(tmEf 포함, 별개 dedup) 에서 별도 안내된다 →
+                        //   운영자가 받는 알림에 시각 정보 누락 없음.
+                        //
                         //   호출 자체는 유지 — 백필·정기 양쪽 코드 경로 일관성 + sentKeys 마커 갱신
                         //   + 로그 가시성 + 향후 정책 변경 시 복원 용이.
                         dmdwPushSender.enqueuePublish(pushCycleId, curr.parentZone, childRawName, curr);
