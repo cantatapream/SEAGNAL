@@ -114,6 +114,35 @@
      * @param {boolean} isSelected - true 면 선택 강조 (노란 테두리)
      * @returns {ol.style.Style}
      */
+    // [S13-B 추가] _holedGeometry (GeoJSON) → ol.geom (EPSG:3857) lazy 변환·캐시
+    //   build_warn_zones_holed.js 가 warn_zones.geojson 각 부모 feature 의
+    //   properties._holedGeometry 에 "자식 영역을 도려낸" polygon (EPSG:4326 GeoJSON)
+    //   을 미리 계산해 저장. 클라이언트는 첫 사용 시 ol.format.GeoJSON 으로 변환해
+    //   feature 에 캐시. 두 번째 사용부터는 메모리에서 즉시 사용.
+    //
+    //   적용 대상: 메인(부모) feature 의 활성 fill 만. stroke·text 는 원본 geometry 그대로.
+    //   결과: 자식 영역엔 부모 fill 안 칠해짐 → 자식 fill 과 겹쳐 색 짙어지는 현상 해소.
+    var _geojsonFormat = null;
+    function _getHoledOlGeom(feature) {
+        if (!feature) return null;
+        var cached = feature.get('_holedOlGeom');
+        if (cached) return cached;
+        var holed = feature.get('_holedGeometry');
+        if (!holed) return null;
+        try {
+            if (!_geojsonFormat) _geojsonFormat = new ol.format.GeoJSON();
+            var olGeom = _geojsonFormat.readGeometry(holed, {
+                featureProjection: 'EPSG:3857',
+                dataProjection: 'EPSG:4326'
+            });
+            feature.set('_holedOlGeom', olGeom);
+            return olGeom;
+        } catch (e) {
+            // 변환 실패 시 원본 geometry 로 fallback (사용자 명세 6 위반 안 됨)
+            return null;
+        }
+    }
+
     function _coloredStyle(info, kind, feature, isSelected) {
         var palette = ns._const.ALERT_COLORS[info.paletteKey];
         if (!palette) return null;
@@ -152,26 +181,41 @@
             : baseRgba;
         var fill = new ol.style.Fill({ color: fillColorOrPattern });
 
-        var style = new ol.style.Style({ stroke: stroke, fill: fill });
+        // [S13-B] 메인(부모) feature 의 fill 만 _holedGeometry 적용 (있을 때),
+        //   stroke·text 는 원본 geometry. 자식 영역에 부모 fill 이 안 칠해져
+        //   자식 fill 과 겹쳐 색이 짙어지는 현상 해소.
+        //   자식(sub) feature 는 holed 적용 대상 아님 (자식 자체가 차감 대상).
+        var holedGeom = (kind === 'main') ? _getHoledOlGeom(feature) : null;
+
+        var styles;
+        if (holedGeom) {
+            // fill 전용 Style (geometry = holed) + stroke·text 전용 Style (원본 geometry)
+            var fillStyle = new ol.style.Style({
+                fill: fill,
+                geometry: holedGeom
+            });
+            var strokeStyle = new ol.style.Style({ stroke: stroke });
+            styles = [fillStyle, strokeStyle];
+        } else {
+            // 자식 영역 없는 부모 또는 자식(sub) feature → 단일 Style 로 fill+stroke
+            styles = [new ol.style.Style({ stroke: stroke, fill: fill })];
+        }
 
         // 선택된 zone 은 같은 layer 안에서 최상단으로 그려지도록 zIndex 1000 부여.
         // [이유] 인접 zone 의 stroke 가 일부 구간에서 선택 테두리를 덮는 현상 방지.
         //        OL Style.zIndex 는 같은 layer 내 렌더 순서를 결정 (높을수록 위).
-        // [한계] 메인 layer(zIndex 80) 와 자식 layer(zIndex 81) 사이의 cross-layer
-        //        순위는 layer 자체 zIndex 가 결정. 선택된 zone 은 자식 sub feature
-        //        도 함께 노란 테두리이므로(_styler 가 isSelected 동일하게 적용),
-        //        결과적으로 zone 영역 전체 외곽이 노란 테두리로 또렷이 보임.
         if (isSelected) {
-            style.setZIndex(1000);
+            for (var i = 0; i < styles.length; i++) styles[i].setZIndex(1000);
         }
 
         // 메인 feature 만 라벨 부여 (기존 _zoneStyle 의 라벨 위치/폰트 유지)
+        // 라벨은 stroke 와 같은 (원본) geometry 에 부착 — 항상 마지막 Style 에 추가.
         if (kind === 'main' && feature) {
             // ocean_warn_zone.js 의 _normalizeZoneName 과 동일 규칙
             var name = ((feature.get('name') || '') + '')
                 .replace(/\./g, '·')
                 .replace(/\s+/g, '');
-            style.setText(new ol.style.Text({
+            styles[styles.length - 1].setText(new ol.style.Text({
                 text: name,
                 font: 'bold 11px "Pretendard", sans-serif',
                 fill: new ol.style.Fill({ color: '#ffffff' }),
@@ -183,7 +227,8 @@
         // 자식(sub) feature 의 라벨은 _styler 가 _subLabelOnlyStyle 로 분기해 처리.
         // 여기까지 'sub' kind 가 도달하지 않으므로 별도 분기 불필요.
 
-        return style;
+        // 단일 Style 이면 그 객체, 두 개면 배열 반환 (OL 둘 다 지원)
+        return styles.length === 1 ? styles[0] : styles;
     }
 
     /**
