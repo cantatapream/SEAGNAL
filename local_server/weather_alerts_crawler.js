@@ -13,6 +13,11 @@ const fs = require('fs');
 const path = require('path');
 const pushSender = require('./push_sender');
 const reportProcessor = require('./report_alert_processor');
+// 자식 해역 발표 푸시 — 종합기상 텍스트 기반 트리거.
+//   weather.go.kr "특정관리해역" 텍스트의 자식 'Y' 마킹 변화(null→'Y') 감지 시
+//   부모 통보문 wrnTp/wrnLvl 상속하여 발표 푸시 발송. dmdw 가 미수록하는
+//   "예비" 단계까지 포괄. dmdw FC 정식 발표는 자연 dedup 으로 중복 차단.
+const dmdwPushSender = require('./services/dmdw_push_sender');
 
 const CONFIG = {
     URL: 'https://www.weather.go.kr/w/wnuri-fct2021/weather/warning.do',
@@ -137,6 +142,9 @@ function createFullForm() {
         // 빈 통보문 재시도 대기 목록 (report_alert_processor.js가 관리)
         // 예: { "met:202604100900:73": { title, firstSeen, retryCount, lastRetry, lastNoticeSent } }
         pendingRetries: {},
+        // [V2] 부트스트랩 플래그 제거 — 첫 부팅 폭주는 부모 통보문 tmFc 12h 시간 필터로 자동 차단.
+        //      디스크 stale 'Y' 케이스도 묵은 tmFc (>12h) 가 자연 skip.
+        //      (PUBLISH_TRIGGER_V2_SPEC.md "제거할 로직" — bulletinPushBootstrapDone 삭제)
         previous: createZoneStructure(),
         current: createZoneStructure()
     };
@@ -387,6 +395,300 @@ function detectChanges(previous, current) {
 }
 
 // ============================================================================
+// 종합기상 텍스트 기반 자식 발표 푸시 트리거
+// ============================================================================
+//
+// 배경:
+//   - dmdw API 는 "정식 발표(tmEf 명시)" 또는 "발효" 단계만 등록. "예비" 단계 미수록.
+//   - weather.go.kr 종합기상 "특정관리해역" 텍스트는 "예비" 단계부터 자식 명 기록.
+//   - parseChildWarnings + mapDataToForm 가 obj.children[name] = 'Y' | null 마킹.
+//   - 따라서 종합기상의 children null→'Y' 전이를 보면 "예비/발표" 자식 발표를
+//     dmdw 보다 빨리 감지 가능 → 발표 푸시 트리거.
+//
+// 정책 (PUBLISH_TRIGGER_V2_SPEC.md 표 — V2 단순화):
+//   | 시점        | 데이터 변화                          | 푸시                      |
+//   | 예비 발표   | 종합기상 텍스트 자식 신규 'Y'        | 📢 발표 (발효시각 미포함) |
+//   | 정식 발표   | dmdw FC 신규 자식 등장               | ❌ 추가 푸시 없음 (이미 발표 푸시 보냄) |
+//   | 발효 시각   | dmdw EF 신규 자식 등장               | 🚨 발효 (정확한 tmEf)     |
+//   | EF 사라짐   | 자식 release                         | ✅ 해제                   |
+//
+// 중복 dedup:
+//   - dmdw_push_sender._dedupKey 가 publish 계열에서 tmEf 를 제외하도록 변경됨.
+//   - 결과: 종합기상에서 보낸 (parent|child|wrnTpNm|wrnLvlNm||publish) 와
+//          dmdw FC 가 enqueuePublish(tmEf=...) 으로 호출한 키가 같은 dedup 키로 결합되어
+//          dmdw FC publish 가 자연 차단됨 (운영자가 두 번 받지 않음).
+//
+// V2 — 시간 필터 단독 (부트스트랩 가드 / 안전망 / corrupt reset 모두 통합 대체):
+//   - 발표 푸시 조건 (모두 충족):
+//       1) children[자식] 가 null → 'Y' 신규 전이 (기존 그대로)
+//       2) 부모 통보문 tmFc 가 (현재 - PUBLISH_PUSH_WINDOW_HOURS) 이내 — 묵은 통보문 차단
+//       3) 부모 통보문 tmEf 가 현재 이후 (또는 미상/빈 값/범위형) — 이미 발효 시점 지난 건 차단
+//   - 시나리오 자동 처리 (PUBLISH_TRIGGER_V2_SPEC.md 인라인 검증 표):
+//       | 시나리오                              | 처리                                              |
+//       | 정상 신규 발표 (tmFc 최근, tmEf 미래) | ✅ push                                            |
+//       | 첫 부팅·재시작 (디스크 stale 'Y')     | tmFc 12h 이전 → ❌ skip (staleTmFc)                |
+//       | 장부 초기화 후 재수집                 | 묵은 tmFc → ❌ skip, 최근만 ✅ push                |
+//       | 손상 JSON                             | parse 실패 → children 빈 골격 → 다음 사이클 자연 동작 |
+//       | 변화 없음 ('Y'→'Y')                   | 전이 감지 안 됨 → skip                            |
+//       | 오늘 7시 발표 검증 수신 (tmFc 12h 내) | ✅ 첫 사이클부터 push (사용자 의도 #4)             |
+//       | tmEf 미상/빈 값 (예비 단계)           | ✅ 통과 (사용자 의도 #2 "예비도 수신")             |
+//       | tmEf 범위형 "오늘 밤(21시~24시)"      | 두 파서 모두 실패 → 보수적 통과 (안전 측면)         |
+//       | tmEf 과거                              | ❌ skip (pastTmEf)                                 |
+//       | tmFc 파싱 실패                         | ❌ skip (parseFailedFc)                            |
+//   - 운영 가시성: skip 사유를 staleTmFc / pastTmEf / parseFailedFc 별 카운터 로깅 (R-U1 권고).
+//   - 모든 enqueue/flush 호출은 try-catch 흡수 → 크롤러 본체 무영향.
+
+// 발표 푸시 시간 윈도우 — 부모 통보문 발표 시각(tmFc) 이 이보다 오래되면 skip.
+const PUBLISH_PUSH_WINDOW_HOURS = 12;
+
+/**
+ * [V2] KMA 통보문 시각 문자열 → epoch ms — 다중 포맷 흡수 파서 (U3 권고).
+ *   parseKmaTime ("YYYY년 MM월 DD일 HH시 mm분") 우선 시도 후,
+ *   실패 시 디지트-only 위치 파싱으로 fallback. 두 단계로 다음 포맷 흡수:
+ *     "2026년 05월 20일 07시 00분"  (한글 — report_alert_processor 산출)
+ *     "2026-05-20 07:00"            (weather.go.kr 부모 통보문)
+ *     "2026.05.20.07:00"            (dmdw)
+ *     "202605200700"                (숫자만)
+ *   범위형 "오늘 밤(21시~24시)" 등 비정형 입력은 두 파서 모두 실패 → null
+ *   → 호출자(_publishCandidateRejectReason)가 tmEf 경로에선 보수적 통과 결정.
+ *   TZ=Asia/Seoul 컨테이너 환경에서 KST 로 해석됨 (Dockerfile 보장).
+ */
+function _parseBulletinTimeToMs(s) {
+    if (!s) return null;
+    // 1) 한글 포맷 우선 — 본 파일의 기존 parseKmaTime 헬퍼 활용.
+    try {
+        const dt = parseKmaTime(s);
+        if (dt && !Number.isNaN(dt.getTime())) return dt.getTime();
+    } catch (_) {}
+    // 2) 디지트-only 위치 파싱 — 다른 포맷 흡수.
+    const digits = String(s).replace(/[^0-9]/g, '');
+    if (digits.length < 12) return null;
+    const y = parseInt(digits.substring(0, 4), 10);
+    const mo = parseInt(digits.substring(4, 6), 10) - 1;
+    const d = parseInt(digits.substring(6, 8), 10);
+    const hh = parseInt(digits.substring(8, 10), 10);
+    const mm = parseInt(digits.substring(10, 12), 10);
+    if (![y, mo, d, hh, mm].every(Number.isFinite)) return null;
+    const dt2 = new Date(y, mo, d, hh, mm, 0, 0);
+    return Number.isNaN(dt2.getTime()) ? null : dt2.getTime();
+}
+
+/**
+ * [V2] 발표 푸시 시간 필터 — 단독 차단 메커니즘 (부트스트랩 가드 / 100건 안전망 / corrupt reset 대체).
+ *   - tmFc 파싱 실패 → 보수적 skip ('parseFailedFc')
+ *   - tmFc < (현재 - PUBLISH_PUSH_WINDOW_HOURS) → 묵은 통보문 → skip ('staleTmFc')
+ *   - tmEf 파싱 가능 & tmEf < 현재 → 이미 발효 시점 지남 → skip ('pastTmEf')
+ *   - tmEf 파싱 실패(미상/빈 값/범위형 "오늘 밤(21시~24시)") → 통과
+ *     (예비 단계는 tmEf 미상이 정상. 범위형 자체는 "보수적 통과" 정책 — 사용자
+ *      의도 #2 "예비상태에서도 수신" 우선)
+ * @returns {string|null} skip 사유 키 또는 null(통과)
+ *                        — R-U1 권고: 운영 디버깅용 breakdown 카운터 키.
+ */
+function _publishCandidateRejectReason(parentMeta, nowMs) {
+    const cutoffMs = nowMs - PUBLISH_PUSH_WINDOW_HOURS * 3600 * 1000;
+    const tmFcMs = _parseBulletinTimeToMs(parentMeta && parentMeta.tmFc);
+    if (tmFcMs === null) return 'parseFailedFc';
+    if (tmFcMs < cutoffMs) return 'staleTmFc';
+    const tmEfMs = _parseBulletinTimeToMs(parentMeta && parentMeta.tmEf);
+    if (tmEfMs !== null && tmEfMs < nowMs) return 'pastTmEf';
+    return null;
+}
+
+/**
+ * 부모|자식 풀네임에서 표시용 짧은 자식명 추출.
+ *   dmdw_warn_crawler.js 의 _childDisplayNameFromKey 와 동일 정책으로,
+ *   두 경로(text/dmdw) 가 같은 dedup 키와 같은 푸시 본문 표기를 만든다.
+ *     "서해남부남쪽안쪽먼바다중조도부근평수구역" + parent="서해남부남쪽안쪽먼바다"
+ *       → "조도부근평수구역"
+ *     "울릉도울릉읍연안바다" → 그대로 (prefix 매치 없음)
+ *     "당진평수구역" → 그대로 (NO_JOONG 예외 — '중' 절단자 없음)
+ */
+function _bulletinChildDisplayName(parentZone, childFullName) {
+    if (!childFullName) return '';
+    const p = String(parentZone || '').replace(/\s+/g, '');
+    const joiner = `${p}중`;
+    if (p && childFullName.startsWith(joiner)) {
+        return childFullName.substring(joiner.length);
+    }
+    return childFullName;
+}
+
+/**
+ * 두 zone tree 를 동시 재귀 순회하며 children 의 null↔'Y' 전이를 수집한다.
+ *   prev / curr 노드 구조: { current, upcoming, history, children: { name: 'Y'|null } }
+ * @returns {{candidates, releasedYToNull}}
+ *   candidates : Array<{parentZone, childName, parentMeta}>  (null→'Y' 발표 후보)
+ *   releasedYToNull : Array<{parentZone, childName}>          ('Y'→null 해제 — 마커 정리용)
+ *   parentMeta = upcoming 우선 (예비 단계엔 upcoming 만 채워짐), 없으면 current.
+ *     둘 다 없으면 candidate 자체 제외 (mapDataToForm 강제 해제 정책상 발생 불가).
+ */
+function collectBulletinPublishCandidates(prevTree, currTree) {
+    const candidates = [];
+    const releasedYToNull = [];
+
+    function walk(prevNode, currNode, lastParentKey) {
+        if (!currNode || typeof currNode !== 'object') return;
+
+        const isZoneLeaf = (
+            currNode.current !== undefined
+            && currNode.children
+            && typeof currNode.children === 'object'
+        );
+
+        if (isZoneLeaf && lastParentKey) {
+            const parentZone = lastParentKey;
+            const prevChildren = (prevNode && prevNode.children) || {};
+            const currChildren = currNode.children || {};
+
+            // 부모 메타 — upcoming 우선 (예비 단계엔 upcoming 만 채워짐), 없으면 current.
+            const meta = currNode.upcoming || currNode.current || null;
+
+            // [V2] prev / curr 양쪽 키 합집합 순회 (U3 채택) — 자식이 curr 에서 완전히
+            //      빠진 'Y'→null 케이스도 놓치지 않음 (mapDataToForm 가 빈 children 으로
+            //      덮어쓰는 케이스 대응).
+            const allNames = new Set([
+                ...Object.keys(prevChildren),
+                ...Object.keys(currChildren)
+            ]);
+            for (const childName of allNames) {
+                const wasY = prevChildren[childName] === 'Y';
+                const isY = currChildren[childName] === 'Y';
+                if (!wasY && isY) {
+                    // null → 'Y' 전이 — 발표 푸시 후보.
+                    //   부모 스키마 주의: report_alert_processor 산출은 wrnTp/wrnLvl 만 채움
+                    //   (wrnTpNm/wrnLvlNm 미존재). 본 경로에서는 wrnTp 존재만 검사하면 충분하나,
+                    //   향후 dmdw 메타가 같은 함수 입력으로 들어올 가능성 대비해 OR 유지.
+                    if (meta && (meta.wrnTpNm || meta.wrnTp)) {
+                        candidates.push({ parentZone, childName, parentMeta: meta });
+                    }
+                    // 부모 메타 없으면 push skip — mapDataToForm 의 강제 해제 정책상
+                    // 거의 발생 불가능 케이스지만 보수적 처리.
+                } else if (wasY && !isY) {
+                    // 'Y' → null 전이. dmdw EF release 경로가 이미 forgetChild 를
+                    // 호출할 수 있으나, 종합기상에서 먼저 사라진 경우 dmdw 경로가
+                    // 누락될 수 있어 여기서도 보수적으로 publish 마커 정리 대상에 포함.
+                    releasedYToNull.push({ parentZone, childName });
+                }
+            }
+            return;
+        }
+
+        // 비-leaf 노드는 재귀 — key 가 부모 zone 이름이 될 수 있으므로 추적.
+        for (const [key, value] of Object.entries(currNode)) {
+            if (key === 'children' || key === 'history' || key === 'missingCount'
+                || key === 'current' || key === 'upcoming') continue;
+            const prevSub = prevNode ? prevNode[key] : null;
+            walk(prevSub, value, key);
+        }
+    }
+
+    walk(prevTree, currTree, null);
+    return { candidates, releasedYToNull };
+}
+
+/**
+ * [V2] 종합기상 텍스트 기반 발표 푸시 발송 — 시간 필터 단독.
+ *   - 'Y'→null 자식은 forgetChild 로 publish 마커 정리 (다음 신규 발효 시 다시 푸시 가능).
+ *   - 후보 중 부모 통보문 tmFc 가 (현재 - PUBLISH_PUSH_WINDOW_HOURS) 이내 +
+ *     tmEf 가 미래(또는 미상/빈 값/범위형) 인 것만 통과.
+ *   - 첫 부팅 / 재시작 / 손상 JSON / 묵은 데이터 재수집 모두 시간만으로 자동 차단.
+ *     부트스트랩 가드·개수 안전망·corrupt reset 모두 없음 (PUBLISH_TRIGGER_V2_SPEC.md "제거할 로직").
+ *   - 시간 필터 차단 사유 (staleTmFc / pastTmEf / parseFailedFc) breakdown 카운터 로깅 (R-U1 권고).
+ *   - 각 통과 후보에 enqueuePublishFromBulletin 호출 (tmEf='', '예비'→'주의보' 정규화).
+ *   - flush() 1회.
+ *   모든 오류는 흡수 — 크롤러 본체 흐름 무영향.
+ */
+async function dispatchBulletinPublishPushes(prevTree, currTree) {
+    try {
+        const { candidates, releasedYToNull } = collectBulletinPublishCandidates(prevTree, currTree);
+
+        // 'Y' → null 전이는 자식 해제 의미 — _sentKeys 의 publish 마커 정리.
+        //   dmdw 경로와 동일한 짧은 표시 이름으로 forgetChild 호출.
+        for (const r of releasedYToNull) {
+            try {
+                const childDisplay = _bulletinChildDisplayName(r.parentZone, r.childName);
+                dmdwPushSender.forgetChild(r.parentZone, childDisplay);
+            } catch (_) {}
+        }
+
+        if (candidates.length === 0) return;
+
+        // [V2] 시간 필터 — 부트스트랩 가드 / 100건 안전망 / corrupt reset 통합 대체.
+        //      reject 사유별 breakdown 카운터로 운영 디버깅 가시성 확보 (R-U1 권고).
+        const nowMs = Date.now();
+        const passed = [];
+        const rejectCounts = { staleTmFc: 0, pastTmEf: 0, parseFailedFc: 0 };
+        for (const c of candidates) {
+            const reason = _publishCandidateRejectReason(c.parentMeta, nowMs);
+            if (reason === null) {
+                passed.push(c);
+            } else {
+                rejectCounts[reason]++;
+            }
+        }
+        const totalRejected =
+            rejectCounts.staleTmFc + rejectCounts.pastTmEf + rejectCounts.parseFailedFc;
+        if (totalRejected > 0) {
+            console.log(
+                `[Crawler] bulletin publish 시간필터 차단: ${totalRejected}건 ` +
+                `(staleTmFc=${rejectCounts.staleTmFc} · pastTmEf=${rejectCounts.pastTmEf} · ` +
+                `parseFailedFc=${rejectCounts.parseFailedFc} / window=${PUBLISH_PUSH_WINDOW_HOURS}h)`
+            );
+        }
+        if (passed.length === 0) return;
+
+        const cycleId = `bulletin-${Date.now()}`;
+        let enq = 0;
+        for (const c of passed) {
+            try {
+                const m = c.parentMeta || {};
+                // 표시용 짧은 자식명 — dmdw_warn_crawler 와 동일 정책으로 dedup key 일치.
+                const displayName = _bulletinChildDisplayName(c.parentZone, c.childName);
+                // 부모 스키마(report_alert_processor 산출): wrnTp(한글명), wrnLvl ('예비'|'주의보'|'경보')
+                //   — wrnTpNm/wrnLvlNm 필드는 본 경로(종합기상 텍스트)에서는 존재하지 않음.
+                // dmdw 스키마: wrnTpNm/wrnLvlNm 분리.
+                // 두 스키마 dedup key 일치를 위해 매핑 (R-U3 정리: wrnTpNm 죽은 분기 제거):
+                //   wrnTp / wrnTpNm  ← 부모.wrnTp 동일 값 (예: '풍랑') — 두 필드에 채워 dmdw FC 정합.
+                //   wrnLvl / wrnLvlNm ← 부모.wrnLvl 인데 '예비' 는 '주의보' 로 정규화.
+                //   사용자 정의: "예비는 추후 발효예정인 주의보". 앱 배지·dmdw 도 '주의보' 표기.
+                //   → 종합기상 → dmdw FC 정식 발표 dedup key 자연 일치 → 중복 차단.
+                const wrnTpNorm = m.wrnTp || '';
+                const wrnLvlNorm = m.wrnLvl === '예비' ? '주의보' : (m.wrnLvl || '');
+                if (dmdwPushSender.enqueuePublishFromBulletin(cycleId, c.parentZone, displayName, {
+                    wrnTp: wrnTpNorm,
+                    wrnTpNm: wrnTpNorm,
+                    wrnLvl: wrnLvlNorm,
+                    wrnLvlNm: wrnLvlNorm,
+                    tmFc: m.tmFc || ''
+                })) {
+                    enq++;
+                }
+            } catch (e) {
+                console.log(`[Crawler] bulletin enqueue 실패 (무시): ${e.message}`);
+            }
+        }
+
+        if (enq === 0) {
+            // 자연 dedup 으로 모두 차단 — 정상 흐름.
+            return;
+        }
+
+        try {
+            const flushed = await dmdwPushSender.flush(cycleId);
+            console.log(
+                `[Crawler] bulletin publish flush: 후보 ${candidates.length}건 · ` +
+                `시간통과 ${passed.length}건 · 적재 ${enq}건 · 발송 ${(flushed || []).length}건`
+            );
+        } catch (e) {
+            console.log(`[Crawler] bulletin flush 실패 (무시): ${e.message}`);
+        }
+    } catch (e) {
+        // 어떤 단계든 본체 흐름은 영향 없도록 흡수.
+        console.log(`[Crawler] dispatchBulletinPublishPushes 예외 (무시): ${e.message}`);
+    }
+}
+
+// ============================================================================
 // Main Execution
 // ============================================================================
 
@@ -413,10 +715,17 @@ async function run() {
                 // 이 필드가 빠지면 매 사이클마다 "첫 감지"로 오인되어 푸시가 매분 발송되는 버그 발생
                 // report_alert_processor.js가 이 값을 읽어서 10분 미경과 시 건너뜀
                 pendingRetries: existing.pendingRetries || {},
+                // [V2] bulletinPushBootstrapDone 디스크 복원 제거 — 첫 부팅·재시작 폭주는
+                //      dispatchBulletinPublishPushes 의 12h 시간 필터로 자동 차단.
                 previous: JSON.parse(JSON.stringify(existing.current || createZoneStructure())),
                 current: existing.current || createZoneStructure()
             };
         } catch (e) {
+            // [V2] 손상 JSON fallback — 빈 골격으로 진입.
+            //   previous 가 비어 있으면 첫 사이클에 다수 'Y' 가 잡혀도 대다수는 부모 tmFc 12h
+            //   이전이라 시간 필터로 자동 차단. 최근 12h 내 발표만 자연 통과 (사용자 의도 #4
+            //   "오늘 오전 7시 발표도 검증 수신" 충족).
+            console.warn(`[Crawler] weather_alerts.json 파싱 실패 → 빈 골격 fallback (V2 시간필터 자동 보호): ${e.message}`);
             fullForm = createFullForm();
         }
     } else {
@@ -441,6 +750,20 @@ async function run() {
 
         // 3. 자식 상속 로직 적용
         mapDataToForm(fullForm.current, activeChildren);
+
+        // 3-bis. [V2] 종합기상 텍스트 기반 자식 발표 푸시 트리거 — 시간 필터 단독.
+        //   - dmdw 가 잡지 못하는 "예비" 단계까지 포괄하기 위한 보조 트리거.
+        //   - previous.children vs current.children null↔'Y' 전이를 발표/해제마커정리로 매핑.
+        //   - 부모 통보문 tmFc 가 12h 이내 + tmEf 미래/미상 인 자식만 통과 →
+        //     첫 부팅 / 재시작 / 손상 JSON / 묵은 데이터 재수집 등 폭주 시나리오 자동 차단.
+        //   - dmdw_push_sender._dedupKey(publish) 가 tmEf 를 제외하여 dmdw FC 후속 발표와 자연 dedup.
+        //   - 부모 푸시 / detectChanges / pushSender 동작 영향 없음 (별도 경로).
+        //   - 실패 시 본체 무영향 (함수 내부 try-catch 흡수, 호출부 외부 try-catch 이중 격리).
+        try {
+            await dispatchBulletinPublishPushes(fullForm.previous, fullForm.current);
+        } catch (e) {
+            console.error(`[Crawler] 자식 발표 push 처리 오류 (부모 흐름엔 영향 없음): ${e.message}`);
+        }
 
         // 4. 변화 감지 (Previous vs Current)
         const changes = detectChanges(fullForm.previous, fullForm.current);
