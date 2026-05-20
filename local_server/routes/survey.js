@@ -124,16 +124,66 @@ function autoUpdateStatus(survey) {
 // ============================================================================
 
 // 설문 목록 조회 (전체)
+// - 기본(쿼리 없음): 기존 raw 배열(파일 저장 순서) 반환 — 하위호환
+//   (관리자 결과탭/이력탭/사용자측 등 기존 호출자)
+// - ?page= 동반 시: id 역순으로 정렬한 뒤 { data, pagination } 새 포맷.
+//   현재 페이지(slice 결과) 에 대해서만 readResponses() 로 응답 카운트를 산출하여
+//   디스크 IO 절감.
+//
+// 핵심: responseCount 갱신은 **mutate** 방식으로 수행하고 그 결과를 writeSurveys() 로
+//       디스크에 저장한다 (응답 객체와 disk 객체가 동일 reference 이므로 자동 반영).
 router.get('/api/surveys', (req, res) => {
     try {
-        let surveys = readSurveys();
-        surveys = surveys.map(s => {
-            s = autoUpdateStatus(s);
-            s.responseCount = readResponses(s.id).length;
-            return s;
+        const surveys = readSurveys();
+        // [G-1] dirty flag: 실제로 변경(상태 자동 갱신 or responseCount 차이)이 있을
+        //   때에만 writeSurveys() 호출. read-only GET 이 매번 디스크 write 를
+        //   유발하던 문제 해결 — mtime/내용 변동 없으면 IO 생략.
+        let dirty = false;
+
+        // 1차: 상태 자동 갱신 (mutate) — 변경 여부 추적
+        surveys.forEach(s => {
+            const prev = s.status;
+            autoUpdateStatus(s);
+            if (s.status !== prev) dirty = true;
         });
-        // 기한 만료로 상태 변경된 것 저장
-        writeSurveys(surveys);
+
+        if (req.query.page != null) {
+            // 최신 먼저 (id 역순 — Date.now() 기반이므로 생성순서와 일치)
+            const sorted = surveys.slice().sort((a, b) => (b.id || 0) - (a.id || 0));
+            const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+            const rawLimit = parseInt(req.query.limit, 10) || 25;
+            const limit = Math.min(200, Math.max(1, rawLimit));
+            const total = sorted.length;
+            const totalPages = Math.max(1, Math.ceil(total / limit));
+            const offset = (page - 1) * limit;
+            // 현재 페이지에 해당하는 설문만 응답 카운트 산출 → mutate (sorted 의 항목은
+            // surveys 와 동일 reference 이므로 disk 저장 시에도 반영)
+            const pageData = sorted.slice(offset, offset + limit);
+            pageData.forEach(s => {
+                const next = readResponses(s.id).length;
+                if (s.responseCount !== next) {
+                    s.responseCount = next;
+                    dirty = true;
+                }
+            });
+            // [G-1] 실제 변경분이 있을 때만 디스크 동기화
+            if (dirty) writeSurveys(surveys);
+            return res.json({
+                data: pageData,
+                pagination: { page, limit, total, totalPages }
+            });
+        }
+
+        // 하위호환: 기존 raw array (파일 저장 순서 그대로) — 전체 responseCount 포함
+        // mutate 로 갱신하되, [G-1] 실제 변경분이 있을 때만 disk 저장.
+        surveys.forEach(s => {
+            const next = readResponses(s.id).length;
+            if (s.responseCount !== next) {
+                s.responseCount = next;
+                dirty = true;
+            }
+        });
+        if (dirty) writeSurveys(surveys);
         res.json(surveys);
     } catch (e) {
         console.error('설문 목록 조회 실패:', e);
@@ -287,10 +337,29 @@ router.post('/api/surveys/:id/duplicate', (req, res) => {
 });
 
 // 응답 조회 (관리자용)
+// - 기본(쿼리 없음): 기존 raw 배열(파일 저장 순서) 반환 — 하위호환
+//   (결과/분석 탭의 차트 집계 등)
+// - ?page= 동반 시: responseId 역순(최신 먼저) 정렬 후 { data, pagination } 새 포맷.
 router.get('/api/surveys/:id/responses', (req, res) => {
     try {
         const id = Number(req.params.id);
         const responses = readResponses(id);
+
+        if (req.query.page != null) {
+            // 페이지 모드일 때만 정렬 적용 (raw 모드는 파일 저장 순서 그대로)
+            const sorted = responses.slice().sort((a, b) => (b.responseId || 0) - (a.responseId || 0));
+            const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+            const rawLimit = parseInt(req.query.limit, 10) || 50;
+            const limit = Math.min(500, Math.max(1, rawLimit));
+            const total = sorted.length;
+            const totalPages = Math.max(1, Math.ceil(total / limit));
+            const offset = (page - 1) * limit;
+            return res.json({
+                data: sorted.slice(offset, offset + limit),
+                pagination: { page, limit, total, totalPages }
+            });
+        }
+
         res.json(responses);
     } catch (e) {
         res.status(500).json({ error: '응답 조회 실패' });

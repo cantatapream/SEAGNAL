@@ -906,10 +906,11 @@ window.toggleMainAccordion = function () {
 };
 
 // --- 특보 정렬 함수 ---
-// 정렬 우선순위: 1) 특보종류(태풍 > 지진해일 > 폭풍해일 > 풍랑), 2) 경보 > 주의보
+// 정렬 우선순위: 1) 특보종류(태풍 > 지진해일 > 풍랑), 2) 경보 > 주의보
 // 3) 앞바다 > 먼바다, 4) 앞바다: 북부→남부→서부→동부, 5) 먼바다: 안쪽→바깥쪽
+// 폭풍해일은 수집 대상에서 제외되어 우선순위 표에서도 제거.
 function sortAlertItems(items) {
-    const TYPE_ORDER = { '태풍': 1, '지진해일': 2, '폭풍해일': 3, '풍랑': 4 };
+    const TYPE_ORDER = { '태풍': 1, '지진해일': 2, '풍랑': 3 };
     const DIRECTION_ORDER = { '북부': 1, '남부': 2, '서부': 3, '동부': 4 };
     const FAR_SEA_ORDER = { '안쪽': 1, '바깥': 2 };
 
@@ -981,7 +982,7 @@ function sortAlertItems(items) {
             return repA.isPreliminary ? 1 : -1; // active(false) first
         }
 
-        // 1. 특보 종류 우선순위 (태풍→지진해일→폭풍해일→풍랑)
+        // 1. 특보 종류 우선순위 (태풍→지진해일→풍랑)
         const aTypeWeight = TYPE_ORDER[repA.warnType] || 99;
         const bTypeWeight = TYPE_ORDER[repB.warnType] || 99;
         if (aTypeWeight !== bTypeWeight) {

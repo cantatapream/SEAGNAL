@@ -137,6 +137,9 @@ router.get('/data/:filename', (req, res, next) => {
 // ============================================================================
 router.post('/api/save_tide_input', async (req, res) => {
     const { date, time, lat, lon, deviceId } = req.body;
+    // ❹ 클라이언트 격자ID 캐시 — body 에 동봉되어 오면 KHOA 사전 조회 1회 절감.
+    // 잘못된 값을 보내도 후속 KHOA 호출이 그 격자에서 실패할 뿐 다른 사용자에 영향 없음.
+    const clientGridHash = req.body && req.body.gridHash ? String(req.body.gridHash) : null;
 
     // 조석 조회 횟수 제한 체크
     if (deviceId) {
@@ -154,7 +157,15 @@ router.post('/api/save_tide_input', async (req, res) => {
 
     try {
         // 1단계: 격자 해시 조회 (1건 사전 조회)
-        const gridHash = await tideCollector.getGridHash(lat, lon, date);
+        // ❹ 클라이언트가 caching 한 gridHash 를 보내왔다면 KHOA 사전 조회 skip.
+        let gridHash;
+        let gridHashRefreshed = false; // 클라이언트 캐시 무효 감지 → 자동 갱신 시 true
+        if (clientGridHash) {
+            gridHash = clientGridHash;
+            console.log(`⚡ 클라이언트 격자 캐시 사용: ${gridHash} (KHOA 사전 조회 skip)`);
+        } else {
+            gridHash = await tideCollector.getGridHash(lat, lon, date);
+        }
         if (!gridHash) {
             console.error('❌ 격자 해시를 확인할 수 없습니다.');
             res.json({ success: false, error: 'Grid hash unavailable' });
@@ -171,26 +182,52 @@ router.post('/api/save_tide_input', async (req, res) => {
             { key: 'tomorrow', date: adj.next }
         ];
 
-        const fileMap = {};
-        const toCollect = [];
-
-        for (const pair of datePairs) {
-            const fileName = `tide_${pair.date}_${gridHash}.json`;
-            // (디스크 캐시 제거로 filePath 미사용 — fileName 만 메모리 캐시 키 + 클라이언트 폴링 식별자로 사용)
-            fileMap[pair.key] = fileName;
-
-            let cached = false;
-
-            // [캐시 확인] 메모리 캐시(tideCache LRU)만 사용.
-            //   디스크 파일 캐시는 제거됨 — 사용자가 매번 다른 위치를 클릭하므로
-            //   디스크 캐시 적중률이 낮고 파일이 누적되는 부담이 더 컸음.
-            //   메모리 캐시는 같은 사용자 / 동일 격자 재클릭 시 빠른 응답 보장.
-            if (tideCache.has(fileName)) {
-                cached = true;
+        const computeFiles = () => {
+            const fileMap = {};
+            const toCollect = [];
+            for (const pair of datePairs) {
+                const fileName = `tide_${pair.date}_${gridHash}.json`;
+                fileMap[pair.key] = fileName;
+                // [캐시 확인] 메모리 캐시(tideCache LRU)만 사용.
+                //   디스크 파일 캐시는 제거됨 — 사용자가 매번 다른 위치를 클릭하므로
+                //   디스크 캐시 적중률이 낮고 파일이 누적되는 부담이 더 컸음.
+                //   메모리 캐시는 같은 사용자 / 동일 격자 재클릭 시 빠른 응답 보장.
+                if (!tideCache.has(fileName)) {
+                    toCollect.push({ key: pair.key, date: pair.date, fileName });
+                }
             }
+            return { fileMap, toCollect };
+        };
 
-            if (!cached) {
-                toCollect.push({ key: pair.key, date: pair.date, fileName });
+        let { fileMap, toCollect } = computeFiles();
+
+        // ❹+ 클라이언트 gridHash 자동 invalidate
+        //   클라이언트가 동봉한 gridHash 가 더 이상 유효하지 않을 때
+        //   (KHOA 격자 정책 변경 / 더 정확한 격자 분할 등) 클라이언트 localStorage 의
+        //   잘못된 gridHash 가 영구히 남아 같은 좌표 클릭 시 매번 실패가 발생하는 문제 방지.
+        //
+        //   전략: clientGridHash 가 있어도 모든 파일이 cache MISS 면 (= 새 수집 필요)
+        //         서버가 직접 getGridHash 를 1회 호출해 검증. 결과가 다르면 fresh 값으로
+        //         교체하고 응답에 gridHashRefreshed:true + 새 gridHash 동봉.
+        //         클라이언트는 이 값을 받아 localStorage 갱신 (또는 invalidGridHash:true
+        //         로도 같은 효과 — 본 구현은 자동 복구 방식 채택).
+        //   비용: cache hit 면 검증 skip (즐겨찾기 재방문 fast path 100% 보존).
+        //         cache miss 면 어차피 collectTideBedData 가 KHOA 5페이지 호출하므로
+        //         추가 1회 (numOfRows=1) 는 무시할만한 추가 비용.
+        if (clientGridHash && toCollect.length === datePairs.length) {
+            try {
+                const verified = await tideCollector.getGridHash(lat, lon, date);
+                if (verified && verified !== clientGridHash) {
+                    console.warn(`♻️ clientGridHash 불일치 감지: ${clientGridHash} → ${verified} (자동 갱신)`);
+                    gridHash = verified;
+                    gridHashRefreshed = true;
+                    ({ fileMap, toCollect } = computeFiles());
+                } else if (!verified) {
+                    // 검증 결과 자체가 실패 — 단순 KHOA 일시 장애일 수 있으니 기존 값 유지.
+                    console.warn(`⚠️ clientGridHash 검증 실패 (KHOA 응답 없음). 기존값 유지.`);
+                }
+            } catch (e) {
+                console.warn(`⚠️ clientGridHash 검증 중 예외: ${e.message}`);
             }
         }
 
@@ -213,21 +250,26 @@ router.post('/api/save_tide_input', async (req, res) => {
         }
 
         // 클라이언트에 즉시 응답 (격자 해시 + 파일명 포함)
+        // gridHashRefreshed:true 인 경우 클라이언트는 localStorage gridHashCache:v1 의
+        // 해당 좌표 항목을 새 gridHash 로 갱신해야 함 (ocean_bottom_sheet3.js 참조).
         res.json({
             success: true,
             gridHash,
+            gridHashRefreshed,
             files: fileMap,
             cached: 3 - toCollect.length,
             collecting: toCollect.length
         });
 
         // 4단계: 백그라운드에서 필요한 날짜만 수집 (Padding Analysis)
-        // ── today 우선 수집 전략 ────────────────────────────────────
-        // 사용자 체감 개선을 위해 today raw 와 today 패딩 분석을 우선 직렬화.
-        // 이웃(yesterday/tomorrow) 미도착 상태의 today 분석은 padding 0 으로
-        // 진행 (대부분 시간대 피크는 정확. 새벽/심야 첫·마지막 피크만 약간 차이).
-        // → today 'complete' 가 ~1초 안에 도착 → 클라이언트 즉시 4피크 표시.
-        // yesterday/tomorrow 는 백그라운드로 진행 → 도착 시 게이지 그려짐.
+        // ── 3일치 동시 시작 전략 (이슈 1: 슬라이더 latency 단축) ────────
+        // 변경 전: today raw → today 분석 → 이웃 raw 직렬 (today 가 끝나야 이웃 시작).
+        //          이웃 도착까지 사용자 wait time 이 길어 슬라이더가 다른 날로 이동
+        //          시 풀 fetch latency 누적 (3~5초 이상).
+        // 변경 후: 3일 raw 동시 발사 → today 가 먼저 끝나면 즉시 'complete-quick'
+        //          마킹 → 이웃까지 모두 도착하면 today padded 재분석으로 final
+        //          'complete' 갱신. 동일한 quick→complete 두 단계 응답 동작 보존.
+        //          클라이언트 폴링 인터페이스 100% 호환.
         (async () => {
             try {
                 const allNeededDays = [adj.prev, adj.current, adj.next];
@@ -236,37 +278,35 @@ router.post('/api/save_tide_input', async (req, res) => {
                 // 캐시 안에 이미 있는 raw 는 즉시 채워 놓고 시작
                 for (const dayValue of allNeededDays) {
                     const fname = `tide_${dayValue}_${gridHash}.json`;
-                    // 메모리 캐시(tideCache)만 확인. 디스크 캐시 제거됨 (main 정책).
                     if (tideCache.has(fname) && tideCache.get(fname).tideBedStatus === 'complete') {
                         rawItemsMap[dayValue] = tideCache.get(fname).tideBedData;
                     }
                 }
 
-                // 단일 날짜 raw 확보 헬퍼 (캐시 없으면 KHOA API 호출)
+                // 단일 날짜 raw 확보 헬퍼 — 동일 day 의 중복 fetch 방지를 위해
+                // 진행 중 Promise 도 _rawPromise 에 저장 (race 안전성).
+                const _rawPromise = {};
                 async function ensureRaw(dayValue) {
-                    if (rawItemsMap[dayValue]) return;
-                    rawItemsMap[dayValue] = await tideCollector.collectTideBedData(lat, lon, String(dayValue));
+                    if (rawItemsMap[dayValue]) return rawItemsMap[dayValue];
+                    if (_rawPromise[dayValue]) return _rawPromise[dayValue];
+                    _rawPromise[dayValue] = tideCollector
+                        .collectTideBedData(lat, lon, String(dayValue))
+                        .then(arr => { rawItemsMap[dayValue] = arr || []; return rawItemsMap[dayValue]; });
+                    return _rawPromise[dayValue];
                 }
 
-                // 단일 날짜 패딩 분석 + 'complete' 저장 헬퍼.
-                // opts.quick=true 면 이웃 padding 없이 단독 분석한 결과를
-                // 'complete-quick' 상태로 표시 → 클라이언트가 임시 결과로
-                // 인식하고 final 'complete' (이웃 도착 후 재분석) 를 기다림.
                 async function analyzeAndSave(item, opts) {
                     opts = opts || {};
                     const dateInt = item.date;
                     const itemAdj = tideCollector.getAdjacentDates(dateInt);
-                    // 이웃 raw 가 없으면 빈 배열 → padding 0 으로 단독 분석
+                    // ❸ padding 12h 확대 (3h → 12h, 180 → 720) — 자정 ±12h 피크 detect 가능
                     const paddedItems = [
-                        ...(rawItemsMap[itemAdj.prev] || []).slice(-180),
+                        ...(rawItemsMap[itemAdj.prev] || []).slice(-720),
                         ...(rawItemsMap[dateInt] || []),
-                        ...(rawItemsMap[itemAdj.next] || []).slice(0, 180)
+                        ...(rawItemsMap[itemAdj.next] || []).slice(0, 720)
                     ];
                     await tideCollector.collectAndSaveTideData(lat, lon, dateInt, time, item.fileName, paddedItems);
 
-                    // quick 모드 — 'complete' 를 'complete-quick' 으로 표시.
-                    // (이웃 도착 후 재분석 시 다시 'complete' 로 덮어쓰여 클라이언트가
-                    //  새 데이터를 가져갈 수 있음)
                     if (opts.quick) {
                         const cached = tideCache.get(item.fileName);
                         if (cached && cached.tideBedStatus === 'complete') {
@@ -276,31 +316,49 @@ router.post('/api/save_tide_input', async (req, res) => {
                     }
                 }
 
-                // ── ① today 우선 (직렬, quick 모드) ─────────────────
                 const todayItem = toCollect.find(it => it.date === adj.current);
-                if (todayItem) {
-                    await ensureRaw(adj.current);             // today raw
-                    await analyzeAndSave(todayItem, { quick: true }); // padding 없이 단독 분석 → 'complete-quick'
-                    console.log(`⚡ [Quick] today(${adj.current}) 우선 분석 완료 (quick) — 클라이언트 즉시 사용 가능`);
-                }
-
-                // ── ② 이웃(yesterday/tomorrow) 병렬 + today 재분석 ──
-                //    이웃 도착 후 today 를 padded 로 다시 분석해 'complete' 로
-                //    덮어쓰기 → 클라이언트의 추가 폴링이 final 결과를 가져감.
-                //    (새벽/심야 첫·마지막 피크 정확도 보강)
                 const neighborItems = toCollect.filter(it => it.date !== adj.current);
-                const neighborDays = [adj.prev, adj.next].filter(d => !rawItemsMap[d]);
-                Promise.all(neighborDays.map(ensureRaw))
+
+                // ── ① 3일 raw 동시 발사 ──
+                // 누락된 raw 만 트리거. 캐시 hit 인 날짜는 ensureRaw 가 즉시 반환.
+                const daysToFetch = allNeededDays.filter(d => !rawItemsMap[d]);
+                daysToFetch.forEach(d => { ensureRaw(d); }); // fire-and-forget — 각 Promise 는 _rawPromise 에 저장
+
+                // ── ② today 가 가장 먼저 끝나는 분석 흐름 ──
+                //   today raw 도착 즉시 padding=이웃(가능한 만큼) 으로 분석.
+                //   이웃이 아직 도착 안 했으면 padding 0 으로 → 'complete-quick'.
+                let todayQuickDone = false;
+                const todayChain = todayItem
+                    ? ensureRaw(adj.current).then(async () => {
+                        // 이웃이 이미 다 도착해 있으면 곧장 final 'complete' 로 저장
+                        const neighborsReady = !!(rawItemsMap[adj.prev] && rawItemsMap[adj.next]);
+                        await analyzeAndSave(todayItem, { quick: !neighborsReady });
+                        todayQuickDone = true;
+                        if (neighborsReady) {
+                            console.log(`⚡ today(${adj.current}) 3일 동시 도착 → 즉시 final 'complete'`);
+                        } else {
+                            console.log(`⚡ [Quick] today(${adj.current}) 분석 완료 (quick) — 이웃 대기`);
+                        }
+                    })
+                    : Promise.resolve();
+
+                // ── ③ 이웃 분석 + today 재분석 (이웃 도착 시) ──
+                const neighborChain = Promise.all([adj.prev, adj.next].map(ensureRaw))
                     .then(() => Promise.all(neighborItems.map(it => analyzeAndSave(it))))
                     .then(async () => {
-                        // today 재분석 — 이웃 raw 가 (적어도 일부는) 도착했을 때
-                        if (todayItem && (rawItemsMap[adj.prev] || rawItemsMap[adj.next])) {
-                            await analyzeAndSave(todayItem); // quick 없이 → 'complete'
-                            console.log(`✓ today(${adj.current}) padded 재분석 완료 → 'complete' 갱신`);
+                        // today 가 quick 으로 저장된 경우에만 final padded 재분석
+                        if (todayItem && todayQuickDone) {
+                            const cached = tideCache.get(todayItem.fileName);
+                            if (cached && cached.tideBedStatus === 'complete-quick') {
+                                await analyzeAndSave(todayItem);
+                                console.log(`✓ today(${adj.current}) padded 재분석 → 'complete' 갱신`);
+                            }
                         }
                         console.log(`🎉 [Padding Analysis] 이웃 ${neighborItems.length}일치 분석 완료`);
-                    })
-                    .catch(err => console.error('❌ 이웃 백그라운드 수집 오류:', err.message));
+                    });
+
+                Promise.all([todayChain, neighborChain])
+                    .catch(err => console.error('❌ 백그라운드 수집 오류:', err.message));
             } catch (err) {
                 console.error('❌ 백그라운드 수집 오류:', err.message);
             }
@@ -344,7 +402,8 @@ router.post('/api/tidebed/key', (req, res) => {
     }
 
     config.keys.push({ key, used: 0, expiry: expiry || '-', owner: owner || '-' });
-    tideCollector.saveTideBedConfig();
+    // 키 등록은 중요 영속화 — flush 로 즉시 저장 (디바운스 우회)
+    tideCollector.saveTideBedConfig({ flush: true });
     res.json({ success: true, count: config.keys.length });
 });
 
@@ -364,7 +423,8 @@ router.delete('/api/tidebed/key/:index', (req, res) => {
     if (config.currentIndex >= index && config.currentIndex > 0) {
         config.currentIndex--;
     }
-    tideCollector.saveTideBedConfig();
+    // 키 삭제는 중요 영속화 — flush 로 즉시 저장
+    tideCollector.saveTideBedConfig({ flush: true });
     res.json({ success: true });
 });
 

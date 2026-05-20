@@ -138,8 +138,13 @@ const OUTPUT_FILE = path.join(DATA_DIR, 'dmdw_alerts.json');
 const TMP_FILE = OUTPUT_FILE + '.tmp';
 
 // 특보종류 / 등급 한글 변환 표 (응답에 wrnTpNm/wrnLvlNm 이 이미 있지만 fallback 용)
-const WRN_TP_NM = { V: '풍랑', O: '폭풍해일', W: '강풍', S: '대설', D: '건조', C: '한파', H: '호우', T: '태풍' };
+// 'O'(폭풍해일) 은 수집 대상에서 제외 (extractChildEntries 에서 스킵) 되었으므로 매핑에서도 제거.
+const WRN_TP_NM = { V: '풍랑', W: '강풍', S: '대설', D: '건조', C: '한파', H: '호우', T: '태풍' };
 const WRN_LVL_NM = { '2': '주의보', '3': '경보' };
+
+// 수집 제외 특보종류 코드 집합 (KMA dmdw wrnTp)
+//   'O' = 폭풍해일 — 운영 정책상 수집·표시하지 않음
+const EXCLUDED_WRN_TP = new Set(['O']);
 
 // ============================================================================
 // 3. 모듈 내부 상태 (메모리)
@@ -573,6 +578,9 @@ async function fetchDetail(code, typ) {
 function extractChildEntries(row) {
     const spec = (row.regionsSpec || '').trim();
     if (!spec) return [];
+    // [수집 제외] 폭풍해일(wrnTp='O') 은 운영 정책상 수집하지 않음.
+    //   row 단위로 일괄 스킵해 children/_upcoming 상태에 아예 들어가지 않게 한다.
+    if (EXCLUDED_WRN_TP.has(row.wrnTp)) return [];
     const out = [];
     for (const g of parseGrouped(spec)) {
         for (const childRaw of g.kids) {

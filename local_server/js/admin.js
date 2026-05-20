@@ -553,7 +553,7 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
                             <i class="fa-solid fa-bell-slash"></i> 해제
                         </button>
                     </div>
-                    <button class="unified-admin-close" onclick="document.getElementById('unified-admin-modal').remove();">
+                    <button class="unified-admin-close" onclick="if(typeof clearErrorListAutoRefresh==='function'){clearErrorListAutoRefresh();} document.getElementById('unified-admin-modal').remove();">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
@@ -643,6 +643,27 @@ window.switchUnifiedAdminTab = function (tabId) {
 let currentErrorSubTab = 'review';  // 'review' | 'retry' | 'fail' (기본: 검토 필요)
 let errorListAutoRefreshTimer = null;
 
+// [페이지네이션] 세 리스트 각각 별도 페이지 번호 보관
+// - 자동 갱신(30초) 시 현재 페이지를 그대로 재요청하기 위해 모듈-로컬 상태로 유지
+// - 하위 탭 전환 시에도 보존 (각 탭 자체의 페이지 컨텍스트 유지)
+// - 페이지 클릭 시에만 갱신되고, 응답 totalPages 보다 크면 자동 클램프
+let _collectFailuresPage = 1;
+let _reviewNeededPage = 1;
+let _pendingRetriesPage = 1;
+const _COLLECT_FAILURES_LIMIT = 30;
+const _REVIEW_NEEDED_LIMIT = 30;
+const _PENDING_RETRIES_LIMIT = 30;
+// fetch race 가드: 30초 자동 갱신 + 페이지 클릭 + 사용자 액션 후 reload 인터리브에서
+// 가장 마지막 요청 응답만 화면에 적용.
+// - _errorListSeq: 전체 탭(initial + 30s auto-refresh)용 시퀀스
+// - _failSeq / _reviewSeq / _retrySeq: 부분 갱신(섹션 페이지 클릭)용 섹션별 시퀀스
+let _errorListSeq = 0;
+let _failSeq = 0;
+let _reviewSeq = 0;
+let _retrySeq = 0;
+// [D-7] "원문 보기" 펼침 상태 보존용 — 자동 갱신/부분 갱신 후 다시 펼치기
+const _expandedRawIds = new Set();
+
 /**
  * 에러 리스트 탭의 자동 새로고침 타이머 정지.
  * 탭 이탈 시 또는 탭 재진입 직전(중복 방지) 에 호출.
@@ -669,51 +690,144 @@ function formatElapsed(ms) {
  * 진입 시 기존 타이머 정리 → 새 fetch → setInterval 로 주기 갱신 시작.
  *
  * [연계] /api/error-logs (GET) — 서버 에러 로그.
+ *
+ * @param {HTMLElement} container - 렌더 대상 컨테이너 (alert-top-content)
+ * @param {number} depth - 재귀 클램프 호출 깊이 (무한 재귀 방지용 가드)
  */
-async function renderErrorListTab(container) {
+async function renderErrorListTab(container, depth = 0) {
+    // 재귀 가드: 서버에서 totalPages 가 NaN/0 으로 잘못 와도 무한 재귀 차단
+    if (depth > 1) return;
+
     // 진입 시 자동 갱신 타이머 정리(중복 방지)
     clearErrorListAutoRefresh();
 
+    const myReq = ++_errorListSeq;
+    // 부분 갱신 시퀀스도 함께 무효화 (전체 갱신이 진행 중이면 늦은 섹션 응답이 화면을 덮어쓰지 못하도록)
+    _failSeq++;
+    _reviewSeq++;
+    _retrySeq++;
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
 
-    // 다섯 가지 데이터를 병렬로 조회 (실패/검토/재시도/Gemini 키 상태/dmdw 오류)
-    let failures = [];
-    let reviews = [];
-    let pendings = [];
+    // 다섯 가지 데이터를 병렬로 조회 (실패/검토/재시도/Gemini 키 상태/dmdw 오류).
+    // 세 리스트(fail/review/retry)는 페이지네이션 모드(?page=)로 호출 → { data, pagination }.
+    // - data: 현재 페이지 항목만
+    // - pagination.total: 전체 항목 수 (배지/헤더 카운트용)
+    // - 검토 필요는 신규 페이지네이션 전용 엔드포인트(review-needed/pending) 사용.
+    // dmdw 오류는 페이지네이션 없이 raw array (main 패턴 유지).
+    let failuresData = [];
+    let failuresPagination = { page: 1, limit: _COLLECT_FAILURES_LIMIT, total: 0, totalPages: 1 };
+    let reviewsData = [];
+    let reviewsPagination = { page: 1, limit: _REVIEW_NEEDED_LIMIT, total: 0, totalPages: 1 };
+    let pendingsData = [];
+    let pendingsPagination = { page: 1, limit: _PENDING_RETRIES_LIMIT, total: 0, totalPages: 1 };
     let geminiStatus = { keys: [], count: 0 };
-    let dmdwErrors = [];  // [신규] dmdw 자식 해역 크롤러 오류 로그
-    try {
-        const [failRes, reviewRes, pendingRes, geminiRes, dmdwRes] = await Promise.all([
-            fetch('/api/admin/collect-failures'),
-            fetch('/api/admin/review-needed'),
-            fetch('/api/admin/pending-retries'),
-            fetch('/api/admin/gemini-status'),
-            fetch('/api/admin/dmdw-errors')
-        ]);
-        if (failRes.ok) failures = await failRes.json();
-        if (reviewRes.ok) reviews = await reviewRes.json();
-        if (pendingRes.ok) pendings = await pendingRes.json();
-        if (geminiRes.ok) geminiStatus = await geminiRes.json();
-        if (dmdwRes.ok) dmdwErrors = await dmdwRes.json();
-    } catch (e) { /* 무시 */ }
+    let dmdwErrors = [];  // dmdw 자식 해역 크롤러 오류 로그
+    // 섹션 단위 fetch 에러 플래그 (allSettled 결과 → 섹션별 분리)
+    let failError = false;
+    let reviewError = false;
+    let retryError = false;
 
-    const pendingReviews = (reviews || []).filter(r => !r.acknowledged);
-    const reviewCount = pendingReviews.length;
-    const retryCount = (pendings || []).length;
-    const failCount = (failures || []).length;
-    // dmdw 미확인 항목 카운트 — acknowledged=false 만 셈 (확인된 이력은 회색으로 잔존)
-    const dmdwUnackCount = (dmdwErrors || []).filter(e => !e.acknowledged).length;
+    const failUrl = `/api/admin/collect-failures?page=${_collectFailuresPage}&limit=${_COLLECT_FAILURES_LIMIT}`;
+    const reviewUrl = `/api/admin/review-needed/pending?page=${_reviewNeededPage}&limit=${_REVIEW_NEEDED_LIMIT}`;
+    const pendingUrl = `/api/admin/pending-retries?page=${_pendingRetriesPage}&limit=${_PENDING_RETRIES_LIMIT}`;
+    // allSettled: 한 섹션 fetch 가 reject 되어도 나머지 섹션은 정상 표시
+    const settled = await Promise.allSettled([
+        fetch(failUrl).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))),
+        fetch(reviewUrl).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))),
+        fetch(pendingUrl).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))),
+        fetch('/api/admin/gemini-status').then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))),
+        fetch('/api/admin/dmdw-errors').then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+    ]);
+    // race: body 파싱/렌더 직전 시퀀스 토큰 재확인 — 더 최신 요청이 떴으면 폐기
+    if (myReq !== _errorListSeq) return;
+
+    const [failR, reviewR, pendingR, geminiR, dmdwR] = settled;
+    if (failR.status === 'fulfilled') {
+        const body = failR.value;
+        if (body && Array.isArray(body.data) && body.pagination) {
+            failuresData = body.data;
+            failuresPagination = body.pagination;
+        } else if (Array.isArray(body)) {
+            failuresData = body;
+            failuresPagination = { page: 1, limit: _COLLECT_FAILURES_LIMIT, total: body.length, totalPages: 1 };
+        }
+    } else {
+        failError = true;
+    }
+    if (reviewR.status === 'fulfilled') {
+        const body = reviewR.value;
+        if (body && Array.isArray(body.data) && body.pagination) {
+            reviewsData = body.data;
+            reviewsPagination = body.pagination;
+        } else if (Array.isArray(body)) {
+            const filt = body.filter(r => !r.acknowledged);
+            reviewsData = filt;
+            reviewsPagination = { page: 1, limit: _REVIEW_NEEDED_LIMIT, total: filt.length, totalPages: 1 };
+        }
+    } else {
+        reviewError = true;
+    }
+    if (pendingR.status === 'fulfilled') {
+        const body = pendingR.value;
+        if (body && Array.isArray(body.data) && body.pagination) {
+            pendingsData = body.data;
+            pendingsPagination = body.pagination;
+        } else if (Array.isArray(body)) {
+            pendingsData = body;
+            pendingsPagination = { page: 1, limit: _PENDING_RETRIES_LIMIT, total: body.length, totalPages: 1 };
+        }
+    } else {
+        retryError = true;
+    }
+    if (geminiR.status === 'fulfilled') {
+        geminiStatus = geminiR.value || { keys: [], count: 0 };
+    }
+    if (dmdwR.status === 'fulfilled') {
+        dmdwErrors = Array.isArray(dmdwR.value) ? dmdwR.value : [];
+    }
+    // dmdw 는 fetch 실패해도 그대로 빈 배열 유지 — dmdw 탭만 빈 상태로 표시.
+
+    // [빈 결과 가드] 세 리스트 모두 0건이면 다음 진입을 위해 페이지 변수 모두 1로 리셋.
+    if (!failError && failuresPagination.total === 0) _collectFailuresPage = 1;
+    if (!reviewError && reviewsPagination.total === 0) _reviewNeededPage = 1;
+    if (!retryError && pendingsPagination.total === 0) _pendingRetriesPage = 1;
+
+    // 페이지 클램프: 응답 totalPages 보다 크면 1 페이지로 리셋하고 자기 자신 재호출.
+    // 데이터가 줄어들어 빈 페이지가 잡힌 경우 (예: 마지막 항목 삭제) 자동 보정.
+    // depth 가드: 잘못된 totalPages 응답에도 한 번만 재호출하고 중단.
+    let needReload = false;
+    if (!failError && Number.isFinite(failuresPagination.totalPages) && _collectFailuresPage > failuresPagination.totalPages) {
+        _collectFailuresPage = 1; needReload = true;
+    }
+    if (!reviewError && Number.isFinite(reviewsPagination.totalPages) && _reviewNeededPage > reviewsPagination.totalPages) {
+        _reviewNeededPage = 1; needReload = true;
+    }
+    if (!retryError && Number.isFinite(pendingsPagination.totalPages) && _pendingRetriesPage > pendingsPagination.totalPages) {
+        _pendingRetriesPage = 1; needReload = true;
+    }
+    if (needReload) {
+        return renderErrorListTab(container, depth + 1);
+    }
+
+    const reviewCount = reviewsPagination.total;
+    const retryCount = pendingsPagination.total;
+    const failCount = failuresPagination.total;
+    // dmdw 미확인 항목 카운트 — acknowledged=false 만 셈 (확인된 이력은 회색으로 잔존).
+    const dmdwUnackCount = dmdwErrors.filter(e => !e.acknowledged).length;
 
     // Gemini 키 상태 배지 (항상 표시)
     const geminiBadgeHtml = renderGeminiKeysBadge(geminiStatus);
 
-    // [정책 — 사용자 요구]
-    //  세 영역(검토 필요/재시도 중/수집 실패) 모두 비어있어도 탭바는 항상 표시한다.
-    //  이전 동작: 모두 0건이면 "수집 오류 없음" 메시지만 보여주고 함수가 종료 → 사용자가
-    //  하위 탭 메뉴 구조 자체를 인지할 수 없어 메뉴 일관성 깨짐.
-    //  변경 동작: 탭바는 항상 그리고, 모두 0건인 경우만 탭바 위에 작은 "모든 항목 정상"
-    //  안내 한 줄을 보강 노출. 각 탭 내용은 섹션 렌더 함수가 빈 상태 메시지를 자체 처리.
-    const allEmpty = (reviewCount === 0 && retryCount === 0 && failCount === 0 && dmdwUnackCount === 0);
+    // [정책 — main 사용자 요구]
+    //   네 영역(검토/재시도/수집실패/dmdw) 모두 비어있어도 탭바는 항상 표시.
+    //   이전 동작: 모두 0건이면 "수집 오류 없음" 메시지만 노출하고 return → 메뉴 구조 인지 불가.
+    //   변경 동작: 탭바는 항상 그리고, 모두 0건인 경우만 탭바 위에 작은 "모든 항목 정상" 배너 노출.
+    //   각 탭 내용은 섹션 렌더 함수가 빈 상태 메시지를 자체 처리.
+    //   에러 섹션은 allEmpty 계산에서 제외 — 에러 상태도 사용자가 인지해야 하므로.
+    const allEmpty = (
+        !failError && !reviewError && !retryError &&
+        reviewCount === 0 && retryCount === 0 && failCount === 0 && dmdwUnackCount === 0
+    );
     const allClearBannerHtml = allEmpty
         ? `<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;margin-bottom:12px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:8px;color:#86efac;font-size:0.85rem;font-weight:600;">
                 <i class="fa-solid fa-circle-check"></i>
@@ -722,11 +836,15 @@ async function renderErrorListTab(container) {
         : '';
 
     // 하위 탭 바 렌더링
+    // [D-4] 배지 span 에 명시적 id 부여 → 부분 갱신 시 in-place 카운트 업데이트.
+    //   count 0 일 때도 빈 배지 컨테이너를 유지 (display:none) 해야 in-place 업데이트가 가능.
     const tabBtn = (key, label, count, color) => {
         const active = (currentErrorSubTab === key);
-        const badge = count > 0
-            ? `<span style="display:inline-block;min-width:18px;padding:1px 6px;margin-left:6px;background:${color};color:#fff;border-radius:10px;font-size:0.7rem;font-weight:700;text-align:center;">${count}</span>`
-            : '';
+        const badgeId = `err-subtab-${key}-badge`;
+        const badgeStyle = count > 0
+            ? `display:inline-block;min-width:18px;padding:1px 6px;margin-left:6px;background:${color};color:#fff;border-radius:10px;font-size:0.7rem;font-weight:700;text-align:center;`
+            : `display:none;min-width:18px;padding:1px 6px;margin-left:6px;background:${color};color:#fff;border-radius:10px;font-size:0.7rem;font-weight:700;text-align:center;`;
+        const badge = `<span id="${badgeId}" style="${badgeStyle}">${count > 0 ? count : ''}</span>`;
         const style = active
             ? `padding:8px 14px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);border-radius:8px;color:#93c5fd;cursor:pointer;font-size:0.82rem;font-weight:700;`
             : `padding:8px 14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#94a3b8;cursor:pointer;font-size:0.82rem;font-weight:500;`;
@@ -748,19 +866,305 @@ async function renderErrorListTab(container) {
 
     const sub = document.getElementById('error-sub-tab-content');
     if (currentErrorSubTab === 'review') {
-        sub.innerHTML = renderReviewSectionHtml(pendingReviews);
+        sub.innerHTML = reviewError
+            ? _renderSectionErrorHtml('review', '검토 필요')
+            : renderReviewSectionHtml(reviewsData, reviewsPagination);
+        _attachErrorListPagination('review', reviewsPagination);
     } else if (currentErrorSubTab === 'retry') {
-        sub.innerHTML = renderPendingRetriesHtml(pendings);
-        // 재시도 중 탭은 30초마다 자동 갱신 (상태 급변 가능)
-        errorListAutoRefreshTimer = setInterval(() => {
-            const inner = document.getElementById('alert-top-content');
-            if (inner) renderErrorListTab(inner);
-        }, 30000);
+        sub.innerHTML = retryError
+            ? _renderSectionErrorHtml('retry', '재시도 중')
+            : renderPendingRetriesHtml(pendingsData, pendingsPagination);
+        _attachErrorListPagination('retry', pendingsPagination);
+        // [D-7] 자동 갱신 후 펼친 원문 영역 복원 (에러 상태가 아닐 때만)
+        if (!retryError) _restoreExpandedRawTexts();
     } else if (currentErrorSubTab === 'fail') {
-        sub.innerHTML = renderFailureSectionHtml(failures);
+        sub.innerHTML = failError
+            ? _renderSectionErrorHtml('fail', '수집 실패')
+            : renderFailureSectionHtml(failuresData, failuresPagination);
+        _attachErrorListPagination('fail', failuresPagination);
     } else if (currentErrorSubTab === 'dmdw') {
-        // [신규] dmdw 자식 해역 크롤러 오류 — 미확인은 진하게, 확인됨은 흐릿하게 표시.
+        // [신규] dmdw 자식 해역 크롤러 오류 — 미확인 진하게, 확인됨 흐리게. 페이지네이션 없음.
         sub.innerHTML = renderDmdwErrorsSectionHtml(dmdwErrors);
+    }
+
+    // 자동 갱신은 서브탭 무관하게 항상 등록 (3개 서브탭 모두에서 30초 주기 동작)
+    _registerErrorListAutoRefresh(container);
+}
+
+/**
+ * 에러 리스트 탭 자동 갱신 타이머 등록 (모든 서브탭 공통).
+ * 30초 주기로 renderErrorListTab 재호출하되, 현재 페이지/서브탭 상태는 모듈-로컬 변수로 보존.
+ */
+function _registerErrorListAutoRefresh(container) {
+    clearErrorListAutoRefresh();
+    errorListAutoRefreshTimer = setInterval(() => {
+        const inner = document.getElementById('alert-top-content');
+        // 컨테이너가 화면에서 사라졌으면 (탭 전환/모달 종료) 자동 정리
+        if (!inner || !document.body.contains(inner)) {
+            clearErrorListAutoRefresh();
+            return;
+        }
+        renderErrorListTab(inner);
+    }, 30000);
+}
+
+/**
+ * 세 에러 리스트 페이지네이션 UI를 공용 helper 로 렌더 + 클릭 핸들러 부착.
+ * - kind: 'review' | 'retry' | 'fail'
+ * - pagination: { page, limit, total, totalPages }
+ * 페이지 클릭 시 해당 섹션만 재 fetch + 그 섹션 컨테이너만 부분 갱신 (다른 섹션 보존).
+ */
+function _attachErrorListPagination(kind, pagination) {
+    const containerId = kind === 'review' ? 'review-needed-pagination'
+        : kind === 'retry' ? 'pending-retries-pagination'
+            : 'collect-failures-pagination';
+    const el = document.getElementById(containerId);
+    if (!el || typeof window.renderStandardPagination !== 'function') return;
+    const total = (pagination && pagination.totalPages) || 1;
+    const cur = (pagination && pagination.page) || 1;
+    window.renderStandardPagination(el, cur, total, (page) => {
+        if (kind === 'review') {
+            _reviewNeededPage = page;
+            _fetchReviewNeededPage();
+        } else if (kind === 'retry') {
+            _pendingRetriesPage = page;
+            _fetchPendingRetriesPage();
+        } else {
+            _collectFailuresPage = page;
+            _fetchCollectFailuresPage();
+        }
+        // 페이지 전환 시 컨테이너 상단으로 부드럽게 스크롤 (다른 페이지네이션 화면과 동일 UX)
+        // [H-3] inner 가 스크롤 컨테이너 자체일 경우 scrollIntoView 는 no-op →
+        //   scroll({top:0}) 로 교체. scroll API 미지원 시 scrollTop fallback.
+        const inner = document.getElementById('alert-top-content');
+        if (inner) {
+            if (typeof inner.scroll === 'function') {
+                inner.scroll({ top: 0, behavior: 'smooth' });
+            } else {
+                inner.scrollTop = 0;
+            }
+        }
+    });
+}
+
+/**
+ * 섹션별 부분 갱신 fetch — 수집 실패.
+ * 응답 도착 시 #collect-failures-section 컨테이너의 카드 + 페이지네이션만 다시 그림.
+ * (다른 두 섹션의 상태/배지 카운트는 그대로 유지)
+ */
+async function _fetchCollectFailuresPage() {
+    // [B-1] 부분 갱신 시작 시 전체용 시퀀스 토큰도 증가 →
+    //   진행 중이던 30s 자동 갱신 응답이 자동 폐기되어 화면을 덮어쓰지 못함.
+    //   섹션별 시퀀스(_failSeq)는 부분 갱신 간 race 가드용으로 그대로 유지.
+    _errorListSeq++;
+    const mySeq = ++_failSeq;
+    const section = document.getElementById('collect-failures-section');
+    if (!section) return;
+    // [D-5] 헤더 보존: 리스트 영역(#collect-failures-list)만 스피너로 교체,
+    //   섹션 헤더(수집실패 N건 + 전체삭제 버튼)는 그대로 유지.
+    //   list-area id 가 현재 DOM 에 없으면(이전 렌더가 에러 메시지였던 경우 등)
+    //   섹션 전체를 스피너로 교체 (fallback).
+    _setSectionLoading(section, 'collect-failures-list');
+    try {
+        const res = await fetch(`/api/admin/collect-failures?page=${_collectFailuresPage}&limit=${_COLLECT_FAILURES_LIMIT}`);
+        if (mySeq !== _failSeq) return;
+        if (!res.ok) {
+            // [D-6] 재시도 버튼 포함 에러 표시
+            section.innerHTML = _renderSectionInnerErrorHtml('fail');
+            return;
+        }
+        const body = await res.json();
+        if (mySeq !== _failSeq) return;
+        let data = [];
+        let pagination = { page: 1, limit: _COLLECT_FAILURES_LIMIT, total: 0, totalPages: 1 };
+        if (body && Array.isArray(body.data) && body.pagination) {
+            data = body.data;
+            pagination = body.pagination;
+        } else if (Array.isArray(body)) {
+            data = body;
+            pagination = { page: 1, limit: _COLLECT_FAILURES_LIMIT, total: body.length, totalPages: 1 };
+        }
+        section.innerHTML = _renderFailureSectionInnerHtml(data, pagination);
+        _attachErrorListPagination('fail', pagination);
+        // [D-4] 다른 두 탭 배지 stale 회피 → 해당 섹션 배지만 in-place 업데이트
+        _updateSubTabBadge('fail', pagination.total);
+    } catch (e) {
+        if (mySeq !== _failSeq) return;
+        section.innerHTML = _renderSectionInnerErrorHtml('fail');
+    }
+}
+
+/**
+ * 섹션별 부분 갱신 fetch — 검토 필요.
+ * 신규 페이지 전용 엔드포인트(/api/admin/review-needed/pending) 호출.
+ */
+async function _fetchReviewNeededPage() {
+    // [B-1] 전체 시퀀스 토큰도 증가
+    _errorListSeq++;
+    const mySeq = ++_reviewSeq;
+    const section = document.getElementById('review-needed-section');
+    if (!section) return;
+    // [D-5] 헤더 보존
+    _setSectionLoading(section, 'review-needed-list');
+    try {
+        const res = await fetch(`/api/admin/review-needed/pending?page=${_reviewNeededPage}&limit=${_REVIEW_NEEDED_LIMIT}`);
+        if (mySeq !== _reviewSeq) return;
+        if (!res.ok) {
+            section.innerHTML = _renderSectionInnerErrorHtml('review');
+            return;
+        }
+        const body = await res.json();
+        if (mySeq !== _reviewSeq) return;
+        let data = [];
+        let pagination = { page: 1, limit: _REVIEW_NEEDED_LIMIT, total: 0, totalPages: 1 };
+        if (body && Array.isArray(body.data) && body.pagination) {
+            data = body.data;
+            pagination = body.pagination;
+        } else if (Array.isArray(body)) {
+            const filt = body.filter(r => !r.acknowledged);
+            data = filt;
+            pagination = { page: 1, limit: _REVIEW_NEEDED_LIMIT, total: filt.length, totalPages: 1 };
+        }
+        section.innerHTML = _renderReviewSectionInnerHtml(data, pagination);
+        _attachErrorListPagination('review', pagination);
+        _updateSubTabBadge('review', pagination.total);
+    } catch (e) {
+        if (mySeq !== _reviewSeq) return;
+        section.innerHTML = _renderSectionInnerErrorHtml('review');
+    }
+}
+
+/**
+ * 섹션별 부분 갱신 fetch — 재시도 중.
+ */
+async function _fetchPendingRetriesPage() {
+    // [B-1] 전체 시퀀스 토큰도 증가
+    _errorListSeq++;
+    const mySeq = ++_retrySeq;
+    const section = document.getElementById('pending-retries-section');
+    if (!section) return;
+    // [D-5] 헤더 보존
+    _setSectionLoading(section, 'pending-retries-list');
+    try {
+        const res = await fetch(`/api/admin/pending-retries?page=${_pendingRetriesPage}&limit=${_PENDING_RETRIES_LIMIT}`);
+        if (mySeq !== _retrySeq) return;
+        if (!res.ok) {
+            section.innerHTML = _renderSectionInnerErrorHtml('retry');
+            return;
+        }
+        const body = await res.json();
+        if (mySeq !== _retrySeq) return;
+        let data = [];
+        let pagination = { page: 1, limit: _PENDING_RETRIES_LIMIT, total: 0, totalPages: 1 };
+        if (body && Array.isArray(body.data) && body.pagination) {
+            data = body.data;
+            pagination = body.pagination;
+        } else if (Array.isArray(body)) {
+            data = body;
+            pagination = { page: 1, limit: _PENDING_RETRIES_LIMIT, total: body.length, totalPages: 1 };
+        }
+        section.innerHTML = _renderPendingRetriesInnerHtml(data, pagination);
+        _attachErrorListPagination('retry', pagination);
+        _updateSubTabBadge('retry', pagination.total);
+        // [D-7] 자동/부분 갱신 후 펼친 원문 영역 복원
+        _restoreExpandedRawTexts();
+    } catch (e) {
+        if (mySeq !== _retrySeq) return;
+        section.innerHTML = _renderSectionInnerErrorHtml('retry');
+    }
+}
+
+// [D-5] 섹션 로딩 표시 — 리스트 영역만 스피너로 교체해 헤더 깜빡임 방지.
+//   list-area id 가 현재 DOM 에 없으면 (이전 렌더가 에러 메시지였던 경우 등)
+//   섹션 전체를 스피너로 교체.
+function _setSectionLoading(section, listAreaId) {
+    if (!section) return;
+    const list = section.querySelector(`#${listAreaId}`);
+    const spinner = '<div style="text-align:center;padding:20px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
+    if (list) {
+        list.innerHTML = spinner;
+    } else {
+        section.innerHTML = spinner;
+    }
+}
+
+// [D-6] 한 섹션 fetch 실패 시 [재시도] 버튼 함께 표시.
+//   onclick 으로 해당 섹션의 _fetchXxxPage(현재 페이지) 를 다시 호출 →
+//   자동 갱신 30초 대기 없이 사용자가 즉시 회복 가능.
+// kind: 'review' | 'retry' | 'fail'
+function _retryButtonHtml(kind) {
+    const fnName = kind === 'review' ? '_fetchReviewNeededPage'
+        : kind === 'retry' ? '_fetchPendingRetriesPage'
+            : '_fetchCollectFailuresPage';
+    // 최상위 function 선언이라 브라우저에서 window[fnName] 으로 접근 가능.
+    return `<button onclick="${fnName}()" style="margin-top:10px;padding:6px 14px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);border-radius:8px;color:#93c5fd;cursor:pointer;font-size:0.78rem;font-weight:600;">
+        <i class="fa-solid fa-rotate"></i> 재시도
+    </button>`;
+}
+
+// 섹션 부분 갱신 실패 메시지 (전체 갱신 시 — 섹션 외곽 컨테이너 포함).
+// [D-6] 재시도 버튼 포함.
+function _renderSectionErrorHtml(kind, label) {
+    const containerId = kind === 'review' ? 'review-needed-section'
+        : kind === 'retry' ? 'pending-retries-section'
+            : 'collect-failures-section';
+    return `<div id="${containerId}"><div style="text-align:center;padding:40px 20px;color:#fca5a5;font-size:0.88rem;">
+        <i class="fa-solid fa-circle-exclamation"></i> ${label} 목록을 불러오지 못했습니다.
+        <div>${_retryButtonHtml(kind)}</div>
+    </div></div>`;
+}
+
+// 섹션 부분 갱신 실패 메시지 (innerHTML 만 — 외곽 #*-section 컨테이너 그대로 유지).
+// [D-6] kind 가 주어지면 재시도 버튼 노출.
+function _renderSectionInnerErrorHtml(kind) {
+    const retryHtml = kind ? `<div>${_retryButtonHtml(kind)}</div>` : '';
+    return `<div style="text-align:center;padding:30px 20px;color:#fca5a5;font-size:0.85rem;">
+        <i class="fa-solid fa-circle-exclamation"></i> 목록을 불러오지 못했습니다.
+        ${retryHtml}
+    </div>`;
+}
+
+// [D-4] 한 서브탭의 배지 카운트를 in-place 로 업데이트.
+//   부분 갱신 응답 도착 시 pagination.total 로 그 섹션의 탭 버튼 배지만 갱신
+//   → 다른 두 탭의 stale 카운트 문제 회피.
+function _updateSubTabBadge(kind, total) {
+    const el = document.getElementById(`err-subtab-${kind}-badge`);
+    if (!el) return;
+    const n = Number.isFinite(total) ? total : 0;
+    if (n > 0) {
+        el.textContent = String(n);
+        el.style.display = 'inline-block';
+    } else {
+        el.textContent = '';
+        el.style.display = 'none';
+    }
+}
+
+// [D-7] "원문 보기" 펼침 상태 복원.
+//   _expandedRawIds 에 있는 reportId 들의 원문 영역을 다시 펼치고 내용을 채움.
+//   togglePendingRawText 와 동일한 fetch 경로 사용 — 캐시 없이 재조회.
+//   해당 항목이 더 이상 화면에 없으면 (페이지 이동/삭제 등) Set 에서 제거.
+function _restoreExpandedRawTexts() {
+    if (_expandedRawIds.size === 0) return;
+    for (const reportId of Array.from(_expandedRawIds)) {
+        const safeIdAttr = String(reportId).replace(/[^a-zA-Z0-9]/g, '_');
+        const containerId = `raw-${safeIdAttr}`;
+        const box = document.getElementById(containerId);
+        if (!box) {
+            _expandedRawIds.delete(reportId);
+            continue;
+        }
+        box.style.display = 'block';
+        box.textContent = '원문 불러오는 중...';
+        fetch(`/api/admin/pending-retries/${encodeURIComponent(reportId)}/raw`)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (!data) { box.textContent = '원문을 가져오지 못했습니다.'; return; }
+                box.textContent = data.rawText && data.rawText.trim().length > 0
+                    ? data.rawText
+                    : '(원문이 비어 있습니다.)';
+            })
+            .catch(e => { box.textContent = '원문 조회 오류: ' + e.message; });
     }
 }
 
@@ -803,12 +1207,40 @@ function renderGeminiKeysBadge(status) {
         </div>`;
 }
 
-// [하위 탭] 검토 필요 섹션 HTML
-function renderReviewSectionHtml(pendingReviews) {
-    if (!pendingReviews || pendingReviews.length === 0) {
-        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">검토 필요 항목이 없습니다.</div>`;
+// [하위 탭] 검토 필요 섹션 HTML (외곽 #review-needed-section 래퍼 포함)
+// items: 현재 페이지 항목, pagination: 전체 카운트/페이지 정보
+function renderReviewSectionHtml(items, pagination) {
+    return `<div id="review-needed-section">${_renderReviewSectionInnerHtml(items, pagination)}</div>`;
+}
+
+// [내부] 검토 필요 섹션의 innerHTML 만 생성 (부분 갱신에서 외곽 컨테이너 그대로 두고 내부만 교체).
+// [D-5] 구조: [header 영역] + [list 영역 (#review-needed-list)]
+//   부분 갱신 로딩 시 list 영역만 스피너로 교체해 헤더(전체 확인완료 버튼)를 보존.
+function _renderReviewSectionInnerHtml(items, pagination) {
+    const total = (pagination && pagination.total) || 0;
+    return `${_renderReviewHeaderHtml(total)}
+        <div id="review-needed-list">${_renderReviewListInnerHtml(items)}</div>`;
+}
+
+// [D-5] 검토 필요 섹션 헤더 (카운트 + 전체 확인완료 버튼)
+function _renderReviewHeaderHtml(total) {
+    return `<div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="color:#fcd34d;font-size:0.9rem;font-weight:600;">
+                <i class="fa-solid fa-magnifying-glass"></i> 검토 필요 ${total}건
+            </div>
+            <button onclick="acknowledgeAllReviews()" style="padding:5px 12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:600;">
+                <i class="fa-solid fa-check-double"></i> 전체 확인완료
+            </button>
+        </div>`;
+}
+
+// [D-5] 리스트 영역만 (rows + 페이지네이션)
+function _renderReviewListInnerHtml(items) {
+    if (!items || items.length === 0) {
+        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">검토 필요 항목이 없습니다.</div>
+            <div id="review-needed-pagination" class="pagination"></div>`;
     }
-    const rows = pendingReviews.map(r => {
+    const rows = items.map(r => {
         const time = r.detectedAt ? new Date(r.detectedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-';
         const preview = (r.referenceText || '').substring(0, 80) + ((r.referenceText || '').length > 80 ? '...' : '');
         return `
@@ -824,24 +1256,41 @@ function renderReviewSectionHtml(pendingReviews) {
                 </button>
             </div>`;
     }).join('');
-    return `
-        <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
-            <div style="color:#fcd34d;font-size:0.9rem;font-weight:600;">
-                <i class="fa-solid fa-magnifying-glass"></i> 검토 필요 ${pendingReviews.length}건
-            </div>
-            <button onclick="acknowledgeAllReviews()" style="padding:5px 12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:600;">
-                <i class="fa-solid fa-check-double"></i> 전체 확인완료
-            </button>
-        </div>
-        ${rows}`;
+    return `${rows}
+        <div id="review-needed-pagination" class="pagination"></div>`;
 }
 
-// [하위 탭] 재시도 중 섹션 HTML
-function renderPendingRetriesHtml(pendings) {
-    if (!pendings || pendings.length === 0) {
-        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">현재 재시도 대기 중인 통보문이 없습니다.</div>`;
+// [하위 탭] 재시도 중 섹션 HTML (외곽 #pending-retries-section 래퍼 포함)
+// items: 현재 페이지 항목, pagination: 전체 카운트/페이지 정보
+function renderPendingRetriesHtml(items, pagination) {
+    return `<div id="pending-retries-section">${_renderPendingRetriesInnerHtml(items, pagination)}</div>`;
+}
+
+// [내부] 재시도 중 섹션의 innerHTML 만 생성.
+// [D-5] [header 영역] + [list 영역 (#pending-retries-list)] 구조
+function _renderPendingRetriesInnerHtml(items, pagination) {
+    const total = (pagination && pagination.total) || 0;
+    return `${_renderPendingRetriesHeaderHtml(total)}
+        <div id="pending-retries-list">${_renderPendingRetriesListInnerHtml(items)}</div>`;
+}
+
+// [D-5] 재시도 섹션 헤더 (카운트 + 자동 갱신 안내)
+function _renderPendingRetriesHeaderHtml(total) {
+    return `<div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="color:#93c5fd;font-size:0.9rem;font-weight:600;">
+                <i class="fa-solid fa-rotate"></i> 재시도 중 ${total}건
+            </div>
+            <div style="color:#64748b;font-size:0.7rem;">30초마다 자동 갱신</div>
+        </div>`;
+}
+
+// [D-5] 리스트 영역만
+function _renderPendingRetriesListInnerHtml(items) {
+    if (!items || items.length === 0) {
+        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">현재 재시도 대기 중인 통보문이 없습니다.</div>
+            <div id="pending-retries-pagination" class="pagination"></div>`;
     }
-    const rows = pendings.map(p => {
+    const rows = items.map(p => {
         const reasonLabel = p.reason === 'API_RATE_LIMIT'
             ? '<span style="color:#fca5a5;background:rgba(239,68,68,0.1);padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;">⚠️ AI 할당량 초과</span>'
             : '<span style="color:#fcd34d;background:rgba(245,158,11,0.1);padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;">📝 빈 양식 판정</span>';
@@ -872,22 +1321,43 @@ function renderPendingRetriesHtml(pendings) {
                 <div id="${rawContainerId}" style="display:none;margin-top:10px;padding:10px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.06);border-radius:6px;color:#cbd5e1;font-size:0.78rem;line-height:1.5;white-space:pre-wrap;max-height:280px;overflow:auto;"></div>
             </div>`;
     }).join('');
-    return `
-        <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
-            <div style="color:#93c5fd;font-size:0.9rem;font-weight:600;">
-                <i class="fa-solid fa-rotate"></i> 재시도 중 ${pendings.length}건
-            </div>
-            <div style="color:#64748b;font-size:0.7rem;">30초마다 자동 갱신</div>
-        </div>
-        ${rows}`;
+    return `${rows}
+        <div id="pending-retries-pagination" class="pagination"></div>`;
 }
 
-// [하위 탭] 수집 실패 섹션 HTML
-function renderFailureSectionHtml(failures) {
-    if (!failures || failures.length === 0) {
-        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">수집 실패 기록이 없습니다.</div>`;
+// [하위 탭] 수집 실패 섹션 HTML (외곽 #collect-failures-section 래퍼 포함)
+// items: 현재 페이지 항목, pagination: 전체 카운트/페이지 정보
+function renderFailureSectionHtml(items, pagination) {
+    return `<div id="collect-failures-section">${_renderFailureSectionInnerHtml(items, pagination)}</div>`;
+}
+
+// [내부] 수집 실패 섹션의 innerHTML 만 생성.
+// [D-5] [header 영역] + [list 영역 (#collect-failures-list)] 구조
+function _renderFailureSectionInnerHtml(items, pagination) {
+    const total = (pagination && pagination.total) || 0;
+    return `${_renderFailureHeaderHtml(total)}
+        <div id="collect-failures-list">${_renderFailureListInnerHtml(items)}</div>`;
+}
+
+// [D-5] 수집 실패 섹션 헤더 (카운트 + 전체 삭제 버튼)
+function _renderFailureHeaderHtml(total) {
+    return `<div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="color:#fca5a5;font-size:0.9rem;font-weight:600;">
+                <i class="fa-solid fa-triangle-exclamation"></i> 수집 실패 ${total}건
+            </div>
+            <button onclick="clearAllCollectFailuresAndRefresh()" style="padding:5px 12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:600;">
+                <i class="fa-solid fa-check"></i> 전체 삭제
+            </button>
+        </div>`;
+}
+
+// [D-5] 리스트 영역만
+function _renderFailureListInnerHtml(items) {
+    if (!items || items.length === 0) {
+        return `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:0.88rem;">수집 실패 기록이 없습니다.</div>
+            <div id="collect-failures-pagination" class="pagination"></div>`;
     }
-    const rows = failures.map(f => {
+    const rows = items.map(f => {
         const time = f.failedAt ? new Date(f.failedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-';
         return `
             <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:10px;margin-bottom:8px;">
@@ -902,16 +1372,8 @@ function renderFailureSectionHtml(failures) {
                 </button>
             </div>`;
     }).join('');
-    return `
-        <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
-            <div style="color:#fca5a5;font-size:0.9rem;font-weight:600;">
-                <i class="fa-solid fa-triangle-exclamation"></i> 수집 실패 ${failures.length}건
-            </div>
-            <button onclick="clearAllCollectFailuresAndRefresh()" style="padding:5px 12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:600;">
-                <i class="fa-solid fa-check"></i> 전체 삭제
-            </button>
-        </div>
-        ${rows}`;
+    return `${rows}
+        <div id="collect-failures-pagination" class="pagination"></div>`;
 }
 
 // [하위 탭 전환] 하위 탭 버튼 클릭 시 호출
@@ -1060,14 +1522,18 @@ window.deleteAllDmdwErrors = async function () {
 };
 
 // [원문 보기] 재시도 중 항목의 원문 텍스트를 토글 표시
+// [D-7] 펼침/접힘 상태를 _expandedRawIds 에 기록 →
+//   자동 갱신(30초)/부분 갱신 후 _restoreExpandedRawTexts() 가 복원.
 window.togglePendingRawText = async function (reportId, containerId) {
     const box = document.getElementById(containerId);
     if (!box) return;
     if (box.style.display === 'block') {
         box.style.display = 'none';
+        _expandedRawIds.delete(reportId);
         return;
     }
     box.style.display = 'block';
+    _expandedRawIds.add(reportId);
     box.textContent = '원문 불러오는 중...';
     try {
         const res = await fetch(`/api/admin/pending-retries/${encodeURIComponent(reportId)}/raw`);
@@ -2625,6 +3091,11 @@ async function renderUnifiedAlertContent(container) {
         } else if (topTabId === 'collect-test') {
             renderCollectTestSubTab(topContent);
         } else if (topTabId === 'collect-error') {
+            // [탭 재진입 리셋] 수집 오류 상위 탭 첫 진입 시 3개 페이지 변수 모두 1로 리셋.
+            // (탭 내 페이지 클릭/하위탭 전환/30초 자동 갱신은 페이지 보존)
+            _collectFailuresPage = 1;
+            _reviewNeededPage = 1;
+            _pendingRetriesPage = 1;
             renderErrorListTab(topContent);
         } else if (topTabId === 'manual-edit') {
             renderManualInputTab(topContent);
@@ -2679,6 +3150,9 @@ function renderAlertManageSubTab(container) {
     };
 
     // 누적 푸시 발송 요약 표시
+    // - 누적 발송 건수(totalSends)와 누적 수신자 수(totalCount=Σh.count)를 모두 표시해야 하므로
+    //   전체 이력을 합산해야 함 → 페이지네이션 응답 포맷이 아닌 legacy(raw array) 모드를 사용
+    // - 서버 라우트는 ?page= 쿼리가 없으면 전체 배열을 그대로 반환 (하위호환 유지)
     window.refreshAlertPushTotalSummary = async function () {
         const sendsEl = document.getElementById('alert-push-total-sends');
         const countEl = document.getElementById('alert-push-total-count');

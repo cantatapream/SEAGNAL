@@ -242,6 +242,10 @@
                     // 같은 레이어 토글 OFF
                     streamActive = false;
                     this.classList.remove('active');
+                    // [2026-05] OFF 시 KHOA 토스트/재시도/로딩 인디케이터 정리
+                    _hideKhoaUnavailableToast();
+                    _cancelKhoaRetry();
+                    _hideCurrentLoadingIndicator();
                     window.oceanOverlayClear();
                     // 통합 박스(범례+타임라인) 숨김 — 타임라인은 범례 내부에 있으므로 함께 사라집니다
                     var legendEl = document.getElementById('ocean-legend');
@@ -283,6 +287,10 @@
             legendBox.addEventListener('click', function (e) {
                 // 클릭 가능한 layer 만 (current/wind). wave 면 무시.
                 if (activeLayer !== 'current' && activeLayer !== 'wind') return;
+                // 색상 범례(타이틀/색상바/라벨)에서 발생한 클릭만 토글 처리.
+                // 슬라이더(#ocean-timeline-slider) 트랙/손잡이 클릭이 부모로 버블링되어
+                // 단위가 의도치 않게 토글되는 회귀 방지.
+                if (!e.target.closest('.ocean-legend-title, .ocean-legend-bar, .ocean-legend-labels')) return;
                 // OS 가 없으면 (시트 미열림 환경) 자체 fallback 변수 사용.
                 if (!window.OceanSheet) window.OceanSheet = {};
                 if (!window.OceanSheet.state) window.OceanSheet.state = {};
@@ -349,6 +357,10 @@
         if (!streamActive) return; // 이미 꺼진 상태면 불필요
         streamActive = false;
         activeLayer = null;
+        // [2026-05] 오버레이 OFF 시 KHOA 안내 토스트 + 재시도 타이머 + 로딩 인디케이터 정리
+        _hideKhoaUnavailableToast();
+        _cancelKhoaRetry();
+        _hideCurrentLoadingIndicator();
         // 모든 오버레이 버튼의 active 표시 제거
         document.querySelectorAll('.ocean-overlay-btn[data-layer]').forEach(function (b) {
             b.classList.remove('active');
@@ -364,6 +376,12 @@
     };
 
     window.oceanOverlayClear = function () {
+        // [2026-05] 오버레이 자체가 꺼지면 KHOA 안내 토스트·로딩 인디케이터도 함께 해제.
+        //   - 사용자가 같은 레이어 버튼을 다시 눌러 OFF 한 경우
+        //   - 베이스맵 강제 전환 등으로 오버레이가 강제 종료된 경우
+        _hideKhoaUnavailableToast();
+        _cancelKhoaRetry();
+        _hideCurrentLoadingIndicator();
         if (animationId) {
             cancelAnimationFrame(animationId);
             animationId = null;
@@ -472,6 +490,14 @@
      */
     function setActiveLayer(layer) {
         activeLayer = layer;
+        // [2026-05] current 가 아닌 레이어로 전환 시 KHOA 안내 토스트 + 재시도 타이머 정리.
+        //   사용자가 wind/wave 로 넘어갔는데 토스트가 남아있으면 잘못된 안내가 됨.
+        if (layer !== 'current') {
+            _hideKhoaUnavailableToast();
+            _cancelKhoaRetry();
+        }
+        // 로딩 인디케이터 잔재 제거 (이전 레이어 잔상 방지)
+        _hideCurrentLoadingIndicator();
         // 레이어 전환 시 이전 데이터 및 캔버스 모두 초기화
         gridData = null;
         lonList = null; latList = null; gridLookup = null;
@@ -676,6 +702,11 @@
     /**
      * 해류 격자 데이터에 5×5 가우시안 평활화를 적용해 새 배열로 반환.
      *
+     * [DEPRECATED 2026-05 — 서버측 services/khoa_stream_cache.js 로 이동]
+     *   loadCurrentData 는 더 이상 이 함수를 직접 호출하지 않음 (서버가 1회 가공).
+     *   레거시 응답(data.preprocessed=false) 호환 폴백 경로에서만 호출됨.
+     *
+
      * [이 함수의 역할 — 한 줄 요약]
      *   ROMS 원본의 셀 단위 국소 변동(작은 잡음·고변동 셀)을 인접 25셀
      *   가중평균으로 부드럽게 만들어 시각화의 얼룩 패턴을 줄임.
@@ -789,40 +820,213 @@
      * [데이터 가공]
      *   1. API 응답의 단위(s = m/s)를 cm/s 로 환산(`crsp = s * 100`).
      *      이유: COLOR_SCALES.current 가 cm/s 단위로 정의되어 있어 단위 일치 필요.
-     *   2. _smoothCurrentGrid5x5() 로 5×5 가우시안 평활화 1회 통과.
-     *      이유: ROMS 원본은 셀 단위 변동이 커서 시각화가 얼룩덜룩 해짐.
-     *      가중평균은 "약 35km 평균 유속" 으로 물리 의미를 보존.
+     *   2. (서버측 services/khoa_stream_cache.js 에서 이미 5×5 가우시안 평활화 +
+     *      양자화 + 결측점 필터 완료. 클라이언트는 결과를 그대로 시각화만 수행 —
+     *      부하 분산. 레거시 응답(preprocessed 미설정)이 들어오면 보수적으로
+     *      클라이언트 평활화 적용해 호환성 유지.)
+     *   3. KHOA 일시 장애 시 안내 토스트 + 7초 간격 백그라운드 retry 자동 활성화.
+     *
+     * @param {boolean=} silent - true 면 console 로그를 억제 (백그라운드 retry 용)
      */
-    function loadCurrentData() {
+    function loadCurrentData(silent) {
         var dh = _offsetToDateHour(timelineOffsetHours);
-        console.log('[OceanOverlay] KHOA stream-vector 로드 시작');
+        if (!silent) console.log('[OceanOverlay] KHOA stream-vector 로드 시작');
+        // [Race-guard] 슬라이더 드래그 중 직전 fetch 의 옛 응답이 새 fetch 결과를
+        //   덮어쓰는 회귀를 방지. myEpoch 가 현재 epoch 와 다르면 응답 폐기.
+        var myEpoch = ++_currentLoadEpoch;
+        // [로딩 인디케이터] 슬라이더 드래그/타임라인 변경 시 짧은 시간이지만 사용자가
+        //   "응답이 오는 중인지" 알 수 있도록 캔버스를 살짝 어둡게 처리 + 범례에 펄스 dot.
+        //   silent retry 시엔 표시 안 함 (이미 토스트가 안내 중).
+        if (!silent) _showCurrentLoadingIndicator();
         fetch('/api/ocean/khoa-stream-vector?date=' + dh.date + '&hour=' + dh.hour)
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (!data || !data.success || !data.points || data.points.length === 0) {
-                    console.warn('[OceanOverlay] KHOA stream-vector 데이터 없음');
+                if (myEpoch !== _currentLoadEpoch) return; // 옛 응답 무시
+                if (!data || data.success === false || !data.points || data.points.length === 0) {
+                    if (!silent) console.warn('[OceanOverlay] KHOA stream-vector 데이터 없음');
+                    _hideCurrentLoadingIndicator();
+                    // [토스트] 서버가 success:false 로 응답했고 (upstreamFailed 포함)
+                    //   유향유속 레이어가 활성화된 동안에만 안내 토스트 표시 + 7초 재시도.
+                    if (activeLayer === 'current' && streamActive) {
+                        _showKhoaUnavailableToast();
+                        _scheduleKhoaRetry();
+                    }
                     updateLegend(activeLayer);
                     return;
                 }
+                // 서버가 success:true → 토스트가 떠 있었으면 즉시 숨김
+                _hideKhoaUnavailableToast();
+                _cancelKhoaRetry();
                 gridData = [];
                 for (var i = 0; i < data.points.length; i++) {
                     var p = data.points[i];
-                    if (p.s === 0 && p.d === 0 && p.temp === 0 && p.salt === 0 && p.zeta === 0) continue;
+                    // [2026-05] 서버가 이미 결측점(s/d/temp 모두 0) 필터 + 5×5 가우시안
+                    //   평활화 + 양자화(s→0.01, d→정수, temp→0.1)를 수행했다.
+                    //   클라이언트는 cm/s 환산(crsp = s * 100) 만 하고 그대로 사용.
+                    //   안전망: lat/lon 타입만 검증 (옛 캐시 호환).
+                    if (typeof p.lat !== 'number' || typeof p.lon !== 'number') continue;
                     gridData.push({ lat: p.lat, lon: p.lon, crsp: p.s * 100, crdir: p.d });
                 }
-                // ROMS 원본의 셀 단위 변동(인접 셀 5cm/s vs 60cm/s 같은 점프) 으로 인해
-                // 시각화가 얼룩덜룩 해지는 것을 완화. 5×5 가우시안 평활화 1회 통과.
-                // 풍속·파고는 buildGridFromZones 의 densification + lenient bilinear 가
-                // 비슷한 평활 효과를 이미 가지고 있어 별도 처리 불필요.
-                gridData = _smoothCurrentGrid5x5(gridData);
-                console.log('[OceanOverlay] KHOA 격자 점 수:', gridData.length);
+                // [2026-05] 서버에서 평활화 완료 → 클라이언트는 _smoothCurrentGrid5x5 호출 안 함.
+                //   data.preprocessed === true 면 확실히 서버 가공된 응답. 안전을 위해
+                //   레거시 응답(preprocessed 미설정)이 들어오면 보수적으로 클라이언트 평활화 적용.
+                if (!data.preprocessed) {
+                    gridData = _smoothCurrentGrid5x5(gridData);
+                }
+                if (!silent) console.log('[OceanOverlay] KHOA 격자 점 수:', gridData.length);
+                // gridData 가 새 객체 배열로 교체됐으므로 lonList/latList/gridLookup 도
+                // 무효. 초기화해야 renderGridToOffscreen 이 buildGridIndex 재호출 →
+                // gridLookup 이 새 객체를 가리키도록 갱신. (없으면 옛 데이터로 렌더링)
+                lonList = null;
                 updateLegend('current');
                 renderGridToOffscreen();
                 if (canvas) canvas.style.visibility = 'visible';
                 isMoving = false;
+                _hideCurrentLoadingIndicator();
                 startParticleAnimation();
             })
-            .catch(function (e) { console.warn('[OceanOverlay] KHOA 로드 실패:', e.message); });
+            .catch(function (e) {
+                if (myEpoch !== _currentLoadEpoch) return;
+                if (!silent) console.warn('[OceanOverlay] KHOA 로드 실패:', e.message);
+                _hideCurrentLoadingIndicator();
+                if (activeLayer === 'current' && streamActive) {
+                    _showKhoaUnavailableToast();
+                    _scheduleKhoaRetry();
+                }
+            });
+    }
+
+    // ========================================================================
+    // [KHOA 일시 장애] 안내 토스트 + 7초 백그라운드 재시도 — 2026-05
+    // ------------------------------------------------------------------------
+    // 서버가 success:false 를 응답할 때(국립해양조사원 upstream 장애 등) 사용자에게
+    // "데이터를 받아오면 곧바로 표출됩니다" 안내. 이후 자동 재시도하여 가능한 빨리 복구.
+    // 토스트 패턴: zone_guide.js:showZoneGuideToast 와 동일 (bottom-anchored).
+    // 차이점: 자동 사라지지 않음 — 다음 성공 응답 시 또는 레이어 전환 시에만 사라짐.
+    // ========================================================================
+    var _khoaRetryTimer = null;
+    var _currentLoadEpoch = 0;        // 슬라이더 변경 시 옛 응답 무시용 race-guard
+    var KHOA_RETRY_INTERVAL_MS = 7000;
+
+    function _showKhoaUnavailableToast() {
+        // 이미 떠 있으면 중복 생성 방지
+        if (document.getElementById('khoa-unavailable-toast')) return;
+        var toast = document.createElement('div');
+        toast.id = 'khoa-unavailable-toast';
+        toast.textContent =
+            '국립해양조사원에서 유향 및 유속 데이터를 일시적으로 제공하지 않습니다. ' +
+            '데이터를 받아오면 곧 바로 정상적으로 표출됩니다.';
+        toast.style.cssText = [
+            'position: fixed',
+            'bottom: 80px',
+            'left: 50%',
+            'transform: translateX(-50%) translateY(20px)',
+            'background: rgba(30, 41, 59, 0.95)',
+            'color: #e2e8f0',
+            'padding: 12px 20px',
+            'border-radius: 12px',
+            'font-size: 0.85rem',
+            'font-weight: 500',
+            'z-index: 10200',
+            'opacity: 0',
+            'transition: opacity 0.3s ease, transform 0.3s ease',
+            'box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3)',
+            'border: 1px solid rgba(255, 255, 255, 0.1)',
+            'text-align: center',
+            'max-width: 90%',
+            'line-height: 1.5'
+        ].join(';');
+        document.body.appendChild(toast);
+        // 부드러운 등장 (zone_guide 토스트와 동일한 double-RAF 패턴)
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                toast.style.opacity = '1';
+                toast.style.transform = 'translateX(-50%) translateY(0)';
+            });
+        });
+    }
+
+    function _hideKhoaUnavailableToast() {
+        var toast = document.getElementById('khoa-unavailable-toast');
+        if (!toast) return;
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(20px)';
+        setTimeout(function () {
+            if (toast.parentNode) toast.remove();
+        }, 300);
+    }
+
+    /**
+     * 7초 후 loadCurrentData(silent) 재시도 — 토스트 표시 중에만 작동.
+     * setInterval 대신 재귀적 setTimeout 패턴: 응답이 7초보다 느릴 때도
+     * 다음 호출이 stack up 되지 않도록 한다.
+     */
+    function _scheduleKhoaRetry() {
+        _cancelKhoaRetry();
+        _khoaRetryTimer = setTimeout(function () {
+            _khoaRetryTimer = null;
+            if (activeLayer === 'current' && streamActive) {
+                loadCurrentData(true /* silent retry */);
+            }
+        }, KHOA_RETRY_INTERVAL_MS);
+    }
+
+    function _cancelKhoaRetry() {
+        if (_khoaRetryTimer) {
+            clearTimeout(_khoaRetryTimer);
+            _khoaRetryTimer = null;
+        }
+    }
+
+    // ========================================================================
+    // [유향유속 로딩 인디케이터] — 2026-05
+    // 슬라이더 드래그/레이어 전환 직후 짧은 시간 동안 캔버스에 약한 dim 효과 +
+    // 범례 영역 우상단에 작은 펄스 dot 으로 "데이터 받아오는 중" 시각 단서 제공.
+    // wind/wave 는 zone-forecasts 가 사실상 즉시 응답하므로 적용 안 함.
+    // ========================================================================
+    function _showCurrentLoadingIndicator() {
+        if (activeLayer !== 'current') return; // current 전용
+        // 1) 캔버스 살짝 dim — 0.55 opacity 부드러운 트랜지션
+        if (canvas) {
+            canvas.style.transition = 'opacity 0.2s ease';
+            canvas.style.opacity = '0.55';
+        }
+        // 2) 범례 우상단에 펄스 dot — 자리를 차지하지 않도록 absolute 배치
+        var legendEl = document.getElementById('ocean-legend');
+        if (!legendEl) return;
+        if (document.getElementById('ocean-current-loading-dot')) return;
+        var dot = document.createElement('div');
+        dot.id = 'ocean-current-loading-dot';
+        dot.style.cssText = [
+            'position: absolute',
+            'top: 6px',
+            'right: 8px',
+            'width: 10px',
+            'height: 10px',
+            'border-radius: 50%',
+            'background: #60a5fa',
+            'box-shadow: 0 0 8px rgba(96,165,250,0.8)',
+            'animation: ocean-current-pulse 0.9s ease-in-out infinite',
+            'pointer-events: none',
+            'z-index: 2'
+        ].join(';');
+        // keyframes 1회 주입
+        if (!document.getElementById('ocean-current-pulse-keyframes')) {
+            var style = document.createElement('style');
+            style.id = 'ocean-current-pulse-keyframes';
+            style.textContent =
+                '@keyframes ocean-current-pulse{0%,100%{opacity:0.35;transform:scale(0.85)}50%{opacity:1;transform:scale(1.15)}}';
+            document.head.appendChild(style);
+        }
+        var cs = window.getComputedStyle(legendEl);
+        if (cs.position === 'static') legendEl.style.position = 'relative';
+        legendEl.appendChild(dot);
+    }
+
+    function _hideCurrentLoadingIndicator() {
+        if (canvas) canvas.style.opacity = '';
+        var dot = document.getElementById('ocean-current-loading-dot');
+        if (dot && dot.parentNode) dot.parentNode.removeChild(dot);
     }
 
     /**

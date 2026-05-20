@@ -108,6 +108,14 @@
 
     var EXCLUDED_SUBZONE_CODES = { 'S2320600': true };
 
+    // 부모 라벨과 좌표가 거의 같아 글자가 겹쳐 보이는 자식해역만 라벨을 픽셀 단위로 비킴.
+    // 값은 [offsetX, offsetY] (양수 Y = 아래, 음수 Y = 위). 겹침이 추가로 발견되면 한 줄씩 등록.
+    var SUBZONE_LABEL_OFFSET = {
+        // S2310300 (경남중부남해앞바다중평수구역) — 부모 '경남중부남해앞바다' 라벨과 같은
+        // 위치에 찍혀 글자가 뒤엉켜 보임. 자식 라벨만 위로 14px 비킴.
+        'S2310300': [0, -14]
+    };
+
     // 자식 구역 layer 가시 줌 임계값.
     // OL minZoom 은 "exclusive": 이 값보다 큰 줌에서만 표시.
     // 8 → zoom 9+ 에서 표시. (zoom 8 은 권역 뷰라 50개 라벨이 너무 많이
@@ -200,17 +208,64 @@
         return fullName;
     }
 
+    /**
+     * 자식 라벨용 ol.style.Text 공통 빌더.
+     *
+     * [왜 분리?]
+     *   - 일반 모드(_subZoneStyle) 와 활성 특보 모드(ocean_warn_active3.js _styler)
+     *     모두 같은 SUBZONE_LABEL_MAP / _shortLabel / SUBZONE_LABEL_OFFSET 규칙으로
+     *     자식 라벨을 그려야 한다. UX 일관성을 위해 한 곳에서 산출.
+     *   - 두 모드는 색상만 다름. opts.fillColor / opts.strokeColor / opts.strokeWidth
+     *     로 색·두께만 오버라이드 가능.
+     *
+     * [기본값]
+     *   - fillColor: '#a5dfff' (일반 모드의 청록 톤)
+     *   - strokeColor: 'rgba(0,0,0,0.85)'
+     *   - strokeWidth: 3
+     *   - font: '600 10px "Pretendard", sans-serif'
+     *   - overflow: true, placement: 'point'
+     *
+     * @param {ol.Feature} feature - 자식 폴리곤 feature
+     * @param {Object} [opts] - 색상/두께 오버라이드용
+     * @returns {ol.style.Text|null} 라벨이 없으면 null
+     */
+    function _buildSubZoneTextStyle(feature, opts) {
+        if (!feature) return null;
+        var code = feature.get('WarnCode');
+        var fullName = SUBZONE_LABEL_MAP[code];
+        // 매핑 테이블에 없는 코드는 KMA 원본 name 을 정규화해서 사용 (안전망)
+        if (!fullName) fullName = _normalizeZoneName(feature.get('name'));
+        var label = _shortLabel(fullName);
+        if (!label) return null;
+
+        opts = opts || {};
+        var textOpts = {
+            text: label,
+            font: opts.font || '600 10px "Pretendard", sans-serif',
+            fill: new ol.style.Fill({ color: opts.fillColor || '#a5dfff' }),
+            stroke: new ol.style.Stroke({
+                color: opts.strokeColor || 'rgba(0,0,0,0.85)',
+                width: opts.strokeWidth != null ? opts.strokeWidth : 3
+            }),
+            // overflow: true → 폴리곤 픽셀 폭보다 라벨이 넓어도 그대로 표시.
+            //   (false 면 작은 자식 구역은 라벨이 통째로 숨겨져 매우 줌인해야 보임)
+            overflow: true,
+            placement: 'point'
+        };
+        var off = SUBZONE_LABEL_OFFSET[code];
+        if (off) {
+            textOpts.offsetX = off[0];
+            textOpts.offsetY = off[1];
+        }
+        return new ol.style.Text(textOpts);
+    }
+
     /** 자식 구역 (연안바다/평수구역) 폴리곤 스타일 — 청록 톤으로 메인(노란)과 시각 구분 */
     function _subZoneStyle(feature) {
         if (_activeStyler) {
             var override = _activeStyler(feature, 'sub');
             if (override) return override;
         }
-        var code = feature.get('WarnCode');
-        var fullName = SUBZONE_LABEL_MAP[code];
-        // 매핑 테이블에 없는 코드는 KMA 원본 name 을 정규화해서 사용 (안전망)
-        if (!fullName) fullName = _normalizeZoneName(feature.get('name'));
-        var label = _shortLabel(fullName);
         return new ol.style.Style({
             stroke: new ol.style.Stroke({
                 // 진한 청록 + 완전 불투명 + 굵기 1.8 로 가독성 강화
@@ -221,16 +276,7 @@
             fill: new ol.style.Fill({
                 color: 'rgba(120, 220, 255, 0.05)'
             }),
-            text: new ol.style.Text({
-                text: label,
-                font: '600 10px "Pretendard", sans-serif',
-                fill: new ol.style.Fill({ color: '#a5dfff' }),
-                stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
-                // overflow: true → 폴리곤 픽셀 폭보다 라벨이 넓어도 그대로 표시.
-                //   (false 면 작은 자식 구역은 라벨이 통째로 숨겨져 매우 줌인해야 보임)
-                overflow: true,
-                placement: 'point'
-            })
+            text: _buildSubZoneTextStyle(feature)
         });
     }
 
@@ -595,6 +641,18 @@
         },
         /** 외부에서도 사용 가능한 zone name 정규화 함수 (공백/마침표 처리) */
         normalizeZoneName: _normalizeZoneName,
+        /**
+         * [공개 API] 자식해역 라벨용 ol.style.Text 빌더.
+         *
+         * 일반 모드(_subZoneStyle) 와 활성 특보 모드(ocean_warn_active3.js) 가
+         * **같은 텍스트/오프셋 규칙**으로 자식 라벨을 그리도록 공유.
+         *
+         * @param {ol.Feature} feature - 자식 폴리곤 feature
+         * @param {Object} [opts] - { fillColor, strokeColor, strokeWidth, font }
+         *                           활성 모드는 흰색+굵은 stroke 로 오버라이드.
+         * @returns {ol.style.Text|null}
+         */
+        buildSubZoneTextStyle: _buildSubZoneTextStyle,
         /** GeoJSON 두 종류 모두 로드 완료됐는지 — 데이터 의존 동작 트리거 전에 확인 */
         isLoaded: function () { return _loaded && _subLoaded; }
     };

@@ -19,6 +19,21 @@
 # =============================================================================
 
 FROM node:20-slim
+
+# ----------------------------------------------------------------------------
+# 타임존: 서버 로그/cron 스케줄을 KST(UTC+9) 기준으로 정렬 — 2026-05
+# ----------------------------------------------------------------------------
+# node:20-slim 은 tzdata 가 빠져 있어 ENV TZ 만으로는 적용 안 됨 →
+# tzdata 설치 + symlink 로 zoneinfo 활성화.
+# 효과: 서버 로그(log() 의 toLocaleString('ko-KR')), node-cron 스케줄,
+#       KHOA 호출의 (date, hour) 계산이 모두 일관된 KST 로 동작.
+# ----------------------------------------------------------------------------
+ENV TZ=Asia/Seoul
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Fly.io NRT 리전에서 IPv6 외부 연결 불가 → IPv4 강제 사용

@@ -356,7 +356,8 @@ async function applyNewReports(fullForm) {
         // 1) 본문에 이 키워드가 있는 통보문만 AI 분석 대상 (비해상 특보는 AI 건너뛰어 호출량 절약)
         // 2) 참고사항 해상키워드 체크 안전망 (비해상 통보문에서도 참고사항에 해상 키워드 있으면 관리자 알림)
         // 3) 캐시 저장 시 foundKeywords 기록용
-        const SEA_KEYWORDS = ['풍랑', '태풍', '지진해일', '폭풍해일'];
+        // 주의: 폭풍해일은 운영 정책상 수집·표시 대상에서 제외되었으므로 키워드에서도 빠짐.
+        const SEA_KEYWORDS = ['풍랑', '태풍', '지진해일'];
 
         // [재시도 대상 관리] pendingRetries: 빈 통보문 또는 API 오류로 처리되지 못한 통보문의 재시도 정보
         // weather_alerts.json에 함께 저장되어 서버 재시작 후에도 재시도 상태가 유지됨
@@ -449,7 +450,7 @@ async function applyNewReports(fullForm) {
             //                            헤더(□)만 있고 본문 항목((1) ...)이 비어있는 미완성 상태인 경우
             // 원인: KMA가 통보문 게시 시 헤더(□ 발효시각, □ 해당구역, □ 내용)만 먼저 올리고
             //       본문 (1) 항목 라인들은 잠시 후 채워 넣는 경우가 있음.
-            //       이 미완성 상태로 처리하면 본문에 키워드(풍랑/태풍/지진해일/폭풍해일)가 없어
+            //       이 미완성 상태로 처리하면 본문에 키워드(풍랑/태풍/지진해일)가 없어
             //       비해상 특보로 오분류되고 processedReportIds에 영구 등록되어
             //       KMA가 본문을 채워 넣은 뒤에도 다시 처리되지 않는 누락 버그가 있었음.
             // 대응: 1분마다 본문만 재확인 (AI 호출 없음 → API 부담 없음)
@@ -509,7 +510,7 @@ async function applyNewReports(fullForm) {
             }
 
             // ──────────────────────────────────────────────────────────────
-            // [해상 키워드 체크] 본문에 풍랑/태풍/지진해일/폭풍해일 키워드가 있는지 검사
+            // [해상 키워드 체크] 본문에 풍랑/태풍/지진해일 키워드가 있는지 검사
             // 키워드 있음 → AI 분석 필요 (해상 특보가 포함된 통보문)
             // 키워드 없음 → 비해상 특보 (강풍/대설/한파 등) → AI 건너뛰어 호출량 절약
             //
@@ -606,7 +607,17 @@ async function applyNewReports(fullForm) {
             // ──────────────────────────────────────────────────────────────
             console.log(`[ReportProcessor] AI 분석 시작 (해상 키워드 발견): ${report.title}`);
             const aiParsed = await aiParser.parseNoticeWithAI(text, baseDate);
-            const events = aiParsed.data || [];
+            const rawEvents = aiParsed.data || [];
+            // [수집 제외] 폭풍해일(예비/주의보/경보) 이벤트는 운영 정책상 적용하지 않음.
+            //   AI 프롬프트에서도 제거했으나 모델이 가끔 포함시킬 가능성에 대비한 방어 필터.
+            const events = rawEvents.filter(ev => {
+                const t = (ev && ev.type) || '';
+                if (t.includes('폭풍해일')) {
+                    console.log(`[ReportProcessor] 폭풍해일 이벤트 스킵 (수집 제외 대상): ${t}`);
+                    return false;
+                }
+                return true;
+            });
             const separatedText = aiParsed.separatedText || null;
             if (aiParsed.error) {
                 console.error(`[ReportProcessor] AI 분석 오류: ${aiParsed.error}`);

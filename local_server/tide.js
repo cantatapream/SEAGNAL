@@ -261,7 +261,6 @@ const TIDE_REFERENCE_STATIONS = [
     { code: "DT_0092", name: "여호항", lat: 34.6667, lon: 127.4667 },
     { code: "DT_0093", name: "소무의도", lat: 37.373, lon: 126.44 },
     { code: "DT_0094", name: "서거차도", lat: 34.251, lon: 125.915 },
-    { code: "IE_0060", name: "이어도", lat: 32.1167, lon: 127.1833 },
     { code: "IE_0061", name: "신안가거초", lat: 33.9500, lon: 124.6000 },
     { code: "IE_0062", name: "옹진소청초", lat: 37.4167, lon: 124.7333 },
     { code: "SO_0326", name: "미조항", lat: 34.7167, lon: 128.05 },

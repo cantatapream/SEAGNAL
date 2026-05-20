@@ -5,6 +5,7 @@
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
+        "build-gzip": "node build-gzip.js",
         "collect": "node scheduler.js"
     },
     "keywords": [],
@@ -20,6 +21,7 @@
         "cors": "^2.8.5",
         "dotenv": "^17.2.3",
         "express": "^4.18.2",
+        "express-static-gzip": "^2.2.0",
         "firebase-admin": "^13.6.0",
         "iconv-lite": "^0.7.2",
         "lru-cache": "^7.18.3",

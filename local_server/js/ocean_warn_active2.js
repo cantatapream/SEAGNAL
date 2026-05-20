@@ -7,7 +7,7 @@
  *
  * [핵심 출력] state.activeMap
  *   부모 zoneName → {
- *     paletteKey,    // 'wave'|'surge'|'typhoon'|null  (색칠 우선순위 적용한 결과)
+ *     paletteKey,    // 'wave'|'typhoon'|null  (색칠 우선순위 적용한 결과; 폭풍해일은 수집 제외)
  *     stage,         // 'upcoming'|'주의보'|'경보'      (현재 발효 우선)
  *     fillAlpha,     // STAGE_FILL_ALPHA[stage]
  *     currents,      // 현재 발효 중 알림 중 paletteKey 있는 것들 (색칠 후보)
@@ -38,10 +38,10 @@
 
     /**
      * 알림의 wrnTp(특보 종류 문자열) 을 색상 팔레트 키로 변환.
-     * 우리가 색칠하는 종류는 풍랑/폭풍해일/태풍 3가지뿐.
+     * 우리가 색칠하는 종류는 풍랑/태풍 2가지뿐. (폭풍해일은 수집 제외 대상)
      *
-     * 입력 예시: "풍랑", "태풍", "폭풍해일", "강풍" ...
-     * 반환    : 'wave' | 'surge' | 'typhoon' | null
+     * 입력 예시: "풍랑", "태풍", "강풍" ...
+     * 반환    : 'wave' | 'typhoon' | null
      *
      * @param {string} wrnTp - alertItem.warnType 값
      */
@@ -49,9 +49,8 @@
         if (!wrnTp) return null;
         // 부분 문자열 매칭으로 robust 하게 (KMA 데이터의 미세한 변형 흡수)
         if (wrnTp.indexOf('태풍') >= 0)     return 'typhoon';
-        if (wrnTp.indexOf('폭풍해일') >= 0) return 'surge';
         if (wrnTp.indexOf('풍랑') >= 0)     return 'wave';
-        return null; // 강풍/해일경보 등 기타 — 색칠 안 함
+        return null; // 폭풍해일/강풍/해일경보 등 — 색칠 안 함
     };
 
     /**
@@ -242,7 +241,7 @@
         var arr = alertsMap[fullName];
         if (!arr || arr.length === 0) return null;
 
-        // 색칠 가능 종류(풍랑·태풍·폭풍해일)만 currents/upcomings 로 분류.
+        // 색칠 가능 종류(풍랑·태풍)만 currents/upcomings 로 분류.
         var currents = [];
         var upcomings = [];
         for (var i = 0; i < arr.length; i++) {

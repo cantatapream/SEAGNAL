@@ -185,6 +185,13 @@
             OS.SheetTL.teardown();
         }
 
+        // 1.6) [회귀 보강 — 2026-05] 보류 중인 _syncLayerSliderToSheet debounce 캔슬.
+        //      250ms 이내 release → close 연쇄에서 timer 가 살아남으면 닫힌 시트의
+        //      의도로 oceanOverlaySetTime 이 발화될 수 있음.
+        if (typeof OS._cancelSyncLayerDebounce === 'function') {
+            OS._cancelSyncLayerDebounce();
+        }
+
         // 1.7) 진행 중인 zone-forecasts fetch 취소 — 닫힌 시트의 setMaxHours 발화 방지
         if (OS.state && OS.state._zoneFetchAbort) {
             try { OS.state._zoneFetchAbort.abort(); } catch (e) { /* 일부 브라우저 미지원 무시 */ }
@@ -203,6 +210,18 @@
         // 3) 천기 카드 진행 중 fetch 토큰 무효화 + display:none — 잔여 응답 무시.
         //    INDEX1 등 이 모듈 미로드 환경은 자동 skip (typeof check).
         if (typeof OS.hideWeatherCard === 'function') OS.hideWeatherCard();
+
+        // 4) [차등 캐싱 — 2026-05] 비즐겨찾기 해점이면 메모리 조석 캐시 폐기.
+        //    즐겨찾기 해점은 메모리 캐시 그대로 유지 → 다음 오픈 시 prefill 없이도 hit.
+        //    _tideRenderState 는 어느 경우든 clear (다른 좌표 재오픈 시 stale 차단).
+        if (typeof OS.dropMemoryCacheIfNotFavorite === 'function') {
+            OS.dropMemoryCacheIfNotFavorite();
+        }
+
+        // ❷ 첫 렌더 플래그 reset — 다음 오픈 시 새로 'error' 가 올 수 있으므로
+        if (typeof OS.resetTideFirstRender === 'function') {
+            OS.resetTideFirstRender();
+        }
     };
 
     /* --------------------------------------------------------------
@@ -327,19 +346,46 @@
             OS.state._closeHideTimer = null;
         }
 
-        // [캐시 클리어] 직전 시트의 _tideTodayCache 가 남아있으면 좌표 검증으로 차단되지만,
-        // 명시적 clear 로 stale 표시 가능성 추가 차단.
-        OS.state._tideTodayCache = null;
+        // [조석 캐시 처리 — 멀티 데이 캐시 2026-05]
+        // 다른 해점으로 시트가 열릴 때만 캐시 reset. 같은 해점이면 누적된 days 그대로
+        // 유지해 (재방문 시 API 호출 절대 X) 사용자 의도 만족.
+        //   - 같은 해점: 캐시 그대로 두고 _tideRenderState 만 clear (DOM 부분 갱신 차단).
+        //     putCachedDay 가 좌표 비교를 하므로 lat/lon 가 같다면 days 가 그대로 유지됨.
+        //   - 다른 해점: 캐시 자체 invalidate. 좌표가 즐겨찾기면 localStorage 에서
+        //     prefill (이전에 닫힐 때 영속 보관된 days 를 메모리로 복귀 → API skip 가능).
+        //   - 좌표는 5소수점 round 로 비교 (부동소수점 noise 방지).
+        var prevCache = OS.state._tideMultiDayCache;
+        var sameCoord = false;
+        if (prevCache) {
+            var pLat = Math.round(prevCache.lat * 100000) / 100000;
+            var pLon = Math.round(prevCache.lon * 100000) / 100000;
+            var nLat = Math.round(lat * 100000) / 100000;
+            var nLon = Math.round(lon * 100000) / 100000;
+            sameCoord = (pLat === nLat && pLon === nLon);
+        }
+        if (!sameCoord) {
+            OS.state._tideMultiDayCache = null;
+            // 즐겨찾기 해점이면 localStorage 에서 prefill — 만료 dayKey 자동 purge 후 복귀.
+            if (typeof OS.prefillMemoryCacheFromPersist === 'function') {
+                OS.prefillMemoryCacheFromPersist(lat, lon);
+            }
+            // ❷ 좌표 변경 시 첫 렌더 플래그 reset
+            if (typeof OS.resetTideFirstRender === 'function') {
+                OS.resetTideFirstRender();
+            }
+        }
+        OS.state._tideRenderState = null;
 
-        // 상태 초기화: 타임라인 슬라이더 오프셋이 있으면 해당 시각 기준으로 시작
+        // 상태 초기화: 배경 layerSlider 가 옮겨져 있으면 그 시점의 데이터를 표시
+        // (사용자가 슬라이더로 미래 시점 해역 상황을 보다가 해점을 클릭하는 흐름을 보존).
         OS.state.lat = lat;
         OS.state.lon = lon;
         OS.state.date = new Date();
         var tlSlider = document.getElementById('ocean-timeline-slider');
         if (tlSlider) {
-            var tlHours = parseInt(tlSlider.value) || 0;
-            if (tlHours > 0) {
-                OS.state.date = new Date(OS.state.date.getTime() + tlHours * 60 * 60 * 1000);
+            var tlHours = parseFloat(tlSlider.value);
+            if (!isNaN(tlHours) && tlHours > 0) {
+                OS.state.date = new Date(OS.state.date.getTime() + tlHours * 3600000);
             }
         }
 
@@ -374,6 +420,7 @@
         // - initZoneMax = 레이어 슬라이더 max (wave/wind 활성 시 이미 maxForecastHours 반영)
         //   정확한 wave/wind 한계는 zone-forecasts 비동기 호출 후 STL.setMaxHours 로 갱신
         if (OS.SheetTL && typeof OS.SheetTL.init === 'function') {
+            // 시트 슬라이더 시작값을 배경 layerSlider 위치에 맞춤.
             var initLayerHours = 0;
             var initZoneMax = 72;
             if (tlSlider) {

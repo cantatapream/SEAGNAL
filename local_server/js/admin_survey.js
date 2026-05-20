@@ -312,6 +312,7 @@ window.saveSurvey = async function (status) {
 
         alert(status === 'active' ? '설문이 발행되었습니다!' : '초안이 저장되었습니다.');
         _editingSurveyId = null;
+        // 작성/편집 후엔 탭 자체가 바뀌므로(create → status) 1페이지 리셋 정책 유지
         switchSurveySubTab('survey-status');
     } catch (e) {
         alert('저장 실패: ' + e.message);
@@ -320,13 +321,66 @@ window.saveSurvey = async function (status) {
 
 // ============================================================================
 // 서브탭 2: 진행 현황
+// ----------------------------------------------------------------------------
+// 페이지네이션: 서버 측 `?page=&limit=` 동반 호출 → { data, pagination } 새 포맷.
+// 다른 호출자(결과/이력 탭, 사용자측 등)는 쿼리 없이 raw array 를 받으므로 영향 없음.
+// 25개/페이지, 탭 진입 시 1페이지로 리셋, 페이지 전환 시 목록 상단으로 스크롤.
 // ============================================================================
-async function renderSurveyStatusTab(container) {
-    container.innerHTML = '<div style="text-align:center; padding:40px; color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
+let _surveyListPage = 1;
+const _SURVEY_LIST_LIMIT = 25;
+// 페이지 연타 race 토큰: 매 fetch 진입마다 증가, await 직후 최신값이 아니면 응답 폐기
+let _surveyStatusSeq = 0;
 
+async function renderSurveyStatusTab(container) {
+    // 탭 진입(필터 전환과 동일 효과) 시 1페이지로 리셋
+    _surveyListPage = 1;
+    container.innerHTML = '<div style="text-align:center; padding:40px; color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
+    await _loadSurveyStatusPage(container);
+}
+
+/**
+ * 진행 현황 탭 reload helper.
+ * 마감/삭제/발행/수정 후 호출 — 현재 _surveyListPage 를 유지한 채 데이터만 갱신.
+ * `switchSurveySubTab('survey-status')` 와 달리 페이지 리셋이 일어나지 않는다.
+ * (빈 페이지 폴백 가드는 _loadSurveyStatusPage 안에 이미 있음)
+ */
+async function _reloadSurveyStatusKeepPage() {
+    const inner = document.getElementById('survey-inner-content');
+    if (!inner) return;
+    await _loadSurveyStatusPage(inner);
+}
+
+/**
+ * 진행 현황 탭의 페이지 1건을 fetch → render.
+ * _surveyListPage 값을 그대로 사용. 페이지네이션 UI 는 공용 helper 로 그린다.
+ *
+ * [연계] GET /api/surveys?page=&limit= — 새 포맷 { data, pagination } 사용.
+ */
+async function _loadSurveyStatusPage(container) {
+    // 진입 시 시퀀스 토큰 캡처 — 응답 처리 직전 최신값과 다르면 stale 응답으로 폐기
+    const myReq = ++_surveyStatusSeq;
     try {
-        const res = await fetch(CONFIG.API_BASE + '/api/surveys');
-        const surveys = await res.json();
+        const url = CONFIG.API_BASE + '/api/surveys?page=' + _surveyListPage
+            + '&limit=' + _SURVEY_LIST_LIMIT;
+        const res = await fetch(url);
+        const result = await res.json();
+        // 페이지 연타 race: 이후 더 새 요청이 들어왔다면 이 응답은 무시
+        if (myReq !== _surveyStatusSeq) return;
+
+        // 새 포맷 우선, 만에 하나 raw 배열이 오면 fallback (하위호환 안전망)
+        const surveys = Array.isArray(result) ? result : (result && result.data) || [];
+        const pagination = (result && result.pagination) || {
+            page: _surveyListPage,
+            limit: _SURVEY_LIST_LIMIT,
+            total: surveys.length,
+            totalPages: 1
+        };
+
+        // 삭제 등으로 현재 페이지가 비었지만 앞쪽에 데이터가 남아있는 경우 → 1페이지로 리셋 후 재호출
+        if (surveys.length === 0 && pagination.total > 0 && _surveyListPage > 1) {
+            _surveyListPage = 1;
+            return _loadSurveyStatusPage(container);
+        }
 
         if (!surveys || surveys.length === 0) {
             container.innerHTML = `
@@ -334,12 +388,14 @@ async function renderSurveyStatusTab(container) {
                     <i class="fa-solid fa-inbox" style="font-size:2.5rem; color:#334155; margin-bottom:15px; display:block;"></i>
                     <div style="font-size:1rem; font-weight:700; color:#cbd5e1; margin-bottom:6px;">등록된 설문이 없습니다</div>
                     <div style="font-size:0.85rem;">설문 생성 탭에서 새 설문을 만들어보세요.</div>
-                </div>`;
+                </div>
+                <div id="survey-list-pagination" class="pagination"></div>`;
             return;
         }
 
         const active = surveys.filter(s => s.status === 'active');
         const draft = surveys.filter(s => s.status === 'draft');
+        const closed = surveys.filter(s => s.status === 'closed');
         let html = '';
 
         if (active.length > 0) {
@@ -350,9 +406,39 @@ async function renderSurveyStatusTab(container) {
             html += `<div style="color:#f59e0b; font-weight:700; font-size:0.9rem; margin:16px 0 10px;"><i class="fa-solid fa-file-pen"></i> 초안 (${draft.length})</div>`;
             html += draft.map(s => buildSurveyCard(s)).join('');
         }
+        if (closed.length > 0) {
+            html += `<div style="color:#64748b; font-weight:700; font-size:0.9rem; margin:16px 0 10px;"><i class="fa-solid fa-circle-check"></i> 마감 (${closed.length})</div>`;
+            html += closed.map(s => buildSurveyCard(s)).join('');
+        }
 
+        // 페이지네이션 컨테이너를 마지막에 부착 (목록 갱신 시마다 함께 재생성)
+        html += '<div id="survey-list-pagination" class="pagination" style="margin-top:14px;"></div>';
         container.innerHTML = html;
+
+        // 페이지네이션 UI 렌더 (공용 helper 재사용)
+        const pager = document.getElementById('survey-list-pagination');
+        if (pager && typeof window.renderStandardPagination === 'function') {
+            window.renderStandardPagination(
+                pager,
+                pagination.page,
+                pagination.totalPages,
+                function (page) {
+                    _surveyListPage = page;
+                    _loadSurveyStatusPage(container);
+                    // 페이지 전환 시 목록 상단으로 스크롤 (큰 페이지 이동 시 UX 개선).
+                    // container 가 스크롤러 자체일 수 있어 scrollIntoView 는 no-op 가능 →
+                    // 자체 scrollTop 을 0 으로 (alert_push 와 동일 패턴).
+                    if (typeof container.scroll === 'function') {
+                        container.scroll({ top: 0, behavior: 'smooth' });
+                    } else {
+                        container.scrollTop = 0;
+                    }
+                }
+            );
+        }
     } catch (e) {
+        // race: 이후 더 새 요청이 들어왔다면 에러 메시지도 덮어쓰지 않는다
+        if (myReq !== _surveyStatusSeq) return;
         container.innerHTML = `<div style="color:#ef4444; padding:20px; text-align:center;">데이터 로드 실패: ${e.message}</div>`;
     }
 }
@@ -416,7 +502,9 @@ window.closeSurveyEarly = async function (id) {
     try {
         await fetch(CONFIG.API_BASE + `/api/surveys/${id}/close`, { method: 'POST' });
         alert('설문이 마감되었습니다.');
-        switchSurveySubTab('survey-status');
+        // 보던 페이지 유지 (#4) — 탭 재진입이 아니라 같은 탭의 데이터 갱신.
+        // 빈 페이지 폴백 가드는 _loadSurveyStatusPage 내부에 있어 안전.
+        await _reloadSurveyStatusKeepPage();
     } catch (e) { alert('마감 실패: ' + e.message); }
 };
 
@@ -428,7 +516,8 @@ window.publishSurvey = async function (id) {
             body: JSON.stringify({ status: 'active' })
         });
         alert('설문이 발행되었습니다!');
-        switchSurveySubTab('survey-status');
+        // 보던 페이지 유지 (#4)
+        await _reloadSurveyStatusKeepPage();
     } catch (e) { alert('발행 실패: ' + e.message); }
 };
 
@@ -437,7 +526,8 @@ window.deleteSurvey = async function (id) {
     try {
         await fetch(CONFIG.API_BASE + `/api/surveys/${id}`, { method: 'DELETE' });
         alert('삭제되었습니다.');
-        switchSurveySubTab('survey-status');
+        // 보던 페이지 유지 (#4) — 마지막 항목 삭제 시 빈 페이지 폴백으로 1페이지 자동 복귀
+        await _reloadSurveyStatusKeepPage();
     } catch (e) { alert('삭제 실패: ' + e.message); }
 };
 
@@ -472,6 +562,11 @@ window.editSurvey = async function (id) {
 // 서브탭 3: 결과/분석
 // ============================================================================
 let _surveyCharts = [];
+// [C-1] loadSurveyResult 가 fetch 한 현재 설문 객체를 모듈-로컬에 캐싱.
+// viewSurveyResponses(surveyId) 가 이를 참조하여 모달 헤더 제목을 lookup
+// → onclick 인라인 핸들러에 surveyTitle 을 직접 박지 않아도 됨
+//   (제목에 따옴표/백슬래시가 포함될 때의 JS SyntaxError 회피).
+let _currentSurveyResult = null;
 
 async function renderSurveyResultTab(container) {
     container.innerHTML = '<div style="text-align:center; padding:40px; color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
@@ -530,6 +625,8 @@ window.loadSurveyResult = async function () {
         const responses = await rRes.json();
         const survey = surveys.find(s => s.id === surveyId);
         if (!survey) { body.innerHTML = '<div style="color:#ef4444;">설문 데이터 없음</div>'; return; }
+        // [C-1] viewSurveyResponses 가 모달 헤더 제목 lookup 에 사용할 수 있도록 캐싱
+        _currentSurveyResult = survey;
 
         const questions = survey.questions || [];
         let html = `
@@ -538,9 +635,14 @@ window.loadSurveyResult = async function () {
                     <div style="color:#fff; font-weight:700; font-size:1rem;">${escSvAttr(survey.title)}</div>
                     <div style="color:#94a3b8; font-size:0.8rem; margin-top:2px;">총 ${responses.length}건 | ${survey.startDate || ''} ~ ${survey.endDate || ''}</div>
                 </div>
-                <button onclick="downloadSurveyCsv(${surveyId})" style="padding:8px 14px; background:linear-gradient(135deg,#3b82f6,#2563eb); border:none; border-radius:8px; color:#fff; cursor:pointer; font-size:0.82rem; font-weight:600;">
-                    <i class="fa-solid fa-file-csv"></i> CSV 다운로드
-                </button>
+                <div style="display:flex; gap:8px;">
+                    <button onclick="viewSurveyResponses(${surveyId})" style="padding:8px 14px; background:linear-gradient(135deg,#8b5cf6,#6d28d9); border:none; border-radius:8px; color:#fff; cursor:pointer; font-size:0.82rem; font-weight:600;">
+                        <i class="fa-solid fa-list-check"></i> 응답 목록
+                    </button>
+                    <button onclick="downloadSurveyCsv(${surveyId})" style="padding:8px 14px; background:linear-gradient(135deg,#3b82f6,#2563eb); border:none; border-radius:8px; color:#fff; cursor:pointer; font-size:0.82rem; font-weight:600;">
+                        <i class="fa-solid fa-file-csv"></i> CSV 다운로드
+                    </button>
+                </div>
             </div>
         `;
 
@@ -687,6 +789,168 @@ window.downloadSurveyCsv = function (surveyId) {
 };
 
 // ============================================================================
+// 응답 목록 모달 (페이지네이션)
+// ----------------------------------------------------------------------------
+// `결과/분석` 탭의 [응답 목록] 버튼 → 모달로 raw 응답을 50건/페이지로 열람.
+// 서버는 `?page=&limit=` 가 동반되면 { data, pagination } 새 포맷을 반환하고,
+// 쿼리가 없으면 기존 raw 배열을 반환(loadSurveyResult 의 차트 집계용) — 하위호환.
+//
+// 모달을 다시 열 때마다 _surveyResponsePage = 1 로 리셋한다.
+// ============================================================================
+let _surveyResponsePage = 1;
+const _SURVEY_RESPONSE_LIMIT = 50;
+let _surveyResponseModalSurveyId = null;
+// 페이지 연타 race 토큰
+let _surveyResponseSeq = 0;
+
+/**
+ * 응답 목록 모달 열기.
+ *
+ * [C-1] 시그니처 단순화: surveyTitle 매개변수 제거.
+ *   인라인 onclick 으로 제목을 넘기면 제목에 `"` / `\` / `'` 등이 포함된 경우
+ *   HTML escape 만으로는 JS 문자열 리터럴 안전을 보장할 수 없어 SyntaxError 가
+ *   발생했다. 대신 모듈-로컬 캐시(_currentSurveyResult) 에서 surveyId 로 제목을
+ *   lookup 하여 헤더에 표시한다. lookup 실패 시 헤더는 "응답 목록" 만 표시.
+ *
+ * @param {number} surveyId
+ */
+window.viewSurveyResponses = function (surveyId) {
+    // 같은 surveyId 든 다른 것이든 모달을 열 때마다 1페이지로 리셋
+    _surveyResponsePage = 1;
+    _surveyResponseModalSurveyId = Number(surveyId);
+
+    // 기존 모달 잔존 시 제거 (재오픈 안전)
+    const prev = document.getElementById('survey-response-modal');
+    if (prev) prev.remove();
+
+    // [C-1] 캐시에서 제목 lookup — 일치하는 surveyId 의 결과만 신뢰
+    const surveyTitle = (_currentSurveyResult && _currentSurveyResult.id === Number(surveyId))
+        ? (_currentSurveyResult.title || '')
+        : '';
+    const titlePart = surveyTitle
+        ? ` <span style="color:#cbd5e1; font-weight:600; font-size:0.85rem;">— "${escSvAttr(surveyTitle)}"</span>`
+        : '';
+
+    const modal = document.createElement('div');
+    modal.id = 'survey-response-modal';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:10000; display:flex; align-items:center; justify-content:center; padding:16px;';
+    modal.innerHTML = `
+        <div style="background:#0f172a; border:1px solid rgba(255,255,255,0.1); border-radius:16px; width:100%; max-width:680px; max-height:88vh; display:flex; flex-direction:column; overflow:hidden;">
+            <div style="padding:14px 18px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.08); gap:10px;">
+                <div style="color:#fff; font-weight:700; font-size:0.95rem; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    <i class="fa-solid fa-list-check" style="color:#a78bfa;"></i> 응답 목록${titlePart}
+                </div>
+                <button onclick="document.getElementById('survey-response-modal').remove();" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:1.1rem; flex-shrink:0;" aria-label="닫기">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="survey-response-modal-body" style="flex:1; overflow-y:auto; padding:14px 18px;">
+                <div style="text-align:center; padding:40px; color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>
+            </div>
+            <div id="survey-response-pagination" class="pagination" style="padding:10px 16px; border-top:1px solid rgba(255,255,255,0.06);"></div>
+        </div>
+    `;
+    // 배경 클릭 시 닫기 (모달 컨테이너 자체를 클릭한 경우만)
+    modal.addEventListener('click', function (ev) {
+        if (ev.target === modal) modal.remove();
+    });
+    document.body.appendChild(modal);
+
+    _loadSurveyResponsePage();
+};
+
+/**
+ * 응답 목록 모달의 현재 페이지를 fetch → render.
+ * _surveyResponseModalSurveyId / _surveyResponsePage 를 그대로 사용.
+ */
+async function _loadSurveyResponsePage() {
+    const body = document.getElementById('survey-response-modal-body');
+    const pager = document.getElementById('survey-response-pagination');
+    if (!body) return;
+
+    const surveyId = _surveyResponseModalSurveyId;
+    if (!surveyId) return;
+
+    // 진입 시 시퀀스 토큰 캡처 — 페이지 연타 race 방어
+    const myReq = ++_surveyResponseSeq;
+
+    try {
+        const url = CONFIG.API_BASE + `/api/surveys/${surveyId}/responses?page=`
+            + _surveyResponsePage + '&limit=' + _SURVEY_RESPONSE_LIMIT;
+        const res = await fetch(url);
+        const result = await res.json();
+        // 이후 더 새 요청이 들어왔다면 이 응답은 무시
+        if (myReq !== _surveyResponseSeq) return;
+
+        const items = Array.isArray(result) ? result : (result && result.data) || [];
+        const pagination = (result && result.pagination) || {
+            page: _surveyResponsePage,
+            limit: _SURVEY_RESPONSE_LIMIT,
+            total: items.length,
+            totalPages: 1
+        };
+
+        // 빈 페이지인데 데이터는 존재 → 1페이지로 리셋
+        if (items.length === 0 && pagination.total > 0 && _surveyResponsePage > 1) {
+            _surveyResponsePage = 1;
+            return _loadSurveyResponsePage();
+        }
+
+        if (items.length === 0) {
+            body.innerHTML = '<div style="text-align:center; padding:40px; color:#64748b;">아직 응답이 없습니다.</div>';
+            if (pager) pager.innerHTML = '';
+            return;
+        }
+
+        // 헤더 요약
+        let html = `<div style="color:#94a3b8; font-size:0.78rem; margin-bottom:10px;">총 ${pagination.total}건 (페이지 ${pagination.page}/${pagination.totalPages})</div>`;
+
+        // 각 응답: 제출일시 + answers 직렬화 (자세히는 차트에서 보므로 간단 표시)
+        items.forEach((r) => {
+            const dt = r.submittedAt ? r.submittedAt.replace('T', ' ').substring(0, 19) : '';
+            const answersStr = (() => {
+                try {
+                    return Object.entries(r.answers || {}).map(([k, v]) => {
+                        const val = Array.isArray(v) ? v.join(', ') : String(v == null ? '' : v);
+                        return `Q${k}: ${val}`;
+                    }).join(' · ');
+                } catch (e) { return ''; }
+            })();
+            html += `
+                <div style="padding:10px 12px; margin-bottom:6px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px;">
+                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:4px;">
+                        <span style="color:#cbd5e1; font-size:0.78rem; font-weight:600;">${r.responseId ? '#' + r.responseId : '(레거시 응답)'}</span>
+                        <span style="color:#64748b; font-size:0.72rem;">${dt}</span>
+                    </div>
+                    <div style="color:#94a3b8; font-size:0.78rem; line-height:1.4; word-break:break-word;">${escSvAttr(answersStr)}</div>
+                </div>
+            `;
+        });
+        body.innerHTML = html;
+
+        // 페이지네이션 UI (공용 helper)
+        if (pager && typeof window.renderStandardPagination === 'function') {
+            window.renderStandardPagination(
+                pager,
+                pagination.page,
+                pagination.totalPages,
+                function (page) {
+                    _surveyResponsePage = page;
+                    _loadSurveyResponsePage();
+                    // 모달 내부 스크롤을 최상단으로
+                    body.scrollTop = 0;
+                }
+            );
+        }
+    } catch (e) {
+        // race: 이후 더 새 요청이 들어왔다면 에러도 덮어쓰지 않는다
+        if (myReq !== _surveyResponseSeq) return;
+        body.innerHTML = `<div style="color:#ef4444; padding:20px; text-align:center;">로드 실패: ${e.message}</div>`;
+        if (pager) pager.innerHTML = '';
+    }
+}
+
+// ============================================================================
 // 서브탭 4: 이력 관리
 // ============================================================================
 async function renderSurveyHistoryTab(container) {
@@ -745,6 +1009,15 @@ window.duplicateSurvey = async function (id) {
     try {
         await fetch(CONFIG.API_BASE + `/api/surveys/${id}/duplicate`, { method: 'POST' });
         alert('설문이 복제되었습니다.');
-        switchSurveySubTab('survey-status');
+        // [D-1] 마감/발행/삭제와 동일한 패턴: 진행 현황 탭에서 호출됐다면 보던 페이지 유지.
+        //  - status 탭이 활성: 같은 탭의 데이터만 갱신(_reloadSurveyStatusKeepPage)
+        //  - 그 외(예: 이력 관리 탭): 결과 확인을 위해 status 탭으로 전환 + 1페이지 리셋
+        const activeBtn = document.querySelector('.survey-sub-tab.active');
+        const activeTabId = activeBtn ? activeBtn.dataset.tab : null;
+        if (activeTabId === 'survey-status') {
+            await _reloadSurveyStatusKeepPage();
+        } else {
+            switchSurveySubTab('survey-status');
+        }
     } catch (e) { alert('복제 실패: ' + e.message); }
 };
