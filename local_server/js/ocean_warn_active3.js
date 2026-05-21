@@ -114,6 +114,35 @@
      * @param {boolean} isSelected - true 면 선택 강조 (노란 테두리)
      * @returns {ol.style.Style}
      */
+    // [S13-B 추가] _holedGeometry (GeoJSON) → ol.geom (EPSG:3857) lazy 변환·캐시
+    //   build_warn_zones_holed.js 가 warn_zones.geojson 각 부모 feature 의
+    //   properties._holedGeometry 에 "자식 영역을 도려낸" polygon (EPSG:4326 GeoJSON)
+    //   을 미리 계산해 저장. 클라이언트는 첫 사용 시 ol.format.GeoJSON 으로 변환해
+    //   feature 에 캐시. 두 번째 사용부터는 메모리에서 즉시 사용.
+    //
+    //   적용 대상: 메인(부모) feature 의 활성 fill 만. stroke·text 는 원본 geometry 그대로.
+    //   결과: 자식 영역엔 부모 fill 안 칠해짐 → 자식 fill 과 겹쳐 색 짙어지는 현상 해소.
+    var _geojsonFormat = null;
+    function _getHoledOlGeom(feature) {
+        if (!feature) return null;
+        var cached = feature.get('_holedOlGeom');
+        if (cached) return cached;
+        var holed = feature.get('_holedGeometry');
+        if (!holed) return null;
+        try {
+            if (!_geojsonFormat) _geojsonFormat = new ol.format.GeoJSON();
+            var olGeom = _geojsonFormat.readGeometry(holed, {
+                featureProjection: 'EPSG:3857',
+                dataProjection: 'EPSG:4326'
+            });
+            feature.set('_holedOlGeom', olGeom);
+            return olGeom;
+        } catch (e) {
+            // 변환 실패 시 원본 geometry 로 fallback (사용자 명세 6 위반 안 됨)
+            return null;
+        }
+    }
+
     function _coloredStyle(info, kind, feature, isSelected) {
         var palette = ns._const.ALERT_COLORS[info.paletteKey];
         if (!palette) return null;
@@ -125,7 +154,7 @@
         var stroke;
         if (isSelected) {
             // 선택 강조: ocean_warn_zone.js OFF 상태 메인 outline 색(노란) 사용
-            // 굵기·실선으로 종류 색(초록/빨강) 위에서도 또렷이 식별
+            // 굵기·실선으로 종류 색(초록/카키/빨강) 위에서도 또렷이 식별
             stroke = new ol.style.Stroke({
                 color: 'rgba(255, 200, 80, 0.95)',
                 width: 2.5,
@@ -152,26 +181,41 @@
             : baseRgba;
         var fill = new ol.style.Fill({ color: fillColorOrPattern });
 
-        var style = new ol.style.Style({ stroke: stroke, fill: fill });
+        // [S13-B] 메인(부모) feature 의 fill 만 _holedGeometry 적용 (있을 때),
+        //   stroke·text 는 원본 geometry. 자식 영역에 부모 fill 이 안 칠해져
+        //   자식 fill 과 겹쳐 색이 짙어지는 현상 해소.
+        //   자식(sub) feature 는 holed 적용 대상 아님 (자식 자체가 차감 대상).
+        var holedGeom = (kind === 'main') ? _getHoledOlGeom(feature) : null;
+
+        var styles;
+        if (holedGeom) {
+            // fill 전용 Style (geometry = holed) + stroke·text 전용 Style (원본 geometry)
+            var fillStyle = new ol.style.Style({
+                fill: fill,
+                geometry: holedGeom
+            });
+            var strokeStyle = new ol.style.Style({ stroke: stroke });
+            styles = [fillStyle, strokeStyle];
+        } else {
+            // 자식 영역 없는 부모 또는 자식(sub) feature → 단일 Style 로 fill+stroke
+            styles = [new ol.style.Style({ stroke: stroke, fill: fill })];
+        }
 
         // 선택된 zone 은 같은 layer 안에서 최상단으로 그려지도록 zIndex 1000 부여.
         // [이유] 인접 zone 의 stroke 가 일부 구간에서 선택 테두리를 덮는 현상 방지.
         //        OL Style.zIndex 는 같은 layer 내 렌더 순서를 결정 (높을수록 위).
-        // [한계] 메인 layer(zIndex 80) 와 자식 layer(zIndex 81) 사이의 cross-layer
-        //        순위는 layer 자체 zIndex 가 결정. 선택된 zone 은 자식 sub feature
-        //        도 함께 노란 테두리이므로(_styler 가 isSelected 동일하게 적용),
-        //        결과적으로 zone 영역 전체 외곽이 노란 테두리로 또렷이 보임.
         if (isSelected) {
-            style.setZIndex(1000);
+            for (var i = 0; i < styles.length; i++) styles[i].setZIndex(1000);
         }
 
         // 메인 feature 만 라벨 부여 (기존 _zoneStyle 의 라벨 위치/폰트 유지)
+        // 라벨은 stroke 와 같은 (원본) geometry 에 부착 — 항상 마지막 Style 에 추가.
         if (kind === 'main' && feature) {
             // ocean_warn_zone.js 의 _normalizeZoneName 과 동일 규칙
             var name = ((feature.get('name') || '') + '')
                 .replace(/\./g, '·')
                 .replace(/\s+/g, '');
-            style.setText(new ol.style.Text({
+            styles[styles.length - 1].setText(new ol.style.Text({
                 text: name,
                 font: 'bold 11px "Pretendard", sans-serif',
                 fill: new ol.style.Fill({ color: '#ffffff' }),
@@ -180,10 +224,9 @@
                 placement: 'point'
             }));
         }
-        // 자식(sub) feature 의 라벨은 _styler 가 _subLabelOnlyStyle 로 분기해 처리.
-        // 여기까지 'sub' kind 가 도달하지 않으므로 별도 분기 불필요.
 
-        return style;
+        // 단일 Style 이면 그 객체, 두 개면 배열 반환 (OL 둘 다 지원)
+        return styles.length === 1 ? styles[0] : styles;
     }
 
     /**
@@ -227,43 +270,17 @@
                 placement: 'point'
             }));
         }
-        // 자식(sub) feature 의 라벨은 _styler 가 _subLabelOnlyStyle 로 분기해 처리.
-        // 여기까지 'sub' kind 가 도달하지 않으므로 별도 분기 불필요.
         return style;
     }
 
     /**
-     * "자식 라벨 전용" 스타일 — 활성 모드에서 자식해역의 fill/stroke 는 그리지
-     * 않고 라벨만 표출한다.
-     *
-     * [왜 라벨만?]
-     *   - fill/stroke 정책: 자식 polygon 의 fill 은 부모 main polygon 과 영역이
-     *     겹쳐 alpha 합성으로 색이 진해지는 부작용(예: 주의보→경보로 오인) 이 있어
-     *     활성 모드에선 자식 fill/stroke 를 그리지 않는 정책 유지.
-     *   - 라벨만: 사용자 요청 — 자식 라벨은 일반 모드와 같은 위치/텍스트로 표출해
-     *     활성 모드 전환 시 자식해역 식별 가능성을 잃지 않게 한다.
-     *
-     * [텍스트/오프셋 규칙]
-     *   ocean_warn_zone.js 의 _buildSubZoneTextStyle 공유 — SUBZONE_LABEL_MAP,
-     *   _shortLabel, SUBZONE_LABEL_OFFSET 동일 적용. 색만 활성 색칠 위 가독성을
-     *   위해 흰색 + 검은 stroke 3.5px 로 오버라이드.
-     *
-     * @param {ol.Feature} feature
-     * @returns {ol.style.Style}
+     * "비활성 자식" 용 빈 스타일 — 활성 모드에서 자식이 활성 부모를 갖지 않는
+     * 경우 사용. ol.style.Style 인스턴스이지만 stroke/fill/text 모두 없어
+     * 렌더 결과가 0 (사실상 숨김). null 을 반환하면 ocean_warn_zone.js 의 기본
+     * _subZoneStyle 로 fallback 되어 청록 점선 + 한국어 라벨이 줌 6~8 에서도
+     * 모두 보이게 되는데, 활성 모드의 시각 의도(활성 zone 부각)에 반하므로 숨김.
      */
-    function _subLabelOnlyStyle(feature) {
-        var style = new ol.style.Style({});
-        if (feature && window.OceanWarnZone
-            && window.OceanWarnZone.buildSubZoneTextStyle) {
-            var subText = window.OceanWarnZone.buildSubZoneTextStyle(feature, {
-                fillColor: '#ffffff',
-                strokeColor: 'rgba(0,0,0,0.95)',
-                strokeWidth: 3.5
-            });
-            if (subText) style.setText(subText);
-        }
-        return style;
-    }
+    var _EMPTY_STYLE = new ol.style.Style({});
 
     /**
      * OceanWarnZone 에 등록할 스타일러 본체.
@@ -279,50 +296,30 @@
         // 이미 해제되어 있지만 race condition 대비)
         if (!ns._state.active) return null;
 
-        // [자식(sub) feature 정책 — main S9-D 자체 색칠 + 우리 자식 라벨 결합]
+        // [S9-D 변경] 자식(sub) 폴리곤 — 부모 종속 색칠을 폐지하고
+        //   dmdw 머지 결과(appState.coastalAlerts) 기반으로 독립 판정·색칠.
         //
-        // 두 개의 머지된 정책을 함께 적용:
+        // 이전 정책: 자식 항상 _EMPTY_STYLE (사실상 숨김) — 부모 색이 자식 영역도 덮음.
+        // 신규 정책:
+        //   • 자식에 active 한 dmdw 데이터가 있으면 자식 자체의 (wrnTp, wrnLvl) 로
+        //     부모와 동일 팔레트 재활용해 색칠. 자식 fillLayer 의 zIndex=41 이
+        //     부모 fillLayer zIndex=40 보다 위 → 자식 색이 부모 색을 정확히 덮음.
+        //   • 자식 active 없으면 기존 _EMPTY_STYLE (부모는 부모 로직대로 색칠).
         //
-        // (A) main S9-D — 자식 폴리곤 독립 색칠:
-        //   자식에 active 한 dmdw 데이터가 있으면 자식 자체의 (wrnTp, wrnLvl) 로
-        //   부모 팔레트 재활용해 색칠. 자식 fillLayer (zIndex=41) 가 부모(zIndex=40) 위라
-        //   자식 색이 부모 색을 정확히 덮음.
-        //
-        // (B) 우리 라벨 정책 — 자식 라벨 항상 표출:
-        //   일반 모드(_subZoneStyle) 와 활성 모드에서 자식해역 라벨이 동일한
-        //   위치·텍스트로 보여야 UX 일관. 부모와 자식 라벨이 함께 보여 자식해역
-        //   단위 식별 가능. 텍스트/오프셋은 ocean_warn_zone.js 의 buildSubZoneTextStyle 공유.
-        //
-        // 결합 동작:
-        //   • 자식 자체 active dmdw → _coloredStyle(자체 색칠) + 자식 라벨
-        //   • 자식 active 없음     → 라벨만 (_subLabelOnlyStyle), 부모 색이 영역 덮음
-        //
-        // [클릭 hit] 자식 active 면 자식 전용 팝업(S9-E), 아니면 부모 main polygon 으로 환원.
+        // [클릭 hit] 자식 폴리곤 클릭 처리는 S9-E 에서 별도 변경 — 자식 active 인
+        //   경우 자식 전용 팝업, 그렇지 않으면 기존대로 부모로 환원.
         if (kind === 'sub') {
             var subFullName = window.OceanWarnZone && typeof window.OceanWarnZone.getSubFullName === 'function'
                 ? window.OceanWarnZone.getSubFullName(feature)
                 : null;
-            if (subFullName) {
-                var subInfo = ns._buildChildInfoForStyle(subFullName);
-                if (subInfo && subInfo.paletteKey) {
-                    // 자식 자체 active → 색칠 + 라벨 결합. _coloredStyle 은 sub 일 때 라벨 미설정 →
-                    // 공용 빌더로 만든 라벨을 명시적으로 setText.
-                    var coloredStyle = _coloredStyle(subInfo, kind, feature, false);
-                    if (coloredStyle) {
-                        var subText = window.OceanWarnZone && typeof window.OceanWarnZone.buildSubZoneTextStyle === 'function'
-                            ? window.OceanWarnZone.buildSubZoneTextStyle(feature, {
-                                fillColor: '#ffffff',
-                                strokeColor: 'rgba(0,0,0,0.95)',
-                                strokeWidth: 3.5
-                            })
-                            : null;
-                        if (subText) coloredStyle.setText(subText);
-                        return coloredStyle;
-                    }
-                }
+            if (!subFullName) return _EMPTY_STYLE;
+            var subInfo = ns._buildChildInfoForStyle(subFullName);
+            if (subInfo && subInfo.paletteKey) {
+                // 자식은 현재 isSelected 강조 미지원 (선택 박스가 자식 단위로
+                // 떠 있는 상태는 S9-E 의 자식 팝업 도입 후 별도로 표시 정책 검토).
+                return _coloredStyle(subInfo, kind, feature, false);
             }
-            // 자식 active 없음 → 라벨만 (부모 색이 자식 영역 덮음).
-            return _subLabelOnlyStyle(feature);
+            return _EMPTY_STYLE;
         }
 
         // 이하 메인(부모) feature 만 처리.
