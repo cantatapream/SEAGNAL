@@ -392,6 +392,326 @@ function mapDataToForm(form, activeChildren) {
 }
 
 // ============================================================================
+// [예비] 통보문 참고사항 해제·연장 처리 (옵션 C)
+// ============================================================================
+//
+// 배경:
+//   parseChildWarnings 는 통보문 본문의 "특정관리해역" list 만 파싱하고
+//   '참고사항' 섹션을 명시적으로 제외 (line 198). 그러나 [예비] 통보문은
+//   참고사항에 "해제합니다" / "연장 발표합니다" 안내가 들어있어, 부모 zone
+//   의 upcoming(예비) 이 사실상 해제·연장됐는데 앱은 계속 살아있다고 인식.
+//
+// 처리:
+//   1) parseReferenceSection(html) — 참고사항 섹션만 추출, 정규식으로 해제·연장 케이스 수집
+//   2) applyReferenceUpdates(form, parsed) — zone tree 에서 매칭되는 부모 leaf 에 반영
+//       - 해제: leaf.upcoming = null + leaf.children[*] = null + dmdwPushSender.forgetChild
+//       - 연장: leaf.upcoming.tmEf = 새 시각 + leaf.children[*].tmEf = 새 시각
+//
+// 정책:
+//   - 풍랑·폭풍해일·태풍 만 처리 (R6) — 강풍/호우/대설 등 육상 종류 무시
+//   - 매칭 단위: 자식 그룹은 "부모(자식1, 자식2)" 또는 "부모"(단독) 패턴
+//   - false positive 방지: "해제하나" 같은 안내 문장 제외 — 종결사 (합니다|함\.?) 강제
+//   - 부모 push 트리거 미발생 (R8) — upcoming 직접 mutate, detectChanges 의 prev 는 이미 캡처됨
+//     (run() 흐름상 fullForm.previous 는 첫 캡처 이후 변하지 않으므로, applyReferenceUpdates
+//      가 upcoming 을 변경해도 detectChanges 가 차이를 잡아 부모 push 가 보내질 수 있음.
+//      이를 막기 위해 applyReferenceUpdates 는 previous 도 함께 동기화 — 변경 자체를 "없었던 일"
+//      로 처리. dmdw 의 자식 forgetChild 만 호출하여 자식 재발송 가능 보장.)
+
+const SEA_WRN_TYPES = ['풍랑', '폭풍해일', '태풍'];
+
+/**
+ * 참고사항 섹션 텍스트 (HTML 태그 제거 후) 에서 해제·연장 케이스를 추출.
+ *   반환:
+ *     {
+ *       releases:   [{ wrnTp, groups: [{ parent, children: [] }] }, ...],
+ *       extensions: [{ wrnTp, groups: [{ parent, children: [] }], tmEfRaw }, ...]
+ *     }
+ *   - groups[i].parent : 자식 그룹의 부모 이름 (예: "제주도앞바다", "남해서부서쪽먼바다")
+ *   - groups[i].children : 부모 뒤 괄호 안 자식 이름 배열 (없으면 [])
+ *   - tmEfRaw : 연장 새 시각의 원문 "내일(22일) 오전(06~12시)" 같은 형태
+ */
+function parseReferenceSection(html) {
+    const empty = { releases: [], extensions: [] };
+    if (!html || typeof html !== 'string') return empty;
+
+    // 참고사항 섹션 추출. KMA HTML 은 "참고사항 &gt;" 또는 "참고사항" 헤더 이후 본문 끝까지.
+    //   본문 list 와 분리하기 위해 "참고사항" 키워드 위치를 기점으로 자른다.
+    const startIdx = html.indexOf('참고사항');
+    if (startIdx === -1) return empty;
+    const rawSection = html.substring(startIdx);
+
+    // HTML 태그·엔티티 제거 + 정규화.
+    const text = rawSection
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&gt;/g, '>')
+        .replace(/&lt;/g, '<')
+        .replace(/&amp;/g, '&')
+        .replace(/[ \t]+/g, ' ');
+
+    // 한 문장 단위로 분리 — 마침표(.) 또는 줄바꿈. KMA 가 한 문장에 두 케이스
+    //   (병렬 연장) 를 담는 경우가 있으나, 정규식이 g 플래그로 같은 문장에서 여러 매치를
+    //   잡으므로 문장 분리는 노이즈 차단 정도로만 사용.
+    const sentences = text.split(/[\.\n\r]+/).map(s => s.trim()).filter(s => s.length > 0);
+
+    const releases = [];
+    const extensions = [];
+
+    // 해제 정규식 — "[해역구절]의 [종류] [예비]특보는 ... 발표[ ]가능성이 낮아져 해제합니다"
+    //   - subject 캡처: 콤마/괄호 모두 포함 가능하므로 [^.\n] greedy 비-탐욕. 그러나 한 문장에
+    //     여러 매치를 잡으려면 lazy(`*?`) + 종결사로 경계 확보.
+    //   - subject 안에서 다시 _extractSeaGroupsFromSubject 가 해상 부모 그룹들을 추출.
+    //   - 종류 캡처는 SEA_WRN_TYPES 한정 (R6).
+    //   - "예비특보" / "예비 특보" 두 변형 모두 흡수.
+    //   - "발표가능성" / "발표 가능성" 두 변형 모두 흡수.
+    //   - 종결사 "(합니다|함\.?)" 강제 — "해제하나" 같은 안내 문장 차단 (V2 false positive).
+    const RE_RELEASE = /([^.\n]*?)의\s*(풍랑|폭풍해일|태풍)\s*예비\s*특보는?\s*발표\s*가능성이?\s*낮아져\s*해제(?:합니다|함\.?)/g;
+
+
+    for (const sentence of sentences) {
+        // false positive 가드: "해제하나" 패턴 차단 — RE_RELEASE 자체 종결사로도 차단되지만,
+        //   문장에 "해제하나" 가 포함된 경우엔 전체 문장을 무시하는 보수적 정책.
+        if (/해제하나/.test(sentence)) {
+            // 단, 연장 매치는 살아있을 수 있으므로 release 만 skip.
+        }
+
+        // 해제 매치 — g 플래그로 한 문장 내 여러 케이스 흡수.
+        if (!/해제하나/.test(sentence)) {
+            let m;
+            RE_RELEASE.lastIndex = 0;
+            while ((m = RE_RELEASE.exec(sentence)) !== null) {
+                const subject = m[1] || '';
+                const wrnTp = m[2];
+                if (!SEA_WRN_TYPES.includes(wrnTp)) continue;
+                const groups = _extractSeaGroupsFromSubject(subject);
+                if (groups.length === 0) continue;  // 해상 부모 없음 → 육상 케이스로 간주.
+                releases.push({ wrnTp, groups });
+            }
+        }
+
+        // 연장 매치 — 두 단계 처리.
+        //   1) 본 정규식으로 (subject, wrnTp, tmEf_with_으로/로_종결?) 캡처. g 로 한 문장 내
+        //      여러 매치 흡수. 단, "연장(하여) 발표합니다" 종결사는 마지막 절에만 등장하는
+        //      병렬 패턴 대응을 위해 별도 처리.
+        //   2) 병렬 케이스: "A의 풍랑 예비특보는 X으로, B의 풍랑 예비특보는 Y으로 연장하여 발표합니다"
+        //      → 첫 절은 종결사 없음. lazy 매칭으로 ", " 직전의 "...으로" 까지 잡혀야 함.
+        //      → tmEf 직후 "(?:연장(?:하여)?\s*발표(?:합니다|함\.?)|,)" 로 두 경로 허용.
+        const RE_EXTEND_2 = /([^,\n]*?)의\s*(풍랑|폭풍해일|태풍)\s*예비\s*특보(?:는|를)?\s*([^,\n]*?)(?:으로|로)(?=\s*(?:,|연장(?:하여)?\s*발표))/g;
+        let me;
+        RE_EXTEND_2.lastIndex = 0;
+        while ((me = RE_EXTEND_2.exec(sentence)) !== null) {
+            const subject = me[1] || '';
+            const wrnTp = me[2];
+            const tmEfRaw = (me[3] || '').trim();
+            if (!SEA_WRN_TYPES.includes(wrnTp)) continue;
+            const groups = _extractSeaGroupsFromSubject(subject);
+            if (groups.length === 0) continue;
+            extensions.push({ wrnTp, groups, tmEfRaw });
+        }
+    }
+
+    return { releases, extensions };
+}
+
+/**
+ * 주어부 텍스트에서 해상 부모 그룹 배열 추출.
+ *   "남해서부서쪽먼바다와 제주도앞바다(제주도북부앞바다, 제주도서부앞바다), 제주도남쪽바깥먼바다"
+ *     → [
+ *         { parent: '남해서부서쪽먼바다', children: [] },
+ *         { parent: '제주도앞바다', children: ['제주도북부앞바다', '제주도서부앞바다'] },
+ *         { parent: '제주도남쪽바깥먼바다', children: [] }
+ *       ]
+ *   - 해상 부모 식별: 이름 끝이 "앞바다"|"먼바다"|"전해상".
+ *   - 육상 케이스 ("경기도(연천, 파주)") 는 모두 걸러짐.
+ */
+function _extractSeaGroupsFromSubject(subject) {
+    const groups = [];
+    const re = /([가-힣ㆍ·]+(?:앞바다|먼바다|전해상))(?:\s*\(([^)]+)\))?/g;
+    let m;
+    while ((m = re.exec(subject)) !== null) {
+        const parent = m[1];
+        const childrenRaw = m[2] || '';
+        const children = childrenRaw
+            ? childrenRaw.split(/[,，、]\s*|\s+(?:와|과)\s+|\s*그리고\s*/).map(s => s.trim()).filter(Boolean)
+            : [];
+        // 자식도 해상 이름인 것만 채택 — 육상 ("연천, 파주") 차단.
+        const seaChildren = children.filter(c => /(앞바다|먼바다|전해상)$/.test(c));
+        groups.push({ parent, children: seaChildren });
+    }
+    return groups;
+}
+
+/**
+ * 참고사항 파싱 결과를 zone tree 에 반영.
+ *   - 해제: 매칭되는 zone leaf 의 upcoming = null + children[*] = null + forgetChild.
+ *   - 연장: 매칭되는 zone leaf 의 upcoming.tmEf = 새 시각 + children[*].tmEf = 새 시각.
+ *
+ *   부모 push 무영향 (R8) 보장:
+ *     run() 흐름에서 detectChanges(previous, current) 가 upcoming 변화를 잡아 부모 push 가
+ *     트리거될 수 있으므로, 본 함수는 previous tree 도 같은 방식으로 동기화한다.
+ *     이렇게 하면 prev/curr 가 같아져 detectChanges 결과에 차이가 잡히지 않고,
+ *     기존 본문 list 처리의 부모 push 만 정상 보내진다.
+ *
+ *   자식 forgetChild 호출:
+ *     이전 사이클까지 자식이 활성('Y' 또는 객체) 이었다면 _sentKeys 에 발표 마커가 남아있을
+ *     수 있다. 해제된 자식은 forgetChild 로 마커 정리 — 다음 신규 발표 시 다시 push 가능.
+ *
+ * @param {object} form        : fullForm.current  (zone tree root)
+ * @param {object} previous    : fullForm.previous (zone tree root) — R8 동기화용
+ * @param {object} parsed      : parseReferenceSection 결과
+ * @returns {{releases:number, extensions:number, releasedChildren:number}}
+ */
+function applyReferenceUpdates(form, previous, parsed) {
+    const stats = { releases: 0, extensions: 0, releasedChildren: 0 };
+    if (!form || !parsed) return stats;
+
+    // 모든 zone leaf 수집: { name → leafNode }
+    //   leafNode = { current, upcoming, history, children }
+    const leafMap = new Map();
+    function collectLeaves(obj) {
+        if (!obj || typeof obj !== 'object') return;
+        for (const [key, value] of Object.entries(obj)) {
+            if (!value || typeof value !== 'object') continue;
+            if ('current' in value && 'upcoming' in value && 'children' in value) {
+                leafMap.set(key, value);
+            } else {
+                collectLeaves(value);
+            }
+        }
+    }
+    collectLeaves(form);
+
+    // previous tree 의 같은 leaf 도 참조 — R8 동기화용.
+    const prevLeafMap = new Map();
+    function collectPrevLeaves(obj) {
+        if (!obj || typeof obj !== 'object') return;
+        for (const [key, value] of Object.entries(obj)) {
+            if (!value || typeof value !== 'object') continue;
+            if ('current' in value && 'upcoming' in value && 'children' in value) {
+                prevLeafMap.set(key, value);
+            } else {
+                collectPrevLeaves(value);
+            }
+        }
+    }
+    if (previous) collectPrevLeaves(previous);
+
+    /**
+     * 그룹 (parent, children) → 실제 변경 대상 zone leaf 이름 배열로 확장.
+     *   - children 가 있으면 children 가 우선 (괄호 안에 명시된 자식만 영향).
+     *   - children 가 없으면 parent 자체가 leaf 면 parent, 아니면 parent prefix 로 자식 leaf 들 추출.
+     */
+    function resolveTargets(group) {
+        const targets = [];
+        if (group.children && group.children.length > 0) {
+            for (const c of group.children) {
+                if (leafMap.has(c)) targets.push(c);
+            }
+        } else if (leafMap.has(group.parent)) {
+            targets.push(group.parent);
+        } else {
+            // 부모 컨테이너 이름 (예: "제주도앞바다") — 그 prefix 로 시작하는 leaf 들.
+            for (const name of leafMap.keys()) {
+                if (name.startsWith(group.parent)) targets.push(name);
+            }
+        }
+        return targets;
+    }
+
+    // ── 해제 처리 ───────────────────────────────────────────────────────────
+    for (const rel of parsed.releases) {
+        const wrnTp = rel.wrnTp;
+        for (const group of rel.groups) {
+            const targets = resolveTargets(group);
+            for (const zoneName of targets) {
+                const leaf = leafMap.get(zoneName);
+                if (!leaf) continue;
+                // upcoming 종류 일치 확인 — 다른 종류의 예비특보 보존 (안전 정책).
+                //   upcoming 이 비어있어도 children 만 정리해야 하는 케이스 있을 수 있으나,
+                //   R6 "해당 종류" 한정을 지키기 위해 upcoming.wrnTp 검사를 우선.
+                //   단, upcoming 이 없고 그냥 children 만 살아있는 경우엔 children 도 정리.
+                const upMatches = leaf.upcoming && (!leaf.upcoming.wrnTp || leaf.upcoming.wrnTp === wrnTp);
+                if (leaf.upcoming) {
+                    if (upMatches) {
+                        leaf.upcoming = null;
+                        stats.releases++;
+                    } else {
+                        // 종류 다름 — upcoming 보존. 그래도 children 은 정리 가능하나, 안전상 skip.
+                        continue;
+                    }
+                }
+                // children 일괄 해제 + forgetChild 호출 (R2·R3).
+                if (leaf.children && typeof leaf.children === 'object') {
+                    for (const childName of Object.keys(leaf.children)) {
+                        if (leaf.children[childName] !== null) {
+                            leaf.children[childName] = null;
+                            stats.releasedChildren++;
+                            try {
+                                const displayName = _bulletinChildDisplayName(zoneName, childName);
+                                dmdwPushSender.forgetChild(zoneName, displayName);
+                            } catch (_) {}
+                        }
+                    }
+                }
+                // R8 동기화 — previous leaf 도 같은 상태로 정렬 → detectChanges 가 차이를 잡지 않도록.
+                const prevLeaf = prevLeafMap.get(zoneName);
+                if (prevLeaf) {
+                    prevLeaf.upcoming = null;
+                    if (prevLeaf.children && typeof prevLeaf.children === 'object') {
+                        for (const childName of Object.keys(prevLeaf.children)) {
+                            prevLeaf.children[childName] = null;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── 연장 처리 ───────────────────────────────────────────────────────────
+    for (const ext of parsed.extensions) {
+        const wrnTp = ext.wrnTp;
+        const tmEfNew = (ext.tmEfRaw || '').trim();
+        if (!tmEfNew) continue;
+        for (const group of ext.groups) {
+            const targets = resolveTargets(group);
+            for (const zoneName of targets) {
+                const leaf = leafMap.get(zoneName);
+                if (!leaf) continue;
+                // upcoming 존재 + 종류 일치 시 tmEf 만 갱신 (R4).
+                if (leaf.upcoming && (!leaf.upcoming.wrnTp || leaf.upcoming.wrnTp === wrnTp)) {
+                    leaf.upcoming = { ...leaf.upcoming, tmEf: tmEfNew };
+                    stats.extensions++;
+                }
+                // 자식 객체의 tmEf 도 동일 시각으로 갱신 (R5) — 객체인 자식만 대상.
+                if (leaf.children && typeof leaf.children === 'object') {
+                    for (const childName of Object.keys(leaf.children)) {
+                        const cv = leaf.children[childName];
+                        if (cv && typeof cv === 'object') {
+                            leaf.children[childName] = { ...cv, tmEf: tmEfNew };
+                        }
+                    }
+                }
+                // R8 동기화 — previous 도 같은 tmEf 로 정렬.
+                const prevLeaf = prevLeafMap.get(zoneName);
+                if (prevLeaf && prevLeaf.upcoming && (!prevLeaf.upcoming.wrnTp || prevLeaf.upcoming.wrnTp === wrnTp)) {
+                    prevLeaf.upcoming = { ...prevLeaf.upcoming, tmEf: tmEfNew };
+                }
+                if (prevLeaf && prevLeaf.children && typeof prevLeaf.children === 'object') {
+                    for (const childName of Object.keys(prevLeaf.children)) {
+                        const cv = prevLeaf.children[childName];
+                        if (cv && typeof cv === 'object') {
+                            prevLeaf.children[childName] = { ...cv, tmEf: tmEfNew };
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return stats;
+}
+
+// ============================================================================
 // 시간 기반 상태 정성 (Pending Status Resolver)
 // ============================================================================
 
@@ -952,6 +1272,25 @@ async function run() {
 
         // 3. 자식 상속 로직 적용
         mapDataToForm(fullForm.current, activeChildren);
+
+        // 3-aux. [옵션 C] [예비] 통보문 참고사항의 해제·연장 처리.
+        //   - 본문 list 가 다루지 못하는 "발표 가능성 낮아져 해제" / "연장 발표" 안내를 흡수.
+        //   - upcoming = null + children[*] = null + forgetChild 호출 (해제 케이스)
+        //   - upcoming.tmEf 갱신 + children[*].tmEf 갱신 (연장 케이스)
+        //   - 풍랑·폭풍해일·태풍 만 (R6). 부모 push 무영향 보장 (previous 도 동기화 — R8).
+        //   - 실패 시 본체 무영향 (try-catch 흡수).
+        try {
+            const parsedRef = parseReferenceSection(html);
+            if (parsedRef.releases.length > 0 || parsedRef.extensions.length > 0) {
+                const refStats = applyReferenceUpdates(fullForm.current, fullForm.previous, parsedRef);
+                console.log(
+                    `[Crawler] 참고사항 처리: 해제 ${refStats.releases}건 (자식 ${refStats.releasedChildren}개) · ` +
+                    `연장 ${refStats.extensions}건`
+                );
+            }
+        } catch (e) {
+            console.error(`[Crawler] 참고사항 처리 오류 (본체 흐름 무영향): ${e.message}`);
+        }
 
         // 3-bis. [V2] 종합기상 텍스트 기반 자식 발표 푸시 트리거 — 시간 필터 단독.
         //   - dmdw 가 잡지 못하는 "예비" 단계까지 포괄하기 위한 보조 트리거.
