@@ -298,18 +298,55 @@
     // ─────────────────────────────────────────────────────────────
     function _onlyFill(style) {
         if (!style) return null;
-        if (Array.isArray(style)) style = style[0];
+        if (Array.isArray(style)) {
+            // [S13-F 버그수정] 배열 입력 시 fill 보유 Style 을 찾아 선택.
+            //   _coloredStyle 의 holed 분기에서 [fillStyle, strokeStyle] 배열 반환 →
+            //   fillStyle 만 fill 보유. 기존 코드 `style = style[0]` 는 우연히 동작
+            //   했지만 명시적으로 fill 보유 Style 을 선택해 견고화.
+            var found = null;
+            for (var i = 0; i < style.length; i++) {
+                if (style[i] && style[i].getFill && style[i].getFill()) {
+                    found = style[i];
+                    break;
+                }
+            }
+            style = found;
+        }
         if (!style || !style.getFill) return null;
         var f = style.getFill();
         if (!f) return null;
-        var ns = new ol.style.Style({ fill: f });
+        var opts = { fill: f };
+        // [S13-F 핵심 수정] geometry override (holedGeom) 보존.
+        //   _coloredStyle 의 holed-fill Style 은 `geometry: holedGeom` 옵션으로 자식
+        //   영역을 도려낸 폴리곤만 fill 하도록 지정함. 이 옵션을 새 Style 로 복사 안
+        //   하면 OL 기본값 = feature 원본 geometry → 부모 fill 이 자식 영역에도 그려져
+        //   자식 fill 과 alpha 합성 stacking → 색 짙어짐 (사용자 보고 현상).
+        var g = style.getGeometry && style.getGeometry();
+        if (g) opts.geometry = g;
+        var ns = new ol.style.Style(opts);
         var z = style.getZIndex();
         if (z != null) ns.setZIndex(z);
         return ns;
     }
     function _onlyStrokeAndText(style) {
         if (!style) return null;
-        if (Array.isArray(style)) style = style[0];
+        if (Array.isArray(style)) {
+            // [S13-F 버그수정] 배열 입력 시 stroke 또는 text 보유 Style 을 찾아 선택.
+            //   _coloredStyle 의 holed 분기 [fillStyle, strokeStyle] 에서 strokeStyle 이
+            //   stroke + text 보유. 기존 코드 `style = style[0]` 는 fillStyle 을 선택해
+            //   stroke 없음 → null 반환 → 부모 stroke·label 누락 회귀 위험.
+            var found = null;
+            for (var i = 0; i < style.length; i++) {
+                if (style[i] && (
+                    (style[i].getStroke && style[i].getStroke()) ||
+                    (style[i].getText && style[i].getText())
+                )) {
+                    found = style[i];
+                    break;
+                }
+            }
+            style = found;
+        }
         if (!style || !style.getStroke) return null;
         var s = style.getStroke();
         var t = style.getText && style.getText();
