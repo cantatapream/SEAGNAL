@@ -256,7 +256,14 @@ router.get('/api/warn-zones', (req, res) => {
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'warn_zones.geojson not found' });
         }
-        res.setHeader('Cache-Control', 'public, max-age=86400');
+        // [캐시 정책] no-cache + must-revalidate
+        //   기존: max-age=86400 (24h) — geojson 갱신 시 클라이언트가 OLD URL 응답을
+        //         24h 동안 캐시해 새 _holedGeometry 가 안 닿는 사고 발생 (V3.3+S13-F 직후).
+        //   변경: no-cache 로 매 요청 서버 revalidate. ETag/Last-Modified 기반 304
+        //         (32 bytes) 처리되어 비용 거의 없음. 변경 시 즉시 200 with 새 데이터.
+        //   효과: 클라이언트 ?v= 캐시버스트 키에 의존하지 않게 됨 → 향후 갱신 시
+        //         수동 v 키 bump 불필요 (배포만 하면 다음 요청부터 새 데이터).
+        res.setHeader('Cache-Control', 'no-cache, must-revalidate');
         res.sendFile(filePath);
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -292,7 +299,8 @@ router.get('/api/warn-zones-sub', (req, res) => {
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'warn_zones_sub.geojson not found' });
         }
-        res.setHeader('Cache-Control', 'public, max-age=86400');
+        // [캐시 정책] 위 /api/warn-zones 와 동일 사유 — no-cache + must-revalidate.
+        res.setHeader('Cache-Control', 'no-cache, must-revalidate');
         res.sendFile(filePath);
     } catch (e) {
         res.status(500).json({ error: e.message });
