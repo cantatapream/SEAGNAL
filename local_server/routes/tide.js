@@ -453,11 +453,16 @@ router.post('/api/save_tide_input', async (req, res) => {
                     let yesterdayExtraPages = [];
                     if (isNeighborMissing(adj.prev)) {
                         if (firstPeakMin !== null) {
-                            const yEst = firstPeakMin - M2_HALF_PERIOD;
-                            // 음수: 어제 시각 = yEst + 1440 (정상 케이스 — 어제 23시 부근)
-                            // 양수: 오늘 자정 직후의 첫 피크가 매우 늦은 시각. 어제 마지막 피크는
-                            //       어제 내 어느 위치 (yEst). pagesForMinute 가 그대로 처리.
-                            const yMin = (yEst < 0) ? (yEst + 1440) : yEst;
+                            // yEst = 오늘 첫 peak - 6h12m (반주기).
+                            //   yEst < 0  → 추정 시각이 어제 안 (정상: 어제 23시 부근 peak)
+                            //   yEst >= 0 → 추정 시각이 "오늘 안" 인데 오늘 첫 peak 가 이미
+                            //              firstPeakMin 이므로 그보다 이전엔 peak 없음.
+                            //              → 어제 마지막 peak 는 한 사이클 더 전 = yEst - 372.
+                            //              (예: firstPeakMin=431[07:11] → yEst=59 → -313 → 어제 18:47 = P4)
+                            let yEst = firstPeakMin - M2_HALF_PERIOD;
+                            // while: 비정상적으로 늦은 firstPeak (예: ≥744분) 도 안전하게 처리
+                            while (yEst >= 0) yEst -= M2_HALF_PERIOD;
+                            const yMin = yEst + 1440; // 어제 자정 기준 분 (0~1439)
                             yesterdayExtraPages = pagesForMinute(yMin);
                             console.log(`📐 yesterday boundary: todayFirstPeak=${firstPeakMin}min → yEst=${yEst} → yMin=${yMin} → pages=[${yesterdayExtraPages.join(',')}]`);
                         } else {
@@ -471,10 +476,15 @@ router.post('/api/save_tide_input', async (req, res) => {
                     let tomorrowExtraPages = [];
                     if (isNeighborMissing(adj.next)) {
                         if (lastPeakMin !== null) {
-                            const tEst = lastPeakMin + M2_HALF_PERIOD;
-                            // >= 1440: 내일 시각 = tEst - 1440 (정상)
-                            // < 1440: 비정상 — todayLastPeak 가 더 있어야 함. 보수적으로 minute 0 사용.
-                            const tMin = (tEst >= 1440) ? (tEst - 1440) : 0;
+                            // tEst = 오늘 마지막 peak + 6h12m (반주기).
+                            //   tEst >= 1440 → 추정 시각이 내일 안 (정상: 내일 자정 직후)
+                            //   tEst < 1440  → 추정 시각이 "오늘 안" 인데 오늘 마지막 peak 가
+                            //                 이미 lastPeakMin 이므로 그 후엔 peak 없음.
+                            //                 → 내일 첫 peak 는 한 사이클 더 후 = tEst + 372.
+                            let tEst = lastPeakMin + M2_HALF_PERIOD;
+                            // while: 비정상적으로 이른 lastPeak (예: <696분) 도 안전하게 처리
+                            while (tEst < 1440) tEst += M2_HALF_PERIOD;
+                            const tMin = tEst - 1440; // 내일 자정 기준 분 (0~1439)
                             tomorrowExtraPages = pagesForMinute(tMin);
                             console.log(`📐 tomorrow boundary: todayLastPeak=${lastPeakMin}min → tEst=${tEst} → tMin=${tMin} → pages=[${tomorrowExtraPages.join(',')}]`);
                         } else {
