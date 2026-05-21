@@ -225,6 +225,14 @@ async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retr
 
 /**
  * TideBED 전체 데이터 수집 (5페이지 병렬 → 1440건)
+ *
+ * [페이지 단위 자동 재시도 — 2026-05]
+ *   fetchTideBedPage 내부의 키 회전(SERVICE_ERROR/LIMITED_NUMBER/OVER_QUOTA)
+ *   으로는 잡히지 않는 UNKNOWN_ERROR(resultCode=99) 또는 일시 네트워크 장애로
+ *   일부 페이지(예: Page 4·5)만 실패하는 케이스 방어. 실패 페이지만 골라
+ *   backoff 와 함께 최대 2회 재요청. 재시도 후에도 부족분이 남으면 부분
+ *   데이터를 반환하되, 완전성 판정은 호출 측(collectAndSaveTideData) 에서
+ *   record 수 기반으로 다시 검사한다.
  */
 async function collectTideBedData(lat, lon, reqDate) {
     console.log(`📡 TideBED API 수집 시작: lat=${lat}, lon=${lon}, date=${reqDate}`);
@@ -237,6 +245,7 @@ async function collectTideBedData(lat, lon, reqDate) {
 
     const results = await Promise.all(pagePromises);
 
+    const failedPages = [];
     for (const { page, result } of results) {
         const body = result?.response?.body || result?.body;
         const header = result?.response?.header || result?.header;
@@ -255,7 +264,46 @@ async function collectTideBedData(lat, lon, reqDate) {
                 console.warn(`     응답 코드: ${header.resultCode || 'N/A'}`);
                 console.warn(`     응답 메시지: ${header.resultMsg || 'N/A'}`);
             }
+            failedPages.push(page);
         }
+    }
+
+    const MAX_PAGE_RETRIES = 2;
+    let retryAttempt = 0;
+    let remainingFailed = failedPages;
+    while (remainingFailed.length > 0 && retryAttempt < MAX_PAGE_RETRIES) {
+        retryAttempt++;
+        const backoffMs = 500 * retryAttempt; // 500ms → 1000ms
+        console.log(`🔁 페이지 재시도 ${retryAttempt}/${MAX_PAGE_RETRIES}: [${remainingFailed.join(', ')}] (backoff ${backoffMs}ms)`);
+        await new Promise(r => setTimeout(r, backoffMs));
+
+        const retryPromises = remainingFailed.map(page =>
+            fetchTideBedPage(lat, lon, reqDate, page).then(result => ({ page, result }))
+        );
+        const retryResults = await Promise.all(retryPromises);
+
+        const stillFailed = [];
+        for (const { page, result } of retryResults) {
+            const body = result?.response?.body || result?.body;
+            const header = result?.response?.header || result?.header;
+            if (body && body.items) {
+                const items = body.items.item;
+                if (Array.isArray(items)) {
+                    allItems.push(...items);
+                } else if (items) {
+                    allItems.push(items);
+                }
+                console.log(`  ✅ Page ${page} (재시도 ${retryAttempt}): ${Array.isArray(items) ? items.length : 1}건 수집 완료`);
+            } else {
+                console.warn(`  ⚠️ Page ${page} (재시도 ${retryAttempt}): 여전히 실패 (응답 코드: ${header?.resultCode || 'N/A'})`);
+                stillFailed.push(page);
+            }
+        }
+        remainingFailed = stillFailed;
+    }
+
+    if (remainingFailed.length > 0) {
+        console.error(`❌ ${remainingFailed.length}개 페이지 최종 실패: [${remainingFailed.join(', ')}] → 부분 데이터(${allItems.length}건) 반환`);
     }
 
     console.log(`📡 TideBED 수집 완료: 총 ${allItems.length}건`);
@@ -342,13 +390,30 @@ async function collectAndSaveTideData(lat, lon, dateInt, time, fileName, paddedI
 
         const dayOnlyItems = items.filter(i => (i.slctdDt || i.obsrvnDt).startsWith(adj.currentISO));
 
+        // [완전성 검수 강화 — 2026-05]
+        //   기존: dayOnlyItems.length > 0 면 무조건 'complete' 마킹.
+        //   문제: 5페이지 중 일부가 UNKNOWN_ERROR 로 누락되어 부분 데이터(예:
+        //         900건/1440건) 가 들어와도 'complete' 로 처리되어 클라이언트가
+        //         부분 시간대의 고/저조 1개씩만 받아 렌더 → "조석이 고조 1·저조 1
+        //         만 표출" 증상의 직접 원인.
+        //   변경: 하루 1440건(1분 × 24시간) 이 모두 채워졌을 때만 'complete'.
+        //         부족하면 'error' 로 마킹 → 30초 TTL 에러 캐시 → 클라이언트 폴링
+        //         재시도 또는 사용자 재클릭으로 자동 복구 유도.
+        //         collectTideBedData 의 페이지 단위 재시도(MAX_PAGE_RETRIES) 와
+        //         조합되어 일시 장애는 자동 복구되고, 진짜 장애만 사용자에게 노출.
+        const EXPECTED_DAY_RECORDS = 1440;
+        const isFullData = dayOnlyItems.length >= EXPECTED_DAY_RECORDS;
+        if (!isFullData && dayOnlyItems.length > 0) {
+            console.warn(`⚠️ ${fileName}: 부분 데이터(${dayOnlyItems.length}/${EXPECTED_DAY_RECORDS}건) — 'error' 처리하여 재요청 유도`);
+        }
+
         const completeData = {
             requestDate: dateInt,
             requestTime: time,
             latitude: lat,
             longitude: lon,
             timestamp: new Date().toISOString(),
-            tideBedStatus: dayOnlyItems.length > 0 ? 'complete' : 'error',
+            tideBedStatus: isFullData ? 'complete' : 'error',
             tideBedCount: dayOnlyItems.length,
             // ❸ 모든 피크 (H/L 각 최대 4개) 전달 — peak_finder 가 채워준 키만 정의됨
             highTide1: peakResult.highTide1,
@@ -364,13 +429,20 @@ async function collectAndSaveTideData(lat, lon, dateInt, time, fileName, paddedI
         };
 
         // ❷-B 서버 가드: 이미 같은 fileName 이 complete/complete-quick 으로 캐시돼
-        // 있는데 새 결과가 'error' (빈 padded 결과) 면 덮어쓰지 않음.
+        // 있는데 새 결과가 'error' (빈/부분 padded 결과) 면 덮어쓰지 않음.
         const existing = tideCache.get(fileName);
         if (existing
             && (existing.tideBedStatus === 'complete' || existing.tideBedStatus === 'complete-quick' || existing.tideBedStatus === 'complete (IDW)')
             && completeData.tideBedStatus === 'error') {
             console.log(`🛡️  ${fileName}: 기존 ${existing.tideBedStatus} 유지 — error 덮어쓰기 차단`);
             return existing;
+        }
+
+        // 부분 데이터('error') 는 30초 TTL 로만 캐시 — 같은 좌표 재클릭 시
+        // 자동 재요청 가능하도록 짧게 유지 (catch 블록의 errorData 와 동일 정책).
+        if (!isFullData) {
+            tideCache.set(fileName, completeData, { ttl: 30 * 1000 });
+            return completeData;
         }
 
         // 메모리 캐시(tideCache LRU)에만 저장. 디스크 파일 저장은 제거됨
