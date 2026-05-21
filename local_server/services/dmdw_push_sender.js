@@ -791,6 +791,81 @@ function _runGcForTest() {
     _gcSentKeys();
 }
 
+/**
+ * [예비특보 해제 알림] — 부모 zone 단위 통합 push.
+ *
+ * [용도]
+ *   weather_alerts_crawler 의 참고사항 처리에서 "예비 → 해제" 케이스 (발효 못 가고
+ *   취소) 감지 시 호출. 부모 zone 명만 나열한 간단한 본문으로 사용자에게 알림.
+ *
+ * [형식]
+ *   Title: "✅ {wrnTp} 예비특보 해제 알림"
+ *   Body : "ㅇ{parent1}\nㅇ{parent2}\n..." (부모만, 자식 미명시)
+ *
+ * [dedup 정책]
+ *   per-parent 키 사용: "prelim_release|{wrnTp}|{parent}".
+ *   - 같은 부모의 같은 종류 예비 해제는 24h TTL 동안 1회만 발송.
+ *   - 통보문이 같은 해제 안내를 반복 포함해도 silent skip.
+ *   - 새 부모가 해제 안내에 추가되면 그 부모만 본문에 등장 (이미 발송된 부모는 제외).
+ *   - 디스크 영속화로 재배포 후에도 dedup 유지.
+ *
+ * [길이 한도]
+ *   부모 단위 ~12자 + "ㅇ" + 줄바꿈 ≈ 13자/부모. 200자 한도면 약 15부모까지 1통.
+ *   초과 시 부모 단위로 잘라 분할 발송 (드문 케이스).
+ *
+ * @param {string} wrnTp - "풍랑" / "폭풍해일" / "태풍" 등
+ * @param {string[]} parents - 해제된 부모 zone 명 배열
+ * @returns {Promise<{ sent: boolean, count: number }>}
+ */
+async function sendPreliminaryRelease(wrnTp, parents) {
+    if (!wrnTp || !Array.isArray(parents) || parents.length === 0) {
+        return { sent: false, count: 0 };
+    }
+    // dedup 적중 안 한 (= 새로) 부모만 골라냄.
+    const newParents = parents.filter(p => !_sentKeys.has(`prelim_release|${wrnTp}|${p}`));
+    if (newParents.length === 0) return { sent: false, count: 0 };
+
+    const title = `✅ ${wrnTp} 예비특보 해제 알림`;
+    const data = { url: CLICK_URL, type: 'preliminary_release' };
+
+    // 본문 200자 한도 안에서 부모 단위로 분할.
+    const lines = newParents.map(p => `ㅇ${p}`);
+    const chunks = [];
+    let buf = [];
+    let bufLen = 0;
+    for (const line of lines) {
+        const sep = buf.length === 0 ? 0 : 1; // 줄바꿈
+        if (buf.length > 0 && bufLen + sep + line.length > BODY_MAX_LEN) {
+            chunks.push(buf.join('\n'));
+            buf = [];
+            bufLen = 0;
+        }
+        buf.push(line);
+        bufLen += (buf.length === 1 ? 0 : 1) + line.length;
+    }
+    if (buf.length > 0) chunks.push(buf.join('\n'));
+
+    let sentCount = 0;
+    for (const body of chunks) {
+        try {
+            await sendAdminPush(title, body, data);
+            sentCount++;
+        } catch (e) {
+            console.error('[DmdwPush] preliminary_release 발송 실패 (계속):', e && e.message);
+        }
+    }
+
+    if (sentCount > 0) {
+        const now = Date.now();
+        for (const p of newParents) {
+            _sentKeys.set(`prelim_release|${wrnTp}|${p}`, now);
+        }
+        _persistSentKeysDebounced();
+    }
+
+    return { sent: sentCount > 0, count: newParents.length };
+}
+
 module.exports = {
     // 상수
     BODY_MAX_LEN,
@@ -805,6 +880,7 @@ module.exports = {
     // 발송 API
     flush,
     forgetChild,
+    sendPreliminaryRelease,
     // 유틸 (다른 모듈에서 재사용 가능)
     compareLevel,
     fmtTime,

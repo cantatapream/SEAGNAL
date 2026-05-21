@@ -605,7 +605,10 @@ function _extractSeaGroupsFromSubject(subject) {
  * @returns {{releases:number, extensions:number, releasedChildren:number}}
  */
 function applyReferenceUpdates(form, previous, parsed) {
-    const stats = { releases: 0, extensions: 0, releasedChildren: 0 };
+    const stats = { releases: 0, extensions: 0, releasedChildren: 0, releasePushSent: 0 };
+    // 사용자 알림 발송용 — 종류별로 해제된 부모 zone 들 누적.
+    //   { '풍랑' → Set<'남해서부서쪽먼바다', '제주도북부앞바다', ...>, ... }
+    const releasedParentsByType = new Map();
     if (!form || !parsed) return stats;
 
     // 모든 zone leaf 수집: { name → leafNode }
@@ -701,6 +704,11 @@ function applyReferenceUpdates(form, previous, parsed) {
                     if (upMatches) {
                         leaf.upcoming = null;
                         stats.releases++;
+                        // 사용자 알림용으로 종류별 부모 누적.
+                        if (!releasedParentsByType.has(wrnTp)) {
+                            releasedParentsByType.set(wrnTp, new Set());
+                        }
+                        releasedParentsByType.get(wrnTp).add(zoneName);
                     } else {
                         // 종류 다름 — upcoming 보존. 그래도 children 은 정리 가능하나, 안전상 skip.
                         continue;
@@ -771,6 +779,35 @@ function applyReferenceUpdates(form, previous, parsed) {
                     }
                 }
             }
+        }
+    }
+
+    // ── 예비특보 해제 알림 푸시 (사용자 요구 — 옵션 B) ────────────────────────
+    //
+    // 통보문 참고사항에서 "발표 가능성이 낮아져 해제합니다" 안내가 감지되면
+    // 부모 zone 단위로 해제 알림을 push. 형식:
+    //   Title: "✅ {wrnTp} 예비특보 해제 알림"
+    //   Body : "ㅇ{parent1}\nㅇ{parent2}\n..."  (부모만, 자식 미명시)
+    //
+    // dedup: dmdwPushSender.sendPreliminaryRelease 가 per-parent 키로 24h 동안
+    // 동일 발송 차단. 디스크 영속화로 재배포 후에도 dedup 유지.
+    //
+    // fire-and-forget — crawler 본체 실패 시킬 위험 차단.
+    for (const [wrnTp, parentSet] of releasedParentsByType) {
+        const parents = Array.from(parentSet).sort();
+        if (parents.length === 0) continue;
+        try {
+            const p = dmdwPushSender.sendPreliminaryRelease(wrnTp, parents);
+            if (p && typeof p.then === 'function') {
+                p.then(r => {
+                    if (r && r.sent) {
+                        stats.releasePushSent += r.count;
+                        console.log(`[Yebi] 예비특보 해제 알림 발송 — ${wrnTp} × ${r.count}부모`);
+                    }
+                }).catch(e => console.log(`[Yebi] 해제 알림 발송 실패: ${e.message}`));
+            }
+        } catch (e) {
+            console.log(`[Yebi] 해제 알림 호출 예외 (무시): ${e.message}`);
         }
     }
 
