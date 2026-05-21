@@ -813,7 +813,7 @@ function _runGcForTest() {
  *   부모 단위 ~12자 + "ㅇ" + 줄바꿈 ≈ 13자/부모. 200자 한도면 약 15부모까지 1통.
  *   초과 시 부모 단위로 잘라 분할 발송 (드문 케이스).
  *
- * @param {string} wrnTp - "풍랑" / "폭풍해일" / "태풍" 등
+ * @param {string} wrnTp - "풍랑" / "태풍" (폭풍해일은 운영 정책상 수집 제외)
  * @param {string[]} parents - 해제된 부모 zone 명 배열
  * @returns {Promise<{ sent: boolean, count: number }>}
  */

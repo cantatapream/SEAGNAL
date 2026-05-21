@@ -451,7 +451,7 @@ function mapDataToForm(form, activeChildren) {
 //       - 연장: leaf.upcoming.tmEf = 새 시각 + leaf.children[*].tmEf = 새 시각
 //
 // 정책:
-//   - 풍랑·폭풍해일·태풍 만 처리 (R6) — 강풍/호우/대설 등 육상 종류 무시
+//   - 풍랑·태풍 만 처리 (R6) — 폭풍해일은 운영 정책상 수집 제외, 강풍/호우/대설 등 육상 종류 무시
 //   - 매칭 단위: 자식 그룹은 "부모(자식1, 자식2)" 또는 "부모"(단독) 패턴
 //   - false positive 방지: "해제하나" 같은 안내 문장 제외 — 종결사 (합니다|함\.?) 강제
 //   - 부모 push 트리거 미발생 (R8) — upcoming 직접 mutate, detectChanges 의 prev 는 이미 캡처됨
@@ -460,7 +460,10 @@ function mapDataToForm(form, activeChildren) {
 //      이를 막기 위해 applyReferenceUpdates 는 previous 도 함께 동기화 — 변경 자체를 "없었던 일"
 //      로 처리. dmdw 의 자식 forgetChild 만 호출하여 자식 재발송 가능 보장.)
 
-const SEA_WRN_TYPES = ['풍랑', '폭풍해일', '태풍'];
+// [수집 정책] 폭풍해일 (wrnTp='O') 은 운영 정책상 다른 모듈
+// (dmdw_warn_crawler.js, ai_report_parser.js, report_alert_processor.js) 에서
+// 이미 수집·표시 대상에서 제외됨. 본 모듈의 참고사항 처리에서도 동일 제외.
+const SEA_WRN_TYPES = ['풍랑', '태풍'];
 
 /**
  * 참고사항 섹션 텍스트 (HTML 태그 제거 후) 에서 해제·연장 케이스를 추출.
@@ -508,7 +511,7 @@ function parseReferenceSection(html) {
     //   - "예비특보" / "예비 특보" 두 변형 모두 흡수.
     //   - "발표가능성" / "발표 가능성" 두 변형 모두 흡수.
     //   - 종결사 "(합니다|함\.?)" 강제 — "해제하나" 같은 안내 문장 차단 (V2 false positive).
-    const RE_RELEASE = /([^.\n]*?)의\s*(풍랑|폭풍해일|태풍)\s*예비\s*특보는?\s*발표\s*가능성이?\s*낮아져\s*해제(?:합니다|함\.?)/g;
+    const RE_RELEASE = /([^.\n]*?)의\s*(풍랑|태풍)\s*예비\s*특보는?\s*발표\s*가능성이?\s*낮아져\s*해제(?:합니다|함\.?)/g;
 
 
     for (const sentence of sentences) {
@@ -539,7 +542,7 @@ function parseReferenceSection(html) {
         //   2) 병렬 케이스: "A의 풍랑 예비특보는 X으로, B의 풍랑 예비특보는 Y으로 연장하여 발표합니다"
         //      → 첫 절은 종결사 없음. lazy 매칭으로 ", " 직전의 "...으로" 까지 잡혀야 함.
         //      → tmEf 직후 "(?:연장(?:하여)?\s*발표(?:합니다|함\.?)|,)" 로 두 경로 허용.
-        const RE_EXTEND_2 = /([^,\n]*?)의\s*(풍랑|폭풍해일|태풍)\s*예비\s*특보(?:는|를)?\s*([^,\n]*?)(?:으로|로)(?=\s*(?:,|연장(?:하여)?\s*발표))/g;
+        const RE_EXTEND_2 = /([^,\n]*?)의\s*(풍랑|태풍)\s*예비\s*특보(?:는|를)?\s*([^,\n]*?)(?:으로|로)(?=\s*(?:,|연장(?:하여)?\s*발표))/g;
         let me;
         RE_EXTEND_2.lastIndex = 0;
         while ((me = RE_EXTEND_2.exec(sentence)) !== null) {
@@ -1380,7 +1383,7 @@ async function run() {
         //   - 본문 list 가 다루지 못하는 "발표 가능성 낮아져 해제" / "연장 발표" 안내를 흡수.
         //   - upcoming = null + children[*] = null + forgetChild 호출 (해제 케이스)
         //   - upcoming.tmEf 갱신 + children[*].tmEf 갱신 (연장 케이스)
-        //   - 풍랑·폭풍해일·태풍 만 (R6). 부모 push 무영향 보장 (previous 도 동기화 — R8).
+        //   - 풍랑·태풍 만 (R6). 폭풍해일 운영 정책상 수집 제외. 부모 push 무영향 보장 (previous 도 동기화 — R8).
         //   - 실패 시 본체 무영향 (try-catch 흡수).
         try {
             const parsedRef = parseReferenceSection(html);
