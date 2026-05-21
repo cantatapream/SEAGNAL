@@ -224,7 +224,7 @@ async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retr
 }
 
 /**
- * TideBED 전체 데이터 수집 (5페이지 병렬 → 1440건)
+ * TideBED 데이터 수집 — 지정 페이지만 병렬 호출 (1..5 부분 집합 지원)
  *
  * [페이지 단위 자동 재시도 — 2026-05]
  *   fetchTideBedPage 내부의 키 회전(SERVICE_ERROR/LIMITED_NUMBER/OVER_QUOTA)
@@ -233,13 +233,26 @@ async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retr
  *   backoff 와 함께 최대 2회 재요청. 재시도 후에도 부족분이 남으면 부분
  *   데이터를 반환하되, 완전성 판정은 호출 측(collectAndSaveTideData) 에서
  *   record 수 기반으로 다시 검사한다.
+ *
+ * [페이지 셀렉터 — 2026-05 boundary 최적화]
+ *   pages 파라미터로 1~5 부분 집합 지정 가능 (어제/내일 boundary peak 만
+ *   필요한 경우 trade off: TideBED 부하·UNKNOWN_ERROR 빈도 ↓).
+ *   호출 측이 어떤 페이지를 받았는지 알아야 하므로 { items, loadedPages,
+ *   failedPages } 객체를 반환. 기존 단일 인자(reqDate) 호출 호환을 위해
+ *   기본값 [1,2,3,4,5] 적용 + 옛 사용처(배열 반환 기대) 를 위한 wrapper
+ *   collectTideBedData 유지.
  */
-async function collectTideBedData(lat, lon, reqDate) {
-    console.log(`📡 TideBED API 수집 시작: lat=${lat}, lon=${lon}, date=${reqDate}`);
-    const allItems = [];
+async function collectTideBedPages(lat, lon, reqDate, pages) {
+    const pageList = Array.isArray(pages) && pages.length > 0
+        ? pages.slice().sort((a, b) => a - b)
+        : [1, 2, 3, 4, 5];
+    console.log(`📡 TideBED API 수집 시작: lat=${lat}, lon=${lon}, date=${reqDate}, pages=[${pageList.join(',')}]`);
 
-    const pagePromises = [1, 2, 3, 4, 5].map(page => {
-        console.log(`  📄 Page ${page}/5 요청 시작...`);
+    const allItems = [];
+    const loadedPages = [];
+
+    const pagePromises = pageList.map(page => {
+        console.log(`  📄 Page ${page}/${pageList.length === 5 ? '5' : pageList.length + ' (부분)'} 요청 시작...`);
         return fetchTideBedPage(lat, lon, reqDate, page).then(result => ({ page, result }));
     });
 
@@ -257,6 +270,7 @@ async function collectTideBedData(lat, lon, reqDate) {
             } else if (items) {
                 allItems.push(items);
             }
+            loadedPages.push(page);
             console.log(`  ✅ Page ${page}: ${Array.isArray(items) ? items.length : 1}건 수집 완료`);
         } else {
             console.warn(`  ⚠️ Page ${page}: 데이터 없음 또는 오류`);
@@ -268,12 +282,18 @@ async function collectTideBedData(lat, lon, reqDate) {
         }
     }
 
-    const MAX_PAGE_RETRIES = 2;
+    // 백오프: 200ms → 500ms (이전 500/1000ms 에서 단축 — boundary 최적화로 1차 호출
+    //   페이지 수가 15→7~9 로 감소하면 TideBED 부하/UNKNOWN_ERROR 자체가 줄어 재시도
+    //   발생 빈도가 낮아진다. 재시도가 발생했을 때는 사용자 latency 에 직결되므로
+    //   초기 backoff 를 짧게 가져가 빠른 복구. 200ms 도 일시 네트워크 글리치/응답
+    //   큐잉에는 충분하다. 최대 횟수(2회) 는 무한 재시도 방지로 유지.
+    const RETRY_DELAYS_MS = [200, 500];
+    const MAX_PAGE_RETRIES = RETRY_DELAYS_MS.length;
     let retryAttempt = 0;
     let remainingFailed = failedPages;
     while (remainingFailed.length > 0 && retryAttempt < MAX_PAGE_RETRIES) {
+        const backoffMs = RETRY_DELAYS_MS[retryAttempt];
         retryAttempt++;
-        const backoffMs = 500 * retryAttempt; // 500ms → 1000ms
         console.log(`🔁 페이지 재시도 ${retryAttempt}/${MAX_PAGE_RETRIES}: [${remainingFailed.join(', ')}] (backoff ${backoffMs}ms)`);
         await new Promise(r => setTimeout(r, backoffMs));
 
@@ -293,6 +313,7 @@ async function collectTideBedData(lat, lon, reqDate) {
                 } else if (items) {
                     allItems.push(items);
                 }
+                loadedPages.push(page);
                 console.log(`  ✅ Page ${page} (재시도 ${retryAttempt}): ${Array.isArray(items) ? items.length : 1}건 수집 완료`);
             } else {
                 console.warn(`  ⚠️ Page ${page} (재시도 ${retryAttempt}): 여전히 실패 (응답 코드: ${header?.resultCode || 'N/A'})`);
@@ -306,8 +327,18 @@ async function collectTideBedData(lat, lon, reqDate) {
         console.error(`❌ ${remainingFailed.length}개 페이지 최종 실패: [${remainingFailed.join(', ')}] → 부분 데이터(${allItems.length}건) 반환`);
     }
 
-    console.log(`📡 TideBED 수집 완료: 총 ${allItems.length}건`);
-    return allItems;
+    console.log(`📡 TideBED 수집 완료: 총 ${allItems.length}건 (loadedPages=[${loadedPages.sort((a,b)=>a-b).join(',')}])`);
+    return { items: allItems, loadedPages: loadedPages.sort((a, b) => a - b), failedPages: remainingFailed };
+}
+
+/**
+ * 후방 호환 wrapper — 옛 호출처는 5페이지 전체 raw 배열을 기대.
+ *   기존 시그니처: collectTideBedData(lat, lon, reqDate) → array
+ *   신규 셀렉터 필요 시 collectTideBedPages 직접 호출 권장.
+ */
+async function collectTideBedData(lat, lon, reqDate, pages) {
+    const { items } = await collectTideBedPages(lat, lon, reqDate, pages);
+    return items;
 }
 
 /**
@@ -372,11 +403,22 @@ function getAdjacentDates(dateInt) {
 
 /**
  * 단일 날짜 수집 + 피크 분석 + 파일 저장 통합 함수 (패딩 지원)
+ *
+ * [opts — 2026-05 boundary 최적화]
+ *   isNeighbor:   true 면 어제/내일 (보조) 데이터로 간주 → 완전성 게이트 완화.
+ *                 boundary peak 1개만 잡혀도 'complete' 로 표시 (클라이언트
+ *                 폴링 흐름 유지). 데이터 자체는 부분 페이지만 받았음을
+ *                 loadedPages 로 함께 캐시한다.
+ *   loadedPages:  실제로 받은 페이지 번호 배열. 캐시 entry 에 그대로 저장 →
+ *                 라우터에서 슬라이더가 이 날을 직접 조회할 때 length < 5 면
+ *                 누락 페이지 재수집을 결정.
  */
-async function collectAndSaveTideData(lat, lon, dateInt, time, fileName, paddedItems = null) {
+async function collectAndSaveTideData(lat, lon, dateInt, time, fileName, paddedItems = null, opts = {}) {
     // (디스크 캐시 제거로 filePath 미사용 — 메모리 캐시(tideCache)만 사용)
     const reqDateStr = String(dateInt);
     const adj = getAdjacentDates(dateInt);
+    const isNeighbor = !!opts.isNeighbor;
+    const loadedPages = Array.isArray(opts.loadedPages) ? opts.loadedPages.slice().sort((a, b) => a - b) : null;
 
     try {
         let items = [];
@@ -396,15 +438,45 @@ async function collectAndSaveTideData(lat, lon, dateInt, time, fileName, paddedI
         //         900건/1440건) 가 들어와도 'complete' 로 처리되어 클라이언트가
         //         부분 시간대의 고/저조 1개씩만 받아 렌더 → "조석이 고조 1·저조 1
         //         만 표출" 증상의 직접 원인.
-        //   변경: 하루 1440건(1분 × 24시간) 이 모두 채워졌을 때만 'complete'.
-        //         부족하면 'error' 로 마킹 → 30초 TTL 에러 캐시 → 클라이언트 폴링
-        //         재시도 또는 사용자 재클릭으로 자동 복구 유도.
-        //         collectTideBedData 의 페이지 단위 재시도(MAX_PAGE_RETRIES) 와
+        //   변경: dayOnlyItems 가 충분히(>= MIN_DAY_RECORDS) 채워졌을 때만
+        //         'complete'. 부족하면 'error' 마킹 → 30초 TTL 에러 캐시 →
+        //         클라이언트 폴링 재시도 또는 사용자 재클릭으로 자동 복구 유도.
+        //         collectTideBedData 의 페이지 재시도(MAX_PAGE_RETRIES) 와
         //         조합되어 일시 장애는 자동 복구되고, 진짜 장애만 사용자에게 노출.
+        //
+        //   임계값 1380 (= 1440 - 60분 여유):
+        //     TideBED API 가 격자(gridHash)별로 자정 경계 ±몇 분(보통 3~7분)의
+        //     인접일 레코드를 섞어서 반환하는 케이스가 관측됨 → dayOnlyItems 가
+        //     1433/1440 또는 1437/1440 으로 살짝 부족한 정상 응답. 페이지 단위
+        //     실패(≥240분 누락) 는 잡으면서 boundary 오프셋은 통과시키도록
+        //     1시간 마진으로 완화.
+        //
+        // [neighbor 모드 — boundary 최적화 분리]
+        //   어제/내일은 클라이언트 게이지/예상조위 계산에 raw 1분 데이터가 직접
+        //   사용되지 않음 (ocean_bottom_sheet3.js:731-743 / interpolateLevel).
+        //   yPeaks.last() / tPeaks.first() 1개씩만 사용. → boundary 부근 페이지
+        //   하나만 잡혀도 충분. dayOnlyItems.length 검수는 보조 정보로만 남기고
+        //   'complete' 마킹 (false-positive 'error' 차단).
         const EXPECTED_DAY_RECORDS = 1440;
-        const isFullData = dayOnlyItems.length >= EXPECTED_DAY_RECORDS;
-        if (!isFullData && dayOnlyItems.length > 0) {
-            console.warn(`⚠️ ${fileName}: 부분 데이터(${dayOnlyItems.length}/${EXPECTED_DAY_RECORDS}건) — 'error' 처리하여 재요청 유도`);
+        const MIN_DAY_RECORDS = 1380; // 1440 - 60분 (boundary offset 허용)
+        let isFullData = dayOnlyItems.length >= MIN_DAY_RECORDS;
+
+        if (isNeighbor) {
+            // neighbor: peak 1개 (high 또는 low) 라도 잡히면 OK.
+            const hasAnyPeak = !!(peakResult.highTide1 || peakResult.lowTide1);
+            if (hasAnyPeak) {
+                isFullData = true; // 'complete' 로 표시 → 클라이언트 폴링 종료
+            } else {
+                console.warn(`⚠️ ${fileName}: 이웃 데이터지만 boundary peak 미검출 — 'error' 유지`);
+                isFullData = false;
+            }
+        } else {
+            // today: 기존 strict gate 유지
+            if (!isFullData && dayOnlyItems.length > 0) {
+                console.warn(`⚠️ ${fileName}: 부분 데이터(${dayOnlyItems.length}/${EXPECTED_DAY_RECORDS}건, 임계 ${MIN_DAY_RECORDS}) — 'error' 처리하여 재요청 유도`);
+            } else if (dayOnlyItems.length < EXPECTED_DAY_RECORDS && dayOnlyItems.length >= MIN_DAY_RECORDS) {
+                console.log(`ℹ️ ${fileName}: boundary offset 감지 (${dayOnlyItems.length}/${EXPECTED_DAY_RECORDS}건) — 정상 처리`);
+            }
         }
 
         const completeData = {
@@ -415,6 +487,11 @@ async function collectAndSaveTideData(lat, lon, dateInt, time, fileName, paddedI
             timestamp: new Date().toISOString(),
             tideBedStatus: isFullData ? 'complete' : 'error',
             tideBedCount: dayOnlyItems.length,
+            // [boundary 최적화] 어떤 페이지를 받았는지 캐시에 기록.
+            //   length < 5 인데 슬라이더가 이 날을 직접 조회하면 라우터가
+            //   누락 페이지 추가 수집 → 전체 5페이지 캐시로 승격.
+            loadedPages: loadedPages, // null 이면 paddedItems 경로 — 호출 측이 직접 지정
+            isNeighbor: isNeighbor,
             // ❸ 모든 피크 (H/L 각 최대 4개) 전달 — peak_finder 가 채워준 키만 정의됨
             highTide1: peakResult.highTide1,
             highTide2: peakResult.highTide2,
@@ -476,6 +553,7 @@ module.exports = {
     rotateTideBedKey,
     fetchTideBedPage,
     collectTideBedData,
+    collectTideBedPages,   // 페이지 셀렉터 (boundary 최적화) 지원 신규 API
     getGridHash,
     getAdjacentDates,
     collectAndSaveTideData
