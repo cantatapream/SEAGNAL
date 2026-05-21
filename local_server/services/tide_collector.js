@@ -138,12 +138,43 @@ process.on('beforeExit', () => {
  * TideBED API 키를 다음 순번으로 회전 (라운드 로빈).
  * 일일 호출 한도 도달 또는 일시 차단 발생 시 호출 — 즉시 다른 키로 전환하여
  * 서비스 중단 없이 계속 데이터 수집. 회전 후 saveTideBedConfig 로 즉시 영속화.
+ *
+ * [2026-05] currentIndex 는 더 이상 per-call key 선택에 사용되지 않음
+ *   (pickKeyIndex 가 round-robin 카운터 사용). 이 함수는 한도 초과 키를
+ *   excludeIndices 에 추가하거나, 호환성을 위해 사용량 메타 갱신만 트리거.
  */
 function rotateTideBedKey() {
     tideBedConfig.currentIndex = (tideBedConfig.currentIndex + 1) % tideBedConfig.keys.length;
-    console.log(`🔄 TideBED API Key가 ${tideBedConfig.currentIndex + 1}번으로 전환되었습니다.`);
-    // 키 회전은 영속화 중요 — flush 로 즉시 저장
+    console.log(`🔄 TideBED API Key 회전 → 인덱스 ${tideBedConfig.currentIndex + 1}번`);
     saveTideBedConfig({ flush: true });
+}
+
+// ── 키 분산 호출 (Round-Robin per call) — 2026-05 ───────────────────
+// 기존: tideBedConfig.currentIndex 의 키 1개만 사용 (한도 도달 시에만 회전).
+//   동시 호출 다수가 같은 키로 몰려 TideBED 측 키별 throttle/UNKNOWN_ERROR 빈발.
+// 변경: 호출마다 다음 키 선택. 7~15 페이지 동시 호출이 3개 키로 분산 → 키당
+//   부하 1/3 → UNKNOWN_ERROR 빈도 감소 + 일일 한도(키당 10,000) 균등 활용.
+// 정책:
+//   - 호출 카운터 % 키수
+//   - 일일 한도 도달 키는 자동 제외
+//   - 재시도 시 실패 키를 excludeIndices 로 회피 (다른 키로 강제 전환)
+let _keyRoundRobinCounter = 0;
+function pickKeyIndex(excludeIndices) {
+    const ex = Array.isArray(excludeIndices) ? excludeIndices : [];
+    const n = tideBedConfig.keys.length;
+    if (n === 0) return -1;
+    // 최대 2바퀴 시도: 한도 초과/제외 키 회피
+    for (let attempt = 0; attempt < n * 2; attempt++) {
+        const idx = _keyRoundRobinCounter % n;
+        _keyRoundRobinCounter = (_keyRoundRobinCounter + 1) % (n * 1000); // overflow 방지
+        if (ex.includes(idx)) continue;
+        const k = tideBedConfig.keys[idx];
+        if ((k.used || 0) >= 10000) continue; // 일일 한도 도달 키 자동 제외
+        return idx;
+    }
+    // 모두 한도 초과/제외 → 제외 안 된 첫 키라도 반환 (최후 수단)
+    for (let i = 0; i < n; i++) if (!ex.includes(i)) return i;
+    return -1; // 정말로 가용 키 없음
 }
 
 // ============================================================================
@@ -151,9 +182,16 @@ function rotateTideBedKey() {
 // ============================================================================
 
 /**
- * TideBED API 단일 페이지 호출 (자동 키 전환 지원)
+ * TideBED API 단일 페이지 호출 — 키 분산 호출 (Round-Robin per call)
+ *
+ * [2026-05] 매 호출마다 다음 키 사용. 동시 호출이 여러 키로 분산되어 키별
+ *   throttle/UNKNOWN_ERROR 빈도 감소. 실패 시 그 키를 excludeKeyIndices 에
+ *   추가하고 다른 키로 재시도 (실패 키 회피).
+ *
+ * @param {number} retryCount  내부 재귀 카운터 (외부 호출 시 0)
+ * @param {number[]} excludeKeyIndices  재시도 시 회피할 키 인덱스 (실패 키)
  */
-async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retryCount = 0) {
+async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retryCount = 0, excludeKeyIndices = []) {
     if (tideBedConfig.keys.length === 0) {
         console.error('❌ 등록된 TideBED API 키가 없습니다.');
         return null;
@@ -171,8 +209,15 @@ async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retr
         saveTideBedConfig({ flush: true });
     }
 
-    const currentKeyData = tideBedConfig.keys[tideBedConfig.currentIndex];
+    // 호출마다 다음 키 선택 (한도 초과/실패 키 자동 회피)
+    const keyIdx = pickKeyIndex(excludeKeyIndices);
+    if (keyIdx < 0) {
+        console.error(`❌ 가용 TideBED API 키 없음 (excludeKeyIndices=[${excludeKeyIndices.join(',')}])`);
+        return null;
+    }
+    const currentKeyData = tideBedConfig.keys[keyIdx];
     const apiKey = currentKeyData.key;
+    const keyLabel = currentKeyData.owner ? `#${keyIdx + 1}(${currentKeyData.owner})` : `#${keyIdx + 1}`;
 
     return new Promise((resolve) => {
         const encodedKey = encodeURIComponent(apiKey);
@@ -184,10 +229,10 @@ async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retr
             response.on('end', async () => {
                 try {
                     if (data.includes('SERVICE_ERROR') || data.includes('LIMITED_NUMBER') || data.includes('OVER_QUOTA')) {
-                        console.warn(`⚠️ TideBED API Key (${tideBedConfig.currentIndex + 1}번) 제한/오류 발생. 다음 키로 전환 시도...`);
+                        console.warn(`⚠️ TideBED Key ${keyLabel} 제한/오류 — 실패 키 제외하고 다른 키로 재시도`);
                         if (retryCount < tideBedConfig.keys.length) {
-                            rotateTideBedKey();
-                            const result = await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1);
+                            const newExclude = excludeKeyIndices.concat([keyIdx]);
+                            const result = await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1, newExclude);
                             return resolve(result);
                         }
                     }
@@ -196,28 +241,26 @@ async function fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows = 300, retr
 
                     currentKeyData.used = (currentKeyData.used || 0) + 1;
                     if (currentKeyData.used >= 10000) {
-                        console.log(`🚀 ${tideBedConfig.currentIndex + 1}번 키 제한(10,000회) 도달. 다음 키로 자동 전환.`);
-                        rotateTideBedKey();
-                    } else {
-                        saveTideBedConfig();
+                        console.log(`🚀 Key ${keyLabel} 일일 한도(10,000회) 도달 — pickKeyIndex 가 이후 자동 제외`);
                     }
+                    saveTideBedConfig(); // 디바운스 저장
 
                     resolve(parsed);
                 } catch (e) {
                     if (data.includes('<returnReasonCode>')) {
-                        console.warn(`⚠️ TideBED API XML 에러 응답 감지. 키 전환 시도...`);
+                        console.warn(`⚠️ TideBED Key ${keyLabel} XML 에러 응답 — 실패 키 제외하고 다른 키로 재시도`);
                         if (retryCount < tideBedConfig.keys.length) {
-                            rotateTideBedKey();
-                            const result = await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1);
+                            const newExclude = excludeKeyIndices.concat([keyIdx]);
+                            const result = await fetchTideBedPage(lat, lon, reqDate, pageNo, numOfRows, retryCount + 1, newExclude);
                             return resolve(result);
                         }
                     }
-                    console.error(`❌ TideBED Page ${pageNo} JSON parse error:`, e.message);
+                    console.error(`❌ TideBED Page ${pageNo} (Key ${keyLabel}) JSON parse error:`, e.message);
                     resolve(null);
                 }
             });
         }).on('error', (err) => {
-            console.error(`❌ TideBED Page ${pageNo} request error:`, err.message);
+            console.error(`❌ TideBED Page ${pageNo} (Key ${keyLabel}) request error:`, err.message);
             resolve(null);
         });
     });
