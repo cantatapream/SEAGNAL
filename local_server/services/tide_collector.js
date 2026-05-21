@@ -396,15 +396,25 @@ async function collectAndSaveTideData(lat, lon, dateInt, time, fileName, paddedI
         //         900건/1440건) 가 들어와도 'complete' 로 처리되어 클라이언트가
         //         부분 시간대의 고/저조 1개씩만 받아 렌더 → "조석이 고조 1·저조 1
         //         만 표출" 증상의 직접 원인.
-        //   변경: 하루 1440건(1분 × 24시간) 이 모두 채워졌을 때만 'complete'.
-        //         부족하면 'error' 로 마킹 → 30초 TTL 에러 캐시 → 클라이언트 폴링
-        //         재시도 또는 사용자 재클릭으로 자동 복구 유도.
-        //         collectTideBedData 의 페이지 단위 재시도(MAX_PAGE_RETRIES) 와
+        //   변경: dayOnlyItems 가 충분히(>= MIN_DAY_RECORDS) 채워졌을 때만
+        //         'complete'. 부족하면 'error' 마킹 → 30초 TTL 에러 캐시 →
+        //         클라이언트 폴링 재시도 또는 사용자 재클릭으로 자동 복구 유도.
+        //         collectTideBedData 의 페이지 재시도(MAX_PAGE_RETRIES) 와
         //         조합되어 일시 장애는 자동 복구되고, 진짜 장애만 사용자에게 노출.
+        //
+        //   임계값 1380 (= 1440 - 60분 여유):
+        //     TideBED API 가 격자(gridHash)별로 자정 경계 ±몇 분(보통 3~7분)의
+        //     인접일 레코드를 섞어서 반환하는 케이스가 관측됨 → dayOnlyItems 가
+        //     1433/1440 또는 1437/1440 으로 살짝 부족한 정상 응답. 페이지 단위
+        //     실패(≥240분 누락) 는 잡으면서 boundary 오프셋은 통과시키도록
+        //     1시간 마진으로 완화.
         const EXPECTED_DAY_RECORDS = 1440;
-        const isFullData = dayOnlyItems.length >= EXPECTED_DAY_RECORDS;
+        const MIN_DAY_RECORDS = 1380; // 1440 - 60분 (boundary offset 허용)
+        const isFullData = dayOnlyItems.length >= MIN_DAY_RECORDS;
         if (!isFullData && dayOnlyItems.length > 0) {
-            console.warn(`⚠️ ${fileName}: 부분 데이터(${dayOnlyItems.length}/${EXPECTED_DAY_RECORDS}건) — 'error' 처리하여 재요청 유도`);
+            console.warn(`⚠️ ${fileName}: 부분 데이터(${dayOnlyItems.length}/${EXPECTED_DAY_RECORDS}건, 임계 ${MIN_DAY_RECORDS}) — 'error' 처리하여 재요청 유도`);
+        } else if (dayOnlyItems.length < EXPECTED_DAY_RECORDS && dayOnlyItems.length >= MIN_DAY_RECORDS) {
+            console.log(`ℹ️ ${fileName}: boundary offset 감지 (${dayOnlyItems.length}/${EXPECTED_DAY_RECORDS}건) — 정상 처리`);
         }
 
         const completeData = {
