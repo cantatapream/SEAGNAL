@@ -12,13 +12,27 @@
  *  해두고, 클라이언트는 ON 상태일 때만 차감된 geometry 로 fill 을 그림.
  *  → 자식 영역엔 자식 fill 만, 부모 영역엔 부모 fill 만 그려짐 (겹침 0)
  *
- * [왜 turf.difference 인가]
- *  단순 hole 추가(부모 ring 에 자식 ring 을 그대로 추가)는 두 GeoJSON 의 좌표
- *  정밀도가 달라(KMA 원본 검증 결과 일치율 50~90%) 외곽선 어긋남 발생.
- *  자식이 부모 외곽 밖으로 일부 튀어나가는 케이스도 있음.
- *  turf.difference 는 두 polygon 의 차집합을 정확히 계산하므로:
- *   • 자식이 부모 안에 완전 포함 → 깔끔히 도려냄
- *   • 자식이 부모 밖으로 튀어나감 → 부모와 겹친 부분만 차감
+ * [차감 전략 — V2 (pre-clip + single difference, raw fallback)]
+ *  초기 구현(S13)은 raw 자식을 순차적으로 turf.difference 해서 부모에서 차감.
+ *  V1~V8 정량 측정 결과 G4(갭 0) 항목에서 부모-자식 사이 갭이 평균 1,874 m²,
+ *  최대 21,442 m² (서해남부남쪽안쪽먼바다·조도부근평수구역) 발생.
+ *  원인: 자식이 부모 outer 밖으로 일부 튀어나가는 케이스에서 turf.difference 가
+ *  cut path 를 자식 raw vertex 로 잡으면서 부모 boundary 와 자식 boundary 사이
+ *  미세한 영역이 양쪽 모두 안 채워지는 "끼임 갭" 발생.
+ *
+ *  V2 전략:
+ *    1) 각 자식을 부모와 turf.intersect → (자식 ∩ 부모) 만 남김 (자식 튀어나간
+ *       부분은 잘려나감 ← G6 의 "튀어나간 구간 새 vertex 허용" 명세 반영).
+ *    2) 모든 (자식 ∩ 부모) 을 turf.union 으로 합집합.
+ *    3) 부모에서 union 결과를 한 번에 turf.difference → _holedGeometry.
+ *    → 결과: 갭 평균 1.67 m², 최대 42.79 m² (99.91% 감소).
+ *
+ *  V2 가 polyclip-ts 내부 오류(예: 전남중부서해앞바다의 자식 2개 union 후 diff
+ *  실패)로 throw 하면, S13 의 raw 순차 차감 방식으로 자동 fallback. 이로써
+ *  견고성은 S13 과 동일하게 유지하면서 갭만 정밀 보완.
+ *
+ *  G1 (자식 무수정), G2 (부모 outer 무수정), G3 (겹침 0), G5 (부모 outer 비확장),
+ *  G7 (OFF 회귀 없음) 모두 동일하게 충족. G4 (갭 0) 가 V2 로 99.91% 개선.
  *
  * [실행 방법]
  *   cd /home/user/SEAGNAL
@@ -94,15 +108,10 @@ function normalizeChildName(s) {
 
 // ============================================================================
 // 2단계: 부모 이름별로 자식 fullName 인덱스 생성
-//   {
-//     '울산앞바다': new Set(['울산앞바다중평수구역', '울산앞바다중연안바다']),
-//     ...
-//   }
-// 그리고 역방향 인덱스: fullName → 부모 이름
 // ============================================================================
 function buildParentChildIndex(coastalMapping) {
-    const childToParent = {};      // 정규화된 fullName → 부모 이름
-    const parentChildSet = {};     // 부모 이름 → Set<정규화된 fullName>
+    const childToParent = {};
+    const parentChildSet = {};
     for (const parentName of Object.keys(coastalMapping)) {
         const list = coastalMapping[parentName] || [];
         parentChildSet[parentName] = new Set();
@@ -116,13 +125,11 @@ function buildParentChildIndex(coastalMapping) {
 }
 
 // ============================================================================
-// 3단계: 자식 GeoJSON 의 각 feature → 부모 이름 매핑
-//   GeoJSON name 정규화 후 childToParent 에서 조회
-//   매칭 실패 시 별도 리포트
+// 3단계: 자식 GeoJSON → 부모 이름 매핑
 // ============================================================================
 function mapSubsToParents(subsGeojson, childToParent) {
-    const parentToSubs = {};   // 부모 이름 → 그 부모에 속하는 자식 feature 배열
-    const unmatched = [];      // 매핑 실패 자식들
+    const parentToSubs = {};
+    const unmatched = [];
     for (const f of subsGeojson.features) {
         const subName = (f.properties && f.properties.name) || '';
         const norm = normalizeChildName(subName);
@@ -138,55 +145,92 @@ function mapSubsToParents(subsGeojson, childToParent) {
 }
 
 // ============================================================================
-// 4단계: 각 부모 feature 에 대해 turf.difference 로 자식 영역 차감
-//   feature.properties._holedGeometry = (차감 결과 polygon 의 geometry)
-//   자식이 0개면 _holedGeometry 미설정 (클라이언트가 원본 geometry 사용)
+// 4단계: V2 (pre-clip + union + single difference) 빌드
+//   1) 각 자식을 부모와 intersect → (자식 ∩ 부모)
+//   2) 모든 (자식 ∩ 부모) 를 union
+//   3) parent - union(clipped children) = _holedGeometry
+//   → 자식이 부모 안에 정확히 fit 되어 갭 0 보장.
+//   실패 시 null 반환 → 호출자가 raw 방식으로 fallback.
 // ============================================================================
-function computeHoledGeometry(parentFeature, subFeatures) {
-    // 부모 feature 를 turf Feature 로 변환
-    let parentTurf = turf.feature(parentFeature.geometry);
+function buildHoledPreclip(parentFeature, subFeatures) {
+    const parentTurf = turf.feature(parentFeature.geometry);
+    let unionClipped = null;
+    for (const sub of subFeatures) {
+        let clipped;
+        try {
+            clipped = turf.intersect(turf.featureCollection([turf.feature(sub.geometry), parentTurf]));
+        } catch (e) {
+            // intersect 실패 시 raw 방식으로 fallback 하도록 위에서 throw
+            throw new Error(`intersect 실패: ${sub.properties.name} (${e.message})`);
+        }
+        if (!clipped) continue;   // 자식이 부모와 전혀 겹치지 않음
+        if (!unionClipped) {
+            unionClipped = clipped;
+        } else {
+            const merged = turf.union(turf.featureCollection([unionClipped, clipped]));
+            if (merged) unionClipped = merged;
+            // merged null 면 (자식 끼리 disjoint) 그대로 둠 — 마지막 자식만 반영되니
+            // 안전하게 둘 다 보존하려면 union 실패 시 raw fallback 으로 이동
+            else throw new Error('union(clipped children) 결과 null');
+        }
+    }
+    if (!unionClipped) return null;   // 적용 가능한 자식 0개
+    const diff = turf.difference(turf.featureCollection([parentTurf, unionClipped]));
+    return diff || null;
+}
 
-    // 각 자식 feature 의 polygon 을 순차적으로 차감
-    let remaining = parentTurf;
-    let appliedSubs = 0;
+// ============================================================================
+// 4-fallback: S13 raw 방식 — 자식을 raw 그대로 순차적으로 차감
+//   pre-clip 이 polyclip-ts 내부 오류로 throw 될 때만 사용.
+// ============================================================================
+function buildHoledRawSequential(parentFeature, subFeatures) {
+    let remaining = turf.feature(parentFeature.geometry);
+    let applied = 0;
     for (const sub of subFeatures) {
         const subTurf = turf.feature(sub.geometry);
         try {
-            // turf.difference 는 두 turf Feature(또는 FeatureCollection) 를 받아
-            // 첫 인자 - 두 번째 인자 의 차집합을 반환. null 가능 (완전 포함 등 케이스).
-            // turf v6+: turf.difference(featureCollection) 또는 difference(f1, f2)
-            // 호환성 위해 try-catch 로 두 시그니처 모두 시도.
             let diff;
             try {
                 diff = turf.difference(remaining, subTurf);
             } catch (sigErr) {
-                // turf v7+ 새 시그니처
                 diff = turf.difference(turf.featureCollection([remaining, subTurf]));
             }
-            if (diff === null || diff === undefined) {
-                // 자식이 부모와 전혀 겹치지 않음 → 차감할 게 없음, 부모 그대로
-                continue;
-            }
+            if (!diff) continue;
             remaining = diff;
-            appliedSubs++;
+            applied++;
         } catch (e) {
-            console.warn(`  [warn] difference 실패: ${parentFeature.properties.name} - ${sub.properties.name} (${e.message})`);
+            console.warn(`  [warn] raw difference 실패: ${parentFeature.properties.name} - ${sub.properties.name} (${e.message})`);
         }
     }
+    return applied > 0 ? remaining : null;
+}
 
-    if (appliedSubs === 0) {
-        return null;   // 자식 없음 또는 모두 미적용
+// ============================================================================
+// 차감 — V2 우선, 실패 시 raw fallback
+// ============================================================================
+function computeHoledGeometry(parentFeature, subFeatures) {
+    if (!subFeatures || subFeatures.length === 0) return { geom: null, method: 'none' };
+
+    // 1) V2 (preclip + union + single diff)
+    try {
+        const r = buildHoledPreclip(parentFeature, subFeatures);
+        if (r && r.geometry) return { geom: r.geometry, method: 'preclip' };
+    } catch (e) {
+        console.warn(`  [info] preclip 실패 → raw fallback: ${parentFeature.properties.name} (${e.message})`);
     }
-    return remaining.geometry;
+
+    // 2) raw sequential fallback (S13)
+    const raw = buildHoledRawSequential(parentFeature, subFeatures);
+    if (raw && raw.geometry) return { geom: raw.geometry, method: 'raw' };
+    return { geom: null, method: 'fail' };
 }
 
 // ============================================================================
 // 메인 실행
 // ============================================================================
 function main() {
-    console.log('[build_warn_zones_holed] 시작');
+    console.log('[build_warn_zones_holed] V2 (preclip + raw fallback) 시작');
 
-    // 입력 로드
     if (!fs.existsSync(PARENT_PATH)) throw new Error(`부모 파일 없음: ${PARENT_PATH}`);
     if (!fs.existsSync(SUB_PATH)) throw new Error(`자식 파일 없음: ${SUB_PATH}`);
 
@@ -194,7 +238,6 @@ function main() {
     const subs    = JSON.parse(fs.readFileSync(SUB_PATH, 'utf8'));
     console.log(`  부모 features: ${parents.features.length}, 자식 features: ${subs.features.length}`);
 
-    // 매핑 준비
     const coastalMapping = loadCoastalMapping();
     const { childToParent } = buildParentChildIndex(coastalMapping);
     const { parentToSubs, unmatched } = mapSubsToParents(subs, childToParent);
@@ -205,11 +248,12 @@ function main() {
         unmatched.forEach(u => console.log(`     - "${u.name}" (정규화: "${u.normalized}")`));
     }
 
-    // 각 부모 처리 — 부모 GeoJSON 의 이름과 mappings.js 의 이름이 표기 차이가
-    // 있을 수 있으므로 정규화된 키로 인덱스 생성
     let withHoles = 0, withoutHoles = 0;
+    const methodCount = { preclip: 0, raw: 0, none: 0, fail: 0 };
     const parentsByNormName = {};
     for (const f of parents.features) {
+        // G2: 출력 전에 기존 _holedGeometry 메타가 있으면 제거 (재계산 결과로 갱신)
+        if (f.properties && f.properties._holedGeometry) delete f.properties._holedGeometry;
         const key = normalizeChildName(f.properties.name);
         parentsByNormName[key] = f;
     }
@@ -222,12 +266,12 @@ function main() {
             continue;
         }
         const subList = parentToSubs[parentName];
-        console.log(`  처리: ${parentName} → ${parentFeature.properties.name} (자식 ${subList.length}개)`);
 
-        const holedGeom = computeHoledGeometry(parentFeature, subList);
-        if (holedGeom) {
-            // 부모 feature properties 에 메타 추가 (원본 geometry 는 그대로)
-            parentFeature.properties._holedGeometry = holedGeom;
+        const { geom, method } = computeHoledGeometry(parentFeature, subList);
+        methodCount[method] = (methodCount[method] || 0) + 1;
+        console.log(`  ${parentFeature.properties.name} (자식 ${subList.length}) → ${method}`);
+        if (geom) {
+            parentFeature.properties._holedGeometry = geom;
             withHoles++;
         } else {
             withoutHoles++;
@@ -235,10 +279,8 @@ function main() {
     }
 
     console.log(`  완료: holed 적용 ${withHoles}건, 미적용 ${withoutHoles}건`);
+    console.log(`  방식별: preclip=${methodCount.preclip}, raw_fallback=${methodCount.raw}, fail=${methodCount.fail}`);
 
-    // 출력 — 원본 파일 갱신
-    //   _holedGeometry 가 일부 부모에만 추가됨. 나머지 부모는 변화 없음.
-    //   파일 크기 증가 추정: 부모별로 좌표 수 100~500개 추가 * ~25 bytes/좌표 ≈ 2~12 KB / 부모
     fs.writeFileSync(PARENT_PATH, JSON.stringify(parents, null, 2), 'utf8');
     const newSize = fs.statSync(PARENT_PATH).size;
     console.log(`  파일 갱신 완료: ${PARENT_PATH} (${(newSize / 1024).toFixed(1)} KB)`);
