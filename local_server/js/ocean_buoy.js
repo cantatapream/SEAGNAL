@@ -1,27 +1,46 @@
 /**
  * ============================================================================
  * 파일명: js/ocean_buoy.js
- * 역할: 해양종합 지도 – 기상부이 + 주요지명 통합 클러스터 레이어 (INDEX2 전용)
+ * 역할: 해양종합 지도 – 기상부이 + 주요지명 격자 샘플링 레이어 (INDEX2 전용)
  * ============================================================================
  *
  * [설명]
  * INDEX2 해양종합 지도에서 기상부이와 주요지명(조석표준항) 마커를
- * 하나의 클러스터 레이어로 통합 관리합니다.
- * - 줌 레벨에 따라 마커가 묶이고(클러스터) 펼쳐짐 (CCTV 패턴)
- * - 기상부이, 주요지명 각각 독립 토글 가능
- * - 두 종류가 동시에 켜져 있으면 함께 클러스터링
- * - 부이 클릭: seaZones.js의 showBuoyModal 호출 (해구기상과 동일)
- * - 주요지명 클릭: 바텀시트 표시 (기존 동작 유지)
- * - 클러스터(숫자) 클릭: 해당 영역으로 줌 인
+ * "격자 기반 공간 분산 샘플링"으로 표시합니다.
  *
- * [로드 순서] ocean_markers.js 이후, index2_patch.js 이전에 로드
+ * [샘플링 방식 — 종전 클러스터링 대체]
+ *   - 종전: ol.source.Cluster 로 가까운 마커를 묶어 숫자 원형(2,9,18…)으로 표시.
+ *           멀리서 볼 때 시각적으로 지저분하고 한쪽에 몰리는 문제.
+ *   - 신규: 현재 뷰포트(보이는 영역)를 "화면 픽셀 단위" 격자로 나눠, 각 셀에서
+ *           우선순위(부이 > 주요지점 > CCTV) 정렬 후 cellBudget 만큼 뽑아
+ *           화면 전체에 골고루 분산 표시. 줌 인 할수록 격자가 작아져 더 많이 등장.
+ *   - 픽셀 격자 채택 이유: 위경도(deg) 격자는 메르카토르 투영에서 위도에 따라
+ *           화면상 칸 크기가 달라져 균일성이 깨짐. 픽셀 격자는 화면 어디서든
+ *           동일한 정사각형 망이라 시각적으로 정확히 균일한 분산을 보장.
+ *
+ * [공유 격자 — CCTV 와 통합]
+ *   3종 마커(부이 / 주요지점 / CCTV)가 "동일한 격자 칸"에서 함께 경쟁해야
+ *   한쪽 몰림 없이 골고루 분산됨. 이를 위해 window.OceanGridSampler 라는
+ *   공통 모듈을 이 파일에서 구현하고, ocean_cctv.js 는 CCTV 피처만 등록.
+ *
+ * [토글 동작]
+ *   - 기상부이 / 주요지점 / CCTV 토글은 각각 "이 타입의 피처가 후보 풀에
+ *     들어가느냐"를 결정함. 켜진 타입들끼리 같은 격자 칸에서 경쟁.
+ *
+ * [클릭 처리]
+ *   - 격자 샘플링된 결과는 _vectorSource(부이/지명) 또는 별도 소스(CCTV)에
+ *     실제 피처로 들어가므로, forEachFeatureAtPixel 으로 단일 피처를 정확히
+ *     hit 할 수 있음. 클러스터 줌인 핸들러는 제거됨.
+ *
+ * [로드 순서] ocean_markers.js 이후, ocean_cctv.js 이전 권장
  *
  * [연계 파일]
  * - buoyLocations.js → BUOY_LOCATIONS, BUOY_TYPE_NAMES
  * - tide.js → stationData (조석 표준항 목록)
- * - seaZones.js → showBuoyModal(), fetchBuoyDataForModal(), displayBuoyDataInModal()
+ * - seaZones.js → showBuoyModal()
  * - ocean_markers.js → 원본 마커 레이어 (이 파일이 대체)
  * - ocean_map.js → initOceanBuoys 호출, handleOceanBuoyClick 사용
+ * - ocean_cctv.js → window.OceanGridSampler 에 'cctv' 타입 피처 등록
  * ============================================================================
  */
 
@@ -35,37 +54,62 @@ if (window.__SEAGNAL_PAGE === 'index2') {
     // 상태 변수
     // ========================================================================
     var _map = null;
-    var _clusterSource = null;
-    var _clusterLayer = null;
-    var _vectorSource = null;     // 실제 피처를 담는 소스
-    var _buoyFeatures = [];       // 부이 피처 배열
-    var _stationFeatures = [];    // 주요지명 피처 배열
+    var _vectorSource = null;     // 격자 샘플링 결과(부이/지명) 피처 소스
+    var _layer = null;            // 부이/지명 표시 레이어
+    var _buoyFeatures = [];       // 부이 후보 피처 배열 (전부)
+    var _stationFeatures = [];    // 주요지명 후보 피처 배열 (전부)
     var _buoysVisible = false;
     var _stationsVisible = false;
     var _origShowOceanMarkers = null;
 
     // ========================================================================
-    // 클러스터 설정 (CCTV 패턴과 동일)
+    // 격자 샘플링 파라미터 — 픽셀 단위 뷰포트 격자
     // ========================================================================
+    //
+    // [정책]
+    //  - 줌이 낮을수록 큰 격자(px) + 작은 cellBudget → 화면에 골고루 듬성듬성
+    //  - 줌이 높을수록 작은 격자(px) + 큰 cellBudget → 점점 더 많이 등장
+    //  - 줌 15 이상은 모든 마커 표시 (격자 없이 통과)
+    //
+    // [왜 픽셀 격자?]
+    //  - 위경도 격자는 메르카토르 투영 특성상 고/저위도에서 화면상 칸 크기가
+    //    크게 달라짐(저위도 dense, 고위도 sparse). 따라서 "화면을 균일하게
+    //    분산" 이라는 사용자 의도와 어긋남.
+    //  - 픽셀 격자는 위도와 무관하게 항상 화면 위에 정사각형 망 → 균일.
+    //  - getPixelFromCoordinate() 가 OL 내부에서 메르카토르 보정을 처리해 주므로
+    //    회전/스케일/팬을 모두 자동 반영.
+    //
+    // [cellBudget]
+    //  같은 셀에 떨어진 마커 중 최대 몇 개를 표시할지. 부이+지명+CCTV 합산.
+    //  3개 토글 모두 켜진 상태에서 budget 2 이면 한 셀에 두 개 마커 공존 가능.
+    // [사용자 지정 파라미터 — 라운드로빈 분배와 합쳐 한 셀에서 최대 budget 개]
+    //   줌 15+ : 제한 없음 — 모두 표시 (cellPx=0)
+    //   줌 12~14 : cellPx 70,  budget 3
+    //   줌 9~11  : cellPx 100, budget 2
+    //   줌 5~8   : cellPx 150, budget 1
+    //   줌 0~4   : cellPx 150, budget 1 (저줌 fallback)
+    var GRID_TABLE = [
+        // { zoomMin, cellPx, cellBudget }
+        { zoomMin: 15, cellPx: 0,   cellBudget: Infinity },
+        { zoomMin: 12, cellPx: 70,  cellBudget: 3 },
+        { zoomMin: 9,  cellPx: 100, cellBudget: 2 },
+        { zoomMin: 5,  cellPx: 150, cellBudget: 1 },
+        { zoomMin: 0,  cellPx: 150, cellBudget: 1 }
+    ];
 
-    /** 줌 레벨에 따른 클러스터 거리 (px) */
-    function getClusterDistance(zoom) {
-        if (zoom >= 15) return 15;
-        if (zoom >= 13) return 20;
-        if (zoom >= 11) return 25;
-        if (zoom >= 9)  return 30;
-        if (zoom >= 7)  return 35;
-        return 40;
+    function _gridParamsForZoom(zoom) {
+        for (var i = 0; i < GRID_TABLE.length; i++) {
+            if (zoom >= GRID_TABLE[i].zoomMin) return GRID_TABLE[i];
+        }
+        return GRID_TABLE[GRID_TABLE.length - 1];
     }
 
-    /** 클러스터 크기에 따른 색상 */
-    function getClusterColor(size) {
-        if (size >= 50) return { fill: 'rgba(220, 38, 38, 0.85)',  stroke: 'rgba(220, 38, 38, 0.3)' };
-        if (size >= 30) return { fill: 'rgba(234, 88, 12, 0.85)',  stroke: 'rgba(234, 88, 12, 0.3)' };
-        if (size >= 10) return { fill: 'rgba(202, 138, 4, 0.85)',  stroke: 'rgba(202, 138, 4, 0.3)' };
-        if (size >= 5)  return { fill: 'rgba(22, 163, 74, 0.85)',  stroke: 'rgba(22, 163, 74, 0.3)' };
-        return              { fill: 'rgba(59, 130, 246, 0.85)', stroke: 'rgba(59, 130, 246, 0.3)' };
-    }
+    // 마커 타입별 우선순위 / 라운드로빈 순서
+    //   index 0 부터 차례로 라운드로빈 됨. 한 슬롯에서 빈 타입은 자동으로
+    //   다음 타입에게 양보(=우선순위 fallback) 되므로 이 배열 순서 자체가
+    //   "슬롯 부족 시 어떤 타입이 더 우선 선택되는가" 의 의미도 가짐.
+    //   1: 기상부이 → 2: 주요지점 → 3: CCTV
+    var TYPE_ORDER = ['buoy', 'station', 'cctv'];
 
     // ========================================================================
     // 부이 아이콘 SVG (seaZones.js BUOY_SVG와 동일)
@@ -85,7 +129,7 @@ if (window.__SEAGNAL_PAGE === 'index2') {
     );
 
     // ========================================================================
-    // 피처 생성
+    // 피처 생성 (전체 후보 — 1회만 생성)
     // ========================================================================
 
     /** BUOY_LOCATIONS 데이터로 부이 피처 생성 */
@@ -96,9 +140,15 @@ if (window.__SEAGNAL_PAGE === 'index2') {
         for (var i = 0; i < keys.length; i++) {
             var id = keys[i];
             var buoy = BUOY_LOCATIONS[id];
+            // [좌표 가드] CCTV _buildFeatures() 와 일관성 — lat/lon 이 숫자가
+            // 아니거나 NaN 이면 잘못된 좌표(0,0 부근)에 마커가 찍히는 것을 방지
+            if (typeof buoy.lat !== 'number' || typeof buoy.lon !== 'number' || isNaN(buoy.lat) || isNaN(buoy.lon)) continue;
             var feature = new ol.Feature({
                 geometry: new ol.geom.Point(ol.proj.fromLonLat([buoy.lon, buoy.lat])),
                 markerType: 'buoy',
+                _sampleType: 'buoy',
+                _sampleLat: buoy.lat,
+                _sampleLon: buoy.lon,
                 buoyId: id,
                 buoyName: buoy.name,
                 buoyType: buoy.type,
@@ -116,9 +166,15 @@ if (window.__SEAGNAL_PAGE === 'index2') {
         var features = [];
         for (var i = 0; i < stationData.length; i++) {
             var station = stationData[i];
+            // [좌표 가드] CCTV _buildFeatures() 와 일관성 — lat/lon 이 숫자가
+            // 아니거나 NaN 이면 잘못된 좌표(0,0 부근)에 마커가 찍히는 것을 방지
+            if (typeof station.lat !== 'number' || typeof station.lon !== 'number' || isNaN(station.lat) || isNaN(station.lon)) continue;
             var feature = new ol.Feature({
                 geometry: new ol.geom.Point(ol.proj.fromLonLat([station.lon, station.lat])),
                 markerType: 'station',
+                _sampleType: 'station',
+                _sampleLat: station.lat,
+                _sampleLon: station.lon,
                 stationName: station.name,
                 stationCode: station.code,
                 stationLat: station.lat,
@@ -131,27 +187,14 @@ if (window.__SEAGNAL_PAGE === 'index2') {
     }
 
     // ========================================================================
-    // 스타일 함수
+    // 스타일 함수 (단일 피처용 — 클러스터 스타일 제거됨)
     // ========================================================================
-    var _styleCache = {};
 
-    /** 단일 부이 피처 스타일 */
     function getBuoyStyle(feature, zoom) {
-        // [부이 마커 1.5배 확대] 0.35/0.3/0.25 → 0.525/0.45/0.375
         var scale = zoom >= 10 ? 0.525 : zoom >= 8 ? 0.45 : 0.375;
         var name = feature.get('buoyName');
         var styles = [
-            // [모바일 히트 영역 확장]
-            // 부이 SVG 아이콘은 내부에 투명 픽셀이 많아 OL 힛 테스트가 픽셀 단위로 실패함
-            // (OL은 Icon 스타일에 대해 불투명 픽셀만 피처로 인정).
-            // 아이콘 뒤에 거의 보이지 않는(alpha 0.01) 꽉 찬 원을 깔아서
-            // 손가락 탭을 안정적으로 받도록 함 — 눈에는 안 보이지만 힛 디텍션 캔버스에서는
-            // 불투명 픽셀로 처리되어 클릭이 원 전체 영역 어디든 성공.
-            //
-            // [영역 축소 — 사용자 보고]
-            // 이전 radius 33 + hitTolerance 20 (총 53px) 은 시각 아이콘(52.5px)
-            // 의 2배라 부이 옆 빈 공간 탭에도 팝업이 떴음.
-            // → radius 20 으로 축소 (총 28px = 시각 아이콘 절반, 손가락 탭 보정 포함)
+            // 모바일 히트 영역 확장용 투명 원 (사용자가 부이 옆을 탭해도 잡힘)
             new ol.style.Style({
                 image: new ol.style.Circle({
                     radius: 20,
@@ -167,7 +210,6 @@ if (window.__SEAGNAL_PAGE === 'index2') {
             })
         ];
         if (zoom >= 8) {
-            // 아이콘 확대에 맞춰 폰트도 소폭 확대 (11/10 → 13/12)
             var fontSize = zoom >= 10 ? '13px' : '12px';
             styles.push(new ol.style.Style({
                 text: new ol.style.Text({
@@ -175,7 +217,6 @@ if (window.__SEAGNAL_PAGE === 'index2') {
                     font: 'bold ' + fontSize + ' "Pretendard", sans-serif',
                     fill: new ol.style.Fill({ color: '#FDD835' }),
                     stroke: new ol.style.Stroke({ color: '#000', width: 3 }),
-                    // 아이콘 확대에 맞춰 라벨 위치도 위로 이동 (-24 → -36)
                     offsetY: -36,
                     textAlign: 'center'
                 })
@@ -184,7 +225,6 @@ if (window.__SEAGNAL_PAGE === 'index2') {
         return styles;
     }
 
-    /** 단일 주요지명 피처 스타일 (ocean_markers.js와 동일) */
     function getStationStyle(feature, zoom) {
         var name = feature.get('stationName');
         var radius = zoom >= 10 ? 6 : zoom >= 8 ? 5 : 4;
@@ -219,69 +259,230 @@ if (window.__SEAGNAL_PAGE === 'index2') {
         return styles;
     }
 
-    /** 클러스터 레이어 스타일 함수 */
-    function clusterStyleFunction(feature) {
-        var clusterFeatures = feature.get('features');
-        var size = clusterFeatures ? clusterFeatures.length : 1;
+    /** 레이어 스타일 함수 — 피처 타입에 따라 분기 */
+    function layerStyleFunction(feature) {
+        var zoom = _map.getView().getZoom();
+        if (feature.get('markerType') === 'buoy') {
+            return getBuoyStyle(feature, zoom);
+        }
+        return getStationStyle(feature, zoom);
+    }
 
-        // 단일 피처: 마커 타입에 따라 개별 스타일
-        if (size === 1) {
-            var singleFeature = clusterFeatures[0];
-            var zoom = _map.getView().getZoom();
-            if (singleFeature.get('markerType') === 'buoy') {
-                return getBuoyStyle(singleFeature, zoom);
+    // ========================================================================
+    // 격자 샘플링 코어 — window.OceanGridSampler
+    // ========================================================================
+    //
+    // 외부 등록자가 type 별로 피처 배열 + visible 플래그를 제공하면,
+    // 현재 뷰포트 + 줌에 맞춰 격자 샘플링한 결과를 각 type 의 sink(소스)에 반영.
+    //
+    // [등록 API]
+    //   OceanGridSampler.register({
+    //     type:    'buoy' | 'station' | 'cctv',
+    //     getAll:  () => Feature[],   // 전체 후보
+    //     getVisible: () => boolean,  // 토글 상태
+    //     sink:    ol.source.Vector   // 샘플링 결과를 받을 소스
+    //   })
+    //   OceanGridSampler.attach(map)
+    //   OceanGridSampler.refresh()  // 외부에서 토글 변경 시 즉시 재샘플링
+    //
+    var _samplerRegistry = [];      // [{type, getAll, getVisible, sink}]
+    var _samplerMap = null;
+    var _samplerScheduled = false;
+    var _sizeRetryCount = 0;        // [0,0] size 재시도 횟수 (무한 폴링 방지)
+    var _SIZE_RETRY_MAX = 30;       // 30회 * 200ms = 6초 후 포기
+
+    function _scheduleSample() {
+        if (_samplerScheduled) return;
+        _samplerScheduled = true;
+        // 다음 프레임에 모아서 한 번만 (moveend + 토글 변경이 연속될 때 중복 방지)
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(_doSample);
+        } else {
+            setTimeout(_doSample, 16);
+        }
+    }
+
+    function _doSample() {
+        _samplerScheduled = false;
+        if (!_samplerMap) return;
+        var view = _samplerMap.getView();
+        var zoom = view.getZoom();
+        var params = _gridParamsForZoom(zoom);
+
+        // 지도 픽셀 크기 (없으면 첫 렌더 전 → 잠시 후 재시도)
+        // [무한 재호출 방지] 비활성 탭(display:none)에 있어 size 가 영구히 [0,0]
+        // 인 케이스 대비: 최대 _SIZE_RETRY_MAX 회 (200ms 간격, 총 약 6초) 만
+        // 재시도하고 포기. 이후엔 사용자가 탭을 열어 moveend / change:resolution /
+        // 토글 이벤트가 발생하면 자동으로 다시 _scheduleSample() 이 호출됨.
+        var size = _samplerMap.getSize();
+        if (!size || !size[0] || !size[1]) {
+            if (_sizeRetryCount < _SIZE_RETRY_MAX) {
+                _sizeRetryCount++;
+                setTimeout(_scheduleSample, 200);
             }
-            return getStationStyle(singleFeature, zoom);
+            return;
+        }
+        // size 정상 복귀 시 카운터 리셋 (다음에 다시 0 이 되면 재시도 가능)
+        _sizeRetryCount = 0;
+        var mapW = size[0];
+        var mapH = size[1];
+
+        // 뷰포트 바깥 살짝 더 샘플링 (팬 직후 빈 영역 방지)
+        var margin = (params.cellPx > 0) ? Math.max(params.cellPx, 60) : 60;
+
+        // 1. 모든 후보를 한 풀로 모음 (visible 인 type 만) + 픽셀 좌표 계산
+        var pool = [];     // [{feature, px, type}]
+        for (var i = 0; i < _samplerRegistry.length; i++) {
+            var entry = _samplerRegistry[i];
+            if (!entry.getVisible()) continue;
+            var all = entry.getAll();
+            for (var k = 0; k < all.length; k++) {
+                var feat = all[k];
+                var geom = feat.getGeometry();
+                if (!geom) continue;
+                var px = _samplerMap.getPixelFromCoordinate(geom.getCoordinates());
+                if (!px) continue;
+                // 뷰포트 + margin 안쪽만 후보
+                if (px[0] < -margin || px[0] > mapW + margin) continue;
+                if (px[1] < -margin || px[1] > mapH + margin) continue;
+                pool.push({
+                    feature: feat,
+                    px: px,
+                    type: feat.get('_sampleType')
+                });
+            }
         }
 
-        // 복수 피처: 클러스터 원형 스타일
-        var colorKey = size >= 50 ? '50' : size >= 30 ? '30' : size >= 10 ? '10' : size >= 5 ? '5' : '2';
-        var cacheKey = colorKey + '-' + size;
+        // 2. cellPx=0 (줌 매우 높음) 면 그대로 전부 통과
+        var selected;
+        if (!params.cellPx || params.cellBudget === Infinity) {
+            selected = [];
+            for (var p = 0; p < pool.length; p++) {
+                selected.push(pool[p].feature);
+            }
+        } else {
+            // 3. 격자 버킷에 담기 — 픽셀 좌표 → cellPx 단위 셀 인덱스
+            var buckets = {};   // key "ix:iy" → [{feature, type}, ...]
+            var cellPx = params.cellPx;
+            for (var j = 0; j < pool.length; j++) {
+                var item = pool[j];
+                var ix = Math.floor(item.px[0] / cellPx);
+                var iy = Math.floor(item.px[1] / cellPx);
+                var key = ix + ':' + iy;
+                if (!buckets[key]) buckets[key] = [];
+                buckets[key].push(item);
+            }
 
-        if (!_styleCache[cacheKey]) {
-            var color = getClusterColor(size);
-            var radius = 16 + Math.min(size, 80) * 0.15;
-
-            _styleCache[cacheKey] = [
-                new ol.style.Style({
-                    image: new ol.style.Circle({
-                        radius: radius + 6,
-                        fill: new ol.style.Fill({ color: color.stroke })
-                    })
-                }),
-                new ol.style.Style({
-                    image: new ol.style.Circle({
-                        radius: radius,
-                        fill: new ol.style.Fill({ color: color.fill }),
-                        stroke: new ol.style.Stroke({ color: '#ffffff', width: 2 })
-                    }),
-                    text: new ol.style.Text({
-                        text: size.toString(),
-                        fill: new ol.style.Fill({ color: '#ffffff' }),
-                        font: 'bold ' + (size >= 100 ? '11' : '13') + 'px "Noto Sans KR", sans-serif'
-                    })
-                })
-            ];
+            // 4. 라운드로빈 슬롯 분배 (핵심 알고리즘)
+            //
+            //    각 셀의 cellBudget 슬롯을 (buoy → station → cctv) 순으로
+            //    "한 칸씩" 회전하며 채움.
+            //     · 한 타입에 후보가 더 있으면 그 타입이 슬롯을 차지하고
+            //       다음 슬롯은 자동으로 다음 타입 차례로 넘어감.
+            //     · 한 타입에 후보가 비면 그 슬롯은 다음 우선순위 타입이
+            //       양보받음 (= 우선순위 fallback).
+            //     · 모든 타입의 큐가 비면 종료.
+            //
+            //    효과:
+            //     - 한 셀에 같은 타입만 몰리지 않음(시각적 다양성).
+            //     - 1개 타입만 토글 ON 이면 그 타입이 모든 슬롯을 차지.
+            //     - 슬롯 부족 + 모든 타입 활성이면 우선순위(부이>지점>CCTV) 보장.
+            //
+            //    구현: 셀별로 타입 큐 인덱스를 따로 두고, rr 포인터를
+            //    typeCount(=3) 주기로 돌리며 비어있지 않은 큐를 만나면 1개 push.
+            selected = [];
+            var budget = params.cellBudget;
+            var bKeys = Object.keys(buckets);
+            var typeCount = TYPE_ORDER.length;
+            for (var b = 0; b < bKeys.length; b++) {
+                var arr = buckets[bKeys[b]];
+                // 타입별 큐 분리 (입력 순서 유지)
+                var queues = { buoy: [], station: [], cctv: [] };
+                for (var qi = 0; qi < arr.length; qi++) {
+                    var item = arr[qi];
+                    if (queues[item.type]) queues[item.type].push(item);
+                }
+                // 라운드로빈
+                var idx   = { buoy: 0, station: 0, cctv: 0 };
+                var filled = 0;
+                var rr     = 0;
+                var miss   = 0;   // 연속 빈 시도 횟수 — typeCount 도달 시 모두 빔
+                while (filled < budget && miss < typeCount) {
+                    var curType = TYPE_ORDER[rr % typeCount];
+                    var q = queues[curType];
+                    if (idx[curType] < q.length) {
+                        selected.push(q[idx[curType]].feature);
+                        idx[curType]++;
+                        filled++;
+                        miss = 0;
+                    } else {
+                        miss++;
+                    }
+                    rr++;
+                }
+            }
         }
-        return _styleCache[cacheKey];
+
+        // 5. 타입별로 분류하여 각 sink 에 반영
+        var byType = {};
+        for (var s = 0; s < selected.length; s++) {
+            var ty = selected[s].get('_sampleType');
+            if (!byType[ty]) byType[ty] = [];
+            byType[ty].push(selected[s]);
+        }
+
+        // sink 별로 자기 타입의 피처만 쓰되, 같은 sink 에 여러 타입을 합치는
+        // 케이스를 지원 (부이/지명이 _vectorSource 공유) — 같은 sink 가
+        // 여러 entry 에서 참조되면 그 sink 의 피처는 한 번만 clear 후 누적 add.
+        var sinkBatched = []; // [{sink, feats: Feature[]}]
+        function _findSinkBatch(sink) {
+            for (var x = 0; x < sinkBatched.length; x++) {
+                if (sinkBatched[x].sink === sink) return sinkBatched[x];
+            }
+            var nb = { sink: sink, feats: [] };
+            sinkBatched.push(nb);
+            return nb;
+        }
+        for (var r = 0; r < _samplerRegistry.length; r++) {
+            var reg = _samplerRegistry[r];
+            if (!reg.sink) continue;
+            var feats = (reg.getVisible() && byType[reg.type]) ? byType[reg.type] : [];
+            var batch = _findSinkBatch(reg.sink);
+            for (var f = 0; f < feats.length; f++) batch.feats.push(feats[f]);
+        }
+        for (var y = 0; y < sinkBatched.length; y++) {
+            sinkBatched[y].sink.clear();
+            if (sinkBatched[y].feats.length > 0) {
+                sinkBatched[y].sink.addFeatures(sinkBatched[y].feats);
+            }
+        }
     }
 
-    // ========================================================================
-    // 소스 피처 갱신 (토글 시 호출)
-    // ========================================================================
-
-    /** 현재 토글 상태에 맞게 소스의 피처를 교체 */
-    function updateSourceFeatures() {
-        if (!_vectorSource) return;
-        _vectorSource.clear();
-        var features = [];
-        if (_stationsVisible) features = features.concat(_stationFeatures);
-        if (_buoysVisible) features = features.concat(_buoyFeatures);
-        if (features.length > 0) {
-            _vectorSource.addFeatures(features);
-        }
-        _styleCache = {};
-    }
+    window.OceanGridSampler = {
+        register: function (entry) {
+            if (!entry || !entry.type) return;
+            // 같은 type 중복 등록 방지 (덮어쓰기)
+            for (var i = 0; i < _samplerRegistry.length; i++) {
+                if (_samplerRegistry[i].type === entry.type) {
+                    _samplerRegistry[i] = entry;
+                    _scheduleSample();
+                    return;
+                }
+            }
+            _samplerRegistry.push(entry);
+            _scheduleSample();
+        },
+        attach: function (map) {
+            if (_samplerMap === map) return;
+            _samplerMap = map;
+            // 뷰포트 / 줌 변경 시 재샘플링
+            map.on('moveend', _scheduleSample);
+            // 일부 케이스(즉시 줌 변경)에서 moveend 이전에 view 만 바뀔 수 있으므로 보조
+            map.getView().on('change:resolution', _scheduleSample);
+            _scheduleSample();
+        },
+        refresh: _scheduleSample
+    };
 
     // ========================================================================
     // 초기화 (ocean_map.js의 buildMap에서 호출)
@@ -290,69 +491,60 @@ if (window.__SEAGNAL_PAGE === 'index2') {
     window.initOceanBuoys = function (map) {
         _map = map;
 
-        // 피처 생성
+        // 피처 후보 생성 (전체)
         _buoyFeatures = createBuoyFeatures();
         _stationFeatures = createStationFeatures();
 
-        // 벡터 소스 (토글 상태에 따라 피처가 추가/제거됨)
+        // 표시용 벡터 소스 (샘플링 결과만 들어감)
         _vectorSource = new ol.source.Vector();
 
-        // 클러스터 소스
-        var initialZoom = map.getView().getZoom() || 6;
-        _clusterSource = new ol.source.Cluster({
-            distance: getClusterDistance(initialZoom),
-            minDistance: 0,
-            source: _vectorSource
-        });
-
-        // 클러스터 레이어
-        //   [zIndex 130 — 사용자 요구로 보강] 이전 100.
-        //   천기(50) / 특보 외곽선(80) 보다 위, 위치 Overlay(200) 보다는 아래.
-        //   천기 PNG 색상이 진할 때 주요지명/부이 마커가 시각적으로 가려지는 문제 완화.
-        //   (CCTV 마커 100 과 같은 영역이라 둘 다 켜져있으면 자연스럽게 stack — 그대로 둠)
-        _clusterLayer = new ol.layer.Vector({
-            source: _clusterSource,
+        // 레이어 — 더 이상 ol.source.Cluster 사용 안 함
+        _layer = new ol.layer.Vector({
+            source: _vectorSource,
             updateWhileAnimating: true,
             updateWhileInteracting: true,
-            style: clusterStyleFunction,
+            style: layerStyleFunction,
             zIndex: 130
         });
 
-        map.addLayer(_clusterLayer);
+        map.addLayer(_layer);
 
-        // 줌 변경 시 클러스터 거리 동적 조절
-        map.getView().on('change:resolution', function () {
-            var zoom = map.getView().getZoom();
-            var newDist = getClusterDistance(zoom);
-            if (_clusterSource && _clusterSource.getDistance() !== newDist) {
-                _clusterSource.setDistance(newDist);
-            }
-            _styleCache = {};
+        // 격자 샘플러에 부이 / 주요지점 등록
+        window.OceanGridSampler.register({
+            type: 'buoy',
+            getAll: function () { return _buoyFeatures; },
+            getVisible: function () { return _buoysVisible; },
+            sink: _vectorSource
         });
+        window.OceanGridSampler.register({
+            type: 'station',
+            getAll: function () { return _stationFeatures; },
+            getVisible: function () { return _stationsVisible; },
+            sink: _vectorSource
+        });
+        window.OceanGridSampler.attach(map);
 
-        // ocean_markers.js의 원본 함수 저장 후 오버라이드
+        // ocean_markers.js 의 원본 함수 저장 후 오버라이드
         _origShowOceanMarkers = window.showOceanMarkers;
 
-        // showOceanMarkers 오버라이드: 클러스터 소스에서 주요지명 토글
+        // showOceanMarkers 오버라이드: 토글 후 샘플링 재계산
         window.showOceanMarkers = function (visible) {
             _stationsVisible = visible;
-            // 원본 마커 레이어는 항상 숨김 (클러스터가 대체)
             if (_origShowOceanMarkers) _origShowOceanMarkers(false);
-            updateSourceFeatures();
+            window.OceanGridSampler.refresh();
         };
 
-        // localStorage에서 이전 상태 복원
+        // localStorage 에서 이전 상태 복원
         _stationsVisible = localStorage.getItem('seagnal_markers_visible') === 'true';
-        // 원본 마커 레이어 숨기기
         if (_origShowOceanMarkers) _origShowOceanMarkers(false);
 
         // 부이 토글 버튼 바인딩
         bindBuoyToggle();
 
-        // 초기 피처 반영
-        updateSourceFeatures();
+        // 초기 샘플링
+        window.OceanGridSampler.refresh();
 
-        console.log('[OceanBuoy] 통합 클러스터 레이어 초기화 (부이: ' + _buoyFeatures.length + ', 지명: ' + _stationFeatures.length + ')');
+        console.log('[OceanBuoy] 격자 샘플링 레이어 초기화 (부이: ' + _buoyFeatures.length + ', 지명: ' + _stationFeatures.length + ')');
     };
 
     // ========================================================================
@@ -369,124 +561,73 @@ if (window.__SEAGNAL_PAGE === 'index2') {
         btn.addEventListener('click', function () {
             _buoysVisible = !_buoysVisible;
             btn.classList.toggle('active', _buoysVisible);
-            updateSourceFeatures();
+            window.OceanGridSampler.refresh();
             try { localStorage.setItem('seagnal_buoys_visible', String(_buoysVisible)); } catch (e) {}
         });
     }
 
     // ========================================================================
-    // 클릭 처리 (ocean_map.js의 handleMapClick에서 호출)
+    // 클릭 처리 (ocean_map.js 의 handleMapClick 에서 호출)
     // ========================================================================
-
+    //
+    // [변경 — 클러스터 제거]
+    //  종전에는 클러스터 원(2,9,18…) 클릭 시 fit() 으로 줌인하는 로직이 있었음.
+    //  이제는 격자 샘플링 결과의 단일 피처만 표시되므로 클러스터 줌인 핸들러 제거.
+    //  벡터 소스에는 _vectorSource(부이/지명 통합) 의 피처가 직접 들어있어
+    //  forEachFeatureAtPixel 로 그대로 hit 가능.
+    //
     window.handleOceanBuoyClick = function (map, evt) {
-        if (!_clusterLayer || !_clusterLayer.getVisible()) return false;
+        if (!_layer || !_layer.getVisible()) return false;
 
-        // ================================================================
-        // [인접 부이 선택 안정화]
-        // 기존: forEachFeatureAtPixel + "if (hit) return" → 콜백 순서상
-        //       먼저 걸린 피처만 처리됨. 이전엔 히트 영역이 확장된(33px 투명 원 +
-        //       hitTolerance 20) 상태에서 제주·서해·거제 등 밀집 구역의
-        //       인접 부이들이 겹쳐, 사용자가 의도한 부이가 아닌 다른 부이가
-        //       선택되거나 심지어 클러스터 원이 먼저 집혀서 줌 인 되어버림.
-        //
-        // 개선: 히트된 피처를 전부 수집 → 클릭 픽셀과 각 피처 중심 사이의
-        //       픽셀 거리 계산 → 단일 피처(부이/스테이션)를 클러스터보다
-        //       우선, 같은 우선순위 내에서는 거리 최소인 것을 선택.
-        //       해구기상(INDEX1) DOM 마커는 각 DOM 요소가 독립적인 탭
-        //       타겟이라 이 문제가 없었음. OL 벡터 레이어에서도 같은 체감을
-        //       주기 위해 "가장 가까운 것 하나" 규칙을 직접 구현.
-        // ================================================================
-        var singleCandidates = [];   // [{feature, dist}] — 실제 부이/스테이션
-        var clusterCandidates = [];  // [{feature, dist}] — 복수 피처 클러스터
-
+        // 인접 마커 중 가장 가까운 단일 피처 선택 (밀집 구역의 오인식 방지)
+        var candidates = [];
         map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
-            if (layer !== _clusterLayer) return;
-
-            var clusterFeatures = feature.get('features');
-            if (!clusterFeatures || clusterFeatures.length === 0) return;
-
-            // 클러스터 피처의 중심(대표 좌표) → 화면 픽셀 좌표로 변환
+            if (layer !== _layer) return;
             var geom = feature.getGeometry();
             if (!geom) return;
             var centerCoord = geom.getCoordinates();
             var centerPixel = map.getPixelFromCoordinate(centerCoord);
             if (!centerPixel) return;
-
             var dx = centerPixel[0] - evt.pixel[0];
             var dy = centerPixel[1] - evt.pixel[1];
             var dist = Math.sqrt(dx * dx + dy * dy);
+            candidates.push({ feature: feature, dist: dist });
+        }, { hitTolerance: 8 });
 
-            if (clusterFeatures.length === 1) {
-                singleCandidates.push({ feature: clusterFeatures[0], dist: dist });
-            } else {
-                clusterCandidates.push({ feature: feature, dist: dist });
-            }
-        }, { hitTolerance: 8 });  // 손가락 탭 오차 보정 (이전 20→8, 부이 옆 빈공간 오인식 방지)
+        if (candidates.length === 0) return false;
 
-        // 거리 오름차순 정렬 — 가장 가까운 것 선택
-        function byDist(a, b) { return a.dist - b.dist; }
-        singleCandidates.sort(byDist);
-        clusterCandidates.sort(byDist);
-
+        candidates.sort(function (a, b) { return a.dist - b.dist; });
+        var single = candidates[0].feature;
         var hit = false;
 
-        if (singleCandidates.length > 0) {
-            // [우선순위 1] 단일 피처 — 부이 또는 조석 표준항
-            var single = singleCandidates[0].feature;
-            if (single.get('markerType') === 'buoy') {
-                // 부이 모달 표시 (seaZones.js의 showBuoyModal 재사용)
-                var buoyId = single.get('buoyId');
-
-                // [멱등 처리] 같은 부이 모달이 이미 열려 있으면 재생성하지 않음
-                // - 빠른 연타 시 showBuoyModal 내부의 existing.remove() → 새 모달 생성 사이클이
-                //   반복되면서 브라우저 paint 전에 모달이 사라지는 flicker 현상 차단
-                // - 다른 부이 클릭 시에는 buoyId가 달라 이 블록을 통과하므로 정상 전환됨
-                // - 모달이 닫히면 DOM에서 사라져 dataset도 함께 제거되므로 stale 값 걱정 없음
-                var existingModal = document.getElementById('buoy-info-modal');
-                if (!(existingModal && existingModal.dataset.buoyId === buoyId)) {
-                    var buoyData = {
-                        name: single.get('buoyName'),
-                        type: single.get('buoyType')
-                    };
-                    if (typeof showBuoyModal === 'function') {
-                        showBuoyModal(buoyId, buoyData);
-                        // [멱등 체크용] 새로 만들어진 모달에 현재 부이 ID를 기록
-                        var createdModal = document.getElementById('buoy-info-modal');
-                        if (createdModal) createdModal.dataset.buoyId = buoyId;
-                    }
+        if (single.get('markerType') === 'buoy') {
+            // 부이 모달 (멱등 처리 — 같은 부이면 재생성하지 않음)
+            var buoyId = single.get('buoyId');
+            var existingModal = document.getElementById('buoy-info-modal');
+            if (!(existingModal && existingModal.dataset.buoyId === buoyId)) {
+                var buoyData = {
+                    name: single.get('buoyName'),
+                    type: single.get('buoyType')
+                };
+                if (typeof showBuoyModal === 'function') {
+                    showBuoyModal(buoyId, buoyData);
+                    var createdModal = document.getElementById('buoy-info-modal');
+                    if (createdModal) createdModal.dataset.buoyId = buoyId;
                 }
-                hit = true;
-            } else if (single.get('markerType') === 'station') {
-                // 주요지명(조석 표준항) → 바텀시트 표시
-                var lat = single.get('stationLat');
-                var lon = single.get('stationLon');
-                var name = single.get('stationName');
-                var code = single.get('stationCode');
-                if (window.showOceanBottomSheet) {
-                    window.showOceanBottomSheet(lat, lon, { stationName: name, stationCode: code });
-                }
-                hit = true;
             }
-        } else if (clusterCandidates.length > 0) {
-            // [우선순위 2] 클러스터(숫자 원) — 해당 영역으로 줌 인
-            var nearestCluster = clusterCandidates[0].feature;
-            var clusterFeatures = nearestCluster.get('features');
-            var extent = ol.extent.createEmpty();
-            for (var i = 0; i < clusterFeatures.length; i++) {
-                ol.extent.extend(extent, clusterFeatures[i].getGeometry().getExtent());
+            hit = true;
+        } else if (single.get('markerType') === 'station') {
+            var lat = single.get('stationLat');
+            var lon = single.get('stationLon');
+            var name = single.get('stationName');
+            var code = single.get('stationCode');
+            if (window.showOceanBottomSheet) {
+                window.showOceanBottomSheet(lat, lon, { stationName: name, stationCode: code });
             }
-            map.getView().fit(extent, {
-                duration: 500,
-                padding: [80, 80, 80, 80],
-                maxZoom: 15
-            });
             hit = true;
         }
 
-        // [전파 차단] 부이/클러스터 히트 시 네이티브 click 이벤트의 DOM 전파를 차단
-        // - 해구기상(INDEX1)의 DOM 마커 click 핸들러에서 호출하던 e.stopPropagation()과 동일한 효과
-        // - OL 자체의 이벤트 버스(예: basemap picker 메뉴 닫기)는 evt 객체와 별개로 동작하므로 영향 없음
-        // - originalEvent가 있을 때만 호출 (pointer 기반 합성 이벤트 대비 안전 가드)
+        // 네이티브 click 이벤트 전파 차단 (해구기상 DOM 마커와 동일 효과)
         if (hit && evt.originalEvent) {
             if (typeof evt.originalEvent.stopPropagation === 'function') {
                 evt.originalEvent.stopPropagation();

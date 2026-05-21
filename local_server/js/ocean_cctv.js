@@ -45,10 +45,12 @@
     // ──────────────────────────────────────────────────────────────
     // 모듈 전역 상태
     // ──────────────────────────────────────────────────────────────
-    /** CCTV 마커 클러스터 레이어 (최초 CCTV ON 시 생성) */
-    var _cctvClusterLayer = null;
-    /** 클러스터 source (줌 변경 시 distance 조정용) */
-    var _cctvClusterSource = null;
+    /** CCTV 마커 레이어 (최초 CCTV ON 시 생성) — 격자 샘플링 결과만 들어감 */
+    var _cctvLayer = null;
+    /** 샘플링 결과를 받는 표시 소스 */
+    var _cctvDisplaySource = null;
+    /** CCTV 전체 후보 피처 (1회 생성 후 재사용) */
+    var _cctvAllFeatures = null;
     /** CCTV 토글 활성 상태 (true 면 마커 표시 중) */
     var _cctvActive = false;
     /** click/pointermove 리스너 바인딩 여부 (1회) */
@@ -124,101 +126,40 @@
     };
 
     // ──────────────────────────────────────────────────────────────
-    // 클러스터 스타일 헬퍼 (cctv3.js 와 유사하지만 oceanMap 전용으로 별도 구현)
+    // 단일 CCTV 마커 스타일
     // ──────────────────────────────────────────────────────────────
-    /**
-     * 클러스터 크기에 따른 색상.
-     * [규칙] 50+ 빨강 / 30+ 주황 / 10+ 노랑 / 5+ 초록 / 2+ 파랑 (cctv3 동일)
-     */
-    function _clusterColor(size) {
-        if (size >= 50) return { fill: 'rgba(220, 38, 38, 0.85)', stroke: 'rgba(220, 38, 38, 0.3)' };
-        if (size >= 30) return { fill: 'rgba(234, 88, 12, 0.85)', stroke: 'rgba(234, 88, 12, 0.3)' };
-        if (size >= 10) return { fill: 'rgba(202, 138, 4, 0.85)', stroke: 'rgba(202, 138, 4, 0.3)' };
-        if (size >= 5)  return { fill: 'rgba(22, 163, 74, 0.85)', stroke: 'rgba(22, 163, 74, 0.3)' };
-        return              { fill: 'rgba(59, 130, 246, 0.85)', stroke: 'rgba(59, 130, 246, 0.3)' };
-    }
-
-    /**
-     * 줌 레벨에 따른 클러스터 distance (cctv3 동일 규칙)
-     */
-    function _clusterDistance(zoom) {
-        if (zoom >= 15) return 15;
-        if (zoom >= 13) return 20;
-        if (zoom >= 11) return 25;
-        if (zoom >= 9)  return 30;
-        if (zoom >= 7)  return 35;
-        return 40;
-    }
-
-    /**
-     * 클러스터/단일 마커의 OpenLayers Style 생성
-     * @param {ol.Feature} feature — Cluster source 가 만든 feature (features 속성 포함)
-     */
-    function _buildClusterStyle(feature) {
-        var features = feature.get('features');
-        if (!features) return null;
-        var size = features.length;
-
-        // 단일 지점: CCTV 아이콘 + 지점명 라벨 (cctv3.js 와 유사하지만 파란 원형 기반)
-        if (size === 1) {
-            var one = features[0];
-            var name = one.get('name') || '';
-            return [
-                // [모바일 히트 영역 확장] — 부이(2cb1198) 와 동일 패턴, 라디우스만 확대
-                // CCTV 아이콘(scale 0.07, ~27x23px)은 매우 작고 PNG 내부에 투명 픽셀이 많아
-                // OL 힛 테스트가 픽셀 단위로 실패함 (Icon 스타일은 불투명 픽셀만 인정).
-                // 거의 보이지 않는(alpha 0.02) 꽉 찬 원을 깔아 손가락 탭을 안정적으로 받도록 함.
-                //
-                // [반경 38 이유]
-                // CCTV anchor=[0.5, 1.0] 이라 visible 영역이 모두 geometry 위쪽:
-                //   - 아이콘: Y0-23 ~ Y0
-                //   - 라벨(offsetY=-24): ~Y0-30 ~ Y0-18
-                // geometry 점에 중앙 정렬한 원으로 라벨 위쪽까지 모두 덮으려면 반경 35 이상 필요.
-                // 38 로 약간 여유. (displacement 는 OL 8.2 힛 캔버스 미적용 사례가 있어 미사용)
-                new ol.style.Style({
-                    image: new ol.style.Circle({
-                        radius: 38,
-                        fill: new ol.style.Fill({ color: 'rgba(0,0,0,0.02)' })
-                    })
-                }),
-                new ol.style.Style({
-                    image: new ol.style.Icon({
-                        src: '/images/cctv_image.png',
-                        anchor: [0.5, 1.0],
-                        anchorXUnits: 'fraction',
-                        anchorYUnits: 'fraction',
-                        scale: 0.07
-                    }),
-                    text: new ol.style.Text({
-                        text: name,
-                        font: '600 11px "Noto Sans KR", sans-serif',
-                        fill: new ol.style.Fill({ color: '#ffffff' }),
-                        stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
-                        offsetY: -24
-                    })
-                })
-            ];
-        }
-
-        // 클러스터: 숫자 원형
-        var c = _clusterColor(size);
+    //
+    // [변경 — 클러스터 제거]
+    //  종전: ol.source.Cluster + 숫자 원형 클러스터 스타일(2,9,18…)
+    //  신규: 격자 샘플링이 단일 피처만 표시 → 클러스터 스타일/색상 헬퍼 모두 제거.
+    //  Feature 는 ocean_buoy.js 의 OceanGridSampler 가 직접 전달하므로
+    //  feature.get('features') 같은 cluster 래핑 없음.
+    function _buildSingleStyle(feature) {
+        var name = feature.get('name') || '';
         return [
+            // [모바일 히트 영역 확장]
+            // CCTV 아이콘(scale 0.07)이 작고 투명 픽셀이 많아 손가락 탭 hit 실패 방지용
+            // 거의 보이지 않는(alpha 0.02) 원을 깔아둠.
             new ol.style.Style({
                 image: new ol.style.Circle({
-                    radius: 20,
-                    fill: new ol.style.Fill({ color: c.stroke })
+                    radius: 38,
+                    fill: new ol.style.Fill({ color: 'rgba(0,0,0,0.02)' })
                 })
             }),
             new ol.style.Style({
-                image: new ol.style.Circle({
-                    radius: 16,
-                    fill: new ol.style.Fill({ color: c.fill }),
-                    stroke: new ol.style.Stroke({ color: '#ffffff', width: 2 })
+                image: new ol.style.Icon({
+                    src: '/images/cctv_image.png',
+                    anchor: [0.5, 1.0],
+                    anchorXUnits: 'fraction',
+                    anchorYUnits: 'fraction',
+                    scale: 0.07
                 }),
                 text: new ol.style.Text({
-                    text: String(size),
-                    font: '700 13px "Noto Sans KR", sans-serif',
-                    fill: new ol.style.Fill({ color: '#ffffff' })
+                    text: name,
+                    font: '600 11px "Noto Sans KR", sans-serif',
+                    fill: new ol.style.Fill({ color: '#ffffff' }),
+                    stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,0.85)', width: 3 }),
+                    offsetY: -24
                 })
             })
         ];
@@ -263,6 +204,10 @@
 
                 var f = new ol.Feature({
                     geometry: new ol.geom.Point(ol.proj.fromLonLat([lng, lat])),
+                    // [격자 샘플링 메타] OceanGridSampler 가 사용
+                    _sampleType:  'cctv',
+                    _sampleLat:   lat,
+                    _sampleLon:   lng,
                     cctvId:       item.cctvId,
                     name:         item.name,
                     subtitle:     item.subtitle,
@@ -284,35 +229,46 @@
     // ──────────────────────────────────────────────────────────────
     // 마커 레이어 생성 (지연 생성: CCTV 버튼 처음 ON 시에만)
     // ──────────────────────────────────────────────────────────────
-    function _ensureClusterLayer(map) {
-        if (_cctvClusterLayer) return _cctvClusterLayer;
+    //
+    // [변경 — 클러스터 제거, 격자 샘플링으로 교체]
+    //  종전: ol.source.Cluster 가 가까운 마커를 묶어 숫자 원형 표시 + 줌별 distance 조정.
+    //  신규: 표시 소스(_cctvDisplaySource) 는 비어있는 상태로 두고,
+    //        window.OceanGridSampler 에 'cctv' 타입을 등록.
+    //        부이/주요지점/CCTV 가 같은 격자에서 함께 경쟁하여 골고루 분산됨.
+    function _ensureCctvLayer(map) {
+        if (_cctvLayer) return _cctvLayer;
 
-        var featureSource = new ol.source.Vector({
-            features: _buildFeatures()
-        });
+        // 표시용 소스 (샘플링된 결과만 들어감)
+        _cctvDisplaySource = new ol.source.Vector();
 
-        _cctvClusterSource = new ol.source.Cluster({
-            source: featureSource,
-            distance: _clusterDistance(map.getView().getZoom() || 6)
-        });
+        // 전체 후보 피처는 1회만 만들어 메모리에 보관
+        _cctvAllFeatures = _buildFeatures();
 
-        _cctvClusterLayer = new ol.layer.Vector({
-            source: _cctvClusterSource,
-            style: _buildClusterStyle,
-            // 부이 / 주요지명 vector(zIndex:100) 와 같은 레이어로 파티클 위에 배치
+        _cctvLayer = new ol.layer.Vector({
+            source: _cctvDisplaySource,
+            style: _buildSingleStyle,
             zIndex: 100,
             updateWhileAnimating: true,
             updateWhileInteracting: true
         });
-        map.addLayer(_cctvClusterLayer);
+        map.addLayer(_cctvLayer);
 
-        // 줌 변경 시 distance 동적 조정 (cctv3 와 동일 규칙)
-        map.getView().on('change:resolution', function () {
-            if (!_cctvClusterSource) return;
-            _cctvClusterSource.setDistance(_clusterDistance(map.getView().getZoom() || 6));
-        });
+        // 격자 샘플러에 CCTV 등록 (부이/주요지점과 같은 grid 에서 경쟁)
+        if (window.OceanGridSampler && typeof window.OceanGridSampler.register === 'function') {
+            window.OceanGridSampler.register({
+                type: 'cctv',
+                getAll: function () { return _cctvAllFeatures || []; },
+                getVisible: function () { return _cctvActive; },
+                sink: _cctvDisplaySource
+            });
+            // attach 는 ocean_buoy.js 가 이미 했지만 안전하게 호출 (idempotent)
+            if (typeof window.OceanGridSampler.attach === 'function') {
+                window.OceanGridSampler.attach(map);
+            }
+            window.OceanGridSampler.refresh();
+        }
 
-        return _cctvClusterLayer;
+        return _cctvLayer;
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -423,64 +379,54 @@
     _installFavLocLayerWhenReady();
 
     // ──────────────────────────────────────────────────────────────
-    // 지도 클릭 훅 — CCTV 마커/클러스터 클릭 감지
+    // 지도 클릭 훅 — CCTV 마커 클릭 감지
     // ──────────────────────────────────────────────────────────────
     /**
-     * 주변 클러스터 후보들 중 가장 가까운 것을 선택해 영상 팝업을 띄움.
-     * [흐름]
-     *  1) CCTV 토글 OFF → 스킵
-     *  2) 클릭 위치에서 _cctvClusterLayer 의 feature 들 수집
-     *  3) 클러스터(feature.size > 1) 면 지도 확대(fitExtent)
-     *  4) 단일(feature.size === 1) 이면 cctv4.js showCctvPopup 호출
+     * 격자 샘플링된 단일 CCTV 피처 클릭 처리.
+     *
+     * [변경 — 클러스터 제거]
+     *  종전에는 ol.source.Cluster 가 만든 래퍼 피처(features 배열 포함)를
+     *  꺼내서, 다중이면 fit()으로 줌인, 단일이면 영상 팝업 표시였음.
+     *  격자 샘플링은 단일 피처만 표시하므로 cluster 래퍼/줌인 로직 제거.
      *
      * @returns {boolean} 처리했으면 true (다른 핸들러가 더 처리하지 않도록)
      */
     function _handleCctvClick(map, evt) {
-        if (!_cctvActive || !_cctvClusterLayer) return false;
+        if (!_cctvActive || !_cctvLayer) return false;
 
-        var hitFeature = null;
+        // 후보 중 가장 가까운 피처 선택 (밀집 구역 오인식 방지)
+        var candidates = [];
         map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
-            if (layer !== _cctvClusterLayer) return;
-            if (!hitFeature) hitFeature = feature;
-        }, { hitTolerance: 30 });  // 모바일 손가락 탭 오차(~30~50px) 대응 — CCTV 아이콘이 작아 부이(20)보다 크게 잡음
+            if (layer !== _cctvLayer) return;
+            var geom = feature.getGeometry();
+            if (!geom) return;
+            var centerPx = map.getPixelFromCoordinate(geom.getCoordinates());
+            if (!centerPx) return;
+            var dx = centerPx[0] - evt.pixel[0];
+            var dy = centerPx[1] - evt.pixel[1];
+            candidates.push({ feature: feature, dist: Math.sqrt(dx * dx + dy * dy) });
+        }, { hitTolerance: 30 });  // 모바일 손가락 탭 오차 보정 — CCTV 아이콘이 작아 부이보다 크게 잡음
 
-        if (!hitFeature) return false;
+        if (candidates.length === 0) return false;
 
-        var inner = hitFeature.get('features');
-        if (!inner || inner.length === 0) return false;
+        candidates.sort(function (a, b) { return a.dist - b.dist; });
+        var f = candidates[0].feature;
 
-        if (inner.length === 1) {
-            // 단일 CCTV → 영상 팝업 (cctv4.js showCctvPopup 시그니처에 맞춰
-            //   Feature 속성으로 저장해 둔 값을 객체로 재구성해 전달)
-            var f = inner[0];
-            if (typeof window.showCctvPopup === 'function') {
-                window.showCctvPopup({
-                    cctvId:       f.get('cctvId'),
-                    name:         f.get('name'),
-                    subtitle:     f.get('subtitle'),
-                    providerKey:  f.get('providerKey'),
-                    providerName: f.get('providerName'),
-                    shareUrl:     f.get('shareUrl'),
-                    streamUrl:    f.get('streamUrl'),
-                    cnt:          f.get('cnt')        || '1',
-                    sensorName:   f.get('sensorName') || null,
-                    cameraCount:  f.get('cameraCount')|| 1,
-                    obsName:      f.get('obsName')    || null
-                });
-            }
-            return true;
+        if (typeof window.showCctvPopup === 'function') {
+            window.showCctvPopup({
+                cctvId:       f.get('cctvId'),
+                name:         f.get('name'),
+                subtitle:     f.get('subtitle'),
+                providerKey:  f.get('providerKey'),
+                providerName: f.get('providerName'),
+                shareUrl:     f.get('shareUrl'),
+                streamUrl:    f.get('streamUrl'),
+                cnt:          f.get('cnt')        || '1',
+                sensorName:   f.get('sensorName') || null,
+                cameraCount:  f.get('cameraCount')|| 1,
+                obsName:      f.get('obsName')    || null
+            });
         }
-
-        // 클러스터 → 포함된 피처 범위로 확대 (cctv4/cctv3 와 유사 동작)
-        var extent = ol.extent.createEmpty();
-        for (var i = 0; i < inner.length; i++) {
-            ol.extent.extend(extent, inner[i].getGeometry().getExtent());
-        }
-        map.getView().fit(extent, {
-            duration: 400,
-            padding: [60, 60, 60, 60],
-            maxZoom: 14
-        });
         return true;
     }
 
@@ -501,10 +447,10 @@
 
         // 포인터 호버 시 커서 변경 (CCTV 활성일 때만)
         map.on('pointermove', function (evt) {
-            if (!_cctvActive || !_cctvClusterLayer) return;
+            if (!_cctvActive || !_cctvLayer) return;
             var hit = false;
             map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
-                if (layer === _cctvClusterLayer) hit = true;
+                if (layer === _cctvLayer) hit = true;
             }, { hitTolerance: 30 });  // click 핸들러와 동일 값 — 커서 hover 와 클릭 영역 일치
             if (hit) {
                 var target = map.getTargetElement();
@@ -526,16 +472,24 @@
         if (!map) return;
 
         if (on) {
-            var layer = _ensureClusterLayer(map);
+            var layer = _ensureCctvLayer(map);
             layer.setVisible(true);
             _bindMapHooks(map);
             _cctvActive = true;
             document.body.classList.add('ocean-cctv-on');
+            // 토글 상태 변경 → 격자 재샘플링 (CCTV 후보 풀 추가)
+            if (window.OceanGridSampler && typeof window.OceanGridSampler.refresh === 'function') {
+                window.OceanGridSampler.refresh();
+            }
             // [제거됨] 종전 CCTV ON 시만 표출되던 #ocean-cctv-notice-btn 은
             //          상시 노출 #ocean-info-btn (탭형 팝업) 으로 대체됨.
         } else {
-            if (_cctvClusterLayer) _cctvClusterLayer.setVisible(false);
+            if (_cctvLayer) _cctvLayer.setVisible(false);
             _cctvActive = false;
+            // 토글 OFF → 격자 재샘플링 (CCTV 후보 풀 제거 → 부이/지명에 슬롯 양보)
+            if (window.OceanGridSampler && typeof window.OceanGridSampler.refresh === 'function') {
+                window.OceanGridSampler.refresh();
+            }
             document.body.classList.remove('ocean-cctv-on');
             // 열려있던 CCTV 영상 팝업도 함께 닫음 (사용자 요구: CCTV OFF 시 팝업 동기 닫힘)
             if (typeof window.closeCctvPopup === 'function') {
