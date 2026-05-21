@@ -231,6 +231,26 @@ router.post('/api/save_tide_input', async (req, res) => {
             }
         }
 
+        // [boundary 최적화 2026-05]
+        //   기존 캐시 entry 가 loadedPages.length < 5 (boundary 만 받은 부분 캐시) 인데
+        //   슬라이더가 그 날을 직접 조회하는 시점 (= 그 날이 current 로 들어오는 시점)
+        //   에는 전체 5페이지 fetch 가 필요. 따라서 partial 캐시는 "재수집 대상" 으로
+        //   재분류 → toCollect 에 강제 포함.
+        //   neighbor 위치(prev/next) 로 다시 들어왔을 때는 이미 boundary peak 가 잡힌
+        //   상태라 추가 호출 없이 그대로 사용 → 호출 절감 효과 보존.
+        for (const pair of datePairs) {
+            const fileName = `tide_${pair.date}_${gridHash}.json`;
+            const cached = tideCache.get(fileName);
+            if (!cached) continue;
+            const lp = cached.loadedPages;
+            const isPartial = Array.isArray(lp) && lp.length < 5;
+            // 슬라이더가 이 날을 직접 조회 (= current) 인 경우만 강제 재수집
+            if (isPartial && pair.key === 'today' && !toCollect.find(t => t.fileName === fileName)) {
+                console.log(`♻️ ${fileName}: 부분 캐시(loadedPages=[${lp.join(',')}]) — 슬라이더 직접 조회 → 전체 재수집`);
+                toCollect.push({ key: pair.key, date: pair.date, fileName });
+            }
+        }
+
         console.log(`📦 캐시 히트: ${3 - toCollect.length}건, 수집 필요: ${toCollect.length}건`);
 
         // 3단계: collecting 상태 초기화 (메모리 캐시에만 — 디스크 저장 제거됨)
@@ -262,37 +282,89 @@ router.post('/api/save_tide_input', async (req, res) => {
         });
 
         // 4단계: 백그라운드에서 필요한 날짜만 수집 (Padding Analysis)
-        // ── 3일치 동시 시작 전략 (이슈 1: 슬라이더 latency 단축) ────────
-        // 변경 전: today raw → today 분석 → 이웃 raw 직렬 (today 가 끝나야 이웃 시작).
-        //          이웃 도착까지 사용자 wait time 이 길어 슬라이더가 다른 날로 이동
-        //          시 풀 fetch latency 누적 (3~5초 이상).
-        // 변경 후: 3일 raw 동시 발사 → today 가 먼저 끝나면 즉시 'complete-quick'
-        //          마킹 → 이웃까지 모두 도착하면 today padded 재분석으로 final
-        //          'complete' 갱신. 동일한 quick→complete 두 단계 응답 동작 보존.
-        //          클라이언트 폴링 인터페이스 100% 호환.
+        // ── boundary 최적화 (2026-05) ──────────────────────────────────
+        //   변경 전: 어제 5페이지 + 오늘 5페이지 + 내일 5페이지 = 15 페이지 동시 호출.
+        //            TideBED 부하 ↑ → UNKNOWN_ERROR 빈발 → 평균 latency 10~14초.
+        //   변경 후: ① 1차 — today 5페이지 + yesterday Page 5 + tomorrow Page 1 = 7페이지 병렬
+        //            ② today raw 도착 → 첫·마지막 peak 의 minutes 추출
+        //            ③ M2 반주기 372분(6h12m) 기반 boundary 추정 → 어제/내일 누락 페이지 결정
+        //            ④ 누락 페이지 추가 호출 (대부분 0~2 페이지)
+        //            ⑤ today 'complete-quick' → 이웃 분석 → today 'complete' 재분석
+        //   클라이언트 폴링/상태 인터페이스 100% 호환 (status 'complete-quick'/'complete'/'error').
+        //
+        //   어제/내일은 ocean_bottom_sheet3.js:731-743 / interpolateLevel(line 1203) 이
+        //   yPeaks.last() / tPeaks.first() 1개씩만 사용 → boundary 부근 페이지만 받아도 됨.
         (async () => {
             try {
                 const allNeededDays = [adj.prev, adj.current, adj.next];
-                const rawItemsMap = {};
+                const rawItemsMap = {};       // day → items array
+                const loadedPagesMap = {};    // day → Set of loaded page numbers
 
-                // 캐시 안에 이미 있는 raw 는 즉시 채워 놓고 시작
+                // 캐시 안에 이미 complete 으로 있는 raw 는 즉시 채워 놓고 시작
                 for (const dayValue of allNeededDays) {
                     const fname = `tide_${dayValue}_${gridHash}.json`;
-                    if (tideCache.has(fname) && tideCache.get(fname).tideBedStatus === 'complete') {
-                        rawItemsMap[dayValue] = tideCache.get(fname).tideBedData;
+                    const cached = tideCache.has(fname) ? tideCache.get(fname) : null;
+                    if (cached && cached.tideBedStatus === 'complete') {
+                        rawItemsMap[dayValue] = cached.tideBedData || [];
+                        if (Array.isArray(cached.loadedPages)) {
+                            loadedPagesMap[dayValue] = new Set(cached.loadedPages);
+                        }
                     }
                 }
 
-                // 단일 날짜 raw 확보 헬퍼 — 동일 day 의 중복 fetch 방지를 위해
-                // 진행 중 Promise 도 _rawPromise 에 저장 (race 안전성).
-                const _rawPromise = {};
-                async function ensureRaw(dayValue) {
-                    if (rawItemsMap[dayValue]) return rawItemsMap[dayValue];
-                    if (_rawPromise[dayValue]) return _rawPromise[dayValue];
-                    _rawPromise[dayValue] = tideCollector
-                        .collectTideBedData(lat, lon, String(dayValue))
-                        .then(arr => { rawItemsMap[dayValue] = arr || []; return rawItemsMap[dayValue]; });
-                    return _rawPromise[dayValue];
+                // ── 페이지 시간대 매핑 ────────────────────────────────
+                // Page1: 0..299, Page2: 300..599, Page3: 600..899, Page4: 900..1199, Page5: 1200..1439
+                const PAGE_BOUNDARY_MARGIN = 30; // ±30분 마진
+                const PAGE_BOUNDARIES = [300, 600, 900, 1200]; // 페이지 사이 경계 분
+                function pagesForMinute(minute) {
+                    if (minute < 0) minute = 0;
+                    if (minute > 1439) minute = 1439;
+                    const basePage = Math.min(5, Math.floor(minute / 300) + 1);
+                    const set = new Set([basePage]);
+                    for (let i = 0; i < PAGE_BOUNDARIES.length; i++) {
+                        const b = PAGE_BOUNDARIES[i];
+                        if (Math.abs(minute - b) <= PAGE_BOUNDARY_MARGIN) {
+                            // boundary 좌(=i+1) / 우(=i+2) 두 페이지 모두 포함
+                            set.add(i + 1);
+                            set.add(i + 2);
+                        }
+                    }
+                    return [...set].filter(p => p >= 1 && p <= 5);
+                }
+
+                // peak 의 분(minutes) 추출 — peak_finder 반환 형식의 time 필드 ('YYYY-MM-DD HH:MM' 또는 'HH:MM')
+                function peakTimeToMinutes(peakObj) {
+                    if (!peakObj || !peakObj.time) return null;
+                    const s = String(peakObj.time);
+                    const m = s.match(/(\d{1,2}):(\d{2})/);
+                    if (!m) return null;
+                    return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+                }
+
+                // 단일 페이지 셀렉터로 raw 확보 (race 안전 — 진행중 Promise 캐시)
+                const _pageFetchPromise = {}; // key: `${day}|${page}` → Promise
+                async function fetchPagesForDay(dayValue, pages) {
+                    const todo = pages.filter(p => !(loadedPagesMap[dayValue] && loadedPagesMap[dayValue].has(p)));
+                    if (todo.length === 0) return;
+                    // 진행중 중복 fetch 방지 — 페이지 단위로 dedup
+                    const dedup = todo.filter(p => !_pageFetchPromise[`${dayValue}|${p}`]);
+                    const reuse = todo.filter(p => _pageFetchPromise[`${dayValue}|${p}`]);
+                    let promise;
+                    if (dedup.length > 0) {
+                        promise = tideCollector
+                            .collectTideBedPages(lat, lon, String(dayValue), dedup)
+                            .then(({ items, loadedPages }) => {
+                                if (!rawItemsMap[dayValue]) rawItemsMap[dayValue] = [];
+                                if (!loadedPagesMap[dayValue]) loadedPagesMap[dayValue] = new Set();
+                                rawItemsMap[dayValue] = rawItemsMap[dayValue].concat(items || []);
+                                (loadedPages || []).forEach(p => loadedPagesMap[dayValue].add(p));
+                            });
+                        dedup.forEach(p => { _pageFetchPromise[`${dayValue}|${p}`] = promise; });
+                    }
+                    // 진행중 페이지 promise 도 같이 await
+                    const awaits = reuse.map(p => _pageFetchPromise[`${dayValue}|${p}`]);
+                    if (promise) awaits.push(promise);
+                    await Promise.all(awaits);
                 }
 
                 async function analyzeAndSave(item, opts) {
@@ -305,7 +377,13 @@ router.post('/api/save_tide_input', async (req, res) => {
                         ...(rawItemsMap[dateInt] || []),
                         ...(rawItemsMap[itemAdj.next] || []).slice(0, 720)
                     ];
-                    await tideCollector.collectAndSaveTideData(lat, lon, dateInt, time, item.fileName, paddedItems);
+                    const isNeighbor = (dateInt === adj.prev || dateInt === adj.next);
+                    const lpSet = loadedPagesMap[dateInt];
+                    const loadedPagesArr = lpSet ? [...lpSet].sort((a, b) => a - b) : null;
+                    await tideCollector.collectAndSaveTideData(
+                        lat, lon, dateInt, time, item.fileName, paddedItems,
+                        { isNeighbor, loadedPages: loadedPagesArr }
+                    );
 
                     if (opts.quick) {
                         const cached = tideCache.get(item.fileName);
@@ -318,44 +396,113 @@ router.post('/api/save_tide_input', async (req, res) => {
 
                 const todayItem = toCollect.find(it => it.date === adj.current);
                 const neighborItems = toCollect.filter(it => it.date !== adj.current);
+                const isNeighborMissing = (day) => toCollect.some(it => it.date === day);
 
-                // ── ① 3일 raw 동시 발사 ──
-                // 누락된 raw 만 트리거. 캐시 hit 인 날짜는 ensureRaw 가 즉시 반환.
-                const daysToFetch = allNeededDays.filter(d => !rawItemsMap[d]);
-                daysToFetch.forEach(d => { ensureRaw(d); }); // fire-and-forget — 각 Promise 는 _rawPromise 에 저장
+                // ── ① 1차 호출 (병렬, 최대 7페이지) ──
+                //    today: 전체 5 페이지 (게이지 표시 대상)
+                //    yesterday: Page 5 (1200..1439 → 어제 마지막 peak 가 자주 위치)
+                //    tomorrow:  Page 1 (0..299 → 내일 첫 peak 가 자주 위치)
+                //  Promise 변수를 분리해 보관 — todayChain 은 todayFetchP 만 await,
+                //  neighborChain 은 모든 neighborFetchP* 까지 await.
+                const todayFetchP = todayItem
+                    ? fetchPagesForDay(adj.current, [1, 2, 3, 4, 5])
+                    : Promise.resolve();
+                const yesterdayInitP = isNeighborMissing(adj.prev)
+                    ? fetchPagesForDay(adj.prev, [5])
+                    : Promise.resolve();
+                const tomorrowInitP = isNeighborMissing(adj.next)
+                    ? fetchPagesForDay(adj.next, [1])
+                    : Promise.resolve();
 
-                // ── ② today 가 가장 먼저 끝나는 분석 흐름 ──
-                //   today raw 도착 즉시 padding=이웃(가능한 만큼) 으로 분석.
-                //   이웃이 아직 도착 안 했으면 padding 0 으로 → 'complete-quick'.
+                // ── ② today 우선 분석 (quick) ──
                 let todayQuickDone = false;
                 const todayChain = todayItem
-                    ? ensureRaw(adj.current).then(async () => {
-                        // 이웃이 이미 다 도착해 있으면 곧장 final 'complete' 로 저장
+                    ? todayFetchP.then(async () => {
                         const neighborsReady = !!(rawItemsMap[adj.prev] && rawItemsMap[adj.next]);
                         await analyzeAndSave(todayItem, { quick: !neighborsReady });
                         todayQuickDone = true;
-                        if (neighborsReady) {
-                            console.log(`⚡ today(${adj.current}) 3일 동시 도착 → 즉시 final 'complete'`);
-                        } else {
-                            console.log(`⚡ [Quick] today(${adj.current}) 분석 완료 (quick) — 이웃 대기`);
-                        }
+                        console.log(`⚡ [Quick] today(${adj.current}) 분석 완료 ${neighborsReady ? '(이웃 동시 도착 → final)' : '(quick — 이웃 대기)'}`);
                     })
                     : Promise.resolve();
 
-                // ── ③ 이웃 분석 + today 재분석 (이웃 도착 시) ──
-                const neighborChain = Promise.all([adj.prev, adj.next].map(ensureRaw))
-                    .then(() => Promise.all(neighborItems.map(it => analyzeAndSave(it))))
-                    .then(async () => {
-                        // today 가 quick 으로 저장된 경우에만 final padded 재분석
-                        if (todayItem && todayQuickDone) {
-                            const cached = tideCache.get(todayItem.fileName);
-                            if (cached && cached.tideBedStatus === 'complete-quick') {
-                                await analyzeAndSave(todayItem);
-                                console.log(`✓ today(${adj.current}) padded 재분석 → 'complete' 갱신`);
-                            }
+                // ── ③ today peak 기반 boundary 추정 → 어제/내일 누락 페이지 추가 호출 ──
+                //   M2 반주기 372분 (6h12m) — 6h12.4m. 보수적으로 정수 사용.
+                const M2_HALF_PERIOD = 372;
+                const neighborChain = todayChain.then(async () => {
+                    // todayChain 후 cached today 에서 peak 추출 (todayItem 없어도 fileMap.today 로 조회)
+                    const todayFileName = fileMap.today;
+                    const todayCached = todayFileName ? tideCache.get(todayFileName) : null;
+
+                    // 피크 minutes — highTide1..4, lowTide1..4 시간 필드에서 추출
+                    let firstPeakMin = null, lastPeakMin = null;
+                    if (todayCached) {
+                        const allTimes = [
+                            todayCached.highTide1, todayCached.highTide2, todayCached.highTide3, todayCached.highTide4,
+                            todayCached.lowTide1, todayCached.lowTide2, todayCached.lowTide3, todayCached.lowTide4
+                        ].map(peakTimeToMinutes).filter(v => v !== null);
+                        if (allTimes.length > 0) {
+                            firstPeakMin = Math.min(...allTimes);
+                            lastPeakMin = Math.max(...allTimes);
                         }
-                        console.log(`🎉 [Padding Analysis] 이웃 ${neighborItems.length}일치 분석 완료`);
-                    });
+                    }
+
+                    // ── yesterday boundary 페이지 결정 ──
+                    let yesterdayExtraPages = [];
+                    if (isNeighborMissing(adj.prev)) {
+                        if (firstPeakMin !== null) {
+                            const yEst = firstPeakMin - M2_HALF_PERIOD;
+                            // 음수: 어제 시각 = yEst + 1440 (정상 케이스 — 어제 23시 부근)
+                            // 양수: 오늘 자정 직후의 첫 피크가 매우 늦은 시각. 어제 마지막 피크는
+                            //       어제 내 어느 위치 (yEst). pagesForMinute 가 그대로 처리.
+                            const yMin = (yEst < 0) ? (yEst + 1440) : yEst;
+                            yesterdayExtraPages = pagesForMinute(yMin);
+                            console.log(`📐 yesterday boundary: todayFirstPeak=${firstPeakMin}min → yEst=${yEst} → yMin=${yMin} → pages=[${yesterdayExtraPages.join(',')}]`);
+                        } else {
+                            // fallback — today peak 추출 실패 시 전체 5페이지 호출 (안전)
+                            yesterdayExtraPages = [1, 2, 3, 4, 5];
+                            console.warn(`📐 yesterday boundary: today peak 추출 실패 → fallback 전체 5페이지`);
+                        }
+                    }
+
+                    // ── tomorrow boundary 페이지 결정 ──
+                    let tomorrowExtraPages = [];
+                    if (isNeighborMissing(adj.next)) {
+                        if (lastPeakMin !== null) {
+                            const tEst = lastPeakMin + M2_HALF_PERIOD;
+                            // >= 1440: 내일 시각 = tEst - 1440 (정상)
+                            // < 1440: 비정상 — todayLastPeak 가 더 있어야 함. 보수적으로 minute 0 사용.
+                            const tMin = (tEst >= 1440) ? (tEst - 1440) : 0;
+                            tomorrowExtraPages = pagesForMinute(tMin);
+                            console.log(`📐 tomorrow boundary: todayLastPeak=${lastPeakMin}min → tEst=${tEst} → tMin=${tMin} → pages=[${tomorrowExtraPages.join(',')}]`);
+                        } else {
+                            tomorrowExtraPages = [1, 2, 3, 4, 5];
+                            console.warn(`📐 tomorrow boundary: today peak 추출 실패 → fallback 전체 5페이지`);
+                        }
+                    }
+
+                    // ── ④ 누락 페이지 추가 호출 (yesterday Page 5 / tomorrow Page 1 은 ① 에서 이미 발사됨) ──
+                    const extraFetches = [];
+                    if (yesterdayExtraPages.length > 0) {
+                        extraFetches.push(fetchPagesForDay(adj.prev, yesterdayExtraPages));
+                    }
+                    if (tomorrowExtraPages.length > 0) {
+                        extraFetches.push(fetchPagesForDay(adj.next, tomorrowExtraPages));
+                    }
+                    // ① 의 yesterday Page5 / tomorrow Page1 도 아직 진행중이면 함께 await
+                    await Promise.all([yesterdayInitP, tomorrowInitP].concat(extraFetches));
+
+                    // ── ⑤ 이웃 분석 + today final 재분석 ──
+                    await Promise.all(neighborItems.map(it => analyzeAndSave(it)));
+
+                    if (todayItem && todayQuickDone) {
+                        const cached = tideCache.get(todayItem.fileName);
+                        if (cached && cached.tideBedStatus === 'complete-quick') {
+                            await analyzeAndSave(todayItem);
+                            console.log(`✓ today(${adj.current}) padded 재분석 → 'complete' 갱신`);
+                        }
+                    }
+                    console.log(`🎉 [Boundary 최적화] 이웃 ${neighborItems.length}일치 분석 완료 (총 추가 페이지: yesterday=[${yesterdayExtraPages.join(',')}], tomorrow=[${tomorrowExtraPages.join(',')}])`);
+                });
 
                 Promise.all([todayChain, neighborChain])
                     .catch(err => console.error('❌ 백그라운드 수집 오류:', err.message));
