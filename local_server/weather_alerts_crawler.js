@@ -274,6 +274,405 @@ function parseChildWarnings(html, form) {
     return activeChildren;
 }
 
+// ============================================================================
+// [옵션 C — Agent-A] [예비] 통보문 참고사항 해제·연장 처리
+// ============================================================================
+//
+// 배경:
+//   weather_alerts_crawler 의 본문 list 파싱(parseChildWarnings)은 "참고사항" 섹션
+//   직전까지만 사용한다. 그러나 [예비] 통보문의 참고사항에 "...예비특보는 발표 가능성이
+//   낮아져 해제합니다" 안내가 등장할 때, 해당 부모 zone 의 upcoming(예비) 상태가
+//   해제됐는데 앱은 계속 살아있다고 인식하는 문제가 있다 (자식해역 동시 해제 미반영).
+//
+// 본 옵션 C 의 목표:
+//   - 본문 list 처리는 그대로 유지 + 참고사항의 해제·연장 안내를 추가로 파싱하여
+//     zone tree (form.current) 에 즉시 반영.
+//   - 해제 시: form.[부모].upcoming = null + form.[부모].children[*] = null
+//              + dmdwPushSender.forgetChild(parentZone, displayName) 호출.
+//   - 연장 시: form.[부모].upcoming.tmEf = 새 시각 + 자식 tmEf 동일 갱신.
+//   - 풍랑·폭풍해일·태풍 만 처리. 강풍·호우·대설 등 육상 종류는 무시.
+//
+// 회귀 0 보장 (R7, R8):
+//   - parseChildWarnings 자체엔 손대지 않음.
+//   - applyReferenceUpdates 적용 시 fullForm.previous 의 동일 zone 도 같은 값으로
+//     동기화하여 detectChanges 가 부모 push 트리거를 만들지 않음 (R8).
+//
+// 정규식 (SPEC § 4 권장안 기반, 단 안정성 보강):
+//   - RE_RELEASE  : 해제 문장 — "...의 (풍랑|폭풍해일|태풍) 예비특보는 ... 해제합니다"
+//                   "발표 가능성이/발표가능성이" 공백 변형 모두 흡수.
+//                   "해제하나" 같은 안내 어휘는 RE_RELEASE 가 "해제합니다|해제함"
+//                   끝맺음만 인정하므로 자연 차단 (false positive 0).
+//   - RE_EXTEND   : 연장 문장 — "...의 (풍랑|폭풍해일|태풍) 예비특보는 [시간]으로
+//                   (연장하여|연장) 발표합니다"
+//                   주어부 ~ 시간 ~ 동사 사이에 [\s\S]{0,80} 허용 (병렬 절 대응).
+//   - RE_GROUP    : 자식 그룹 추출 — "[해역명](자식, 자식)" 또는 단일 해역명.
+//                   해역명 어휘 (앞바다|먼바다|전해상|해상) 가 들어가야 매칭.
+//                   "경기도(연천, 파주)" 같은 육상 행정구역은 자연 제외 (R6).
+
+// 해제 문장 정규식.
+//   주어부 ([^.]{1,200}?) — 마침표/줄바꿈 안 만나는 한 욕심 안 내고 흡수.
+//   "예비\s*특보(?:는|를)?" — '특보는' / '특보를' / '특보' 단독 변형 흡수.
+//   "발표\s*가능성이?" — '발표가능성이' (공백X, 2건) / '발표 가능성이' (공백O, 11건).
+//   끝맺음 "해제(합니다|함\.?)" — "해제하나"(안내문) 차단.
+const _RE_RELEASE = /([^.\n\r]{1,200}?)의?\s*(풍랑|폭풍해일|태풍)\s*예비\s*특보(?:는|를)?[\s\S]{0,80}?발표\s*가능성이?\s*낮아져\s*해제(?:합니다|함\.?)/g;
+
+// 연장 문장 정규식.
+//   주어부 ~ 시각 ~ 동사 사이에 [\s\S]{0,120} 허용 (병렬 두 절 케이스 대응).
+//   시각 부분은 ([\s\S]{1,80}?(?:오늘|내일|모레)?[^,.]{0,40})으?로 — 매우 관대.
+//   동사 "(연장하여|연장)\s*발표(합니다|함\.?)" — 변형 흡수.
+const _RE_EXTEND = /([^.\n\r]{1,200}?)의?\s*(풍랑|폭풍해일|태풍)\s*예비\s*특보(?:는|를)?\s*([\s\S]{1,160}?)으?로\s*(?:연장하여|연장)\s*발표(?:합니다|함\.?)/g;
+
+// 자식 그룹 추출 — 주어부에서 "[해역명](자식, 자식)" 또는 단일 해역명 추출.
+//   해역명에 (앞바다|먼바다|전해상|해상) 어휘가 있어야 인정 (육상 행정구역 제외).
+const _RE_GROUP = /([가-힣]+(?:앞바다|먼바다|전해상|해상))(?:\s*\(([^)]+)\))?/g;
+
+// 시간 토큰 파싱:
+//   "오늘 밤(18~24시)" / "내일(22일) 오전(06~12시)" / "내일(22일) 새벽(00~06시)"
+//   "오늘 늦은 오후로" / "오늘(20일) 오후(12~18시)"
+const _RE_DAYWORD = /(오늘|내일|모레)(?:\s*\((\d{1,2})일\))?/;
+const _RE_TIMERANGE = /(오전|오후|낮|밤|새벽|아침|저녁|늦은\s*오후)?\s*\(?(\d{1,2})\s*시?\s*[~∼\-]\s*(\d{1,2})\s*시\)?/;
+
+/**
+ * 참고사항 시각 문자열 → "YYYY년 MM월 DD일 HH시 mm분" KST 정형.
+ *   - "오늘"/"내일"/"모레" 기준 + (선택) "(NN일)" 일자 명시 + 시간대 시작 시각.
+ *   - 파싱 실패 시 null 반환 (호출자는 빈 시각 유지).
+ *   - 컨테이너 TZ=Asia/Seoul 가정.
+ */
+function _parseReferenceTime(text, refNow = null) {
+    if (!text) return null;
+    const base = refNow ? new Date(refNow) : new Date();
+    const dayMatch = text.match(_RE_DAYWORD);
+    const rangeMatch = text.match(_RE_TIMERANGE);
+    if (!dayMatch && !rangeMatch) return null;
+
+    // 일자 결정.
+    let target = new Date(base.getTime());
+    if (dayMatch) {
+        const word = dayMatch[1];
+        if (word === '내일') target.setDate(target.getDate() + 1);
+        else if (word === '모레') target.setDate(target.getDate() + 2);
+        // "오늘" 은 그대로.
+        // 명시된 일자가 있고 base 의 일자와 다르면 명시값 우선.
+        if (dayMatch[2]) {
+            const explicitDay = parseInt(dayMatch[2], 10);
+            if (Number.isFinite(explicitDay) && explicitDay >= 1 && explicitDay <= 31) {
+                // 해당 월의 explicitDay 로 설정 (오늘/내일 키워드와 일치하지 않으면 명시값 우선).
+                target.setDate(explicitDay);
+            }
+        }
+    }
+
+    // 시간 결정 — 범위의 시작 시각 사용.
+    let startHour = null;
+    if (rangeMatch) {
+        const sh = parseInt(rangeMatch[2], 10);
+        if (Number.isFinite(sh) && sh >= 0 && sh <= 24) startHour = sh;
+    }
+    if (startHour === null) {
+        // "늦은 오후" → 15시 fallback.
+        if (/늦은\s*오후/.test(text)) startHour = 15;
+        else if (/아침/.test(text)) startHour = 6;
+        else if (/낮/.test(text)) startHour = 12;
+        else if (/저녁/.test(text)) startHour = 18;
+        else if (/오전/.test(text)) startHour = 9;
+        else if (/오후/.test(text)) startHour = 15;
+        else if (/밤/.test(text)) startHour = 18;
+        else if (/새벽/.test(text)) startHour = 0;
+        else return null;
+    }
+    if (startHour === 24) startHour = 0;
+
+    target.setHours(startHour, 0, 0, 0);
+
+    const pad = n => String(n).padStart(2, '0');
+    return `${target.getFullYear()}년 ${pad(target.getMonth() + 1)}월 ${pad(target.getDate())}일 ${pad(target.getHours())}시 ${pad(target.getMinutes())}분`;
+}
+
+/**
+ * 주어부 문자열에서 zone 그룹들을 추출.
+ *   "남해서부서쪽먼바다와 제주도앞바다(제주도북부앞바다, 제주도서부앞바다), 제주도남쪽바깥먼바다"
+ *     → [
+ *         { parentLabel: '남해서부서쪽먼바다', children: [] },
+ *         { parentLabel: '제주도앞바다', children: ['제주도북부앞바다', '제주도서부앞바다'] },
+ *         { parentLabel: '제주도남쪽바깥먼바다', children: [] }
+ *       ]
+ *   "(앞바다|먼바다|전해상|해상)" 어휘를 포함한 토큰만 인정 → 육상 행정구역 제외.
+ */
+function _extractZoneGroups(subjectText) {
+    const groups = [];
+    if (!subjectText) return groups;
+    _RE_GROUP.lastIndex = 0;
+    let m;
+    while ((m = _RE_GROUP.exec(subjectText)) !== null) {
+        const parentLabel = m[1];
+        const childrenStr = m[2] || '';
+        const children = [];
+        if (childrenStr) {
+            // 콤마 / 와 / 그리고 등 연결사 분리.
+            const parts = childrenStr.split(/\s*[,，·]\s*|와\s+|과\s+|그리고\s+/).map(s => s.trim()).filter(s => s.length > 0);
+            for (const p of parts) {
+                // 자식 후보도 해상 어휘 포함 확인.
+                if (/(앞바다|먼바다|전해상|해상)/.test(p)) children.push(p);
+            }
+        }
+        groups.push({ parentLabel, children });
+    }
+    return groups;
+}
+
+/**
+ * HTML 에서 "참고사항" 섹션을 추출하여 해제·연장 안내를 파싱.
+ *   반환: { releases: [...], extends: [...] }
+ *     releases[i] = { wrnTp, zones: [{parentLabel, children}], rawSentence }
+ *     extends[i]  = { wrnTp, zones: [...], tmEf, rawSentence }
+ *
+ *   사양:
+ *     - 풍랑·폭풍해일·태풍 만 추출 (R6).
+ *     - 참고사항 섹션 자체가 없으면 빈 객체 반환.
+ *     - false positive 회피: 동사 끝맺음 "해제(합니다|함\.?)" 또는 "연장(하여)? 발표"
+ *       만 인정. "해제하나" 같은 안내 어휘는 RE_RELEASE 가 자연 차단.
+ */
+function parseReferenceSection(html, refNow = null) {
+    const result = { releases: [], extends: [] };
+    if (!html) return result;
+
+    // 참고사항 섹션 추출.
+    const startIdx = html.indexOf('참고사항');
+    if (startIdx === -1) return result;
+    let section = html.substring(startIdx);
+
+    // HTML 정제 — 태그/엔티티 제거, 줄바꿈은 보존(문장 경계로 활용).
+    section = section
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&gt;/g, '>')
+        .replace(/&lt;/g, '<')
+        .replace(/&amp;/g, '&');
+
+    // 해제 추출.
+    _RE_RELEASE.lastIndex = 0;
+    let rm;
+    while ((rm = _RE_RELEASE.exec(section)) !== null) {
+        const subject = rm[1] || '';
+        const wrnTp = rm[2];
+        const zones = _extractZoneGroups(subject);
+        if (zones.length === 0) continue;
+        result.releases.push({ wrnTp, zones, rawSentence: rm[0] });
+    }
+
+    // 연장 추출.
+    //   주의: SPEC § 3 의 병렬 케이스
+    //     "동해남부남쪽먼바다의 풍랑 예비특보는 오늘 밤(18~24시)으로,
+    //      남해동부안쪽먼바다의 풍랑 예비특보는 내일(22일) 새벽(00~06시)으로 연장하여 발표합니다"
+    //   → 단일 RE_EXTEND 패스만으로는 두 zone 중 첫 번째만 잡힘.
+    //   해결: 매칭된 한 문장 내부를 RE_PAIR (zone × 시간) 로 추가 분해 → 각 절을 개별 extend 로 등록.
+    const RE_PAIR = /([^,.\n\r]{1,100}?)(?:의|를|는)?\s*(풍랑|폭풍해일|태풍)\s*예비\s*특보(?:는|를)?\s*([\s\S]{1,80}?)으?로(?=\s*,|\s*(?:연장하여|연장)\s*발표)/g;
+    _RE_EXTEND.lastIndex = 0;
+    let em;
+    while ((em = _RE_EXTEND.exec(section)) !== null) {
+        const fullMatch = em[0];
+        const wrnTp = em[2];
+        // 1) 병렬 절 분해 시도.
+        let pairFound = false;
+        RE_PAIR.lastIndex = 0;
+        let pm;
+        const pairs = [];
+        while ((pm = RE_PAIR.exec(fullMatch)) !== null) {
+            const subject = pm[1] || '';
+            const pairWrnTp = pm[2];
+            const timeChunk = pm[3] || '';
+            const zones = _extractZoneGroups(subject);
+            if (zones.length === 0) continue;
+            const tmEf = _parseReferenceTime(timeChunk, refNow);
+            pairs.push({ wrnTp: pairWrnTp, zones, tmEf, rawSentence: pm[0] });
+        }
+        if (pairs.length >= 2) {
+            // 병렬 절 확인 — 모두 등록.
+            for (const p of pairs) result.extends.push(p);
+            pairFound = true;
+        }
+        if (!pairFound) {
+            // 2) 단일 절 — 전체 subject 사용.
+            const subject = em[1] || '';
+            const timeChunk = em[3] || '';
+            const zones = _extractZoneGroups(subject);
+            if (zones.length === 0) continue;
+            const tmEf = _parseReferenceTime(timeChunk, refNow);
+            result.extends.push({ wrnTp, zones, tmEf, rawSentence: fullMatch });
+        }
+    }
+
+    return result;
+}
+
+/**
+ * form.current zone tree 에서 주어진 leaf zone 이름(예: '제주도북부앞바다') 의 node 를 찾는다.
+ *   반환: { node, parentZone } | null
+ *     - node       : { current, upcoming, history, children } leaf 객체
+ *     - parentZone : 그 leaf 의 키 이름 (자기 자신과 동일 — display 일관성용)
+ *
+ *   동작:
+ *     - createZoneStructure 의 4-단계 트리를 재귀 순회 → children 객체를 가진 노드를 leaf 로 인식.
+ *     - 같은 이름의 leaf 가 여러 트리에 등장하는 일은 없음 (zone 이름 unique).
+ */
+function _findZoneNode(tree, zoneName) {
+    if (!tree || typeof tree !== 'object') return null;
+    if (!zoneName) return null;
+    const target = String(zoneName).trim();
+
+    function isLeafZone(v) {
+        return v && typeof v === 'object' && 'current' in v && 'upcoming' in v && v.children && typeof v.children === 'object';
+    }
+
+    function walk(node) {
+        if (!node || typeof node !== 'object') return null;
+        for (const [k, v] of Object.entries(node)) {
+            if (isLeafZone(v)) {
+                if (k === target) return { node: v, parentZone: k };
+                // leaf 자체의 하위(children)는 zone 이 아니라 자식해역 이름 → 더 내려가지 않음.
+                continue;
+            }
+            // 비-leaf 객체는 재귀.
+            if (v && typeof v === 'object') {
+                const r = walk(v);
+                if (r) return r;
+            }
+        }
+        return null;
+    }
+    return walk(tree);
+}
+
+/**
+ * parseReferenceSection 결과를 form.current 에 적용 (및 form.previous 미러 동기화로 R8 보장).
+ *
+ *   동작:
+ *     해제(release):
+ *       - 매 zones 항목에 대해, parentLabel + children[] 후보를 leaf 후보로 변환.
+ *         · children[] 비어있으면 parentLabel 자체가 leaf.
+ *         · children[] 있으면 각 child 가 leaf.
+ *       - 각 leaf node 에 대해:
+ *           node.upcoming = null
+ *           Object.keys(node.children).forEach(c => node.children[c] = null)
+ *           각 자식에 대해 dmdwPushSender.forgetChild(leafZone, displayName) 호출
+ *       - previous tree 의 동일 leaf 도 같은 상태로 set → detectChanges 차분 0 → 부모 push 트리거 X (R8).
+ *     연장(extend):
+ *       - tmEf 파싱 성공한 경우만 적용.
+ *       - 각 leaf node 에 대해:
+ *           node.upcoming.tmEf = 새 시각 (upcoming 객체 자체는 보존)
+ *           Object.values(node.children).forEach(o => o && (o.tmEf = 새 시각))
+ *       - previous 미러 동일 갱신 (부모 push 트리거 X).
+ *
+ *   반환: 적용 카운트 객체 (디버깅·테스트용).
+ */
+function applyReferenceUpdates(fullForm, refResult) {
+    const counts = {
+        releaseSentences: (refResult && refResult.releases) ? refResult.releases.length : 0,
+        extendSentences: (refResult && refResult.extends) ? refResult.extends.length : 0,
+        releasedLeaves: 0,
+        releasedChildren: 0,
+        extendedLeaves: 0,
+        forgetChildCalls: 0,
+        unresolvedLeaves: []
+    };
+    if (!fullForm || !refResult) return counts;
+
+    const currentTree = fullForm.current;
+    const previousTree = fullForm.previous;
+
+    function leafNamesFromZoneGroups(zoneGroups) {
+        const names = [];
+        for (const g of zoneGroups) {
+            if (g.children && g.children.length > 0) {
+                for (const c of g.children) names.push(c);
+            } else {
+                names.push(g.parentLabel);
+            }
+        }
+        return names;
+    }
+
+    // 해제 적용.
+    for (const rel of refResult.releases) {
+        const leaves = leafNamesFromZoneGroups(rel.zones);
+        for (const leafName of leaves) {
+            const found = _findZoneNode(currentTree, leafName);
+            if (!found) {
+                counts.unresolvedLeaves.push(leafName);
+                continue;
+            }
+            const { node } = found;
+            // 1. upcoming 해제.
+            node.upcoming = null;
+            counts.releasedLeaves++;
+            // 2. 자식 전부 해제 + forgetChild.
+            if (node.children && typeof node.children === 'object') {
+                for (const childFullName of Object.keys(node.children)) {
+                    const prevVal = node.children[childFullName];
+                    if (prevVal !== null) {
+                        node.children[childFullName] = null;
+                        counts.releasedChildren++;
+                    }
+                    try {
+                        const display = _bulletinChildDisplayName(leafName, childFullName);
+                        dmdwPushSender.forgetChild(leafName, display);
+                        counts.forgetChildCalls++;
+                    } catch (_) {}
+                }
+            }
+            // 3. previous 미러 동기화 — detectChanges 가 변화 못 보게 (R8).
+            const prevFound = _findZoneNode(previousTree, leafName);
+            if (prevFound) {
+                prevFound.node.upcoming = null;
+                if (prevFound.node.children && typeof prevFound.node.children === 'object') {
+                    for (const k of Object.keys(prevFound.node.children)) {
+                        prevFound.node.children[k] = null;
+                    }
+                }
+            }
+        }
+    }
+
+    // 연장 적용.
+    for (const ext of refResult.extends) {
+        if (!ext.tmEf) continue; // 시각 파싱 실패 — 무시 (안전 측면).
+        const leaves = leafNamesFromZoneGroups(ext.zones);
+        for (const leafName of leaves) {
+            const found = _findZoneNode(currentTree, leafName);
+            if (!found) {
+                counts.unresolvedLeaves.push(leafName);
+                continue;
+            }
+            const { node } = found;
+            if (node.upcoming && typeof node.upcoming === 'object') {
+                node.upcoming.tmEf = ext.tmEf;
+                counts.extendedLeaves++;
+            }
+            // 자식 객체의 tmEf 도 갱신 (메타 정확성, R5).
+            if (node.children && typeof node.children === 'object') {
+                for (const k of Object.keys(node.children)) {
+                    const v = node.children[k];
+                    if (v && typeof v === 'object') v.tmEf = ext.tmEf;
+                }
+            }
+            // previous 미러 동기화 (R8).
+            const prevFound = _findZoneNode(previousTree, leafName);
+            if (prevFound && prevFound.node.upcoming && typeof prevFound.node.upcoming === 'object') {
+                prevFound.node.upcoming.tmEf = ext.tmEf;
+                if (prevFound.node.children) {
+                    for (const k of Object.keys(prevFound.node.children)) {
+                        const v = prevFound.node.children[k];
+                        if (v && typeof v === 'object') v.tmEf = ext.tmEf;
+                    }
+                }
+            }
+        }
+    }
+
+    return counts;
+}
+
 /**
  * [V3] 현재 KST 시각 - 1분 보정 → "YYYY년 MM월 DD일 HH시 mm분" 포맷.
  *   - KMA 가 17:00 정시 발표 → 크롤러 17:01 수집 → tmFc=17:00 으로 기록.
@@ -953,6 +1352,32 @@ async function run() {
         // 3. 자식 상속 로직 적용
         mapDataToForm(fullForm.current, activeChildren);
 
+        // 3-A. [옵션 C — Agent-A] 참고사항 해제·연장 처리.
+        //   - 본문 list (parseChildWarnings + mapDataToForm) 처리는 그대로 유지.
+        //   - 참고사항의 "...예비특보는 발표 가능성이 낮아져 해제합니다" / "...연장하여 발표합니다"
+        //     안내를 추가로 파싱하여 form.current.[부모].upcoming 을 즉시 null/갱신.
+        //   - 동시에 그 부모의 자식 객체도 null/tmEf 갱신 + forgetChild 호출 (재발송 보장).
+        //   - form.previous 동일 zone 도 미러 동기화 → detectChanges 차분 0 → 부모 push 트리거 X (R8).
+        //   - 풍랑·폭풍해일·태풍 만 (R6). 강풍·호우·대설 등 육상 종류 자연 무시.
+        //   - 모든 오류는 흡수 — 본체 흐름 영향 0.
+        try {
+            const refResult = parseReferenceSection(html);
+            const refCounts = applyReferenceUpdates(fullForm, refResult);
+            if (refCounts.releaseSentences > 0 || refCounts.extendSentences > 0) {
+                console.log(
+                    `[Crawler] 참고사항 처리: 해제문 ${refCounts.releaseSentences}건 → ` +
+                    `${refCounts.releasedLeaves} leaf, ${refCounts.releasedChildren} children · ` +
+                    `forgetChild ${refCounts.forgetChildCalls}회 · ` +
+                    `연장문 ${refCounts.extendSentences}건 → ${refCounts.extendedLeaves} leaf` +
+                    (refCounts.unresolvedLeaves.length > 0
+                        ? ` · 미해결 zone: ${refCounts.unresolvedLeaves.join(', ')}`
+                        : '')
+                );
+            }
+        } catch (e) {
+            console.error(`[Crawler] 참고사항 처리 오류 (본체 흐름 영향 없음): ${e.message}`);
+        }
+
         // 3-bis. [V2] 종합기상 텍스트 기반 자식 발표 푸시 트리거 — 시간 필터 단독.
         //   - dmdw 가 잡지 못하는 "예비" 단계까지 포괄하기 위한 보조 트리거.
         //   - previous.children vs current.children null↔'Y' 전이를 발표/해제마커정리로 매핑.
@@ -1026,4 +1451,16 @@ if (require.main === module) {
     run();
 }
 
-module.exports = { run, detectChanges, createFullForm, resolvePendingStatuses, CONFIG };
+module.exports = {
+    run,
+    detectChanges,
+    createFullForm,
+    resolvePendingStatuses,
+    CONFIG,
+    // [옵션 C — Agent-A] 참고사항 해제·연장 처리 export (테스트·검증용)
+    parseReferenceSection,
+    applyReferenceUpdates,
+    _parseReferenceTime,
+    _extractZoneGroups,
+    _findZoneNode
+};
