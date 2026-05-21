@@ -410,7 +410,7 @@
         //   Cache-Control: max-age=86400 으로 클라이언트(앱 WebView) 에 24시간
         //   캐시되어 새 데이터 미적용 → URL 키 변경(?v=20260430) 으로 1회성 무력화.
         //   다음 GeoJSON 갱신이 필요해지면 v 값을 다시 올려 같은 방식으로 처리.
-        fetch('/api/warn-zones?v=20260430')
+        fetch('/api/warn-zones?v=20260521')
             .then(function (res) {
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 return res.json();
@@ -437,7 +437,7 @@
         _subLoading = true;
         // [캐시 무력화 v=20260430] 자식 특보구역 GeoJSON 도 함께 1회 무력화
         //   (메인과 동일 사유 — 위 _loadMain 주석 참조)
-        fetch('/api/warn-zones-sub?v=20260430')
+        fetch('/api/warn-zones-sub?v=20260521')
             .then(function (res) {
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 return res.json();
