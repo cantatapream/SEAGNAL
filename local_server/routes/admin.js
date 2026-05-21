@@ -46,6 +46,7 @@ const adminAuth = require('../services/admin_auth');
 // 외부 모듈 (server.js와 동일 레벨)
 const weatherAlertsCrawler = require('../weather_alerts_crawler');
 const reportProcessor = require('../report_alert_processor');
+const dmdwPushSender = require('../services/dmdw_push_sender');
 const aiParser = require('../ai_report_parser');
 const pushSender = require('../push_sender');
 const scheduler = require('../scheduler');
@@ -219,6 +220,44 @@ router.post('/api/admin/children-reset', (req, res) => {
 
         const data = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
 
+        // [M3] 자식리셋 직전에 현재 등록된 모든 (parentZone, displayName) 쌍을
+        //   수집해 dmdwPushSender.forgetChild 호출 → 메모리·디스크 dedup 이력 정리.
+        //   이렇게 해야 다음 사이클에 자식이 재등재될 때 publish push 가 정상 발송됨.
+        //   (디스크 영속화 도입 후 forgetChild 없이 리셋만 하면 dedup 이 살아있어 재발송 안 됨)
+        const childrenToForget = [];
+        function collectChildrenForForget(node, lastParentKey) {
+            if (!node || typeof node !== 'object') return;
+            const isZoneLeaf = Object.prototype.hasOwnProperty.call(node, 'current')
+                && Object.prototype.hasOwnProperty.call(node, 'children')
+                && node.children && typeof node.children === 'object';
+            if (isZoneLeaf && lastParentKey) {
+                const p = String(lastParentKey).replace(/\s+/g, '');
+                const joiner = `${p}중`;
+                for (const childFullName of Object.keys(node.children)) {
+                    // dmdw 와 bulletin 양쪽이 사용하는 displayName 추출 정책
+                    // (_bulletinChildDisplayName / _childDisplayNameFromKey 와 동일).
+                    let display = childFullName;
+                    if (p && childFullName.startsWith(joiner)) {
+                        display = childFullName.substring(joiner.length);
+                    }
+                    childrenToForget.push({ parentZone: lastParentKey, display });
+                }
+                return;
+            }
+            for (const [k, v] of Object.entries(node)) {
+                if (['children', 'history', 'missingCount', 'current', 'upcoming', 'tmRelease', 'dmdwState', 'source'].includes(k)) continue;
+                if (v && typeof v === 'object' && !Array.isArray(v)) collectChildrenForForget(v, k);
+            }
+        }
+        if (data.current) collectChildrenForForget(data.current, null);
+
+        let forgottenKeys = 0;
+        for (const c of childrenToForget) {
+            try {
+                forgottenKeys += dmdwPushSender.forgetChild(c.parentZone, c.display);
+            } catch (_) {}
+        }
+
         // tree 재귀: zone leaf 의 children 만 null 로
         function resetChildrenInTree(node) {
             if (!node || typeof node !== 'object') return;
@@ -260,7 +299,7 @@ router.post('/api/admin/children-reset', (req, res) => {
         const windowLabel = normalizedWindowHours === null
             ? '평소 12h'
             : (normalizedWindowHours === 0 ? '0h (push 발송 안 함)' : `${normalizedWindowHours}h`);
-        console.log(`[Admin] 자식 해역 장부 초기화 완료 — ${resetCount}개 zone leaf, window=${windowLabel}${testMode ? ' (테스트 모드)' : ''}`);
+        console.log(`[Admin] 자식 해역 장부 초기화 완료 — ${resetCount}개 zone leaf, dedup 키 ${forgottenKeys}건 제거, window=${windowLabel}${testMode ? ' (테스트 모드)' : ''}`);
         res.json({
             success: true,
             message: testMode

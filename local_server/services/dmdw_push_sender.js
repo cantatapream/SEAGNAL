@@ -53,6 +53,9 @@
 
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
 // admin_push 는 firebase-admin 을 lazy-load 하므로 require 비용이 거의 없음.
 const { sendAdminPush } = require('./admin_push');
 
@@ -130,11 +133,81 @@ const _queue = new Map();
  */
 const _sentKeys = new Map();
 
+// ----------------------------------------------------------------------------
+// [M3] _sentKeys 디스크 영속화 — 재시작 후 dedup 정보 보존
+// ----------------------------------------------------------------------------
+// 정책: fly.io 재배포 = process 재시작 시 in-memory _sentKeys 휘발 →
+//   같은 자식이 같은 단계의 publish 로 다시 인지되어 중복 푸시 발송.
+//   (실측: 2026-05-21 자식 publish 가 8:40 / 12:01 두 번 발송된 사고)
+//   해결: 매 발송 직후·정리 직후·forgetChild 직후 디스크에 atomic write,
+//        부팅 시 read 해 메모리 복원.
+//
+// 저장 위치: local_server/data/dmdw_sent_keys.json (Fly.io persistent volume).
+// 스키마: { "<dedupKey>": <insertedAtMs>, ... }  (Map 직렬화)
+//
+// I/O 비용: write 는 디바운스 (100ms 후 1회) — 같은 사이클의 다건 발송이
+//   파일을 여러 번 쓰지 않도록. 파일 크기는 SENT_KEY_MAX(8000) × 약 100 bytes
+//   ≈ 최대 800KB. 일상 운영에선 수십 KB.
+//
+// 안전성: tmp 파일 write 후 rename (atomic). 부팅 시 read 실패해도 무시 (메모리
+//   는 빈 Map 으로 시작 — 종전 동작 폴백).
+const _SENT_KEYS_FILE = path.join(__dirname, '..', 'data', 'dmdw_sent_keys.json');
+let _persistTimer = null;
+
+function _loadSentKeysFromDisk() {
+    try {
+        if (!fs.existsSync(_SENT_KEYS_FILE)) return;
+        const raw = fs.readFileSync(_SENT_KEYS_FILE, 'utf8');
+        const obj = JSON.parse(raw);
+        const now = Date.now();
+        let loaded = 0, expired = 0;
+        for (const k of Object.keys(obj)) {
+            const ts = obj[k];
+            if (typeof ts !== 'number') continue;
+            // TTL 경과 항목은 부팅 시 자동 제거 (디스크에 누적된 옛 키 정리).
+            if (now - ts > SENT_KEY_TTL_MS) { expired++; continue; }
+            _sentKeys.set(k, ts);
+            loaded++;
+            if (_sentKeys.size >= SENT_KEY_MAX) break;
+        }
+        console.log(`[DmdwPush] _sentKeys 디스크 복원: ${loaded}건 (TTL 만료 ${expired}건 제외)`);
+    } catch (e) {
+        console.log(`[DmdwPush] _sentKeys 디스크 복원 실패 (무시, 빈 상태로 시작): ${e.message}`);
+    }
+}
+
+function _saveSentKeysToDisk() {
+    try {
+        const dir = path.dirname(_SENT_KEYS_FILE);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        const obj = {};
+        for (const [k, ts] of _sentKeys) obj[k] = ts;
+        const tmp = _SENT_KEYS_FILE + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify(obj), 'utf8');
+        fs.renameSync(tmp, _SENT_KEYS_FILE);
+    } catch (e) {
+        console.log(`[DmdwPush] _sentKeys 디스크 저장 실패 (메모리는 정상): ${e.message}`);
+    }
+}
+
+/** 디바운스 저장 — 100ms 윈도우 안의 다건 변경을 1회 write 로 합침. */
+function _persistSentKeysDebounced() {
+    if (_persistTimer) clearTimeout(_persistTimer);
+    _persistTimer = setTimeout(() => {
+        _persistTimer = null;
+        _saveSentKeysToDisk();
+    }, 100);
+}
+
+// 모듈 로드 시 디스크에서 복원 — 단 1회.
+_loadSentKeysFromDisk();
+
 /**
  * [M1] _sentKeys 정리 — TTL 경과 항목 제거 + 사이즈 한도 LRU 제거.
  *  - flush() 끝에 호출되어 매 사이클마다 가벼운 정리 수행.
  *  - 정리 비용은 O(n) 이지만 SENT_KEY_MAX(8000) 이내라 무시 가능.
  *  - 외부 forgetChild 호출이 없어도 자식 이력이 24시간 후 자동 만료.
+ *  - [M3] 정리 후 디스크 동기화.
  */
 function _gcSentKeys() {
     const now = Date.now();
@@ -153,6 +226,8 @@ function _gcSentKeys() {
             removed++;
         }
     }
+    // [M3] 정리 후 디스크 동기화 (디바운스).
+    _persistSentKeysDebounced();
 }
 
 /**
@@ -649,8 +724,10 @@ async function flush(cycleId, opts = {}) {
             await sendAdminPush(push.title, push.body, push.data);
             // 성공 시 해당 이벤트들을 sentKeys 에 기록 (중복 방지)
             // [M1] Map.set(key, ts) — ts 는 TTL 기준 시각
+            // [M3] 디스크 동기화 — process 재시작 후에도 dedup 유지.
             const now = Date.now();
             for (const ev of recordable) _sentKeys.set(_dedupKey(ev), now);
+            _persistSentKeysDebounced();
             _lastFlushed.push({ ...push, cycleId });
         } catch (e) {
             // admin_push 자체가 내부에서 try/catch 하지만 만약 throw 되더라도
@@ -667,13 +744,24 @@ async function flush(cycleId, opts = {}) {
  * 자식 해역이 해제되었을 때 그 자식의 모든 발송 이력을 정리.
  * 같은 자식이 나중에 다시 발생하면 푸시가 다시 가도록 함.
  *   (메모리 누수 방지 목적도 겸함)
+ *
+ * [M3] 디스크 영속화도 함께 정리 — admin 의 자식리셋 경로에서 호출 시
+ *   재배포 후에도 해당 자식의 dedup 이력이 사라져 push 재발송 가능.
+ *
+ * @returns {number} 제거된 키 개수 (admin 로그 가시성).
  */
 function forgetChild(parentZone, childName) {
     const prefix = `${_childKey(parentZone, childName)}|`;
     // [M1] Map 으로 변경 — keys() 순회는 Map 도 동일하게 동작.
+    let removed = 0;
     for (const k of _sentKeys.keys()) {
-        if (k.startsWith(prefix)) _sentKeys.delete(k);
+        if (k.startsWith(prefix)) {
+            _sentKeys.delete(k);
+            removed++;
+        }
     }
+    if (removed > 0) _persistSentKeysDebounced();
+    return removed;
 }
 
 /** 테스트/디버그 전용: 모듈 상태 초기화. */
