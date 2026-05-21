@@ -149,7 +149,13 @@
         // _showBox 가 set, _hideBox 가 null 로 reset.
         // _styler (3.js) 가 이 값과 일치하는 feature 의 테두리 색을 노란색으로
         // 강조하여 사용자가 어느 zone 을 선택했는지 시각적으로 식별 가능.
-        selectedZone: null
+        selectedZone: null,
+        // 현재 정보박스가 표출 중인 자식(sub) fullName (자식 단위 선택 강조용).
+        // _showChildBox 가 set, _hideBox 가 null 로 reset. selectedZone 과는
+        // 상호배타적으로 관리됨 — 자식 클릭 시 selectedZone=null, 부모 클릭 시
+        // selectedSubName=null. _styler (3.js) 가 이 값과 일치하는 자식 feature
+        // 테두리만 노란색 강조해 자식 단위 선택을 명확히 표시.
+        selectedSubName: null
     };
 
     // 외부 파일에서 접근할 수 있도록 네임스페이스에 장착

@@ -214,10 +214,10 @@
         var info = state.activeMap[parentZone];
         if (!info) return;
 
-        // 선택 강조 — _styler 가 이 zone 의 main + sub feature 테두리를
-        // 노란색(OFF 상태 outline 색) 으로 렌더하도록 알린다.
+        // 선택 강조 — 부모 zone 단위 강조. 자식 선택은 상호배타적으로 해제.
         // refresh 후 OL layer 가 즉시 재평가되어 색이 바뀜.
         state.selectedZone = parentZone;
+        state.selectedSubName = null;
         if (window.OceanWarnZone && typeof window.OceanWarnZone.refresh === 'function') {
             window.OceanWarnZone.refresh();
         }
@@ -311,10 +311,11 @@
         state.box = null;
         _unbindOutsideClose();
 
-        // 선택 강조 해제 — _styler 가 다음 렌더부터 일반 색상으로 복귀.
+        // 선택 강조 해제 (부모 + 자식 둘 다) — _styler 가 다음 렌더부터 일반 색상으로 복귀.
         // active 모드일 때만 layer 재평가 (OFF 상태면 styler 가 이미 null).
-        if (state.selectedZone) {
+        if (state.selectedZone || state.selectedSubName) {
             state.selectedZone = null;
+            state.selectedSubName = null;
             if (state.active && window.OceanWarnZone
                 && typeof window.OceanWarnZone.refresh === 'function') {
                 window.OceanWarnZone.refresh();
@@ -468,11 +469,11 @@
 
         var isUpcoming = !!pick.isPreliminary;
 
-        // 선택 강조 — 자식 단위 selectedZone 미지원이므로 부모 zone 단위로 강조.
-        // (자식 폴리곤도 자식 색이 _coloredStyle 로 칠해져 있으므로 부모-자식 둘 다
-        // 시각적으로 표시됨. S9-D 단계 isSelected 강조는 자식 미적용이지만, 박스
-        // 위치가 자식 위에 표시되므로 사용자가 어떤 자식을 보고 있는지 명확.)
-        state.selectedZone = parentZone || null;
+        // 선택 강조 — 자식 단위로 강조. 부모 선택은 상호배타적으로 해제.
+        // _styler (3.js) 가 selectedSubName 과 일치하는 자식 feature 의 stroke 를
+        // 노란색 강조로 렌더 → 사용자가 클릭한 자식만 정확히 부각.
+        state.selectedSubName = fullName;
+        state.selectedZone = null;
         if (window.OceanWarnZone && typeof window.OceanWarnZone.refresh === 'function') {
             window.OceanWarnZone.refresh();
         }
