@@ -300,15 +300,18 @@ router.post('/api/save_tide_input', async (req, res) => {
                 const rawItemsMap = {};       // day → items array
                 const loadedPagesMap = {};    // day → Set of loaded page numbers
 
-                // 캐시 안에 이미 complete 으로 있는 raw 는 즉시 채워 놓고 시작
+                // 캐시 안에 이미 complete 으로 있는 raw 는 즉시 채워 놓고 시작.
+                //   loadedPages 가 명시되어 있으면 그대로, 명시 없으면 (boundary
+                //   최적화 도입 이전 캐시 = legacy 'complete') 5페이지 모두 로드된
+                //   것으로 간주 → 불필요한 재 fetch 차단.
                 for (const dayValue of allNeededDays) {
                     const fname = `tide_${dayValue}_${gridHash}.json`;
                     const cached = tideCache.has(fname) ? tideCache.get(fname) : null;
                     if (cached && cached.tideBedStatus === 'complete') {
                         rawItemsMap[dayValue] = cached.tideBedData || [];
-                        if (Array.isArray(cached.loadedPages)) {
-                            loadedPagesMap[dayValue] = new Set(cached.loadedPages);
-                        }
+                        loadedPagesMap[dayValue] = new Set(
+                            Array.isArray(cached.loadedPages) ? cached.loadedPages : [1, 2, 3, 4, 5]
+                        );
                     }
                 }
 

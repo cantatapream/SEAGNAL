@@ -282,12 +282,18 @@ async function collectTideBedPages(lat, lon, reqDate, pages) {
         }
     }
 
-    const MAX_PAGE_RETRIES = 2;
+    // 백오프: 200ms → 500ms (이전 500/1000ms 에서 단축 — boundary 최적화로 1차 호출
+    //   페이지 수가 15→7~9 로 감소하면 TideBED 부하/UNKNOWN_ERROR 자체가 줄어 재시도
+    //   발생 빈도가 낮아진다. 재시도가 발생했을 때는 사용자 latency 에 직결되므로
+    //   초기 backoff 를 짧게 가져가 빠른 복구. 200ms 도 일시 네트워크 글리치/응답
+    //   큐잉에는 충분하다. 최대 횟수(2회) 는 무한 재시도 방지로 유지.
+    const RETRY_DELAYS_MS = [200, 500];
+    const MAX_PAGE_RETRIES = RETRY_DELAYS_MS.length;
     let retryAttempt = 0;
     let remainingFailed = failedPages;
     while (remainingFailed.length > 0 && retryAttempt < MAX_PAGE_RETRIES) {
+        const backoffMs = RETRY_DELAYS_MS[retryAttempt];
         retryAttempt++;
-        const backoffMs = 500 * retryAttempt; // 500ms → 1000ms (보수적 유지 — 백오프 결정 리포트 참조)
         console.log(`🔁 페이지 재시도 ${retryAttempt}/${MAX_PAGE_RETRIES}: [${remainingFailed.join(', ')}] (backoff ${backoffMs}ms)`);
         await new Promise(r => setTimeout(r, backoffMs));
 
