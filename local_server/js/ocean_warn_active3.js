@@ -352,7 +352,10 @@
                 if (subInfo && subInfo.paletteKey) {
                     // 자식 자체 active → 색칠 + 라벨 결합. _coloredStyle 은 sub 일 때 라벨 미설정 →
                     // 공용 빌더로 만든 라벨을 명시적으로 setText.
-                    var coloredStyle = _coloredStyle(subInfo, kind, feature, false);
+                    // 자식 단위 선택 강조 — selectedSubName 과 일치하면 노란 stroke 적용.
+                    var isSubSelected = !!ns._state.selectedSubName
+                        && subFullName === ns._state.selectedSubName;
+                    var coloredStyle = _coloredStyle(subInfo, kind, feature, isSubSelected);
                     if (coloredStyle) {
                         var subText = window.OceanWarnZone && typeof window.OceanWarnZone.buildSubZoneTextStyle === 'function'
                             ? window.OceanWarnZone.buildSubZoneTextStyle(feature, {
