@@ -348,7 +348,13 @@ const PARENT_CHILD_TYPE = {
     '울산앞바다': 'both',
     '경북남부앞바다': 'both',
     '경남중부남해앞바다': 'both',
-    '부산앞바다': 'both'
+    '부산앞바다': 'both',
+
+    // [Followup Major-1] 경남서부남해앞바다 — mappings.js 의 자식 4종:
+    //   '경남서부남해앞바다중동부평수구역', '경남서부남해앞바다중서부평수구역',
+    //   '경남서부남해앞바다중남부평수구역', '경남서부남해앞바다중남해군연안바다'
+    //  → 평수구역 3 + 연안바다 1 → 'both'
+    '경남서부남해앞바다': 'both'
 };
 
 /** 자식 타입 → 라벨 */
@@ -720,11 +726,66 @@ function buildSplitPushes(eventType, parentEntries, opts = {}) {
         console.warn('[push_helpers] buildSplitPushes 는 audience=admin 전용. fallback.');
     }
 
-    // 1) PushBuilder 로 부모 줄 → 시간 그룹 본문 변환
-    const builder = new PushBuilder(eventType);
+    const effMax = opts.effectiveMax || 165;
+
+    // [Followup Major-2] 부모 한 줄 boundary 분할
+    //   한 부모의 자식 한정사가 너무 길어 단일 줄로 effMax 초과 시,
+    //   같은 부모를 여러 줄로 쪼개 표시한다 (자식 set 분할).
+    //   예: ㅇX앞바다(자식1, 자식2, 자식3 포함)
+    //       ㅇX앞바다(자식4, 자식5 포함)
+    const expandedEntries = [];
     for (const e of (parentEntries || [])) {
         const qual = buildChildQualifier(e.parent, e.childState, eventType);
-        builder.addParent({ name: e.parent, qualifier: qual, time: e.time });
+        const fullLine = `ㅇ${e.parent}${qual}`;
+        if (fullLine.length <= effMax) {
+            expandedEntries.push({ parent: e.parent, qualifier: qual, time: e.time });
+            continue;
+        }
+        // 한 줄이 너무 길다 — 자식 active 를 분할해 같은 부모를 N 줄로.
+        // 자식 set 변화/시각변경 이벤트가 아닌 일반 매트릭스에서만 적용
+        //   (qualifier 형식이 '(자식1, 자식2 포함)' 류일 때).
+        const cs = e.childState || {};
+        const active = Array.isArray(cs.active) ? cs.active.slice() : [];
+        if (active.length <= 1) {
+            // 분할 불가 — 그대로 둠 (PushSplitter 가 따로 부담)
+            expandedEntries.push({ parent: e.parent, qualifier: qual, time: e.time });
+            continue;
+        }
+        // 절반씩 분할 — 각 청크에 대해 임시 childState 로 한정사 재생성
+        // 분할 후에도 너무 길면 더 잘게 분할 (재귀적으로 절반씩).
+        const chunkChildState = (childrenSubset) => Object.assign({}, cs, { active: childrenSubset });
+        const tryLine = (subset) => {
+            const q = buildChildQualifier(e.parent, chunkChildState(subset), eventType);
+            return { qual: q, line: `ㅇ${e.parent}${q}`, subset };
+        };
+        // 이분탐색이 아닌 균등 분할: 1/2, 1/3, 1/4 … 모든 청크가 effMax 이내가 될 때까지.
+        let parts = 1;
+        let chunks = [active.slice()];
+        let fitOk = false;
+        while (parts <= active.length) {
+            parts++;
+            const sz = Math.ceil(active.length / parts);
+            chunks = [];
+            for (let i = 0; i < active.length; i += sz) chunks.push(active.slice(i, i + sz));
+            // 모든 청크가 effMax 이내인지 확인
+            const allOk = chunks.every(ch => tryLine(ch).line.length <= effMax);
+            if (allOk) { fitOk = true; break; }
+            if (parts >= active.length) break;
+        }
+        if (!fitOk) {
+            // 최종 폴백 — 자식 1개씩 분할 (모두 effMax 초과해도 그대로 발송)
+            chunks = active.map(c => [c]);
+        }
+        for (const ch of chunks) {
+            const { qual: q2 } = tryLine(ch);
+            expandedEntries.push({ parent: e.parent, qualifier: q2, time: e.time });
+        }
+    }
+
+    // 1) PushBuilder 로 부모 줄 → 시간 그룹 본문 변환
+    const builder = new PushBuilder(eventType);
+    for (const ex of expandedEntries) {
+        builder.addParent({ name: ex.parent, qualifier: ex.qualifier, time: ex.time });
     }
     const groupBodies = builder.renderTimeGroups(fmtTime);
 

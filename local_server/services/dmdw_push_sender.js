@@ -896,6 +896,60 @@ const _parentQueue = new Map();   // Map<cycleId, Array<parentEvent>>
 /** 관리자(부모+자식) 푸시 dedup. Map<key, ts(ms)>. */
 const _parentSentKeys = new Map();
 
+// ----------------------------------------------------------------------------
+// [Followup Critical-4] _parentSentKeys 디스크 영속화
+// ----------------------------------------------------------------------------
+// _sentKeys 패턴 그대로 — fly.io 재배포 후 같은 부모 묶음이 중복 발사되는 것 차단.
+// 저장 위치: local_server/data/dmdw_parent_sent_keys.json (별도 파일).
+const _PARENT_SENT_KEYS_FILE = path.join(__dirname, '..', 'data', 'dmdw_parent_sent_keys.json');
+let _parentPersistTimer = null;
+
+function _loadParentSentKeysFromDisk() {
+    try {
+        if (!fs.existsSync(_PARENT_SENT_KEYS_FILE)) return;
+        const raw = fs.readFileSync(_PARENT_SENT_KEYS_FILE, 'utf8');
+        const obj = JSON.parse(raw);
+        const now = Date.now();
+        let loaded = 0, expired = 0;
+        for (const k of Object.keys(obj)) {
+            const ts = obj[k];
+            if (typeof ts !== 'number') continue;
+            if (now - ts > SENT_KEY_TTL_MS) { expired++; continue; }
+            _parentSentKeys.set(k, ts);
+            loaded++;
+            if (_parentSentKeys.size >= SENT_KEY_MAX) break;
+        }
+        console.log(`[DmdwPush v7] _parentSentKeys 디스크 복원: ${loaded}건 (TTL 만료 ${expired}건 제외)`);
+    } catch (e) {
+        console.log(`[DmdwPush v7] _parentSentKeys 디스크 복원 실패 (무시): ${e.message}`);
+    }
+}
+
+function _saveParentSentKeysToDisk() {
+    try {
+        const dir = path.dirname(_PARENT_SENT_KEYS_FILE);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        const obj = {};
+        for (const [k, ts] of _parentSentKeys) obj[k] = ts;
+        const tmp = _PARENT_SENT_KEYS_FILE + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify(obj), 'utf8');
+        fs.renameSync(tmp, _PARENT_SENT_KEYS_FILE);
+    } catch (e) {
+        console.log(`[DmdwPush v7] _parentSentKeys 디스크 저장 실패 (무시): ${e.message}`);
+    }
+}
+
+function _persistParentSentKeysDebounced() {
+    if (_parentPersistTimer) clearTimeout(_parentPersistTimer);
+    _parentPersistTimer = setTimeout(() => {
+        _parentPersistTimer = null;
+        _saveParentSentKeysToDisk();
+    }, 100);
+}
+
+// 모듈 로드 시 1회 복원.
+_loadParentSentKeysFromDisk();
+
 /** parent dedup key — SPEC §10 자식 set hash 포함. */
 function _parentDedupKey(ev) {
     const childKey = (ev.parentEntries || [])
@@ -929,6 +983,8 @@ function _gcParentSentKeys() {
             removed++;
         }
     }
+    // [Followup Critical-4] 정리 후 디스크 동기화.
+    _persistParentSentKeysDebounced();
 }
 
 /**
@@ -1136,6 +1192,8 @@ async function flushParent(cycleId, opts = {}) {
         _parentSentKeys.set(_parentDedupKey(ev), Date.now());
     }
     _gcParentSentKeys();
+    // [Followup Critical-4] flush 끝에 1회 디스크 동기화 (debounce 가 합쳐줌).
+    _persistParentSentKeysDebounced();
     return sent;
 }
 

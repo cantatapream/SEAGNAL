@@ -39,8 +39,19 @@
 
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const dmdwPush = require('./services/dmdw_push_sender');
 const pushHelpers = require('./services/push_helpers');
+
+// marine_client 는 require 단계에서 자격증명 검사 후 enabled 플래그만 노출.
+// 자격증명 부재 시 require 자체는 성공하며, 인증 endpoint 호출 시에만 throw.
+let marineClient = null;
+try {
+    marineClient = require('./services/marine_client');
+} catch (e) {
+    console.warn('[marine_warning_crawler] marine_client 로드 실패 — run() 비활성:', e && e.message);
+}
 
 // ============================================================================
 // 부모 → 자식 fullName 매핑 (ZONE_MAPPING.md 확정본)
@@ -73,7 +84,9 @@ const PARENT_TO_CHILDREN = {
     '제주도북부앞바다':        ['제주도북부앞바다중연안바다'],
     '제주도동부앞바다':        ['제주도동부앞바다중북동연안바다', '제주도동부앞바다중남동연안바다', '제주도동부앞바다중우도연안바다'],
     '제주도남부앞바다':        ['제주도남부앞바다중연안바다'],
-    '제주도서부앞바다':        ['제주도서부앞바다중북서연안바다', '제주도서부앞바다중남서연안바다', '제주도서부앞바다중가파도연안바다']
+    '제주도서부앞바다':        ['제주도서부앞바다중북서연안바다', '제주도서부앞바다중남서연안바다', '제주도서부앞바다중가파도연안바다'],
+    // [Followup Major-1] 경남서부남해앞바다 — 평수구역 3 + 연안바다 1
+    '경남서부남해앞바다':       ['경남서부남해앞바다중동부평수구역', '경남서부남해앞바다중서부평수구역', '경남서부남해앞바다중남부평수구역', '경남서부남해앞바다중남해군연안바다']
 };
 
 // ============================================================================
@@ -223,23 +236,24 @@ class DiffMatrix {
                     continue;
                 }
 
-                // ----- 부모 해제 -----
+                // ----- 부모 해제 / 예비특보 취소 (S10) -----
                 // [Synthesis Q / Agent A M1 흡수] !curr.wrnLvlNm (빈 값/undefined) 도 release 로 인지.
+                // [Followup Major-4] 예비 → 정식 발효 없이 사라진 경우 prelim_cancel 로 발사.
+                //   SPEC §5 S10: 예비특보가 정식 발효(active) 단계를 거치지 않고 통보문에서
+                //   사라지면 "✅ 예비특보 취소" 푸시. release(정식 해제) 와 분리.
                 if (pPrev && (!pCurr || pCurr.wrnLvlNm === '해제' || !pCurr.wrnLvlNm)) {
-                    // 부모+자식 동시 해제 → release (한정사 없음)
-                    matrix.add('release',
-                        { parent, time: '', childState },
-                        { wrnTp: pPrev.wrnTp, wrnLvl: pPrev.wrnLvl,
-                          wrnTpNm: pPrev.wrnTpNm, wrnLvlNm: pPrev.wrnLvlNm });
-                    continue;
-                }
-
-                // ----- 예비특보 취소 -----
-                if (pPrev && pPrev.wrnLvlNm === '예비' && pCurr && pCurr._prelimCancelled) {
-                    matrix.add('prelim_cancel',
-                        { parent, time: '', childState },
-                        { wrnTp: pPrev.wrnTp, wrnLvl: pPrev.wrnLvl,
-                          wrnTpNm: pPrev.wrnTpNm, wrnLvlNm: '' });
+                    if (pPrev.wrnLvlNm === '예비') {
+                        matrix.add('prelim_cancel',
+                            { parent, time: '', childState },
+                            { wrnTp: pPrev.wrnTp, wrnLvl: pPrev.wrnLvl,
+                              wrnTpNm: pPrev.wrnTpNm, wrnLvlNm: '' });
+                    } else {
+                        // 부모+자식 동시 해제 → release (한정사 없음)
+                        matrix.add('release',
+                            { parent, time: '', childState },
+                            { wrnTp: pPrev.wrnTp, wrnLvl: pPrev.wrnLvl,
+                              wrnTpNm: pPrev.wrnTpNm, wrnLvlNm: pPrev.wrnLvlNm });
+                    }
                     continue;
                 }
 
@@ -294,14 +308,20 @@ class DiffMatrix {
                     // [Synthesis Q / M2 보강] 부모 + 자식 동반 vs 부모만 — childState 그대로
                     // 부모 시각이 변하면 자식 동반 한정사는 buildChildQualifier 가 active set
                     // 기준으로 자연스럽게 결정. parentTimeUnchanged 는 false (기본).
-                    if (pPrev.tmEf !== pCurr.tmEf) {
+                    //
+                    // [Followup Major-3] 자식 set 변화 동시 발생 → 시각 변경 푸시 억제.
+                    //   우선순위: 자식 set 변화 (additional_active/partial_release) > 시각 변경.
+                    //   같은 cycle 에 두 종류 이벤트가 동시 발사되는 것을 막아 푸시 1회로 통합.
+                    const setChanged = childState.added.length > 0 || childState.released.length > 0;
+
+                    if (pPrev.tmEf !== pCurr.tmEf && !setChanged) {
                         matrix.add('time_ef_change',
                             { parent, time: pCurr.tmEf, childState },
                             { wrnTp: pCurr.wrnTp, wrnLvl: pCurr.wrnLvl,
                               wrnTpNm: pCurr.wrnTpNm, wrnLvlNm: pCurr.wrnLvlNm });
                     }
                     // 해제예고시각 신규 등장 OR 변경 → time_yn_change 로 통합
-                    if (pPrev.clrNtcTm !== pCurr.clrNtcTm || pPrev.tmYn !== pCurr.tmYn) {
+                    if ((pPrev.clrNtcTm !== pCurr.clrNtcTm || pPrev.tmYn !== pCurr.tmYn) && !setChanged) {
                         matrix.add('time_yn_change',
                             { parent, time: pCurr.clrNtcTm || pCurr.tmYn, childState },
                             { wrnTp: pCurr.wrnTp, wrnLvl: pCurr.wrnLvl,
@@ -323,7 +343,8 @@ class DiffMatrix {
                         if (a.tmEf !== b.tmEf) { childEfChanged = true; childTimeChanged.push(cn); }
                         if (a.tmYn !== b.tmYn) { childYnChanged = true; if (!childTimeChanged.includes(cn)) childTimeChanged.push(cn); }
                     }
-                    if (pPrev.tmEf === pCurr.tmEf && childEfChanged) {
+                    // [Followup Major-3] 자식 set 변화 동시 발생 → 자식 시각 변경 푸시 억제.
+                    if (pPrev.tmEf === pCurr.tmEf && childEfChanged && !setChanged) {
                         const cs = Object.assign({}, childState, {
                             parentTimeUnchanged: true,
                             timeChanged: childTimeChanged.slice()
@@ -333,7 +354,7 @@ class DiffMatrix {
                             { wrnTp: pCurr.wrnTp, wrnLvl: pCurr.wrnLvl,
                               wrnTpNm: pCurr.wrnTpNm, wrnLvlNm: pCurr.wrnLvlNm });
                     }
-                    if (pPrev.tmYn === pCurr.tmYn && pPrev.clrNtcTm === pCurr.clrNtcTm && childYnChanged) {
+                    if (pPrev.tmYn === pCurr.tmYn && pPrev.clrNtcTm === pCurr.clrNtcTm && childYnChanged && !setChanged) {
                         const cs = Object.assign({}, childState, {
                             parentTimeUnchanged: true,
                             timeChanged: childTimeChanged.slice()
@@ -454,6 +475,198 @@ async function runDiffAndPush(prev, curr, opts = {}) {
 }
 
 // ============================================================================
+// [Followup Critical-4] 디스크 영속화 — prev StateSnapshot 보존
+// ============================================================================
+//
+// fly.io 재배포 = process 재시작 시 메모리 _prevSnapshot 휘발 →
+// 1) 부모/자식 set 의 첫 사이클이 신규 발효(active) 로 오인되거나,
+// 2) 자식 set 변화 (added/released) 가 잘못 계산되어 추가 발효/일부 해제 푸시가 중복 발사.
+//
+// 저장 위치: local_server/data/marine_warning_state.json (Fly.io persistent volume)
+// 스키마: { prev: StateSnapshot.toJSON(), updatedAt: ISO }
+// I/O: atomic write (tmp → rename). 부팅 시 read 실패는 무시 (빈 상태 폴백).
+const _STATE_FILE = path.join(__dirname, 'data', 'marine_warning_state.json');
+const _STATE_TMP = _STATE_FILE + '.tmp';
+let _prevSnapshot = null;
+
+function _loadPrevSnapshot() {
+    try {
+        if (!fs.existsSync(_STATE_FILE)) return new StateSnapshot();
+        const raw = fs.readFileSync(_STATE_FILE, 'utf8');
+        const j = JSON.parse(raw);
+        if (j && j.prev) {
+            const snap = StateSnapshot.fromJSON(j.prev);
+            console.log('[marine_warning_crawler] prev snapshot 디스크 복원 완료');
+            return snap;
+        }
+    } catch (e) {
+        console.warn('[marine_warning_crawler] prev snapshot 복원 실패 (무시):', e && e.message);
+    }
+    return new StateSnapshot();
+}
+
+function _savePrevSnapshot(snap) {
+    try {
+        const dir = path.dirname(_STATE_FILE);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        const obj = {
+            updatedAt: new Date().toISOString(),
+            prev: snap ? snap.toJSON() : { parents: {}, children: {} }
+        };
+        fs.writeFileSync(_STATE_TMP, JSON.stringify(obj), 'utf8');
+        fs.renameSync(_STATE_TMP, _STATE_FILE);
+    } catch (e) {
+        console.warn('[marine_warning_crawler] prev snapshot 저장 실패 (무시):', e && e.message);
+    }
+}
+
+// ============================================================================
+// [Followup Critical-1] response → StateSnapshot 변환
+// ============================================================================
+//
+// marine.kma 응답 envelope: { status, payload } 또는 { code, data } 혼용.
+// marine_client.js 가 이미 payload/data 를 _unwrap 으로 흡수하여 row 배열만 반환.
+
+/** 자식 row 에서 부모 zone 추출 — '...중...' 패턴 기준. */
+function _extractParent(korNm) {
+    if (!korNm) return '';
+    const s = String(korNm).trim().replace(/\s+/g, '');
+    const idx = s.lastIndexOf('중');
+    if (idx > 0) {
+        const after = s.substring(idx + 1);
+        if (after && after.length >= 2) return s.substring(0, idx);
+    }
+    return s;
+}
+
+/** marine row 를 내부 state 객체로 변환. */
+function _rowToParentInfo(row) {
+    return {
+        wrnTp: String(row.warn_tp || ''),
+        wrnTpNm: row.warn_tp_nm || '',
+        wrnLvl: String(row.warn_lvl || ''),
+        wrnLvlNm: row.warn_lvl_nm || '',
+        tmFc: row.tm_fc || '',
+        tmEf: row.tm_ef || row.st_tm || '',
+        tmYn: row.tm_yn || row.ed_tm || '',
+        clrNtcTm: row.clr_ntc_tm || ''
+    };
+}
+
+function _rowToChildInfo(row) {
+    return {
+        wrnTp: String(row.warn_tp || ''),
+        wrnTpNm: row.warn_tp_nm || '',
+        wrnLvl: String(row.warn_lvl || ''),
+        wrnLvlNm: row.warn_lvl_nm || '',
+        tmFc: row.tm_fc || '',
+        tmEf: row.tm_ef || row.st_tm || '',
+        tmYn: row.tm_yn || row.ed_tm || ''
+    };
+}
+
+/** 발효 row 만 — 메타 row (tm_fc 또는 warn_lvl_nm 부재) 제외. */
+function _isLiveRow(row) {
+    return !!(row && row.warn_lvl_nm && (row.tm_fc || row.tm_ef || row.st_tm));
+}
+
+/**
+ * marine 4 endpoint 응답을 StateSnapshot 으로 변환.
+ *
+ * @param {Array} warnList    — fetchWarnList (부모 발효)
+ * @param {Array} warnSascList — fetchWarnSascList (자식 발효)
+ * @returns {StateSnapshot}
+ */
+function _buildSnapshotFromMarine(warnList, warnSascList) {
+    const snap = new StateSnapshot();
+    // 부모 — V8 폭풍해일 제외 (warn_tp '5')
+    for (const row of (warnList || [])) {
+        if (!_isLiveRow(row)) continue;
+        if (String(row.warn_tp || '') === '5') continue;  // 폭풍해일 제외
+        const name = (row.warn_zone_nm || row.kor_nm || '').trim().replace(/\s+/g, '');
+        if (!name) continue;
+        snap.parents.set(name, _rowToParentInfo(row));
+    }
+    // 자식 — 같은 정책
+    for (const row of (warnSascList || [])) {
+        if (!_isLiveRow(row)) continue;
+        if (String(row.warn_tp || '') === '5') continue;
+        const childName = (row.kor_nm || row.warn_zone_nm || '').trim().replace(/\s+/g, '');
+        if (!childName) continue;
+        const parent = _extractParent(childName);
+        if (!snap.children.has(parent)) snap.children.set(parent, new Map());
+        snap.children.get(parent).set(childName, _rowToChildInfo(row));
+    }
+    return snap;
+}
+
+// ============================================================================
+// [Followup Critical-1] run() — scheduler 의 1분 cron 에서 호출되는 진입점
+// ============================================================================
+//
+// 한 사이클:
+//   1) marine_client 4 endpoint 호출 (비로그인 — 자격증명 불필요)
+//   2) prev snapshot (디스크 복원) vs curr snapshot diff
+//   3) DiffMatrix → EventDispatcher → flushParent (관리자 푸시)
+//   4) curr snapshot 을 디스크에 저장 (다음 사이클의 prev)
+//
+// 자격증명 없는 경우:
+//   비로그인 endpoint (warn/list, warn-sasc/list, warn/ready, warn-sasc/ready) 는
+//   호출 가능 — AUTH_ENABLED 와 무관. 인증 endpoint (ef/list) 만 skip 되므로
+//   timeline diff 가 비활성화될 뿐, 본 cycle 은 정상 진행.
+let _runInProgress = false;
+
+async function run(opts = {}) {
+    if (_runInProgress) {
+        // 중복 실행 방지
+        return [];
+    }
+    if (!marineClient) {
+        console.warn('[marine_warning_crawler] marine_client 미로드 — skip');
+        return [];
+    }
+    _runInProgress = true;
+    try {
+        // prev snapshot 부팅 시 1회 복원 — 첫 호출 lazy 로드.
+        if (_prevSnapshot === null) {
+            _prevSnapshot = _loadPrevSnapshot();
+        }
+
+        // 1) endpoint 4종 fetch — 부분 실패해도 진행
+        const [warnList, warnSascList] = await Promise.all([
+            marineClient.fetchWarnList().catch(err => {
+                console.warn('[marine_warning_crawler] fetchWarnList 실패:', err && err.message);
+                return [];
+            }),
+            marineClient.fetchWarnSascList().catch(err => {
+                console.warn('[marine_warning_crawler] fetchWarnSascList 실패:', err && err.message);
+                return [];
+            })
+        ]);
+
+        // 2) curr snapshot 구축
+        const curr = _buildSnapshotFromMarine(warnList, warnSascList);
+
+        // 3) diff + dispatch + flush
+        const sent = await runDiffAndPush(_prevSnapshot, curr, {
+            cycleId: opts.cycleId || Date.now(),
+            dryRun: !!opts.dryRun
+        });
+
+        // 4) curr 를 다음 사이클의 prev 로 저장
+        _prevSnapshot = curr;
+        _savePrevSnapshot(curr);
+
+        return sent;
+    } catch (err) {
+        console.error('[marine_warning_crawler] run 실패:', err && err.stack || err);
+        return [];
+    } finally {
+        _runInProgress = false;
+    }
+}
+
+// ============================================================================
 // exports
 // ============================================================================
 module.exports = {
@@ -462,6 +675,12 @@ module.exports = {
     DiffMatrix,
     EventDispatcher,
     runDiffAndPush,
+    run,
     // 내부 노출 (테스트용)
-    _score
+    _score,
+    _buildSnapshotFromMarine,
+    _extractParent,
+    _loadPrevSnapshot,
+    _savePrevSnapshot,
+    _STATE_FILE
 };
