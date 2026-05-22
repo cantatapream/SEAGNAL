@@ -675,6 +675,30 @@ function _collectLeafZonesByName(tree) {
  * @param {StateSnapshot} snap
  * @returns {Object} zone tree (동/서/남/제주 4 sea)
  */
+/**
+ * [D-6 (A)] mmis 시간 형식을 우리 시스템 한글 형식으로 변환.
+ *   - 일반 시간 ("2026.05.21 06:00") → "2026년 05월 21일 06시 00분" (기존 weather_alerts.json 형식)
+ *   - 범위형 ("22일 21시 ~ 24시", clr_ntc_tm) → 그대로 통과 (사용자 앱 이미 범위형 표출 지원)
+ *   - 자연어 ("내일 오전" 등) → 그대로 통과
+ *   - 빈 값/null/undefined → ''
+ *
+ * 정규식 분리 원칙:
+ *   1. 범위 표시 (~ 또는 ∼) 가 있으면 → 범위형 → 그대로
+ *   2. "YYYY.MM.DD HH:MM" 정확히 매칭 → 변환
+ *   3. 그 외 → 그대로 (이미 변환되었거나 unknown 형식)
+ */
+function normalizeMmisTime(t) {
+    if (!t) return '';
+    const s = String(t);
+    if (/[~∼]/.test(s)) return s;  // 범위형 그대로
+    const m = s.match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})$/);
+    if (m) {
+        const [, Y, M, D, h, mn] = m;
+        return `${Y}년 ${M}월 ${D}일 ${h}시 ${mn}분`;
+    }
+    return s;
+}
+
 function _buildZoneTreeFromSnapshot(snap) {
     const tree = _createZoneSkeleton();
     if (!snap) return tree;
@@ -690,10 +714,10 @@ function _buildZoneTreeFromSnapshot(snap) {
             wrnTpNm: info.wrnTpNm || '',
             wrnLvl: info.wrnLvl || '',
             wrnLvlNm: info.wrnLvlNm || '',
-            tmFc: info.tmFc || '',
-            tmEf: info.tmEf || '',
-            tmYn: info.tmYn || '',
-            clrNtcTm: info.clrNtcTm || '',
+            tmFc: normalizeMmisTime(info.tmFc),
+            tmEf: normalizeMmisTime(info.tmEf),
+            tmYn: normalizeMmisTime(info.tmYn),
+            clrNtcTm: normalizeMmisTime(info.clrNtcTm),  // 범위형 → 그대로 통과
             source: 'MARINE_MMIS'
         };
         if (info.wrnLvlNm === '예비') {
@@ -703,10 +727,11 @@ function _buildZoneTreeFromSnapshot(snap) {
         }
     }
 
-    // 자식 발효 채우기
+    // 자식 발효 채우기 — [D-6 (B)] mmis 자식 응답에 시간 필드가 없으므로 부모 시간 fallback.
     for (const [parentName, childMap] of snap.children) {
         const leaf = leafByName.get(parentName);
         if (!leaf || !leaf.children) continue;
+        const parentInfo = snap.parents.get(parentName);
         for (const [childName, info] of childMap) {
             if (!Object.prototype.hasOwnProperty.call(leaf.children, childName)) continue;
             if (!info || !info.wrnLvlNm) continue;
@@ -718,9 +743,10 @@ function _buildZoneTreeFromSnapshot(snap) {
                 wrnTpNm: info.wrnTpNm || '',
                 wrnLvl: info.wrnLvl || '',
                 wrnLvlNm: lvlNmNorm,
-                tmFc: info.tmFc || '',
-                tmEf: info.tmEf || '',
-                tmYn: info.tmYn || ''
+                tmFc: normalizeMmisTime(info.tmFc || (parentInfo && parentInfo.tmFc) || ''),
+                tmEf: normalizeMmisTime(info.tmEf || (parentInfo && parentInfo.tmEf) || ''),
+                tmYn: normalizeMmisTime(info.tmYn || (parentInfo && parentInfo.tmYn) || ''),
+                clrNtcTm: normalizeMmisTime(info.clrNtcTm || (parentInfo && parentInfo.clrNtcTm) || '')
             };
         }
     }
@@ -932,12 +958,13 @@ async function run(opts = {}) {
         // 2) curr snapshot 구축
         const curr = _buildSnapshotFromMarine(fetched.warnList, fetched.warnSascList);
 
-        // 3) [Followup E-1] 첫 부팅 가드 — prev snapshot 이 비어있고 curr 도 첫 로드 직후라면
+        // 3) [Followup E-1 + D-1] 빈 snapshot 가드 — prev snapshot 이 비어있으면 (이유 불문)
         //    diff/dispatch 결과가 "전부 신규 발효" 로 오인되어 release/active 폭주 위험.
         //    SPEC §운영안전: state 저장 + weather_alerts.json 갱신만 하고 push skip.
         //    다음 cycle 부터 정상 diff/push.
-        //    조건: 이 cycle 이 부팅 직후 lazy load 였고, 디스크 prev 가 비어있던 경우만.
-        if (isFirstLoad && _isSnapshotEmpty(_prevSnapshot)) {
+        //    조건: 부팅 직후 lazy load + 디스크 prev 비어있음, **또는** E-4 partial-fail 후
+        //    빈 snapshot 으로 lazy set 된 케이스 (D-1 보강 — isFirstLoad 가드 제거).
+        if (_isSnapshotEmpty(_prevSnapshot)) {
             console.log('[Marine] 첫 부팅 — push skip, state 저장만 (현재 발효 부모=' +
                 curr.parents.size + ', 자식=' + curr.children.size + ')');
             _prevSnapshot = curr;
@@ -994,5 +1021,7 @@ module.exports = {
     _buildZoneTreeFromSnapshot,
     _writeWeatherAlertsJson,
     _WEATHER_ALERTS_FILE,
-    _isSnapshotEmpty
+    _isSnapshotEmpty,
+    // [D-6 (A)] 시간 형식 변환 (테스트용 노출)
+    normalizeMmisTime
 };

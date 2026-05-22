@@ -69,7 +69,7 @@ const POLICY = {
     warnings: {
         maxAgeMs: 5 * 60 * 1000,
         getUpdatedAt: () => cacheManager.dataCache.lastUpdate.warnings,
-        refreshFn: () => require('../weather_alerts_crawler').run()
+        refreshFn: () => require('../marine_warning_crawler').run()
     },
 
     // 부이 (sea_obs.php, J타입 baseline) — 30분 주기 수집. 60분 안쪽이면 신선.

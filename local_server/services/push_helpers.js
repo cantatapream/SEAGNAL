@@ -193,7 +193,14 @@ function generateMessage(filteredPayload) {
             return `${String(day).padStart(2, '0')}일 ${rest}`.trim();
         }
 
-        // 5. 그 외 (이미 포맷팅된 문자열)
+        // 5. [D-6 (C)] mmis 점 구분자 형식 "2026.05.21 06:00" (방어망 — normalizeMmisTime 누락 시)
+        const dotMatch = str.match(/(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/);
+        if (dotMatch) {
+            const [, , , day, hour, minute] = dotMatch;
+            return `${parseInt(day)}일 ${hour}:${minute}`;
+        }
+
+        // 6. 그 외 (이미 포맷팅된 문자열, 범위형 포함 — 그대로 통과)
         return str;
     };
 
