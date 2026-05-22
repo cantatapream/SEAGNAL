@@ -795,7 +795,13 @@ function decideSuspiciousCase(decision, decidedBy) {
  *
  *   - 부모 zone 만 (자식 정보 X — 사용자 push V15 호환)
  *   - 변화 없는 zone (prev==curr) 은 skip
- *   - currentActive 는 push_sender 가 격상/격하 판정에 사용 (prev 와 동일하게 전달)
+ *   - 옛 weather_alerts_crawler.detectChanges 와 동일 패턴:
+ *       UPCOMING_CHANGE (예비특보) + CURRENT_CHANGE (발효) 두 종류 발사
+ *   - UPCOMING_CHANGE 에는 currentActive 동봉 (격상/격하 판정용 — 현재 발효 중인 부모)
+ *
+ *   StateSnapshot.parents Map 은 wrnLvlNm 별로 구분 없이 한 zone 당 1 entry.
+ *   '예비' = upcoming, '주의보'/'경보' = current 로 분류.
+ *   (한 zone 이 예비 + 발효 동시 보유 불가 — mmis 응답 구조상 OR 관계)
  */
 function _buildUserPushChanges(prev, curr) {
     const changes = [];
@@ -813,30 +819,51 @@ function _buildUserPushChanges(prev, curr) {
         tmYn: info.tmYn || info.clrNtcTm || ''
     } : null;
 
+    // 예비/발효 분리 헬퍼
+    const isUpcoming = (info) => info && info.wrnLvlNm === '예비';
+    const isActive = (info) => info && info.wrnLvlNm && info.wrnLvlNm !== '예비' && info.wrnLvlNm !== '해제';
+
+    const blockEqual = (a, b) => {
+        if (!a && !b) return true;
+        if (!a || !b) return false;
+        return a.wrnTp === b.wrnTp
+            && a.wrnLvl === b.wrnLvl
+            && a.tmEf === b.tmEf
+            && a.tmYn === b.tmYn;
+    };
+
     for (const zone of allZones) {
         const p = prev.parents ? prev.parents.get(zone) : null;
         const c = curr.parents ? curr.parents.get(zone) : null;
 
-        // 변화 없으면 skip
         if (!p && !c) continue;
-        if (p && c
-            && (p.wrnLvlNm || '') === (c.wrnLvlNm || '')
-            && (p.tmEf || '') === (c.tmEf || '')
-            && (p.tmYn || '') === (c.tmYn || '')
-            && (p.clrNtcTm || '') === (c.clrNtcTm || '')) {
-            continue;
+
+        // prev / curr 각각 upcoming / active 블록 추출
+        const prevUpcoming = isUpcoming(p) ? toBlock(p) : null;
+        const currUpcoming = isUpcoming(c) ? toBlock(c) : null;
+        const prevActive = isActive(p) ? toBlock(p) : null;
+        const currActive = isActive(c) ? toBlock(c) : null;
+
+        // UPCOMING_CHANGE — 예비특보 변화
+        if (!blockEqual(prevUpcoming, currUpcoming)) {
+            changes.push({
+                type: 'UPCOMING_CHANGE',
+                zone: zone,
+                prev: prevUpcoming,
+                curr: currUpcoming,
+                currentActive: currActive || null  // 현재 발효 중인 부모 (격상/격하 판정용)
+            });
         }
 
-        const prevBlock = toBlock(p);
-        const currBlock = toBlock(c);
-
-        changes.push({
-            type: 'CURRENT_CHANGE',
-            zone: zone,
-            prev: prevBlock,
-            curr: currBlock,
-            currentActive: prevBlock  // push_sender 의 격상/격하 판정용
-        });
+        // CURRENT_CHANGE — 발효 변화
+        if (!blockEqual(prevActive, currActive)) {
+            changes.push({
+                type: 'CURRENT_CHANGE',
+                zone: zone,
+                prev: prevActive,
+                curr: currActive
+            });
+        }
     }
 
     return changes;
@@ -1062,16 +1089,23 @@ function _collectLeafZonesByName(tree) {
  *   - 자연어 ("내일 오전" 등) → 그대로 통과
  *   - 빈 값/null/undefined → ''
  *
- * 시간대 매핑 (시작시각 기준):
- *   0-6시 새벽 / 6-9시 아침 / 9-12시 오전 / 12-15시 낮 / 15-18시 오후 / 18-24시 밤
+ * 시간대 매핑 (시작시각 기준 — 실측 DMDW 본문 + 시각 역산 결과):
+ *   0-6시 새벽 / 6-9시 아침 / 9-12시 오전 / 12-15시 낮
+ *   15-18시 늦은 오후 / 18-21시 저녁 / 21-24시 밤
+ *
+ *   변경 (P4):
+ *     - "오후" 단독 미관측, "늦은 오후" 가 표준 (Agent A 52건, D 5건)
+ *     - "저녁" 18~21시 신규 분기 (Agent A 6건, B/C 시각 역산)
+ *     - "밤" 18~24 → 21~24 좁힘 (Agent A/D 본문 일치)
  */
 function _periodNameByHour(h) {
-    if (h >= 18) return '밤';
-    if (h < 6) return '새벽';
-    if (h >= 15) return '오후';
-    if (h >= 12) return '낮';
-    if (h >= 9) return '오전';
-    return '아침';  // 6 <= h < 9
+    if (h >= 21) return '밤';              // 21~24시
+    if (h >= 18) return '저녁';             // 18~21시
+    if (h >= 15) return '늦은 오후';        // 15~18시
+    if (h >= 12) return '낮';               // 12~15시
+    if (h >= 9)  return '오전';             // 09~12시
+    if (h >= 6)  return '아침';             // 06~09시
+    return '새벽';                          // 00~06시
 }
 
 function normalizeMmisTime(t) {
@@ -1410,9 +1444,9 @@ async function run(opts = {}) {
         if (!opts.dryRun && pushSender && typeof pushSender.processChanges === 'function') {
             try {
                 const userChanges = _buildUserPushChanges(prevForDiff, curr);
-                if (userChanges.length > 0) {
-                    await pushSender.processChanges(userChanges);
-                }
+                // [P2] 변화 0 일 때도 호출 — push_sender 의 pending retry 보장
+                // (옛 weather_alerts_crawler 동일 패턴)
+                await pushSender.processChanges(userChanges);
             } catch (e) {
                 console.error('[marine_warning_crawler] 사용자 push 발사 실패 (관리자 push 영향 없음):', e && e.message);
             }
