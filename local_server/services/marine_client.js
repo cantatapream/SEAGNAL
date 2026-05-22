@@ -72,6 +72,8 @@ const PATHS = {
     WARN_READY: '/mmis_marine_api/v1/kma/warn/ready',
     WARN_SASC_LIST: '/mmis_marine_api/v1/kma/warn-sasc/list',
     WARN_SASC_READY: '/mmis_marine_api/v1/kma/warn-sasc/ready',
+    WARN_LATEST: '/mmis_marine_api/v1/kma/warn/latest',
+    WARN_SASC_LATEST: '/mmis_marine_api/v1/kma/warn-sasc/latest',
     WARN_EF_LIST: '/mmis_marine_api/v1/kma/warn/ef/list',
     WARN_NTFCTN_LIST: '/mmis_marine_api/v1/kma/warn/ntfctn/list'
 };
@@ -371,6 +373,25 @@ async function fetchWarnSascReady() {
     return _unwrap(j);
 }
 
+/**
+ * 부모 zone 별 "가장 최근 통보문" — 발효중 상태 아닌 미래 통보문(해제 발표 등) 포함.
+ * 핵심: warn/list 응답이 "현재 발효 상태" 만 반환하는 반면,
+ *      warn/latest 응답은 같은 zone 에 대해 발표된 가장 최신 통보문을 반환.
+ *      해제 통보문이 발행되면 tm_ef 에 정확한 해제시각이 들어있고
+ *      warn_inpt_tm 은 통보문 발행시각보다 사전등록된 시각.
+ *      → 해제예고 범위형("23일 3시~6시") 대신 정확한 시각("2026.05.23 01:00") 확보.
+ */
+async function fetchWarnLatest() {
+    const j = await _getNoAuth(PATHS.WARN_LATEST);
+    return _unwrap(j);
+}
+
+/** 자식 zone "최신" — 현재는 list 와 동일한 형식(zone+lvl) 반환. 보조 검증용. */
+async function fetchWarnSascLatest() {
+    const j = await _getNoAuth(PATHS.WARN_SASC_LATEST);
+    return _unwrap(j);
+}
+
 // ============================================================================
 // [Followup E-4] 4 endpoint 묶음 호출 — 부분 실패 시 throw (cycle skip 유도)
 // ============================================================================
@@ -494,6 +515,9 @@ module.exports = {
     fetchWarnSascList,
     fetchWarnReady,
     fetchWarnSascReady,
+    // [V10 — warn/latest] 해제 통보문 정확한 시각 보강용
+    fetchWarnLatest,
+    fetchWarnSascLatest,
     // [Followup E-4] 4 endpoint 묶음 호출 (Promise.allSettled, 부분 실패 시 throw)
     fetchAllRealtimeEndpoints,
     // 인증 endpoint
