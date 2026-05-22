@@ -1021,19 +1021,25 @@ function _buildZoneTreeFromSnapshot(snap) {
     const leafByName = _collectLeafZonesByName(tree);
 
     // 부모 발효 채우기
+    // [legacy 호환] 사용자 앱 (js/data.js, ocean_warn_active*.js) 이 옛 dmdw 구조 가정:
+    //   - wrnTp 가 한글 "풍랑" (mmis 는 "V" 코드)
+    //   - wrnLvl 이 한글 "주의보" (mmis 는 "2" 코드)
+    //   - tmCc 가 해제예고 (mmis 는 clrNtcTm)
+    // 다운스트림 영향 최소화 위해 본 빌더가 옛 구조로 변환 + 신규 필드 병기.
     for (const [parentName, info] of snap.parents) {
         const leaf = leafByName.get(parentName);
         if (!leaf) continue;
         if (!info || !info.wrnLvlNm) continue;
         const block = {
-            wrnTp: info.wrnTp || '',
+            wrnTp: info.wrnTpNm || info.wrnTp || '',       // 한글 우선 (data.js:269 호환)
             wrnTpNm: info.wrnTpNm || '',
-            wrnLvl: info.wrnLvl || '',
+            wrnLvl: info.wrnLvlNm || info.wrnLvl || '',    // 한글 우선
             wrnLvlNm: info.wrnLvlNm || '',
             tmFc: normalizeMmisTime(info.tmFc),
             tmEf: normalizeMmisTime(info.tmEf),
             tmYn: normalizeMmisTime(info.tmYn),
-            clrNtcTm: normalizeMmisTime(info.clrNtcTm),  // 범위형 → 그대로 통과
+            tmCc: normalizeMmisTime(info.clrNtcTm),        // 옛 tmCc = mmis clrNtcTm
+            clrNtcTm: normalizeMmisTime(info.clrNtcTm),    // 신규 필드 (양 형식 모두 지원)
             source: 'MARINE_MMIS'
         };
         if (info.wrnLvlNm === '예비') {
@@ -1055,13 +1061,14 @@ function _buildZoneTreeFromSnapshot(snap) {
             const lvlNmNorm = info.wrnLvlNm === '예비' ? '주의보' : info.wrnLvlNm;
             leaf.children[childName] = {
                 source: 'MARINE_MMIS',
-                wrnTp: info.wrnTp || '',
-                wrnTpNm: info.wrnTpNm || '',
-                wrnLvl: info.wrnLvl || '',
+                wrnTp: info.wrnTpNm || info.wrnTp || (parentInfo && parentInfo.wrnTpNm) || '',  // 한글 우선
+                wrnTpNm: info.wrnTpNm || (parentInfo && parentInfo.wrnTpNm) || '',
+                wrnLvl: lvlNmNorm || info.wrnLvl || '',    // 한글 우선
                 wrnLvlNm: lvlNmNorm,
                 tmFc: normalizeMmisTime(info.tmFc || (parentInfo && parentInfo.tmFc) || ''),
                 tmEf: normalizeMmisTime(info.tmEf || (parentInfo && parentInfo.tmEf) || ''),
                 tmYn: normalizeMmisTime(info.tmYn || (parentInfo && parentInfo.tmYn) || ''),
+                tmCc: normalizeMmisTime(info.clrNtcTm || (parentInfo && parentInfo.clrNtcTm) || ''),
                 clrNtcTm: normalizeMmisTime(info.clrNtcTm || (parentInfo && parentInfo.clrNtcTm) || '')
             };
         }
