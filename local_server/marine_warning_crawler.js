@@ -659,8 +659,11 @@ function _applySuspiciousGuard(prev, curr) {
             if (now - (_suspiciousState.currentCase.lastPushAt || 0) >= PUSH_REINFORCE_INTERVAL) {
                 console.warn('[Marine] 의심 사례 재push caseId=' + _suspiciousState.currentCase.id +
                     ' cycleCount=' + _suspiciousState.currentCase.cycleCount);
-                _enqueueSuspiciousAlert(_suspiciousState.currentCase);
+                // [B-2 fix] lastPushAt 을 push 호출 앞에서 갱신 — enqueueSuspiciousAlert 가
+                //   dedupKey 빌드 시 새 timestamp 를 사용하도록. (옛 lastPushAt 으로 빌드하면
+                //   기존 _sentKeys 와 충돌해 첫 reinforce 가 silent dedup 됨.)
                 _suspiciousState.currentCase.lastPushAt = now;
+                _enqueueSuspiciousAlert(_suspiciousState.currentCase);
             }
         }
         _saveSuspiciousState(_suspiciousState);
