@@ -721,7 +721,7 @@ async function flush(cycleId, opts = {}) {
         }
         // 실제 발송 — admin_push 실패해도 본 모듈은 throw 하지 않는다.
         try {
-            await sendAdminPush(push.title, push.body, push.data);
+            const result = await sendAdminPush(push.title, push.body, push.data);
             // 성공 시 해당 이벤트들을 sentKeys 에 기록 (중복 방지)
             // [M1] Map.set(key, ts) — ts 는 TTL 기준 시각
             // [M3] 디스크 동기화 — process 재시작 후에도 dedup 유지.
@@ -729,6 +729,11 @@ async function flush(cycleId, opts = {}) {
             for (const ev of recordable) _sentKeys.set(_dedupKey(ev), now);
             _persistSentKeysDebounced();
             _lastFlushed.push({ ...push, cycleId });
+            // [push_counter] 누적 카운터 증가 (500 한도 우회).
+            try {
+                const counter = require('./push_counter');
+                counter.incrementSend((result && result.sent) || 0);
+            } catch (_e) { /* counter 실패 무시 */ }
         } catch (e) {
             // admin_push 자체가 내부에서 try/catch 하지만 만약 throw 되더라도
             // dmdw 크롤러 본체를 영향주지 않도록 여기서 흡수.
@@ -791,27 +796,524 @@ function _runGcForTest() {
     _gcSentKeys();
 }
 
+/**
+ * [예비특보 해제 알림] — 부모 zone 단위 통합 push.
+ *
+ * [용도]
+ *   weather_alerts_crawler 의 참고사항 처리에서 "예비 → 해제" 케이스 (발효 못 가고
+ *   취소) 감지 시 호출. 부모 zone 명만 나열한 간단한 본문으로 사용자에게 알림.
+ *
+ * [형식]
+ *   Title: "✅ {wrnTp} 예비특보 해제 알림"
+ *   Body : "ㅇ{parent1}\nㅇ{parent2}\n..." (부모만, 자식 미명시)
+ *
+ * [dedup 정책]
+ *   per-parent 키 사용: "prelim_release|{wrnTp}|{parent}".
+ *   - 같은 부모의 같은 종류 예비 해제는 24h TTL 동안 1회만 발송.
+ *   - 통보문이 같은 해제 안내를 반복 포함해도 silent skip.
+ *   - 새 부모가 해제 안내에 추가되면 그 부모만 본문에 등장 (이미 발송된 부모는 제외).
+ *   - 디스크 영속화로 재배포 후에도 dedup 유지.
+ *
+ * [길이 한도]
+ *   부모 단위 ~12자 + "ㅇ" + 줄바꿈 ≈ 13자/부모. 200자 한도면 약 15부모까지 1통.
+ *   초과 시 부모 단위로 잘라 분할 발송 (드문 케이스).
+ *
+ * @param {string} wrnTp - "풍랑" / "태풍" (폭풍해일은 운영 정책상 수집 제외)
+ * @param {string[]} parents - 해제된 부모 zone 명 배열
+ * @returns {Promise<{ sent: boolean, count: number }>}
+ */
+async function sendPreliminaryRelease(wrnTp, parents) {
+    if (!wrnTp || !Array.isArray(parents) || parents.length === 0) {
+        return { sent: false, count: 0 };
+    }
+    // dedup 적중 안 한 (= 새로) 부모만 골라냄.
+    const newParents = parents.filter(p => !_sentKeys.has(`prelim_release|${wrnTp}|${p}`));
+    if (newParents.length === 0) return { sent: false, count: 0 };
+
+    const title = `✅ ${wrnTp} 예비특보 해제 알림`;
+    const data = { url: CLICK_URL, type: 'preliminary_release' };
+
+    // 본문 200자 한도 안에서 부모 단위로 분할.
+    const lines = newParents.map(p => `ㅇ${p}`);
+    const chunks = [];
+    let buf = [];
+    let bufLen = 0;
+    for (const line of lines) {
+        const sep = buf.length === 0 ? 0 : 1; // 줄바꿈
+        if (buf.length > 0 && bufLen + sep + line.length > BODY_MAX_LEN) {
+            chunks.push(buf.join('\n'));
+            buf = [];
+            bufLen = 0;
+        }
+        buf.push(line);
+        bufLen += (buf.length === 1 ? 0 : 1) + line.length;
+    }
+    if (buf.length > 0) chunks.push(buf.join('\n'));
+
+    let sentCount = 0;
+    for (const body of chunks) {
+        try {
+            const result = await sendAdminPush(title, body, data);
+            sentCount++;
+            try {
+                const counter = require('./push_counter');
+                counter.incrementSend((result && result.sent) || 0);
+            } catch (_e) { /* counter 실패 무시 */ }
+        } catch (e) {
+            console.error('[DmdwPush] preliminary_release 발송 실패 (계속):', e && e.message);
+        }
+    }
+
+    if (sentCount > 0) {
+        const now = Date.now();
+        for (const p of newParents) {
+            _sentKeys.set(`prelim_release|${wrnTp}|${p}`, now);
+        }
+        _persistSentKeysDebounced();
+    }
+
+    return { sent: sentCount > 0, count: newParents.length };
+}
+
+// ============================================================================
+// [v7] 부모 푸시 + 자식 정보 통합 (관리자 시범 적용)
+// ============================================================================
+//
+// 본 블록은 PARENT_PUSH_WITH_CHILDREN.md SPEC v7 의 신규 enqueue 함수 모음.
+//   - 기존 자식 단독 푸시 (위 enqueueActive/Publish/Release/LevelChange) 와는
+//     **별개의 경로**. parent + childState 묶음을 한 푸시에 표현.
+//   - 모두 admin 발송 (sendAdminPush) — 시범 운영. 사용자 푸시는 영향 없음.
+//   - dedup 키에 sorted active child set hash 포함 (SPEC §10).
+//
+// 함수 시그니처는 SPEC §9 와 동일:
+//   enqueueParentActive, enqueueParentPublish, enqueueParentRelease,
+//   enqueueAdditionalActive, enqueuePrelimCancel, enqueuePartialRelease,
+//   enqueueLevelUpgrade, enqueueLevelDowngrade,
+//   enqueueTypeUpgrade, enqueueTypeDowngrade,
+//   enqueueTimeEfChange, enqueueTimeYnChange,
+//   enqueuePreReleaseAnnounce
+//
+// 차별화 (Agent B):
+//   - 테이블 dispatch: enqueueParentFamily 단일 진입 + eventType 디스패치
+//   - 단계별 try/catch + 진단 로그
+// ============================================================================
+
+const pushHelpers = require('./push_helpers');
+
+/** 관리자(부모+자식) 푸시 전용 큐. (자식 단독 큐 _queue 와 분리.) */
+const _parentQueue = new Map();   // Map<cycleId, Array<parentEvent>>
+/** 관리자(부모+자식) 푸시 dedup. Map<key, ts(ms)>. */
+const _parentSentKeys = new Map();
+
+// ----------------------------------------------------------------------------
+// [Followup Critical-4] _parentSentKeys 디스크 영속화
+// ----------------------------------------------------------------------------
+// _sentKeys 패턴 그대로 — fly.io 재배포 후 같은 부모 묶음이 중복 발사되는 것 차단.
+// 저장 위치: local_server/data/dmdw_parent_sent_keys.json (별도 파일).
+const _PARENT_SENT_KEYS_FILE = path.join(__dirname, '..', 'data', 'dmdw_parent_sent_keys.json');
+let _parentPersistTimer = null;
+
+function _loadParentSentKeysFromDisk() {
+    try {
+        if (!fs.existsSync(_PARENT_SENT_KEYS_FILE)) return;
+        const raw = fs.readFileSync(_PARENT_SENT_KEYS_FILE, 'utf8');
+        const obj = JSON.parse(raw);
+        const now = Date.now();
+        let loaded = 0, expired = 0;
+        for (const k of Object.keys(obj)) {
+            const ts = obj[k];
+            if (typeof ts !== 'number') continue;
+            if (now - ts > SENT_KEY_TTL_MS) { expired++; continue; }
+            _parentSentKeys.set(k, ts);
+            loaded++;
+            if (_parentSentKeys.size >= SENT_KEY_MAX) break;
+        }
+        console.log(`[DmdwPush v7] _parentSentKeys 디스크 복원: ${loaded}건 (TTL 만료 ${expired}건 제외)`);
+    } catch (e) {
+        console.log(`[DmdwPush v7] _parentSentKeys 디스크 복원 실패 (무시): ${e.message}`);
+    }
+}
+
+function _saveParentSentKeysToDisk() {
+    try {
+        const dir = path.dirname(_PARENT_SENT_KEYS_FILE);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        const obj = {};
+        for (const [k, ts] of _parentSentKeys) obj[k] = ts;
+        const tmp = _PARENT_SENT_KEYS_FILE + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify(obj), 'utf8');
+        fs.renameSync(tmp, _PARENT_SENT_KEYS_FILE);
+    } catch (e) {
+        console.log(`[DmdwPush v7] _parentSentKeys 디스크 저장 실패 (무시): ${e.message}`);
+    }
+}
+
+function _persistParentSentKeysDebounced() {
+    if (_parentPersistTimer) clearTimeout(_parentPersistTimer);
+    _parentPersistTimer = setTimeout(() => {
+        _parentPersistTimer = null;
+        _saveParentSentKeysToDisk();
+    }, 100);
+}
+
+// 모듈 로드 시 1회 복원.
+_loadParentSentKeysFromDisk();
+
+/** parent dedup key — SPEC §10 자식 set hash 포함. */
+function _parentDedupKey(ev) {
+    const childKey = (ev.parentEntries || [])
+        .map(e => {
+            const act = (e.childState && e.childState.active) ? [...e.childState.active].sort() : [];
+            return `${e.parent}:${act.join('+')}`;
+        })
+        .sort()
+        .join(';');
+    return [
+        ev.eventType || '',
+        ev.wrnTp || '',
+        ev.wrnLvl || '',
+        ev.tmKey || '',   // tmEf or tmYn — 호출자가 채움
+        childKey
+    ].join('|');
+}
+
+function _gcParentSentKeys() {
+    const now = Date.now();
+    for (const [k, ts] of _parentSentKeys) {
+        if (now - ts > SENT_KEY_TTL_MS) _parentSentKeys.delete(k);
+        else break;
+    }
+    if (_parentSentKeys.size > SENT_KEY_MAX) {
+        const over = _parentSentKeys.size - SENT_KEY_MAX;
+        let removed = 0;
+        for (const k of _parentSentKeys.keys()) {
+            if (removed >= over) break;
+            _parentSentKeys.delete(k);
+            removed++;
+        }
+    }
+    // [Followup Critical-4] 정리 후 디스크 동기화.
+    _persistParentSentKeysDebounced();
+}
+
+/**
+ * 단일 진입점 — eventType 디스패치.
+ *
+ * @param {Object} args
+ *   - cycleId   (필수)
+ *   - eventType (필수) — publish | active | additional_active | prelim_cancel
+ *                       | partial_release | release | level_upgrade_publish/active
+ *                       | level_downgrade_publish/active
+ *                       | type_upgrade_publish/active | type_downgrade_publish/active
+ *                       | time_ef_change | time_yn_change | pre_release_announce
+ *   - wrnTp, wrnLvl, wrnTpNm, wrnLvlNm
+ *   - prevWrnLvlNm, prevWrnTpNm (격상/격하)
+ *   - parentEntries: Array<{ parent, time, childState }>
+ *       childState = { active: string[], all: string[], added?, released?, allReleased?, parentTimeUnchanged? }
+ * @returns {boolean}
+ */
+function enqueueParentFamily(args) {
+    try {
+        if (!args || !args.cycleId || !args.eventType) {
+            console.warn('[DmdwPush v7] enqueueParentFamily 필수 필드 누락');
+            return false;
+        }
+        if (!Array.isArray(args.parentEntries) || args.parentEntries.length === 0) {
+            console.warn('[DmdwPush v7] parentEntries 비어 있음 — skip');
+            return false;
+        }
+        // tmKey: 같은 이벤트라도 시각이 다르면 별개 발송. 그룹 대표값으로 부모들의 정렬된 time join.
+        const tmKey = args.parentEntries
+            .map(e => e.time || '')
+            .sort()
+            .join(',');
+        const ev = { ...args, tmKey };
+        const k = _parentDedupKey(ev);
+        if (_parentSentKeys.has(k)) return false;
+        if (!_parentQueue.has(ev.cycleId)) _parentQueue.set(ev.cycleId, []);
+        const list = _parentQueue.get(ev.cycleId);
+        if (list.some(e => _parentDedupKey(e) === k)) return false;
+        list.push(ev);
+        return true;
+    } catch (err) {
+        console.error('[DmdwPush v7] enqueueParentFamily 실패:', err && err.message);
+        return false;
+    }
+}
+
+// --- SPEC §9 의 시그니처별 thin wrapper (호출자 가독성 위해 분리) ---
+function enqueueParentPublish(cycleId, wrnTp, wrnLvl, parentEntries, info = {}) {
+    return enqueueParentFamily({
+        cycleId, eventType: 'publish',
+        wrnTp, wrnLvl, wrnTpNm: info.wrnTpNm, wrnLvlNm: info.wrnLvlNm,
+        parentEntries
+    });
+}
+function enqueueParentActive(cycleId, wrnTp, wrnLvl, parentEntries, info = {}) {
+    return enqueueParentFamily({
+        cycleId, eventType: 'active',
+        wrnTp, wrnLvl, wrnTpNm: info.wrnTpNm, wrnLvlNm: info.wrnLvlNm,
+        parentEntries
+    });
+}
+function enqueueParentRelease(cycleId, wrnTp, wrnLvl, parentEntries, info = {}) {
+    return enqueueParentFamily({
+        cycleId, eventType: 'release',
+        wrnTp, wrnLvl, wrnTpNm: info.wrnTpNm, wrnLvlNm: info.wrnLvlNm,
+        parentEntries
+    });
+}
+function enqueueAdditionalActive(cycleId, wrnTp, wrnLvl, parentEntries, info = {}) {
+    return enqueueParentFamily({
+        cycleId, eventType: 'additional_active',
+        wrnTp, wrnLvl, wrnTpNm: info.wrnTpNm, wrnLvlNm: info.wrnLvlNm,
+        parentEntries
+    });
+}
+function enqueuePrelimCancel(cycleId, wrnTp, parentEntries, info = {}) {
+    return enqueueParentFamily({
+        cycleId, eventType: 'prelim_cancel',
+        wrnTp, wrnLvl: '', wrnTpNm: info.wrnTpNm, wrnLvlNm: '',
+        parentEntries
+    });
+}
+function enqueuePartialRelease(cycleId, wrnTp, wrnLvl, parentEntries, info = {}) {
+    return enqueueParentFamily({
+        cycleId, eventType: 'partial_release',
+        wrnTp, wrnLvl, wrnTpNm: info.wrnTpNm, wrnLvlNm: info.wrnLvlNm,
+        parentEntries
+    });
+}
+function enqueueLevelUpgrade(cycleId, wrnTp, fromLvl, toLvl, parentEntries, phase = 'active', info = {}) {
+    const eventType = phase === 'publish' ? 'level_upgrade_publish' : 'level_upgrade_active';
+    // [Synthesis Q / Major-4 보강] info.prevWrnLvlNm 미설정 시 positional fromLvl 폴백.
+    return enqueueParentFamily({
+        cycleId, eventType,
+        wrnTp, wrnLvl: toLvl,
+        wrnTpNm: info.wrnTpNm, wrnLvlNm: info.wrnLvlNm,
+        prevWrnLvlNm: info.prevWrnLvlNm || fromLvl,
+        parentEntries
+    });
+}
+function enqueueLevelDowngrade(cycleId, wrnTp, fromLvl, toLvl, parentEntries, phase = 'active', info = {}) {
+    const eventType = phase === 'publish' ? 'level_downgrade_publish' : 'level_downgrade_active';
+    // [Synthesis Q / Major-4 보강] info.prevWrnLvlNm 미설정 시 positional fromLvl 폴백.
+    return enqueueParentFamily({
+        cycleId, eventType,
+        wrnTp, wrnLvl: toLvl,
+        wrnTpNm: info.wrnTpNm, wrnLvlNm: info.wrnLvlNm,
+        prevWrnLvlNm: info.prevWrnLvlNm || fromLvl,
+        parentEntries
+    });
+}
+function enqueueTypeUpgrade(cycleId, fromTpLvl, toTpLvl, parentEntries, phase = 'active', info = {}) {
+    const eventType = phase === 'publish' ? 'type_upgrade_publish' : 'type_upgrade_active';
+    return enqueueParentFamily({
+        cycleId, eventType,
+        wrnTp: toTpLvl && toTpLvl.wrnTp, wrnLvl: toTpLvl && toTpLvl.wrnLvl,
+        wrnTpNm: info.wrnTpNm || (toTpLvl && toTpLvl.wrnTpNm),
+        wrnLvlNm: info.wrnLvlNm || (toTpLvl && toTpLvl.wrnLvlNm),
+        prevWrnTpNm: info.prevWrnTpNm || (fromTpLvl && fromTpLvl.wrnTpNm),
+        prevWrnLvlNm: info.prevWrnLvlNm || (fromTpLvl && fromTpLvl.wrnLvlNm),
+        parentEntries
+    });
+}
+function enqueueTypeDowngrade(cycleId, fromTpLvl, toTpLvl, parentEntries, phase = 'active', info = {}) {
+    const eventType = phase === 'publish' ? 'type_downgrade_publish' : 'type_downgrade_active';
+    return enqueueParentFamily({
+        cycleId, eventType,
+        wrnTp: toTpLvl && toTpLvl.wrnTp, wrnLvl: toTpLvl && toTpLvl.wrnLvl,
+        wrnTpNm: info.wrnTpNm || (toTpLvl && toTpLvl.wrnTpNm),
+        wrnLvlNm: info.wrnLvlNm || (toTpLvl && toTpLvl.wrnLvlNm),
+        prevWrnTpNm: info.prevWrnTpNm || (fromTpLvl && fromTpLvl.wrnTpNm),
+        prevWrnLvlNm: info.prevWrnLvlNm || (fromTpLvl && fromTpLvl.wrnLvlNm),
+        parentEntries
+    });
+}
+function enqueueTimeEfChange(cycleId, wrnTp, wrnLvl, parentEntries, info = {}) {
+    return enqueueParentFamily({
+        cycleId, eventType: 'time_ef_change',
+        wrnTp, wrnLvl, wrnTpNm: info.wrnTpNm, wrnLvlNm: info.wrnLvlNm,
+        parentEntries
+    });
+}
+function enqueueTimeYnChange(cycleId, wrnTp, wrnLvl, parentEntries, info = {}) {
+    return enqueueParentFamily({
+        cycleId, eventType: 'time_yn_change',
+        wrnTp, wrnLvl, wrnTpNm: info.wrnTpNm, wrnLvlNm: info.wrnLvlNm,
+        parentEntries
+    });
+}
+/** 신규 clr_ntc_tm 등장 = time_yn_change 로 처리 (SPEC §3 통합). */
+function enqueuePreReleaseAnnounce(cycleId, wrnTp, wrnLvl, parentEntries, info = {}) {
+    return enqueueTimeYnChange(cycleId, wrnTp, wrnLvl, parentEntries, info);
+}
+
+/**
+ * 관리자 부모+자식 묶음 큐를 flush.
+ *   - 같은 사이클의 이벤트별로 buildSplitPushes 호출 → 1초 간격 발송.
+ *   - dryRun 옵션 시 발송 안 하고 payloads 만 반환.
+ */
+async function flushParent(cycleId, opts = {}) {
+    const events = _parentQueue.get(cycleId) || [];
+    _parentQueue.delete(cycleId);
+    if (events.length === 0) return [];
+
+    const sent = [];
+    for (const ev of events) {
+        let pushes;
+        try {
+            pushes = pushHelpers.buildSplitPushes(ev.eventType, ev.parentEntries, {
+                typeName: ev.wrnTpNm,
+                level: ev.wrnLvlNm,
+                prevLevel: ev.prevWrnLvlNm,
+                prevTypeName: ev.prevWrnTpNm,
+                audience: 'admin'
+            });
+        } catch (err) {
+            console.error('[DmdwPush v7] buildSplitPushes 실패 — skip 이벤트:', err && err.message);
+            continue;
+        }
+        for (let i = 0; i < pushes.length; i++) {
+            const p = pushes[i];
+            const data = {
+                url: CLICK_URL,
+                type: 'admin_parent_alert',
+                eventType: ev.eventType,
+                chunk: pushes.length > 1 ? `${i + 1}/${pushes.length}` : '1/1'
+            };
+            if (opts.dryRun) {
+                sent.push({ title: p.title, body: p.body, data, cycleId });
+            } else {
+                try {
+                    const result = await sendAdminPush(p.title, p.body, data);
+                    sent.push({ title: p.title, body: p.body, data, cycleId });
+                    // [push_counter] 누적 카운터 증가
+                    try {
+                        const counter = require('./push_counter');
+                        counter.incrementSend((result && result.sent) || 0);
+                    } catch (_e) { /* counter 실패 무시 */ }
+                } catch (e) {
+                    console.error('[DmdwPush v7] sendAdminPush 실패 — 무시:', e && e.message);
+                }
+                // 분할 푸시 1초 간격 (마지막은 대기 X)
+                if (i < pushes.length - 1) {
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
+        }
+        // 발송 (또는 dryRun) 후 dedup 기록
+        _parentSentKeys.set(_parentDedupKey(ev), Date.now());
+    }
+    _gcParentSentKeys();
+    // [Followup Critical-4] flush 끝에 1회 디스크 동기화 (debounce 가 합쳐줌).
+    _persistParentSentKeysDebounced();
+    return sent;
+}
+
+/** 테스트 전용. */
+function _resetParentForTest() {
+    _parentQueue.clear();
+    _parentSentKeys.clear();
+}
+
+// ============================================================================
+// [D-medium 인터랙티브] 의심 사례 push — 관리자 결정 요청 알림
+// ============================================================================
+//
+// 사용처: marine_warning_crawler._applySuspiciousGuard 가 새 의심 사례 발생 또는
+//   10분 경과 후 재push 시 호출.
+//
+// 형식:
+//   Title: "🚨 특보 수집 오류 의심 — 결정 필요"
+//   Body : 사전 예고 없이 다음 zone 갑자기 사라짐:
+//          ㅇ제주도서부앞바다
+//          ㅇ경북북부앞바다
+//          ...
+//          통합관리자센터 → 특보 알림 → 오류 로그
+//          에서 정상/비정상 결정해주세요.
+//          (다음 자동 재발사: 10분 후)
+//
+// dedup key: "suspicious_alert|{caseId}|{lastPushAt}" — caseId 와 lastPushAt 둘 다
+//   바뀔 때 push 발사 (시간 단위 재발사 가능).
+//
+// 발송 대상: 관리자 등록 기기 (sendAdminPush). 사용자 push 영향 없음.
+async function enqueueSuspiciousAlert(currentCase) {
+    if (!currentCase || !currentCase.id || !Array.isArray(currentCase.zones)) {
+        return { sent: false };
+    }
+    const dedupKey = `suspicious_alert|${currentCase.id}|${currentCase.lastPushAt || 0}`;
+    if (_parentSentKeys.has(dedupKey) || _sentKeys.has(dedupKey)) {
+        return { sent: false, reason: 'dedup' };
+    }
+
+    const title = '🚨 특보 수집 오류 의심 — 결정 필요';
+    const zoneLines = currentCase.zones.map(z => `ㅇ${z.name}`).join('\n');
+    const body = `사전 예고 없이 다음 zone 갑자기 사라짐:\n${zoneLines}\n\n통합관리자센터 → 특보 알림 → 오류 로그\n에서 정상/비정상 결정해주세요.\n(다음 자동 재발사: 10분 후)`;
+    const data = {
+        url: '/?tab=admin',
+        type: 'suspicious_alert',
+        caseId: currentCase.id
+    };
+
+    try {
+        const result = await sendAdminPush(title, body, data);
+        // counter 증가
+        try {
+            const counter = require('./push_counter');
+            counter.incrementSend((result && result.sent) || 0);
+        } catch (_e) { /* counter 실패 무시 */ }
+        // dedup 기록
+        _sentKeys.set(dedupKey, Date.now());
+        _persistSentKeysDebounced();
+        return { sent: true, count: (result && result.sent) || 0 };
+    } catch (e) {
+        console.error('[DmdwPush] enqueueSuspiciousAlert 발송 실패:', e && e.message);
+        return { sent: false, error: e && e.message };
+    }
+}
+
 module.exports = {
     // 상수
     BODY_MAX_LEN,
     CHILD_TITLE_SUFFIX,
-    // 적재 API
+    // 기존 자식 단독 적재 API
     enqueue,
     enqueuePublish,
     enqueuePublishFromBulletin,
     enqueueActive,
     enqueueRelease,
     enqueueLevelChange,
-    // 발송 API
+    // 기존 발송 API
     flush,
     forgetChild,
+    sendPreliminaryRelease,
     // 유틸 (다른 모듈에서 재사용 가능)
     compareLevel,
     fmtTime,
     buildTitle,
     buildParentLine,
+    // v7 신규 — 부모+자식 묶음 관리자 푸시
+    enqueueParentFamily,
+    enqueueParentPublish,
+    enqueueParentActive,
+    enqueueParentRelease,
+    enqueueAdditionalActive,
+    enqueuePrelimCancel,
+    enqueuePartialRelease,
+    enqueueLevelUpgrade,
+    enqueueLevelDowngrade,
+    enqueueTypeUpgrade,
+    enqueueTypeDowngrade,
+    enqueueTimeEfChange,
+    enqueueTimeYnChange,
+    enqueuePreReleaseAnnounce,
+    flushParent,
+    // [D-medium 인터랙티브] 의심 사례 push
+    enqueueSuspiciousAlert,
     // 테스트용 (앞에 _ 가 붙은 것은 외부에서 호출하지 말 것)
     _resetForTest,
+    _resetParentForTest,
     _getLastFlushed,
     _setSentKeyForTest,
     _getSentKeysSize,

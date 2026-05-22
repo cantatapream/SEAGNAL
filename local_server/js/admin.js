@@ -582,8 +582,8 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
     // 초기 탭 활성화
     switchUnifiedAdminTab(initialTab);
 
-    // [신규] 수집 실패 통보문이 있으면 팝업으로 알림
-    showCollectFailureAlert();
+    // [v7 정리] 수집 실패 팝업 제거 — 오류 로그 탭에서 의심 사례 결정 UI 로 대체.
+    //   (의심 사례 push 가 별도로 발사되므로 별도 팝업 불필요)
 };
 
 window.switchUnifiedAdminTab = function (tabId) {
@@ -3053,14 +3053,20 @@ async function renderSubscriberTab(container) {
 }
 
 // (A) 특보 알림 섹션 렌더링 (4개 상위 하위탭)
+//
+// [사양] v7 최종 — 4 sub-tab 유지 (이름 변경):
+//   1. 실시간 특보 알림 관리 (기존 유지 + 카운터 fix)
+//   2. 장부 (JSON 표출) — 이전 "특보 수집 테스트" 의 JSON 표출만 유지
+//   3. 오류 로그 — 이전 "특보 수집 오류" → 의심 사례 결정 UI 로 완전 교체
+//   4. 특보 수정 — 기존 유지 (관리자 수동 입력/수정)
 async function renderUnifiedAlertContent(container) {
     if (!adminAuthenticated.alert) return;
 
     const topTabs = [
         { id: 'alert-manage', name: '실시간 특보 알림 관리', icon: 'fa-tower-broadcast' },
-        { id: 'collect-test', name: '특보 수집 테스트', icon: 'fa-flask' },
-        { id: 'collect-error', name: '특보 수집 오류', icon: 'fa-list-check' },
-        { id: 'manual-edit', name: '특보 수정', icon: 'fa-pen-to-square' }
+        { id: 'ledger-view',  name: '장부',                   icon: 'fa-book' },
+        { id: 'error-log',    name: '오류 로그',              icon: 'fa-triangle-exclamation' },
+        { id: 'manual-edit',  name: '특보 수정',              icon: 'fa-pen-to-square' }
     ];
 
     container.innerHTML = `
@@ -3075,9 +3081,14 @@ async function renderUnifiedAlertContent(container) {
     `;
 
     window.switchAlertTopTab = function (topTabId) {
-        // [정리] 다른 상위 탭으로 전환 시 수집 오류 탭의 자동 갱신 타이머 중단
-        if (topTabId !== 'collect-error' && typeof clearErrorListAutoRefresh === 'function') {
+        // [정리] 다른 상위 탭으로 전환 시 오류 로그 탭의 자동 갱신 타이머 중단
+        if (topTabId !== 'error-log' && typeof clearErrorListAutoRefresh === 'function') {
             clearErrorListAutoRefresh();
+        }
+        // 장부 탭 자동 refresh 타이머도 정리
+        if (topTabId !== 'ledger-view' && window._ledgerAutoRefresh) {
+            clearInterval(window._ledgerAutoRefresh);
+            window._ledgerAutoRefresh = null;
         }
         document.querySelectorAll('.alert-top-tab').forEach(btn => {
             if (btn.dataset.tab === topTabId) btn.classList.add('active');
@@ -3088,15 +3099,10 @@ async function renderUnifiedAlertContent(container) {
 
         if (topTabId === 'alert-manage') {
             renderAlertManageSubTab(topContent);
-        } else if (topTabId === 'collect-test') {
-            renderCollectTestSubTab(topContent);
-        } else if (topTabId === 'collect-error') {
-            // [탭 재진입 리셋] 수집 오류 상위 탭 첫 진입 시 3개 페이지 변수 모두 1로 리셋.
-            // (탭 내 페이지 클릭/하위탭 전환/30초 자동 갱신은 페이지 보존)
-            _collectFailuresPage = 1;
-            _reviewNeededPage = 1;
-            _pendingRetriesPage = 1;
-            renderErrorListTab(topContent);
+        } else if (topTabId === 'ledger-view') {
+            renderLedgerViewTab(topContent);
+        } else if (topTabId === 'error-log') {
+            renderErrorLogTab(topContent);
         } else if (topTabId === 'manual-edit') {
             renderManualInputTab(topContent);
         }
@@ -3149,22 +3155,20 @@ function renderAlertManageSubTab(container) {
         if (innerContainer) window.renderAlertAdminContent(subTabId, innerContainer);
     };
 
-    // 누적 푸시 발송 요약 표시
-    // - 누적 발송 건수(totalSends)와 누적 수신자 수(totalCount=Σh.count)를 모두 표시해야 하므로
-    //   전체 이력을 합산해야 함 → 페이지네이션 응답 포맷이 아닌 legacy(raw array) 모드를 사용
-    // - 서버 라우트는 ?page= 쿼리가 없으면 전체 배열을 그대로 반환 (하위호환 유지)
+    // [push_counter] 누적 푸시 발송 요약 — /api/push-counter 사용 (500 한도 우회).
+    // 기존: /api/push-history 의 length / Σh.count → push_history.json 의 500건 limit 때문에
+    //       500 이상이 되면 더 이상 증가하지 않는 버그.
+    // 신규: 별도 push_counter.json 에 누적 atomic write (모든 발송 경로 통합).
     window.refreshAlertPushTotalSummary = async function () {
         const sendsEl = document.getElementById('alert-push-total-sends');
         const countEl = document.getElementById('alert-push-total-count');
         if (!sendsEl || !countEl) return;
         try {
-            const res = await fetch('/api/push-history');
+            const res = await fetch('/api/push-counter');
             if (!res.ok) throw new Error('HTTP ' + res.status);
-            const history = await res.json();
-            const totalSends = Array.isArray(history) ? history.length : 0;
-            const totalCount = Array.isArray(history)
-                ? history.reduce((sum, h) => sum + (Number(h.count) || 0), 0)
-                : 0;
+            const counter = await res.json();
+            const totalSends = Number(counter && counter.totalSends) || 0;
+            const totalCount = Number(counter && counter.totalCount) || 0;
             sendsEl.textContent = totalSends.toLocaleString();
             countEl.textContent = totalCount.toLocaleString();
         } catch (e) {
@@ -3178,7 +3182,285 @@ function renderAlertManageSubTab(container) {
     switchAlertAdminTabInternal('publish');
 }
 
-// (A-2) 특보 수집 테스트 인라인 렌더링
+// ============================================================================
+// (A-2) [장부] weather_alerts.json 원본 JSON 표출 — 이전 "특보 수집 테스트" 의 JSON 부분만 유지
+// ============================================================================
+function renderLedgerViewTab(container) {
+    container.innerHTML = `
+        <div class="admin-section-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <div><i class="fa-solid fa-book" style="color:#22d3ee;"></i> 장부 (weather_alerts.json)</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <span style="font-size:0.75rem;color:#64748b;" id="ledger-updated-at">-</span>
+                <button onclick="refreshLedger()" style="padding:6px 12px;background:rgba(34,211,238,0.15);border:1px solid rgba(34,211,238,0.4);border-radius:6px;color:#67e8f9;cursor:pointer;font-size:0.8rem;font-weight:600;">
+                    <i class="fa-solid fa-rotate"></i> 새로고침
+                </button>
+            </div>
+        </div>
+        <div style="margin-bottom:8px;color:#94a3b8;font-size:0.78rem;">
+            <i class="fa-solid fa-info-circle"></i> 현재 weather_alerts.json 내용 (30초 자동 갱신).
+        </div>
+        <pre id="ledger-content" style="max-height:60vh;overflow:auto;padding:14px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#e2e8f0;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:0.78rem;line-height:1.5;white-space:pre-wrap;word-break:break-all;">로딩 중...</pre>
+    `;
+    refreshLedger();
+    if (window._ledgerAutoRefresh) clearInterval(window._ledgerAutoRefresh);
+    window._ledgerAutoRefresh = setInterval(() => {
+        const el = document.getElementById('ledger-content');
+        if (!el || !document.body.contains(el)) {
+            clearInterval(window._ledgerAutoRefresh);
+            window._ledgerAutoRefresh = null;
+            return;
+        }
+        refreshLedger();
+    }, 30000);
+}
+
+window.refreshLedger = async function () {
+    const el = document.getElementById('ledger-content');
+    const tsEl = document.getElementById('ledger-updated-at');
+    if (!el) return;
+    try {
+        const r = await fetch('/api/admin/weather-alerts-json');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        el.textContent = JSON.stringify(data, null, 2);
+        if (tsEl) {
+            const now = new Date();
+            tsEl.textContent = '갱신: ' + now.toLocaleTimeString('ko-KR', { hour12: false });
+        }
+    } catch (e) {
+        el.textContent = '로드 실패: ' + (e && e.message);
+    }
+};
+
+// ============================================================================
+// (A-3) [오류 로그] 의심 사례 결정 UI — 이전 "특보 수집 오류" 의 자리.
+// ============================================================================
+// SPEC §"오류 로그 탭 - 의심 사례 표출 상세 사양" 구현.
+//   - GET  /api/admin/marine/suspicious — currentCase + history 조회
+//   - POST /api/admin/marine/suspicious/decide — 정상/비정상 결정 적용
+//
+// 30초 자동 갱신. 자동 처리 없음 — 관리자 수동 결정만 currentCase 를 정리.
+function renderErrorLogTab(container) {
+    container.innerHTML = `
+        <div class="admin-section-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <div><i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> 오류 로그 (의심 사례 결정)</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <span style="font-size:0.75rem;color:#64748b;" id="suspicious-updated-at">-</span>
+                <button onclick="refreshErrorLog()" style="padding:6px 12px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);border-radius:6px;color:#fbbf24;cursor:pointer;font-size:0.8rem;font-weight:600;">
+                    <i class="fa-solid fa-rotate"></i> 새로고침
+                </button>
+            </div>
+        </div>
+        <div style="margin-bottom:12px;color:#94a3b8;font-size:0.78rem;">
+            <i class="fa-solid fa-info-circle"></i> mmis 응답에서 사전 예고 없이 3개 이상 zone 이 갑자기 사라지면 의심 사례로 분류됩니다.
+            관리자 결정 (정상/비정상) 전까지 자동 처리하지 않습니다. (10분마다 push 재발사)
+        </div>
+        <div id="suspicious-case-section">로딩 중...</div>
+        <div id="suspicious-history-section" style="margin-top:18px;"></div>
+    `;
+    refreshErrorLog();
+    if (errorListAutoRefreshTimer) clearInterval(errorListAutoRefreshTimer);
+    errorListAutoRefreshTimer = setInterval(() => {
+        const el = document.getElementById('suspicious-case-section');
+        if (!el || !document.body.contains(el)) {
+            clearErrorListAutoRefresh();
+            return;
+        }
+        refreshErrorLog();
+    }, 30000);
+}
+
+window.refreshErrorLog = async function () {
+    const caseSection = document.getElementById('suspicious-case-section');
+    const histSection = document.getElementById('suspicious-history-section');
+    const tsEl = document.getElementById('suspicious-updated-at');
+    if (!caseSection) return;
+    try {
+        const r = await fetch('/api/admin/marine/suspicious');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        if (data.currentCase) {
+            caseSection.innerHTML = _renderSuspiciousCaseCard(data.currentCase);
+        } else {
+            caseSection.innerHTML = `
+                <div style="padding:18px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:10px;text-align:center;">
+                    <div style="font-size:1rem;color:#86efac;font-weight:700;margin-bottom:6px;">
+                        <i class="fa-solid fa-circle-check"></i> 현재 의심 사례 없음
+                    </div>
+                    <div style="font-size:0.8rem;color:#94a3b8;">
+                        marine.kma 수집 정상. 사전 예고 없이 3+ zone 이 갑자기 사라지면 자동으로 표시됩니다.
+                    </div>
+                </div>
+            `;
+        }
+        if (histSection) {
+            histSection.innerHTML = _renderSuspiciousHistory(data.history || []);
+        }
+        if (tsEl) {
+            const now = new Date();
+            tsEl.textContent = '갱신: ' + now.toLocaleTimeString('ko-KR', { hour12: false });
+        }
+    } catch (e) {
+        caseSection.innerHTML = '<div style="padding:14px;color:#ef4444;font-size:0.85rem;">조회 실패: ' + (e && e.message) + '</div>';
+    }
+};
+
+function _renderSuspiciousCaseCard(currentCase) {
+    const firstSeenStr = currentCase.firstSeenAt
+        ? new Date(currentCase.firstSeenAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
+        : '-';
+    const lastPushStr = currentCase.lastPushAt
+        ? new Date(currentCase.lastPushAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
+        : '-';
+    const elapsedMs = Date.now() - (currentCase.firstSeenAt || Date.now());
+    const elapsedMin = Math.floor(elapsedMs / 60000);
+    const elapsedStr = elapsedMin >= 60
+        ? `${Math.floor(elapsedMin / 60)}시간 ${elapsedMin % 60}분`
+        : `${elapsedMin}분`;
+    const nextPushIn = Math.max(0, (10 * 60 * 1000) - (Date.now() - (currentCase.lastPushAt || 0)));
+    const nextPushMin = Math.ceil(nextPushIn / 60000);
+
+    const zoneRows = (currentCase.zones || []).map(z => {
+        return `
+            <tr>
+                <td style="padding:8px 10px;color:#fcd34d;font-weight:600;">${_escapeHtml(z.name)}</td>
+                <td style="padding:8px 10px;color:#fef3c7;">${_escapeHtml(z.wrnTpNm || '-')}</td>
+                <td style="padding:8px 10px;color:#fef3c7;">${_escapeHtml(z.wrnLvlNm || '-')}</td>
+                <td style="padding:8px 10px;color:#d4a276;font-size:0.78rem;">${_escapeHtml(z.tmEf || '-')}</td>
+            </tr>
+        `;
+    }).join('');
+
+    return `
+        <div style="padding:16px;background:rgba(239,68,68,0.08);border:2px solid rgba(239,68,68,0.4);border-radius:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+                <div style="font-size:1.05rem;color:#fca5a5;font-weight:700;">
+                    <i class="fa-solid fa-circle-exclamation"></i> 의심 사례 — 결정 필요
+                </div>
+                <div style="font-size:0.75rem;color:#94a3b8;">
+                    ID: <span style="color:#cbd5e1;font-weight:600;">${_escapeHtml(currentCase.id || '-')}</span>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:14px;font-size:0.78rem;">
+                <div style="padding:8px 10px;background:rgba(0,0,0,0.25);border-radius:6px;">
+                    <div style="color:#94a3b8;">최초 감지</div>
+                    <div style="color:#e2e8f0;font-weight:600;margin-top:2px;">${firstSeenStr}</div>
+                </div>
+                <div style="padding:8px 10px;background:rgba(0,0,0,0.25);border-radius:6px;">
+                    <div style="color:#94a3b8;">경과 시간</div>
+                    <div style="color:#e2e8f0;font-weight:600;margin-top:2px;">${elapsedStr} (${currentCase.cycleCount || 0} cycles)</div>
+                </div>
+                <div style="padding:8px 10px;background:rgba(0,0,0,0.25);border-radius:6px;">
+                    <div style="color:#94a3b8;">마지막 push</div>
+                    <div style="color:#e2e8f0;font-weight:600;margin-top:2px;">${lastPushStr}</div>
+                </div>
+                <div style="padding:8px 10px;background:rgba(0,0,0,0.25);border-radius:6px;">
+                    <div style="color:#94a3b8;">다음 재push</div>
+                    <div style="color:#fbbf24;font-weight:600;margin-top:2px;">${nextPushMin}분 후</div>
+                </div>
+            </div>
+            <div style="margin-bottom:10px;color:#fca5a5;font-size:0.85rem;font-weight:600;">
+                갑자기 사라진 zone ${(currentCase.zones || []).length}개
+            </div>
+            <div style="overflow-x:auto;margin-bottom:14px;">
+                <table style="width:100%;border-collapse:collapse;font-size:0.82rem;background:rgba(0,0,0,0.25);">
+                    <thead>
+                        <tr style="background:rgba(239,68,68,0.15);">
+                            <th style="padding:8px 10px;text-align:left;color:#fef3c7;border-bottom:1px solid rgba(255,255,255,0.1);">해역</th>
+                            <th style="padding:8px 10px;text-align:left;color:#fef3c7;border-bottom:1px solid rgba(255,255,255,0.1);">특보종류</th>
+                            <th style="padding:8px 10px;text-align:left;color:#fef3c7;border-bottom:1px solid rgba(255,255,255,0.1);">레벨</th>
+                            <th style="padding:8px 10px;text-align:left;color:#fef3c7;border-bottom:1px solid rgba(255,255,255,0.1);">발효시각(tmEf)</th>
+                        </tr>
+                    </thead>
+                    <tbody>${zoneRows}</tbody>
+                </table>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button onclick="decideSuspicious('normal')" style="flex:1;min-width:200px;padding:12px 18px;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:0.9rem;font-weight:700;">
+                    <i class="fa-solid fa-circle-check"></i> 정상 해제로 처리 (release push 발사)
+                </button>
+                <button onclick="decideSuspicious('invalid')" style="flex:1;min-width:200px;padding:12px 18px;background:linear-gradient(135deg,#f59e0b,#d97706);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:0.9rem;font-weight:700;">
+                    <i class="fa-solid fa-triangle-exclamation"></i> 수집 오류로 유지 (10분 후 재push)
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function _renderSuspiciousHistory(history) {
+    if (!Array.isArray(history) || history.length === 0) {
+        return `
+            <div style="padding:12px;color:#64748b;font-size:0.8rem;text-align:center;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:8px;">
+                결정 이력 없음 (최근 20건까지 보관)
+            </div>
+        `;
+    }
+    const colorByDecision = {
+        'normal': { bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.25)', text: '#86efac', label: '정상 해제' },
+        'invalid': { bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)', text: '#fbbf24', label: '수집 오류 유지' },
+        'auto-reset': { bg: 'rgba(99,102,241,0.08)', border: 'rgba(99,102,241,0.25)', text: '#a5b4fc', label: 'mmis 자동 회복' }
+    };
+    const rows = history.map(h => {
+        const c = colorByDecision[h.decision] || { bg: 'rgba(255,255,255,0.03)', border: 'rgba(255,255,255,0.08)', text: '#cbd5e1', label: h.decision };
+        const decidedStr = h.decidedAt ? new Date(h.decidedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-';
+        const zonesStr = Array.isArray(h.zones) ? h.zones.join(', ') : '-';
+        return `
+            <div style="padding:10px 12px;background:${c.bg};border:1px solid ${c.border};border-radius:8px;margin-bottom:6px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;">
+                    <span style="color:${c.text};font-weight:700;font-size:0.85rem;">${c.label}</span>
+                    <span style="color:#94a3b8;font-size:0.72rem;">ID: ${_escapeHtml(h.id || '-')}</span>
+                </div>
+                <div style="color:#cbd5e1;font-size:0.78rem;margin-bottom:2px;">
+                    <i class="fa-solid fa-clock"></i> ${decidedStr} ・ ${_escapeHtml(h.decidedBy || '-')} ・ ${h.elapsedMin || 0}분 (${h.cycleCount || 0} cycles)
+                </div>
+                <div style="color:#94a3b8;font-size:0.74rem;">
+                    <i class="fa-solid fa-location-dot"></i> ${_escapeHtml(zonesStr)}
+                </div>
+            </div>
+        `;
+    }).join('');
+    return `
+        <div style="margin-bottom:8px;color:#94a3b8;font-size:0.85rem;font-weight:600;">
+            <i class="fa-solid fa-clock-rotate-left"></i> 결정 이력 (최근 ${history.length}건)
+        </div>
+        ${rows}
+    `;
+}
+
+function _escapeHtml(s) {
+    if (s === null || s === undefined) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+window.decideSuspicious = async function (decision) {
+    const msg = decision === 'normal'
+        ? '의심 zone 을 정상 해제로 처리하시겠습니까?\n→ release push 가 즉시 발사됩니다.'
+        : '수집 오류로 유지하시겠습니까?\n→ currentCase 가 유지되고 10분 뒤 재push 됩니다.';
+    if (!confirm(msg)) return;
+    try {
+        const r = await fetch('/api/admin/marine/suspicious/decide', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ decision })
+        });
+        const result = await r.json();
+        if (!r.ok || result.error) {
+            alert('결정 실패: ' + (result.error || ('HTTP ' + r.status)));
+            return;
+        }
+        // 성공 시 즉시 갱신
+        refreshErrorLog();
+    } catch (e) {
+        alert('결정 요청 실패: ' + (e && e.message));
+    }
+};
+
+// (A-2-legacy) 특보 수집 테스트 인라인 렌더링 (deprecated — 이름 변경 + 사양 축소로 미사용)
 function renderCollectTestSubTab(container) {
     container.innerHTML = `
         <div class="admin-section-title" style="display:flex; justify-content:space-between; align-items:center;">

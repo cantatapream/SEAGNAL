@@ -50,6 +50,8 @@ const dmdwPushSender = require('../services/dmdw_push_sender');
 const aiParser = require('../ai_report_parser');
 const pushSender = require('../push_sender');
 const scheduler = require('../scheduler');
+// [marine v7] 의심 사례 결정 API용
+const marineWarningCrawler = require('../marine_warning_crawler');
 // [관리자 푸시] 독립 서비스 모듈 (순환 참조 방지)
 const { sendAdminPush } = require('../services/admin_push');
 
@@ -1736,6 +1738,65 @@ router.get('/api/admin/device-status', (req, res) => {
         res.json({ registered: found, totalDevices: devices.length });
     } catch (e) {
         res.json({ registered: false });
+    }
+});
+
+// ============================================================================
+// [D-medium 인터랙티브] 의심 사례 결정 API
+// ============================================================================
+//
+// 사용처: 통합관리자센터 → 특보 알림 → 오류 로그 탭.
+//   - GET /api/admin/marine/suspicious — currentCase + history 조회
+//   - POST /api/admin/marine/suspicious/decide — 관리자 결정 적용
+//
+// marine_warning_crawler 가 mmis 응답에서 사전 예고 없이 3+ zone 사라지면
+// currentCase 생성 + 의심 push 발사. 관리자가 정상/비정상 결정해야 처리 완료.
+
+router.get('/api/admin/marine/suspicious', (req, res) => {
+    try {
+        const state = marineWarningCrawler.getSuspiciousState();
+        res.json({
+            currentCase: state.currentCase || null,
+            history: state.history || []
+        });
+    } catch (e) {
+        console.error('[Admin] marine/suspicious 조회 실패:', e && e.message);
+        res.status(500).json({ error: '조회 실패: ' + (e && e.message) });
+    }
+});
+
+router.post('/api/admin/marine/suspicious/decide', (req, res) => {
+    try {
+        const { decision } = req.body || {};
+        if (!decision) {
+            return res.status(400).json({ error: 'decision required (normal | invalid)' });
+        }
+        const result = marineWarningCrawler.decideSuspiciousCase(decision, req.body.decidedBy || 'admin');
+        if (result.error) {
+            return res.status(400).json(result);
+        }
+        res.json(result);
+    } catch (e) {
+        console.error('[Admin] marine/suspicious/decide 실패:', e && e.message);
+        res.status(500).json({ error: '결정 실패: ' + (e && e.message) });
+    }
+});
+
+// ============================================================================
+// [장부 view] weather_alerts.json 원본 조회 — 관리자 장부 탭에서 사용.
+// ============================================================================
+const _WEATHER_ALERTS_JSON_FILE = path.join(DATA_DIR, 'weather_alerts.json');
+router.get('/api/admin/weather-alerts-json', (req, res) => {
+    try {
+        if (!fs.existsSync(_WEATHER_ALERTS_JSON_FILE)) {
+            return res.json({});
+        }
+        const raw = fs.readFileSync(_WEATHER_ALERTS_JSON_FILE, 'utf8');
+        const data = JSON.parse(raw);
+        res.json(data);
+    } catch (e) {
+        console.error('[Admin] weather-alerts-json 조회 실패:', e && e.message);
+        res.status(500).json({ error: '조회 실패: ' + (e && e.message) });
     }
 });
 
