@@ -1486,17 +1486,28 @@ async function init() {
     //  - 자격증명(KMA_DMDW_USER_ID/PWD) 미설정 시 enabled=false 로 silent disable.
     const dmdwWarnCrawler = require('./dmdw_warn_crawler');
 
+    // [Followup Critical-1] v7 marine.kma 통합 크롤러
+    //   marine.kma.go.kr MMIS endpoint 기반 부모/자식 통합 특보 크롤러.
+    //   부모/자식을 한 응답으로 받아 단일 출처로 처리 (legacy weather_alerts_crawler
+    //   + dmdw_warn_crawler 의 출처 이중화 종식).
+    //   자격증명(MARINE_USER_ID/PWD) 미설정 시 인증 endpoint (ef/list) 만 skip 되고
+    //   비로그인 endpoint (warn/list, warn-sasc/list) 는 정상 호출.
+    const marineWarningCrawler = require('./marine_warning_crawler');
+
     // [S9-B] 서버 시작 직후 1회 백필 — 직전 24시간 자식 해역 데이터 재구성.
     //   - 백그라운드 fire-and-forget: 1분 사이클 등록을 막지 않음.
     //   - 진행 동안 dmdw_alerts.json 의 backfillReady=false 유지 → routes/weather.js 의
     //     머지 게이트가 자식 머지를 보류 (부모 데이터만 응답).
     //   - 백필 완료 후 backfillReady=true → 다음 폴링부터 자식 데이터 자연 합류.
     //   - 이미 backfillReady=true 인 상태로 디스크에 있으면 함수 내부에서 즉시 skip.
-    if (dmdwWarnCrawler.enabled && typeof dmdwWarnCrawler.runBackfill === 'function') {
-        dmdwWarnCrawler.runBackfill().catch(err =>
-            log(`⚠️ [dmdw] 백필 오류: ${err.message}`)
-        );
-    }
+    //
+    // [Followup Critical-3] marine.kma 단일 출처 전환 (v7) — legacy 백필 비활성화.
+    //   rollback 시 주석 해제.
+    // if (dmdwWarnCrawler.enabled && typeof dmdwWarnCrawler.runBackfill === 'function') {
+    //     dmdwWarnCrawler.runBackfill().catch(err =>
+    //         log(`⚠️ [dmdw] 백필 오류: ${err.message}`)
+    //     );
+    // }
 
     // ... (중략) ...
 
@@ -1582,9 +1593,16 @@ async function init() {
 
         // [New] 특보 정보 크롤링 (매 1분 마다 실행)
         // 사용자 요청: 실시간성 확보를 위해 1분 주기로 단축
+        //
+        // [Followup Critical-3] marine.kma 단일 출처 전환 (v7) — legacy 비활성화.
+        //   weather_alerts_crawler + dmdw_warn_crawler 의 출처 이중화를 종식하고
+        //   marine_warning_crawler 단일 출처로 통합. 본체 파일은 rollback 대비 보존.
+        //   rollback: 아래 주석 해제 + marineWarningCrawler.run() 호출 제거.
         if (!crawlPaused) {
-            log('🔎 기상특보 크롤러 실행...');
-            weatherAlertsCrawler.run().catch(err => log(`⚠️ 크롤러 오류: ${err.message}`));
+            // log('🔎 기상특보 크롤러 실행...');
+            // weatherAlertsCrawler.run().catch(err => log(`⚠️ 크롤러 오류: ${err.message}`));
+            log('🌊 marine.kma 통합 크롤러 실행...');
+            marineWarningCrawler.run().catch(err => log(`⚠️ [marine] 크롤러 오류: ${err.message}`));
         } else {
             log('⏸️ 기상특보 크롤링 일시정지 상태');
         }
@@ -1594,9 +1612,12 @@ async function init() {
         //   - 내부 runInProgress 락이 중복 실행 방지.
         //   - 자격증명 미설정 또는 KMA_DMDW_DISABLE=1 이면 enabled=false → 호출 자체 skip.
         //   - 부모 크롤러 일시정지(crawlPaused)와 동기화: 운영자가 한 번에 둘 다 정지 가능.
-        if (!crawlPaused && dmdwWarnCrawler.enabled) {
-            dmdwWarnCrawler.run().catch(err => log(`⚠️ [dmdw] 크롤러 오류: ${err.message}`));
-        }
+        //
+        // [Followup Critical-3] marine.kma 단일 출처 전환 (v7) — legacy 비활성화.
+        //   rollback 시 아래 주석 해제.
+        // if (!crawlPaused && dmdwWarnCrawler.enabled) {
+        //     dmdwWarnCrawler.run().catch(err => log(`⚠️ [dmdw] 크롤러 오류: ${err.message}`));
+        // }
 
         // [New] 해상 기상 전망 수집 (매 10분마다)
         if (min % 10 === 3) {
