@@ -721,7 +721,7 @@ async function flush(cycleId, opts = {}) {
         }
         // 실제 발송 — admin_push 실패해도 본 모듈은 throw 하지 않는다.
         try {
-            await sendAdminPush(push.title, push.body, push.data);
+            const result = await sendAdminPush(push.title, push.body, push.data);
             // 성공 시 해당 이벤트들을 sentKeys 에 기록 (중복 방지)
             // [M1] Map.set(key, ts) — ts 는 TTL 기준 시각
             // [M3] 디스크 동기화 — process 재시작 후에도 dedup 유지.
@@ -729,6 +729,11 @@ async function flush(cycleId, opts = {}) {
             for (const ev of recordable) _sentKeys.set(_dedupKey(ev), now);
             _persistSentKeysDebounced();
             _lastFlushed.push({ ...push, cycleId });
+            // [push_counter] 누적 카운터 증가 (500 한도 우회).
+            try {
+                const counter = require('./push_counter');
+                counter.incrementSend((result && result.sent) || 0);
+            } catch (_e) { /* counter 실패 무시 */ }
         } catch (e) {
             // admin_push 자체가 내부에서 try/catch 하지만 만약 throw 되더라도
             // dmdw 크롤러 본체를 영향주지 않도록 여기서 흡수.
@@ -848,8 +853,12 @@ async function sendPreliminaryRelease(wrnTp, parents) {
     let sentCount = 0;
     for (const body of chunks) {
         try {
-            await sendAdminPush(title, body, data);
+            const result = await sendAdminPush(title, body, data);
             sentCount++;
+            try {
+                const counter = require('./push_counter');
+                counter.incrementSend((result && result.sent) || 0);
+            } catch (_e) { /* counter 실패 무시 */ }
         } catch (e) {
             console.error('[DmdwPush] preliminary_release 발송 실패 (계속):', e && e.message);
         }
@@ -1177,8 +1186,13 @@ async function flushParent(cycleId, opts = {}) {
                 sent.push({ title: p.title, body: p.body, data, cycleId });
             } else {
                 try {
-                    await sendAdminPush(p.title, p.body, data);
+                    const result = await sendAdminPush(p.title, p.body, data);
                     sent.push({ title: p.title, body: p.body, data, cycleId });
+                    // [push_counter] 누적 카운터 증가
+                    try {
+                        const counter = require('./push_counter');
+                        counter.incrementSend((result && result.sent) || 0);
+                    } catch (_e) { /* counter 실패 무시 */ }
                 } catch (e) {
                     console.error('[DmdwPush v7] sendAdminPush 실패 — 무시:', e && e.message);
                 }
@@ -1201,6 +1215,62 @@ async function flushParent(cycleId, opts = {}) {
 function _resetParentForTest() {
     _parentQueue.clear();
     _parentSentKeys.clear();
+}
+
+// ============================================================================
+// [D-medium 인터랙티브] 의심 사례 push — 관리자 결정 요청 알림
+// ============================================================================
+//
+// 사용처: marine_warning_crawler._applySuspiciousGuard 가 새 의심 사례 발생 또는
+//   10분 경과 후 재push 시 호출.
+//
+// 형식:
+//   Title: "🚨 특보 수집 오류 의심 — 결정 필요"
+//   Body : 사전 예고 없이 다음 zone 갑자기 사라짐:
+//          ㅇ제주도서부앞바다
+//          ㅇ경북북부앞바다
+//          ...
+//          통합관리자센터 → 특보 알림 → 오류 로그
+//          에서 정상/비정상 결정해주세요.
+//          (다음 자동 재발사: 10분 후)
+//
+// dedup key: "suspicious_alert|{caseId}|{lastPushAt}" — caseId 와 lastPushAt 둘 다
+//   바뀔 때 push 발사 (시간 단위 재발사 가능).
+//
+// 발송 대상: 관리자 등록 기기 (sendAdminPush). 사용자 push 영향 없음.
+async function enqueueSuspiciousAlert(currentCase) {
+    if (!currentCase || !currentCase.id || !Array.isArray(currentCase.zones)) {
+        return { sent: false };
+    }
+    const dedupKey = `suspicious_alert|${currentCase.id}|${currentCase.lastPushAt || 0}`;
+    if (_parentSentKeys.has(dedupKey) || _sentKeys.has(dedupKey)) {
+        return { sent: false, reason: 'dedup' };
+    }
+
+    const title = '🚨 특보 수집 오류 의심 — 결정 필요';
+    const zoneLines = currentCase.zones.map(z => `ㅇ${z.name}`).join('\n');
+    const body = `사전 예고 없이 다음 zone 갑자기 사라짐:\n${zoneLines}\n\n통합관리자센터 → 특보 알림 → 오류 로그\n에서 정상/비정상 결정해주세요.\n(다음 자동 재발사: 10분 후)`;
+    const data = {
+        url: '/?tab=admin',
+        type: 'suspicious_alert',
+        caseId: currentCase.id
+    };
+
+    try {
+        const result = await sendAdminPush(title, body, data);
+        // counter 증가
+        try {
+            const counter = require('./push_counter');
+            counter.incrementSend((result && result.sent) || 0);
+        } catch (_e) { /* counter 실패 무시 */ }
+        // dedup 기록
+        _sentKeys.set(dedupKey, Date.now());
+        _persistSentKeysDebounced();
+        return { sent: true, count: (result && result.sent) || 0 };
+    } catch (e) {
+        console.error('[DmdwPush] enqueueSuspiciousAlert 발송 실패:', e && e.message);
+        return { sent: false, error: e && e.message };
+    }
 }
 
 module.exports = {
@@ -1239,6 +1309,8 @@ module.exports = {
     enqueueTimeYnChange,
     enqueuePreReleaseAnnounce,
     flushParent,
+    // [D-medium 인터랙티브] 의심 사례 push
+    enqueueSuspiciousAlert,
     // 테스트용 (앞에 _ 가 붙은 것은 외부에서 호출하지 말 것)
     _resetForTest,
     _resetParentForTest,

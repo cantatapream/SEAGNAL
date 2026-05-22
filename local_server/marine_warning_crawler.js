@@ -521,28 +521,45 @@ function _savePrevSnapshot(snap) {
 }
 
 // ============================================================================
-// [D-medium 옵션 C] mmis 빈 응답 폭주 방어 — clr_ntc_tm 기반 + 10 cycles 시간 제한
+// [D-medium 인터랙티브 결정] mmis 빈 응답 폭주 방어 — 관리자 결정 기반
 // ============================================================================
 //
 // 배경: mmis endpoint 일시 장애 / 응답 누락 시 prev 에 있던 zone 들이 curr 에 없어
 //   release 푸시 일괄 발사되는 사고 위험. 그러나 정상 일괄 해제 (예: 태풍 종결 시
 //   8개 zone 동시 해제) 도 가능하므로 일률적으로 skip 하면 정상 해제 누락.
 //
-// 정책 (옵션 C):
+// 정책 (인터랙티브):
 //   - clr_ntc_tm (사전 해제 예고) 이 등록된 zone 이 사라지면 → 정상 해제로 인정
-//   - clr_ntc_tm 없이 사라진 zone 이 SUSPICIOUS_THRESHOLD 개 이상 → 의심 cycle
+//   - clr_ntc_tm 없이 사라진 zone 이 SUSPICIOUS_THRESHOLD 개 이상 → 의심 사례
 //     • 의심 zone 은 curr 에 다시 추가하여 "아직 발효 중" 으로 위장 → release skip
-//     • cycleCount 증가, 디스크 영속화
-//   - mmis 회복 (curr 에 zone 재등장 또는 의심 미달) → suspiciousState reset
-//   - cycleCount 가 MAX_SUSPICIOUS_CYCLES 도달 → 강제 해제 인정 (10분 한도)
+//     • currentCase 생성 + 1차 의심 push 즉시 발사 (관리자에게 결정 요청)
+//     • PUSH_REINFORCE_INTERVAL (10분) 마다 재push (자동 처리 X)
+//   - 관리자 결정 = 'normal'  → 정상 해제로 처리 → release push 즉시 발사 + currentCase 리셋
+//   - 관리자 결정 = 'invalid' → 수집 오류로 유지 → currentCase 유지, push 카운터만 리셋
+//   - mmis 회복 (zone 재등장 또는 의심 미달) → currentCase 자동 리셋 (history 에 auto-reset 기록)
 //
 // 디스크 영속화: data/marine_suspicious_state.json (재배포 시 상태 복원)
 const _SUSPICIOUS_FILE = path.join(__dirname, 'data', 'marine_suspicious_state.json');
 const _SUSPICIOUS_TMP = _SUSPICIOUS_FILE + '.tmp';
-const MAX_SUSPICIOUS_CYCLES = 10;   // 10 cycles = 10 minutes (1 cycle = 1 min)
 const SUSPICIOUS_THRESHOLD = 3;     // 3+ zone 미예고 사라짐 시 의심 가드 작동
+const PUSH_REINFORCE_INTERVAL = 10 * 60 * 1000;  // 10분마다 재push (자동 처리 X)
+const SUSPICIOUS_HISTORY_LIMIT = 20;
 
 let _suspiciousState = null;        // lazy load
+let _pendingImmediateRelease = null; // decide('normal') 시 다음 cycle 에서 강제 release 처리할 zone 명
+
+/**
+ * 의심 사례 ID 생성 — "YYYYMMDD-HHMM" KST 기준
+ */
+function _genCaseId() {
+    const kst = new Date(Date.now() + (9 * 60 * 60 * 1000));
+    const y = kst.getUTCFullYear();
+    const mo = String(kst.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(kst.getUTCDate()).padStart(2, '0');
+    const h = String(kst.getUTCHours()).padStart(2, '0');
+    const mi = String(kst.getUTCMinutes()).padStart(2, '0');
+    return `${y}${mo}${d}-${h}${mi}`;
+}
 
 function _loadSuspiciousState() {
     try {
@@ -550,15 +567,14 @@ function _loadSuspiciousState() {
             const raw = fs.readFileSync(_SUSPICIOUS_FILE, 'utf8');
             const data = JSON.parse(raw);
             return {
-                zones: Array.isArray(data.zones) ? data.zones : [],
-                firstSeenAt: data.firstSeenAt || null,
-                cycleCount: typeof data.cycleCount === 'number' ? data.cycleCount : 0
+                currentCase: data.currentCase || null,
+                history: Array.isArray(data.history) ? data.history : []
             };
         }
     } catch (e) {
         console.warn('[marine_warning_crawler] suspicious state 복원 실패 (무시):', e && e.message);
     }
-    return { zones: [], firstSeenAt: null, cycleCount: 0 };
+    return { currentCase: null, history: [] };
 }
 
 function _saveSuspiciousState(state) {
@@ -596,52 +612,225 @@ function _classifyReleases(prev, curr) {
 
 /**
  * 의심 가드 적용 — curr 를 in-place 수정 (의심 zone 을 prev 정보로 복원).
- *   반환: { skipped: string[], forced: string[] }
- *     - skipped: 이번 cycle 에서 release 발사를 보류한 zone
- *     - forced: 10 cycles 한도 도달로 강제 release 처리한 zone (curr 에 복원 안 함)
+ *   - 새 의심 사례 → currentCase 생성 + 1차 push 발사
+ *   - 기존 의심 사례 누적 → cycleCount++, 10분 경과 시 재push
+ *   - mmis 회복 시 → currentCase auto-reset
+ *
+ *   반환: { skipped: string[], normalReleases: string[] }
  */
 function _applySuspiciousGuard(prev, curr) {
     if (_suspiciousState === null) {
         _suspiciousState = _loadSuspiciousState();
     }
-    const { suspiciousZones } = _classifyReleases(prev, curr);
-    const result = { skipped: [], forced: [] };
+    const { normalReleases, suspiciousZones } = _classifyReleases(prev, curr);
+    const result = { skipped: [], normalReleases: normalReleases.slice() };
+    const now = Date.now();
 
     if (suspiciousZones.length >= SUSPICIOUS_THRESHOLD) {
-        _suspiciousState.cycleCount += 1;
-        if (!_suspiciousState.firstSeenAt) {
-            _suspiciousState.firstSeenAt = Date.now();
-            _suspiciousState.zones = suspiciousZones.slice();
-        }
-        if (_suspiciousState.cycleCount >= MAX_SUSPICIOUS_CYCLES) {
-            console.warn('[Marine] 의심 ' + MAX_SUSPICIOUS_CYCLES +
-                ' cycles 지속 — 해제로 인정 (강제): ' + suspiciousZones.join(', '));
-            result.forced = suspiciousZones.slice();
-            _suspiciousState = { zones: [], firstSeenAt: null, cycleCount: 0 };
-            _saveSuspiciousState(_suspiciousState);
-            // forced 인 경우 curr 에 복원하지 않음 → 정상 release 흐름 진입
+        if (!_suspiciousState.currentCase) {
+            // 새 의심 사례 시작
+            const id = _genCaseId();
+            _suspiciousState.currentCase = {
+                id: id,
+                firstSeenAt: now,
+                zones: suspiciousZones.map(name => {
+                    const info = prev.parents.get(name) || {};
+                    return {
+                        name: name,
+                        wrnTp: info.wrnTp || null,
+                        wrnTpNm: info.wrnTpNm || null,
+                        wrnLvl: info.wrnLvl || null,
+                        wrnLvlNm: info.wrnLvlNm || null,
+                        tmFc: info.tmFc || null,
+                        tmEf: info.tmEf || null
+                    };
+                }),
+                cycleCount: 1,
+                lastPushAt: now,
+                decisionPending: true
+            };
+            console.warn('[Marine] 의심 사례 신규 발생 caseId=' + id + ' zones=' + suspiciousZones.join(', '));
+            // 1차 push 즉시 발사 (비동기 — await X)
+            _enqueueSuspiciousAlert(_suspiciousState.currentCase);
         } else {
-            console.warn('[Marine] 의심 zone ' + suspiciousZones.length +
-                '개 — cycle skip (' + _suspiciousState.cycleCount + '/' +
-                MAX_SUSPICIOUS_CYCLES + '): ' + suspiciousZones.join(', '));
-            // curr 에 prev 정보 복원 → "아직 발효 중" 으로 위장하여 release 분기 미작동
-            for (const name of suspiciousZones) {
-                const info = prev.parents.get(name);
-                if (info) curr.parents.set(name, info);
+            // 기존 의심 사례 누적
+            _suspiciousState.currentCase.cycleCount += 1;
+            // 10분 경과 시 재push (관리자 결정 X 상태에서 강화)
+            if (now - (_suspiciousState.currentCase.lastPushAt || 0) >= PUSH_REINFORCE_INTERVAL) {
+                console.warn('[Marine] 의심 사례 재push caseId=' + _suspiciousState.currentCase.id +
+                    ' cycleCount=' + _suspiciousState.currentCase.cycleCount);
+                _enqueueSuspiciousAlert(_suspiciousState.currentCase);
+                _suspiciousState.currentCase.lastPushAt = now;
             }
-            result.skipped = suspiciousZones.slice();
-            _saveSuspiciousState(_suspiciousState);
         }
+        _saveSuspiciousState(_suspiciousState);
+
+        // 의심 zone 을 curr 에 복원 (해제 push 발사 안 되도록)
+        for (const name of suspiciousZones) {
+            const info = prev.parents.get(name);
+            if (info) curr.parents.set(name, info);
+        }
+        result.skipped = suspiciousZones.slice();
     } else {
-        // 의심 없음 또는 임계값 미달 — mmis 정상 / 회복
-        if (_suspiciousState.firstSeenAt) {
-            console.log('[Marine] mmis 회복 — 의심 상태 reset (이전 zones=' +
-                (_suspiciousState.zones || []).length + ')');
-            _suspiciousState = { zones: [], firstSeenAt: null, cycleCount: 0 };
+        // mmis 회복 또는 의심 없음
+        if (_suspiciousState.currentCase) {
+            // 자동 reset — history 에 기록
+            console.log('[Marine] mmis 회복 — currentCase auto-reset caseId=' +
+                _suspiciousState.currentCase.id);
+            _suspiciousState.history.unshift({
+                id: _suspiciousState.currentCase.id,
+                firstSeenAt: _suspiciousState.currentCase.firstSeenAt,
+                decidedAt: now,
+                decision: 'auto-reset',
+                decidedBy: 'system',
+                zones: (_suspiciousState.currentCase.zones || []).map(z => z.name),
+                elapsedMin: Math.floor((now - _suspiciousState.currentCase.firstSeenAt) / 60000),
+                cycleCount: _suspiciousState.currentCase.cycleCount
+            });
+            _suspiciousState.history = _suspiciousState.history.slice(0, SUSPICIOUS_HISTORY_LIMIT);
+            _suspiciousState.currentCase = null;
             _saveSuspiciousState(_suspiciousState);
         }
     }
     return result;
+}
+
+/**
+ * 의심 알림 push — dmdw_push_sender.enqueueSuspiciousAlert 위임.
+ * dmdw_push_sender 가 import 안전한 경우만 호출 (circular safe).
+ */
+function _enqueueSuspiciousAlert(currentCase) {
+    try {
+        if (typeof dmdwPush.enqueueSuspiciousAlert === 'function') {
+            // fire-and-forget — push 실패는 본 사이클에 영향 없도록
+            Promise.resolve(dmdwPush.enqueueSuspiciousAlert(currentCase))
+                .catch(e => console.error('[Marine] suspicious push 실패 (무시):', e && e.message));
+        } else {
+            console.warn('[Marine] dmdwPush.enqueueSuspiciousAlert 미구현 — push skip');
+        }
+    } catch (e) {
+        console.error('[Marine] _enqueueSuspiciousAlert 실패:', e && e.message);
+    }
+}
+
+/**
+ * 관리자 결정 처리 — admin route 에서 호출.
+ *   decision = 'normal'  → 정상 해제 인정 (다음 cycle 에서 release push 발사 유도)
+ *   decision = 'invalid' → 수집 오류로 유지 (currentCase 유지, push 카운터 리셋)
+ *
+ * @returns {Object} { ok: true, decision, zones, caseId } 또는 { error: string }
+ */
+function decideSuspiciousCase(decision, decidedBy) {
+    if (_suspiciousState === null) {
+        _suspiciousState = _loadSuspiciousState();
+    }
+    if (!_suspiciousState.currentCase) {
+        return { error: 'no pending case' };
+    }
+    if (decision !== 'normal' && decision !== 'invalid') {
+        return { error: 'invalid decision (expected normal | invalid)' };
+    }
+
+    const zones = (_suspiciousState.currentCase.zones || []).map(z => z.name);
+    const caseId = _suspiciousState.currentCase.id;
+    const now = Date.now();
+    const elapsedMin = Math.floor((now - _suspiciousState.currentCase.firstSeenAt) / 60000);
+
+    if (decision === 'normal') {
+        // history 에 기록
+        _suspiciousState.history.unshift({
+            id: caseId,
+            firstSeenAt: _suspiciousState.currentCase.firstSeenAt,
+            decidedAt: now,
+            decision: 'normal',
+            decidedBy: decidedBy || 'unknown',
+            zones: zones.slice(),
+            elapsedMin: elapsedMin,
+            cycleCount: _suspiciousState.currentCase.cycleCount
+        });
+        _suspiciousState.history = _suspiciousState.history.slice(0, SUSPICIOUS_HISTORY_LIMIT);
+        // 다음 cycle 의 guard 가 더이상 zone 을 복원하지 않도록 prev 에서 제거
+        // (직접 prev 수정 — 다음 run() 의 _classifyReleases 에서 해당 zone 이 prev 에 없으면
+        //  자연스럽게 무시되어 release 분기 트리거 안 됨)
+        // → 대안: 즉시 pending 등록 → 다음 cycle 에서 강제 release 처리
+        _pendingImmediateRelease = (_suspiciousState.currentCase.zones || []).slice();
+        _suspiciousState.currentCase = null;
+        _saveSuspiciousState(_suspiciousState);
+        // 즉시 release push 발사 (다음 cycle 안 기다림)
+        _enqueueImmediateRelease(_pendingImmediateRelease);
+        _pendingImmediateRelease = null;
+        return { ok: true, decision, zones, caseId };
+    } else {
+        // invalid — currentCase 유지, lastPushAt 만 now 로 (10분 카운터 reset)
+        _suspiciousState.currentCase.lastPushAt = now;
+        _saveSuspiciousState(_suspiciousState);
+        return { ok: true, decision, zones, caseId };
+    }
+}
+
+/**
+ * decide('normal') 시 즉시 release push 발사.
+ * zones 는 caseZone 객체 배열 ({name, wrnTp, wrnTpNm, wrnLvl, wrnLvlNm, tmFc, tmEf}).
+ *
+ * 같은 wrnTp+wrnLvl 별로 묶어서 enqueueParentRelease 호출.
+ * prev.parents 에서 zone 을 제거하여 다음 cycle 에서 release 가 다시 트리거되지 않도록 함.
+ */
+async function _enqueueImmediateRelease(caseZones) {
+    try {
+        if (!Array.isArray(caseZones) || caseZones.length === 0) return;
+        const cycleId = Date.now();
+
+        // prev snapshot 에서 해당 zone 제거 (이미 정상 해제로 처리되었으므로)
+        if (_prevSnapshot && _prevSnapshot.parents) {
+            for (const z of caseZones) {
+                if (z && z.name) _prevSnapshot.parents.delete(z.name);
+            }
+            _savePrevSnapshot(_prevSnapshot);
+        }
+
+        // wrnTp+wrnLvl 별로 그룹화
+        const groups = new Map();
+        for (const z of caseZones) {
+            if (!z || !z.name) continue;
+            const key = `${z.wrnTp || 'UNK'}|${z.wrnLvl || 'UNK'}`;
+            if (!groups.has(key)) groups.set(key, { wrnTp: z.wrnTp, wrnLvl: z.wrnLvl, info: z, entries: [] });
+            groups.get(key).entries.push({
+                fullName: z.name,
+                wrnTp: z.wrnTp,
+                wrnLvl: z.wrnLvl,
+                wrnTpNm: z.wrnTpNm,
+                wrnLvlNm: z.wrnLvlNm,
+                tmFc: z.tmFc,
+                tmEf: z.tmEf
+            });
+        }
+
+        for (const group of groups.values()) {
+            try {
+                dmdwPush.enqueueParentRelease(cycleId, group.wrnTp, group.wrnLvl, group.entries, group.info);
+            } catch (e) {
+                console.error('[Marine] enqueueParentRelease 실패:', e && e.message);
+            }
+        }
+        await dmdwPush.flushParent(cycleId, {}).catch(e => {
+            console.error('[Marine] flushParent (immediate release) 실패:', e && e.message);
+        });
+    } catch (e) {
+        console.error('[Marine] _enqueueImmediateRelease 실패:', e && e.message);
+    }
+}
+
+/**
+ * admin route 용 조회.
+ */
+function getSuspiciousState() {
+    if (_suspiciousState === null) {
+        _suspiciousState = _loadSuspiciousState();
+    }
+    return {
+        currentCase: _suspiciousState.currentCase,
+        history: _suspiciousState.history || []
+    };
 }
 
 // ============================================================================
@@ -1099,10 +1288,10 @@ async function run(opts = {}) {
             return [];
         }
 
-        // 4) [D-medium 옵션 C] 의심 가드 — mmis 빈 응답 / 부분 누락 폭주 차단.
+        // 4) [D-medium 인터랙티브] 의심 가드 — mmis 빈 응답 / 부분 누락 폭주 차단.
         //    clr_ntc_tm 미등록 zone 이 SUSPICIOUS_THRESHOLD 이상 사라지면
         //    의심 zone 을 curr 에 prev 정보로 복원 → 이번 cycle 의 release 분기 보류.
-        //    MAX_SUSPICIOUS_CYCLES 도달 시 강제 정상 처리 (10분 한도).
+        //    관리자 결정(normal/invalid) 전까지 자동 처리 안 됨 (10분마다 재push).
         //    정상 해제 (clr_ntc_tm 등록) 는 영향 받지 않음.
         const prevForDiff = _prevSnapshot;
         _applySuspiciousGuard(prevForDiff, curr);
@@ -1155,12 +1344,16 @@ module.exports = {
     _isSnapshotEmpty,
     // [D-6 (A)] 시간 형식 변환 (테스트용 노출)
     normalizeMmisTime,
-    // [D-medium 옵션 C] 의심 가드 (테스트용 노출)
+    // [D-medium 인터랙티브] 의심 가드 + 결정 API
     _classifyReleases,
     _applySuspiciousGuard,
     _loadSuspiciousState,
     _saveSuspiciousState,
+    _enqueueImmediateRelease,
+    decideSuspiciousCase,
+    getSuspiciousState,
     _SUSPICIOUS_FILE,
-    MAX_SUSPICIOUS_CYCLES,
-    SUSPICIOUS_THRESHOLD
+    SUSPICIOUS_THRESHOLD,
+    PUSH_REINFORCE_INTERVAL,
+    SUSPICIOUS_HISTORY_LIMIT
 };
