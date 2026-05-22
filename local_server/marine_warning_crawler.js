@@ -992,26 +992,51 @@ function _collectLeafZonesByName(tree) {
  * @returns {Object} zone tree (동/서/남/제주 4 sea)
  */
 /**
- * [D-6 (A)] mmis 시간 형식을 우리 시스템 한글 형식으로 변환.
- *   - 일반 시간 ("2026.05.21 06:00") → "2026년 05월 21일 06시 00분" (기존 weather_alerts.json 형식)
- *   - 범위형 ("22일 21시 ~ 24시", clr_ntc_tm) → 그대로 통과 (사용자 앱 이미 범위형 표출 지원)
+ * [D-6 (A) + Followup] mmis 시간 형식을 우리 시스템 한글 형식으로 변환.
+ *   - 일반 시간 ("2026.05.21 06:00") → "2026년 05월 21일 06시 00분"
+ *   - 범위형 ("22일 21시 ~ 24시") → "22일 밤(21시~24시)" (시간대 명칭 보강)
  *   - 자연어 ("내일 오전" 등) → 그대로 통과
  *   - 빈 값/null/undefined → ''
  *
- * 정규식 분리 원칙:
- *   1. 범위 표시 (~ 또는 ∼) 가 있으면 → 범위형 → 그대로
- *   2. "YYYY.MM.DD HH:MM" 정확히 매칭 → 변환
- *   3. 그 외 → 그대로 (이미 변환되었거나 unknown 형식)
+ * 시간대 매핑 (시작시각 기준):
+ *   0-6시 새벽 / 6-9시 아침 / 9-12시 오전 / 12-15시 낮 / 15-18시 오후 / 18-24시 밤
  */
+function _periodNameByHour(h) {
+    if (h >= 18) return '밤';
+    if (h < 6) return '새벽';
+    if (h >= 15) return '오후';
+    if (h >= 12) return '낮';
+    if (h >= 9) return '오전';
+    return '아침';  // 6 <= h < 9
+}
+
 function normalizeMmisTime(t) {
     if (!t) return '';
-    const s = String(t);
-    if (/[~∼]/.test(s)) return s;  // 범위형 그대로
+    const s = String(t).trim();
+
+    // 범위형 변환: "22일 21시 ~ 24시" → "22일 밤(21시~24시)"
+    //   (옛 시스템 표시 형식 호환 — 사용자 앱 utils.js 의 시간대 분기 호출용)
+    const rangeMatch = s.match(/^(\d+)일\s*(\d+)시\s*[~∼]\s*(\d+)시$/);
+    if (rangeMatch) {
+        const day = rangeMatch[1];
+        const startH = parseInt(rangeMatch[2], 10);
+        const endH = parseInt(rangeMatch[3], 10);
+        const period = _periodNameByHour(startH);
+        const startStr = String(startH).padStart(2, '0');
+        const endStr = String(endH).padStart(2, '0');
+        return `${day}일 ${period}(${startStr}시~${endStr}시)`;
+    }
+
+    // 이미 시간대 명칭 있는 범위형 → 그대로 통과
+    if (/[~∼]/.test(s)) return s;
+
+    // 일반 시간 변환: "2026.05.21 06:00" → "2026년 05월 21일 06시 00분"
     const m = s.match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})$/);
     if (m) {
         const [, Y, M, D, h, mn] = m;
         return `${Y}년 ${M}월 ${D}일 ${h}시 ${mn}분`;
     }
+
     return s;
 }
 
