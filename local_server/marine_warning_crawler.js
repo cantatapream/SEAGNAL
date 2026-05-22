@@ -43,6 +43,14 @@ const fs = require('fs');
 const path = require('path');
 const dmdwPush = require('./services/dmdw_push_sender');
 const pushHelpers = require('./services/push_helpers');
+// [사용자 푸시 복원] legacy 시스템에서 weather_alerts_crawler 가 호출하던 push_sender.
+// marine v7 통합 시 legacy 비활성화 → 사용자 push 채널 끊김 → 복원.
+let pushSender = null;
+try {
+    pushSender = require('./push_sender');
+} catch (e) {
+    console.warn('[marine_warning_crawler] push_sender 로드 실패 — 사용자 push 비활성:', e && e.message);
+}
 
 // marine_client 는 require 단계에서 자격증명 검사 후 enabled 플래그만 노출.
 // 자격증명 부재 시 require 자체는 성공하며, 인증 endpoint 호출 시에만 throw.
@@ -778,6 +786,62 @@ function decideSuspiciousCase(decision, decidedBy) {
  * 같은 wrnTp+wrnLvl 별로 묶어서 enqueueParentRelease 호출.
  * prev.parents 에서 zone 을 제거하여 다음 cycle 에서 release 가 다시 트리거되지 않도록 함.
  */
+/**
+ * [사용자 push 복원] prev vs curr 의 부모 zone 변화를 push_sender 형식으로 변환.
+ *   push_sender.processChanges(changes) 가 받는 형식:
+ *     [{ type: 'CURRENT_CHANGE' | 'UPCOMING_CHANGE', zone, prev, curr, currentActive? }, ...]
+ *
+ *   각 prev/curr 객체는 { wrnTp, wrnLvl, tmFc, tmEf, tmYn } — wrnTp/wrnLvl 은 한글.
+ *
+ *   - 부모 zone 만 (자식 정보 X — 사용자 push V15 호환)
+ *   - 변화 없는 zone (prev==curr) 은 skip
+ *   - currentActive 는 push_sender 가 격상/격하 판정에 사용 (prev 와 동일하게 전달)
+ */
+function _buildUserPushChanges(prev, curr) {
+    const changes = [];
+    if (!prev || !curr) return changes;
+
+    const allZones = new Set();
+    if (prev.parents) for (const k of prev.parents.keys()) allZones.add(k);
+    if (curr.parents) for (const k of curr.parents.keys()) allZones.add(k);
+
+    const toBlock = (info) => info ? {
+        wrnTp: info.wrnTpNm || info.wrnTp || '',
+        wrnLvl: info.wrnLvlNm || info.wrnLvl || '',
+        tmFc: info.tmFc || '',
+        tmEf: info.tmEf || '',
+        tmYn: info.tmYn || info.clrNtcTm || ''
+    } : null;
+
+    for (const zone of allZones) {
+        const p = prev.parents ? prev.parents.get(zone) : null;
+        const c = curr.parents ? curr.parents.get(zone) : null;
+
+        // 변화 없으면 skip
+        if (!p && !c) continue;
+        if (p && c
+            && (p.wrnLvlNm || '') === (c.wrnLvlNm || '')
+            && (p.tmEf || '') === (c.tmEf || '')
+            && (p.tmYn || '') === (c.tmYn || '')
+            && (p.clrNtcTm || '') === (c.clrNtcTm || '')) {
+            continue;
+        }
+
+        const prevBlock = toBlock(p);
+        const currBlock = toBlock(c);
+
+        changes.push({
+            type: 'CURRENT_CHANGE',
+            zone: zone,
+            prev: prevBlock,
+            curr: currBlock,
+            currentActive: prevBlock  // push_sender 의 격상/격하 판정용
+        });
+    }
+
+    return changes;
+}
+
 async function _enqueueImmediateRelease(caseZones) {
     try {
         if (!Array.isArray(caseZones) || caseZones.length === 0) return;
@@ -1331,17 +1395,34 @@ async function run(opts = {}) {
         const prevForDiff = _prevSnapshot;
         _applySuspiciousGuard(prevForDiff, curr);
 
-        // 5) diff + dispatch + flush
+        // 5) diff + dispatch + flush (관리자 push — 자식 정보 묶음)
         const sent = await runDiffAndPush(prevForDiff, curr, {
             cycleId: opts.cycleId || Date.now(),
             dryRun: !!opts.dryRun
         });
 
-        // 5) curr 를 다음 사이클의 prev 로 저장
+        // 5-B) [사용자 푸시 복원] 부모 zone 단위 변화 → push_sender.processChanges
+        //   legacy 시스템에서 weather_alerts_crawler 가 호출하던 채널.
+        //   marine v7 통합 시 legacy 비활성화로 끊긴 사용자 푸시 채널 복원.
+        //   - 부모 단위만 (자식 정보 X — V15 호환)
+        //   - push_sender 자체 dedup (pendingPushes.json) 으로 중복 방지
+        //   - 첫 부팅 가드 (위 E-1) 안 가드도 통과 후라 안전
+        if (!opts.dryRun && pushSender && typeof pushSender.processChanges === 'function') {
+            try {
+                const userChanges = _buildUserPushChanges(prevForDiff, curr);
+                if (userChanges.length > 0) {
+                    await pushSender.processChanges(userChanges);
+                }
+            } catch (e) {
+                console.error('[marine_warning_crawler] 사용자 push 발사 실패 (관리자 push 영향 없음):', e && e.message);
+            }
+        }
+
+        // 6) curr 를 다음 사이클의 prev 로 저장
         _prevSnapshot = curr;
         _savePrevSnapshot(curr);
 
-        // 6) [Followup E-2] weather_alerts.json 갱신 — SPEC §4.
+        // 7) [Followup E-2] weather_alerts.json 갱신 — SPEC §4.
         //    dispatch 후 / state 저장 후 / cycle 끝에 한 번. atomic tmp → rename.
         //    실패해도 push 흐름엔 영향 없음 (다음 cycle 에서 재시도).
         _writeWeatherAlertsJson(prevForDiff, curr);
