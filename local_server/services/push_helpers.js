@@ -668,6 +668,12 @@ function fmtTime(str) {
         const [, , , day, rest] = m;
         return `${String(day).padStart(2, '0')}일 ${rest}`.trim();
     }
+    // [Must-fix from FINAL_BOOST_REVIEW] mmis 점 구분자 형식 "2026.05.21 06:00"
+    m = str.match(/(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/);
+    if (m) {
+        const [, , , day, hour, minute] = m;
+        return `${parseInt(day, 10)}일 ${hour}:${minute}`;
+    }
     return str;
 }
 

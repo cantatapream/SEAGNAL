@@ -521,6 +521,130 @@ function _savePrevSnapshot(snap) {
 }
 
 // ============================================================================
+// [D-medium 옵션 C] mmis 빈 응답 폭주 방어 — clr_ntc_tm 기반 + 10 cycles 시간 제한
+// ============================================================================
+//
+// 배경: mmis endpoint 일시 장애 / 응답 누락 시 prev 에 있던 zone 들이 curr 에 없어
+//   release 푸시 일괄 발사되는 사고 위험. 그러나 정상 일괄 해제 (예: 태풍 종결 시
+//   8개 zone 동시 해제) 도 가능하므로 일률적으로 skip 하면 정상 해제 누락.
+//
+// 정책 (옵션 C):
+//   - clr_ntc_tm (사전 해제 예고) 이 등록된 zone 이 사라지면 → 정상 해제로 인정
+//   - clr_ntc_tm 없이 사라진 zone 이 SUSPICIOUS_THRESHOLD 개 이상 → 의심 cycle
+//     • 의심 zone 은 curr 에 다시 추가하여 "아직 발효 중" 으로 위장 → release skip
+//     • cycleCount 증가, 디스크 영속화
+//   - mmis 회복 (curr 에 zone 재등장 또는 의심 미달) → suspiciousState reset
+//   - cycleCount 가 MAX_SUSPICIOUS_CYCLES 도달 → 강제 해제 인정 (10분 한도)
+//
+// 디스크 영속화: data/marine_suspicious_state.json (재배포 시 상태 복원)
+const _SUSPICIOUS_FILE = path.join(__dirname, 'data', 'marine_suspicious_state.json');
+const _SUSPICIOUS_TMP = _SUSPICIOUS_FILE + '.tmp';
+const MAX_SUSPICIOUS_CYCLES = 10;   // 10 cycles = 10 minutes (1 cycle = 1 min)
+const SUSPICIOUS_THRESHOLD = 3;     // 3+ zone 미예고 사라짐 시 의심 가드 작동
+
+let _suspiciousState = null;        // lazy load
+
+function _loadSuspiciousState() {
+    try {
+        if (fs.existsSync(_SUSPICIOUS_FILE)) {
+            const raw = fs.readFileSync(_SUSPICIOUS_FILE, 'utf8');
+            const data = JSON.parse(raw);
+            return {
+                zones: Array.isArray(data.zones) ? data.zones : [],
+                firstSeenAt: data.firstSeenAt || null,
+                cycleCount: typeof data.cycleCount === 'number' ? data.cycleCount : 0
+            };
+        }
+    } catch (e) {
+        console.warn('[marine_warning_crawler] suspicious state 복원 실패 (무시):', e && e.message);
+    }
+    return { zones: [], firstSeenAt: null, cycleCount: 0 };
+}
+
+function _saveSuspiciousState(state) {
+    try {
+        const dir = path.dirname(_SUSPICIOUS_FILE);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(_SUSPICIOUS_TMP, JSON.stringify(state, null, 2), 'utf8');
+        fs.renameSync(_SUSPICIOUS_TMP, _SUSPICIOUS_FILE);
+    } catch (e) {
+        console.warn('[marine_warning_crawler] suspicious state 저장 실패 (무시):', e && e.message);
+    }
+}
+
+/**
+ * 사라진 zone 들을 clr_ntc_tm 등록 여부로 분류.
+ *   - normalReleases: clr_ntc_tm 등록 → 정상 해제 인정
+ *   - suspiciousZones: 미등록 → 의심 (mmis 누락 가능성)
+ */
+function _classifyReleases(prev, curr) {
+    const normalReleases = [];
+    const suspiciousZones = [];
+    if (!prev || !prev.parents) return { normalReleases, suspiciousZones };
+    for (const [name, info] of prev.parents) {
+        if (curr.parents.has(name)) continue;     // 아직 발효 중
+        if (!info) continue;
+        if (info.wrnLvlNm === '해제') continue;    // 이미 해제 처리
+        if (info.clrNtcTm && String(info.clrNtcTm).length > 0) {
+            normalReleases.push(name);
+        } else {
+            suspiciousZones.push(name);
+        }
+    }
+    return { normalReleases, suspiciousZones };
+}
+
+/**
+ * 의심 가드 적용 — curr 를 in-place 수정 (의심 zone 을 prev 정보로 복원).
+ *   반환: { skipped: string[], forced: string[] }
+ *     - skipped: 이번 cycle 에서 release 발사를 보류한 zone
+ *     - forced: 10 cycles 한도 도달로 강제 release 처리한 zone (curr 에 복원 안 함)
+ */
+function _applySuspiciousGuard(prev, curr) {
+    if (_suspiciousState === null) {
+        _suspiciousState = _loadSuspiciousState();
+    }
+    const { suspiciousZones } = _classifyReleases(prev, curr);
+    const result = { skipped: [], forced: [] };
+
+    if (suspiciousZones.length >= SUSPICIOUS_THRESHOLD) {
+        _suspiciousState.cycleCount += 1;
+        if (!_suspiciousState.firstSeenAt) {
+            _suspiciousState.firstSeenAt = Date.now();
+            _suspiciousState.zones = suspiciousZones.slice();
+        }
+        if (_suspiciousState.cycleCount >= MAX_SUSPICIOUS_CYCLES) {
+            console.warn('[Marine] 의심 ' + MAX_SUSPICIOUS_CYCLES +
+                ' cycles 지속 — 해제로 인정 (강제): ' + suspiciousZones.join(', '));
+            result.forced = suspiciousZones.slice();
+            _suspiciousState = { zones: [], firstSeenAt: null, cycleCount: 0 };
+            _saveSuspiciousState(_suspiciousState);
+            // forced 인 경우 curr 에 복원하지 않음 → 정상 release 흐름 진입
+        } else {
+            console.warn('[Marine] 의심 zone ' + suspiciousZones.length +
+                '개 — cycle skip (' + _suspiciousState.cycleCount + '/' +
+                MAX_SUSPICIOUS_CYCLES + '): ' + suspiciousZones.join(', '));
+            // curr 에 prev 정보 복원 → "아직 발효 중" 으로 위장하여 release 분기 미작동
+            for (const name of suspiciousZones) {
+                const info = prev.parents.get(name);
+                if (info) curr.parents.set(name, info);
+            }
+            result.skipped = suspiciousZones.slice();
+            _saveSuspiciousState(_suspiciousState);
+        }
+    } else {
+        // 의심 없음 또는 임계값 미달 — mmis 정상 / 회복
+        if (_suspiciousState.firstSeenAt) {
+            console.log('[Marine] mmis 회복 — 의심 상태 reset (이전 zones=' +
+                (_suspiciousState.zones || []).length + ')');
+            _suspiciousState = { zones: [], firstSeenAt: null, cycleCount: 0 };
+            _saveSuspiciousState(_suspiciousState);
+        }
+    }
+    return result;
+}
+
+// ============================================================================
 // [Followup E-2] weather_alerts.json zone tree 갱신
 // ============================================================================
 //
@@ -975,8 +1099,15 @@ async function run(opts = {}) {
             return [];
         }
 
-        // 4) diff + dispatch + flush
+        // 4) [D-medium 옵션 C] 의심 가드 — mmis 빈 응답 / 부분 누락 폭주 차단.
+        //    clr_ntc_tm 미등록 zone 이 SUSPICIOUS_THRESHOLD 이상 사라지면
+        //    의심 zone 을 curr 에 prev 정보로 복원 → 이번 cycle 의 release 분기 보류.
+        //    MAX_SUSPICIOUS_CYCLES 도달 시 강제 정상 처리 (10분 한도).
+        //    정상 해제 (clr_ntc_tm 등록) 는 영향 받지 않음.
         const prevForDiff = _prevSnapshot;
+        _applySuspiciousGuard(prevForDiff, curr);
+
+        // 5) diff + dispatch + flush
         const sent = await runDiffAndPush(prevForDiff, curr, {
             cycleId: opts.cycleId || Date.now(),
             dryRun: !!opts.dryRun
@@ -1023,5 +1154,13 @@ module.exports = {
     _WEATHER_ALERTS_FILE,
     _isSnapshotEmpty,
     // [D-6 (A)] 시간 형식 변환 (테스트용 노출)
-    normalizeMmisTime
+    normalizeMmisTime,
+    // [D-medium 옵션 C] 의심 가드 (테스트용 노출)
+    _classifyReleases,
+    _applySuspiciousGuard,
+    _loadSuspiciousState,
+    _saveSuspiciousState,
+    _SUSPICIOUS_FILE,
+    MAX_SUSPICIOUS_CYCLES,
+    SUSPICIOUS_THRESHOLD
 };
