@@ -278,15 +278,25 @@
     }
 
     /**
-     * "자식 라벨 전용" 스타일 — 활성 모드에서 자식해역의 fill/stroke 는 그리지
-     * 않고 라벨만 표출한다.
+     * "자식 외곽선 + 라벨" 스타일 — 활성 모드에서 자식해역이 비활성일 때 사용.
      *
-     * [왜 라벨만?]
-     *   - fill/stroke 정책: 자식 polygon 의 fill 은 부모 main polygon 과 영역이
-     *     겹쳐 alpha 합성으로 색이 진해지는 부작용(예: 주의보→경보로 오인) 이 있어
-     *     활성 모드에선 자식 fill/stroke 를 그리지 않는 정책 유지.
-     *   - 라벨만: 사용자 요청 — 자식 라벨은 일반 모드와 같은 위치/텍스트로 표출해
-     *     활성 모드 전환 시 자식해역 식별 가능성을 잃지 않게 한다.
+     * [정책 변경 이력]
+     *   (a) 640afb7 (2026-04): 활성 모드에서 비활성 자식은 _EMPTY_STYLE 로 완전 숨김.
+     *       이유: setSubMinZoomDisabled(true) 로 minZoom 해제되어 줌 6~8 에서도
+     *       자식 청록 점선 + 라벨 다수 표출 → 시각 노이즈.
+     *   (b) 5acafbe (2026-05): 라벨만 그리고 fill/stroke 는 미표출. 사용자 식별성 부분 회복.
+     *   (c) 본 수정 (v7 머지 후): 라벨 + **얇은 회색 점선 외곽선** 추가.
+     *       이유: 사용자 보고 — "특보구역 ON 시 자식 zone (연안바다/평수구역) 의
+     *       테두리가 안 보임". 부모가 활성으로 색칠된 zone 에선 _holedGeometry
+     *       로 자식 영역을 도려내 부모 fill 의 경계가 자연스러운 자식 테두리
+     *       역할을 했지만, **부모가 비활성**인 zone 에선 그 경계조차 없어 자식
+     *       구역이 보이지 않음. 부분 회귀 (일부 zone OK, 일부 NG) 가 이 차이에서
+     *       기인.
+     *
+     * [선 사양]
+     *   _dimmedOutlineStyle (메인 비활성) 과 동일 색조(rgba(140,140,140,0.55))
+     *   + 점선 [5,4] + width 1.0 → 비활성 메인과 통일된 시각 무게.
+     *   fill 은 미설정 (활성 색칠과 alpha 합성 부작용 회피).
      *
      * [텍스트/오프셋 규칙]
      *   ocean_warn_zone.js 의 _buildSubZoneTextStyle 공유 — SUBZONE_LABEL_MAP,
@@ -297,7 +307,13 @@
      * @returns {ol.style.Style}
      */
     function _subLabelOnlyStyle(feature) {
-        var style = new ol.style.Style({});
+        var style = new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: 'rgba(140, 140, 140, 0.55)',
+                width: 1.0,
+                lineDash: [5, 4]
+            })
+        });
         if (feature && window.OceanWarnZone
             && window.OceanWarnZone.buildSubZoneTextStyle) {
             var subText = window.OceanWarnZone.buildSubZoneTextStyle(feature, {

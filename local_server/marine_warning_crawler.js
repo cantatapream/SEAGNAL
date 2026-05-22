@@ -43,6 +43,14 @@ const fs = require('fs');
 const path = require('path');
 const dmdwPush = require('./services/dmdw_push_sender');
 const pushHelpers = require('./services/push_helpers');
+// [사용자 푸시 복원] legacy 시스템에서 weather_alerts_crawler 가 호출하던 push_sender.
+// marine v7 통합 시 legacy 비활성화 → 사용자 push 채널 끊김 → 복원.
+let pushSender = null;
+try {
+    pushSender = require('./push_sender');
+} catch (e) {
+    console.warn('[marine_warning_crawler] push_sender 로드 실패 — 사용자 push 비활성:', e && e.message);
+}
 
 // marine_client 는 require 단계에서 자격증명 검사 후 enabled 플래그만 노출.
 // 자격증명 부재 시 require 자체는 성공하며, 인증 endpoint 호출 시에만 throw.
@@ -778,6 +786,62 @@ function decideSuspiciousCase(decision, decidedBy) {
  * 같은 wrnTp+wrnLvl 별로 묶어서 enqueueParentRelease 호출.
  * prev.parents 에서 zone 을 제거하여 다음 cycle 에서 release 가 다시 트리거되지 않도록 함.
  */
+/**
+ * [사용자 push 복원] prev vs curr 의 부모 zone 변화를 push_sender 형식으로 변환.
+ *   push_sender.processChanges(changes) 가 받는 형식:
+ *     [{ type: 'CURRENT_CHANGE' | 'UPCOMING_CHANGE', zone, prev, curr, currentActive? }, ...]
+ *
+ *   각 prev/curr 객체는 { wrnTp, wrnLvl, tmFc, tmEf, tmYn } — wrnTp/wrnLvl 은 한글.
+ *
+ *   - 부모 zone 만 (자식 정보 X — 사용자 push V15 호환)
+ *   - 변화 없는 zone (prev==curr) 은 skip
+ *   - currentActive 는 push_sender 가 격상/격하 판정에 사용 (prev 와 동일하게 전달)
+ */
+function _buildUserPushChanges(prev, curr) {
+    const changes = [];
+    if (!prev || !curr) return changes;
+
+    const allZones = new Set();
+    if (prev.parents) for (const k of prev.parents.keys()) allZones.add(k);
+    if (curr.parents) for (const k of curr.parents.keys()) allZones.add(k);
+
+    const toBlock = (info) => info ? {
+        wrnTp: info.wrnTpNm || info.wrnTp || '',
+        wrnLvl: info.wrnLvlNm || info.wrnLvl || '',
+        tmFc: info.tmFc || '',
+        tmEf: info.tmEf || '',
+        tmYn: info.tmYn || info.clrNtcTm || ''
+    } : null;
+
+    for (const zone of allZones) {
+        const p = prev.parents ? prev.parents.get(zone) : null;
+        const c = curr.parents ? curr.parents.get(zone) : null;
+
+        // 변화 없으면 skip
+        if (!p && !c) continue;
+        if (p && c
+            && (p.wrnLvlNm || '') === (c.wrnLvlNm || '')
+            && (p.tmEf || '') === (c.tmEf || '')
+            && (p.tmYn || '') === (c.tmYn || '')
+            && (p.clrNtcTm || '') === (c.clrNtcTm || '')) {
+            continue;
+        }
+
+        const prevBlock = toBlock(p);
+        const currBlock = toBlock(c);
+
+        changes.push({
+            type: 'CURRENT_CHANGE',
+            zone: zone,
+            prev: prevBlock,
+            curr: currBlock,
+            currentActive: prevBlock  // push_sender 의 격상/격하 판정용
+        });
+    }
+
+    return changes;
+}
+
 async function _enqueueImmediateRelease(caseZones) {
     try {
         if (!Array.isArray(caseZones) || caseZones.length === 0) return;
@@ -992,26 +1056,51 @@ function _collectLeafZonesByName(tree) {
  * @returns {Object} zone tree (동/서/남/제주 4 sea)
  */
 /**
- * [D-6 (A)] mmis 시간 형식을 우리 시스템 한글 형식으로 변환.
- *   - 일반 시간 ("2026.05.21 06:00") → "2026년 05월 21일 06시 00분" (기존 weather_alerts.json 형식)
- *   - 범위형 ("22일 21시 ~ 24시", clr_ntc_tm) → 그대로 통과 (사용자 앱 이미 범위형 표출 지원)
+ * [D-6 (A) + Followup] mmis 시간 형식을 우리 시스템 한글 형식으로 변환.
+ *   - 일반 시간 ("2026.05.21 06:00") → "2026년 05월 21일 06시 00분"
+ *   - 범위형 ("22일 21시 ~ 24시") → "22일 밤(21시~24시)" (시간대 명칭 보강)
  *   - 자연어 ("내일 오전" 등) → 그대로 통과
  *   - 빈 값/null/undefined → ''
  *
- * 정규식 분리 원칙:
- *   1. 범위 표시 (~ 또는 ∼) 가 있으면 → 범위형 → 그대로
- *   2. "YYYY.MM.DD HH:MM" 정확히 매칭 → 변환
- *   3. 그 외 → 그대로 (이미 변환되었거나 unknown 형식)
+ * 시간대 매핑 (시작시각 기준):
+ *   0-6시 새벽 / 6-9시 아침 / 9-12시 오전 / 12-15시 낮 / 15-18시 오후 / 18-24시 밤
  */
+function _periodNameByHour(h) {
+    if (h >= 18) return '밤';
+    if (h < 6) return '새벽';
+    if (h >= 15) return '오후';
+    if (h >= 12) return '낮';
+    if (h >= 9) return '오전';
+    return '아침';  // 6 <= h < 9
+}
+
 function normalizeMmisTime(t) {
     if (!t) return '';
-    const s = String(t);
-    if (/[~∼]/.test(s)) return s;  // 범위형 그대로
+    const s = String(t).trim();
+
+    // 범위형 변환: "22일 21시 ~ 24시" → "22일 밤(21시~24시)"
+    //   (옛 시스템 표시 형식 호환 — 사용자 앱 utils.js 의 시간대 분기 호출용)
+    const rangeMatch = s.match(/^(\d+)일\s*(\d+)시\s*[~∼]\s*(\d+)시$/);
+    if (rangeMatch) {
+        const day = rangeMatch[1];
+        const startH = parseInt(rangeMatch[2], 10);
+        const endH = parseInt(rangeMatch[3], 10);
+        const period = _periodNameByHour(startH);
+        const startStr = String(startH).padStart(2, '0');
+        const endStr = String(endH).padStart(2, '0');
+        return `${day}일 ${period}(${startStr}시~${endStr}시)`;
+    }
+
+    // 이미 시간대 명칭 있는 범위형 → 그대로 통과
+    if (/[~∼]/.test(s)) return s;
+
+    // 일반 시간 변환: "2026.05.21 06:00" → "2026년 05월 21일 06시 00분"
     const m = s.match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})$/);
     if (m) {
         const [, Y, M, D, h, mn] = m;
         return `${Y}년 ${M}월 ${D}일 ${h}시 ${mn}분`;
     }
+
     return s;
 }
 
@@ -1306,17 +1395,34 @@ async function run(opts = {}) {
         const prevForDiff = _prevSnapshot;
         _applySuspiciousGuard(prevForDiff, curr);
 
-        // 5) diff + dispatch + flush
+        // 5) diff + dispatch + flush (관리자 push — 자식 정보 묶음)
         const sent = await runDiffAndPush(prevForDiff, curr, {
             cycleId: opts.cycleId || Date.now(),
             dryRun: !!opts.dryRun
         });
 
-        // 5) curr 를 다음 사이클의 prev 로 저장
+        // 5-B) [사용자 푸시 복원] 부모 zone 단위 변화 → push_sender.processChanges
+        //   legacy 시스템에서 weather_alerts_crawler 가 호출하던 채널.
+        //   marine v7 통합 시 legacy 비활성화로 끊긴 사용자 푸시 채널 복원.
+        //   - 부모 단위만 (자식 정보 X — V15 호환)
+        //   - push_sender 자체 dedup (pendingPushes.json) 으로 중복 방지
+        //   - 첫 부팅 가드 (위 E-1) 안 가드도 통과 후라 안전
+        if (!opts.dryRun && pushSender && typeof pushSender.processChanges === 'function') {
+            try {
+                const userChanges = _buildUserPushChanges(prevForDiff, curr);
+                if (userChanges.length > 0) {
+                    await pushSender.processChanges(userChanges);
+                }
+            } catch (e) {
+                console.error('[marine_warning_crawler] 사용자 push 발사 실패 (관리자 push 영향 없음):', e && e.message);
+            }
+        }
+
+        // 6) curr 를 다음 사이클의 prev 로 저장
         _prevSnapshot = curr;
         _savePrevSnapshot(curr);
 
-        // 6) [Followup E-2] weather_alerts.json 갱신 — SPEC §4.
+        // 7) [Followup E-2] weather_alerts.json 갱신 — SPEC §4.
         //    dispatch 후 / state 저장 후 / cycle 끝에 한 번. atomic tmp → rename.
         //    실패해도 push 흐름엔 영향 없음 (다음 cycle 에서 재시도).
         _writeWeatherAlertsJson(prevForDiff, curr);
