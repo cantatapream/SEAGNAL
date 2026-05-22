@@ -1344,6 +1344,56 @@ function _buildSnapshotFromMarine(warnList, warnSascList) {
     return snap;
 }
 
+/**
+ * [V10 — 정확한 해제시각 보강]
+ *
+ * warn/list 응답에는 "현재 발효 상태"만 들어있어, 해제예고가 범위형 텍스트
+ * ("23일 3시 ~ 6시") 로만 노출되고 정확한 시각은 빠짐.
+ * 반면 warn/latest 응답은 같은 zone 에 대한 "가장 최근 통보문" 을 제공하며,
+ * 해제 통보문 발행 시 tm_ef 에 정확한 해제시각이 들어있음
+ *  (예: "2026.05.23 01:00", warn_inpt_tm 은 통보문 발행시각보다 사전등록).
+ *
+ * 이 함수는 발효중 parent zone 의 clrNtcTm 을 warn/latest 의 정확한 tm_ef 로
+ * 갱신해 사용자 앱에 정확한 시각이 표출되게 한다.
+ *
+ * 갱신 조건:
+ *  1. 동일 zone 이 발효중 (snap.parents 에 존재)
+ *  2. latest row 의 warn_cmd_nm === '해제'
+ *  3. latest row 의 tm_ef 가 존재 (정확한 시각)
+ *  4. 폭풍해일(warn_tp='5') 제외 — V8 정책
+ *
+ * 갱신 후 clrNtcTm 은 mmis 원형식 ("2026.05.23 01:00") 으로 저장되어
+ * _buildZoneTreeFromSnapshot 에서 normalizeMmisTime() 통과 시 "23일 01:00" 으로 변환됨.
+ *
+ * @param {StateSnapshot} snap
+ * @param {Array} warnLatest — fetchWarnLatest() 응답 row 배열
+ * @returns {StateSnapshot} (in-place 수정, 반환은 편의용)
+ */
+function _enrichSnapshotWithLatest(snap, warnLatest) {
+    if (!snap || !Array.isArray(warnLatest) || warnLatest.length === 0) return snap;
+    let enriched = 0;
+    for (const row of warnLatest) {
+        const tp = String(row.warn_tp || '');
+        if (tp === '5') continue;
+        const cmd = String(row.warn_cmd_nm || '').trim();
+        if (cmd !== '해제') continue;
+        const name = (row.warn_zone_nm || row.kor_nm || '').trim().replace(/\s+/g, '');
+        if (!name) continue;
+        if (!snap.parents.has(name)) continue;  // 발효중인 zone 만 보강
+        const tmEf = String(row.tm_ef || '').trim();
+        if (!tmEf) continue;
+        const info = snap.parents.get(name);
+        // 정확한 해제시각으로 clrNtcTm 갱신 (mmis 원형식 유지 — 표시 시 normalize)
+        info.clrNtcTm = tmEf;
+        snap.parents.set(name, info);
+        enriched++;
+    }
+    if (enriched > 0) {
+        console.log(`[Marine] warn/latest 보강: ${enriched} zone clrNtcTm 정확한 시각으로 갱신`);
+    }
+    return snap;
+}
+
 // ============================================================================
 // [Followup Critical-1] run() — scheduler 의 1분 cron 에서 호출되는 진입점
 // ============================================================================
@@ -1403,6 +1453,18 @@ async function run(opts = {}) {
 
         // 2) curr snapshot 구축
         const curr = _buildSnapshotFromMarine(fetched.warnList, fetched.warnSascList);
+
+        // 2-B) [V10] warn/latest 호출 → 발효중 zone 의 해제예고시각을 정확한 시각으로 보강.
+        //   warn/list 는 "현재 발효 상태" (clr_ntc_tm 이 범위형 텍스트) 만 제공.
+        //   warn/latest 는 같은 zone 에 대한 "가장 최근 통보문" 제공.
+        //   해제 통보문 발행 시 tm_ef 에 정확한 시각이 들어있음.
+        //   실패 시 graceful — 보강만 skip 하고 기존 cycle 진행.
+        try {
+            const warnLatest = await marineClient.fetchWarnLatest();
+            _enrichSnapshotWithLatest(curr, warnLatest);
+        } catch (e) {
+            console.warn('[Marine] warn/latest 호출 실패 — 보강 skip:', e && e.message);
+        }
 
         // 3) [Followup E-1 + D-1] 빈 snapshot 가드 — prev snapshot 이 비어있으면 (이유 불문)
         //    diff/dispatch 결과가 "전부 신규 발효" 로 오인되어 release/active 폭주 위험.
@@ -1483,6 +1545,7 @@ module.exports = {
     // 내부 노출 (테스트용)
     _score,
     _buildSnapshotFromMarine,
+    _enrichSnapshotWithLatest,
     _extractParent,
     _loadPrevSnapshot,
     _savePrevSnapshot,
