@@ -78,6 +78,8 @@ const { expandToMinorZones, getMatchedZones, generateMessage } = require('../ser
 
 const SUBS_FILE = path.join(DATA_DIR, 'subscriptions.json');
 const HISTORY_FILE = path.join(DATA_DIR, 'custom_push_history.json');
+// [push_counter] 누적 카운터 — push_history 500 한도 우회.
+const pushCounter = require('../services/push_counter');
 
 // ============================================================================
 // 구독/해지 이벤트 기록 함수
@@ -470,6 +472,11 @@ router.post('/api/push-custom', async (req, res) => {
         if (history.length > 500) history = history.slice(0, 500);
         fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
 
+        // [push_counter] 누적 카운터 증가 — history 500 한도 우회.
+        try {
+            pushCounter.incrementSend(successCount || 0);
+        } catch (_e) { /* counter 실패 무시 */ }
+
         res.json({ success: true, successCount, failCount });
     } catch (e) {
         console.error('커스텀 푸시 발송 실패:', e);
@@ -551,6 +558,27 @@ router.delete('/api/push-history', (req, res) => {
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: '삭제 실패' });
+    }
+});
+
+// ============================================================================
+// [push_counter] 누적 푸시 발송 카운터 조회 (500 한도 우회)
+// ============================================================================
+// push_history 는 500건으로 capped 되어 admin UI 의 "총 N회 M개" 표시가
+// 500 이상으로 증가하지 않는 문제를 해결.
+//
+// 응답: { totalSends: 12345, totalCount: 98765 }
+//   - totalSends: 발송 cycle 수 (모든 push 경로 통합)
+//   - totalCount: 발송된 push 총 개수 (수신자 수 합산)
+//
+// 부팅 시 counter 파일이 없으면 기존 push_history.json 으로부터 1회 마이그레이션.
+router.get('/api/push-counter', (req, res) => {
+    try {
+        const c = pushCounter.get();
+        res.json(c);
+    } catch (e) {
+        console.error('[push-counter] 조회 실패:', e && e.message);
+        res.status(500).json({ error: '조회 실패' });
     }
 });
 
