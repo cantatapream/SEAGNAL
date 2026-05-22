@@ -521,6 +521,278 @@ function _savePrevSnapshot(snap) {
 }
 
 // ============================================================================
+// [Followup E-2] weather_alerts.json zone tree 갱신
+// ============================================================================
+//
+// SPEC §4 — "weather_alerts.json 갱신": v7 통합 후에도 사용자 앱 weather 페이지가
+//   기존 weather_alerts.json 의 부모/자식 트리에 의존. marine_warning_crawler 가
+//   매 cycle dispatch + state save 후 이 파일도 함께 갱신해야 stale 표시 차단.
+//
+// 정책:
+//   - 기존 zone tree 구조 (동/서/남/제주 4 sea — 해상 — 앞바다 — leaf zone) 보존
+//   - 각 leaf zone 마다 { current, upcoming, history, children } 필드 유지
+//     • current   : 발효 (wrnLvlNm = 주의보/경보) 시 객체, 아니면 null
+//     • upcoming  : 예비특보 (wrnLvlNm = 예비) 시 객체, 아니면 null
+//     • history   : 본 cycle 에선 손대지 않음 (기존 디스크 값 보존)
+//     • children  : 자식 fullName 키 그대로, active 면 객체, 비활성이면 null
+//   - 디스크 파일이 이미 있으면 history / lastReportId / processedReportIds 등
+//     legacy 메타 필드를 보존하기 위해 read → current/previous 만 덮어쓰기.
+//   - 디스크 IO 는 cycle 끝에 한 번만 (atomic tmp → rename).
+//   - downstream (routes/weather.js, services/cache_manager.js, routes/admin.js)
+//     의 shape 검사 (current·children 보유 여부) 와 mtime 기반 캐시 무력화 자연 호환.
+
+const _WEATHER_ALERTS_FILE = path.join(__dirname, 'data', 'weather_alerts.json');
+const _WEATHER_ALERTS_TMP = _WEATHER_ALERTS_FILE + '.tmp';
+
+/** weather_alerts.json zone tree skeleton — 기존 weather_alerts_crawler.createZoneStructure() 와 동일. */
+function _createZoneSkeleton() {
+    const leaf = (children) => ({ current: null, upcoming: null, history: [], children: children || {} });
+    return {
+        "동해": {
+            "동해남부해상": {
+                "동해남부앞바다": {
+                    "울산앞바다": leaf({ "울산앞바다중평수구역": null, "울산앞바다중연안바다": null }),
+                    "경북남부앞바다": leaf({ "경북남부앞바다중평수구역": null, "경북남부앞바다중연안바다": null }),
+                    "경북북부앞바다": leaf({ "경북북부앞바다중연안바다": null })
+                },
+                "동해남부먼바다": {
+                    "동해남부남쪽안쪽먼바다": leaf(),
+                    "동해남부남쪽바깥먼바다": leaf(),
+                    "동해남부북쪽안쪽먼바다": leaf(),
+                    "동해남부북쪽바깥먼바다": leaf()
+                }
+            },
+            "동해중부해상": {
+                "동해중부앞바다": {
+                    "강원북부앞바다": leaf({ "강원북부앞바다중연안바다": null }),
+                    "강원중부앞바다": leaf({ "강원중부앞바다중연안바다": null }),
+                    "강원남부앞바다": leaf({ "강원남부앞바다중연안바다": null })
+                },
+                "동해중부먼바다": {
+                    "동해중부안쪽먼바다": leaf({ "울릉도울릉읍연안바다": null, "울릉도서면연안바다": null, "울릉도북면연안바다": null }),
+                    "동해중부바깥먼바다": leaf()
+                }
+            }
+        },
+        "서해": {
+            "서해남부해상": {
+                "서해남부앞바다": {
+                    "전북북부앞바다": leaf({ "전북북부앞바다중평수구역": null }),
+                    "전북남부앞바다": leaf({ "전북남부앞바다중평수구역": null }),
+                    "전남북부서해앞바다": leaf({ "전남북부서해앞바다중평수구역": null }),
+                    "전남중부서해앞바다": leaf({ "전남중부서해앞바다중먼평수구역": null, "전남중부서해앞바다중앞평수구역": null }),
+                    "전남남부서해앞바다": leaf({ "전남남부서해앞바다중평수구역": null })
+                },
+                "서해남부먼바다": {
+                    "서해남부북쪽안쪽먼바다": leaf(),
+                    "서해남부북쪽바깥먼바다": leaf(),
+                    "서해남부남쪽안쪽먼바다": leaf({ "서해남부남쪽안쪽먼바다중조도부근평수구역": null }),
+                    "서해남부남쪽바깥먼바다": leaf()
+                }
+            },
+            "서해중부해상": {
+                "서해중부앞바다": {
+                    "인천·경기북부앞바다": leaf({ "인천·경기북부앞바다중평수구역": null }),
+                    "인천·경기남부앞바다": leaf({ "인천·경기남부앞바다중먼평수구역": null, "인천·경기남부앞바다중북부앞평수구역": null, "인천·경기남부앞바다중남부앞평수구역": null }),
+                    "충남북부앞바다": leaf({ "천수만평수구역": null, "안면도서쪽평수구역": null, "당진평수구역": null, "태안·서산북쪽평수구역": null }),
+                    "충남남부앞바다": leaf({ "충남남부앞바다중평수구역": null })
+                },
+                "서해중부먼바다": {
+                    "서해중부안쪽먼바다": leaf(),
+                    "서해중부바깥먼바다": leaf()
+                }
+            }
+        },
+        "남해": {
+            "남해동부해상": {
+                "남해동부앞바다": {
+                    "부산앞바다": leaf({ "부산앞바다중동부평수구역": null, "부산앞바다중서부평수구역": null, "부산앞바다중연안바다": null }),
+                    "경남서부남해앞바다": leaf({ "경남서부남해앞바다중동부평수구역": null, "경남서부남해앞바다중서부평수구역": null, "경남서부남해앞바다중남부평수구역": null, "경남서부남해앞바다중남해군연안바다": null }),
+                    "경남중부남해앞바다": leaf({ "경남중부남해앞바다중평수구역": null, "경남중부남해앞바다중연안바다": null }),
+                    "거제시동부앞바다": leaf({ "거제시동부앞바다중연안바다": null })
+                },
+                "남해동부먼바다": {
+                    "남해동부안쪽먼바다": leaf(),
+                    "남해동부바깥먼바다": leaf()
+                }
+            },
+            "남해서부해상": {
+                "남해서부앞바다": {
+                    "전남서부남해앞바다": leaf({ "전남서부남해앞바다중평수구역": null }),
+                    "전남동부남해앞바다": leaf({ "전남동부남해앞바다중서부평수구역": null, "전남동부남해앞바다중동부평수구역": null })
+                },
+                "남해서부먼바다": {
+                    "남해서부서쪽먼바다": leaf({ "남해서부서쪽먼바다중추자도연안바다": null }),
+                    "남해서부동쪽먼바다": leaf()
+                }
+            }
+        },
+        "제주도": {
+            "제주도앞바다": {
+                "제주도북부앞바다": leaf({ "제주도북부앞바다중연안바다": null }),
+                "제주도동부앞바다": leaf({ "제주도동부앞바다중북동연안바다": null, "제주도동부앞바다중남동연안바다": null, "제주도동부앞바다중우도연안바다": null }),
+                "제주도남부앞바다": leaf({ "제주도남부앞바다중연안바다": null }),
+                "제주도서부앞바다": leaf({ "제주도서부앞바다중북서연안바다": null, "제주도서부앞바다중남서연안바다": null, "제주도서부앞바다중가파도연안바다": null })
+            },
+            "제주도먼바다": {
+                "제주도남쪽바깥먼바다": leaf(),
+                "제주도남동쪽안쪽먼바다": leaf(),
+                "제주도남서쪽안쪽먼바다": leaf()
+            }
+        }
+    };
+}
+
+/** zone tree leaf 노드 (current + children 보유) 를 부모 이름 → 노드 Map 으로 수집. */
+function _collectLeafZonesByName(tree) {
+    const out = new Map();
+    function walk(node) {
+        if (!node || typeof node !== 'object') return;
+        for (const [k, v] of Object.entries(node)) {
+            if (!v || typeof v !== 'object') continue;
+            const isLeaf = Object.prototype.hasOwnProperty.call(v, 'current')
+                && Object.prototype.hasOwnProperty.call(v, 'children');
+            if (isLeaf) {
+                out.set(k, v);
+            } else {
+                walk(v);
+            }
+        }
+    }
+    walk(tree);
+    return out;
+}
+
+/**
+ * StateSnapshot → 기존 zone tree 형식 변환.
+ *
+ *   - skeleton 의 leaf zone 들을 순회 → snapshot.parents / snapshot.children 으로부터
+ *     current / upcoming / children 값을 채운다.
+ *   - 예비 (wrnLvlNm = '예비') → upcoming. 정식 (주의보/경보) → current.
+ *   - history 는 손대지 않음 (skeleton 의 [] 그대로 — 호출자가 디스크값 머지).
+ *   - 자식: skeleton 의 children 객체에 등록된 자식만 채운다 (skeleton 외 자식은 무시).
+ *
+ * @param {StateSnapshot} snap
+ * @returns {Object} zone tree (동/서/남/제주 4 sea)
+ */
+function _buildZoneTreeFromSnapshot(snap) {
+    const tree = _createZoneSkeleton();
+    if (!snap) return tree;
+    const leafByName = _collectLeafZonesByName(tree);
+
+    // 부모 발효 채우기
+    for (const [parentName, info] of snap.parents) {
+        const leaf = leafByName.get(parentName);
+        if (!leaf) continue;
+        if (!info || !info.wrnLvlNm) continue;
+        const block = {
+            wrnTp: info.wrnTp || '',
+            wrnTpNm: info.wrnTpNm || '',
+            wrnLvl: info.wrnLvl || '',
+            wrnLvlNm: info.wrnLvlNm || '',
+            tmFc: info.tmFc || '',
+            tmEf: info.tmEf || '',
+            tmYn: info.tmYn || '',
+            clrNtcTm: info.clrNtcTm || '',
+            source: 'MARINE_MMIS'
+        };
+        if (info.wrnLvlNm === '예비') {
+            leaf.upcoming = block;
+        } else if (info.wrnLvlNm !== '해제') {
+            leaf.current = block;
+        }
+    }
+
+    // 자식 발효 채우기
+    for (const [parentName, childMap] of snap.children) {
+        const leaf = leafByName.get(parentName);
+        if (!leaf || !leaf.children) continue;
+        for (const [childName, info] of childMap) {
+            if (!Object.prototype.hasOwnProperty.call(leaf.children, childName)) continue;
+            if (!info || !info.wrnLvlNm) continue;
+            // 예비는 푸시 dedup 정책 따라 wrnLvlNm '주의보' 정규화 (배지엔 wrnLvl 별도 보존)
+            const lvlNmNorm = info.wrnLvlNm === '예비' ? '주의보' : info.wrnLvlNm;
+            leaf.children[childName] = {
+                source: 'MARINE_MMIS',
+                wrnTp: info.wrnTp || '',
+                wrnTpNm: info.wrnTpNm || '',
+                wrnLvl: info.wrnLvl || '',
+                wrnLvlNm: lvlNmNorm,
+                tmFc: info.tmFc || '',
+                tmEf: info.tmEf || '',
+                tmYn: info.tmYn || ''
+            };
+        }
+    }
+    return tree;
+}
+
+/**
+ * weather_alerts.json 디스크 갱신.
+ *   - 기존 파일이 있으면 read → updatedAt / current / previous 만 덮어쓰고 나머지 메타
+ *     (lastReportId, processedReportIds, pendingRetries, oneTimeBulletinWindowOverride,
+ *      각 leaf 의 history) 는 디스크 값 보존.
+ *   - atomic write (tmp → rename).
+ *   - I/O 실패는 무시 (다음 cycle 에서 재시도).
+ *
+ * @param {StateSnapshot} prevSnap — 직전 cycle snapshot
+ * @param {StateSnapshot} currSnap — 이번 cycle snapshot
+ */
+function _writeWeatherAlertsJson(prevSnap, currSnap) {
+    try {
+        const dir = path.dirname(_WEATHER_ALERTS_FILE);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+        // 1) 디스크 read — 메타 + history 보존용
+        let disk = null;
+        try {
+            if (fs.existsSync(_WEATHER_ALERTS_FILE)) {
+                disk = JSON.parse(fs.readFileSync(_WEATHER_ALERTS_FILE, 'utf8'));
+            }
+        } catch (e) {
+            // 깨진 파일이면 새로 생성
+            console.warn('[marine_warning_crawler] weather_alerts.json 읽기 실패 — 새 파일 생성:', e && e.message);
+            disk = null;
+        }
+
+        // 2) 새 current / previous 트리 생성
+        const newCurrent = _buildZoneTreeFromSnapshot(currSnap);
+        const newPrevious = _buildZoneTreeFromSnapshot(prevSnap);
+
+        // 3) 기존 디스크의 history / 메타 보존
+        if (disk && typeof disk === 'object') {
+            // history 머지 — leaf 노드 history 만 디스크에서 가져옴
+            const oldCurrLeafs = disk.current ? _collectLeafZonesByName(disk.current) : new Map();
+            const oldPrevLeafs = disk.previous ? _collectLeafZonesByName(disk.previous) : new Map();
+            for (const [name, leaf] of _collectLeafZonesByName(newCurrent)) {
+                const old = oldCurrLeafs.get(name);
+                if (old && Array.isArray(old.history)) leaf.history = old.history;
+            }
+            for (const [name, leaf] of _collectLeafZonesByName(newPrevious)) {
+                const old = oldPrevLeafs.get(name);
+                if (old && Array.isArray(old.history)) leaf.history = old.history;
+            }
+        }
+
+        const merged = {
+            updatedAt: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+            lastReportId: (disk && disk.lastReportId) || null,
+            processedReportIds: (disk && Array.isArray(disk.processedReportIds)) ? disk.processedReportIds : [],
+            pendingRetries: (disk && disk.pendingRetries && typeof disk.pendingRetries === 'object') ? disk.pendingRetries : {},
+            oneTimeBulletinWindowOverride: (disk && Object.prototype.hasOwnProperty.call(disk, 'oneTimeBulletinWindowOverride'))
+                ? disk.oneTimeBulletinWindowOverride : null,
+            previous: newPrevious,
+            current: newCurrent
+        };
+
+        fs.writeFileSync(_WEATHER_ALERTS_TMP, JSON.stringify(merged, null, 2), 'utf8');
+        fs.renameSync(_WEATHER_ALERTS_TMP, _WEATHER_ALERTS_FILE);
+    } catch (e) {
+        console.warn('[marine_warning_crawler] weather_alerts.json 저장 실패 (무시):', e && e.message);
+    }
+}
+
+// ============================================================================
 // [Followup Critical-1] response → StateSnapshot 변환
 // ============================================================================
 //
@@ -616,6 +888,17 @@ function _buildSnapshotFromMarine(warnList, warnSascList) {
 //   timeline diff 가 비활성화될 뿐, 본 cycle 은 정상 진행.
 let _runInProgress = false;
 
+/**
+ * StateSnapshot 이 "비어있는지" 판정 — 첫 부팅 guard 용.
+ *   parents / children 모두 비었으면 true. 한 발효라도 있으면 false.
+ */
+function _isSnapshotEmpty(snap) {
+    if (!snap) return true;
+    if (snap.parents && snap.parents.size > 0) return false;
+    if (snap.children && snap.children.size > 0) return false;
+    return true;
+}
+
 async function run(opts = {}) {
     if (_runInProgress) {
         // 중복 실행 방지
@@ -628,34 +911,58 @@ async function run(opts = {}) {
     _runInProgress = true;
     try {
         // prev snapshot 부팅 시 1회 복원 — 첫 호출 lazy 로드.
-        if (_prevSnapshot === null) {
+        const isFirstLoad = (_prevSnapshot === null);
+        if (isFirstLoad) {
             _prevSnapshot = _loadPrevSnapshot();
         }
 
-        // 1) endpoint 4종 fetch — 부분 실패해도 진행
-        const [warnList, warnSascList] = await Promise.all([
-            marineClient.fetchWarnList().catch(err => {
-                console.warn('[marine_warning_crawler] fetchWarnList 실패:', err && err.message);
-                return [];
-            }),
-            marineClient.fetchWarnSascList().catch(err => {
-                console.warn('[marine_warning_crawler] fetchWarnSascList 실패:', err && err.message);
-                return [];
-            })
-        ]);
+        // 1) endpoint 4종 fetch — [Followup E-4] 부분 실패 시 이번 cycle 통째 skip.
+        //    Promise.allSettled 묶음 호출 결과를 marine_client.fetchAllRealtimeEndpoints 가
+        //    검사하고, 하나라도 rejected 면 throw → 마지막 성공 state 유지, push 0회.
+        //    정상 빈 응답 (zone 없음) 은 [] 로 흡수되어 정상 cycle 흐름 진행.
+        let fetched;
+        try {
+            fetched = await marineClient.fetchAllRealtimeEndpoints();
+        } catch (err) {
+            console.warn('[Marine] endpoint 부분 실패 — cycle skip (이번 1분 발사 0):',
+                (err && err.failedEndpoints) ? err.failedEndpoints.join(' | ') : (err && err.message));
+            return [];
+        }
 
         // 2) curr snapshot 구축
-        const curr = _buildSnapshotFromMarine(warnList, warnSascList);
+        const curr = _buildSnapshotFromMarine(fetched.warnList, fetched.warnSascList);
 
-        // 3) diff + dispatch + flush
-        const sent = await runDiffAndPush(_prevSnapshot, curr, {
+        // 3) [Followup E-1] 첫 부팅 가드 — prev snapshot 이 비어있고 curr 도 첫 로드 직후라면
+        //    diff/dispatch 결과가 "전부 신규 발효" 로 오인되어 release/active 폭주 위험.
+        //    SPEC §운영안전: state 저장 + weather_alerts.json 갱신만 하고 push skip.
+        //    다음 cycle 부터 정상 diff/push.
+        //    조건: 이 cycle 이 부팅 직후 lazy load 였고, 디스크 prev 가 비어있던 경우만.
+        if (isFirstLoad && _isSnapshotEmpty(_prevSnapshot)) {
+            console.log('[Marine] 첫 부팅 — push skip, state 저장만 (현재 발효 부모=' +
+                curr.parents.size + ', 자식=' + curr.children.size + ')');
+            _prevSnapshot = curr;
+            _savePrevSnapshot(curr);
+            // [Followup E-2] weather_alerts.json 도 갱신 — 첫 부팅 후에도 사용자 앱 즉시 fresh.
+            //   prev 가 비어있으므로 previous 트리도 비어있는 skeleton 으로 기록.
+            _writeWeatherAlertsJson(new StateSnapshot(), curr);
+            return [];
+        }
+
+        // 4) diff + dispatch + flush
+        const prevForDiff = _prevSnapshot;
+        const sent = await runDiffAndPush(prevForDiff, curr, {
             cycleId: opts.cycleId || Date.now(),
             dryRun: !!opts.dryRun
         });
 
-        // 4) curr 를 다음 사이클의 prev 로 저장
+        // 5) curr 를 다음 사이클의 prev 로 저장
         _prevSnapshot = curr;
         _savePrevSnapshot(curr);
+
+        // 6) [Followup E-2] weather_alerts.json 갱신 — SPEC §4.
+        //    dispatch 후 / state 저장 후 / cycle 끝에 한 번. atomic tmp → rename.
+        //    실패해도 push 흐름엔 영향 없음 (다음 cycle 에서 재시도).
+        _writeWeatherAlertsJson(prevForDiff, curr);
 
         return sent;
     } catch (err) {
@@ -682,5 +989,10 @@ module.exports = {
     _extractParent,
     _loadPrevSnapshot,
     _savePrevSnapshot,
-    _STATE_FILE
+    _STATE_FILE,
+    // [Followup E-2] weather_alerts.json 갱신 (테스트용 노출)
+    _buildZoneTreeFromSnapshot,
+    _writeWeatherAlertsJson,
+    _WEATHER_ALERTS_FILE,
+    _isSnapshotEmpty
 };

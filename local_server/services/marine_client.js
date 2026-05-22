@@ -372,6 +372,45 @@ async function fetchWarnSascReady() {
 }
 
 // ============================================================================
+// [Followup E-4] 4 endpoint 묶음 호출 — 부분 실패 시 throw (cycle skip 유도)
+// ============================================================================
+//
+// Promise.allSettled 로 4 endpoint 동시 호출. 하나라도 rejected 면 throw.
+// 호출 측(marine_warning_crawler.run) 은 throw 를 잡아 이번 cycle 통째로 skip 하고
+// 마지막 성공 state 를 유지 → release 폭주 방지.
+//
+// 정상 빈 응답(발효/예비 zone 없음) 은 _unwrap 이 [] 반환 → 정상 cycle 흐름.
+// "실패" 의 정의: HTTP 4xx/5xx, network error, timeout, JSON parse fail 등 throw 사유.
+async function fetchAllRealtimeEndpoints() {
+    const settled = await Promise.allSettled([
+        fetchWarnList(),
+        fetchWarnSascList(),
+        fetchWarnReady(),
+        fetchWarnSascReady()
+    ]);
+    const labels = ['warnList', 'warnSascList', 'warnReady', 'warnSascReady'];
+    const failed = [];
+    for (let i = 0; i < settled.length; i++) {
+        if (settled[i].status === 'rejected') {
+            const reason = settled[i].reason;
+            failed.push(`${labels[i]}: ${(reason && reason.message) || reason}`);
+        }
+    }
+    if (failed.length > 0) {
+        const err = new Error('marine endpoint 부분 실패: ' + failed.join(' | '));
+        err.partial = true;
+        err.failedEndpoints = failed;
+        throw err;
+    }
+    return {
+        warnList: settled[0].value || [],
+        warnSascList: settled[1].value || [],
+        warnReady: settled[2].value || [],
+        warnSascReady: settled[3].value || []
+    };
+}
+
+// ============================================================================
 // 7. 인증 endpoint — ef/list (timeline diff 용)
 // ============================================================================
 
@@ -455,6 +494,8 @@ module.exports = {
     fetchWarnSascList,
     fetchWarnReady,
     fetchWarnSascReady,
+    // [Followup E-4] 4 endpoint 묶음 호출 (Promise.allSettled, 부분 실패 시 throw)
+    fetchAllRealtimeEndpoints,
     // 인증 endpoint
     fetchWarnEfList,
     // 테스트
