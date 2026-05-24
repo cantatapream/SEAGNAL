@@ -690,34 +690,9 @@ class PushSplitter {
  */
 function fmtTime(str) {
     if (!str) return '미정';
-    let m = str.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
-    if (m) {
-        const [, , , day, hour, minute] = m;
-        return `${parseInt(day, 10)}일 ${hour}:${minute}`;
-    }
-    m = str.match(/(\d{4})-(\d{2})-(\d{2})\s+(.+)/);
-    if (m) {
-        const [, , , day, timeDesc] = m;
-        return `${parseInt(day, 10)}일 ${timeDesc}`;
-    }
-    if (/^\d{12}$/.test(str)) {
-        const day = str.substring(6, 8);
-        const hour = str.substring(8, 10);
-        const minute = str.substring(10, 12);
-        return `${parseInt(day, 10)}일 ${hour}:${minute}`;
-    }
-    m = str.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(.*)/);
-    if (m) {
-        const [, , , day, rest] = m;
-        return `${String(day).padStart(2, '0')}일 ${rest}`.trim();
-    }
-    // [Must-fix from FINAL_BOOST_REVIEW] mmis 점 구분자 형식 "2026.05.21 06:00"
-    m = str.match(/(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/);
-    if (m) {
-        const [, , , day, hour, minute] = m;
-        return `${parseInt(day, 10)}일 ${hour}:${minute}`;
-    }
-    return str;
+    // [표시 포맷 통일] 관리자 분할 푸시(buildSplitPushes)도 사용자 푸시와 동일 규칙 적용:
+    //   "M월 D일(라벨) H시 / Hs시~He시" (월·시단위·상대일자·범위 보정).
+    return formatWarnTimeKST(str);
 }
 
 /**
@@ -882,6 +857,7 @@ module.exports = {
     buildAdminTitle,
     buildSplitPushes,
     fmtTime,
+    formatWarnTimeKST,
     PushBuilder,
     PushSplitter
 };

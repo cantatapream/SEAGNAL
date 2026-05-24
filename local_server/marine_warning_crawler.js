@@ -1445,7 +1445,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
  *  1. 동일 zone 이 발효중 (snap.parents 에 존재)
  *  2. latest row 의 warn_cmd_nm === '해제'
  *  3. latest row 의 tm_ef 가 존재 (정확한 시각)
- *  4. 폭풍해일(warn_tp='5') 제외 — V8 정책
+ *  4. 풍랑(V)·태풍(T) 만 — _isTargetRealtimeType allowlist (강풍 W·폭풍해일 O 등 제외)
  *
  * 갱신 후 clrNtcTm 은 mmis 원형식 ("2026.05.23 01:00") 으로 저장되어
  * _buildZoneTreeFromSnapshot 에서 normalizeMmisTime() 통과 시 "23일 01:00" 으로 변환됨.
@@ -1511,11 +1511,17 @@ function _isSnapshotEmpty(snap) {
  *   이후 run({forceBaselinePush:true}) 를 호출하면 현재 활성 특보가 신규로 감지돼
  *   실제 푸시가 발사된다 (관리자 "장부 초기화" 버튼 전용).
  */
+// [리셋 경합 방어] resetState 가 1회성 force-baseline 을 예약하는 플래그.
+//   리셋 직후 run({force}) 가 마침 진행중인 cron 과 겹쳐 early-return 되어도,
+//   이 플래그가 남아 다음 사이클(또는 즉시 run)이 강제 baseline 푸시를 보장한다.
+let _forceBaselinePending = false;
+
 function resetState() {
     _prevSnapshot = new StateSnapshot();
+    _forceBaselinePending = true;
     try {
         _savePrevSnapshot(_prevSnapshot);
-        console.log('[Marine] 장부(state) 초기화 완료 — 다음 강제 사이클에서 현재 특보를 신규로 감지');
+        console.log('[Marine] 장부(state) 초기화 완료 — 다음 사이클에서 현재 특보를 신규로 감지(force baseline 예약)');
     } catch (e) {
         console.error('[Marine] resetState 실패:', e && e.message);
     }
@@ -1575,10 +1581,11 @@ async function run(opts = {}) {
         //    다음 cycle 부터 정상 diff/push.
         //    조건: 부팅 직후 lazy load + 디스크 prev 비어있음, **또는** E-4 partial-fail 후
         //    빈 snapshot 으로 lazy set 된 케이스 (D-1 보강 — isFirstLoad 가드 제거).
-        //    [테스트] opts.forceBaselinePush 가 true 면 이 가드를 1회 우회 →
+        //    [테스트] forceBaseline 이 true 면 이 가드를 1회 우회 →
         //    빈 prev vs 현재 발효+예비 를 "전부 신규" 로 diff 하여 실제 푸시 발사.
-        //    (관리자 "장부 초기화(테스트 푸시)" 버튼 전용)
-        if (_isSnapshotEmpty(_prevSnapshot) && !opts.forceBaselinePush) {
+        //    (관리자 "장부 초기화(테스트 푸시)" 버튼 전용. opts 또는 예약 플래그로 지정)
+        const forceBaseline = !!opts.forceBaselinePush || _forceBaselinePending;
+        if (_isSnapshotEmpty(_prevSnapshot) && !forceBaseline) {
             console.log('[Marine] 첫 부팅 — push skip, state 저장만 (현재 발효 부모=' +
                 curr.parents.size + ', 자식=' + curr.children.size + ')');
             _prevSnapshot = curr;
@@ -1588,9 +1595,11 @@ async function run(opts = {}) {
             _writeWeatherAlertsJson(new StateSnapshot(), curr);
             return [];
         }
-        if (opts.forceBaselinePush && _isSnapshotEmpty(_prevSnapshot)) {
+        if (forceBaseline && _isSnapshotEmpty(_prevSnapshot)) {
             console.log('[Marine] ⚠️ 강제 baseline 푸시 모드 — E-1 가드 우회, 현재 활성 특보를 신규로 발사');
         }
+        // 예약 플래그는 이번 사이클에서 소비 (1회성)
+        _forceBaselinePending = false;
 
         // 4) [D-medium 인터랙티브] 의심 가드 — mmis 빈 응답 / 부분 누락 폭주 차단.
         //    clr_ntc_tm 미등록 zone 이 SUSPICIOUS_THRESHOLD 이상 사라지면

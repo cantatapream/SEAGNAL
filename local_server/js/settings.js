@@ -524,7 +524,7 @@ function saveNotificationUI() {
         active: document.getElementById('push-opt-active')?.checked ?? true,
         release: document.getElementById('push-opt-release')?.checked ?? true,
         night: document.getElementById('push-opt-night')?.checked ?? true,
-        childZones: document.getElementById('push-opt-childzones')?.checked ?? false
+        childZones: document.getElementById('push-opt-childzones')?.checked ?? true
     });
 }
 
