@@ -844,9 +844,9 @@ function createAlertElement(items) {
     }
 
     const formatAlertTime = (timeStr) => {
-        // [수정] 연도/월 표기 제거 (예: "2026년 2월 10일" -> "10일", "2월 15일 오전(06시~12시)" -> "15일 오전(06시~12시)")
-        const formatted = formatWarningTime(timeStr);
-        return formatted ? formatted.replace(/\d{4}년\s*/g, '').replace(/^\d+월\s*/, '').replace(/\s\d+월\s*/, ' ') : formatted;
+        // [표시 포맷] formatWarningTime 이 "M월 D일(라벨) H시 / Hs시~He시" 를 반환 →
+        //   월 포함 그대로 사용 (사용자 요구: 월 표시 + 상대일자 라벨 + 시단위).
+        return formatWarningTime(timeStr);
     };
 
     const createRow = (label, value, color) => {

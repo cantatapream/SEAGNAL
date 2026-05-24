@@ -116,70 +116,81 @@ function formatDate(dateStr) {
 // 시간 포맷 변환 (발효/해제 시간대 처리)
 // 시간 포맷 변환 (발효/해제 시간대 처리)
 function formatWarningTime(tmEf, isEndTime = false) {
-    if (!tmEf || tmEf.trim() === '' || tmEf === '0' || tmEf === '000000000000') {
+    if (!tmEf || String(tmEf).trim() === '' || tmEf === '0' || tmEf === '000000000000') {
         return '정보 없음';
     }
 
-    let decoded = String(tmEf)
-        .replace(/&#40;/g, '(')
-        .replace(/&#41;/g, ')')
-        .replace(/&amp;/g, '&')
-        .replace(/&nbsp;/g, ' ')
+    let s = String(tmEf)
+        .replace(/&#40;/g, '(').replace(/&#41;/g, ')')
+        .replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ')
         .trim();
 
-    // [수정] 2026-02-07 밤(18~24시)와 같은 하이브리드 형식을 2월 7일 밤(18~24시)로 변환
-    const hybridMatch = decoded.match(/^(\d{4})-(\d{2})-(\d{2})(.*)$/);
-    if (hybridMatch) {
-        const m = parseInt(hybridMatch[2], 10);
-        const d = parseInt(hybridMatch[3], 10);
-        const rest = hybridMatch[4];
-        decoded = `${m}월 ${d}일${rest}`;
-    }
+    // ── 상대 일자 라벨 (KST 기준, 미래만): 오늘/내일/모레/글피/그글피, 그 이후 없음 ──
+    const relLabel = (y, mo, d) => {
+        if (!y || !mo || !d) return '';
+        const now = new Date(Date.now() + 9 * 3600000); // KST 달력일 (기기 TZ 무관)
+        const diff = Math.round(
+            (Date.UTC(y, mo - 1, d) - Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) / 86400000
+        );
+        if (diff < 0) return '';
+        return ['오늘', '내일', '모레', '글피', '그글피'][diff] || '';
+    };
+    const dateLabel = (y, mo, d) => {
+        const l = relLabel(y, mo, d);
+        return `${mo}월 ${d}일${l ? '(' + l + ')' : ''}`;
+    };
+    // 범위: 끝 0시→24시. degenerate(시작==끝, 예비 6시간 단위)면 6시간 블록 스냅.
+    // 명시적 3h/6h 범위(시작≠끝)는 그대로 보존(해제예고 등).
+    const fmtRange = (sh, eh) => {
+        sh = ((sh % 24) + 24) % 24;
+        eh = (eh === 0 || eh === 24) ? 24 : ((eh % 24) + 24) % 24;
+        if (sh === eh) { const bs = Math.floor(sh / 6) * 6; sh = bs; eh = bs + 6; }
+        return `${sh}시~${eh}시`;
+    };
+    const fmtExact = (hh, mm) => `${hh}시` + (mm ? ` ${mm}분` : ''); // 분·초 제거(0이면 시만)
 
-    // 이미 한글 시간대가 포함되어 있으면 연도/월 정리 후 반환 (위에서 변환된 값 포함)
-    if (decoded.includes('새벽') || decoded.includes('아침') || decoded.includes('오전') ||
-        decoded.includes('낮') || decoded.includes('오후') || decoded.includes('저녁') || decoded.includes('밤')) {
-        // "2026년 02월 15일 오전(06시~12시)" → "2월 15일 오전(06시~12시)"
-        const koMatch = decoded.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(.*)/);
-        if (koMatch) {
-            return `${parseInt(koMatch[2])}월 ${parseInt(koMatch[3])}일 ${koMatch[4]}`.trim();
-        }
-        return decoded;
-    }
-
-    const cleanStr = decoded.replace(/[^0-9]/g, '');
-    if (cleanStr.length === 0) return '정보 없음';
-
-    // YYYYMMDDHHmm (12자리) 처리
-    if (cleanStr.length >= 10) {
-        const month = cleanStr.length >= 12 ? cleanStr.substring(4, 6) : cleanStr.substring(0, 2);
-        const day = cleanStr.length >= 12 ? cleanStr.substring(6, 8) : cleanStr.substring(2, 4);
-        const hourOrInt = cleanStr.substring(8, 10);
-        const minuteOrInt = cleanStr.length >= 12 ? cleanStr.substring(10, 12) : '00';
-
-        const hh = parseInt(hourOrInt, 10);
-        const mm = parseInt(minuteOrInt, 10);
-
-        // [Smart Fix] 58/59분 코드를 범위형 텍스트로 변환
+    // ── 날짜 + 시간부 분리 ──
+    let Y = null, Mo = null, D = null, rest = null, m;
+    if (m = s.match(/^(\d{4})\s*[-.\/년]\s*(\d{1,2})\s*[-.\/월]\s*(\d{1,2})\s*일?\s*(.*)$/)) {
+        Y = +m[1]; Mo = +m[2]; D = +m[3]; rest = m[4].trim();
+    } else if (/^\d{12}$/.test(s)) {
+        Y = +s.slice(0, 4); Mo = +s.slice(4, 6); D = +s.slice(6, 8);
+        const hh = +s.slice(8, 10), mm = +s.slice(10, 12);
+        // [레거시] 58/59분 = KMA 범위코드 → 해당 시간대 범위로 복원
         if (mm === 58 || mm === 59) {
-            const datePart = `${parseInt(month)}월 ${parseInt(day)}일`;
-            if (hh >= 18 && hh <= 23) return `${datePart} 밤(18시~24시)`;
-            if (hh >= 12 && hh < 18) return `${datePart} 오후(12시~18시)`;
-            if (hh >= 9 && hh < 12) return `${datePart} 오전(09시~12시)`;
-            if (hh >= 6 && hh < 9) return `${datePart} 아침(06시~09시)`;
-            if (hh >= 0 && hh < 6) return `${datePart} 새벽(00시~06시)`;
+            rest = (hh >= 18) ? '18~24시' : (hh >= 12) ? '12~18시'
+                 : (hh >= 9) ? '09~12시' : (hh >= 6) ? '06~09시' : '00~06시';
+        } else {
+            rest = `${s.slice(8, 10)}:${s.slice(10, 12)}`;
         }
-
-        // 일반 시각 포맷팅
-        if (day === '00' || day === '0') return '정보 없음';
-        let ampm = hh < 12 ? '오전' : '오후';
-        let hour12 = hh === 0 ? 12 : (hh > 12 ? hh - 12 : hh);
-        let timeStr = `${parseInt(month)}월 ${parseInt(day)}일 ${ampm} ${hour12}시`;
-        if (mm !== 0) timeStr += ` ${mm}분`;
-        return timeStr;
+    } else if (m = s.match(/^(\d{1,2})\s*일\s*(.*)$/)) {
+        D = +m[1]; rest = m[2].trim(); // 연/월 없음 → 라벨·월 생략
+    } else {
+        rest = s;
     }
 
-    return decoded;
+    // ── 시간부 파싱 ──
+    let timeStr = '';
+    if (rest) {
+        let rm;
+        if (rm = rest.match(/(\d{1,2})\s*시?\s*[~∼]\s*(\d{1,2})\s*시/)) {
+            timeStr = fmtRange(parseInt(rm[1], 10), parseInt(rm[2], 10));   // 범위 (3h/6h 보존, degenerate만 스냅)
+        } else if (rm = rest.match(/(\d{1,2}):(\d{2})/)) {
+            timeStr = fmtExact(parseInt(rm[1], 10), parseInt(rm[2], 10));    // HH:MM[:SS]
+        } else if (rm = rest.match(/(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/)) {
+            timeStr = fmtExact(parseInt(rm[1], 10), rm[2] ? parseInt(rm[2], 10) : 0); // H시 [M분]
+        } else {
+            timeStr = rest;
+        }
+    }
+
+    // ── 조립 ──
+    if (Mo && D) {
+        if (D === 0 || Mo === 0) return '정보 없음';
+        return `${dateLabel(Y, Mo, D)}${timeStr ? ' ' + timeStr : ''}`.trim();
+    }
+    if (D) return `${D}일${timeStr ? ' ' + timeStr : ''}`.trim();
+    return timeStr || s;
 }
 
 

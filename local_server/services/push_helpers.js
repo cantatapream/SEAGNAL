@@ -24,6 +24,59 @@
  */
 
 // ============================================================================
+// [표시 시각 포맷터] 프론트 js/utils.js formatWarningTime 과 동일 규칙 (KST).
+//   "M월 D일(라벨) H시" / "M월 D일(라벨) Hs시~He시"
+//   - 상대일자 라벨: 오늘/내일/모레/글피/그글피, 그 이후·과거 없음
+//   - 분·초 제거(시단위). 끝 0시→24시. 범위 3h/6h 보존, degenerate만 6h 블록 스냅.
+//   ※ 두 런타임(브라우저/노드)이라 로직을 의도적으로 복제 — 변경 시 양쪽 동기화.
+// ============================================================================
+function formatWarnTimeKST(tmEf) {
+    if (!tmEf || String(tmEf).trim() === '' || tmEf === '0' || tmEf === '000000000000') return '정보 없음';
+    let s = String(tmEf).replace(/&#40;/g, '(').replace(/&#41;/g, ')').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').trim();
+    const relLabel = (y, mo, d) => {
+        if (!y || !mo || !d) return '';
+        const now = new Date(Date.now() + 9 * 3600000);
+        const diff = Math.round((Date.UTC(y, mo - 1, d) - Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) / 86400000);
+        if (diff < 0) return '';
+        return ['오늘', '내일', '모레', '글피', '그글피'][diff] || '';
+    };
+    const dateLabel = (y, mo, d) => { const l = relLabel(y, mo, d); return `${mo}월 ${d}일${l ? '(' + l + ')' : ''}`; };
+    const fmtRange = (sh, eh) => {
+        sh = ((sh % 24) + 24) % 24;
+        eh = (eh === 0 || eh === 24) ? 24 : ((eh % 24) + 24) % 24;
+        if (sh === eh) { const bs = Math.floor(sh / 6) * 6; sh = bs; eh = bs + 6; }
+        return `${sh}시~${eh}시`;
+    };
+    const fmtExact = (hh, mm) => `${hh}시` + (mm ? ` ${mm}분` : '');
+    let Y = null, Mo = null, D = null, rest = null, m;
+    if (m = s.match(/^(\d{4})\s*[-.\/년]\s*(\d{1,2})\s*[-.\/월]\s*(\d{1,2})\s*일?\s*(.*)$/)) {
+        Y = +m[1]; Mo = +m[2]; D = +m[3]; rest = m[4].trim();
+    } else if (/^\d{12}$/.test(s)) {
+        Y = +s.slice(0, 4); Mo = +s.slice(4, 6); D = +s.slice(6, 8);
+        const hh = +s.slice(8, 10), mm = +s.slice(10, 12);
+        if (mm === 58 || mm === 59) {
+            rest = (hh >= 18) ? '18~24시' : (hh >= 12) ? '12~18시' : (hh >= 9) ? '09~12시' : (hh >= 6) ? '06~09시' : '00~06시';
+        } else { rest = `${s.slice(8, 10)}:${s.slice(10, 12)}`; }
+    } else if (m = s.match(/^(\d{1,2})\s*일\s*(.*)$/)) {
+        D = +m[1]; rest = m[2].trim();
+    } else { rest = s; }
+    let timeStr = '';
+    if (rest) {
+        let rm;
+        if (rm = rest.match(/(\d{1,2})\s*시?\s*[~∼]\s*(\d{1,2})\s*시/)) {
+            timeStr = fmtRange(parseInt(rm[1], 10), parseInt(rm[2], 10));
+        } else if (rm = rest.match(/(\d{1,2}):(\d{2})/)) {
+            timeStr = fmtExact(parseInt(rm[1], 10), parseInt(rm[2], 10));
+        } else if (rm = rest.match(/(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/)) {
+            timeStr = fmtExact(parseInt(rm[1], 10), rm[2] ? parseInt(rm[2], 10) : 0);
+        } else { timeStr = rest; }
+    }
+    if (Mo && D) { if (D === 0 || Mo === 0) return '정보 없음'; return `${dateLabel(Y, Mo, D)}${timeStr ? ' ' + timeStr : ''}`.trim(); }
+    if (D) return `${D}일${timeStr ? ' ' + timeStr : ''}`.trim();
+    return timeStr || s;
+}
+
+// ============================================================================
 // [ZONE_HIERARCHY] 대분류 → 중분류 → 소분류(특보구역) 계층 구조
 // 앱의 SEA_REGIONS + SUB_REGION_ZONES 구조와 완전 일치시킴
 // ============================================================================
@@ -179,47 +232,12 @@ function generateMessage(filteredPayload) {
     };
 
     // 시각 포맷 헬퍼: D일 HH:mm 또는 D일 범위시간 형식으로 변환
+    // [표시 포맷] 프론트 utils.js formatWarningTime 과 동일 규칙:
+    //   월 포함 + 상대일자 라벨(오늘/내일/모레/글피/그글피) + 시단위(분·초 제거)
+    //   + 범위 3h/6h 보존, degenerate(시작==끝, 예비)만 6시간 블록 스냅, 끝 0시→24시.
     const fmt = (str) => {
         if (!str) return '미정';
-
-        // 1. "2026-02-06 12:00" 형식 처리
-        const dateMatch = str.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
-        if (dateMatch) {
-            const [, , , day, hour, minute] = dateMatch;
-            return `${parseInt(day)}일 ${hour}:${minute}`;
-        }
-
-        // 2. "2026-02-07 밤(18~24시)" 형식 처리
-        const koreanTimeMatch = str.match(/(\d{4})-(\d{2})-(\d{2})\s+(.+)/);
-        if (koreanTimeMatch) {
-            const [, , , day, timeDesc] = koreanTimeMatch;
-            return `${parseInt(day)}일 ${timeDesc}`;
-        }
-
-        // 3. 12자리 숫자 형식 (202602061200)
-        if (/^\d{12}$/.test(str)) {
-            const day = str.substring(6, 8);
-            const hour = str.substring(8, 10);
-            const minute = str.substring(10, 12);
-            return `${parseInt(day)}일 ${hour}:${minute}`;
-        }
-
-        // 4. 한국어 형식 "2026년 02월 07일 00시 00분"
-        const korFmtMatch = str.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(.*)/);
-        if (korFmtMatch) {
-            const [, , , day, rest] = korFmtMatch;
-            return `${String(day).padStart(2, '0')}일 ${rest}`.trim();
-        }
-
-        // 5. [D-6 (C)] mmis 점 구분자 형식 "2026.05.21 06:00" (방어망 — normalizeMmisTime 누락 시)
-        const dotMatch = str.match(/(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/);
-        if (dotMatch) {
-            const [, , , day, hour, minute] = dotMatch;
-            return `${parseInt(day)}일 ${hour}:${minute}`;
-        }
-
-        // 6. 그 외 (이미 포맷팅된 문자열, 범위형 포함 — 그대로 통과)
-        return str;
+        return formatWarnTimeKST(str);
     };
 
     // 시각별 그룹핑 헬퍼

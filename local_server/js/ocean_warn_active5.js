@@ -37,6 +37,11 @@
      */
     function _fmtTime(raw) {
         if (!raw) return '';
+        // [표시 포맷] 공통 포맷터 위임 — "M월 D일(라벨) H시 / Hs시~He시"
+        if (typeof formatWarningTime === 'function') {
+            var r = formatWarningTime(raw);
+            if (r && r !== '정보 없음') return r;
+        }
         return ('' + raw).replace(/\s+/g, ' ').trim();
     }
 
