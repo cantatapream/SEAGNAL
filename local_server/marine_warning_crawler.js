@@ -832,6 +832,18 @@ function _buildUserPushChanges(prev, curr) {
             && a.tmYn === b.tmYn;
     };
 
+    // [작업2b] 부모 zone 의 자식 한정사용 childState 구성.
+    //   all    = 매핑상 전체 자식 (PARENT_TO_CHILDREN)
+    //   active = 현재 발효중인 자식 (curr.children)
+    //   buildChildQualifier 가 이 둘로 "(연안바다 포함)/(미발효)" 등을 만든다.
+    //   사용자 푸시는 토글(options.childZones) 켠 사용자에게만 한정사를 붙임.
+    const buildChildStateFor = (zone) => {
+        const all = PARENT_TO_CHILDREN[zone] || [];
+        const m = curr.children ? curr.children.get(zone) : null;
+        const active = m ? Array.from(m.keys()) : [];
+        return { all, active, added: [], released: [] };
+    };
+
     for (const zone of allZones) {
         const p = prev.parents ? prev.parents.get(zone) : null;
         const c = curr.parents ? curr.parents.get(zone) : null;
@@ -844,6 +856,8 @@ function _buildUserPushChanges(prev, curr) {
         const prevActive = isActive(p) ? toBlock(p) : null;
         const currActive = isActive(c) ? toBlock(c) : null;
 
+        const childState = buildChildStateFor(zone);
+
         // UPCOMING_CHANGE — 예비특보 변화
         if (!blockEqual(prevUpcoming, currUpcoming)) {
             changes.push({
@@ -851,7 +865,8 @@ function _buildUserPushChanges(prev, curr) {
                 zone: zone,
                 prev: prevUpcoming,
                 curr: currUpcoming,
-                currentActive: currActive || null  // 현재 발효 중인 부모 (격상/격하 판정용)
+                currentActive: currActive || null,  // 현재 발효 중인 부모 (격상/격하 판정용)
+                childState                           // [작업2b] 자식 한정사용
             });
         }
 
@@ -861,7 +876,8 @@ function _buildUserPushChanges(prev, curr) {
                 type: 'CURRENT_CHANGE',
                 zone: zone,
                 prev: prevActive,
-                curr: currActive
+                curr: currActive,
+                childState                           // [작업2b] 자식 한정사용
             });
         }
     }
@@ -1283,13 +1299,38 @@ function _extractParent(korNm) {
     return s;
 }
 
+/**
+ * [V11 — 등급명 정규화]
+ * mmis 실시간 endpoint 는 예비특보를 warn_lvl_nm='예비특보' 로 내려주지만,
+ * 내부 diff/push 로직은 전부 '예비' 로 비교한다 (isUpcoming, isPublish, prelim_cancel 등).
+ * 두 값을 맞추지 않으면 예비 판정이 전부 실패하므로 여기서 '예비특보' → '예비' 로 정규화.
+ */
+function _normLvlNm(nm) {
+    const s = String(nm || '');
+    return s === '예비특보' ? '예비' : s;
+}
+
+/**
+ * [V11 — 실시간 특보종류 allowlist]
+ * mmis 실시간 endpoint(warn/list, warn/ready, warn/latest, warn-sasc/*) 는
+ * 문자 코드를 쓴다: V=풍랑, T=태풍, W=강풍, O=폭풍해일, C=한파 ...
+ * (과거 ef/list 의 숫자 코드 6/7/1/5 와 다름)
+ * 우리 앱 대상은 풍랑(V)+태풍(T) 뿐이므로 allowlist 로 그 외 전부 제외.
+ *   - 기존 'warn_tp===5' 제외 로직은 숫자 코드 가정이라 실시간에서 무력(폭풍해일 O 유입)
+ *   - allowlist 가 아니라 denylist 였어서 강풍(W) 등도 유입되던 결함 동시 해소
+ */
+const REALTIME_TARGET_TP = new Set(['V', 'T']);
+function _isTargetRealtimeType(warnTp) {
+    return REALTIME_TARGET_TP.has(String(warnTp || '').toUpperCase());
+}
+
 /** marine row 를 내부 state 객체로 변환. */
 function _rowToParentInfo(row) {
     return {
         wrnTp: String(row.warn_tp || ''),
         wrnTpNm: row.warn_tp_nm || '',
         wrnLvl: String(row.warn_lvl || ''),
-        wrnLvlNm: row.warn_lvl_nm || '',
+        wrnLvlNm: _normLvlNm(row.warn_lvl_nm),
         tmFc: row.tm_fc || '',
         tmEf: row.tm_ef || row.st_tm || '',
         tmYn: row.tm_yn || row.ed_tm || '',
@@ -1302,7 +1343,7 @@ function _rowToChildInfo(row) {
         wrnTp: String(row.warn_tp || ''),
         wrnTpNm: row.warn_tp_nm || '',
         wrnLvl: String(row.warn_lvl || ''),
-        wrnLvlNm: row.warn_lvl_nm || '',
+        wrnLvlNm: _normLvlNm(row.warn_lvl_nm),
         tmFc: row.tm_fc || '',
         tmEf: row.tm_ef || row.st_tm || '',
         tmYn: row.tm_yn || row.ed_tm || ''
@@ -1315,31 +1356,75 @@ function _isLiveRow(row) {
 }
 
 /**
- * marine 4 endpoint 응답을 StateSnapshot 으로 변환.
+ * marine 실시간 endpoint 응답을 StateSnapshot 으로 변환.
  *
- * @param {Array} warnList    — fetchWarnList (부모 발효)
- * @param {Array} warnSascList — fetchWarnSascList (자식 발효)
+ * [V11 — 예비 병합 + allowlist]
+ *   기존: warn/list(발효 부모) + warn-sasc/list(발효 자식) 만 사용.
+ *         → warn/ready(예비) 가 통째로 버려져 예비특보 푸시가 전혀 안 됨 (구멍①).
+ *         → 'warn_tp===5' 숫자 제외라 실시간 문자코드(폭풍해일 O, 강풍 W)가 유입 (구멍③④).
+ *   변경: warn/ready + warn-sasc/ready 도 병합, allowlist(V/T) 적용.
+ *
+ * 우선순위: 발효중(warn/list) > 예비(warn/ready). 같은 zone 이 양쪽에 있으면 발효 유지.
+ *
+ * warn/ready 는 부모(S1 코드)와 마린 자식(S2·S3 코드, 이름에 '중…연안바다')이
+ * 한 응답에 혼재 → _extractParent 로 부모/자식 분기.
+ *
+ * @param {Array} warnList     — fetchWarnList (발효 부모)
+ * @param {Array} warnSascList — fetchWarnSascList (발효 자식)
+ * @param {Array} warnReady     — fetchWarnReady (예비 부모+자식 혼재)
+ * @param {Array} warnSascReady — fetchWarnSascReady (예비 자식 — 활성은 대개 강풍 육상)
  * @returns {StateSnapshot}
  */
-function _buildSnapshotFromMarine(warnList, warnSascList) {
+function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascReady) {
     const snap = new StateSnapshot();
-    // 부모 — V8 폭풍해일 제외 (warn_tp '5')
+
+    const addChild = (childName, row) => {
+        const parent = _extractParent(childName);
+        if (!snap.children.has(parent)) snap.children.set(parent, new Map());
+        const m = snap.children.get(parent);
+        if (m.has(childName)) return;   // 이미 등록(발효 우선) → skip
+        m.set(childName, _rowToChildInfo(row));
+    };
+
+    // --- 1) 발효중 부모 (warn/list) ---
     for (const row of (warnList || [])) {
         if (!_isLiveRow(row)) continue;
-        if (String(row.warn_tp || '') === '5') continue;  // 폭풍해일 제외
+        if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 풍랑(V)+태풍(T) 만
         const name = (row.warn_zone_nm || row.kor_nm || '').trim().replace(/\s+/g, '');
         if (!name) continue;
         snap.parents.set(name, _rowToParentInfo(row));
     }
-    // 자식 — 같은 정책
+    // --- 2) 발효중 자식 (warn-sasc/list) ---
     for (const row of (warnSascList || [])) {
         if (!_isLiveRow(row)) continue;
-        if (String(row.warn_tp || '') === '5') continue;
+        if (!_isTargetRealtimeType(row.warn_tp)) continue;
         const childName = (row.kor_nm || row.warn_zone_nm || '').trim().replace(/\s+/g, '');
         if (!childName) continue;
-        const parent = _extractParent(childName);
-        if (!snap.children.has(parent)) snap.children.set(parent, new Map());
-        snap.children.get(parent).set(childName, _rowToChildInfo(row));
+        addChild(childName, row);
+    }
+    // --- 3) 예비 (warn/ready) — 부모/자식 혼재. 발효중 우선 ---
+    for (const row of (warnReady || [])) {
+        if (!_isLiveRow(row)) continue;
+        if (!_isTargetRealtimeType(row.warn_tp)) continue;
+        const name = (row.warn_zone_nm || row.kor_nm || '').trim().replace(/\s+/g, '');
+        if (!name) continue;
+        const parent = _extractParent(name);
+        if (parent === name) {
+            // 부모형 예비 — 발효중이면 유지(skip)
+            if (snap.parents.has(name)) continue;
+            snap.parents.set(name, _rowToParentInfo(row));
+        } else {
+            addChild(name, row);   // 자식형 예비 (addChild 가 발효 우선 보장)
+        }
+    }
+    // --- 4) 예비 자식 (warn-sasc/ready) — 강풍 육상 등은 allowlist 가 자동 제외 ---
+    for (const row of (warnSascReady || [])) {
+        if (!_isLiveRow(row)) continue;
+        if (!_isTargetRealtimeType(row.warn_tp)) continue;
+        const childName = (row.kor_nm || row.warn_zone_nm || '').trim().replace(/\s+/g, '');
+        if (!childName) continue;
+        if (_extractParent(childName) === childName) continue;   // 부모형이면 자식 endpoint 에선 skip
+        addChild(childName, row);
     }
     return snap;
 }
@@ -1373,8 +1458,7 @@ function _enrichSnapshotWithLatest(snap, warnLatest) {
     if (!snap || !Array.isArray(warnLatest) || warnLatest.length === 0) return snap;
     let enriched = 0;
     for (const row of warnLatest) {
-        const tp = String(row.warn_tp || '');
-        if (tp === '5') continue;
+        if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 풍랑(V)+태풍(T) 만 (실시간 문자코드)
         const cmd = String(row.warn_cmd_nm || '').trim();
         if (cmd !== '해제') continue;
         const name = (row.warn_zone_nm || row.kor_nm || '').trim().replace(/\s+/g, '');
@@ -1451,8 +1535,11 @@ async function run(opts = {}) {
             return [];
         }
 
-        // 2) curr snapshot 구축
-        const curr = _buildSnapshotFromMarine(fetched.warnList, fetched.warnSascList);
+        // 2) curr snapshot 구축 — [V11] 발효(list)+예비(ready) 모두 병합, allowlist(V/T) 적용
+        const curr = _buildSnapshotFromMarine(
+            fetched.warnList, fetched.warnSascList,
+            fetched.warnReady, fetched.warnSascReady
+        );
 
         // 2-B) [V10] warn/latest 호출 → 발효중 zone 의 해제예고시각을 정확한 시각으로 보강.
         //   warn/list 는 "현재 발효 상태" (clr_ntc_tm 이 범위형 텍스트) 만 제공.

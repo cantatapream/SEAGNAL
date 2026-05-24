@@ -291,7 +291,9 @@ router.post('/api/push-custom', async (req, res) => {
                     userFilteredItems = getMatchedZones(user.zones, payload.items, user.options || {});
                     if (!userFilteredItems || userFilteredItems.length === 0) return;
 
-                    const generated = generateMessage({ ...payload, items: userFilteredItems });
+                    // [작업2b] "특정관리해역 푸시 알림 허용" 토글 켠 사용자만 자식 한정사 표시
+                    const showChildZones = !!(user.options && user.options.childZones);
+                    const generated = generateMessage({ ...payload, items: userFilteredItems, showChildZones });
                     finalTitle = generated.title;
                     finalBody = generated.body;
                     shouldSend = true;
@@ -334,10 +336,10 @@ router.post('/api/push-custom', async (req, res) => {
                     if (opts.release === false && tid === 'release') {
                         return;
                     }
-                    // 야간 수신 거부 (KST 22:00 ~ 07:00)
+                    // 야간 수신 거부 (KST 23:00 ~ 07:00) — UI 라벨과 일치
                     if (opts.night === false) {
                         const kstHour = (new Date().getUTCHours() + 9) % 24;
-                        if (kstHour >= 22 || kstHour < 7) {
+                        if (kstHour >= 23 || kstHour < 7) {
                             return;
                         }
                     }

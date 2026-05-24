@@ -342,7 +342,8 @@ const NotificationSettings = {
         announce: true,
         active: true,
         release: true,
-        night: true
+        night: true,
+        childZones: false   // [작업2a] 특정관리해역(연안바다/평수구역) 자식 정보 푸시 표시 (기본 OFF)
     },
     init() {
         try {
@@ -388,6 +389,7 @@ function initNotificationUI() {
     const optActive = document.getElementById('push-opt-active');
     const optRelease = document.getElementById('push-opt-release');
     const optNight = document.getElementById('push-opt-night');
+    const optChildZones = document.getElementById('push-opt-childzones');
 
     if (!master) return;
 
@@ -483,6 +485,7 @@ function initNotificationUI() {
     if (optActive) optActive.checked = s.active;
     if (optRelease) optRelease.checked = s.release;
     if (optNight) optNight.checked = s.night;
+    if (optChildZones) optChildZones.checked = s.childZones;
 }
 
 /**
@@ -520,7 +523,8 @@ function saveNotificationUI() {
         announce: document.getElementById('push-opt-announce')?.checked ?? true,
         active: document.getElementById('push-opt-active')?.checked ?? true,
         release: document.getElementById('push-opt-release')?.checked ?? true,
-        night: document.getElementById('push-opt-night')?.checked ?? true
+        night: document.getElementById('push-opt-night')?.checked ?? true,
+        childZones: document.getElementById('push-opt-childzones')?.checked ?? false
     });
 }
 

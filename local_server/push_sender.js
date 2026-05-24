@@ -98,7 +98,7 @@ async function processAndSendNotifications(changes, options = {}) {
     const groups = {};
 
     for (const change of changes) {
-        const { type, zone, prev, curr } = change;
+        const { type, zone, prev, curr, childState } = change;
 
         // A. 발표 (Upcoming Change)
         if (type === 'UPCOMING_CHANGE') {
@@ -121,6 +121,7 @@ async function processAndSendNotifications(changes, options = {}) {
                         const scenario = curScore < newScore ? 'level_upgrade_publish' : 'level_downgrade_publish';
                         addToGroup(groups, scenario, typeName, level, {
                             zones: [zone],
+                    childState,
                             tmFc: curr.tmFc,
                             tmEf: curr.tmEf,
                             tmYn: curr.tmYn || curr.tmCc,
@@ -134,6 +135,7 @@ async function processAndSendNotifications(changes, options = {}) {
                 const scenario = 'publish';
                 addToGroup(groups, scenario, typeName, level, {
                     zones: [zone],
+                    childState,
                     tmFc: curr.tmFc,
                     tmEf: curr.tmEf,
                     tmYn: curr.tmYn || curr.tmCc
@@ -143,6 +145,7 @@ async function processAndSendNotifications(changes, options = {}) {
                 const scenario = 'time_ef_change';
                 addToGroup(groups, scenario, typeName, level, {
                     zones: [zone],
+                    childState,
                     tmFc: curr.tmFc,
                     tmEf: curr.tmEf,
                     tmYn: curr.tmYn || curr.tmCc
@@ -165,6 +168,7 @@ async function processAndSendNotifications(changes, options = {}) {
 
                 addToGroup(groups, scenario, typeName, level, {
                     zones: [zone],
+                    childState,
                     tmFc: prev.tmFc,
                     tmEf: prev.tmEf,
                     tmYn: prev.tmYn || prev.tmCc
@@ -180,6 +184,7 @@ async function processAndSendNotifications(changes, options = {}) {
 
                 addToGroup(groups, scenario, typeName, level, {
                     zones: [zone],
+                    childState,
                     tmFc: curr.tmFc,
                     tmEf: curr.tmEf,
                     tmYn: curr.tmYn || curr.tmCc
@@ -197,6 +202,7 @@ async function processAndSendNotifications(changes, options = {}) {
                 const scenario = prevScore < currScore ? 'level_upgrade_active' : 'level_downgrade_active';
                 addToGroup(groups, scenario, typeName, level, {
                     zones: [zone],
+                    childState,
                     tmFc: curr.tmFc,
                     tmEf: curr.tmEf,
                     tmYn: curr.tmYn || curr.tmCc,
@@ -220,6 +226,7 @@ async function processAndSendNotifications(changes, options = {}) {
 
                     addToGroup(groups, scenario, typeName, level, {
                         zones: [zone],
+                    childState,
                         tmFc: curr.tmFc,
                         tmEf: curr.tmEf,
                         tmYn: currTmYn

@@ -155,10 +155,28 @@ function getMatchedZones(userZones, targetItems, opts = {}) {
  * @returns {{ title: string, body: string }}
  */
 function generateMessage(filteredPayload) {
-    const { templateId, typeName, level, items, prevLevel } = filteredPayload;
+    const { templateId, typeName, level, items, prevLevel, showChildZones } = filteredPayload;
 
     let genTitle = '';
     let genBody = '';
+
+    // [작업2b] 자식 한정사 — 사용자가 "특정관리해역 푸시 허용"(options.childZones) 켰을 때만.
+    //   각 item 의 childState(부모별 자식 active/all)를 zone 키로 모아두고,
+    //   본문 렌더링 시 부모명 옆에 buildChildQualifier 로 "(연안바다 포함)" 등을 붙인다.
+    //   토글 OFF 또는 childState 없음 → 부모명 그대로 (기존 동작).
+    const childStateByZone = {};
+    (items || []).forEach(it => {
+        if (it && it.childState && Array.isArray(it.zones)) {
+            it.zones.forEach(z => { childStateByZone[z] = it.childState; });
+        }
+    });
+    const decorateZone = (zone) => {
+        if (!showChildZones) return zone;
+        const cs = childStateByZone[zone];
+        if (!cs) return zone;
+        const qual = buildChildQualifier(zone, cs, templateId);   // 함수 선언 호이스팅
+        return zone + (qual || '');
+    };
 
     // 시각 포맷 헬퍼: D일 HH:mm 또는 D일 범위시간 형식으로 변환
     const fmt = (str) => {
@@ -224,7 +242,7 @@ function generateMessage(filteredPayload) {
     // 그룹핑된 데이터를 메시지로 변환
     const formatGroupedMessage = (groups, timeLabel) => {
         return Object.entries(groups).map(([time, zones]) => {
-            const zStr = zones.join(', ');
+            const zStr = zones.map(decorateZone).join(', ');
             const formattedTime = fmt(time);
             return `ㅇ${zStr}\n   - ${timeLabel} : ${formattedTime}`;
         }).join('\n');
@@ -255,7 +273,7 @@ function generateMessage(filteredPayload) {
         genTitle = `✅ ${fullTitle} 해제`;
         const allZones = [];
         items.forEach(i => i.zones.forEach(z => { if (!allZones.includes(z)) allZones.push(z); }));
-        genBody = `ㅇ${allZones.join(', ')}`;
+        genBody = `ㅇ${allZones.map(decorateZone).join(', ')}`;
     }
     // 4. 격상 발표
     else if (templateId === 'level_upgrade_publish') {
@@ -442,6 +460,10 @@ function _stripParentPrefix(parent, child) {
 function buildChildQualifier(parent, childState, eventType) {
     try {
         const ptype = PARENT_CHILD_TYPE[parent];
+        // [버그수정] 자식(연안바다/평수구역)이 아예 없는 부모(먼바다 등 — 매트릭스 미등록)는
+        //   한정사를 붙이지 않는다. 과거엔 label 이 '연안바다' 로 fallback 되어
+        //   자식 없는 동해남부북쪽바깥먼바다에도 "(연안바다 미발효)" 가 붙던 버그.
+        if (!ptype) return '';
         const label = TYPE_LABEL[ptype] || '연안바다';
         const safe = childState || {};
         const all = Array.isArray(safe.all) ? safe.all : [];
@@ -548,22 +570,25 @@ class PushBuilder {
      * 반환: 시간 그룹별 본문 string[] (각 그룹 안엔 부모줄들 + 시간 라벨 1줄)
      */
     renderTimeGroups(fmtFn) {
+        // [작업2c] 사용자 푸시 양식 통일 — 부모를 ㅇ 줄마다 나누지 않고
+        //   단일 ㅇ 아래 ", " 로 결합한다 (자식 한정사는 각 부모 옆 괄호로 유지).
+        //   예: ㅇ제주도서부앞바다(연안바다 포함), 인천·경기북부앞바다(평수구역 포함)
         if (this.timeLabel === null) {
-            // 시간 라벨 없는 이벤트 — 그냥 부모 줄만 묶어 1개 본문 반환
-            const lines = this.parents.map(p => `ㅇ${p.name}${p.qualifier}`);
-            return [lines.join('\n')];
+            // 시간 라벨 없는 이벤트 (해제/예비취소 등) — 부모들을 콤마결합 1줄
+            const joined = this.parents.map(p => `${p.name}${p.qualifier}`).join(', ');
+            return [`ㅇ${joined}`];
         }
         // 시간별 그룹화 (삽입 순서 유지)
         const groups = new Map();
         for (const p of this.parents) {
             const key = p.time || '미정';
             if (!groups.has(key)) groups.set(key, []);
-            groups.get(key).push(`ㅇ${p.name}${p.qualifier}`);
+            groups.get(key).push(`${p.name}${p.qualifier}`);
         }
         const bodies = [];
-        for (const [time, lines] of groups) {
+        for (const [time, entries] of groups) {
             const body = [
-                ...lines,
+                `ㅇ${entries.join(', ')}`,
                 `   - ${this.timeLabel} : ${fmtFn(time)}`
             ].join('\n');
             bodies.push(body);
