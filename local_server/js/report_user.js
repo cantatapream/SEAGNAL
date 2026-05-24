@@ -523,6 +523,10 @@
         try {
             const formData = new FormData();
             formData.append('deviceId', getDeviceId());
+            // 댓글과 동일한 해양 닉네임 동봉 (관리자 화면에서 dev_xxx 대신 표시)
+            if (typeof getOrCreateNickname === 'function') {
+                formData.append('nickname', getOrCreateNickname());
+            }
             formData.append('category', category);
             formData.append('title', title);
             formData.append('content', content);

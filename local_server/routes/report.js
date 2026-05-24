@@ -171,7 +171,7 @@ router.post('/api/reports', (req, res) => {
             return res.status(500).json({ error: '파일 업로드 오류' });
         }
 
-        const { deviceId, category, title, content } = req.body;
+        const { deviceId, category, title, content, nickname } = req.body;
 
         if (!deviceId || !category || !title || !content) {
             return res.status(400).json({ error: '필수 항목이 누락되었습니다.' });
@@ -199,6 +199,7 @@ router.post('/api/reports', (req, res) => {
         const report = {
             id: generateReportId(),
             deviceId,
+            nickname: nickname || null,  // 사용자 해양 닉네임 (없으면 관리자 화면에서 deviceId 기반 생성)
             category,
             title,
             content,

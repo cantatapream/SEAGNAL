@@ -18,6 +18,23 @@ function escapeHTML(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// 제보 작성자 표시명: 저장된 닉네임 우선, 없으면(구 제보) deviceId 로부터
+// 결정론적 해양 닉네임 생성 (댓글과 동일한 단어 목록 — promo_comment1.js 전역 재사용)
+function _reportDisplayName(report) {
+    if (report && report.nickname) return report.nickname;
+    var adjs = (typeof _NICKNAME_ADJECTIVES !== 'undefined') ? _NICKNAME_ADJECTIVES
+        : ['파란', '깊은', '맑은', '넓은', '잔잔한', '거센', '투명한', '청명한', '푸른', '고요한', '빛나는', '신비한', '용감한', '씩씩한', '빠른'];
+    var nouns = (typeof _NICKNAME_NOUNS !== 'undefined') ? _NICKNAME_NOUNS
+        : ['돌고래', '오징어', '해파리', '고래', '문어', '상어', '갈치', '참치', '가오리', '복어', '성게', '전복', '소라', '조개', '불가사리', '해마', '물개', '갈매기', '바닷가재', '대게'];
+    var id = (report && report.deviceId) ? String(report.deviceId) : '';
+    var h = 0;
+    for (var i = 0; i < id.length; i++) { h = (h * 31 + id.charCodeAt(i)) >>> 0; }
+    var adj = adjs[h % adjs.length];
+    var noun = nouns[Math.floor(h / adjs.length) % nouns.length];
+    var num = String(h % 1000).padStart(3, '0');
+    return adj + noun + num;
+}
+
 // ============================================================================
 // 1. 제보 관리 탭 렌더링 (하위탭: [기능 제보] / [댓글 신고])
 // ============================================================================
@@ -255,7 +272,7 @@ function renderReportList() {
                     <div style="color:#e2e8f0;font-size:0.85rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.title}</div>
                     <div style="display:flex;gap:8px;margin-top:4px;align-items:center;">
                         ${hasAttach}
-                        <span style="color:#475569;font-size:0.6rem;">${r.deviceId.substring(0, 15)}...</span>
+                        <span style="color:#475569;font-size:0.6rem;">${escapeHTML(_reportDisplayName(r))}</span>
                     </div>
                 </div>
             </div>
@@ -606,7 +623,7 @@ window._showReportDetail = async function (id) {
                 <h4 style="color:#e2e8f0;margin:0 0 8px;font-size:1rem;">${escapeHTML(report.title)}</h4>
                 <div style="display:flex;gap:15px;color:#64748b;font-size:0.7rem;margin-bottom:12px;">
                     <span><i class="fa-solid fa-clock"></i> ${date}</span>
-                    <span><i class="fa-solid fa-mobile-screen"></i> ${report.deviceId.substring(0, 20)}...</span>
+                    <span><i class="fa-solid fa-user"></i> ${escapeHTML(_reportDisplayName(report))}</span>
                 </div>
                 <div style="color:#cbd5e1;font-size:0.85rem;line-height:1.6;white-space:pre-wrap;background:rgba(0,0,0,0.2);padding:12px;border-radius:6px;">${escapeHTML(report.content)}</div>
             </div>
