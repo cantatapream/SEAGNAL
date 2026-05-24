@@ -570,22 +570,25 @@ class PushBuilder {
      * 반환: 시간 그룹별 본문 string[] (각 그룹 안엔 부모줄들 + 시간 라벨 1줄)
      */
     renderTimeGroups(fmtFn) {
+        // [작업2c] 사용자 푸시 양식 통일 — 부모를 ㅇ 줄마다 나누지 않고
+        //   단일 ㅇ 아래 ", " 로 결합한다 (자식 한정사는 각 부모 옆 괄호로 유지).
+        //   예: ㅇ제주도서부앞바다(연안바다 포함), 인천·경기북부앞바다(평수구역 포함)
         if (this.timeLabel === null) {
-            // 시간 라벨 없는 이벤트 — 그냥 부모 줄만 묶어 1개 본문 반환
-            const lines = this.parents.map(p => `ㅇ${p.name}${p.qualifier}`);
-            return [lines.join('\n')];
+            // 시간 라벨 없는 이벤트 (해제/예비취소 등) — 부모들을 콤마결합 1줄
+            const joined = this.parents.map(p => `${p.name}${p.qualifier}`).join(', ');
+            return [`ㅇ${joined}`];
         }
         // 시간별 그룹화 (삽입 순서 유지)
         const groups = new Map();
         for (const p of this.parents) {
             const key = p.time || '미정';
             if (!groups.has(key)) groups.set(key, []);
-            groups.get(key).push(`ㅇ${p.name}${p.qualifier}`);
+            groups.get(key).push(`${p.name}${p.qualifier}`);
         }
         const bodies = [];
-        for (const [time, lines] of groups) {
+        for (const [time, entries] of groups) {
             const body = [
-                ...lines,
+                `ㅇ${entries.join(', ')}`,
                 `   - ${this.timeLabel} : ${fmtFn(time)}`
             ].join('\n');
             bodies.push(body);
