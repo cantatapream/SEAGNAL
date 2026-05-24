@@ -442,6 +442,10 @@ function _stripParentPrefix(parent, child) {
 function buildChildQualifier(parent, childState, eventType) {
     try {
         const ptype = PARENT_CHILD_TYPE[parent];
+        // [버그수정] 자식(연안바다/평수구역)이 아예 없는 부모(먼바다 등 — 매트릭스 미등록)는
+        //   한정사를 붙이지 않는다. 과거엔 label 이 '연안바다' 로 fallback 되어
+        //   자식 없는 동해남부북쪽바깥먼바다에도 "(연안바다 미발효)" 가 붙던 버그.
+        if (!ptype) return '';
         const label = TYPE_LABEL[ptype] || '연안바다';
         const safe = childState || {};
         const all = Array.isArray(safe.all) ? safe.all : [];
