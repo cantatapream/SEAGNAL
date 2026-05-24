@@ -343,7 +343,7 @@ const NotificationSettings = {
         active: true,
         release: true,
         night: true,
-        childZones: false   // [작업2a] 특정관리해역(연안바다/평수구역) 자식 정보 푸시 표시 (기본 OFF)
+        childZones: true   // [작업2a] 특정관리해역(연안바다/평수구역) 자식 정보 푸시 표시 (기본 ON)
     },
     init() {
         try {
@@ -524,7 +524,7 @@ function saveNotificationUI() {
         active: document.getElementById('push-opt-active')?.checked ?? true,
         release: document.getElementById('push-opt-release')?.checked ?? true,
         night: document.getElementById('push-opt-night')?.checked ?? true,
-        childZones: document.getElementById('push-opt-childzones')?.checked ?? false
+        childZones: document.getElementById('push-opt-childzones')?.checked ?? true
     });
 }
 

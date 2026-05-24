@@ -291,8 +291,10 @@ router.post('/api/push-custom', async (req, res) => {
                     userFilteredItems = getMatchedZones(user.zones, payload.items, user.options || {});
                     if (!userFilteredItems || userFilteredItems.length === 0) return;
 
-                    // [작업2b] "특정관리해역 푸시 알림 허용" 토글 켠 사용자만 자식 한정사 표시
-                    const showChildZones = !!(user.options && user.options.childZones);
+                    // [작업2b] "특정관리해역 푸시 알림 허용" — 기본 ON.
+                    //   명시적으로 childZones===false 인 사용자만 자식 한정사 미표시.
+                    //   (토글 추가 이전 구독자는 키가 없으므로 기본 ON으로 동작 — 마이그레이션)
+                    const showChildZones = !(user.options && user.options.childZones === false);
                     const generated = generateMessage({ ...payload, items: userFilteredItems, showChildZones });
                     finalTitle = generated.title;
                     finalBody = generated.body;

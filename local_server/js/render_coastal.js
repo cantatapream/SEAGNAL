@@ -511,10 +511,9 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
         });
 
         // [수정] 연도/월 표기 제거 헬퍼 (특보카드 상세에서도 동일하게 적용)
-        const stripYearMonth = (timeStr) => {
-            const formatted = formatWarningTime(timeStr);
-            return formatted ? formatted.replace(/\d{4}년\s*/g, '').replace(/^\d+월\s*/, '').replace(/\s\d+월\s*/, ' ') : formatted;
-        };
+        // [표시 포맷] formatWarningTime 이 이미 "M월 D일(라벨) H시" 형식을 반환하므로
+        //   월 제거 없이 그대로 사용 (사용자 요구: 월 포함 표시).
+        const stripYearMonth = (timeStr) => formatWarningTime(timeStr);
 
         // [V3.1] 정확한 단일 시각 판정 — data.js 의 동명 헬퍼 폴백.
         //   범위형 ('(' 또는 '~' 포함) / 한글 시간대 단독 / 빈 값 → false.

@@ -288,37 +288,9 @@ function _dedupKey(ev) {
  */
 function fmtTime(str) {
     if (!str) return '미정';
-
-    // 1) "YYYY-MM-DD HH:mm" 형식
-    let m = str.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
-    if (m) {
-        const [, , , day, hour, minute] = m;
-        return `${parseInt(day, 10)}일 ${hour}:${minute}`;
-    }
-
-    // 2) "YYYY-MM-DD 자유시간문구" 형식
-    m = str.match(/(\d{4})-(\d{2})-(\d{2})\s+(.+)/);
-    if (m) {
-        const [, , , day, timeDesc] = m;
-        return `${parseInt(day, 10)}일 ${timeDesc}`;
-    }
-
-    // 3) 12자리 숫자 (YYYYMMDDHHmm)
-    if (/^\d{12}$/.test(str)) {
-        const day = str.substring(6, 8);
-        const hour = str.substring(8, 10);
-        const minute = str.substring(10, 12);
-        return `${parseInt(day, 10)}일 ${hour}:${minute}`;
-    }
-
-    // 4) "YYYY년 MM월 DD일 HH시 mm분"
-    m = str.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(.*)/);
-    if (m) {
-        const [, , , day, rest] = m;
-        return `${String(day).padStart(2, '0')}일 ${rest}`.trim();
-    }
-
-    return str;
+    // [표시 포맷 통일] push_helpers.formatWarnTimeKST 위임 — 사용자/관리자 푸시 동일 규칙
+    //   ("M월 D일(라벨) H시 / Hs시~He시"). dmdw 경로 푸시도 통일.
+    return require('./push_helpers').formatWarnTimeKST(str);
 }
 
 /** 등급+종류 종합 점수 — 격상/격하 판별.
