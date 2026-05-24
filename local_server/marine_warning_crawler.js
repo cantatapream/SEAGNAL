@@ -43,6 +43,13 @@ const fs = require('fs');
 const path = require('path');
 const dmdwPush = require('./services/dmdw_push_sender');
 const pushHelpers = require('./services/push_helpers');
+
+// [수정1] 관리자 알림 푸시(dmdw 채널) 전면 비활성.
+//   작업2 통합으로 사용자 푸시에 이미 자식 한정사가 포함되므로 관리자 채널은 중복.
+//   끄는 대상: 정상 발표/발효/해제 관리자 푸시(runDiffAndPush) + 의심사례 알림 +
+//   즉시해제 알림. ※ 의심 "가드 로직"(_applySuspiciousGuard 해제 보류)은 데이터
+//   안전장치라 유지 — 알림 푸시만 끔.
+const ADMIN_PUSH_ENABLED = false;
 // [사용자 푸시 복원] legacy 시스템에서 weather_alerts_crawler 가 호출하던 push_sender.
 // marine v7 통합 시 legacy 비활성화 → 사용자 push 채널 끊김 → 복원.
 let pushSender = null;
@@ -711,6 +718,7 @@ function _applySuspiciousGuard(prev, curr) {
  * dmdw_push_sender 가 import 안전한 경우만 호출 (circular safe).
  */
 function _enqueueSuspiciousAlert(currentCase) {
+    if (!ADMIN_PUSH_ENABLED) return;   // [수정1] 관리자 알림 푸시 비활성 (가드 로직은 유지)
     try {
         if (typeof dmdwPush.enqueueSuspiciousAlert === 'function') {
             // fire-and-forget — push 실패는 본 사이클에 영향 없도록
@@ -890,13 +898,16 @@ async function _enqueueImmediateRelease(caseZones) {
         if (!Array.isArray(caseZones) || caseZones.length === 0) return;
         const cycleId = Date.now();
 
-        // prev snapshot 에서 해당 zone 제거 (이미 정상 해제로 처리되었으므로)
+        // prev snapshot 에서 해당 zone 제거 (이미 정상 해제로 처리되었으므로) — 가드 데이터 처리, 유지
         if (_prevSnapshot && _prevSnapshot.parents) {
             for (const z of caseZones) {
                 if (z && z.name) _prevSnapshot.parents.delete(z.name);
             }
             _savePrevSnapshot(_prevSnapshot);
         }
+
+        // [수정1] 관리자 알림 푸시 비활성 — prev 정리만 하고 dmdw 발사는 skip
+        if (!ADMIN_PUSH_ENABLED) return;
 
         // wrnTp+wrnLvl 별로 그룹화
         const groups = new Map();
@@ -1609,11 +1620,15 @@ async function run(opts = {}) {
         const prevForDiff = _prevSnapshot;
         _applySuspiciousGuard(prevForDiff, curr);
 
-        // 5) diff + dispatch + flush (관리자 push — 자식 정보 묶음)
-        const sent = await runDiffAndPush(prevForDiff, curr, {
-            cycleId: opts.cycleId || Date.now(),
-            dryRun: !!opts.dryRun
-        });
+        // 5) diff + dispatch + flush (관리자 push) — [수정1] 관리자 채널 비활성.
+        //    runDiffAndPush 는 관리자(dmdw) 푸시 전용이므로 비활성 시 호출 자체 skip.
+        let sent = [];
+        if (ADMIN_PUSH_ENABLED) {
+            sent = await runDiffAndPush(prevForDiff, curr, {
+                cycleId: opts.cycleId || Date.now(),
+                dryRun: !!opts.dryRun
+            });
+        }
 
         // 5-B) [사용자 푸시 복원] 부모 zone 단위 변화 → push_sender.processChanges
         //   legacy 시스템에서 weather_alerts_crawler 가 호출하던 채널.
