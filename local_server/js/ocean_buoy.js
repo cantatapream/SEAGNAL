@@ -71,13 +71,16 @@ if (window.__SEAGNAL_PAGE === 'index2') {
     //  - 줌이 높을수록 작은 격자(px) + 큰 cellBudget → 점점 더 많이 등장
     //  - 줌 15 이상은 모든 마커 표시 (격자 없이 통과)
     //
-    // [왜 픽셀 격자?]
-    //  - 위경도 격자는 메르카토르 투영 특성상 고/저위도에서 화면상 칸 크기가
-    //    크게 달라짐(저위도 dense, 고위도 sparse). 따라서 "화면을 균일하게
-    //    분산" 이라는 사용자 의도와 어긋남.
-    //  - 픽셀 격자는 위도와 무관하게 항상 화면 위에 정사각형 망 → 균일.
-    //  - getPixelFromCoordinate() 가 OL 내부에서 메르카토르 보정을 처리해 주므로
-    //    회전/스케일/팬을 모두 자동 반영.
+    // [격자 좌표계 — 지도 고정(월드 좌표) 격자]
+    //  - cellPx 는 "화면상 칸 크기(px)" 를 뜻하지만, 실제 격자 인덱스는
+    //    지도 투영 좌표(EPSG:3857, 미터)로 계산한다: cellMeters = cellPx * resolution.
+    //  - 이렇게 하면 같은 줌(resolution 고정)에서 격자 원점이 지도에 박혀 있어
+    //    화면을 팬해도 각 마커가 항상 같은 칸에 속한다 → 선택 결과가 안정적이라
+    //    "있던 마커가 갑자기 사라지거나 나타나는" 현상이 없다.
+    //  - 픽셀 좌표로 격자를 만들면 격자가 뷰포트에 고정되어 팬할 때 지도 위에서
+    //    격자가 움직이고, 같은 마커가 칸을 옮겨다니며 선택/탈락이 바뀐다(=깜빡임).
+    //  - 메르카토르 왜곡: 같은 줌에서는 화면상 미터/픽셀 비율(resolution)이 일정해
+    //    cellMeters 가 화면상 cellPx 크기를 그대로 유지하므로 화면 균일성도 보존된다.
     //
     // [cellBudget]
     //  같은 셀에 떨어진 마커 중 최대 몇 개를 표시할지. 부이+지명+CCTV 합산.
@@ -307,31 +310,28 @@ if (window.__SEAGNAL_PAGE === 'index2') {
         if (!_samplerMap) return;
         var view = _samplerMap.getView();
         var zoom = view.getZoom();
+        var resolution = view.getResolution();
         var params = _gridParamsForZoom(zoom);
 
-        // 지도 픽셀 크기 (없으면 첫 렌더 전 → 잠시 후 재시도)
-        // [무한 재호출 방지] 비활성 탭(display:none)에 있어 size 가 영구히 [0,0]
-        // 인 케이스 대비: 최대 _SIZE_RETRY_MAX 회 (200ms 간격, 총 약 6초) 만
-        // 재시도하고 포기. 이후엔 사용자가 탭을 열어 moveend / change:resolution /
-        // 토글 이벤트가 발생하면 자동으로 다시 _scheduleSample() 이 호출됨.
-        var size = _samplerMap.getSize();
-        if (!size || !size[0] || !size[1]) {
+        // 지도가 아직 준비되지 않으면(해상도 없음) 잠시 후 재시도.
+        // [무한 재호출 방지] 비활성 탭(display:none) 등으로 영구히 준비 안 되는
+        // 케이스 대비: 최대 _SIZE_RETRY_MAX 회(200ms 간격, 약 6초)만 재시도하고
+        // 포기. 이후 moveend / change:resolution / 토글 이벤트로 자동 재개됨.
+        if (typeof zoom !== 'number' || !resolution) {
             if (_sizeRetryCount < _SIZE_RETRY_MAX) {
                 _sizeRetryCount++;
                 setTimeout(_scheduleSample, 200);
             }
             return;
         }
-        // size 정상 복귀 시 카운터 리셋 (다음에 다시 0 이 되면 재시도 가능)
         _sizeRetryCount = 0;
-        var mapW = size[0];
-        var mapH = size[1];
 
-        // 뷰포트 바깥 살짝 더 샘플링 (팬 직후 빈 영역 방지)
-        var margin = (params.cellPx > 0) ? Math.max(params.cellPx, 60) : 60;
-
-        // 1. 모든 후보를 한 풀로 모음 (visible 인 type 만) + 픽셀 좌표 계산
-        var pool = [];     // [{feature, px, type}]
+        // 1. visible 한 전체 후보를 한 풀로 모음 (뷰포트 클리핑 없음)
+        //    [중요] 격자 선택을 "지도 전체" 기준으로 확정해야, 같은 줌에서
+        //    화면을 팬할 때 마커가 사라지거나 새로 나타나지 않는다. 화면 밖
+        //    피처는 OpenLayers Vector 레이어가 알아서 렌더하지 않으므로,
+        //    여기서 뷰포트로 자르지 않고 선택 결과 전체를 sink 에 넣는다.
+        var pool = [];     // [{feature, coord, type}]
         for (var i = 0; i < _samplerRegistry.length; i++) {
             var entry = _samplerRegistry[i];
             if (!entry.getVisible()) continue;
@@ -340,14 +340,9 @@ if (window.__SEAGNAL_PAGE === 'index2') {
                 var feat = all[k];
                 var geom = feat.getGeometry();
                 if (!geom) continue;
-                var px = _samplerMap.getPixelFromCoordinate(geom.getCoordinates());
-                if (!px) continue;
-                // 뷰포트 + margin 안쪽만 후보
-                if (px[0] < -margin || px[0] > mapW + margin) continue;
-                if (px[1] < -margin || px[1] > mapH + margin) continue;
                 pool.push({
                     feature: feat,
-                    px: px,
+                    coord: geom.getCoordinates(),   // EPSG:3857 투영 좌표(미터)
                     type: feat.get('_sampleType')
                 });
             }
@@ -361,13 +356,17 @@ if (window.__SEAGNAL_PAGE === 'index2') {
                 selected.push(pool[p].feature);
             }
         } else {
-            // 3. 격자 버킷에 담기 — 픽셀 좌표 → cellPx 단위 셀 인덱스
+            // 3. 격자 버킷에 담기 — 지도 투영 좌표(미터) 기준 셀 인덱스.
+            //    cellMeters = cellPx * resolution 이라 화면상 칸 크기는
+            //    cellPx(px) 그대로지만, 격자 원점이 지도(월드 좌표)에 고정되어
+            //    같은 줌에서 팬해도 각 마커가 항상 같은 칸에 속한다. → 선택
+            //    결과가 안정적이라 마커가 들락날락하지 않는다.
             var buckets = {};   // key "ix:iy" → [{feature, type}, ...]
-            var cellPx = params.cellPx;
+            var cellMeters = params.cellPx * resolution;
             for (var j = 0; j < pool.length; j++) {
                 var item = pool[j];
-                var ix = Math.floor(item.px[0] / cellPx);
-                var iy = Math.floor(item.px[1] / cellPx);
+                var ix = Math.floor(item.coord[0] / cellMeters);
+                var iy = Math.floor(item.coord[1] / cellMeters);
                 var key = ix + ':' + iy;
                 if (!buckets[key]) buckets[key] = [];
                 buckets[key].push(item);
