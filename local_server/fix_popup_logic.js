@@ -38,6 +38,17 @@ window.AlertDetailPopup = {
         if (!dateStr) return '정보 없음';
         if (typeof dateStr !== 'string') return String(dateStr);
 
+        // [표시 포맷 통일] 공통 포맷터(utils.js formatWarningTime) 위임 —
+        //   "M월 D일(라벨) H시 / Hs시~He시" (월·시단위·상대일자·범위 보정).
+        //   푸시 탭 → 도착 상세 팝업도 앱/푸시 본문과 동일 포맷으로.
+        //   범위는 '~' 포함, 정확시각은 미포함 → 하류 '중/부로' 판단 그대로 유효.
+        if (typeof window !== 'undefined' && typeof window.formatWarningTime === 'function') {
+            try {
+                const r = window.formatWarningTime(dateStr);
+                if (r && r !== '정보 없음') return r;
+            } catch (e) { /* 폴백 진행 */ }
+        }
+
         // 숫자로만 구성된 12자리 형식 (YYYYMMDDHHMM 또는 YYYYMMDD시작시종료시)
         const nums = dateStr.replace(/[^0-9]/g, '');
         if (nums.length === 12) {
