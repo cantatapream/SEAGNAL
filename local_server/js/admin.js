@@ -3194,9 +3194,6 @@ function renderLedgerViewTab(container) {
                 <button onclick="resetLedgerWithTestPush()" style="padding:6px 12px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:6px;color:#fca5a5;cursor:pointer;font-size:0.8rem;font-weight:600;">
                     <i class="fa-solid fa-bolt"></i> 장부 초기화 (테스트 푸시)
                 </button>
-                <button onclick="refreshLedger()" style="padding:6px 12px;background:rgba(34,211,238,0.15);border:1px solid rgba(34,211,238,0.4);border-radius:6px;color:#67e8f9;cursor:pointer;font-size:0.8rem;font-weight:600;">
-                    <i class="fa-solid fa-rotate"></i> 새로고침
-                </button>
             </div>
         </div>
         <div style="margin-bottom:8px;color:#94a3b8;font-size:0.78rem;">
@@ -3218,13 +3215,18 @@ function renderLedgerViewTab(container) {
 }
 
 window.resetLedgerWithTestPush = async function () {
-    const ok = confirm('장부(diff 기준점)를 초기화하고, 현재 활성 특보를 신규로 감지하여 실제 푸시를 발송합니다.\n\n관심해역 필터링된 전체 사용자에게 발송됩니다. 진행할까요?');
+    const adminToken = localStorage.getItem('push_token') || '';
+    if (!adminToken) {
+        alert('이 기기의 푸시 토큰을 찾을 수 없습니다. 먼저 푸시 알림을 허용(구독)한 뒤 다시 시도하세요.\n(테스트 푸시는 이 관리자 기기에만 발송됩니다.)');
+        return;
+    }
+    const ok = confirm('장부(diff 기준점)를 초기화하고, 현재 활성 특보를 신규로 감지하여 테스트 푸시를 발송합니다.\n\n※ 이 관리자 기기에만 발송됩니다 (일반 사용자에게는 발송되지 않음). 진행할까요?');
     if (!ok) return;
     try {
         const r = await fetch('/api/admin/marine/reset', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ testPush: true })
+            body: JSON.stringify({ testPush: true, adminToken })
         });
         const data = await r.json();
         if (!r.ok || !data.success) throw new Error(data.error || ('HTTP ' + r.status));
