@@ -1458,8 +1458,7 @@ function _enrichSnapshotWithLatest(snap, warnLatest) {
     if (!snap || !Array.isArray(warnLatest) || warnLatest.length === 0) return snap;
     let enriched = 0;
     for (const row of warnLatest) {
-        const tp = String(row.warn_tp || '');
-        if (tp === '5') continue;
+        if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 풍랑(V)+태풍(T) 만 (실시간 문자코드)
         const cmd = String(row.warn_cmd_nm || '').trim();
         if (cmd !== '해제') continue;
         const name = (row.warn_zone_nm || row.kor_nm || '').trim().replace(/\s+/g, '');

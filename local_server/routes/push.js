@@ -336,10 +336,10 @@ router.post('/api/push-custom', async (req, res) => {
                     if (opts.release === false && tid === 'release') {
                         return;
                     }
-                    // 야간 수신 거부 (KST 22:00 ~ 07:00)
+                    // 야간 수신 거부 (KST 23:00 ~ 07:00) — UI 라벨과 일치
                     if (opts.night === false) {
                         const kstHour = (new Date().getUTCHours() + 9) % 24;
-                        if (kstHour >= 22 || kstHour < 7) {
+                        if (kstHour >= 23 || kstHour < 7) {
                             return;
                         }
                     }
