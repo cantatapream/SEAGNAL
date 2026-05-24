@@ -3191,6 +3191,9 @@ function renderLedgerViewTab(container) {
             <div><i class="fa-solid fa-book" style="color:#22d3ee;"></i> 장부 (weather_alerts.json)</div>
             <div style="display:flex;gap:8px;align-items:center;">
                 <span style="font-size:0.75rem;color:#64748b;" id="ledger-updated-at">-</span>
+                <button onclick="resetLedgerWithTestPush()" style="padding:6px 12px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:6px;color:#fca5a5;cursor:pointer;font-size:0.8rem;font-weight:600;">
+                    <i class="fa-solid fa-bolt"></i> 장부 초기화 (테스트 푸시)
+                </button>
                 <button onclick="refreshLedger()" style="padding:6px 12px;background:rgba(34,211,238,0.15);border:1px solid rgba(34,211,238,0.4);border-radius:6px;color:#67e8f9;cursor:pointer;font-size:0.8rem;font-weight:600;">
                     <i class="fa-solid fa-rotate"></i> 새로고침
                 </button>
@@ -3213,6 +3216,24 @@ function renderLedgerViewTab(container) {
         refreshLedger();
     }, 30000);
 }
+
+window.resetLedgerWithTestPush = async function () {
+    const ok = confirm('장부(diff 기준점)를 초기화하고, 현재 활성 특보를 신규로 감지하여 실제 푸시를 발송합니다.\n\n관심해역 필터링된 전체 사용자에게 발송됩니다. 진행할까요?');
+    if (!ok) return;
+    try {
+        const r = await fetch('/api/admin/marine/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ testPush: true })
+        });
+        const data = await r.json();
+        if (!r.ok || !data.success) throw new Error(data.error || ('HTTP ' + r.status));
+        alert(data.message || '초기화 + 테스트 푸시 완료');
+        refreshLedger();
+    } catch (e) {
+        alert('초기화 실패: ' + (e && e.message));
+    }
+};
 
 window.refreshLedger = async function () {
     const el = document.getElementById('ledger-content');

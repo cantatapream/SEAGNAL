@@ -1505,6 +1505,22 @@ function _isSnapshotEmpty(snap) {
     return true;
 }
 
+/**
+ * [테스트] diff 기준점(prev 스냅샷) 초기화.
+ *   메모리 _prevSnapshot 과 디스크 state 파일을 비운다.
+ *   이후 run({forceBaselinePush:true}) 를 호출하면 현재 활성 특보가 신규로 감지돼
+ *   실제 푸시가 발사된다 (관리자 "장부 초기화" 버튼 전용).
+ */
+function resetState() {
+    _prevSnapshot = new StateSnapshot();
+    try {
+        _savePrevSnapshot(_prevSnapshot);
+        console.log('[Marine] 장부(state) 초기화 완료 — 다음 강제 사이클에서 현재 특보를 신규로 감지');
+    } catch (e) {
+        console.error('[Marine] resetState 실패:', e && e.message);
+    }
+}
+
 async function run(opts = {}) {
     if (_runInProgress) {
         // 중복 실행 방지
@@ -1559,7 +1575,10 @@ async function run(opts = {}) {
         //    다음 cycle 부터 정상 diff/push.
         //    조건: 부팅 직후 lazy load + 디스크 prev 비어있음, **또는** E-4 partial-fail 후
         //    빈 snapshot 으로 lazy set 된 케이스 (D-1 보강 — isFirstLoad 가드 제거).
-        if (_isSnapshotEmpty(_prevSnapshot)) {
+        //    [테스트] opts.forceBaselinePush 가 true 면 이 가드를 1회 우회 →
+        //    빈 prev vs 현재 발효+예비 를 "전부 신규" 로 diff 하여 실제 푸시 발사.
+        //    (관리자 "장부 초기화(테스트 푸시)" 버튼 전용)
+        if (_isSnapshotEmpty(_prevSnapshot) && !opts.forceBaselinePush) {
             console.log('[Marine] 첫 부팅 — push skip, state 저장만 (현재 발효 부모=' +
                 curr.parents.size + ', 자식=' + curr.children.size + ')');
             _prevSnapshot = curr;
@@ -1568,6 +1587,9 @@ async function run(opts = {}) {
             //   prev 가 비어있으므로 previous 트리도 비어있는 skeleton 으로 기록.
             _writeWeatherAlertsJson(new StateSnapshot(), curr);
             return [];
+        }
+        if (opts.forceBaselinePush && _isSnapshotEmpty(_prevSnapshot)) {
+            console.log('[Marine] ⚠️ 강제 baseline 푸시 모드 — E-1 가드 우회, 현재 활성 특보를 신규로 발사');
         }
 
         // 4) [D-medium 인터랙티브] 의심 가드 — mmis 빈 응답 / 부분 누락 폭주 차단.
@@ -1629,6 +1651,7 @@ module.exports = {
     EventDispatcher,
     runDiffAndPush,
     run,
+    resetState,
     // 내부 노출 (테스트용)
     _score,
     _buildSnapshotFromMarine,

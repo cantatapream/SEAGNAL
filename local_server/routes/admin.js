@@ -170,6 +170,34 @@ router.post('/api/admin/crawl-toggle', (req, res) => {
 // 특보 장부 관리
 // ============================================================================
 
+// [marine] 장부(diff 기준점) 초기화 + 테스트 푸시
+//   marine_warning_state.json(prev 스냅샷)을 비우고, 강제 baseline 사이클을 1회 실행.
+//   E-1 첫부팅 가드를 우회하여 현재 활성 특보(발효+예비)를 "신규"로 감지 → 실제 푸시 발사.
+//   필터링된 전체 사용자에게 발송됨 (현재 활성 해역 구독자 대상).
+router.post('/api/admin/marine/reset', async (req, res) => {
+    try {
+        const { testPush } = req.body || {};
+        marineWarningCrawler.resetState();
+        let pushed = false;
+        if (testPush !== false) {
+            // 강제 baseline 사이클 — 현재 활성 특보를 신규로 감지하여 실제 푸시 발송
+            await marineWarningCrawler.run({ forceBaselinePush: true });
+            pushed = true;
+        }
+        console.log(`[Admin] marine 장부 초기화 완료 (테스트 푸시=${pushed})`);
+        res.json({
+            success: true,
+            pushed,
+            message: pushed
+                ? '장부를 초기화하고 현재 활성 특보를 신규로 감지하여 푸시를 발송했습니다.'
+                : '장부를 초기화했습니다. (다음 1분 사이클부터 baseline 재설정)'
+        });
+    } catch (e) {
+        console.error('[Admin] marine 장부 초기화 실패:', e && e.message);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 // 특보 장부 초기화
 router.post('/api/admin/alerts-reset', (req, res) => {
     try {

@@ -343,7 +343,7 @@ const NotificationSettings = {
         active: true,
         release: true,
         night: true,
-        childZones: false   // [작업2a] 특정관리해역(연안바다/평수구역) 자식 정보 푸시 표시 (기본 OFF)
+        childZones: true   // [작업2a] 특정관리해역(연안바다/평수구역) 자식 정보 푸시 표시 (기본 ON)
     },
     init() {
         try {
