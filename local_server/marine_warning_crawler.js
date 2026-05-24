@@ -105,6 +105,121 @@ const PARENT_TO_CHILDREN = {
 };
 
 // ============================================================================
+// [A안] warn_zone_cd → 앱 정식 해역명 매핑 (mmis archive ef2 1년치로 추출, 93개)
+//   mmis 실시간 endpoint(warn/list, warn/ready, warn-sasc)의 warn_zone_nm 은
+//   일부 zone 을 축약("남해서부 동쪽")해서 주지만, warn_zone_cd 는 불변.
+//   따라서 코드로 정식명을 해석하면 축약·표기차이(·, 공백)를 전부 무력화.
+//   값은 앱 zone 트리/PARENT_TO_CHILDREN 의 정식명과 일치시킴.
+//   (· 표기 불일치 2건 S2211100/S2212200 은 앱 표기로 보정 반영)
+// ============================================================================
+const MMIS_CODE_TO_NAME = {
+    'S1131100': '울산앞바다',
+    'S1131200': '경북남부앞바다',
+    'S1131300': '경북북부앞바다',
+    'S1132110': '동해남부남쪽안쪽먼바다',
+    'S1132120': '동해남부남쪽바깥먼바다',
+    'S1132210': '동해남부북쪽안쪽먼바다',
+    'S1132220': '동해남부북쪽바깥먼바다',
+    'S1151100': '강원북부앞바다',
+    'S1151200': '강원중부앞바다',
+    'S1151300': '강원남부앞바다',
+    'S1152010': '동해중부안쪽먼바다',
+    'S1152020': '동해중부바깥먼바다',
+    'S1231100': '전북북부앞바다',
+    'S1231200': '전북남부앞바다',
+    'S1231300': '전남북부서해앞바다',
+    'S1231400': '전남중부서해앞바다',
+    'S1231500': '전남남부서해앞바다',
+    'S1232110': '서해남부북쪽안쪽먼바다',
+    'S1232120': '서해남부북쪽바깥먼바다',
+    'S1232210': '서해남부남쪽안쪽먼바다',
+    'S1232220': '서해남부남쪽바깥먼바다',
+    'S1251100': '인천·경기북부앞바다',
+    'S1251200': '인천·경기남부앞바다',
+    'S1251300': '충남북부앞바다',
+    'S1251400': '충남남부앞바다',
+    'S1252010': '서해중부안쪽먼바다',
+    'S1252020': '서해중부바깥먼바다',
+    'S1311100': '부산앞바다',
+    'S1311200': '경남서부남해앞바다',
+    'S1311300': '경남중부남해앞바다',
+    'S1311400': '거제시동부앞바다',
+    'S1312010': '남해동부안쪽먼바다',
+    'S1312020': '남해동부바깥먼바다',
+    'S1321100': '전남서부남해앞바다',
+    'S1321200': '전남동부남해앞바다',
+    'S1322100': '남해서부서쪽먼바다',
+    'S1322200': '남해서부동쪽먼바다',
+    'S1323100': '제주도북부앞바다',
+    'S1323200': '제주도동부앞바다',
+    'S1323300': '제주도남부앞바다',
+    'S1323400': '제주도서부앞바다',
+    'S1324020': '제주도남쪽바깥먼바다',
+    'S1324110': '제주도남동쪽안쪽먼바다',
+    'S1324210': '제주도남서쪽안쪽먼바다',
+    'S2110100': '경북남부앞바다중평수구역',
+    'S2110200': '울산앞바다중평수구역',
+    'S2120100': '경북북부앞바다중연안바다',
+    'S2120300': '경북남부앞바다중연안바다',
+    'S2120400': '울산앞바다중연안바다',
+    'S2120500': '강원중부앞바다중연안바다',
+    'S2120600': '강원북부앞바다중연안바다',
+    'S2120700': '강원남부앞바다중연안바다',
+    'S2120800': '울릉도울릉읍연안바다',
+    'S2120900': '울릉도서면연안바다',
+    'S2121000': '울릉도북면연안바다',
+    'S2210100': '전북북부앞바다중평수구역',
+    'S2210200': '전북남부앞바다중평수구역',
+    'S2210300': '전남북부서해앞바다중평수구역',
+    'S2210500': '전남남부서해앞바다중평수구역',
+    'S2210700': '충남남부앞바다중평수구역',
+    'S2211100': '인천·경기남부앞바다중먼평수구역',
+    'S2211200': '서해남부남쪽안쪽먼바다중조도부근평수구역',
+    'S2211300': '전남중부서해앞바다중먼평수구역',
+    'S2211400': '전남중부서해앞바다중앞평수구역',
+    'S2211500': '천수만평수구역',
+    'S2211600': '인천·경기남부앞바다중북부앞평수구역',
+    'S2211700': '인천·경기남부앞바다중남부앞평수구역',
+    'S2211900': '안면도서쪽평수구역',
+    'S2212000': '인천·경기북부앞바다중평수구역',
+    'S2212100': '당진평수구역',
+    'S2212200': '태안·서산북쪽평수구역',
+    'S2310100': '부산앞바다중동부평수구역',
+    'S2310200': '부산앞바다중서부평수구역',
+    'S2310300': '경남중부남해앞바다중평수구역',
+    'S2310400': '경남서부남해앞바다중동부평수구역',
+    'S2310500': '경남서부남해앞바다중서부평수구역',
+    'S2310600': '경남서부남해앞바다중남부평수구역',
+    'S2310700': '전남서부남해앞바다중평수구역',
+    'S2310800': '전남동부남해앞바다중서부평수구역',
+    'S2310900': '전남동부남해앞바다중동부평수구역',
+    'S2320100': '부산앞바다중연안바다',
+    'S2320200': '거제시동부앞바다중연안바다',
+    'S2320300': '경남서부남해앞바다중남해군연안바다',
+    'S2320400': '제주도북부앞바다중연안바다',
+    'S2320610': '제주도서부앞바다중북서연안바다',
+    'S2320620': '제주도서부앞바다중남서연안바다',
+    'S2320700': '제주도남부앞바다중연안바다',
+    'S2320800': '경남중부남해앞바다중연안바다',
+    'S2320900': '제주도동부앞바다중북동연안바다',
+    'S2321000': '제주도동부앞바다중남동연안바다',
+    'S2330100': '남해서부서쪽먼바다중추자도연안바다',
+    'S2330200': '제주도동부앞바다중우도연안바다',
+    'S2330300': '제주도서부앞바다중가파도연안바다'
+};
+
+/**
+ * [A안] 런타임 row 의 해역명을 warn_zone_cd 로 정식 해석.
+ *   코드 매핑 있으면 앱 정식명 반환(축약 무력화), 없으면 warn_zone_nm 폴백(공백제거).
+ */
+function _resolveZoneName(row) {
+    if (!row) return '';
+    const cd = row.warn_zone_cd;
+    if (cd && MMIS_CODE_TO_NAME[cd]) return MMIS_CODE_TO_NAME[cd];
+    return (row.warn_zone_nm || row.kor_nm || '').trim().replace(/\s+/g, '');
+}
+
+// ============================================================================
 // 등급/종류 점수 — 격상/격하 판별
 // ============================================================================
 const LVL_RANK = { '경보': 5, '주의보': 2, '예비': 2, '해제': 0, '': 0 };
@@ -1401,7 +1516,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
     for (const row of (warnList || [])) {
         if (!_isLiveRow(row)) continue;
         if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 풍랑(V)+태풍(T) 만
-        const name = (row.warn_zone_nm || row.kor_nm || '').trim().replace(/\s+/g, '');
+        const name = _resolveZoneName(row);
         if (!name) continue;
         snap.parents.set(name, _rowToParentInfo(row));
     }
@@ -1409,7 +1524,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
     for (const row of (warnSascList || [])) {
         if (!_isLiveRow(row)) continue;
         if (!_isTargetRealtimeType(row.warn_tp)) continue;
-        const childName = (row.kor_nm || row.warn_zone_nm || '').trim().replace(/\s+/g, '');
+        const childName = _resolveZoneName(row);
         if (!childName) continue;
         addChild(childName, row);
     }
@@ -1417,7 +1532,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
     for (const row of (warnReady || [])) {
         if (!_isLiveRow(row)) continue;
         if (!_isTargetRealtimeType(row.warn_tp)) continue;
-        const name = (row.warn_zone_nm || row.kor_nm || '').trim().replace(/\s+/g, '');
+        const name = _resolveZoneName(row);
         if (!name) continue;
         const parent = _extractParent(name);
         if (parent === name) {
@@ -1432,7 +1547,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
     for (const row of (warnSascReady || [])) {
         if (!_isLiveRow(row)) continue;
         if (!_isTargetRealtimeType(row.warn_tp)) continue;
-        const childName = (row.kor_nm || row.warn_zone_nm || '').trim().replace(/\s+/g, '');
+        const childName = _resolveZoneName(row);
         if (!childName) continue;
         if (_extractParent(childName) === childName) continue;   // 부모형이면 자식 endpoint 에선 skip
         addChild(childName, row);
@@ -1472,7 +1587,7 @@ function _enrichSnapshotWithLatest(snap, warnLatest) {
         if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 풍랑(V)+태풍(T) 만 (실시간 문자코드)
         const cmd = String(row.warn_cmd_nm || '').trim();
         if (cmd !== '해제') continue;
-        const name = (row.warn_zone_nm || row.kor_nm || '').trim().replace(/\s+/g, '');
+        const name = _resolveZoneName(row);
         if (!name) continue;
         if (!snap.parents.has(name)) continue;  // 발효중인 zone 만 보강
         const tmEf = String(row.tm_ef || '').trim();
@@ -1641,7 +1756,10 @@ async function run(opts = {}) {
                 const userChanges = _buildUserPushChanges(prevForDiff, curr);
                 // [P2] 변화 0 일 때도 호출 — push_sender 의 pending retry 보장
                 // (옛 weather_alerts_crawler 동일 패턴)
-                await pushSender.processChanges(userChanges);
+                // [테스트 푸시] opts.adminToken 이 있으면 그 토큰(관리자 기기)에게만 발송.
+                //   장부 초기화(테스트 푸시) 버튼이 forceBaselinePush + adminToken 으로 호출.
+                const userOpts = opts.adminToken ? { adminToken: opts.adminToken } : {};
+                await pushSender.processChanges(userChanges, userOpts);
             } catch (e) {
                 console.error('[marine_warning_crawler] 사용자 push 발사 실패 (관리자 push 영향 없음):', e && e.message);
             }

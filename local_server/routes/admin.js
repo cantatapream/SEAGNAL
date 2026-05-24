@@ -176,12 +176,13 @@ router.post('/api/admin/crawl-toggle', (req, res) => {
 //   필터링된 전체 사용자에게 발송됨 (현재 활성 해역 구독자 대상).
 router.post('/api/admin/marine/reset', async (req, res) => {
     try {
-        const { testPush } = req.body || {};
+        const { testPush, adminToken } = req.body || {};
         marineWarningCrawler.resetState();
         let pushed = false;
         if (testPush !== false) {
-            // 강제 baseline 사이클 — 현재 활성 특보를 신규로 감지하여 실제 푸시 발송
-            await marineWarningCrawler.run({ forceBaselinePush: true });
+            // 강제 baseline 사이클 — 현재 활성 특보를 신규로 감지하여 푸시 발송.
+            // adminToken 이 있으면 그 관리자 기기에게만 발송(테스트 전용, 일반 사용자 영향 없음).
+            await marineWarningCrawler.run({ forceBaselinePush: true, adminToken: adminToken || undefined });
             pushed = true;
         }
         console.log(`[Admin] marine 장부 초기화 완료 (테스트 푸시=${pushed})`);
@@ -189,7 +190,7 @@ router.post('/api/admin/marine/reset', async (req, res) => {
             success: true,
             pushed,
             message: pushed
-                ? '장부를 초기화하고 현재 활성 특보를 신규로 감지하여 푸시를 발송했습니다.'
+                ? '장부를 초기화하고 현재 활성 특보를 신규로 감지하여 (관리자 기기에만) 테스트 푸시를 발송했습니다.'
                 : '장부를 초기화했습니다. (다음 1분 사이클부터 baseline 재설정)'
         });
     } catch (e) {
