@@ -316,7 +316,7 @@ if (window.__SEAGNAL_PAGE === 'index2') {
         // 지도가 아직 준비되지 않으면(해상도 없음) 잠시 후 재시도.
         // [무한 재호출 방지] 비활성 탭(display:none) 등으로 영구히 준비 안 되는
         // 케이스 대비: 최대 _SIZE_RETRY_MAX 회(200ms 간격, 약 6초)만 재시도하고
-        // 포기. 이후 moveend / change:resolution / 토글 이벤트로 자동 재개됨.
+        // 포기. 이후 moveend / 토글 이벤트로 자동 재개됨.
         if (typeof zoom !== 'number' || !resolution) {
             if (_sizeRetryCount < _SIZE_RETRY_MAX) {
                 _sizeRetryCount++;
@@ -474,10 +474,16 @@ if (window.__SEAGNAL_PAGE === 'index2') {
         attach: function (map) {
             if (_samplerMap === map) return;
             _samplerMap = map;
-            // 뷰포트 / 줌 변경 시 재샘플링
+            // 뷰포트/줌 변경이 "끝났을 때"만 재샘플링한다.
+            // moveend 는 팬·휠줌·핀치줌·더블클릭줌·키보드줌·애니메이션이 모두
+            // 종료된 시점에 발생하므로 이 한 가지로 충분하다.
+            // [주의] view 의 change:resolution 에는 묶지 않는다 — 그 이벤트는
+            // 줌 애니메이션/핀치 진행 중 매 프레임 발화하는데, 진행 중에는
+            // resolution(→cellMeters)과 줌 레벨 정원이 계속 변해 selection 이
+            // 프레임마다 출렁이며 마커가 깜빡인다. 진행 중에는 기존 마커가
+            // OL 에 의해 함께 확대/축소되며 따라오고, 끝나면 moveend 로 한 번만
+            // 새 밀도로 재샘플링된다.
             map.on('moveend', _scheduleSample);
-            // 일부 케이스(즉시 줌 변경)에서 moveend 이전에 view 만 바뀔 수 있으므로 보조
-            map.getView().on('change:resolution', _scheduleSample);
             _scheduleSample();
         },
         refresh: _scheduleSample
