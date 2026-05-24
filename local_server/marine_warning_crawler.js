@@ -832,6 +832,18 @@ function _buildUserPushChanges(prev, curr) {
             && a.tmYn === b.tmYn;
     };
 
+    // [작업2b] 부모 zone 의 자식 한정사용 childState 구성.
+    //   all    = 매핑상 전체 자식 (PARENT_TO_CHILDREN)
+    //   active = 현재 발효중인 자식 (curr.children)
+    //   buildChildQualifier 가 이 둘로 "(연안바다 포함)/(미발효)" 등을 만든다.
+    //   사용자 푸시는 토글(options.childZones) 켠 사용자에게만 한정사를 붙임.
+    const buildChildStateFor = (zone) => {
+        const all = PARENT_TO_CHILDREN[zone] || [];
+        const m = curr.children ? curr.children.get(zone) : null;
+        const active = m ? Array.from(m.keys()) : [];
+        return { all, active, added: [], released: [] };
+    };
+
     for (const zone of allZones) {
         const p = prev.parents ? prev.parents.get(zone) : null;
         const c = curr.parents ? curr.parents.get(zone) : null;
@@ -844,6 +856,8 @@ function _buildUserPushChanges(prev, curr) {
         const prevActive = isActive(p) ? toBlock(p) : null;
         const currActive = isActive(c) ? toBlock(c) : null;
 
+        const childState = buildChildStateFor(zone);
+
         // UPCOMING_CHANGE — 예비특보 변화
         if (!blockEqual(prevUpcoming, currUpcoming)) {
             changes.push({
@@ -851,7 +865,8 @@ function _buildUserPushChanges(prev, curr) {
                 zone: zone,
                 prev: prevUpcoming,
                 curr: currUpcoming,
-                currentActive: currActive || null  // 현재 발효 중인 부모 (격상/격하 판정용)
+                currentActive: currActive || null,  // 현재 발효 중인 부모 (격상/격하 판정용)
+                childState                           // [작업2b] 자식 한정사용
             });
         }
 
@@ -861,7 +876,8 @@ function _buildUserPushChanges(prev, curr) {
                 type: 'CURRENT_CHANGE',
                 zone: zone,
                 prev: prevActive,
-                curr: currActive
+                curr: currActive,
+                childState                           // [작업2b] 자식 한정사용
             });
         }
     }

@@ -291,7 +291,9 @@ router.post('/api/push-custom', async (req, res) => {
                     userFilteredItems = getMatchedZones(user.zones, payload.items, user.options || {});
                     if (!userFilteredItems || userFilteredItems.length === 0) return;
 
-                    const generated = generateMessage({ ...payload, items: userFilteredItems });
+                    // [작업2b] "특정관리해역 푸시 알림 허용" 토글 켠 사용자만 자식 한정사 표시
+                    const showChildZones = !!(user.options && user.options.childZones);
+                    const generated = generateMessage({ ...payload, items: userFilteredItems, showChildZones });
                     finalTitle = generated.title;
                     finalBody = generated.body;
                     shouldSend = true;

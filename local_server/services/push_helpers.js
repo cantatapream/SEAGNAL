@@ -155,10 +155,28 @@ function getMatchedZones(userZones, targetItems, opts = {}) {
  * @returns {{ title: string, body: string }}
  */
 function generateMessage(filteredPayload) {
-    const { templateId, typeName, level, items, prevLevel } = filteredPayload;
+    const { templateId, typeName, level, items, prevLevel, showChildZones } = filteredPayload;
 
     let genTitle = '';
     let genBody = '';
+
+    // [작업2b] 자식 한정사 — 사용자가 "특정관리해역 푸시 허용"(options.childZones) 켰을 때만.
+    //   각 item 의 childState(부모별 자식 active/all)를 zone 키로 모아두고,
+    //   본문 렌더링 시 부모명 옆에 buildChildQualifier 로 "(연안바다 포함)" 등을 붙인다.
+    //   토글 OFF 또는 childState 없음 → 부모명 그대로 (기존 동작).
+    const childStateByZone = {};
+    (items || []).forEach(it => {
+        if (it && it.childState && Array.isArray(it.zones)) {
+            it.zones.forEach(z => { childStateByZone[z] = it.childState; });
+        }
+    });
+    const decorateZone = (zone) => {
+        if (!showChildZones) return zone;
+        const cs = childStateByZone[zone];
+        if (!cs) return zone;
+        const qual = buildChildQualifier(zone, cs, templateId);   // 함수 선언 호이스팅
+        return zone + (qual || '');
+    };
 
     // 시각 포맷 헬퍼: D일 HH:mm 또는 D일 범위시간 형식으로 변환
     const fmt = (str) => {
@@ -224,7 +242,7 @@ function generateMessage(filteredPayload) {
     // 그룹핑된 데이터를 메시지로 변환
     const formatGroupedMessage = (groups, timeLabel) => {
         return Object.entries(groups).map(([time, zones]) => {
-            const zStr = zones.join(', ');
+            const zStr = zones.map(decorateZone).join(', ');
             const formattedTime = fmt(time);
             return `ㅇ${zStr}\n   - ${timeLabel} : ${formattedTime}`;
         }).join('\n');
@@ -255,7 +273,7 @@ function generateMessage(filteredPayload) {
         genTitle = `✅ ${fullTitle} 해제`;
         const allZones = [];
         items.forEach(i => i.zones.forEach(z => { if (!allZones.includes(z)) allZones.push(z); }));
-        genBody = `ㅇ${allZones.join(', ')}`;
+        genBody = `ㅇ${allZones.map(decorateZone).join(', ')}`;
     }
     // 4. 격상 발표
     else if (templateId === 'level_upgrade_publish') {
