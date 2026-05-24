@@ -24,23 +24,18 @@
  */
 
 // ============================================================================
-// [표시 시각 포맷터] 프론트 js/utils.js formatWarningTime 과 동일 규칙 (KST).
-//   "M월 D일(라벨) H시" / "M월 D일(라벨) Hs시~He시"
-//   - 상대일자 라벨: 오늘/내일/모레/글피/그글피, 그 이후·과거 없음
+// [푸시 표시 시각 포맷터] 프론트 js/utils.js formatWarningTime 과 같은 골격이나,
+//   푸시 메시지는 트레이에 남아 나중에 열람될 수 있어 (오늘)/(내일) 라벨이
+//   틀려질 수 있으므로 **상대일자 라벨은 붙이지 않는다** (앱 팝업과의 의도적 차이).
+//   "M월 D일 H시" / "M월 D일 Hs시~He시"
 //   - 분·초 제거(시단위). 끝 0시→24시. 범위 3h/6h 보존, degenerate만 6h 블록 스냅.
-//   ※ 두 런타임(브라우저/노드)이라 로직을 의도적으로 복제 — 변경 시 양쪽 동기화.
+//   ※ 라벨 외 규칙은 utils.formatWarningTime 과 동일 — 변경 시 양쪽 동기화.
 // ============================================================================
 function formatWarnTimeKST(tmEf) {
     if (!tmEf || String(tmEf).trim() === '' || tmEf === '0' || tmEf === '000000000000') return '정보 없음';
     let s = String(tmEf).replace(/&#40;/g, '(').replace(/&#41;/g, ')').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').trim();
-    const relLabel = (y, mo, d) => {
-        if (!y || !mo || !d) return '';
-        const now = new Date(Date.now() + 9 * 3600000);
-        const diff = Math.round((Date.UTC(y, mo - 1, d) - Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) / 86400000);
-        if (diff < 0) return '';
-        return ['오늘', '내일', '모레', '글피', '그글피'][diff] || '';
-    };
-    const dateLabel = (y, mo, d) => { const l = relLabel(y, mo, d); return `${mo}월 ${d}일${l ? '(' + l + ')' : ''}`; };
+    // [푸시 전용] 상대일자 라벨 미사용 (열람 시점에 따라 부정확해질 수 있음)
+    const dateLabel = (y, mo, d) => `${mo}월 ${d}일`;
     const fmtRange = (sh, eh) => {
         sh = ((sh % 24) + 24) % 24;
         eh = (eh === 0 || eh === 24) ? 24 : ((eh % 24) + 24) % 24;
