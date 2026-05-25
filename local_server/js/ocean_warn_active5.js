@@ -509,11 +509,15 @@
                   + '<span class="warn-active-val">' + _esc(_fmtTime(pick.tmEf)) + '</span></div>';
         }
 
-        // [S9-E 핵심] "해제 예정" 조건부 표시
-        //   • 발효 중(!isUpcoming) 일 때만 의미 있음
-        //   • presentInLastFc === false 인 경우만 → "해제 예정" 한 줄
-        //   • 시각·라벨 없이 텍스트만 (dmdw 가 정확한 해제 시각 제공 안 함)
-        if (!isUpcoming && pick.presentInLastFc === false) {
+        // 해제 예정 — 자식 자신의 해제예고시각(tmCc) 표시 (부모 박스 _renderAlertBlock 과 동일).
+        //   [변경] mmis warn-sasc/* 는 자식별 clr_ntc_tm(=tmCc)을 개별 제공하므로
+        //   옛 dmdw 가정(자식 해제시각 미제공, presentInLastFc 텍스트만)을 폐기하고
+        //   부모와 동일하게 자식 자신의 시각을 표출. 발효중·발표대기 모두 해당.
+        if (pick.tmCc) {
+            html += '<div class="warn-active-line"><span class="warn-active-key">해제 예정</span>'
+                  + '<span class="warn-active-val">' + _esc(_fmtTime(pick.tmCc)) + '</span></div>';
+        } else if (!isUpcoming && pick.presentInLastFc === false) {
+            // 시각이 없고 마지막 FC 에서 사라진 경우만 — 시각 없이 "해제 예정" 텍스트 (폴백)
             html += '<div class="warn-active-line warn-active-release-pending">'
                   + '<span class="warn-active-val">해제 예정</span></div>';
         }
