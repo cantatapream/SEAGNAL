@@ -1589,9 +1589,56 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
  * @param {Array} warnLatest — fetchWarnLatest() 응답 row 배열
  * @returns {StateSnapshot} (in-place 수정, 반환은 편의용)
  */
-function _enrichSnapshotWithLatest(snap, warnLatest, prev) {
-    if (!snap || !Array.isArray(warnLatest) || warnLatest.length === 0) return snap;
+function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
+    if (!snap) return snap;
     let enriched = 0, gapAdded = 0, gapChildAdded = 0, gapChildCarried = 0, gapChildSynth = 0;
+    let sascChildAdded = 0, sascChildEnriched = 0;
+
+    // [수정A-3] warn-sasc/latest = 자식 통보문 endpoint (부모 warn/latest 의 자식판).
+    //   각 자식의 개별 warn_tp/warn_cmd_nm/tm_ef/clr_ntc_tm 를 부모처럼 제공 →
+    //   GAP(발표 발효대기) 동안 부모로부터 단순 상속/합성하던 것보다 정확.
+    //   특히 "자식 3개 중 2개만 발표, 1개는 미발표" 같은 부분집합을 정확히 반영.
+    //   (실제 통보문 가진 자식만 tp 세팅 — 나머지는 빈 메타행이라 자동 제외)
+    //   발표대기(미래 발효시각) 자식만 GAP 로 추가. 발효중(snap.children) 은 그대로 우선.
+    if (Array.isArray(warnSascLatest)) {
+        for (const row of warnSascLatest) {
+            if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 통보문 없는 빈 메타행 자동 제외
+            const cname = _resolveZoneName(row);
+            if (!cname) continue;
+            const parent = _extractParent(cname);
+            if (parent === cname) continue;   // 부모형 행은 warn/latest 루프가 처리
+            const cmd = String(row.warn_cmd_nm || '').trim();
+
+            if (cmd === '해제') {
+                // 발효중 자식의 정확한 해제예고시각 보강 (부모 해제 보강의 자식판)
+                const m = snap.children.get(parent);
+                if (m && m.has(cname)) {
+                    const ci = m.get(cname);
+                    const t = String(row.tm_ef || '').trim();
+                    if (t) { ci.clrNtcTm = t; m.set(cname, ci); sascChildEnriched++; }
+                }
+                continue;
+            }
+            if (!['발표', '변경', '연장'].includes(cmd)) continue;
+            const ctmEf = String(row.tm_ef || '').trim();
+            if (!ctmEf || !_isFutureExactTime(ctmEf)) continue;   // 정확·미래 발효시각(발표대기)만
+            // 이미 발효중(snap.children) 이면 그쪽 우선 — GAP 추가 skip
+            if (snap.children.has(parent) && snap.children.get(parent).has(cname)) continue;
+            if (!snap.children.has(parent)) snap.children.set(parent, new Map());
+            const cinfo = _rowToChildInfo(row);
+            cinfo.wrnLvlNm = '예비';            // 발효 전 → 예비 취급
+            cinfo.wrnLvl = cinfo.wrnLvl || '1';
+            cinfo.clrNtcTm = String(row.clr_ntc_tm || '').trim();   // 자식 개별 해제예고
+            snap.children.get(parent).set(cname, cinfo);
+            sascChildAdded++;
+        }
+    }
+
+    if (!Array.isArray(warnLatest) || warnLatest.length === 0) {
+        if (sascChildAdded > 0) console.log(`[Marine] warn-sasc/latest GAP 자식: ${sascChildAdded} 자식 발표대기로 추가`);
+        if (sascChildEnriched > 0) console.log(`[Marine] warn-sasc/latest 자식 해제예고 보강: ${sascChildEnriched}`);
+        return snap;
+    }
     for (const row of warnLatest) {
         if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 풍랑(V)+태풍(T) 만 (실시간 문자코드)
         const cmd = String(row.warn_cmd_nm || '').trim();
@@ -1686,6 +1733,8 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev) {
     if (gapChildCarried > 0) console.log(`[Marine] GAP 자식 이어받기(prev): ${gapChildCarried} 자식 발표대기로 carry`);
     if (gapChildSynth > 0) console.log(`[Marine] GAP 자식 합성(매핑): ${gapChildSynth} 자식 발표대기로 추가`);
     if (gapChildAdded > 0) console.log(`[Marine] warn/latest GAP 보강(자식행): ${gapChildAdded} 자식 추가`);
+    if (sascChildAdded > 0) console.log(`[Marine] warn-sasc/latest GAP 자식: ${sascChildAdded} 자식 발표대기로 추가`);
+    if (sascChildEnriched > 0) console.log(`[Marine] warn-sasc/latest 자식 해제예고 보강: ${sascChildEnriched}`);
     return snap;
 }
 
@@ -1788,8 +1837,11 @@ async function run(opts = {}) {
         //   해제 통보문 발행 시 tm_ef 에 정확한 시각이 들어있음.
         //   실패 시 graceful — 보강만 skip 하고 기존 cycle 진행.
         try {
-            const warnLatest = await marineClient.fetchWarnLatest();
-            _enrichSnapshotWithLatest(curr, warnLatest, _prevSnapshot);
+            const [warnLatest, warnSascLatest] = await Promise.all([
+                marineClient.fetchWarnLatest(),
+                marineClient.fetchWarnSascLatest().catch(() => [])   // 자식 통보문 (실패해도 부모 보강은 진행)
+            ]);
+            _enrichSnapshotWithLatest(curr, warnLatest, _prevSnapshot, warnSascLatest);
         } catch (e) {
             console.warn('[Marine] warn/latest 호출 실패 — 보강 skip:', e && e.message);
         }
