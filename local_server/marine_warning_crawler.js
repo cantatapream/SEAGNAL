@@ -1582,26 +1582,53 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
  */
 function _enrichSnapshotWithLatest(snap, warnLatest) {
     if (!snap || !Array.isArray(warnLatest) || warnLatest.length === 0) return snap;
-    let enriched = 0;
+    let enriched = 0, gapAdded = 0;
     for (const row of warnLatest) {
         if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 풍랑(V)+태풍(T) 만 (실시간 문자코드)
         const cmd = String(row.warn_cmd_nm || '').trim();
-        if (cmd !== '해제') continue;
         const name = _resolveZoneName(row);
         if (!name) continue;
-        if (!snap.parents.has(name)) continue;  // 발효중인 zone 만 보강
+
+        if (cmd === '해제') {
+            // [V10] 해제 통보문 → 발효중 zone 의 정확한 해제시각(clrNtcTm) 보강
+            if (!snap.parents.has(name)) continue;  // 발효중인 zone 만 보강
+            const tmEf = String(row.tm_ef || '').trim();
+            if (!tmEf) continue;
+            const info = snap.parents.get(name);
+            info.clrNtcTm = tmEf;   // mmis 원형식 유지 — 표시 시 normalize
+            snap.parents.set(name, info);
+            enriched++;
+            continue;
+        }
+
+        // [GAP 보강] "발표 발효대기" — 발표/변경/연장 통보문이 나왔으나 발효시각이
+        //   아직 미래라 warn/list(발효중)·warn/ready(예비) 어디에도 없는 중간 상태.
+        //   이 zone 이 누락되어 앱에서 사라지고 "발효시각 변경" 푸시도 안 나가던 문제.
+        //   → 발효 전이므로 예비(upcoming)로 스냅샷에 추가 (정확한 tm_ef 보존).
+        //     앱 표시=예비(발효예정 정확시각), 푸시=범위→정확 time_ef_change.
+        //   발효시각 도래 시 warn/list 로 인계되어 정식(발효)으로 전환됨.
+        if (!['발표', '변경', '연장'].includes(cmd)) continue;  // publish 계열만 (해제/변경해제 제외)
+        if (snap.parents.has(name)) continue;          // 이미 발효중/예비면 그쪽 우선
+        if (_extractParent(name) !== name) continue;   // 부모형만 (gap 자식은 warn-sasc/latest 부재)
         const tmEf = String(row.tm_ef || '').trim();
-        if (!tmEf) continue;
-        const info = snap.parents.get(name);
-        // 정확한 해제시각으로 clrNtcTm 갱신 (mmis 원형식 유지 — 표시 시 normalize)
-        info.clrNtcTm = tmEf;
+        if (!tmEf || !_isFutureExactTime(tmEf)) continue;  // 정확·미래 발효시각만 (발표 발효대기)
+        const info = _rowToParentInfo(row);
+        info.wrnLvlNm = '예비';   // 발효 전 → 예비 취급 (표시·푸시 일관성)
+        info.wrnLvl = info.wrnLvl || '1';
         snap.parents.set(name, info);
-        enriched++;
+        gapAdded++;
     }
-    if (enriched > 0) {
-        console.log(`[Marine] warn/latest 보강: ${enriched} zone clrNtcTm 정확한 시각으로 갱신`);
-    }
+    if (enriched > 0) console.log(`[Marine] warn/latest 보강: ${enriched} zone clrNtcTm 갱신`);
+    if (gapAdded > 0) console.log(`[Marine] warn/latest GAP 보강: ${gapAdded} zone 발표 발효대기 → 예비로 추가`);
     return snap;
+}
+
+/** "YYYY.MM.DD HH:MM" / "YYYY-MM-DD HH:MM" 정확시각이 현재(KST)보다 미래인지. 범위형 등은 false. */
+function _isFutureExactTime(tmStr) {
+    const m = String(tmStr).match(/^(\d{4})[.\-](\d{1,2})[.\-](\d{1,2})\s+(\d{1,2}):(\d{2})$/);
+    if (!m) return false;
+    const t = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5]);  // KST → UTC epoch
+    return t > Date.now();
 }
 
 // ============================================================================
