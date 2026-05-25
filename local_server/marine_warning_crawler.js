@@ -966,15 +966,25 @@ function _buildUserPushChanges(prev, curr) {
 
     // [작업2b] 부모 zone 의 자식 한정사용 childState 구성.
     //   all    = 매핑상 전체 자식 (PARENT_TO_CHILDREN)
-    //   active = 현재 발효중인 자식 (curr.children)
+    //   active = 현재 발효/예비 자식 (curr.children 키)
     //   buildChildQualifier 가 이 둘로 "(연안바다 포함)/(미발효)" 등을 만든다.
     //   사용자 푸시는 토글(options.childZones) 켠 사용자에게만 한정사를 붙임.
-    const buildChildStateFor = (zone) => {
-        const all = PARENT_TO_CHILDREN[zone] || [];
-        const m = curr.children ? curr.children.get(zone) : null;
-        const active = m ? Array.from(m.keys()) : [];
-        return { all, active, added: [], released: [] };
+    const childKeys = (snap, zone) => {
+        const m = snap.children ? snap.children.get(zone) : null;
+        return m ? Array.from(m.keys()) : [];
     };
+    const childInfoOf = (snap, zone, name) => {
+        const m = snap.children ? snap.children.get(zone) : null;
+        return m ? m.get(name) : null;
+    };
+    // 자식 자신의 데이터로 푸시 블록 구성 (부모 비종속)
+    const childToBlock = (info) => info ? {
+        wrnTp: info.wrnTpNm || info.wrnTp || '',
+        wrnLvl: info.wrnLvlNm || info.wrnLvl || '',
+        tmFc: info.tmFc || '',
+        tmEf: info.tmEf || '',
+        tmYn: info.tmYn || info.clrNtcTm || ''
+    } : null;
 
     for (const zone of allZones) {
         const p = prev.parents ? prev.parents.get(zone) : null;
@@ -988,10 +998,16 @@ function _buildUserPushChanges(prev, curr) {
         const prevActive = isActive(p) ? toBlock(p) : null;
         const currActive = isActive(c) ? toBlock(c) : null;
 
-        const childState = buildChildStateFor(zone);
+        const all = PARENT_TO_CHILDREN[zone] || [];
+        const prevChildren = childKeys(prev, zone);
+        const currChildren = childKeys(curr, zone);
+        const childState = { all, active: currChildren, added: [], released: [] };
 
-        // UPCOMING_CHANGE — 예비특보 변화
-        if (!blockEqual(prevUpcoming, currUpcoming)) {
+        const upcomingChanged = !blockEqual(prevUpcoming, currUpcoming);
+        const activeChanged = !blockEqual(prevActive, currActive);
+
+        // UPCOMING_CHANGE — 예비특보 변화 (부모+자식 동시 이동이면 자식 한정사로 묶여 1건)
+        if (upcomingChanged) {
             changes.push({
                 type: 'UPCOMING_CHANGE',
                 zone: zone,
@@ -1002,8 +1018,8 @@ function _buildUserPushChanges(prev, curr) {
             });
         }
 
-        // CURRENT_CHANGE — 발효 변화
-        if (!blockEqual(prevActive, currActive)) {
+        // CURRENT_CHANGE — 발효 변화 (부모+자식 동시 이동이면 자식 한정사로 묶여 1건)
+        if (activeChanged) {
             changes.push({
                 type: 'CURRENT_CHANGE',
                 zone: zone,
@@ -1011,6 +1027,31 @@ function _buildUserPushChanges(prev, curr) {
                 curr: currActive,
                 childState                           // [작업2b] 자식 한정사용
             });
+        }
+
+        // [자식 독립 푸시] 부모 블록이 둘 다 안 변했을 때만 — 자식만 추가/해제된 경우 별도 1건.
+        //   부모와 동시 이동(발표/발효)은 위 부모 푸시 + 자식 한정사로 이미 처리되므로 중복 방지.
+        //   원칙: 자식은 부모 특보 없이 못 옴 → 부모가 현재 존재(c)할 때만 의미.
+        //   added/released 는 자식 자신의 데이터로 메시지 구성 (부모 비종속).
+        if (!upcomingChanged && !activeChanged && c) {
+            const addedChildren = currChildren.filter(x => !prevChildren.includes(x));
+            const releasedChildren = prevChildren.filter(x => !currChildren.includes(x));
+            if (addedChildren.length > 0) {
+                changes.push({
+                    type: 'CHILD_ADD',
+                    zone: zone,
+                    curr: childToBlock(childInfoOf(curr, zone, addedChildren[0])),
+                    childState: { all, active: currChildren, added: addedChildren, released: [] }
+                });
+            }
+            if (releasedChildren.length > 0) {
+                changes.push({
+                    type: 'CHILD_RELEASE',
+                    zone: zone,
+                    prev: childToBlock(childInfoOf(prev, zone, releasedChildren[0])),
+                    childState: { all, active: currChildren, added: [], released: releasedChildren }
+                });
+            }
         }
     }
 
@@ -1966,6 +2007,7 @@ module.exports = {
     _writeWeatherAlertsJson,
     _WEATHER_ALERTS_FILE,
     _isSnapshotEmpty,
+    _buildUserPushChanges,
     // [D-6 (A)] 시간 형식 변환 (테스트용 노출)
     normalizeMmisTime,
     // [D-medium 인터랙티브] 의심 가드 + 결정 API
