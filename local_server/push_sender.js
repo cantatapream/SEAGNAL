@@ -238,6 +238,30 @@ async function processAndSendNotifications(changes, options = {}) {
                 }
             }
         }
+
+        // C. 자식 독립 변화 — 부모 블록 불변, 자식만 추가/해제 (부모와 동시 이동 아님)
+        //    추가 발효: additional_active / 일부 해제: partial_release
+        //    typeName/level/시각은 자식 자신의 데이터(change.curr|prev)에서 — 부모 비종속.
+        else if (type === 'CHILD_ADD') {
+            if (!curr) continue;
+            addToGroup(groups, 'additional_active', curr.wrnTp, curr.wrnLvl, {
+                zones: [zone],
+                childState,
+                tmFc: curr.tmFc,
+                tmEf: curr.tmEf,
+                tmYn: curr.tmYn || curr.tmCc
+            });
+        }
+        else if (type === 'CHILD_RELEASE') {
+            if (!prev) continue;
+            addToGroup(groups, 'partial_release', prev.wrnTp, prev.wrnLvl, {
+                zones: [zone],
+                childState,
+                tmFc: prev.tmFc,
+                tmEf: prev.tmEf,
+                tmYn: prev.tmYn || prev.tmCc
+            });
+        }
     }
 
     // 그룹이 비어있는지 확인

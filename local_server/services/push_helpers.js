@@ -333,6 +333,21 @@ function generateMessage(filteredPayload) {
         const grouped = groupByTime(items, 'tmYn');
         genBody = formatGroupedMessage(grouped, '해제예정');
     }
+    // 10. 추가 발효 (자식 독립 — 부모 발효중 상태에서 자식만 추가)
+    //   본문 부모명 옆 한정사 "(북서연안바다 추가 발효)" 는 decorateZone(buildChildQualifier)가 생성.
+    else if (templateId === 'additional_active') {
+        genTitle = `📢 ${fullTitle} 추가 발효`;
+        const grouped = groupByTime(items, 'tmYn');
+        genBody = formatGroupedMessage(grouped, '해제예정');
+    }
+    // 11. 일부 해제 (자식 독립 — 부모 유지 상태에서 자식만 해제)
+    //   한정사 "(가파도연안바다만 해제)" 는 decorateZone 가 생성.
+    else if (templateId === 'partial_release') {
+        genTitle = `✅ ${fullTitle} 일부 해제`;
+        const allZones = [];
+        items.forEach(i => i.zones.forEach(z => { if (!allZones.includes(z)) allZones.push(z); }));
+        genBody = `ㅇ${allZones.map(decorateZone).join(', ')}`;
+    }
     // Fallback
     else {
         genTitle = `📢 ${fullTitle} 알림`;

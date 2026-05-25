@@ -338,6 +338,18 @@ router.post('/api/push-custom', async (req, res) => {
                     if (opts.release === false && tid === 'release') {
                         return;
                     }
+                    // [자식 독립 푸시] additional_active(추가 발효) / partial_release(일부 해제)
+                    //   - 자식(연안바다/평수구역) 전용 알림 → childZones OFF 사용자는 수신 안 함
+                    //   - 추가 발효 ~ 발효 계열 토글, 일부 해제 ~ 해제 계열 토글 적용
+                    if (['additional_active', 'partial_release'].includes(tid) && opts.childZones === false) {
+                        return;
+                    }
+                    if (opts.active === false && tid === 'additional_active') {
+                        return;
+                    }
+                    if (opts.release === false && tid === 'partial_release') {
+                        return;
+                    }
                     // 야간 수신 거부 (KST 23:00 ~ 07:00) — UI 라벨과 일치
                     if (opts.night === false) {
                         const kstHour = (new Date().getUTCHours() + 9) % 24;

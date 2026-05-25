@@ -935,6 +935,72 @@ function decideSuspiciousCase(decision, decidedBy) {
  *   '예비' = upcoming, '주의보'/'경보' = current 로 분류.
  *   (한 zone 이 예비 + 발효 동시 보유 불가 — mmis 응답 구조상 OR 관계)
  */
+// ============================================================================
+// [자식 해제 디바운스] 자식이 "해제예고 없이" 데이터에서 사라질 때(글리치 의심)
+//   3분간 관찰 후에도 계속 없으면 진짜 해제로 확정. 관찰 중엔 직전 자식을 curr 로
+//   이어받아(carry) 가짜 "일부 해제"/뒤따르는 "추가 발효" 푸시와 화면 깜빡임을 막는다.
+//   해제 통보문(warn-sasc/latest cmd=해제, _childReleaseNoticeSet)이 있으면 즉시 해제.
+// ============================================================================
+const CHILD_RELEASE_DEBOUNCE_MS = 3 * 60 * 1000;   // 3분
+let _childReleasePending = {};                     // key: parent child → { firstMissingAt }
+let _childReleaseNoticeSet = new Set();            // 이번 사이클 해제 통보문 있는 자식 (enrich 가 채움)
+
+/**
+ * curr 를 변형: 해제예고 없이 사라진 자식을 3분간 이어받기. 깜빡임/확정/정상해제 로그.
+ * _buildUserPushChanges / _writeWeatherAlertsJson 보다 먼저 호출되어야 함.
+ */
+function _applyChildReleaseDebounce(prev, curr) {
+    if (!prev || !curr || !prev.children) return;
+    const now = Date.now();
+    const stillPending = new Set();
+
+    for (const [parent, prevKids] of prev.children) {
+        if (!curr.parents || !curr.parents.has(parent)) continue;  // 부모 해제 시 자식 디바운스 안 함
+        const currKidMap = curr.children ? curr.children.get(parent) : null;
+        for (const [childName, prevInfo] of prevKids) {
+            if (currKidMap && currKidMap.has(childName)) continue;   // 그대로 존재 — 무관
+            const key = parent + ' ' + childName;
+
+            // 해제 통보문이 있으면(관리자 사전등록 해제 데이터) 진짜 해제 → 즉시 허용
+            if (_childReleaseNoticeSet.has(childName)) {
+                if (_childReleasePending[key]) delete _childReleasePending[key];
+                console.log(`[Marine] 자식 정상 해제(해제예고 있음): ${parent} > ${childName}`);
+                continue;
+            }
+
+            // 해제예고 없이 사라짐 → 글리치 의심 → 디바운스
+            if (!_childReleasePending[key]) {
+                _childReleasePending[key] = { firstMissingAt: now };
+                console.log(`[Marine] 자식 해제 디바운스 시작: ${parent} > ${childName} (해제예고 없이 사라짐, 3분 관찰)`);
+            }
+            const elapsed = now - _childReleasePending[key].firstMissingAt;
+            if (elapsed < CHILD_RELEASE_DEBOUNCE_MS) {
+                // 관찰 중 — 직전 자식을 curr 에 이어받아 가짜 해제/추가/깜빡임 방지
+                if (!curr.children.has(parent)) curr.children.set(parent, new Map());
+                curr.children.get(parent).set(childName, Object.assign({}, prevInfo));
+                stillPending.add(key);
+            } else {
+                // 3분 경과 — 진짜 해제로 확정 (이어받기 중단 → diff 가 CHILD_RELEASE 발사)
+                console.log(`[Marine] 자식 해제 확정(디바운스 ${Math.round(elapsed / 1000)}초 경과, 해제예고 없음): ${parent} > ${childName}`);
+                delete _childReleasePending[key];
+            }
+        }
+    }
+
+    // 관찰 중이던 자식이 이번 사이클에 복귀 → 깜빡임(글리치) 확정 로그 + 정리
+    for (const key of Object.keys(_childReleasePending)) {
+        if (stillPending.has(key)) continue;
+        const sep = key.indexOf(' ');
+        const p = key.slice(0, sep), ch = key.slice(sep + 1);
+        const backNow = !!(curr.children && curr.children.get(p) && curr.children.get(p).has(ch));
+        const elapsedSec = Math.round((now - _childReleasePending[key].firstMissingAt) / 1000);
+        if (backNow && curr.parents && curr.parents.has(p)) {
+            console.log(`[Marine] ⚡ 자식 깜빡임 감지(글리치): ${p} > ${ch} — ${elapsedSec}초 만에 복귀, 가짜 해제 억제됨`);
+        }
+        delete _childReleasePending[key];
+    }
+}
+
 function _buildUserPushChanges(prev, curr) {
     const changes = [];
     if (!prev || !curr) return changes;
@@ -966,15 +1032,25 @@ function _buildUserPushChanges(prev, curr) {
 
     // [작업2b] 부모 zone 의 자식 한정사용 childState 구성.
     //   all    = 매핑상 전체 자식 (PARENT_TO_CHILDREN)
-    //   active = 현재 발효중인 자식 (curr.children)
+    //   active = 현재 발효/예비 자식 (curr.children 키)
     //   buildChildQualifier 가 이 둘로 "(연안바다 포함)/(미발효)" 등을 만든다.
     //   사용자 푸시는 토글(options.childZones) 켠 사용자에게만 한정사를 붙임.
-    const buildChildStateFor = (zone) => {
-        const all = PARENT_TO_CHILDREN[zone] || [];
-        const m = curr.children ? curr.children.get(zone) : null;
-        const active = m ? Array.from(m.keys()) : [];
-        return { all, active, added: [], released: [] };
+    const childKeys = (snap, zone) => {
+        const m = snap.children ? snap.children.get(zone) : null;
+        return m ? Array.from(m.keys()) : [];
     };
+    const childInfoOf = (snap, zone, name) => {
+        const m = snap.children ? snap.children.get(zone) : null;
+        return m ? m.get(name) : null;
+    };
+    // 자식 자신의 데이터로 푸시 블록 구성 (부모 비종속)
+    const childToBlock = (info) => info ? {
+        wrnTp: info.wrnTpNm || info.wrnTp || '',
+        wrnLvl: info.wrnLvlNm || info.wrnLvl || '',
+        tmFc: info.tmFc || '',
+        tmEf: info.tmEf || '',
+        tmYn: info.tmYn || info.clrNtcTm || ''
+    } : null;
 
     for (const zone of allZones) {
         const p = prev.parents ? prev.parents.get(zone) : null;
@@ -988,10 +1064,16 @@ function _buildUserPushChanges(prev, curr) {
         const prevActive = isActive(p) ? toBlock(p) : null;
         const currActive = isActive(c) ? toBlock(c) : null;
 
-        const childState = buildChildStateFor(zone);
+        const all = PARENT_TO_CHILDREN[zone] || [];
+        const prevChildren = childKeys(prev, zone);
+        const currChildren = childKeys(curr, zone);
+        const childState = { all, active: currChildren, added: [], released: [] };
 
-        // UPCOMING_CHANGE — 예비특보 변화
-        if (!blockEqual(prevUpcoming, currUpcoming)) {
+        const upcomingChanged = !blockEqual(prevUpcoming, currUpcoming);
+        const activeChanged = !blockEqual(prevActive, currActive);
+
+        // UPCOMING_CHANGE — 예비특보 변화 (부모+자식 동시 이동이면 자식 한정사로 묶여 1건)
+        if (upcomingChanged) {
             changes.push({
                 type: 'UPCOMING_CHANGE',
                 zone: zone,
@@ -1002,8 +1084,8 @@ function _buildUserPushChanges(prev, curr) {
             });
         }
 
-        // CURRENT_CHANGE — 발효 변화
-        if (!blockEqual(prevActive, currActive)) {
+        // CURRENT_CHANGE — 발효 변화 (부모+자식 동시 이동이면 자식 한정사로 묶여 1건)
+        if (activeChanged) {
             changes.push({
                 type: 'CURRENT_CHANGE',
                 zone: zone,
@@ -1011,6 +1093,31 @@ function _buildUserPushChanges(prev, curr) {
                 curr: currActive,
                 childState                           // [작업2b] 자식 한정사용
             });
+        }
+
+        // [자식 독립 푸시] 부모 블록이 둘 다 안 변했을 때만 — 자식만 추가/해제된 경우 별도 1건.
+        //   부모와 동시 이동(발표/발효)은 위 부모 푸시 + 자식 한정사로 이미 처리되므로 중복 방지.
+        //   원칙: 자식은 부모 특보 없이 못 옴 → 부모가 현재 존재(c)할 때만 의미.
+        //   added/released 는 자식 자신의 데이터로 메시지 구성 (부모 비종속).
+        if (!upcomingChanged && !activeChanged && c) {
+            const addedChildren = currChildren.filter(x => !prevChildren.includes(x));
+            const releasedChildren = prevChildren.filter(x => !currChildren.includes(x));
+            if (addedChildren.length > 0) {
+                changes.push({
+                    type: 'CHILD_ADD',
+                    zone: zone,
+                    curr: childToBlock(childInfoOf(curr, zone, addedChildren[0])),
+                    childState: { all, active: currChildren, added: addedChildren, released: [] }
+                });
+            }
+            if (releasedChildren.length > 0) {
+                changes.push({
+                    type: 'CHILD_RELEASE',
+                    zone: zone,
+                    prev: childToBlock(childInfoOf(prev, zone, releasedChildren[0])),
+                    childState: { all, active: currChildren, added: [], released: releasedChildren }
+                });
+            }
         }
     }
 
@@ -1605,6 +1712,10 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
     //   특히 "자식 3개 중 2개만 발표, 1개는 미발표" 같은 부분집합을 정확히 반영.
     //   (실제 통보문 가진 자식만 tp 세팅 — 나머지는 빈 메타행이라 자동 제외)
     //   발표대기(미래 발효시각) 자식만 GAP 로 추가. 발효중(snap.children) 은 그대로 우선.
+    // [자식 해제 디바운스] 이번 사이클 warn-sasc/latest 에 '해제' 통보문이 있는 자식 집합 —
+    //   "관리자가 미리 넣어둔 해제 데이터(해제예고)" 의 신호. 이 집합에 든 자식의 소멸은
+    //   진짜 해제로 즉시 처리하고, 이 집합에 없이 사라지는 자식만 글리치 의심 → 디바운스.
+    _childReleaseNoticeSet = new Set();
     if (Array.isArray(warnSascLatest)) {
         for (const row of warnSascLatest) {
             if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 통보문 없는 빈 메타행 자동 제외
@@ -1615,6 +1726,7 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             const cmd = String(row.warn_cmd_nm || '').trim();
 
             if (cmd === '해제') {
+                _childReleaseNoticeSet.add(cname);   // 해제 통보문 있는 자식 (디바운스 면제 신호)
                 // 발효중 자식의 정확한 해제예고시각 보강 (부모 해제 보강의 자식판)
                 const m = snap.children.get(parent);
                 if (m && m.has(cname)) {
@@ -1894,6 +2006,12 @@ async function run(opts = {}) {
         const prevForDiff = _prevSnapshot;
         _applySuspiciousGuard(prevForDiff, curr);
 
+        // 4-B) [자식 해제 디바운스] 해제예고 없이 사라진 자식을 3분 관찰 — 글리치성
+        //    깜빡임에 따른 가짜 "일부 해제"/"추가 발효" 푸시 및 화면 깜빡임 방지.
+        //    curr 를 변형(이어받기)하므로 diff(_buildUserPushChanges)·표출(weather_alerts)
+        //    양쪽에 반영됨. 해제 통보문(_childReleaseNoticeSet) 있는 자식은 즉시 해제.
+        _applyChildReleaseDebounce(prevForDiff, curr);
+
         // 5) diff + dispatch + flush (관리자 push) — [수정1] 관리자 채널 비활성.
         //    runDiffAndPush 는 관리자(dmdw) 푸시 전용이므로 비활성 시 호출 자체 skip.
         let sent = [];
@@ -1966,6 +2084,8 @@ module.exports = {
     _writeWeatherAlertsJson,
     _WEATHER_ALERTS_FILE,
     _isSnapshotEmpty,
+    _buildUserPushChanges,
+    _applyChildReleaseDebounce,
     // [D-6 (A)] 시간 형식 변환 (테스트용 노출)
     normalizeMmisTime,
     // [D-medium 인터랙티브] 의심 가드 + 결정 API

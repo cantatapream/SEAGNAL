@@ -343,9 +343,9 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
                 if (!coastalMap[childName]) coastalMap[childName] = [];
 
                 // wrnTp/wrnLvl 정규화 — wrnTpNm/wrnLvlNm 한글명 우선, 미존재 시 wrnTp/wrnLvl.
-                //   dmdw 머지: wrnLvlNm 문자열 ('주의보'|'경보').
-                //   종합기상 단독: wrnLvl 이 '예비'|'주의보'|'경보' 그대로.
-                const warnType = status.wrnTpNm || status.wrnTp || alertItem.warnType || '';
+                //   [원칙] 부모값으로 fallback 하지 않음 — 자식 자신의 데이터에만 기인.
+                //   자식 객체에 종류/등급이 없으면 빈 값(미표시)이 올바른 표출.
+                const warnType = status.wrnTpNm || status.wrnTp || '';
                 let level;
                 if (status.wrnLvlNm) {
                     level = status.wrnLvlNm;
@@ -353,7 +353,7 @@ function processSingleAlert(zoneName, alertObj, isUpcoming, alertsArr, childrenO
                     // 숫자 코드 ('3'='경보') 또는 한글 그대로.
                     level = String(status.wrnLvl) === '3' ? '경보' : status.wrnLvl;
                 } else {
-                    level = alertItem.level || '';
+                    level = '';
                 }
 
                 const isFromBulletinOnly = status.source === 'BULLETIN_TEXT'
