@@ -731,6 +731,10 @@ function _classifyReleases(prev, curr) {
         if (curr.parents.has(name)) continue;     // 아직 발효 중
         if (!info) continue;
         if (info.wrnLvlNm === '해제') continue;    // 이미 해제 처리
+        // [수정B] 예비 zone 이 사라지는 건 정상(예비취소 또는 발표 전이) — 의심 아님.
+        //   예비는 원래 clrNtcTm 이 없어 의심으로 오분류되던 문제(예비 단체 이탈 → 의심사례).
+        //   발효중(주의보/경보)만 clrNtcTm 없이 사라질 때 의심으로 본다.
+        if (info.wrnLvlNm === '예비') continue;
         if (info.clrNtcTm && String(info.clrNtcTm).length > 0) {
             normalReleases.push(name);
         } else {
@@ -802,6 +806,11 @@ function _applySuspiciousGuard(prev, curr) {
         for (const name of suspiciousZones) {
             const info = prev.parents.get(name);
             if (info) curr.parents.set(name, info);
+            // [수정C] 부모만 복원하면 자식이 비어 "(연안바다 미발효)" 오표시 → 자식도 복원
+            const pkids = prev.children ? prev.children.get(name) : null;
+            if (pkids && pkids.size > 0 && !curr.children.has(name)) {
+                curr.children.set(name, new Map(pkids));
+            }
         }
         result.skipped = suspiciousZones.slice();
     } else {
@@ -1580,9 +1589,9 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
  * @param {Array} warnLatest — fetchWarnLatest() 응답 row 배열
  * @returns {StateSnapshot} (in-place 수정, 반환은 편의용)
  */
-function _enrichSnapshotWithLatest(snap, warnLatest) {
+function _enrichSnapshotWithLatest(snap, warnLatest, prev) {
     if (!snap || !Array.isArray(warnLatest) || warnLatest.length === 0) return snap;
-    let enriched = 0, gapAdded = 0, gapChildAdded = 0;
+    let enriched = 0, gapAdded = 0, gapChildAdded = 0, gapChildCarried = 0;
     for (const row of warnLatest) {
         if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 풍랑(V)+태풍(T) 만 (실시간 문자코드)
         const cmd = String(row.warn_cmd_nm || '').trim();
@@ -1607,9 +1616,6 @@ function _enrichSnapshotWithLatest(snap, warnLatest) {
         //   → 발효 전이므로 예비(upcoming)로 스냅샷에 추가 (정확한 tm_ef 보존).
         //     앱 표시=예비(발효예정 정확시각), 푸시=범위→정확 time_ef_change.
         //   발효시각 도래 시 warn/list / warn-sasc/list 로 인계되어 정식(발효)으로 전환됨.
-        //   [자식 확장] 부모 endpoint(warn/latest)는 warn/ready 처럼 자식(S2/S3)도 포함하므로
-        //     자식형 행이면 snap.children 에 추가 → "일부 자식 발효중 + 나머지 추가발표" 케이스
-        //     에서 추가발표 자식도 발효예정으로 표시·푸시. (warn/latest 가 자식을 안 주면 무변화)
         if (!['발표', '변경', '연장'].includes(cmd)) continue;  // publish 계열만 (해제/변경해제 제외)
         const tmEf = String(row.tm_ef || '').trim();
         if (!tmEf || !_isFutureExactTime(tmEf)) continue;  // 정확·미래 발효시각만 (발표 발효대기)
@@ -1622,8 +1628,24 @@ function _enrichSnapshotWithLatest(snap, warnLatest) {
             info.wrnLvl = info.wrnLvl || '1';
             snap.parents.set(name, info);
             gapAdded++;
+            // [수정A] warn/latest 는 자식 행을 주지 않으므로(부모만), 예비 단계에 있던
+            //   자식(prev.children)을 발표대기로 이어받음. 부모 발효예정/해제예고 상속.
+            //   → 발표대기 동안 자식이 "특보 없음"/"미발효"로 표출되던 문제 해결.
+            const pkids = (prev && prev.children) ? prev.children.get(name) : null;
+            if (pkids && pkids.size > 0 && !snap.children.has(name)) {
+                const m = new Map();
+                for (const [cn, ci] of pkids) {
+                    const cc = Object.assign({}, ci);
+                    cc.wrnLvlNm = '예비';          // 발효 전
+                    cc.tmEf = info.tmEf;            // 부모의 새 발효예정 정확시각 상속
+                    cc.clrNtcTm = info.clrNtcTm;   // 부모 해제예고 상속
+                    m.set(cn, cc);
+                }
+                snap.children.set(name, m);
+                gapChildCarried += m.size;
+            }
         } else {
-            // 자식형 — 이미 발효중/예비 자식이면 그쪽 우선
+            // 자식형 행 (warn/latest 가 자식을 주는 경우 — 현재는 거의 없음). 발효중/예비면 그쪽 우선.
             if (!snap.children.has(parent)) snap.children.set(parent, new Map());
             const m = snap.children.get(parent);
             if (m.has(name)) continue;
@@ -1636,7 +1658,8 @@ function _enrichSnapshotWithLatest(snap, warnLatest) {
     }
     if (enriched > 0) console.log(`[Marine] warn/latest 보강: ${enriched} zone clrNtcTm 갱신`);
     if (gapAdded > 0) console.log(`[Marine] warn/latest GAP 보강: ${gapAdded} 부모 발표 발효대기 → 예비로 추가`);
-    if (gapChildAdded > 0) console.log(`[Marine] warn/latest GAP 보강(자식): ${gapChildAdded} 자식 발표 발효대기 → 예비로 추가`);
+    if (gapChildCarried > 0) console.log(`[Marine] GAP 자식 이어받기(prev): ${gapChildCarried} 자식 발표대기로 carry`);
+    if (gapChildAdded > 0) console.log(`[Marine] warn/latest GAP 보강(자식행): ${gapChildAdded} 자식 추가`);
     return snap;
 }
 
@@ -1740,7 +1763,7 @@ async function run(opts = {}) {
         //   실패 시 graceful — 보강만 skip 하고 기존 cycle 진행.
         try {
             const warnLatest = await marineClient.fetchWarnLatest();
-            _enrichSnapshotWithLatest(curr, warnLatest);
+            _enrichSnapshotWithLatest(curr, warnLatest, _prevSnapshot);
         } catch (e) {
             console.warn('[Marine] warn/latest 호출 실패 — 보강 skip:', e && e.message);
         }

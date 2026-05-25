@@ -881,14 +881,13 @@ function createAlertElement(items) {
 
         details.appendChild(createRow('발표시각', formatAlertTime(alert.tmFc)));
         details.appendChild(createRow('발효시각', formatAlertTime(alert.tmEf)));
-        // [Fix] 예비특보(isPreliminary)는 기본적으로 해제예정시각을 표시하지 않되,
-        // AI가 통보문에서 직접 추출한 tmCc(tmCcExplicit=true)가 있는 경우에만 조건부 표시
+        // [수정D] 실제 해제예고(clrNtcTm/tmCc) 값이 있으면 표시 — 발표대기(발효 전이나 정식
+        //   발표라 해제예고 보유) 케이스 포함. 순수 예비(해제예고 없음)는 '정보 없음'.
+        //   기존엔 isPreliminary(발효 전)면 무조건 숨겨, 발표대기의 실제 해제예고가 가려졌음.
         let releaseTime = '정보 없음';
-        if (!alert.isPreliminary || alert.tmCcExplicit) {
-            const rawRelease = alert.tmCc || alert.tmYn || alert.tmEd || '';
-            if (rawRelease.trim() !== '' && rawRelease.trim() !== '일') {
-                releaseTime = formatAlertTime(rawRelease);
-            }
+        const rawRelease = (alert.tmCc || alert.tmYn || alert.tmEd || '').trim();
+        if (rawRelease.length > 2 && rawRelease !== '일') {
+            releaseTime = formatAlertTime(rawRelease);
         }
         details.appendChild(createRow('해제예정', releaseTime, '#69f0ae'));
     });
