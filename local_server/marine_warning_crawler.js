@@ -1582,7 +1582,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
  */
 function _enrichSnapshotWithLatest(snap, warnLatest) {
     if (!snap || !Array.isArray(warnLatest) || warnLatest.length === 0) return snap;
-    let enriched = 0, gapAdded = 0;
+    let enriched = 0, gapAdded = 0, gapChildAdded = 0;
     for (const row of warnLatest) {
         if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 풍랑(V)+태풍(T) 만 (실시간 문자코드)
         const cmd = String(row.warn_cmd_nm || '').trim();
@@ -1606,20 +1606,37 @@ function _enrichSnapshotWithLatest(snap, warnLatest) {
         //   이 zone 이 누락되어 앱에서 사라지고 "발효시각 변경" 푸시도 안 나가던 문제.
         //   → 발효 전이므로 예비(upcoming)로 스냅샷에 추가 (정확한 tm_ef 보존).
         //     앱 표시=예비(발효예정 정확시각), 푸시=범위→정확 time_ef_change.
-        //   발효시각 도래 시 warn/list 로 인계되어 정식(발효)으로 전환됨.
+        //   발효시각 도래 시 warn/list / warn-sasc/list 로 인계되어 정식(발효)으로 전환됨.
+        //   [자식 확장] 부모 endpoint(warn/latest)는 warn/ready 처럼 자식(S2/S3)도 포함하므로
+        //     자식형 행이면 snap.children 에 추가 → "일부 자식 발효중 + 나머지 추가발표" 케이스
+        //     에서 추가발표 자식도 발효예정으로 표시·푸시. (warn/latest 가 자식을 안 주면 무변화)
         if (!['발표', '변경', '연장'].includes(cmd)) continue;  // publish 계열만 (해제/변경해제 제외)
-        if (snap.parents.has(name)) continue;          // 이미 발효중/예비면 그쪽 우선
-        if (_extractParent(name) !== name) continue;   // 부모형만 (gap 자식은 warn-sasc/latest 부재)
         const tmEf = String(row.tm_ef || '').trim();
         if (!tmEf || !_isFutureExactTime(tmEf)) continue;  // 정확·미래 발효시각만 (발표 발효대기)
-        const info = _rowToParentInfo(row);
-        info.wrnLvlNm = '예비';   // 발효 전 → 예비 취급 (표시·푸시 일관성)
-        info.wrnLvl = info.wrnLvl || '1';
-        snap.parents.set(name, info);
-        gapAdded++;
+        const parent = _extractParent(name);
+        if (parent === name) {
+            // 부모형 — 발효중/예비면 그쪽 우선
+            if (snap.parents.has(name)) continue;
+            const info = _rowToParentInfo(row);
+            info.wrnLvlNm = '예비';   // 발효 전 → 예비 취급 (표시·푸시 일관성)
+            info.wrnLvl = info.wrnLvl || '1';
+            snap.parents.set(name, info);
+            gapAdded++;
+        } else {
+            // 자식형 — 이미 발효중/예비 자식이면 그쪽 우선
+            if (!snap.children.has(parent)) snap.children.set(parent, new Map());
+            const m = snap.children.get(parent);
+            if (m.has(name)) continue;
+            const cinfo = _rowToChildInfo(row);
+            cinfo.wrnLvlNm = '예비';
+            cinfo.wrnLvl = cinfo.wrnLvl || '1';
+            m.set(name, cinfo);
+            gapChildAdded++;
+        }
     }
     if (enriched > 0) console.log(`[Marine] warn/latest 보강: ${enriched} zone clrNtcTm 갱신`);
-    if (gapAdded > 0) console.log(`[Marine] warn/latest GAP 보강: ${gapAdded} zone 발표 발효대기 → 예비로 추가`);
+    if (gapAdded > 0) console.log(`[Marine] warn/latest GAP 보강: ${gapAdded} 부모 발표 발효대기 → 예비로 추가`);
+    if (gapChildAdded > 0) console.log(`[Marine] warn/latest GAP 보강(자식): ${gapChildAdded} 자식 발표 발효대기 → 예비로 추가`);
     return snap;
 }
 
