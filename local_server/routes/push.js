@@ -74,7 +74,7 @@ function getWebPush() {
 //        admin.* 사용 부분에서 getAdmin() 호출 후 null 체크하여 사용한다.
 const { getAdmin } = require('../services/firebase_admin_lazy');
 const { DATA_DIR, FILES } = require('../config/server_config');
-const { expandToMinorZones, getMatchedZones, generateMessage } = require('../services/push_helpers');
+const { expandToMinorZones, getMatchedZones, generateMessage, paginateByZoneBlocks } = require('../services/push_helpers');
 
 const SUBS_FILE = path.join(DATA_DIR, 'subscriptions.json');
 const HISTORY_FILE = path.join(DATA_DIR, 'custom_push_history.json');
@@ -350,6 +350,13 @@ router.post('/api/push-custom', async (req, res) => {
                     if (opts.release === false && tid === 'partial_release') {
                         return;
                     }
+                    // 연장: 발효예정연장 ~ 발표(announce) 계열, 해제예정연장 ~ 발효(active) 계열
+                    if (opts.announce === false && tid === 'ef_extend') {
+                        return;
+                    }
+                    if (opts.active === false && tid === 'yn_extend') {
+                        return;
+                    }
                     // 야간 수신 거부 (KST 23:00 ~ 07:00) — UI 라벨과 일치
                     if (opts.night === false) {
                         const kstHour = (new Date().getUTCHours() + 9) % 24;
@@ -375,45 +382,59 @@ router.post('/api/push-custom', async (req, res) => {
                     const BASE_URL = 'https://seagnal-server.fly.dev';
                     const url = `${BASE_URL}/?tab=weather-alert-section&${params.toString()}`;
 
+                    // [연장 분할] ef_extend/yn_extend 는 본문이 길면 (n/N) 으로 나눠 다건 발송.
+                    //   그 외는 단건. 동일 url(딥링크) 공유.
+                    const isExtend = isManualGroupSend && payload &&
+                        (payload.templateId === 'ef_extend' || payload.templateId === 'yn_extend');
+                    const parts = isExtend
+                        ? paginateByZoneBlocks(finalTitle, finalBody)
+                        : [{ title: finalTitle, body: finalBody }];
+
                     if (user.type === 'fcm' && user.token) {
                         // [Lazy] 여기서 처음으로 firebase-admin 이 로딩되고 initializeApp 이 호출됨
                         const admin = getAdmin();
                         if (admin && admin.apps.length > 0) {
-                            try {
-                                await admin.messaging().send({
-                                    token: user.token,
-                                    notification: { title: finalTitle, body: finalBody },
-                                    data: { url: url, type: isManualGroupSend ? 'manual_group' : 'custom_push' },
-                                    android: { priority: 'high' },
-                                    apns: { headers: { 'apns-priority': '10' } }
-                                });
-                                successCount++;
-                            } catch (err) {
-                                failCount++;
-                                if (err.code === 'messaging/registration-token-not-registered' || err.code === 'messaging/invalid-registration-token') {
-                                    user._isDead = true;
-                                    deadSubscriptionsFound = true;
+                            for (const part of parts) {
+                                try {
+                                    await admin.messaging().send({
+                                        token: user.token,
+                                        notification: { title: part.title, body: part.body },
+                                        data: { url: url, type: isManualGroupSend ? 'manual_group' : 'custom_push' },
+                                        android: { priority: 'high' },
+                                        apns: { headers: { 'apns-priority': '10' } }
+                                    });
+                                    successCount++;
+                                } catch (err) {
+                                    failCount++;
+                                    if (err.code === 'messaging/registration-token-not-registered' || err.code === 'messaging/invalid-registration-token') {
+                                        user._isDead = true;
+                                        deadSubscriptionsFound = true;
+                                        break;
+                                    }
                                 }
                             }
                         }
                     } else if (user.subscription) {
-                        try {
-                            const pushPayload = JSON.stringify({ title: finalTitle, body: finalBody, url: url });
-                            // [Lazy] 첫 호출 시 web-push 로딩 + VAPID 설정
-                            const webpush = getWebPush();
-                            if (!webpush) {
-                                throw new Error('web-push SDK 사용 불가');
-                            }
-                            await webpush.sendNotification(user.subscription, pushPayload, {
-                                TTL: 86400,
-                                urgency: 'high'
-                            });
-                            successCount++;
-                        } catch (err) {
-                            failCount++;
-                            if (err.statusCode === 404 || err.statusCode === 410) {
-                                user._isDead = true;
-                                deadSubscriptionsFound = true;
+                        for (const part of parts) {
+                            try {
+                                const pushPayload = JSON.stringify({ title: part.title, body: part.body, url: url });
+                                // [Lazy] 첫 호출 시 web-push 로딩 + VAPID 설정
+                                const webpush = getWebPush();
+                                if (!webpush) {
+                                    throw new Error('web-push SDK 사용 불가');
+                                }
+                                await webpush.sendNotification(user.subscription, pushPayload, {
+                                    TTL: 86400,
+                                    urgency: 'high'
+                                });
+                                successCount++;
+                            } catch (err) {
+                                failCount++;
+                                if (err.statusCode === 404 || err.statusCode === 410) {
+                                    user._isDead = true;
+                                    deadSubscriptionsFound = true;
+                                    break;
+                                }
                             }
                         }
                     }
