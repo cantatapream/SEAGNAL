@@ -1323,11 +1323,15 @@ function _buildZoneTreeFromSnapshot(snap) {
         }
     }
 
-    // 자식 발효 채우기 — [D-6 (B)] mmis 자식 응답에 시간 필드가 없으므로 부모 시간 fallback.
+    // 자식 발효 채우기 — [원칙] 모든 자식 표출 필드는 자식 자신의 데이터에만 기인.
+    //   warn-sasc/list·ready·latest 가 자식별 tm_fc/tm_ef/tm_yn/clr_ntc_tm 을 개별
+    //   제공하므로(부모 warn/* 와 동일 스키마) 부모값으로 fallback 하지 않는다.
+    //   (과거 [D-6 (B)] 는 "자식 응답에 시간 필드 없음" 가정으로 부모 fallback 했으나
+    //    실측 결과 자식이 개별 제공함이 확인되어 제거 — 종속 표출 금지.)
+    //   자식 고유 데이터가 없으면 빈 값(미표시)이 올바른 표출.
     for (const [parentName, childMap] of snap.children) {
         const leaf = leafByName.get(parentName);
         if (!leaf || !leaf.children) continue;
-        const parentInfo = snap.parents.get(parentName);
         for (const [childName, info] of childMap) {
             if (!Object.prototype.hasOwnProperty.call(leaf.children, childName)) continue;
             if (!info || !info.wrnLvlNm) continue;
@@ -1335,15 +1339,15 @@ function _buildZoneTreeFromSnapshot(snap) {
             const lvlNmNorm = info.wrnLvlNm === '예비' ? '주의보' : info.wrnLvlNm;
             leaf.children[childName] = {
                 source: 'MARINE_MMIS',
-                wrnTp: info.wrnTpNm || info.wrnTp || (parentInfo && parentInfo.wrnTpNm) || '',  // 한글 우선
-                wrnTpNm: info.wrnTpNm || (parentInfo && parentInfo.wrnTpNm) || '',
+                wrnTp: info.wrnTpNm || info.wrnTp || '',  // 한글 우선
+                wrnTpNm: info.wrnTpNm || '',
                 wrnLvl: lvlNmNorm || info.wrnLvl || '',    // 한글 우선
                 wrnLvlNm: lvlNmNorm,
-                tmFc: normalizeMmisTime(info.tmFc || (parentInfo && parentInfo.tmFc) || ''),
-                tmEf: normalizeMmisTime(info.tmEf || (parentInfo && parentInfo.tmEf) || ''),
-                tmYn: normalizeMmisTime(info.tmYn || (parentInfo && parentInfo.tmYn) || ''),
-                tmCc: normalizeMmisTime(info.clrNtcTm || (parentInfo && parentInfo.clrNtcTm) || ''),
-                clrNtcTm: normalizeMmisTime(info.clrNtcTm || (parentInfo && parentInfo.clrNtcTm) || '')
+                tmFc: normalizeMmisTime(info.tmFc),
+                tmEf: normalizeMmisTime(info.tmEf),
+                tmYn: normalizeMmisTime(info.tmYn),
+                tmCc: normalizeMmisTime(info.clrNtcTm),
+                clrNtcTm: normalizeMmisTime(info.clrNtcTm)
             };
         }
     }
@@ -1481,7 +1485,8 @@ function _rowToChildInfo(row) {
         wrnLvlNm: _normLvlNm(row.warn_lvl_nm),
         tmFc: row.tm_fc || '',
         tmEf: row.tm_ef || row.st_tm || '',
-        tmYn: row.tm_yn || row.ed_tm || ''
+        tmYn: row.tm_yn || row.ed_tm || '',
+        clrNtcTm: row.clr_ntc_tm || ''   // 자식 개별 해제예고 (warn-sasc/list·ready 에서 보존)
     };
 }
 
@@ -1620,15 +1625,24 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
                 continue;
             }
             if (!['발표', '변경', '연장'].includes(cmd)) continue;
+            const childClr = String(row.clr_ntc_tm || '').trim();   // 자식 개별 해제예고
+            // 이미 발효중/예비(snap.children) 인 자식 — GAP 추가 skip, 단 자기 통보문의
+            //   해제예고를 보강 (warn-sasc/list 가 clr 을 안 줄 때 자식 고유값 채움).
+            //   부모값에 종속하지 않고 자식 자신의 통보문에서만 가져옴.
+            if (snap.children.has(parent) && snap.children.get(parent).has(cname)) {
+                const ci = snap.children.get(parent).get(cname);
+                if (childClr && !String(ci.clrNtcTm || '').trim()) {
+                    ci.clrNtcTm = childClr; sascChildEnriched++;
+                }
+                continue;
+            }
             const ctmEf = String(row.tm_ef || '').trim();
             if (!ctmEf || !_isFutureExactTime(ctmEf)) continue;   // 정확·미래 발효시각(발표대기)만
-            // 이미 발효중(snap.children) 이면 그쪽 우선 — GAP 추가 skip
-            if (snap.children.has(parent) && snap.children.get(parent).has(cname)) continue;
             if (!snap.children.has(parent)) snap.children.set(parent, new Map());
             const cinfo = _rowToChildInfo(row);
             cinfo.wrnLvlNm = '예비';            // 발효 전 → 예비 취급
             cinfo.wrnLvl = cinfo.wrnLvl || '1';
-            cinfo.clrNtcTm = String(row.clr_ntc_tm || '').trim();   // 자식 개별 해제예고
+            cinfo.clrNtcTm = childClr;          // 자식 개별 해제예고 (부모 비종속)
             snap.children.get(parent).set(cname, cinfo);
             sascChildAdded++;
         }
