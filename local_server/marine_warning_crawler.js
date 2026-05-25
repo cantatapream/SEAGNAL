@@ -1591,7 +1591,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
  */
 function _enrichSnapshotWithLatest(snap, warnLatest, prev) {
     if (!snap || !Array.isArray(warnLatest) || warnLatest.length === 0) return snap;
-    let enriched = 0, gapAdded = 0, gapChildAdded = 0, gapChildCarried = 0;
+    let enriched = 0, gapAdded = 0, gapChildAdded = 0, gapChildCarried = 0, gapChildSynth = 0;
     for (const row of warnLatest) {
         if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 풍랑(V)+태풍(T) 만 (실시간 문자코드)
         const cmd = String(row.warn_cmd_nm || '').trim();
@@ -1628,21 +1628,46 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev) {
             info.wrnLvl = info.wrnLvl || '1';
             snap.parents.set(name, info);
             gapAdded++;
-            // [수정A] warn/latest 는 자식 행을 주지 않으므로(부모만), 예비 단계에 있던
-            //   자식(prev.children)을 발표대기로 이어받음. 부모 발효예정/해제예고 상속.
-            //   → 발표대기 동안 자식이 "특보 없음"/"미발효"로 표출되던 문제 해결.
-            const pkids = (prev && prev.children) ? prev.children.get(name) : null;
-            if (pkids && pkids.size > 0 && !snap.children.has(name)) {
-                const m = new Map();
-                for (const [cn, ci] of pkids) {
-                    const cc = Object.assign({}, ci);
-                    cc.wrnLvlNm = '예비';          // 발효 전
-                    cc.tmEf = info.tmEf;            // 부모의 새 발효예정 정확시각 상속
-                    cc.clrNtcTm = info.clrNtcTm;   // 부모 해제예고 상속
-                    m.set(cn, cc);
+            // [수정A] warn/latest 는 자식 행을 주지 않으므로(부모만), 발표대기 동안
+            //   자식이 "특보 없음"/"미발효"로 표출되던 문제 해결.
+            //   1순위: 예비 단계에 있던 자식(prev.children) 이어받기 — 실제 대상 자식의
+            //          정확한 부분집합 보존 (일부만 발효/예비였던 경우 대응).
+            //   2순위[수정A-2]: prev 가 비어있으면(이미 GAP 진입해 자식을 잃은 경우 등)
+            //          PARENT_TO_CHILDREN 매핑으로 자식 합성 — mmis 가 GAP 에서 자식을
+            //          부모로부터 상속해 표출하는 것과 동일. 부모 발효예정/해제예고 상속.
+            if (!snap.children.has(name)) {
+                const pkids = (prev && prev.children) ? prev.children.get(name) : null;
+                if (pkids && pkids.size > 0) {
+                    const m = new Map();
+                    for (const [cn, ci] of pkids) {
+                        const cc = Object.assign({}, ci);
+                        cc.wrnLvlNm = '예비';          // 발효 전
+                        cc.tmEf = info.tmEf;            // 부모의 새 발효예정 정확시각 상속
+                        cc.clrNtcTm = info.clrNtcTm;   // 부모 해제예고 상속
+                        m.set(cn, cc);
+                    }
+                    snap.children.set(name, m);
+                    gapChildCarried += m.size;
+                } else {
+                    const mapped = PARENT_TO_CHILDREN[name] || [];
+                    if (mapped.length > 0) {
+                        const m = new Map();
+                        for (const cn of mapped) {
+                            m.set(cn, {
+                                wrnTp: info.wrnTp,
+                                wrnTpNm: info.wrnTpNm,
+                                wrnLvl: '1',
+                                wrnLvlNm: '예비',
+                                tmFc: info.tmFc,
+                                tmEf: info.tmEf,         // 부모 발효예정 상속
+                                tmYn: info.tmYn,
+                                clrNtcTm: info.clrNtcTm  // 부모 해제예고 상속
+                            });
+                        }
+                        snap.children.set(name, m);
+                        gapChildSynth += m.size;
+                    }
                 }
-                snap.children.set(name, m);
-                gapChildCarried += m.size;
             }
         } else {
             // 자식형 행 (warn/latest 가 자식을 주는 경우 — 현재는 거의 없음). 발효중/예비면 그쪽 우선.
@@ -1659,6 +1684,7 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev) {
     if (enriched > 0) console.log(`[Marine] warn/latest 보강: ${enriched} zone clrNtcTm 갱신`);
     if (gapAdded > 0) console.log(`[Marine] warn/latest GAP 보강: ${gapAdded} 부모 발표 발효대기 → 예비로 추가`);
     if (gapChildCarried > 0) console.log(`[Marine] GAP 자식 이어받기(prev): ${gapChildCarried} 자식 발표대기로 carry`);
+    if (gapChildSynth > 0) console.log(`[Marine] GAP 자식 합성(매핑): ${gapChildSynth} 자식 발표대기로 추가`);
     if (gapChildAdded > 0) console.log(`[Marine] warn/latest GAP 보강(자식행): ${gapChildAdded} 자식 추가`);
     return snap;
 }
