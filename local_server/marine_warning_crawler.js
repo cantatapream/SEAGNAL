@@ -1323,11 +1323,15 @@ function _buildZoneTreeFromSnapshot(snap) {
         }
     }
 
-    // 자식 발효 채우기 — [D-6 (B)] mmis 자식 응답에 시간 필드가 없으므로 부모 시간 fallback.
+    // 자식 발효 채우기 — [원칙] 모든 자식 표출 필드는 자식 자신의 데이터에만 기인.
+    //   warn-sasc/list·ready·latest 가 자식별 tm_fc/tm_ef/tm_yn/clr_ntc_tm 을 개별
+    //   제공하므로(부모 warn/* 와 동일 스키마) 부모값으로 fallback 하지 않는다.
+    //   (과거 [D-6 (B)] 는 "자식 응답에 시간 필드 없음" 가정으로 부모 fallback 했으나
+    //    실측 결과 자식이 개별 제공함이 확인되어 제거 — 종속 표출 금지.)
+    //   자식 고유 데이터가 없으면 빈 값(미표시)이 올바른 표출.
     for (const [parentName, childMap] of snap.children) {
         const leaf = leafByName.get(parentName);
         if (!leaf || !leaf.children) continue;
-        const parentInfo = snap.parents.get(parentName);
         for (const [childName, info] of childMap) {
             if (!Object.prototype.hasOwnProperty.call(leaf.children, childName)) continue;
             if (!info || !info.wrnLvlNm) continue;
@@ -1335,15 +1339,15 @@ function _buildZoneTreeFromSnapshot(snap) {
             const lvlNmNorm = info.wrnLvlNm === '예비' ? '주의보' : info.wrnLvlNm;
             leaf.children[childName] = {
                 source: 'MARINE_MMIS',
-                wrnTp: info.wrnTpNm || info.wrnTp || (parentInfo && parentInfo.wrnTpNm) || '',  // 한글 우선
-                wrnTpNm: info.wrnTpNm || (parentInfo && parentInfo.wrnTpNm) || '',
+                wrnTp: info.wrnTpNm || info.wrnTp || '',  // 한글 우선
+                wrnTpNm: info.wrnTpNm || '',
                 wrnLvl: lvlNmNorm || info.wrnLvl || '',    // 한글 우선
                 wrnLvlNm: lvlNmNorm,
-                tmFc: normalizeMmisTime(info.tmFc || (parentInfo && parentInfo.tmFc) || ''),
-                tmEf: normalizeMmisTime(info.tmEf || (parentInfo && parentInfo.tmEf) || ''),
-                tmYn: normalizeMmisTime(info.tmYn || (parentInfo && parentInfo.tmYn) || ''),
-                tmCc: normalizeMmisTime(info.clrNtcTm || (parentInfo && parentInfo.clrNtcTm) || ''),
-                clrNtcTm: normalizeMmisTime(info.clrNtcTm || (parentInfo && parentInfo.clrNtcTm) || '')
+                tmFc: normalizeMmisTime(info.tmFc),
+                tmEf: normalizeMmisTime(info.tmEf),
+                tmYn: normalizeMmisTime(info.tmYn),
+                tmCc: normalizeMmisTime(info.clrNtcTm),
+                clrNtcTm: normalizeMmisTime(info.clrNtcTm)
             };
         }
     }
@@ -1481,7 +1485,8 @@ function _rowToChildInfo(row) {
         wrnLvlNm: _normLvlNm(row.warn_lvl_nm),
         tmFc: row.tm_fc || '',
         tmEf: row.tm_ef || row.st_tm || '',
-        tmYn: row.tm_yn || row.ed_tm || ''
+        tmYn: row.tm_yn || row.ed_tm || '',
+        clrNtcTm: row.clr_ntc_tm || ''   // 자식 개별 해제예고 (warn-sasc/list·ready 에서 보존)
     };
 }
 
@@ -1589,9 +1594,65 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
  * @param {Array} warnLatest — fetchWarnLatest() 응답 row 배열
  * @returns {StateSnapshot} (in-place 수정, 반환은 편의용)
  */
-function _enrichSnapshotWithLatest(snap, warnLatest, prev) {
-    if (!snap || !Array.isArray(warnLatest) || warnLatest.length === 0) return snap;
+function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
+    if (!snap) return snap;
     let enriched = 0, gapAdded = 0, gapChildAdded = 0, gapChildCarried = 0, gapChildSynth = 0;
+    let sascChildAdded = 0, sascChildEnriched = 0;
+
+    // [수정A-3] warn-sasc/latest = 자식 통보문 endpoint (부모 warn/latest 의 자식판).
+    //   각 자식의 개별 warn_tp/warn_cmd_nm/tm_ef/clr_ntc_tm 를 부모처럼 제공 →
+    //   GAP(발표 발효대기) 동안 부모로부터 단순 상속/합성하던 것보다 정확.
+    //   특히 "자식 3개 중 2개만 발표, 1개는 미발표" 같은 부분집합을 정확히 반영.
+    //   (실제 통보문 가진 자식만 tp 세팅 — 나머지는 빈 메타행이라 자동 제외)
+    //   발표대기(미래 발효시각) 자식만 GAP 로 추가. 발효중(snap.children) 은 그대로 우선.
+    if (Array.isArray(warnSascLatest)) {
+        for (const row of warnSascLatest) {
+            if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 통보문 없는 빈 메타행 자동 제외
+            const cname = _resolveZoneName(row);
+            if (!cname) continue;
+            const parent = _extractParent(cname);
+            if (parent === cname) continue;   // 부모형 행은 warn/latest 루프가 처리
+            const cmd = String(row.warn_cmd_nm || '').trim();
+
+            if (cmd === '해제') {
+                // 발효중 자식의 정확한 해제예고시각 보강 (부모 해제 보강의 자식판)
+                const m = snap.children.get(parent);
+                if (m && m.has(cname)) {
+                    const ci = m.get(cname);
+                    const t = String(row.tm_ef || '').trim();
+                    if (t) { ci.clrNtcTm = t; m.set(cname, ci); sascChildEnriched++; }
+                }
+                continue;
+            }
+            if (!['발표', '변경', '연장'].includes(cmd)) continue;
+            const childClr = String(row.clr_ntc_tm || '').trim();   // 자식 개별 해제예고
+            // 이미 발효중/예비(snap.children) 인 자식 — GAP 추가 skip, 단 자기 통보문의
+            //   해제예고를 보강 (warn-sasc/list 가 clr 을 안 줄 때 자식 고유값 채움).
+            //   부모값에 종속하지 않고 자식 자신의 통보문에서만 가져옴.
+            if (snap.children.has(parent) && snap.children.get(parent).has(cname)) {
+                const ci = snap.children.get(parent).get(cname);
+                if (childClr && !String(ci.clrNtcTm || '').trim()) {
+                    ci.clrNtcTm = childClr; sascChildEnriched++;
+                }
+                continue;
+            }
+            const ctmEf = String(row.tm_ef || '').trim();
+            if (!ctmEf || !_isFutureExactTime(ctmEf)) continue;   // 정확·미래 발효시각(발표대기)만
+            if (!snap.children.has(parent)) snap.children.set(parent, new Map());
+            const cinfo = _rowToChildInfo(row);
+            cinfo.wrnLvlNm = '예비';            // 발효 전 → 예비 취급
+            cinfo.wrnLvl = cinfo.wrnLvl || '1';
+            cinfo.clrNtcTm = childClr;          // 자식 개별 해제예고 (부모 비종속)
+            snap.children.get(parent).set(cname, cinfo);
+            sascChildAdded++;
+        }
+    }
+
+    if (!Array.isArray(warnLatest) || warnLatest.length === 0) {
+        if (sascChildAdded > 0) console.log(`[Marine] warn-sasc/latest GAP 자식: ${sascChildAdded} 자식 발표대기로 추가`);
+        if (sascChildEnriched > 0) console.log(`[Marine] warn-sasc/latest 자식 해제예고 보강: ${sascChildEnriched}`);
+        return snap;
+    }
     for (const row of warnLatest) {
         if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 풍랑(V)+태풍(T) 만 (실시간 문자코드)
         const cmd = String(row.warn_cmd_nm || '').trim();
@@ -1686,6 +1747,8 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev) {
     if (gapChildCarried > 0) console.log(`[Marine] GAP 자식 이어받기(prev): ${gapChildCarried} 자식 발표대기로 carry`);
     if (gapChildSynth > 0) console.log(`[Marine] GAP 자식 합성(매핑): ${gapChildSynth} 자식 발표대기로 추가`);
     if (gapChildAdded > 0) console.log(`[Marine] warn/latest GAP 보강(자식행): ${gapChildAdded} 자식 추가`);
+    if (sascChildAdded > 0) console.log(`[Marine] warn-sasc/latest GAP 자식: ${sascChildAdded} 자식 발표대기로 추가`);
+    if (sascChildEnriched > 0) console.log(`[Marine] warn-sasc/latest 자식 해제예고 보강: ${sascChildEnriched}`);
     return snap;
 }
 
@@ -1788,8 +1851,11 @@ async function run(opts = {}) {
         //   해제 통보문 발행 시 tm_ef 에 정확한 시각이 들어있음.
         //   실패 시 graceful — 보강만 skip 하고 기존 cycle 진행.
         try {
-            const warnLatest = await marineClient.fetchWarnLatest();
-            _enrichSnapshotWithLatest(curr, warnLatest, _prevSnapshot);
+            const [warnLatest, warnSascLatest] = await Promise.all([
+                marineClient.fetchWarnLatest(),
+                marineClient.fetchWarnSascLatest().catch(() => [])   // 자식 통보문 (실패해도 부모 보강은 진행)
+            ]);
+            _enrichSnapshotWithLatest(curr, warnLatest, _prevSnapshot, warnSascLatest);
         } catch (e) {
             console.warn('[Marine] warn/latest 호출 실패 — 보강 skip:', e && e.message);
         }
