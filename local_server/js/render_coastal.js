@@ -542,7 +542,9 @@ function createCoastalElement(coastal, alertData, parentZoneName) {
             const tmEfFormatted = tmEfDisplayable ? stripYearMonth(alert.tmEf) : '';
             let tmEdFormatted = '';
             const releaseVal = alert.tmCc || alert.tmEd || '';
-            if (hasValue(releaseVal) && releaseVal.trim().length > 2 && (!alert.isPreliminary || alert.tmCcExplicit)) {
+            // [수정D] 실제 해제예고 값이 있으면 표시 (발표대기 자식이 부모 해제예고 상속한 경우 포함).
+            //   순수 예비(해제예고 없음)는 값이 없어 자동 미표시.
+            if (hasValue(releaseVal) && releaseVal.trim().length > 2) {
                 tmEdFormatted = stripYearMonth(releaseVal);
             }
 
