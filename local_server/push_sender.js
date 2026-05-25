@@ -262,6 +262,22 @@ async function processAndSendNotifications(changes, options = {}) {
                 tmYn: prev.tmYn || prev.tmCc
             });
         }
+
+        // D. 시각 연장 — 발효예정/해제예정이 더 늦은 시각으로 연장 (기존→변경 후 병기).
+        else if (type === 'EF_EXTEND') {
+            if (!curr) continue;
+            addToGroup(groups, 'ef_extend', curr.wrnTp, curr.wrnLvl, {
+                zones: [zone], childState,
+                oldTime: change.oldTime, newTime: change.newTime
+            });
+        }
+        else if (type === 'YN_EXTEND') {
+            if (!curr) continue;
+            addToGroup(groups, 'yn_extend', curr.wrnTp, curr.wrnLvl, {
+                zones: [zone], childState,
+                oldTime: change.oldTime, newTime: change.newTime
+            });
+        }
     }
 
     // 그룹이 비어있는지 확인

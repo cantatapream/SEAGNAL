@@ -348,6 +348,23 @@ function generateMessage(filteredPayload) {
         items.forEach(i => i.zones.forEach(z => { if (!allZones.includes(z)) allZones.push(z); }));
         genBody = `ㅇ${allZones.map(decorateZone).join(', ')}`;
     }
+    // 12. 발효 예정시각 연장 / 13. 해제 예정시각 연장 (기존 → 변경 후 병기)
+    //   같은 (기존,변경후) 쌍의 해역끼리 한 ㅇ 블록으로 묶고, 쌍이 다르면 블록을 나눔.
+    else if (templateId === 'ef_extend' || templateId === 'yn_extend') {
+        const label = templateId === 'ef_extend' ? '발효 예정시각 연장' : '해제 예정시각 연장';
+        genTitle = `🕐 ${fullTitle} ${label}`;
+        // (oldTime, newTime) 쌍별 그룹핑
+        const groups = {};
+        (items || []).forEach(it => {
+            const key = (it.oldTime || '') + '||' + (it.newTime || '');
+            if (!groups[key]) groups[key] = { oldTime: it.oldTime, newTime: it.newTime, zones: [] };
+            (it.zones || []).forEach(z => { if (!groups[key].zones.includes(z)) groups[key].zones.push(z); });
+        });
+        genBody = Object.values(groups).map(g => {
+            const zStr = g.zones.map(decorateZone).join(', ');
+            return `ㅇ${zStr}\n   - 기존 : ${fmt(g.oldTime)}\n   - 변경 후 : ${fmt(g.newTime)}`;
+        }).join('\n');
+    }
     // Fallback
     else {
         genTitle = `📢 ${fullTitle} 알림`;
@@ -858,11 +875,45 @@ function buildSplitPushes(eventType, parentEntries, opts = {}) {
     }));
 }
 
+/**
+ * 긴 본문을 ㅇ(부모) 블록 경계에서 분할 — 사용자 푸시용 (n/N) 페이지네이션.
+ *   기존 PushSplitter 와 동일한 165자 한도/(n/N) 규칙. ㅇ 블록은 쪼개지 않음.
+ *   @returns {{title, body}[]}
+ */
+function paginateByZoneBlocks(baseTitle, body, opts = {}) {
+    const EFF = opts.effectiveMax || 165;
+    if (!body) return [{ title: baseTitle, body: '' }];
+    // ㅇ 로 시작하는 줄을 블록 시작으로 — 블록 = ㅇ줄 + 뒤따르는 비-ㅇ줄
+    const lines = body.split('\n');
+    const blocks = [];
+    let cur = null;
+    for (const ln of lines) {
+        if (ln.startsWith('ㅇ')) { if (cur) blocks.push(cur); cur = ln; }
+        else { cur = cur == null ? ln : cur + '\n' + ln; }
+    }
+    if (cur != null) blocks.push(cur);
+    // greedy 패킹
+    const pages = [];
+    let buf = '';
+    for (const b of blocks) {
+        const proj = buf ? buf.length + 1 + b.length : b.length;
+        if (buf && proj > EFF) { pages.push(buf); buf = b; }
+        else buf = buf ? buf + '\n' + b : b;
+    }
+    if (buf) pages.push(buf);
+    const N = pages.length;
+    return pages.map((pg, i) => ({
+        title: N > 1 ? `${baseTitle} (${i + 1}/${N})` : baseTitle,
+        body: pg
+    }));
+}
+
 module.exports = {
     ZONE_HIERARCHY,
     expandToMinorZones,
     getMatchedZones,
     generateMessage,
+    paginateByZoneBlocks,
     // v7 신규 — 관리자 자식 정보 통합 푸시
     PARENT_CHILD_TYPE,
     TYPE_LABEL,

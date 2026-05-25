@@ -1001,10 +1001,58 @@ function _applyChildReleaseDebounce(prev, curr) {
     }
 }
 
+// ============================================================================
+// [연장 감지] 발효예정/해제예정 시각이 "더 늦은 시각"으로 연장되는 경우 감지.
+//   - 주(主): diff 기반 — 같은 zone·종류, 같은 단계(예비/발효)인데 해당 시각이
+//     더 늦어짐(_timeKey 비교) → 연장.
+//   - null gap 대응: 예비 onset 이 지나 목록에서 잠깐 빠졌다가 연장 재등록되는 경우,
+//     prev 가 비어 "신규 발표"로 오인되므로 _extensionMemory(직전 특보 짧은 기억)로 보강.
+// ============================================================================
+const EXTENSION_MEMORY_TTL_MS = 6 * 60 * 60 * 1000;   // 6시간 retention
+let _extensionMemory = {};   // zone → { phase:'upcoming'|'active', wrnTpNm, tmEf, clrNtcTm, lastSeenAt }
+
+/** mmis 시각 문자열 → 비교용 정수키 (월·일·시·분). 해석 불가 시 null. refMonth: 월 미기재 시 기준월. */
+function _timeKey(str, refMonth) {
+    if (!str) return null;
+    let s = String(str).replace(/&#40;/g, '(').replace(/&#41;/g, ')').replace(/&nbsp;/g, ' ').trim();
+    let mo = null, d = null, hh = null, mm = 0, m;
+    if (m = s.match(/(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/)) { mo = +m[2]; d = +m[3]; }
+    else if (/^\d{12}$/.test(s)) { mo = +s.slice(4, 6); d = +s.slice(6, 8); hh = +s.slice(8, 10); mm = +s.slice(10, 12); }
+    else if (m = s.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/)) { mo = +m[1]; d = +m[2]; }
+    else if (m = s.match(/(\d{1,2})\s*일/)) { d = +m[1]; }
+    if (hh == null) {
+        let hm;
+        if (hm = s.match(/(\d{1,2}):(\d{2})/)) { hh = +hm[1]; mm = +hm[2]; }
+        else if (hm = s.match(/(\d{1,2})\s*시/)) { hh = +hm[1]; }
+        else if (hm = s.match(/(\d{1,2})\s*[~∼]/)) { hh = +hm[1]; }
+    }
+    if (d == null || hh == null) return null;
+    if (mo == null) mo = refMonth || (new Date(Date.now() + 9 * 3600000).getUTCMonth() + 1);
+    return mo * 1000000 + d * 10000 + hh * 100 + mm;
+}
+
+/** run() 에서 매 cycle 호출 — 현재 특보 기억 갱신 + 만료 prune. (_buildUserPushChanges 이후) */
+function _updateExtensionMemory(curr) {
+    const now = Date.now();
+    if (curr && curr.parents) {
+        for (const [zone, info] of curr.parents) {
+            if (!info || !info.wrnLvlNm || info.wrnLvlNm === '해제') continue;
+            const phase = info.wrnLvlNm === '예비' ? 'upcoming' : 'active';
+            _extensionMemory[zone] = {
+                phase, wrnTpNm: info.wrnTpNm || '',
+                tmEf: info.tmEf || '', clrNtcTm: info.clrNtcTm || info.tmYn || '',
+                lastSeenAt: now
+            };
+        }
+    }
+    for (const z of Object.keys(_extensionMemory)) {
+        if (now - (_extensionMemory[z].lastSeenAt || 0) > EXTENSION_MEMORY_TTL_MS) delete _extensionMemory[z];
+    }
+}
+
 function _buildUserPushChanges(prev, curr) {
     const changes = [];
     if (!prev || !curr) return changes;
-
     const allZones = new Set();
     if (prev.parents) for (const k of prev.parents.keys()) allZones.add(k);
     if (curr.parents) for (const k of curr.parents.keys()) allZones.add(k);
@@ -1072,8 +1120,49 @@ function _buildUserPushChanges(prev, curr) {
         const upcomingChanged = !blockEqual(prevUpcoming, currUpcoming);
         const activeChanged = !blockEqual(prevActive, currActive);
 
-        // UPCOMING_CHANGE — 예비특보 변화 (부모+자식 동시 이동이면 자식 한정사로 묶여 1건)
-        if (upcomingChanged) {
+        // [연장 감지] 발효예정 연장 (예비 단계): 같은 종류 예비인데 발효예정(tmEf)이 더 늦어짐.
+        //   prev 가 있으면 prev 와, 없으면(null gap) _extensionMemory 의 직전 예비와 비교.
+        let efExtend = null;
+        if (currUpcoming) {
+            let oldEf = prevUpcoming ? prevUpcoming.tmEf : null;
+            let oldType = prevUpcoming ? prevUpcoming.wrnTp : null;
+            if (!oldEf) {
+                const mem = _extensionMemory[zone];
+                if (mem && mem.phase === 'upcoming') { oldEf = mem.tmEf; oldType = mem.wrnTpNm; }
+            }
+            if (oldEf && currUpcoming.tmEf) {
+                const kn = _timeKey(currUpcoming.tmEf), ko = _timeKey(oldEf, kn ? Math.floor((kn / 1000000)) : null);
+                const sameType = !oldType || oldType === currUpcoming.wrnTp;
+                if (ko != null && kn != null && kn > ko && sameType && oldEf !== currUpcoming.tmEf) {
+                    efExtend = { oldTime: oldEf, newTime: currUpcoming.tmEf };
+                }
+            }
+        }
+        // [연장 감지] 해제예정 연장 (발효 단계): 같은 종류 발효인데 해제예정(tmYn=clrNtcTm)이 더 늦어짐.
+        let ynExtend = null;
+        if (currActive && currActive.tmYn) {
+            let oldYn = prevActive ? prevActive.tmYn : null;
+            let oldType = prevActive ? prevActive.wrnTp : null;
+            if (!oldYn) {
+                const mem = _extensionMemory[zone];
+                if (mem && mem.phase === 'active') { oldYn = mem.clrNtcTm; oldType = mem.wrnTpNm; }
+            }
+            if (oldYn) {
+                const kn = _timeKey(currActive.tmYn), ko = _timeKey(oldYn, kn ? Math.floor((kn / 1000000)) : null);
+                const sameType = !oldType || oldType === currActive.wrnTp;
+                if (ko != null && kn != null && kn > ko && sameType && oldYn !== currActive.tmYn) {
+                    ynExtend = { oldTime: oldYn, newTime: currActive.tmYn };
+                }
+            }
+        }
+
+        // UPCOMING_CHANGE — 예비특보 변화. 연장이면 EF_EXTEND 로 대체 (신규 "발표" 오인 방지).
+        if (efExtend) {
+            changes.push({
+                type: 'EF_EXTEND', zone: zone, curr: currUpcoming,
+                oldTime: efExtend.oldTime, newTime: efExtend.newTime, childState
+            });
+        } else if (upcomingChanged) {
             changes.push({
                 type: 'UPCOMING_CHANGE',
                 zone: zone,
@@ -1084,8 +1173,13 @@ function _buildUserPushChanges(prev, curr) {
             });
         }
 
-        // CURRENT_CHANGE — 발효 변화 (부모+자식 동시 이동이면 자식 한정사로 묶여 1건)
-        if (activeChanged) {
+        // CURRENT_CHANGE — 발효 변화. 해제예정 연장이면 YN_EXTEND 로 대체.
+        if (ynExtend) {
+            changes.push({
+                type: 'YN_EXTEND', zone: zone, curr: currActive,
+                oldTime: ynExtend.oldTime, newTime: ynExtend.newTime, childState
+            });
+        } else if (activeChanged) {
             changes.push({
                 type: 'CURRENT_CHANGE',
                 zone: zone,
@@ -2042,6 +2136,10 @@ async function run(opts = {}) {
             }
         }
 
+        // 5-C) [연장 감지] 직전 특보 기억 갱신 — _buildUserPushChanges 이후 호출되어야
+        //   다음 cycle 의 null gap 연장 판정에 직전 값이 쓰임.
+        _updateExtensionMemory(curr);
+
         // 6) curr 를 다음 사이클의 prev 로 저장
         _prevSnapshot = curr;
         _savePrevSnapshot(curr);
@@ -2086,6 +2184,8 @@ module.exports = {
     _isSnapshotEmpty,
     _buildUserPushChanges,
     _applyChildReleaseDebounce,
+    _updateExtensionMemory,
+    _timeKey,
     // [D-6 (A)] 시간 형식 변환 (테스트용 노출)
     normalizeMmisTime,
     // [D-medium 인터랙티브] 의심 가드 + 결정 API
