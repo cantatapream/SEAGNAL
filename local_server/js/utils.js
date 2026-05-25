@@ -145,9 +145,9 @@ function formatWarningTime(tmEf, isEndTime = false) {
         sh = ((sh % 24) + 24) % 24;
         eh = (eh === 0 || eh === 24) ? 24 : ((eh % 24) + 24) % 24;
         if (sh === eh) { const bs = Math.floor(sh / 6) * 6; sh = bs; eh = bs + 6; }
-        return `${sh}시~${eh}시`;
+        return `${String(sh).padStart(2, '0')}시~${String(eh).padStart(2, '0')}시`;
     };
-    const fmtExact = (hh, mm) => `${hh}시` + (mm ? ` ${mm}분` : ''); // 분·초 제거(0이면 시만)
+    const fmtExact = (hh, mm) => `${String(hh).padStart(2, '0')}시` + (mm ? ` ${String(mm).padStart(2, '0')}분` : ''); // 시·분 2자리, 분0이면 시만
 
     // ── 날짜 + 시간부 분리 ──
     let Y = null, Mo = null, D = null, rest = null, m;
@@ -164,7 +164,12 @@ function formatWarningTime(tmEf, isEndTime = false) {
             rest = `${s.slice(8, 10)}:${s.slice(10, 12)}`;
         }
     } else if (m = s.match(/^(\d{1,2})\s*일\s*(.*)$/)) {
-        D = +m[1]; rest = m[2].trim(); // 연/월 없음 → 라벨·월 생략
+        D = +m[1]; rest = m[2].trim();
+        // [해제예고 등 '일'만 있는 값] 가장 가까운 미래 날짜로 연/월 추론 → 월+상대일자 라벨 부여
+        const _n = new Date(Date.now() + 9 * 3600000);
+        let _y = _n.getUTCFullYear(), _mo = _n.getUTCMonth() + 1;
+        if (D < _n.getUTCDate()) { _mo++; if (_mo > 12) { _mo = 1; _y++; } }
+        Y = _y; Mo = _mo;
     } else {
         rest = s;
     }
