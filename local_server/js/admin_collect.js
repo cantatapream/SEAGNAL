@@ -3899,6 +3899,14 @@ function _usageToggleExplode(chart, which, next) {
     }
 }
 
+// 도넛 가운데 총합 표기용 한글 단위 축약: 만 이상 "0.0만", 천 이상 "0.0천", 그 미만은 콤마 숫자.
+function _usageFmtCountKo(n) {
+    n = n || 0;
+    if (n >= 10000) return (n / 10000).toFixed(1) + '만';
+    if (n >= 1000) return (n / 1000).toFixed(1) + '천';
+    return n.toLocaleString();
+}
+
 // 도넛 가운데 총합 텍스트(2줄): 윗줄=설명, 아랫줄="총 ####회". 가운데 빈 공간(cutout)에 맞춰 크기 자동 축소.
 function _usageDonutCenterPlugin(T, title) {
     return {
@@ -3916,7 +3924,7 @@ function _usageDonutCenterPlugin(T, title) {
             var ctx = chart.ctx;
             ctx.save();
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            var line2 = '총 ' + sum.toLocaleString() + '회';
+            var line2 = '총 ' + _usageFmtCountKo(sum) + '회';
             var f2 = 22;
             ctx.font = '800 ' + f2 + 'px "Noto Sans KR", sans-serif';
             while (ctx.measureText(line2).width > maxW && f2 > 11) { f2 -= 1; ctx.font = '800 ' + f2 + 'px "Noto Sans KR", sans-serif'; }
