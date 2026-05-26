@@ -353,9 +353,18 @@ function generateMessage(filteredPayload) {
     else if (templateId === 'ef_extend' || templateId === 'yn_extend') {
         const label = templateId === 'ef_extend' ? '발효 예정시각 연장' : '해제 예정시각 연장';
         genTitle = `🕐 ${fullTitle} ${label}`;
+        // childZones OFF 사용자: 자식 단독 연장(childState.extended)은 부모명만 나가 오해되므로 제외.
+        let extItems = items || [];
+        if (!showChildZones) {
+            extItems = extItems.filter(it =>
+                !(it.childState && Array.isArray(it.childState.extended) && it.childState.extended.length > 0));
+        }
+        if (extItems.length === 0) {
+            return { title: '', body: '' };   // 보낼 내용 없음 → 라우트에서 미발송
+        }
         // (oldTime, newTime) 쌍별 그룹핑
         const groups = {};
-        (items || []).forEach(it => {
+        extItems.forEach(it => {
             const key = (it.oldTime || '') + '||' + (it.newTime || '');
             if (!groups[key]) groups[key] = { oldTime: it.oldTime, newTime: it.newTime, zones: [] };
             (it.zones || []).forEach(z => { if (!groups[key].zones.includes(z)) groups[key].zones.push(z); });
@@ -537,6 +546,17 @@ function buildChildQualifier(parent, childState, eventType) {
                 return `(${shown.join(', ')}만 해제)`;
             }
             return '';
+        }
+
+        // 시각 연장 (ef_extend, yn_extend): 자식 단독 연장이면 연장된 자식만 나열.
+        //   childState.extended 가 있으면 그 자식들만 "(가파도연안바다)" 형태.
+        //   없으면(부모 동반 연장) 아래 일반 로직으로 → "(모든 연안바다 포함)" 등.
+        if (eventType === 'ef_extend' || eventType === 'yn_extend') {
+            const extended = Array.isArray(safe.extended) ? safe.extended : [];
+            if (extended.length > 0) {
+                const shown = extended.map(c => _stripParentPrefix(parent, c));
+                return `(${shown.join(', ')})`;
+            }
         }
 
         // 추가 발효 (S8, S9): 자식만 추가
