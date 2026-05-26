@@ -1002,6 +1002,43 @@ function _applyChildReleaseDebounce(prev, curr) {
 }
 
 // ============================================================================
+// [발표시각 고정] 발표시각(tmFc)은 "현재 발효중 특보가 최초 발표된 시각"으로 고정.
+//   예비→발표→발효→해제 동안 불변(변경/연장에도 안 바뀜). 격상/격하(등급 변화)·
+//   종류 변화·해제 시에만 새 등급의 발표시각으로 재설정.
+//   구현: 직전 cycle(prev, 디스크 영속)에 같은 종류·동급(예비는 정식의 전구체로 동급
+//   취급)이 있으면 그 tmFc 를 이어받아 고정. 신규/격상격하/종류변경이면 현재 tmFc 가 새 앵커.
+//   별도 저장소 불필요 — 고정값이 스냅샷 체인(marine_warning_state.json)에 그대로 영속.
+//   [한계] 예비 단계를 못 본 채(콜드스타트) 발효부터 관측하면 그때 tmFc 가 앵커(best-effort).
+// ============================================================================
+function _anchorLevel(info) {
+    return (info && info.wrnLvlNm === '경보') ? '경보' : '주의보';   // 예비·주의보 동급
+}
+function _applyAnnounceAnchor(prev, curr) {
+    if (!curr) return;
+    const carry = (pinfo, info) =>
+        pinfo && pinfo.tmFc && pinfo.wrnTpNm === info.wrnTpNm &&
+        // 예비는 정식특보의 전구체 → 어떤 등급으로 성숙해도 이어받음. 그 외엔 동급일 때만.
+        (pinfo.wrnLvlNm === '예비' || _anchorLevel(pinfo) === _anchorLevel(info));
+    if (curr.parents) {
+        for (const [zone, info] of curr.parents) {
+            if (!info || !info.wrnLvlNm || info.wrnLvlNm === '해제') continue;
+            const pinfo = prev && prev.parents ? prev.parents.get(zone) : null;
+            if (carry(pinfo, info)) info.tmFc = pinfo.tmFc;   // 직전 고정값 이어받기
+        }
+    }
+    if (curr.children) {
+        for (const [zone, cmap] of curr.children) {
+            const pmap = prev && prev.children ? prev.children.get(zone) : null;
+            for (const [cn, info] of cmap) {
+                if (!info || !info.wrnLvlNm) continue;
+                const pinfo = pmap ? pmap.get(cn) : null;
+                if (carry(pinfo, info)) info.tmFc = pinfo.tmFc;
+            }
+        }
+    }
+}
+
+// ============================================================================
 // [연장 감지] 발효예정/해제예정 시각이 "더 늦은 시각"으로 연장되는 경우 감지.
 //   - 주(主): diff 기반 — 같은 zone·종류, 같은 단계(예비/발효)인데 해당 시각이
 //     더 늦어짐(_timeKey 비교) → 연장.
@@ -2139,6 +2176,10 @@ async function run(opts = {}) {
         //    양쪽에 반영됨. 해제 통보문(_childReleaseNoticeSet) 있는 자식은 즉시 해제.
         _applyChildReleaseDebounce(prevForDiff, curr);
 
+        // 4-C) [발표시각 고정] 현재 발효 등급의 최초 발표시각으로 tmFc 고정 (변경/연장 불변,
+        //   격상/격하·종류변경·해제 시에만 재설정). _buildUserPushChanges·표출 전에 적용.
+        _applyAnnounceAnchor(prevForDiff, curr);
+
         // 5) diff + dispatch + flush (관리자 push) — [수정1] 관리자 채널 비활성.
         //    runDiffAndPush 는 관리자(dmdw) 푸시 전용이므로 비활성 시 호출 자체 skip.
         let sent = [];
@@ -2219,6 +2260,7 @@ module.exports = {
     _applyChildReleaseDebounce,
     _updateExtensionMemory,
     _timeKey,
+    _applyAnnounceAnchor,
     // [D-6 (A)] 시간 형식 변환 (테스트용 노출)
     normalizeMmisTime,
     // [D-medium 인터랙티브] 의심 가드 + 결정 API
