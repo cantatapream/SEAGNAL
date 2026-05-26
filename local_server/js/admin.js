@@ -3680,17 +3680,30 @@ window.switchMaintenanceSubTab = function (tab) {
     }
 };
 
+// 노드의 하위(자손) 중 차단된 항목이 하나라도 있는지 검사 (재귀)
+// [용도] 저장된 차단 항목이 하위에 있으면 해당 부모 노드를 펼친 상태로 렌더
+function hasBlockedDescendant(node, blocked) {
+    if (!node.children || node.children.length === 0) return false;
+    return node.children.some(c => blocked.includes(c.id) || hasBlockedDescendant(c, blocked));
+}
+
 // 계층형 차단 트리를 HTML 로 변환 (재귀)
 // [구조] 각 노드 = [펼침화살표(자식 있을 때)] + [체크박스] + [라벨], 자식은 접힌 컨테이너
 // [동작] 상위 체크 → 하위 자동 체크(onFeatureCbChange), 짝꿍(linked)도 자동 체크
+// [펼침] 하위에 차단 항목이 있으면 해당 노드는 펼친 상태(▼)로 렌더
+// [indeterminate] 하위 일부만 차단된 부모는 부분선택(indeterminate) 표시
 function buildFeatureTreeHtml(nodes, depth, blocked) {
     const cbStyle = 'width:15px;height:15px;accent-color:#f59e0b;cursor:pointer;flex-shrink:0;';
     return nodes.map(n => {
         const hasChildren = n.children && n.children.length > 0;
         const childIds = hasChildren ? n.children.map(c => c.id).join(',') : '';
         const isChecked = blocked.includes(n.id);
+        // 하위에 차단된 자손이 있으면 펼침, 부모가 미체크인데 자손만 차단되면 indeterminate
+        const blockedDesc = hasChildren && hasBlockedDescendant(n, blocked);
+        const expanded = blockedDesc;
+        const isIndeterminate = hasChildren && !isChecked && blockedDesc;
         const arrow = hasChildren
-            ? `<span id="maint-arrow-${n.id}" onclick="toggleFeatureNode('${n.id}')" style="cursor:pointer;width:14px;text-align:center;color:#94a3b8;font-size:0.7rem;flex-shrink:0;">▶</span>`
+            ? `<span id="maint-arrow-${n.id}" onclick="toggleFeatureNode('${n.id}')" style="cursor:pointer;width:14px;text-align:center;color:#94a3b8;font-size:0.7rem;flex-shrink:0;">${expanded ? '▼' : '▶'}</span>`
             : `<span style="width:14px;flex-shrink:0;"></span>`;
         const indent = depth * 14;
         const labelColor = depth === 0 ? '#fff' : (depth === 1 ? '#e2e8f0' : '#cbd5e1');
@@ -3700,10 +3713,10 @@ function buildFeatureTreeHtml(nodes, depth, blocked) {
                 <div style="display:flex;align-items:center;gap:8px;padding:5px 0;">
                     ${arrow}
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;color:${labelColor};font-size:0.85rem;font-weight:${weight};">
-                        <input type="checkbox" class="maint-feature-cb" value="${n.id}" data-children="${childIds}" ${isChecked ? 'checked' : ''} onchange="onFeatureCbChange(this)" style="${cbStyle}"> ${n.label}
+                        <input type="checkbox" class="maint-feature-cb" value="${n.id}" data-children="${childIds}"${isIndeterminate ? ' data-indeterminate="1"' : ''} ${isChecked ? 'checked' : ''} onchange="onFeatureCbChange(this)" style="${cbStyle}"> ${n.label}
                     </label>
                 </div>
-                ${hasChildren ? `<div class="maint-children" id="maint-children-${n.id}" style="display:none;">${buildFeatureTreeHtml(n.children, depth + 1, blocked)}</div>` : ''}
+                ${hasChildren ? `<div class="maint-children" id="maint-children-${n.id}" style="display:${expanded ? 'block' : 'none'};">${buildFeatureTreeHtml(n.children, depth + 1, blocked)}</div>` : ''}
             </div>`;
     }).join('');
 }
@@ -3895,6 +3908,11 @@ async function renderMaintenanceFullTab(container) {
             </ul>
         </div>
     `;
+
+    // indeterminate(부분선택) 상태는 속성으로 지정 불가 → 렌더 후 JS로 적용
+    container.querySelectorAll('.maint-feature-cb[data-indeterminate="1"]').forEach(cb => {
+        cb.indeterminate = true;
+    });
 }
 
 window.toggleBlockType = function () {
@@ -3928,9 +3946,60 @@ function _setFeatureCbChecked(id, state, visited) {
     links.forEach(lid => _setFeatureCbChecked(lid, state, visited));
 }
 
+// 한 부모 체크박스의 상태를 직속 자식들의 체크/부분선택 상태로부터 재계산
+// [규칙] 자식 전부 체크 → 체크, 일부만 체크/부분선택 → indeterminate, 전부 해제 → 해제
+function _refreshParentState(parentCb) {
+    if (!parentCb || !parentCb.dataset.children) return;
+    const childIds = parentCb.dataset.children.split(',').filter(Boolean);
+    if (childIds.length === 0) return;
+    let total = 0, checked = 0, partial = 0;
+    childIds.forEach(cid => {
+        const c = document.querySelector('.maint-feature-cb[value="' + cid + '"]');
+        if (!c) return;
+        total++;
+        if (c.checked) checked++;
+        if (c.indeterminate) partial++;
+    });
+    if (total === 0) return;
+    if (checked === total && partial === 0) {
+        parentCb.checked = true;
+        parentCb.indeterminate = false;
+    } else if (checked === 0 && partial === 0) {
+        parentCb.checked = false;
+        parentCb.indeterminate = false;
+    } else {
+        parentCb.checked = false;
+        parentCb.indeterminate = true;
+    }
+}
+
+// 모든 부모(자식 보유) 체크박스의 부분선택 상태를 가장 깊은 노드부터 재계산
+// [순서] DOM 중첩 깊이(=maint-children 조상 수)가 큰 노드부터 처리하여 하위→상위로 전파
+function _recomputeAllParentStates() {
+    const parents = Array.from(document.querySelectorAll('.maint-feature-cb'))
+        .filter(c => c.dataset.children && c.dataset.children.split(',').filter(Boolean).length > 0);
+    const depthOf = el => {
+        let d = 0, node = el.closest('.maint-children');
+        while (node) { d++; node = node.parentElement ? node.parentElement.closest('.maint-children') : null; }
+        return d;
+    };
+    parents
+        .map(c => ({ cb: c, depth: depthOf(c) }))
+        .sort((a, b) => b.depth - a.depth)
+        .forEach(p => _refreshParentState(p.cb));
+}
+
 // 상위 체크 → 하위 전체 + 짝꿍 자동 동기화
 window.onFeatureCbChange = function (cb) {
     _setFeatureCbChecked(cb.value, cb.checked, new Set());
+    // 직접 토글된 체크박스는 명확한 상태이므로 부분선택 해제
+    cb.indeterminate = false;
+    // 짝꿍(linked) 전파로 체크된 항목들도 명확한 상태이므로 부분선택 해제
+    document.querySelectorAll('.maint-feature-cb').forEach(c => {
+        if (c.checked) c.indeterminate = false;
+    });
+    // 변경 영향을 받은 모든 부모 노드의 체크/부분선택 상태 재계산
+    _recomputeAllParentStates();
 };
 
 window.saveBlockedFeatures = async function () {
