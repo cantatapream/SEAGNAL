@@ -554,7 +554,7 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
                             <i class="fa-solid fa-bell-slash"></i> 해제
                         </button>
                     </div>
-                    <button class="unified-admin-close" onclick="if(typeof clearErrorListAutoRefresh==='function'){clearErrorListAutoRefresh();} document.getElementById('unified-admin-modal').remove();">
+                    <button class="unified-admin-close" onclick="if(window.PopupStack)window.PopupStack.remove('unified-admin-modal'); if(typeof clearErrorListAutoRefresh==='function'){clearErrorListAutoRefresh();} document.getElementById('unified-admin-modal').remove();">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
@@ -576,6 +576,17 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
     `;
 
     document.body.appendChild(modal);
+
+    // [뒤로가기] 통합 관리자 센터를 PopupStack 에 등록 → 휴대폰 하드웨어 뒤로가기로 닫힘(앱 종료 방지).
+    if (window.PopupStack) {
+        window.PopupStack.push('unified-admin-modal', function () {
+            var m = document.getElementById('unified-admin-modal');
+            if (m) {
+                try { if (typeof clearErrorListAutoRefresh === 'function') clearErrorListAutoRefresh(); } catch (e) {}
+                m.remove();
+            }
+        });
+    }
 
     // [관리자 기기 등록 상태 확인] 현재 기기가 관리자로 등록되어 있는지 서버에서 조회하여 버튼 상태 갱신
     _checkAdminDeviceStatus();

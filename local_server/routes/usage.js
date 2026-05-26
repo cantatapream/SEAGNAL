@@ -380,4 +380,46 @@ router.get('/api/stats/usage/csv', (req, res) => {
     }
 });
 
+// ============================================================================
+// 이미지(PNG) 다운로드 중계 — Capacitor WebView 호환
+//   클라이언트가 만든 PNG(dataURL)는 WebView 에서 <a download>/길게눌러저장이 안 되므로,
+//   ① POST 로 PNG 를 서버에 잠깐 보관(토큰 발급) → ② 시스템 브라우저로 GET 토큰 URL 을 열어
+//   브라우저가 파일을 받게 한다(CSV 와 동일 원리).
+//   - 전역 express.json(5mb) 을 우회하려고 text/plain 으로 받는다(라우트 전용 30mb).
+//   - 토큰 보관은 메모리 Map + 5분 TTL, 1회 다운로드 후 즉시 삭제.
+// ============================================================================
+const _usageImgStore = new Map(); // token -> { buf, name, exp }
+function _gcUsageImg() {
+    const now = Date.now();
+    for (const [k, v] of _usageImgStore) { if (v.exp < now) _usageImgStore.delete(k); }
+}
+router.post('/api/stats/usage/image', express.text({ type: '*/*', limit: '30mb' }), (req, res) => {
+    try {
+        const png = typeof req.body === 'string' ? req.body : '';
+        const name = (req.query.name || ('seagnal_' + Date.now() + '.png')).toString();
+        if (png.indexOf('data:image/') !== 0) return res.status(400).json({ error: 'invalid image' });
+        const b64 = png.split(',')[1] || '';
+        const buf = Buffer.from(b64, 'base64');
+        if (!buf.length) return res.status(400).json({ error: 'empty image' });
+        _gcUsageImg();
+        const token = Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
+        _usageImgStore.set(token, { buf, name, exp: Date.now() + 5 * 60 * 1000 });
+        res.json({ token });
+    } catch (e) {
+        console.error('[usage] image POST 실패:', e && e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+router.get('/api/stats/usage/image/:token', (req, res) => {
+    const item = _usageImgStore.get(req.params.token);
+    if (!item || item.exp < Date.now()) {
+        _usageImgStore.delete(req.params.token);
+        return res.status(404).send('이미지가 만료되었거나 존재하지 않습니다.');
+    }
+    _usageImgStore.delete(req.params.token); // 1회 다운로드
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + encodeURIComponent(item.name) + '"');
+    res.send(item.buf);
+});
+
 module.exports = router;

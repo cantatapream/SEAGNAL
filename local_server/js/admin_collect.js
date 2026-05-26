@@ -3779,17 +3779,20 @@ function _usageCsvScopePopup(q, cb) {
         + '<button id="usage-csv-ok" style="flex:1;padding:10px;background:linear-gradient(135deg,' + T.accent + ',' + T.accent2 + ');border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;">확인 · 다운로드</button>'
         + '</div></div>';
     document.body.appendChild(ov);
+    // [뒤로가기] 팝업을 PopupStack 에 등록 → 하드웨어 뒤로가기로 팝업부터 닫힘.
+    if (window.PopupStack) window.PopupStack.push('usage-csv-popup', function () { ov.remove(); });
+    var close = function () { if (window.PopupStack) window.PopupStack.remove('usage-csv-popup'); ov.remove(); };
     var rangeBox = ov.querySelector('#usage-csv-range');
     ov.querySelectorAll('input[name="usage-csv-scope"]').forEach(function (r) {
         r.addEventListener('change', function () { rangeBox.style.display = (ov.querySelector('input[name="usage-csv-scope"]:checked').value === 'range') ? 'flex' : 'none'; });
     });
-    ov.querySelector('#usage-csv-cancel').onclick = function () { ov.remove(); };
-    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    ov.querySelector('#usage-csv-cancel').onclick = close;
+    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
     ov.querySelector('#usage-csv-ok').onclick = function () {
         var mode = ov.querySelector('input[name="usage-csv-scope"]:checked').value;
         var start = mode === 'range' ? (ov.querySelector('#usage-csv-start').value || '') : '';
         var end = mode === 'range' ? (ov.querySelector('#usage-csv-end').value || '') : '';
-        ov.remove();
+        close();
         cb({ mode: mode, start: start, end: end });
     };
 }
@@ -3958,11 +3961,13 @@ function _usageImageModePopup(cb) {
         + '<button id="usage-imgm-ok" style="flex:1;padding:10px;background:linear-gradient(135deg,' + T.accent + ',' + T.accent2 + ');border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;">확인 · 저장</button>'
         + '</div></div>';
     document.body.appendChild(ov);
-    ov.querySelector('#usage-imgm-cancel').onclick = function () { ov.remove(); };
-    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    if (window.PopupStack) window.PopupStack.push('usage-imgmode-popup', function () { ov.remove(); });
+    var close = function () { if (window.PopupStack) window.PopupStack.remove('usage-imgmode-popup'); ov.remove(); };
+    ov.querySelector('#usage-imgm-cancel').onclick = close;
+    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
     ov.querySelector('#usage-imgm-ok').onclick = function () {
         var m = ov.querySelector('input[name="usage-img-mode"]:checked').value;
-        ov.remove();
+        close();
         cb(m);
     };
 }
@@ -4054,7 +4059,8 @@ function _usageCaptureDom(el, T, filename) {
 function _usageTriggerDownload(href, filename, revoke) {
     var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
     if (isNative && /^data:image\//.test(String(href))) {
-        _usageShowImageModal(href, filename);
+        // 앱(WebView)은 data:image 의 <a download>/길게눌러저장이 안 됨 → 서버 중계 후 시스템 브라우저로 다운로드.
+        _usageSaveImageNative(href, filename);
         return;
     }
     var a = document.createElement('a');
@@ -4064,6 +4070,33 @@ function _usageTriggerDownload(href, filename, revoke) {
     a.click();
     document.body.removeChild(a);
     if (revoke) { setTimeout(function () { try { URL.revokeObjectURL(href); } catch (e) {} }, 1500); }
+}
+
+// 앱(네이티브)에서 PNG 저장: 서버에 잠깐 업로드(토큰) → 시스템 브라우저로 GET 열어 다운로드(CSV 원리).
+//   길게눌러저장 모달은 WebView 에서 동작하지 않고 닫기까지 막혀 제거함.
+function _usageSaveImageNative(dataUrl, filename) {
+    try {
+        var base = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE) ? CONFIG.API_BASE : '';
+        fetch(base + '/api/stats/usage/image?name=' + encodeURIComponent(filename || 'seagnal_usage.png'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: dataUrl
+        }).then(function (r) { return r.json(); }).then(function (j) {
+            if (!j || !j.token) throw new Error('토큰 없음');
+            var url = window.location.origin + '/api/stats/usage/image/' + j.token;
+            var Browser = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+            if (Browser && Browser.open) {
+                var p = Browser.open({ url: url });
+                if (p && typeof p.catch === 'function') p.catch(function () { window.open(url, '_blank'); });
+            } else {
+                window.open(url, '_blank');
+            }
+        }).catch(function (e) {
+            alert('이미지 저장 실패: ' + (e && e.message));
+        });
+    } catch (e) {
+        alert('이미지 저장 실패: ' + (e && e.message));
+    }
 }
 
 // ============================================================================
@@ -4103,19 +4136,6 @@ window.toggleUsageLandscape = function () {
         _usageLeaveObserver.observe(document.body, { childList: true, subtree: true });
     }
 };
-
-// 네이티브 앱에서 생성한 PNG 를 전체화면 모달로 표시 — 길게 눌러 "이미지 저장" 선택.
-function _usageShowImageModal(dataUrl, filename) {
-    var ov = document.createElement('div');
-    ov.style.cssText = 'position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;';
-    ov.innerHTML =
-        '<div style="color:#fff;font-size:0.9rem;margin-bottom:10px;text-align:center;line-height:1.5;">이미지를 길게 눌러 <b>"이미지 저장"</b>을 선택하세요<br><span style="font-size:0.72rem;color:#cbd5e1;">' + (filename || '') + '</span></div>'
-        + '<img src="' + dataUrl + '" style="max-width:100%;max-height:74vh;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.6);">'
-        + '<button id="usage-img-close" style="margin-top:14px;padding:10px 24px;background:#3b82f6;border:none;border-radius:8px;color:#fff;font-weight:700;font-size:0.9rem;cursor:pointer;">닫기</button>';
-    ov.querySelector('#usage-img-close').onclick = function () { ov.remove(); };
-    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
-    document.body.appendChild(ov);
-}
 
 // 기존 관리 함수들 리다이렉션 (하위 호환성 유지)
 // 홍보 게시글 관리는 통합 관리자(unified-admin-modal) > "게시판 관리" 탭에서 처리.
