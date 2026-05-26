@@ -327,6 +327,7 @@ const USAGE_CSV_LABELS = {
     'shrt.snow': '적설',
     'shrt.sky': '하늘상태',
     'shrt.temp_air': '기온(천기)',
+    'sheet.bottom_sheet': '해점 바텀시트',
     'sheet.tide': '조석',
     'sheet.astro': '천문(일출몰/월출몰)',
     'sheet.moon': '월령(달 위상)',

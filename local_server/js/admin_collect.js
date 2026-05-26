@@ -3238,12 +3238,10 @@ var USAGE_FEATURE_LABELS = {
     'shrt.snow': '적설',
     'shrt.sky': '하늘상태',
     'shrt.temp_air': '기온(천기)',
-    // E. 해점 바텀시트
-    'sheet.tide': '조석',
-    'sheet.astro': '천문(일출몰/월출몰)',
-    'sheet.moon': '월령(달 위상)',
-    'sheet.depth': '수심',
-    'sheet.water_temp': '수온',
+    // E. 해점 바텀시트 — 바텀시트로 얻은 데이터는 통합 1건으로 집계.
+    'sheet.bottom_sheet': '해점 바텀시트',
+    // (legacy) 마이그레이션 전 개별 집계분 라벨 — 표시 호환용으로 유지.
+    'sheet.tide': '조석', 'sheet.astro': '천문(일출몰/월출몰)', 'sheet.moon': '월령(달 위상)', 'sheet.depth': '수심', 'sheet.water_temp': '수온',
     // F. 해양생활
     'life.fishing.tab': '바다낚시 탭 진입',
     'life.surfing.tab': '서핑 탭 진입',

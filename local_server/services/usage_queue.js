@@ -89,11 +89,72 @@ function init() {
         usageData = u;
     }
 
+    // [1회 마이그레이션] 바텀시트 개별 집계분을 'sheet.bottom_sheet' 통합으로 묶음.
+    _migrateBottomSheetOnce();
+
     flushTimer = setInterval(() => {
         _flushAsync().catch(err => {
             console.error('[usage_queue] flushAsync 예외:', err && err.message);
         });
     }, FLUSH_INTERVAL_MS);
+}
+
+// ----------------------------------------------------------------------------
+// 1회 마이그레이션: 바텀시트 개별 집계 → 'sheet.bottom_sheet' 통합
+// ----------------------------------------------------------------------------
+// 과거엔 바텀시트의 각 요소(조석/천문/월령/수심/수온)를 따로 +1 했으나, 이제는
+// 바텀시트로 데이터를 얻으면 1건으로 통합한다. 기존 데이터도 같은 개념으로 묶는다.
+//   - 한 번의 바텀시트 열림이 각 요소를 1씩 올렸으므로, (날짜×기기)별로 그 요소들의
+//     "최댓값"을 바텀시트 사용 횟수의 근사로 보고 sheet.bottom_sheet 에 합산한다(합이 아닌 최댓값).
+//   - 공유키(ocean.current/wind/wave, shrt.*)는 오버레이/천기도 버튼과 섞여 있어
+//     바텀시트분만 분리할 수 없으므로 과거 데이터는 그대로 둔다(향후 바텀시트는 더 이상 가산 안 함).
+//   - 마커 파일로 1회만 실행.
+function _migrateBottomSheetOnce() {
+    const markerPath = FILES.USAGE_STATS + '.migrations.json';
+    const marker = _safeReadJson(markerPath, {}) || {};
+    if (marker.bottomSheetMerged) return;
+
+    const EXCL = ['sheet.tide', 'sheet.astro', 'sheet.moon', 'sheet.depth', 'sheet.water_temp'];
+    let changed = false;
+    try {
+        Object.keys(usageData).forEach(dateStr => {
+            const byDev = usageData[dateStr];
+            if (!byDev || typeof byDev !== 'object') return;
+            Object.keys(byDev).forEach(dev => {
+                const feats = byDev[dev];
+                if (!feats || typeof feats !== 'object') return;
+                let mx = 0, found = false;
+                EXCL.forEach(k => {
+                    if (feats[k] != null) {
+                        found = true;
+                        if (feats[k] > mx) mx = feats[k];
+                        delete feats[k];
+                    }
+                });
+                if (found && mx > 0) {
+                    feats['sheet.bottom_sheet'] = (feats['sheet.bottom_sheet'] || 0) + mx;
+                    changed = true;
+                }
+            });
+        });
+    } catch (e) {
+        console.error('[usage_queue] 바텀시트 마이그레이션 실패:', e && e.message);
+    }
+
+    // 데이터를 먼저 디스크에 반영한 뒤 마커 기록 (정합성).
+    if (changed) {
+        try {
+            fs.writeFileSync(FILES.USAGE_STATS, JSON.stringify(usageData, null, 2), 'utf8');
+        } catch (e) {
+            console.error('[usage_queue] 마이그레이션 데이터 기록 실패:', e && e.message);
+        }
+    }
+    try {
+        fs.writeFileSync(markerPath, JSON.stringify({ bottomSheetMerged: true, at: new Date().toISOString() }, null, 2), 'utf8');
+        console.log('[usage_queue] 바텀시트 통합 마이그레이션 완료' + (changed ? ' (데이터 갱신됨)' : ' (변경 없음)'));
+    } catch (e) {
+        console.error('[usage_queue] 마이그레이션 마커 기록 실패:', e && e.message);
+    }
 }
 
 // ----------------------------------------------------------------------------
