@@ -1097,8 +1097,9 @@ const EXTENSION_MEMORY_TTL_MS = 6 * 60 * 60 * 1000;   // 6시간 retention
 const EXTENSION_BRIDGE_MS = 5 * 60 * 1000;            // 핸드오프 공백 복원 허용 시간(예비→발표대기)
 let _extensionMemory = {};   // zone → { upcoming|active: { wrnTpNm, wrnLvlNm, tmFc, tmEf, clrNtcTm, lastSeenAt } }
 
-/** mmis 시각 문자열 → 비교용 정수키 (월·일·시·분). 해석 불가 시 null. refMonth: 월 미기재 시 기준월. */
-function _timeKey(str, refMonth) {
+/** mmis 시각 문자열 → 비교용 정수키 (월·일·시·분). 해석 불가 시 null. refMonth: 월 미기재 시 기준월.
+ *  rangeUseStart=true 면 범위형의 시작 시각을 사용(기본은 끝 시각). */
+function _timeKey(str, refMonth, rangeUseStart) {
     if (!str) return null;
     let s = String(str).replace(/&#40;/g, '(').replace(/&#41;/g, ')').replace(/&nbsp;/g, ' ').trim();
     let mo = null, d = null, hh = null, mm = 0, m;
@@ -1108,19 +1109,68 @@ function _timeKey(str, refMonth) {
     else if (m = s.match(/(\d{1,2})\s*일/)) { d = +m[1]; }
     if (hh == null) {
         let hm;
-        if (hm = s.match(/(\d{1,2}):(\d{2})/)) { hh = +hm[1]; mm = +hm[2]; }
+        // 범위형("21시~24시","00~06시")은 일관되게 끝 시각 사용 (rangeUseStart 면 시작 시각)
+        if (hm = s.match(/(\d{1,2})\s*시?\s*[~∼]\s*(\d{1,2})\s*시?/)) { hh = rangeUseStart ? +hm[1] : +hm[2]; }
+        else if (hm = s.match(/(\d{1,2}):(\d{2})/)) { hh = +hm[1]; mm = +hm[2]; }
         else if (hm = s.match(/(\d{1,2})\s*시/)) { hh = +hm[1]; }
-        else if (hm = s.match(/(\d{1,2})\s*[~∼]/)) { hh = +hm[1]; }
     }
     if (d == null || hh == null) return null;
     if (mo == null) mo = refMonth || (new Date(Date.now() + 9 * 3600000).getUTCMonth() + 1);
+    if (hh === 24) { hh = 0; d += 1; }   // 24시 = 다음날 00시 정규화 (범위 끝 ↔ 정확 00시 비교용)
     return mo * 1000000 + d * 10000 + hh * 100 + mm;
+}
+
+/** 두 시각이 "같은 해제/발효 모멘트"인지 — 범위형의 끝 시각과 정확시각이 같으면 동일로 봄.
+ *  (예: "26일 21시~24시" 의 끝 24시 = "27일 00시" → 같은 모멘트). warn/latest 휘발성으로
+ *  범위↔정확이 깜빡여도 같은 시각이면 변경으로 보지 않아 가짜 푸시 방지. */
+function _sameReleaseMoment(a, b) {
+    if (!a || !b) return false;
+    const ka = _timeKey(a), kb = _timeKey(b);
+    return ka != null && kb != null && ka === kb;
 }
 
 /** 범위형 시각인지 (예: "21시~24시", "00~06시"). 정확시각("27일 00시","2026.05.27 00:00")은 false.
  *  [연장 규칙] 연장은 "범위형 → 더 늦은 범위형" 일 때만. 정확시각으로 바뀌면 연장 아님(시각 변경). */
 function _isRangeTime(str) {
     return /[~∼]/.test(String(str || ''));
+}
+
+// ============================================================================
+// [해제시각 고정 + 연장 판별] 발효중 zone 의 해제예정(clrNtcTm) 정책:
+//   - "해제 윈도우"(처음 확립된 범위의 끝 시각) 를 _clrWindowEnd 에 추적.
+//   - 윈도우 안: 정확시각이 발표되면 그 값을 고정(범위로 안 되돌림). MMIS 해제 전까지 유지.
+//   - 윈도우 초과(원래 범위보다 늦은 해제시각): 연장(_clrExtend 플래그) → "해제 예정시각 연장".
+//   - 해제(zone 사라짐): 윈도우 정리.
+//   _buildUserPushChanges 보다 먼저 호출. curr 의 active parent clrNtcTm 을 보정.
+// ============================================================================
+let _clrWindowEnd = {};   // zone → 해제 윈도우 끝 시각키
+function _applyReleaseClrLogic(prev, curr) {
+    if (!curr || !curr.parents) return;
+    const active = new Set();
+    for (const [zone, info] of curr.parents) {
+        if (!info || !info.wrnLvlNm || info.wrnLvlNm === '예비' || info.wrnLvlNm === '해제') continue;
+        active.add(zone);
+        const incoming = info.clrNtcTm;
+        if (!incoming) continue;
+        const incKey = _timeKey(incoming);
+        const prevInfo = prev && prev.parents ? prev.parents.get(zone) : null;
+        const prevHeld = prevInfo ? prevInfo.clrNtcTm : null;
+        const win = _clrWindowEnd[zone];
+        if (win == null) {
+            _clrWindowEnd[zone] = incKey;   // 윈도우 확립 (현재 끝 시각)
+        } else if (incKey != null && incKey > win) {
+            // 원래 범위(윈도우)를 넘어선 해제시각 → 연장
+            info._clrExtend = { oldTime: prevHeld || '', newTime: incoming };
+            _clrWindowEnd[zone] = incKey;   // 윈도우 확장
+        } else {
+            // 윈도우 안 → 직전이 정확시각이고 이번이 범위형이면 정확값 유지 (되돌림·깜빡임 방지)
+            if (prevHeld && !_isRangeTime(prevHeld) && _isRangeTime(incoming)) {
+                info.clrNtcTm = prevHeld;
+            }
+            // 이번이 정확시각이면 그대로 채택 (윈도우 내 명확화)
+        }
+    }
+    for (const z of Object.keys(_clrWindowEnd)) if (!active.has(z)) delete _clrWindowEnd[z];
 }
 
 /** run() 에서 매 cycle 호출 — 현재 특보 기억 갱신 + 만료 prune. (_buildUserPushChanges 이후)
@@ -1192,7 +1242,8 @@ function _buildUserPushChanges(prev, curr) {
         return a.wrnTp === b.wrnTp
             && a.wrnLvl === b.wrnLvl
             && a.tmEf === b.tmEf
-            && a.tmYn === b.tmYn;
+            // 해제예정: 범위↔정확이 같은 모멘트면 동일로 봄 (warn/latest 깜빡임 가짜 푸시 방지)
+            && (a.tmYn === b.tmYn || _sameReleaseMoment(a.tmYn, b.tmYn));
     };
 
     // [작업2b] 부모 zone 의 자식 한정사용 childState 구성.
@@ -1293,6 +1344,16 @@ function _buildUserPushChanges(prev, curr) {
                 const bothRange = _isRangeTime(oldYn) && _isRangeTime(currActive.tmYn);   // 범위→범위만 연장(정확시각이면 시각변경)
                 if (ko != null && kn != null && kn > ko && sameType && sameLevel && bothRange && oldYn !== currActive.tmYn) {
                     ynExtend = { oldTime: oldYn, newTime: currActive.tmYn };
+                }
+            }
+            // [해제 윈도우 초과 연장] _applyReleaseClrLogic 가 표시한 플래그 — 고정된 정확시각에서
+            //   원래 범위를 넘어선 해제시각이 나온 경우 (정확→범위/정확 모두). 종류·동급일 때만.
+            const cActInfo = getAct(curr, zone);
+            if (!ynExtend && cActInfo && cActInfo._clrExtend) {
+                const e = cActInfo._clrExtend;
+                const pAct2 = getAct(prev, zone);
+                if (!pAct2 || (pAct2.wrnTpNm === cActInfo.wrnTpNm && pAct2.wrnLvlNm === cActInfo.wrnLvlNm)) {
+                    ynExtend = { oldTime: e.oldTime || (prevActive && prevActive.tmYn) || '', newTime: e.newTime };
                 }
             }
         }
@@ -2300,6 +2361,10 @@ async function run(opts = {}) {
         //   격상/격하·종류변경·해제 시에만 재설정). _buildUserPushChanges·표출 전에 적용.
         _applyAnnounceAnchor(prevForDiff, curr);
 
+        // 4-D) [해제시각 고정/연장] 발효중 해제예정: 윈도우 안이면 정확값 고정(유지),
+        //   윈도우(원래 범위) 초과면 연장 표시. _buildUserPushChanges 전에 적용.
+        _applyReleaseClrLogic(prevForDiff, curr);
+
         // 5) diff + dispatch + flush (관리자 push) — [수정1] 관리자 채널 비활성.
         //    runDiffAndPush 는 관리자(dmdw) 푸시 전용이므로 비활성 시 호출 자체 skip.
         let sent = [];
@@ -2381,6 +2446,7 @@ module.exports = {
     _updateExtensionMemory,
     _timeKey,
     _applyAnnounceAnchor,
+    _applyReleaseClrLogic,
     // [D-6 (A)] 시간 형식 변환 (테스트용 노출)
     normalizeMmisTime,
     // [D-medium 인터랙티브] 의심 가드 + 결정 API
