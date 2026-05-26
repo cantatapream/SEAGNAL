@@ -3680,6 +3680,34 @@ window.switchMaintenanceSubTab = function (tab) {
     }
 };
 
+// 계층형 차단 트리를 HTML 로 변환 (재귀)
+// [구조] 각 노드 = [펼침화살표(자식 있을 때)] + [체크박스] + [라벨], 자식은 접힌 컨테이너
+// [동작] 상위 체크 → 하위 자동 체크(onFeatureCbChange), 짝꿍(linked)도 자동 체크
+function buildFeatureTreeHtml(nodes, depth, blocked) {
+    const cbStyle = 'width:15px;height:15px;accent-color:#f59e0b;cursor:pointer;flex-shrink:0;';
+    return nodes.map(n => {
+        const hasChildren = n.children && n.children.length > 0;
+        const childIds = hasChildren ? n.children.map(c => c.id).join(',') : '';
+        const isChecked = blocked.includes(n.id);
+        const arrow = hasChildren
+            ? `<span id="maint-arrow-${n.id}" onclick="toggleFeatureNode('${n.id}')" style="cursor:pointer;width:14px;text-align:center;color:#94a3b8;font-size:0.7rem;flex-shrink:0;">▶</span>`
+            : `<span style="width:14px;flex-shrink:0;"></span>`;
+        const indent = depth * 14;
+        const labelColor = depth === 0 ? '#fff' : (depth === 1 ? '#e2e8f0' : '#cbd5e1');
+        const weight = depth === 0 ? '700' : (depth === 1 ? '600' : '400');
+        return `
+            <div class="maint-node" style="margin-left:${indent}px;">
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 0;">
+                    ${arrow}
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;color:${labelColor};font-size:0.85rem;font-weight:${weight};">
+                        <input type="checkbox" class="maint-feature-cb" value="${n.id}" data-children="${childIds}" ${isChecked ? 'checked' : ''} onchange="onFeatureCbChange(this)" style="${cbStyle}"> ${n.label}
+                    </label>
+                </div>
+                ${hasChildren ? `<div class="maint-children" id="maint-children-${n.id}" style="display:none;">${buildFeatureTreeHtml(n.children, depth + 1, blocked)}</div>` : ''}
+            </div>`;
+    }).join('');
+}
+
 // --- 점검 모드 (전체 차단) 하위 탭 ---
 async function renderMaintenanceFullTab(container) {
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
@@ -3699,44 +3727,78 @@ async function renderMaintenanceFullTab(container) {
 
     const blocked = config.blockedFeatures || [];
     const isBlockPush = config.blockPush !== false;
-    // 선택적 차단 가능한 기능 목록
-    // [구조] id: applyFeatureBlocks()에서 사용하는 차단 식별자
-    //        label: 관리자 UI에 표시되는 한글 이름
-    //        group: 체크박스 그룹 분류 (UI 렌더링용)
-    // [연계] index.html applyFeatureBlocks() → featureMap/tabMap에서 동일 id 사용
-    //        saveBlockedFeatures() → 체크된 id를 서버로 전송
-    const features = [
-        // 기상정보 > 특보 및 전망 탭 내 아코디언 (개별 차단 가능)
-        { id: 'marine-forecast', label: '기상청 해상 기상 전망', group: '기상정보 > 특보 및 전망 내' },
-        { id: 'weather-alert', label: '해역별 특보현황', group: '기상정보 > 특보 및 전망 내' },
-        { id: 'weather-buoy', label: '해역별 기상현황', group: '기상정보 > 특보 및 전망 내' },
-        // 기상정보 하위 서브탭 (탭 단위 차단)
-        { id: 'weather-alert-tab', label: '특보 및 전망', group: '기상정보 하위 탭' },
-        { id: 'sea-zone', label: '해구기상', group: '기상정보 하위 탭' },
-
-        { id: 'typhoon', label: '태풍정보', group: '기상정보 하위 탭' },
-        { id: 'cctv', label: '해안 CCTV', group: '기상정보 하위 탭' },
-        // 해양생활 하위 서브탭 (탭 단위 차단)
-        { id: 'fishing', label: '바다낚시', group: '해양생활 하위 탭' },
-        { id: 'surfing', label: '서핑', group: '해양생활 하위 탭' },
-        { id: 'swimming', label: '해수욕', group: '해양생활 하위 탭' },
-        { id: 'scuba', label: '스킨스쿠버', group: '해양생활 하위 탭' },
-        { id: 'mudflat', label: '갯벌체험', group: '해양생활 하위 탭' },
-        { id: 'sea-parting', label: '바다갈라짐', group: '해양생활 하위 탭' },
-        // 메인 탭 (독립 탭 단위 차단)
-        { id: 'tide', label: '조석정보', group: '메인 탭' },
-        { id: 'promo', label: '공지사항', group: '메인 탭' },
+    // ── 선택적 차단 대상: 계층형 트리 (index2 기준) ──
+    // [구조] id: 차단 식별자(클라이언트 차단 로직과 동일), label: 표시명,
+    //        children: 하위 항목, linked: 함께 차단되는 짝꿍 id (양방향)
+    // [연계] index2.html 차단 적용 로직 + saveBlockedFeatures()
+    const featureTree = [
+        { id: 'main-weather', label: '특보정보', children: [
+            { id: 'weather-alert-tab', label: '특보 및 전망', children: [
+                { id: 'report-btn', label: '오류 제보 버튼' },
+                { id: 'marine-forecast', label: '기상청 해상 기상 전망' },
+                { id: 'weather-alert', label: '해역별 특보현황', linked: ['ov-warn-zone'] },
+                { id: 'weather-buoy', label: '해역별 기상현황', linked: ['ov-buoy'], children: [
+                    { id: 'status-forecast', label: '기상예보 버튼' },
+                    { id: 'status-zone', label: '해구기상 버튼' },
+                    { id: 'status-windy', label: '윈디 버튼' },
+                    { id: 'status-overview', label: '종합정보 버튼' },
+                ]},
+            ]},
+            { id: 'typhoon', label: '태풍정보' },
+            { id: 'marine-chart-tab', label: '해상일기도', children: [
+                { id: 'mc-wave', label: '수치파랑' },
+                { id: 'mc-surge', label: '폭풍해일' },
+                { id: 'mc-current', label: '해양순환' },
+                { id: 'mc-sst', label: '해수면온도' },
+            ]},
+        ]},
+        { id: 'main-ocean', label: '해양종합정보', children: [
+            { id: 'basemap-rltm', label: '배경지도 · 기본맵' },
+            { id: 'basemap-enc', label: '배경지도 · 전자해도' },
+            { id: 'basemap-coast', label: '배경지도 · 해안도' },
+            { id: 'ov-current', label: '유향·유속' },
+            { id: 'ov-wind', label: '풍향·풍속' },
+            { id: 'ov-wave', label: '파고·파향' },
+            { id: 'ov-marker', label: '주요지명' },
+            { id: 'ov-buoy', label: '기상부이', linked: ['weather-buoy'] },
+            { id: 'ov-warn-zone', label: '특보구역', linked: ['weather-alert'] },
+            { id: 'ov-marine-zone', label: '해구도' },
+            { id: 'ov-other-wx', label: '천기' },
+            { id: 'ov-cctv', label: 'CCTV' },
+            { id: 'ov-gps', label: 'GPS (내 위치)' },
+            { id: 'ocean-bottomsheet', label: '해점 바텀시트' },
+            { id: 'ocean-search', label: '위치 검색창' },
+        ]},
+        { id: 'main-life', label: '해양생활', children: [
+            { id: 'fishing', label: '바다낚시' },
+            { id: 'surfing', label: '서핑' },
+            { id: 'swimming', label: '해수욕' },
+            { id: 'scuba', label: '스킨스쿠버' },
+            { id: 'mudflat', label: '갯벌체험' },
+            { id: 'sea-parting', label: '바다갈라짐' },
+        ]},
+        { id: 'main-promo', label: '공지사항' },
     ];
 
-    const checkboxStyle = 'width:16px;height:16px;accent-color:#ef4444;cursor:pointer;';
+    // 트리 평탄화: id→label 조회 + 짝꿍(linked) 양방향 맵 구성
+    const featureFlat = {};
+    const featureLinks = {};
+    (function walk(nodes) {
+        nodes.forEach(n => {
+            featureFlat[n.id] = n.label;
+            if (n.linked) {
+                featureLinks[n.id] = (featureLinks[n.id] || []).concat(n.linked);
+                n.linked.forEach(l => { featureLinks[l] = (featureLinks[l] || []).concat(n.id); });
+            }
+            if (n.children) walk(n.children);
+        });
+    })(featureTree);
+    window._maintFeatureLinks = featureLinks;
 
     // 점검 중일 때 차단된 서비스 목록 HTML 생성
     let blockedListHtml = '';
     if (config.active && blocked.length > 0) {
-        const blockedLabels = blocked.map(id => {
-            const f = features.find(feat => feat.id === id);
-            return f ? f.label : id;
-        });
+        const blockedLabels = blocked.map(id => featureFlat[id] || id);
         blockedListHtml = `
             <div style="margin-top:10px;padding:10px 12px;background:rgba(239,68,68,0.1);border-radius:8px;border:1px solid rgba(239,68,68,0.2);">
                 <div style="color:#fca5a5;font-size:0.75rem;font-weight:600;margin-bottom:6px;"><i class="fa-solid fa-list-check"></i> 차단된 서비스</div>
@@ -3769,27 +3831,10 @@ async function renderMaintenanceFullTab(container) {
                     <input type="radio" name="maint-block-type" value="selective" ${blocked.length > 0 ? 'checked' : ''} onchange="toggleBlockType()" style="accent-color:#f59e0b;cursor:pointer;"> 선택적 차단
                 </label>
             </div>
-            <!-- 선택적 차단 체크박스 -->
+            <!-- 선택적 차단 체크박스 (계층형 아코디언) -->
             <div id="maint-feature-list" style="display:${blocked.length > 0 && !config.active ? 'block' : 'none'};padding:14px;background:rgba(0,0,0,0.15);border-radius:10px;border:1px solid rgba(255,255,255,0.08);">
-                <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:10px;">차단할 기능을 선택하세요:</div>
-                ${(() => {
-                    // 그룹별로 체크박스를 자동 렌더링
-                    // [연계] features 배열의 group 속성 기준으로 그룹 분리
-                    const groups = [];
-                    const seen = new Set();
-                    features.forEach(f => {
-                        if (!seen.has(f.group)) { seen.add(f.group); groups.push(f.group); }
-                    });
-                    return groups.map(g => `
-                        <div style="margin-bottom:8px;color:#64748b;font-size:0.7rem;font-weight:600;">${g}</div>
-                        ${features.filter(f => f.group === g).map(f => `
-                            <label style="display:flex;align-items:center;gap:8px;padding:6px 0;color:#e2e8f0;font-size:0.85rem;cursor:pointer;">
-                                <input type="checkbox" class="maint-feature-cb" value="${f.id}" ${blocked.includes(f.id) ? 'checked' : ''} style="${checkboxStyle}"> ${f.label}
-                            </label>
-                        `).join('')}
-                        <div style="height:1px;background:rgba(255,255,255,0.06);margin:8px 0;"></div>
-                    `).join('');
-                })()}
+                <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:10px;line-height:1.5;">차단할 기능을 선택하세요. 상위 항목을 체크하면 하위가 함께 차단되며, 짝꿍 기능(해역별 특보현황↔특보구역, 해역별 기상현황↔기상부이)도 자동으로 함께 차단됩니다.</div>
+                ${buildFeatureTreeHtml(featureTree, 0, blocked)}
                 <button onclick="saveBlockedFeatures()" style="margin-top:12px;width:100%;padding:10px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.85rem;">
                     <i class="fa-solid fa-save"></i> 차단 기능 저장
                 </button>
@@ -3856,6 +3901,36 @@ window.toggleBlockType = function () {
     const featureList = document.getElementById('maint-feature-list');
     const blockType = document.querySelector('input[name="maint-block-type"]:checked').value;
     featureList.style.display = blockType === 'selective' ? 'block' : 'none';
+};
+
+// 트리 노드 펼침/접힘
+window.toggleFeatureNode = function (id) {
+    const el = document.getElementById('maint-children-' + id);
+    const arrow = document.getElementById('maint-arrow-' + id);
+    if (!el) return;
+    const open = el.style.display !== 'none';
+    el.style.display = open ? 'none' : 'block';
+    if (arrow) arrow.textContent = open ? '▶' : '▼';
+};
+
+// 체크박스 상태를 하위·짝꿍에 전파 (재귀, 무한루프 방지용 visited)
+function _setFeatureCbChecked(id, state, visited) {
+    if (visited.has(id)) return;
+    visited.add(id);
+    const cb = document.querySelector('.maint-feature-cb[value="' + id + '"]');
+    if (cb) {
+        cb.checked = state;
+        if (cb.dataset.children) {
+            cb.dataset.children.split(',').filter(Boolean).forEach(cid => _setFeatureCbChecked(cid, state, visited));
+        }
+    }
+    const links = (window._maintFeatureLinks && window._maintFeatureLinks[id]) || [];
+    links.forEach(lid => _setFeatureCbChecked(lid, state, visited));
+}
+
+// 상위 체크 → 하위 전체 + 짝꿍 자동 동기화
+window.onFeatureCbChange = function (cb) {
+    _setFeatureCbChecked(cb.value, cb.checked, new Set());
 };
 
 window.saveBlockedFeatures = async function () {
