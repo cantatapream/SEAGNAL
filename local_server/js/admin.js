@@ -3796,17 +3796,20 @@ async function renderMaintenanceFullTab(container) {
     // 트리 평탄화: id→label 조회 + 짝꿍(linked) 양방향 맵 구성
     const featureFlat = {};
     const featureLinks = {};
-    (function walk(nodes) {
+    const featureParent = {};
+    (function walk(nodes, parentId) {
         nodes.forEach(n => {
             featureFlat[n.id] = n.label;
+            if (parentId) featureParent[n.id] = parentId;
             if (n.linked) {
                 featureLinks[n.id] = (featureLinks[n.id] || []).concat(n.linked);
                 n.linked.forEach(l => { featureLinks[l] = (featureLinks[l] || []).concat(n.id); });
             }
-            if (n.children) walk(n.children);
+            if (n.children) walk(n.children, n.id);
         });
-    })(featureTree);
+    })(featureTree, null);
     window._maintFeatureLinks = featureLinks;
+    window._maintFeatureParent = featureParent;
 
     // 점검 중일 때 차단된 서비스 목록 HTML 생성
     let blockedListHtml = '';
@@ -3946,8 +3949,10 @@ function _setFeatureCbChecked(id, state, visited) {
     links.forEach(lid => _setFeatureCbChecked(lid, state, visited));
 }
 
-// 한 부모 체크박스의 상태를 직속 자식들의 체크/부분선택 상태로부터 재계산
-// [규칙] 자식 전부 체크 → 체크, 일부만 체크/부분선택 → indeterminate, 전부 해제 → 해제
+// 한 상위 체크박스의 표시 상태를 '직속 자식들'로부터 재계산 (상위 자동 체크는 하지 않음)
+// [규칙] 자식이 하나라도 체크/부분선택 → indeterminate(부분선택), 전부 해제 → 해제
+//   상위 ID 자체는 '탭 전체 차단'이라는 독립 차단 대상이므로, 자식이 모두 체크됐다고
+//   해서 상위까지 자동 체크(=저장)하지 않는다. 상위 체크는 관리자가 직접 했을 때만 유지된다.
 function _refreshParentState(parentCb) {
     if (!parentCb || !parentCb.dataset.children) return;
     const childIds = parentCb.dataset.children.split(',').filter(Boolean);
@@ -3961,10 +3966,7 @@ function _refreshParentState(parentCb) {
         if (c.indeterminate) partial++;
     });
     if (total === 0) return;
-    if (checked === total && partial === 0) {
-        parentCb.checked = true;
-        parentCb.indeterminate = false;
-    } else if (checked === 0 && partial === 0) {
+    if (checked === 0 && partial === 0) {
         parentCb.checked = false;
         parentCb.indeterminate = false;
     } else {
@@ -3973,33 +3975,40 @@ function _refreshParentState(parentCb) {
     }
 }
 
-// 모든 부모(자식 보유) 체크박스의 부분선택 상태를 가장 깊은 노드부터 재계산
-// [순서] DOM 중첩 깊이(=maint-children 조상 수)가 큰 노드부터 처리하여 하위→상위로 전파
-function _recomputeAllParentStates() {
-    const parents = Array.from(document.querySelectorAll('.maint-feature-cb'))
-        .filter(c => c.dataset.children && c.dataset.children.split(',').filter(Boolean).length > 0);
-    const depthOf = el => {
-        let d = 0, node = el.closest('.maint-children');
-        while (node) { d++; node = node.parentElement ? node.parentElement.closest('.maint-children') : null; }
-        return d;
-    };
-    parents
-        .map(c => ({ cb: c, depth: depthOf(c) }))
-        .sort((a, b) => b.depth - a.depth)
-        .forEach(p => _refreshParentState(p.cb));
+// 영향받은 노드들의 '상위(조상)'만 깊은 곳부터 재계산.
+// [의도] 관리자가 직접 토글한 노드와 그 하위(cascade 결과)는 그대로 두고,
+//   그보다 위에 있는 조상들의 부분선택 표시만 갱신 → 자식 전부 체크 시에도
+//   조상이 자동 체크(저장)되지 않게 한다.
+function _recomputeAncestors(visited) {
+    const parentMap = window._maintFeatureParent || {};
+    const depthOf = id => { let d = 0, p = parentMap[id]; while (p) { d++; p = parentMap[p]; } return d; };
+    const toRecompute = new Set();
+    visited.forEach(id => {
+        let pid = parentMap[id];
+        while (pid) {
+            if (!visited.has(pid)) toRecompute.add(pid);
+            pid = parentMap[pid];
+        }
+    });
+    Array.from(toRecompute)
+        .sort((a, b) => depthOf(b) - depthOf(a))
+        .forEach(id => {
+            const cb = document.querySelector('.maint-feature-cb[value="' + id + '"]');
+            if (cb) _refreshParentState(cb);
+        });
 }
 
 // 상위 체크 → 하위 전체 + 짝꿍 자동 동기화
 window.onFeatureCbChange = function (cb) {
-    _setFeatureCbChecked(cb.value, cb.checked, new Set());
-    // 직접 토글된 체크박스는 명확한 상태이므로 부분선택 해제
-    cb.indeterminate = false;
-    // 짝꿍(linked) 전파로 체크된 항목들도 명확한 상태이므로 부분선택 해제
-    document.querySelectorAll('.maint-feature-cb').forEach(c => {
-        if (c.checked) c.indeterminate = false;
+    const visited = new Set();
+    _setFeatureCbChecked(cb.value, cb.checked, visited);
+    // 토글·cascade·짝꿍으로 직접 설정된 항목들은 명확한 상태이므로 부분선택 해제
+    visited.forEach(id => {
+        const c = document.querySelector('.maint-feature-cb[value="' + id + '"]');
+        if (c) c.indeterminate = false;
     });
-    // 변경 영향을 받은 모든 부모 노드의 체크/부분선택 상태 재계산
-    _recomputeAllParentStates();
+    // 영향받은 노드들의 조상만 재계산 (조상은 자동 체크되지 않음)
+    _recomputeAncestors(visited);
 };
 
 window.saveBlockedFeatures = async function () {
