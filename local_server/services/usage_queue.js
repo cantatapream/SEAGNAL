@@ -92,9 +92,14 @@ function init() {
     // [1회 마이그레이션] 바텀시트 개별 집계분을 'sheet.bottom_sheet' 통합으로 묶음.
     _migrateBottomSheetOnce();
 
-    // [1회 보정] 운영자 확인 기준 바텀시트 실제 누적 = 24건(현재 기준). 1회만 총합을 24로 맞춘다.
-    //   이후의 실제 사용분은 이 값 위에 정상 누적된다(마커로 재실행 방지).
-    _calibrateBottomSheetTotalOnce(24);
+    // [1회 보정] 운영자 확인 기준 바텀시트 실제 사용 = 13세션(천문/월령/조석=13 = 바텀시트 세션 수).
+    //   마이그레이션 MAX 는 슬라이더 갱신까지 포함된 수심/수온(24)에 끌려 부풀 수 있으므로 13으로 고정.
+    //   1회만 총합을 13으로 맞추고, 이후 실제 사용분은 그 위에 정상 누적(마커로 재실행 방지).
+    _calibrateBottomSheetTotalOnce(13);
+
+    // [1회 보정] 바텀시트 13세션분이 공유 항목(바람/조류/파고/천기 각각)에 중복 가산돼 있어
+    //   각 공유 키에서 13씩 차감한다(0 미만으로는 내려가지 않음).
+    _subtractPerSharedKeyOnce(13);
 
     flushTimer = setInterval(() => {
         _flushAsync().catch(err => {
@@ -226,6 +231,61 @@ function _calibrateBottomSheetTotalOnce(target) {
         fs.writeFileSync(markerPath, JSON.stringify(marker, null, 2), 'utf8');
     } catch (e) {
         console.error('[usage_queue] 보정 마커 기록 실패:', e && e.message);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 1회 보정: 공유 항목 각각에서 바텀시트 중복분(amount) 차감
+// ----------------------------------------------------------------------------
+// 바텀시트가 과거에 공유 항목(바람/조류/파고/천기 요소)에도 함께 가산됐으므로, 각 공유 키에서
+// 바텀시트 세션 수(amount=13)만큼 차감해 "버튼으로 본 순수 사용량"만 남긴다.
+//   - 키별로 (날짜×기기) 버킷을 큰 값부터 차감, 0 미만으로는 내려가지 않음.
+//   - 마커로 1회만 실행.
+function _subtractPerSharedKeyOnce(amount) {
+    const markerPath = FILES.USAGE_STATS + '.migrations.json';
+    const marker = _safeReadJson(markerPath, {}) || {};
+    if (marker.sharedBottomSheetSubtracted) return;
+
+    const SHARED = [
+        'ocean.current', 'ocean.wind', 'ocean.wave',
+        'shrt.rain_prob', 'shrt.rain_amount', 'shrt.snow', 'shrt.sky', 'shrt.temp_air'
+    ];
+    try {
+        SHARED.forEach(key => {
+            const entries = [];
+            Object.keys(usageData).forEach(dateStr => {
+                const byDev = usageData[dateStr];
+                if (!byDev || typeof byDev !== 'object') return;
+                Object.keys(byDev).forEach(dev => {
+                    const feats = byDev[dev];
+                    if (feats && typeof feats === 'object' && feats[key] > 0) entries.push(feats);
+                });
+            });
+            entries.sort((a, b) => b[key] - a[key]);
+            let need = amount;
+            for (let i = 0; i < entries.length && need > 0; i++) {
+                const take = Math.min(need, entries[i][key]);
+                entries[i][key] -= take;
+                need -= take;
+            }
+        });
+        try {
+            fs.writeFileSync(FILES.USAGE_STATS, JSON.stringify(usageData, null, 2), 'utf8');
+        } catch (e) {
+            console.error('[usage_queue] 공유키 차감 데이터 기록 실패:', e && e.message);
+        }
+        console.log('[usage_queue] 공유 항목 각각에서 바텀시트 중복분 ' + amount + ' 차감 완료');
+    } catch (e) {
+        console.error('[usage_queue] 공유키 차감 실패:', e && e.message);
+    }
+
+    marker.sharedBottomSheetSubtracted = true;
+    marker.sharedBottomSheetSubtractedAt = new Date().toISOString();
+    marker.sharedBottomSheetSubtractedAmount = amount;
+    try {
+        fs.writeFileSync(markerPath, JSON.stringify(marker, null, 2), 'utf8');
+    } catch (e) {
+        console.error('[usage_queue] 공유키 차감 마커 기록 실패:', e && e.message);
     }
 }
 
