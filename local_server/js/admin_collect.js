@@ -3627,8 +3627,24 @@ function _renderUsageDashboard(data) {
     _usageSyncTypeToggleUI();
 }
 
+// 단조증가 isotonic 회귀(PAVA): 각 라벨을 자연 위치(슬라이스 y)에 최대한 가깝게 두되,
+//   인접 라벨이 gap 이상 떨어지도록 만든 위치를 최소 이동으로 계산(한쪽 쏠림 없이 균등 분산).
+function _usageIsotonicInc(v) {
+    var bv = [], bw = [];
+    for (var i = 0; i < v.length; i++) {
+        bv.push(v[i]); bw.push(1);
+        while (bv.length > 1 && bv[bv.length - 2] > bv[bv.length - 1]) {
+            var v2 = bv.pop(), w2 = bw.pop(), v1 = bv.pop(), w1 = bw.pop();
+            bw.push(w1 + w2); bv.push((v1 * w1 + v2 * w2) / (w1 + w2));
+        }
+    }
+    var res = [];
+    for (var b = 0; b < bv.length; b++) { for (var k = 0; k < bw[b]; k++) res.push(bv[b]); }
+    return res;
+}
+
 // ── 라벨 플러그인 팩토리 (도넛/막대 공용 재사용) ──
-//   도넛: 이름+%·건수, 큰 조각은 링 안쪽 2줄, 작은 조각은 지시선으로 밖에.
+//   도넛: 이름+%·건수, 큰 조각은 링 안쪽 2줄, 작은 조각은 지시선으로 밖에(조각 색 지시선).
 function _usageDonutLabelPlugin(T) {
     return {
         id: 'usageDonutLabels',
@@ -3642,6 +3658,12 @@ function _usageDonutLabelPlugin(T) {
             ctx.save();
             ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
             ctx.lineJoin = 'round';
+            var cx = (chart.chartArea.left + chart.chartArea.right) / 2;
+            var cyc = (chart.chartArea.top + chart.chartArea.bottom) / 2;   // 도넛 중심
+            // 기준(미확대) 외곽 반지름 + 확대 시 최대로 뻗는 반지름 → 라벨 거터(지시선 꺾이는 X)를 그 밖에 둔다.
+            var baseR = (meta.data[0] && meta.data[0]._baseOuter) || (meta.data[0] ? meta.data[0].outerRadius : 0);
+            var anyExpanded = meta.data.some(function (a) { return a._baseOuter != null && a.outerRadius > a._baseOuter + 1; });
+            var gutterR = baseR + (anyExpanded ? (_USAGE_EXPLODE_OFFSET + _USAGE_EXPLODE_GROW + 12) : 16);
             var sides = { left: [], right: [] };
             meta.data.forEach(function (arc, i) {
                 var v = arr[i] || 0; if (!v) return;
@@ -3649,54 +3671,57 @@ function _usageDonutLabelPlugin(T) {
                 var mid = (arc.startAngle + arc.endAngle) / 2;
                 var name = String(names[i] || '');
                 var value = pct.toFixed(1) + '% (' + v.toLocaleString() + ')';
-                // 확대(offset)된 조각은 중심이 바깥으로 밀려 있으므로 arc.x/arc.y 를 그대로 쓰면 라벨도 함께 이동(자연스러움).
+                // 큰 조각은 링 안쪽 2줄(확대 시 조각과 함께 이동). 작은 조각은 바깥 지시선.
                 if (pct >= 8) {
                     var r = (arc.innerRadius + arc.outerRadius) / 2;
-                    var cx = arc.x + Math.cos(mid) * r, cy = arc.y + Math.sin(mid) * r;
+                    var lx = arc.x + Math.cos(mid) * r, ly0 = arc.y + Math.sin(mid) * r;
                     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.fillStyle = '#fff';
-                    ctx.strokeText(name, cx, cy - 7); ctx.fillText(name, cx, cy - 7);
-                    ctx.strokeText(value, cx, cy + 8); ctx.fillText(value, cx, cy + 8);
+                    ctx.strokeText(name, lx, ly0 - 7); ctx.fillText(name, lx, ly0 - 7);
+                    ctx.strokeText(value, lx, ly0 + 8); ctx.fillText(value, lx, ly0 + 8);
                 } else {
-                    var right = Math.cos(mid) >= 0;
+                    var right = Math.cos(mid) >= 0;   // 조각이 있는 쪽으로 라벨 배치(반대편으로 안 넘김 → 도넛 관통 방지)
                     sides[right ? 'right' : 'left'].push({
                         x: arc.x, y: arc.y, mid: mid, outer: arc.outerRadius, name: name, value: value,
-                        sy: arc.y + Math.sin(mid) * arc.outerRadius
+                        sy: arc.y + Math.sin(mid) * arc.outerRadius,
+                        color: T.series[i % T.series.length]
                     });
                 }
             });
             var canvasW = chart.width;
             var minY = 20, maxY = chart.height - 20;   // 라벨이 캔버스를 벗어나지 않게 가두는 상하 경계
-            var cyc = (chart.chartArea.top + chart.chartArea.bottom) / 2;  // 도넛 세로 중심(균등 분배 기준)
             ['left', 'right'].forEach(function (side) {
                 var items = sides[side]; if (!items.length) return;
                 var right = side === 'right';
+                var dir = right ? 1 : -1;
                 items.sort(function (a, b) { return a.sy - b.sy; });
                 // 2줄 라벨 간격. 스택이 가용 높이보다 길면 간격을 줄여 모두 들어가게.
                 var avail = maxY - minY;
                 var gap = 34;
                 if (items.length * gap > avail) gap = Math.max(22, Math.floor(avail / items.length));
-                // 슬라이스가 한쪽(상/하)에 몰려도 라벨은 도넛 세로 중심을 기준으로 균등 분배(쏠림 방지).
-                //   순서는 슬라이스 각도순(sy 정렬) 유지 → 지시선이 서로 교차하지 않음.
-                var span = items.length * gap;
-                var startY = cyc - span / 2 + gap / 2;
-                items.forEach(function (it, i) { it._ly = startY + i * gap; });
-                // 경계를 벗어나면 스택 전체를 보정(바닥 넘침→위로, 천장 넘침→아래로)
+                // 자연 위치(슬라이스 y)에 최대한 가깝게 두되 겹치면 등간격으로 분산(PAVA) → 조각 근처 + 쏠림/겹침 없음.
+                var vv = items.map(function (it, i) { return it.sy - i * gap; });
+                var uu = _usageIsotonicInc(vv);
+                items.forEach(function (it, i) { it._ly = uu[i] + i * gap; });
+                // 캔버스 경계 밖이면 통째로 보정
                 var over = items[items.length - 1]._ly - maxY;
                 if (over > 0) items.forEach(function (it) { it._ly -= over; });
                 var topOver = minY - items[0]._ly;
                 if (topOver > 0) items.forEach(function (it) { it._ly += topOver; });
                 items.forEach(function (it) {
                     var ly = it._ly;
-                    var sx = it.x + Math.cos(it.mid) * it.outer;
+                    var sx = it.x + Math.cos(it.mid) * it.outer;            // 조각 외곽 edge(확대 시 함께 이동)
                     var syp = it.y + Math.sin(it.mid) * it.outer;
-                    var elbowX = it.x + (right ? 1 : -1) * (it.outer + 10);
+                    var kx = it.x + Math.cos(it.mid) * (it.outer + 8);      // 살짝 방사상으로 나간 점
+                    var ky = it.y + Math.sin(it.mid) * (it.outer + 8);
                     var tw = Math.max(ctx.measureText(it.name).width, ctx.measureText(it.value).width);
-                    var labelX = it.x + (right ? 1 : -1) * (it.outer + 14);
-                    if (right) labelX = Math.min(labelX, canvasW - tw - 4);
-                    else labelX = Math.max(labelX, tw + 4);
-                    ctx.strokeStyle = T.faint || '#94a3b8'; ctx.lineWidth = 1;
-                    ctx.beginPath(); ctx.moveTo(sx, syp); ctx.lineTo(elbowX, ly); ctx.lineTo(labelX + (right ? -2 : 2), ly); ctx.stroke();
+                    var labelX = cx + dir * (gutterR + 6);                  // 거터(최대확장 반경 밖)에 정렬 → 확대해도 안 가림
+                    if (right) labelX = Math.min(labelX, canvasW - tw - 6);
+                    else labelX = Math.max(labelX, tw + 6);
+                    var gx = labelX - dir * 6;                              // 지시선 꺾임(엘보) X
+                    ctx.strokeStyle = it.color; ctx.lineWidth = 1.5;       // 지시선 색 = 해당 조각 색
+                    ctx.beginPath(); ctx.moveTo(sx, syp); ctx.lineTo(kx, ky); ctx.lineTo(gx, ly); ctx.lineTo(labelX + (right ? -2 : 2), ly); ctx.stroke();
+                    ctx.fillStyle = it.color; ctx.beginPath(); ctx.arc(sx, syp, 2.2, 0, Math.PI * 2); ctx.fill();  // 조각 접점 점
                     ctx.textBaseline = 'middle'; ctx.textAlign = right ? 'left' : 'right';
                     ctx.fillStyle = T.text; ctx.fillText(it.name, labelX, ly - 7);
                     ctx.fillStyle = T.muted; ctx.fillText(it.value, labelX, ly + 8);
