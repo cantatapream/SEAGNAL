@@ -172,8 +172,8 @@ router.post('/api/usage', (req, res) => {
  *     deviceCount, assignedDeviceCount, unassignedDeviceCount
  *   }
  */
-router.get('/api/stats/usage', (req, res) => {
-    try {
+function computeUsageAggregation(query) {
+    const req = { query };   // 기존 본문의 req.query.* 참조를 그대로 유지하기 위한 shim
         const period = ['daily', 'monthly', 'yearly'].indexOf(req.query.period) !== -1
             ? req.query.period : 'daily';
         const start = req.query.start || '';
@@ -186,6 +186,7 @@ router.get('/api/stats/usage', (req, res) => {
 
         // ── 집계 누적기 ──
         const trendMap = {};          // bucket -> total (선택 소속 기준)
+        const trendByFeatureMap = {}; // feature -> { bucket -> total } (선택 소속 기준, 기능별 추이용)
         const byAffiliation = {};     // 소속 -> total (선택 날짜범위 적용, 소속 필터는 미적용)
         const byFeature = {};         // feature -> total (선택 소속 기준)
         let totalEvents = 0;          // 선택 소속 기준 총 건수
@@ -222,13 +223,24 @@ router.get('/api/stats/usage', (req, res) => {
                 trendMap[bucket] = (trendMap[bucket] || 0) + deviceTotal;
                 totalEvents += deviceTotal;
                 Object.keys(features).forEach(fk => {
-                    byFeature[fk] = (byFeature[fk] || 0) + (features[fk] || 0);
+                    const c = features[fk] || 0;
+                    byFeature[fk] = (byFeature[fk] || 0) + c;
+                    if (!trendByFeatureMap[fk]) trendByFeatureMap[fk] = {};
+                    trendByFeatureMap[fk][bucket] = (trendByFeatureMap[fk][bucket] || 0) + c;
                 });
             });
         });
 
         // 추이를 bucket 오름차순 배열로
-        const trend = Object.keys(trendMap).sort().map(b => ({ bucket: b, total: trendMap[b] }));
+        const buckets = Object.keys(trendMap).sort();
+        const trend = buckets.map(b => ({ bucket: b, total: trendMap[b] }));
+
+        // 기능별 추이: 각 기능을 전체 bucket 축에 정렬(빠진 구간은 0) → 클라이언트 멀티라인용
+        const trendByFeature = {};
+        Object.keys(trendByFeatureMap).forEach(fk => {
+            const m = trendByFeatureMap[fk];
+            trendByFeature[fk] = buckets.map(b => ({ bucket: b, total: m[b] || 0 }));
+        });
 
         // 최다 기능
         let topFeature = { key: null, count: 0 };
@@ -256,13 +268,14 @@ router.get('/api/stats/usage', (req, res) => {
             else assignedDeviceCount++;
         });
 
-        res.json({
+        return {
             period,
             start,
             end,
             affiliation: affFilter || '전체',
             affiliationOrder: AFFILIATION_ORDER,
             trend,
+            trendByFeature,
             byAffiliation,
             affiliationDistribution,
             byFeature,
@@ -271,9 +284,97 @@ router.get('/api/stats/usage', (req, res) => {
             deviceCount: Object.keys(deviceSet).length,
             assignedDeviceCount,
             unassignedDeviceCount
-        });
+        };
+}
+
+router.get('/api/stats/usage', (req, res) => {
+    try {
+        res.json(computeUsageAggregation(req.query));
     } catch (e) {
         console.error('[usage] 조회 실패:', e && e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ============================================================================
+// GET /api/stats/usage/csv — CSV 다운로드 (Capacitor WebView 호환)
+//   클라이언트 blob/data URL 다운로드는 앱(WebView)에서 동작하지 않으므로,
+//   설문 CSV(/api/surveys/:id/csv)와 동일하게 실제 서버 URL + Content-Disposition
+//   + BOM 으로 내려준다. (기능명은 한글 라벨로 표기)
+// ============================================================================
+const USAGE_CSV_LABELS = {
+    'main.kma_marine_outlook_open': '기상청 해상기상 전망 펼침',
+    'main.warn_region_open': '해역별 특보현황 펼침',
+    'main.weather_region_open': '해역별 기상현황 펼침',
+    'main.region_btn.forecast': '해역 버튼 · 기상예보',
+    'main.region_btn.gugu': '해역 버튼 · 해구기상',
+    'main.region_btn.windy': '해역 버튼 · 윈디',
+    'main.region_btn.overview': '해역 버튼 · 종합정보',
+    'buoy.info_view': '부이 정보 조회',
+    'chart.load': '해상일기도 로딩',
+    'chart.play': '해상일기도 재생',
+    'ocean.current': '유향유속(조류)',
+    'ocean.wind': '풍향풍속(바람)',
+    'ocean.wave': '파고/파향',
+    'ocean.warn_zone': '특보 표출',
+    'ocean.gugu_forecast': '해구 전망표/그래프',
+    'ocean.cctv_open': 'CCTV 팝업',
+    'ocean.basemap.rltm': '배경 · 기본맵',
+    'ocean.basemap.enc': '배경 · 전자해도',
+    'ocean.basemap.coast': '배경 · 해안도',
+    'shrt.rain_prob': '강수확률',
+    'shrt.rain_amount': '강수량',
+    'shrt.snow': '적설',
+    'shrt.sky': '하늘상태',
+    'shrt.temp_air': '기온(천기)',
+    'sheet.tide': '조석',
+    'sheet.astro': '천문(일출몰/월출몰)',
+    'sheet.moon': '월령(달 위상)',
+    'sheet.depth': '수심',
+    'sheet.water_temp': '수온',
+    'life.fishing.tab': '바다낚시 탭 진입',
+    'life.surfing.tab': '서핑 탭 진입',
+    'life.parting.tab': '바다갈라짐 탭 진입',
+    'life.fishing.point.갯바위': '바다낚시 지점 · 갯바위',
+    'life.fishing.point.선상': '바다낚시 지점 · 선상',
+    'life.surfing.point': '서핑 지점 클릭',
+    'life.parting.region': '바다갈라짐 지역 선택'
+};
+router.get('/api/stats/usage/csv', (req, res) => {
+    try {
+        const d = computeUsageAggregation(req.query);
+        const labelOf = k => USAGE_CSV_LABELS[k] || k;
+        const periodLabel = d.period === 'monthly' ? '월별' : (d.period === 'yearly' ? '연별' : '일별');
+        const esc = v => '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"';
+        const rows = [];
+        rows.push(esc('SEAGNAL 사용량 통계'));
+        rows.push([esc('기간 구분'), esc(periodLabel)].join(','));
+        rows.push([esc('조회 범위'), esc((d.start || '') + ' ~ ' + (d.end || ''))].join(','));
+        rows.push([esc('소속 필터'), esc(d.affiliation || '전체')].join(','));
+        rows.push([esc('총 정보제공 건수'), esc(d.totalEvents || 0)].join(','));
+        rows.push('');
+        rows.push(esc('[기능별 누적]'));
+        rows.push([esc('기능'), esc('key'), esc('건수'), esc('비중(%)')].join(','));
+        const feat = Object.keys(d.byFeature).map(k => ({ key: k, count: d.byFeature[k] }));
+        feat.sort((a, b) => b.count - a.count);
+        const grand = feat.reduce((s, r) => s + r.count, 0) || 1;
+        feat.forEach(r => rows.push([esc(labelOf(r.key)), esc(r.key), esc(r.count), esc(((r.count / grand) * 100).toFixed(1))].join(',')));
+        rows.push('');
+        rows.push(esc('[소속 분포]'));
+        rows.push([esc('소속'), esc('건수')].join(','));
+        (d.affiliationDistribution || []).forEach(x => rows.push([esc(x.name), esc(x.total)].join(',')));
+        rows.push('');
+        rows.push(esc('[기간 추이]'));
+        rows.push([esc('구간'), esc('건수')].join(','));
+        (d.trend || []).forEach(t => rows.push([esc(t.bucket), esc(t.total)].join(',')));
+
+        const csv = '﻿' + rows.join('\n');
+        const fname = 'seagnal_usage_' + (d.affiliation || 'all') + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="' + encodeURIComponent(fname) + '"');
+        res.send(csv);
+    } catch (e) {
+        console.error('[usage] CSV 실패:', e && e.message);
         res.status(500).json({ error: e.message });
     }
 });
