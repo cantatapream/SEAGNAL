@@ -1054,6 +1054,15 @@ function _applyAnnounceAnchor(prev, curr) {
             const pUp = prev && prev.upcomings ? prev.upcomings.get(zone) : null;
             if (pUp && pUp.tmFc && pUp.wrnTpNm === info.wrnTpNm) {
                 info.tmFc = pUp.tmFc;
+                continue;
+            }
+            // [핸드오프 공백] 예비가 잠깐 사라졌다 발표대기로 재등장한 경우 — prev 체인이 끊겨도
+            //   최근(5분 내) 기억의 발표시각으로 고정 유지 (해제 후 한참 뒤 새 특보는 제외).
+            const e = _extensionMemory[zone];
+            const mem = e && (info.wrnLvlNm === '예비' ? e.upcoming : e.active);
+            if (mem && mem.tmFc && mem.wrnTpNm === info.wrnTpNm &&
+                (Date.now() - (mem.lastSeenAt || 0)) < EXTENSION_BRIDGE_MS) {
+                info.tmFc = mem.tmFc;
             }
         }
     }
@@ -1085,7 +1094,8 @@ function _applyAnnounceAnchor(prev, curr) {
 //     prev 가 비어 "신규 발표"로 오인되므로 _extensionMemory(직전 특보 짧은 기억)로 보강.
 // ============================================================================
 const EXTENSION_MEMORY_TTL_MS = 6 * 60 * 60 * 1000;   // 6시간 retention
-let _extensionMemory = {};   // zone → { phase:'upcoming'|'active', wrnTpNm, tmEf, clrNtcTm, lastSeenAt }
+const EXTENSION_BRIDGE_MS = 5 * 60 * 1000;            // 핸드오프 공백 복원 허용 시간(예비→발표대기)
+let _extensionMemory = {};   // zone → { upcoming|active: { wrnTpNm, wrnLvlNm, tmFc, tmEf, clrNtcTm, lastSeenAt } }
 
 /** mmis 시각 문자열 → 비교용 정수키 (월·일·시·분). 해석 불가 시 null. refMonth: 월 미기재 시 기준월. */
 function _timeKey(str, refMonth) {
@@ -1116,6 +1126,7 @@ function _updateExtensionMemory(curr) {
         if (!_extensionMemory[zone]) _extensionMemory[zone] = {};
         _extensionMemory[zone][phase] = {
             wrnTpNm: info.wrnTpNm || '', wrnLvlNm: info.wrnLvlNm || '',
+            tmFc: info.tmFc || '',   // [핸드오프] 발표시각 고정값 — 공백 후 복원용
             tmEf: info.tmEf || '', clrNtcTm: info.clrNtcTm || info.tmYn || '',
             lastSeenAt: now
         };
@@ -1208,10 +1219,25 @@ function _buildUserPushChanges(prev, curr) {
         const pAct = getAct(prev, zone), cAct = getAct(curr, zone);
         if (!pUp && !cUp && !pAct && !cAct) continue;
 
-        const prevUpcoming = toBlock(pUp);
+        let prevUpcoming = toBlock(pUp);
         const currUpcoming = toBlock(cUp);
         const prevActive = toBlock(pAct);
         const currActive = toBlock(cAct);
+
+        // [핸드오프 공백] 예비가 잠깐 사라졌다 발표대기(예비)로 재등장 — prev 가 비어 "신규 발표"로
+        //   오인되던 문제. 최근(5분 내) 기억의 직전 예비를 복원해 prev 를 채움 → push_sender 가
+        //   "발표"가 아니라 "발효시각 변경"(또는 진짜 더 늦으면 연장)으로 보냄.
+        if (!prevUpcoming && currUpcoming) {
+            const e = _extensionMemory[zone];
+            const mem = e && e.upcoming;
+            if (mem && mem.wrnTpNm === currUpcoming.wrnTp &&
+                (Date.now() - (mem.lastSeenAt || 0)) < EXTENSION_BRIDGE_MS) {
+                prevUpcoming = {
+                    wrnTp: mem.wrnTpNm, wrnLvl: mem.wrnLvlNm,
+                    tmFc: mem.tmFc || '', tmEf: mem.tmEf || '', tmYn: mem.clrNtcTm || ''
+                };
+            }
+        }
 
         const all = PARENT_TO_CHILDREN[zone] || [];
         const prevChildren = childKeys(prev, zone);
