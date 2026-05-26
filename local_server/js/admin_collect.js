@@ -3796,6 +3796,29 @@ function _usageCsvScopePopup(q, cb) {
     };
 }
 
+// CSV 등 서버 파일 URL 다운로드. 앱(Capacitor WebView)은 <a download>/첨부파일을
+//   자체적으로 내려받지 못하므로, 네이티브에서는 시스템 브라우저(@capacitor/browser)로 열어
+//   브라우저가 파일을 다운로드하게 한다. 데스크톱/웹은 기존 <a download>.
+function _usageOpenDownloadUrl(url) {
+    var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    var Browser = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+    var anchorDl = function () {
+        var a = document.createElement('a');
+        a.href = url; a.download = ''; a.target = '_blank';
+        document.body.appendChild(a); a.click(); a.remove();
+    };
+    if (isNative && Browser && Browser.open) {
+        // 시스템 브라우저는 절대 URL 필요 — 상대경로면 현재 origin 을 붙인다.
+        var abs = /^https?:\/\//.test(url) ? url : (window.location.origin + url);
+        try {
+            var p = Browser.open({ url: abs });
+            if (p && typeof p.catch === 'function') p.catch(anchorDl);
+            return;
+        } catch (e) { /* 폴백 */ }
+    }
+    anchorDl();
+}
+
 // 이용자 현황 > 방문자 통계 CSV — 범위 선택 팝업 재사용 + 서버 URL(WebView 호환).
 window.exportVisitorCsv = function () {
     if (typeof _usageCsvScopePopup !== 'function') { alert('내보내기 모듈을 불러올 수 없습니다.'); return; }
@@ -3805,8 +3828,7 @@ window.exportVisitorCsv = function () {
         var url = base + '/api/stats/visitors/csv?period=' + encodeURIComponent(period)
             + '&start=' + encodeURIComponent(scope.start || '')
             + '&end=' + encodeURIComponent(scope.end || '');
-        var a = document.createElement('a');
-        a.href = url; a.download = ''; document.body.appendChild(a); a.click(); a.remove();
+        _usageOpenDownloadUrl(url);
     });
 };
 
@@ -3820,8 +3842,7 @@ window.exportUsageCsv = function () {
             + '&end=' + encodeURIComponent(scope.end || '')
             + '&affiliation=' + encodeURIComponent(q.affiliation || '전체');
         // 실제 서버 URL 이동 → WebView/브라우저 모두에서 다운로드 동작.
-        var a = document.createElement('a');
-        a.href = url; a.download = ''; document.body.appendChild(a); a.click(); a.remove();
+        _usageOpenDownloadUrl(url);
     });
 };
 
