@@ -3436,9 +3436,10 @@ async function renderUsageStatsContent(container) {
             <!-- 소속 분포 도넛 -->
             <div id="usage-aff-card" class="usage-card" style="background:${T.cardBg}; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow}; border-radius:16px; padding:20px; margin-bottom:20px;">
                 <div style="font-weight:700; font-size:0.85rem; color:${T.muted}; margin-bottom:12px;">소속 분포 (선택 기간 · 소속 필터 무관)</div>
-                <div style="height:260px; position:relative;">
+                <div style="height:240px; position:relative;">
                     <canvas id="usage-aff-chart"></canvas>
                 </div>
+                <div id="usage-aff-legend" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px; margin-top:14px;"></div>
             </div>
 
             <!-- 기능별 누적 막대 + 표 (한 카드로 묶어 기능별표 PNG에 함께 캡처) -->
@@ -3646,6 +3647,7 @@ function _renderUsageDashboard(data, affSel) {
                             });
                         }
                     });
+                    var canvasW = chart.width;
                     ['left', 'right'].forEach(function (side) {
                         var items = sides[side]; if (!items.length) return;
                         var right = side === 'right';
@@ -3655,13 +3657,17 @@ function _renderUsageDashboard(data, affSel) {
                             var ly = Math.max(it.sy, prev + minGap); prev = ly;
                             var sx = it.x + Math.cos(it.mid) * it.outer;
                             var syp = it.y + Math.sin(it.mid) * it.outer;
-                            var elbowX = it.x + Math.cos(it.mid) * (it.outer + 12);
-                            var labelX = it.x + (right ? 1 : -1) * (it.outer + 24);
+                            var elbowX = it.x + (right ? 1 : -1) * (it.outer + 10);
+                            var tw = ctx.measureText(it.label).width;
+                            var labelX = it.x + (right ? 1 : -1) * (it.outer + 14);
+                            // 카드 밖으로 잘리지 않게 클램프(라벨이 캔버스 안에 들어오도록)
+                            if (right) labelX = Math.min(labelX, canvasW - tw - 4);
+                            else labelX = Math.max(labelX, tw + 4);
                             ctx.strokeStyle = T.faint || '#94a3b8'; ctx.lineWidth = 1;
-                            ctx.beginPath(); ctx.moveTo(sx, syp); ctx.lineTo(elbowX, ly); ctx.lineTo(labelX, ly); ctx.stroke();
+                            ctx.beginPath(); ctx.moveTo(sx, syp); ctx.lineTo(elbowX, ly); ctx.lineTo(labelX + (right ? -2 : 2), ly); ctx.stroke();
                             ctx.fillStyle = T.text; ctx.textBaseline = 'middle';
                             ctx.textAlign = right ? 'left' : 'right';
-                            ctx.fillText(it.label, labelX + (right ? 4 : -4), ly);
+                            ctx.fillText(it.label, labelX, ly);
                         });
                     });
                     ctx.restore();
@@ -3669,10 +3675,25 @@ function _renderUsageDashboard(data, affSel) {
             }],
             options: {
                 responsive: true, maintainAspectRatio: false,
-                layout: { padding: { left: 54, right: 54, top: 8, bottom: 8 } },
-                plugins: { legend: { position: 'bottom', labels: { color: T.text, font: { size: 11 }, boxWidth: 12, padding: 10 } } }
+                layout: { padding: { left: 60, right: 60, top: 8, bottom: 8 } },
+                plugins: { legend: { display: false } }   // 범례는 아래 HTML 표로 대체
             }
         });
+    }
+    // ── 소속 HTML 범례표 (이름 + 건수 · %) — 차트 기본 범례 대체 ──
+    var affLegend = document.getElementById('usage-aff-legend');
+    if (affLegend) {
+        var affSum = aValues.reduce(function (a, b) { return a + (b || 0); }, 0) || 1;
+        affLegend.innerHTML = dist.map(function (d, i) {
+            var c = T.series[i % T.series.length];
+            var pct = (d.total / affSum * 100).toFixed(1);
+            return '<div style="display:flex; align-items:center; gap:8px; padding:6px 9px; background:' + T.ctrlBg + '; border:1px solid ' + T.cardBorder + '; border-radius:8px;">'
+                + '<span style="flex:none; width:10px; height:10px; border-radius:3px; background:' + c + ';"></span>'
+                + '<div style="min-width:0;">'
+                + '<div style="color:' + T.text + '; font-size:0.8rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + d.name + '</div>'
+                + '<div style="color:' + T.muted + '; font-size:0.72rem;">' + d.total.toLocaleString() + '건 · ' + pct + '%</div>'
+                + '</div></div>';
+        }).join('');
     }
 
     // ── 기능별 막대 + 표 (건수 내림차순) ──
@@ -3698,28 +3719,27 @@ function _renderUsageDashboard(data, affSel) {
                 }]
             },
             plugins: [{
-                // 막대 가운데에 '건수 · %' 표출. 막대가 짧아 글자가 안 들어가면 끝 바깥에.
+                // 막대 '중앙'에 '건수 · %' 표출. 막대 위든 배경이든 잘 보이게 어두운 외곽선(헤일로)+흰 글자.
                 id: 'usageBarLabels',
                 afterDatasetsDraw: function (chart) {
                     var ctx = chart.ctx;
                     var meta = chart.getDatasetMeta(0);
                     var data = chart.data.datasets[0].data || [];
                     var sum = data.reduce(function (a, b) { return a + (b || 0); }, 0) || 1;
+                    var x0 = chart.scales.x.getPixelForValue(0);  // 막대 시작(0) 픽셀
                     ctx.save();
                     ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
                     ctx.textBaseline = 'middle';
+                    ctx.textAlign = 'center';
+                    ctx.lineJoin = 'round';
                     meta.data.forEach(function (bar, i) {
                         var v = data[i] || 0;
                         var txt = v.toLocaleString() + '건 · ' + (v / sum * 100).toFixed(1) + '%';
-                        var tw = ctx.measureText(txt).width;
-                        var w = bar.x - bar.base;
-                        if (w >= tw + 14) {
-                            ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-                            ctx.fillText(txt, (bar.base + bar.x) / 2, bar.y);
-                        } else {
-                            ctx.fillStyle = T.muted; ctx.textAlign = 'left';
-                            ctx.fillText(txt, bar.x + 6, bar.y);
-                        }
+                        var cx = (x0 + bar.x) / 2;   // 막대 중앙
+                        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+                        ctx.strokeText(txt, cx, bar.y);
+                        ctx.fillStyle = '#fff';
+                        ctx.fillText(txt, cx, bar.y);
                     });
                     ctx.restore();
                 }
@@ -3727,10 +3747,10 @@ function _renderUsageDashboard(data, affSel) {
             options: {
                 indexAxis: 'y',
                 responsive: true, maintainAspectRatio: false,
-                layout: { padding: { right: 70 } },  // 짧은 막대 바깥 라벨 공간
                 plugins: { legend: { display: false }, tooltip: { enabled: false } },
                 scales: {
-                    x: { display: false, beginAtZero: true },   // 하단 숫자/그리드 제거 (막대 안 라벨이 대체)
+                    // max 를 데이터 최댓값으로 고정 → 가장 큰 막대가 플롯을 꽉 채워 라벨이 안에 들어갈 공간 확보
+                    x: { display: false, beginAtZero: true, max: (featRows.length ? featRows[0].count : 1) },
                     y: { ticks: { color: T.text, font: { size: 11 } }, grid: { display: false } }
                 }
             }
