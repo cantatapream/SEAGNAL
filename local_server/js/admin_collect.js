@@ -3335,6 +3335,8 @@ var _usageAffType = 'doughnut'; // 소속별 조회수 차트 유형 (doughnut|b
 var _usageFeatType = 'bar';     // 기능별 누적 차트 유형 (doughnut|bar). 기본=막대.
 var _usageAffExploded = -1;     // 도넛 확대(분리)된 조각 index (-1=없음). 카드별로 따로 관리.
 var _usageFeatExploded = -1;    // 기능 도넛 확대된 조각 index (-1=없음).
+var _usageAffExplodeF = 0;      // 소속 도넛 확대 진행도 0~1 (애니메이션용).
+var _usageFeatExplodeF = 0;     // 기능 도넛 확대 진행도 0~1.
 var _usageMergedAffList = [];   // 현재 사용 가능한 소속 목록(드롭다운 옵션 출처).
 
 /**
@@ -3807,28 +3809,87 @@ function _usageRenderFeatureChart() {
 }
 
 // 조각 클릭 확대용 상수: 바깥으로 밀어내는 거리 + 반지름을 키우는 양(확실히 커 보이게).
-var _USAGE_EXPLODE_OFFSET = 26;
-var _USAGE_EXPLODE_GROW = 24;
+var _USAGE_EXPLODE_OFFSET = 22;
+var _USAGE_EXPLODE_GROW = 26;
 
-// 확대된 조각의 반지름을 키워 "분리 + 확대"를 함께 준다(offset 만으로는 차이가 미미).
-function _usageDonutExplodePlugin() {
+// 선택한 "한 조각만" 분리+확대.
+//   Chart.js 의 dataset.offset/hoverOffset 은 도넛 전체 반지름을 줄여 공간을 확보하므로
+//   클릭 시 "도넛 전체가 반응"하는 문제가 있다. 그래서 offset 을 쓰지 않고,
+//   이 플러그인이 그리기 직전(beforeDatasetsDraw)에 선택 조각의 호 기하만 직접 변형한다.
+//   - afterUpdate 에서 각 조각의 기준 기하(_base*)를 캐시(클릭 시엔 update 없이 draw 만 하므로 기준 유지)
+//   - 기본 도넛 애니메이션은 각도(rotate)만 움직이고 반지름/중심은 건드리지 않으므로 충돌 없음
+function _usageDonutExplodePlugin(which) {
     return {
         id: 'usageDonutExplode',
         afterUpdate: function (chart) {
             var meta = chart.getDatasetMeta(0); if (!meta) return;
-            var ds = chart.data.datasets[0]; if (!ds || !ds.offset) return;
+            meta.data.forEach(function (arc) {
+                arc._baseOuter = arc.outerRadius;
+                arc._baseX = arc.x;
+                arc._baseY = arc.y;
+            });
+        },
+        beforeDatasetsDraw: function (chart) {
+            var meta = chart.getDatasetMeta(0); if (!meta) return;
+            var idx = (which === 'feat') ? _usageFeatExploded : _usageAffExploded;
+            var f = (which === 'feat') ? _usageFeatExplodeF : _usageAffExplodeF;
             meta.data.forEach(function (arc, i) {
-                if (ds.offset[i]) { arc.outerRadius += _USAGE_EXPLODE_GROW; }
+                if (arc._baseOuter == null) return;
+                if (i === idx && f > 0) {
+                    var mid = (arc.startAngle + arc.endAngle) / 2;
+                    arc.outerRadius = arc._baseOuter + _USAGE_EXPLODE_GROW * f;
+                    arc.x = arc._baseX + Math.cos(mid) * _USAGE_EXPLODE_OFFSET * f;
+                    arc.y = arc._baseY + Math.sin(mid) * _USAGE_EXPLODE_OFFSET * f;
+                } else {
+                    // 나머지(이전에 확대됐던 조각 포함)는 항상 기준 기하로 복원 → 전체 도넛은 그대로.
+                    arc.outerRadius = arc._baseOuter;
+                    arc.x = arc._baseX;
+                    arc.y = arc._baseY;
+                }
             });
         }
     };
 }
 
+// 확대 진행도(factor)를 from→to 로 부드럽게 애니메이션(update 없이 draw 만 반복 → 도넛 전체 재연출 없음).
+function _usageAnimateExplode(chart, which, from, to, done) {
+    var start = null, dur = 220;
+    function setF(v) { if (which === 'feat') _usageFeatExplodeF = v; else _usageAffExplodeF = v; }
+    function step(ts) {
+        if (start === null) start = ts;
+        var t = Math.min(1, (ts - start) / dur);
+        var e = 1 - Math.pow(1 - t, 3);   // easeOutCubic
+        setF(from + (to - from) * e);
+        try { chart.draw(); } catch (err) {}
+        if (t < 1) { requestAnimationFrame(step); }
+        else { setF(to); try { chart.draw(); } catch (err) {} if (done) done(); }
+    }
+    requestAnimationFrame(step);
+}
+
+// 클릭 처리: 새 조각 → 그 조각만 0→1 확대(이전 조각은 즉시 복원), 토글/빈영역 → 1→0 축소 후 해제.
+function _usageToggleExplode(chart, which, next) {
+    var curIdx = (which === 'feat') ? _usageFeatExploded : _usageAffExploded;
+    if (next === curIdx) return;
+    if (next === -1) {
+        // 현재 조각을 축소한 뒤 인덱스 해제(축소 동안은 인덱스 유지).
+        _usageAnimateExplode(chart, which, 1, 0, function () {
+            if (which === 'feat') _usageFeatExploded = -1; else _usageAffExploded = -1;
+        });
+    } else {
+        // 새 조각으로 전환: 인덱스 즉시 교체(이전 조각은 plugin 이 기준 기하로 복원) + 0→1 확대.
+        if (which === 'feat') { _usageFeatExploded = next; _usageFeatExplodeF = 0; }
+        else { _usageAffExploded = next; _usageAffExplodeF = 0; }
+        _usageAnimateExplode(chart, which, 0, 1, null);
+    }
+}
+
 // 도넛 차트 생성(라벨 플러그인 + 그라데이션 + 조각 클릭 확대). which: 'aff'|'feat' (확대 상태 분리 관리).
 function _usageMakeDonut(el, labels, values, T, which) {
     var exploded = (which === 'feat') ? _usageFeatExploded : _usageAffExploded;
-    // 확대된 조각만 바깥으로(offset). 길이는 데이터 수에 맞춰.
-    var offsets = values.map(function (_, i) { return i === exploded ? _USAGE_EXPLODE_OFFSET : 0; });
+    // 재생성 시(새로고침/테마전환) 이미 확대 상태면 즉시 확대로 표시(재애니메이션 없이).
+    if (which === 'feat') _usageFeatExplodeF = (exploded >= 0) ? 1 : 0;
+    else _usageAffExplodeF = (exploded >= 0) ? 1 : 0;
     return new Chart(el, {
         type: 'doughnut',
         data: {
@@ -3837,27 +3898,22 @@ function _usageMakeDonut(el, labels, values, T, which) {
                 data: values,
                 backgroundColor: _usageDonutSliceBg(T),
                 borderColor: T.donutBorder,
-                borderWidth: 2,
-                offset: offsets,
-                hoverOffset: 10
+                borderWidth: 2
+                // offset/hoverOffset 미사용: 전체 도넛 축소를 피하고, 선택 조각만 plugin 으로 확대.
             }]
         },
-        plugins: [_usageDonutExplodePlugin(), _usageDonutLabelPlugin(T)],
+        plugins: [_usageDonutExplodePlugin(which), _usageDonutLabelPlugin(T)],
         options: {
             responsive: true, maintainAspectRatio: false,
             layout: { padding: { left: 70, right: 70, top: 12, bottom: 12 } },
             plugins: { legend: { display: false } },
-            // (바) 조각 클릭 → 그 조각만 확대 토글. 빈 영역(조각 밖) 클릭 → 모두 원위치.
+            // (바) 조각 클릭 → 그 조각만 확대 토글. 빈 영역(조각 밖) 클릭 → 원위치.
             onClick: function (evt, elements, chart) {
                 var idx = (elements && elements.length) ? elements[0].index : -1;
                 var cur = (which === 'feat') ? _usageFeatExploded : _usageAffExploded;
                 // 빈 영역 → 복귀(-1), 같은 조각 재클릭 → 복귀(-1), 다른 조각 → 그 조각 확대.
                 var next = (idx === -1 || cur === idx) ? -1 : idx;
-                if (next === cur) return;   // 변화 없으면 스킵(불필요한 재렌더 방지)
-                if (which === 'feat') _usageFeatExploded = next; else _usageAffExploded = next;
-                var ds = chart.data.datasets[0];
-                ds.offset = ds.data.map(function (_, i) { return i === next ? _USAGE_EXPLODE_OFFSET : 0; });
-                chart.update();   // 기본 애니메이션으로 부드럽게 분리/복귀
+                _usageToggleExplode(chart, which, next);
             }
         }
     });
