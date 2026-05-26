@@ -3914,8 +3914,33 @@ window.exportUsageImage = function (target) {
             return;
         }
         if (target === 'dashboard') {
-            // 전체 대시보드(요약카드+모든 차트/표 포함된 루트) 통합 캡처.
-            _usageCaptureDom(document.getElementById('usage-root'), T, 'seagnal_usage_dashboard' + suffix);
+            // 전체 대시보드는 현재 폰의 좁은 세로 배열이 아니라 PC(넓은) 배열로 캡처한다.
+            //   → #usage-root 를 임시로 넓은 폭(1024px)으로 확장하고 차트를 리사이즈한 뒤
+            //      html2canvas 로 캡처하고, 끝나면 원래 폭으로 되돌린다.
+            var root = document.getElementById('usage-root');
+            if (!root) { alert('캡처할 영역을 찾지 못했습니다.'); return; }
+            var WIDE = 1024;
+            var prevW = root.style.width, prevMax = root.style.maxWidth;
+            root.style.width = WIDE + 'px';
+            root.style.maxWidth = 'none';
+            var charts = [usageTrendChart, usageAffChart, usageFeatureChart];
+            charts.forEach(function (c) { if (c) { try { c.resize(); } catch (e) {} } });
+            var restore = function () {
+                root.style.width = prevW; root.style.maxWidth = prevMax;
+                charts.forEach(function (c) { if (c) { try { c.resize(); } catch (e) {} } });
+            };
+            var raf = window.requestAnimationFrame || function (cb) { setTimeout(cb, 32); };
+            raf(function () { raf(function () {  // 폭 변경 + 차트 리사이즈가 반영될 때까지 2프레임 대기
+                _ensureHtml2Canvas().then(function (h2c) {
+                    return h2c(root, { backgroundColor: T.appBgSolid, scale: 2, useCORS: true, logging: false, width: WIDE, windowWidth: WIDE });
+                }).then(function (canvas) {
+                    restore();
+                    _usageTriggerDownload(canvas.toDataURL('image/png'), 'seagnal_usage_dashboard' + suffix, false);
+                }).catch(function (e) {
+                    restore();
+                    alert('이미지 캡처 실패: ' + (e && e.message));
+                });
+            }); });
             return;
         }
     });
