@@ -494,7 +494,8 @@ async function renderMarineWeatherStatus() {
                     // 클릭한 것이 닫혀있었다면 열기 (애니메이션)
                     if (isCurrentlyHidden) {
                         slideDown(listContainer);
-
+                        // [사용량] 기상현황 중분류(동해남부해상 등) 펼침 → 1건
+                        if (window.trackUsage) window.trackUsage('main.weather_region_open');
                     } else {
                         slideUp(listContainer);
 

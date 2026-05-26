@@ -3358,6 +3358,10 @@ async function renderUsageStatsContent(container) {
              <div><i class="fa-solid fa-gauge-high" style="color:${T.cyan};"></i> 사용량 통계 분석</div>
              <div style="display:flex; align-items:center; gap:10px;">
                 <span style="font-size:0.72rem; color:${T.faint};">KST · 소속은 설문 응답으로 조회 시점 매핑</span>
+                <button id="usage-landscape-toggle" onclick="window.toggleUsageLandscape()" title="가로보기 (화면 회전 · 영역을 나가면 자동 세로 복귀)"
+                        style="${iconBtn}">
+                    <i class="fa-solid fa-mobile-screen fa-rotate-90"></i> 가로
+                </button>
                 <button id="usage-theme-toggle" onclick="window.toggleUsageTheme()" title="다크/화이트 모드"
                         style="${iconBtn}">
                     <i class="fa-solid ${mode === 'light' ? 'fa-moon' : 'fa-sun'}"></i>
@@ -3978,6 +3982,44 @@ function _usageTriggerDownload(href, filename, revoke) {
     document.body.removeChild(a);
     if (revoke) { setTimeout(function () { try { URL.revokeObjectURL(href); } catch (e) {} }, 1500); }
 }
+
+// ============================================================================
+// (F) 가로보기 — 기기 화면을 가로로 회전(잠금)해 넓게 본다. 사용량 영역을 나가면(모달
+//   닫힘/탭 이동으로 #usage-root 가 DOM 에서 제거되면) 자동으로 세로로 복귀한다.
+//   화면회전은 @capacitor/screen-orientation (window.Capacitor.Plugins.ScreenOrientation).
+// ============================================================================
+var _usageLandscapeOn = false;
+var _usageLeaveObserver = null;
+function _usageOrientationPlugin() {
+    return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.ScreenOrientation) || null;
+}
+function _usageUpdateLandscapeBtn() {
+    var b = document.getElementById('usage-landscape-toggle');
+    if (b) b.innerHTML = '<i class="fa-solid fa-mobile-screen fa-rotate-90"></i> ' + (_usageLandscapeOn ? '세로' : '가로');
+}
+function _usageExitLandscape() {
+    var p = _usageOrientationPlugin();
+    if (p) { try { if (p.unlock) p.unlock(); else p.lock({ orientation: 'portrait' }); } catch (e) {} }
+    _usageLandscapeOn = false;
+    if (_usageLeaveObserver) { try { _usageLeaveObserver.disconnect(); } catch (e) {} _usageLeaveObserver = null; }
+    _usageUpdateLandscapeBtn();
+}
+window.toggleUsageLandscape = function () {
+    var p = _usageOrientationPlugin();
+    if (!p) { alert('이 기기에서는 가로보기(화면 회전)를 지원하지 않습니다. PC 브라우저에서는 창을 넓히면 동일하게 넓은 화면으로 보입니다.'); return; }
+    if (_usageLandscapeOn) { _usageExitLandscape(); return; }
+    try { p.lock({ orientation: 'landscape' }); } catch (e) { alert('화면 회전 전환 실패: ' + (e && e.message)); return; }
+    _usageLandscapeOn = true;
+    _usageUpdateLandscapeBtn();
+    // 사용량 영역(#usage-root)이 사라지면 자동 세로 복귀.
+    var root = document.getElementById('usage-root');
+    if (root && window.MutationObserver) {
+        _usageLeaveObserver = new MutationObserver(function () {
+            if (!document.body.contains(root)) _usageExitLandscape();
+        });
+        _usageLeaveObserver.observe(document.body, { childList: true, subtree: true });
+    }
+};
 
 // 네이티브 앱에서 생성한 PNG 를 전체화면 모달로 표시 — 길게 눌러 "이미지 저장" 선택.
 function _usageShowImageModal(dataUrl, filename) {

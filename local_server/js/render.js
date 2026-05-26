@@ -194,6 +194,8 @@ function renderApp() {
                     if (isCurrentlyHidden) {
                         slideDown(listContainer);
                         subHeader.style.marginLeft = '4px';
+                        // [사용량] 특보현황 중분류(동해남부해상 등) "부모 해역" 펼침 → 1건
+                        if (window.trackUsage) window.trackUsage('main.warn_region_open');
                     } else {
                         slideUp(listContainer);
                         const icon = subHeader.querySelector('.fa-chevron-right');
