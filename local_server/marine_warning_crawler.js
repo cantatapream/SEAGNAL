@@ -1173,6 +1173,47 @@ function _applyReleaseClrLogic(prev, curr) {
     for (const z of Object.keys(_clrWindowEnd)) if (!active.has(z)) delete _clrWindowEnd[z];
 }
 
+// ============================================================================
+// [발효시각 고정 + 연장 판별] 예비/발표대기 zone 의 발효예정(tmEf) 정책 — _applyReleaseClrLogic
+//   의 발효시각판. 정확 발효시각이 발표되면 고정(MMIS 발효 전까지), 범위↔정확 깜빡임 무시,
+//   원래 범위(윈도우)를 넘어선 발효시각이 나오면 _efExtend 플래그 → "발효 예정시각 연장".
+//   발효(active 전환)/소멸 시 윈도우 정리. _buildUserPushChanges 보다 먼저 호출.
+// ============================================================================
+let _efWindowEnd = {};   // zone → 발효 윈도우 끝 시각키 (예비/발표대기 tmEf)
+function _applyUpcomingEfLogic(prev, curr) {
+    if (!curr) return;
+    const upZones = new Set();
+    const process = (zone, info, prevInfo) => {
+        if (!info || info.wrnLvlNm !== '예비') return;   // 예비/발표대기만
+        upZones.add(zone);
+        const incoming = info.tmEf;
+        if (!incoming) return;
+        const incKey = _timeKey(incoming);
+        const prevHeld = prevInfo ? prevInfo.tmEf : null;
+        const win = _efWindowEnd[zone];
+        if (win == null) {
+            _efWindowEnd[zone] = incKey;   // 윈도우 확립
+        } else if (incKey != null && incKey > win) {
+            info._efExtend = { oldTime: prevHeld || '', newTime: incoming };   // 윈도우 초과 → 연장
+            _efWindowEnd[zone] = incKey;
+        } else {
+            // 윈도우 안 → 직전이 정확시각이고 이번이 범위형이면 정확값 유지 (되돌림·깜빡임 방지)
+            if (prevHeld && !_isRangeTime(prevHeld) && _isRangeTime(incoming)) {
+                info.tmEf = prevHeld;
+            }
+        }
+    };
+    if (curr.parents) for (const [zone, info] of curr.parents) {
+        process(zone, info, prev && prev.parents ? prev.parents.get(zone) : null);
+    }
+    if (curr.upcomings) for (const [zone, info] of curr.upcomings) {
+        const p = (prev && prev.upcomings && prev.upcomings.get(zone))
+            || (prev && prev.parents && prev.parents.get(zone)) || null;
+        process(zone, info, p);
+    }
+    for (const z of Object.keys(_efWindowEnd)) if (!upZones.has(z)) delete _efWindowEnd[z];
+}
+
 /** run() 에서 매 cycle 호출 — 현재 특보 기억 갱신 + 만료 prune. (_buildUserPushChanges 이후)
  *   zone 별로 phase(active/upcoming) 각각 보관 — 발효+공존예비를 동시에 기억(B 트랙 포함). */
 function _updateExtensionMemory(curr) {
@@ -1241,8 +1282,8 @@ function _buildUserPushChanges(prev, curr) {
         if (!a || !b) return false;
         return a.wrnTp === b.wrnTp
             && a.wrnLvl === b.wrnLvl
-            && a.tmEf === b.tmEf
-            // 해제예정: 범위↔정확이 같은 모멘트면 동일로 봄 (warn/latest 깜빡임 가짜 푸시 방지)
+            // 발효예정/해제예정: 범위↔정확이 같은 모멘트면 동일로 봄 (warn/latest 깜빡임 가짜 푸시 방지)
+            && (a.tmEf === b.tmEf || _sameReleaseMoment(a.tmEf, b.tmEf))
             && (a.tmYn === b.tmYn || _sameReleaseMoment(a.tmYn, b.tmYn));
     };
 
@@ -1322,6 +1363,16 @@ function _buildUserPushChanges(prev, curr) {
                 const bothRange = _isRangeTime(oldEf) && _isRangeTime(currUpcoming.tmEf);   // 범위→범위만 연장
                 if (ko != null && kn != null && kn > ko && sameType && sameLevel && bothRange && oldEf !== currUpcoming.tmEf) {
                     efExtend = { oldTime: oldEf, newTime: currUpcoming.tmEf };
+                }
+            }
+            // [발효 윈도우 초과 연장] _applyUpcomingEfLogic 가 표시한 플래그 — 고정된 정확시각에서
+            //   원래 범위를 넘어선 발효시각이 나온 경우 (정확→범위/정확 모두).
+            const cUpInfo = getUp(curr, zone);
+            if (!efExtend && cUpInfo && cUpInfo._efExtend) {
+                const e = cUpInfo._efExtend;
+                const pUpInfo = getUp(prev, zone);
+                if (!pUpInfo || pUpInfo.wrnTpNm === cUpInfo.wrnTpNm) {
+                    efExtend = { oldTime: e.oldTime || (prevUpcoming && prevUpcoming.tmEf) || '', newTime: e.newTime };
                 }
             }
         }
@@ -2365,6 +2416,9 @@ async function run(opts = {}) {
         //   윈도우(원래 범위) 초과면 연장 표시. _buildUserPushChanges 전에 적용.
         _applyReleaseClrLogic(prevForDiff, curr);
 
+        // 4-E) [발효시각 고정/연장] 예비/발표대기 발효예정: 위와 동일 정책의 발효시각판.
+        _applyUpcomingEfLogic(prevForDiff, curr);
+
         // 5) diff + dispatch + flush (관리자 push) — [수정1] 관리자 채널 비활성.
         //    runDiffAndPush 는 관리자(dmdw) 푸시 전용이므로 비활성 시 호출 자체 skip.
         let sent = [];
@@ -2447,6 +2501,7 @@ module.exports = {
     _timeKey,
     _applyAnnounceAnchor,
     _applyReleaseClrLogic,
+    _applyUpcomingEfLogic,
     // [D-6 (A)] 시간 형식 변환 (테스트용 노출)
     normalizeMmisTime,
     // [D-medium 인터랙티브] 의심 가드 + 결정 API
