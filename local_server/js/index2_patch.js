@@ -258,6 +258,13 @@ function _scheduleActiveMapResize() {
 var _origSwitchMainTab = window.switchMainTab;
 
 window.switchMainTab = function (targetId) {
+    // [점검 차단] 차단된 탭이면 어떤 UI 변경도 하기 전에 차단 (관리자 모드는 우회)
+    //   [연계] index2.html applyFeatureBlocks() → 차단 탭에 dataset.blocked='true'
+    var _blkBtn = document.querySelector('.tab-btn[data-target="' + targetId + '"], .sub-tab-btn[data-target="' + targetId + '"]');
+    if (_blkBtn && _blkBtn.dataset.blocked === 'true' && localStorage.getItem('seagnal_admin_mode') !== 'true') {
+        if (typeof showBlockedFeaturePopup === 'function') showBlockedFeaturePopup();
+        return;
+    }
     // ① 활성 탭 속성 설정 (헤더 표출/숨김은 CSS가 처리)
     //    weather-group이면 헤더 표시, 나머지면 숨김
     var activeGroup = targetId;
@@ -424,6 +431,12 @@ function _applyOceanInitialCenter(map) {
 var _origSwitchSubTab = window.switchSubTab;
 
 window.switchSubTab = function (targetId) {
+    // [점검 차단] 차단된 서브탭이면 UI 변경 전에 차단 (관리자 모드는 우회)
+    var _blkSub = document.querySelector('.tab-btn[data-target="' + targetId + '"], .sub-tab-btn[data-target="' + targetId + '"]');
+    if (_blkSub && _blkSub.dataset.blocked === 'true' && localStorage.getItem('seagnal_admin_mode') !== 'true') {
+        if (typeof showBlockedFeaturePopup === 'function') showBlockedFeaturePopup();
+        return;
+    }
     // ① 원본 switchSubTab 호출 (섹션 전환 수행)
     _origSwitchSubTab.call(window, targetId);
 

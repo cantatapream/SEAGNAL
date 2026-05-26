@@ -781,6 +781,7 @@ function createStatusCard(zoneName) {
         && ZONE_OVERLAY_CONFIG[zoneName]
         && typeof window.goToOceanMapByZone === 'function') {
         const allBtn = document.createElement('button');
+        allBtn.className = 'overview-btn';
         allBtn.textContent = '종합정보';
         allBtn.style.cssText = `
             padding: 5px 10px;
