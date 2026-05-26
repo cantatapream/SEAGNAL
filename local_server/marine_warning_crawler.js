@@ -244,6 +244,9 @@ class StateSnapshot {
     constructor(raw = {}) {
         this.parents = raw.parents instanceof Map ? raw.parents : new Map();
         this.children = raw.children instanceof Map ? raw.children : new Map();
+        // [B] 발효중인 해역에 "다가오는(예비)" 특보가 공존할 때 그것을 보관 (발효 우선 드롭 대신).
+        //   parents 가 active 인 zone 의 예비를 upcomings 에 분리 보관 → 병렬 표출.
+        this.upcomings = raw.upcomings instanceof Map ? raw.upcomings : new Map();
     }
 
     static fromJSON(obj) {
@@ -258,17 +261,33 @@ class StateSnapshot {
                 s.children.set(parent, m);
             }
         }
+        if (obj && obj.upcomings) {
+            for (const [k, v] of Object.entries(obj.upcomings)) s.upcomings.set(k, v);
+        }
         return s;
     }
 
     toJSON() {
-        const obj = { parents: {}, children: {} };
+        const obj = { parents: {}, children: {}, upcomings: {} };
         for (const [k, v] of this.parents) obj.parents[k] = v;
         for (const [parent, m] of this.children) {
             obj.children[parent] = {};
             for (const [k, v] of m) obj.children[parent][k] = v;
         }
+        for (const [k, v] of this.upcomings) obj.upcomings[k] = v;
         return obj;
+    }
+
+    /** zone 의 다가오는(예비) 특보: parents 가 예비면 그것, 아니면 upcomings. */
+    getUpcoming(name) {
+        const p = this.parents.get(name);
+        if (p && p.wrnLvlNm === '예비') return p;
+        return this.upcomings.get(name) || null;
+    }
+    /** zone 의 발효중(active) 특보: parents 가 active(예비·해제 아님)면 그것. */
+    getActive(name) {
+        const p = this.parents.get(name);
+        return (p && p.wrnLvlNm && p.wrnLvlNm !== '예비' && p.wrnLvlNm !== '해제') ? p : null;
     }
 
     getParent(name) { return this.parents.get(name) || null; }
@@ -811,6 +830,11 @@ function _applySuspiciousGuard(prev, curr) {
             if (pkids && pkids.size > 0 && !curr.children.has(name)) {
                 curr.children.set(name, new Map(pkids));
             }
+            // [B] 공존 다가오는(예비)도 복원 — 글리치 사이클에 병렬 예비 깜빡임 방지
+            const pUp = prev.upcomings ? prev.upcomings.get(name) : null;
+            if (pUp && curr.upcomings && !curr.upcomings.has(name)) {
+                curr.upcomings.set(name, pUp);
+            }
         }
         result.skipped = suspiciousZones.slice();
     } else {
@@ -1002,6 +1026,58 @@ function _applyChildReleaseDebounce(prev, curr) {
 }
 
 // ============================================================================
+// [발표시각 고정] 발표시각(tmFc)은 "현재 발효중 특보가 최초 발표된 시각"으로 고정.
+//   예비→발표→발효→해제 동안 불변(변경/연장에도 안 바뀜). 격상/격하(등급 변화)·
+//   종류 변화·해제 시에만 새 등급의 발표시각으로 재설정.
+//   구현: 직전 cycle(prev, 디스크 영속)에 같은 종류·동급(예비는 정식의 전구체로 동급
+//   취급)이 있으면 그 tmFc 를 이어받아 고정. 신규/격상격하/종류변경이면 현재 tmFc 가 새 앵커.
+//   별도 저장소 불필요 — 고정값이 스냅샷 체인(marine_warning_state.json)에 그대로 영속.
+//   [한계] 예비 단계를 못 본 채(콜드스타트) 발효부터 관측하면 그때 tmFc 가 앵커(best-effort).
+// ============================================================================
+function _anchorLevel(info) {
+    return (info && info.wrnLvlNm === '경보') ? '경보' : '주의보';   // 예비·주의보 동급
+}
+function _applyAnnounceAnchor(prev, curr) {
+    if (!curr) return;
+    const carry = (pinfo, info) =>
+        pinfo && pinfo.tmFc && pinfo.wrnTpNm === info.wrnTpNm &&
+        // 예비는 정식특보의 전구체 → 어떤 등급으로 성숙해도 이어받음. 그 외엔 동급일 때만.
+        (pinfo.wrnLvlNm === '예비' || _anchorLevel(pinfo) === _anchorLevel(info));
+    if (curr.parents) {
+        for (const [zone, info] of curr.parents) {
+            if (!info || !info.wrnLvlNm || info.wrnLvlNm === '해제') continue;
+            const pinfo = prev && prev.parents ? prev.parents.get(zone) : null;
+            if (carry(pinfo, info)) { info.tmFc = pinfo.tmFc; continue; }   // 직전 고정값 이어받기
+            // [B] 격상/격하 발효: 직전에 공존하던 예비(upcomings)는 새 발효 등급의 전구체이므로
+            //   그 예비의 발표시각을 이어받음 (예비는 wrnLvlNm 이 '예비'라 등급 인코딩이 없어
+            //   같은 종류이면 인계). 경보 예비 → 경보 발효 시 경보 최초(예비) 발표시각 유지.
+            const pUp = prev && prev.upcomings ? prev.upcomings.get(zone) : null;
+            if (pUp && pUp.tmFc && pUp.wrnTpNm === info.wrnTpNm) {
+                info.tmFc = pUp.tmFc;
+            }
+        }
+    }
+    // [B] 공존 다가오는(예비) 도 자기 최초 발표시각 고정
+    if (curr.upcomings) {
+        for (const [zone, info] of curr.upcomings) {
+            if (!info || !info.wrnLvlNm) continue;
+            const pUp = prev && prev.upcomings ? prev.upcomings.get(zone) : null;
+            if (carry(pUp, info)) info.tmFc = pUp.tmFc;
+        }
+    }
+    if (curr.children) {
+        for (const [zone, cmap] of curr.children) {
+            const pmap = prev && prev.children ? prev.children.get(zone) : null;
+            for (const [cn, info] of cmap) {
+                if (!info || !info.wrnLvlNm) continue;
+                const pinfo = pmap ? pmap.get(cn) : null;
+                if (carry(pinfo, info)) info.tmFc = pinfo.tmFc;
+            }
+        }
+    }
+}
+
+// ============================================================================
 // [연장 감지] 발효예정/해제예정 시각이 "더 늦은 시각"으로 연장되는 경우 감지.
 //   - 주(主): diff 기반 — 같은 zone·종류, 같은 단계(예비/발효)인데 해당 시각이
 //     더 늦어짐(_timeKey 비교) → 연장.
@@ -1031,22 +1107,33 @@ function _timeKey(str, refMonth) {
     return mo * 1000000 + d * 10000 + hh * 100 + mm;
 }
 
-/** run() 에서 매 cycle 호출 — 현재 특보 기억 갱신 + 만료 prune. (_buildUserPushChanges 이후) */
+/** run() 에서 매 cycle 호출 — 현재 특보 기억 갱신 + 만료 prune. (_buildUserPushChanges 이후)
+ *   zone 별로 phase(active/upcoming) 각각 보관 — 발효+공존예비를 동시에 기억(B 트랙 포함). */
 function _updateExtensionMemory(curr) {
     const now = Date.now();
+    const rec = (zone, info, phase) => {
+        if (!info || !info.wrnLvlNm || info.wrnLvlNm === '해제') return;
+        if (!_extensionMemory[zone]) _extensionMemory[zone] = {};
+        _extensionMemory[zone][phase] = {
+            wrnTpNm: info.wrnTpNm || '', wrnLvlNm: info.wrnLvlNm || '',
+            tmEf: info.tmEf || '', clrNtcTm: info.clrNtcTm || info.tmYn || '',
+            lastSeenAt: now
+        };
+    };
     if (curr && curr.parents) {
         for (const [zone, info] of curr.parents) {
-            if (!info || !info.wrnLvlNm || info.wrnLvlNm === '해제') continue;
-            const phase = info.wrnLvlNm === '예비' ? 'upcoming' : 'active';
-            _extensionMemory[zone] = {
-                phase, wrnTpNm: info.wrnTpNm || '',
-                tmEf: info.tmEf || '', clrNtcTm: info.clrNtcTm || info.tmYn || '',
-                lastSeenAt: now
-            };
+            rec(zone, info, info.wrnLvlNm === '예비' ? 'upcoming' : 'active');
         }
     }
+    if (curr && curr.upcomings) {
+        for (const [zone, info] of curr.upcomings) rec(zone, info, 'upcoming');   // [B] 공존 예비도 기억
+    }
     for (const z of Object.keys(_extensionMemory)) {
-        if (now - (_extensionMemory[z].lastSeenAt || 0) > EXTENSION_MEMORY_TTL_MS) delete _extensionMemory[z];
+        const e = _extensionMemory[z];
+        for (const ph of Object.keys(e)) {
+            if (now - (e[ph].lastSeenAt || 0) > EXTENSION_MEMORY_TTL_MS) delete e[ph];
+        }
+        if (Object.keys(e).length === 0) delete _extensionMemory[z];
     }
 }
 
@@ -1056,6 +1143,19 @@ function _buildUserPushChanges(prev, curr) {
     const allZones = new Set();
     if (prev.parents) for (const k of prev.parents.keys()) allZones.add(k);
     if (curr.parents) for (const k of curr.parents.keys()) allZones.add(k);
+    if (prev.upcomings) for (const k of prev.upcomings.keys()) allZones.add(k);
+    if (curr.upcomings) for (const k of curr.upcomings.keys()) allZones.add(k);
+
+    // [B] zone 의 다가오는(예비)/발효 추출 — parents 가 예비면 그것, 아니면 upcomings.
+    const getUp = (snap, zone) => {
+        const p = snap.parents ? snap.parents.get(zone) : null;
+        if (p && p.wrnLvlNm === '예비') return p;
+        return snap.upcomings ? (snap.upcomings.get(zone) || null) : null;
+    };
+    const getAct = (snap, zone) => {
+        const p = snap.parents ? snap.parents.get(zone) : null;
+        return (p && p.wrnLvlNm && p.wrnLvlNm !== '예비' && p.wrnLvlNm !== '해제') ? p : null;
+    };
 
     const toBlock = (info) => info ? {
         wrnTp: info.wrnTpNm || info.wrnTp || '',
@@ -1101,16 +1201,17 @@ function _buildUserPushChanges(prev, curr) {
     } : null;
 
     for (const zone of allZones) {
-        const p = prev.parents ? prev.parents.get(zone) : null;
-        const c = curr.parents ? curr.parents.get(zone) : null;
+        const c = curr.parents ? curr.parents.get(zone) : null;   // 자식 독립 블록 가드용(부모 존재)
 
-        if (!p && !c) continue;
+        // [B] upcoming 은 parents 예비 또는 upcomings 에서, active 는 parents 에서 추출 (병렬 지원)
+        const pUp = getUp(prev, zone), cUp = getUp(curr, zone);
+        const pAct = getAct(prev, zone), cAct = getAct(curr, zone);
+        if (!pUp && !cUp && !pAct && !cAct) continue;
 
-        // prev / curr 각각 upcoming / active 블록 추출
-        const prevUpcoming = isUpcoming(p) ? toBlock(p) : null;
-        const currUpcoming = isUpcoming(c) ? toBlock(c) : null;
-        const prevActive = isActive(p) ? toBlock(p) : null;
-        const currActive = isActive(c) ? toBlock(c) : null;
+        const prevUpcoming = toBlock(pUp);
+        const currUpcoming = toBlock(cUp);
+        const prevActive = toBlock(pAct);
+        const currActive = toBlock(cAct);
 
         const all = PARENT_TO_CHILDREN[zone] || [];
         const prevChildren = childKeys(prev, zone);
@@ -1120,37 +1221,43 @@ function _buildUserPushChanges(prev, curr) {
         const upcomingChanged = !blockEqual(prevUpcoming, currUpcoming);
         const activeChanged = !blockEqual(prevActive, currActive);
 
-        // [연장 감지] 발효예정 연장 (예비 단계): 같은 종류 예비인데 발효예정(tmEf)이 더 늦어짐.
+        // [연장 감지] 발효예정 연장 (예비 단계): 같은 종류·동급 예비인데 발효예정(tmEf)이 더 늦어짐.
         //   prev 가 있으면 prev 와, 없으면(null gap) _extensionMemory 의 직전 예비와 비교.
         let efExtend = null;
         if (currUpcoming) {
             let oldEf = prevUpcoming ? prevUpcoming.tmEf : null;
             let oldType = prevUpcoming ? prevUpcoming.wrnTp : null;
+            let oldLevel = prevUpcoming ? prevUpcoming.wrnLvl : null;
             if (!oldEf) {
-                const mem = _extensionMemory[zone];
-                if (mem && mem.phase === 'upcoming') { oldEf = mem.tmEf; oldType = mem.wrnTpNm; }
+                const mem = _extensionMemory[zone] && _extensionMemory[zone].upcoming;
+                if (mem) { oldEf = mem.tmEf; oldType = mem.wrnTpNm; oldLevel = mem.wrnLvlNm; }
             }
             if (oldEf && currUpcoming.tmEf) {
                 const kn = _timeKey(currUpcoming.tmEf), ko = _timeKey(oldEf, kn ? Math.floor((kn / 1000000)) : null);
                 const sameType = !oldType || oldType === currUpcoming.wrnTp;
-                if (ko != null && kn != null && kn > ko && sameType && oldEf !== currUpcoming.tmEf) {
+                const sameLevel = !oldLevel || oldLevel === currUpcoming.wrnLvl;   // 예비 단계는 항상 '예비'
+                if (ko != null && kn != null && kn > ko && sameType && sameLevel && oldEf !== currUpcoming.tmEf) {
                     efExtend = { oldTime: oldEf, newTime: currUpcoming.tmEf };
                 }
             }
         }
-        // [연장 감지] 해제예정 연장 (발효 단계): 같은 종류 발효인데 해제예정(tmYn=clrNtcTm)이 더 늦어짐.
+        // [연장 감지] 해제예정 연장 (발효 단계): 같은 종류·동급 발효인데 해제예정(tmYn)이 더 늦어짐.
+        //   [중요] 등급(level)이 다르면 연장이 아니라 격상/격하 → 연장으로 오분류하면 격상/격하
+        //   푸시가 사라지므로 반드시 동급일 때만 연장으로 본다.
         let ynExtend = null;
         if (currActive && currActive.tmYn) {
             let oldYn = prevActive ? prevActive.tmYn : null;
             let oldType = prevActive ? prevActive.wrnTp : null;
+            let oldLevel = prevActive ? prevActive.wrnLvl : null;
             if (!oldYn) {
-                const mem = _extensionMemory[zone];
-                if (mem && mem.phase === 'active') { oldYn = mem.clrNtcTm; oldType = mem.wrnTpNm; }
+                const mem = _extensionMemory[zone] && _extensionMemory[zone].active;
+                if (mem) { oldYn = mem.clrNtcTm; oldType = mem.wrnTpNm; oldLevel = mem.wrnLvlNm; }
             }
             if (oldYn) {
                 const kn = _timeKey(currActive.tmYn), ko = _timeKey(oldYn, kn ? Math.floor((kn / 1000000)) : null);
                 const sameType = !oldType || oldType === currActive.wrnTp;
-                if (ko != null && kn != null && kn > ko && sameType && oldYn !== currActive.tmYn) {
+                const sameLevel = !!oldLevel && oldLevel === currActive.wrnLvl;   // 등급 변하면 연장 아님(격상격하)
+                if (ko != null && kn != null && kn > ko && sameType && sameLevel && oldYn !== currActive.tmYn) {
                     ynExtend = { oldTime: oldYn, newTime: currActive.tmYn };
                 }
             }
@@ -1220,6 +1327,7 @@ function _buildUserPushChanges(prev, curr) {
                 if (!prevChildren.includes(cn)) continue;
                 const pi = childInfoOf(prev, zone, cn), ci = childInfoOf(curr, zone, cn);
                 if (!pi || !ci) continue;
+                if (pi.wrnLvlNm !== ci.wrnLvlNm) continue;   // 등급 변하면 연장 아님(격상/격하) — 오분류 방지
                 const isUp = ci.wrnLvlNm === '예비';
                 const oldT = isUp ? (pi.tmEf || '') : (pi.clrNtcTm || pi.tmYn || '');
                 const newT = isUp ? (ci.tmEf || '') : (ci.clrNtcTm || ci.tmYn || '');
@@ -1534,26 +1642,36 @@ function _buildZoneTreeFromSnapshot(snap) {
     //   - wrnLvl 이 한글 "주의보" (mmis 는 "2" 코드)
     //   - tmCc 가 해제예고 (mmis 는 clrNtcTm)
     // 다운스트림 영향 최소화 위해 본 빌더가 옛 구조로 변환 + 신규 필드 병기.
+    const toBlock = (info) => ({
+        wrnTp: info.wrnTpNm || info.wrnTp || '',       // 한글 우선 (data.js:269 호환)
+        wrnTpNm: info.wrnTpNm || '',
+        wrnLvl: info.wrnLvlNm || info.wrnLvl || '',    // 한글 우선
+        wrnLvlNm: info.wrnLvlNm || '',
+        tmFc: normalizeMmisTime(info.tmFc),
+        tmEf: normalizeMmisTime(info.tmEf),
+        tmYn: normalizeMmisTime(info.tmYn),
+        tmCc: normalizeMmisTime(info.clrNtcTm),        // 옛 tmCc = mmis clrNtcTm
+        clrNtcTm: normalizeMmisTime(info.clrNtcTm),    // 신규 필드 (양 형식 모두 지원)
+        source: 'MARINE_MMIS'
+    });
     for (const [parentName, info] of snap.parents) {
         const leaf = leafByName.get(parentName);
         if (!leaf) continue;
         if (!info || !info.wrnLvlNm) continue;
-        const block = {
-            wrnTp: info.wrnTpNm || info.wrnTp || '',       // 한글 우선 (data.js:269 호환)
-            wrnTpNm: info.wrnTpNm || '',
-            wrnLvl: info.wrnLvlNm || info.wrnLvl || '',    // 한글 우선
-            wrnLvlNm: info.wrnLvlNm || '',
-            tmFc: normalizeMmisTime(info.tmFc),
-            tmEf: normalizeMmisTime(info.tmEf),
-            tmYn: normalizeMmisTime(info.tmYn),
-            tmCc: normalizeMmisTime(info.clrNtcTm),        // 옛 tmCc = mmis clrNtcTm
-            clrNtcTm: normalizeMmisTime(info.clrNtcTm),    // 신규 필드 (양 형식 모두 지원)
-            source: 'MARINE_MMIS'
-        };
         if (info.wrnLvlNm === '예비') {
-            leaf.upcoming = block;
+            leaf.upcoming = toBlock(info);
         } else if (info.wrnLvlNm !== '해제') {
-            leaf.current = block;
+            leaf.current = toBlock(info);
+        }
+    }
+    // [B] 발효중 해역에 공존하는 "다가오는(예비)" 특보 → leaf.upcoming 병렬 표출.
+    //   parents 가 이미 예비여서 upcoming 이 찬 경우는 덮어쓰지 않음.
+    if (snap.upcomings) {
+        for (const [parentName, info] of snap.upcomings) {
+            const leaf = leafByName.get(parentName);
+            if (!leaf || leaf.upcoming) continue;
+            if (!info || !info.wrnLvlNm || info.wrnLvlNm === '해제') continue;
+            leaf.upcoming = toBlock(info);
         }
     }
 
@@ -1784,8 +1902,12 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
         if (!name) continue;
         const parent = _extractParent(name);
         if (parent === name) {
-            // 부모형 예비 — 발효중이면 유지(skip)
-            if (snap.parents.has(name)) continue;
+            // 부모형 예비 — 발효중이면 parents 는 유지하되, 예비를 upcomings 에 보관(병렬 표출용).
+            //   [B] 과거엔 발효 우선으로 드롭했으나, 다가오는 특보를 별도 트랙으로 보존.
+            if (snap.parents.has(name)) {
+                if (!snap.upcomings.has(name)) snap.upcomings.set(name, _rowToParentInfo(row));
+                continue;
+            }
             snap.parents.set(name, _rowToParentInfo(row));
         } else {
             addChild(name, row);   // 자식형 예비 (addChild 가 발효 우선 보장)
@@ -2139,6 +2261,10 @@ async function run(opts = {}) {
         //    양쪽에 반영됨. 해제 통보문(_childReleaseNoticeSet) 있는 자식은 즉시 해제.
         _applyChildReleaseDebounce(prevForDiff, curr);
 
+        // 4-C) [발표시각 고정] 현재 발효 등급의 최초 발표시각으로 tmFc 고정 (변경/연장 불변,
+        //   격상/격하·종류변경·해제 시에만 재설정). _buildUserPushChanges·표출 전에 적용.
+        _applyAnnounceAnchor(prevForDiff, curr);
+
         // 5) diff + dispatch + flush (관리자 push) — [수정1] 관리자 채널 비활성.
         //    runDiffAndPush 는 관리자(dmdw) 푸시 전용이므로 비활성 시 호출 자체 skip.
         let sent = [];
@@ -2219,6 +2345,7 @@ module.exports = {
     _applyChildReleaseDebounce,
     _updateExtensionMemory,
     _timeKey,
+    _applyAnnounceAnchor,
     // [D-6 (A)] 시간 형식 변환 (테스트용 노출)
     normalizeMmisTime,
     // [D-medium 인터랙티브] 의심 가드 + 결정 API
