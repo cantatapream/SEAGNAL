@@ -92,6 +92,10 @@ function init() {
     // [1회 마이그레이션] 바텀시트 개별 집계분을 'sheet.bottom_sheet' 통합으로 묶음.
     _migrateBottomSheetOnce();
 
+    // [1회 보정] 운영자 확인 기준 바텀시트 실제 누적 = 24건(현재 기준). 1회만 총합을 24로 맞춘다.
+    //   이후의 실제 사용분은 이 값 위에 정상 누적된다(마커로 재실행 방지).
+    _calibrateBottomSheetTotalOnce(24);
+
     flushTimer = setInterval(() => {
         _flushAsync().catch(err => {
             console.error('[usage_queue] flushAsync 예외:', err && err.message);
@@ -154,6 +158,74 @@ function _migrateBottomSheetOnce() {
         console.log('[usage_queue] 바텀시트 통합 마이그레이션 완료' + (changed ? ' (데이터 갱신됨)' : ' (변경 없음)'));
     } catch (e) {
         console.error('[usage_queue] 마이그레이션 마커 기록 실패:', e && e.message);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 1회 보정: 'sheet.bottom_sheet' 총합을 운영자 확인값(target)으로 맞춤
+// ----------------------------------------------------------------------------
+// 마이그레이션(최댓값 근사)이 실제와 다를 수 있어, 운영자가 확인한 실제 누적(현재 기준)으로
+// 1회 보정한다. 기존 버킷(날짜×기기) 분포는 최대한 보존하며 차이만 가감한다.
+//   - 현재 총합 > target : 큰 버킷부터 줄여서 target 로.
+//   - 현재 총합 < target : 가장 큰 버킷(없으면 오늘/anonymous 생성)에 부족분 가산.
+//   - 마커로 1회만 실행. 이후 실제 사용분은 이 값 위에 정상 누적.
+function _calibrateBottomSheetTotalOnce(target) {
+    const markerPath = FILES.USAGE_STATS + '.migrations.json';
+    const marker = _safeReadJson(markerPath, {}) || {};
+    if (marker.bottomSheetCalibrated) return;
+
+    try {
+        const buckets = [];
+        Object.keys(usageData).forEach(dateStr => {
+            const byDev = usageData[dateStr];
+            if (!byDev || typeof byDev !== 'object') return;
+            Object.keys(byDev).forEach(dev => {
+                const feats = byDev[dev];
+                if (feats && typeof feats === 'object' && feats['sheet.bottom_sheet'] > 0) {
+                    buckets.push(feats);
+                }
+            });
+        });
+        let total = buckets.reduce((s, f) => s + f['sheet.bottom_sheet'], 0);
+
+        if (total !== target) {
+            buckets.sort((a, b) => b['sheet.bottom_sheet'] - a['sheet.bottom_sheet']);
+            if (total > target) {
+                let need = total - target;
+                for (let i = 0; i < buckets.length && need > 0; i++) {
+                    const take = Math.min(need, buckets[i]['sheet.bottom_sheet']);
+                    buckets[i]['sheet.bottom_sheet'] -= take;
+                    need -= take;
+                }
+            } else { // total < target
+                const add = target - total;
+                if (buckets.length) {
+                    buckets[0]['sheet.bottom_sheet'] += add;
+                } else {
+                    const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().split('T')[0];
+                    if (!usageData[today]) usageData[today] = {};
+                    if (!usageData[today]['anonymous']) usageData[today]['anonymous'] = {};
+                    usageData[today]['anonymous']['sheet.bottom_sheet'] = target;
+                }
+            }
+            try {
+                fs.writeFileSync(FILES.USAGE_STATS, JSON.stringify(usageData, null, 2), 'utf8');
+            } catch (e) {
+                console.error('[usage_queue] 바텀시트 보정 데이터 기록 실패:', e && e.message);
+            }
+            console.log('[usage_queue] 바텀시트 총합 보정: ' + total + ' → ' + target);
+        }
+    } catch (e) {
+        console.error('[usage_queue] 바텀시트 보정 실패:', e && e.message);
+    }
+
+    marker.bottomSheetCalibrated = true;
+    marker.bottomSheetCalibratedAt = new Date().toISOString();
+    marker.bottomSheetTarget = target;
+    try {
+        fs.writeFileSync(markerPath, JSON.stringify(marker, null, 2), 'utf8');
+    } catch (e) {
+        console.error('[usage_queue] 보정 마커 기록 실패:', e && e.message);
     }
 }
 
