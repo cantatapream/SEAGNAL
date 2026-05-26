@@ -278,6 +278,21 @@ async function processAndSendNotifications(changes, options = {}) {
                 oldTime: change.oldTime, newTime: change.newTime
             });
         }
+        // 자식 단독 연장 — 부모 불변, 자식만 발효예정/해제예정 연장 (childState.extended 에 대상 자식).
+        else if (type === 'CHILD_EF_EXTEND') {
+            if (!curr) continue;
+            addToGroup(groups, 'ef_extend', curr.wrnTp, curr.wrnLvl, {
+                zones: [zone], childState,
+                oldTime: change.oldTime, newTime: change.newTime
+            });
+        }
+        else if (type === 'CHILD_YN_EXTEND') {
+            if (!curr) continue;
+            addToGroup(groups, 'yn_extend', curr.wrnTp, curr.wrnLvl, {
+                zones: [zone], childState,
+                oldTime: change.oldTime, newTime: change.newTime
+            });
+        }
     }
 
     // 그룹이 비어있는지 확인

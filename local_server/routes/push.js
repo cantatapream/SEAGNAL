@@ -296,6 +296,8 @@ router.post('/api/push-custom', async (req, res) => {
                     //   (토글 추가 이전 구독자는 키가 없으므로 기본 ON으로 동작 — 마이그레이션)
                     const showChildZones = !(user.options && user.options.childZones === false);
                     const generated = generateMessage({ ...payload, items: userFilteredItems, showChildZones });
+                    // 연장 등에서 본문이 비면(예: childZones OFF + 자식 단독 연장) 미발송.
+                    if (!generated.body || !generated.title) return;
                     finalTitle = generated.title;
                     finalBody = generated.body;
                     shouldSend = true;

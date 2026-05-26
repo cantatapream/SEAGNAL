@@ -1212,6 +1212,39 @@ function _buildUserPushChanges(prev, curr) {
                     childState: { all, active: currChildren, added: [], released: releasedChildren }
                 });
             }
+
+            // [자식 단독 연장] 부모 불변 + 유지중인 자식의 발효예정/해제예정이 더 늦어짐.
+            //   prev·curr 양쪽에 있는 자식만 (추가/해제는 위에서 처리). (기존,변경후) 쌍별 묶음.
+            const efKids = {}, ynKids = {};   // key: old||new → { oldTime, newTime, names:[], block }
+            for (const cn of currChildren) {
+                if (!prevChildren.includes(cn)) continue;
+                const pi = childInfoOf(prev, zone, cn), ci = childInfoOf(curr, zone, cn);
+                if (!pi || !ci) continue;
+                const isUp = ci.wrnLvlNm === '예비';
+                const oldT = isUp ? (pi.tmEf || '') : (pi.clrNtcTm || pi.tmYn || '');
+                const newT = isUp ? (ci.tmEf || '') : (ci.clrNtcTm || ci.tmYn || '');
+                if (!oldT || !newT || oldT === newT) continue;
+                const kn = _timeKey(newT), ko = _timeKey(oldT, kn ? Math.floor(kn / 1000000) : null);
+                if (ko == null || kn == null || kn <= ko) continue;   // 더 늦어진 경우만(연장)
+                const bucket = isUp ? efKids : ynKids;
+                const key = oldT + '||' + newT;
+                if (!bucket[key]) bucket[key] = { oldTime: oldT, newTime: newT, names: [], block: childToBlock(ci) };
+                bucket[key].names.push(cn);
+            }
+            for (const g of Object.values(efKids)) {
+                changes.push({
+                    type: 'CHILD_EF_EXTEND', zone: zone, curr: g.block,
+                    oldTime: g.oldTime, newTime: g.newTime,
+                    childState: { all, active: currChildren, extended: g.names }
+                });
+            }
+            for (const g of Object.values(ynKids)) {
+                changes.push({
+                    type: 'CHILD_YN_EXTEND', zone: zone, curr: g.block,
+                    oldTime: g.oldTime, newTime: g.newTime,
+                    childState: { all, active: currChildren, extended: g.names }
+                });
+            }
         }
     }
 
