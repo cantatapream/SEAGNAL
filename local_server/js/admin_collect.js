@@ -3436,10 +3436,9 @@ async function renderUsageStatsContent(container) {
             <!-- 소속 분포 도넛 -->
             <div id="usage-aff-card" class="usage-card" style="background:${T.cardBg}; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow}; border-radius:16px; padding:20px; margin-bottom:20px;">
                 <div style="font-weight:700; font-size:0.85rem; color:${T.muted}; margin-bottom:12px;">소속 분포 (선택 기간 · 소속 필터 무관)</div>
-                <div style="height:240px; position:relative;">
+                <div style="height:280px; position:relative;">
                     <canvas id="usage-aff-chart"></canvas>
                 </div>
-                <div id="usage-aff-legend" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px; margin-top:14px;"></div>
             </div>
 
             <!-- 기능별 누적 막대 + 표 (한 카드로 묶어 기능별표 PNG에 함께 캡처) -->
@@ -3607,10 +3606,10 @@ function _renderUsageDashboard(data, affSel) {
                         var base = T.series[(context.dataIndex || 0) % T.series.length];
                         var chart = context.chart, ctx = chart && chart.ctx, area = chart && chart.chartArea;
                         if (!ctx || !area) return base;
-                        // (나) 각 조각: 밝은 자기색 → 자기색 대각선 그라데이션 (또렷하게)
+                        // (나) 각 조각: 밝은 자기색 → 매우 진한 자기색 대각선 그라데이션 (효과 강하게)
                         var g = ctx.createLinearGradient(area.left, area.top, area.right, area.bottom);
                         g.addColorStop(0, _usageLighten(base, 0.5));
-                        g.addColorStop(1, base);
+                        g.addColorStop(1, _usageDarken(base, 0.45));
                         return g;
                     },
                     borderColor: T.donutBorder,
@@ -3624,25 +3623,31 @@ function _renderUsageDashboard(data, affSel) {
                     var ds = chart.data.datasets[0]; if (!ds) return;
                     var meta = chart.getDatasetMeta(0);
                     var arr = ds.data || [];
+                    var names = chart.data.labels || [];
                     var sum = arr.reduce(function (a, b) { return a + (b || 0); }, 0) || 1;
                     var ctx = chart.ctx;
                     ctx.save();
                     ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
+                    ctx.lineJoin = 'round';
                     var sides = { left: [], right: [] };
                     meta.data.forEach(function (arc, i) {
                         var v = arr[i] || 0; if (!v) return;
                         var pct = v / sum * 100;
                         var mid = (arc.startAngle + arc.endAngle) / 2;
-                        var label = pct.toFixed(1) + '% (' + v.toLocaleString() + ')';
+                        var name = String(names[i] || '');
+                        var value = pct.toFixed(1) + '% (' + v.toLocaleString() + ')';
                         if (pct >= 8) {
+                            // 큰 조각: 링 안쪽에 이름(위) + %·건수(아래), 가독성 외곽선.
                             var r = (arc.innerRadius + arc.outerRadius) / 2;
-                            ctx.fillStyle = '#fff';
+                            var cx = arc.x + Math.cos(mid) * r, cy = arc.y + Math.sin(mid) * r;
                             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                            ctx.fillText(label, arc.x + Math.cos(mid) * r, arc.y + Math.sin(mid) * r);
+                            ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.fillStyle = '#fff';
+                            ctx.strokeText(name, cx, cy - 7); ctx.fillText(name, cx, cy - 7);
+                            ctx.strokeText(value, cx, cy + 8); ctx.fillText(value, cx, cy + 8);
                         } else {
                             var right = Math.cos(mid) >= 0;
                             sides[right ? 'right' : 'left'].push({
-                                x: arc.x, y: arc.y, mid: mid, outer: arc.outerRadius, label: label,
+                                x: arc.x, y: arc.y, mid: mid, outer: arc.outerRadius, name: name, value: value,
                                 sy: arc.y + Math.sin(mid) * arc.outerRadius
                             });
                         }
@@ -3652,22 +3657,22 @@ function _renderUsageDashboard(data, affSel) {
                         var items = sides[side]; if (!items.length) return;
                         var right = side === 'right';
                         items.sort(function (a, b) { return a.sy - b.sy; });
-                        var minGap = 15, prev = -1e9;
+                        var minGap = 30, prev = -1e9;   // 2줄(이름+값)이라 간격 넓힘
                         items.forEach(function (it) {
                             var ly = Math.max(it.sy, prev + minGap); prev = ly;
                             var sx = it.x + Math.cos(it.mid) * it.outer;
                             var syp = it.y + Math.sin(it.mid) * it.outer;
                             var elbowX = it.x + (right ? 1 : -1) * (it.outer + 10);
-                            var tw = ctx.measureText(it.label).width;
+                            var tw = Math.max(ctx.measureText(it.name).width, ctx.measureText(it.value).width);
                             var labelX = it.x + (right ? 1 : -1) * (it.outer + 14);
                             // 카드 밖으로 잘리지 않게 클램프(라벨이 캔버스 안에 들어오도록)
                             if (right) labelX = Math.min(labelX, canvasW - tw - 4);
                             else labelX = Math.max(labelX, tw + 4);
                             ctx.strokeStyle = T.faint || '#94a3b8'; ctx.lineWidth = 1;
                             ctx.beginPath(); ctx.moveTo(sx, syp); ctx.lineTo(elbowX, ly); ctx.lineTo(labelX + (right ? -2 : 2), ly); ctx.stroke();
-                            ctx.fillStyle = T.text; ctx.textBaseline = 'middle';
-                            ctx.textAlign = right ? 'left' : 'right';
-                            ctx.fillText(it.label, labelX, ly);
+                            ctx.textBaseline = 'middle'; ctx.textAlign = right ? 'left' : 'right';
+                            ctx.fillStyle = T.text; ctx.fillText(it.name, labelX, ly - 7);
+                            ctx.fillStyle = T.muted; ctx.fillText(it.value, labelX, ly + 8);
                         });
                     });
                     ctx.restore();
@@ -3680,21 +3685,7 @@ function _renderUsageDashboard(data, affSel) {
             }
         });
     }
-    // ── 소속 HTML 범례표 (이름 + 건수 · %) — 차트 기본 범례 대체 ──
-    var affLegend = document.getElementById('usage-aff-legend');
-    if (affLegend) {
-        var affSum = aValues.reduce(function (a, b) { return a + (b || 0); }, 0) || 1;
-        affLegend.innerHTML = dist.map(function (d, i) {
-            var c = T.series[i % T.series.length];
-            var pct = (d.total / affSum * 100).toFixed(1);
-            return '<div style="display:flex; align-items:center; gap:8px; padding:6px 9px; background:' + T.ctrlBg + '; border:1px solid ' + T.cardBorder + '; border-radius:8px;">'
-                + '<span style="flex:none; width:10px; height:10px; border-radius:3px; background:' + c + ';"></span>'
-                + '<div style="min-width:0;">'
-                + '<div style="color:' + T.text + '; font-size:0.8rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + d.name + '</div>'
-                + '<div style="color:' + T.muted + '; font-size:0.72rem;">' + d.total.toLocaleString() + '건 · ' + pct + '%</div>'
-                + '</div></div>';
-        }).join('');
-    }
+    // (소속 범례는 도넛 라벨에 이름+%·건수로 합쳐졌으므로 별도 표 없음)
 
     // ── 기능별 막대 + 표 (건수 내림차순) ──
     var byFeature = data.byFeature || {};
@@ -3850,6 +3841,17 @@ function _usageLighten(hex, amt) {
         if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
         var r = parseInt(h.substring(0, 2), 16), g = parseInt(h.substring(2, 4), 16), b = parseInt(h.substring(4, 6), 16);
         r = Math.round(r + (255 - r) * amt); g = Math.round(g + (255 - g) * amt); b = Math.round(b + (255 - b) * amt);
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+    } catch (e) { return hex; }
+}
+
+// hex 를 검정 쪽으로 amt(0~1) 만큼 어둡게.
+function _usageDarken(hex, amt) {
+    try {
+        var h = String(hex).replace('#', '');
+        if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+        var r = parseInt(h.substring(0, 2), 16), g = parseInt(h.substring(2, 4), 16), b = parseInt(h.substring(4, 6), 16);
+        r = Math.round(r * (1 - amt)); g = Math.round(g * (1 - amt)); b = Math.round(b * (1 - amt));
         return 'rgb(' + r + ',' + g + ',' + b + ')';
     } catch (e) { return hex; }
 }
