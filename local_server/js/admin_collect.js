@@ -3617,7 +3617,15 @@ function _renderUsageDashboard(data, affSel) {
                 labels: aLabels,
                 datasets: [{
                     data: aValues,
-                    backgroundColor: aLabels.map(function (_, i) { return T.series[i % T.series.length]; }),
+                    backgroundColor: function (context) {
+                        var base = T.series[(context.dataIndex || 0) % T.series.length];
+                        var chart = context.chart, ctx = chart && chart.ctx, area = chart && chart.chartArea;
+                        if (!ctx || !area) return base;
+                        var g = ctx.createLinearGradient(0, area.top, 0, area.bottom);
+                        g.addColorStop(0, _usageLighten(base, 0.28));
+                        g.addColorStop(1, base);
+                        return g;
+                    },
                     borderColor: T.donutBorder,
                     borderWidth: 2
                 }]
@@ -3647,7 +3655,8 @@ function _renderUsageDashboard(data, affSel) {
                 datasets: [{
                     label: '건수',
                     data: featRows.map(function (r) { return r.count; }),
-                    backgroundColor: T.accent
+                    backgroundColor: _usageGrad(T.accent, T.accent2, true),
+                    borderRadius: 4
                 }]
             },
             options: {
@@ -3693,7 +3702,7 @@ window._usageRedrawTrend = function () {
     if (showTotal) {
         datasets.push({
             label: '전체 합계', data: store.total,
-            borderColor: T.accent, backgroundColor: _usageHexToRgba(T.accent, 0.12),
+            borderColor: _usageGrad(T.accent, T.accent2, true), backgroundColor: _usageGrad(_usageHexToRgba(T.accent, 0.35), _usageHexToRgba(T.accent, 0), false),
             fill: featCbs.length === 0, tension: 0.3, pointRadius: 2, pointBackgroundColor: T.accent2
         });
     }
@@ -3711,7 +3720,7 @@ window._usageRedrawTrend = function () {
     if (!datasets.length) {
         datasets.push({
             label: '전체 합계', data: store.total,
-            borderColor: T.accent, backgroundColor: _usageHexToRgba(T.accent, 0.12),
+            borderColor: _usageGrad(T.accent, T.accent2, true), backgroundColor: _usageGrad(_usageHexToRgba(T.accent, 0.35), _usageHexToRgba(T.accent, 0), false),
             fill: true, tension: 0.3, pointRadius: 2, pointBackgroundColor: T.accent2
         });
     }
@@ -3743,6 +3752,34 @@ function _usageHexToRgba(hex, alpha) {
         var b = parseInt(h.substring(4, 6), 16);
         return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
     } catch (e) { return 'rgba(59,130,246,' + alpha + ')'; }
+}
+
+// 차트용 그라데이션 (Chart.js scriptable). chartArea 준비 전(최초 렌더)엔 단색(c1) 폴백.
+//   horizontal=true: 좌→우 (가로막대/추이선용), false: 위→아래 (영역 채우기/도넛 sheen용)
+function _usageGrad(c1, c2, horizontal) {
+    return function (context) {
+        var chart = context.chart;
+        var ctx = chart && chart.ctx;
+        var area = chart && chart.chartArea;
+        if (!ctx || !area) return c1;
+        var g = horizontal
+            ? ctx.createLinearGradient(area.left, 0, area.right, 0)
+            : ctx.createLinearGradient(0, area.top, 0, area.bottom);
+        g.addColorStop(0, c1);
+        g.addColorStop(1, c2);
+        return g;
+    };
+}
+
+// hex 를 흰색 쪽으로 amt(0~1) 만큼 밝게.
+function _usageLighten(hex, amt) {
+    try {
+        var h = String(hex).replace('#', '');
+        if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+        var r = parseInt(h.substring(0, 2), 16), g = parseInt(h.substring(2, 4), 16), b = parseInt(h.substring(4, 6), 16);
+        r = Math.round(r + (255 - r) * amt); g = Math.round(g + (255 - g) * amt); b = Math.round(b + (255 - b) * amt);
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+    } catch (e) { return hex; }
 }
 
 // ============================================================================
@@ -3779,17 +3816,20 @@ function _usageCsvScopePopup(q, cb) {
         + '<button id="usage-csv-ok" style="flex:1;padding:10px;background:linear-gradient(135deg,' + T.accent + ',' + T.accent2 + ');border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;">확인 · 다운로드</button>'
         + '</div></div>';
     document.body.appendChild(ov);
+    // [뒤로가기] 팝업을 PopupStack 에 등록 → 하드웨어 뒤로가기로 팝업부터 닫힘.
+    if (window.PopupStack) window.PopupStack.push('usage-csv-popup', function () { ov.remove(); });
+    var close = function () { if (window.PopupStack) window.PopupStack.remove('usage-csv-popup'); ov.remove(); };
     var rangeBox = ov.querySelector('#usage-csv-range');
     ov.querySelectorAll('input[name="usage-csv-scope"]').forEach(function (r) {
         r.addEventListener('change', function () { rangeBox.style.display = (ov.querySelector('input[name="usage-csv-scope"]:checked').value === 'range') ? 'flex' : 'none'; });
     });
-    ov.querySelector('#usage-csv-cancel').onclick = function () { ov.remove(); };
-    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    ov.querySelector('#usage-csv-cancel').onclick = close;
+    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
     ov.querySelector('#usage-csv-ok').onclick = function () {
         var mode = ov.querySelector('input[name="usage-csv-scope"]:checked').value;
         var start = mode === 'range' ? (ov.querySelector('#usage-csv-start').value || '') : '';
         var end = mode === 'range' ? (ov.querySelector('#usage-csv-end').value || '') : '';
-        ov.remove();
+        close();
         cb({ mode: mode, start: start, end: end });
     };
 }
@@ -3958,11 +3998,13 @@ function _usageImageModePopup(cb) {
         + '<button id="usage-imgm-ok" style="flex:1;padding:10px;background:linear-gradient(135deg,' + T.accent + ',' + T.accent2 + ');border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;">확인 · 저장</button>'
         + '</div></div>';
     document.body.appendChild(ov);
-    ov.querySelector('#usage-imgm-cancel').onclick = function () { ov.remove(); };
-    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    if (window.PopupStack) window.PopupStack.push('usage-imgmode-popup', function () { ov.remove(); });
+    var close = function () { if (window.PopupStack) window.PopupStack.remove('usage-imgmode-popup'); ov.remove(); };
+    ov.querySelector('#usage-imgm-cancel').onclick = close;
+    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
     ov.querySelector('#usage-imgm-ok').onclick = function () {
         var m = ov.querySelector('input[name="usage-img-mode"]:checked').value;
-        ov.remove();
+        close();
         cb(m);
     };
 }
@@ -4054,7 +4096,8 @@ function _usageCaptureDom(el, T, filename) {
 function _usageTriggerDownload(href, filename, revoke) {
     var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
     if (isNative && /^data:image\//.test(String(href))) {
-        _usageShowImageModal(href, filename);
+        // 앱(WebView)은 data:image 의 <a download>/길게눌러저장이 안 됨 → 서버 중계 후 시스템 브라우저로 다운로드.
+        _usageSaveImageNative(href, filename);
         return;
     }
     var a = document.createElement('a');
@@ -4064,6 +4107,33 @@ function _usageTriggerDownload(href, filename, revoke) {
     a.click();
     document.body.removeChild(a);
     if (revoke) { setTimeout(function () { try { URL.revokeObjectURL(href); } catch (e) {} }, 1500); }
+}
+
+// 앱(네이티브)에서 PNG 저장: 서버에 잠깐 업로드(토큰) → 시스템 브라우저로 GET 열어 다운로드(CSV 원리).
+//   길게눌러저장 모달은 WebView 에서 동작하지 않고 닫기까지 막혀 제거함.
+function _usageSaveImageNative(dataUrl, filename) {
+    try {
+        var base = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE) ? CONFIG.API_BASE : '';
+        fetch(base + '/api/stats/usage/image?name=' + encodeURIComponent(filename || 'seagnal_usage.png'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: dataUrl
+        }).then(function (r) { return r.json(); }).then(function (j) {
+            if (!j || !j.token) throw new Error('토큰 없음');
+            var url = window.location.origin + '/api/stats/usage/image/' + j.token;
+            var Browser = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+            if (Browser && Browser.open) {
+                var p = Browser.open({ url: url });
+                if (p && typeof p.catch === 'function') p.catch(function () { window.open(url, '_blank'); });
+            } else {
+                window.open(url, '_blank');
+            }
+        }).catch(function (e) {
+            alert('이미지 저장 실패: ' + (e && e.message));
+        });
+    } catch (e) {
+        alert('이미지 저장 실패: ' + (e && e.message));
+    }
 }
 
 // ============================================================================
@@ -4103,19 +4173,6 @@ window.toggleUsageLandscape = function () {
         _usageLeaveObserver.observe(document.body, { childList: true, subtree: true });
     }
 };
-
-// 네이티브 앱에서 생성한 PNG 를 전체화면 모달로 표시 — 길게 눌러 "이미지 저장" 선택.
-function _usageShowImageModal(dataUrl, filename) {
-    var ov = document.createElement('div');
-    ov.style.cssText = 'position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;';
-    ov.innerHTML =
-        '<div style="color:#fff;font-size:0.9rem;margin-bottom:10px;text-align:center;line-height:1.5;">이미지를 길게 눌러 <b>"이미지 저장"</b>을 선택하세요<br><span style="font-size:0.72rem;color:#cbd5e1;">' + (filename || '') + '</span></div>'
-        + '<img src="' + dataUrl + '" style="max-width:100%;max-height:74vh;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.6);">'
-        + '<button id="usage-img-close" style="margin-top:14px;padding:10px 24px;background:#3b82f6;border:none;border-radius:8px;color:#fff;font-weight:700;font-size:0.9rem;cursor:pointer;">닫기</button>';
-    ov.querySelector('#usage-img-close').onclick = function () { ov.remove(); };
-    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
-    document.body.appendChild(ov);
-}
 
 // 기존 관리 함수들 리다이렉션 (하위 호환성 유지)
 // 홍보 게시글 관리는 통합 관리자(unified-admin-modal) > "게시판 관리" 탭에서 처리.
