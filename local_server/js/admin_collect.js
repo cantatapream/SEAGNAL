@@ -3617,7 +3617,15 @@ function _renderUsageDashboard(data, affSel) {
                 labels: aLabels,
                 datasets: [{
                     data: aValues,
-                    backgroundColor: aLabels.map(function (_, i) { return T.series[i % T.series.length]; }),
+                    backgroundColor: function (context) {
+                        var base = T.series[(context.dataIndex || 0) % T.series.length];
+                        var chart = context.chart, ctx = chart && chart.ctx, area = chart && chart.chartArea;
+                        if (!ctx || !area) return base;
+                        var g = ctx.createLinearGradient(0, area.top, 0, area.bottom);
+                        g.addColorStop(0, _usageLighten(base, 0.28));
+                        g.addColorStop(1, base);
+                        return g;
+                    },
                     borderColor: T.donutBorder,
                     borderWidth: 2
                 }]
@@ -3647,7 +3655,8 @@ function _renderUsageDashboard(data, affSel) {
                 datasets: [{
                     label: '건수',
                     data: featRows.map(function (r) { return r.count; }),
-                    backgroundColor: T.accent
+                    backgroundColor: _usageGrad(T.accent, T.accent2, true),
+                    borderRadius: 4
                 }]
             },
             options: {
@@ -3693,7 +3702,7 @@ window._usageRedrawTrend = function () {
     if (showTotal) {
         datasets.push({
             label: '전체 합계', data: store.total,
-            borderColor: T.accent, backgroundColor: _usageHexToRgba(T.accent, 0.12),
+            borderColor: _usageGrad(T.accent, T.accent2, true), backgroundColor: _usageGrad(_usageHexToRgba(T.accent, 0.35), _usageHexToRgba(T.accent, 0), false),
             fill: featCbs.length === 0, tension: 0.3, pointRadius: 2, pointBackgroundColor: T.accent2
         });
     }
@@ -3711,7 +3720,7 @@ window._usageRedrawTrend = function () {
     if (!datasets.length) {
         datasets.push({
             label: '전체 합계', data: store.total,
-            borderColor: T.accent, backgroundColor: _usageHexToRgba(T.accent, 0.12),
+            borderColor: _usageGrad(T.accent, T.accent2, true), backgroundColor: _usageGrad(_usageHexToRgba(T.accent, 0.35), _usageHexToRgba(T.accent, 0), false),
             fill: true, tension: 0.3, pointRadius: 2, pointBackgroundColor: T.accent2
         });
     }
@@ -3743,6 +3752,34 @@ function _usageHexToRgba(hex, alpha) {
         var b = parseInt(h.substring(4, 6), 16);
         return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
     } catch (e) { return 'rgba(59,130,246,' + alpha + ')'; }
+}
+
+// 차트용 그라데이션 (Chart.js scriptable). chartArea 준비 전(최초 렌더)엔 단색(c1) 폴백.
+//   horizontal=true: 좌→우 (가로막대/추이선용), false: 위→아래 (영역 채우기/도넛 sheen용)
+function _usageGrad(c1, c2, horizontal) {
+    return function (context) {
+        var chart = context.chart;
+        var ctx = chart && chart.ctx;
+        var area = chart && chart.chartArea;
+        if (!ctx || !area) return c1;
+        var g = horizontal
+            ? ctx.createLinearGradient(area.left, 0, area.right, 0)
+            : ctx.createLinearGradient(0, area.top, 0, area.bottom);
+        g.addColorStop(0, c1);
+        g.addColorStop(1, c2);
+        return g;
+    };
+}
+
+// hex 를 흰색 쪽으로 amt(0~1) 만큼 밝게.
+function _usageLighten(hex, amt) {
+    try {
+        var h = String(hex).replace('#', '');
+        if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+        var r = parseInt(h.substring(0, 2), 16), g = parseInt(h.substring(2, 4), 16), b = parseInt(h.substring(4, 6), 16);
+        r = Math.round(r + (255 - r) * amt); g = Math.round(g + (255 - g) * amt); b = Math.round(b + (255 - b) * amt);
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+    } catch (e) { return hex; }
 }
 
 // ============================================================================
