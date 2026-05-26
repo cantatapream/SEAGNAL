@@ -3667,6 +3667,7 @@ function _usageDonutLabelPlugin(T) {
             });
             var canvasW = chart.width;
             var minY = 20, maxY = chart.height - 20;   // 라벨이 캔버스를 벗어나지 않게 가두는 상하 경계
+            var cyc = (chart.chartArea.top + chart.chartArea.bottom) / 2;  // 도넛 세로 중심(균등 분배 기준)
             ['left', 'right'].forEach(function (side) {
                 var items = sides[side]; if (!items.length) return;
                 var right = side === 'right';
@@ -3675,10 +3676,12 @@ function _usageDonutLabelPlugin(T) {
                 var avail = maxY - minY;
                 var gap = 34;
                 if (items.length * gap > avail) gap = Math.max(22, Math.floor(avail / items.length));
-                // 자연 위치에서 아래로 밀며 배치
-                var prev = -1e9;
-                items.forEach(function (it) { it._ly = Math.max(it.sy, prev + gap); prev = it._ly; });
-                // 바닥을 넘치면 스택 전체를 위로 시프트, 그래도 천장을 넘으면 아래로 보정
+                // 슬라이스가 한쪽(상/하)에 몰려도 라벨은 도넛 세로 중심을 기준으로 균등 분배(쏠림 방지).
+                //   순서는 슬라이스 각도순(sy 정렬) 유지 → 지시선이 서로 교차하지 않음.
+                var span = items.length * gap;
+                var startY = cyc - span / 2 + gap / 2;
+                items.forEach(function (it, i) { it._ly = startY + i * gap; });
+                // 경계를 벗어나면 스택 전체를 보정(바닥 넘침→위로, 천장 넘침→아래로)
                 var over = items[items.length - 1]._ly - maxY;
                 if (over > 0) items.forEach(function (it) { it._ly -= over; });
                 var topOver = minY - items[0]._ly;
