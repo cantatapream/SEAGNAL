@@ -3833,7 +3833,7 @@ async function renderMaintenanceFullTab(container) {
             </div>
             <!-- 선택적 차단 체크박스 (계층형 아코디언) -->
             <div id="maint-feature-list" style="display:${blocked.length > 0 && !config.active ? 'block' : 'none'};padding:14px;background:rgba(0,0,0,0.15);border-radius:10px;border:1px solid rgba(255,255,255,0.08);">
-                <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:10px;line-height:1.5;">차단할 기능을 선택하세요. 상위 항목을 체크하면 하위가 함께 차단되며, 짝꿍 기능(해역별 특보현황↔특보구역, 해역별 기상현황↔기상부이)도 자동으로 함께 차단됩니다.</div>
+                <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:10px;line-height:1.5;">차단할 기능을 선택하세요. 상위 항목을 체크하면 하위가 함께 차단됩니다.</div>
                 ${buildFeatureTreeHtml(featureTree, 0, blocked)}
                 <button onclick="saveBlockedFeatures()" style="margin-top:12px;width:100%;padding:10px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.85rem;">
                     <i class="fa-solid fa-save"></i> 차단 기능 저장
