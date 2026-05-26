@@ -1117,6 +1117,12 @@ function _timeKey(str, refMonth) {
     return mo * 1000000 + d * 10000 + hh * 100 + mm;
 }
 
+/** 범위형 시각인지 (예: "21시~24시", "00~06시"). 정확시각("27일 00시","2026.05.27 00:00")은 false.
+ *  [연장 규칙] 연장은 "범위형 → 더 늦은 범위형" 일 때만. 정확시각으로 바뀌면 연장 아님(시각 변경). */
+function _isRangeTime(str) {
+    return /[~∼]/.test(String(str || ''));
+}
+
 /** run() 에서 매 cycle 호출 — 현재 특보 기억 갱신 + 만료 prune. (_buildUserPushChanges 이후)
  *   zone 별로 phase(active/upcoming) 각각 보관 — 발효+공존예비를 동시에 기억(B 트랙 포함). */
 function _updateExtensionMemory(curr) {
@@ -1262,7 +1268,8 @@ function _buildUserPushChanges(prev, curr) {
                 const kn = _timeKey(currUpcoming.tmEf), ko = _timeKey(oldEf, kn ? Math.floor((kn / 1000000)) : null);
                 const sameType = !oldType || oldType === currUpcoming.wrnTp;
                 const sameLevel = !oldLevel || oldLevel === currUpcoming.wrnLvl;   // 예비 단계는 항상 '예비'
-                if (ko != null && kn != null && kn > ko && sameType && sameLevel && oldEf !== currUpcoming.tmEf) {
+                const bothRange = _isRangeTime(oldEf) && _isRangeTime(currUpcoming.tmEf);   // 범위→범위만 연장
+                if (ko != null && kn != null && kn > ko && sameType && sameLevel && bothRange && oldEf !== currUpcoming.tmEf) {
                     efExtend = { oldTime: oldEf, newTime: currUpcoming.tmEf };
                 }
             }
@@ -1283,7 +1290,8 @@ function _buildUserPushChanges(prev, curr) {
                 const kn = _timeKey(currActive.tmYn), ko = _timeKey(oldYn, kn ? Math.floor((kn / 1000000)) : null);
                 const sameType = !oldType || oldType === currActive.wrnTp;
                 const sameLevel = !!oldLevel && oldLevel === currActive.wrnLvl;   // 등급 변하면 연장 아님(격상격하)
-                if (ko != null && kn != null && kn > ko && sameType && sameLevel && oldYn !== currActive.tmYn) {
+                const bothRange = _isRangeTime(oldYn) && _isRangeTime(currActive.tmYn);   // 범위→범위만 연장(정확시각이면 시각변경)
+                if (ko != null && kn != null && kn > ko && sameType && sameLevel && bothRange && oldYn !== currActive.tmYn) {
                     ynExtend = { oldTime: oldYn, newTime: currActive.tmYn };
                 }
             }
@@ -1358,6 +1366,7 @@ function _buildUserPushChanges(prev, curr) {
                 const oldT = isUp ? (pi.tmEf || '') : (pi.clrNtcTm || pi.tmYn || '');
                 const newT = isUp ? (ci.tmEf || '') : (ci.clrNtcTm || ci.tmYn || '');
                 if (!oldT || !newT || oldT === newT) continue;
+                if (!_isRangeTime(oldT) || !_isRangeTime(newT)) continue;   // 범위→범위만 연장(정확시각이면 시각변경)
                 const kn = _timeKey(newT), ko = _timeKey(oldT, kn ? Math.floor(kn / 1000000) : null);
                 if (ko == null || kn == null || kn <= ko) continue;   // 더 늦어진 경우만(연장)
                 const bucket = isUp ? efKids : ynKids;
