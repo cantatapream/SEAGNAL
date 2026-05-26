@@ -220,8 +220,6 @@
             return String(t);
         }
 
-        // [사용량] 천문(일출몰/월출몰) 카드 표출 성공
-        if (window.trackUsage) window.trackUsage('sheet.astro');
         card.style.display = '';
         card.innerHTML =
             '<div class="ocean-card-icon">' +
@@ -266,8 +264,6 @@
         var lunarAge = (moonInfo.phase * 29.53).toFixed(1);
         var brightPct = Math.round((moonInfo.fraction || 0) * 100);
 
-        // [사용량] 월령(달 위상) 카드 표출 성공
-        if (window.trackUsage) window.trackUsage('sheet.moon');
         card.style.display = '';
         card.innerHTML =
             '<div class="ocean-card-icon ocean-moon-icon">' +

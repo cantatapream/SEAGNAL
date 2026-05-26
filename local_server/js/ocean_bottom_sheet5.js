@@ -40,6 +40,10 @@
     OS.loadAllForDate = function (opts) {
         opts = opts || {};
         var skipHeavy = !!opts.skipHeavy;
+        // [사용량] 바텀시트를 통해 데이터를 얻으면(열기/날짜 변경 = full load) '바텀시트' 1건으로 통합 집계.
+        //   같은 날 게이지 갱신(skipHeavy)은 새 데이터를 받는 게 아니므로 카운트하지 않는다.
+        //   개별 요소(조석/천문/월령/수심/수온/바람/조류/파고/천기)는 더 이상 따로 집계하지 않는다.
+        if (!skipHeavy && window.trackUsage) window.trackUsage('sheet.bottom_sheet');
         var lat = OS.state.lat;
         var lon = OS.state.lon;
         var d = OS.state.date;
@@ -116,8 +120,6 @@
                 if (data && data.success && data.depth != null) {
                     OS.setCardValue('ocean-val-depth', data.depth.toFixed(1) + ' m');
                     OS.showCard('ocean-card-depth');
-                    // [사용량] 수심 표출 성공 (loadAllForDate=open/release 경유라 release-only 보장)
-                    if (window.trackUsage) window.trackUsage('sheet.depth');
                 } else {
                     OS.hideCard('ocean-card-depth');
                 }
@@ -172,8 +174,6 @@
                 if (data.wtem != null) {
                     OS.setCardValue('ocean-val-temp', data.wtem.toFixed(1) + '\u00B0C');
                     OS.showCard('ocean-card-temp');
-                    // [\uC0AC\uC6A9\uB7C9] \uC218\uC628 \uD45C\uCD9C \uC131\uACF5
-                    if (window.trackUsage) window.trackUsage('sheet.water_temp');
                 } else {
                     OS.setCardValue('ocean-val-temp', '데이터 없음');
                 }
@@ -182,8 +182,6 @@
                     OS.state.rawCrdir = data.crdir;
                     OS.renderCurrentWindValues();
                     OS.showCard('ocean-card-current');
-                    // [사용량] 유향유속(조류, ROMS) 표출 성공 → D와 통합 key
-                    if (window.trackUsage) window.trackUsage('ocean.current');
                 } else {
                     OS.setCardValue('ocean-val-current', '데이터 없음');
                 }
@@ -220,8 +218,6 @@
                     OS.state.rawWindDir = data.windDir;
                     OS.renderCurrentWindValues();
                     OS.showCard('ocean-card-wind');
-                    // [사용량] 풍향풍속 표출 성공 → D와 통합 key
-                    if (window.trackUsage) window.trackUsage('ocean.wind');
                 } else {
                     OS.hideCard('ocean-card-wind');
                 }
@@ -250,8 +246,6 @@
                 if (data && data.success && data.waveHeight != null) {
                     OS.setCardValue('ocean-val-wave', data.waveHeight.toFixed(1) + ' m');
                     OS.showCard('ocean-card-wave');
-                    // [사용량] 파고 표출 성공 → D와 통합 key
-                    if (window.trackUsage) window.trackUsage('ocean.wave');
                 } else {
                     OS.hideCard('ocean-card-wave');
                 }

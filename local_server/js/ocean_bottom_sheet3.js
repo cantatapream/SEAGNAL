@@ -702,8 +702,6 @@
             OS.renderTideError('조석 분석 데이터가 비어 있습니다.');
             return;
         }
-        // [사용량] 조석 데이터가 실제 표출되는 성공 분기에서만 +1 (renderTideError 는 제외)
-        if (window.trackUsage) window.trackUsage('sheet.tide');
         peaks.sort(function (a, b) { return a.minutes - b.minutes; });
 
         // 어제/내일 피크 (cross-day 보강용) — tide.js loadAllThreeDays와 동일

@@ -3238,12 +3238,10 @@ var USAGE_FEATURE_LABELS = {
     'shrt.snow': '적설',
     'shrt.sky': '하늘상태',
     'shrt.temp_air': '기온(천기)',
-    // E. 해점 바텀시트
-    'sheet.tide': '조석',
-    'sheet.astro': '천문(일출몰/월출몰)',
-    'sheet.moon': '월령(달 위상)',
-    'sheet.depth': '수심',
-    'sheet.water_temp': '수온',
+    // E. 해점 바텀시트 — 바텀시트로 얻은 데이터는 통합 1건으로 집계.
+    'sheet.bottom_sheet': '해점 바텀시트',
+    // (legacy) 마이그레이션 전 개별 집계분 라벨 — 표시 호환용으로 유지.
+    'sheet.tide': '조석', 'sheet.astro': '천문(일출몰/월출몰)', 'sheet.moon': '월령(달 위상)', 'sheet.depth': '수심', 'sheet.water_temp': '수온',
     // F. 해양생활
     'life.fishing.tab': '바다낚시 탭 진입',
     'life.surfing.tab': '서핑 탭 진입',
@@ -3913,21 +3911,28 @@ function _usageCaptureReady() {
 // 공용 PC(넓은) 배열 캡처 — 대상 요소(카드/대시보드)를 임시로 넓은 폭(1024px)으로 확장하고
 //   포함된 차트를 그 폭에 맞춰 리사이즈한 뒤 html2canvas 로 캡처, 끝나면 원래 폭으로 복원한다.
 //   → 폰의 좁은 세로 배열이 아니라 PC 화면처럼 넓게 배열된 이미지를 저장한다(모든 내보내기 공통).
-function _usageCaptureWide(el, charts, T, filename) {
+// 대상(카드/대시보드)을 이미지로 캡처. wide=true 면 PC(넓은 1024px) 배열, false 면 현재
+//   폰 화면 폭 그대로(모바일 버전). 끝나면 원래 폭으로 복원.
+function _usageCaptureWide(el, charts, T, filename, wide) {
     if (!el) { alert('캡처할 영역을 찾지 못했습니다.'); return; }
     var WIDE = 1024;
     var prevW = el.style.width, prevMax = el.style.maxWidth;
-    el.style.width = WIDE + 'px';
-    el.style.maxWidth = 'none';
-    (charts || []).forEach(function (c) { if (c) { try { c.resize(); } catch (e) {} } });
+    if (wide) {
+        el.style.width = WIDE + 'px';
+        el.style.maxWidth = 'none';
+        (charts || []).forEach(function (c) { if (c) { try { c.resize(); } catch (e) {} } });
+    }
     var restore = function () {
+        if (!wide) return;
         el.style.width = prevW; el.style.maxWidth = prevMax;
         (charts || []).forEach(function (c) { if (c) { try { c.resize(); } catch (e) {} } });
     };
     var raf = window.requestAnimationFrame || function (cb) { setTimeout(cb, 32); };
     raf(function () { raf(function () {  // 폭 변경 + 차트 리사이즈 반영을 위해 2프레임 대기
         _ensureHtml2Canvas().then(function (h2c) {
-            return h2c(el, { backgroundColor: T.appBgSolid, scale: 2, useCORS: true, logging: false, width: WIDE, windowWidth: WIDE });
+            var opts = { backgroundColor: T.appBgSolid, scale: 2, useCORS: true, logging: false };
+            if (wide) { opts.width = WIDE; opts.windowWidth = WIDE; }
+            return h2c(el, opts);
         }).then(function (canvas) {
             restore();
             _usageTriggerDownload(canvas.toDataURL('image/png'), filename, false);
@@ -3938,23 +3943,49 @@ function _usageCaptureWide(el, charts, T, filename) {
     }); });
 }
 
-window.exportUsageImage = function (target) {
+// 이미지 저장 형식 선택 팝업 (데스크탑=넓은 PC 배열 / 모바일=현재 폰 화면) → cb('desktop'|'mobile').
+function _usageImageModePopup(cb) {
     var T = usageThemeTokens();
-    var mode = getUsageTheme();
-    var ymd = new Date().toISOString().slice(0, 10);
-    var suffix = '_' + mode + '_' + ymd + '.png';
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:16px;';
+    ov.innerHTML =
+        '<div style="background:' + (T.cardBgSolid || '#1e2435') + ';border:1px solid ' + T.cardBorder + ';border-radius:14px;padding:20px;max-width:360px;width:100%;color:' + T.text + ';box-shadow:0 12px 40px rgba(0,0,0,0.5);">'
+        + '<div style="font-weight:800;font-size:1rem;margin-bottom:14px;"><i class="fa-solid fa-image"></i> 이미지 저장 형식</div>'
+        + '<label style="display:flex;align-items:center;gap:8px;padding:8px 0;cursor:pointer;"><input type="radio" name="usage-img-mode" value="desktop" checked> 데스크탑 버전 <span style="color:' + T.faint + ';font-size:0.76rem;">(넓은 PC 배열)</span></label>'
+        + '<label style="display:flex;align-items:center;gap:8px;padding:8px 0;cursor:pointer;"><input type="radio" name="usage-img-mode" value="mobile"> 모바일 버전 <span style="color:' + T.faint + ';font-size:0.76rem;">(현재 폰 화면 그대로)</span></label>'
+        + '<div style="display:flex;gap:10px;margin-top:16px;">'
+        + '<button id="usage-imgm-cancel" style="flex:1;padding:10px;background:' + T.ctrlBg + ';border:1px solid ' + T.ctrlBorder + ';border-radius:8px;color:' + T.muted + ';cursor:pointer;">취소</button>'
+        + '<button id="usage-imgm-ok" style="flex:1;padding:10px;background:linear-gradient(135deg,' + T.accent + ',' + T.accent2 + ');border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;">확인 · 저장</button>'
+        + '</div></div>';
+    document.body.appendChild(ov);
+    ov.querySelector('#usage-imgm-cancel').onclick = function () { ov.remove(); };
+    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    ov.querySelector('#usage-imgm-ok').onclick = function () {
+        var m = ov.querySelector('input[name="usage-img-mode"]:checked').value;
+        ov.remove();
+        cb(m);
+    };
+}
 
-    // 폰트/차트 렌더 완료를 보장한 뒤, 모든 대상을 PC(넓은) 배열로 캡처.
-    _usageCaptureReady().then(function () {
-        if (target === 'trend') {
-            _usageCaptureWide(document.getElementById('usage-trend-card'), [usageTrendChart], T, 'seagnal_usage_trend' + suffix);
-        } else if (target === 'aff') {
-            _usageCaptureWide(document.getElementById('usage-aff-card'), [usageAffChart], T, 'seagnal_usage_affiliation' + suffix);
-        } else if (target === 'feature') {
-            _usageCaptureWide(document.getElementById('usage-feature-card'), [usageFeatureChart], T, 'seagnal_usage_feature' + suffix);
-        } else if (target === 'dashboard') {
-            _usageCaptureWide(document.getElementById('usage-root'), [usageTrendChart, usageAffChart, usageFeatureChart], T, 'seagnal_usage_dashboard' + suffix);
-        }
+window.exportUsageImage = function (target) {
+    // 먼저 데스크탑/모바일 버전 선택 → 선택에 따라 캡처 폭 결정.
+    _usageImageModePopup(function (viewMode) {
+        var T = usageThemeTokens();
+        var mode = getUsageTheme();
+        var ymd = new Date().toISOString().slice(0, 10);
+        var suffix = '_' + mode + '_' + viewMode + '_' + ymd + '.png';
+        var wide = (viewMode === 'desktop');
+        _usageCaptureReady().then(function () {
+            if (target === 'trend') {
+                _usageCaptureWide(document.getElementById('usage-trend-card'), [usageTrendChart], T, 'seagnal_usage_trend' + suffix, wide);
+            } else if (target === 'aff') {
+                _usageCaptureWide(document.getElementById('usage-aff-card'), [usageAffChart], T, 'seagnal_usage_affiliation' + suffix, wide);
+            } else if (target === 'feature') {
+                _usageCaptureWide(document.getElementById('usage-feature-card'), [usageFeatureChart], T, 'seagnal_usage_feature' + suffix, wide);
+            } else if (target === 'dashboard') {
+                _usageCaptureWide(document.getElementById('usage-root'), [usageTrendChart, usageAffChart, usageFeatureChart], T, 'seagnal_usage_dashboard' + suffix, wide);
+            }
+        });
     });
 };
 
