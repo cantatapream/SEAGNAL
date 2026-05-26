@@ -3726,11 +3726,21 @@ function _renderUsageDashboard(data, affSel) {
                     meta.data.forEach(function (bar, i) {
                         var v = data[i] || 0;
                         var txt = v.toLocaleString() + '건 · ' + (v / sum * 100).toFixed(1) + '%';
-                        var cx = (x0 + bar.x) / 2;   // 막대 중앙
+                        var tw = ctx.measureText(txt).width;
+                        var barW = bar.x - x0;
+                        var tx, align;
+                        if (barW >= tw + 8) {
+                            // 막대가 충분히 길면 중앙 정렬
+                            tx = (x0 + bar.x) / 2; align = 'center';
+                        } else {
+                            // 짧으면 왼쪽 제목 침범 방지 — 막대 맨 왼쪽부터 시작(오른쪽으로 흘러나감)
+                            tx = x0 + 5; align = 'left';
+                        }
+                        ctx.textAlign = align;
                         ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-                        ctx.strokeText(txt, cx, bar.y);
+                        ctx.strokeText(txt, tx, bar.y);
                         ctx.fillStyle = '#fff';
-                        ctx.fillText(txt, cx, bar.y);
+                        ctx.fillText(txt, tx, bar.y);
                     });
                     ctx.restore();
                 }
