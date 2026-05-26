@@ -3666,13 +3666,25 @@ function _usageDonutLabelPlugin(T) {
                 }
             });
             var canvasW = chart.width;
+            var minY = 20, maxY = chart.height - 20;   // 라벨이 캔버스를 벗어나지 않게 가두는 상하 경계
             ['left', 'right'].forEach(function (side) {
                 var items = sides[side]; if (!items.length) return;
                 var right = side === 'right';
                 items.sort(function (a, b) { return a.sy - b.sy; });
-                var minGap = 30, prev = -1e9;   // 2줄(이름+값)이라 간격 넓힘
+                // 2줄 라벨 간격. 스택이 가용 높이보다 길면 간격을 줄여 모두 들어가게.
+                var avail = maxY - minY;
+                var gap = 34;
+                if (items.length * gap > avail) gap = Math.max(22, Math.floor(avail / items.length));
+                // 자연 위치에서 아래로 밀며 배치
+                var prev = -1e9;
+                items.forEach(function (it) { it._ly = Math.max(it.sy, prev + gap); prev = it._ly; });
+                // 바닥을 넘치면 스택 전체를 위로 시프트, 그래도 천장을 넘으면 아래로 보정
+                var over = items[items.length - 1]._ly - maxY;
+                if (over > 0) items.forEach(function (it) { it._ly -= over; });
+                var topOver = minY - items[0]._ly;
+                if (topOver > 0) items.forEach(function (it) { it._ly += topOver; });
                 items.forEach(function (it) {
-                    var ly = Math.max(it.sy, prev + minGap); prev = ly;
+                    var ly = it._ly;
                     var sx = it.x + Math.cos(it.mid) * it.outer;
                     var syp = it.y + Math.sin(it.mid) * it.outer;
                     var elbowX = it.x + (right ? 1 : -1) * (it.outer + 10);
@@ -3754,8 +3766,9 @@ function _usageRenderAffChart() {
     var wrap = document.getElementById('usage-aff-canvas-wrap');
     if (!el || typeof Chart === 'undefined') return;
     if (_usageAffType === 'doughnut') {
-        if (wrap) wrap.style.height = '280px';
-        usageAffChart = _usageMakeDonut(el, aLabels, aValues, T, 'aff');
+        var boxA = _usageDonutBox(aValues);
+        if (wrap) wrap.style.height = boxA.height + 'px';
+        usageAffChart = _usageMakeDonut(el, aLabels, aValues, T, 'aff', boxA);
     } else {
         if (wrap) wrap.style.height = Math.max(280, aLabels.length * 28 + 40) + 'px';
         usageAffChart = _usageMakeBar(el, aLabels, aValues, T);
@@ -3800,8 +3813,9 @@ function _usageRenderFeatureChart() {
     var wrap = document.getElementById('usage-feat-canvas-wrap');
     if (!el || typeof Chart === 'undefined') return;
     if (_usageFeatType === 'doughnut') {
-        if (wrap) wrap.style.height = '320px';
-        usageFeatureChart = _usageMakeDonut(el, labels, values, T, 'feat');
+        var boxF = _usageDonutBox(values);
+        if (wrap) wrap.style.height = boxF.height + 'px';
+        usageFeatureChart = _usageMakeDonut(el, labels, values, T, 'feat', boxF);
     } else {
         if (wrap) wrap.style.height = Math.max(280, values.length * 28 + 40) + 'px';
         usageFeatureChart = _usageMakeBar(el, labels, values, T);
@@ -3809,8 +3823,9 @@ function _usageRenderFeatureChart() {
 }
 
 // 조각 클릭 확대용 상수: 바깥으로 밀어내는 거리 + 반지름을 키우는 양(확실히 커 보이게).
-var _USAGE_EXPLODE_OFFSET = 22;
-var _USAGE_EXPLODE_GROW = 26;
+//   확대량 합(OFFSET+GROW)만큼 도넛 둘레에 여백이 필요 → 아래 layout.padding 과 함께 맞춰야 잘리지 않음.
+var _USAGE_EXPLODE_OFFSET = 18;
+var _USAGE_EXPLODE_GROW = 22;
 
 // 선택한 "한 조각만" 분리+확대.
 //   Chart.js 의 dataset.offset/hoverOffset 은 도넛 전체 반지름을 줄여 공간을 확보하므로
@@ -3884,12 +3899,63 @@ function _usageToggleExplode(chart, which, next) {
     }
 }
 
-// 도넛 차트 생성(라벨 플러그인 + 그라데이션 + 조각 클릭 확대). which: 'aff'|'feat' (확대 상태 분리 관리).
-function _usageMakeDonut(el, labels, values, T, which) {
+// 도넛 가운데 총합 텍스트(2줄): 윗줄=설명, 아랫줄="총 ####회". 가운데 빈 공간(cutout)에 맞춰 크기 자동 축소.
+function _usageDonutCenterPlugin(T, title) {
+    return {
+        id: 'usageDonutCenter',
+        afterDatasetsDraw: function (chart) {
+            var ds = chart.data.datasets[0]; if (!ds) return;
+            var sum = (ds.data || []).reduce(function (a, b) { return a + (b || 0); }, 0);
+            var meta = chart.getDatasetMeta(0);
+            // 안쪽 구멍 반지름(확대 플러그인은 outerRadius/중심만 바꾸므로 innerRadius 는 기준값 유지).
+            var inner = (meta.data[0] && meta.data[0].innerRadius) || 60;
+            var area = chart.chartArea;
+            var cx = (area.left + area.right) / 2;
+            var cy = (area.top + area.bottom) / 2;
+            var maxW = Math.max(40, inner * 1.7);   // 안쪽 구멍 지름의 약 85%
+            var ctx = chart.ctx;
+            ctx.save();
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            var line2 = '총 ' + sum.toLocaleString() + '회';
+            var f2 = 22;
+            ctx.font = '800 ' + f2 + 'px "Noto Sans KR", sans-serif';
+            while (ctx.measureText(line2).width > maxW && f2 > 11) { f2 -= 1; ctx.font = '800 ' + f2 + 'px "Noto Sans KR", sans-serif'; }
+            var f1 = Math.max(10, Math.round(f2 * 0.62));
+            ctx.fillStyle = T.muted;
+            ctx.font = '600 ' + f1 + 'px "Noto Sans KR", sans-serif';
+            ctx.fillText(title, cx, cy - (f2 * 0.55));
+            ctx.fillStyle = T.text;
+            ctx.font = '800 ' + f2 + 'px "Noto Sans KR", sans-serif';
+            ctx.fillText(line2, cx, cy + (f1 * 0.7));
+            ctx.restore();
+        }
+    };
+}
+
+// 도넛 박스(캔버스) 크기를 내용량+확대를 고려해 유동 계산.
+//   - 도넛 반지름은 R 로 고정(좌우/상하 padding 으로 흡수) → 확대해도 둘레 여백(padTB) 안에서 처리.
+//   - 지시선 라벨(8% 미만 조각)이 많을수록 세로로 더 키워(한쪽 스택이 들어갈 높이) 잘림 방지.
+function _usageDonutBox(values) {
+    var sum = values.reduce(function (a, b) { return a + (b || 0); }, 0) || 1;
+    var nSmall = values.filter(function (v) { return (v / sum * 100) < 8; }).length;
+    var perSide = Math.ceil(nSmall / 2);
+    var R = 122;
+    var explode = _USAGE_EXPLODE_OFFSET + _USAGE_EXPLODE_GROW;   // 확대 시 둘레로 더 나가는 양
+    var donutNeed = 2 * (R + explode) + 36;                       // 도넛지름 + 위아래 확대여유 + 마진
+    var labelNeed = perSide * 40 + 96;                            // 한쪽 지시선 스택(2줄, 라벨당 40px) + 상하 마진
+    var height = Math.max(donutNeed, labelNeed);
+    var padTB = Math.max(explode + 10, Math.round((height - 2 * R) / 2));
+    return { height: height, padTB: padTB, padLR: 88, R: R };
+}
+
+// 도넛 차트 생성(라벨 플러그인 + 그라데이션 + 조각 클릭 확대 + 가운데 총합). which: 'aff'|'feat'.
+function _usageMakeDonut(el, labels, values, T, which, box) {
+    box = box || _usageDonutBox(values);
     var exploded = (which === 'feat') ? _usageFeatExploded : _usageAffExploded;
     // 재생성 시(새로고침/테마전환) 이미 확대 상태면 즉시 확대로 표시(재애니메이션 없이).
     if (which === 'feat') _usageFeatExplodeF = (exploded >= 0) ? 1 : 0;
     else _usageAffExplodeF = (exploded >= 0) ? 1 : 0;
+    var centerTitle = (which === 'feat') ? '누적사용 정보' : '정보 제공';
     return new Chart(el, {
         type: 'doughnut',
         data: {
@@ -3902,10 +3968,12 @@ function _usageMakeDonut(el, labels, values, T, which) {
                 // offset/hoverOffset 미사용: 전체 도넛 축소를 피하고, 선택 조각만 plugin 으로 확대.
             }]
         },
-        plugins: [_usageDonutExplodePlugin(which), _usageDonutLabelPlugin(T)],
+        plugins: [_usageDonutExplodePlugin(which), _usageDonutCenterPlugin(T, centerTitle), _usageDonutLabelPlugin(T)],
         options: {
             responsive: true, maintainAspectRatio: false,
-            layout: { padding: { left: 70, right: 70, top: 12, bottom: 12 } },
+            cutout: '58%',   // 가운데 구멍 크게 → 총합 텍스트 공간 확보
+            // 확대된 조각이 잘리지 않도록 둘레 여백을 충분히(상하=확대여유, 좌우=지시선 라벨용). 박스 높이와 함께 유동.
+            layout: { padding: { left: box.padLR, right: box.padLR, top: box.padTB, bottom: box.padTB } },
             plugins: { legend: { display: false } },
             // (바) 조각 클릭 → 그 조각만 확대 토글. 빈 영역(조각 밖) 클릭 → 원위치.
             onClick: function (evt, elements, chart) {
