@@ -244,6 +244,9 @@ class StateSnapshot {
     constructor(raw = {}) {
         this.parents = raw.parents instanceof Map ? raw.parents : new Map();
         this.children = raw.children instanceof Map ? raw.children : new Map();
+        // [B] 발효중인 해역에 "다가오는(예비)" 특보가 공존할 때 그것을 보관 (발효 우선 드롭 대신).
+        //   parents 가 active 인 zone 의 예비를 upcomings 에 분리 보관 → 병렬 표출.
+        this.upcomings = raw.upcomings instanceof Map ? raw.upcomings : new Map();
     }
 
     static fromJSON(obj) {
@@ -258,17 +261,33 @@ class StateSnapshot {
                 s.children.set(parent, m);
             }
         }
+        if (obj && obj.upcomings) {
+            for (const [k, v] of Object.entries(obj.upcomings)) s.upcomings.set(k, v);
+        }
         return s;
     }
 
     toJSON() {
-        const obj = { parents: {}, children: {} };
+        const obj = { parents: {}, children: {}, upcomings: {} };
         for (const [k, v] of this.parents) obj.parents[k] = v;
         for (const [parent, m] of this.children) {
             obj.children[parent] = {};
             for (const [k, v] of m) obj.children[parent][k] = v;
         }
+        for (const [k, v] of this.upcomings) obj.upcomings[k] = v;
         return obj;
+    }
+
+    /** zone 의 다가오는(예비) 특보: parents 가 예비면 그것, 아니면 upcomings. */
+    getUpcoming(name) {
+        const p = this.parents.get(name);
+        if (p && p.wrnLvlNm === '예비') return p;
+        return this.upcomings.get(name) || null;
+    }
+    /** zone 의 발효중(active) 특보: parents 가 active(예비·해제 아님)면 그것. */
+    getActive(name) {
+        const p = this.parents.get(name);
+        return (p && p.wrnLvlNm && p.wrnLvlNm !== '예비' && p.wrnLvlNm !== '해제') ? p : null;
     }
 
     getParent(name) { return this.parents.get(name) || null; }
@@ -1023,7 +1042,22 @@ function _applyAnnounceAnchor(prev, curr) {
         for (const [zone, info] of curr.parents) {
             if (!info || !info.wrnLvlNm || info.wrnLvlNm === '해제') continue;
             const pinfo = prev && prev.parents ? prev.parents.get(zone) : null;
-            if (carry(pinfo, info)) info.tmFc = pinfo.tmFc;   // 직전 고정값 이어받기
+            if (carry(pinfo, info)) { info.tmFc = pinfo.tmFc; continue; }   // 직전 고정값 이어받기
+            // [B] 격상/격하 발효: 직전에 공존하던 예비(upcomings)는 새 발효 등급의 전구체이므로
+            //   그 예비의 발표시각을 이어받음 (예비는 wrnLvlNm 이 '예비'라 등급 인코딩이 없어
+            //   같은 종류이면 인계). 경보 예비 → 경보 발효 시 경보 최초(예비) 발표시각 유지.
+            const pUp = prev && prev.upcomings ? prev.upcomings.get(zone) : null;
+            if (pUp && pUp.tmFc && pUp.wrnTpNm === info.wrnTpNm) {
+                info.tmFc = pUp.tmFc;
+            }
+        }
+    }
+    // [B] 공존 다가오는(예비) 도 자기 최초 발표시각 고정
+    if (curr.upcomings) {
+        for (const [zone, info] of curr.upcomings) {
+            if (!info || !info.wrnLvlNm) continue;
+            const pUp = prev && prev.upcomings ? prev.upcomings.get(zone) : null;
+            if (carry(pUp, info)) info.tmFc = pUp.tmFc;
         }
     }
     if (curr.children) {
@@ -1093,6 +1127,19 @@ function _buildUserPushChanges(prev, curr) {
     const allZones = new Set();
     if (prev.parents) for (const k of prev.parents.keys()) allZones.add(k);
     if (curr.parents) for (const k of curr.parents.keys()) allZones.add(k);
+    if (prev.upcomings) for (const k of prev.upcomings.keys()) allZones.add(k);
+    if (curr.upcomings) for (const k of curr.upcomings.keys()) allZones.add(k);
+
+    // [B] zone 의 다가오는(예비)/발효 추출 — parents 가 예비면 그것, 아니면 upcomings.
+    const getUp = (snap, zone) => {
+        const p = snap.parents ? snap.parents.get(zone) : null;
+        if (p && p.wrnLvlNm === '예비') return p;
+        return snap.upcomings ? (snap.upcomings.get(zone) || null) : null;
+    };
+    const getAct = (snap, zone) => {
+        const p = snap.parents ? snap.parents.get(zone) : null;
+        return (p && p.wrnLvlNm && p.wrnLvlNm !== '예비' && p.wrnLvlNm !== '해제') ? p : null;
+    };
 
     const toBlock = (info) => info ? {
         wrnTp: info.wrnTpNm || info.wrnTp || '',
@@ -1138,16 +1185,17 @@ function _buildUserPushChanges(prev, curr) {
     } : null;
 
     for (const zone of allZones) {
-        const p = prev.parents ? prev.parents.get(zone) : null;
-        const c = curr.parents ? curr.parents.get(zone) : null;
+        const c = curr.parents ? curr.parents.get(zone) : null;   // 자식 독립 블록 가드용(부모 존재)
 
-        if (!p && !c) continue;
+        // [B] upcoming 은 parents 예비 또는 upcomings 에서, active 는 parents 에서 추출 (병렬 지원)
+        const pUp = getUp(prev, zone), cUp = getUp(curr, zone);
+        const pAct = getAct(prev, zone), cAct = getAct(curr, zone);
+        if (!pUp && !cUp && !pAct && !cAct) continue;
 
-        // prev / curr 각각 upcoming / active 블록 추출
-        const prevUpcoming = isUpcoming(p) ? toBlock(p) : null;
-        const currUpcoming = isUpcoming(c) ? toBlock(c) : null;
-        const prevActive = isActive(p) ? toBlock(p) : null;
-        const currActive = isActive(c) ? toBlock(c) : null;
+        const prevUpcoming = toBlock(pUp);
+        const currUpcoming = toBlock(cUp);
+        const prevActive = toBlock(pAct);
+        const currActive = toBlock(cAct);
 
         const all = PARENT_TO_CHILDREN[zone] || [];
         const prevChildren = childKeys(prev, zone);
@@ -1571,26 +1619,36 @@ function _buildZoneTreeFromSnapshot(snap) {
     //   - wrnLvl 이 한글 "주의보" (mmis 는 "2" 코드)
     //   - tmCc 가 해제예고 (mmis 는 clrNtcTm)
     // 다운스트림 영향 최소화 위해 본 빌더가 옛 구조로 변환 + 신규 필드 병기.
+    const toBlock = (info) => ({
+        wrnTp: info.wrnTpNm || info.wrnTp || '',       // 한글 우선 (data.js:269 호환)
+        wrnTpNm: info.wrnTpNm || '',
+        wrnLvl: info.wrnLvlNm || info.wrnLvl || '',    // 한글 우선
+        wrnLvlNm: info.wrnLvlNm || '',
+        tmFc: normalizeMmisTime(info.tmFc),
+        tmEf: normalizeMmisTime(info.tmEf),
+        tmYn: normalizeMmisTime(info.tmYn),
+        tmCc: normalizeMmisTime(info.clrNtcTm),        // 옛 tmCc = mmis clrNtcTm
+        clrNtcTm: normalizeMmisTime(info.clrNtcTm),    // 신규 필드 (양 형식 모두 지원)
+        source: 'MARINE_MMIS'
+    });
     for (const [parentName, info] of snap.parents) {
         const leaf = leafByName.get(parentName);
         if (!leaf) continue;
         if (!info || !info.wrnLvlNm) continue;
-        const block = {
-            wrnTp: info.wrnTpNm || info.wrnTp || '',       // 한글 우선 (data.js:269 호환)
-            wrnTpNm: info.wrnTpNm || '',
-            wrnLvl: info.wrnLvlNm || info.wrnLvl || '',    // 한글 우선
-            wrnLvlNm: info.wrnLvlNm || '',
-            tmFc: normalizeMmisTime(info.tmFc),
-            tmEf: normalizeMmisTime(info.tmEf),
-            tmYn: normalizeMmisTime(info.tmYn),
-            tmCc: normalizeMmisTime(info.clrNtcTm),        // 옛 tmCc = mmis clrNtcTm
-            clrNtcTm: normalizeMmisTime(info.clrNtcTm),    // 신규 필드 (양 형식 모두 지원)
-            source: 'MARINE_MMIS'
-        };
         if (info.wrnLvlNm === '예비') {
-            leaf.upcoming = block;
+            leaf.upcoming = toBlock(info);
         } else if (info.wrnLvlNm !== '해제') {
-            leaf.current = block;
+            leaf.current = toBlock(info);
+        }
+    }
+    // [B] 발효중 해역에 공존하는 "다가오는(예비)" 특보 → leaf.upcoming 병렬 표출.
+    //   parents 가 이미 예비여서 upcoming 이 찬 경우는 덮어쓰지 않음.
+    if (snap.upcomings) {
+        for (const [parentName, info] of snap.upcomings) {
+            const leaf = leafByName.get(parentName);
+            if (!leaf || leaf.upcoming) continue;
+            if (!info || !info.wrnLvlNm || info.wrnLvlNm === '해제') continue;
+            leaf.upcoming = toBlock(info);
         }
     }
 
@@ -1821,8 +1879,12 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
         if (!name) continue;
         const parent = _extractParent(name);
         if (parent === name) {
-            // 부모형 예비 — 발효중이면 유지(skip)
-            if (snap.parents.has(name)) continue;
+            // 부모형 예비 — 발효중이면 parents 는 유지하되, 예비를 upcomings 에 보관(병렬 표출용).
+            //   [B] 과거엔 발효 우선으로 드롭했으나, 다가오는 특보를 별도 트랙으로 보존.
+            if (snap.parents.has(name)) {
+                if (!snap.upcomings.has(name)) snap.upcomings.set(name, _rowToParentInfo(row));
+                continue;
+            }
             snap.parents.set(name, _rowToParentInfo(row));
         } else {
             addChild(name, row);   // 자식형 예비 (addChild 가 발효 우선 보장)
