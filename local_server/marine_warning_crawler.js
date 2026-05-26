@@ -1215,6 +1215,53 @@ function _applyUpcomingEfLogic(prev, curr) {
     });
 }
 
+// ============================================================================
+// [발효/해제 예정시각 변경 디바운스] 새 시각값이 3분(연속) 유지될 때만 변경/연장 푸시 발송.
+//   값이 진동(A→B→A)하면 확정 안 되어 푸시 억제 — warn/latest 가 값을 흔들거나 5분+ 공백
+//   복귀 등 잔여 오실레이션까지 차단. 확정 전엔 직전 확정값으로 되돌려(표출·푸시 억제) +
+//   연장 플래그도 제거. 최초값(신규 발표/발효)은 즉시 수락(디바운스 안 함).
+//   _applyTimeWindowHold(고정) 이후, _buildUserPushChanges 이전에 호출.
+// ============================================================================
+const TIME_CHANGE_DEBOUNCE_MS = 3 * 60 * 1000;   // 3분
+let _tcConfirmed = {};   // key "zone|field" → 확정 시각값
+let _tcPending = {};      // key "zone|field" → { value, since }
+function _debounceTimeValues(curr) {
+    if (!curr) return;
+    const now = Date.now();
+    const seen = new Set();
+    const gate = (zone, info, field, flag) => {
+        const cur = info[field];
+        if (!cur) return;
+        const key = zone + '|' + field;
+        seen.add(key);
+        const conf = _tcConfirmed[key];
+        if (conf == null) { _tcConfirmed[key] = cur; delete _tcPending[key]; return; }   // 최초 수락
+        if (cur === conf || _sameReleaseMoment(cur, conf)) { delete _tcPending[key]; return; }   // 변화 없음
+        // 값이 달라짐 → 디바운스
+        const p = _tcPending[key];
+        if (p && (p.value === cur || _sameReleaseMoment(p.value, cur))) {
+            if (now - p.since >= TIME_CHANGE_DEBOUNCE_MS) {
+                _tcConfirmed[key] = cur; delete _tcPending[key];   // 3분 유지 → 확정 (이번 사이클 푸시 허용)
+                return;
+            }
+        } else {
+            _tcPending[key] = { value: cur, since: now };   // 새 후보 (타이머 리셋)
+        }
+        info[field] = conf;                 // 미확정 → 직전 확정값으로 되돌려 푸시·표출 억제
+        if (flag && info[flag]) delete info[flag];   // 연장 플래그도 보류
+    };
+    if (curr.parents) for (const [zone, info] of curr.parents) {
+        if (!info || !info.wrnLvlNm || info.wrnLvlNm === '해제') continue;
+        if (info.wrnLvlNm === '예비') gate(zone, info, 'tmEf', '_efExtend');
+        else gate(zone, info, 'clrNtcTm', '_clrExtend');
+    }
+    if (curr.upcomings) for (const [zone, info] of curr.upcomings) {
+        if (info && info.wrnLvlNm === '예비') gate(zone, info, 'tmEf', '_efExtend');
+    }
+    for (const k of Object.keys(_tcConfirmed)) if (!seen.has(k)) delete _tcConfirmed[k];
+    for (const k of Object.keys(_tcPending)) if (!seen.has(k)) delete _tcPending[k];
+}
+
 /** run() 에서 매 cycle 호출 — 현재 특보 기억 갱신 + 만료 prune. (_buildUserPushChanges 이후)
  *   zone 별로 phase(active/upcoming) 각각 보관 — 발효+공존예비를 동시에 기억(B 트랙 포함). */
 function _updateExtensionMemory(curr) {
@@ -2420,6 +2467,10 @@ async function run(opts = {}) {
         // 4-E) [발효시각 고정/연장] 예비/발표대기 발효예정: 위와 동일 정책의 발효시각판.
         _applyUpcomingEfLogic(prevForDiff, curr);
 
+        // 4-F) [시각변경 디바운스] 발효/해제예정 새 값이 3분 유지될 때만 변경/연장 푸시.
+        //   진동(값 왔다갔다) 시 확정 안 되어 푸시 억제. _buildUserPushChanges 전 적용.
+        _debounceTimeValues(curr);
+
         // 5) diff + dispatch + flush (관리자 push) — [수정1] 관리자 채널 비활성.
         //    runDiffAndPush 는 관리자(dmdw) 푸시 전용이므로 비활성 시 호출 자체 skip.
         let sent = [];
@@ -2503,6 +2554,7 @@ module.exports = {
     _applyAnnounceAnchor,
     _applyReleaseClrLogic,
     _applyUpcomingEfLogic,
+    _debounceTimeValues,
     // [D-6 (A)] 시간 형식 변환 (테스트용 노출)
     normalizeMmisTime,
     // [D-medium 인터랙티브] 의심 가드 + 결정 API
