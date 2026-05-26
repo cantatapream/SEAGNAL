@@ -830,6 +830,11 @@ function _applySuspiciousGuard(prev, curr) {
             if (pkids && pkids.size > 0 && !curr.children.has(name)) {
                 curr.children.set(name, new Map(pkids));
             }
+            // [B] 공존 다가오는(예비)도 복원 — 글리치 사이클에 병렬 예비 깜빡임 방지
+            const pUp = prev.upcomings ? prev.upcomings.get(name) : null;
+            if (pUp && curr.upcomings && !curr.upcomings.has(name)) {
+                curr.upcomings.set(name, pUp);
+            }
         }
         result.skipped = suspiciousZones.slice();
     } else {
@@ -1102,22 +1107,33 @@ function _timeKey(str, refMonth) {
     return mo * 1000000 + d * 10000 + hh * 100 + mm;
 }
 
-/** run() 에서 매 cycle 호출 — 현재 특보 기억 갱신 + 만료 prune. (_buildUserPushChanges 이후) */
+/** run() 에서 매 cycle 호출 — 현재 특보 기억 갱신 + 만료 prune. (_buildUserPushChanges 이후)
+ *   zone 별로 phase(active/upcoming) 각각 보관 — 발효+공존예비를 동시에 기억(B 트랙 포함). */
 function _updateExtensionMemory(curr) {
     const now = Date.now();
+    const rec = (zone, info, phase) => {
+        if (!info || !info.wrnLvlNm || info.wrnLvlNm === '해제') return;
+        if (!_extensionMemory[zone]) _extensionMemory[zone] = {};
+        _extensionMemory[zone][phase] = {
+            wrnTpNm: info.wrnTpNm || '', wrnLvlNm: info.wrnLvlNm || '',
+            tmEf: info.tmEf || '', clrNtcTm: info.clrNtcTm || info.tmYn || '',
+            lastSeenAt: now
+        };
+    };
     if (curr && curr.parents) {
         for (const [zone, info] of curr.parents) {
-            if (!info || !info.wrnLvlNm || info.wrnLvlNm === '해제') continue;
-            const phase = info.wrnLvlNm === '예비' ? 'upcoming' : 'active';
-            _extensionMemory[zone] = {
-                phase, wrnTpNm: info.wrnTpNm || '',
-                tmEf: info.tmEf || '', clrNtcTm: info.clrNtcTm || info.tmYn || '',
-                lastSeenAt: now
-            };
+            rec(zone, info, info.wrnLvlNm === '예비' ? 'upcoming' : 'active');
         }
     }
+    if (curr && curr.upcomings) {
+        for (const [zone, info] of curr.upcomings) rec(zone, info, 'upcoming');   // [B] 공존 예비도 기억
+    }
     for (const z of Object.keys(_extensionMemory)) {
-        if (now - (_extensionMemory[z].lastSeenAt || 0) > EXTENSION_MEMORY_TTL_MS) delete _extensionMemory[z];
+        const e = _extensionMemory[z];
+        for (const ph of Object.keys(e)) {
+            if (now - (e[ph].lastSeenAt || 0) > EXTENSION_MEMORY_TTL_MS) delete e[ph];
+        }
+        if (Object.keys(e).length === 0) delete _extensionMemory[z];
     }
 }
 
@@ -1205,37 +1221,43 @@ function _buildUserPushChanges(prev, curr) {
         const upcomingChanged = !blockEqual(prevUpcoming, currUpcoming);
         const activeChanged = !blockEqual(prevActive, currActive);
 
-        // [연장 감지] 발효예정 연장 (예비 단계): 같은 종류 예비인데 발효예정(tmEf)이 더 늦어짐.
+        // [연장 감지] 발효예정 연장 (예비 단계): 같은 종류·동급 예비인데 발효예정(tmEf)이 더 늦어짐.
         //   prev 가 있으면 prev 와, 없으면(null gap) _extensionMemory 의 직전 예비와 비교.
         let efExtend = null;
         if (currUpcoming) {
             let oldEf = prevUpcoming ? prevUpcoming.tmEf : null;
             let oldType = prevUpcoming ? prevUpcoming.wrnTp : null;
+            let oldLevel = prevUpcoming ? prevUpcoming.wrnLvl : null;
             if (!oldEf) {
-                const mem = _extensionMemory[zone];
-                if (mem && mem.phase === 'upcoming') { oldEf = mem.tmEf; oldType = mem.wrnTpNm; }
+                const mem = _extensionMemory[zone] && _extensionMemory[zone].upcoming;
+                if (mem) { oldEf = mem.tmEf; oldType = mem.wrnTpNm; oldLevel = mem.wrnLvlNm; }
             }
             if (oldEf && currUpcoming.tmEf) {
                 const kn = _timeKey(currUpcoming.tmEf), ko = _timeKey(oldEf, kn ? Math.floor((kn / 1000000)) : null);
                 const sameType = !oldType || oldType === currUpcoming.wrnTp;
-                if (ko != null && kn != null && kn > ko && sameType && oldEf !== currUpcoming.tmEf) {
+                const sameLevel = !oldLevel || oldLevel === currUpcoming.wrnLvl;   // 예비 단계는 항상 '예비'
+                if (ko != null && kn != null && kn > ko && sameType && sameLevel && oldEf !== currUpcoming.tmEf) {
                     efExtend = { oldTime: oldEf, newTime: currUpcoming.tmEf };
                 }
             }
         }
-        // [연장 감지] 해제예정 연장 (발효 단계): 같은 종류 발효인데 해제예정(tmYn=clrNtcTm)이 더 늦어짐.
+        // [연장 감지] 해제예정 연장 (발효 단계): 같은 종류·동급 발효인데 해제예정(tmYn)이 더 늦어짐.
+        //   [중요] 등급(level)이 다르면 연장이 아니라 격상/격하 → 연장으로 오분류하면 격상/격하
+        //   푸시가 사라지므로 반드시 동급일 때만 연장으로 본다.
         let ynExtend = null;
         if (currActive && currActive.tmYn) {
             let oldYn = prevActive ? prevActive.tmYn : null;
             let oldType = prevActive ? prevActive.wrnTp : null;
+            let oldLevel = prevActive ? prevActive.wrnLvl : null;
             if (!oldYn) {
-                const mem = _extensionMemory[zone];
-                if (mem && mem.phase === 'active') { oldYn = mem.clrNtcTm; oldType = mem.wrnTpNm; }
+                const mem = _extensionMemory[zone] && _extensionMemory[zone].active;
+                if (mem) { oldYn = mem.clrNtcTm; oldType = mem.wrnTpNm; oldLevel = mem.wrnLvlNm; }
             }
             if (oldYn) {
                 const kn = _timeKey(currActive.tmYn), ko = _timeKey(oldYn, kn ? Math.floor((kn / 1000000)) : null);
                 const sameType = !oldType || oldType === currActive.wrnTp;
-                if (ko != null && kn != null && kn > ko && sameType && oldYn !== currActive.tmYn) {
+                const sameLevel = !!oldLevel && oldLevel === currActive.wrnLvl;   // 등급 변하면 연장 아님(격상격하)
+                if (ko != null && kn != null && kn > ko && sameType && sameLevel && oldYn !== currActive.tmYn) {
                     ynExtend = { oldTime: oldYn, newTime: currActive.tmYn };
                 }
             }
@@ -1305,6 +1327,7 @@ function _buildUserPushChanges(prev, curr) {
                 if (!prevChildren.includes(cn)) continue;
                 const pi = childInfoOf(prev, zone, cn), ci = childInfoOf(curr, zone, cn);
                 if (!pi || !ci) continue;
+                if (pi.wrnLvlNm !== ci.wrnLvlNm) continue;   // 등급 변하면 연장 아님(격상/격하) — 오분류 방지
                 const isUp = ci.wrnLvlNm === '예비';
                 const oldT = isUp ? (pi.tmEf || '') : (pi.clrNtcTm || pi.tmYn || '');
                 const newT = isUp ? (ci.tmEf || '') : (ci.clrNtcTm || ci.tmYn || '');
