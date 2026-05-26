@@ -102,4 +102,40 @@ router.get('/api/stats/visitors', (req, res) => {
     }
 });
 
+/**
+ * GET /api/stats/visitors/csv
+ * 방문자 통계 CSV 다운로드 (Capacitor WebView 호환 — 실제 서버 URL + BOM + Content-Disposition).
+ * 쿼리: period=daily|monthly (기본 daily), start/end=YYYY-MM-DD (없으면 전체).
+ */
+router.get('/api/stats/visitors/csv', (req, res) => {
+    try {
+        const stats = visitQueue.getStatsSnapshot() || {};
+        const period = req.query.period === 'monthly' ? 'monthly' : 'daily';
+        const start = req.query.start || '';
+        const end = req.query.end || '';
+        const esc = v => '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"';
+        const agg = {};
+        Object.keys(stats).forEach(d => {
+            if (start && d < start) return;
+            if (end && d > end) return;
+            const bucket = period === 'monthly' ? d.substring(0, 7) : d;
+            agg[bucket] = (agg[bucket] || 0) + ((stats[d] && stats[d].total) || 0);
+        });
+        const rows = [];
+        rows.push(esc('SEAGNAL 방문자 통계'));
+        rows.push([esc('기간 구분'), esc(period === 'monthly' ? '월별' : '일별')].join(','));
+        rows.push([esc('조회 범위'), esc((start || '') + ' ~ ' + (end || ''))].join(','));
+        rows.push('');
+        rows.push([esc('구간'), esc('방문수')].join(','));
+        Object.keys(agg).sort().forEach(b => rows.push([esc(b), esc(agg[b])].join(',')));
+        const csv = '﻿' + rows.join('\n');
+        const fname = 'seagnal_visitors_' + new Date().toISOString().slice(0, 10) + '.csv';
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="' + encodeURIComponent(fname) + '"');
+        res.send(csv);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 module.exports = router;

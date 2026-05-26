@@ -2654,6 +2654,7 @@ async function renderUnifiedStatsContent(container) {
                     <span id="stats-date-separator" style="color:#475569;">~</span>
                     <input type="date" id="stats-end-date" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; padding:4px 8px; font-size:0.8rem;">
                     <button onclick="window.refreshStatsDash()" style="background:#3b82f6; border:none; color:#fff; padding:5px 10px; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer;">적용</button>
+                    <button onclick="window.exportVisitorCsv()" title="방문자 통계 CSV 내보내기" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; padding:5px 10px; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer;"><i class="fa-solid fa-file-csv"></i> CSV</button>
                 </div>
             </div>
 
@@ -3329,6 +3330,7 @@ var usageFeatureChart = null;   // 기능별 막대 인스턴스
 var _usageLastData = null;      // 마지막 집계 응답 (CSV/이미지 export 용)
 var _usageLastQuery = null;     // 마지막 조회 조건 (period/start/end/aff)
 var _usagePendingAff = null;    // 테마 토글 재렌더 시 복원할 소속 선택값
+var _usageTrendStore = null;    // 추이 멀티라인용 { buckets, total[], byFeature{} }
 
 /**
  * 사용량 통계 대시보드를 렌더링합니다. (종합 통계 > 사용량 통계 하위탭)
@@ -3357,6 +3359,10 @@ async function renderUsageStatsContent(container) {
              <div><i class="fa-solid fa-gauge-high" style="color:${T.cyan};"></i> 사용량 통계 분석</div>
              <div style="display:flex; align-items:center; gap:10px;">
                 <span style="font-size:0.72rem; color:${T.faint};">KST · 소속은 설문 응답으로 조회 시점 매핑</span>
+                <button id="usage-landscape-toggle" onclick="window.toggleUsageLandscape()" title="가로보기 (화면 회전 · 영역을 나가면 자동 세로 복귀)"
+                        style="${iconBtn}">
+                    <i class="fa-solid fa-mobile-screen fa-rotate-90"></i> 가로
+                </button>
                 <button id="usage-theme-toggle" onclick="window.toggleUsageTheme()" title="다크/화이트 모드"
                         style="${iconBtn}">
                     <i class="fa-solid ${mode === 'light' ? 'fa-moon' : 'fa-sun'}"></i>
@@ -3423,8 +3429,9 @@ async function renderUsageStatsContent(container) {
             </div>
 
             <!-- 추이 차트 -->
-            <div id="usage-trend-card" class="usage-card" style="background:${T.cardBg}; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow}; border-radius:16px; padding:20px; margin-bottom:20px; height:320px; position:relative;">
-                <div style="font-weight:700; font-size:0.85rem; color:${T.muted}; margin-bottom:10px;">기간 추이</div>
+            <div id="usage-trend-card" class="usage-card" style="background:${T.cardBg}; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow}; border-radius:16px; padding:20px; margin-bottom:20px; position:relative;">
+                <div style="font-weight:700; font-size:0.85rem; color:${T.muted}; margin-bottom:8px;">기간 추이 <span style="font-weight:400; color:${T.faint}; font-size:0.72rem;">· 전체 합계 또는 기능 선택(중복 가능)</span></div>
+                <div id="usage-trend-controls" style="display:flex; gap:6px; flex-wrap:nowrap; overflow-x:auto; padding-bottom:8px; margin-bottom:6px; -webkit-overflow-scrolling:touch;"></div>
                 <div style="position:relative; height:250px;"><canvas id="usage-trend-chart"></canvas></div>
             </div>
 
@@ -3452,7 +3459,6 @@ async function renderUsageStatsContent(container) {
                         <thead id="usage-feature-thead" style="position:sticky; top:0; background:${T.ctrlBg}; color:${T.muted}; text-align:left;">
                             <tr>
                                 <th style="padding:10px 20px; border-bottom:1px solid ${T.cardBorder};">기능</th>
-                                <th style="padding:10px 20px; border-bottom:1px solid ${T.cardBorder};">key</th>
                                 <th style="padding:10px 20px; border-bottom:1px solid ${T.cardBorder}; text-align:right;">건수</th>
                                 <th style="padding:10px 20px; border-bottom:1px solid ${T.cardBorder}; text-align:right;">비중</th>
                             </tr>
@@ -3580,38 +3586,25 @@ function _renderUsageDashboard(data, affSel) {
     document.getElementById('usage-stat-assigned').textContent = (data.assignedDeviceCount || 0).toLocaleString();
     document.getElementById('usage-stat-unassigned').textContent = (data.unassignedDeviceCount || 0).toLocaleString();
 
-    // ── 추이 라인차트 (테마 색/그리드/폰트 적용) ──
+    // ── 추이 라인차트: 전체 합계 + 기능별(중복 선택) 멀티라인 ──
     var trend = data.trend || [];
-    var tLabels = trend.map(function (t) { return t.bucket; });
-    var tValues = trend.map(function (t) { return t.total; });
-    if (usageTrendChart) { try { usageTrendChart.destroy(); } catch (e) {} usageTrendChart = null; }
-    var trendEl = document.getElementById('usage-trend-chart');
-    if (trendEl && typeof Chart !== 'undefined') {
-        usageTrendChart = new Chart(trendEl, {
-            type: 'line',
-            data: {
-                labels: tLabels,
-                datasets: [{
-                    label: '사용 건수',
-                    data: tValues,
-                    borderColor: T.accent,
-                    backgroundColor: _usageHexToRgba(T.accent, 0.15),
-                    fill: true,
-                    tension: 0.3,
-                    pointRadius: 2,
-                    pointBackgroundColor: T.accent2
-                }]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { labels: { color: T.muted } } },
-                scales: {
-                    x: { ticks: { color: T.faint }, grid: { color: T.gridLine } },
-                    y: { beginAtZero: true, ticks: { color: T.faint }, grid: { color: T.gridLine } }
-                }
-            }
-        });
+    _usageTrendStore = {
+        buckets: trend.map(function (t) { return t.bucket; }),
+        total: trend.map(function (t) { return t.total; }),
+        byFeature: data.trendByFeature || {}
+    };
+    // 기능 선택 칩(건수 내림차순). 기본은 '전체 합계'만 체크.
+    var trendCtrl = document.getElementById('usage-trend-controls');
+    if (trendCtrl) {
+        var bf0 = data.byFeature || {};
+        var featKeys = Object.keys(bf0).sort(function (a, b) { return bf0[b] - bf0[a]; });
+        var chip = 'display:inline-flex;align-items:center;gap:4px;white-space:nowrap;padding:4px 10px;border:1px solid ' + T.cardBorder + ';border-radius:14px;background:' + T.ctrlBg + ';color:' + T.muted + ';font-size:0.72rem;cursor:pointer;';
+        trendCtrl.innerHTML = '<label style="' + chip + '"><input type="checkbox" id="usage-trend-total" checked onchange="window._usageRedrawTrend()" style="margin:0;"> 전체 합계</label>'
+            + featKeys.map(function (k) {
+                return '<label style="' + chip + '"><input type="checkbox" class="usage-trend-feat" value="' + k + '" onchange="window._usageRedrawTrend()" style="margin:0;"> ' + usageFeatureLabel(k) + '</label>';
+            }).join('');
     }
+    window._usageRedrawTrend();
 
     // ── 소속 도넛 (테마 series + 테두리) ──
     var dist = data.affiliationDistribution || [];
@@ -3674,13 +3667,12 @@ function _renderUsageDashboard(data, affSel) {
     var tbody = document.getElementById('usage-feature-table-body');
     if (tbody) {
         if (!featRows.length) {
-            tbody.innerHTML = '<tr><td colspan="4" style="padding:20px;text-align:center;color:' + T.faint + ';">집계된 사용량이 없습니다.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" style="padding:20px;text-align:center;color:' + T.faint + ';">집계된 사용량이 없습니다.</td></tr>';
         } else {
             tbody.innerHTML = featRows.map(function (r) {
                 var pct = ((r.count / grand) * 100).toFixed(1);
                 return '<tr>'
                     + '<td style="padding:8px 20px;border-bottom:1px solid ' + T.cardBorder + ';">' + usageFeatureLabel(r.key) + '</td>'
-                    + '<td style="padding:8px 20px;border-bottom:1px solid ' + T.cardBorder + ';color:' + T.faint + ';font-size:0.75rem;">' + r.key + '</td>'
                     + '<td style="padding:8px 20px;border-bottom:1px solid ' + T.cardBorder + ';text-align:right;">' + r.count.toLocaleString() + '</td>'
                     + '<td style="padding:8px 20px;border-bottom:1px solid ' + T.cardBorder + ';text-align:right;">' + pct + '%</td>'
                     + '</tr>';
@@ -3688,6 +3680,60 @@ function _renderUsageDashboard(data, affSel) {
         }
     }
 }
+
+// 추이 차트 재렌더: 체크된 항목(전체 합계 / 기능별 다중)에 맞춰 멀티라인 구성.
+//   - 기능별 데이터는 _usageTrendStore.byFeature[key] (서버가 전체 bucket 축에 정렬해 줌).
+//   - 기능을 하나도 안 고르면 전체 합계만, 여러 개 고르면 각 기능 라인 + (선택 시)합계.
+window._usageRedrawTrend = function () {
+    if (!_usageTrendStore) return;
+    var T = usageThemeTokens();
+    var store = _usageTrendStore;
+    var totalCb = document.getElementById('usage-trend-total');
+    var showTotal = !totalCb || totalCb.checked;
+    var featCbs = Array.prototype.slice.call(document.querySelectorAll('.usage-trend-feat:checked'));
+    var datasets = [];
+    if (showTotal) {
+        datasets.push({
+            label: '전체 합계', data: store.total,
+            borderColor: T.accent, backgroundColor: _usageHexToRgba(T.accent, 0.12),
+            fill: featCbs.length === 0, tension: 0.3, pointRadius: 2, pointBackgroundColor: T.accent2
+        });
+    }
+    featCbs.forEach(function (cb, i) {
+        var key = cb.value;
+        var arr = store.byFeature[key] || [];
+        var col = T.series[i % T.series.length];
+        datasets.push({
+            label: usageFeatureLabel(key),
+            data: arr.map(function (p) { return p.total; }),
+            borderColor: col, backgroundColor: _usageHexToRgba(col, 0.10),
+            fill: false, tension: 0.3, pointRadius: 2, pointBackgroundColor: col
+        });
+    });
+    if (!datasets.length) {
+        datasets.push({
+            label: '전체 합계', data: store.total,
+            borderColor: T.accent, backgroundColor: _usageHexToRgba(T.accent, 0.12),
+            fill: true, tension: 0.3, pointRadius: 2, pointBackgroundColor: T.accent2
+        });
+    }
+    if (usageTrendChart) { try { usageTrendChart.destroy(); } catch (e) {} usageTrendChart = null; }
+    var el = document.getElementById('usage-trend-chart');
+    if (el && typeof Chart !== 'undefined') {
+        usageTrendChart = new Chart(el, {
+            type: 'line',
+            data: { labels: store.buckets, datasets: datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: T.muted, boxWidth: 12, font: { size: 11 } } } },
+                scales: {
+                    x: { ticks: { color: T.faint }, grid: { color: T.gridLine } },
+                    y: { beginAtZero: true, ticks: { color: T.faint }, grid: { color: T.gridLine } }
+                }
+            }
+        });
+    }
+};
 
 // hex(#rrggbb) → rgba 문자열 (차트 fill 투명도용)
 function _usageHexToRgba(hex, alpha) {
@@ -3710,53 +3756,73 @@ function _usageHexToRgba(hex, alpha) {
 function _csvCell(v) {
     return '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"';
 }
+// CSV 내보내기 범위 선택 팝업 (전체 / 특정 기간 / 월별) → 확인 시 cb({mode,start,end}).
+//   앱(Capacitor WebView)에서 blob/data URL 다운로드가 안 되므로, 호출부는 cb 안에서
+//   실제 서버 URL(/api/stats/usage/csv)로 이동시켜 다운로드한다(설문 CSV와 동일 원리).
+function _usageCsvScopePopup(q, cb) {
+    var T = usageThemeTokens();
+    var defStart = (q && q.start) || new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
+    var defEnd = (q && q.end) || new Date().toISOString().slice(0, 10);
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:16px;';
+    ov.innerHTML =
+        '<div style="background:' + (T.cardBgSolid || '#1e2435') + ';border:1px solid ' + T.cardBorder + ';border-radius:14px;padding:20px;max-width:360px;width:100%;color:' + T.text + ';box-shadow:0 12px 40px rgba(0,0,0,0.5);">'
+        + '<div style="font-weight:800;font-size:1rem;margin-bottom:14px;"><i class="fa-solid fa-file-csv"></i> CSV 내보내기 범위</div>'
+        + '<label style="display:flex;align-items:center;gap:8px;padding:8px 0;cursor:pointer;"><input type="radio" name="usage-csv-scope" value="all" checked> 전체 데이터</label>'
+        + '<label style="display:flex;align-items:center;gap:8px;padding:8px 0;cursor:pointer;"><input type="radio" name="usage-csv-scope" value="monthly"> 월별 집계(전체 기간)</label>'
+        + '<label style="display:flex;align-items:center;gap:8px;padding:8px 0;cursor:pointer;"><input type="radio" name="usage-csv-scope" value="range"> 특정 기간 지정</label>'
+        + '<div id="usage-csv-range" style="display:none;gap:8px;align-items:center;margin:6px 0 4px;flex-wrap:wrap;">'
+        + '<input type="date" id="usage-csv-start" value="' + defStart + '" style="background:' + T.inputBg + ';border:1px solid ' + T.ctrlBorder + ';border-radius:6px;color:' + T.text + ';padding:5px 8px;font-size:0.85rem;">'
+        + '<span style="color:' + T.faint + ';">~</span>'
+        + '<input type="date" id="usage-csv-end" value="' + defEnd + '" style="background:' + T.inputBg + ';border:1px solid ' + T.ctrlBorder + ';border-radius:6px;color:' + T.text + ';padding:5px 8px;font-size:0.85rem;">'
+        + '</div>'
+        + '<div style="display:flex;gap:10px;margin-top:16px;">'
+        + '<button id="usage-csv-cancel" style="flex:1;padding:10px;background:' + T.ctrlBg + ';border:1px solid ' + T.ctrlBorder + ';border-radius:8px;color:' + T.muted + ';cursor:pointer;">취소</button>'
+        + '<button id="usage-csv-ok" style="flex:1;padding:10px;background:linear-gradient(135deg,' + T.accent + ',' + T.accent2 + ');border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;">확인 · 다운로드</button>'
+        + '</div></div>';
+    document.body.appendChild(ov);
+    var rangeBox = ov.querySelector('#usage-csv-range');
+    ov.querySelectorAll('input[name="usage-csv-scope"]').forEach(function (r) {
+        r.addEventListener('change', function () { rangeBox.style.display = (ov.querySelector('input[name="usage-csv-scope"]:checked').value === 'range') ? 'flex' : 'none'; });
+    });
+    ov.querySelector('#usage-csv-cancel').onclick = function () { ov.remove(); };
+    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    ov.querySelector('#usage-csv-ok').onclick = function () {
+        var mode = ov.querySelector('input[name="usage-csv-scope"]:checked').value;
+        var start = mode === 'range' ? (ov.querySelector('#usage-csv-start').value || '') : '';
+        var end = mode === 'range' ? (ov.querySelector('#usage-csv-end').value || '') : '';
+        ov.remove();
+        cb({ mode: mode, start: start, end: end });
+    };
+}
+
+// 이용자 현황 > 방문자 통계 CSV — 범위 선택 팝업 재사용 + 서버 URL(WebView 호환).
+window.exportVisitorCsv = function () {
+    if (typeof _usageCsvScopePopup !== 'function') { alert('내보내기 모듈을 불러올 수 없습니다.'); return; }
+    _usageCsvScopePopup({}, function (scope) {
+        var period = scope.mode === 'monthly' ? 'monthly' : 'daily';
+        var base = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE) ? CONFIG.API_BASE : '';
+        var url = base + '/api/stats/visitors/csv?period=' + encodeURIComponent(period)
+            + '&start=' + encodeURIComponent(scope.start || '')
+            + '&end=' + encodeURIComponent(scope.end || '');
+        var a = document.createElement('a');
+        a.href = url; a.download = ''; document.body.appendChild(a); a.click(); a.remove();
+    });
+};
+
 window.exportUsageCsv = function () {
-    var data = _usageLastData;
     var q = _usageLastQuery || {};
-    if (!data) { alert('먼저 데이터를 조회한 뒤 내보내세요.'); return; }
-
-    var periodLabel = q.period === 'custom' ? '직접설정'
-        : (q.period === 'monthly' ? '월별' : (q.period === 'yearly' ? '연별' : '일별'));
-    var lines = [];
-    lines.push([_csvCell('SEAGNAL 사용량 통계')].join(','));
-    lines.push([_csvCell('기간 구분'), _csvCell(periodLabel)].join(','));
-    lines.push([_csvCell('조회 범위'), _csvCell((q.start || '') + ' ~ ' + (q.end || ''))].join(','));
-    lines.push([_csvCell('소속 필터'), _csvCell(q.affiliation || '전체')].join(','));
-    lines.push([_csvCell('총 정보제공 건수'), _csvCell(data.totalEvents || 0)].join(','));
-    lines.push('');
-
-    // ② 기능별
-    lines.push([_csvCell('[기능별 누적]')].join(','));
-    lines.push([_csvCell('기능'), _csvCell('key'), _csvCell('건수'), _csvCell('비중(%)')].join(','));
-    var byFeature = data.byFeature || {};
-    var featRows = Object.keys(byFeature).map(function (k) { return { key: k, count: byFeature[k] }; });
-    featRows.sort(function (a, b) { return b.count - a.count; });
-    var grand = featRows.reduce(function (s, r) { return s + r.count; }, 0) || 1;
-    featRows.forEach(function (r) {
-        lines.push([_csvCell(usageFeatureLabel(r.key)), _csvCell(r.key), _csvCell(r.count),
-            _csvCell(((r.count / grand) * 100).toFixed(1))].join(','));
+    _usageCsvScopePopup(q, function (scope) {
+        var period = scope.mode === 'monthly' ? 'monthly' : 'daily';
+        var base = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE) ? CONFIG.API_BASE : '';
+        var url = base + '/api/stats/usage/csv?period=' + encodeURIComponent(period)
+            + '&start=' + encodeURIComponent(scope.start || '')
+            + '&end=' + encodeURIComponent(scope.end || '')
+            + '&affiliation=' + encodeURIComponent(q.affiliation || '전체');
+        // 실제 서버 URL 이동 → WebView/브라우저 모두에서 다운로드 동작.
+        var a = document.createElement('a');
+        a.href = url; a.download = ''; document.body.appendChild(a); a.click(); a.remove();
     });
-    lines.push('');
-
-    // ③ 소속 분포 (도넛)
-    lines.push([_csvCell('[소속 분포]')].join(','));
-    lines.push([_csvCell('소속'), _csvCell('건수')].join(','));
-    (data.affiliationDistribution || []).forEach(function (d) {
-        lines.push([_csvCell(d.name), _csvCell(d.total)].join(','));
-    });
-    lines.push('');
-
-    // ④ 기간 추이
-    lines.push([_csvCell('[기간 추이]')].join(','));
-    lines.push([_csvCell('구간'), _csvCell('건수')].join(','));
-    (data.trend || []).forEach(function (t) {
-        lines.push([_csvCell(t.bucket), _csvCell(t.total)].join(','));
-    });
-
-    var csv = '﻿' + lines.join('\n');   // BOM 포함
-    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    var ymd = new Date().toISOString().slice(0, 10);
-    _usageTriggerDownload(URL.createObjectURL(blob), 'seagnal_usage_' + (q.affiliation || 'all') + '_' + ymd + '.csv', true);
 };
 
 // ============================================================================
@@ -3915,7 +3981,14 @@ function _usageCaptureDom(el, T, filename) {
 }
 
 // 공통 다운로드 트리거 (url=objectURL/blob 이면 revoke)
+//   앱(Capacitor WebView)에서는 data:image PNG 의 <a download> 가 동작하지 않으므로,
+//   이미지 데이터 URL 은 모달로 띄워 사용자가 길게 눌러 저장/공유하게 한다(브라우저는 기존 다운로드).
 function _usageTriggerDownload(href, filename, revoke) {
+    var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    if (isNative && /^data:image\//.test(String(href))) {
+        _usageShowImageModal(href, filename);
+        return;
+    }
     var a = document.createElement('a');
     a.href = href;
     a.download = filename;
@@ -3923,6 +3996,57 @@ function _usageTriggerDownload(href, filename, revoke) {
     a.click();
     document.body.removeChild(a);
     if (revoke) { setTimeout(function () { try { URL.revokeObjectURL(href); } catch (e) {} }, 1500); }
+}
+
+// ============================================================================
+// (F) 가로보기 — 기기 화면을 가로로 회전(잠금)해 넓게 본다. 사용량 영역을 나가면(모달
+//   닫힘/탭 이동으로 #usage-root 가 DOM 에서 제거되면) 자동으로 세로로 복귀한다.
+//   화면회전은 @capacitor/screen-orientation (window.Capacitor.Plugins.ScreenOrientation).
+// ============================================================================
+var _usageLandscapeOn = false;
+var _usageLeaveObserver = null;
+function _usageOrientationPlugin() {
+    return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.ScreenOrientation) || null;
+}
+function _usageUpdateLandscapeBtn() {
+    var b = document.getElementById('usage-landscape-toggle');
+    if (b) b.innerHTML = '<i class="fa-solid fa-mobile-screen fa-rotate-90"></i> ' + (_usageLandscapeOn ? '세로' : '가로');
+}
+function _usageExitLandscape() {
+    var p = _usageOrientationPlugin();
+    if (p) { try { if (p.unlock) p.unlock(); else p.lock({ orientation: 'portrait' }); } catch (e) {} }
+    _usageLandscapeOn = false;
+    if (_usageLeaveObserver) { try { _usageLeaveObserver.disconnect(); } catch (e) {} _usageLeaveObserver = null; }
+    _usageUpdateLandscapeBtn();
+}
+window.toggleUsageLandscape = function () {
+    var p = _usageOrientationPlugin();
+    if (!p) { alert('이 기기에서는 가로보기(화면 회전)를 지원하지 않습니다. PC 브라우저에서는 창을 넓히면 동일하게 넓은 화면으로 보입니다.'); return; }
+    if (_usageLandscapeOn) { _usageExitLandscape(); return; }
+    try { p.lock({ orientation: 'landscape' }); } catch (e) { alert('화면 회전 전환 실패: ' + (e && e.message)); return; }
+    _usageLandscapeOn = true;
+    _usageUpdateLandscapeBtn();
+    // 사용량 영역(#usage-root)이 사라지면 자동 세로 복귀.
+    var root = document.getElementById('usage-root');
+    if (root && window.MutationObserver) {
+        _usageLeaveObserver = new MutationObserver(function () {
+            if (!document.body.contains(root)) _usageExitLandscape();
+        });
+        _usageLeaveObserver.observe(document.body, { childList: true, subtree: true });
+    }
+};
+
+// 네이티브 앱에서 생성한 PNG 를 전체화면 모달로 표시 — 길게 눌러 "이미지 저장" 선택.
+function _usageShowImageModal(dataUrl, filename) {
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;';
+    ov.innerHTML =
+        '<div style="color:#fff;font-size:0.9rem;margin-bottom:10px;text-align:center;line-height:1.5;">이미지를 길게 눌러 <b>"이미지 저장"</b>을 선택하세요<br><span style="font-size:0.72rem;color:#cbd5e1;">' + (filename || '') + '</span></div>'
+        + '<img src="' + dataUrl + '" style="max-width:100%;max-height:74vh;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.6);">'
+        + '<button id="usage-img-close" style="margin-top:14px;padding:10px 24px;background:#3b82f6;border:none;border-radius:8px;color:#fff;font-weight:700;font-size:0.9rem;cursor:pointer;">닫기</button>';
+    ov.querySelector('#usage-img-close').onclick = function () { ov.remove(); };
+    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    document.body.appendChild(ov);
 }
 
 // 기존 관리 함수들 리다이렉션 (하위 호환성 유지)

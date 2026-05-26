@@ -500,9 +500,11 @@ window.toggleSection = function (id) {
     // 2. 이전에 닫혀있었다면, 현재 섹션만 열기
     if (!isCurrentlyOpen) {
         parent.classList.add('open');
-        // [사용량] 부모 해역을 "펼칠 때만" 카운트. id 접두사로 특보/기상 구분
-        //   (기상현황 = 'status-...' 계열, 그 외 = 특보현황)
-        if (window.trackUsage) {
+        // [사용량] 중분류(동해남부해상 등) 아코디언이 있는 대분류(동해/서해/남해)는
+        //   여기(대분류)서 카운트하지 않는다 — 중분류 펼침에서 집계(render.js/windy.js).
+        //   그러나 중분류가 1개라 구역이 대분류 바로 아래 표시되는 대분류(예: 제주)는
+        //   이 대분류 펼침이 곧 '부모 해역' 조회이므로 여기서 집계한다.
+        if (window.trackUsage && !list.querySelector('.sub-region-section')) {
             const key = (typeof id === 'string' && id.indexOf('status-') === 0)
                 ? 'main.weather_region_open'
                 : 'main.warn_region_open';
