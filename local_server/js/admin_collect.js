@@ -3899,6 +3899,26 @@ function _usageToggleExplode(chart, which, next) {
     }
 }
 
+// 도넛 가운데 호버 시 정확 횟수를 보여줄 떠다니는 툴팁(공용 1개, 마우스 따라다님).
+function _usageGetCenterTip() {
+    var el = document.getElementById('usage-center-tip');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'usage-center-tip';
+        el.style.cssText = 'position:fixed; z-index:100000; pointer-events:none; display:none; padding:6px 10px; border-radius:8px; font-size:0.82rem; font-weight:700; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,0.35);';
+        document.body.appendChild(el);
+    }
+    return el;
+}
+
+// 도넛 가운데 총합 표기용 한글 단위 축약: 만 이상 "0.0만", 천 이상 "0.0천", 그 미만은 콤마 숫자.
+function _usageFmtCountKo(n) {
+    n = n || 0;
+    if (n >= 10000) return (n / 10000).toFixed(1) + '만';
+    if (n >= 1000) return (n / 1000).toFixed(1) + '천';
+    return n.toLocaleString();
+}
+
 // 도넛 가운데 총합 텍스트(2줄): 윗줄=설명, 아랫줄="총 ####회". 가운데 빈 공간(cutout)에 맞춰 크기 자동 축소.
 function _usageDonutCenterPlugin(T, title) {
     return {
@@ -3916,7 +3936,7 @@ function _usageDonutCenterPlugin(T, title) {
             var ctx = chart.ctx;
             ctx.save();
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            var line2 = '총 ' + sum.toLocaleString() + '회';
+            var line2 = '총 ' + _usageFmtCountKo(sum) + '회';
             var f2 = 22;
             ctx.font = '800 ' + f2 + 'px "Noto Sans KR", sans-serif';
             while (ctx.measureText(line2).width > maxW && f2 > 11) { f2 -= 1; ctx.font = '800 ' + f2 + 'px "Noto Sans KR", sans-serif'; }
@@ -3956,7 +3976,7 @@ function _usageMakeDonut(el, labels, values, T, which, box) {
     if (which === 'feat') _usageFeatExplodeF = (exploded >= 0) ? 1 : 0;
     else _usageAffExplodeF = (exploded >= 0) ? 1 : 0;
     var centerTitle = (which === 'feat') ? '누적사용 정보' : '정보 제공';
-    return new Chart(el, {
+    var chart = new Chart(el, {
         type: 'doughnut',
         data: {
             labels: labels,
@@ -3982,9 +4002,37 @@ function _usageMakeDonut(el, labels, values, T, which, box) {
                 // 빈 영역 → 복귀(-1), 같은 조각 재클릭 → 복귀(-1), 다른 조각 → 그 조각 확대.
                 var next = (idx === -1 || cur === idx) ? -1 : idx;
                 _usageToggleExplode(chart, which, next);
+            },
+            // 가운데 구멍에 마우스를 올리면 정확한 총횟수를 툴팁으로(축약 없이) 표시.
+            onHover: function (event, elements, chart) {
+                var tip = _usageGetCenterTip();
+                var ca = chart.chartArea;
+                var meta = chart.getDatasetMeta(0);
+                var inner = (meta && meta.data[0] && meta.data[0].innerRadius) || 0;
+                if (!ca || !inner || !event) { tip.style.display = 'none'; return; }
+                var cx = (ca.left + ca.right) / 2, cy = (ca.top + ca.bottom) / 2;
+                var dx = event.x - cx, dy = event.y - cy;
+                if (dx * dx + dy * dy <= inner * inner) {
+                    var sum = (chart.data.datasets[0].data || []).reduce(function (a, b) { return a + (b || 0); }, 0);
+                    tip.textContent = '총 ' + sum.toLocaleString() + '회';
+                    tip.style.background = T.cardBgSolid || '#1b2338';
+                    tip.style.color = T.text;
+                    tip.style.border = '1px solid ' + T.cardBorder;
+                    var ne = event.native;
+                    tip.style.left = ((ne ? ne.clientX : 0) + 14) + 'px';
+                    tip.style.top = ((ne ? ne.clientY : 0) + 14) + 'px';
+                    tip.style.display = 'block';
+                    if (chart.canvas) chart.canvas.style.cursor = 'help';
+                } else {
+                    tip.style.display = 'none';
+                    if (chart.canvas) chart.canvas.style.cursor = (elements && elements.length) ? 'pointer' : 'default';
+                }
             }
         }
     });
+    // 캔버스를 벗어나면 가운데 툴팁 숨김(onHover 는 캔버스 안에서만 발생). 재생성마다 덮어써 중복 방지.
+    el.onmouseleave = function () { var t = document.getElementById('usage-center-tip'); if (t) t.style.display = 'none'; };
+    return chart;
 }
 
 // 가로막대 차트 생성(라벨 플러그인 + 그라데이션). 도넛과 동일 데이터로 전환.
