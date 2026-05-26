@@ -3266,6 +3266,7 @@ var USAGE_THEMES = {
         appBg: 'linear-gradient(160deg,#161d33 0%,#0c1120 100%)',
         appBgSolid: '#0c1120',
         cardBg: 'rgba(255,255,255,0.06)',
+        cardBgSolid: '#1b2338',      // 드롭다운/팝업처럼 뒤가 비치면 안 되는 곳용 (불투명)
         cardBorder: 'rgba(255,255,255,0.10)',
         cardShadow: '0 8px 28px rgba(0,0,0,0.35)',
         text: '#e2e8f0',
@@ -3288,6 +3289,7 @@ var USAGE_THEMES = {
         appBg: '#f4f6fb',
         appBgSolid: '#f4f6fb',
         cardBg: '#ffffff',
+        cardBgSolid: '#ffffff',
         cardBorder: '#eef2f7',
         cardShadow: '0 6px 22px rgba(15,23,42,0.08)',
         text: '#0f172a',
@@ -3333,6 +3335,8 @@ var _usageAffType = 'doughnut'; // 소속별 조회수 차트 유형 (doughnut|b
 var _usageFeatType = 'bar';     // 기능별 누적 차트 유형 (doughnut|bar). 기본=막대.
 var _usageAffExploded = -1;     // 도넛 확대(분리)된 조각 index (-1=없음). 카드별로 따로 관리.
 var _usageFeatExploded = -1;    // 기능 도넛 확대된 조각 index (-1=없음).
+var _usageAffExplodeF = 0;      // 소속 도넛 확대 진행도 0~1 (애니메이션용).
+var _usageFeatExplodeF = 0;     // 기능 도넛 확대 진행도 0~1.
 var _usageMergedAffList = [];   // 현재 사용 가능한 소속 목록(드롭다운 옵션 출처).
 
 /**
@@ -3740,6 +3744,9 @@ function _usageRenderAffChart() {
     var data = _usageLastData || {};
     var T = usageThemeTokens();
     var dist = data.affiliationDistribution || [];
+    // 소속 복수선택이 있으면 그 소속만 표출(서버는 전체 분포를 주지만, 드롭다운 선택분만 비교).
+    var sel = _usageAffSelection || [];
+    if (sel.length) dist = dist.filter(function (d) { return sel.indexOf(d.name) !== -1; });
     var aLabels = dist.map(function (d) { return d.name; });
     var aValues = dist.map(function (d) { return d.total; });
     if (usageAffChart) { try { usageAffChart.destroy(); } catch (e) {} usageAffChart = null; }
@@ -3755,6 +3762,28 @@ function _usageRenderAffChart() {
     }
 }
 
+// 소규모 기능(전체의 GROUP_PCT% 미만)을 "기타" 한 항목으로 묶는다.
+//   featRows: [{key,count}] (건수 내림차순). 반환: {labels, values}(라벨 변환 + 기타 말미 추가).
+//   묶일 항목이 1개뿐이면 묶지 않고 그대로 둔다(기타 1건짜리는 무의미).
+function _usageGroupSmallFeatures(featRows) {
+    var GROUP_PCT = 3;
+    var total = featRows.reduce(function (s, r) { return s + r.count; }, 0) || 1;
+    var big = [], small = [];
+    featRows.forEach(function (r) {
+        if ((r.count / total * 100) < GROUP_PCT) small.push(r); else big.push(r);
+    });
+    var labels = big.map(function (r) { return usageFeatureLabel(r.key); });
+    var values = big.map(function (r) { return r.count; });
+    if (small.length >= 2) {
+        var sum = small.reduce(function (s, r) { return s + r.count; }, 0);
+        labels.push('기타 (' + small.length + '개 기능)');
+        values.push(sum);
+    } else {
+        small.forEach(function (r) { labels.push(usageFeatureLabel(r.key)); values.push(r.count); });
+    }
+    return { labels: labels, values: values };
+}
+
 // 기능별 누적 차트 렌더 (막대 또는 도넛). _usageLastData 기준.
 function _usageRenderFeatureChart() {
     var data = _usageLastData || {};
@@ -3762,8 +3791,10 @@ function _usageRenderFeatureChart() {
     var byFeature = data.byFeature || {};
     var featRows = Object.keys(byFeature).map(function (k) { return { key: k, count: byFeature[k] }; });
     featRows.sort(function (a, b) { return b.count - a.count; });
-    var labels = featRows.map(function (r) { return usageFeatureLabel(r.key); });
-    var values = featRows.map(function (r) { return r.count; });
+    // 너무 미미한(전체의 3% 미만) 기능은 "기타"로 묶어 차트를 정리(텍스트 잘림/지시선 난잡 방지).
+    var grouped = _usageGroupSmallFeatures(featRows);
+    var labels = grouped.labels;
+    var values = grouped.values;
     if (usageFeatureChart) { try { usageFeatureChart.destroy(); } catch (e) {} usageFeatureChart = null; }
     var el = document.getElementById('usage-feature-chart');
     var wrap = document.getElementById('usage-feat-canvas-wrap');
@@ -3772,17 +3803,93 @@ function _usageRenderFeatureChart() {
         if (wrap) wrap.style.height = '320px';
         usageFeatureChart = _usageMakeDonut(el, labels, values, T, 'feat');
     } else {
-        if (wrap) wrap.style.height = Math.max(280, featRows.length * 24 + 40) + 'px';
+        if (wrap) wrap.style.height = Math.max(280, values.length * 28 + 40) + 'px';
         usageFeatureChart = _usageMakeBar(el, labels, values, T);
+    }
+}
+
+// 조각 클릭 확대용 상수: 바깥으로 밀어내는 거리 + 반지름을 키우는 양(확실히 커 보이게).
+var _USAGE_EXPLODE_OFFSET = 22;
+var _USAGE_EXPLODE_GROW = 26;
+
+// 선택한 "한 조각만" 분리+확대.
+//   Chart.js 의 dataset.offset/hoverOffset 은 도넛 전체 반지름을 줄여 공간을 확보하므로
+//   클릭 시 "도넛 전체가 반응"하는 문제가 있다. 그래서 offset 을 쓰지 않고,
+//   이 플러그인이 그리기 직전(beforeDatasetsDraw)에 선택 조각의 호 기하만 직접 변형한다.
+//   - afterUpdate 에서 각 조각의 기준 기하(_base*)를 캐시(클릭 시엔 update 없이 draw 만 하므로 기준 유지)
+//   - 기본 도넛 애니메이션은 각도(rotate)만 움직이고 반지름/중심은 건드리지 않으므로 충돌 없음
+function _usageDonutExplodePlugin(which) {
+    return {
+        id: 'usageDonutExplode',
+        afterUpdate: function (chart) {
+            var meta = chart.getDatasetMeta(0); if (!meta) return;
+            meta.data.forEach(function (arc) {
+                arc._baseOuter = arc.outerRadius;
+                arc._baseX = arc.x;
+                arc._baseY = arc.y;
+            });
+        },
+        beforeDatasetsDraw: function (chart) {
+            var meta = chart.getDatasetMeta(0); if (!meta) return;
+            var idx = (which === 'feat') ? _usageFeatExploded : _usageAffExploded;
+            var f = (which === 'feat') ? _usageFeatExplodeF : _usageAffExplodeF;
+            meta.data.forEach(function (arc, i) {
+                if (arc._baseOuter == null) return;
+                if (i === idx && f > 0) {
+                    var mid = (arc.startAngle + arc.endAngle) / 2;
+                    arc.outerRadius = arc._baseOuter + _USAGE_EXPLODE_GROW * f;
+                    arc.x = arc._baseX + Math.cos(mid) * _USAGE_EXPLODE_OFFSET * f;
+                    arc.y = arc._baseY + Math.sin(mid) * _USAGE_EXPLODE_OFFSET * f;
+                } else {
+                    // 나머지(이전에 확대됐던 조각 포함)는 항상 기준 기하로 복원 → 전체 도넛은 그대로.
+                    arc.outerRadius = arc._baseOuter;
+                    arc.x = arc._baseX;
+                    arc.y = arc._baseY;
+                }
+            });
+        }
+    };
+}
+
+// 확대 진행도(factor)를 from→to 로 부드럽게 애니메이션(update 없이 draw 만 반복 → 도넛 전체 재연출 없음).
+function _usageAnimateExplode(chart, which, from, to, done) {
+    var start = null, dur = 220;
+    function setF(v) { if (which === 'feat') _usageFeatExplodeF = v; else _usageAffExplodeF = v; }
+    function step(ts) {
+        if (start === null) start = ts;
+        var t = Math.min(1, (ts - start) / dur);
+        var e = 1 - Math.pow(1 - t, 3);   // easeOutCubic
+        setF(from + (to - from) * e);
+        try { chart.draw(); } catch (err) {}
+        if (t < 1) { requestAnimationFrame(step); }
+        else { setF(to); try { chart.draw(); } catch (err) {} if (done) done(); }
+    }
+    requestAnimationFrame(step);
+}
+
+// 클릭 처리: 새 조각 → 그 조각만 0→1 확대(이전 조각은 즉시 복원), 토글/빈영역 → 1→0 축소 후 해제.
+function _usageToggleExplode(chart, which, next) {
+    var curIdx = (which === 'feat') ? _usageFeatExploded : _usageAffExploded;
+    if (next === curIdx) return;
+    if (next === -1) {
+        // 현재 조각을 축소한 뒤 인덱스 해제(축소 동안은 인덱스 유지).
+        _usageAnimateExplode(chart, which, 1, 0, function () {
+            if (which === 'feat') _usageFeatExploded = -1; else _usageAffExploded = -1;
+        });
+    } else {
+        // 새 조각으로 전환: 인덱스 즉시 교체(이전 조각은 plugin 이 기준 기하로 복원) + 0→1 확대.
+        if (which === 'feat') { _usageFeatExploded = next; _usageFeatExplodeF = 0; }
+        else { _usageAffExploded = next; _usageAffExplodeF = 0; }
+        _usageAnimateExplode(chart, which, 0, 1, null);
     }
 }
 
 // 도넛 차트 생성(라벨 플러그인 + 그라데이션 + 조각 클릭 확대). which: 'aff'|'feat' (확대 상태 분리 관리).
 function _usageMakeDonut(el, labels, values, T, which) {
-    var explodedKey = (which === 'feat') ? '_usageFeatExploded' : '_usageAffExploded';
     var exploded = (which === 'feat') ? _usageFeatExploded : _usageAffExploded;
-    // 확대된 조각만 바깥으로(offset). 길이는 데이터 수에 맞춰.
-    var offsets = values.map(function (_, i) { return i === exploded ? 24 : 0; });
+    // 재생성 시(새로고침/테마전환) 이미 확대 상태면 즉시 확대로 표시(재애니메이션 없이).
+    if (which === 'feat') _usageFeatExplodeF = (exploded >= 0) ? 1 : 0;
+    else _usageAffExplodeF = (exploded >= 0) ? 1 : 0;
     return new Chart(el, {
         type: 'doughnut',
         data: {
@@ -3791,26 +3898,22 @@ function _usageMakeDonut(el, labels, values, T, which) {
                 data: values,
                 backgroundColor: _usageDonutSliceBg(T),
                 borderColor: T.donutBorder,
-                borderWidth: 2,
-                offset: offsets,
-                hoverOffset: 8
+                borderWidth: 2
+                // offset/hoverOffset 미사용: 전체 도넛 축소를 피하고, 선택 조각만 plugin 으로 확대.
             }]
         },
-        plugins: [_usageDonutLabelPlugin(T)],
+        plugins: [_usageDonutExplodePlugin(which), _usageDonutLabelPlugin(T)],
         options: {
             responsive: true, maintainAspectRatio: false,
-            layout: { padding: { left: 60, right: 60, top: 8, bottom: 8 } },
+            layout: { padding: { left: 70, right: 70, top: 12, bottom: 12 } },
             plugins: { legend: { display: false } },
-            // (바) 조각 클릭 → 그 조각 offset 토글 + 애니메이션 update.
+            // (바) 조각 클릭 → 그 조각만 확대 토글. 빈 영역(조각 밖) 클릭 → 원위치.
             onClick: function (evt, elements, chart) {
-                if (!elements || !elements.length) return;
-                var idx = elements[0].index;
+                var idx = (elements && elements.length) ? elements[0].index : -1;
                 var cur = (which === 'feat') ? _usageFeatExploded : _usageAffExploded;
-                var next = (cur === idx) ? -1 : idx;   // 같은 조각 재클릭 시 원위치(토글)
-                if (which === 'feat') _usageFeatExploded = next; else _usageAffExploded = next;
-                var ds = chart.data.datasets[0];
-                ds.offset = ds.data.map(function (_, i) { return i === next ? 24 : 0; });
-                chart.update();   // 기본 애니메이션으로 부드럽게 분리/복귀
+                // 빈 영역 → 복귀(-1), 같은 조각 재클릭 → 복귀(-1), 다른 조각 → 그 조각 확대.
+                var next = (idx === -1 || cur === idx) ? -1 : idx;
+                _usageToggleExplode(chart, which, next);
             }
         }
     });
@@ -3953,14 +4056,26 @@ function _usageSyncTypeToggleUI() {
     });
 }
 
-// 제목 소팅기준 표시: 특정 소속이 선택된 경우 세 카드 제목 옆에 선택 소속명을 표기.
+// 제목 옆 기준 표시: 조회 기간(항상) + 선택 소속(있을 때)을 세 카드 제목 옆에 표기.
 function _usageUpdateTitleNotes() {
     var sel = _usageAffSelection || [];
-    var note = sel.length ? ('· ' + sel.join(', ')) : '';
+    var d = _usageLastData || {};
+    var parts = [_usagePeriodRangeText(d)];
+    if (sel.length) parts.push(sel.join(', '));
+    var note = '· ' + parts.join(' · ');
     ['usage-trend-affnote', 'usage-aff-affnote', 'usage-feat-affnote'].forEach(function (id) {
         var el = document.getElementById(id);
         if (el) el.textContent = note;
     });
+}
+
+// 조회 기간 텍스트: start~end. 둘 다 없으면 '전체 기간'.
+function _usagePeriodRangeText(d) {
+    var s = (d && d.start) || '';
+    var e = (d && d.end) || '';
+    if (!s && !e) return '전체 기간';
+    if (s && e) return s + ' ~ ' + e;
+    return s || e;
 }
 
 // 추이 차트 재렌더: 체크된 항목(전체 합계 / 기능별 다중)에 맞춰 멀티라인 구성.
