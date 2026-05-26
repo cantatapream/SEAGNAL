@@ -246,3 +246,69 @@ function decodeHtmlEntities(text) {
     return textarea.value;
 }
 
+// ----------------------------------------------------------------------------
+// 사용량 통계(Usage Analytics) — fire-and-forget 카운트 전송
+// ----------------------------------------------------------------------------
+/**
+ * 특정 기능 사용을 서버에 1건 기록한다 (fire-and-forget).
+ *
+ * [설계 원칙]
+ *   - 절대 예외를 던지지 않는다. 네트워크 실패/서버 오류 모두 조용히 무시.
+ *   - 앱의 기존 동작/렌더 흐름에 0 영향. 호출 측은 await 하지 않는다.
+ *   - 기기 식별자는 localStorage 'seagnal_device_id' (없으면 'anonymous').
+ *   - 서버(routes/usage.js)가 수신 시각으로 KST 날짜를 계산해 누적한다.
+ *
+ * @param {string} featureKey 예: 'buoy.info_view', 'ocean.wind', 'shrt.rain_prob'
+ */
+window.trackUsage = function trackUsage(featureKey) {
+    try {
+        if (!featureKey) return;
+        var deviceId = 'anonymous';
+        try {
+            deviceId = localStorage.getItem('seagnal_device_id') || 'anonymous';
+        } catch (e) { /* localStorage 접근 불가 환경 무시 */ }
+
+        var base = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.API_BASE) ? CONFIG.API_BASE : '';
+        // keepalive 로 페이지 전환 직전에도 전송이 끊기지 않도록 보장.
+        fetch(base + '/api/usage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceId: deviceId, feature: featureKey }),
+            keepalive: true
+        }).catch(function () { /* fire-and-forget: 실패 무시 */ });
+    } catch (e) { /* 어떤 경우에도 throw 금지 */ }
+};
+
+/**
+ * 여러 기능 사용을 한 번에 기록한다 (바텀시트처럼 다건이 동시 발생할 때).
+ *
+ * @param {string[]} keys 예: ['ocean.wind','ocean.wave','sheet.tide']
+ */
+window.trackUsageMany = function trackUsageMany(keys) {
+    try {
+        if (!keys || !keys.length) return;
+        // 중복 제거 (같은 key 가 여러 번 들어와도 서버는 각 건을 +1 하므로,
+        //  "표출된 종류마다 1건" 규칙에 맞춰 여기서 한 번만 세도록 dedup)
+        var seen = {};
+        var uniq = [];
+        for (var i = 0; i < keys.length; i++) {
+            var k = keys[i];
+            if (k && !seen[k]) { seen[k] = true; uniq.push(k); }
+        }
+        if (!uniq.length) return;
+
+        var deviceId = 'anonymous';
+        try {
+            deviceId = localStorage.getItem('seagnal_device_id') || 'anonymous';
+        } catch (e) { /* 무시 */ }
+
+        var base = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.API_BASE) ? CONFIG.API_BASE : '';
+        fetch(base + '/api/usage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceId: deviceId, features: uniq }),
+            keepalive: true
+        }).catch(function () { /* fire-and-forget */ });
+    } catch (e) { /* throw 금지 */ }
+};
+

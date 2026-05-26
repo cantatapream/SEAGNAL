@@ -111,6 +111,7 @@ async function performBackup() {
     const targetFiles = [
         'visitors.json',
         'visitors_stats.json',
+        'usage_stats.json',
         'tidebed_config.json',
         'notice.json',
         'notices.json',

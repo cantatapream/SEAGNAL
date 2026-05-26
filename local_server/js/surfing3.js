@@ -150,6 +150,9 @@
         var nameEl = document.getElementById('surfing-popup-place-name');
         if (nameEl) nameEl.textContent = beachName;
 
+        // [사용량] 서핑 지점 팝업이 실제 표출되는 성공 분기에서만 +1 (데이터 없으면 위에서 return)
+        if (window.trackUsage) window.trackUsage('life.surfing.point');
+
         // --- 팝업 + 오버레이 활성화 ---
         // CSS .active 클래스 추가 → opacity/transform transition으로 부드럽게 등장
         var popup = document.getElementById('surfing-popup');

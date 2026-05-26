@@ -201,6 +201,7 @@ app.use(require('./routes/weather'));
 app.use(require('./routes/tide'));
 app.use(require('./routes/content'));
 app.use(require('./routes/stats'));
+app.use(require('./routes/usage'));         // 사용량 통계(Usage Analytics) 수집/조회 API
 app.use(require('./routes/archive'));
 app.use(require('./routes/push'));
 app.use(require('./routes/push_test'));
@@ -289,6 +290,15 @@ function _gracefulShutdown(signal) {
         }
     } catch (e) {
         console.error('[shutdown] visitQueue flushSync 실패:', e && e.message);
+    }
+    // [추가] 사용량 통계 메모리 큐도 동기 flush — visit_queue 와 동일 이유(최대 5초 유실 방지).
+    try {
+        const usageQueue = require('./services/usage_queue');
+        if (typeof usageQueue.flushSync === 'function') {
+            usageQueue.flushSync();
+        }
+    } catch (e) {
+        console.error('[shutdown] usageQueue flushSync 실패:', e && e.message);
     }
     // [추가] 백그라운드 빌드(build-gzip) 자식 프로세스가 아직 살아있다면 함께 종료.
     //   - 부팅 직후 종료가 빠르게 일어나면 압축이 진행 중일 수 있고, 좀비 프로세스로

@@ -100,6 +100,11 @@
             updateSliderRange();
             render(firstIdx);
             highlightJumpButton(0);
+            // [사용량] 해상일기도 첫 프레임 표출 완료 → chart.load (세션당 1회만)
+            if (!MC._usageLoadCounted) {
+                MC._usageLoadCounted = true;
+                if (window.trackUsage) window.trackUsage('chart.load');
+            }
         } catch (err) {
             // 취소 에러는 정상 흐름이므로 무시 (새 fetch 가 진행 중이라는 의미)
             if (err.name === 'AbortError') return;
@@ -264,6 +269,8 @@
         const { state } = MC;
         if (state.playing || state.list.length <= 1) return;
         state.playing = true;
+        // [사용량] 재생이 실제 시작된 성공 분기에서만 카운트 (누를 때마다 +1)
+        if (window.trackUsage) window.trackUsage('chart.play');
         updatePlayButtonIcons();
         _scheduleNextFrame();
     }

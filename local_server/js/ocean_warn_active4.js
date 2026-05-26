@@ -274,6 +274,8 @@
 
         // 5) 스타일러 등록 — 이 호출이 즉시 layer.changed() 까지 트리거
         state.active = true;
+        // [사용량] 활성 특보가 실제 표출되는 성공 분기에서만 +1 (특보 없으면 위 251줄에서 return)
+        if (window.trackUsage) window.trackUsage('ocean.warn_zone');
         if (window.OceanWarnZone && typeof window.OceanWarnZone.setActiveStyler === 'function') {
             window.OceanWarnZone.setActiveStyler(ns._styler);
         }

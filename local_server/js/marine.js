@@ -1257,6 +1257,8 @@ function _onSectionActivated(sectionId) {
     }
 // 바다낚시 탭 활성화 시 지도 초기화 (탭 전환 후 사이즈 갱신)
     if (sectionId === 'fishing-section') {
+        // [사용량] 바다낚시 하위 탭 진입
+        if (window.trackUsage) window.trackUsage('life.fishing.tab');
         setTimeout(() => {
             if (window.initFishingMap) {
                 window.initFishingMap();
@@ -1267,6 +1269,8 @@ function _onSectionActivated(sectionId) {
     // surfing1.js의 initSurfingMap()을 호출합니다.
     // 200ms 지연: 탭 전환 CSS transition이 완료된 뒤 OL 지도 크기를 정확히 계산하기 위함
     if (sectionId === 'surfing-section') {
+        // [사용량] 서핑 하위 탭 진입
+        if (window.trackUsage) window.trackUsage('life.surfing.tab');
         setTimeout(() => {
             if (window.initSurfingMap) {
                 window.initSurfingMap();
@@ -1275,6 +1279,8 @@ function _onSectionActivated(sectionId) {
     }
     // 바다갈라짐 탭 활성화 시 데이터 로드
     if (sectionId === 'sea-parting-section') {
+        // [사용량] 바다갈라짐 하위 탭 진입
+        if (window.trackUsage) window.trackUsage('life.parting.tab');
         setTimeout(() => {
             if (window.initSeaParting) {
                 window.initSeaParting();

@@ -131,6 +131,10 @@ const staticRoot = process.env.FLY_ALLOC_ID
 const FILES = {
     VISITORS: path.join(DATA_DIR, 'visitors.json'),
     VISITORS_STATS: path.join(DATA_DIR, 'visitors_stats.json'),
+    // 사용량 통계(Usage Analytics): 기능별 사용 횟수를 날짜/기기 단위로 누적
+    // [연계] services/usage_queue.js → 메모리 큐 + 5초 비동기 flush
+    // [연계] routes/usage.js → /api/usage 수집 + /api/stats/usage 조회
+    USAGE_STATS: path.join(DATA_DIR, 'usage_stats.json'),
     COLLECT_FAILURES: path.join(DATA_DIR, 'collect_failures.json'),
     SUBSCRIPTIONS: path.join(DATA_DIR, 'subscriptions.json'),
     PUSH_HISTORY: path.join(DATA_DIR, 'custom_push_history.json'),

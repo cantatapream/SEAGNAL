@@ -272,11 +272,34 @@
                     // 통합 박스(범례+타임라인)는 setActiveLayer 내부의 updateLegend가 표시하므로 별도 처리 불필요
                     setActiveLayer(layer);  // 내부에서 setTimelineStep, updateLegend 처리
                     loadOverlayData();
+                    // [사용량] 오버레이 버튼 켤 때 +1 (통합 key: ocean.current/wind/wave)
+                    if (window.trackUsage) {
+                        var _ovKey = (layer === 'wind') ? 'ocean.wind'
+                            : (layer === 'wave') ? 'ocean.wave'
+                            : 'ocean.current';
+                        window.trackUsage(_ovKey);
+                    }
                 }
             });
         });
 
         // 진입 시 자동 로드 안 함 — 사용자가 버튼을 눌러야 시작.
+
+        // [사용량] 타임라인 슬라이더 "놓을 때마다"(change=settle) 활성 레이어 통합 key +1.
+        //   'input'(드래그 중 연속)은 카운트하지 않음 → 폭주 방지. 오버레이가 켜져있을 때만.
+        (function bindOverlayTimelineUsage() {
+            var tlSlider = document.getElementById('ocean-timeline-slider');
+            if (!tlSlider || tlSlider._usageBound) return;
+            tlSlider._usageBound = true;
+            tlSlider.addEventListener('change', function () {
+                if (!streamActive) return;            // 오버레이 OFF면 카운트 안 함
+                if (!window.trackUsage) return;
+                var k = (activeLayer === 'wind') ? 'ocean.wind'
+                    : (activeLayer === 'wave') ? 'ocean.wave'
+                    : 'ocean.current';
+                window.trackUsage(k);
+            });
+        })();
 
         // [kts 토글] 범례 영역 클릭 시 단위 m/s ↔ kts 전환 (current/wind 만, wave 무관).
         //   바텀시트의 OS.state.useKts 와 연동 — 범례에서 토글하면 바텀시트 카드의

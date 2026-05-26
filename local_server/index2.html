@@ -1357,6 +1357,11 @@
     <script src="/assets/vendor/chartjs/chart.umd.min.js"></script>
     <script src="/assets/vendor/chartjs/chartjs-plugin-datalabels.min.js"></script>
 
+    <!-- html2canvas(1.4.1)는 전역 로드하지 않는다(약 200KB). 사용량 통계 대시보드의
+         표/카드 PNG 캡처를 관리자가 실제로 호출할 때만 js/admin_collect.js 가
+         /assets/vendor/html2canvas/html2canvas.min.js 를 동적 주입(1회 캐시)한다.
+         → 일반 앱 사용자는 이 라이브러리를 내려받지 않는다. -->
+
     <!-- OpenLayers for Tide Map — 자체 호스팅 -->
     <link rel="stylesheet" href="/assets/vendor/ol/ol.css">
     <script src="/assets/vendor/ol/ol.js"></script>

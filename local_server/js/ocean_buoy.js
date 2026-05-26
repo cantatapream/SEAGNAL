@@ -615,6 +615,8 @@ if (window.__SEAGNAL_PAGE === 'index2') {
                     type: single.get('buoyType')
                 };
                 if (typeof showBuoyModal === 'function') {
+                    // [사용량] 지도 부이 마커 클릭으로 부이 모달이 표출됨 → 통합 key
+                    if (window.trackUsage) window.trackUsage('buoy.info_view');
                     showBuoyModal(buoyId, buoyData);
                     var createdModal = document.getElementById('buoy-info-modal');
                     if (createdModal) createdModal.dataset.buoyId = buoyId;

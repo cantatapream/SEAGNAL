@@ -146,6 +146,8 @@
         // 드롭다운 변경 시 해당 지역 데이터 표시 (중복 등록 방지)
         if (!select._spBound) {
             select.addEventListener('change', function () {
+                // [사용량] 바다갈라짐 지역 드롭다운을 사용자가 선택(change) — 자동선택(_autoSelectPlace)은 제외
+                if (window.trackUsage) window.trackUsage('life.parting.region');
                 _selectPlace(select.value);
             });
             select._spBound = true;

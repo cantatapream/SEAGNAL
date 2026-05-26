@@ -516,7 +516,8 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
 
     // 관리자 센터 상단 메인 탭 목록 (탭 클릭 시 switchUnifiedAdminTab()에서 분기)
     const tabs = [
-        { id: 'users', name: '이용자 현황', icon: 'fa-chart-pie' },
+        // [종합 통계] 기존 '이용자 현황' 탭을 대체. 내부에 [이용자 현황][사용량 통계] 하위탭.
+        { id: 'stats', name: '종합 통계', icon: 'fa-chart-line' },
         { id: 'alert', name: '특보 알림', icon: 'fa-tower-broadcast' },
         { id: 'api', name: 'API 설정', icon: 'fa-server' },
         { id: 'notice', name: '공지 팝업', icon: 'fa-bell' },
@@ -587,6 +588,8 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
 };
 
 window.switchUnifiedAdminTab = function (tabId) {
+    // [하위호환] 구버전의 'users' 탭 참조 → 'stats'(종합 통계) 로 정규화.
+    if (tabId === 'users') tabId = 'stats';
     // 탭 버튼 스타일 업데이트
     document.querySelectorAll('.admin-main-tab').forEach(btn => {
         if (btn.dataset.tab === tabId) btn.classList.add('active');
@@ -606,8 +609,10 @@ window.switchUnifiedAdminTab = function (tabId) {
 
     // 탭별 콘텐츠 렌더링
     setTimeout(async () => {
-        if (tabId === 'users') {
-            renderUnifiedUsersContent(body);
+        if (tabId === 'stats' || tabId === 'users') {
+            // [종합 통계] 'users'(구버전 참조) 하위호환: stats 로 위임.
+            //   내부에서 [이용자 현황][사용량 통계] 하위탭을 렌더하며, 기본은 이용자 현황.
+            renderUnifiedComprehensiveStats(body);
         } else if (tabId === 'alert') {
             renderUnifiedAlertContent(body);
         } else if (tabId === 'api') {
@@ -2419,6 +2424,74 @@ window.sendManualPush = async function (zoneName) {
         btn.disabled = false;
     }
 };
+
+// ============================================================================
+// (종합 통계) 상단 '종합 통계' 탭 — [이용자 현황] [사용량 통계] 하위탭 컨테이너
+// ============================================================================
+
+/**
+ * 종합 통계 탭을 렌더링합니다. (기존 '이용자 현황' 상단 탭을 대체)
+ *
+ * 2개 하위 탭으로 구성:
+ *  1. [이용자 현황] 기존 renderUnifiedUsersContent() 를 그대로 호출 (구독 현황/방문자 통계 유지).
+ *  2. [사용량 통계] 신규 renderUsageStatsContent() (admin_collect.js) — 기능별 사용량 분석.
+ *
+ * [하위호환] switchUnifiedAdminTab('users') 로 진입해도 이 함수가 호출되며, 기본 활성
+ *   하위탭은 [이용자 현황] 이라 기존 동작과 동일하게 보인다.
+ *
+ * [연계]
+ *  - admin.js → switchUnifiedAdminTab('stats'|'users') 에서 호출
+ *  - admin.js → renderUnifiedUsersContent() (이용자 현황 하위탭)
+ *  - admin_collect.js → renderUsageStatsContent() (사용량 통계 하위탭)
+ */
+function renderUnifiedComprehensiveStats(container) {
+    var subTabs = [
+        { id: 'users', name: '이용자 현황', icon: 'fa-chart-pie' },
+        { id: 'usage', name: '사용량 통계', icon: 'fa-gauge-high' }
+    ];
+
+    container.innerHTML = '<div class="admin-section-title"><i class="fa-solid fa-chart-line" style="color:#60a5fa;"></i> 종합 통계</div>'
+        + '<div class="admin-sub-tabs">'
+        + subTabs.map(function (t) {
+            return '<button class="comp-stats-sub-tab" data-tab="' + t.id + '" onclick="window.switchComprehensiveStatsSubTab(\'' + t.id + '\')">'
+                + '<i class="fa-solid ' + t.icon + '"></i> ' + t.name
+                + '</button>';
+        }).join('')
+        + '</div>'
+        + '<div id="comp-stats-sub-content"></div>';
+
+    /**
+     * 종합 통계 하위 탭 전환
+     *  - users: 기존 이용자 현황(구독 현황/방문자 통계) — renderUnifiedUsersContent 재사용 (변형 X)
+     *  - usage: 신규 사용량 통계 — renderUsageStatsContent (admin_collect.js)
+     */
+    window.switchComprehensiveStatsSubTab = function (tabId) {
+        document.querySelectorAll('.comp-stats-sub-tab').forEach(function (btn) {
+            if (btn.dataset.tab === tabId) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+        var subContent = document.getElementById('comp-stats-sub-content');
+        if (!subContent) return;
+
+        if (tabId === 'usage') {
+            if (typeof renderUsageStatsContent === 'function') {
+                renderUsageStatsContent(subContent);
+            } else {
+                subContent.innerHTML = '<div style="color:#64748b;text-align:center;padding:40px;">사용량 통계 모듈을 불러올 수 없습니다.</div>';
+            }
+        } else {
+            // 기존 이용자 현황 — 절대 변형하지 않고 그대로 호출
+            if (typeof renderUnifiedUsersContent === 'function') {
+                renderUnifiedUsersContent(subContent);
+            } else {
+                subContent.innerHTML = '<div style="color:#64748b;text-align:center;padding:40px;">이용자 현황 모듈을 불러올 수 없습니다.</div>';
+            }
+        }
+    };
+
+    // 기본 하위 탭: 이용자 현황 (기존 동작 유지)
+    window.switchComprehensiveStatsSubTab('users');
+}
 
 // ============================================================================
 // (이용자 현황) 앱 이용자 현황 탭 렌더링

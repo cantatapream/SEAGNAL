@@ -98,6 +98,20 @@
         sky: '하늘상태', pty: '강수형태', tmp: '기온'
     };
 
+    // [사용량] 천기도 요소 type → 통합 metric key (바텀시트 천기 셀과 동일 key 로 귀결)
+    var USAGE_KEY = {
+        pop: 'shrt.rain_prob',
+        pcp: 'shrt.rain_amount',
+        sno: 'shrt.snow',
+        sky: 'shrt.sky',
+        pty: 'shrt.rain_prob',   // 강수형태도 강수 계열 대표 key 로 통합
+        tmp: 'shrt.temp_air'
+    };
+    /** 현재 활성 천기 요소의 사용량 key 를 +1 (없으면 무시). */
+    function _trackShrtUsage(shrtType) {
+        if (window.trackUsage && USAGE_KEY[shrtType]) window.trackUsage(USAGE_KEY[shrtType]);
+    }
+
     // 범례 — KMA marine.kma.go.kr chunk-common JS 에서 추출한 정확한 정의 (단계/색상/임계값/visible-marks).
     //   colors[]  : KMA 단계별 색상 (25/30/30) — 단색 블록 균등 폭으로 렌더 (보간 X).
     //   labels[]  : { t: 라벨텍스트, p: 위치% } — KMA visible-marks 기반 비균등 위치 + max 우측 끝 추가.
@@ -613,6 +627,8 @@
     function startPlay() {
         if (state.playing || !state.frames.length) return;
         state.playing = true;
+        // [사용량] 천기도 재생 시작도 1건 — 현재 활성 요소의 통합 key 로 +1
+        _trackShrtUsage(state.activeType);
         setPlayBtnIcon(true);
         // 재생 시작 → 말풍선 표출 (1초 fade-in, opacity transition)
         var bar = $('shrt-fcst-slider-bar');
@@ -937,6 +953,9 @@
     function activate(shrtType) {
         if (state.activeType === shrtType) { deactivate(); return; }
         deactivate();
+
+        // [사용량] 천기도 요소 버튼을 눌러 실제 활성화되는 분기에서만 +1 (재클릭 OFF 는 위에서 return)
+        _trackShrtUsage(shrtType);
 
         // [Mutual Exclusion] 다른 ocean overlay (current/wind/wave) 가 활성 상태면 끔
         // ocean_overlay.js 가 export 한 turn-off 핸들러 사용.

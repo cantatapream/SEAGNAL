@@ -648,6 +648,8 @@
             // Step 2: 같은 셀 재클릭 → 기상 모달 호출.
             //   기존 seaZones.js 패턴과 동일: getMarineZoneData 가 정의되어 있으면 호출.
             if (typeof window.getMarineZoneData === 'function') {
+                // [사용량] 해구 셀 재클릭으로 전망표/그래프가 뜰 때마다 +1
+                if (window.trackUsage) window.trackUsage('ocean.gugu_forecast');
                 window.getMarineZoneData(zoneId);
             } else {
                 console.warn('[OceanMap] window.getMarineZoneData 미로드 — 모달 호출 불가');
@@ -851,7 +853,12 @@
         document.querySelectorAll('.ocean-basemap-item').forEach(function (btn) {
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
-                switchBaseLayer(this.dataset.basemap);
+                var bm = this.dataset.basemap;
+                // [사용량] 사용자가 직접 배경레이어 버튼을 누른 경우에만 카운트.
+                //   ★자동 전환(switchToCoastBasemap)은 switchBaseLayer 를 직접 호출하므로
+                //     여기(사용자 클릭 핸들러)에만 trackUsage 를 두어 카운트에서 제외됨★
+                if (bm && window.trackUsage) window.trackUsage('ocean.basemap.' + bm);
+                switchBaseLayer(bm);
                 menu.style.display = 'none';
             });
         });

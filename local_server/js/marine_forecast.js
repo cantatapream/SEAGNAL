@@ -30,8 +30,11 @@ const MARINE_FORECAST_ORDER = ['강풍', '해상', '너울', '바다안개'];
 window.toggleMarineForecastAccordion = function () {
     const body = document.getElementById('marine-forecast-accordion-body');
     const header = document.getElementById('marine-forecast-accordion-header');
+    // [사용량] 펼칠 때만 카운트(닫을 때 X). toggle 전 collapsed 면 → 펼치는 방향.
+    const willOpen = body ? body.classList.contains('collapsed') : false;
     if (body) body.classList.toggle('collapsed');
     if (header) header.classList.toggle('collapsed-state');
+    if (willOpen && window.trackUsage) window.trackUsage('main.kma_marine_outlook_open');
 };
 
 /**

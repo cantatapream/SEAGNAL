@@ -3198,6 +3198,733 @@ function renderVisitorChart(labels, values, type, alertMarkers) {
     });
 }
 
+// ============================================================================
+// (F) 사용량 통계(Usage Analytics) 섹션 렌더링
+// ============================================================================
+
+/**
+ * feature key → 한글 라벨 매핑표.
+ * 사용량 통계 표/막대/요약에서 사람이 읽을 수 있는 이름으로 표시.
+ * (서버 routes/usage.js 가 raw featureKey 를 그대로 돌려주므로 클라이언트에서 매핑)
+ */
+var USAGE_FEATURE_LABELS = {
+    // A. 메인 화면 (특보 및 전망)
+    'main.kma_marine_outlook_open': '기상청 해상기상 전망 펼침',
+    'main.warn_region_open': '해역별 특보현황 펼침',
+    'main.weather_region_open': '해역별 기상현황 펼침',
+    'main.region_btn.forecast': '해역 버튼 · 기상예보',
+    'main.region_btn.gugu': '해역 버튼 · 해구기상',
+    'main.region_btn.windy': '해역 버튼 · 윈디',
+    'main.region_btn.overview': '해역 버튼 · 종합정보',
+    // B. 관측 부위(부이)
+    'buoy.info_view': '부이 정보 조회',
+    // C. 해상일기도
+    'chart.load': '해상일기도 로딩',
+    'chart.play': '해상일기도 재생',
+    // D. 해양종합정보 오버레이
+    'ocean.current': '유향유속(조류)',
+    'ocean.wind': '풍향풍속(바람)',
+    'ocean.wave': '파고/파향',
+    'ocean.warn_zone': '특보 표출',
+    'ocean.gugu_forecast': '해구 전망표/그래프',
+    'ocean.cctv_open': 'CCTV 팝업',
+    'ocean.basemap.rltm': '배경 · 기본맵',
+    'ocean.basemap.enc': '배경 · 전자해도',
+    'ocean.basemap.coast': '배경 · 해안도',
+    // 천기 요소 (천기도 + 바텀시트 통합)
+    'shrt.rain_prob': '강수확률',
+    'shrt.rain_amount': '강수량',
+    'shrt.snow': '적설',
+    'shrt.sky': '하늘상태',
+    'shrt.temp_air': '기온(천기)',
+    // E. 해점 바텀시트
+    'sheet.tide': '조석',
+    'sheet.astro': '천문(일출몰/월출몰)',
+    'sheet.moon': '월령(달 위상)',
+    'sheet.depth': '수심',
+    'sheet.water_temp': '수온',
+    // F. 해양생활
+    'life.fishing.tab': '바다낚시 탭 진입',
+    'life.surfing.tab': '서핑 탭 진입',
+    'life.parting.tab': '바다갈라짐 탭 진입',
+    'life.fishing.point.갯바위': '바다낚시 지점 · 갯바위',
+    'life.fishing.point.선상': '바다낚시 지점 · 선상',
+    'life.surfing.point': '서핑 지점 클릭',
+    'life.parting.region': '바다갈라짐 지역 선택'
+};
+function usageFeatureLabel(key) {
+    return USAGE_FEATURE_LABELS[key] || key;
+}
+
+// ============================================================================
+// (라)(마) Aurora 디자인 시스템 — 다크/화이트 두 팔레트(토글) 토큰
+//   다크 = 스타일 A (Aurora Glass), 화이트 = 스타일 B (Clean Light)
+//   화면/차트/도넛/표 + CSV/이미지 저장 결과물 모두 현재 모드 팔레트를 따른다.
+// ============================================================================
+var USAGE_THEMES = {
+    dark: {
+        // 스타일 A — Aurora Glass (관리자 센터와 일관)
+        appBg: 'linear-gradient(160deg,#161d33 0%,#0c1120 100%)',
+        appBgSolid: '#0c1120',
+        cardBg: 'rgba(255,255,255,0.06)',
+        cardBorder: 'rgba(255,255,255,0.10)',
+        cardShadow: '0 8px 28px rgba(0,0,0,0.35)',
+        text: '#e2e8f0',
+        muted: '#94a3b8',
+        faint: '#64748b',
+        accent: '#3b82f6',           // 주 액센트 시작
+        accent2: '#8b5cf6',          // 주 액센트 끝 (파랑→보라)
+        cyan: '#22d3ee',             // 보조 시안
+        amber: '#f59e0b',            // 경고 앰버
+        gridLine: 'rgba(255,255,255,0.06)',
+        ctrlBg: 'rgba(0,0,0,0.25)',
+        ctrlBorder: 'rgba(255,255,255,0.10)',
+        inputBg: 'rgba(0,0,0,0.30)',
+        donutBorder: '#0c1120',
+        // 도넛/막대 시리즈 팔레트 (액센트 → 시안 → 앰버 … 순)
+        series: ['#3b82f6', '#8b5cf6', '#22d3ee', '#f59e0b', '#10b981', '#ec4899', '#60a5fa', '#a3a3a3', '#64748b']
+    },
+    light: {
+        // 스타일 B — Clean Light (보고서용)
+        appBg: '#f4f6fb',
+        appBgSolid: '#f4f6fb',
+        cardBg: '#ffffff',
+        cardBorder: '#eef2f7',
+        cardShadow: '0 6px 22px rgba(15,23,42,0.08)',
+        text: '#0f172a',
+        muted: '#64748b',
+        faint: '#94a3b8',
+        accent: '#2563eb',           // 주 액센트 시작
+        accent2: '#14b8a6',          // 주 액센트 끝 (파랑→청록)
+        cyan: '#14b8a6',             // 보조 청록
+        amber: '#f59e0b',            // 경고 앰버
+        gridLine: 'rgba(15,23,42,0.06)',
+        ctrlBg: '#eef2f7',
+        ctrlBorder: '#e2e8f0',
+        inputBg: '#ffffff',
+        donutBorder: '#ffffff',
+        series: ['#2563eb', '#14b8a6', '#0ea5e9', '#f59e0b', '#10b981', '#ec4899', '#6366f1', '#94a3b8', '#cbd5e1']
+    }
+};
+var USAGE_THEME_KEY = 'seagnal_usage_theme';   // localStorage 키
+function getUsageTheme() {
+    var t = 'dark';
+    try { t = localStorage.getItem(USAGE_THEME_KEY) || 'dark'; } catch (e) {}
+    return (t === 'light') ? 'light' : 'dark';
+}
+function setUsageTheme(t) {
+    try { localStorage.setItem(USAGE_THEME_KEY, t); } catch (e) {}
+}
+function usageThemeTokens() { return USAGE_THEMES[getUsageTheme()]; }
+
+// 소속별 도넛 색상 팔레트 (테마 series 로 대체 — 호환용 유지)
+var USAGE_AFF_COLORS = [
+    '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444',
+    '#14b8a6', '#ec4899', '#a3a3a3', '#64748b'
+];
+
+var usageTrendChart = null;     // 추이 라인차트 인스턴스
+var usageAffChart = null;       // 소속 도넛 인스턴스
+var usageFeatureChart = null;   // 기능별 막대 인스턴스
+var _usageLastData = null;      // 마지막 집계 응답 (CSV/이미지 export 용)
+var _usageLastQuery = null;     // 마지막 조회 조건 (period/start/end/aff)
+var _usagePendingAff = null;    // 테마 토글 재렌더 시 복원할 소속 선택값
+
+/**
+ * 사용량 통계 대시보드를 렌더링합니다. (종합 통계 > 사용량 통계 하위탭)
+ *
+ * [표시 항목]
+ *  1. 기간 토글(일/월/연) + 날짜 범위 + 소속 드롭다운
+ *  2. 요약 카드 (총 정보제공 건수, 최다 기능, 응답자/미정 수)
+ *  3. 추이 라인차트 (Chart.js — 방문자 통계 패턴 재사용)
+ *  4. 소속 분포 도넛
+ *  5. 기능별 누적 막대 + 표 (feature key→한글 라벨)
+ *
+ * [데이터 소스] GET /api/stats/usage?period=&start=&end=&affiliation=
+ *
+ * [연계] admin.js → switchComprehensiveStatsSubTab('usage') 에서 호출
+ */
+async function renderUsageStatsContent(container) {
+    var T = usageThemeTokens();
+    var mode = getUsageTheme();
+    var btnStyle = 'padding:6px 12px; border:none; border-radius:6px; background:transparent; color:' + T.muted + '; font-size:0.8rem; font-weight:600; cursor:pointer;';
+    var inputStyle = 'background:' + T.inputBg + '; border:1px solid ' + T.ctrlBorder + '; border-radius:6px; color:' + T.text + '; padding:4px 8px; font-size:0.8rem;';
+    var iconBtn = 'background:' + T.ctrlBg + '; border:1px solid ' + T.ctrlBorder + '; color:' + T.text + '; padding:5px 9px; border-radius:6px; font-size:0.78rem; font-weight:600; cursor:pointer;';
+
+    container.innerHTML = `
+        <div id="usage-root" class="usage-aurora" style="background:${T.appBg}; border-radius:18px; padding:16px; transition:background 0.25s;">
+        <div class="admin-section-title" style="display:flex; justify-content:space-between; align-items:center; color:${T.text};">
+             <div><i class="fa-solid fa-gauge-high" style="color:${T.cyan};"></i> 사용량 통계 분석</div>
+             <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:0.72rem; color:${T.faint};">KST · 소속은 설문 응답으로 조회 시점 매핑</span>
+                <button id="usage-theme-toggle" onclick="window.toggleUsageTheme()" title="다크/화이트 모드"
+                        style="${iconBtn}">
+                    <i class="fa-solid ${mode === 'light' ? 'fa-moon' : 'fa-sun'}"></i>
+                    ${mode === 'light' ? ' 다크' : ' 화이트'}
+                </button>
+             </div>
+        </div>
+
+        <!-- 필터 제어바 -->
+        <div style="background:${T.cardBg}; padding:12px; border-radius:14px; margin:12px 0 18px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow};">
+            <div style="display:flex; background:${T.ctrlBg}; padding:3px; border-radius:8px; flex-wrap:wrap;">
+                ${['daily', 'monthly', 'yearly', 'custom'].map(p => `
+                    <button onclick="window.updateUsagePeriod('${p}')" id="btn-usage-${p}"
+                            style="${btnStyle}">
+                        ${p === 'daily' ? '일별' : (p === 'monthly' ? '월별' : (p === 'yearly' ? '연별' : '직접 설정'))}
+                    </button>
+                `).join('')}
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-left:auto; flex-wrap:wrap;">
+                <input type="date" id="usage-start-date" style="${inputStyle}">
+                <span style="color:${T.faint};">~</span>
+                <input type="date" id="usage-end-date" style="${inputStyle}">
+                <select id="usage-affiliation" style="${inputStyle} padding:5px 8px;">
+                    <option value="전체">전체 소속</option>
+                </select>
+                <button onclick="window.refreshUsageDash()" style="background:linear-gradient(135deg,${T.accent},${T.accent2}); border:none; color:#fff; padding:5px 12px; border-radius:6px; font-size:0.8rem; font-weight:700; cursor:pointer;">적용</button>
+            </div>
+        </div>
+
+        <!-- (나)(다) 내보내기 도구바 -->
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; align-items:center;">
+            <span style="font-size:0.72rem; color:${T.faint}; margin-right:2px;"><i class="fa-solid fa-download"></i> 내보내기:</span>
+            <button onclick="window.exportUsageCsv()" style="${iconBtn}"><i class="fa-solid fa-file-csv"></i> CSV</button>
+            <button onclick="window.exportUsageImage('dashboard')" style="${iconBtn}"><i class="fa-solid fa-image"></i> 전체 대시보드</button>
+            <button onclick="window.exportUsageImage('trend')" style="${iconBtn}">추이 PNG</button>
+            <button onclick="window.exportUsageImage('aff')" style="${iconBtn}">도넛 PNG</button>
+            <button onclick="window.exportUsageImage('feature')" style="${iconBtn}">기능별표 PNG</button>
+        </div>
+
+        <div id="usage-loading" style="text-align:center; padding:40px; color:${T.faint};">
+            <i class="fa-solid fa-circle-notch fa-spin fa-2x"></i>
+            <p style="margin-top:10px;">사용량 데이터를 분석 중입니다...</p>
+        </div>
+
+        <div id="usage-dashboard" style="display:none;">
+            <!-- 요약 카드 -->
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px; margin-bottom:20px;">
+                <div class="usage-card" style="background:${T.cardBg}; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow}; border-radius:16px; padding:15px; text-align:center; border-left:4px solid ${T.cyan};">
+                    <div style="font-size:0.75rem; color:${T.muted}; margin-bottom:5px;">총 정보제공 건수</div>
+                    <div id="usage-stat-total" style="font-size:1.2rem; font-weight:800; color:${T.text};">0</div>
+                </div>
+                <div class="usage-card" style="background:${T.cardBg}; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow}; border-radius:16px; padding:15px; text-align:center; border-left:4px solid ${T.accent};">
+                    <div style="font-size:0.75rem; color:${T.muted}; margin-bottom:5px;">최다 기능</div>
+                    <div id="usage-stat-top" style="font-size:0.95rem; font-weight:800; color:${T.text};">-</div>
+                </div>
+                <div class="usage-card" style="background:${T.cardBg}; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow}; border-radius:16px; padding:15px; text-align:center; border-left:4px solid ${T.accent2};">
+                    <div style="font-size:0.75rem; color:${T.muted}; margin-bottom:5px;">소속 응답 기기</div>
+                    <div id="usage-stat-assigned" style="font-size:1.2rem; font-weight:800; color:${T.text};">0</div>
+                </div>
+                <div class="usage-card" style="background:${T.cardBg}; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow}; border-radius:16px; padding:15px; text-align:center; border-left:4px solid ${T.amber};">
+                    <div style="font-size:0.75rem; color:${T.muted}; margin-bottom:5px;">소속 미정 기기</div>
+                    <div id="usage-stat-unassigned" style="font-size:1.2rem; font-weight:800; color:${T.text};">0</div>
+                </div>
+            </div>
+
+            <!-- 추이 차트 -->
+            <div id="usage-trend-card" class="usage-card" style="background:${T.cardBg}; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow}; border-radius:16px; padding:20px; margin-bottom:20px; height:320px; position:relative;">
+                <div style="font-weight:700; font-size:0.85rem; color:${T.muted}; margin-bottom:10px;">기간 추이</div>
+                <div style="position:relative; height:250px;"><canvas id="usage-trend-chart"></canvas></div>
+            </div>
+
+            <!-- 소속 분포 도넛 -->
+            <div id="usage-aff-card" class="usage-card" style="background:${T.cardBg}; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow}; border-radius:16px; padding:20px; margin-bottom:20px;">
+                <div style="font-weight:700; font-size:0.85rem; color:${T.muted}; margin-bottom:12px;">소속 분포 (선택 기간 · 소속 필터 무관)</div>
+                <div style="height:260px; position:relative;">
+                    <canvas id="usage-aff-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- 기능별 누적 막대 + 표 (한 카드로 묶어 기능별표 PNG에 함께 캡처) -->
+            <div id="usage-feature-card" class="usage-card" style="background:${T.cardBg}; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow}; border-radius:16px; margin-bottom:20px; overflow:hidden;">
+                <div style="padding:20px 20px 0;">
+                    <div style="font-weight:700; font-size:0.85rem; color:${T.muted}; margin-bottom:12px;">기능별 누적 사용</div>
+                    <div style="position:relative; min-height:280px;">
+                        <canvas id="usage-feature-chart"></canvas>
+                    </div>
+                </div>
+                <div style="padding:12px 20px; border-top:1px solid ${T.cardBorder}; font-weight:700; font-size:0.85rem; color:${T.muted};">
+                    기능별 상세 (전체 feature)
+                </div>
+                <div style="max-height:320px; overflow-y:auto;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                        <thead id="usage-feature-thead" style="position:sticky; top:0; background:${T.ctrlBg}; color:${T.muted}; text-align:left;">
+                            <tr>
+                                <th style="padding:10px 20px; border-bottom:1px solid ${T.cardBorder};">기능</th>
+                                <th style="padding:10px 20px; border-bottom:1px solid ${T.cardBorder};">key</th>
+                                <th style="padding:10px 20px; border-bottom:1px solid ${T.cardBorder}; text-align:right;">건수</th>
+                                <th style="padding:10px 20px; border-bottom:1px solid ${T.cardBorder}; text-align:right;">비중</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usage-feature-table-body" style="color:${T.text};"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        </div>
+    `;
+
+    // 날짜 기본값 (최근 30일)
+    var now = new Date();
+    var kstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+    var kst30 = new Date(kstNow.getTime() - (30 * 24 * 60 * 60 * 1000));
+    document.getElementById('usage-end-date').value = kstNow.toISOString().split('T')[0];
+    document.getElementById('usage-start-date').value = kst30.toISOString().split('T')[0];
+
+    var usagePeriod = 'daily';
+
+    // (가) 직접 설정: custom 은 서버 집계를 일별(daily)로 받되, 사용자가 지정한 start~end 범위만 표출.
+    window.updateUsagePeriod = function (p) {
+        usagePeriod = p;
+        ['daily', 'monthly', 'yearly', 'custom'].forEach(function (x) {
+            var b = document.getElementById('btn-usage-' + x);
+            if (!b) return;
+            if (x === p) { b.style.background = 'linear-gradient(135deg,' + T.accent + ',' + T.accent2 + ')'; b.style.color = '#fff'; }
+            else { b.style.background = 'transparent'; b.style.color = T.muted; }
+        });
+        // 직접 설정이면 날짜 input 강조(사용자가 임의 기간 직접 지정)
+        var sEl = document.getElementById('usage-start-date');
+        var eEl = document.getElementById('usage-end-date');
+        if (sEl && eEl) {
+            var hl = (p === 'custom');
+            sEl.style.borderColor = hl ? T.accent : T.ctrlBorder;
+            eEl.style.borderColor = hl ? T.accent : T.ctrlBorder;
+        }
+        window.refreshUsageDash();
+    };
+
+    window.refreshUsageDash = async function () {
+        var start = document.getElementById('usage-start-date').value;
+        var end = document.getElementById('usage-end-date').value;
+        var affSel = document.getElementById('usage-affiliation');
+        var aff = affSel ? affSel.value : '전체';
+        // custom 은 서버측 버킷을 daily 로(임의 start~end 범위), 그 외는 그대로.
+        var serverPeriod = (usagePeriod === 'custom') ? 'daily' : usagePeriod;
+
+        var loadingEl = document.getElementById('usage-loading');
+        if (loadingEl) loadingEl.style.display = 'block';
+
+        try {
+            var url = CONFIG.API_BASE + '/api/stats/usage?period=' + encodeURIComponent(serverPeriod)
+                + '&start=' + encodeURIComponent(start) + '&end=' + encodeURIComponent(end)
+                + '&affiliation=' + encodeURIComponent(aff);
+            var res = await fetch(url);
+            var data = await res.json();
+            _usageLastData = data;
+            _usageLastQuery = { period: usagePeriod, start: start, end: end, affiliation: aff };
+            _renderUsageDashboard(data, affSel);
+        } catch (e) {
+            container.innerHTML += '<div style="color:#ef4444;text-align:center;padding:20px;">사용량 데이터 로드 실패: ' + (e && e.message) + '</div>';
+        } finally {
+            if (loadingEl) loadingEl.style.display = 'none';
+        }
+    };
+
+    // (마) 다크/화이트 모드 토글 — localStorage 기억 후 화면 재렌더(차트/표/카드/배경 갱신)
+    //   현재 선택(기간/날짜/소속)을 보존한 뒤 동일 진입점으로 재렌더하고 그대로 복원.
+    window.toggleUsageTheme = function () {
+        var keep = {
+            period: usagePeriod,
+            start: (document.getElementById('usage-start-date') || {}).value,
+            end: (document.getElementById('usage-end-date') || {}).value,
+            aff: (document.getElementById('usage-affiliation') || {}).value
+        };
+        _usagePendingAff = keep.aff || null;  // 데이터 로드 후 _renderUsageDashboard 가 복원
+        setUsageTheme(getUsageTheme() === 'dark' ? 'light' : 'dark');
+        renderUsageStatsContent(container).then(function () {
+            var s = document.getElementById('usage-start-date');
+            var e = document.getElementById('usage-end-date');
+            if (s && keep.start) s.value = keep.start;
+            if (e && keep.end) e.value = keep.end;
+            if (window.updateUsagePeriod) window.updateUsagePeriod(keep.period || 'daily');
+        });
+    };
+
+    // 첫 진입: 일별 + 적용
+    window.updateUsagePeriod('daily');
+}
+
+/**
+ * /api/stats/usage 응답으로 요약/차트/표를 그린다.
+ * @param {Object} data 서버 집계 응답
+ * @param {HTMLSelectElement} affSel 소속 드롭다운 (옵션 채우기용)
+ */
+function _renderUsageDashboard(data, affSel) {
+    data = data || {};
+    var T = usageThemeTokens();
+    document.getElementById('usage-dashboard').style.display = 'block';
+
+    // ── 소속 드롭다운 옵션 채우기 (현재 선택 유지 / 테마 토글 복원) ──
+    if (affSel) {
+        var prev = _usagePendingAff || affSel.value || '전체';
+        _usagePendingAff = null;
+        var order = data.affiliationOrder || [];
+        // 분포에 등장한 소속 + 표준 순서 합치기
+        var present = (data.affiliationDistribution || []).map(function (d) { return d.name; });
+        var merged = [];
+        order.forEach(function (o) { if (present.indexOf(o) !== -1 && merged.indexOf(o) === -1) merged.push(o); });
+        present.forEach(function (p) { if (merged.indexOf(p) === -1) merged.push(p); });
+        affSel.innerHTML = '<option value="전체">전체 소속</option>'
+            + merged.map(function (m) { return '<option value="' + m + '">' + m + '</option>'; }).join('');
+        // 이전 선택 복원 (없어졌으면 전체)
+        affSel.value = (prev === '전체' || merged.indexOf(prev) !== -1) ? prev : '전체';
+    }
+
+    // ── 요약 카드 ──
+    document.getElementById('usage-stat-total').textContent = (data.totalEvents || 0).toLocaleString();
+    var top = data.topFeature || {};
+    document.getElementById('usage-stat-top').textContent = top.key
+        ? (usageFeatureLabel(top.key) + ' (' + (top.count || 0).toLocaleString() + ')')
+        : '-';
+    document.getElementById('usage-stat-assigned').textContent = (data.assignedDeviceCount || 0).toLocaleString();
+    document.getElementById('usage-stat-unassigned').textContent = (data.unassignedDeviceCount || 0).toLocaleString();
+
+    // ── 추이 라인차트 (테마 색/그리드/폰트 적용) ──
+    var trend = data.trend || [];
+    var tLabels = trend.map(function (t) { return t.bucket; });
+    var tValues = trend.map(function (t) { return t.total; });
+    if (usageTrendChart) { try { usageTrendChart.destroy(); } catch (e) {} usageTrendChart = null; }
+    var trendEl = document.getElementById('usage-trend-chart');
+    if (trendEl && typeof Chart !== 'undefined') {
+        usageTrendChart = new Chart(trendEl, {
+            type: 'line',
+            data: {
+                labels: tLabels,
+                datasets: [{
+                    label: '사용 건수',
+                    data: tValues,
+                    borderColor: T.accent,
+                    backgroundColor: _usageHexToRgba(T.accent, 0.15),
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    pointBackgroundColor: T.accent2
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: T.muted } } },
+                scales: {
+                    x: { ticks: { color: T.faint }, grid: { color: T.gridLine } },
+                    y: { beginAtZero: true, ticks: { color: T.faint }, grid: { color: T.gridLine } }
+                }
+            }
+        });
+    }
+
+    // ── 소속 도넛 (테마 series + 테두리) ──
+    var dist = data.affiliationDistribution || [];
+    var aLabels = dist.map(function (d) { return d.name; });
+    var aValues = dist.map(function (d) { return d.total; });
+    if (usageAffChart) { try { usageAffChart.destroy(); } catch (e) {} usageAffChart = null; }
+    var affEl = document.getElementById('usage-aff-chart');
+    if (affEl && typeof Chart !== 'undefined') {
+        usageAffChart = new Chart(affEl, {
+            type: 'doughnut',
+            data: {
+                labels: aLabels,
+                datasets: [{
+                    data: aValues,
+                    backgroundColor: aLabels.map(function (_, i) { return T.series[i % T.series.length]; }),
+                    borderColor: T.donutBorder,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'right', labels: { color: T.text, font: { size: 11 } } } }
+            }
+        });
+    }
+
+    // ── 기능별 막대 + 표 (건수 내림차순) ──
+    var byFeature = data.byFeature || {};
+    var featRows = Object.keys(byFeature).map(function (k) { return { key: k, count: byFeature[k] }; });
+    featRows.sort(function (a, b) { return b.count - a.count; });
+    var grand = featRows.reduce(function (s, r) { return s + r.count; }, 0) || 1;
+
+    if (usageFeatureChart) { try { usageFeatureChart.destroy(); } catch (e) {} usageFeatureChart = null; }
+    var fEl = document.getElementById('usage-feature-chart');
+    if (fEl && typeof Chart !== 'undefined') {
+        // 막대 높이를 항목 수에 맞게 (가독성)
+        fEl.parentElement.style.height = Math.max(280, featRows.length * 24 + 40) + 'px';
+        usageFeatureChart = new Chart(fEl, {
+            type: 'bar',
+            data: {
+                labels: featRows.map(function (r) { return usageFeatureLabel(r.key); }),
+                datasets: [{
+                    label: '건수',
+                    data: featRows.map(function (r) { return r.count; }),
+                    backgroundColor: T.accent
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true, ticks: { color: T.faint }, grid: { color: T.gridLine } },
+                    y: { ticks: { color: T.text, font: { size: 11 } }, grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    var tbody = document.getElementById('usage-feature-table-body');
+    if (tbody) {
+        if (!featRows.length) {
+            tbody.innerHTML = '<tr><td colspan="4" style="padding:20px;text-align:center;color:' + T.faint + ';">집계된 사용량이 없습니다.</td></tr>';
+        } else {
+            tbody.innerHTML = featRows.map(function (r) {
+                var pct = ((r.count / grand) * 100).toFixed(1);
+                return '<tr>'
+                    + '<td style="padding:8px 20px;border-bottom:1px solid ' + T.cardBorder + ';">' + usageFeatureLabel(r.key) + '</td>'
+                    + '<td style="padding:8px 20px;border-bottom:1px solid ' + T.cardBorder + ';color:' + T.faint + ';font-size:0.75rem;">' + r.key + '</td>'
+                    + '<td style="padding:8px 20px;border-bottom:1px solid ' + T.cardBorder + ';text-align:right;">' + r.count.toLocaleString() + '</td>'
+                    + '<td style="padding:8px 20px;border-bottom:1px solid ' + T.cardBorder + ';text-align:right;">' + pct + '%</td>'
+                    + '</tr>';
+            }).join('');
+        }
+    }
+}
+
+// hex(#rrggbb) → rgba 문자열 (차트 fill 투명도용)
+function _usageHexToRgba(hex, alpha) {
+    try {
+        var h = String(hex).replace('#', '');
+        if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+        var r = parseInt(h.substring(0, 2), 16);
+        var g = parseInt(h.substring(2, 4), 16);
+        var b = parseInt(h.substring(4, 6), 16);
+        return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+    } catch (e) { return 'rgba(59,130,246,' + alpha + ')'; }
+}
+
+// ============================================================================
+// (나) CSV 추출 — 현재 선택된 기간/소속 필터가 반영된 집계를 CSV 로 다운로드.
+//   한글 깨짐 방지 BOM(﻿) 포함. routes/survey.js CSV 패턴과 동일.
+//   클라이언트에서 마지막 응답(_usageLastData)을 CSV 문자열로 만들어 Blob 다운로드.
+//   내용: ① 메타(기간/소속) ② 기능별 건수+비중 ③ 소속 분포 ④ 기간 추이(날짜별 합계).
+// ============================================================================
+function _csvCell(v) {
+    return '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"';
+}
+window.exportUsageCsv = function () {
+    var data = _usageLastData;
+    var q = _usageLastQuery || {};
+    if (!data) { alert('먼저 데이터를 조회한 뒤 내보내세요.'); return; }
+
+    var periodLabel = q.period === 'custom' ? '직접설정'
+        : (q.period === 'monthly' ? '월별' : (q.period === 'yearly' ? '연별' : '일별'));
+    var lines = [];
+    lines.push([_csvCell('SEAGNAL 사용량 통계')].join(','));
+    lines.push([_csvCell('기간 구분'), _csvCell(periodLabel)].join(','));
+    lines.push([_csvCell('조회 범위'), _csvCell((q.start || '') + ' ~ ' + (q.end || ''))].join(','));
+    lines.push([_csvCell('소속 필터'), _csvCell(q.affiliation || '전체')].join(','));
+    lines.push([_csvCell('총 정보제공 건수'), _csvCell(data.totalEvents || 0)].join(','));
+    lines.push('');
+
+    // ② 기능별
+    lines.push([_csvCell('[기능별 누적]')].join(','));
+    lines.push([_csvCell('기능'), _csvCell('key'), _csvCell('건수'), _csvCell('비중(%)')].join(','));
+    var byFeature = data.byFeature || {};
+    var featRows = Object.keys(byFeature).map(function (k) { return { key: k, count: byFeature[k] }; });
+    featRows.sort(function (a, b) { return b.count - a.count; });
+    var grand = featRows.reduce(function (s, r) { return s + r.count; }, 0) || 1;
+    featRows.forEach(function (r) {
+        lines.push([_csvCell(usageFeatureLabel(r.key)), _csvCell(r.key), _csvCell(r.count),
+            _csvCell(((r.count / grand) * 100).toFixed(1))].join(','));
+    });
+    lines.push('');
+
+    // ③ 소속 분포 (도넛)
+    lines.push([_csvCell('[소속 분포]')].join(','));
+    lines.push([_csvCell('소속'), _csvCell('건수')].join(','));
+    (data.affiliationDistribution || []).forEach(function (d) {
+        lines.push([_csvCell(d.name), _csvCell(d.total)].join(','));
+    });
+    lines.push('');
+
+    // ④ 기간 추이
+    lines.push([_csvCell('[기간 추이]')].join(','));
+    lines.push([_csvCell('구간'), _csvCell('건수')].join(','));
+    (data.trend || []).forEach(function (t) {
+        lines.push([_csvCell(t.bucket), _csvCell(t.total)].join(','));
+    });
+
+    var csv = '﻿' + lines.join('\n');   // BOM 포함
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var ymd = new Date().toISOString().slice(0, 10);
+    _usageTriggerDownload(URL.createObjectURL(blob), 'seagnal_usage_' + (q.affiliation || 'all') + '_' + ymd + '.csv', true);
+};
+
+// ============================================================================
+// (다) 표/그래프 이미지(PNG) 다운로드 — 각 요소별 + 통합(전체 대시보드).
+//   - 개별 차트(Chart.js): chart.toBase64Image() 로 선명한 PNG 추출 후 테마 배경 합성.
+//   - 표/카드/통합 대시보드 DOM: html2canvas 로 캡처(현재 테마 배경색을 백그라운드로).
+//   - 결과물은 (마)에 따라 현재 선택 모드(다크/화이트) 팔레트를 그대로 따른다.
+//   target: 'trend' | 'aff' | 'feature' | 'dashboard'
+//
+// [개선 1 — 지연 로딩] html2canvas(약 200KB)는 index2.html 에 전역 로드하지 않고,
+//   관리자가 DOM 캡처(feature/dashboard)를 실제로 호출할 때만 _ensureHtml2Canvas() 가
+//   <script> 를 1회 주입(이후 캐시)한다 → 일반 사용자는 내려받지 않는다.
+// [개선 2 — 폰트/렌더 타이밍] 캡처 직전 document.fonts.ready + Chart.js 애니메이션
+//   완료 + 추가 1프레임을 보장(_usageCaptureReady) → FontAwesome 글리프 누락 방지.
+// ============================================================================
+
+// html2canvas 지연 로더 — 최초 호출 시 <script> 주입, 이후 캐시된 Promise 재사용.
+var _html2canvasLoader = null;
+function _ensureHtml2Canvas() {
+    if (typeof window.html2canvas !== 'undefined') return Promise.resolve(window.html2canvas);
+    if (_html2canvasLoader) return _html2canvasLoader;
+    _html2canvasLoader = new Promise(function (resolve, reject) {
+        try {
+            var s = document.createElement('script');
+            s.src = '/assets/vendor/html2canvas/html2canvas.min.js';
+            s.async = true;
+            s.onload = function () {
+                if (typeof window.html2canvas !== 'undefined') resolve(window.html2canvas);
+                else reject(new Error('html2canvas 로드 후에도 전역 미정의'));
+            };
+            s.onerror = function () {
+                _html2canvasLoader = null; // 실패 시 다음 호출에서 재시도 가능
+                reject(new Error('html2canvas 스크립트 로드 실패'));
+            };
+            document.head.appendChild(s);
+        } catch (e) { _html2canvasLoader = null; reject(e); }
+    });
+    return _html2canvasLoader;
+}
+
+// 캡처 직전 폰트/차트 애니메이션 렌더 완료 보장.
+//   - document.fonts.ready: FontAwesome 등 웹폰트 글리프가 캡처에 빠지지 않도록.
+//   - Chart.js 애니메이션: 진행 중이면 즉시 완료(완성 프레임을 캡처).
+//   - 추가 1프레임(rAF) 대기로 DOM/캔버스 페인트 반영.
+function _usageCaptureReady() {
+    return new Promise(function (resolve) {
+        var done = function () {
+            try {
+                // 진행 중 차트 애니메이션을 완료 상태로 강제(스냅) → 완성 프레임 캡처.
+                [usageTrendChart, usageAffChart, usageFeatureChart].forEach(function (c) {
+                    if (c) { try { c.update('none'); } catch (e) {} }
+                });
+            } catch (e) {}
+            // 폰트/차트 반영 후 한 프레임 더 기다렸다 캡처.
+            (window.requestAnimationFrame || function (cb) { setTimeout(cb, 16); })(function () {
+                (window.requestAnimationFrame || function (cb) { setTimeout(cb, 16); })(resolve);
+            });
+        };
+        try {
+            if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+                document.fonts.ready.then(done, done);
+            } else { done(); }
+        } catch (e) { done(); }
+    });
+}
+
+window.exportUsageImage = function (target) {
+    var T = usageThemeTokens();
+    var mode = getUsageTheme();
+    var ymd = new Date().toISOString().slice(0, 10);
+    var suffix = '_' + mode + '_' + ymd + '.png';
+
+    // 폰트/차트 렌더 완료를 보장한 뒤 캡처(개선 2).
+    _usageCaptureReady().then(function () {
+        // 개별 차트(추이/도넛)는 toBase64Image 로 선명하게. feature/dashboard 는 DOM 캡처.
+        if (target === 'trend') {
+            if (usageTrendChart) _usageDownloadChart(usageTrendChart, T, 'seagnal_usage_trend' + suffix);
+            else alert('해당 차트가 아직 준비되지 않았습니다.');
+            return;
+        }
+        if (target === 'aff') {
+            if (usageAffChart) _usageDownloadChart(usageAffChart, T, 'seagnal_usage_affiliation' + suffix);
+            else alert('해당 차트가 아직 준비되지 않았습니다.');
+            return;
+        }
+        if (target === 'feature') {
+            // feature 는 차트+표가 한 카드 → DOM 캡처(html2canvas 지연 로드).
+            _usageCaptureDom(document.getElementById('usage-feature-card'), T, 'seagnal_usage_feature' + suffix);
+            return;
+        }
+        if (target === 'dashboard') {
+            // 전체 대시보드(요약카드+모든 차트/표 포함된 루트) 통합 캡처.
+            _usageCaptureDom(document.getElementById('usage-root'), T, 'seagnal_usage_dashboard' + suffix);
+            return;
+        }
+    });
+};
+
+// Chart.js 단독 → toBase64Image()(선명) + 테마 배경 합성 후 PNG 다운로드.
+function _usageDownloadChart(chart, T, filename) {
+    try {
+        // (개선) 차트 픽셀은 toBase64Image() 로 추출(투명 배경 PNG). 테마 배경 위에 합성.
+        var w = chart.canvas.width, h = chart.canvas.height;
+        var pad = 24;
+        var img = new Image();
+        img.onload = function () {
+            try {
+                var out = document.createElement('canvas');
+                out.width = w + pad * 2;
+                out.height = h + pad * 2;
+                var ctx = out.getContext('2d');
+                ctx.fillStyle = T.appBgSolid;       // 현재 모드 배경
+                ctx.fillRect(0, 0, out.width, out.height);
+                ctx.drawImage(img, pad, pad, w, h);
+                _usageTriggerDownload(out.toDataURL('image/png'), filename, false);
+            } catch (e) {
+                // 합성 실패 시 차트 base64 직접 다운로드.
+                try { _usageTriggerDownload(chart.toBase64Image(), filename, false); } catch (e2) { alert('이미지 추출 실패: ' + (e2 && e2.message)); }
+            }
+        };
+        img.onerror = function () {
+            // 라이브 캔버스 직접 합성 폴백.
+            try {
+                var out2 = document.createElement('canvas');
+                out2.width = w + pad * 2;
+                out2.height = h + pad * 2;
+                var c2 = out2.getContext('2d');
+                c2.fillStyle = T.appBgSolid;
+                c2.fillRect(0, 0, out2.width, out2.height);
+                c2.drawImage(chart.canvas, pad, pad, w, h);
+                _usageTriggerDownload(out2.toDataURL('image/png'), filename, false);
+            } catch (e3) { alert('이미지 추출 실패: ' + (e3 && e3.message)); }
+        };
+        img.src = chart.toBase64Image();
+    } catch (e) {
+        try { _usageTriggerDownload(chart.toBase64Image(), filename, false); } catch (e2) { alert('이미지 추출 실패: ' + (e2 && e2.message)); }
+    }
+}
+
+// DOM 영역(카드/표/대시보드) → html2canvas 로 PNG (현재 모드 배경).
+//   html2canvas 는 지연 로더(_ensureHtml2Canvas)로 이 시점에만 동적 로드.
+function _usageCaptureDom(el, T, filename) {
+    if (!el) { alert('캡처할 영역을 찾지 못했습니다.'); return; }
+    _ensureHtml2Canvas().then(function (h2c) {
+        return h2c(el, {
+            backgroundColor: T.appBgSolid,  // 현재 선택 모드 배경 → 보고서용 밝은/어두운 이미지
+            scale: 2,                       // 고해상도(보고서 품질)
+            useCORS: true,
+            logging: false
+        });
+    }).then(function (canvas) {
+        _usageTriggerDownload(canvas.toDataURL('image/png'), filename, false);
+    }).catch(function (e) {
+        alert('이미지 캡처 라이브러리 로드/캡처 실패: ' + (e && e.message));
+    });
+}
+
+// 공통 다운로드 트리거 (url=objectURL/blob 이면 revoke)
+function _usageTriggerDownload(href, filename, revoke) {
+    var a = document.createElement('a');
+    a.href = href;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    if (revoke) { setTimeout(function () { try { URL.revokeObjectURL(href); } catch (e) {} }, 1500); }
+}
+
 // 기존 관리 함수들 리다이렉션 (하위 호환성 유지)
 // 홍보 게시글 관리는 통합 관리자(unified-admin-modal) > "게시판 관리" 탭에서 처리.
 // 별도 오렌지 팝업(showPromoManagementModal) 은 제거됨.
