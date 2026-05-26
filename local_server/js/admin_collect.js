@@ -2654,6 +2654,7 @@ async function renderUnifiedStatsContent(container) {
                     <span id="stats-date-separator" style="color:#475569;">~</span>
                     <input type="date" id="stats-end-date" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; padding:4px 8px; font-size:0.8rem;">
                     <button onclick="window.refreshStatsDash()" style="background:#3b82f6; border:none; color:#fff; padding:5px 10px; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer;">적용</button>
+                    <button onclick="window.exportVisitorCsv()" title="방문자 통계 CSV 내보내기" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; padding:5px 10px; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer;"><i class="fa-solid fa-file-csv"></i> CSV</button>
                 </div>
             </div>
 
@@ -3794,6 +3795,20 @@ function _usageCsvScopePopup(q, cb) {
         cb({ mode: mode, start: start, end: end });
     };
 }
+
+// 이용자 현황 > 방문자 통계 CSV — 범위 선택 팝업 재사용 + 서버 URL(WebView 호환).
+window.exportVisitorCsv = function () {
+    if (typeof _usageCsvScopePopup !== 'function') { alert('내보내기 모듈을 불러올 수 없습니다.'); return; }
+    _usageCsvScopePopup({}, function (scope) {
+        var period = scope.mode === 'monthly' ? 'monthly' : 'daily';
+        var base = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE) ? CONFIG.API_BASE : '';
+        var url = base + '/api/stats/visitors/csv?period=' + encodeURIComponent(period)
+            + '&start=' + encodeURIComponent(scope.start || '')
+            + '&end=' + encodeURIComponent(scope.end || '');
+        var a = document.createElement('a');
+        a.href = url; a.download = ''; document.body.appendChild(a); a.click(); a.remove();
+    });
+};
 
 window.exportUsageCsv = function () {
     var q = _usageLastQuery || {};
