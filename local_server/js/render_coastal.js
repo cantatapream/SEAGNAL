@@ -15,6 +15,8 @@
  */
 
 function displayBuoyInfo(buoy, container) {
+    // [사용량] 특보/기상현황 아코디언 안 부이 버튼으로 부이 정보가 표출됨 → 통합 key
+    if (window.trackUsage) window.trackUsage('buoy.info_view');
     container.innerHTML = '';
 
     // 디버그: 부이 ID와 데이터 유무 확인
@@ -498,6 +500,14 @@ window.toggleSection = function (id) {
     // 2. 이전에 닫혀있었다면, 현재 섹션만 열기
     if (!isCurrentlyOpen) {
         parent.classList.add('open');
+        // [사용량] 부모 해역을 "펼칠 때만" 카운트. id 접두사로 특보/기상 구분
+        //   (기상현황 = 'status-...' 계열, 그 외 = 특보현황)
+        if (window.trackUsage) {
+            const key = (typeof id === 'string' && id.indexOf('status-') === 0)
+                ? 'main.weather_region_open'
+                : 'main.warn_region_open';
+            window.trackUsage(key);
+        }
     }
 };
 

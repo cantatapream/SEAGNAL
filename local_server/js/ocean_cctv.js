@@ -413,6 +413,8 @@
         var f = candidates[0].feature;
 
         if (typeof window.showCctvPopup === 'function') {
+            // [사용량] CCTV 아이콘 클릭으로 팝업이 켜질 때만 +1
+            if (window.trackUsage) window.trackUsage('ocean.cctv_open');
             window.showCctvPopup({
                 cctvId:       f.get('cctvId'),
                 name:         f.get('name'),

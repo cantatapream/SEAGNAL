@@ -280,6 +280,7 @@ function renderOtherButtonsForStatus(zoneName, container) {
             });
             forecastBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
+                if (window.trackUsage) window.trackUsage('main.region_btn.forecast');
                 if (typeof showSeaForecastTable === 'function') showSeaForecastTable(zoneName);
             });
             btnContainer.appendChild(forecastBtn);
@@ -319,6 +320,7 @@ function renderOtherButtonsForStatus(zoneName, container) {
         //   index2 라도 fallback 으로 showZoneOverlay 호출.
         zoneViewBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (window.trackUsage) window.trackUsage('main.region_btn.gugu');
             if (window.__SEAGNAL_PAGE === 'index2'
                 && typeof window.goToOceanMapByZone === 'function'
                 && typeof ZONE_OVERLAY_CONFIG !== 'undefined'
@@ -370,6 +372,7 @@ function renderOtherButtonsForStatus(zoneName, container) {
             });
             windyBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
+                if (window.trackUsage) window.trackUsage('main.region_btn.windy');
                 if (window.showWindyPopup) window.showWindyPopup(zoneName);
             });
             btnContainer.appendChild(windyBtn);
@@ -688,6 +691,7 @@ function createStatusCard(zoneName) {
         _applyFlex(forecastBtn);
         forecastBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (window.trackUsage) window.trackUsage('main.region_btn.forecast');
             if (typeof showSeaForecastTable === 'function') showSeaForecastTable(zoneName);
         });
         btnContainer.appendChild(forecastBtn);
@@ -717,6 +721,7 @@ function createStatusCard(zoneName) {
     //   index2 라도 fallback 으로 showZoneOverlay 호출.
     zoneViewBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (window.trackUsage) window.trackUsage('main.region_btn.gugu');
         if (window.__SEAGNAL_PAGE === 'index2'
             && typeof window.goToOceanMapByZone === 'function'
             && typeof ZONE_OVERLAY_CONFIG !== 'undefined'
@@ -759,6 +764,7 @@ function createStatusCard(zoneName) {
         _applyFlex(windyBtn);
         windyBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (window.trackUsage) window.trackUsage('main.region_btn.windy');
             if (window.showWindyPopup) window.showWindyPopup(zoneName);
         });
         btnContainer.appendChild(windyBtn);
@@ -796,6 +802,7 @@ function createStatusCard(zoneName) {
         //   5) 800ms 뒤 flashWarnZone (해당 특보구역 테두리 깜빡임)
         allBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (window.trackUsage) window.trackUsage('main.region_btn.overview');
             if (typeof window.setWarnZoneVisible === 'function') {
                 window.setWarnZoneVisible(true);
             }

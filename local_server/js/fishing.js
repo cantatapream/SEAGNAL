@@ -115,6 +115,12 @@
             const feature = fishingMap.forEachFeatureAtPixel(evt.pixel, function (f) { return f; });
             if (feature && feature.get('placeName')) {
                 _selectMarker(feature);
+                // [사용량] 바다낚시 지점 클릭 — 갯바위/선상 구분(currentGubun)으로 분기
+                if (window.trackUsage) {
+                    window.trackUsage(currentGubun === '선상'
+                        ? 'life.fishing.point.선상'
+                        : 'life.fishing.point.갯바위');
+                }
                 _openBottomSheet(feature.get('placeName'));
             }
         });

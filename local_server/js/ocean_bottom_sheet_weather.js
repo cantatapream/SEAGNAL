@@ -143,6 +143,26 @@
         // 기온 — 정상값에도 "기온 " prefix 부착. 같은 시트의 수온 카드(17°C)와 식별 분리.
         _setCell('tmp',  hasTmp ? ('기온 ' + _fmtNum(data.tmp.value) + '°C')   : '기온 정보 없음');
         _show(true);
+
+        // [사용량] 천기 카드 표출 성공 → 천기도(C)와 통합 key 로 각 요소 +1.
+        //   ★중요: 슬라이더 드래그(input→onTimelineChanged→loadWeatherCard) 로 매번
+        //     _renderData 가 불려도 중복 카운트되지 않도록 loadAllForDate epoch 로 게이팅.
+        //     (loadAllForDate 는 open / 날짜 nav / 슬라이더 release 에서만 epoch 증가)
+        try {
+            var ep = (OS.state && OS.state._loadEpoch) || 0;
+            if (window.trackUsageMany && OS._wxUsageCountedEpoch !== ep) {
+                OS._wxUsageCountedEpoch = ep;
+                var keys = [];
+                if (hasSky) keys.push('shrt.sky');
+                // 강수 셀: 강수량(pcp)·강수확률(pop)·강수형태(pty) 표출 종류별로 통합 key
+                if (hasPcp) keys.push('shrt.rain_amount');
+                if (hasPop) keys.push('shrt.rain_prob');
+                if (hasPty && !hasPcp && !hasPop) keys.push('shrt.rain_prob'); // 형태만 있을 때 대표 key
+                if (hasSno) keys.push('shrt.snow');
+                if (hasTmp) keys.push('shrt.temp_air');
+                if (keys.length) window.trackUsageMany(keys);
+            }
+        } catch (e) { /* 카운트 실패는 무시 */ }
     }
 
     /**
