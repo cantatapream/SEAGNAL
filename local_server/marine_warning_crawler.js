@@ -1136,82 +1136,83 @@ function _isRangeTime(str) {
 }
 
 // ============================================================================
-// [해제시각 고정 + 연장 판별] 발효중 zone 의 해제예정(clrNtcTm) 정책:
-//   - "해제 윈도우"(처음 확립된 범위의 끝 시각) 를 _clrWindowEnd 에 추적.
-//   - 윈도우 안: 정확시각이 발표되면 그 값을 고정(범위로 안 되돌림). MMIS 해제 전까지 유지.
-//   - 윈도우 초과(원래 범위보다 늦은 해제시각): 연장(_clrExtend 플래그) → "해제 예정시각 연장".
-//   - 해제(zone 사라짐): 윈도우 정리.
-//   _buildUserPushChanges 보다 먼저 호출. curr 의 active parent clrNtcTm 을 보정.
+// [발효/해제 예정시각 고정 + 연장 판별] (공통)
+//   - "윈도우"(처음 확립된 범위의 끝 시각) 를 추적. 범위로만 확립/확장.
+//   - 윈도우 안: 정확시각이 발표되면 고정(범위로 안 되돌림). MMIS 발효/해제 전까지 유지.
+//     · [#1 핸드오프] 직전 스냅샷에 정확값이 없어도(1사이클 공백) 최근 기억(_extensionMemory)
+//       에 정확값이 있으면 그 값으로 고정 → 공백 후 범위 재등장에도 가짜 푸시 방지.
+//   - 윈도우 초과(원래 범위보다 늦음): 연장 플래그 → "발효/해제 예정시각 연장".
+//   - [#2 자식] 자식 해역도 직전 정확값으로 고정 (표출 깜빡임 방지; 윈도우/연장은 부모만).
+//   - 미해당(소멸/단계변경): 윈도우 정리. _buildUserPushChanges 보다 먼저 호출.
 // ============================================================================
 let _clrWindowEnd = {};   // zone → 해제 윈도우 끝 시각키
-function _applyReleaseClrLogic(prev, curr) {
-    if (!curr || !curr.parents) return;
-    const active = new Set();
-    for (const [zone, info] of curr.parents) {
-        if (!info || !info.wrnLvlNm || info.wrnLvlNm === '예비' || info.wrnLvlNm === '해제') continue;
-        active.add(zone);
-        const incoming = info.clrNtcTm;
-        if (!incoming) continue;
-        const incKey = _timeKey(incoming);
-        const prevInfo = prev && prev.parents ? prev.parents.get(zone) : null;
-        const prevHeld = prevInfo ? prevInfo.clrNtcTm : null;
-        const win = _clrWindowEnd[zone];
-        if (win == null) {
-            _clrWindowEnd[zone] = incKey;   // 윈도우 확립 (현재 끝 시각)
-        } else if (incKey != null && incKey > win) {
-            // 원래 범위(윈도우)를 넘어선 해제시각 → 연장
-            info._clrExtend = { oldTime: prevHeld || '', newTime: incoming };
-            _clrWindowEnd[zone] = incKey;   // 윈도우 확장
-        } else {
-            // 윈도우 안 → 직전이 정확시각이고 이번이 범위형이면 정확값 유지 (되돌림·깜빡임 방지)
-            if (prevHeld && !_isRangeTime(prevHeld) && _isRangeTime(incoming)) {
-                info.clrNtcTm = prevHeld;
-            }
-            // 이번이 정확시각이면 그대로 채택 (윈도우 내 명확화)
-        }
-    }
-    for (const z of Object.keys(_clrWindowEnd)) if (!active.has(z)) delete _clrWindowEnd[z];
-}
+let _efWindowEnd = {};    // zone → 발효 윈도우 끝 시각키 (예비/발표대기)
 
-// ============================================================================
-// [발효시각 고정 + 연장 판별] 예비/발표대기 zone 의 발효예정(tmEf) 정책 — _applyReleaseClrLogic
-//   의 발효시각판. 정확 발효시각이 발표되면 고정(MMIS 발효 전까지), 범위↔정확 깜빡임 무시,
-//   원래 범위(윈도우)를 넘어선 발효시각이 나오면 _efExtend 플래그 → "발효 예정시각 연장".
-//   발효(active 전환)/소멸 시 윈도우 정리. _buildUserPushChanges 보다 먼저 호출.
-// ============================================================================
-let _efWindowEnd = {};   // zone → 발효 윈도우 끝 시각키 (예비/발표대기 tmEf)
-function _applyUpcomingEfLogic(prev, curr) {
+function _applyTimeWindowHold(prev, curr, cfg) {
     if (!curr) return;
-    const upZones = new Set();
-    const process = (zone, info, prevInfo) => {
-        if (!info || info.wrnLvlNm !== '예비') return;   // 예비/발표대기만
-        upZones.add(zone);
-        const incoming = info.tmEf;
+    const seen = new Set();
+    const proc = (zone, info, prevInfo) => {
+        if (!cfg.matchParent(info)) return;
+        seen.add(zone);
+        const incoming = info[cfg.field];
         if (!incoming) return;
+        // [#1] held 정확값: 직전 스냅샷 우선, 없으면 최근(5분) 기억 — 핸드오프 공백 견딤
+        let held = (prevInfo && prevInfo[cfg.field] && !_isRangeTime(prevInfo[cfg.field])) ? prevInfo[cfg.field] : null;
+        if (!held) {
+            const m = _extensionMemory[zone] && _extensionMemory[zone][cfg.phase];
+            if (m && m[cfg.field] && !_isRangeTime(m[cfg.field]) && (Date.now() - (m.lastSeenAt || 0)) < EXTENSION_BRIDGE_MS) held = m[cfg.field];
+        }
         const incKey = _timeKey(incoming);
-        const prevHeld = prevInfo ? prevInfo.tmEf : null;
-        const win = _efWindowEnd[zone];
-        if (win == null) {
-            _efWindowEnd[zone] = incKey;   // 윈도우 확립
-        } else if (incKey != null && incKey > win) {
-            info._efExtend = { oldTime: prevHeld || '', newTime: incoming };   // 윈도우 초과 → 연장
-            _efWindowEnd[zone] = incKey;
+        const isRange = _isRangeTime(incoming);
+        const win = cfg.winMap[zone];
+        if (win != null && incKey != null && incKey > win) {
+            // 윈도우(원래 범위 끝) 초과 → 연장
+            info[cfg.flag] = { oldTime: held || (prevInfo && prevInfo[cfg.field]) || '', newTime: incoming };
+            cfg.winMap[zone] = incKey;
         } else {
-            // 윈도우 안 → 직전이 정확시각이고 이번이 범위형이면 정확값 유지 (되돌림·깜빡임 방지)
-            if (prevHeld && !_isRangeTime(prevHeld) && _isRangeTime(incoming)) {
-                info.tmEf = prevHeld;
-            }
+            if (win == null && isRange && incKey != null) cfg.winMap[zone] = incKey;   // 윈도우는 범위로만 확립
+            if (held && isRange) info[cfg.field] = held;   // [#1] 정확값 고정 (공백/확립 시에도)
         }
     };
-    if (curr.parents) for (const [zone, info] of curr.parents) {
-        process(zone, info, prev && prev.parents ? prev.parents.get(zone) : null);
+    if (curr.parents) for (const [z, info] of curr.parents) {
+        proc(z, info, prev && prev.parents ? prev.parents.get(z) : null);
     }
-    if (curr.upcomings) for (const [zone, info] of curr.upcomings) {
-        const p = (prev && prev.upcomings && prev.upcomings.get(zone))
-            || (prev && prev.parents && prev.parents.get(zone)) || null;
-        process(zone, info, p);
+    if (cfg.includeUpcomings && curr.upcomings) for (const [z, info] of curr.upcomings) {
+        const p = (prev && prev.upcomings && prev.upcomings.get(z)) || (prev && prev.parents && prev.parents.get(z)) || null;
+        proc(z, info, p);
     }
-    for (const z of Object.keys(_efWindowEnd)) if (!upZones.has(z)) delete _efWindowEnd[z];
+    // [#2] 자식 해역 정확값 고정 (직전 정확 + 이번 범위 → 유지). 윈도우/연장 없음.
+    if (curr.children) for (const [z, cm] of curr.children) {
+        const pm = prev && prev.children ? prev.children.get(z) : null;
+        if (!pm) continue;
+        for (const [cn, info] of cm) {
+            if (!cfg.matchChild(info)) continue;
+            const pInfo = pm.get(cn);
+            const cv = info[cfg.field];
+            if (pInfo && pInfo[cfg.field] && !_isRangeTime(pInfo[cfg.field]) &&
+                cv && _isRangeTime(cv) && pInfo.wrnTpNm === info.wrnTpNm) {
+                info[cfg.field] = pInfo[cfg.field];
+            }
+        }
+    }
+    for (const z of Object.keys(cfg.winMap)) if (!seen.has(z)) delete cfg.winMap[z];
+}
+
+function _applyReleaseClrLogic(prev, curr) {
+    _applyTimeWindowHold(prev, curr, {
+        field: 'clrNtcTm', phase: 'active', winMap: _clrWindowEnd, flag: '_clrExtend',
+        matchParent: (i) => !!(i && i.wrnLvlNm && i.wrnLvlNm !== '예비' && i.wrnLvlNm !== '해제'),
+        matchChild: (i) => !!(i && i.wrnLvlNm && i.wrnLvlNm !== '예비' && i.wrnLvlNm !== '해제'),
+        includeUpcomings: false
+    });
+}
+function _applyUpcomingEfLogic(prev, curr) {
+    _applyTimeWindowHold(prev, curr, {
+        field: 'tmEf', phase: 'upcoming', winMap: _efWindowEnd, flag: '_efExtend',
+        matchParent: (i) => !!(i && i.wrnLvlNm === '예비'),
+        matchChild: (i) => !!(i && i.wrnLvlNm === '예비'),
+        includeUpcomings: true
+    });
 }
 
 /** run() 에서 매 cycle 호출 — 현재 특보 기억 갱신 + 만료 prune. (_buildUserPushChanges 이후)
