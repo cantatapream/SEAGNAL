@@ -3266,6 +3266,7 @@ var USAGE_THEMES = {
         appBg: 'linear-gradient(160deg,#161d33 0%,#0c1120 100%)',
         appBgSolid: '#0c1120',
         cardBg: 'rgba(255,255,255,0.06)',
+        cardBgSolid: '#1b2338',      // 드롭다운/팝업처럼 뒤가 비치면 안 되는 곳용 (불투명)
         cardBorder: 'rgba(255,255,255,0.10)',
         cardShadow: '0 8px 28px rgba(0,0,0,0.35)',
         text: '#e2e8f0',
@@ -3288,6 +3289,7 @@ var USAGE_THEMES = {
         appBg: '#f4f6fb',
         appBgSolid: '#f4f6fb',
         cardBg: '#ffffff',
+        cardBgSolid: '#ffffff',
         cardBorder: '#eef2f7',
         cardShadow: '0 6px 22px rgba(15,23,42,0.08)',
         text: '#0f172a',
@@ -3740,6 +3742,9 @@ function _usageRenderAffChart() {
     var data = _usageLastData || {};
     var T = usageThemeTokens();
     var dist = data.affiliationDistribution || [];
+    // 소속 복수선택이 있으면 그 소속만 표출(서버는 전체 분포를 주지만, 드롭다운 선택분만 비교).
+    var sel = _usageAffSelection || [];
+    if (sel.length) dist = dist.filter(function (d) { return sel.indexOf(d.name) !== -1; });
     var aLabels = dist.map(function (d) { return d.name; });
     var aValues = dist.map(function (d) { return d.total; });
     if (usageAffChart) { try { usageAffChart.destroy(); } catch (e) {} usageAffChart = null; }
@@ -3755,6 +3760,28 @@ function _usageRenderAffChart() {
     }
 }
 
+// 소규모 기능(전체의 GROUP_PCT% 미만)을 "기타" 한 항목으로 묶는다.
+//   featRows: [{key,count}] (건수 내림차순). 반환: {labels, values}(라벨 변환 + 기타 말미 추가).
+//   묶일 항목이 1개뿐이면 묶지 않고 그대로 둔다(기타 1건짜리는 무의미).
+function _usageGroupSmallFeatures(featRows) {
+    var GROUP_PCT = 3;
+    var total = featRows.reduce(function (s, r) { return s + r.count; }, 0) || 1;
+    var big = [], small = [];
+    featRows.forEach(function (r) {
+        if ((r.count / total * 100) < GROUP_PCT) small.push(r); else big.push(r);
+    });
+    var labels = big.map(function (r) { return usageFeatureLabel(r.key); });
+    var values = big.map(function (r) { return r.count; });
+    if (small.length >= 2) {
+        var sum = small.reduce(function (s, r) { return s + r.count; }, 0);
+        labels.push('기타 (' + small.length + '개 기능)');
+        values.push(sum);
+    } else {
+        small.forEach(function (r) { labels.push(usageFeatureLabel(r.key)); values.push(r.count); });
+    }
+    return { labels: labels, values: values };
+}
+
 // 기능별 누적 차트 렌더 (막대 또는 도넛). _usageLastData 기준.
 function _usageRenderFeatureChart() {
     var data = _usageLastData || {};
@@ -3762,8 +3789,10 @@ function _usageRenderFeatureChart() {
     var byFeature = data.byFeature || {};
     var featRows = Object.keys(byFeature).map(function (k) { return { key: k, count: byFeature[k] }; });
     featRows.sort(function (a, b) { return b.count - a.count; });
-    var labels = featRows.map(function (r) { return usageFeatureLabel(r.key); });
-    var values = featRows.map(function (r) { return r.count; });
+    // 너무 미미한(전체의 3% 미만) 기능은 "기타"로 묶어 차트를 정리(텍스트 잘림/지시선 난잡 방지).
+    var grouped = _usageGroupSmallFeatures(featRows);
+    var labels = grouped.labels;
+    var values = grouped.values;
     if (usageFeatureChart) { try { usageFeatureChart.destroy(); } catch (e) {} usageFeatureChart = null; }
     var el = document.getElementById('usage-feature-chart');
     var wrap = document.getElementById('usage-feat-canvas-wrap');
@@ -3772,17 +3801,34 @@ function _usageRenderFeatureChart() {
         if (wrap) wrap.style.height = '320px';
         usageFeatureChart = _usageMakeDonut(el, labels, values, T, 'feat');
     } else {
-        if (wrap) wrap.style.height = Math.max(280, featRows.length * 24 + 40) + 'px';
+        if (wrap) wrap.style.height = Math.max(280, values.length * 28 + 40) + 'px';
         usageFeatureChart = _usageMakeBar(el, labels, values, T);
     }
 }
 
+// 조각 클릭 확대용 상수: 바깥으로 밀어내는 거리 + 반지름을 키우는 양(확실히 커 보이게).
+var _USAGE_EXPLODE_OFFSET = 26;
+var _USAGE_EXPLODE_GROW = 24;
+
+// 확대된 조각의 반지름을 키워 "분리 + 확대"를 함께 준다(offset 만으로는 차이가 미미).
+function _usageDonutExplodePlugin() {
+    return {
+        id: 'usageDonutExplode',
+        afterUpdate: function (chart) {
+            var meta = chart.getDatasetMeta(0); if (!meta) return;
+            var ds = chart.data.datasets[0]; if (!ds || !ds.offset) return;
+            meta.data.forEach(function (arc, i) {
+                if (ds.offset[i]) { arc.outerRadius += _USAGE_EXPLODE_GROW; }
+            });
+        }
+    };
+}
+
 // 도넛 차트 생성(라벨 플러그인 + 그라데이션 + 조각 클릭 확대). which: 'aff'|'feat' (확대 상태 분리 관리).
 function _usageMakeDonut(el, labels, values, T, which) {
-    var explodedKey = (which === 'feat') ? '_usageFeatExploded' : '_usageAffExploded';
     var exploded = (which === 'feat') ? _usageFeatExploded : _usageAffExploded;
     // 확대된 조각만 바깥으로(offset). 길이는 데이터 수에 맞춰.
-    var offsets = values.map(function (_, i) { return i === exploded ? 24 : 0; });
+    var offsets = values.map(function (_, i) { return i === exploded ? _USAGE_EXPLODE_OFFSET : 0; });
     return new Chart(el, {
         type: 'doughnut',
         data: {
@@ -3793,23 +3839,24 @@ function _usageMakeDonut(el, labels, values, T, which) {
                 borderColor: T.donutBorder,
                 borderWidth: 2,
                 offset: offsets,
-                hoverOffset: 8
+                hoverOffset: 10
             }]
         },
-        plugins: [_usageDonutLabelPlugin(T)],
+        plugins: [_usageDonutExplodePlugin(), _usageDonutLabelPlugin(T)],
         options: {
             responsive: true, maintainAspectRatio: false,
-            layout: { padding: { left: 60, right: 60, top: 8, bottom: 8 } },
+            layout: { padding: { left: 70, right: 70, top: 12, bottom: 12 } },
             plugins: { legend: { display: false } },
-            // (바) 조각 클릭 → 그 조각 offset 토글 + 애니메이션 update.
+            // (바) 조각 클릭 → 그 조각만 확대 토글. 빈 영역(조각 밖) 클릭 → 모두 원위치.
             onClick: function (evt, elements, chart) {
-                if (!elements || !elements.length) return;
-                var idx = elements[0].index;
+                var idx = (elements && elements.length) ? elements[0].index : -1;
                 var cur = (which === 'feat') ? _usageFeatExploded : _usageAffExploded;
-                var next = (cur === idx) ? -1 : idx;   // 같은 조각 재클릭 시 원위치(토글)
+                // 빈 영역 → 복귀(-1), 같은 조각 재클릭 → 복귀(-1), 다른 조각 → 그 조각 확대.
+                var next = (idx === -1 || cur === idx) ? -1 : idx;
+                if (next === cur) return;   // 변화 없으면 스킵(불필요한 재렌더 방지)
                 if (which === 'feat') _usageFeatExploded = next; else _usageAffExploded = next;
                 var ds = chart.data.datasets[0];
-                ds.offset = ds.data.map(function (_, i) { return i === next ? 24 : 0; });
+                ds.offset = ds.data.map(function (_, i) { return i === next ? _USAGE_EXPLODE_OFFSET : 0; });
                 chart.update();   // 기본 애니메이션으로 부드럽게 분리/복귀
             }
         }
@@ -3953,14 +4000,26 @@ function _usageSyncTypeToggleUI() {
     });
 }
 
-// 제목 소팅기준 표시: 특정 소속이 선택된 경우 세 카드 제목 옆에 선택 소속명을 표기.
+// 제목 옆 기준 표시: 조회 기간(항상) + 선택 소속(있을 때)을 세 카드 제목 옆에 표기.
 function _usageUpdateTitleNotes() {
     var sel = _usageAffSelection || [];
-    var note = sel.length ? ('· ' + sel.join(', ')) : '';
+    var d = _usageLastData || {};
+    var parts = [_usagePeriodRangeText(d)];
+    if (sel.length) parts.push(sel.join(', '));
+    var note = '· ' + parts.join(' · ');
     ['usage-trend-affnote', 'usage-aff-affnote', 'usage-feat-affnote'].forEach(function (id) {
         var el = document.getElementById(id);
         if (el) el.textContent = note;
     });
+}
+
+// 조회 기간 텍스트: start~end. 둘 다 없으면 '전체 기간'.
+function _usagePeriodRangeText(d) {
+    var s = (d && d.start) || '';
+    var e = (d && d.end) || '';
+    if (!s && !e) return '전체 기간';
+    if (s && e) return s + ' ~ ' + e;
+    return s || e;
 }
 
 // 추이 차트 재렌더: 체크된 항목(전체 합계 / 기능별 다중)에 맞춰 멀티라인 구성.
