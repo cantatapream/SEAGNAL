@@ -3889,34 +3889,50 @@ function _usageCaptureReady() {
     });
 }
 
+// 공용 PC(넓은) 배열 캡처 — 대상 요소(카드/대시보드)를 임시로 넓은 폭(1024px)으로 확장하고
+//   포함된 차트를 그 폭에 맞춰 리사이즈한 뒤 html2canvas 로 캡처, 끝나면 원래 폭으로 복원한다.
+//   → 폰의 좁은 세로 배열이 아니라 PC 화면처럼 넓게 배열된 이미지를 저장한다(모든 내보내기 공통).
+function _usageCaptureWide(el, charts, T, filename) {
+    if (!el) { alert('캡처할 영역을 찾지 못했습니다.'); return; }
+    var WIDE = 1024;
+    var prevW = el.style.width, prevMax = el.style.maxWidth;
+    el.style.width = WIDE + 'px';
+    el.style.maxWidth = 'none';
+    (charts || []).forEach(function (c) { if (c) { try { c.resize(); } catch (e) {} } });
+    var restore = function () {
+        el.style.width = prevW; el.style.maxWidth = prevMax;
+        (charts || []).forEach(function (c) { if (c) { try { c.resize(); } catch (e) {} } });
+    };
+    var raf = window.requestAnimationFrame || function (cb) { setTimeout(cb, 32); };
+    raf(function () { raf(function () {  // 폭 변경 + 차트 리사이즈 반영을 위해 2프레임 대기
+        _ensureHtml2Canvas().then(function (h2c) {
+            return h2c(el, { backgroundColor: T.appBgSolid, scale: 2, useCORS: true, logging: false, width: WIDE, windowWidth: WIDE });
+        }).then(function (canvas) {
+            restore();
+            _usageTriggerDownload(canvas.toDataURL('image/png'), filename, false);
+        }).catch(function (e) {
+            restore();
+            alert('이미지 캡처 실패: ' + (e && e.message));
+        });
+    }); });
+}
+
 window.exportUsageImage = function (target) {
     var T = usageThemeTokens();
     var mode = getUsageTheme();
     var ymd = new Date().toISOString().slice(0, 10);
     var suffix = '_' + mode + '_' + ymd + '.png';
 
-    // 폰트/차트 렌더 완료를 보장한 뒤 캡처(개선 2).
+    // 폰트/차트 렌더 완료를 보장한 뒤, 모든 대상을 PC(넓은) 배열로 캡처.
     _usageCaptureReady().then(function () {
-        // 개별 차트(추이/도넛)는 toBase64Image 로 선명하게. feature/dashboard 는 DOM 캡처.
         if (target === 'trend') {
-            if (usageTrendChart) _usageDownloadChart(usageTrendChart, T, 'seagnal_usage_trend' + suffix);
-            else alert('해당 차트가 아직 준비되지 않았습니다.');
-            return;
-        }
-        if (target === 'aff') {
-            if (usageAffChart) _usageDownloadChart(usageAffChart, T, 'seagnal_usage_affiliation' + suffix);
-            else alert('해당 차트가 아직 준비되지 않았습니다.');
-            return;
-        }
-        if (target === 'feature') {
-            // feature 는 차트+표가 한 카드 → DOM 캡처(html2canvas 지연 로드).
-            _usageCaptureDom(document.getElementById('usage-feature-card'), T, 'seagnal_usage_feature' + suffix);
-            return;
-        }
-        if (target === 'dashboard') {
-            // 전체 대시보드(요약카드+모든 차트/표 포함된 루트) 통합 캡처.
-            _usageCaptureDom(document.getElementById('usage-root'), T, 'seagnal_usage_dashboard' + suffix);
-            return;
+            _usageCaptureWide(document.getElementById('usage-trend-card'), [usageTrendChart], T, 'seagnal_usage_trend' + suffix);
+        } else if (target === 'aff') {
+            _usageCaptureWide(document.getElementById('usage-aff-card'), [usageAffChart], T, 'seagnal_usage_affiliation' + suffix);
+        } else if (target === 'feature') {
+            _usageCaptureWide(document.getElementById('usage-feature-card'), [usageFeatureChart], T, 'seagnal_usage_feature' + suffix);
+        } else if (target === 'dashboard') {
+            _usageCaptureWide(document.getElementById('usage-root'), [usageTrendChart, usageAffChart, usageFeatureChart], T, 'seagnal_usage_dashboard' + suffix);
         }
     });
 };
