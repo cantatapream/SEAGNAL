@@ -1047,6 +1047,14 @@ function _applyAnnounceAnchor(prev, curr) {
         for (const [zone, info] of curr.parents) {
             if (!info || !info.wrnLvlNm || info.wrnLvlNm === '해제') continue;
             const pinfo = prev && prev.parents ? prev.parents.get(zone) : null;
+            // [해제시각 고정] warn/latest 가 잠깐 통보문을 안 줘서 정확 해제시각이 범위형으로
+            //   되돌아가려 할 때, 직전 정확값이 같은 모멘트면 정확값을 유지(깜빡임·가짜 푸시 방지).
+            if (pinfo && pinfo.clrNtcTm && !_isRangeTime(pinfo.clrNtcTm) &&
+                info.clrNtcTm && _isRangeTime(info.clrNtcTm) &&
+                pinfo.wrnTpNm === info.wrnTpNm && _anchorLevel(pinfo) === _anchorLevel(info) &&
+                _sameReleaseMoment(pinfo.clrNtcTm, info.clrNtcTm)) {
+                info.clrNtcTm = pinfo.clrNtcTm;
+            }
             if (carry(pinfo, info)) { info.tmFc = pinfo.tmFc; continue; }   // 직전 고정값 이어받기
             // [B] 격상/격하 발효: 직전에 공존하던 예비(upcomings)는 새 발효 등급의 전구체이므로
             //   그 예비의 발표시각을 이어받음 (예비는 wrnLvlNm 이 '예비'라 등급 인코딩이 없어
@@ -1108,13 +1116,24 @@ function _timeKey(str, refMonth) {
     else if (m = s.match(/(\d{1,2})\s*일/)) { d = +m[1]; }
     if (hh == null) {
         let hm;
-        if (hm = s.match(/(\d{1,2}):(\d{2})/)) { hh = +hm[1]; mm = +hm[2]; }
+        // 범위형("21시~24시","00~06시")은 일관되게 끝 시각 사용 (앞 시각이 시를 달고 있어도)
+        if (hm = s.match(/(\d{1,2})\s*시?\s*[~∼]\s*(\d{1,2})\s*시?/)) { hh = +hm[2]; }
+        else if (hm = s.match(/(\d{1,2}):(\d{2})/)) { hh = +hm[1]; mm = +hm[2]; }
         else if (hm = s.match(/(\d{1,2})\s*시/)) { hh = +hm[1]; }
-        else if (hm = s.match(/(\d{1,2})\s*[~∼]/)) { hh = +hm[1]; }
     }
     if (d == null || hh == null) return null;
     if (mo == null) mo = refMonth || (new Date(Date.now() + 9 * 3600000).getUTCMonth() + 1);
+    if (hh === 24) { hh = 0; d += 1; }   // 24시 = 다음날 00시 정규화 (범위 끝 ↔ 정확 00시 비교용)
     return mo * 1000000 + d * 10000 + hh * 100 + mm;
+}
+
+/** 두 시각이 "같은 해제/발효 모멘트"인지 — 범위형의 끝 시각과 정확시각이 같으면 동일로 봄.
+ *  (예: "26일 21시~24시" 의 끝 24시 = "27일 00시" → 같은 모멘트). warn/latest 휘발성으로
+ *  범위↔정확이 깜빡여도 같은 시각이면 변경으로 보지 않아 가짜 푸시 방지. */
+function _sameReleaseMoment(a, b) {
+    if (!a || !b) return false;
+    const ka = _timeKey(a), kb = _timeKey(b);
+    return ka != null && kb != null && ka === kb;
 }
 
 /** 범위형 시각인지 (예: "21시~24시", "00~06시"). 정확시각("27일 00시","2026.05.27 00:00")은 false.
@@ -1192,7 +1211,8 @@ function _buildUserPushChanges(prev, curr) {
         return a.wrnTp === b.wrnTp
             && a.wrnLvl === b.wrnLvl
             && a.tmEf === b.tmEf
-            && a.tmYn === b.tmYn;
+            // 해제예정: 범위↔정확이 같은 모멘트면 동일로 봄 (warn/latest 깜빡임 가짜 푸시 방지)
+            && (a.tmYn === b.tmYn || _sameReleaseMoment(a.tmYn, b.tmYn));
     };
 
     // [작업2b] 부모 zone 의 자식 한정사용 childState 구성.
