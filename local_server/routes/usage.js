@@ -158,7 +158,7 @@ router.post('/api/usage', (req, res) => {
  * 쿼리:
  *   period      = daily | monthly | yearly  (기본 daily)
  *   start, end  = YYYY-MM-DD (없으면 전체 범위)
- *   affiliation = 소속명 (없거나 '전체'면 전체)
+ *   affiliation = 소속명 콤마구분 복수 (없거나 '전체' 포함이면 전체)
  *
  * 응답:
  *   {
@@ -178,8 +178,13 @@ function computeUsageAggregation(query) {
             ? req.query.period : 'daily';
         const start = req.query.start || '';
         const end = req.query.end || '';
-        const affFilter = (req.query.affiliation && req.query.affiliation !== '전체')
-            ? req.query.affiliation : null;
+        // 소속 복수선택: 콤마구분 문자열을 받아 '전체'/빈값 제외한 배열 → Set.
+        // Set 이 비면(=전체 선택 또는 미지정) 필터 미적용.
+        const affList = String(req.query.affiliation || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(s => s !== '' && s !== '전체');
+        const affSet = affList.length ? new Set(affList) : null;
 
         const snapshot = usageQueue.getStatsSnapshot();   // { date: { deviceId: { feature: count } } }
         const affMap = buildAffiliationMap();             // { deviceId: 소속 }
@@ -217,8 +222,8 @@ function computeUsageAggregation(query) {
                 // 소속 분포(도넛)는 항상 전체(필터 미적용 분포)로 집계
                 byAffiliation[aff] = (byAffiliation[aff] || 0) + deviceTotal;
 
-                // 선택 소속 필터: 추이/기능별/총건수는 필터 적용
-                if (affFilter && aff !== affFilter) return;
+                // 선택 소속 필터(복수): 추이/기능별/총건수는 필터 적용
+                if (affSet && !affSet.has(aff)) return;
 
                 trendMap[bucket] = (trendMap[bucket] || 0) + deviceTotal;
                 totalEvents += deviceTotal;
@@ -272,7 +277,7 @@ function computeUsageAggregation(query) {
             period,
             start,
             end,
-            affiliation: affFilter || '전체',
+            affiliation: affSet ? affList.join(', ') : '전체',
             affiliationOrder: AFFILIATION_ORDER,
             trend,
             trendByFeature,

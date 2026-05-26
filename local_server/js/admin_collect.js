@@ -3327,8 +3327,13 @@ var usageAffChart = null;       // 소속 도넛 인스턴스
 var usageFeatureChart = null;   // 기능별 막대 인스턴스
 var _usageLastData = null;      // 마지막 집계 응답 (CSV/이미지 export 용)
 var _usageLastQuery = null;     // 마지막 조회 조건 (period/start/end/aff)
-var _usagePendingAff = null;    // 테마 토글 재렌더 시 복원할 소속 선택값
 var _usageTrendStore = null;    // 추이 멀티라인용 { buckets, total[], byFeature{} }
+var _usageAffSelection = [];    // 소속 복수선택 상태(빈 배열=전체). 재렌더/테마토글 후에도 유지.
+var _usageAffType = 'doughnut'; // 소속별 조회수 차트 유형 (doughnut|bar). 기본=도넛.
+var _usageFeatType = 'bar';     // 기능별 누적 차트 유형 (doughnut|bar). 기본=막대.
+var _usageAffExploded = -1;     // 도넛 확대(분리)된 조각 index (-1=없음). 카드별로 따로 관리.
+var _usageFeatExploded = -1;    // 기능 도넛 확대된 조각 index (-1=없음).
+var _usageMergedAffList = [];   // 현재 사용 가능한 소속 목록(드롭다운 옵션 출처).
 
 /**
  * 사용량 통계 대시보드를 렌더링합니다. (종합 통계 > 사용량 통계 하위탭)
@@ -3383,9 +3388,17 @@ async function renderUsageStatsContent(container) {
                 <input type="date" id="usage-start-date" style="${inputStyle}">
                 <span style="color:${T.faint};">~</span>
                 <input type="date" id="usage-end-date" style="${inputStyle}">
-                <select id="usage-affiliation" style="${inputStyle} padding:5px 8px;">
-                    <option value="전체">전체 소속</option>
-                </select>
+                <!-- 소속 복수선택 커스텀 드롭다운 (버튼 + 체크박스 패널) -->
+                <div id="usage-aff-dd" style="position:relative;">
+                    <button type="button" id="usage-aff-btn" onclick="window._usageAffTogglePanel(event)"
+                            style="${inputStyle} padding:5px 10px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; min-width:120px; justify-content:space-between;">
+                        <span id="usage-aff-btn-label">전체 소속</span>
+                        <i class="fa-solid fa-chevron-down" style="font-size:0.65rem; opacity:0.7;"></i>
+                    </button>
+                    <div id="usage-aff-panel" style="display:none; position:absolute; top:calc(100% + 4px); right:0; z-index:50; background:${T.cardBgSolid || T.cardBg}; border:1px solid ${T.ctrlBorder}; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,0.35); padding:6px; min-width:200px; max-height:300px; overflow-y:auto;">
+                        <!-- _renderUsageDashboard 가 채움 -->
+                    </div>
+                </div>
                 <button onclick="window.refreshUsageDash()" style="background:linear-gradient(135deg,${T.accent},${T.accent2}); border:none; color:#fff; padding:5px 12px; border-radius:6px; font-size:0.8rem; font-weight:700; cursor:pointer;">적용</button>
             </div>
         </div>
@@ -3428,15 +3441,24 @@ async function renderUsageStatsContent(container) {
 
             <!-- 추이 차트 -->
             <div id="usage-trend-card" class="usage-card" style="background:${T.cardBg}; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow}; border-radius:16px; padding:20px; margin-bottom:20px; position:relative;">
-                <div style="font-weight:700; font-size:0.85rem; color:${T.muted}; margin-bottom:8px;">기간 추이 <span style="font-weight:400; color:${T.faint}; font-size:0.72rem;">· 전체 합계 또는 기능 선택(중복 가능)</span></div>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+                    <div style="font-weight:700; font-size:0.85rem; color:${T.muted};">기간 추이 <span style="font-weight:400; color:${T.faint}; font-size:0.72rem;">· 전체 합계 또는 기능 선택(중복 가능)</span></div>
+                    <span id="usage-trend-affnote" style="font-size:0.74rem; font-weight:700; color:${T.cyan};"></span>
+                </div>
                 <div id="usage-trend-controls" style="display:flex; gap:6px; flex-wrap:nowrap; overflow-x:auto; padding-bottom:8px; margin-bottom:6px; -webkit-overflow-scrolling:touch;"></div>
                 <div style="position:relative; height:250px;"><canvas id="usage-trend-chart"></canvas></div>
             </div>
 
-            <!-- 소속 분포 도넛 -->
+            <!-- 소속별 정보 조회수 (도넛/막대 전환) -->
             <div id="usage-aff-card" class="usage-card" style="background:${T.cardBg}; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow}; border-radius:16px; padding:20px; margin-bottom:20px;">
-                <div style="font-weight:700; font-size:0.85rem; color:${T.muted}; margin-bottom:12px;">소속 분포 (선택 기간 · 소속 필터 무관)</div>
-                <div style="height:280px; position:relative;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+                    <div style="font-weight:700; font-size:0.85rem; color:${T.muted};">소속별 정보 조회수 <span id="usage-aff-affnote" style="font-weight:700; color:${T.cyan}; font-size:0.74rem;"></span></div>
+                    <div id="usage-aff-typetoggle" style="display:flex; background:${T.ctrlBg}; padding:3px; border-radius:8px;">
+                        <button type="button" data-type="doughnut" onclick="window._usageSetChartType('aff','doughnut')" title="원형" style="${btnStyle} padding:4px 9px;"><i class="fa-solid fa-circle-dot"></i></button>
+                        <button type="button" data-type="bar" onclick="window._usageSetChartType('aff','bar')" title="막대" style="${btnStyle} padding:4px 9px;"><i class="fa-solid fa-chart-bar"></i></button>
+                    </div>
+                </div>
+                <div id="usage-aff-canvas-wrap" style="height:280px; position:relative;">
                     <canvas id="usage-aff-chart"></canvas>
                 </div>
             </div>
@@ -3444,8 +3466,14 @@ async function renderUsageStatsContent(container) {
             <!-- 기능별 누적 막대 + 표 (한 카드로 묶어 기능별표 PNG에 함께 캡처) -->
             <div id="usage-feature-card" class="usage-card" style="background:${T.cardBg}; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow}; border-radius:16px; margin-bottom:20px; overflow:hidden;">
                 <div style="padding:20px;">
-                    <div style="font-weight:700; font-size:0.85rem; color:${T.muted}; margin-bottom:12px;">기능별 누적 사용 <span style="font-weight:400; color:${T.faint}; font-size:0.72rem;">· 건수 많은 순</span></div>
-                    <div style="position:relative; min-height:280px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+                        <div style="font-weight:700; font-size:0.85rem; color:${T.muted};">기능별 누적 사용 <span style="font-weight:400; color:${T.faint}; font-size:0.72rem;">· 건수 많은 순</span> <span id="usage-feat-affnote" style="font-weight:700; color:${T.cyan}; font-size:0.74rem;"></span></div>
+                        <div id="usage-feat-typetoggle" style="display:flex; background:${T.ctrlBg}; padding:3px; border-radius:8px;">
+                            <button type="button" data-type="doughnut" onclick="window._usageSetChartType('feat','doughnut')" title="원형" style="${btnStyle} padding:4px 9px;"><i class="fa-solid fa-circle-dot"></i></button>
+                            <button type="button" data-type="bar" onclick="window._usageSetChartType('feat','bar')" title="막대" style="${btnStyle} padding:4px 9px;"><i class="fa-solid fa-chart-bar"></i></button>
+                        </div>
+                    </div>
+                    <div id="usage-feat-canvas-wrap" style="position:relative; min-height:280px;">
                         <canvas id="usage-feature-chart"></canvas>
                     </div>
                 </div>
@@ -3486,8 +3514,8 @@ async function renderUsageStatsContent(container) {
     window.refreshUsageDash = async function () {
         var start = document.getElementById('usage-start-date').value;
         var end = document.getElementById('usage-end-date').value;
-        var affSel = document.getElementById('usage-affiliation');
-        var aff = affSel ? affSel.value : '전체';
+        // 소속 복수선택 상태(_usageAffSelection)를 콤마조인. 비면 '전체'.
+        var aff = (_usageAffSelection && _usageAffSelection.length) ? _usageAffSelection.join(',') : '전체';
         // custom 은 서버측 버킷을 daily 로(임의 start~end 범위), 그 외는 그대로.
         var serverPeriod = (usagePeriod === 'custom') ? 'daily' : usagePeriod;
 
@@ -3502,7 +3530,7 @@ async function renderUsageStatsContent(container) {
             var data = await res.json();
             _usageLastData = data;
             _usageLastQuery = { period: usagePeriod, start: start, end: end, affiliation: aff };
-            _renderUsageDashboard(data, affSel);
+            _renderUsageDashboard(data);
         } catch (e) {
             container.innerHTML += '<div style="color:#ef4444;text-align:center;padding:20px;">사용량 데이터 로드 실패: ' + (e && e.message) + '</div>';
         } finally {
@@ -3516,10 +3544,9 @@ async function renderUsageStatsContent(container) {
         var keep = {
             period: usagePeriod,
             start: (document.getElementById('usage-start-date') || {}).value,
-            end: (document.getElementById('usage-end-date') || {}).value,
-            aff: (document.getElementById('usage-affiliation') || {}).value
+            end: (document.getElementById('usage-end-date') || {}).value
         };
-        _usagePendingAff = keep.aff || null;  // 데이터 로드 후 _renderUsageDashboard 가 복원
+        // 소속 복수선택은 모듈 변수(_usageAffSelection)에 이미 유지되므로 재렌더 후 그대로 살아남음.
         setUsageTheme(getUsageTheme() === 'dark' ? 'light' : 'dark');
         renderUsageStatsContent(container).then(function () {
             var s = document.getElementById('usage-start-date');
@@ -3537,28 +3564,25 @@ async function renderUsageStatsContent(container) {
 /**
  * /api/stats/usage 응답으로 요약/차트/표를 그린다.
  * @param {Object} data 서버 집계 응답
- * @param {HTMLSelectElement} affSel 소속 드롭다운 (옵션 채우기용)
  */
-function _renderUsageDashboard(data, affSel) {
+function _renderUsageDashboard(data) {
     data = data || {};
     var T = usageThemeTokens();
     document.getElementById('usage-dashboard').style.display = 'block';
 
-    // ── 소속 드롭다운 옵션 채우기 (현재 선택 유지 / 테마 토글 복원) ──
-    if (affSel) {
-        var prev = _usagePendingAff || affSel.value || '전체';
-        _usagePendingAff = null;
-        var order = data.affiliationOrder || [];
-        // 분포에 등장한 소속 + 표준 순서 합치기
-        var present = (data.affiliationDistribution || []).map(function (d) { return d.name; });
-        var merged = [];
-        order.forEach(function (o) { if (present.indexOf(o) !== -1 && merged.indexOf(o) === -1) merged.push(o); });
-        present.forEach(function (p) { if (merged.indexOf(p) === -1) merged.push(p); });
-        affSel.innerHTML = '<option value="전체">전체 소속</option>'
-            + merged.map(function (m) { return '<option value="' + m + '">' + m + '</option>'; }).join('');
-        // 이전 선택 복원 (없어졌으면 전체)
-        affSel.value = (prev === '전체' || merged.indexOf(prev) !== -1) ? prev : '전체';
-    }
+    // ── 소속 복수선택 드롭다운 옵션 채우기 (merged 소속 목록 동적 생성) ──
+    //   merged = 표준 순서(존재하는 것) + 분포에 추가 등장한 소속.
+    var order = data.affiliationOrder || [];
+    var present = (data.affiliationDistribution || []).map(function (d) { return d.name; });
+    var merged = [];
+    order.forEach(function (o) { if (present.indexOf(o) !== -1 && merged.indexOf(o) === -1) merged.push(o); });
+    present.forEach(function (p) { if (merged.indexOf(p) === -1) merged.push(p); });
+    _usageMergedAffList = merged;
+    // 이전 선택 중 더 이상 존재하지 않는 소속은 정리(데이터 변화 대응).
+    _usageAffSelection = (_usageAffSelection || []).filter(function (a) { return merged.indexOf(a) !== -1; });
+    _usageBuildAffPanel(merged, T);
+    _usageUpdateAffButtonLabel();
+    _usageUpdateTitleNotes();
 
     // ── 요약 카드 ──
     document.getElementById('usage-stat-total').textContent = (data.totalEvents || 0).toLocaleString();
@@ -3589,176 +3613,354 @@ function _renderUsageDashboard(data, affSel) {
     }
     window._usageRedrawTrend();
 
-    // ── 소속 도넛 (테마 series + 테두리) ──
+    // ── 소속별 정보 조회수 (도넛/막대 전환) ──
+    _usageRenderAffChart();
+
+    // ── 기능별 누적 (막대/도넛 전환) ──
+    _usageRenderFeatureChart();
+
+    // 차트유형 토글 버튼 활성 상태 동기화
+    _usageSyncTypeToggleUI();
+}
+
+// ── 라벨 플러그인 팩토리 (도넛/막대 공용 재사용) ──
+//   도넛: 이름+%·건수, 큰 조각은 링 안쪽 2줄, 작은 조각은 지시선으로 밖에.
+function _usageDonutLabelPlugin(T) {
+    return {
+        id: 'usageDonutLabels',
+        afterDraw: function (chart) {
+            var ds = chart.data.datasets[0]; if (!ds) return;
+            var meta = chart.getDatasetMeta(0);
+            var arr = ds.data || [];
+            var names = chart.data.labels || [];
+            var sum = arr.reduce(function (a, b) { return a + (b || 0); }, 0) || 1;
+            var ctx = chart.ctx;
+            ctx.save();
+            ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
+            ctx.lineJoin = 'round';
+            var sides = { left: [], right: [] };
+            meta.data.forEach(function (arc, i) {
+                var v = arr[i] || 0; if (!v) return;
+                var pct = v / sum * 100;
+                var mid = (arc.startAngle + arc.endAngle) / 2;
+                var name = String(names[i] || '');
+                var value = pct.toFixed(1) + '% (' + v.toLocaleString() + ')';
+                // 확대(offset)된 조각은 중심이 바깥으로 밀려 있으므로 arc.x/arc.y 를 그대로 쓰면 라벨도 함께 이동(자연스러움).
+                if (pct >= 8) {
+                    var r = (arc.innerRadius + arc.outerRadius) / 2;
+                    var cx = arc.x + Math.cos(mid) * r, cy = arc.y + Math.sin(mid) * r;
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.fillStyle = '#fff';
+                    ctx.strokeText(name, cx, cy - 7); ctx.fillText(name, cx, cy - 7);
+                    ctx.strokeText(value, cx, cy + 8); ctx.fillText(value, cx, cy + 8);
+                } else {
+                    var right = Math.cos(mid) >= 0;
+                    sides[right ? 'right' : 'left'].push({
+                        x: arc.x, y: arc.y, mid: mid, outer: arc.outerRadius, name: name, value: value,
+                        sy: arc.y + Math.sin(mid) * arc.outerRadius
+                    });
+                }
+            });
+            var canvasW = chart.width;
+            ['left', 'right'].forEach(function (side) {
+                var items = sides[side]; if (!items.length) return;
+                var right = side === 'right';
+                items.sort(function (a, b) { return a.sy - b.sy; });
+                var minGap = 30, prev = -1e9;   // 2줄(이름+값)이라 간격 넓힘
+                items.forEach(function (it) {
+                    var ly = Math.max(it.sy, prev + minGap); prev = ly;
+                    var sx = it.x + Math.cos(it.mid) * it.outer;
+                    var syp = it.y + Math.sin(it.mid) * it.outer;
+                    var elbowX = it.x + (right ? 1 : -1) * (it.outer + 10);
+                    var tw = Math.max(ctx.measureText(it.name).width, ctx.measureText(it.value).width);
+                    var labelX = it.x + (right ? 1 : -1) * (it.outer + 14);
+                    if (right) labelX = Math.min(labelX, canvasW - tw - 4);
+                    else labelX = Math.max(labelX, tw + 4);
+                    ctx.strokeStyle = T.faint || '#94a3b8'; ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.moveTo(sx, syp); ctx.lineTo(elbowX, ly); ctx.lineTo(labelX + (right ? -2 : 2), ly); ctx.stroke();
+                    ctx.textBaseline = 'middle'; ctx.textAlign = right ? 'left' : 'right';
+                    ctx.fillStyle = T.text; ctx.fillText(it.name, labelX, ly - 7);
+                    ctx.fillStyle = T.muted; ctx.fillText(it.value, labelX, ly + 8);
+                });
+            });
+            ctx.restore();
+        }
+    };
+}
+
+// 막대 '중앙'에 '건수 · %' 표출(짧으면 왼쪽부터). 어두운 외곽선(헤일로)+흰 글자.
+function _usageBarLabelPlugin() {
+    return {
+        id: 'usageBarLabels',
+        afterDatasetsDraw: function (chart) {
+            var ctx = chart.ctx;
+            var meta = chart.getDatasetMeta(0);
+            var data = chart.data.datasets[0].data || [];
+            var sum = data.reduce(function (a, b) { return a + (b || 0); }, 0) || 1;
+            var x0 = chart.scales.x.getPixelForValue(0);  // 막대 시작(0) 픽셀
+            ctx.save();
+            ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'center';
+            ctx.lineJoin = 'round';
+            meta.data.forEach(function (bar, i) {
+                var v = data[i] || 0;
+                var txt = v.toLocaleString() + '건 · ' + (v / sum * 100).toFixed(1) + '%';
+                var tw = ctx.measureText(txt).width;
+                var barW = bar.x - x0;
+                var tx, align;
+                if (barW >= tw + 8) { tx = (x0 + bar.x) / 2; align = 'center'; }
+                else { tx = x0 + 5; align = 'left'; }
+                ctx.textAlign = align;
+                ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+                ctx.strokeText(txt, tx, bar.y);
+                ctx.fillStyle = '#fff';
+                ctx.fillText(txt, tx, bar.y);
+            });
+            ctx.restore();
+        }
+    };
+}
+
+// 도넛 조각별 그라데이션 배경 (밝은 자기색 → 매우 진한 자기색 대각선).
+function _usageDonutSliceBg(T) {
+    return function (context) {
+        var base = T.series[(context.dataIndex || 0) % T.series.length];
+        var chart = context.chart, ctx = chart && chart.ctx, area = chart && chart.chartArea;
+        if (!ctx || !area) return base;
+        var g = ctx.createLinearGradient(area.left, area.top, area.right, area.bottom);
+        g.addColorStop(0, _usageLighten(base, 0.5));
+        g.addColorStop(1, _usageDarken(base, 0.45));
+        return g;
+    };
+}
+
+// 소속별 정보 조회수 차트 렌더 (도넛 또는 가로막대). _usageLastData 기준.
+function _usageRenderAffChart() {
+    var data = _usageLastData || {};
+    var T = usageThemeTokens();
     var dist = data.affiliationDistribution || [];
     var aLabels = dist.map(function (d) { return d.name; });
     var aValues = dist.map(function (d) { return d.total; });
     if (usageAffChart) { try { usageAffChart.destroy(); } catch (e) {} usageAffChart = null; }
-    var affEl = document.getElementById('usage-aff-chart');
-    if (affEl && typeof Chart !== 'undefined') {
-        usageAffChart = new Chart(affEl, {
-            type: 'doughnut',
-            data: {
-                labels: aLabels,
-                datasets: [{
-                    data: aValues,
-                    backgroundColor: function (context) {
-                        var base = T.series[(context.dataIndex || 0) % T.series.length];
-                        var chart = context.chart, ctx = chart && chart.ctx, area = chart && chart.chartArea;
-                        if (!ctx || !area) return base;
-                        // (나) 각 조각: 밝은 자기색 → 매우 진한 자기색 대각선 그라데이션 (효과 강하게)
-                        var g = ctx.createLinearGradient(area.left, area.top, area.right, area.bottom);
-                        g.addColorStop(0, _usageLighten(base, 0.5));
-                        g.addColorStop(1, _usageDarken(base, 0.45));
-                        return g;
-                    },
-                    borderColor: T.donutBorder,
-                    borderWidth: 2
-                }]
-            },
-            plugins: [{
-                // 각 조각에 % (건수) 기본 표출. 큰 조각(≥8%)은 링 안쪽, 작은 조각은 지시선으로 밖에.
-                id: 'usageDonutLabels',
-                afterDraw: function (chart) {
-                    var ds = chart.data.datasets[0]; if (!ds) return;
-                    var meta = chart.getDatasetMeta(0);
-                    var arr = ds.data || [];
-                    var names = chart.data.labels || [];
-                    var sum = arr.reduce(function (a, b) { return a + (b || 0); }, 0) || 1;
-                    var ctx = chart.ctx;
-                    ctx.save();
-                    ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
-                    ctx.lineJoin = 'round';
-                    var sides = { left: [], right: [] };
-                    meta.data.forEach(function (arc, i) {
-                        var v = arr[i] || 0; if (!v) return;
-                        var pct = v / sum * 100;
-                        var mid = (arc.startAngle + arc.endAngle) / 2;
-                        var name = String(names[i] || '');
-                        var value = pct.toFixed(1) + '% (' + v.toLocaleString() + ')';
-                        if (pct >= 8) {
-                            // 큰 조각: 링 안쪽에 이름(위) + %·건수(아래), 가독성 외곽선.
-                            var r = (arc.innerRadius + arc.outerRadius) / 2;
-                            var cx = arc.x + Math.cos(mid) * r, cy = arc.y + Math.sin(mid) * r;
-                            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                            ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.fillStyle = '#fff';
-                            ctx.strokeText(name, cx, cy - 7); ctx.fillText(name, cx, cy - 7);
-                            ctx.strokeText(value, cx, cy + 8); ctx.fillText(value, cx, cy + 8);
-                        } else {
-                            var right = Math.cos(mid) >= 0;
-                            sides[right ? 'right' : 'left'].push({
-                                x: arc.x, y: arc.y, mid: mid, outer: arc.outerRadius, name: name, value: value,
-                                sy: arc.y + Math.sin(mid) * arc.outerRadius
-                            });
-                        }
-                    });
-                    var canvasW = chart.width;
-                    ['left', 'right'].forEach(function (side) {
-                        var items = sides[side]; if (!items.length) return;
-                        var right = side === 'right';
-                        items.sort(function (a, b) { return a.sy - b.sy; });
-                        var minGap = 30, prev = -1e9;   // 2줄(이름+값)이라 간격 넓힘
-                        items.forEach(function (it) {
-                            var ly = Math.max(it.sy, prev + minGap); prev = ly;
-                            var sx = it.x + Math.cos(it.mid) * it.outer;
-                            var syp = it.y + Math.sin(it.mid) * it.outer;
-                            var elbowX = it.x + (right ? 1 : -1) * (it.outer + 10);
-                            var tw = Math.max(ctx.measureText(it.name).width, ctx.measureText(it.value).width);
-                            var labelX = it.x + (right ? 1 : -1) * (it.outer + 14);
-                            // 카드 밖으로 잘리지 않게 클램프(라벨이 캔버스 안에 들어오도록)
-                            if (right) labelX = Math.min(labelX, canvasW - tw - 4);
-                            else labelX = Math.max(labelX, tw + 4);
-                            ctx.strokeStyle = T.faint || '#94a3b8'; ctx.lineWidth = 1;
-                            ctx.beginPath(); ctx.moveTo(sx, syp); ctx.lineTo(elbowX, ly); ctx.lineTo(labelX + (right ? -2 : 2), ly); ctx.stroke();
-                            ctx.textBaseline = 'middle'; ctx.textAlign = right ? 'left' : 'right';
-                            ctx.fillStyle = T.text; ctx.fillText(it.name, labelX, ly - 7);
-                            ctx.fillStyle = T.muted; ctx.fillText(it.value, labelX, ly + 8);
-                        });
-                    });
-                    ctx.restore();
-                }
-            }],
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                layout: { padding: { left: 60, right: 60, top: 8, bottom: 8 } },
-                plugins: { legend: { display: false } }   // 범례는 아래 HTML 표로 대체
-            }
-        });
+    var el = document.getElementById('usage-aff-chart');
+    var wrap = document.getElementById('usage-aff-canvas-wrap');
+    if (!el || typeof Chart === 'undefined') return;
+    if (_usageAffType === 'doughnut') {
+        if (wrap) wrap.style.height = '280px';
+        usageAffChart = _usageMakeDonut(el, aLabels, aValues, T, 'aff');
+    } else {
+        if (wrap) wrap.style.height = Math.max(280, aLabels.length * 28 + 40) + 'px';
+        usageAffChart = _usageMakeBar(el, aLabels, aValues, T);
     }
-    // (소속 범례는 도넛 라벨에 이름+%·건수로 합쳐졌으므로 별도 표 없음)
+}
 
-    // ── 기능별 막대 + 표 (건수 내림차순) ──
+// 기능별 누적 차트 렌더 (막대 또는 도넛). _usageLastData 기준.
+function _usageRenderFeatureChart() {
+    var data = _usageLastData || {};
+    var T = usageThemeTokens();
     var byFeature = data.byFeature || {};
     var featRows = Object.keys(byFeature).map(function (k) { return { key: k, count: byFeature[k] }; });
     featRows.sort(function (a, b) { return b.count - a.count; });
-    var grand = featRows.reduce(function (s, r) { return s + r.count; }, 0) || 1;
-
+    var labels = featRows.map(function (r) { return usageFeatureLabel(r.key); });
+    var values = featRows.map(function (r) { return r.count; });
     if (usageFeatureChart) { try { usageFeatureChart.destroy(); } catch (e) {} usageFeatureChart = null; }
-    var fEl = document.getElementById('usage-feature-chart');
-    if (fEl && typeof Chart !== 'undefined') {
-        // 막대 높이를 항목 수에 맞게 (가독성)
-        fEl.parentElement.style.height = Math.max(280, featRows.length * 24 + 40) + 'px';
-        usageFeatureChart = new Chart(fEl, {
-            type: 'bar',
-            data: {
-                labels: featRows.map(function (r) { return usageFeatureLabel(r.key); }),
-                datasets: [{
-                    label: '건수',
-                    data: featRows.map(function (r) { return r.count; }),
-                    backgroundColor: _usageGrad(T.accent, T.accent2, true),
-                    borderRadius: 4
-                }]
-            },
-            plugins: [{
-                // 막대 '중앙'에 '건수 · %' 표출. 막대 위든 배경이든 잘 보이게 어두운 외곽선(헤일로)+흰 글자.
-                id: 'usageBarLabels',
-                afterDatasetsDraw: function (chart) {
-                    var ctx = chart.ctx;
-                    var meta = chart.getDatasetMeta(0);
-                    var data = chart.data.datasets[0].data || [];
-                    var sum = data.reduce(function (a, b) { return a + (b || 0); }, 0) || 1;
-                    var x0 = chart.scales.x.getPixelForValue(0);  // 막대 시작(0) 픽셀
-                    ctx.save();
-                    ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
-                    ctx.textBaseline = 'middle';
-                    ctx.textAlign = 'center';
-                    ctx.lineJoin = 'round';
-                    meta.data.forEach(function (bar, i) {
-                        var v = data[i] || 0;
-                        var txt = v.toLocaleString() + '건 · ' + (v / sum * 100).toFixed(1) + '%';
-                        var tw = ctx.measureText(txt).width;
-                        var barW = bar.x - x0;
-                        var tx, align;
-                        if (barW >= tw + 8) {
-                            // 막대가 충분히 길면 중앙 정렬
-                            tx = (x0 + bar.x) / 2; align = 'center';
-                        } else {
-                            // 짧으면 왼쪽 제목 침범 방지 — 막대 맨 왼쪽부터 시작(오른쪽으로 흘러나감)
-                            tx = x0 + 5; align = 'left';
-                        }
-                        ctx.textAlign = align;
-                        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-                        ctx.strokeText(txt, tx, bar.y);
-                        ctx.fillStyle = '#fff';
-                        ctx.fillText(txt, tx, bar.y);
-                    });
-                    ctx.restore();
-                }
-            }],
-            options: {
-                indexAxis: 'y',
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { display: false }, tooltip: { enabled: false } },
-                scales: {
-                    // max 를 데이터 최댓값으로 고정 → 가장 큰 막대가 플롯을 꽉 채워 라벨이 안에 들어갈 공간 확보
-                    x: { display: false, beginAtZero: true, max: (featRows.length ? featRows[0].count : 1) },
-                    y: { ticks: { color: T.text, font: { size: 11 } }, grid: { display: false } }
-                }
+    var el = document.getElementById('usage-feature-chart');
+    var wrap = document.getElementById('usage-feat-canvas-wrap');
+    if (!el || typeof Chart === 'undefined') return;
+    if (_usageFeatType === 'doughnut') {
+        if (wrap) wrap.style.height = '320px';
+        usageFeatureChart = _usageMakeDonut(el, labels, values, T, 'feat');
+    } else {
+        if (wrap) wrap.style.height = Math.max(280, featRows.length * 24 + 40) + 'px';
+        usageFeatureChart = _usageMakeBar(el, labels, values, T);
+    }
+}
+
+// 도넛 차트 생성(라벨 플러그인 + 그라데이션 + 조각 클릭 확대). which: 'aff'|'feat' (확대 상태 분리 관리).
+function _usageMakeDonut(el, labels, values, T, which) {
+    var explodedKey = (which === 'feat') ? '_usageFeatExploded' : '_usageAffExploded';
+    var exploded = (which === 'feat') ? _usageFeatExploded : _usageAffExploded;
+    // 확대된 조각만 바깥으로(offset). 길이는 데이터 수에 맞춰.
+    var offsets = values.map(function (_, i) { return i === exploded ? 24 : 0; });
+    return new Chart(el, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: _usageDonutSliceBg(T),
+                borderColor: T.donutBorder,
+                borderWidth: 2,
+                offset: offsets,
+                hoverOffset: 8
+            }]
+        },
+        plugins: [_usageDonutLabelPlugin(T)],
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            layout: { padding: { left: 60, right: 60, top: 8, bottom: 8 } },
+            plugins: { legend: { display: false } },
+            // (바) 조각 클릭 → 그 조각 offset 토글 + 애니메이션 update.
+            onClick: function (evt, elements, chart) {
+                if (!elements || !elements.length) return;
+                var idx = elements[0].index;
+                var cur = (which === 'feat') ? _usageFeatExploded : _usageAffExploded;
+                var next = (cur === idx) ? -1 : idx;   // 같은 조각 재클릭 시 원위치(토글)
+                if (which === 'feat') _usageFeatExploded = next; else _usageAffExploded = next;
+                var ds = chart.data.datasets[0];
+                ds.offset = ds.data.map(function (_, i) { return i === next ? 24 : 0; });
+                chart.update();   // 기본 애니메이션으로 부드럽게 분리/복귀
+            }
+        }
+    });
+}
+
+// 가로막대 차트 생성(라벨 플러그인 + 그라데이션). 도넛과 동일 데이터로 전환.
+function _usageMakeBar(el, labels, values, T) {
+    var maxV = values.length ? Math.max.apply(null, values) : 1;
+    return new Chart(el, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '건수',
+                data: values,
+                backgroundColor: _usageGrad(T.accent, T.accent2, true),
+                borderRadius: 4
+            }]
+        },
+        plugins: [_usageBarLabelPlugin()],
+        options: {
+            indexAxis: 'y',
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { enabled: false } },
+            scales: {
+                x: { display: false, beginAtZero: true, max: maxV || 1 },
+                y: { ticks: { color: T.text, font: { size: 11 } }, grid: { display: false } }
+            }
+        }
+    });
+}
+
+// ============================================================================
+// 소속 복수선택 드롭다운 + 차트유형 토글 + 제목 소팅기준 표시 헬퍼
+// ============================================================================
+
+// 드롭다운 패널을 현재 소속 목록 + 선택 상태로 다시 그린다.
+function _usageBuildAffPanel(merged, T) {
+    var panel = document.getElementById('usage-aff-panel');
+    if (!panel) return;
+    var row = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;color:' + T.text + ';font-size:0.82rem;';
+    var allChecked = !(_usageAffSelection && _usageAffSelection.length);
+    var html = '<label style="' + row + 'font-weight:700;">'
+        + '<input type="checkbox" id="usage-aff-all" ' + (allChecked ? 'checked' : '') + ' onchange="window._usageAffOnAll(this)" style="margin:0;"> 전체 소속</label>'
+        + '<div style="height:1px;background:' + T.cardBorder + ';margin:4px 0;"></div>';
+    html += merged.map(function (m) {
+        var chk = (_usageAffSelection.indexOf(m) !== -1) ? 'checked' : '';
+        var safe = String(m).replace(/"/g, '&quot;');
+        return '<label style="' + row + '"><input type="checkbox" class="usage-aff-opt" value="' + safe + '" ' + chk + ' onchange="window._usageAffOnOne()" style="margin:0;"> ' + m + '</label>';
+    }).join('');
+    panel.innerHTML = html;
+}
+
+// "전체 소속" 체크 처리: 체크 시 나머지 해제(=빈 배열). 해제하려 해도 다른 게 없으면 전체 유지.
+window._usageAffOnAll = function (cb) {
+    if (cb.checked) {
+        _usageAffSelection = [];
+    } else {
+        // 전체를 끄려는데 개별 선택이 없으면 의미 없음 → 그대로 전체 유지(다시 체크).
+        cb.checked = true;
+    }
+    var T = usageThemeTokens();
+    _usageBuildAffPanel(_usageMergedAffList, T);
+    _usageUpdateAffButtonLabel();
+};
+
+// 개별 소속 체크 처리: 하나라도 체크되면 "전체 소속" 해제. 모두 해제되면 전체로 복귀.
+window._usageAffOnOne = function () {
+    var opts = Array.prototype.slice.call(document.querySelectorAll('.usage-aff-opt'));
+    var sel = opts.filter(function (o) { return o.checked; }).map(function (o) { return o.value; });
+    _usageAffSelection = sel;   // 빈 배열이면 전체
+    var T = usageThemeTokens();
+    _usageBuildAffPanel(_usageMergedAffList, T);
+    _usageUpdateAffButtonLabel();
+};
+
+// 버튼 요약 라벨: 전체면 "전체 소속", 1개면 그 이름, 2개 이상이면 "OO 외 N".
+function _usageUpdateAffButtonLabel() {
+    var lbl = document.getElementById('usage-aff-btn-label');
+    if (!lbl) return;
+    var sel = _usageAffSelection || [];
+    if (!sel.length) lbl.textContent = '전체 소속';
+    else if (sel.length === 1) lbl.textContent = sel[0];
+    else lbl.textContent = sel[0] + ' 외 ' + (sel.length - 1);
+}
+
+// 패널 펼침/접힘 토글 + 바깥 클릭 시 닫힘.
+window._usageAffTogglePanel = function (evt) {
+    if (evt) evt.stopPropagation();
+    var panel = document.getElementById('usage-aff-panel');
+    if (!panel) return;
+    var open = panel.style.display !== 'none' && panel.style.display !== '';
+    if (open) { _usageAffClosePanel(); return; }
+    panel.style.display = 'block';
+    // 바깥 클릭 1회 핸들러 등록(다음 틱에 등록해 이 클릭이 즉시 닫지 않도록).
+    setTimeout(function () { document.addEventListener('click', _usageAffOutsideClick); }, 0);
+};
+function _usageAffClosePanel() {
+    var panel = document.getElementById('usage-aff-panel');
+    if (panel) panel.style.display = 'none';
+    document.removeEventListener('click', _usageAffOutsideClick);
+}
+function _usageAffOutsideClick(e) {
+    var dd = document.getElementById('usage-aff-dd');
+    if (dd && !dd.contains(e.target)) _usageAffClosePanel();
+}
+
+// 차트 유형 토글(원형/막대). card: 'aff'|'feat'. _usageLastData 로 해당 차트만 재렌더.
+window._usageSetChartType = function (card, type) {
+    if (type !== 'doughnut' && type !== 'bar') return;
+    if (card === 'aff') {
+        if (_usageAffType === type) return;
+        _usageAffType = type;
+        _usageAffExploded = -1;   // 유형 전환 시 확대 상태 초기화
+        _usageRenderAffChart();
+    } else {
+        if (_usageFeatType === type) return;
+        _usageFeatType = type;
+        _usageFeatExploded = -1;
+        _usageRenderFeatureChart();
+    }
+    _usageSyncTypeToggleUI();
+};
+
+// 토글 버튼군 활성 상태(배경/글자색) 동기화.
+function _usageSyncTypeToggleUI() {
+    var T = usageThemeTokens();
+    [['usage-aff-typetoggle', _usageAffType], ['usage-feat-typetoggle', _usageFeatType]].forEach(function (pair) {
+        var box = document.getElementById(pair[0]);
+        if (!box) return;
+        Array.prototype.slice.call(box.querySelectorAll('button[data-type]')).forEach(function (b) {
+            if (b.getAttribute('data-type') === pair[1]) {
+                b.style.background = 'linear-gradient(135deg,' + T.accent + ',' + T.accent2 + ')';
+                b.style.color = '#fff';
+            } else {
+                b.style.background = 'transparent';
+                b.style.color = T.muted;
             }
         });
-    }
+    });
+}
 
-    // (기능별 상세 표는 제거됨 — 막대 안에 '건수 · %' 라벨이 그 역할을 대체)
+// 제목 소팅기준 표시: 특정 소속이 선택된 경우 세 카드 제목 옆에 선택 소속명을 표기.
+function _usageUpdateTitleNotes() {
+    var sel = _usageAffSelection || [];
+    var note = sel.length ? ('· ' + sel.join(', ')) : '';
+    ['usage-trend-affnote', 'usage-aff-affnote', 'usage-feat-affnote'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = note;
+    });
 }
 
 // 추이 차트 재렌더: 체크된 항목(전체 합계 / 기능별 다중)에 맞춰 멀티라인 구성.
