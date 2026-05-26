@@ -3620,8 +3620,60 @@
             }
         }
 
+        // ── 5-2. 바텀시트 점검 오버레이 정리 ──
+        // [FIX 1a] ocean-bottomsheet 가 (비관리자에게) 차단 상태가 아니거나 관리자일 때,
+        //   _openBlockedSheet() 가 #ocean-sheet-body 에 남긴 .sheet-block-overlay 를 제거.
+        //   제거하지 않으면 차단 해제 후 일반 시트가 블러 상태로 열리는 누수 발생.
+        if (isAdmin || !blocked.includes('ocean-bottomsheet')) {
+            const _sheetOv = document.querySelector('#ocean-sheet-body .sheet-block-overlay');
+            if (_sheetOv) _sheetOv.remove();
+        }
+
         // ── 6. 동적 버튼(해역별 기상현황 구역별 버튼 + 부이 버튼) 외관 ──
         _applyDynamicButtonVisuals();
+
+        // ── 7. 초기 진입 시 활성 탭이 차단 상태면 비차단 탭으로 리다이렉트 ──
+        // [FIX 3] 기본 활성 탭(weather-group / weather-alert-section)이 차단된 채
+        //   로드되면 내비게이션 가드가 발동하지 않아 차단 콘텐츠가 그대로 노출됨.
+        if (!isAdmin) _redirectIfActiveBlocked();
+    }
+
+    // [FIX 3] 현재 활성 메인탭/서브탭이 차단 상태면 비차단 대안으로 1회 전환.
+    //   - switchMainTab/switchSubTab 는 index2_patch 의 래핑 버전이며,
+    //     차단 탭으로의 이동은 막지만 "비차단 탭"으로의 이동은 허용하므로 안전.
+    //   - 활성 탭이 차단일 때만 동작하고 전환 후 활성 탭은 비차단이 되므로
+    //     이후 applyFeatureBlocks 폴링에서 재발동/무한루프 없음.
+    function _redirectIfActiveBlocked() {
+        // 1) 메인탭: 활성 버튼이 차단이면 첫 비차단 메인탭으로 전환
+        const activeMain = document.querySelector('.main-tabs .tab-btn.active');
+        if (activeMain && activeMain.dataset.blocked === 'true') {
+            const mainBtns = document.querySelectorAll('.main-tabs .tab-btn');
+            let altMain = null;
+            for (let i = 0; i < mainBtns.length; i++) {
+                if (mainBtns[i].dataset.blocked !== 'true') { altMain = mainBtns[i]; break; }
+            }
+            if (altMain && typeof window.switchMainTab === 'function') {
+                const t = altMain.getAttribute('data-target');
+                if (t) window.switchMainTab(t);
+            }
+        }
+        // 2) 서브탭: 현재 보이는 서브탭 nav 의 활성 버튼이 차단이면 형제 비차단으로 전환
+        //    (메인 전환 후 새로 표시된 그룹 기준으로 평가)
+        const subNav = document.querySelector('.sub-tabs.sub-tabs-visible');
+        if (subNav) {
+            const activeSub = subNav.querySelector('.sub-tab-btn.active');
+            if (activeSub && activeSub.dataset.blocked === 'true') {
+                const subBtns = subNav.querySelectorAll('.sub-tab-btn');
+                let altSub = null;
+                for (let i = 0; i < subBtns.length; i++) {
+                    if (subBtns[i].dataset.blocked !== 'true') { altSub = subBtns[i]; break; }
+                }
+                if (altSub && typeof window.switchSubTab === 'function') {
+                    const t = altSub.getAttribute('data-target');
+                    if (t) window.switchSubTab(t);
+                }
+            }
+        }
     }
 
     // 버튼류 차단 외관(자물쇠 배지) 토글
@@ -3721,6 +3773,11 @@
 
         // (a) 차단 버튼 클릭 가로채기 — 정적/동적 공통, capture 단계에서 동작 차단
         document.addEventListener('click', function (e) {
+            // [FIX 2] 프로그램적(합성) 클릭은 통과 — windy.js 의 종합정보 버튼이
+            //   내부적으로 #ocean-buoy-toggle-btn.click() 을 호출하거나 레이어 복원
+            //   코드가 토글 버튼을 click() 하는 경우, 점검 차단이 반응하면 안 됨.
+            //   실제 사용자 클릭(e.isTrusted)만 점검 팝업 대상.
+            if (!e.isTrusted) return;
             if (localStorage.getItem('seagnal_admin_mode') === 'true') return;
             const blocked = window._blockedFeatures || [];
             let hit = !!e.target.closest('.feat-blocked');
@@ -3739,7 +3796,9 @@
             }
             if (hit) {
                 e.preventDefault();
-                e.stopPropagation();
+                // [FIX 4] stopImmediatePropagation 사용: 같은 capture 단계에 등록된
+                // index2_patch _handleContentTouchClose 가 서브탭을 접지 않도록 차단
+                e.stopImmediatePropagation();
                 if (typeof showBlockedFeaturePopup === 'function') showBlockedFeaturePopup();
             }
         }, true);
@@ -3776,6 +3835,10 @@
                     _openBlockedSheet();
                     return;
                 }
+                // [FIX 1b] 정상 시트 오픈 전 남아있는 점검 오버레이 제거
+                //   (차단 해제 후 일반 시트가 블러 상태로 열리는 누수 방지)
+                const _ov = document.querySelector('#ocean-sheet-body .sheet-block-overlay');
+                if (_ov) _ov.remove();
                 return orig.apply(this, arguments);
             };
             wrapped.__blockWrapped = true;
