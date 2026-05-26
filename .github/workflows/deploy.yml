@@ -17,7 +17,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # superfly/flyctl-actions@master 아카이브를 GitHub codeload 가 내려받지 못해
+      # 배포가 시작 전 실패하던 문제 → 공식 설치 스크립트로 flyctl 직접 설치(액션 의존 제거).
+      - name: Install flyctl
+        run: |
+          curl -fsSL https://fly.io/install.sh | sh
+          echo "$HOME/.fly/bin" >> "$GITHUB_PATH"
 
       - name: Deploy to Fly.io
         id: deploy
