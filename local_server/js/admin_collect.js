@@ -3430,7 +3430,7 @@ async function renderUsageStatsContent(container) {
 
             <!-- 소속 분포 도넛 -->
             <div id="usage-aff-card" class="usage-card" style="background:${T.cardBg}; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow}; border-radius:16px; padding:20px; margin-bottom:20px;">
-                <div style="font-weight:700; font-size:0.85rem; color:${T.muted}; margin-bottom:12px;">소속 분포 (전체 기간 · 필터 무관)</div>
+                <div style="font-weight:700; font-size:0.85rem; color:${T.muted}; margin-bottom:12px;">소속 분포 (선택 기간 · 소속 필터 무관)</div>
                 <div style="height:260px; position:relative;">
                     <canvas id="usage-aff-chart"></canvas>
                 </div>

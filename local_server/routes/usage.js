@@ -186,7 +186,7 @@ router.get('/api/stats/usage', (req, res) => {
 
         // ── 집계 누적기 ──
         const trendMap = {};          // bucket -> total (선택 소속 기준)
-        const byAffiliation = {};     // 소속 -> total (전체 기간, 날짜필터 적용)
+        const byAffiliation = {};     // 소속 -> total (선택 날짜범위 적용, 소속 필터는 미적용)
         const byFeature = {};         // feature -> total (선택 소속 기준)
         let totalEvents = 0;          // 선택 소속 기준 총 건수
         const deviceSet = {};         // 등장 deviceId 집합 (날짜필터 적용)
