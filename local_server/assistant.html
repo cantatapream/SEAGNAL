@@ -100,7 +100,16 @@
       <span id="micLabel">마이크 켜기</span>
     </button>
   </div>
-  <div class="hint">마이크를 켜고 <b>"누구야"</b> 라고 부른 뒤 질문하세요.<br/>예) "누구야, 제주도 북부 앞바다 기상 알려줘"</div>
+  <div class="hint">마이크를 켜고 <b>"나리야"</b> 라고 부른 뒤 질문하세요.<br/>예) "나리야, 제주도 북부 앞바다 기상 알려줘"</div>
+
+  <div id="nativeBox" class="card" style="display:none;">
+    <div class="label">📱 백그라운드 상시 비서 (앱 전용)</div>
+    <div style="display:flex;align-items:center;gap:10px;justify-content:space-between;">
+      <span id="nativeStatus" style="font-size:13px;color:var(--muted);">꺼짐</span>
+      <button id="nativeToggle" class="send" style="padding:10px 16px;">켜기</button>
+    </div>
+    <div class="meta">앱을 닫거나 화면이 꺼져도 <b>"나리야"</b> 호출에 반응합니다. 켜면 상단에 상시 알림 1개가 표시됩니다.</div>
+  </div>
 
   <div id="speechWarn" class="warn-box" style="display:none;"></div>
 

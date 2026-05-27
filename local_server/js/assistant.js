@@ -24,7 +24,7 @@
   'use strict';
 
   // ── 설정 ───────────────────────────────────────────────────────────────
-  var WAKE_WORDS = ['누구야', '누구 야', '비서야', '시그널아', '시그널'];
+  var WAKE_WORDS = ['나리야', '나리아', '나리', '누구야', '시그널아'];
   var COMMAND_TIMEOUT_MS = 6000;   // 호출어 후 명령 대기 최대 시간
   var API_URL = '/api/assistant/ask';
 
@@ -282,6 +282,43 @@
   });
 
   micBtn.addEventListener('click', toggleMic);
+
+  // ── 네이티브 백그라운드 비서 (안드로이드 앱 전용) ────────────────────────────
+  // 앱(Capacitor) 안에서 열렸고 SeagnalAssistant 플러그인이 있으면, 웹 STT 대신
+  // 네이티브 포그라운드 서비스로 "나리야" 상시 청취를 켜고 끌 수 있다.
+  function setupNativeBridge() {
+    var Native = (window.Capacitor && window.Capacitor.Plugins &&
+      window.Capacitor.Plugins.SeagnalAssistant) ? window.Capacitor.Plugins.SeagnalAssistant : null;
+    if (!Native) return; // 일반 웹 브라우저 → 숨김 유지
+
+    var box = $('nativeBox'), statusEl = $('nativeStatus'), toggleBtn = $('nativeToggle');
+    box.style.display = 'block';
+    var running = false;
+
+    function render() {
+      statusEl.textContent = running ? '켜짐 — "나리야" 대기 중' : '꺼짐';
+      statusEl.style.color = running ? 'var(--ok)' : 'var(--muted)';
+      toggleBtn.textContent = running ? '끄기' : '켜기';
+    }
+
+    Native.isEnabled().then(function (r) { running = !!(r && r.running); render(); })
+      .catch(function () { render(); });
+
+    toggleBtn.addEventListener('click', function () {
+      toggleBtn.disabled = true;
+      var op = running
+        ? Native.disable()
+        : Native.enable({ serverUrl: location.origin });
+      op.then(function (r) {
+        running = r ? !!r.running : !running;
+        render();
+      }).catch(function (e) {
+        statusEl.textContent = '오류: ' + (e && e.message ? e.message : '권한/서비스 실패');
+        statusEl.style.color = 'var(--warn)';
+      }).then(function () { toggleBtn.disabled = false; });
+    });
+  }
+  setupNativeBridge();
 
   // ── 초기화 ────────────────────────────────────────────────────────────────
   if (!speechSupported()) {

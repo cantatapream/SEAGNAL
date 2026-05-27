@@ -28,6 +28,12 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- 음성 비서 백그라운드 상시 청취 서비스 (호출어 "나리야") -->
+        <service
+            android:name=".voice.VoiceAssistantService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
     </application>
 
     <!-- Permissions -->
@@ -35,4 +41,8 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 음성 비서: 마이크 + 포그라운드 서비스(상시 청취). 14+(API34)는 마이크 타입 권한 필수 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 </manifest>
