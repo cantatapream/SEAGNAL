@@ -89,6 +89,16 @@
     var PROB_C = [60, 165, 110];    // 70% 확률반경 — 녹색
     function cssRgb(c) { return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'; }
 
+    // 기상청 강도별 예상 피해(현상) 척도
+    var DAMAGE_DESC = { 0: '', 1: '간판이 날아갈 정도', 2: '지붕이 날아갈 정도', 3: '기차가 탈선할 정도', 4: '사람·큰 돌이 날아갈 정도', 5: '건물이 붕괴될 정도' };
+    // 보퍼트 풍력계급 기준 외해 추정 파고(m) — 풍속(m/s)로 근사
+    function beaufortWaveM(ms) {
+        if (ms == null || isNaN(ms)) return null;
+        if (ms < 10.8) return 2; if (ms < 13.9) return 3; if (ms < 17.2) return 4;
+        if (ms < 20.8) return 5.5; if (ms < 24.5) return 7; if (ms < 28.5) return 9;
+        if (ms < 32.7) return 11.5; return 14;
+    }
+
     // 말풍선 HTML (각 반경은 지도 원과 동일 색, 강도·풍속은 TD 흰색 / 강도1↑ 빨강+볼드)
     function bubbleHTML(o, header) {
         var g = o._gradeF != null ? o._gradeF : (o.grade != null ? o.grade : 0);
@@ -101,6 +111,10 @@
         if (o.radStrong) h += '<div style="color:' + cssRgb(STRONG_C) + '">강풍반경 ' + Math.round(o.radStrong) + 'km</div>';
         if (o.radStorm) h += '<div style="color:' + cssRgb(STORM_C) + '">폭풍반경 ' + Math.round(o.radStorm) + 'km</div>';
         if (o.radProb) h += '<div style="color:' + cssRgb(PROB_C) + '">태풍 위치 70% 확률 반경 ' + Math.round(o.radProb) + 'km</div>';
+        var wv = beaufortWaveM(o.windMs);
+        if (wv != null) h += '<div class="tphn-b-sub">예상파고(외해 추정) 약 ' + wv + 'm</div>';
+        var dmg = DAMAGE_DESC[g];
+        if (dmg) h += '<div class="tphn-b-dmg">예상 피해: ' + dmg + '</div>';
         return h;
     }
     function makeBubbleOverlay() {
@@ -724,6 +738,14 @@
         if (scr) scr.addEventListener('input', function () { pause(); setPlaybackMode(true); _p = (+this.value) / 1000; renderHead(_p); });
         var closeBtn = document.getElementById('tphn-close');
         if (closeBtn) closeBtn.addEventListener('click', function () { setVisible(false); });
+
+        // 행동요령 팝업
+        var guideBtn = document.getElementById('tphn-guide-btn');
+        var guideModal = document.getElementById('tphn-guide-modal');
+        var guideClose = document.getElementById('tphn-guide-close');
+        if (guideBtn && guideModal) guideBtn.addEventListener('click', function () { guideModal.style.display = 'flex'; });
+        if (guideClose && guideModal) guideClose.addEventListener('click', function () { guideModal.style.display = 'none'; });
+        if (guideModal) guideModal.addEventListener('click', function (e) { if (e.target === guideModal) guideModal.style.display = 'none'; });
 
         // 레이어 토글 체크박스 (dmdw 상세정보 레이어 대응)
         [['tphn-ly-track', 'track'], ['tphn-ly-prob', 'prob'], ['tphn-ly-strong', 'strong'], ['tphn-ly-storm', 'storm']]
