@@ -3835,19 +3835,20 @@ function _usageRenderFeatureChart() {
     var byFeature = data.byFeature || {};
     var featRows = Object.keys(byFeature).map(function (k) { return { key: k, count: byFeature[k] }; });
     featRows.sort(function (a, b) { return b.count - a.count; });
-    // 너무 미미한(전체의 3% 미만) 기능은 "기타"로 묶어 차트를 정리(텍스트 잘림/지시선 난잡 방지).
-    var grouped = _usageGroupSmallFeatures(featRows);
-    var labels = grouped.labels;
-    var values = grouped.values;
     if (usageFeatureChart) { try { usageFeatureChart.destroy(); } catch (e) {} usageFeatureChart = null; }
     var el = document.getElementById('usage-feature-chart');
     var wrap = document.getElementById('usage-feat-canvas-wrap');
     if (!el || typeof Chart === 'undefined') return;
     if (_usageFeatType === 'doughnut') {
-        var boxF = _usageDonutBox(values);
+        // 도넛은 지시선/조각이 난잡해지므로 소규모(3% 미만) 기능을 "기타"로 묶는다.
+        var grouped = _usageGroupSmallFeatures(featRows);
+        var boxF = _usageDonutBox(grouped.values);
         if (wrap) wrap.style.height = boxF.height + 'px';
-        usageFeatureChart = _usageMakeDonut(el, labels, values, T, 'feat', boxF);
+        usageFeatureChart = _usageMakeDonut(el, grouped.labels, grouped.values, T, 'feat', boxF);
     } else {
+        // 막대는 세로로 충분하므로 묶지 않고 모든 기능을 상세히 표출한다.
+        var labels = featRows.map(function (r) { return usageFeatureLabel(r.key); });
+        var values = featRows.map(function (r) { return r.count; });
         if (wrap) wrap.style.height = Math.max(280, values.length * 28 + 40) + 'px';
         usageFeatureChart = _usageMakeBar(el, labels, values, T);
     }
