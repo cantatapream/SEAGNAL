@@ -1029,6 +1029,8 @@
         if (!btn) return;
         // 활성 태풍(dmdw)이 있으면 버튼 활성, 없으면 비활성. (일반 사용자 노출 — 탭 잠금 없음)
         var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
+        var nBadge = document.getElementById('tphn-n-badge');
+        if (nBadge) nBadge.style.display = has ? '' : 'none';
         if (!has) {
             btn.classList.add('tphn-disabled');
             btn.title = '현재 태풍 없음';
