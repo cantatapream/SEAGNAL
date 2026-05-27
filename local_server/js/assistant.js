@@ -35,6 +35,8 @@
   var heardEl = $('heard'), answerEl = $('answer'), metaEl = $('answerMeta');
   var srcBadge = $('srcBadge'), speechWarn = $('speechWarn');
   var askForm = $('askForm'), qInput = $('qInput');
+  var speakingEq = $('speakingEq'), answerActions = $('answerActions'), stateBanner = $('stateBanner');
+  var lastAnswer = '';   // "다시 듣기"용
 
   // ── 상태 ───────────────────────────────────────────────────────────────
   var micOn = false;          // 마이크 토글
@@ -50,6 +52,15 @@
     statusText.textContent = text;
     dot.className = 'dot' + (cls ? ' ' + cls : '');
   }
+
+  // 듣는 중/말하는 중을 한눈에 구별하는 강조 배너 (Gemini 풍 활성 표시)
+  function setBanner(text, cls) {
+    if (!stateBanner) return;
+    if (!text) { stateBanner.className = 'listening-banner'; stateBanner.textContent = ''; return; }
+    stateBanner.textContent = text;
+    stateBanner.className = 'listening-banner show ' + (cls || '');
+  }
+  function showEq(on) { if (speakingEq) speakingEq.style.display = on ? 'inline-flex' : 'none'; }
 
   function setHeard(t) { heardEl.textContent = t || '—'; }
 
@@ -76,8 +87,9 @@
     return null;
   }
 
-  // ── TTS ────────────────────────────────────────────────────────────────
+  // ── TTS (음성) — 텍스트는 화면에, 음성은 여기서. 둘 다 지원 ─────────────────
   function speak(text) {
+    lastAnswer = text || lastAnswer;
     if (!('speechSynthesis' in window) || !text) return;
     try {
       window.speechSynthesis.cancel();
@@ -88,10 +100,29 @@
       var ko = voices.filter(function (v) { return /ko/i.test(v.lang); })[0];
       if (ko) u.voice = ko;
       // 발화 중에는 자기 목소리를 다시 인식하지 않도록 인식기를 잠시 멈춘다.
-      u.onstart = function () { mode = 'speaking'; safeStopRecognition(); };
-      u.onend = function () { if (micOn) startWakeMode(); };
+      u.onstart = function () {
+        mode = 'speaking'; safeStopRecognition();
+        setStatus('말하는 중…', 'speak'); setBanner('🔊 답변하고 있어요', 'speak'); showEq(true);
+      };
+      u.onend = function () { showEq(false); if (micOn) startWakeMode(); else { setBanner(''); setStatus('대기 중 — 마이크를 켜세요', ''); } };
       window.speechSynthesis.speak(u);
-    } catch (e) { /* TTS 실패는 무시 (텍스트는 이미 표시됨) */ }
+    } catch (e) { showEq(false); /* TTS 실패는 무시 (텍스트는 이미 표시됨) */ }
+  }
+
+  // 마지막 답변을 다시 음성으로 재생 (텍스트+음성 둘 다 지원 — 음성만 다시 듣기)
+  function replayLast() {
+    if (!lastAnswer) return;
+    if (!('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(lastAnswer);
+      u.lang = 'ko-KR';
+      var ko = window.speechSynthesis.getVoices().filter(function (v) { return /ko/i.test(v.lang); })[0];
+      if (ko) u.voice = ko;
+      u.onstart = function () { showEq(true); };
+      u.onend = function () { showEq(false); };
+      window.speechSynthesis.speak(u);
+    } catch (e) { showEq(false); }
   }
 
   // ── 로컬 저장 (프로필 + 메모리) — 휴대폰 내부에만 보관 ──────────────────────
@@ -121,7 +152,9 @@
     setHeard(query);
     mode = 'thinking';
     setStatus('생각 중…', 'think');
+    setBanner('💭 생각하고 있어요', 'cmd');
     setAnswer('…', null);
+    renderActions(null);
 
     fetch(API_URL, {
       method: 'POST',
@@ -131,20 +164,124 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || !d.ok) { throw new Error((d && d.error) || '응답 오류'); }
+        lastAnswer = d.answer || '';
         setAnswer(d.answer, d.aiUsed);
         metaEl.textContent = d.zone
           ? ('해역: ' + d.zone + (d.zoneFromProfile ? '(프로필 기본)' : '') + ' · 의도: ' + d.intent)
           : '';
+        renderActions(d.links);
         // 과거 대화 요약을 휴대폰에 누적 → 다음 질문에 참고
         if (d.zone) pushMemory(d.zone + ': "' + query + '" → ' + String(d.answer).slice(0, 50));
         speak(d.answer);
         if (!('speechSynthesis' in window) && micOn) startWakeMode();
+        // 임의 지점 물때: 지명 검색 → 확인 → 고조/저조 조회 흐름 시작
+        if (d.tideSearch) startTidePlaceSearch(d.tideSearch);
       })
       .catch(function (err) {
         setAnswer('죄송해요, 데이터를 가져오지 못했습니다. (' + err.message + ')', null);
         metaEl.textContent = '';
+        renderActions(null);
         if (micOn) startWakeMode();
       });
+  }
+
+  // 답변 아래 액션 버튼: "다시 듣기"(음성) + 앱 내 기능 바로가기(links)
+  function renderActions(links) {
+    if (!answerActions) return;
+    answerActions.innerHTML = '';
+    if (!lastAnswer) return;
+
+    if ('speechSynthesis' in window) {
+      var replay = document.createElement('button');
+      replay.className = 'action-btn ghost';
+      replay.textContent = '🔊 다시 듣기';
+      replay.addEventListener('click', replayLast);
+      answerActions.appendChild(replay);
+    }
+
+    (links || []).forEach(function (lk) {
+      if (!lk || !lk.type) return;
+      var b = document.createElement('button');
+      b.className = 'action-btn';
+      b.textContent = lk.label || '앱에서 보기';
+      b.addEventListener('click', function () { openAppFeature(lk); });
+      answerActions.appendChild(b);
+    });
+  }
+
+  // 앱 내 기능으로 이동(딥링크). 메인 앱(index2)으로 진입하며 파라미터를 넘긴다.
+  // 파라미터 규약: ?assistant=<type>[&layer=<layer>][&zone=<zone>][&buoy=<id>]
+  function openAppFeature(lk) {
+    var url = location.origin + '/?assistant=' + encodeURIComponent(lk.type);
+    if (lk.layer) url += '&layer=' + encodeURIComponent(lk.layer);
+    if (lk.target) url += '&target=' + encodeURIComponent(lk.target);
+    if (lk.zone) url += '&zone=' + encodeURIComponent(lk.zone);
+    if (lk.buoy) url += '&buoy=' + encodeURIComponent(lk.buoy);
+    if (lk.lat != null && lk.lon != null) url += '&lat=' + encodeURIComponent(lk.lat) + '&lon=' + encodeURIComponent(lk.lon);
+    if (lk.label) url += '&label=' + encodeURIComponent(lk.label);
+    window.location.href = url;
+  }
+
+  // ── 임의 지점 물때: 지명 검색 → 확인 → 앱 바텀시트(고조/저조는 앱이 표출) ──────────
+  // answerActions 에 임의 버튼 렌더 (확인 등)
+  function renderButtons(btns) {
+    if (!answerActions) return;
+    answerActions.innerHTML = '';
+    (btns || []).forEach(function (b) {
+      var el = document.createElement('button');
+      el.className = 'action-btn' + (b.ghost ? ' ghost' : '');
+      el.textContent = b.label;
+      el.addEventListener('click', b.onClick);
+      answerActions.appendChild(el);
+    });
+  }
+
+  // 1) 지명으로 장소 검색(카카오 프록시) → 첫 후보를 확인 요청
+  function startTidePlaceSearch(place) {
+    setStatus('장소 찾는 중…', 'think');
+    fetch('/api/search-place?q=' + encodeURIComponent(place))
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
+      .then(function (o) {
+        if (o.status === 503) {
+          setAnswer('장소 검색 기능이 지금 준비돼 있지 않아요. 해역 이름(예: 제주도 북부 앞바다)으로 물어봐 주세요.', null);
+          renderActions(null); return;
+        }
+        var docs = (o.j && o.j.documents) || [];
+        if (!docs.length) {
+          setAnswer('"' + place + '"을(를) 못 찾았어요. 더 정확한 지명으로 다시 말씀해 주세요.', null);
+          renderActions(null); return;
+        }
+        askConfirmPlace(docs, 0);
+      })
+      .catch(function (e) { setAnswer('장소 검색 중 오류가 났어요. (' + e.message + ')', null); renderActions(null); });
+  }
+
+  // 2) 후보 i 를 "여기 맞나요?" 확인. 아니오면 다음 후보 제시.
+  function askConfirmPlace(docs, i) {
+    var r = docs[i];
+    var msg = '"' + r.place_name + '"' + (r.address_name ? ' (' + r.address_name + ')' : '') + ' 말씀이신가요?';
+    setStatus('확인이 필요해요', 'on');
+    setAnswer(msg, null);
+    speak(r.place_name + ' 말씀이신가요?');
+    var btns = [{
+      label: '예, 맞아요', onClick: function () { confirmTidePlace(r); }
+    }];
+    if (i + 1 < docs.length) btns.push({ label: '아니요, 다른 곳', ghost: true, onClick: function () { askConfirmPlace(docs, i + 1); } });
+    renderButtons(btns);
+  }
+
+  // 3) 확정 → 그 지점(가장 가까운 해점)의 물때를 앱 바텀시트로 안내.
+  //    고조/저조 계산/표출은 앱이 담당(TideBED + 빈해역/동해북부 IDW 보간까지 정확).
+  //    비서는 지명 확인 + 해당 해점으로 가는 버튼만 제공한다.
+  function confirmTidePlace(r) {
+    var lat = parseFloat(r.y), lon = parseFloat(r.x), name = r.place_name;
+    if (!isFinite(lat) || !isFinite(lon)) { setAnswer('좌표를 확인하지 못했어요.', null); return; }
+    var txt = name + ' 인근 해점의 물때를 앱에서 보여드릴게요. 아래 버튼을 누르면 그 해점에서 고조·저조가 표시됩니다.';
+    lastAnswer = txt;
+    setStatus('답변 완료', 'on');
+    setAnswer(txt, false);
+    renderActions([{ type: 'tide', lat: lat, lon: lon, label: name + ' 물때 보기' }]);
+    speak(txt);
   }
 
   // ── 음성 인식 (Web Speech API) ──────────────────────────────────────────
@@ -224,7 +361,9 @@
 
   function startWakeMode() {
     mode = 'wake';
-    setStatus('"누구야" 라고 불러주세요', 'on');
+    setStatus('"나리야" 라고 불러주세요', 'on');
+    setBanner('👂 "나리야" 부르면 반응해요', '');  // 대기(상시 청취) — 은은한 배너
+    showEq(false);
     setHeard('—');
     safeStartRecognition();
   }
@@ -232,11 +371,12 @@
   function startCommandMode() {
     mode = 'command';
     setStatus('듣고 있어요… 질문하세요', 'listen');
+    setBanner('🎙️ 듣고 있어요 — 질문하세요', 'cmd');  // 명령 수신 — 강조 배너
     setHeard('…');
     clearTimeout(commandTimer);
     commandTimer = setTimeout(function () {
       if (mode === 'command' && micOn) {
-        setStatus('질문을 못 들었어요. 다시 "누구야"', 'on');
+        setStatus('질문을 못 들었어요. 다시 "나리야"', 'on');
         startWakeMode();
       }
     }, COMMAND_TIMEOUT_MS);

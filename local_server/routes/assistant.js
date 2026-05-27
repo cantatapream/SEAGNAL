@@ -33,8 +33,61 @@
  */
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const { dataCache } = require('../services/cache_manager');
+
+// ============================================================================
+// 부이 이름 ↔ ID 매핑 — buoyLocations.js(브라우저 전역 스크립트)에서 1회 파싱.
+// "○○ 부이" 처럼 특정 부이를 물으면 그 부이를 앱에서 바로 열 수 있도록 id 를 얻는다.
+// 파싱 실패해도(파일 변경 등) 빈 맵으로 두고 일반 부이 링크로 폴백 — 기동 안전.
+// ============================================================================
+const BUOY_BY_ID = [];   // [{ id, name, nname }]
+try {
+    const raw = fs.readFileSync(path.join(__dirname, '..', 'buoyLocations.js'), 'utf8');
+    const re = /"(\d+)":\s*\{\s*name:\s*"([^"]+)"/g;
+    let m;
+    while ((m = re.exec(raw)) !== null) {
+        BUOY_BY_ID.push({ id: m[1], name: m[2], nname: m[2].replace(/[\s·]/g, '') });
+    }
+    console.log(`[Assistant] 부이 ${BUOY_BY_ID.length}개 로드됨`);
+} catch (e) {
+    console.warn('[Assistant] buoyLocations 파싱 실패 — 일반 부이 링크로 폴백:', e.message);
+}
+
+// ============================================================================
+// 지명 → 해점 좌표 — 물때 바텀시트를 "그 지명에서 가장 가까운 해점"에서 띄우기 위함.
+//  ① 조석 표준항(TIDE_REFERENCE_STATIONS, tide.js): 인천/제주/부산/목포 등 항만 좌표
+//  ② 해역 대표좌표(SEA_ZONE_COORDINATES, seaZoneCoordinates.js): 특보구역 중심점
+//     (코드 체계가 ZONE_NAME_TO_CODE 와 동일 — 예: 울산앞바다=12C10101)
+//  파싱 실패해도 빈 맵으로 폴백 → 기동 안전.
+// ============================================================================
+const TIDE_STATIONS = [];        // [{ name, nname, lat, lon }]
+try {
+    const raw = fs.readFileSync(path.join(__dirname, '..', 'tide.js'), 'utf8');
+    const re = /name:\s*"([^"]+)",\s*lat:\s*([-\d.]+),\s*lon:\s*([-\d.]+)/g;
+    let m;
+    while ((m = re.exec(raw)) !== null) {
+        TIDE_STATIONS.push({ name: m[1], nname: m[1].replace(/[\s·]/g, ''), lat: +m[2], lon: +m[3] });
+    }
+    console.log(`[Assistant] 조석 표준항 ${TIDE_STATIONS.length}개 로드됨`);
+} catch (e) {
+    console.warn('[Assistant] tide 표준항 파싱 실패:', e.message);
+}
+
+const ZONE_COORDS = {};          // code → { lat, lon }
+try {
+    const raw = fs.readFileSync(path.join(__dirname, '..', 'seaZoneCoordinates.js'), 'utf8');
+    const re = /'([0-9A-Z]+)':\s*\{[\s\S]*?lat:\s*([-\d.]+),\s*lon:\s*([-\d.]+)/g;
+    let m;
+    while ((m = re.exec(raw)) !== null) {
+        ZONE_COORDS[m[1]] = { lat: +m[2], lon: +m[3] };
+    }
+    console.log(`[Assistant] 해역 좌표 ${Object.keys(ZONE_COORDS).length}개 로드됨`);
+} catch (e) {
+    console.warn('[Assistant] seaZoneCoordinates 파싱 실패:', e.message);
+}
 
 // Gemini 공용 클라이언트 (키 없으면 hasAnyKey()=false → 폴백 경로 사용)
 let gemini = null;
@@ -526,16 +579,30 @@ router.post('/api/assistant/ask', async (req, res) => {
         if (pz) { zone = pz; zoneFromProfile = true; }
     }
 
-    // [2] 해역을 못 찾으면 안내 답변
+    // 앱 내 기능 연결 버튼(특보/부이/태풍/CCTV 등) — 해역과 무관한 항목(태풍·CCTV)도
+    // 있으므로 해역 유무와 별개로 먼저 계산한다.
+    const links = buildLinks(query, intent, zone, profile);
+
+    // [물때 — 임의 지점] 물때 질문인데 표준항/해역으로 해점을 못 잡았다면,
+    //   질문에서 지명을 추출해 프론트가 장소 검색(카카오) → 확인 → 조석 조회를 하도록 신호.
+    let tideSearch = null;
+    {
+        const nqt = normalize(query);
+        if (/물때|조석|만조|간조|밀물|썰물|사리|조금|물참|간만/.test(nqt) && !links.some(l => l.type === 'tide')) {
+            const place = extractTidePlace(query);
+            if (place) tideSearch = place;
+        }
+    }
+
+    // [2] 해역을 못 찾은 경우
     if (!zone) {
-        return res.json({
-            ok: true,
-            zone: null,
-            intent,
-            answer: '어느 해역을 말씀하시는지 알아듣지 못했어요. 예를 들어 "제주도 북부 앞바다 기상" 처럼 해역 이름을 함께 말씀해 주세요.',
-            data: null,
-            aiUsed: false
-        });
+        // 태풍·CCTV처럼 해역이 필요 없는 바로가기가 있으면, 안내 대신 버튼을 제시
+        const answer = tideSearch
+            ? `"${tideSearch}" 물때를 찾아볼게요.`
+            : (links.length
+                ? '말씀하신 정보는 아래 바로가기 버튼에서 바로 확인하실 수 있어요.'
+                : '어느 해역을 말씀하시는지 알아듣지 못했어요. 예를 들어 "제주도 북부 앞바다 기상" 처럼 해역 이름을 함께 말씀해 주세요.');
+        return res.json({ ok: true, zone: null, intent, answer, data: null, aiUsed: false, links, tideSearch });
     }
 
     // [3] 실데이터 수집 (메모리 캐시)
@@ -559,9 +626,114 @@ router.post('/api/assistant/ask', async (req, res) => {
         answer,
         data: { forecast: fc, warning: warn },
         aiUsed,
-        zoneFromProfile
+        zoneFromProfile,
+        links,       // 앱 내 기능 연결용 (해양종합정보 레이어 바로가기)
+        tideSearch   // 임의 지점 물때 검색이 필요하면 추출된 지명(없으면 null)
     });
 });
+
+/**
+ * 물때 질문에서 지명 후보를 추출 (조석/필러 단어 제거). 2글자 미만이면 null.
+ * 예: "정자항 물때 알려줘" → "정자항", "물때 알려줘" → null
+ */
+function extractTidePlace(query) {
+    let s = String(query || '');
+    // 조석/필러 '단어'만 제거. 단일 글자 조사(이/가/은/는/의…)는 지명을 손상시키므로
+    // 제거하지 않는다(예: "이호테우"의 "이"). Kakao 검색은 조사 붙어도 잘 찾는다.
+    s = s.replace(/물때표|물때|조석|만조|간조|밀물|썰물|사리|조금|물참|간만|고조|저조/g, ' ');
+    s = s.replace(/알려줘|보여줘|알려주|알려|보여|어때|어떄|어떻게|지금|오늘|내일|모레|시간|조회|확인|해줘|좀/g, ' ');
+    s = s.replace(/[?!.,~]/g, ' ').replace(/\s+/g, ' ').trim();
+    return s.length >= 2 ? s : null;
+}
+
+/** 질문에서 특정 부이를 가리키면 { id, name } 반환 (없으면 null) */
+function findBuoyInQuery(query) {
+    const nq = normalize(query);
+    // 긴 이름 우선 매칭(예: "서해170" 이 "서해"보다 먼저)
+    let best = null;
+    for (const b of BUOY_BY_ID) {
+        if (b.nname && nq.includes(b.nname) && (!best || b.nname.length > best.nname.length)) best = b;
+    }
+    return best ? { id: best.id, name: best.name } : null;
+}
+
+/**
+ * 물때 바텀시트를 띄울 "해점" 좌표를 정한다 — 지명에서 가장 가까운 바다 지점.
+ *  우선순위: ① 질문 속 조석 표준항(항만) → 그 좌표
+ *            ② 감지된 특보구역 → 해역 대표좌표
+ *            ③ 프로필 기본 해역 → 그 해역 대표좌표
+ * @returns {null|{ lat, lon, name }}
+ */
+function resolveTidePoint(query, zone, profile) {
+    const nq = normalize(query);
+    // ① 표준항(지명) 매칭 — 긴 이름 우선
+    let st = null;
+    for (const s of TIDE_STATIONS) {
+        if (s.nname && nq.includes(s.nname) && (!st || s.nname.length > st.nname.length)) st = s;
+    }
+    if (st) return { lat: st.lat, lon: st.lon, name: st.name };
+
+    // ② 감지된 해역의 대표좌표
+    const codeFor = (zn) => (zn && ZONE_NAME_TO_CODE[zn]) ? ZONE_NAME_TO_CODE[zn] : null;
+    let code = codeFor(zone);
+    if (code && ZONE_COORDS[code]) return { lat: ZONE_COORDS[code].lat, lon: ZONE_COORDS[code].lon, name: zone };
+
+    // ③ 프로필 기본 해역
+    const pz = profileDefaultZone(profile);
+    code = codeFor(pz);
+    if (code && ZONE_COORDS[code]) return { lat: ZONE_COORDS[code].lat, lon: ZONE_COORDS[code].lon, name: pz };
+
+    return null;
+}
+
+/**
+ * 답변 주제에 맞는 "앱 내 기능 연결" 버튼 목록을 만든다.
+ * 종류:
+ *   - { type:'ocean', layer }  → 해양종합정보 페이지 + 레이어 활성화
+ *   - { type:'tab', target }   → 해당 탭으로 이동 (switchMainTab)
+ *   - { type:'tide', lat, lon }→ 해양종합정보 + 그 해점에서 물때 바텀시트
+ * @returns {Array<object>}
+ */
+function buildLinks(query, intent, zone, profile) {
+    const nq = normalize(query);
+    const links = [];
+    const addOcean = (layer, label, extra) => {
+        if (!links.some(l => l.type === 'ocean' && l.layer === layer)) {
+            links.push(Object.assign({ type: 'ocean', layer, label, zone: zone || null }, extra || {}));
+        }
+    };
+    const addTab = (target, label) => {
+        if (!links.some(l => l.type === 'tab' && l.target === target)) {
+            links.push({ type: 'tab', target, label, zone: zone || null });
+        }
+    };
+
+    // 물때/조석 — 지명에서 가장 가까운 해점에서 바텀시트
+    if (/물때|조석|만조|간조|간만|밀물|썰물|사리|조금|물참|간물참/.test(nq)) {
+        const pt = resolveTidePoint(query, zone, profile);
+        if (pt) links.push({ type: 'tide', lat: pt.lat, lon: pt.lon, label: `${pt.name} 물때 보기` });
+    }
+
+    // 해양종합정보 레이어
+    if (/유향|유속|조류|해류/.test(nq)) addOcean('current', '유향·유속 보기');
+    if (/풍향|풍속|바람|강풍|돌풍/.test(nq)) addOcean('wind', '풍향·풍속 보기');
+    if (/파고|파랑|물결|너울|파도/.test(nq)) addOcean('wave', '파고·파랑 보기');
+    if (/cctv|씨씨티비|시시티비|해안.?카메라|해무.?카메라|영상/.test(nq)) addOcean('cctv', 'CCTV 보기');
+    if (/부이|부표|관측|파고부이|등표/.test(nq)) {
+        const buoy = findBuoyInQuery(query);
+        if (buoy) addOcean('buoy', `${buoy.name} 부이 보기`, { buoy: buoy.id });
+        else addOcean('buoy', '기상부이 보기');
+    }
+
+    // 전용 탭(switchMainTab)
+    if (/특보|주의보|경보/.test(nq) || intent === 'warning' || intent === 'both') addTab('weather-alert-section', '특보 화면 보기');
+    if (/태풍/.test(nq)) addTab('typhoon-section', '태풍정보 보기');
+    if (/해구/.test(nq)) addTab('sea-zone-section', '해구정보 보기');
+    if (/일기도|기압계|기압골/.test(nq)) addTab('marine-chart-section', '해상일기도 보기');
+    if (/예보|기상예보/.test(nq)) addTab('weather-alert-section', '기상예보 보기');
+
+    return links;
+}
 
 // ============================================================================
 // 7. AI 대화형 온보딩 — 첫 실행 시 사용자에게 몇 가지 질문해 프로필을 만든다.
