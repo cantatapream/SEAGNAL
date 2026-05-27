@@ -88,4 +88,21 @@ router.get('/api/typhoon/bulletin', async (req, res) => {
     }
 });
 
+// 통보문 이미지 프록시 — dmdw 이미지는 로그인 필요하므로 서버가 인증 세션으로 받아 중계.
+//   fileName 은 RTKO63/64_{tmFc}]{호수}_ko.png 형식만 허용(경로조작/오용 차단).
+router.get('/api/typhoon/image', async (req, res) => {
+    try {
+        if (!typhoon.enabled || typeof typhoon.getTyphoonImage !== 'function') return res.status(404).end();
+        const fileName = String(req.query.fileName || '');
+        if (!/^RTKO\d{2}_\d{12}\]\d{1,3}_(?:ko|en)\.png$/.test(fileName)) return res.status(400).end();
+        const img = await typhoon.getTyphoonImage(fileName);
+        if (!img || img.statusCode !== 200 || String(img.contentType).indexOf('image') === -1) return res.status(404).end();
+        res.set('Content-Type', img.contentType || 'image/png');
+        res.set('Cache-Control', 'public, max-age=600');
+        res.send(img.buffer);
+    } catch (err) {
+        res.status(500).end();
+    }
+});
+
 module.exports = router;
