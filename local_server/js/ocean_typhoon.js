@@ -45,9 +45,11 @@
     var _pNow = 0;             // 현재 시각에 해당하는 타임라인 위치(0..1)
 
     var _map = null;
-    var _staticLayer = null;   // 진로선 + 점 + 확률 cone + 라벨
-    var _headLayer = null;     // 재생 플레이헤드(태풍 본체 + 반경 원)
+    var _staticLayer = null;   // 진로선 + 점 + 라벨
+    var _coneLayer = null;     // 포인트별 70%확률반경 cone (재생 중에는 숨김)
+    var _headLayer = null;     // 재생 플레이헤드(태풍 본체 + 보간 영향 원)
     var _staticSrc = null;
+    var _coneSrc = null;
     var _headSrc = null;
 
     var _data = null;          // /api/typhoon 응답
@@ -174,6 +176,7 @@
     function renderStatic() {
         if (!_staticSrc) return;
         _staticSrc.clear();
+        if (_coneSrc) _coneSrc.clear();
         if (!_frames.length) return;
 
         var coords = _frames.map(function (f) { return ol.proj.fromLonLat([f.lon, f.lat]); });
@@ -184,7 +187,8 @@
         }));
         _staticSrc.addFeature(line);
 
-        // 70% 확률반경 cone (예보 프레임만 — current 는 확률반경 없음)
+        // 70% 확률반경 cone (예보 프레임만) — 전체 진로 개요용. 재생 중에는 _coneLayer 를
+        // 숨기고, 태풍 본체에 붙은 보간 영향 원이 부드럽게 커지/작아지도록 한다.
         _frames.forEach(function (f) {
             if (f.radProb && f.radProb > 0) {
                 var cf = new ol.Feature(geoCircle(f.lon, f.lat, f.radProb));
@@ -192,7 +196,7 @@
                     stroke: new ol.style.Stroke({ color: 'rgba(120,120,120,0.55)', width: 1 }),
                     fill: new ol.style.Fill({ color: 'rgba(150,150,150,0.07)' })
                 }));
-                _staticSrc.addFeature(cf);
+                _coneSrc.addFeature(cf);
             }
         });
 
@@ -225,6 +229,15 @@
         if (!f) return;
         var c = f._colorF || gradeColor(f._gradeF || 0);
 
+        // 70% 확률반경 — 이동에 따라 보간되어 점차 커지/작아지는 영향 원(가장 바깥)
+        if (f.radProb && f.radProb > 0) {
+            var pf = new ol.Feature(geoCircle(f.lon, f.lat, f.radProb));
+            pf.setStyle(new ol.style.Style({
+                stroke: new ol.style.Stroke({ color: 'rgba(110,110,110,0.7)', width: 1, lineDash: [4, 4] }),
+                fill: new ol.style.Fill({ color: 'rgba(150,150,150,0.06)' })
+            }));
+            _headSrc.addFeature(pf);
+        }
         // 폭풍반경(25m/s) — 진한 색
         if (f.radStorm && f.radStorm > 0) {
             var sf = new ol.Feature(geoCircle(f.lon, f.lat, f.radStorm));
@@ -329,6 +342,8 @@
         if (!_frames.length) return;
         if (_p >= 0.999) _p = (_pNow < 0.999 ? _pNow : 0); // 끝이면 현재 시각(없으면 처음)부터
         _playing = true; _lastTs = 0;
+        // 재생 중에는 포인트별 고정 cone 을 숨겨 보간 영향 원의 변화가 또렷하게.
+        if (_coneLayer) _coneLayer.setVisible(false);
         setPlayBtn(true);
         _raf = requestAnimationFrame(tick);
     }
@@ -336,6 +351,7 @@
         _playing = false;
         if (_raf) cancelAnimationFrame(_raf);
         _raf = null;
+        if (_coneLayer) _coneLayer.setVisible(_visible); // 정지 시 전체 진로 cone 복원
         setPlayBtn(false);
     }
     function setPlayBtn(playing) {
@@ -387,6 +403,7 @@
     function setVisible(v) {
         _visible = v;
         if (_staticLayer) _staticLayer.setVisible(v);
+        if (_coneLayer) _coneLayer.setVisible(v && !_playing);
         if (_headLayer) _headLayer.setVisible(v);
         var panel = document.getElementById('ocean-typhoon-panel');
         if (panel) panel.style.display = v ? '' : 'none';
@@ -452,9 +469,12 @@
     function ensureLayers(map) {
         if (_staticLayer) return;
         _staticSrc = new ol.source.Vector();
+        _coneSrc = new ol.source.Vector();
         _headSrc = new ol.source.Vector();
-        _staticLayer = new ol.layer.Vector({ source: _staticSrc, zIndex: 120, visible: _visible });
+        _staticLayer = new ol.layer.Vector({ source: _staticSrc, zIndex: 124, visible: _visible });
+        _coneLayer = new ol.layer.Vector({ source: _coneSrc, zIndex: 120, visible: _visible });
         _headLayer = new ol.layer.Vector({ source: _headSrc, zIndex: 130, visible: _visible });
+        map.addLayer(_coneLayer);
         map.addLayer(_staticLayer);
         map.addLayer(_headLayer);
     }
