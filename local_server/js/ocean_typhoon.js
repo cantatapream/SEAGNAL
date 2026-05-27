@@ -136,18 +136,18 @@
         }
         return min;
     }
-    // KST 벽시계 "YYYYMMDDHHmm" → "M/D HH시" (그대로 표시용)
+    // KST 벽시계 "YYYYMMDDHHmm" → "M월 D일 HH시" (그대로 표시용)
     function kstTmLabel(tm) {
         var s = String(tm || '').replace(/[^0-9]/g, ''); if (s.length < 10) return '';
         var hh = s.slice(8, 10), mi = s.slice(10, 12) || '00';
-        return (+s.slice(4, 6)) + '/' + (+s.slice(6, 8)) + ' ' + hh + (mi !== '00' ? ':' + mi : '시');
+        return (+s.slice(4, 6)) + '월 ' + (+s.slice(6, 8)) + '일 ' + hh + (mi !== '00' ? ':' + mi : '시');
     }
-    // 해구도 tm(UTC "YYYYMMDDHHmm") → KST 라벨
+    // 해구도 tm(UTC "YYYYMMDDHHmm") → KST "M월 D일 HH시" 라벨
     function utcTmToKstLabel(tm) {
         var s = String(tm || '').replace(/[^0-9]/g, ''); if (s.length < 10) return '';
         var ms = Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +(s.slice(10, 12) || 0)) + KMA_TZ_MS;
         var d = new Date(ms);
-        return (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + ' ' + (d.getUTCHours() < 10 ? '0' : '') + d.getUTCHours() + '시';
+        return (d.getUTCMonth() + 1) + '월 ' + d.getUTCDate() + '일 ' + (d.getUTCHours() < 10 ? '0' : '') + d.getUTCHours() + '시';
     }
 
     // 말풍선 HTML (각 반경은 지도 원과 동일 색, 강도·풍속은 TD 흰색 / 강도1↑ 빨강+볼드)
@@ -157,25 +157,27 @@
         var gStyle = 'color:' + (em ? RED_COLOR : '#ffffff') + ';font-weight:' + (em ? '800' : '600');
         var h = '<div class="tphn-b-h">' + header + '</div>';
         var spd = o.windMs != null ? Math.round(o.windMs) + 'm/s · ' + Math.round(o.windMs * 3.6) + 'km/h' : '';
-        h += '<div style="' + gStyle + '">강도 ' + (GRADE_NAMES[g] || '-') + (spd ? ' · ' + spd : '') + '</div>';
+        h += '<div class="tphn-b-grade tphn-blink" style="' + gStyle + '">강도 ' + (GRADE_NAMES[g] || '-') + (spd ? ' · ' + spd : '') + '</div>';
         // 헤더+강도 2줄 외 나머지 — 흐린 말풍선에선 CSS(.tphn-faint .tphn-b-more)로 숨김.
         var more = '';
         if (o.pressure != null) more += '<div class="tphn-b-sub">중심기압 ' + Math.round(o.pressure) + 'hPa</div>';
         if (o.radStrong) more += '<div style="color:' + cssRgb(STRONG_C) + '">강풍반경 ' + Math.round(o.radStrong) + 'km</div>';
         if (o.radStorm) more += '<div style="color:' + cssRgb(STORM_C) + '">폭풍반경 ' + Math.round(o.radStorm) + 'km</div>';
         if (o.radProb) more += '<div style="color:' + cssRgb(PROB_C) + '">태풍 위치 70% 확률 반경 ' + Math.round(o.radProb) + 'km</div>';
+        // 예상 피해 — 70% 반경 라인 바로 아래.
+        var dmg = DAMAGE_DESC[g];
+        if (dmg) more += '<div class="tphn-b-dmg">예상 피해: ' + dmg + '</div>';
         // 파고: 우리 해역(해구도 예측 범위) 진입 시 해구도 예측 + 진로 최근접 부이 관측, 아니면 보퍼트 추정.
         if (o._zoneFc) {
             var z = o._zoneFc;
-            more += '<div class="tphn-b-zone">해구 ' + z.lzone + ' 예측 (' + utcTmToKstLabel(z.tm) + ' 기준)' + (_debugKorea ? ' [디버그]' : '') + '</div>';
+            more += '<div class="tphn-b-zone tphn-blink">' + z.lzone + ' 해구 예상 기상(' + utcTmToKstLabel(z.tm) + ' 기준)' + (_debugKorea ? ' [디버그]' : '') + '</div>';
             more += '<div class="tphn-b-sub">유의파고 ' + (z.wh != null ? z.wh.toFixed(1) : '-') + 'm'
                 + (z.wp != null ? ' · 파주기 ' + Math.round(z.wp) + 's' : '') + '</div>';
             more += '<div class="tphn-b-sub">파향 ' + dirStr(z.waveDir) + ' · 풍향 ' + dirStr(z.windDir)
                 + ' · 풍속 ' + (z.ws != null ? z.ws.toFixed(1) : '-') + 'm/s</div>';
             if (_koreaBuoy && _koreaBuoy.obs) {
                 var bo = _koreaBuoy.obs, isB = _koreaBuoy.type === 'B';
-                more += '<div class="tphn-b-buoy">' + kstTmLabel(bo.tm) + ' 기준 ' + _koreaBuoy.name
-                    + (isB ? '(해양기상부이)' : '(파고부이)') + ' 관측</div>';
+                more += '<div class="tphn-b-buoy tphn-blink">' + _koreaBuoy.name + ' 부이 관측 정보(' + kstTmLabel(bo.tm) + ' 기준)</div>';
                 var wparts = [];
                 if (bo.waveHeightSig != null) wparts.push('유의 ' + bo.waveHeightSig.toFixed(1) + 'm');
                 if (bo.waveHeightMax != null) wparts.push('최대 ' + bo.waveHeightMax.toFixed(1) + 'm');
@@ -190,8 +192,6 @@
             var wv = beaufortWaveM(o.windMs);
             if (wv != null) more += '<div class="tphn-b-sub">예상파고(외해 추정) 약 ' + wv + 'm</div>';
         }
-        var dmg = DAMAGE_DESC[g];
-        if (dmg) more += '<div class="tphn-b-dmg">예상 피해: ' + dmg + '</div>';
         more += '<button type="button" class="tphn-guide-btn"><i class="fa-solid fa-life-ring"></i> 해상 종사자 행동요령</button>';
         h += '<div class="tphn-b-more">' + more + '</div>';
         return h;
@@ -212,10 +212,13 @@
             }
             var wasFaint = el.classList.contains('tphn-faint');
             _pointBubbles.forEach(function (ov) { ov.getElement().classList.add('tphn-faint'); });
-            if (wasFaint) el.classList.remove('tphn-faint');
+            if (wasFaint) { el.classList.remove('tphn-faint'); bringBubbleToFront(el); }
         });
         return new ol.Overlay({ element: el, offset: [12, -12], positioning: 'bottom-left', stopEvent: true });
     }
+    // 진한(클릭된) 말풍선을 오버레이 컨테이너 맨 뒤로 옮겨 항상 최상단에 그려지게 한다.
+    //   (ol.Overlay 는 z-index 만으로 적층이 보장되지 않아 DOM 순서까지 조정)
+    function bringBubbleToFront(el) { if (el && el.parentNode) el.parentNode.appendChild(el); }
     function updateBubbleVisibility() {
         var pb = _playbackMode;
         _pointBubbles.forEach(function (ov, i) {
@@ -422,6 +425,8 @@
             ov.setPosition(ol.proj.fromLonLat([f.lon, f.lat]));
         });
         for (var i = _frames.length; i < _pointBubbles.length; i++) _pointBubbles[i].setPosition(undefined);
+        // 기본 진한 말풍선(마지막)을 최상단으로.
+        if (_frames.length && _pointBubbles[_frames.length - 1]) bringBubbleToFront(_pointBubbles[_frames.length - 1].getElement());
         updateBubbleVisibility();
     }
     function bubbleHeader(f) {
@@ -561,6 +566,7 @@
             + '<button type="button" class="tphn-guide-btn"><i class="fa-solid fa-life-ring"></i> 해상 종사자 행동요령</button></div>';
         _landEl.innerHTML = h;
         _landEl.style.display = '';
+        bringBubbleToFront(_landEl);
         _landPopup.setPosition(ol.proj.fromLonLat([lon, lat]));
         return true;
     }
