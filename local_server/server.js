@@ -210,6 +210,7 @@ app.use(require('./routes/survey'));
 app.use(require('./routes/report'));
 app.use(require('./routes/version'));
 app.use(require('./routes/fishing'));  // 바다낚시 지수 API
+app.use(require('./routes/typhoon'));  // 태풍 통보문/예보 API (방재기상플랫폼 기반)
 app.use(require('./routes/marine_chart'));  // 해상일기도 GIF 메타데이터 프록시 (KMA 날씨누리)
 app.use(require('./routes/comment')); // 게시글 댓글 API
 app.use(require('./routes/reaction')); // 게시글 리액션 API

@@ -2422,6 +2422,13 @@
                             <i class="fa-solid fa-anchor"></i>
                             <span class="ocean-overlay-label" data-line1="기상" data-line2="부이">기상부이</span>
                         </button>
+                        <!-- 태풍 진로/예보 토글: js/ocean_typhoon.js 가 바인딩
+                             방재기상플랫폼 통보문 기반 진로선·반경 원·재생 애니메이션 표출.
+                             [연계] /api/typhoon (routes/typhoon.js → data/typhoon.json) -->
+                        <button class="ocean-overlay-btn" id="ocean-typhoon-toggle-btn" title="태풍 진로">
+                            <i class="fa-solid fa-hurricane"></i>
+                            <span class="ocean-overlay-label" data-line1="태풍" data-line2="진로">태풍</span>
+                        </button>
                         <!-- 특보구역 + 활성 특보 색칠 토글 묶음
                              [HTML 구조 의도]
                                .ocean-warn-zone-wrap (relative) 안에:
@@ -2522,6 +2529,47 @@
                          [내용] 현재 활성 특보(state.activeMap) 에 존재하는 종류·단계만 동적 표출
                                 — ocean_warn_active4.js _renderLegend() 가 매번 <table> 을 다시 빌드 -->
                     <div id="ocean-warn-active-legend" class="warn-active-legend" style="display:none;" aria-hidden="true"></div>
+
+                    <!-- 태풍 컨트롤 패널 (js/ocean_typhoon.js 가 제어)
+                         통보문 회차 드롭다운 + 재생/스크러버 + 현재 프레임 정보 + 강도 범례.
+                         [위치] 지도 하단(메인 탭 위), 태풍 토글 ON 시에만 표출 -->
+                    <style id="tphn-style">
+                        .ocean-typhoon-panel{position:absolute;left:8px;right:8px;
+                            bottom:calc(var(--main-tab-height,68px) - env(safe-area-inset-bottom,0px) + 8px);
+                            z-index:1150;background:rgba(15,25,50,0.92);backdrop-filter:blur(2px);
+                            border:1px solid rgba(120,150,200,0.25);border-radius:10px;padding:8px 10px;
+                            color:#eaf2ff;box-shadow:0 2px 12px rgba(0,0,0,0.4);font-size:12px;}
+                        .ocean-typhoon-panel .tphn-row{display:flex;align-items:center;gap:8px;}
+                        .ocean-typhoon-panel .tphn-row-top{margin-bottom:6px;}
+                        .ocean-typhoon-panel .tphn-title{font-weight:700;white-space:nowrap;}
+                        .ocean-typhoon-panel .tphn-select{flex:1;min-width:0;background:rgba(255,255,255,0.95);
+                            color:#111;border-radius:6px;border:none;padding:4px 6px;font-size:12px;}
+                        .ocean-typhoon-panel .tphn-close{background:transparent;border:none;color:#cdd9f0;
+                            font-size:15px;cursor:pointer;padding:0 2px;}
+                        .ocean-typhoon-panel .tphn-row-play{margin-bottom:6px;}
+                        .ocean-typhoon-panel .tphn-play{width:36px;height:28px;border-radius:6px;border:none;
+                            background:#2d6cdf;color:#fff;cursor:pointer;flex:none;}
+                        .ocean-typhoon-panel .tphn-scrubber{flex:1;}
+                        .ocean-typhoon-panel .tphn-info{font-size:11px;line-height:1.5;color:#dbe6fb;margin-bottom:6px;}
+                        .ocean-typhoon-panel .tphn-grade{font-weight:700;}
+                        .ocean-typhoon-panel .tphn-legend{display:flex;flex-wrap:wrap;gap:8px;font-size:10px;color:#cdd9f0;}
+                        .ocean-typhoon-panel .tphn-leg-item{display:inline-flex;align-items:center;gap:3px;}
+                        .ocean-typhoon-panel .tphn-leg-item i{width:10px;height:10px;border-radius:50%;display:inline-block;}
+                        .ocean-overlay-btn.tphn-disabled{opacity:0.4;}
+                    </style>
+                    <div id="ocean-typhoon-panel" class="ocean-typhoon-panel" style="display:none;" aria-hidden="true">
+                        <div class="tphn-row tphn-row-top">
+                            <span class="tphn-title" id="tphn-title">태풍</span>
+                            <select id="tphn-bulletin" class="tphn-select" title="통보문 선택"></select>
+                            <button id="tphn-close" class="tphn-close" type="button" title="닫기"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="tphn-row tphn-row-play">
+                            <button id="tphn-play" class="tphn-play" type="button" title="재생/일시정지"><i class="fa-solid fa-play"></i></button>
+                            <input type="range" id="tphn-scrubber" class="tphn-scrubber" min="0" max="1000" value="0" title="예보 시각 이동">
+                        </div>
+                        <div id="tphn-info" class="tphn-info"></div>
+                        <div id="tphn-legend" class="tphn-legend"></div>
+                    </div>
 
                     <!-- 단기예보(KMA shrt) 시간 슬라이더 + 재생버튼
                          [표출 조건] js/shrt_forecast_layer.js 가 레이어 ON 시 display:'' 로 표출
@@ -3287,6 +3335,8 @@
     <script src="js/ocean_northup.js"></script>
     <script src="js/ocean_buoy.js"></script>
     <script src="js/ocean_warn_zone.js"></script>
+    <!-- 태풍 진로/예보 오버레이 + 재생 애니메이션 (의존: ocean_map.js + /api/typhoon) -->
+    <script src="js/ocean_typhoon.js"></script>
     <!-- 활성 특보 색칠 모듈 (5개 파일 분할, 의존: ocean_warn_zone.js + data.js + ocean_map.js) -->
     <script src="js/ocean_warn_active1.js"></script>
     <script src="js/ocean_warn_active2.js"></script>

@@ -1478,6 +1478,15 @@ async function init() {
 
     const weatherAlertsCrawler = require('./weather_alerts_crawler'); // 크롤러 모듈 추가
 
+    // [신규] 태풍 통보문/예보 수집기 (방재기상플랫폼 태풍정보)
+    //   - 현재 태풍의 통보문 목록 + 각 통보문 예보 표를 data/typhoon.json 으로 저장.
+    //   - /api/typhoon 응답 → js/ocean_typhoon.js 가 지도 오버레이/애니메이션에 사용.
+    //   - 자격증명(KMA_DMDW_USER_ID/PWD) 미설정 시 enabled=false 로 silent disable.
+    const typhoonCrawler = require('./typhoon_crawler');
+    if (typhoonCrawler.enabled) {
+        typhoonCrawler.run().catch(err => log(`⚠️ [typhoon] 초기 수집 오류: ${err.message}`));
+    }
+
     // [신규] dmdw 방재기상플랫폼 자식 해역 크롤러
     //  - 부모 해역(앞바다) 단위 weatherAlertsCrawler 와 별도로 자식 해역
     //    (연안바다/평수구역) 단위 발효·발표·해제·격상·격하·종류전환을 추적.
@@ -1623,6 +1632,13 @@ async function init() {
         if (min % 10 === 3) {
             marineForecastProcessor.collectMarineForecasts()
                 .catch(err => log(`⚠️ 해상 기상 전망 수집 오류: ${err.message}`));
+        }
+
+        // [신규] 태풍 통보문/예보 수집 (매 10분, +7분 슬롯 — 다른 수집과 분산)
+        //   통보문 발표는 보통 수시간 간격이나, 활동기 신규 통보문을 빠르게 반영하려고
+        //   10분 주기로 폴링. 모듈 내부에서 이미 캐시된 통보문은 재요청하지 않음.
+        if (min % 10 === 7 && !crawlPaused && typhoonCrawler.enabled) {
+            typhoonCrawler.run().catch(err => log(`⚠️ [typhoon] 수집 오류: ${err.message}`));
         }
 
         // [관리자 반복 푸시] 매 정시(min === 0)에 미확인 항목 체크 후 관리자 푸시 재발송
