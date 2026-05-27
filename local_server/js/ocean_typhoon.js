@@ -174,15 +174,40 @@
     }
     function geoCircle(lon, lat, km, n) { return new ol.geom.Polygon([geoCircleRing(lon, lat, km, n)]); }
 
-    // 진로 전체에 걸친 반경 영역(swath/cone) — 시점별 원들의 합집합을 단일 MultiPolygon
-    // 한 feature·한 fill 로 그려 겹침이 덧칠(진해짐) 없이 하나의 영역처럼 보이게 한다.
-    function swathGeom(frames, key) {
-        var polys = [];
-        frames.forEach(function (f) {
-            var r = f[key];
-            if (r != null && r > 0 && f.lon != null && f.lat != null) polys.push([geoCircleRing(f.lon, f.lat, r)]);
-        });
-        return polys.length ? new ol.geom.MultiPolygon(polys) : null;
+    // 시작점에서 방위(rad)·거리(km) 만큼 떨어진 지점의 경위도
+    function destPoint(lon, lat, brng, km) {
+        var R = 6371.0088, d = km / R, la1 = lat * Math.PI / 180, lo1 = lon * Math.PI / 180;
+        var la2 = Math.asin(Math.sin(la1) * Math.cos(d) + Math.cos(la1) * Math.sin(d) * Math.cos(brng));
+        var lo2 = lo1 + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(la1), Math.cos(d) - Math.sin(la1) * Math.sin(la2));
+        return [lo2 * 180 / Math.PI, la2 * 180 / Math.PI];
+    }
+    function bearingRad(lon1, lat1, lon2, lat2) {
+        var la1 = lat1 * Math.PI / 180, la2 = lat2 * Math.PI / 180, dlo = (lon2 - lon1) * Math.PI / 180;
+        var y = Math.sin(dlo) * Math.cos(la2), x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(dlo);
+        return Math.atan2(y, x);
+    }
+
+    // 진로를 따라 반경만큼 좌우로 벌린 매끈한 회랑(corridor) + 시작/끝 둥근 캡 → 단일 MultiPolygon.
+    // pts: 시간순 프레임 배열. 정적=전체, 재생=시작~현재까지(자라나는 항적).
+    function swathCorridorGeom(pts, key) {
+        var P = [];
+        pts.forEach(function (p) { if (p && p.lon != null && p[key] != null && p[key] > 0) P.push(p); });
+        if (P.length === 0) return null;
+        if (P.length === 1) return new ol.geom.MultiPolygon([[geoCircleRing(P[0].lon, P[0].lat, P[0][key])]]);
+        var left = [], right = [];
+        for (var i = 0; i < P.length; i++) {
+            var a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)];
+            var brg = bearingRad(a.lon, a.lat, b.lon, b.lat);
+            var r = P[i][key];
+            left.push(ol.proj.fromLonLat(destPoint(P[i].lon, P[i].lat, brg - Math.PI / 2, r)));
+            right.push(ol.proj.fromLonLat(destPoint(P[i].lon, P[i].lat, brg + Math.PI / 2, r)));
+        }
+        var ring = left.concat(right.reverse());
+        ring.push(ring[0]);
+        var polys = [[ring]];
+        // 각 시점 원도 합쳐(둥근 캡 + 굴곡부 빈틈 메움) — 단일 fill 이라 겹쳐도 진해지지 않음
+        for (var k = 0; k < P.length; k++) polys.push([geoCircleRing(P[k].lon, P[k].lat, P[k][key])]);
+        return new ol.geom.MultiPolygon(polys);
     }
 
     function pointAt(lon, lat) { return new ol.geom.Point(ol.proj.fromLonLat([lon, lat])); }
@@ -235,12 +260,12 @@
         _trackSrc.clear(); _probSrc.clear(); _strongSrc.clear(); _stormSrc.clear(); _pointSrc.clear();
         if (!_frames.length) return;
 
-        // ⑤ 70%확률반경 cone (노랑), ④ 강풍반경 swath (옅은 파랑), ③ 폭풍반경 swath (진한 파랑)
-        var probG = swathGeom(_frames, 'radProb');
+        // 전체 진로 영역(매끈한 회랑) — 70%(아래)·강풍(중)·폭풍(위)은 레이어 zIndex 로 순서 보장
+        var probG = swathCorridorGeom(_frames, 'radProb');
         if (probG) _probSrc.addFeature(new ol.Feature(probG));
-        var strongG = swathGeom(_frames, 'radStrong');
+        var strongG = swathCorridorGeom(_frames, 'radStrong');
         if (strongG) _strongSrc.addFeature(new ol.Feature(strongG));
-        var stormG = swathGeom(_frames, 'radStorm');
+        var stormG = swathCorridorGeom(_frames, 'radStorm');
         if (stormG) _stormSrc.addFeature(new ol.Feature(stormG));
 
         // ② 예측경로: 진로선 + 시점별 위치 점(강도색) + 라벨, ① 실제위치(현재) 강조
@@ -293,20 +318,19 @@
         if (!f) return;
         var c = f._colorF || gradeColor(f._gradeF || 0);
 
-        // ── 지나온 자취(항적) — 시작~현재까지 ──
-        // (1) 강풍반경 영역 자취: 지나온 시점 + 현재의 강풍 원 union (이동 흔적의 "면")
-        var sweptPolys = [];
-        _frames.forEach(function (fr) { if (fr._t <= f._rtMs && fr.radStrong > 0) sweptPolys.push([geoCircleRing(fr.lon, fr.lat, fr.radStrong)]); });
-        if (f.radStrong > 0) sweptPolys.push([geoCircleRing(f.lon, f.lat, f.radStrong)]);
-        if (sweptPolys.length) {
-            var swept = new ol.Feature(new ol.geom.MultiPolygon(sweptPolys));
-            swept.setStyle(new ol.style.Style({
-                fill: new ol.style.Fill({ color: rgba(c, 0.18) }),
-                stroke: new ol.style.Stroke({ color: rgba(c, 0.45), width: 1 })
-            }));
-            _headSrc.addFeature(swept);
+        // 재생 모드: 시작~현재까지 "자라나는" 회랑 항적을 swath 레이어에 그림.
+        // (정적 모드에서는 renderStatic 이 전체 회랑을 채워두므로 여기서 건드리지 않음)
+        if (_playbackMode) {
+            var passedPts = [];
+            _frames.forEach(function (fr) { if (fr._t <= f._rtMs) passedPts.push(fr); });
+            passedPts.push(f); // 현재(보간) 시점 — 회랑 끝이 점점 커지며 진행
+            _probSrc.clear(); _strongSrc.clear(); _stormSrc.clear();
+            if (_layerOn.prob) { var gp = swathCorridorGeom(passedPts, 'radProb'); if (gp) _probSrc.addFeature(new ol.Feature(gp)); }
+            if (_layerOn.strong) { var gw = swathCorridorGeom(passedPts, 'radStrong'); if (gw) _strongSrc.addFeature(new ol.Feature(gw)); }
+            if (_layerOn.storm) { var gs = swathCorridorGeom(passedPts, 'radStorm'); if (gs) _stormSrc.addFeature(new ol.Feature(gs)); }
         }
-        // (2) 진행 자취 중심선: 지나온 경로 + 현재 위치 (굵은 실선, 강도색)
+
+        // 진행 자취 중심선: 지나온 경로 + 현재 위치 (굵은 실선, 강도색)
         var passed = [];
         _frames.forEach(function (fr) { if (fr._t <= f._rtMs) passed.push(ol.proj.fromLonLat([fr.lon, fr.lat])); });
         passed.push(ol.proj.fromLonLat([f.lon, f.lat]));
@@ -316,22 +340,6 @@
             _headSrc.addFeature(trail);
         }
 
-        // ── 현재 위치 영향 원 — 반경 유형별 색(지도 원=말풍선 텍스트 동일 색) ──
-        if (f.radProb && f.radProb > 0) {  // 70% 확률반경 — 녹색
-            var pf = new ol.Feature(geoCircle(f.lon, f.lat, f.radProb));
-            pf.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: rgba(PROB_C, 0.95), width: 1.4, lineDash: [5, 4] }) }));
-            _headSrc.addFeature(pf);
-        }
-        if (f.radStrong && f.radStrong > 0) {  // 강풍반경 — 황색
-            var wf = new ol.Feature(geoCircle(f.lon, f.lat, f.radStrong));
-            wf.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: rgba(STRONG_C, 1), width: 2 }), fill: new ol.style.Fill({ color: rgba(STRONG_C, 0.12) }) }));
-            _headSrc.addFeature(wf);
-        }
-        if (f.radStorm && f.radStorm > 0) {  // 폭풍반경 — 청색
-            var sf = new ol.Feature(geoCircle(f.lon, f.lat, f.radStorm));
-            sf.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: rgba(STORM_C, 1), width: 2.5 }), fill: new ol.style.Fill({ color: rgba(STORM_C, 0.28) }) }));
-            _headSrc.addFeature(sf);
-        }
         // 태풍 본체(강도색 점 + 소용돌이)
         var head = new ol.Feature(pointAt(f.lon, f.lat));
         head.setStyle(new ol.style.Style({
@@ -700,10 +708,10 @@
     function applyLayerVisibility() {
         // 기본(정지): 포인트별 말풍선 + 사전 범위 표출 / 재생: 사전 범위·포인트 말풍선 숨기고 이동 헤드만.
         var pb = _playbackMode;
-        var showSwaths = _visible && !pb;
-        if (_probLayer) _probLayer.setVisible(showSwaths && _layerOn.prob);
-        if (_strongLayer) _strongLayer.setVisible(showSwaths && _layerOn.strong);
-        if (_stormLayer) _stormLayer.setVisible(showSwaths && _layerOn.storm);
+        // swath(회랑)는 정지=전체 / 재생=시작~현재까지 자라나는 항적. 두 경우 모두 토글대로 표시.
+        if (_probLayer) _probLayer.setVisible(_visible && _layerOn.prob);
+        if (_strongLayer) _strongLayer.setVisible(_visible && _layerOn.strong);
+        if (_stormLayer) _stormLayer.setVisible(_visible && _layerOn.storm);
         if (_trackLayer) _trackLayer.setVisible(_visible && _layerOn.track);
         if (_pointLayer) _pointLayer.setVisible(_visible && _layerOn.track);
         if (_headLayer) _headLayer.setVisible(_visible && pb); // 이동 헤드는 재생 모드에서만
