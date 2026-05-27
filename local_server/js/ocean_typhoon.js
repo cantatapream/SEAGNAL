@@ -600,9 +600,32 @@
         return true;
     }
 
-    // 레이어별 채움 스타일 — 테두리 없이 fill 만(회랑 내부 포인트 원 윤곽이 남지 않도록).
+    // 레이어별 채움 스타일.
+    //   OL 은 MultiPolygon 의 각 폴리곤을 "따로" 반투명 채움 → 겹친 원들이 이중 채색돼
+    //   진해지면서 원 테두리가 드러난다. 커스텀 렌더러로 모든 링을 한 path 에 모아
+    //   nonzero 로 "단 한 번" 채워 겹쳐도 진해지지 않는 매끈한 합집합으로 렌더한다.
+    //   (모든 링 winding 은 orientCW 로 통일되어 구멍도 생기지 않음)
     function swathStyle(strokeC, fillC) {
-        return new ol.style.Style({ fill: new ol.style.Fill({ color: fillC }) });
+        function drawRings(ctx, arr) {
+            if (!arr || !arr.length) return;
+            if (typeof arr[0][0] === 'number') { // arr = 링([[x,y],...])
+                for (var i = 0; i < arr.length; i++) { var p = arr[i]; if (i === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]); }
+                ctx.closePath();
+            } else {
+                for (var j = 0; j < arr.length; j++) drawRings(ctx, arr[j]); // 폴리곤/멀티폴리곤 재귀
+            }
+        }
+        return new ol.style.Style({
+            renderer: function (coords, state) {
+                var ctx = state.context;
+                ctx.save();
+                ctx.beginPath();
+                drawRings(ctx, coords);
+                ctx.fillStyle = fillC;
+                ctx.fill('nonzero');
+                ctx.restore();
+            }
+        });
     }
 
     // ── 재생 플레이헤드 렌더 ──────────────────────────────────────────────────
