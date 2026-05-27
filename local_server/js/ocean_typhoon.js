@@ -38,6 +38,12 @@
     var _tapCount = 0;
     var _tapTimer = null;
 
+    // 줌 자동조정 기준점: 제주도(최소한 우리나라가 한 화면에 함께 보이도록 fit)
+    var JEJU_LON = 126.53, JEJU_LAT = 33.43;
+    var FIT_MAX_ZOOM = 8;
+
+    var _pNow = 0;             // 현재 시각에 해당하는 타임라인 위치(0..1)
+
     var _map = null;
     var _staticLayer = null;   // 진로선 + 점 + 확률 cone + 라벨
     var _headLayer = null;     // 재생 플레이헤드(태풍 본체 + 반경 원)
@@ -83,6 +89,26 @@
         if (d.length < 12) return '';
         return d.slice(4, 6) + '.' + d.slice(6, 8) + ' ' + d.slice(8, 10) + ':' + d.slice(10, 12);
     }
+    // timeToMs 가 KST 벽시계를 UTC 기준 ms 로 저장하므로, 되읽을 때도 getUTC* 사용.
+    function fmtFromMs(ms) {
+        if (!isFinite(ms)) return '';
+        var d = new Date(ms);
+        var mm = d.getUTCMonth() + 1, dd = d.getUTCDate(), hh = d.getUTCHours(), mi = d.getUTCMinutes();
+        return mm + '/' + dd + ' ' + (hh < 10 ? '0' + hh : hh) + (mi ? ':' + (mi < 10 ? '0' + mi : mi) : '시');
+    }
+    // 현재(실시간) KST 벽시계를 timeToMs 와 동일한 ms 기준으로 반환
+    function nowKstMs() {
+        var d = new Date();
+        var kst = new Date(d.getTime() + (d.getTimezoneOffset() * 60000) + 9 * 3600000);
+        return Date.UTC(kst.getFullYear(), kst.getMonth(), kst.getDate(), kst.getHours(), kst.getMinutes());
+    }
+    // 현재 시각이 타임라인(첫~끝 프레임)에서 차지하는 위치 0..1
+    function computeNowP() {
+        if (_frames.length < 2) return 0;
+        var t0 = _frames[0]._t, t1 = _frames[_frames.length - 1]._t;
+        if (t1 <= t0) return 0;
+        return Math.max(0, Math.min(1, (nowKstMs() - t0) / (t1 - t0)));
+    }
 
     // 경위도(deg)·반경(km) → EPSG:3857 좌표 폴리곤 (구면 측지원, 72분할)
     function geoCircle(lon, lat, km, n) {
@@ -117,7 +143,7 @@
     // p(0..1) → 보간 프레임 (실제 예보시각 간격 비례)
     function frameAt(p) {
         if (!_frames.length) return null;
-        if (_frames.length === 1) return Object.assign({}, _frames[0], { _gradeF: _frames[0].grade, _colorF: _frames[0]._color });
+        if (_frames.length === 1) return Object.assign({}, _frames[0], { _gradeF: _frames[0].grade, _colorF: _frames[0]._color, _rtMs: _frames[0]._t });
         var t0 = _frames[0]._t, t1 = _frames[_frames.length - 1]._t;
         var rt = t0 + p * (t1 - t0);
         var i = 0;
@@ -139,7 +165,8 @@
             size: (f < 0.5 ? A.size : B.size),
             _gradeF: Math.round(lerp(A.grade, B.grade, f)),
             _colorF: lerpColor(A._color, B._color, f),
-            time: (f < 0.5 ? A.time : B.time)
+            time: (f < 0.5 ? A.time : B.time),
+            _rtMs: rt
         };
     }
 
@@ -180,7 +207,7 @@
                     stroke: new ol.style.Stroke({ color: '#fff', width: f.isCurrent ? 2.5 : 1.5 })
                 }),
                 text: new ol.style.Text({
-                    text: (f.isCurrent ? '현재 ' : '') + fmtTime(f.time),
+                    text: fmtTime(f.time),
                     offsetY: -14, font: '11px sans-serif',
                     fill: new ol.style.Fill({ color: '#222' }),
                     stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,0.9)', width: 3 })
@@ -230,6 +257,21 @@
         }));
         _headSrc.addFeature(head);
 
+        // 우상단 날짜·시각 말풍선 라벨 (애니메이션 따라 함께 이동)
+        var label = new ol.Feature(pointAt(f.lon, f.lat));
+        label.setStyle(new ol.style.Style({
+            text: new ol.style.Text({
+                text: fmtFromMs(f._rtMs) + ' 기준',
+                font: 'bold 12px sans-serif',
+                textAlign: 'left', offsetX: 13, offsetY: -14,
+                fill: new ol.style.Fill({ color: '#111' }),
+                backgroundFill: new ol.style.Fill({ color: 'rgba(255,255,255,0.92)' }),
+                backgroundStroke: new ol.style.Stroke({ color: rgba(c, 1), width: 1.5 }),
+                padding: [3, 6, 3, 6]
+            })
+        }));
+        _headSrc.addFeature(label);
+
         updateInfo(f);
         var scr = document.getElementById('tphn-scrubber');
         if (scr && document.activeElement !== scr) scr.value = String(Math.round(p * 1000));
@@ -240,7 +282,7 @@
         if (!el) return;
         var g = f._gradeF != null ? f._gradeF : f.grade;
         var parts = [];
-        parts.push('<b>' + fmtTime(f.time) + '</b>');
+        parts.push('<b>' + (f._rtMs ? fmtFromMs(f._rtMs) + ' 기준' : fmtTime(f.time)) + '</b>');
         parts.push('강도 <span class="tphn-grade" style="color:' + rgba(gradeColor(g), 1) + '">' + (GRADE_NAMES[g] || '-') + '</span>');
         if (f.windMs != null) parts.push('최대풍속 ' + Math.round(f.windMs) + 'm/s');
         if (f.pressure != null) parts.push('중심기압 ' + Math.round(f.pressure) + 'hPa');
@@ -248,6 +290,28 @@
         if (f.radStorm) parts.push('폭풍반경 ' + Math.round(f.radStorm) + 'km');
         if (f.speedKmh != null && f.dir) parts.push('이동 ' + f.dir + ' ' + Math.round(f.speedKmh) + 'km/h');
         el.innerHTML = parts.join(' · ');
+    }
+
+    // ── 지도 포커스 (태풍 현재위치 + 제주도가 한 화면에 보이도록 fit) ─────────
+    function focusOnTyphoon() {
+        if (!_map || !_frames.length) return;
+        var f = frameAt(_p);
+        if (!f || f.lon == null || f.lat == null) return;
+        var tphn = ol.proj.fromLonLat([f.lon, f.lat]);
+        var jeju = ol.proj.fromLonLat([JEJU_LON, JEJU_LAT]);
+        var extent = [
+            Math.min(tphn[0], jeju[0]), Math.min(tphn[1], jeju[1]),
+            Math.max(tphn[0], jeju[0]), Math.max(tphn[1], jeju[1])
+        ];
+        var size = _map.getSize();
+        if (!size) return;
+        // 하단 컨트롤 패널/탭 영역만큼 bottom 패딩을 크게 줘서 가림 방지.
+        _map.getView().fit(extent, {
+            size: size,
+            padding: [70, 60, 170, 60],
+            maxZoom: FIT_MAX_ZOOM,
+            duration: 600
+        });
     }
 
     // ── 재생 제어 ────────────────────────────────────────────────────────────
@@ -263,7 +327,7 @@
     }
     function play() {
         if (!_frames.length) return;
-        if (_p >= 1) _p = 0; // 끝에서 다시 누르면 처음부터
+        if (_p >= 0.999) _p = (_pNow < 0.999 ? _pNow : 0); // 끝이면 현재 시각(없으면 처음)부터
         _playing = true; _lastTs = 0;
         setPlayBtn(true);
         _raf = requestAnimationFrame(tick);
@@ -285,9 +349,11 @@
         var b = (_data.bulletins || []).find(function (x) { return x.code === code; });
         if (!b) return;
         _frames = buildFrames(b);
-        _p = 0;
+        _pNow = computeNowP();   // 발표시각이 아니라 "현재 시각" 기준 위치에서 시작
+        _p = _pNow;
         renderStatic();
-        renderHead(0);
+        renderHead(_p);
+        if (_visible) focusOnTyphoon();
         var title = document.getElementById('tphn-title');
         if (title) title.textContent = (_data.active ? _data.active.name : '태풍') + (_data.active && _data.active.nameEn ? ' (' + _data.active.nameEn + ')' : '');
     }
@@ -326,7 +392,15 @@
         if (panel) panel.style.display = v ? '' : 'none';
         var btn = document.getElementById('ocean-typhoon-toggle-btn');
         if (btn) btn.classList.toggle('active', v);
-        if (!v) pause();
+        if (v) {
+            // 표출 시 현재 시각 위치로 갱신 후 태풍+제주도가 보이도록 지도 이동/줌
+            _pNow = computeNowP();
+            _p = _pNow;
+            renderHead(_p);
+            focusOnTyphoon();
+        } else {
+            pause();
+        }
         try { localStorage.setItem(VISIBLE_KEY, String(v)); } catch (e) {}
     }
 
