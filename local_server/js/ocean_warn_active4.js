@@ -193,18 +193,10 @@
         var label = btn.querySelector('.ocean-overlay-label');
 
         if (!hasActive) {
-            // (a) 활성 특보 0건 — disabled
-            btn.classList.remove('active');
-            btn.classList.add('warn-active-disabled');
-            btn.setAttribute('aria-disabled', 'true');
-            btn.title = '현재 활성 특보 없음';
-            if (icon) icon.style.color = '#9ca3af';   // 회색 경광등
-            if (label) {
-                label.textContent = '특보 없음';
-                // [큰 텍스트 모드] 라벨을 두 줄로 분할 — 사용자 명세 ("특보/켜기" / "특보/끄기" 형태)
-                label.setAttribute('data-line1', '특보');
-                label.setAttribute('data-line2', '없음');
-            }
+            // (a) 활성 특보 0건 — 버튼 자체를 숨김(비활성 "특보 없음" 도 표출 안 함).
+            //     특보가 있을 때만 "특보 ON/OFF" 버튼이 나타나도록.
+            btn.style.display = 'none';
+            return;
         } else if (isOn) {
             // (c) ON — 빨간 경광등 + "특보 OFF" 라벨 (누르면 OFF)
             btn.classList.add('active');
