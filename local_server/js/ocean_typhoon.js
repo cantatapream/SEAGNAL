@@ -1141,8 +1141,9 @@
         _strongLayer = new ol.layer.Vector(Object.assign({ source: _strongSrc, zIndex: 118, style: swathStyle(rgba(STRONG_C, 0.95), rgba(STRONG_C, 0.32)) }, uw));
         _stormLayer = new ol.layer.Vector(Object.assign({ source: _stormSrc, zIndex: 120, style: swathStyle(rgba(STORM_C, 0.95), rgba(STORM_C, 0.36)) }, uw));
         _trackLayer = new ol.layer.Vector(Object.assign({ source: _trackSrc, zIndex: 124 }, uw));
-        _headLayer = new ol.layer.Vector(Object.assign({ source: _headSrc, zIndex: 130 }, uw));
-        _pointLayer = new ol.layer.Vector(Object.assign({ source: _pointSrc, zIndex: 140 }, uw)); // 포인트는 모든 레이어 위
+        _pointLayer = new ol.layer.Vector(Object.assign({ source: _pointSrc, zIndex: 140 }, uw)); // 강도숫자 포인트
+        // 이동 태풍(🌀) 헤드는 포인트(140)보다 위 → 재생 중 포인트 숫자에 가려지지 않음.
+        _headLayer = new ol.layer.Vector(Object.assign({ source: _headSrc, zIndex: 150 }, uw));
         map.addLayer(_probLayer); map.addLayer(_strongLayer); map.addLayer(_stormLayer);
         map.addLayer(_trackLayer); map.addLayer(_headLayer); map.addLayer(_pointLayer);
         _moveBubble = makeBubbleOverlay(); map.addOverlay(_moveBubble); _moveEl = _moveBubble.getElement();
