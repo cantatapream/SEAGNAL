@@ -107,22 +107,38 @@
         var h = '<div class="tphn-b-h">' + header + '</div>';
         var spd = o.windMs != null ? Math.round(o.windMs) + 'm/s · ' + Math.round(o.windMs * 3.6) + 'km/h' : '';
         h += '<div style="' + gStyle + '">강도 ' + (GRADE_NAMES[g] || '-') + (spd ? ' · ' + spd : '') + '</div>';
-        if (o.pressure != null) h += '<div class="tphn-b-sub">중심기압 ' + Math.round(o.pressure) + 'hPa</div>';
-        if (o.radStrong) h += '<div style="color:' + cssRgb(STRONG_C) + '">강풍반경 ' + Math.round(o.radStrong) + 'km</div>';
-        if (o.radStorm) h += '<div style="color:' + cssRgb(STORM_C) + '">폭풍반경 ' + Math.round(o.radStorm) + 'km</div>';
-        if (o.radProb) h += '<div style="color:' + cssRgb(PROB_C) + '">태풍 위치 70% 확률 반경 ' + Math.round(o.radProb) + 'km</div>';
+        // 헤더+강도 2줄 외 나머지 — 흐린 말풍선에선 CSS(.tphn-faint .tphn-b-more)로 숨김.
+        var more = '';
+        if (o.pressure != null) more += '<div class="tphn-b-sub">중심기압 ' + Math.round(o.pressure) + 'hPa</div>';
+        if (o.radStrong) more += '<div style="color:' + cssRgb(STRONG_C) + '">강풍반경 ' + Math.round(o.radStrong) + 'km</div>';
+        if (o.radStorm) more += '<div style="color:' + cssRgb(STORM_C) + '">폭풍반경 ' + Math.round(o.radStorm) + 'km</div>';
+        if (o.radProb) more += '<div style="color:' + cssRgb(PROB_C) + '">태풍 위치 70% 확률 반경 ' + Math.round(o.radProb) + 'km</div>';
         var wv = beaufortWaveM(o.windMs);
-        if (wv != null) h += '<div class="tphn-b-sub">예상파고(외해 추정) 약 ' + wv + 'm</div>';
+        if (wv != null) more += '<div class="tphn-b-sub">예상파고(외해 추정) 약 ' + wv + 'm</div>';
         var dmg = DAMAGE_DESC[g];
-        if (dmg) h += '<div class="tphn-b-dmg">예상 피해: ' + dmg + '</div>';
+        if (dmg) more += '<div class="tphn-b-dmg">예상 피해: ' + dmg + '</div>';
+        more += '<button type="button" class="tphn-guide-btn"><i class="fa-solid fa-life-ring"></i> 해상 종사자 행동요령</button>';
+        h += '<div class="tphn-b-more">' + more + '</div>';
         return h;
     }
     function makeBubbleOverlay() {
         var el = document.createElement('div');
         el.className = 'tphn-bubble';
-        // 말풍선 클릭 → 지도(해구) 클릭/바텀시트 막고(stopEvent:true + stopPropagation),
-        //   흐린 말풍선이면 진하게 표시.
-        el.addEventListener('click', function (e) { e.stopPropagation(); el.classList.remove('tphn-faint'); });
+        // 말풍선 클릭 → 지도(해구) 바텀시트 차단(stopEvent:true + stopPropagation).
+        //   - 행동요령 버튼이면 팝업 열기.
+        //   - 그 외엔 단일 선택 토글: 흐린 걸 누르면 그것만 진하게(나머지 흐림),
+        //     진한 걸 다시 누르면 흐려짐.
+        el.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (e.target.closest && e.target.closest('.tphn-guide-btn')) {
+                var gm = document.getElementById('tphn-guide-modal');
+                if (gm) gm.style.display = 'flex';
+                return;
+            }
+            var wasFaint = el.classList.contains('tphn-faint');
+            _pointBubbles.forEach(function (ov) { ov.getElement().classList.add('tphn-faint'); });
+            if (wasFaint) el.classList.remove('tphn-faint');
+        });
         return new ol.Overlay({ element: el, offset: [12, -12], positioning: 'bottom-left', stopEvent: true });
     }
     function updateBubbleVisibility() {
@@ -758,11 +774,9 @@
         var closeBtn = document.getElementById('tphn-close');
         if (closeBtn) closeBtn.addEventListener('click', function () { setVisible(false); });
 
-        // 행동요령 팝업
-        var guideBtn = document.getElementById('tphn-guide-btn');
+        // 행동요령 팝업 — 열기는 말풍선 내부 .tphn-guide-btn 클릭(makeBubbleOverlay)에서 처리.
         var guideModal = document.getElementById('tphn-guide-modal');
         var guideClose = document.getElementById('tphn-guide-close');
-        if (guideBtn && guideModal) guideBtn.addEventListener('click', function () { guideModal.style.display = 'flex'; });
         if (guideClose && guideModal) guideClose.addEventListener('click', function () { guideModal.style.display = 'none'; });
         if (guideModal) guideModal.addEventListener('click', function (e) { if (e.target === guideModal) guideModal.style.display = 'none'; });
 
