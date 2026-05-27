@@ -1224,10 +1224,10 @@
         var noteModal = document.getElementById('tphn-note-modal');
         if (noteModal) noteModal.addEventListener('click', function (e) { if (e.target === noteModal) closeNoteModal(); });
 
-        // 통보문 이미지 팝업(지도 이모지 버튼) — 지도(정보) 제공이므로 클릭 시 1회 집계
+        // 통보문 이미지 팝업(지도 이모지 버튼) — 태풍 기능 내 동작이므로 '태풍' 하나로 집계
         var imgBtn = document.getElementById('tphn-img-btn');
         if (imgBtn) imgBtn.addEventListener('click', function () {
-            if (window.trackUsage) window.trackUsage('ocean.typhoon_map');
+            if (window.trackUsage) window.trackUsage('ocean.typhoon');
             openImgModal();
         });
         var imgClose = document.getElementById('tphn-img-close');
