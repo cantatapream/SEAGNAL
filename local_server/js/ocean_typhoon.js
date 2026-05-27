@@ -293,6 +293,38 @@
         var hStr = (hh < 10 ? '0' + hh : hh) + (mi ? ':' + (mi < 10 ? '0' + mi : mi) : '시');
         return mm + '월 ' + dd + '일' + (rel ? '(' + rel + ')' : '') + ' ' + hStr;
     }
+    // ── 재생 슬라이더 손잡이 위 말풍선(파고·파향 타임라인과 동일 로직/스타일) ────
+    var _scrubFade = null;
+    function scrubTimeText(p) {
+        if (!_frames.length) return '';
+        var t0 = _frames[0]._t, t1 = _frames[_frames.length - 1]._t;
+        var d = new Date(t0 + p * (t1 - t0));
+        var DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+        var hh = d.getUTCHours(), mi = d.getUTCMinutes();
+        return (d.getUTCMonth() + 1) + '.' + d.getUTCDate() + '.(' + DAYS[d.getUTCDay()] + ') '
+            + (hh < 10 ? '0' + hh : hh) + ':' + (mi < 10 ? '0' + mi : mi);
+    }
+    function updateScrubTooltip(p) {
+        var tip = document.getElementById('tphn-scrub-tooltip');
+        var sl = document.getElementById('tphn-scrubber');
+        if (!tip || !sl) return;
+        tip.textContent = scrubTimeText(p);
+        tip.style.left = '0px';
+        var r = sl.getBoundingClientRect();
+        var min = parseFloat(sl.min) || 0, max = parseFloat(sl.max) || 1000, val = parseFloat(sl.value) || 0;
+        var pct = (max > min) ? (val - min) / (max - min) : 0;
+        var thumbHalf = 9;
+        var thumbX = r.left + thumbHalf + pct * (r.width - thumbHalf * 2);
+        var tipW = tip.getBoundingClientRect().width;
+        var pad = 4;
+        var clamped = Math.max(pad, Math.min(thumbX - tipW / 2, window.innerWidth - tipW - pad));
+        var pr = tip.parentElement.getBoundingClientRect();
+        tip.style.left = (clamped - pr.left) + 'px';
+        var arrowX = Math.max(8, Math.min(thumbX - clamped, tipW - 8));
+        tip.style.setProperty('--tl-arrow-x', arrowX + 'px');
+    }
+    function showScrubTip() { var t = document.getElementById('tphn-scrub-tooltip'); if (t) { clearTimeout(_scrubFade); t.classList.add('visible'); } }
+    function fadeScrubTip() { clearTimeout(_scrubFade); _scrubFade = setTimeout(function () { var t = document.getElementById('tphn-scrub-tooltip'); if (t) t.classList.remove('visible'); }, 1000); }
     // 현재 시각이 타임라인(첫~끝 프레임)에서 차지하는 위치 0..1
     function computeNowP() {
         if (_frames.length < 2) return 0;
@@ -430,13 +462,16 @@
 
         _frames.forEach(function (f) {
             var c = f._color;
+            var g = f.grade != null ? f.grade : 0;
             var pt = new ol.Feature(pointAt(f.lon, f.lat));
             pt.setStyle(new ol.style.Style({
                 image: new ol.style.Circle({
-                    radius: f.isCurrent ? 7 : 5,
+                    radius: f.isCurrent ? 11 : 9,
                     fill: new ol.style.Fill({ color: rgba(c, 0.95) }),
                     stroke: new ol.style.Stroke({ color: f.isCurrent ? '#d00' : '#fff', width: f.isCurrent ? 3 : 1.5 })
-                })
+                }),
+                // 강도(1~5)를 원 안에 숫자로. 열대저압부(0)는 표기 안 함.
+                text: g >= 1 ? new ol.style.Text({ text: String(g), font: 'bold 11px sans-serif', fill: new ol.style.Fill({ color: '#fff' }) }) : undefined
             }));
             _pointSrc.addFeature(pt); // 포인트는 전용 최상단 레이어에
         });
@@ -673,6 +708,7 @@
         }
         var scr = document.getElementById('tphn-scrubber');
         if (scr && document.activeElement !== scr) scr.value = String(Math.round(p * 1000));
+        if (_playing) { updateScrubTooltip(p); showScrubTip(); } // 재생 중 손잡이 위 말풍선 표출
     }
 
     // ── 지도 포커스 (태풍 현재위치 + 제주도가 한 화면에 보이도록 fit) ─────────
@@ -724,6 +760,7 @@
         if (_raf) cancelAnimationFrame(_raf);
         _raf = null;
         setPlayBtn(false);
+        fadeScrubTip();
         // 정지해도 재생 모드 유지(이동 위치 그대로). 기본(포인트 말풍선) 복귀는 통보문/태풍 재선택 시.
     }
     function setPlayBtn(playing) {
@@ -1012,12 +1049,15 @@
         _headSrc = new ol.source.Vector();
         _pointSrc = new ol.source.Vector();
         // 채움은 유형별 색(원·말풍선과 동일), 반투명 유지 → 배경 지도 희미하게 비침.
-        _probLayer = new ol.layer.Vector({ source: _probSrc, zIndex: 116, style: swathStyle(rgba(PROB_C, 0.95), rgba(PROB_C, 0.30)) });
-        _strongLayer = new ol.layer.Vector({ source: _strongSrc, zIndex: 118, style: swathStyle(rgba(STRONG_C, 0.95), rgba(STRONG_C, 0.32)) });
-        _stormLayer = new ol.layer.Vector({ source: _stormSrc, zIndex: 120, style: swathStyle(rgba(STORM_C, 0.95), rgba(STORM_C, 0.36)) });
-        _trackLayer = new ol.layer.Vector({ source: _trackSrc, zIndex: 124 });
-        _headLayer = new ol.layer.Vector({ source: _headSrc, zIndex: 130 });
-        _pointLayer = new ol.layer.Vector({ source: _pointSrc, zIndex: 140 }); // 포인트는 모든 레이어 위
+        // updateWhileInteracting/Animating: 재생 중 지도 드래그·애니메이션 동안에도 벡터를
+        //   계속 재렌더(드래그 중 태풍·반경이 멈췄다 순간이동하던 문제 방지).
+        var uw = { updateWhileInteracting: true, updateWhileAnimating: true };
+        _probLayer = new ol.layer.Vector(Object.assign({ source: _probSrc, zIndex: 116, style: swathStyle(rgba(PROB_C, 0.95), rgba(PROB_C, 0.30)) }, uw));
+        _strongLayer = new ol.layer.Vector(Object.assign({ source: _strongSrc, zIndex: 118, style: swathStyle(rgba(STRONG_C, 0.95), rgba(STRONG_C, 0.32)) }, uw));
+        _stormLayer = new ol.layer.Vector(Object.assign({ source: _stormSrc, zIndex: 120, style: swathStyle(rgba(STORM_C, 0.95), rgba(STORM_C, 0.36)) }, uw));
+        _trackLayer = new ol.layer.Vector(Object.assign({ source: _trackSrc, zIndex: 124 }, uw));
+        _headLayer = new ol.layer.Vector(Object.assign({ source: _headSrc, zIndex: 130 }, uw));
+        _pointLayer = new ol.layer.Vector(Object.assign({ source: _pointSrc, zIndex: 140 }, uw)); // 포인트는 모든 레이어 위
         map.addLayer(_probLayer); map.addLayer(_strongLayer); map.addLayer(_stormLayer);
         map.addLayer(_trackLayer); map.addLayer(_headLayer); map.addLayer(_pointLayer);
         _moveBubble = makeBubbleOverlay(); map.addOverlay(_moveBubble); _moveEl = _moveBubble.getElement();
@@ -1071,7 +1111,13 @@
         var resetBtn = document.getElementById('tphn-reset');
         if (resetBtn) resetBtn.addEventListener('click', function () { if (_frames.length) resetView(); });
         var scr = document.getElementById('tphn-scrubber');
-        if (scr) scr.addEventListener('input', function () { pause(); setPlaybackMode(true); _p = (+this.value) / 1000; renderHead(_p); });
+        if (scr) {
+            scr.addEventListener('input', function () { pause(); setPlaybackMode(true); _p = (+this.value) / 1000; renderHead(_p); updateScrubTooltip(_p); showScrubTip(); });
+            scr.addEventListener('mousedown', function () { updateScrubTooltip((+this.value) / 1000); showScrubTip(); });
+            scr.addEventListener('touchstart', function () { updateScrubTooltip((+this.value) / 1000); showScrubTip(); }, { passive: true });
+            scr.addEventListener('mouseup', fadeScrubTip);
+            scr.addEventListener('touchend', fadeScrubTip);
+        }
         var closeBtn = document.getElementById('tphn-close');
         if (closeBtn) closeBtn.addEventListener('click', function () { setVisible(false); });
 
@@ -1082,7 +1128,11 @@
         if (guideClose) guideClose.addEventListener('click', closeGuideModal);
         if (guideModal) guideModal.addEventListener('click', function (e) { if (e.target === guideModal) closeGuideModal(); });
 
-        // [디버그] 해역표출 강제 토글 — 트리거/게이트/거리 무시하고 최근접 해구·부이 표출.
+        // [디버그] 해역표출 강제 토글 — 관리자 모드 기기에서만 노출(시그널 통합관리자 센터에서 체크).
+        var dbgRow = document.getElementById('tphn-dbg-row');
+        var isAdmin = false;
+        try { isAdmin = localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { }
+        if (dbgRow && !isAdmin) dbgRow.style.display = 'none';
         var dbgChk = document.getElementById('tphn-dbg-korea');
         if (dbgChk) dbgChk.addEventListener('change', function () {
             _debugKorea = dbgChk.checked;

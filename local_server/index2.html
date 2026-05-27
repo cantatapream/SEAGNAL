@@ -2559,7 +2559,7 @@
                         .ocean-typhoon-panel .tphn-year{flex:none;width:84px;}
                         .ocean-typhoon-panel .tphn-close{background:transparent;border:none;color:#cdd9f0;
                             font-size:15px;cursor:pointer;padding:0 2px;}
-                        .ocean-typhoon-panel .tphn-row-play{margin-top:8px;margin-bottom:6px;}
+                        .ocean-typhoon-panel .tphn-row-play{margin-top:8px;margin-bottom:6px;position:relative;}
                         .ocean-typhoon-panel .tphn-play{width:36px;height:28px;border-radius:6px;border:none;
                             background:#2d6cdf;color:#fff;cursor:pointer;flex:none;}
                         .ocean-typhoon-panel .tphn-scrubber{flex:1;}
@@ -2626,6 +2626,8 @@
                             <button id="tphn-play" class="tphn-play" type="button" title="재생/일시정지"><i class="fa-solid fa-play"></i></button>
                             <button id="tphn-reset" class="tphn-play" type="button" title="처음으로 되돌리기"><i class="fa-solid fa-rotate-left"></i></button>
                             <input type="range" id="tphn-scrubber" class="tphn-scrubber" min="0" max="1000" value="0" title="예보 시각 이동">
+                            <!-- 재생 슬라이더 손잡이 위 말풍선(파고·파향 타임라인과 동일 .ocean-timeline-tooltip 스타일) -->
+                            <div id="tphn-scrub-tooltip" class="ocean-timeline-tooltip"></div>
                         </div>
                         <div class="tphn-row tphn-layers" id="tphn-layers">
                             <label><input type="checkbox" id="tphn-ly-track" checked> 예측경로</label>
