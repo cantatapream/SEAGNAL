@@ -236,16 +236,33 @@
     }
     function escHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
     // 통보문 안내(i) 팝업 — rem(발표/종료 안내, '|' 구분) + other(참고사항).
-    function openNoteModal() {
-        var m = document.getElementById('tphn-note-modal'), body = document.getElementById('tphn-note-body');
-        if (!m || !body) return;
+    function renderNoteBody() {
+        var body = document.getElementById('tphn-note-body'); if (!body) return;
         var b = _curBulletin || {}, html = '';
         var rem = String(b.rem || '').replace(/\|\s*$/, '').trim();
         if (rem) rem.split('|').forEach(function (s) { s = s.trim(); if (s) html += '<div class="tphn-note-line">※ ' + escHtml(s) + '</div>'; });
         if (b.other) html += '<div class="tphn-note-line" style="margin-top:10px;color:#15407a;font-weight:600;">' + escHtml(b.other) + '</div>';
         body.innerHTML = html || '<div class="tphn-note-line" style="color:#888;">안내 정보가 없습니다.</div>';
+    }
+    function openNoteModal() {
+        var m = document.getElementById('tphn-note-modal'), body = document.getElementById('tphn-note-body');
+        if (!m || !body) return;
         m.style.display = 'flex';
         if (window.PopupStack) window.PopupStack.push('tphn-note', closeNoteModal);
+        var b = _curBulletin || {};
+        // 활성 캐시(typhoon.json)가 구버전이라 rem/other 가 없으면 신선 통보문을 받아 보강.
+        if (!b.rem && !b.other && _selCode) {
+            body.innerHTML = '<div class="tphn-note-line" style="color:#888;">불러오는 중…</div>';
+            fetchJSON('/api/typhoon/bulletin?year=' + _year + '&code=' + encodeURIComponent(_selCode)).then(function (d) {
+                if (d && !d.error) {
+                    if (_curBulletin) { _curBulletin.rem = d.rem; _curBulletin.other = d.other; }
+                    else _curBulletin = d;
+                }
+                renderNoteBody();
+            }).catch(function () { renderNoteBody(); });
+        } else {
+            renderNoteBody();
+        }
     }
     function closeNoteModal() {
         var m = document.getElementById('tphn-note-modal'); if (m) m.style.display = 'none';
