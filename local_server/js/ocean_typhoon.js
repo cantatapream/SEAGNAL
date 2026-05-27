@@ -1001,7 +1001,8 @@
         if (!el) return;
         var html = '';
         [0, 1, 2, 3, 4, 5].forEach(function (g) {
-            html += '<span class="tphn-leg-item"><i style="background:' + rgba(gradeColor(g), 1) + '"></i>' + GRADE_NAMES[g] + '</span>';
+            // 색상 원 안에 강도 숫자(1~5) — 지도 포인트와 동일. 열대저압부(0)는 숫자 없음.
+            html += '<span class="tphn-leg-item"><i style="background:' + rgba(gradeColor(g), 1) + '">' + (g >= 1 ? g : '') + '</i>' + GRADE_NAMES[g] + '</span>';
         });
         el.innerHTML = html;
     }
