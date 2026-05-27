@@ -33,10 +33,19 @@
 
   var params;
   try { params = new URLSearchParams(window.location.search); } catch (e) { return; }
-  if (params.get('assistant') !== 'ocean') return;
+  var aMode = params.get('assistant');           // 'ocean' | 'tab'
+  if (aMode !== 'ocean' && aMode !== 'tab') return;
 
   var layer = params.get('layer') || '';
   var buoyId = params.get('buoy') || '';
+  var target = params.get('target') || '';
+
+  // 탭 이동 허용 섹션 화이트리스트 (방어적 — 임의 값으로 switchMainTab 호출 방지)
+  var ALLOWED_TABS = {
+    'weather-alert-section': 1, 'typhoon-section': 1, 'sea-zone-section': 1,
+    'marine-chart-section': 1, 'ocean-map-section': 1, 'fishing-section': 1,
+    'surfing-section': 1, 'promo-section': 1
+  };
 
   // data-layer 오버레이 레이어(라디오식) / 토글 버튼 구분
   var OVERLAY_LAYERS = { current: 1, wind: 1, wave: 1 };
@@ -82,6 +91,15 @@
 
   function run() {
     try {
+      // 탭 이동(특보/태풍/해구/일기도/기상예보 등)
+      if (aMode === 'tab') {
+        if (ALLOWED_TABS[target] && typeof window.switchMainTab === 'function') {
+          window.switchMainTab(target);
+        }
+        cleanUrl();
+        return;
+      }
+
       // 특정 부이: 전체 시퀀스를 처리하는 전역 함수가 있으면 그것을 사용
       if (layer === 'buoy' && buoyId && typeof window.showBuoyLocationOnMap === 'function') {
         window.showBuoyLocationOnMap(buoyId);

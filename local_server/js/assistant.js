@@ -212,6 +212,7 @@
   function openAppFeature(lk) {
     var url = location.origin + '/?assistant=' + encodeURIComponent(lk.type);
     if (lk.layer) url += '&layer=' + encodeURIComponent(lk.layer);
+    if (lk.target) url += '&target=' + encodeURIComponent(lk.target);
     if (lk.zone) url += '&zone=' + encodeURIComponent(lk.zone);
     if (lk.buoy) url += '&buoy=' + encodeURIComponent(lk.buoy);
     window.location.href = url;

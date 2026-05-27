@@ -33,8 +33,28 @@
  */
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const { dataCache } = require('../services/cache_manager');
+
+// ============================================================================
+// 부이 이름 ↔ ID 매핑 — buoyLocations.js(브라우저 전역 스크립트)에서 1회 파싱.
+// "○○ 부이" 처럼 특정 부이를 물으면 그 부이를 앱에서 바로 열 수 있도록 id 를 얻는다.
+// 파싱 실패해도(파일 변경 등) 빈 맵으로 두고 일반 부이 링크로 폴백 — 기동 안전.
+// ============================================================================
+const BUOY_BY_ID = [];   // [{ id, name, nname }]
+try {
+    const raw = fs.readFileSync(path.join(__dirname, '..', 'buoyLocations.js'), 'utf8');
+    const re = /"(\d+)":\s*\{\s*name:\s*"([^"]+)"/g;
+    let m;
+    while ((m = re.exec(raw)) !== null) {
+        BUOY_BY_ID.push({ id: m[1], name: m[2], nname: m[2].replace(/[\s·]/g, '') });
+    }
+    console.log(`[Assistant] 부이 ${BUOY_BY_ID.length}개 로드됨`);
+} catch (e) {
+    console.warn('[Assistant] buoyLocations 파싱 실패 — 일반 부이 링크로 폴백:', e.message);
+}
 
 // Gemini 공용 클라이언트 (키 없으면 hasAnyKey()=false → 폴백 경로 사용)
 let gemini = null;
@@ -565,27 +585,59 @@ router.post('/api/assistant/ask', async (req, res) => {
     });
 });
 
+/** 질문에서 특정 부이를 가리키면 { id, name } 반환 (없으면 null) */
+function findBuoyInQuery(query) {
+    const nq = normalize(query);
+    // 긴 이름 우선 매칭(예: "서해170" 이 "서해"보다 먼저)
+    let best = null;
+    for (const b of BUOY_BY_ID) {
+        if (b.nname && nq.includes(b.nname) && (!best || b.nname.length > best.nname.length)) best = b;
+    }
+    return best ? { id: best.id, name: best.name } : null;
+}
+
 /**
  * 답변 주제에 맞는 "앱 내 기능 연결" 버튼 목록을 만든다.
- * 프론트가 이 링크를 버튼으로 렌더 → 탭하면 메인 앱(index2) 해양종합정보 페이지로
- * 진입하며 해당 레이어가 켜진 상태로 열린다.
- *   type 'ocean' + layer: current/wind/wave/buoy/typhoon/cctv
- * @returns {Array<{type, layer, label, zone}>}
+ * 두 종류:
+ *   - { type:'ocean', layer }  → 해양종합정보 페이지 + 레이어 활성화
+ *     (current/wind/wave/buoy/cctv, 특정 부이면 buoy:id 동봉)
+ *   - { type:'tab', target }   → 해당 탭으로 이동 (switchMainTab)
+ *     (특보/기상예보=weather-alert-section, 해구정보=sea-zone-section,
+ *      해상일기도=marine-chart-section, 태풍정보=typhoon-section)
+ * @returns {Array<object>}
  */
 function buildLinks(query, intent, zone) {
     const nq = normalize(query);
     const links = [];
-    const add = (layer, label) => {
-        if (!links.some(l => l.layer === layer)) {
-            links.push({ type: 'ocean', layer, label, zone: zone || null });
+    const addOcean = (layer, label, extra) => {
+        if (!links.some(l => l.type === 'ocean' && l.layer === layer)) {
+            links.push(Object.assign({ type: 'ocean', layer, label, zone: zone || null }, extra || {}));
         }
     };
-    if (/유향|유속|조류|해류|물때흐름/.test(nq)) add('current', '유향·유속 보기');
-    if (/풍향|풍속|바람|강풍|돌풍/.test(nq)) add('wind', '풍향·풍속 보기');
-    if (/파고|파랑|물결|너울|파도/.test(nq)) add('wave', '파고·파랑 보기');
-    if (/부이|부표|관측|파고부이|등표/.test(nq)) add('buoy', '기상부이 보기');
-    if (/태풍/.test(nq)) add('typhoon', '태풍 정보 보기');
-    if (/cctv|씨씨티비|시시티비|해안.?카메라|해무.?카메라|영상/.test(nq)) add('cctv', 'CCTV 보기');
+    const addTab = (target, label) => {
+        if (!links.some(l => l.type === 'tab' && l.target === target)) {
+            links.push({ type: 'tab', target, label, zone: zone || null });
+        }
+    };
+
+    // 해양종합정보 레이어
+    if (/유향|유속|조류|해류/.test(nq)) addOcean('current', '유향·유속 보기');
+    if (/풍향|풍속|바람|강풍|돌풍/.test(nq)) addOcean('wind', '풍향·풍속 보기');
+    if (/파고|파랑|물결|너울|파도/.test(nq)) addOcean('wave', '파고·파랑 보기');
+    if (/cctv|씨씨티비|시시티비|해안.?카메라|해무.?카메라|영상/.test(nq)) addOcean('cctv', 'CCTV 보기');
+    if (/부이|부표|관측|파고부이|등표/.test(nq)) {
+        const buoy = findBuoyInQuery(query);
+        if (buoy) addOcean('buoy', `${buoy.name} 부이 보기`, { buoy: buoy.id });
+        else addOcean('buoy', '기상부이 보기');
+    }
+
+    // 전용 탭(switchMainTab)
+    if (/특보|주의보|경보/.test(nq) || intent === 'warning' || intent === 'both') addTab('weather-alert-section', '특보 화면 보기');
+    if (/태풍/.test(nq)) addTab('typhoon-section', '태풍정보 보기');
+    if (/해구/.test(nq)) addTab('sea-zone-section', '해구정보 보기');
+    if (/일기도|기압계|기압골/.test(nq)) addTab('marine-chart-section', '해상일기도 보기');
+    if (/예보|기상예보/.test(nq)) addTab('weather-alert-section', '기상예보 보기');
+
     return links;
 }
 
