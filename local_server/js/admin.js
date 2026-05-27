@@ -3872,7 +3872,6 @@ async function renderMaintenanceFullTab(container) {
                     { id: 'status-overview', label: '종합정보 버튼' },
                 ]},
             ]},
-            { id: 'typhoon', label: '태풍정보' },
             { id: 'marine-chart-tab', label: '해상일기도', children: [
                 { id: 'mc-wave', label: '수치파랑' },
                 { id: 'mc-surge', label: '폭풍해일' },

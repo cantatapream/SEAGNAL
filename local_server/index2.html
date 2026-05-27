@@ -2093,42 +2093,7 @@
             </section>
 
 
-            <!-- 섹션 3: 태풍정보 -->
-            <section id="typhoon-section" class="tab-content">
-                <div class="section-header-with-info">
-                    <h2 class="section-title"><i class="fa-solid fa-hurricane"></i> 태풍 정보</h2>
-                </div>
-
-                <!-- 안내 문구 박스 -->
-                <div style="
-                    margin: 15px 0;
-                    padding: 20px;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
-                    border-radius: 12px;
-                    background: rgba(0, 0, 0, 0.3);
-                    text-align: center;
-                ">
-                    <p style="
-                        margin: 0 0 10px 0; 
-                        color: var(--accent-yellow, #ffd54f);
-                        font-weight: 500;
-                        font-size: 0.95rem;
-                        line-height: 1.5;
-                    ">
-                        현재 태풍정보는 임시 페이지로 추후 UI 및<br>
-                        상세정보 반영 후 정식 서비스 제공 예정입니다.
-                    </p>
-                    <p style="
-                        margin: 0;
-                        color: #888;
-                        font-size: 0.85rem;
-                    ">
-                        (태풍현황, 예상경로, 기타 정보 등 태풍정보 API 반영)
-                    </p>
-                </div>
-
-
-            </section>
+            <!-- [제거됨] 섹션 3: 태풍정보 — 더 이상 필요 없어 삭제(서브탭/점검 매핑도 함께 제거). -->
 
             <!-- ================================================================
                  섹션: 해상일기도 (KMA 날씨누리 차트 프록시)
@@ -3346,14 +3311,14 @@
              ================================================================ -->
 
         <!-- 서브탭 영역: 메인탭 바로 위에 표시/숨김 -->
-        <!-- 특보정보 서브탭 (특보 및 전망 | 태풍정보)
+        <!-- 특보정보 서브탭 (특보 및 전망 | 해상일기도)
+             [제거됨] 태풍정보 서브탭 — 더 이상 필요 없어 삭제.
              [제거됨] 해구기상 서브탭 — 해양종합정보 탭의 해구도 격자 + 해구별 기상
                       모달로 기능이 통합되어 index2 에서는 더 이상 필요 없음.
                       해구기상 카드 버튼도 index2 에서는 해양종합정보로 이동하도록
                       이미 변경됨(00b1d4c). index1 에서는 기존대로 유지. -->
         <nav class="sub-tabs bottom-sub-tabs" id="weather-sub-tabs">
             <button class="sub-tab-btn active" data-target="weather-alert-section">특보 및 전망</button>
-            <button class="sub-tab-btn" data-target="typhoon-section">태풍정보</button>
             <button class="sub-tab-btn" data-target="marine-chart-section">해상일기도</button>
         </nav>
         <!-- [제거됨] 종합기상 서브탭 (#ocean-sub-tabs) — 조석정보 탭 삭제 및
@@ -3689,7 +3654,6 @@
             'main-promo': 'promo-section',
             // 특보정보 하위 서브탭
             'weather-alert-tab': 'weather-alert-section',
-            'typhoon': 'typhoon-section',
             'marine-chart-tab': 'marine-chart-section',
             // 해양생활 하위 서브탭
             'fishing': 'fishing-section',
