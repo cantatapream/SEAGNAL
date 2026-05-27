@@ -964,12 +964,7 @@
     function applyAvailability() {
         var btn = document.getElementById('ocean-typhoon-toggle-btn');
         if (!btn) return;
-        // 잠금(기본) 상태: 항상 비활성 모양 — 10회 탭 전까지는 hasActive 와 무관하게 가림.
-        if (!_unlocked) {
-            btn.classList.add('tphn-disabled');
-            btn.title = '태풍';
-            return;
-        }
+        // 활성 태풍(dmdw)이 있으면 버튼 활성, 없으면 비활성. (일반 사용자 노출 — 탭 잠금 없음)
         var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
         if (!has) {
             btn.classList.add('tphn-disabled');
@@ -1094,9 +1089,8 @@
         var btn = document.getElementById('ocean-typhoon-toggle-btn');
         if (btn) {
             btn.addEventListener('click', function () {
-                if (!_unlocked) { handleGateTap(); return; }   // 잠금 상태 → 탭 카운트
                 var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
-                if (!has) return;                               // 활성 태풍 없음
+                if (!has) return;                               // 활성 태풍 없음 → 비활성
                 setVisible(!_visible);
             });
         }
