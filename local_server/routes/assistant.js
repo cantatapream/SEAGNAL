@@ -43,13 +43,17 @@ const { dataCache } = require('../services/cache_manager');
 // "○○ 부이" 처럼 특정 부이를 물으면 그 부이를 앱에서 바로 열 수 있도록 id 를 얻는다.
 // 파싱 실패해도(파일 변경 등) 빈 맵으로 두고 일반 부이 링크로 폴백 — 기동 안전.
 // ============================================================================
-const BUOY_BY_ID = [];   // [{ id, name, nname }]
+const BUOY_BY_ID = [];   // [{ id, name, nname, lat, lon, type }]
 try {
     const raw = fs.readFileSync(path.join(__dirname, '..', 'buoyLocations.js'), 'utf8');
-    const re = /"(\d+)":\s*\{\s*name:\s*"([^"]+)"/g;
+    // 형식: "22103": { name: "거문도", lon: 127.5, lat: 34.0, type: "B" }
+    const re = /"(\d+)":\s*\{\s*name:\s*"([^"]+)",\s*lon:\s*([-\d.]+),\s*lat:\s*([-\d.]+)(?:,\s*type:\s*"([^"]*)")?/g;
     let m;
     while ((m = re.exec(raw)) !== null) {
-        BUOY_BY_ID.push({ id: m[1], name: m[2], nname: m[2].replace(/[\s·]/g, '') });
+        BUOY_BY_ID.push({
+            id: m[1], name: m[2], nname: m[2].replace(/[\s·]/g, ''),
+            lon: +m[3], lat: +m[4], type: m[5] || ''
+        });
     }
     console.log(`[Assistant] 부이 ${BUOY_BY_ID.length}개 로드됨`);
 } catch (e) {
@@ -223,9 +227,11 @@ function detectZoneDeterministic(query) {
     return best;
 }
 
-/** 질문에서 의도(특보 vs 기상전망)를 키워드로 추정 */
+/** 질문에서 의도를 키워드로 추정 (AI 미사용/폴백 시) */
 function detectIntentDeterministic(query) {
     const nq = normalize(query);
+    // "어떤/무슨/뭐가/몇 개 부이가 있냐, 부이 목록" → 부이 목록
+    if (/부이|부표/.test(nq) && /어떤|무슨|뭐|몇|있|목록|리스트|어디/.test(nq)) return 'buoy_list';
     if (/특보|주의보|경보|경계|위험/.test(nq)) return 'warning';
     return 'marine_weather';
 }
@@ -453,10 +459,11 @@ async function detectWithAI(query) {
 구역 목록:
 ${ZONE_NAMES.join(', ')}
 
-intent 는 다음 중 하나:
-- "marine_weather": 날씨/바람/파고/기상 전망
-- "warning": 특보/주의보/경보 발효 여부
-- "both": 둘 다
+intent 는 다음 중 하나(질문이 진짜로 무엇을 원하는지 보고 고르세요):
+- "marine_weather": 날씨/바람/파고/하늘 등 기상 전망을 물음
+- "warning": 특보/주의보/경보 발효 여부를 물음
+- "buoy_list": 그 해역에 "어떤/무슨 기상부이가 있는지" 부이 목록을 물음
+- "both": 기상+특보 둘 다
 
 질문: "${query}"
 
@@ -472,7 +479,7 @@ JSON 형식으로만 답하세요: {"zone": "<구역명 또는 null>", "intent":
         if (!result.success || !result.text) return null;
         const parsed = JSON.parse(result.text);
         const zone = ZONE_NAME_TO_CODE[parsed.zone] ? parsed.zone : null;
-        const intent = ['marine_weather', 'warning', 'both'].includes(parsed.intent)
+        const intent = ['marine_weather', 'warning', 'both', 'buoy_list'].includes(parsed.intent)
             ? parsed.intent : 'marine_weather';
         return { zone, intent };
     } catch (e) {
@@ -609,6 +616,20 @@ router.post('/api/assistant/ask', async (req, res) => {
     const fc = buildForecastSummary(zone);
     const warn = findWarning(zone);
 
+    // [3-buoy] "이 해역에 어떤 기상부이가 있냐" 류 — 인근 부이 목록으로 답한다.
+    if (intent === 'buoy_list') {
+        const buoys = findBuoysNearZone(zone, 4, 90);
+        const answer = composeBuoyListAnswer(zone, buoys);
+        const buoyLinks = buoys.map(b => ({
+            type: 'ocean', layer: 'buoy', buoy: b.id, label: `${b.name} 부이 보기`, zone
+        }));
+        return res.json({
+            ok: true, zone, intent, answer,
+            data: { buoys: buoys.map(b => ({ id: b.id, name: b.name, type: b.type, distKm: Math.round(b.distKm) })) },
+            aiUsed: false, zoneFromProfile, links: buoyLinks, tideSearch: null
+        });
+    }
+
     // [4] 답변 생성 — AI 우선, 폴백 보장
     let answer;
     let aiUsed = false;
@@ -644,6 +665,35 @@ function extractTidePlace(query) {
     s = s.replace(/알려줘|보여줘|알려주|알려|보여|어때|어떄|어떻게|지금|오늘|내일|모레|시간|조회|확인|해줘|좀/g, ' ');
     s = s.replace(/[?!.,~]/g, ' ').replace(/\s+/g, ' ').trim();
     return s.length >= 2 ? s : null;
+}
+
+/** 두 좌표 사이 거리(km) — Haversine */
+function haversineKm(lat1, lon1, lat2, lon2) {
+    const R = 6371, toRad = (d) => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** 해역 대표좌표 기준으로 가까운 기상부이 목록 반환 (거리 포함) */
+function findBuoysNearZone(zoneName, limit, maxKm) {
+    const code = ZONE_NAME_TO_CODE[zoneName];
+    const center = code && ZONE_COORDS[code];
+    if (!center) return [];
+    const ranked = BUOY_BY_ID
+        .filter(b => isFinite(b.lat) && isFinite(b.lon))
+        .map(b => Object.assign({}, b, { distKm: haversineKm(center.lat, center.lon, b.lat, b.lon) }))
+        .sort((x, y) => x.distKm - y.distKm);
+    const within = ranked.filter(b => b.distKm <= (maxKm || 90));
+    return (within.length ? within : ranked).slice(0, limit || 4);
+}
+
+/** 인근 부이 목록을 자연어 답변으로 */
+function composeBuoyListAnswer(zoneName, buoys) {
+    if (!buoys.length) return `${zoneName} 인근의 기상부이 정보를 찾지 못했어요.`;
+    const names = buoys.map(b => `${b.name}(${Math.round(b.distKm)}km${b.type === 'C' ? ', 파고부이' : ''})`).join(', ');
+    return `${zoneName}에서 가까운 기상부이는 ${names} 입니다. 아래 버튼을 누르면 해당 부이 관측값을 앱에서 볼 수 있어요.`;
 }
 
 /** 질문에서 특정 부이를 가리키면 { id, name } 반환 (없으면 null) */
