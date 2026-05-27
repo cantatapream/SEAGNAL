@@ -210,7 +210,8 @@
             _pointBubbles.forEach(function (ov) { var e2 = ov.getElement(); e2.classList.add('tphn-faint'); setBubbleZ(e2, '1'); });
             if (wasFaint) { el.classList.remove('tphn-faint'); setBubbleZ(el, '500'); bringBubbleToFront(el); }
         });
-        return new ol.Overlay({ element: el, offset: [12, -12], positioning: 'bottom-left', stopEvent: false });
+        // insertFirst:false → 추가 순서 = DOM 순서. bringBubbleToFront(appendChild)가 실제로 최상단으로 올린다.
+        return new ol.Overlay({ element: el, offset: [12, -12], positioning: 'bottom-left', stopEvent: false, insertFirst: false });
     }
     // 진한(클릭된) 말풍선을 항상 최상단에 그린다.
     //   OL8 은 오버레이를 .ol-overlay-container 래퍼로 감싸고 getElement()는 내부 요소를 돌려준다.
@@ -997,7 +998,7 @@
             if (e.target.closest && e.target.closest('.tphn-land-close')) { hideLandPopup(); return; }
             if (e.target.closest && e.target.closest('.tphn-guide-btn')) { openGuideModal(); }
         });
-        _landPopup = new ol.Overlay({ element: _landEl, offset: [12, -12], positioning: 'bottom-left', stopEvent: false });
+        _landPopup = new ol.Overlay({ element: _landEl, offset: [12, -12], positioning: 'bottom-left', stopEvent: false, insertFirst: false });
         map.addOverlay(_landPopup);
         try { var s = JSON.parse(localStorage.getItem(LAYER_KEY)); if (s) _layerOn = Object.assign(_layerOn, s); } catch (e) {}
         applyLayerVisibility();

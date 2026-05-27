@@ -2581,6 +2581,9 @@
                            클릭하면 tphn-faint 제거되어 진하게 + 전체 정보 표출.
                            진한(클릭된) 말풍선은 z-index 60, 흐린 건 10 → 클릭된 게 항상 위. */
                         .tphn-bubble.tphn-faint{opacity:0.3;z-index:10;}
+                        /* 진한(활성) 말풍선은 배경을 완전 불투명으로 → 뒤의 흐린 말풍선이 비쳐
+                           겹쳐 보이던 문제 제거. */
+                        .tphn-bubble:not(.tphn-faint){background:#141620;border-color:rgba(255,255,255,0.6);}
                         .tphn-bubble.tphn-faint .tphn-b-more{display:none;}
                         .tphn-land-pop{z-index:120;}
                         .tphn-bubble .tphn-b-h{font-weight:700;color:#cfe0ff;margin-bottom:1px;}
