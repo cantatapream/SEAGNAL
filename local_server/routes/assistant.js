@@ -526,16 +526,17 @@ router.post('/api/assistant/ask', async (req, res) => {
         if (pz) { zone = pz; zoneFromProfile = true; }
     }
 
-    // [2] 해역을 못 찾으면 안내 답변
+    // 앱 내 기능 연결 버튼(특보/부이/태풍/CCTV 등) — 해역과 무관한 항목(태풍·CCTV)도
+    // 있으므로 해역 유무와 별개로 먼저 계산한다.
+    const links = buildLinks(query, intent, zone);
+
+    // [2] 해역을 못 찾은 경우
     if (!zone) {
-        return res.json({
-            ok: true,
-            zone: null,
-            intent,
-            answer: '어느 해역을 말씀하시는지 알아듣지 못했어요. 예를 들어 "제주도 북부 앞바다 기상" 처럼 해역 이름을 함께 말씀해 주세요.',
-            data: null,
-            aiUsed: false
-        });
+        // 태풍·CCTV처럼 해역이 필요 없는 바로가기가 있으면, 안내 대신 버튼을 제시
+        const answer = links.length
+            ? '말씀하신 정보는 아래 바로가기 버튼에서 바로 확인하실 수 있어요.'
+            : '어느 해역을 말씀하시는지 알아듣지 못했어요. 예를 들어 "제주도 북부 앞바다 기상" 처럼 해역 이름을 함께 말씀해 주세요.';
+        return res.json({ ok: true, zone: null, intent, answer, data: null, aiUsed: false, links });
     }
 
     // [3] 실데이터 수집 (메모리 캐시)
@@ -559,9 +560,34 @@ router.post('/api/assistant/ask', async (req, res) => {
         answer,
         data: { forecast: fc, warning: warn },
         aiUsed,
-        zoneFromProfile
+        zoneFromProfile,
+        links   // 앱 내 기능 연결용 (해양종합정보 레이어 바로가기)
     });
 });
+
+/**
+ * 답변 주제에 맞는 "앱 내 기능 연결" 버튼 목록을 만든다.
+ * 프론트가 이 링크를 버튼으로 렌더 → 탭하면 메인 앱(index2) 해양종합정보 페이지로
+ * 진입하며 해당 레이어가 켜진 상태로 열린다.
+ *   type 'ocean' + layer: current/wind/wave/buoy/typhoon/cctv
+ * @returns {Array<{type, layer, label, zone}>}
+ */
+function buildLinks(query, intent, zone) {
+    const nq = normalize(query);
+    const links = [];
+    const add = (layer, label) => {
+        if (!links.some(l => l.layer === layer)) {
+            links.push({ type: 'ocean', layer, label, zone: zone || null });
+        }
+    };
+    if (/유향|유속|조류|해류|물때흐름/.test(nq)) add('current', '유향·유속 보기');
+    if (/풍향|풍속|바람|강풍|돌풍/.test(nq)) add('wind', '풍향·풍속 보기');
+    if (/파고|파랑|물결|너울|파도/.test(nq)) add('wave', '파고·파랑 보기');
+    if (/부이|부표|관측|파고부이|등표/.test(nq)) add('buoy', '기상부이 보기');
+    if (/태풍/.test(nq)) add('typhoon', '태풍 정보 보기');
+    if (/cctv|씨씨티비|시시티비|해안.?카메라|해무.?카메라|영상/.test(nq)) add('cctv', 'CCTV 보기');
+    return links;
+}
 
 // ============================================================================
 // 7. AI 대화형 온보딩 — 첫 실행 시 사용자에게 몇 가지 질문해 프로필을 만든다.
