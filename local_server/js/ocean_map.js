@@ -903,6 +903,11 @@
         const lon = coord[0];
         const lat = coord[1];
 
+        // 태풍 말풍선/팝업 위 클릭은 지도(바텀시트) 처리에서 제외 — 말풍선 자체 핸들러가 처리.
+        //   (말풍선 오버레이는 stopEvent:false 라 지도 드래그/줌은 통과하되, 클릭은 여기서 무시)
+        const _oe = evt.originalEvent;
+        if (_oe && _oe.target && _oe.target.closest && _oe.target.closest('.tphn-bubble, #tphn-guide-modal')) return;
+
         // CCTV 마커 클릭 우선 처리 (INDEX2 전용, ocean_cctv.js 에서 정의)
         // [목적] CCTV 마커를 눌렀을 때 뒤의 빈 해역 클릭이 동시에 감지되어
         //        영상 팝업과 바텀시트가 함께 뜨는 문제를 방지.

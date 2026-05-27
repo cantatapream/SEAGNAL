@@ -199,26 +199,39 @@
     function makeBubbleOverlay() {
         var el = document.createElement('div');
         el.className = 'tphn-bubble';
-        // 말풍선 클릭 → 지도(해구) 바텀시트 차단(stopEvent:true + stopPropagation).
+        // 말풍선 클릭. stopEvent:false 라 지도 드래그/줌은 통과(전파 막지 않음).
+        //   지도 클릭은 handleMapClick 가 .tphn-bubble 타깃이면 무시 → 바텀시트 안 뜸.
         //   - 행동요령 버튼이면 팝업 열기.
         //   - 그 외엔 단일 선택 토글: 흐린 걸 누르면 그것만 진하게(나머지 흐림),
-        //     진한 걸 다시 누르면 흐려짐.
+        //     진한 걸 다시 누르면 흐려짐. 진한 말풍선은 z-index↑ + 최상단으로.
         el.addEventListener('click', function (e) {
-            e.stopPropagation();
-            if (e.target.closest && e.target.closest('.tphn-guide-btn')) {
-                var gm = document.getElementById('tphn-guide-modal');
-                if (gm) gm.style.display = 'flex';
-                return;
-            }
+            if (e.target.closest && e.target.closest('.tphn-guide-btn')) { openGuideModal(); return; }
             var wasFaint = el.classList.contains('tphn-faint');
-            _pointBubbles.forEach(function (ov) { ov.getElement().classList.add('tphn-faint'); });
-            if (wasFaint) { el.classList.remove('tphn-faint'); bringBubbleToFront(el); }
+            _pointBubbles.forEach(function (ov) { var e2 = ov.getElement(); e2.classList.add('tphn-faint'); e2.style.zIndex = '1'; });
+            if (wasFaint) { el.classList.remove('tphn-faint'); el.style.zIndex = '500'; bringBubbleToFront(el); }
         });
-        return new ol.Overlay({ element: el, offset: [12, -12], positioning: 'bottom-left', stopEvent: true });
+        return new ol.Overlay({ element: el, offset: [12, -12], positioning: 'bottom-left', stopEvent: false });
     }
     // 진한(클릭된) 말풍선을 오버레이 컨테이너 맨 뒤로 옮겨 항상 최상단에 그려지게 한다.
     //   (ol.Overlay 는 z-index 만으로 적층이 보장되지 않아 DOM 순서까지 조정)
     function bringBubbleToFront(el) { if (el && el.parentNode) el.parentNode.appendChild(el); }
+    // 행동요령 팝업 열기/닫기 — backbutton.js 의 PopupStack 에 등록해 하드웨어 뒤로가기로 닫힘.
+    function openGuideModal() {
+        var gm = document.getElementById('tphn-guide-modal');
+        if (!gm) return;
+        gm.style.display = 'flex';
+        if (window.PopupStack) window.PopupStack.push('tphn-guide', closeGuideModal);
+    }
+    function closeGuideModal() {
+        var gm = document.getElementById('tphn-guide-modal');
+        if (gm) gm.style.display = 'none';
+        if (window.PopupStack) window.PopupStack.remove('tphn-guide');
+    }
+    function hideLandPopup() {
+        if (_landEl) _landEl.style.display = 'none';
+        if (_landPopup) _landPopup.setPosition(undefined);
+        if (window.PopupStack) window.PopupStack.remove('tphn-land');
+    }
     function updateBubbleVisibility() {
         var pb = _playbackMode;
         _pointBubbles.forEach(function (ov, i) {
@@ -420,8 +433,10 @@
             var ov = _pointBubbles[i];
             if (!ov) { ov = makeBubbleOverlay(); _map.addOverlay(ov); _pointBubbles[i] = ov; }
             ov.getElement().innerHTML = bubbleHTML(f, bubbleHeader(f));
-            // 최종 예상 위치(마지막)만 진하게, 나머지는 흐리게(배경 비침 → 시인성). 클릭 시 진하게.
-            ov.getElement().classList.toggle('tphn-faint', i !== _frames.length - 1);
+            // 최종 예상 위치(마지막)만 진하게+최상단, 나머지는 흐리게(배경 비침 → 시인성). 클릭 시 진하게.
+            var op = (i === _frames.length - 1);
+            ov.getElement().classList.toggle('tphn-faint', !op);
+            ov.getElement().style.zIndex = op ? '500' : '1';
             ov.setPosition(ol.proj.fromLonLat([f.lon, f.lat]));
         });
         for (var i = _frames.length; i < _pointBubbles.length; i++) _pointBubbles[i].setPosition(undefined);
@@ -558,16 +573,18 @@
             body = '<div class="tphn-b-zone" style="color:#ffd24a">강풍반경 도달까지 ' + fmtRemain(info.etaMs - nowMs) + '</div>'
                 + '<div class="tphn-b-sub">예상 도달 ' + fmtFromMs(info.etaMs) + '</div>';
         } else {
-            body = '<div class="tphn-b-sub">예상 경로상 강풍반경 도달 없음</div>';
+            body = '<div class="tphn-b-sub">내습 예상 시점 산출불가</div>';
         }
-        var h = '<div class="tphn-b-h">태풍 상륙 예상 <span class="tphn-land-close" style="float:right;cursor:pointer;padding:0 4px">&times;</span></div>'
+        var h = '<div class="tphn-b-h">태풍 내습 예상 <span class="tphn-land-close" style="float:right;cursor:pointer;padding:0 4px">&times;</span></div>'
             + body
             + '<div class="tphn-b-more" style="display:block">'
             + '<button type="button" class="tphn-guide-btn"><i class="fa-solid fa-life-ring"></i> 해상 종사자 행동요령</button></div>';
         _landEl.innerHTML = h;
         _landEl.style.display = '';
+        _landEl.style.zIndex = '600';
         bringBubbleToFront(_landEl);
         _landPopup.setPosition(ol.proj.fromLonLat([lon, lat]));
+        if (window.PopupStack) window.PopupStack.push('tphn-land', hideLandPopup);
         return true;
     }
 
@@ -796,6 +813,22 @@
         enrichKoreaWaters();   // 우리 해역 진입 시 해구도/부이로 파고 표출(비동기, 완료 후 말풍선 갱신)
         if (_visible) focusOnTyphoon();
     }
+    // 되돌리기(처음으로) — 재생/스크럽 후 최초 진입(기본 정지) 화면으로 복귀.
+    function resetView() {
+        pause();
+        _playbackMode = false;
+        hideLandPopup();
+        closeGuideModal();
+        _pNow = computeNowP();
+        _p = _pNow;
+        renderStatic();
+        renderHead(_p);
+        applyLayerVisibility();
+        enrichKoreaWaters();
+        focusOnTyphoon();
+        var sc = document.getElementById('tphn-scrubber');
+        if (sc) sc.value = Math.round(_p * 1000);
+    }
     function clearTrack() {
         _frames = [];
         [_trackSrc, _probSrc, _strongSrc, _stormSrc, _headSrc, _pointSrc].forEach(function (s) { if (s) s.clear(); });
@@ -958,13 +991,10 @@
         _landEl.className = 'tphn-bubble tphn-land-pop';
         _landEl.style.display = 'none';
         _landEl.addEventListener('click', function (e) {
-            e.stopPropagation();
-            if (e.target.closest && e.target.closest('.tphn-land-close')) { _landEl.style.display = 'none'; _landPopup.setPosition(undefined); return; }
-            if (e.target.closest && e.target.closest('.tphn-guide-btn')) {
-                var gm = document.getElementById('tphn-guide-modal'); if (gm) gm.style.display = 'flex';
-            }
+            if (e.target.closest && e.target.closest('.tphn-land-close')) { hideLandPopup(); return; }
+            if (e.target.closest && e.target.closest('.tphn-guide-btn')) { openGuideModal(); }
         });
-        _landPopup = new ol.Overlay({ element: _landEl, offset: [12, -12], positioning: 'bottom-left', stopEvent: true });
+        _landPopup = new ol.Overlay({ element: _landEl, offset: [12, -12], positioning: 'bottom-left', stopEvent: false });
         map.addOverlay(_landPopup);
         try { var s = JSON.parse(localStorage.getItem(LAYER_KEY)); if (s) _layerOn = Object.assign(_layerOn, s); } catch (e) {}
         applyLayerVisibility();
@@ -1003,16 +1033,19 @@
         if (bSel) bSel.addEventListener('change', function () { selectBulletin(_year, this.value); });
         var playBtn = document.getElementById('tphn-play');
         if (playBtn) playBtn.addEventListener('click', function () { _playing ? pause() : play(); });
+        var resetBtn = document.getElementById('tphn-reset');
+        if (resetBtn) resetBtn.addEventListener('click', function () { if (_frames.length) resetView(); });
         var scr = document.getElementById('tphn-scrubber');
         if (scr) scr.addEventListener('input', function () { pause(); setPlaybackMode(true); _p = (+this.value) / 1000; renderHead(_p); });
         var closeBtn = document.getElementById('tphn-close');
         if (closeBtn) closeBtn.addEventListener('click', function () { setVisible(false); });
 
-        // 행동요령 팝업 — 열기는 말풍선 내부 .tphn-guide-btn 클릭(makeBubbleOverlay)에서 처리.
+        // 행동요령 팝업 — 열기는 말풍선/육지팝업 내부 .tphn-guide-btn 클릭에서 openGuideModal 로 처리.
+        //   닫기(× / 배경)는 closeGuideModal → PopupStack 연동으로 하드웨어 뒤로가기 지원.
         var guideModal = document.getElementById('tphn-guide-modal');
         var guideClose = document.getElementById('tphn-guide-close');
-        if (guideClose && guideModal) guideClose.addEventListener('click', function () { guideModal.style.display = 'none'; });
-        if (guideModal) guideModal.addEventListener('click', function (e) { if (e.target === guideModal) guideModal.style.display = 'none'; });
+        if (guideClose) guideClose.addEventListener('click', closeGuideModal);
+        if (guideModal) guideModal.addEventListener('click', function (e) { if (e.target === guideModal) closeGuideModal(); });
 
         // [디버그] 해역표출 강제 토글 — 트리거/게이트/거리 무시하고 최근접 해구·부이 표출.
         var dbgChk = document.getElementById('tphn-dbg-korea');
