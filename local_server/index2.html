@@ -2602,6 +2602,9 @@
                         .tphn-bubble .tphn-b-dmg{color:#ffd24a;font-weight:700;margin-top:1px;}
                         .tphn-bubble .tphn-b-zone{color:#5fd0ff;font-weight:700;margin-top:3px;}
                         .tphn-bubble .tphn-b-buoy{color:#7fe6a8;font-weight:700;margin-top:3px;}
+                        /* 큰 텍스트 모드 — 말풍선 글자 확대(자식은 부모 font-size 상속, 박스는 nowrap+auto라 자동 확장) */
+                        html[data-font-size="large"] .tphn-bubble{font-size:15px;}
+                        html[data-font-size="large"] .tphn-bubble .tphn-guide-btn{font-size:14px;}
                         /* 강도·해구·부이 헤더 — 약 1.2초 주기 하이라이트(깜빡). 흐린 말풍선에선 동작 안 함. */
                         @keyframes tphn-blink{0%,100%{background:transparent;}50%{background:rgba(255,255,255,0.22);}}
                         .tphn-bubble:not(.tphn-faint) .tphn-blink{animation:tphn-blink 1.2s ease-in-out infinite;border-radius:3px;padding:0 2px;margin-left:-2px;}
@@ -2612,13 +2615,15 @@
                         .tphn-guide-btn:hover{background:#1b4f96;}
                         .tphn-guide-modal{position:absolute;inset:0;z-index:1300;background:rgba(0,0,0,0.45);
                             display:flex;align-items:center;justify-content:center;padding:16px;}
-                        .tphn-guide-card{background:#fff;color:#1a2230;border-radius:12px;max-width:420px;width:100%;
-                            max-height:80%;overflow:auto;box-shadow:0 8px 30px rgba(0,0,0,0.5);}
+                        .tphn-guide-card{background:linear-gradient(180deg,#0c1a3a 0%,#162d5a 100%);color:#eaf2ff;
+                            border:1px solid rgba(120,150,200,0.25);border-radius:12px;max-width:420px;width:100%;
+                            max-height:80%;overflow:auto;box-shadow:0 8px 30px rgba(0,0,0,0.55);}
                         .tphn-guide-head{display:flex;align-items:center;justify-content:space-between;
-                            padding:12px 14px;border-bottom:1px solid #eee;font-size:14px;position:sticky;top:0;background:#fff;}
-                        .tphn-guide-close{background:transparent;border:none;font-size:22px;line-height:1;cursor:pointer;color:#555;}
-                        .tphn-guide-body{padding:10px 16px 16px;font-size:13px;line-height:1.55;}
-                        .tphn-guide-body h4{margin:12px 0 4px;color:#15407a;font-size:13px;}
+                            padding:12px 14px;border-bottom:1px solid rgba(255,255,255,0.12);font-size:14px;font-weight:700;
+                            position:sticky;top:0;background:#0c1a3a;color:#eaf2ff;}
+                        .tphn-guide-close{background:transparent;border:none;font-size:22px;line-height:1;cursor:pointer;color:#cdd9f0;}
+                        .tphn-guide-body{padding:10px 16px 16px;font-size:13px;line-height:1.55;color:#dbe6f7;}
+                        .tphn-guide-body h4{margin:12px 0 4px;color:#8fc0ff;font-size:13px;}
                         .tphn-guide-body ul{margin:0;padding-left:18px;}
                         .tphn-guide-body li{margin:3px 0;}
                         .tphn-tel{display:inline-block;margin-top:2px;background:#d50000;color:#fff;

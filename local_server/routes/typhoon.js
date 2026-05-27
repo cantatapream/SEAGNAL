@@ -99,6 +99,8 @@ router.get('/api/typhoon/image', async (req, res) => {
         if (!img || img.statusCode !== 200 || String(img.contentType).indexOf('image') === -1) return res.status(404).end();
         res.set('Content-Type', img.contentType || 'image/png');
         res.set('Cache-Control', 'public, max-age=600');
+        // download=1 이면 첨부(attachment)로 내려받게 함(브라우저 표시 대신 저장).
+        if (req.query.download) res.set('Content-Disposition', 'attachment; filename="' + fileName.replace(/[^\w.\-]/g, '_') + '"');
         res.send(img.buffer);
     } catch (err) {
         res.status(500).end();
