@@ -830,6 +830,31 @@ JSON 으로만: {"steps":[{"tool":"<도구명>","args":{...}}], "zone":"<관련 
 }
 
 /** 2~3단계: 계획 실행 + 실데이터로 답변 종합 */
+/** 웹검색 폴백 — 내부 데이터로 못 답할 때 Gemini 구글검색 그라운딩으로 답+출처. */
+async function webSearchAnswer(query) {
+    try {
+        const r = await gemini.callGeminiRaw({
+            model: 'gemini-2.5-flash',   // 검색 그라운딩 지원 모델
+            contents: query + '\n\n한국어로 간결하게, 음성으로 읽을 수 있게 표/마크다운 없이 핵심만 답하세요. 모르면 모른다고 하세요.',
+            config: { tools: [{ googleSearch: {} }], temperature: 0.3 },
+            caller: 'Assistant-Web'
+        });
+        if (!r.success || !r.response) return null;
+        let text = '';
+        try { text = r.response.text || ''; } catch (e) { text = ''; }
+        if (!text.trim()) return null;
+        // 음성용: 마크다운 기호 제거(불릿/굵게/헤더 등)
+        text = text.replace(/\*\*|\*|`|#+\s?|^\s*[-•]\s?/gm, '').replace(/\n{2,}/g, '\n').trim();
+        // 출처 링크 추출 (groundingMetadata.groundingChunks[].web)
+        const gm = (((r.response.candidates || [])[0] || {}).groundingMetadata) || {};
+        const chunks = gm.groundingChunks || [];
+        const webLinks = chunks
+            .map(c => c.web ? { title: c.web.title || c.web.uri, uri: c.web.uri } : null)
+            .filter(Boolean).slice(0, 3);
+        return { answer: text.trim(), webLinks };
+    } catch (e) { return null; }
+}
+
 async function runBrain(query, profile, memory, style, location) {
     const plan = await planQuery(query, profile, location);
     if (!plan) return null;
@@ -840,6 +865,26 @@ async function runBrain(query, profile, memory, style, location) {
         if (!exec) continue;
         try { results.push({ tool: step.tool, args: step.args || {}, result: await exec(step.args || {}) }); }
         catch (e) { results.push({ tool: step.tool, error: e.message }); }
+    }
+
+    // [웹검색 폴백] 내부 도구로 "실제 값"을 못 얻었으면(계획이 비었거나 결과가 전부
+    //   오류/빈값) 구글 검색 그라운딩으로 답 + 출처 링크. 키 지원 모델에서만 동작.
+    const hasRealData = (v) => {
+        if (!v || typeof v !== 'object' || v.error) return false;
+        return Object.values(v).some(val => {
+            if (val == null) return false;
+            if (Array.isArray(val)) return val.length > 0;
+            if (typeof val === 'object') return Object.keys(val).length > 0;
+            if (typeof val === 'string') return val.trim().length > 0;
+            return true;
+        });
+    };
+    const gotUseful = results.some(r => hasRealData(r.result));
+    if (!gotUseful) {
+        const web = await webSearchAnswer(query);
+        if (web && web.answer) {
+            return { answer: web.answer, zone: plan.zone || null, toolsUsed: ['web_search'], webLinks: web.webLinks || [] };
+        }
     }
 
     const personal = buildPersonalContext(profile, memory, style);
@@ -909,10 +954,13 @@ router.post('/api/assistant/ask', async (req, res) => {
         try {
             const brain = await runBrain(query, profile, memory, style, loc);
             if (brain && brain.answer) {
+                // 앱 기능 바로가기 + 웹검색 출처 링크(있으면)를 함께
+                const links = buildLinks(query, null, brain.zone, profile);
+                (brain.webLinks || []).forEach(w => links.push({ type: 'web', label: w.title || '참고 링크', url: w.uri }));
                 return res.json({
                     ok: true, zone: brain.zone, intent: 'brain', answer: brain.answer,
                     data: { toolsUsed: brain.toolsUsed }, aiUsed: true, zoneFromProfile: false,
-                    links: buildLinks(query, null, brain.zone, profile), tideSearch: null
+                    links, tideSearch: null
                 });
             }
         } catch (e) { /* 두뇌 실패 → 결정론적 폴백으로 진행 */ }
