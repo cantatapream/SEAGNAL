@@ -221,6 +221,36 @@
     }).catch(function () { /* 무시 */ });
   }
 
+  // 질문이 "내 위치/가까운/근처" 류인지 — GPS가 필요한지 판단
+  function needsLocation(query) {
+    return /내\s*위치|현재\s*위치|가까운|가장\s*가까운|제일\s*가까운|근처|주변|여기서|여기/.test(query || '');
+  }
+
+  // 기기 위치 획득 — Capacitor Geolocation(권한 자동 처리) 우선, 없으면 브라우저 geolocation
+  function getUserLocation() {
+    return new Promise(function (resolve) {
+      var Geo = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation)
+        ? window.Capacitor.Plugins.Geolocation : null;
+      if (Geo && Geo.getCurrentPosition) {
+        var go = function () {
+          Geo.getCurrentPosition({ enableHighAccuracy: false, timeout: 8000 })
+            .then(function (p) { resolve({ lat: p.coords.latitude, lon: p.coords.longitude }); })
+            .catch(function () { resolve(null); });
+        };
+        // 권한 프롬프트를 먼저 띄운 뒤 위치 조회
+        if (Geo.requestPermissions) { Geo.requestPermissions().then(go).catch(go); } else { go(); }
+        return;
+      }
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          function (p) { resolve({ lat: p.coords.latitude, lon: p.coords.longitude }); },
+          function () { resolve(null); }, { enableHighAccuracy: false, timeout: 8000 });
+        return;
+      }
+      resolve(null);
+    });
+  }
+
   // ── 서버 질의 ─────────────────────────────────────────────────────────
   function ask(query) {
     if (!query) return;
@@ -231,10 +261,27 @@
     setAnswer('…', null);
     renderActions(null);
 
+    if (needsLocation(query)) {
+      setStatus('위치 확인 중…', 'think');
+      getUserLocation().then(function (loc) {
+        if (!loc) {
+          setAnswer('위치 권한이 필요해요. 권한을 허용하면 현재 위치 기준으로 찾아드릴게요. (관리자 AI 탭에서 위치 권한 허용 가능)', null);
+          setStatus('대기 중', 'on'); renderActions(null);
+          if (micOn) startWakeMode();
+          return;
+        }
+        doAsk(query, loc);
+      });
+      return;
+    }
+    doAsk(query, null);
+  }
+
+  function doAsk(query, loc) {
     fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: query, profile: getProfile(), memory: getMemory(), style: getStyle() })
+      body: JSON.stringify({ query: query, profile: getProfile(), memory: getMemory(), style: getStyle(), location: loc })
     })
       .then(function (r) { return r.json(); })
       .then(function (d) {

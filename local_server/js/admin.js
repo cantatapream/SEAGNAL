@@ -669,12 +669,32 @@ async function renderUnifiedAiTab(container) {
         </div>
 
         <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">
-            <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-microphone"></i> 음성 비서(나리야) 권한</div>
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                <span id="ai-voice-status" style="font-size:0.85rem;color:#94a3b8;">상태 확인 중…</span>
-                <button id="ai-voice-toggle" style="padding:8px 14px;background:#22d3ee;color:#04263b;border:none;border-radius:8px;font-weight:700;cursor:pointer;">켜기</button>
+            <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:10px;"><i class="fa-solid fa-shield-halved"></i> 권한 관리</div>
+
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <i class="fa-solid fa-microphone" style="color:#22d3ee;width:16px;"></i>
+                <span style="font-size:0.85rem;color:#cbd5e1;">마이크</span>
+                <span id="ai-perm-mic" style="font-size:0.8rem;color:#94a3b8;">확인 중…</span>
+                <button id="ai-perm-mic-req" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">권한 요청</button>
+                <button id="ai-perm-mic-set" style="padding:5px 10px;background:#64748b;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;display:none;">설정 열기</button>
             </div>
-            <div style="font-size:0.72rem;color:#64748b;margin-top:6px;">켜면 마이크 권한을 요청하고 백그라운드에서 "나리야" 호출을 대기합니다. (앱에서만 동작)</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <i class="fa-solid fa-location-dot" style="color:#34d399;width:16px;"></i>
+                <span style="font-size:0.85rem;color:#cbd5e1;">위치(GPS)</span>
+                <span id="ai-perm-gps" style="font-size:0.8rem;color:#94a3b8;">확인 중…</span>
+                <button id="ai-perm-gps-req" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">권한 요청</button>
+                <button id="ai-perm-gps-set" style="padding:5px 10px;background:#64748b;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;display:none;">설정 열기</button>
+            </div>
+            <div style="font-size:0.72rem;color:#64748b;margin-top:6px;">거부했어도 "권한 요청"을 다시 누르거나, 막혔으면 "설정 열기"로 직접 허용할 수 있습니다.</div>
+
+            <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:12px 0;">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <i class="fa-solid fa-tower-broadcast" style="color:#22d3ee;"></i>
+                <span style="font-size:0.85rem;color:#cbd5e1;">음성 비서(나리야)</span>
+                <span id="ai-voice-status" style="font-size:0.8rem;color:#94a3b8;">상태 확인 중…</span>
+                <button id="ai-voice-toggle" style="padding:6px 14px;background:#22d3ee;color:#04263b;border:none;border-radius:8px;font-weight:700;cursor:pointer;">켜기</button>
+            </div>
+            <div style="font-size:0.72rem;color:#64748b;margin-top:6px;">켜면 백그라운드에서 "나리야" 호출을 대기합니다. (앱에서만 동작)</div>
         </div>
 
         <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;">
@@ -700,10 +720,37 @@ async function renderUnifiedAiTab(container) {
         document.getElementById('ai-usage-content').textContent = '호출량을 불러오지 못했습니다: ' + e.message;
     }
 
-    // 2) 음성 권한 토글 (네이티브 플러그인)
+    // 2) 권한 관리 — 마이크/위치 권한 상태·요청·설정열기 (거부해도 재요청 가능)
     (function () {
-        const Native = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SeagnalAssistant)
-            ? window.Capacitor.Plugins.SeagnalAssistant : null;
+        const P = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins : null;
+        const Native = P && P.SeagnalAssistant ? P.SeagnalAssistant : null;   // 마이크(@Permission) 보유
+        const Geo = P && P.Geolocation ? P.Geolocation : null;               // 위치
+        const Settings = P && P.NativeSettings ? P.NativeSettings : null;    // 앱 설정 열기
+        const label = (s) => s === 'granted' ? '허용됨' : (s === 'denied' ? '거부됨' : '미요청');
+        const color = (s) => s === 'granted' ? '#34d399' : (s === 'denied' ? '#fbbf24' : '#94a3b8');
+        const openSettings = () => { if (Settings && Settings.openAndroid) Settings.openAndroid({ option: 'application_details' }).catch(() => {}); };
+
+        // 공통 렌더러: plugin.checkPermissions/requestPermissions(권한키) 사용
+        function wire(plugin, permKey, ids) {
+            const stEl = document.getElementById(ids.st), reqEl = document.getElementById(ids.req), setEl = document.getElementById(ids.set);
+            if (!plugin || !plugin.checkPermissions) { stEl.textContent = '앱에서만 사용 가능'; reqEl.style.display = 'none'; return; }
+            const apply = (state) => {
+                stEl.textContent = label(state); stEl.style.color = color(state);
+                setEl.style.display = (state === 'denied') ? 'inline-block' : 'none';
+                reqEl.textContent = (state === 'granted') ? '재확인' : '권한 요청';
+            };
+            const refresh = () => plugin.checkPermissions().then(r => apply(r && r[permKey])).catch(() => apply('prompt'));
+            refresh();
+            reqEl.addEventListener('click', () => {
+                reqEl.disabled = true;
+                plugin.requestPermissions().then(r => apply(r && r[permKey])).catch(() => apply('denied')).then(() => { reqEl.disabled = false; });
+            });
+            setEl.addEventListener('click', openSettings);
+        }
+        wire(Native, 'microphone', { st: 'ai-perm-mic', req: 'ai-perm-mic-req', set: 'ai-perm-mic-set' });
+        wire(Geo, 'location', { st: 'ai-perm-gps', req: 'ai-perm-gps-req', set: 'ai-perm-gps-set' });
+
+        // 음성 비서(나리야) on/off 토글
         const st = document.getElementById('ai-voice-status');
         const btn = document.getElementById('ai-voice-toggle');
         if (!Native) { st.textContent = '앱(안드로이드)에서만 사용 가능'; btn.disabled = true; btn.style.opacity = .5; return; }

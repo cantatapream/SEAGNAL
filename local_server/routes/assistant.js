@@ -599,6 +599,8 @@ const TOOL_CATALOG = `
 - get_fishing_index(location): 바다낚시 지수(지점별 오전/오후 등급+어종).
 - get_surfing_index(beach): 서핑 지수(해수욕장별 초/중/상급 등급, 파고·수온).
 - get_sea_split_index(place): 바다갈라짐(갯벌) 가능 시간대/지수. place 생략 시 가능 지역 목록.
+[위치기반]
+- get_nearest_buoy(lat, lon): 좌표(사용자 GPS)에서 가장 가까운 기상부이의 위치 + 최신 관측값.
 [기타]
 - get_typhoon_status(): 현재 발효 중인 태풍 현황.
 - resolve_location(text): 임의 지명을 좌표/주소로 변환(get_current/get_depth/get_tide 의 좌표 확보용).`;
@@ -754,11 +756,25 @@ const TOOL_EXEC = {
         const docs = j && j.documents;
         if (Array.isArray(docs) && docs.length) { const r = docs[0]; return { name: r.place_name, address: r.address_name, lat: +r.y, lon: +r.x }; }
         return { error: '장소를 찾지 못했습니다(검색 키 미설정일 수 있음).' };
+    },
+    get_nearest_buoy: async ({ lat, lon } = {}) => {
+        if (lat == null || lon == null) return { error: '좌표(lat,lon)가 필요합니다(GPS).' };
+        const near = findNearestBuoys(+lat, +lon, 3);
+        if (!near.length) return { error: '인근 부이를 찾지 못했습니다.' };
+        const top = near[0];
+        return {
+            nearest: { name: top.name, distKm: Math.round(top.distKm), lat: top.lat, lon: top.lon, type: top.type },
+            observation: getBuoyObs(top.name),
+            others: near.slice(1).map(b => ({ name: b.name, distKm: Math.round(b.distKm) }))
+        };
     }
 };
 
 /** 1단계: 질문 → 가져올 데이터 계획(JSON) */
-async function planQuery(query, profile) {
+async function planQuery(query, profile, location) {
+    const locLine = (location && location.lat != null && location.lon != null)
+        ? `\n사용자 현재 위치(GPS): 위도 ${location.lat}, 경도 ${location.lon}. "내 위치/가까운/근처" 류 질문엔 이 좌표를 좌표기반 도구(get_nearest_buoy/get_current/get_depth/get_tide)에 넣으세요.`
+        : '';
     const prompt =
 `사용자의 한국어 질문에 답하기 위해 어떤 데이터를 가져올지 계획하세요.
 사용 가능한 도구:
@@ -768,7 +784,7 @@ ${TOOL_CATALOG}
 - 답에 꼭 필요한 도구만 steps 에 넣으세요(불필요한 호출 금지).
 - 해역명/해구번호/지명/부이명을 args 에 정확히 넣으세요. 해구번호는 숫자 문자열(예: "325").
 - "조업 가능?" 같은 판단 질문은 관련 예보(해구/해역)·특보·필요시 부이를 함께 모으세요.
-- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.
+- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}
 
 사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
 질문: "${query}"
@@ -783,8 +799,8 @@ JSON 으로만: {"steps":[{"tool":"<도구명>","args":{...}}], "zone":"<관련 
 }
 
 /** 2~3단계: 계획 실행 + 실데이터로 답변 종합 */
-async function runBrain(query, profile, memory, style) {
-    const plan = await planQuery(query, profile);
+async function runBrain(query, profile, memory, style, location) {
+    const plan = await planQuery(query, profile, location);
     if (!plan) return null;
 
     const results = [];
@@ -830,6 +846,9 @@ router.post('/api/assistant/ask', async (req, res) => {
     const profile = (req.body && req.body.profile) || null;
     const memory = (req.body && Array.isArray(req.body.memory)) ? req.body.memory : null;
     const style = (req.body && req.body.style && typeof req.body.style === 'object') ? req.body.style : null;
+    // 사용자 GPS 좌표(있을 때만) — "내 위치 가까운 부이" 류 질문에 사용
+    const loc = (req.body && req.body.location && req.body.location.lat != null && req.body.location.lon != null)
+        ? { lat: +req.body.location.lat, lon: +req.body.location.lon } : null;
 
     if (!query) {
         return res.status(400).json({ ok: false, error: '질문(query)이 비어 있습니다.' });
@@ -841,7 +860,7 @@ router.post('/api/assistant/ask', async (req, res) => {
     //   실패하면 아래 결정론적 경로로 자동 폴백한다.
     if (aiAvailable) {
         try {
-            const brain = await runBrain(query, profile, memory, style);
+            const brain = await runBrain(query, profile, memory, style, loc);
             if (brain && brain.answer) {
                 return res.json({
                     ok: true, zone: brain.zone, intent: 'brain', answer: brain.answer,
@@ -850,6 +869,25 @@ router.post('/api/assistant/ask', async (req, res) => {
                 });
             }
         } catch (e) { /* 두뇌 실패 → 결정론적 폴백으로 진행 */ }
+    }
+
+    // [위치기반 폴백] GPS 좌표 + "가까운 부이" 류 질문 → 가장 가까운 부이 + 관측값
+    if (loc && /부이|부표/.test(normalize(query)) && /가까운|가장|제일|근처|내위치|현재위치|주변/.test(normalize(query))) {
+        const near = findNearestBuoys(loc.lat, loc.lon, 3);
+        if (near.length) {
+            const top = near[0];
+            const obs = getBuoyObs(top.name);
+            const obsTxt = (obs && !obs.error)
+                ? ` 현재 풍속 ${obs['풍속ms'] != null ? obs['풍속ms'] + 'm/s' : '정보없음'}, 파고 ${obs['파고m'] != null ? obs['파고m'] + 'm' : '정보없음'}, 수온 ${obs['수온C'] != null ? obs['수온C'] + '도' : '정보없음'}입니다.`
+                : ' 다만 최신 관측값은 지금 불러오지 못했어요.';
+            return res.json({
+                ok: true, zone: null, intent: 'nearest_buoy',
+                answer: `현재 위치에서 가장 가까운 기상부이는 ${top.name}(약 ${Math.round(top.distKm)}km)입니다.${obsTxt}`,
+                data: { nearest: { name: top.name, distKm: Math.round(top.distKm) }, observation: obs },
+                aiUsed: false, zoneFromProfile: false,
+                links: [{ type: 'ocean', layer: 'buoy', buoy: top.id, label: `${top.name} 부이 보기` }], tideSearch: null
+            });
+        }
     }
 
     // [1] 해역 + 의도 파악 — AI 우선, 실패/부재 시 결정론적 폴백
@@ -970,6 +1008,15 @@ function findBuoysNearZone(zoneName, limit, maxKm) {
         .sort((x, y) => x.distKm - y.distKm);
     const within = ranked.filter(b => b.distKm <= (maxKm || 90));
     return (within.length ? within : ranked).slice(0, limit || 4);
+}
+
+/** 좌표(GPS)에서 가장 가까운 기상부이들 (거리 포함) */
+function findNearestBuoys(lat, lon, limit) {
+    return BUOY_BY_ID
+        .filter(b => isFinite(b.lat) && isFinite(b.lon))
+        .map(b => Object.assign({}, b, { distKm: haversineKm(lat, lon, b.lat, b.lon) }))
+        .sort((a, b) => a.distKm - b.distKm)
+        .slice(0, limit || 3);
 }
 
 /** 인근 부이 목록을 자연어 답변으로 */
