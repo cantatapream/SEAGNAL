@@ -2568,14 +2568,19 @@
                             border-radius:8px;padding:5px 8px;font-size:11px;line-height:1.5;color:#eaf2ff;
                             white-space:nowrap;pointer-events:auto;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.45);
                             transition:opacity 0.15s;}
-                        /* 흐린 말풍선 — 배경이 비치도록(시인성). 클릭하면 tphn-faint 제거되어 진하게. */
+                        /* 흐린 말풍선 — 배경이 비치도록(시인성) + 헤더·강도 2줄만(나머지 .tphn-b-more 숨김).
+                           클릭하면 tphn-faint 제거되어 진하게 + 전체 정보 표출. */
                         .tphn-bubble.tphn-faint{opacity:0.3;}
+                        .tphn-bubble.tphn-faint .tphn-b-more{display:none;}
                         .tphn-bubble .tphn-b-h{font-weight:700;color:#cfe0ff;margin-bottom:1px;}
                         .tphn-bubble .tphn-b-sub{color:#cfd8ea;}
                         .tphn-bubble .tphn-b-dmg{color:#ffd24a;font-weight:700;margin-top:1px;}
-                        /* 행동요령 버튼 + 팝업 */
-                        .tphn-guide-btn{width:100%;background:#15407a;color:#eaf2ff;border:1px solid rgba(120,150,200,0.4);
-                            border-radius:6px;padding:6px;font-size:12px;cursor:pointer;}
+                        .tphn-bubble .tphn-b-zone{color:#5fd0ff;font-weight:700;margin-top:3px;}
+                        .tphn-bubble .tphn-b-buoy{color:#7fe6a8;font-weight:700;margin-top:3px;}
+                        /* 행동요령 버튼(말풍선 내부 하단) + 팝업 */
+                        .tphn-guide-btn{width:100%;margin-top:5px;background:#15407a;color:#eaf2ff;
+                            border:1px solid rgba(120,150,200,0.5);border-radius:6px;padding:4px 6px;
+                            font-size:11px;line-height:1.2;cursor:pointer;white-space:nowrap;}
                         .tphn-guide-btn:hover{background:#1b4f96;}
                         .tphn-guide-modal{position:absolute;inset:0;z-index:1300;background:rgba(0,0,0,0.45);
                             display:flex;align-items:center;justify-content:center;padding:16px;}
@@ -2611,8 +2616,8 @@
                             <label><input type="checkbox" id="tphn-ly-storm"> 폭풍반경</label>
                         </div>
                         <div id="tphn-legend" class="tphn-legend"></div>
-                        <div class="tphn-row" style="margin-top:6px;">
-                            <button id="tphn-guide-btn" class="tphn-guide-btn" type="button"><i class="fa-solid fa-life-ring"></i> 해상 종사자 행동요령</button>
+                        <div class="tphn-row" id="tphn-dbg-row" style="margin-top:4px;font-size:11px;opacity:0.85;">
+                            <label><input type="checkbox" id="tphn-dbg-korea"> 🐞 해역표출 강제(디버그)</label>
                         </div>
                     </div>
 

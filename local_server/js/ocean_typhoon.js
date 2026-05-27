@@ -54,6 +54,9 @@
     var _moveBubble = null, _moveEl = null;  // 재생 중 이동 말풍선(ol.Overlay)
     var _pointBubbles = [];   // 정지(기본) 시 포인트별 말풍선 풀(ol.Overlay)
     var _playbackMode = false; // true=재생(이동 말풍선만), false=기본(포인트별 말풍선 + 사전 범위)
+    var _koreaBuoy = null;     // 우리 해역 진입 시 진로선 최근접 부이 관측 {name,type,obs} (해구도 표출 시에만 사용)
+    var _enrichToken = 0;      // 비동기 해구도/부이 enrich 경합 방지 토큰
+    var _debugKorea = false;   // [디버그] 트리거/72h게이트/강풍반경 거리 무시하고 최근접 해구·부이 강제 표출
 
     var _activeData = null;    // /api/typhoon 응답(현재연도 활성 태풍 + 통보문 인라인)
     var _year = null;          // 선택 연도
@@ -99,6 +102,53 @@
         if (ms < 32.7) return 11.5; return 14;
     }
 
+    // ── 우리 해역(해구도) 진입 판정/표출 상수 ───────────────────────────────────
+    var KOREA_TRIG_LAT = 31.0;   // 488~501 남단 = 제주 남쪽 바깥먼바다 남단. 강풍반경 북단이 이 위도에 닿으면 후보.
+    var ZONE_MATCH_H = 1.6;      // 해구도 tm 과 프레임시각 차가 이 시간(h) 이내여야 72h 예측범위 내로 인정(3h 격자).
+    var KMA_TZ_MS = 9 * 3600000; // 태풍/부이(KST) ↔ 해구도 tm(UTC) 9시간 보정.
+    var KM_PER_DEG = 111;
+    // 16방위(한글)
+    var DIR16 = ['북', '북북동', '북동', '동북동', '동', '동남동', '남동', '남남동', '남', '남남서', '남서', '서남서', '서', '서북서', '북서', '북북서'];
+    function dir16(deg) { if (deg == null || isNaN(deg)) return ''; return DIR16[Math.round(deg / 22.5) % 16]; }
+    function dirStr(deg) { var s = dir16(deg); return s ? (s + ' ' + Math.round(deg) + '°') : (Math.round(deg) + '°'); }
+    function haversineKm(la1, lo1, la2, lo2) {
+        var R = 6371, r = Math.PI / 180;
+        var dLa = (la2 - la1) * r, dLo = (lo2 - lo1) * r;
+        var a = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+    // 점(la,lo) 에서 진로선(프레임 폴리라인) 까지 최소거리 km — 등거리원통 근사로 세그먼트별 계산.
+    function pointToTrackKm(la, lo) {
+        if (_frames.length === 0) return Infinity;
+        if (_frames.length === 1) return haversineKm(la, lo, _frames[0].lat, _frames[0].lon);
+        var min = Infinity;
+        for (var i = 0; i < _frames.length - 1; i++) {
+            var a = _frames[i], b = _frames[i + 1];
+            var cl = Math.cos(la * Math.PI / 180);
+            var ax = a.lon * cl, ay = a.lat, bx = b.lon * cl, by = b.lat, px = lo * cl, py = la;
+            var dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+            var t = L2 ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0;
+            t = Math.max(0, Math.min(1, t));
+            var qx = ax + t * dx, qy = ay + t * dy;
+            var d = haversineKm(la, lo, qy, qx / (cl || 1));
+            if (d < min) min = d;
+        }
+        return min;
+    }
+    // KST 벽시계 "YYYYMMDDHHmm" → "M/D HH시" (그대로 표시용)
+    function kstTmLabel(tm) {
+        var s = String(tm || '').replace(/[^0-9]/g, ''); if (s.length < 10) return '';
+        var hh = s.slice(8, 10), mi = s.slice(10, 12) || '00';
+        return (+s.slice(4, 6)) + '/' + (+s.slice(6, 8)) + ' ' + hh + (mi !== '00' ? ':' + mi : '시');
+    }
+    // 해구도 tm(UTC "YYYYMMDDHHmm") → KST 라벨
+    function utcTmToKstLabel(tm) {
+        var s = String(tm || '').replace(/[^0-9]/g, ''); if (s.length < 10) return '';
+        var ms = Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +(s.slice(10, 12) || 0)) + KMA_TZ_MS;
+        var d = new Date(ms);
+        return (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + ' ' + (d.getUTCHours() < 10 ? '0' : '') + d.getUTCHours() + '시';
+    }
+
     // 말풍선 HTML (각 반경은 지도 원과 동일 색, 강도·풍속은 TD 흰색 / 강도1↑ 빨강+볼드)
     function bubbleHTML(o, header) {
         var g = o._gradeF != null ? o._gradeF : (o.grade != null ? o.grade : 0);
@@ -107,22 +157,62 @@
         var h = '<div class="tphn-b-h">' + header + '</div>';
         var spd = o.windMs != null ? Math.round(o.windMs) + 'm/s · ' + Math.round(o.windMs * 3.6) + 'km/h' : '';
         h += '<div style="' + gStyle + '">강도 ' + (GRADE_NAMES[g] || '-') + (spd ? ' · ' + spd : '') + '</div>';
-        if (o.pressure != null) h += '<div class="tphn-b-sub">중심기압 ' + Math.round(o.pressure) + 'hPa</div>';
-        if (o.radStrong) h += '<div style="color:' + cssRgb(STRONG_C) + '">강풍반경 ' + Math.round(o.radStrong) + 'km</div>';
-        if (o.radStorm) h += '<div style="color:' + cssRgb(STORM_C) + '">폭풍반경 ' + Math.round(o.radStorm) + 'km</div>';
-        if (o.radProb) h += '<div style="color:' + cssRgb(PROB_C) + '">태풍 위치 70% 확률 반경 ' + Math.round(o.radProb) + 'km</div>';
-        var wv = beaufortWaveM(o.windMs);
-        if (wv != null) h += '<div class="tphn-b-sub">예상파고(외해 추정) 약 ' + wv + 'm</div>';
+        // 헤더+강도 2줄 외 나머지 — 흐린 말풍선에선 CSS(.tphn-faint .tphn-b-more)로 숨김.
+        var more = '';
+        if (o.pressure != null) more += '<div class="tphn-b-sub">중심기압 ' + Math.round(o.pressure) + 'hPa</div>';
+        if (o.radStrong) more += '<div style="color:' + cssRgb(STRONG_C) + '">강풍반경 ' + Math.round(o.radStrong) + 'km</div>';
+        if (o.radStorm) more += '<div style="color:' + cssRgb(STORM_C) + '">폭풍반경 ' + Math.round(o.radStorm) + 'km</div>';
+        if (o.radProb) more += '<div style="color:' + cssRgb(PROB_C) + '">태풍 위치 70% 확률 반경 ' + Math.round(o.radProb) + 'km</div>';
+        // 파고: 우리 해역(해구도 예측 범위) 진입 시 해구도 예측 + 진로 최근접 부이 관측, 아니면 보퍼트 추정.
+        if (o._zoneFc) {
+            var z = o._zoneFc;
+            more += '<div class="tphn-b-zone">해구 ' + z.lzone + ' 예측 (' + utcTmToKstLabel(z.tm) + ' 기준)' + (_debugKorea ? ' [디버그]' : '') + '</div>';
+            more += '<div class="tphn-b-sub">유의파고 ' + (z.wh != null ? z.wh.toFixed(1) : '-') + 'm'
+                + (z.wp != null ? ' · 파주기 ' + Math.round(z.wp) + 's' : '') + '</div>';
+            more += '<div class="tphn-b-sub">파향 ' + dirStr(z.waveDir) + ' · 풍향 ' + dirStr(z.windDir)
+                + ' · 풍속 ' + (z.ws != null ? z.ws.toFixed(1) : '-') + 'm/s</div>';
+            if (_koreaBuoy && _koreaBuoy.obs) {
+                var bo = _koreaBuoy.obs, isB = _koreaBuoy.type === 'B';
+                more += '<div class="tphn-b-buoy">' + kstTmLabel(bo.tm) + ' 기준 ' + _koreaBuoy.name
+                    + (isB ? '(해양기상부이)' : '(파고부이)') + ' 관측</div>';
+                var wparts = [];
+                if (bo.waveHeightSig != null) wparts.push('유의 ' + bo.waveHeightSig.toFixed(1) + 'm');
+                if (bo.waveHeightMax != null) wparts.push('최대 ' + bo.waveHeightMax.toFixed(1) + 'm');
+                if (bo.waveHeightAvg != null) wparts.push('평균 ' + bo.waveHeightAvg.toFixed(1) + 'm');
+                if (wparts.length) more += '<div class="tphn-b-sub">파고 ' + wparts.join(' / ') + '</div>';
+                if (isB && (bo.windSpeed != null || bo.windDirection != null)) {
+                    more += '<div class="tphn-b-sub">풍향 ' + (bo.windDirection != null ? dirStr(bo.windDirection) : '-')
+                        + ' · 풍속 ' + (bo.windSpeed != null ? bo.windSpeed.toFixed(1) + 'm/s' : '-') + '</div>';
+                }
+            }
+        } else {
+            var wv = beaufortWaveM(o.windMs);
+            if (wv != null) more += '<div class="tphn-b-sub">예상파고(외해 추정) 약 ' + wv + 'm</div>';
+        }
         var dmg = DAMAGE_DESC[g];
-        if (dmg) h += '<div class="tphn-b-dmg">예상 피해: ' + dmg + '</div>';
+        if (dmg) more += '<div class="tphn-b-dmg">예상 피해: ' + dmg + '</div>';
+        more += '<button type="button" class="tphn-guide-btn"><i class="fa-solid fa-life-ring"></i> 해상 종사자 행동요령</button>';
+        h += '<div class="tphn-b-more">' + more + '</div>';
         return h;
     }
     function makeBubbleOverlay() {
         var el = document.createElement('div');
         el.className = 'tphn-bubble';
-        // 말풍선 클릭 → 지도(해구) 클릭/바텀시트 막고(stopEvent:true + stopPropagation),
-        //   흐린 말풍선이면 진하게 표시.
-        el.addEventListener('click', function (e) { e.stopPropagation(); el.classList.remove('tphn-faint'); });
+        // 말풍선 클릭 → 지도(해구) 바텀시트 차단(stopEvent:true + stopPropagation).
+        //   - 행동요령 버튼이면 팝업 열기.
+        //   - 그 외엔 단일 선택 토글: 흐린 걸 누르면 그것만 진하게(나머지 흐림),
+        //     진한 걸 다시 누르면 흐려짐.
+        el.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (e.target.closest && e.target.closest('.tphn-guide-btn')) {
+                var gm = document.getElementById('tphn-guide-modal');
+                if (gm) gm.style.display = 'flex';
+                return;
+            }
+            var wasFaint = el.classList.contains('tphn-faint');
+            _pointBubbles.forEach(function (ov) { ov.getElement().classList.add('tphn-faint'); });
+            if (wasFaint) el.classList.remove('tphn-faint');
+        });
         return new ol.Overlay({ element: el, offset: [12, -12], positioning: 'bottom-left', stopEvent: true });
     }
     function updateBubbleVisibility() {
@@ -165,6 +255,20 @@
         var d = new Date();
         var kst = new Date(d.getTime() + (d.getTimezoneOffset() * 60000) + 9 * 3600000);
         return Date.UTC(kst.getFullYear(), kst.getMonth(), kst.getDate(), kst.getHours(), kst.getMinutes());
+    }
+    // 상대일 라벨(오늘/내일/모레/글피/그글피) — 그 외 날짜는 라벨 없음
+    var REL_DAY = { 0: '오늘', 1: '내일', 2: '모레', 3: '글피', 4: '그글피' };
+    // "M월 D일(상대어) HH시" 라벨. 프레임·현재 모두 KST-as-UTC-ms 공간이라 getUTC*/Date.UTC 로 비교.
+    function dateTimeLabel(ms) {
+        if (!isFinite(ms)) return '';
+        var d = new Date(ms);
+        var mm = d.getUTCMonth() + 1, dd = d.getUTCDate(), hh = d.getUTCHours(), mi = d.getUTCMinutes();
+        var fDay = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+        var n = new Date(nowKstMs());
+        var nDay = Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate());
+        var rel = REL_DAY[Math.round((fDay - nDay) / 86400000)];
+        var hStr = (hh < 10 ? '0' + hh : hh) + (mi ? ':' + (mi < 10 ? '0' + mi : mi) : '시');
+        return mm + '월 ' + dd + '일' + (rel ? '(' + rel + ')' : '') + ' ' + hStr;
     }
     // 현재 시각이 타임라인(첫~끝 프레임)에서 차지하는 위치 0..1
     function computeNowP() {
@@ -311,14 +415,83 @@
         _frames.forEach(function (f, i) {
             var ov = _pointBubbles[i];
             if (!ov) { ov = makeBubbleOverlay(); _map.addOverlay(ov); _pointBubbles[i] = ov; }
-            var header = fmtFromMs(timeToMs(f.time)) + (f.isCurrent ? ' 발표위치' : ' 예상위치');
-            ov.getElement().innerHTML = bubbleHTML(f, header);
+            ov.getElement().innerHTML = bubbleHTML(f, bubbleHeader(f));
             // 최종 예상 위치(마지막)만 진하게, 나머지는 흐리게(배경 비침 → 시인성). 클릭 시 진하게.
             ov.getElement().classList.toggle('tphn-faint', i !== _frames.length - 1);
             ov.setPosition(ol.proj.fromLonLat([f.lon, f.lat]));
         });
         for (var i = _frames.length; i < _pointBubbles.length; i++) _pointBubbles[i].setPosition(undefined);
         updateBubbleVisibility();
+    }
+    function bubbleHeader(f) {
+        return dateTimeLabel(timeToMs(f.time)) + (f.isCurrent ? ' 발표위치' : ' 예상위치');
+    }
+    // enrich(해구도/부이) 후 포인트 말풍선 내용만 갱신(흐림 상태는 유지).
+    //   이동 말풍선은 재생 루프가 매 프레임 다시 그리므로 여기서 건드리지 않음.
+    function refreshBubbleContents() {
+        _frames.forEach(function (f, i) {
+            var ov = _pointBubbles[i];
+            if (ov) ov.getElement().innerHTML = bubbleHTML(f, bubbleHeader(f));
+        });
+    }
+
+    // ── 우리 해역 진입 시 해구도 예측 + 진로 최근접 부이 데이터로 파고 표출 ──────
+    //   - 트리거/대상: 강풍반경에 걸친(중심 within radStrong) 해구 중 태풍 중심 최근접 1개.
+    //   - 72h 게이트: 해구도 tm 이 프레임시각(±1.6h) 안에 있어야 유효(예측범위 내). 밖이면 보퍼트 유지.
+    //   - 부이: 해구도가 표출될 때만, 진로선 최근접 B/C 부이 관측 표출.
+    function enrichKoreaWaters() {
+        var token = ++_enrichToken;
+        _koreaBuoy = null;
+        _frames.forEach(function (f) { f._zoneFc = null; });
+        var dbg = _debugKorea;
+        // 강풍반경 북단이 31°N 에 닿는 후보 프레임만 해구도 조회. (디버그: 전 프레임 강제)
+        var cand = dbg ? _frames.slice() : _frames.filter(function (f) { return f.radStrong && (f.lat + f.radStrong / KM_PER_DEG) >= KOREA_TRIG_LAT; });
+        if (!cand.length) { refreshBubbleContents(); return; }
+
+        // 진로선 최근접 부이(B/C) 선택 — 좌표는 BUOY_LOCATIONS, 관측은 fetchMarineBuoyData.
+        try {
+            if (typeof BUOY_LOCATIONS === 'object' && typeof fetchMarineBuoyData === 'function') {
+                var best = null;
+                Object.keys(BUOY_LOCATIONS).forEach(function (id) {
+                    var b = BUOY_LOCATIONS[id];
+                    if (!b || (b.type !== 'B' && b.type !== 'C') || b.lat == null || b.lon == null) return;
+                    var d = pointToTrackKm(b.lat, b.lon);
+                    if (!best || d < best.dist) best = { id: id, name: b.name, type: b.type, dist: d };
+                });
+                if (best) {
+                    fetchMarineBuoyData().then(function (obsMap) {
+                        if (token !== _enrichToken) return;
+                        var obs = obsMap && obsMap[best.id];
+                        if (obs) { _koreaBuoy = { name: best.name, type: best.type, obs: obs }; refreshBubbleContents(); }
+                    }).catch(function () { });
+                }
+            }
+        } catch (e) { /* 부이 실패는 무시 — 해구도만 표출 */ }
+
+        // 후보 프레임별 해구도 예측 조회(시각별).
+        cand.forEach(function (f) {
+            var utcMs = timeToMs(f.time) - KMA_TZ_MS;
+            fetchJSON('/api/ocean/zone-forecasts?time=' + encodeURIComponent(new Date(utcMs).toISOString())).then(function (d) {
+                if (token !== _enrichToken || !d || !d.success || !d.zones) return;
+                var pick = null;
+                Object.keys(d.zones).forEach(function (lz) {
+                    var z = d.zones[lz];
+                    if (z.lat == null || z.lon == null) return;
+                    var dist = haversineKm(f.lat, f.lon, z.lat, z.lon);
+                    if (!dbg && f.radStrong && dist > f.radStrong) return; // 강풍반경에 걸친 해구만 (디버그: 거리 무시)
+                    if (!pick || dist < pick.dist) pick = { lzone: lz, dist: dist, z: z };
+                });
+                if (!pick) return;
+                // 72h 예측범위 게이트: 해구도 tm 이 프레임시각과 ±ZONE_MATCH_H 이내인가. (디버그: 게이트 무시)
+                if (!dbg) {
+                    var s = String(pick.z.tm).replace(/[^0-9]/g, '');
+                    var tmMs = Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +(s.slice(10, 12) || 0));
+                    if (Math.abs(tmMs - utcMs) > ZONE_MATCH_H * 3600000) return; // 범위 밖 → 보퍼트 유지
+                }
+                f._zoneFc = { lzone: pick.lzone, wh: pick.z.wh, wp: pick.z.wp, waveDir: pick.z.waveDir, ws: pick.z.ws, windDir: pick.z.windDir, tm: pick.z.tm };
+                refreshBubbleContents();
+            }).catch(function () { });
+        });
     }
 
     // 레이어별 채움 스타일 — 테두리 없이 fill 만(회랑 내부 포인트 원 윤곽이 남지 않도록).
@@ -366,7 +539,7 @@
 
         // 이동 말풍선(HTML 오버레이) — 현재 시각 + 상세
         if (_moveEl) {
-            _moveEl.innerHTML = bubbleHTML(f, fmtFromMs(f._rtMs) + ' 기준');
+            _moveEl.innerHTML = bubbleHTML(f, dateTimeLabel(f._rtMs) + ' 기준');
             _moveBubble.setPosition(ol.proj.fromLonLat([f.lon, f.lat]));
         }
         var scr = document.getElementById('tphn-scrubber');
@@ -543,6 +716,7 @@
         renderStatic();
         renderHead(_p);
         applyLayerVisibility();
+        enrichKoreaWaters();   // 우리 해역 진입 시 해구도/부이로 파고 표출(비동기, 완료 후 말풍선 갱신)
         if (_visible) focusOnTyphoon();
     }
     function clearTrack() {
@@ -744,13 +918,18 @@
         var closeBtn = document.getElementById('tphn-close');
         if (closeBtn) closeBtn.addEventListener('click', function () { setVisible(false); });
 
-        // 행동요령 팝업
-        var guideBtn = document.getElementById('tphn-guide-btn');
+        // 행동요령 팝업 — 열기는 말풍선 내부 .tphn-guide-btn 클릭(makeBubbleOverlay)에서 처리.
         var guideModal = document.getElementById('tphn-guide-modal');
         var guideClose = document.getElementById('tphn-guide-close');
-        if (guideBtn && guideModal) guideBtn.addEventListener('click', function () { guideModal.style.display = 'flex'; });
         if (guideClose && guideModal) guideClose.addEventListener('click', function () { guideModal.style.display = 'none'; });
         if (guideModal) guideModal.addEventListener('click', function (e) { if (e.target === guideModal) guideModal.style.display = 'none'; });
+
+        // [디버그] 해역표출 강제 토글 — 트리거/게이트/거리 무시하고 최근접 해구·부이 표출.
+        var dbgChk = document.getElementById('tphn-dbg-korea');
+        if (dbgChk) dbgChk.addEventListener('change', function () {
+            _debugKorea = dbgChk.checked;
+            if (_frames.length) enrichKoreaWaters();
+        });
 
         // 레이어 토글 체크박스 (dmdw 상세정보 레이어 대응)
         [['tphn-ly-track', 'track'], ['tphn-ly-prob', 'prob'], ['tphn-ly-strong', 'strong'], ['tphn-ly-storm', 'storm']]
