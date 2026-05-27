@@ -27,6 +27,11 @@ local_server/data/bathymetry/
 local_server/data/admin_tokens.json
 local_server/data/admin_tokens.json.tmp
 
+# 태풍 통보문/예보 캐시 (typhoon_crawler.js 가 런타임 생성, Fly.io Volume에 저장)
+# 스케줄러가 부팅 시 재생성하므로 추적 제외
+local_server/data/typhoon.json
+local_server/data/typhoon.json.tmp
+
 # 5순위: 정적 자원 사전 압축 산출물 (build-gzip.js 가 prestart 에서 생성)
 # 원본에서 항상 재생성 가능하므로 추적 제외. uploads/ 디렉토리는 동적 업로드
 # 디렉토리라 사전 압축 대상이 아니어서 이 패턴에 걸리지 않는다.
