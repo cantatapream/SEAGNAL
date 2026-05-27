@@ -179,6 +179,11 @@ public class VoiceAssistantService extends Service {
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR");
         intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+        // [조기 종료 방지] 말이 끝나기 전에 인식이 끊겨 버리는 문제 완화 —
+        //   침묵 허용 시간을 늘려 사용자가 잠깐 멈춰도 끝났다고 단정하지 않게 한다.
+        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L);
+        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L);
+        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 3000L);
         try {
             commandRecognizer.startListening(intent);
         } catch (Exception e) {
@@ -308,6 +313,7 @@ public class VoiceAssistantService extends Service {
     private void speak(String text) {
         state = State.SPEAKING;
         wakeEngine.stop(); // 자기 목소리를 다시 인식하지 않도록
+        answerCue();       // 답변 시작 신호음(듣기 종료→답변 시작 구분)
         updateNotification(text);
         if (ttsReady && tts != null) {
             try {
@@ -420,11 +426,21 @@ public class VoiceAssistantService extends Service {
         stopSelf();
     }
 
+    /** 듣기 시작 신호음(짧은 단음) */
     private void beep() {
         try {
             ToneGenerator tg = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, 70);
             tg.startTone(ToneGenerator.TONE_PROP_BEEP, 150);
             mainHandler.postDelayed(tg::release, 250);
+        } catch (Exception ignored) {}
+    }
+
+    /** 답변 시작 신호음(상승 더블톤) — 듣기 종료 후 답변이 시작됨을 알림. */
+    private void answerCue() {
+        try {
+            final ToneGenerator tg = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, 70);
+            tg.startTone(ToneGenerator.TONE_PROP_ACK, 200);
+            mainHandler.postDelayed(tg::release, 350);
         } catch (Exception ignored) {}
     }
 
