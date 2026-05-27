@@ -594,8 +594,8 @@ const TOOL_CATALOG = `
 - list_buoys_near(zone): 해당 해역 인근 기상부이 목록(이름·거리만).
 - get_buoys_with_obs(zone): 해역 인근 기상부이 목록 + 각 부이의 최신 관측값을 한 번에. ("부이 뭐 있고 각각 관측값 줘" 류는 반드시 이걸 쓰세요)
 - get_buoy_observation(buoyName): 특정 부이의 최신 실측값(파고/풍속/수온/시정 등).
-- get_current(lat, lon): 해당 좌표의 유향·유속(해류).
-- get_depth(lat, lon): 해당 좌표의 수심.
+- get_current(zone 또는 lat,lon): 해역(또는 좌표)의 유향·유속(해류). 해역명만 줘도 됨.
+- get_depth(zone 또는 lat,lon): 해역(또는 좌표)의 수심. 해역명만 줘도 됨.
 - get_seafog_cctv(harbor): 항구 해무 CCTV 최신 영상(이미지 링크).
 - get_tide(place): 지명/해역에서 가장 가까운 해점 좌표(고조/저조 상세 표출은 앱 바텀시트).
 [생활지수]
@@ -630,6 +630,16 @@ function resolveZoneName(name) {
     if (!name) return null;
     if (ZONE_NAME_TO_CODE[name]) return name;
     return detectZoneDeterministic(String(name));
+}
+
+/** 좌표 결정: lat/lon 직접 주어지면 그걸, 아니면 해역명→대표좌표(ZONE_COORDS). 없으면 null.
+ *  (유속/수심처럼 좌표가 필요한 도구가 카카오 지오코딩 없이도 해역명으로 동작하게 함) */
+function coordsFor(zone, lat, lon) {
+    if (lat != null && lon != null && isFinite(+lat) && isFinite(+lon)) return { lat: +lat, lon: +lon };
+    const z = resolveZoneName(zone);
+    const code = z && ZONE_NAME_TO_CODE[z];
+    if (code && ZONE_COORDS[code]) return { lat: ZONE_COORDS[code].lat, lon: ZONE_COORDS[code].lon };
+    return null;
 }
 
 /** 해구번호 N시간 후 예보 (zone_forecasts 시계열에서 가장 가까운 시점) */
@@ -773,14 +783,26 @@ const TOOL_EXEC = {
         if (Array.isArray(j) && j.length) { const x = j[0]; return { harbor: x.sfogObsvtrNm, time: x.imgDt, imageUrl: x.uri }; }
         return { error: '해무 CCTV 이미지를 찾지 못했습니다.' };
     },
-    get_current: async ({ lat, lon, date } = {}) => {
-        if (lat == null || lon == null) return { error: '좌표(lat,lon)가 필요합니다.' };
+    get_current: async ({ zone, lat, lon, date } = {}) => {
+        const c = coordsFor(zone, lat, lon);
+        if (!c) return { error: '좌표를 알 수 없습니다(해역명 또는 lat,lon 필요).' };
         const d = date || (() => { const t = new Date(); const p = n => (n < 10 ? '0' : '') + n; return '' + t.getFullYear() + p(t.getMonth() + 1) + p(t.getDate()); })();
-        return await internalGet(`/api/ocean/khoa-stream-nearest?lat=${lat}&lon=${lon}&date=${d}`);
+        const r = await internalGet(`/api/ocean/khoa-stream-nearest?lat=${c.lat}&lon=${c.lon}&date=${d}`);
+        if (!r || r.success === false || r.crsp == null) return { zone: zone || null, error: '유속 데이터를 가져오지 못했습니다.' };
+        // KHOA 유속(crsp)은 cm/s. 노트로도 환산 제공(초속 미터 아님).
+        return {
+            zone: zone || null,
+            유향deg: r.crdir,
+            유속cms: r.crsp,
+            유속노트: Math.round(Number(r.crsp) * 0.01944 * 10) / 10,
+            수온C: r.wtem
+        };
     },
-    get_depth: async ({ lat, lon } = {}) => {
-        if (lat == null || lon == null) return { error: '좌표(lat,lon)가 필요합니다.' };
-        return await internalGet(`/api/ocean/depth?lat=${lat}&lon=${lon}`);
+    get_depth: async ({ zone, lat, lon } = {}) => {
+        const c = coordsFor(zone, lat, lon);
+        if (!c) return { error: '좌표를 알 수 없습니다(해역명 또는 lat,lon 필요).' };
+        const r = await internalGet(`/api/ocean/depth?lat=${c.lat}&lon=${c.lon}`);
+        return Object.assign({ zone: zone || null }, r || {});
     },
     resolve_location: async ({ text } = {}) => {
         const j = await internalGet('/api/search-place?q=' + encodeURIComponent(text || ''));
@@ -814,6 +836,9 @@ ${TOOL_CATALOG}
 규칙:
 - 답에 꼭 필요한 도구만 steps 에 넣으세요(불필요한 호출 금지).
 - 해역명/해구번호/지명/부이명을 args 에 정확히 넣으세요. 해구번호는 숫자 문자열(예: "325").
+- 유속/유향/해류는 get_current(zone=해역명), 수심은 get_depth(zone=해역명)로 호출하세요.
+  해역명이 분명하면 resolve_location 을 쓰지 말고 zone 인자에 해역명을 그대로 넣으세요.
+  resolve_location 은 항/해수욕장/마을 같은 임의 지명일 때만 쓰세요.
 - "조업 가능?" 같은 판단 질문은 관련 예보(해구/해역)·특보·필요시 부이를 함께 모으세요.
 - 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}
 
@@ -895,6 +920,7 @@ async function runBrain(query, profile, memory, style, location) {
 - 핵심만 간결하게. 사용자가 묻지 않은 일반론·참고사항·주의문구를 덧붙이지 마세요.
 - 여러 항목(예: 부이 여러 개)을 물으면 항목마다 이름과 관측 수치를 명확히, 관측 기준시각이 있으면 함께.
 - 음성으로 읽어줄 구어체. 표/마크다운/이모지 금지. 풍속은 "초속 N미터"로 읽으세요(예: 초속 7미터). "m/s","퍼세크" 같은 표기는 쓰지 마세요.
+- 유속(해류)은 cm/s 또는 노트로 말하세요(예: "유속 23cm퍼세크" 말고 "유속 초속 23센티미터, 약 0.4노트"). 유속을 "초속 N미터"로 말하지 마세요.
 - "지금 출항/조업해도 되냐"처럼 안전 결정을 직접 물었을 때는: 데이터(파고·풍속·특보)에 근거해 "○○ 정도라 (가능할 것 같다/주의가 필요하다/무리로 보인다)"는 간단한 판단을 먼저 주고, 마지막에 "최종 판단은 선장님 몫"이라는 취지를 딱 한 번 덧붙이세요. 그 외 질문엔 이 판단/문구를 절대 넣지 마세요.
 ${personal}
 질문: "${query}"
