@@ -2504,6 +2504,8 @@
                         <button class="ocean-overlay-btn tphn-disabled" id="ocean-typhoon-toggle-btn" title="태풍">
                             <i class="fa-solid fa-hurricane"></i>
                             <span class="ocean-overlay-label" data-line1="태풍">태풍</span>
+                            <!-- 활성 태풍 있을 때 우상단 빨간 N 배지(절대배치 → 아이콘/텍스트 밀림 없음, N은 ::after CSS) -->
+                            <span class="tphn-n-badge" id="tphn-n-badge" style="display:none;" aria-hidden="true"></span>
                         </button>
                         <!-- CCTV 토글: ocean_cctv.js 가 바인딩 (index2 전용)
                              활성화 시 지도 위에 CCTV 마커/클러스터 표시 + 하단 CCTV 즐겨찾기 바 노출
@@ -2572,6 +2574,15 @@
                         .ocean-typhoon-panel .tphn-leg-item{display:inline-flex;align-items:center;gap:3px;}
                         .ocean-typhoon-panel .tphn-leg-item i{width:10px;height:10px;border-radius:50%;display:inline-block;}
                         .ocean-overlay-btn.tphn-disabled{opacity:0.4;}
+                        /* 활성 태풍 N 배지 — 공지사항 탭 .new-badge 와 동일 룩(빨강 그라데이션·pulse),
+                           단 버튼 우상단 절대배치라 아이콘/텍스트를 밀지 않음. N은 ::after(텍스트 노드 아님). */
+                        #ocean-typhoon-toggle-btn{position:relative;}
+                        .tphn-n-badge{position:absolute;top:-3px;right:-3px;height:15px;min-width:15px;padding:0 3px;
+                            display:flex;align-items:center;justify-content:center;border-radius:6px;
+                            background:linear-gradient(135deg,#ff6b6b,#f03e3e);box-shadow:0 2px 4px rgba(240,62,62,0.45);
+                            pointer-events:none;z-index:3;animation:badgePulse 2s infinite;}
+                        .tphn-n-badge::after{content:'N';color:#fff;font-size:9px;font-weight:800;line-height:1;
+                            font-family:'Inter',sans-serif;user-select:none;}
                         /* 지도 위 말풍선(ol.Overlay) — 포인트별/이동 공용 */
                         .tphn-bubble{background:rgba(20,22,32,0.86);border:1px solid rgba(255,255,255,0.35);
                             border-radius:8px;padding:5px 8px;font-size:11px;line-height:1.5;color:#eaf2ff;
@@ -2591,6 +2602,9 @@
                         .tphn-bubble .tphn-b-dmg{color:#ffd24a;font-weight:700;margin-top:1px;}
                         .tphn-bubble .tphn-b-zone{color:#5fd0ff;font-weight:700;margin-top:3px;}
                         .tphn-bubble .tphn-b-buoy{color:#7fe6a8;font-weight:700;margin-top:3px;}
+                        /* 큰 텍스트 모드 — 말풍선 글자 확대(자식은 부모 font-size 상속, 박스는 nowrap+auto라 자동 확장) */
+                        html[data-font-size="large"] .tphn-bubble{font-size:15px;}
+                        html[data-font-size="large"] .tphn-bubble .tphn-guide-btn{font-size:14px;}
                         /* 강도·해구·부이 헤더 — 약 1.2초 주기 하이라이트(깜빡). 흐린 말풍선에선 동작 안 함. */
                         @keyframes tphn-blink{0%,100%{background:transparent;}50%{background:rgba(255,255,255,0.22);}}
                         .tphn-bubble:not(.tphn-faint) .tphn-blink{animation:tphn-blink 1.2s ease-in-out infinite;border-radius:3px;padding:0 2px;margin-left:-2px;}
@@ -2601,13 +2615,15 @@
                         .tphn-guide-btn:hover{background:#1b4f96;}
                         .tphn-guide-modal{position:absolute;inset:0;z-index:1300;background:rgba(0,0,0,0.45);
                             display:flex;align-items:center;justify-content:center;padding:16px;}
-                        .tphn-guide-card{background:#fff;color:#1a2230;border-radius:12px;max-width:420px;width:100%;
-                            max-height:80%;overflow:auto;box-shadow:0 8px 30px rgba(0,0,0,0.5);}
+                        .tphn-guide-card{background:linear-gradient(180deg,#0c1a3a 0%,#162d5a 100%);color:#eaf2ff;
+                            border:1px solid rgba(120,150,200,0.25);border-radius:12px;max-width:420px;width:100%;
+                            max-height:80%;overflow:auto;box-shadow:0 8px 30px rgba(0,0,0,0.55);}
                         .tphn-guide-head{display:flex;align-items:center;justify-content:space-between;
-                            padding:12px 14px;border-bottom:1px solid #eee;font-size:14px;position:sticky;top:0;background:#fff;}
-                        .tphn-guide-close{background:transparent;border:none;font-size:22px;line-height:1;cursor:pointer;color:#555;}
-                        .tphn-guide-body{padding:10px 16px 16px;font-size:13px;line-height:1.55;}
-                        .tphn-guide-body h4{margin:12px 0 4px;color:#15407a;font-size:13px;}
+                            padding:12px 14px;border-bottom:1px solid rgba(255,255,255,0.12);font-size:14px;font-weight:700;
+                            position:sticky;top:0;background:#0c1a3a;color:#eaf2ff;}
+                        .tphn-guide-close{background:transparent;border:none;font-size:22px;line-height:1;cursor:pointer;color:#cdd9f0;}
+                        .tphn-guide-body{padding:10px 16px 16px;font-size:13px;line-height:1.55;color:#dbe6f7;}
+                        .tphn-guide-body h4{margin:12px 0 4px;color:#8fc0ff;font-size:13px;}
                         .tphn-guide-body ul{margin:0;padding-left:18px;}
                         .tphn-guide-body li{margin:3px 0;}
                         .tphn-tel{display:inline-block;margin-top:2px;background:#d50000;color:#fff;

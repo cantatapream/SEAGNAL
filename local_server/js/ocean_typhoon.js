@@ -236,16 +236,33 @@
     }
     function escHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
     // 통보문 안내(i) 팝업 — rem(발표/종료 안내, '|' 구분) + other(참고사항).
-    function openNoteModal() {
-        var m = document.getElementById('tphn-note-modal'), body = document.getElementById('tphn-note-body');
-        if (!m || !body) return;
+    function renderNoteBody() {
+        var body = document.getElementById('tphn-note-body'); if (!body) return;
         var b = _curBulletin || {}, html = '';
         var rem = String(b.rem || '').replace(/\|\s*$/, '').trim();
         if (rem) rem.split('|').forEach(function (s) { s = s.trim(); if (s) html += '<div class="tphn-note-line">※ ' + escHtml(s) + '</div>'; });
-        if (b.other) html += '<div class="tphn-note-line" style="margin-top:10px;color:#15407a;font-weight:600;">' + escHtml(b.other) + '</div>';
-        body.innerHTML = html || '<div class="tphn-note-line" style="color:#888;">안내 정보가 없습니다.</div>';
+        if (b.other) html += '<div class="tphn-note-line" style="margin-top:10px;color:#8fc0ff;font-weight:600;">' + escHtml(b.other) + '</div>';
+        body.innerHTML = html || '<div class="tphn-note-line" style="color:#9fb0c8;">안내 정보가 없습니다.</div>';
+    }
+    function openNoteModal() {
+        var m = document.getElementById('tphn-note-modal'), body = document.getElementById('tphn-note-body');
+        if (!m || !body) return;
         m.style.display = 'flex';
         if (window.PopupStack) window.PopupStack.push('tphn-note', closeNoteModal);
+        var b = _curBulletin || {};
+        // 활성 캐시(typhoon.json)가 구버전이라 rem/other 가 없으면 신선 통보문을 받아 보강.
+        if (!b.rem && !b.other && _selCode) {
+            body.innerHTML = '<div class="tphn-note-line" style="color:#888;">불러오는 중…</div>';
+            fetchJSON('/api/typhoon/bulletin?year=' + _year + '&code=' + encodeURIComponent(_selCode)).then(function (d) {
+                if (d && !d.error) {
+                    if (_curBulletin) { _curBulletin.rem = d.rem; _curBulletin.other = d.other; }
+                    else _curBulletin = d;
+                }
+                renderNoteBody();
+            }).catch(function () { renderNoteBody(); });
+        } else {
+            renderNoteBody();
+        }
     }
     function closeNoteModal() {
         var m = document.getElementById('tphn-note-modal'); if (m) m.style.display = 'none';
@@ -270,16 +287,24 @@
         var m = document.getElementById('tphn-img-modal'); if (m) m.style.display = 'none';
         if (window.PopupStack) window.PopupStack.remove('tphn-img');
     }
+    // 통보문 이미지 다운로드. Capacitor 네이티브 WebView 는 <a download> 가 안 먹히므로
+    //   시스템 브라우저(@capacitor/browser)로 attachment URL 을 열어 내려받게 한다(앱 공통 패턴).
     function downloadImg() {
         var img = document.getElementById('tphn-img-el'), fileName = img && img.getAttribute('data-fn');
         if (!fileName) return;
-        fetch('/api/typhoon/image?fileName=' + encodeURIComponent(fileName)).then(function (r) { return r.ok ? r.blob() : null; }).then(function (blob) {
-            if (!blob) return;
-            var a = document.createElement('a'), obj = URL.createObjectURL(blob);
-            a.href = obj; a.download = fileName.replace(/[\]]/g, '_');
-            document.body.appendChild(a); a.click(); document.body.removeChild(a);
-            setTimeout(function () { URL.revokeObjectURL(obj); }, 1000);
-        }).catch(function () { });
+        var rel = '/api/typhoon/image?download=1&fileName=' + encodeURIComponent(fileName);
+        function anchor() {
+            var a = document.createElement('a');
+            a.href = rel; a.download = fileName.replace(/[\]]/g, '_'); a.target = '_blank';
+            document.body.appendChild(a); a.click(); a.remove();
+        }
+        var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+        var Browser = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+        if (isNative && Browser && Browser.open) {
+            try { var p = Browser.open({ url: window.location.origin + rel }); if (p && p.catch) p.catch(anchor); return; }
+            catch (e) { /* 폴백 */ }
+        }
+        anchor();
     }
     function hideLandPopup() {
         if (_landEl) _landEl.style.display = 'none';
@@ -1029,6 +1054,8 @@
         if (!btn) return;
         // 활성 태풍(dmdw)이 있으면 버튼 활성, 없으면 비활성. (일반 사용자 노출 — 탭 잠금 없음)
         var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
+        var nBadge = document.getElementById('tphn-n-badge');
+        if (nBadge) nBadge.style.display = has ? 'flex' : 'none';
         if (!has) {
             btn.classList.add('tphn-disabled');
             btn.title = '현재 태풍 없음';

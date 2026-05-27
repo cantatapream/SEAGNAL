@@ -372,7 +372,8 @@ async function run() {
                 const code = String(opt.code);
                 const meta = parseCode(code);
                 const key = seq + '_' + code;
-                if (prevMap[key] && Array.isArray(prevMap[key].forecast) && prevMap[key].forecast.length) {
+                // rem 필드가 없는(구버전) 캐시는 재수집해 rem/other 를 보강한다.
+                if (prevMap[key] && Array.isArray(prevMap[key].forecast) && prevMap[key].forecast.length && prevMap[key].rem !== undefined) {
                     const cached = Object.assign({}, prevMap[key], { label: trimStr(opt.value), isLatest: i === 0 });
                     if (cached.nameEn) nameEn = cached.nameEn;
                     bulletins.push(cached);
