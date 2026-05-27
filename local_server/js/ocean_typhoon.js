@@ -120,7 +120,10 @@
     function makeBubbleOverlay() {
         var el = document.createElement('div');
         el.className = 'tphn-bubble';
-        return new ol.Overlay({ element: el, offset: [12, -12], positioning: 'bottom-left', stopEvent: false });
+        // 말풍선 클릭 → 지도(해구) 클릭/바텀시트 막고(stopEvent:true + stopPropagation),
+        //   흐린 말풍선이면 진하게 표시.
+        el.addEventListener('click', function (e) { e.stopPropagation(); el.classList.remove('tphn-faint'); });
+        return new ol.Overlay({ element: el, offset: [12, -12], positioning: 'bottom-left', stopEvent: true });
     }
     function updateBubbleVisibility() {
         var pb = _playbackMode;
@@ -310,6 +313,8 @@
             if (!ov) { ov = makeBubbleOverlay(); _map.addOverlay(ov); _pointBubbles[i] = ov; }
             var header = fmtFromMs(timeToMs(f.time)) + (f.isCurrent ? ' 발표위치' : ' 예상위치');
             ov.getElement().innerHTML = bubbleHTML(f, header);
+            // 최종 예상 위치(마지막)만 진하게, 나머지는 흐리게(배경 비침 → 시인성). 클릭 시 진하게.
+            ov.getElement().classList.toggle('tphn-faint', i !== _frames.length - 1);
             ov.setPosition(ol.proj.fromLonLat([f.lon, f.lat]));
         });
         for (var i = _frames.length; i < _pointBubbles.length; i++) _pointBubbles[i].setPosition(undefined);
