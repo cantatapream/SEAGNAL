@@ -2579,6 +2579,9 @@
                         .tphn-bubble .tphn-b-dmg{color:#ffd24a;font-weight:700;margin-top:1px;}
                         .tphn-bubble .tphn-b-zone{color:#5fd0ff;font-weight:700;margin-top:3px;}
                         .tphn-bubble .tphn-b-buoy{color:#7fe6a8;font-weight:700;margin-top:3px;}
+                        /* 강도·해구·부이 헤더 — 약 1.2초 주기 하이라이트(깜빡). 흐린 말풍선에선 동작 안 함. */
+                        @keyframes tphn-blink{0%,100%{background:transparent;}50%{background:rgba(255,255,255,0.22);}}
+                        .tphn-bubble:not(.tphn-faint) .tphn-blink{animation:tphn-blink 1.2s ease-in-out infinite;border-radius:3px;padding:0 2px;margin-left:-2px;}
                         /* 행동요령 버튼(말풍선 내부 하단) + 팝업 */
                         .tphn-guide-btn{width:100%;margin-top:5px;background:#15407a;color:#eaf2ff;
                             border:1px solid rgba(120,150,200,0.5);border-radius:6px;padding:4px 6px;
