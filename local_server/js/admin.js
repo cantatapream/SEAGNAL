@@ -2525,10 +2525,11 @@ function renderUnifiedComprehensiveStats(container) {
  * - routes/push.js → /api/push-subscriber-stats API
  */
 async function renderUnifiedUsersContent(container) {
-    // 하위 탭 2개: 구독 현황 / 방문자 통계
+    // 하위 탭 3개: 구독 현황 / 방문자 통계 / 사용자 소속(직군) 현황
     var subTabs = [
         { id: 'subscriber', name: '구독 현황', icon: 'fa-bell' },
-        { id: 'visitor', name: '방문자 통계', icon: 'fa-chart-line' }
+        { id: 'visitor', name: '방문자 통계', icon: 'fa-chart-line' },
+        { id: 'affiliation', name: '사용자 소속(직군) 현황', icon: 'fa-user-tag' }
     ];
 
     container.innerHTML = '<div class="admin-section-title"><i class="fa-solid fa-chart-pie" style="color:#8b5cf6;"></i> 앱 이용자 현황</div>'
@@ -2565,11 +2566,125 @@ async function renderUnifiedUsersContent(container) {
             } else {
                 subContent.innerHTML = '<div style="color:#64748b;text-align:center;padding:40px;">방문자 통계 모듈을 불러올 수 없습니다.</div>';
             }
+        } else if (tabId === 'affiliation') {
+            renderAffiliationTab(subContent);
         }
     };
 
     // 기본 하위 탭: 구독 현황
     window.switchUsersSubTab('subscriber');
+}
+
+/**
+ * 사용자 소속(직군) 현황 하위 탭 렌더링
+ *
+ * [표시 항목]
+ * 1. 총 응답자 수 요약 카드
+ * 2. 직군 분포 도넛 차트 (좌) + 상세 표(직군/인원/비율) (우)
+ *
+ * [데이터 소스]
+ * - GET /api/stats/affiliations → 설문(소속 문항) 기반 기기별 최신 소속 집계
+ *
+ * [연계] renderUnifiedUsersContent() → switchUsersSubTab('affiliation')
+ */
+let affiliationChart = null; // 직군 분포 차트 인스턴스 (재생성 시 파괴용)
+
+async function renderAffiliationTab(container) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
+    try {
+        var res = await fetch('/api/stats/affiliations');
+        var data = res.ok ? await res.json() : { distribution: [], totalRespondents: 0 };
+        var dist = data.distribution || [];
+        var total = data.totalRespondents || 0;
+
+        if (!dist.length) {
+            container.innerHTML = '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:40px;text-align:center;color:#94a3b8;">'
+                + '<i class="fa-solid fa-user-tag" style="font-size:1.6rem;color:#475569;margin-bottom:10px;display:block;"></i>'
+                + '설문(소속 문항)에 응답한 사용자가 아직 없습니다.</div>';
+            return;
+        }
+
+        var palette = ['#3b82f6', '#8b5cf6', '#22d3ee', '#f59e0b', '#10b981', '#ec4899', '#60a5fa', '#a3a3a3', '#64748b'];
+        var colorOf = function (i) { return palette[i % palette.length]; };
+
+        // 상세 표 행 (직군 / 인원 / 비율) — 인원 많은 순(서버 정렬)
+        var rows = dist.map(function (d, i) {
+            var pct = total ? (d.count / total * 100) : 0;
+            return '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">'
+                + '<td style="padding:9px 8px;color:#e2e8f0;font-size:0.84rem;">'
+                + '<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:' + colorOf(i) + ';margin-right:8px;vertical-align:middle;"></span>'
+                + escapeHtmlAdminAff(d.name) + '</td>'
+                + '<td style="padding:9px 8px;text-align:right;color:#fff;font-weight:700;font-size:0.84rem;">' + d.count.toLocaleString() + '명</td>'
+                + '<td style="padding:9px 8px;text-align:right;color:#94a3b8;font-size:0.8rem;">' + pct.toFixed(1) + '%</td>'
+                + '</tr>';
+        }).join('');
+
+        container.innerHTML =
+            // 요약 카드
+            '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
+            + '<div style="font-size:0.82rem;color:#94a3b8;"><i class="fa-solid fa-user-tag" style="margin-right:6px;color:#8b5cf6;"></i> 소속 설문 응답자</div>'
+            + '<div style="font-size:1.6rem;font-weight:800;color:#8b5cf6;">' + total.toLocaleString() + '<span style="font-size:0.85rem;font-weight:400;color:#64748b;">명</span></div>'
+            + '</div>'
+            // 차트 + 표 2단
+            + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch;">'
+            + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;">'
+            + '<div style="font-size:0.82rem;color:#94a3b8;margin-bottom:10px;font-weight:600;"><i class="fa-solid fa-chart-pie" style="margin-right:4px;color:#22d3ee;"></i> 직군 분포</div>'
+            + '<div style="height:240px;position:relative;"><canvas id="affiliation-chart"></canvas></div>'
+            + '</div>'
+            + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;overflow-x:auto;">'
+            + '<div style="font-size:0.82rem;color:#94a3b8;margin-bottom:10px;font-weight:600;"><i class="fa-solid fa-table-list" style="margin-right:4px;color:#22d3ee;"></i> 상세 (인원 많은 순)</div>'
+            + '<table style="width:100%;border-collapse:collapse;">'
+            + '<thead><tr style="border-bottom:1px solid rgba(255,255,255,0.12);">'
+            + '<th style="padding:8px;text-align:left;color:#64748b;font-size:0.74rem;font-weight:600;">직군</th>'
+            + '<th style="padding:8px;text-align:right;color:#64748b;font-size:0.74rem;font-weight:600;">인원</th>'
+            + '<th style="padding:8px;text-align:right;color:#64748b;font-size:0.74rem;font-weight:600;">비율</th>'
+            + '</tr></thead><tbody>' + rows + '</tbody></table>'
+            + '</div>'
+            + '</div>';
+
+        // 도넛 차트 렌더
+        if (affiliationChart) { try { affiliationChart.destroy(); } catch (e) {} affiliationChart = null; }
+        var el = document.getElementById('affiliation-chart');
+        if (el && typeof Chart !== 'undefined') {
+            affiliationChart = new Chart(el, {
+                type: 'doughnut',
+                data: {
+                    labels: dist.map(function (d) { return d.name; }),
+                    datasets: [{
+                        data: dist.map(function (d) { return d.count; }),
+                        backgroundColor: dist.map(function (_, i) { return colorOf(i); }),
+                        borderColor: '#0c1120',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    cutout: '58%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 }, padding: 10 } },
+                        tooltip: {
+                            callbacks: {
+                                label: function (ctx) {
+                                    var v = ctx.parsed || 0;
+                                    var pct = total ? (v / total * 100).toFixed(1) : 0;
+                                    return ' ' + ctx.label + ': ' + v.toLocaleString() + '명 (' + pct + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    } catch (e) {
+        container.innerHTML = '<div style="color:#ef4444;text-align:center;padding:30px;">소속 현황 로드 실패: ' + (e && e.message) + '</div>';
+    }
+}
+
+// 소속명 HTML 이스케이프(설문 자유응답 대비)
+function escapeHtmlAdminAff(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
 }
 
 /**

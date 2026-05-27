@@ -302,6 +302,35 @@ router.get('/api/stats/usage', (req, res) => {
 });
 
 // ============================================================================
+// GET /api/stats/affiliations — 설문(소속 문항) 기반 사용자 소속(직군) 현황
+//   buildAffiliationMap() = 기기별 최신 소속 응답 → 소속별 인원수로 집계.
+//   설문 미응답 기기는 포함되지 않음(응답자 기준 분포).
+// ============================================================================
+router.get('/api/stats/affiliations', (req, res) => {
+    try {
+        const affMap = buildAffiliationMap();   // { deviceId: 소속 }
+        const counts = {};
+        Object.keys(affMap).forEach(d => {
+            const a = normalizeAffiliation(affMap[d]);
+            counts[a] = (counts[a] || 0) + 1;
+        });
+        const total = Object.keys(counts).reduce((s, k) => s + counts[k], 0);
+        // 인원 많은 순 정렬(동수면 표시 순서 우선)
+        const distribution = Object.keys(counts)
+            .map(k => ({ name: k, count: counts[k] }))
+            .sort((a, b) => {
+                if (b.count !== a.count) return b.count - a.count;
+                const ia = AFFILIATION_ORDER.indexOf(a.name), ib = AFFILIATION_ORDER.indexOf(b.name);
+                return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+            });
+        res.json({ order: AFFILIATION_ORDER, distribution, totalRespondents: total });
+    } catch (e) {
+        console.error('[usage] 소속 현황 실패:', e && e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ============================================================================
 // GET /api/stats/usage/csv — CSV 다운로드 (Capacitor WebView 호환)
 //   클라이언트 blob/data URL 다운로드는 앱(WebView)에서 동작하지 않으므로,
 //   설문 CSV(/api/surveys/:id/csv)와 동일하게 실제 서버 URL + Content-Disposition
@@ -325,7 +354,7 @@ const USAGE_CSV_LABELS = {
     'ocean.gugu_forecast': '해구 전망표/그래프',
     'ocean.cctv_open': 'CCTV 팝업',
     'ocean.typhoon': '태풍',
-    'ocean.typhoon_play': '태풍 재생',
+    'ocean.typhoon_map': '태풍 통보문 지도',
     'ocean.basemap.rltm': '배경 · 기본맵',
     'ocean.basemap.enc': '배경 · 전자해도',
     'ocean.basemap.coast': '배경 · 해안도',

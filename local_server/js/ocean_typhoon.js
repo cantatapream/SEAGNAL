@@ -1166,7 +1166,7 @@
         if (bSel) bSel.addEventListener('change', function () { selectBulletin(_year, this.value); });
         var playBtn = document.getElementById('tphn-play');
         if (playBtn) playBtn.addEventListener('click', function () {
-            if (!_playing && window.trackUsage) window.trackUsage('ocean.typhoon_play');  // [사용량] 재생 시작 시 1회
+            if (!_playing && window.trackUsage) window.trackUsage('ocean.typhoon');  // [사용량] 태풍 기능 내 동작은 모두 '태풍' 하나로 집계
             _playing ? pause() : play();
         });
         var resetBtn = document.getElementById('tphn-reset');
@@ -1197,9 +1197,12 @@
         var noteModal = document.getElementById('tphn-note-modal');
         if (noteModal) noteModal.addEventListener('click', function (e) { if (e.target === noteModal) closeNoteModal(); });
 
-        // 통보문 이미지 팝업(지도 이모지 버튼)
+        // 통보문 이미지 팝업(지도 이모지 버튼) — 지도(정보) 제공이므로 클릭 시 1회 집계
         var imgBtn = document.getElementById('tphn-img-btn');
-        if (imgBtn) imgBtn.addEventListener('click', openImgModal);
+        if (imgBtn) imgBtn.addEventListener('click', function () {
+            if (window.trackUsage) window.trackUsage('ocean.typhoon_map');
+            openImgModal();
+        });
         var imgClose = document.getElementById('tphn-img-close');
         if (imgClose) imgClose.addEventListener('click', closeImgModal);
         var imgClose2 = document.getElementById('tphn-img-close2');
