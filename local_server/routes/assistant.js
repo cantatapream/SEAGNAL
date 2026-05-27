@@ -901,12 +901,16 @@ const TOOL_EXEC = {
 };
 
 /** 1단계: 질문 → 가져올 데이터 계획(JSON) */
-async function planQuery(query, profile, location) {
+async function planQuery(query, profile, location, memory) {
     const locLine = (location && location.lat != null && location.lon != null)
         ? `\n사용자 현재 위치(GPS): 위도 ${location.lat}, 경도 ${location.lon}. "내 위치/가까운/근처" 류 질문엔 이 좌표를 좌표기반 도구(get_nearest_buoy/get_current/get_depth/get_tide)에 넣으세요.`
         : '';
     const pz = profileDefaultZone(profile);
     const pzLine = pz ? `\n사용자 기본 활동해역: ${pz}. 질문에 해역/지명이 없으면 이 해역을 기본으로 쓰세요.` : '';
+    // [후속 질문 맥락] "그럼/다른/얘/거기/인근/그건" 등 지시어는 직전 대화로 대상을 정한다.
+    const memLine = (Array.isArray(memory) && memory.length)
+        ? `\n[최근 대화] ${memory.slice(-3).join(' / ')}\n질문이 "그럼/다른/얘/거기/그건/인근" 등으로 이전 맥락을 가리키면, 위 최근 대화에서 해역·대상을 이어받아 args 에 넣으세요.`
+        : '';
     const prompt =
 `사용자의 한국어 질문에 답하기 위해 어떤 데이터를 가져올지 계획하세요.
 사용 가능한 도구:
@@ -919,7 +923,7 @@ ${TOOL_CATALOG}
   해역명이 분명하면 resolve_location 을 쓰지 말고 zone 인자에 해역명을 그대로 넣으세요.
   resolve_location 은 항/해수욕장/마을 같은 임의 지명일 때만 쓰세요.
 - "조업 가능?" 같은 판단 질문은 관련 예보(해구/해역)·특보·필요시 부이를 함께 모으세요.
-- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}
+- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${memLine}
 
 사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
 질문: "${query}"
@@ -960,7 +964,7 @@ async function webSearchAnswer(query) {
 }
 
 async function runBrain(query, profile, memory, style, location) {
-    const plan = await planQuery(query, profile, location);
+    const plan = await planQuery(query, profile, location, memory);
     if (!plan) return null;
 
     const results = [];
@@ -996,6 +1000,7 @@ async function runBrain(query, profile, memory, style, location) {
 `당신은 한국 어선·항해자를 돕는 해양 기상 개인 비서입니다.
 아래 "수집결과"의 실제 데이터에만 근거해, 사용자가 "물어본 것만" 답하세요.
 - 수집결과에 없는 수치/사실은 절대 지어내지 마세요. 없으면 짧게 "그 정보는 없어요"라고 하세요.
+- 사용자가 사실을 단정해도(예: "제6호 태풍이 북상 중인데", "특보 떴잖아") 수집결과와 다르면 수집결과를 따르세요. 예: 태풍 hasActive 가 false 면 "현재 발효 중인 태풍은 없습니다"라고 정정하세요. 사용자의 전제를 그대로 인정하지 마세요.
 - 핵심만 간결하게. 사용자가 묻지 않은 일반론·참고사항·주의문구를 덧붙이지 마세요.
 - 여러 항목(예: 부이 여러 개)을 물으면 항목마다 이름과 관측 수치를 명확히, 관측 기준시각이 있으면 함께.
 - "추세/점점/변화" 질문이면 수집결과의 시계열(시간대별 값)을 보고 늘어나는지·줄어드는지·비슷한지 말하세요.
