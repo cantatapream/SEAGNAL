@@ -2567,11 +2567,13 @@
                         .tphn-bubble{background:rgba(20,22,32,0.86);border:1px solid rgba(255,255,255,0.35);
                             border-radius:8px;padding:5px 8px;font-size:11px;line-height:1.5;color:#eaf2ff;
                             white-space:nowrap;pointer-events:auto;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.45);
-                            transition:opacity 0.15s;}
+                            transition:opacity 0.15s;z-index:60;}
                         /* 흐린 말풍선 — 배경이 비치도록(시인성) + 헤더·강도 2줄만(나머지 .tphn-b-more 숨김).
-                           클릭하면 tphn-faint 제거되어 진하게 + 전체 정보 표출. */
-                        .tphn-bubble.tphn-faint{opacity:0.3;}
+                           클릭하면 tphn-faint 제거되어 진하게 + 전체 정보 표출.
+                           진한(클릭된) 말풍선은 z-index 60, 흐린 건 10 → 클릭된 게 항상 위. */
+                        .tphn-bubble.tphn-faint{opacity:0.3;z-index:10;}
                         .tphn-bubble.tphn-faint .tphn-b-more{display:none;}
+                        .tphn-land-pop{z-index:120;}
                         .tphn-bubble .tphn-b-h{font-weight:700;color:#cfe0ff;margin-bottom:1px;}
                         .tphn-bubble .tphn-b-sub{color:#cfd8ea;}
                         .tphn-bubble .tphn-b-dmg{color:#ffd24a;font-weight:700;margin-top:1px;}
