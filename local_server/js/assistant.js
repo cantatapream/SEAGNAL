@@ -215,6 +215,8 @@
     if (lk.target) url += '&target=' + encodeURIComponent(lk.target);
     if (lk.zone) url += '&zone=' + encodeURIComponent(lk.zone);
     if (lk.buoy) url += '&buoy=' + encodeURIComponent(lk.buoy);
+    if (lk.lat != null && lk.lon != null) url += '&lat=' + encodeURIComponent(lk.lat) + '&lon=' + encodeURIComponent(lk.lon);
+    if (lk.label) url += '&label=' + encodeURIComponent(lk.label);
     window.location.href = url;
   }
 

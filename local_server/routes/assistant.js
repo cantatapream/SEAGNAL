@@ -56,6 +56,39 @@ try {
     console.warn('[Assistant] buoyLocations 파싱 실패 — 일반 부이 링크로 폴백:', e.message);
 }
 
+// ============================================================================
+// 지명 → 해점 좌표 — 물때 바텀시트를 "그 지명에서 가장 가까운 해점"에서 띄우기 위함.
+//  ① 조석 표준항(TIDE_REFERENCE_STATIONS, tide.js): 인천/제주/부산/목포 등 항만 좌표
+//  ② 해역 대표좌표(SEA_ZONE_COORDINATES, seaZoneCoordinates.js): 특보구역 중심점
+//     (코드 체계가 ZONE_NAME_TO_CODE 와 동일 — 예: 울산앞바다=12C10101)
+//  파싱 실패해도 빈 맵으로 폴백 → 기동 안전.
+// ============================================================================
+const TIDE_STATIONS = [];        // [{ name, nname, lat, lon }]
+try {
+    const raw = fs.readFileSync(path.join(__dirname, '..', 'tide.js'), 'utf8');
+    const re = /name:\s*"([^"]+)",\s*lat:\s*([-\d.]+),\s*lon:\s*([-\d.]+)/g;
+    let m;
+    while ((m = re.exec(raw)) !== null) {
+        TIDE_STATIONS.push({ name: m[1], nname: m[1].replace(/[\s·]/g, ''), lat: +m[2], lon: +m[3] });
+    }
+    console.log(`[Assistant] 조석 표준항 ${TIDE_STATIONS.length}개 로드됨`);
+} catch (e) {
+    console.warn('[Assistant] tide 표준항 파싱 실패:', e.message);
+}
+
+const ZONE_COORDS = {};          // code → { lat, lon }
+try {
+    const raw = fs.readFileSync(path.join(__dirname, '..', 'seaZoneCoordinates.js'), 'utf8');
+    const re = /'([0-9A-Z]+)':\s*\{[\s\S]*?lat:\s*([-\d.]+),\s*lon:\s*([-\d.]+)/g;
+    let m;
+    while ((m = re.exec(raw)) !== null) {
+        ZONE_COORDS[m[1]] = { lat: +m[2], lon: +m[3] };
+    }
+    console.log(`[Assistant] 해역 좌표 ${Object.keys(ZONE_COORDS).length}개 로드됨`);
+} catch (e) {
+    console.warn('[Assistant] seaZoneCoordinates 파싱 실패:', e.message);
+}
+
 // Gemini 공용 클라이언트 (키 없으면 hasAnyKey()=false → 폴백 경로 사용)
 let gemini = null;
 try {
@@ -548,7 +581,7 @@ router.post('/api/assistant/ask', async (req, res) => {
 
     // 앱 내 기능 연결 버튼(특보/부이/태풍/CCTV 등) — 해역과 무관한 항목(태풍·CCTV)도
     // 있으므로 해역 유무와 별개로 먼저 계산한다.
-    const links = buildLinks(query, intent, zone);
+    const links = buildLinks(query, intent, zone, profile);
 
     // [2] 해역을 못 찾은 경우
     if (!zone) {
@@ -597,16 +630,43 @@ function findBuoyInQuery(query) {
 }
 
 /**
+ * 물때 바텀시트를 띄울 "해점" 좌표를 정한다 — 지명에서 가장 가까운 바다 지점.
+ *  우선순위: ① 질문 속 조석 표준항(항만) → 그 좌표
+ *            ② 감지된 특보구역 → 해역 대표좌표
+ *            ③ 프로필 기본 해역 → 그 해역 대표좌표
+ * @returns {null|{ lat, lon, name }}
+ */
+function resolveTidePoint(query, zone, profile) {
+    const nq = normalize(query);
+    // ① 표준항(지명) 매칭 — 긴 이름 우선
+    let st = null;
+    for (const s of TIDE_STATIONS) {
+        if (s.nname && nq.includes(s.nname) && (!st || s.nname.length > st.nname.length)) st = s;
+    }
+    if (st) return { lat: st.lat, lon: st.lon, name: st.name };
+
+    // ② 감지된 해역의 대표좌표
+    const codeFor = (zn) => (zn && ZONE_NAME_TO_CODE[zn]) ? ZONE_NAME_TO_CODE[zn] : null;
+    let code = codeFor(zone);
+    if (code && ZONE_COORDS[code]) return { lat: ZONE_COORDS[code].lat, lon: ZONE_COORDS[code].lon, name: zone };
+
+    // ③ 프로필 기본 해역
+    const pz = profileDefaultZone(profile);
+    code = codeFor(pz);
+    if (code && ZONE_COORDS[code]) return { lat: ZONE_COORDS[code].lat, lon: ZONE_COORDS[code].lon, name: pz };
+
+    return null;
+}
+
+/**
  * 답변 주제에 맞는 "앱 내 기능 연결" 버튼 목록을 만든다.
- * 두 종류:
+ * 종류:
  *   - { type:'ocean', layer }  → 해양종합정보 페이지 + 레이어 활성화
- *     (current/wind/wave/buoy/cctv, 특정 부이면 buoy:id 동봉)
  *   - { type:'tab', target }   → 해당 탭으로 이동 (switchMainTab)
- *     (특보/기상예보=weather-alert-section, 해구정보=sea-zone-section,
- *      해상일기도=marine-chart-section, 태풍정보=typhoon-section)
+ *   - { type:'tide', lat, lon }→ 해양종합정보 + 그 해점에서 물때 바텀시트
  * @returns {Array<object>}
  */
-function buildLinks(query, intent, zone) {
+function buildLinks(query, intent, zone, profile) {
     const nq = normalize(query);
     const links = [];
     const addOcean = (layer, label, extra) => {
@@ -619,6 +679,12 @@ function buildLinks(query, intent, zone) {
             links.push({ type: 'tab', target, label, zone: zone || null });
         }
     };
+
+    // 물때/조석 — 지명에서 가장 가까운 해점에서 바텀시트
+    if (/물때|조석|만조|간조|간만|밀물|썰물|사리|조금|물참|간물참/.test(nq)) {
+        const pt = resolveTidePoint(query, zone, profile);
+        if (pt) links.push({ type: 'tide', lat: pt.lat, lon: pt.lon, label: `${pt.name} 물때 보기` });
+    }
 
     // 해양종합정보 레이어
     if (/유향|유속|조류|해류/.test(nq)) addOcean('current', '유향·유속 보기');

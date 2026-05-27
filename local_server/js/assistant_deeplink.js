@@ -33,12 +33,15 @@
 
   var params;
   try { params = new URLSearchParams(window.location.search); } catch (e) { return; }
-  var aMode = params.get('assistant');           // 'ocean' | 'tab'
-  if (aMode !== 'ocean' && aMode !== 'tab') return;
+  var aMode = params.get('assistant');           // 'ocean' | 'tab' | 'tide'
+  if (aMode !== 'ocean' && aMode !== 'tab' && aMode !== 'tide') return;
 
   var layer = params.get('layer') || '';
   var buoyId = params.get('buoy') || '';
   var target = params.get('target') || '';
+  var lat = parseFloat(params.get('lat'));
+  var lon = parseFloat(params.get('lon'));
+  var label = params.get('label') || '';
 
   // 탭 이동 허용 섹션 화이트리스트 (방어적 — 임의 값으로 switchMainTab 호출 방지)
   var ALLOWED_TABS = {
@@ -97,6 +100,20 @@
           window.switchMainTab(target);
         }
         cleanUrl();
+        return;
+      }
+
+      // 물때: 해양종합정보를 열고, 지정 해점(lat/lon)에서 조석 바텀시트를 올린다.
+      if (aMode === 'tide') {
+        if (!isFinite(lat) || !isFinite(lon)) { cleanUrl(); return; }
+        if (typeof window.switchMainTab === 'function') window.switchMainTab('ocean-map-section');
+        // 지도/시트 초기화 여유를 두고 바텀시트 호출 (함수가 준비될 때까지 잠깐 폴링)
+        waitFor(function () { return typeof window.showOceanBottomSheet === 'function'; }, function () {
+          setTimeout(function () {
+            try { window.showOceanBottomSheet(lat, lon, label ? { name: label } : undefined); } catch (e) {}
+            cleanUrl();
+          }, 600);
+        }, 8000);
         return;
       }
 
