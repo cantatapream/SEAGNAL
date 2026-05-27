@@ -952,6 +952,11 @@
         // [충돌 방지] hit 이면 true 반환 → 아래 바텀시트 로직이 추가로 뜨는 것을 막음.
         if (tryHandleMarineZoneClick(evt)) return;
 
+        // 태풍 ON + 육지 클릭 → 바텀시트 대신 강풍반경 도달(상륙)시간 팝업.
+        if (window.OceanTyphoon && typeof window.OceanTyphoon.tryHandleLandClick === 'function') {
+            if (window.OceanTyphoon.tryHandleLandClick(lon, lat)) return;
+        }
+
         // 활성 특보 색칠 모드(특보 ON 토글) — 부모 특보구역 클릭 시 특보 박스 표출.
         // [충돌 방지] hit 이면 true 반환 → 바텀시트 표출 스킵.
         // [정책] 활성/다가오는 특보가 있는 부모 zone 폴리곤만 hit. 자식 폴리곤을

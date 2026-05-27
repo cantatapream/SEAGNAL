@@ -52,6 +52,7 @@
     var RELAX_MIN_ZOOM = 3;   // 태풍 ON 시 minZoom 완화(더 넓게 축소 가능; 기본 6 → 3)
     var _origMinZoom = null;  // 원래 minZoom 백업(끄면 복원)
     var _moveBubble = null, _moveEl = null;  // 재생 중 이동 말풍선(ol.Overlay)
+    var _landPopup = null, _landEl = null;   // 육지 클릭 시 강풍반경 도달시간 팝업(ol.Overlay)
     var _pointBubbles = [];   // 정지(기본) 시 포인트별 말풍선 풀(ol.Overlay)
     var _playbackMode = false; // true=재생(이동 말풍선만), false=기본(포인트별 말풍선 + 사전 범위)
     var _koreaBuoy = null;     // 우리 해역 진입 시 진로선 최근접 부이 관측 {name,type,obs} (해구도 표출 시에만 사용)
@@ -494,6 +495,76 @@
         });
     }
 
+    // ── 육지 클릭: 강풍반경 도달(상륙)까지 남은 시간 ─────────────────────────────
+    //   예측 경로를 따라 위치·강풍반경을 선형보간하며, 클릭 지점이 강풍반경 안에
+    //   들어오는 가장 이른 시각을 찾는다. 반환: {status, etaMs}
+    //     status: 'inside'(이미 영향권) | 'eta'(etaMs 에 도달) | 'none'(경로상 도달 없음)
+    function landArrivalInfo(lat, lon) {
+        if (_frames.length === 0) return { status: 'none' };
+        var nowMs = nowKstMs();
+        var STEP = 10 * 60000; // 10분 간격 샘플
+        // 시작: max(now, 첫 프레임). 끝: 마지막 프레임.
+        var startMs = Math.max(nowMs, _frames[0]._t);
+        var endMs = _frames[_frames.length - 1]._t;
+        if (endMs < startMs) return { status: 'none' };
+        function interpAt(ms) {
+            // ms 가 속한 세그먼트에서 lat/lon/radStrong 선형보간.
+            if (ms <= _frames[0]._t) return { lat: _frames[0].lat, lon: _frames[0].lon, rad: _frames[0].radStrong || 0 };
+            for (var i = 0; i < _frames.length - 1; i++) {
+                var a = _frames[i], b = _frames[i + 1];
+                if (ms >= a._t && ms <= b._t) {
+                    var t = (b._t - a._t) ? (ms - a._t) / (b._t - a._t) : 0;
+                    return {
+                        lat: a.lat + (b.lat - a.lat) * t,
+                        lon: a.lon + (b.lon - a.lon) * t,
+                        rad: (a.radStrong || 0) + ((b.radStrong || 0) - (a.radStrong || 0)) * t
+                    };
+                }
+            }
+            var L = _frames[_frames.length - 1];
+            return { lat: L.lat, lon: L.lon, rad: L.radStrong || 0 };
+        }
+        // 시작 시점에 이미 강풍반경 안인가.
+        var s0 = interpAt(startMs);
+        if (s0.rad > 0 && haversineKm(lat, lon, s0.lat, s0.lon) <= s0.rad) return { status: 'inside' };
+        for (var ms = startMs; ms <= endMs; ms += STEP) {
+            var p = interpAt(ms);
+            if (p.rad > 0 && haversineKm(lat, lon, p.lat, p.lon) <= p.rad) return { status: 'eta', etaMs: ms };
+        }
+        return { status: 'none' };
+    }
+    // 남은 시간(ms) → "약 N일 M시간" / "약 N시간 M분" / "약 N분"
+    function fmtRemain(ms) {
+        var m = Math.max(0, Math.round(ms / 60000));
+        var d = Math.floor(m / 1440); m -= d * 1440;
+        var h = Math.floor(m / 60); m -= h * 60;
+        if (d > 0) return '약 ' + d + '일 ' + h + '시간';
+        if (h > 0) return '약 ' + h + '시간 ' + (m ? m + '분' : '');
+        return '약 ' + m + '분';
+    }
+    function showLandArrival(lon, lat) {
+        if (!_landPopup || !_visible || _frames.length === 0) return false;
+        var info = landArrivalInfo(lat, lon);
+        var body;
+        if (info.status === 'inside') {
+            body = '<div class="tphn-b-zone" style="color:#ff6b6b">이미 강풍반경 영향권</div>';
+        } else if (info.status === 'eta') {
+            var nowMs = nowKstMs();
+            body = '<div class="tphn-b-zone" style="color:#ffd24a">강풍반경 도달까지 ' + fmtRemain(info.etaMs - nowMs) + '</div>'
+                + '<div class="tphn-b-sub">예상 도달 ' + fmtFromMs(info.etaMs) + '</div>';
+        } else {
+            body = '<div class="tphn-b-sub">예상 경로상 강풍반경 도달 없음</div>';
+        }
+        var h = '<div class="tphn-b-h">태풍 상륙 예상 <span class="tphn-land-close" style="float:right;cursor:pointer;padding:0 4px">&times;</span></div>'
+            + body
+            + '<div class="tphn-b-more" style="display:block">'
+            + '<button type="button" class="tphn-guide-btn"><i class="fa-solid fa-life-ring"></i> 해상 종사자 행동요령</button></div>';
+        _landEl.innerHTML = h;
+        _landEl.style.display = '';
+        _landPopup.setPosition(ol.proj.fromLonLat([lon, lat]));
+        return true;
+    }
+
     // 레이어별 채움 스타일 — 테두리 없이 fill 만(회랑 내부 포인트 원 윤곽이 남지 않도록).
     function swathStyle(strokeC, fillC) {
         return new ol.style.Style({ fill: new ol.style.Fill({ color: fillC }) });
@@ -876,6 +947,19 @@
         map.addLayer(_probLayer); map.addLayer(_strongLayer); map.addLayer(_stormLayer);
         map.addLayer(_trackLayer); map.addLayer(_headLayer); map.addLayer(_pointLayer);
         _moveBubble = makeBubbleOverlay(); map.addOverlay(_moveBubble); _moveEl = _moveBubble.getElement();
+        // 육지 클릭 팝업(강풍반경 도달시간) — 클릭 차단(stopEvent), 닫기·행동요령 버튼 처리.
+        _landEl = document.createElement('div');
+        _landEl.className = 'tphn-bubble tphn-land-pop';
+        _landEl.style.display = 'none';
+        _landEl.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (e.target.closest && e.target.closest('.tphn-land-close')) { _landEl.style.display = 'none'; _landPopup.setPosition(undefined); return; }
+            if (e.target.closest && e.target.closest('.tphn-guide-btn')) {
+                var gm = document.getElementById('tphn-guide-modal'); if (gm) gm.style.display = 'flex';
+            }
+        });
+        _landPopup = new ol.Overlay({ element: _landEl, offset: [12, -12], positioning: 'bottom-left', stopEvent: true });
+        map.addOverlay(_landPopup);
         try { var s = JSON.parse(localStorage.getItem(LAYER_KEY)); if (s) _layerOn = Object.assign(_layerOn, s); } catch (e) {}
         applyLayerVisibility();
     }
@@ -970,5 +1054,16 @@
         installWhenReady();
     }
 
-    window.OceanTyphoon = { reload: load, show: function () { setVisible(true); }, hide: function () { setVisible(false); } };
+    window.OceanTyphoon = {
+        reload: load,
+        show: function () { setVisible(true); },
+        hide: function () { setVisible(false); },
+        isVisible: function () { return _visible; },
+        // 육지 클릭 처리: 태풍 ON + 실제 육지일 때만 강풍반경 도달시간 팝업 표출. consumed 시 true.
+        tryHandleLandClick: function (lon, lat) {
+            if (!_visible || _frames.length === 0) return false;
+            if (!(window.isOceanLand && window.isOceanLand(lat, lon) === true)) return false;
+            return showLandArrival(lon, lat);
+        }
+    };
 })();

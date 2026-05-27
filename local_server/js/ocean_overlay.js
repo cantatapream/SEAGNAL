@@ -1838,4 +1838,19 @@
         return Math.sqrt(minDist) <= 0.35;
     };
 
+    // 클릭 지점이 실제 육지인지 — 육지 마스크 링(landRings, [lon,lat] 쌍)에 대한 point-in-polygon.
+    //   ocean_typhoon.js 의 육지 클릭(강풍반경 도달시간) 판정에 사용. 마스크 미로드 시 null 반환.
+    window.isOceanLand = function (lat, lon) {
+        if (!landRings || landRings.length === 0) return null;
+        var inside = false;
+        for (var ri = 0; ri < landRings.length; ri++) {
+            var ring = landRings[ri];
+            for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+                if (((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / ((yj - yi) || 1e-12) + xi)) inside = !inside;
+            }
+        }
+        return inside;
+    };
+
 })();
