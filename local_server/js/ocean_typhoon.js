@@ -1001,7 +1001,8 @@
         if (!el) return;
         var html = '';
         [0, 1, 2, 3, 4, 5].forEach(function (g) {
-            html += '<span class="tphn-leg-item"><i style="background:' + rgba(gradeColor(g), 1) + '"></i>' + GRADE_NAMES[g] + '</span>';
+            // 색상 원 안에 강도 숫자(1~5) — 지도 포인트와 동일. 열대저압부(0)는 숫자 없음.
+            html += '<span class="tphn-leg-item"><i style="background:' + rgba(gradeColor(g), 1) + '">' + (g >= 1 ? g : '') + '</i>' + GRADE_NAMES[g] + '</span>';
         });
         el.innerHTML = html;
     }
@@ -1141,8 +1142,9 @@
         _strongLayer = new ol.layer.Vector(Object.assign({ source: _strongSrc, zIndex: 118, style: swathStyle(rgba(STRONG_C, 0.95), rgba(STRONG_C, 0.32)) }, uw));
         _stormLayer = new ol.layer.Vector(Object.assign({ source: _stormSrc, zIndex: 120, style: swathStyle(rgba(STORM_C, 0.95), rgba(STORM_C, 0.36)) }, uw));
         _trackLayer = new ol.layer.Vector(Object.assign({ source: _trackSrc, zIndex: 124 }, uw));
-        _headLayer = new ol.layer.Vector(Object.assign({ source: _headSrc, zIndex: 130 }, uw));
-        _pointLayer = new ol.layer.Vector(Object.assign({ source: _pointSrc, zIndex: 140 }, uw)); // 포인트는 모든 레이어 위
+        _pointLayer = new ol.layer.Vector(Object.assign({ source: _pointSrc, zIndex: 140 }, uw)); // 강도숫자 포인트
+        // 이동 태풍(🌀) 헤드는 포인트(140)보다 위 → 재생 중 포인트 숫자에 가려지지 않음.
+        _headLayer = new ol.layer.Vector(Object.assign({ source: _headSrc, zIndex: 150 }, uw));
         map.addLayer(_probLayer); map.addLayer(_strongLayer); map.addLayer(_stormLayer);
         map.addLayer(_trackLayer); map.addLayer(_headLayer); map.addLayer(_pointLayer);
         _moveBubble = makeBubbleOverlay(); map.addOverlay(_moveBubble); _moveEl = _moveBubble.getElement();
