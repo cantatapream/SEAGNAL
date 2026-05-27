@@ -125,8 +125,9 @@
     } catch (e) { showEq(false); }
   }
 
-  // ── 로컬 저장 (프로필 + 메모리) — 휴대폰 내부에만 보관 ──────────────────────
+  // ── 로컬 저장 (프로필 + 메모리 + 성향) — 휴대폰 내부에만 보관 ──────────────────
   var PROFILE_KEY = 'seagnal_profile', MEMORY_KEY = 'seagnal_memory', MEMORY_MAX = 20;
+  var STYLE_KEY = 'seagnal_style', STYLE_REFRESH_EVERY = 8;
 
   function getProfile() {
     try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch (e) { return null; }
@@ -146,6 +147,41 @@
     try { localStorage.setItem(MEMORY_KEY, JSON.stringify(m)); } catch (e) {}
   }
 
+  // [성향 다이제스트] 통계는 결정론적으로 누적(질문수·자주 보는 해역/주제),
+  //   말투/선호 요약(styleNote)은 몇 건마다 AI로 갱신. 전부 휴대폰에만 저장.
+  function getStyle() {
+    try { var s = JSON.parse(localStorage.getItem(STYLE_KEY) || 'null'); return s || { totalQuestions: 0, zoneCounts: {}, topicCounts: {} }; }
+    catch (e) { return { totalQuestions: 0, zoneCounts: {}, topicCounts: {} }; }
+  }
+  function setStyle(s) { try { localStorage.setItem(STYLE_KEY, JSON.stringify(s || {})); } catch (e) {} }
+
+  // 응답으로 통계 누적: 해역 카운트 + 주제(링크/intent) 카운트 + 총 질문수
+  function updateStyleStats(d) {
+    var s = getStyle();
+    s.totalQuestions = (s.totalQuestions || 0) + 1;
+    s.zoneCounts = s.zoneCounts || {}; s.topicCounts = s.topicCounts || {};
+    if (d && d.zone) s.zoneCounts[d.zone] = (s.zoneCounts[d.zone] || 0) + 1;
+    var topics = {};
+    (d && d.links || []).forEach(function (l) { if (l.layer) topics[l.layer] = 1; if (l.target) topics[l.target] = 1; });
+    if (d && d.intent && d.intent !== 'brain') topics[d.intent] = 1;
+    Object.keys(topics).forEach(function (t) { s.topicCounts[t] = (s.topicCounts[t] || 0) + 1; });
+    // 프로필의 답변 스타일을 선호형식 기본값으로
+    var p = getProfile(); if (p && p.answerStyle && !s.preferredFormat) s.preferredFormat = p.answerStyle;
+    setStyle(s);
+    // 몇 건마다 AI 말투 요약 갱신
+    if (s.totalQuestions % STYLE_REFRESH_EVERY === 0) refreshStyleDigest();
+  }
+
+  function refreshStyleDigest() {
+    var mem = getMemory(); if (!mem.length) return;
+    var history = mem.slice(-20).map(function (x) { return { note: x }; });
+    fetch('/api/assistant/style-digest', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ history: history })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.ok) { var s = getStyle(); if (d.styleNote) s.styleNote = d.styleNote; if (d.preferredFormat) s.preferredFormat = d.preferredFormat; setStyle(s); }
+    }).catch(function () { /* 무시 */ });
+  }
+
   // ── 서버 질의 ─────────────────────────────────────────────────────────
   function ask(query) {
     if (!query) return;
@@ -159,7 +195,7 @@
     fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: query, profile: getProfile(), memory: getMemory() })
+      body: JSON.stringify({ query: query, profile: getProfile(), memory: getMemory(), style: getStyle() })
     })
       .then(function (r) { return r.json(); })
       .then(function (d) {
@@ -170,6 +206,8 @@
           ? ('해역: ' + d.zone + (d.zoneFromProfile ? '(프로필 기본)' : '') + ' · 의도: ' + d.intent)
           : '';
         renderActions(d.links);
+        // 성향 통계 누적(질문수·해역·주제) + 주기적 말투 요약 갱신
+        updateStyleStats(d);
         // 과거 대화 요약을 휴대폰에 누적 → 다음 질문에 참고
         if (d.zone) pushMemory(d.zone + ': "' + query + '" → ' + String(d.answer).slice(0, 50));
         speak(d.answer);
@@ -569,6 +607,16 @@
     if (p.vessel && (p.vessel.text || p.vessel.tonnage)) bits.push('선박: ' + (p.vessel.text || p.vessel.tonnage));
     if (p.vesselText) bits.push('선박: ' + p.vesselText);
     if (p.answerStyle) bits.push('답변: ' + p.answerStyle);
+    // 누적 성향 통계 한 줄
+    var s = getStyle();
+    if (s && s.totalQuestions) {
+      var topN = function (c, n) { return c ? Object.keys(c).sort(function (a, b) { return c[b] - c[a]; }).slice(0, n) : []; };
+      var tz = topN(s.zoneCounts, 2), tt = topN(s.topicCounts, 2);
+      var stat = '질문 ' + s.totalQuestions + '회';
+      if (tz.length) stat += ' · 자주: ' + tz.join(', ');
+      if (s.styleNote) stat += ' · ' + s.styleNote;
+      bits.push('<span style="color:var(--muted);font-size:12px;">' + stat + '</span>');
+    }
     profileSummary.innerHTML = bits.length ? bits.join('<br/>') : '(저장된 정보 없음 — 건너뜀)';
     profileBox.style.display = 'block';
   }
@@ -577,7 +625,7 @@
   if (editBtn) editBtn.addEventListener('click', startOnboarding);
   if (delBtn) delBtn.addEventListener('click', function () {
     clearProfile();
-    try { localStorage.removeItem(MEMORY_KEY); } catch (e) {}
+    try { localStorage.removeItem(MEMORY_KEY); localStorage.removeItem(STYLE_KEY); } catch (e) {}
     renderProfile();
     startOnboarding();
   });

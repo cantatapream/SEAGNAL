@@ -389,7 +389,7 @@ function composeAnswerFallback(zoneName, intent, fc, warn, profile) {
 //  답변의 "근거 데이터"는 여전히 기상청 실데이터(fc/warn)뿐이며, profile/memory
 //  는 말투·관점·기본 해역 같은 맥락에만 쓰도록 프롬프트에서 분리한다.
 // ============================================================================
-async function composeAnswerAI(zoneName, intent, fc, warn, profile, memory) {
+async function composeAnswerAI(zoneName, intent, fc, warn, profile, memory, style) {
     const factPayload = {
         해역: zoneName,
         질문유형: intent,
@@ -397,7 +397,7 @@ async function composeAnswerAI(zoneName, intent, fc, warn, profile, memory) {
         특보: warn      // { current, upcoming } or null
     };
 
-    const personalBlock = buildPersonalContext(profile, memory);
+    const personalBlock = buildPersonalContext(profile, memory, style);
 
     const prompt =
 `당신은 한국 어선·항해자를 돕는 해양 기상 개인 비서입니다.
@@ -428,18 +428,30 @@ ${JSON.stringify(factPayload, null, 1)}`;
  * 프로필/메모리를 프롬프트에 끼워넣을 개인화 컨텍스트 블록 생성.
  * 없으면 빈 문자열. (개인화는 맥락일 뿐, 기상 수치의 근거가 아님을 명시)
  */
-function buildPersonalContext(profile, memory) {
+function buildPersonalContext(profile, memory, style) {
     const lines = [];
     if (profile && (typeof profile === 'object' ? Object.keys(profile).length : String(profile).trim())) {
         const profileText = typeof profile === 'string' ? profile : JSON.stringify(profile);
         lines.push(`[사용자 프로필] ${profileText}`);
     }
+    // [성향 다이제스트] 휴대폰에 누적된 통계 — 자주 묻는 주제/해역·선호 형식·말투
+    if (style && typeof style === 'object') {
+        const topN = (counts, n) => (counts && typeof counts === 'object')
+            ? Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, n).map(e => e[0]) : [];
+        const parts = [];
+        if (style.totalQuestions) parts.push(`누적 질문 ${style.totalQuestions}회`);
+        const tz = topN(style.zoneCounts, 3); if (tz.length) parts.push(`자주 보는 해역: ${tz.join(', ')}`);
+        const tt = topN(style.topicCounts, 3); if (tt.length) parts.push(`관심 주제: ${tt.join(', ')}`);
+        if (style.preferredFormat) parts.push(`선호 답변형식: ${style.preferredFormat}`);
+        if (style.styleNote) parts.push(`말투/스타일: ${style.styleNote}`);
+        if (parts.length) lines.push(`[사용자 성향] ${parts.join(' · ')}`);
+    }
     if (Array.isArray(memory) && memory.length) {
-        lines.push(`[과거 대화 메모] ${memory.slice(-5).join(' / ')}`);
+        lines.push(`[최근 대화] ${memory.slice(-5).join(' / ')}`);
     }
     if (!lines.length) return '';
-    return `\n아래는 이 사용자에 대한 참고 맥락입니다. 말투·관심사·기본 활동해역 추정에만 활용하고,
-기상 수치는 반드시 위 "기상데이터"에서만 가져오세요. 사용자가 '간단히'를 선호하면 더 짧게 답하세요.
+    return `\n아래는 이 사용자에 대한 참고 맥락입니다. 말투·관심사·기본 활동해역·답변 길이 조절에만 활용하고,
+기상 수치는 반드시 위 "기상데이터"/"수집결과"에서만 가져오세요. 사용자가 '간단히'를 선호하면 더 짧게 답하세요.
 ${lines.join('\n')}\n`;
 }
 
@@ -771,7 +783,7 @@ JSON 으로만: {"steps":[{"tool":"<도구명>","args":{...}}], "zone":"<관련 
 }
 
 /** 2~3단계: 계획 실행 + 실데이터로 답변 종합 */
-async function runBrain(query, profile, memory) {
+async function runBrain(query, profile, memory, style) {
     const plan = await planQuery(query, profile);
     if (!plan) return null;
 
@@ -783,7 +795,7 @@ async function runBrain(query, profile, memory) {
         catch (e) { results.push({ tool: step.tool, error: e.message }); }
     }
 
-    const personal = buildPersonalContext(profile, memory);
+    const personal = buildPersonalContext(profile, memory, style);
     const synth =
 `당신은 한국 어선·항해자를 돕는 해양 기상 개인 비서입니다.
 아래 "수집결과"의 실제 데이터에만 근거해 질문에 답하세요.
@@ -817,6 +829,7 @@ router.post('/api/assistant/ask', async (req, res) => {
     // [개인화] 휴대폰에 저장돼 함께 전송된 프로필/메모리 (없으면 무시)
     const profile = (req.body && req.body.profile) || null;
     const memory = (req.body && Array.isArray(req.body.memory)) ? req.body.memory : null;
+    const style = (req.body && req.body.style && typeof req.body.style === 'object') ? req.body.style : null;
 
     if (!query) {
         return res.status(400).json({ ok: false, error: '질문(query)이 비어 있습니다.' });
@@ -828,7 +841,7 @@ router.post('/api/assistant/ask', async (req, res) => {
     //   실패하면 아래 결정론적 경로로 자동 폴백한다.
     if (aiAvailable) {
         try {
-            const brain = await runBrain(query, profile, memory);
+            const brain = await runBrain(query, profile, memory, style);
             if (brain && brain.answer) {
                 return res.json({
                     ok: true, zone: brain.zone, intent: 'brain', answer: brain.answer,
@@ -904,7 +917,7 @@ router.post('/api/assistant/ask', async (req, res) => {
     let answer;
     let aiUsed = false;
     if (aiAvailable) {
-        answer = await composeAnswerAI(zone, intent, fc, warn, profile, memory);
+        answer = await composeAnswerAI(zone, intent, fc, warn, profile, memory, style);
         aiUsed = true;
     } else {
         answer = composeAnswerFallback(zone, intent, fc, warn, profile);
@@ -1165,6 +1178,46 @@ router.post('/api/assistant/onboard', async (req, res) => {
     if (!result) result = onboardScripted(messages);
 
     res.json({ ok: true, ...result });
+});
+
+// ============================================================================
+// 9. 스타일·성향 다이제스트 — 누적 대화를 AI가 정리(말투/선호형식/관심사).
+//   클라이언트가 몇 건마다 한 번 호출해 결과를 휴대폰에 저장(seagnal_style.styleNote).
+//   통계(자주 보는 해역/주제, 질문 수)는 클라이언트가 결정론적으로 누적하므로,
+//   이 엔드포인트는 "말투/선호" 같은 정성 요약만 담당. 키 없으면 ok:false 반환.
+// ============================================================================
+router.post('/api/assistant/style-digest', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const rate = checkRateLimit(getClientIp(req));
+    if (!rate.allowed) {
+        res.setHeader('Retry-After', String(rate.retryAfterSec));
+        return res.status(429).json({ ok: false, error: '요청이 너무 많습니다.' });
+    }
+    if (!(gemini && gemini.hasAnyKey && gemini.hasAnyKey())) {
+        return res.json({ ok: false, reason: 'no-ai' });
+    }
+    const history = (req.body && Array.isArray(req.body.history)) ? req.body.history.slice(-30) : [];
+    if (!history.length) return res.json({ ok: false, reason: 'no-history' });
+
+    const prompt =
+`사용자가 해양 기상 비서와 나눈 대화 기록입니다. 사용자의 "성향"을 한 문장으로 요약하세요.
+- 어떤 말투로 묻는지(예: 짧고 직설적/존댓말/사투리), 어떤 정보를 자주 원하는지, 답변 길이 선호(간결/상세)를 반영.
+- 개인정보·민감정보는 넣지 마세요. 60자 이내 한 문장.
+
+대화기록(JSON): ${JSON.stringify(history)}
+
+JSON 으로만: {"styleNote":"<한 문장>","preferredFormat":"간결|상세|보통"}`;
+    try {
+        const r = await gemini.callGemini({
+            model: BRAIN_MODEL, contents: prompt,
+            config: { responseMimeType: 'application/json', temperature: 0.3 }, caller: 'Assistant-Style'
+        });
+        if (!r.success || !r.text) return res.json({ ok: false, reason: 'ai-failed' });
+        const p = JSON.parse(r.text);
+        return res.json({ ok: true, styleNote: (p.styleNote || '').slice(0, 80), preferredFormat: p.preferredFormat || null });
+    } catch (e) {
+        return res.json({ ok: false, reason: 'error' });
+    }
 });
 
 module.exports = router;
