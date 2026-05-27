@@ -29,7 +29,14 @@
     'use strict';
 
     var VISIBLE_KEY = 'seagnal_typhoon_visible';
+    var UNLOCK_KEY = 'seagnal_typhoon_unlocked';
+    var TAP_THRESHOLD = 10;   // 비활성 버튼을 10회 탭하면 기능 활성화(히든 탭)
+    var TAP_RESET_MS = 3000;  // 탭 간격이 이보다 길면 카운트 리셋
     var FULL_PLAY_MS = 12000; // 전체 타임라인 재생 시간(스크러버 0→끝)
+
+    var _unlocked = false;
+    var _tapCount = 0;
+    var _tapTimer = null;
 
     var _map = null;
     var _staticLayer = null;   // 진로선 + 점 + 확률 cone + 라벨
@@ -326,6 +333,12 @@
     function applyAvailability() {
         var btn = document.getElementById('ocean-typhoon-toggle-btn');
         if (!btn) return;
+        // 잠금(기본) 상태: 항상 비활성 모양 — 10회 탭 전까지는 hasActive 와 무관하게 가림.
+        if (!_unlocked) {
+            btn.classList.add('tphn-disabled');
+            btn.title = '태풍';
+            return;
+        }
         var has = _data && _data.hasActive && _data.bulletins && _data.bulletins.length;
         if (!has) {
             btn.classList.add('tphn-disabled');
@@ -335,6 +348,20 @@
             btn.classList.remove('tphn-disabled');
             btn.title = '태풍 진로';
         }
+    }
+
+    // 비활성 버튼 탭 처리 — 10회 누적 시 잠금 해제 + 태풍 현황 표출.
+    function handleGateTap() {
+        _tapCount++;
+        clearTimeout(_tapTimer);
+        _tapTimer = setTimeout(function () { _tapCount = 0; }, TAP_RESET_MS);
+        if (_tapCount < TAP_THRESHOLD) return;
+        _tapCount = 0;
+        _unlocked = true;
+        try { localStorage.setItem(UNLOCK_KEY, 'true'); } catch (e) {}
+        applyAvailability();
+        // 표출: 활성 태풍이 있으면 오버레이 ON (없으면 패널만 열어 "현재 태풍 없음" 인지 가능)
+        setVisible(true);
     }
 
     // ── 데이터 로드 ──────────────────────────────────────────────────────────
@@ -364,7 +391,9 @@
         var btn = document.getElementById('ocean-typhoon-toggle-btn');
         if (btn) {
             btn.addEventListener('click', function () {
-                if (btn.classList.contains('tphn-disabled')) return;
+                if (!_unlocked) { handleGateTap(); return; }   // 잠금 상태 → 탭 카운트
+                var has = _data && _data.hasActive && _data.bulletins && _data.bulletins.length;
+                if (!has) return;                               // 활성 태풍 없음
                 setVisible(!_visible);
             });
         }
@@ -383,10 +412,12 @@
             var map = window.getOceanMap && window.getOceanMap();
             if (map && window.ol) {
                 _map = map;
+                try { _unlocked = localStorage.getItem(UNLOCK_KEY) === 'true'; } catch (e) { _unlocked = false; }
                 ensureLayers(map);
                 bindUI();
                 try { _visible = localStorage.getItem(VISIBLE_KEY) === 'true'; } catch (e) { _visible = false; }
-                load().then(function () { if (_visible) setVisible(true); });
+                // 잠금 해제된 경우에만 직전 표시 상태 복원 (기본은 비활성).
+                load().then(function () { if (_unlocked && _visible) setVisible(true); });
                 // 5분마다 데이터 갱신(통보문 신규 반영) — 보이는 동안에만
                 setInterval(function () { if (_visible) load(); }, 5 * 60 * 1000);
                 return;

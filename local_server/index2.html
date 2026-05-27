@@ -2422,13 +2422,6 @@
                             <i class="fa-solid fa-anchor"></i>
                             <span class="ocean-overlay-label" data-line1="기상" data-line2="부이">기상부이</span>
                         </button>
-                        <!-- 태풍 진로/예보 토글: js/ocean_typhoon.js 가 바인딩
-                             방재기상플랫폼 통보문 기반 진로선·반경 원·재생 애니메이션 표출.
-                             [연계] /api/typhoon (routes/typhoon.js → data/typhoon.json) -->
-                        <button class="ocean-overlay-btn" id="ocean-typhoon-toggle-btn" title="태풍 진로">
-                            <i class="fa-solid fa-hurricane"></i>
-                            <span class="ocean-overlay-label" data-line1="태풍" data-line2="진로">태풍</span>
-                        </button>
                         <!-- 특보구역 + 활성 특보 색칠 토글 묶음
                              [HTML 구조 의도]
                                .ocean-warn-zone-wrap (relative) 안에:
@@ -2502,6 +2495,13 @@
                                 </button>
                             </div>
                         </div>
+                        <!-- 태풍 진로/예보 토글 (기본 비활성 — 10회 탭으로 활성화): js/ocean_typhoon.js
+                             방재기상플랫폼 통보문 기반 진로선·반경 원·재생 애니메이션 표출.
+                             [위치] 천기 아래·CCTV 위. [연계] /api/typhoon (routes/typhoon.js) -->
+                        <button class="ocean-overlay-btn tphn-disabled" id="ocean-typhoon-toggle-btn" title="태풍">
+                            <i class="fa-solid fa-hurricane"></i>
+                            <span class="ocean-overlay-label" data-line1="태풍">태풍</span>
+                        </button>
                         <!-- CCTV 토글: ocean_cctv.js 가 바인딩 (index2 전용)
                              활성화 시 지도 위에 CCTV 마커/클러스터 표시 + 하단 CCTV 즐겨찾기 바 노출
                              [연계] js/ocean_cctv.js -->
