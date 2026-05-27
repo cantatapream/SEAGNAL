@@ -354,7 +354,6 @@ const USAGE_CSV_LABELS = {
     'ocean.gugu_forecast': '해구 전망표/그래프',
     'ocean.cctv_open': 'CCTV 팝업',
     'ocean.typhoon': '태풍',
-    'ocean.typhoon_map': '태풍 통보문 지도',
     'ocean.basemap.rltm': '배경 · 기본맵',
     'ocean.basemap.enc': '배경 · 전자해도',
     'ocean.basemap.coast': '배경 · 해안도',
