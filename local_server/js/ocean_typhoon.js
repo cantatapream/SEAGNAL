@@ -44,10 +44,12 @@
 
     var _map = null;
     // dmdw 상세정보 레이어 대응: 예측경로(track) / 70%확률반경(prob) / 강풍반경(strong) / 폭풍반경(storm)
-    var _trackLayer = null, _probLayer = null, _strongLayer = null, _stormLayer = null, _headLayer = null;
-    var _trackSrc = null, _probSrc = null, _strongSrc = null, _stormSrc = null, _headSrc = null;
+    var _trackLayer = null, _probLayer = null, _strongLayer = null, _stormLayer = null, _headLayer = null, _pointLayer = null;
+    var _trackSrc = null, _probSrc = null, _strongSrc = null, _stormSrc = null, _headSrc = null, _pointSrc = null;
     var LAYER_KEY = 'seagnal_typhoon_layers';
     var _layerOn = { track: true, prob: true, strong: false, storm: false };
+    var RELAX_MIN_ZOOM = 3;   // 태풍 ON 시 minZoom 완화(더 넓게 축소 가능; 기본 6 → 3)
+    var _origMinZoom = null;  // 원래 minZoom 백업(끄면 복원)
 
     var _activeData = null;    // /api/typhoon 응답(현재연도 활성 태풍 + 통보문 인라인)
     var _year = null;          // 선택 연도
@@ -191,7 +193,7 @@
     // ── 정적 진로 렌더 ────────────────────────────────────────────────────────
     function renderStatic() {
         if (!_trackSrc) return;
-        _trackSrc.clear(); _probSrc.clear(); _strongSrc.clear(); _stormSrc.clear();
+        _trackSrc.clear(); _probSrc.clear(); _strongSrc.clear(); _stormSrc.clear(); _pointSrc.clear();
         if (!_frames.length) return;
 
         // ⑤ 70%확률반경 cone (노랑), ④ 강풍반경 swath (옅은 파랑), ③ 폭풍반경 swath (진한 파랑)
@@ -220,13 +222,13 @@
                     stroke: new ol.style.Stroke({ color: f.isCurrent ? '#d00' : '#fff', width: f.isCurrent ? 3 : 1.5 })
                 }),
                 text: new ol.style.Text({
-                    text: (f.isCurrent ? '실제위치 ' : '') + fmtTime(f.time),
+                    text: fmtFromMs(timeToMs(f.time)) + (f.isCurrent ? ' 발표위치' : ' 예상위치'),
                     offsetY: -14, font: (f.isCurrent ? 'bold ' : '') + '11px sans-serif',
                     fill: new ol.style.Fill({ color: '#222' }),
                     stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,0.9)', width: 3 })
                 })
             }));
-            _trackSrc.addFeature(pt);
+            _pointSrc.addFeature(pt); // 포인트는 전용 최상단 레이어에
         });
     }
 
@@ -246,30 +248,51 @@
         if (!f) return;
         var c = f._colorF || gradeColor(f._gradeF || 0);
 
-        // 70% 확률반경 — 이동에 따라 보간되어 점차 커지/작아지는 영향 원(가장 바깥)
+        // ── 지나온 자취(항적) — 시작~현재까지 ──
+        // (1) 강풍반경 영역 자취: 지나온 시점 + 현재의 강풍 원 union (이동 흔적의 "면")
+        var sweptPolys = [];
+        _frames.forEach(function (fr) { if (fr._t <= f._rtMs && fr.radStrong > 0) sweptPolys.push([geoCircleRing(fr.lon, fr.lat, fr.radStrong)]); });
+        if (f.radStrong > 0) sweptPolys.push([geoCircleRing(f.lon, f.lat, f.radStrong)]);
+        if (sweptPolys.length) {
+            var swept = new ol.Feature(new ol.geom.MultiPolygon(sweptPolys));
+            swept.setStyle(new ol.style.Style({
+                fill: new ol.style.Fill({ color: rgba(c, 0.18) }),
+                stroke: new ol.style.Stroke({ color: rgba(c, 0.45), width: 1 })
+            }));
+            _headSrc.addFeature(swept);
+        }
+        // (2) 진행 자취 중심선: 지나온 경로 + 현재 위치 (굵은 실선, 강도색)
+        var passed = [];
+        _frames.forEach(function (fr) { if (fr._t <= f._rtMs) passed.push(ol.proj.fromLonLat([fr.lon, fr.lat])); });
+        passed.push(ol.proj.fromLonLat([f.lon, f.lat]));
+        if (passed.length >= 2) {
+            var trail = new ol.Feature(new ol.geom.LineString(passed));
+            trail.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: rgba(c, 0.95), width: 3.5 }) }));
+            _headSrc.addFeature(trail);
+        }
+
+        // ── 현재 위치 영향 원(테두리 중심으로 표시 — 이동에 따라 커지/작아짐) ──
         if (f.radProb && f.radProb > 0) {
             var pf = new ol.Feature(geoCircle(f.lon, f.lat, f.radProb));
             pf.setStyle(new ol.style.Style({
-                stroke: new ol.style.Stroke({ color: 'rgba(110,110,110,0.7)', width: 1, lineDash: [4, 4] }),
-                fill: new ol.style.Fill({ color: 'rgba(150,150,150,0.06)' })
+                stroke: new ol.style.Stroke({ color: 'rgba(90,90,90,0.85)', width: 1.2, lineDash: [5, 4] })
             }));
             _headSrc.addFeature(pf);
         }
-        // 폭풍반경(25m/s) — 진한 색
+        // 폭풍반경(25m/s)
         if (f.radStorm && f.radStorm > 0) {
             var sf = new ol.Feature(geoCircle(f.lon, f.lat, f.radStorm));
             sf.setStyle(new ol.style.Style({
-                stroke: new ol.style.Stroke({ color: rgba(c, 0.9), width: 1.5 }),
-                fill: new ol.style.Fill({ color: rgba(c, 0.28) })
+                stroke: new ol.style.Stroke({ color: rgba(c, 1), width: 2.5 }),
+                fill: new ol.style.Fill({ color: rgba(c, 0.30) })
             }));
             _headSrc.addFeature(sf);
         }
-        // 강풍반경(15m/s) — 옅은 색
+        // 강풍반경(15m/s)
         if (f.radStrong && f.radStrong > 0) {
             var wf = new ol.Feature(geoCircle(f.lon, f.lat, f.radStrong));
             wf.setStyle(new ol.style.Style({
-                stroke: new ol.style.Stroke({ color: rgba(c, 0.7), width: 1.5 }),
-                fill: new ol.style.Fill({ color: rgba(c, 0.13) })
+                stroke: new ol.style.Stroke({ color: rgba(c, 0.9), width: 2 })
             }));
             _headSrc.addFeature(wf);
         }
@@ -371,6 +394,7 @@
         if (!_frames.length) return;
         if (_p >= 0.999) _p = (_pNow < 0.999 ? _pNow : 0); // 끝이면 현재 시각(없으면 처음)부터
         _playing = true; _lastTs = 0;
+        applyLayerVisibility(); // 재생 시작 → 사전 범위 숨김
         setPlayBtn(true);
         _raf = requestAnimationFrame(tick);
     }
@@ -378,6 +402,7 @@
         _playing = false;
         if (_raf) cancelAnimationFrame(_raf);
         _raf = null;
+        applyLayerVisibility(); // 정지 → 사전 범위 복원(토글대로)
         setPlayBtn(false);
     }
     function setPlayBtn(playing) {
@@ -501,7 +526,7 @@
     }
     function clearTrack() {
         _frames = [];
-        [_trackSrc, _probSrc, _strongSrc, _stormSrc, _headSrc].forEach(function (s) { if (s) s.clear(); });
+        [_trackSrc, _probSrc, _strongSrc, _stormSrc, _headSrc, _pointSrc].forEach(function (s) { if (s) s.clear(); });
     }
 
     function renderLegend() {
@@ -517,6 +542,16 @@
     // ── 표시/숨김 ────────────────────────────────────────────────────────────
     function setVisible(v) {
         _visible = v;
+        // 태풍 ON: minZoom 완화(더 넓게 축소 가능) / OFF: 원래 제한 복원
+        if (_map) {
+            var view = _map.getView();
+            if (v) {
+                if (_origMinZoom === null) _origMinZoom = view.getMinZoom();
+                if (RELAX_MIN_ZOOM < _origMinZoom) view.setMinZoom(RELAX_MIN_ZOOM);
+            } else if (_origMinZoom !== null) {
+                view.setMinZoom(_origMinZoom);
+            }
+        }
         applyLayerVisibility();
         var panel = document.getElementById('ocean-typhoon-panel');
         if (panel) panel.style.display = v ? '' : 'none';
@@ -621,22 +656,28 @@
         _stormSrc = new ol.source.Vector();
         _trackSrc = new ol.source.Vector();
         _headSrc = new ol.source.Vector();
-        _probLayer = new ol.layer.Vector({ source: _probSrc, zIndex: 116, style: swathStyle('rgba(200,170,30,0.55)', 'rgba(235,200,40,0.16)') });
-        _strongLayer = new ol.layer.Vector({ source: _strongSrc, zIndex: 118, style: swathStyle('rgba(70,130,210,0.55)', 'rgba(80,150,235,0.16)') });
-        _stormLayer = new ol.layer.Vector({ source: _stormSrc, zIndex: 120, style: swathStyle('rgba(30,70,170,0.75)', 'rgba(40,90,200,0.30)') });
+        _pointSrc = new ol.source.Vector();
+        // 색을 더 진하게(구분 쉽게). 단 채움은 반투명 유지 → 배경 지도는 희미하게 비침.
+        _probLayer = new ol.layer.Vector({ source: _probSrc, zIndex: 116, style: swathStyle('rgba(210,170,20,0.95)', 'rgba(245,205,40,0.34)') });
+        _strongLayer = new ol.layer.Vector({ source: _strongSrc, zIndex: 118, style: swathStyle('rgba(30,110,210,0.95)', 'rgba(70,150,240,0.34)') });
+        _stormLayer = new ol.layer.Vector({ source: _stormSrc, zIndex: 120, style: swathStyle('rgba(150,30,160,0.95)', 'rgba(180,50,190,0.42)') });
         _trackLayer = new ol.layer.Vector({ source: _trackSrc, zIndex: 124 });
         _headLayer = new ol.layer.Vector({ source: _headSrc, zIndex: 130 });
+        _pointLayer = new ol.layer.Vector({ source: _pointSrc, zIndex: 140 }); // 포인트는 모든 레이어 위
         map.addLayer(_probLayer); map.addLayer(_strongLayer); map.addLayer(_stormLayer);
-        map.addLayer(_trackLayer); map.addLayer(_headLayer);
+        map.addLayer(_trackLayer); map.addLayer(_headLayer); map.addLayer(_pointLayer);
         try { var s = JSON.parse(localStorage.getItem(LAYER_KEY)); if (s) _layerOn = Object.assign(_layerOn, s); } catch (e) {}
         applyLayerVisibility();
     }
 
     function applyLayerVisibility() {
+        // 재생 중에는 "사전 범위"(포인트별 확률/강풍/폭풍 영역)를 숨김 — 움직이며 자취로만 표시.
+        var showSwaths = _visible && !_playing;
+        if (_probLayer) _probLayer.setVisible(showSwaths && _layerOn.prob);
+        if (_strongLayer) _strongLayer.setVisible(showSwaths && _layerOn.strong);
+        if (_stormLayer) _stormLayer.setVisible(showSwaths && _layerOn.storm);
         if (_trackLayer) _trackLayer.setVisible(_visible && _layerOn.track);
-        if (_probLayer) _probLayer.setVisible(_visible && _layerOn.prob);
-        if (_strongLayer) _strongLayer.setVisible(_visible && _layerOn.strong);
-        if (_stormLayer) _stormLayer.setVisible(_visible && _layerOn.storm);
+        if (_pointLayer) _pointLayer.setVisible(_visible && _layerOn.track);
         if (_headLayer) _headLayer.setVisible(_visible);
     }
 
