@@ -380,7 +380,50 @@ JSON 형식으로만 답하세요: {"zone": "<구역명 또는 null>", "intent":
 }
 
 // ============================================================================
-// 5. 라우트
+// 5. 레이트리밋 (IP당 분당 20회) — 공개 엔드포인트 남용으로 공유 Gemini
+//    쿼터/쿨다운이 소진돼 기존 AI 기능(특보 분석·해상전망)이 영향받는 것을 방지.
+// ----------------------------------------------------------------------------
+//  - 인메모리 고정 윈도우(fixed window). 외부 의존성/파일 I/O 없음 → 기동 안전.
+//  - Fly.io 프록시 뒤라 req.ip 가 프록시 IP일 수 있어 X-Forwarded-For 의
+//    첫 IP(원 클라이언트)를 우선 사용한다.
+// ============================================================================
+const RATE_LIMIT_MAX = 20;             // 분당 허용 횟수
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const _rateBuckets = new Map();        // ip → { windowStart, count }
+
+function getClientIp(req) {
+    const xff = req.headers['x-forwarded-for'];
+    if (xff) return String(xff).split(',')[0].trim();
+    return (req.socket && req.socket.remoteAddress) || req.ip || 'unknown';
+}
+
+/** @returns {{ allowed: boolean, retryAfterSec: number }} */
+function checkRateLimit(ip) {
+    const now = Date.now();
+    const bucket = _rateBuckets.get(ip);
+    if (!bucket || now - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) {
+        _rateBuckets.set(ip, { windowStart: now, count: 1 });
+        return { allowed: true, retryAfterSec: 0 };
+    }
+    if (bucket.count >= RATE_LIMIT_MAX) {
+        const retryAfterSec = Math.ceil((bucket.windowStart + RATE_LIMIT_WINDOW_MS - now) / 1000);
+        return { allowed: false, retryAfterSec: Math.max(1, retryAfterSec) };
+    }
+    bucket.count += 1;
+    return { allowed: true, retryAfterSec: 0 };
+}
+
+// 만료된 버킷 주기적 정리 (메모리 누수 방지). unref() 로 프로세스 종료를 막지 않음.
+const _rateCleanup = setInterval(() => {
+    const now = Date.now();
+    for (const [ip, b] of _rateBuckets) {
+        if (now - b.windowStart >= RATE_LIMIT_WINDOW_MS) _rateBuckets.delete(ip);
+    }
+}, 5 * 60 * 1000);
+if (_rateCleanup.unref) _rateCleanup.unref();
+
+// ============================================================================
+// 6. 라우트
 // ============================================================================
 
 router.get('/api/assistant/health', (req, res) => {
@@ -393,8 +436,21 @@ router.get('/api/assistant/health', (req, res) => {
 });
 
 router.post('/api/assistant/ask', async (req, res) => {
-    const query = (req.body && req.body.query ? String(req.body.query) : '').trim();
     res.setHeader('Cache-Control', 'no-store');
+
+    // [레이트리밋] IP당 분당 20회 초과 시 429
+    const rate = checkRateLimit(getClientIp(req));
+    if (!rate.allowed) {
+        res.setHeader('Retry-After', String(rate.retryAfterSec));
+        return res.status(429).json({
+            ok: false,
+            error: '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.',
+            answer: '요청이 너무 많아요. 잠시 후 다시 불러 주세요.',
+            retryAfterSec: rate.retryAfterSec
+        });
+    }
+
+    const query = (req.body && req.body.query ? String(req.body.query) : '').trim();
 
     if (!query) {
         return res.status(400).json({ ok: false, error: '질문(query)이 비어 있습니다.' });
