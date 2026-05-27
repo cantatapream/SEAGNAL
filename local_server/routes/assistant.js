@@ -38,7 +38,21 @@ const path = require('path');
 const router = express.Router();
 const { dataCache } = require('../services/cache_manager');
 let DATA_DIR = path.join(__dirname, '..', 'data');
-try { DATA_DIR = require('../config/server_config').DATA_DIR || DATA_DIR; } catch (e) { /* 기본값 사용 */ }
+let SERVER_PORT = 3001;
+try {
+    const cfg = require('../config/server_config');
+    DATA_DIR = cfg.DATA_DIR || DATA_DIR;
+    SERVER_PORT = cfg.PORT || SERVER_PORT;
+} catch (e) { /* 기본값 사용 */ }
+
+/** 같은 서버의 내부 API를 호출(좌표 기반 해양 데이터·장소검색 등). Node18+ 전역 fetch 사용. */
+async function internalGet(pathStr) {
+    try {
+        const r = await fetch('http://127.0.0.1:' + SERVER_PORT + pathStr);
+        if (!r.ok) return { error: 'HTTP ' + r.status };
+        return await r.json();
+    } catch (e) { return { error: e.message }; }
+}
 
 // ============================================================================
 // 부이 이름 ↔ ID 매핑 — buoyLocations.js(브라우저 전역 스크립트)에서 1회 파싱.
@@ -557,13 +571,25 @@ router.get('/api/assistant/health', (req, res) => {
 const BRAIN_MODEL = 'gemini-2.5-flash-lite';
 
 const TOOL_CATALOG = `
+[예보]
 - get_marine_forecast(zone): 명명된 해상예보구역(예: 제주도북부앞바다)의 단기 기상전망(풍향/풍속/파고/하늘).
 - get_zone_forecast(zoneId, hoursAhead): 해구번호(예: "325")의 N시간 후 예보(파고/파주기/풍속/풍향). 미래 약 72시간까지.
+- get_midterm_forecast(zone): 해역의 중기(3~10일) 해상예보.
 - get_warning(zone): 해당 해역의 특보(주의보/경보) 발효 여부와 종류.
+[관측]
 - list_buoys_near(zone): 해당 해역 인근 기상부이 목록.
 - get_buoy_observation(buoyName): 특정 부이의 최신 실측값(파고/풍속/수온/시정 등).
-- get_tide(place): 지명/해역에서 가장 가까운 해점 좌표(고조/저조 상세 표출은 앱 바텀시트가 담당).
-- get_typhoon_status(): 현재 발효 중인 태풍 현황.`;
+- get_current(lat, lon): 해당 좌표의 유향·유속(해류).
+- get_depth(lat, lon): 해당 좌표의 수심.
+- get_seafog_cctv(harbor): 항구 해무 CCTV 최신 영상(이미지 링크).
+- get_tide(place): 지명/해역에서 가장 가까운 해점 좌표(고조/저조 상세 표출은 앱 바텀시트).
+[생활지수]
+- get_fishing_index(location): 바다낚시 지수(지점별 오전/오후 등급+어종).
+- get_surfing_index(beach): 서핑 지수(해수욕장별 초/중/상급 등급, 파고·수온).
+- get_sea_split_index(place): 바다갈라짐(갯벌) 가능 시간대/지수. place 생략 시 가능 지역 목록.
+[기타]
+- get_typhoon_status(): 현재 발효 중인 태풍 현황.
+- resolve_location(text): 임의 지명을 좌표/주소로 변환(get_current/get_depth/get_tide 의 좌표 확보용).`;
 
 /** 해역명 정규화: 정확명이면 그대로, 아니면 결정론적 매칭 */
 function resolveZoneName(name) {
@@ -638,7 +664,85 @@ const TOOL_EXEC = {
         const pt = resolveTidePoint(place || '', z, null);
         return pt ? { place: pt.name, lat: pt.lat, lon: pt.lon, note: '고조/저조 상세는 앱 바텀시트에서 제공' } : { error: '해점을 찾지 못했습니다.' };
     },
-    get_typhoon_status: async () => getTyphoonStatus()
+    get_typhoon_status: async () => getTyphoonStatus(),
+
+    get_midterm_forecast: async ({ zone } = {}) => {
+        const z = resolveZoneName(zone);
+        const code = z && ZONE_NAME_TO_CODE[z];
+        if (!code) return { error: '해역을 인식하지 못했습니다.' };
+        const regId = code.slice(0, 4) + '0000';   // 중기 권역코드 파생 (예: 12B10302 → 12B10000)
+        const d = dataCache.midTermSeaForecasts && dataCache.midTermSeaForecasts.data;
+        const e = d && d[regId];
+        return e ? { zone: z, regId, updatedAt: dataCache.midTermSeaForecasts.updatedAt, forecast: e } : { error: '중기예보 데이터가 없습니다.', regId };
+    },
+    get_fishing_index: async ({ location } = {}) => {
+        const fi = dataCache.fishingIndex;
+        if (!fi || fi.error) return { error: '바다낚시 지수가 아직 준비되지 않았습니다.' };
+        const norm = normalize(location || '');
+        const out = [];
+        for (const grp of ['갯바위', '선상']) {
+            const g = fi[grp]; if (!g) continue;
+            for (const name of Object.keys(g)) {
+                if (!norm || normalize(name).includes(norm)) {
+                    const loc = g[name];
+                    const dates = loc.forecasts ? Object.keys(loc.forecasts) : [];
+                    const f = dates.length ? loc.forecasts[dates[0]] : null;
+                    out.push({ group: grp, name, date: dates[0], 오전: f && f['오전'] && f['오전'].totalIndex, 오후: f && f['오후'] && f['오후'].totalIndex });
+                }
+            }
+        }
+        return out.length ? { updatedAt: fi.updatedAt, points: out.slice(0, 8) } : { error: '해당 지점의 낚시지수를 찾지 못했습니다.' };
+    },
+    get_surfing_index: async ({ beach } = {}) => {
+        const si = dataCache.surfingIndex; const B = si && si.beaches;
+        if (!B) return { error: '서핑 지수가 아직 준비되지 않았습니다.' };
+        const norm = normalize(beach || '');
+        const out = [];
+        for (const name of Object.keys(B)) {
+            if (!norm || normalize(name).includes(norm)) {
+                const b = B[name];
+                const dates = b.forecasts ? Object.keys(b.forecasts) : [];
+                const f = dates.length ? b.forecasts[dates[0]] : null;
+                const am = f && f['오전'];
+                out.push({ name, date: dates[0], 등급: am && am.grades, 파고m: am && am.avgWvhgt, 풍속ms: am && am.avgWspd, 수온C: am && am.avgWtem });
+            }
+        }
+        return out.length ? { updatedAt: si.updatedAt, spots: out.slice(0, 8) } : { error: '해당 해수욕장의 서핑지수를 찾지 못했습니다.' };
+    },
+    get_sea_split_index: async ({ place } = {}) => {
+        const ss = dataCache.seaSplitIndex; const P = ss && ss.places;
+        if (!P) return { error: '바다갈라짐 지수가 아직 준비되지 않았습니다.' };
+        if (!place) return { updatedAt: ss.updatedAt, places: ss.allPlaces || Object.keys(P) };
+        const norm = normalize(place);
+        for (const name of Object.keys(P)) {
+            if (normalize(name).includes(norm)) {
+                const p = P[name];
+                const dates = p.forecasts ? Object.keys(p.forecasts) : [];
+                return { name, date: dates[0], windows: dates.length ? p.forecasts[dates[0]] : [] };
+            }
+        }
+        return { error: '해당 지점의 바다갈라짐 정보를 찾지 못했습니다.', places: ss.allPlaces };
+    },
+    get_seafog_cctv: async ({ harbor } = {}) => {
+        const j = await internalGet('/api/seafog-cctv?obs=' + encodeURIComponent(harbor || ''));
+        if (Array.isArray(j) && j.length) { const x = j[0]; return { harbor: x.sfogObsvtrNm, time: x.imgDt, imageUrl: x.uri }; }
+        return { error: '해무 CCTV 이미지를 찾지 못했습니다.' };
+    },
+    get_current: async ({ lat, lon, date } = {}) => {
+        if (lat == null || lon == null) return { error: '좌표(lat,lon)가 필요합니다.' };
+        const d = date || (() => { const t = new Date(); const p = n => (n < 10 ? '0' : '') + n; return '' + t.getFullYear() + p(t.getMonth() + 1) + p(t.getDate()); })();
+        return await internalGet(`/api/ocean/khoa-stream-nearest?lat=${lat}&lon=${lon}&date=${d}`);
+    },
+    get_depth: async ({ lat, lon } = {}) => {
+        if (lat == null || lon == null) return { error: '좌표(lat,lon)가 필요합니다.' };
+        return await internalGet(`/api/ocean/depth?lat=${lat}&lon=${lon}`);
+    },
+    resolve_location: async ({ text } = {}) => {
+        const j = await internalGet('/api/search-place?q=' + encodeURIComponent(text || ''));
+        const docs = j && j.documents;
+        if (Array.isArray(docs) && docs.length) { const r = docs[0]; return { name: r.place_name, address: r.address_name, lat: +r.y, lon: +r.x }; }
+        return { error: '장소를 찾지 못했습니다(검색 키 미설정일 수 있음).' };
+    }
 };
 
 /** 1단계: 질문 → 가져올 데이터 계획(JSON) */
