@@ -3229,9 +3229,12 @@ var USAGE_FEATURE_LABELS = {
     'ocean.warn_zone': '특보 표출',
     'ocean.gugu_forecast': '해구 전망표/그래프',
     'ocean.cctv_open': 'CCTV 팝업',
+    'ocean.typhoon': '태풍',
+    'ocean.typhoon_play': '태풍 재생',
     'ocean.basemap.rltm': '배경 · 기본맵',
     'ocean.basemap.enc': '배경 · 전자해도',
     'ocean.basemap.coast': '배경 · 해안도',
+    'ocean.basemap.osm': '배경 · 세계지도',
     // 천기 요소 (천기도 + 바텀시트 통합)
     'shrt.rain_prob': '강수확률',
     'shrt.rain_amount': '강수량',
