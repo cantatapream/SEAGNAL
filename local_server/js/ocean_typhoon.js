@@ -45,12 +45,11 @@
     var _pNow = 0;             // 현재 시각에 해당하는 타임라인 위치(0..1)
 
     var _map = null;
-    var _staticLayer = null;   // 진로선 + 점 + 라벨
-    var _coneLayer = null;     // 포인트별 70%확률반경 cone (재생 중에는 숨김)
-    var _headLayer = null;     // 재생 플레이헤드(태풍 본체 + 보간 영향 원)
-    var _staticSrc = null;
-    var _coneSrc = null;
-    var _headSrc = null;
+    // dmdw 상세정보 레이어 대응: 예측경로(track) / 70%확률반경(prob) / 강풍반경(strong) / 폭풍반경(storm)
+    var _trackLayer = null, _probLayer = null, _strongLayer = null, _stormLayer = null, _headLayer = null;
+    var _trackSrc = null, _probSrc = null, _strongSrc = null, _stormSrc = null, _headSrc = null;
+    var LAYER_KEY = 'seagnal_typhoon_layers';
+    var _layerOn = { track: true, prob: true, strong: false, storm: false };
 
     var _activeData = null;    // /api/typhoon 응답(현재연도 활성 태풍 + 통보문 인라인)
     var _year = null;          // 선택 연도
@@ -119,8 +118,8 @@
         return Math.max(0, Math.min(1, (nowKstMs() - t0) / (t1 - t0)));
     }
 
-    // 경위도(deg)·반경(km) → EPSG:3857 좌표 폴리곤 (구면 측지원, 72분할)
-    function geoCircle(lon, lat, km, n) {
+    // 경위도(deg)·반경(km) → EPSG:3857 좌표 링(구면 측지원, 72분할)
+    function geoCircleRing(lon, lat, km, n) {
         n = n || 72;
         var R = 6371.0088;
         var d = km / R;
@@ -132,7 +131,19 @@
             var lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(lat1), Math.cos(d) - Math.sin(lat1) * Math.sin(lat2));
             ring.push(ol.proj.fromLonLat([lon2 * 180 / Math.PI, lat2 * 180 / Math.PI]));
         }
-        return new ol.geom.Polygon([ring]);
+        return ring;
+    }
+    function geoCircle(lon, lat, km, n) { return new ol.geom.Polygon([geoCircleRing(lon, lat, km, n)]); }
+
+    // 진로 전체에 걸친 반경 영역(swath/cone) — 시점별 원들의 합집합을 단일 MultiPolygon
+    // 한 feature·한 fill 로 그려 겹침이 덧칠(진해짐) 없이 하나의 영역처럼 보이게 한다.
+    function swathGeom(frames, key) {
+        var polys = [];
+        frames.forEach(function (f) {
+            var r = f[key];
+            if (r != null && r > 0 && f.lon != null && f.lat != null) polys.push([geoCircleRing(f.lon, f.lat, r)]);
+        });
+        return polys.length ? new ol.geom.MultiPolygon(polys) : null;
     }
 
     function pointAt(lon, lat) { return new ol.geom.Point(ol.proj.fromLonLat([lon, lat])); }
@@ -181,50 +192,51 @@
 
     // ── 정적 진로 렌더 ────────────────────────────────────────────────────────
     function renderStatic() {
-        if (!_staticSrc) return;
-        _staticSrc.clear();
-        if (_coneSrc) _coneSrc.clear();
+        if (!_trackSrc) return;
+        _trackSrc.clear(); _probSrc.clear(); _strongSrc.clear(); _stormSrc.clear();
         if (!_frames.length) return;
 
+        // ⑤ 70%확률반경 cone (노랑), ④ 강풍반경 swath (옅은 파랑), ③ 폭풍반경 swath (진한 파랑)
+        var probG = swathGeom(_frames, 'radProb');
+        if (probG) _probSrc.addFeature(new ol.Feature(probG));
+        var strongG = swathGeom(_frames, 'radStrong');
+        if (strongG) _strongSrc.addFeature(new ol.Feature(strongG));
+        var stormG = swathGeom(_frames, 'radStorm');
+        if (stormG) _stormSrc.addFeature(new ol.Feature(stormG));
+
+        // ② 예측경로: 진로선 + 시점별 위치 점(강도색) + 라벨, ① 실제위치(현재) 강조
         var coords = _frames.map(function (f) { return ol.proj.fromLonLat([f.lon, f.lat]); });
-        // 진로선
         var line = new ol.Feature(new ol.geom.LineString(coords));
         line.setStyle(new ol.style.Style({
             stroke: new ol.style.Stroke({ color: 'rgba(40,40,40,0.85)', width: 2, lineDash: [6, 5] })
         }));
-        _staticSrc.addFeature(line);
+        _trackSrc.addFeature(line);
 
-        // 70% 확률반경 cone (예보 프레임만) — 전체 진로 개요용. 재생 중에는 _coneLayer 를
-        // 숨기고, 태풍 본체에 붙은 보간 영향 원이 부드럽게 커지/작아지도록 한다.
         _frames.forEach(function (f) {
-            if (f.radProb && f.radProb > 0) {
-                var cf = new ol.Feature(geoCircle(f.lon, f.lat, f.radProb));
-                cf.setStyle(new ol.style.Style({
-                    stroke: new ol.style.Stroke({ color: 'rgba(120,120,120,0.55)', width: 1 }),
-                    fill: new ol.style.Fill({ color: 'rgba(150,150,150,0.07)' })
-                }));
-                _coneSrc.addFeature(cf);
-            }
-        });
-
-        // 시점별 위치 점(강도색) + 라벨
-        _frames.forEach(function (f, idx) {
             var c = f._color;
             var pt = new ol.Feature(pointAt(f.lon, f.lat));
             pt.setStyle(new ol.style.Style({
                 image: new ol.style.Circle({
                     radius: f.isCurrent ? 7 : 5,
                     fill: new ol.style.Fill({ color: rgba(c, 0.95) }),
-                    stroke: new ol.style.Stroke({ color: '#fff', width: f.isCurrent ? 2.5 : 1.5 })
+                    stroke: new ol.style.Stroke({ color: f.isCurrent ? '#d00' : '#fff', width: f.isCurrent ? 3 : 1.5 })
                 }),
                 text: new ol.style.Text({
-                    text: fmtTime(f.time),
-                    offsetY: -14, font: '11px sans-serif',
+                    text: (f.isCurrent ? '실제위치 ' : '') + fmtTime(f.time),
+                    offsetY: -14, font: (f.isCurrent ? 'bold ' : '') + '11px sans-serif',
                     fill: new ol.style.Fill({ color: '#222' }),
                     stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,0.9)', width: 3 })
                 })
             }));
-            _staticSrc.addFeature(pt);
+            _trackSrc.addFeature(pt);
+        });
+    }
+
+    // 레이어별 채움 스타일
+    function swathStyle(strokeC, fillC) {
+        return new ol.style.Style({
+            stroke: new ol.style.Stroke({ color: strokeC, width: 1 }),
+            fill: new ol.style.Fill({ color: fillC })
         });
     }
 
@@ -349,8 +361,6 @@
         if (!_frames.length) return;
         if (_p >= 0.999) _p = (_pNow < 0.999 ? _pNow : 0); // 끝이면 현재 시각(없으면 처음)부터
         _playing = true; _lastTs = 0;
-        // 재생 중에는 포인트별 고정 cone 을 숨겨 보간 영향 원의 변화가 또렷하게.
-        if (_coneLayer) _coneLayer.setVisible(false);
         setPlayBtn(true);
         _raf = requestAnimationFrame(tick);
     }
@@ -358,7 +368,6 @@
         _playing = false;
         if (_raf) cancelAnimationFrame(_raf);
         _raf = null;
-        if (_coneLayer) _coneLayer.setVisible(_visible); // 정지 시 전체 진로 cone 복원
         setPlayBtn(false);
     }
     function setPlayBtn(playing) {
@@ -482,9 +491,7 @@
     }
     function clearTrack() {
         _frames = [];
-        if (_staticSrc) _staticSrc.clear();
-        if (_coneSrc) _coneSrc.clear();
-        if (_headSrc) _headSrc.clear();
+        [_trackSrc, _probSrc, _strongSrc, _stormSrc, _headSrc].forEach(function (s) { if (s) s.clear(); });
     }
 
     function renderLegend() {
@@ -500,9 +507,7 @@
     // ── 표시/숨김 ────────────────────────────────────────────────────────────
     function setVisible(v) {
         _visible = v;
-        if (_staticLayer) _staticLayer.setVisible(v);
-        if (_coneLayer) _coneLayer.setVisible(v && !_playing);
-        if (_headLayer) _headLayer.setVisible(v);
+        applyLayerVisibility();
         var panel = document.getElementById('ocean-typhoon-panel');
         if (panel) panel.style.display = v ? '' : 'none';
         var btn = document.getElementById('ocean-typhoon-toggle-btn');
@@ -602,16 +607,29 @@
 
     // ── 초기화 ──────────────────────────────────────────────────────────────
     function ensureLayers(map) {
-        if (_staticLayer) return;
-        _staticSrc = new ol.source.Vector();
-        _coneSrc = new ol.source.Vector();
+        if (_trackLayer) return;
+        _probSrc = new ol.source.Vector();
+        _strongSrc = new ol.source.Vector();
+        _stormSrc = new ol.source.Vector();
+        _trackSrc = new ol.source.Vector();
         _headSrc = new ol.source.Vector();
-        _staticLayer = new ol.layer.Vector({ source: _staticSrc, zIndex: 124, visible: _visible });
-        _coneLayer = new ol.layer.Vector({ source: _coneSrc, zIndex: 120, visible: _visible });
-        _headLayer = new ol.layer.Vector({ source: _headSrc, zIndex: 130, visible: _visible });
-        map.addLayer(_coneLayer);
-        map.addLayer(_staticLayer);
-        map.addLayer(_headLayer);
+        _probLayer = new ol.layer.Vector({ source: _probSrc, zIndex: 116, style: swathStyle('rgba(200,170,30,0.55)', 'rgba(235,200,40,0.16)') });
+        _strongLayer = new ol.layer.Vector({ source: _strongSrc, zIndex: 118, style: swathStyle('rgba(70,130,210,0.55)', 'rgba(80,150,235,0.16)') });
+        _stormLayer = new ol.layer.Vector({ source: _stormSrc, zIndex: 120, style: swathStyle('rgba(30,70,170,0.75)', 'rgba(40,90,200,0.30)') });
+        _trackLayer = new ol.layer.Vector({ source: _trackSrc, zIndex: 124 });
+        _headLayer = new ol.layer.Vector({ source: _headSrc, zIndex: 130 });
+        map.addLayer(_probLayer); map.addLayer(_strongLayer); map.addLayer(_stormLayer);
+        map.addLayer(_trackLayer); map.addLayer(_headLayer);
+        try { var s = JSON.parse(localStorage.getItem(LAYER_KEY)); if (s) _layerOn = Object.assign(_layerOn, s); } catch (e) {}
+        applyLayerVisibility();
+    }
+
+    function applyLayerVisibility() {
+        if (_trackLayer) _trackLayer.setVisible(_visible && _layerOn.track);
+        if (_probLayer) _probLayer.setVisible(_visible && _layerOn.prob);
+        if (_strongLayer) _strongLayer.setVisible(_visible && _layerOn.strong);
+        if (_stormLayer) _stormLayer.setVisible(_visible && _layerOn.storm);
+        if (_headLayer) _headLayer.setVisible(_visible);
     }
 
     function bindUI() {
@@ -638,6 +656,19 @@
         if (scr) scr.addEventListener('input', function () { pause(); _p = (+this.value) / 1000; renderHead(_p); });
         var closeBtn = document.getElementById('tphn-close');
         if (closeBtn) closeBtn.addEventListener('click', function () { setVisible(false); });
+
+        // 레이어 토글 체크박스 (dmdw 상세정보 레이어 대응)
+        [['tphn-ly-track', 'track'], ['tphn-ly-prob', 'prob'], ['tphn-ly-strong', 'strong'], ['tphn-ly-storm', 'storm']]
+            .forEach(function (pair) {
+                var el = document.getElementById(pair[0]);
+                if (!el) return;
+                el.checked = !!_layerOn[pair[1]];
+                el.addEventListener('change', function () {
+                    _layerOn[pair[1]] = this.checked;
+                    applyLayerVisibility();
+                    try { localStorage.setItem(LAYER_KEY, JSON.stringify(_layerOn)); } catch (e) {}
+                });
+            });
     }
 
     function installWhenReady() {
