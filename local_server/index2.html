@@ -2566,9 +2566,30 @@
                         /* 지도 위 말풍선(ol.Overlay) — 포인트별/이동 공용 */
                         .tphn-bubble{background:rgba(20,22,32,0.86);border:1px solid rgba(255,255,255,0.35);
                             border-radius:8px;padding:5px 8px;font-size:11px;line-height:1.5;color:#eaf2ff;
-                            white-space:nowrap;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,0.45);}
+                            white-space:nowrap;pointer-events:auto;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.45);
+                            transition:opacity 0.15s;}
+                        /* 흐린 말풍선 — 배경이 비치도록(시인성). 클릭하면 tphn-faint 제거되어 진하게. */
+                        .tphn-bubble.tphn-faint{opacity:0.3;}
                         .tphn-bubble .tphn-b-h{font-weight:700;color:#cfe0ff;margin-bottom:1px;}
                         .tphn-bubble .tphn-b-sub{color:#cfd8ea;}
+                        .tphn-bubble .tphn-b-dmg{color:#ffd24a;font-weight:700;margin-top:1px;}
+                        /* 행동요령 버튼 + 팝업 */
+                        .tphn-guide-btn{width:100%;background:#15407a;color:#eaf2ff;border:1px solid rgba(120,150,200,0.4);
+                            border-radius:6px;padding:6px;font-size:12px;cursor:pointer;}
+                        .tphn-guide-btn:hover{background:#1b4f96;}
+                        .tphn-guide-modal{position:absolute;inset:0;z-index:1300;background:rgba(0,0,0,0.45);
+                            display:flex;align-items:center;justify-content:center;padding:16px;}
+                        .tphn-guide-card{background:#fff;color:#1a2230;border-radius:12px;max-width:420px;width:100%;
+                            max-height:80%;overflow:auto;box-shadow:0 8px 30px rgba(0,0,0,0.5);}
+                        .tphn-guide-head{display:flex;align-items:center;justify-content:space-between;
+                            padding:12px 14px;border-bottom:1px solid #eee;font-size:14px;position:sticky;top:0;background:#fff;}
+                        .tphn-guide-close{background:transparent;border:none;font-size:22px;line-height:1;cursor:pointer;color:#555;}
+                        .tphn-guide-body{padding:10px 16px 16px;font-size:13px;line-height:1.55;}
+                        .tphn-guide-body h4{margin:12px 0 4px;color:#15407a;font-size:13px;}
+                        .tphn-guide-body ul{margin:0;padding-left:18px;}
+                        .tphn-guide-body li{margin:3px 0;}
+                        .tphn-tel{display:inline-block;margin-top:2px;background:#d50000;color:#fff;
+                            padding:3px 10px;border-radius:6px;text-decoration:none;font-weight:700;}
                     </style>
                     <div id="ocean-typhoon-panel" class="ocean-typhoon-panel" style="display:none;" aria-hidden="true">
                         <div class="tphn-row tphn-row-top">
@@ -2590,6 +2611,42 @@
                             <label><input type="checkbox" id="tphn-ly-storm"> 폭풍반경</label>
                         </div>
                         <div id="tphn-legend" class="tphn-legend"></div>
+                        <div class="tphn-row" style="margin-top:6px;">
+                            <button id="tphn-guide-btn" class="tphn-guide-btn" type="button"><i class="fa-solid fa-life-ring"></i> 해상 종사자 행동요령</button>
+                        </div>
+                    </div>
+
+                    <!-- 태풍 시 해상 종사자 행동요령 팝업 (해양수산부·해경·기상청·수협 기준) -->
+                    <div id="tphn-guide-modal" class="tphn-guide-modal" style="display:none;" aria-hidden="true">
+                        <div class="tphn-guide-card">
+                            <div class="tphn-guide-head"><span>🌀 태풍 시 해상 종사자 행동요령</span>
+                                <button id="tphn-guide-close" class="tphn-guide-close" type="button" aria-label="닫기">&times;</button></div>
+                            <div class="tphn-guide-body">
+                                <h4>사전 준비</h4>
+                                <ul>
+                                    <li>기상·태풍 진로를 수시로 확인하고 영향권 진입을 피합니다.</li>
+                                    <li>선박(수상레저기구 포함)을 단단히 결박하거나 육상으로 인양하고, 어망·어구를 안전한 곳으로 옮깁니다.</li>
+                                    <li>항내 접안 선박은 충격방지 팬더·계류색을 보강하고, 소형 선박은 추가로 결박합니다.</li>
+                                    <li>(수상레저기구) 육상 보관 시 드레인플러그를 풀고 선체 손상·누수를 점검합니다.</li>
+                                </ul>
+                                <h4>대피·피항</h4>
+                                <ul>
+                                    <li>어선안전조업국·해경의 대피 지시에 따라 가까운 대피항·피항지로 이동합니다.</li>
+                                    <li>이동 시 전 선원은 구명동의를 착용하고, 현재 위치를 주변 선박·해경에 알립니다.</li>
+                                    <li>태풍 이동경로에서 최대한 멀리 대피합니다.</li>
+                                </ul>
+                                <h4>태풍 중 — 금지</h4>
+                                <ul>
+                                    <li>선박 결박·어구 이동을 위해 밖으로 나가지 않습니다.</li>
+                                    <li>해안가·방파제·갯바위 접근을 삼갑니다(파도·돌풍에 의한 인명사고).</li>
+                                </ul>
+                                <h4>태풍 이후</h4>
+                                <ul>
+                                    <li>인명 안전을 먼저 확인하고 응급조치합니다.</li>
+                                    <li>선박·시설 피해 발생 시 응급조치 후 신고 — <a href="tel:119" class="tphn-tel"><i class="fa-solid fa-phone"></i> 긴급신고 119</a></li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- 단기예보(KMA shrt) 시간 슬라이더 + 재생버튼
