@@ -581,9 +581,7 @@
             body = '<div class="tphn-b-sub">내습 예상 시점 산출불가</div>';
         }
         var h = '<div class="tphn-b-h">태풍 내습 예상 <span class="tphn-land-close" style="float:right;cursor:pointer;padding:0 4px">&times;</span></div>'
-            + body
-            + '<div class="tphn-b-more" style="display:block">'
-            + '<button type="button" class="tphn-guide-btn"><i class="fa-solid fa-life-ring"></i> 해상 종사자 행동요령</button></div>';
+            + body;
         _landEl.innerHTML = h;
         _landEl.style.display = '';
         setBubbleZ(_landEl, '600');
