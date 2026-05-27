@@ -750,13 +750,35 @@ function rankZones(metric, order, threshold, top) {
     return { metric: key, count: arr.length, items: arr.slice(0, top || 5).map(r => ({ zone: r.zone, [lbl]: r[key] })) };
 }
 
-/** 현재 태풍 현황 (data/typhoon.json 방어적 읽기) */
-function getTyphoonStatus() {
+/** 현재 태풍 현황 + 최신 통보문 위치/강도/이동 (data/typhoon.json + bulletin).
+ *  주의: 태풍 피드는 DMDW 자격증명이 설정된 서버(운영)에서만 채워진다. 미설정 환경은 빈 값. */
+async function getTyphoonStatus() {
     try {
         const fp = path.join(DATA_DIR, 'typhoon.json');
-        if (!fs.existsSync(fp)) return { hasActive: false, note: '현재 태풍 정보가 없습니다.' };
+        if (!fs.existsSync(fp)) return { hasActive: false, note: '이 서버에 태풍 피드가 설정되지 않았거나 현재 발효 중인 태풍이 없습니다.' };
         const t = JSON.parse(fs.readFileSync(fp, 'utf8'));
-        return { hasActive: !!t.hasActive, typhoons: (t.typhoons || []).map(x => ({ name: x.name, seq: x.seq })) };
+        if (!t.hasActive || !(t.typhoons || []).length) return { hasActive: false };
+        const out = [];
+        for (const ty of t.typhoons) {
+            const entry = { name: ty.name, seq: ty.seq };
+            const bl = (ty.bulletins || []).find(b => b.isLatest) || (ty.bulletins || [])[0];
+            if (bl && bl.code) {
+                const yr = ty.yearInt || new Date().getFullYear();
+                const b = await internalGet(`/api/typhoon/bulletin?year=${yr}&code=${encodeURIComponent(bl.code)}`);
+                const c = b && b.current;
+                if (c && c.lat != null) {
+                    entry.현재위치 = { 위도: c.lat, 경도: c.lon };
+                    entry.중심기압hPa = c.pressure;
+                    entry.최대풍속ms = c.windMs;
+                    entry.진행방향 = c.dir;
+                    entry.이동속도kmh = c.speedKmh;
+                    entry.강도 = c.size;
+                    entry.강풍반경km = c.radStrong;
+                }
+            }
+            out.push(entry);
+        }
+        return { hasActive: true, typhoons: out, note: '상세 예상경로는 태풍정보 탭에서 볼 수 있어요' };
     } catch (e) { return { error: '태풍 정보를 읽지 못했습니다.' }; }
 }
 
