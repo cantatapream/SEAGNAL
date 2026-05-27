@@ -1154,6 +1154,7 @@
             btn.addEventListener('click', function () {
                 var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
                 if (!has) return;                               // 활성 태풍 없음 → 비활성
+                if (!_visible && window.trackUsage) window.trackUsage('ocean.typhoon');  // [사용량] 켤 때만 1회
                 setVisible(!_visible);
             });
         }
@@ -1164,7 +1165,10 @@
         var bSel = document.getElementById('tphn-bulletin');
         if (bSel) bSel.addEventListener('change', function () { selectBulletin(_year, this.value); });
         var playBtn = document.getElementById('tphn-play');
-        if (playBtn) playBtn.addEventListener('click', function () { _playing ? pause() : play(); });
+        if (playBtn) playBtn.addEventListener('click', function () {
+            if (!_playing && window.trackUsage) window.trackUsage('ocean.typhoon_play');  // [사용량] 재생 시작 시 1회
+            _playing ? pause() : play();
+        });
         var resetBtn = document.getElementById('tphn-reset');
         if (resetBtn) resetBtn.addEventListener('click', function () { if (_frames.length) resetView(); });
         var scr = document.getElementById('tphn-scrubber');
