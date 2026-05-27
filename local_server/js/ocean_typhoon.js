@@ -207,14 +207,19 @@
         el.addEventListener('click', function (e) {
             if (e.target.closest && e.target.closest('.tphn-guide-btn')) { openGuideModal(); return; }
             var wasFaint = el.classList.contains('tphn-faint');
-            _pointBubbles.forEach(function (ov) { var e2 = ov.getElement(); e2.classList.add('tphn-faint'); e2.style.zIndex = '1'; });
-            if (wasFaint) { el.classList.remove('tphn-faint'); el.style.zIndex = '500'; bringBubbleToFront(el); }
+            _pointBubbles.forEach(function (ov) { var e2 = ov.getElement(); e2.classList.add('tphn-faint'); setBubbleZ(e2, '1'); });
+            if (wasFaint) { el.classList.remove('tphn-faint'); setBubbleZ(el, '500'); bringBubbleToFront(el); }
         });
         return new ol.Overlay({ element: el, offset: [12, -12], positioning: 'bottom-left', stopEvent: false });
     }
-    // 진한(클릭된) 말풍선을 오버레이 컨테이너 맨 뒤로 옮겨 항상 최상단에 그려지게 한다.
-    //   (ol.Overlay 는 z-index 만으로 적층이 보장되지 않아 DOM 순서까지 조정)
-    function bringBubbleToFront(el) { if (el && el.parentNode) el.parentNode.appendChild(el); }
+    // 진한(클릭된) 말풍선을 항상 최상단에 그린다.
+    //   OL8 은 오버레이를 .ol-overlay-container 래퍼로 감싸고 getElement()는 내부 요소를 돌려준다.
+    //   적층은 "래퍼"의 DOM 순서/ z-index 가 좌우하므로 el.parentNode(=래퍼)를 조작해야 한다.
+    function bringBubbleToFront(el) {
+        var w = el && el.parentNode;                         // .ol-overlay-container 래퍼
+        if (w && w.parentNode) w.parentNode.appendChild(w);  // 컨테이너 맨 뒤 = 최상단
+    }
+    function setBubbleZ(el, z) { var w = el && el.parentNode; if (w) w.style.zIndex = z; }
     // 행동요령 팝업 열기/닫기 — backbutton.js 의 PopupStack 에 등록해 하드웨어 뒤로가기로 닫힘.
     function openGuideModal() {
         var gm = document.getElementById('tphn-guide-modal');
@@ -436,7 +441,7 @@
             // 최종 예상 위치(마지막)만 진하게+최상단, 나머지는 흐리게(배경 비침 → 시인성). 클릭 시 진하게.
             var op = (i === _frames.length - 1);
             ov.getElement().classList.toggle('tphn-faint', !op);
-            ov.getElement().style.zIndex = op ? '500' : '1';
+            setBubbleZ(ov.getElement(), op ? '500' : '1');
             ov.setPosition(ol.proj.fromLonLat([f.lon, f.lat]));
         });
         for (var i = _frames.length; i < _pointBubbles.length; i++) _pointBubbles[i].setPosition(undefined);
@@ -581,7 +586,7 @@
             + '<button type="button" class="tphn-guide-btn"><i class="fa-solid fa-life-ring"></i> 해상 종사자 행동요령</button></div>';
         _landEl.innerHTML = h;
         _landEl.style.display = '';
-        _landEl.style.zIndex = '600';
+        setBubbleZ(_landEl, '600');
         bringBubbleToFront(_landEl);
         _landPopup.setPosition(ol.proj.fromLonLat([lon, lat]));
         if (window.PopupStack) window.PopupStack.push('tphn-land', hideLandPopup);
@@ -1103,6 +1108,14 @@
             if (!_visible || _frames.length === 0) return false;
             if (!(window.isOceanLand && window.isOceanLand(lat, lon) === true)) return false;
             return showLandArrival(lon, lat);
+        },
+        // 해점(바다) 도달정보 — 바텀시트 내습 배지용. 태풍 OFF/프레임 없으면 null.
+        //   반환 {status:'inside'|'eta'|'none', etaMs?, remainMs?}
+        getArrivalInfo: function (lat, lon) {
+            if (!_visible || _frames.length === 0) return null;
+            var info = landArrivalInfo(lat, lon);
+            if (info.status === 'eta') info.remainMs = Math.max(0, info.etaMs - nowKstMs());
+            return info;
         }
     };
 })();
