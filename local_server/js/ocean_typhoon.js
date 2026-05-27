@@ -28,9 +28,7 @@
 (function () {
     'use strict';
 
-    var VISIBLE_KEY = 'seagnal_typhoon_visible';
-    var UNLOCK_KEY = 'seagnal_typhoon_unlocked';
-    var TAP_THRESHOLD = 10;   // 비활성 버튼을 10회 탭하면 기능 활성화(히든 탭)
+    var TAP_THRESHOLD = 10;   // 비활성 버튼을 10회 탭하면 기능 활성화(히든 탭, 세션 한정)
     var TAP_RESET_MS = 3000;  // 탭 간격이 이보다 길면 카운트 리셋
     var FULL_PLAY_MS = 12000; // 전체 타임라인 재생 시간(스크러버 0→끝)
 
@@ -38,9 +36,9 @@
     var _tapCount = 0;
     var _tapTimer = null;
 
-    // 줌 자동조정 기준점: 제주도(최소한 우리나라가 한 화면에 함께 보이도록 fit)
-    var JEJU_LON = 126.53, JEJU_LAT = 33.43;
-    var FIT_MAX_ZOOM = 8;
+    // 줌 자동조정 기준: 태풍 + "우리나라(제주~본토)"가 한 화면에 함께 보이도록 fit
+    var KOREA_W = 124.5, KOREA_E = 131.0, KOREA_S = 33.0, KOREA_N = 38.6;
+    var FIT_MAX_ZOOM = 7;
 
     var _pNow = 0;             // 현재 시각에 해당하는 타임라인 위치(0..1)
 
@@ -289,17 +287,27 @@
         }));
         _headSrc.addFeature(head);
 
-        // 우상단 날짜·시각 말풍선 라벨 (애니메이션 따라 함께 이동)
+        // 우상단 말풍선 라벨 — 시각 + 강도/풍속/기압/반경 상세 (애니메이션 따라 이동)
+        var g = f._gradeF != null ? f._gradeF : (f.grade != null ? f.grade : 0);
+        var lines = [fmtFromMs(f._rtMs) + ' 기준'];
+        lines.push('강도 ' + (GRADE_NAMES[g] || '-') + (f.windMs != null ? ' · ' + Math.round(f.windMs) + 'm/s' : ''));
+        if (f.pressure != null) lines.push('중심기압 ' + Math.round(f.pressure) + 'hPa');
+        var rad = [];
+        if (f.radStrong) rad.push('강풍 ' + Math.round(f.radStrong) + 'km');
+        if (f.radStorm) rad.push('폭풍 ' + Math.round(f.radStorm) + 'km');
+        if (f.radProb) rad.push('70% ' + Math.round(f.radProb) + 'km');
+        if (rad.length) lines.push(rad.join(' · '));
         var label = new ol.Feature(pointAt(f.lon, f.lat));
         label.setStyle(new ol.style.Style({
             text: new ol.style.Text({
-                text: fmtFromMs(f._rtMs) + ' 기준',
-                font: 'bold 12px sans-serif',
-                textAlign: 'left', offsetX: 13, offsetY: -14,
+                text: lines.join('\n'),
+                font: '11px sans-serif',
+                textAlign: 'left', textBaseline: 'bottom',
+                offsetX: 13, offsetY: -10,
                 fill: new ol.style.Fill({ color: '#111' }),
-                backgroundFill: new ol.style.Fill({ color: 'rgba(255,255,255,0.92)' }),
+                backgroundFill: new ol.style.Fill({ color: 'rgba(255,255,255,0.93)' }),
                 backgroundStroke: new ol.style.Stroke({ color: rgba(c, 1), width: 1.5 }),
-                padding: [3, 6, 3, 6]
+                padding: [4, 7, 4, 7]
             })
         }));
         _headSrc.addFeature(label);
@@ -329,18 +337,20 @@
         if (!_map || !_frames.length) return;
         var f = frameAt(_p);
         if (!f || f.lon == null || f.lat == null) return;
-        var tphn = ol.proj.fromLonLat([f.lon, f.lat]);
-        var jeju = ol.proj.fromLonLat([JEJU_LON, JEJU_LAT]);
-        var extent = [
-            Math.min(tphn[0], jeju[0]), Math.min(tphn[1], jeju[1]),
-            Math.max(tphn[0], jeju[0]), Math.max(tphn[1], jeju[1])
+        // 태풍 현재위치 + 우리나라(제주~본토) 박스를 모두 포함하는 extent → 거리 가늠 가능
+        var pts = [
+            ol.proj.fromLonLat([f.lon, f.lat]),
+            ol.proj.fromLonLat([KOREA_W, KOREA_S]),
+            ol.proj.fromLonLat([KOREA_E, KOREA_N])
         ];
+        var xs = pts.map(function (p) { return p[0]; });
+        var ys = pts.map(function (p) { return p[1]; });
+        var extent = [Math.min.apply(null, xs), Math.min.apply(null, ys), Math.max.apply(null, xs), Math.max.apply(null, ys)];
         var size = _map.getSize();
         if (!size) return;
-        // 하단 컨트롤 패널/탭 영역만큼 bottom 패딩을 크게 줘서 가림 방지.
         _map.getView().fit(extent, {
             size: size,
-            padding: [70, 60, 170, 60],
+            padding: [60, 50, 160, 50], // top,right,bottom(패널),left
             maxZoom: FIT_MAX_ZOOM,
             duration: 600
         });
@@ -523,7 +533,6 @@
         } else {
             pause();
         }
-        try { localStorage.setItem(VISIBLE_KEY, String(v)); } catch (e) {}
     }
 
     function applyAvailability() {
@@ -553,8 +562,7 @@
         _tapTimer = setTimeout(function () { _tapCount = 0; }, TAP_RESET_MS);
         if (_tapCount < TAP_THRESHOLD) return;
         _tapCount = 0;
-        _unlocked = true;
-        try { localStorage.setItem(UNLOCK_KEY, 'true'); } catch (e) {}
+        _unlocked = true; // 세션 동안만 유지(영속 X) — 앱 재시작 시 다시 비활성
         applyAvailability();
         // 표출: 활성 태풍이 있으면 오버레이 ON (없으면 패널만 열어 "현재 태풍 없음" 인지 가능)
         setVisible(true);
@@ -676,12 +684,11 @@
             var map = window.getOceanMap && window.getOceanMap();
             if (map && window.ol) {
                 _map = map;
-                try { _unlocked = localStorage.getItem(UNLOCK_KEY) === 'true'; } catch (e) { _unlocked = false; }
+                _unlocked = false;   // 항상 비활성으로 시작 — 10회 탭 전까지 잠금(영속 X)
+                _visible = false;
                 ensureLayers(map);
                 bindUI();
-                try { _visible = localStorage.getItem(VISIBLE_KEY) === 'true'; } catch (e) { _visible = false; }
-                // 잠금 해제된 경우에만 직전 표시 상태 복원 (기본은 비활성).
-                load().then(function () { if (_unlocked && _visible) setVisible(true); });
+                load();
                 // 5분마다 데이터 갱신(통보문 신규 반영) — 보이는 동안에만
                 setInterval(function () { if (_visible) refreshActive(); }, 5 * 60 * 1000);
                 return;
