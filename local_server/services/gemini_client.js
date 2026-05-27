@@ -42,6 +42,22 @@ let nextIdx = 0;                // 라운드로빈 포인터
 let lastSwitchNotifyAt = 0;     // 전환 알림 스로틀
 let lastAllExhaustedNotifyAt = 0; // 전체 소진 알림 스로틀
 
+// [사용량 카운터] 관리자 AI 탭 "호출량" 표시용. 일(KST) 단위 자동 리셋. 인메모리.
+let usage = null;
+function _todayKST() { return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10); }
+function _ensureUsage() {
+    const d = _todayKST();
+    if (!usage || usage.date !== d) usage = { date: d, requests: 0, apiCalls: 0, success: 0, rateLimited: 0, byCaller: {} };
+    return usage;
+}
+function bumpUsage(field, caller) {
+    const u = _ensureUsage();
+    if (field) u[field] = (u[field] || 0) + 1;
+    if (caller) u.byCaller[caller] = (u.byCaller[caller] || 0) + 1;
+}
+/** 오늘(KST) Gemini 사용량 스냅샷 — 관리자 UI에서 사용 */
+function getUsageStats() { return Object.assign({}, _ensureUsage()); }
+
 /** 등록된 키가 하나라도 있는지 */
 function hasAnyKey() {
     return keys.length > 0;
@@ -102,15 +118,16 @@ function notifyAdmin(title, body) {
  * @param {string} params.caller - 호출자 식별용 라벨(예: 'AI Parser', 'MarineForecast')
  * @returns {Promise<{success, text, error, isRateLimited, keyLabel}>}
  */
-async function callGemini({ model, contents, config, caller = 'unknown' }) {
+async function callGeminiRaw({ model, contents, config, caller = 'unknown' }) {
     if (!hasAnyKey()) {
         return {
-            success: false, text: null,
+            success: false, response: null,
             error: 'GEMINI_API_KEY가 설정되지 않았습니다.',
             isRateLimited: false, keyLabel: null
         };
     }
 
+    bumpUsage('requests', caller);
     const triedIndices = [];
     let firstFailedKeyLabel = null;
 
@@ -127,15 +144,17 @@ async function callGemini({ model, contents, config, caller = 'unknown' }) {
                 );
             }
             return {
-                success: false, text: null,
+                success: false, response: null,
                 error: '모든 Gemini API 키가 쿨다운 중입니다.',
                 isRateLimited: true, keyLabel: null
             };
         }
 
         try {
+            bumpUsage('apiCalls');
             const genAI = new GoogleGenAI({ apiKey: picked.apiKey });
             const result = await genAI.models.generateContent({ model, contents, config });
+            bumpUsage('success');
             // 성공: 이전 키에서 실패 후 전환된 경우 관리자에게 알림 (스로틀 10분)
             if (firstFailedKeyLabel && firstFailedKeyLabel !== picked.label) {
                 const now = Date.now();
@@ -148,13 +167,14 @@ async function callGemini({ model, contents, config, caller = 'unknown' }) {
                 }
             }
             return {
-                success: true, text: result.text,
+                success: true, response: result,
                 error: null, isRateLimited: false, keyLabel: picked.label
             };
         } catch (e) {
             const errorMsg = e.message || '';
             const isRateLimited = errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED');
             if (isRateLimited) {
+                bumpUsage('rateLimited');
                 markRateLimited(picked.index);
                 triedIndices.push(picked.index);
                 if (!firstFailedKeyLabel) firstFailedKeyLabel = picked.label;
@@ -163,16 +183,31 @@ async function callGemini({ model, contents, config, caller = 'unknown' }) {
             }
             // 429 외 오류: 폴백하지 않고 즉시 실패 반환 (구글 장애, 네트워크 등)
             return {
-                success: false, text: null,
+                success: false, response: null,
                 error: e.message, isRateLimited: false, keyLabel: picked.label
             };
         }
     }
 }
 
+/**
+ * 단발 텍스트 응답 헬퍼 — callGeminiRaw 를 감싸 기존 { success, text } 계약을 유지.
+ */
+async function callGemini(args) {
+    const r = await callGeminiRaw(args);
+    if (r.success) {
+        let text = null;
+        try { text = r.response.text; } catch (e) { text = null; }
+        return { success: true, text, error: null, isRateLimited: false, keyLabel: r.keyLabel };
+    }
+    return { success: false, text: null, error: r.error, isRateLimited: r.isRateLimited, keyLabel: r.keyLabel };
+}
+
 module.exports = {
     callGemini,
+    callGeminiRaw,
     getKeysStatus,
+    getUsageStats,
     hasAnyKey,
     AI_COOLDOWN_MS
 };

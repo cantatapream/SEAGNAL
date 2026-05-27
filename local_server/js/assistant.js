@@ -87,31 +87,70 @@
     return null;
   }
 
-  // ── TTS (음성) — 텍스트는 화면에, 음성은 여기서. 둘 다 지원 ─────────────────
+  // ── TTS (음성) — 텍스트는 화면에, 음성은 여기서. 자연음성↔내장음성 둘 다 지원 ──────
+  var NATURAL_KEY = 'seagnal_natural_voice';
+  function getNaturalVoice() { try { return localStorage.getItem(NATURAL_KEY) === '1'; } catch (e) { return false; } }
+  function setNaturalVoice(on) { try { localStorage.setItem(NATURAL_KEY, on ? '1' : '0'); } catch (e) {} }
+
+  function speakStartVisual() {
+    mode = 'speaking'; safeStopRecognition();
+    setStatus('말하는 중…', 'speak'); setBanner('🔊 답변하고 있어요', 'speak'); showEq(true);
+  }
+  function speakEndVisual() {
+    showEq(false);
+    if (micOn) startWakeMode(); else { setBanner(''); setStatus('대기 중 — 마이크를 켜세요', ''); }
+  }
+
   function speak(text) {
     lastAnswer = text || lastAnswer;
-    if (!('speechSynthesis' in window) || !text) return;
+    if (!text) return;
+    if (getNaturalVoice()) { speakNatural(text); return; }   // 자연 음성(서버 TTS)
+    speakOnDevice(text);                                      // 내장 음성(오프라인/무료)
+  }
+
+  // 내장 TTS (Web Speech) — 오프라인·무료, 단 기계음
+  function speakOnDevice(text) {
+    if (!('speechSynthesis' in window) || !text) { return; }
     try {
       window.speechSynthesis.cancel();
       var u = new SpeechSynthesisUtterance(text);
-      u.lang = 'ko-KR';
-      u.rate = 1.0; u.pitch = 1.0;
-      var voices = window.speechSynthesis.getVoices();
-      var ko = voices.filter(function (v) { return /ko/i.test(v.lang); })[0];
+      u.lang = 'ko-KR'; u.rate = 1.0; u.pitch = 1.0;
+      var ko = window.speechSynthesis.getVoices().filter(function (v) { return /ko/i.test(v.lang); })[0];
       if (ko) u.voice = ko;
-      // 발화 중에는 자기 목소리를 다시 인식하지 않도록 인식기를 잠시 멈춘다.
-      u.onstart = function () {
-        mode = 'speaking'; safeStopRecognition();
-        setStatus('말하는 중…', 'speak'); setBanner('🔊 답변하고 있어요', 'speak'); showEq(true);
-      };
-      u.onend = function () { showEq(false); if (micOn) startWakeMode(); else { setBanner(''); setStatus('대기 중 — 마이크를 켜세요', ''); } };
+      u.onstart = speakStartVisual;
+      u.onend = speakEndVisual;
       window.speechSynthesis.speak(u);
-    } catch (e) { showEq(false); /* TTS 실패는 무시 (텍스트는 이미 표시됨) */ }
+    } catch (e) { showEq(false); }
   }
 
-  // 마지막 답변을 다시 음성으로 재생 (텍스트+음성 둘 다 지원 — 음성만 다시 듣기)
+  // 자연 음성 (서버 Gemini TTS) — 네트워크 필요. 실패/오프라인 시 내장 TTS 폴백.
+  function speakNatural(text) {
+    speakStartVisual();
+    fetch('/api/assistant/tts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text })
+    })
+      .then(function (r) { if (!r.ok) throw new Error('tts ' + r.status); return r.blob(); })
+      .then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var a = new Audio(url);
+        a.onended = function () { URL.revokeObjectURL(url); speakEndVisual(); };
+        a.onerror = function () { URL.revokeObjectURL(url); speakOnDevice(text); };
+        a.play().catch(function () { URL.revokeObjectURL(url); speakOnDevice(text); });
+      })
+      .catch(function () { speakOnDevice(text); });  // 서버 TTS 불가 → 내장 음성
+  }
+
+  // 마지막 답변 다시 듣기 — 자연/내장 음성 설정을 그대로 따른다.
   function replayLast() {
     if (!lastAnswer) return;
+    if (getNaturalVoice()) {
+      showEq(true);
+      fetch('/api/assistant/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: lastAnswer }) })
+        .then(function (r) { if (!r.ok) throw new Error('tts'); return r.blob(); })
+        .then(function (blob) { var url = URL.createObjectURL(blob); var a = new Audio(url); a.onended = a.onerror = function () { URL.revokeObjectURL(url); showEq(false); }; a.play().catch(function () { URL.revokeObjectURL(url); showEq(false); }); })
+        .catch(function () { showEq(false); });
+      return;
+    }
     if (!('speechSynthesis' in window)) return;
     try {
       window.speechSynthesis.cancel();
@@ -125,8 +164,9 @@
     } catch (e) { showEq(false); }
   }
 
-  // ── 로컬 저장 (프로필 + 메모리) — 휴대폰 내부에만 보관 ──────────────────────
+  // ── 로컬 저장 (프로필 + 메모리 + 성향) — 휴대폰 내부에만 보관 ──────────────────
   var PROFILE_KEY = 'seagnal_profile', MEMORY_KEY = 'seagnal_memory', MEMORY_MAX = 20;
+  var STYLE_KEY = 'seagnal_style', STYLE_REFRESH_EVERY = 8;
 
   function getProfile() {
     try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch (e) { return null; }
@@ -146,6 +186,71 @@
     try { localStorage.setItem(MEMORY_KEY, JSON.stringify(m)); } catch (e) {}
   }
 
+  // [성향 다이제스트] 통계는 결정론적으로 누적(질문수·자주 보는 해역/주제),
+  //   말투/선호 요약(styleNote)은 몇 건마다 AI로 갱신. 전부 휴대폰에만 저장.
+  function getStyle() {
+    try { var s = JSON.parse(localStorage.getItem(STYLE_KEY) || 'null'); return s || { totalQuestions: 0, zoneCounts: {}, topicCounts: {} }; }
+    catch (e) { return { totalQuestions: 0, zoneCounts: {}, topicCounts: {} }; }
+  }
+  function setStyle(s) { try { localStorage.setItem(STYLE_KEY, JSON.stringify(s || {})); } catch (e) {} }
+
+  // 응답으로 통계 누적: 해역 카운트 + 주제(링크/intent) 카운트 + 총 질문수
+  function updateStyleStats(d) {
+    var s = getStyle();
+    s.totalQuestions = (s.totalQuestions || 0) + 1;
+    s.zoneCounts = s.zoneCounts || {}; s.topicCounts = s.topicCounts || {};
+    if (d && d.zone) s.zoneCounts[d.zone] = (s.zoneCounts[d.zone] || 0) + 1;
+    var topics = {};
+    (d && d.links || []).forEach(function (l) { if (l.layer) topics[l.layer] = 1; if (l.target) topics[l.target] = 1; });
+    if (d && d.intent && d.intent !== 'brain') topics[d.intent] = 1;
+    Object.keys(topics).forEach(function (t) { s.topicCounts[t] = (s.topicCounts[t] || 0) + 1; });
+    // 프로필의 답변 스타일을 선호형식 기본값으로
+    var p = getProfile(); if (p && p.answerStyle && !s.preferredFormat) s.preferredFormat = p.answerStyle;
+    setStyle(s);
+    // 몇 건마다 AI 말투 요약 갱신
+    if (s.totalQuestions % STYLE_REFRESH_EVERY === 0) refreshStyleDigest();
+  }
+
+  function refreshStyleDigest() {
+    var mem = getMemory(); if (!mem.length) return;
+    var history = mem.slice(-20).map(function (x) { return { note: x }; });
+    fetch('/api/assistant/style-digest', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ history: history })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.ok) { var s = getStyle(); if (d.styleNote) s.styleNote = d.styleNote; if (d.preferredFormat) s.preferredFormat = d.preferredFormat; setStyle(s); }
+    }).catch(function () { /* 무시 */ });
+  }
+
+  // 질문이 "내 위치/가까운/근처" 류인지 — GPS가 필요한지 판단
+  function needsLocation(query) {
+    return /내\s*위치|현재\s*위치|가까운|가장\s*가까운|제일\s*가까운|근처|주변|여기서|여기/.test(query || '');
+  }
+
+  // 기기 위치 획득 — Capacitor Geolocation(권한 자동 처리) 우선, 없으면 브라우저 geolocation
+  function getUserLocation() {
+    return new Promise(function (resolve) {
+      var Geo = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation)
+        ? window.Capacitor.Plugins.Geolocation : null;
+      if (Geo && Geo.getCurrentPosition) {
+        var go = function () {
+          Geo.getCurrentPosition({ enableHighAccuracy: false, timeout: 8000 })
+            .then(function (p) { resolve({ lat: p.coords.latitude, lon: p.coords.longitude }); })
+            .catch(function () { resolve(null); });
+        };
+        // 권한 프롬프트를 먼저 띄운 뒤 위치 조회
+        if (Geo.requestPermissions) { Geo.requestPermissions().then(go).catch(go); } else { go(); }
+        return;
+      }
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          function (p) { resolve({ lat: p.coords.latitude, lon: p.coords.longitude }); },
+          function () { resolve(null); }, { enableHighAccuracy: false, timeout: 8000 });
+        return;
+      }
+      resolve(null);
+    });
+  }
+
   // ── 서버 질의 ─────────────────────────────────────────────────────────
   function ask(query) {
     if (!query) return;
@@ -156,10 +261,27 @@
     setAnswer('…', null);
     renderActions(null);
 
+    if (needsLocation(query)) {
+      setStatus('위치 확인 중…', 'think');
+      getUserLocation().then(function (loc) {
+        if (!loc) {
+          setAnswer('위치 권한이 필요해요. 권한을 허용하면 현재 위치 기준으로 찾아드릴게요. (관리자 AI 탭에서 위치 권한 허용 가능)', null);
+          setStatus('대기 중', 'on'); renderActions(null);
+          if (micOn) startWakeMode();
+          return;
+        }
+        doAsk(query, loc);
+      });
+      return;
+    }
+    doAsk(query, null);
+  }
+
+  function doAsk(query, loc) {
     fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: query, profile: getProfile(), memory: getMemory() })
+      body: JSON.stringify({ query: query, profile: getProfile(), memory: getMemory(), style: getStyle(), location: loc })
     })
       .then(function (r) { return r.json(); })
       .then(function (d) {
@@ -170,6 +292,8 @@
           ? ('해역: ' + d.zone + (d.zoneFromProfile ? '(프로필 기본)' : '') + ' · 의도: ' + d.intent)
           : '';
         renderActions(d.links);
+        // 성향 통계 누적(질문수·해역·주제) + 주기적 말투 요약 갱신
+        updateStyleStats(d);
         // 과거 대화 요약을 휴대폰에 누적 → 다음 질문에 참고
         if (d.zone) pushMemory(d.zone + ': "' + query + '" → ' + String(d.answer).slice(0, 50));
         speak(d.answer);
@@ -569,6 +693,16 @@
     if (p.vessel && (p.vessel.text || p.vessel.tonnage)) bits.push('선박: ' + (p.vessel.text || p.vessel.tonnage));
     if (p.vesselText) bits.push('선박: ' + p.vesselText);
     if (p.answerStyle) bits.push('답변: ' + p.answerStyle);
+    // 누적 성향 통계 한 줄
+    var s = getStyle();
+    if (s && s.totalQuestions) {
+      var topN = function (c, n) { return c ? Object.keys(c).sort(function (a, b) { return c[b] - c[a]; }).slice(0, n) : []; };
+      var tz = topN(s.zoneCounts, 2), tt = topN(s.topicCounts, 2);
+      var stat = '질문 ' + s.totalQuestions + '회';
+      if (tz.length) stat += ' · 자주: ' + tz.join(', ');
+      if (s.styleNote) stat += ' · ' + s.styleNote;
+      bits.push('<span style="color:var(--muted);font-size:12px;">' + stat + '</span>');
+    }
     profileSummary.innerHTML = bits.length ? bits.join('<br/>') : '(저장된 정보 없음 — 건너뜀)';
     profileBox.style.display = 'block';
   }
@@ -577,12 +711,19 @@
   if (editBtn) editBtn.addEventListener('click', startOnboarding);
   if (delBtn) delBtn.addEventListener('click', function () {
     clearProfile();
-    try { localStorage.removeItem(MEMORY_KEY); } catch (e) {}
+    try { localStorage.removeItem(MEMORY_KEY); localStorage.removeItem(STYLE_KEY); } catch (e) {}
     renderProfile();
     startOnboarding();
   });
 
   setupNativeBridge();
+
+  // 자연 음성 토글 연결
+  var natToggle = $('naturalVoiceToggle');
+  if (natToggle) {
+    natToggle.checked = getNaturalVoice();
+    natToggle.addEventListener('change', function () { setNaturalVoice(natToggle.checked); });
+  }
 
   // ── 초기화 ────────────────────────────────────────────────────────────────
   if (!speechSupported()) {

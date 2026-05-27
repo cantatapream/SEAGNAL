@@ -37,19 +37,39 @@ const fs = require('fs');
 const path = require('path');
 const router = express.Router();
 const { dataCache } = require('../services/cache_manager');
+let DATA_DIR = path.join(__dirname, '..', 'data');
+let SERVER_PORT = 3001;
+try {
+    const cfg = require('../config/server_config');
+    DATA_DIR = cfg.DATA_DIR || DATA_DIR;
+    SERVER_PORT = cfg.PORT || SERVER_PORT;
+} catch (e) { /* 기본값 사용 */ }
+
+/** 같은 서버의 내부 API를 호출(좌표 기반 해양 데이터·장소검색 등). Node18+ 전역 fetch 사용. */
+async function internalGet(pathStr) {
+    try {
+        const r = await fetch('http://127.0.0.1:' + SERVER_PORT + pathStr);
+        if (!r.ok) return { error: 'HTTP ' + r.status };
+        return await r.json();
+    } catch (e) { return { error: e.message }; }
+}
 
 // ============================================================================
 // 부이 이름 ↔ ID 매핑 — buoyLocations.js(브라우저 전역 스크립트)에서 1회 파싱.
 // "○○ 부이" 처럼 특정 부이를 물으면 그 부이를 앱에서 바로 열 수 있도록 id 를 얻는다.
 // 파싱 실패해도(파일 변경 등) 빈 맵으로 두고 일반 부이 링크로 폴백 — 기동 안전.
 // ============================================================================
-const BUOY_BY_ID = [];   // [{ id, name, nname }]
+const BUOY_BY_ID = [];   // [{ id, name, nname, lat, lon, type }]
 try {
     const raw = fs.readFileSync(path.join(__dirname, '..', 'buoyLocations.js'), 'utf8');
-    const re = /"(\d+)":\s*\{\s*name:\s*"([^"]+)"/g;
+    // 형식: "22103": { name: "거문도", lon: 127.5, lat: 34.0, type: "B" }
+    const re = /"(\d+)":\s*\{\s*name:\s*"([^"]+)",\s*lon:\s*([-\d.]+),\s*lat:\s*([-\d.]+)(?:,\s*type:\s*"([^"]*)")?/g;
     let m;
     while ((m = re.exec(raw)) !== null) {
-        BUOY_BY_ID.push({ id: m[1], name: m[2], nname: m[2].replace(/[\s·]/g, '') });
+        BUOY_BY_ID.push({
+            id: m[1], name: m[2], nname: m[2].replace(/[\s·]/g, ''),
+            lon: +m[3], lat: +m[4], type: m[5] || ''
+        });
     }
     console.log(`[Assistant] 부이 ${BUOY_BY_ID.length}개 로드됨`);
 } catch (e) {
@@ -223,9 +243,11 @@ function detectZoneDeterministic(query) {
     return best;
 }
 
-/** 질문에서 의도(특보 vs 기상전망)를 키워드로 추정 */
+/** 질문에서 의도를 키워드로 추정 (AI 미사용/폴백 시) */
 function detectIntentDeterministic(query) {
     const nq = normalize(query);
+    // "어떤/무슨/뭐가/몇 개 부이가 있냐, 부이 목록" → 부이 목록
+    if (/부이|부표/.test(nq) && /어떤|무슨|뭐|몇|있|목록|리스트|어디/.test(nq)) return 'buoy_list';
     if (/특보|주의보|경보|경계|위험/.test(nq)) return 'warning';
     return 'marine_weather';
 }
@@ -367,7 +389,7 @@ function composeAnswerFallback(zoneName, intent, fc, warn, profile) {
 //  답변의 "근거 데이터"는 여전히 기상청 실데이터(fc/warn)뿐이며, profile/memory
 //  는 말투·관점·기본 해역 같은 맥락에만 쓰도록 프롬프트에서 분리한다.
 // ============================================================================
-async function composeAnswerAI(zoneName, intent, fc, warn, profile, memory) {
+async function composeAnswerAI(zoneName, intent, fc, warn, profile, memory, style) {
     const factPayload = {
         해역: zoneName,
         질문유형: intent,
@@ -375,7 +397,7 @@ async function composeAnswerAI(zoneName, intent, fc, warn, profile, memory) {
         특보: warn      // { current, upcoming } or null
     };
 
-    const personalBlock = buildPersonalContext(profile, memory);
+    const personalBlock = buildPersonalContext(profile, memory, style);
 
     const prompt =
 `당신은 한국 어선·항해자를 돕는 해양 기상 개인 비서입니다.
@@ -406,18 +428,30 @@ ${JSON.stringify(factPayload, null, 1)}`;
  * 프로필/메모리를 프롬프트에 끼워넣을 개인화 컨텍스트 블록 생성.
  * 없으면 빈 문자열. (개인화는 맥락일 뿐, 기상 수치의 근거가 아님을 명시)
  */
-function buildPersonalContext(profile, memory) {
+function buildPersonalContext(profile, memory, style) {
     const lines = [];
     if (profile && (typeof profile === 'object' ? Object.keys(profile).length : String(profile).trim())) {
         const profileText = typeof profile === 'string' ? profile : JSON.stringify(profile);
         lines.push(`[사용자 프로필] ${profileText}`);
     }
+    // [성향 다이제스트] 휴대폰에 누적된 통계 — 자주 묻는 주제/해역·선호 형식·말투
+    if (style && typeof style === 'object') {
+        const topN = (counts, n) => (counts && typeof counts === 'object')
+            ? Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, n).map(e => e[0]) : [];
+        const parts = [];
+        if (style.totalQuestions) parts.push(`누적 질문 ${style.totalQuestions}회`);
+        const tz = topN(style.zoneCounts, 3); if (tz.length) parts.push(`자주 보는 해역: ${tz.join(', ')}`);
+        const tt = topN(style.topicCounts, 3); if (tt.length) parts.push(`관심 주제: ${tt.join(', ')}`);
+        if (style.preferredFormat) parts.push(`선호 답변형식: ${style.preferredFormat}`);
+        if (style.styleNote) parts.push(`말투/스타일: ${style.styleNote}`);
+        if (parts.length) lines.push(`[사용자 성향] ${parts.join(' · ')}`);
+    }
     if (Array.isArray(memory) && memory.length) {
-        lines.push(`[과거 대화 메모] ${memory.slice(-5).join(' / ')}`);
+        lines.push(`[최근 대화] ${memory.slice(-5).join(' / ')}`);
     }
     if (!lines.length) return '';
-    return `\n아래는 이 사용자에 대한 참고 맥락입니다. 말투·관심사·기본 활동해역 추정에만 활용하고,
-기상 수치는 반드시 위 "기상데이터"에서만 가져오세요. 사용자가 '간단히'를 선호하면 더 짧게 답하세요.
+    return `\n아래는 이 사용자에 대한 참고 맥락입니다. 말투·관심사·기본 활동해역·답변 길이 조절에만 활용하고,
+기상 수치는 반드시 위 "기상데이터"/"수집결과"에서만 가져오세요. 사용자가 '간단히'를 선호하면 더 짧게 답하세요.
 ${lines.join('\n')}\n`;
 }
 
@@ -453,10 +487,11 @@ async function detectWithAI(query) {
 구역 목록:
 ${ZONE_NAMES.join(', ')}
 
-intent 는 다음 중 하나:
-- "marine_weather": 날씨/바람/파고/기상 전망
-- "warning": 특보/주의보/경보 발효 여부
-- "both": 둘 다
+intent 는 다음 중 하나(질문이 진짜로 무엇을 원하는지 보고 고르세요):
+- "marine_weather": 날씨/바람/파고/하늘 등 기상 전망을 물음
+- "warning": 특보/주의보/경보 발효 여부를 물음
+- "buoy_list": 그 해역에 "어떤/무슨 기상부이가 있는지" 부이 목록을 물음
+- "both": 기상+특보 둘 다
 
 질문: "${query}"
 
@@ -472,7 +507,7 @@ JSON 형식으로만 답하세요: {"zone": "<구역명 또는 null>", "intent":
         if (!result.success || !result.text) return null;
         const parsed = JSON.parse(result.text);
         const zone = ZONE_NAME_TO_CODE[parsed.zone] ? parsed.zone : null;
-        const intent = ['marine_weather', 'warning', 'both'].includes(parsed.intent)
+        const intent = ['marine_weather', 'warning', 'both', 'buoy_list'].includes(parsed.intent)
             ? parsed.intent : 'marine_weather';
         return { zone, intent };
     } catch (e) {
@@ -536,6 +571,261 @@ router.get('/api/assistant/health', (req, res) => {
     });
 });
 
+// ============================================================================
+// 8. Tool Use 두뇌 (플랜 → 실행 → 종합)
+// ----------------------------------------------------------------------------
+//  의도를 하드코딩 매칭하지 않고, AI가 질문을 보고 어떤 데이터를 가져올지 "계획"하면
+//  서버가 그 도구들을 실행해 실데이터를 모으고, AI가 그 결과만 근거로 답한다.
+//  복합 질문("325 해구 60시간 후 조업 가능?")도 여러 도구를 조합해 처리.
+//  ⚠️ Gemini 키가 있을 때만 동작. 실패 시 호출자가 기존 결정론적 경로로 폴백.
+//  보안: 도구는 공개/사용자 데이터 한정 — 관리자(/api/admin/*) 기능은 절대 미포함.
+// ============================================================================
+const BRAIN_MODEL = 'gemini-2.5-flash-lite';
+
+const TOOL_CATALOG = `
+[예보]
+- get_marine_forecast(zone): 명명된 해상예보구역(예: 제주도북부앞바다)의 단기 기상전망(풍향/풍속/파고/하늘).
+- get_zone_forecast(zoneId, hoursAhead): 해구번호(예: "325")의 N시간 후 예보(파고/파주기/풍속/풍향). 미래 약 72시간까지.
+- get_midterm_forecast(zone): 해역의 중기(3~10일) 해상예보.
+- get_warning(zone): 해당 해역의 특보(주의보/경보) 발효 여부와 종류.
+[관측]
+- list_buoys_near(zone): 해당 해역 인근 기상부이 목록.
+- get_buoy_observation(buoyName): 특정 부이의 최신 실측값(파고/풍속/수온/시정 등).
+- get_current(lat, lon): 해당 좌표의 유향·유속(해류).
+- get_depth(lat, lon): 해당 좌표의 수심.
+- get_seafog_cctv(harbor): 항구 해무 CCTV 최신 영상(이미지 링크).
+- get_tide(place): 지명/해역에서 가장 가까운 해점 좌표(고조/저조 상세 표출은 앱 바텀시트).
+[생활지수]
+- get_fishing_index(location): 바다낚시 지수(지점별 오전/오후 등급+어종).
+- get_surfing_index(beach): 서핑 지수(해수욕장별 초/중/상급 등급, 파고·수온).
+- get_sea_split_index(place): 바다갈라짐(갯벌) 가능 시간대/지수. place 생략 시 가능 지역 목록.
+[위치기반]
+- get_nearest_buoy(lat, lon): 좌표(사용자 GPS)에서 가장 가까운 기상부이의 위치 + 최신 관측값.
+[기타]
+- get_typhoon_status(): 현재 발효 중인 태풍 현황.
+- resolve_location(text): 임의 지명을 좌표/주소로 변환(get_current/get_depth/get_tide 의 좌표 확보용).`;
+
+/** 해역명 정규화: 정확명이면 그대로, 아니면 결정론적 매칭 */
+function resolveZoneName(name) {
+    if (!name) return null;
+    if (ZONE_NAME_TO_CODE[name]) return name;
+    return detectZoneDeterministic(String(name));
+}
+
+/** 해구번호 N시간 후 예보 (zone_forecasts 시계열에서 가장 가까운 시점) */
+function getZoneForecastAt(zoneId, hoursAhead) {
+    const all = dataCache.zoneForecasts && dataCache.zoneForecasts.data;
+    if (!all || !all[zoneId]) return { error: `해구 ${zoneId} 예보 데이터가 없습니다.` };
+    const series = all[zoneId];
+    const t = new Date(Date.now() + (hoursAhead || 0) * 3600000);
+    const p = (n) => (n < 10 ? '0' : '') + n;
+    const target = Number('' + t.getUTCFullYear() + p(t.getUTCMonth() + 1) + p(t.getUTCDate()) + p(t.getUTCHours()));
+    let best = series[0], bestDiff = Infinity;
+    for (const e of series) { const d = Math.abs(Number(e.tm) - target); if (d < bestDiff) { bestDiff = d; best = e; } }
+    return {
+        zoneId, hoursAhead: hoursAhead || 0, forecastTimeUTC: best.tm,
+        파고m: best.wh, 파주기s: best.wp, 풍속ms: best.ws, 풍향deg: best.windDir, 파향deg: best.waveDir
+    };
+}
+
+/** 특정 부이 최신 실측 (marine_buoys/wh/lh 캐시에서 이름 매칭) */
+function getBuoyObs(name) {
+    const norm = normalize(name);
+    if (!norm) return { error: '부이 이름이 비었습니다.' };
+    const pools = [dataCache.marineBuoys, dataCache.marineWhBuoys, dataCache.marineLhBuoys];
+    for (const pool of pools) {
+        const arr = pool && pool.data;
+        if (!Array.isArray(arr)) continue;
+        const hit = arr.find(b => {
+            const kn = normalize(b.kor_nm || b.obs_nm || '');
+            return kn && (kn.includes(norm) || norm.includes(kn));
+        });
+        if (hit) return {
+            name: hit.kor_nm || hit.obs_nm, 풍속ms: hit.ws, 풍향deg: hit.wd,
+            파고m: hit.wh, 파주기s: hit.wp, 수온C: hit.tw, 시정: hit.vs
+        };
+    }
+    return { error: `'${name}' 부이의 최신 관측값을 찾지 못했습니다.` };
+}
+
+/** 현재 태풍 현황 (data/typhoon.json 방어적 읽기) */
+function getTyphoonStatus() {
+    try {
+        const fp = path.join(DATA_DIR, 'typhoon.json');
+        if (!fs.existsSync(fp)) return { hasActive: false, note: '현재 태풍 정보가 없습니다.' };
+        const t = JSON.parse(fs.readFileSync(fp, 'utf8'));
+        return { hasActive: !!t.hasActive, typhoons: (t.typhoons || []).map(x => ({ name: x.name, seq: x.seq })) };
+    } catch (e) { return { error: '태풍 정보를 읽지 못했습니다.' }; }
+}
+
+// 도구 실행기 (모두 공개/사용자 데이터만 — 관리자 기능 없음)
+const TOOL_EXEC = {
+    get_marine_forecast: async ({ zone } = {}) => {
+        const z = resolveZoneName(zone);
+        const fc = z ? buildForecastSummary(z) : null;
+        return fc ? Object.assign({ zone: z }, fc) : { error: '해당 해역 단기예보가 없습니다.', zone: z };
+    },
+    get_zone_forecast: async ({ zoneId, hoursAhead } = {}) => getZoneForecastAt(String(zoneId || ''), Number(hoursAhead) || 0),
+    get_warning: async ({ zone } = {}) => { const z = resolveZoneName(zone); return { zone: z, warning: z ? findWarning(z) : null }; },
+    list_buoys_near: async ({ zone } = {}) => {
+        const z = resolveZoneName(zone);
+        const b = z ? findBuoysNearZone(z, 5, 120) : [];
+        return { zone: z, buoys: b.map(x => ({ name: x.name, distKm: Math.round(x.distKm), type: x.type })) };
+    },
+    get_buoy_observation: async ({ buoyName } = {}) => getBuoyObs(buoyName),
+    get_tide: async ({ place } = {}) => {
+        const z = resolveZoneName(place);
+        const pt = resolveTidePoint(place || '', z, null);
+        return pt ? { place: pt.name, lat: pt.lat, lon: pt.lon, note: '고조/저조 상세는 앱 바텀시트에서 제공' } : { error: '해점을 찾지 못했습니다.' };
+    },
+    get_typhoon_status: async () => getTyphoonStatus(),
+
+    get_midterm_forecast: async ({ zone } = {}) => {
+        const z = resolveZoneName(zone);
+        const code = z && ZONE_NAME_TO_CODE[z];
+        if (!code) return { error: '해역을 인식하지 못했습니다.' };
+        const regId = code.slice(0, 4) + '0000';   // 중기 권역코드 파생 (예: 12B10302 → 12B10000)
+        const d = dataCache.midTermSeaForecasts && dataCache.midTermSeaForecasts.data;
+        const e = d && d[regId];
+        return e ? { zone: z, regId, updatedAt: dataCache.midTermSeaForecasts.updatedAt, forecast: e } : { error: '중기예보 데이터가 없습니다.', regId };
+    },
+    get_fishing_index: async ({ location } = {}) => {
+        const fi = dataCache.fishingIndex;
+        if (!fi || fi.error) return { error: '바다낚시 지수가 아직 준비되지 않았습니다.' };
+        const norm = normalize(location || '');
+        const out = [];
+        for (const grp of ['갯바위', '선상']) {
+            const g = fi[grp]; if (!g) continue;
+            for (const name of Object.keys(g)) {
+                if (!norm || normalize(name).includes(norm)) {
+                    const loc = g[name];
+                    const dates = loc.forecasts ? Object.keys(loc.forecasts) : [];
+                    const f = dates.length ? loc.forecasts[dates[0]] : null;
+                    out.push({ group: grp, name, date: dates[0], 오전: f && f['오전'] && f['오전'].totalIndex, 오후: f && f['오후'] && f['오후'].totalIndex });
+                }
+            }
+        }
+        return out.length ? { updatedAt: fi.updatedAt, points: out.slice(0, 8) } : { error: '해당 지점의 낚시지수를 찾지 못했습니다.' };
+    },
+    get_surfing_index: async ({ beach } = {}) => {
+        const si = dataCache.surfingIndex; const B = si && si.beaches;
+        if (!B) return { error: '서핑 지수가 아직 준비되지 않았습니다.' };
+        const norm = normalize(beach || '');
+        const out = [];
+        for (const name of Object.keys(B)) {
+            if (!norm || normalize(name).includes(norm)) {
+                const b = B[name];
+                const dates = b.forecasts ? Object.keys(b.forecasts) : [];
+                const f = dates.length ? b.forecasts[dates[0]] : null;
+                const am = f && f['오전'];
+                out.push({ name, date: dates[0], 등급: am && am.grades, 파고m: am && am.avgWvhgt, 풍속ms: am && am.avgWspd, 수온C: am && am.avgWtem });
+            }
+        }
+        return out.length ? { updatedAt: si.updatedAt, spots: out.slice(0, 8) } : { error: '해당 해수욕장의 서핑지수를 찾지 못했습니다.' };
+    },
+    get_sea_split_index: async ({ place } = {}) => {
+        const ss = dataCache.seaSplitIndex; const P = ss && ss.places;
+        if (!P) return { error: '바다갈라짐 지수가 아직 준비되지 않았습니다.' };
+        if (!place) return { updatedAt: ss.updatedAt, places: ss.allPlaces || Object.keys(P) };
+        const norm = normalize(place);
+        for (const name of Object.keys(P)) {
+            if (normalize(name).includes(norm)) {
+                const p = P[name];
+                const dates = p.forecasts ? Object.keys(p.forecasts) : [];
+                return { name, date: dates[0], windows: dates.length ? p.forecasts[dates[0]] : [] };
+            }
+        }
+        return { error: '해당 지점의 바다갈라짐 정보를 찾지 못했습니다.', places: ss.allPlaces };
+    },
+    get_seafog_cctv: async ({ harbor } = {}) => {
+        const j = await internalGet('/api/seafog-cctv?obs=' + encodeURIComponent(harbor || ''));
+        if (Array.isArray(j) && j.length) { const x = j[0]; return { harbor: x.sfogObsvtrNm, time: x.imgDt, imageUrl: x.uri }; }
+        return { error: '해무 CCTV 이미지를 찾지 못했습니다.' };
+    },
+    get_current: async ({ lat, lon, date } = {}) => {
+        if (lat == null || lon == null) return { error: '좌표(lat,lon)가 필요합니다.' };
+        const d = date || (() => { const t = new Date(); const p = n => (n < 10 ? '0' : '') + n; return '' + t.getFullYear() + p(t.getMonth() + 1) + p(t.getDate()); })();
+        return await internalGet(`/api/ocean/khoa-stream-nearest?lat=${lat}&lon=${lon}&date=${d}`);
+    },
+    get_depth: async ({ lat, lon } = {}) => {
+        if (lat == null || lon == null) return { error: '좌표(lat,lon)가 필요합니다.' };
+        return await internalGet(`/api/ocean/depth?lat=${lat}&lon=${lon}`);
+    },
+    resolve_location: async ({ text } = {}) => {
+        const j = await internalGet('/api/search-place?q=' + encodeURIComponent(text || ''));
+        const docs = j && j.documents;
+        if (Array.isArray(docs) && docs.length) { const r = docs[0]; return { name: r.place_name, address: r.address_name, lat: +r.y, lon: +r.x }; }
+        return { error: '장소를 찾지 못했습니다(검색 키 미설정일 수 있음).' };
+    },
+    get_nearest_buoy: async ({ lat, lon } = {}) => {
+        if (lat == null || lon == null) return { error: '좌표(lat,lon)가 필요합니다(GPS).' };
+        const near = findNearestBuoys(+lat, +lon, 3);
+        if (!near.length) return { error: '인근 부이를 찾지 못했습니다.' };
+        const top = near[0];
+        return {
+            nearest: { name: top.name, distKm: Math.round(top.distKm), lat: top.lat, lon: top.lon, type: top.type },
+            observation: getBuoyObs(top.name),
+            others: near.slice(1).map(b => ({ name: b.name, distKm: Math.round(b.distKm) }))
+        };
+    }
+};
+
+/** 1단계: 질문 → 가져올 데이터 계획(JSON) */
+async function planQuery(query, profile, location) {
+    const locLine = (location && location.lat != null && location.lon != null)
+        ? `\n사용자 현재 위치(GPS): 위도 ${location.lat}, 경도 ${location.lon}. "내 위치/가까운/근처" 류 질문엔 이 좌표를 좌표기반 도구(get_nearest_buoy/get_current/get_depth/get_tide)에 넣으세요.`
+        : '';
+    const prompt =
+`사용자의 한국어 질문에 답하기 위해 어떤 데이터를 가져올지 계획하세요.
+사용 가능한 도구:
+${TOOL_CATALOG}
+
+규칙:
+- 답에 꼭 필요한 도구만 steps 에 넣으세요(불필요한 호출 금지).
+- 해역명/해구번호/지명/부이명을 args 에 정확히 넣으세요. 해구번호는 숫자 문자열(예: "325").
+- "조업 가능?" 같은 판단 질문은 관련 예보(해구/해역)·특보·필요시 부이를 함께 모으세요.
+- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}
+
+사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
+질문: "${query}"
+
+JSON 으로만: {"steps":[{"tool":"<도구명>","args":{...}}], "zone":"<관련 해역명 또는 null>"}`;
+    const r = await gemini.callGemini({
+        model: BRAIN_MODEL, contents: prompt,
+        config: { responseMimeType: 'application/json', temperature: 0 }, caller: 'Assistant-Plan'
+    });
+    if (!r.success || !r.text) return null;
+    try { const p = JSON.parse(r.text); if (!Array.isArray(p.steps)) return null; return p; } catch (e) { return null; }
+}
+
+/** 2~3단계: 계획 실행 + 실데이터로 답변 종합 */
+async function runBrain(query, profile, memory, style, location) {
+    const plan = await planQuery(query, profile, location);
+    if (!plan) return null;
+
+    const results = [];
+    for (const step of plan.steps.slice(0, 6)) {
+        const exec = step && TOOL_EXEC[step.tool];
+        if (!exec) continue;
+        try { results.push({ tool: step.tool, args: step.args || {}, result: await exec(step.args || {}) }); }
+        catch (e) { results.push({ tool: step.tool, error: e.message }); }
+    }
+
+    const personal = buildPersonalContext(profile, memory, style);
+    const synth =
+`당신은 한국 어선·항해자를 돕는 해양 기상 개인 비서입니다.
+아래 "수집결과"의 실제 데이터에만 근거해 질문에 답하세요.
+- 수집결과에 없는 수치/사실은 절대 지어내지 마세요. 없으면 솔직히 모른다고 하세요.
+- 음성으로 읽어줄 2~4문장의 자연스러운 구어체. 핵심 수치 우선. 표/마크다운/이모지 금지.
+- 조업 가능 여부 같은 안전 판단을 물으면 데이터에 근거해 조언하되, 마지막에 "최종 판단과 책임은 선장에게 있다"는 취지를 한 문장 덧붙이세요.
+${personal}
+질문: "${query}"
+수집결과(JSON): ${JSON.stringify(results)}`;
+    const r = await gemini.callGemini({ model: BRAIN_MODEL, contents: synth, config: { temperature: 0.3 }, caller: 'Assistant-Synth' });
+    if (!r.success || !r.text) return null;
+    return { answer: r.text.trim(), zone: plan.zone || null, toolsUsed: results.map(x => x.tool) };
+}
+
 router.post('/api/assistant/ask', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
 
@@ -555,12 +845,50 @@ router.post('/api/assistant/ask', async (req, res) => {
     // [개인화] 휴대폰에 저장돼 함께 전송된 프로필/메모리 (없으면 무시)
     const profile = (req.body && req.body.profile) || null;
     const memory = (req.body && Array.isArray(req.body.memory)) ? req.body.memory : null;
+    const style = (req.body && req.body.style && typeof req.body.style === 'object') ? req.body.style : null;
+    // 사용자 GPS 좌표(있을 때만) — "내 위치 가까운 부이" 류 질문에 사용
+    const loc = (req.body && req.body.location && req.body.location.lat != null && req.body.location.lon != null)
+        ? { lat: +req.body.location.lat, lon: +req.body.location.lon } : null;
 
     if (!query) {
         return res.status(400).json({ ok: false, error: '질문(query)이 비어 있습니다.' });
     }
 
     const aiAvailable = !!(gemini && gemini.hasAnyKey && gemini.hasAnyKey());
+
+    // [Tool Use 두뇌] AI 키가 있으면 먼저 두뇌로 처리(임의·복합 질문 이해 → 도구 실행 → 답변).
+    //   실패하면 아래 결정론적 경로로 자동 폴백한다.
+    if (aiAvailable) {
+        try {
+            const brain = await runBrain(query, profile, memory, style, loc);
+            if (brain && brain.answer) {
+                return res.json({
+                    ok: true, zone: brain.zone, intent: 'brain', answer: brain.answer,
+                    data: { toolsUsed: brain.toolsUsed }, aiUsed: true, zoneFromProfile: false,
+                    links: buildLinks(query, null, brain.zone, profile), tideSearch: null
+                });
+            }
+        } catch (e) { /* 두뇌 실패 → 결정론적 폴백으로 진행 */ }
+    }
+
+    // [위치기반 폴백] GPS 좌표 + "가까운 부이" 류 질문 → 가장 가까운 부이 + 관측값
+    if (loc && /부이|부표/.test(normalize(query)) && /가까운|가장|제일|근처|내위치|현재위치|주변/.test(normalize(query))) {
+        const near = findNearestBuoys(loc.lat, loc.lon, 3);
+        if (near.length) {
+            const top = near[0];
+            const obs = getBuoyObs(top.name);
+            const obsTxt = (obs && !obs.error)
+                ? ` 현재 풍속 ${obs['풍속ms'] != null ? obs['풍속ms'] + 'm/s' : '정보없음'}, 파고 ${obs['파고m'] != null ? obs['파고m'] + 'm' : '정보없음'}, 수온 ${obs['수온C'] != null ? obs['수온C'] + '도' : '정보없음'}입니다.`
+                : ' 다만 최신 관측값은 지금 불러오지 못했어요.';
+            return res.json({
+                ok: true, zone: null, intent: 'nearest_buoy',
+                answer: `현재 위치에서 가장 가까운 기상부이는 ${top.name}(약 ${Math.round(top.distKm)}km)입니다.${obsTxt}`,
+                data: { nearest: { name: top.name, distKm: Math.round(top.distKm) }, observation: obs },
+                aiUsed: false, zoneFromProfile: false,
+                links: [{ type: 'ocean', layer: 'buoy', buoy: top.id, label: `${top.name} 부이 보기` }], tideSearch: null
+            });
+        }
+    }
 
     // [1] 해역 + 의도 파악 — AI 우선, 실패/부재 시 결정론적 폴백
     let zone = null;
@@ -609,11 +937,25 @@ router.post('/api/assistant/ask', async (req, res) => {
     const fc = buildForecastSummary(zone);
     const warn = findWarning(zone);
 
+    // [3-buoy] "이 해역에 어떤 기상부이가 있냐" 류 — 인근 부이 목록으로 답한다.
+    if (intent === 'buoy_list') {
+        const buoys = findBuoysNearZone(zone, 4, 90);
+        const answer = composeBuoyListAnswer(zone, buoys);
+        const buoyLinks = buoys.map(b => ({
+            type: 'ocean', layer: 'buoy', buoy: b.id, label: `${b.name} 부이 보기`, zone
+        }));
+        return res.json({
+            ok: true, zone, intent, answer,
+            data: { buoys: buoys.map(b => ({ id: b.id, name: b.name, type: b.type, distKm: Math.round(b.distKm) })) },
+            aiUsed: false, zoneFromProfile, links: buoyLinks, tideSearch: null
+        });
+    }
+
     // [4] 답변 생성 — AI 우선, 폴백 보장
     let answer;
     let aiUsed = false;
     if (aiAvailable) {
-        answer = await composeAnswerAI(zone, intent, fc, warn, profile, memory);
+        answer = await composeAnswerAI(zone, intent, fc, warn, profile, memory, style);
         aiUsed = true;
     } else {
         answer = composeAnswerFallback(zone, intent, fc, warn, profile);
@@ -644,6 +986,44 @@ function extractTidePlace(query) {
     s = s.replace(/알려줘|보여줘|알려주|알려|보여|어때|어떄|어떻게|지금|오늘|내일|모레|시간|조회|확인|해줘|좀/g, ' ');
     s = s.replace(/[?!.,~]/g, ' ').replace(/\s+/g, ' ').trim();
     return s.length >= 2 ? s : null;
+}
+
+/** 두 좌표 사이 거리(km) — Haversine */
+function haversineKm(lat1, lon1, lat2, lon2) {
+    const R = 6371, toRad = (d) => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** 해역 대표좌표 기준으로 가까운 기상부이 목록 반환 (거리 포함) */
+function findBuoysNearZone(zoneName, limit, maxKm) {
+    const code = ZONE_NAME_TO_CODE[zoneName];
+    const center = code && ZONE_COORDS[code];
+    if (!center) return [];
+    const ranked = BUOY_BY_ID
+        .filter(b => isFinite(b.lat) && isFinite(b.lon))
+        .map(b => Object.assign({}, b, { distKm: haversineKm(center.lat, center.lon, b.lat, b.lon) }))
+        .sort((x, y) => x.distKm - y.distKm);
+    const within = ranked.filter(b => b.distKm <= (maxKm || 90));
+    return (within.length ? within : ranked).slice(0, limit || 4);
+}
+
+/** 좌표(GPS)에서 가장 가까운 기상부이들 (거리 포함) */
+function findNearestBuoys(lat, lon, limit) {
+    return BUOY_BY_ID
+        .filter(b => isFinite(b.lat) && isFinite(b.lon))
+        .map(b => Object.assign({}, b, { distKm: haversineKm(lat, lon, b.lat, b.lon) }))
+        .sort((a, b) => a.distKm - b.distKm)
+        .slice(0, limit || 3);
+}
+
+/** 인근 부이 목록을 자연어 답변으로 */
+function composeBuoyListAnswer(zoneName, buoys) {
+    if (!buoys.length) return `${zoneName} 인근의 기상부이 정보를 찾지 못했어요.`;
+    const names = buoys.map(b => `${b.name}(${Math.round(b.distKm)}km${b.type === 'C' ? ', 파고부이' : ''})`).join(', ');
+    return `${zoneName}에서 가까운 기상부이는 ${names} 입니다. 아래 버튼을 누르면 해당 부이 관측값을 앱에서 볼 수 있어요.`;
 }
 
 /** 질문에서 특정 부이를 가리키면 { id, name } 반환 (없으면 null) */
@@ -845,6 +1225,112 @@ router.post('/api/assistant/onboard', async (req, res) => {
     if (!result) result = onboardScripted(messages);
 
     res.json({ ok: true, ...result });
+});
+
+// ============================================================================
+// 9-TTS. 자연스러운 음성(Gemini TTS) — 텍스트를 자연 음성으로 합성해 WAV로 반환.
+//   기존 Gemini 키 재사용. 키 없거나 실패하면 503 → 클라이언트가 내장 TTS로 폴백.
+//   비용·지연이 있으므로 클라이언트에서 "자연 음성" 토글이 켜졌을 때만 호출.
+// ============================================================================
+/** RAW PCM(16bit mono) → WAV 컨테이너 (브라우저/네이티브 재생용) */
+function pcmToWav(pcm, sampleRate, channels, bitsPerSample) {
+    const blockAlign = channels * bitsPerSample / 8;
+    const byteRate = sampleRate * blockAlign;
+    const header = Buffer.alloc(44);
+    header.write('RIFF', 0);
+    header.writeUInt32LE(36 + pcm.length, 4);
+    header.write('WAVE', 8);
+    header.write('fmt ', 12);
+    header.writeUInt32LE(16, 16);
+    header.writeUInt16LE(1, 20);          // PCM
+    header.writeUInt16LE(channels, 22);
+    header.writeUInt32LE(sampleRate, 24);
+    header.writeUInt32LE(byteRate, 28);
+    header.writeUInt16LE(blockAlign, 32);
+    header.writeUInt16LE(bitsPerSample, 34);
+    header.write('data', 36);
+    header.writeUInt32LE(pcm.length, 40);
+    return Buffer.concat([header, pcm]);
+}
+
+router.post('/api/assistant/tts', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const rate = checkRateLimit(getClientIp(req));
+    if (!rate.allowed) {
+        res.setHeader('Retry-After', String(rate.retryAfterSec));
+        return res.status(429).json({ error: '요청이 너무 많습니다.' });
+    }
+    if (!(gemini && gemini.callGeminiRaw && gemini.hasAnyKey && gemini.hasAnyKey())) {
+        return res.status(503).json({ error: '자연 음성(TTS)을 사용할 수 없습니다(키 없음).' });
+    }
+    const text = (req.body && req.body.text ? String(req.body.text) : '').trim().slice(0, 500);
+    if (!text) return res.status(400).json({ error: 'text 가 필요합니다.' });
+    const voice = (req.body && req.body.voice) ? String(req.body.voice) : 'Kore';
+
+    try {
+        const r = await gemini.callGeminiRaw({
+            model: 'gemini-2.5-flash-preview-tts',
+            contents: text,
+            config: {
+                responseModalities: ['AUDIO'],
+                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
+            },
+            caller: 'Assistant-TTS'
+        });
+        if (!r.success || !r.response) return res.status(502).json({ error: 'TTS 합성 실패' });
+        const parts = (((r.response.candidates || [])[0] || {}).content || {}).parts || [];
+        const audio = parts.find(p => p.inlineData && /audio|pcm|L16/i.test(p.inlineData.mimeType || ''));
+        if (!audio || !audio.inlineData || !audio.inlineData.data) return res.status(502).json({ error: '오디오 데이터 없음' });
+        const pcm = Buffer.from(audio.inlineData.data, 'base64');
+        const m = (audio.inlineData.mimeType || '').match(/rate=(\d+)/);
+        const sampleRate = m ? Number(m[1]) : 24000;
+        const wav = pcmToWav(pcm, sampleRate, 1, 16);
+        res.setHeader('Content-Type', 'audio/wav');
+        res.setHeader('Content-Length', String(wav.length));
+        return res.send(wav);
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+// ============================================================================
+// 9. 스타일·성향 다이제스트 — 누적 대화를 AI가 정리(말투/선호형식/관심사).
+//   클라이언트가 몇 건마다 한 번 호출해 결과를 휴대폰에 저장(seagnal_style.styleNote).
+//   통계(자주 보는 해역/주제, 질문 수)는 클라이언트가 결정론적으로 누적하므로,
+//   이 엔드포인트는 "말투/선호" 같은 정성 요약만 담당. 키 없으면 ok:false 반환.
+// ============================================================================
+router.post('/api/assistant/style-digest', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const rate = checkRateLimit(getClientIp(req));
+    if (!rate.allowed) {
+        res.setHeader('Retry-After', String(rate.retryAfterSec));
+        return res.status(429).json({ ok: false, error: '요청이 너무 많습니다.' });
+    }
+    if (!(gemini && gemini.hasAnyKey && gemini.hasAnyKey())) {
+        return res.json({ ok: false, reason: 'no-ai' });
+    }
+    const history = (req.body && Array.isArray(req.body.history)) ? req.body.history.slice(-30) : [];
+    if (!history.length) return res.json({ ok: false, reason: 'no-history' });
+
+    const prompt =
+`사용자가 해양 기상 비서와 나눈 대화 기록입니다. 사용자의 "성향"을 한 문장으로 요약하세요.
+- 어떤 말투로 묻는지(예: 짧고 직설적/존댓말/사투리), 어떤 정보를 자주 원하는지, 답변 길이 선호(간결/상세)를 반영.
+- 개인정보·민감정보는 넣지 마세요. 60자 이내 한 문장.
+
+대화기록(JSON): ${JSON.stringify(history)}
+
+JSON 으로만: {"styleNote":"<한 문장>","preferredFormat":"간결|상세|보통"}`;
+    try {
+        const r = await gemini.callGemini({
+            model: BRAIN_MODEL, contents: prompt,
+            config: { responseMimeType: 'application/json', temperature: 0.3 }, caller: 'Assistant-Style'
+        });
+        if (!r.success || !r.text) return res.json({ ok: false, reason: 'ai-failed' });
+        const p = JSON.parse(r.text);
+        return res.json({ ok: true, styleNote: (p.styleNote || '').slice(0, 80), preferredFormat: p.preferredFormat || null });
+    } catch (e) {
+        return res.json({ ok: false, reason: 'error' });
+    }
 });
 
 module.exports = router;
