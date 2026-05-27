@@ -139,10 +139,13 @@ public class VoiceAssistantService extends Service {
     @Override
     public IBinder onBind(Intent intent) { return null; }
 
+    private String lastQuery = null;   // 화면 오버레이 표시용
+
     // ── 상태 전이 ──────────────────────────────────────────────────────────
     private void enterWakeMode() {
         state = State.WAKE;
         updateNotification("\"나리야\" 라고 불러주세요");
+        SeagnalAssistantPlugin.emitState("wake", null, null);
         wakeEngine.start(wakeCallback);
     }
 
@@ -163,6 +166,7 @@ public class VoiceAssistantService extends Service {
         wakeEngine.stop();              // 명령 녹음 동안 호출어 엔진 정지(마이크 충돌 방지)
         beep();
         updateNotification("듣고 있어요… 질문하세요");
+        SeagnalAssistantPlugin.emitState("listening", null, null);
         startCommandRecognition();
         scheduleCommandTimeout();
     }
@@ -227,7 +231,9 @@ public class VoiceAssistantService extends Service {
 
     private void handleQuery(final String query) {
         state = State.THINKING;
+        lastQuery = query;
         updateNotification("생각 중…");
+        SeagnalAssistantPlugin.emitState("thinking", query, null);
         io.execute(() -> {
             final String answer = askServer(query);
             mainHandler.post(() -> speak(answer));
@@ -315,6 +321,7 @@ public class VoiceAssistantService extends Service {
         wakeEngine.stop(); // 자기 목소리를 다시 인식하지 않도록
         answerCue();       // 답변 시작 신호음(듣기 종료→답변 시작 구분)
         updateNotification(text);
+        SeagnalAssistantPlugin.emitState("speaking", lastQuery, text);
         if (ttsReady && tts != null) {
             try {
                 tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "seagnal-answer");
