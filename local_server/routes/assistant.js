@@ -116,6 +116,8 @@ try {
 } catch (e) {
     console.warn('[Assistant] gemini_client 로드 실패 — 폴백 모드로 동작:', e.message);
 }
+let assistantLog = null;
+try { assistantLog = require('../services/assistant_log'); } catch (e) { /* 로그 없이 동작 */ }
 
 // ============================================================================
 // 1. 참조 데이터 (해역명 → 단기예보 구역코드)
@@ -589,7 +591,8 @@ const TOOL_CATALOG = `
 - get_midterm_forecast(zone): 해역의 중기(3~10일) 해상예보.
 - get_warning(zone): 해당 해역의 특보(주의보/경보) 발효 여부와 종류.
 [관측]
-- list_buoys_near(zone): 해당 해역 인근 기상부이 목록.
+- list_buoys_near(zone): 해당 해역 인근 기상부이 목록(이름·거리만).
+- get_buoys_with_obs(zone): 해역 인근 기상부이 목록 + 각 부이의 최신 관측값을 한 번에. ("부이 뭐 있고 각각 관측값 줘" 류는 반드시 이걸 쓰세요)
 - get_buoy_observation(buoyName): 특정 부이의 최신 실측값(파고/풍속/수온/시정 등).
 - get_current(lat, lon): 해당 좌표의 유향·유속(해류).
 - get_depth(lat, lon): 해당 좌표의 수심.
@@ -603,7 +606,24 @@ const TOOL_CATALOG = `
 - get_nearest_buoy(lat, lon): 좌표(사용자 GPS)에서 가장 가까운 기상부이의 위치 + 최신 관측값.
 [기타]
 - get_typhoon_status(): 현재 발효 중인 태풍 현황.
+- get_app_capabilities(): 이 앱(SEA:GNAL)이 제공하는 기능/정보의 종류와 형태. "이 앱 뭐 할 수 있어 / 어떤 정보 줘 / 무슨 기능 있어" 류 메타 질문에 사용.
 - resolve_location(text): 임의 지명을 좌표/주소로 변환(get_current/get_depth/get_tide 의 좌표 확보용).`;
+
+// 앱 기능 안내(메타) — "이 앱 뭐 할 수 있어?"에 답하기 위한 정적 요약.
+const APP_CAPABILITIES = {
+    이름: 'SEA:GNAL(바다날씨)',
+    기능: [
+        '해상 기상예보: 해역별 단기(풍향·풍속·파고·하늘), 해구번호별 75시간 시계열, 중기(3~10일)',
+        '해상 특보: 해역별 풍랑·강풍 등 주의보/경보 발효 현황',
+        '기상부이/관측: 부이별 파고·풍속·수온·시정 실측, 위치에서 가장 가까운 부이',
+        '해양종합정보 지도: 유향·유속, 풍향·풍속, 파고·파향, 수심, 기상부이, 해무 CCTV 레이어',
+        '조석/물때: 지점별 고조·저조(지도 해점 바텀시트)',
+        '태풍: 현재 태풍 현황·경로·예보',
+        '생활지수: 바다낚시·서핑·물놀이·스쿠버·갯벌·바다갈라짐 지수',
+        '해상일기도: 수치파랑·해일·순환·수온 차트'
+    ],
+    형태: '음성/텍스트 질문에 답하고, 답변에서 앱의 해당 화면(해양종합정보 레이어/특보/태풍/부이 등)으로 바로가기 버튼 제공'
+};
 
 /** 해역명 정규화: 정확명이면 그대로, 아니면 결정론적 매칭 */
 function resolveZoneName(name) {
@@ -673,12 +693,23 @@ const TOOL_EXEC = {
         return { zone: z, buoys: b.map(x => ({ name: x.name, distKm: Math.round(x.distKm), type: x.type })) };
     },
     get_buoy_observation: async ({ buoyName } = {}) => getBuoyObs(buoyName),
+    get_buoys_with_obs: async ({ zone, lat, lon } = {}) => {
+        let buoys = [];
+        if (zone) { const z = resolveZoneName(zone); buoys = z ? findBuoysNearZone(z, 5, 120) : []; }
+        else if (lat != null && lon != null) { buoys = findNearestBuoys(+lat, +lon, 5); }
+        if (!buoys.length) return { error: '인근 기상부이를 찾지 못했습니다.' };
+        return {
+            zone: zone ? resolveZoneName(zone) : null,
+            buoys: buoys.map(b => ({ name: b.name, distKm: Math.round(b.distKm), type: b.type === 'C' ? '파고부이' : '기상부이', observation: getBuoyObs(b.name) }))
+        };
+    },
     get_tide: async ({ place } = {}) => {
         const z = resolveZoneName(place);
         const pt = resolveTidePoint(place || '', z, null);
         return pt ? { place: pt.name, lat: pt.lat, lon: pt.lon, note: '고조/저조 상세는 앱 바텀시트에서 제공' } : { error: '해점을 찾지 못했습니다.' };
     },
     get_typhoon_status: async () => getTyphoonStatus(),
+    get_app_capabilities: async () => APP_CAPABILITIES,
 
     get_midterm_forecast: async ({ zone } = {}) => {
         const z = resolveZoneName(zone);
@@ -814,10 +845,12 @@ async function runBrain(query, profile, memory, style, location) {
     const personal = buildPersonalContext(profile, memory, style);
     const synth =
 `당신은 한국 어선·항해자를 돕는 해양 기상 개인 비서입니다.
-아래 "수집결과"의 실제 데이터에만 근거해 질문에 답하세요.
-- 수집결과에 없는 수치/사실은 절대 지어내지 마세요. 없으면 솔직히 모른다고 하세요.
-- 음성으로 읽어줄 2~4문장의 자연스러운 구어체. 핵심 수치 우선. 표/마크다운/이모지 금지.
-- 조업 가능 여부 같은 안전 판단을 물으면 데이터에 근거해 조언하되, 마지막에 "최종 판단과 책임은 선장에게 있다"는 취지를 한 문장 덧붙이세요.
+아래 "수집결과"의 실제 데이터에만 근거해, 사용자가 "물어본 것만" 답하세요.
+- 수집결과에 없는 수치/사실은 절대 지어내지 마세요. 없으면 짧게 "그 정보는 없어요"라고 하세요.
+- 핵심만 간결하게. 사용자가 묻지 않은 일반론·참고사항·주의문구를 덧붙이지 마세요.
+- 여러 항목(예: 부이 여러 개)을 물으면 항목마다 이름과 관측 수치를 명확히, 관측 기준시각이 있으면 함께.
+- 음성으로 읽어줄 구어체. 표/마크다운/이모지 금지.
+- "지금 출항/조업해도 되냐"처럼 안전 결정을 직접 물었을 때만, 마지막에 "최종 판단은 선장님 몫"이라는 취지를 딱 한 번 덧붙이세요. 그 외 질문엔 이 문구를 절대 넣지 마세요.
 ${personal}
 질문: "${query}"
 수집결과(JSON): ${JSON.stringify(results)}`;
@@ -853,6 +886,20 @@ router.post('/api/assistant/ask', async (req, res) => {
     if (!query) {
         return res.status(400).json({ ok: false, error: '질문(query)이 비어 있습니다.' });
     }
+
+    // [대화 로그] 이 핸들러의 모든 답변 응답을 테스트 로그에 1회 기록 (res.json 래핑).
+    const _json = res.json.bind(res);
+    res.json = function (obj) {
+        try {
+            if (assistantLog && obj && obj.answer) {
+                assistantLog.push({
+                    query, answer: obj.answer, zone: obj.zone, intent: obj.intent,
+                    aiUsed: obj.aiUsed, tools: obj.data && obj.data.toolsUsed
+                });
+            }
+        } catch (e) { /* 무시 */ }
+        return _json(obj);
+    };
 
     const aiAvailable = !!(gemini && gemini.hasAnyKey && gemini.hasAnyKey());
 
