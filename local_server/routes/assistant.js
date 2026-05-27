@@ -37,6 +37,8 @@ const fs = require('fs');
 const path = require('path');
 const router = express.Router();
 const { dataCache } = require('../services/cache_manager');
+let DATA_DIR = path.join(__dirname, '..', 'data');
+try { DATA_DIR = require('../config/server_config').DATA_DIR || DATA_DIR; } catch (e) { /* 기본값 사용 */ }
 
 // ============================================================================
 // 부이 이름 ↔ ID 매핑 — buoyLocations.js(브라우저 전역 스크립트)에서 1회 파싱.
@@ -543,6 +545,155 @@ router.get('/api/assistant/health', (req, res) => {
     });
 });
 
+// ============================================================================
+// 8. Tool Use 두뇌 (플랜 → 실행 → 종합)
+// ----------------------------------------------------------------------------
+//  의도를 하드코딩 매칭하지 않고, AI가 질문을 보고 어떤 데이터를 가져올지 "계획"하면
+//  서버가 그 도구들을 실행해 실데이터를 모으고, AI가 그 결과만 근거로 답한다.
+//  복합 질문("325 해구 60시간 후 조업 가능?")도 여러 도구를 조합해 처리.
+//  ⚠️ Gemini 키가 있을 때만 동작. 실패 시 호출자가 기존 결정론적 경로로 폴백.
+//  보안: 도구는 공개/사용자 데이터 한정 — 관리자(/api/admin/*) 기능은 절대 미포함.
+// ============================================================================
+const BRAIN_MODEL = 'gemini-2.5-flash-lite';
+
+const TOOL_CATALOG = `
+- get_marine_forecast(zone): 명명된 해상예보구역(예: 제주도북부앞바다)의 단기 기상전망(풍향/풍속/파고/하늘).
+- get_zone_forecast(zoneId, hoursAhead): 해구번호(예: "325")의 N시간 후 예보(파고/파주기/풍속/풍향). 미래 약 72시간까지.
+- get_warning(zone): 해당 해역의 특보(주의보/경보) 발효 여부와 종류.
+- list_buoys_near(zone): 해당 해역 인근 기상부이 목록.
+- get_buoy_observation(buoyName): 특정 부이의 최신 실측값(파고/풍속/수온/시정 등).
+- get_tide(place): 지명/해역에서 가장 가까운 해점 좌표(고조/저조 상세 표출은 앱 바텀시트가 담당).
+- get_typhoon_status(): 현재 발효 중인 태풍 현황.`;
+
+/** 해역명 정규화: 정확명이면 그대로, 아니면 결정론적 매칭 */
+function resolveZoneName(name) {
+    if (!name) return null;
+    if (ZONE_NAME_TO_CODE[name]) return name;
+    return detectZoneDeterministic(String(name));
+}
+
+/** 해구번호 N시간 후 예보 (zone_forecasts 시계열에서 가장 가까운 시점) */
+function getZoneForecastAt(zoneId, hoursAhead) {
+    const all = dataCache.zoneForecasts && dataCache.zoneForecasts.data;
+    if (!all || !all[zoneId]) return { error: `해구 ${zoneId} 예보 데이터가 없습니다.` };
+    const series = all[zoneId];
+    const t = new Date(Date.now() + (hoursAhead || 0) * 3600000);
+    const p = (n) => (n < 10 ? '0' : '') + n;
+    const target = Number('' + t.getUTCFullYear() + p(t.getUTCMonth() + 1) + p(t.getUTCDate()) + p(t.getUTCHours()));
+    let best = series[0], bestDiff = Infinity;
+    for (const e of series) { const d = Math.abs(Number(e.tm) - target); if (d < bestDiff) { bestDiff = d; best = e; } }
+    return {
+        zoneId, hoursAhead: hoursAhead || 0, forecastTimeUTC: best.tm,
+        파고m: best.wh, 파주기s: best.wp, 풍속ms: best.ws, 풍향deg: best.windDir, 파향deg: best.waveDir
+    };
+}
+
+/** 특정 부이 최신 실측 (marine_buoys/wh/lh 캐시에서 이름 매칭) */
+function getBuoyObs(name) {
+    const norm = normalize(name);
+    if (!norm) return { error: '부이 이름이 비었습니다.' };
+    const pools = [dataCache.marineBuoys, dataCache.marineWhBuoys, dataCache.marineLhBuoys];
+    for (const pool of pools) {
+        const arr = pool && pool.data;
+        if (!Array.isArray(arr)) continue;
+        const hit = arr.find(b => {
+            const kn = normalize(b.kor_nm || b.obs_nm || '');
+            return kn && (kn.includes(norm) || norm.includes(kn));
+        });
+        if (hit) return {
+            name: hit.kor_nm || hit.obs_nm, 풍속ms: hit.ws, 풍향deg: hit.wd,
+            파고m: hit.wh, 파주기s: hit.wp, 수온C: hit.tw, 시정: hit.vs
+        };
+    }
+    return { error: `'${name}' 부이의 최신 관측값을 찾지 못했습니다.` };
+}
+
+/** 현재 태풍 현황 (data/typhoon.json 방어적 읽기) */
+function getTyphoonStatus() {
+    try {
+        const fp = path.join(DATA_DIR, 'typhoon.json');
+        if (!fs.existsSync(fp)) return { hasActive: false, note: '현재 태풍 정보가 없습니다.' };
+        const t = JSON.parse(fs.readFileSync(fp, 'utf8'));
+        return { hasActive: !!t.hasActive, typhoons: (t.typhoons || []).map(x => ({ name: x.name, seq: x.seq })) };
+    } catch (e) { return { error: '태풍 정보를 읽지 못했습니다.' }; }
+}
+
+// 도구 실행기 (모두 공개/사용자 데이터만 — 관리자 기능 없음)
+const TOOL_EXEC = {
+    get_marine_forecast: async ({ zone } = {}) => {
+        const z = resolveZoneName(zone);
+        const fc = z ? buildForecastSummary(z) : null;
+        return fc ? Object.assign({ zone: z }, fc) : { error: '해당 해역 단기예보가 없습니다.', zone: z };
+    },
+    get_zone_forecast: async ({ zoneId, hoursAhead } = {}) => getZoneForecastAt(String(zoneId || ''), Number(hoursAhead) || 0),
+    get_warning: async ({ zone } = {}) => { const z = resolveZoneName(zone); return { zone: z, warning: z ? findWarning(z) : null }; },
+    list_buoys_near: async ({ zone } = {}) => {
+        const z = resolveZoneName(zone);
+        const b = z ? findBuoysNearZone(z, 5, 120) : [];
+        return { zone: z, buoys: b.map(x => ({ name: x.name, distKm: Math.round(x.distKm), type: x.type })) };
+    },
+    get_buoy_observation: async ({ buoyName } = {}) => getBuoyObs(buoyName),
+    get_tide: async ({ place } = {}) => {
+        const z = resolveZoneName(place);
+        const pt = resolveTidePoint(place || '', z, null);
+        return pt ? { place: pt.name, lat: pt.lat, lon: pt.lon, note: '고조/저조 상세는 앱 바텀시트에서 제공' } : { error: '해점을 찾지 못했습니다.' };
+    },
+    get_typhoon_status: async () => getTyphoonStatus()
+};
+
+/** 1단계: 질문 → 가져올 데이터 계획(JSON) */
+async function planQuery(query, profile) {
+    const prompt =
+`사용자의 한국어 질문에 답하기 위해 어떤 데이터를 가져올지 계획하세요.
+사용 가능한 도구:
+${TOOL_CATALOG}
+
+규칙:
+- 답에 꼭 필요한 도구만 steps 에 넣으세요(불필요한 호출 금지).
+- 해역명/해구번호/지명/부이명을 args 에 정확히 넣으세요. 해구번호는 숫자 문자열(예: "325").
+- "조업 가능?" 같은 판단 질문은 관련 예보(해구/해역)·특보·필요시 부이를 함께 모으세요.
+- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.
+
+사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
+질문: "${query}"
+
+JSON 으로만: {"steps":[{"tool":"<도구명>","args":{...}}], "zone":"<관련 해역명 또는 null>"}`;
+    const r = await gemini.callGemini({
+        model: BRAIN_MODEL, contents: prompt,
+        config: { responseMimeType: 'application/json', temperature: 0 }, caller: 'Assistant-Plan'
+    });
+    if (!r.success || !r.text) return null;
+    try { const p = JSON.parse(r.text); if (!Array.isArray(p.steps)) return null; return p; } catch (e) { return null; }
+}
+
+/** 2~3단계: 계획 실행 + 실데이터로 답변 종합 */
+async function runBrain(query, profile, memory) {
+    const plan = await planQuery(query, profile);
+    if (!plan) return null;
+
+    const results = [];
+    for (const step of plan.steps.slice(0, 6)) {
+        const exec = step && TOOL_EXEC[step.tool];
+        if (!exec) continue;
+        try { results.push({ tool: step.tool, args: step.args || {}, result: await exec(step.args || {}) }); }
+        catch (e) { results.push({ tool: step.tool, error: e.message }); }
+    }
+
+    const personal = buildPersonalContext(profile, memory);
+    const synth =
+`당신은 한국 어선·항해자를 돕는 해양 기상 개인 비서입니다.
+아래 "수집결과"의 실제 데이터에만 근거해 질문에 답하세요.
+- 수집결과에 없는 수치/사실은 절대 지어내지 마세요. 없으면 솔직히 모른다고 하세요.
+- 음성으로 읽어줄 2~4문장의 자연스러운 구어체. 핵심 수치 우선. 표/마크다운/이모지 금지.
+- 조업 가능 여부 같은 안전 판단을 물으면 데이터에 근거해 조언하되, 마지막에 "최종 판단과 책임은 선장에게 있다"는 취지를 한 문장 덧붙이세요.
+${personal}
+질문: "${query}"
+수집결과(JSON): ${JSON.stringify(results)}`;
+    const r = await gemini.callGemini({ model: BRAIN_MODEL, contents: synth, config: { temperature: 0.3 }, caller: 'Assistant-Synth' });
+    if (!r.success || !r.text) return null;
+    return { answer: r.text.trim(), zone: plan.zone || null, toolsUsed: results.map(x => x.tool) };
+}
+
 router.post('/api/assistant/ask', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
 
@@ -568,6 +719,21 @@ router.post('/api/assistant/ask', async (req, res) => {
     }
 
     const aiAvailable = !!(gemini && gemini.hasAnyKey && gemini.hasAnyKey());
+
+    // [Tool Use 두뇌] AI 키가 있으면 먼저 두뇌로 처리(임의·복합 질문 이해 → 도구 실행 → 답변).
+    //   실패하면 아래 결정론적 경로로 자동 폴백한다.
+    if (aiAvailable) {
+        try {
+            const brain = await runBrain(query, profile, memory);
+            if (brain && brain.answer) {
+                return res.json({
+                    ok: true, zone: brain.zone, intent: 'brain', answer: brain.answer,
+                    data: { toolsUsed: brain.toolsUsed }, aiUsed: true, zoneFromProfile: false,
+                    links: buildLinks(query, null, brain.zone, profile), tideSearch: null
+                });
+            }
+        } catch (e) { /* 두뇌 실패 → 결정론적 폴백으로 진행 */ }
+    }
 
     // [1] 해역 + 의도 파악 — AI 우선, 실패/부재 시 결정론적 폴백
     let zone = null;

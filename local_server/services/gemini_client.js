@@ -102,10 +102,10 @@ function notifyAdmin(title, body) {
  * @param {string} params.caller - 호출자 식별용 라벨(예: 'AI Parser', 'MarineForecast')
  * @returns {Promise<{success, text, error, isRateLimited, keyLabel}>}
  */
-async function callGemini({ model, contents, config, caller = 'unknown' }) {
+async function callGeminiRaw({ model, contents, config, caller = 'unknown' }) {
     if (!hasAnyKey()) {
         return {
-            success: false, text: null,
+            success: false, response: null,
             error: 'GEMINI_API_KEY가 설정되지 않았습니다.',
             isRateLimited: false, keyLabel: null
         };
@@ -127,7 +127,7 @@ async function callGemini({ model, contents, config, caller = 'unknown' }) {
                 );
             }
             return {
-                success: false, text: null,
+                success: false, response: null,
                 error: '모든 Gemini API 키가 쿨다운 중입니다.',
                 isRateLimited: true, keyLabel: null
             };
@@ -148,7 +148,7 @@ async function callGemini({ model, contents, config, caller = 'unknown' }) {
                 }
             }
             return {
-                success: true, text: result.text,
+                success: true, response: result,
                 error: null, isRateLimited: false, keyLabel: picked.label
             };
         } catch (e) {
@@ -163,15 +163,29 @@ async function callGemini({ model, contents, config, caller = 'unknown' }) {
             }
             // 429 외 오류: 폴백하지 않고 즉시 실패 반환 (구글 장애, 네트워크 등)
             return {
-                success: false, text: null,
+                success: false, response: null,
                 error: e.message, isRateLimited: false, keyLabel: picked.label
             };
         }
     }
 }
 
+/**
+ * 단발 텍스트 응답 헬퍼 — callGeminiRaw 를 감싸 기존 { success, text } 계약을 유지.
+ */
+async function callGemini(args) {
+    const r = await callGeminiRaw(args);
+    if (r.success) {
+        let text = null;
+        try { text = r.response.text; } catch (e) { text = null; }
+        return { success: true, text, error: null, isRateLimited: false, keyLabel: r.keyLabel };
+    }
+    return { success: false, text: null, error: r.error, isRateLimited: r.isRateLimited, keyLabel: r.keyLabel };
+}
+
 module.exports = {
     callGemini,
+    callGeminiRaw,
     getKeysStatus,
     hasAnyKey,
     AI_COOLDOWN_MS
