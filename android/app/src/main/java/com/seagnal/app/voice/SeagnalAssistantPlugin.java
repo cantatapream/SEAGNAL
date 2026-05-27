@@ -59,6 +59,11 @@ public class SeagnalAssistantPlugin extends Plugin {
         if (serverUrl != null && !serverUrl.isEmpty()) {
             intent.putExtra(VoiceAssistantService.EXTRA_SERVER_URL, serverUrl);
         }
+        // 개인화용 프로필(JSON 문자열) — 음성 답변도 사용자 맞춤이 되도록 서비스로 전달
+        String profile = call.getString("profile");
+        if (profile != null && !profile.isEmpty()) {
+            intent.putExtra(VoiceAssistantService.EXTRA_PROFILE, profile);
+        }
         ContextCompat.startForegroundService(getContext(), intent);
 
         JSObject ret = new JSObject();

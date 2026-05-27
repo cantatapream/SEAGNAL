@@ -256,7 +256,9 @@ function findWarning(zoneName) {
 // ============================================================================
 // 3. 답변 생성 — 결정론적 폴백 (Gemini 없이도 실데이터 답변)
 // ============================================================================
-function composeAnswerFallback(zoneName, intent, fc, warn) {
+function composeAnswerFallback(zoneName, intent, fc, warn, profile) {
+    const brief = profile && typeof profile === 'object'
+        && /간단|짧/.test(String(profile.answerStyle || ''));
     const parts = [];
 
     // 특보: 질문 의도가 특보이거나, 현재 발효 중인 특보가 있으면 항상 먼저 안내
@@ -287,7 +289,7 @@ function composeAnswerFallback(zoneName, intent, fc, warn) {
             if (p.wave) seg.push('물결은 ' + p.wave + '로 예상됩니다.');
             parts.push(seg.join(' ').replace(/,\s*$/, '.'));
 
-            const p1 = fc.periods[1];
+            const p1 = brief ? null : fc.periods[1];
             if (p1) {
                 const seg2 = [`${p1.label}은`];
                 if (p1.sky) seg2.push(p1.sky + ',');
@@ -307,8 +309,12 @@ function composeAnswerFallback(zoneName, intent, fc, warn) {
 
 // ============================================================================
 // 4. 답변 생성 — Gemini (실데이터를 근거로 자연스러운 구어체 요약)
+// ----------------------------------------------------------------------------
+//  profile/memory 는 개인화용 — 휴대폰에 저장된 사용자 프로필과 과거 대화 요약.
+//  답변의 "근거 데이터"는 여전히 기상청 실데이터(fc/warn)뿐이며, profile/memory
+//  는 말투·관점·기본 해역 같은 맥락에만 쓰도록 프롬프트에서 분리한다.
 // ============================================================================
-async function composeAnswerAI(zoneName, intent, fc, warn) {
+async function composeAnswerAI(zoneName, intent, fc, warn, profile, memory) {
     const factPayload = {
         해역: zoneName,
         질문유형: intent,
@@ -316,15 +322,17 @@ async function composeAnswerAI(zoneName, intent, fc, warn) {
         특보: warn      // { current, upcoming } or null
     };
 
+    const personalBlock = buildPersonalContext(profile, memory);
+
     const prompt =
-`당신은 한국 어선·항해자를 돕는 해양 기상 음성 비서입니다.
-아래 JSON은 "${zoneName}"의 실제 기상청 데이터입니다. 이 데이터에 있는 값만 사용해서 답하세요.
+`당신은 한국 어선·항해자를 돕는 해양 기상 개인 비서입니다.
+아래 "기상데이터" JSON은 "${zoneName}"의 실제 기상청 데이터입니다. 이 데이터에 있는 값만 근거로 답하세요.
 - 데이터에 없는 수치나 사실을 절대 지어내지 마세요. 없으면 "정보가 없습니다"라고 말하세요.
 - 음성으로 읽어줄 답변이므로 2~3문장의 자연스러운 구어체로 짧게 답하세요.
 - 풍향/풍속/파고 같은 핵심 수치를 우선 전달하세요.
 - 표, 마크다운, 이모지는 쓰지 마세요. 순수 문장만 출력하세요.
-
-데이터:
+${personalBlock}
+기상데이터:
 ${JSON.stringify(factPayload, null, 1)}`;
 
     const result = await gemini.callGemini({
@@ -338,7 +346,47 @@ ${JSON.stringify(factPayload, null, 1)}`;
         return result.text.trim();
     }
     // AI 실패 시 폴백 답변으로 안전하게 대체
-    return composeAnswerFallback(zoneName, intent, fc, warn);
+    return composeAnswerFallback(zoneName, intent, fc, warn, profile);
+}
+
+/**
+ * 프로필/메모리를 프롬프트에 끼워넣을 개인화 컨텍스트 블록 생성.
+ * 없으면 빈 문자열. (개인화는 맥락일 뿐, 기상 수치의 근거가 아님을 명시)
+ */
+function buildPersonalContext(profile, memory) {
+    const lines = [];
+    if (profile && (typeof profile === 'object' ? Object.keys(profile).length : String(profile).trim())) {
+        const profileText = typeof profile === 'string' ? profile : JSON.stringify(profile);
+        lines.push(`[사용자 프로필] ${profileText}`);
+    }
+    if (Array.isArray(memory) && memory.length) {
+        lines.push(`[과거 대화 메모] ${memory.slice(-5).join(' / ')}`);
+    }
+    if (!lines.length) return '';
+    return `\n아래는 이 사용자에 대한 참고 맥락입니다. 말투·관심사·기본 활동해역 추정에만 활용하고,
+기상 수치는 반드시 위 "기상데이터"에서만 가져오세요. 사용자가 '간단히'를 선호하면 더 짧게 답하세요.
+${lines.join('\n')}\n`;
+}
+
+/**
+ * 프로필에서 기본 활동 해역(특보구역명)을 뽑는다. 질문에 해역이 없을 때 사용.
+ * profile.location.zone 이 유효하면 그걸, 아니면 freeText/문자열에서 매칭 시도.
+ * @returns {string|null} 유효한 ZONE_NAME 또는 null
+ */
+function profileDefaultZone(profile) {
+    if (!profile) return null;
+    if (typeof profile === 'object') {
+        const loc = profile.location;
+        if (loc && loc.zone && ZONE_NAME_TO_CODE[loc.zone]) return loc.zone;
+        const text = (loc && loc.freeText) || profile.locationText || '';
+        if (text) {
+            const z = detectZoneDeterministic(text);
+            if (z) return z;
+        }
+        return null;
+    }
+    // 문자열 프로필이면 통째로 매칭 시도
+    return detectZoneDeterministic(String(profile));
 }
 
 /**
@@ -451,6 +499,9 @@ router.post('/api/assistant/ask', async (req, res) => {
     }
 
     const query = (req.body && req.body.query ? String(req.body.query) : '').trim();
+    // [개인화] 휴대폰에 저장돼 함께 전송된 프로필/메모리 (없으면 무시)
+    const profile = (req.body && req.body.profile) || null;
+    const memory = (req.body && Array.isArray(req.body.memory)) ? req.body.memory : null;
 
     if (!query) {
         return res.status(400).json({ ok: false, error: '질문(query)이 비어 있습니다.' });
@@ -467,6 +518,13 @@ router.post('/api/assistant/ask', async (req, res) => {
     }
     if (!zone) zone = detectZoneDeterministic(query);
     if (!intent) intent = detectIntentDeterministic(query);
+
+    // [1-b] 질문에 해역이 없으면 프로필의 기본 활동해역을 사용 (개인화)
+    let zoneFromProfile = false;
+    if (!zone && profile) {
+        const pz = profileDefaultZone(profile);
+        if (pz) { zone = pz; zoneFromProfile = true; }
+    }
 
     // [2] 해역을 못 찾으면 안내 답변
     if (!zone) {
@@ -488,10 +546,10 @@ router.post('/api/assistant/ask', async (req, res) => {
     let answer;
     let aiUsed = false;
     if (aiAvailable) {
-        answer = await composeAnswerAI(zone, intent, fc, warn);
+        answer = await composeAnswerAI(zone, intent, fc, warn, profile, memory);
         aiUsed = true;
     } else {
-        answer = composeAnswerFallback(zone, intent, fc, warn);
+        answer = composeAnswerFallback(zone, intent, fc, warn, profile);
     }
 
     res.json({
@@ -500,8 +558,121 @@ router.post('/api/assistant/ask', async (req, res) => {
         intent,
         answer,
         data: { forecast: fc, warning: warn },
-        aiUsed
+        aiUsed,
+        zoneFromProfile
     });
+});
+
+// ============================================================================
+// 7. AI 대화형 온보딩 — 첫 실행 시 사용자에게 몇 가지 질문해 프로필을 만든다.
+// ----------------------------------------------------------------------------
+//  요청: POST /api/assistant/onboard  { messages: [{from:'ai'|'user', text}] }
+//        (messages 가 비어 있으면 첫 인사+첫 질문 반환)
+//  응답: { done, message, profile? }   done=true 면 message=마무리멘트 + profile 동봉
+//
+//  - AI 키가 있으면 Gemini 가 자연스러운 대화로 진행하고 프로필을 추출(JSON).
+//  - 키가 없으면 정해진 질문 순서(scripted)로 진행 — 키 없이도 동작/테스트 가능.
+//  - 프로필은 서버에 저장하지 않는다. 클라이언트(휴대폰)가 받아 로컬에 저장.
+// ============================================================================
+
+// scripted 폴백용 질문 순서 (체크리스트와 동일)
+const ONBOARD_SCRIPT = [
+    '만나서 반갑습니다. 더 잘 도와드리려고 몇 가지만 여쭤볼게요. 답변은 이 휴대폰에만 저장되고 외부로 공유되지 않습니다. 먼저, 어떤 일을 하고 계신가요? (예: 어선 선장, 선원, 양식, 낚시, 레저보트 등)',
+    '이 앱을 주로 어떤 목적으로 쓰실 계획인가요? (예: 출항 판단, 조업 계획, 안전 확인, 낚시 시기 등)',
+    '기상을 보실 때 무엇을 위주로 보시나요? (예: 파고, 풍향, 풍속, 조류, 물때, 시정, 수온, 특보 등 — 편하신 것 말씀해 주세요)',
+    '보통 어디서 활동하시나요? 기준점과 방위·거리(예: ○○항 남서방 12해리), 위경도, 또는 특보 구역(예: 제주도북부앞바다) 중 편하신 방식으로요. "때에 따라 다름"도 괜찮습니다.',
+    '혹시 선장이거나 조업을 하신다면, 배의 톤수나 선종을 알려주시겠어요? (해당 없으면 "없음"이라고 해주세요)',
+    '마지막으로, 답변은 간단한 요약이 좋으세요, 아니면 수치까지 자세히가 좋으세요?'
+];
+const ONBOARD_FIELDS = ['occupation', 'purpose', 'weatherFactors', 'locationText', 'vesselText', 'answerStyle'];
+
+/** scripted 온보딩 진행 (AI 키 없을 때) */
+function onboardScripted(messages) {
+    const userReplies = messages.filter(m => m && m.from === 'user').map(m => String(m.text || '').trim());
+    const step = userReplies.length; // 다음에 물어볼 질문 인덱스
+
+    if (step < ONBOARD_SCRIPT.length) {
+        return { done: false, message: ONBOARD_SCRIPT[step] };
+    }
+    // 모든 답변 수집 완료 → 프로필 구성
+    const profile = {};
+    ONBOARD_FIELDS.forEach((f, i) => { if (userReplies[i]) profile[f] = userReplies[i]; });
+    // 활동 위치에서 특보구역 추정 시도
+    if (profile.locationText) {
+        const z = detectZoneDeterministic(profile.locationText);
+        profile.location = { freeText: profile.locationText, zone: z || null };
+        delete profile.locationText;
+    }
+    return {
+        done: true,
+        message: '감사합니다. 알려주신 내용은 이 휴대폰에만 저장돼요. 이제 "나리야" 라고 부르고 궁금한 바다 날씨를 물어보세요. 설정에서 언제든 보기·수정·삭제할 수 있습니다.',
+        profile
+    };
+}
+
+/** AI 온보딩 진행 (Gemini). 실패 시 null 반환(호출자가 scripted 폴백). */
+async function onboardWithAI(messages) {
+    const transcript = messages.map(m => `${m.from === 'ai' ? '비서' : '사용자'}: ${m.text}`).join('\n');
+    const prompt =
+`당신은 한국 어선·항해자를 위한 해양 기상 개인 비서입니다. 지금은 첫 만남이라, 사용자를
+파악하기 위한 짧은 온보딩 인터뷰를 진행합니다. 따뜻하고 간결하게, 한 번에 하나씩만 물으세요.
+
+수집 목표(과하지 않게, 사용자가 건너뛰면 넘어가기):
+1) 직종/역할  2) 앱 사용 목적  3) 주로 보는 기상요소(파고/파향/풍향/풍속/조류/물때/시정/수온/특보 등 — 필요하면 짧게 설명)
+4) 주 활동 위치(기준점+방위거리, 위경도, 특보구역, 또는 "때에 따라 다름")  5) 선박 정보(선장/조업 시 톤수·선종)  6) 답변 스타일(간단/자세히)
+
+규칙:
+- 첫 메시지에서는 인사 + "정보는 이 휴대폰에만 저장되고 외부 공유되지 않는다"는 안내를 포함하세요.
+- 한 번에 질문 하나. 이미 답한 항목은 다시 묻지 마세요.
+- 충분히 모였거나 사용자가 그만하고 싶어하면 done=true 로 마치고 따뜻한 마무리 멘트를 message 에 담으세요.
+- profile 은 done=true 일 때만 채우세요. 형식:
+  {"occupation":"","purpose":"","weatherFactors":[],"location":{"freeText":"","zone":null},"vessel":{"text":""},"answerStyle":""}
+  (모르는 값은 비워두기. zone 은 아래 특보구역 목록에 정확히 있을 때만 채우고 없으면 null)
+
+특보구역 목록: ${ZONE_NAMES.join(', ')}
+
+지금까지의 대화:
+${transcript || '(아직 없음 — 첫 인사와 첫 질문을 시작하세요)'}
+
+JSON 으로만 답하세요: {"done": false, "message": "<다음에 할 말>", "profile": null}`;
+
+    try {
+        const result = await gemini.callGemini({
+            model: 'gemini-2.5-flash-lite',
+            contents: prompt,
+            config: { responseMimeType: 'application/json', temperature: 0.4 },
+            caller: 'Assistant-Onboard'
+        });
+        if (!result.success || !result.text) return null;
+        const parsed = JSON.parse(result.text);
+        if (typeof parsed.message !== 'string' || !parsed.message.trim()) return null;
+        return {
+            done: !!parsed.done,
+            message: parsed.message.trim(),
+            profile: parsed.done ? (parsed.profile || {}) : undefined
+        };
+    } catch (e) {
+        return null;
+    }
+}
+
+router.post('/api/assistant/onboard', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+
+    const rate = checkRateLimit(getClientIp(req));
+    if (!rate.allowed) {
+        res.setHeader('Retry-After', String(rate.retryAfterSec));
+        return res.status(429).json({ ok: false, error: '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.' });
+    }
+
+    const messages = (req.body && Array.isArray(req.body.messages)) ? req.body.messages : [];
+    const aiAvailable = !!(gemini && gemini.hasAnyKey && gemini.hasAnyKey());
+
+    let result = null;
+    if (aiAvailable) result = await onboardWithAI(messages);
+    if (!result) result = onboardScripted(messages);
+
+    res.json({ ok: true, ...result });
 });
 
 module.exports = router;

@@ -68,6 +68,7 @@ public class VoiceAssistantService extends Service {
 
     public static final String ACTION_STOP = "com.seagnal.app.voice.STOP";
     public static final String EXTRA_SERVER_URL = "serverUrl";
+    public static final String EXTRA_PROFILE = "profile";
     private static final String DEFAULT_SERVER_URL = "https://seagnal-server.fly.dev";
 
     private static final String CHANNEL_ID = "seagnal_voice_assistant";
@@ -86,6 +87,7 @@ public class VoiceAssistantService extends Service {
     private boolean ttsReady = false;
 
     private String serverUrl = DEFAULT_SERVER_URL;
+    private String profileJson = null;   // 개인화용 프로필(JSON 문자열) — 휴대폰에서 전달받음
     private Runnable commandTimeoutRunnable;
 
     private enum State { IDLE, WAKE, COMMAND, THINKING, SPEAKING }
@@ -109,6 +111,9 @@ public class VoiceAssistantService extends Service {
         if (intent != null && intent.hasExtra(EXTRA_SERVER_URL)) {
             String u = intent.getStringExtra(EXTRA_SERVER_URL);
             if (u != null && !u.isEmpty()) serverUrl = u.replaceAll("/+$", "");
+        }
+        if (intent != null && intent.hasExtra(EXTRA_PROFILE)) {
+            profileJson = intent.getStringExtra(EXTRA_PROFILE);
         }
 
         startForegroundSafely(getString_(R.string.app_name) + " 음성 비서", "\"나리야\" 라고 불러주세요");
@@ -238,6 +243,11 @@ public class VoiceAssistantService extends Service {
 
             JSONObject body = new JSONObject();
             body.put("query", query);
+            // 개인화 프로필 동봉(있으면). JSON 이면 객체로, 아니면 문자열로 전송.
+            if (profileJson != null && !profileJson.isEmpty()) {
+                try { body.put("profile", new JSONObject(profileJson)); }
+                catch (Exception ex) { body.put("profile", profileJson); }
+            }
             byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
             try (OutputStream os = conn.getOutputStream()) {
                 os.write(payload);

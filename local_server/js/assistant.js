@@ -94,6 +94,27 @@
     } catch (e) { /* TTS 실패는 무시 (텍스트는 이미 표시됨) */ }
   }
 
+  // ── 로컬 저장 (프로필 + 메모리) — 휴대폰 내부에만 보관 ──────────────────────
+  var PROFILE_KEY = 'seagnal_profile', MEMORY_KEY = 'seagnal_memory', MEMORY_MAX = 20;
+
+  function getProfile() {
+    try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch (e) { return null; }
+  }
+  function setProfile(p) {
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p || {})); } catch (e) {}
+  }
+  function clearProfile() { try { localStorage.removeItem(PROFILE_KEY); } catch (e) {} }
+  function getMemory() {
+    try { var m = JSON.parse(localStorage.getItem(MEMORY_KEY) || '[]'); return Array.isArray(m) ? m : []; }
+    catch (e) { return []; }
+  }
+  function pushMemory(note) {
+    if (!note) return;
+    var m = getMemory(); m.push(note);
+    if (m.length > MEMORY_MAX) m = m.slice(-MEMORY_MAX);
+    try { localStorage.setItem(MEMORY_KEY, JSON.stringify(m)); } catch (e) {}
+  }
+
   // ── 서버 질의 ─────────────────────────────────────────────────────────
   function ask(query) {
     if (!query) return;
@@ -105,15 +126,18 @@
     fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: query })
+      body: JSON.stringify({ query: query, profile: getProfile(), memory: getMemory() })
     })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || !d.ok) { throw new Error((d && d.error) || '응답 오류'); }
         setAnswer(d.answer, d.aiUsed);
-        metaEl.textContent = d.zone ? ('해역: ' + d.zone + ' · 의도: ' + d.intent) : '';
+        metaEl.textContent = d.zone
+          ? ('해역: ' + d.zone + (d.zoneFromProfile ? '(프로필 기본)' : '') + ' · 의도: ' + d.intent)
+          : '';
+        // 과거 대화 요약을 휴대폰에 누적 → 다음 질문에 참고
+        if (d.zone) pushMemory(d.zone + ': "' + query + '" → ' + String(d.answer).slice(0, 50));
         speak(d.answer);
-        // TTS 미지원 환경이면 onend 가 안 오므로 여기서 호출어 모드 복귀
         if (!('speechSynthesis' in window) && micOn) startWakeMode();
       })
       .catch(function (err) {
@@ -306,9 +330,10 @@
 
     toggleBtn.addEventListener('click', function () {
       toggleBtn.disabled = true;
+      // 네이티브 음성 답변도 개인화되도록 프로필을 함께 전달
       var op = running
         ? Native.disable()
-        : Native.enable({ serverUrl: location.origin });
+        : Native.enable({ serverUrl: location.origin, profile: JSON.stringify(getProfile() || {}) });
       op.then(function (r) {
         running = r ? !!r.running : !running;
         render();
@@ -318,6 +343,105 @@
       }).then(function () { toggleBtn.disabled = false; });
     });
   }
+
+  // ── 온보딩 (AI 대화형) + 프로필 관리 ────────────────────────────────────────
+  var onboardEl = $('onboard'), obLog = $('obLog'), obForm = $('obForm'), obInput = $('obInput');
+  var mainUI = $('mainUI'), profileBox = $('profileBox'), profileSummary = $('profileSummary');
+  var obMessages = [];
+  var obBusy = false;
+
+  function showMainUI(show) { if (mainUI) mainUI.style.display = show ? 'block' : 'none'; }
+
+  function obBubble(text, who) {
+    var b = document.createElement('div');
+    b.textContent = text;
+    b.style.cssText = 'max-width:85%; padding:9px 12px; border-radius:12px; font-size:14px; line-height:1.5;' +
+      (who === 'user'
+        ? 'align-self:flex-end; background:var(--accent); color:#04263b;'
+        : 'align-self:flex-start; background:rgba(255,255,255,.08); color:var(--text);');
+    obLog.appendChild(b);
+    obLog.scrollTop = obLog.scrollHeight;
+  }
+
+  function startOnboarding() {
+    obMessages = [];
+    obLog.innerHTML = '';
+    profileBox.style.display = 'none';
+    showMainUI(false);
+    onboardEl.style.display = 'block';
+    onboardTurn(); // 첫 인사/질문
+  }
+
+  // 현재까지의 obMessages 를 서버로 보내 다음 AI 메시지(또는 완료)를 받는다.
+  function onboardTurn() {
+    if (obBusy) return;
+    obBusy = true;
+    fetch('/api/assistant/onboard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: obMessages })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) throw new Error((d && d.error) || '온보딩 오류');
+        obBubble(d.message, 'ai');
+        obMessages.push({ from: 'ai', text: d.message });
+        if (d.done) {
+          if (d.profile) setProfile(d.profile);
+          finishOnboarding();
+        }
+      })
+      .catch(function (e) { obBubble('연결에 문제가 있어요: ' + e.message, 'ai'); })
+      .then(function () { obBusy = false; });
+  }
+
+  obForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var t = obInput.value.trim();
+    if (!t || obBusy) return;
+    obBubble(t, 'user');
+    obMessages.push({ from: 'user', text: t });
+    obInput.value = '';
+    onboardTurn();
+  });
+
+  var obSkip = $('obSkip');
+  if (obSkip) obSkip.addEventListener('click', function (e) {
+    e.preventDefault();
+    setProfile({}); // 빈 프로필로 저장(=온보딩 완료 표시) → 다음부터 안 물어봄
+    finishOnboarding();
+  });
+
+  function finishOnboarding() {
+    onboardEl.style.display = 'none';
+    renderProfile();
+    showMainUI(true);
+  }
+
+  function renderProfile() {
+    var p = getProfile();
+    if (!p) { profileBox.style.display = 'none'; return; }
+    var bits = [];
+    if (p.occupation) bits.push('직종: ' + p.occupation);
+    if (p.purpose) bits.push('목적: ' + p.purpose);
+    if (p.weatherFactors) bits.push('관심: ' + (Array.isArray(p.weatherFactors) ? p.weatherFactors.join(', ') : p.weatherFactors));
+    if (p.location && (p.location.zone || p.location.freeText)) bits.push('활동해역: ' + (p.location.zone || p.location.freeText));
+    if (p.vessel && (p.vessel.text || p.vessel.tonnage)) bits.push('선박: ' + (p.vessel.text || p.vessel.tonnage));
+    if (p.vesselText) bits.push('선박: ' + p.vesselText);
+    if (p.answerStyle) bits.push('답변: ' + p.answerStyle);
+    profileSummary.innerHTML = bits.length ? bits.join('<br/>') : '(저장된 정보 없음 — 건너뜀)';
+    profileBox.style.display = 'block';
+  }
+
+  var editBtn = $('editProfile'), delBtn = $('deleteProfile');
+  if (editBtn) editBtn.addEventListener('click', startOnboarding);
+  if (delBtn) delBtn.addEventListener('click', function () {
+    clearProfile();
+    try { localStorage.removeItem(MEMORY_KEY); } catch (e) {}
+    renderProfile();
+    startOnboarding();
+  });
+
   setupNativeBridge();
 
   // ── 초기화 ────────────────────────────────────────────────────────────────
@@ -325,5 +449,13 @@
     showSpeechWarn('이 브라우저/앱은 음성 인식을 지원하지 않습니다. 아래 입력창으로 질문하세요. (서버/AI 기능은 정상 동작)');
     micBtn.disabled = true;
     micBtn.style.opacity = '.5';
+  }
+
+  // 프로필이 없으면 첫 실행 온보딩, 있으면 요약 표시
+  if (getProfile() === null) {
+    startOnboarding();
+  } else {
+    renderProfile();
+    showMainUI(true);
   }
 })();
