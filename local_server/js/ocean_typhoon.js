@@ -166,6 +166,20 @@
         var kst = new Date(d.getTime() + (d.getTimezoneOffset() * 60000) + 9 * 3600000);
         return Date.UTC(kst.getFullYear(), kst.getMonth(), kst.getDate(), kst.getHours(), kst.getMinutes());
     }
+    // 상대일 라벨(오늘/내일/모레/글피/그글피) — 그 외 날짜는 라벨 없음
+    var REL_DAY = { 0: '오늘', 1: '내일', 2: '모레', 3: '글피', 4: '그글피' };
+    // "M월 D일(상대어) HH시" 라벨. 프레임·현재 모두 KST-as-UTC-ms 공간이라 getUTC*/Date.UTC 로 비교.
+    function dateTimeLabel(ms) {
+        if (!isFinite(ms)) return '';
+        var d = new Date(ms);
+        var mm = d.getUTCMonth() + 1, dd = d.getUTCDate(), hh = d.getUTCHours(), mi = d.getUTCMinutes();
+        var fDay = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+        var n = new Date(nowKstMs());
+        var nDay = Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate());
+        var rel = REL_DAY[Math.round((fDay - nDay) / 86400000)];
+        var hStr = (hh < 10 ? '0' + hh : hh) + (mi ? ':' + (mi < 10 ? '0' + mi : mi) : '시');
+        return mm + '월 ' + dd + '일' + (rel ? '(' + rel + ')' : '') + ' ' + hStr;
+    }
     // 현재 시각이 타임라인(첫~끝 프레임)에서 차지하는 위치 0..1
     function computeNowP() {
         if (_frames.length < 2) return 0;
@@ -311,7 +325,7 @@
         _frames.forEach(function (f, i) {
             var ov = _pointBubbles[i];
             if (!ov) { ov = makeBubbleOverlay(); _map.addOverlay(ov); _pointBubbles[i] = ov; }
-            var header = fmtFromMs(timeToMs(f.time)) + (f.isCurrent ? ' 발표위치' : ' 예상위치');
+            var header = dateTimeLabel(timeToMs(f.time)) + (f.isCurrent ? ' 발표위치' : ' 예상위치');
             ov.getElement().innerHTML = bubbleHTML(f, header);
             // 최종 예상 위치(마지막)만 진하게, 나머지는 흐리게(배경 비침 → 시인성). 클릭 시 진하게.
             ov.getElement().classList.toggle('tphn-faint', i !== _frames.length - 1);
@@ -366,7 +380,7 @@
 
         // 이동 말풍선(HTML 오버레이) — 현재 시각 + 상세
         if (_moveEl) {
-            _moveEl.innerHTML = bubbleHTML(f, fmtFromMs(f._rtMs) + ' 기준');
+            _moveEl.innerHTML = bubbleHTML(f, dateTimeLabel(f._rtMs) + ' 기준');
             _moveBubble.setPosition(ol.proj.fromLonLat([f.lon, f.lat]));
         }
         var scr = document.getElementById('tphn-scrubber');
