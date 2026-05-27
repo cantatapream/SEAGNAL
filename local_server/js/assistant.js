@@ -336,6 +336,8 @@
   // 앱 내 기능으로 이동(딥링크). 메인 앱(index2)으로 진입하며 파라미터를 넘긴다.
   // 파라미터 규약: ?assistant=<type>[&layer=<layer>][&zone=<zone>][&buoy=<id>]
   function openAppFeature(lk) {
+    // 웹 출처 링크는 외부 URL로 열기
+    if (lk.type === 'web' && lk.url) { try { window.open(lk.url, '_blank'); } catch (e) { window.location.href = lk.url; } return; }
     var url = location.origin + '/?assistant=' + encodeURIComponent(lk.type);
     if (lk.layer) url += '&layer=' + encodeURIComponent(lk.layer);
     if (lk.target) url += '&target=' + encodeURIComponent(lk.target);

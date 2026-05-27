@@ -35,6 +35,27 @@ import com.getcapacitor.annotation.PermissionCallback;
 )
 public class SeagnalAssistantPlugin extends Plugin {
 
+    // 서비스 → WebView 로 상태/대화를 전달하기 위한 정적 참조.
+    private static SeagnalAssistantPlugin instance;
+
+    @Override
+    public void load() { instance = this; }
+
+    /**
+     * 음성 비서 상태/대화를 WebView(JS)로 통지. 화면 오버레이가 'assistantState' 이벤트를 구독.
+     * @param state 'wake'|'listening'|'thinking'|'speaking'
+     */
+    public static void emitState(String state, String query, String answer) {
+        if (instance == null) return;
+        try {
+            JSObject o = new JSObject();
+            o.put("state", state);
+            if (query != null) o.put("query", query);
+            if (answer != null) o.put("answer", answer);
+            instance.notifyListeners("assistantState", o);
+        } catch (Exception ignored) {}
+    }
+
     @PluginMethod
     public void enable(PluginCall call) {
         if (getPermissionState("microphone") != PermissionState.GRANTED) {

@@ -53,6 +53,39 @@ async function internalGet(pathStr) {
         return await r.json();
     } catch (e) { return { error: e.message }; }
 }
+async function internalPost(pathStr, bodyObj) {
+    try {
+        const r = await fetch('http://127.0.0.1:' + SERVER_PORT + pathStr, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyObj)
+        });
+        if (!r.ok) return { error: 'HTTP ' + r.status };
+        return await r.json();
+    } catch (e) { return { error: e.message }; }
+}
+const _sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+/** 좌표의 오늘 고조/저조 시각을 조석 파이프라인(save_tide_input → /data 폴링)으로 조회. */
+async function fetchTideTimes(lat, lon) {
+    try {
+        const now = new Date(), p = n => (n < 10 ? '0' : '') + n;
+        const date = '' + now.getFullYear() + p(now.getMonth() + 1) + p(now.getDate());
+        const time = p(now.getHours()) + p(now.getMinutes());
+        const start = await internalPost('/api/save_tide_input', { date, time, lat, lon, deviceId: 'assistant-server' });
+        if (!start || !start.files || !start.files.today) return null;
+        const file = start.files.today;
+        for (let i = 0; i < 8; i++) {
+            const t = await internalGet('/data/' + encodeURIComponent(file));
+            if (t && typeof t.tideBedStatus === 'string' && t.tideBedStatus.indexOf('complete') === 0) {
+                const fmt = pk => (pk && pk.time) ? { 시각: pk.time, 조위m: pk.height } : null;
+                const highs = [fmt(t.highTide1), fmt(t.highTide2)].filter(Boolean);
+                const lows = [fmt(t.lowTide1), fmt(t.lowTide2)].filter(Boolean);
+                return (highs.length || lows.length) ? { 고조: highs, 저조: lows } : null;
+            }
+            await _sleep(1200);
+        }
+        return null;
+    } catch (e) { return null; }
+}
 
 // ============================================================================
 // 부이 이름 ↔ ID 매핑 — buoyLocations.js(브라우저 전역 스크립트)에서 1회 파싱.
@@ -116,6 +149,8 @@ try {
 } catch (e) {
     console.warn('[Assistant] gemini_client 로드 실패 — 폴백 모드로 동작:', e.message);
 }
+let assistantLog = null;
+try { assistantLog = require('../services/assistant_log'); } catch (e) { /* 로그 없이 동작 */ }
 
 // ============================================================================
 // 1. 참조 데이터 (해역명 → 단기예보 구역코드)
@@ -589,27 +624,58 @@ const TOOL_CATALOG = `
 - get_midterm_forecast(zone): 해역의 중기(3~10일) 해상예보.
 - get_warning(zone): 해당 해역의 특보(주의보/경보) 발효 여부와 종류.
 [관측]
-- list_buoys_near(zone): 해당 해역 인근 기상부이 목록.
+- list_buoys_near(zone): 해당 해역 인근 기상부이 목록(이름·거리만).
+- get_buoys_with_obs(zone): 해역 인근 기상부이 목록 + 각 부이의 최신 관측값을 한 번에. ("부이 뭐 있고 각각 관측값 줘" 류는 반드시 이걸 쓰세요)
 - get_buoy_observation(buoyName): 특정 부이의 최신 실측값(파고/풍속/수온/시정 등).
-- get_current(lat, lon): 해당 좌표의 유향·유속(해류).
-- get_depth(lat, lon): 해당 좌표의 수심.
+- get_current(zone 또는 lat,lon): 해역(또는 좌표)의 유향·유속(해류). 해역명만 줘도 됨.
+- get_depth(zone 또는 lat,lon): 해역(또는 좌표)의 수심. 해역명만 줘도 됨.
 - get_seafog_cctv(harbor): 항구 해무 CCTV 최신 영상(이미지 링크).
-- get_tide(place): 지명/해역에서 가장 가까운 해점 좌표(고조/저조 상세 표출은 앱 바텀시트).
+- get_tide(place): 지명/해역의 오늘 고조·저조 시각과 조위(만조/간조/물때 질문은 이걸 쓰세요).
 [생활지수]
 - get_fishing_index(location): 바다낚시 지수(지점별 오전/오후 등급+어종).
 - get_surfing_index(beach): 서핑 지수(해수욕장별 초/중/상급 등급, 파고·수온).
 - get_sea_split_index(place): 바다갈라짐(갯벌) 가능 시간대/지수. place 생략 시 가능 지역 목록.
 [위치기반]
 - get_nearest_buoy(lat, lon): 좌표(사용자 GPS)에서 가장 가까운 기상부이의 위치 + 최신 관측값.
+[비교/집계]
+- get_zones_ranked(metric, order, threshold, top): 전국 해역을 파고(metric:"wave")/풍속("wind") 기준 정렬·필터.
+  order:"desc"(높은순,기본)|"asc", threshold:기준값 이상만, top:개수. "파고 제일 높은 해역","풍속 10 넘는 해역" 류.
 [기타]
 - get_typhoon_status(): 현재 발효 중인 태풍 현황.
+- get_app_capabilities(): 이 앱(SEA:GNAL)이 제공하는 기능/정보의 종류와 형태. "이 앱 뭐 할 수 있어 / 어떤 정보 줘 / 무슨 기능 있어" 류 메타 질문에 사용.
 - resolve_location(text): 임의 지명을 좌표/주소로 변환(get_current/get_depth/get_tide 의 좌표 확보용).`;
+
+// 앱 기능 안내(메타) — "이 앱 뭐 할 수 있어?"에 답하기 위한 정적 요약.
+const APP_CAPABILITIES = {
+    이름: 'SEA:GNAL(바다날씨)',
+    기능: [
+        '해상 기상예보: 해역별 단기(풍향·풍속·파고·하늘), 해구번호별 75시간 시계열, 중기(3~10일)',
+        '해상 특보: 해역별 풍랑·강풍 등 주의보/경보 발효 현황',
+        '기상부이/관측: 부이별 파고·풍속·수온·시정 실측, 위치에서 가장 가까운 부이',
+        '해양종합정보 지도: 유향·유속, 풍향·풍속, 파고·파향, 수심, 기상부이, 해무 CCTV 레이어',
+        '조석/물때: 지점별 고조·저조(지도 해점 바텀시트)',
+        '태풍: 현재 태풍 현황·경로·예보',
+        '생활지수: 바다낚시·서핑·물놀이·스쿠버·갯벌·바다갈라짐 지수',
+        '해상일기도: 수치파랑·해일·순환·수온 차트'
+    ],
+    형태: '음성/텍스트 질문에 답하고, 답변에서 앱의 해당 화면(해양종합정보 레이어/특보/태풍/부이 등)으로 바로가기 버튼 제공'
+};
 
 /** 해역명 정규화: 정확명이면 그대로, 아니면 결정론적 매칭 */
 function resolveZoneName(name) {
     if (!name) return null;
     if (ZONE_NAME_TO_CODE[name]) return name;
     return detectZoneDeterministic(String(name));
+}
+
+/** 좌표 결정: lat/lon 직접 주어지면 그걸, 아니면 해역명→대표좌표(ZONE_COORDS). 없으면 null.
+ *  (유속/수심처럼 좌표가 필요한 도구가 카카오 지오코딩 없이도 해역명으로 동작하게 함) */
+function coordsFor(zone, lat, lon) {
+    if (lat != null && lon != null && isFinite(+lat) && isFinite(+lon)) return { lat: +lat, lon: +lon };
+    const z = resolveZoneName(zone);
+    const code = z && ZONE_NAME_TO_CODE[z];
+    if (code && ZONE_COORDS[code]) return { lat: ZONE_COORDS[code].lat, lon: ZONE_COORDS[code].lon };
+    return null;
 }
 
 /** 해구번호 N시간 후 예보 (zone_forecasts 시계열에서 가장 가까운 시점) */
@@ -620,18 +686,23 @@ function getZoneForecastAt(zoneId, hoursAhead) {
     const t = new Date(Date.now() + (hoursAhead || 0) * 3600000);
     const p = (n) => (n < 10 ? '0' : '') + n;
     const target = Number('' + t.getUTCFullYear() + p(t.getUTCMonth() + 1) + p(t.getUTCDate()) + p(t.getUTCHours()));
-    let best = series[0], bestDiff = Infinity;
-    for (const e of series) { const d = Math.abs(Number(e.tm) - target); if (d < bestDiff) { bestDiff = d; best = e; } }
+    let bestIdx = 0, bestDiff = Infinity;
+    for (let i = 0; i < series.length; i++) { const d = Math.abs(Number(series[i].tm) - target); if (d < bestDiff) { bestDiff = d; bestIdx = i; } }
+    const best = series[bestIdx];
+    // 추세 질문("점점 세져?")용으로 해당 시점부터 다음 5스텝 시계열도 함께 반환
+    const trend = series.slice(bestIdx, bestIdx + 5).map(e => ({ tm: e.tm, 파고m: e.wh, 풍속ms: e.ws }));
     return {
         zoneId, hoursAhead: hoursAhead || 0, forecastTimeUTC: best.tm,
-        파고m: best.wh, 파주기s: best.wp, 풍속ms: best.ws, 풍향deg: best.windDir, 파향deg: best.waveDir
+        파고m: best.wh, 파주기s: best.wp, 풍속ms: best.ws, 풍향deg: best.windDir, 파향deg: best.waveDir,
+        시계열: trend
     };
 }
 
-/** 특정 부이 최신 실측 (marine_buoys/wh/lh 캐시에서 이름 매칭) */
+/** 특정 부이 최신 실측 (marine_buoys/wh/lh 캐시에서 이름 매칭). 부이 종류별 필드명 차이를 흡수. */
 function getBuoyObs(name) {
     const norm = normalize(name);
     if (!norm) return { error: '부이 이름이 비었습니다.' };
+    const pick = (o, keys) => { for (const k of keys) { if (o[k] != null && o[k] !== '' && o[k] !== -99 && o[k] !== -99.0) return o[k]; } return undefined; };
     const pools = [dataCache.marineBuoys, dataCache.marineWhBuoys, dataCache.marineLhBuoys];
     for (const pool of pools) {
         const arr = pool && pool.data;
@@ -640,12 +711,43 @@ function getBuoyObs(name) {
             const kn = normalize(b.kor_nm || b.obs_nm || '');
             return kn && (kn.includes(norm) || norm.includes(kn));
         });
-        if (hit) return {
-            name: hit.kor_nm || hit.obs_nm, 풍속ms: hit.ws, 풍향deg: hit.wd,
-            파고m: hit.wh, 파주기s: hit.wp, 수온C: hit.tw, 시정: hit.vs
-        };
+        if (hit) {
+            const out = {
+                name: hit.kor_nm || hit.obs_nm,
+                풍속ms: pick(hit, ['ws', 'wspd', 'wind_speed']),
+                풍향deg: pick(hit, ['wd', 'wdir', 'wind_dir']),
+                파고m: pick(hit, ['wh', 'sig_wh', 'ave_wh', 'max_wh']),
+                파주기s: pick(hit, ['wp', 'wpd', 'wave_prd']),
+                수온C: pick(hit, ['tw', 'wtem', 'water_temp']),
+                시정: pick(hit, ['vs', 'vis'])
+            };
+            Object.keys(out).forEach(k => { if (out[k] === undefined) delete out[k]; });
+            return out;
+        }
     }
     return { error: `'${name}' 부이의 최신 관측값을 찾지 못했습니다.` };
+}
+
+/** 전국 해역을 파고/풍속 기준으로 정렬·필터 (집계/비교형 질문용). */
+function rankZones(metric, order, threshold, top) {
+    const all = dataCache.forecasts && dataCache.forecasts.data;
+    if (!all) return { error: '예보 데이터가 없습니다.' };
+    const seen = {}; const rows = [];
+    for (const name of Object.keys(ZONE_NAME_TO_CODE)) {
+        const code = ZONE_NAME_TO_CODE[name];
+        if (seen[code] || !all[code] || !all[code].length) continue;
+        seen[code] = 1;
+        const e = all[code][0];
+        const wave = e.wh2 != null ? e.wh2 : e.wh1;
+        const wind = e.ws2 != null ? e.ws2 : e.ws1;
+        rows.push({ zone: name, wave, wind });
+    }
+    const key = (metric === 'wind') ? 'wind' : 'wave';
+    let arr = rows.filter(r => r[key] != null);
+    if (threshold != null) arr = arr.filter(r => Number(r[key]) >= Number(threshold));
+    arr.sort((a, b) => order === 'asc' ? a[key] - b[key] : b[key] - a[key]);
+    const lbl = key === 'wind' ? '풍속ms' : '파고m';
+    return { metric: key, count: arr.length, items: arr.slice(0, top || 5).map(r => ({ zone: r.zone, [lbl]: r[key] })) };
 }
 
 /** 현재 태풍 현황 (data/typhoon.json 방어적 읽기) */
@@ -673,12 +775,28 @@ const TOOL_EXEC = {
         return { zone: z, buoys: b.map(x => ({ name: x.name, distKm: Math.round(x.distKm), type: x.type })) };
     },
     get_buoy_observation: async ({ buoyName } = {}) => getBuoyObs(buoyName),
-    get_tide: async ({ place } = {}) => {
-        const z = resolveZoneName(place);
-        const pt = resolveTidePoint(place || '', z, null);
-        return pt ? { place: pt.name, lat: pt.lat, lon: pt.lon, note: '고조/저조 상세는 앱 바텀시트에서 제공' } : { error: '해점을 찾지 못했습니다.' };
+    get_buoys_with_obs: async ({ zone, lat, lon } = {}) => {
+        let buoys = [];
+        if (zone) { const z = resolveZoneName(zone); buoys = z ? findBuoysNearZone(z, 5, 120) : []; }
+        else if (lat != null && lon != null) { buoys = findNearestBuoys(+lat, +lon, 5); }
+        if (!buoys.length) return { error: '인근 기상부이를 찾지 못했습니다.' };
+        return {
+            zone: zone ? resolveZoneName(zone) : null,
+            buoys: buoys.map(b => ({ name: b.name, distKm: Math.round(b.distKm), type: b.type === 'C' ? '파고부이' : '기상부이', observation: getBuoyObs(b.name) }))
+        };
+    },
+    get_tide: async ({ place, lat, lon } = {}) => {
+        let pt = null;
+        if (lat != null && lon != null) pt = { lat: +lat, lon: +lon, name: place || '해당 지점' };
+        else { const z = resolveZoneName(place); pt = resolveTidePoint(place || '', z, null); }
+        if (!pt) return { error: '해점을 찾지 못했습니다.' };
+        const times = await fetchTideTimes(pt.lat, pt.lon);
+        if (times) return Object.assign({ place: pt.name, lat: pt.lat, lon: pt.lon }, times);
+        return { place: pt.name, lat: pt.lat, lon: pt.lon, note: '고조/저조 시각은 앱 바텀시트에서 확인하세요' };
     },
     get_typhoon_status: async () => getTyphoonStatus(),
+    get_zones_ranked: async ({ metric, order, threshold, top } = {}) => rankZones(metric, order, threshold, top),
+    get_app_capabilities: async () => APP_CAPABILITIES,
 
     get_midterm_forecast: async ({ zone } = {}) => {
         const z = resolveZoneName(zone);
@@ -742,14 +860,26 @@ const TOOL_EXEC = {
         if (Array.isArray(j) && j.length) { const x = j[0]; return { harbor: x.sfogObsvtrNm, time: x.imgDt, imageUrl: x.uri }; }
         return { error: '해무 CCTV 이미지를 찾지 못했습니다.' };
     },
-    get_current: async ({ lat, lon, date } = {}) => {
-        if (lat == null || lon == null) return { error: '좌표(lat,lon)가 필요합니다.' };
+    get_current: async ({ zone, lat, lon, date } = {}) => {
+        const c = coordsFor(zone, lat, lon);
+        if (!c) return { error: '좌표를 알 수 없습니다(해역명 또는 lat,lon 필요).' };
         const d = date || (() => { const t = new Date(); const p = n => (n < 10 ? '0' : '') + n; return '' + t.getFullYear() + p(t.getMonth() + 1) + p(t.getDate()); })();
-        return await internalGet(`/api/ocean/khoa-stream-nearest?lat=${lat}&lon=${lon}&date=${d}`);
+        const r = await internalGet(`/api/ocean/khoa-stream-nearest?lat=${c.lat}&lon=${c.lon}&date=${d}`);
+        if (!r || r.success === false || r.crsp == null) return { zone: zone || null, error: '유속 데이터를 가져오지 못했습니다.' };
+        // KHOA 유속(crsp)은 cm/s. 노트로도 환산 제공(초속 미터 아님).
+        return {
+            zone: zone || null,
+            유향deg: r.crdir,
+            유속cms: r.crsp,
+            유속노트: Math.round(Number(r.crsp) * 0.01944 * 10) / 10,
+            수온C: r.wtem
+        };
     },
-    get_depth: async ({ lat, lon } = {}) => {
-        if (lat == null || lon == null) return { error: '좌표(lat,lon)가 필요합니다.' };
-        return await internalGet(`/api/ocean/depth?lat=${lat}&lon=${lon}`);
+    get_depth: async ({ zone, lat, lon } = {}) => {
+        const c = coordsFor(zone, lat, lon);
+        if (!c) return { error: '좌표를 알 수 없습니다(해역명 또는 lat,lon 필요).' };
+        const r = await internalGet(`/api/ocean/depth?lat=${c.lat}&lon=${c.lon}`);
+        return Object.assign({ zone: zone || null }, r || {});
     },
     resolve_location: async ({ text } = {}) => {
         const j = await internalGet('/api/search-place?q=' + encodeURIComponent(text || ''));
@@ -775,6 +905,8 @@ async function planQuery(query, profile, location) {
     const locLine = (location && location.lat != null && location.lon != null)
         ? `\n사용자 현재 위치(GPS): 위도 ${location.lat}, 경도 ${location.lon}. "내 위치/가까운/근처" 류 질문엔 이 좌표를 좌표기반 도구(get_nearest_buoy/get_current/get_depth/get_tide)에 넣으세요.`
         : '';
+    const pz = profileDefaultZone(profile);
+    const pzLine = pz ? `\n사용자 기본 활동해역: ${pz}. 질문에 해역/지명이 없으면 이 해역을 기본으로 쓰세요.` : '';
     const prompt =
 `사용자의 한국어 질문에 답하기 위해 어떤 데이터를 가져올지 계획하세요.
 사용 가능한 도구:
@@ -783,8 +915,11 @@ ${TOOL_CATALOG}
 규칙:
 - 답에 꼭 필요한 도구만 steps 에 넣으세요(불필요한 호출 금지).
 - 해역명/해구번호/지명/부이명을 args 에 정확히 넣으세요. 해구번호는 숫자 문자열(예: "325").
+- 유속/유향/해류는 get_current(zone=해역명), 수심은 get_depth(zone=해역명)로 호출하세요.
+  해역명이 분명하면 resolve_location 을 쓰지 말고 zone 인자에 해역명을 그대로 넣으세요.
+  resolve_location 은 항/해수욕장/마을 같은 임의 지명일 때만 쓰세요.
 - "조업 가능?" 같은 판단 질문은 관련 예보(해구/해역)·특보·필요시 부이를 함께 모으세요.
-- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}
+- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}
 
 사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
 질문: "${query}"
@@ -799,6 +934,31 @@ JSON 으로만: {"steps":[{"tool":"<도구명>","args":{...}}], "zone":"<관련 
 }
 
 /** 2~3단계: 계획 실행 + 실데이터로 답변 종합 */
+/** 웹검색 폴백 — 내부 데이터로 못 답할 때 Gemini 구글검색 그라운딩으로 답+출처. */
+async function webSearchAnswer(query) {
+    try {
+        const r = await gemini.callGeminiRaw({
+            model: 'gemini-2.5-flash',   // 검색 그라운딩 지원 모델
+            contents: query + '\n\n한국어로 간결하게, 음성으로 읽을 수 있게 표/마크다운 없이 핵심만 답하세요. 모르면 모른다고 하세요.',
+            config: { tools: [{ googleSearch: {} }], temperature: 0.3 },
+            caller: 'Assistant-Web'
+        });
+        if (!r.success || !r.response) return null;
+        let text = '';
+        try { text = r.response.text || ''; } catch (e) { text = ''; }
+        if (!text.trim()) return null;
+        // 음성용: 마크다운 기호 제거(불릿/굵게/헤더 등)
+        text = text.replace(/\*\*|\*|`|#+\s?|^\s*[-•]\s?/gm, '').replace(/\n{2,}/g, '\n').trim();
+        // 출처 링크 추출 (groundingMetadata.groundingChunks[].web)
+        const gm = (((r.response.candidates || [])[0] || {}).groundingMetadata) || {};
+        const chunks = gm.groundingChunks || [];
+        const webLinks = chunks
+            .map(c => c.web ? { title: c.web.title || c.web.uri, uri: c.web.uri } : null)
+            .filter(Boolean).slice(0, 3);
+        return { answer: text.trim(), webLinks };
+    } catch (e) { return null; }
+}
+
 async function runBrain(query, profile, memory, style, location) {
     const plan = await planQuery(query, profile, location);
     if (!plan) return null;
@@ -811,13 +971,37 @@ async function runBrain(query, profile, memory, style, location) {
         catch (e) { results.push({ tool: step.tool, error: e.message }); }
     }
 
+    // [웹검색 폴백] 내부 도구로 "실제 값"을 못 얻었으면(계획이 비었거나 결과가 전부
+    //   오류/빈값) 구글 검색 그라운딩으로 답 + 출처 링크. 키 지원 모델에서만 동작.
+    const hasRealData = (v) => {
+        if (!v || typeof v !== 'object' || v.error) return false;
+        return Object.values(v).some(val => {
+            if (val == null) return false;
+            if (Array.isArray(val)) return val.length > 0;
+            if (typeof val === 'object') return Object.keys(val).length > 0;
+            if (typeof val === 'string') return val.trim().length > 0;
+            return true;
+        });
+    };
+    const gotUseful = results.some(r => hasRealData(r.result));
+    if (!gotUseful) {
+        const web = await webSearchAnswer(query);
+        if (web && web.answer) {
+            return { answer: web.answer, zone: plan.zone || null, toolsUsed: ['web_search'], webLinks: web.webLinks || [] };
+        }
+    }
+
     const personal = buildPersonalContext(profile, memory, style);
     const synth =
 `당신은 한국 어선·항해자를 돕는 해양 기상 개인 비서입니다.
-아래 "수집결과"의 실제 데이터에만 근거해 질문에 답하세요.
-- 수집결과에 없는 수치/사실은 절대 지어내지 마세요. 없으면 솔직히 모른다고 하세요.
-- 음성으로 읽어줄 2~4문장의 자연스러운 구어체. 핵심 수치 우선. 표/마크다운/이모지 금지.
-- 조업 가능 여부 같은 안전 판단을 물으면 데이터에 근거해 조언하되, 마지막에 "최종 판단과 책임은 선장에게 있다"는 취지를 한 문장 덧붙이세요.
+아래 "수집결과"의 실제 데이터에만 근거해, 사용자가 "물어본 것만" 답하세요.
+- 수집결과에 없는 수치/사실은 절대 지어내지 마세요. 없으면 짧게 "그 정보는 없어요"라고 하세요.
+- 핵심만 간결하게. 사용자가 묻지 않은 일반론·참고사항·주의문구를 덧붙이지 마세요.
+- 여러 항목(예: 부이 여러 개)을 물으면 항목마다 이름과 관측 수치를 명확히, 관측 기준시각이 있으면 함께.
+- "추세/점점/변화" 질문이면 수집결과의 시계열(시간대별 값)을 보고 늘어나는지·줄어드는지·비슷한지 말하세요.
+- 음성으로 읽어줄 구어체. 표/마크다운/이모지 금지. 풍속은 "초속 N미터"로 읽으세요(예: 초속 7미터). "m/s","퍼세크" 같은 표기는 쓰지 마세요.
+- 유속(해류)은 cm/s 또는 노트로 말하세요(예: "유속 23cm퍼세크" 말고 "유속 초속 23센티미터, 약 0.4노트"). 유속을 "초속 N미터"로 말하지 마세요.
+- "지금 출항/조업해도 되냐"처럼 안전 결정을 직접 물었을 때는: 데이터(파고·풍속·특보)에 근거해 "○○ 정도라 (가능할 것 같다/주의가 필요하다/무리로 보인다)"는 간단한 판단을 먼저 주고, 마지막에 "최종 판단은 선장님 몫"이라는 취지를 딱 한 번 덧붙이세요. 그 외 질문엔 이 판단/문구를 절대 넣지 마세요.
 ${personal}
 질문: "${query}"
 수집결과(JSON): ${JSON.stringify(results)}`;
@@ -854,6 +1038,20 @@ router.post('/api/assistant/ask', async (req, res) => {
         return res.status(400).json({ ok: false, error: '질문(query)이 비어 있습니다.' });
     }
 
+    // [대화 로그] 이 핸들러의 모든 답변 응답을 테스트 로그에 1회 기록 (res.json 래핑).
+    const _json = res.json.bind(res);
+    res.json = function (obj) {
+        try {
+            if (assistantLog && obj && obj.answer) {
+                assistantLog.push({
+                    query, answer: obj.answer, zone: obj.zone, intent: obj.intent,
+                    aiUsed: obj.aiUsed, tools: obj.data && obj.data.toolsUsed
+                });
+            }
+        } catch (e) { /* 무시 */ }
+        return _json(obj);
+    };
+
     const aiAvailable = !!(gemini && gemini.hasAnyKey && gemini.hasAnyKey());
 
     // [Tool Use 두뇌] AI 키가 있으면 먼저 두뇌로 처리(임의·복합 질문 이해 → 도구 실행 → 답변).
@@ -862,10 +1060,13 @@ router.post('/api/assistant/ask', async (req, res) => {
         try {
             const brain = await runBrain(query, profile, memory, style, loc);
             if (brain && brain.answer) {
+                // 앱 기능 바로가기 + 웹검색 출처 링크(있으면)를 함께
+                const links = buildLinks(query, null, brain.zone, profile);
+                (brain.webLinks || []).forEach(w => links.push({ type: 'web', label: w.title || '참고 링크', url: w.uri }));
                 return res.json({
                     ok: true, zone: brain.zone, intent: 'brain', answer: brain.answer,
                     data: { toolsUsed: brain.toolsUsed }, aiUsed: true, zoneFromProfile: false,
-                    links: buildLinks(query, null, brain.zone, profile), tideSearch: null
+                    links, tideSearch: null
                 });
             }
         } catch (e) { /* 두뇌 실패 → 결정론적 폴백으로 진행 */ }

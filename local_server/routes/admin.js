@@ -867,6 +867,18 @@ router.delete('/api/admin/dmdw-errors', (req, res) => {
 // Gemini API 키 상태 조회 (공용 클라이언트)
 // ============================================================================
 
+// AI 비서 대화 내역(테스트용) — 관리자 AI 탭에서 조회/초기화
+router.get('/api/admin/assistant-log', (req, res) => {
+    try {
+        const log = require('../services/assistant_log');
+        res.json({ ok: true, entries: log.getRecent(Number(req.query.n) || 100) });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+router.delete('/api/admin/assistant-log', (req, res) => {
+    try { require('../services/assistant_log').clear(); res.json({ ok: true }); }
+    catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 router.get('/api/admin/gemini-status', (req, res) => {
     try {
         const geminiClient = require('../services/gemini_client');

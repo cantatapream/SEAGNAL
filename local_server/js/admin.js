@@ -705,6 +705,18 @@ async function renderUnifiedAiTab(container) {
             </div>
             <div id="ai-test-result" style="margin-top:12px;color:#e2e8f0;font-size:0.9rem;line-height:1.6;white-space:pre-wrap;"></div>
         </div>
+
+        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-top:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <span style="font-size:0.85rem;color:#94a3b8;"><i class="fa-solid fa-comments"></i> 대화 내역 (테스트)</span>
+                <span>
+                    <button id="ai-log-refresh" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">새로고침</button>
+                    <button id="ai-log-clear" style="padding:5px 10px;background:#64748b;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">비우기</button>
+                </span>
+            </div>
+            <div id="ai-log-list" style="max-height:300px;overflow-y:auto;font-size:0.82rem;color:#cbd5e1;line-height:1.5;">불러오는 중…</div>
+            <div style="font-size:0.7rem;color:#64748b;margin-top:6px;">백그라운드 "나리야" 대화 포함. 서버 메모리에만 임시 보관(재시작 시 소멸).</div>
+        </div>
     `;
 
     // 1) 호출량 + 키 상태
@@ -787,6 +799,32 @@ async function renderUnifiedAiTab(container) {
         };
         send.addEventListener('click', ask);
         input.addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
+    })();
+
+    // 4) 대화 내역 로그
+    (function () {
+        const listEl = document.getElementById('ai-log-list');
+        const esc = (s) => String(s || '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+        const load = () => {
+            listEl.textContent = '불러오는 중…';
+            fetch('/api/admin/assistant-log?n=100').then(r => r.json()).then(d => {
+                const es = (d && d.entries) || [];
+                if (!es.length) { listEl.textContent = '아직 대화 내역이 없습니다.'; return; }
+                listEl.innerHTML = es.map(e => {
+                    const t = new Date(e.ts).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+                    const tools = e.tools && e.tools.length ? ` · 도구:${esc(e.tools.join(','))}` : '';
+                    return `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+                        <div style="color:#22d3ee;">Q. ${esc(e.query)}</div>
+                        <div style="color:#e2e8f0;margin-top:3px;">A. ${esc(e.answer)}</div>
+                        <div style="color:#64748b;font-size:0.72rem;margin-top:3px;">${t} · ${e.aiUsed ? 'AI두뇌' : '폴백'} · ${esc(e.zone || '-')} · ${esc(e.intent || '-')}${tools}</div>
+                    </div>`;
+                }).join('');
+            }).catch(e => { listEl.textContent = '불러오기 실패: ' + e.message; });
+        };
+        const rb = document.getElementById('ai-log-refresh'), cb = document.getElementById('ai-log-clear');
+        if (rb) rb.addEventListener('click', load);
+        if (cb) cb.addEventListener('click', () => { fetch('/api/admin/assistant-log', { method: 'DELETE' }).then(load); });
+        load();
     })();
 }
 window.renderUnifiedAiTab = renderUnifiedAiTab;
