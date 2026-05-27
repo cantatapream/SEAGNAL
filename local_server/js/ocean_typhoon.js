@@ -38,13 +38,27 @@
     var _tapCount = 0;
     var _tapTimer = null;
 
-    var _map = null;
-    var _staticLayer = null;   // 진로선 + 점 + 확률 cone + 라벨
-    var _headLayer = null;     // 재생 플레이헤드(태풍 본체 + 반경 원)
-    var _staticSrc = null;
-    var _headSrc = null;
+    // 줌 자동조정 기준점: 제주도(최소한 우리나라가 한 화면에 함께 보이도록 fit)
+    var JEJU_LON = 126.53, JEJU_LAT = 33.43;
+    var FIT_MAX_ZOOM = 8;
 
-    var _data = null;          // /api/typhoon 응답
+    var _pNow = 0;             // 현재 시각에 해당하는 타임라인 위치(0..1)
+
+    var _map = null;
+    // dmdw 상세정보 레이어 대응: 예측경로(track) / 70%확률반경(prob) / 강풍반경(strong) / 폭풍반경(storm)
+    var _trackLayer = null, _probLayer = null, _strongLayer = null, _stormLayer = null, _headLayer = null;
+    var _trackSrc = null, _probSrc = null, _strongSrc = null, _stormSrc = null, _headSrc = null;
+    var LAYER_KEY = 'seagnal_typhoon_layers';
+    var _layerOn = { track: true, prob: true, strong: false, storm: false };
+
+    var _activeData = null;    // /api/typhoon 응답(현재연도 활성 태풍 + 통보문 인라인)
+    var _year = null;          // 선택 연도
+    var _typhoonList = [];     // 선택 연도의 태풍 목록 [{seq,name}]
+    var _selSeq = null;        // 선택 태풍 seq
+    var _bulletinList = [];    // 선택 태풍의 통보문 목록 [{code,label,...}]
+    var _selCode = null;       // 선택 통보문 code
+    var _tableCache = {};      // (year+'_'+code) -> {current,forecast,...}
+    var _yearLoaded = false;   // 전체 연도 목록(dmdw on-demand) 확장 여부 — 표출 시 1회
     var _frames = [];          // 선택 통보문의 시계열 프레임 (시각 오름차순)
     var _visible = false;
     var _playing = false;
@@ -83,9 +97,29 @@
         if (d.length < 12) return '';
         return d.slice(4, 6) + '.' + d.slice(6, 8) + ' ' + d.slice(8, 10) + ':' + d.slice(10, 12);
     }
+    // timeToMs 가 KST 벽시계를 UTC 기준 ms 로 저장하므로, 되읽을 때도 getUTC* 사용.
+    function fmtFromMs(ms) {
+        if (!isFinite(ms)) return '';
+        var d = new Date(ms);
+        var mm = d.getUTCMonth() + 1, dd = d.getUTCDate(), hh = d.getUTCHours(), mi = d.getUTCMinutes();
+        return mm + '/' + dd + ' ' + (hh < 10 ? '0' + hh : hh) + (mi ? ':' + (mi < 10 ? '0' + mi : mi) : '시');
+    }
+    // 현재(실시간) KST 벽시계를 timeToMs 와 동일한 ms 기준으로 반환
+    function nowKstMs() {
+        var d = new Date();
+        var kst = new Date(d.getTime() + (d.getTimezoneOffset() * 60000) + 9 * 3600000);
+        return Date.UTC(kst.getFullYear(), kst.getMonth(), kst.getDate(), kst.getHours(), kst.getMinutes());
+    }
+    // 현재 시각이 타임라인(첫~끝 프레임)에서 차지하는 위치 0..1
+    function computeNowP() {
+        if (_frames.length < 2) return 0;
+        var t0 = _frames[0]._t, t1 = _frames[_frames.length - 1]._t;
+        if (t1 <= t0) return 0;
+        return Math.max(0, Math.min(1, (nowKstMs() - t0) / (t1 - t0)));
+    }
 
-    // 경위도(deg)·반경(km) → EPSG:3857 좌표 폴리곤 (구면 측지원, 72분할)
-    function geoCircle(lon, lat, km, n) {
+    // 경위도(deg)·반경(km) → EPSG:3857 좌표 링(구면 측지원, 72분할)
+    function geoCircleRing(lon, lat, km, n) {
         n = n || 72;
         var R = 6371.0088;
         var d = km / R;
@@ -97,7 +131,19 @@
             var lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(lat1), Math.cos(d) - Math.sin(lat1) * Math.sin(lat2));
             ring.push(ol.proj.fromLonLat([lon2 * 180 / Math.PI, lat2 * 180 / Math.PI]));
         }
-        return new ol.geom.Polygon([ring]);
+        return ring;
+    }
+    function geoCircle(lon, lat, km, n) { return new ol.geom.Polygon([geoCircleRing(lon, lat, km, n)]); }
+
+    // 진로 전체에 걸친 반경 영역(swath/cone) — 시점별 원들의 합집합을 단일 MultiPolygon
+    // 한 feature·한 fill 로 그려 겹침이 덧칠(진해짐) 없이 하나의 영역처럼 보이게 한다.
+    function swathGeom(frames, key) {
+        var polys = [];
+        frames.forEach(function (f) {
+            var r = f[key];
+            if (r != null && r > 0 && f.lon != null && f.lat != null) polys.push([geoCircleRing(f.lon, f.lat, r)]);
+        });
+        return polys.length ? new ol.geom.MultiPolygon(polys) : null;
     }
 
     function pointAt(lon, lat) { return new ol.geom.Point(ol.proj.fromLonLat([lon, lat])); }
@@ -117,7 +163,7 @@
     // p(0..1) → 보간 프레임 (실제 예보시각 간격 비례)
     function frameAt(p) {
         if (!_frames.length) return null;
-        if (_frames.length === 1) return Object.assign({}, _frames[0], { _gradeF: _frames[0].grade, _colorF: _frames[0]._color });
+        if (_frames.length === 1) return Object.assign({}, _frames[0], { _gradeF: _frames[0].grade, _colorF: _frames[0]._color, _rtMs: _frames[0]._t });
         var t0 = _frames[0]._t, t1 = _frames[_frames.length - 1]._t;
         var rt = t0 + p * (t1 - t0);
         var i = 0;
@@ -139,54 +185,58 @@
             size: (f < 0.5 ? A.size : B.size),
             _gradeF: Math.round(lerp(A.grade, B.grade, f)),
             _colorF: lerpColor(A._color, B._color, f),
-            time: (f < 0.5 ? A.time : B.time)
+            time: (f < 0.5 ? A.time : B.time),
+            _rtMs: rt
         };
     }
 
     // ── 정적 진로 렌더 ────────────────────────────────────────────────────────
     function renderStatic() {
-        if (!_staticSrc) return;
-        _staticSrc.clear();
+        if (!_trackSrc) return;
+        _trackSrc.clear(); _probSrc.clear(); _strongSrc.clear(); _stormSrc.clear();
         if (!_frames.length) return;
 
+        // ⑤ 70%확률반경 cone (노랑), ④ 강풍반경 swath (옅은 파랑), ③ 폭풍반경 swath (진한 파랑)
+        var probG = swathGeom(_frames, 'radProb');
+        if (probG) _probSrc.addFeature(new ol.Feature(probG));
+        var strongG = swathGeom(_frames, 'radStrong');
+        if (strongG) _strongSrc.addFeature(new ol.Feature(strongG));
+        var stormG = swathGeom(_frames, 'radStorm');
+        if (stormG) _stormSrc.addFeature(new ol.Feature(stormG));
+
+        // ② 예측경로: 진로선 + 시점별 위치 점(강도색) + 라벨, ① 실제위치(현재) 강조
         var coords = _frames.map(function (f) { return ol.proj.fromLonLat([f.lon, f.lat]); });
-        // 진로선
         var line = new ol.Feature(new ol.geom.LineString(coords));
         line.setStyle(new ol.style.Style({
             stroke: new ol.style.Stroke({ color: 'rgba(40,40,40,0.85)', width: 2, lineDash: [6, 5] })
         }));
-        _staticSrc.addFeature(line);
+        _trackSrc.addFeature(line);
 
-        // 70% 확률반경 cone (예보 프레임만 — current 는 확률반경 없음)
         _frames.forEach(function (f) {
-            if (f.radProb && f.radProb > 0) {
-                var cf = new ol.Feature(geoCircle(f.lon, f.lat, f.radProb));
-                cf.setStyle(new ol.style.Style({
-                    stroke: new ol.style.Stroke({ color: 'rgba(120,120,120,0.55)', width: 1 }),
-                    fill: new ol.style.Fill({ color: 'rgba(150,150,150,0.07)' })
-                }));
-                _staticSrc.addFeature(cf);
-            }
-        });
-
-        // 시점별 위치 점(강도색) + 라벨
-        _frames.forEach(function (f, idx) {
             var c = f._color;
             var pt = new ol.Feature(pointAt(f.lon, f.lat));
             pt.setStyle(new ol.style.Style({
                 image: new ol.style.Circle({
                     radius: f.isCurrent ? 7 : 5,
                     fill: new ol.style.Fill({ color: rgba(c, 0.95) }),
-                    stroke: new ol.style.Stroke({ color: '#fff', width: f.isCurrent ? 2.5 : 1.5 })
+                    stroke: new ol.style.Stroke({ color: f.isCurrent ? '#d00' : '#fff', width: f.isCurrent ? 3 : 1.5 })
                 }),
                 text: new ol.style.Text({
-                    text: (f.isCurrent ? '현재 ' : '') + fmtTime(f.time),
-                    offsetY: -14, font: '11px sans-serif',
+                    text: (f.isCurrent ? '실제위치 ' : '') + fmtTime(f.time),
+                    offsetY: -14, font: (f.isCurrent ? 'bold ' : '') + '11px sans-serif',
                     fill: new ol.style.Fill({ color: '#222' }),
                     stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,0.9)', width: 3 })
                 })
             }));
-            _staticSrc.addFeature(pt);
+            _trackSrc.addFeature(pt);
+        });
+    }
+
+    // 레이어별 채움 스타일
+    function swathStyle(strokeC, fillC) {
+        return new ol.style.Style({
+            stroke: new ol.style.Stroke({ color: strokeC, width: 1 }),
+            fill: new ol.style.Fill({ color: fillC })
         });
     }
 
@@ -198,6 +248,15 @@
         if (!f) return;
         var c = f._colorF || gradeColor(f._gradeF || 0);
 
+        // 70% 확률반경 — 이동에 따라 보간되어 점차 커지/작아지는 영향 원(가장 바깥)
+        if (f.radProb && f.radProb > 0) {
+            var pf = new ol.Feature(geoCircle(f.lon, f.lat, f.radProb));
+            pf.setStyle(new ol.style.Style({
+                stroke: new ol.style.Stroke({ color: 'rgba(110,110,110,0.7)', width: 1, lineDash: [4, 4] }),
+                fill: new ol.style.Fill({ color: 'rgba(150,150,150,0.06)' })
+            }));
+            _headSrc.addFeature(pf);
+        }
         // 폭풍반경(25m/s) — 진한 색
         if (f.radStorm && f.radStorm > 0) {
             var sf = new ol.Feature(geoCircle(f.lon, f.lat, f.radStorm));
@@ -230,6 +289,21 @@
         }));
         _headSrc.addFeature(head);
 
+        // 우상단 날짜·시각 말풍선 라벨 (애니메이션 따라 함께 이동)
+        var label = new ol.Feature(pointAt(f.lon, f.lat));
+        label.setStyle(new ol.style.Style({
+            text: new ol.style.Text({
+                text: fmtFromMs(f._rtMs) + ' 기준',
+                font: 'bold 12px sans-serif',
+                textAlign: 'left', offsetX: 13, offsetY: -14,
+                fill: new ol.style.Fill({ color: '#111' }),
+                backgroundFill: new ol.style.Fill({ color: 'rgba(255,255,255,0.92)' }),
+                backgroundStroke: new ol.style.Stroke({ color: rgba(c, 1), width: 1.5 }),
+                padding: [3, 6, 3, 6]
+            })
+        }));
+        _headSrc.addFeature(label);
+
         updateInfo(f);
         var scr = document.getElementById('tphn-scrubber');
         if (scr && document.activeElement !== scr) scr.value = String(Math.round(p * 1000));
@@ -240,7 +314,7 @@
         if (!el) return;
         var g = f._gradeF != null ? f._gradeF : f.grade;
         var parts = [];
-        parts.push('<b>' + fmtTime(f.time) + '</b>');
+        parts.push('<b>' + (f._rtMs ? fmtFromMs(f._rtMs) + ' 기준' : fmtTime(f.time)) + '</b>');
         parts.push('강도 <span class="tphn-grade" style="color:' + rgba(gradeColor(g), 1) + '">' + (GRADE_NAMES[g] || '-') + '</span>');
         if (f.windMs != null) parts.push('최대풍속 ' + Math.round(f.windMs) + 'm/s');
         if (f.pressure != null) parts.push('중심기압 ' + Math.round(f.pressure) + 'hPa');
@@ -248,6 +322,28 @@
         if (f.radStorm) parts.push('폭풍반경 ' + Math.round(f.radStorm) + 'km');
         if (f.speedKmh != null && f.dir) parts.push('이동 ' + f.dir + ' ' + Math.round(f.speedKmh) + 'km/h');
         el.innerHTML = parts.join(' · ');
+    }
+
+    // ── 지도 포커스 (태풍 현재위치 + 제주도가 한 화면에 보이도록 fit) ─────────
+    function focusOnTyphoon() {
+        if (!_map || !_frames.length) return;
+        var f = frameAt(_p);
+        if (!f || f.lon == null || f.lat == null) return;
+        var tphn = ol.proj.fromLonLat([f.lon, f.lat]);
+        var jeju = ol.proj.fromLonLat([JEJU_LON, JEJU_LAT]);
+        var extent = [
+            Math.min(tphn[0], jeju[0]), Math.min(tphn[1], jeju[1]),
+            Math.max(tphn[0], jeju[0]), Math.max(tphn[1], jeju[1])
+        ];
+        var size = _map.getSize();
+        if (!size) return;
+        // 하단 컨트롤 패널/탭 영역만큼 bottom 패딩을 크게 줘서 가림 방지.
+        _map.getView().fit(extent, {
+            size: size,
+            padding: [70, 60, 170, 60],
+            maxZoom: FIT_MAX_ZOOM,
+            duration: 600
+        });
     }
 
     // ── 재생 제어 ────────────────────────────────────────────────────────────
@@ -263,7 +359,7 @@
     }
     function play() {
         if (!_frames.length) return;
-        if (_p >= 1) _p = 0; // 끝에서 다시 누르면 처음부터
+        if (_p >= 0.999) _p = (_pNow < 0.999 ? _pNow : 0); // 끝이면 현재 시각(없으면 처음)부터
         _playing = true; _lastTs = 0;
         setPlayBtn(true);
         _raf = requestAnimationFrame(tick);
@@ -279,32 +375,123 @@
         if (b) b.innerHTML = playing ? '<i class="fa-solid fa-pause"></i>' : '<i class="fa-solid fa-play"></i>';
     }
 
-    // ── 통보문 선택 ──────────────────────────────────────────────────────────
-    function selectBulletin(code) {
-        pause();
-        var b = (_data.bulletins || []).find(function (x) { return x.code === code; });
-        if (!b) return;
-        _frames = buildFrames(b);
-        _p = 0;
-        renderStatic();
-        renderHead(0);
-        var title = document.getElementById('tphn-title');
-        if (title) title.textContent = (_data.active ? _data.active.name : '태풍') + (_data.active && _data.active.nameEn ? ' (' + _data.active.nameEn + ')' : '');
+    // ── 연도 → 태풍명 → 통보문 (드롭다운) ────────────────────────────────────
+    function curYearKst() {
+        var d = new Date();
+        var k = new Date(d.getTime() + (d.getTimezoneOffset() * 60000) + 9 * 3600000);
+        return k.getFullYear();
+    }
+    function fetchJSON(url) { return fetch(url).then(function (r) { return r.json(); }); }
+
+    function buildYearOptions() {
+        var sel = document.getElementById('tphn-year');
+        if (!sel) return;
+        var now = curYearKst();
+        sel.innerHTML = '';
+        for (var y = now; y >= 2001; y--) {
+            var o = document.createElement('option');
+            o.value = String(y); o.textContent = y + '년';
+            sel.appendChild(o);
+        }
+        sel.value = String(now);
     }
 
-    function populate() {
-        var sel = document.getElementById('tphn-bulletin');
-        if (!sel || !_data) return;
+    // 현재연도 활성 캐시에서 (year,seq) 태풍 인라인 데이터 찾기
+    function activeTyphoon(year, seq) {
+        if (!_activeData || _activeData.year !== year) return null;
+        return (_activeData.typhoons || []).find(function (t) { return t.seq === seq; }) || null;
+    }
+
+    function populateNames() {
+        var sel = document.getElementById('tphn-name');
+        if (!sel) return;
         sel.innerHTML = '';
-        (_data.bulletins || []).forEach(function (b) {
+        _typhoonList.forEach(function (t) {
+            var o = document.createElement('option');
+            o.value = t.seq; o.textContent = t.name;
+            sel.appendChild(o);
+        });
+    }
+    function populateBulletins() {
+        var sel = document.getElementById('tphn-bulletin');
+        if (!sel) return;
+        sel.innerHTML = '';
+        _bulletinList.forEach(function (b) {
             var o = document.createElement('option');
             o.value = b.code; o.textContent = b.label || b.code;
             sel.appendChild(o);
         });
-        if (_data.bulletins && _data.bulletins.length) {
-            sel.value = _data.bulletins[0].code; // 최신
-            selectBulletin(_data.bulletins[0].code);
+    }
+    function setSelValue(id, v) { var s = document.getElementById(id); if (s && v != null) s.value = v; }
+
+    // 연도 선택 → 태풍 목록 로드(없으면 활성 캐시 사용) → 태풍 선택
+    function loadYear(year, preferSeq, preferCode) {
+        _year = year;
+        return fetchJSON('/api/typhoon/list?year=' + year).then(function (j) {
+            _typhoonList = (j && j.typhoons) || [];
+            if (!_typhoonList.length && _activeData && _activeData.year === year) {
+                _typhoonList = (_activeData.typhoons || []).map(function (t) { return { seq: t.seq, name: t.name }; });
+            }
+            populateNames();
+            var seq = (preferSeq && _typhoonList.some(function (t) { return t.seq === preferSeq; }))
+                ? preferSeq : (_typhoonList[0] && _typhoonList[0].seq);
+            setSelValue('tphn-name', seq);
+            _selSeq = seq || null;
+            if (seq) loadTyphoon(year, seq, preferCode);
+            else clearTrack();
+        }).catch(function (e) { console.warn('[OceanTyphoon] loadYear 실패:', e.message); });
+    }
+
+    // 태풍 선택 → 통보문 목록 로드(활성 인라인 우선) → 통보문 선택
+    function loadTyphoon(year, seq, preferCode) {
+        _selSeq = seq;
+        var inline = activeTyphoon(year, seq);
+        if (inline) {
+            _bulletinList = (inline.bulletins || []).map(function (b) { return { code: b.code, label: b.label, isLatest: b.isLatest }; });
+            (inline.bulletins || []).forEach(function (b) { if (b.code) _tableCache[year + '_' + b.code] = b; });
+            populateBulletins();
+            var code0 = pickCode(preferCode);
+            setSelValue('tphn-bulletin', code0);
+            if (code0) selectBulletin(year, code0); else clearTrack();
+            return Promise.resolve();
         }
+        return fetchJSON('/api/typhoon/bulletins?year=' + year + '&seq=' + seq).then(function (j) {
+            _bulletinList = (j && j.bulletins) || [];
+            populateBulletins();
+            var code0 = pickCode(preferCode);
+            setSelValue('tphn-bulletin', code0);
+            if (code0) selectBulletin(year, code0); else clearTrack();
+        }).catch(function (e) { console.warn('[OceanTyphoon] loadTyphoon 실패:', e.message); });
+    }
+    function pickCode(preferCode) {
+        if (preferCode && _bulletinList.some(function (b) { return b.code === preferCode; })) return preferCode;
+        return _bulletinList[0] && _bulletinList[0].code;
+    }
+
+    // 통보문 선택 → 표 데이터 확보(캐시 or on-demand) → 렌더
+    function selectBulletin(year, code) {
+        pause();
+        _selCode = code;
+        var key = year + '_' + code;
+        if (_tableCache[key]) { renderBulletin(_tableCache[key]); return; }
+        fetchJSON('/api/typhoon/bulletin?year=' + year + '&code=' + encodeURIComponent(code)).then(function (d) {
+            if (!d || d.error) return;
+            _tableCache[key] = d;
+            if (_selCode === code) renderBulletin(d); // 그 사이 다른 선택 안 했을 때만
+        }).catch(function (e) { console.warn('[OceanTyphoon] bulletin 실패:', e.message); });
+    }
+
+    function renderBulletin(b) {
+        _frames = buildFrames(b);
+        _pNow = computeNowP();    // 발표시각이 아니라 "현재 시각" 기준 위치에서 시작
+        _p = _pNow;
+        renderStatic();
+        renderHead(_p);
+        if (_visible) focusOnTyphoon();
+    }
+    function clearTrack() {
+        _frames = [];
+        [_trackSrc, _probSrc, _strongSrc, _stormSrc, _headSrc].forEach(function (s) { if (s) s.clear(); });
     }
 
     function renderLegend() {
@@ -320,13 +507,22 @@
     // ── 표시/숨김 ────────────────────────────────────────────────────────────
     function setVisible(v) {
         _visible = v;
-        if (_staticLayer) _staticLayer.setVisible(v);
-        if (_headLayer) _headLayer.setVisible(v);
+        applyLayerVisibility();
         var panel = document.getElementById('ocean-typhoon-panel');
         if (panel) panel.style.display = v ? '' : 'none';
         var btn = document.getElementById('ocean-typhoon-toggle-btn');
         if (btn) btn.classList.toggle('active', v);
-        if (!v) pause();
+        if (v) {
+            // 표출 시 현재 시각 위치로 갱신 후 태풍+제주도가 보이도록 지도 이동/줌
+            _pNow = computeNowP();
+            _p = _pNow;
+            renderHead(_p);
+            focusOnTyphoon();
+            // 표출 첫 회: 현재연도 전체 태풍 목록(dmdw)으로 이름 드롭다운 확장(과거 태풍 포함)
+            if (!_yearLoaded) { _yearLoaded = true; loadYear(_year, _selSeq, _selCode); }
+        } else {
+            pause();
+        }
         try { localStorage.setItem(VISIBLE_KEY, String(v)); } catch (e) {}
     }
 
@@ -339,7 +535,7 @@
             btn.title = '태풍';
             return;
         }
-        var has = _data && _data.hasActive && _data.bulletins && _data.bulletins.length;
+        var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
         if (!has) {
             btn.classList.add('tphn-disabled');
             btn.title = '현재 태풍 없음';
@@ -365,24 +561,75 @@
     }
 
     // ── 데이터 로드 ──────────────────────────────────────────────────────────
+    // /api/typhoon(활성 캐시)로 즉시 기본 표출 + 연도/태풍/통보문 드롭다운 초기화.
     function load() {
-        return fetch('/api/typhoon').then(function (r) { return r.json(); }).then(function (j) {
-            _data = j;
-            populate();
-            renderLegend();
+        buildYearOptions();
+        _year = curYearKst();
+        renderLegend();
+        return fetchJSON('/api/typhoon').then(function (j) {
+            _activeData = j || { hasActive: false, typhoons: [] };
+            // 활성 통보문 표를 캐시에 시드(즉시 렌더용)
+            (_activeData.typhoons || []).forEach(function (t) {
+                (t.bulletins || []).forEach(function (b) { if (b.code) _tableCache[_activeData.year + '_' + b.code] = b; });
+            });
             applyAvailability();
+            // 잠긴 사용자도 dmdw on-demand 호출 없이, 파일 캐시만으로 기본(활성 최신) 표출.
+            primeDefaultFromActive();
         }).catch(function (e) { console.warn('[OceanTyphoon] load 실패:', e.message); });
+    }
+
+    // /api/typhoon(파일)만으로 기본 선택 구성 — dmdw 호출 없음
+    function primeDefaultFromActive() {
+        if (!_activeData || !_activeData.hasActive || !(_activeData.typhoons || []).length) return;
+        _year = _activeData.year || curYearKst();
+        setSelValue('tphn-year', String(_year));
+        _typhoonList = _activeData.typhoons.map(function (t) { return { seq: t.seq, name: t.name }; });
+        populateNames();
+        var t0 = _activeData.typhoons[0];
+        _selSeq = t0.seq; setSelValue('tphn-name', _selSeq);
+        _bulletinList = (t0.bulletins || []).map(function (b) { return { code: b.code, label: b.label, isLatest: b.isLatest }; });
+        populateBulletins();
+        var c0 = t0.bulletins[0] && t0.bulletins[0].code;
+        setSelValue('tphn-bulletin', c0);
+        if (c0) selectBulletin(_year, c0);
+    }
+
+    // 주기 갱신: 활성 캐시/가용성만 조용히 갱신(사용자의 연도/태풍 선택은 건드리지 않음)
+    function refreshActive() {
+        return fetchJSON('/api/typhoon').then(function (j) {
+            _activeData = j || { hasActive: false, typhoons: [] };
+            (_activeData.typhoons || []).forEach(function (t) {
+                (t.bulletins || []).forEach(function (b) { if (b.code) _tableCache[_activeData.year + '_' + b.code] = b; });
+            });
+            applyAvailability();
+        }).catch(function () { /* ignore */ });
     }
 
     // ── 초기화 ──────────────────────────────────────────────────────────────
     function ensureLayers(map) {
-        if (_staticLayer) return;
-        _staticSrc = new ol.source.Vector();
+        if (_trackLayer) return;
+        _probSrc = new ol.source.Vector();
+        _strongSrc = new ol.source.Vector();
+        _stormSrc = new ol.source.Vector();
+        _trackSrc = new ol.source.Vector();
         _headSrc = new ol.source.Vector();
-        _staticLayer = new ol.layer.Vector({ source: _staticSrc, zIndex: 120, visible: _visible });
-        _headLayer = new ol.layer.Vector({ source: _headSrc, zIndex: 130, visible: _visible });
-        map.addLayer(_staticLayer);
-        map.addLayer(_headLayer);
+        _probLayer = new ol.layer.Vector({ source: _probSrc, zIndex: 116, style: swathStyle('rgba(200,170,30,0.55)', 'rgba(235,200,40,0.16)') });
+        _strongLayer = new ol.layer.Vector({ source: _strongSrc, zIndex: 118, style: swathStyle('rgba(70,130,210,0.55)', 'rgba(80,150,235,0.16)') });
+        _stormLayer = new ol.layer.Vector({ source: _stormSrc, zIndex: 120, style: swathStyle('rgba(30,70,170,0.75)', 'rgba(40,90,200,0.30)') });
+        _trackLayer = new ol.layer.Vector({ source: _trackSrc, zIndex: 124 });
+        _headLayer = new ol.layer.Vector({ source: _headSrc, zIndex: 130 });
+        map.addLayer(_probLayer); map.addLayer(_strongLayer); map.addLayer(_stormLayer);
+        map.addLayer(_trackLayer); map.addLayer(_headLayer);
+        try { var s = JSON.parse(localStorage.getItem(LAYER_KEY)); if (s) _layerOn = Object.assign(_layerOn, s); } catch (e) {}
+        applyLayerVisibility();
+    }
+
+    function applyLayerVisibility() {
+        if (_trackLayer) _trackLayer.setVisible(_visible && _layerOn.track);
+        if (_probLayer) _probLayer.setVisible(_visible && _layerOn.prob);
+        if (_strongLayer) _strongLayer.setVisible(_visible && _layerOn.strong);
+        if (_stormLayer) _stormLayer.setVisible(_visible && _layerOn.storm);
+        if (_headLayer) _headLayer.setVisible(_visible);
     }
 
     function bindUI() {
@@ -392,19 +639,36 @@
         if (btn) {
             btn.addEventListener('click', function () {
                 if (!_unlocked) { handleGateTap(); return; }   // 잠금 상태 → 탭 카운트
-                var has = _data && _data.hasActive && _data.bulletins && _data.bulletins.length;
+                var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
                 if (!has) return;                               // 활성 태풍 없음
                 setVisible(!_visible);
             });
         }
-        var sel = document.getElementById('tphn-bulletin');
-        if (sel) sel.addEventListener('change', function () { selectBulletin(this.value); });
+        var ySel = document.getElementById('tphn-year');
+        if (ySel) ySel.addEventListener('change', function () { loadYear(parseInt(this.value, 10)); });
+        var nSel = document.getElementById('tphn-name');
+        if (nSel) nSel.addEventListener('change', function () { loadTyphoon(_year, this.value); });
+        var bSel = document.getElementById('tphn-bulletin');
+        if (bSel) bSel.addEventListener('change', function () { selectBulletin(_year, this.value); });
         var playBtn = document.getElementById('tphn-play');
         if (playBtn) playBtn.addEventListener('click', function () { _playing ? pause() : play(); });
         var scr = document.getElementById('tphn-scrubber');
         if (scr) scr.addEventListener('input', function () { pause(); _p = (+this.value) / 1000; renderHead(_p); });
         var closeBtn = document.getElementById('tphn-close');
         if (closeBtn) closeBtn.addEventListener('click', function () { setVisible(false); });
+
+        // 레이어 토글 체크박스 (dmdw 상세정보 레이어 대응)
+        [['tphn-ly-track', 'track'], ['tphn-ly-prob', 'prob'], ['tphn-ly-strong', 'strong'], ['tphn-ly-storm', 'storm']]
+            .forEach(function (pair) {
+                var el = document.getElementById(pair[0]);
+                if (!el) return;
+                el.checked = !!_layerOn[pair[1]];
+                el.addEventListener('change', function () {
+                    _layerOn[pair[1]] = this.checked;
+                    applyLayerVisibility();
+                    try { localStorage.setItem(LAYER_KEY, JSON.stringify(_layerOn)); } catch (e) {}
+                });
+            });
     }
 
     function installWhenReady() {
@@ -419,7 +683,7 @@
                 // 잠금 해제된 경우에만 직전 표시 상태 복원 (기본은 비활성).
                 load().then(function () { if (_unlocked && _visible) setVisible(true); });
                 // 5분마다 데이터 갱신(통보문 신규 반영) — 보이는 동안에만
-                setInterval(function () { if (_visible) load(); }, 5 * 60 * 1000);
+                setInterval(function () { if (_visible) refreshActive(); }, 5 * 60 * 1000);
                 return;
             }
             setTimeout(tryInit, 300);

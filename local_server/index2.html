@@ -2544,12 +2544,16 @@
                         .ocean-typhoon-panel .tphn-title{font-weight:700;white-space:nowrap;}
                         .ocean-typhoon-panel .tphn-select{flex:1;min-width:0;background:rgba(255,255,255,0.95);
                             color:#111;border-radius:6px;border:none;padding:4px 6px;font-size:12px;}
+                        .ocean-typhoon-panel .tphn-year{flex:none;width:84px;}
                         .ocean-typhoon-panel .tphn-close{background:transparent;border:none;color:#cdd9f0;
                             font-size:15px;cursor:pointer;padding:0 2px;}
                         .ocean-typhoon-panel .tphn-row-play{margin-bottom:6px;}
                         .ocean-typhoon-panel .tphn-play{width:36px;height:28px;border-radius:6px;border:none;
                             background:#2d6cdf;color:#fff;cursor:pointer;flex:none;}
                         .ocean-typhoon-panel .tphn-scrubber{flex:1;}
+                        .ocean-typhoon-panel .tphn-layers{flex-wrap:wrap;gap:10px;font-size:11px;color:#dbe6fb;margin-bottom:6px;}
+                        .ocean-typhoon-panel .tphn-layers label{display:inline-flex;align-items:center;gap:3px;cursor:pointer;}
+                        .ocean-typhoon-panel .tphn-layers input{accent-color:#2d6cdf;}
                         .ocean-typhoon-panel .tphn-info{font-size:11px;line-height:1.5;color:#dbe6fb;margin-bottom:6px;}
                         .ocean-typhoon-panel .tphn-grade{font-weight:700;}
                         .ocean-typhoon-panel .tphn-legend{display:flex;flex-wrap:wrap;gap:8px;font-size:10px;color:#cdd9f0;}
@@ -2559,13 +2563,22 @@
                     </style>
                     <div id="ocean-typhoon-panel" class="ocean-typhoon-panel" style="display:none;" aria-hidden="true">
                         <div class="tphn-row tphn-row-top">
-                            <span class="tphn-title" id="tphn-title">태풍</span>
-                            <select id="tphn-bulletin" class="tphn-select" title="통보문 선택"></select>
+                            <select id="tphn-year" class="tphn-select tphn-year" title="연도 선택"></select>
+                            <select id="tphn-name" class="tphn-select" title="태풍 선택"></select>
                             <button id="tphn-close" class="tphn-close" type="button" title="닫기"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="tphn-row">
+                            <select id="tphn-bulletin" class="tphn-select" title="통보문 선택"></select>
                         </div>
                         <div class="tphn-row tphn-row-play">
                             <button id="tphn-play" class="tphn-play" type="button" title="재생/일시정지"><i class="fa-solid fa-play"></i></button>
                             <input type="range" id="tphn-scrubber" class="tphn-scrubber" min="0" max="1000" value="0" title="예보 시각 이동">
+                        </div>
+                        <div class="tphn-row tphn-layers" id="tphn-layers">
+                            <label><input type="checkbox" id="tphn-ly-track" checked> 예측경로</label>
+                            <label><input type="checkbox" id="tphn-ly-prob" checked> 70%반경</label>
+                            <label><input type="checkbox" id="tphn-ly-strong"> 강풍반경</label>
+                            <label><input type="checkbox" id="tphn-ly-storm"> 폭풍반경</label>
                         </div>
                         <div id="tphn-info" class="tphn-info"></div>
                         <div id="tphn-legend" class="tphn-legend"></div>
