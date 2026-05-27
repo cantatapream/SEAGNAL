@@ -213,6 +213,7 @@ router.get('/api/ocean/zone-forecasts', (req, res) => {
 
             const entry = {
                 wh: wh,
+                wp: (closest.wp != null && closest.wp >= 0) ? closest.wp : null,
                 waveDir: closest.waveDir || 0,
                 ws: ws,
                 windDir: closest.windDir || 0,
