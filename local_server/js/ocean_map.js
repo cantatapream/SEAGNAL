@@ -32,6 +32,7 @@
     let baseLayerA         = null;    // 기본맵 (BASEMAP_RLTM3857)
     let baseLayerENC       = null;    // 전자해도 (BASEMAP_ENC573857)
     let baseLayerCoast     = null;    // 해안도 (BASEMAP_RLTMCOAST3857)
+    let baseLayerOSM       = null;    // 세계지도 (OpenStreetMap)
     let currentBase        = 'rltm'; // 현재 베이스맵: 'rltm' | 'enc' | 'coast'
     let searchResultLayer = null;     // 검색 결과 마커 레이어
 
@@ -698,12 +699,14 @@
             baseLayerA     = createKhoaLayer(KHOA_LAYER_A);
             baseLayerENC   = createKhoaLayer(KHOA_LAYER_ENC);
             baseLayerCoast = createKhoaLayer(KHOA_LAYER_COAST);
+            // 전세계 OSM 베이스 — 태풍 등 먼바다 광역 표출용(해아름은 한반도 외곽이 빈 타일)
+            baseLayerOSM   = new ol.layer.Tile({ source: new ol.source.OSM(), visible: false });
 
             // 초기 가시성: 기본맵만 표시
             baseLayerENC.setVisible(false);
             baseLayerCoast.setVisible(false);
 
-            const layers = [baseLayerA, baseLayerENC, baseLayerCoast];
+            const layers = [baseLayerA, baseLayerENC, baseLayerCoast, baseLayerOSM];
 
             // 지도 생성
             oceanMap = new ol.Map({
@@ -791,6 +794,7 @@
         if (baseLayerA)     baseLayerA.setVisible(currentBase === 'rltm');
         if (baseLayerENC)   baseLayerENC.setVisible(currentBase === 'enc');
         if (baseLayerCoast) baseLayerCoast.setVisible(currentBase === 'coast');
+        if (baseLayerOSM)   baseLayerOSM.setVisible(currentBase === 'osm');
     }
 
     /**
@@ -813,7 +817,7 @@
         // 레이어 이름 표시 갱신
         var toggleLabel = document.getElementById('ocean-basemap-label');
         if (toggleLabel) {
-            var names = { rltm: '기본맵', enc: '전자해도', coast: '해안도' };
+            var names = { rltm: '기본맵', enc: '전자해도', coast: '해안도', osm: '세계지도' };
             toggleLabel.textContent = names[type] || '지도';
         }
 

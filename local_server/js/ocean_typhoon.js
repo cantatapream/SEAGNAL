@@ -46,6 +46,7 @@
     // dmdw 상세정보 레이어 대응: 예측경로(track) / 70%확률반경(prob) / 강풍반경(strong) / 폭풍반경(storm)
     var _trackLayer = null, _probLayer = null, _strongLayer = null, _stormLayer = null, _headLayer = null, _pointLayer = null;
     var _trackSrc = null, _probSrc = null, _strongSrc = null, _stormSrc = null, _headSrc = null, _pointSrc = null;
+    var _prevBasemap = null;  // 태풍 ON 직전 베이스맵(끄면 복원)
     var LAYER_KEY = 'seagnal_typhoon_layers';
     var _layerOn = { track: true, prob: true, strong: false, storm: false };
     var RELAX_MIN_ZOOM = 3;   // 태풍 ON 시 minZoom 완화(더 넓게 축소 가능; 기본 6 → 3)
@@ -559,14 +560,22 @@
     // ── 표시/숨김 ────────────────────────────────────────────────────────────
     function setVisible(v) {
         _visible = v;
-        // 태풍 ON: minZoom 완화(더 넓게 축소 가능) / OFF: 원래 제한 복원
+        // 태풍 ON: minZoom 완화(더 넓게 축소) + 베이스맵을 세계지도(OSM)로 / OFF: 원복
         if (_map) {
             var view = _map.getView();
             if (v) {
                 if (_origMinZoom === null) _origMinZoom = view.getMinZoom();
                 if (RELAX_MIN_ZOOM < _origMinZoom) view.setMinZoom(RELAX_MIN_ZOOM);
-            } else if (_origMinZoom !== null) {
-                view.setMinZoom(_origMinZoom);
+                // 직전 베이스맵 기억 후 세계지도로 자동 전환
+                if (window.oceanGetBasemap && window.oceanSetBasemap) {
+                    if (window.oceanGetBasemap() !== 'osm') _prevBasemap = window.oceanGetBasemap();
+                    window.oceanSetBasemap('osm');
+                }
+            } else {
+                if (_origMinZoom !== null) view.setMinZoom(_origMinZoom);
+                // 직전 베이스맵으로 복원
+                if (_prevBasemap && window.oceanSetBasemap) { window.oceanSetBasemap(_prevBasemap); }
+                _prevBasemap = null;
             }
         }
         applyLayerVisibility();
