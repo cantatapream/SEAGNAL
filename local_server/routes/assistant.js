@@ -922,6 +922,8 @@ ${TOOL_CATALOG}
 - 유속/유향/해류는 get_current(zone=해역명), 수심은 get_depth(zone=해역명)로 호출하세요.
   해역명이 분명하면 resolve_location 을 쓰지 말고 zone 인자에 해역명을 그대로 넣으세요.
   resolve_location 은 항/해수욕장/마을 같은 임의 지명일 때만 쓰세요.
+- 섬·항·해안 지명(예: 추자도, 거문도, 마라도, 연평도)의 바다 상황·기상을 물으면, 웹검색 말고 먼저
+  get_buoy_observation(지명) 또는 get_nearest_buoy 로 해상 관측을, 해역명이면 get_marine_forecast 를 쓰세요.
 - "조업 가능?" 같은 판단 질문은 관련 예보(해구/해역)·특보·필요시 부이를 함께 모으세요.
 - 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${memLine}
 

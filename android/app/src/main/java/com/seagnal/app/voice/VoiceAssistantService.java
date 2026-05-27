@@ -1,5 +1,6 @@
 package com.seagnal.app.voice;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -7,7 +8,10 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
+import android.location.Location;
+import android.location.LocationManager;
 import android.media.AudioManager;
 import android.media.ToneGenerator;
 import android.os.Build;
@@ -259,6 +263,13 @@ public class VoiceAssistantService extends Service {
                 try { body.put("profile", new JSONObject(profileJson)); }
                 catch (Exception ex) { body.put("profile", profileJson); }
             }
+            // 기기 최근 위치 동봉 — "내 위치 가까운 부이" 류 음성 질문 지원
+            double[] loc = getLastLocation();
+            if (loc != null) {
+                JSONObject l = new JSONObject();
+                l.put("lat", loc[0]); l.put("lon", loc[1]);
+                body.put("location", l);
+            }
             byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
             try (OutputStream os = conn.getOutputStream()) {
                 os.write(payload);
@@ -455,6 +466,26 @@ public class VoiceAssistantService extends Service {
         if (results == null) return null;
         ArrayList<String> list = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         return (list != null && !list.isEmpty()) ? list.get(0) : null;
+    }
+
+    /** 기기 최근 위치(권한 있을 때) — "내 위치/가까운" 음성 질문에 좌표 동봉용. 없으면 null. */
+    private double[] getLastLocation() {
+        try {
+            boolean fine = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+            boolean coarse = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+            if (!fine && !coarse) return null;
+            LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+            if (lm == null) return null;
+            String[] providers = { LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER };
+            Location best = null;
+            for (String p : providers) {
+                try {
+                    Location l = lm.getLastKnownLocation(p);
+                    if (l != null && (best == null || l.getTime() > best.getTime())) best = l;
+                } catch (SecurityException ignored) {}
+            }
+            return best != null ? new double[] { best.getLatitude(), best.getLongitude() } : null;
+        } catch (Exception e) { return null; }
     }
 
     /** R.string 접근 실패(리소스 누락 등)에도 안전하게 문자열 반환. */
