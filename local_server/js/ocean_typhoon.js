@@ -302,12 +302,9 @@
         updateBubbleVisibility();
     }
 
-    // 레이어별 채움 스타일
+    // 레이어별 채움 스타일 — 테두리 없이 fill 만(회랑 내부 포인트 원 윤곽이 남지 않도록).
     function swathStyle(strokeC, fillC) {
-        return new ol.style.Style({
-            stroke: new ol.style.Stroke({ color: strokeC, width: 1 }),
-            fill: new ol.style.Fill({ color: fillC })
-        });
+        return new ol.style.Style({ fill: new ol.style.Fill({ color: fillC }) });
     }
 
     // ── 재생 플레이헤드 렌더 ──────────────────────────────────────────────────
@@ -353,27 +350,8 @@
             _moveEl.innerHTML = bubbleHTML(f, fmtFromMs(f._rtMs) + ' 기준');
             _moveBubble.setPosition(ol.proj.fromLonLat([f.lon, f.lat]));
         }
-        updateInfo(f);
         var scr = document.getElementById('tphn-scrubber');
         if (scr && document.activeElement !== scr) scr.value = String(Math.round(p * 1000));
-    }
-
-    function updateInfo(f) {
-        var el = document.getElementById('tphn-info');
-        if (!el) return;
-        var g = f._gradeF != null ? f._gradeF : f.grade;
-        var em = g >= RED_GRADE;
-        var emStyle = 'color:' + (em ? RED_COLOR : '#ffffff') + ';font-weight:' + (em ? '800' : '600');
-        var parts = [];
-        parts.push('<b>' + (f._rtMs ? fmtFromMs(f._rtMs) + ' 기준' : fmtTime(f.time)) + '</b>');
-        parts.push('강도 <span style="' + emStyle + '">' + (GRADE_NAMES[g] || '-') + '</span>');
-        if (f.windMs != null) parts.push('<span style="' + emStyle + '">최대풍속 ' + Math.round(f.windMs) + 'm/s · ' + Math.round(f.windMs * 3.6) + 'km/h</span>');
-        if (f.pressure != null) parts.push('중심기압 ' + Math.round(f.pressure) + 'hPa');
-        if (f.radStrong) parts.push('<span style="color:' + cssRgb(STRONG_C) + '">강풍반경 ' + Math.round(f.radStrong) + 'km</span>');
-        if (f.radStorm) parts.push('<span style="color:' + cssRgb(STORM_C) + '">폭풍반경 ' + Math.round(f.radStorm) + 'km</span>');
-        if (f.radProb) parts.push('<span style="color:' + cssRgb(PROB_C) + '">70% 확률반경 ' + Math.round(f.radProb) + 'km</span>');
-        if (f.speedKmh != null && f.dir) parts.push('이동 ' + f.dir + ' ' + Math.round(f.speedKmh) + 'km/h');
-        el.innerHTML = parts.join(' · ');
     }
 
     // ── 지도 포커스 (태풍 현재위치 + 제주도가 한 화면에 보이도록 fit) ─────────
@@ -592,10 +570,14 @@
         var btn = document.getElementById('ocean-typhoon-toggle-btn');
         if (btn) btn.classList.toggle('active', v);
         if (v) {
-            // 표출 시 현재 시각 위치로 갱신 후 태풍+제주도가 보이도록 지도 이동/줌
-            _pNow = computeNowP();
-            _p = _pNow;
-            renderHead(_p);
+            // 껐다 켜면 "처음 켰을 때"처럼 초기화: 최신 태풍·최신 통보문·현재시각·정지(기본) 상태로 리셋.
+            if (_activeData && _activeData.hasActive) {
+                primeDefaultFromActive();      // 기본 선택 재구성 + 정적 렌더(_playbackMode=false)
+            } else {
+                _playbackMode = false;
+                _pNow = computeNowP(); _p = _pNow;
+                renderHead(_p);
+            }
             focusOnTyphoon();
             // 표출 첫 회: 현재연도 전체 태풍 목록(dmdw)으로 이름 드롭다운 확장(과거 태풍 포함)
             if (!_yearLoaded) { _yearLoaded = true; loadYear(_year, _selSeq, _selCode); }
