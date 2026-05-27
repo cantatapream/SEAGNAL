@@ -56,6 +56,7 @@
     var _playbackMode = false; // true=재생(이동 말풍선만), false=기본(포인트별 말풍선 + 사전 범위)
     var _koreaBuoy = null;     // 우리 해역 진입 시 진로선 최근접 부이 관측 {name,type,obs} (해구도 표출 시에만 사용)
     var _enrichToken = 0;      // 비동기 해구도/부이 enrich 경합 방지 토큰
+    var _debugKorea = false;   // [디버그] 트리거/72h게이트/강풍반경 거리 무시하고 최근접 해구·부이 강제 표출
 
     var _activeData = null;    // /api/typhoon 응답(현재연도 활성 태풍 + 통보문 인라인)
     var _year = null;          // 선택 연도
@@ -165,7 +166,7 @@
         // 파고: 우리 해역(해구도 예측 범위) 진입 시 해구도 예측 + 진로 최근접 부이 관측, 아니면 보퍼트 추정.
         if (o._zoneFc) {
             var z = o._zoneFc;
-            more += '<div class="tphn-b-zone">해구 ' + z.lzone + ' 예측 (' + utcTmToKstLabel(z.tm) + ' 기준)</div>';
+            more += '<div class="tphn-b-zone">해구 ' + z.lzone + ' 예측 (' + utcTmToKstLabel(z.tm) + ' 기준)' + (_debugKorea ? ' [디버그]' : '') + '</div>';
             more += '<div class="tphn-b-sub">유의파고 ' + (z.wh != null ? z.wh.toFixed(1) : '-') + 'm'
                 + (z.wp != null ? ' · 파주기 ' + Math.round(z.wp) + 's' : '') + '</div>';
             more += '<div class="tphn-b-sub">파향 ' + dirStr(z.waveDir) + ' · 풍향 ' + dirStr(z.windDir)
@@ -442,8 +443,9 @@
         var token = ++_enrichToken;
         _koreaBuoy = null;
         _frames.forEach(function (f) { f._zoneFc = null; });
-        // 강풍반경 북단이 31°N 에 닿는 후보 프레임만 해구도 조회.
-        var cand = _frames.filter(function (f) { return f.radStrong && (f.lat + f.radStrong / KM_PER_DEG) >= KOREA_TRIG_LAT; });
+        var dbg = _debugKorea;
+        // 강풍반경 북단이 31°N 에 닿는 후보 프레임만 해구도 조회. (디버그: 전 프레임 강제)
+        var cand = dbg ? _frames.slice() : _frames.filter(function (f) { return f.radStrong && (f.lat + f.radStrong / KM_PER_DEG) >= KOREA_TRIG_LAT; });
         if (!cand.length) { refreshBubbleContents(); return; }
 
         // 진로선 최근접 부이(B/C) 선택 — 좌표는 BUOY_LOCATIONS, 관측은 fetchMarineBuoyData.
@@ -476,14 +478,16 @@
                     var z = d.zones[lz];
                     if (z.lat == null || z.lon == null) return;
                     var dist = haversineKm(f.lat, f.lon, z.lat, z.lon);
-                    if (dist > f.radStrong) return; // 강풍반경에 걸친 해구만
+                    if (!dbg && f.radStrong && dist > f.radStrong) return; // 강풍반경에 걸친 해구만 (디버그: 거리 무시)
                     if (!pick || dist < pick.dist) pick = { lzone: lz, dist: dist, z: z };
                 });
                 if (!pick) return;
-                // 72h 예측범위 게이트: 해구도 tm 이 프레임시각과 ±ZONE_MATCH_H 이내인가.
-                var s = String(pick.z.tm).replace(/[^0-9]/g, '');
-                var tmMs = Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +(s.slice(10, 12) || 0));
-                if (Math.abs(tmMs - utcMs) > ZONE_MATCH_H * 3600000) return; // 범위 밖 → 보퍼트 유지
+                // 72h 예측범위 게이트: 해구도 tm 이 프레임시각과 ±ZONE_MATCH_H 이내인가. (디버그: 게이트 무시)
+                if (!dbg) {
+                    var s = String(pick.z.tm).replace(/[^0-9]/g, '');
+                    var tmMs = Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +(s.slice(10, 12) || 0));
+                    if (Math.abs(tmMs - utcMs) > ZONE_MATCH_H * 3600000) return; // 범위 밖 → 보퍼트 유지
+                }
                 f._zoneFc = { lzone: pick.lzone, wh: pick.z.wh, wp: pick.z.wp, waveDir: pick.z.waveDir, ws: pick.z.ws, windDir: pick.z.windDir, tm: pick.z.tm };
                 refreshBubbleContents();
             }).catch(function () { });
@@ -919,6 +923,13 @@
         var guideClose = document.getElementById('tphn-guide-close');
         if (guideClose && guideModal) guideClose.addEventListener('click', function () { guideModal.style.display = 'none'; });
         if (guideModal) guideModal.addEventListener('click', function (e) { if (e.target === guideModal) guideModal.style.display = 'none'; });
+
+        // [디버그] 해역표출 강제 토글 — 트리거/게이트/거리 무시하고 최근접 해구·부이 표출.
+        var dbgChk = document.getElementById('tphn-dbg-korea');
+        if (dbgChk) dbgChk.addEventListener('change', function () {
+            _debugKorea = dbgChk.checked;
+            if (_frames.length) enrichKoreaWaters();
+        });
 
         // 레이어 토글 체크박스 (dmdw 상세정보 레이어 대응)
         [['tphn-ly-track', 'track'], ['tphn-ly-prob', 'prob'], ['tphn-ly-strong', 'strong'], ['tphn-ly-storm', 'storm']]
