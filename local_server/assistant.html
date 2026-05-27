@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>SEAGNAL 음성 비서 (프로토타입)</title>
+<style>
+  :root {
+    --bg: #0b1f33;
+    --bg2: #12304d;
+    --accent: #38bdf8;
+    --accent2: #22d3ee;
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --text: #e6f1ff;
+    --muted: #8da9c4;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+    background: radial-gradient(120% 120% at 50% 0%, var(--bg2) 0%, var(--bg) 60%);
+    color: var(--text); min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; padding: 20px 16px 40px;
+  }
+  h1 { font-size: 18px; font-weight: 700; margin: 8px 0 2px; letter-spacing: .5px; }
+  .sub { color: var(--muted); font-size: 12px; margin-bottom: 18px; }
+
+  .status {
+    display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted);
+    background: rgba(255,255,255,.05); padding: 6px 14px; border-radius: 999px; margin-bottom: 18px;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); transition: .2s; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .dot.listen { background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: pulse 1s infinite; }
+  .dot.think { background: var(--warn); box-shadow: 0 0 10px var(--warn); animation: pulse .7s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+  .mic {
+    width: 132px; height: 132px; border-radius: 50%; border: none; cursor: pointer;
+    background: linear-gradient(145deg, var(--accent), var(--accent2)); color: #04263b;
+    font-size: 15px; font-weight: 700; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 6px; box-shadow: 0 10px 30px rgba(56,189,248,.35); transition: .15s;
+  }
+  .mic:active { transform: scale(.96); }
+  .mic.off { background: #1e3a52; color: var(--muted); box-shadow: none; }
+  .mic.active::after {
+    content: ''; position: absolute; width: 132px; height: 132px; border-radius: 50%;
+    border: 2px solid var(--accent); animation: ring 1.6s infinite; pointer-events: none;
+  }
+  .mic-wrap { position: relative; display: flex; justify-content: center; margin: 6px 0 10px; }
+  @keyframes ring { 0% { transform: scale(1); opacity: .7; } 100% { transform: scale(1.45); opacity: 0; } }
+  .micicon { font-size: 34px; line-height: 1; }
+
+  .hint { color: var(--muted); font-size: 12px; text-align: center; margin: 4px 0 22px; }
+  .hint b { color: var(--accent2); }
+
+  .card {
+    width: 100%; max-width: 460px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 16px; padding: 14px 16px; margin-bottom: 14px;
+  }
+  .card .label { font-size: 11px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+  #heard { min-height: 20px; font-size: 14px; color: var(--accent2); }
+  #answer { min-height: 24px; font-size: 16px; line-height: 1.6; }
+  .meta { font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .badge { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 999px; margin-left: 6px; }
+  .badge.ai { background: rgba(52,211,153,.2); color: var(--ok); }
+  .badge.local { background: rgba(141,169,196,.2); color: var(--muted); }
+
+  form { width: 100%; max-width: 460px; display: flex; gap: 8px; }
+  input[type=text] {
+    flex: 1; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12);
+    background: rgba(0,0,0,.25); color: var(--text); font-size: 14px; outline: none;
+  }
+  input[type=text]::placeholder { color: var(--muted); }
+  button.send {
+    padding: 0 18px; border-radius: 12px; border: none; background: var(--accent); color: #04263b;
+    font-weight: 700; font-size: 14px; cursor: pointer;
+  }
+  .examples { width: 100%; max-width: 460px; margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font-size: 12px; padding: 7px 12px; border-radius: 999px; background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.1); color: var(--text); cursor: pointer;
+  }
+  .chip:active { background: rgba(56,189,248,.2); }
+  .warn-box { color: var(--warn); font-size: 12px; max-width: 460px; text-align: center; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+  <h1>🌊 SEAGNAL 음성 비서</h1>
+  <div class="sub">프로토타입 · 실시간 해상 기상/특보 데이터 기반</div>
+
+  <div class="status">
+    <span class="dot" id="dot"></span>
+    <span id="statusText">대기 중 — 마이크를 켜세요</span>
+  </div>
+
+  <!-- 첫 실행 온보딩(AI 대화형) -->
+  <div id="onboard" class="card" style="display:none; max-width:460px;">
+    <div class="label">👋 처음 오셨네요 — 잠깐 인터뷰</div>
+    <div id="obLog" style="display:flex; flex-direction:column; gap:8px; max-height:300px; overflow-y:auto; padding:4px 0;"></div>
+    <form id="obForm" style="display:flex; gap:8px; margin-top:10px;">
+      <input id="obInput" type="text" placeholder="답변을 입력하세요" autocomplete="off"
+             style="flex:1; padding:11px 13px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.25); color:var(--text); font-size:14px; outline:none;" />
+      <button class="send" type="submit" style="padding:0 16px;">보내기</button>
+    </form>
+    <div class="meta">답변은 <b>이 휴대폰에만</b> 저장됩니다. <a href="#" id="obSkip" style="color:var(--muted);">건너뛰기</a></div>
+  </div>
+
+  <!-- 저장된 프로필 요약/관리 -->
+  <div id="profileBox" class="card" style="display:none;">
+    <div class="label">👤 내 프로필 <span style="text-transform:none; color:var(--muted);">· 이 휴대폰에만 저장됨</span></div>
+    <div id="profileSummary" style="font-size:13px; line-height:1.6;"></div>
+    <div style="display:flex; gap:8px; margin-top:10px;">
+      <button id="editProfile" class="chip" style="cursor:pointer;">수정</button>
+      <button id="deleteProfile" class="chip" style="cursor:pointer;">삭제</button>
+    </div>
+  </div>
+
+  <div id="mainUI">
+  <div class="mic-wrap">
+    <button class="mic off" id="micBtn">
+      <span class="micicon">🎙️</span>
+      <span id="micLabel">마이크 켜기</span>
+    </button>
+  </div>
+  <div class="hint">마이크를 켜고 <b>"나리야"</b> 라고 부른 뒤 질문하세요.<br/>예) "나리야, 제주도 북부 앞바다 기상 알려줘"</div>
+
+  <div id="nativeBox" class="card" style="display:none;">
+    <div class="label">📱 백그라운드 상시 비서 (앱 전용)</div>
+    <div style="display:flex;align-items:center;gap:10px;justify-content:space-between;">
+      <span id="nativeStatus" style="font-size:13px;color:var(--muted);">꺼짐</span>
+      <button id="nativeToggle" class="send" style="padding:10px 16px;">켜기</button>
+    </div>
+    <div class="meta">앱을 닫거나 화면이 꺼져도 <b>"나리야"</b> 호출에 반응합니다. 켜면 상단에 상시 알림 1개가 표시됩니다.</div>
+  </div>
+
+  <div id="speechWarn" class="warn-box" style="display:none;"></div>
+
+  <div class="card">
+    <div class="label">들은 질문</div>
+    <div id="heard">—</div>
+  </div>
+  <div class="card">
+    <div class="label">답변 <span id="srcBadge"></span></div>
+    <div id="answer">—</div>
+    <div class="meta" id="answerMeta"></div>
+  </div>
+
+  <form id="askForm">
+    <input type="text" id="qInput" placeholder="질문을 입력해도 됩니다 (음성 없이 테스트)" autocomplete="off" />
+    <button type="submit" class="send">전송</button>
+  </form>
+
+  <div class="examples">
+    <span class="chip">오늘 제주도 북부 앞바다 기상 현황 알려줘</span>
+    <span class="chip">부산 앞바다에 풍랑 특보 있어?</span>
+    <span class="chip">남해 서부 앞바다 파고 어때</span>
+    <span class="chip">강원 북부 앞바다 날씨</span>
+  </div>
+
+  </div><!-- /mainUI -->
+
+  <script src="/js/assistant.js"></script>
+</body>
+</html>
