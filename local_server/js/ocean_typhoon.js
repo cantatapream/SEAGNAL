@@ -190,7 +190,7 @@
             }
         } else {
             var wv = beaufortWaveM(o.windMs);
-            if (wv != null) more += '<div class="tphn-b-sub">예상파고(외해 추정) 약 ' + wv + 'm</div>';
+            if (wv != null) more += '<div class="tphn-b-sub">예상파고(추정) 약 ' + wv + 'm</div>';
         }
         more += '<button type="button" class="tphn-guide-btn"><i class="fa-solid fa-life-ring"></i> 해상 종사자 행동요령</button>';
         h += '<div class="tphn-b-more">' + more + '</div>';
@@ -210,7 +210,8 @@
             _pointBubbles.forEach(function (ov) { var e2 = ov.getElement(); e2.classList.add('tphn-faint'); setBubbleZ(e2, '1'); });
             if (wasFaint) { el.classList.remove('tphn-faint'); setBubbleZ(el, '500'); bringBubbleToFront(el); }
         });
-        return new ol.Overlay({ element: el, offset: [12, -12], positioning: 'bottom-left', stopEvent: false });
+        // insertFirst:false → 추가 순서 = DOM 순서. bringBubbleToFront(appendChild)가 실제로 최상단으로 올린다.
+        return new ol.Overlay({ element: el, offset: [12, -12], positioning: 'bottom-left', stopEvent: false, insertFirst: false });
     }
     // 진한(클릭된) 말풍선을 항상 최상단에 그린다.
     //   OL8 은 오버레이를 .ol-overlay-container 래퍼로 감싸고 getElement()는 내부 요소를 돌려준다.
@@ -336,7 +337,7 @@
         var P = [];
         pts.forEach(function (p) { if (p && p.lon != null && p[key] != null && p[key] > 0) P.push(p); });
         if (P.length === 0) return null;
-        if (P.length === 1) return new ol.geom.MultiPolygon([[geoCircleRing(P[0].lon, P[0].lat, P[0][key])]]);
+        if (P.length === 1) return new ol.geom.MultiPolygon([[orientCW(geoCircleRing(P[0].lon, P[0].lat, P[0][key]))]]);
         var left = [], right = [];
         for (var i = 0; i < P.length; i++) {
             var a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)];
@@ -347,11 +348,19 @@
         }
         var ring = left.concat(right.reverse());
         ring.push(ring[0]);
-        var polys = [[ring]];
-        // 각 시점 원도 합쳐(둥근 캡 + 굴곡부 빈틈 메움) — 단일 fill 이라 겹쳐도 진해지지 않음
-        for (var k = 0; k < P.length; k++) polys.push([geoCircleRing(P[k].lon, P[k].lat, P[k][key])]);
+        // 각 시점 원도 합쳐(둥근 캡 + 굴곡부 빈틈 메움). 모든 링 winding 을 동일(CW)하게 맞춰야
+        //   nonzero 채움에서 겹친 원이 구멍(테두리)으로 남지 않고 하나로 합쳐진다.
+        var polys = [[orientCW(ring)]];
+        for (var k = 0; k < P.length; k++) polys.push([orientCW(geoCircleRing(P[k].lon, P[k].lat, P[k][key]))]);
         return new ol.geom.MultiPolygon(polys);
     }
+    // 링 부호면적(>0=CCW). 모든 링을 CW(음의 면적)로 통일해 swath 합집합 채움을 깔끔하게.
+    function ringSignedArea(r) {
+        var a = 0;
+        for (var i = 0, n = r.length; i < n; i++) { var p = r[i], q = r[(i + 1) % n]; a += p[0] * q[1] - q[0] * p[1]; }
+        return a / 2;
+    }
+    function orientCW(r) { return ringSignedArea(r) > 0 ? r.slice().reverse() : r; }
 
     function pointAt(lon, lat) { return new ol.geom.Point(ol.proj.fromLonLat([lon, lat])); }
 
@@ -581,9 +590,7 @@
             body = '<div class="tphn-b-sub">내습 예상 시점 산출불가</div>';
         }
         var h = '<div class="tphn-b-h">태풍 내습 예상 <span class="tphn-land-close" style="float:right;cursor:pointer;padding:0 4px">&times;</span></div>'
-            + body
-            + '<div class="tphn-b-more" style="display:block">'
-            + '<button type="button" class="tphn-guide-btn"><i class="fa-solid fa-life-ring"></i> 해상 종사자 행동요령</button></div>';
+            + body;
         _landEl.innerHTML = h;
         _landEl.style.display = '';
         setBubbleZ(_landEl, '600');
@@ -999,7 +1006,7 @@
             if (e.target.closest && e.target.closest('.tphn-land-close')) { hideLandPopup(); return; }
             if (e.target.closest && e.target.closest('.tphn-guide-btn')) { openGuideModal(); }
         });
-        _landPopup = new ol.Overlay({ element: _landEl, offset: [12, -12], positioning: 'bottom-left', stopEvent: false });
+        _landPopup = new ol.Overlay({ element: _landEl, offset: [12, -12], positioning: 'bottom-left', stopEvent: false, insertFirst: false });
         map.addOverlay(_landPopup);
         try { var s = JSON.parse(localStorage.getItem(LAYER_KEY)); if (s) _layerOn = Object.assign(_layerOn, s); } catch (e) {}
         applyLayerVisibility();
