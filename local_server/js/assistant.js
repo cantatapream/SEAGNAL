@@ -174,6 +174,8 @@
         if (d.zone) pushMemory(d.zone + ': "' + query + '" → ' + String(d.answer).slice(0, 50));
         speak(d.answer);
         if (!('speechSynthesis' in window) && micOn) startWakeMode();
+        // 임의 지점 물때: 지명 검색 → 확인 → 고조/저조 조회 흐름 시작
+        if (d.tideSearch) startTidePlaceSearch(d.tideSearch);
       })
       .catch(function (err) {
         setAnswer('죄송해요, 데이터를 가져오지 못했습니다. (' + err.message + ')', null);
@@ -218,6 +220,68 @@
     if (lk.lat != null && lk.lon != null) url += '&lat=' + encodeURIComponent(lk.lat) + '&lon=' + encodeURIComponent(lk.lon);
     if (lk.label) url += '&label=' + encodeURIComponent(lk.label);
     window.location.href = url;
+  }
+
+  // ── 임의 지점 물때: 지명 검색 → 확인 → 앱 바텀시트(고조/저조는 앱이 표출) ──────────
+  // answerActions 에 임의 버튼 렌더 (확인 등)
+  function renderButtons(btns) {
+    if (!answerActions) return;
+    answerActions.innerHTML = '';
+    (btns || []).forEach(function (b) {
+      var el = document.createElement('button');
+      el.className = 'action-btn' + (b.ghost ? ' ghost' : '');
+      el.textContent = b.label;
+      el.addEventListener('click', b.onClick);
+      answerActions.appendChild(el);
+    });
+  }
+
+  // 1) 지명으로 장소 검색(카카오 프록시) → 첫 후보를 확인 요청
+  function startTidePlaceSearch(place) {
+    setStatus('장소 찾는 중…', 'think');
+    fetch('/api/search-place?q=' + encodeURIComponent(place))
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
+      .then(function (o) {
+        if (o.status === 503) {
+          setAnswer('장소 검색 기능이 지금 준비돼 있지 않아요. 해역 이름(예: 제주도 북부 앞바다)으로 물어봐 주세요.', null);
+          renderActions(null); return;
+        }
+        var docs = (o.j && o.j.documents) || [];
+        if (!docs.length) {
+          setAnswer('"' + place + '"을(를) 못 찾았어요. 더 정확한 지명으로 다시 말씀해 주세요.', null);
+          renderActions(null); return;
+        }
+        askConfirmPlace(docs, 0);
+      })
+      .catch(function (e) { setAnswer('장소 검색 중 오류가 났어요. (' + e.message + ')', null); renderActions(null); });
+  }
+
+  // 2) 후보 i 를 "여기 맞나요?" 확인. 아니오면 다음 후보 제시.
+  function askConfirmPlace(docs, i) {
+    var r = docs[i];
+    var msg = '"' + r.place_name + '"' + (r.address_name ? ' (' + r.address_name + ')' : '') + ' 말씀이신가요?';
+    setStatus('확인이 필요해요', 'on');
+    setAnswer(msg, null);
+    speak(r.place_name + ' 말씀이신가요?');
+    var btns = [{
+      label: '예, 맞아요', onClick: function () { confirmTidePlace(r); }
+    }];
+    if (i + 1 < docs.length) btns.push({ label: '아니요, 다른 곳', ghost: true, onClick: function () { askConfirmPlace(docs, i + 1); } });
+    renderButtons(btns);
+  }
+
+  // 3) 확정 → 그 지점(가장 가까운 해점)의 물때를 앱 바텀시트로 안내.
+  //    고조/저조 계산/표출은 앱이 담당(TideBED + 빈해역/동해북부 IDW 보간까지 정확).
+  //    비서는 지명 확인 + 해당 해점으로 가는 버튼만 제공한다.
+  function confirmTidePlace(r) {
+    var lat = parseFloat(r.y), lon = parseFloat(r.x), name = r.place_name;
+    if (!isFinite(lat) || !isFinite(lon)) { setAnswer('좌표를 확인하지 못했어요.', null); return; }
+    var txt = name + ' 인근 해점의 물때를 앱에서 보여드릴게요. 아래 버튼을 누르면 그 해점에서 고조·저조가 표시됩니다.';
+    lastAnswer = txt;
+    setStatus('답변 완료', 'on');
+    setAnswer(txt, false);
+    renderActions([{ type: 'tide', lat: lat, lon: lon, label: name + ' 물때 보기' }]);
+    speak(txt);
   }
 
   // ── 음성 인식 (Web Speech API) ──────────────────────────────────────────

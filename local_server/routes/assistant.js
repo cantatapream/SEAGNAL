@@ -583,13 +583,26 @@ router.post('/api/assistant/ask', async (req, res) => {
     // 있으므로 해역 유무와 별개로 먼저 계산한다.
     const links = buildLinks(query, intent, zone, profile);
 
+    // [물때 — 임의 지점] 물때 질문인데 표준항/해역으로 해점을 못 잡았다면,
+    //   질문에서 지명을 추출해 프론트가 장소 검색(카카오) → 확인 → 조석 조회를 하도록 신호.
+    let tideSearch = null;
+    {
+        const nqt = normalize(query);
+        if (/물때|조석|만조|간조|밀물|썰물|사리|조금|물참|간만/.test(nqt) && !links.some(l => l.type === 'tide')) {
+            const place = extractTidePlace(query);
+            if (place) tideSearch = place;
+        }
+    }
+
     // [2] 해역을 못 찾은 경우
     if (!zone) {
         // 태풍·CCTV처럼 해역이 필요 없는 바로가기가 있으면, 안내 대신 버튼을 제시
-        const answer = links.length
-            ? '말씀하신 정보는 아래 바로가기 버튼에서 바로 확인하실 수 있어요.'
-            : '어느 해역을 말씀하시는지 알아듣지 못했어요. 예를 들어 "제주도 북부 앞바다 기상" 처럼 해역 이름을 함께 말씀해 주세요.';
-        return res.json({ ok: true, zone: null, intent, answer, data: null, aiUsed: false, links });
+        const answer = tideSearch
+            ? `"${tideSearch}" 물때를 찾아볼게요.`
+            : (links.length
+                ? '말씀하신 정보는 아래 바로가기 버튼에서 바로 확인하실 수 있어요.'
+                : '어느 해역을 말씀하시는지 알아듣지 못했어요. 예를 들어 "제주도 북부 앞바다 기상" 처럼 해역 이름을 함께 말씀해 주세요.');
+        return res.json({ ok: true, zone: null, intent, answer, data: null, aiUsed: false, links, tideSearch });
     }
 
     // [3] 실데이터 수집 (메모리 캐시)
@@ -614,9 +627,24 @@ router.post('/api/assistant/ask', async (req, res) => {
         data: { forecast: fc, warning: warn },
         aiUsed,
         zoneFromProfile,
-        links   // 앱 내 기능 연결용 (해양종합정보 레이어 바로가기)
+        links,       // 앱 내 기능 연결용 (해양종합정보 레이어 바로가기)
+        tideSearch   // 임의 지점 물때 검색이 필요하면 추출된 지명(없으면 null)
     });
 });
+
+/**
+ * 물때 질문에서 지명 후보를 추출 (조석/필러 단어 제거). 2글자 미만이면 null.
+ * 예: "정자항 물때 알려줘" → "정자항", "물때 알려줘" → null
+ */
+function extractTidePlace(query) {
+    let s = String(query || '');
+    // 조석/필러 '단어'만 제거. 단일 글자 조사(이/가/은/는/의…)는 지명을 손상시키므로
+    // 제거하지 않는다(예: "이호테우"의 "이"). Kakao 검색은 조사 붙어도 잘 찾는다.
+    s = s.replace(/물때표|물때|조석|만조|간조|밀물|썰물|사리|조금|물참|간만|고조|저조/g, ' ');
+    s = s.replace(/알려줘|보여줘|알려주|알려|보여|어때|어떄|어떻게|지금|오늘|내일|모레|시간|조회|확인|해줘|좀/g, ' ');
+    s = s.replace(/[?!.,~]/g, ' ').replace(/\s+/g, ' ').trim();
+    return s.length >= 2 ? s : null;
+}
 
 /** 질문에서 특정 부이를 가리키면 { id, name } 반환 (없으면 null) */
 function findBuoyInQuery(query) {
