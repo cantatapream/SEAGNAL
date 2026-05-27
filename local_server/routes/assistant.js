@@ -1181,6 +1181,72 @@ router.post('/api/assistant/onboard', async (req, res) => {
 });
 
 // ============================================================================
+// 9-TTS. 자연스러운 음성(Gemini TTS) — 텍스트를 자연 음성으로 합성해 WAV로 반환.
+//   기존 Gemini 키 재사용. 키 없거나 실패하면 503 → 클라이언트가 내장 TTS로 폴백.
+//   비용·지연이 있으므로 클라이언트에서 "자연 음성" 토글이 켜졌을 때만 호출.
+// ============================================================================
+/** RAW PCM(16bit mono) → WAV 컨테이너 (브라우저/네이티브 재생용) */
+function pcmToWav(pcm, sampleRate, channels, bitsPerSample) {
+    const blockAlign = channels * bitsPerSample / 8;
+    const byteRate = sampleRate * blockAlign;
+    const header = Buffer.alloc(44);
+    header.write('RIFF', 0);
+    header.writeUInt32LE(36 + pcm.length, 4);
+    header.write('WAVE', 8);
+    header.write('fmt ', 12);
+    header.writeUInt32LE(16, 16);
+    header.writeUInt16LE(1, 20);          // PCM
+    header.writeUInt16LE(channels, 22);
+    header.writeUInt32LE(sampleRate, 24);
+    header.writeUInt32LE(byteRate, 28);
+    header.writeUInt16LE(blockAlign, 32);
+    header.writeUInt16LE(bitsPerSample, 34);
+    header.write('data', 36);
+    header.writeUInt32LE(pcm.length, 40);
+    return Buffer.concat([header, pcm]);
+}
+
+router.post('/api/assistant/tts', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const rate = checkRateLimit(getClientIp(req));
+    if (!rate.allowed) {
+        res.setHeader('Retry-After', String(rate.retryAfterSec));
+        return res.status(429).json({ error: '요청이 너무 많습니다.' });
+    }
+    if (!(gemini && gemini.callGeminiRaw && gemini.hasAnyKey && gemini.hasAnyKey())) {
+        return res.status(503).json({ error: '자연 음성(TTS)을 사용할 수 없습니다(키 없음).' });
+    }
+    const text = (req.body && req.body.text ? String(req.body.text) : '').trim().slice(0, 500);
+    if (!text) return res.status(400).json({ error: 'text 가 필요합니다.' });
+    const voice = (req.body && req.body.voice) ? String(req.body.voice) : 'Kore';
+
+    try {
+        const r = await gemini.callGeminiRaw({
+            model: 'gemini-2.5-flash-preview-tts',
+            contents: text,
+            config: {
+                responseModalities: ['AUDIO'],
+                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
+            },
+            caller: 'Assistant-TTS'
+        });
+        if (!r.success || !r.response) return res.status(502).json({ error: 'TTS 합성 실패' });
+        const parts = (((r.response.candidates || [])[0] || {}).content || {}).parts || [];
+        const audio = parts.find(p => p.inlineData && /audio|pcm|L16/i.test(p.inlineData.mimeType || ''));
+        if (!audio || !audio.inlineData || !audio.inlineData.data) return res.status(502).json({ error: '오디오 데이터 없음' });
+        const pcm = Buffer.from(audio.inlineData.data, 'base64');
+        const m = (audio.inlineData.mimeType || '').match(/rate=(\d+)/);
+        const sampleRate = m ? Number(m[1]) : 24000;
+        const wav = pcmToWav(pcm, sampleRate, 1, 16);
+        res.setHeader('Content-Type', 'audio/wav');
+        res.setHeader('Content-Length', String(wav.length));
+        return res.send(wav);
+    } catch (e) {
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+// ============================================================================
 // 9. 스타일·성향 다이제스트 — 누적 대화를 AI가 정리(말투/선호형식/관심사).
 //   클라이언트가 몇 건마다 한 번 호출해 결과를 휴대폰에 저장(seagnal_style.styleNote).
 //   통계(자주 보는 해역/주제, 질문 수)는 클라이언트가 결정론적으로 누적하므로,

@@ -87,31 +87,70 @@
     return null;
   }
 
-  // ── TTS (음성) — 텍스트는 화면에, 음성은 여기서. 둘 다 지원 ─────────────────
+  // ── TTS (음성) — 텍스트는 화면에, 음성은 여기서. 자연음성↔내장음성 둘 다 지원 ──────
+  var NATURAL_KEY = 'seagnal_natural_voice';
+  function getNaturalVoice() { try { return localStorage.getItem(NATURAL_KEY) === '1'; } catch (e) { return false; } }
+  function setNaturalVoice(on) { try { localStorage.setItem(NATURAL_KEY, on ? '1' : '0'); } catch (e) {} }
+
+  function speakStartVisual() {
+    mode = 'speaking'; safeStopRecognition();
+    setStatus('말하는 중…', 'speak'); setBanner('🔊 답변하고 있어요', 'speak'); showEq(true);
+  }
+  function speakEndVisual() {
+    showEq(false);
+    if (micOn) startWakeMode(); else { setBanner(''); setStatus('대기 중 — 마이크를 켜세요', ''); }
+  }
+
   function speak(text) {
     lastAnswer = text || lastAnswer;
-    if (!('speechSynthesis' in window) || !text) return;
+    if (!text) return;
+    if (getNaturalVoice()) { speakNatural(text); return; }   // 자연 음성(서버 TTS)
+    speakOnDevice(text);                                      // 내장 음성(오프라인/무료)
+  }
+
+  // 내장 TTS (Web Speech) — 오프라인·무료, 단 기계음
+  function speakOnDevice(text) {
+    if (!('speechSynthesis' in window) || !text) { return; }
     try {
       window.speechSynthesis.cancel();
       var u = new SpeechSynthesisUtterance(text);
-      u.lang = 'ko-KR';
-      u.rate = 1.0; u.pitch = 1.0;
-      var voices = window.speechSynthesis.getVoices();
-      var ko = voices.filter(function (v) { return /ko/i.test(v.lang); })[0];
+      u.lang = 'ko-KR'; u.rate = 1.0; u.pitch = 1.0;
+      var ko = window.speechSynthesis.getVoices().filter(function (v) { return /ko/i.test(v.lang); })[0];
       if (ko) u.voice = ko;
-      // 발화 중에는 자기 목소리를 다시 인식하지 않도록 인식기를 잠시 멈춘다.
-      u.onstart = function () {
-        mode = 'speaking'; safeStopRecognition();
-        setStatus('말하는 중…', 'speak'); setBanner('🔊 답변하고 있어요', 'speak'); showEq(true);
-      };
-      u.onend = function () { showEq(false); if (micOn) startWakeMode(); else { setBanner(''); setStatus('대기 중 — 마이크를 켜세요', ''); } };
+      u.onstart = speakStartVisual;
+      u.onend = speakEndVisual;
       window.speechSynthesis.speak(u);
-    } catch (e) { showEq(false); /* TTS 실패는 무시 (텍스트는 이미 표시됨) */ }
+    } catch (e) { showEq(false); }
   }
 
-  // 마지막 답변을 다시 음성으로 재생 (텍스트+음성 둘 다 지원 — 음성만 다시 듣기)
+  // 자연 음성 (서버 Gemini TTS) — 네트워크 필요. 실패/오프라인 시 내장 TTS 폴백.
+  function speakNatural(text) {
+    speakStartVisual();
+    fetch('/api/assistant/tts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text })
+    })
+      .then(function (r) { if (!r.ok) throw new Error('tts ' + r.status); return r.blob(); })
+      .then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var a = new Audio(url);
+        a.onended = function () { URL.revokeObjectURL(url); speakEndVisual(); };
+        a.onerror = function () { URL.revokeObjectURL(url); speakOnDevice(text); };
+        a.play().catch(function () { URL.revokeObjectURL(url); speakOnDevice(text); });
+      })
+      .catch(function () { speakOnDevice(text); });  // 서버 TTS 불가 → 내장 음성
+  }
+
+  // 마지막 답변 다시 듣기 — 자연/내장 음성 설정을 그대로 따른다.
   function replayLast() {
     if (!lastAnswer) return;
+    if (getNaturalVoice()) {
+      showEq(true);
+      fetch('/api/assistant/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: lastAnswer }) })
+        .then(function (r) { if (!r.ok) throw new Error('tts'); return r.blob(); })
+        .then(function (blob) { var url = URL.createObjectURL(blob); var a = new Audio(url); a.onended = a.onerror = function () { URL.revokeObjectURL(url); showEq(false); }; a.play().catch(function () { URL.revokeObjectURL(url); showEq(false); }); })
+        .catch(function () { showEq(false); });
+      return;
+    }
     if (!('speechSynthesis' in window)) return;
     try {
       window.speechSynthesis.cancel();
@@ -631,6 +670,13 @@
   });
 
   setupNativeBridge();
+
+  // 자연 음성 토글 연결
+  var natToggle = $('naturalVoiceToggle');
+  if (natToggle) {
+    natToggle.checked = getNaturalVoice();
+    natToggle.addEventListener('change', function () { setNaturalVoice(natToggle.checked); });
+  }
 
   // ── 초기화 ────────────────────────────────────────────────────────────────
   if (!speechSupported()) {
