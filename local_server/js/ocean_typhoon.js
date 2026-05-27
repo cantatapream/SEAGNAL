@@ -212,10 +212,13 @@
             }
             var wasFaint = el.classList.contains('tphn-faint');
             _pointBubbles.forEach(function (ov) { ov.getElement().classList.add('tphn-faint'); });
-            if (wasFaint) el.classList.remove('tphn-faint');
+            if (wasFaint) { el.classList.remove('tphn-faint'); bringBubbleToFront(el); }
         });
         return new ol.Overlay({ element: el, offset: [12, -12], positioning: 'bottom-left', stopEvent: true });
     }
+    // 진한(클릭된) 말풍선을 오버레이 컨테이너 맨 뒤로 옮겨 항상 최상단에 그려지게 한다.
+    //   (ol.Overlay 는 z-index 만으로 적층이 보장되지 않아 DOM 순서까지 조정)
+    function bringBubbleToFront(el) { if (el && el.parentNode) el.parentNode.appendChild(el); }
     function updateBubbleVisibility() {
         var pb = _playbackMode;
         _pointBubbles.forEach(function (ov, i) {
@@ -422,6 +425,8 @@
             ov.setPosition(ol.proj.fromLonLat([f.lon, f.lat]));
         });
         for (var i = _frames.length; i < _pointBubbles.length; i++) _pointBubbles[i].setPosition(undefined);
+        // 기본 진한 말풍선(마지막)을 최상단으로.
+        if (_frames.length && _pointBubbles[_frames.length - 1]) bringBubbleToFront(_pointBubbles[_frames.length - 1].getElement());
         updateBubbleVisibility();
     }
     function bubbleHeader(f) {
@@ -561,6 +566,7 @@
             + '<button type="button" class="tphn-guide-btn"><i class="fa-solid fa-life-ring"></i> 해상 종사자 행동요령</button></div>';
         _landEl.innerHTML = h;
         _landEl.style.display = '';
+        bringBubbleToFront(_landEl);
         _landPopup.setPosition(ol.proj.fromLonLat([lon, lat]));
         return true;
     }
