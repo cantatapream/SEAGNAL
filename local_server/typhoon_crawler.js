@@ -50,7 +50,8 @@ if (!ENABLED) {
         async run() { /* no-op */ },
         async getTyphoonList() { return []; },
         async getBulletinList() { return []; },
-        async getBulletin() { return null; }
+        async getBulletin() { return null; },
+        async getTyphoonImage() { return { statusCode: 503, contentType: '', buffer: Buffer.alloc(0) }; }
     };
     return;
 }
@@ -284,7 +285,10 @@ async function fetchBulletin(year, code) {
     }
     const name = infoArr.length ? trimStr(infoArr[0].typName || infoArr[0].tdName) : '';
     const nameEn = infoArr.length ? trimStr(infoArr[0].typEn || infoArr[0].tdEn) : '';
-    return { current, forecast, name, nameEn };
+    // rem: 발표 예정/약화·종료 안내(여러 문장은 '|' 구분). other: 참고사항(이름 출처 등).
+    const rem = infoArr.length ? trimStr(infoArr[0].rem) : '';
+    const other = infoArr.length ? trimStr(infoArr[0].other) : '';
+    return { current, forecast, name, nameEn, rem, other };
 }
 
 // 통보문 라벨에서 종류/발표시각 파싱 (UI 표시는 value 그대로 사용)
@@ -379,7 +383,8 @@ async function run() {
                     if (data.nameEn) nameEn = data.nameEn;
                     bulletins.push({
                         code, label: trimStr(opt.value), kind: meta.kind, tmFc: meta.tmFc, seq: meta.tmSeq,
-                        isLatest: i === 0, nameEn: data.nameEn, current: data.current, forecast: data.forecast
+                        isLatest: i === 0, nameEn: data.nameEn, current: data.current, forecast: data.forecast,
+                        rem: data.rem, other: data.other
                     });
                 } catch (e) {
                     console.log(`[typhoon] 통보문 수집 실패(${code}): ${e.message}`);
@@ -424,7 +429,36 @@ async function getBulletin(year, code) {
     await ensureSession();
     const data = await fetchBulletin(year, code);
     const m = parseCode(code);
-    return { code, kind: m.kind, tmFc: m.tmFc, seq: m.tmSeq, name: data.name, nameEn: data.nameEn, current: data.current, forecast: data.forecast };
+    return { code, kind: m.kind, tmFc: m.tmFc, seq: m.tmSeq, name: data.name, nameEn: data.nameEn, current: data.current, forecast: data.forecast, rem: data.rem, other: data.other };
 }
 
-module.exports = { enabled: true, run, getTyphoonList, getBulletinList, getBulletin };
+// 통보문 이미지(PNG)를 인증 세션으로 받아 Buffer 반환 — routes/typhoon.js 이미지 프록시용.
+function fetchImageRaw(fileName) {
+    return new Promise((resolve, reject) => {
+        const req = https.request({
+            method: 'GET', host: HOST,
+            path: '/rsw/rest/mfp/typ/file?mode=img&fileName=' + encodeURIComponent(fileName),
+            headers: { 'User-Agent': 'Mozilla/5.0 (SEAGNAL/typhoon)', 'Accept': 'image/png,*/*', 'Referer': `https://${HOST}/rsw/mfp/mfpSub?lv2Id=B002`, 'Cookie': cookieHeader() },
+            timeout: HTTP_TIMEOUT_MS
+        }, res => {
+            ingestCookies(res.headers['set-cookie']);
+            const chunks = [];
+            res.on('data', c => chunks.push(c));
+            res.on('end', () => resolve({ statusCode: res.statusCode, contentType: res.headers['content-type'] || '', buffer: Buffer.concat(chunks) }));
+        });
+        req.on('error', reject);
+        req.on('timeout', () => req.destroy(new Error('timeout')));
+        req.end();
+    });
+}
+async function getTyphoonImage(fileName) {
+    await ensureSession();
+    let r = await fetchImageRaw(fileName);
+    // 세션 만료 등으로 이미지가 아니면(302/JSON) 1회 재로그인 후 재시도
+    if (r.statusCode !== 200 || r.contentType.indexOf('image') === -1) {
+        try { await login(); r = await fetchImageRaw(fileName); } catch (e) { /* ignore */ }
+    }
+    return r;
+}
+
+module.exports = { enabled: true, run, getTyphoonList, getBulletinList, getBulletin, getTyphoonImage };

@@ -65,6 +65,7 @@
     var _selSeq = null;        // 선택 태풍 seq
     var _bulletinList = [];    // 선택 태풍의 통보문 목록 [{code,label,...}]
     var _selCode = null;       // 선택 통보문 code
+    var _curBulletin = null;   // 현재 표출 통보문(rem/other/code 등) — i버튼·이미지 팝업용
     var _tableCache = {};      // (year+'_'+code) -> {current,forecast,...}
     var _yearLoaded = false;   // 전체 연도 목록(dmdw on-demand) 확장 여부 — 표출 시 1회
     var _frames = [];          // 선택 통보문의 시계열 프레임 (시각 오름차순)
@@ -233,6 +234,53 @@
         if (gm) gm.style.display = 'none';
         if (window.PopupStack) window.PopupStack.remove('tphn-guide');
     }
+    function escHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    // 통보문 안내(i) 팝업 — rem(발표/종료 안내, '|' 구분) + other(참고사항).
+    function openNoteModal() {
+        var m = document.getElementById('tphn-note-modal'), body = document.getElementById('tphn-note-body');
+        if (!m || !body) return;
+        var b = _curBulletin || {}, html = '';
+        var rem = String(b.rem || '').replace(/\|\s*$/, '').trim();
+        if (rem) rem.split('|').forEach(function (s) { s = s.trim(); if (s) html += '<div class="tphn-note-line">※ ' + escHtml(s) + '</div>'; });
+        if (b.other) html += '<div class="tphn-note-line" style="margin-top:10px;color:#15407a;font-weight:600;">' + escHtml(b.other) + '</div>';
+        body.innerHTML = html || '<div class="tphn-note-line" style="color:#888;">안내 정보가 없습니다.</div>';
+        m.style.display = 'flex';
+        if (window.PopupStack) window.PopupStack.push('tphn-note', closeNoteModal);
+    }
+    function closeNoteModal() {
+        var m = document.getElementById('tphn-note-modal'); if (m) m.style.display = 'none';
+        if (window.PopupStack) window.PopupStack.remove('tphn-note');
+    }
+    // 통보문 이미지 팝업 — 서버 프록시(/api/typhoon/image)로 dmdw 이미지 표출 + 다운로드.
+    function openImgModal() {
+        var m = document.getElementById('tphn-img-modal'), img = document.getElementById('tphn-img-el'), msg = document.getElementById('tphn-img-msg');
+        if (!m || !img) return;
+        var fileName = bulletinImageName(_selCode || (_curBulletin && _curBulletin.code));
+        if (!fileName) return;
+        var url = '/api/typhoon/image?fileName=' + encodeURIComponent(fileName);
+        img.style.display = 'none'; if (msg) { msg.style.display = ''; msg.textContent = '불러오는 중…'; }
+        img.onload = function () { img.style.display = ''; if (msg) msg.style.display = 'none'; };
+        img.onerror = function () { img.style.display = 'none'; if (msg) { msg.style.display = ''; msg.textContent = '이미지를 불러올 수 없습니다.'; } };
+        img.setAttribute('data-fn', fileName);
+        img.src = url;
+        m.style.display = 'flex';
+        if (window.PopupStack) window.PopupStack.push('tphn-img', closeImgModal);
+    }
+    function closeImgModal() {
+        var m = document.getElementById('tphn-img-modal'); if (m) m.style.display = 'none';
+        if (window.PopupStack) window.PopupStack.remove('tphn-img');
+    }
+    function downloadImg() {
+        var img = document.getElementById('tphn-img-el'), fileName = img && img.getAttribute('data-fn');
+        if (!fileName) return;
+        fetch('/api/typhoon/image?fileName=' + encodeURIComponent(fileName)).then(function (r) { return r.ok ? r.blob() : null; }).then(function (blob) {
+            if (!blob) return;
+            var a = document.createElement('a'), obj = URL.createObjectURL(blob);
+            a.href = obj; a.download = fileName.replace(/[\]]/g, '_');
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            setTimeout(function () { URL.revokeObjectURL(obj); }, 1000);
+        }).catch(function () { });
+    }
     function hideLandPopup() {
         if (_landEl) _landEl.style.display = 'none';
         if (_landPopup) _landPopup.setPosition(undefined);
@@ -293,6 +341,38 @@
         var hStr = (hh < 10 ? '0' + hh : hh) + (mi ? ':' + (mi < 10 ? '0' + mi : mi) : '시');
         return mm + '월 ' + dd + '일' + (rel ? '(' + rel + ')' : '') + ' ' + hStr;
     }
+    // ── 재생 슬라이더 손잡이 위 말풍선(파고·파향 타임라인과 동일 로직/스타일) ────
+    var _scrubFade = null;
+    function scrubTimeText(p) {
+        if (!_frames.length) return '';
+        var t0 = _frames[0]._t, t1 = _frames[_frames.length - 1]._t;
+        var d = new Date(t0 + p * (t1 - t0));
+        var DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+        var hh = d.getUTCHours(), mi = d.getUTCMinutes();
+        return (d.getUTCMonth() + 1) + '.' + d.getUTCDate() + '.(' + DAYS[d.getUTCDay()] + ') '
+            + (hh < 10 ? '0' + hh : hh) + ':' + (mi < 10 ? '0' + mi : mi);
+    }
+    function updateScrubTooltip(p) {
+        var tip = document.getElementById('tphn-scrub-tooltip');
+        var sl = document.getElementById('tphn-scrubber');
+        if (!tip || !sl) return;
+        tip.textContent = scrubTimeText(p);
+        tip.style.left = '0px';
+        var r = sl.getBoundingClientRect();
+        var min = parseFloat(sl.min) || 0, max = parseFloat(sl.max) || 1000, val = parseFloat(sl.value) || 0;
+        var pct = (max > min) ? (val - min) / (max - min) : 0;
+        var thumbHalf = 9;
+        var thumbX = r.left + thumbHalf + pct * (r.width - thumbHalf * 2);
+        var tipW = tip.getBoundingClientRect().width;
+        var pad = 4;
+        var clamped = Math.max(pad, Math.min(thumbX - tipW / 2, window.innerWidth - tipW - pad));
+        var pr = tip.parentElement.getBoundingClientRect();
+        tip.style.left = (clamped - pr.left) + 'px';
+        var arrowX = Math.max(8, Math.min(thumbX - clamped, tipW - 8));
+        tip.style.setProperty('--tl-arrow-x', arrowX + 'px');
+    }
+    function showScrubTip() { var t = document.getElementById('tphn-scrub-tooltip'); if (t) { clearTimeout(_scrubFade); t.classList.add('visible'); } }
+    function fadeScrubTip() { clearTimeout(_scrubFade); _scrubFade = setTimeout(function () { var t = document.getElementById('tphn-scrub-tooltip'); if (t) t.classList.remove('visible'); }, 1000); }
     // 현재 시각이 타임라인(첫~끝 프레임)에서 차지하는 위치 0..1
     function computeNowP() {
         if (_frames.length < 2) return 0;
@@ -430,13 +510,16 @@
 
         _frames.forEach(function (f) {
             var c = f._color;
+            var g = f.grade != null ? f.grade : 0;
             var pt = new ol.Feature(pointAt(f.lon, f.lat));
             pt.setStyle(new ol.style.Style({
                 image: new ol.style.Circle({
-                    radius: f.isCurrent ? 7 : 5,
+                    radius: f.isCurrent ? 11 : 9,
                     fill: new ol.style.Fill({ color: rgba(c, 0.95) }),
                     stroke: new ol.style.Stroke({ color: f.isCurrent ? '#d00' : '#fff', width: f.isCurrent ? 3 : 1.5 })
-                })
+                }),
+                // 강도(1~5)를 원 안에 숫자로. 열대저압부(0)는 표기 안 함.
+                text: g >= 1 ? new ol.style.Text({ text: String(g), font: 'bold 11px sans-serif', fill: new ol.style.Fill({ color: '#fff' }) }) : undefined
             }));
             _pointSrc.addFeature(pt); // 포인트는 전용 최상단 레이어에
         });
@@ -673,6 +756,7 @@
         }
         var scr = document.getElementById('tphn-scrubber');
         if (scr && document.activeElement !== scr) scr.value = String(Math.round(p * 1000));
+        if (_playing) { updateScrubTooltip(p); showScrubTip(); } // 재생 중 손잡이 위 말풍선 표출
     }
 
     // ── 지도 포커스 (태풍 현재위치 + 제주도가 한 화면에 보이도록 fit) ─────────
@@ -724,6 +808,7 @@
         if (_raf) cancelAnimationFrame(_raf);
         _raf = null;
         setPlayBtn(false);
+        fadeScrubTip();
         // 정지해도 재생 모드 유지(이동 위치 그대로). 기본(포인트 말풍선) 복귀는 통보문/태풍 재선택 시.
     }
     function setPlayBtn(playing) {
@@ -758,13 +843,27 @@
         return (_activeData.typhoons || []).find(function (t) { return t.seq === seq; }) || null;
     }
 
+    // 최신 통보문 rem 에 "종료" 가 있으면 종료된 태풍으로 간주(되살아나면 새 통보문 rem 으로 자동 해제).
+    function typhoonEnded(t) {
+        var b = t && t.bulletins && t.bulletins[0];
+        return !!(b && b.rem && b.rem.indexOf('종료') >= 0);
+    }
+    // 통보문 code → dmdw 통보문 이미지 파일명 (태풍정보 RTKO63 / TD정보 RTKO64, 호수 2자리).
+    function bulletinImageName(code) {
+        var p = String(code || '').split('_'); // [oTypInfo, oTmFc, oTdSeq, oTmSeq]
+        if (p.length < 3) return '';
+        var pre = p[0] === '3' ? 'RTKO64' : 'RTKO63';
+        var seq = String(p[2]); if (+seq < 10) seq = '0' + (+seq);
+        return pre + '_' + p[1] + ']' + seq + '_ko.png';
+    }
     function populateNames() {
         var sel = document.getElementById('tphn-name');
         if (!sel) return;
         sel.innerHTML = '';
         _typhoonList.forEach(function (t) {
             var o = document.createElement('option');
-            o.value = t.seq; o.textContent = t.name;
+            // 최신 통보문 rem 에 "종료" 가 있으면 (종료) 표기. 되살아나면(새 통보문 rem) 자동 제거.
+            o.value = t.seq; o.textContent = t.name + (t.ended ? '(종료)' : '');
             sel.appendChild(o);
         });
     }
@@ -786,7 +885,7 @@
         return fetchJSON('/api/typhoon/list?year=' + year).then(function (j) {
             _typhoonList = (j && j.typhoons) || [];
             if (!_typhoonList.length && _activeData && _activeData.year === year) {
-                _typhoonList = (_activeData.typhoons || []).map(function (t) { return { seq: t.seq, name: t.name }; });
+                _typhoonList = (_activeData.typhoons || []).map(function (t) { return { seq: t.seq, name: t.name, ended: typhoonEnded(t) }; });
             }
             populateNames();
             var seq = (preferSeq && _typhoonList.some(function (t) { return t.seq === preferSeq; }))
@@ -838,6 +937,7 @@
     }
 
     function renderBulletin(b) {
+        _curBulletin = b;         // i버튼(안내)·이미지 팝업에서 rem/other/code 참조
         _playbackMode = false;    // 새 통보문 선택 → 기본(포인트별 말풍선 + 사전 범위) 모드
         _frames = buildFrames(b);
         _pNow = computeNowP();    // 발표시각이 아니라 "현재 시각" 기준 위치에서 시작
@@ -927,12 +1027,7 @@
     function applyAvailability() {
         var btn = document.getElementById('ocean-typhoon-toggle-btn');
         if (!btn) return;
-        // 잠금(기본) 상태: 항상 비활성 모양 — 10회 탭 전까지는 hasActive 와 무관하게 가림.
-        if (!_unlocked) {
-            btn.classList.add('tphn-disabled');
-            btn.title = '태풍';
-            return;
-        }
+        // 활성 태풍(dmdw)이 있으면 버튼 활성, 없으면 비활성. (일반 사용자 노출 — 탭 잠금 없음)
         var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
         if (!has) {
             btn.classList.add('tphn-disabled');
@@ -980,7 +1075,7 @@
         if (!_activeData || !_activeData.hasActive || !(_activeData.typhoons || []).length) return;
         _year = _activeData.year || curYearKst();
         setSelValue('tphn-year', String(_year));
-        _typhoonList = _activeData.typhoons.map(function (t) { return { seq: t.seq, name: t.name }; });
+        _typhoonList = _activeData.typhoons.map(function (t) { return { seq: t.seq, name: t.name, ended: typhoonEnded(t) }; });
         populateNames();
         var t0 = _activeData.typhoons[0];
         _selSeq = t0.seq; setSelValue('tphn-name', _selSeq);
@@ -1012,12 +1107,15 @@
         _headSrc = new ol.source.Vector();
         _pointSrc = new ol.source.Vector();
         // 채움은 유형별 색(원·말풍선과 동일), 반투명 유지 → 배경 지도 희미하게 비침.
-        _probLayer = new ol.layer.Vector({ source: _probSrc, zIndex: 116, style: swathStyle(rgba(PROB_C, 0.95), rgba(PROB_C, 0.30)) });
-        _strongLayer = new ol.layer.Vector({ source: _strongSrc, zIndex: 118, style: swathStyle(rgba(STRONG_C, 0.95), rgba(STRONG_C, 0.32)) });
-        _stormLayer = new ol.layer.Vector({ source: _stormSrc, zIndex: 120, style: swathStyle(rgba(STORM_C, 0.95), rgba(STORM_C, 0.36)) });
-        _trackLayer = new ol.layer.Vector({ source: _trackSrc, zIndex: 124 });
-        _headLayer = new ol.layer.Vector({ source: _headSrc, zIndex: 130 });
-        _pointLayer = new ol.layer.Vector({ source: _pointSrc, zIndex: 140 }); // 포인트는 모든 레이어 위
+        // updateWhileInteracting/Animating: 재생 중 지도 드래그·애니메이션 동안에도 벡터를
+        //   계속 재렌더(드래그 중 태풍·반경이 멈췄다 순간이동하던 문제 방지).
+        var uw = { updateWhileInteracting: true, updateWhileAnimating: true };
+        _probLayer = new ol.layer.Vector(Object.assign({ source: _probSrc, zIndex: 116, style: swathStyle(rgba(PROB_C, 0.95), rgba(PROB_C, 0.30)) }, uw));
+        _strongLayer = new ol.layer.Vector(Object.assign({ source: _strongSrc, zIndex: 118, style: swathStyle(rgba(STRONG_C, 0.95), rgba(STRONG_C, 0.32)) }, uw));
+        _stormLayer = new ol.layer.Vector(Object.assign({ source: _stormSrc, zIndex: 120, style: swathStyle(rgba(STORM_C, 0.95), rgba(STORM_C, 0.36)) }, uw));
+        _trackLayer = new ol.layer.Vector(Object.assign({ source: _trackSrc, zIndex: 124 }, uw));
+        _headLayer = new ol.layer.Vector(Object.assign({ source: _headSrc, zIndex: 130 }, uw));
+        _pointLayer = new ol.layer.Vector(Object.assign({ source: _pointSrc, zIndex: 140 }, uw)); // 포인트는 모든 레이어 위
         map.addLayer(_probLayer); map.addLayer(_strongLayer); map.addLayer(_stormLayer);
         map.addLayer(_trackLayer); map.addLayer(_headLayer); map.addLayer(_pointLayer);
         _moveBubble = makeBubbleOverlay(); map.addOverlay(_moveBubble); _moveEl = _moveBubble.getElement();
@@ -1054,9 +1152,8 @@
         var btn = document.getElementById('ocean-typhoon-toggle-btn');
         if (btn) {
             btn.addEventListener('click', function () {
-                if (!_unlocked) { handleGateTap(); return; }   // 잠금 상태 → 탭 카운트
                 var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
-                if (!has) return;                               // 활성 태풍 없음
+                if (!has) return;                               // 활성 태풍 없음 → 비활성
                 setVisible(!_visible);
             });
         }
@@ -1071,7 +1168,13 @@
         var resetBtn = document.getElementById('tphn-reset');
         if (resetBtn) resetBtn.addEventListener('click', function () { if (_frames.length) resetView(); });
         var scr = document.getElementById('tphn-scrubber');
-        if (scr) scr.addEventListener('input', function () { pause(); setPlaybackMode(true); _p = (+this.value) / 1000; renderHead(_p); });
+        if (scr) {
+            scr.addEventListener('input', function () { pause(); setPlaybackMode(true); _p = (+this.value) / 1000; renderHead(_p); updateScrubTooltip(_p); showScrubTip(); });
+            scr.addEventListener('mousedown', function () { updateScrubTooltip((+this.value) / 1000); showScrubTip(); });
+            scr.addEventListener('touchstart', function () { updateScrubTooltip((+this.value) / 1000); showScrubTip(); }, { passive: true });
+            scr.addEventListener('mouseup', fadeScrubTip);
+            scr.addEventListener('touchend', fadeScrubTip);
+        }
         var closeBtn = document.getElementById('tphn-close');
         if (closeBtn) closeBtn.addEventListener('click', function () { setVisible(false); });
 
@@ -1082,7 +1185,31 @@
         if (guideClose) guideClose.addEventListener('click', closeGuideModal);
         if (guideModal) guideModal.addEventListener('click', function (e) { if (e.target === guideModal) closeGuideModal(); });
 
-        // [디버그] 해역표출 강제 토글 — 트리거/게이트/거리 무시하고 최근접 해구·부이 표출.
+        // 통보문 안내(i) 팝업
+        var infoBtn = document.getElementById('tphn-info-btn');
+        if (infoBtn) infoBtn.addEventListener('click', openNoteModal);
+        var noteClose = document.getElementById('tphn-note-close');
+        if (noteClose) noteClose.addEventListener('click', closeNoteModal);
+        var noteModal = document.getElementById('tphn-note-modal');
+        if (noteModal) noteModal.addEventListener('click', function (e) { if (e.target === noteModal) closeNoteModal(); });
+
+        // 통보문 이미지 팝업(지도 이모지 버튼)
+        var imgBtn = document.getElementById('tphn-img-btn');
+        if (imgBtn) imgBtn.addEventListener('click', openImgModal);
+        var imgClose = document.getElementById('tphn-img-close');
+        if (imgClose) imgClose.addEventListener('click', closeImgModal);
+        var imgClose2 = document.getElementById('tphn-img-close2');
+        if (imgClose2) imgClose2.addEventListener('click', closeImgModal);
+        var imgModal = document.getElementById('tphn-img-modal');
+        if (imgModal) imgModal.addEventListener('click', function (e) { if (e.target === imgModal) closeImgModal(); });
+        var imgDl = document.getElementById('tphn-img-download');
+        if (imgDl) imgDl.addEventListener('click', downloadImg);
+
+        // [디버그] 해역표출 강제 토글 — 관리자 모드 기기에서만 노출(시그널 통합관리자 센터에서 체크).
+        var dbgRow = document.getElementById('tphn-dbg-row');
+        var isAdmin = false;
+        try { isAdmin = localStorage.getItem('seagnal_admin_mode') === 'true'; } catch (e) { }
+        if (dbgRow && !isAdmin) dbgRow.style.display = 'none';
         var dbgChk = document.getElementById('tphn-dbg-korea');
         if (dbgChk) dbgChk.addEventListener('change', function () {
             _debugKorea = dbgChk.checked;

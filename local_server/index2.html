@@ -2559,7 +2559,7 @@
                         .ocean-typhoon-panel .tphn-year{flex:none;width:84px;}
                         .ocean-typhoon-panel .tphn-close{background:transparent;border:none;color:#cdd9f0;
                             font-size:15px;cursor:pointer;padding:0 2px;}
-                        .ocean-typhoon-panel .tphn-row-play{margin-top:8px;margin-bottom:6px;}
+                        .ocean-typhoon-panel .tphn-row-play{margin-top:8px;margin-bottom:6px;position:relative;}
                         .ocean-typhoon-panel .tphn-play{width:36px;height:28px;border-radius:6px;border:none;
                             background:#2d6cdf;color:#fff;cursor:pointer;flex:none;}
                         .ocean-typhoon-panel .tphn-scrubber{flex:1;}
@@ -2612,11 +2612,23 @@
                         .tphn-guide-body li{margin:3px 0;}
                         .tphn-tel{display:inline-block;margin-top:2px;background:#d50000;color:#fff;
                             padding:3px 10px;border-radius:6px;text-decoration:none;font-weight:700;}
+                        /* 통보문 안내(i) 버튼 / 이미지(지도) 버튼 */
+                        .tphn-info-btn{flex:none;background:transparent;border:none;color:#9ec3ff;font-size:16px;
+                            cursor:pointer;padding:0 4px;line-height:1;}
+                        .tphn-info-btn:hover{color:#fff;}
+                        .tphn-img-btn{flex:none;width:30px;height:28px;border-radius:6px;border:1px solid rgba(120,150,200,0.4);
+                            background:#15407a;cursor:pointer;font-size:15px;line-height:1;padding:0;}
+                        .tphn-img-btn:hover{background:#1b4f96;}
+                        .tphn-note-line{margin:3px 0;}
+                        .tphn-modal-btn{flex:1;background:#2d6cdf;color:#fff;border:none;border-radius:6px;
+                            padding:8px;font-size:13px;font-weight:700;cursor:pointer;}
+                        .tphn-modal-btn-sec{background:#e5e7eb;color:#333;}
                     </style>
                     <div id="ocean-typhoon-panel" class="ocean-typhoon-panel" style="display:none;" aria-hidden="true">
                         <div class="tphn-row tphn-row-top">
                             <select id="tphn-year" class="tphn-select tphn-year" title="연도 선택"></select>
                             <select id="tphn-name" class="tphn-select" title="태풍 선택"></select>
+                            <button id="tphn-info-btn" class="tphn-info-btn" type="button" title="통보문 안내"><i class="fa-solid fa-circle-info"></i></button>
                             <button id="tphn-close" class="tphn-close" type="button" title="닫기"><i class="fa-solid fa-xmark"></i></button>
                         </div>
                         <div class="tphn-row">
@@ -2626,6 +2638,10 @@
                             <button id="tphn-play" class="tphn-play" type="button" title="재생/일시정지"><i class="fa-solid fa-play"></i></button>
                             <button id="tphn-reset" class="tphn-play" type="button" title="처음으로 되돌리기"><i class="fa-solid fa-rotate-left"></i></button>
                             <input type="range" id="tphn-scrubber" class="tphn-scrubber" min="0" max="1000" value="0" title="예보 시각 이동">
+                            <!-- 재생 슬라이더 손잡이 위 말풍선(파고·파향 타임라인과 동일 .ocean-timeline-tooltip 스타일) -->
+                            <div id="tphn-scrub-tooltip" class="ocean-timeline-tooltip"></div>
+                            <!-- 슬라이더 우측: 통보문 이미지 보기 버튼(지도 이모지) -->
+                            <button id="tphn-img-btn" class="tphn-img-btn" type="button" title="통보문 이미지">🗺️</button>
                         </div>
                         <div class="tphn-row tphn-layers" id="tphn-layers">
                             <label><input type="checkbox" id="tphn-ly-track" checked> 예측경로</label>
@@ -2668,6 +2684,31 @@
                                     <li>인명 안전을 먼저 확인하고 응급조치합니다.</li>
                                     <li>선박·시설 피해 발생 시 응급조치 후 신고 — <a href="tel:119" class="tphn-tel"><i class="fa-solid fa-phone"></i> 긴급신고 119</a></li>
                                 </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 통보문 안내 팝업: 발표/종료 안내(rem) + 참고사항(other) -->
+                    <div id="tphn-note-modal" class="tphn-guide-modal" style="display:none;" aria-hidden="true">
+                        <div class="tphn-guide-card">
+                            <div class="tphn-guide-head"><span>📋 통보문 안내</span>
+                                <button id="tphn-note-close" class="tphn-guide-close" type="button" aria-label="닫기">&times;</button></div>
+                            <div class="tphn-guide-body" id="tphn-note-body"></div>
+                        </div>
+                    </div>
+
+                    <!-- 통보문 이미지 팝업 (dmdw 이미지를 서버 프록시로 표출) -->
+                    <div id="tphn-img-modal" class="tphn-guide-modal" style="display:none;" aria-hidden="true">
+                        <div class="tphn-guide-card" style="max-width:94%;">
+                            <div class="tphn-guide-head"><span>🗺️ 통보문 이미지</span>
+                                <button id="tphn-img-close" class="tphn-guide-close" type="button" aria-label="닫기">&times;</button></div>
+                            <div class="tphn-guide-body" style="text-align:center;">
+                                <img id="tphn-img-el" alt="태풍 통보문 이미지" style="max-width:100%;height:auto;border-radius:6px;display:none;">
+                                <div id="tphn-img-msg" style="color:#888;font-size:12px;padding:16px;">불러오는 중…</div>
+                                <div style="display:flex;gap:8px;margin-top:10px;">
+                                    <button id="tphn-img-download" class="tphn-modal-btn" type="button">다운로드</button>
+                                    <button id="tphn-img-close2" class="tphn-modal-btn tphn-modal-btn-sec" type="button">닫기</button>
+                                </div>
                             </div>
                         </div>
                     </div>
