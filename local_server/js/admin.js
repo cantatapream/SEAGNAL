@@ -527,7 +527,8 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         { id: 'block', name: '차단 관리', icon: 'fa-ban' },
         { id: 'maintenance', name: '점검', icon: 'fa-wrench' },
         { id: 'version', name: '버전 관리', icon: 'fa-code-branch' },
-        { id: 'storage', name: '외부 저장소', icon: 'fa-cloud' }
+        { id: 'storage', name: '외부 저장소', icon: 'fa-cloud' },
+        { id: 'ai', name: 'AI', icon: 'fa-robot' }
     ];
 
     const modal = document.createElement('div');
@@ -646,9 +647,102 @@ window.switchUnifiedAdminTab = function (tabId) {
             // 외부 저장소 현황 탭 (Cloudinary, Google Cloud Storage 사용량)
             // → admin_collect.js의 renderUnifiedStorageContent()에서 렌더링
             renderUnifiedStorageContent(body);
+        } else if (tabId === 'ai') {
+            renderUnifiedAiTab(body);
         }
     }, 100);
 };
+
+// ============================================================================
+// AI 탭 — Gemini 호출량 + AI 비서 테스트 호출 + 음성 권한 토글
+// ----------------------------------------------------------------------------
+//  보안: 이 탭은 관리자만 진입 가능. AI 도구는 공개/사용자 데이터 한정이며
+//        관리자 기능에는 접근하지 않는다(서버 측 도구 카탈로그에서 제외됨).
+// ============================================================================
+async function renderUnifiedAiTab(container) {
+    container.innerHTML = `
+        <div class="admin-section-title"><i class="fa-solid fa-robot" style="color:#22d3ee;"></i> AI 비서</div>
+
+        <div id="ai-usage-box" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">
+            <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-chart-simple"></i> 오늘 Gemini 호출량 (KST)</div>
+            <div id="ai-usage-content" style="color:#e2e8f0;font-size:0.9rem;">불러오는 중…</div>
+        </div>
+
+        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">
+            <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-microphone"></i> 음성 비서(나리야) 권한</div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <span id="ai-voice-status" style="font-size:0.85rem;color:#94a3b8;">상태 확인 중…</span>
+                <button id="ai-voice-toggle" style="padding:8px 14px;background:#22d3ee;color:#04263b;border:none;border-radius:8px;font-weight:700;cursor:pointer;">켜기</button>
+            </div>
+            <div style="font-size:0.72rem;color:#64748b;margin-top:6px;">켜면 마이크 권한을 요청하고 백그라운드에서 "나리야" 호출을 대기합니다. (앱에서만 동작)</div>
+        </div>
+
+        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;">
+            <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-flask"></i> 테스트 호출</div>
+            <div style="display:flex;gap:8px;">
+                <input id="ai-test-input" type="text" placeholder="예: 325 해구 60시간 후 조업 가능할까?" style="flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.3);color:#e2e8f0;font-size:0.9rem;outline:none;">
+                <button id="ai-test-send" style="padding:0 16px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">전송</button>
+            </div>
+            <div id="ai-test-result" style="margin-top:12px;color:#e2e8f0;font-size:0.9rem;line-height:1.6;white-space:pre-wrap;"></div>
+        </div>
+    `;
+
+    // 1) 호출량 + 키 상태
+    try {
+        const r = await fetch('/api/admin/gemini-status');
+        const d = await r.json();
+        const u = d.usage || {};
+        const keyTxt = (d.keys || []).map(k => `${k.label}${k.onCooldown ? '(쿨다운)' : ''}`).join(', ') || '없음';
+        document.getElementById('ai-usage-content').innerHTML =
+            `요청 <b>${u.requests || 0}</b>회 · 성공 <b>${u.success || 0}</b> · 한도초과 <b>${u.rateLimited || 0}</b><br>` +
+            `<span style="color:#94a3b8;font-size:0.8rem;">키: ${keyTxt} · AI ${d.hasAnyKey ? '사용 가능' : '미설정(키 없음)'}</span>`;
+    } catch (e) {
+        document.getElementById('ai-usage-content').textContent = '호출량을 불러오지 못했습니다: ' + e.message;
+    }
+
+    // 2) 음성 권한 토글 (네이티브 플러그인)
+    (function () {
+        const Native = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SeagnalAssistant)
+            ? window.Capacitor.Plugins.SeagnalAssistant : null;
+        const st = document.getElementById('ai-voice-status');
+        const btn = document.getElementById('ai-voice-toggle');
+        if (!Native) { st.textContent = '앱(안드로이드)에서만 사용 가능'; btn.disabled = true; btn.style.opacity = .5; return; }
+        let running = false;
+        const render = () => { st.textContent = running ? '켜짐 — "나리야" 대기 중' : '꺼짐'; st.style.color = running ? '#34d399' : '#94a3b8'; btn.textContent = running ? '끄기' : '켜기'; };
+        Native.isEnabled().then(x => { running = !!(x && x.running); render(); }).catch(render);
+        btn.addEventListener('click', () => {
+            btn.disabled = true;
+            let profile = '{}'; try { profile = localStorage.getItem('seagnal_profile') || '{}'; } catch (e) {}
+            const op = running ? Native.disable() : Native.enable({ serverUrl: location.origin, profile });
+            op.then(x => { running = x ? !!x.running : !running; render(); })
+              .catch(e => { st.textContent = '오류: ' + (e && e.message ? e.message : '권한/서비스 실패'); st.style.color = '#fbbf24'; })
+              .then(() => { btn.disabled = false; });
+        });
+    })();
+
+    // 3) 테스트 호출 (기존 /api/assistant/ask 사용)
+    (function () {
+        const input = document.getElementById('ai-test-input');
+        const send = document.getElementById('ai-test-send');
+        const out = document.getElementById('ai-test-result');
+        const ask = () => {
+            const q = input.value.trim(); if (!q) return;
+            out.textContent = '생각 중…'; send.disabled = true;
+            fetch('/api/assistant/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }) })
+                .then(r => r.json())
+                .then(d => {
+                    if (!d || !d.ok) throw new Error((d && d.error) || '응답 오류');
+                    const tools = (d.data && d.data.toolsUsed) ? `\n[도구: ${d.data.toolsUsed.join(', ')}]` : '';
+                    out.textContent = (d.answer || '(빈 응답)') + `\n\n— 해역:${d.zone || '-'} · 방식:${d.aiUsed ? 'AI두뇌' : '폴백'} · intent:${d.intent}` + tools;
+                })
+                .catch(e => { out.textContent = '오류: ' + e.message; })
+                .then(() => { send.disabled = false; });
+        };
+        send.addEventListener('click', ask);
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
+    })();
+}
+window.renderUnifiedAiTab = renderUnifiedAiTab;
 
 // ============================================================================
 // (A-0) 오류 목록 / 수동 입력 (특보 알림 탭 내부에서 사용)

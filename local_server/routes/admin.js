@@ -871,7 +871,9 @@ router.get('/api/admin/gemini-status', (req, res) => {
     try {
         const geminiClient = require('../services/gemini_client');
         const keys = geminiClient.getKeysStatus();
-        res.json({ keys, count: keys.length });
+        // 관리자 AI 탭 호출량 표시용 사용량 스냅샷(오늘 KST) 동봉
+        const usage = (typeof geminiClient.getUsageStats === 'function') ? geminiClient.getUsageStats() : null;
+        res.json({ keys, count: keys.length, hasAnyKey: geminiClient.hasAnyKey(), usage });
     } catch (e) {
         console.error('[Admin] gemini-status 조회 오류:', e.message);
         res.status(500).json({ error: e.message });

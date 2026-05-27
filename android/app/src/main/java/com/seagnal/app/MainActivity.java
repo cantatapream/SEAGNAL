@@ -5,11 +5,13 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.content.Context;
 import android.os.Bundle;
+import android.webkit.PermissionRequest;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebChromeClient;
 import com.getcapacitor.BridgeWebViewClient;
 import com.seagnal.app.voice.SeagnalAssistantPlugin;
 
@@ -88,6 +90,25 @@ public class MainActivity extends BridgeActivity {
                     if (url == null || url.equals("about:blank")) return;
                     isShowingError = false;
                     super.onPageStarted(view, url, favicon);
+                }
+            });
+
+            // [음성] WebView 안의 웹 음성인식(getUserMedia/SpeechRecognition)이 마이크를
+            //   쓸 수 있도록 권한 요청을 허용한다. (앱에 RECORD_AUDIO 가 있어야 실제 동작)
+            //   Capacitor 기본 동작/파일 선택 등은 BridgeWebChromeClient 를 그대로 상속해 보존.
+            webView.setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
+                @Override
+                public void onPermissionRequest(final PermissionRequest request) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                request.grant(new String[]{ PermissionRequest.RESOURCE_AUDIO_CAPTURE });
+                            } catch (Exception e) {
+                                request.deny();
+                            }
+                        }
+                    });
                 }
             });
         }

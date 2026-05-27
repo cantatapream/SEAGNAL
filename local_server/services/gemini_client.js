@@ -42,6 +42,22 @@ let nextIdx = 0;                // 라운드로빈 포인터
 let lastSwitchNotifyAt = 0;     // 전환 알림 스로틀
 let lastAllExhaustedNotifyAt = 0; // 전체 소진 알림 스로틀
 
+// [사용량 카운터] 관리자 AI 탭 "호출량" 표시용. 일(KST) 단위 자동 리셋. 인메모리.
+let usage = null;
+function _todayKST() { return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10); }
+function _ensureUsage() {
+    const d = _todayKST();
+    if (!usage || usage.date !== d) usage = { date: d, requests: 0, apiCalls: 0, success: 0, rateLimited: 0, byCaller: {} };
+    return usage;
+}
+function bumpUsage(field, caller) {
+    const u = _ensureUsage();
+    if (field) u[field] = (u[field] || 0) + 1;
+    if (caller) u.byCaller[caller] = (u.byCaller[caller] || 0) + 1;
+}
+/** 오늘(KST) Gemini 사용량 스냅샷 — 관리자 UI에서 사용 */
+function getUsageStats() { return Object.assign({}, _ensureUsage()); }
+
 /** 등록된 키가 하나라도 있는지 */
 function hasAnyKey() {
     return keys.length > 0;
@@ -111,6 +127,7 @@ async function callGeminiRaw({ model, contents, config, caller = 'unknown' }) {
         };
     }
 
+    bumpUsage('requests', caller);
     const triedIndices = [];
     let firstFailedKeyLabel = null;
 
@@ -134,8 +151,10 @@ async function callGeminiRaw({ model, contents, config, caller = 'unknown' }) {
         }
 
         try {
+            bumpUsage('apiCalls');
             const genAI = new GoogleGenAI({ apiKey: picked.apiKey });
             const result = await genAI.models.generateContent({ model, contents, config });
+            bumpUsage('success');
             // 성공: 이전 키에서 실패 후 전환된 경우 관리자에게 알림 (스로틀 10분)
             if (firstFailedKeyLabel && firstFailedKeyLabel !== picked.label) {
                 const now = Date.now();
@@ -155,6 +174,7 @@ async function callGeminiRaw({ model, contents, config, caller = 'unknown' }) {
             const errorMsg = e.message || '';
             const isRateLimited = errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED');
             if (isRateLimited) {
+                bumpUsage('rateLimited');
                 markRateLimited(picked.index);
                 triedIndices.push(picked.index);
                 if (!firstFailedKeyLabel) firstFailedKeyLabel = picked.label;
@@ -187,6 +207,7 @@ module.exports = {
     callGemini,
     callGeminiRaw,
     getKeysStatus,
+    getUsageStats,
     hasAnyKey,
     AI_COOLDOWN_MS
 };
