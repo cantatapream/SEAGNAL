@@ -45,7 +45,13 @@ const TMP_FILE = OUTPUT_FILE + '.tmp';
 
 if (!ENABLED) {
     console.log('[typhoon] 자격증명 미설정 — 태풍 수집기 비활성 (운영 영향 없음).');
-    module.exports = { enabled: false, async run() { /* no-op */ } };
+    module.exports = {
+        enabled: false,
+        async run() { /* no-op */ },
+        async getTyphoonList() { return []; },
+        async getBulletinList() { return []; },
+        async getBulletin() { return null; }
+    };
     return;
 }
 
@@ -54,6 +60,8 @@ const HTTP_TIMEOUT_MS = 20000;
 const SESSION_REFRESH_MS = 3 * 60 * 60 * 1000; // 3시간마다 예방적 재로그인
 const DETAIL_DELAY_MS = 150;                   // 통보문 표 호출 간 간격
 const MAX_BULLETINS = 60;                      // 안전 상한 (한 태풍의 통보문 표 수집 개수)
+const MAX_CHECK_TYPHOONS = 5;                  // 활성 여부를 검사할 최근 태풍 수(최신 seq부터)
+const ACTIVE_WINDOW_HOURS = 48;                // 최신 통보문이 이 시간 내면 "활성"으로 간주
 
 const PATHS = {
     MAIN: '/rsw/mfp/mfpMain',
@@ -70,6 +78,7 @@ const PATHS = {
 // ----------------------------------------------------------------------------
 const session = { cookies: {}, csrf: '', loginAt: 0 };
 let runInProgress = false;
+let _loginPromise = null;   // 동시 로그인 직렬화(폴러 + on-demand 요청 동시 접근 대비)
 
 function maskId(id) { return id ? id.replace(/(.{3}).+(@.+)/, '$1***$2') : '(none)'; }
 function enc64(s) { return Buffer.from(encodeURIComponent(s), 'utf8').toString('base64'); }
@@ -163,9 +172,12 @@ async function login() {
 }
 
 async function ensureSession() {
-    if (!session.csrf || !session.cookies.AFS2O_SESSION || Date.now() - session.loginAt > SESSION_REFRESH_MS) {
-        await login();
-    }
+    const need = !session.csrf || !session.cookies.AFS2O_SESSION
+        || Date.now() - session.loginAt > SESSION_REFRESH_MS;
+    if (!need) return;
+    if (_loginPromise) return _loginPromise;          // 진행 중 로그인 재사용
+    _loginPromise = login().finally(() => { _loginPromise = null; });
+    return _loginPromise;
 }
 
 // dmdw 응답 래퍼에서 body 추출 (두 가지 형태 모두 지원)
@@ -302,6 +314,13 @@ function kstYear() {
     return kst.getFullYear();
 }
 
+// 통보문 발표시각 "YYYYMMDDHHmm"(KST) → 실제 UTC epoch ms (활성 판정용)
+function tmFcToMs(s) {
+    const d = String(s || '').replace(/[^0-9]/g, '');
+    if (d.length < 12) return 0;
+    return Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +d.slice(8, 10), +d.slice(10, 12)) - 9 * 3600000;
+}
+
 // ----------------------------------------------------------------------------
 // 메인 run()
 // ----------------------------------------------------------------------------
@@ -312,70 +331,72 @@ async function run() {
         await ensureSession();
         const year = kstYear();
         const typList = await fetchTypCombo(year);
-
         if (!typList.length) {
-            save({ updatedAt: new Date().toISOString(), year, hasActive: false, typhoons: [], active: null, bulletins: [] });
+            save({ updatedAt: new Date().toISOString(), year, hasActive: false, typhoons: [] });
             return;
         }
 
-        const typhoons = typList.map(t => ({ seq: String(t.code), name: trimStr(t.value) }));
-        const active = typhoons[0]; // 목록은 최신(호수 큰 순) → 첫 번째가 최신 태풍
-
-        const combo = await fetchDetailCombo(year, active.seq);
-        if (!combo.length) {
-            save({ updatedAt: new Date().toISOString(), year, hasActive: false, typhoons, active: null, bulletins: [] });
-            return;
-        }
-
-        // 증분 캐시: 직전 typhoon.json 의 같은 태풍 통보문 표 재사용
+        // 증분 캐시: 직전 typhoon.json 의 (seq, code) 별 통보문 표 재사용
         const prev = loadPrev();
         const prevMap = {};
-        if (prev && prev.active && prev.active.seq === active.seq && Array.isArray(prev.bulletins)) {
-            prev.bulletins.forEach(b => { if (b && b.code) prevMap[b.code] = b; });
+        if (prev && Array.isArray(prev.typhoons)) {
+            prev.typhoons.forEach(t => (t.bulletins || []).forEach(b => { if (b && b.code) prevMap[t.seq + '_' + b.code] = b; }));
         }
 
-        const limited = combo.slice(0, MAX_BULLETINS);
-        const bulletins = [];
-        for (let i = 0; i < limited.length; i++) {
-            const opt = limited[i];
-            const code = String(opt.code);
-            const meta = parseCode(code);
-            if (prevMap[code] && Array.isArray(prevMap[code].forecast) && prevMap[code].forecast.length) {
-                // 이미 캐시된 통보문 — 라벨/순서만 최신화하여 재사용
-                bulletins.push(Object.assign({}, prevMap[code], { label: trimStr(opt.value), isLatest: i === 0 }));
-                continue;
-            }
-            try {
-                const data = await fetchBulletin(year, code);
-                bulletins.push({
-                    code,
-                    label: trimStr(opt.value),
-                    kind: meta.kind,
-                    tmFc: meta.tmFc,
-                    seq: meta.tmSeq,
-                    isLatest: i === 0,
-                    current: data.current,
-                    forecast: data.forecast
-                });
-            } catch (e) {
-                console.log(`[typhoon] 통보문 수집 실패(${code}): ${e.message}`);
-                // 세션 만료 추정 시 1회 재로그인 후 다음 통보문 계속
-                if (/세션|파싱|HTTP 30|HTTP 401/.test(e.message)) {
-                    try { await login(); } catch (e2) { /* ignore */ }
+        const nowMs = Date.now();
+        const win = ACTIVE_WINDOW_HOURS * 3600 * 1000;
+        const checkList = typList.slice(0, MAX_CHECK_TYPHOONS); // 최신 seq 몇 개만 활성 검사
+        const activeTyphoons = [];
+
+        for (const t of checkList) {
+            const seq = String(t.code);
+            const name = trimStr(t.value);
+            let combo;
+            try { combo = await fetchDetailCombo(year, seq); }
+            catch (e) { console.log(`[typhoon] detailCombo 실패(${seq}): ${e.message}`); continue; }
+            if (!combo.length) continue;
+
+            const latestTmFc = parseCode(String(combo[0].code)).tmFc;
+            const latestMs = tmFcToMs(latestTmFc);
+            if (!latestMs || (nowMs - latestMs) > win) continue; // 비활성(오래된 통보문) → skip
+
+            const limited = combo.slice(0, MAX_BULLETINS);
+            const bulletins = [];
+            let nameEn = '';
+            for (let i = 0; i < limited.length; i++) {
+                const opt = limited[i];
+                const code = String(opt.code);
+                const meta = parseCode(code);
+                const key = seq + '_' + code;
+                if (prevMap[key] && Array.isArray(prevMap[key].forecast) && prevMap[key].forecast.length) {
+                    const cached = Object.assign({}, prevMap[key], { label: trimStr(opt.value), isLatest: i === 0 });
+                    if (cached.nameEn) nameEn = cached.nameEn;
+                    bulletins.push(cached);
+                    continue;
                 }
+                try {
+                    const data = await fetchBulletin(year, code);
+                    if (data.nameEn) nameEn = data.nameEn;
+                    bulletins.push({
+                        code, label: trimStr(opt.value), kind: meta.kind, tmFc: meta.tmFc, seq: meta.tmSeq,
+                        isLatest: i === 0, nameEn: data.nameEn, current: data.current, forecast: data.forecast
+                    });
+                } catch (e) {
+                    console.log(`[typhoon] 통보문 수집 실패(${code}): ${e.message}`);
+                    if (/세션|파싱|HTTP 30|HTTP 401/.test(e.message)) { try { await login(); } catch (e2) { /* ignore */ } }
+                }
+                await new Promise(r => setTimeout(r, DETAIL_DELAY_MS));
             }
-            await new Promise(r => setTimeout(r, DETAIL_DELAY_MS));
+            if (bulletins.length) activeTyphoons.push({ seq, name, nameEn, latestTmFc, bulletins });
         }
 
         save({
             updatedAt: new Date().toISOString(),
             year,
-            hasActive: bulletins.length > 0,
-            typhoons,
-            active: { seq: active.seq, name: active.name, nameEn: bulletins.find(b => b.nameEn) ? bulletins.find(b => b.nameEn).nameEn : '' },
-            bulletins
+            hasActive: activeTyphoons.length > 0,
+            typhoons: activeTyphoons
         });
-        console.log(`[typhoon] 수집 완료 — 태풍 ${active.name}, 통보문 ${bulletins.length}건`);
+        console.log(`[typhoon] 수집 완료 — 활성 태풍 ${activeTyphoons.length}개 (${activeTyphoons.map(t => t.name).join(', ')})`);
     } catch (e) {
         console.log(`[typhoon] run 오류: ${e.message}`);
     } finally {
@@ -383,4 +404,27 @@ async function run() {
     }
 }
 
-module.exports = { enabled: true, run };
+// ----------------------------------------------------------------------------
+// on-demand 조회 (routes/typhoon.js 가 연도/태풍/통보문 드롭다운에 사용)
+// ----------------------------------------------------------------------------
+async function getTyphoonList(year) {
+    await ensureSession();
+    const list = await fetchTypCombo(year);
+    return list.map(t => ({ seq: String(t.code), name: trimStr(t.value) }));
+}
+async function getBulletinList(year, seq) {
+    await ensureSession();
+    const combo = await fetchDetailCombo(year, seq);
+    return combo.map((opt, i) => {
+        const m = parseCode(String(opt.code));
+        return { code: String(opt.code), label: trimStr(opt.value), kind: m.kind, tmFc: m.tmFc, seq: m.tmSeq, isLatest: i === 0 };
+    });
+}
+async function getBulletin(year, code) {
+    await ensureSession();
+    const data = await fetchBulletin(year, code);
+    const m = parseCode(code);
+    return { code, kind: m.kind, tmFc: m.tmFc, seq: m.tmSeq, name: data.name, nameEn: data.nameEn, current: data.current, forecast: data.forecast };
+}
+
+module.exports = { enabled: true, run, getTyphoonList, getBulletinList, getBulletin };

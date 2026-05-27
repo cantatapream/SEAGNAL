@@ -52,7 +52,14 @@
     var _coneSrc = null;
     var _headSrc = null;
 
-    var _data = null;          // /api/typhoon 응답
+    var _activeData = null;    // /api/typhoon 응답(현재연도 활성 태풍 + 통보문 인라인)
+    var _year = null;          // 선택 연도
+    var _typhoonList = [];     // 선택 연도의 태풍 목록 [{seq,name}]
+    var _selSeq = null;        // 선택 태풍 seq
+    var _bulletinList = [];    // 선택 태풍의 통보문 목록 [{code,label,...}]
+    var _selCode = null;       // 선택 통보문 code
+    var _tableCache = {};      // (year+'_'+code) -> {current,forecast,...}
+    var _yearLoaded = false;   // 전체 연도 목록(dmdw on-demand) 확장 여부 — 표출 시 1회
     var _frames = [];          // 선택 통보문의 시계열 프레임 (시각 오름차순)
     var _visible = false;
     var _playing = false;
@@ -359,34 +366,125 @@
         if (b) b.innerHTML = playing ? '<i class="fa-solid fa-pause"></i>' : '<i class="fa-solid fa-play"></i>';
     }
 
-    // ── 통보문 선택 ──────────────────────────────────────────────────────────
-    function selectBulletin(code) {
-        pause();
-        var b = (_data.bulletins || []).find(function (x) { return x.code === code; });
-        if (!b) return;
-        _frames = buildFrames(b);
-        _pNow = computeNowP();   // 발표시각이 아니라 "현재 시각" 기준 위치에서 시작
-        _p = _pNow;
-        renderStatic();
-        renderHead(_p);
-        if (_visible) focusOnTyphoon();
-        var title = document.getElementById('tphn-title');
-        if (title) title.textContent = (_data.active ? _data.active.name : '태풍') + (_data.active && _data.active.nameEn ? ' (' + _data.active.nameEn + ')' : '');
+    // ── 연도 → 태풍명 → 통보문 (드롭다운) ────────────────────────────────────
+    function curYearKst() {
+        var d = new Date();
+        var k = new Date(d.getTime() + (d.getTimezoneOffset() * 60000) + 9 * 3600000);
+        return k.getFullYear();
+    }
+    function fetchJSON(url) { return fetch(url).then(function (r) { return r.json(); }); }
+
+    function buildYearOptions() {
+        var sel = document.getElementById('tphn-year');
+        if (!sel) return;
+        var now = curYearKst();
+        sel.innerHTML = '';
+        for (var y = now; y >= 2001; y--) {
+            var o = document.createElement('option');
+            o.value = String(y); o.textContent = y + '년';
+            sel.appendChild(o);
+        }
+        sel.value = String(now);
     }
 
-    function populate() {
-        var sel = document.getElementById('tphn-bulletin');
-        if (!sel || !_data) return;
+    // 현재연도 활성 캐시에서 (year,seq) 태풍 인라인 데이터 찾기
+    function activeTyphoon(year, seq) {
+        if (!_activeData || _activeData.year !== year) return null;
+        return (_activeData.typhoons || []).find(function (t) { return t.seq === seq; }) || null;
+    }
+
+    function populateNames() {
+        var sel = document.getElementById('tphn-name');
+        if (!sel) return;
         sel.innerHTML = '';
-        (_data.bulletins || []).forEach(function (b) {
+        _typhoonList.forEach(function (t) {
+            var o = document.createElement('option');
+            o.value = t.seq; o.textContent = t.name;
+            sel.appendChild(o);
+        });
+    }
+    function populateBulletins() {
+        var sel = document.getElementById('tphn-bulletin');
+        if (!sel) return;
+        sel.innerHTML = '';
+        _bulletinList.forEach(function (b) {
             var o = document.createElement('option');
             o.value = b.code; o.textContent = b.label || b.code;
             sel.appendChild(o);
         });
-        if (_data.bulletins && _data.bulletins.length) {
-            sel.value = _data.bulletins[0].code; // 최신
-            selectBulletin(_data.bulletins[0].code);
+    }
+    function setSelValue(id, v) { var s = document.getElementById(id); if (s && v != null) s.value = v; }
+
+    // 연도 선택 → 태풍 목록 로드(없으면 활성 캐시 사용) → 태풍 선택
+    function loadYear(year, preferSeq, preferCode) {
+        _year = year;
+        return fetchJSON('/api/typhoon/list?year=' + year).then(function (j) {
+            _typhoonList = (j && j.typhoons) || [];
+            if (!_typhoonList.length && _activeData && _activeData.year === year) {
+                _typhoonList = (_activeData.typhoons || []).map(function (t) { return { seq: t.seq, name: t.name }; });
+            }
+            populateNames();
+            var seq = (preferSeq && _typhoonList.some(function (t) { return t.seq === preferSeq; }))
+                ? preferSeq : (_typhoonList[0] && _typhoonList[0].seq);
+            setSelValue('tphn-name', seq);
+            _selSeq = seq || null;
+            if (seq) loadTyphoon(year, seq, preferCode);
+            else clearTrack();
+        }).catch(function (e) { console.warn('[OceanTyphoon] loadYear 실패:', e.message); });
+    }
+
+    // 태풍 선택 → 통보문 목록 로드(활성 인라인 우선) → 통보문 선택
+    function loadTyphoon(year, seq, preferCode) {
+        _selSeq = seq;
+        var inline = activeTyphoon(year, seq);
+        if (inline) {
+            _bulletinList = (inline.bulletins || []).map(function (b) { return { code: b.code, label: b.label, isLatest: b.isLatest }; });
+            (inline.bulletins || []).forEach(function (b) { if (b.code) _tableCache[year + '_' + b.code] = b; });
+            populateBulletins();
+            var code0 = pickCode(preferCode);
+            setSelValue('tphn-bulletin', code0);
+            if (code0) selectBulletin(year, code0); else clearTrack();
+            return Promise.resolve();
         }
+        return fetchJSON('/api/typhoon/bulletins?year=' + year + '&seq=' + seq).then(function (j) {
+            _bulletinList = (j && j.bulletins) || [];
+            populateBulletins();
+            var code0 = pickCode(preferCode);
+            setSelValue('tphn-bulletin', code0);
+            if (code0) selectBulletin(year, code0); else clearTrack();
+        }).catch(function (e) { console.warn('[OceanTyphoon] loadTyphoon 실패:', e.message); });
+    }
+    function pickCode(preferCode) {
+        if (preferCode && _bulletinList.some(function (b) { return b.code === preferCode; })) return preferCode;
+        return _bulletinList[0] && _bulletinList[0].code;
+    }
+
+    // 통보문 선택 → 표 데이터 확보(캐시 or on-demand) → 렌더
+    function selectBulletin(year, code) {
+        pause();
+        _selCode = code;
+        var key = year + '_' + code;
+        if (_tableCache[key]) { renderBulletin(_tableCache[key]); return; }
+        fetchJSON('/api/typhoon/bulletin?year=' + year + '&code=' + encodeURIComponent(code)).then(function (d) {
+            if (!d || d.error) return;
+            _tableCache[key] = d;
+            if (_selCode === code) renderBulletin(d); // 그 사이 다른 선택 안 했을 때만
+        }).catch(function (e) { console.warn('[OceanTyphoon] bulletin 실패:', e.message); });
+    }
+
+    function renderBulletin(b) {
+        _frames = buildFrames(b);
+        _pNow = computeNowP();    // 발표시각이 아니라 "현재 시각" 기준 위치에서 시작
+        _p = _pNow;
+        renderStatic();
+        renderHead(_p);
+        if (_visible) focusOnTyphoon();
+    }
+    function clearTrack() {
+        _frames = [];
+        if (_staticSrc) _staticSrc.clear();
+        if (_coneSrc) _coneSrc.clear();
+        if (_headSrc) _headSrc.clear();
     }
 
     function renderLegend() {
@@ -415,6 +513,8 @@
             _p = _pNow;
             renderHead(_p);
             focusOnTyphoon();
+            // 표출 첫 회: 현재연도 전체 태풍 목록(dmdw)으로 이름 드롭다운 확장(과거 태풍 포함)
+            if (!_yearLoaded) { _yearLoaded = true; loadYear(_year, _selSeq, _selCode); }
         } else {
             pause();
         }
@@ -430,7 +530,7 @@
             btn.title = '태풍';
             return;
         }
-        var has = _data && _data.hasActive && _data.bulletins && _data.bulletins.length;
+        var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
         if (!has) {
             btn.classList.add('tphn-disabled');
             btn.title = '현재 태풍 없음';
@@ -456,13 +556,48 @@
     }
 
     // ── 데이터 로드 ──────────────────────────────────────────────────────────
+    // /api/typhoon(활성 캐시)로 즉시 기본 표출 + 연도/태풍/통보문 드롭다운 초기화.
     function load() {
-        return fetch('/api/typhoon').then(function (r) { return r.json(); }).then(function (j) {
-            _data = j;
-            populate();
-            renderLegend();
+        buildYearOptions();
+        _year = curYearKst();
+        renderLegend();
+        return fetchJSON('/api/typhoon').then(function (j) {
+            _activeData = j || { hasActive: false, typhoons: [] };
+            // 활성 통보문 표를 캐시에 시드(즉시 렌더용)
+            (_activeData.typhoons || []).forEach(function (t) {
+                (t.bulletins || []).forEach(function (b) { if (b.code) _tableCache[_activeData.year + '_' + b.code] = b; });
+            });
             applyAvailability();
+            // 잠긴 사용자도 dmdw on-demand 호출 없이, 파일 캐시만으로 기본(활성 최신) 표출.
+            primeDefaultFromActive();
         }).catch(function (e) { console.warn('[OceanTyphoon] load 실패:', e.message); });
+    }
+
+    // /api/typhoon(파일)만으로 기본 선택 구성 — dmdw 호출 없음
+    function primeDefaultFromActive() {
+        if (!_activeData || !_activeData.hasActive || !(_activeData.typhoons || []).length) return;
+        _year = _activeData.year || curYearKst();
+        setSelValue('tphn-year', String(_year));
+        _typhoonList = _activeData.typhoons.map(function (t) { return { seq: t.seq, name: t.name }; });
+        populateNames();
+        var t0 = _activeData.typhoons[0];
+        _selSeq = t0.seq; setSelValue('tphn-name', _selSeq);
+        _bulletinList = (t0.bulletins || []).map(function (b) { return { code: b.code, label: b.label, isLatest: b.isLatest }; });
+        populateBulletins();
+        var c0 = t0.bulletins[0] && t0.bulletins[0].code;
+        setSelValue('tphn-bulletin', c0);
+        if (c0) selectBulletin(_year, c0);
+    }
+
+    // 주기 갱신: 활성 캐시/가용성만 조용히 갱신(사용자의 연도/태풍 선택은 건드리지 않음)
+    function refreshActive() {
+        return fetchJSON('/api/typhoon').then(function (j) {
+            _activeData = j || { hasActive: false, typhoons: [] };
+            (_activeData.typhoons || []).forEach(function (t) {
+                (t.bulletins || []).forEach(function (b) { if (b.code) _tableCache[_activeData.year + '_' + b.code] = b; });
+            });
+            applyAvailability();
+        }).catch(function () { /* ignore */ });
     }
 
     // ── 초기화 ──────────────────────────────────────────────────────────────
@@ -486,13 +621,17 @@
         if (btn) {
             btn.addEventListener('click', function () {
                 if (!_unlocked) { handleGateTap(); return; }   // 잠금 상태 → 탭 카운트
-                var has = _data && _data.hasActive && _data.bulletins && _data.bulletins.length;
+                var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
                 if (!has) return;                               // 활성 태풍 없음
                 setVisible(!_visible);
             });
         }
-        var sel = document.getElementById('tphn-bulletin');
-        if (sel) sel.addEventListener('change', function () { selectBulletin(this.value); });
+        var ySel = document.getElementById('tphn-year');
+        if (ySel) ySel.addEventListener('change', function () { loadYear(parseInt(this.value, 10)); });
+        var nSel = document.getElementById('tphn-name');
+        if (nSel) nSel.addEventListener('change', function () { loadTyphoon(_year, this.value); });
+        var bSel = document.getElementById('tphn-bulletin');
+        if (bSel) bSel.addEventListener('change', function () { selectBulletin(_year, this.value); });
         var playBtn = document.getElementById('tphn-play');
         if (playBtn) playBtn.addEventListener('click', function () { _playing ? pause() : play(); });
         var scr = document.getElementById('tphn-scrubber');
@@ -513,7 +652,7 @@
                 // 잠금 해제된 경우에만 직전 표시 상태 복원 (기본은 비활성).
                 load().then(function () { if (_unlocked && _visible) setVisible(true); });
                 // 5분마다 데이터 갱신(통보문 신규 반영) — 보이는 동안에만
-                setInterval(function () { if (_visible) load(); }, 5 * 60 * 1000);
+                setInterval(function () { if (_visible) refreshActive(); }, 5 * 60 * 1000);
                 return;
             }
             setTimeout(tryInit, 300);

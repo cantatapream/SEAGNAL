@@ -2544,6 +2544,7 @@
                         .ocean-typhoon-panel .tphn-title{font-weight:700;white-space:nowrap;}
                         .ocean-typhoon-panel .tphn-select{flex:1;min-width:0;background:rgba(255,255,255,0.95);
                             color:#111;border-radius:6px;border:none;padding:4px 6px;font-size:12px;}
+                        .ocean-typhoon-panel .tphn-year{flex:none;width:84px;}
                         .ocean-typhoon-panel .tphn-close{background:transparent;border:none;color:#cdd9f0;
                             font-size:15px;cursor:pointer;padding:0 2px;}
                         .ocean-typhoon-panel .tphn-row-play{margin-bottom:6px;}
@@ -2559,9 +2560,12 @@
                     </style>
                     <div id="ocean-typhoon-panel" class="ocean-typhoon-panel" style="display:none;" aria-hidden="true">
                         <div class="tphn-row tphn-row-top">
-                            <span class="tphn-title" id="tphn-title">태풍</span>
-                            <select id="tphn-bulletin" class="tphn-select" title="통보문 선택"></select>
+                            <select id="tphn-year" class="tphn-select tphn-year" title="연도 선택"></select>
+                            <select id="tphn-name" class="tphn-select" title="태풍 선택"></select>
                             <button id="tphn-close" class="tphn-close" type="button" title="닫기"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="tphn-row">
+                            <select id="tphn-bulletin" class="tphn-select" title="통보문 선택"></select>
                         </div>
                         <div class="tphn-row tphn-row-play">
                             <button id="tphn-play" class="tphn-play" type="button" title="재생/일시정지"><i class="fa-solid fa-play"></i></button>
