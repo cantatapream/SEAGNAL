@@ -46,7 +46,7 @@
     // dmdw 상세정보 레이어 대응: 예측경로(track) / 70%확률반경(prob) / 강풍반경(strong) / 폭풍반경(storm)
     var _trackLayer = null, _probLayer = null, _strongLayer = null, _stormLayer = null, _headLayer = null, _pointLayer = null;
     var _trackSrc = null, _probSrc = null, _strongSrc = null, _stormSrc = null, _headSrc = null, _pointSrc = null;
-    var _osmLayer = null;     // 태풍 표출 시 전세계 OSM 베이스(해아름 WMS 가 빈 먼바다 영역을 채움)
+    var _prevBasemap = null;  // 태풍 ON 직전 베이스맵(끄면 복원)
     var LAYER_KEY = 'seagnal_typhoon_layers';
     var _layerOn = { track: true, prob: true, strong: false, storm: false };
     var RELAX_MIN_ZOOM = 3;   // 태풍 ON 시 minZoom 완화(더 넓게 축소 가능; 기본 6 → 3)
@@ -560,14 +560,22 @@
     // ── 표시/숨김 ────────────────────────────────────────────────────────────
     function setVisible(v) {
         _visible = v;
-        // 태풍 ON: minZoom 완화(더 넓게 축소 가능) / OFF: 원래 제한 복원
+        // 태풍 ON: minZoom 완화(더 넓게 축소) + 베이스맵을 세계지도(OSM)로 / OFF: 원복
         if (_map) {
             var view = _map.getView();
             if (v) {
                 if (_origMinZoom === null) _origMinZoom = view.getMinZoom();
                 if (RELAX_MIN_ZOOM < _origMinZoom) view.setMinZoom(RELAX_MIN_ZOOM);
-            } else if (_origMinZoom !== null) {
-                view.setMinZoom(_origMinZoom);
+                // 직전 베이스맵 기억 후 세계지도로 자동 전환
+                if (window.oceanGetBasemap && window.oceanSetBasemap) {
+                    if (window.oceanGetBasemap() !== 'osm') _prevBasemap = window.oceanGetBasemap();
+                    window.oceanSetBasemap('osm');
+                }
+            } else {
+                if (_origMinZoom !== null) view.setMinZoom(_origMinZoom);
+                // 직전 베이스맵으로 복원
+                if (_prevBasemap && window.oceanSetBasemap) { window.oceanSetBasemap(_prevBasemap); }
+                _prevBasemap = null;
             }
         }
         applyLayerVisibility();
@@ -675,10 +683,6 @@
         _trackSrc = new ol.source.Vector();
         _headSrc = new ol.source.Vector();
         _pointSrc = new ol.source.Vector();
-        // 전세계 OSM 베이스 — 해아름 WMS(투명 빈 타일) 아래(zIndex -1)에 깔아, 태풍이 먼바다에
-        // 있어 줌아웃해도 지도가 비지 않도록. 태풍 표출 중에만 보이게(평소 동작 유지).
-        _osmLayer = new ol.layer.Tile({ source: new ol.source.OSM(), zIndex: -1, visible: false });
-        map.addLayer(_osmLayer);
         // 채움은 유형별 색(원·말풍선과 동일), 반투명 유지 → 배경 지도 희미하게 비침.
         _probLayer = new ol.layer.Vector({ source: _probSrc, zIndex: 116, style: swathStyle(rgba(PROB_C, 0.95), rgba(PROB_C, 0.30)) });
         _strongLayer = new ol.layer.Vector({ source: _strongSrc, zIndex: 118, style: swathStyle(rgba(STRONG_C, 0.95), rgba(STRONG_C, 0.32)) });
@@ -696,7 +700,6 @@
     function applyLayerVisibility() {
         // 기본(정지): 포인트별 말풍선 + 사전 범위 표출 / 재생: 사전 범위·포인트 말풍선 숨기고 이동 헤드만.
         var pb = _playbackMode;
-        if (_osmLayer) _osmLayer.setVisible(_visible); // 태풍 ON 동안 전세계 OSM 베이스 표시
         var showSwaths = _visible && !pb;
         if (_probLayer) _probLayer.setVisible(showSwaths && _layerOn.prob);
         if (_strongLayer) _strongLayer.setVisible(showSwaths && _layerOn.strong);
