@@ -320,6 +320,41 @@
     // (시트 dummy → 섹션 dummy 순으로 분기)
 
     /* --------------------------------------------------------------
+     * 태풍 내습 카운트다운 배지 갱신 (날짜 네비 아래 / 슬라이더 위).
+     *   태풍 ON + 이 해점이 강풍반경 진로상(eta/inside)일 때만 표출.
+     *   색: 남은시간 적을수록 노랑→빨강 그라데이션. (CSS 가 페이드 깜빡 처리)
+     * ------------------------------------------------------------ */
+    function updateTyphoonEtaBadge(lat, lon) {
+        var el = document.getElementById('ocean-sheet-typhoon-eta');
+        if (!el) return;
+        var info = (window.OceanTyphoon && window.OceanTyphoon.getArrivalInfo)
+            ? window.OceanTyphoon.getArrivalInfo(lat, lon) : null;
+        if (!info || (info.status !== 'eta' && info.status !== 'inside')) {
+            el.style.display = 'none'; el.textContent = ''; return;
+        }
+        var ratio, text;
+        if (info.status === 'inside') {
+            ratio = 1; text = '현재 태풍 강풍반경 영향권';
+        } else {
+            var h = info.remainMs / 3600000;
+            ratio = Math.max(0, Math.min(1, 1 - h / 48)); // 0h→1(빨강), 48h+→0(노랑)
+            var m = Math.max(0, Math.round(info.remainMs / 60000));
+            var d = Math.floor(m / 1440); m -= d * 1440;
+            var hh = Math.floor(m / 60); m -= hh * 60;
+            var parts = [];
+            if (d > 0) parts.push(d + '일');
+            if (hh > 0 || d > 0) parts.push(hh + '시간');
+            parts.push(m + '분');
+            text = parts.join(' ') + ' 후 내습 예상';
+        }
+        // 노랑(255,210,74) → 빨강(255,59,59)
+        var r = 255, g = Math.round(210 + (59 - 210) * ratio), b = Math.round(74 + (59 - 74) * ratio);
+        el.style.color = 'rgb(' + r + ',' + g + ',' + b + ')';
+        el.textContent = text;
+        el.style.display = '';
+    }
+
+    /* --------------------------------------------------------------
      * 진입점 — 지도 클릭 시 ocean_map.js가 호출
      *
      * @param {number} lat 위도
@@ -380,6 +415,7 @@
         // (사용자가 슬라이더로 미래 시점 해역 상황을 보다가 해점을 클릭하는 흐름을 보존).
         OS.state.lat = lat;
         OS.state.lon = lon;
+        updateTyphoonEtaBadge(lat, lon);   // 태풍 내습 카운트다운 배지(해당 시 표출)
         OS.state.date = new Date();
         var tlSlider = document.getElementById('ocean-timeline-slider');
         if (tlSlider) {
