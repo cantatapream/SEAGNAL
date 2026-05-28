@@ -294,9 +294,23 @@ function detectIntentDeterministic(query) {
 function buildForecastSummary(zoneName) {
     const code = ZONE_NAME_TO_CODE[zoneName];
     const all = dataCache.forecasts && dataCache.forecasts.data;
-    if (!code || !all || !all[code] || !all[code].length) return null;
+    if (!code || !all) return null;
 
-    const series = all[code];
+    // 일부 권역(예: 동해중부앞바다 12C20100)은 'xx00' 집계예보가 발표되지 않고
+    // 하위 구역(xx01~xx04)만 존재한다 → 가용한 첫 하위 구역으로 대체한다.
+    let useCode = code, subUsed = null;
+    if (!all[useCode] || !all[useCode].length) {
+        if (/00$/.test(code)) {
+            const base = code.slice(0, 6);
+            for (const sfx of ['01', '02', '03', '04']) {
+                const c = base + sfx;
+                if (all[c] && all[c].length) { useCode = c; subUsed = c; break; }
+            }
+        }
+        if (useCode === code) return null;
+    }
+
+    const series = all[useCode];
     const periods = series.slice(0, 4).map(e => {
         const d1 = WIND_DIR_KO[e.wd1] || e.wd1 || '';
         const d2 = WIND_DIR_KO[e.wd2] || e.wd2 || '';
@@ -314,7 +328,9 @@ function buildForecastSummary(zoneName) {
         };
     });
 
-    return { updatedAt: dataCache.forecasts.updatedAt || null, periods };
+    const out = { updatedAt: dataCache.forecasts.updatedAt || null, periods };
+    if (subUsed) out.note = '이 해역은 집계예보가 발표되지 않아 인접 하위 구역 예보로 대체했습니다.';
+    return out;
 }
 
 /**
@@ -632,9 +648,9 @@ const TOOL_CATALOG = `
 - get_seafog_cctv(harbor): 항구 해무 CCTV 최신 영상(이미지 링크).
 - get_tide(place): 지명/해역의 오늘 고조·저조 시각과 조위(만조/간조/물때 질문은 이걸 쓰세요).
 [생활지수]
-- get_fishing_index(location): 바다낚시 지수(지점별 오전/오후 등급+어종).
-- get_surfing_index(beach): 서핑 지수(해수욕장별 초/중/상급 등급, 파고·수온).
-- get_sea_split_index(place): 바다갈라짐(갯벌) 가능 시간대/지수. place 생략 시 가능 지역 목록.
+- get_fishing_index(location): 바다낚시(갯바위/선상) 지수. ※ 스쿠버·다이빙·해루질은 대상 아님.
+- get_surfing_index(beach): 서핑 지수(해수욕장별 초/중/상급 등급, 파고·수온). 일반 '물놀이'도 이걸로 참고.
+- get_sea_split_index(place): 바다갈라짐=갯벌이 열리는 '모세의 기적' 체험 시간대. ※ 스쿠버/다이빙과 무관.
 [위치기반]
 - get_nearest_buoy(lat, lon): 좌표(사용자 GPS)에서 가장 가까운 기상부이의 위치 + 최신 관측값.
 [비교/집계]
@@ -704,6 +720,15 @@ function getBuoyObs(name) {
     if (!norm) return { error: '부이 이름이 비었습니다.' };
     const pick = (o, keys) => { for (const k of keys) { if (o[k] != null && o[k] !== '' && o[k] !== -99 && o[k] !== -99.0) return o[k]; } return undefined; };
     const pools = [dataCache.marineBuoys, dataCache.marineWhBuoys, dataCache.marineLhBuoys];
+    // 같은 부이가 여러 스냅샷에 나뉘어(파고부이/기상부이 등) 일부 필드만 있을 수 있어,
+    // 모든 풀에서 일치 항목을 모아 비어 있는 필드만 채워 합친다.
+    const out = { name: null };
+    const fields = {
+        풍속ms: ['ws', 'wspd', 'wind_speed'], 풍향deg: ['wd', 'wdir', 'wind_dir'],
+        파고m: ['wh', 'sig_wh', 'ave_wh', 'max_wh'], 파주기s: ['wp', 'wpd', 'wave_prd'],
+        수온C: ['tw', 'wtem', 'water_temp'], 시정: ['vs', 'vis']
+    };
+    let matched = false;
     for (const pool of pools) {
         const arr = pool && pool.data;
         if (!Array.isArray(arr)) continue;
@@ -711,21 +736,16 @@ function getBuoyObs(name) {
             const kn = normalize(b.kor_nm || b.obs_nm || '');
             return kn && (kn.includes(norm) || norm.includes(kn));
         });
-        if (hit) {
-            const out = {
-                name: hit.kor_nm || hit.obs_nm,
-                풍속ms: pick(hit, ['ws', 'wspd', 'wind_speed']),
-                풍향deg: pick(hit, ['wd', 'wdir', 'wind_dir']),
-                파고m: pick(hit, ['wh', 'sig_wh', 'ave_wh', 'max_wh']),
-                파주기s: pick(hit, ['wp', 'wpd', 'wave_prd']),
-                수온C: pick(hit, ['tw', 'wtem', 'water_temp']),
-                시정: pick(hit, ['vs', 'vis'])
-            };
-            Object.keys(out).forEach(k => { if (out[k] === undefined) delete out[k]; });
-            return out;
+        if (!hit) continue;
+        matched = true;
+        if (!out.name) out.name = hit.kor_nm || hit.obs_nm;
+        for (const f of Object.keys(fields)) {
+            if (out[f] == null) { const v = pick(hit, fields[f]); if (v !== undefined) out[f] = v; }
         }
     }
-    return { error: `'${name}' 부이의 최신 관측값을 찾지 못했습니다.` };
+    if (!matched) return { error: `'${name}' 부이의 최신 관측값을 찾지 못했습니다.` };
+    Object.keys(out).forEach(k => { if (out[k] == null) delete out[k]; });
+    return out;
 }
 
 /** 전국 해역을 파고/풍속 기준으로 정렬·필터 (집계/비교형 질문용). */
@@ -954,6 +974,8 @@ ${TOOL_CATALOG}
 - 섬·항·해안 지명(예: 추자도, 거문도, 마라도, 연평도)의 바다 상황·기상을 물으면, 웹검색 말고 먼저
   get_buoy_observation(지명) 또는 get_nearest_buoy 로 해상 관측을, 해역명이면 get_marine_forecast 를 쓰세요.
 - "조업 가능?" 같은 판단 질문은 관련 예보(해구/해역)·특보·필요시 부이를 함께 모으세요.
+- 생활지수: 낚시→get_fishing_index, 서핑/물놀이→get_surfing_index, 갯벌/바다갈라짐→get_sea_split_index.
+  스쿠버·다이빙처럼 전용 지수가 없는 활동은 위 지수에 억지로 맞추지 말고 steps 를 비워(웹검색 폴백) 두세요.
 - 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${memLine}${vocabLine}
 
 사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
