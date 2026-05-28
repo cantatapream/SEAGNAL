@@ -31,6 +31,9 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+// [성능 캐시] 해구별 기상전망(5.86MB) 응답을 데이터 갱신 시 1회만 미리 gzip/brotli
+//   압축해 메모리에 보관하기 위해 Node 내장 zlib 을 사용한다. (요청당 실시간 압축 제거)
+const zlib = require('zlib');
 const { DATA_DIR } = require('../config/server_config');
 const { dataCache, refreshCache } = require('../services/cache_manager');
 const scheduler = require('../scheduler');
@@ -558,28 +561,48 @@ router.get('/api/forecasts', (req, res) => {
 });
 
 // ============================================================================
-// [성능 캐시] marine-zone-forecasts 응답 JSON 문자열 캐시
+// [성능 캐시] marine-zone-forecasts 응답 JSON 문자열 + 사전 압축본 캐시
 // ----------------------------------------------------------------------------
 // 역할:
 //   /api/marine-zone-forecasts 요청이 들어올 때마다 5.86MB 짜리 객체를
 //   JSON.stringify() 하는 비용(요청당 약 50~150ms CPU)을 제거하기 위해,
 //   미리 만들어둔 JSON 문자열을 메모리에 보관해 두고 그대로 재사용한다.
 //
+//   [추가 — 압축본 사전 생성]
+//   여기에 더해, gzip / brotli 로 "미리 압축한 버퍼" 까지 함께 만들어 둔다.
+//   기존에는 응답 문자열(5.86MB)을 그대로 보내면 compression() 미들웨어가
+//   "매 요청마다 실시간 gzip 압축"(요청당 약 50~100ms CPU)을 수행했다.
+//   전원 푸시 후 200~300명이 동시에 들어오면 이 압축 CPU 가 누적되어 10~20초가
+//   되고, "특보구역 평균 파고/풍속"(zone_avg.js) 표시가 1~3초 지연됐다.
+//   → 데이터 갱신 시(하루 2회)에만 1회 미리 압축해 두고, 요청 시에는 그 버퍼를
+//     그대로 전송하면 요청당 압축 CPU 가 0 이 된다.
+//
 // 비유:
-//   "식당 카운터에 메뉴판 1장을 미리 인쇄해 두고, 손님 올 때마다 그대로 보여줌.
-//    메뉴(=zone_forecasts.json 파일)가 바뀌면 그때만 새로 인쇄."
+//   "식당 카운터에 메뉴판 1장(원본)뿐 아니라, 우편 발송용으로 미리 접어서
+//    봉투에 넣어둔 버전(gzip)·진공 압축한 버전(brotli)까지 같이 준비해 둔다.
+//    손님이 '압축본 주세요' 하면 그때 접는 게 아니라 이미 접어둔 걸 그대로 건넴.
+//    메뉴(=zone_forecasts.json 파일)가 바뀌면 그때만 셋 다 다시 만든다."
 //
 // 동작 원리:
 //   - dataCache.lastUpdate.zoneForecasts (= 파일 mtime) 이 변하지 않았으면
-//     캐시된 문자열을 그대로 반환 → stringify 생략
+//     캐시된 문자열/압축본을 그대로 반환 → stringify·압축 모두 생략
 //   - 파일이 갱신되면 (하루 2회: 09:30, 21:30 KST) mtime 이 변하므로
-//     다음 첫 요청 1건에서만 새로 stringify 후 캐시 갱신
+//     다음 첫 요청 1건에서만 새로 stringify + gzip + brotli 후 캐시 갱신
+//
+// compression 미들웨어와의 관계 (이중 압축 방지):
+//   라우트가 응답에 Content-Encoding(gzip/br) 헤더를 직접 붙이면,
+//   compression() 미들웨어는 표준 동작상 "이미 인코딩된 응답" 으로 보고
+//   재압축을 건너뛴다. (server_config.js 주석의 A 케이스와 동일 원리)
+//   따라서 사전 압축본을 보내도 이중 압축 위험이 없다.
 //
 // 메모리 비용:
-//   캐시 문자열 약 5.86 MB 추가 (fly.io 1GB 머신 기준 0.6% — 무시 가능)
+//   원본 문자열 약 5.86 MB + gzip 약 0.45 MB + brotli 약 0.45 MB ≈ 6.8 MB.
+//   (fly.io 1GB 머신 기준 약 0.7% — 무시 가능)
 // ============================================================================
 const _zoneForecastsCache = {
-    responseJson: null,    // 캐시된 JSON 문자열 (res.send 로 그대로 전송 가능)
+    responseJson: null,    // 캐시된 JSON 문자열 (압축 미지원 클라이언트 fallback 용)
+    gzipBuffer: null,      // zlib.gzipSync 로 미리 압축한 버퍼 (gzip 지원 클라이언트용)
+    brotliBuffer: null,    // zlib.brotliCompressSync 로 미리 압축한 버퍼 (br 지원용)
     builtAtMtime: 0        // 이 캐시를 만들 때의 zone_forecasts.json mtime (ms)
 };
 
@@ -587,26 +610,28 @@ const _zoneForecastsCache = {
 // [이슈 3 — Thundering Herd 보호 플래그]
 // ----------------------------------------------------------------------------
 // 데이터 갱신 직후, 한꺼번에 들어온 동시 요청들이 모두 캐시 미스로 판정되어
-// 각각 5.86MB JSON.stringify() 를 시도하면 50~150ms 동안 이벤트 루프가 막혀
-// 다른 요청의 응답이 지연되는 현상을 방지한다.
+// 각각 5.86MB JSON.stringify() + gzip + brotli 압축을 시도하면 수백 ms 동안
+// 이벤트 루프가 막혀 다른 요청의 응답이 지연되는 현상을 방지한다.
 //
 // 작동 방식:
-//   - stringify 가 진행 중인 동안 들어온 요청은, "옛 캐시" 가 남아 있다면
-//     그것을 반환한다 (= stale-while-revalidate). 사용자가 보는 데이터는
-//     50~150ms 만큼만 옛것이며 다음 요청부터는 새 캐시가 응답된다.
-//   - Node.js 단일 스레드이므로 JSON.stringify 자체가 atomic 하게 끝난다.
+//   - 빌드(stringify+압축)가 진행 중인 동안 들어온 요청은, "옛 캐시" 가 남아
+//     있다면 그것을 반환한다 (= stale-while-revalidate). 사용자가 보는 데이터는
+//     그 짧은 빌드 시간만큼만 옛것이며 다음 요청부터는 새 캐시가 응답된다.
+//   - Node.js 단일 스레드이므로 stringify+압축이 동기적으로 atomic 하게 끝난다.
 //     따라서 동기 함수 내에서 플래그가 누수될 일은 거의 없지만, 만에 하나
-//     stringify 가 예외를 던지더라도 try/finally 로 플래그를 반드시 해제한다.
+//     예외를 던지더라도 try/finally 로 플래그를 반드시 해제한다.
+//   - 압축까지 포함해서 in-progress 보호 범위를 확장했다 (압축 비용도 보호 대상).
 // ----------------------------------------------------------------------------
 let _stringifyInProgress = false;
 
 /**
- * 해구별 기상전망 응답 JSON 문자열을 반환한다.
+ * 해구별 기상전망 응답 캐시(원본 문자열 + gzip/brotli 사전 압축본)를 반환한다.
  *
  * [동작 흐름]
  *   1) 메모리에 데이터 자체가 없으면 (수집 전) null 반환 → 호출자가 404 처리
- *   2) 파일 mtime 이 캐시 빌드 시점과 같으면 캐시된 문자열 그대로 반환 (stringify 생략)
- *   3) mtime 이 다르면 (= 스케줄러가 새 데이터 받음) 새로 stringify 하고 캐시 갱신
+ *   2) 파일 mtime 이 캐시 빌드 시점과 같으면 캐시 객체 그대로 반환 (stringify·압축 생략)
+ *   3) mtime 이 다르면 (= 스케줄러가 새 데이터 받음) 새로 stringify + gzip + brotli
+ *      후 캐시 갱신
  *
  * [왜 mtime 으로 판단하나?]
  *   cache_manager.js (5초마다 실행) 가 zone_forecasts.json 파일의 mtime 을
@@ -614,17 +639,25 @@ let _stringifyInProgress = false;
  *   따라서 이 값만 비교하면 "데이터가 바뀌었나?" 를 추가 stat 호출 없이 알 수 있다.
  *
  * [반환값]
- *   - string: 그대로 res.send() 로 전송 가능한 JSON 문자열
+ *   - object: _zoneForecastsCache 객체 ({ responseJson, gzipBuffer, brotliBuffer, ... })
+ *             호출자는 Accept-Encoding 헤더를 보고 적절한 필드를 골라 전송한다.
  *   - null:   데이터 미수집 상태 (호출자가 404 처리해야 함)
  *
+ * [압축 빌드 방식]
+ *   - gzip:   level = Z_BEST_COMPRESSION (9). 5.86MB → 약 0.45MB.
+ *   - brotli: quality = 5. 5.86MB → 약 0.45MB.
+ *             brotli quality 11 은 크기 이득이 미미한 반면 빌드 시간이 수 초로
+ *             길어 데이터 갱신 직후 stale 윈도우를 키우므로, 빌드 시간이 짧으면서
+ *             gzip 보다 약간 작은 quality 5 를 선택했다.
+ *
  * [성능]
- *   첫 호출 or 데이터 갱신 직후: stringify 1회 수행 (약 50~150ms, 5.86MB 처리)
- *   이후 호출: 캐시 적중 → 즉시 반환 (약 0.001ms)
+ *   첫 호출 or 데이터 갱신 직후: stringify + gzip + brotli 1회 수행 (수백 ms).
+ *   이후 모든 호출: 캐시 적중 → 즉시 반환 (약 0.001ms), 요청당 압축 CPU 0.
  *
  * [동시성]
  *   Node.js 단일 스레드 특성상 별도 락 불필요.
- *   1000명 동시 첫 요청 시에도 실제로는 1건이 stringify 하는 동안
- *   나머지는 큐에서 대기 → 첫 건 완료되면 캐시 적중되어 즉시 응답.
+ *   200~1000명 동시 첫 요청 시에도 실제로는 1건이 빌드하는 동안 나머지는
+ *   옛 캐시(있으면)를 받거나 큐에서 대기 → 첫 건 완료되면 캐시 적중되어 즉시 응답.
  */
 function getZoneForecastsResponse() {
     // [1] 데이터 미수집 → null (호출자가 404 응답)
@@ -633,30 +666,60 @@ function getZoneForecastsResponse() {
     // [2] 현재 파일 mtime 확인 (cache_manager 가 5초마다 갱신해 둔 값)
     const currentMtime = dataCache.lastUpdate.zoneForecasts || 0;
 
-    // [3] 캐시 적중 — 마지막으로 stringify 했을 때와 mtime 동일 → 그대로 반환
+    // [3] 캐시 적중 — 마지막으로 빌드했을 때와 mtime 동일 → 캐시 객체 그대로 반환
     if (_zoneForecastsCache.responseJson
         && _zoneForecastsCache.builtAtMtime === currentMtime) {
-        return _zoneForecastsCache.responseJson;
+        return _zoneForecastsCache;
     }
 
-    // [3-B] Thundering Herd 보호 — stringify 진행 중이고 옛 캐시가 남아 있으면
-    //       그 옛 캐시를 반환한다 (stale-while-revalidate, 윈도우 약 50~150ms).
-    //       동시 요청 N 건이 모두 stringify 를 다시 돌리는 사태를 막아준다.
+    // [3-B] Thundering Herd 보호 — 빌드(stringify+압축) 진행 중이고 옛 캐시가
+    //       남아 있으면 그 옛 캐시를 반환한다 (stale-while-revalidate).
+    //       동시 요청 N 건이 모두 빌드를 다시 돌리는 사태를 막아준다.
     //       옛 캐시조차 없는 "최초 빌드" 상황에서는 이 분기를 통과해 [4] 로 진행.
     if (_stringifyInProgress && _zoneForecastsCache.responseJson) {
-        return _zoneForecastsCache.responseJson;
+        return _zoneForecastsCache;
     }
 
     // [4] 캐시 미스 — 데이터가 바뀌었거나 첫 호출.
+    //     stringify → gzip → brotli 를 한 번에 만들어 캐시에 채운다.
     //     try/finally 로 플래그를 반드시 해제 (예외 누수 시에도 영구 true 방지).
     _stringifyInProgress = true;
     try {
-        _zoneForecastsCache.responseJson = JSON.stringify(dataCache.zoneForecasts);
+        const json = JSON.stringify(dataCache.zoneForecasts);
+        // 압축 버퍼는 한 변수에 모아 빌드한 뒤 한꺼번에 캐시에 대입한다.
+        // (중간에 한 단계라도 예외가 나면 캐시를 "부분 갱신" 하지 않도록 — 아래 catch 처리)
+        let gzipBuffer = null;
+        let brotliBuffer = null;
+        try {
+            // gzip — 거의 모든 브라우저/앱이 지원하는 기본 압축.
+            gzipBuffer = zlib.gzipSync(json, {
+                level: zlib.constants.Z_BEST_COMPRESSION
+            });
+            // brotli — gzip 보다 약간 더 작음. quality 5 로 빌드 시간/크기 균형.
+            brotliBuffer = zlib.brotliCompressSync(json, {
+                params: {
+                    [zlib.constants.BROTLI_PARAM_QUALITY]: 5,
+                    // 입력 크기를 알려주면 brotli 가 윈도우를 적절히 잡아 약간 더 빠르고 작아진다.
+                    [zlib.constants.BROTLI_PARAM_SIZE_HINT]: Buffer.byteLength(json)
+                }
+            });
+        } catch (compressErr) {
+            // [압축 실패 fallback] 압축이 실패해도 서비스가 죽으면 안 된다.
+            //   원본 문자열만 캐시하고 압축본은 null 로 둔다 → 라우트는 비압축으로 응답
+            //   (compression() 미들웨어가 실시간 압축으로 안전망 역할). 다음 데이터
+            //   갱신 때 다시 압축을 시도한다.
+            console.error('[zone-forecasts] 사전 압축 실패 — 비압축 fallback:', compressErr && compressErr.message);
+            gzipBuffer = null;
+            brotliBuffer = null;
+        }
+        _zoneForecastsCache.responseJson = json;
+        _zoneForecastsCache.gzipBuffer = gzipBuffer;
+        _zoneForecastsCache.brotliBuffer = brotliBuffer;
         _zoneForecastsCache.builtAtMtime = currentMtime;
     } finally {
         _stringifyInProgress = false;
     }
-    return _zoneForecastsCache.responseJson;
+    return _zoneForecastsCache;
 }
 
 // 4. 해구별 기상전망
@@ -666,29 +729,61 @@ function getZoneForecastsResponse() {
 //                zone_avg.js 는 자체 cache:'no-store' 로 강제 우회 — 영향 없음.
 //
 //    [성능 캐시 적용]
-//      getZoneForecastsResponse() 가 미리 stringify 해둔 JSON 문자열을 반환하므로
-//      요청마다 5.86MB 객체를 직렬화하는 비용(약 50~150ms CPU)이 사라진다.
-//      파일 mtime 이 바뀌었을 때만 1회 새로 stringify 함.
+//      getZoneForecastsResponse() 가 미리 stringify 해둔 JSON 문자열 + 미리 압축한
+//      gzip/brotli 버퍼를 담은 캐시 객체를 반환하므로,
+//        1) 요청마다 5.86MB 객체를 직렬화하는 비용(약 50~150ms CPU) 제거
+//        2) 요청마다 compression() 미들웨어가 실시간 압축하는 비용(약 50~100ms CPU) 제거
+//      파일 mtime 이 바뀌었을 때만 1회 새로 stringify + 압축 함.
 //
-//    [응답 형식]
-//      기존 res.json(dataCache.zoneForecasts) 와 100% 동일한 바이트열.
-//      (JSON.stringify 결과를 그대로 res.send 로 보내므로 내용·순서 동일)
-//      단, res.send 는 string 일 때 Content-Type 을 자동 지정하지 않으므로
-//      'application/json; charset=utf-8' 을 명시적으로 설정한다.
+//    [기존 동작과의 차이]
+//      이전: res.send(문자열) → compression() 미들웨어가 매 요청 실시간 gzip 압축.
+//      변경: Accept-Encoding 을 보고 미리 압축한 버퍼를 res.end() 로 직접 전송.
+//            응답에 Content-Encoding 헤더를 직접 붙이므로 compression() 미들웨어는
+//            "이미 인코딩됨" 으로 보고 재압축을 건너뛴다(이중 압축 없음).
+//
+//    [응답 형식 — 100% 동일 보장]
+//      압축 해제 후 바이트열은 기존 res.json(dataCache.zoneForecasts) / JSON.stringify
+//      결과와 완전히 동일하다. 브라우저/fetch 는 Content-Encoding 을 보고 자동으로
+//      압축을 풀므로 zone_avg.js / surfing1.js 의 r.json() 파싱에 변화 없음.
+//      압축 미지원(드문) 클라이언트는 원본 문자열로 fallback.
+//
+//    [HEAD 요청] res.end(buffer) 사용 시 Express 가 HEAD 메서드면 body 를 보내지
+//      않는다. Content-Length 는 buffer 전송 시 자동 설정되지만, 헤더 정확성을
+//      위해 명시적으로 설정한다.
 //
 //    [호출 클라이언트]
-//      - js/marine.js     : 해구별 예보 표시
 //      - js/zone_avg.js   : 해구 평균값 계산 (자체 no-store 캐시 우회)
 //      - js/surfing1.js   : 서핑 관련 화면
+//      (단일 해구 모달은 별도 /api/marine-zone-forecasts/:zoneId 라우트 사용 — 무관)
 router.get('/api/marine-zone-forecasts', (req, res) => {
-    const cached = getZoneForecastsResponse();
-    if (!cached) {
+    const cache = getZoneForecastsResponse();
+    if (!cache || !cache.responseJson) {
         res.setHeader('Cache-Control', 'no-store');
         return res.status(404).json({ error: '데이터 준비 중' });
     }
     res.setHeader('Cache-Control', 'public, max-age=1800');
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.send(cached);
+    // 동일 URL 이라도 Accept-Encoding 에 따라 응답 본문이 달라지므로 캐시 키에 포함.
+    res.setHeader('Vary', 'Accept-Encoding');
+
+    const accept = req.headers['accept-encoding'] || '';
+
+    // [1] brotli 우선 — 지원하고 사전 압축본이 있으면 그대로 전송.
+    if (cache.brotliBuffer && /\bbr\b/.test(accept)) {
+        res.setHeader('Content-Encoding', 'br');
+        res.setHeader('Content-Length', cache.brotliBuffer.length);
+        return res.end(cache.brotliBuffer);
+    }
+    // [2] gzip — 거의 모든 클라이언트가 지원.
+    if (cache.gzipBuffer && /\bgzip\b/.test(accept)) {
+        res.setHeader('Content-Encoding', 'gzip');
+        res.setHeader('Content-Length', cache.gzipBuffer.length);
+        return res.end(cache.gzipBuffer);
+    }
+    // [3] 압축 미지원(또는 압축 빌드 실패) → 원본 문자열.
+    //     Content-Encoding 을 붙이지 않으므로 compression() 미들웨어가 필요 시
+    //     실시간 압축하는 안전망으로 동작한다.
+    return res.send(cache.responseJson);
 });
 
 // ============================================================================
