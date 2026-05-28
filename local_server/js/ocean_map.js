@@ -718,7 +718,9 @@
                     minZoom: MIN_ZOOM,
                     maxZoom: MAX_ZOOM
                 }),
-                controls: ol.control.defaults.defaults({ zoom: false, rotate: false })
+                // OSM/해아름 저작권 출처표기를 좌측 하단에 상시 노출 (collapsible:false)
+                controls: ol.control.defaults.defaults({ zoom: false, rotate: false, attribution: false })
+                    .extend([new ol.control.Attribution({ collapsible: false })])
             });
 
             // 클릭 이벤트
