@@ -197,7 +197,7 @@
         // --- 지도 생성 ---
         // target: index.html의 <div id="surfing-map"> 요소에 렌더링
         // layers: OpenStreetMap 배경 타일 위에 마커 레이어 표시
-        // controls: 줌 버튼과 Attribution 텍스트 제거 (모바일 화면 깔끔하게)
+        // controls: 줌 버튼 제거 + OSM 저작권 출처표기 좌측 하단 상시 노출
         s.map = new ol.Map({
             target: 'surfing-map',
             layers: [
@@ -211,6 +211,7 @@
                 maxZoom: 13
             }),
             controls: ol.control.defaults.defaults({ attribution: false, zoom: false })
+                .extend([new ol.control.Attribution({ collapsible: false })])
         });
 
         // --- 마커 클릭 이벤트 ---

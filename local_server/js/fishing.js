@@ -106,8 +106,9 @@
                 minZoom: 6,
                 maxZoom: 13
             }),
-            // 줌 컨트롤 및 attribution 표시 제거 (핀치줌/스크롤줌은 유지)
+            // 줌 컨트롤 제거(핀치/스크롤줌 유지) + OSM 저작권 출처표기 좌측 하단 상시 노출
             controls: ol.control.defaults.defaults({ attribution: false, zoom: false })
+                .extend([new ol.control.Attribution({ collapsible: false })])
         });
 
         // 마커 클릭 이벤트: 선택 피드백 + 팝업 표시
