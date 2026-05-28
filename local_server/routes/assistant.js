@@ -1123,12 +1123,19 @@ router.post('/api/assistant/ask', async (req, res) => {
             const brain = await runBrain(query, profile, memory, style, loc);
             if (brain && brain.answer) {
                 // 앱 기능 바로가기 + 웹검색 출처 링크(있으면)를 함께
-                const links = buildLinks(query, null, brain.zone, profile);
+                const links = buildLinks(query, null, brain.zone, profile, loc);
                 (brain.webLinks || []).forEach(w => links.push({ type: 'web', label: w.title || '참고 링크', url: w.uri }));
+                // 물때 질문인데 표준항/해역/GPS로 해점을 못 잡았으면, 지명을 추출해
+                // 프론트가 장소검색→확인→바텀시트로 잇도록 신호(tideSearch). 버튼 보장용.
+                let tideSearch = null;
+                if (/물때|조석|만조|간조|밀물|썰물|사리|조금|물참|간만/.test(normalize(query)) && !links.some(l => l.type === 'tide')) {
+                    const place = extractTidePlace(query);
+                    if (place) tideSearch = place;
+                }
                 return res.json({
                     ok: true, zone: brain.zone, intent: 'brain', answer: brain.answer,
                     data: { toolsUsed: brain.toolsUsed }, aiUsed: true, zoneFromProfile: false,
-                    links, tideSearch: null, corrected: brain.corrected || null
+                    links, tideSearch, corrected: brain.corrected || null
                 });
             }
         } catch (e) { /* 두뇌 실패 → 결정론적 폴백으로 진행 */ }
@@ -1172,7 +1179,7 @@ router.post('/api/assistant/ask', async (req, res) => {
 
     // 앱 내 기능 연결 버튼(특보/부이/태풍/CCTV 등) — 해역과 무관한 항목(태풍·CCTV)도
     // 있으므로 해역 유무와 별개로 먼저 계산한다.
-    const links = buildLinks(query, intent, zone, profile);
+    const links = buildLinks(query, intent, zone, profile, loc);
 
     // [물때 — 임의 지점] 물때 질문인데 표준항/해역으로 해점을 못 잡았다면,
     //   질문에서 지명을 추출해 프론트가 장소 검색(카카오) → 확인 → 조석 조회를 하도록 신호.
@@ -1307,7 +1314,7 @@ function findBuoyInQuery(query) {
  *            ③ 프로필 기본 해역 → 그 해역 대표좌표
  * @returns {null|{ lat, lon, name }}
  */
-function resolveTidePoint(query, zone, profile) {
+function resolveTidePoint(query, zone, profile, location) {
     const nq = normalize(query);
     // ① 표준항(지명) 매칭 — 긴 이름 우선
     let st = null;
@@ -1321,7 +1328,12 @@ function resolveTidePoint(query, zone, profile) {
     let code = codeFor(zone);
     if (code && ZONE_COORDS[code]) return { lat: ZONE_COORDS[code].lat, lon: ZONE_COORDS[code].lon, name: zone };
 
-    // ③ 프로필 기본 해역
+    // ③ GPS 현재 위치 — 표준항/해역을 못 잡았을 때 가장 가까운 해점에서 바텀시트
+    if (location && location.lat != null && location.lon != null) {
+        return { lat: +location.lat, lon: +location.lon, name: '현재 위치' };
+    }
+
+    // ④ 프로필 기본 해역
     const pz = profileDefaultZone(profile);
     code = codeFor(pz);
     if (code && ZONE_COORDS[code]) return { lat: ZONE_COORDS[code].lat, lon: ZONE_COORDS[code].lon, name: pz };
@@ -1337,7 +1349,7 @@ function resolveTidePoint(query, zone, profile) {
  *   - { type:'tide', lat, lon }→ 해양종합정보 + 그 해점에서 물때 바텀시트
  * @returns {Array<object>}
  */
-function buildLinks(query, intent, zone, profile) {
+function buildLinks(query, intent, zone, profile, location) {
     const nq = normalize(query);
     const links = [];
     const addOcean = (layer, label, extra) => {
@@ -1351,9 +1363,9 @@ function buildLinks(query, intent, zone, profile) {
         }
     };
 
-    // 물때/조석 — 지명에서 가장 가까운 해점에서 바텀시트
+    // 물때/조석 — 지명/GPS에서 가장 가까운 해점에서 바텀시트
     if (/물때|조석|만조|간조|간만|밀물|썰물|사리|조금|물참|간물참/.test(nq)) {
-        const pt = resolveTidePoint(query, zone, profile);
+        const pt = resolveTidePoint(query, zone, profile, location);
         if (pt) links.push({ type: 'tide', lat: pt.lat, lon: pt.lon, label: `${pt.name} 물때 보기` });
     }
 
