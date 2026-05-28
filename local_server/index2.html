@@ -1324,14 +1324,18 @@
             text-align: center;
         }
         /* OpenStreetMap 저작권 출처표기 — 좌측 하단 고정·상시 노출 (ODbL 준수) */
+        /* 하단 메인 탭바(+서브탭바)에 가려지지 않도록 탭 높이만큼 위로 띄움 */
         .ol-attribution {
             left: 8px !important;
             right: auto !important;
-            bottom: 8px !important;
+            bottom: calc(var(--main-tab-height, 68px) + 8px) !important;
             top: auto !important;
             max-width: calc(100% - 16px);
             background: rgba(255, 255, 255, 0.82);
             border-radius: 4px;
+        }
+        body.sub-tabs-open .ol-attribution {
+            bottom: calc(var(--main-tab-height, 68px) + var(--sub-tab-height, 50px) + 8px) !important;
         }
         .ol-attribution ul {
             font-size: 11px;
