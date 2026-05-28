@@ -286,6 +286,8 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || !d.ok) { throw new Error((d && d.error) || '응답 오류'); }
+        // 음성인식 보정이 있었으면 "들은 질문 → 교정"으로 표시
+        if (d.corrected) setHeard(query + '  →  ' + d.corrected);
         lastAnswer = d.answer || '';
         setAnswer(d.answer, d.aiUsed);
         metaEl.textContent = d.zone

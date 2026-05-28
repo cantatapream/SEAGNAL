@@ -187,6 +187,8 @@ public class VoiceAssistantService extends Service {
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR");
         intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+        // [정확도] 명령 인식은 온라인(고품질) 엔진을 쓰도록 오프라인 선호 해제.
+        intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false);
         // [조기 종료 방지] 말이 끝나기 전에 인식이 끊겨 버리는 문제 완화 —
         //   침묵 허용 시간을 늘려 사용자가 잠깐 멈춰도 끝났다고 단정하지 않게 한다.
         intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L);

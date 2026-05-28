@@ -933,6 +933,13 @@ async function planQuery(query, profile, location, memory) {
     const memLine = (Array.isArray(memory) && memory.length)
         ? `\n[최근 대화] ${memory.slice(-3).join(' / ')}\n질문이 "그럼/다른/얘/거기/그건/인근" 등으로 이전 맥락을 가리키면, 위 최근 대화에서 해역·대상을 이어받아 args 에 넣으세요.`
         : '';
+    // [음성인식 보정] 질문은 음성→텍스트라 오인식이 잦다. 우리 도메인 용어로 교정한다.
+    const vocabLine =
+`\n[음성인식 보정 — 중요]
+질문은 음성인식 결과라 우리 도메인 용어가 잘못 들어올 수 있습니다(예: "제육볶음 6호 태풍"→"제6호 태풍", "제주국방/난방"→"제주 남방", "해구 삼백이십오"→"325 해구"). 아래 용어를 참고해, 명백한 오인식만 보수적으로 교정해 correctedQuery 에 넣고(의미 바꾸지 말 것), steps 도 교정된 의미로 계획하세요. 오인식이 없으면 correctedQuery 는 원문 그대로.
+- 해역명: ${ZONE_NAMES.join(', ')}
+- 부이/지명: 거문도, 오륙도, 마라도, 추자도, 울릉도, 서귀포, 신안, 가거도 등
+- 호출어: 나리야`;
     const prompt =
 `사용자의 한국어 질문에 답하기 위해 어떤 데이터를 가져올지 계획하세요.
 사용 가능한 도구:
@@ -947,12 +954,12 @@ ${TOOL_CATALOG}
 - 섬·항·해안 지명(예: 추자도, 거문도, 마라도, 연평도)의 바다 상황·기상을 물으면, 웹검색 말고 먼저
   get_buoy_observation(지명) 또는 get_nearest_buoy 로 해상 관측을, 해역명이면 get_marine_forecast 를 쓰세요.
 - "조업 가능?" 같은 판단 질문은 관련 예보(해구/해역)·특보·필요시 부이를 함께 모으세요.
-- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${memLine}
+- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${memLine}${vocabLine}
 
 사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
 질문: "${query}"
 
-JSON 으로만: {"steps":[{"tool":"<도구명>","args":{...}}], "zone":"<관련 해역명 또는 null>"}`;
+JSON 으로만: {"correctedQuery":"<교정된 질문 또는 원문>", "steps":[{"tool":"<도구명>","args":{...}}], "zone":"<관련 해역명 또는 null>"}`;
     const r = await gemini.callGemini({
         model: BRAIN_MODEL, contents: prompt,
         config: { responseMimeType: 'application/json', temperature: 0 }, caller: 'Assistant-Plan'
@@ -990,6 +997,10 @@ async function webSearchAnswer(query) {
 async function runBrain(query, profile, memory, style, location) {
     const plan = await planQuery(query, profile, location, memory);
     if (!plan) return null;
+    // 음성인식 보정 결과(있으면) — 종합/웹폴백/표시에 사용할 질문
+    const cq = (plan.correctedQuery && typeof plan.correctedQuery === 'string' && plan.correctedQuery.trim())
+        ? plan.correctedQuery.trim() : query;
+    const corrected = (cq !== query) ? cq : null;
 
     const results = [];
     for (const step of plan.steps.slice(0, 6)) {
@@ -1013,9 +1024,9 @@ async function runBrain(query, profile, memory, style, location) {
     };
     const gotUseful = results.some(r => hasRealData(r.result));
     if (!gotUseful) {
-        const web = await webSearchAnswer(query);
+        const web = await webSearchAnswer(cq);
         if (web && web.answer) {
-            return { answer: web.answer, zone: plan.zone || null, toolsUsed: ['web_search'], webLinks: web.webLinks || [] };
+            return { answer: web.answer, zone: plan.zone || null, toolsUsed: ['web_search'], webLinks: web.webLinks || [], corrected };
         }
     }
 
@@ -1032,11 +1043,11 @@ async function runBrain(query, profile, memory, style, location) {
 - 유속(해류)은 cm/s 또는 노트로 말하세요(예: "유속 23cm퍼세크" 말고 "유속 초속 23센티미터, 약 0.4노트"). 유속을 "초속 N미터"로 말하지 마세요.
 - "지금 출항/조업해도 되냐"처럼 안전 결정을 직접 물었을 때는: 데이터(파고·풍속·특보)에 근거해 "○○ 정도라 (가능할 것 같다/주의가 필요하다/무리로 보인다)"는 간단한 판단을 먼저 주고, 마지막에 "최종 판단은 선장님 몫"이라는 취지를 딱 한 번 덧붙이세요. 그 외 질문엔 이 판단/문구를 절대 넣지 마세요.
 ${personal}
-질문: "${query}"
+질문: "${cq}"
 수집결과(JSON): ${JSON.stringify(results)}`;
     const r = await gemini.callGemini({ model: BRAIN_MODEL, contents: synth, config: { temperature: 0.3 }, caller: 'Assistant-Synth' });
     if (!r.success || !r.text) return null;
-    return { answer: r.text.trim(), zone: plan.zone || null, toolsUsed: results.map(x => x.tool) };
+    return { answer: r.text.trim(), zone: plan.zone || null, toolsUsed: results.map(x => x.tool), corrected };
 }
 
 router.post('/api/assistant/ask', async (req, res) => {
@@ -1095,7 +1106,7 @@ router.post('/api/assistant/ask', async (req, res) => {
                 return res.json({
                     ok: true, zone: brain.zone, intent: 'brain', answer: brain.answer,
                     data: { toolsUsed: brain.toolsUsed }, aiUsed: true, zoneFromProfile: false,
-                    links, tideSearch: null
+                    links, tideSearch: null, corrected: brain.corrected || null
                 });
             }
         } catch (e) { /* 두뇌 실패 → 결정론적 폴백으로 진행 */ }
