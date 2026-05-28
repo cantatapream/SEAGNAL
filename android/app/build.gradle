@@ -41,6 +41,9 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    // [음성 비서] Porcupine 온디바이스 호출어 엔진("나리야"). assets에 .ppn/params/accesskey 가
+    // 있을 때만 사용하고, 없으면 안드로이드 기본 음성인식으로 폴백한다.
+    implementation 'ai.picovoice:porcupine-android:3.0.2'
 }
 
 apply from: 'capacitor.build.gradle'

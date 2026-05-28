@@ -103,7 +103,14 @@ public class VoiceAssistantService extends Service {
         super.onCreate();
         createChannel();
         initTts();
-        wakeEngine = new AndroidSpeechWakeEngine(this);
+        // 호출어 엔진 선택: Porcupine 구성(assets) 있으면 그걸(저전력·고신뢰), 없으면 기본 음성인식.
+        if (PorcupineWakeEngine.isAvailable(this)) {
+            wakeEngine = new PorcupineWakeEngine(this);
+            Log.i(TAG, "호출어 엔진: Porcupine");
+        } else {
+            wakeEngine = new AndroidSpeechWakeEngine(this);
+            Log.i(TAG, "호출어 엔진: AndroidSpeechRecognizer(폴백)");
+        }
     }
 
     @Override

@@ -148,10 +148,15 @@
   </div>
   <div class="hint">마이크를 켜고 <b>"나리야"</b> 라고 부른 뒤 질문하세요.<br/>예) "나리야, 제주도 북부 앞바다 기상 알려줘"</div>
 
-  <label style="display:flex;align-items:center;justify-content:center;gap:7px;font-size:12px;color:var(--muted);margin-bottom:16px;cursor:pointer;">
+  <label style="display:flex;align-items:center;justify-content:center;gap:7px;font-size:12px;color:var(--muted);margin-bottom:10px;cursor:pointer;">
     <input type="checkbox" id="naturalVoiceToggle" style="accent-color:var(--accent);width:15px;height:15px;">
     자연스러운 음성 사용 <span style="opacity:.7;">(네트워크 필요 · 끄면 기기 내장 음성)</span>
   </label>
+
+  <div style="text-align:center;margin-bottom:16px;">
+    <button id="cloudSttBtn" class="action-btn ghost" style="font-size:13px;">🎤 정확 받아쓰기(클라우드)</button>
+    <div class="meta">탭하면 녹음→클라우드 받아쓰기로 정확히 질문(네트워크 필요).</div>
+  </div>
 
   <div id="nativeBox" class="card" style="display:none;">
     <div class="label">📱 백그라운드 상시 비서 (앱 전용)</div>

@@ -311,6 +311,43 @@
       });
   }
 
+  // ── 클라우드 정확 받아쓰기 (MediaRecorder → /api/assistant/transcribe → ask) ──────
+  var _rec = null, _recChunks = [], _recTimer = null;
+  function cloudRecordToggle() {
+    if (_rec && _rec.state === 'recording') { try { _rec.stop(); } catch (e) {} return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setAnswer('이 환경에서는 녹음을 지원하지 않습니다. 기기 키보드 마이크로 입력해 주세요.', null); return;
+    }
+    setStatus('녹음 중… (다시 탭하면 종료)', 'listen'); setBanner('🎤 녹음 중 — 질문하세요', 'cmd');
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      _recChunks = [];
+      _rec = new MediaRecorder(stream);
+      _rec.ondataavailable = function (e) { if (e.data && e.data.size) _recChunks.push(e.data); };
+      _rec.onstop = function () {
+        clearTimeout(_recTimer);
+        try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+        setStatus('받아쓰는 중…', 'think'); setBanner('💭 받아쓰는 중', 'cmd');
+        var blob = new Blob(_recChunks, { type: (_rec && _rec.mimeType) || 'audio/webm' });
+        var reader = new FileReader();
+        reader.onloadend = function () {
+          var b64 = String(reader.result).split(',')[1] || '';
+          fetch('/api/assistant/transcribe', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ audio: b64, mimeType: blob.type })
+          }).then(function (r) { return r.json(); }).then(function (d) {
+            if (d && d.ok && d.text) { setHeard(d.text); ask(d.text); }
+            else { setAnswer('받아쓰기를 못 했어요. ' + ((d && d.error) || '') , null); setBanner(''); }
+          }).catch(function (e) { setAnswer('받아쓰기 오류: ' + e.message, null); setBanner(''); });
+        };
+        reader.readAsDataURL(blob);
+      };
+      _rec.start();
+      _recTimer = setTimeout(function () { if (_rec && _rec.state === 'recording') try { _rec.stop(); } catch (e) {} }, 8000); // 최대 8초
+    }).catch(function () {
+      setAnswer('마이크 권한이 필요해요. 관리자 AI 탭에서 마이크를 허용해 주세요.', null); setBanner('');
+    });
+  }
+
   // 답변 아래 액션 버튼: "다시 듣기"(음성) + 앱 내 기능 바로가기(links)
   function renderActions(links) {
     if (!answerActions) return;
@@ -728,6 +765,9 @@
     natToggle.checked = getNaturalVoice();
     natToggle.addEventListener('change', function () { setNaturalVoice(natToggle.checked); });
   }
+  // 클라우드 정확 받아쓰기 버튼
+  var cloudBtn = $('cloudSttBtn');
+  if (cloudBtn) cloudBtn.addEventListener('click', cloudRecordToggle);
 
   // ── 초기화 ────────────────────────────────────────────────────────────────
   if (!speechSupported()) {

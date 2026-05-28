@@ -1535,6 +1535,47 @@ router.post('/api/assistant/tts', async (req, res) => {
 });
 
 // ============================================================================
+// 9-STT. 클라우드 받아쓰기(Gemini 오디오) + 도메인 힌트 — 음성을 고정밀 텍스트로.
+//   호출어로 깨운 뒤 녹음한 질문 오디오(base64)를 받아, 우리 도메인 용어를 힌트로 줘
+//   정확히 받아쓴다. 기존 Gemini 키 재사용. 키 없거나 실패하면 503(클라이언트가 내장 인식 폴백).
+//   요청: { audio: <base64>, mimeType: "audio/webm"|"audio/wav"|... }
+//   응답: { ok, text }
+// ============================================================================
+router.post('/api/assistant/transcribe', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const rate = checkRateLimit(getClientIp(req));
+    if (!rate.allowed) {
+        res.setHeader('Retry-After', String(rate.retryAfterSec));
+        return res.status(429).json({ ok: false, error: '요청이 너무 많습니다.' });
+    }
+    if (!(gemini && gemini.callGeminiRaw && gemini.hasAnyKey && gemini.hasAnyKey())) {
+        return res.status(503).json({ ok: false, error: '받아쓰기를 사용할 수 없습니다(키 없음).' });
+    }
+    const audio = req.body && req.body.audio;
+    const mimeType = (req.body && req.body.mimeType) ? String(req.body.mimeType) : 'audio/webm';
+    if (!audio || typeof audio !== 'string') return res.status(400).json({ ok: false, error: 'audio(base64)가 필요합니다.' });
+
+    const hint =
+`다음 한국어 음성을 그대로 받아쓰세요(해양 기상 비서용). 추측·요약·답변하지 말고, 들린 문장만 한 줄로 출력하세요.
+자주 나오는 용어(이쪽으로 잘못 들리면 교정): 호출어 "나리야", 해역명 ${ZONE_NAMES.slice(0, 40).join(', ')} 등, 부이명 거문도/오륙도/마라도/추자도/울릉도/서귀포, "해구 325" 같은 해구 번호.`;
+    try {
+        const r = await gemini.callGeminiRaw({
+            model: 'gemini-2.5-flash',
+            contents: [{ role: 'user', parts: [{ text: hint }, { inlineData: { mimeType, data: audio } }] }],
+            config: { temperature: 0 },
+            caller: 'Assistant-STT'
+        });
+        if (!r.success || !r.response) return res.status(502).json({ ok: false, error: '받아쓰기 실패' });
+        let text = '';
+        try { text = (r.response.text || '').trim(); } catch (e) { text = ''; }
+        if (!text) return res.status(502).json({ ok: false, error: '받아쓴 내용이 없습니다.' });
+        return res.json({ ok: true, text });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+// ============================================================================
 // 9. 스타일·성향 다이제스트 — 누적 대화를 AI가 정리(말투/선호형식/관심사).
 //   클라이언트가 몇 건마다 한 번 호출해 결과를 휴대폰에 저장(seagnal_style.styleNote).
 //   통계(자주 보는 해역/주제, 질문 수)는 클라이언트가 결정론적으로 누적하므로,
