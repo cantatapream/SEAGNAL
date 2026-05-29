@@ -113,6 +113,12 @@
     var DIR16 = ['북', '북북동', '북동', '동북동', '동', '동남동', '남동', '남남동', '남', '남남서', '남서', '서남서', '서', '서북서', '북서', '북북서'];
     function dir16(deg) { if (deg == null || isNaN(deg)) return ''; return DIR16[Math.round(deg / 22.5) % 16]; }
     function dirStr(deg) { var s = dir16(deg); return s ? (s + ' ' + Math.round(deg) + '°') : (Math.round(deg) + '°'); }
+    // 비대칭 반경 부가표기: 장반경 대비 단반경(가항측)이 작을 때 "(○쪽 XXkm)" 반환.
+    function asymNote(rLong, rShort, edStr) {
+        if (!rShort || !edStr || rShort >= rLong) return '';
+        var deg = dirToDeg(edStr), dir = (deg == null) ? '' : dir16(deg);
+        return ' <span style="opacity:0.85">(' + (dir ? dir + '쪽 ' : '') + Math.round(rShort) + 'km)</span>';
+    }
     function haversineKm(la1, lo1, la2, lo2) {
         var R = 6371, r = Math.PI / 180;
         var dLa = (la2 - la1) * r, dLo = (lo2 - lo1) * r;
@@ -162,8 +168,8 @@
         // 헤더+강도 2줄 외 나머지 — 흐린 말풍선에선 CSS(.tphn-faint .tphn-b-more)로 숨김.
         var more = '';
         if (o.pressure != null) more += '<div class="tphn-b-sub">중심기압 ' + Math.round(o.pressure) + 'hPa</div>';
-        if (o.radStrong) more += '<div style="color:' + cssRgb(STRONG_C) + '">강풍반경 ' + Math.round(o.radStrong) + 'km</div>';
-        if (o.radStorm) more += '<div style="color:' + cssRgb(STORM_C) + '">폭풍반경 ' + Math.round(o.radStorm) + 'km</div>';
+        if (o.radStrong) more += '<div style="color:' + cssRgb(STRONG_C) + '">강풍반경 ' + Math.round(o.radStrong) + 'km' + asymNote(o.radStrong, o.radStrongS, o.radStrongD) + '</div>';
+        if (o.radStorm) more += '<div style="color:' + cssRgb(STORM_C) + '">폭풍반경 ' + Math.round(o.radStorm) + 'km' + asymNote(o.radStorm, o.radStormS, o.radStormD) + '</div>';
         if (o.radProb) more += '<div style="color:' + cssRgb(PROB_C) + '">태풍 위치 70% 확률 반경 ' + Math.round(o.radProb) + 'km</div>';
         // 예상 피해 — 70% 반경 라인 바로 아래.
         var dmg = DAMAGE_DESC[g];
@@ -436,27 +442,53 @@
         return Math.atan2(y, x);
     }
 
-    // 진로를 따라 반경만큼 좌우로 벌린 매끈한 회랑(corridor) + 시작/끝 둥근 캡 → 단일 MultiPolygon.
-    // pts: 시간순 프레임 배열. 정적=전체, 재생=시작~현재까지(자라나는 항적).
-    function swathCorridorGeom(pts, key) {
+    // ── 비대칭(위험/가항반원) 반경 헬퍼 ───────────────────────────────────────
+    var DIR16_DEG = { N: 0, NNE: 22.5, NE: 45, ENE: 67.5, E: 90, ESE: 112.5, SE: 135, SSE: 157.5, S: 180, SSW: 202.5, SW: 225, WSW: 247.5, W: 270, WNW: 292.5, NW: 315, NNW: 337.5 };
+    function dirToDeg(d) { if (d == null) return null; var v = DIR16_DEG[String(d).trim().toUpperCase()]; return v == null ? null : v; }
+    function angDiff(a, b) { var d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
+    // 방위(deg)에서의 반경: 단반경 방향(edDeg) ±90°(가항측 반원)이면 단반경, 반대쪽(위험)이면 장반경.
+    function radAt(rLong, rShort, edDeg, brngDeg) {
+        if (edDeg == null || rShort == null || !(rShort > 0) || rShort >= rLong) return rLong;
+        return angDiff(brngDeg, edDeg) <= 90 ? rShort : rLong;
+    }
+    // 비대칭 2반원 원 링 — bearing 별 반경 적용(edDeg/rShort 없으면 균일 원).
+    function asymRing(lon, lat, rLong, rShort, edDeg, n) {
+        n = n || 72;
+        var ring = [];
+        for (var i = 0; i <= n; i++) {
+            var deg = 360 * i / n;
+            ring.push(ol.proj.fromLonLat(destPoint(lon, lat, deg * Math.PI / 180, radAt(rLong, rShort, edDeg, deg))));
+        }
+        return ring;
+    }
+
+    // 진로를 따라 반경만큼 좌우로 벌린 회랑(corridor) + 시점별 (비대칭)원 캡 → 단일 MultiPolygon.
+    //   cfg = { long, short, dir } — long=장반경(필수), short=단반경, dir=단반경 방위(가항측). short/dir 없으면 균일 원.
+    function swathCorridorGeom(pts, cfg) {
+        var lk = cfg.long, sk = cfg.short, dk = cfg.dir;
         var P = [];
-        pts.forEach(function (p) { if (p && p.lon != null && p[key] != null && p[key] > 0) P.push(p); });
+        pts.forEach(function (p) { if (p && p.lon != null && p[lk] != null && p[lk] > 0) P.push(p); });
         if (P.length === 0) return null;
-        if (P.length === 1) return new ol.geom.MultiPolygon([[orientCW(geoCircleRing(P[0].lon, P[0].lat, P[0][key]))]]);
+        function rL(p) { return p[lk]; }
+        function rS(p) { return sk ? p[sk] : null; }
+        function eD(p) { return dk ? dirToDeg(p[dk]) : null; }
+        if (P.length === 1) return new ol.geom.MultiPolygon([[orientCW(asymRing(P[0].lon, P[0].lat, rL(P[0]), rS(P[0]), eD(P[0])))]]);
         var left = [], right = [];
         for (var i = 0; i < P.length; i++) {
             var a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)];
             var brg = bearingRad(a.lon, a.lat, b.lon, b.lat);
-            var r = P[i][key];
-            left.push(ol.proj.fromLonLat(destPoint(P[i].lon, P[i].lat, brg - Math.PI / 2, r)));
-            right.push(ol.proj.fromLonLat(destPoint(P[i].lon, P[i].lat, brg + Math.PI / 2, r)));
+            var brgDeg = brg * 180 / Math.PI;
+            // 좌/우 수직 방향 각각의 (비대칭) 반경 — 가항측이면 단반경으로 회랑이 좁아짐.
+            var rl = radAt(rL(P[i]), rS(P[i]), eD(P[i]), ((brgDeg - 90) % 360 + 360) % 360);
+            var rr = radAt(rL(P[i]), rS(P[i]), eD(P[i]), ((brgDeg + 90) % 360 + 360) % 360);
+            left.push(ol.proj.fromLonLat(destPoint(P[i].lon, P[i].lat, brg - Math.PI / 2, rl)));
+            right.push(ol.proj.fromLonLat(destPoint(P[i].lon, P[i].lat, brg + Math.PI / 2, rr)));
         }
         var ring = left.concat(right.reverse());
         ring.push(ring[0]);
-        // 각 시점 원도 합쳐(둥근 캡 + 굴곡부 빈틈 메움). 모든 링 winding 을 동일(CW)하게 맞춰야
-        //   nonzero 채움에서 겹친 원이 구멍(테두리)으로 남지 않고 하나로 합쳐진다.
+        // 각 시점 (비대칭)원도 합쳐(둥근 캡 + 굴곡부 빈틈 메움). 모든 링 winding 통일(CW) → nonzero 단일 채움.
         var polys = [[orientCW(ring)]];
-        for (var k = 0; k < P.length; k++) polys.push([orientCW(geoCircleRing(P[k].lon, P[k].lat, P[k][key]))]);
+        for (var k = 0; k < P.length; k++) polys.push([orientCW(asymRing(P[k].lon, P[k].lat, rL(P[k]), rS(P[k]), eD(P[k])))]);
         return new ol.geom.MultiPolygon(polys);
     }
     // 링 부호면적(>0=CCW). 모든 링을 CW(음의 면적)로 통일해 swath 합집합 채움을 깔끔하게.
@@ -499,7 +531,11 @@
             pressure: n(A.pressure, B.pressure),
             windMs: n(A.windMs, B.windMs),
             radStrong: n(A.radStrong, B.radStrong),
+            radStrongS: n(A.radStrongS, B.radStrongS),
+            radStrongD: (f < 0.5 ? A.radStrongD : B.radStrongD),
             radStorm: n(A.radStorm, B.radStorm),
+            radStormS: n(A.radStormS, B.radStormS),
+            radStormD: (f < 0.5 ? A.radStormD : B.radStormD),
             radProb: n(A.radProb, B.radProb),
             dir: (f < 0.5 ? A.dir : B.dir),
             speedKmh: n(A.speedKmh, B.speedKmh),
@@ -518,11 +554,11 @@
         if (!_frames.length) return;
 
         // 전체 진로 영역(매끈한 회랑) — 70%(아래)·강풍(중)·폭풍(위)은 레이어 zIndex 로 순서 보장
-        var probG = swathCorridorGeom(_frames, 'radProb');
+        var probG = swathCorridorGeom(_frames, { long: 'radProb' });
         if (probG) _probSrc.addFeature(new ol.Feature(probG));
-        var strongG = swathCorridorGeom(_frames, 'radStrong');
+        var strongG = swathCorridorGeom(_frames, { long: 'radStrong', short: 'radStrongS', dir: 'radStrongD' });
         if (strongG) _strongSrc.addFeature(new ol.Feature(strongG));
-        var stormG = swathCorridorGeom(_frames, 'radStorm');
+        var stormG = swathCorridorGeom(_frames, { long: 'radStorm', short: 'radStormS', dir: 'radStormD' });
         if (stormG) _stormSrc.addFeature(new ol.Feature(stormG));
 
         // ② 예측경로: 진로선 + 시점별 위치 점(강도색) + 라벨, ① 실제위치(현재) 강조
@@ -751,9 +787,9 @@
             _frames.forEach(function (fr) { if (fr._t <= f._rtMs) passedPts.push(fr); });
             passedPts.push(f); // 현재(보간) 시점 — 회랑 끝이 점점 커지며 진행
             _probSrc.clear(); _strongSrc.clear(); _stormSrc.clear();
-            if (_layerOn.prob) { var gp = swathCorridorGeom(passedPts, 'radProb'); if (gp) _probSrc.addFeature(new ol.Feature(gp)); }
-            if (_layerOn.strong) { var gw = swathCorridorGeom(passedPts, 'radStrong'); if (gw) _strongSrc.addFeature(new ol.Feature(gw)); }
-            if (_layerOn.storm) { var gs = swathCorridorGeom(passedPts, 'radStorm'); if (gs) _stormSrc.addFeature(new ol.Feature(gs)); }
+            if (_layerOn.prob) { var gp = swathCorridorGeom(passedPts, { long: 'radProb' }); if (gp) _probSrc.addFeature(new ol.Feature(gp)); }
+            if (_layerOn.strong) { var gw = swathCorridorGeom(passedPts, { long: 'radStrong', short: 'radStrongS', dir: 'radStrongD' }); if (gw) _strongSrc.addFeature(new ol.Feature(gw)); }
+            if (_layerOn.storm) { var gs = swathCorridorGeom(passedPts, { long: 'radStorm', short: 'radStormS', dir: 'radStormD' }); if (gs) _stormSrc.addFeature(new ol.Feature(gs)); }
         }
 
         // 진행 자취 중심선: 지나온 경로 + 현재 위치 (굵은 실선, 강도색)
