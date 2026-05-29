@@ -3444,7 +3444,8 @@ async function renderUnifiedAlertContent(container) {
         { id: 'alert-manage', name: '실시간 특보 알림 관리', icon: 'fa-tower-broadcast' },
         { id: 'ledger-view',  name: '장부',                   icon: 'fa-book' },
         { id: 'error-log',    name: '오류 로그',              icon: 'fa-triangle-exclamation' },
-        { id: 'manual-edit',  name: '특보 수정',              icon: 'fa-pen-to-square' }
+        { id: 'manual-edit',  name: '특보 수정',              icon: 'fa-pen-to-square' },
+        { id: 'demo',         name: '데모 특보',              icon: 'fa-flask' }
     ];
 
     container.innerHTML = `
@@ -3483,6 +3484,9 @@ async function renderUnifiedAlertContent(container) {
             renderErrorLogTab(topContent);
         } else if (topTabId === 'manual-edit') {
             renderManualInputTab(topContent);
+        } else if (topTabId === 'demo') {
+            if (typeof renderDemoAlertTab === 'function') renderDemoAlertTab(topContent);
+            else topContent.innerHTML = '<div style="padding:20px;color:#fca5a5;">데모 모듈(admin_demo.js)이 로드되지 않았습니다.</div>';
         }
     };
 
