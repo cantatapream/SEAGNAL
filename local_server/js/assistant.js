@@ -296,8 +296,10 @@
         renderActions(d.links);
         // 성향 통계 누적(질문수·해역·주제) + 주기적 말투 요약 갱신
         updateStyleStats(d);
-        // 과거 대화 요약을 휴대폰에 누적 → 다음 질문에 참고
-        if (d.zone) pushMemory(d.zone + ': "' + query + '" → ' + String(d.answer).slice(0, 50));
+        // 과거 대화 요약을 휴대폰에 누적 → 다음 질문에 참고. 항상 저장하고(해역 없는 랭킹/해구
+        // 질문도 후속에서 이어지도록), 답변은 해구 번호·경위도가 살아남게 넉넉히(160자) 보관.
+        var memQ = d.corrected || query;
+        pushMemory((d.zone ? d.zone + ': ' : '') + '"' + memQ + '" → ' + String(d.answer || '').slice(0, 160));
         speak(d.answer);
         if (!('speechSynthesis' in window) && micOn) startWakeMode();
         // 임의 지점 물때: 지명 검색 → 확인 → 고조/저조 조회 흐름 시작

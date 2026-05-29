@@ -142,6 +142,20 @@ try {
     console.warn('[Assistant] seaZoneCoordinates 파싱 실패:', e.message);
 }
 
+// 해구(번호 격자) 좌표 — data/zone_coords.json (해구번호 → 위경도). 해구 랭킹·조회의 경위도원.
+const HAEGU_COORDS = {};
+try {
+    const raw = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'zone_coords.json'), 'utf8'));
+    const src = raw && raw.data ? raw.data : raw;
+    for (const k of Object.keys(src || {})) {
+        const v = src[k];
+        if (v && v.lat != null && v.lon != null) HAEGU_COORDS[String(k)] = { lat: +v.lat, lon: +v.lon };
+    }
+    console.log(`[Assistant] 해구 좌표 ${Object.keys(HAEGU_COORDS).length}개 로드됨`);
+} catch (e) {
+    console.warn('[Assistant] zone_coords 로드 실패 — 해구 좌표 없이 동작:', e.message);
+}
+
 // ============================================================================
 // 직군별 지식베이스 (Phase 2b 간이 RAG) — knowledge/jikgun/*.md 에서 다이제스트 추출.
 //  사용자 프로필의 직업/소속을 8개 직군 슬러그로 감지 → 해당 직군의 "핵심 관심사 +
@@ -756,7 +770,7 @@ const BRAIN_MODEL = 'gemini-2.5-flash-lite';
 const TOOL_CATALOG = `
 [예보]
 - get_marine_forecast(zone): 명명된 해상예보구역(예: 제주도북부앞바다)의 단기 기상전망(풍향/풍속/파고/하늘).
-- get_zone_forecast(zoneId, hoursAhead): 해구번호(예: "325")의 N시간 후 예보(파고/파주기/풍속/풍향). 미래 약 72시간까지.
+- get_zone_forecast(zoneId, hoursAhead): 해구번호(예: "325")의 N시간 후 예보(파고/파주기/풍속/풍향)와 그 해구의 경위도. 미래 약 72시간까지. "그 해구 경위도/위도/경도" 같은 후속 질문에도 이걸로 좌표를 답하세요.
 - get_midterm_forecast(zone): 해역의 중기(3~10일) 해상예보.
 - get_warning(zone): 해당 해역의 특보(주의보/경보) 발효 여부와 종류.
 [관측]
@@ -774,8 +788,10 @@ const TOOL_CATALOG = `
 [위치기반]
 - get_nearest_buoy(lat, lon): 좌표(사용자 GPS)에서 가장 가까운 기상부이의 위치 + 최신 관측값.
 [비교/집계]
-- get_zones_ranked(metric, order, threshold, top): 전국 해역을 파고(metric:"wave")/풍속("wind") 기준 정렬·필터.
-  order:"desc"(높은순,기본)|"asc", threshold:기준값 이상만, top:개수. "파고 제일 높은 해역","풍속 10 넘는 해역" 류.
+- get_zones_ranked(metric, order, threshold, top, scope): 파고(metric:"wave")/풍속("wind") 기준 정렬·필터.
+  order:"desc"(높은순,기본)|"asc", threshold:기준값 이상만, top:개수.
+  scope:"zone"(명명된 해역, 기본) | "haegu"(해구 번호 격자 — 결과에 해구 번호+경위도 포함).
+  사용자가 "해구"라고 하면 scope="haegu" 로(예: "풍속 가장 높은 해구"→scope:"haegu"), "해역/지역"이면 scope 생략.
 [기타]
 - get_typhoon_status(): 현재 발효 중인 태풍 현황.
 - get_app_capabilities(): 이 앱(SEA:GNAL)이 제공하는 기능/정보의 종류와 형태. "이 앱 뭐 할 수 있어 / 어떤 정보 줘 / 무슨 기능 있어" 류 메타 질문에 사용.
@@ -827,8 +843,10 @@ function getZoneForecastAt(zoneId, hoursAhead) {
     const best = series[bestIdx];
     // 추세 질문("점점 세져?")용으로 해당 시점부터 다음 5스텝 시계열도 함께 반환
     const trend = series.slice(bestIdx, bestIdx + 5).map(e => ({ tm: e.tm, 파고m: e.wh, 풍속ms: e.ws }));
+    const co = HAEGU_COORDS[String(zoneId)];
     return {
         zoneId, hoursAhead: hoursAhead || 0, forecastTimeUTC: best.tm,
+        ...(co ? { 위도: co.lat, 경도: co.lon } : {}),
         파고m: best.wh, 파주기s: best.wp, 풍속ms: best.ws, 풍향deg: best.windDir, 파향deg: best.waveDir,
         시계열: trend
     };
@@ -868,8 +886,34 @@ function getBuoyObs(name) {
     return out;
 }
 
-/** 전국 해역을 파고/풍속 기준으로 정렬·필터 (집계/비교형 질문용). */
-function rankZones(metric, order, threshold, top) {
+/** 파고/풍속 기준 정렬·필터 (집계/비교형 질문용).
+ *  scope='zone'(기본): 명명된 해역(특보구역) 단기예보 기준.
+ *  scope='haegu': 해구(번호 격자) 시계열 기준 — 해구 번호 + 경위도(zone_coords) 동봉. */
+function rankZones(metric, order, threshold, top, scope) {
+    const key = (metric === 'wind') ? 'wind' : 'wave';
+    const lbl = key === 'wind' ? '풍속ms' : '파고m';
+    if (scope === 'haegu') {
+        const all = dataCache.zoneForecasts && dataCache.zoneForecasts.data;
+        if (!all) return { error: '해구 예보 데이터가 없습니다.' };
+        const p = (n) => (n < 10 ? '0' : '') + n;
+        const t = new Date();
+        const target = Number('' + t.getUTCFullYear() + p(t.getUTCMonth() + 1) + p(t.getUTCDate()) + p(t.getUTCHours()));
+        const rows = [];
+        for (const id of Object.keys(all)) {
+            const series = all[id];
+            if (!Array.isArray(series) || !series.length) continue;
+            let b = series[0], bd = Infinity;
+            for (const e of series) { const d = Math.abs(Number(e.tm) - target); if (d < bd) { bd = d; b = e; } }
+            const val = key === 'wind' ? b.ws : b.wh;
+            if (val == null) continue;
+            const co = HAEGU_COORDS[String(id)];
+            rows.push({ 해구: String(id), [lbl]: val, 위도: co ? co.lat : null, 경도: co ? co.lon : null });
+        }
+        let arr = rows;
+        if (threshold != null) arr = arr.filter(r => Number(r[lbl]) >= Number(threshold));
+        arr.sort((a, b) => order === 'asc' ? a[lbl] - b[lbl] : b[lbl] - a[lbl]);
+        return { scope: 'haegu', metric: key, count: arr.length, items: arr.slice(0, top || 5) };
+    }
     const all = dataCache.forecasts && dataCache.forecasts.data;
     if (!all) return { error: '예보 데이터가 없습니다.' };
     const seen = {}; const rows = [];
@@ -882,12 +926,10 @@ function rankZones(metric, order, threshold, top) {
         const wind = e.ws2 != null ? e.ws2 : e.ws1;
         rows.push({ zone: name, wave, wind });
     }
-    const key = (metric === 'wind') ? 'wind' : 'wave';
     let arr = rows.filter(r => r[key] != null);
     if (threshold != null) arr = arr.filter(r => Number(r[key]) >= Number(threshold));
     arr.sort((a, b) => order === 'asc' ? a[key] - b[key] : b[key] - a[key]);
-    const lbl = key === 'wind' ? '풍속ms' : '파고m';
-    return { metric: key, count: arr.length, items: arr.slice(0, top || 5).map(r => ({ zone: r.zone, [lbl]: r[key] })) };
+    return { scope: 'zone', metric: key, count: arr.length, items: arr.slice(0, top || 5).map(r => ({ zone: r.zone, [lbl]: r[key] })) };
 }
 
 /** 현재 태풍 현황 + 최신 통보문 위치/강도/이동 (data/typhoon.json + bulletin).
@@ -957,7 +999,7 @@ const TOOL_EXEC = {
         return { place: pt.name, lat: pt.lat, lon: pt.lon, note: '고조/저조 시각은 앱 바텀시트에서 확인하세요' };
     },
     get_typhoon_status: async () => getTyphoonStatus(),
-    get_zones_ranked: async ({ metric, order, threshold, top } = {}) => rankZones(metric, order, threshold, top),
+    get_zones_ranked: async ({ metric, order, threshold, top, scope } = {}) => rankZones(metric, order, threshold, top, scope),
     get_app_capabilities: async () => APP_CAPABILITIES,
 
     get_midterm_forecast: async ({ zone } = {}) => {
@@ -1071,7 +1113,7 @@ async function planQuery(query, profile, location, memory) {
     const pzLine = pz ? `\n사용자 기본 활동해역: ${pz}. 질문에 해역/지명이 없으면 이 해역을 기본으로 쓰세요.` : '';
     // [후속 질문 맥락] "그럼/다른/얘/거기/인근/그건" 등 지시어는 직전 대화로 대상을 정한다.
     const memLine = (Array.isArray(memory) && memory.length)
-        ? `\n[최근 대화] ${memory.slice(-3).join(' / ')}\n질문이 "그럼/다른/얘/거기/그건/인근" 등으로 이전 맥락을 가리키면, 위 최근 대화에서 해역·대상을 이어받아 args 에 넣으세요.`
+        ? `\n[최근 대화] ${memory.slice(-3).join(' / ')}\n질문이 "그럼/다른/얘/거기/그건/그게/저거/방금/그 해구/그 해역/인근/위에서/아까" 등으로 이전 맥락을 가리키면, 위 최근 대화에서 대상(해역명·해구 번호·지명·좌표)을 그대로 이어받아 args 에 넣으세요. 특히 직전 답변에 해구 번호가 있었고 "몇 해구/경위도/위도/경도"를 물으면, 그 해구 번호로 get_zone_forecast(zoneId) 를 호출해 좌표를 답하세요.`
         : '';
     // [음성인식 보정] 질문은 음성→텍스트라 오인식이 잦다. 우리 도메인 용어로 교정한다.
     const vocabLine =
@@ -1104,6 +1146,7 @@ ${TOOL_CATALOG}
 - 섬·항·해안 지명(예: 추자도, 거문도, 마라도, 연평도)의 바다 상황·기상을 물으면, 웹검색 말고 먼저
   get_buoy_observation(지명) 또는 get_nearest_buoy 로 해상 관측을, 해역명이면 get_marine_forecast 를 쓰세요.
 - "조업 가능?" 같은 판단 질문은 관련 예보(해구/해역)·특보·필요시 부이를 함께 모으세요.
+- "어느/가장 ~한 해구"처럼 해구를 비교·랭킹하면 get_zones_ranked(scope:"haegu") 로 — 답에 해구 번호와 경위도가 나오게. "해역"으로 물으면 scope 생략.
 - 생활지수: 낚시→get_fishing_index, 서핑/물놀이→get_surfing_index, 갯벌/바다갈라짐→get_sea_split_index.
   스쿠버·다이빙처럼 전용 지수가 없는 활동은 위 지수에 억지로 맞추지 말고 steps 를 비워(웹검색 폴백) 두세요.
 - 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${memLine}${jikgunLine}${vocabLine}

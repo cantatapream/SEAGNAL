@@ -11,6 +11,7 @@ golden(phase0_golden.jsonl)의 각 케이스를 /api/assistant/ask 로 호출해
   - not_nodata    : 답변이 '없음/모름' 류가 아님
   - corrected     : STT 교정(correctedQuery) 발생
   - answer_excludes: 답변에 금지 문구 미포함(보안)
+  - answer_matches : 답변이 정규식(목록) 모두에 매칭(예: "해구")
   - optional=true : 환경의존(키/피드) 케이스 — 실패해도 SKIP(게이트 비차단)
 추가: routes/assistant.js 정적 보안검사 — TOOL_CATALOG/TOOL_EXEC 에 admin 도구 미노출.
 
@@ -61,6 +62,9 @@ def check(case, resp):
     for bad in a.get("answer_excludes", []):
         if bad in ans:
             fails.append("leaked:%s" % bad)
+    for pat in a.get("answer_matches", []):
+        if not re.search(pat, ans):
+            fails.append("no-match:%s" % pat)
     return fails
 
 def static_security_check():
