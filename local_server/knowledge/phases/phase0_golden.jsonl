@@ -4,7 +4,7 @@
 {"id":"zone-325-48h","domain":"예보-해구","query":"325 해구 48시간 후 파고","asserts":{"tools_include":["get_zone_forecast"],"method":"internal","numeric":true}}
 {"id":"midterm-jeju","domain":"예보-중기","query":"제주도 중기 해상예보","asserts":{"tools_include":["get_midterm_forecast"],"method":"internal","numeric":true}}
 {"id":"warn-jeju-n","domain":"특보","query":"제주도북부앞바다 특보 있어","asserts":{"tools_include":["get_warning"],"method":"internal","note":"발효 없으면 '없음'이 정답 — not_nodata 미적용"}}
-{"id":"buoy-geomun-temp","domain":"부이-관측","query":"거문도 부이 수온","asserts":{"tools_include":["get_buoy_observation"],"method":"internal","numeric":true,"not_nodata":true}}
+{"id":"buoy-geomun-temp","domain":"부이-관측","query":"거문도 부이 수온","asserts":{"tools_include":["get_buoy_observation"],"method":"internal","numeric":true,"not_nodata":true,"optional":true,"note":"거문도 부이는 간헐적으로 전 항목 결측(tw=null 등) → 피드 의존이라 SKIP 허용. 하드 부이 수치 커버리지는 buoy-oryuk-wave가 담당."}}
 {"id":"buoy-oryuk-wave","domain":"부이-관측","query":"오륙도 부이 파고","asserts":{"tools_include":["get_buoy_observation"],"method":"internal","numeric":true}}
 {"id":"buoy-list-jeju","domain":"부이-목록","query":"제주 북부 앞바다 부이 뭐 있어","asserts":{"tools_include":["list_buoys_near","get_buoys_with_obs"],"method":"internal"}}
 {"id":"current-jeju-n","domain":"유속","query":"제주도북부앞바다 유속","asserts":{"tools_include":["get_current"],"method":"internal","numeric":true,"not_nodata":true}}

@@ -24,6 +24,7 @@ BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:3001"
 HERE = os.path.dirname(os.path.abspath(__file__))
 GOLDEN = os.path.join(HERE, "phase0_golden.jsonl")
 ASSISTANT_JS = os.path.normpath(os.path.join(HERE, "..", "..", "routes", "assistant.js"))
+GRAPH_JSON = os.path.normpath(os.path.join(HERE, "..", "graph", "graph.json"))
 
 BAD = re.compile(r"없어요|없습니다|모르|못\s*(가져|불러|찾|들|알아)|준비\s*중|알 수 없|정보가? ?없|찾지 못")
 NUM = re.compile(r"\d")
@@ -78,6 +79,35 @@ def static_security_check():
         problems.append("admin 접두 도구 정의 발견")
     return problems
 
+def graph_integrity_check():
+    """지식그래프 무결성: graph.json 이 로드되고 런타임 연결의 전제(8직군·servedBy·관심사)가
+    유지되는지 확인. assistant.js 가 이 그래프를 직군 라우팅에 쓰므로 비면 개인화가 죽는다."""
+    try:
+        g = json.load(open(GRAPH_JSON, encoding="utf-8"))
+    except Exception as e:
+        return ["graph.json 읽기 실패: %s" % e]
+    problems = []
+    nodes, edges = g.get("nodes", []), g.get("edges", [])
+    jik = [n for n in nodes if n.get("type") == "Jikgun"]
+    if len(jik) != 8:
+        problems.append("Jikgun 노드 %d개(8 기대)" % len(jik))
+    served = [e for e in edges if e.get("rel") == "servedBy"]
+    if len(served) < 50:
+        problems.append("servedBy 엣지 %d개(부족)" % len(served))
+    # 각 직군이 관심사(Topic)를 최소 1개 갖는지
+    tj = set(n.get("jikgun") for n in nodes if n.get("type") == "Topic")
+    miss = [n["id"] for n in jik if n["id"] not in tj]
+    if miss:
+        problems.append("관심사 없는 직군: %s" % ",".join(miss))
+    # assistant.js 가 그래프를 실제 로드하는지(런타임 연결 회귀 방지)
+    try:
+        src = open(ASSISTANT_JS, encoding="utf-8").read()
+        if "graph.json" not in src or "GRAPH_RT" not in src:
+            problems.append("assistant.js 가 graph.json 을 로드하지 않음(런타임 미연결)")
+    except Exception as e:
+        problems.append("assistant.js 확인 실패: %s" % e)
+    return problems
+
 def main():
     cases = [json.loads(l) for l in open(GOLDEN, encoding="utf-8") if l.strip()]
     npass = nfail = nskip = 0
@@ -115,6 +145,12 @@ def main():
         hard_fail_ids.append("static-security")
     else:
         print("[PASS] 관리자 도구 미노출 확인")
+    gi = graph_integrity_check()
+    if gi:
+        for s in gi: print("[FAIL] graph:", s)
+        hard_fail_ids.append("graph-integrity")
+    else:
+        print("[PASS] 지식그래프 무결성·런타임 연결 확인")
     print("\n요약: PASS %d / FAIL %d / SKIP(환경의존) %d" % (npass, nfail, nskip))
     if hard_fail_ids:
         print("하드 실패:", ", ".join(hard_fail_ids)); sys.exit(1)

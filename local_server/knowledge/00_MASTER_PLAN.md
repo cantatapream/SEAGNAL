@@ -116,7 +116,7 @@
 - **진행 방식(안)**: 엔터티/관계 스키마 → 기존 식별자 정합(해역명↔regId↔해구↔ZONE_COORDS↔조석표준항) → 직군 지식(관심사·도구·GAP·용어) 흡수 → RAG 검색 그래프 확장 PoC.
 - **세부 단계**: [x] 스키마 설계 `phases/phase1_ontology_schema.md` [x] **직군→`graph/graph.json` 자동 빌더**(`graph/build_graph.js`: 978노드/1232엣지 — SeaZone43·Buoy118·TideStation165·DataParam12·Tool19·Jikgun8·Topic169·Term288·Gap92·Rule64; servedBy313·near176·triggersOn96 등) [x] 그래프 저장포맷 확정(graph.json) [ ] 식별자 정합표(해구↔해역 좌표 포함 — 격자좌표 데이터 필요) [ ] **P2 직군문서 태깅 소급 정비(되먹임)** [ ] RAG 확장 PoC(베이스라인 먼저)
 - **완료 기준(DoD)**: 핵심 엔터티/관계 정의(✅) + `graph.json` 생성(✅) + 식별자 정합(해구 보류) + 평가셋에서 **그래프 확장 적중률 베이스라인 대비 향상**(RAG 연결 단계).
-- **현재 상태**: 🚧 **스키마+그래프 빌드 완료.** 빌더 재실행으로 직군 파일 변경분 즉시 반영 가능. 다음: RAG 연결(Phase 2b 강화 — Term 동의어·servedBy 활용) / 해구↔해역 정합.
+- **현재 상태**: 🚧 **스키마+그래프 빌드 + 런타임 연결(1차) 완료.** `routes/assistant.js`가 `graph.json`을 단일 출처로 로드해 감지된 직군에 **"관심사→권장도구(servedBy)" 라우팅 힌트**를 플래너에 주입(예: 낚시객 모호질문→get_tide·get_fishing_index 우선). 게이트에 **그래프 무결성·런타임 연결 정적검사** 추가. 다음: Term 동의어 활용(흔한단어 오매칭 가드 필요) / 해구↔해역 정합.
 - **산출물**: → 참고 `phases/phase1_ontology_schema.md`
 
 ---
@@ -175,6 +175,8 @@
 | 2026-05-29 | Phase 0 게이트 구축 / Phase 1 온톨로지 스키마 설계 / Phase 2b v1 구현 | 각 phases 산출물 |
 | 2026-05-29 | **머지 후 나리야 검증을 필수 절차로 채택** | §8 교차관심사 |
 | 2026-05-29 | **Phase 1 지식그래프 빌드**: graph/build_graph.js + graph.json(978노드/1232엣지) | 직군 파일·식별자에서 자동 추출 |
+| 2026-05-29 | **그래프 런타임 연결(1차)**: assistant.js가 graph.json 로드 → 직군 servedBy 라우팅 힌트 주입 + 게이트 무결성검사 | 게이트 30P/0F/1SKIP 유지 |
+| 2026-05-29 | **골든 buoy-geomun-temp → optional**: 거문도 부이 간헐 전결측(피드 의존) 위양성 방지 | 부이 수치 커버리지는 buoy-oryuk-wave |
 
 ## 6. 미결 질문 / 다음 액션 (owner·기한)
 
