@@ -796,6 +796,7 @@ const TOOL_CATALOG = `
 - get_current(zone 또는 lat,lon): 해역(또는 좌표)의 유향·유속(해류). 해역명만 줘도 됨.
 - get_depth(zone 또는 lat,lon): 해역(또는 좌표)의 수심. 해역명만 줘도 됨.
 - get_seafog_cctv(harbor): 항구 해무 CCTV 최신 영상(이미지 링크).
+- get_visibility(place): 지명/해역의 가장 가까운 시정계 관측소의 시정(가시거리, km). "시정/가시거리/얼마나 잘 보여" 류.
 - get_tide(place): 지명/해역의 오늘 고조·저조 시각과 조위(만조/간조/물때 질문은 이걸 쓰세요).
 [생활지수]
 - get_fishing_index(location): 바다낚시(갯바위/선상) 지수. ※ 스쿠버·다이빙·해루질은 대상 아님.
@@ -804,10 +805,11 @@ const TOOL_CATALOG = `
 [위치기반]
 - get_nearest_buoy(lat, lon): 좌표(사용자 GPS)에서 가장 가까운 기상부이의 위치 + 최신 관측값.
 [비교/집계]
-- get_zones_ranked(metric, order, threshold, top, scope): 파고(metric:"wave")/풍속("wind") 기준 정렬·필터.
-  order:"desc"(높은순,기본)|"asc", threshold:기준값 이상만, top:개수.
-  scope:"zone"(명명된 해역, 기본) | "haegu"(해구 번호 격자 — 결과에 해구 번호+경위도 포함).
-  사용자가 "해구"라고 하면 scope="haegu" 로(예: "풍속 가장 높은 해구"→scope:"haegu"), "해역/지역"이면 scope 생략.
+- get_zones_ranked(metric, order, threshold, top, scope): 정렬·필터(집계/비교 "제일·가장·줄세워·N 넘는").
+  metric: "wave"(파고)/"wind"(풍속) → 해역 또는 해구 / "temp"(수온)/"vis"(시정) → 관측지점(부이·시정계).
+  order:"desc"(높은순,기본)|"asc"(낮은순; 시정 "제일 나빠"는 기본 낮은순), threshold:기준값 이상만, top:개수.
+  scope:"zone"(명명 해역, 기본) | "haegu"(해구 번호 격자 — 결과에 해구 번호+경위도). wave/wind 에만 적용.
+  예: "풍속 가장 높은 해구"→metric:"wind",scope:"haegu"; "수온 높은 곳 줄세워"→metric:"temp"; "어디 시정 제일 나빠"→metric:"vis".
 [기타]
 - get_typhoon_status(): 현재 발효 중인 태풍 현황.
 - get_app_capabilities(): 이 앱(SEA:GNAL)이 제공하는 기능/정보의 종류와 형태. "이 앱 뭐 할 수 있어 / 어떤 정보 줘 / 무슨 기능 있어" 류 메타 질문에 사용.
@@ -902,10 +904,61 @@ function getBuoyObs(name) {
     return out;
 }
 
+/** 시정(가시거리) — 지명/해역의 가장 가까운 시정계 관측소 값. 이름 직접매칭 우선, 없으면 좌표 최근접. */
+function getVisibility(place, lat, lon) {
+    const list = (dataCache.marineVs && dataCache.marineVs.data) || [];
+    if (!Array.isArray(list) || !list.length) return { error: '시정 관측 데이터가 없습니다.' };
+    const valid = list.filter(s => s.vs != null && s.vs !== '' && Number(s.vs) >= 0 && s.lat != null && s.lon != null);
+    if (place) {
+        const nq = normalize(place);
+        const hit = nq && valid.find(s => { const kn = normalize(s.kor_nm || s.obs_nm || ''); return kn && (kn.includes(nq) || nq.includes(kn)); });
+        if (hit) return { 지점: hit.kor_nm || hit.obs_nm, 시정km: Number(hit.vs), 위도: hit.lat, 경도: hit.lon, 기준시각: hit.obs_tm };
+    }
+    const co = coordsFor(place, lat, lon);
+    if (!co) return { error: `'${place || ''}' 위치의 시정을 찾지 못했습니다.` };
+    let best = null, bd = Infinity;
+    for (const s of valid) { const d = haversineKm(co.lat, co.lon, s.lat, s.lon); if (d < bd) { bd = d; best = s; } }
+    return best ? { 지점: best.kor_nm || best.obs_nm, 시정km: Number(best.vs), 거리km: Math.round(bd), 위도: best.lat, 경도: best.lon, 기준시각: best.obs_tm }
+        : { error: '가까운 시정 관측소가 없습니다.' };
+}
+
 /** 파고/풍속 기준 정렬·필터 (집계/비교형 질문용).
  *  scope='zone'(기본): 명명된 해역(특보구역) 단기예보 기준.
  *  scope='haegu': 해구(번호 격자) 시계열 기준 — 해구 번호 + 경위도(zone_coords) 동봉. */
 function rankZones(metric, order, threshold, top, scope) {
+    // 관측 기반 랭킹: 수온(부이 tw)·시정(시정계 vs) — 해역/해구 예보가 아닌 지점 단위.
+    if (metric === 'temp' || metric === 'vis') {
+        const rows = [];
+        if (metric === 'vis') {
+            const list = (dataCache.marineVs && dataCache.marineVs.data) || [];
+            if (!Array.isArray(list) || !list.length) return { error: '시정 관측 데이터가 없습니다.' };
+            for (const s of list) {
+                const v = s.vs;
+                if (v == null || v === '' || Number(v) < 0 || s.lat == null) continue;
+                rows.push({ 지점: s.kor_nm || s.obs_nm || String(s.stn_id), 시정km: Number(v), 위도: s.lat, 경도: s.lon });
+            }
+            let a = (threshold != null) ? rows.filter(r => r.시정km >= Number(threshold)) : rows;
+            a.sort((x, y) => order === 'desc' ? y.시정km - x.시정km : x.시정km - y.시정km); // 기본 오름차순: 나쁜(낮은) 곳 먼저
+            return { metric: 'vis', count: a.length, items: a.slice(0, top || 5) };
+        }
+        const pools = [dataCache.marineBuoys, dataCache.marineWhBuoys, dataCache.marineLhBuoys];
+        const seen = {};
+        for (const pool of pools) {
+            const list = (pool && pool.data) || [];
+            if (!Array.isArray(list)) continue;
+            for (const b of list) {
+                const tw = (b.tw != null && b.tw !== -99 && b.tw !== '') ? b.tw : (b.wtem != null ? b.wtem : null);
+                const nm = b.kor_nm || b.obs_nm;
+                if (!nm || tw == null || b.lat == null) continue;
+                if (seen[nm]) continue; seen[nm] = 1;
+                rows.push({ 지점: nm, 수온C: Number(tw), 위도: b.lat, 경도: b.lon });
+            }
+        }
+        if (!rows.length) return { error: '수온 관측 데이터가 없습니다.' };
+        let a = (threshold != null) ? rows.filter(r => r.수온C >= Number(threshold)) : rows;
+        a.sort((x, y) => order === 'asc' ? x.수온C - y.수온C : y.수온C - x.수온C); // 기본 내림차순: 높은 곳 먼저
+        return { metric: 'temp', count: a.length, items: a.slice(0, top || 5) };
+    }
     const key = (metric === 'wind') ? 'wind' : 'wave';
     const lbl = key === 'wind' ? '풍속ms' : '파고m';
     if (scope === 'haegu') {
@@ -995,6 +1048,7 @@ const TOOL_EXEC = {
         return { zone: z, buoys: b.map(x => ({ name: x.name, distKm: Math.round(x.distKm), type: x.type })) };
     },
     get_buoy_observation: async ({ buoyName } = {}) => getBuoyObs(buoyName),
+    get_visibility: async ({ place, zone, lat, lon } = {}) => getVisibility(place || zone, lat, lon),
     get_buoys_with_obs: async ({ zone, lat, lon } = {}) => {
         let buoys = [];
         if (zone) { const z = resolveZoneName(zone); buoys = z ? findBuoysNearZone(z, 5, 120) : []; }
@@ -1164,6 +1218,7 @@ ${catalogLine}
   get_buoy_observation(지명) 또는 get_nearest_buoy 로 해상 관측을, 해역명이면 get_marine_forecast 를 쓰세요.
 - "조업 가능?" 같은 판단 질문은 관련 예보(해구/해역)·특보·필요시 부이를 함께 모으세요.
 - "어느/가장 ~한 해구"처럼 해구를 비교·랭킹하면 get_zones_ranked(scope:"haegu") 로 — 답에 해구 번호와 경위도가 나오게. "해역"으로 물으면 scope 생략.
+- 시정/가시거리는 get_visibility(지명) 로. 수온·시정을 "줄세워/제일 높은·낮은"으로 비교하면 get_zones_ranked(metric:"temp"/"vis").
 - 생활지수: 낚시→get_fishing_index, 서핑/물놀이→get_surfing_index, 갯벌/바다갈라짐→get_sea_split_index.
   스쿠버·다이빙처럼 전용 지수가 없는 활동은 위 지수에 억지로 맞추지 말고 steps 를 비워(웹검색 폴백) 두세요.
 - 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${memLine}${jikgunLine}${vocabLine}

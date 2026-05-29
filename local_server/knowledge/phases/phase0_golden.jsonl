@@ -12,7 +12,7 @@
 {"id":"depth-jeju","domain":"수심","query":"제주도북부앞바다 수심","asserts":{"numeric":true,"optional":true,"note":"로컬 수심 피드 없음 → 웹폴백 허용"}}
 {"id":"tide-mokpo","domain":"조석","query":"목포 간조 시간","asserts":{"tools_include":["get_tide"],"optional":true,"note":"TideBED 키 의존 — 일부 지점만 시각"}}
 {"id":"typhoon-now","domain":"태풍","query":"지금 태풍 있어","asserts":{"tools_include":["get_typhoon_status"],"optional":true,"note":"DMDW 키 없으면 '없음' 정상 — 환경의존"}}
-{"id":"surf-index","domain":"지수","query":"물놀이 안전한 해수욕장","asserts":{"tools_include":["get_surfing_index"],"method":"internal"}}
+{"id":"surf-index","domain":"지수","query":"물놀이 안전한 해수욕장","asserts":{"tools_include":["get_surfing_index"],"method":"internal","optional":true,"note":"서핑지수는 KHOA 06:30·18:30 크론 수집 + 공유키 경합으로 간헐 수집실패(surfing_index.json 부재) 가능 → 피드 의존이라 SKIP 허용"}}
 {"id":"scuba-route","domain":"지수","query":"스쿠버 오늘 어디","asserts":{"note":"스쿠버 전용지수 없음 — 바다갈라짐으로 오연결 금지","tools_exclude":["get_sea_split_index"]}}
 {"id":"rank-wave-high","domain":"집계/비교","query":"전국에서 파고 제일 높은 해역","asserts":{"tools_include":["get_zones_ranked"],"method":"internal","numeric":true,"not_nodata":true}}
 {"id":"rank-wind-thr","domain":"집계/비교","query":"풍속 8미터 넘는 해역","asserts":{"tools_include":["get_zones_ranked"],"method":"internal","numeric":true}}
@@ -31,3 +31,6 @@
 {"id":"noprofile-regress","domain":"회귀","query":"부산 앞바다 파고","asserts":{"tools_include":["get_marine_forecast"],"method":"internal","numeric":true,"not_nodata":true}}
 {"id":"rank-haegu-wind","domain":"집계/비교","query":"지금 풍속 가장 높은 해구 어디야","asserts":{"tools_include":["get_zones_ranked"],"method":"internal","numeric":true,"answer_matches":["해구"],"note":"해구 랭킹 → 답변에 '해구' 표기 + 해구 번호(숫자)"}}
 {"id":"followup-haegu-coord","domain":"맥락","query":"그 해구 경위도 알려줘","memory":["\"풍속 가장 높은 해구\" → 지금 풍속이 가장 센 곳은 31번 해구입니다. 위도 39.75 경도 128.75 부근이에요."],"asserts":{"tools_include":["get_zone_forecast"],"method":"internal","numeric":true,"note":"직전 턴 해구 번호(31)를 맥락에서 이어받아 get_zone_forecast로 좌표 응답 — 대화 연속성"}}
+{"id":"visibility-busan","domain":"관측-시정","query":"부산 앞바다 시정 어때?","asserts":{"tools_include":["get_visibility"],"method":"internal","numeric":true,"not_nodata":true,"note":"P2 시정계(marineVs) 노출 — 미노출 데이터 도구화","optional":true}}
+{"id":"rank-temp","domain":"집계/비교","query":"수온 가장 높은 데가 어디야?","asserts":{"tools_include":["get_zones_ranked"],"method":"internal","numeric":true,"note":"수온 랭킹(부이 tw)","optional":true}}
+{"id":"rank-vis-worst","domain":"집계/비교","query":"지금 어디가 시정이 제일 나빠?","asserts":{"tools_include":["get_zones_ranked"],"method":"internal","numeric":true,"note":"시정 랭킹(marineVs, 낮은순)","optional":true}}
