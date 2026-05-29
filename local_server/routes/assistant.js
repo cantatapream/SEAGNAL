@@ -156,6 +156,22 @@ try {
     console.warn('[Assistant] zone_coords 로드 실패 — 해구 좌표 없이 동작:', e.message);
 }
 
+// 데이터 카탈로그(단일 출처, knowledge/data_catalog.json) — "우리가 무엇을 수집하는지"를
+// 플래너에 주입해 변칙·교차 질문에서도 보유/미보유를 정확히 판단하게 한다. 부재 시 빈 문자열.
+let CATALOG_DIGEST = '';
+try {
+    const cat = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'knowledge', 'data_catalog.json'), 'utf8'));
+    const exposed = [...cat.datasets.filter(d => d.exposed), ...cat.ondemand].map(d => `${d.label}(${d.granularity})`);
+    const unexposed = cat.datasets.filter(d => !d.exposed && (d.params || []).length).map(d => d.label);
+    CATALOG_DIGEST =
+`[수집 데이터 인벤토리 — 이 목록 안에서만 답하세요]
+도구로 답 가능: ${exposed.join(' · ')}
+${unexposed.length ? '수집하지만 아직 전용 도구 없음: ' + unexposed.join(' · ') + ' (물으면 "수집은 하지만 아직 안내 기능이 없어요"라고 안내)\n' : ''}이 인벤토리에 없는 정보는 지어내지 말고 "그 정보는 없어요"라고 하세요.`;
+    console.log(`[Assistant] 데이터 카탈로그 로드: 데이터셋 ${cat.stats.datasets} · 노출 ${cat.stats.exposed} · 미노출 ${cat.stats.unexposed}`);
+} catch (e) {
+    console.warn('[Assistant] data_catalog 로드 실패 — 인벤토리 주입 없이 동작:', e.message);
+}
+
 // ============================================================================
 // 직군별 지식베이스 (Phase 2b 간이 RAG) — knowledge/jikgun/*.md 에서 다이제스트 추출.
 //  사용자 프로필의 직업/소속을 8개 직군 슬러그로 감지 → 해당 직군의 "핵심 관심사 +
@@ -1132,11 +1148,12 @@ async function planQuery(query, profile, location, memory) {
                 : jk.interests.slice(0, 10).join(', '))
           + (jk.vocab && jk.vocab.length ? `\n직군 용어(STT 보정 참고): ${jk.vocab.slice(0, 12).map(v => v[0] + '=' + v[1]).join('; ')}` : '')
         : '';
+    const catalogLine = CATALOG_DIGEST ? ('\n' + CATALOG_DIGEST + '\n') : '';
     const prompt =
 `사용자의 한국어 질문에 답하기 위해 어떤 데이터를 가져올지 계획하세요.
 사용 가능한 도구:
 ${TOOL_CATALOG}
-
+${catalogLine}
 규칙:
 - 답에 꼭 필요한 도구만 steps 에 넣으세요(불필요한 호출 금지).
 - 해역명/해구번호/지명/부이명을 args 에 정확히 넣으세요. 해구번호는 숫자 문자열(예: "325").

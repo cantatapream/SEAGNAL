@@ -179,6 +179,9 @@
 | 2026-05-29 | **골든 buoy-geomun-temp → optional**: 거문도 부이 간헐 전결측(피드 의존) 위양성 방지 | 부이 수치 커버리지는 buoy-oryuk-wave |
 | 2026-05-29 | **해구 랭킹·조회 + 대화 연속성**: get_zones_ranked scope="haegu"(해구 번호+경위도), get_zone_forecast 좌표 반환, zone_coords.json 적재, 플래너 지시어 확장, 클라 memory 항상저장(160자) | 게이트 33케이스 통과(rank-haegu-wind·followup-haegu-coord 신규) |
 | 2026-05-29 | **골든 context-warn 수정**: corrected(질의재작성=구현세부) 대신 결과(올바른 해역 해소)로 검증 | 맥락 해소 견고화 |
+| 2026-05-29 | **격리 에이전트 3종 병렬 검토**: 데이터인벤토리/AI지식격차/대화연속성 → P1~P4 수정계획 도출 | 근본원인=AI가 구조적 상태(인벤토리·focus) 미보유 |
+| 2026-05-29 | **P1 데이터 카탈로그(단일 출처)**: build_data_catalog.js→data_catalog.json(21데이터셋, 노출15/미노출6, 도구19). 플래너 인벤토리 주입 + 게이트 드리프트검사 | TOOL_CATALOG/APP_CAP/build_graph/cache_manager 4중분산 해소 시작 |
+| 2026-05-29 | **게이트 재시도 강화**: KHOA 유속 첫히트 지연 흡수 위해 백오프 2회(3s·6s) | current-* 위양성 제거 |
 
 ## 6. 미결 질문 / 다음 액션 (owner·기한)
 

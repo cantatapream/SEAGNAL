@@ -26,6 +26,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 GOLDEN = os.path.join(HERE, "phase0_golden.jsonl")
 ASSISTANT_JS = os.path.normpath(os.path.join(HERE, "..", "..", "routes", "assistant.js"))
 GRAPH_JSON = os.path.normpath(os.path.join(HERE, "..", "graph", "graph.json"))
+DATA_CATALOG = os.path.normpath(os.path.join(HERE, "..", "data_catalog.json"))
+CACHE_MANAGER = os.path.normpath(os.path.join(HERE, "..", "..", "services", "cache_manager.js"))
 
 BAD = re.compile(r"없어요|없습니다|모르|못\s*(가져|불러|찾|들|알아)|준비\s*중|알 수 없|정보가? ?없|찾지 못")
 NUM = re.compile(r"\d")
@@ -112,6 +114,39 @@ def graph_integrity_check():
         problems.append("assistant.js 확인 실패: %s" % e)
     return problems
 
+def data_catalog_check():
+    """데이터 카탈로그(단일 출처) 무결성·드리프트: cache_manager 의 모든 캐시키와
+    assistant.js TOOL_EXEC 의 모든 도구가 data_catalog.json 에 반영돼 있고, assistant.js 가
+    카탈로그를 로드하는지 확인. 새 데이터셋/도구가 카탈로그 없이 추가되면 실패시킨다."""
+    try:
+        cat = json.load(open(DATA_CATALOG, encoding="utf-8"))
+    except Exception as e:
+        return ["data_catalog.json 읽기 실패: %s" % e]
+    problems = []
+    try:
+        cm = open(CACHE_MANAGER, encoding="utf-8").read()
+        m = re.search(r"const files = \{(.+?)\n\s*\};", cm, re.S)
+        cache_keys = re.findall(r"(\w+):\s*'[^']+\.json'", m.group(1)) if m else []
+    except Exception as e:
+        return ["cache_manager.js 읽기 실패: %s" % e]
+    cat_keys = set(d.get("key") for d in cat.get("datasets", []))
+    miss = [k for k in cache_keys if k not in cat_keys]
+    if miss:
+        problems.append("카탈로그 누락 캐시키: %s" % ",".join(miss))
+    try:
+        src = open(ASSISTANT_JS, encoding="utf-8").read()
+        tm = re.search(r"const TOOL_EXEC = \{(.+?)\n\};", src, re.S)
+        tool_keys = re.findall(r"^\s{4}([a-z_]+):\s*async", tm.group(1), re.M) if tm else []
+    except Exception as e:
+        return ["assistant.js 읽기 실패: %s" % e]
+    cat_tools = set(t.get("name") for t in cat.get("tools", []))
+    misst = [t for t in tool_keys if t not in cat_tools]
+    if misst:
+        problems.append("카탈로그 누락 도구: %s" % ",".join(misst))
+    if "data_catalog.json" not in src:
+        problems.append("assistant.js 가 data_catalog.json 을 로드하지 않음")
+    return problems
+
 def main():
     cases = [json.loads(l) for l in open(GOLDEN, encoding="utf-8") if l.strip()]
     npass = nfail = nskip = 0
@@ -126,10 +161,14 @@ def main():
         fails = attempt(c, i)
         retried = False
         # 라이브 온디맨드 fetch(KHOA 유속 등)·콜드스타트 적재 지연을 흡수하기 위해
-        # 하드 케이스가 실패하면 2초 후 1회 재시도한다(일시 지연 위양성 방지).
+        # 하드 케이스가 실패하면 백오프(3s·6s)로 최대 2회 재시도한다(일시 지연 위양성 방지).
+        # KHOA 유속 첫 히트는 수~십수 초 걸려 짧은 1회 재시도로는 부족하다.
         if fails and not c["asserts"].get("optional"):
-            time.sleep(2); retried = True
-            fails = attempt(c, i)
+            for delay in (3, 6):
+                time.sleep(delay); retried = True
+                fails = attempt(c, i)
+                if not fails:
+                    break
         opt = c["asserts"].get("optional")
         if not fails:
             npass += 1; tag = "PASS" + ("*" if retried else "")
@@ -155,6 +194,12 @@ def main():
         hard_fail_ids.append("graph-integrity")
     else:
         print("[PASS] 지식그래프 무결성·런타임 연결 확인")
+    dc = data_catalog_check()
+    if dc:
+        for s in dc: print("[FAIL] catalog:", s)
+        hard_fail_ids.append("data-catalog")
+    else:
+        print("[PASS] 데이터 카탈로그 단일출처·드리프트 확인")
     print("\n요약: PASS %d / FAIL %d / SKIP(환경의존) %d" % (npass, nfail, nskip))
     if hard_fail_ids:
         print("하드 실패:", ", ".join(hard_fail_ids)); sys.exit(1)
