@@ -1175,7 +1175,28 @@ const TOOL_EXEC = {
 };
 
 /** 1단계: 질문 → 가져올 데이터 계획(JSON) */
-async function planQuery(query, profile, location, memory) {
+/** 직전 턴의 도구 결과에서 "주목 대상(focus)"을 구조화 추출 — 해역/해구/부이/좌표/랭킹.
+ *  자유텍스트 memory로는 유실되는 해구 번호·좌표를 구조로 보존해 후속 질문 연속성을 보장한다. */
+function deriveFocus(plan, results, zoneName) {
+    const focus = { zone: zoneName || (plan && plan.zone) || null, haegu: null, buoy: null, coords: null, rankedItems: null, lastTools: (results || []).map(r => r.tool) };
+    for (const r of (results || [])) {
+        const v = r && r.result;
+        if (!v || typeof v !== 'object' || v.error) continue;
+        if (v.zoneId) focus.haegu = String(v.zoneId);
+        if (focus.coords == null && v['위도'] != null && v['경도'] != null) focus.coords = { lat: v['위도'], lon: v['경도'] };
+        if (v.name && r.tool === 'get_buoy_observation') focus.buoy = v.name;
+        if (v.nearest && v.nearest.name) focus.buoy = v.nearest.name;
+        if (Array.isArray(v.items) && v.items.length) {
+            focus.rankedItems = v.items.slice(0, 5);
+            const top = v.items[0];
+            if (top['해구'] && !focus.haegu) focus.haegu = String(top['해구']);
+            if (focus.coords == null && top['위도'] != null && top['경도'] != null) focus.coords = { lat: top['위도'], lon: top['경도'] };
+        }
+    }
+    return (focus.zone || focus.haegu || focus.buoy || focus.coords || focus.rankedItems) ? focus : null;
+}
+
+async function planQuery(query, profile, location, memory, focus) {
     const locLine = (location && location.lat != null && location.lon != null)
         ? `\n사용자 현재 위치(GPS): 위도 ${location.lat}, 경도 ${location.lon}. "내 위치/가까운/근처" 류 질문엔 이 좌표를 좌표기반 도구(get_nearest_buoy/get_current/get_depth/get_tide)에 넣으세요.`
         : '';
@@ -1185,6 +1206,16 @@ async function planQuery(query, profile, location, memory) {
     const memLine = (Array.isArray(memory) && memory.length)
         ? `\n[최근 대화] ${memory.slice(-3).join(' / ')}\n질문이 "그럼/다른/얘/거기/그건/그게/저거/방금/그 해구/그 해역/인근/위에서/아까" 등으로 이전 맥락을 가리키면, 위 최근 대화에서 대상(해역명·해구 번호·지명·좌표)을 그대로 이어받아 args 에 넣으세요. 특히 직전 답변에 해구 번호가 있었고 "몇 해구/경위도/위도/경도"를 물으면, 그 해구 번호로 get_zone_forecast(zoneId) 를 호출해 좌표를 답하세요.`
         : '';
+    // [직전 확정 대상 — 구조화 연속성] 자유텍스트보다 우선. 지시어 후속을 결정론적으로 해소.
+    const focusLine = (focus && (focus.zone || focus.haegu || focus.buoy || focus.coords)) ?
+`\n[직전 확정 대상] ${[
+    focus.zone ? '해역=' + focus.zone : null,
+    focus.haegu ? '해구=' + focus.haegu + '번' : null,
+    focus.buoy ? '부이/지점=' + focus.buoy : null,
+    focus.coords ? ('좌표=' + focus.coords.lat + ',' + focus.coords.lon) : null,
+    (focus.rankedItems && focus.rankedItems.length) ? ('직전 랭킹 상위=' + focus.rankedItems.slice(0, 3).map(it => it['해구'] || it['지점'] || it.zone).filter(Boolean).join('/')) : null
+].filter(Boolean).join(' · ')}
+질문이 "그게/그 해구/그 해역/거기/방금/그건/위에서/그 중" 등으로 대상을 가리키면 위 [직전 확정 대상]을 그대로 args 에 쓰세요(해구 경위도·예보는 get_zone_forecast(zoneId=해구번호), 좌표기반은 lat/lon).` : '';
     // [음성인식 보정] 질문은 음성→텍스트라 오인식이 잦다. 우리 도메인 용어로 교정한다.
     const vocabLine =
 `\n[음성인식 보정 — 중요]
@@ -1221,7 +1252,7 @@ ${catalogLine}
 - 시정/가시거리는 get_visibility(지명) 로. 수온·시정을 "줄세워/제일 높은·낮은"으로 비교하면 get_zones_ranked(metric:"temp"/"vis").
 - 생활지수: 낚시→get_fishing_index, 서핑/물놀이→get_surfing_index, 갯벌/바다갈라짐→get_sea_split_index.
   스쿠버·다이빙처럼 전용 지수가 없는 활동은 위 지수에 억지로 맞추지 말고 steps 를 비워(웹검색 폴백) 두세요.
-- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${memLine}${jikgunLine}${vocabLine}
+- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}
 
 사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
 질문: "${query}"
@@ -1261,8 +1292,8 @@ async function webSearchAnswer(query) {
     } catch (e) { return null; }
 }
 
-async function runBrain(query, profile, memory, style, location) {
-    const plan = await planQuery(query, profile, location, memory);
+async function runBrain(query, profile, memory, style, location, focus) {
+    const plan = await planQuery(query, profile, location, memory, focus);
     if (!plan) return null;
     // 음성인식 보정 결과(있으면) — 종합/웹폴백/표시에 사용할 질문
     const cq = (plan.correctedQuery && typeof plan.correctedQuery === 'string' && plan.correctedQuery.trim())
@@ -1293,7 +1324,7 @@ async function runBrain(query, profile, memory, style, location) {
     if (!gotUseful) {
         const web = await webSearchAnswer(cq);
         if (web && web.answer) {
-            return { answer: web.answer, zone: plan.zone || null, toolsUsed: ['web_search'], webLinks: web.webLinks || [], corrected };
+            return { answer: web.answer, zone: plan.zone || null, toolsUsed: ['web_search'], webLinks: web.webLinks || [], corrected, focus: deriveFocus(plan, results, plan.zone) };
         }
     }
 
@@ -1314,7 +1345,7 @@ ${personal}
 수집결과(JSON): ${JSON.stringify(results)}`;
     const r = await gemini.callGemini({ model: BRAIN_MODEL, contents: synth, config: { temperature: 0.3 }, caller: 'Assistant-Synth' });
     if (!r.success || !r.text) return null;
-    return { answer: r.text.trim(), zone: plan.zone || null, toolsUsed: results.map(x => x.tool), corrected };
+    return { answer: r.text.trim(), zone: plan.zone || null, toolsUsed: results.map(x => x.tool), corrected, focus: deriveFocus(plan, results, plan.zone) };
 }
 
 router.post('/api/assistant/ask', async (req, res) => {
@@ -1340,6 +1371,8 @@ router.post('/api/assistant/ask', async (req, res) => {
     // 사용자 GPS 좌표(있을 때만) — "내 위치 가까운 부이" 류 질문에 사용
     const loc = (req.body && req.body.location && req.body.location.lat != null && req.body.location.lon != null)
         ? { lat: +req.body.location.lat, lon: +req.body.location.lon } : null;
+    // [구조화 연속성] 클라가 돌려보낸 직전 턴의 주목 대상(해역/해구/부이/좌표) — 후속 해소용
+    const focus = (req.body && req.body.focus && typeof req.body.focus === 'object') ? req.body.focus : null;
 
     if (!query) {
         return res.status(400).json({ ok: false, error: '질문(query)이 비어 있습니다.' });
@@ -1365,7 +1398,7 @@ router.post('/api/assistant/ask', async (req, res) => {
     //   실패하면 아래 결정론적 경로로 자동 폴백한다.
     if (aiAvailable) {
         try {
-            const brain = await runBrain(query, profile, memory, style, loc);
+            const brain = await runBrain(query, profile, memory, style, loc, focus);
             if (brain && brain.answer) {
                 // 앱 기능 바로가기 + 웹검색 출처 링크(있으면)를 함께
                 const links = buildLinks(query, null, brain.zone, profile, loc);
@@ -1380,7 +1413,7 @@ router.post('/api/assistant/ask', async (req, res) => {
                 return res.json({
                     ok: true, zone: brain.zone, intent: 'brain', answer: brain.answer,
                     data: { toolsUsed: brain.toolsUsed }, aiUsed: true, zoneFromProfile: false,
-                    links, tideSearch, corrected: brain.corrected || null
+                    links, tideSearch, corrected: brain.corrected || null, focus: brain.focus || null
                 });
             }
         } catch (e) { /* 두뇌 실패 → 결정론적 폴백으로 진행 */ }

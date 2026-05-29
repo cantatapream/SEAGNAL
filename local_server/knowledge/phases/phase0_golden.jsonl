@@ -34,3 +34,4 @@
 {"id":"visibility-busan","domain":"관측-시정","query":"부산 앞바다 시정 어때?","asserts":{"tools_include":["get_visibility"],"method":"internal","numeric":true,"not_nodata":true,"note":"P2 시정계(marineVs) 노출 — 미노출 데이터 도구화","optional":true}}
 {"id":"rank-temp","domain":"집계/비교","query":"수온 가장 높은 데가 어디야?","asserts":{"tools_include":["get_zones_ranked"],"method":"internal","numeric":true,"note":"수온 랭킹(부이 tw)","optional":true}}
 {"id":"rank-vis-worst","domain":"집계/비교","query":"지금 어디가 시정이 제일 나빠?","asserts":{"tools_include":["get_zones_ranked"],"method":"internal","numeric":true,"note":"시정 랭킹(marineVs, 낮은순)","optional":true}}
+{"id":"focus-haegu-coord","domain":"맥락","query":"그 해구 경위도 알려줘","focus":{"haegu":"31","coords":{"lat":39.75,"lon":128.75}},"asserts":{"tools_include":["get_zone_forecast"],"method":"internal","numeric":true,"note":"P3 구조화 focus(해구31)만으로 후속 해소 — 자유텍스트 memory 없이"}}

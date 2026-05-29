@@ -36,6 +36,7 @@ def call(case, i):
     body = {"query": case["query"]}
     if case.get("profile"): body["profile"] = case["profile"]
     if case.get("memory"):  body["memory"]  = case["memory"]
+    if case.get("focus"):   body["focus"]   = case["focus"]
     ip = "70.%d.%d.%d" % ((i//65536)%256, (i//256)%256, i%256)
     req = urllib.request.Request(BASE + "/api/assistant/ask",
         data=json.dumps(body).encode(),
