@@ -35,3 +35,4 @@
 {"id":"rank-temp","domain":"집계/비교","query":"수온 가장 높은 데가 어디야?","asserts":{"tools_include":["get_zones_ranked"],"method":"internal","numeric":true,"note":"수온 랭킹(부이 tw)","optional":true}}
 {"id":"rank-vis-worst","domain":"집계/비교","query":"지금 어디가 시정이 제일 나빠?","asserts":{"tools_include":["get_zones_ranked"],"method":"internal","numeric":true,"note":"시정 랭킹(marineVs, 낮은순)","optional":true}}
 {"id":"focus-haegu-coord","domain":"맥락","query":"그 해구 경위도 알려줘","focus":{"haegu":"31","coords":{"lat":39.75,"lon":128.75}},"asserts":{"tools_include":["get_zone_forecast"],"method":"internal","numeric":true,"note":"P3 구조화 focus(해구31)만으로 후속 해소 — 자유텍스트 memory 없이"}}
+{"id":"weave-rank-warning","domain":"위빙","query":"파고 가장 높은 해역에 특보 떴어?","asserts":{"tools_all":["get_zones_ranked","get_warning"],"method":"internal","note":"P4 의존 위빙: 파고 랭킹 1위 해역→그 해역 특보 조회(1회 재계획)"}}

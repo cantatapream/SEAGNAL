@@ -1190,6 +1190,7 @@ function deriveFocus(plan, results, zoneName) {
             focus.rankedItems = v.items.slice(0, 5);
             const top = v.items[0];
             if (top['해구'] && !focus.haegu) focus.haegu = String(top['해구']);
+            if (top.zone && !focus.zone) focus.zone = top.zone;          // 명명 해역 랭킹 1위
             if (focus.coords == null && top['위도'] != null && top['경도'] != null) focus.coords = { lat: top['위도'], lon: top['경도'] };
         }
     }
@@ -1292,6 +1293,19 @@ async function webSearchAnswer(query) {
     } catch (e) { return null; }
 }
 
+/** 의존 위빙 판단: "X 가장 ~한 곳의 Y(조석/유속/수심/특보/해무)" 처럼 1차 결과(focus)가 있어야
+ *  2차 도구를 부를 수 있는 질문인지. 좁게 트리거(일반 단일질문은 재계획 안 함). */
+function needsReplan(q, results, focus) {
+    if (!focus || (!focus.coords && !focus.haegu && !focus.zone)) return false;
+    const nq = normalize(q);
+    const sup = /(가장|제일|최고|최저|높은|낮은|센|약한|많은|적은|상위|랭킹|줄세|순위)/.test(nq);
+    const sec = /(조석|물때|만조|간조|유속|유향|해류|수심|특보|주의보|경보|해무|씨씨티비)/.test(nq);
+    if (!(sup && sec)) return false;
+    const done = new Set((results || []).map(r => r.tool));
+    const secTools = ['get_tide', 'get_current', 'get_depth', 'get_warning', 'get_seafog_cctv'];
+    return !secTools.some(t => done.has(t));   // 2차 도구가 이미 실행됐으면 불필요
+}
+
 async function runBrain(query, profile, memory, style, location, focus) {
     const plan = await planQuery(query, profile, location, memory, focus);
     if (!plan) return null;
@@ -1306,6 +1320,23 @@ async function runBrain(query, profile, memory, style, location, focus) {
         if (!exec) continue;
         try { results.push({ tool: step.tool, args: step.args || {}, result: await exec(step.args || {}) }); }
         catch (e) { results.push({ tool: step.tool, error: e.message }); }
+    }
+
+    // [의존 위빙 — 1회 재계획] "X 가장 ~한 곳의 Y" 처럼 1차 결과가 있어야 2차 도구 인자를
+    //   채울 수 있는 질문은, 1차 focus를 주입해 한 번 더 계획한다(이미 실행한 도구는 건너뜀).
+    const focus1 = deriveFocus(plan, results, plan.zone);
+    if (needsReplan(cq, results, focus1)) {
+        const plan2 = await planQuery(cq, profile, location, memory, focus1);
+        if (plan2 && Array.isArray(plan2.steps)) {
+            const done = new Set(results.map(r => r.tool));
+            for (const step of plan2.steps.slice(0, 3)) {
+                const exec = step && TOOL_EXEC[step.tool];
+                if (!exec || done.has(step.tool)) continue;   // 1차에서 한 도구 반복 금지
+                done.add(step.tool);
+                try { results.push({ tool: step.tool, args: step.args || {}, result: await exec(step.args || {}) }); }
+                catch (e) { results.push({ tool: step.tool, error: e.message }); }
+            }
+        }
     }
 
     // [웹검색 폴백] 내부 도구로 "실제 값"을 못 얻었으면(계획이 비었거나 결과가 전부

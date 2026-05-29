@@ -50,6 +50,8 @@ def check(case, resp):
     tu  = (resp.get("data", {}) or {}).get("toolsUsed") or []
     if "tools_include" in a and not (set(tu) & set(a["tools_include"])):
         fails.append("tools_include%s≠%s" % (a["tools_include"], tu))
+    if "tools_all" in a and not set(a["tools_all"]).issubset(set(tu)):
+        fails.append("tools_all%s⊄%s" % (a["tools_all"], tu))
     if "tools_exclude" in a and (set(tu) & set(a["tools_exclude"])):
         fails.append("tools_exclude hit %s" % (set(tu) & set(a["tools_exclude"])))
     if a.get("method") == "internal" and (not tu or tu == ["web_search"]):
