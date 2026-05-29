@@ -142,6 +142,84 @@ try {
     console.warn('[Assistant] seaZoneCoordinates 파싱 실패:', e.message);
 }
 
+// ============================================================================
+// 직군별 지식베이스 (Phase 2b 간이 RAG) — knowledge/jikgun/*.md 에서 다이제스트 추출.
+//  사용자 프로필의 직업/소속을 8개 직군 슬러그로 감지 → 해당 직군의 "핵심 관심사 +
+//  전문용어"를 플래너/합성 컨텍스트에 주입(직군 맞춤 답변·STT 보정). 임베딩은 추후 단계.
+//  파일 부재/파싱 실패해도 빈 맵으로 폴백 — 기동/응답 안전.
+// ============================================================================
+const JIKGUN_META = {
+    fishery:        { name: '어업종사자', kw: ['어선', '선장', '선원', '조업', '어업', '양식', '어민', '어업인', '선주', '연승', '자망', '통발'] },
+    angler:         { name: '기타(낚시객)', kw: ['낚시', '낚시객', '낚시꾼', '갯바위', '선상낚시', '루어', '원투', '출조', '조사', '에깅'] },
+    marine_leisure: { name: '레저스포츠 활동자', kw: ['서핑', '서퍼', '요트', '세일링', '카약', '카누', 'sup', '패들', '다이빙', '스쿠버', '프리다이빙', '제트스키', '수상레저', '레저', '보트', '윈드서핑', '카이트'] },
+    coast_guard:    { name: '해양경찰', kw: ['해양경찰', '해경', '수색구조', '구조대', '단속', '방제', '파출소', '경비함', '함정'] },
+    navy:           { name: '해군', kw: ['해군', '해상작전', '초계', '상륙', '구축함', '호위함', '잠수함', '군함'] },
+    mof:            { name: '해양수산부', kw: ['해양수산부', '해수부', '수산정책', '어업관리', '해양정책', '수산자원'] },
+    local_gov:      { name: '지방자치단체', kw: ['지자체', '시청', '군청', '구청', '도청', '지방자치', '방재', '연안관리', '재난'] },
+    public_org:     { name: '공공기관', kw: ['공사', '공단', '항만공사', '해양환경공단', '수산자원공단', '국립해양조사원', '교통안전공단', 'koem', 'fira', 'khoa', 'komsa', 'kiost', 'bpa', '연구원', '연구소', '공공기관'] }
+};
+
+const JIKGUN_KB = {};   // slug → { name, interests:[...], vocab:[[표준어,구어],...] }
+try {
+    const dir = path.join(__dirname, '..', 'knowledge', 'jikgun');
+    for (const slug of Object.keys(JIKGUN_META)) {
+        const fp = path.join(dir, slug + '.md');
+        if (!fs.existsSync(fp)) continue;
+        const interests = [], vocab = [];
+        let sec = '';
+        for (const ln of fs.readFileSync(fp, 'utf8').split('\n')) {
+            const h = ln.match(/^##\s+(.*)/);
+            if (h) { sec = h[1]; continue; }
+            if (/^핵심 관심사/.test(sec)) {
+                const b = ln.match(/\*\*([^*]+)\*\*/);
+                if (b && interests.length < 14) interests.push(b[1].trim());
+            } else if (/^전문용어/.test(sec) && /^\s*\|/.test(ln)) {
+                const a = ln.split('|').map(s => s.trim());
+                const cols = a.slice(1, a.length - 1);   // 양끝 빈칸 제거
+                const std = cols[0], syn = cols[1];
+                if (std && syn && !/표준어/.test(std) && !/^:?-+:?$/.test(std) && vocab.length < 18) {
+                    vocab.push([std, syn]);
+                }
+            }
+        }
+        JIKGUN_KB[slug] = { name: JIKGUN_META[slug].name, interests, vocab };
+    }
+    const tot = Object.values(JIKGUN_KB).reduce((a, k) => a + k.interests.length, 0);
+    console.log(`[Assistant] 직군 지식 ${Object.keys(JIKGUN_KB).length}종 로드됨 (관심사 ${tot}개)`);
+} catch (e) {
+    console.warn('[Assistant] 직군 지식 로드 실패 — 직군 개인화 없이 동작:', e.message);
+}
+
+/** 프로필(직업/소속/목적)에서 8개 직군 슬러그를 감지. 못 찾으면 null. */
+function detectJikgun(profile) {
+    if (!profile) return null;
+    let text = '';
+    if (typeof profile === 'object') {
+        text = [profile.occupation, profile.affiliation, profile['소속'], profile.purpose,
+                profile.vesselText, (profile.vessel && profile.vessel.text)]
+            .filter(Boolean).join(' ');
+        if (!text) text = JSON.stringify(profile);
+    } else text = String(profile);
+    text = text.toLowerCase();
+    let best = null, bestN = 0;
+    for (const slug of Object.keys(JIKGUN_META)) {
+        let n = 0;
+        for (const k of JIKGUN_META[slug].kw) if (text.includes(k.toLowerCase())) n++;
+        if (n > bestN) { bestN = n; best = slug; }
+    }
+    return bestN > 0 ? best : null;
+}
+
+/** 감지된 직군의 다이제스트(이름·핵심관심사·용어). 없으면 null. */
+function jikgunDigest(profile) {
+    const slug = detectJikgun(profile);
+    if (!slug) return null;
+    const kb = JIKGUN_KB[slug];
+    if (!kb || (!kb.interests.length && !kb.vocab.length)) return null;
+    return kb;
+}
+
+
 // Gemini 공용 클라이언트 (키 없으면 hasAnyKey()=false → 폴백 경로 사용)
 let gemini = null;
 try {
@@ -485,6 +563,9 @@ function buildPersonalContext(profile, memory, style) {
         const profileText = typeof profile === 'string' ? profile : JSON.stringify(profile);
         lines.push(`[사용자 프로필] ${profileText}`);
     }
+    // [직군 맞춤] 감지된 직군의 중시 주제를 답변 우선순위 힌트로(수치는 수집결과에서만).
+    const jk = jikgunDigest(profile);
+    if (jk) lines.push(`[사용자 직군] ${jk.name} — 중시 주제: ${jk.interests.slice(0, 8).join(', ')}. 답변 시 이 우선순위를 고려하되, 수치·사실은 반드시 수집결과에서만.`);
     // [성향 다이제스트] 휴대폰에 누적된 통계 — 자주 묻는 주제/해역·선호 형식·말투
     if (style && typeof style === 'object') {
         const topN = (counts, n) => (counts && typeof counts === 'object')
@@ -960,6 +1041,13 @@ async function planQuery(query, profile, location, memory) {
 - 해역명: ${ZONE_NAMES.join(', ')}
 - 부이/지명: 거문도, 오륙도, 마라도, 추자도, 울릉도, 서귀포, 신안, 가거도 등
 - 호출어: 나리야`;
+    // [직군 맞춤] 프로필 직군이 감지되면, 그 직군이 중시하는 주제(도구 선택 우선순위)와
+    //   직군 용어(STT 보정 참고)를 알려준다. 수치/사실은 여전히 도구 결과에서만.
+    const jk = jikgunDigest(profile);
+    const jikgunLine = jk
+        ? `\n[사용자 직군: ${jk.name}] 이 직군이 특히 중시하는 주제(질문이 모호하면 이 쪽을 우선 고려): ${jk.interests.slice(0, 10).join(', ')}.`
+          + (jk.vocab.length ? `\n직군 용어(STT 보정 참고): ${jk.vocab.slice(0, 12).map(v => v[0] + '=' + v[1]).join('; ')}` : '')
+        : '';
     const prompt =
 `사용자의 한국어 질문에 답하기 위해 어떤 데이터를 가져올지 계획하세요.
 사용 가능한 도구:
@@ -976,7 +1064,7 @@ ${TOOL_CATALOG}
 - "조업 가능?" 같은 판단 질문은 관련 예보(해구/해역)·특보·필요시 부이를 함께 모으세요.
 - 생활지수: 낚시→get_fishing_index, 서핑/물놀이→get_surfing_index, 갯벌/바다갈라짐→get_sea_split_index.
   스쿠버·다이빙처럼 전용 지수가 없는 활동은 위 지수에 억지로 맞추지 말고 steps 를 비워(웹검색 폴백) 두세요.
-- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${memLine}${vocabLine}
+- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${memLine}${jikgunLine}${vocabLine}
 
 사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
 질문: "${query}"
