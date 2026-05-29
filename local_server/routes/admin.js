@@ -114,6 +114,12 @@ const WORK_MODE_FILE = path.join(DATA_DIR, 'work_mode_config.json');
 const TEST_ALERTS_FILE = path.join(DATA_DIR, 'weather_alerts_test.json');
 // [관리자 기기 등록] 관리자 푸시 알림을 받을 기기 목록 (subscriptions.json과 완전 별도)
 const ADMIN_DEVICES_FILE = path.join(DATA_DIR, 'admin_devices.json');
+// [데모 시연] 미리 저장해 둔 데모 특보 슬롯 목록 (구역/종류/등급/시각/병기)
+const DEMO_SLOTS_FILE = path.join(DATA_DIR, 'demo_slots.json');
+// [데모 시연] 현재 "표출 중"인 데모 특보 목록 — 관리자 기기 클라이언트가 폴링해서 화면에 머지
+const DEMO_ACTIVE_FILE = path.join(DATA_DIR, 'demo_active.json');
+// [데모 시연] 테스트 모드 상태 — ON 이면 관리자 기기 화면을 빈 특보 상태로 전환
+const DEMO_TESTMODE_FILE = path.join(DATA_DIR, 'demo_testmode.json');
 // [검토 필요 통보문] "내용 없음" 통보문 등 자동 처리 불가 통보문 저장
 const REVIEW_NEEDED_FILE = path.join(DATA_DIR, 'review_needed.json');
 
@@ -1840,6 +1846,225 @@ router.get('/api/admin/weather-alerts-json', (req, res) => {
     } catch (e) {
         console.error('[Admin] weather-alerts-json 조회 실패:', e && e.message);
         res.status(500).json({ error: '조회 실패: ' + (e && e.message) });
+    }
+});
+
+// ============================================================================
+// [데모 시연] 데모 특보 슬롯 관리 + 표출/내리기
+// ============================================================================
+//
+// [목적] 시연 자리에서 실제 특보가 없을 때, 미리 저장해 둔 가짜 특보를
+//   "표출" 버튼으로 발동시켜 ① 관리자 기기에만 푸시 ② 관리자 기기 화면(인덱스
+//   카드 + 지도 폴리곤 + 안내문구)에만 표출되게 한다.
+//
+// [안전 설계] 실 장부(weather_alerts.json) 와 테스트 장부(weather_alerts_test.json)
+//   둘 다 절대 건드리지 않는다. 데모 데이터는 demo_slots.json(저장 목록) /
+//   demo_active.json(현재 표출 중) 두 파일로만 관리된다.
+//   표출은 demo_active.json 에 "누적 append" 되며, 관리자 기기 클라이언트만
+//   GET /api/admin/demo/active 를 폴링해 화면에 머지한다.
+//   일반 사용자 앱 시작 경로(/api/weather-alerts)는 전혀 영향받지 않는다.
+
+/** 데모 슬롯 목록 로드 (파일 없으면 빈 배열) */
+function _loadDemoSlots() {
+    try {
+        if (fs.existsSync(DEMO_SLOTS_FILE)) {
+            return JSON.parse(fs.readFileSync(DEMO_SLOTS_FILE, 'utf8')) || [];
+        }
+    } catch (e) {
+        console.error('[Demo] 슬롯 로드 실패:', e && e.message);
+    }
+    return [];
+}
+
+/** 현재 표출 중인 데모 특보 목록 로드 */
+function _loadDemoActive() {
+    try {
+        if (fs.existsSync(DEMO_ACTIVE_FILE)) {
+            return JSON.parse(fs.readFileSync(DEMO_ACTIVE_FILE, 'utf8')) || [];
+        }
+    } catch (e) {
+        console.error('[Demo] 활성 로드 실패:', e && e.message);
+    }
+    return [];
+}
+
+/** 테스트 모드 ON 여부 로드 */
+function _loadDemoTestMode() {
+    try {
+        if (fs.existsSync(DEMO_TESTMODE_FILE)) {
+            var d = JSON.parse(fs.readFileSync(DEMO_TESTMODE_FILE, 'utf8'));
+            return !!(d && d.enabled);
+        }
+    } catch (e) {
+        console.error('[Demo] 테스트모드 로드 실패:', e && e.message);
+    }
+    return false;
+}
+
+/** datetime-local 문자열("2026-05-29T14:30") → 기상청 형식("2026년 05월 29일 14시 30분") */
+function _toKmaTime(s) {
+    if (!s) return '';
+    const m = String(s).match(/(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
+    if (!m) return s;
+    return `${m[1]}년 ${m[2]}월 ${m[3]}일 ${m[4]}시 ${m[5]}분`;
+}
+
+/**
+ * 데모 슬롯 1건 → 푸시 메시지(title/body) 생성.
+ * 기존 push_helpers 의 형식을 모사 (발표/발효 구분).
+ */
+function _buildDemoPushText(slot) {
+    const typeName = `${slot.warnType || ''}${slot.level || ''}`;
+    const isPre = !!(slot.upcoming && slot.upcoming.enabled);
+    const icon = (slot.level === '경보') ? '🚨' : '🔔';
+    const verb = slot.command === '발효' ? '발효' : '발표';
+    const title = `${icon} ${typeName} ${verb} 알림`;
+    let body = `📍 ${slot.zoneName || ''}`;
+    if (slot.tmFc) body += `\n  발표 ${_shortTime(slot.tmFc)}`;
+    if (slot.tmEf) body += ` │ 발효 ${_shortTime(slot.tmEf)}`;
+    if (slot.tmEd) body += `\n  해제예정 ${_shortTime(slot.tmEd)}`;
+    if (isPre && slot.upcoming) {
+        body += `\n[다가오는] ${slot.upcoming.warnType || ''}${slot.upcoming.level || ''}`;
+        if (slot.upcoming.tmEf) body += ` 발효 ${_shortTime(slot.upcoming.tmEf)}`;
+    }
+    return { title, body };
+}
+
+/** "2026년 05월 29일 14시 30분" → "29일 14:30" (푸시 본문 축약용) */
+function _shortTime(s) {
+    if (!s) return '';
+    const m = String(s).match(/(\d{1,2})월\s*(\d{1,2})일\s*(\d{1,2})시\s*(\d{1,2})분/);
+    if (m) return `${m[2]}일 ${String(m[3]).padStart(2, '0')}:${m[4]}`;
+    return String(s);
+}
+
+// 데모 슬롯 목록 조회
+router.get('/api/admin/demo/slots', (req, res) => {
+    res.json({ slots: _loadDemoSlots(), active: _loadDemoActive(), testMode: _loadDemoTestMode() });
+});
+
+// 현재 표출 중인 데모 특보 + 테스트 모드 상태 조회 (관리자 기기 클라이언트 폴링용 — 가벼움)
+router.get('/api/admin/demo/active', (req, res) => {
+    res.json({ active: _loadDemoActive(), testMode: _loadDemoTestMode() });
+});
+
+// 테스트 모드 ON/OFF 토글 (body: { enabled: bool })
+router.post('/api/admin/demo/testmode', (req, res) => {
+    try {
+        const enabled = !!(req.body && req.body.enabled);
+        fs.writeFileSync(DEMO_TESTMODE_FILE, JSON.stringify({ enabled, updatedAt: new Date().toISOString() }, null, 2), 'utf8');
+        // OFF 로 끄면 표출 중이던 데모 특보도 함께 정리 (시연 종료 = 깨끗한 원복)
+        if (!enabled) {
+            fs.writeFileSync(DEMO_ACTIVE_FILE, JSON.stringify([], null, 2), 'utf8');
+        }
+        console.log(`[Demo] 테스트 모드 ${enabled ? 'ON' : 'OFF'}${!enabled ? ' (표출 목록 정리)' : ''}`);
+        res.json({ success: true, testMode: enabled, active: _loadDemoActive() });
+    } catch (e) {
+        console.error('[Demo] 테스트모드 토글 오류:', e && e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 데모 슬롯 추가/저장 (전체 목록을 통째로 받아 덮어씀 — 추가/수정/삭제 공용)
+router.post('/api/admin/demo/slots', (req, res) => {
+    try {
+        const { slots } = req.body || {};
+        if (!Array.isArray(slots)) {
+            return res.status(400).json({ error: 'slots 배열이 필요합니다.' });
+        }
+        // id 없는 슬롯에 id 부여
+        const normalized = slots.map(s => ({
+            id: s.id || `demo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            zoneName: s.zoneName || '',
+            warnType: s.warnType || '풍랑',
+            level: s.level || '주의보',
+            command: s.command || '발효',
+            tmFc: s.tmFc || '',
+            tmEf: s.tmEf || '',
+            tmEd: s.tmEd || '',
+            upcoming: s.upcoming && s.upcoming.enabled ? {
+                enabled: true,
+                zoneName: s.upcoming.zoneName || s.zoneName || '',
+                warnType: s.upcoming.warnType || s.warnType || '풍랑',
+                level: s.upcoming.level || '주의보',
+                tmFc: s.upcoming.tmFc || '',
+                tmEf: s.upcoming.tmEf || '',
+                tmEd: s.upcoming.tmEd || ''
+            } : { enabled: false }
+        }));
+        fs.writeFileSync(DEMO_SLOTS_FILE, JSON.stringify(normalized, null, 2), 'utf8');
+        console.log(`[Demo] 슬롯 저장: ${normalized.length}건`);
+        res.json({ success: true, slots: normalized });
+    } catch (e) {
+        console.error('[Demo] 슬롯 저장 오류:', e && e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 데모 특보 "표출" — demo_active.json 에 누적 + 관리자 기기에만 푸시
+router.post('/api/admin/demo/emit', async (req, res) => {
+    try {
+        const { slotId } = req.body || {};
+        const slots = _loadDemoSlots();
+        const slot = slots.find(s => s.id === slotId);
+        if (!slot) return res.status(404).json({ error: '해당 슬롯을 찾을 수 없습니다.' });
+
+        // 누적: 이미 같은 slotId 가 표출 중이면 갱신, 아니면 추가
+        let active = _loadDemoActive();
+        active = active.filter(a => a.id !== slot.id);
+        active.push({ ...slot, emittedAt: new Date().toISOString() });
+        fs.writeFileSync(DEMO_ACTIVE_FILE, JSON.stringify(active, null, 2), 'utf8');
+
+        // 관리자 기기에만 푸시 (sendAdminPush — admin_devices.json 대상)
+        let pushResult = null;
+        try {
+            const { title, body } = _buildDemoPushText(slot);
+            // 푸시 클릭 시 특보 탭으로 이동 + 안내 팝업 (기존 popup 흐름 재사용)
+            const params = new URLSearchParams({
+                tab: 'weather-alert-section',
+                popup: 'true',
+                alertType: `${slot.warnType || ''}${slot.level || ''}`,
+                status: slot.command === '발효' ? 'active' : 'publish',
+                zones: slot.zoneName || ''
+            });
+            const url = `/?${params.toString()}`;
+            pushResult = await sendAdminPush(title, body, { url, type: 'demo_alert' });
+        } catch (pushErr) {
+            console.error('[Demo] 푸시 발송 실패:', pushErr && pushErr.message);
+            pushResult = { sent: 0, failed: 0, error: pushErr && pushErr.message };
+        }
+
+        console.log(`[Demo] 표출: ${slot.zoneName} ${slot.warnType}${slot.level} (활성 ${active.length}건)`);
+        res.json({ success: true, active, pushResult });
+    } catch (e) {
+        console.error('[Demo] 표출 오류:', e && e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 데모 특보 "내리기" — 특정 slotId 1건만 표출 해제
+router.post('/api/admin/demo/retract', (req, res) => {
+    try {
+        const { slotId } = req.body || {};
+        let active = _loadDemoActive();
+        const before = active.length;
+        active = active.filter(a => a.id !== slotId);
+        fs.writeFileSync(DEMO_ACTIVE_FILE, JSON.stringify(active, null, 2), 'utf8');
+        console.log(`[Demo] 내리기: ${before - active.length}건 제거 (남은 ${active.length}건)`);
+        res.json({ success: true, active });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 데모 표출 전체 초기화 (시연 종료)
+router.post('/api/admin/demo/clear', (req, res) => {
+    try {
+        fs.writeFileSync(DEMO_ACTIVE_FILE, JSON.stringify([], null, 2), 'utf8');
+        console.log('[Demo] 표출 전체 초기화');
+        res.json({ success: true, active: [] });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 
