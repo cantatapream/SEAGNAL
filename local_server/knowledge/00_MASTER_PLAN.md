@@ -29,10 +29,10 @@
 
 | Phase | 목표 | 상태 | 핵심 산출물(경로) |
 |---|---|---|---|
-| **Phase 0** 🔁 | 토대 안정화 + **상시 회귀 게이트** | ✅ 1차 통과 / 🔁 상시 | `phases/phase0_diagnostics.md`, (예정)`phases/phase0_golden.jsonl` |
+| **Phase 0** 🔁 | 토대 안정화 + **상시 회귀 게이트** | ✅ 통과(게이트 구축) | `phases/phase0_diagnostics.md`, `phases/phase0_golden.jsonl`, `phases/phase0_runner.py` |
 | **Phase 2a** | 직군별 지식베이스(8종) | ✅ 완료(스키마 정합화 포함) | `jikgun/*.md`, `jikgun/_SCHEMA.md` |
 | **Phase 2b** | 간이 RAG 연결(직군 감지→MD 주입) | 🚧 v1 구현(룰베이스 주입) | `routes/assistant.js`(detectJikgun/jikgunDigest) |
-| **Phase 1** | 온톨로지 & 지식그래프 | ⏳ 예정 | (미생성) |
+| **Phase 1** | 온톨로지 & 지식그래프 | 🚧 스키마 설계 완료 | `phases/phase1_ontology_schema.md` |
 | **Phase 3** | 선제 제안(Proactive) | ⏳ 예정 | 입력=`jikgun/*.md` 선제규칙 섹션 |
 | **Phase 4** | 자율 성장(수집·검수·반영) | ⏳ 예정 | (미생성) |
 | **교차(X)** | 평가/회귀/비용/프라이버시/시크릿/신선도 | 🚧 정의 중 | §8, (예정)`phases/cross_cutting.md` |
@@ -76,11 +76,11 @@
   - [x] 2차 보강(동해중부 폴백, 지수 라우팅, 부이 필드 병합) — `b1a34aa`
   - [x] 조석 앱 버튼 보장 — `33e0b4c`
   - [x] DMDW 키 검증(태풍 장미 실데이터)
-  - [ ] **78문항을 골든셋 파일로 고정** → `phases/phase0_golden.jsonl` + 러너 메모 `phases/phase0_runner.md`
-  - [ ] **보안 격리 회귀 테스트 1개**(관리자 의도 질문 시 admin 도구 미호출) 추가
-- **완료 기준(DoD)**: 골든셋 오류 0건 + 핵심 도메인 수치응답 + 🔒 관리자 격리 테스트 통과. **각 후속 단계 DoD에 "P0 골든셋 무회귀" 포함.**
-- **현재 상태**: ✅ 1차 통과. 골든셋 파일화·보안 회귀는 미완(🔁 전환 작업).
-- **산출물**: → 참고 `phases/phase0_diagnostics.md`
+  - [x] **골든셋 파일화** → `phases/phase0_golden.jsonl`(31케이스, 값이 아닌 구조 불변식) + 러너 `phases/phase0_runner.py`/메모 `phases/phase0_runner.md`
+  - [x] **보안 격리 회귀**(정적검사: 도구의 `/api/admin` 호출·admin 도구 정의 탐지 + 관리자 의도 질의 누설 점검)
+- **완료 기준(DoD)**: 골든셋 하드실패 0건 + 핵심 도메인 수치응답 + 🔒 관리자 격리 통과. **각 후속 단계 DoD에 "P0 골든셋 무회귀" 포함.**
+- **현재 상태**: ✅ **게이트 구축·통과**(PASS 31/FAIL 0/SKIP 0 + 정적 보안검사 통과). P1~P4 변경 시 `python3 knowledge/phases/phase0_runner.py` 로 재검.
+- **산출물**: → 참고 `phases/phase0_diagnostics.md`, `phases/phase0_runner.md`
 - **리스크/제약**: 수심·해무CCTV·바다낚시지수는 로컬 데이터 부재→웹폴백(운영에선 내부응답). 운영 시크릿 필요(§8).
 
 ---
@@ -110,13 +110,14 @@
 
 ---
 
-### Phase 1 — 온톨로지 & 지식그래프  ⏳ 예정
+### Phase 1 — 온톨로지 & 지식그래프  🚧 스키마 설계 완료
 
 - **목표**: 도메인 개념(해역/해구/부이/특보/지수/조석/태풍/직군/관심사)과 관계를 정형화해 검색·추론 뼈대로.
 - **진행 방식(안)**: 엔터티/관계 스키마 → 기존 식별자 정합(해역명↔regId↔해구↔ZONE_COORDS↔조석표준항) → 직군 지식(관심사·도구·GAP·용어) 흡수 → RAG 검색 그래프 확장 PoC.
-- **세부 단계(초안)**: [ ] 스키마 `phases/phase1_ontology_schema.md` [ ] 식별자 정합 [ ] 직군 용어→동의어/상위어 그래프 [ ] 그래프 저장포맷 결정(.ttl/json) [ ] **P2 직군문서 태깅 소급 정비(되먹임)** [ ] 검색 적중률 PoC
-- **완료 기준(DoD)**: 핵심 엔터티/관계 정의 + 사전 정한 평가셋에서 **그래프 확장 적중률이 베이스라인 대비 +X%p**(베이스라인 먼저 측정).
-- **현재 상태**: ⏳ 미착수.
+- **세부 단계**: [x] 스키마 설계 `phases/phase1_ontology_schema.md`(엔터티 13·관계·DataParam 표준키·식별자 정합·직군 적재규칙·RAG 확장) [ ] 식별자 정합표(특히 해구↔해역 좌표 포함) [ ] 직군→`graph.json` 자동 빌더 [ ] 그래프 저장포맷 확정 [ ] **P2 직군문서 태깅 소급 정비(되먹임)** [ ] RAG 확장 PoC(베이스라인 먼저)
+- **완료 기준(DoD)**: 핵심 엔터티/관계 정의(✅) + 식별자 정합 + `graph.json` 생성 + 평가셋에서 **그래프 확장 적중률 베이스라인 대비 향상**.
+- **현재 상태**: 🚧 **스키마 설계 완료.** 다음: 식별자 정합표·graph.json 빌더(스키마 §8 결정 필요).
+- **산출물**: → 참고 `phases/phase1_ontology_schema.md`
 
 ---
 
@@ -145,7 +146,7 @@
 | 단계 | 산출물 | 경로 | 상태 |
 |---|---|---|---|
 | P0 | 진단 결과 | `phases/phase0_diagnostics.md` | ✅ |
-| P0 | 골든 회귀셋 + 러너 | `phases/phase0_golden.jsonl`, `phases/phase0_runner.md` | ⏳ |
+| P0 | 골든 회귀셋 + 러너 | `phases/phase0_golden.jsonl`, `phases/phase0_runner.py`, `phases/phase0_runner.md` | ✅ |
 | X | 검토 리포트 | `phases/plan_review.md` | ✅ |
 | X | 이미 구현된 기능 인벤토리 | `phases/implemented_inventory.md` | ⏳ |
 | X | 교차 관심사·운영정책 | `phases/cross_cutting.md` | ⏳(요지는 §8) |
@@ -154,7 +155,7 @@
 | P2a | 직군 공통 스키마 | `jikgun/_SCHEMA.md` | ⏳ |
 | P2a | 통합 STT 용어사전 | `jikgun/_glossary_stt.md` | ⏳ |
 | P2a | GAP→로드맵 | `phases/gap_roadmap.md` | ⏳ |
-| P1 | 온톨로지 스키마 | `phases/phase1_ontology_schema.md` | ⏳ |
+| P1 | 온톨로지 스키마 | `phases/phase1_ontology_schema.md` | ✅(설계) |
 | P3 | 선제 규칙(기계가독) | `phases/phase3_proactive_rules.md` | ⏳ |
 | P4 | 수집·검수 파이프라인 | `phases/phase4_pipeline.md` | ⏳ |
 
@@ -170,6 +171,8 @@
 | 2026-05-29 | 독립 검토 반영(v2): 인벤토리·불변식·회귀게이트·2a/2b분리·교차관심사 추가 | `phases/plan_review.md` 72/100 |
 | 2026-05-29 | **산출물 저장 방식: "리포 정본"** 채택(읽기는 배포본=볼륨과 동일 속도, 리포가 검토·이력·배포통로). 자율성장(P4) 때 볼륨 런타임 작업본 추가 | §9 참고 |
 | 2026-05-29 | `knowledge/` 커밋 진행(휘발 위험 해소) | 저장방식 합의 완료 |
+| 2026-05-29 | Phase 0 게이트 구축 / Phase 1 온톨로지 스키마 설계 / Phase 2b v1 구현 | 각 phases 산출물 |
+| 2026-05-29 | **머지 후 나리야 검증을 필수 절차로 채택** | §8 교차관심사 |
 
 ## 6. 미결 질문 / 다음 액션 (owner·기한)
 
@@ -200,7 +203,8 @@
 
 > 검토 지적: 평가·회귀·비용·프라이버시·시크릿·신선도가 단계로도 섹션으로도 없었음. 요지를 여기 고정하고, 상세는 → 예정 `phases/cross_cutting.md`.
 
-- **평가·회귀**: P0 78문항을 골든셋으로 고정, 모든 단계 DoD에 "P0 무회귀". 직군/선제 단계는 전용 평가셋 + 베이스라인 먼저.
+- **평가·회귀**: P0 골든셋 고정, 모든 단계 DoD에 "P0 무회귀". 직군/선제 단계는 전용 평가셋 + 베이스라인 먼저.
+- **🔁 머지 후 검증(필수 절차)**: 어느 정도 진행해 **머지(커밋·푸시/PR)** 할 때마다, 그 단계에서 **새로 구현·기획한 의도가 나리야 응답에 실제로 반영됐는지**를 나리야를 직접 호출해 확인한다. 최소 `phase0_runner.py`(골든 게이트, 직군 개인화·보안 포함) 통과 + 해당 단계 고유 동작 스팟체크. 통과 못 하면 머지 미완으로 본다.
 - **비용/지연(SLO)**: planQuery+합성+style-digest+(향후)RAG 토큰 누적. 단계별 토큰/지연 상한을 측정·기록(P2b부터 적용).
 - **프라이버시/거버넌스**: 프로필·대화·style는 휴대폰 로컬 원칙. 서버 `assistant_log.js`는 비식별·보존기간 한정(정의 필요). 외부 전송 동의 범위 명시.
 - **운영 시크릿 체크리스트**: 배포 전 `KMA_DMDW_USER_ID/PWD`(태풍), TideBED 키(조석 전지점), Gemini 키 점검. 테스트키 폐기.
