@@ -14,10 +14,15 @@
  *
  * [표출 누적] A 표출 → B 표출 = A+B 동시 표출 (서버에서 누적, 클라가 머지)
  *
+ * [테스트 모드] 상단 토글로 ON/OFF. ON 이면 관리자 등록 기기 화면이 "빈 특보"
+ *   상태로 전환되고(실제 특보 숨김) 데모 등록/표출 UI 가 활성화된다. OFF 면 등록
+ *   UI 비활성(저장 슬롯은 보존) + 실제 특보 복원. 일반 사용자에는 영향 없음.
+ *
  * [연계]
- * - 서버: /api/admin/demo/slots (GET/POST), /demo/emit, /demo/retract, /demo/clear
- * - 화면 표출은 js/demo_alert.js 가 관리자 기기에서 폴링·머지로 담당
- * - admin.js 의 특보 알림 상위탭에서 renderDemoAlertTab(container) 로 진입
+ * - 서버: /api/admin/demo/slots (GET/POST), /demo/emit, /demo/retract, /demo/clear,
+ *         /demo/testmode (POST)
+ * - 화면 표출/빈화면은 js/demo_alert.js 가 관리자 기기에서 폴링·머지로 담당
+ * - admin.js 의 통합관리자센터 메인탭 "시연" 에서 renderDemoAlertTab(container) 로 진입
  * ============================================================================
  */
 (function () {
@@ -28,6 +33,7 @@
 
     var _slots = [];     // 저장된 데모 슬롯
     var _active = [];    // 현재 표출 중인 슬롯 (id 목록 비교용)
+    var _testMode = false; // 테스트 모드 ON 여부 (서버 상태)
 
     /** 전체 구역 목록 (config.js SUB_REGION_ZONES 평탄화) */
     function _allZones() {
@@ -65,13 +71,36 @@
     // ── 서버 통신 ──────────────────────────────────────────────
     function _fetchSlots() {
         return fetch('/api/admin/demo/slots', { cache: 'no-cache' })
-            .then(function (r) { return r.ok ? r.json() : { slots: [], active: [] }; })
+            .then(function (r) { return r.ok ? r.json() : { slots: [], active: [], testMode: false }; })
             .then(function (data) {
                 _slots = data.slots || [];
                 _active = data.active || [];
+                _testMode = !!data.testMode;
                 return data;
             });
     }
+
+    /** 테스트 모드 ON/OFF 토글 */
+    window.demoToggleTestMode = function (enabled) {
+        // 즉시 UI 반영(낙관적) 후 서버 반영
+        _testMode = !!enabled;
+        var c = document.getElementById('unified-admin-body');
+        if (c) _renderList(c);
+        fetch('/api/admin/demo/testmode', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: !!enabled })
+        }).then(function (r) { return r.json(); }).then(function (resp) {
+            _testMode = !!(resp && resp.testMode);
+            _active = (resp && resp.active) || _active;
+            if (c) _renderList(c);
+            // 시연 기기 본인 화면도 즉시 갱신
+            if (typeof reapplyDemoAlerts === 'function') setTimeout(reapplyDemoAlerts, 200);
+        }).catch(function (e) {
+            alert('테스트 모드 전환 실패: ' + e.message);
+            _testMode = !enabled;
+            if (c) _renderList(c);
+        });
+    };
 
     function _saveSlots() {
         return fetch('/api/admin/demo/slots', {
@@ -89,17 +118,47 @@
 
     function _renderList(container) {
         var activeCount = _active.length;
+        var on = _testMode;
+
+        // ── 테스트 모드 토글 (상단 고정) ──
         var html = ''
-            + '<div class="admin-section-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">'
-            + '  <div><i class="fa-solid fa-flask" style="color:#a855f7;"></i> 데모 특보 (시연용)</div>'
+            + '<div class="admin-section-title"><i class="fa-solid fa-flask" style="color:#a855f7;"></i> 시연 (테스트 모드)</div>'
+            + '<div style="border:1px solid ' + (on ? 'rgba(168,85,247,0.6)' : 'rgba(255,255,255,0.1)') + ';border-radius:12px;padding:16px;margin-bottom:16px;background:' + (on ? 'rgba(168,85,247,0.1)' : 'rgba(255,255,255,0.02)') + ';">'
+            + '  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">'
+            + '    <div style="flex:1;min-width:220px;">'
+            + '      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
+            + '        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + (on ? '#a855f7' : '#475569') + (on ? ';box-shadow:0 0 8px #a855f7' : '') + ';"></span>'
+            + '        <span style="color:#fff;font-weight:700;font-size:1rem;">테스트 모드 ' + (on ? 'ON' : 'OFF') + '</span>'
+            + '      </div>'
+            + '      <div style="color:#94a3b8;font-size:0.76rem;line-height:1.5;">'
+            + (on
+                ? '        켜짐 — <b style="color:#d8b4fe;">이 관리자 기기 화면</b>의 실제 특보가 모두 사라지고, 아래에서 표출한 데모 특보만 인덱스·지도에 표시됩니다.'
+                : '        꺼짐 — 실제 특보가 정상 표출됩니다. 데모 등록/표출을 하려면 테스트 모드를 켜세요.')
+            + '        <br><span style="color:#64748b;">※ 관리자 기기로 등록되지 않은 일반 사용자에게는 어떤 경우에도 영향이 없습니다.</span>'
+            + '      </div>'
+            + '    </div>'
+            + '    <label style="display:flex;align-items:center;cursor:pointer;flex-shrink:0;">'
+            + '      <input type="checkbox" ' + (on ? 'checked' : '') + ' onchange="demoToggleTestMode(this.checked)" style="width:0;height:0;opacity:0;position:absolute;">'
+            + '      <span style="display:inline-flex;align-items:center;width:58px;height:30px;border-radius:15px;background:' + (on ? '#a855f7' : '#475569') + ';transition:all 0.2s;padding:3px;box-sizing:border-box;">'
+            + '        <span style="width:24px;height:24px;border-radius:50%;background:#fff;transition:all 0.2s;transform:translateX(' + (on ? '28px' : '0') + ');"></span>'
+            + '      </span>'
+            + '    </label>'
+            + '  </div>'
+            + '</div>';
+
+        // ── 데모 특보 등록/리스트 (테스트 모드 OFF 시 비활성) ──
+        var disabledWrap = on ? '' : 'opacity:0.45;pointer-events:none;filter:grayscale(0.4);';
+        html += '<div style="' + disabledWrap + '">'
+            + '<div class="admin-section-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;font-size:0.92rem;">'
+            + '  <div><i class="fa-solid fa-list" style="color:#a855f7;"></i> 데모 특보 목록</div>'
             + '  <div style="display:flex;gap:8px;">'
             + '    <button onclick="openDemoAddModal()" style="padding:7px 14px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.82rem;"><i class="fa-solid fa-plus"></i> 데모 특보 추가</button>'
             + (activeCount > 0 ? '    <button onclick="demoClearAll()" style="padding:7px 14px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:8px;color:#fca5a5;cursor:pointer;font-weight:600;font-size:0.82rem;"><i class="fa-solid fa-eraser"></i> 전체 내리기 (' + activeCount + ')</button>' : '')
             + '  </div>'
             + '</div>'
             + '<div style="margin-bottom:10px;color:#94a3b8;font-size:0.78rem;line-height:1.5;">'
-            + '  <i class="fa-solid fa-circle-info"></i> 미리 저장해 두고, 시연 때 원하는 특보의 <b style="color:#c4b5fd;">표출</b> 버튼을 누르면 '
-            + '  <b>이 관리자 기기에만</b> 푸시 알림이 오고, 인덱스/지도/안내문구에 표출됩니다. (실 특보 장부·일반 사용자에는 영향 없음)'
+            + '  <i class="fa-solid fa-circle-info"></i> 미리 저장해 두고, 원하는 특보의 <b style="color:#c4b5fd;">표출</b> 버튼을 누르면 '
+            + '  이 관리자 기기에 푸시 알림이 오고 인덱스/지도/안내문구에 표출됩니다. 여러 개를 누르면 누적 표출됩니다.'
             + '</div>';
 
         if (_slots.length === 0) {
@@ -111,6 +170,7 @@
             });
             html += '</div>';
         }
+        html += '</div>';
 
         container.innerHTML = html;
     }
@@ -257,7 +317,7 @@
             if (resp && resp.slots) _slots = resp.slots;
             var modal = document.getElementById('demo-add-modal');
             if (modal) modal.remove();
-            var c = document.getElementById('alert-top-content');
+            var c = document.getElementById('unified-admin-body');
             if (c) _renderList(c);
         }).catch(function (e) { alert('저장 실패: ' + e.message); });
     };
@@ -274,7 +334,7 @@
             if (resp && resp.slots) _slots = resp.slots;
             return _fetchSlots();
         }).then(function () {
-            var c = document.getElementById('alert-top-content');
+            var c = document.getElementById('unified-admin-body');
             if (c) _renderList(c);
         });
     };
@@ -282,7 +342,7 @@
     // ── 표출 / 내리기 ──────────────────────────────────────────
     window.demoEmit = function (slotId) {
         var btnReload = function () {
-            var c = document.getElementById('alert-top-content');
+            var c = document.getElementById('unified-admin-body');
             if (c) _renderList(c);
         };
         fetch('/api/admin/demo/emit', {
@@ -308,7 +368,7 @@
             body: JSON.stringify({ slotId: slotId })
         }).then(function (r) { return r.json(); }).then(function (resp) {
             if (resp && resp.active) _active = resp.active;
-            var c = document.getElementById('alert-top-content');
+            var c = document.getElementById('unified-admin-body');
             if (c) _renderList(c);
             if (typeof reapplyDemoAlerts === 'function') setTimeout(reapplyDemoAlerts, 200);
         }).catch(function (e) { alert('내리기 실패: ' + e.message); });
@@ -319,7 +379,7 @@
         fetch('/api/admin/demo/clear', { method: 'POST' })
             .then(function (r) { return r.json(); }).then(function (resp) {
                 _active = (resp && resp.active) || [];
-                var c = document.getElementById('alert-top-content');
+                var c = document.getElementById('unified-admin-body');
                 if (c) _renderList(c);
                 if (typeof reapplyDemoAlerts === 'function') setTimeout(reapplyDemoAlerts, 200);
             });

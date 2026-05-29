@@ -528,7 +528,8 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         { id: 'maintenance', name: '점검', icon: 'fa-wrench' },
         { id: 'version', name: '버전 관리', icon: 'fa-code-branch' },
         { id: 'storage', name: '외부 저장소', icon: 'fa-cloud' },
-        { id: 'ai', name: 'AI', icon: 'fa-robot' }
+        { id: 'ai', name: 'AI', icon: 'fa-robot' },
+        { id: 'demo', name: '시연', icon: 'fa-flask' }
     ];
 
     const modal = document.createElement('div');
@@ -649,6 +650,9 @@ window.switchUnifiedAdminTab = function (tabId) {
             renderUnifiedStorageContent(body);
         } else if (tabId === 'ai') {
             renderUnifiedAiTab(body);
+        } else if (tabId === 'demo') {
+            if (typeof renderDemoAlertTab === 'function') renderDemoAlertTab(body);
+            else body.innerHTML = '<div style="padding:20px;color:#fca5a5;">시연 모듈(admin_demo.js)이 로드되지 않았습니다.</div>';
         }
     }, 100);
 };
@@ -3444,8 +3448,7 @@ async function renderUnifiedAlertContent(container) {
         { id: 'alert-manage', name: '실시간 특보 알림 관리', icon: 'fa-tower-broadcast' },
         { id: 'ledger-view',  name: '장부',                   icon: 'fa-book' },
         { id: 'error-log',    name: '오류 로그',              icon: 'fa-triangle-exclamation' },
-        { id: 'manual-edit',  name: '특보 수정',              icon: 'fa-pen-to-square' },
-        { id: 'demo',         name: '데모 특보',              icon: 'fa-flask' }
+        { id: 'manual-edit',  name: '특보 수정',              icon: 'fa-pen-to-square' }
     ];
 
     container.innerHTML = `
@@ -3484,9 +3487,6 @@ async function renderUnifiedAlertContent(container) {
             renderErrorLogTab(topContent);
         } else if (topTabId === 'manual-edit') {
             renderManualInputTab(topContent);
-        } else if (topTabId === 'demo') {
-            if (typeof renderDemoAlertTab === 'function') renderDemoAlertTab(topContent);
-            else topContent.innerHTML = '<div style="padding:20px;color:#fca5a5;">데모 모듈(admin_demo.js)이 로드되지 않았습니다.</div>';
         }
     };
 

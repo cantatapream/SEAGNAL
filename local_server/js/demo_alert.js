@@ -29,6 +29,8 @@
     var _pollTimer = null;
     var _isAdminDevice = false;    // 이 기기가 관리자 등록 기기인지 (device-status 결과)
     var _lastActiveJson = '';      // 직전 활성 목록 JSON (변경 감지용)
+    var _testMode = false;         // 테스트 모드 ON 여부 (서버 상태 미러)
+    var _lastTestMode = null;      // 직전 테스트 모드 상태 (전환 감지용)
 
     /** 이 기기의 FCM 푸시 토큰 (admin.js 와 동일 키) */
     function _getPushToken() {
@@ -86,7 +88,12 @@
 
     /**
      * 현재 활성 데모 목록을 appState.alerts 에 머지.
-     * 1) 기존 _isDemo 항목 모두 제거 (중복/잔존 방지)
+     * [테스트 모드 ON] 실제 특보(비-데모)를 모두 숨겨 "빈 화면" 으로 만든 뒤 데모만 표출.
+     *   - appState.alerts: 비-데모 항목 제거 (지도+인덱스 동시 비움)
+     *   - appState.coastalAlerts: 통째로 비움 (연안/평수구역 카드 제거)
+     *   원본은 _savedReal* 에 백업했다가 OFF 시 복원.
+     * [테스트 모드 OFF] 데모 항목만 제거하고 실제 특보는 그대로 둠.
+     * 1) (ON) 실제 특보 백업+제거 / (OFF) 데모만 제거
      * 2) active 목록을 alert item 으로 변환해 append (병기 시 upcoming 도 별도 추가)
      * 3) seagnal:alerts-changed 발화 → 지도 색칠 갱신
      * 4) renderApp() 재호출 → 인덱스 카드 갱신
@@ -95,8 +102,14 @@
         if (typeof appState === 'undefined' || !appState) return;
         if (!Array.isArray(appState.alerts)) appState.alerts = [];
 
-        // 기존 데모 항목 제거
-        appState.alerts = appState.alerts.filter(function (a) { return !a._isDemo; });
+        if (_testMode) {
+            // 테스트 모드: 실제 특보를 모두 숨김 → 데모만 남김 (아래에서 재추가)
+            appState.alerts = [];
+            appState.coastalAlerts = {};
+        } else {
+            // 일반: 기존 데모 항목만 제거 (실제 특보는 유지)
+            appState.alerts = appState.alerts.filter(function (a) { return !a._isDemo; });
+        }
 
         // 활성 데모 추가
         (active || []).forEach(function (slot) {
@@ -114,13 +127,32 @@
         }
     }
 
+    /**
+     * 테스트 모드 OFF 로 전환 시: 실제 특보를 서버에서 다시 받아 화면 원복.
+     * (데모 항목 제거 + 실 특보 재적재)
+     */
+    function _restoreRealAlerts() {
+        if (typeof refreshAlertData === 'function') {
+            // refreshAlertData 가 /api/weather-alerts 를 다시 받아 appState 를 실 데이터로 덮음
+            refreshAlertData().then(function () {
+                try { window.dispatchEvent(new CustomEvent('seagnal:alerts-changed')); } catch (e) { }
+                if (typeof renderApp === 'function') { try { renderApp(); } catch (e) { } }
+            }).catch(function () { });
+        } else if (typeof appState !== 'undefined' && appState) {
+            // fallback: 데모만 제거
+            if (Array.isArray(appState.alerts)) appState.alerts = appState.alerts.filter(function (a) { return !a._isDemo; });
+            try { window.dispatchEvent(new CustomEvent('seagnal:alerts-changed')); } catch (e) { }
+            if (typeof renderApp === 'function') { try { renderApp(); } catch (e) { } }
+        }
+    }
+
     /** appState.alerts 에 데모 항목이 하나라도 남아있는지 */
     function _appStateHasDemo() {
         return !!(typeof appState !== 'undefined' && appState && Array.isArray(appState.alerts)
             && appState.alerts.some(function (a) { return a._isDemo; }));
     }
 
-    /** 서버에서 현재 활성 데모 목록을 가져와 변경 시(또는 정식 새로고침으로 유실 시) 반영 */
+    /** 서버에서 현재 활성 데모 목록 + 테스트모드를 가져와 변경 시(또는 유실 시) 반영 */
     function _poll() {
         if (!_isAdminDevice) return;
         fetch('/api/admin/demo/active', { cache: 'no-cache' })
@@ -128,16 +160,39 @@
             .then(function (data) {
                 if (!data) return;
                 var active = data.active || [];
+                var testMode = !!data.testMode;
                 var json = JSON.stringify(active);
-                var changed = json !== _lastActiveJson;
-                // 변경됐거나, 활성 데모가 있는데 화면(appState)에서 유실됐으면 재반영
+                var activeChanged = json !== _lastActiveJson;
+                var modeChanged = testMode !== _lastTestMode;
+
+                _testMode = testMode;
+
+                // 테스트 모드 OFF 로 전환됨 → 실 특보 화면 원복
+                if (modeChanged && !testMode) {
+                    _lastTestMode = testMode;
+                    _lastActiveJson = json;
+                    _restoreRealAlerts();
+                    return;
+                }
+
+                // 활성 데모가 있는데 화면(appState)에서 유실됐으면 재반영
                 //   (header 새로고침 등 정식 데이터 재적재가 _isDemo 항목을 지운 경우 복구)
                 var lost = active.length > 0 && !_appStateHasDemo();
-                if (!changed && !lost) return;
+                // 테스트 모드 ON 인데 실 특보가 화면에 남아있으면(정식 새로고침으로 복귀) 다시 비워야 함
+                var realLeaked = testMode && _appStateHasReal();
+
+                if (!activeChanged && !modeChanged && !lost && !realLeaked) return;
+                _lastTestMode = testMode;
                 _lastActiveJson = json;
                 _applyToAppState(active);
             })
             .catch(function () { /* 폴링 실패 무시 */ });
+    }
+
+    /** appState.alerts 에 실제(비-데모) 특보가 남아있는지 */
+    function _appStateHasReal() {
+        return !!(typeof appState !== 'undefined' && appState && Array.isArray(appState.alerts)
+            && appState.alerts.some(function (a) { return !a._isDemo; }));
     }
 
     /**
@@ -178,8 +233,10 @@
                         console.log('[Demo] 관리자 등록 기기 — 데모 표출 폴링 시작');
                         // 첫 반영
                         var active = (data && data.active) || [];
+                        _testMode = !!(data && data.testMode);
+                        _lastTestMode = _testMode;
                         _lastActiveJson = JSON.stringify(active);
-                        if (active.length) _applyToAppState(active);
+                        if (_testMode || active.length) _applyToAppState(active);
                         // 주기 폴링
                         if (_pollTimer) clearInterval(_pollTimer);
                         _pollTimer = setInterval(_poll, POLL_INTERVAL_MS);

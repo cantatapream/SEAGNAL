@@ -118,6 +118,8 @@ const ADMIN_DEVICES_FILE = path.join(DATA_DIR, 'admin_devices.json');
 const DEMO_SLOTS_FILE = path.join(DATA_DIR, 'demo_slots.json');
 // [데모 시연] 현재 "표출 중"인 데모 특보 목록 — 관리자 기기 클라이언트가 폴링해서 화면에 머지
 const DEMO_ACTIVE_FILE = path.join(DATA_DIR, 'demo_active.json');
+// [데모 시연] 테스트 모드 상태 — ON 이면 관리자 기기 화면을 빈 특보 상태로 전환
+const DEMO_TESTMODE_FILE = path.join(DATA_DIR, 'demo_testmode.json');
 // [검토 필요 통보문] "내용 없음" 통보문 등 자동 처리 불가 통보문 저장
 const REVIEW_NEEDED_FILE = path.join(DATA_DIR, 'review_needed.json');
 
@@ -1886,6 +1888,19 @@ function _loadDemoActive() {
     return [];
 }
 
+/** 테스트 모드 ON 여부 로드 */
+function _loadDemoTestMode() {
+    try {
+        if (fs.existsSync(DEMO_TESTMODE_FILE)) {
+            var d = JSON.parse(fs.readFileSync(DEMO_TESTMODE_FILE, 'utf8'));
+            return !!(d && d.enabled);
+        }
+    } catch (e) {
+        console.error('[Demo] 테스트모드 로드 실패:', e && e.message);
+    }
+    return false;
+}
+
 /** datetime-local 문자열("2026-05-29T14:30") → 기상청 형식("2026년 05월 29일 14시 30분") */
 function _toKmaTime(s) {
     if (!s) return '';
@@ -1925,12 +1940,29 @@ function _shortTime(s) {
 
 // 데모 슬롯 목록 조회
 router.get('/api/admin/demo/slots', (req, res) => {
-    res.json({ slots: _loadDemoSlots(), active: _loadDemoActive() });
+    res.json({ slots: _loadDemoSlots(), active: _loadDemoActive(), testMode: _loadDemoTestMode() });
 });
 
-// 현재 표출 중인 데모 특보만 조회 (관리자 기기 클라이언트 폴링용 — 가벼움)
+// 현재 표출 중인 데모 특보 + 테스트 모드 상태 조회 (관리자 기기 클라이언트 폴링용 — 가벼움)
 router.get('/api/admin/demo/active', (req, res) => {
-    res.json({ active: _loadDemoActive() });
+    res.json({ active: _loadDemoActive(), testMode: _loadDemoTestMode() });
+});
+
+// 테스트 모드 ON/OFF 토글 (body: { enabled: bool })
+router.post('/api/admin/demo/testmode', (req, res) => {
+    try {
+        const enabled = !!(req.body && req.body.enabled);
+        fs.writeFileSync(DEMO_TESTMODE_FILE, JSON.stringify({ enabled, updatedAt: new Date().toISOString() }, null, 2), 'utf8');
+        // OFF 로 끄면 표출 중이던 데모 특보도 함께 정리 (시연 종료 = 깨끗한 원복)
+        if (!enabled) {
+            fs.writeFileSync(DEMO_ACTIVE_FILE, JSON.stringify([], null, 2), 'utf8');
+        }
+        console.log(`[Demo] 테스트 모드 ${enabled ? 'ON' : 'OFF'}${!enabled ? ' (표출 목록 정리)' : ''}`);
+        res.json({ success: true, testMode: enabled, active: _loadDemoActive() });
+    } catch (e) {
+        console.error('[Demo] 테스트모드 토글 오류:', e && e.message);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // 데모 슬롯 추가/저장 (전체 목록을 통째로 받아 덮어씀 — 추가/수정/삭제 공용)
