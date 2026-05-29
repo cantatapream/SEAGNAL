@@ -214,9 +214,48 @@ function detectJikgun(profile) {
 function jikgunDigest(profile) {
     const slug = detectJikgun(profile);
     if (!slug) return null;
+    // 지식그래프(런타임 단일 출처) 우선: 관심사+권장도구(servedBy). 없으면 MD 다이제스트로 폴백.
+    const g = GRAPH_RT.jikgun[slug];
+    if (g && g.topics.length) {
+        const kb = JIKGUN_KB[slug] || {};
+        return {
+            name: g.name,
+            interests: g.topics.map(t => t.label),
+            topicTools: g.topics.filter(t => t.tools.length).slice(0, 10)
+                .map(t => `${t.label}→${[...new Set(t.tools)].join('/')}`),
+            vocab: kb.vocab || []
+        };
+    }
     const kb = JIKGUN_KB[slug];
     if (!kb || (!kb.interests.length && !kb.vocab.length)) return null;
-    return kb;
+    return Object.assign({ topicTools: [] }, kb);
+}
+
+
+// ============================================================================
+// Phase 1→2b: 지식그래프 런타임 연결. knowledge/graph/graph.json 을 단일 출처로 읽어
+//  직군 "관심사→권장도구(servedBy)" 라우팅 힌트를 플래너에 공급한다(감지된 직군에 한함).
+//  그래프 부재/파싱 실패 시 MD 다이제스트(JIKGUN_KB)로 자동 폴백 — 기동/응답 안전.
+//  주: 전역 동의어 substring 주입은 흔한 단어("조금"=소조기 등) 오매칭 위험으로 도입하지 않음.
+// ============================================================================
+const GRAPH_RT = { jikgun: {} };   // slug → { name, topics:[{label,priority,tools:[...]}] }
+try {
+    const gp = path.join(__dirname, '..', 'knowledge', 'graph', 'graph.json');
+    const G = JSON.parse(fs.readFileSync(gp, 'utf8'));
+    const nodes = G.nodes || [], edges = G.edges || [];
+    const servedBy = {};   // topicId → [tool]
+    for (const e of edges) if (e.rel === 'servedBy') (servedBy[e.from] = servedBy[e.from] || []).push(e.to);
+    for (const n of nodes) if (n.type === 'Jikgun') GRAPH_RT.jikgun[n.id] = { name: n.name, topics: [] };
+    for (const n of nodes) {
+        if (n.type === 'Topic' && GRAPH_RT.jikgun[n.jikgun]) {
+            GRAPH_RT.jikgun[n.jikgun].topics.push({ label: n.label, priority: n.priority || 99, tools: servedBy[n.id] || [] });
+        }
+    }
+    for (const s of Object.keys(GRAPH_RT.jikgun)) GRAPH_RT.jikgun[s].topics.sort((a, b) => a.priority - b.priority);
+    const ttot = Object.values(GRAPH_RT.jikgun).reduce((a, j) => a + j.topics.length, 0);
+    console.log(`[Assistant] 지식그래프 로드: 직군 ${Object.keys(GRAPH_RT.jikgun).length}종 · 관심사노드 ${ttot}개`);
+} catch (e) {
+    console.warn('[Assistant] 지식그래프 로드 실패 — MD 다이제스트로 폴백:', e.message);
 }
 
 
@@ -1045,8 +1084,11 @@ async function planQuery(query, profile, location, memory) {
     //   직군 용어(STT 보정 참고)를 알려준다. 수치/사실은 여전히 도구 결과에서만.
     const jk = jikgunDigest(profile);
     const jikgunLine = jk
-        ? `\n[사용자 직군: ${jk.name}] 이 직군이 특히 중시하는 주제(질문이 모호하면 이 쪽을 우선 고려): ${jk.interests.slice(0, 10).join(', ')}.`
-          + (jk.vocab.length ? `\n직군 용어(STT 보정 참고): ${jk.vocab.slice(0, 12).map(v => v[0] + '=' + v[1]).join('; ')}` : '')
+        ? `\n[사용자 직군: ${jk.name}] 질문이 모호하면 이 직군의 우선 관심사를 우선 고려하고, 아래 "관심사→권장도구" 매핑대로 도구를 고르세요(수치·사실은 도구 결과에서만):\n`
+          + ((jk.topicTools && jk.topicTools.length)
+                ? jk.topicTools.join('; ')
+                : jk.interests.slice(0, 10).join(', '))
+          + (jk.vocab && jk.vocab.length ? `\n직군 용어(STT 보정 참고): ${jk.vocab.slice(0, 12).map(v => v[0] + '=' + v[1]).join('; ')}` : '')
         : '';
     const prompt =
 `사용자의 한국어 질문에 답하기 위해 어떤 데이터를 가져올지 계획하세요.
