@@ -167,10 +167,14 @@
   // ── 로컬 저장 (프로필 + 메모리 + 성향) — 휴대폰 내부에만 보관 ──────────────────
   var PROFILE_KEY = 'seagnal_profile', MEMORY_KEY = 'seagnal_memory', MEMORY_MAX = 20;
   var STYLE_KEY = 'seagnal_style', STYLE_REFRESH_EVERY = 8;
+  var FOCUS_KEY = 'seagnal_focus';   // 직전 턴의 구조화 주목 대상(해역/해구/부이/좌표) — 후속 연속성
 
   function getProfile() {
     try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch (e) { return null; }
   }
+  // 직전 턴 focus 보관/조회 — 자유텍스트 memory로 유실되는 해구번호·좌표를 구조로 이어준다.
+  function getFocus() { try { return JSON.parse(localStorage.getItem(FOCUS_KEY) || 'null'); } catch (e) { return null; } }
+  function setFocus(f) { try { if (f) localStorage.setItem(FOCUS_KEY, JSON.stringify(f)); } catch (e) {} }
   function setProfile(p) {
     try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p || {})); } catch (e) {}
   }
@@ -281,7 +285,7 @@
     fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: query, profile: getProfile(), memory: getMemory(), style: getStyle(), location: loc })
+      body: JSON.stringify({ query: query, profile: getProfile(), memory: getMemory(), style: getStyle(), location: loc, focus: getFocus() })
     })
       .then(function (r) { return r.json(); })
       .then(function (d) {
@@ -296,8 +300,12 @@
         renderActions(d.links);
         // 성향 통계 누적(질문수·해역·주제) + 주기적 말투 요약 갱신
         updateStyleStats(d);
-        // 과거 대화 요약을 휴대폰에 누적 → 다음 질문에 참고
-        if (d.zone) pushMemory(d.zone + ': "' + query + '" → ' + String(d.answer).slice(0, 50));
+        // 과거 대화 요약을 휴대폰에 누적 → 다음 질문에 참고. 항상 저장하고(해역 없는 랭킹/해구
+        // 질문도 후속에서 이어지도록), 답변은 해구 번호·경위도가 살아남게 넉넉히(160자) 보관.
+        var memQ = d.corrected || query;
+        pushMemory((d.zone ? d.zone + ': ' : '') + '"' + memQ + '" → ' + String(d.answer || '').slice(0, 160));
+        // [구조화 연속성] 서버가 돌려준 직전 주목 대상(해역/해구/부이/좌표)을 저장 → 다음 요청에 재전송.
+        if (d.focus) setFocus(d.focus);
         speak(d.answer);
         if (!('speechSynthesis' in window) && micOn) startWakeMode();
         // 임의 지점 물때: 지명 검색 → 확인 → 고조/저조 조회 흐름 시작

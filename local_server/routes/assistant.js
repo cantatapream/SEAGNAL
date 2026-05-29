@@ -142,6 +142,36 @@ try {
     console.warn('[Assistant] seaZoneCoordinates 파싱 실패:', e.message);
 }
 
+// 해구(번호 격자) 좌표 — data/zone_coords.json (해구번호 → 위경도). 해구 랭킹·조회의 경위도원.
+const HAEGU_COORDS = {};
+try {
+    const raw = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'zone_coords.json'), 'utf8'));
+    const src = raw && raw.data ? raw.data : raw;
+    for (const k of Object.keys(src || {})) {
+        const v = src[k];
+        if (v && v.lat != null && v.lon != null) HAEGU_COORDS[String(k)] = { lat: +v.lat, lon: +v.lon };
+    }
+    console.log(`[Assistant] 해구 좌표 ${Object.keys(HAEGU_COORDS).length}개 로드됨`);
+} catch (e) {
+    console.warn('[Assistant] zone_coords 로드 실패 — 해구 좌표 없이 동작:', e.message);
+}
+
+// 데이터 카탈로그(단일 출처, knowledge/data_catalog.json) — "우리가 무엇을 수집하는지"를
+// 플래너에 주입해 변칙·교차 질문에서도 보유/미보유를 정확히 판단하게 한다. 부재 시 빈 문자열.
+let CATALOG_DIGEST = '';
+try {
+    const cat = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'knowledge', 'data_catalog.json'), 'utf8'));
+    const exposed = [...cat.datasets.filter(d => d.exposed), ...cat.ondemand].map(d => `${d.label}(${d.granularity})`);
+    const unexposed = cat.datasets.filter(d => !d.exposed && (d.params || []).length).map(d => d.label);
+    CATALOG_DIGEST =
+`[수집 데이터 인벤토리 — 이 목록 안에서만 답하세요]
+도구로 답 가능: ${exposed.join(' · ')}
+${unexposed.length ? '수집하지만 아직 전용 도구 없음: ' + unexposed.join(' · ') + ' (물으면 "수집은 하지만 아직 안내 기능이 없어요"라고 안내)\n' : ''}이 인벤토리에 없는 정보는 지어내지 말고 "그 정보는 없어요"라고 하세요.`;
+    console.log(`[Assistant] 데이터 카탈로그 로드: 데이터셋 ${cat.stats.datasets} · 노출 ${cat.stats.exposed} · 미노출 ${cat.stats.unexposed}`);
+} catch (e) {
+    console.warn('[Assistant] data_catalog 로드 실패 — 인벤토리 주입 없이 동작:', e.message);
+}
+
 // ============================================================================
 // 직군별 지식베이스 (Phase 2b 간이 RAG) — knowledge/jikgun/*.md 에서 다이제스트 추출.
 //  사용자 프로필의 직업/소속을 8개 직군 슬러그로 감지 → 해당 직군의 "핵심 관심사 +
@@ -756,7 +786,7 @@ const BRAIN_MODEL = 'gemini-2.5-flash-lite';
 const TOOL_CATALOG = `
 [예보]
 - get_marine_forecast(zone): 명명된 해상예보구역(예: 제주도북부앞바다)의 단기 기상전망(풍향/풍속/파고/하늘).
-- get_zone_forecast(zoneId, hoursAhead): 해구번호(예: "325")의 N시간 후 예보(파고/파주기/풍속/풍향). 미래 약 72시간까지.
+- get_zone_forecast(zoneId, hoursAhead): 해구번호(예: "325")의 N시간 후 예보(파고/파주기/풍속/풍향)와 그 해구의 경위도. 미래 약 72시간까지. "그 해구 경위도/위도/경도" 같은 후속 질문에도 이걸로 좌표를 답하세요.
 - get_midterm_forecast(zone): 해역의 중기(3~10일) 해상예보.
 - get_warning(zone): 해당 해역의 특보(주의보/경보) 발효 여부와 종류.
 [관측]
@@ -766,6 +796,7 @@ const TOOL_CATALOG = `
 - get_current(zone 또는 lat,lon): 해역(또는 좌표)의 유향·유속(해류). 해역명만 줘도 됨.
 - get_depth(zone 또는 lat,lon): 해역(또는 좌표)의 수심. 해역명만 줘도 됨.
 - get_seafog_cctv(harbor): 항구 해무 CCTV 최신 영상(이미지 링크).
+- get_visibility(place): 지명/해역의 가장 가까운 시정계 관측소의 시정(가시거리, km). "시정/가시거리/얼마나 잘 보여" 류.
 - get_tide(place): 지명/해역의 오늘 고조·저조 시각과 조위(만조/간조/물때 질문은 이걸 쓰세요).
 [생활지수]
 - get_fishing_index(location): 바다낚시(갯바위/선상) 지수. ※ 스쿠버·다이빙·해루질은 대상 아님.
@@ -774,8 +805,11 @@ const TOOL_CATALOG = `
 [위치기반]
 - get_nearest_buoy(lat, lon): 좌표(사용자 GPS)에서 가장 가까운 기상부이의 위치 + 최신 관측값.
 [비교/집계]
-- get_zones_ranked(metric, order, threshold, top): 전국 해역을 파고(metric:"wave")/풍속("wind") 기준 정렬·필터.
-  order:"desc"(높은순,기본)|"asc", threshold:기준값 이상만, top:개수. "파고 제일 높은 해역","풍속 10 넘는 해역" 류.
+- get_zones_ranked(metric, order, threshold, top, scope): 정렬·필터(집계/비교 "제일·가장·줄세워·N 넘는").
+  metric: "wave"(파고)/"wind"(풍속) → 해역 또는 해구 / "temp"(수온)/"vis"(시정) → 관측지점(부이·시정계).
+  order:"desc"(높은순,기본)|"asc"(낮은순; 시정 "제일 나빠"는 기본 낮은순), threshold:기준값 이상만, top:개수.
+  scope:"zone"(명명 해역, 기본) | "haegu"(해구 번호 격자 — 결과에 해구 번호+경위도). wave/wind 에만 적용.
+  예: "풍속 가장 높은 해구"→metric:"wind",scope:"haegu"; "수온 높은 곳 줄세워"→metric:"temp"; "어디 시정 제일 나빠"→metric:"vis".
 [기타]
 - get_typhoon_status(): 현재 발효 중인 태풍 현황.
 - get_app_capabilities(): 이 앱(SEA:GNAL)이 제공하는 기능/정보의 종류와 형태. "이 앱 뭐 할 수 있어 / 어떤 정보 줘 / 무슨 기능 있어" 류 메타 질문에 사용.
@@ -827,8 +861,10 @@ function getZoneForecastAt(zoneId, hoursAhead) {
     const best = series[bestIdx];
     // 추세 질문("점점 세져?")용으로 해당 시점부터 다음 5스텝 시계열도 함께 반환
     const trend = series.slice(bestIdx, bestIdx + 5).map(e => ({ tm: e.tm, 파고m: e.wh, 풍속ms: e.ws }));
+    const co = HAEGU_COORDS[String(zoneId)];
     return {
         zoneId, hoursAhead: hoursAhead || 0, forecastTimeUTC: best.tm,
+        ...(co ? { 위도: co.lat, 경도: co.lon } : {}),
         파고m: best.wh, 파주기s: best.wp, 풍속ms: best.ws, 풍향deg: best.windDir, 파향deg: best.waveDir,
         시계열: trend
     };
@@ -868,8 +904,85 @@ function getBuoyObs(name) {
     return out;
 }
 
-/** 전국 해역을 파고/풍속 기준으로 정렬·필터 (집계/비교형 질문용). */
-function rankZones(metric, order, threshold, top) {
+/** 시정(가시거리) — 지명/해역의 가장 가까운 시정계 관측소 값. 이름 직접매칭 우선, 없으면 좌표 최근접. */
+function getVisibility(place, lat, lon) {
+    const list = (dataCache.marineVs && dataCache.marineVs.data) || [];
+    if (!Array.isArray(list) || !list.length) return { error: '시정 관측 데이터가 없습니다.' };
+    const valid = list.filter(s => s.vs != null && s.vs !== '' && Number(s.vs) >= 0 && s.lat != null && s.lon != null);
+    if (place) {
+        const nq = normalize(place);
+        const hit = nq && valid.find(s => { const kn = normalize(s.kor_nm || s.obs_nm || ''); return kn && (kn.includes(nq) || nq.includes(kn)); });
+        if (hit) return { 지점: hit.kor_nm || hit.obs_nm, 시정km: Number(hit.vs), 위도: hit.lat, 경도: hit.lon, 기준시각: hit.obs_tm };
+    }
+    const co = coordsFor(place, lat, lon);
+    if (!co) return { error: `'${place || ''}' 위치의 시정을 찾지 못했습니다.` };
+    let best = null, bd = Infinity;
+    for (const s of valid) { const d = haversineKm(co.lat, co.lon, s.lat, s.lon); if (d < bd) { bd = d; best = s; } }
+    return best ? { 지점: best.kor_nm || best.obs_nm, 시정km: Number(best.vs), 거리km: Math.round(bd), 위도: best.lat, 경도: best.lon, 기준시각: best.obs_tm }
+        : { error: '가까운 시정 관측소가 없습니다.' };
+}
+
+/** 파고/풍속 기준 정렬·필터 (집계/비교형 질문용).
+ *  scope='zone'(기본): 명명된 해역(특보구역) 단기예보 기준.
+ *  scope='haegu': 해구(번호 격자) 시계열 기준 — 해구 번호 + 경위도(zone_coords) 동봉. */
+function rankZones(metric, order, threshold, top, scope) {
+    // 관측 기반 랭킹: 수온(부이 tw)·시정(시정계 vs) — 해역/해구 예보가 아닌 지점 단위.
+    if (metric === 'temp' || metric === 'vis') {
+        const rows = [];
+        if (metric === 'vis') {
+            const list = (dataCache.marineVs && dataCache.marineVs.data) || [];
+            if (!Array.isArray(list) || !list.length) return { error: '시정 관측 데이터가 없습니다.' };
+            for (const s of list) {
+                const v = s.vs;
+                if (v == null || v === '' || Number(v) < 0 || s.lat == null) continue;
+                rows.push({ 지점: s.kor_nm || s.obs_nm || String(s.stn_id), 시정km: Number(v), 위도: s.lat, 경도: s.lon });
+            }
+            let a = (threshold != null) ? rows.filter(r => r.시정km >= Number(threshold)) : rows;
+            a.sort((x, y) => order === 'desc' ? y.시정km - x.시정km : x.시정km - y.시정km); // 기본 오름차순: 나쁜(낮은) 곳 먼저
+            return { metric: 'vis', count: a.length, items: a.slice(0, top || 5) };
+        }
+        const pools = [dataCache.marineBuoys, dataCache.marineWhBuoys, dataCache.marineLhBuoys];
+        const seen = {};
+        for (const pool of pools) {
+            const list = (pool && pool.data) || [];
+            if (!Array.isArray(list)) continue;
+            for (const b of list) {
+                const tw = (b.tw != null && b.tw !== -99 && b.tw !== '') ? b.tw : (b.wtem != null ? b.wtem : null);
+                const nm = b.kor_nm || b.obs_nm;
+                if (!nm || tw == null || b.lat == null) continue;
+                if (seen[nm]) continue; seen[nm] = 1;
+                rows.push({ 지점: nm, 수온C: Number(tw), 위도: b.lat, 경도: b.lon });
+            }
+        }
+        if (!rows.length) return { error: '수온 관측 데이터가 없습니다.' };
+        let a = (threshold != null) ? rows.filter(r => r.수온C >= Number(threshold)) : rows;
+        a.sort((x, y) => order === 'asc' ? x.수온C - y.수온C : y.수온C - x.수온C); // 기본 내림차순: 높은 곳 먼저
+        return { metric: 'temp', count: a.length, items: a.slice(0, top || 5) };
+    }
+    const key = (metric === 'wind') ? 'wind' : 'wave';
+    const lbl = key === 'wind' ? '풍속ms' : '파고m';
+    if (scope === 'haegu') {
+        const all = dataCache.zoneForecasts && dataCache.zoneForecasts.data;
+        if (!all) return { error: '해구 예보 데이터가 없습니다.' };
+        const p = (n) => (n < 10 ? '0' : '') + n;
+        const t = new Date();
+        const target = Number('' + t.getUTCFullYear() + p(t.getUTCMonth() + 1) + p(t.getUTCDate()) + p(t.getUTCHours()));
+        const rows = [];
+        for (const id of Object.keys(all)) {
+            const series = all[id];
+            if (!Array.isArray(series) || !series.length) continue;
+            let b = series[0], bd = Infinity;
+            for (const e of series) { const d = Math.abs(Number(e.tm) - target); if (d < bd) { bd = d; b = e; } }
+            const val = key === 'wind' ? b.ws : b.wh;
+            if (val == null) continue;
+            const co = HAEGU_COORDS[String(id)];
+            rows.push({ 해구: String(id), [lbl]: val, 위도: co ? co.lat : null, 경도: co ? co.lon : null });
+        }
+        let arr = rows;
+        if (threshold != null) arr = arr.filter(r => Number(r[lbl]) >= Number(threshold));
+        arr.sort((a, b) => order === 'asc' ? a[lbl] - b[lbl] : b[lbl] - a[lbl]);
+        return { scope: 'haegu', metric: key, count: arr.length, items: arr.slice(0, top || 5) };
+    }
     const all = dataCache.forecasts && dataCache.forecasts.data;
     if (!all) return { error: '예보 데이터가 없습니다.' };
     const seen = {}; const rows = [];
@@ -882,12 +995,10 @@ function rankZones(metric, order, threshold, top) {
         const wind = e.ws2 != null ? e.ws2 : e.ws1;
         rows.push({ zone: name, wave, wind });
     }
-    const key = (metric === 'wind') ? 'wind' : 'wave';
     let arr = rows.filter(r => r[key] != null);
     if (threshold != null) arr = arr.filter(r => Number(r[key]) >= Number(threshold));
     arr.sort((a, b) => order === 'asc' ? a[key] - b[key] : b[key] - a[key]);
-    const lbl = key === 'wind' ? '풍속ms' : '파고m';
-    return { metric: key, count: arr.length, items: arr.slice(0, top || 5).map(r => ({ zone: r.zone, [lbl]: r[key] })) };
+    return { scope: 'zone', metric: key, count: arr.length, items: arr.slice(0, top || 5).map(r => ({ zone: r.zone, [lbl]: r[key] })) };
 }
 
 /** 현재 태풍 현황 + 최신 통보문 위치/강도/이동 (data/typhoon.json + bulletin).
@@ -937,6 +1048,7 @@ const TOOL_EXEC = {
         return { zone: z, buoys: b.map(x => ({ name: x.name, distKm: Math.round(x.distKm), type: x.type })) };
     },
     get_buoy_observation: async ({ buoyName } = {}) => getBuoyObs(buoyName),
+    get_visibility: async ({ place, zone, lat, lon } = {}) => getVisibility(place || zone, lat, lon),
     get_buoys_with_obs: async ({ zone, lat, lon } = {}) => {
         let buoys = [];
         if (zone) { const z = resolveZoneName(zone); buoys = z ? findBuoysNearZone(z, 5, 120) : []; }
@@ -957,7 +1069,7 @@ const TOOL_EXEC = {
         return { place: pt.name, lat: pt.lat, lon: pt.lon, note: '고조/저조 시각은 앱 바텀시트에서 확인하세요' };
     },
     get_typhoon_status: async () => getTyphoonStatus(),
-    get_zones_ranked: async ({ metric, order, threshold, top } = {}) => rankZones(metric, order, threshold, top),
+    get_zones_ranked: async ({ metric, order, threshold, top, scope } = {}) => rankZones(metric, order, threshold, top, scope),
     get_app_capabilities: async () => APP_CAPABILITIES,
 
     get_midterm_forecast: async ({ zone } = {}) => {
@@ -1063,7 +1175,29 @@ const TOOL_EXEC = {
 };
 
 /** 1단계: 질문 → 가져올 데이터 계획(JSON) */
-async function planQuery(query, profile, location, memory) {
+/** 직전 턴의 도구 결과에서 "주목 대상(focus)"을 구조화 추출 — 해역/해구/부이/좌표/랭킹.
+ *  자유텍스트 memory로는 유실되는 해구 번호·좌표를 구조로 보존해 후속 질문 연속성을 보장한다. */
+function deriveFocus(plan, results, zoneName) {
+    const focus = { zone: zoneName || (plan && plan.zone) || null, haegu: null, buoy: null, coords: null, rankedItems: null, lastTools: (results || []).map(r => r.tool) };
+    for (const r of (results || [])) {
+        const v = r && r.result;
+        if (!v || typeof v !== 'object' || v.error) continue;
+        if (v.zoneId) focus.haegu = String(v.zoneId);
+        if (focus.coords == null && v['위도'] != null && v['경도'] != null) focus.coords = { lat: v['위도'], lon: v['경도'] };
+        if (v.name && r.tool === 'get_buoy_observation') focus.buoy = v.name;
+        if (v.nearest && v.nearest.name) focus.buoy = v.nearest.name;
+        if (Array.isArray(v.items) && v.items.length) {
+            focus.rankedItems = v.items.slice(0, 5);
+            const top = v.items[0];
+            if (top['해구'] && !focus.haegu) focus.haegu = String(top['해구']);
+            if (top.zone && !focus.zone) focus.zone = top.zone;          // 명명 해역 랭킹 1위
+            if (focus.coords == null && top['위도'] != null && top['경도'] != null) focus.coords = { lat: top['위도'], lon: top['경도'] };
+        }
+    }
+    return (focus.zone || focus.haegu || focus.buoy || focus.coords || focus.rankedItems) ? focus : null;
+}
+
+async function planQuery(query, profile, location, memory, focus) {
     const locLine = (location && location.lat != null && location.lon != null)
         ? `\n사용자 현재 위치(GPS): 위도 ${location.lat}, 경도 ${location.lon}. "내 위치/가까운/근처" 류 질문엔 이 좌표를 좌표기반 도구(get_nearest_buoy/get_current/get_depth/get_tide)에 넣으세요.`
         : '';
@@ -1071,8 +1205,18 @@ async function planQuery(query, profile, location, memory) {
     const pzLine = pz ? `\n사용자 기본 활동해역: ${pz}. 질문에 해역/지명이 없으면 이 해역을 기본으로 쓰세요.` : '';
     // [후속 질문 맥락] "그럼/다른/얘/거기/인근/그건" 등 지시어는 직전 대화로 대상을 정한다.
     const memLine = (Array.isArray(memory) && memory.length)
-        ? `\n[최근 대화] ${memory.slice(-3).join(' / ')}\n질문이 "그럼/다른/얘/거기/그건/인근" 등으로 이전 맥락을 가리키면, 위 최근 대화에서 해역·대상을 이어받아 args 에 넣으세요.`
+        ? `\n[최근 대화] ${memory.slice(-3).join(' / ')}\n질문이 "그럼/다른/얘/거기/그건/그게/저거/방금/그 해구/그 해역/인근/위에서/아까" 등으로 이전 맥락을 가리키면, 위 최근 대화에서 대상(해역명·해구 번호·지명·좌표)을 그대로 이어받아 args 에 넣으세요. 특히 직전 답변에 해구 번호가 있었고 "몇 해구/경위도/위도/경도"를 물으면, 그 해구 번호로 get_zone_forecast(zoneId) 를 호출해 좌표를 답하세요.`
         : '';
+    // [직전 확정 대상 — 구조화 연속성] 자유텍스트보다 우선. 지시어 후속을 결정론적으로 해소.
+    const focusLine = (focus && (focus.zone || focus.haegu || focus.buoy || focus.coords)) ?
+`\n[직전 확정 대상] ${[
+    focus.zone ? '해역=' + focus.zone : null,
+    focus.haegu ? '해구=' + focus.haegu + '번' : null,
+    focus.buoy ? '부이/지점=' + focus.buoy : null,
+    focus.coords ? ('좌표=' + focus.coords.lat + ',' + focus.coords.lon) : null,
+    (focus.rankedItems && focus.rankedItems.length) ? ('직전 랭킹 상위=' + focus.rankedItems.slice(0, 3).map(it => it['해구'] || it['지점'] || it.zone).filter(Boolean).join('/')) : null
+].filter(Boolean).join(' · ')}
+질문이 "그게/그 해구/그 해역/거기/방금/그건/위에서/그 중" 등으로 대상을 가리키면 위 [직전 확정 대상]을 그대로 args 에 쓰세요(해구 경위도·예보는 get_zone_forecast(zoneId=해구번호), 좌표기반은 lat/lon).` : '';
     // [음성인식 보정] 질문은 음성→텍스트라 오인식이 잦다. 우리 도메인 용어로 교정한다.
     const vocabLine =
 `\n[음성인식 보정 — 중요]
@@ -1090,11 +1234,12 @@ async function planQuery(query, profile, location, memory) {
                 : jk.interests.slice(0, 10).join(', '))
           + (jk.vocab && jk.vocab.length ? `\n직군 용어(STT 보정 참고): ${jk.vocab.slice(0, 12).map(v => v[0] + '=' + v[1]).join('; ')}` : '')
         : '';
+    const catalogLine = CATALOG_DIGEST ? ('\n' + CATALOG_DIGEST + '\n') : '';
     const prompt =
 `사용자의 한국어 질문에 답하기 위해 어떤 데이터를 가져올지 계획하세요.
 사용 가능한 도구:
 ${TOOL_CATALOG}
-
+${catalogLine}
 규칙:
 - 답에 꼭 필요한 도구만 steps 에 넣으세요(불필요한 호출 금지).
 - 해역명/해구번호/지명/부이명을 args 에 정확히 넣으세요. 해구번호는 숫자 문자열(예: "325").
@@ -1104,9 +1249,11 @@ ${TOOL_CATALOG}
 - 섬·항·해안 지명(예: 추자도, 거문도, 마라도, 연평도)의 바다 상황·기상을 물으면, 웹검색 말고 먼저
   get_buoy_observation(지명) 또는 get_nearest_buoy 로 해상 관측을, 해역명이면 get_marine_forecast 를 쓰세요.
 - "조업 가능?" 같은 판단 질문은 관련 예보(해구/해역)·특보·필요시 부이를 함께 모으세요.
+- "어느/가장 ~한 해구"처럼 해구를 비교·랭킹하면 get_zones_ranked(scope:"haegu") 로 — 답에 해구 번호와 경위도가 나오게. "해역"으로 물으면 scope 생략.
+- 시정/가시거리는 get_visibility(지명) 로. 수온·시정을 "줄세워/제일 높은·낮은"으로 비교하면 get_zones_ranked(metric:"temp"/"vis").
 - 생활지수: 낚시→get_fishing_index, 서핑/물놀이→get_surfing_index, 갯벌/바다갈라짐→get_sea_split_index.
   스쿠버·다이빙처럼 전용 지수가 없는 활동은 위 지수에 억지로 맞추지 말고 steps 를 비워(웹검색 폴백) 두세요.
-- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${memLine}${jikgunLine}${vocabLine}
+- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}
 
 사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
 질문: "${query}"
@@ -1146,8 +1293,21 @@ async function webSearchAnswer(query) {
     } catch (e) { return null; }
 }
 
-async function runBrain(query, profile, memory, style, location) {
-    const plan = await planQuery(query, profile, location, memory);
+/** 의존 위빙 판단: "X 가장 ~한 곳의 Y(조석/유속/수심/특보/해무)" 처럼 1차 결과(focus)가 있어야
+ *  2차 도구를 부를 수 있는 질문인지. 좁게 트리거(일반 단일질문은 재계획 안 함). */
+function needsReplan(q, results, focus) {
+    if (!focus || (!focus.coords && !focus.haegu && !focus.zone)) return false;
+    const nq = normalize(q);
+    const sup = /(가장|제일|최고|최저|높은|낮은|센|약한|많은|적은|상위|랭킹|줄세|순위)/.test(nq);
+    const sec = /(조석|물때|만조|간조|유속|유향|해류|수심|특보|주의보|경보|해무|씨씨티비)/.test(nq);
+    if (!(sup && sec)) return false;
+    const done = new Set((results || []).map(r => r.tool));
+    const secTools = ['get_tide', 'get_current', 'get_depth', 'get_warning', 'get_seafog_cctv'];
+    return !secTools.some(t => done.has(t));   // 2차 도구가 이미 실행됐으면 불필요
+}
+
+async function runBrain(query, profile, memory, style, location, focus) {
+    const plan = await planQuery(query, profile, location, memory, focus);
     if (!plan) return null;
     // 음성인식 보정 결과(있으면) — 종합/웹폴백/표시에 사용할 질문
     const cq = (plan.correctedQuery && typeof plan.correctedQuery === 'string' && plan.correctedQuery.trim())
@@ -1160,6 +1320,23 @@ async function runBrain(query, profile, memory, style, location) {
         if (!exec) continue;
         try { results.push({ tool: step.tool, args: step.args || {}, result: await exec(step.args || {}) }); }
         catch (e) { results.push({ tool: step.tool, error: e.message }); }
+    }
+
+    // [의존 위빙 — 1회 재계획] "X 가장 ~한 곳의 Y" 처럼 1차 결과가 있어야 2차 도구 인자를
+    //   채울 수 있는 질문은, 1차 focus를 주입해 한 번 더 계획한다(이미 실행한 도구는 건너뜀).
+    const focus1 = deriveFocus(plan, results, plan.zone);
+    if (needsReplan(cq, results, focus1)) {
+        const plan2 = await planQuery(cq, profile, location, memory, focus1);
+        if (plan2 && Array.isArray(plan2.steps)) {
+            const done = new Set(results.map(r => r.tool));
+            for (const step of plan2.steps.slice(0, 3)) {
+                const exec = step && TOOL_EXEC[step.tool];
+                if (!exec || done.has(step.tool)) continue;   // 1차에서 한 도구 반복 금지
+                done.add(step.tool);
+                try { results.push({ tool: step.tool, args: step.args || {}, result: await exec(step.args || {}) }); }
+                catch (e) { results.push({ tool: step.tool, error: e.message }); }
+            }
+        }
     }
 
     // [웹검색 폴백] 내부 도구로 "실제 값"을 못 얻었으면(계획이 비었거나 결과가 전부
@@ -1178,7 +1355,7 @@ async function runBrain(query, profile, memory, style, location) {
     if (!gotUseful) {
         const web = await webSearchAnswer(cq);
         if (web && web.answer) {
-            return { answer: web.answer, zone: plan.zone || null, toolsUsed: ['web_search'], webLinks: web.webLinks || [], corrected };
+            return { answer: web.answer, zone: plan.zone || null, toolsUsed: ['web_search'], webLinks: web.webLinks || [], corrected, focus: deriveFocus(plan, results, plan.zone) };
         }
     }
 
@@ -1199,7 +1376,7 @@ ${personal}
 수집결과(JSON): ${JSON.stringify(results)}`;
     const r = await gemini.callGemini({ model: BRAIN_MODEL, contents: synth, config: { temperature: 0.3 }, caller: 'Assistant-Synth' });
     if (!r.success || !r.text) return null;
-    return { answer: r.text.trim(), zone: plan.zone || null, toolsUsed: results.map(x => x.tool), corrected };
+    return { answer: r.text.trim(), zone: plan.zone || null, toolsUsed: results.map(x => x.tool), corrected, focus: deriveFocus(plan, results, plan.zone) };
 }
 
 router.post('/api/assistant/ask', async (req, res) => {
@@ -1225,6 +1402,8 @@ router.post('/api/assistant/ask', async (req, res) => {
     // 사용자 GPS 좌표(있을 때만) — "내 위치 가까운 부이" 류 질문에 사용
     const loc = (req.body && req.body.location && req.body.location.lat != null && req.body.location.lon != null)
         ? { lat: +req.body.location.lat, lon: +req.body.location.lon } : null;
+    // [구조화 연속성] 클라가 돌려보낸 직전 턴의 주목 대상(해역/해구/부이/좌표) — 후속 해소용
+    const focus = (req.body && req.body.focus && typeof req.body.focus === 'object') ? req.body.focus : null;
 
     if (!query) {
         return res.status(400).json({ ok: false, error: '질문(query)이 비어 있습니다.' });
@@ -1250,7 +1429,7 @@ router.post('/api/assistant/ask', async (req, res) => {
     //   실패하면 아래 결정론적 경로로 자동 폴백한다.
     if (aiAvailable) {
         try {
-            const brain = await runBrain(query, profile, memory, style, loc);
+            const brain = await runBrain(query, profile, memory, style, loc, focus);
             if (brain && brain.answer) {
                 // 앱 기능 바로가기 + 웹검색 출처 링크(있으면)를 함께
                 const links = buildLinks(query, null, brain.zone, profile, loc);
@@ -1265,7 +1444,7 @@ router.post('/api/assistant/ask', async (req, res) => {
                 return res.json({
                     ok: true, zone: brain.zone, intent: 'brain', answer: brain.answer,
                     data: { toolsUsed: brain.toolsUsed }, aiUsed: true, zoneFromProfile: false,
-                    links, tideSearch, corrected: brain.corrected || null
+                    links, tideSearch, corrected: brain.corrected || null, focus: brain.focus || null
                 });
             }
         } catch (e) { /* 두뇌 실패 → 결정론적 폴백으로 진행 */ }

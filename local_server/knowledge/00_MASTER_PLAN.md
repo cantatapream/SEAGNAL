@@ -114,7 +114,7 @@
 
 - **목표**: 도메인 개념(해역/해구/부이/특보/지수/조석/태풍/직군/관심사)과 관계를 정형화해 검색·추론 뼈대로.
 - **진행 방식(안)**: 엔터티/관계 스키마 → 기존 식별자 정합(해역명↔regId↔해구↔ZONE_COORDS↔조석표준항) → 직군 지식(관심사·도구·GAP·용어) 흡수 → RAG 검색 그래프 확장 PoC.
-- **세부 단계**: [x] 스키마 설계 `phases/phase1_ontology_schema.md` [x] **직군→`graph/graph.json` 자동 빌더**(`graph/build_graph.js`: 978노드/1232엣지 — SeaZone43·Buoy118·TideStation165·DataParam12·Tool19·Jikgun8·Topic169·Term288·Gap92·Rule64; servedBy313·near176·triggersOn96 등) [x] 그래프 저장포맷 확정(graph.json) [ ] 식별자 정합표(해구↔해역 좌표 포함 — 격자좌표 데이터 필요) [ ] **P2 직군문서 태깅 소급 정비(되먹임)** [ ] RAG 확장 PoC(베이스라인 먼저)
+- **세부 단계**: [x] 스키마 설계 `phases/phase1_ontology_schema.md` [x] **직군→`graph/graph.json` 자동 빌더**(`graph/build_graph.js`: 978노드/1232엣지 — SeaZone43·Buoy118·TideStation165·DataParam12·Tool19·Jikgun8·Topic169·Term288·Gap92·Rule64; servedBy313·near176·triggersOn96 등) [x] 그래프 저장포맷 확정(graph.json) [~] 식별자 정합표(해구 격자좌표는 data/zone_coords.json 1296개 적재·런타임 사용 시작 → 해구↔해역 매핑표는 잔여) [ ] **P2 직군문서 태깅 소급 정비(되먹임)** [ ] RAG 확장 PoC(베이스라인 먼저)
 - **완료 기준(DoD)**: 핵심 엔터티/관계 정의(✅) + `graph.json` 생성(✅) + 식별자 정합(해구 보류) + 평가셋에서 **그래프 확장 적중률 베이스라인 대비 향상**(RAG 연결 단계).
 - **현재 상태**: 🚧 **스키마+그래프 빌드 + 런타임 연결(1차) 완료.** `routes/assistant.js`가 `graph.json`을 단일 출처로 로드해 감지된 직군에 **"관심사→권장도구(servedBy)" 라우팅 힌트**를 플래너에 주입(예: 낚시객 모호질문→get_tide·get_fishing_index 우선). 게이트에 **그래프 무결성·런타임 연결 정적검사** 추가. 다음: Term 동의어 활용(흔한단어 오매칭 가드 필요) / 해구↔해역 정합.
 - **산출물**: → 참고 `phases/phase1_ontology_schema.md`
@@ -177,6 +177,16 @@
 | 2026-05-29 | **Phase 1 지식그래프 빌드**: graph/build_graph.js + graph.json(978노드/1232엣지) | 직군 파일·식별자에서 자동 추출 |
 | 2026-05-29 | **그래프 런타임 연결(1차)**: assistant.js가 graph.json 로드 → 직군 servedBy 라우팅 힌트 주입 + 게이트 무결성검사 | 게이트 30P/0F/1SKIP 유지 |
 | 2026-05-29 | **골든 buoy-geomun-temp → optional**: 거문도 부이 간헐 전결측(피드 의존) 위양성 방지 | 부이 수치 커버리지는 buoy-oryuk-wave |
+| 2026-05-29 | **해구 랭킹·조회 + 대화 연속성**: get_zones_ranked scope="haegu"(해구 번호+경위도), get_zone_forecast 좌표 반환, zone_coords.json 적재, 플래너 지시어 확장, 클라 memory 항상저장(160자) | 게이트 33케이스 통과(rank-haegu-wind·followup-haegu-coord 신규) |
+| 2026-05-29 | **골든 context-warn 수정**: corrected(질의재작성=구현세부) 대신 결과(올바른 해역 해소)로 검증 | 맥락 해소 견고화 |
+| 2026-05-29 | **격리 에이전트 3종 병렬 검토**: 데이터인벤토리/AI지식격차/대화연속성 → P1~P4 수정계획 도출 | 근본원인=AI가 구조적 상태(인벤토리·focus) 미보유 |
+| 2026-05-29 | **P1 데이터 카탈로그(단일 출처)**: build_data_catalog.js→data_catalog.json(21데이터셋, 노출15/미노출6, 도구19). 플래너 인벤토리 주입 + 게이트 드리프트검사 | TOOL_CATALOG/APP_CAP/build_graph/cache_manager 4중분산 해소 시작 |
+| 2026-05-29 | **게이트 재시도 강화**: KHOA 유속 첫히트 지연 흡수 위해 백오프 2회(3s·6s) | current-* 위양성 제거 |
+| 2026-05-29 | **P2 미노출 데이터 도구화**: get_visibility(시정계) + get_zones_ranked metric에 temp(수온)/vis(시정) 추가 | "시정 어때/수온 줄세워/어디 시정 제일 나빠" 응답. 시정 노출(16/21) |
+| 2026-05-29 | **surf-index → optional**: KHOA 서핑지수 공유키 경합 간헐 수집실패(파일 부재) 위양성 방지 | data/ 정리 중단(피드 보존) |
+| 2026-05-29 | **P3 구조화 대화 연속성(focus)**: 서버가 응답에 focus{zone,haegu,buoy,coords,rankedItems} 반환 → 클라 저장·재전송 → planQuery가 [직전 확정 대상]으로 결정론적 소비 | 자유텍스트 memory 유실(해구번호·좌표) 극복. 2턴 검증 통과 |
+| 2026-05-29 | **P4 의존 위빙(1회 재계획)**: "X 가장 ~한 곳의 Y(특보/조석/유속/수심)"를 1차 focus로 2차 도구 재계획(좁은 트리거·도구중복 방지) | "파고 1위 해역→특보" 2도구 위빙 검증. 게이트 38/0 |
+| 2026-05-29 | **격리 에이전트 검토 P1~P4 완료** | 게이트 38케이스(정적 3종 포함) 통과 |
 
 ## 6. 미결 질문 / 다음 액션 (owner·기한)
 
