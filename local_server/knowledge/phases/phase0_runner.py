@@ -83,15 +83,22 @@ def main():
     npass = nfail = nskip = 0
     hard_fail_ids = []
     print("== Phase 0 골든 회귀 게이트 (%d 케이스) @ %s ==" % (len(cases), BASE))
-    for i, c in enumerate(cases, 1):
+    def attempt(c, i):
         try:
-            resp = call(c, i)
-            fails = check(c, resp)
+            return check(c, call(c, i))
         except Exception as e:
-            fails = ["ERROR:%s" % str(e)[:60]]
+            return ["ERROR:%s" % str(e)[:60]]
+    for i, c in enumerate(cases, 1):
+        fails = attempt(c, i)
+        retried = False
+        # 라이브 온디맨드 fetch(KHOA 유속 등)·콜드스타트 적재 지연을 흡수하기 위해
+        # 하드 케이스가 실패하면 2초 후 1회 재시도한다(일시 지연 위양성 방지).
+        if fails and not c["asserts"].get("optional"):
+            time.sleep(2); retried = True
+            fails = attempt(c, i)
         opt = c["asserts"].get("optional")
         if not fails:
-            npass += 1; tag = "PASS"
+            npass += 1; tag = "PASS" + ("*" if retried else "")
         elif opt:
             nskip += 1; tag = "SKIP"
         else:
