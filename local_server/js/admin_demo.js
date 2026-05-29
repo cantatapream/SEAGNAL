@@ -30,6 +30,8 @@
 
     var WARN_TYPES = ['풍랑', '태풍', '강풍', '호우', '대설', '해일'];
     var LEVELS = ['주의보', '경보'];
+    // 단계 — 앱 push_helpers 템플릿에 대응 (발표/발효/해제/격상발효/격하발효)
+    var COMMANDS = ['발표', '발효', '해제', '격상', '격하'];
 
     var _slots = [];     // 저장된 데모 슬롯
     var _active = [];    // 현재 표출 중인 슬롯 (id 목록 비교용)
@@ -180,6 +182,11 @@
         var typeColor = slot.warnType === '태풍' ? '#dc2626' : (slot.level === '경보' ? '#ef4444' : '#22c55e');
         var pre = slot.upcoming && slot.upcoming.enabled;
         var num = idx + 1;
+        var cmd = slot.command || '발효';
+        var cmdLabel = (cmd === '격상' || cmd === '격하')
+            ? (slot.prevLevel ? slot.prevLevel + '→' + (slot.level || '') + ' ' + cmd : cmd)
+            : cmd;
+        var cmdColor = cmd === '해제' ? '#22c55e' : (cmd === '격상' ? '#ef4444' : (cmd === '격하' ? '#3b82f6' : '#a855f7'));
 
         var timeLine = '';
         if (slot.tmFc) timeLine += '발표 ' + _shortTime(slot.tmFc) + ' ';
@@ -194,6 +201,7 @@
             + '      <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + typeColor + ';"></span>'
             + '      <span style="color:#fff;font-weight:700;font-size:0.92rem;">' + (slot.zoneName || '(구역 미지정)') + '</span>'
             + '      <span style="background:rgba(255,255,255,0.08);color:#e2e8f0;padding:1px 8px;border-radius:8px;font-size:0.75rem;">' + (slot.warnType || '') + (slot.level || '') + '</span>'
+            + '      <span style="background:' + cmdColor + '22;color:' + cmdColor + ';border:1px solid ' + cmdColor + '55;padding:1px 8px;border-radius:8px;font-size:0.72rem;font-weight:700;">' + cmdLabel + '</span>'
             + (active ? '      <span style="background:rgba(168,85,247,0.25);color:#d8b4fe;padding:1px 8px;border-radius:8px;font-size:0.72rem;font-weight:700;">표출 중</span>' : '')
             + (pre ? '      <span style="background:rgba(148,163,184,0.2);color:#cbd5e1;padding:1px 8px;border-radius:8px;font-size:0.72rem;">+다가오는</span>' : '')
             + '    </div>'
@@ -217,6 +225,63 @@
         return String(s);
     }
 
+    /**
+     * datetime-local 입력 + [지금][−1h][+1h] 버튼 묶음 HTML.
+     * @param {string} id   input element id
+     * @param {string} label 레이블
+     * @param {string} value 초기값(datetime-local 형식 yyyy-MM-ddTHH:mm)
+     */
+    function _timeFieldHtml(id, label, value) {
+        var inS = 'flex:1;padding:9px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.88rem;box-sizing:border-box;color-scheme:dark;min-width:0;';
+        var lblS = 'display:block;color:#94a3b8;font-size:0.78rem;margin-bottom:4px;';
+        var btnS = 'padding:8px 9px;background:rgba(59,130,246,0.18);border:1px solid rgba(59,130,246,0.35);border-radius:7px;color:#93c5fd;cursor:pointer;font-size:0.74rem;font-weight:700;white-space:nowrap;flex-shrink:0;';
+        return ''
+            + '<div style="margin-bottom:12px;">'
+            + '  <label style="' + lblS + '">' + label + '</label>'
+            + '  <div style="display:flex;gap:5px;align-items:center;">'
+            + '    <input type="datetime-local" id="' + id + '" style="' + inS + '" value="' + (value || '') + '">'
+            + '    <button type="button" onclick="demoTimeNow(\'' + id + '\')" style="' + btnS + '">지금</button>'
+            + '    <button type="button" onclick="demoTimeStep(\'' + id + '\',-1)" style="' + btnS + '">−1h</button>'
+            + '    <button type="button" onclick="demoTimeStep(\'' + id + '\',1)" style="' + btnS + '">+1h</button>'
+            + '  </div>'
+            + '</div>';
+    }
+
+    /** 현재 시각(KST, 분 0)을 datetime-local 문자열로 */
+    function _nowLocal() {
+        var d = new Date(Date.now() + 9 * 60 * 60 * 1000);
+        d.setUTCMinutes(0, 0, 0);
+        return d.toISOString().slice(0, 16);
+    }
+
+    /** [지금] — 입력칸을 현재 시각(정시)으로 */
+    window.demoTimeNow = function (id) {
+        var el = document.getElementById(id);
+        if (el) el.value = _nowLocal();
+    };
+
+    /** [+1h]/[−1h] — 입력칸 시각을 1시간 단위로 가감 (비어있으면 지금 기준) */
+    window.demoTimeStep = function (id, deltaH) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        var base = el.value || _nowLocal();
+        var m = base.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (!m) { el.value = _nowLocal(); return; }
+        // 로컬(KST) 시각으로 Date 구성 후 시간 가감 — UTC 변환 오차 방지 위해 직접 계산
+        var dt = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]));
+        dt.setUTCHours(dt.getUTCHours() + deltaH);
+        el.value = dt.toISOString().slice(0, 16);
+    };
+
+    /** 단계(command) 변경 시 — 격상/격하면 '이전 등급' 입력란 표시 */
+    window.demoOnCommandChange = function () {
+        var cmd = document.getElementById('dm-command');
+        var wrap = document.getElementById('dm-prevlevel-wrap');
+        if (!cmd || !wrap) return;
+        var show = (cmd.value === '격상' || cmd.value === '격하');
+        wrap.style.display = show ? 'block' : 'none';
+    };
+
     // ── 추가/수정 모달 ─────────────────────────────────────────
     window.openDemoAddModal = function (editId) {
         var editing = editId ? _slots.find(function (s) { return s.id === editId; }) : null;
@@ -237,6 +302,9 @@
         var inS = 'width:100%;padding:9px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.88rem;box-sizing:border-box;color-scheme:dark;';
         var lblS = 'display:block;color:#94a3b8;font-size:0.78rem;margin-bottom:4px;';
         var up = editing && editing.upcoming && editing.upcoming.enabled ? editing.upcoming : null;
+        var curCmd = editing ? (editing.command || '발효') : '발효';
+        var isLevelChange = (curCmd === '격상' || curCmd === '격하');
+        var cmdOpts = COMMANDS.map(function (c) { return '<option value="' + c + '"' + (curCmd === c ? ' selected' : '') + '>' + c + '</option>'; }).join('');
 
         var modal = document.createElement('div');
         modal.id = 'demo-add-modal';
@@ -244,20 +312,22 @@
         modal.onclick = function (e) { if (e.target === modal) modal.remove(); };
 
         modal.innerHTML = ''
-            + '<div style="background:#1e293b;border-radius:14px;width:92%;max-width:440px;max-height:90vh;overflow-y:auto;border:1px solid rgba(255,255,255,0.1);">'
+            + '<div style="background:#1e293b;border-radius:14px;width:92%;max-width:460px;max-height:90vh;overflow-y:auto;border:1px solid rgba(255,255,255,0.1);">'
             + '  <div style="padding:16px;background:linear-gradient(135deg,#a855f7,#7c3aed);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1;">'
             + '    <h4 style="margin:0;color:#fff;font-size:0.95rem;"><i class="fa-solid fa-flask"></i> ' + (editing ? '데모 특보 수정' : '데모 특보 추가') + '</h4>'
             + '    <button onclick="document.getElementById(\'demo-add-modal\').remove()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:1rem;">&times;</button>'
             + '  </div>'
             + '  <div style="padding:18px;">'
+            + '    <div style="margin-bottom:12px;"><label style="' + lblS + '">단계</label><select id="dm-command" onchange="demoOnCommandChange()" style="' + inS + '">' + cmdOpts + '</select></div>'
+            + '    <div id="dm-prevlevel-wrap" style="display:' + (isLevelChange ? 'block' : 'none') + ';margin-bottom:12px;"><label style="' + lblS + '">이전 등급 (격상/격하 전 등급)</label><select id="dm-prevlevel" style="' + inS + '">' + LEVELS.map(function (l) { return '<option value="' + l + '"' + (editing && editing.prevLevel === l ? ' selected' : '') + '>' + l + '</option>'; }).join('') + '</select></div>'
             + '    <div style="margin-bottom:12px;"><label style="' + lblS + '">구역</label><select id="dm-zone" style="' + inS + '">' + zoneOpts + '</select></div>'
             + '    <div style="display:flex;gap:8px;margin-bottom:12px;">'
             + '      <div style="flex:1;"><label style="' + lblS + '">종류</label><select id="dm-type" style="' + inS + '">' + typeOpts(editing ? editing.warnType : '풍랑') + '</select></div>'
             + '      <div style="flex:1;"><label style="' + lblS + '">등급</label><select id="dm-level" style="' + inS + '">' + levelOpts(editing ? editing.level : '주의보') + '</select></div>'
             + '    </div>'
-            + '    <div style="margin-bottom:12px;"><label style="' + lblS + '">발표 시각</label><input type="datetime-local" id="dm-tmFc" style="' + inS + '" value="' + (editing ? _toLocal(editing.tmFc) : '') + '"></div>'
-            + '    <div style="margin-bottom:12px;"><label style="' + lblS + '">발효 시각</label><input type="datetime-local" id="dm-tmEf" style="' + inS + '" value="' + (editing ? _toLocal(editing.tmEf) : '') + '"></div>'
-            + '    <div style="margin-bottom:14px;"><label style="' + lblS + '">해제 예정 시각</label><input type="datetime-local" id="dm-tmEd" style="' + inS + '" value="' + (editing ? _toLocal(editing.tmEd) : '') + '"></div>'
+            + _timeFieldHtml('dm-tmFc', '발표 시각', editing ? _toLocal(editing.tmFc) : '')
+            + _timeFieldHtml('dm-tmEf', '발효 시각', editing ? _toLocal(editing.tmEf) : '')
+            + _timeFieldHtml('dm-tmEd', '해제 예정 시각', editing ? _toLocal(editing.tmEd) : '')
             + '    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px;background:rgba(255,255,255,0.03);border-radius:8px;margin-bottom:8px;">'
             + '      <input type="checkbox" id="dm-up-enabled" onchange="toggleDemoUpcoming()"' + (up ? ' checked' : '') + ' style="width:16px;height:16px;cursor:pointer;">'
             + '      <span style="color:#e2e8f0;font-size:0.85rem;font-weight:600;">다가오는 특보 병기</span>'
@@ -268,7 +338,7 @@
             + '        <div style="flex:1;"><label style="' + lblS + '">종류</label><select id="dm-up-type" style="' + inS + '">' + typeOpts(up ? up.warnType : '풍랑') + '</select></div>'
             + '        <div style="flex:1;"><label style="' + lblS + '">등급</label><select id="dm-up-level" style="' + inS + '">' + levelOpts(up ? up.level : '주의보') + '</select></div>'
             + '      </div>'
-            + '      <div style="margin-bottom:6px;"><label style="' + lblS + '">발효 예정 시각</label><input type="datetime-local" id="dm-up-tmEf" style="' + inS + '" value="' + (up ? _toLocal(up.tmEf) : '') + '"></div>'
+            + _timeFieldHtml('dm-up-tmEf', '발효 예정 시각', up ? _toLocal(up.tmEf) : '')
             + '    </div>'
             + '    <button onclick="submitDemoSlot(' + (editing ? '\'' + editing.id + '\'' : 'null') + ')" style="width:100%;padding:12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.9rem;"><i class="fa-solid fa-floppy-disk"></i> 저장</button>'
             + '  </div>'
@@ -287,12 +357,15 @@
         if (!zone) { alert('구역을 선택하세요.'); return; }
         var upEnabled = document.getElementById('dm-up-enabled').checked;
 
+        var cmd = document.getElementById('dm-command').value || '발효';
+        var prevEl = document.getElementById('dm-prevlevel');
         var slot = {
             id: editId || undefined,
             zoneName: zone,
             warnType: document.getElementById('dm-type').value,
             level: document.getElementById('dm-level').value,
-            command: '발효',
+            command: cmd,
+            prevLevel: (cmd === '격상' || cmd === '격하') && prevEl ? prevEl.value : '',
             tmFc: _toKma(document.getElementById('dm-tmFc').value),
             tmEf: _toKma(document.getElementById('dm-tmEf').value),
             tmEd: _toKma(document.getElementById('dm-tmEd').value),

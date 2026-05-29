@@ -65,7 +65,15 @@
     function _slotToAlertItem(slot, isUpcoming) {
         var src = isUpcoming ? slot.upcoming : slot;
         var level = src.level || '주의보';
-        var pre = isUpcoming || level === '예비';
+        var cmd = isUpcoming ? '발표' : (slot.command || '발효');
+        // 발표 단계(또는 다가오는 특보) → 예비(발효 전)로 표시 / 발효·격상·격하 → 발효중
+        var pre = isUpcoming || cmd === '발표' || level === '예비';
+        // 격상/격하는 화면상 '변경' command + 이전 등급 표기
+        var displayCmd = pre ? '발표' : ((cmd === '격상' || cmd === '격하') ? '변경' : '발효');
+        var prevLvl = null;
+        if (!pre && (cmd === '격상' || cmd === '격하')) {
+            prevLvl = slot.prevLevel || (cmd === '격상' ? '주의보' : '경보');
+        }
         return {
             zoneName: src.zoneName || slot.zoneName || '',
             regId: src.zoneName || slot.zoneName || '',
@@ -75,11 +83,11 @@
             tmEf: _normalizeKmaTime(src.tmEf),
             tmCc: _normalizeKmaTime(src.tmEd) || '',
             tmEd: _normalizeKmaTime(src.tmEd) || '',
-            command: pre ? '발표' : (src.command || '발효'),
+            command: displayCmd,
             isPreliminary: pre,
             isCoastal: false,
             source: 'DEMO',
-            prevLevel: null,
+            prevLevel: prevLvl,
             history: [],
             _isDemo: true,
             _demoId: slot.id
@@ -113,6 +121,8 @@
 
         // 활성 데모 추가
         (active || []).forEach(function (slot) {
+            // '해제' 단계는 특보 종료 → 화면에 카드/폴리곤 표시하지 않음 (푸시만 발송됨)
+            if (slot.command === '해제') return;
             appState.alerts.push(_slotToAlertItem(slot, false));
             if (slot.upcoming && slot.upcoming.enabled) {
                 appState.alerts.push(_slotToAlertItem(slot, true));

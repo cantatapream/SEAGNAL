@@ -1909,33 +1909,51 @@ function _toKmaTime(s) {
     return `${m[1]}년 ${m[2]}월 ${m[3]}일 ${m[4]}시 ${m[5]}분`;
 }
 
-/**
- * 데모 슬롯 1건 → 푸시 메시지(title/body) 생성.
- * 기존 push_helpers 의 형식을 모사 (발표/발효 구분).
- */
-function _buildDemoPushText(slot) {
-    const typeName = `${slot.warnType || ''}${slot.level || ''}`;
-    const isPre = !!(slot.upcoming && slot.upcoming.enabled);
-    const icon = (slot.level === '경보') ? '🚨' : '🔔';
-    const verb = slot.command === '발효' ? '발효' : '발표';
-    const title = `${icon} ${typeName} ${verb} 알림`;
-    let body = `📍 ${slot.zoneName || ''}`;
-    if (slot.tmFc) body += `\n  발표 ${_shortTime(slot.tmFc)}`;
-    if (slot.tmEf) body += ` │ 발효 ${_shortTime(slot.tmEf)}`;
-    if (slot.tmEd) body += `\n  해제예정 ${_shortTime(slot.tmEd)}`;
-    if (isPre && slot.upcoming) {
-        body += `\n[다가오는] ${slot.upcoming.warnType || ''}${slot.upcoming.level || ''}`;
-        if (slot.upcoming.tmEf) body += ` 발효 ${_shortTime(slot.upcoming.tmEf)}`;
+/** 데모 단계(command) → push_helpers templateId 매핑 */
+function _demoTemplateId(command) {
+    switch (command) {
+        case '발표': return 'publish';
+        case '발효': return 'active';
+        case '해제': return 'release';
+        case '격상': return 'level_upgrade_active';
+        case '격하': return 'level_downgrade_active';
+        default: return 'active';
     }
-    return { title, body };
 }
 
-/** "2026년 05월 29일 14시 30분" → "29일 14:30" (푸시 본문 축약용) */
-function _shortTime(s) {
-    if (!s) return '';
-    const m = String(s).match(/(\d{1,2})월\s*(\d{1,2})일\s*(\d{1,2})시\s*(\d{1,2})분/);
-    if (m) return `${m[2]}일 ${String(m[3]).padStart(2, '0')}:${m[4]}`;
-    return String(s);
+/**
+ * 데모 슬롯 1건 → 실제 앱과 동일한 푸시 메시지(title/body) 생성.
+ * services/push_helpers.js 의 generateMessage 를 그대로 사용해 운영 문구와 100% 일치.
+ *   - 발표(publish) → "📢 {종류}{등급} 발표" + 발효예정
+ *   - 발효(active)  → "🚨 {종류}{등급} 발효" + 해제예정
+ *   - 해제(release) → "✅ {종류}{등급} 해제"
+ *   - 격상(level_upgrade_active)   → "🚨 {종류} {이전}→{등급} 격상 발효" + 해제예정
+ *   - 격하(level_downgrade_active) → "🚨 {종류} {이전}→{등급} 격하 발효" + 해제예정
+ */
+function _buildDemoPushText(slot) {
+    try {
+        const { generateMessage } = require('../services/push_helpers');
+        const templateId = _demoTemplateId(slot.command);
+        const payload = {
+            templateId,
+            typeName: slot.warnType || '',
+            level: slot.level || '',
+            prevLevel: slot.prevLevel || (slot.command === '격상' ? '주의보' : (slot.command === '격하' ? '경보' : '')),
+            showChildZones: false,
+            items: [{
+                zones: [slot.zoneName || ''],
+                tmEf: slot.tmEf || '',     // 발효예정 (발표/격상발표 등에서 사용)
+                tmYn: slot.tmEd || ''      // 해제예정 (발효/격상발효 등에서 사용)
+            }]
+        };
+        const msg = generateMessage(payload);
+        if (msg && msg.title) return msg;
+    } catch (e) {
+        console.error('[Demo] generateMessage 실패, fallback 사용:', e && e.message);
+    }
+    // fallback (push_helpers 미사용 시)
+    const typeName = `${slot.warnType || ''}${slot.level || ''}`;
+    return { title: `📢 ${typeName} 알림`, body: `ㅇ${slot.zoneName || ''}` };
 }
 
 // 데모 슬롯 목록 조회
@@ -1978,7 +1996,9 @@ router.post('/api/admin/demo/slots', (req, res) => {
             zoneName: s.zoneName || '',
             warnType: s.warnType || '풍랑',
             level: s.level || '주의보',
+            // 단계: 발표/발효/해제/격상/격하 (격상·격하는 발효 시점 기준)
             command: s.command || '발효',
+            prevLevel: s.prevLevel || '',   // 격상/격하 시 이전 등급
             tmFc: s.tmFc || '',
             tmEf: s.tmEf || '',
             tmEd: s.tmEd || '',
@@ -2024,7 +2044,7 @@ router.post('/api/admin/demo/emit', async (req, res) => {
                 tab: 'weather-alert-section',
                 popup: 'true',
                 alertType: `${slot.warnType || ''}${slot.level || ''}`,
-                status: slot.command === '발효' ? 'active' : 'publish',
+                status: _demoTemplateId(slot.command),
                 zones: slot.zoneName || ''
             });
             const url = `/?${params.toString()}`;
