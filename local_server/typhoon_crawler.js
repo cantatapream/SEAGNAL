@@ -243,8 +243,16 @@ function normRow(r, isCurrent) {
         windKmh: windMs != null ? Math.round(windMs * 3.6) : null,
         dir: trimStr(r.ftDir || r.typDir),                // 진행방향 (NNW 등)
         speedKmh: num(r.ftSp != null ? r.ftSp : r.typSp), // 이동속도 km/h
-        radStrong: num(r.ft15er != null ? r.ft15er : r.typ15er), // 강풍반경(15m/s) km
-        radStorm: num(r.ft25er != null ? r.ft25er : r.typ25er),  // 폭풍반경(25m/s) km
+        // 강풍/폭풍반경은 비대칭(위험반원=장반경 / 가항반원=단반경). KMA 는 대표(장)반경 + 단반경 방향을 제공.
+        //   radStrong  : 장반경(대표 강풍반경, km) — KMA "강풍반경" 헤드라인 값
+        //   radStrongS : 단반경(가항측으로 줄어든 반경, km)
+        //   radStrongD : 단반경 방향(8/16방위, 예: SW) — 이 방향 반원이 작아짐
+        radStrong: num(r.ft15 != null ? r.ft15 : (r.typ15 != null ? r.typ15 : (r.ft15er != null ? r.ft15er : r.typ15er))),
+        radStrongS: num(r.ft15er != null ? r.ft15er : r.typ15er),
+        radStrongD: trimStr(r.ft15ed != null ? r.ft15ed : r.typ15ed),
+        radStorm: num(r.ft25 != null ? r.ft25 : (r.typ25 != null ? r.typ25 : (r.ft25er != null ? r.ft25er : r.typ25er))),
+        radStormS: num(r.ft25er != null ? r.ft25er : r.typ25er),
+        radStormD: trimStr(r.ft25ed != null ? r.ft25ed : r.typ25ed),
         radProb: num(r.radPr != null ? r.radPr : r.ftRad),       // 70% 확률반경 km
         grade: deriveGrade(pwr, windMs),                  // 0(TD)~5
         size: trimStr(r.sz),                              // 소형/중형/대형/초대형
