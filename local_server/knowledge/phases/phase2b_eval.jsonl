@@ -1,0 +1,10 @@
+{"id":"angler-geomun-tide-fishing","jikgun":"angler","profile":{"purpose":"낚시"},"query":"오늘 거문도 어때","expect_tools_any":["get_tide","get_fishing_index"],"note":"낚시객 프로필이면 물때/낚시지수가 우선 진입해야 함"}
+{"id":"baseline-geomun","jikgun":null,"profile":null,"query":"오늘 거문도 어때","expect_tools_any":["get_marine_forecast","get_buoys_with_obs","get_buoy_observation","get_zone_forecast"],"note":"무프로필 — 기본 예보·관측 위주(낚시 도구는 필수 아님)"}
+{"id":"angler-yeosu","jikgun":"angler","profile":{"purpose":"낚시"},"query":"여수 오늘 출조 어때","expect_tools_any":["get_tide","get_fishing_index"],"note":"같은 직군·다른 지역"}
+{"id":"fishery-jeonnam-multi","jikgun":"fishery","profile":{"occupation":"어선 선장"},"query":"전남남해 어때","expect_tools_all":["get_marine_forecast","get_warning"],"note":"어업 종사자는 예보+특보 동시 필요"}
+{"id":"coast_guard-warning","jikgun":"coast_guard","profile":{"occupation":"해양경찰"},"query":"오늘 해상 특보 어떻게 됐어","expect_tools_any":["get_warning"],"note":"해경: 특보 직진"}
+{"id":"marine_leisure-surf","jikgun":"marine_leisure","profile":{"occupation":"서핑"},"query":"양양 오늘 어때","expect_tools_any":["get_surfing_index"],"note":"레저스포츠+서핑 키워드 → 서핑 지수"}
+{"id":"navy-east","jikgun":"navy","profile":{"occupation":"해군"},"query":"동해중부 해상 상황","expect_tools_any":["get_marine_forecast","get_warning","get_zone_forecast"],"note":"해군: 종합 예보·특보·해구"}
+{"id":"local_gov-warning","jikgun":"local_gov","profile":{"affiliation":"시청 방재"},"query":"관내 해상 특보 있나","expect_tools_any":["get_warning"],"note":"지자체: 특보"}
+{"id":"public_org-coast","jikgun":"public_org","profile":{"affiliation":"해양환경공단"},"query":"오늘 연안 상황","expect_tools_any":["get_marine_forecast","get_warning","get_midterm_forecast"],"note":"공공기관: 종합 모니터링"}
+{"id":"mof-overall","jikgun":"mof","profile":{"affiliation":"해양수산부"},"query":"해양 전반 상황","expect_tools_any":["get_marine_forecast","get_midterm_forecast","get_warning"],"note":"해수부: 정책·중기"}
