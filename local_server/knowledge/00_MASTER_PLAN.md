@@ -210,6 +210,7 @@
 | 2026-05-29 | **§9 산출물 저장 방식** 추가(리포 정본 합의), knowledge/ 커밋 |
 | 2026-05-29 | **Phase 2a 완료**: 직군 8종 `_SCHEMA.md` 정합화(frontmatter·규칙ID·트리거 조건식·고정칼럼). DoD 충족 |
 | 2026-05-29 | **Phase 2b v1**: 직군 감지(detectJikgun)+지식 다이제스트 주입(planQuery·합성). 룰베이스, 검증 완료. 잔여=임베딩·평가셋·SLO |
+| 2026-05-30 | **호출어 엔진 무료 오픈소스화(Vosk)**: Picovoice 상업검토·유료화 회피. `WakeWordEngine` 인터페이스 활용해 `VoskWakeEngine`(Apache-2.0, 오프라인 한국어 ASR + 문법제한 KWS) 추가. 모델(~80MB)은 `VoskDownloadService`(전경 서비스 + 진행률 알림)가 사용자 동의 후 첫 1회 다운로드(Wi-Fi 기본, "데이터로 받기" 옵션) → 마커 영구화. 플러그인 `getCapabilities/requestVoskDownload/cancelVoskDownload` + `voskState` 이벤트, 토글 다이얼로그(다운로드 필요·진행률·실패·Wi-Fi 필요). 엔진 우선순위 Porcupine→Vosk→AndroidSpeech. APK 재빌드 1회 필요(네이티브 라이브러리), 모델은 영영 APK 미포함 |
 
 ---
 

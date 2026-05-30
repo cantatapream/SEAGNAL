@@ -44,6 +44,10 @@ dependencies {
     // [음성 비서] Porcupine 온디바이스 호출어 엔진("나리야"). assets에 .ppn/params/accesskey 가
     // 있을 때만 사용하고, 없으면 안드로이드 기본 음성인식으로 폴백한다.
     implementation 'ai.picovoice:porcupine-android:3.0.2'
+    // [음성 비서] Vosk 오프라인 한국어 ASR (Apache-2.0). 호출어 문법 제한으로 KWS 화.
+    // 한국어 모델(~80MB)은 사용자 동의 후 VoskDownloadService 가 첫 1회 내려받음(APK 미포함).
+    implementation 'net.java.dev.jna:jna:5.13.0@aar'
+    implementation 'com.alphacephei:vosk-android:0.3.47'
 }
 
 apply from: 'capacitor.build.gradle'

@@ -103,10 +103,16 @@ public class VoiceAssistantService extends Service {
         super.onCreate();
         createChannel();
         initTts();
-        // 호출어 엔진 선택: Porcupine 구성(assets) 있으면 그걸(저전력·고신뢰), 없으면 기본 음성인식.
+        // 호출어 엔진 선택 우선순위:
+        //   1) Porcupine     — assets 3종(.ppn/params/key) 갖춰진 경우만(저전력 KWS)
+        //   2) Vosk          — 사용자 동의로 한국어 모델 다운로드 완료 시(오프라인 ASR + 문법 제한)
+        //   3) AndroidSpeech — 둘 다 없을 때의 마지막 안전망(연속 STT 기반 폴백)
         if (PorcupineWakeEngine.isAvailable(this)) {
             wakeEngine = new PorcupineWakeEngine(this);
             Log.i(TAG, "호출어 엔진: Porcupine");
+        } else if (VoskWakeEngine.isAvailable(this)) {
+            wakeEngine = new VoskWakeEngine(this);
+            Log.i(TAG, "호출어 엔진: Vosk(오프라인 한국어)");
         } else {
             wakeEngine = new AndroidSpeechWakeEngine(this);
             Log.i(TAG, "호출어 엔진: AndroidSpeechRecognizer(폴백)");
