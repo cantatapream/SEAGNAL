@@ -221,7 +221,7 @@
 | 14 | ~~무프로필 모호어 처리~~ ✅ 부분완료(2026-05-30, baseline-geomun 회복). detectZoneDeterministic+섬·부이 정규식 기반 도메인 가드 | 나리야팀 | 완료 |
 | 15 | ~~잘못된 행정구역명 정정~~ ✅ 완료(2026-05-30, stage 3 역방향 토큰 매칭). "전남남해"→"전남동부남해앞바다" 보정 작동 확인. forecast 호출 회복 | 나리야팀 | 완료 |
 | 16 | ~~합성 환각 가드~~ ✅ 완료(2026-05-30, 빈 results 차단 + 프롬프트 환각 금지 강화). 지연 p95 5858→3440ms 효과 | 나리야팀 | 완료 |
-| 18 | **다중 도구 hint 강화** — 직군 의도가 multi-tool 필요(어업=예보+특보)인데 LLM 이 단일 도구로 멈춤. 직군 디지스트에 "함께 호출" 패턴 명시, 또는 평가 expect 명확화. fishery-jeonnam-multi 잔여 1건 직타 | 나리야팀 | next |
+| 18 | ~~다중 도구 hint 강화~~ ✅ 완료(2026-05-30). planQuery 에 직군별 multi-tool 패턴 명시 + DOMAIN_RE 보강("해양/바다/섬/항구/항만"). 평가 만점 PASS 10/10 달성 | 나리야팀 | 완료 |
 
 ---
 
@@ -248,6 +248,7 @@
 | 2026-05-30 | **음성 비서 자연어 memory 동봉 (§6 #17 옵션 C 완료)**: VoiceAssistantService 에 `recentMemory`(ArrayDeque, MEMORY_MAX=8) + askServer body 에 memory 배열 동봉 + 응답 후 채팅창 동일 포맷(`[zone:] "Q" → A(160자)`)으로 자동 적재. focus(구조)와 memory(자연어) 이중 안전망으로 채팅창과 음성 비서 능력 동등화. 비도메인 후속("뽀로로 파크 → 거기 이용 금액?") 등 focus 가 못 담는 자유 화제도 LLM 이 자연어로 이음. APK 재빌드 1회 필요(자바) |
 | 2026-05-30 | **zone 양방향 fuzzy + 합성 환각 가드 (§6 #15·#16 완료)**: detectZoneDeterministic 에 stage 3(역방향 토큰 매칭, 최소 2 토큰) 추가 → "전남남해" 같은 짧은 비표준 명을 표준 zone("전남동부남해앞바다") 으로 정정. runBrain 에 `isDomainQuery && results.length===0` 시 synth 호출 차단 + 안전 응답. synth 프롬프트에 환각 금지 강화. **결과: PASS 9/10 유지 + 지연 p95 5858→3440ms** (환각 가드 짧은 안전 응답 효과). fishery-jeonnam-multi 는 forecast 호출은 회복(get_marine_forecast) 했으나 multi-tool expect(forecast+warning) 미충족 — 평가 기준이 더 엄격해진 셈. #18 신규(다중 도구 hint) |
 | 2026-05-30 | **도구 디스크립션 임베딩 (§6 #10 v2 완료)**: services/topic_embedding.js 에 `warmupTools/nearestTools` 추가 — TOOL_CATALOG 파싱으로 도구 19개의 디스크립션을 임베딩(별도 디스크 캐시 tool_embeddings.json) + planQuery 에 `toolSimLine` 주입(질의에 가까운 도구 후보 상위 4, minScore 0.55, 600ms 타임아웃). 토픽 임베딩이 못 잡는 패턴(도구 자체에 핵심 키워드)을 보완. 백그라운드 워밍업 + 폴백 안전. 평가 효과는 다음 라운드 측정 |
+| 2026-05-30 | **🎉 평가 첫 만점 PASS 10/10 (§6 #18 완료 + 도메인 가드 보강)**: planQuery 에 multi-tool 패턴 명시("어업·해양경찰·해군·지자체·공공기관·해양수산부 + 종합 질의 → forecast+warning 함께; 정책·중기 직군 → +midterm; 출항/조업 → +tide·current"). DOMAIN_RE 에 "해양/바다/섬/항구/항만" 보강(이전 "해상"만 → "해양 전반" 류 누락). **결과: 다수결 PASS 10/10 (100%) · 비결정성 0건 · 지연 p50 1235ms/p95 3255ms/평균 1695ms (n=30)**. fishery-jeonnam-multi/mof-overall 둘 다 multi-tool 호출 회복. 측정 토대 v1 → 60%(첫 베이스라인) → 80% → 90% → 100% 단계 완성 |
 
 ---
 

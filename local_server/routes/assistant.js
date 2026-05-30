@@ -1340,7 +1340,8 @@ ${catalogLine}
 - 생활지수: 낚시→get_fishing_index, 서핑/물놀이→get_surfing_index, 갯벌/바다갈라짐→get_sea_split_index.
   스쿠버·다이빙처럼 전용 지수가 없는 활동은 위 지수에 억지로 맞추지 말고 steps 를 비워(웹검색 폴백) 두세요.
 - 관리자/설정/키 같은 건 도구가 없으니 무시하세요.
-- **(중요) 한국 해상·기상 도메인 질의(특보·예보·파고·풍속·시정·부이·조석·유속·수심·태풍·해구·해역·낚시·서핑·관측·수온 등)는 반드시 위 도구로 처리하세요.** 위치가 모호해도(예: "오늘 특보", "관내 어때", "전국 상황") web_search 폴백을 노리고 steps 를 비우지 말고, 가장 그럴듯한 도구를 하나라도 호출하세요(예: 위치 없는 특보 → get_warning(zone="전국") 또는 zone 생략, "오늘 연안" → get_marine_forecast(zone="서해남부") 같은 기본 해역). 결과가 비어 있으면 합성 단계가 "현재 ~ 없음" 으로 자연스럽게 보고합니다.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}${simLine}${toolSimLine}
+- **(중요) 한국 해상·기상 도메인 질의(특보·예보·파고·풍속·시정·부이·조석·유속·수심·태풍·해구·해역·낚시·서핑·관측·수온 등)는 반드시 위 도구로 처리하세요.** 위치가 모호해도(예: "오늘 특보", "관내 어때", "전국 상황") web_search 폴백을 노리고 steps 를 비우지 말고, 가장 그럴듯한 도구를 하나라도 호출하세요(예: 위치 없는 특보 → get_warning(zone="전국") 또는 zone 생략, "오늘 연안" → get_marine_forecast(zone="서해남부") 같은 기본 해역). 결과가 비어 있으면 합성 단계가 "현재 ~ 없음" 으로 자연스럽게 보고합니다.
+- **(다중 도구 패턴)** 직군이 어업·해양경찰·해군·지자체·공공기관·해양수산부 같은 종합 모니터링 직군이고 질의가 "어때/상황/괜찮을까/어떻게 됐어/전반/전체/관내" 같이 종합적이면, get_marine_forecast + get_warning 을 **함께** 호출하세요. 해양수산부·공공기관 등 정책·중기 관심 직군은 추가로 get_midterm_forecast 도. 출항/조업 판단 질의는 추가로 get_tide·get_current 도 함께. 답할 자료가 비더라도 호출은 같이 — 합성이 데이터별로 "있음/없음" 을 명확히 보고합니다.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}${simLine}${toolSimLine}
 
 사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
 질문: "${query}"
@@ -1457,7 +1458,7 @@ async function runBrain(query, profile, memory, style, location, focus) {
     //  결과가 비더라도 합성 단계가 "현재 ~ 없음" 또는 "위치를 좀 더 알려주세요" 로 보고하게 둔다.
     //  비도메인 질문(관광·역사·일반상식·인물 등)에만 web_search 가 마지막 수단으로 살아남는다.
     //  도메인 여부는 (a) 도메인 키워드 (b) 알려진 해역명 fuzzy 매칭 (c) 알려진 섬·부이 지명 중 하나라도.
-    const DOMAIN_RE = /특보|예보|파고|파주기|풍속|풍향|풍랑|해상|연안|해역|해구|부이|시정|가시거리|조석|만조|간조|물때|유속|유향|해류|수심|태풍|기상|관측|수온|낚시|서핑|어업|조업|항해/;
+    const DOMAIN_RE = /특보|예보|파고|파주기|풍속|풍향|풍랑|해상|해양|연안|해역|해구|부이|시정|가시거리|조석|만조|간조|물때|유속|유향|해류|수심|태풍|기상|관측|수온|낚시|서핑|어업|조업|항해|바다|섬|항구|항만/;
     const ISLAND_BUOY_RE = /거문도|오륙도|마라도|추자도|울릉도|서귀포|신안|가거도|백령도|연평도|흑산도|위미|독도|덕적|영흥|울진|포항|속초|동해|강릉|삼척|군산|목포|여수|통영|거제|부산|보길도|진도|완도|소청도|대청도|어청도|울도|소흑산도/;
     const isDomainQuery = DOMAIN_RE.test(query) || DOMAIN_RE.test(cq)
         || ISLAND_BUOY_RE.test(query) || ISLAND_BUOY_RE.test(cq)
