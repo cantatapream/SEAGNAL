@@ -1427,6 +1427,18 @@ async function runBrain(query, profile, memory, style, location, focus) {
     const isDomainQuery = DOMAIN_RE.test(query) || DOMAIN_RE.test(cq)
         || ISLAND_BUOY_RE.test(query) || ISLAND_BUOY_RE.test(cq)
         || !!detectZoneDeterministic(query) || !!detectZoneDeterministic(cq);
+    // [환각 가드 — §6 #16] 도메인 질의인데 도구 호출이 0건이면(빈 steps + 위빙도
+    //   추가 못 함) synth 에게 그냥 질문만 넘기면 LLM 일반 지식으로 답을 지어낼 위험.
+    //   안전한 메시지로 차단 — 사용자가 다시 시도하거나 위치를 구체화하도록 유도.
+    if (isDomainQuery && results.length === 0) {
+        return {
+            answer: '죄송해요, 지금 그 정보를 가져오지 못했어요. 위치를 좀 더 구체적으로 알려주시면 더 도와드릴 수 있어요.',
+            zone: plan.zone || null,
+            toolsUsed: [],
+            corrected,
+            focus: null
+        };
+    }
     if (!gotUseful && !isDomainQuery) {
         const web = await webSearchAnswer(cq);
         if (web && web.answer) {
@@ -1438,7 +1450,7 @@ async function runBrain(query, profile, memory, style, location, focus) {
     const synth =
 `당신은 한국 어선·항해자를 돕는 해양 기상 개인 비서입니다.
 아래 "수집결과"의 실제 데이터에만 근거해, 사용자가 "물어본 것만" 답하세요.
-- 수집결과에 없는 수치/사실은 절대 지어내지 마세요. 없으면 짧게 "그 정보는 없어요"라고 하세요.
+- (환각 금지) 수집결과에 없는 수치/사실은 절대 지어내지 마세요. 일반 지식·추측·웹 정보로 빈칸을 채우지 마세요. 수집결과가 비어 있거나 데이터가 없으면 짧게 "그 정보는 없어요" 또는 "지금은 가져오지 못했어요"라고만 답하세요. 도구가 빈 결과를 돌려주면(예: warnings:[]) "현재 발효 중인 ~ 없습니다"처럼 *없음*을 그대로 보고하세요.
 - 사용자가 사실을 단정해도(예: "제6호 태풍이 북상 중인데", "특보 떴잖아") 수집결과와 다르면 수집결과를 따르세요. 예: 태풍 hasActive 가 false 면 "현재 발효 중인 태풍은 없습니다"라고 정정하세요. 사용자의 전제를 그대로 인정하지 마세요.
 - 핵심만 간결하게. 사용자가 묻지 않은 일반론·참고사항·주의문구를 덧붙이지 마세요.
 - 여러 항목(예: 부이 여러 개)을 물으면 항목마다 이름과 관측 수치를 명확히, 관측 기준시각이 있으면 함께.
