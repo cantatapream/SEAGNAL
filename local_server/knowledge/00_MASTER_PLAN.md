@@ -222,6 +222,8 @@
 | 15 | ~~잘못된 행정구역명 정정~~ ✅ 완료(2026-05-30, stage 3 역방향 토큰 매칭). "전남남해"→"전남동부남해앞바다" 보정 작동 확인. forecast 호출 회복 | 나리야팀 | 완료 |
 | 16 | ~~합성 환각 가드~~ ✅ 완료(2026-05-30, 빈 results 차단 + 프롬프트 환각 금지 강화). 지연 p95 5858→3440ms 효과 | 나리야팀 | 완료 |
 | 18 | ~~다중 도구 hint 강화~~ ✅ 완료(2026-05-30). planQuery 에 직군별 multi-tool 패턴 명시 + DOMAIN_RE 보강("해양/바다/섬/항구/항만"). 평가 만점 PASS 10/10 달성 | 나리야팀 | 완료 |
+| 19 | **결함 2 — zone 모호 multi-tool 빈응답** 도구 구현 수준 변경(get_marine_forecast 가 zone 없으면 광역 요약). 8-agent 검증에서 다수 직군이 종합 질의 시 빈응답 | 나리야팀 | next |
+| 20 | **50문항/직군 재검증** — 결함 4건 수정 후 자유 변칙 통계 재측정. background spawn 권장(quota·시간). 50×8=400 호출 | 나리야팀 | 진행중 |
 
 ---
 
@@ -249,6 +251,8 @@
 | 2026-05-30 | **zone 양방향 fuzzy + 합성 환각 가드 (§6 #15·#16 완료)**: detectZoneDeterministic 에 stage 3(역방향 토큰 매칭, 최소 2 토큰) 추가 → "전남남해" 같은 짧은 비표준 명을 표준 zone("전남동부남해앞바다") 으로 정정. runBrain 에 `isDomainQuery && results.length===0` 시 synth 호출 차단 + 안전 응답. synth 프롬프트에 환각 금지 강화. **결과: PASS 9/10 유지 + 지연 p95 5858→3440ms** (환각 가드 짧은 안전 응답 효과). fishery-jeonnam-multi 는 forecast 호출은 회복(get_marine_forecast) 했으나 multi-tool expect(forecast+warning) 미충족 — 평가 기준이 더 엄격해진 셈. #18 신규(다중 도구 hint) |
 | 2026-05-30 | **도구 디스크립션 임베딩 (§6 #10 v2 완료)**: services/topic_embedding.js 에 `warmupTools/nearestTools` 추가 — TOOL_CATALOG 파싱으로 도구 19개의 디스크립션을 임베딩(별도 디스크 캐시 tool_embeddings.json) + planQuery 에 `toolSimLine` 주입(질의에 가까운 도구 후보 상위 4, minScore 0.55, 600ms 타임아웃). 토픽 임베딩이 못 잡는 패턴(도구 자체에 핵심 키워드)을 보완. 백그라운드 워밍업 + 폴백 안전. 평가 효과는 다음 라운드 측정 |
 | 2026-05-30 | **🎉 평가 첫 만점 PASS 10/10 (§6 #18 완료 + 도메인 가드 보강)**: planQuery 에 multi-tool 패턴 명시("어업·해양경찰·해군·지자체·공공기관·해양수산부 + 종합 질의 → forecast+warning 함께; 정책·중기 직군 → +midterm; 출항/조업 → +tide·current"). DOMAIN_RE 에 "해양/바다/섬/항구/항만" 보강(이전 "해상"만 → "해양 전반" 류 누락). **결과: 다수결 PASS 10/10 (100%) · 비결정성 0건 · 지연 p50 1235ms/p95 3255ms/평균 1695ms (n=30)**. fishery-jeonnam-multi/mof-overall 둘 다 multi-tool 호출 회복. 측정 토대 v1 → 60%(첫 베이스라인) → 80% → 90% → 100% 단계 완성 |
+| 2026-05-30 | **8 직군 sub-agent 자유 변칙 검증 (v1, 5문항/직군)** — 평가셋 만점 100% vs **자유 변칙 PASS 23/40 = 57.5%** 격차 발견. 공통 결함 5건 추출: (1) focus 후속 전파 실패(angler Q5·fishery Q4·mof Q4) (2) zone 미해결 multi-tool 빈응답 (3) 메타·자기요약 약함 (4) 의사결정 정량임계 부재 (5) CoT 누수 의심(coast_guard Q5). 평가셋이 *형식*만 보고 *내용·연속성·환각* 안 봤다는 신호 |
+| 2026-05-30 | **결함 4건 즉시 수정 (#1·#3·#4·#5)** — deriveFocus 에 query 인자 추가 + zone 비면 detectZoneDeterministic 으로 fuzzy 보강(결함 1). synth 프롬프트에 (a) **CoT 누수 절대 금지** "내부 사고 과정·메타 코멘트 한 글자도 금지" (b) **메타·자기요약 질의** "memory 마지막 항목 1-2줄로 자연어 요약" (c) **의사결정형 정량 판단** "파고/풍속/특보 임계로 가부 결론 먼저" 추가. **평가 회귀 0 — PASS 10/10 유지(p50 1199ms/p95 5279ms)**. 결함 2(zone 모호 multi-tool 도구구현 변경) 는 다음 라운드 |
 
 ---
 

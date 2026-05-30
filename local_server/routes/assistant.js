@@ -1234,7 +1234,7 @@ const TOOL_EXEC = {
 /** 1단계: 질문 → 가져올 데이터 계획(JSON) */
 /** 직전 턴의 도구 결과에서 "주목 대상(focus)"을 구조화 추출 — 해역/해구/부이/좌표/랭킹.
  *  자유텍스트 memory로는 유실되는 해구 번호·좌표를 구조로 보존해 후속 질문 연속성을 보장한다. */
-function deriveFocus(plan, results, zoneName) {
+function deriveFocus(plan, results, zoneName, query) {
     const focus = { zone: zoneName || (plan && plan.zone) || null, haegu: null, buoy: null, coords: null, rankedItems: null, lastTools: (results || []).map(r => r.tool) };
     for (const r of (results || [])) {
         const v = r && r.result;
@@ -1250,6 +1250,12 @@ function deriveFocus(plan, results, zoneName) {
             if (top.zone && !focus.zone) focus.zone = top.zone;          // 명명 해역 랭킹 1위
             if (focus.coords == null && top['위도'] != null && top['경도'] != null) focus.coords = { lat: top['위도'], lon: top['경도'] };
         }
+    }
+    // [결함 1 — focus 전파 강화] zone 이 비면 query 에서 fuzzy 보강(detectZoneDeterministic).
+    //   결함 분석에서 후속 턴이 focus 못 받아 엉뚱한 해역 추천한 케이스(angler Q5 등) 직타.
+    if (!focus.zone && typeof query === 'string') {
+        const z = detectZoneDeterministic(query);
+        if (z) focus.zone = z;
     }
     return (focus.zone || focus.haegu || focus.buoy || focus.coords || focus.rankedItems) ? focus : null;
 }
@@ -1426,7 +1432,7 @@ async function runBrain(query, profile, memory, style, location, focus) {
 
     // [의존 위빙 — 1회 재계획] "X 가장 ~한 곳의 Y" 처럼 1차 결과가 있어야 2차 도구 인자를
     //   채울 수 있는 질문은, 1차 focus를 주입해 한 번 더 계획한다(이미 실행한 도구는 건너뜀).
-    const focus1 = deriveFocus(plan, results, plan.zone);
+    const focus1 = deriveFocus(plan, results, plan.zone, cq);
     if (needsReplan(cq, results, focus1)) {
         const plan2 = await planQuery(cq, profile, location, memory, focus1);
         if (plan2 && Array.isArray(plan2.steps)) {
@@ -1478,7 +1484,7 @@ async function runBrain(query, profile, memory, style, location, focus) {
     if (!gotUseful && !isDomainQuery) {
         const web = await webSearchAnswer(cq);
         if (web && web.answer) {
-            return { answer: web.answer, zone: plan.zone || null, toolsUsed: ['web_search'], webLinks: web.webLinks || [], corrected, focus: deriveFocus(plan, results, plan.zone) };
+            return { answer: web.answer, zone: plan.zone || null, toolsUsed: ['web_search'], webLinks: web.webLinks || [], corrected, focus: deriveFocus(plan, results, plan.zone, cq) };
         }
     }
 
@@ -1487,6 +1493,9 @@ async function runBrain(query, profile, memory, style, location, focus) {
 `당신은 한국 어선·항해자를 돕는 해양 기상 개인 비서입니다.
 아래 "수집결과"의 실제 데이터에만 근거해, 사용자가 "물어본 것만" 답하세요.
 - (환각 금지) 수집결과에 없는 수치/사실은 절대 지어내지 마세요. 일반 지식·추측·웹 정보로 빈칸을 채우지 마세요. 수집결과가 비어 있거나 데이터가 없으면 짧게 "그 정보는 없어요" 또는 "지금은 가져오지 못했어요"라고만 답하세요. 도구가 빈 결과를 돌려주면(예: warnings:[]) "현재 발효 중인 ~ 없습니다"처럼 *없음*을 그대로 보고하세요.
+- **(CoT 누수 절대 금지)** 내부 사고 과정·추론 단계·메타 코멘트를 응답에 출력하지 마세요. "내가 생각해 보니/추론 과정/thinking:/sources:/먼저 ~를 확인하고~" 같은 메타 텍스트는 한 글자도 답에 포함 금지. 사용자가 최종 답만 음성으로 듣게 됩니다 — 깔끔한 결론만.
+- **(메타·자기요약 질의)** "방금 결정 사유/한 줄 요약/방금 결과 뭐였지/왜 그렇게 판단" 같이 *직전 답을 다시 요약하라*는 질의면, 수집결과 대신 [최근 대화] memory 의 마지막 항목을 1-2줄로 자연어 요약해 답하세요(없으면 "직전 대화 기록이 없어요"). 새 도구 호출 데이터에 의존하지 마세요.
+- **(의사결정형 — 정량 판단 강화)** "출항/조업/훈련/작업/타도 돼/가능?·괜찮을까?·해도 돼?·위험?·안전?" 류 안전 판단 질의는 수집결과의 정량 수치(파고·풍속·시정·특보)에 근거해 짧은 한 줄로 가부 결론을 먼저 주세요(예: 파고 ≥2m 또는 풍속 ≥14m/s 또는 풍랑특보 발효면 "무리/주의", 파고 <1m + 풍속 <10m + 특보無면 "가능", 그 사이면 "주의/조건부 가능"). 그 다음 근거 수치 1-2개. 마지막에 "최종 판단은 선장님 몫" 한 번만.
 - 사용자가 사실을 단정해도(예: "제6호 태풍이 북상 중인데", "특보 떴잖아") 수집결과와 다르면 수집결과를 따르세요. 예: 태풍 hasActive 가 false 면 "현재 발효 중인 태풍은 없습니다"라고 정정하세요. 사용자의 전제를 그대로 인정하지 마세요.
 - 핵심만 간결하게. 사용자가 묻지 않은 일반론·참고사항·주의문구를 덧붙이지 마세요.
 - 여러 항목(예: 부이 여러 개)을 물으면 항목마다 이름과 관측 수치를 명확히, 관측 기준시각이 있으면 함께.
@@ -1499,7 +1508,7 @@ ${personal}
 수집결과(JSON): ${JSON.stringify(results)}`;
     const r = await gemini.callGemini({ model: BRAIN_MODEL, contents: synth, config: { temperature: 0.3 }, caller: 'Assistant-Synth' });
     if (!r.success || !r.text) return null;
-    return { answer: r.text.trim(), zone: plan.zone || null, toolsUsed: results.map(x => x.tool), corrected, focus: deriveFocus(plan, results, plan.zone) };
+    return { answer: r.text.trim(), zone: plan.zone || null, toolsUsed: results.map(x => x.tool), corrected, focus: deriveFocus(plan, results, plan.zone, cq) };
 }
 
 router.post('/api/assistant/ask', async (req, res) => {
