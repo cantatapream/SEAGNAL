@@ -1453,28 +1453,51 @@ async function runBrain(query, profile, memory, style, location, focus) {
         const r = detectZoneDeterministic(z);
         return (r && r !== z) ? r : z;
     };
-    // [§6 #22 — focus 후속 전파 결정론적] 대명사·생략 주어가 있는 후속 질의 + focus.zone
-    //   있는데 LLM 이 args.zone 을 비워두면 자동으로 채운다(LLM 판단 우회).
-    //   자유변칙 평가 연속성 48% → 70%+ 목표.
-    const PRONOUN_RE = /거기|그곳|그쪽|그\s*해역|그\s*해구|그\s*부이|방금|아까|그건|그게|저거|그\s*때/;
+    // [§6 #22 v2 — focus 후속 전파 도구별 args 정확 주입] 도구마다 zone/place/location/beach 등
+    //   인자 이름이 다르다. v3 에서 args.zone 만 채워 일부 도구(get_tide/get_buoy_observation 등)
+    //   에 무영향이라 연속 카테고리 -5p 회귀. 도구별 매핑 테이블로 정확히 채운다.
+    const PRONOUN_RE = /거기|그곳|그쪽|그\s*해역|그\s*해구|그\s*부이|방금|아까|그건|그게|저거/;
     const isPronounFollowup = PRONOUN_RE.test(cq);
     const focusZone  = focus && focus.zone;
     const focusHaegu = focus && focus.haegu;
+    const focusBuoy  = focus && focus.buoy;
     const focusCoords = focus && focus.coords;
+    // 도구별 focus.zone 을 받을 args 이름 (앞에 있는 게 우선)
+    const FOCUS_ZONE_ARG = {
+        get_marine_forecast: 'zone',
+        get_warning: 'zone',
+        get_midterm_forecast: 'zone',
+        list_buoys_near: 'zone',
+        get_visibility: 'place',          // place 우선, zone 보조
+        get_buoys_with_obs: 'zone',
+        get_tide: 'place',
+        get_sea_split_index: 'place',
+        get_fishing_index: 'location',
+        get_surfing_index: 'beach',
+        get_current: 'zone',
+        get_depth: 'zone',
+        get_seafog_cctv: 'harbor',
+    };
+    const COORD_TOOLS = new Set(['get_current','get_depth','get_tide','get_nearest_buoy','get_visibility','get_buoys_with_obs']);
     for (const step of plan.steps || []) {
         if (!step || !step.args || typeof step.args !== 'object') continue;
         if (step.args.zone) step.args.zone = canonZone(step.args.zone);
-        if (isPronounFollowup) {
-            // zone 인자 비었고 focus.zone 있으면 채움 (대다수 도구에 zone 인자 존재)
-            if (!step.args.zone && focusZone) step.args.zone = focusZone;
-            // 좌표 인자 비었고 focus.coords 있으면 채움 (get_current/get_depth/get_tide 등)
-            if (focusCoords && (step.args.lat == null) && (step.args.lon == null)) {
-                step.args.lat = focusCoords.lat; step.args.lon = focusCoords.lon;
-            }
-            // 해구번호 인자 비었고 focus.haegu 있으면(get_zone_forecast)
-            if (focusHaegu && !step.args.zoneId && step.tool === 'get_zone_forecast') {
-                step.args.zoneId = focusHaegu;
-            }
+        if (!isPronounFollowup) continue;
+        // 1) 도구별 zone-인자 주입
+        const zoneArg = FOCUS_ZONE_ARG[step.tool];
+        if (focusZone && zoneArg && !step.args[zoneArg]) step.args[zoneArg] = focusZone;
+        // 2) 해구번호 — get_zone_forecast
+        if (focusHaegu && step.tool === 'get_zone_forecast' && !step.args.zoneId) {
+            step.args.zoneId = focusHaegu;
+        }
+        // 3) 부이명 — get_buoy_observation
+        if (focusBuoy && step.tool === 'get_buoy_observation' && !step.args.buoyName) {
+            step.args.buoyName = focusBuoy;
+        }
+        // 4) 좌표 — 좌표 받는 도구만, args 비었을 때
+        if (focusCoords && COORD_TOOLS.has(step.tool) && step.args.lat == null && step.args.lon == null) {
+            step.args.lat = focusCoords.lat;
+            step.args.lon = focusCoords.lon;
         }
     }
 
@@ -1551,6 +1574,7 @@ async function runBrain(query, profile, memory, style, location, focus) {
 - (환각 금지) 수집결과에 없는 수치/사실은 절대 지어내지 마세요. 일반 지식·추측·웹 정보로 빈칸을 채우지 마세요. 수집결과가 비어 있거나 데이터가 없으면 짧게 "그 정보는 없어요" 또는 "지금은 가져오지 못했어요"라고만 답하세요. 도구가 빈 결과를 돌려주면(예: warnings:[]) "현재 발효 중인 ~ 없습니다"처럼 *없음*을 그대로 보고하세요.
 - **(CoT 누수 절대 금지)** 내부 사고 과정·추론 단계·메타 코멘트를 응답에 출력하지 마세요. "내가 생각해 보니/추론 과정/thinking:/sources:/먼저 ~를 확인하고~" 같은 메타 텍스트는 한 글자도 답에 포함 금지. 사용자가 최종 답만 음성으로 듣게 됩니다 — 깔끔한 결론만.
 - **(컨텍스트 격리 — 🔒 프라이버시)** 위에 제공된 [최근 대화]/[직전 확정 대상]/[수집 데이터 인벤토리]/memory/focus/personal/profile/jikgun 같은 **입력 블록·라벨 자체를 답에 출력하지 마세요**. 그 안의 사실(직전 해역명·해구·좌표)만 자연어로 풀어쓰세요. "[최근 대화] memory: ..." 같은 prompt 컨텍스트 텍스트가 응답에 노출되면 안 됩니다(다른 사용자 정보 누설 위험).
+- **(비기상·비도메인 정보 거절)** 사용자가 우리 도구로 답할 수 없는 정보(산업재해·인구·교통사고·산재 통계 · 법령 제N조·시행령 · 운용규정·매뉴얼·SAR 절차 · 면허·채용·예산·조례 · 해역 경계 좌표 · 어획 통계·정책 5개년·정원·인사 등 비기상 행정·법령·통계·매뉴얼)을 물으면, 수집결과에 web_search 답이 있어도 그 답을 그대로 채택하지 말고 **"그 정보는 우리 자료에 없어요"** 또는 **"기상·해상 정보 외엔 안내가 어려워요"** 로 답하세요. 우리 데이터(기상청·KHOA·해양조사원)는 *현재 기상·해상 관측·예보·특보·태풍·생활지수·조석·유속·수심·시정* 만 다룹니다.
 - **(메타·자기요약 질의)** "방금 결정 사유/한 줄 요약/방금 결과 뭐였지/왜 그렇게 판단" 같이 *직전 답을 다시 요약하라*는 질의면, 수집결과 대신 [최근 대화] memory 의 마지막 항목을 1-2줄로 자연어 요약해 답하세요(없으면 "직전 대화 기록이 없어요"). 새 도구 호출 데이터에 의존하지 마세요.
 - **(의사결정형 — 정량 판단 강화)** "출항/조업/훈련/작업/타도 돼/가능?·괜찮을까?·해도 돼?·위험?·안전?" 류 안전 판단 질의는 수집결과의 정량 수치(파고·풍속·시정·특보)에 근거해 짧은 한 줄로 가부 결론을 먼저 주세요(예: 파고 ≥2m 또는 풍속 ≥14m/s 또는 풍랑특보 발효면 "무리/주의", 파고 <1m + 풍속 <10m + 특보無면 "가능", 그 사이면 "주의/조건부 가능"). 그 다음 근거 수치 1-2개. 마지막에 "최종 판단은 선장님 몫" 한 번만.
 - 사용자가 사실을 단정해도(예: "제6호 태풍이 북상 중인데", "특보 떴잖아") 수집결과와 다르면 수집결과를 따르세요. 예: 태풍 hasActive 가 false 면 "현재 발효 중인 태풍은 없습니다"라고 정정하세요. 사용자의 전제를 그대로 인정하지 마세요.
