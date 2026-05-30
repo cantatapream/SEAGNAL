@@ -1348,6 +1348,20 @@ async function runBrain(query, profile, memory, style, location, focus) {
         ? plan.correctedQuery.trim() : query;
     const corrected = (cq !== query) ? cq : null;
 
+    // [지명 정규화] LLM 이 "전남남해" 처럼 표준 해역명을 살짝 다르게 주면,
+    //   detectZoneDeterministic 으로 fuzzy 매칭해 표준명("전남남해앞바다")으로 정정.
+    //   tool 호출이 빈 결과를 내고 web_search 폴백으로 빠지는 패턴을 사전 차단한다.
+    const canonZone = (z) => {
+        if (typeof z !== 'string' || !z.trim()) return z;
+        const r = detectZoneDeterministic(z);
+        return (r && r !== z) ? r : z;
+    };
+    for (const step of plan.steps || []) {
+        if (step && step.args && typeof step.args === 'object') {
+            if (step.args.zone) step.args.zone = canonZone(step.args.zone);
+        }
+    }
+
     const results = [];
     for (const step of plan.steps.slice(0, 6)) {
         const exec = step && TOOL_EXEC[step.tool];
@@ -1389,8 +1403,12 @@ async function runBrain(query, profile, memory, style, location, focus) {
     // [도메인 가드] 한국 해양·기상 영역 질의는 web_search 폴백 금지.
     //  결과가 비더라도 합성 단계가 "현재 ~ 없음" 또는 "위치를 좀 더 알려주세요" 로 보고하게 둔다.
     //  비도메인 질문(관광·역사·일반상식·인물 등)에만 web_search 가 마지막 수단으로 살아남는다.
+    //  도메인 여부는 (a) 도메인 키워드 (b) 알려진 해역명 fuzzy 매칭 (c) 알려진 섬·부이 지명 중 하나라도.
     const DOMAIN_RE = /특보|예보|파고|파주기|풍속|풍향|풍랑|해상|연안|해역|해구|부이|시정|가시거리|조석|만조|간조|물때|유속|유향|해류|수심|태풍|기상|관측|수온|낚시|서핑|어업|조업|항해/;
-    const isDomainQuery = DOMAIN_RE.test(query) || DOMAIN_RE.test(cq);
+    const ISLAND_BUOY_RE = /거문도|오륙도|마라도|추자도|울릉도|서귀포|신안|가거도|백령도|연평도|흑산도|위미|독도|덕적|영흥|울진|포항|속초|동해|강릉|삼척|군산|목포|여수|통영|거제|부산|보길도|진도|완도|소청도|대청도|어청도|울도|소흑산도/;
+    const isDomainQuery = DOMAIN_RE.test(query) || DOMAIN_RE.test(cq)
+        || ISLAND_BUOY_RE.test(query) || ISLAND_BUOY_RE.test(cq)
+        || !!detectZoneDeterministic(query) || !!detectZoneDeterministic(cq);
     if (!gotUseful && !isDomainQuery) {
         const web = await webSearchAnswer(cq);
         if (web && web.answer) {
