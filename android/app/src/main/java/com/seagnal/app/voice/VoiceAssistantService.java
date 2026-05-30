@@ -97,6 +97,13 @@ public class VoiceAssistantService extends Service {
     // 기억해 두지 않으면 "거기 경위도?" 같은 후속질문이 끊긴다(서버 자체는 focus 만
     // 받으면 정확히 이어주는 것을 P3 단계에서 검증). null = 첫 턴 또는 직전 focus 없음.
     private String lastFocusJson = null;
+    // 직전 N턴의 자연어 메모(채팅창 js/assistant.js 와 동일 포맷):
+    //   `[zone:] "질문" → 답(160자)`. 채팅창은 localStorage 로 관리하지만 음성 비서는
+    //   자체 보관. focus 는 해양·기상 *대상*만 담는 반면, memory 는 *비도메인*("뽀로로
+    //   파크" 같은 일반 화제)까지 후속을 이을 수 있게 LLM 에 자연어로 전달.
+    //   서버는 memory.slice(-3) 만 프롬프트에 박으므로 휴대폰엔 더 넉넉히 보관해 둔다.
+    private static final int MEMORY_MAX = 8;
+    private final java.util.ArrayDeque<String> recentMemory = new java.util.ArrayDeque<>(MEMORY_MAX);
     private Runnable commandTimeoutRunnable;
 
     private enum State { IDLE, WAKE, COMMAND, THINKING, SPEAKING }
@@ -295,6 +302,13 @@ public class VoiceAssistantService extends Service {
                 try { body.put("focus", new JSONObject(lastFocusJson)); }
                 catch (Exception ignored) { /* 손상 시 무시 — 다음 응답에서 다시 채워짐 */ }
             }
+            // 직전 N턴 메모 동봉 — 비도메인 후속("뽀로로 파크 → 거기 이용 금액?") 등 focus 가
+            //   못 담는 자유 화제를 LLM 이 자연어로 잇게 한다(채팅창과 동등).
+            if (!recentMemory.isEmpty()) {
+                org.json.JSONArray memArr = new org.json.JSONArray();
+                for (String note : recentMemory) memArr.put(note);
+                body.put("memory", memArr);
+            }
             byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
             try (OutputStream os = conn.getOutputStream()) {
                 os.write(payload);
@@ -318,6 +332,16 @@ public class VoiceAssistantService extends Service {
             if (answer.isEmpty()) {
                 return "죄송해요, 답변을 만들지 못했어요.";
             }
+            // 자연어 메모 한 줄 추가 — 채팅창 js/assistant.js 와 동일 포맷.
+            //   "[해역:] \"질문\" → 답(160자)". 다음 턴에 이전 N개를 함께 전송.
+            try {
+                String zone = json.optString("zone", "");
+                String shortAns = answer.length() > 160 ? answer.substring(0, 160) : answer;
+                String note = (zone != null && !zone.isEmpty() ? zone + ": " : "")
+                        + "\"" + query + "\" → " + shortAns;
+                recentMemory.addLast(note);
+                while (recentMemory.size() > MEMORY_MAX) recentMemory.pollFirst();
+            } catch (Exception ignored) { /* 메모 적재 실패는 답변 흐름과 무관 */ }
             return answer;
         } catch (Exception e) {
             Log.w(TAG, "서버 질의 실패: " + e.getMessage());

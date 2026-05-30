@@ -217,7 +217,7 @@
 | 11 | ~~플래너 web_search 폴백 절제~~ ✅ 완료(2026-05-30). PASS 6/10→8/10, 지연 회복(p50 1788ms). 잔여 실패=무프로필 모호어/잘못된 행정구역명 — 별도 후속(#14/#15) | 나리야팀 | 완료 |
 | 12 | **음성 비서 P3 focus 패치(commit `e305566`)** — APK 재빌드 시 같이 확인. "232 해구→거기 경위도?" 음성 후속 연속성 | 사장님 | Vosk 빌드와 동시 |
 | 13 | ~~평가셋 러너 N회 다수결~~ ✅ 완료(2026-05-30, N=3 다수결 + 429 백오프 + 페이싱). PASS 9/10, 비결정성 0건. 잔여=케이스 30+ 확대(v2) | 나리야팀 | v2 |
-| 17 | **비도메인 대화 연속성** — 현재 focus 는 해양·기상 대상만 담음. "뽀로로 파크/관광/가격" 같은 비도메인 질의는 focus 가 비어 후속("거기 이용 금액") 못 이음 + 도메인 가드가 web_search 도 차단. 옵션: (a) focus 에 topic 칸 추가 (b) 도메인 가드 완화 — 지명+비도메인 키워드 시 web_search 허용 (c) 음성 비서 memory 동봉. 사장님 결정 필요 | 사장님/나리야팀 | next 결정 |
+| 17 | ~~비도메인 대화 연속성~~ ✅ 옵션 C 채택·완료(2026-05-30). 음성 비서 memory 동봉으로 채팅창과 동등. 잔여 옵션(a) topic 칸 추가는 도메인 가드까지 완화하지 않아 web_search 차단 그대로 — 필요시 v2 후보 | 나리야팀 | 완료 |
 | 14 | ~~무프로필 모호어 처리~~ ✅ 부분완료(2026-05-30, baseline-geomun 회복). detectZoneDeterministic+섬·부이 정규식 기반 도메인 가드 | 나리야팀 | 완료 |
 | 15 | **잘못된 행정구역명 정정** — "전남남해" 같은 비표준 명칭을 가장 가까운 표준 해역명으로 fuzzy 매핑. 현재 단방향 토큰 매칭 한계 → **양방향 substring + 문자 LCS** 또는 임베딩 기반 zone 매칭 필요 | 나리야팀 | next |
 | 16 | **합성 환각 가드** — results 가 비거나 결과에 데이터 없는데 답이 풍부하게 생성되는 케이스 의심(angler-yeosu 1회 관측). 합성 prompt 에 "수집결과에 없는 사실 절대 추가 금지" 더 강하게 + 검출 시 "데이터 없음" 으로 안전 폴백 | 나리야팀 | next |
@@ -244,6 +244,7 @@
 | 2026-05-30 | **web_search 도메인 가드 (§6 #11 완료)**: planQuery 에 "도메인 질의(특보/예보/파고/풍속/시정/부이/조석/유속/수심/태풍/낚시/서핑 등)는 빈 steps 금지, zone 모호해도 '전국'·기본해역으로 시도" 규칙 + runBrain 폴백 조건에 도메인 정규식 게이트 — 도메인이면 결과 비더라도 web_search 우회 금지(합성이 "현재 ~ 없음"으로 보고). **결과: PASS 6/10 → 8/10 (80%)**, 회복 coast_guard-warning/local_gov-warning/public_org-coast, 지연 p50 2619ms → 1788ms (임베딩 비용 회수). 잔여 실패=baseline-geomun(무프로필 "어때" 모호어) / fishery-jeonnam-multi("전남남해" 행정구역 정정) — 별도 후속 |
 | 2026-05-30 | **지명인식 도메인 가드 + zone 정규화 (§6 #14·#15 부분)**: isDomainQuery 에 `detectZoneDeterministic(query)≠null` + 섬·부이 정규식 추가 → "거문도 어때" 류가 도메인으로 잡힘(baseline-geomun 회복). plan.steps 실행 직전 zone 인자를 detectZoneDeterministic 으로 fuzzy 보정. **결과: 8/10 유지 + 지연 p50 1788ms → 1435ms**. 1↑(baseline-geomun) / 1↓(angler-yeosu, 재실행시 PASS — LLM 비결정성). 잔여=fishery-jeonnam-multi: detectZoneDeterministic 의 단방향 토큰 매칭이 "전남남해"(짧은 nq) 를 어느 표준 zone 으로도 매핑 못 함 → 양방향 fuzzy/문자 LCS 필요 |
 | 2026-05-30 | **평가셋 러너 N회 다수결 + 429 백오프 (§6 #13 완료)**: phase2b_eval_runner.py 에 `--n=N`(기본 3) 다수결 + 케이스 간 1.5s/회 간 0.8s 페이싱 + ask() 429 백오프 3회(4/9/16s). **결과: PASS 9/10 (90%)**, 지연 p50 1167ms/p95 5858ms, **비결정성 0건**(이전 flaky navy-east 도 3/3 안정), 429 전부 흡수(30/30 호출 성공). 진짜 신호 분리됨: 유일 실패=fishery-jeonnam-multi(3/3 일관 web_search → #15 zone 양방향 fuzzy 가 진짜 해법) |
+| 2026-05-30 | **음성 비서 자연어 memory 동봉 (§6 #17 옵션 C 완료)**: VoiceAssistantService 에 `recentMemory`(ArrayDeque, MEMORY_MAX=8) + askServer body 에 memory 배열 동봉 + 응답 후 채팅창 동일 포맷(`[zone:] "Q" → A(160자)`)으로 자동 적재. focus(구조)와 memory(자연어) 이중 안전망으로 채팅창과 음성 비서 능력 동등화. 비도메인 후속("뽀로로 파크 → 거기 이용 금액?") 등 focus 가 못 담는 자유 화제도 LLM 이 자연어로 이음. APK 재빌드 1회 필요(자바) |
 
 ---
 
