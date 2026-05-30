@@ -29,13 +29,13 @@
 
 | Phase | 목표 | 상태 | 핵심 산출물(경로) |
 |---|---|---|---|
-| **Phase 0** 🔁 | 토대 안정화 + **상시 회귀 게이트** | ✅ 통과(게이트 구축) | `phases/phase0_diagnostics.md`, `phases/phase0_golden.jsonl`, `phases/phase0_runner.py` |
+| **Phase 0** 🔁 | 토대 안정화 + **상시 회귀 게이트** | ✅ 38케이스 통과(머지 후 재검증 37P/0F/1SKIP, 2026-05-30) | `phases/phase0_diagnostics.md`, `phases/phase0_golden.jsonl`, `phases/phase0_runner.py` |
 | **Phase 2a** | 직군별 지식베이스(8종) | ✅ 완료(스키마 정합화 포함) | `jikgun/*.md`, `jikgun/_SCHEMA.md` |
-| **Phase 2b** | 간이 RAG 연결(직군 감지→MD 주입) | 🚧 v1 구현(룰베이스 주입) | `routes/assistant.js`(detectJikgun/jikgunDigest) |
-| **Phase 1** | 온톨로지 & 지식그래프 | 🚧 스키마+그래프 빌드 완료 | `phases/phase1_ontology_schema.md`, `graph/build_graph.js`, `graph/graph.json` |
+| **Phase 2b** | 간이 RAG 연결(직군 감지→MD 주입) | 🚧 v1 구현(룰베이스 주입) · **다음=측정 토대(평가셋+SLO)** | `routes/assistant.js`(detectJikgun/jikgunDigest) |
+| **Phase 1** | 온톨로지 & 지식그래프 | 🚧 스키마+그래프+런타임연결 + **데이터카탈로그 단일출처(2026-05-30)** + 미노출 도구화(시정16/21) + focus 연속성 + 의존 위빙 | `phases/phase1_ontology_schema.md`, `graph/build_graph.js`, `graph/graph.json`, `knowledge/data_catalog.json` |
 | **Phase 3** | 선제 제안(Proactive) | ⏳ 예정 | 입력=`jikgun/*.md` 선제규칙 섹션 |
 | **Phase 4** | 자율 성장(수집·검수·반영) | ⏳ 예정 | (미생성) |
-| **교차(X)** | 평가/회귀/비용/프라이버시/시크릿/신선도 | 🚧 정의 중 | §8, (예정)`phases/cross_cutting.md` |
+| **교차(X)** | 평가/회귀/비용/프라이버시/시크릿/신선도 + **호출어 엔진 무료 오픈소스(Vosk, 2026-05-30)** | 🚧 정의 중 | §8, (예정)`phases/cross_cutting.md`, `android/.../voice/Vosk*.java` |
 
 > **순서 메모:** 사용자 결정으로 **Phase 2를 Phase 1보다 먼저** 착수(직군 지식이 온톨로지 1차 재료). **되먹임:** P1 온톨로지 확정 후 직군 문서의 노드/엣지 태깅을 **소급 정비**한다(단방향 아님).
 
@@ -58,6 +58,11 @@
 | 응답 길이 정책(간단/자세히) | style answerStyle | — | 회귀 |
 | AI 대화형 온보딩→직군 프로필(로컬) | `/onboard`, js/assistant.js | — | P2b 전제 |
 | 대화기록→통계형 스타일 요약 개인화 | `/style-digest`(8건마다) | — | P3 입력 |
+| **데이터 카탈로그(단일 출처) + 인벤토리 주입** | `knowledge/build_data_catalog.js`→`data_catalog.json`(21데이터셋), `routes/assistant.js` planQuery 인벤토리 디지스트 | 81f3790 | 게이트 카탈로그 드리프트검사 |
+| **미노출 도구화** | `get_visibility`, `get_zones_ranked` metric=temp/vis | 02e47ca | rank-temp/rank-vis-worst/visibility-busan |
+| **구조화 대화 연속성(focus)** | 응답 `focus{zone,haegu,buoy,coords,rankedItems}` + 플래너 [직전 확정 대상] | 688cb7e | focus-haegu-coord/followup-haegu-coord |
+| **의존 위빙(1회 재계획)** | "X 가장 ~한 곳의 Y" — 1차 focus로 2차 도구 재계획 | a2a2ca1 | weave-rank-warning |
+| **Vosk 호출어 엔진 + 모델 동의 다운로드** | `android/.../voice/VoskWakeEngine.java`·`VoskModelManager.java`·`VoskDownloadService.java`, `SeagnalAssistantPlugin`(getCapabilities/voskState), `js/assistant.js`(다이얼로그) | b366011 | 🔒 가입·승인·유료화 없음(Apache-2.0) |
 
 ---
 
@@ -157,6 +162,8 @@
 | P2a | GAP→로드맵 | `phases/gap_roadmap.md` | ⏳ |
 | P1 | 온톨로지 스키마 | `phases/phase1_ontology_schema.md` | ✅(설계) |
 | P1 | 지식그래프 빌더+데이터 | `graph/build_graph.js`, `graph/graph.json` | ✅ |
+| P1 | **데이터 카탈로그(단일 출처) 빌더+데이터** | `knowledge/build_data_catalog.js`, `knowledge/data_catalog.json` | ✅ (21데이터셋·드리프트게이트) |
+| X | **호출어 엔진(Vosk)** | `android/app/src/main/java/com/seagnal/app/voice/Vosk*.java`, `SeagnalAssistantPlugin.java`(확장) | ✅ (APK 재빌드 대기) |
 | P3 | 선제 규칙(기계가독) | `phases/phase3_proactive_rules.md` | ⏳ |
 | P4 | 수집·검수 파이프라인 | `phases/phase4_pipeline.md` | ⏳ |
 
@@ -187,6 +194,11 @@
 | 2026-05-29 | **P3 구조화 대화 연속성(focus)**: 서버가 응답에 focus{zone,haegu,buoy,coords,rankedItems} 반환 → 클라 저장·재전송 → planQuery가 [직전 확정 대상]으로 결정론적 소비 | 자유텍스트 memory 유실(해구번호·좌표) 극복. 2턴 검증 통과 |
 | 2026-05-29 | **P4 의존 위빙(1회 재계획)**: "X 가장 ~한 곳의 Y(특보/조석/유속/수심)"를 1차 focus로 2차 도구 재계획(좁은 트리거·도구중복 방지) | "파고 1위 해역→특보" 2도구 위빙 검증. 게이트 38/0 |
 | 2026-05-29 | **격리 에이전트 검토 P1~P4 완료** | 게이트 38케이스(정적 3종 포함) 통과 |
+| 2026-05-30 | **PR #808 머지 후 골든 게이트 재검증 통과**: PASS 37/0/1(SKIP=피드의존 optional 1) | 회귀 무발생 확인 |
+| 2026-05-30 | **다음 단계 = 측정 토대(직군 평가셋 + 토큰/지연 SLO 계측)** | §8 "베이스라인 먼저" 원칙. P2b·P1·P3 DoD의 게이팅 전제 |
+| 2026-05-30 | **호출어 엔진 Picovoice→Vosk(Apache-2.0) 전환 결정** | Picovoice 가입 단계서 상업 검토 잠금 + 무료티어 2026-06-30 종료(7일 트라이얼) → 영구 무료·승인 무필요·락인 없음으로 회피 |
+| 2026-05-30 | **Vosk 한국어 모델(~80MB)은 사용자 동의 후 1회 다운로드 채택** | APK 미포함(용량+0, 미사용자 다운로드 0). Wi-Fi 기본 + "데이터로 받기" 옵션. 다운로드 중 호출어 비대기, "음성 지원 데이터 다운로드 중" 안내만 |
+| 2026-05-30 | **PR #811 호출어 무료 오픈소스화** | VoskWakeEngine/ModelManager/DownloadService + 플러그인 확장 + 다이얼로그. APK 1회 재빌드 후 영구 무료 |
 
 ## 6. 미결 질문 / 다음 액션 (owner·기한)
 
@@ -194,10 +206,12 @@
 |---|---|---|---|
 | 1 | `knowledge/` 일괄 커밋 시점 결정(미커밋=휘발 소멸) | 사장님 | ASAP |
 | 2 | ~~`jikgun/_SCHEMA.md` 제정 + 8종 정합화~~ ✅ 완료(2026-05-29) | 나리야팀 | 완료 |
-| 3 | ~~Phase 2b(간이 RAG) 착수~~ ✅ v1 완료(2026-05-29). 잔여=임베딩·평가셋·SLO | 나리야팀 | 다음 |
+| 3 | ~~Phase 2b(간이 RAG) 착수~~ ✅ v1 완료(2026-05-29). 잔여=임베딩·평가셋·SLO → **측정 토대(평가셋+SLO)부터 next로 확정(2026-05-30)** | 나리야팀 | next |
 | 4 | GAP 외부연동 URL 세부경로 검증 담당 | 미정 | P2a |
 | 5 | 운영 시크릿(`KMA_DMDW_*`/TideBED) 배포 반영 | 미정 | 운영배포 |
 | 6 | 테스트용 Gemini 키 폐기 | 사장님 | ASAP |
+| 7 | **Vosk 통합 APK 재빌드 + 기기 동작 검증**(다이얼로그·진행률·"나리야" 호출) | 사장님 | ASAP |
+| 8 | 측정 토대 구축 — 직군 품질 평가셋(`phases/phase2b_eval.jsonl`+러너) + 토큰/지연 SLO 계측 | 나리야팀 | next |
 
 ---
 
@@ -210,7 +224,10 @@
 | 2026-05-29 | **§9 산출물 저장 방식** 추가(리포 정본 합의), knowledge/ 커밋 |
 | 2026-05-29 | **Phase 2a 완료**: 직군 8종 `_SCHEMA.md` 정합화(frontmatter·규칙ID·트리거 조건식·고정칼럼). DoD 충족 |
 | 2026-05-29 | **Phase 2b v1**: 직군 감지(detectJikgun)+지식 다이제스트 주입(planQuery·합성). 룰베이스, 검증 완료. 잔여=임베딩·평가셋·SLO |
-| 2026-05-30 | **호출어 엔진 무료 오픈소스화(Vosk)**: Picovoice 상업검토·유료화 회피. `WakeWordEngine` 인터페이스 활용해 `VoskWakeEngine`(Apache-2.0, 오프라인 한국어 ASR + 문법제한 KWS) 추가. 모델(~80MB)은 `VoskDownloadService`(전경 서비스 + 진행률 알림)가 사용자 동의 후 첫 1회 다운로드(Wi-Fi 기본, "데이터로 받기" 옵션) → 마커 영구화. 플러그인 `getCapabilities/requestVoskDownload/cancelVoskDownload` + `voskState` 이벤트, 토글 다이얼로그(다운로드 필요·진행률·실패·Wi-Fi 필요). 엔진 우선순위 Porcupine→Vosk→AndroidSpeech. APK 재빌드 1회 필요(네이티브 라이브러리), 모델은 영영 APK 미포함 |
+| 2026-05-29 | **격리 에이전트 3종 병렬 검토 → P1~P4 채택·구현·게이트 통과**(P1 데이터카탈로그/P2 미노출도구화/P3 focus 연속성/P4 의존 위빙). 게이트 38케이스(정적 3종 포함) |
+| 2026-05-30 | **PR #808 머지 후 골든 게이트 재검증 통과(PASS 37/0/1)** + 마스터플랜 §2/§4/§5/§6/§7 동기화 |
+| 2026-05-30 | **호출어 엔진 무료 오픈소스화(Vosk, PR #811)**: Picovoice 상업검토·유료화·락인 회피. `WakeWordEngine` 인터페이스 활용해 `VoskWakeEngine`(Apache-2.0, 오프라인 한국어 ASR + 문법제한 KWS) 추가. 모델(~80MB)은 `VoskDownloadService`(전경 서비스 + 진행률 알림)가 사용자 동의 후 첫 1회 다운로드(Wi-Fi 기본, "데이터로 받기" 옵션) → 마커 영구화. 플러그인 `getCapabilities/requestVoskDownload/cancelVoskDownload` + `voskState` 이벤트, 토글 다이얼로그(다운로드 필요·진행률·실패·Wi-Fi 필요). 엔진 우선순위 Porcupine→Vosk→AndroidSpeech. APK 재빌드 1회 필요(네이티브 라이브러리), 모델은 영영 APK 미포함 |
+| 2026-05-30 | **§2 단일 상태표 동기화**: Phase 0 게이트 재검증 수치 갱신 / Phase 1 데이터카탈로그·도구화·focus·위빙 반영 / Phase 2b 다음=측정토대 명시 / 교차(X)에 호출어 Vosk 추가. §2.5 인벤토리에 5건(카탈로그/도구화/focus/위빙/Vosk) 추가. §4 산출물 인덱스에 데이터카탈로그·Vosk 행 추가. §6 다음액션에 Vosk APK 재빌드·측정토대 신규 등재 |
 
 ---
 
