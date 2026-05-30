@@ -161,6 +161,70 @@ async function nearestTopics(query, k = 5, minScore = 0.55) {
 }
 
 function isReady() { return warmupDone && TOPIC_DB.length > 0; }
-function stats() { return { ready: isReady(), topics: TOPIC_DB.length, model: EMBED_MODEL, queryCache: queryCache.size }; }
+function stats() { return { ready: isReady(), topics: TOPIC_DB.length, tools: TOOL_DB.length, model: EMBED_MODEL, queryCache: queryCache.size }; }
 
-module.exports = { warmup, nearestTopics, isReady, stats };
+// ============================================================================
+// v2 — 도구 디스크립션 임베딩(§6 #10 v2). 토픽이 못 잡는 패턴(도구 자체에 핵심
+//   키워드가 있는 경우)을 보완. 평가에서 multi-tool 부르도록 도구 후보를 추가
+//   힌트로 노출한다. 토픽 임베딩과 동일 모델·캐시 구조.
+// ============================================================================
+const TOOL_CACHE_PATH = path.join(__dirname, '..', 'knowledge', 'graph', 'tool_embeddings.json');
+let TOOL_DB = [];                  // [{ name, desc, vec }]
+let toolWarmupStarted = false;
+let toolWarmupDone = false;
+
+async function warmupTools(tools) {
+    if (toolWarmupStarted) return;
+    toolWarmupStarted = true;
+    const key = tools.map(t => `${t.name}|${t.desc}`).join('§');
+    try {
+        const j = JSON.parse(fs.readFileSync(TOOL_CACHE_PATH, 'utf8'));
+        if (j && j.model === EMBED_MODEL && Array.isArray(j.tools)) {
+            const cachedKey = j.tools.map(t => `${t.name}|${t.desc}`).join('§');
+            if (cachedKey === key) {
+                TOOL_DB = j.tools;
+                toolWarmupDone = TOOL_DB.length > 0;
+                console.log(`[TopicEmbed] tool cache hit · ${TOOL_DB.length} tools`);
+                return;
+            }
+        }
+    } catch (e) { /* 캐시 없거나 손상 — 새로 임베딩 */ }
+
+    const t0 = Date.now();
+    const buf = new Array(tools.length).fill(null);
+    let next = 0;
+    async function worker() {
+        while (next < tools.length) {
+            const idx = next++;
+            buf[idx] = await embed(tools[idx].desc);
+        }
+    }
+    await Promise.all(new Array(WARMUP_CONCURRENCY).fill(0).map(worker));
+    TOOL_DB = [];
+    for (let i = 0; i < tools.length; i++) {
+        if (!buf[i]) continue;
+        TOOL_DB.push({ name: tools[i].name, desc: tools[i].desc, vec: buf[i] });
+    }
+    toolWarmupDone = TOOL_DB.length > 0;
+    if (toolWarmupDone) {
+        try {
+            const dir = path.dirname(TOOL_CACHE_PATH);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(TOOL_CACHE_PATH, JSON.stringify({
+                model: EMBED_MODEL, builtAt: new Date().toISOString(), tools: TOOL_DB
+            }));
+        } catch (e) { /* 저장 실패 무시 */ }
+    }
+    console.log(`[TopicEmbed] tool warmup ${TOOL_DB.length}/${tools.length} · ${Date.now() - t0}ms`);
+}
+
+async function nearestTools(query, k = 5, minScore = 0.55) {
+    if (!toolWarmupDone || !TOOL_DB.length) return [];
+    const qv = await embedQuery(query);
+    if (!qv) return [];
+    return TOOL_DB.map(t => ({ name: t.name, desc: t.desc, score: cosine(qv, t.vec) }))
+        .sort((a, b) => b.score - a.score).filter(r => r.score >= minScore).slice(0, k);
+}
+function toolsReady() { return toolWarmupDone && TOOL_DB.length > 0; }
+
+module.exports = { warmup, nearestTopics, isReady, stats, warmupTools, nearestTools, toolsReady };

@@ -46,3 +46,4 @@ local_server/css/**/*.br
 local_server/tide_data/**/*.gz
 local_server/tide_data/**/*.br
 local_server/knowledge/graph/topic_embeddings.json
+local_server/knowledge/graph/tool_embeddings.json

@@ -247,6 +247,7 @@
 | 2026-05-30 | **평가셋 러너 N회 다수결 + 429 백오프 (§6 #13 완료)**: phase2b_eval_runner.py 에 `--n=N`(기본 3) 다수결 + 케이스 간 1.5s/회 간 0.8s 페이싱 + ask() 429 백오프 3회(4/9/16s). **결과: PASS 9/10 (90%)**, 지연 p50 1167ms/p95 5858ms, **비결정성 0건**(이전 flaky navy-east 도 3/3 안정), 429 전부 흡수(30/30 호출 성공). 진짜 신호 분리됨: 유일 실패=fishery-jeonnam-multi(3/3 일관 web_search → #15 zone 양방향 fuzzy 가 진짜 해법) |
 | 2026-05-30 | **음성 비서 자연어 memory 동봉 (§6 #17 옵션 C 완료)**: VoiceAssistantService 에 `recentMemory`(ArrayDeque, MEMORY_MAX=8) + askServer body 에 memory 배열 동봉 + 응답 후 채팅창 동일 포맷(`[zone:] "Q" → A(160자)`)으로 자동 적재. focus(구조)와 memory(자연어) 이중 안전망으로 채팅창과 음성 비서 능력 동등화. 비도메인 후속("뽀로로 파크 → 거기 이용 금액?") 등 focus 가 못 담는 자유 화제도 LLM 이 자연어로 이음. APK 재빌드 1회 필요(자바) |
 | 2026-05-30 | **zone 양방향 fuzzy + 합성 환각 가드 (§6 #15·#16 완료)**: detectZoneDeterministic 에 stage 3(역방향 토큰 매칭, 최소 2 토큰) 추가 → "전남남해" 같은 짧은 비표준 명을 표준 zone("전남동부남해앞바다") 으로 정정. runBrain 에 `isDomainQuery && results.length===0` 시 synth 호출 차단 + 안전 응답. synth 프롬프트에 환각 금지 강화. **결과: PASS 9/10 유지 + 지연 p95 5858→3440ms** (환각 가드 짧은 안전 응답 효과). fishery-jeonnam-multi 는 forecast 호출은 회복(get_marine_forecast) 했으나 multi-tool expect(forecast+warning) 미충족 — 평가 기준이 더 엄격해진 셈. #18 신규(다중 도구 hint) |
+| 2026-05-30 | **도구 디스크립션 임베딩 (§6 #10 v2 완료)**: services/topic_embedding.js 에 `warmupTools/nearestTools` 추가 — TOOL_CATALOG 파싱으로 도구 19개의 디스크립션을 임베딩(별도 디스크 캐시 tool_embeddings.json) + planQuery 에 `toolSimLine` 주입(질의에 가까운 도구 후보 상위 4, minScore 0.55, 600ms 타임아웃). 토픽 임베딩이 못 잡는 패턴(도구 자체에 핵심 키워드)을 보완. 백그라운드 워밍업 + 폴백 안전. 평가 효과는 다음 라운드 측정 |
 
 ---
 

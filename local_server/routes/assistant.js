@@ -305,6 +305,23 @@ try {
     console.warn('[Assistant] 토픽 임베딩 로드 실패 — 룰베이스만으로 동작:', e.message);
     TOPIC_EMBED = null;
 }
+// (이어서) v2 — 도구 디스크립션 임베딩 워밍업. TOOL_CATALOG 파싱(다음 코드 위치에 정의된
+//   문자열)에서 도구명+짧은 설명을 뽑아 백그라운드 임베딩. 실패해도 룰베이스 흐름 유지.
+// 실제 워밍업 호출은 TOOL_CATALOG 정의 이후 라인에서 수행(scheduleToolEmbedWarmup).
+function scheduleToolEmbedWarmup(catalogText) {
+    if (!TOPIC_EMBED || !TOPIC_EMBED.warmupTools) return;
+    try {
+        const re = /^- ([a-z_]+)\([^)]*\):\s*(.+)$/gm;
+        const toolEntries = [];
+        let m;
+        while ((m = re.exec(catalogText)) !== null) {
+            toolEntries.push({ name: m[1], desc: m[2].trim().slice(0, 300) });
+        }
+        if (toolEntries.length) {
+            TOPIC_EMBED.warmupTools(toolEntries).catch(e => console.warn('[TopicEmbed] tool warmup 예외:', e.message));
+        }
+    } catch (e) { /* 무시 */ }
+}
 
 
 // Gemini 공용 클라이언트 (키 없으면 hasAnyKey()=false → 폴백 경로 사용)
@@ -851,6 +868,10 @@ const TOOL_CATALOG = `
 - get_app_capabilities(): 이 앱(SEA:GNAL)이 제공하는 기능/정보의 종류와 형태. "이 앱 뭐 할 수 있어 / 어떤 정보 줘 / 무슨 기능 있어" 류 메타 질문에 사용.
 - resolve_location(text): 임의 지명을 좌표/주소로 변환(get_current/get_depth/get_tide 의 좌표 확보용).`;
 
+// [Phase 2b PoC v2] TOOL_CATALOG 정의 완료 직후 — 도구 디스크립션 임베딩 워밍업 예약.
+//   토픽 워밍업과 동일 백그라운드 흐름. 디스크 캐시 있으면 즉시 로드.
+scheduleToolEmbedWarmup(TOOL_CATALOG);
+
 // 앱 기능 안내(메타) — "이 앱 뭐 할 수 있어?"에 답하기 위한 정적 요약.
 const APP_CAPABILITIES = {
     이름: 'SEA:GNAL(바다날씨)',
@@ -1286,6 +1307,20 @@ async function planQuery(query, profile, location, memory, focus) {
             }
         } catch (e) { /* 폴백 — simLine 비움 */ }
     }
+    // [v2] 도구 디스크립션 임베딩 — 질의와 의미적으로 가까운 도구 직접 매칭(상위 4).
+    //   토픽 임베딩이 못 잡는 패턴(도구 자체에 핵심 키워드가 있음)을 보완.
+    let toolSimLine = '';
+    if (TOPIC_EMBED && TOPIC_EMBED.toolsReady && TOPIC_EMBED.toolsReady()) {
+        try {
+            const topTools = await Promise.race([
+                TOPIC_EMBED.nearestTools(query, 4, 0.55),
+                new Promise(resolve => setTimeout(() => resolve([]), 600))
+            ]);
+            if (Array.isArray(topTools) && topTools.length) {
+                toolSimLine = `\n[질의에 가까운 도구 후보(의미 임베딩, 상위 ${topTools.length})] ${topTools.map(t => `${t.name}(${t.score.toFixed(2)})`).join(', ')}\n`;
+            }
+        } catch (e) { /* 폴백 */ }
+    }
     const prompt =
 `사용자의 한국어 질문에 답하기 위해 어떤 데이터를 가져올지 계획하세요.
 사용 가능한 도구:
@@ -1305,7 +1340,7 @@ ${catalogLine}
 - 생활지수: 낚시→get_fishing_index, 서핑/물놀이→get_surfing_index, 갯벌/바다갈라짐→get_sea_split_index.
   스쿠버·다이빙처럼 전용 지수가 없는 활동은 위 지수에 억지로 맞추지 말고 steps 를 비워(웹검색 폴백) 두세요.
 - 관리자/설정/키 같은 건 도구가 없으니 무시하세요.
-- **(중요) 한국 해상·기상 도메인 질의(특보·예보·파고·풍속·시정·부이·조석·유속·수심·태풍·해구·해역·낚시·서핑·관측·수온 등)는 반드시 위 도구로 처리하세요.** 위치가 모호해도(예: "오늘 특보", "관내 어때", "전국 상황") web_search 폴백을 노리고 steps 를 비우지 말고, 가장 그럴듯한 도구를 하나라도 호출하세요(예: 위치 없는 특보 → get_warning(zone="전국") 또는 zone 생략, "오늘 연안" → get_marine_forecast(zone="서해남부") 같은 기본 해역). 결과가 비어 있으면 합성 단계가 "현재 ~ 없음" 으로 자연스럽게 보고합니다.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}${simLine}
+- **(중요) 한국 해상·기상 도메인 질의(특보·예보·파고·풍속·시정·부이·조석·유속·수심·태풍·해구·해역·낚시·서핑·관측·수온 등)는 반드시 위 도구로 처리하세요.** 위치가 모호해도(예: "오늘 특보", "관내 어때", "전국 상황") web_search 폴백을 노리고 steps 를 비우지 말고, 가장 그럴듯한 도구를 하나라도 호출하세요(예: 위치 없는 특보 → get_warning(zone="전국") 또는 zone 생략, "오늘 연안" → get_marine_forecast(zone="서해남부") 같은 기본 해역). 결과가 비어 있으면 합성 단계가 "현재 ~ 없음" 으로 자연스럽게 보고합니다.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}${simLine}${toolSimLine}
 
 사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
 질문: "${query}"
