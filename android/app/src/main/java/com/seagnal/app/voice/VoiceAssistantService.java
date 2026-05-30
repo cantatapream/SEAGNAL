@@ -92,6 +92,11 @@ public class VoiceAssistantService extends Service {
 
     private String serverUrl = DEFAULT_SERVER_URL;
     private String profileJson = null;   // 개인화용 프로필(JSON 문자열) — 휴대폰에서 전달받음
+    // 직전 턴의 focus(서버 응답 그대로의 JSON 문자열) — 음성 비서 대화의 구조화 연속성.
+    // 웹 UI(js/assistant.js)는 localStorage 로 이걸 잇지만, 음성 비서는 자체적으로
+    // 기억해 두지 않으면 "거기 경위도?" 같은 후속질문이 끊긴다(서버 자체는 focus 만
+    // 받으면 정확히 이어주는 것을 P3 단계에서 검증). null = 첫 턴 또는 직전 focus 없음.
+    private String lastFocusJson = null;
     private Runnable commandTimeoutRunnable;
 
     private enum State { IDLE, WAKE, COMMAND, THINKING, SPEAKING }
@@ -285,6 +290,11 @@ public class VoiceAssistantService extends Service {
                 l.put("lat", loc[0]); l.put("lon", loc[1]);
                 body.put("location", l);
             }
+            // 직전 턴 focus 동봉 — "거기 경위도?" 처럼 주어 없는 후속을 서버가 이어준다(P3).
+            if (lastFocusJson != null && !lastFocusJson.isEmpty()) {
+                try { body.put("focus", new JSONObject(lastFocusJson)); }
+                catch (Exception ignored) { /* 손상 시 무시 — 다음 응답에서 다시 채워짐 */ }
+            }
             byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
             try (OutputStream os = conn.getOutputStream()) {
                 os.write(payload);
@@ -301,6 +311,9 @@ public class VoiceAssistantService extends Service {
                 while ((line = br.readLine()) != null) sb.append(line);
             }
             JSONObject json = new JSONObject(sb.toString());
+            // 응답의 focus 를 다음 턴까지 들고 간다(없으면 초기화 — 명시적으로 컨텍스트 종료).
+            JSONObject focusObj = json.optJSONObject("focus");
+            lastFocusJson = (focusObj != null) ? focusObj.toString() : null;
             String answer = json.optString("answer", "");
             if (answer.isEmpty()) {
                 return "죄송해요, 답변을 만들지 못했어요.";
