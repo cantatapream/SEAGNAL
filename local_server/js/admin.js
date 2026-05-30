@@ -3194,6 +3194,9 @@ function renderLedgerViewTab(container) {
                 <button onclick="resetLedgerWithTestPush()" style="padding:6px 12px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:6px;color:#fca5a5;cursor:pointer;font-size:0.8rem;font-weight:600;">
                     <i class="fa-solid fa-bolt"></i> 장부 초기화 (테스트 푸시)
                 </button>
+                <button onclick="rebroadcastToAllUsers()" style="padding:6px 12px;background:rgba(220,38,38,0.2);border:1px solid rgba(220,38,38,0.5);border-radius:6px;color:#fecaca;cursor:pointer;font-size:0.8rem;font-weight:700;">
+                    <i class="fa-solid fa-tower-broadcast"></i> 전체 사용자 재발송
+                </button>
             </div>
         </div>
         <div style="margin-bottom:8px;color:#94a3b8;font-size:0.78rem;">
@@ -3234,6 +3237,26 @@ window.resetLedgerWithTestPush = async function () {
         refreshLedger();
     } catch (e) {
         alert('초기화 실패: ' + (e && e.message));
+    }
+};
+
+window.rebroadcastToAllUsers = async function () {
+    const ok1 = confirm('⚠️ 전체 사용자에게 푸시를 발송합니다.\n\n장부를 초기화하고 현재 활성 특보(발효+예비)를 신규로 감지하여 해당 해역 구독자 전원에게 푸시가 발사됩니다.\n\n진행할까요?');
+    if (!ok1) return;
+    const ok2 = confirm('정말로 전체 사용자에게 발송하시겠습니까?\n(되돌릴 수 없습니다)');
+    if (!ok2) return;
+    try {
+        const r = await fetch('/api/admin/marine/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ testPush: true, broadcastAll: true })
+        });
+        const data = await r.json();
+        if (!r.ok || !data.success) throw new Error(data.error || ('HTTP ' + r.status));
+        alert(data.message || '전체 사용자 재발송 완료');
+        refreshLedger();
+    } catch (e) {
+        alert('재발송 실패: ' + (e && e.message));
     }
 };
 
