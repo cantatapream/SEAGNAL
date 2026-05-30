@@ -440,6 +440,24 @@ function detectZoneDeterministic(query) {
             best = name;
         }
     }
+    if (best) return best;
+
+    // 3차: 역방향 토큰 매칭. nq 에서 지역/방위 토큰을 뽑아, 모두 zone name 에 포함되는
+    //   zone 들을 후보로. 짧은 비표준 입력("전남남해") 을 표준 zone("전남동부남해앞바다") 으로
+    //   잇기 위함. 최소 2 토큰 조건으로 "전남" 단일 같은 과매칭 방지. 동률은 더 짧은(덜 구체적인)
+    //   zone 우선 — 후속 자유도가 큰 default 가 안전.
+    const nqTokens = [...new Set(nq.match(REGION_DIR_RE) || [])];
+    if (nqTokens.length >= 2) {
+        const candidates = [];
+        for (const name of ZONE_NAMES) {
+            const nName = name.replace('제주도', '제주');
+            if (nqTokens.every(t => nName.includes(t))) candidates.push(name);
+        }
+        if (candidates.length) {
+            candidates.sort((a, b) => a.length - b.length || a.localeCompare(b));
+            return candidates[0];
+        }
+    }
     return best;
 }
 
