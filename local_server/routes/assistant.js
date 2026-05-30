@@ -288,6 +288,24 @@ try {
     console.warn('[Assistant] 지식그래프 로드 실패 — MD 다이제스트로 폴백:', e.message);
 }
 
+// Phase 2b PoC — 토픽 임베딩 워밍업(백그라운드). 디스크 캐시 있으면 즉시. 실패해도 무영향.
+let TOPIC_EMBED = null;
+try {
+    TOPIC_EMBED = require('../services/topic_embedding');
+    const topicEntries = [];
+    for (const slug of Object.keys(GRAPH_RT.jikgun)) {
+        for (const t of GRAPH_RT.jikgun[slug].topics) {
+            topicEntries.push({ id: `${slug}:${t.label}`, jikgun: slug, label: t.label, tools: t.tools || [] });
+        }
+    }
+    if (topicEntries.length) {
+        TOPIC_EMBED.warmup(topicEntries).catch(e => console.warn('[TopicEmbed] warmup 예외:', e.message));
+    }
+} catch (e) {
+    console.warn('[Assistant] 토픽 임베딩 로드 실패 — 룰베이스만으로 동작:', e.message);
+    TOPIC_EMBED = null;
+}
+
 
 // Gemini 공용 클라이언트 (키 없으면 hasAnyKey()=false → 폴백 경로 사용)
 let gemini = null;
@@ -1235,6 +1253,21 @@ async function planQuery(query, profile, location, memory, focus) {
           + (jk.vocab && jk.vocab.length ? `\n직군 용어(STT 보정 참고): ${jk.vocab.slice(0, 12).map(v => v[0] + '=' + v[1]).join('; ')}` : '')
         : '';
     const catalogLine = CATALOG_DIGEST ? ('\n' + CATALOG_DIGEST + '\n') : '';
+    // [Phase 2b PoC] 의미 임베딩으로 질의와 가까운 관심사 상위 5개 + 도구. 룰베이스가
+    //   놓치는 우회표현("관내 특보", "양양 어때")을 보완. 800ms 타임아웃·실패 시 빈 문자열.
+    let simLine = '';
+    if (TOPIC_EMBED && TOPIC_EMBED.isReady && TOPIC_EMBED.isReady()) {
+        try {
+            const top = await Promise.race([
+                TOPIC_EMBED.nearestTopics(query, 5, 0.6),
+                new Promise(resolve => setTimeout(() => resolve([]), 800))
+            ]);
+            if (Array.isArray(top) && top.length) {
+                const lines = top.map(t => `- ${t.label}${(t.tools && t.tools.length) ? ' → ' + [...new Set(t.tools)].join('/') : ''} (sim ${t.score.toFixed(2)})`);
+                simLine = `\n[유사 관심사(의미 임베딩, 상위 ${top.length}) — 룰베이스가 놓친 우회표현일 때 도구 후보로]:\n${lines.join('\n')}\n`;
+            }
+        } catch (e) { /* 폴백 — simLine 비움 */ }
+    }
     const prompt =
 `사용자의 한국어 질문에 답하기 위해 어떤 데이터를 가져올지 계획하세요.
 사용 가능한 도구:
@@ -1253,7 +1286,7 @@ ${catalogLine}
 - 시정/가시거리는 get_visibility(지명) 로. 수온·시정을 "줄세워/제일 높은·낮은"으로 비교하면 get_zones_ranked(metric:"temp"/"vis").
 - 생활지수: 낚시→get_fishing_index, 서핑/물놀이→get_surfing_index, 갯벌/바다갈라짐→get_sea_split_index.
   스쿠버·다이빙처럼 전용 지수가 없는 활동은 위 지수에 억지로 맞추지 말고 steps 를 비워(웹검색 폴백) 두세요.
-- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}
+- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}${simLine}
 
 사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
 질문: "${query}"

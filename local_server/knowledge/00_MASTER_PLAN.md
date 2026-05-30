@@ -213,7 +213,10 @@
 | 7 | **Vosk 통합 APK 재빌드 + 기기 동작 검증**(다이얼로그·진행률·"나리야" 호출) | 사장님 | ASAP |
 | 8 | ~~측정 토대 구축 — 직군 품질 평가셋(`phases/phase2b_eval.jsonl`+러너) + 토큰/지연 SLO 계측~~ ✅ v1 가동(2026-05-30, PASS 6/10, p50=1770ms/p95=6114ms). 잔여=토큰 계측(어시스턴트 응답에 usageMetadata 노출) | 나리야팀 | v2 |
 | 9 | **marine.kma 엔드포인트 적재 실패 추적**: `fetch failed`/HTTP 403/JSON parse fail. 인증·URL 변경 여부 확인, 회복 시 베이스라인 재측정 | 사장님/운영 | ASAP |
-| 10 | **임베딩 검색 PoC**(Phase 2b 잔여): 룰베이스가 못 잡는 모호 질의 4건(전남남해/관내특보/양양어때/오늘특보)을 임베딩이 잡는지 평가셋으로 비교 | 나리야팀 | next |
+| 10 | ~~임베딩 검색 PoC~~ ✅ v1 가동(2026-05-30, gemini-embedding-001·3072d·169토픽). 결과 PASS 6/10 무변(1↑/1↓), 지연 +600~800ms. **결론: 임베딩만으로는 부족** | 나리야팀 | v2 후보 |
+| 11 | **플래너 web_search 폴백 절제** — "특보/지수/예보 류 질문은 우리 도구 먼저, web_search 는 진짜 마지막"을 프롬프트 규칙·합성 단계에서 더 강하게. 실패 4건의 공통 원인(LLM 의 web_search 습관) 직타 | 나리야팀 | next |
+| 12 | **음성 비서 P3 focus 패치(commit `e305566`)** — APK 재빌드 시 같이 확인. "232 해구→거기 경위도?" 음성 후속 연속성 | 사장님 | Vosk 빌드와 동시 |
+| 13 | 평가셋 확대 — 10케이스→30+케이스(직군별 4~5건, baseline 짝), 통계적 의미 확보 | 나리야팀 | next |
 
 ---
 
@@ -232,6 +235,8 @@
 | 2026-05-30 | **§2 단일 상태표 동기화**: Phase 0 게이트 재검증 수치 갱신 / Phase 1 데이터카탈로그·도구화·focus·위빙 반영 / Phase 2b 다음=측정토대 명시 / 교차(X)에 호출어 Vosk 추가. §2.5 인벤토리에 5건(카탈로그/도구화/focus/위빙/Vosk) 추가. §4 산출물 인덱스에 데이터카탈로그·Vosk 행 추가. §6 다음액션에 Vosk APK 재빌드·측정토대 신규 등재 |
 | 2026-05-30 | **측정 토대 v1 가동(§6 #8 착수)**: `phases/phase2b_eval.jsonl`(10케이스, 8직군 + baseline pair + 다중도구) + `phase2b_eval_runner.py`. 첫 베이스라인: PASS 6/10, 지연 p50=1770ms·p95=6114ms·평균=2891ms. 실패 4건 전부 `web_search` 폴백 → 룰베이스 직군 디지스트의 한계 정량화(P2b 임베딩 정당성 확보) |
 | 2026-05-30 | **외부 의존성 이슈 검출**: marine.kma JSON 엔드포인트(`/mmis_marine_api/v1/...`) `fetch failed` + HTTP 403 + JSON parse fail → `marine_buoys.json`/`marine_vs.json`/`marine_wh_buoys.json` 미생성 → 부이·시정·특보 도구 빈 상태 → 게이트 33P/1F/4S(이전 37P/0F/1S 대비) + 평가 실패 4건. **코드 회귀 아님(Vosk 변경은 안드로이드/JS만)**. 측정기가 환경 변화를 정확히 검출함을 입증 |
+| 2026-05-30 | **VoiceAssistantService P3 focus 누락 발견·패치**: 음성 비서 자바 경로가 query/profile/location 만 보내고 focus 부재 → "232 해구→거기 경위도?" 음성 후속 끊김. lastFocusJson 필드 + body 동봉 + 응답 갱신. 서버는 focus 받으면 정확(로컬 재현 입증). APK 재빌드 1회 필요 |
+| 2026-05-30 | **임베딩 검색 PoC v1 (§6 #10 착수)**: `services/topic_embedding.js` — gemini-embedding-001(3072 dim)로 GRAPH_RT 토픽 169개 임베딩(5.8s, 디스크 캐시 6.6MB), 질의 임베딩→코사인 유사도 상위 K → planQuery 에 `simLine` 주입. 800ms 타임아웃·실패 시 폴백. 첫 결과: 1↑(marine_leisure-surf 회복) / 1↓(public_org-coast 회귀) / 종합 PASS 6/10 무변, 지연 +600~800ms. **결론: 임베딩만으로는 부족** — web_search 폴백 습관 자체가 진짜 원인. 다음 후보=프롬프트 제약 강화/도구 디스크립션 임베딩/평가셋 확대 |
 
 ---
 
