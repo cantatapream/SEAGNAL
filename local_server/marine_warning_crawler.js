@@ -2416,18 +2416,15 @@ async function run(opts = {}) {
             console.warn('[Marine] warn/latest 호출 실패 — 보강 skip:', e && e.message);
         }
 
-        // 3) [Followup E-1 + D-1] 빈 snapshot 가드 — prev snapshot 이 비어있으면 (이유 불문)
-        //    diff/dispatch 결과가 "전부 신규 발효" 로 오인되어 release/active 폭주 위험.
-        //    SPEC §운영안전: state 저장 + weather_alerts.json 갱신만 하고 push skip.
-        //    다음 cycle 부터 정상 diff/push.
-        //    조건: 부팅 직후 lazy load + 디스크 prev 비어있음, **또는** E-4 partial-fail 후
-        //    빈 snapshot 으로 lazy set 된 케이스 (D-1 보강 — isFirstLoad 가드 제거).
+        // 3) [Followup E-1 + D-1] 빈 snapshot 가드 — 콜드 부팅 직후 prev 가 비어있을 때만.
+        //    재배포/장부 초기화로 활성 특보가 "전부 신규"로 오인되어 push 폭주하는 케이스만 차단.
+        //    자연 전이(이미 가동 중인 프로세스에서 무특보→신규특보)는 통과시켜 정상 push.
         //    [테스트] forceBaseline 이 true 면 이 가드를 1회 우회 →
         //    빈 prev vs 현재 발효+예비 를 "전부 신규" 로 diff 하여 실제 푸시 발사.
         //    (관리자 "장부 초기화(테스트 푸시)" 버튼 전용. opts 또는 예약 플래그로 지정)
         const forceBaseline = !!opts.forceBaselinePush || _forceBaselinePending;
-        if (_isSnapshotEmpty(_prevSnapshot) && !forceBaseline) {
-            console.log('[Marine] 첫 부팅 — push skip, state 저장만 (현재 발효 부모=' +
+        if (_isSnapshotEmpty(_prevSnapshot) && !forceBaseline && isFirstLoad) {
+            console.log('[Marine] 콜드 부팅 + 빈 prev — push skip, state 저장만 (현재 발효 부모=' +
                 curr.parents.size + ', 자식=' + curr.children.size + ')');
             _prevSnapshot = curr;
             _savePrevSnapshot(curr);
