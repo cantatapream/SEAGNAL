@@ -40,26 +40,32 @@ PORT = int(os.environ.get("PORT", "3001"))
 URL  = f"http://127.0.0.1:{PORT}/api/assistant/ask"
 TIMEOUT = 60
 
-def ask(query, profile=None):
+def ask(query, profile=None, max_retry=3):
+    """호출 + 429(Gemini rate limit) 백오프 재시도. 429 외 오류는 즉시 반환."""
     body = {"query": query, "memory": []}
     if profile is not None:
         body["profile"] = profile
-    req = urllib.request.Request(
-        URL,
-        data=json.dumps(body).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    t0 = time.monotonic()
-    try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-            raw = r.read().decode("utf-8")
-            elapsed_ms = int((time.monotonic() - t0) * 1000)
-            return json.loads(raw), elapsed_ms, None
-    except urllib.error.HTTPError as e:
-        return None, int((time.monotonic() - t0) * 1000), f"HTTP {e.code}"
-    except Exception as e:
-        return None, int((time.monotonic() - t0) * 1000), f"{type(e).__name__}: {e}"
+    payload = json.dumps(body).encode("utf-8")
+    last_ms = 0
+    for attempt in range(max_retry + 1):
+        req = urllib.request.Request(URL, data=payload,
+            headers={"Content-Type": "application/json"}, method="POST")
+        t0 = time.monotonic()
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+                raw = r.read().decode("utf-8")
+                elapsed_ms = int((time.monotonic() - t0) * 1000)
+                return json.loads(raw), elapsed_ms, None
+        except urllib.error.HTTPError as e:
+            last_ms = int((time.monotonic() - t0) * 1000)
+            if e.code == 429 and attempt < max_retry:
+                # 백오프: 4s → 9s → 16s. Gemini quota 회복 대기.
+                time.sleep(4 + attempt * 5)
+                continue
+            return None, last_ms, f"HTTP {e.code}"
+        except Exception as e:
+            return None, int((time.monotonic() - t0) * 1000), f"{type(e).__name__}: {e}"
+    return None, last_ms, "HTTP 429(retry exhausted)"
 
 def percentile(values, p):
     if not values: return 0
@@ -78,45 +84,82 @@ def main():
         if not line: continue
         cases.append(json.loads(line))
 
-    print(f"=== Phase 2b 품질 평가 + 지연 SLO 베이스라인 ({len(cases)}케이스) ===\n")
+    # N회 반복(다수결) — LLM 비결정성 흡수. CLI 인수 우선, 환경변수 EVAL_N, 기본 3.
+    N = 3
+    for a in sys.argv[1:]:
+        if a.startswith("--n="):
+            try: N = max(1, int(a.split("=", 1)[1]))
+            except: pass
+        elif a == "--n" or a == "-n":
+            pass  # 다음 인수에서 처리
+    try:
+        if "--n" in sys.argv or "-n" in sys.argv:
+            idx = (sys.argv.index("--n") if "--n" in sys.argv else sys.argv.index("-n"))
+            N = max(1, int(sys.argv[idx + 1]))
+    except: pass
+    if os.environ.get("EVAL_N"):
+        try: N = max(1, int(os.environ["EVAL_N"]))
+        except: pass
+
+    print(f"=== Phase 2b 품질 평가 + 지연 SLO ({len(cases)}케이스 × N={N}회 다수결) ===\n")
     npass = nfail = 0
     latencies = []
     fails = []
-    for c in cases:
+    flaky = []  # 케이스별로 N회 결과가 갈린(=비결정성) 항목
+
+    for cidx, c in enumerate(cases):
         cid = c["id"]; q = c["query"]; prof = c.get("profile")
-        data, ms, err = ask(q, prof)
-        if err:
-            print(f"[FAIL] {cid:35s}  ERR {err}  ({ms}ms)")
-            nfail += 1; fails.append(cid); continue
-        latencies.append(ms)
-        tools = (data.get("data") or {}).get("toolsUsed") or []
-        ans = data.get("answer") or ""
         any_req = c.get("expect_tools_any") or []
         all_req = c.get("expect_tools_all") or []
-        ok = bool(ans)
-        if any_req: ok = ok and any(t in tools for t in any_req)
-        if all_req: ok = ok and all(t in tools for t in all_req)
-        if ok:
-            npass += 1
-            tag = "PASS"
-        else:
-            nfail += 1; fails.append(cid)
-            tag = "FAIL"
+        passes = 0; fails_n = 0
+        case_lat = []
+        first_err = None
+        last_tools = []; last_ans = ""
+        if cidx > 0: time.sleep(1.5)   # 케이스 간 짧은 페이싱 — Gemini quota 보호
+        for i in range(N):
+            if i > 0: time.sleep(0.8)   # 반복 간 페이싱
+            data, ms, err = ask(q, prof)
+            if err:
+                fails_n += 1
+                if first_err is None: first_err = err
+                continue
+            case_lat.append(ms); latencies.append(ms)
+            tools = (data.get("data") or {}).get("toolsUsed") or []
+            ans = data.get("answer") or ""
+            last_tools = tools; last_ans = ans
+            ok = bool(ans)
+            if any_req: ok = ok and any(t in tools for t in any_req)
+            if all_req: ok = ok and all(t in tools for t in all_req)
+            passes += 1 if ok else 0
+            fails_n += 0 if ok else 1
+
+        # 다수결: passes > N/2 → PASS
+        majority_pass = passes > (N / 2)
+        tag = "PASS" if majority_pass else "FAIL"
+        if majority_pass: npass += 1
+        else: nfail += 1; fails.append(cid)
+        is_flaky = (passes != 0 and passes != N)  # 일부만 통과 = 비결정성
+        if is_flaky: flaky.append(cid)
+
         prof_tag = ("[+" + (prof.get("occupation") or prof.get("affiliation") or prof.get("purpose") or "?") + "]") if prof else "[baseline]"
-        print(f"[{tag}] {cid:35s} {prof_tag:18s} {ms:>5d}ms  tools={','.join(tools) if tools else '-'}")
-        if tag == "FAIL":
-            print(f"        any={any_req} all={all_req}  ans={ans[:90]!r}")
+        med = (sorted(case_lat)[len(case_lat) // 2] if case_lat else 0)
+        flaky_tag = " (flaky)" if is_flaky else ""
+        print(f"[{tag}] {cid:35s} {prof_tag:18s} {passes}/{N}{flaky_tag:8s}  med={med:>4d}ms  last_tools={','.join(last_tools) if last_tools else '-'}")
+        if tag == "FAIL" or is_flaky:
+            print(f"        any={any_req} all={all_req}  last_ans={last_ans[:80]!r}{(' err=' + first_err) if first_err else ''}")
 
     print()
     print("------ 요약 ------")
-    print(f"PASS {npass} / FAIL {nfail} / 총 {len(cases)}")
+    print(f"PASS {npass} / FAIL {nfail} / 총 {len(cases)} (다수결 N={N})")
+    if flaky:
+        print(f"비결정성(flaky, N회 중 일부만 통과) {len(flaky)}건:", ",".join(flaky))
     if latencies:
-        print(f"지연 SLO 베이스라인  p50={percentile(latencies,0.5)}ms  p95={percentile(latencies,0.95)}ms  "
-              f"평균={sum(latencies)//len(latencies)}ms  min={min(latencies)}ms  max={max(latencies)}ms  n={len(latencies)}")
+        print(f"지연 SLO  p50={percentile(latencies,0.5)}ms  p95={percentile(latencies,0.95)}ms  "
+              f"평균={sum(latencies)//len(latencies)}ms  min={min(latencies)}ms  max={max(latencies)}ms  n={len(latencies)} 호출")
     if fails:
-        print("실패 케이스:", ",".join(fails))
+        print("실패(다수결) 케이스:", ",".join(fails))
         sys.exit(1)
-    print("모두 통과 ✅")
+    print("다수결 기준 모두 통과 ✅")
     sys.exit(0)
 
 if __name__ == "__main__":
