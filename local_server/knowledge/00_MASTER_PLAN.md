@@ -219,8 +219,9 @@
 | 13 | ~~평가셋 러너 N회 다수결~~ ✅ 완료(2026-05-30, N=3 다수결 + 429 백오프 + 페이싱). PASS 9/10, 비결정성 0건. 잔여=케이스 30+ 확대(v2) | 나리야팀 | v2 |
 | 17 | ~~비도메인 대화 연속성~~ ✅ 옵션 C 채택·완료(2026-05-30). 음성 비서 memory 동봉으로 채팅창과 동등. 잔여 옵션(a) topic 칸 추가는 도메인 가드까지 완화하지 않아 web_search 차단 그대로 — 필요시 v2 후보 | 나리야팀 | 완료 |
 | 14 | ~~무프로필 모호어 처리~~ ✅ 부분완료(2026-05-30, baseline-geomun 회복). detectZoneDeterministic+섬·부이 정규식 기반 도메인 가드 | 나리야팀 | 완료 |
-| 15 | **잘못된 행정구역명 정정** — "전남남해" 같은 비표준 명칭을 가장 가까운 표준 해역명으로 fuzzy 매핑. 현재 단방향 토큰 매칭 한계 → **양방향 substring + 문자 LCS** 또는 임베딩 기반 zone 매칭 필요 | 나리야팀 | next |
-| 16 | **합성 환각 가드** — results 가 비거나 결과에 데이터 없는데 답이 풍부하게 생성되는 케이스 의심(angler-yeosu 1회 관측). 합성 prompt 에 "수집결과에 없는 사실 절대 추가 금지" 더 강하게 + 검출 시 "데이터 없음" 으로 안전 폴백 | 나리야팀 | next |
+| 15 | ~~잘못된 행정구역명 정정~~ ✅ 완료(2026-05-30, stage 3 역방향 토큰 매칭). "전남남해"→"전남동부남해앞바다" 보정 작동 확인. forecast 호출 회복 | 나리야팀 | 완료 |
+| 16 | ~~합성 환각 가드~~ ✅ 완료(2026-05-30, 빈 results 차단 + 프롬프트 환각 금지 강화). 지연 p95 5858→3440ms 효과 | 나리야팀 | 완료 |
+| 18 | **다중 도구 hint 강화** — 직군 의도가 multi-tool 필요(어업=예보+특보)인데 LLM 이 단일 도구로 멈춤. 직군 디지스트에 "함께 호출" 패턴 명시, 또는 평가 expect 명확화. fishery-jeonnam-multi 잔여 1건 직타 | 나리야팀 | next |
 
 ---
 
@@ -245,6 +246,7 @@
 | 2026-05-30 | **지명인식 도메인 가드 + zone 정규화 (§6 #14·#15 부분)**: isDomainQuery 에 `detectZoneDeterministic(query)≠null` + 섬·부이 정규식 추가 → "거문도 어때" 류가 도메인으로 잡힘(baseline-geomun 회복). plan.steps 실행 직전 zone 인자를 detectZoneDeterministic 으로 fuzzy 보정. **결과: 8/10 유지 + 지연 p50 1788ms → 1435ms**. 1↑(baseline-geomun) / 1↓(angler-yeosu, 재실행시 PASS — LLM 비결정성). 잔여=fishery-jeonnam-multi: detectZoneDeterministic 의 단방향 토큰 매칭이 "전남남해"(짧은 nq) 를 어느 표준 zone 으로도 매핑 못 함 → 양방향 fuzzy/문자 LCS 필요 |
 | 2026-05-30 | **평가셋 러너 N회 다수결 + 429 백오프 (§6 #13 완료)**: phase2b_eval_runner.py 에 `--n=N`(기본 3) 다수결 + 케이스 간 1.5s/회 간 0.8s 페이싱 + ask() 429 백오프 3회(4/9/16s). **결과: PASS 9/10 (90%)**, 지연 p50 1167ms/p95 5858ms, **비결정성 0건**(이전 flaky navy-east 도 3/3 안정), 429 전부 흡수(30/30 호출 성공). 진짜 신호 분리됨: 유일 실패=fishery-jeonnam-multi(3/3 일관 web_search → #15 zone 양방향 fuzzy 가 진짜 해법) |
 | 2026-05-30 | **음성 비서 자연어 memory 동봉 (§6 #17 옵션 C 완료)**: VoiceAssistantService 에 `recentMemory`(ArrayDeque, MEMORY_MAX=8) + askServer body 에 memory 배열 동봉 + 응답 후 채팅창 동일 포맷(`[zone:] "Q" → A(160자)`)으로 자동 적재. focus(구조)와 memory(자연어) 이중 안전망으로 채팅창과 음성 비서 능력 동등화. 비도메인 후속("뽀로로 파크 → 거기 이용 금액?") 등 focus 가 못 담는 자유 화제도 LLM 이 자연어로 이음. APK 재빌드 1회 필요(자바) |
+| 2026-05-30 | **zone 양방향 fuzzy + 합성 환각 가드 (§6 #15·#16 완료)**: detectZoneDeterministic 에 stage 3(역방향 토큰 매칭, 최소 2 토큰) 추가 → "전남남해" 같은 짧은 비표준 명을 표준 zone("전남동부남해앞바다") 으로 정정. runBrain 에 `isDomainQuery && results.length===0` 시 synth 호출 차단 + 안전 응답. synth 프롬프트에 환각 금지 강화. **결과: PASS 9/10 유지 + 지연 p95 5858→3440ms** (환각 가드 짧은 안전 응답 효과). fishery-jeonnam-multi 는 forecast 호출은 회복(get_marine_forecast) 했으나 multi-tool expect(forecast+warning) 미충족 — 평가 기준이 더 엄격해진 셈. #18 신규(다중 도구 hint) |
 
 ---
 
