@@ -1286,7 +1286,8 @@ ${catalogLine}
 - 시정/가시거리는 get_visibility(지명) 로. 수온·시정을 "줄세워/제일 높은·낮은"으로 비교하면 get_zones_ranked(metric:"temp"/"vis").
 - 생활지수: 낚시→get_fishing_index, 서핑/물놀이→get_surfing_index, 갯벌/바다갈라짐→get_sea_split_index.
   스쿠버·다이빙처럼 전용 지수가 없는 활동은 위 지수에 억지로 맞추지 말고 steps 를 비워(웹검색 폴백) 두세요.
-- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}${simLine}
+- 관리자/설정/키 같은 건 도구가 없으니 무시하세요.
+- **(중요) 한국 해상·기상 도메인 질의(특보·예보·파고·풍속·시정·부이·조석·유속·수심·태풍·해구·해역·낚시·서핑·관측·수온 등)는 반드시 위 도구로 처리하세요.** 위치가 모호해도(예: "오늘 특보", "관내 어때", "전국 상황") web_search 폴백을 노리고 steps 를 비우지 말고, 가장 그럴듯한 도구를 하나라도 호출하세요(예: 위치 없는 특보 → get_warning(zone="전국") 또는 zone 생략, "오늘 연안" → get_marine_forecast(zone="서해남부") 같은 기본 해역). 결과가 비어 있으면 합성 단계가 "현재 ~ 없음" 으로 자연스럽게 보고합니다.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}${simLine}
 
 사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
 질문: "${query}"
@@ -1385,7 +1386,12 @@ async function runBrain(query, profile, memory, style, location, focus) {
         });
     };
     const gotUseful = results.some(r => hasRealData(r.result));
-    if (!gotUseful) {
+    // [도메인 가드] 한국 해양·기상 영역 질의는 web_search 폴백 금지.
+    //  결과가 비더라도 합성 단계가 "현재 ~ 없음" 또는 "위치를 좀 더 알려주세요" 로 보고하게 둔다.
+    //  비도메인 질문(관광·역사·일반상식·인물 등)에만 web_search 가 마지막 수단으로 살아남는다.
+    const DOMAIN_RE = /특보|예보|파고|파주기|풍속|풍향|풍랑|해상|연안|해역|해구|부이|시정|가시거리|조석|만조|간조|물때|유속|유향|해류|수심|태풍|기상|관측|수온|낚시|서핑|어업|조업|항해/;
+    const isDomainQuery = DOMAIN_RE.test(query) || DOMAIN_RE.test(cq);
+    if (!gotUseful && !isDomainQuery) {
         const web = await webSearchAnswer(cq);
         if (web && web.answer) {
             return { answer: web.answer, zone: plan.zone || null, toolsUsed: ['web_search'], webLinks: web.webLinks || [], corrected, focus: deriveFocus(plan, results, plan.zone) };

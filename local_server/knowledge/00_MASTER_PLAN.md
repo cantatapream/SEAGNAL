@@ -214,9 +214,11 @@
 | 8 | ~~측정 토대 구축 — 직군 품질 평가셋(`phases/phase2b_eval.jsonl`+러너) + 토큰/지연 SLO 계측~~ ✅ v1 가동(2026-05-30, PASS 6/10, p50=1770ms/p95=6114ms). 잔여=토큰 계측(어시스턴트 응답에 usageMetadata 노출) | 나리야팀 | v2 |
 | 9 | **marine.kma 엔드포인트 적재 실패 추적**: `fetch failed`/HTTP 403/JSON parse fail. 인증·URL 변경 여부 확인, 회복 시 베이스라인 재측정 | 사장님/운영 | ASAP |
 | 10 | ~~임베딩 검색 PoC~~ ✅ v1 가동(2026-05-30, gemini-embedding-001·3072d·169토픽). 결과 PASS 6/10 무변(1↑/1↓), 지연 +600~800ms. **결론: 임베딩만으로는 부족** | 나리야팀 | v2 후보 |
-| 11 | **플래너 web_search 폴백 절제** — "특보/지수/예보 류 질문은 우리 도구 먼저, web_search 는 진짜 마지막"을 프롬프트 규칙·합성 단계에서 더 강하게. 실패 4건의 공통 원인(LLM 의 web_search 습관) 직타 | 나리야팀 | next |
+| 11 | ~~플래너 web_search 폴백 절제~~ ✅ 완료(2026-05-30). PASS 6/10→8/10, 지연 회복(p50 1788ms). 잔여 실패=무프로필 모호어/잘못된 행정구역명 — 별도 후속(#14/#15) | 나리야팀 | 완료 |
 | 12 | **음성 비서 P3 focus 패치(commit `e305566`)** — APK 재빌드 시 같이 확인. "232 해구→거기 경위도?" 음성 후속 연속성 | 사장님 | Vosk 빌드와 동시 |
 | 13 | 평가셋 확대 — 10케이스→30+케이스(직군별 4~5건, baseline 짝), 통계적 의미 확보 | 나리야팀 | next |
+| 14 | **무프로필 모호어 처리** — "거문도 어때" 류에서 플래너가 빈 steps 반환 회피. 지명 단독 질의면 get_marine_forecast/get_buoy_observation 기본 호출 강제 | 나리야팀 | next |
+| 15 | **잘못된 행정구역명 정정** — "전남남해" 같은 비표준 명칭을 가장 가까운 표준 해역명으로 fuzzy 매핑(예: "전남남해"→"전남남해앞바다") | 나리야팀 | next |
 
 ---
 
@@ -237,6 +239,7 @@
 | 2026-05-30 | **외부 의존성 이슈 검출**: marine.kma JSON 엔드포인트(`/mmis_marine_api/v1/...`) `fetch failed` + HTTP 403 + JSON parse fail → `marine_buoys.json`/`marine_vs.json`/`marine_wh_buoys.json` 미생성 → 부이·시정·특보 도구 빈 상태 → 게이트 33P/1F/4S(이전 37P/0F/1S 대비) + 평가 실패 4건. **코드 회귀 아님(Vosk 변경은 안드로이드/JS만)**. 측정기가 환경 변화를 정확히 검출함을 입증 |
 | 2026-05-30 | **VoiceAssistantService P3 focus 누락 발견·패치**: 음성 비서 자바 경로가 query/profile/location 만 보내고 focus 부재 → "232 해구→거기 경위도?" 음성 후속 끊김. lastFocusJson 필드 + body 동봉 + 응답 갱신. 서버는 focus 받으면 정확(로컬 재현 입증). APK 재빌드 1회 필요 |
 | 2026-05-30 | **임베딩 검색 PoC v1 (§6 #10 착수)**: `services/topic_embedding.js` — gemini-embedding-001(3072 dim)로 GRAPH_RT 토픽 169개 임베딩(5.8s, 디스크 캐시 6.6MB), 질의 임베딩→코사인 유사도 상위 K → planQuery 에 `simLine` 주입. 800ms 타임아웃·실패 시 폴백. 첫 결과: 1↑(marine_leisure-surf 회복) / 1↓(public_org-coast 회귀) / 종합 PASS 6/10 무변, 지연 +600~800ms. **결론: 임베딩만으로는 부족** — web_search 폴백 습관 자체가 진짜 원인. 다음 후보=프롬프트 제약 강화/도구 디스크립션 임베딩/평가셋 확대 |
+| 2026-05-30 | **web_search 도메인 가드 (§6 #11 완료)**: planQuery 에 "도메인 질의(특보/예보/파고/풍속/시정/부이/조석/유속/수심/태풍/낚시/서핑 등)는 빈 steps 금지, zone 모호해도 '전국'·기본해역으로 시도" 규칙 + runBrain 폴백 조건에 도메인 정규식 게이트 — 도메인이면 결과 비더라도 web_search 우회 금지(합성이 "현재 ~ 없음"으로 보고). **결과: PASS 6/10 → 8/10 (80%)**, 회복 coast_guard-warning/local_gov-warning/public_org-coast, 지연 p50 2619ms → 1788ms (임베딩 비용 회수). 잔여 실패=baseline-geomun(무프로필 "어때" 모호어) / fishery-jeonnam-multi("전남남해" 행정구역 정정) — 별도 후속 |
 
 ---
 
