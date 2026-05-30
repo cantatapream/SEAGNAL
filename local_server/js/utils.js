@@ -181,7 +181,14 @@ function formatWarningTime(tmEf, isEndTime = false) {
         if (rm = rest.match(/(\d{1,2})\s*시?\s*[~∼]\s*(\d{1,2})\s*시/)) {
             timeStr = fmtRange(parseInt(rm[1], 10), parseInt(rm[2], 10));   // 범위 (3h/6h 보존, degenerate만 스냅)
         } else if (rm = rest.match(/(\d{1,2}):(\d{2})/)) {
-            timeStr = fmtExact(parseInt(rm[1], 10), parseInt(rm[2], 10));    // HH:MM[:SS]
+            const _hh = parseInt(rm[1], 10), _mm = parseInt(rm[2], 10);
+            // [레거시] 58/59분 = KMA 범위코드 → 해당 6시간 블록 범위로 복원 (점·대시 형식 보강)
+            if (_mm === 58 || _mm === 59) {
+                timeStr = (_hh >= 18) ? '18시~24시' : (_hh >= 12) ? '12시~18시'
+                        : (_hh >= 9) ? '09시~12시' : (_hh >= 6) ? '06시~09시' : '00시~06시';
+            } else {
+                timeStr = fmtExact(_hh, _mm);    // HH:MM[:SS]
+            }
         } else if (rm = rest.match(/(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/)) {
             timeStr = fmtExact(parseInt(rm[1], 10), rm[2] ? parseInt(rm[2], 10) : 0); // H시 [M분]
         } else {
