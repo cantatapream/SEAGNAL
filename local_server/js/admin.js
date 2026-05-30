@@ -762,20 +762,110 @@ async function renderUnifiedAiTab(container) {
         wire(Native, 'microphone', { st: 'ai-perm-mic', req: 'ai-perm-mic-req', set: 'ai-perm-mic-set' });
         wire(Geo, 'location', { st: 'ai-perm-gps', req: 'ai-perm-gps-req', set: 'ai-perm-gps-set' });
 
-        // 음성 비서(나리야) on/off 토글
+        // 음성 비서(나리야) on/off 토글 — Vosk 모델 다운로드 다이얼로그·진행률·연속성 지원
         const st = document.getElementById('ai-voice-status');
         const btn = document.getElementById('ai-voice-toggle');
         if (!Native) { st.textContent = '앱(안드로이드)에서만 사용 가능'; btn.disabled = true; btn.style.opacity = .5; return; }
         let running = false;
         const render = () => { st.textContent = running ? '켜짐 — "나리야" 대기 중' : '꺼짐'; st.style.color = running ? '#34d399' : '#94a3b8'; btn.textContent = running ? '끄기' : '켜기'; };
         Native.isEnabled().then(x => { running = !!(x && x.running); render(); }).catch(render);
-        btn.addEventListener('click', () => {
+
+        // ── Vosk 다운로드 다이얼로그 (assistant.js 의 흐름을 admin.js 토글에도 동일 적용) ──
+        let dl = null;
+        const buildDialog = () => {
+            if (dl) return dl;
+            const root = document.createElement('div');
+            root.id = 'admin-vosk-dl';
+            root.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:16px;font-family:-apple-system,BlinkMacSystemFont,Roboto,"Noto Sans KR",sans-serif;';
+            root.innerHTML =
+                '<div style="background:#0b1f33;border:1px solid rgba(56,189,248,.45);border-radius:16px;padding:18px;max-width:420px;width:100%;color:#e6f1ff;box-shadow:0 18px 50px rgba(0,0,0,.6);">' +
+                  '<div id="vdl-title" style="font-size:15px;font-weight:700;margin-bottom:8px;"></div>' +
+                  '<div id="vdl-body" style="font-size:13.5px;line-height:1.55;color:#cfe2f3;"></div>' +
+                  '<div id="vdl-progress" style="display:none;margin-top:12px;height:8px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden;"><div id="vdl-bar" style="height:100%;width:0%;background:#38bdf8;transition:width .25s ease;"></div></div>' +
+                  '<div id="vdl-pct" style="display:none;margin-top:6px;font-size:12px;color:#a9c3d8;text-align:right;"></div>' +
+                  '<label id="vdl-wifi" style="display:none;margin-top:12px;font-size:12.5px;color:#a9c3d8;cursor:pointer;"><input type="checkbox" id="vdl-wifi-chk" checked style="vertical-align:middle;margin-right:6px;">Wi-Fi 에서만 다운로드 (체크 해제 시 모바일 데이터 사용)</label>' +
+                  '<div id="vdl-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;"></div>' +
+                '</div>';
+            document.body.appendChild(root);
+            dl = { root, title: root.querySelector('#vdl-title'), body: root.querySelector('#vdl-body'), actions: root.querySelector('#vdl-actions'), wifi: root.querySelector('#vdl-wifi'), wifiChk: root.querySelector('#vdl-wifi-chk'), progress: root.querySelector('#vdl-progress'), bar: root.querySelector('#vdl-bar'), pct: root.querySelector('#vdl-pct') };
+            return dl;
+        };
+        const mkBtn = (label, primary) => { const b = document.createElement('button'); b.textContent = label; b.style.cssText = 'padding:8px 14px;border-radius:10px;border:0;font-size:13.5px;font-weight:600;cursor:pointer;' + (primary ? 'background:#38bdf8;color:#04263b;' : 'background:rgba(255,255,255,.08);color:#cfe2f3;'); return b; };
+        const hideDialog = () => { if (dl) dl.root.style.display = 'none'; };
+        const showDialog = (kind, opts) => {
+            const d = buildDialog(); opts = opts || {};
+            d.actions.innerHTML = ''; d.wifi.style.display = 'none'; d.progress.style.display = 'none'; d.pct.style.display = 'none';
+            if (kind === 'prompt') {
+                d.title.textContent = '음성 지원 데이터 다운로드';
+                d.body.textContent = '"나리야" 호출어를 사용하려면 한국어 음성 모델(약 80MB)을 한 번 다운로드해야 합니다. 다운로드는 백그라운드로 진행되며 그동안 앱은 평소처럼 사용할 수 있습니다.';
+                d.wifi.style.display = 'block'; d.wifiChk.checked = true;
+                const later = mkBtn('나중에', false); later.addEventListener('click', hideDialog);
+                const go = mkBtn('지금 다운로드', true);
+                go.addEventListener('click', () => { showDialog('progress', { percent: 0 }); Native.requestVoskDownload({ allowMobile: !d.wifiChk.checked }); });
+                d.actions.appendChild(later); d.actions.appendChild(go);
+            } else if (kind === 'progress') {
+                d.title.textContent = '음성 지원 데이터 준비 중';
+                d.body.textContent = '음성 지원을 하기 위한 데이터를 다운로드 중입니다. 앱은 평소처럼 사용하셔도 됩니다.';
+                d.progress.style.display = 'block'; d.pct.style.display = 'block';
+                const p = Math.max(0, Math.min(100, opts.percent|0));
+                d.bar.style.width = p + '%'; d.pct.textContent = p + '%';
+                const cancel = mkBtn('취소', false); cancel.addEventListener('click', () => { if (Native.cancelVoskDownload) Native.cancelVoskDownload(); hideDialog(); });
+                const hide = mkBtn('숨기기', true); hide.addEventListener('click', hideDialog);
+                d.actions.appendChild(cancel); d.actions.appendChild(hide);
+            } else if (kind === 'wifiRequired') {
+                d.title.textContent = 'Wi-Fi 가 필요합니다';
+                d.body.textContent = opts.message || '현재 Wi-Fi 에 연결돼 있지 않습니다. Wi-Fi 연결 후 다시 시도하거나, 모바일 데이터로 받을 수 있습니다.';
+                const close = mkBtn('닫기', false); close.addEventListener('click', hideDialog);
+                const mobile = mkBtn('데이터로 받기', true);
+                mobile.addEventListener('click', () => { showDialog('progress', { percent: 0 }); Native.requestVoskDownload({ allowMobile: true }); });
+                d.actions.appendChild(close); d.actions.appendChild(mobile);
+            } else if (kind === 'failed') {
+                d.title.textContent = '다운로드 실패';
+                d.body.textContent = opts.message || '다운로드에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+                const c2 = mkBtn('닫기', false); c2.addEventListener('click', hideDialog);
+                const retry = mkBtn('재시도', true); retry.addEventListener('click', () => showDialog('prompt'));
+                d.actions.appendChild(c2); d.actions.appendChild(retry);
+            }
+            d.root.style.display = 'flex';
+        };
+        const doEnable = () => {
             btn.disabled = true;
             let profile = '{}'; try { profile = localStorage.getItem('seagnal_profile') || '{}'; } catch (e) {}
-            const op = running ? Native.disable() : Native.enable({ serverUrl: location.origin, profile });
-            op.then(x => { running = x ? !!x.running : !running; render(); })
-              .catch(e => { st.textContent = '오류: ' + (e && e.message ? e.message : '권한/서비스 실패'); st.style.color = '#fbbf24'; })
-              .then(() => { btn.disabled = false; });
+            Native.enable({ serverUrl: location.origin, profile })
+                .then(x => { running = x ? !!x.running : true; render(); })
+                .catch(e => { st.textContent = '오류: ' + (e && e.message ? e.message : '권한/서비스 실패'); st.style.color = '#fbbf24'; })
+                .then(() => { btn.disabled = false; });
+        };
+        // 모델 상태 이벤트 구독 — 진행률·완료·실패 다이얼로그 반영
+        if (Native.addListener) {
+            Native.addListener('voskState', e => {
+                const s = e && e.state;
+                if (s === 'DOWNLOADING')        showDialog('progress', { percent: e.progress|0 });
+                else if (s === 'READY')         { hideDialog(); if (!running) doEnable(); }
+                else if (s === 'WIFI_REQUIRED') showDialog('wifiRequired', { message: e.message });
+                else if (s === 'FAILED')        showDialog('failed', { message: e.message });
+            });
+        }
+
+        btn.addEventListener('click', () => {
+            if (running) {
+                btn.disabled = true;
+                Native.disable()
+                    .then(x => { running = x ? !!x.running : false; render(); })
+                    .catch(e => { st.textContent = '오류: ' + (e && e.message ? e.message : ''); })
+                    .then(() => { btn.disabled = false; });
+                return;
+            }
+            // ON — capabilities 분기
+            if (!Native.getCapabilities) { doEnable(); return; }  // 구버전 호환
+            Native.getCapabilities().then(cap => {
+                if (cap && cap.porcupineAvailable) { doEnable(); return; }
+                const v = (cap && cap.vosk) || { state: 'NOT_DOWNLOADED' };
+                if (v.state === 'READY')         { doEnable(); return; }
+                if (v.state === 'DOWNLOADING')   { showDialog('progress', { percent: v.progress|0 }); return; }
+                if (v.state === 'WIFI_REQUIRED') { showDialog('wifiRequired', { message: v.message }); return; }
+                showDialog('prompt');  // NOT_DOWNLOADED / FAILED
+            }).catch(() => doEnable());
         });
     })();
 
