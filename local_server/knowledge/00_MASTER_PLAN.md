@@ -35,7 +35,7 @@
 | **Phase 1** | 온톨로지 & 지식그래프 | 🚧 스키마+그래프+런타임연결 + **데이터카탈로그 단일출처(2026-05-30)** + 미노출 도구화(시정16/21) + focus 연속성 + 의존 위빙 | `phases/phase1_ontology_schema.md`, `graph/build_graph.js`, `graph/graph.json`, `knowledge/data_catalog.json` |
 | **Phase 3** | 선제 제안(Proactive) | ⏳ 예정 | 입력=`jikgun/*.md` 선제규칙 섹션 |
 | **Phase 4** | 자율 성장(수집·검수·반영) | ⏳ 예정 | (미생성) |
-| **교차(X)** | 평가/회귀/비용/프라이버시/시크릿/신선도 + **호출어 엔진 무료 오픈소스(Vosk, 2026-05-30)** | 🚧 정의 중 | §8, (예정)`phases/cross_cutting.md`, `android/.../voice/Vosk*.java` |
+| **교차(X)** | 평가/회귀/비용/프라이버시/시크릿/신선도 + **호출어 엔진 무료 오픈소스(Vosk, 2026-05-30)** + **자유변칙 평가 게이트(440케이스, 2026-05-30)** | 🚧 정의 중 — 자유변칙 PASS 72%, 직군 floor ≥70%·카테고리 ≥70% DoD 미달 | §8, (예정)`phases/cross_cutting.md`, `android/.../voice/Vosk*.java`, `phases/phase2b_eval_freevar*.{py,jsonl}` |
 
 > **순서 메모:** 사용자 결정으로 **Phase 2를 Phase 1보다 먼저** 착수(직군 지식이 온톨로지 1차 재료). **되먹임:** P1 온톨로지 확정 후 직군 문서의 노드/엣지 태깅을 **소급 정비**한다(단방향 아님).
 
@@ -211,7 +211,28 @@
 | 5 | 운영 시크릿(`KMA_DMDW_*`/TideBED) 배포 반영 | 미정 | 운영배포 |
 | 6 | 테스트용 Gemini 키 폐기 | 사장님 | ASAP |
 | 7 | **Vosk 통합 APK 재빌드 + 기기 동작 검증**(다이얼로그·진행률·"나리야" 호출) | 사장님 | ASAP |
-| 8 | 측정 토대 구축 — 직군 품질 평가셋(`phases/phase2b_eval.jsonl`+러너) + 토큰/지연 SLO 계측 | 나리야팀 | next |
+| 8 | ~~측정 토대 구축 — 직군 품질 평가셋(`phases/phase2b_eval.jsonl`+러너) + 토큰/지연 SLO 계측~~ ✅ v1 가동(2026-05-30, PASS 6/10, p50=1770ms/p95=6114ms). 잔여=토큰 계측(어시스턴트 응답에 usageMetadata 노출) | 나리야팀 | v2 |
+| 9 | **marine.kma 엔드포인트 적재 실패 추적**: `fetch failed`/HTTP 403/JSON parse fail. 인증·URL 변경 여부 확인, 회복 시 베이스라인 재측정 | 사장님/운영 | ASAP |
+| 10 | ~~임베딩 검색 PoC~~ ✅ v1 가동(2026-05-30, gemini-embedding-001·3072d·169토픽). 결과 PASS 6/10 무변(1↑/1↓), 지연 +600~800ms. **결론: 임베딩만으로는 부족** | 나리야팀 | v2 후보 |
+| 11 | ~~플래너 web_search 폴백 절제~~ ✅ 완료(2026-05-30). PASS 6/10→8/10, 지연 회복(p50 1788ms). 잔여 실패=무프로필 모호어/잘못된 행정구역명 — 별도 후속(#14/#15) | 나리야팀 | 완료 |
+| 12 | **음성 비서 P3 focus 패치(commit `e305566`)** — APK 재빌드 시 같이 확인. "232 해구→거기 경위도?" 음성 후속 연속성 | 사장님 | Vosk 빌드와 동시 |
+| 13 | ~~평가셋 러너 N회 다수결~~ ✅ 완료(2026-05-30, N=3 다수결 + 429 백오프 + 페이싱). PASS 9/10, 비결정성 0건. 잔여=케이스 30+ 확대(v2) | 나리야팀 | v2 |
+| 17 | ~~비도메인 대화 연속성~~ ✅ 옵션 C 채택·완료(2026-05-30). 음성 비서 memory 동봉으로 채팅창과 동등. 잔여 옵션(a) topic 칸 추가는 도메인 가드까지 완화하지 않아 web_search 차단 그대로 — 필요시 v2 후보 | 나리야팀 | 완료 |
+| 14 | ~~무프로필 모호어 처리~~ ✅ 부분완료(2026-05-30, baseline-geomun 회복). detectZoneDeterministic+섬·부이 정규식 기반 도메인 가드 | 나리야팀 | 완료 |
+| 15 | ~~잘못된 행정구역명 정정~~ ✅ 완료(2026-05-30, stage 3 역방향 토큰 매칭). "전남남해"→"전남동부남해앞바다" 보정 작동 확인. forecast 호출 회복 | 나리야팀 | 완료 |
+| 16 | ~~합성 환각 가드~~ ✅ 완료(2026-05-30, 빈 results 차단 + 프롬프트 환각 금지 강화). 지연 p95 5858→3440ms 효과 | 나리야팀 | 완료 |
+| 18 | ~~다중 도구 hint 강화~~ ✅ 완료(2026-05-30). planQuery 에 직군별 multi-tool 패턴 명시 + DOMAIN_RE 보강("해양/바다/섬/항구/항만"). 평가 만점 PASS 10/10 달성 | 나리야팀 | 완료 |
+| 19 | **결함 2 — zone 모호 multi-tool 빈응답** 도구 구현 수준 변경(get_marine_forecast 가 zone 없으면 광역 요약). 8-agent 검증에서 다수 직군이 종합 질의 시 빈응답 | 나리야팀 | next |
+| 20 | ~~50문항/직군 재검증~~ ✅ 완료(2026-05-30, 자유변칙 v2 직렬 440 케이스). PASS 72%, 카테고리 결함 우선순위 확정 | 나리야팀 | 완료 |
+| 21 | ~~정량 임계 판정기~~ ✅ 완료(2026-05-30). _thresholds.json + synth 임계표 주입 + 가부 결론 한 줄 먼저 규칙 | 나리야팀 | 완료(자유변칙 효과 측정중) |
+| 22 | ~~focus 후속 전파 강화~~ ✅ 완료(2026-05-30). 대명사 검출+결정론적 args 주입 | 나리야팀 | 완료(자유변칙 효과 측정중) |
+| 23 | ~~직군 floor 보강~~ ✅ 완료(2026-05-30). marine_leisure 해변→get_surfing_index 우선 / local_gov 모호지명→GPS·전국 처리 | 나리야팀 | 완료(자유변칙 효과 측정중) |
+| 24 | ~~memory 출력 누수 가드~~ ✅ 완료(2026-05-30). synth 프롬프트 컨텍스트 격리 + 응답 후처리 라벨 라인 제거 🔒 | 나리야팀 | 완료 |
+| 25 | **자유 변칙 게이트화 + P2b DoD 강화** — phase2b_eval_freevar 를 회귀 게이트로 등재(sentinel 20케이스 ≤3분 분리). DoD: 자유변칙 PASS ≥85% · 직군 최저 ≥70% · 카테고리별 ≥70% · 환각 ≤2건/440 · p95 ≤5000ms. **Phase 3 착수 게이트 = 이 DoD 통과** | 나리야팀 | next |
+| 26 | **APK 재빌드 1회 묶음 권고** — #7 Vosk(b366011) + #12 음성 focus(e305566) + #17 음성 memory(3d5f4c1) 세 건 단일 빌드. 분할 빌드는 사장님 시간·검증 매트릭스 3배. 단일 시나리오: "나리야"→"232 해구 어때?"→"거기 경위도?"→비도메인 후속 | 사장님 | ASAP |
+| 27 | ~~#22 focus 강제 주입 회귀 디버그~~ ✅ 완료(2026-05-30). 도구별 args 매핑 테이블 도입(zone/place/location/beach/harbor), focus.buoy→buoyName 신규, PRONOUN_RE 보수화 | 나리야팀 | 완료(자유변칙 v4 측정중) |
+| 28 | ~~LG-7-02 환각 추적~~ ✅ 완료(2026-05-30). synth 프롬프트 "비기상 통계·법령·매뉴얼 거절" 규칙 추가 | 나리야팀 | 완료(자유변칙 v4 측정중) |
+| 29 | **#22 연속성 카테고리 회귀 vs marine_leisure +13% 균형** — 패치들의 trade-off 측정. 직군별 카테고리별 회귀·회복 매트릭스 분석. v3 → v4 패치 사이클 짧게 반복 | 나리야팀 | next |
 
 ---
 
@@ -228,6 +249,24 @@
 | 2026-05-30 | **PR #808 머지 후 골든 게이트 재검증 통과(PASS 37/0/1)** + 마스터플랜 §2/§4/§5/§6/§7 동기화 |
 | 2026-05-30 | **호출어 엔진 무료 오픈소스화(Vosk, PR #811)**: Picovoice 상업검토·유료화·락인 회피. `WakeWordEngine` 인터페이스 활용해 `VoskWakeEngine`(Apache-2.0, 오프라인 한국어 ASR + 문법제한 KWS) 추가. 모델(~80MB)은 `VoskDownloadService`(전경 서비스 + 진행률 알림)가 사용자 동의 후 첫 1회 다운로드(Wi-Fi 기본, "데이터로 받기" 옵션) → 마커 영구화. 플러그인 `getCapabilities/requestVoskDownload/cancelVoskDownload` + `voskState` 이벤트, 토글 다이얼로그(다운로드 필요·진행률·실패·Wi-Fi 필요). 엔진 우선순위 Porcupine→Vosk→AndroidSpeech. APK 재빌드 1회 필요(네이티브 라이브러리), 모델은 영영 APK 미포함 |
 | 2026-05-30 | **§2 단일 상태표 동기화**: Phase 0 게이트 재검증 수치 갱신 / Phase 1 데이터카탈로그·도구화·focus·위빙 반영 / Phase 2b 다음=측정토대 명시 / 교차(X)에 호출어 Vosk 추가. §2.5 인벤토리에 5건(카탈로그/도구화/focus/위빙/Vosk) 추가. §4 산출물 인덱스에 데이터카탈로그·Vosk 행 추가. §6 다음액션에 Vosk APK 재빌드·측정토대 신규 등재 |
+| 2026-05-30 | **측정 토대 v1 가동(§6 #8 착수)**: `phases/phase2b_eval.jsonl`(10케이스, 8직군 + baseline pair + 다중도구) + `phase2b_eval_runner.py`. 첫 베이스라인: PASS 6/10, 지연 p50=1770ms·p95=6114ms·평균=2891ms. 실패 4건 전부 `web_search` 폴백 → 룰베이스 직군 디지스트의 한계 정량화(P2b 임베딩 정당성 확보) |
+| 2026-05-30 | **외부 의존성 이슈 검출**: marine.kma JSON 엔드포인트(`/mmis_marine_api/v1/...`) `fetch failed` + HTTP 403 + JSON parse fail → `marine_buoys.json`/`marine_vs.json`/`marine_wh_buoys.json` 미생성 → 부이·시정·특보 도구 빈 상태 → 게이트 33P/1F/4S(이전 37P/0F/1S 대비) + 평가 실패 4건. **코드 회귀 아님(Vosk 변경은 안드로이드/JS만)**. 측정기가 환경 변화를 정확히 검출함을 입증 |
+| 2026-05-30 | **VoiceAssistantService P3 focus 누락 발견·패치**: 음성 비서 자바 경로가 query/profile/location 만 보내고 focus 부재 → "232 해구→거기 경위도?" 음성 후속 끊김. lastFocusJson 필드 + body 동봉 + 응답 갱신. 서버는 focus 받으면 정확(로컬 재현 입증). APK 재빌드 1회 필요 |
+| 2026-05-30 | **임베딩 검색 PoC v1 (§6 #10 착수)**: `services/topic_embedding.js` — gemini-embedding-001(3072 dim)로 GRAPH_RT 토픽 169개 임베딩(5.8s, 디스크 캐시 6.6MB), 질의 임베딩→코사인 유사도 상위 K → planQuery 에 `simLine` 주입. 800ms 타임아웃·실패 시 폴백. 첫 결과: 1↑(marine_leisure-surf 회복) / 1↓(public_org-coast 회귀) / 종합 PASS 6/10 무변, 지연 +600~800ms. **결론: 임베딩만으로는 부족** — web_search 폴백 습관 자체가 진짜 원인. 다음 후보=프롬프트 제약 강화/도구 디스크립션 임베딩/평가셋 확대 |
+| 2026-05-30 | **web_search 도메인 가드 (§6 #11 완료)**: planQuery 에 "도메인 질의(특보/예보/파고/풍속/시정/부이/조석/유속/수심/태풍/낚시/서핑 등)는 빈 steps 금지, zone 모호해도 '전국'·기본해역으로 시도" 규칙 + runBrain 폴백 조건에 도메인 정규식 게이트 — 도메인이면 결과 비더라도 web_search 우회 금지(합성이 "현재 ~ 없음"으로 보고). **결과: PASS 6/10 → 8/10 (80%)**, 회복 coast_guard-warning/local_gov-warning/public_org-coast, 지연 p50 2619ms → 1788ms (임베딩 비용 회수). 잔여 실패=baseline-geomun(무프로필 "어때" 모호어) / fishery-jeonnam-multi("전남남해" 행정구역 정정) — 별도 후속 |
+| 2026-05-30 | **지명인식 도메인 가드 + zone 정규화 (§6 #14·#15 부분)**: isDomainQuery 에 `detectZoneDeterministic(query)≠null` + 섬·부이 정규식 추가 → "거문도 어때" 류가 도메인으로 잡힘(baseline-geomun 회복). plan.steps 실행 직전 zone 인자를 detectZoneDeterministic 으로 fuzzy 보정. **결과: 8/10 유지 + 지연 p50 1788ms → 1435ms**. 1↑(baseline-geomun) / 1↓(angler-yeosu, 재실행시 PASS — LLM 비결정성). 잔여=fishery-jeonnam-multi: detectZoneDeterministic 의 단방향 토큰 매칭이 "전남남해"(짧은 nq) 를 어느 표준 zone 으로도 매핑 못 함 → 양방향 fuzzy/문자 LCS 필요 |
+| 2026-05-30 | **평가셋 러너 N회 다수결 + 429 백오프 (§6 #13 완료)**: phase2b_eval_runner.py 에 `--n=N`(기본 3) 다수결 + 케이스 간 1.5s/회 간 0.8s 페이싱 + ask() 429 백오프 3회(4/9/16s). **결과: PASS 9/10 (90%)**, 지연 p50 1167ms/p95 5858ms, **비결정성 0건**(이전 flaky navy-east 도 3/3 안정), 429 전부 흡수(30/30 호출 성공). 진짜 신호 분리됨: 유일 실패=fishery-jeonnam-multi(3/3 일관 web_search → #15 zone 양방향 fuzzy 가 진짜 해법) |
+| 2026-05-30 | **음성 비서 자연어 memory 동봉 (§6 #17 옵션 C 완료)**: VoiceAssistantService 에 `recentMemory`(ArrayDeque, MEMORY_MAX=8) + askServer body 에 memory 배열 동봉 + 응답 후 채팅창 동일 포맷(`[zone:] "Q" → A(160자)`)으로 자동 적재. focus(구조)와 memory(자연어) 이중 안전망으로 채팅창과 음성 비서 능력 동등화. 비도메인 후속("뽀로로 파크 → 거기 이용 금액?") 등 focus 가 못 담는 자유 화제도 LLM 이 자연어로 이음. APK 재빌드 1회 필요(자바) |
+| 2026-05-30 | **zone 양방향 fuzzy + 합성 환각 가드 (§6 #15·#16 완료)**: detectZoneDeterministic 에 stage 3(역방향 토큰 매칭, 최소 2 토큰) 추가 → "전남남해" 같은 짧은 비표준 명을 표준 zone("전남동부남해앞바다") 으로 정정. runBrain 에 `isDomainQuery && results.length===0` 시 synth 호출 차단 + 안전 응답. synth 프롬프트에 환각 금지 강화. **결과: PASS 9/10 유지 + 지연 p95 5858→3440ms** (환각 가드 짧은 안전 응답 효과). fishery-jeonnam-multi 는 forecast 호출은 회복(get_marine_forecast) 했으나 multi-tool expect(forecast+warning) 미충족 — 평가 기준이 더 엄격해진 셈. #18 신규(다중 도구 hint) |
+| 2026-05-30 | **도구 디스크립션 임베딩 (§6 #10 v2 완료)**: services/topic_embedding.js 에 `warmupTools/nearestTools` 추가 — TOOL_CATALOG 파싱으로 도구 19개의 디스크립션을 임베딩(별도 디스크 캐시 tool_embeddings.json) + planQuery 에 `toolSimLine` 주입(질의에 가까운 도구 후보 상위 4, minScore 0.55, 600ms 타임아웃). 토픽 임베딩이 못 잡는 패턴(도구 자체에 핵심 키워드)을 보완. 백그라운드 워밍업 + 폴백 안전. 평가 효과는 다음 라운드 측정 |
+| 2026-05-30 | **🎉 평가 첫 만점 PASS 10/10 (§6 #18 완료 + 도메인 가드 보강)**: planQuery 에 multi-tool 패턴 명시("어업·해양경찰·해군·지자체·공공기관·해양수산부 + 종합 질의 → forecast+warning 함께; 정책·중기 직군 → +midterm; 출항/조업 → +tide·current"). DOMAIN_RE 에 "해양/바다/섬/항구/항만" 보강(이전 "해상"만 → "해양 전반" 류 누락). **결과: 다수결 PASS 10/10 (100%) · 비결정성 0건 · 지연 p50 1235ms/p95 3255ms/평균 1695ms (n=30)**. fishery-jeonnam-multi/mof-overall 둘 다 multi-tool 호출 회복. 측정 토대 v1 → 60%(첫 베이스라인) → 80% → 90% → 100% 단계 완성 |
+| 2026-05-30 | **8 직군 sub-agent 자유 변칙 검증 (v1, 5문항/직군)** — 평가셋 만점 100% vs **자유 변칙 PASS 23/40 = 57.5%** 격차 발견. 공통 결함 5건 추출: (1) focus 후속 전파 실패(angler Q5·fishery Q4·mof Q4) (2) zone 미해결 multi-tool 빈응답 (3) 메타·자기요약 약함 (4) 의사결정 정량임계 부재 (5) CoT 누수 의심(coast_guard Q5). 평가셋이 *형식*만 보고 *내용·연속성·환각* 안 봤다는 신호 |
+| 2026-05-30 | **결함 4건 즉시 수정 (#1·#3·#4·#5)** — deriveFocus 에 query 인자 추가 + zone 비면 detectZoneDeterministic 으로 fuzzy 보강(결함 1). synth 프롬프트에 (a) **CoT 누수 절대 금지** "내부 사고 과정·메타 코멘트 한 글자도 금지" (b) **메타·자기요약 질의** "memory 마지막 항목 1-2줄로 자연어 요약" (c) **의사결정형 정량 판단** "파고/풍속/특보 임계로 가부 결론 먼저" 추가. **평가 회귀 0 — PASS 10/10 유지(p50 1199ms/p95 5279ms)**. 결함 2(zone 모ho multi-tool 도구구현 변경) 는 다음 라운드 |
+| 2026-05-30 | **자유 변칙 평가 v2 — 440 케이스 × 8 직군 직렬 (38.7분, §6 #20 완료)**: phase2b_eval_freevar.jsonl + 직렬 러너 도입(케이스 사이 sleep 3s·429 백오프 5/10/15s·prev_id focus 동봉). **결과: 종합 PASS 320/440 (72%)**·지연 p50 1328ms/p95 6712ms·**CoT 누수 0건** ✅(#5 패치 항구성 자유변칙으로 입증)·환각 의심 6건. 직군별: mof 81%·coast_guard 78%·navy 76%·angler/fishery/public_org 74%·local_gov 65%·marine_leisure 56%. **카테고리 결함 우선순위 확정**: 정량 6/40=15% > 연속 38/80=48% > 다중 24/40=60% > 메타 67/80=84% > 기본 68/80=85% (가드 3종은 98%). 평가셋 100% vs 자유변칙 72% 격차의 진짜 의미=*"골든=구조, 자유=내용·연속·환각"* 역할 분리 확정 |
+| 2026-05-30 | **독립 검토 에이전트 2종 병렬 평가(장기 일관성 시점 + 운영·실측 시점)** — 자유변칙 결과 + 마스터플랜만 보고 독립 판단. 두 결과 합의 항목: (1) **정량 15% 패치 최대 ROI(+7~8%)** (2) **연속성 48% 패치(+5~6%)** (3) **다중 60% 패치(+3~4%)** (4) **memory 출력 누수(ANG-6-03b) 즉시 패치(프라이버시 불변식 회색지대)** (5) **APK 3건 묶음 권고(Vosk+focus+memory)** (6) **자유변칙 게이트화 + 직군 floor ≥70% DoD**. 신규 액션 #21~#25 등재 |
+| 2026-05-30 | **§6 #24·#21·#22·#23 4건 패치 (트랙 1 — 즉시)** — (#24) synth 프롬프트 "컨텍스트 격리 — [최근 대화]/memory/focus 라벨 출력 금지" + 응답 후처리 라벨 라인 제거. (#21) `knowledge/jikgun/_thresholds.json` 9직군 안전 임계표(파고/풍속/시정/파주기/수온) + synth 에 직군별 임계표 + "사용자 정량 수치 단정 시 임계표 직접 비교, 가부 결론 한 줄 먼저" 규칙. (#22) runBrain 에 대명사·생략 주어 검출(거기/그곳/방금) + focus.zone/haegu/coords 결정론적 args 주입(LLM 우회). (#23) planQuery 에 marine_leisure 해변명→get_surfing_index 우선 / local_gov 모호지명→GPS·default·전국 처리 강제. **회귀 0(평가셋 PASS 10/10 유지, 지연 p95 5279→4810ms)**. 자유변칙 재측정 진행중 |
+| 2026-05-30 | **자유변칙 v3 재측정 (4건 패치 후, 440 케이스 직렬 37.2분)** — **종합 321/440 (72%) — v2 320/440 대비 ±0 (부분 회복+회귀 상쇄)**. 카테고리: 정량 15%→**28%(+13)** ✅ #21 효과 / 기본 85→89% / 변칙 98→100% / 메타 84→79% / 연속 48→**43%(-5)** ❌ #22 회귀 의심 / 다중 60→58% / 환각 98→96%. 직군: marine_leisure 56→**69%(+13)** ✅ #23 효과 / angler/fishery/navy 소폭 개선 / coast_guard 78→70%(-8) public_org 74→70% mof 81→78% 회귀(LLM 비결정성+#22 부작용 의심). memory 누수 ANG-6-03b 사라짐 ✅ #24 효과. CoT 누수 0건 유지. 신규 환각 LG-7-02("산업재해 사망자 113명") — 도메인 외 답을 도메인으로 오인. 다음: #22 디버그·#27 새 환각 추적 |
+| 2026-05-30 | **#27·#28 v4 패치 (트랙 1 차순)** — (#27) #22 회귀 디버그 — `FOCUS_ZONE_ARG` 도구별 매핑 테이블(zone/place/location/beach/harbor) 도입. get_tide/get_buoy_observation/get_fishing_index/get_surfing_index 등 zone 인자 없는 도구도 정확히 채움. focus.buoy → get_buoy_observation.args.buoyName 신규 주입. PRONOUN_RE 에서 "그 때"(시간 후속어) 제외 — 오탐 차단. (#28) synth 프롬프트에 "비기상·비도메인 정보(산업재해·법령·매뉴얼·통계 등) 거절" 규칙 — LG-7-02 환각 추적. **회귀 0(평가셋 PASS 10/10 유지, 지연 p95 4810→4691ms)**. 자유변칙 v4 재측정 진행중 |
 
 ---
 

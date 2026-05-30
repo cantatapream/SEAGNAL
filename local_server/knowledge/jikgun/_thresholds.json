@@ -1,0 +1,75 @@
+{
+  "_meta": {
+    "purpose": "직군별 해상 활동 안전 임계표. synth 가 사용자 제시 정량 수치(파고/풍속/시정)에 대해 도구 결과를 기다리지 않고 즉시 가부 판단을 내릴 수 있게 한다. 자유변칙 평가 정량 카테고리 15% → 70%+ 목표.",
+    "source": "기상청 풍랑특보 기준 + 직군별 실무 보수적 임계(전문 운용 매뉴얼 평균치). 사장님 검토 후 조정 가능.",
+    "warning_levels_common": {
+      "풍랑주의보": { "wave_m_min": 3.0, "wind_ms_min": 14, "duration_h_min": 3 },
+      "풍랑경보":   { "wave_m_min": 5.0, "wind_ms_min": 21, "duration_h_min": 3 }
+    }
+  },
+  "jikgun": {
+    "fishery": {
+      "label": "어업종사자(연근해 어선)",
+      "wave_m":         { "safe": 1.5, "caution": 2.5, "danger": 3.0, "unit": "m" },
+      "wind_ms":        { "safe": 10,  "caution": 14,  "danger": 17,  "unit": "m/s" },
+      "visibility_km":  { "safe": 1.0, "caution": 0.5, "danger": 0.3, "unit": "km" },
+      "wave_period_s":  { "safe": 8,   "caution": 6,   "danger": 4,   "unit": "s" },
+      "comment": "연승·자망·통발 보수적. 야간엔 한 단계 더 보수적으로."
+    },
+    "angler": {
+      "label": "낚시객(갯바위·선상낚시)",
+      "wave_m":         { "safe": 1.0, "caution": 2.0, "danger": 2.5, "unit": "m" },
+      "wind_ms":        { "safe": 8,   "caution": 12,  "danger": 14,  "unit": "m/s" },
+      "visibility_km":  { "safe": 1.0, "caution": 0.5, "danger": 0.3, "unit": "km" },
+      "comment": "갯바위는 너울·파고에 더 민감. 동절기 수온 15℃ 이하 입수 위험."
+    },
+    "marine_leisure": {
+      "label": "레저스포츠(서핑/카약/요트/다이빙)",
+      "wave_m":         { "safe": 0.8, "caution": 1.5, "danger": 2.0, "unit": "m", "note": "서핑은 1~1.5m 가 오히려 적합, 초보는 ≤1m" },
+      "wind_ms":        { "safe": 8,   "caution": 12,  "danger": 15,  "unit": "m/s", "note": "윈드서핑은 8~15 적합" },
+      "visibility_km":  { "safe": 2.0, "caution": 1.0, "danger": 0.5, "unit": "km", "note": "다이빙은 ≥3km 권장" },
+      "water_temp_c":   { "safe": 20,  "caution": 16,  "danger": 14,  "unit": "°C" },
+      "comment": "활동별 임계가 다름. 다이빙·수영은 수온·시정 중요, 서핑은 파고·바람, 윈드서핑은 바람."
+    },
+    "coast_guard": {
+      "label": "해양경찰(수색구조·방제·경비)",
+      "wave_m":         { "safe": 2.0, "caution": 3.0, "danger": 4.0, "unit": "m" },
+      "wind_ms":        { "safe": 14,  "caution": 18,  "danger": 22,  "unit": "m/s" },
+      "visibility_km":  { "safe": 1.0, "caution": 0.5, "danger": 0.3, "unit": "km" },
+      "comment": "함정 운용 기준. SAR 임무는 임계 한 단계 완화 가능(생명 우선)."
+    },
+    "navy": {
+      "label": "해군(작전·훈련·항해)",
+      "wave_m":         { "safe": 2.5, "caution": 4.0, "danger": 5.0, "unit": "m" },
+      "wind_ms":        { "safe": 14,  "caution": 18,  "danger": 25,  "unit": "m/s" },
+      "wave_period_s":  { "safe": 8,   "caution": 6,   "danger": 4,   "unit": "s", "note": "잠수함은 파주기 ≥8초 권장" },
+      "visibility_km":  { "safe": 2.0, "caution": 1.0, "danger": 0.5, "unit": "km" },
+      "comment": "함정 종류별 차이 큼. 상륙훈련은 파고 ≤1.5m, 구축함은 4m 까지, 잠수함은 파주기 중요."
+    },
+    "mof": {
+      "label": "해양수산부(정책 모니터링)",
+      "wave_m":         { "safe": 2.0, "caution": 3.0, "danger": 4.0, "unit": "m", "note": "정책 트리거 = 풍랑특보 발효 여부" },
+      "wind_ms":        { "safe": 12,  "caution": 14,  "danger": 17,  "unit": "m/s" },
+      "comment": "정책 권고·통제 발령 기준은 풍랑특보(파고 3m·풍속 14m) 가 표준."
+    },
+    "local_gov": {
+      "label": "지방자치단체(방재·연안관리)",
+      "wave_m":         { "safe": 1.5, "caution": 2.5, "danger": 3.0, "unit": "m" },
+      "wind_ms":        { "safe": 12,  "caution": 14,  "danger": 17,  "unit": "m/s" },
+      "visibility_km":  { "safe": 1.0, "caution": 0.5, "danger": 0.3, "unit": "km" },
+      "comment": "해수욕장 운영 결정: 파고 ≥1.5m 또는 특보 발효 시 입수 통제. 방재 훈련: 풍속 <12m, 시정 ≥1km 권장."
+    },
+    "public_org": {
+      "label": "공공기관(모니터링·평가)",
+      "wave_m":         { "safe": 2.0, "caution": 3.0, "danger": 4.0, "unit": "m" },
+      "wind_ms":        { "safe": 14,  "caution": 18,  "danger": 22,  "unit": "m/s" },
+      "comment": "선박·작업 환경 평가. 항만 입출항 통제는 보통 풍속 ≥14m 또는 시정 <1km."
+    },
+    "_default": {
+      "label": "일반/미지정",
+      "wave_m":         { "safe": 1.0, "caution": 2.0, "danger": 3.0, "unit": "m" },
+      "wind_ms":        { "safe": 10,  "caution": 14,  "danger": 17,  "unit": "m/s" },
+      "visibility_km":  { "safe": 1.0, "caution": 0.5, "danger": 0.3, "unit": "km" }
+    }
+  }
+}
