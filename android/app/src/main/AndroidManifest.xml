@@ -34,6 +34,11 @@
             android:name=".voice.VoiceAssistantService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+        <!-- 음성 비서: Vosk 한국어 모델 1회 다운로드(~80MB) 전경 서비스 -->
+        <service
+            android:name=".voice.VoskDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 
     <!-- Permissions -->
@@ -45,4 +50,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- Vosk 모델 다운로드용 — Android 14+(API34) 데이터 동기화 타입 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 </manifest>

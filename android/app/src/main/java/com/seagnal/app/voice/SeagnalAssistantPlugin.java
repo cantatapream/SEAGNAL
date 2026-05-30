@@ -38,8 +38,29 @@ public class SeagnalAssistantPlugin extends Plugin {
     // 서비스 → WebView 로 상태/대화를 전달하기 위한 정적 참조.
     private static SeagnalAssistantPlugin instance;
 
+    // Vosk 모델 상태 변경을 webview('voskState' 이벤트)로 중계하는 리스너.
+    private final VoskModelManager.Listener voskListener = (state, progress, message) -> {
+        if (instance == null) return;
+        try {
+            JSObject o = new JSObject();
+            o.put("state", state.name());
+            o.put("progress", progress);
+            if (message != null) o.put("message", message);
+            instance.notifyListeners("voskState", o);
+        } catch (Exception ignored) {}
+    };
+
     @Override
-    public void load() { instance = this; }
+    public void load() {
+        instance = this;
+        VoskModelManager.get().addListener(voskListener);
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        VoskModelManager.get().removeListener(voskListener);
+        super.handleOnDestroy();
+    }
 
     /**
      * 음성 비서 상태/대화를 WebView(JS)로 통지. 화면 오버레이가 'assistantState' 이벤트를 구독.
@@ -107,6 +128,50 @@ public class SeagnalAssistantPlugin extends Plugin {
     public void isEnabled(PluginCall call) {
         JSObject ret = new JSObject();
         ret.put("running", VoiceAssistantService.isRunning);
+        call.resolve(ret);
+    }
+
+    /**
+     * 호출어 엔진의 가용성 + Vosk 모델 상태 조회.
+     * JS 가 enable() 호출 전에 이걸로 분기해 다운로드 다이얼로그를 띄운다.
+     */
+    @PluginMethod
+    public void getCapabilities(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("porcupineAvailable", PorcupineWakeEngine.isAvailable(getContext()));
+        VoskModelManager mgr = VoskModelManager.get();
+        VoskModelManager.State st = mgr.currentState(getContext());
+        JSObject vosk = new JSObject();
+        vosk.put("state", st.name());
+        vosk.put("progress", st == VoskModelManager.State.DOWNLOADING ? mgr.currentProgress() : -1);
+        if (mgr.currentMessage() != null) vosk.put("message", mgr.currentMessage());
+        ret.put("vosk", vosk);
+        call.resolve(ret);
+    }
+
+    /**
+     * Vosk 한국어 모델 다운로드 시작. allowMobile=false(기본) 면 Wi-Fi 가 아닐 때 WIFI_REQUIRED 로 거절.
+     * 진행률·결과는 'voskState' 이벤트로 전달된다.
+     */
+    @PluginMethod
+    public void requestVoskDownload(PluginCall call) {
+        Boolean allow = call.getBoolean("allowMobile", false);
+        Intent intent = new Intent(getContext(), VoskDownloadService.class);
+        intent.putExtra(VoskDownloadService.EXTRA_ALLOW_MOBILE, allow != null && allow);
+        ContextCompat.startForegroundService(getContext(), intent);
+        JSObject ret = new JSObject();
+        ret.put("started", true);
+        call.resolve(ret);
+    }
+
+    /** 진행 중인 Vosk 모델 다운로드 취소. */
+    @PluginMethod
+    public void cancelVoskDownload(PluginCall call) {
+        Intent intent = new Intent(getContext(), VoskDownloadService.class);
+        intent.setAction(VoskDownloadService.ACTION_CANCEL);
+        getContext().startService(intent);
+        JSObject ret = new JSObject();
+        ret.put("canceled", true);
         call.resolve(ret);
     }
 }
