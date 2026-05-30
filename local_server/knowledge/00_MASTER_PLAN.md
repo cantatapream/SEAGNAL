@@ -211,7 +211,9 @@
 | 5 | 운영 시크릿(`KMA_DMDW_*`/TideBED) 배포 반영 | 미정 | 운영배포 |
 | 6 | 테스트용 Gemini 키 폐기 | 사장님 | ASAP |
 | 7 | **Vosk 통합 APK 재빌드 + 기기 동작 검증**(다이얼로그·진행률·"나리야" 호출) | 사장님 | ASAP |
-| 8 | 측정 토대 구축 — 직군 품질 평가셋(`phases/phase2b_eval.jsonl`+러너) + 토큰/지연 SLO 계측 | 나리야팀 | next |
+| 8 | ~~측정 토대 구축 — 직군 품질 평가셋(`phases/phase2b_eval.jsonl`+러너) + 토큰/지연 SLO 계측~~ ✅ v1 가동(2026-05-30, PASS 6/10, p50=1770ms/p95=6114ms). 잔여=토큰 계측(어시스턴트 응답에 usageMetadata 노출) | 나리야팀 | v2 |
+| 9 | **marine.kma 엔드포인트 적재 실패 추적**: `fetch failed`/HTTP 403/JSON parse fail. 인증·URL 변경 여부 확인, 회복 시 베이스라인 재측정 | 사장님/운영 | ASAP |
+| 10 | **임베딩 검색 PoC**(Phase 2b 잔여): 룰베이스가 못 잡는 모호 질의 4건(전남남해/관내특보/양양어때/오늘특보)을 임베딩이 잡는지 평가셋으로 비교 | 나리야팀 | next |
 
 ---
 
@@ -228,6 +230,8 @@
 | 2026-05-30 | **PR #808 머지 후 골든 게이트 재검증 통과(PASS 37/0/1)** + 마스터플랜 §2/§4/§5/§6/§7 동기화 |
 | 2026-05-30 | **호출어 엔진 무료 오픈소스화(Vosk, PR #811)**: Picovoice 상업검토·유료화·락인 회피. `WakeWordEngine` 인터페이스 활용해 `VoskWakeEngine`(Apache-2.0, 오프라인 한국어 ASR + 문법제한 KWS) 추가. 모델(~80MB)은 `VoskDownloadService`(전경 서비스 + 진행률 알림)가 사용자 동의 후 첫 1회 다운로드(Wi-Fi 기본, "데이터로 받기" 옵션) → 마커 영구화. 플러그인 `getCapabilities/requestVoskDownload/cancelVoskDownload` + `voskState` 이벤트, 토글 다이얼로그(다운로드 필요·진행률·실패·Wi-Fi 필요). 엔진 우선순위 Porcupine→Vosk→AndroidSpeech. APK 재빌드 1회 필요(네이티브 라이브러리), 모델은 영영 APK 미포함 |
 | 2026-05-30 | **§2 단일 상태표 동기화**: Phase 0 게이트 재검증 수치 갱신 / Phase 1 데이터카탈로그·도구화·focus·위빙 반영 / Phase 2b 다음=측정토대 명시 / 교차(X)에 호출어 Vosk 추가. §2.5 인벤토리에 5건(카탈로그/도구화/focus/위빙/Vosk) 추가. §4 산출물 인덱스에 데이터카탈로그·Vosk 행 추가. §6 다음액션에 Vosk APK 재빌드·측정토대 신규 등재 |
+| 2026-05-30 | **측정 토대 v1 가동(§6 #8 착수)**: `phases/phase2b_eval.jsonl`(10케이스, 8직군 + baseline pair + 다중도구) + `phase2b_eval_runner.py`. 첫 베이스라인: PASS 6/10, 지연 p50=1770ms·p95=6114ms·평균=2891ms. 실패 4건 전부 `web_search` 폴백 → 룰베이스 직군 디지스트의 한계 정량화(P2b 임베딩 정당성 확보) |
+| 2026-05-30 | **외부 의존성 이슈 검출**: marine.kma JSON 엔드포인트(`/mmis_marine_api/v1/...`) `fetch failed` + HTTP 403 + JSON parse fail → `marine_buoys.json`/`marine_vs.json`/`marine_wh_buoys.json` 미생성 → 부이·시정·특보 도구 빈 상태 → 게이트 33P/1F/4S(이전 37P/0F/1S 대비) + 평가 실패 4건. **코드 회귀 아님(Vosk 변경은 안드로이드/JS만)**. 측정기가 환경 변화를 정확히 검출함을 입증 |
 
 ---
 
