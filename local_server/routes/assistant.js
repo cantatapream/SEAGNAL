@@ -220,6 +220,35 @@ try {
     console.warn('[Assistant] 직군 지식 로드 실패 — 직군 개인화 없이 동작:', e.message);
 }
 
+// [§6 #21] 직군별 안전 임계표 — synth 가 사용자 제시 정량 수치(파고/풍속/시정)에
+//   즉시 가부 결론을 내릴 수 있게 한다. 자유변칙 정량 카테고리 15% → 70%+ 목표.
+let JIKGUN_THRESHOLDS = {};
+try {
+    const tp = path.join(__dirname, '..', 'knowledge', 'jikgun', '_thresholds.json');
+    const tj = JSON.parse(fs.readFileSync(tp, 'utf8'));
+    JIKGUN_THRESHOLDS = (tj && tj.jikgun) || {};
+    console.log(`[Assistant] 직군 임계표 로드: ${Object.keys(JIKGUN_THRESHOLDS).length}직군`);
+} catch (e) {
+    console.warn('[Assistant] 직군 임계표 로드 실패:', e.message);
+}
+
+/** synth 가 사용자 정량 질의에 즉시 비교할 수 있도록 한 직군 임계표를 짧은 텍스트로. */
+function thresholdDigest(slug) {
+    const t = (slug && JIKGUN_THRESHOLDS[slug]) || JIKGUN_THRESHOLDS._default || null;
+    if (!t) return '';
+    const fmt = (k, v) => v ? `${k}: 안전≤${v.safe} / 주의 ${v.safe}~${v.caution} / 무리·위험≥${v.caution}${v.danger?'(매우 위험≥'+v.danger+')':''} ${v.unit || ''}` : '';
+    const lines = [];
+    if (t.wave_m)        lines.push(fmt('파고', t.wave_m));
+    if (t.wind_ms)       lines.push(fmt('풍속', t.wind_ms));
+    if (t.visibility_km) lines.push(fmt('시정', t.visibility_km));
+    if (t.wave_period_s) lines.push(fmt('파주기', t.wave_period_s));
+    if (t.water_temp_c)  lines.push(fmt('수온', t.water_temp_c));
+    if (!lines.length) return '';
+    return `[직군 ${t.label || slug} 안전 임계표]\n` + lines.join('\n')
+        + (t.comment ? `\n주의: ${t.comment}` : '')
+        + `\n공통 풍랑특보 기준: 풍랑주의보=파고 3m·풍속 14m / 풍랑경보=파고 5m·풍속 21m.`;
+}
+
 /** 프로필(직업/소속/목적)에서 8개 직군 슬러그를 감지. 못 찾으면 null. */
 function detectJikgun(profile) {
     if (!profile) return null;
@@ -688,6 +717,11 @@ function buildPersonalContext(profile, memory, style) {
     // [직군 맞춤] 감지된 직군의 중시 주제를 답변 우선순위 힌트로(수치는 수집결과에서만).
     const jk = jikgunDigest(profile);
     if (jk) lines.push(`[사용자 직군] ${jk.name} — 중시 주제: ${jk.interests.slice(0, 8).join(', ')}. 답변 시 이 우선순위를 고려하되, 수치·사실은 반드시 수집결과에서만.`);
+    // [§6 #21] 직군별 안전 임계표 주입 — 사용자가 정량 수치를 직접 제시하면(파고/풍속/시정 N미터·km)
+    //   도구 결과 없이도 임계표와 즉시 비교해 가부 결론을 답할 수 있게 한다.
+    const slug = detectJikgun(profile);
+    const tdig = thresholdDigest(slug);
+    if (tdig) lines.push(tdig + `\n** 규칙: 사용자가 정량 수치를 직접 단정(예: "파고 1.5m 풍속 12m 인데 ~ 가능?")하면 그 수치를 위 임계표와 비교해 *가부 결론을 한 줄 먼저* 답하세요(가능/주의/무리/위험). 수집결과가 비어도 답 가능. 도구 결과가 있으면 보조 근거로 첨부.`);
     // [성향 다이제스트] 휴대폰에 누적된 통계 — 자주 묻는 주제/해역·선호 형식·말투
     if (style && typeof style === 'object') {
         const topN = (counts, n) => (counts && typeof counts === 'object')
@@ -1347,7 +1381,10 @@ ${catalogLine}
   스쿠버·다이빙처럼 전용 지수가 없는 활동은 위 지수에 억지로 맞추지 말고 steps 를 비워(웹검색 폴백) 두세요.
 - 관리자/설정/키 같은 건 도구가 없으니 무시하세요.
 - **(중요) 한국 해상·기상 도메인 질의(특보·예보·파고·풍속·시정·부이·조석·유속·수심·태풍·해구·해역·낚시·서핑·관측·수온 등)는 반드시 위 도구로 처리하세요.** 위치가 모호해도(예: "오늘 특보", "관내 어때", "전국 상황") web_search 폴백을 노리고 steps 를 비우지 말고, 가장 그럴듯한 도구를 하나라도 호출하세요(예: 위치 없는 특보 → get_warning(zone="전국") 또는 zone 생략, "오늘 연안" → get_marine_forecast(zone="서해남부") 같은 기본 해역). 결과가 비어 있으면 합성 단계가 "현재 ~ 없음" 으로 자연스럽게 보고합니다.
-- **(다중 도구 패턴)** 직군이 어업·해양경찰·해군·지자체·공공기관·해양수산부 같은 종합 모니터링 직군이고 질의가 "어때/상황/괜찮을까/어떻게 됐어/전반/전체/관내" 같이 종합적이면, get_marine_forecast + get_warning 을 **함께** 호출하세요. 해양수산부·공공기관 등 정책·중기 관심 직군은 추가로 get_midterm_forecast 도. 출항/조업 판단 질의는 추가로 get_tide·get_current 도 함께. 답할 자료가 비더라도 호출은 같이 — 합성이 데이터별로 "있음/없음" 을 명확히 보고합니다.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}${simLine}${toolSimLine}
+- **(다중 도구 패턴)** 직군이 어업·해양경찰·해군·지자체·공공기관·해양수산부 같은 종합 모니터링 직군이고 질의가 "어때/상황/괜찮을까/어떻게 됐어/전반/전체/관내" 같이 종합적이면, get_marine_forecast + get_warning 을 **함께** 호출하세요. 해양수산부·공공기관 등 정책·중기 관심 직군은 추가로 get_midterm_forecast 도. 출항/조업 판단 질의는 추가로 get_tide·get_current 도 함께. 답할 자료가 비더라도 호출은 같이 — 합성이 데이터별로 "있음/없음" 을 명확히 보고합니다.
+- **(직군 floor 보강 — marine_leisure/local_gov)**
+  · **레저스포츠(marine_leisure)** 직군 + 해수욕장·해변명(양양/송정/낙산/해운대/협재/이호테우/광안리/대천/안목/속초 등) 질의는 무조건 **get_surfing_index(beach=이름) 먼저 호출**. 그 다음 보조로 get_marine_forecast. 해변명을 detectZoneDeterministic 으로 zone 변환하려 하지 마세요 — surfing_index 가 위치 자체 처리.
+  · **지방자치단체(local_gov)** 직군 + "관내/우리시/시청 관할/관할 해역" 같은 모호 지명은 사용자 GPS 좌표(있으면) 또는 활동 default 해역으로 도구 호출. 둘 다 없으면 get_warning(zone="전국") 으로 전국 특보 요약하세요. "관내" 를 그대로 zone 인자에 넣지 마세요.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}${simLine}${toolSimLine}
 
 사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
 질문: "${query}"
@@ -1416,9 +1453,28 @@ async function runBrain(query, profile, memory, style, location, focus) {
         const r = detectZoneDeterministic(z);
         return (r && r !== z) ? r : z;
     };
+    // [§6 #22 — focus 후속 전파 결정론적] 대명사·생략 주어가 있는 후속 질의 + focus.zone
+    //   있는데 LLM 이 args.zone 을 비워두면 자동으로 채운다(LLM 판단 우회).
+    //   자유변칙 평가 연속성 48% → 70%+ 목표.
+    const PRONOUN_RE = /거기|그곳|그쪽|그\s*해역|그\s*해구|그\s*부이|방금|아까|그건|그게|저거|그\s*때/;
+    const isPronounFollowup = PRONOUN_RE.test(cq);
+    const focusZone  = focus && focus.zone;
+    const focusHaegu = focus && focus.haegu;
+    const focusCoords = focus && focus.coords;
     for (const step of plan.steps || []) {
-        if (step && step.args && typeof step.args === 'object') {
-            if (step.args.zone) step.args.zone = canonZone(step.args.zone);
+        if (!step || !step.args || typeof step.args !== 'object') continue;
+        if (step.args.zone) step.args.zone = canonZone(step.args.zone);
+        if (isPronounFollowup) {
+            // zone 인자 비었고 focus.zone 있으면 채움 (대다수 도구에 zone 인자 존재)
+            if (!step.args.zone && focusZone) step.args.zone = focusZone;
+            // 좌표 인자 비었고 focus.coords 있으면 채움 (get_current/get_depth/get_tide 등)
+            if (focusCoords && (step.args.lat == null) && (step.args.lon == null)) {
+                step.args.lat = focusCoords.lat; step.args.lon = focusCoords.lon;
+            }
+            // 해구번호 인자 비었고 focus.haegu 있으면(get_zone_forecast)
+            if (focusHaegu && !step.args.zoneId && step.tool === 'get_zone_forecast') {
+                step.args.zoneId = focusHaegu;
+            }
         }
     }
 
@@ -1494,6 +1550,7 @@ async function runBrain(query, profile, memory, style, location, focus) {
 아래 "수집결과"의 실제 데이터에만 근거해, 사용자가 "물어본 것만" 답하세요.
 - (환각 금지) 수집결과에 없는 수치/사실은 절대 지어내지 마세요. 일반 지식·추측·웹 정보로 빈칸을 채우지 마세요. 수집결과가 비어 있거나 데이터가 없으면 짧게 "그 정보는 없어요" 또는 "지금은 가져오지 못했어요"라고만 답하세요. 도구가 빈 결과를 돌려주면(예: warnings:[]) "현재 발효 중인 ~ 없습니다"처럼 *없음*을 그대로 보고하세요.
 - **(CoT 누수 절대 금지)** 내부 사고 과정·추론 단계·메타 코멘트를 응답에 출력하지 마세요. "내가 생각해 보니/추론 과정/thinking:/sources:/먼저 ~를 확인하고~" 같은 메타 텍스트는 한 글자도 답에 포함 금지. 사용자가 최종 답만 음성으로 듣게 됩니다 — 깔끔한 결론만.
+- **(컨텍스트 격리 — 🔒 프라이버시)** 위에 제공된 [최근 대화]/[직전 확정 대상]/[수집 데이터 인벤토리]/memory/focus/personal/profile/jikgun 같은 **입력 블록·라벨 자체를 답에 출력하지 마세요**. 그 안의 사실(직전 해역명·해구·좌표)만 자연어로 풀어쓰세요. "[최근 대화] memory: ..." 같은 prompt 컨텍스트 텍스트가 응답에 노출되면 안 됩니다(다른 사용자 정보 누설 위험).
 - **(메타·자기요약 질의)** "방금 결정 사유/한 줄 요약/방금 결과 뭐였지/왜 그렇게 판단" 같이 *직전 답을 다시 요약하라*는 질의면, 수집결과 대신 [최근 대화] memory 의 마지막 항목을 1-2줄로 자연어 요약해 답하세요(없으면 "직전 대화 기록이 없어요"). 새 도구 호출 데이터에 의존하지 마세요.
 - **(의사결정형 — 정량 판단 강화)** "출항/조업/훈련/작업/타도 돼/가능?·괜찮을까?·해도 돼?·위험?·안전?" 류 안전 판단 질의는 수집결과의 정량 수치(파고·풍속·시정·특보)에 근거해 짧은 한 줄로 가부 결론을 먼저 주세요(예: 파고 ≥2m 또는 풍속 ≥14m/s 또는 풍랑특보 발효면 "무리/주의", 파고 <1m + 풍속 <10m + 특보無면 "가능", 그 사이면 "주의/조건부 가능"). 그 다음 근거 수치 1-2개. 마지막에 "최종 판단은 선장님 몫" 한 번만.
 - 사용자가 사실을 단정해도(예: "제6호 태풍이 북상 중인데", "특보 떴잖아") 수집결과와 다르면 수집결과를 따르세요. 예: 태풍 hasActive 가 false 면 "현재 발효 중인 태풍은 없습니다"라고 정정하세요. 사용자의 전제를 그대로 인정하지 마세요.
@@ -1508,7 +1565,16 @@ ${personal}
 수집결과(JSON): ${JSON.stringify(results)}`;
     const r = await gemini.callGemini({ model: BRAIN_MODEL, contents: synth, config: { temperature: 0.3 }, caller: 'Assistant-Synth' });
     if (!r.success || !r.text) return null;
-    return { answer: r.text.trim(), zone: plan.zone || null, toolsUsed: results.map(x => x.tool), corrected, focus: deriveFocus(plan, results, plan.zone, cq) };
+    // [§6 #24 — 컨텍스트 누수 방어선] synth 가 어겨도 안전하도록 후처리. 라벨 라인만
+    //  제거(자연어 답 본문은 손대지 않는다). 사용자가 보는 답에서 prompt 컨텍스트 라벨이
+    //  나오지 않게 한다. 🔒 다른 사용자/세션 정보 누설 방지.
+    const cleanAnswer = (s) => s
+        .split('\n')
+        .filter(line => !/^\s*\[(최근 대화|직전 확정 대상|수집 데이터 인벤토리|유사 관심사|질의에 가까운 도구 후보|사용자 직군|관심사 지식|사용자 프로필|개인화)\b/.test(line))
+        .filter(line => !/^\s*(memory|focus|personal|profile|jikgun|sources?|thinking|reasoning)\s*[:：]/i.test(line))
+        .join('\n')
+        .trim();
+    return { answer: cleanAnswer(r.text), zone: plan.zone || null, toolsUsed: results.map(x => x.tool), corrected, focus: deriveFocus(plan, results, plan.zone, cq) };
 }
 
 router.post('/api/assistant/ask', async (req, res) => {
