@@ -1853,6 +1853,17 @@ function normalizeMmisTime(t) {
     const m = s.match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})$/);
     if (m) {
         const [, Y, M, D, h, mn] = m;
+        // [KMA 범위코드 복원] 정확시각은 분의 일의자리가 항상 0(00/10/.../50)으로만 발표된다.
+        //   분이 58/59 면 실제 시각이 아니라 "시간대 범위 코드" → 해당 시간대 범위로 복원.
+        //   (프론트 utils.js:formatWarningTime 의 12자리 :58/:59 규칙과 동일 컨벤션 — 마린 한글형에도 적용해 일원화.)
+        const mn2 = parseInt(mn, 10);
+        if (mn2 === 58 || mn2 === 59) {
+            const hh = parseInt(h, 10);
+            const [bs, be] = (hh >= 18) ? [18, 24] : (hh >= 12) ? [12, 18]
+                          : (hh >= 9) ? [9, 12] : (hh >= 6) ? [6, 9] : [0, 6];
+            const period = _periodNameByHour(bs);
+            return `${Y}년 ${M}월 ${D}일 ${period}(${String(bs).padStart(2, '0')}시~${String(be).padStart(2, '0')}시)`;
+        }
         return `${Y}년 ${M}월 ${D}일 ${h}시 ${mn}분`;
     }
 
