@@ -1193,10 +1193,12 @@ function _applyTimeWindowHold(prev, curr, cfg) {
             const rng = cfg.rangeMap[zone];
             const startK = _timeKey(rng, null, true);   // 범위 시작 시각키
             const endK = _timeKey(rng);                  // 범위 끝 시각키
-            if (startK != null && endK != null && incKey != null && incKey >= startK && incKey <= endK) {
-                info[dispKey] = rng;                     // 같은 모멘트 → 범위형 표시(sticky)
+            if (startK != null && endK != null && incKey != null && (incKey < startK || incKey > endK)) {
+                delete cfg.rangeMap[zone];               // 키 산출 가능 + 구간 밖(앞당김/연장) → 폐기, 정확값 표시
             } else {
-                delete cfg.rangeMap[zone];               // 다른 모멘트 → 범위 폐기, 정확값 표시
+                // 같은 모멘트(구간 안), 또는 키 산출 불가(날짜 없는 범위 등)이면 범위형 유지.
+                //   후자에서 무조건 폐기하면 #818 이 막던 '동일 모멘트 깜빡임'이 재유입되므로 안전하게 sticky.
+                info[dispKey] = rng;
             }
         }
     };
