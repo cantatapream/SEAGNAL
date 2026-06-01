@@ -1185,10 +1185,19 @@ function _applyTimeWindowHold(prev, curr, cfg) {
         if (isRange) {
             cfg.rangeMap[zone] = incoming;
             info[dispKey] = incoming;
-        } else if (win != null && incKey != null && incKey > win) {
-            delete cfg.rangeMap[zone];               // 연장 = 새 모멘트 → 범위 폐기, 정확값 표시
         } else if (cfg.rangeMap[zone]) {
-            info[dispKey] = cfg.rangeMap[zone];      // 같은 모멘트 정확값 → 기억된 범위로 표시
+            // [수정] 정확값이 기억된 범위의 [시작,끝] 구간 안(=같은 모멘트)일 때만 범위형 유지(깜빡임 방지).
+            //   구간 밖(시각이 앞당겨지거나 연장돼 다른 모멘트가 됨)이면 범위 폐기 → 정확값으로 표출 갱신.
+            //   (기존 결함: incKey>win '연장(늦어짐)'만 폐기하고, 앞당겨진 경우는 옛 범위에 고착돼
+            //    푸시는 새 발효시각을 알리는데 화면은 안 갱신되던 문제.)
+            const rng = cfg.rangeMap[zone];
+            const startK = _timeKey(rng, null, true);   // 범위 시작 시각키
+            const endK = _timeKey(rng);                  // 범위 끝 시각키
+            if (startK != null && endK != null && incKey != null && incKey >= startK && incKey <= endK) {
+                info[dispKey] = rng;                     // 같은 모멘트 → 범위형 표시(sticky)
+            } else {
+                delete cfg.rangeMap[zone];               // 다른 모멘트 → 범위 폐기, 정확값 표시
+            }
         }
     };
     if (curr.parents) for (const [z, info] of curr.parents) {
