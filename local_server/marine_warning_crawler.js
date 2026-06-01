@@ -2317,6 +2317,136 @@ function _isFutureExactTime(tmStr) {
 }
 
 // ============================================================================
+// [발표대기 보강 — ef/list (인증 endpoint)]
+//   문제: 발표됐으나 발효시각이 미래라 warn/list(발효중)·warn/ready(예비)·warn/latest
+//         (발표대기 브릿지) 어디에도 안 잡히는 "발표 발효대기" 특보가 발표~발효 사이
+//         (수시간) 동안 앱에서 사라지던 문제. warn/latest 가 통보문을 잠깐만 보유해
+//         그 사이 GAP 보강 소스가 비면 특보가 무음으로 누락됨.
+//   해결: 인증 endpoint warn/ef/list 는 발효 전 특보도 "발효시각(ed_tm)" 과 함께 계속
+//         보유하므로, 실시간 endpoint 가 놓친 발표대기 zone 을 이걸로 메운다.
+//   범용성: 특정 해역 전용이 아니라 "발표됨 + 발효시각 미래 + 실시간 endpoint 미수록"
+//         조건의 모든 대상(풍랑/태풍, 부모·자식, 발표/변경/연장)에 일반 적용.
+//   안전성: 인증 미설정·실패 시 캐시(직전 성공분, TTL) fallback → 기존 동작 유지.
+//         _isFutureExactTime 가드로 발효시각 경과분은 자동 제외(유령특보 방지).
+// ============================================================================
+let _efListCache = { rows: [], at: 0 };
+const EF_LIST_CACHE_TTL_MS = 30 * 60 * 1000;   // 30분 — 인증 일시 실패 시 직전 성공분 재사용
+
+/** ef/list 의 한글 종류명 → 실시간 문자코드 (스냅샷 일관성용). 대상 외는 ''. */
+function _efTpChar(tpNm) {
+    if (tpNm === '태풍') return 'T';
+    if (tpNm === '풍랑') return 'V';
+    return '';
+}
+
+/** ef/list row → 내부 부모/자식 info. 발표대기이므로 '예비' 로 취급, tmEf = 발효시각(ed_tm). */
+function _efRowToInfo(row) {
+    const tpNm = String(row.warn_tp_nm || '');
+    return {
+        wrnTp: _efTpChar(tpNm),
+        wrnTpNm: tpNm,
+        wrnLvl: '1',
+        wrnLvlNm: '예비',                 // 발효 전 → 예비 취급 (표시·푸시 일관성, 기존 GAP 과 동일)
+        tmFc: row.tm_fc || row.st_tm || '',
+        tmEf: row.ed_tm || '',            // [검증됨] ef/list 의 ed_tm = 발효(예정)시각 (정확시각)
+        tmYn: '',
+        clrNtcTm: ''
+    };
+}
+
+/** GAP 부모를 snap 에 추가하면서 자식을 prev 이어받기 또는 매핑 합성 (warn/latest GAP 과 동일 정책). */
+function _addGapParentFromEf(snap, prev, name, info, counters) {
+    if (snap.parents.has(name)) return;        // 발효중/예비면 그쪽 우선
+    snap.parents.set(name, info);
+    counters.gapAdded++;
+    if (snap.children.has(name)) return;
+    const pkids = (prev && prev.children) ? prev.children.get(name) : null;
+    if (pkids && pkids.size > 0) {
+        const m = new Map();
+        for (const [cn, ci] of pkids) {
+            const cc = Object.assign({}, ci);
+            cc.wrnLvlNm = '예비';
+            cc.tmEf = info.tmEf;               // 부모의 새 발효예정 정확시각 상속
+            cc.clrNtcTm = info.clrNtcTm;
+            m.set(cn, cc);
+        }
+        snap.children.set(name, m);
+        counters.gapChildCarried += m.size;
+        return;
+    }
+    const mapped = PARENT_TO_CHILDREN[name] || [];
+    if (mapped.length > 0) {
+        const m = new Map();
+        for (const cn of mapped) {
+            m.set(cn, {
+                wrnTp: info.wrnTp, wrnTpNm: info.wrnTpNm, wrnLvl: '1', wrnLvlNm: '예비',
+                tmFc: info.tmFc, tmEf: info.tmEf, tmYn: info.tmYn, clrNtcTm: info.clrNtcTm
+            });
+        }
+        snap.children.set(name, m);
+        counters.gapChildSynth += m.size;
+    }
+}
+
+/**
+ * ef/list 행들로 발표대기 zone 을 snap 에 보강.
+ * @param {StateSnapshot} snap - 현재 사이클 스냅샷 (parents/children/upcomings)
+ * @param {Array} efRows - warn/ef/list 응답 row 배열
+ * @param {StateSnapshot} prev - 직전 스냅샷 (자식 이어받기용)
+ */
+function _enrichSnapshotWithEfList(snap, efRows, prev) {
+    if (!snap || !Array.isArray(efRows) || efRows.length === 0) return snap;
+    // zone 별 최신 행 선택: tm_fc 최신 → tm_seq 최대 (여러 통보office/seq 중 가장 최근 상태).
+    const latestByZone = new Map();
+    for (const row of efRows) {
+        const tpNm = String(row.warn_tp_nm || '');
+        if (tpNm !== '풍랑' && tpNm !== '태풍') continue;            // 앱 대상 종류만
+        const cmd = String(row.warn_cmd_nm || '').trim();
+        if (!['발표', '변경', '연장'].includes(cmd)) continue;      // 해제류 제외
+        const name = _resolveZoneName(row);
+        if (!name) continue;
+        const ed = String(row.ed_tm || '').trim();
+        if (!_isFutureExactTime(ed)) continue;                      // 발효시각 미래(=발표대기)만
+        const key = String(row.tm_fc || '') + '#' + String(row.tm_seq || 0).padStart(4, '0');
+        const sel = latestByZone.get(name);
+        if (!sel || key > sel.key) latestByZone.set(name, { key, row });
+    }
+    const counters = { gapAdded: 0, gapChildCarried: 0, gapChildSynth: 0 };
+    for (const [name, sel] of latestByZone) {
+        // 실시간 endpoint 가 이미 커버(발효중/예비/발표대기)하면 skip — 중복/덮어쓰기 방지.
+        if (snap.parents.has(name)) continue;
+        if (snap.upcomings && snap.upcomings.has(name)) continue;
+        const parent = _extractParent(name);
+        const info = _efRowToInfo(sel.row);
+        if (parent === name) {
+            _addGapParentFromEf(snap, prev, name, info, counters);
+        } else {
+            // 자식형 행 (드묾) — 부모 컨테이너에 예비로 추가.
+            if (!snap.children.has(parent)) snap.children.set(parent, new Map());
+            const m = snap.children.get(parent);
+            if (!m.has(name)) { m.set(name, info); counters.gapChildSynth++; }
+        }
+    }
+    if (counters.gapAdded || counters.gapChildCarried || counters.gapChildSynth) {
+        console.log(`[Marine] ef/list 발표대기 보강: 부모 ${counters.gapAdded} 추가 ` +
+            `(자식 carry ${counters.gapChildCarried} / synth ${counters.gapChildSynth})`);
+    }
+    return snap;
+}
+
+/** ef/list 를 KST 어제~내일 윈도우로 조회 (발표대기 특보 포착). 인증 미설정 시 []. */
+async function _fetchEfListForGap() {
+    if (!marineClient || typeof marineClient.fetchWarnEfList !== 'function') return [];
+    const kst = new Date(Date.now() + 9 * 3600000);
+    const ymd = (offDays) => {
+        const d = new Date(kst.getTime() + offDays * 86400000);
+        return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+    };
+    const rows = await marineClient.fetchWarnEfList({ st_tm: ymd(-1), ed_tm: ymd(1) });
+    return Array.isArray(rows) ? rows : [];
+}
+
+// ============================================================================
 // [Followup Critical-1] run() — scheduler 의 1분 cron 에서 호출되는 진입점
 // ============================================================================
 //
@@ -2414,6 +2544,23 @@ async function run(opts = {}) {
             _enrichSnapshotWithLatest(curr, warnLatest, _prevSnapshot, warnSascLatest);
         } catch (e) {
             console.warn('[Marine] warn/latest 호출 실패 — 보강 skip:', e && e.message);
+        }
+
+        // 2-C) [발표대기 보강 — ef/list 인증 endpoint] 발표됐으나 발효시각이 미래라 실시간
+        //   endpoint(warn/list·ready·latest) 어디에도 안 잡히는 "발표 발효대기" 특보를 메움.
+        //   warn/latest 가 통보문을 잠깐만 보유해 발표~발효 사이 특보가 사라지던 문제 해결.
+        //   - 성공(빈 응답 포함) 시 캐시 갱신. 예외(네트워크/HTTP 실패) 시에만 캐시 fallback
+        //     → 진짜 빈 응답(해제/소멸)은 그대로 반영, 일시 장애만 캐시로 안정화(깜빡임/재push 방지).
+        //   - 인증 미설정(AUTH 비활성) 이면 fetch 가 [] 반환 → no-op (기존 동작 유지).
+        try {
+            const efRows = await _fetchEfListForGap();
+            _efListCache = { rows: efRows, at: Date.now() };
+            _enrichSnapshotWithEfList(curr, efRows, _prevSnapshot);
+        } catch (e) {
+            console.warn('[Marine] ef/list 발표대기 보강 실패 — 캐시 fallback:', e && e.message);
+            if (_efListCache.rows.length && (Date.now() - _efListCache.at) < EF_LIST_CACHE_TTL_MS) {
+                try { _enrichSnapshotWithEfList(curr, _efListCache.rows, _prevSnapshot); } catch (_) {}
+            }
         }
 
         // 3) [Followup E-1 + D-1] 빈 snapshot 가드 — prev snapshot 이 비어있으면 (이유 불문)
