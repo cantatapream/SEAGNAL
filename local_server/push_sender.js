@@ -141,6 +141,22 @@ async function processAndSendNotifications(changes, options = {}) {
                     tmYn: curr.tmYn || curr.tmCc
                 });
             }
+            // 예비 단계 종류 격상/격하 (풍랑예비→태풍예비) — 등급은 둘 다 '예비'라 위 분기를
+            //   못 타므로 별도 처리. 점수(종류 포함)로 방향 판정.
+            else if (prev.wrnTp !== curr.wrnTp) {
+                const prevScore = getAlertScore(prev.wrnTp, prev.wrnLvl);
+                const currScore = getAlertScore(typeName, level);
+                const scenario = prevScore < currScore ? 'type_upgrade_publish' : 'type_downgrade_publish';
+                addToGroup(groups, scenario, typeName, level, {
+                    zones: [zone],
+                    childState,
+                    tmFc: curr.tmFc,
+                    tmEf: curr.tmEf,
+                    tmYn: curr.tmYn || curr.tmCc,
+                    prevTypeName: prev.wrnTp,
+                    prevLevel: prev.wrnLvl
+                });
+            }
             else if (prev.tmEf !== curr.tmEf || isPreToAdvisory) {
                 const scenario = 'time_ef_change';
                 addToGroup(groups, scenario, typeName, level, {
@@ -204,14 +220,19 @@ async function processAndSendNotifications(changes, options = {}) {
                 continue;
             }
 
-            // 3. 등급 변경 (격상/격하)
-            if (prev.wrnLvl !== curr.wrnLvl) {
-                const prevScore = getAlertScore(prev.wrnTp, prev.wrnLvl);
-                const currScore = getAlertScore(curr.wrnTp, curr.wrnLvl);
+            // 3. 등급/종류 변경 (격상/격하)
+            //   [수정] 등급 문자열만 비교하면 같은 등급의 종류격상(풍랑경보→태풍경보)을 놓쳐
+            //   시각변경으로 오분류된다. 종류 변경은 점수(getAlertScore: 태풍>풍랑)로 판정.
+            const prevScore = getAlertScore(prev.wrnTp, prev.wrnLvl);
+            const currScore = getAlertScore(curr.wrnTp, curr.wrnLvl);
+            const typeChanged = prev.wrnTp !== curr.wrnTp;
+            if (typeChanged || prev.wrnLvl !== curr.wrnLvl) {
                 const typeName = curr.wrnTp;
                 const level = curr.wrnLvl;
 
-                const scenario = prevScore < currScore ? 'level_upgrade_active' : 'level_downgrade_active';
+                const scenario = typeChanged
+                    ? (prevScore < currScore ? 'type_upgrade_active' : 'type_downgrade_active')
+                    : (prevScore < currScore ? 'level_upgrade_active' : 'level_downgrade_active');
                 addToGroup(groups, scenario, typeName, level, {
                     zones: [zone],
                     childState,

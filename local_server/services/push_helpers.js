@@ -222,7 +222,7 @@ function getMatchedZones(userZones, targetItems, opts = {}) {
  * @returns {{ title: string, body: string }}
  */
 function generateMessage(filteredPayload) {
-    const { templateId, typeName, level, items, prevLevel, showChildZones } = filteredPayload;
+    const { templateId, typeName, level, items, prevLevel, prevTypeName, showChildZones } = filteredPayload;
 
     let genTitle = '';
     let genBody = '';
@@ -334,6 +334,20 @@ function generateMessage(filteredPayload) {
         genTitle = `🚨 ${typeName} ${prevLvl}→${effectiveLevel} 격하 발효`;
         const grouped = groupByTime(items, 'tmYn');
         genBody = formatGroupedMessage(grouped, '해제예정');
+    }
+    // 7-b. 종류 격상/격하 (풍랑→태풍 등) — 이전/이후 모두 종류+등급 병기. buildAdminTitle 과 동일 양식.
+    //   예: "풍랑경보→태풍경보 격상 발효". 예비 등급은 주의보로 명칭 보정(effPrev/effectiveLevel).
+    else if (templateId === 'type_upgrade_publish' || templateId === 'type_upgrade_active'
+          || templateId === 'type_downgrade_publish' || templateId === 'type_downgrade_active') {
+        const effPrev = prevLevel === '예비' ? '주의보' : (prevLevel || '');
+        const from = `${prevTypeName || ''}${effPrev}`;
+        const to = `${typeName}${effectiveLevel}`;
+        const isPublish = templateId.endsWith('_publish');
+        const isUp = templateId.startsWith('type_upgrade');
+        const emoji = isUp ? (isPublish ? '📢' : '🚨') : (isPublish ? '📢' : '🔻');
+        genTitle = `${emoji} ${from}→${to} ${isUp ? '격상' : '격하'} ${isPublish ? '발표' : '발효'}`;
+        const grouped = groupByTime(items, isPublish ? 'tmEf' : 'tmYn');
+        genBody = formatGroupedMessage(grouped, isPublish ? '발효예정' : '해제예정');
     }
     // 8. 발효시각 변경
     else if (templateId === 'time_ef_change') {
