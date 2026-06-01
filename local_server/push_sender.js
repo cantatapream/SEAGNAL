@@ -157,6 +157,18 @@ async function processAndSendNotifications(changes, options = {}) {
             }
         }
 
+        // A-2. 예비특보 취소 (발효 없이 예비가 사라짐) — "✅ {종류} 예비특보 취소"
+        else if (type === 'UPCOMING_CANCEL') {
+            if (!prev) continue;
+            addToGroup(groups, 'prelim_cancel', prev.wrnTp, prev.wrnLvl, {
+                zones: [zone],
+                childState,
+                tmFc: prev.tmFc,
+                tmEf: prev.tmEf,
+                tmYn: prev.tmYn || prev.tmCc
+            });
+        }
+
         // B. 발효/해제/변경 (Current Change)
         else if (type === 'CURRENT_CHANGE') {
 

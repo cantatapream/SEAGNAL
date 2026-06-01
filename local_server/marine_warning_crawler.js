@@ -1147,6 +1147,11 @@ function _isRangeTime(str) {
 // ============================================================================
 let _clrWindowEnd = {};   // zone → 해제 윈도우 끝 시각키
 let _efWindowEnd = {};    // zone → 발효 윈도우 끝 시각키 (예비/발표대기)
+// [표시형 보존] zone → 같은 모멘트의 "범위형" 표시 문자열. 비교용 정확값(info[field])과
+//   별개로, 화면 표출은 KMA 통보문과 동일한 범위형(예: "새벽(00시~06시)")을 우선·고정한다.
+//   warn/latest 가 범위↔정확을 깜빡여도 표시는 범위형으로 안정(깜빡임 없음), 비교/푸시는 정확값 유지.
+let _clrRangeDisp = {};   // 해제예정 표시용 범위
+let _efRangeDisp = {};    // 발효예정 표시용 범위
 
 function _applyTimeWindowHold(prev, curr, cfg) {
     if (!curr) return;
@@ -1173,6 +1178,18 @@ function _applyTimeWindowHold(prev, curr, cfg) {
             if (win == null && isRange && incKey != null) cfg.winMap[zone] = incKey;   // 윈도우는 범위로만 확립
             if (held && isRange) info[cfg.field] = held;   // [#1] 정확값 고정 (공백/확립 시에도)
         }
+        // [표시형 보존] 비교용 정확값(info[field])과 별개로, 화면 표출은 통보문과 동일한
+        //   범위형을 우선·고정한다. 범위형은 그대로 기억/표시, 정확값이 와도 같은 모멘트면
+        //   기억된 범위로 표시(sticky) → 깜빡임 없음. 윈도우 초과(연장=새 모멘트)면 폐기.
+        const dispKey = cfg.field + 'Disp';
+        if (isRange) {
+            cfg.rangeMap[zone] = incoming;
+            info[dispKey] = incoming;
+        } else if (win != null && incKey != null && incKey > win) {
+            delete cfg.rangeMap[zone];               // 연장 = 새 모멘트 → 범위 폐기, 정확값 표시
+        } else if (cfg.rangeMap[zone]) {
+            info[dispKey] = cfg.rangeMap[zone];      // 같은 모멘트 정확값 → 기억된 범위로 표시
+        }
     };
     if (curr.parents) for (const [z, info] of curr.parents) {
         proc(z, info, prev && prev.parents ? prev.parents.get(z) : null);
@@ -1191,16 +1208,18 @@ function _applyTimeWindowHold(prev, curr, cfg) {
             const cv = info[cfg.field];
             if (pInfo && pInfo[cfg.field] && !_isRangeTime(pInfo[cfg.field]) &&
                 cv && _isRangeTime(cv) && pInfo.wrnTpNm === info.wrnTpNm) {
-                info[cfg.field] = pInfo[cfg.field];
+                info[cfg.field + 'Disp'] = cv;          // [표시형] 자식도 범위형 표시 보존
+                info[cfg.field] = pInfo[cfg.field];     // 비교용 정확값 고정
             }
         }
     }
     for (const z of Object.keys(cfg.winMap)) if (!seen.has(z)) delete cfg.winMap[z];
+    for (const z of Object.keys(cfg.rangeMap)) if (!seen.has(z)) delete cfg.rangeMap[z];
 }
 
 function _applyReleaseClrLogic(prev, curr) {
     _applyTimeWindowHold(prev, curr, {
-        field: 'clrNtcTm', phase: 'active', winMap: _clrWindowEnd, flag: '_clrExtend',
+        field: 'clrNtcTm', phase: 'active', winMap: _clrWindowEnd, rangeMap: _clrRangeDisp, flag: '_clrExtend',
         matchParent: (i) => !!(i && i.wrnLvlNm && i.wrnLvlNm !== '예비' && i.wrnLvlNm !== '해제'),
         matchChild: (i) => !!(i && i.wrnLvlNm && i.wrnLvlNm !== '예비' && i.wrnLvlNm !== '해제'),
         includeUpcomings: false
@@ -1208,7 +1227,7 @@ function _applyReleaseClrLogic(prev, curr) {
 }
 function _applyUpcomingEfLogic(prev, curr) {
     _applyTimeWindowHold(prev, curr, {
-        field: 'tmEf', phase: 'upcoming', winMap: _efWindowEnd, flag: '_efExtend',
+        field: 'tmEf', phase: 'upcoming', winMap: _efWindowEnd, rangeMap: _efRangeDisp, flag: '_efExtend',
         matchParent: (i) => !!(i && i.wrnLvlNm === '예비'),
         matchChild: (i) => !!(i && i.wrnLvlNm === '예비'),
         includeUpcomings: true
@@ -1365,6 +1384,12 @@ function _buildUserPushChanges(prev, curr) {
         const pAct = getAct(prev, zone), cAct = getAct(curr, zone);
         if (!pUp && !cUp && !pAct && !cAct) continue;
 
+        // [ef/list 표시전용] 발표대기 보강(_efBridged)으로 추가된 예비는 "표시 유지"가 목적이라
+        //   사용자 푸시를 생성하지 않는다. 실제 발표 시점엔 warn/latest 경로가 이미 푸시했고,
+        //   ef/list 는 그 이후 화면에서 사라지지 않도록 메우는 역할. → 배포/공백 후 재푸시 방지.
+        //   (발효시각 도래로 warn/list 발효로 승격되면 cUp 이 _efBridged 아님 → 정식 발효 푸시 정상 발사.)
+        if (cUp && cUp._efBridged) continue;
+
         let prevUpcoming = toBlock(pUp);
         const currUpcoming = toBlock(cUp);
         const prevActive = toBlock(pAct);
@@ -1464,14 +1489,21 @@ function _buildUserPushChanges(prev, curr) {
                 oldTime: efExtend.oldTime, newTime: efExtend.newTime, childState
             });
         } else if (upcomingChanged) {
-            changes.push({
-                type: 'UPCOMING_CHANGE',
-                zone: zone,
-                prev: prevUpcoming,
-                curr: currUpcoming,
-                currentActive: currActive || null,  // 현재 발효 중인 부모 (격상/격하 판정용)
-                childState                           // [작업2b] 자식 한정사용
-            });
+            // [예비특보 취소] 예비가 사라졌는데(curr=null) 발효(active)로 승격된 것도 아니면
+            //   → 정식 발효 없이 취소된 것. "✅ 예비특보 취소" 푸시.
+            //   (발효 승격이면 currActive 가 차므로 아래 CURRENT_CHANGE 발효 푸시로 처리됨.)
+            if (!currUpcoming && prevUpcoming && !currActive) {
+                changes.push({ type: 'UPCOMING_CANCEL', zone: zone, prev: prevUpcoming, childState });
+            } else {
+                changes.push({
+                    type: 'UPCOMING_CHANGE',
+                    zone: zone,
+                    prev: prevUpcoming,
+                    curr: currUpcoming,
+                    currentActive: currActive || null,  // 현재 발효 중인 부모 (격상/격하 판정용)
+                    childState                           // [작업2b] 자식 한정사용
+                });
+            }
         }
 
         // CURRENT_CHANGE — 발효 변화. 해제예정 연장이면 YN_EXTEND 로 대체.
@@ -1813,6 +1845,14 @@ function normalizeMmisTime(t) {
         return `${day}일 ${period}(${startStr}시~${endStr}시)`;
     }
 
+    // 연도 포함 범위형 (warn/ready 발효예정 형식): "2026.06.02 23~23시" → "2026년 06월 02일 밤(23시~23시)"
+    const ymdRange = s.match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{1,2})\s*[~∼]\s*(\d{1,2})시$/);
+    if (ymdRange) {
+        const [, Y, M, D, sh, eh] = ymdRange;
+        const period = _periodNameByHour(parseInt(sh, 10));
+        return `${Y}년 ${M}월 ${D}일 ${period}(${String(sh).padStart(2, '0')}시~${String(eh).padStart(2, '0')}시)`;
+    }
+
     // 이미 시간대 명칭 있는 범위형 → 그대로 통과
     if (/[~∼]/.test(s)) return s;
 
@@ -1823,6 +1863,8 @@ function normalizeMmisTime(t) {
     if (m) {
         const [, Y, M, D, h, mn] = m;
         const hh = parseInt(h, 10), mm = parseInt(mn, 10);
+        // [KMA 레거시 범위코드] 정확시각은 통상 분 일의자리가 0(00/10/.../50). 분=58/59 는
+        //   실제 시각이 아니라 시간대 범위 코드 → 해당 6시간 블록 범위로 복원 (main 기존 처리 채택).
         if (mm === 58 || mm === 59) {
             const block = (hh >= 18) ? '18시~24시' : (hh >= 12) ? '12시~18시'
                         : (hh >= 9) ? '09시~12시' : (hh >= 6) ? '06시~09시' : '00시~06시';
@@ -1851,10 +1893,11 @@ function _buildZoneTreeFromSnapshot(snap) {
         wrnLvl: info.wrnLvlNm || info.wrnLvl || '',    // 한글 우선
         wrnLvlNm: info.wrnLvlNm || '',
         tmFc: normalizeMmisTime(info.tmFc),
-        tmEf: normalizeMmisTime(info.tmEf),
+        // [표시형 보존] *Disp(범위형) 가 있으면 우선 — 통보문과 동일하게 범위형 표출, 없으면 정확값.
+        tmEf: normalizeMmisTime(info.tmEfDisp || info.tmEf),
         tmYn: normalizeMmisTime(info.tmYn),
-        tmCc: normalizeMmisTime(info.clrNtcTm),        // 옛 tmCc = mmis clrNtcTm
-        clrNtcTm: normalizeMmisTime(info.clrNtcTm),    // 신규 필드 (양 형식 모두 지원)
+        tmCc: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm),        // 옛 tmCc = mmis clrNtcTm
+        clrNtcTm: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm),    // 신규 필드 (양 형식 모두 지원)
         source: 'MARINE_MMIS'
     });
     for (const [parentName, info] of snap.parents) {
@@ -1899,10 +1942,10 @@ function _buildZoneTreeFromSnapshot(snap) {
                 wrnLvl: lvlNmNorm || info.wrnLvl || '',    // 한글 우선
                 wrnLvlNm: lvlNmNorm,
                 tmFc: normalizeMmisTime(info.tmFc),
-                tmEf: normalizeMmisTime(info.tmEf),
+                tmEf: normalizeMmisTime(info.tmEfDisp || info.tmEf),       // [표시형] 범위형 우선
                 tmYn: normalizeMmisTime(info.tmYn),
-                tmCc: normalizeMmisTime(info.clrNtcTm),
-                clrNtcTm: normalizeMmisTime(info.clrNtcTm)
+                tmCc: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm),
+                clrNtcTm: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm)
             };
         }
     }
@@ -2325,6 +2368,137 @@ function _isFutureExactTime(tmStr) {
 }
 
 // ============================================================================
+// [발표대기 보강 — ef/list (인증 endpoint)]
+//   문제: 발표됐으나 발효시각이 미래라 warn/list(발효중)·warn/ready(예비)·warn/latest
+//         (발표대기 브릿지) 어디에도 안 잡히는 "발표 발효대기" 특보가 발표~발효 사이
+//         (수시간) 동안 앱에서 사라지던 문제. warn/latest 가 통보문을 잠깐만 보유해
+//         그 사이 GAP 보강 소스가 비면 특보가 무음으로 누락됨.
+//   해결: 인증 endpoint warn/ef/list 는 발효 전 특보도 "발효시각(ed_tm)" 과 함께 계속
+//         보유하므로, 실시간 endpoint 가 놓친 발표대기 zone 을 이걸로 메운다.
+//   범용성: 특정 해역 전용이 아니라 "발표됨 + 발효시각 미래 + 실시간 endpoint 미수록"
+//         조건의 모든 대상(풍랑/태풍, 부모·자식, 발표/변경/연장)에 일반 적용.
+//   안전성: 인증 미설정·실패 시 캐시(직전 성공분, TTL) fallback → 기존 동작 유지.
+//         _isFutureExactTime 가드로 발효시각 경과분은 자동 제외(유령특보 방지).
+// ============================================================================
+let _efListCache = { rows: [], at: 0 };
+const EF_LIST_CACHE_TTL_MS = 30 * 60 * 1000;   // 30분 — 인증 일시 실패 시 직전 성공분 재사용
+
+/** ef/list 의 한글 종류명 → 실시간 문자코드 (스냅샷 일관성용). 대상 외는 ''. */
+function _efTpChar(tpNm) {
+    if (tpNm === '태풍') return 'T';
+    if (tpNm === '풍랑') return 'V';
+    return '';
+}
+
+/** ef/list row → 내부 부모/자식 info. 발표대기이므로 '예비' 로 취급, tmEf = 발효시각(ed_tm). */
+function _efRowToInfo(row) {
+    const tpNm = String(row.warn_tp_nm || '');
+    return {
+        wrnTp: _efTpChar(tpNm),
+        wrnTpNm: tpNm,
+        wrnLvl: '1',
+        wrnLvlNm: '예비',                 // 발효 전 → 예비 취급 (표시·푸시 일관성, 기존 GAP 과 동일)
+        tmFc: row.tm_fc || row.st_tm || '',
+        tmEf: row.ed_tm || '',            // [검증됨] ef/list 의 ed_tm = 발효(예정)시각 (정확시각)
+        tmYn: '',
+        clrNtcTm: '',
+        _efBridged: true                  // [표시전용 표식] ef/list 보강분 — 사용자 푸시 생성 제외(재푸시 방지)
+    };
+}
+
+/** GAP 부모를 snap 에 추가하면서 자식을 prev 이어받기 또는 매핑 합성 (warn/latest GAP 과 동일 정책). */
+function _addGapParentFromEf(snap, prev, name, info, counters) {
+    if (snap.parents.has(name)) return;        // 발효중/예비면 그쪽 우선
+    snap.parents.set(name, info);
+    counters.gapAdded++;
+    if (snap.children.has(name)) return;
+    const pkids = (prev && prev.children) ? prev.children.get(name) : null;
+    if (pkids && pkids.size > 0) {
+        const m = new Map();
+        for (const [cn, ci] of pkids) {
+            const cc = Object.assign({}, ci);
+            cc.wrnLvlNm = '예비';
+            cc.tmEf = info.tmEf;               // 부모의 새 발효예정 정확시각 상속
+            cc.clrNtcTm = info.clrNtcTm;
+            m.set(cn, cc);
+        }
+        snap.children.set(name, m);
+        counters.gapChildCarried += m.size;
+        return;
+    }
+    const mapped = PARENT_TO_CHILDREN[name] || [];
+    if (mapped.length > 0) {
+        const m = new Map();
+        for (const cn of mapped) {
+            m.set(cn, {
+                wrnTp: info.wrnTp, wrnTpNm: info.wrnTpNm, wrnLvl: '1', wrnLvlNm: '예비',
+                tmFc: info.tmFc, tmEf: info.tmEf, tmYn: info.tmYn, clrNtcTm: info.clrNtcTm
+            });
+        }
+        snap.children.set(name, m);
+        counters.gapChildSynth += m.size;
+    }
+}
+
+/**
+ * ef/list 행들로 발표대기 zone 을 snap 에 보강.
+ * @param {StateSnapshot} snap - 현재 사이클 스냅샷 (parents/children/upcomings)
+ * @param {Array} efRows - warn/ef/list 응답 row 배열
+ * @param {StateSnapshot} prev - 직전 스냅샷 (자식 이어받기용)
+ */
+function _enrichSnapshotWithEfList(snap, efRows, prev) {
+    if (!snap || !Array.isArray(efRows) || efRows.length === 0) return snap;
+    // zone 별 최신 행 선택: tm_fc 최신 → tm_seq 최대 (여러 통보office/seq 중 가장 최근 상태).
+    const latestByZone = new Map();
+    for (const row of efRows) {
+        const tpNm = String(row.warn_tp_nm || '');
+        if (tpNm !== '풍랑' && tpNm !== '태풍') continue;            // 앱 대상 종류만
+        const cmd = String(row.warn_cmd_nm || '').trim();
+        if (!['발표', '변경', '연장'].includes(cmd)) continue;      // 해제류 제외
+        const name = _resolveZoneName(row);
+        if (!name) continue;
+        const ed = String(row.ed_tm || '').trim();
+        if (!_isFutureExactTime(ed)) continue;                      // 발효시각 미래(=발표대기)만
+        const key = String(row.tm_fc || '') + '#' + String(row.tm_seq || 0).padStart(4, '0');
+        const sel = latestByZone.get(name);
+        if (!sel || key > sel.key) latestByZone.set(name, { key, row });
+    }
+    const counters = { gapAdded: 0, gapChildCarried: 0, gapChildSynth: 0 };
+    for (const [name, sel] of latestByZone) {
+        // 실시간 endpoint 가 이미 커버(발효중/예비/발표대기)하면 skip — 중복/덮어쓰기 방지.
+        if (snap.parents.has(name)) continue;
+        if (snap.upcomings && snap.upcomings.has(name)) continue;
+        const parent = _extractParent(name);
+        const info = _efRowToInfo(sel.row);
+        if (parent === name) {
+            _addGapParentFromEf(snap, prev, name, info, counters);
+        } else {
+            // 자식형 행 (드묾) — 부모 컨테이너에 예비로 추가.
+            if (!snap.children.has(parent)) snap.children.set(parent, new Map());
+            const m = snap.children.get(parent);
+            if (!m.has(name)) { m.set(name, info); counters.gapChildSynth++; }
+        }
+    }
+    if (counters.gapAdded || counters.gapChildCarried || counters.gapChildSynth) {
+        console.log(`[Marine] ef/list 발표대기 보강: 부모 ${counters.gapAdded} 추가 ` +
+            `(자식 carry ${counters.gapChildCarried} / synth ${counters.gapChildSynth})`);
+    }
+    return snap;
+}
+
+/** ef/list 를 KST 어제~내일 윈도우로 조회 (발표대기 특보 포착). 인증 미설정 시 []. */
+async function _fetchEfListForGap() {
+    if (!marineClient || typeof marineClient.fetchWarnEfList !== 'function') return [];
+    const kst = new Date(Date.now() + 9 * 3600000);
+    const ymd = (offDays) => {
+        const d = new Date(kst.getTime() + offDays * 86400000);
+        return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+    };
+    const rows = await marineClient.fetchWarnEfList({ st_tm: ymd(-1), ed_tm: ymd(1) });
+    return Array.isArray(rows) ? rows : [];
+}
+
+// ============================================================================
 // [Followup Critical-1] run() — scheduler 의 1분 cron 에서 호출되는 진입점
 // ============================================================================
 //
@@ -2422,6 +2596,23 @@ async function run(opts = {}) {
             _enrichSnapshotWithLatest(curr, warnLatest, _prevSnapshot, warnSascLatest);
         } catch (e) {
             console.warn('[Marine] warn/latest 호출 실패 — 보강 skip:', e && e.message);
+        }
+
+        // 2-C) [발표대기 보강 — ef/list 인증 endpoint] 발표됐으나 발효시각이 미래라 실시간
+        //   endpoint(warn/list·ready·latest) 어디에도 안 잡히는 "발표 발효대기" 특보를 메움.
+        //   warn/latest 가 통보문을 잠깐만 보유해 발표~발효 사이 특보가 사라지던 문제 해결.
+        //   - 성공(빈 응답 포함) 시 캐시 갱신. 예외(네트워크/HTTP 실패) 시에만 캐시 fallback
+        //     → 진짜 빈 응답(해제/소멸)은 그대로 반영, 일시 장애만 캐시로 안정화(깜빡임/재push 방지).
+        //   - 인증 미설정(AUTH 비활성) 이면 fetch 가 [] 반환 → no-op (기존 동작 유지).
+        try {
+            const efRows = await _fetchEfListForGap();
+            _efListCache = { rows: efRows, at: Date.now() };
+            _enrichSnapshotWithEfList(curr, efRows, _prevSnapshot);
+        } catch (e) {
+            console.warn('[Marine] ef/list 발표대기 보강 실패 — 캐시 fallback:', e && e.message);
+            if (_efListCache.rows.length && (Date.now() - _efListCache.at) < EF_LIST_CACHE_TTL_MS) {
+                try { _enrichSnapshotWithEfList(curr, _efListCache.rows, _prevSnapshot); } catch (_) {}
+            }
         }
 
         // 3) [Followup E-1 + D-1] 빈 snapshot 가드 — 콜드 부팅 직후 prev 가 비어있을 때만.
