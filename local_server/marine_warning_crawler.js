@@ -1147,6 +1147,11 @@ function _isRangeTime(str) {
 // ============================================================================
 let _clrWindowEnd = {};   // zone → 해제 윈도우 끝 시각키
 let _efWindowEnd = {};    // zone → 발효 윈도우 끝 시각키 (예비/발표대기)
+// [표시형 보존] zone → 같은 모멘트의 "범위형" 표시 문자열. 비교용 정확값(info[field])과
+//   별개로, 화면 표출은 KMA 통보문과 동일한 범위형(예: "새벽(00시~06시)")을 우선·고정한다.
+//   warn/latest 가 범위↔정확을 깜빡여도 표시는 범위형으로 안정(깜빡임 없음), 비교/푸시는 정확값 유지.
+let _clrRangeDisp = {};   // 해제예정 표시용 범위
+let _efRangeDisp = {};    // 발효예정 표시용 범위
 
 function _applyTimeWindowHold(prev, curr, cfg) {
     if (!curr) return;
@@ -1173,6 +1178,18 @@ function _applyTimeWindowHold(prev, curr, cfg) {
             if (win == null && isRange && incKey != null) cfg.winMap[zone] = incKey;   // 윈도우는 범위로만 확립
             if (held && isRange) info[cfg.field] = held;   // [#1] 정확값 고정 (공백/확립 시에도)
         }
+        // [표시형 보존] 비교용 정확값(info[field])과 별개로, 화면 표출은 통보문과 동일한
+        //   범위형을 우선·고정한다. 범위형은 그대로 기억/표시, 정확값이 와도 같은 모멘트면
+        //   기억된 범위로 표시(sticky) → 깜빡임 없음. 윈도우 초과(연장=새 모멘트)면 폐기.
+        const dispKey = cfg.field + 'Disp';
+        if (isRange) {
+            cfg.rangeMap[zone] = incoming;
+            info[dispKey] = incoming;
+        } else if (win != null && incKey != null && incKey > win) {
+            delete cfg.rangeMap[zone];               // 연장 = 새 모멘트 → 범위 폐기, 정확값 표시
+        } else if (cfg.rangeMap[zone]) {
+            info[dispKey] = cfg.rangeMap[zone];      // 같은 모멘트 정확값 → 기억된 범위로 표시
+        }
     };
     if (curr.parents) for (const [z, info] of curr.parents) {
         proc(z, info, prev && prev.parents ? prev.parents.get(z) : null);
@@ -1191,16 +1208,18 @@ function _applyTimeWindowHold(prev, curr, cfg) {
             const cv = info[cfg.field];
             if (pInfo && pInfo[cfg.field] && !_isRangeTime(pInfo[cfg.field]) &&
                 cv && _isRangeTime(cv) && pInfo.wrnTpNm === info.wrnTpNm) {
-                info[cfg.field] = pInfo[cfg.field];
+                info[cfg.field + 'Disp'] = cv;          // [표시형] 자식도 범위형 표시 보존
+                info[cfg.field] = pInfo[cfg.field];     // 비교용 정확값 고정
             }
         }
     }
     for (const z of Object.keys(cfg.winMap)) if (!seen.has(z)) delete cfg.winMap[z];
+    for (const z of Object.keys(cfg.rangeMap)) if (!seen.has(z)) delete cfg.rangeMap[z];
 }
 
 function _applyReleaseClrLogic(prev, curr) {
     _applyTimeWindowHold(prev, curr, {
-        field: 'clrNtcTm', phase: 'active', winMap: _clrWindowEnd, flag: '_clrExtend',
+        field: 'clrNtcTm', phase: 'active', winMap: _clrWindowEnd, rangeMap: _clrRangeDisp, flag: '_clrExtend',
         matchParent: (i) => !!(i && i.wrnLvlNm && i.wrnLvlNm !== '예비' && i.wrnLvlNm !== '해제'),
         matchChild: (i) => !!(i && i.wrnLvlNm && i.wrnLvlNm !== '예비' && i.wrnLvlNm !== '해제'),
         includeUpcomings: false
@@ -1208,7 +1227,7 @@ function _applyReleaseClrLogic(prev, curr) {
 }
 function _applyUpcomingEfLogic(prev, curr) {
     _applyTimeWindowHold(prev, curr, {
-        field: 'tmEf', phase: 'upcoming', winMap: _efWindowEnd, flag: '_efExtend',
+        field: 'tmEf', phase: 'upcoming', winMap: _efWindowEnd, rangeMap: _efRangeDisp, flag: '_efExtend',
         matchParent: (i) => !!(i && i.wrnLvlNm === '예비'),
         matchChild: (i) => !!(i && i.wrnLvlNm === '예비'),
         includeUpcomings: true
@@ -1813,6 +1832,14 @@ function normalizeMmisTime(t) {
         return `${day}일 ${period}(${startStr}시~${endStr}시)`;
     }
 
+    // 연도 포함 범위형 (warn/ready 발효예정 형식): "2026.06.02 23~23시" → "2026년 06월 02일 밤(23시~23시)"
+    const ymdRange = s.match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{1,2})\s*[~∼]\s*(\d{1,2})시$/);
+    if (ymdRange) {
+        const [, Y, M, D, sh, eh] = ymdRange;
+        const period = _periodNameByHour(parseInt(sh, 10));
+        return `${Y}년 ${M}월 ${D}일 ${period}(${String(sh).padStart(2, '0')}시~${String(eh).padStart(2, '0')}시)`;
+    }
+
     // 이미 시간대 명칭 있는 범위형 → 그대로 통과
     if (/[~∼]/.test(s)) return s;
 
@@ -1843,10 +1870,11 @@ function _buildZoneTreeFromSnapshot(snap) {
         wrnLvl: info.wrnLvlNm || info.wrnLvl || '',    // 한글 우선
         wrnLvlNm: info.wrnLvlNm || '',
         tmFc: normalizeMmisTime(info.tmFc),
-        tmEf: normalizeMmisTime(info.tmEf),
+        // [표시형 보존] *Disp(범위형) 가 있으면 우선 — 통보문과 동일하게 범위형 표출, 없으면 정확값.
+        tmEf: normalizeMmisTime(info.tmEfDisp || info.tmEf),
         tmYn: normalizeMmisTime(info.tmYn),
-        tmCc: normalizeMmisTime(info.clrNtcTm),        // 옛 tmCc = mmis clrNtcTm
-        clrNtcTm: normalizeMmisTime(info.clrNtcTm),    // 신규 필드 (양 형식 모두 지원)
+        tmCc: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm),        // 옛 tmCc = mmis clrNtcTm
+        clrNtcTm: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm),    // 신규 필드 (양 형식 모두 지원)
         source: 'MARINE_MMIS'
     });
     for (const [parentName, info] of snap.parents) {
@@ -1891,10 +1919,10 @@ function _buildZoneTreeFromSnapshot(snap) {
                 wrnLvl: lvlNmNorm || info.wrnLvl || '',    // 한글 우선
                 wrnLvlNm: lvlNmNorm,
                 tmFc: normalizeMmisTime(info.tmFc),
-                tmEf: normalizeMmisTime(info.tmEf),
+                tmEf: normalizeMmisTime(info.tmEfDisp || info.tmEf),       // [표시형] 범위형 우선
                 tmYn: normalizeMmisTime(info.tmYn),
-                tmCc: normalizeMmisTime(info.clrNtcTm),
-                clrNtcTm: normalizeMmisTime(info.clrNtcTm)
+                tmCc: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm),
+                clrNtcTm: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm)
             };
         }
     }
