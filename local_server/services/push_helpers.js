@@ -407,7 +407,7 @@ function generateMessage(filteredPayload) {
     //   나가던 문제 수정. (관리자 경로 buildAdminTitle 에만 있던 "✅ 예비특보 취소" 문구를 사용자에도 적용)
     //   prelim_cancel 은 시간 없음(EVENT_TIME_FIELD=null), 자식 한정사도 없음(buildChildQualifier '').
     else if (templateId === 'prelim_cancel') {
-        genTitle = `✅ ${typeName} 예비특보 취소`;
+        genTitle = `✅ ${typeName || '특보'} 예비특보 취소`;   // typeName 누락 방어(관리자 buildAdminTitle 과 동일 폴백)
         const allZones = [];
         items.forEach(i => i.zones.forEach(z => { if (!allZones.includes(z)) allZones.push(z); }));
         genBody = `ㅇ${allZones.map(decorateZone).join(', ')}`;
