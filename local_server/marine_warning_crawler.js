@@ -1195,6 +1195,10 @@ function _applyTimeWindowHold(prev, curr, cfg) {
             const endK = _timeKey(rng);                  // 범위 끝 시각키
             if (startK != null && endK != null && incKey != null && (incKey < startK || incKey > endK)) {
                 delete cfg.rangeMap[zone];               // 키 산출 가능 + 구간 밖(앞당김/연장) → 폐기, 정확값 표시
+                // [winMap 동기화] 앞당김(구간보다 이름)이면 연장 기준선(winMap)도 함께 폐기 —
+                //   stale 윈도우로 이후 정확값이 가짜 '연장(_efExtend/_clrExtend)'으로 오발사되는 것 방지.
+                //   늦춰짐(incKey>endK)은 상위 블록이 winMap 갱신·연장 플래그를 이미 처리하므로 손대지 않음.
+                if (incKey < startK) delete cfg.winMap[zone];
             } else {
                 // 같은 모멘트(구간 안), 또는 키 산출 불가(날짜 없는 범위 등)이면 범위형 유지.
                 //   후자에서 무조건 폐기하면 #818 이 막던 '동일 모멘트 깜빡임'이 재유입되므로 안전하게 sticky.
