@@ -1185,10 +1185,25 @@ function _applyTimeWindowHold(prev, curr, cfg) {
         if (isRange) {
             cfg.rangeMap[zone] = incoming;
             info[dispKey] = incoming;
-        } else if (win != null && incKey != null && incKey > win) {
-            delete cfg.rangeMap[zone];               // 연장 = 새 모멘트 → 범위 폐기, 정확값 표시
         } else if (cfg.rangeMap[zone]) {
-            info[dispKey] = cfg.rangeMap[zone];      // 같은 모멘트 정확값 → 기억된 범위로 표시
+            // [수정] 정확값이 기억된 범위의 [시작,끝] 구간 안(=같은 모멘트)일 때만 범위형 유지(깜빡임 방지).
+            //   구간 밖(시각이 앞당겨지거나 연장돼 다른 모멘트가 됨)이면 범위 폐기 → 정확값으로 표출 갱신.
+            //   (기존 결함: incKey>win '연장(늦어짐)'만 폐기하고, 앞당겨진 경우는 옛 범위에 고착돼
+            //    푸시는 새 발효시각을 알리는데 화면은 안 갱신되던 문제.)
+            const rng = cfg.rangeMap[zone];
+            const startK = _timeKey(rng, null, true);   // 범위 시작 시각키
+            const endK = _timeKey(rng);                  // 범위 끝 시각키
+            if (startK != null && endK != null && incKey != null && (incKey < startK || incKey > endK)) {
+                delete cfg.rangeMap[zone];               // 키 산출 가능 + 구간 밖(앞당김/연장) → 폐기, 정확값 표시
+                // [winMap 동기화] 앞당김(구간보다 이름)이면 연장 기준선(winMap)도 함께 폐기 —
+                //   stale 윈도우로 이후 정확값이 가짜 '연장(_efExtend/_clrExtend)'으로 오발사되는 것 방지.
+                //   늦춰짐(incKey>endK)은 상위 블록이 winMap 갱신·연장 플래그를 이미 처리하므로 손대지 않음.
+                if (incKey < startK) delete cfg.winMap[zone];
+            } else {
+                // 같은 모멘트(구간 안), 또는 키 산출 불가(날짜 없는 범위 등)이면 범위형 유지.
+                //   후자에서 무조건 폐기하면 #818 이 막던 '동일 모멘트 깜빡임'이 재유입되므로 안전하게 sticky.
+                info[dispKey] = rng;
+            }
         }
     };
     if (curr.parents) for (const [z, info] of curr.parents) {
@@ -1901,11 +1916,15 @@ function _buildZoneTreeFromSnapshot(snap) {
         wrnLvl: info.wrnLvlNm || info.wrnLvl || '',    // 한글 우선
         wrnLvlNm: info.wrnLvlNm || '',
         tmFc: normalizeMmisTime(info.tmFc),
-        // [표시형 보존] *Disp(범위형) 가 있으면 우선 — 통보문과 동일하게 범위형 표출, 없으면 정확값.
-        tmEf: normalizeMmisTime(info.tmEfDisp || info.tmEf),
+        // [표시 = 확정값] 비교/푸시용 info.tmEf 를 그대로 표출. info.tmEf 는 (a)정확시각이
+        //   오면 그 시각, (b)범위형만 오면 범위, (c)정확값을 본 뒤엔 그 정확값으로 고정(held),
+        //   (d):58/59 코드는 normalizeMmisTime 이 범위로 변환 — 즉 "확정 시각이 나오면 그 시각,
+        //   아직 예측(범위)이면 범위" 가 자연스럽게 표출됨. (이전 *Disp 범위 sticky 는 확정 시각을
+        //   가려 발효시각이 안 갱신되던 문제가 있어 폐지.)
+        tmEf: normalizeMmisTime(info.tmEf),
         tmYn: normalizeMmisTime(info.tmYn),
-        tmCc: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm),        // 옛 tmCc = mmis clrNtcTm
-        clrNtcTm: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm),    // 신규 필드 (양 형식 모두 지원)
+        tmCc: normalizeMmisTime(info.clrNtcTm),        // 옛 tmCc = mmis clrNtcTm
+        clrNtcTm: normalizeMmisTime(info.clrNtcTm),    // 신규 필드 (양 형식 모두 지원)
         source: 'MARINE_MMIS'
     });
     for (const [parentName, info] of snap.parents) {
@@ -1950,10 +1969,10 @@ function _buildZoneTreeFromSnapshot(snap) {
                 wrnLvl: lvlNmNorm || info.wrnLvl || '',    // 한글 우선
                 wrnLvlNm: lvlNmNorm,
                 tmFc: normalizeMmisTime(info.tmFc),
-                tmEf: normalizeMmisTime(info.tmEfDisp || info.tmEf),       // [표시형] 범위형 우선
+                tmEf: normalizeMmisTime(info.tmEf),       // [표시 = 확정값] 부모와 동일 정책
                 tmYn: normalizeMmisTime(info.tmYn),
-                tmCc: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm),
-                clrNtcTm: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm)
+                tmCc: normalizeMmisTime(info.clrNtcTm),
+                clrNtcTm: normalizeMmisTime(info.clrNtcTm)
             };
         }
     }
