@@ -1857,19 +1857,18 @@ function normalizeMmisTime(t) {
     if (/[~∼]/.test(s)) return s;
 
     // 일반 시간 변환: "2026.05.21 06:00" → "2026년 05월 21일 06시 00분"
+    // [레거시] 분=58/59 는 KMA 범위코드 → 해당 6시간 블록 범위로 복원
+    //   예: "2026.06.01 05:58" → "2026년 06월 01일 00시~06시"
     const m = s.match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})$/);
     if (m) {
         const [, Y, M, D, h, mn] = m;
-        // [KMA 범위코드 복원] 정확시각은 분의 일의자리가 항상 0(00/10/.../50)으로만 발표된다.
-        //   분이 58/59 면 실제 시각이 아니라 "시간대 범위 코드" → 해당 시간대 범위로 복원.
-        //   (프론트 utils.js:formatWarningTime 의 12자리 :58/:59 규칙과 동일 컨벤션 — 마린 한글형에도 적용해 일원화.)
-        const mn2 = parseInt(mn, 10);
-        if (mn2 === 58 || mn2 === 59) {
-            const hh = parseInt(h, 10);
-            const [bs, be] = (hh >= 18) ? [18, 24] : (hh >= 12) ? [12, 18]
-                          : (hh >= 9) ? [9, 12] : (hh >= 6) ? [6, 9] : [0, 6];
-            const period = _periodNameByHour(bs);
-            return `${Y}년 ${M}월 ${D}일 ${period}(${String(bs).padStart(2, '0')}시~${String(be).padStart(2, '0')}시)`;
+        const hh = parseInt(h, 10), mm = parseInt(mn, 10);
+        // [KMA 레거시 범위코드] 정확시각은 통상 분 일의자리가 0(00/10/.../50). 분=58/59 는
+        //   실제 시각이 아니라 시간대 범위 코드 → 해당 6시간 블록 범위로 복원 (main 기존 처리 채택).
+        if (mm === 58 || mm === 59) {
+            const block = (hh >= 18) ? '18시~24시' : (hh >= 12) ? '12시~18시'
+                        : (hh >= 9) ? '09시~12시' : (hh >= 6) ? '06시~09시' : '00시~06시';
+            return `${Y}년 ${M}월 ${D}일 ${block}`;
         }
         return `${Y}년 ${M}월 ${D}일 ${h}시 ${mn}분`;
     }
@@ -2616,18 +2615,15 @@ async function run(opts = {}) {
             }
         }
 
-        // 3) [Followup E-1 + D-1] 빈 snapshot 가드 — prev snapshot 이 비어있으면 (이유 불문)
-        //    diff/dispatch 결과가 "전부 신규 발효" 로 오인되어 release/active 폭주 위험.
-        //    SPEC §운영안전: state 저장 + weather_alerts.json 갱신만 하고 push skip.
-        //    다음 cycle 부터 정상 diff/push.
-        //    조건: 부팅 직후 lazy load + 디스크 prev 비어있음, **또는** E-4 partial-fail 후
-        //    빈 snapshot 으로 lazy set 된 케이스 (D-1 보강 — isFirstLoad 가드 제거).
+        // 3) [Followup E-1 + D-1] 빈 snapshot 가드 — 콜드 부팅 직후 prev 가 비어있을 때만.
+        //    재배포/장부 초기화로 활성 특보가 "전부 신규"로 오인되어 push 폭주하는 케이스만 차단.
+        //    자연 전이(이미 가동 중인 프로세스에서 무특보→신규특보)는 통과시켜 정상 push.
         //    [테스트] forceBaseline 이 true 면 이 가드를 1회 우회 →
         //    빈 prev vs 현재 발효+예비 를 "전부 신규" 로 diff 하여 실제 푸시 발사.
         //    (관리자 "장부 초기화(테스트 푸시)" 버튼 전용. opts 또는 예약 플래그로 지정)
         const forceBaseline = !!opts.forceBaselinePush || _forceBaselinePending;
-        if (_isSnapshotEmpty(_prevSnapshot) && !forceBaseline) {
-            console.log('[Marine] 첫 부팅 — push skip, state 저장만 (현재 발효 부모=' +
+        if (_isSnapshotEmpty(_prevSnapshot) && !forceBaseline && isFirstLoad) {
+            console.log('[Marine] 콜드 부팅 + 빈 prev — push skip, state 저장만 (현재 발효 부모=' +
                 curr.parents.size + ', 자식=' + curr.children.size + ')');
             _prevSnapshot = curr;
             _savePrevSnapshot(curr);
