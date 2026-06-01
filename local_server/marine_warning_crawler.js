@@ -967,6 +967,11 @@ function decideSuspiciousCase(decision, decidedBy) {
 // ============================================================================
 const CHILD_RELEASE_DEBOUNCE_MS = 3 * 60 * 1000;   // 3분
 let _childReleasePending = {};                     // key: parent child → { firstMissingAt }
+
+// [예비취소 디바운스] 예비특보가 글리치(통보문 깜빡임)로 한 사이클 사라졌다 재등장할 때
+//   가짜 "예비취소" 푸시가 나가던 문제 방지. 자식 해제 디바운스와 동일 정책(3분).
+const UPCOMING_CANCEL_DEBOUNCE_MS = 3 * 60 * 1000;
+let _upcomingCancelPending = {};                   // zone → { firstMissingAt, block, inParents }
 let _childReleaseNoticeSet = new Set();            // 이번 사이클 해제 통보문 있는 자식 (enrich 가 채움)
 
 /**
@@ -1022,6 +1027,79 @@ function _applyChildReleaseDebounce(prev, curr) {
             console.log(`[Marine] ⚡ 자식 깜빡임 감지(글리치): ${p} > ${ch} — ${elapsedSec}초 만에 복귀, 가짜 해제 억제됨`);
         }
         delete _childReleasePending[key];
+    }
+}
+
+// ============================================================================
+// [예비취소 디바운스] 예비특보가 실시간(warn/ready)·ef/list 양쪽에서 사라진 사이클에 한해
+//   직전 예비를 curr 로 N분간 이어받기(carry). carry 중엔 currUpcoming 이 채워져
+//   _buildUserPushChanges 의 UPCOMING_CANCEL 분기(!currUpcoming)가 성립하지 않아 가짜취소가
+//   원천 억제된다. N분 연속 부재면 carry 중단 → diff 가 UPCOMING_CANCEL 1회 정상 발사(진짜취소).
+//   - ef/list 보강·의심가드 이후에 호출되므로 "둘 다 놓친" 사이클만 대상(ef 가 살린 사이클은
+//     currUpcoming 이 차서 비대상). 발효 승격은 currActive 가 차서 비대상(발효 푸시로 처리).
+//   - carry 블록 = prev 예비 그대로 → blockEqual 무변화 → 다른 푸시(발표/변경/연장 등) 무영향.
+//   - 비영속(재시작=타이머 리셋=지연만, 가짜취소/누락 없음 — carry 는 첫 목격에도 발사 안 함).
+// ============================================================================
+function _applyUpcomingCancelDebounce(prev, curr) {
+    if (!prev || !curr) return;
+    const now = Date.now();
+    const stillPending = new Set();
+
+    // prev 의 예비 zone 수집 (parents 예비 + upcomings) — 위치(parents/upcomings) 기록
+    const prevUpZones = new Map();   // zone → { block, inParents }
+    if (prev.parents) for (const [z, info] of prev.parents) {
+        if (info && info.wrnLvlNm === '예비') prevUpZones.set(z, { block: info, inParents: true });
+    }
+    if (prev.upcomings) for (const [z, info] of prev.upcomings) {
+        if (!prevUpZones.has(z) && info && info.wrnLvlNm === '예비') prevUpZones.set(z, { block: info, inParents: false });
+    }
+
+    const hasUp = (z) => {
+        const p = curr.parents ? curr.parents.get(z) : null;
+        if (p && p.wrnLvlNm === '예비') return true;
+        return !!(curr.upcomings && curr.upcomings.get(z));
+    };
+    const hasAct = (z) => {
+        const p = curr.parents ? curr.parents.get(z) : null;
+        return !!(p && p.wrnLvlNm && p.wrnLvlNm !== '예비' && p.wrnLvlNm !== '해제');
+    };
+
+    for (const [zone, ent] of prevUpZones) {
+        if (hasUp(zone) || hasAct(zone)) {
+            // 예비 여전히 있음(실시간/ef) 또는 발효 승격 → 정상. 관찰 중이었으면 글리치 확정.
+            if (_upcomingCancelPending[zone]) {
+                const sec = Math.round((now - _upcomingCancelPending[zone].firstMissingAt) / 1000);
+                console.log(`[Marine] ⚡ 예비 깜빡임 감지(글리치): ${zone} — ${sec}초 만에 복귀, 가짜 예비취소 억제됨`);
+                delete _upcomingCancelPending[zone];
+            }
+            continue;
+        }
+        // 예비가 curr 어디에도 없음 → 글리치 의심 → 디바운스
+        if (!_upcomingCancelPending[zone]) {
+            _upcomingCancelPending[zone] = { firstMissingAt: now, block: Object.assign({}, ent.block), inParents: ent.inParents };
+            console.log(`[Marine] 예비취소 디바운스 시작: ${zone} (예비 사라짐, ${UPCOMING_CANCEL_DEBOUNCE_MS / 60000}분 관찰)`);
+        }
+        const p = _upcomingCancelPending[zone];
+        if (now - p.firstMissingAt < UPCOMING_CANCEL_DEBOUNCE_MS) {
+            // 관찰 중 — 직전 예비를 curr 에 이어받아 가짜취소·화면 깜빡임 방지 (빈 슬롯에만)
+            if (p.inParents) {
+                if (curr.parents && !curr.parents.has(zone)) curr.parents.set(zone, Object.assign({}, p.block));
+            } else {
+                if (!curr.upcomings) curr.upcomings = new Map();
+                if (!curr.upcomings.has(zone)) curr.upcomings.set(zone, Object.assign({}, p.block));
+            }
+            stillPending.add(zone);
+        } else {
+            // N분 경과 — 진짜취소 확정 (이어받기 중단 → diff 가 UPCOMING_CANCEL 발사)
+            console.log(`[Marine] 예비취소 확정(디바운스 ${Math.round((now - p.firstMissingAt) / 1000)}초 경과): ${zone}`);
+            delete _upcomingCancelPending[zone];
+        }
+    }
+
+    // prev 에서도 사라진 stale pending 정리
+    for (const zone of Object.keys(_upcomingCancelPending)) {
+        if (stillPending.has(zone) || prevUpZones.has(zone)) continue;
+        delete _upcomingCancelPending[zone];
     }
 }
 
@@ -2724,6 +2802,11 @@ async function run(opts = {}) {
         //    curr 를 변형(이어받기)하므로 diff(_buildUserPushChanges)·표출(weather_alerts)
         //    양쪽에 반영됨. 해제 통보문(_childReleaseNoticeSet) 있는 자식은 즉시 해제.
         _applyChildReleaseDebounce(prevForDiff, curr);
+
+        // 4-B2) [예비취소 디바운스] 예비가 실시간·ef/list 양쪽에서 사라진 사이클에 한해 직전 예비를
+        //   curr 로 3분 이어받기 → 글리치성 가짜 "예비취소" 푸시 차단. 3분 연속 부재면 진짜취소 1회.
+        //   (ef/list 보강·의심가드 이후, 발표시각고정 이전 — _applyChildReleaseDebounce 와 동일 구역.)
+        _applyUpcomingCancelDebounce(prevForDiff, curr);
 
         // 4-C) [발표시각 고정] 현재 발효 등급의 최초 발표시각으로 tmFc 고정 (변경/연장 불변,
         //   격상/격하·종류변경·해제 시에만 재설정). _buildUserPushChanges·표출 전에 적용.
