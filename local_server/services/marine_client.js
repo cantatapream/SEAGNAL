@@ -55,6 +55,19 @@ const USER_PWD = process.env.MARINE_USER_PWD || DEFAULT_USER_PWD;
 const FORCE_DISABLED = process.env.MARINE_DISABLE === '1';
 const AUTH_ENABLED = !!USER_ID && !!USER_PWD && !FORCE_DISABLED;
 
+// [2차 자격증명] 1차 로그인 실패 시 폴백으로 사용할 계정 (환경변수 MARINE_USER_ID_2/PWD_2 우선).
+const DEFAULT_USER_ID_2 = 'hyoo1431';
+const DEFAULT_USER_PWD_2 = 'zaqxsw12!';
+const USER_ID_2 = process.env.MARINE_USER_ID_2 || DEFAULT_USER_ID_2;
+const USER_PWD_2 = process.env.MARINE_USER_PWD_2 || DEFAULT_USER_PWD_2;
+// 로그인 시도 순서: 1차 → 2차. 동일 (id,pwd) 중복은 제거.
+const CRED_LIST = [
+    { id: USER_ID, pwd: USER_PWD },
+    { id: USER_ID_2, pwd: USER_PWD_2 }
+].filter((c, i, arr) =>
+    c.id && c.pwd && arr.findIndex(o => o.id === c.id && o.pwd === c.pwd) === i
+);
+
 /** ID 마스킹: 앞 2자 + "***" 만 노출. 2자 이하면 "***" 단독. */
 function maskUserId(id) {
     if (!id) return '(none)';
@@ -229,40 +242,55 @@ async function login() {
     }
     session.loginInProgress = true;
     try {
-        console.log(`[marine] login start (user=${maskUserId(USER_ID)})`);
-        const payload = JSON.stringify({
-            mmbrId: USER_ID,
-            mmbrPassword: USER_PWD,
-            rememberMe: false
-        });
-        const res = await _request({
-            method: 'POST',
-            path: PATHS.LOGIN,
-            body: payload,
-            // login 자체는 토큰 없이 호출. 응답 헤더에서 토큰 회수.
-            authRequired: false
-        });
-        if (res.statusCode !== 200) {
-            throw new Error(`login HTTP ${res.statusCode}`);
-        }
-        // 응답 헤더에서 토큰 회수
-        const got = _ingestAuthTokens(res.headers);
-        if (!got) {
-            // 응답 body 분석 — status 200/payload 가 있어도 토큰이 없으면 실패
-            throw new Error('login: accesstoken/refreshtoken 응답 헤더 없음');
-        }
-        // 응답 body 의 status 검증 (있으면)
-        try {
-            const j = JSON.parse(res.body);
-            if (j && j.status && j.status !== 200) {
-                throw new Error(`login body.status=${j.status}`);
+        // [폴백] 1차 자격증명으로 로그인 시도 → 실패 시 2차 자격증명으로 재시도.
+        let lastErr = null;
+        for (let i = 0; i < CRED_LIST.length; i++) {
+            const cred = CRED_LIST[i];
+            const tag = i === 0 ? '1차' : `${i + 1}차`;
+            try {
+                console.log(`[marine] login start (user=${maskUserId(cred.id)}, ${tag})`);
+                const payload = JSON.stringify({
+                    mmbrId: cred.id,
+                    mmbrPassword: cred.pwd,
+                    rememberMe: false
+                });
+                const res = await _request({
+                    method: 'POST',
+                    path: PATHS.LOGIN,
+                    body: payload,
+                    // login 자체는 토큰 없이 호출. 응답 헤더에서 토큰 회수.
+                    authRequired: false
+                });
+                if (res.statusCode !== 200) {
+                    throw new Error(`login HTTP ${res.statusCode}`);
+                }
+                // 응답 헤더에서 토큰 회수
+                const got = _ingestAuthTokens(res.headers);
+                if (!got) {
+                    // 응답 body 분석 — status 200/payload 가 있어도 토큰이 없으면 실패
+                    throw new Error('login: accesstoken/refreshtoken 응답 헤더 없음');
+                }
+                // 응답 body 의 status 검증 (있으면)
+                try {
+                    const j = JSON.parse(res.body);
+                    if (j && j.status && j.status !== 200) {
+                        throw new Error(`login body.status=${j.status}`);
+                    }
+                } catch (e) {
+                    // body 파싱 실패는 무시 — 토큰이 있으면 성공으로 간주
+                }
+                session.loginAt = Date.now();
+                session.lastRefreshAt = Date.now();
+                console.log(`[marine] login ok (${tag})`);
+                return;   // 성공 → 종료
+            } catch (e) {
+                lastErr = e;
+                const more = i < CRED_LIST.length - 1 ? ' → 다음 계정 시도' : '';
+                console.warn(`[marine] login 실패 (${maskUserId(cred.id)}, ${tag}): ${e.message}${more}`);
             }
-        } catch (e) {
-            // body 파싱 실패는 무시 — 토큰이 있으면 성공으로 간주
         }
-        session.loginAt = Date.now();
-        session.lastRefreshAt = Date.now();
-        console.log(`[marine] login ok`);
+        // 모든 자격증명 실패 → 기존과 동일하게 throw (호출자 재시도/스킵 판단)
+        throw lastErr || new Error('login 실패 (모든 자격증명)');
     } finally {
         session.loginInProgress = false;
     }
