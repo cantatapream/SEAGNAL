@@ -1916,11 +1916,15 @@ function _buildZoneTreeFromSnapshot(snap) {
         wrnLvl: info.wrnLvlNm || info.wrnLvl || '',    // 한글 우선
         wrnLvlNm: info.wrnLvlNm || '',
         tmFc: normalizeMmisTime(info.tmFc),
-        // [표시형 보존] *Disp(범위형) 가 있으면 우선 — 통보문과 동일하게 범위형 표출, 없으면 정확값.
-        tmEf: normalizeMmisTime(info.tmEfDisp || info.tmEf),
+        // [표시 = 확정값] 비교/푸시용 info.tmEf 를 그대로 표출. info.tmEf 는 (a)정확시각이
+        //   오면 그 시각, (b)범위형만 오면 범위, (c)정확값을 본 뒤엔 그 정확값으로 고정(held),
+        //   (d):58/59 코드는 normalizeMmisTime 이 범위로 변환 — 즉 "확정 시각이 나오면 그 시각,
+        //   아직 예측(범위)이면 범위" 가 자연스럽게 표출됨. (이전 *Disp 범위 sticky 는 확정 시각을
+        //   가려 발효시각이 안 갱신되던 문제가 있어 폐지.)
+        tmEf: normalizeMmisTime(info.tmEf),
         tmYn: normalizeMmisTime(info.tmYn),
-        tmCc: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm),        // 옛 tmCc = mmis clrNtcTm
-        clrNtcTm: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm),    // 신규 필드 (양 형식 모두 지원)
+        tmCc: normalizeMmisTime(info.clrNtcTm),        // 옛 tmCc = mmis clrNtcTm
+        clrNtcTm: normalizeMmisTime(info.clrNtcTm),    // 신규 필드 (양 형식 모두 지원)
         source: 'MARINE_MMIS'
     });
     for (const [parentName, info] of snap.parents) {
@@ -1965,10 +1969,10 @@ function _buildZoneTreeFromSnapshot(snap) {
                 wrnLvl: lvlNmNorm || info.wrnLvl || '',    // 한글 우선
                 wrnLvlNm: lvlNmNorm,
                 tmFc: normalizeMmisTime(info.tmFc),
-                tmEf: normalizeMmisTime(info.tmEfDisp || info.tmEf),       // [표시형] 범위형 우선
+                tmEf: normalizeMmisTime(info.tmEf),       // [표시 = 확정값] 부모와 동일 정책
                 tmYn: normalizeMmisTime(info.tmYn),
-                tmCc: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm),
-                clrNtcTm: normalizeMmisTime(info.clrNtcTmDisp || info.clrNtcTm)
+                tmCc: normalizeMmisTime(info.clrNtcTm),
+                clrNtcTm: normalizeMmisTime(info.clrNtcTm)
             };
         }
     }
