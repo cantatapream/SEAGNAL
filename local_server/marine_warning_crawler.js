@@ -1365,6 +1365,12 @@ function _buildUserPushChanges(prev, curr) {
         const pAct = getAct(prev, zone), cAct = getAct(curr, zone);
         if (!pUp && !cUp && !pAct && !cAct) continue;
 
+        // [ef/list 표시전용] 발표대기 보강(_efBridged)으로 추가된 예비는 "표시 유지"가 목적이라
+        //   사용자 푸시를 생성하지 않는다. 실제 발표 시점엔 warn/latest 경로가 이미 푸시했고,
+        //   ef/list 는 그 이후 화면에서 사라지지 않도록 메우는 역할. → 배포/공백 후 재푸시 방지.
+        //   (발효시각 도래로 warn/list 발효로 승격되면 cUp 이 _efBridged 아님 → 정식 발효 푸시 정상 발사.)
+        if (cUp && cUp._efBridged) continue;
+
         let prevUpcoming = toBlock(pUp);
         const currUpcoming = toBlock(cUp);
         const prevActive = toBlock(pAct);
@@ -2350,7 +2356,8 @@ function _efRowToInfo(row) {
         tmFc: row.tm_fc || row.st_tm || '',
         tmEf: row.ed_tm || '',            // [검증됨] ef/list 의 ed_tm = 발효(예정)시각 (정확시각)
         tmYn: '',
-        clrNtcTm: ''
+        clrNtcTm: '',
+        _efBridged: true                  // [표시전용 표식] ef/list 보강분 — 사용자 푸시 생성 제외(재푸시 방지)
     };
 }
 
