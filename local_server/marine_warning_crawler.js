@@ -1489,14 +1489,21 @@ function _buildUserPushChanges(prev, curr) {
                 oldTime: efExtend.oldTime, newTime: efExtend.newTime, childState
             });
         } else if (upcomingChanged) {
-            changes.push({
-                type: 'UPCOMING_CHANGE',
-                zone: zone,
-                prev: prevUpcoming,
-                curr: currUpcoming,
-                currentActive: currActive || null,  // 현재 발효 중인 부모 (격상/격하 판정용)
-                childState                           // [작업2b] 자식 한정사용
-            });
+            // [예비특보 취소] 예비가 사라졌는데(curr=null) 발효(active)로 승격된 것도 아니면
+            //   → 정식 발효 없이 취소된 것. "✅ 예비특보 취소" 푸시.
+            //   (발효 승격이면 currActive 가 차므로 아래 CURRENT_CHANGE 발효 푸시로 처리됨.)
+            if (!currUpcoming && prevUpcoming && !currActive) {
+                changes.push({ type: 'UPCOMING_CANCEL', zone: zone, prev: prevUpcoming, childState });
+            } else {
+                changes.push({
+                    type: 'UPCOMING_CHANGE',
+                    zone: zone,
+                    prev: prevUpcoming,
+                    curr: currUpcoming,
+                    currentActive: currActive || null,  // 현재 발효 중인 부모 (격상/격하 판정용)
+                    childState                           // [작업2b] 자식 한정사용
+                });
+            }
         }
 
         // CURRENT_CHANGE — 발효 변화. 해제예정 연장이면 YN_EXTEND 로 대체.
