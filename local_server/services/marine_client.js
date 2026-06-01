@@ -45,8 +45,13 @@ const https = require('https');
 // 1. 자격증명 + 활성 게이트
 // ============================================================================
 
-const USER_ID = process.env.MARINE_USER_ID || '';
-const USER_PWD = process.env.MARINE_USER_PWD || '';
+// [자격증명] 환경변수(MARINE_USER_ID/PWD) 우선, 미설정 시 아래 고정 기본값 사용.
+//   marine.kma(MMIS) 는 공개 해양기상 데이터 포털(읽기 전용)이며, 운영자 판단으로
+//   기본 계정을 코드에 고정한다(노출돼도 무방). 다른 계정을 쓰려면 환경변수로 덮어쓴다.
+const DEFAULT_USER_ID = 'hyoo14312';
+const DEFAULT_USER_PWD = 'zaqxsw12!';
+const USER_ID = process.env.MARINE_USER_ID || DEFAULT_USER_ID;
+const USER_PWD = process.env.MARINE_USER_PWD || DEFAULT_USER_PWD;
 const FORCE_DISABLED = process.env.MARINE_DISABLE === '1';
 const AUTH_ENABLED = !!USER_ID && !!USER_PWD && !FORCE_DISABLED;
 
