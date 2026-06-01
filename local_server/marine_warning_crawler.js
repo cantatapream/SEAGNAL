@@ -1384,11 +1384,19 @@ function _buildUserPushChanges(prev, curr) {
         const pAct = getAct(prev, zone), cAct = getAct(curr, zone);
         if (!pUp && !cUp && !pAct && !cAct) continue;
 
-        // [ef/list 표시전용] 발표대기 보강(_efBridged)으로 추가된 예비는 "표시 유지"가 목적이라
-        //   사용자 푸시를 생성하지 않는다. 실제 발표 시점엔 warn/latest 경로가 이미 푸시했고,
-        //   ef/list 는 그 이후 화면에서 사라지지 않도록 메우는 역할. → 배포/공백 후 재푸시 방지.
-        //   (발효시각 도래로 warn/list 발효로 승격되면 cUp 이 _efBridged 아님 → 정식 발효 푸시 정상 발사.)
-        if (cUp && cUp._efBridged) continue;
+        // [ef/list 보강 + 발송이력 dedup] ef/list 로만 잡힌 발표대기(_efBridged)는:
+        //   - 발송이력에 이미 있으면(=warn/latest 등으로 이미 발표 푸시됨) → 재푸시 방지로 skip.
+        //   - 이력에 없으면(=발표 순간을 통째로 놓쳐 ef/list 가 최초 포착) → 1회 발송 허용 + 기록.
+        //   (발효시각 도래로 warn/list 발효 승격 시엔 _efBridged 아님 → 정식 발효 푸시 정상 발사.)
+        if (cUp) {
+            const pubs = _loadPushedPubs();
+            const key = _pubKey(zone, cUp);
+            const known = pubs.has(key);
+            pubs.set(key, Date.now());                  // 최신 확인시각 갱신(메모리)
+            if (cUp._efBridged && known) continue;      // ef 보강 + 이미 발송됨 → 재푸시 방지 skip
+            if (!known) _pushedPubsDirty = true;        // 신규 통보문 → 이력 영속 저장 필요
+            // (ef 보강 + 미발송 → 아래로 진행해 1회 발송 / 비-ef 실시간 발표 → 정상 진행)
+        }
 
         let prevUpcoming = toBlock(pUp);
         const currUpcoming = toBlock(cUp);
@@ -2383,6 +2391,52 @@ function _isFutureExactTime(tmStr) {
 let _efListCache = { rows: [], at: 0 };
 const EF_LIST_CACHE_TTL_MS = 30 * 60 * 1000;   // 30분 — 인증 일시 실패 시 직전 성공분 재사용
 
+// ============================================================================
+// [발송이력 dedup] "이 통보문(발표)을 사용자에게 푸시한 적 있나" 를 통보문 단위로 영속 기록.
+//   목적: ef/list 로만 처음 발견된 발표대기 특보(발표 순간 warn/latest 창을 놓친 경우)도
+//         이력에 없으면 1회 발송하여 "신규인데 미발송" 공백을 메우되, 이미 발송된 통보문은
+//         재푸시하지 않는다(배포/공백 복귀 시 중복 방지). 재배포에도 유지되도록 디스크 영속.
+//   키: "zone|종류|발표시각(tmFc)" — tmFc 는 _applyAnnounceAnchor 로 고정되어 경로(warn/latest
+//       ↔ ef/list)·사이클과 무관하게 동일 통보문이면 같은 값으로 수렴(키 안정).
+// ============================================================================
+const PUSHED_PUBS_FILE = path.join(__dirname, 'data', 'marine_pushed_pubs.json');
+const PUSHED_PUB_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // 7일 — 오래된 통보문 이력 정리
+let _pushedPubs = null;       // Map(key → lastSeenMs), lazy-load
+let _pushedPubsDirty = false;
+
+function _loadPushedPubs() {
+    if (_pushedPubs) return _pushedPubs;
+    _pushedPubs = new Map();
+    try {
+        const raw = JSON.parse(fs.readFileSync(PUSHED_PUBS_FILE, 'utf8'));
+        const now = Date.now();
+        for (const k of Object.keys(raw)) {
+            if (now - raw[k] < PUSHED_PUB_TTL_MS) _pushedPubs.set(k, raw[k]);
+        }
+    } catch (_) { /* 파일 없음/파싱실패 → 빈 이력 */ }
+    return _pushedPubs;
+}
+
+function _savePushedPubs() {
+    if (!_pushedPubs || !_pushedPubsDirty) return;
+    try {
+        const now = Date.now();
+        const obj = {};
+        for (const [k, ms] of _pushedPubs) if (now - ms < PUSHED_PUB_TTL_MS) obj[k] = ms;
+        fs.writeFileSync(PUSHED_PUBS_FILE, JSON.stringify(obj), 'utf8');
+        _pushedPubsDirty = false;
+    } catch (e) {
+        console.warn('[Marine] pushed_pubs 저장 실패:', e && e.message);
+    }
+}
+
+/** 통보문(발표) 식별 키 — zone + 종류 + 발표시각(tmFc, anchor 고정). */
+function _pubKey(zone, info) {
+    const tp = (info && (info.wrnTpNm || info.wrnTp)) || '';
+    const fc = (info && info.tmFc) || '';
+    return `${zone}|${tp}|${fc}`;
+}
+
 /** ef/list 의 한글 종류명 → 실시간 문자코드 (스냅샷 일관성용). 대상 외는 ''. */
 function _efTpChar(tpNm) {
     if (tpNm === '태풍') return 'T';
@@ -2704,6 +2758,7 @@ async function run(opts = {}) {
         // 6) curr 를 다음 사이클의 prev 로 저장
         _prevSnapshot = curr;
         _savePrevSnapshot(curr);
+        _savePushedPubs();   // [발송이력 dedup] 이번 사이클 갱신분 영속화 (재배포에도 유지)
 
         // 7) [Followup E-2] weather_alerts.json 갱신 — SPEC §4.
         //    dispatch 후 / state 저장 후 / cycle 끝에 한 번. atomic tmp → rename.
