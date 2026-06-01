@@ -388,6 +388,16 @@ function generateMessage(filteredPayload) {
             return `ㅇ${zStr}\n   - 기존 : ${fmt(g.oldTime)}\n   - 변경 후 : ${fmt(g.newTime)}`;
         }).join('\n');
     }
+    // 14. 예비특보 취소 (발효 없이 예비특보가 소멸 — S10)
+    //   사용자 경로(generateMessage)에 prelim_cancel 전용 제목이 없어 Fallback("📢 …알림")으로
+    //   나가던 문제 수정. (관리자 경로 buildAdminTitle 에만 있던 "✅ 예비특보 취소" 문구를 사용자에도 적용)
+    //   prelim_cancel 은 시간 없음(EVENT_TIME_FIELD=null), 자식 한정사도 없음(buildChildQualifier '').
+    else if (templateId === 'prelim_cancel') {
+        genTitle = `✅ ${typeName} 예비특보 취소`;
+        const allZones = [];
+        items.forEach(i => i.zones.forEach(z => { if (!allZones.includes(z)) allZones.push(z); }));
+        genBody = `ㅇ${allZones.map(decorateZone).join(', ')}`;
+    }
     // Fallback
     else {
         genTitle = `📢 ${fullTitle} 알림`;
