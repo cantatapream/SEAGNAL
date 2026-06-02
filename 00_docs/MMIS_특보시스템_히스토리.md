@@ -669,6 +669,16 @@ main 기존 커밋: `b786ece`(:58 normalize), `6df054a`(E-1 콜드부팅 한정 
 - **부작용 없음 근거**: ef/list 보강·의심가드·자식 디바운스 직후에 호출 → "둘 다 놓친 사이클"만 대상(ef 살린 사이클은 비대상), 발효 승격은 `currActive` 차서 비대상. carry 블록=prev 예비 그대로(`_efBridged` 미포함) → `blockEqual` 무변화 → 발표/변경/연장/격상/자식 등 다른 푸시 무영향. 비영속이라도 carry 특성상 재시작 시 가짜취소·누락 없음(타이머 리셋=지연만).
 - **호출 순서**: `_applySuspiciousGuard` → `_applyChildReleaseDebounce` → **`_applyUpcomingCancelDebounce`** → `_applyAnnounceAnchor` → … → `_buildUserPushChanges`.
 
+### E. 발효중 해역의 공존 격상/격하 "발표" 누락 — `_tryAddCoexistingUpcoming` (#826)
+- **증상**: 제주도남동쪽안쪽먼바다가 **풍랑주의보 발효중(예: 06시~)** 상태에서 **풍랑경보로 격상(09시 발표, 11시 발효예정)**됐는데, **09시 "격상 발표"(다가오는 경보) 푸시가 오지 않고** 11시 발효 시점에서야 격상 발효 푸시만 도착했다. 발표대기 구간을 통째로 놓침 → "다가오는 특보" 표출도 비어 있었다.
+- **원인(독립 조사 2건 일치)**: 발표대기 보강 경로(ef/list `_enrichSnapshotWithEfList`, warn/latest GAP보강)가 모두 **`if (snap.parents.has(name)) continue;`** 가드로, **이미 발효중인 해역에 공존하는 상위(경보) 발표대기 통보문을 통째로 skip**했다. 그래서 격상 announcement가 스냅샷에 들어오지 못해 `UPCOMING_CHANGE`가 발생하지 않음. 추가로 ①해당 격상의 ef cmd가 `변경해제`라 cmd 필터 `['발표','변경','연장']`에도 걸렸고, ②설령 upcomings에 넣어도 **`LVL_RANK`에서 `예비`=`주의보`=2 동점**이라 active(주의보) 대비 격상으로 산출되지 않는 2차 함정이 있었다.
+- **해결(안전 설계)**: 새 헬퍼 **`_tryAddCoexistingUpcoming(snap, name, info)`** 도입. 발효중 active와 **등급 또는 종류가 다른** 발표대기면 `parents`를 덮지 않고 **`upcomings`에 병렬 추가**한다.
+  - `wrnLvlNm='예비'`는 **그대로 유지** → 매처/디바운스(`_applyUpcomingEfLogic`·`_debounceTimeValues`·`_applyUpcomingCancelDebounce`)·dedup(`_pubKey`)·표시 정책이 **전부 무수정**. 실제 등급은 신규 필드 **`wrnLvlReal`**(예: '경보')에 보존.
+  - 푸시 토글(`_buildUserPushChanges`)·표출 토글(`_buildZoneTreeFromSnapshot`)만 `wrnLvlReal`을 **우선 사용** → `push_sender.getAlertScore`가 active(주의보=12) 대비 신규(경보=15)를 **격상으로 산출**해 `📢 풍랑 주의보→경보 격상 발표`(`level_upgrade_publish`) 발사, 화면엔 `다가오는 풍랑경보 예정`(render.js가 upcoming.wrnLvl의 경보/주의보/예비 모두 지원) 표출. **격하는 대칭**으로 `level_downgrade_publish`.
+  - cmd 필터에 **`변경해제`를 추가**하되 **신규 GAP 부모 생성은 publish 계열(`발표/변경/연장`)로만 제한**(유령 부모 방지). `변경해제`는 `_isFutureExactTime(ed)` 가드로 **순수해제(ed=과거)는 자동 배제**, 미래 ed(=격상/격하 새 발효예정)만 통과.
+  - 공존 upcoming에 `_efBridged` 표식 → 깜빡임(ef/latest 진동) 시 `_pubKey` dedup으로 **1회만 발사**.
+- **부작용 없음 근거**: ①`wrnLvlReal`은 공존 격상/격하 upcoming에만 설정되고 평상시 발표대기(비활성 신규)·발효중 active·순수예비(warn/ready)에는 없어 **기존 동작 불변**. ②발효중이 아니거나 동급·동종이면 헬퍼가 `false` 반환 → 기존 GAP 경로 그대로. ③발효 도래(11시) 시 warn/list가 경보로 승격→`hasAct` true라 cancel-debounce가 carry 안 함→**유령 upcoming 잔존 없음**, `CURRENT_CHANGE` 격상 발효는 종전대로 발사. **회귀 테스트 26항 통과**(격상/격하 발표·동급 무발사·순수해제 제외·dedup 1회·발효 핸드오프·비활성 무영향·표출 검증).
+
 ### 추가 시행착오 요약 (§8 보강)
 | 문제 | 원인 | 해결 |
 |---|---|---|
@@ -677,3 +687,4 @@ main 기존 커밋: `b786ece`(:58 normalize), `6df054a`(E-1 콜드부팅 한정 
 | 풍랑경보→태풍경보 종류격상이 "해제시각 변경"으로 | 격상 판정이 등급 문자열만 비교 + 사용자 `type_upgrade` 문구 부재 | 점수 기반 종류격상 감지 + `generateMessage` 문구 (#824) |
 | 예비취소가 토글 무시·무조건 발송 | `release`/`announce` 토글 미매핑 | `release` 토글에 `prelim_cancel` 연동 (#825) |
 | 예비 글리치로 가짜 "예비취소" 발사 | 예비 소멸에 디바운스 없음 | `_applyUpcomingCancelDebounce`(3분 carry) (#826) |
+| 발효중 해역 격상(주의보→경보) "발표" 푸시 누락 | 발표대기 보강이 `parents.has` 가드로 공존 격상 skip + `예비`=`주의보` 동점 | `_tryAddCoexistingUpcoming`(upcomings 병렬+`wrnLvlReal`) (#826) |
