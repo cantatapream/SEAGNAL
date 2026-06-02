@@ -1426,8 +1426,10 @@ function _buildUserPushChanges(prev, curr) {
     };
 
     const toBlock = (info) => info ? {
+        // [B] 발효중 공존 격상/격하 예비는 wrnLvlReal(실제 등급)로 푸시 — push_sender 점수비교가
+        //   active 대비 정확한 격상/격하 방향을 내도록. 평상시(wrnLvlReal 없음)는 기존과 동일.
         wrnTp: info.wrnTpNm || info.wrnTp || '',
-        wrnLvl: info.wrnLvlNm || info.wrnLvl || '',
+        wrnLvl: info.wrnLvlReal || info.wrnLvlNm || info.wrnLvl || '',
         tmFc: info.tmFc || '',
         tmEf: info.tmEf || '',
         tmYn: info.tmYn || info.clrNtcTm || ''
@@ -1481,12 +1483,20 @@ function _buildUserPushChanges(prev, curr) {
         //   - 발송이력에 이미 있으면(=warn/latest 등으로 이미 발표 푸시됨) → 재푸시 방지로 skip.
         //   - 이력에 없으면(=발표 순간을 통째로 놓쳐 ef/list 가 최초 포착) → 1회 발송 허용 + 기록.
         //   (발효시각 도래로 warn/list 발효 승격 시엔 _efBridged 아님 → 정식 발효 푸시 정상 발사.)
+        let suppressUpcoming = false;                   // ef 보강 재푸시 방지(아래 upcoming emit 만 억제)
         if (cUp) {
             const pubs = _loadPushedPubs();
             const key = _pubKey(zone, cUp);
             const known = pubs.has(key);
             pubs.set(key, Date.now());                  // 최신 확인시각 갱신(메모리)
-            if (cUp._efBridged && known) continue;      // ef 보강 + 이미 발송됨 → 재푸시 방지 skip
+            if (cUp._efBridged && known) {
+                // ef 보강 + 이미 발송됨 → 재푸시 방지. 단, 발효중 active 와 공존(격상/격하 발표대기)
+                //   하는 경우엔 그 active 의 독립 변화(해제·해제예정시각·자식 추가/해제)는 계속
+                //   처리해야 하므로 zone 전체 skip 대신 upcoming emit 만 억제한다. 순수 GAP
+                //   (active 없음)은 기존대로 zone 전체 skip(부수효과 보존).
+                if (cAct) suppressUpcoming = true;
+                else continue;
+            }
             if (!known) _pushedPubsDirty = true;        // 신규 통보문 → 이력 영속 저장 필요
             // (ef 보강 + 미발송 → 아래로 진행해 1회 발송 / 비-ef 실시간 발표 → 정상 진행)
         }
@@ -1584,7 +1594,10 @@ function _buildUserPushChanges(prev, curr) {
         }
 
         // UPCOMING_CHANGE — 예비특보 변화. 연장이면 EF_EXTEND 로 대체 (신규 "발표" 오인 방지).
-        if (efExtend) {
+        //   suppressUpcoming(ef 공존 재푸시 방지)면 upcoming 계열 emit 만 건너뛰고 아래 active/자식은 처리.
+        if (suppressUpcoming) {
+            // 공존 예비 재푸시 억제 — UPCOMING 푸시(발표/연장/취소)만 생략
+        } else if (efExtend) {
             changes.push({
                 type: 'EF_EXTEND', zone: zone, curr: currUpcoming,
                 oldTime: efExtend.oldTime, newTime: efExtend.newTime, childState
@@ -1991,8 +2004,10 @@ function _buildZoneTreeFromSnapshot(snap) {
     const toBlock = (info) => ({
         wrnTp: info.wrnTpNm || info.wrnTp || '',       // 한글 우선 (data.js:269 호환)
         wrnTpNm: info.wrnTpNm || '',
-        wrnLvl: info.wrnLvlNm || info.wrnLvl || '',    // 한글 우선
-        wrnLvlNm: info.wrnLvlNm || '',
+        // [B] 발효중 공존 격상/격하 예비는 wrnLvlReal(실제 등급, 예: 경보)로 "다가오는 특보" 표출.
+        //   render.js 가 upcoming.wrnLvl 의 경보/주의보/예비를 모두 처리하므로 안전. 평상시 동일.
+        wrnLvl: info.wrnLvlReal || info.wrnLvlNm || info.wrnLvl || '',    // 한글 우선
+        wrnLvlNm: info.wrnLvlReal || info.wrnLvlNm || '',
         tmFc: normalizeMmisTime(info.tmFc),
         // [표시 = 확정값] 비교/푸시용 info.tmEf 를 그대로 표출. info.tmEf 는 (a)정확시각이
         //   오면 그 시각, (b)범위형만 오면 범위, (c)정확값을 본 뒤엔 그 정확값으로 고정(held),
@@ -2389,16 +2404,23 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
         //   → 발효 전이므로 예비(upcoming)로 스냅샷에 추가 (정확한 tm_ef 보존).
         //     앱 표시=예비(발효예정 정확시각), 푸시=범위→정확 time_ef_change.
         //   발효시각 도래 시 warn/list / warn-sasc/list 로 인계되어 정식(발효)으로 전환됨.
-        if (!['발표', '변경', '연장'].includes(cmd)) continue;  // publish 계열만 (해제/변경해제 제외)
+        // publish 계열(발표/변경/연장) + '변경해제'(격상/격하 해제부) 통과. '변경해제' 는 발효중
+        //   zone 공존 격하 판정에만 쓰고, 아래에서 신규 GAP 부모 생성은 publish 계열로만 제한.
+        const isPublishCmd = ['발표', '변경', '연장'].includes(cmd);
+        if (!isPublishCmd && cmd !== '변경해제') continue;
         const tmEf = String(row.tm_ef || '').trim();
         if (!tmEf || !_isFutureExactTime(tmEf)) continue;  // 정확·미래 발효시각만 (발표 발효대기)
         const parent = _extractParent(name);
         if (parent === name) {
-            // 부모형 — 발효중/예비면 그쪽 우선
-            if (snap.parents.has(name)) continue;
             const info = _rowToParentInfo(row);
+            info._realLvlNm = info.wrnLvlNm;   // [B] 실제 등급 보존 (예비 덮어쓰기 전) — 공존 격상/격하용
             info.wrnLvlNm = '예비';   // 발효 전 → 예비 취급 (표시·푸시 일관성)
             info.wrnLvl = info.wrnLvl || '1';
+            // [B] 발효중 zone 과 공존하는 상·하위/다른종류 → upcomings 보강 (격상/격하 발표).
+            if (_tryAddCoexistingUpcoming(snap, name, info)) continue;
+            // 부모형 — 발효중/예비면 그쪽 우선
+            if (!isPublishCmd) continue;   // '변경해제' 는 공존 격하 전용 — 신규 GAP 부모 생성 안 함
+            if (snap.parents.has(name)) continue;
             snap.parents.set(name, info);
             gapAdded++;
             // [수정A] warn/latest 는 자식 행을 주지 않으므로(부모만), 발표대기 동안
@@ -2549,6 +2571,7 @@ function _efRowToInfo(row) {
         wrnTpNm: tpNm,
         wrnLvl: '1',
         wrnLvlNm: '예비',                 // 발효 전 → 예비 취급 (표시·푸시 일관성, 기존 GAP 과 동일)
+        _realLvlNm: _normLvlNm(row.warn_lvl_nm),   // [B] 실제 등급(경보/주의보) — 발효중 zone 공존 격상/격하 판정·표출용 (평상시 미사용)
         tmFc: row.tm_fc || row.st_tm || '',
         tmEf: row.ed_tm || '',            // [검증됨] ef/list 의 ed_tm = 발효(예정)시각 (정확시각)
         tmYn: '',
@@ -2592,6 +2615,44 @@ function _addGapParentFromEf(snap, prev, name, info, counters) {
 }
 
 /**
+ * [B — 발효중 zone 공존 격상/격하 발표대기 보강]
+ *   이미 발효중(warn/list)인 해역에, 등급이나 종류가 다른 "발표대기" 통보문(예: 풍랑주의보
+ *   발효중 → 풍랑경보 발표·발효예정)이 ef/list·warn/latest 에 올 때, 기존 로직은
+ *   `snap.parents.has(name)` 가드에 걸려 그 격상/격하 발표를 통째로 누락했다.
+ *   → 발효중 active 와 등급/종류가 다르면 upcomings 로 보강하여
+ *     (a) 앱에 "다가오는 특보"로 병렬 표출, (b) UPCOMING_CHANGE → 격상/격하 발표 푸시 발사.
+ *
+ *   [안전 설계] wrnLvlNm 은 '예비' 로 유지(분류 불변 → 매처/디바운스/dedup/표시 정책 무영향),
+ *     실제 등급은 별도 wrnLvlReal 에 보존. 푸시 점수 비교(push_sender.getAlertScore)와
+ *     표출 배지는 wrnLvlReal 을 우선 사용해 active 대비 정확한 격상/격하 방향을 산출한다.
+ *     (LVL_RANK 에서 '예비'='주의보' 동점이라, wrnLvlReal 없이는 주의보→경보 격상이 동점
+ *      처리돼 발사되지 않음 — 이 필드가 핵심.)
+ *   _efBridged 표식을 달아 깜빡임(ef/latest 진동) 시 _pubKey dedup 으로 1회만 발사되게 한다.
+ *
+ * @returns {boolean} 발효중 zone 과 공존 처리했으면(또는 이미 upcoming 점유) true — 호출측은
+ *                    이후 신규 GAP 부모 생성을 건너뛴다. 발효중 아님/동급·동종이면 false.
+ */
+function _tryAddCoexistingUpcoming(snap, name, info) {
+    const active = snap.parents ? snap.parents.get(name) : null;
+    // 발효중(정식)이 아니면 일반 GAP 경로로 — 예비/해제 부모는 대상 아님
+    if (!active || !active.wrnLvlNm || active.wrnLvlNm === '예비' || active.wrnLvlNm === '해제') return false;
+    const realLvl = info._realLvlNm || info.wrnLvlNm || '';
+    const realTp = info.wrnTpNm || '';
+    const lvlDiffers = realLvl && realLvl !== active.wrnLvlNm;
+    const tpDiffers = realTp && active.wrnTpNm && realTp !== active.wrnTpNm;
+    if (!lvlDiffers && !tpDiffers) return false;   // 동급·동종 → 단순 시각변경(기존 경로), 공존 아님
+    if (!snap.upcomings) snap.upcomings = new Map();
+    if (snap.upcomings.has(name)) return true;     // 이미 다가오는(예비) 점유 — warn/ready 우선, 덮어쓰지 않음
+    const up = Object.assign({}, info);
+    up.wrnLvlNm = '예비';            // 분류 유지 (매처/디바운스/dedup/표시 정책 불변)
+    up.wrnLvlReal = realLvl;         // [신규] 실제 등급 — 푸시 점수·표출 배지 전용
+    up._efBridged = true;            // 깜빡임 재발사 방지 (_pubKey dedup 연동)
+    delete up._realLvlNm;
+    snap.upcomings.set(name, up);
+    return true;
+}
+
+/**
  * ef/list 행들로 발표대기 zone 을 snap 에 보강.
  * @param {StateSnapshot} snap - 현재 사이클 스냅샷 (parents/children/upcomings)
  * @param {Array} efRows - warn/ef/list 응답 row 배열
@@ -2600,23 +2661,41 @@ function _addGapParentFromEf(snap, prev, name, info, counters) {
 function _enrichSnapshotWithEfList(snap, efRows, prev) {
     if (!snap || !Array.isArray(efRows) || efRows.length === 0) return snap;
     // zone 별 최신 행 선택: tm_fc 최신 → tm_seq 최대 (여러 통보office/seq 중 가장 최근 상태).
+    //   [영향 격리] 두 셀렉션을 분리한다:
+    //     - latestByZone   : publish 계열(발표/변경/연장)만 — 신규 발표대기 GAP 생성용.
+    //                        '변경해제' 를 섞으면 같은 zone 의 publish 행을 밀어내(최신 우선)
+    //                        기존 GAP 생성이 누락될 수 있어, 이 셀렉션은 기존과 100% 동일 유지.
+    //     - coexistByZone  : publish + '변경해제' — 발효중 zone 공존 격상/격하 판정 전용(가산만).
+    const PUBLISH_CMDS = new Set(['발표', '변경', '연장']);
     const latestByZone = new Map();
+    const coexistByZone = new Map();
     for (const row of efRows) {
         const tpNm = String(row.warn_tp_nm || '');
         if (tpNm !== '풍랑' && tpNm !== '태풍') continue;            // 앱 대상 종류만
         const cmd = String(row.warn_cmd_nm || '').trim();
-        if (!['발표', '변경', '연장'].includes(cmd)) continue;      // 해제류 제외
+        // '변경해제' 는 격상/격하의 해제부(옛 등급 종료)일 수 있어 발효중 공존 판정에 필요 →
+        //   통과시키되, _isFutureExactTime(ed) 가드로 순수해제(ed=과거)는 배제.
+        if (!['발표', '변경', '연장', '변경해제'].includes(cmd)) continue;
         const name = _resolveZoneName(row);
         if (!name) continue;
         const ed = String(row.ed_tm || '').trim();
         if (!_isFutureExactTime(ed)) continue;                      // 발효시각 미래(=발표대기)만
         const key = String(row.tm_fc || '') + '#' + String(row.tm_seq || 0).padStart(4, '0');
-        const sel = latestByZone.get(name);
-        if (!sel || key > sel.key) latestByZone.set(name, { key, row });
+        const cx = coexistByZone.get(name);                         // 공존 판정용(모든 통과 cmd)
+        if (!cx || key > cx.key) coexistByZone.set(name, { key, row });
+        if (PUBLISH_CMDS.has(cmd)) {                                // 신규 GAP 선택용(publish 만 — 기존 동작 보존)
+            const sel = latestByZone.get(name);
+            if (!sel || key > sel.key) latestByZone.set(name, { key, row });
+        }
     }
     const counters = { gapAdded: 0, gapChildCarried: 0, gapChildSynth: 0 };
+    // [B] 1차: 발효중 zone 공존 격상/격하 → upcomings 보강 (가산만, 발효중 아니면 무동작).
+    for (const [name, sel] of coexistByZone) {
+        _tryAddCoexistingUpcoming(snap, name, _efRowToInfo(sel.row));
+    }
+    // 2차: 신규 발표대기 GAP (publish 계열만 — 기존 로직 그대로).
     for (const [name, sel] of latestByZone) {
-        // 실시간 endpoint 가 이미 커버(발효중/예비/발표대기)하면 skip — 중복/덮어쓰기 방지.
+        // 실시간 endpoint 가 이미 커버(발효중/예비/발표대기/공존)하면 skip — 중복/덮어쓰기 방지.
         if (snap.parents.has(name)) continue;
         if (snap.upcomings && snap.upcomings.has(name)) continue;
         const parent = _extractParent(name);
@@ -2891,6 +2970,8 @@ module.exports = {
     _score,
     _buildSnapshotFromMarine,
     _enrichSnapshotWithLatest,
+    _enrichSnapshotWithEfList,
+    _tryAddCoexistingUpcoming,
     _extractParent,
     _loadPrevSnapshot,
     _savePrevSnapshot,
