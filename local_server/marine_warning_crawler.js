@@ -1483,12 +1483,20 @@ function _buildUserPushChanges(prev, curr) {
         //   - 발송이력에 이미 있으면(=warn/latest 등으로 이미 발표 푸시됨) → 재푸시 방지로 skip.
         //   - 이력에 없으면(=발표 순간을 통째로 놓쳐 ef/list 가 최초 포착) → 1회 발송 허용 + 기록.
         //   (발효시각 도래로 warn/list 발효 승격 시엔 _efBridged 아님 → 정식 발효 푸시 정상 발사.)
+        let suppressUpcoming = false;                   // ef 보강 재푸시 방지(아래 upcoming emit 만 억제)
         if (cUp) {
             const pubs = _loadPushedPubs();
             const key = _pubKey(zone, cUp);
             const known = pubs.has(key);
             pubs.set(key, Date.now());                  // 최신 확인시각 갱신(메모리)
-            if (cUp._efBridged && known) continue;      // ef 보강 + 이미 발송됨 → 재푸시 방지 skip
+            if (cUp._efBridged && known) {
+                // ef 보강 + 이미 발송됨 → 재푸시 방지. 단, 발효중 active 와 공존(격상/격하 발표대기)
+                //   하는 경우엔 그 active 의 독립 변화(해제·해제예정시각·자식 추가/해제)는 계속
+                //   처리해야 하므로 zone 전체 skip 대신 upcoming emit 만 억제한다. 순수 GAP
+                //   (active 없음)은 기존대로 zone 전체 skip(부수효과 보존).
+                if (cAct) suppressUpcoming = true;
+                else continue;
+            }
             if (!known) _pushedPubsDirty = true;        // 신규 통보문 → 이력 영속 저장 필요
             // (ef 보강 + 미발송 → 아래로 진행해 1회 발송 / 비-ef 실시간 발표 → 정상 진행)
         }
@@ -1586,7 +1594,10 @@ function _buildUserPushChanges(prev, curr) {
         }
 
         // UPCOMING_CHANGE — 예비특보 변화. 연장이면 EF_EXTEND 로 대체 (신규 "발표" 오인 방지).
-        if (efExtend) {
+        //   suppressUpcoming(ef 공존 재푸시 방지)면 upcoming 계열 emit 만 건너뛰고 아래 active/자식은 처리.
+        if (suppressUpcoming) {
+            // 공존 예비 재푸시 억제 — UPCOMING 푸시(발표/연장/취소)만 생략
+        } else if (efExtend) {
             changes.push({
                 type: 'EF_EXTEND', zone: zone, curr: currUpcoming,
                 oldTime: efExtend.oldTime, newTime: efExtend.newTime, childState

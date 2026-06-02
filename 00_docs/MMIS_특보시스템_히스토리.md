@@ -677,7 +677,11 @@ main 기존 커밋: `b786ece`(:58 normalize), `6df054a`(E-1 콜드부팅 한정 
   - 푸시 토글(`_buildUserPushChanges`)·표출 토글(`_buildZoneTreeFromSnapshot`)만 `wrnLvlReal`을 **우선 사용** → `push_sender.getAlertScore`가 active(주의보=12) 대비 신규(경보=15)를 **격상으로 산출**해 `📢 풍랑 주의보→경보 격상 발표`(`level_upgrade_publish`) 발사, 화면엔 `다가오는 풍랑경보 예정`(render.js가 upcoming.wrnLvl의 경보/주의보/예비 모두 지원) 표출. **격하는 대칭**으로 `level_downgrade_publish`.
   - cmd 필터에 **`변경해제`를 추가**하되 **신규 GAP 부모 생성은 publish 계열(`발표/변경/연장`)로만 제한**(유령 부모 방지). `변경해제`는 `_isFutureExactTime(ed)` 가드로 **순수해제(ed=과거)는 자동 배제**, 미래 ed(=격상/격하 새 발효예정)만 통과.
   - 공존 upcoming에 `_efBridged` 표식 → 깜빡임(ef/latest 진동) 시 `_pubKey` dedup으로 **1회만 발사**.
-- **부작용 없음 근거**: ①`wrnLvlReal`은 공존 격상/격하 upcoming에만 설정되고 평상시 발표대기(비활성 신규)·발효중 active·순수예비(warn/ready)에는 없어 **기존 동작 불변**. ②발효중이 아니거나 동급·동종이면 헬퍼가 `false` 반환 → 기존 GAP 경로 그대로. ③발효 도래(11시) 시 warn/list가 경보로 승격→`hasAct` true라 cancel-debounce가 carry 안 함→**유령 upcoming 잔존 없음**, `CURRENT_CHANGE` 격상 발효는 종전대로 발사. **회귀 테스트 26항 통과**(격상/격하 발표·동급 무발사·순수해제 제외·dedup 1회·발효 핸드오프·비활성 무영향·표출 검증).
+- **부작용 없음 근거**: ①`wrnLvlReal`은 공존 격상/격하 upcoming에만 설정되고 평상시 발표대기(비활성 신규)·발효중 active·순수예비(warn/ready)에는 없어 **기존 동작 불변**. ②발효중이 아니거나 동급·동종이면 헬퍼가 `false` 반환 → 기존 GAP 경로 그대로. ③발효 도래(11시) 시 warn/list가 경보로 승격→`hasAct` true라 cancel-debounce가 carry 안 함→**유령 upcoming 잔존 없음**, `CURRENT_CHANGE` 격상 발효는 종전대로 발사.
+- **영향 격리 보강 2건(독립 검토 2건 반영)**:
+  - **cmd 셀렉션 분리**: `_enrichSnapshotWithEfList`에서 `변경해제`를 단일 `latestByZone`(최신 우선) 선택에 섞으면 같은 zone의 publish 행을 밀어내 **기존 신규 GAP 생성이 누락**될 수 있어, publish용 `latestByZone`(기존 100% 동일)와 공존용 `coexistByZone`(가산 전용)로 분리.
+  - **dedup skip 범위 축소**(B-5): `_buildUserPushChanges`의 ef 재푸시 방지 `continue`가 **zone 전체**를 건너뛰던 것을, 발효중 active와 공존하는 경우엔 **upcoming emit만 억제**하도록 좁힘(`suppressUpcoming`). 발표~발효 윈도우 동안 그 active의 독립 변화(해제·해제예정 시각변경·자식 추가/해제) 푸시가 억제되던 잠재 영향 제거. 순수 GAP(active 없음)은 기존대로 zone 전체 skip 보존.
+- **회귀 테스트 29항 통과**(격상/격하 발표·동급 무발사·순수해제 제외·dedup 1회·발효 핸드오프·비활성 무영향·표출 검증·**공존 dedup 후 active 독립변화 발사**·순수 GAP skip 보존). 독립 에이전트 2건 검토 — 표출 PASS, 기존기능 무영향(B-5만 지적되어 즉시 반영).
 
 ### 추가 시행착오 요약 (§8 보강)
 | 문제 | 원인 | 해결 |
