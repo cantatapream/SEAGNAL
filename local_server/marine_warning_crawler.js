@@ -247,6 +247,10 @@ class StateSnapshot {
         // [B] 발효중인 해역에 "다가오는(예비)" 특보가 공존할 때 그것을 보관 (발효 우선 드롭 대신).
         //   parents 가 active 인 zone 의 예비를 upcomings 에 분리 보관 → 병렬 표출.
         this.upcomings = raw.upcomings instanceof Map ? raw.upcomings : new Map();
+        // [제외 자식 게이트] MMIS 가 warn-sasc/list 에서 warn_lvl='0' 빈 메타행으로 "미포함"이라
+        //   명시한 자식명 집합 (통보문 '연안바다 제외'에 해당). 매 사이클 재계산되는 일시 필드라
+        //   toJSON 영속 대상 아님 — 발표대기 GAP 합성이 유령 자식을 끼워넣지 못하게 막는 용도.
+        this.excludedChildren = raw.excludedChildren instanceof Set ? raw.excludedChildren : new Set();
     }
 
     static fromJSON(obj) {
@@ -2253,7 +2257,14 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
         snap.parents.set(name, _rowToParentInfo(row));
     }
     // --- 2) 발효중 자식 (warn-sasc/list) ---
+    //   [제외 자식 게이트] MMIS 는 부모에 '미포함'인 자식을 warn-sasc/list 에 warn_lvl='0'
+    //   빈 메타행으로 명시한다(통보문 '연안바다 제외'). 그 명단을 모아 두었다가, 발표대기 GAP 의
+    //   PARENT_TO_CHILDREN '무조건 합성'이 이 자식을 유령으로 끼워넣지 못하게 막는다. 정상 포함
+    //   자식은 풀 행(warn_lvl≠0)으로 와서 여기 안 들어옴. (※ 반드시 list 기준 — warn-sasc/latest
+    //   는 발효중 정상 자식까지 전부 warn_lvl='0' 으로 줘서 분별력이 없어 게이트 소스로 부적합.)
     for (const row of (warnSascList || [])) {
+        const exName = _resolveZoneName(row);
+        if (exName && String(row.warn_lvl || '') === '0') snap.excludedChildren.add(exName);
         if (!_isLiveRow(row)) continue;
         if (!_isTargetRealtimeType(row.warn_tp)) continue;
         const childName = _resolveZoneName(row);
@@ -2448,6 +2459,10 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
                     if (mapped.length > 0) {
                         const m = new Map();
                         for (const cn of mapped) {
+                            // [제외 자식 게이트] MMIS 가 warn-sasc/list 에서 미포함(warn_lvl=0)이라
+                            //   명시한 자식은 합성하지 않음 — 통보문 '연안바다 제외'를 맹목 합성이
+                            //   '포함'으로 뒤집던 버그 차단. (prev-carry 분기·디바운스는 무수정.)
+                            if (snap.excludedChildren.has(cn)) continue;
                             m.set(cn, {
                                 wrnTp: info.wrnTp,
                                 wrnTpNm: info.wrnTpNm,
@@ -2459,8 +2474,10 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
                                 clrNtcTm: info.clrNtcTm  // 부모 해제예고 상속
                             });
                         }
-                        snap.children.set(name, m);
-                        gapChildSynth += m.size;
+                        if (m.size > 0) {
+                            snap.children.set(name, m);
+                            gapChildSynth += m.size;
+                        }
                     }
                 }
             }
@@ -2604,13 +2621,17 @@ function _addGapParentFromEf(snap, prev, name, info, counters) {
     if (mapped.length > 0) {
         const m = new Map();
         for (const cn of mapped) {
+            // [제외 자식 게이트] warn-sasc/list 에서 미포함(warn_lvl=0)으로 명시된 자식은 합성 안 함.
+            if (snap.excludedChildren.has(cn)) continue;
             m.set(cn, {
                 wrnTp: info.wrnTp, wrnTpNm: info.wrnTpNm, wrnLvl: '1', wrnLvlNm: '예비',
                 tmFc: info.tmFc, tmEf: info.tmEf, tmYn: info.tmYn, clrNtcTm: info.clrNtcTm
             });
         }
-        snap.children.set(name, m);
-        counters.gapChildSynth += m.size;
+        if (m.size > 0) {
+            snap.children.set(name, m);
+            counters.gapChildSynth += m.size;
+        }
     }
 }
 

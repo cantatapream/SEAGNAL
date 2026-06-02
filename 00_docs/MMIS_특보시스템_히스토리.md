@@ -683,6 +683,19 @@ main 기존 커밋: `b786ece`(:58 normalize), `6df054a`(E-1 콜드부팅 한정 
   - **dedup skip 범위 축소**(B-5): `_buildUserPushChanges`의 ef 재푸시 방지 `continue`가 **zone 전체**를 건너뛰던 것을, 발효중 active와 공존하는 경우엔 **upcoming emit만 억제**하도록 좁힘(`suppressUpcoming`). 발표~발효 윈도우 동안 그 active의 독립 변화(해제·해제예정 시각변경·자식 추가/해제) 푸시가 억제되던 잠재 영향 제거. 순수 GAP(active 없음)은 기존대로 zone 전체 skip 보존.
 - **회귀 테스트 29항 통과**(격상/격하 발표·동급 무발사·순수해제 제외·dedup 1회·발효 핸드오프·비활성 무영향·표출 검증·**공존 dedup 후 active 독립변화 발사**·순수 GAP skip 보존). 독립 에이전트 2건 검토 — 표출 PASS, 기존기능 무영향(B-5만 지적되어 즉시 반영).
 
+### F. 발표대기 GAP 자식 맹목 합성 — '연안바다 제외'를 '포함'으로 뒤집음 (제외 자식 게이트)
+- **증상(2026-06-02 제주도북부앞바다)**: MMIS 통보문(제06-17호, 11:30 발표)은 **"제주도북부앞바다(연안바다 제외)"** 풍랑주의보 발효 13:30 + 참고사항 "제주도북부연안바다 해제"였다. 그런데 우리 푸시는 ①11:32 발표·13:30 발효 모두 **"(연안바다 포함)"**(통보문과 반대), ②13:35 "풍랑주의보 일부 해제(모든 연안바다 해제)"가 발효와 분리·지연 발사되어 사용자 오해를 샀다.
+- **원인(독립 조사 2건 + MMIS 로그인 실측 일치 — MMIS 정상, 100% 우리 로직)**:
+  - MMIS는 자식 포함/제외를 **per-child 정확히** 제공한다. warn-sasc/list 에서 발효 자식은 풀 행(`warn_lvl:"2",발표`), **제외 자식은 `warn_lvl:"0"` 빈 메타행**(제주도북부앞바다중연안바다 S2320400). ef/list 엔 자식 행이 아예 없다. (같은 시각 다른 제주 연안바다 7개는 정상 풀 행 — 데이터가 부실한 게 아님.)
+  - 그러나 11:30 발표는 발효(13:30)가 미래라 부모가 **warn/latest GAP 보강**으로 들어오는데, 자식이 비면 `PARENT_TO_CHILDREN` 매핑으로 자식을 **무조건 '예비' 합성**(`_enrichSnapshotWithLatest`·`_addGapParentFromEf`)했다. MMIS의 level-0(제외)을 확인하지 않아 **유령 연안바다**가 `childState.active` 에 들어가 `buildChildQualifier`(`active==all==1` → `(연안바다 포함)`)를 만들었다(문제1).
+  - 그 유령이 13:30 발효 후 사라질 때 `_applyChildReleaseDebounce`(3분)에 걸려 13:35 `partial_release "(모든 연안바다 해제)"` 로 분리 발사됐다(문제2). 즉 **없던 자식을 합성→나중에 떼어내느라** 생긴 인공물.
+  - 부가 확인: marine 크롤러는 **ntfctn/list(공식 통보문)를 아예 읽지 않는다**(경로 상수만 존재). 단 warn-sasc/list 의 level-0 신호만으로 제외 판정이 가능하므로 통보문 PDF 파싱은 불필요.
+- **해결(제외 자식 게이트)**: `_buildSnapshotFromMarine` 에서 warn-sasc/**list** 의 `warn_lvl='0'` 자식명을 `snap.excludedChildren`(일시 필드, 미영속)에 모은 뒤, GAP 의 **PARENT_TO_CHILDREN '무조건 합성' 분기에서만** 그 자식을 스킵(`_enrichSnapshotWithLatest`·`_addGapParentFromEf`). 유령 자식이 애초에 안 생겨 문제1(포함→미발효)·문제2(지연 일부해제 소멸)가 동시 해결.
+- **착오사항(검토로 교정된 2건)** ⭐: 최초 제안은 ①게이트 소스를 "list+latest"로, ②합성·carry 분기 둘 다 게이트하려 했으나, 독립 검토 2건이 MMIS 실데이터로 바로잡았다.
+  - **(교정1) 소스는 `warn-sasc/list` 단독** — `warn-sasc/latest` 는 **발효중 정상 자식까지 52행 전부 level-0** 로 줘서 분별력이 없다(실측). latest 를 게이트 소스로 쓰면 정상 자식을 오제외하는 회귀가 발생하므로 **latest 는 게이트에서 제외**.
+  - **(교정2) 합성 분기만 게이트, prev-carry 분기·디바운스는 무수정** — carry/디바운스는 진짜 글리치(자식 일시 누락) 방어 장치라, 여기까지 게이트하면 글리치 시 가짜 "일부 해제"를 유발할 수 있다. 합성만 막아도 유령이 안 생기므로 carry/디바운스는 손댈 필요가 없다.
+- **부작용 없음 근거**: 정상 포함 자식은 list 에서 풀 행(`warn_lvl≠0`)이라 게이트에 안 걸림(데이터 확정). 자식이 list 에 아예 없던 기존 정상 GAP 합성도 그대로(게이트는 "명시적 level-0" 만 제외). 정상 경로(`_isLiveRow` 가 이미 level-0 자식을 거름)와 일관. **회귀 테스트 15항 통과**(제외→유령 미합성·"(연안바다 미발효)" / 정상 포함 유지·"(연안바다 포함)" / 발효중 자식 무관 / 소스=list 단독(latest level-0 무시) / ef GAP 경로 동일 / 발효 핸드오프 가짜해제 없음). 독립 검토 2건 "조건부 채택 → 교정 2건 반영 후 채택".
+
 ### 추가 시행착오 요약 (§8 보강)
 | 문제 | 원인 | 해결 |
 |---|---|---|
@@ -692,3 +705,4 @@ main 기존 커밋: `b786ece`(:58 normalize), `6df054a`(E-1 콜드부팅 한정 
 | 예비취소가 토글 무시·무조건 발송 | `release`/`announce` 토글 미매핑 | `release` 토글에 `prelim_cancel` 연동 (#825) |
 | 예비 글리치로 가짜 "예비취소" 발사 | 예비 소멸에 디바운스 없음 | `_applyUpcomingCancelDebounce`(3분 carry) (#826) |
 | 발효중 해역 격상(주의보→경보) "발표" 푸시 누락 | 발표대기 보강이 `parents.has` 가드로 공존 격상 skip + `예비`=`주의보` 동점 | `_tryAddCoexistingUpcoming`(upcomings 병렬+`wrnLvlReal`) (#826) |
+| '연안바다 제외'가 '포함'으로 + 발효/해제 시간차 | GAP 자식 맹목 합성(`PARENT_TO_CHILDREN`)이 MMIS level-0(제외) 미확인 → 유령 자식 → 13:30 후 디바운스로 분리해제 | 제외 자식 게이트(`snap.excludedChildren`, warn-sasc/**list** level-0, 합성 분기만) (§13-F) |
