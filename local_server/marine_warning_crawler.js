@@ -2650,35 +2650,45 @@ function _tryAddCoexistingUpcoming(snap, name, info) {
 function _enrichSnapshotWithEfList(snap, efRows, prev) {
     if (!snap || !Array.isArray(efRows) || efRows.length === 0) return snap;
     // zone 별 최신 행 선택: tm_fc 최신 → tm_seq 최대 (여러 통보office/seq 중 가장 최근 상태).
+    //   [영향 격리] 두 셀렉션을 분리한다:
+    //     - latestByZone   : publish 계열(발표/변경/연장)만 — 신규 발표대기 GAP 생성용.
+    //                        '변경해제' 를 섞으면 같은 zone 의 publish 행을 밀어내(최신 우선)
+    //                        기존 GAP 생성이 누락될 수 있어, 이 셀렉션은 기존과 100% 동일 유지.
+    //     - coexistByZone  : publish + '변경해제' — 발효중 zone 공존 격상/격하 판정 전용(가산만).
+    const PUBLISH_CMDS = new Set(['발표', '변경', '연장']);
     const latestByZone = new Map();
+    const coexistByZone = new Map();
     for (const row of efRows) {
         const tpNm = String(row.warn_tp_nm || '');
         if (tpNm !== '풍랑' && tpNm !== '태풍') continue;            // 앱 대상 종류만
         const cmd = String(row.warn_cmd_nm || '').trim();
-        // 발표/변경/연장 = publish 계열. '변경해제' 는 격상/격하의 해제부(옛 등급 종료)일 수 있어
-        //   발효중 zone 공존 격하 판정에 필요 → 통과시키되, 아래 _isFutureExactTime(ed) 가드로
-        //   순수해제(ed=과거)는 배제하고, 신규 GAP 부모 생성은 publish 계열로만 제한(유령부모 방지).
+        // '변경해제' 는 격상/격하의 해제부(옛 등급 종료)일 수 있어 발효중 공존 판정에 필요 →
+        //   통과시키되, _isFutureExactTime(ed) 가드로 순수해제(ed=과거)는 배제.
         if (!['발표', '변경', '연장', '변경해제'].includes(cmd)) continue;
         const name = _resolveZoneName(row);
         if (!name) continue;
         const ed = String(row.ed_tm || '').trim();
         if (!_isFutureExactTime(ed)) continue;                      // 발효시각 미래(=발표대기)만
         const key = String(row.tm_fc || '') + '#' + String(row.tm_seq || 0).padStart(4, '0');
-        const sel = latestByZone.get(name);
-        if (!sel || key > sel.key) latestByZone.set(name, { key, row, cmd });
+        const cx = coexistByZone.get(name);                         // 공존 판정용(모든 통과 cmd)
+        if (!cx || key > cx.key) coexistByZone.set(name, { key, row });
+        if (PUBLISH_CMDS.has(cmd)) {                                // 신규 GAP 선택용(publish 만 — 기존 동작 보존)
+            const sel = latestByZone.get(name);
+            if (!sel || key > sel.key) latestByZone.set(name, { key, row });
+        }
     }
     const counters = { gapAdded: 0, gapChildCarried: 0, gapChildSynth: 0 };
-    const PUBLISH_CMDS = new Set(['발표', '변경', '연장']);
+    // [B] 1차: 발효중 zone 공존 격상/격하 → upcomings 보강 (가산만, 발효중 아니면 무동작).
+    for (const [name, sel] of coexistByZone) {
+        _tryAddCoexistingUpcoming(snap, name, _efRowToInfo(sel.row));
+    }
+    // 2차: 신규 발표대기 GAP (publish 계열만 — 기존 로직 그대로).
     for (const [name, sel] of latestByZone) {
-        const info = _efRowToInfo(sel.row);
-        // [B] 발효중 zone 과 공존하는 상·하위/다른종류 발표대기 → upcomings 보강 (격상/격하 발표).
-        if (_tryAddCoexistingUpcoming(snap, name, info)) continue;
-        // 실시간 endpoint 가 이미 커버(발효중/예비/발표대기)하면 skip — 중복/덮어쓰기 방지.
+        // 실시간 endpoint 가 이미 커버(발효중/예비/발표대기/공존)하면 skip — 중복/덮어쓰기 방지.
         if (snap.parents.has(name)) continue;
         if (snap.upcomings && snap.upcomings.has(name)) continue;
-        // 신규 GAP 부모/자식 생성은 publish 계열만 — '변경해제' 는 공존 격하 전용(유령부모 방지).
-        if (!PUBLISH_CMDS.has(sel.cmd)) continue;
         const parent = _extractParent(name);
+        const info = _efRowToInfo(sel.row);
         if (parent === name) {
             _addGapParentFromEf(snap, prev, name, info, counters);
         } else {
