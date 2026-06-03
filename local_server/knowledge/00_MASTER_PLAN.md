@@ -153,19 +153,23 @@
 | P0 | 진단 결과 | `phases/phase0_diagnostics.md` | ✅ |
 | P0 | 골든 회귀셋 + 러너 | `phases/phase0_golden.jsonl`, `phases/phase0_runner.py`, `phases/phase0_runner.md` | ✅ |
 | X | 검토 리포트 | `phases/plan_review.md` | ✅ |
-| X | 이미 구현된 기능 인벤토리 | `phases/implemented_inventory.md` | ⏳ |
-| X | 교차 관심사·운영정책 | `phases/cross_cutting.md` | ⏳(요지는 §8) |
-| X | 보안 경계 명세 | `phases/security_boundary.md` | ⏳ |
+| X | 이미 구현된 기능 인벤토리 | `phases/implemented_inventory.md` | ✅ (2026-06-03, 2-pass, 37기능·20도구·커밋 매핑) |
+| X | 교차 관심사·운영정책 | `phases/cross_cutting.md` | ✅ (2026-06-03, 6축·SLO·DoD 0/5 갭 명시) |
+| X | 보안 경계 명세 | `phases/security_boundary.md` | ✅ (2026-06-03, web_search 우회 잔여리스크 확정) |
 | P2a | 직군 지식베이스 8종 | `jikgun/*.md` | ✅ |
 | P2a | 직군 공통 스키마 | `jikgun/_SCHEMA.md` | ⏳ |
-| P2a | 통합 STT 용어사전 | `jikgun/_glossary_stt.md` | ⏳ |
-| P2a | GAP→로드맵 | `phases/gap_roadmap.md` | ⏳ |
+| P2a | 통합 STT 용어사전 | `jikgun/_glossary_stt.md` | ✅ (2026-06-03, 호출어 5변형 엔진정합·vocab 통합) |
+| P2a | GAP→로드맵 | `phases/gap_roadmap.md` | ✅ (2026-06-03, GAP 37건·부분보유 재분류) |
 | P1 | 온톨로지 스키마 | `phases/phase1_ontology_schema.md` | ✅(설계) |
 | P1 | 지식그래프 빌더+데이터 | `graph/build_graph.js`, `graph/graph.json` | ✅ |
 | P1 | **데이터 카탈로그(단일 출처) 빌더+데이터** | `knowledge/build_data_catalog.js`, `knowledge/data_catalog.json` | ✅ (21데이터셋·드리프트게이트) |
+| P1 | 해구↔해역 매핑 빌더+데이터 | `graph/build_haegu_sea_mapping.js`, `graph/haegu_sea_mapping.json` | ✅ (2026-06-03, 1296해구→48해역, 5코드 폴백 주의) |
 | X | **호출어 엔진(Vosk)** | `android/app/src/main/java/com/seagnal/app/voice/Vosk*.java`, `SeagnalAssistantPlugin.java`(확장) | ✅ (APK 재빌드 대기) |
-| P3 | 선제 규칙(기계가독) | `phases/phase3_proactive_rules.md` | ⏳ |
-| P4 | 수집·검수 파이프라인 | `phases/phase4_pipeline.md` | ⏳ |
+| P3 | 선제 규칙(기계가독) | `phases/phase3_proactive_rules.md` | ✅ (2026-06-03, 64규칙 JSON·트리거 평가기 의사코드) |
+| P4 | 수집·검수 파이프라인 | `phases/phase4_pipeline.md` | ✅ (2026-06-03, 사람검수·1제안=1커밋·admin 인증정합) |
+| X | 평가 측정 토대 — sentinel/평가확대/환각캡처 | `phases/phase2b_sentinel.{jsonl,md}`, `phases/phase2b_eval_expand_v2.md`, `phases/halluc_cot_capture.py` | ✅ (2026-06-03 초안) |
+| X | 인프라 설계 — 토큰계측/모듈분리/args스키마/CI/로그스키마 | `phases/token_metering_design.md`, `refactor_assistant_modules.md`, `tool_args_schema.md`, `builder_ci_design.md`+`ci_workflow_draft.yml`, `assistant_log_schema.md` | ✅ (2026-06-03 설계초안) |
+| X | 보안 회귀 — 관리자격리/memory누수 | `phases/security_admin_{regression.md,cases.jsonl}`, `memory_leak_{regression.md,cases.jsonl}` | ✅ (2026-06-03, 러너 확장 필요 명시) |
 
 ---
 
@@ -267,6 +271,7 @@
 | 2026-05-30 | **§6 #24·#21·#22·#23 4건 패치 (트랙 1 — 즉시)** — (#24) synth 프롬프트 "컨텍스트 격리 — [최근 대화]/memory/focus 라벨 출력 금지" + 응답 후처리 라벨 라인 제거. (#21) `knowledge/jikgun/_thresholds.json` 9직군 안전 임계표(파고/풍속/시정/파주기/수온) + synth 에 직군별 임계표 + "사용자 정량 수치 단정 시 임계표 직접 비교, 가부 결론 한 줄 먼저" 규칙. (#22) runBrain 에 대명사·생략 주어 검출(거기/그곳/방금) + focus.zone/haegu/coords 결정론적 args 주입(LLM 우회). (#23) planQuery 에 marine_leisure 해변명→get_surfing_index 우선 / local_gov 모호지명→GPS·default·전국 처리 강제. **회귀 0(평가셋 PASS 10/10 유지, 지연 p95 5279→4810ms)**. 자유변칙 재측정 진행중 |
 | 2026-05-30 | **자유변칙 v3 재측정 (4건 패치 후, 440 케이스 직렬 37.2분)** — **종합 321/440 (72%) — v2 320/440 대비 ±0 (부분 회복+회귀 상쇄)**. 카테고리: 정량 15%→**28%(+13)** ✅ #21 효과 / 기본 85→89% / 변칙 98→100% / 메타 84→79% / 연속 48→**43%(-5)** ❌ #22 회귀 의심 / 다중 60→58% / 환각 98→96%. 직군: marine_leisure 56→**69%(+13)** ✅ #23 효과 / angler/fishery/navy 소폭 개선 / coast_guard 78→70%(-8) public_org 74→70% mof 81→78% 회귀(LLM 비결정성+#22 부작용 의심). memory 누수 ANG-6-03b 사라짐 ✅ #24 효과. CoT 누수 0건 유지. 신규 환각 LG-7-02("산업재해 사망자 113명") — 도메인 외 답을 도메인으로 오인. 다음: #22 디버그·#27 새 환각 추적 |
 | 2026-05-30 | **#27·#28 v4 패치 (트랙 1 차순)** — (#27) #22 회귀 디버그 — `FOCUS_ZONE_ARG` 도구별 매핑 테이블(zone/place/location/beach/harbor) 도입. get_tide/get_buoy_observation/get_fishing_index/get_surfing_index 등 zone 인자 없는 도구도 정확히 채움. focus.buoy → get_buoy_observation.args.buoyName 신규 주입. PRONOUN_RE 에서 "그 때"(시간 후속어) 제외 — 오탐 차단. (#28) synth 프롬프트에 "비기상·비도메인 정보(산업재해·법령·매뉴얼·통계 등) 거절" 규칙 — LG-7-02 환각 추적. **회귀 0(평가셋 PASS 10/10 유지, 지연 p95 4810→4691ms)**. 자유변칙 v4 재측정 진행중 |
+| 2026-06-03 | **선제 산출물 18항목 × 2-agent(작성+검수) 병렬 생성 (옵션 D, Opus)** — 페이즈 선결조건과 무관하게 미리 해둘 수 있는 횡단 자산 18건을 1차 agent(작성·자체검토) → 2차 agent(독립 재검토·직접 개선) 직렬 구조로 생성. **신규 산출물 24파일** (phases 18 + graph 3 + jikgun 1 + 검증). 2차 검수가 잡아낸 실질 결함 다수: 도구개수 19→20 오기(get_seafog_cctv·resolve_location 누락, 3개 문서 공통)·토큰계측 thoughtsTokenCount 누락(비용 과소)·cross_cutting p95 갭 무마를 미검증가설로 강등(DoD 0/5)·로그스키마 focus.rankedItems 좌표누설 위험·관리자/memory 회귀는 러너 확장 필수·선제규칙 logic 7건 정정·해구매핑 5코드 폴백·모듈분리 줄구간/의존 정정. 코드 직접수정 0(전부 설계·명세·데이터·스크립트). 문법/JSONL/YAML 전수 검증 통과 |
 
 ---
 
