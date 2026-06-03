@@ -38,6 +38,7 @@ const { DATA_DIR } = require('../config/server_config');
 const { dataCache, refreshCache } = require('../services/cache_manager');
 const scheduler = require('../scheduler');
 const regionalForecastCollector = require('../regional_forecast_collector');
+const marineClient = require('../services/marine_client');   // [통보문] ef/list (해역별 통보문 PDF) 조회용
 // [신규] 캐시 신선도 검사 + 응답 헤더 부착 + 백그라운드 재수집 트리거
 //        services/freshness.js 의 POLICY 에 정의된 데이터(특보/부이/해상기상전망)에 한해
 //        응답 헤더(X-Data-Updated-At, X-Data-Age-Seconds, X-Data-Fresh)를 자동 부착하고,
@@ -943,6 +944,127 @@ router.get('/api/bulletin-cache/:reportId', (req, res) => {
         res.json(cacheData);
     } catch (e) {
         res.status(500).json({ error: e.message });
+    }
+});
+
+// 6-b. 해역별 통보문 이력 (특보 구역 옆 📋 버튼용)
+//   MMIS ntfctn/list 는 해역 식별자가 없어 해역별 조회 불가 → ef/list 로 구성한다.
+//   ef/list row 는 해역명(kor_nm)·발표시각(tm_fc)·종류/등급/발표구분(warn_*_nm)·관할청
+//   (prdc_go)·원문 PDF 경로(file_nm)를 부모 해역별로 제공한다(자식=연안/평수 행은 없음).
+//   원문 PDF 는 marine.kma.go.kr 공개 경로(무인증)라 클라이언트가 iframe 모달로 열람한다.
+//
+//   [전국 vs 지방청 — 중요] 같은 발효를 본청(108, 전국 통합)과 관할 지방청이 각각 통보문
+//   PDF 로 낸다. 실측 확인: 전국(108) PDF 는 부모 해역만 담고 '연안바다/평수구역'이 없으나,
+//   관할 지방청 PDF 에는 그 해역의 연안바다/평수구역까지 들어있다. 따라서 사용자에게는
+//   **관할 지방청 통보문을 우선** 링크하고(연안/평수 내용 포함), 지방청 PDF 가 없는 발효만
+//   전국(108)으로 폴백한다. 해역의 관할 지방청은 ef/list 빈도로 식별(그 해역을 가장 자주
+//   통보한 비-108 prdc_go = 관할청; 인접청은 가끔만 등장). 한 발효는 1건으로 dedup.
+let _zoneBulletinCache = { at: 0, rows: null, homeByZone: null };
+const ZONE_BULLETIN_TTL_MS = 10 * 60 * 1000;   // 10분 — ef/list 인증 호출 부담 완화
+const MARINE_PDF_HOST = 'https://marine.kma.go.kr';
+const NATIONAL_GO = '108';                      // 본청(전국 통합 통보문) — 연안/평수 미포함
+
+// [해역 → 관할 지방청 prdc_go] PDF 원문 내용검증으로 생성한 정적 매핑(1차 진실).
+//   생성법: 각 해역의 후보 비-108 청 PDF 를 받아 'kor_nm' 이 실제 들어있는 청을 채택.
+//   빈도 휴리스틱만으로는 동률 해역(예: 울산앞바다 143:2·159:2)에서 그 해역이 아예 없는
+//   인접청 PDF 를 고를 수 있어(143 PDF엔 '울산' 없음) 이를 결정적으로 고정한다.
+//   값 '108' = 지방청 PDF 에서 해역명이 확인 안 돼 전국(본청)으로 폴백하는 해역.
+//   미등록(신규) 해역은 아래 빈도 휴리스틱(homeByZone)으로 best-effort 폴백.
+const ZONE_HOME_OFFICE = {
+    '강원남부앞바다': '108', '강원북부앞바다': '108', '강원중부앞바다': '108',
+    '경북남부앞바다': '143', '경북북부앞바다': '143',
+    '남해동부바깥먼바다': '159', '남해동부안쪽먼바다': '159',
+    '남해서부동쪽먼바다': '156', '남해서부서쪽먼바다': '184',
+    '동해남부남쪽바깥먼바다': '159', '동해남부남쪽안쪽먼바다': '159',
+    '동해남부북쪽바깥먼바다': '143', '동해남부북쪽안쪽먼바다': '143',
+    '동해중부바깥먼바다': '105', '동해중부안쪽먼바다': '105',
+    '부산앞바다': '159',
+    '서해남부남쪽바깥먼바다': '156', '서해남부남쪽안쪽먼바다': '156',
+    '서해남부북쪽바깥먼바다': '156', '서해남부북쪽안쪽먼바다': '156',
+    '서해중부바깥먼바다': '109', '서해중부안쪽먼바다': '109',
+    '울산앞바다': '159',
+    '인천·경기남부앞바다': '109', '인천·경기북부앞바다': '109',
+    '전남남부서해앞바다': '156', '전남북부서해앞바다': '156', '전남중부서해앞바다': '156',
+    '전북남부앞바다': '146', '전북북부앞바다': '146',
+    '제주도남동쪽안쪽먼바다': '184', '제주도남부앞바다': '184', '제주도남서쪽안쪽먼바다': '184',
+    '제주도남쪽바깥먼바다': '184', '제주도동부앞바다': '184', '제주도북부앞바다': '184',
+    '제주도서부앞바다': '184',
+    '충남남부앞바다': '133', '충남북부앞바다': '133'
+};
+
+const _zbNorm = (s) => String(s || '').replace(/\s+/g, '');
+
+async function _getZoneBulletinData() {
+    const now = Date.now();
+    if (_zoneBulletinCache.rows && (now - _zoneBulletinCache.at) < ZONE_BULLETIN_TTL_MS) {
+        return _zoneBulletinCache;
+    }
+    const kst = new Date(now + 9 * 3600000);
+    const ymd = (off) => {
+        const d = new Date(kst.getTime() + off * 86400000);
+        return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+    };
+    const rows = await marineClient.fetchWarnEfList({ warn_tp: '', st_tm: ymd(-30), ed_tm: ymd(1) });
+    const safe = Array.isArray(rows) ? rows : [];
+    // 해역별 관할 지방청 = 비-108 prdc_go 중 최빈값
+    const cnt = {};   // zoneNorm -> { prdc_go -> 횟수 }
+    for (const r of safe) {
+        const z = _zbNorm(r.kor_nm); if (!z) continue;
+        const g = String(r.prdc_go || ''); if (!g) continue;
+        (cnt[z] = cnt[z] || {})[g] = (cnt[z][g] || 0) + 1;
+    }
+    const homeByZone = {};
+    for (const z of Object.keys(cnt)) {
+        const non = Object.keys(cnt[z]).filter((g) => g !== NATIONAL_GO);
+        if (non.length) { non.sort((a, b) => cnt[z][b] - cnt[z][a]); homeByZone[z] = non[0]; }
+    }
+    _zoneBulletinCache = { at: now, rows: safe, homeByZone };
+    return _zoneBulletinCache;
+}
+
+router.get('/api/zone-bulletins', async (req, res) => {
+    const zone = String(req.query.zone || '').trim();
+    if (!zone) return res.status(400).json({ error: 'zone 파라미터 필요', bulletins: [] });
+    try {
+        const { rows, homeByZone } = await _getZoneBulletinData();
+        const z = _zbNorm(zone);
+        // 관할 지방청: PDF 내용검증 정적 매핑 우선 → 미등록이면 빈도 휴리스틱. (108=전국 폴백 해역)
+        const home = ZONE_HOME_OFFICE[z] || homeByZone[z] || null;
+        // 발효(이벤트) 단위로 묶고, 관할 지방청 > 그 외 지방청 > 전국(108) 순으로 PDF 선택
+        const groups = new Map();   // key -> rows[]
+        for (const r of rows) {
+            if (_zbNorm(r.kor_nm) !== z) continue;
+            const tmFc = String(r.tm_fc || '').trim();
+            const cmd = String(r.warn_cmd_nm || '').trim();
+            const tp = String(r.warn_tp_nm || '').trim();
+            const lvl = String(r.warn_lvl_nm || '').trim();
+            const key = tmFc + '|' + tp + '|' + lvl + '|' + cmd;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(r);
+        }
+        const bulletins = [];
+        for (const cands of groups.values()) {
+            const pick =
+                (home && cands.find((r) => String(r.prdc_go) === home)) ||   // 1순위: 관할 지방청
+                cands.find((r) => String(r.prdc_go) !== NATIONAL_GO) ||       // 2순위: 그 외 지방청
+                cands[0];                                                     // 3순위: 전국(108) 폴백
+            const r = pick;
+            const tp = String(r.warn_tp_nm || '').trim();
+            const lvl = String(r.warn_lvl_nm || '').trim();
+            const cmd = String(r.warn_cmd_nm || '').trim();
+            const fileNm = String(r.file_nm || '').trim();
+            bulletins.push({
+                time: String(r.tm_fc || '').trim(),
+                title: (tp + lvl + (cmd ? ' ' + cmd : '')).trim(),
+                pdfUrl: fileNm ? (MARINE_PDF_HOST + fileNm) : '',
+                national: String(r.prdc_go) === NATIONAL_GO   // true 면 전국 폴백(연안/평수 미포함 가능)
+            });
+        }
+        bulletins.sort((a, b) => (a.time < b.time ? 1 : (a.time > b.time ? -1 : 0)));   // 최신 발표 우선
+        res.json({ zone, count: bulletins.length, bulletins: bulletins.slice(0, 50) });
+    } catch (e) {
+        console.error('[zone-bulletins] ef/list 조회 실패:', e && e.message);
+        res.status(502).json({ error: '통보문 조회 실패', bulletins: [] });
     }
 });
 

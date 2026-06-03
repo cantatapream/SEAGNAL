@@ -526,14 +526,14 @@ function createAlertElement(items) {
         flex-wrap: wrap;
     `;
 
-    // [New] 히스토리 아이콘 버튼: 해역명과 뱃지 사이에 삽입
-    // 해당 해역의 특보 통보문 히스토리를 팝업으로 조회할 수 있는 버튼
-    // history 데이터는 모든 alert에서 공유하므로 첫 번째 항목에서 가져옴
-    const zoneHistory = data.history || [];
-    if (zoneHistory.length > 0) {
+    // [통보문 버튼] 해역명과 뱃지 사이에 삽입. 클릭 시 해역별 통보문 이력(ef/list 기반)을
+    //   팝업으로 보여주고, 제목을 누르면 그 통보문 원문 PDF 가 모달로 열린다.
+    //   (과거엔 data.history(옛 weather.go.kr 크롤러)에 의존했으나 그 파이프라인이 비활성화돼
+    //    버튼이 안 뜨던 死기능 → MMIS ef/list 기반 /api/zone-bulletins 로 재배선.)
+    if (zoneNameStr && zoneNameStr !== '알 수 없는 구역') {
         const historyBtn = document.createElement('button');
         historyBtn.className = 'alert-history-btn';
-        historyBtn.title = '특보 히스토리 보기';
+        historyBtn.title = '통보문 보기';
         historyBtn.textContent = '📋';
         historyBtn.style.cssText = `
             background: rgba(129, 212, 250, 0.15);
@@ -560,8 +560,8 @@ function createAlertElement(items) {
         });
         historyBtn.addEventListener('click', function (e) {
             e.stopPropagation(); // 카드 아코디언 토글 방지
-            if (typeof showAlertHistoryPopup === 'function') {
-                showAlertHistoryPopup(zoneNameStr, zoneHistory);
+            if (typeof window.showZoneBulletins === 'function') {
+                window.showZoneBulletins(zoneNameStr);
             }
         });
         // 해역명(.zone-name) 뒤, 뱃지 컨테이너(.alert-badges) 앞에 삽입

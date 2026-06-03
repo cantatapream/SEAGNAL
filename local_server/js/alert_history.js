@@ -407,6 +407,113 @@ window.closeAlertHistoryPopup = function () {
 };
 
 // ============================================================================
+// [통보문] 해역별 통보문 이력 팝업 (ef/list 기반)
+//   특보 구역 옆 📋 버튼 → GET /api/zone-bulletins?zone=해역명 → 발표시각+제목 리스트.
+//   항목 클릭 시 그 통보문 원문 PDF 를 iframe 모달(openKmaIframeModal)로 열람.
+//   (기존 showAlertHistoryPopup 은 옛 weather.go.kr 크롤러 의존이라 대체.)
+// ============================================================================
+window.showZoneBulletins = function (zoneName) {
+    closeAlertHistoryPopup();
+
+    var modal = document.createElement('div');
+    modal.id = 'alert-history-modal';
+    modal.className = 'alert-history-modal';
+
+    var overlay = document.createElement('div');
+    overlay.className = 'alert-history-overlay';
+    overlay.addEventListener('click', closeAlertHistoryPopup);
+    modal.appendChild(overlay);
+
+    var content = document.createElement('div');
+    content.className = 'alert-history-content';
+
+    var header = document.createElement('div');
+    header.className = 'alert-history-header';
+    header.innerHTML = '<h3>📋 ' + escapeHtml(zoneName) + ' 통보문</h3>';
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'alert-history-close';
+    closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+    closeBtn.addEventListener('click', closeAlertHistoryPopup);
+    header.appendChild(closeBtn);
+    content.appendChild(header);
+
+    var body = document.createElement('div');
+    body.className = 'alert-history-body';
+    body.innerHTML = '<div class="alert-history-empty"><i class="fa-solid fa-spinner fa-spin"></i> 불러오는 중…</div>';
+    content.appendChild(body);
+
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+    document.body.style.overflow = 'hidden';
+    requestAnimationFrame(function () { modal.classList.add('show'); });
+    modal._escHandler = function (e) { if (e.key === 'Escape') closeAlertHistoryPopup(); };
+    document.addEventListener('keydown', modal._escHandler);
+
+    fetch('/api/zone-bulletins?zone=' + encodeURIComponent(zoneName))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            var list = (data && data.bulletins) || [];
+            if (!list.length) {
+                body.innerHTML = '<div class="alert-history-empty"><i class="fa-solid fa-inbox"></i> 통보문이 없습니다.</div>';
+                return;
+            }
+            body.innerHTML = '';
+            list.forEach(function (b) { body.appendChild(createZoneBulletinItem(b)); });
+        })
+        .catch(function () {
+            body.innerHTML = '<div class="alert-history-empty"><i class="fa-solid fa-triangle-exclamation"></i> 통보문을 불러오지 못했습니다.</div>';
+        });
+};
+
+// 통보문 한 건 DOM (발표시각 + 제목, 클릭 시 원문 PDF 모달)
+function createZoneBulletinItem(b) {
+    var item = document.createElement('div');
+    item.className = 'history-item';
+
+    var headerEl = document.createElement('div');
+    headerEl.className = 'history-item-header';
+    headerEl.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
+
+    var titleEl = document.createElement('span');
+    titleEl.style.cssText = 'font-weight:600;';
+    titleEl.textContent = b.title || '통보문';
+
+    var timeEl = document.createElement('span');
+    timeEl.style.cssText = 'font-size:0.8rem;opacity:0.75;white-space:nowrap;';
+    timeEl.textContent = formatBulletinTime(b.time);
+
+    headerEl.appendChild(titleEl);
+    headerEl.appendChild(timeEl);
+    item.appendChild(headerEl);
+
+    if (b.pdfUrl) {
+        item.style.cursor = 'pointer';
+        var hint = document.createElement('div');
+        hint.style.cssText = 'font-size:0.72rem;opacity:0.6;margin-top:4px;';
+        // 관할 지방청 통보문(연안바다/평수구역 포함)이 기본. 지방청 PDF 가 없어 전국(본청)으로
+        //   폴백한 경우만 (전국) 표식 — 전국 통보문엔 연안/평수 상세가 없을 수 있음.
+        hint.innerHTML = '<i class="fa-regular fa-file-pdf"></i> 통보문 원문 보기' +
+            (b.national ? ' <span style="opacity:0.7;">(전국)</span>' : '');
+        item.appendChild(hint);
+        item.addEventListener('click', function () {
+            if (typeof window.openKmaIframeModal === 'function') {
+                window.openKmaIframeModal(b.pdfUrl, b.title || '통보문');
+            } else {
+                window.open(b.pdfUrl, '_blank');
+            }
+        });
+    }
+    return item;
+}
+
+// "2026.06.02 11:30" → "06.02 11:30"
+function formatBulletinTime(t) {
+    var m = String(t || '').match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/);
+    if (m) return m[2] + '.' + m[3] + ' ' + m[4] + ':' + m[5];
+    return t || '';
+}
+
+// ============================================================================
 // 개별 히스토리 아이템 생성
 // ============================================================================
 
