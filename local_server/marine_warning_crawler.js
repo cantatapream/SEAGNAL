@@ -68,6 +68,23 @@ try {
     console.warn('[marine_warning_crawler] marine_client 로드 실패 — run() 비활성:', e && e.message);
 }
 
+// [자식-only 통보문 보강] 확정된 자식 변동(_buildUserPushChanges 통과분)에만 그 부모 관할
+//   지방청 ntfctn/list 를 이벤트성으로 조회·매칭해 ef/list 에 없는 자식 통보문을 영속 저장한다.
+//   로드 실패해도 크롤러 본체엔 영향 없음(자식 통보문 보강만 비활성).
+let childBulletin = null;
+try {
+    childBulletin = require('./services/child_bulletin');
+} catch (e) {
+    console.warn('[marine_warning_crawler] child_bulletin 로드 실패 — 자식 통보문 보강 비활성:', e && e.message);
+}
+// [단일 출처] 부모 해역 → 관할 지방청 prdc_go 정적 매핑 (routes/weather.js 와 공유).
+let ZONE_HOME_OFFICE = {};
+try {
+    ZONE_HOME_OFFICE = require('./config/zone_home_office').ZONE_HOME_OFFICE || {};
+} catch (e) {
+    console.warn('[marine_warning_crawler] zone_home_office 로드 실패 — 자식 통보문 보강 비활성:', e && e.message);
+}
+
 // ============================================================================
 // 부모 → 자식 fullName 매핑 (ZONE_MAPPING.md 확정본)
 // frontend mappings.js 와 동일 — 본 서버에서는 require 불가하므로 사본.
@@ -2939,17 +2956,34 @@ async function run(opts = {}) {
         //   - 부모 단위만 (자식 정보 X — V15 호환)
         //   - push_sender 자체 dedup (pendingPushes.json) 으로 중복 방지
         //   - 첫 부팅 가드 (위 E-1) 안 가드도 통과 후라 안전
+        // [자식-only 통보문 보강] _buildUserPushChanges 는 모든 디바운스·의심가드를 통과한
+        //   "확정 푸시 신호"다(SPEC §2). 이 결과를 자식 통보문 보강 모듈에 그대로 넘겨 자식
+        //   변동 펜딩을 등록한다(부모만 변동한 신호는 childState.added/released 가 비어 등록 안 됨).
+        let _userChanges = null;
         if (!opts.dryRun && pushSender && typeof pushSender.processChanges === 'function') {
             try {
-                const userChanges = _buildUserPushChanges(prevForDiff, curr);
+                _userChanges = _buildUserPushChanges(prevForDiff, curr);
                 // [P2] 변화 0 일 때도 호출 — push_sender 의 pending retry 보장
                 // (옛 weather_alerts_crawler 동일 패턴)
                 // [테스트 푸시] opts.adminToken 이 있으면 그 토큰(관리자 기기)에게만 발송.
                 //   장부 초기화(테스트 푸시) 버튼이 forceBaselinePush + adminToken 으로 호출.
                 const userOpts = opts.adminToken ? { adminToken: opts.adminToken } : {};
-                await pushSender.processChanges(userChanges, userOpts);
+                await pushSender.processChanges(_userChanges, userOpts);
             } catch (e) {
                 console.error('[marine_warning_crawler] 사용자 push 발사 실패 (관리자 push 영향 없음):', e && e.message);
+            }
+        }
+
+        // 5-B2) [자식-only 통보문 보강] 확정 자식 변동을 펜딩 등록 + 열린 펜딩 부모만 ntfctn/list 조회·매칭.
+        //   - 평상시(변동 없음·펜딩 없음) ntfctn 호출 0회 (tick 내부 가드).
+        //   - dryRun 이면 네트워크/등록 모두 skip. 실패해도 기존 흐름 무영향.
+        if (!opts.dryRun && childBulletin) {
+            try {
+                if (_userChanges === null) _userChanges = _buildUserPushChanges(prevForDiff, curr);
+                childBulletin.registerChildChanges(_userChanges, ZONE_HOME_OFFICE);
+                await childBulletin.tick({ marineClient, zoneHomeOffice: ZONE_HOME_OFFICE });
+            } catch (e) {
+                console.error('[marine_warning_crawler] 자식 통보문 보강 실패 (다른 동작 무영향):', e && e.message);
             }
         }
 

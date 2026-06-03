@@ -970,27 +970,11 @@ const NATIONAL_GO = '108';                      // 본청(전국 통합 통보�
 //   인접청 PDF 를 고를 수 있어(143 PDF엔 '울산' 없음) 이를 결정적으로 고정한다.
 //   값 '108' = 지방청 PDF 에서 해역명이 확인 안 돼 전국(본청)으로 폴백하는 해역.
 //   미등록(신규) 해역은 아래 빈도 휴리스틱(homeByZone)으로 best-effort 폴백.
-const ZONE_HOME_OFFICE = {
-    '강원남부앞바다': '108', '강원북부앞바다': '108', '강원중부앞바다': '108',
-    '경북남부앞바다': '143', '경북북부앞바다': '143',
-    '남해동부바깥먼바다': '159', '남해동부안쪽먼바다': '159',
-    '남해서부동쪽먼바다': '156', '남해서부서쪽먼바다': '184',
-    '동해남부남쪽바깥먼바다': '159', '동해남부남쪽안쪽먼바다': '159',
-    '동해남부북쪽바깥먼바다': '143', '동해남부북쪽안쪽먼바다': '143',
-    '동해중부바깥먼바다': '105', '동해중부안쪽먼바다': '105',
-    '부산앞바다': '159',
-    '서해남부남쪽바깥먼바다': '156', '서해남부남쪽안쪽먼바다': '156',
-    '서해남부북쪽바깥먼바다': '156', '서해남부북쪽안쪽먼바다': '156',
-    '서해중부바깥먼바다': '109', '서해중부안쪽먼바다': '109',
-    '울산앞바다': '159',
-    '인천·경기남부앞바다': '109', '인천·경기북부앞바다': '109',
-    '전남남부서해앞바다': '156', '전남북부서해앞바다': '156', '전남중부서해앞바다': '156',
-    '전북남부앞바다': '146', '전북북부앞바다': '146',
-    '제주도남동쪽안쪽먼바다': '184', '제주도남부앞바다': '184', '제주도남서쪽안쪽먼바다': '184',
-    '제주도남쪽바깥먼바다': '184', '제주도동부앞바다': '184', '제주도북부앞바다': '184',
-    '제주도서부앞바다': '184',
-    '충남남부앞바다': '133', '충남북부앞바다': '133'
-};
+const { ZONE_HOME_OFFICE } = require('../config/zone_home_office');   // [공유] 단일 출처 정적 매핑
+// [자식-only 통보문 보강] ef/list 에 없는 자식(연안/평수) 변경 통보문을 크롤러가 매칭·저장한 것.
+let childBulletin = null;
+try { childBulletin = require('../services/child_bulletin'); }
+catch (e) { console.warn('[zone-bulletins] child_bulletin 로드 실패 — 자식 병합 비활성:', e && e.message); }
 
 const _zbNorm = (s) => String(s || '').replace(/\s+/g, '');
 
@@ -1057,11 +1041,33 @@ router.get('/api/zone-bulletins', async (req, res) => {
                 time: String(r.tm_fc || '').trim(),
                 title: (tp + lvl + (cmd ? ' ' + cmd : '')).trim(),
                 pdfUrl: fileNm ? (MARINE_PDF_HOST + fileNm) : '',
-                national: String(r.prdc_go) === NATIONAL_GO   // true 면 전국 폴백(연안/평수 미포함 가능)
+                file_nm: fileNm,
+                national: String(r.prdc_go) === NATIONAL_GO,   // true 면 전국 폴백(연안/평수 미포함 가능)
+                childOnly: false                                // ef/list = 부모 통보문
             });
         }
-        bulletins.sort((a, b) => (a.time < b.time ? 1 : (a.time > b.time ? -1 : 0)));   // 최신 발표 우선
-        res.json({ zone, count: bulletins.length, bulletins: bulletins.slice(0, 50) });
+        // [자식-only 통보문 합집합] (SPEC §8) ef/list 부모 ∪ 크롤러가 매칭·저장한 자식 통보문.
+        //   부모 ef 행이 없는 "자식만 바뀐" 통보문(예: 연안바다 해제)을 목록에 반영.
+        if (childBulletin && typeof childBulletin.getChildBulletinsForZone === 'function') {
+            try {
+                const childBs = childBulletin.getChildBulletinsForZone(zone) || [];
+                for (const cb of childBs) bulletins.push(cb);
+            } catch (e) {
+                console.warn('[zone-bulletins] 자식 통보문 병합 실패 (무영향):', e && e.message);
+            }
+        }
+        // file_nm 기준 dedup — 같은 PDF 가 ef(부모)·자식 양쪽으로 들어오면 1건으로. file_nm
+        //   없는 항목(ef 폴백 등)은 time|title 로 보조 dedup. 중복 시 자식 통보문(연안/평수 포함) 우선.
+        const seen = new Map();
+        for (const b of bulletins) {
+            const k = b.file_nm ? ('f:' + b.file_nm) : ('t:' + b.time + '|' + b.title);
+            const prev = seen.get(k);
+            if (!prev) { seen.set(k, b); continue; }
+            if (!prev.childOnly && b.childOnly) seen.set(k, b);
+        }
+        const merged = Array.from(seen.values());
+        merged.sort((a, b) => (a.time < b.time ? 1 : (a.time > b.time ? -1 : 0)));   // 최신 발표 우선
+        res.json({ zone, count: merged.length, bulletins: merged.slice(0, 50) });
     } catch (e) {
         console.error('[zone-bulletins] ef/list 조회 실패:', e && e.message);
         res.status(502).json({ error: '통보문 조회 실패', bulletins: [] });

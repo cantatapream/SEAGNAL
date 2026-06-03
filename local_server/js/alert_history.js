@@ -476,7 +476,9 @@ function createZoneBulletinItem(b) {
 
     var titleEl = document.createElement('span');
     titleEl.style.cssText = 'font-weight:600;';
-    titleEl.textContent = b.title || '통보문';
+    // childOnly = 부모 해역은 그대로이고 연안바다/평수구역(자식)만 변동된 통보문.
+    //   부모 ef/list 에는 안 잡히는 자식 전용 변동이므로 작은 표식을 붙여 구분한다.
+    titleEl.textContent = (b.childOnly ? '〔연안/평수〕 ' : '') + (b.title || '통보문');
 
     var timeEl = document.createElement('span');
     timeEl.style.cssText = 'font-size:0.8rem;opacity:0.75;white-space:nowrap;';
