@@ -509,6 +509,47 @@ async function fetchWarnEfList({ prdc_go = '', warn_tp = '', st_tm = '', ed_tm =
     return _unwrap(j);
 }
 
+/**
+ * 관서별 통보문 목록 — ntfctn/list (auth).
+ *   ef/list 와 달리 해역 식별자가 없고 관서(prdc_go) 단위 통보문 PDF 메타만 준다.
+ *   row: { tm_fc, file_nm(PDF 경로), warn_title, ... } — file_nm 형식
+ *        KTKO50_<YYYYMMDDHHMM>_<prdc_go>_<seq>.pdf.
+ *   [자식-only 통보문 보강용] 자식 등급 변동이 확정됐을 때만 그 부모의 관할 지방청
+ *   (prdc_go) 통보문을 조회 → 새 PDF 본문에 부모명+자식명이 있으면 자식 통보문으로 매칭.
+ *   (참고: ntfctn/list 응답은 최신 약 50건으로 제한적 — 펜딩 직후 폴링이 전제.)
+ *
+ * @param {Object} params
+ *   - prdc_go: 관할관서 코드 (예: '184'=제주). 비우면 전체.
+ *   - st_tm:   YYYYMMDD (필수)
+ *   - ed_tm:   YYYYMMDD (없으면 st_tm 과 동일)
+ * @returns {Array} ntfctn row 배열
+ */
+async function fetchWarnNtfctnList({ prdc_go = '', st_tm = '', ed_tm = '' } = {}) {
+    if (!AUTH_ENABLED) return [];
+    if (!st_tm) throw new Error('ntfctn/list: st_tm 필수');
+    await ensureAuth();
+    const qs = new URLSearchParams({
+        prdc_go: String(prdc_go),
+        st_tm: String(st_tm),
+        ed_tm: String(ed_tm || st_tm)
+    }).toString();
+    const path = `${PATHS.WARN_NTFCTN_LIST}?${qs}`;
+    let res = await _request({ method: 'GET', path, authRequired: true });
+    if (res.statusCode === 401) {
+        // 세션 만료 — 재로그인 후 1회 재시도 (ef/list 와 동일 패턴)
+        console.log('[marine] ntfctn/list 401 — 재로그인 후 재시도');
+        await login();
+        res = await _request({ method: 'GET', path, authRequired: true });
+    }
+    if (res.statusCode !== 200) {
+        throw new Error(`ntfctn/list HTTP ${res.statusCode}`);
+    }
+    let j;
+    try { j = JSON.parse(res.body); }
+    catch (e) { throw new Error('ntfctn/list JSON parse fail'); }
+    return _unwrap(j);
+}
+
 // ============================================================================
 // 8. 디버그 / 상태 조회
 // ============================================================================
@@ -555,6 +596,8 @@ module.exports = {
     fetchAllRealtimeEndpoints,
     // 인증 endpoint
     fetchWarnEfList,
+    // [자식-only 통보문 보강] 관서별 통보문 목록 (auth)
+    fetchWarnNtfctnList,
     // 테스트
     _resetSessionForTest,
     _PATHS: PATHS
