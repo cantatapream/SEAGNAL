@@ -170,6 +170,10 @@
 | X | 평가 측정 토대 — sentinel/평가확대/환각캡처 | `phases/phase2b_sentinel.{jsonl,md}`, `phases/phase2b_eval_expand_v2.md`, `phases/halluc_cot_capture.py` | ✅ (2026-06-03 초안) |
 | X | 인프라 설계 — 토큰계측/모듈분리/args스키마/CI/로그스키마 | `phases/token_metering_design.md`, `refactor_assistant_modules.md`, `tool_args_schema.md`, `builder_ci_design.md`+`ci_workflow_draft.yml`, `assistant_log_schema.md` | ✅ (2026-06-03 설계초안) |
 | X | 보안 회귀 — 관리자격리/memory누수 | `phases/security_admin_{regression.md,cases.jsonl}`, `memory_leak_{regression.md,cases.jsonl}` | ✅ (2026-06-03, 러너 확장 필요 명시) |
+| P2b | v5 측정 프레임 종합 | `phases/v5_measurement_synthesis.md` (+_A/_B 원문) | ✅ (2026-06-03, 12-agent 합성) |
+| P2b | sentinel 잔존결함 패치 종합 | `phases/patch_synthesis.md` (+patch_A_continuity_localgov.md, patch_B_quantitative.md) | ✅ (2026-06-03, 충돌 봉합·단일 PR) |
+| X | p95 게이트화·SLO 운영정책 종합 | `phases/p95_gate_synthesis.md` (+_A_design, _B_ops_policy) | ✅ (2026-06-03, raw_ms 케이스적재 채택) |
+| P0 | sentinel P0 합류·케이스 확장 종합 | `phases/sentinel_gate_synthesis.md` (+_A_design, _B_extension) | ✅ (2026-06-03, SEC 별도 하드게이트) |
 
 ---
 
@@ -273,6 +277,7 @@
 | 2026-05-30 | **#27·#28 v4 패치 (트랙 1 차순)** — (#27) #22 회귀 디버그 — `FOCUS_ZONE_ARG` 도구별 매핑 테이블(zone/place/location/beach/harbor) 도입. get_tide/get_buoy_observation/get_fishing_index/get_surfing_index 등 zone 인자 없는 도구도 정확히 채움. focus.buoy → get_buoy_observation.args.buoyName 신규 주입. PRONOUN_RE 에서 "그 때"(시간 후속어) 제외 — 오탐 차단. (#28) synth 프롬프트에 "비기상·비도메인 정보(산업재해·법령·매뉴얼·통계 등) 거절" 규칙 — LG-7-02 환각 추적. **회귀 0(평가셋 PASS 10/10 유지, 지연 p95 4810→4691ms)**. 자유변칙 v4 재측정 진행중 |
 | 2026-06-03 | **Sentinel 20케이스 빠른 회귀 측정(1.85분)** — phase2b_sentinel.jsonl(8직군·8카테고리 대표) 도입. **PASS 16/20 (80%)** · 지연 p50 1454ms/p95 6588ms · CoT 누수 0 · 환각 의심 0. 실패 4건: ANG-2-01b 연속(#22 잔존)·LG-4-01·MOF-4-01 정량(#21 미발동, decision word 없음)·LG-1-01 "관내"→web_search(#23 한계). **연속 카테고리 3/4(75%)** v3 의 43% 대비 큰 개선 + CoT/환각 가드 항구성. p95 6588ms 는 DoD 5000ms 여전 초과(R2-06 검토 일치) — p95 게이트화 우선과제 확정 |
 | 2026-06-03 | **선제 산출물 18항목 × 2-agent(작성+검수) 병렬 생성 (옵션 D, Opus)** — 페이즈 선결조건과 무관하게 미리 해둘 수 있는 횡단 자산 18건을 1차 agent(작성·자체검토) → 2차 agent(독립 재검토·직접 개선) 직렬 구조로 생성. **신규 산출물 24파일** (phases 18 + graph 3 + jikgun 1 + 검증). 2차 검수가 잡아낸 실질 결함 다수: 도구개수 19→20 오기(get_seafog_cctv·resolve_location 누락, 3개 문서 공통)·토큰계측 thoughtsTokenCount 누락(비용 과소)·cross_cutting p95 갭 무마를 미검증가설로 강등(DoD 0/5)·로그스키마 focus.rankedItems 좌표누설 위험·관리자/memory 회귀는 러너 확장 필수·선제규칙 logic 7건 정정·해구매핑 5코드 폴백·모듈분리 줄구간/의존 정정. 코드 직접수정 0(전부 설계·명세·데이터·스크립트). 문법/JSONL/YAML 전수 검증 통과 |
+| 2026-06-03 | **4 옵션 × 2 worker + 1 합성 = 12-agent 다단 평가 (Opus)** — sentinel 결과 기반 4 트랙(가:v5측정프레임 / 나:잔존결함4건패치 / 다:p95게이트화·SLO / 라:sentinel P0합류·확장) 각각 독립 worker 2인 + 합성 1인 구조. **신규 12 산출물** (worker 8 + 합성 4). 합성이 잡아낸 핵심 충돌: (나) `planTools` 변수명 중복 + `get_warning` 응답 키 변경 → 분리 머지 시 LG-4-01 회귀 → 단일 PR 8커밋 통합 필수 / (다) A 의 분위수 합성 오류(`p95_pure+p95_backoff ≠ p95_raw`) → B 의 raw_ms 케이스별 적재 채택 / (가) A 게이트(절대 임계) vs B ROI(연속점수) 충돌 → "A 게이트 먼저, 내부에서 B 정렬" / (라) SEC 2.0× 가중치로는 5건 fail 10점 < 12점 HARD → SEC 별도 하드 게이트 분리. 다음: 합성본 기반 통합 PR 작성·실측 라운드 |
 
 ---
 
