@@ -68,6 +68,15 @@ try {
     console.warn('[marine_warning_crawler] marine_client 로드 실패 — run() 비활성:', e && e.message);
 }
 
+// [자식 통보문 수집기] 확정 자식 변동에만 펜딩 등록 → 관할청 ntfctn/list 매칭.
+//   로드 실패해도 크롤러 본체엔 영향 없음(자식 통보문 보강만 비활성).
+let childBulletinCollector = null;
+try {
+    childBulletinCollector = require('./services/child_bulletin_collector');
+} catch (e) {
+    console.warn('[marine_warning_crawler] child_bulletin_collector 로드 실패 — 자식 통보문 보강 비활성:', e && e.message);
+}
+
 // ============================================================================
 // 부모 → 자식 fullName 매핑 (ZONE_MAPPING.md 확정본)
 // frontend mappings.js 와 동일 — 본 서버에서는 require 불가하므로 사본.
@@ -1032,6 +1041,46 @@ function _applyChildReleaseDebounce(prev, curr) {
         }
         delete _childReleasePending[key];
     }
+}
+
+// ============================================================================
+// [자식 통보문 펜딩 연동] 디바운스·의심가드 통과 후의 curr 와 직전 prev 를 비교해
+//   "확정 자식 변동"(자식 신규 발효 / 해제 / 등급·종류 변경)을 추출한다.
+//   _applyChildReleaseDebounce 가 글리치성 깜빡임을 이미 curr 에 이어붙여 억제했으므로,
+//   여기서 잡히는 변동은 "실제 자식 푸시 신호"(3분 디바운스 통과분)에 해당한다.
+//   → child_bulletin_collector 에 펜딩 등록(관할청 ntfctn/list 로 PDF 매칭 트리거).
+//   [§2 글리치 가짜 등록 방지] 새 글리치 로직 추가 없이 기존 통과분에만 얹는다.
+//   반환: { changes: [{parent,child,home}], (펜딩 등록 대상) }
+// ============================================================================
+function _detectConfirmedChildChanges(prev, curr) {
+    if (!childBulletinCollector) return [];
+    const changes = [];
+    const childKey = (info) => info
+        ? `${info.wrnTpNm || info.wrnTp || ''}|${info.wrnLvlNm || info.wrnLvl || ''}`
+        : '';
+    const parents = new Set([
+        ...(prev && prev.children ? prev.children.keys() : []),
+        ...(curr && curr.children ? curr.children.keys() : [])
+    ]);
+    for (const parent of parents) {
+        const home = childBulletinCollector.homeOfficeFor(parent);
+        if (!home) continue;   // 관할청 미상(108 폴백) → ntfctn 매칭 불가, skip
+        const pm = (prev && prev.children) ? prev.children.get(parent) : null;
+        const cm = (curr && curr.children) ? curr.children.get(parent) : null;
+        const names = new Set([
+            ...(pm ? pm.keys() : []),
+            ...(cm ? cm.keys() : [])
+        ]);
+        for (const child of names) {
+            const pInfo = pm ? pm.get(child) : null;
+            const cInfo = cm ? cm.get(child) : null;
+            // 신규 발효 / 해제 / 등급·종류 변경 = 확정 자식 변동
+            if (childKey(pInfo) !== childKey(cInfo)) {
+                changes.push({ parent, child, home });
+            }
+        }
+    }
+    return changes;
 }
 
 // ============================================================================
@@ -2956,6 +3005,22 @@ async function run(opts = {}) {
         // 5-C) [연장 감지] 직전 특보 기억 갱신 — _buildUserPushChanges 이후 호출되어야
         //   다음 cycle 의 null gap 연장 판정에 직전 값이 쓰임.
         _updateExtensionMemory(curr);
+
+        // 5-D) [자식 통보문 보강] 확정 자식 변동을 펜딩 등록 + 열린 펜딩 ntfctn/list 매칭.
+        //   - prevForDiff vs curr (디바운스·의심가드 통과 후) 비교로 실제 자식 변동만 추출.
+        //   - 평상시 펜딩 0 → collector.tick() 은 ntfctn 호출 없이 즉시 return.
+        //   - 전부 graceful — 실패해도 기존 push/state 흐름엔 영향 없음.
+        if (childBulletinCollector && !opts.dryRun) {
+            try {
+                const childChanges = _detectConfirmedChildChanges(prevForDiff, curr);
+                if (childChanges.length) {
+                    childBulletinCollector.notePendingChildChanges(childChanges);
+                }
+                await childBulletinCollector.tick();
+            } catch (e) {
+                console.error('[marine_warning_crawler] 자식 통보문 보강 실패 (기존 흐름 무영향):', e && e.message);
+            }
+        }
 
         // 6) curr 를 다음 사이클의 prev 로 저장
         _prevSnapshot = curr;

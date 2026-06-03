@@ -509,6 +509,45 @@ async function fetchWarnEfList({ prdc_go = '', warn_tp = '', st_tm = '', ed_tm =
     return _unwrap(j);
 }
 
+/**
+ * 통보문 목록 (ntfctn/list) — 발표시각(tm_fc)·원문 PDF 경로(file_nm)·제목(warn_title) 제공.
+ *   해역 식별자가 없어 해역별 조회는 불가하나, prdc_go(관할관서)로 좁혀 받은 뒤
+ *   PDF 본문에서 해역명을 검증하는 용도로 사용한다(자식 통보문 매칭).
+ *
+ * @param {Object} params
+ *   - prdc_go: 관할관서 코드 (기본 비워둠 → 전체)
+ *   - st_tm:   YYYYMMDD (필수 — 미지정 시 throw)
+ *   - ed_tm:   YYYYMMDD (기본 st_tm 과 동일)
+ * @returns {Array} ntfctn row 배열 ({ tm_fc, file_nm, warn_title, prdc_go, ... })
+ */
+async function fetchWarnNtfctnList({ prdc_go = '', st_tm = '', ed_tm = '' } = {}) {
+    if (!AUTH_ENABLED) {
+        // 자격증명 없으면 호출 자체 skip — 호출자는 빈 배열을 받아 매칭을 비활성화.
+        return [];
+    }
+    if (!st_tm) throw new Error('ntfctn/list: st_tm 필수');
+    await ensureAuth();
+    const qs = new URLSearchParams({
+        prdc_go: String(prdc_go),
+        st_tm: String(st_tm),
+        ed_tm: String(ed_tm || st_tm)
+    }).toString();
+    const path = `${PATHS.WARN_NTFCTN_LIST}?${qs}`;
+    let res = await _request({ method: 'GET', path, authRequired: true });
+    if (res.statusCode === 401) {
+        console.log('[marine] ntfctn/list 401 — 재로그인 후 재시도');
+        await login();
+        res = await _request({ method: 'GET', path, authRequired: true });
+    }
+    if (res.statusCode !== 200) {
+        throw new Error(`ntfctn/list HTTP ${res.statusCode}`);
+    }
+    let j;
+    try { j = JSON.parse(res.body); }
+    catch (e) { throw new Error('ntfctn/list JSON parse fail'); }
+    return _unwrap(j);
+}
+
 // ============================================================================
 // 8. 디버그 / 상태 조회
 // ============================================================================
@@ -555,6 +594,7 @@ module.exports = {
     fetchAllRealtimeEndpoints,
     // 인증 endpoint
     fetchWarnEfList,
+    fetchWarnNtfctnList,
     // 테스트
     _resetSessionForTest,
     _PATHS: PATHS

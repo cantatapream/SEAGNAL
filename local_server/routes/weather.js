@@ -39,6 +39,10 @@ const { dataCache, refreshCache } = require('../services/cache_manager');
 const scheduler = require('../scheduler');
 const regionalForecastCollector = require('../regional_forecast_collector');
 const marineClient = require('../services/marine_client');   // [통보문] ef/list (해역별 통보문 PDF) 조회용
+// [자식 통보문] ef/list 에 없는 자식(연안바다/평수)만 변경된 통보문을 부모 목록에 병합.
+let childBulletinCollector = null;
+try { childBulletinCollector = require('../services/child_bulletin_collector'); }
+catch (e) { console.warn('[zone-bulletins] child_bulletin_collector 로드 실패 — 자식 병합 비활성:', e && e.message); }
 // [신규] 캐시 신선도 검사 + 응답 헤더 부착 + 백그라운드 재수집 트리거
 //        services/freshness.js 의 POLICY 에 정의된 데이터(특보/부이/해상기상전망)에 한해
 //        응답 헤더(X-Data-Updated-At, X-Data-Age-Seconds, X-Data-Fresh)를 자동 부착하고,
@@ -1057,8 +1061,32 @@ router.get('/api/zone-bulletins', async (req, res) => {
                 time: String(r.tm_fc || '').trim(),
                 title: (tp + lvl + (cmd ? ' ' + cmd : '')).trim(),
                 pdfUrl: fileNm ? (MARINE_PDF_HOST + fileNm) : '',
-                national: String(r.prdc_go) === NATIONAL_GO   // true 면 전국 폴백(연안/평수 미포함 가능)
+                file_nm: fileNm,
+                national: String(r.prdc_go) === NATIONAL_GO,  // true 면 전국 폴백(연안/평수 미포함 가능)
+                childOnly: false
             });
+        }
+        // [설계 §8] ef/list 부모 ∪ 저장된 자식-only 통보문 병합. file_nm 으로 dedup(부모 PDF 와
+        //   동일 file_nm 이면 이미 부모 목록에 있으므로 중복 추가 안 함), 최신순 정렬.
+        if (childBulletinCollector && typeof childBulletinCollector.getMatchedForZone === 'function') {
+            try {
+                const seen = new Set(bulletins.map((b) => b.file_nm).filter(Boolean));
+                for (const cb of childBulletinCollector.getMatchedForZone(zone)) {
+                    if (cb.file_nm && seen.has(cb.file_nm)) continue;   // 부모 목록과 중복
+                    if (cb.file_nm) seen.add(cb.file_nm);
+                    bulletins.push({
+                        // 자식-only 구분: 제목 접두 + childOnly 플래그
+                        time: String(cb.time || '').trim(),
+                        title: '[연안/평수] ' + String(cb.title || '').trim(),
+                        pdfUrl: cb.pdfUrl || (cb.file_nm ? (MARINE_PDF_HOST + cb.file_nm) : ''),
+                        file_nm: cb.file_nm || '',
+                        national: false,
+                        childOnly: true
+                    });
+                }
+            } catch (e) {
+                console.warn('[zone-bulletins] 자식 통보문 병합 실패 (부모 목록은 정상):', e && e.message);
+            }
         }
         bulletins.sort((a, b) => (a.time < b.time ? 1 : (a.time > b.time ? -1 : 0)));   // 최신 발표 우선
         res.json({ zone, count: bulletins.length, bulletins: bulletins.slice(0, 50) });
