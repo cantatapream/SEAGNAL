@@ -1,10 +1,9 @@
 # SEAGNAL × KMA MMIS 통합 종합 문서
 
 > 대상 저장소: `/home/user/SEAGNAL/`
-> 브랜치: `claude/kma-website-reference-KYLtf` (main 대비 +271 커밋)
-> 메타 브랜치 (이 문서 전용): `claude/marine-mmis-history-doc`
-> 작성일: 2026-06-01
+> 작성일: 2026-06-01 (본문 §1~§7.5) · 통합 갱신: 2026-06-02 (§7.6 추가)
 > 범위: MMIS (`marine.kma.go.kr`) 도입 시점부터 현재까지의 전체 메커니즘·시나리오·시행착오·현재 상태·표출 정책
+> **통합본**: 별도로 작성됐던 `00_docs/MMIS_특보시스템_히스토리.md`(압축 종합본 + 최신 수정 §13)를 본 문서로 **흡수·일원화**(2026-06-02). 최신 수정(#823~#829)은 **§7.6** 참조. 이 파일이 MMIS 해양특보 시스템의 단일 권위 문서다.
 
 ---
 
@@ -6803,6 +6802,60 @@ KMA archive 비교로 신규 자식 zone 자동 등록.
 ### § 7.5.9 admin reset 응답 메타 강화
 
 `pushedZoneCount` / `actualSentCount` 포함해 즉시 디버깅. maintenance 모드 진입 시 admin UI 경고.
+
+---
+
+## § 7.6 후속 수정 타임라인 (2026-06-01 ~ 06-02) — #823 ~ #829
+
+> 본 문서 본문(§1~§7.5)은 2026-06-01 작성본 기준이다. 이 § 는 그 이후(6/1~6/2)에 발견·수정한 내용으로, **흡수·폐지된 별도 문서 `00_docs/MMIS_특보시스템_히스토리.md`(§13)의 내용을 이 종합 문서로 통합**한 것이다. 모두 사용자 푸시·표출 정확화이며, 각 항은 독립 에이전트 검토를 거쳤다. 관련 시나리오: §4.15~4.19(격상/격하), §4.9(예비취소), §4.26~4.27(GAP), §4.21~4.22(자식 해제), §5.9(자식 한정사).
+
+### § 7.6.1 표시 = 확정값 전환 — 범위 sticky 폐지 (#823)
+- **시행착오**: 초기 설계의 "표시용 `*Disp` 범위형 sticky"가, 운영 중 **확정된 정확 시각이 옛 범위에 가려 갱신 안 되는** 문제를 드러냈다.
+  - 실측: 남해동부안쪽먼바다가 ef/list상 실제 발효시각 `6/2 00시`인데 화면은 옛 `06~12시`로 고착. 푸시("발효시각 변경 00시")는 정상인데 화면만 stale → **푸시값(`tmEf`)과 표시값(`tmEfDisp`)이 분리돼 어긋남**.
+  - 1차 보정(sticky 유지): 정확값이 범위 [시작,끝] 밖이면(앞당김/연장) 폐기 + **앞당김 시 `winMap`도 동기 폐기**(stale 윈도우發 가짜 "연장" 차단).
+  - **근본 정정(사용자 지적)**: "명확한 시각이 나오면 발효 확정인데 왜 범위를 유지하나?" → 깜빡임의 진짜 원인(`:58` 코드↔범위)은 이미 `normalizeMmisTime`의 :58→범위 변환이 해결하므로 **범위 sticky 자체가 불필요·유해**.
+  - **해결**: 표출을 **`info.tmEf`(비교/푸시용 확정값)** 로 단순화(`_writeWeatherAlertsJson`). 확정이면 정확, 예측이면 범위, 코드면 범위가 자연 표출되고 깜빡임은 `info.tmEf`의 held·디바운스가 방지. 표시·푸시값 일치.
+- **교훈**: 깜빡임 방지를 위해 표시 전용 상태를 따로 둔 게 과설계. 비교값이 이미 안정(held+디바운스)되어 있으면 표시는 그걸 그대로 쓰는 게 가장 단순·정확.
+
+### § 7.6.2 종류 격상/격하(풍랑→태풍) 사용자 푸시 누락 (#824)
+- **증상**: 남해동부바깥먼바다가 풍랑경보→태풍경보(종류 격상, 등급은 둘 다 '경보')인데 푸시가 "🚨 격상"이 아니라 **"🕐 해제시각 변경 · 미정"**으로 나감.
+- **원인(독립 조사 2건 일치)**: ①`push_sender` CURRENT/UPCOMING_CHANGE의 격상 판정이 **등급 문자열(`wrnLvl`)만 비교** → 등급이 같은 종류격상(경보→경보)을 못 잡고 `time_yn_change`로 빠짐. ②사용자 경로 `generateMessage`에 **`type_upgrade` 문구 부재**(관리자 `buildAdminTitle`에만 있고 `ADMIN_PUSH_ENABLED=false`로 비활성).
+- **해결**: 격상 판정을 **점수(`getAlertScore`: 태풍100>풍랑10) 기반**으로 확장(`prev.wrnTp!==curr.wrnTp`면 `type_upgrade/downgrade`), `generateMessage`에 종류격상 문구 추가("풍랑경보→태풍경보 격상 발효"). 핵심은 "태풍주의보 건너뛴 점프"가 아니라 **"같은 등급에서 종류만 올라간 것을 못 잡은 것"**.
+
+### § 7.6.3 #821~#824 통합 + 예비취소 토글 보강 (#825)
+- 추가 수정 4건(#821 예비취소 제목·#822 문서·#823 표시·#824 종류격상)을 단일 PR **#825**로 통합 머지.
+- 독립 검토 2건 반영: 예비취소(`prelim_cancel`)가 어떤 콘텐츠 토글에도 안 걸려 무조건 발송되던 비대칭을 **✅ 해제 계열로 보고 `release` 토글에 연동**(`routes/push.js`), 제목 `typeName` 누락 방어 폴백 `'특보'` 추가.
+
+### § 7.6.4 예비취소 글리치 가짜발사 차단 — `_applyUpcomingCancelDebounce` (#826)
+- **증상/위험**: 예비특보가 통보문 깜빡임(글리치)으로 **한 사이클 잠깐 사라졌다 재등장**하면, 사라진 사이클에 가짜 "✅ 예비취소"가 즉시 발사될 수 있었다(예비 소멸엔 디바운스·의심가드 보호 없었음 — `_classifyReleases`가 예비 소멸 제외).
+- **설계(독립 에이전트 3건 만장일치)**: 검증된 `_applyChildReleaseDebounce` 패턴 이식. 예비가 **실시간·ef/list 양쪽에서 사라진 사이클**에 한해 직전 예비를 `curr`로 **3분 carry** → `currUpcoming`이 채워져 `UPCOMING_CANCEL` 분기(`!currUpcoming`)가 성립 안 함 → 가짜취소 원천 억제. **푸시 판정부 무수정.** 3분 안 재등장 시 흡수, 3분 연속 부재면 carry 중단 → 진짜취소 1회.
+- **부작용 없음**: ef/list 보강·의심가드·자식 디바운스 직후 호출 → "둘 다 놓친 사이클"만 대상, 발효 승격은 `currActive` 차서 비대상. carry 블록=prev 예비 그대로 → `blockEqual` 무변화 → 다른 푸시 무영향.
+- **호출 순서**: `_applySuspiciousGuard` → `_applyChildReleaseDebounce` → **`_applyUpcomingCancelDebounce`** → `_applyAnnounceAnchor` → … → `_buildUserPushChanges`.
+
+### § 7.6.5 발효중 해역의 공존 격상/격하 "발표" 누락 — `_tryAddCoexistingUpcoming` (#826/#827)
+- **증상**: 제주도남동쪽안쪽먼바다가 **풍랑주의보 발효중**에서 **풍랑경보로 격상(09시 발표, 11시 발효예정)**됐는데, **09시 "격상 발표"(다가오는 경보) 푸시가 안 오고** 11시 발효 푸시만 도착. "다가오는 특보" 표출도 비어 있었다.
+- **원인(독립 조사 2건 일치)**: 발표대기 보강(ef/list `_enrichSnapshotWithEfList`·warn/latest GAP)이 모두 **`if (snap.parents.has(name)) continue;`** 가드로 **발효중 해역에 공존하는 상위(경보) 발표대기 통보문을 통째로 skip** → `UPCOMING_CHANGE` 미발생. 함정: ①격상 ef cmd가 `변경해제`라 cmd 필터에도 걸림, ②`LVL_RANK`에서 `예비`=`주의보`=2 **동점**이라 격상 산출 안 됨.
+- **해결(안전 설계)**: 새 헬퍼 **`_tryAddCoexistingUpcoming`** — 발효중 active와 **등급/종류가 다른** 발표대기면 `parents`를 안 덮고 **`upcomings`에 병렬 추가**. `wrnLvlNm='예비'` **유지**(매처/디바운스/dedup/표시 정책 무수정), 실제 등급은 신규 **`wrnLvlReal`**에 보존. 푸시·표출 toBlock만 `wrnLvlReal` 우선 → active(주의보=12) 대비 신규(경보=15)를 **격상 산출** → `📢 풍랑 주의보→경보 격상 발표`(`level_upgrade_publish`), 화면 `다가오는 풍랑경보 예정`. **격하 대칭**. cmd 필터에 `변경해제` 추가(신규 GAP 부모는 publish 계열만), 공존 upcoming에 `_efBridged`로 dedup 1회.
+- **영향 격리 2건(독립 검토 반영)**: ①cmd 셀렉션 분리(publish용 `latestByZone` 기존 동일 + 공존용 `coexistByZone` 가산), ②dedup skip 범위 축소(`suppressUpcoming` — 발효중 active의 독립 변화 푸시 보존, B-5).
+- **회귀 29항 통과**. 독립 에이전트 2건 검토 — 표출 PASS, 기존기능 무영향(B-5만 지적되어 즉시 반영).
+
+### § 7.6.6 발표대기 GAP 자식 맹목 합성 — '연안바다 제외'가 '포함'으로 뒤집힘 (제외 자식 게이트, #829)
+- **증상(2026-06-02 제주도북부앞바다)**: MMIS 통보문(제06-17호, 11:30)은 **"제주도북부앞바다(연안바다 제외)"** 발효 13:30 + 참고사항 "제주도북부연안바다 해제". 그런데 우리 푸시는 ①11:32 발표·13:30 발효 모두 **"(연안바다 포함)"**(통보문과 반대), ②13:35 "일부 해제(모든 연안바다 해제)"가 발효와 분리·지연 발사.
+- **원인(독립 조사 2건 + MMIS 로그인 실측 — MMIS 정상, 100% 우리 로직)**: MMIS는 자식 포함/제외를 **per-child 정확히** 줌(warn-sasc/list 발효 자식=풀 행, **제외 자식=`warn_lvl:"0"` 빈 메타행** S2320400, ef/list 자식 행 없음). 그러나 11:30 발표는 발효(13:30) 미래라 부모가 warn/latest GAP으로 들어오고, 자식이 비면 `PARENT_TO_CHILDREN` 매핑으로 **무조건 '예비' 합성** → MMIS level-0(제외) 미확인 → **유령 연안바다** → `buildChildQualifier` "(연안바다 포함)"(문제1). 그 유령이 13:30 발효 후 사라지며 `_applyChildReleaseDebounce`(3분) 거쳐 13:35 `partial_release` 분리 발사(문제2). 부가: marine 크롤러는 **ntfctn/list(통보문)를 안 읽음**(경로 상수만) — 단 warn-sasc/list level-0 신호만으로 제외 판정 가능.
+- **해결(제외 자식 게이트)**: `_buildSnapshotFromMarine`에서 warn-sasc/**list**의 `warn_lvl='0'` 자식명을 `snap.excludedChildren`(일시 필드, 미영속)에 모은 뒤, GAP의 **PARENT_TO_CHILDREN '무조건 합성' 분기에서만** 스킵(`_enrichSnapshotWithLatest`·`_addGapParentFromEf`). 유령 미생성으로 문제1(포함→미발효)·문제2(지연 일부해제) 동시 해결.
+- **착오사항(검토로 교정된 2건)** ⭐: 최초 제안은 ①소스 "list+latest", ②합성·carry 둘 다 게이트하려 했으나 독립 검토 2건이 MMIS 실데이터로 교정 — **(교정1) 소스는 `warn-sasc/list` 단독**(latest는 발효중 정상 자식까지 전부 level-0라 정상 자식 오제외 회귀), **(교정2) 합성 분기만 게이트**(carry/디바운스는 글리치 방어라 무수정).
+- **부작용 없음**: 정상 포함 자식은 list 풀 행(`warn_lvl≠0`)이라 게이트에 안 걸림. 자식이 list에 없던 기존 GAP 합성도 그대로(명시적 level-0만 제외). **회귀 15항 통과**.
+
+### § 7.6.7 후속 시행착오 요약표
+| 문제 | 원인 | 해결 |
+|---|---|---|
+| 정확 시각 확정인데 화면이 옛 범위로 고착 | 표시용 범위 sticky가 확정값을 가림 | 표시를 확정값(`info.tmEf`)로 단순화 (#823) |
+| 발효시각 앞당김 시 표시 미갱신 + 가짜 연장 | sticky가 늦어짐만 폐기·`winMap` stale | 앞당김 시 범위·`winMap` 동기 폐기 (#823) |
+| 풍랑경보→태풍경보 종류격상이 "해제시각 변경"으로 | 격상 판정이 등급 문자열만 비교 + 사용자 `type_upgrade` 문구 부재 | 점수 기반 종류격상 감지 + `generateMessage` 문구 (#824) |
+| 예비취소가 토글 무시·무조건 발송 | `release`/`announce` 토글 미매핑 | `release` 토글에 `prelim_cancel` 연동 (#825) |
+| 예비 글리치로 가짜 "예비취소" 발사 | 예비 소멸에 디바운스 없음 | `_applyUpcomingCancelDebounce`(3분 carry) (#826) |
+| 발효중 해역 격상(주의보→경보) "발표" 푸시 누락 | 발표대기 보강이 `parents.has` 가드로 공존 격상 skip + `예비`=`주의보` 동점 | `_tryAddCoexistingUpcoming`(upcomings 병렬+`wrnLvlReal`) (#826/#827) |
+| '연안바다 제외'가 '포함'으로 + 발효/해제 시간차 | GAP 자식 맹목 합성(`PARENT_TO_CHILDREN`)이 MMIS level-0(제외) 미확인 → 유령 자식 → 13:30 후 디바운스로 분리해제 | 제외 자식 게이트(`snap.excludedChildren`, warn-sasc/**list** level-0, 합성 분기만) (#829) |
 
 ---
 
