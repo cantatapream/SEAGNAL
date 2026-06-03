@@ -276,22 +276,9 @@ function _capPendingsPerParent(st) {
     }
 }
 
-/**
- * [안전망 a — 명시적 폐기] 상태 반전/후속 변동 시 해당 부모의 열린 펜딩을 폐기.
- *   크롤러가 같은 부모에 대해 또 다른 확정 변동을 감지하면 직전 펜딩이 이미 의미 없을 수 있다.
- * @param {Array<string>} parents 부모 해역명 목록
- */
-function discardPendingsForParents(parents) {
-    if (!Array.isArray(parents) || parents.length === 0) return 0;
-    const st = _ensureState();
-    const drop = new Set(parents.map((p) => _norm(p)));
-    let n = 0;
-    for (const [k, p] of Object.entries(st.pendings)) {
-        if (drop.has(_norm(p.parent))) { delete st.pendings[k]; n++; }
-    }
-    if (n) _saveState();
-    return n;
-}
+// 참고(안전망): 글리치성 자식 반전은 상류 `_applyChildReleaseDebounce`(3분)에서 흡수되어
+//   애초에 확정 변동으로 등록되지 않으며, 무한 대기는 하드 캡(PENDING_HARD_CAP_MS)으로 차단된다.
+//   "반전 시 펜딩 강제 폐기"는 진짜 짧은 해제의 통보문을 잃을 수 있어 두지 않는다.
 
 // ----------------------------------------------------------------------------
 // PDF 본문 추출 — file_nm 단위 캐시(PDF 불변). 실패 시 캐시 안 함(재시도 허용).
@@ -530,7 +517,6 @@ function _resetForTest() {
 
 module.exports = {
     registerChildChanges,
-    discardPendingsForParents,
     tick,
     getChildBulletinsForZone,
     getState,
