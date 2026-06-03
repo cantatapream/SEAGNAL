@@ -68,6 +68,16 @@ try {
     console.warn('[marine_warning_crawler] marine_client 로드 실패 — run() 비활성:', e && e.message);
 }
 
+// [자식 통보문 추적기] "부모 불변 + 자식만 변동" 통보문을 /api/zone-bulletins 부모 목록에
+//   합류시키기 위해, 확정 자식 변동 신호를 받아 관할청 ntfctn/list 만 이벤트성으로 폴링한다.
+//   로드 실패해도 기존 크롤러 흐름엔 영향 없음(읽기 전용 신호 수신 + 별도 파일).
+let childBulletinTracker = null;
+try {
+    childBulletinTracker = require('./services/child_bulletin_tracker');
+} catch (e) {
+    console.warn('[marine_warning_crawler] child_bulletin_tracker 로드 실패 — 자식 통보문 추적 비활성:', e && e.message);
+}
+
 // ============================================================================
 // 부모 → 자식 fullName 매핑 (ZONE_MAPPING.md 확정본)
 // frontend mappings.js 와 동일 — 본 서버에서는 require 불가하므로 사본.
@@ -2798,6 +2808,49 @@ function resetState() {
     }
 }
 
+// ============================================================================
+// [자식 통보문 추적] userChanges(확정 변동) → 추적기 펜딩 등록/폐기
+// ----------------------------------------------------------------------------
+//   - 자식 변동 신호(CHILD_ADD/CHILD_RELEASE/CHILD_EF_EXTEND/CHILD_YN_EXTEND)와,
+//     자식 한정사(childState.added/released/extended) 를 동반한 부모 변동을
+//     "확정 자식 변동" 으로 본다(이미 디바운스/의심가드 통과 = 실제 자식 푸시 신호).
+//   - 같은 사이클에 같은 부모가 "자식 변동" + "부모 단독 해제/변경" 으로 동시에 잡히는
+//     모순은 없음(_buildUserPushChanges 가 부모 변동 시 자식 독립 푸시를 안 냄). 다만
+//     안전망 차원에서, 자식 신호가 전혀 없는 부모 변동은 펜딩에 영향 주지 않는다.
+// ============================================================================
+function _feedChildBulletinTracker(userChanges) {
+    if (!childBulletinTracker || !Array.isArray(userChanges)) return;
+    const pendItems = new Map();   // parent -> Set(childName)
+    for (const ch of userChanges) {
+        if (!ch || !ch.zone) continue;
+        const cs = ch.childState || {};
+        let kids = [];
+        switch (ch.type) {
+            case 'CHILD_ADD':
+                kids = cs.added || []; break;
+            case 'CHILD_RELEASE':
+                kids = cs.released || []; break;
+            case 'CHILD_EF_EXTEND':
+            case 'CHILD_YN_EXTEND':
+                kids = cs.extended || []; break;
+            default:
+                // 부모 변동에 자식 한정사가 붙은 경우(added/released)도 확정 자식 변동으로 인정.
+                kids = [].concat(cs.added || [], cs.released || []);
+                break;
+        }
+        if (!kids || kids.length === 0) continue;
+        if (!pendItems.has(ch.zone)) pendItems.set(ch.zone, new Set());
+        const set = pendItems.get(ch.zone);
+        for (const k of kids) if (k) set.add(k);
+    }
+    if (pendItems.size === 0) return;
+    const items = [];
+    for (const [parent, set] of pendItems) {
+        items.push({ parent, children: Array.from(set) });
+    }
+    childBulletinTracker.notePendingChildChanges(items);
+}
+
 async function run(opts = {}) {
     if (_runInProgress) {
         // 중복 실행 방지
@@ -2948,8 +3001,30 @@ async function run(opts = {}) {
                 //   장부 초기화(테스트 푸시) 버튼이 forceBaselinePush + adminToken 으로 호출.
                 const userOpts = opts.adminToken ? { adminToken: opts.adminToken } : {};
                 await pushSender.processChanges(userChanges, userOpts);
+
+                // [자식 통보문 추적] 위 userChanges 는 디바운스/의심가드를 통과한 "확정" 변동이다.
+                //   그중 자식 변동 신호(CHILD_ADD/CHILD_RELEASE/CHILD_*_EXTEND, 또는 자식 한정사를
+                //   동반한 부모 변동)를 추출해 추적기에 펜딩 등록한다 → 관할청 ntfctn 이벤트 폴링.
+                //   실패해도 push/크롤러 흐름엔 영향 없음.
+                if (childBulletinTracker) {
+                    try {
+                        _feedChildBulletinTracker(userChanges);
+                    } catch (e) {
+                        console.error('[marine_warning_crawler] child_bulletin 펜딩 등록 실패 (영향 없음):', e && e.message);
+                    }
+                }
             } catch (e) {
                 console.error('[marine_warning_crawler] 사용자 push 발사 실패 (관리자 push 영향 없음):', e && e.message);
+            }
+        }
+
+        // 5-B2) [자식 통보문 폴링] 펜딩이 있을 때만 관할청 ntfctn/list 를 조회·매칭한다.
+        //   평상시(펜딩 0) 즉시 반환 → ntfctn 호출 0회. dryRun 에선 skip.
+        if (!opts.dryRun && childBulletinTracker && typeof childBulletinTracker.poll === 'function') {
+            try {
+                await childBulletinTracker.poll();
+            } catch (e) {
+                console.error('[marine_warning_crawler] child_bulletin poll 실패 (영향 없음):', e && e.message);
             }
         }
 

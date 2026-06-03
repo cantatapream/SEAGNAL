@@ -509,6 +509,47 @@ async function fetchWarnEfList({ prdc_go = '', warn_tp = '', st_tm = '', ed_tm =
     return _unwrap(j);
 }
 
+/**
+ * 통보문(ntfctn) 목록 — 발표된 특보 통보문 PDF 메타.
+ *   응답 row: { tm_fc_file_nm, tm_fc, warn_title, file_nm }
+ *   - file_nm: '/resources/.../KTKO50_<YYYYMMDDHHMM>_<prdc_go>_<seq>.pdf' (해역 식별자 없음 — prdc_go 만 파일명에 포함)
+ *   - 해역 식별자가 없으므로 해역 매칭은 PDF 본문 내용으로 해야 함 (호출 측 책임).
+ *   - 응답은 최신순 최대 50건. st_tm 필수.
+ *
+ * @param {Object} params
+ *   - prdc_go: 관할관서 코드 (예 '184'=제주). 비우면 전체.
+ *   - st_tm:   YYYYMMDD (필수)
+ *   - ed_tm:   YYYYMMDD (생략 시 st_tm)
+ * @returns {Array} ntfctn row 배열 (없으면 [])
+ */
+async function fetchWarnNtfctnList({ prdc_go = '', st_tm = '', ed_tm = '' } = {}) {
+    if (!AUTH_ENABLED) {
+        // 자격증명 없으면 호출 skip — 호출자는 빈 배열을 받아 자식 통보문 추적을 비활성화.
+        return [];
+    }
+    if (!st_tm) throw new Error('ntfctn/list: st_tm 필수');
+    await ensureAuth();
+    const qs = new URLSearchParams({
+        st_tm: String(st_tm),
+        ed_tm: String(ed_tm || st_tm)
+    });
+    if (prdc_go) qs.set('prdc_go', String(prdc_go));
+    const path = `${PATHS.WARN_NTFCTN_LIST}?${qs.toString()}`;
+    let res = await _request({ method: 'GET', path, authRequired: true });
+    if (res.statusCode === 401) {
+        console.log('[marine] ntfctn/list 401 — 재로그인 후 재시도');
+        await login();
+        res = await _request({ method: 'GET', path, authRequired: true });
+    }
+    if (res.statusCode !== 200) {
+        throw new Error(`ntfctn/list HTTP ${res.statusCode}`);
+    }
+    let j;
+    try { j = JSON.parse(res.body); }
+    catch (e) { throw new Error('ntfctn/list JSON parse fail'); }
+    return _unwrap(j);
+}
+
 // ============================================================================
 // 8. 디버그 / 상태 조회
 // ============================================================================
@@ -555,6 +596,7 @@ module.exports = {
     fetchAllRealtimeEndpoints,
     // 인증 endpoint
     fetchWarnEfList,
+    fetchWarnNtfctnList,
     // 테스트
     _resetSessionForTest,
     _PATHS: PATHS

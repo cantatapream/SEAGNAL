@@ -39,6 +39,11 @@ const { dataCache, refreshCache } = require('../services/cache_manager');
 const scheduler = require('../scheduler');
 const regionalForecastCollector = require('../regional_forecast_collector');
 const marineClient = require('../services/marine_client');   // [통보문] ef/list (해역별 통보문 PDF) 조회용
+// [자식 통보문] 부모 불변 + 자식만 변동(연안/평수) 통보문을 부모 목록에 합류시키는 추적기.
+//   crawler 가 확정 자식 변동 신호로 관할청 ntfctn/list 를 이벤트 폴링·PDF 매칭해 영속 저장.
+let childBulletinTracker = null;
+try { childBulletinTracker = require('../services/child_bulletin_tracker'); }
+catch (e) { console.warn('[weather] child_bulletin_tracker 로드 실패 — 자식 통보문 합류 비활성:', e && e.message); }
 // [신규] 캐시 신선도 검사 + 응답 헤더 부착 + 백그라운드 재수집 트리거
 //        services/freshness.js 의 POLICY 에 정의된 데이터(특보/부이/해상기상전망)에 한해
 //        응답 헤더(X-Data-Updated-At, X-Data-Age-Seconds, X-Data-Fresh)를 자동 부착하고,
@@ -1057,9 +1062,37 @@ router.get('/api/zone-bulletins', async (req, res) => {
                 time: String(r.tm_fc || '').trim(),
                 title: (tp + lvl + (cmd ? ' ' + cmd : '')).trim(),
                 pdfUrl: fileNm ? (MARINE_PDF_HOST + fileNm) : '',
+                file_nm: fileNm,                              // [합류] file_nm dedup 키
+                childOnly: false,                             // ef/list = 부모 통보문
                 national: String(r.prdc_go) === NATIONAL_GO   // true 면 전국 폴백(연안/평수 미포함 가능)
             });
         }
+
+        // [자식 통보문 합류] ef/list 부모 ∪ 저장된 자식 통보문 (부모 불변 + 자식만 변동분).
+        //   crawler 가 관할청 ntfctn/list PDF 본문에서 매칭·영속 저장한 항목을 그대로 합친다.
+        //   file_nm 으로 dedup(같은 PDF 가 부모 row 로도 잡히면 1건). childOnly 로 구분 표식.
+        if (childBulletinTracker && typeof childBulletinTracker.getMatchedBulletins === 'function') {
+            try {
+                const childBuls = childBulletinTracker.getMatchedBulletins(zone) || [];
+                const seenFiles = new Set(bulletins.map((b) => b.file_nm).filter(Boolean));
+                for (const cb of childBuls) {
+                    const fn = String(cb.file_nm || '').trim();
+                    if (fn && seenFiles.has(fn)) continue;    // 이미 부모 row 로 존재 → dedup
+                    if (fn) seenFiles.add(fn);
+                    bulletins.push({
+                        time: String(cb.time || '').trim(),
+                        title: String(cb.title || '자식 통보문').trim(),
+                        pdfUrl: String(cb.pdfUrl || '').trim(),
+                        file_nm: fn,
+                        childOnly: true,                      // 자식-only 구분 (연안/평수 변동 통보문)
+                        national: !!cb.national
+                    });
+                }
+            } catch (e) {
+                console.warn('[zone-bulletins] 자식 통보문 합류 skip:', e && e.message);
+            }
+        }
+
         bulletins.sort((a, b) => (a.time < b.time ? 1 : (a.time > b.time ? -1 : 0)));   // 최신 발표 우선
         res.json({ zone, count: bulletins.length, bulletins: bulletins.slice(0, 50) });
     } catch (e) {
