@@ -20,14 +20,30 @@ golden(phase0_golden.jsonl)의 각 케이스를 /api/assistant/ask 로 호출해
 종료코드: 하드 실패 0건이면 0, 아니면 1.
 """
 import json, sys, re, time, urllib.request, os
+from collections import defaultdict, Counter
 
-BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:3001"
+# CLI 파싱 — `--sentinel-v2` 플래그 분리, 그 외 positional 은 BASE_URL.
+# 기존 골든 모드 호출 형태(`phase0_runner.py [BASE_URL]`) 와의 호환 보장.
+_argv = [a for a in sys.argv[1:]]
+SENTINEL_V2_MODE = "--sentinel-v2" in _argv
+if SENTINEL_V2_MODE:
+    _argv = [a for a in _argv if a != "--sentinel-v2"]
+BASE = _argv[0] if _argv else "http://127.0.0.1:3001"
 HERE = os.path.dirname(os.path.abspath(__file__))
 GOLDEN = os.path.join(HERE, "phase0_golden.jsonl")
+SENTINEL_V2 = os.path.join(HERE, "phase2b_sentinel_v2.jsonl")
 ASSISTANT_JS = os.path.normpath(os.path.join(HERE, "..", "..", "routes", "assistant.js"))
 GRAPH_JSON = os.path.normpath(os.path.join(HERE, "..", "graph", "graph.json"))
 DATA_CATALOG = os.path.normpath(os.path.join(HERE, "..", "data_catalog.json"))
 CACHE_MANAGER = os.path.normpath(os.path.join(HERE, "..", "..", "services", "cache_manager.js"))
+
+# sentinel v2 통합 모드 상수 (옵션 β R2 합성)
+CAT_WEIGHT = {1: 0.5, 2: 1.5, 3: 1.5, 4: 1.5, 5: 0.5, 6: 1.5, 7: 0.5, 8: 0.5, "SEC": 2.0}
+SENTINEL_W_TOTAL = 47.5            # 매니페스트 이론 최대 가중 합 (참고 표기용)
+SENTINEL_PACING_S = 3.0
+SENTINEL_RETRY_S = 5.0
+THR_GENERAL_PCT = 80               # 일반 30 PASS% 목표 (≥80)
+THR_SEC_PASS = 5                   # SEC 5/5 hard 컷
 
 BAD = re.compile(r"없어요|없습니다|모르|못\s*(가져|불러|찾|들|알아)|준비\s*중|알 수 없|정보가? ?없|찾지 못")
 NUM = re.compile(r"\d")

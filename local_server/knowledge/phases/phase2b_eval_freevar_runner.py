@@ -40,6 +40,18 @@ TIMEOUT = 60
 PACING_S = 3.0     # 케이스 사이 sleep
 LOG_EVERY = 10
 
+# p95 게이트 임계 (synthesis §0 항목2)
+# sentinel 진입점에서 freevar 러너를 import 재사용 시 SENTINEL_P95_MS 가 우선.
+P95_GATE_MS = int(os.environ.get(
+    "SENTINEL_P95_MS",
+    os.environ.get("FREEVAR_P95_MS", "5000")
+))
+RAW_GATE_RATIO   = float(os.environ.get("RAW_GATE_RATIO", "1.5"))
+DOD_PASS_PCT     = int(os.environ.get("FREEVAR_DOD_PASS_PCT",     "85"))
+DOD_JIKGUN_FLOOR = int(os.environ.get("FREEVAR_DOD_JIKGUN_FLOOR", "70"))
+DOD_CAT_FLOOR    = int(os.environ.get("FREEVAR_DOD_CAT_FLOOR",    "70"))
+DOD_HALLUC_MAX   = int(os.environ.get("FREEVAR_DOD_HALLUC_MAX",   "2"))
+
 # CoT 누수 의심 패턴
 COT_PATTERNS = [
     r"thinking\s*[:：]", r"sources\s*[:：]", r"먼저\s+\S+를?\s+확인",
@@ -62,11 +74,20 @@ DECISION_RE = re.compile(r"가능|적합|주의|무리|안전|위험|불가|곤�
 REFUSAL_RE = re.compile(r"없어요|모릅|가져오지|찾지\s*못|지원하지|범위.*벗어|확인할\s*수\s*없")
 
 def ask(query, profile=None, focus=None, max_retry=3):
+    """(data, metrics, err) 반환 — 평가셋 러너와 동일 시그니처.
+    metrics = {pure_ms, backoff_ms, attempts, last_attempt_ms}
+      · pure_ms        : 마지막 성공 attempt 의 (t_end - t_start)
+      · backoff_ms     : 누적 sleep(429 백오프) 시간 ms
+      · attempts       : 실제 시도 수 (1=즉시 성공)
+      · last_attempt_ms: 실패 종료 시 마지막 시도 ms (성공 시 None)
+    raw_ms = pure_ms + backoff_ms 는 호출자(main)에서 케이스별 합산.
+    """
     body = {"query": query, "memory": []}
     if profile is not None: body["profile"] = profile
-    if focus is not None: body["focus"] = focus
+    if focus is not None:   body["focus"]   = focus
     payload = json.dumps(body).encode("utf-8")
-    last_ms = 0
+    backoff_ms = 0
+    last_pure = 0
     for attempt in range(max_retry + 1):
         req = urllib.request.Request(URL, data=payload,
             headers={"Content-Type":"application/json"}, method="POST")
@@ -74,17 +95,30 @@ def ask(query, profile=None, focus=None, max_retry=3):
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
                 raw = r.read().decode("utf-8")
-                elapsed = int((time.monotonic()-t0)*1000)
-                return json.loads(raw), elapsed, None
+                pure = int((time.monotonic() - t0) * 1000)
+                return json.loads(raw), {
+                    "pure_ms": pure,
+                    "backoff_ms": backoff_ms,
+                    "attempts": attempt + 1,
+                    "last_attempt_ms": None,
+                }, None
         except urllib.error.HTTPError as e:
-            last_ms = int((time.monotonic()-t0)*1000)
+            last_pure = int((time.monotonic() - t0) * 1000)
             if e.code == 429 and attempt < max_retry:
-                wait = 5 + attempt * 5  # 5, 10, 15
-                time.sleep(wait); continue
-            return None, last_ms, f"HTTP {e.code}"
+                wait_s = 5 + attempt * 5    # 5s → 10s → 15s (freevar 백오프)
+                time.sleep(wait_s); backoff_ms += wait_s * 1000
+                continue
+            return None, {"pure_ms": 0, "backoff_ms": backoff_ms,
+                          "attempts": attempt + 1,
+                          "last_attempt_ms": last_pure}, f"HTTP {e.code}"
         except Exception as e:
-            return None, int((time.monotonic()-t0)*1000), f"{type(e).__name__}: {e}"
-    return None, last_ms, "HTTP 429(exhausted)"
+            return None, {"pure_ms": 0, "backoff_ms": backoff_ms,
+                          "attempts": attempt + 1,
+                          "last_attempt_ms": int((time.monotonic() - t0) * 1000)}, \
+                   f"{type(e).__name__}: {e}"
+    return None, {"pure_ms": 0, "backoff_ms": backoff_ms,
+                  "attempts": max_retry + 1,
+                  "last_attempt_ms": last_pure}, "HTTP 429(exhausted)"
 
 def percentile(values, p):
     if not values: return 0
