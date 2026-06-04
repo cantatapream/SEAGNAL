@@ -32,6 +32,23 @@ local_server/data/admin_tokens.json.tmp
 local_server/data/typhoon.json
 local_server/data/typhoon.json.tmp
 
+# KMA/KHOA 런타임 캐시 (Fly.io Volume에 저장, 스케줄러가 부팅 시 재생성)
+local_server/data/marine_buoys.json
+local_server/data/marine_forecast.json
+local_server/data/marine_lh_buoys.json
+local_server/data/marine_vs.json
+local_server/data/marine_warning_state.json
+local_server/data/marine_wh_buoys.json
+local_server/data/mid_term_sea_forecasts.json
+local_server/data/fishing_index.json
+local_server/data/surfing_index.json
+local_server/data/sea_split_index.json
+
+# 사용량/구독 통계 (런타임 누적, Fly.io Volume에 저장)
+local_server/data/usage_stats.json
+local_server/data/usage_stats.json.migrations.json
+local_server/data/subscriber_stats.json
+
 # 5순위: 정적 자원 사전 압축 산출물 (build-gzip.js 가 prestart 에서 생성)
 # 원본에서 항상 재생성 가능하므로 추적 제외. uploads/ 디렉토리는 동적 업로드
 # 디렉토리라 사전 압축 대상이 아니어서 이 패턴에 걸리지 않는다.
