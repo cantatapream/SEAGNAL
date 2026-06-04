@@ -59,6 +59,7 @@ const PENDING_HARD_CAP_MS = 6 * 60 * 60 * 1000;   // 6시간
 // PDF 본문 파싱 캐시 — file_nm 단위(PDF 불변). 메모리. 정규화 텍스트만 보관.
 const _pdfTextCache = new Map();                  // file_nm -> normalized text | null(파싱실패는 캐시 안 함)
 const PDF_CACHE_MAX = 400;
+let _warnedUnreadablePdf = false;                 // 판독불가(ToUnicode 부재) PDF 경고 1회 throttle
 // 매칭 자식 통보문 보관 상한(부모당) — 라우트 dedup 후 50건 슬라이스라 넉넉히.
 const MATCHED_PER_PARENT_MAX = 60;
 // 부모당 동시 펜딩 상한 — supersession 누적 방지(오래된 것부터 폐기).
@@ -227,7 +228,8 @@ function _matchInText(text, parent, children) {
     const parentNorm = _norm(parent);
     // 부모명 또는 그 핵심(앞/먼바다 꼬리 제거)이 본문에 있어야 함.
     const parentCore = parentNorm.replace(/앞바다$/, '').replace(/먼바다$/, '');
-    const hasParent = text.includes(parentNorm) || (parentCore.length >= 3 && text.includes(parentCore));
+    // core 2자(부산·울산)도 인정 — 자식 후보가 변별자라 게이트 완화의 오탐 위험은 낮음.
+    const hasParent = text.includes(parentNorm) || (parentCore.length >= 2 && text.includes(parentCore));
     if (!hasParent) return null;
     const hit = [];
     for (const child of children) {
@@ -356,6 +358,16 @@ async function _getPdfText(fileNm) {
         const d = await pdfParse(buf);
         text = _norm(d && d.text);
         if (!text) return null;   // 빈 추출 → 캐시 안 함(다음 cycle 재시도)
+        // KMA 통보문 PDF 중 일부(예: ~2025-11 이전)는 ToUnicode CMap 없는 CID 서브셋 폰트라
+        //   한글이 글리프 코드로만 추출돼 본문 판독이 불가능하다(현재 통보문은 정상). 한글이
+        //   거의 없으면 판독 불가로 보고 캐시하지 않는다(폰트 정상 PDF로 바뀌면 재시도).
+        if ((text.match(/[가-힣]/g) || []).length < 2) {
+            if (!_warnedUnreadablePdf) {
+                console.warn('[child-bulletin] 통보문 PDF 한글 추출 불가(ToUnicode 부재 가능) — 매칭 skip:', fileNm);
+                _warnedUnreadablePdf = true;
+            }
+            return null;
+        }
     } catch (e) {
         return null;              // 다운로드/파싱 실패 → 캐시 안 함(재시도)
     }
