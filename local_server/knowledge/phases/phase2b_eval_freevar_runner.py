@@ -204,7 +204,10 @@ def main():
     chain_focus = {}  # case_id → focus
     by_jg = defaultdict(lambda: {"pass":0, "fail":0, "total":0})
     by_jg_cat = defaultdict(lambda: defaultdict(lambda: {"pass":0, "total":0}))
-    latencies = []
+    latencies_net = []          # pure_ms — 게이트 판정 대상
+    latencies_raw = []          # pure_ms + backoff_ms (케이스별 합산)
+    backoff_per_case_ms = []
+    n_429 = 0
     fails = []
     cot_samples = []
     halluc_samples = []
@@ -218,9 +221,18 @@ def main():
         if c.get("prev_id"):
             focus = chain_focus.get(c["prev_id"])
         time.sleep(PACING_S)
-        data, ms, err = ask(c["query"], c.get("profile"), focus)
-        ev = evaluate(c, data, ms, err)
-        if data is not None: latencies.append(ms)
+        data, m, err = ask(c["query"], c.get("profile"), focus)
+        # evaluate() 는 ms 만 보던 기존 인터페이스 → m["pure_ms"] 로 치환
+        ev = evaluate(c, data, m["pure_ms"] if m else 0, err)
+        if data is not None:
+            pure = m["pure_ms"]; bo = m["backoff_ms"]
+            latencies_net.append(pure)
+            latencies_raw.append(pure + bo)       # ← 케이스별 raw 적재
+            backoff_per_case_ms.append(bo)
+            if bo: n_429 += 1
+        elif m and m["backoff_ms"]:
+            backoff_per_case_ms.append(m["backoff_ms"]); n_429 += 1
+
         jg = c["jikgun"]; cat = c["category"]
         by_jg[jg]["total"] += 1
         by_jg_cat[jg][cat]["total"] += 1
@@ -259,9 +271,21 @@ def main():
             row += f"{s['pass']:>2d}/{s['total']:<2d} "
         print(row)
     print()
-    if latencies:
-        print(f"지연 SLO  p50={percentile(latencies,0.5)}ms  p95={percentile(latencies,0.95)}ms  "
-              f"평균={sum(latencies)//len(latencies)}ms  n={len(latencies)}")
+    # net/raw 둘 다 분위수는 케이스별 적재값으로 직접 산출 (합성 금지)
+    p50_net = percentile(latencies_net, 0.5)  if latencies_net else 0
+    p95_net = percentile(latencies_net, 0.95) if latencies_net else 0
+    p50_raw = percentile(latencies_raw, 0.5)  if latencies_raw else 0
+    p95_raw = percentile(latencies_raw, 0.95) if latencies_raw else 0
+    bo_avg = (sum(backoff_per_case_ms)//len(backoff_per_case_ms)) if backoff_per_case_ms else 0
+    bo_max = max(backoff_per_case_ms) if backoff_per_case_ms else 0
+    bo_total_s = sum(backoff_per_case_ms) // 1000
+
+    if latencies_net:
+        print("지연 SLO (net = pure_ms, raw = pure + backoff)")
+        print(f"  net  p50={p50_net}ms  p95={p95_net}ms  평균={sum(latencies_net)//len(latencies_net)}ms  n={len(latencies_net)}")
+        print(f"  raw  p50={p50_raw}ms  p95={p95_raw}ms")
+        print(f"  backoff 평균 {bo_avg}ms · 최대 {bo_max}ms · 총 {bo_total_s}s · 429 발생 {n_429}/{len(latencies_net)}건")
+
     print(f"실패 {len(fails)}건 · CoT 누수 의심 {len(cot_samples)}건 · 환각 의심 {len(halluc_samples)}건")
     if cot_samples:
         print("\n[CoT 누수 샘플]")
@@ -278,7 +302,44 @@ def main():
     print()
     total = sum(s["total"] for s in by_jg.values())
     npass = sum(s["pass"] for s in by_jg.values())
-    print(f"==== 종합 PASS {npass}/{total} ({npass*100//total if total else 0}%) · 소요 {int(time.time()-t_start)}s ====")
+    pass_pct = npass*100//total if total else 0
+    print(f"==== 종합 PASS {npass}/{total} ({pass_pct}%) · 소요 {int(time.time()-t_start)}s ====")
+
+    # ── DoD 5항목 게이트 ────────────────────────────────────────
+    jikgun_min = min((s["pass"]*100//s["total"]) for s in by_jg.values() if s["total"]) if by_jg else 0
+    cat_min = 100
+    for jg in by_jg_cat:
+        for s in by_jg_cat[jg].values():
+            if s["total"]:
+                pct = s["pass"]*100//s["total"]
+                if pct < cat_min: cat_min = pct
+    if not by_jg_cat: cat_min = 0
+
+    warn_raw = p95_raw > int(P95_GATE_MS * RAW_GATE_RATIO)
+
+    print()
+    print("=== p95 게이트 결과 (자유변칙 DoD) ===")
+    print(f"  PASS              {pass_pct}% (gate >={DOD_PASS_PCT}%)            {'PASS' if pass_pct>=DOD_PASS_PCT else 'FAIL'}")
+    print(f"  직군 floor        {jikgun_min}% (gate >={DOD_JIKGUN_FLOOR}%)         {'PASS' if jikgun_min>=DOD_JIKGUN_FLOOR else 'FAIL'}")
+    print(f"  카테고리 floor    {cat_min}% (gate >={DOD_CAT_FLOOR}%)         {'PASS' if cat_min>=DOD_CAT_FLOOR else 'FAIL'}")
+    print(f"  환각 의심         {len(halluc_samples)} (gate <={DOD_HALLUC_MAX})         {'PASS' if len(halluc_samples)<=DOD_HALLUC_MAX else 'FAIL'}")
+    print(f"  net p95           {p95_net}ms (gate <={P95_GATE_MS}ms)       {'PASS' if p95_net<=P95_GATE_MS else 'FAIL'}")
+    print(f"  -- 참고(외부쿼터 감시) -----------------------")
+    print(f"  raw p95           {p95_raw}ms (raw WARN >{int(P95_GATE_MS*RAW_GATE_RATIO)}ms)   {'WARN' if warn_raw else 'OK'}")
+    print(f"  백오프(차이)      총 {bo_total_s}s · 발생 {n_429}/{len(latencies_net) or 1}건")
+
+    violations = []
+    if pass_pct < DOD_PASS_PCT:               violations.append(f"PASS {pass_pct}<{DOD_PASS_PCT}%")
+    if jikgun_min < DOD_JIKGUN_FLOOR:         violations.append(f"jikgun floor {jikgun_min}<{DOD_JIKGUN_FLOOR}%")
+    if cat_min < DOD_CAT_FLOOR:               violations.append(f"cat floor {cat_min}<{DOD_CAT_FLOOR}%")
+    if len(halluc_samples) > DOD_HALLUC_MAX:  violations.append(f"halluc {len(halluc_samples)}>{DOD_HALLUC_MAX}")
+    if p95_net > P95_GATE_MS:                 violations.append(f"net p95 {p95_net}>{P95_GATE_MS}")
+
+    if violations:
+        print(f"\nVIOLATION: {' · '.join(violations)}")
+        sys.exit(1)
+    print("\nALL GATES PASS")
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()
