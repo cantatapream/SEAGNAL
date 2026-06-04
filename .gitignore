@@ -76,3 +76,4 @@ local_server/data/zone_forecasts.json
 local_server/data/forecast_cache/
 local_server/data/khoa_stream_cache.json.gz
 local_server/data/tide_usage.json
+local_server/data/blocks.json
