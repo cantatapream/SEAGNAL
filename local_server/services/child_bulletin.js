@@ -117,7 +117,7 @@ function _saveState() {
 // ----------------------------------------------------------------------------
 // 이름 정규화 / 후보 생성 (A 의 견고한 축약 후보생성 + C 의 독립명 처리 보강)
 // ----------------------------------------------------------------------------
-const _norm = (s) => String(s || '').replace(/\s+/g, '');
+const _norm = (s) => String(s || '').replace(/[\s·.•・]/g, '');   // 공백 + 구분자(가운뎃점·마침표) 제거 — 통보문 '인천·경기'/'태안·서산' vs 정식 '인천.경기'/'태안.서산' 흡수
 
 /**
  * 자식 정식명에서 PDF 본문에 등장할 만한 후보 문자열들을 생성.
@@ -135,7 +135,8 @@ function _childNameCandidates(childFull) {
     const out = new Set();
     if (!full) return [];
     out.add(full);
-    const idx = full.indexOf('중');
+    const idx = full.lastIndexOf('중');         // 자식꼬리엔 '중'이 없으므로 *마지막* '중'으로 분할
+                                                //   (예 '강원중부앞바다중연안바다' → 첫 '중'에 걸려 깨지던 버그 수정)
     if (idx > 0 && idx < full.length - 1) {
         const prefix = full.slice(0, idx);     // 예: 제주도북부앞바다
         const suffix = full.slice(idx + 1);    // 예: 연안바다 / 동부평수구역 / 우도연안바다
@@ -171,6 +172,53 @@ function _includesNonExcluded(text, needle) {
     }
 }
 
+/** 정규화 본문에서 `head(` … `)` 괄호 그룹의 내용들을 모두 반환. */
+function _parenGroupsAfter(text, head) {
+    const groups = [];
+    if (!head) return groups;
+    const needle = head + '(';
+    let from = 0;
+    while (true) {
+        const i = text.indexOf(needle, from);
+        if (i < 0) break;
+        const start = i + needle.length;
+        const end = text.indexOf(')', start);
+        if (end < 0) break;
+        groups.push(text.slice(start, end));
+        from = end + 1;
+    }
+    return groups;
+}
+
+/**
+ * 한 자식이 본문에 등장하는가? 두 경로를 모두 시도한다.
+ *   A) 독립 축약/고유명 후보 (예: 참고사항의 '제주도북부연안바다', 지명형 '천수만평수구역').
+ *   B) 괄호 그룹형 '부모명( … 자식꼬리 … )' — 지방청 통보문의 표준 표기. 일반어 자식꼬리
+ *      ('연안바다'/'평수구역'/'먼평수구역' 등)는 변별력이 없어 A 에선 못 잡지만, *부모 괄호
+ *      그룹 안의 콤마 토큰*으로는 변별 가능. 토큰이 '…제외' 면 그 자식 *제외* 표기라 배제.
+ */
+function _matchChild(text, parentNorm, childFull) {
+    // Path A — 독립 후보
+    if (_childNameCandidates(childFull).some((c) => _includesNonExcluded(text, c))) return true;
+    // Path B — 괄호 그룹
+    const full = _norm(childFull);
+    const ci = full.lastIndexOf('중');
+    const suffix = (ci > 0 && ci < full.length - 1) ? full.slice(ci + 1) : full;
+    if (!suffix) return false;
+    const heads = new Set([parentNorm]);
+    if (ci > 0) heads.add(full.slice(0, ci));   // 자식명에 들어있는 부모 prefix 도 head 후보
+    for (const head of heads) {
+        for (const group of _parenGroupsAfter(text, head)) {
+            for (const tok of group.split(',')) {
+                if (!tok) continue;
+                if (tok.slice(-2) === '제외') continue;   // '…제외' 토큰 = 그 자식 제외 표기
+                if (tok === suffix) return true;          // 콤마 토큰 정확 일치(부분일치 오탐 방지)
+            }
+        }
+    }
+    return false;
+}
+
 /**
  * @returns {string[]|null} 매칭된 자식 정식명 배열 (없으면 null)
  */
@@ -183,8 +231,7 @@ function _matchInText(text, parent, children) {
     if (!hasParent) return null;
     const hit = [];
     for (const child of children) {
-        const cands = _childNameCandidates(child);
-        if (cands.some((c) => _includesNonExcluded(text, c))) hit.push(child);
+        if (_matchChild(text, parentNorm, child)) hit.push(child);
     }
     return hit.length ? hit : null;
 }
