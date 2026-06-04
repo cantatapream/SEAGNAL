@@ -109,6 +109,17 @@ try {
     console.warn('[Assistant] buoyLocations 파싱 실패 — 일반 부이 링크로 폴백:', e.message);
 }
 
+// [패치 A — C1] 부이 이름 → 좌표 lookup — focus.buoy 만 있는 follow-up 에서 좌표 폴백.
+//   정확 일치 우선(nname === nn), 없으면 양방향 includes 로 보조 매칭(오매칭 위험 최소화).
+function buoyToCoords(name) {
+    if (!name) return null;
+    const nn = String(name).replace(/[\s·]/g, '');
+    if (!nn) return null;
+    let hit = BUOY_BY_ID.find(b => b.nname === nn);
+    if (!hit) hit = BUOY_BY_ID.find(b => b.nname.includes(nn) || nn.includes(b.nname));
+    return hit ? { lat: hit.lat, lon: hit.lon } : null;
+}
+
 // ============================================================================
 // 지명 → 해점 좌표 — 물때 바텀시트를 "그 지명에서 가장 가까운 해점"에서 띄우기 위함.
 //  ① 조석 표준항(TIDE_REFERENCE_STATIONS, tide.js): 인천/제주/부산/목포 등 항만 좌표
@@ -708,7 +719,7 @@ ${JSON.stringify(factPayload, null, 1)}`;
  * 프로필/메모리를 프롬프트에 끼워넣을 개인화 컨텍스트 블록 생성.
  * 없으면 빈 문자열. (개인화는 맥락일 뿐, 기상 수치의 근거가 아님을 명시)
  */
-function buildPersonalContext(profile, memory, style) {
+function buildPersonalContext(profile, memory, style, currentQuery = '') {
     const lines = [];
     if (profile && (typeof profile === 'object' ? Object.keys(profile).length : String(profile).trim())) {
         const profileText = typeof profile === 'string' ? profile : JSON.stringify(profile);
@@ -721,7 +732,21 @@ function buildPersonalContext(profile, memory, style) {
     //   도구 결과 없이도 임계표와 즉시 비교해 가부 결론을 답할 수 있게 한다.
     const slug = detectJikgun(profile);
     const tdig = thresholdDigest(slug);
-    if (tdig) lines.push(tdig + `\n** 규칙: 사용자가 정량 수치를 직접 단정(예: "파고 1.5m 풍속 12m 인데 ~ 가능?")하면 그 수치를 위 임계표와 비교해 *가부 결론을 한 줄 먼저* 답하세요(가능/주의/무리/위험). 수집결과가 비어도 답 가능. 도구 결과가 있으면 보조 근거로 첨부.`);
+    if (tdig) {
+        // [§B 패치 — MOF-4-01 (C6)] 정량 수치 검출 시 임계표를 prompt 상단(첫 lines) 으로 끌어올린다.
+        //   기존: 직군 임계표가 jikgunDigest 다음에 push 돼 prompt 내 후순위로 묻힘.
+        //   변경: 단위 정량 수치(파고/풍속/시정/수온/파주기 + m·m/s·km·℃·s) 가 질의에 있으면 unshift 로 상단 배치.
+        const NUM_UNIT_RE = /(\d+(?:\.\d+)?)\s*(m\/s|미터퍼세크|m|미터|km|킬로|℃|도|s|초)/i;
+        const enrichedTdig = `═══ 직군 임계표 (정량 비교 우선) ═══\n${tdig}\n** 규칙: 사용자 질의에 정량 수치(파고/풍속/시정/수온/파주기 + 단위 m·m/s·km·℃·s) 가 하나라도 명시되면 — 단정형("파고 1.5m") 이든 조건형("파고 2m 넘으면") 이든 가설형("풍랑특보 시") 이든 — 그 수치를 위 임계표 및 주의(직군 SOP) 와 비교해 *가부·권고 결론을 한 줄 먼저* 답하세요. 결정 단어(가능/주의/무리/위험/적합/권장/권고/통제/발령/허용/보류) 중 한 단어 이상 반드시 포함. 수집결과가 비어도 임계표만으로 답 가능 — 이때 도구 결과 부재는 결론 뒤에 *현 상태 미확인* 한 줄 부기로만 다루고 "정보가 없습니다" 단독 응답은 금지. 도구 결과가 있으면 결론 뒤에 보조 근거로 첨부. 임계표는 *외부 수치 사실이 아니라 직군 표준 운용 기준*.`;
+        // 정량 수치가 명시되면 임계표 + 규칙을 lines 맨 앞으로 (synth prompt 에서 [사용자 프로필] 보다 먼저 보이게).
+        // currentQuery 미전달 시 memory 마지막 항목으로 폴백 (호환성).
+        const probe = currentQuery || (Array.isArray(memory) && memory.length ? String(memory[memory.length - 1]) : '');
+        if (NUM_UNIT_RE.test(probe)) {
+            lines.unshift(enrichedTdig);
+        } else {
+            lines.push(enrichedTdig);
+        }
+    }
     // [성향 다이제스트] 휴대폰에 누적된 통계 — 자주 묻는 주제/해역·선호 형식·말투
     if (style && typeof style === 'object') {
         const topN = (counts, n) => (counts && typeof counts === 'object')
@@ -1132,7 +1157,33 @@ const TOOL_EXEC = {
         return fc ? Object.assign({ zone: z }, fc) : { error: '해당 해역 단기예보가 없습니다.', zone: z };
     },
     get_zone_forecast: async ({ zoneId, hoursAhead } = {}) => getZoneForecastAt(String(zoneId || ''), Number(hoursAhead) || 0),
-    get_warning: async ({ zone } = {}) => { const z = resolveZoneName(zone); return { zone: z, warning: z ? findWarning(z) : null }; },
+    get_warning: async ({ zone } = {}) => {
+        // [패치 A — C3] zone 미지정 또는 "전국"/"전 해역" → 전국 발효 특보 트리 집계 반환.
+        //   ★ 응답 키 호환성: zone 있는 호출은 기존 {zone, warning:{}} 그대로,
+        //     zone 비는 호출은 {zone:'전국', activeCount:N, warnings:[…], warning:null}.
+        //     기존 `warning` 키도 null 로 포함해 합성/소비자 호환 유지.
+        if (!zone || /^전국$|^전\s*해역$/.test(String(zone).trim())) {
+            const tree = (dataCache.warnings && dataCache.warnings.current) || null;
+            if (!tree) return { zone: '전국', activeCount: 0, warnings: [], warning: null, note: '특보 데이터를 불러오지 못했습니다.' };
+            const active = [];
+            const walk = (node, pathArr) => {
+                if (!node || typeof node !== 'object') return;
+                if ('current' in node || 'upcoming' in node) {
+                    if (node.current) active.push({
+                        zone: pathArr[pathArr.length - 1] || null,
+                        type: node.current.type || '해상 특보',
+                        detail: node.current
+                    });
+                    return;
+                }
+                for (const k of Object.keys(node)) walk(node[k], pathArr.concat(k));
+            };
+            walk(tree, []);
+            return { zone: '전국', activeCount: active.length, warnings: active.slice(0, 12), warning: null };
+        }
+        const z = resolveZoneName(zone);
+        return { zone: z, warning: z ? findWarning(z) : null };
+    },
     list_buoys_near: async ({ zone } = {}) => {
         const z = resolveZoneName(zone);
         const b = z ? findBuoysNearZone(z, 5, 120) : [];
@@ -1275,8 +1326,21 @@ function deriveFocus(plan, results, zoneName, query) {
         if (!v || typeof v !== 'object' || v.error) continue;
         if (v.zoneId) focus.haegu = String(v.zoneId);
         if (focus.coords == null && v['위도'] != null && v['경도'] != null) focus.coords = { lat: v['위도'], lon: v['경도'] };
-        if (v.name && r.tool === 'get_buoy_observation') focus.buoy = v.name;
-        if (v.nearest && v.nearest.name) focus.buoy = v.nearest.name;
+        if (v.name && r.tool === 'get_buoy_observation') {
+            focus.buoy = v.name;
+            // [패치 A — C2] 후속 zone/좌표 기반 도구(get_current/get_depth/get_visibility 등) 폴백을 위해
+            //   부이 좌표를 함께 보존. BUOY_BY_ID 에서 정확/양방향 매칭.
+            if (focus.coords == null) {
+                const co = buoyToCoords(v.name);
+                if (co) focus.coords = co;
+            }
+        }
+        if (v.nearest && v.nearest.name) {
+            focus.buoy = v.nearest.name;
+            if (focus.coords == null && v.nearest.lat != null && v.nearest.lon != null) {
+                focus.coords = { lat: v.nearest.lat, lon: v.nearest.lon };
+            }
+        }
         if (Array.isArray(v.items) && v.items.length) {
             focus.rankedItems = v.items.slice(0, 5);
             const top = v.items[0];
@@ -1448,6 +1512,12 @@ async function runBrain(query, profile, memory, style, location, focus) {
     // [지명 정규화] LLM 이 "전남남해" 처럼 표준 해역명을 살짝 다르게 주면,
     //   detectZoneDeterministic 으로 fuzzy 매칭해 표준명("전남남해앞바다")으로 정정.
     //   tool 호출이 빈 결과를 내고 web_search 폴백으로 빠지는 패턴을 사전 차단한다.
+    // [패치 A — C5-pre 공유 상수] §C4(부이 폴백) + §C5(local_gov 강제 호출) + §C5-b(isDomainQuery 보강)가 함께 참조.
+    //   함수 상단 1회 선언으로 중복·스코프 충돌 방지(synthesis §1.3 #2).
+    const VAGUE_LOCAL_RE = /관내|우리\s*시|시청\s*관할|관할\s*해역|관할\s*구역|우리\s*지역/;
+    const MONITOR_JIKGUN = new Set(['local_gov', 'coast_guard', 'navy', 'mof', 'public_org']);
+    const OVERVIEW_RE = /어때|상황|전반|전체|괜찮/;
+    const _jikgunSlug = detectJikgun(profile);   // 1회 계산 — §C4/§C5/§C5-b 공유
     const canonZone = (z) => {
         if (typeof z !== 'string' || !z.trim()) return z;
         const r = detectZoneDeterministic(z);
@@ -1498,6 +1568,47 @@ async function runBrain(query, profile, memory, style, location, focus) {
         if (focusCoords && COORD_TOOLS.has(step.tool) && step.args.lat == null && step.args.lon == null) {
             step.args.lat = focusCoords.lat;
             step.args.lon = focusCoords.lon;
+        }
+    }
+
+    // [패치 A — C4 ANG-2-01b 게이트] 후속 부이 follow-up 의 풍속/시정/유속 등 폴백.
+    //   focus.buoy 만 있고 focus.zone 이 없는 상태에서 후속이 zone 기반 도구로 라우팅되면
+    //   args 가 비어 빈 응답이 된다. 안전한 결정론적 보강:
+    //     1) get_buoy_observation 이 plan 에 없으면 강제 1단계 추가 (단일 부이 실측).
+    //     2) focus.coords 있으면 get_buoys_with_obs 군집 폴백(단일 부이 ws 결측 대비).
+    if (isPronounFollowup && focusBuoy && !focusZone) {
+        const wantWind = /풍속|바람|풍향/.test(cq);
+        const wantVis  = /시정|가시거리/.test(cq);
+        const wantTemp = /수온/.test(cq);
+        const wantWave = /파고|물결|파주기/.test(cq);
+        const needsBuoyObs = (wantWind || wantVis || wantTemp || wantWave);
+        const _buoyPlanTools = new Set(plan.steps.map(s => s.tool));
+        if (needsBuoyObs && !_buoyPlanTools.has('get_buoy_observation')) {
+            plan.steps.unshift({ tool: 'get_buoy_observation', args: { buoyName: focusBuoy } });
+            _buoyPlanTools.add('get_buoy_observation');
+        }
+        if (needsBuoyObs && focusCoords && !_buoyPlanTools.has('get_buoys_with_obs')) {
+            plan.steps.push({ tool: 'get_buoys_with_obs', args: { lat: focusCoords.lat, lon: focusCoords.lon } });
+            _buoyPlanTools.add('get_buoys_with_obs');
+        }
+    }
+
+    // [패치 A — C5 LG-1-01 게이트] local_gov + "관내/우리시…" 모호지명 결정론 보강.
+    //   planQuery 의 LLM 규칙(#23)을 LLM 이 무시해 web_search 폴백으로 빠지는 회귀를 직타.
+    //   직군이 local_gov 이고 모호어가 있고 GPS·default·focus 어느 것도 잡지 못했으면
+    //   get_warning(args={}) 강제 호출(§C3 의 전국 집계 분기 진입).
+    const _pz = profileDefaultZone(profile);
+    const _hasGPS = !!(location && location.lat != null && location.lon != null);
+    const _vagueLocal = VAGUE_LOCAL_RE.test(cq);
+    if (_jikgunSlug === 'local_gov' && _vagueLocal && !_hasGPS && !_pz && !focusZone) {
+        const _lgPlanTools = new Set(plan.steps.map(s => s.tool));
+        if (!_lgPlanTools.has('get_warning')) {
+            plan.steps.unshift({ tool: 'get_warning', args: {} });   // zone 비움 → 전국 집계
+            _lgPlanTools.add('get_warning');
+        }
+        if (!_lgPlanTools.has('get_typhoon_status')) {
+            plan.steps.push({ tool: 'get_typhoon_status', args: {} });
+            _lgPlanTools.add('get_typhoon_status');
         }
     }
 
@@ -1567,16 +1678,17 @@ async function runBrain(query, profile, memory, style, location, focus) {
         }
     }
 
-    const personal = buildPersonalContext(profile, memory, style);
+    const personal = buildPersonalContext(profile, memory, style, cq);
     const synth =
 `당신은 한국 어선·항해자를 돕는 해양 기상 개인 비서입니다.
 아래 "수집결과"의 실제 데이터에만 근거해, 사용자가 "물어본 것만" 답하세요.
-- (환각 금지) 수집결과에 없는 수치/사실은 절대 지어내지 마세요. 일반 지식·추측·웹 정보로 빈칸을 채우지 마세요. 수집결과가 비어 있거나 데이터가 없으면 짧게 "그 정보는 없어요" 또는 "지금은 가져오지 못했어요"라고만 답하세요. 도구가 빈 결과를 돌려주면(예: warnings:[]) "현재 발효 중인 ~ 없습니다"처럼 *없음*을 그대로 보고하세요.
+- (환각 금지) 수집결과에 없는 수치/사실은 절대 지어내지 마세요. 일반 지식·추측·웹 정보로 빈칸을 채우지 마세요. 수집결과가 비어 있거나 데이터가 없으면 짧게 "그 정보는 없어요" 또는 "지금은 가져오지 못했어요"라고만 답하세요. 도구가 빈 결과를 돌려주면(예: warnings:[]) "현재 발효 중인 ~ 없습니다"처럼 *없음*을 그대로 보고하세요. **get_warning 응답은 두 형태가 공존합니다 — (1) 특정 해역 호출 시 \`{zone, warning}\` (\`warning\` 이 단일 객체 또는 null), (2) 전국 집계 호출 시 \`{zone:'전국', activeCount:N, warnings:[…]}\` (\`warnings\` 배열, 동시에 \`warning:null\` 이 포함될 수도 있음 — 그때는 \`warnings\` 를 우선). \`warning\` 이 비어있지 않으면(객체) 그 단일 특보를, \`warnings\` 배열이 있으면 N건을(\`activeCount=0\` 또는 \`warnings:[]\` 이면 "전국 풍랑특보 없음"으로) 자연어로 풀어 보고하세요. \`activeCount\` 의 숫자 N 은 *집계 결과 건수*이지 기상 수치(파고·풍속)가 아닙니다 — 결정 임계와 혼동 금지.**
 - **(CoT 누수 절대 금지)** 내부 사고 과정·추론 단계·메타 코멘트를 응답에 출력하지 마세요. "내가 생각해 보니/추론 과정/thinking:/sources:/먼저 ~를 확인하고~" 같은 메타 텍스트는 한 글자도 답에 포함 금지. 사용자가 최종 답만 음성으로 듣게 됩니다 — 깔끔한 결론만.
 - **(컨텍스트 격리 — 🔒 프라이버시)** 위에 제공된 [최근 대화]/[직전 확정 대상]/[수집 데이터 인벤토리]/memory/focus/personal/profile/jikgun 같은 **입력 블록·라벨 자체를 답에 출력하지 마세요**. 그 안의 사실(직전 해역명·해구·좌표)만 자연어로 풀어쓰세요. "[최근 대화] memory: ..." 같은 prompt 컨텍스트 텍스트가 응답에 노출되면 안 됩니다(다른 사용자 정보 누설 위험).
 - **(비기상·비도메인 정보 거절)** 사용자가 우리 도구로 답할 수 없는 정보(산업재해·인구·교통사고·산재 통계 · 법령 제N조·시행령 · 운용규정·매뉴얼·SAR 절차 · 면허·채용·예산·조례 · 해역 경계 좌표 · 어획 통계·정책 5개년·정원·인사 등 비기상 행정·법령·통계·매뉴얼)을 물으면, 수집결과에 web_search 답이 있어도 그 답을 그대로 채택하지 말고 **"그 정보는 우리 자료에 없어요"** 또는 **"기상·해상 정보 외엔 안내가 어려워요"** 로 답하세요. 우리 데이터(기상청·KHOA·해양조사원)는 *현재 기상·해상 관측·예보·특보·태풍·생활지수·조석·유속·수심·시정* 만 다룹니다.
 - **(메타·자기요약 질의)** "방금 결정 사유/한 줄 요약/방금 결과 뭐였지/왜 그렇게 판단" 같이 *직전 답을 다시 요약하라*는 질의면, 수집결과 대신 [최근 대화] memory 의 마지막 항목을 1-2줄로 자연어 요약해 답하세요(없으면 "직전 대화 기록이 없어요"). 새 도구 호출 데이터에 의존하지 마세요.
 - **(의사결정형 — 정량 판단 강화)** "출항/조업/훈련/작업/타도 돼/가능?·괜찮을까?·해도 돼?·위험?·안전?" 류 안전 판단 질의는 수집결과의 정량 수치(파고·풍속·시정·특보)에 근거해 짧은 한 줄로 가부 결론을 먼저 주세요(예: 파고 ≥2m 또는 풍속 ≥14m/s 또는 풍랑특보 발효면 "무리/주의", 파고 <1m + 풍속 <10m + 특보無면 "가능", 그 사이면 "주의/조건부 가능"). 그 다음 근거 수치 1-2개. 마지막에 "최종 판단은 선장님 몫" 한 번만.
+- **(가설·조건문 질의 — 데이터 부재여도 SOP 답)** "만약/~시/~라면/~면 어떡해/~떴을 때/~넘으면/~발효되면" 같이 *가설 조건* 을 전제로 SOP·운용 가부를 묻는 질의는, 그 조건이 *현재 발효 중인지* 와 무관하게 위 [직군 안전 임계표] 및 그 주의(직군 표준 SOP) 에 따라 **조건부 가설답을 먼저 주세요**. 형식: "(조건)이면 (가능/주의/무리/통제/권장 + 임계 수치 근거) 가 표준입니다. 현재는 (실제 상태 한 줄)." 의 2단 구조로 간결히. 결정 단어(가능/주의/무리/위험/적합/권장/권고/발령/통제/허용/보류) 를 반드시 한 단어 이상 포함. "현재 상태 한 줄" 은 get_warning 응답이 \`warning:null\` 이거나 \`warnings:[]\` 비어있으면 "현재 풍랑특보 없음" 으로 양방향 해석. 임계표는 *외부 사실이 아니라 직군 표준 운용 기준* 이므로 환각 금지 규칙과 모순되지 않습니다.
 - 사용자가 사실을 단정해도(예: "제6호 태풍이 북상 중인데", "특보 떴잖아") 수집결과와 다르면 수집결과를 따르세요. 예: 태풍 hasActive 가 false 면 "현재 발효 중인 태풍은 없습니다"라고 정정하세요. 사용자의 전제를 그대로 인정하지 마세요.
 - 핵심만 간결하게. 사용자가 묻지 않은 일반론·참고사항·주의문구를 덧붙이지 마세요.
 - 여러 항목(예: 부이 여러 개)을 물으면 항목마다 이름과 관측 수치를 명확히, 관측 기준시각이 있으면 함께.

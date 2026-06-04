@@ -68,7 +68,17 @@ HALLUC_INDICATORS = [
 HALLUC_RE = re.compile("|".join(HALLUC_INDICATORS))
 
 # 결정 단어 (decision 케이스)
-DECISION_RE = re.compile(r"가능|적합|주의|무리|안전|위험|불가|곤란|어렵|좋습|괜찮|조심")
+# [§B 패치 — sentinel #4 결정 단어 확장 (C8)]
+# synth prompt 의 결정 단어 enumeration 과 동기화 — runner-synth drift 방지.
+# 추가 9개: 권장/권고/발령/통제/허용/중지/중단/보류/이행/지속
+DECISION_RE = re.compile(
+    r"가능|적합|주의|무리|안전|위험|불가|곤란|어렵|좋습|괜찮|조심|"
+    r"권장|권고|발령|통제|허용|중지|중단|보류|이행|지속"
+)
+# "운영" 은 명사구 부분문자열로 흔히 등장("해수욕장 운영", "어업관리 운영") → 단독 신호로는 약함.
+# 다른 결정 어휘(가능/불가/중지/통제/허용/미만/초과/이하/이상)와 동시 매칭 시에만 보조 신호로 통과.
+DECISION_RE_WEAK = re.compile(r"운영")
+DECISION_WEAK_PAIR_RE = re.compile(r"가능|불가|중지|중단|통제|허용|미만|초과|이하|이상")
 
 # 거절·정보없음 (no-halluc 보호장치 — 거절은 안 환각)
 REFUSAL_RE = re.compile(r"없어요|모릅|가져오지|찾지\s*못|지원하지|범위.*벗어|확인할\s*수\s*없")
@@ -179,8 +189,12 @@ def evaluate(case, data, ms, err):
     # 결정 단어
     if case.get("expect_decision"):
         if not DECISION_RE.search(ans):
-            notes.append("decision word 없음")
-            axes["A"] = axes.get("A", True) and False
+            # [C8] WEAK 보조 신호 — "운영" 이 다른 결정 어휘와 동시 매칭되면 통과
+            if DECISION_RE_WEAK.search(ans) and DECISION_WEAK_PAIR_RE.search(ans):
+                pass  # 보조 신호 통과
+            else:
+                notes.append("decision word 없음")
+                axes["A"] = axes.get("A", True) and False
     # 종합 ok = axes 중 명시된 것 모두 True
     explicit = [v for v in axes.values() if v is not None]
     ok = all(explicit) if explicit else True
