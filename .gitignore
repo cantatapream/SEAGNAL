@@ -43,6 +43,8 @@ local_server/data/mid_term_sea_forecasts.json
 local_server/data/fishing_index.json
 local_server/data/surfing_index.json
 local_server/data/sea_split_index.json
+local_server/data/weather_alerts.json
+local_server/data/zone_forecasts.json
 
 # 사용량/구독 통계 (런타임 누적, Fly.io Volume에 저장)
 local_server/data/usage_stats.json
