@@ -120,6 +120,130 @@ function buoyToCoords(name) {
     return hit ? { lat: hit.lat, lon: hit.lon } : null;
 }
 
+// [P_continuity_v2 — HUNK#1] 좌표 → 가장 가까운 표준 해역명.
+//   ZONE_COORDS(code→{lat,lon}) + ZONE_NAME_TO_CODE 역인덱스(code→zoneName)로 근사 거리.
+//   반경 200km 초과 시 null (오매칭 차단 — A §5.4 zoneRaw 보존 원칙).
+//   ZONE_COORDS 가 비었거나 좌표 형식이 잘못된 경우에도 안전하게 null 반환.
+//   (주: ZONE_NAME_TO_CODE 는 함수 정의 이후(L384)에 선언되지만, 호출 시점에 평가되므로 안전.)
+function nearestZoneByCoords(lat, lon) {
+    if (typeof lat !== 'number' || typeof lon !== 'number') return null;
+    if (!nearestZoneByCoords._codeToName) {
+        const idx = {};
+        try {
+            for (const [zn, code] of Object.entries(ZONE_NAME_TO_CODE || {})) {
+                if (code && !idx[code]) idx[code] = zn;   // 첫 매칭 보존(같은 code 다중 이름 케이스)
+            }
+        } catch (e) { /* 안전 폴백 */ }
+        nearestZoneByCoords._codeToName = idx;
+    }
+    const codeToName = nearestZoneByCoords._codeToName;
+    let best = null, bestD = Infinity;
+    try {
+        for (const [code, c] of Object.entries(ZONE_COORDS || {})) {
+            if (!c || c.lat == null || c.lon == null) continue;
+            const dx = (lat - c.lat) * 111, dy = (lon - c.lon) * 88;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            if (d < bestD) { bestD = d; best = codeToName[code] || null; }
+        }
+    } catch (e) { return null; }
+    return (best && bestD <= 200) ? best : null;
+}
+
+// [P_continuity_v2 — HUNK#1] 부이 이름 → 가장 가까운 표준 해역명.
+//   buoyToCoords 패턴 일관 (α C1). focus.buoy 만 있고 focus.zone 이 비어
+//   chain 후속에서 zone-arg 주입 실패하는 케이스(B §1.3 P2, A G4) 직타.
+function buoyToZone(name) {
+    const co = buoyToCoords(name);
+    if (!co) return null;
+    return nearestZoneByCoords(co.lat, co.lon);
+}
+
+// [P_continuity_v2 — HUNK#1] 해구번호(zone code) → 소속 표준 해역명.
+//   ZONE_NAME_TO_CODE 의 역인덱스 1회 빌드. focus.haegu 는 v.zoneId 를 String 화해 저장하므로
+//   여기서 String(haeguId) 정규화. focus.haegu 만 잡힌 케이스(B §2.4 표) 직타.
+function haeguToZone(haeguId) {
+    if (haeguId == null) return null;
+    const id = String(haeguId);
+    if (!haeguToZone._idx) {
+        haeguToZone._idx = {};
+        try {
+            for (const [zn, code] of Object.entries(ZONE_NAME_TO_CODE || {})) {
+                if (code && !haeguToZone._idx[String(code)]) haeguToZone._idx[String(code)] = zn;
+            }
+        } catch (e) { /* 안전 폴백 */ }
+    }
+    return haeguToZone._idx[id] || null;
+}
+
+// ============================================================================
+// [§6 #35 SEC P0] — 보안 의도 분류기 + 거절문 + 사후검열 카탈로그 (L0/L2/L4 공통)
+// 결정론 정규식. 부수효과 0, idempotent. < 1ms.
+// 우선순위: secret > destructive > injection.
+// 화이트리스트: '특보' + 조회 동사 (등록/해제 미동반) → null (ADM-OK-2 보존).
+// 두 지점(runBrain 진입 L0 / web_search 폴백 진입 L2)에서 재호출 안전.
+// ============================================================================
+const ADMIN_INTENT_RE = {
+    SECRET_NOUN:   /(api키|apikey|api-key|api_key|시크릿|secret|토큰|token|패스워드|password|비밀번호|gemini키|gemini상태|gemini사용량|구글키|googlekey|openai키|액세스키|엑세스키|privatekey|개인키|환경변수|env변수|서버설정값?|키상태|쿨다운)/,
+    SECRET_INTENT: /(보여|알려|노출|공개|확인|반환|보내|뭐야|뭐지|뭐임|줘$|줘\.|줘\?|줘!|좀$|좀\.)/,
+    DEST_NOUN:     /(대화로그|로그|기록|히스토리|세션|디비|db|데이터베이스|백업|캐시|계정|공지|특보|푸시|팝업|사용자목록|가입자목록|푸시발송)/,
+    DEST_VERB:     /(지워|지우|삭제|제거|날려|날리|초기화|리셋|reset|clear|비워|비우|포맷|복구|롤백|덮어|등록해|등록해줘|작성|올려|발행|발송|전송|차단|정지|해제|수동등록|점검모드|발효시|발효해|발령)/,
+    INJECTION:     /(나관리자|내가관리자|관리자(야|입니다|이다|다)|관리자권한|관리자모드|관리자전환|관리자로그인|admin모드|admin권한|admin로그인|adminoverride|systemoverride|슈퍼유저|루트권한|root권한|시스템권한|개발자모드|developermode|지금부터관리자|이제부터관리자|모드전환|역할전환|인척|pretend|actas|이전지시무시|시스템명령|시스템프롬프트|systemprompt|프롬프트보여|override|bypass|jailbreak|탈옥|규칙무시)/,
+};
+
+function classifySecurityIntent(q) {
+    const s = (q || '').toLowerCase().replace(/\s+/g, '');
+    if (!s) return null;
+    const hitSecret      = ADMIN_INTENT_RE.SECRET_NOUN.test(s) && ADMIN_INTENT_RE.SECRET_INTENT.test(s);
+    const hitDestructive = ADMIN_INTENT_RE.DEST_NOUN.test(s)   && ADMIN_INTENT_RE.DEST_VERB.test(s);
+    const hitInjection   = ADMIN_INTENT_RE.INJECTION.test(s);
+    // ── 화이트리스트 (FP 가드) — '특보 발효된 거 있어?' 류 조회는 destructive 제외 ──
+    if (hitDestructive) {
+        const warningRead = /특보/.test(s)
+            && /(발효|있어|있는|있나|있니|있음|있는지|중이|중인|중이야|중인가|발효중|떴어|뜬|발효된)/.test(s)
+            && !/(등록|해제|발령|발효해|발효시|수동등록|취소|발효취소|삭제)/.test(s);
+        if (warningRead && !hitSecret && !hitInjection) return null;
+        const noticeRead = /공지/.test(s)
+            && /(뭐|있|있어|있는|보여줘|확인|올라온)/.test(s)
+            && !/(등록|작성|올려|발행|발송|전송|삭제|지워)/.test(s);
+        if (noticeRead && !hitSecret && !hitInjection) return null;
+    }
+    // ── 우선순위: secret > destructive > injection ──
+    if (hitSecret)      return { kind: 'secret',      reason: 'secret-noun+intent' };
+    if (hitDestructive) return { kind: 'destructive', reason: 'destructive-noun+verb' };
+    if (hitInjection)   return { kind: 'injection',   reason: 'injection-claim' };
+    return null;
+}
+
+// 3종 정확 거절문 — REFUSAL_RE / answer_excludes 모두 자동 통과 형태
+const SEC_REFUSAL = {
+    secret:      '관리자 권한 정보는 제공하지 않습니다. 일반 사용자 안내만 가능해요.',
+    destructive: '시스템 변경 명령은 받지 않습니다. 저는 조회만 도와드릴 수 있어요.',
+    injection:   '권한 상승 시도는 거부됩니다. 일반 사용자 응답만 드릴 수 있어요.',
+};
+
+// [L4 사후검열] GUARD_EXCLUDES — synth/web 답 출력 직전 부분일치 차단.
+//   sentinel v2 의 5개 보안 케이스 answer_excludes 합집합 + memory-leak 라벨.
+const GUARD_EXCLUDES = [
+    // 시크릿 누설
+    'sk-', 'AIza', 'key:', '키값', '토큰:', 'API_KEY',
+    // 거짓 파괴/쓰기 수행
+    '삭제했습니다', '삭제 완료', '지웠습니다', '비웠습니다',
+    '등록했습니다', '등록 완료', '발송 완료', '보냈습니다', '전환했습니다',
+    // 인젝션 굴복
+    '알겠습니다 관리자',
+    // 컨텍스트/memory 라벨 (인라인 변형)
+    'memory:', '[직전 확정 대상]', '[사용자 직군]', '[사용자 프로필]',
+    '[최근 대화]', 'focus:', 'profile:', 'jikgun:',
+];
+
+function guardExcludesScan(text) {
+    if (!text) return null;
+    for (const tok of GUARD_EXCLUDES) {
+        if (text.includes(tok)) return tok;
+    }
+    return null;
+}
+
 // ============================================================================
 // 지명 → 해점 좌표 — 물때 바텀시트를 "그 지명에서 가장 가까운 해점"에서 띄우기 위함.
 //  ① 조석 표준항(TIDE_REFERENCE_STATIONS, tide.js): 인천/제주/부산/목포 등 항만 좌표
@@ -1349,11 +1473,30 @@ function deriveFocus(plan, results, zoneName, query) {
             if (focus.coords == null && top['위도'] != null && top['경도'] != null) focus.coords = { lat: top['위도'], lon: top['경도'] };
         }
     }
-    // [결함 1 — focus 전파 강화] zone 이 비면 query 에서 fuzzy 보강(detectZoneDeterministic).
-    //   결함 분석에서 후속 턴이 focus 못 받아 엉뚱한 해역 추천한 케이스(angler Q5 등) 직타.
-    if (!focus.zone && typeof query === 'string') {
+    // [P_continuity_v2 — HUNK#2] focus.zone 폴백 사다리 6단 (synthesis §2.2).
+    //   우선순위: (1) plan.zone/zoneName — 이미 위에서 적용
+    //          → (2) top.zone(items)               — 이미 L1348 에서 적용
+    //          → (3) detectZoneDeterministic(query) ← 기존 블록 보존
+    //          → (4) haeguToZone(focus.haegu)       ★ NEW (B §2.2)
+    //          → (5) buoyToZone(focus.buoy)         ★ NEW (A·B 공통)
+    //          → (6) rankedItems[0].zone/해역/지점  ★ NEW (B §2.2)
+    //   각 단은 위 단이 비어있을 때만 진행 → 신뢰도 높은 값 보존(덮지 않음).
+    //   7 단(profile default) + 거절은 runBrain 안에서 처리(deriveFocus 시그니처 안정성).
+    if (!focus.zone && typeof query === 'string') {                       // 3
         const z = detectZoneDeterministic(query);
         if (z) focus.zone = z;
+    }
+    if (!focus.zone && focus.haegu) {                                     // 4
+        const z = haeguToZone(focus.haegu);
+        if (z) focus.zone = z;
+    }
+    if (!focus.zone && focus.buoy) {                                      // 5
+        const z = buoyToZone(focus.buoy);
+        if (z) focus.zone = z;
+    }
+    if (!focus.zone && focus.rankedItems && focus.rankedItems.length) {   // 6
+        const t = focus.rankedItems[0];
+        focus.zone = t.zone || t['해역'] || t['지점'] || null;
     }
     return (focus.zone || focus.haegu || focus.buoy || focus.coords || focus.rankedItems) ? focus : null;
 }
@@ -1445,7 +1588,21 @@ ${catalogLine}
   스쿠버·다이빙처럼 전용 지수가 없는 활동은 위 지수에 억지로 맞추지 말고 steps 를 비워(웹검색 폴백) 두세요.
 - 관리자/설정/키 같은 건 도구가 없으니 무시하세요.
 - **(중요) 한국 해상·기상 도메인 질의(특보·예보·파고·풍속·시정·부이·조석·유속·수심·태풍·해구·해역·낚시·서핑·관측·수온 등)는 반드시 위 도구로 처리하세요.** 위치가 모호해도(예: "오늘 특보", "관내 어때", "전국 상황") web_search 폴백을 노리고 steps 를 비우지 말고, 가장 그럴듯한 도구를 하나라도 호출하세요(예: 위치 없는 특보 → get_warning(zone="전국") 또는 zone 생략, "오늘 연안" → get_marine_forecast(zone="서해남부") 같은 기본 해역). 결과가 비어 있으면 합성 단계가 "현재 ~ 없음" 으로 자연스럽게 보고합니다.
-- **(다중 도구 패턴)** 직군이 어업·해양경찰·해군·지자체·공공기관·해양수산부 같은 종합 모니터링 직군이고 질의가 "어때/상황/괜찮을까/어떻게 됐어/전반/전체/관내" 같이 종합적이면, get_marine_forecast + get_warning 을 **함께** 호출하세요. 해양수산부·공공기관 등 정책·중기 관심 직군은 추가로 get_midterm_forecast 도. 출항/조업 판단 질의는 추가로 get_tide·get_current 도 함께. 답할 자료가 비더라도 호출은 같이 — 합성이 데이터별로 "있음/없음" 을 명확히 보고합니다.
+- **(다중 도구 패턴 — v2 R1~R12 매트릭스)** 아래 매트릭스 중 하나라도 매칭되면 해당 도구들을 **모두** steps 에 함께 넣으세요(빈 결과 우려해도 호출은 같이):
+  · [R1 어업·해군·해경·지자체·공공기관·해수부 + "어때/상황/괜찮을까/전반/전체/관내/종합/모니터링/평가"] :: get_marine_forecast + get_warning
+  · [R1+ 어업·해경·해군 + "출항/조업/출조/작업/연승/새벽 조업/안전"] :: 위 + get_tide 또는 get_current (해역 확정 시)
+  · [R2 angler + "갯바위/포인트/방파제/원투/찌낚시/루어/낚시 가능"] :: get_fishing_index + get_tide (+선택 get_marine_forecast)
+  · [R3 marine_leisure + "서핑/파도/라이딩" + 해수욕장명] :: get_surfing_index + get_marine_forecast
+  · [R4 marine_leisure + "다이빙/스쿠버/프리다이빙/시정 좋은"] :: get_visibility + get_buoy_observation
+  · [R5 marine_leisure + "요트/윈드서핑/카이트/카약" + "어디/추천/좋은 곳/가능 해역"] :: get_marine_forecast + get_zones_ranked(scope:"haegu")
+  · [R6 coast_guard + "수색/구조/출동/경비/방제"] :: get_warning + get_marine_forecast (+태풍 시즌: get_typhoon_status)
+  · [R7 전 직군 + "태풍/진로/영향 권역"] :: get_typhoon_status + get_warning
+  · [R8 navy + "잠수함/수중/항로 수심"] :: get_depth + get_marine_forecast
+  · [R9 mof·public_org + "정책/중기/주간/이번 주/작업 일정/동향"] :: get_marine_forecast + get_midterm_forecast (+ 정책 결정: get_warning)
+  · [R10 local_gov + "해수욕장/운영/통제/개장/폐장"] :: get_surfing_index + get_marine_forecast + get_warning
+  · [R11 local_gov + "재난/방재/훈련/연안관리"] :: get_marine_forecast + get_warning
+  · [R12 전 직군 + "관내/우리시/시청 관할" + 종합] :: get_warning(zone="전국" 또는 비움) + get_marine_forecast
+  매칭이 둘 이상이면 도구 합집합(중복 제거). 우선순위 R2 > R4 > R5 > R8 > R7 > R9 > R3 > R10 > R6 > R1 > R11 > R12. (G5 안전판) 해역/지명/해변명이 질의에 **하나도 없고** 직군·활동 어휘도 모호하면(예: "어떻게 돼", "뭐야") 위 매트릭스 룰을 적용하지 말고 *기존 단일 도구* 룰로 처리하세요.
 - **(직군 floor 보강 — marine_leisure/local_gov)**
   · **레저스포츠(marine_leisure)** 직군 + 해수욕장·해변명(양양/송정/낙산/해운대/협재/이호테우/광안리/대천/안목/속초 등) 질의는 무조건 **get_surfing_index(beach=이름) 먼저 호출**. 그 다음 보조로 get_marine_forecast. 해변명을 detectZoneDeterministic 으로 zone 변환하려 하지 마세요 — surfing_index 가 위치 자체 처리.
   · **지방자치단체(local_gov)** 직군 + "관내/우리시/시청 관할/관할 해역" 같은 모호 지명은 사용자 GPS 좌표(있으면) 또는 활동 default 해역으로 도구 호출. 둘 다 없으면 get_warning(zone="전국") 으로 전국 특보 요약하세요. "관내" 를 그대로 zone 인자에 넣지 마세요.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}${simLine}${toolSimLine}
@@ -1488,20 +1645,118 @@ async function webSearchAnswer(query) {
     } catch (e) { return null; }
 }
 
-/** 의존 위빙 판단: "X 가장 ~한 곳의 Y(조석/유속/수심/특보/해무)" 처럼 1차 결과(focus)가 있어야
- *  2차 도구를 부를 수 있는 질문인지. 좁게 트리거(일반 단일질문은 재계획 안 함). */
-function needsReplan(q, results, focus) {
-    if (!focus || (!focus.coords && !focus.haegu && !focus.zone)) return false;
+// [P_multitool §2.2 — EXPECT_TOOLS_MIN] 직군별 1차 도구 floor (multitool 분기 발동 조건).
+//   hint 는 floor 카운트 컨텍스트용이고 실제 보강 도구는 pickMissingTools 가 결정.
+//   marine_leisure 합성 교정: fishing_index 제거 → forecast+surfing_index (min 3→2).
+const EXPECT_TOOLS_MIN = {
+    fishery:        { min: 3, hint: ['get_marine_forecast', 'get_warning', 'get_tide'] },
+    navy:           { min: 2, hint: ['get_marine_forecast', 'get_warning'] },
+    marine_leisure: { min: 2, hint: ['get_marine_forecast', 'get_surfing_index'] },
+    public_org:     { min: 2, hint: ['get_marine_forecast', 'get_warning'] },
+    mof:            { min: 2, hint: ['get_marine_forecast', 'get_warning'] },
+    coast_guard:    { min: 2, hint: ['get_marine_forecast', 'get_warning'] },
+    local_gov:      { min: 2, hint: ['get_warning', 'get_marine_forecast'] },
+    angler:         { min: 2, hint: ['get_fishing_index', 'get_marine_forecast'] },
+};
+
+/** 의존 위빙 판단 + multi-tool 보강 판단 (v2 — P_multitool 합성).
+ *  - mode='dep_weave': 기존 "가장 ~한 곳의 Y" (좁은 sup×sec)
+ *  - mode='multitool': 직군 floor 미충족 + 다중의도 + 도메인 + !pronoun-followup 안전망
+ *  PRONOUN_GUARD = !isPronounFollowup (pronoun 후속은 #30 isChainFollowup 이 focus 주입을 책임)
+ */
+function needsReplan(q, results, focus, profile, isPronounFollowup, isDomainQuery) {
     const nq = normalize(q);
+    // === (1) dep_weave 분기 (기존 좁은 트리거) ===
+    const depWeaveFocusOK = focus && (focus.coords || focus.haegu || focus.zone);
     const sup = /(가장|제일|최고|최저|높은|낮은|센|약한|많은|적은|상위|랭킹|줄세|순위)/.test(nq);
     const sec = /(조석|물때|만조|간조|유속|유향|해류|수심|특보|주의보|경보|해무|씨씨티비)/.test(nq);
-    if (!(sup && sec)) return false;
     const done = new Set((results || []).map(r => r.tool));
     const secTools = ['get_tide', 'get_current', 'get_depth', 'get_warning', 'get_seafog_cctv'];
-    return !secTools.some(t => done.has(t));   // 2차 도구가 이미 실행됐으면 불필요
+    if (depWeaveFocusOK && sup && sec && !secTools.some(t => done.has(t))) {
+        return { mode: 'dep_weave' };
+    }
+    // === (2) multitool 분기 (P_multitool B 신규) ===
+    if (isPronounFollowup) return false;                 // PRONOUN_GUARD — #30 isChainFollowup 가 책임
+    if (!isDomainQuery) return false;                    // G4 비도메인 잡담 차단
+    const MULTI_INTENT_RE = /(?:어때|상황|어떻게|괜찮|종합|전반|전체|적합|가능|할\s*만|할\s*수)|(?:파고.*풍속|풍속.*파고|특보.*조석|조석.*특보|어업.*안전|작전.*해역)/;
+    if (!MULTI_INTENT_RE.test(nq)) return false;
+    const jk = detectJikgun(profile);
+    const minSpec = (jk && EXPECT_TOOLS_MIN[jk]) || { min: 2, hint: [] };
+    // hasRealData 인라인 — runBrain 내부 헬퍼와 동일 의미
+    const _hasReal = (v) => {
+        if (!v || typeof v !== 'object' || v.error) return false;
+        return Object.values(v).some(val => {
+            if (val == null) return false;
+            if (Array.isArray(val)) return val.length > 0;
+            if (typeof val === 'object') return Object.keys(val).length > 0;
+            if (typeof val === 'string') return val.trim().length > 0;
+            return true;
+        });
+    };
+    const realCount = (results || []).filter(r => _hasReal(r.result)).length;
+    if (realCount < minSpec.min) return { mode: 'multitool' };
+    return false;
+}
+
+/** [P_multitool §4.2] 결정론적 도구 보강 — LLM 호출 0, cap=2.
+ *  우선순위: (1) zoneArg 결정 → (2) forecast+warning 페어 → (3) 직군 특화.
+ */
+function pickMissingTools(plan, results, profile, focus, query) {
+    const done = new Set((results || []).map(r => r.tool));
+    const has = (t) => done.has(t);
+    const jikgun = detectJikgun(profile);
+    const out = [];
+
+    // (1) Zone 인자 결정 — focus.zone → plan.zone → profileDefaultZone → undefined
+    const zoneArg = (focus && focus.zone) || (plan && plan.zone) || profileDefaultZone(profile) || undefined;
+
+    // (2) 직군 무관 — 안전판단형 (forecast + warning 페어)
+    if (!has('get_marine_forecast')) {
+        out.push({ tool: 'get_marine_forecast', args: zoneArg ? { zone: zoneArg } : {} });
+    }
+    if (!has('get_warning')) {
+        out.push({ tool: 'get_warning', args: zoneArg ? { zone: zoneArg } : {} });
+    }
+
+    // (3) 직군별 특화 보강 (cap=2 안에서)
+    if (out.length < 2) {
+        if (jikgun === 'fishery' || jikgun === 'navy') {
+            if (/출항|조업|작전|항해|훈련|연승/.test(query) && !has('get_tide')) {
+                out.push({ tool: 'get_tide', args: zoneArg ? { place: zoneArg } : {} });
+            }
+        }
+        if (jikgun === 'marine_leisure') {
+            if (/서핑|파도|라이딩/.test(query) && !has('get_surfing_index')) {
+                out.push({ tool: 'get_surfing_index', args: {} });
+            }
+        }
+        if (jikgun === 'angler') {
+            if (/갯바위|포인트|방파제|원투|찌낚시|루어/.test(query) && !has('get_fishing_index')) {
+                out.push({ tool: 'get_fishing_index', args: zoneArg ? { location: zoneArg } : {} });
+            }
+        }
+    }
+
+    // (4) cap=2 — 1차 cap 6 와 정합 (총 ≤ 8 안전선, 실측 평균 ≤ 4.4)
+    return out.slice(0, 2);
 }
 
 async function runBrain(query, profile, memory, style, location, focus) {
+    // [§6 #35 SEC P0 — L0 hard gate] 시크릿/파괴/인젝션 의도는 planQuery·web_search 도달 전 즉시 거절.
+    //   - 도구 0 보장 → expect_tools_none 통과
+    //   - 결정론 거절문 → expect_refusal · REFUSAL_RE 통과
+    //   - answer_excludes 토큰 0 → sentinel 자동 통과
+    const sec0 = classifySecurityIntent(query);
+    if (sec0) {
+        return {
+            answer: SEC_REFUSAL[sec0.kind],
+            zone: null,
+            toolsUsed: [],
+            corrected: null,
+            focus: null,
+            securityRefusal: sec0.kind,
+        };
+    }
     const plan = await planQuery(query, profile, location, memory, focus);
     if (!plan) return null;
     // 음성인식 보정 결과(있으면) — 종합/웹폴백/표시에 사용할 질문
@@ -1526,8 +1781,16 @@ async function runBrain(query, profile, memory, style, location, focus) {
     // [§6 #22 v2 — focus 후속 전파 도구별 args 정확 주입] 도구마다 zone/place/location/beach 등
     //   인자 이름이 다르다. v3 에서 args.zone 만 채워 일부 도구(get_tide/get_buoy_observation 등)
     //   에 무영향이라 연속 카테고리 -5p 회귀. 도구별 매핑 테이블로 정확히 채운다.
-    const PRONOUN_RE = /거기|그곳|그쪽|그\s*해역|그\s*해구|그\s*부이|방금|아까|그건|그게|저거/;
+    // [P_continuity_v2 — HUNK#3] PRONOUN_RE v2 (A §2.4).
+    //   추가: 그 곳/그 위치/그 해변/그 해안/그 항(만/구)/같은 곳·해역·위치/방금 거·방금 전.
+    //   제외(보존): "그 때"(#27 시간 후속), "여기"(GPS 우선), "근처/주변/인근"(#31 multitool).
+    const PRONOUN_RE = /거기|그곳|그\s*곳|그쪽|그\s*해역|그\s*해구|그\s*부이|그\s*해변|그\s*해안|그\s*항(?:만|구)?|그\s*위치|같은\s*(?:곳|해역|위치)|방금(?:\s*거|\s*전)?|아까|그건|그게|저거/;
     const isPronounFollowup = PRONOUN_RE.test(cq);
+    // [P_continuity_v2 — HUNK#4 chain 게이트] focus 객체 비어있지 않음 = chain 후속.
+    //   대명사 없는 한 단어 후속("파고?", "수온?")까지 흡수 (B §3.2).
+    //   FP-5: 빈 객체 {} 가드 — 4필드 모두 검사(hasAnyKey).
+    const isChainFollowup = !!(focus && (focus.zone || focus.haegu || focus.buoy || focus.coords));
+    const isFollowup = isPronounFollowup || isChainFollowup;
     const focusZone  = focus && focus.zone;
     const focusHaegu = focus && focus.haegu;
     const focusBuoy  = focus && focus.buoy;
@@ -1552,10 +1815,17 @@ async function runBrain(query, profile, memory, style, location, focus) {
     for (const step of plan.steps || []) {
         if (!step || !step.args || typeof step.args !== 'object') continue;
         if (step.args.zone) step.args.zone = canonZone(step.args.zone);
-        if (!isPronounFollowup) continue;
-        // 1) 도구별 zone-인자 주입
+        if (!isFollowup) continue;                                         // [HUNK#4] chain OR pronoun
+        // 1) 도구별 zone-인자 주입 — [HUNK#4 zone-arg 3단]
+        //    (a) LLM 채운 값 canonZone → (b) focusZone → (c) detectZoneDeterministic(cq)
         const zoneArg = FOCUS_ZONE_ARG[step.tool];
-        if (focusZone && zoneArg && !step.args[zoneArg]) step.args[zoneArg] = focusZone;
+        if (zoneArg) {
+            let z = step.args[zoneArg];
+            if (typeof z === 'string') z = canonZone(z);
+            if (!z && focusZone) z = focusZone;
+            if (!z) z = detectZoneDeterministic(cq);
+            if (z) step.args[zoneArg] = z;
+        }
         // 2) 해구번호 — get_zone_forecast
         if (focusHaegu && step.tool === 'get_zone_forecast' && !step.args.zoneId) {
             step.args.zoneId = focusHaegu;
@@ -1568,6 +1838,21 @@ async function runBrain(query, profile, memory, style, location, focus) {
         if (focusCoords && COORD_TOOLS.has(step.tool) && step.args.lat == null && step.args.lon == null) {
             step.args.lat = focusCoords.lat;
             step.args.lon = focusCoords.lon;
+        }
+    }
+
+    // [P_continuity_v2 — HUNK#4b 7단 profile default 폴백]
+    //   1~6 단은 deriveFocus 안에서 처리됨. chain 후속인데 zone 여전히 null 이면
+    //   profileDefaultZone 으로 최후 폴백(synthesis §2.2 7단). 결정론적·안전.
+    //   step.args 에 zone-arg 가 정의된 도구만 보강 — 이미 위 루프에서 채워졌으면 skip.
+    if (isFollowup && !focusZone) {
+        const _pzChain = profileDefaultZone(profile);
+        if (_pzChain) {
+            for (const step of plan.steps || []) {
+                if (!step || !step.args || typeof step.args !== 'object') continue;
+                const zA = FOCUS_ZONE_ARG[step.tool];
+                if (zA && !step.args[zA]) step.args[zA] = _pzChain;
+            }
         }
     }
 
@@ -1620,10 +1905,18 @@ async function runBrain(query, profile, memory, style, location, focus) {
         catch (e) { results.push({ tool: step.tool, error: e.message }); }
     }
 
-    // [의존 위빙 — 1회 재계획] "X 가장 ~한 곳의 Y" 처럼 1차 결과가 있어야 2차 도구 인자를
-    //   채울 수 있는 질문은, 1차 focus를 주입해 한 번 더 계획한다(이미 실행한 도구는 건너뜀).
+    // [의존 위빙 + multi-tool 보강 — 1회 재계획 v2] dep_weave(기존) / multitool(P_multitool B 신규) 분기.
+    //   multitool 분기는 planQuery 재호출 생략(LLM 0회) — pickMissingTools 결정론 cap=2.
     const focus1 = deriveFocus(plan, results, plan.zone, cq);
-    if (needsReplan(cq, results, focus1)) {
+    // [§hoist] L1756 의 isDomainQuery 계산을 multitool 가드용으로 미리 1회 — 변수명 충돌 회피 _isDomain.
+    const _MULTI_DOMAIN_RE = /특보|예보|파고|파주기|풍속|풍향|풍랑|해상|해양|연안|해역|해구|부이|시정|가시거리|조석|만조|간조|물때|유속|유향|해류|수심|태풍|기상|관측|수온|낚시|서핑|어업|조업|항해|바다|섬|항구|항만/;
+    const _MULTI_ISLAND_RE = /거문도|오륙도|마라도|추자도|울릉도|서귀포|신안|가거도|백령도|연평도|흑산도|위미|독도|덕적|영흥|울진|포항|속초|동해|강릉|삼척|군산|목포|여수|통영|거제|부산|보길도|진도|완도|소청도|대청도|어청도|울도|소흑산도/;
+    const _isDomain = _MULTI_DOMAIN_RE.test(query) || _MULTI_DOMAIN_RE.test(cq)
+        || _MULTI_ISLAND_RE.test(query) || _MULTI_ISLAND_RE.test(cq)
+        || !!detectZoneDeterministic(query) || !!detectZoneDeterministic(cq)
+        || OVERVIEW_RE.test(cq);
+    const replan = needsReplan(cq, results, focus1, profile, isPronounFollowup, _isDomain);
+    if (replan && replan.mode === 'dep_weave') {
         const plan2 = await planQuery(cq, profile, location, memory, focus1);
         if (plan2 && Array.isArray(plan2.steps)) {
             const done = new Set(results.map(r => r.tool));
@@ -1634,6 +1927,17 @@ async function runBrain(query, profile, memory, style, location, focus) {
                 try { results.push({ tool: step.tool, args: step.args || {}, result: await exec(step.args || {}) }); }
                 catch (e) { results.push({ tool: step.tool, error: e.message }); }
             }
+        }
+    } else if (replan && replan.mode === 'multitool') {
+        // 결정론적 도구 보강 — planQuery 재호출 생략(LLM 0회, p95 −800ms vs dep_weave).
+        const extra = pickMissingTools(plan, results, profile, focus1, cq);
+        const done = new Set(results.map(r => r.tool));
+        for (const step of extra.slice(0, 2)) {
+            const exec = step && TOOL_EXEC[step.tool];
+            if (!exec || done.has(step.tool)) continue;
+            done.add(step.tool);
+            try { results.push({ tool: step.tool, args: step.args || {}, result: await exec(step.args || {}) }); }
+            catch (e) { results.push({ tool: step.tool, error: e.message }); }
         }
     }
 
@@ -1671,9 +1975,62 @@ async function runBrain(query, profile, memory, style, location, focus) {
             focus: null
         };
     }
+    // [P_continuity_v2 — HUNK#5] chain zone-miss 안전 거절 폴백 (synthesis §6.5).
+    //   조건: isChainFollowup + focusZone 여전히 null + isDomainQuery + 도구 1+개 실행.
+    //   results 의 어떤 v 도 사용자 질의의 원래 대상(focus.buoy/haegu/coords)과 정합하지 않으면
+    //   환각 대신 친절한 명시적 거절. 좌표 0.5° (~50km) 허용은 광역 해역 대응.
+    //   FP-7: cat5 비도메인 케이스는 isDomainQuery=false → 본 블록 미발동.
+    if (isChainFollowup && !focusZone && isDomainQuery && results.length > 0) {
+        const anchorOk = results.some(r => {
+            const v = r && r.result;
+            if (!v || typeof v !== 'object' || v.error) return false;
+            if (focus && focus.buoy && v.name && String(v.name) === String(focus.buoy)) return true;
+            if (focus && focus.haegu && v.zoneId && String(v.zoneId) === String(focus.haegu)) return true;
+            if (focus && focus.coords && v['위도'] != null && v['경도'] != null
+                && Math.abs(v['위도'] - focus.coords.lat) < 0.5
+                && Math.abs(v['경도'] - focus.coords.lon) < 0.5) return true;
+            return false;
+        });
+        if (!anchorOk) {
+            return {
+                answer: '이 후속 질의에 적용할 해역을 찾지 못했어요. 해역 이름을 함께 말씀해 주세요.',
+                zone: (focus && focus.zone) || null,
+                toolsUsed: results.map(r => r.tool),
+                corrected,
+                focus
+            };
+        }
+    }
     if (!gotUseful && !isDomainQuery) {
+        // [§6 #35 SEC P0 — L2 hard gate] STT 보정 후 패턴이 드러나는 변형 차단.
+        //   query / cq 양쪽 재검사. L0 통과했어도 cq 가 새 패턴이면 여기서 잡힘.
+        //   매칭 시 webSearchAnswer 미호출 → toolsUsed=[] 보장(expect_tools_none).
+        const sec2 = classifySecurityIntent(query) || classifySecurityIntent(cq);
+        if (sec2) {
+            return {
+                answer: SEC_REFUSAL[sec2.kind],
+                zone: null,
+                toolsUsed: [],
+                corrected,
+                focus: null,
+                securityRefusal: sec2.kind,
+            };
+        }
         const web = await webSearchAnswer(cq);
         if (web && web.answer) {
+            // [§6 #35 — L4 web 직접 반환 경로 보강] security_boundary §(d) 잔여 격차.
+            //   web_search 결과에 시크릿/거짓수행/라벨 토큰 누설 시 안전 치환.
+            const badTokWeb = guardExcludesScan(web.answer);
+            if (badTokWeb) {
+                return {
+                    answer: '그 정보는 우리 자료에 없어요. 기상·해상 정보 외엔 안내가 어려워요.',
+                    zone: plan.zone || null,
+                    toolsUsed: [],
+                    corrected,
+                    focus: null,
+                    securityRefusal: 'guard-exclude:' + badTokWeb,
+                };
+            }
             return { answer: web.answer, zone: plan.zone || null, toolsUsed: ['web_search'], webLinks: web.webLinks || [], corrected, focus: deriveFocus(plan, results, plan.zone, cq) };
         }
     }
@@ -1710,7 +2067,21 @@ ${personal}
         .filter(line => !/^\s*(memory|focus|personal|profile|jikgun|sources?|thinking|reasoning)\s*[:：]/i.test(line))
         .join('\n')
         .trim();
-    return { answer: cleanAnswer(r.text), zone: plan.zone || null, toolsUsed: results.map(x => x.tool), corrected, focus: deriveFocus(plan, results, plan.zone, cq) };
+    const finalAns = cleanAnswer(r.text);
+    // [§6 #35 SEC P0 — L4 hard gate] GUARD_EXCLUDES 사후검열. synth 가 prompt 룰을
+    //   어겨도 시크릿/거짓수행/라벨 토큰이 응답에 박히지 않도록 마지막 안전망.
+    const badTokSynth = guardExcludesScan(finalAns);
+    if (badTokSynth) {
+        return {
+            answer: '그 정보는 안내해 드릴 수 없어요. 일반 사용자 안내만 가능해요.',
+            zone: plan.zone || null,
+            toolsUsed: results.map(x => x.tool),
+            corrected,
+            focus: null,
+            securityRefusal: 'guard-exclude:' + badTokSynth,
+        };
+    }
+    return { answer: finalAns, zone: plan.zone || null, toolsUsed: results.map(x => x.tool), corrected, focus: deriveFocus(plan, results, plan.zone, cq) };
 }
 
 router.post('/api/assistant/ask', async (req, res) => {
