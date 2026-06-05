@@ -59,6 +59,7 @@ const PENDING_HARD_CAP_MS = 6 * 60 * 60 * 1000;   // 6시간
 // PDF 본문 파싱 캐시 — file_nm 단위(PDF 불변). 메모리. 정규화 텍스트만 보관.
 const _pdfTextCache = new Map();                  // file_nm -> normalized text | null(파싱실패는 캐시 안 함)
 const PDF_CACHE_MAX = 400;
+let _warnedUnreadablePdf = false;                 // 판독불가(ToUnicode 부재) PDF 경고 1회 throttle
 // 매칭 자식 통보문 보관 상한(부모당) — 라우트 dedup 후 50건 슬라이스라 넉넉히.
 const MATCHED_PER_PARENT_MAX = 60;
 // 부모당 동시 펜딩 상한 — supersession 누적 방지(오래된 것부터 폐기).
@@ -117,7 +118,7 @@ function _saveState() {
 // ----------------------------------------------------------------------------
 // 이름 정규화 / 후보 생성 (A 의 견고한 축약 후보생성 + C 의 독립명 처리 보강)
 // ----------------------------------------------------------------------------
-const _norm = (s) => String(s || '').replace(/\s+/g, '');
+const _norm = (s) => String(s || '').replace(/[\s·.•・]/g, '');   // 공백 + 구분자(가운뎃점·마침표) 제거 — 통보문 '인천·경기'/'태안·서산' vs 정식 '인천.경기'/'태안.서산' 흡수
 
 /**
  * 자식 정식명에서 PDF 본문에 등장할 만한 후보 문자열들을 생성.
@@ -135,7 +136,8 @@ function _childNameCandidates(childFull) {
     const out = new Set();
     if (!full) return [];
     out.add(full);
-    const idx = full.indexOf('중');
+    const idx = full.lastIndexOf('중');         // 자식꼬리엔 '중'이 없으므로 *마지막* '중'으로 분할
+                                                //   (예 '강원중부앞바다중연안바다' → 첫 '중'에 걸려 깨지던 버그 수정)
     if (idx > 0 && idx < full.length - 1) {
         const prefix = full.slice(0, idx);     // 예: 제주도북부앞바다
         const suffix = full.slice(idx + 1);    // 예: 연안바다 / 동부평수구역 / 우도연안바다
@@ -171,6 +173,53 @@ function _includesNonExcluded(text, needle) {
     }
 }
 
+/** 정규화 본문에서 `head(` … `)` 괄호 그룹의 내용들을 모두 반환. */
+function _parenGroupsAfter(text, head) {
+    const groups = [];
+    if (!head) return groups;
+    const needle = head + '(';
+    let from = 0;
+    while (true) {
+        const i = text.indexOf(needle, from);
+        if (i < 0) break;
+        const start = i + needle.length;
+        const end = text.indexOf(')', start);
+        if (end < 0) break;
+        groups.push(text.slice(start, end));
+        from = end + 1;
+    }
+    return groups;
+}
+
+/**
+ * 한 자식이 본문에 등장하는가? 두 경로를 모두 시도한다.
+ *   A) 독립 축약/고유명 후보 (예: 참고사항의 '제주도북부연안바다', 지명형 '천수만평수구역').
+ *   B) 괄호 그룹형 '부모명( … 자식꼬리 … )' — 지방청 통보문의 표준 표기. 일반어 자식꼬리
+ *      ('연안바다'/'평수구역'/'먼평수구역' 등)는 변별력이 없어 A 에선 못 잡지만, *부모 괄호
+ *      그룹 안의 콤마 토큰*으로는 변별 가능. 토큰이 '…제외' 면 그 자식 *제외* 표기라 배제.
+ */
+function _matchChild(text, parentNorm, childFull) {
+    // Path A — 독립 후보
+    if (_childNameCandidates(childFull).some((c) => _includesNonExcluded(text, c))) return true;
+    // Path B — 괄호 그룹
+    const full = _norm(childFull);
+    const ci = full.lastIndexOf('중');
+    const suffix = (ci > 0 && ci < full.length - 1) ? full.slice(ci + 1) : full;
+    if (!suffix) return false;
+    const heads = new Set([parentNorm]);
+    if (ci > 0) heads.add(full.slice(0, ci));   // 자식명에 들어있는 부모 prefix 도 head 후보
+    for (const head of heads) {
+        for (const group of _parenGroupsAfter(text, head)) {
+            for (const tok of group.split(',')) {
+                if (!tok) continue;
+                if (tok.slice(-2) === '제외') continue;   // '…제외' 토큰 = 그 자식 제외 표기
+                if (tok === suffix) return true;          // 콤마 토큰 정확 일치(부분일치 오탐 방지)
+            }
+        }
+    }
+    return false;
+}
+
 /**
  * @returns {string[]|null} 매칭된 자식 정식명 배열 (없으면 null)
  */
@@ -179,12 +228,12 @@ function _matchInText(text, parent, children) {
     const parentNorm = _norm(parent);
     // 부모명 또는 그 핵심(앞/먼바다 꼬리 제거)이 본문에 있어야 함.
     const parentCore = parentNorm.replace(/앞바다$/, '').replace(/먼바다$/, '');
-    const hasParent = text.includes(parentNorm) || (parentCore.length >= 3 && text.includes(parentCore));
+    // core 2자(부산·울산)도 인정 — 자식 후보가 변별자라 게이트 완화의 오탐 위험은 낮음.
+    const hasParent = text.includes(parentNorm) || (parentCore.length >= 2 && text.includes(parentCore));
     if (!hasParent) return null;
     const hit = [];
     for (const child of children) {
-        const cands = _childNameCandidates(child);
-        if (cands.some((c) => _includesNonExcluded(text, c))) hit.push(child);
+        if (_matchChild(text, parentNorm, child)) hit.push(child);
     }
     return hit.length ? hit : null;
 }
@@ -309,6 +358,16 @@ async function _getPdfText(fileNm) {
         const d = await pdfParse(buf);
         text = _norm(d && d.text);
         if (!text) return null;   // 빈 추출 → 캐시 안 함(다음 cycle 재시도)
+        // KMA 통보문 PDF 중 일부(예: ~2025-11 이전)는 ToUnicode CMap 없는 CID 서브셋 폰트라
+        //   한글이 글리프 코드로만 추출돼 본문 판독이 불가능하다(현재 통보문은 정상). 한글이
+        //   거의 없으면 판독 불가로 보고 캐시하지 않는다(폰트 정상 PDF로 바뀌면 재시도).
+        if ((text.match(/[가-힣]/g) || []).length < 2) {
+            if (!_warnedUnreadablePdf) {
+                console.warn('[child-bulletin] 통보문 PDF 한글 추출 불가(ToUnicode 부재 가능) — 매칭 skip:', fileNm);
+                _warnedUnreadablePdf = true;
+            }
+            return null;
+        }
     } catch (e) {
         return null;              // 다운로드/파싱 실패 → 캐시 안 함(재시도)
     }
