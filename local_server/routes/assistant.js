@@ -367,6 +367,11 @@ try {
     console.warn('[Assistant] 직군 임계표 로드 실패:', e.message);
 }
 
+// [#37-A Hunk A2] 결정 단어 리스트 const 참조화 — prompt 인라인 ↔ JS const 분리.
+//   기존: synth bullet · enrichedTdig · 가설 bullet 3곳에 동일 리스트 반복 노출(~80 char × 3).
+//   변경: DECISION_WORDS 단일 const, prompt 에서 ${DECISION_WORDS} 로 1회 노출 + 참조.
+const DECISION_WORDS = '가능/주의/무리/위험/적합/권장/권고/통제/발령/허용/보류';
+
 /** synth 가 사용자 정량 질의에 즉시 비교할 수 있도록 한 직군 임계표를 짧은 텍스트로. */
 function thresholdDigest(slug) {
     const t = (slug && JIKGUN_THRESHOLDS[slug]) || JIKGUN_THRESHOLDS._default || null;
@@ -548,7 +553,16 @@ const ZONE_NAME_TO_CODE = {
     '동해중부먼바다': '12C20200', '동해중부안쪽먼바다': '12C20200',
     '동해중부바깥먼바다': '12C20200',
     // 동해북부
-    '동해북부앞바다': '12C30100', '동해북부먼바다': '12C30200'
+    '동해북부앞바다': '12C30100', '동해북부먼바다': '12C30200',
+    // [P36 — HUNK#1] 광역 alias 카탈로그 12 키 → 광역 대표 zone code
+    //   사용자 비표준 광역 어휘(동해광역/전역/권역/전체 등) 를 표준 zone 으로 매핑.
+    //   code → name 역인덱스는 첫 매칭(예: '동해중부앞바다') 보존이므로 기존 정확 매핑 무영향.
+    '동해광역': '12C20100', '동해전역': '12C20100',
+    '동해권역': '12C20100', '동해전체': '12C20100',
+    '서해광역': '12A20100', '서해전역': '12A20100',
+    '서해권역': '12A20100', '서해전체': '12A20100',
+    '남해광역': '12B10100', '남해전역': '12B10100',
+    '남해권역': '12B10100', '남해전체': '12B10100'
 };
 
 const ZONE_NAMES = Object.keys(ZONE_NAME_TO_CODE);
@@ -597,7 +611,9 @@ function detectZoneDeterministic(query) {
 
     // 2차: 토큰 점수 매칭. "제주 북부 바다" 처럼 '도'·'앞'이 빠지거나 띄어쓰기가
     //   달라도 잡아낸다. 지역/방위 토큰(필수)과 거리 토큰(앞/먼바다, 보조)을 분리한다.
-    const REGION_DIR_RE = /제주|북부|남부|동부|서부|북쪽|남쪽|동쪽|서쪽|인천|경기|충남|전북|전남|경남|부산|거제|울산|경북|강원|서해|남해|동해|중부/g;
+    // [P36 — HUNK#1] 광역/전역/권역/전체 4 토큰 추가 → Stage 3 nqTokens 길이 ≥ 2 임계 통과
+    //   ("동해광역" → ["동해","광역"]), ZONE_NAME_TO_CODE 광역 alias 와 짝.
+    const REGION_DIR_RE = /제주|북부|남부|동부|서부|북쪽|남쪽|동쪽|서쪽|인천|경기|충남|전북|전남|경남|부산|거제|울산|경북|강원|서해|남해|동해|중부|광역|전역|권역|전체/g;
     const regionDirTokens = (name) => name.replace('제주도', '제주').match(REGION_DIR_RE) || [];
     const isFar = (name) => name.includes('먼바다');
 
@@ -843,10 +859,22 @@ ${JSON.stringify(factPayload, null, 1)}`;
  * 프로필/메모리를 프롬프트에 끼워넣을 개인화 컨텍스트 블록 생성.
  * 없으면 빈 문자열. (개인화는 맥락일 뿐, 기상 수치의 근거가 아님을 명시)
  */
+// [#37-A Hunk A3] profileSlim — 핵심 필드만 노출. location 은 profileDefaultZone 폴백을 위해 보존.
+//   기존: JSON.stringify(profile) 전체 (~200~600 char).
+//   변경: keep 리스트(jikgun/ship_type/default_zone + location/name/answerStyle/experienceYears) 만.
+function profileSlim(profile) {
+    if (typeof profile !== 'object' || !profile) return String(profile || '');
+    const keep = ['jikgun', 'ship_type', 'default_zone', 'name', 'location', 'answerStyle', 'experienceYears'];
+    return JSON.stringify(Object.fromEntries(
+        keep.filter(k => profile[k] != null).map(k => [k, profile[k]])
+    ));
+}
+
 function buildPersonalContext(profile, memory, style, currentQuery = '') {
     const lines = [];
     if (profile && (typeof profile === 'object' ? Object.keys(profile).length : String(profile).trim())) {
-        const profileText = typeof profile === 'string' ? profile : JSON.stringify(profile);
+        // [#37-A Hunk A3] profile JSON 전체 → 핵심 필드만 (profileSlim).
+        const profileText = typeof profile === 'string' ? profile : profileSlim(profile);
         lines.push(`[사용자 프로필] ${profileText}`);
     }
     // [직군 맞춤] 감지된 직군의 중시 주제를 답변 우선순위 힌트로(수치는 수집결과에서만).
@@ -858,10 +886,10 @@ function buildPersonalContext(profile, memory, style, currentQuery = '') {
     const tdig = thresholdDigest(slug);
     if (tdig) {
         // [§B 패치 — MOF-4-01 (C6)] 정량 수치 검출 시 임계표를 prompt 상단(첫 lines) 으로 끌어올린다.
-        //   기존: 직군 임계표가 jikgunDigest 다음에 push 돼 prompt 내 후순위로 묻힘.
         //   변경: 단위 정량 수치(파고/풍속/시정/수온/파주기 + m·m/s·km·℃·s) 가 질의에 있으면 unshift 로 상단 배치.
+        // [#37-A Hunk A3] 운영규칙 단축 — 직군별 1행만. 결정 단어 리스트는 DECISION_WORDS 1회 참조.
         const NUM_UNIT_RE = /(\d+(?:\.\d+)?)\s*(m\/s|미터퍼세크|m|미터|km|킬로|℃|도|s|초)/i;
-        const enrichedTdig = `═══ 직군 임계표 (정량 비교 우선) ═══\n${tdig}\n** 규칙: 사용자 질의에 정량 수치(파고/풍속/시정/수온/파주기 + 단위 m·m/s·km·℃·s) 가 하나라도 명시되면 — 단정형("파고 1.5m") 이든 조건형("파고 2m 넘으면") 이든 가설형("풍랑특보 시") 이든 — 그 수치를 위 임계표 및 주의(직군 SOP) 와 비교해 *가부·권고 결론을 한 줄 먼저* 답하세요. 결정 단어(가능/주의/무리/위험/적합/권장/권고/통제/발령/허용/보류) 중 한 단어 이상 반드시 포함. 수집결과가 비어도 임계표만으로 답 가능 — 이때 도구 결과 부재는 결론 뒤에 *현 상태 미확인* 한 줄 부기로만 다루고 "정보가 없습니다" 단독 응답은 금지. 도구 결과가 있으면 결론 뒤에 보조 근거로 첨부. 임계표는 *외부 수치 사실이 아니라 직군 표준 운용 기준*.`;
+        const enrichedTdig = `═══ 직군 임계표 (정량 비교 우선) ═══\n${tdig}\n** 규칙: 정량 수치(파고/풍속/시정/수온/파주기 + m·m/s·km·℃·s) 가 질의에 있으면 임계표·SOP 와 비교해 가부 결론 한 줄 먼저. 결정 단어(${DECISION_WORDS}) 1+ 포함. 도구 결과 부재해도 임계표만으로 답 가능 — 결론 뒤 "현 상태 미확인" 부기. "정보 없음" 단독 응답 금지. 임계표는 외부 사실 아닌 직군 SOP — 환각 금지 위반 아님.`;
         // 정량 수치가 명시되면 임계표 + 규칙을 lines 맨 앞으로 (synth prompt 에서 [사용자 프로필] 보다 먼저 보이게).
         // currentQuery 미전달 시 memory 마지막 항목으로 폴백 (호환성).
         const probe = currentQuery || (Array.isArray(memory) && memory.length ? String(memory[memory.length - 1]) : '');
@@ -883,8 +911,9 @@ function buildPersonalContext(profile, memory, style, currentQuery = '') {
         if (style.styleNote) parts.push(`말투/스타일: ${style.styleNote}`);
         if (parts.length) lines.push(`[사용자 성향] ${parts.join(' · ')}`);
     }
+    // [#37-A Hunk A3] memory 5 → 3 으로 슬라이스 (planQuery memLine 의 slice(-3) 과 정합).
     if (Array.isArray(memory) && memory.length) {
-        lines.push(`[최근 대화] ${memory.slice(-5).join(' / ')}`);
+        lines.push(`[최근 대화] ${memory.slice(-3).join(' / ')}`);
     }
     if (!lines.length) return '';
     return `\n아래는 이 사용자에 대한 참고 맥락입니다. 말투·관심사·기본 활동해역·답변 길이 조절에만 활용하고,
@@ -1444,7 +1473,14 @@ const TOOL_EXEC = {
 /** 직전 턴의 도구 결과에서 "주목 대상(focus)"을 구조화 추출 — 해역/해구/부이/좌표/랭킹.
  *  자유텍스트 memory로는 유실되는 해구 번호·좌표를 구조로 보존해 후속 질문 연속성을 보장한다. */
 function deriveFocus(plan, results, zoneName, query) {
-    const focus = { zone: zoneName || (plan && plan.zone) || null, haegu: null, buoy: null, coords: null, rankedItems: null, lastTools: (results || []).map(r => r.tool) };
+    const focus = { zone: zoneName || (plan && plan.zone) || null, haegu: null, buoy: null, coords: null, rankedItems: null, lastTools: (results || []).map(r => r.tool), originalLocToken: null };
+    // [P36 — HUNK#4a] 사용자 원어휘 보존: 광역/지방 비표준 어휘를 synth 인용용으로 보존.
+    //   focus.zone 은 표준 해역명으로 정착해도, 사용자 원본 토큰("동해광역" 등) 은
+    //   별도 필드로 살려 synth 가 인용 후 환산 가능.
+    if (typeof query === 'string') {
+        const m = query.match(/(동해광역|동해전역|동해권역|동해전체|서해광역|서해전역|서해권역|서해전체|남해광역|남해전역|남해권역|남해전체|관내|관할|일대)/);
+        if (m) focus.originalLocToken = m[1];
+    }
     for (const r of (results || [])) {
         const v = r && r.result;
         if (!v || typeof v !== 'object' || v.error) continue;
@@ -1490,15 +1526,53 @@ function deriveFocus(plan, results, zoneName, query) {
         const z = haeguToZone(focus.haegu);
         if (z) focus.zone = z;
     }
-    if (!focus.zone && focus.buoy) {                                      // 5
-        const z = buoyToZone(focus.buoy);
-        if (z) focus.zone = z;
-    }
+    // [P36 — HUNK#2] 5단(buoyToZone) 을 runBrain zone-arg 폴백 후단(4단)으로 이동.
+    //   목적: C4 부이-폴백 게이트(`!focusZone`) 보존 → ANG-2-01b 의 buoy 도구 강제 회복.
+    //   step.args.zone 은 zone-arg 4단에서 buoyToZone 으로 채워짐(도구 실행 정상).
+    //   focus.zone 은 비워둬 C4/chain-zone-miss 거절 폴백이 정상 작동.
     if (!focus.zone && focus.rankedItems && focus.rankedItems.length) {   // 6
         const t = focus.rankedItems[0];
         focus.zone = t.zone || t['해역'] || t['지점'] || null;
     }
-    return (focus.zone || focus.haegu || focus.buoy || focus.coords || focus.rankedItems) ? focus : null;
+    return (focus.zone || focus.haegu || focus.buoy || focus.coords || focus.rankedItems || focus.originalLocToken) ? focus : null;
+}
+
+// [#37-A Hunk A1] R1~R12 매트릭스 → 직군별 분기로 압축. planQuery 입력 토큰 -18% (평균 3.3 룰만 노출).
+//   기존: 12 룰 전체를 모든 직군에 노출 (~1200 토큰).
+//   변경: JIKGUN_RULES[jikgun] 만 매핑된 룰 노출. R1(forecast+warning) 은 모든 직군 안전 폴백으로 항상 포함.
+//   가드: pickMissingTools 결정론 백업으로 다중 도구 호출률 회귀 차단.
+const R_TABLE = {
+    R1:  '[R1 어업·해군·해경·지자체·공공기관·해수부 + "어때/상황/괜찮을까/전반/전체/관내/종합/모니터링/평가"] :: get_marine_forecast + get_warning',
+    R1p: '[R1+ 어업·해경·해군 + "출항/조업/출조/작업/연승/새벽 조업/안전"] :: 위 + get_tide 또는 get_current (해역 확정 시)',
+    R2:  '[R2 angler + "갯바위/포인트/방파제/원투/찌낚시/루어/낚시 가능"] :: get_fishing_index + get_tide (+선택 get_marine_forecast)',
+    R3:  '[R3 marine_leisure + "서핑/파도/라이딩" + 해수욕장명] :: get_surfing_index + get_marine_forecast',
+    R4:  '[R4 marine_leisure + "다이빙/스쿠버/프리다이빙/시정 좋은"] :: get_visibility + get_buoy_observation',
+    R5:  '[R5 marine_leisure + "요트/윈드서핑/카이트/카약" + "어디/추천/좋은 곳/가능 해역"] :: get_marine_forecast + get_zones_ranked(scope:"haegu")',
+    R6:  '[R6 coast_guard + "수색/구조/출동/경비/방제"] :: get_warning + get_marine_forecast (+태풍 시즌: get_typhoon_status)',
+    R7:  '[R7 전 직군 + "태풍/진로/영향 권역"] :: get_typhoon_status + get_warning',
+    R8:  '[R8 navy + "잠수함/수중/항로 수심"] :: get_depth + get_marine_forecast',
+    R9:  '[R9 mof·public_org + "정책/중기/주간/이번 주/작업 일정/동향"] :: get_marine_forecast + get_midterm_forecast (+ 정책 결정: get_warning)',
+    R10: '[R10 local_gov + "해수욕장/운영/통제/개장/폐장"] :: get_surfing_index + get_marine_forecast + get_warning',
+    R11: '[R11 local_gov + "재난/방재/훈련/연안관리"] :: get_marine_forecast + get_warning',
+    R12: '[R12 전 직군 + "관내/우리시/시청 관할" + 종합] :: get_warning(zone="전국" 또는 비움) + get_marine_forecast',
+};
+// 직군별 활성 룰 매핑 — 평균 3.3 룰만 노출. R1(forecast+warning) 은 모든 직군 안전 폴백으로 항상 포함.
+const JIKGUN_RULES = {
+    angler:         ['R1','R2','R6'],
+    fishery:        ['R1','R1p','R7','R10'],
+    marine_leisure: ['R1','R2','R3','R8'],
+    coast_guard:    ['R1','R4','R6','R10','R11'],
+    navy:           ['R1','R5','R6','R10','R11','R8'],
+    mof:            ['R1','R6','R9','R10','R12'],
+    local_gov:      ['R1','R6','R10','R11','R12'],
+    public_org:     ['R1','R9','R10','R11','R12'],
+};
+function buildMatrixSection(profile) {
+    const slug = detectJikgun(profile);
+    // 미감지 폴백: R1 + R7 최소 페어 (모니터링 + 태풍).
+    const keys = (slug && JIKGUN_RULES[slug]) ? JIKGUN_RULES[slug] : ['R1','R7'];
+    const lines = keys.map(k => '  · ' + R_TABLE[k]);
+    return '- **(다중 도구 패턴 — 직군 매칭 룰만)** 아래 매트릭스 중 하나라도 매칭되면 해당 도구들을 **모두** steps 에 함께 넣으세요(빈 결과 우려해도 호출은 같이):\n' + lines.join('\n') + '\n  매칭이 둘 이상이면 도구 합집합(중복 제거). (G5 안전판) 해역/지명/해변명이 질의에 **하나도 없고** 직군·활동 어휘도 모호하면(예: "어떻게 돼", "뭐야") 위 매트릭스 룰을 적용하지 말고 *기존 단일 도구* 룰로 처리하세요.';
 }
 
 async function planQuery(query, profile, location, memory, focus) {
@@ -1512,13 +1586,15 @@ async function planQuery(query, profile, location, memory, focus) {
         ? `\n[최근 대화] ${memory.slice(-3).join(' / ')}\n질문이 "그럼/다른/얘/거기/그건/그게/저거/방금/그 해구/그 해역/인근/위에서/아까" 등으로 이전 맥락을 가리키면, 위 최근 대화에서 대상(해역명·해구 번호·지명·좌표)을 그대로 이어받아 args 에 넣으세요. 특히 직전 답변에 해구 번호가 있었고 "몇 해구/경위도/위도/경도"를 물으면, 그 해구 번호로 get_zone_forecast(zoneId) 를 호출해 좌표를 답하세요.`
         : '';
     // [직전 확정 대상 — 구조화 연속성] 자유텍스트보다 우선. 지시어 후속을 결정론적으로 해소.
-    const focusLine = (focus && (focus.zone || focus.haegu || focus.buoy || focus.coords)) ?
+    const focusLine = (focus && (focus.zone || focus.haegu || focus.buoy || focus.coords || focus.originalLocToken)) ?
 `\n[직전 확정 대상] ${[
     focus.zone ? '해역=' + focus.zone : null,
     focus.haegu ? '해구=' + focus.haegu + '번' : null,
     focus.buoy ? '부이/지점=' + focus.buoy : null,
     focus.coords ? ('좌표=' + focus.coords.lat + ',' + focus.coords.lon) : null,
-    (focus.rankedItems && focus.rankedItems.length) ? ('직전 랭킹 상위=' + focus.rankedItems.slice(0, 3).map(it => it['해구'] || it['지점'] || it.zone).filter(Boolean).join('/')) : null
+    (focus.rankedItems && focus.rankedItems.length) ? ('직전 랭킹 상위=' + focus.rankedItems.slice(0, 3).map(it => it['해구'] || it['지점'] || it.zone).filter(Boolean).join('/')) : null,
+    // [P36 — HUNK#4b] 사용자 원어휘(광역/관내 등) 보존 — synth 인용 규칙 입력
+    focus.originalLocToken ? '원어휘=' + focus.originalLocToken : null
 ].filter(Boolean).join(' · ')}
 질문이 "그게/그 해구/그 해역/거기/방금/그건/위에서/그 중" 등으로 대상을 가리키면 위 [직전 확정 대상]을 그대로 args 에 쓰세요(해구 경위도·예보는 get_zone_forecast(zoneId=해구번호), 좌표기반은 lat/lon).` : '';
     // [음성인식 보정] 질문은 음성→텍스트라 오인식이 잦다. 우리 도메인 용어로 교정한다.
@@ -1588,21 +1664,7 @@ ${catalogLine}
   스쿠버·다이빙처럼 전용 지수가 없는 활동은 위 지수에 억지로 맞추지 말고 steps 를 비워(웹검색 폴백) 두세요.
 - 관리자/설정/키 같은 건 도구가 없으니 무시하세요.
 - **(중요) 한국 해상·기상 도메인 질의(특보·예보·파고·풍속·시정·부이·조석·유속·수심·태풍·해구·해역·낚시·서핑·관측·수온 등)는 반드시 위 도구로 처리하세요.** 위치가 모호해도(예: "오늘 특보", "관내 어때", "전국 상황") web_search 폴백을 노리고 steps 를 비우지 말고, 가장 그럴듯한 도구를 하나라도 호출하세요(예: 위치 없는 특보 → get_warning(zone="전국") 또는 zone 생략, "오늘 연안" → get_marine_forecast(zone="서해남부") 같은 기본 해역). 결과가 비어 있으면 합성 단계가 "현재 ~ 없음" 으로 자연스럽게 보고합니다.
-- **(다중 도구 패턴 — v2 R1~R12 매트릭스)** 아래 매트릭스 중 하나라도 매칭되면 해당 도구들을 **모두** steps 에 함께 넣으세요(빈 결과 우려해도 호출은 같이):
-  · [R1 어업·해군·해경·지자체·공공기관·해수부 + "어때/상황/괜찮을까/전반/전체/관내/종합/모니터링/평가"] :: get_marine_forecast + get_warning
-  · [R1+ 어업·해경·해군 + "출항/조업/출조/작업/연승/새벽 조업/안전"] :: 위 + get_tide 또는 get_current (해역 확정 시)
-  · [R2 angler + "갯바위/포인트/방파제/원투/찌낚시/루어/낚시 가능"] :: get_fishing_index + get_tide (+선택 get_marine_forecast)
-  · [R3 marine_leisure + "서핑/파도/라이딩" + 해수욕장명] :: get_surfing_index + get_marine_forecast
-  · [R4 marine_leisure + "다이빙/스쿠버/프리다이빙/시정 좋은"] :: get_visibility + get_buoy_observation
-  · [R5 marine_leisure + "요트/윈드서핑/카이트/카약" + "어디/추천/좋은 곳/가능 해역"] :: get_marine_forecast + get_zones_ranked(scope:"haegu")
-  · [R6 coast_guard + "수색/구조/출동/경비/방제"] :: get_warning + get_marine_forecast (+태풍 시즌: get_typhoon_status)
-  · [R7 전 직군 + "태풍/진로/영향 권역"] :: get_typhoon_status + get_warning
-  · [R8 navy + "잠수함/수중/항로 수심"] :: get_depth + get_marine_forecast
-  · [R9 mof·public_org + "정책/중기/주간/이번 주/작업 일정/동향"] :: get_marine_forecast + get_midterm_forecast (+ 정책 결정: get_warning)
-  · [R10 local_gov + "해수욕장/운영/통제/개장/폐장"] :: get_surfing_index + get_marine_forecast + get_warning
-  · [R11 local_gov + "재난/방재/훈련/연안관리"] :: get_marine_forecast + get_warning
-  · [R12 전 직군 + "관내/우리시/시청 관할" + 종합] :: get_warning(zone="전국" 또는 비움) + get_marine_forecast
-  매칭이 둘 이상이면 도구 합집합(중복 제거). 우선순위 R2 > R4 > R5 > R8 > R7 > R9 > R3 > R10 > R6 > R1 > R11 > R12. (G5 안전판) 해역/지명/해변명이 질의에 **하나도 없고** 직군·활동 어휘도 모호하면(예: "어떻게 돼", "뭐야") 위 매트릭스 룰을 적용하지 말고 *기존 단일 도구* 룰로 처리하세요.
+${buildMatrixSection(profile)}
 - **(직군 floor 보강 — marine_leisure/local_gov)**
   · **레저스포츠(marine_leisure)** 직군 + 해수욕장·해변명(양양/송정/낙산/해운대/협재/이호테우/광안리/대천/안목/속초 등) 질의는 무조건 **get_surfing_index(beach=이름) 먼저 호출**. 그 다음 보조로 get_marine_forecast. 해변명을 detectZoneDeterministic 으로 zone 변환하려 하지 마세요 — surfing_index 가 위치 자체 처리.
   · **지방자치단체(local_gov)** 직군 + "관내/우리시/시청 관할/관할 해역" 같은 모호 지명은 사용자 GPS 좌표(있으면) 또는 활동 default 해역으로 도구 호출. 둘 다 없으면 get_warning(zone="전국") 으로 전국 특보 요약하세요. "관내" 를 그대로 zone 인자에 넣지 마세요.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}${simLine}${toolSimLine}
@@ -1816,14 +1878,17 @@ async function runBrain(query, profile, memory, style, location, focus) {
         if (!step || !step.args || typeof step.args !== 'object') continue;
         if (step.args.zone) step.args.zone = canonZone(step.args.zone);
         if (!isFollowup) continue;                                         // [HUNK#4] chain OR pronoun
-        // 1) 도구별 zone-인자 주입 — [HUNK#4 zone-arg 3단]
+        // 1) 도구별 zone-인자 주입 — [HUNK#4 zone-arg 3단 + P36 HUNK#3 4단]
         //    (a) LLM 채운 값 canonZone → (b) focusZone → (c) detectZoneDeterministic(cq)
+        //    (d) [P36] focus.buoy → buoyToZone — deriveFocus 5단 이동분, C4 게이트 보존용
         const zoneArg = FOCUS_ZONE_ARG[step.tool];
         if (zoneArg) {
             let z = step.args[zoneArg];
             if (typeof z === 'string') z = canonZone(z);
             if (!z && focusZone) z = focusZone;
             if (!z) z = detectZoneDeterministic(cq);
+            // [P36 — HUNK#3] 4단: deriveFocus 5단 이동 보강 — 부이 좌표 기반 zone 추정
+            if (!z && focus && focus.buoy) z = buoyToZone(focus.buoy);
             if (z) step.args[zoneArg] = z;
         }
         // 2) 해구번호 — get_zone_forecast
@@ -1897,12 +1962,29 @@ async function runBrain(query, profile, memory, style, location, focus) {
         }
     }
 
+    // [#37-B HUNK B1 — p95 병렬화] 1차 plan.steps 직렬 for-await → Promise.allSettled cap=6.
+    //   focus 의존 도구는 dep_weave/multitool 라운드(아래)에서 1차 완료 후 별도 실행 → 2 라운드 분리 직렬 보존.
+    //   rejected 항목도 results 배열에 {tool, error} 형태로 보존 — 후속 hasRealData/도메인 가드 분기 형태 유지.
     const results = [];
-    for (const step of plan.steps.slice(0, 6)) {
-        const exec = step && TOOL_EXEC[step.tool];
-        if (!exec) continue;
-        try { results.push({ tool: step.tool, args: step.args || {}, result: await exec(step.args || {}) }); }
-        catch (e) { results.push({ tool: step.tool, error: e.message }); }
+    {
+        const _cap = plan.steps.slice(0, 6);   // cap=6 유지 (KHOA 토큰 race 안전선)
+        const _settled = await Promise.allSettled(_cap.map(step => {
+            const exec = step && TOOL_EXEC[step.tool];
+            if (!exec) return Promise.resolve({ __skip: true });
+            return Promise.resolve()
+                .then(() => exec(step.args || {}))
+                .then(result => ({ tool: step.tool, args: step.args || {}, result }))
+                .catch(e => ({ tool: step.tool, error: e && e.message ? e.message : String(e) }));
+        }));
+        for (const s of _settled) {
+            if (s.status === 'fulfilled') {
+                if (!s.value || s.value.__skip) continue;
+                results.push(s.value);
+            } else {
+                // .catch 로 흡수되므로 정상적으로 도달 안 함 — 방어적 매핑 (tool 이름 미상 시 'unknown').
+                results.push({ tool: 'unknown', error: s.reason && s.reason.message ? s.reason.message : String(s.reason) });
+            }
+        }
     }
 
     // [의존 위빙 + multi-tool 보강 — 1회 재계획 v2] dep_weave(기존) / multitool(P_multitool B 신규) 분기.
@@ -1919,25 +2001,58 @@ async function runBrain(query, profile, memory, style, location, focus) {
     if (replan && replan.mode === 'dep_weave') {
         const plan2 = await planQuery(cq, profile, location, memory, focus1);
         if (plan2 && Array.isArray(plan2.steps)) {
+            // [#37-B HUNK B2 — p95 병렬화] dep_weave 2 라운드 직렬 → 내부 Promise.allSettled cap=3.
+            //   본 블록 자체가 1차 results 완료 + focus1 결정 후 진입(2 라운드 분리 직렬 보존).
+            //   내부 cap=3 도구는 도구 간 의존성 거의 없음(설계 §1.1 B) → 안전 병렬.
+            //   done 사전 계산으로 중복 호출 방지(1차에서 호출된 도구 스킵).
             const done = new Set(results.map(r => r.tool));
-            for (const step of plan2.steps.slice(0, 3)) {
+            const _depCap = plan2.steps.slice(0, 3).filter(step => {
                 const exec = step && TOOL_EXEC[step.tool];
-                if (!exec || done.has(step.tool)) continue;   // 1차에서 한 도구 반복 금지
-                done.add(step.tool);
-                try { results.push({ tool: step.tool, args: step.args || {}, result: await exec(step.args || {}) }); }
-                catch (e) { results.push({ tool: step.tool, error: e.message }); }
+                if (!exec) return false;
+                if (done.has(step.tool)) return false;   // 1차에서 한 도구 반복 금지
+                done.add(step.tool);                      // 사전 add 로 동일 라운드 중복 방지
+                return true;
+            });
+            const _depSettled = await Promise.allSettled(_depCap.map(step =>
+                Promise.resolve()
+                    .then(() => TOOL_EXEC[step.tool](step.args || {}))
+                    .then(result => ({ tool: step.tool, args: step.args || {}, result }))
+                    .catch(e => ({ tool: step.tool, error: e && e.message ? e.message : String(e) }))
+            ));
+            for (const s of _depSettled) {
+                if (s.status === 'fulfilled') {
+                    if (s.value) results.push(s.value);
+                } else {
+                    results.push({ tool: 'unknown', error: s.reason && s.reason.message ? s.reason.message : String(s.reason) });
+                }
             }
         }
     } else if (replan && replan.mode === 'multitool') {
         // 결정론적 도구 보강 — planQuery 재호출 생략(LLM 0회, p95 −800ms vs dep_weave).
         const extra = pickMissingTools(plan, results, profile, focus1, cq);
+        // [#37-B HUNK B3 — p95 병렬화] multitool 보강 직렬 → 내부 Promise.allSettled cap=2 보수선 유지.
+        //   본 블록도 1차 results 완료 후 진입(2 라운드 분리 직렬 보존).
+        //   pickMissingTools 결과(read-only forecast+warning 페어)는 도구 간 의존성 없음 → 안전 병렬.
         const done = new Set(results.map(r => r.tool));
-        for (const step of extra.slice(0, 2)) {
+        const _extraCap = extra.slice(0, 2).filter(step => {
             const exec = step && TOOL_EXEC[step.tool];
-            if (!exec || done.has(step.tool)) continue;
+            if (!exec) return false;
+            if (done.has(step.tool)) return false;
             done.add(step.tool);
-            try { results.push({ tool: step.tool, args: step.args || {}, result: await exec(step.args || {}) }); }
-            catch (e) { results.push({ tool: step.tool, error: e.message }); }
+            return true;
+        });
+        const _extraSettled = await Promise.allSettled(_extraCap.map(step =>
+            Promise.resolve()
+                .then(() => TOOL_EXEC[step.tool](step.args || {}))
+                .then(result => ({ tool: step.tool, args: step.args || {}, result }))
+                .catch(e => ({ tool: step.tool, error: e && e.message ? e.message : String(e) }))
+        ));
+        for (const s of _extraSettled) {
+            if (s.status === 'fulfilled') {
+                if (s.value) results.push(s.value);
+            } else {
+                results.push({ tool: 'unknown', error: s.reason && s.reason.message ? s.reason.message : String(s.reason) });
+            }
         }
     }
 
@@ -2036,23 +2151,27 @@ async function runBrain(query, profile, memory, style, location, focus) {
     }
 
     const personal = buildPersonalContext(profile, memory, style, cq);
+    // [#37-A Hunk A2] synth bullet 압축 — 중복 표현 단축 + DECISION_WORDS 1회 참조 + 정량/안전판단 통합.
+    //   보존: get_warning 양방향 한 줄 · CoT 누수 · 컨텍스트 격리 · 가설 bullet 본문 · 환각 금지.
+    //   변경: "절대 금지"→"금지", "반드시 ~해야"→"~하세요", 정량+안전판단 1 bullet 통합, 결정 단어 리스트 1회 출현.
     const synth =
 `당신은 한국 어선·항해자를 돕는 해양 기상 개인 비서입니다.
 아래 "수집결과"의 실제 데이터에만 근거해, 사용자가 "물어본 것만" 답하세요.
-- (환각 금지) 수집결과에 없는 수치/사실은 절대 지어내지 마세요. 일반 지식·추측·웹 정보로 빈칸을 채우지 마세요. 수집결과가 비어 있거나 데이터가 없으면 짧게 "그 정보는 없어요" 또는 "지금은 가져오지 못했어요"라고만 답하세요. 도구가 빈 결과를 돌려주면(예: warnings:[]) "현재 발효 중인 ~ 없습니다"처럼 *없음*을 그대로 보고하세요. **get_warning 응답은 두 형태가 공존합니다 — (1) 특정 해역 호출 시 \`{zone, warning}\` (\`warning\` 이 단일 객체 또는 null), (2) 전국 집계 호출 시 \`{zone:'전국', activeCount:N, warnings:[…]}\` (\`warnings\` 배열, 동시에 \`warning:null\` 이 포함될 수도 있음 — 그때는 \`warnings\` 를 우선). \`warning\` 이 비어있지 않으면(객체) 그 단일 특보를, \`warnings\` 배열이 있으면 N건을(\`activeCount=0\` 또는 \`warnings:[]\` 이면 "전국 풍랑특보 없음"으로) 자연어로 풀어 보고하세요. \`activeCount\` 의 숫자 N 은 *집계 결과 건수*이지 기상 수치(파고·풍속)가 아닙니다 — 결정 임계와 혼동 금지.**
-- **(CoT 누수 절대 금지)** 내부 사고 과정·추론 단계·메타 코멘트를 응답에 출력하지 마세요. "내가 생각해 보니/추론 과정/thinking:/sources:/먼저 ~를 확인하고~" 같은 메타 텍스트는 한 글자도 답에 포함 금지. 사용자가 최종 답만 음성으로 듣게 됩니다 — 깔끔한 결론만.
+결정 단어 리스트(이후 "결정 단어"로 참조): ${DECISION_WORDS}.
+- (환각 금지) 수집결과에 없는 수치/사실은 지어내지 마세요. 일반 지식·추측·웹 정보로 빈칸을 채우지 마세요. 수집결과가 비어 있으면 짧게 "그 정보는 없어요" 또는 "지금은 가져오지 못했어요"라고만 답하세요. 도구가 빈 결과를 돌려주면(예: warnings:[]) "현재 발효 중인 ~ 없습니다"처럼 *없음*을 그대로 보고하세요. **get_warning 응답은 두 형태가 공존합니다 — (1) 특정 해역 호출 시 \`{zone, warning}\` (\`warning\` 이 단일 객체 또는 null), (2) 전국 집계 호출 시 \`{zone:'전국', activeCount:N, warnings:[…]}\` (\`warnings\` 배열, 동시에 \`warning:null\` 이 포함될 수도 있음 — 그때는 \`warnings\` 를 우선). \`warning\` 이 비어있지 않으면(객체) 그 단일 특보를, \`warnings\` 배열이 있으면 N건을(\`activeCount=0\` 또는 \`warnings:[]\` 이면 "전국 풍랑특보 없음"으로) 자연어로 풀어 보고하세요. \`activeCount\` 의 숫자 N 은 *집계 결과 건수*이지 기상 수치(파고·풍속)가 아닙니다 — 결정 임계와 혼동 금지.**
+- **(CoT 누수 금지)** 내부 사고 과정·추론 단계·메타 코멘트를 응답에 출력하지 마세요. "내가 생각해 보니/추론 과정/thinking:/sources:/먼저 ~를 확인하고~" 같은 메타 텍스트는 한 글자도 답에 포함 금지. 사용자가 최종 답만 음성으로 듣게 됩니다 — 깔끔한 결론만.
 - **(컨텍스트 격리 — 🔒 프라이버시)** 위에 제공된 [최근 대화]/[직전 확정 대상]/[수집 데이터 인벤토리]/memory/focus/personal/profile/jikgun 같은 **입력 블록·라벨 자체를 답에 출력하지 마세요**. 그 안의 사실(직전 해역명·해구·좌표)만 자연어로 풀어쓰세요. "[최근 대화] memory: ..." 같은 prompt 컨텍스트 텍스트가 응답에 노출되면 안 됩니다(다른 사용자 정보 누설 위험).
-- **(비기상·비도메인 정보 거절)** 사용자가 우리 도구로 답할 수 없는 정보(산업재해·인구·교통사고·산재 통계 · 법령 제N조·시행령 · 운용규정·매뉴얼·SAR 절차 · 면허·채용·예산·조례 · 해역 경계 좌표 · 어획 통계·정책 5개년·정원·인사 등 비기상 행정·법령·통계·매뉴얼)을 물으면, 수집결과에 web_search 답이 있어도 그 답을 그대로 채택하지 말고 **"그 정보는 우리 자료에 없어요"** 또는 **"기상·해상 정보 외엔 안내가 어려워요"** 로 답하세요. 우리 데이터(기상청·KHOA·해양조사원)는 *현재 기상·해상 관측·예보·특보·태풍·생활지수·조석·유속·수심·시정* 만 다룹니다.
-- **(메타·자기요약 질의)** "방금 결정 사유/한 줄 요약/방금 결과 뭐였지/왜 그렇게 판단" 같이 *직전 답을 다시 요약하라*는 질의면, 수집결과 대신 [최근 대화] memory 의 마지막 항목을 1-2줄로 자연어 요약해 답하세요(없으면 "직전 대화 기록이 없어요"). 새 도구 호출 데이터에 의존하지 마세요.
-- **(의사결정형 — 정량 판단 강화)** "출항/조업/훈련/작업/타도 돼/가능?·괜찮을까?·해도 돼?·위험?·안전?" 류 안전 판단 질의는 수집결과의 정량 수치(파고·풍속·시정·특보)에 근거해 짧은 한 줄로 가부 결론을 먼저 주세요(예: 파고 ≥2m 또는 풍속 ≥14m/s 또는 풍랑특보 발효면 "무리/주의", 파고 <1m + 풍속 <10m + 특보無면 "가능", 그 사이면 "주의/조건부 가능"). 그 다음 근거 수치 1-2개. 마지막에 "최종 판단은 선장님 몫" 한 번만.
-- **(가설·조건문 질의 — 데이터 부재여도 SOP 답)** "만약/~시/~라면/~면 어떡해/~떴을 때/~넘으면/~발효되면" 같이 *가설 조건* 을 전제로 SOP·운용 가부를 묻는 질의는, 그 조건이 *현재 발효 중인지* 와 무관하게 위 [직군 안전 임계표] 및 그 주의(직군 표준 SOP) 에 따라 **조건부 가설답을 먼저 주세요**. 형식: "(조건)이면 (가능/주의/무리/통제/권장 + 임계 수치 근거) 가 표준입니다. 현재는 (실제 상태 한 줄)." 의 2단 구조로 간결히. 결정 단어(가능/주의/무리/위험/적합/권장/권고/발령/통제/허용/보류) 를 반드시 한 단어 이상 포함. "현재 상태 한 줄" 은 get_warning 응답이 \`warning:null\` 이거나 \`warnings:[]\` 비어있으면 "현재 풍랑특보 없음" 으로 양방향 해석. 임계표는 *외부 사실이 아니라 직군 표준 운용 기준* 이므로 환각 금지 규칙과 모순되지 않습니다.
-- 사용자가 사실을 단정해도(예: "제6호 태풍이 북상 중인데", "특보 떴잖아") 수집결과와 다르면 수집결과를 따르세요. 예: 태풍 hasActive 가 false 면 "현재 발효 중인 태풍은 없습니다"라고 정정하세요. 사용자의 전제를 그대로 인정하지 마세요.
-- 핵심만 간결하게. 사용자가 묻지 않은 일반론·참고사항·주의문구를 덧붙이지 마세요.
-- 여러 항목(예: 부이 여러 개)을 물으면 항목마다 이름과 관측 수치를 명확히, 관측 기준시각이 있으면 함께.
-- "추세/점점/변화" 질문이면 수집결과의 시계열(시간대별 값)을 보고 늘어나는지·줄어드는지·비슷한지 말하세요.
-- 음성으로 읽어줄 구어체. 표/마크다운/이모지 금지. 풍속은 "초속 N미터"로 읽으세요(예: 초속 7미터). "m/s","퍼세크" 같은 표기는 쓰지 마세요.
-- 유속(해류)은 cm/s 또는 노트로 말하세요(예: "유속 23cm퍼세크" 말고 "유속 초속 23센티미터, 약 0.4노트"). 유속을 "초속 N미터"로 말하지 마세요.
-- "지금 출항/조업해도 되냐"처럼 안전 결정을 직접 물었을 때는: 데이터(파고·풍속·특보)에 근거해 "○○ 정도라 (가능할 것 같다/주의가 필요하다/무리로 보인다)"는 간단한 판단을 먼저 주고, 마지막에 "최종 판단은 선장님 몫"이라는 취지를 딱 한 번 덧붙이세요. 그 외 질문엔 이 판단/문구를 절대 넣지 마세요.
+- **(비기상·비도메인 거절)** 비기상 행정·법령·통계·매뉴얼(산재·인구·법령 제N조·운용규정·SAR 절차·면허·예산·조례·해역 경계 좌표·어획 통계·정원·인사 등)은 web_search 결과가 있어도 채택하지 말고 **"그 정보는 우리 자료에 없어요"** 또는 **"기상·해상 정보 외엔 안내가 어려워요"** 로 답하세요. 우리 데이터(기상청·KHOA·해양조사원)는 *현재 기상·해상 관측·예보·특보·태풍·생활지수·조석·유속·수심·시정* 만 다룹니다.
+- (메타·자기요약) "방금 결정 사유/한 줄 요약/방금 결과 뭐였지/왜 그렇게 판단" 류 질의는 [최근 대화] memory 의 마지막 항목을 1~2줄로 자연어 요약 (없으면 "직전 대화 기록이 없어요"). 새 도구 데이터에 의존 금지.
+- (의사결정형 — 정량 + 안전판단 통합) "출항/조업/훈련/작업/타도 돼/가능?·괜찮을까?·해도 돼?·위험?·안전?" 류 안전 판단은 수집결과의 정량 수치(파고·풍속·시정·특보)에 근거해 한 줄 가부 결론을 먼저 (예: 파고 ≥2m 또는 풍속 ≥14m/s 또는 풍랑특보 발효면 "무리/주의", 파고 <1m + 풍속 <10m + 특보無면 "가능", 그 사이면 "주의/조건부 가능"). 결정 단어 1+ 포함. 근거 수치 1~2개 부기. 결론 뒤 "최종 판단은 선장님 몫" 1회 부기 — 그 외 질문엔 미부기.
+- **(가설·조건문 질의 — 데이터 부재여도 SOP 답)** "만약/~시/~라면/~면 어떡해/~떴을 때/~넘으면/~발효되면" 같이 *가설 조건* 을 전제로 SOP·운용 가부를 묻는 질의는, 그 조건이 *현재 발효 중인지* 와 무관하게 위 [직군 안전 임계표] 및 그 주의(직군 표준 SOP) 에 따라 **조건부 가설답을 먼저 주세요**. 형식: "(조건)이면 (가능/주의/무리/통제/권장 + 임계 수치 근거) 가 표준입니다. 현재는 (실제 상태 한 줄)." 의 2단 구조로 간결히. 결정 단어 1+ 포함. "현재 상태 한 줄" 은 get_warning 응답이 \`warning:null\` 이거나 \`warnings:[]\` 비어있으면 "현재 풍랑특보 없음" 으로 양방향 해석. 임계표는 *외부 사실이 아니라 직군 표준 운용 기준* 이므로 환각 금지 규칙과 모순되지 않습니다.
+- 사용자가 사실을 단정해도(예: "제6호 태풍이 북상 중인데", "특보 떴잖아") 수집결과와 다르면 수집결과를 따르세요. 예: 태풍 hasActive 가 false 면 "현재 발효 중인 태풍은 없습니다"라고 정정. 사용자의 전제를 그대로 인정 금지.
+- 핵심만 간결. 묻지 않은 일반론·참고사항·주의문구 추가 금지.
+- 여러 항목(예: 부이 여러 개)을 물으면 항목마다 이름과 관측 수치 명확히, 관측 기준시각 있으면 함께.
+- "추세/점점/변화" 질문이면 시계열(시간대별 값)을 보고 증감 한 줄.
+- 음성 구어체. 표/마크다운/이모지 금지. 풍속은 "초속 N미터"(예: 초속 7미터). "m/s","퍼세크" 표기 금지.
+- 유속(해류)은 cm/s 또는 노트(예: "유속 초속 23센티미터, 약 0.4노트"). 유속을 "초속 N미터"로 말하기 금지.
+- **(후속 표기 규칙 — P36)** [최근 대화] 또는 [직전 확정 대상] 에 명시된 해역명·지명·부이명·사용자 원어휘(원어휘=...) 가 있고 사용자가 후속(거기/그곳/그 해역/그 부이) 으로 그 대상을 가리키면, **답변에 그 이름(focus.zone / focus.buoy / focus.originalLocToken)을 원형 그대로 1회 이상 명시**하세요. 비표준 광역어("동해광역/관내/관할")로 가리켰으면 그 어휘를 1회 인용한 뒤 표준 해역명으로 환산해 풀어쓰세요(예: "동해광역(관측해역 동해중부앞바다 기준) 시정은…").
 ${personal}
 질문: "${cq}"
 수집결과(JSON): ${JSON.stringify(results)}`;
