@@ -1061,6 +1061,7 @@ async function renderErrorListTab(container, depth = 0) {
     let pendingsPagination = { page: 1, limit: _PENDING_RETRIES_LIMIT, total: 0, totalPages: 1 };
     let geminiStatus = { keys: [], count: 0 };
     let dmdwErrors = [];  // dmdw 자식 해역 크롤러 오류 로그
+    let suspicious = { currentCase: null, history: [] };  // marine.kma 의심 사례(결정 대기)
     // 섹션 단위 fetch 에러 플래그 (allSettled 결과 → 섹션별 분리)
     let failError = false;
     let reviewError = false;
@@ -1075,12 +1076,13 @@ async function renderErrorListTab(container, depth = 0) {
         fetch(reviewUrl).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))),
         fetch(pendingUrl).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))),
         fetch('/api/admin/gemini-status').then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))),
-        fetch('/api/admin/dmdw-errors').then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+        fetch('/api/admin/dmdw-errors').then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))),
+        fetch('/api/admin/marine/suspicious').then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
     ]);
     // race: body 파싱/렌더 직전 시퀀스 토큰 재확인 — 더 최신 요청이 떴으면 폐기
     if (myReq !== _errorListSeq) return;
 
-    const [failR, reviewR, pendingR, geminiR, dmdwR] = settled;
+    const [failR, reviewR, pendingR, geminiR, dmdwR, suspiciousR] = settled;
     if (failR.status === 'fulfilled') {
         const body = failR.value;
         if (body && Array.isArray(body.data) && body.pagination) {
@@ -1125,6 +1127,13 @@ async function renderErrorListTab(container, depth = 0) {
         dmdwErrors = Array.isArray(dmdwR.value) ? dmdwR.value : [];
     }
     // dmdw 는 fetch 실패해도 그대로 빈 배열 유지 — dmdw 탭만 빈 상태로 표시.
+    if (suspiciousR.status === 'fulfilled' && suspiciousR.value) {
+        suspicious = {
+            currentCase: suspiciousR.value.currentCase || null,
+            history: Array.isArray(suspiciousR.value.history) ? suspiciousR.value.history : []
+        };
+    }
+    // 의심 사례도 fetch 실패 시 기본값 유지 — 의심사례 탭만 빈 상태로 표시.
 
     // [빈 결과 가드] 세 리스트 모두 0건이면 다음 진입을 위해 페이지 변수 모두 1로 리셋.
     if (!failError && failuresPagination.total === 0) _collectFailuresPage = 1;
@@ -1153,6 +1162,8 @@ async function renderErrorListTab(container, depth = 0) {
     const failCount = failuresPagination.total;
     // dmdw 미확인 항목 카운트 — acknowledged=false 만 셈 (확인된 이력은 회색으로 잔존).
     const dmdwUnackCount = dmdwErrors.filter(e => !e.acknowledged).length;
+    // 의심 사례 카운트 — 결정 대기 중인 currentCase 가 있으면 1 (없으면 0).
+    const suspiciousCount = suspicious.currentCase ? 1 : 0;
 
     // Gemini 키 상태 배지 (항상 표시)
     const geminiBadgeHtml = renderGeminiKeysBadge(geminiStatus);
@@ -1165,7 +1176,7 @@ async function renderErrorListTab(container, depth = 0) {
     //   에러 섹션은 allEmpty 계산에서 제외 — 에러 상태도 사용자가 인지해야 하므로.
     const allEmpty = (
         !failError && !reviewError && !retryError &&
-        reviewCount === 0 && retryCount === 0 && failCount === 0 && dmdwUnackCount === 0
+        reviewCount === 0 && retryCount === 0 && failCount === 0 && dmdwUnackCount === 0 && suspiciousCount === 0
     );
     const allClearBannerHtml = allEmpty
         ? `<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;margin-bottom:12px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:8px;color:#86efac;font-size:0.85rem;font-weight:600;">
@@ -1198,6 +1209,7 @@ async function renderErrorListTab(container, depth = 0) {
             ${tabBtn('retry',  '<i class="fa-solid fa-rotate"></i> 재시도 중',       retryCount,  '#3b82f6')}
             ${tabBtn('fail',   '<i class="fa-solid fa-triangle-exclamation"></i> 수집 실패', failCount, '#ef4444')}
             ${tabBtn('dmdw',   '<i class="fa-solid fa-globe"></i> dmdw 오류',         dmdwUnackCount, '#06b6d4')}
+            ${tabBtn('suspicious', '<i class="fa-solid fa-circle-question"></i> 의심 사례', suspiciousCount, '#f59e0b')}
         </div>
         <div id="error-sub-tab-content"></div>
     `;
@@ -1224,6 +1236,10 @@ async function renderErrorListTab(container, depth = 0) {
     } else if (currentErrorSubTab === 'dmdw') {
         // [신규] dmdw 자식 해역 크롤러 오류 — 미확인 진하게, 확인됨 흐리게. 페이지네이션 없음.
         sub.innerHTML = renderDmdwErrorsSectionHtml(dmdwErrors);
+    } else if (currentErrorSubTab === 'suspicious') {
+        // [통합] marine.kma 의심 사례 결정 — 이전 "오류 로그(의심 사례)" 탭을 하위탭으로 흡수.
+        //   currentCase 가 있으면 결정 카드, 없으면 정상 배너. 아래에 결정 이력.
+        sub.innerHTML = renderSuspiciousSectionHtml(suspicious);
     }
 
     // 자동 갱신은 서브탭 무관하게 항상 등록 (3개 서브탭 모두에서 30초 주기 동작)
@@ -1716,9 +1732,9 @@ function _renderFailureListInnerHtml(items) {
 }
 
 // [하위 탭 전환] 하위 탭 버튼 클릭 시 호출
-//  - 허용 키: review(검토 필요), retry(재시도 중), fail(수집 실패), dmdw(dmdw 오류 — 신규)
+//  - 허용 키: review(검토 필요), retry(재시도 중), fail(수집 실패), dmdw(dmdw 오류), suspicious(의심 사례)
 window.switchErrorSubTab = function (key) {
-    if (!['review', 'retry', 'fail', 'dmdw'].includes(key)) return;
+    if (!['review', 'retry', 'fail', 'dmdw', 'suspicious'].includes(key)) return;
     currentErrorSubTab = key;
     const inner = document.getElementById('alert-top-content');
     if (inner) renderErrorListTab(inner);
@@ -3579,7 +3595,8 @@ async function renderSubscriberTab(container) {
 // [사양] v7 최종 — 4 sub-tab 유지 (이름 변경):
 //   1. 실시간 특보 알림 관리 (기존 유지 + 카운터 fix)
 //   2. 장부 (JSON 표출) — 이전 "특보 수집 테스트" 의 JSON 표출만 유지
-//   3. 오류 로그 — 이전 "특보 수집 오류" → 의심 사례 결정 UI 로 완전 교체
+//   3. 오류 로그 — "특보 수집 오류" 상세(검토필요/재시도/수집실패/dmdw) 복원 +
+//                  marine 의심 사례 결정 UI 를 "의심 사례" 하위탭으로 통합
 //   4. 특보 수정 — 기존 유지 (관리자 수동 입력/수정)
 async function renderUnifiedAlertContent(container) {
     if (!adminAuthenticated.alert) return;
@@ -3624,7 +3641,9 @@ async function renderUnifiedAlertContent(container) {
         } else if (topTabId === 'ledger-view') {
             renderLedgerViewTab(topContent);
         } else if (topTabId === 'error-log') {
-            renderErrorLogTab(topContent);
+            // [복원] 이전 "특보 수집 오류" 상세 리스트(검토필요/재시도/수집실패/dmdw)로 복귀.
+            //   marine 의심 사례 결정 UI 는 그 안의 "의심 사례" 하위탭으로 통합됨.
+            renderErrorListTab(topContent);
         } else if (topTabId === 'manual-edit') {
             renderManualInputTab(topContent);
         }
@@ -4005,6 +4024,26 @@ function _escapeHtml(s) {
         .replace(/'/g, '&#39;');
 }
 
+// [통합] 오류 로그 "의심 사례" 하위탭 본문 — renderErrorListTab 안에서 호출.
+//   안내문 + (결정 카드 | 정상 배너) + 결정 이력. 데이터는 renderErrorListTab 의
+//   병렬 fetch(/api/admin/marine/suspicious)로 받아 30초 자동 갱신과 함께 갱신된다.
+function renderSuspiciousSectionHtml(suspicious) {
+    const cc = suspicious && suspicious.currentCase;
+    const history = (suspicious && suspicious.history) || [];
+    const infoNote = `
+        <div style="margin-bottom:12px;color:#94a3b8;font-size:0.78rem;">
+            <i class="fa-solid fa-info-circle"></i> mmis 응답에서 사전 예고 없이 3개 이상 zone 이 갑자기 사라지면 의심 사례로 분류됩니다.
+            관리자 결정(정상/비정상) 전까지 자동 처리하지 않습니다. (10분마다 push 재발사)
+        </div>`;
+    const caseHtml = cc
+        ? _renderSuspiciousCaseCard(cc)
+        : `<div style="padding:18px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:10px;text-align:center;">
+               <div style="font-size:1rem;color:#86efac;font-weight:700;margin-bottom:6px;"><i class="fa-solid fa-circle-check"></i> 현재 의심 사례 없음</div>
+               <div style="font-size:0.8rem;color:#94a3b8;">marine.kma 수집 정상. 사전 예고 없이 3+ zone 이 갑자기 사라지면 자동으로 표시됩니다.</div>
+           </div>`;
+    return infoNote + caseHtml + '<div style="margin-top:18px;">' + _renderSuspiciousHistory(history) + '</div>';
+}
+
 window.decideSuspicious = async function (decision) {
     const msg = decision === 'normal'
         ? '의심 zone 을 정상 해제로 처리하시겠습니까?\n→ release push 가 즉시 발사됩니다.'
@@ -4021,8 +4060,13 @@ window.decideSuspicious = async function (decision) {
             alert('결정 실패: ' + (result.error || ('HTTP ' + r.status)));
             return;
         }
-        // 성공 시 즉시 갱신
-        refreshErrorLog();
+        // 성공 시 즉시 갱신 — 통합 오류 로그(하위탭) 우선, 레거시 단독 화면도 지원.
+        const inner = document.getElementById('alert-top-content');
+        if (inner && typeof renderErrorListTab === 'function') {
+            renderErrorListTab(inner);
+        } else if (typeof refreshErrorLog === 'function') {
+            refreshErrorLog();
+        }
     } catch (e) {
         alert('결정 요청 실패: ' + (e && e.message));
     }
