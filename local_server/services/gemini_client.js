@@ -58,6 +58,23 @@ function bumpUsage(field, caller) {
 /** 오늘(KST) Gemini 사용량 스냅샷 — 관리자 UI에서 사용 */
 function getUsageStats() { return Object.assign({}, _ensureUsage()); }
 
+// [이벤트 로그] 429 한도초과 · 키 자동 전환 · 전체 소진의 "상세 내역".
+// 관리자 AI 탭에서 "왜 이 푸시 알림이 발생했는지" 확인하는 용도.
+// 일 리셋과 무관하게 최근 EVENT_LOG_MAX건을 시간 역순(최신 우선)으로 인메모리 보관(재시작 시 소멸).
+const EVENT_LOG_MAX = 50;
+const events = [];
+/**
+ * 상세 이벤트 1건 기록
+ * @param {string} type - 'rate_limited' | 'key_switch' | 'all_exhausted'
+ * @param {object} info - { caller, keyLabel, fromLabel, toLabel, detail, cooldownUntil }
+ */
+function logEvent(type, info = {}) {
+    events.unshift(Object.assign({ ts: Date.now(), type }, info));
+    if (events.length > EVENT_LOG_MAX) events.length = EVENT_LOG_MAX;
+}
+/** 최근 Gemini 이벤트 로그 스냅샷 — 관리자 UI에서 사용 */
+function getEventLog() { return events.slice(); }
+
 /** 등록된 키가 하나라도 있는지 */
 function hasAnyKey() {
     return keys.length > 0;
@@ -94,11 +111,16 @@ function pickNextKey(excludeIndices) {
 }
 
 /** 특정 키를 429(쿨다운) 상태로 표시 */
-function markRateLimited(index) {
+function markRateLimited(index, caller, detail) {
     if (index < 0 || index >= keys.length) return;
     keys[index].cooldownUntil = Date.now() + AI_COOLDOWN_MS;
     const untilStr = new Date(keys[index].cooldownUntil).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
     console.error(`[Gemini] ⚠️ ${keys[index].label} 키 429 감지 → ${untilStr}까지 쿨다운 (1시간)`);
+    logEvent('rate_limited', {
+        caller, keyLabel: keys[index].label,
+        cooldownUntil: keys[index].cooldownUntil,
+        detail: (detail || '').slice(0, 300)
+    });
 }
 
 /** 관리자 푸시 (순환 참조 방지용 lazy require) */
@@ -134,8 +156,9 @@ async function callGeminiRaw({ model, contents, config, caller = 'unknown' }) {
     while (true) {
         const picked = pickNextKey(triedIndices);
         if (!picked) {
-            // [모든 키 쿨다운] 전체 소진 알림 (10분 스로틀)
+            // [모든 키 쿨다운] 전체 소진 — 상세 내역 기록 후 알림 (10분 스로틀)
             const now = Date.now();
+            logEvent('all_exhausted', { caller, detail: '기본/백업 키 모두 쿨다운 중' });
             if (now - lastAllExhaustedNotifyAt >= NOTIFY_THROTTLE_MS) {
                 lastAllExhaustedNotifyAt = now;
                 notifyAdmin(
@@ -155,9 +178,13 @@ async function callGeminiRaw({ model, contents, config, caller = 'unknown' }) {
             const genAI = new GoogleGenAI({ apiKey: picked.apiKey });
             const result = await genAI.models.generateContent({ model, contents, config });
             bumpUsage('success');
-            // 성공: 이전 키에서 실패 후 전환된 경우 관리자에게 알림 (스로틀 10분)
+            // 성공: 이전 키에서 실패 후 전환된 경우 상세 내역 기록 + 관리자 알림 (스로틀 10분)
             if (firstFailedKeyLabel && firstFailedKeyLabel !== picked.label) {
                 const now = Date.now();
+                logEvent('key_switch', {
+                    caller, fromLabel: firstFailedKeyLabel, toLabel: picked.label,
+                    detail: `${firstFailedKeyLabel} 키 429 → ${picked.label} 키로 전환 성공`
+                });
                 if (now - lastSwitchNotifyAt >= NOTIFY_THROTTLE_MS) {
                     lastSwitchNotifyAt = now;
                     notifyAdmin(
@@ -175,7 +202,7 @@ async function callGeminiRaw({ model, contents, config, caller = 'unknown' }) {
             const isRateLimited = errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED');
             if (isRateLimited) {
                 bumpUsage('rateLimited');
-                markRateLimited(picked.index);
+                markRateLimited(picked.index, caller, errorMsg);
                 triedIndices.push(picked.index);
                 if (!firstFailedKeyLabel) firstFailedKeyLabel = picked.label;
                 // 다음 키로 폴백 시도 (루프 계속)
@@ -208,6 +235,7 @@ module.exports = {
     callGeminiRaw,
     getKeysStatus,
     getUsageStats,
+    getEventLog,
     hasAnyKey,
     AI_COOLDOWN_MS
 };

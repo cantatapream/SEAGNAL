@@ -899,7 +899,9 @@ router.get('/api/admin/gemini-status', (req, res) => {
         const keys = geminiClient.getKeysStatus();
         // 관리자 AI 탭 호출량 표시용 사용량 스냅샷(오늘 KST) 동봉
         const usage = (typeof geminiClient.getUsageStats === 'function') ? geminiClient.getUsageStats() : null;
-        res.json({ keys, count: keys.length, hasAnyKey: geminiClient.hasAnyKey(), usage });
+        // 429 한도초과 · 키 자동 전환 · 전체 소진의 상세 내역(최근 이벤트) 동봉
+        const events = (typeof geminiClient.getEventLog === 'function') ? geminiClient.getEventLog() : [];
+        res.json({ keys, count: keys.length, hasAnyKey: geminiClient.hasAnyKey(), usage, events });
     } catch (e) {
         console.error('[Admin] gemini-status 조회 오류:', e.message);
         res.status(500).json({ error: e.message });

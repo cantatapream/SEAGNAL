@@ -670,6 +670,16 @@ async function renderUnifiedAiTab(container) {
         <div id="ai-usage-box" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">
             <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-chart-simple"></i> 오늘 Gemini 호출량 (KST)</div>
             <div id="ai-usage-content" style="color:#e2e8f0;font-size:0.9rem;">불러오는 중…</div>
+            <div id="ai-usage-bycaller" style="margin-top:8px;font-size:0.78rem;color:#94a3b8;"></div>
+        </div>
+
+        <div id="ai-events-box" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <span style="font-size:0.85rem;color:#94a3b8;"><i class="fa-solid fa-triangle-exclamation" style="color:#fbbf24;"></i> 한도초과 · 키 전환 상세 내역</span>
+                <button id="ai-events-refresh" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">새로고침</button>
+            </div>
+            <div id="ai-events-list" style="max-height:280px;overflow-y:auto;font-size:0.82rem;color:#cbd5e1;line-height:1.5;">불러오는 중…</div>
+            <div style="font-size:0.7rem;color:#64748b;margin-top:6px;">푸시 알림("키 자동 전환" 등)이 왜 발생했는지 확인용. 최근 50건, 서버 메모리 임시 보관(재시작 시 소멸).</div>
         </div>
 
         <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">
@@ -723,18 +733,58 @@ async function renderUnifiedAiTab(container) {
         </div>
     `;
 
-    // 1) 호출량 + 키 상태
-    try {
-        const r = await fetch('/api/admin/gemini-status');
-        const d = await r.json();
-        const u = d.usage || {};
-        const keyTxt = (d.keys || []).map(k => `${k.label}${k.onCooldown ? '(쿨다운)' : ''}`).join(', ') || '없음';
-        document.getElementById('ai-usage-content').innerHTML =
-            `요청 <b>${u.requests || 0}</b>회 · 성공 <b>${u.success || 0}</b> · 한도초과 <b>${u.rateLimited || 0}</b><br>` +
-            `<span style="color:#94a3b8;font-size:0.8rem;">키: ${keyTxt} · AI ${d.hasAnyKey ? '사용 가능' : '미설정(키 없음)'}</span>`;
-    } catch (e) {
-        document.getElementById('ai-usage-content').textContent = '호출량을 불러오지 못했습니다: ' + e.message;
+    // 1) 호출량 + 키 상태 + 한도초과/키전환 상세 내역
+    //    한 번의 gemini-status 응답으로 호출량·호출자별 분포·이벤트 로그를 모두 그린다.
+    async function loadGeminiStatus() {
+        const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        const fmtTime = (ts) => { try { return new Date(ts).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (e) { return '-'; } }
+        try {
+            const r = await fetch('/api/admin/gemini-status');
+            const d = await r.json();
+            const u = d.usage || {};
+            const keyTxt = (d.keys || []).map(k => `${k.label}${k.onCooldown ? '(쿨다운)' : ''}`).join(', ') || '없음';
+            document.getElementById('ai-usage-content').innerHTML =
+                `요청 <b>${u.requests || 0}</b>회 · 성공 <b>${u.success || 0}</b> · 한도초과 <b>${u.rateLimited || 0}</b><br>` +
+                `<span style="color:#94a3b8;font-size:0.8rem;">키: ${esc(keyTxt)} · AI ${d.hasAnyKey ? '사용 가능' : '미설정(키 없음)'}</span>`;
+
+            // 호출자(특보 처리 모듈)별 요청 분포 — 어떤 작업이 호출량을 많이 썼는지
+            const byCaller = u.byCaller || {};
+            const callerKeys = Object.keys(byCaller).sort((a, b) => byCaller[b] - byCaller[a]);
+            document.getElementById('ai-usage-bycaller').innerHTML = callerKeys.length
+                ? '호출자별: ' + callerKeys.map(k => `${esc(k)} <b style="color:#cbd5e1;">${byCaller[k]}</b>`).join(' · ')
+                : '';
+
+            // 한도초과 · 키 전환 상세 이벤트 — 푸시 알림이 발생한 이유
+            const TYPE_META = {
+                rate_limited: { icon: '⚠️', color: '#fbbf24', name: '429 한도초과' },
+                key_switch: { icon: '🔄', color: '#38bdf8', name: '키 자동 전환' },
+                all_exhausted: { icon: '⛔', color: '#f87171', name: '전체 키 소진' }
+            };
+            const events = Array.isArray(d.events) ? d.events : [];
+            const listEl = document.getElementById('ai-events-list');
+            if (!events.length) {
+                listEl.innerHTML = '<div style="color:#64748b;padding:6px 0;">최근 한도초과/키 전환 이벤트가 없습니다. (정상)</div>';
+            } else {
+                listEl.innerHTML = events.map(ev => {
+                    const m = TYPE_META[ev.type] || { icon: 'ℹ️', color: '#94a3b8', name: ev.type };
+                    const cooldown = ev.cooldownUntil ? ` · 쿨다운 해제 ${esc(fmtTime(ev.cooldownUntil))}` : '';
+                    const caller = ev.caller ? `<span style="color:#94a3b8;"> · ${esc(ev.caller)}</span>` : '';
+                    const detail = ev.detail ? `<div style="color:#94a3b8;font-size:0.76rem;margin-top:2px;">${esc(ev.detail)}${cooldown}</div>` : '';
+                    return `<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06);">` +
+                        `<span style="color:${m.color};font-weight:600;">${m.icon} ${esc(m.name)}</span>${caller}` +
+                        `<span style="float:right;color:#64748b;font-size:0.74rem;">${esc(fmtTime(ev.ts))}</span>` +
+                        detail + `</div>`;
+                }).join('');
+            }
+        } catch (e) {
+            document.getElementById('ai-usage-content').textContent = '호출량을 불러오지 못했습니다: ' + e.message;
+            const listEl = document.getElementById('ai-events-list');
+            if (listEl) listEl.textContent = '상세 내역을 불러오지 못했습니다: ' + e.message;
+        }
     }
+    await loadGeminiStatus();
+    const evRefresh = document.getElementById('ai-events-refresh');
+    if (evRefresh) evRefresh.addEventListener('click', loadGeminiStatus);
 
     // 2) 권한 관리 — 마이크/위치 권한 상태·요청·설정열기 (거부해도 재요청 가능)
     (function () {
