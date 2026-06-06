@@ -242,12 +242,8 @@ def evaluate(case, data, ms, err):
     # 결정 단어 — [H7] 의미축 3축 분리 (가능/안전/권고 중 1+ 매칭이면 PASS).
     if case.get("expect_decision"):
         if not decision_hit(ans):
-            # [후방 호환] WEAK 보조 신호 — "운영" 이 다른 결정 어휘와 동시 매칭되면 통과
-            if DECISION_RE_WEAK.search(ans) and DECISION_WEAK_PAIR_RE.search(ans):
-                pass  # 보조 신호 통과
-            else:
-                notes.append("decision word 없음 (의미축 3축 모두 미매칭)")
-                axes["A"] = axes.get("A", True) and False
+            notes.append("decision word 없음 (의미축 3축 모두 미매칭)")
+            axes["A"] = axes.get("A", True) and False
     # 종합 ok = axes 중 명시된 것 모두 True
     explicit = [v for v in axes.values() if v is not None]
     ok = all(explicit) if explicit else True
