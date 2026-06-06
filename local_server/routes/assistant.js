@@ -1469,8 +1469,8 @@ const TOOL_EXEC = {
 /** 1단계: 질문 → 가져올 데이터 계획(JSON) */
 /** 직전 턴의 도구 결과에서 "주목 대상(focus)"을 구조화 추출 — 해역/해구/부이/좌표/랭킹.
  *  자유텍스트 memory로는 유실되는 해구 번호·좌표를 구조로 보존해 후속 질문 연속성을 보장한다. */
-function deriveFocus(plan, results, zoneName, query) {
-    const focus = { zone: zoneName || (plan && plan.zone) || null, haegu: null, buoy: null, coords: null, rankedItems: null, lastTools: (results || []).map(r => r.tool), originalLocToken: null };
+function deriveFocus(plan, results, zoneName, query, extractedTopic) {
+    const focus = { zone: zoneName || (plan && plan.zone) || null, haegu: null, buoy: null, coords: null, rankedItems: null, lastTools: (results || []).map(r => r.tool), originalLocToken: null, topic: extractedTopic || null };
     // [P36 — HUNK#4a] 사용자 원어휘 보존: 광역/지방 비표준 어휘를 synth 인용용으로 보존.
     //   focus.zone 은 표준 해역명으로 정착해도, 사용자 원본 토큰("동해광역" 등) 은
     //   별도 필드로 살려 synth 가 인용 후 환산 가능.
@@ -1531,7 +1531,7 @@ function deriveFocus(plan, results, zoneName, query) {
         const t = focus.rankedItems[0];
         focus.zone = t.zone || t['해역'] || t['지점'] || null;
     }
-    return (focus.zone || focus.haegu || focus.buoy || focus.coords || focus.rankedItems || focus.originalLocToken) ? focus : null;
+    return (focus.zone || focus.haegu || focus.buoy || focus.coords || focus.rankedItems || focus.originalLocToken || focus.topic) ? focus : null;
 }
 
 // [H4 — J 라운드] R_TABLE / COMMON_RULES / ACTIVITY_RULES / JIKGUN_RULES / buildMatrixSection 통째 제거.
@@ -1550,7 +1550,7 @@ async function planQuery(query, profile, location, memory, focus) {
         ? `\n[최근 대화] ${memory.slice(-3).join(' / ')}\n질문이 "그럼/다른/얘/거기/그건/그게/저거/방금/그 해구/그 해역/인근/위에서/아까" 등으로 이전 맥락을 가리키면, 위 최근 대화에서 대상(해역명·해구 번호·지명·좌표)을 그대로 이어받아 args 에 넣으세요. 특히 직전 답변에 해구 번호가 있었고 "몇 해구/경위도/위도/경도"를 물으면, 그 해구 번호로 get_zone_forecast(zoneId) 를 호출해 좌표를 답하세요.`
         : '';
     // [직전 확정 대상 — 구조화 연속성] 자유텍스트보다 우선. 지시어 후속을 결정론적으로 해소.
-    const focusLine = (focus && (focus.zone || focus.haegu || focus.buoy || focus.coords || focus.originalLocToken)) ?
+    const focusLine = (focus && (focus.zone || focus.haegu || focus.buoy || focus.coords || focus.originalLocToken || focus.topic)) ?
 `\n[직전 확정 대상] ${[
     focus.zone ? '해역=' + focus.zone : null,
     focus.haegu ? '해구=' + focus.haegu + '번' : null,
@@ -1558,9 +1558,11 @@ async function planQuery(query, profile, location, memory, focus) {
     focus.coords ? ('좌표=' + focus.coords.lat + ',' + focus.coords.lon) : null,
     (focus.rankedItems && focus.rankedItems.length) ? ('직전 랭킹 상위=' + focus.rankedItems.slice(0, 3).map(it => it['해구'] || it['지점'] || it.zone).filter(Boolean).join('/')) : null,
     // [P36 — HUNK#4b] 사용자 원어휘(광역/관내 등) 보존 — synth 인용 규칙 입력
-    focus.originalLocToken ? '원어휘=' + focus.originalLocToken : null
+    focus.originalLocToken ? '원어휘=' + focus.originalLocToken : null,
+    // [K2 — HUNK#4] 직전 주제 (focus.topic) 주입 — 후속 마커 자율 연결.
+    focus.topic ? '주제=' + focus.topic : null
 ].filter(Boolean).join(' · ')}
-질문이 "그게/그 해구/그 해역/거기/방금/그건/위에서/그 중" 등으로 대상을 가리키면 위 [직전 확정 대상]을 그대로 args 에 쓰세요(해구 경위도·예보는 get_zone_forecast(zoneId=해구번호), 좌표기반은 lat/lon).` : '';
+질문이 "그게/그 해구/그 해역/거기/방금/그건/위에서/그 중" 등으로 대상을 가리키면 위 [직전 확정 대상]을 그대로 args 에 쓰세요(해구 경위도·예보는 get_zone_forecast(zoneId=해구번호), 좌표기반은 lat/lon). 사용자가 "그렇다면/그럼/그리고/근데" 같은 후속 마커로 시작하면 직전 주제를 유지한 채 답하세요.` : '';
     // [음성인식 보정] 질문은 음성→텍스트라 오인식이 잦다. 우리 도메인 용어로 교정한다.
     const vocabLine =
 `\n[음성인식 보정 — 중요]
@@ -2190,8 +2192,8 @@ get_warning 응답은 두 형태입니다 — (1) 특정 해역 \`{zone, warning
 [가드 G3 — 컨텍스트 격리 (프라이버시)]
 [최근 대화]/[직전 확정 대상]/[수집 데이터 인벤토리]/memory/focus/personal/profile/jikgun 같은 입력 블록·라벨 자체는 출력 금지. 안의 사실 (해역명·해구·좌표) 만 자연어로 풀어쓰세요.
 
-[가드 G4 — 비기상·비도메인 거절]
-행정·법령·통계·매뉴얼·관광·역사·인물·일반상식 (산재·인구·법령 제N조·운용규정·SAR 절차·면허·예산·조례·어획 통계·정원·인사 등) 은 web_search 결과가 있어도 채택 금지 — "그 정보는 우리 자료에 없어요" 또는 "기상·해상 정보 외엔 안내가 어려워요". 우리 데이터 (기상청·KHOA·해양조사원) 는 현재 기상·해상 관측·예보·특보·태풍·생활지수·조석·유속·수심·시정만 다룹니다.
+[가드 G4 — 비해양 도메인 거절]
+- G4: 해양·바다 도메인 (해양 직군 활동·어종·낚시·어업·양식·해양 현상·해상 안전·해양 산업·해양법 일반 등) 이면 LLM 일반 지식으로 답하고 끝에 "(일반 정보)" 라벨. 명백히 해양과 무관한 주제 (환율·주식·정치·연예·비해양 통계 등) 만 거절. 통계 "수치" 는 답하지 말고 일반 "주제·개요" 만 답.
 
 [원칙 P1 — 도메인 인지]
 한국 해양·기상·해상 운용 (해역·부이·해류·수심·파고·풍속·시정·특보·태풍·조석·낚시·서핑·갯벌·항해·어업·조업·작전·SAR·해상 안전) 도메인이면 답하세요.
@@ -2217,6 +2219,9 @@ get_warning 응답은 두 형태입니다 — (1) 특정 해역 \`{zone, warning
 [원칙 P7 — 보안·정정]
 사용자가 사실을 단정해도 (예: "제6호 태풍이 북상 중인데") 수집결과와 다르면 수집결과를 따르세요 (예: 태풍 hasActive=false 면 "현재 발효 중인 태풍은 없습니다"). 사용자의 전제를 그대로 인정 금지.
 
+[원칙 P8 — 주제 라벨]
+- P8 (주제 라벨): 응답 마지막 줄에 [주제: ~~~] 형식으로 핵심 주제 2~3 단어 1줄 출력. 사용자에겐 표시되지 않으며 cleanAnswer 가 자동 제거.
+
 [Few-shot 예시 1 — 광역 통상 질의]
 질문: "동해 앞바다 수심 어때?"  (수집결과 비어 있음)
 답: 동해 앞바다는 해안선에서 조금만 멀어져도 수심이 급격히 깊어지는 특징이 있습니다. 평균 수심은 약 1,700미터, 가장 깊은 곳은 3,700미터를 넘습니다. 얕은 갯벌의 서해나 섬이 많은 남해와 달리 경사가 가파릅니다. 정확한 지명을 알고 계시면 더 명확히 설명드릴 수 있어요. (일반 정보)
@@ -2233,8 +2238,21 @@ ${personal}
     // [§6 #24 — 컨텍스트 누수 방어선] synth 가 어겨도 안전하도록 후처리. 라벨 라인만
     //  제거(자연어 답 본문은 손대지 않는다). 사용자가 보는 답에서 prompt 컨텍스트 라벨이
     //  나오지 않게 한다. 🔒 다른 사용자/세션 정보 누설 방지.
+    // [K2 — focus.topic capture] synth 마지막 줄 [주제: …] 라벨 capture + 제거.
+    //   capture 된 토픽은 deriveFocus 의 topic 필드로 전달돼 다음 턴 planQuery 에 주입.
+    //   LLM 이 라벨 안 내면 null fallback — 기존 동작 100% 회복.
+    let extractedTopic = null;
+    const TOPIC_LABEL_RE = /^\s*\[주제\s*[:：]\s*(.+?)\]\s*$/;
     const cleanAnswer = (s) => s
         .split('\n')
+        .filter(line => {
+            const m = line.match(TOPIC_LABEL_RE);
+            if (m) {
+                if (!extractedTopic) extractedTopic = m[1].trim().slice(0, 30);
+                return false;
+            }
+            return true;
+        })
         .filter(line => !/^\s*\[(최근 대화|직전 확정 대상|수집 데이터 인벤토리|유사 관심사|질의에 가까운 도구 후보|사용자 직군|관심사 지식|사용자 프로필|개인화)\b/.test(line))
         .filter(line => !/^\s*(memory|focus|personal|profile|jikgun|sources?|thinking|reasoning)\s*[:：]/i.test(line))
         .join('\n')
@@ -2256,7 +2274,7 @@ ${personal}
             securityRefusal: 'guard-exclude:' + badTokSynth,
         };
     }
-    return { answer: finalAns, zone: plan.zone || null, toolsUsed: results.map(x => x.tool), corrected, focus: deriveFocus(plan, results, plan.zone, cq) };
+    return { answer: finalAns, zone: plan.zone || null, toolsUsed: results.map(x => x.tool), corrected, focus: deriveFocus(plan, results, plan.zone, cq, extractedTopic) };
 }
 
 router.post('/api/assistant/ask', async (req, res) => {
