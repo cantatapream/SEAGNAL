@@ -3383,10 +3383,10 @@ async function renderUsageStatsContent(container) {
         <!-- 필터 제어바 -->
         <div style="background:${T.cardBg}; padding:12px; border-radius:14px; margin:12px 0 18px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow};">
             <div style="display:flex; background:${T.ctrlBg}; padding:3px; border-radius:8px; flex-wrap:wrap;">
-                ${['daily', 'monthly', 'yearly', 'custom'].map(p => `
+                ${['today', 'daily', 'monthly', 'yearly', 'custom'].map(p => `
                     <button onclick="window.updateUsagePeriod('${p}')" id="btn-usage-${p}"
                             style="${btnStyle}">
-                        ${p === 'daily' ? '일별' : (p === 'monthly' ? '월별' : (p === 'yearly' ? '연별' : '직접 설정'))}
+                        ${p === 'today' ? '오늘' : (p === 'daily' ? '일별' : (p === 'monthly' ? '월별' : (p === 'yearly' ? '연별' : '직접 설정')))}
                     </button>
                 `).join('')}
             </div>
@@ -3498,9 +3498,20 @@ async function renderUsageStatsContent(container) {
     var usagePeriod = 'daily';
 
     // (가) 직접 설정: custom 은 서버 집계를 일별(daily)로 받되, 사용자가 지정한 start~end 범위만 표출.
+    //     오늘: start=end=오늘(KST) 로 자동 설정 + daily 집계.
     window.updateUsagePeriod = function (p) {
+        // '오늘' 클릭 시 날짜 input 을 오늘로 맞춘다(서버 버킷은 daily).
+        if (p === 'today') {
+            var _now = new Date();
+            var _kst = new Date(_now.getTime() + (9 * 60 * 60 * 1000));
+            var _t = _kst.toISOString().split('T')[0];
+            var _s = document.getElementById('usage-start-date');
+            var _e = document.getElementById('usage-end-date');
+            if (_s) _s.value = _t;
+            if (_e) _e.value = _t;
+        }
         usagePeriod = p;
-        ['daily', 'monthly', 'yearly', 'custom'].forEach(function (x) {
+        ['today', 'daily', 'monthly', 'yearly', 'custom'].forEach(function (x) {
             var b = document.getElementById('btn-usage-' + x);
             if (!b) return;
             if (x === p) { b.style.background = 'linear-gradient(135deg,' + T.accent + ',' + T.accent2 + ')'; b.style.color = '#fff'; }
@@ -3522,8 +3533,8 @@ async function renderUsageStatsContent(container) {
         var end = document.getElementById('usage-end-date').value;
         // 소속 복수선택 상태(_usageAffSelection)를 콤마조인. 비면 '전체'.
         var aff = (_usageAffSelection && _usageAffSelection.length) ? _usageAffSelection.join(',') : '전체';
-        // custom 은 서버측 버킷을 daily 로(임의 start~end 범위), 그 외는 그대로.
-        var serverPeriod = (usagePeriod === 'custom') ? 'daily' : usagePeriod;
+        // custom / today 는 서버측 버킷을 daily 로, 그 외는 그대로.
+        var serverPeriod = (usagePeriod === 'custom' || usagePeriod === 'today') ? 'daily' : usagePeriod;
 
         var loadingEl = document.getElementById('usage-loading');
         if (loadingEl) loadingEl.style.display = 'block';
