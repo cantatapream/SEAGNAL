@@ -367,10 +367,8 @@ try {
     console.warn('[Assistant] 직군 임계표 로드 실패:', e.message);
 }
 
-// [#37-A Hunk A2] 결정 단어 리스트 const 참조화 — prompt 인라인 ↔ JS const 분리.
-//   기존: synth bullet · enrichedTdig · 가설 bullet 3곳에 동일 리스트 반복 노출(~80 char × 3).
-//   변경: DECISION_WORDS 단일 const, prompt 에서 ${DECISION_WORDS} 로 1회 노출 + 참조.
-const DECISION_WORDS = '가능/주의/무리/위험/적합/권장/권고/통제/발령/허용/보류';
+// [H5 — J 라운드] DECISION_WORDS const 제거. 의미축 3분리 (H7 runner) 페어로 강제어
+//   "반드시 1+ 포함" 도 H1 P6 자율 위임. 결정 단어 enumeration 은 prompt 에서 자연어 가이드로 흡수.
 
 /** synth 가 사용자 정량 질의에 즉시 비교할 수 있도록 한 직군 임계표를 짧은 텍스트로. */
 function thresholdDigest(slug) {
@@ -613,7 +611,8 @@ function detectZoneDeterministic(query) {
     //   달라도 잡아낸다. 지역/방위 토큰(필수)과 거리 토큰(앞/먼바다, 보조)을 분리한다.
     // [P36 — HUNK#1] 광역/전역/권역/전체 4 토큰 추가 → Stage 3 nqTokens 길이 ≥ 2 임계 통과
     //   ("동해광역" → ["동해","광역"]), ZONE_NAME_TO_CODE 광역 alias 와 짝.
-    const REGION_DIR_RE = /제주|북부|남부|동부|서부|북쪽|남쪽|동쪽|서쪽|인천|경기|충남|전북|전남|경남|부산|거제|울산|경북|강원|서해|남해|동해|중부|광역|전역|권역|전체/g;
+    // [H3 — J 라운드] REGION_DIR_RE 에서 광역/전역/권역/전체 4 토큰 제거 — planQuery prompt (H2) 흡수.
+    const REGION_DIR_RE = /제주|북부|남부|동부|서부|북쪽|남쪽|동쪽|서쪽|인천|경기|충남|전북|전남|경남|부산|거제|울산|경북|강원|서해|남해|동해|중부/g;
     const regionDirTokens = (name) => name.replace('제주도', '제주').match(REGION_DIR_RE) || [];
     const isFar = (name) => name.includes('먼바다');
 
@@ -887,9 +886,9 @@ function buildPersonalContext(profile, memory, style, currentQuery = '') {
     if (tdig) {
         // [§B 패치 — MOF-4-01 (C6)] 정량 수치 검출 시 임계표를 prompt 상단(첫 lines) 으로 끌어올린다.
         //   변경: 단위 정량 수치(파고/풍속/시정/수온/파주기 + m·m/s·km·℃·s) 가 질의에 있으면 unshift 로 상단 배치.
-        // [#37-A Hunk A3] 운영규칙 단축 — 직군별 1행만. 결정 단어 리스트는 DECISION_WORDS 1회 참조.
+        // [H5] 운영규칙 단축 — 직군별 1행만. 결정 단어 강제어 제거 (H1 P6 자율 위임).
         const NUM_UNIT_RE = /(\d+(?:\.\d+)?)\s*(m\/s|미터퍼세크|m|미터|km|킬로|℃|도|s|초)/i;
-        const enrichedTdig = `═══ 직군 임계표 (정량 비교 우선) ═══\n${tdig}\n** 규칙: 정량 수치(파고/풍속/시정/수온/파주기 + m·m/s·km·℃·s) 가 질의에 있으면 임계표·SOP 와 비교해 가부 결론 한 줄 먼저. 결정 단어(${DECISION_WORDS}) 1+ 포함. 도구 결과 부재해도 임계표만으로 답 가능 — 결론 뒤 "현 상태 미확인" 부기. "정보 없음" 단독 응답 금지. 임계표는 외부 사실 아닌 직군 SOP — 환각 금지 위반 아님.`;
+        const enrichedTdig = `═══ 직군 임계표 (정량 비교 우선) ═══\n${tdig}\n** 규칙: 정량 수치(파고/풍속/시정/수온/파주기 + m·m/s·km·℃·s) 가 질의에 있으면 임계표·SOP 와 비교해 가부 결론 한 줄 먼저. 도구 결과 부재해도 임계표만으로 답 가능 — 결론 뒤 "현 상태 미확인" 부기. 임계표는 외부 사실 아닌 직군 SOP — 환각 금지 위반 아님.`;
         // 정량 수치가 명시되면 임계표 + 규칙을 lines 맨 앞으로 (synth prompt 에서 [사용자 프로필] 보다 먼저 보이게).
         // currentQuery 미전달 시 memory 마지막 항목으로 폴백 (호환성).
         const probe = currentQuery || (Array.isArray(memory) && memory.length ? String(memory[memory.length - 1]) : '');
@@ -1766,10 +1765,10 @@ function needsReplan(q, results, focus, profile, isPronounFollowup, isDomainQuer
         return { mode: 'dep_weave' };
     }
     // === (2) multitool 분기 (P_multitool B 신규) ===
+    //   [H3] MULTI_INTENT_RE 정규식 게이트 제거 — planQuery prompt (H2) 와 EXPECT_TOOLS_MIN.min
+    //   floor 결정론으로 자동 발동. 어휘 enumeration 누적 폐지.
     if (isPronounFollowup) return false;                 // PRONOUN_GUARD — #30 isChainFollowup 가 책임
     if (!isDomainQuery) return false;                    // G4 비도메인 잡담 차단
-    const MULTI_INTENT_RE = /(?:어때|상황|어떻게|괜찮|종합|전반|전체|적합|가능|할\s*만|할\s*수)|(?:파고.*풍속|풍속.*파고|특보.*조석|조석.*특보|어업.*안전|작전.*해역)/;
-    if (!MULTI_INTENT_RE.test(nq)) return false;
     const jk = detectJikgun(profile);
     const minSpec = (jk && EXPECT_TOOLS_MIN[jk]) || { min: 2, hint: [] };
     // hasRealData 인라인 — runBrain 내부 헬퍼와 동일 의미
@@ -1859,9 +1858,10 @@ async function runBrain(query, profile, memory, style, location, focus) {
     //   tool 호출이 빈 결과를 내고 web_search 폴백으로 빠지는 패턴을 사전 차단한다.
     // [패치 A — C5-pre 공유 상수] §C4(부이 폴백) + §C5(local_gov 강제 호출) + §C5-b(isDomainQuery 보강)가 함께 참조.
     //   함수 상단 1회 선언으로 중복·스코프 충돌 방지(synthesis §1.3 #2).
+    // [H3] OVERVIEW_RE 제거 — planQuery prompt (H2) 흡수.
+    //   VAGUE_LOCAL_RE 는 boolean 결정론 유지 (이중 안전망 — local_gov 강제 호출).
     const VAGUE_LOCAL_RE = /관내|우리\s*시|시청\s*관할|관할\s*해역|관할\s*구역|우리\s*지역/;
     const MONITOR_JIKGUN = new Set(['local_gov', 'coast_guard', 'navy', 'mof', 'public_org']);
-    const OVERVIEW_RE = /어때|상황|전반|전체|괜찮/;
     const _jikgunSlug = detectJikgun(profile);   // 1회 계산 — §C4/§C5/§C5-b 공유
     const canonZone = (z) => {
         if (typeof z !== 'string' || !z.trim()) return z;
@@ -1871,10 +1871,11 @@ async function runBrain(query, profile, memory, style, location, focus) {
     // [§6 #22 v2 — focus 후속 전파 도구별 args 정확 주입] 도구마다 zone/place/location/beach 등
     //   인자 이름이 다르다. v3 에서 args.zone 만 채워 일부 도구(get_tide/get_buoy_observation 등)
     //   에 무영향이라 연속 카테고리 -5p 회귀. 도구별 매핑 테이블로 정확히 채운다.
-    // [P_continuity_v2 — HUNK#3] PRONOUN_RE v2 (A §2.4).
-    //   추가: 그 곳/그 위치/그 해변/그 해안/그 항(만/구)/같은 곳·해역·위치/방금 거·방금 전.
-    //   제외(보존): "그 때"(#27 시간 후속), "여기"(GPS 우선), "근처/주변/인근"(#31 multitool).
-    const PRONOUN_RE = /거기|그곳|그\s*곳|그쪽|그\s*해역|그\s*해구|그\s*부이|그\s*해변|그\s*해안|그\s*항(?:만|구)?|그\s*위치|같은\s*(?:곳|해역|위치)|방금(?:\s*거|\s*전)?|아까|그건|그게|저거/;
+    // [H3 — J 라운드] PRONOUN_RE 누적 확장 14 토큰 → 핵심 7 만 보존.
+    //   제거: 그 곳/그 해변/그 해안/그 항(만/구)/같은 곳·해역·위치 (확장분)
+    //   보존: 거기/그곳/그쪽/그 해역/그 해구/그 부이/그 위치/방금/아까/그건/그게/저거
+    //   PRONOUN_GUARD (boolean) 는 isChainFollowup 책임 — H1 P3 (후속 표기) 와 페어.
+    const PRONOUN_RE = /거기|그곳|그쪽|그\s*해역|그\s*해구|그\s*부이|그\s*위치|방금|아까|그건|그게|저거/;
     const isPronounFollowup = PRONOUN_RE.test(cq);
     // [P_continuity_v2 — HUNK#4 chain 게이트] focus 객체 비어있지 않음 = chain 후속.
     //   대명사 없는 한 단어 후속("파고?", "수온?")까지 흡수 (B §3.2).
@@ -2018,15 +2019,11 @@ async function runBrain(query, profile, memory, style, location, focus) {
     // [의존 위빙 + multi-tool 보강 — 1회 재계획 v2] dep_weave(기존) / multitool(P_multitool B 신규) 분기.
     //   multitool 분기는 planQuery 재호출 생략(LLM 0회) — pickMissingTools 결정론 cap=2.
     const focus1 = deriveFocus(plan, results, plan.zone, cq);
-    // [§hoist] L1756 의 isDomainQuery 계산을 multitool 가드용으로 미리 1회 — 변수명 충돌 회피 _isDomain.
-    const _MULTI_DOMAIN_RE = /특보|예보|파고|파주기|풍속|풍향|풍랑|해상|해양|연안|해역|해구|부이|시정|가시거리|조석|만조|간조|물때|유속|유향|해류|수심|태풍|기상|관측|수온|낚시|서핑|어업|조업|항해|바다|섬|항구|항만/;
-    // [D1 — 8차 라운드 § 패치1] 홍도/연평/위도 등 도서명 추가 (ANG-1-08/09, ANG-2-04a/b 회복).
-    //   suffix-free 변형(연평) 포함 — 화자가 "도" 생략해도 도메인 판정.
-    const _MULTI_ISLAND_RE = /거문도|오륙도|마라도|추자도|울릉도|서귀포|신안|가거도|백령도|연평도|연평|흑산도|위미|독도|덕적|영흥|울진|포항|속초|동해|강릉|삼척|군산|목포|여수|통영|거제|부산|보길도|진도|완도|소청도|대청도|어청도|울도|소흑산도|홍도|위도|안마도|격렬비열도|만재도|비양도|우도|장자도|선유도|십이동파도/;
+    // [§hoist + H3] _MULTI_DOMAIN_RE 에 ISLAND 어휘 흡수 (_MULTI_ISLAND_RE 제거).
+    //   OVERVIEW_RE 도 흡수 — planQuery prompt 1줄 (H2) 로 LLM 자율 위임.
+    const _MULTI_DOMAIN_RE = /특보|예보|파고|파주기|풍속|풍향|풍랑|해상|해양|연안|해역|해구|부이|시정|가시거리|조석|만조|간조|물때|유속|유향|해류|수심|태풍|기상|관측|수온|낚시|서핑|어업|조업|항해|바다|섬|항구|항만|거문도|오륙도|마라도|추자도|울릉도|서귀포|신안|가거도|백령도|연평도|연평|흑산도|위미|독도|덕적|영흥|울진|포항|속초|강릉|삼척|군산|목포|여수|통영|거제|보길도|진도|완도|소청도|대청도|어청도|울도|소흑산도|홍도|위도|안마도|격렬비열도|만재도|비양도|우도|장자도|선유도|십이동파도/;
     const _isDomain = _MULTI_DOMAIN_RE.test(query) || _MULTI_DOMAIN_RE.test(cq)
-        || _MULTI_ISLAND_RE.test(query) || _MULTI_ISLAND_RE.test(cq)
-        || !!detectZoneDeterministic(query) || !!detectZoneDeterministic(cq)
-        || OVERVIEW_RE.test(cq);
+        || !!detectZoneDeterministic(query) || !!detectZoneDeterministic(cq);
     const replan = needsReplan(cq, results, focus1, profile, isPronounFollowup, _isDomain);
     if (replan && replan.mode === 'dep_weave') {
         const plan2 = await planQuery(cq, profile, location, memory, focus1);
@@ -2137,39 +2134,40 @@ async function runBrain(query, profile, memory, style, location, focus) {
     //  결과가 비더라도 합성 단계가 "현재 ~ 없음" 또는 "위치를 좀 더 알려주세요" 로 보고하게 둔다.
     //  비도메인 질문(관광·역사·일반상식·인물 등)에만 web_search 가 마지막 수단으로 살아남는다.
     //  도메인 여부는 (a) 도메인 키워드 (b) 알려진 해역명 fuzzy 매칭 (c) 알려진 섬·부이 지명 중 하나라도.
-    const DOMAIN_RE = /특보|예보|파고|파주기|풍속|풍향|풍랑|해상|해양|연안|해역|해구|부이|시정|가시거리|조석|만조|간조|물때|유속|유향|해류|수심|태풍|기상|관측|수온|낚시|서핑|어업|조업|항해|바다|섬|항구|항만/;
-    // [D1 — 8차 라운드 § 패치1] _MULTI_ISLAND_RE 와 동기. 홍도·연평·위도·격렬비열도 등 보강.
-    const ISLAND_BUOY_RE = /거문도|오륙도|마라도|추자도|울릉도|서귀포|신안|가거도|백령도|연평도|연평|흑산도|위미|독도|덕적|영흥|울진|포항|속초|동해|강릉|삼척|군산|목포|여수|통영|거제|부산|보길도|진도|완도|소청도|대청도|어청도|울도|소흑산도|홍도|위도|안마도|격렬비열도|만재도|비양도|우도|장자도|선유도|십이동파도/;
+    // [H3 — J 라운드] DOMAIN_RE 에 ISLAND 어휘 흡수 (ISLAND_BUOY_RE 통째 제거).
+    //   한국 도서·항구 지명이면 해양 도메인 — H1 P1 도메인 인지에 위임.
+    const DOMAIN_RE = /특보|예보|파고|파주기|풍속|풍향|풍랑|해상|해양|연안|해역|해구|부이|시정|가시거리|조석|만조|간조|물때|유속|유향|해류|수심|태풍|기상|관측|수온|낚시|서핑|어업|조업|항해|바다|섬|항구|항만|거문도|오륙도|마라도|추자도|울릉도|서귀포|신안|가거도|백령도|연평도|연평|흑산도|위미|독도|덕적|영흥|울진|포항|속초|강릉|삼척|군산|목포|여수|통영|거제|보길도|진도|완도|소청도|대청도|어청도|울도|소흑산도|홍도|위도|안마도|격렬비열도|만재도|비양도|우도|장자도|선유도|십이동파도/;
     const isDomainQuery = DOMAIN_RE.test(query) || DOMAIN_RE.test(cq)
-        || ISLAND_BUOY_RE.test(query) || ISLAND_BUOY_RE.test(cq)
         || !!detectZoneDeterministic(query) || !!detectZoneDeterministic(cq);
-    // [환각 가드 — §6 #16] 도메인 질의인데 도구 호출이 0건이면(빈 steps + 위빙도
-    //   추가 못 함) synth 에게 그냥 질문만 넘기면 LLM 일반 지식으로 답을 지어낼 위험.
-    //   안전한 메시지로 차단 — 사용자가 다시 시도하거나 위치를 구체화하도록 유도.
+    // [환각 가드 — §6 #16 + H6 광역 게이트] 도메인 질의인데 도구 호출이 0건이면 단호 거절.
+    //   단, 광역 통상 질의 (동해/서해/남해/제주해역 + 수심/특징/갯벌 등) 또는 가설·의사결정
+    //   질의는 H1 7원칙 (P2-b 통상 답 / P5 가설 SOP / P6 가부 결론) 으로 흘려보내 LLM 자율
+    //   답하게 한다. 그 외에는 짧은 거절문.
     if (isDomainQuery && results.length === 0) {
-        // [D1 — 8차 § 패치2] cat=4 정량 가설 질의("수온 18도로 떨어지면 위험?", "갯바위 안전?")는
-        //   results 가 비어도 decision 단어를 포함한 SOP 답을 한 줄 주어 ANG-4-02/05 회복.
-        //   판정: 가설 어휘(가능|위험|안전|괜찮|떨어지면|넘으면|되면|시) + 키워드 1+ 매칭.
+        // [H6] 광역 통상 질의 게이트 — 좌표/부이/해구 미지정 + 광역 의도어 매칭.
+        const _WIDE_ZONE_RE = /동해|서해|남해|제주\s*해역|한국\s*동쪽\s*바다|한국\s*서쪽\s*바다|한국\s*남쪽\s*바다|우리\s*바다/;
+        const _WIDE_TOPIC_RE = /수심|특징|갯벌|섬|평균|깊이|경사|어떻|어때|뭐가\s*달라|차이|비교|분포|구조|지형/;
+        const _LOC_SPECIFIC_RE = /부이|해구|해역\s*(?:코드|아이디)|좌표|위도|경도|북위|동경/;
+        const _hasWideZone = _WIDE_ZONE_RE.test(query) || _WIDE_ZONE_RE.test(cq);
+        const _hasWideTopic = _WIDE_TOPIC_RE.test(query) || _WIDE_TOPIC_RE.test(cq);
+        const _hasLocSpec = _LOC_SPECIFIC_RE.test(query) || _LOC_SPECIFIC_RE.test(cq);
+        const isWideOpenQuery = _hasWideZone && _hasWideTopic && !_hasLocSpec;
+        // [H6] 가설·의사결정 — H3 정규식 제거 후에도 results=0 분기에서만 유지.
         const _DECISION_HINT_RE = /가능|위험|안전|괜찮|무리|적합|주의|판단|되[냐는요?]|돼|어떻|어때/;
-        const _HYPO_HINT_RE = /떨어지면|넘으면|되면|발효되면|이면|라면|시(?![가-힣])|뜨면|뜨면|울리면|만약/;
+        const _HYPO_HINT_RE = /떨어지면|넘으면|되면|발효되면|이면|라면|시(?![가-힣])|뜨면|울리면|만약/;
         const isDecisionLike = _DECISION_HINT_RE.test(query) || _DECISION_HINT_RE.test(cq);
         const isHypo = _HYPO_HINT_RE.test(query) || _HYPO_HINT_RE.test(cq);
-        if (isDecisionLike || isHypo) {
+        // [H6] 광역/가설/의사결정 → synth 호출 (H1 P2-b/P5/P6 자율 답). 분기 fallthrough.
+        if (!isWideOpenQuery && !isDecisionLike && !isHypo) {
             return {
-                answer: '지금 실측 데이터를 가져오지 못해 확정 판단은 어렵습니다. 일반적으로 파고 2미터 이상이나 풍속 14m/s 이상이면 무리·위험으로 보고, 그 미만이면 가능·주의 수준입니다. 최종 판단은 선장님 몫이에요.',
+                answer: '죄송해요, 지금 그 정보를 가져오지 못했어요. 위치를 좀 더 구체적으로 알려주시면 더 도와드릴 수 있어요.',
                 zone: plan.zone || null,
                 toolsUsed: [],
                 corrected,
                 focus: null
             };
         }
-        return {
-            answer: '죄송해요, 지금 그 정보를 가져오지 못했어요. 위치를 좀 더 구체적으로 알려주시면 더 도와드릴 수 있어요.',
-            zone: plan.zone || null,
-            toolsUsed: [],
-            corrected,
-            focus: null
-        };
+        // 광역·가설·의사결정 → synth (results=[]) 로 진행, H1 P5/P6 가 SOP/가부 결론을 자율 생성.
     }
     // [P_continuity_v2 — HUNK#5] chain zone-miss 안전 거절 폴백 (synthesis §6.5).
     //   조건: isChainFollowup + focusZone 여전히 null + isDomainQuery + 도구 1+개 실행.
@@ -2277,23 +2275,9 @@ ${personal}
         .join('\n')
         .trim();
     let finalAns = cleanAnswer(r.text);
-    // [D1 — 8차 § 패치3] 메타·자기요약 LLM 출력 길이 가드 — 10자 미만이면 1회 자동 재시도.
-    //   ANG-6-01b "모릅니다.(5자)" 회복. 트리거: query 가 메타 어휘 + memory 1+ 항목 존재 + 짧음.
-    //   재시도 prompt 는 memory 풀어쓰기 명령 강화.
-    const _META_HINT_RE = /방금|아까|결정 사유|왜 그렇게|한 줄로|한 줄 요약|정리해|요약해|뭐였지|뭐 물었/;
-    const _isMetaQuery = _META_HINT_RE.test(query) || _META_HINT_RE.test(cq);
-    const _hasMemory = Array.isArray(memory) && memory.length > 0;
-    if (_isMetaQuery && _hasMemory && finalAns.length < 10) {
-        const retryPrompt =
-`아래 [최근 대화] 의 마지막 1~3 항목을 자연어 1~3 문장으로 풀어 요약하세요. **"모릅니다" 또는 한 문장 미만 답 절대 금지** — memory 가 비지 않았으니 반드시 그 내용을 풀어 답하세요. 음성 구어체, 표·마크다운·이모지 금지.
-[최근 대화] ${JSON.stringify((memory || []).slice(-3))}
-질문: "${cq}"`;
-        const r2 = await gemini.callGemini({ model: BRAIN_MODEL, contents: retryPrompt, config: { temperature: 0.2 }, caller: 'Assistant-Synth-MetaRetry' });
-        if (r2 && r2.success && r2.text) {
-            const retried = cleanAnswer(r2.text);
-            if (retried.length >= 10) finalAns = retried;
-        }
-    }
+    // [H5 — J 라운드] 메타·자기요약 재시도 길이 가드 제거.
+    //   메타 답은 H1 P4 (synth prompt 7원칙) 와 prompt 상단 memory 블록으로 LLM 이 자율 처리.
+    //   "모릅니다" 5자 단발 회귀 위험 ↑ 시 H1 P4 보강 (별도 hunk).
     // [§6 #35 SEC P0 — L4 hard gate] GUARD_EXCLUDES 사후검열. synth 가 prompt 룰을
     //   어겨도 시크릿/거짓수행/라벨 토큰이 응답에 박히지 않도록 마지막 안전망.
     const badTokSynth = guardExcludesScan(finalAns);

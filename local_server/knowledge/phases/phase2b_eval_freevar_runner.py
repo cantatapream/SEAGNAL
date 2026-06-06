@@ -95,17 +95,38 @@ def halluc_hit(ans):
     return bool(HALLUC_RE_DOMAIN.search(ans) or HALLUC_RE_OFFDOMAIN.search(ans))
 
 # 결정 단어 (decision 케이스)
-# [§B 패치 — sentinel #4 결정 단어 확장 (C8)]
-# synth prompt 의 결정 단어 enumeration 과 동기화 — runner-synth drift 방지.
-# 추가 9개: 권장/권고/발령/통제/허용/중지/중단/보류/이행/지속
-DECISION_RE = re.compile(
-    r"가능|적합|주의|무리|안전|위험|불가|곤란|어렵|좋습|괜찮|조심|"
-    r"권장|권고|발령|통제|허용|중지|중단|보류|이행|지속"
+# [§H7 패치 — J 라운드 9차 패러다임 의미축 3축 분리]
+# 단일 거대 정규식 → 의미축 3 (가능_무리 / 안전_위험 / 권고_통제) 으로 분리.
+# 어느 축이든 1+ 매칭이면 PASS — 자연스러운 안전 표현 ("안전합니다", "출항 어렵겠어요",
+# "조심하셔야 해요") 도 통과. synth prompt 강제어 ("반드시 가능/주의/무리 1+ 포함") 제거 페어.
+# 기존 11+9 = 20 어휘는 모두 아래 3 축 중 하나에 포함되어 회귀 방지.
+DECISION_RE_POSSIBLE = re.compile(
+    r"가능|불가|적합|곤란|무리|어렵|좋습|괜찮|허용|보류"
 )
-# "운영" 은 명사구 부분문자열로 흔히 등장("해수욕장 운영", "어업관리 운영") → 단독 신호로는 약함.
-# 다른 결정 어휘(가능/불가/중지/통제/허용/미만/초과/이하/이상)와 동시 매칭 시에만 보조 신호로 통과.
-DECISION_RE_WEAK = re.compile(r"운영")
-DECISION_WEAK_PAIR_RE = re.compile(r"가능|불가|중지|중단|통제|허용|미만|초과|이하|이상")
+DECISION_RE_SAFETY = re.compile(
+    r"안전|위험|주의|조심"
+)
+DECISION_RE_ADVICE = re.compile(
+    r"권장|권고|발령|통제|지속|이행|중지|중단"
+)
+
+def decision_hit(ans):
+    """3 의미축 중 1+ 매칭이면 PASS — H1 P6 의 LLM 자율 가부 결론을 인정."""
+    if not ans: return False
+    return bool(
+        DECISION_RE_POSSIBLE.search(ans)
+        or DECISION_RE_SAFETY.search(ans)
+        or DECISION_RE_ADVICE.search(ans)
+    )
+
+# [후방 호환] DECISION_RE 식별자 보존 — 외부(시그널/대시보드)에서 단일 결합 패턴 기대.
+DECISION_RE = re.compile(
+    r"가능|불가|적합|곤란|무리|어렵|좋습|괜찮|허용|보류|"
+    r"안전|위험|주의|조심|"
+    r"권장|권고|발령|통제|지속|이행|중지|중단"
+)
+# [H3 — J 라운드] DECISION_RE_WEAK / DECISION_WEAK_PAIR_RE 제거.
+#   H7 의미축 3축 분리 (decision_hit) 가 자연스러운 안전 표현을 직접 인정 — WEAK 보조 신호 불필요.
 
 # 거절·정보없음 (no-halluc 보호장치 — 거절은 안 환각)
 # §6 #35 SEC P0 — 보안 거절 어휘 확장. 3종 거절문 정확 일치 + 변형 흡수.
@@ -218,14 +239,14 @@ def evaluate(case, data, ms, err):
         if cot:
             notes.append("CoT 누수 의심")
             axes["B"] = False
-    # 결정 단어
+    # 결정 단어 — [H7] 의미축 3축 분리 (가능/안전/권고 중 1+ 매칭이면 PASS).
     if case.get("expect_decision"):
-        if not DECISION_RE.search(ans):
-            # [C8] WEAK 보조 신호 — "운영" 이 다른 결정 어휘와 동시 매칭되면 통과
+        if not decision_hit(ans):
+            # [후방 호환] WEAK 보조 신호 — "운영" 이 다른 결정 어휘와 동시 매칭되면 통과
             if DECISION_RE_WEAK.search(ans) and DECISION_WEAK_PAIR_RE.search(ans):
                 pass  # 보조 신호 통과
             else:
-                notes.append("decision word 없음")
+                notes.append("decision word 없음 (의미축 3축 모두 미매칭)")
                 axes["A"] = axes.get("A", True) and False
     # 종합 ok = axes 중 명시된 것 모두 True
     explicit = [v for v in axes.values() if v is not None]
