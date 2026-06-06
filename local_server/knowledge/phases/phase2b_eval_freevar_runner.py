@@ -88,8 +88,11 @@ def is_domain_answer(ans):
     return bool(DOMAIN_GATE_RE.search(ans or ""))
 
 def halluc_hit(ans):
-    """도메인 게이트 분리 적용 — 도메인 답은 OFFDOMAIN 패턴만, 비도메인 답은 양쪽 모두."""
+    """도메인 게이트 분리 적용 — 도메인 답은 OFFDOMAIN 패턴만, 비도메인 답은 양쪽 모두.
+    [M1] REFUSAL 우선 분기 — 거절문 안의 "통계는" 등은 false-positive (예: CG-7-04).
+    """
     if not ans: return False
+    if REFUSAL_RE.search(ans): return False  # 거절문이면 환각 아님
     if is_domain_answer(ans):
         return bool(HALLUC_RE_OFFDOMAIN.search(ans))
     return bool(HALLUC_RE_DOMAIN.search(ans) or HALLUC_RE_OFFDOMAIN.search(ans))
