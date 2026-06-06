@@ -6893,13 +6893,47 @@ KMA archive 비교로 신규 자식 zone 자동 등록.
 
 ### § 7.7.5 UI 흐름
 ```
-특보 구역 [📋] ─클릭→ 팝업(발표시각+제목 리스트; 자식-only는 〔연안/평수〕)
-                         └항목 클릭→ openKmaIframeModal → 원문 통보문 PDF(관할 지방청)
+특보 구역 [📋] ─클릭→ 팝업(발표시각+제목 리스트; 살아있는 특보만; 자식-only는 〔연안/평수〕)
+                         └항목 클릭→ openKmaIframeModal →
+                              ├ 발효 통보문(PDF 있음)  → 원문 통보문 PDF(관할 지방청, gview)
+                              └ 예비특보(PDF 없음)      → 날씨누리 딥링크(stn=108&kind=pwn&date=발표일)
 ```
+- 리스트는 **현재 살아있는 특보**만(해제·만료 제외). 판정 로직 → § 7.7.7.
 
 ### § 7.7.6 한계
 - 자식 행이 ef/list에 없어 **부모 해역 단위**로 통보문을 모은다(자식 통보문은 부모의 지방청 PDF에 포함). 부모와 같은 PDF로 발표된 자식 변경은 dedup으로 부모 항목에 통합된다(정상).
 - 통보문 PDF 텍스트 추출이 부분적일 수 있어, 자식명 매칭 실패 시 캡 내 다음 사이클 재시도. `ntfctn/list`는 최신 N건만 반환하나 매 사이클(~1분) 폴링으로 발표 직후 포착. 미등록·108폴백 해역은 자식 보강 대상에서 보수적으로 제외.
+
+### § 7.7.7 살아있는 특보만 표출 — 해제·만료 통보문 제거 + 예비특보 정확 딥링크 (2026-06-06)
+
+3개 독립 원인분석 에이전트(MMIS 실로그인 + 코드 분석)가 합의한 두 버그 수정. 위치: `routes/weather.js` `_getZoneBulletinData` / `/api/zone-bulletins`. 커밋 `4997050`.
+
+**버그 A — 해제된 풍랑주의보가 목록에 잔존**
+- 증상: 제주도남쪽바깥먼바다가 예비특보만 살아있는데, 이미 해제된 `제06-21호 풍랑주의보 변경`(06-03)이 리스트에 남음.
+- 원인: 살아있음 판정이 `isRelease=/해제/.test(title)` — 즉 ef/list `warn_cmd_nm` 으로 만든 title 의 '해제' 문자열에만 의존. 그런데 제06-21호는 **다중 해역 해제 통보문**이며, ef/list가 이 해역 행을 `warn_cmd_nm='변경'(code 2)` 으로 코딩 → '해제'로 인식 못 함. 또한 `ed_tm`(발효구간 종료, 06-03 06:00) 만료·`warn/list` 현재발효 여부를 전혀 안 봄.
+- 핵심 사실: **ef/list 의 per-zone `warn_cmd_nm` 은 다중해역 통보문에서 해역별로 '변경'으로 코딩될 수 있어 해제 판정에 신뢰 불가.** 같은 file_nm 의 `ntfctn/list warn_title`("…/ 풍랑주의보 해제") 이 진실. PDF 원문도 "풍랑주의보 해제(제6-21호)".
+- 수정:
+  1. **발효중 게이트(권위)** — `warn/list`(현재 발효 부모 zone)의 `warn_zone_cd`(lvl≠0) 집합 `effectiveCodes` 를 `_getZoneBulletinData` 에서 캐시. ef 발효 통보문은 그 `warn_zone_cd` 가 effectiveCodes 에 있어야(=지금 발효중) alive. 해제·만료된 통보문은 warn/list 에서 빠지므로 자동 제외.
+  2. **해제 판정 보강** — `isRelease` 가 title 뿐 아니라 ntfctn 원제목(`reportTitle`)의 '해제' 도 검사.
+  3. **폴백** — warn/list 조회 실패 시에만 `ed_tm < 현재시각(KST)` 인 만료 통보문을 제외.
+  4. **현재 cycle 컷 유지** — `effectiveCodes` 는 시각 무관(코드 매칭)이라, 발효중 zone의 30일 이력 누적 방지를 위해 "가장 최근 해제 이후"(`lastRelease`) 컷 병행.
+- 판정 우선순위(`alive` 필터): `prelim`(예비) → 항상 표시 / `isRelease` → 제외 / 과거 cycle → 제외 / `childOnly` → 표시 / ef 발효 → `effectiveCodes` 발효중일 때만.
+
+**버그 B — 예비특보 클릭 시 무관한 통보문(날씨해설) 표출**
+- 증상: `풍랑 예비특보 발표` 클릭 → iframe에 `[해설] 제06-29호 날씨해설` 표출.
+- 원인: 예비특보 항목 `webUrl` 이 파라미터 없는 `https://www.weather.go.kr/w/special-report/list.do` → 페이지가 **종류무관 최신 1건**(마침 날씨해설 cmt 제06-29호)을 디폴트 표출.
+- 핵심 사실: **해상 예비특보는 MMIS·날씨누리 어디에도 PDF 통보문이 없다.** `warn/ready` 응답에 `file_nm` 필드 자체가 없음(실검증). 날씨누리 특보 통보문 페이지의 예비특보(`kind=pwn`)는 **본청(stn=108)·발표일(date=tm_fc) 컨텍스트로만** 조회됨(오늘 날짜·지방청 stn 으로는 "발표된 자료 없음").
+- 수정: 예비특보 webUrl 을 `list.do?stn=108&kind=pwn&date=<발표일 YYYY-MM-DD>` 딥링크로 구성(`tm_fc` 에서 발표일 파싱). 라이브 검증: 이 URL이 `풍랑 예비특보 / 제주도남쪽바깥먼바다`(reportId `pwn:202606051600:7`) 정확 표출.
+
+**표출 방식 결정 — PDF vs 링크 (우리 프로그램 기준)**
+| 종류 | MMIS PDF | 앱 표출 | 근거 |
+|---|---|---|---|
+| 발효 통보문(ef/list) | 있음(`file_nm`) | **PDF** (gview iframe) | 정확·기존 동작 유지 |
+| 예비특보(warn/ready) | **없음** | **정확 딥링크**(stn=108&kind=pwn&date) | PDF 부재 → 링크가 유일·정확 |
+
+원칙: **PDF 있으면 PDF, 없는 예비특보만 딥링크.** iframe 따라가기 검증: weather.go.kr 은 X-Frame-Options/CSP 없음 → 임베드 가능. 체인: 서버 `webUrl` → `alert_history.js`(webUrl 우선) → `openKmaIframeModal`(`<iframe src>` 직접 로드). 메인 '통보문' 버튼과 동일 메커니즘.
+
+라이브 MMIS 검증 결과(제주도남쪽바깥먼바다): merged 9건 중 alive=`풍랑 예비특보 발표` 1건만 남고, 해제된 `풍랑주의보 변경(제06-21호)` + 과거 8건 전부 제거.
 
 ---
 
