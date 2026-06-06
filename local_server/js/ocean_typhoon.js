@@ -446,12 +446,14 @@
     var DIR16_DEG = { N: 0, NNE: 22.5, NE: 45, ENE: 67.5, E: 90, ESE: 112.5, SE: 135, SSE: 157.5, S: 180, SSW: 202.5, SW: 225, WSW: 247.5, W: 270, WNW: 292.5, NW: 315, NNW: 337.5 };
     function dirToDeg(d) { if (d == null) return null; var v = DIR16_DEG[String(d).trim().toUpperCase()]; return v == null ? null : v; }
     function angDiff(a, b) { var d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
-    // 방위(deg)에서의 반경: 단반경 방향(edDeg) ±90°(가항측 반원)이면 단반경, 반대쪽(위험)이면 장반경.
+    // 방위(deg)에서의 반경 — ed(가항측, 0°) → rShort, 반대(위험측, 180°) → rLong 로 코사인 S-커브 보간.
+    //   2반원 하드컷(±90°에서 r 점프)으로 인한 톱니/노치 없이 매끈한 비대칭 달걀형이 되도록.
     function radAt(rLong, rShort, edDeg, brngDeg) {
         if (edDeg == null || rShort == null || !(rShort > 0) || rShort >= rLong) return rLong;
-        return angDiff(brngDeg, edDeg) <= 90 ? rShort : rLong;
+        var s = (1 - Math.cos(Math.PI * angDiff(brngDeg, edDeg) / 180)) / 2;   // 0..1 S-커브
+        return rShort + (rLong - rShort) * s;
     }
-    // 비대칭 2반원 원 링 — bearing 별 반경 적용(edDeg/rShort 없으면 균일 원).
+    // 비대칭 달걀형 원 링 — bearing 별 반경 적용(edDeg/rShort 없으면 균일 원).
     function asymRing(lon, lat, rLong, rShort, edDeg, n) {
         n = n || 72;
         var ring = [];
