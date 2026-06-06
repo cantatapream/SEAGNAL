@@ -476,9 +476,12 @@ function createZoneBulletinItem(b) {
 
     var titleEl = document.createElement('span');
     titleEl.style.cssText = 'font-weight:600;';
-    // childOnly = 부모 해역은 그대로이고 연안바다/평수구역(자식)만 변동된 통보문.
-    //   부모 ef/list 에는 안 잡히는 자식 전용 변동이므로 작은 표식을 붙여 구분한다.
-    titleEl.textContent = (b.childOnly ? '〔연안/평수〕 ' : '') + (b.title || '통보문');
+    // 통보문 명칭(호수 제XX호) + 종류. childOnly=자식(연안/평수)만 변동, national=전국 폴백.
+    titleEl.textContent =
+        (b.childOnly ? '〔연안/평수〕 ' : '') +
+        (b.reportNo ? b.reportNo + ' ' : '') +
+        (b.title || '통보문') +
+        (b.national ? ' (전국)' : '');
 
     var timeEl = document.createElement('span');
     timeEl.style.cssText = 'font-size:0.8rem;opacity:0.75;white-space:nowrap;';
@@ -490,19 +493,21 @@ function createZoneBulletinItem(b) {
 
     if (b.pdfUrl) {
         item.style.cursor = 'pointer';
-        var hint = document.createElement('div');
-        hint.style.cssText = 'font-size:0.72rem;opacity:0.6;margin-top:4px;';
-        // 관할 지방청 통보문(연안바다/평수구역 포함)이 기본. 지방청 PDF 가 없어 전국(본청)으로
-        //   폴백한 경우만 (전국) 표식 — 전국 통보문엔 연안/평수 상세가 없을 수 있음.
-        hint.innerHTML = '<i class="fa-regular fa-file-pdf"></i> 통보문 원문 보기' +
-            (b.national ? ' <span style="opacity:0.7;">(전국)</span>' : '');
-        item.appendChild(hint);
         item.addEventListener('click', function () {
-            if (typeof window.openKmaIframeModal === 'function') {
-                window.openKmaIframeModal(b.pdfUrl, b.title || '통보문');
-            } else {
-                window.open(b.pdfUrl, '_blank');
+            // 통보문 원문 PDF 링크 열기. iframe(WebView)에 PDF 를 박으면 백지가 되므로,
+            //   앱 공통 패턴대로 시스템 브라우저(@capacitor/browser)로 그 *링크를 연다* →
+            //   폰 기본 PDF 뷰어가 렌더. 웹/데스크톱은 새 탭(브라우저가 PDF 표출).
+            var url = b.pdfUrl;
+            var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+            var Browser = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+            if (isNative && Browser && Browser.open) {
+                try {
+                    var p = Browser.open({ url: url });
+                    if (p && typeof p.catch === 'function') p.catch(function () { window.open(url, '_blank'); });
+                    return;
+                } catch (e) { /* 폴백 */ }
             }
+            window.open(url, '_blank');
         });
     }
     return item;
