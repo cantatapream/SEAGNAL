@@ -44,8 +44,8 @@
 
     var _map = null;
     // dmdw 상세정보 레이어 대응: 예측경로(track) / 70%확률반경(prob) / 강풍반경(strong) / 폭풍반경(storm)
-    var _trackLayer = null, _probLayer = null, _strongLayer = null, _stormLayer = null, _headLayer = null, _pointLayer = null;
-    var _trackSrc = null, _probSrc = null, _strongSrc = null, _stormSrc = null, _headSrc = null, _pointSrc = null;
+    var _trackLayer = null, _probLayer = null, _strongLayer = null, _stormLayer = null, _trailLayer = null, _headLayer = null, _pointLayer = null;
+    var _trackSrc = null, _probSrc = null, _strongSrc = null, _stormSrc = null, _trailSrc = null, _headSrc = null, _pointSrc = null;
     var _prevBasemap = null;  // 태풍 ON 직전 베이스맵(끄면 복원)
     var LAYER_KEY = 'seagnal_typhoon_layers';
     var _layerOn = { track: true, prob: true, strong: false, storm: false };
@@ -778,6 +778,7 @@
     function renderHead(p) {
         if (!_headSrc) return;
         _headSrc.clear();
+        if (_trailSrc) _trailSrc.clear();
         var f = frameAt(p);
         if (!f) return;
         var c = f._colorF || gradeColor(f._gradeF || 0);
@@ -794,14 +795,15 @@
             if (_layerOn.storm) { var gs = swathCorridorGeom(passedPts, { long: 'radStorm', short: 'radStormS', dir: 'radStormD' }); if (gs) _stormSrc.addFeature(new ol.Feature(gs)); }
         }
 
-        // 진행 자취 중심선: 지나온 경로 + 현재 위치 (굵은 실선, 강도색)
+        // 진행 자취 중심선: 지나온 경로 + 현재 위치 (굵은 실선, 강도색).
+        //   포인트 원/숫자에 가려지지 않도록 별도 _trailLayer(zIndex 128)에 추가.
         var passed = [];
         _frames.forEach(function (fr) { if (fr._t <= f._rtMs) passed.push(ol.proj.fromLonLat([fr.lon, fr.lat])); });
         passed.push(ol.proj.fromLonLat([f.lon, f.lat]));
-        if (passed.length >= 2) {
+        if (passed.length >= 2 && _trailSrc) {
             var trail = new ol.Feature(new ol.geom.LineString(passed));
             trail.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: rgba(c, 0.95), width: 3.5 }) }));
-            _headSrc.addFeature(trail);
+            _trailSrc.addFeature(trail);
         }
 
         // 태풍 본체(강도색 점 + 소용돌이)
@@ -1029,7 +1031,7 @@
     }
     function clearTrack() {
         _frames = [];
-        [_trackSrc, _probSrc, _strongSrc, _stormSrc, _headSrc, _pointSrc].forEach(function (s) { if (s) s.clear(); });
+        [_trackSrc, _probSrc, _strongSrc, _stormSrc, _trailSrc, _headSrc, _pointSrc].forEach(function (s) { if (s) s.clear(); });
         _pointBubbles.forEach(function (ov) { ov.setPosition(undefined); });
         if (_moveBubble) _moveBubble.setPosition(undefined);
     }
@@ -1171,6 +1173,7 @@
         _strongSrc = new ol.source.Vector();
         _stormSrc = new ol.source.Vector();
         _trackSrc = new ol.source.Vector();
+        _trailSrc = new ol.source.Vector();
         _headSrc = new ol.source.Vector();
         _pointSrc = new ol.source.Vector();
         // 채움은 유형별 색(원·말풍선과 동일), 반투명 유지 → 배경 지도 희미하게 비침.
@@ -1181,11 +1184,13 @@
         _strongLayer = new ol.layer.Vector(Object.assign({ source: _strongSrc, zIndex: 118, style: swathStyle(rgba(STRONG_C, 0.95), rgba(STRONG_C, 0.32)) }, uw));
         _stormLayer = new ol.layer.Vector(Object.assign({ source: _stormSrc, zIndex: 120, style: swathStyle(rgba(STORM_C, 0.95), rgba(STORM_C, 0.36)) }, uw));
         _trackLayer = new ol.layer.Vector(Object.assign({ source: _trackSrc, zIndex: 124 }, uw));
+        // 자취선(지나온 경로 실선)은 포인트(140)보다 아래에 — 포인트 원/숫자가 가려지지 않도록.
+        _trailLayer = new ol.layer.Vector(Object.assign({ source: _trailSrc, zIndex: 128 }, uw));
         _pointLayer = new ol.layer.Vector(Object.assign({ source: _pointSrc, zIndex: 140 }, uw)); // 강도숫자 포인트
-        // 이동 태풍(🌀) 헤드는 포인트(140)보다 위 → 재생 중 포인트 숫자에 가려지지 않음.
+        // 이동 태풍(🌀) 헤드만 포인트(140)보다 위 → 재생 중 포인트 숫자에 가려지지 않음.
         _headLayer = new ol.layer.Vector(Object.assign({ source: _headSrc, zIndex: 150 }, uw));
         map.addLayer(_probLayer); map.addLayer(_strongLayer); map.addLayer(_stormLayer);
-        map.addLayer(_trackLayer); map.addLayer(_headLayer); map.addLayer(_pointLayer);
+        map.addLayer(_trackLayer); map.addLayer(_trailLayer); map.addLayer(_headLayer); map.addLayer(_pointLayer);
         _moveBubble = makeBubbleOverlay(); map.addOverlay(_moveBubble); _moveEl = _moveBubble.getElement();
         // 육지 클릭 팝업(강풍반경 도달시간) — 클릭 차단(stopEvent), 닫기·행동요령 버튼 처리.
         _landEl = document.createElement('div');
@@ -1210,7 +1215,8 @@
         if (_stormLayer) _stormLayer.setVisible(_visible && _layerOn.storm);
         if (_trackLayer) _trackLayer.setVisible(_visible && _layerOn.track);
         if (_pointLayer) _pointLayer.setVisible(_visible && _layerOn.track);
-        if (_headLayer) _headLayer.setVisible(_visible && pb); // 이동 헤드는 재생 모드에서만
+        if (_trailLayer) _trailLayer.setVisible(_visible && pb); // 자취선(재생 모드에서만)
+        if (_headLayer) _headLayer.setVisible(_visible && pb);   // 이동 헤드(재생 모드에서만)
         updateBubbleVisibility();
     }
 
