@@ -1103,9 +1103,16 @@ router.get('/api/zone-bulletins', async (req, res) => {
         }
         const merged = Array.from(seen.values());
         merged.sort((a, b) => (a.time < b.time ? 1 : (a.time > b.time ? -1 : 0)));   // 최신 발표 우선
+        // [살아있는 특보만] 특보가 해제되면 그 특보는 끝나고 해역도 목록에서 사라진다. 따라서
+        //   해제 통보문(해제/변경해제)과 그 이전(이미 끝난 과거 주기)은 제외하고, *현재 활성
+        //   주기*(가장 최근 해제 이후의 발표/변경/격상/격하/예비특보)만 남긴다.
+        const isRelease = (b) => /해제/.test(b.title || '');
+        let lastRelease = '';
+        for (const b of merged) { if (isRelease(b) && String(b.time) > lastRelease) lastRelease = String(b.time); }
+        const alive = merged.filter((b) => !isRelease(b) && (!lastRelease || String(b.time) > lastRelease));
         // 각 항목에 통보문 호수(제XX호) 부착 — 같은 file_nm 의 ntfctn 제목에서 추출.
-        for (const b of merged) b.reportNo = (reportByFile && reportByFile[b.file_nm]) || '';
-        res.json({ zone, count: merged.length, bulletins: merged.slice(0, 50) });
+        for (const b of alive) b.reportNo = (reportByFile && reportByFile[b.file_nm]) || '';
+        res.json({ zone, count: alive.length, bulletins: alive.slice(0, 50) });
     } catch (e) {
         console.error('[zone-bulletins] ef/list 조회 실패:', e && e.message);
         res.status(502).json({ error: '통보문 조회 실패', bulletins: [] });
