@@ -543,15 +543,15 @@ async function retryMissingOffices() {
 
     console.log(`[RegionalForecast] 미수집 ${missingCodes.length}개 지방청 재시도: ${missingCodes.map(c => REGIONAL_OFFICES[c].name).join(', ')}`);
 
+    // 느린 fetch(await) 결과를 모아두고, 마지막에 파일을 신선하게 다시 읽어 한 번에 병합한다.
+    // (시작 시점 스냅샷을 그대로 write 하면, await 동안 통보문 수집기가 갱신한 summary 등을
+    //  덮어쓰는 race 가 발생함 — 통보문 수집기와 같은 atomic 패턴으로 통일.)
+    const collected = {};
     for (const code of missingCodes) {
         try {
             const data = await collectOneOffice(code);
             if (data) {
-                // [partial-merge] 통보문 수집기가 채운 필드(bulletinReportId/
-                // bulletinPublishTime/summary)를 보존하고 PDF 출처 필드만 갱신.
-                const prev = existing[code] || {};
-                existing[code] = {
-                    ...prev,
+                collected[code] = {
                     officeCode: data.officeCode,
                     officeName: data.officeName,
                     publishTime: data.publishTime,
@@ -568,8 +568,22 @@ async function retryMissingOffices() {
         }
     }
 
-    existing._lastUpdated = new Date().toISOString();
-    fs.writeFileSync(DATA_FILE, JSON.stringify(existing, null, 2), 'utf8');
+    if (Object.keys(collected).length === 0) return;
+
+    // ── 동기 임계영역(atomic) ──────────────────────────────────────────────
+    // read→merge→write 사이에 await 가 없어 다른 콜백이 끼어들 수 없다.
+    // [partial-merge] 통보문 수집기가 채운 필드(bulletinReportId/bulletinPublishTime/
+    // summary)는 그대로 보존하고 PDF 출처 필드만 덮어쓴다.
+    let fresh = {};
+    try {
+        if (fs.existsSync(DATA_FILE)) fresh = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    } catch (_) { fresh = {}; }
+    for (const [code, fields] of Object.entries(collected)) {
+        fresh[code] = { ...(fresh[code] || {}), ...fields };
+    }
+    fresh._lastUpdated = new Date().toISOString();
+    fs.writeFileSync(DATA_FILE, JSON.stringify(fresh, null, 2), 'utf8');
+    // ──────────────────────────────────────────────────────────────────────
 }
 
 /**

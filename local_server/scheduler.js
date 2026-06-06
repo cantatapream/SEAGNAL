@@ -1575,11 +1575,10 @@ async function init() {
         }
 
         // 지방기상청 단기예보: 미수집 지방청 재시도 (30분 간격)
-        // [통보문 윈도우 회피] 04~05시 / 16~17시 KST 는 통보문 수집 윈도우와 겹쳐
-        //   같은 regional_forecast.json 을 둘이 read↔long-fetch↔write 패턴으로
-        //   갱신할 때 race(낡은 메모리 스냅샷이 통보문 write 를 덮어씀)가 발생함.
-        //   이 시간대는 retry 자체를 건너뛴다 — 어차피 04:10/04:40 시점엔 다음
-        //   PDF 발표(05:00) 까지 새 데이터가 없어 의미 있는 호출도 아님.
+        //   regional_forecast.json 을 통보문 수집기와 공유하지만, 양측 모두 "느린 작업 후
+        //   파일을 신선하게 다시 읽어 자기 필드만 동기 덮어쓰기"하는 atomic write 라
+        //   read-modify-write race 가 없다(retryMissingOffices 도 동일 패턴으로 통일됨).
+        //   04시/16시는 직전 PDF 발표(05/17시)가 아직 없어 의미 있는 재시도가 아니므로 생략.
         if (min % 30 === 10 && !['05:10', '11:10', '17:10'].includes(hm)
             && kstDate.getHours() !== 4 && kstDate.getHours() !== 16) {
             regionalForecastCollector.retryMissingOffices()
@@ -1587,13 +1586,18 @@ async function init() {
         }
 
         // [지방청 단기 전망 통보문] list.do?stn={지방청} 에서 [해설] 단기 전망 수집
-        //   발표시각: KST 04:30 / 16:20~16:30 (지방청별 다름) — 하루 2회
-        //   수집 윈도우: 04:01~04:56, 16:01~16:56 KST 안에서 5분 간격으로 시도
+        //   발표시각: KST 04:40~04:50 / 16:40 (지방청별 다름, 실측 2026-06) — 하루 2회
+        //     ※ 과거 04:30 / 16:20~16:30 에서 10~20분 뒤로 이동했고 웹 게시는 더 늦을 수
+        //       있어, 발표 시각대 한 시간만(…56까지)으론 늦게 뜨는 발표분을 놓쳐 영구 유실됨.
+        //   수집 윈도우: 04:01~05:56, 16:01~17:56 KST 안에서 5분 간격으로 시도
         //                (분이 1, 6, 11, ... 56 일 때 — min % 5 === 1)
-        //   동일 reportId 캐시 hit 이면 모듈 내부에서 즉시 스킵하므로 같은 윈도우에서
-        //   여러 번 호출되어도 실제 fetch/AI 는 신규 발표분에 대해서만 1회 발생.
-        //   PDF 수집기(05/11/17 +10분)와는 시간대가 겹치지 않아 race condition 없음.
-        if ((kstDate.getHours() === 4 || kstDate.getHours() === 16) && (min % 5 === 1)) {
+        //                → 늦게 게시되는 오전/오후 발표분을 다음 시간대(05/17시)까지 따라가 잡는다.
+        //   동일 reportId 캐시 hit + 발표 사이클 일치 시 모듈 내부에서 즉시 스킵하므로 같은
+        //   윈도우에서 여러 번 호출되어도 실제 fetch/AI 는 신규 발표분에 대해서만 1회 발생.
+        //   PDF 수집기(05/11/17 +10분)와 시간대가 겹치지만, 세 수집기 모두 "느린 작업 후
+        //   파일을 신선하게 다시 읽어 자기 필드만 동기(await 없이) 덮어쓰기"하는 atomic write
+        //   라 regional_forecast.json read-modify-write race 가 발생하지 않는다.
+        if ([4, 5, 16, 17].includes(kstDate.getHours()) && (min % 5 === 1)) {
             regionalBulletinCollector.collectAllRegionalBulletins()
                 .then(() => log('✅ 지방청 단기 전망(통보문) 수집 사이클 완료'))
                 .catch(err => log(`⚠️ 지방청 단기 전망 수집 오류: ${err.message}`));

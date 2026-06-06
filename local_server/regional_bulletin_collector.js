@@ -19,10 +19,12 @@
  *   4) 본문을 Gemini AI 에 전달해 마크업({{loc:}}, {{num:}}, {{warn:}})을 입힌
  *      summary 와 대표 기온(아침최저/낮최고 범위)을 받아옴
  *
- * [발표 시각] KST 04:30 / 16:20~16:30 (지방청별 다름) — 하루 2회
+ * [발표 시각] KST 04:40~04:50 / 16:40 (지방청별 다름, 실측 2026-06) — 하루 2회
+ *   ※ 과거 04:30 / 16:20~16:30 에서 뒤로 이동했고 웹 게시는 더 지연될 수 있어
+ *     발표 시각대 한 시간만으론 늦게 뜨는 발표분(특히 오후)을 놓친다 → 윈도우를 한 시간 더 넓힘.
  *
  * [실행 윈도우] scheduler.js 가 호출
- *   04:01~04:56 / 16:01~16:56  (5분 간격, min % 5 === 1)
+ *   04:01~05:56 / 16:01~17:56  (5분 간격, min % 5 === 1)
  *   같은 윈도우 안에서 동일 reportId 는 캐시로 즉시 스킵되므로 5분마다 호출되어도
  *   실제 fetch/AI 호출은 처음 1회만 발생.
  *
@@ -325,9 +327,10 @@ function saveCache(officeCode, reportId, data) {
 // 발표 사이클 ID — 같은 사이클이면 수집 생략 (KMA list.do 호출 자체 절감)
 // ============================================================================
 //
-// KMA 단기 전망 발표 주기:
-//   AM 사이클: 04:30 발표 (모든 지방청 동일)
-//   PM 사이클: 16:20 발표 (부산/강원) 또는 16:30 발표 (광주/대전/대구/제주/수도권)
+// KMA 단기 전망 발표 주기(실측 2026-06): AM 04:40~04:50 / PM 16:40 (지방청별 다름).
+//   ※ 아래 사이클 경계(04:30 / 16:20)는 실제 발표보다 일부러 조금 이르게 둬,
+//     경계를 넘는 순간부터 "이제 새 발표분을 찾아라" 상태가 되어 발표 직후부터 수집을
+//     시도하게 한다. 실제 게시가 늦어도 윈도우(05/17시까지)가 끝까지 재시도한다.
 //
 // 사이클 경계 (KST):
 //   00:00 ~ 04:29  → 어제 PM 사이클
@@ -464,7 +467,8 @@ async function collectAllRegionalBulletins() {
     console.log('[RegionalBulletin] 지방청 단기 전망 수집 시작');
     ensureCacheDir();
 
-    // PDF 수집기가 채워둔 기존 데이터 보존을 위해 먼저 읽음
+    // [사이클 사전 스킵 판단용] 기존 데이터를 읽는다 — 어디까지나 "이미 보유?" 최적화용이며,
+    // 최종 저장에는 쓰지 않는다(아래 atomic 임계영역에서 파일을 다시 신선하게 읽음).
     let store = {};
     try {
         if (fs.existsSync(DATA_FILE)) {
@@ -479,6 +483,11 @@ async function collectAllRegionalBulletins() {
     let cacheHits = 0;
     let cycleSkips = 0;
     let failed = 0;
+
+    // 이번 사이클에 수집한 "통보문이 책임지는 필드"만 모아둔다.
+    // 느린 fetch/AI(await) 가 전부 끝난 뒤, 마지막에 파일을 다시 신선하게 읽어
+    // 한 번에 동기 병합한다(race-free atomic write).
+    const collected = {};
 
     // 현재 시각이 어느 발표 사이클인지 한 번만 계산 (이 사이클 안에선 모든 지방청 동일 기준)
     const expectedCycle = getCurrentExpectedCycleId(new Date());
@@ -500,15 +509,10 @@ async function collectAllRegionalBulletins() {
 
         if (result.fromCache) cacheHits++; else updated++;
 
-        // partial merge: prev 의 PDF 필드(publishTime, temperature, marineForecast,
-        // coastalForecast 등)는 보존하고 통보문 출처 필드만 덮어쓴다.
-        // (temperature 는 PDF 파이프라인이 책임 — 본 모듈이 건드리지 않음)
-        const prev = store[office.code] || {};
-        store[office.code] = {
-            ...prev,
+        // 이 모듈이 책임지는 필드만 누적 (PDF 출처 필드는 절대 건드리지 않음)
+        collected[office.code] = {
             officeCode: office.code,
             officeName: office.name,
-            // ↓ 이 모듈이 책임지는 필드들
             bulletinReportId: result.reportId,
             bulletinPublishTime: result.publishTime,
             summary: result.summary,
@@ -519,15 +523,37 @@ async function collectAllRegionalBulletins() {
         await new Promise(r => setTimeout(r, 300));
     }
 
-    store._lastUpdated = new Date().toISOString();
+    // 변경분이 없으면(전부 사이클스킵/실패) 파일을 건드리지 않는다 — 불필요한 write/경합 회피.
+    if (Object.keys(collected).length === 0) {
+        console.log(`[RegionalBulletin] 완료: 신규 ${updated}건 / 캐시 ${cacheHits}건 / 사이클스킵 ${cycleSkips}건 / 실패 ${failed}건 (변경 없음, 저장 생략)`);
+        return store;
+    }
 
+    // ── 동기 임계영역(atomic) ──────────────────────────────────────────────
+    // 위 루프의 await 동안 PDF 수집기(본수집 05/11/17시·재시도)가 같은 파일을 갱신했을 수
+    // 있으므로, 여기서 파일을 다시 신선하게 읽어 "통보문 필드"만 덮어쓴다.
+    // read→merge→write 사이에 await 가 없어 단일 스레드 Node 에서 다른 콜백이 끼어들 수
+    // 없다 → PDF 필드(publishTime/temperature/marineForecast/coastalForecast)는 보존된다.
     try {
         const dir = path.dirname(DATA_FILE);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2), 'utf8');
+
+        let fresh = {};
+        try {
+            if (fs.existsSync(DATA_FILE)) fresh = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        } catch (_) { fresh = {}; }
+
+        for (const [code, fields] of Object.entries(collected)) {
+            fresh[code] = { ...(fresh[code] || {}), ...fields };
+        }
+        fresh._lastUpdated = new Date().toISOString();
+
+        fs.writeFileSync(DATA_FILE, JSON.stringify(fresh, null, 2), 'utf8');
+        store = fresh; // 반환값 일관성
     } catch (e) {
         console.error(`[RegionalBulletin] 저장 오류: ${e.message}`);
     }
+    // ──────────────────────────────────────────────────────────────────────
 
     console.log(`[RegionalBulletin] 완료: 신규 ${updated}건 / 캐시 ${cacheHits}건 / 사이클스킵 ${cycleSkips}건 / 실패 ${failed}건`);
     return store;
