@@ -234,6 +234,8 @@ const GUARD_EXCLUDES = [
     // 컨텍스트/memory 라벨 (인라인 변형)
     'memory:', '[직전 확정 대상]', '[사용자 직군]', '[사용자 프로필]',
     '[최근 대화]', 'focus:', 'profile:', 'jikgun:',
+    // [N1] 사용자 기억 v2 — 회수 결과 라벨 누설 차단 (G3 컨텍스트 격리 확장)
+    '[관련 기억', '[사용자 맥락]', '[핫 관심사 top',
 ];
 
 function guardExcludesScan(text) {
@@ -500,6 +502,17 @@ try {
 }
 let assistantLog = null;
 try { assistantLog = require('../services/assistant_log'); } catch (e) { /* 로그 없이 동작 */ }
+
+// [N1 — 사용자 기억 v2 / Personal RAG] E_server 통합 모듈. 미준비 시 silent fallback.
+//   retrieveMemory · consolidateMemory · buildMemoryPromptSection 4 공개 함수 사용.
+//   본 라운드: runBrain 의 planQuery 직전 회수 + planQuery/synth prompt 주입 + res.json 직후 압축.
+let userMemory = null;
+try {
+    userMemory = require('../services/user_memory');
+} catch (e) {
+    console.warn('[Assistant] user_memory 로드 실패 — N1 silent fallback:', e.message);
+    userMemory = null;
+}
 
 // ============================================================================
 // 1. 참조 데이터 (해역명 → 단기예보 구역코드)
@@ -1539,7 +1552,7 @@ function deriveFocus(plan, results, zoneName, query, extractedTopic) {
 //   변경: planQuery prompt (H2) 의 "직군 페어 한 줄 + 활동 어휘 보조 한 줄 + 광역 명확화 한 줄"
 //         3 줄로 LLM 자율 위임. 회귀 가드 = EXPECT_TOOLS_MIN.min + pickMissingTools 보강 layer.
 
-async function planQuery(query, profile, location, memory, focus) {
+async function planQuery(query, profile, location, memory, focus, retrievedHints) {
     const locLine = (location && location.lat != null && location.lon != null)
         ? `\n사용자 현재 위치(GPS): 위도 ${location.lat}, 경도 ${location.lon}. "내 위치/가까운/근처" 류 질문엔 이 좌표를 좌표기반 도구(get_nearest_buoy/get_current/get_depth/get_tide)에 넣으세요.`
         : '';
@@ -1610,6 +1623,19 @@ async function planQuery(query, profile, location, memory, focus) {
             }
         } catch (e) { /* 폴백 */ }
     }
+    // [N1] 사용자 기억 v2 회수 결과 prompt 섹션 — silent fallback.
+    //   retrievedHints 가 null/빈 → memoryLine = '' → prompt 길이·내용 무변동 (회귀 0).
+    //   주입 위치: simLine/toolSimLine 직후 — "유사 관심사 → 사용자 장기 기억" 의미축 정합.
+    //   회수 결과 라벨은 cleanAnswer/GUARD_EXCLUDES 가 사후검열 (G3 격리).
+    let memoryLine = '';
+    if (retrievedHints && userMemory && typeof userMemory.buildMemoryPromptSection === 'function') {
+        try {
+            const sec = userMemory.buildMemoryPromptSection(retrievedHints);
+            if (sec && typeof sec === 'string' && sec.trim()) {
+                memoryLine = '\n' + sec + '\n';
+            }
+        } catch (e) { /* silent — memoryLine 빈 채로 */ }
+    }
     const prompt =
 `사용자의 한국어 질문에 답하기 위해 어떤 데이터를 가져올지 계획하세요.
 사용 가능한 도구:
@@ -1634,7 +1660,7 @@ ${catalogLine}
 - **(광역/전역/권역/전체 명확화)** "동해광역/서해전역/남해권역/전체" 같이 광역 어휘 + 구체 지역 없으면 직군 default 해역 또는 가장 가까운 권역으로 도구 호출하되, 답 마지막에 "북부/중부/남부 중 어디인지 알려주시면 더 정확합니다" 같은 명확화 초대 한 줄을 자연스럽게 덧붙이세요.
 - **(직군 floor 보강 — marine_leisure/local_gov)**
   · **레저스포츠(marine_leisure)** 직군 + 해수욕장·해변명(양양/송정/낙산/해운대/협재/이호테우/광안리/대천/안목/속초 등) 질의는 무조건 **get_surfing_index(beach=이름) 먼저 호출**. 그 다음 보조로 get_marine_forecast. 해변명을 detectZoneDeterministic 으로 zone 변환하려 하지 마세요 — surfing_index 가 위치 자체 처리.
-  · **지방자치단체(local_gov)** 직군 + "관내/우리시/시청 관할/관할 해역" 같은 모호 지명은 사용자 GPS 좌표(있으면) 또는 활동 default 해역으로 도구 호출. 둘 다 없으면 get_warning(zone="전국") 으로 전국 특보 요약하세요. "관내" 를 그대로 zone 인자에 넣지 마세요.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}${simLine}${toolSimLine}
+  · **지방자치단체(local_gov)** 직군 + "관내/우리시/시청 관할/관할 해역" 같은 모호 지명은 사용자 GPS 좌표(있으면) 또는 활동 default 해역으로 도구 호출. 둘 다 없으면 get_warning(zone="전국") 으로 전국 특보 요약하세요. "관내" 를 그대로 zone 인자에 넣지 마세요.${locLine}${pzLine}${focusLine}${memLine}${jikgunLine}${vocabLine}${simLine}${toolSimLine}${memoryLine}
 
 사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
 질문: "${query}"
@@ -1770,7 +1796,7 @@ function pickMissingTools(plan, results, profile, focus, query) {
     return out.slice(0, 2);
 }
 
-async function runBrain(query, profile, memory, style, location, focus) {
+async function runBrain(query, profile, memory, style, location, focus, userMemorySnapshot) {
     // [§6 #35 SEC P0 — L0 hard gate] 시크릿/파괴/인젝션 의도는 planQuery·web_search 도달 전 즉시 거절.
     //   - 도구 0 보장 → expect_tools_none 통과
     //   - 결정론 거절문 → expect_refusal · REFUSAL_RE 통과
@@ -1786,7 +1812,42 @@ async function runBrain(query, profile, memory, style, location, focus) {
             securityRefusal: sec0.kind,
         };
     }
-    const plan = await planQuery(query, profile, location, memory, focus);
+
+    // ── [N1 — Personal RAG 회수] planQuery 직전 1회, A4 + A5 (filterRelevance 자동) ──
+    //   silent fallback: snapshot 빈 → retrievedHints = null → planQuery/synth 무회귀.
+    //   타임아웃: user_memory.js 내부 A4_OVERALL_TIMEOUT_MS=800ms · embed 단독 600ms.
+    //   K2 시너지: focus.topic 을 topicKeys hint 로 → A4 Stage1 정확매칭 부스트.
+    //   보안: A5 게이트(L1×L2×L3×L4) 가 user_memory.js 내부 자동 적용 — assistant.js 추가 가드 0.
+    //   MONITOR_JIKGUN 은 K 라운드와 정합 (monitor 직군은 K=5 회수).
+    const _N1_MONITOR_JIKGUN = new Set(['local_gov', 'coast_guard', 'navy', 'mof', 'public_org']);
+    let retrievedHints = null;
+    if (userMemory
+        && typeof userMemory.retrieveMemory === 'function'
+        && userMemorySnapshot
+        && typeof userMemorySnapshot === 'object'
+        && Array.isArray(userMemorySnapshot.consolidated)
+        && userMemorySnapshot.consolidated.length > 0) {
+        try {
+            const _jk = detectJikgun(profile);
+            const _zk = detectZoneDeterministic(query) || profileDefaultZone(profile);
+            retrievedHints = await userMemory.retrieveMemory(
+                query,
+                {
+                    zoneKey: _zk,
+                    jikgun: _jk,
+                    topicKeys: (focus && focus.topic) ? [String(focus.topic)] : [],
+                    cq: query
+                },
+                userMemorySnapshot,
+                { jikgunMonitor: _N1_MONITOR_JIKGUN.has(_jk) }
+            );
+        } catch (e) {
+            console.warn('[N1] retrieveMemory threw → silent fallback:', e && e.message);
+            retrievedHints = null;
+        }
+    }
+
+    const plan = await planQuery(query, profile, location, memory, focus, retrievedHints);
     if (!plan) return null;
     // 음성인식 보정 결과(있으면) — 종합/웹폴백/표시에 사용할 질문
     const cq = (plan.correctedQuery && typeof plan.correctedQuery === 'string' && plan.correctedQuery.trim())
@@ -2171,6 +2232,18 @@ async function runBrain(query, profile, memory, style, location, focus) {
     }
 
     const personal = buildPersonalContext(profile, memory, style, cq);
+    // [N1] 사용자 기억 v2 → synth 톤 가이드. styleNote + 회수 episode 1~2 만, 사실 인용 금지.
+    //   동일 buildMemoryPromptSection 텍스트 (planQuery 와 공유) — synth 는 "톤·관심 분야 참고" 라벨.
+    //   silent: retrievedHints null/빈 → memoryHintBlock '' → 기존 synth 와 동일 (회귀 0).
+    let memoryHintBlock = '';
+    if (retrievedHints && userMemory && typeof userMemory.buildMemoryPromptSection === 'function') {
+        try {
+            const hint = userMemory.buildMemoryPromptSection(retrievedHints);
+            if (hint && typeof hint === 'string' && hint.trim()) {
+                memoryHintBlock = `\n${hint}\n[위 사용자 맥락은 톤·관심 분야 참고용. 수치·사실은 위 수집결과(JSON) 만 인용.]\n`;
+            }
+        } catch (e) { /* silent — memoryHintBlock 빈 채로 */ }
+    }
     // [H1 — J 라운드] synth prompt 18+ bullet → 7원칙 4 가드 압축 (-520 토큰, -59%).
     //   사장님 패러다임: "정규식·룰 누적 ❌ → LLM 자율 위임 + Gemini 식 광역 통상 답."
     //   4 가드 (G1~G4): 환각 / CoT / 컨텍스트 격리 / 비도메인 거절 — 절대 보존.
@@ -2230,7 +2303,7 @@ get_warning 응답은 두 형태입니다 — (1) 특정 해역 \`{zone, warning
 질문: "흑산도 파고 어때?"  (수집결과 비어 있음)
 답: 흑산도는 신안군 서해 먼바다 권역으로, 일반적으로 너울과 풍랑의 영향을 바로 받는 외해성 섬입니다. 지금 실측 파고는 가져오지 못했어요. 가까운 부이 이름이나 시각을 알려주시면 더 정확히 확인해 드릴게요. (일반 정보)
 
-${personal}
+${personal}${memoryHintBlock}
 질문: "${cq}"
 수집결과(JSON): ${JSON.stringify(results)}`;
     const r = await gemini.callGemini({ model: BRAIN_MODEL, contents: synth, config: { temperature: 0.3 }, caller: 'Assistant-Synth' });
@@ -2253,7 +2326,7 @@ ${personal}
             }
             return true;
         })
-        .filter(line => !/^\s*\[(최근 대화|직전 확정 대상|수집 데이터 인벤토리|유사 관심사|질의에 가까운 도구 후보|사용자 직군|관심사 지식|사용자 프로필|개인화)\b/.test(line))
+        .filter(line => !/^\s*\[(최근 대화|직전 확정 대상|수집 데이터 인벤토리|유사 관심사|질의에 가까운 도구 후보|사용자 직군|관심사 지식|사용자 프로필|개인화|관련 기억|사용자 맥락|핫 관심사)\b/.test(line))
         .filter(line => !/^\s*(memory|focus|personal|profile|jikgun|sources?|thinking|reasoning)\s*[:：]/i.test(line))
         .join('\n')
         .trim();
@@ -2302,6 +2375,27 @@ router.post('/api/assistant/ask', async (req, res) => {
         ? { lat: +req.body.location.lat, lon: +req.body.location.lon } : null;
     // [구조화 연속성] 클라가 돌려보낸 직전 턴의 주목 대상(해역/해구/부이/좌표) — 후속 해소용
     const focus = (req.body && req.body.focus && typeof req.body.focus === 'object') ? req.body.focus : null;
+    // [N1 — 사용자 기억 v2 스냅샷] 클라이언트(안드 SQLite / WebView IndexedDB)가 pre-fetch 한
+    //   consolidated_memory 상위 N + interest_topics + style_digest. 없으면 silent fallback.
+    //   서버는 stateless — 사용자 DB 직접 접근 X (A2 §2.1 SoT 안드로이드 정본 원칙).
+    //   크기 가드 256KB · consolidated cap 100 · interestTopics cap 20. 모두 silent 강등.
+    const userMemorySnapshot = (() => {
+        const raw = req.body && req.body.userMemorySnapshot;
+        if (!raw || typeof raw !== 'object') return null;
+        // 크기 가드 — JSON.stringify 1회 (≤256KB).
+        try {
+            const sz = JSON.stringify(raw).length;
+            if (sz > 256 * 1024) {
+                console.warn('[N1] userMemorySnapshot too large:', sz, 'bytes → drop');
+                return null;
+            }
+        } catch (e) { return null; }
+        const cons = Array.isArray(raw.consolidated) ? raw.consolidated.slice(0, 100) : [];
+        const ints = Array.isArray(raw.interestTopics) ? raw.interestTopics.slice(0, 20) : [];
+        const sd = (raw.styleDigest && typeof raw.styleDigest === 'object') ? raw.styleDigest : null;
+        if (cons.length === 0 && ints.length === 0 && !sd) return null;
+        return { consolidated: cons, interestTopics: ints, styleDigest: sd };
+    })();
 
     if (!query) {
         return res.status(400).json({ ok: false, error: '질문(query)이 비어 있습니다.' });
@@ -2327,7 +2421,7 @@ router.post('/api/assistant/ask', async (req, res) => {
     //   실패하면 아래 결정론적 경로로 자동 폴백한다.
     if (aiAvailable) {
         try {
-            const brain = await runBrain(query, profile, memory, style, loc, focus);
+            const brain = await runBrain(query, profile, memory, style, loc, focus, userMemorySnapshot);
             if (brain && brain.answer) {
                 // 앱 기능 바로가기 + 웹검색 출처 링크(있으면)를 함께
                 const links = buildLinks(query, null, brain.zone, profile, loc);
@@ -2339,11 +2433,49 @@ router.post('/api/assistant/ask', async (req, res) => {
                     const place = extractTidePlace(query);
                     if (place) tideSearch = place;
                 }
-                return res.json({
+                const _resp = res.json({
                     ok: true, zone: brain.zone, intent: 'brain', answer: brain.answer,
                     data: { toolsUsed: brain.toolsUsed }, aiUsed: true, zoneFromProfile: false,
                     links, tideSearch, corrected: brain.corrected || null, focus: brain.focus || null
                 });
+                // ── [N1 — Hunk 3] 응답 후 비동기 압축. fire-and-forget. 응답 차단 X ──
+                //   queueMicrotask 로 다음 마이크로태스크에 등록. consolidateMemory 자체 LLM
+                //   4초 타임아웃 보유 → 사용자 응답에 누적 지연 0. silent: gemini 미주입 시
+                //   stub merge/add/skip (user_memory.js 결정론 fallback). snapshot 없으면 skip.
+                queueMicrotask(async () => {
+                    try {
+                        if (!userMemorySnapshot) return;            // 스냅샷 없으면 압축 skip
+                        if (!userMemory || typeof userMemory.consolidateMemory !== 'function') return;
+                        const newEpisode = {
+                            id: null,                                // 클라가 INSERT 후 채움
+                            ts: Date.now(),
+                            query,
+                            answer: brain.answer,
+                            zone: brain.zone,
+                            tools: brain.toolsUsed,
+                            intent: 'brain',
+                            channel: (req.headers['x-channel'] === 'voice') ? 'voice' : 'chat',
+                            topicHints: (brain.focus && brain.focus.topic) ? [brain.focus.topic] : []
+                        };
+                        const existing = Array.isArray(userMemorySnapshot.consolidated)
+                            ? userMemorySnapshot.consolidated.slice(0, 5)
+                            : [];
+                        const decision = await userMemory.consolidateMemory(newEpisode, existing, {
+                            gemini,
+                            brainModel: BRAIN_MODEL,
+                            interestTopics: userMemorySnapshot.interestTopics || [],
+                            styleDigest: userMemorySnapshot.styleDigest || '',
+                            userProfile: profile || {},
+                            a5Domain: brain.securityRefusal ? 'off' : 'in'
+                        });
+                        if (decision && decision.action) {
+                            console.log('[N1] consolidate decision:', decision.action, decision.reason || '');
+                        }
+                    } catch (e) {
+                        console.warn('[N1] consolidate failed (non-blocking):', e && e.message);
+                    }
+                });
+                return _resp;
             }
         } catch (e) { /* 두뇌 실패 → 결정론적 폴백으로 진행 */ }
     }
