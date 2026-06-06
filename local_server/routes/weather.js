@@ -1014,7 +1014,12 @@ async function _getZoneBulletinData() {
             if (m) reportByFile[f] = m[0].replace(/\s+/g, '');
         }
     } catch (e) { /* 호수 조회 실패해도 목록은 정상(호수만 생략) */ }
-    _zoneBulletinCache = { at: now, rows: safe, homeByZone, reportByFile };
+    // [예비특보] ef/list 엔 발효 통보문만 있고 예비특보(발표대기)는 없다.
+    //   warn/ready(no-auth)가 예비특보 발표를 해역명(warn_zone_nm)+시각으로 준다(PDF 는 없음).
+    let readyRows = [];
+    try { const rd = await marineClient.fetchWarnReady(); readyRows = Array.isArray(rd) ? rd : []; }
+    catch (e) { /* 예비 조회 실패해도 발효 목록은 정상 */ }
+    _zoneBulletinCache = { at: now, rows: safe, homeByZone, reportByFile, readyRows };
     return _zoneBulletinCache;
 }
 
@@ -1022,7 +1027,7 @@ router.get('/api/zone-bulletins', async (req, res) => {
     const zone = String(req.query.zone || '').trim();
     if (!zone) return res.status(400).json({ error: 'zone 파라미터 필요', bulletins: [] });
     try {
-        const { rows, homeByZone, reportByFile } = await _getZoneBulletinData();
+        const { rows, homeByZone, reportByFile, readyRows } = await _getZoneBulletinData();
         const z = _zbNorm(zone);
         // 관할 지방청: PDF 내용검증 정적 매핑 우선 → 미등록이면 빈도 휴리스틱. (108=전국 폴백 해역)
         const home = ZONE_HOME_OFFICE[z] || homeByZone[z] || null;
@@ -1056,6 +1061,25 @@ router.get('/api/zone-bulletins', async (req, res) => {
                 file_nm: fileNm,
                 national: String(r.prdc_go) === NATIONAL_GO,   // true 면 전국 폴백(연안/평수 미포함 가능)
                 childOnly: false                                // ef/list = 부모 통보문
+            });
+        }
+        // [예비특보] warn/ready 의 이 해역 예비특보(발표대기)를 목록에 추가.
+        //   ef/list 엔 없어 빠지던 "최신 예비특보 발표"를 반영. PDF 가 없으므로 클릭 시
+        //   날씨누리 특보 페이지(현재 발효중=이 예비)로 연결한다(webUrl).
+        for (const r of (readyRows || [])) {
+            if (_zbNorm(r.warn_zone_nm) !== z) continue;
+            const tp = String(r.warn_tp_nm || '').trim();
+            const lvl = String(r.warn_lvl_nm || '').trim();   // 예: '예비특보'
+            const cmd = String(r.warn_cmd_nm || '').trim();   // 예: '발표'
+            bulletins.push({
+                time: String(r.tm_fc || '').trim(),
+                title: (tp + (lvl ? ' ' + lvl : '') + (cmd ? ' ' + cmd : '')).trim(),   // '풍랑 예비특보 발표'
+                pdfUrl: '',
+                file_nm: '',
+                webUrl: 'https://www.weather.go.kr/w/special-report/list.do',
+                national: false,
+                childOnly: false,
+                prelim: true
             });
         }
         // [자식-only 통보문 합집합] (SPEC §8) ef/list 부모 ∪ 크롤러가 매칭·저장한 자식 통보문.
