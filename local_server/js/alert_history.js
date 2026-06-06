@@ -494,15 +494,20 @@ function createZoneBulletinItem(b) {
     if (b.pdfUrl) {
         item.style.cursor = 'pointer';
         item.addEventListener('click', function () {
-            // 통보문 PDF — 모바일 WebView 는 iframe 안에서 PDF 를 직접 렌더하지 못해 백지가 된다.
-            //   구글 문서 뷰어(서버측 렌더 → HTML 반환)로 감싸 모달 iframe 에 띄우면 정상 표출된다.
-            var modalTitle = (b.reportNo ? b.reportNo + ' ' : '') + (b.title || '통보문');
-            var viewer = 'https://docs.google.com/gview?embedded=true&url=' + encodeURIComponent(b.pdfUrl);
-            if (typeof window.openKmaIframeModal === 'function') {
-                window.openKmaIframeModal(viewer, modalTitle);
-            } else {
-                window.open(b.pdfUrl, '_blank');
+            // 통보문 원문 PDF 링크 열기. iframe(WebView)에 PDF 를 박으면 백지가 되므로,
+            //   앱 공통 패턴대로 시스템 브라우저(@capacitor/browser)로 그 *링크를 연다* →
+            //   폰 기본 PDF 뷰어가 렌더. 웹/데스크톱은 새 탭(브라우저가 PDF 표출).
+            var url = b.pdfUrl;
+            var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+            var Browser = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+            if (isNative && Browser && Browser.open) {
+                try {
+                    var p = Browser.open({ url: url });
+                    if (p && typeof p.catch === 'function') p.catch(function () { window.open(url, '_blank'); });
+                    return;
+                } catch (e) { /* 폴백 */ }
             }
+            window.open(url, '_blank');
         });
     }
     return item;
