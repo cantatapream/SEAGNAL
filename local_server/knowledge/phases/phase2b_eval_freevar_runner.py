@@ -60,12 +60,39 @@ COT_PATTERNS = [
 ]
 COT_RE = re.compile("|".join(COT_PATTERNS), re.IGNORECASE)
 
-# 환각 의심 패턴 (도구 결과에 흔히 없는 단정형 + 비도메인 답)
-HALLUC_INDICATORS = [
-    "약 \\d+km", "약 \\d+제곱", "통계는", "법령\\s*제\\d+조",
-    "약 \\d+년", "약 \\d+\\.\\d+", "약 \\d+퍼센트",
+# 환각 의심 패턴 — D2 8차 라운드: 도메인/오프도메인 분리.
+# [§D2] 도메인 응답(zone/wave/wind/forecast/visibility/current/tide/water-temp 포함)은
+#   "약 N.N노트", "약 N킬로미터" 같은 실측 단위 변환을 정상으로 인정. 환각으로 오분류 금지.
+# 오프도메인(통계/법령/연도/%/제곱미터) 패턴은 도메인 게이트와 무관하게 항상 환각으로 판정.
+HALLUC_INDICATORS_DOMAIN = [
+    "약 \\d+km", "약 \\d+\\.\\d+",         # 단위변환 단정형 — 비도메인 답 안에서만 환각
 ]
+HALLUC_INDICATORS_OFFDOMAIN = [
+    "약 \\d+제곱", "통계는", "법령\\s*제\\d+조",
+    "약 \\d+년", "약 \\d+퍼센트",            # 도메인과 무관하게 항상 환각
+]
+HALLUC_RE_DOMAIN    = re.compile("|".join(HALLUC_INDICATORS_DOMAIN))
+HALLUC_RE_OFFDOMAIN = re.compile("|".join(HALLUC_INDICATORS_OFFDOMAIN))
+# [후방 호환] HALLUC_RE 식별자 보존 — 외부(시그널/대시보드)에서 단일 결합 패턴 기대.
+HALLUC_INDICATORS = HALLUC_INDICATORS_DOMAIN + HALLUC_INDICATORS_OFFDOMAIN
 HALLUC_RE = re.compile("|".join(HALLUC_INDICATORS))
+
+# 도메인 게이트: 응답에 zone/wave/wind/forecast/visibility/current 어휘 1+ 매칭이면 도메인.
+DOMAIN_GATE_RE = re.compile(
+    r"앞바다|먼바다|해역|해구|부이|파고|파주기|풍속|풍향|풍랑|시정|가시거리|"
+    r"유속|유향|해류|조석|만조|간조|물때|수온|수심|예보|특보|관측|미터|노트|센티미터"
+)
+
+def is_domain_answer(ans):
+    """응답이 도메인(해양·기상) 안의 답인지 — HALLUC 분리 적용용."""
+    return bool(DOMAIN_GATE_RE.search(ans or ""))
+
+def halluc_hit(ans):
+    """도메인 게이트 분리 적용 — 도메인 답은 OFFDOMAIN 패턴만, 비도메인 답은 양쪽 모두."""
+    if not ans: return False
+    if is_domain_answer(ans):
+        return bool(HALLUC_RE_OFFDOMAIN.search(ans))
+    return bool(HALLUC_RE_DOMAIN.search(ans) or HALLUC_RE_OFFDOMAIN.search(ans))
 
 # 결정 단어 (decision 케이스)
 # [§B 패치 — sentinel #4 결정 단어 확장 (C8)]
@@ -161,10 +188,10 @@ def evaluate(case, data, ms, err):
         ok_a = ok_a and ok_aa
         if not ok_aa: notes.append(f"A: tools={tools} miss all={all_req}")
     axes["A"] = ok_a
-    # B. 환각
+    # B. 환각 — [§D2] 도메인 게이트 분리 적용 (false-positive 정밀화).
     if case.get("expect_no_halluc"):
         is_refusal = bool(REFUSAL_RE.search(ans))
-        is_halluc = bool(HALLUC_RE.search(ans)) and not is_refusal
+        is_halluc = halluc_hit(ans) and not is_refusal
         axes["B"] = not is_halluc
         if is_halluc: notes.append(f"B: halluc pattern in ans")
     else: axes["B"] = True
@@ -266,7 +293,8 @@ def main():
             ans = data.get("answer") or ""
             if COT_RE.search(ans):
                 cot_samples.append((c["id"], jg, ans[:120]))
-            if HALLUC_RE.search(ans) and not REFUSAL_RE.search(ans):
+            # [§D2] sample 캡처도 도메인 분리 게이트 적용 — false-positive 제거.
+            if halluc_hit(ans) and not REFUSAL_RE.search(ans):
                 halluc_samples.append((c["id"], jg, ans[:120]))
         # focus 체이닝 저장
         if data is not None:

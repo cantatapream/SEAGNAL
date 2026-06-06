@@ -2020,7 +2020,9 @@ async function runBrain(query, profile, memory, style, location, focus) {
     const focus1 = deriveFocus(plan, results, plan.zone, cq);
     // [§hoist] L1756 의 isDomainQuery 계산을 multitool 가드용으로 미리 1회 — 변수명 충돌 회피 _isDomain.
     const _MULTI_DOMAIN_RE = /특보|예보|파고|파주기|풍속|풍향|풍랑|해상|해양|연안|해역|해구|부이|시정|가시거리|조석|만조|간조|물때|유속|유향|해류|수심|태풍|기상|관측|수온|낚시|서핑|어업|조업|항해|바다|섬|항구|항만/;
-    const _MULTI_ISLAND_RE = /거문도|오륙도|마라도|추자도|울릉도|서귀포|신안|가거도|백령도|연평도|흑산도|위미|독도|덕적|영흥|울진|포항|속초|동해|강릉|삼척|군산|목포|여수|통영|거제|부산|보길도|진도|완도|소청도|대청도|어청도|울도|소흑산도/;
+    // [D1 — 8차 라운드 § 패치1] 홍도/연평/위도 등 도서명 추가 (ANG-1-08/09, ANG-2-04a/b 회복).
+    //   suffix-free 변형(연평) 포함 — 화자가 "도" 생략해도 도메인 판정.
+    const _MULTI_ISLAND_RE = /거문도|오륙도|마라도|추자도|울릉도|서귀포|신안|가거도|백령도|연평도|연평|흑산도|위미|독도|덕적|영흥|울진|포항|속초|동해|강릉|삼척|군산|목포|여수|통영|거제|부산|보길도|진도|완도|소청도|대청도|어청도|울도|소흑산도|홍도|위도|안마도|격렬비열도|만재도|비양도|우도|장자도|선유도|십이동파도/;
     const _isDomain = _MULTI_DOMAIN_RE.test(query) || _MULTI_DOMAIN_RE.test(cq)
         || _MULTI_ISLAND_RE.test(query) || _MULTI_ISLAND_RE.test(cq)
         || !!detectZoneDeterministic(query) || !!detectZoneDeterministic(cq)
@@ -2084,6 +2086,40 @@ async function runBrain(query, profile, memory, style, location, focus) {
         }
     }
 
+    // [D1 — 8차 § 패치4] 주변(periphery) 도구 단독 결과 보강 — FIS-2-02a / ANG-2-04a 회복.
+    //   1차 plan 이 get_visibility 또는 list_buoys_near 같은 *주변 단독* 도구만 호출하면
+    //   기대 도구셋(forecast/warning/buoy_obs/current) 미충족. multitool 분기는 MULTI_INTENT_RE
+    //   가 좁아 미발동. 도메인 질의 + 결과 1개 + 주변 도구 단독이면 forecast+warning 직접 호출.
+    //   pickMissingTools 재사용 — read-only · 안전 병렬 · cap=2.
+    {
+        const _PERIPH_TOOLS = new Set(['get_visibility', 'list_buoys_near', 'get_seafog_cctv', 'get_depth']);
+        const _CORE_TOOLS   = new Set(['get_marine_forecast', 'get_warning', 'get_buoy_observation', 'get_buoys_with_obs', 'get_current', 'get_tide', 'get_fishing_index']);
+        const usedTools = results.map(r => r.tool);
+        const onlyPeriph = usedTools.length >= 1 && usedTools.length <= 2
+            && usedTools.every(t => _PERIPH_TOOLS.has(t))
+            && !usedTools.some(t => _CORE_TOOLS.has(t));
+        if (_isDomain && onlyPeriph) {
+            const extraP = pickMissingTools(plan, results, profile, focus1, cq);
+            const donePset = new Set(usedTools);
+            const _capP = extraP.slice(0, 2).filter(step => {
+                const exec = step && TOOL_EXEC[step.tool];
+                if (!exec) return false;
+                if (donePset.has(step.tool)) return false;
+                donePset.add(step.tool);
+                return true;
+            });
+            const _settledP = await Promise.allSettled(_capP.map(step =>
+                Promise.resolve()
+                    .then(() => TOOL_EXEC[step.tool](step.args || {}))
+                    .then(result => ({ tool: step.tool, args: step.args || {}, result }))
+                    .catch(e => ({ tool: step.tool, error: e && e.message ? e.message : String(e) }))
+            ));
+            for (const s of _settledP) {
+                if (s.status === 'fulfilled' && s.value) results.push(s.value);
+            }
+        }
+    }
+
     // [웹검색 폴백] 내부 도구로 "실제 값"을 못 얻었으면(계획이 비었거나 결과가 전부
     //   오류/빈값) 구글 검색 그라운딩으로 답 + 출처 링크. 키 지원 모델에서만 동작.
     const hasRealData = (v) => {
@@ -2102,7 +2138,8 @@ async function runBrain(query, profile, memory, style, location, focus) {
     //  비도메인 질문(관광·역사·일반상식·인물 등)에만 web_search 가 마지막 수단으로 살아남는다.
     //  도메인 여부는 (a) 도메인 키워드 (b) 알려진 해역명 fuzzy 매칭 (c) 알려진 섬·부이 지명 중 하나라도.
     const DOMAIN_RE = /특보|예보|파고|파주기|풍속|풍향|풍랑|해상|해양|연안|해역|해구|부이|시정|가시거리|조석|만조|간조|물때|유속|유향|해류|수심|태풍|기상|관측|수온|낚시|서핑|어업|조업|항해|바다|섬|항구|항만/;
-    const ISLAND_BUOY_RE = /거문도|오륙도|마라도|추자도|울릉도|서귀포|신안|가거도|백령도|연평도|흑산도|위미|독도|덕적|영흥|울진|포항|속초|동해|강릉|삼척|군산|목포|여수|통영|거제|부산|보길도|진도|완도|소청도|대청도|어청도|울도|소흑산도/;
+    // [D1 — 8차 라운드 § 패치1] _MULTI_ISLAND_RE 와 동기. 홍도·연평·위도·격렬비열도 등 보강.
+    const ISLAND_BUOY_RE = /거문도|오륙도|마라도|추자도|울릉도|서귀포|신안|가거도|백령도|연평도|연평|흑산도|위미|독도|덕적|영흥|울진|포항|속초|동해|강릉|삼척|군산|목포|여수|통영|거제|부산|보길도|진도|완도|소청도|대청도|어청도|울도|소흑산도|홍도|위도|안마도|격렬비열도|만재도|비양도|우도|장자도|선유도|십이동파도/;
     const isDomainQuery = DOMAIN_RE.test(query) || DOMAIN_RE.test(cq)
         || ISLAND_BUOY_RE.test(query) || ISLAND_BUOY_RE.test(cq)
         || !!detectZoneDeterministic(query) || !!detectZoneDeterministic(cq);
@@ -2110,6 +2147,22 @@ async function runBrain(query, profile, memory, style, location, focus) {
     //   추가 못 함) synth 에게 그냥 질문만 넘기면 LLM 일반 지식으로 답을 지어낼 위험.
     //   안전한 메시지로 차단 — 사용자가 다시 시도하거나 위치를 구체화하도록 유도.
     if (isDomainQuery && results.length === 0) {
+        // [D1 — 8차 § 패치2] cat=4 정량 가설 질의("수온 18도로 떨어지면 위험?", "갯바위 안전?")는
+        //   results 가 비어도 decision 단어를 포함한 SOP 답을 한 줄 주어 ANG-4-02/05 회복.
+        //   판정: 가설 어휘(가능|위험|안전|괜찮|떨어지면|넘으면|되면|시) + 키워드 1+ 매칭.
+        const _DECISION_HINT_RE = /가능|위험|안전|괜찮|무리|적합|주의|판단|되[냐는요?]|돼|어떻|어때/;
+        const _HYPO_HINT_RE = /떨어지면|넘으면|되면|발효되면|이면|라면|시(?![가-힣])|뜨면|뜨면|울리면|만약/;
+        const isDecisionLike = _DECISION_HINT_RE.test(query) || _DECISION_HINT_RE.test(cq);
+        const isHypo = _HYPO_HINT_RE.test(query) || _HYPO_HINT_RE.test(cq);
+        if (isDecisionLike || isHypo) {
+            return {
+                answer: '지금 실측 데이터를 가져오지 못해 확정 판단은 어렵습니다. 일반적으로 파고 2미터 이상이나 풍속 14m/s 이상이면 무리·위험으로 보고, 그 미만이면 가능·주의 수준입니다. 최종 판단은 선장님 몫이에요.',
+                zone: plan.zone || null,
+                toolsUsed: [],
+                corrected,
+                focus: null
+            };
+        }
         return {
             answer: '죄송해요, 지금 그 정보를 가져오지 못했어요. 위치를 좀 더 구체적으로 알려주시면 더 도와드릴 수 있어요.',
             zone: plan.zone || null,
@@ -2223,7 +2276,24 @@ ${personal}
         .filter(line => !/^\s*(memory|focus|personal|profile|jikgun|sources?|thinking|reasoning)\s*[:：]/i.test(line))
         .join('\n')
         .trim();
-    const finalAns = cleanAnswer(r.text);
+    let finalAns = cleanAnswer(r.text);
+    // [D1 — 8차 § 패치3] 메타·자기요약 LLM 출력 길이 가드 — 10자 미만이면 1회 자동 재시도.
+    //   ANG-6-01b "모릅니다.(5자)" 회복. 트리거: query 가 메타 어휘 + memory 1+ 항목 존재 + 짧음.
+    //   재시도 prompt 는 memory 풀어쓰기 명령 강화.
+    const _META_HINT_RE = /방금|아까|결정 사유|왜 그렇게|한 줄로|한 줄 요약|정리해|요약해|뭐였지|뭐 물었/;
+    const _isMetaQuery = _META_HINT_RE.test(query) || _META_HINT_RE.test(cq);
+    const _hasMemory = Array.isArray(memory) && memory.length > 0;
+    if (_isMetaQuery && _hasMemory && finalAns.length < 10) {
+        const retryPrompt =
+`아래 [최근 대화] 의 마지막 1~3 항목을 자연어 1~3 문장으로 풀어 요약하세요. **"모릅니다" 또는 한 문장 미만 답 절대 금지** — memory 가 비지 않았으니 반드시 그 내용을 풀어 답하세요. 음성 구어체, 표·마크다운·이모지 금지.
+[최근 대화] ${JSON.stringify((memory || []).slice(-3))}
+질문: "${cq}"`;
+        const r2 = await gemini.callGemini({ model: BRAIN_MODEL, contents: retryPrompt, config: { temperature: 0.2 }, caller: 'Assistant-Synth-MetaRetry' });
+        if (r2 && r2.success && r2.text) {
+            const retried = cleanAnswer(r2.text);
+            if (retried.length >= 10) finalAns = retried;
+        }
+    }
     // [§6 #35 SEC P0 — L4 hard gate] GUARD_EXCLUDES 사후검열. synth 가 prompt 룰을
     //   어겨도 시크릿/거짓수행/라벨 토큰이 응답에 박히지 않도록 마지막 안전망.
     const badTokSynth = guardExcludesScan(finalAns);
