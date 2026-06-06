@@ -336,8 +336,9 @@ router.post('/api/push-custom', async (req, res) => {
                         ['active', 'level_upgrade_active', 'level_downgrade_active', 'time_yn_change'].includes(tid)) {
                         return;
                     }
-                    // 해제
-                    if (opts.release === false && tid === 'release') {
+                    // 해제 — 예비특보 취소(prelim_cancel)도 ✅ 해제 계열로 묶어 release 토글에 연동.
+                    //   (이전엔 어떤 콘텐츠 토글에도 안 걸려 야간 외엔 무조건 발송되던 비대칭 해소.)
+                    if (opts.release === false && (tid === 'release' || tid === 'prelim_cancel')) {
                         return;
                     }
                     // [자식 독립 푸시] additional_active(추가 발효) / partial_release(일부 해제)

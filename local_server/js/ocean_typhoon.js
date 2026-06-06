@@ -1221,6 +1221,7 @@
                 var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
                 // 활성 태풍 있거나 잠금해제(10탭) 상태면 토글, 아니면 탭 카운트.
                 if (!has && !_unlocked) { handleGateTap(); return; }
+                if (!_visible && window.trackUsage) window.trackUsage('ocean.typhoon');  // [사용량] 켤 때만 1회
                 setVisible(!_visible);
             });
         }
@@ -1231,7 +1232,10 @@
         var bSel = document.getElementById('tphn-bulletin');
         if (bSel) bSel.addEventListener('change', function () { selectBulletin(_year, this.value); });
         var playBtn = document.getElementById('tphn-play');
-        if (playBtn) playBtn.addEventListener('click', function () { _playing ? pause() : play(); });
+        if (playBtn) playBtn.addEventListener('click', function () {
+            if (!_playing && window.trackUsage) window.trackUsage('ocean.typhoon');  // [사용량] 태풍 기능 내 동작은 모두 '태풍' 하나로 집계
+            _playing ? pause() : play();
+        });
         var resetBtn = document.getElementById('tphn-reset');
         if (resetBtn) resetBtn.addEventListener('click', function () { if (_frames.length) resetView(); });
         var scr = document.getElementById('tphn-scrubber');
@@ -1260,9 +1264,12 @@
         var noteModal = document.getElementById('tphn-note-modal');
         if (noteModal) noteModal.addEventListener('click', function (e) { if (e.target === noteModal) closeNoteModal(); });
 
-        // 통보문 이미지 팝업(지도 이모지 버튼)
+        // 통보문 이미지 팝업(지도 이모지 버튼) — 태풍 기능 내 동작이므로 '태풍' 하나로 집계
         var imgBtn = document.getElementById('tphn-img-btn');
-        if (imgBtn) imgBtn.addEventListener('click', openImgModal);
+        if (imgBtn) imgBtn.addEventListener('click', function () {
+            if (window.trackUsage) window.trackUsage('ocean.typhoon');
+            openImgModal();
+        });
         var imgClose = document.getElementById('tphn-img-close');
         if (imgClose) imgClose.addEventListener('click', closeImgModal);
         var imgClose2 = document.getElementById('tphn-img-close2');

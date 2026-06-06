@@ -895,7 +895,7 @@ function renderMarineChart(data) {
 // ----------------------------------------------------------------------------
 // [구조]
 // 메인탭: 기상정보(그룹) | 조석정보(단독) | 해양생활(그룹) | 공지사항(단독)
-// 서브탭(기상정보): 특보 및 전망 | 해구기상 | 태풍정보
+// 서브탭(기상정보): 특보 및 전망 | 해상일기도
 // 서브탭(해양생활): 바다낚시 | 서핑 | 해수욕 | 스킨스쿠버 | 갯벌체험 | 바다갈라짐
 //
 // [연계]
@@ -922,7 +922,6 @@ const TAB_GROUP_SUBTABS = {
 const SECTION_TO_GROUP = {
     'weather-alert-section': 'weather-group',
     'sea-zone-section': 'weather-group',
-'typhoon-section': 'weather-group',
     'marine-chart-section': 'weather-group',  // KMA 날씨누리 해상일기도 (특보정보 그룹)
     'cctv-section': 'weather-group',
     'fishing-section': 'ocean-life-group',

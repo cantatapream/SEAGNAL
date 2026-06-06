@@ -66,9 +66,23 @@ function formatWarnTimeKST(tmEf) {
         if (rm = rest.match(/(\d{1,2})\s*시?\s*[~∼]\s*(\d{1,2})\s*시/)) {
             timeStr = fmtRange(parseInt(rm[1], 10), parseInt(rm[2], 10));
         } else if (rm = rest.match(/(\d{1,2}):(\d{2})/)) {
-            timeStr = fmtExact(parseInt(rm[1], 10), parseInt(rm[2], 10));
+            const _hh = parseInt(rm[1], 10), _mm = parseInt(rm[2], 10);
+            // [레거시] 58/59분 = KMA 범위코드 → 해당 6시간 블록 범위로 복원 (점·대시 형식 보강)
+            if (_mm === 58 || _mm === 59) {
+                timeStr = (_hh >= 18) ? '18시~24시' : (_hh >= 12) ? '12시~18시'
+                        : (_hh >= 9) ? '09시~12시' : (_hh >= 6) ? '06시~09시' : '00시~06시';
+            } else {
+                timeStr = fmtExact(_hh, _mm);
+            }
         } else if (rm = rest.match(/(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/)) {
-            timeStr = fmtExact(parseInt(rm[1], 10), rm[2] ? parseInt(rm[2], 10) : 0);
+            const _hh = parseInt(rm[1], 10), _mm = rm[2] ? parseInt(rm[2], 10) : 0;
+            // [레거시] 58/59분 = KMA 범위코드 → 해당 6시간 블록 범위로 복원 (한글 형식 보강)
+            if (_mm === 58 || _mm === 59) {
+                timeStr = (_hh >= 18) ? '18시~24시' : (_hh >= 12) ? '12시~18시'
+                        : (_hh >= 9) ? '09시~12시' : (_hh >= 6) ? '06시~09시' : '00시~06시';
+            } else {
+                timeStr = fmtExact(_hh, _mm);
+            }
         } else { timeStr = rest; }
     }
     if (Mo && D) { if (D === 0 || Mo === 0) return '정보 없음'; return `${dateLabel(Y, Mo, D)}${timeStr ? ' ' + timeStr : ''}`.trim(); }
@@ -208,7 +222,7 @@ function getMatchedZones(userZones, targetItems, opts = {}) {
  * @returns {{ title: string, body: string }}
  */
 function generateMessage(filteredPayload) {
-    const { templateId, typeName, level, items, prevLevel, showChildZones } = filteredPayload;
+    const { templateId, typeName, level, items, prevLevel, prevTypeName, showChildZones } = filteredPayload;
 
     let genTitle = '';
     let genBody = '';
@@ -321,6 +335,20 @@ function generateMessage(filteredPayload) {
         const grouped = groupByTime(items, 'tmYn');
         genBody = formatGroupedMessage(grouped, '해제예정');
     }
+    // 7-b. 종류 격상/격하 (풍랑→태풍 등) — 이전/이후 모두 종류+등급 병기. buildAdminTitle 과 동일 양식.
+    //   예: "풍랑경보→태풍경보 격상 발효". 예비 등급은 주의보로 명칭 보정(effPrev/effectiveLevel).
+    else if (templateId === 'type_upgrade_publish' || templateId === 'type_upgrade_active'
+          || templateId === 'type_downgrade_publish' || templateId === 'type_downgrade_active') {
+        const effPrev = prevLevel === '예비' ? '주의보' : (prevLevel || '');
+        const from = `${prevTypeName || ''}${effPrev}`;
+        const to = `${typeName}${effectiveLevel}`;
+        const isPublish = templateId.endsWith('_publish');
+        const isUp = templateId.startsWith('type_upgrade');
+        const emoji = isUp ? (isPublish ? '📢' : '🚨') : (isPublish ? '📢' : '🔻');
+        genTitle = `${emoji} ${from}→${to} ${isUp ? '격상' : '격하'} ${isPublish ? '발표' : '발효'}`;
+        const grouped = groupByTime(items, isPublish ? 'tmEf' : 'tmYn');
+        genBody = formatGroupedMessage(grouped, isPublish ? '발효예정' : '해제예정');
+    }
     // 8. 발효시각 변경
     else if (templateId === 'time_ef_change') {
         genTitle = `🕐 발효시각 변경`;
@@ -373,6 +401,16 @@ function generateMessage(filteredPayload) {
             const zStr = g.zones.map(decorateZone).join(', ');
             return `ㅇ${zStr}\n   - 기존 : ${fmt(g.oldTime)}\n   - 변경 후 : ${fmt(g.newTime)}`;
         }).join('\n');
+    }
+    // 14. 예비특보 취소 (발효 없이 예비특보가 소멸 — S10)
+    //   사용자 경로(generateMessage)에 prelim_cancel 전용 제목이 없어 Fallback("📢 …알림")으로
+    //   나가던 문제 수정. (관리자 경로 buildAdminTitle 에만 있던 "✅ 예비특보 취소" 문구를 사용자에도 적용)
+    //   prelim_cancel 은 시간 없음(EVENT_TIME_FIELD=null), 자식 한정사도 없음(buildChildQualifier '').
+    else if (templateId === 'prelim_cancel') {
+        genTitle = `✅ ${typeName || '특보'} 예비특보 취소`;   // typeName 누락 방어(관리자 buildAdminTitle 과 동일 폴백)
+        const allZones = [];
+        items.forEach(i => i.zones.forEach(z => { if (!allZones.includes(z)) allZones.push(z); }));
+        genBody = `ㅇ${allZones.map(decorateZone).join(', ')}`;
     }
     // Fallback
     else {

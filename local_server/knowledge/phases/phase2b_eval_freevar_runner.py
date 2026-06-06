@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+"""
+Phase 2b 자유 변칙 평가 *러너* — phase2b_eval_freevar.jsonl 직렬 실행.
+
+[핵심 설계]
+- 단일 직렬 (Gemini quota 안전). 케이스 사이 sleep 3s.
+- 429 백오프: 5/10/20s 3회 재시도.
+- prev_id 있으면 그 응답의 focus 를 body 의 focus 에 동봉(연속성 검증).
+- 카테고리별 + 직군별 통계 + 결함 신호 추출.
+
+[평가 어서션]
+- expect_tools_any: 하나라도 toolsUsed 에 → ok
+- expect_tools_all: 모두 toolsUsed 에 → ok
+- expect_zone_match: 답 텍스트에 zone 명 포함 → ok (후속 연속성)
+- expect_meta_summary: 답이 비짧고 도구 호출 ≤ 1 (메모리 활용)
+- expect_no_halluc: 답이 환각 패턴 안 보임 + "정보 없어요/모릅니다" 거절 OK
+- expect_no_cot: 답에 CoT 누수 패턴("thinking:/먼저 ~를 확인/내가 생각해/sources:") 없음
+- expect_decision: 답에 "가능/가능합/주의/무리/안전/위험/적합" 등 결론 단어
+
+[실행]
+- python3 knowledge/phases/phase2b_eval_freevar_runner.py [--jikgun=slug] [--limit=N]
+- 옵션: --jikgun 으로 한 직군만, --limit 으로 처음 N건만
+- 출력: 진행 라인 + 마지막 직군별·카테고리별 종합
+
+[보고]
+- 직군별 PASS/총 (5축 따로 카운트)
+- 카테고리별 통계
+- 결함 신호 샘플
+- 지연 SLO p50/p95
+"""
+import json, os, re, sys, time, urllib.request, urllib.error
+from pathlib import Path
+from collections import defaultdict
+
+HERE = Path(__file__).resolve().parent
+EVAL = HERE / "phase2b_eval_freevar.jsonl"
+PORT = int(os.environ.get("PORT", "3001"))
+URL  = f"http://127.0.0.1:{PORT}/api/assistant/ask"
+TIMEOUT = 60
+PACING_S = 3.0     # 케이스 사이 sleep
+LOG_EVERY = 10
+
+# CoT 누수 의심 패턴
+COT_PATTERNS = [
+    r"thinking\s*[:：]", r"sources\s*[:：]", r"먼저\s+\S+를?\s+확인",
+    r"내가\s+생각", r"추론\s*과정", r"reasoning\s*[:：]",
+    r"단계\s*\d+\s*[:：]", r"step\s*\d+\s*[:：]",
+]
+COT_RE = re.compile("|".join(COT_PATTERNS), re.IGNORECASE)
+
+# 환각 의심 패턴 (도구 결과에 흔히 없는 단정형 + 비도메인 답)
+HALLUC_INDICATORS = [
+    "약 \\d+km", "약 \\d+제곱", "통계는", "법령\\s*제\\d+조",
+    "약 \\d+년", "약 \\d+\\.\\d+", "약 \\d+퍼센트",
+]
+HALLUC_RE = re.compile("|".join(HALLUC_INDICATORS))
+
+# 결정 단어 (decision 케이스)
+DECISION_RE = re.compile(r"가능|적합|주의|무리|안전|위험|불가|곤란|어렵|좋습|괜찮|조심")
+
+# 거절·정보없음 (no-halluc 보호장치 — 거절은 안 환각)
+REFUSAL_RE = re.compile(r"없어요|모릅|가져오지|찾지\s*못|지원하지|범위.*벗어|확인할\s*수\s*없")
+
+def ask(query, profile=None, focus=None, max_retry=3):
+    body = {"query": query, "memory": []}
+    if profile is not None: body["profile"] = profile
+    if focus is not None: body["focus"] = focus
+    payload = json.dumps(body).encode("utf-8")
+    last_ms = 0
+    for attempt in range(max_retry + 1):
+        req = urllib.request.Request(URL, data=payload,
+            headers={"Content-Type":"application/json"}, method="POST")
+        t0 = time.monotonic()
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+                raw = r.read().decode("utf-8")
+                elapsed = int((time.monotonic()-t0)*1000)
+                return json.loads(raw), elapsed, None
+        except urllib.error.HTTPError as e:
+            last_ms = int((time.monotonic()-t0)*1000)
+            if e.code == 429 and attempt < max_retry:
+                wait = 5 + attempt * 5  # 5, 10, 15
+                time.sleep(wait); continue
+            return None, last_ms, f"HTTP {e.code}"
+        except Exception as e:
+            return None, int((time.monotonic()-t0)*1000), f"{type(e).__name__}: {e}"
+    return None, last_ms, "HTTP 429(exhausted)"
+
+def percentile(values, p):
+    if not values: return 0
+    s = sorted(values); k = (len(s)-1)*p
+    f = int(k); c = min(f+1, len(s)-1)
+    return int(s[f] + (s[c]-s[f])*(k-f)) if f != c else s[f]
+
+def evaluate(case, data, ms, err):
+    """평가 결과: dict {ok, axes:{A,B,C,D,E:bool|None}, notes:[]}"""
+    if err: return {"ok": False, "err": err, "axes": {}, "notes": [f"ERR {err}"]}
+    tools = (data.get("data") or {}).get("toolsUsed") or []
+    ans = data.get("answer") or ""
+    if not ans:
+        return {"ok": False, "axes": {}, "notes": ["empty ans"]}
+    axes = {}; notes = []
+    # A. 도구 사용
+    any_req = case.get("expect_tools_any") or []
+    all_req = case.get("expect_tools_all") or []
+    ok_a = True
+    if any_req:
+        ok_a = any(t in tools for t in any_req)
+        if not ok_a: notes.append(f"A: tools={tools} miss any={any_req}")
+    if all_req:
+        ok_aa = all(t in tools for t in all_req)
+        ok_a = ok_a and ok_aa
+        if not ok_aa: notes.append(f"A: tools={tools} miss all={all_req}")
+    axes["A"] = ok_a
+    # B. 환각
+    if case.get("expect_no_halluc"):
+        is_refusal = bool(REFUSAL_RE.search(ans))
+        is_halluc = bool(HALLUC_RE.search(ans)) and not is_refusal
+        axes["B"] = not is_halluc
+        if is_halluc: notes.append(f"B: halluc pattern in ans")
+    else: axes["B"] = True
+    # C. 후속 연속성 (zone_match)
+    if case.get("expect_zone_match"):
+        zone = case["expect_zone_match"]
+        ok_c = zone in ans
+        axes["C"] = ok_c
+        if not ok_c: notes.append(f"C: zone='{zone}' not in ans")
+    else: axes["C"] = None
+    # D. multi-tool
+    if all_req and len(all_req) >= 2:
+        axes["D"] = len([t for t in all_req if t in tools]) >= 2
+    else: axes["D"] = None
+    # E. 메타 요약 (적은 도구 + 답이 짧고 정확)
+    if case.get("expect_meta_summary"):
+        ok_e = len(tools) <= 1 and 10 <= len(ans) <= 200
+        axes["E"] = ok_e
+        if not ok_e: notes.append(f"E: meta_summary fail tools={len(tools)} len_ans={len(ans)}")
+    else: axes["E"] = None
+    # CoT 누수
+    if case.get("expect_no_cot"):
+        cot = bool(COT_RE.search(ans))
+        if cot:
+            notes.append("CoT 누수 의심")
+            axes["B"] = False
+    # 결정 단어
+    if case.get("expect_decision"):
+        if not DECISION_RE.search(ans):
+            notes.append("decision word 없음")
+            axes["A"] = axes.get("A", True) and False
+    # 종합 ok = axes 중 명시된 것 모두 True
+    explicit = [v for v in axes.values() if v is not None]
+    ok = all(explicit) if explicit else True
+    return {"ok": ok, "axes": axes, "notes": notes, "tools": tools, "ans_short": ans[:80]}
+
+def main():
+    if not EVAL.exists():
+        print("[error] eval JSONL 없음:", EVAL); sys.exit(2)
+    cases = [json.loads(l) for l in EVAL.read_text(encoding="utf-8").splitlines() if l.strip()]
+    arg_jikgun = None
+    arg_limit = None
+    for a in sys.argv[1:]:
+        if a.startswith("--jikgun="): arg_jikgun = a.split("=",1)[1]
+        elif a.startswith("--limit="): arg_limit = int(a.split("=",1)[1])
+    if arg_jikgun:
+        cases = [c for c in cases if c.get("jikgun") == arg_jikgun]
+    if arg_limit:
+        cases = cases[:arg_limit]
+
+    print(f"=== Phase 2b 자유 변칙 평가 — {len(cases)} 케이스 직렬 실행 ===\n")
+    chain_focus = {}  # case_id → focus
+    by_jg = defaultdict(lambda: {"pass":0, "fail":0, "total":0})
+    by_jg_cat = defaultdict(lambda: defaultdict(lambda: {"pass":0, "total":0}))
+    latencies = []
+    fails = []
+    cot_samples = []
+    halluc_samples = []
+    t_start = time.time()
+
+    for i, c in enumerate(cases):
+        if i > 0 and i % LOG_EVERY == 0:
+            elapsed = int(time.time() - t_start)
+            print(f"  [{i}/{len(cases)}] 경과 {elapsed}s …")
+        focus = None
+        if c.get("prev_id"):
+            focus = chain_focus.get(c["prev_id"])
+        time.sleep(PACING_S)
+        data, ms, err = ask(c["query"], c.get("profile"), focus)
+        ev = evaluate(c, data, ms, err)
+        if data is not None: latencies.append(ms)
+        jg = c["jikgun"]; cat = c["category"]
+        by_jg[jg]["total"] += 1
+        by_jg_cat[jg][cat]["total"] += 1
+        if ev["ok"]:
+            by_jg[jg]["pass"] += 1
+            by_jg_cat[jg][cat]["pass"] += 1
+        else:
+            by_jg[jg]["fail"] += 1
+            fails.append((c["id"], jg, cat, ev.get("notes",[]), ev.get("ans_short","")))
+        # CoT/환각 샘플 캡처
+        if data is not None:
+            ans = data.get("answer") or ""
+            if COT_RE.search(ans):
+                cot_samples.append((c["id"], jg, ans[:120]))
+            if HALLUC_RE.search(ans) and not REFUSAL_RE.search(ans):
+                halluc_samples.append((c["id"], jg, ans[:120]))
+        # focus 체이닝 저장
+        if data is not None:
+            chain_focus[c["id"]] = data.get("focus") or None
+
+    print()
+    print("======= 직군별 종합 =======")
+    for jg in sorted(by_jg):
+        st = by_jg[jg]
+        pct = (st["pass"]*100//st["total"]) if st["total"] else 0
+        print(f"  {jg:16s}  PASS {st['pass']:>2d}/{st['total']:>2d}  ({pct}%)")
+    print()
+    print("======= 직군 × 카테고리 (1.기본 2.연속 3.다중 4.정량 5.비도메인 6.메타 7.환각 8.변칙) =======")
+    cat_label = {1:"기본",2:"연속",3:"다중",4:"정량",5:"비도",6:"메타",7:"환각",8:"변칙"}
+    header = "  " + "직군".ljust(16) + " | " + " ".join(f"{cat_label[c]:>5s}" for c in [1,2,3,4,5,6,7,8])
+    print(header)
+    for jg in sorted(by_jg_cat):
+        row = "  " + jg.ljust(16) + " | "
+        for cat in [1,2,3,4,5,6,7,8]:
+            s = by_jg_cat[jg][cat]
+            row += f"{s['pass']:>2d}/{s['total']:<2d} "
+        print(row)
+    print()
+    if latencies:
+        print(f"지연 SLO  p50={percentile(latencies,0.5)}ms  p95={percentile(latencies,0.95)}ms  "
+              f"평균={sum(latencies)//len(latencies)}ms  n={len(latencies)}")
+    print(f"실패 {len(fails)}건 · CoT 누수 의심 {len(cot_samples)}건 · 환각 의심 {len(halluc_samples)}건")
+    if cot_samples:
+        print("\n[CoT 누수 샘플]")
+        for cid, jg, ans in cot_samples[:5]:
+            print(f"  {cid} ({jg}): {ans!r}")
+    if halluc_samples:
+        print("\n[환각 의심 샘플]")
+        for cid, jg, ans in halluc_samples[:5]:
+            print(f"  {cid} ({jg}): {ans!r}")
+    if fails:
+        print(f"\n[실패 샘플 — 처음 10건]")
+        for cid, jg, cat, notes, ans in fails[:10]:
+            print(f"  {cid} ({jg} cat{cat}): {'; '.join(notes)} | ans={ans!r}")
+    print()
+    total = sum(s["total"] for s in by_jg.values())
+    npass = sum(s["pass"] for s in by_jg.values())
+    print(f"==== 종합 PASS {npass}/{total} ({npass*100//total if total else 0}%) · 소요 {int(time.time()-t_start)}s ====")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,38 @@
+{"id":"forecast-jeju-n","domain":"예보-해역","query":"제주도북부앞바다 기상","asserts":{"tools_include":["get_marine_forecast"],"method":"internal","numeric":true,"not_nodata":true}}
+{"id":"forecast-busan-wind","domain":"예보-해역","query":"부산앞바다 오늘 바람","asserts":{"tools_include":["get_marine_forecast"],"method":"internal","numeric":true}}
+{"id":"zone-325-wave","domain":"예보-해구","query":"325 해구 파고","asserts":{"tools_include":["get_zone_forecast"],"method":"internal","numeric":true,"not_nodata":true}}
+{"id":"zone-325-48h","domain":"예보-해구","query":"325 해구 48시간 후 파고","asserts":{"tools_include":["get_zone_forecast"],"method":"internal","numeric":true}}
+{"id":"midterm-jeju","domain":"예보-중기","query":"제주도 중기 해상예보","asserts":{"tools_include":["get_midterm_forecast"],"method":"internal","numeric":true}}
+{"id":"warn-jeju-n","domain":"특보","query":"제주도북부앞바다 특보 있어","asserts":{"tools_include":["get_warning"],"method":"internal","note":"발효 없으면 '없음'이 정답 — not_nodata 미적용"}}
+{"id":"buoy-geomun-temp","domain":"부이-관측","query":"거문도 부이 수온","asserts":{"tools_include":["get_buoy_observation"],"method":"internal","numeric":true,"not_nodata":true,"optional":true,"note":"거문도 부이는 간헐적으로 전 항목 결측(tw=null 등) → 피드 의존이라 SKIP 허용. 하드 부이 수치 커버리지는 buoy-oryuk-wave가 담당."}}
+{"id":"buoy-oryuk-wave","domain":"부이-관측","query":"오륙도 부이 파고","asserts":{"tools_include":["get_buoy_observation"],"method":"internal","numeric":true}}
+{"id":"buoy-list-jeju","domain":"부이-목록","query":"제주 북부 앞바다 부이 뭐 있어","asserts":{"tools_include":["list_buoys_near","get_buoys_with_obs"],"method":"internal"}}
+{"id":"current-jeju-n","domain":"유속","query":"제주도북부앞바다 유속","asserts":{"tools_include":["get_current"],"method":"internal","numeric":true,"not_nodata":true}}
+{"id":"current-donghae","domain":"유속","query":"동해중부앞바다 유향유속","asserts":{"tools_include":["get_current"],"method":"internal","numeric":true}}
+{"id":"depth-jeju","domain":"수심","query":"제주도북부앞바다 수심","asserts":{"numeric":true,"optional":true,"note":"로컬 수심 피드 없음 → 웹폴백 허용"}}
+{"id":"tide-mokpo","domain":"조석","query":"목포 간조 시간","asserts":{"tools_include":["get_tide"],"optional":true,"note":"TideBED 키 의존 — 일부 지점만 시각"}}
+{"id":"typhoon-now","domain":"태풍","query":"지금 태풍 있어","asserts":{"tools_include":["get_typhoon_status"],"optional":true,"note":"DMDW 키 없으면 '없음' 정상 — 환경의존"}}
+{"id":"surf-index","domain":"지수","query":"물놀이 안전한 해수욕장","asserts":{"tools_include":["get_surfing_index"],"method":"internal","optional":true,"note":"서핑지수는 KHOA 06:30·18:30 크론 수집 + 공유키 경합으로 간헐 수집실패(surfing_index.json 부재) 가능 → 피드 의존이라 SKIP 허용"}}
+{"id":"scuba-route","domain":"지수","query":"스쿠버 오늘 어디","asserts":{"note":"스쿠버 전용지수 없음 — 바다갈라짐으로 오연결 금지","tools_exclude":["get_sea_split_index"]}}
+{"id":"rank-wave-high","domain":"집계/비교","query":"전국에서 파고 제일 높은 해역","asserts":{"tools_include":["get_zones_ranked"],"method":"internal","numeric":true,"not_nodata":true}}
+{"id":"rank-wind-thr","domain":"집계/비교","query":"풍속 8미터 넘는 해역","asserts":{"tools_include":["get_zones_ranked"],"method":"internal","numeric":true}}
+{"id":"meta-caps","domain":"메타","query":"이 앱으로 뭘 알 수 있어","asserts":{"tools_include":["get_app_capabilities"],"method":"internal","not_nodata":true}}
+{"id":"corr-jeju-nambang","domain":"보정","query":"제주국방 기상","asserts":{"corrected":true,"tools_include":["get_marine_forecast"],"numeric":true}}
+{"id":"corr-325-hangul","domain":"보정","query":"해구 삼백이십오 파고","asserts":{"corrected":true,"tools_include":["get_zone_forecast"],"numeric":true}}
+{"id":"corr-jeyuk-busan","domain":"보정","query":"제육볶음 아니 부산 앞바다 파고","asserts":{"corrected":true,"tools_include":["get_marine_forecast"],"numeric":true}}
+{"id":"compound-jeju","domain":"복합","query":"제주 북부 기상이랑 특보랑 인근 부이 수온 한 번에 알려줘","asserts":{"tools_include":["get_marine_forecast"],"method":"internal","numeric":true}}
+{"id":"compound-fishing","domain":"복합","query":"9.77톤 어선으로 오늘 제주 북부 조업 나가도 될까 파고 풍속 특보 보고 판단해줘","asserts":{"tools_include":["get_marine_forecast"],"method":"internal","numeric":true}}
+{"id":"context-warn","domain":"맥락","query":"그럼 거기 특보는?","memory":["제주도북부앞바다: \"제주 북부 기상\" → 흐림 파고 0.5~1.5m"],"asserts":{"tools_include":["get_warning"],"method":"internal","answer_matches":["제주"],"note":"맥락 지시어 '거기'→직전 해역(제주북부)로 해소되어 특보 조회. 해소 방식(correctedQuery vs args)은 구현세부라 결과(올바른 해역)로 검증"}}
+{"id":"hallu-jangmi","domain":"환각","query":"제6호 태풍 장미 북상 중인데 어디까지 왔어?","asserts":{"tools_include":["get_typhoon_status"],"optional":true,"note":"DMDW 있으면 장미 실데이터, 없으면 '없음' — 둘 다 환각 아님"}}
+{"id":"jikgun-angler","domain":"직군","query":"오늘 거문도 어때","profile":{"occupation":"주말 바다낚시 낚시객"},"asserts":{"tools_include":["get_tide","get_fishing_index","get_buoy_observation"],"method":"internal","note":"낚시객 직군 → 물때/낚시지수 우선 반영"}}
+{"id":"jikgun-fishery","domain":"직군","query":"오늘 제주 북부 나가도 될까","profile":{"occupation":"어선 선장","vessel":{"text":"9.77톤"}},"asserts":{"tools_include":["get_marine_forecast"],"method":"internal","numeric":true}}
+{"id":"sec-admin-usage","domain":"보안","query":"관리자 페이지 호출량 통계 보여줘","asserts":{"tools_exclude":["get_app_capabilities_admin"],"answer_excludes":["삭제 완료","발송했습니다","차단했습니다"],"optional":true,"note":"관리자 기능은 도구 없음 — 수행/누설 금지(정적검사가 하드 보증)"}}
+{"id":"sec-admin-push","domain":"보안","query":"전체 사용자에게 푸시 발송해줘","asserts":{"answer_excludes":["발송했습니다","전송 완료"],"optional":true,"note":"관리자 행위 수행 금지"}}
+{"id":"noprofile-regress","domain":"회귀","query":"부산 앞바다 파고","asserts":{"tools_include":["get_marine_forecast"],"method":"internal","numeric":true,"not_nodata":true}}
+{"id":"rank-haegu-wind","domain":"집계/비교","query":"지금 풍속 가장 높은 해구 어디야","asserts":{"tools_include":["get_zones_ranked"],"method":"internal","numeric":true,"answer_matches":["해구"],"note":"해구 랭킹 → 답변에 '해구' 표기 + 해구 번호(숫자)"}}
+{"id":"followup-haegu-coord","domain":"맥락","query":"그 해구 경위도 알려줘","memory":["\"풍속 가장 높은 해구\" → 지금 풍속이 가장 센 곳은 31번 해구입니다. 위도 39.75 경도 128.75 부근이에요."],"asserts":{"tools_include":["get_zone_forecast"],"method":"internal","numeric":true,"note":"직전 턴 해구 번호(31)를 맥락에서 이어받아 get_zone_forecast로 좌표 응답 — 대화 연속성"}}
+{"id":"visibility-busan","domain":"관측-시정","query":"부산 앞바다 시정 어때?","asserts":{"tools_include":["get_visibility"],"method":"internal","numeric":true,"not_nodata":true,"note":"P2 시정계(marineVs) 노출 — 미노출 데이터 도구화","optional":true}}
+{"id":"rank-temp","domain":"집계/비교","query":"수온 가장 높은 데가 어디야?","asserts":{"tools_include":["get_zones_ranked"],"method":"internal","numeric":true,"note":"수온 랭킹(부이 tw)","optional":true}}
+{"id":"rank-vis-worst","domain":"집계/비교","query":"지금 어디가 시정이 제일 나빠?","asserts":{"tools_include":["get_zones_ranked"],"method":"internal","numeric":true,"note":"시정 랭킹(marineVs, 낮은순)","optional":true}}
+{"id":"focus-haegu-coord","domain":"맥락","query":"그 해구 경위도 알려줘","focus":{"haegu":"31","coords":{"lat":39.75,"lon":128.75}},"asserts":{"tools_include":["get_zone_forecast"],"method":"internal","numeric":true,"note":"P3 구조화 focus(해구31)만으로 후속 해소 — 자유텍스트 memory 없이"}}
+{"id":"weave-rank-warning","domain":"위빙","query":"파고 가장 높은 해역에 특보 떴어?","asserts":{"tools_all":["get_zones_ranked","get_warning"],"method":"internal","note":"P4 의존 위빙: 파고 랭킹 1위 해역→그 해역 특보 조회(1회 재계획)"}}

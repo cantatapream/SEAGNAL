@@ -31,10 +31,14 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+// [성능 캐시] 해구별 기상전망(5.86MB) 응답을 데이터 갱신 시 1회만 미리 gzip/brotli
+//   압축해 메모리에 보관하기 위해 Node 내장 zlib 을 사용한다. (요청당 실시간 압축 제거)
+const zlib = require('zlib');
 const { DATA_DIR } = require('../config/server_config');
 const { dataCache, refreshCache } = require('../services/cache_manager');
 const scheduler = require('../scheduler');
 const regionalForecastCollector = require('../regional_forecast_collector');
+const marineClient = require('../services/marine_client');   // [통보문] ef/list (해역별 통보문 PDF) 조회용
 // [신규] 캐시 신선도 검사 + 응답 헤더 부착 + 백그라운드 재수집 트리거
 //        services/freshness.js 의 POLICY 에 정의된 데이터(특보/부이/해상기상전망)에 한해
 //        응답 헤더(X-Data-Updated-At, X-Data-Age-Seconds, X-Data-Fresh)를 자동 부착하고,
@@ -558,28 +562,48 @@ router.get('/api/forecasts', (req, res) => {
 });
 
 // ============================================================================
-// [성능 캐시] marine-zone-forecasts 응답 JSON 문자열 캐시
+// [성능 캐시] marine-zone-forecasts 응답 JSON 문자열 + 사전 압축본 캐시
 // ----------------------------------------------------------------------------
 // 역할:
 //   /api/marine-zone-forecasts 요청이 들어올 때마다 5.86MB 짜리 객체를
 //   JSON.stringify() 하는 비용(요청당 약 50~150ms CPU)을 제거하기 위해,
 //   미리 만들어둔 JSON 문자열을 메모리에 보관해 두고 그대로 재사용한다.
 //
+//   [추가 — 압축본 사전 생성]
+//   여기에 더해, gzip / brotli 로 "미리 압축한 버퍼" 까지 함께 만들어 둔다.
+//   기존에는 응답 문자열(5.86MB)을 그대로 보내면 compression() 미들웨어가
+//   "매 요청마다 실시간 gzip 압축"(요청당 약 50~100ms CPU)을 수행했다.
+//   전원 푸시 후 200~300명이 동시에 들어오면 이 압축 CPU 가 누적되어 10~20초가
+//   되고, "특보구역 평균 파고/풍속"(zone_avg.js) 표시가 1~3초 지연됐다.
+//   → 데이터 갱신 시(하루 2회)에만 1회 미리 압축해 두고, 요청 시에는 그 버퍼를
+//     그대로 전송하면 요청당 압축 CPU 가 0 이 된다.
+//
 // 비유:
-//   "식당 카운터에 메뉴판 1장을 미리 인쇄해 두고, 손님 올 때마다 그대로 보여줌.
-//    메뉴(=zone_forecasts.json 파일)가 바뀌면 그때만 새로 인쇄."
+//   "식당 카운터에 메뉴판 1장(원본)뿐 아니라, 우편 발송용으로 미리 접어서
+//    봉투에 넣어둔 버전(gzip)·진공 압축한 버전(brotli)까지 같이 준비해 둔다.
+//    손님이 '압축본 주세요' 하면 그때 접는 게 아니라 이미 접어둔 걸 그대로 건넴.
+//    메뉴(=zone_forecasts.json 파일)가 바뀌면 그때만 셋 다 다시 만든다."
 //
 // 동작 원리:
 //   - dataCache.lastUpdate.zoneForecasts (= 파일 mtime) 이 변하지 않았으면
-//     캐시된 문자열을 그대로 반환 → stringify 생략
+//     캐시된 문자열/압축본을 그대로 반환 → stringify·압축 모두 생략
 //   - 파일이 갱신되면 (하루 2회: 09:30, 21:30 KST) mtime 이 변하므로
-//     다음 첫 요청 1건에서만 새로 stringify 후 캐시 갱신
+//     다음 첫 요청 1건에서만 새로 stringify + gzip + brotli 후 캐시 갱신
+//
+// compression 미들웨어와의 관계 (이중 압축 방지):
+//   라우트가 응답에 Content-Encoding(gzip/br) 헤더를 직접 붙이면,
+//   compression() 미들웨어는 표준 동작상 "이미 인코딩된 응답" 으로 보고
+//   재압축을 건너뛴다. (server_config.js 주석의 A 케이스와 동일 원리)
+//   따라서 사전 압축본을 보내도 이중 압축 위험이 없다.
 //
 // 메모리 비용:
-//   캐시 문자열 약 5.86 MB 추가 (fly.io 1GB 머신 기준 0.6% — 무시 가능)
+//   원본 문자열 약 5.86 MB + gzip 약 0.45 MB + brotli 약 0.45 MB ≈ 6.8 MB.
+//   (fly.io 1GB 머신 기준 약 0.7% — 무시 가능)
 // ============================================================================
 const _zoneForecastsCache = {
-    responseJson: null,    // 캐시된 JSON 문자열 (res.send 로 그대로 전송 가능)
+    responseJson: null,    // 캐시된 JSON 문자열 (압축 미지원 클라이언트 fallback 용)
+    gzipBuffer: null,      // zlib.gzipSync 로 미리 압축한 버퍼 (gzip 지원 클라이언트용)
+    brotliBuffer: null,    // zlib.brotliCompressSync 로 미리 압축한 버퍼 (br 지원용)
     builtAtMtime: 0        // 이 캐시를 만들 때의 zone_forecasts.json mtime (ms)
 };
 
@@ -587,26 +611,28 @@ const _zoneForecastsCache = {
 // [이슈 3 — Thundering Herd 보호 플래그]
 // ----------------------------------------------------------------------------
 // 데이터 갱신 직후, 한꺼번에 들어온 동시 요청들이 모두 캐시 미스로 판정되어
-// 각각 5.86MB JSON.stringify() 를 시도하면 50~150ms 동안 이벤트 루프가 막혀
-// 다른 요청의 응답이 지연되는 현상을 방지한다.
+// 각각 5.86MB JSON.stringify() + gzip + brotli 압축을 시도하면 수백 ms 동안
+// 이벤트 루프가 막혀 다른 요청의 응답이 지연되는 현상을 방지한다.
 //
 // 작동 방식:
-//   - stringify 가 진행 중인 동안 들어온 요청은, "옛 캐시" 가 남아 있다면
-//     그것을 반환한다 (= stale-while-revalidate). 사용자가 보는 데이터는
-//     50~150ms 만큼만 옛것이며 다음 요청부터는 새 캐시가 응답된다.
-//   - Node.js 단일 스레드이므로 JSON.stringify 자체가 atomic 하게 끝난다.
+//   - 빌드(stringify+압축)가 진행 중인 동안 들어온 요청은, "옛 캐시" 가 남아
+//     있다면 그것을 반환한다 (= stale-while-revalidate). 사용자가 보는 데이터는
+//     그 짧은 빌드 시간만큼만 옛것이며 다음 요청부터는 새 캐시가 응답된다.
+//   - Node.js 단일 스레드이므로 stringify+압축이 동기적으로 atomic 하게 끝난다.
 //     따라서 동기 함수 내에서 플래그가 누수될 일은 거의 없지만, 만에 하나
-//     stringify 가 예외를 던지더라도 try/finally 로 플래그를 반드시 해제한다.
+//     예외를 던지더라도 try/finally 로 플래그를 반드시 해제한다.
+//   - 압축까지 포함해서 in-progress 보호 범위를 확장했다 (압축 비용도 보호 대상).
 // ----------------------------------------------------------------------------
 let _stringifyInProgress = false;
 
 /**
- * 해구별 기상전망 응답 JSON 문자열을 반환한다.
+ * 해구별 기상전망 응답 캐시(원본 문자열 + gzip/brotli 사전 압축본)를 반환한다.
  *
  * [동작 흐름]
  *   1) 메모리에 데이터 자체가 없으면 (수집 전) null 반환 → 호출자가 404 처리
- *   2) 파일 mtime 이 캐시 빌드 시점과 같으면 캐시된 문자열 그대로 반환 (stringify 생략)
- *   3) mtime 이 다르면 (= 스케줄러가 새 데이터 받음) 새로 stringify 하고 캐시 갱신
+ *   2) 파일 mtime 이 캐시 빌드 시점과 같으면 캐시 객체 그대로 반환 (stringify·압축 생략)
+ *   3) mtime 이 다르면 (= 스케줄러가 새 데이터 받음) 새로 stringify + gzip + brotli
+ *      후 캐시 갱신
  *
  * [왜 mtime 으로 판단하나?]
  *   cache_manager.js (5초마다 실행) 가 zone_forecasts.json 파일의 mtime 을
@@ -614,17 +640,25 @@ let _stringifyInProgress = false;
  *   따라서 이 값만 비교하면 "데이터가 바뀌었나?" 를 추가 stat 호출 없이 알 수 있다.
  *
  * [반환값]
- *   - string: 그대로 res.send() 로 전송 가능한 JSON 문자열
+ *   - object: _zoneForecastsCache 객체 ({ responseJson, gzipBuffer, brotliBuffer, ... })
+ *             호출자는 Accept-Encoding 헤더를 보고 적절한 필드를 골라 전송한다.
  *   - null:   데이터 미수집 상태 (호출자가 404 처리해야 함)
  *
+ * [압축 빌드 방식]
+ *   - gzip:   level = Z_BEST_COMPRESSION (9). 5.86MB → 약 0.45MB.
+ *   - brotli: quality = 5. 5.86MB → 약 0.45MB.
+ *             brotli quality 11 은 크기 이득이 미미한 반면 빌드 시간이 수 초로
+ *             길어 데이터 갱신 직후 stale 윈도우를 키우므로, 빌드 시간이 짧으면서
+ *             gzip 보다 약간 작은 quality 5 를 선택했다.
+ *
  * [성능]
- *   첫 호출 or 데이터 갱신 직후: stringify 1회 수행 (약 50~150ms, 5.86MB 처리)
- *   이후 호출: 캐시 적중 → 즉시 반환 (약 0.001ms)
+ *   첫 호출 or 데이터 갱신 직후: stringify + gzip + brotli 1회 수행 (수백 ms).
+ *   이후 모든 호출: 캐시 적중 → 즉시 반환 (약 0.001ms), 요청당 압축 CPU 0.
  *
  * [동시성]
  *   Node.js 단일 스레드 특성상 별도 락 불필요.
- *   1000명 동시 첫 요청 시에도 실제로는 1건이 stringify 하는 동안
- *   나머지는 큐에서 대기 → 첫 건 완료되면 캐시 적중되어 즉시 응답.
+ *   200~1000명 동시 첫 요청 시에도 실제로는 1건이 빌드하는 동안 나머지는
+ *   옛 캐시(있으면)를 받거나 큐에서 대기 → 첫 건 완료되면 캐시 적중되어 즉시 응답.
  */
 function getZoneForecastsResponse() {
     // [1] 데이터 미수집 → null (호출자가 404 응답)
@@ -633,30 +667,60 @@ function getZoneForecastsResponse() {
     // [2] 현재 파일 mtime 확인 (cache_manager 가 5초마다 갱신해 둔 값)
     const currentMtime = dataCache.lastUpdate.zoneForecasts || 0;
 
-    // [3] 캐시 적중 — 마지막으로 stringify 했을 때와 mtime 동일 → 그대로 반환
+    // [3] 캐시 적중 — 마지막으로 빌드했을 때와 mtime 동일 → 캐시 객체 그대로 반환
     if (_zoneForecastsCache.responseJson
         && _zoneForecastsCache.builtAtMtime === currentMtime) {
-        return _zoneForecastsCache.responseJson;
+        return _zoneForecastsCache;
     }
 
-    // [3-B] Thundering Herd 보호 — stringify 진행 중이고 옛 캐시가 남아 있으면
-    //       그 옛 캐시를 반환한다 (stale-while-revalidate, 윈도우 약 50~150ms).
-    //       동시 요청 N 건이 모두 stringify 를 다시 돌리는 사태를 막아준다.
+    // [3-B] Thundering Herd 보호 — 빌드(stringify+압축) 진행 중이고 옛 캐시가
+    //       남아 있으면 그 옛 캐시를 반환한다 (stale-while-revalidate).
+    //       동시 요청 N 건이 모두 빌드를 다시 돌리는 사태를 막아준다.
     //       옛 캐시조차 없는 "최초 빌드" 상황에서는 이 분기를 통과해 [4] 로 진행.
     if (_stringifyInProgress && _zoneForecastsCache.responseJson) {
-        return _zoneForecastsCache.responseJson;
+        return _zoneForecastsCache;
     }
 
     // [4] 캐시 미스 — 데이터가 바뀌었거나 첫 호출.
+    //     stringify → gzip → brotli 를 한 번에 만들어 캐시에 채운다.
     //     try/finally 로 플래그를 반드시 해제 (예외 누수 시에도 영구 true 방지).
     _stringifyInProgress = true;
     try {
-        _zoneForecastsCache.responseJson = JSON.stringify(dataCache.zoneForecasts);
+        const json = JSON.stringify(dataCache.zoneForecasts);
+        // 압축 버퍼는 한 변수에 모아 빌드한 뒤 한꺼번에 캐시에 대입한다.
+        // (중간에 한 단계라도 예외가 나면 캐시를 "부분 갱신" 하지 않도록 — 아래 catch 처리)
+        let gzipBuffer = null;
+        let brotliBuffer = null;
+        try {
+            // gzip — 거의 모든 브라우저/앱이 지원하는 기본 압축.
+            gzipBuffer = zlib.gzipSync(json, {
+                level: zlib.constants.Z_BEST_COMPRESSION
+            });
+            // brotli — gzip 보다 약간 더 작음. quality 5 로 빌드 시간/크기 균형.
+            brotliBuffer = zlib.brotliCompressSync(json, {
+                params: {
+                    [zlib.constants.BROTLI_PARAM_QUALITY]: 5,
+                    // 입력 크기를 알려주면 brotli 가 윈도우를 적절히 잡아 약간 더 빠르고 작아진다.
+                    [zlib.constants.BROTLI_PARAM_SIZE_HINT]: Buffer.byteLength(json)
+                }
+            });
+        } catch (compressErr) {
+            // [압축 실패 fallback] 압축이 실패해도 서비스가 죽으면 안 된다.
+            //   원본 문자열만 캐시하고 압축본은 null 로 둔다 → 라우트는 비압축으로 응답
+            //   (compression() 미들웨어가 실시간 압축으로 안전망 역할). 다음 데이터
+            //   갱신 때 다시 압축을 시도한다.
+            console.error('[zone-forecasts] 사전 압축 실패 — 비압축 fallback:', compressErr && compressErr.message);
+            gzipBuffer = null;
+            brotliBuffer = null;
+        }
+        _zoneForecastsCache.responseJson = json;
+        _zoneForecastsCache.gzipBuffer = gzipBuffer;
+        _zoneForecastsCache.brotliBuffer = brotliBuffer;
         _zoneForecastsCache.builtAtMtime = currentMtime;
     } finally {
         _stringifyInProgress = false;
     }
-    return _zoneForecastsCache.responseJson;
+    return _zoneForecastsCache;
 }
 
 // 4. 해구별 기상전망
@@ -666,29 +730,61 @@ function getZoneForecastsResponse() {
 //                zone_avg.js 는 자체 cache:'no-store' 로 강제 우회 — 영향 없음.
 //
 //    [성능 캐시 적용]
-//      getZoneForecastsResponse() 가 미리 stringify 해둔 JSON 문자열을 반환하므로
-//      요청마다 5.86MB 객체를 직렬화하는 비용(약 50~150ms CPU)이 사라진다.
-//      파일 mtime 이 바뀌었을 때만 1회 새로 stringify 함.
+//      getZoneForecastsResponse() 가 미리 stringify 해둔 JSON 문자열 + 미리 압축한
+//      gzip/brotli 버퍼를 담은 캐시 객체를 반환하므로,
+//        1) 요청마다 5.86MB 객체를 직렬화하는 비용(약 50~150ms CPU) 제거
+//        2) 요청마다 compression() 미들웨어가 실시간 압축하는 비용(약 50~100ms CPU) 제거
+//      파일 mtime 이 바뀌었을 때만 1회 새로 stringify + 압축 함.
 //
-//    [응답 형식]
-//      기존 res.json(dataCache.zoneForecasts) 와 100% 동일한 바이트열.
-//      (JSON.stringify 결과를 그대로 res.send 로 보내므로 내용·순서 동일)
-//      단, res.send 는 string 일 때 Content-Type 을 자동 지정하지 않으므로
-//      'application/json; charset=utf-8' 을 명시적으로 설정한다.
+//    [기존 동작과의 차이]
+//      이전: res.send(문자열) → compression() 미들웨어가 매 요청 실시간 gzip 압축.
+//      변경: Accept-Encoding 을 보고 미리 압축한 버퍼를 res.end() 로 직접 전송.
+//            응답에 Content-Encoding 헤더를 직접 붙이므로 compression() 미들웨어는
+//            "이미 인코딩됨" 으로 보고 재압축을 건너뛴다(이중 압축 없음).
+//
+//    [응답 형식 — 100% 동일 보장]
+//      압축 해제 후 바이트열은 기존 res.json(dataCache.zoneForecasts) / JSON.stringify
+//      결과와 완전히 동일하다. 브라우저/fetch 는 Content-Encoding 을 보고 자동으로
+//      압축을 풀므로 zone_avg.js / surfing1.js 의 r.json() 파싱에 변화 없음.
+//      압축 미지원(드문) 클라이언트는 원본 문자열로 fallback.
+//
+//    [HEAD 요청] res.end(buffer) 사용 시 Express 가 HEAD 메서드면 body 를 보내지
+//      않는다. Content-Length 는 buffer 전송 시 자동 설정되지만, 헤더 정확성을
+//      위해 명시적으로 설정한다.
 //
 //    [호출 클라이언트]
-//      - js/marine.js     : 해구별 예보 표시
 //      - js/zone_avg.js   : 해구 평균값 계산 (자체 no-store 캐시 우회)
 //      - js/surfing1.js   : 서핑 관련 화면
+//      (단일 해구 모달은 별도 /api/marine-zone-forecasts/:zoneId 라우트 사용 — 무관)
 router.get('/api/marine-zone-forecasts', (req, res) => {
-    const cached = getZoneForecastsResponse();
-    if (!cached) {
+    const cache = getZoneForecastsResponse();
+    if (!cache || !cache.responseJson) {
         res.setHeader('Cache-Control', 'no-store');
         return res.status(404).json({ error: '데이터 준비 중' });
     }
     res.setHeader('Cache-Control', 'public, max-age=1800');
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.send(cached);
+    // 동일 URL 이라도 Accept-Encoding 에 따라 응답 본문이 달라지므로 캐시 키에 포함.
+    res.setHeader('Vary', 'Accept-Encoding');
+
+    const accept = req.headers['accept-encoding'] || '';
+
+    // [1] brotli 우선 — 지원하고 사전 압축본이 있으면 그대로 전송.
+    if (cache.brotliBuffer && /\bbr\b/.test(accept)) {
+        res.setHeader('Content-Encoding', 'br');
+        res.setHeader('Content-Length', cache.brotliBuffer.length);
+        return res.end(cache.brotliBuffer);
+    }
+    // [2] gzip — 거의 모든 클라이언트가 지원.
+    if (cache.gzipBuffer && /\bgzip\b/.test(accept)) {
+        res.setHeader('Content-Encoding', 'gzip');
+        res.setHeader('Content-Length', cache.gzipBuffer.length);
+        return res.end(cache.gzipBuffer);
+    }
+    // [3] 압축 미지원(또는 압축 빌드 실패) → 원본 문자열.
+    //     Content-Encoding 을 붙이지 않으므로 compression() 미들웨어가 필요 시
+    //     실시간 압축하는 안전망으로 동작한다.
+    return res.send(cache.responseJson);
 });
 
 // ============================================================================
@@ -848,6 +944,244 @@ router.get('/api/bulletin-cache/:reportId', (req, res) => {
         res.json(cacheData);
     } catch (e) {
         res.status(500).json({ error: e.message });
+    }
+});
+
+// 6-b. 해역별 통보문 이력 (특보 구역 옆 📋 버튼용)
+//   MMIS ntfctn/list 는 해역 식별자가 없어 해역별 조회 불가 → ef/list 로 구성한다.
+//   ef/list row 는 해역명(kor_nm)·발표시각(tm_fc)·종류/등급/발표구분(warn_*_nm)·관할청
+//   (prdc_go)·원문 PDF 경로(file_nm)를 부모 해역별로 제공한다(자식=연안/평수 행은 없음).
+//   원문 PDF 는 marine.kma.go.kr 공개 경로(무인증)라 클라이언트가 iframe 모달로 열람한다.
+//
+//   [전국 vs 지방청 — 중요] 같은 발효를 본청(108, 전국 통합)과 관할 지방청이 각각 통보문
+//   PDF 로 낸다. 실측 확인: 전국(108) PDF 는 부모 해역만 담고 '연안바다/평수구역'이 없으나,
+//   관할 지방청 PDF 에는 그 해역의 연안바다/평수구역까지 들어있다. 따라서 사용자에게는
+//   **관할 지방청 통보문을 우선** 링크하고(연안/평수 내용 포함), 지방청 PDF 가 없는 발효만
+//   전국(108)으로 폴백한다. 해역의 관할 지방청은 ef/list 빈도로 식별(그 해역을 가장 자주
+//   통보한 비-108 prdc_go = 관할청; 인접청은 가끔만 등장). 한 발효는 1건으로 dedup.
+let _zoneBulletinCache = { at: 0, rows: null, homeByZone: null };
+const ZONE_BULLETIN_TTL_MS = 10 * 60 * 1000;   // 10분 — ef/list 인증 호출 부담 완화
+const MARINE_PDF_HOST = 'https://marine.kma.go.kr';
+const NATIONAL_GO = '108';                      // 본청(전국 통합 통보문) — 연안/평수 미포함
+
+// [해역 → 관할 지방청 prdc_go] PDF 원문 내용검증으로 생성한 정적 매핑(1차 진실).
+//   생성법: 각 해역의 후보 비-108 청 PDF 를 받아 'kor_nm' 이 실제 들어있는 청을 채택.
+//   빈도 휴리스틱만으로는 동률 해역(예: 울산앞바다 143:2·159:2)에서 그 해역이 아예 없는
+//   인접청 PDF 를 고를 수 있어(143 PDF엔 '울산' 없음) 이를 결정적으로 고정한다.
+//   값 '108' = 지방청 PDF 에서 해역명이 확인 안 돼 전국(본청)으로 폴백하는 해역.
+//   미등록(신규) 해역은 아래 빈도 휴리스틱(homeByZone)으로 best-effort 폴백.
+const { ZONE_HOME_OFFICE } = require('../config/zone_home_office');   // [공유] 단일 출처 정적 매핑
+// [자식-only 통보문 보강] ef/list 에 없는 자식(연안/평수) 변경 통보문을 크롤러가 매칭·저장한 것.
+let childBulletin = null;
+try { childBulletin = require('../services/child_bulletin'); }
+catch (e) { console.warn('[zone-bulletins] child_bulletin 로드 실패 — 자식 병합 비활성:', e && e.message); }
+
+const _zbNorm = (s) => String(s || '').replace(/\s+/g, '');
+
+async function _getZoneBulletinData() {
+    const now = Date.now();
+    if (_zoneBulletinCache.rows && (now - _zoneBulletinCache.at) < ZONE_BULLETIN_TTL_MS) {
+        return _zoneBulletinCache;
+    }
+    const kst = new Date(now + 9 * 3600000);
+    const ymd = (off) => {
+        const d = new Date(kst.getTime() + off * 86400000);
+        return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+    };
+    const rows = await marineClient.fetchWarnEfList({ warn_tp: '', st_tm: ymd(-30), ed_tm: ymd(1) });
+    const safe = Array.isArray(rows) ? rows : [];
+    // 해역별 관할 지방청 = 비-108 prdc_go 중 최빈값
+    const cnt = {};   // zoneNorm -> { prdc_go -> 횟수 }
+    for (const r of safe) {
+        const z = _zbNorm(r.kor_nm); if (!z) continue;
+        const g = String(r.prdc_go || ''); if (!g) continue;
+        (cnt[z] = cnt[z] || {})[g] = (cnt[z][g] || 0) + 1;
+    }
+    const homeByZone = {};
+    for (const z of Object.keys(cnt)) {
+        const non = Object.keys(cnt[z]).filter((g) => g !== NATIONAL_GO);
+        if (non.length) { non.sort((a, b) => cnt[z][b] - cnt[z][a]); homeByZone[z] = non[0]; }
+    }
+    // [통보문 호수 + 실제 제목] ntfctn/list(관서별 통보문 제목)에서 file_nm → 호수(제XX호)·원제목 매핑.
+    //   ef/list 엔 호수가 없으므로 같은 file_nm 으로 조인해 목록에 통보문 명칭을 붙인다.
+    //   titleByFile(원제목)은 해제 판정용 — ef/list 의 warn_cmd_nm 은 해역별로 '변경'으로
+    //   코딩될 수 있어(다중해역 해제 통보문) 신뢰 불가. ntfctn warn_title 의 '해제' 가 진실.
+    const reportByFile = {};
+    const titleByFile = {};
+    try {
+        const ntf = await marineClient.fetchWarnNtfctnList({ st_tm: ymd(-30), ed_tm: ymd(1) });
+        for (const n of (Array.isArray(ntf) ? ntf : [])) {
+            const f = String(n.file_nm || '').trim();
+            if (!f) continue;
+            const wt = String(n.warn_title || '');
+            titleByFile[f] = wt;
+            const m = wt.match(/제\s*[0-9]+-[0-9]+호/);
+            if (m) reportByFile[f] = m[0].replace(/\s+/g, '');
+        }
+    } catch (e) { /* 호수 조회 실패해도 목록은 정상(호수만 생략) */ }
+    // [현재 발효중 부모 해역] warn/list(no-auth) = "지금 발효 중" 권위 소스.
+    //   ef/list 는 30일 이력이라 이미 끝난(해제·만료) 통보문도 들어오므로, 이 집합으로
+    //   "발효중인 zone(warn_zone_cd)" 만 발효 통보문으로 남긴다(해제·만료 통보문 자동 제외).
+    //   값 null = 조회 실패(이때는 ed_tm 만료 휴리스틱으로 폴백).
+    let warnListRows = null;
+    try { const wl = await marineClient.fetchWarnList(); warnListRows = Array.isArray(wl) ? wl : []; }
+    catch (e) { warnListRows = null; }
+    // [예비특보] ef/list 엔 발효 통보문만 있고 예비특보(발표대기)는 없다.
+    //   warn/ready(no-auth)가 예비특보 발표를 해역명(warn_zone_nm)+시각으로 준다(PDF 는 없음).
+    let readyRows = [];
+    try { const rd = await marineClient.fetchWarnReady(); readyRows = Array.isArray(rd) ? rd : []; }
+    catch (e) { /* 예비 조회 실패해도 발효 목록은 정상 */ }
+    _zoneBulletinCache = { at: now, rows: safe, homeByZone, reportByFile, titleByFile, readyRows, warnListRows };
+    return _zoneBulletinCache;
+}
+
+router.get('/api/zone-bulletins', async (req, res) => {
+    const zone = String(req.query.zone || '').trim();
+    if (!zone) return res.status(400).json({ error: 'zone 파라미터 필요', bulletins: [] });
+    try {
+        const { rows, homeByZone, reportByFile, titleByFile, readyRows, warnListRows } = await _getZoneBulletinData();
+        const z = _zbNorm(zone);
+        // [현재 발효중 zone 코드] warn/list 의 발효중(warn_lvl≠0) 부모 zone 코드 집합.
+        //   null = warn/list 조회 실패(이때만 ed_tm 만료 휴리스틱으로 폴백).
+        let effectiveCodes = null;
+        if (Array.isArray(warnListRows)) {
+            effectiveCodes = new Set();
+            for (const r of warnListRows) {
+                const lvl = String(r.warn_lvl != null ? r.warn_lvl : (r.warn_lvl_nm || '')).trim();
+                if (lvl === '0' || lvl === '') continue;   // 미발효 메타행 제외
+                const cd = String(r.warn_zone_cd || '').trim();
+                if (cd) effectiveCodes.add(cd);
+            }
+        }
+        // 관할 지방청(통보문이 따라갈 청): PDF 내용검증 정적 매핑이 **실제 지방청**(≠108)이면 그것,
+        //   아니면(=정적값이 108 폴백이거나 미등록) ef/list 빈도 휴리스틱으로 실제 발행 지방청을 복원.
+        //   강원 앞바다처럼 정적 매핑이 108(이름이 105 PDF에 안 보여 폴백)이라도 ef/list 엔 105(강원청)
+        //   행이 있으므로, 108(전국)이 아닌 **지방청 통보문**을 따라가게 한다(발표/발효/예비 공통).
+        const staticHome = ZONE_HOME_OFFICE[z];
+        const regionalOffice =
+            (staticHome && staticHome !== NATIONAL_GO) ? staticHome      // 정적 매핑이 실제 지방청
+            : (homeByZone[z] || staticHome || null);                     // 아니면 빈도 휴리스틱(105 등)
+        // 발효(이벤트) 단위로 묶고, 관할 지방청 > 그 외 지방청 > 전국(108) 순으로 PDF 선택
+        const groups = new Map();   // key -> rows[]
+        for (const r of rows) {
+            if (_zbNorm(r.kor_nm) !== z) continue;
+            const tmFc = String(r.tm_fc || '').trim();
+            const cmd = String(r.warn_cmd_nm || '').trim();
+            const tp = String(r.warn_tp_nm || '').trim();
+            const lvl = String(r.warn_lvl_nm || '').trim();
+            const key = tmFc + '|' + tp + '|' + lvl + '|' + cmd;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(r);
+        }
+        const bulletins = [];
+        for (const cands of groups.values()) {
+            const pick =
+                (regionalOffice && regionalOffice !== NATIONAL_GO
+                    && cands.find((r) => String(r.prdc_go) === regionalOffice)) ||   // 1순위: 관할 지방청
+                cands.find((r) => String(r.prdc_go) !== NATIONAL_GO) ||              // 2순위: 그 외 지방청
+                cands[0];                                                            // 3순위: 전국(108) 최후 폴백
+            const r = pick;
+            const tp = String(r.warn_tp_nm || '').trim();
+            const lvl = String(r.warn_lvl_nm || '').trim();
+            const cmd = String(r.warn_cmd_nm || '').trim();
+            const fileNm = String(r.file_nm || '').trim();
+            bulletins.push({
+                time: String(r.tm_fc || '').trim(),
+                title: (tp + lvl + (cmd ? ' ' + cmd : '')).trim(),
+                pdfUrl: fileNm ? (MARINE_PDF_HOST + fileNm) : '',
+                file_nm: fileNm,
+                warn_zone_cd: String(r.warn_zone_cd || '').trim(),       // 발효중 판정용(warn/list 조인)
+                ed_tm: String(r.ed_tm || '').trim(),                      // 발효구간 종료시각(만료 판정용)
+                reportTitle: (titleByFile && titleByFile[fileNm]) || '', // ntfctn 원제목(해제 판정용)
+                national: String(r.prdc_go) === NATIONAL_GO,   // true 면 전국 폴백(연안/평수 미포함 가능)
+                childOnly: false                                // ef/list = 부모 통보문
+            });
+        }
+        // [예비특보] warn/ready 의 이 해역 예비특보(발표대기)를 목록에 추가.
+        //   ef/list 엔 없어 빠지던 "최신 예비특보 발표"를 반영. 해상 예비특보는 PDF 가 없으므로
+        //   날씨누리 통보문 페이지로 딥링크한다. 발효 통보문 PDF 와 동일하게 **관할 지방청**
+        //   (stn=home) 통보문을 따라가야 한다 — 전국(108)본엔 연안바다/평수구역(자식)이 안 보이고
+        //   지방청 통보문에만 자식 특보 발효 여부가 표시되기 때문(발효 PDF 와 동일 원리, 실검증:
+        //   stn=184 에 stn=108 과 별개의 지방청 예비특보 통보문 존재). 파라미터 없는 list.do 는
+        //   "종류무관 최신 통보문(날씨해설 등)"을 띄우므로, stn/kind/date 로 좁혀야 정확하다.
+        const prelimStn = regionalOffice || NATIONAL_GO;   // 관할 지방청 우선, 미상이면 전국(108) 폴백
+        for (const r of (readyRows || [])) {
+            if (_zbNorm(r.warn_zone_nm) !== z) continue;
+            const tp = String(r.warn_tp_nm || '').trim();
+            const lvl = String(r.warn_lvl_nm || '').trim();   // 예: '예비특보'
+            const cmd = String(r.warn_cmd_nm || '').trim();   // 예: '발표'
+            const tmFc = String(r.tm_fc || '').trim();        // 예: '2026.06.05 16:00'
+            const ymdDate = (tmFc.match(/^(\d{4})\.(\d{2})\.(\d{2})/) || []);
+            const dateParam = ymdDate.length ? `${ymdDate[1]}-${ymdDate[2]}-${ymdDate[3]}` : '';
+            const prelimUrl = `https://www.weather.go.kr/w/special-report/list.do?stn=${prelimStn}&kind=pwn`
+                + (dateParam ? `&date=${dateParam}` : '');
+            bulletins.push({
+                time: tmFc,
+                title: (tp + (lvl ? ' ' + lvl : '') + (cmd ? ' ' + cmd : '')).trim(),   // '풍랑 예비특보 발표'
+                pdfUrl: '',
+                file_nm: '',
+                webUrl: prelimUrl,
+                national: false,
+                childOnly: false,
+                prelim: true
+            });
+        }
+        // [자식-only 통보문 합집합] (SPEC §8) ef/list 부모 ∪ 크롤러가 매칭·저장한 자식 통보문.
+        //   부모 ef 행이 없는 "자식만 바뀐" 통보문(예: 연안바다 해제)을 목록에 반영.
+        if (childBulletin && typeof childBulletin.getChildBulletinsForZone === 'function') {
+            try {
+                const childBs = childBulletin.getChildBulletinsForZone(zone) || [];
+                for (const cb of childBs) bulletins.push(cb);
+            } catch (e) {
+                console.warn('[zone-bulletins] 자식 통보문 병합 실패 (무영향):', e && e.message);
+            }
+        }
+        // file_nm 기준 dedup — 같은 PDF 가 ef(부모)·자식 양쪽으로 들어오면 1건으로. file_nm
+        //   없는 항목(ef 폴백 등)은 time|title 로 보조 dedup. 중복 시 자식 통보문(연안/평수 포함) 우선.
+        const seen = new Map();
+        for (const b of bulletins) {
+            const k = b.file_nm ? ('f:' + b.file_nm) : ('t:' + b.time + '|' + b.title);
+            const prev = seen.get(k);
+            if (!prev) { seen.set(k, b); continue; }
+            if (!prev.childOnly && b.childOnly) seen.set(k, b);
+        }
+        const merged = Array.from(seen.values());
+        merged.sort((a, b) => (a.time < b.time ? 1 : (a.time > b.time ? -1 : 0)));   // 최신 발표 우선
+        // [살아있는 특보만] 특보가 해제되면 그 특보는 끝나고 해역도 목록에서 사라진다.
+        //   판정 기준(3개 독립 원인분석 합의):
+        //   (1) 해제 통보문 제외 — ef/list 의 warn_cmd_nm 은 다중해역 해제 통보문에서 해역별로
+        //       '변경'으로 코딩될 수 있어(예: 제06-21호) 신뢰 불가. ntfctn 원제목(reportTitle)의
+        //       '해제' 를 함께 본다.
+        //   (2) 발효중 게이트 — warn/list(현재 발효 부모 zone) 에 그 warn_zone_cd 가 있어야 발효중.
+        //       해제·만료된 통보문은 warn/list 에서 빠지므로 자동 제외(핵심). warn/list 조회 실패
+        //       시에만 ed_tm(발효구간 종료) < 현재시각 인 만료 통보문을 폴백으로 제외.
+        //   (3) 예비특보(warn/ready)·자식-only 통보문은 발효중 게이트 대상이 아니며 해제만 제외.
+        const kstNow = new Date(Date.now() + 9 * 3600000);
+        const nowStr = `${kstNow.getUTCFullYear()}.${String(kstNow.getUTCMonth() + 1).padStart(2, '0')}.`
+            + `${String(kstNow.getUTCDate()).padStart(2, '0')} `
+            + `${String(kstNow.getUTCHours()).padStart(2, '0')}:${String(kstNow.getUTCMinutes()).padStart(2, '0')}`;
+        const isRelease = (b) => /해제/.test(b.title || '') || /해제/.test(b.reportTitle || '');
+        // 가장 최근 해제 시각 — 그 이전(이미 끝난 과거 주기)은 현재 cycle 이 아니다.
+        let lastRelease = '';
+        for (const b of merged) { if (isRelease(b) && String(b.time) > lastRelease) lastRelease = String(b.time); }
+        const inCurrentCycle = (b) => !lastRelease || String(b.time) > lastRelease;
+        const isEffective = (b) => {
+            if (effectiveCodes) return b.warn_zone_cd ? effectiveCodes.has(b.warn_zone_cd) : false;
+            return !b.ed_tm || String(b.ed_tm) >= nowStr;   // 폴백: ed_tm 만료 안 된 것만
+        };
+        const alive = merged.filter((b) => {
+            if (b.prelim) return true;                       // 예비특보(warn/ready) — 항상 표시
+            if (isRelease(b)) return false;                  // 해제 통보문 제외
+            if (!inCurrentCycle(b)) return false;            // 이미 끝난 과거 주기 제외
+            if (b.childOnly) return true;                    // 자식-only(현재주기·해제아님) — 표시
+            return isEffective(b);                           // ef 발효 통보문 — 발효중인 zone 만
+        });
+        // 각 항목에 통보문 호수(제XX호) 부착 — 같은 file_nm 의 ntfctn 제목에서 추출.
+        for (const b of alive) b.reportNo = (reportByFile && reportByFile[b.file_nm]) || '';
+        res.json({ zone, count: alive.length, bulletins: alive.slice(0, 50) });
+    } catch (e) {
+        console.error('[zone-bulletins] ef/list 조회 실패:', e && e.message);
+        res.status(502).json({ error: '통보문 조회 실패', bulletins: [] });
     }
 });
 

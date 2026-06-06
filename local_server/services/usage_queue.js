@@ -101,6 +101,10 @@ function init() {
     //   각 공유 키에서 13씩 차감한다(0 미만으로는 내려가지 않음).
     _subtractPerSharedKeyOnce(13);
 
+    // [1회 마이그레이션] 'ocean.typhoon_play'(재생)·'ocean.typhoon_map'(통보문 지도)을
+    //   'ocean.typhoon'(태풍)으로 합침. 태풍 기능 내 동작을 '태풍' 하나로 집계하기로 변경.
+    _migrateTyphoonUnifyOnce();
+
     flushTimer = setInterval(() => {
         _flushAsync().catch(err => {
             console.error('[usage_queue] flushAsync 예외:', err && err.message);
@@ -163,6 +167,51 @@ function _migrateBottomSheetOnce() {
         console.log('[usage_queue] 바텀시트 통합 마이그레이션 완료' + (changed ? ' (데이터 갱신됨)' : ' (변경 없음)'));
     } catch (e) {
         console.error('[usage_queue] 마이그레이션 마커 기록 실패:', e && e.message);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 1회 마이그레이션: 'ocean.typhoon_play'(재생)·'ocean.typhoon_map'(통보문 지도)을
+//   'ocean.typhoon'(태풍)으로 합산 후 원본 삭제. (마커 typhoonUnified)
+// ----------------------------------------------------------------------------
+function _migrateTyphoonUnifyOnce() {
+    const markerPath = FILES.USAGE_STATS + '.migrations.json';
+    const marker = _safeReadJson(markerPath, {}) || {};
+    if (marker.typhoonUnified) return;
+
+    const MERGE = ['ocean.typhoon_play', 'ocean.typhoon_map'];
+    let changed = false;
+    try {
+        Object.keys(usageData).forEach(dateStr => {
+            const byDev = usageData[dateStr];
+            if (!byDev || typeof byDev !== 'object') return;
+            Object.keys(byDev).forEach(dev => {
+                const feats = byDev[dev];
+                if (!feats || typeof feats !== 'object') return;
+                MERGE.forEach(k => {
+                    if (feats[k] != null) {
+                        feats['ocean.typhoon'] = (feats['ocean.typhoon'] || 0) + feats[k];
+                        delete feats[k];
+                        changed = true;
+                    }
+                });
+            });
+        });
+    } catch (e) {
+        console.error('[usage_queue] 태풍 통합 마이그레이션 실패:', e && e.message);
+    }
+
+    if (changed) {
+        try { fs.writeFileSync(FILES.USAGE_STATS, JSON.stringify(usageData, null, 2), 'utf8'); }
+        catch (e) { console.error('[usage_queue] 태풍 마이그레이션 기록 실패:', e && e.message); }
+    }
+    try {
+        marker.typhoonUnified = true;
+        marker.typhoonUnifiedAt = new Date().toISOString();
+        fs.writeFileSync(markerPath, JSON.stringify(marker, null, 2), 'utf8');
+        console.log('[usage_queue] 태풍 통합 마이그레이션 완료' + (changed ? ' (데이터 갱신됨)' : ' (변경 없음)'));
+    } catch (e) {
+        console.error('[usage_queue] 태풍 마이그레이션 마커 기록 실패:', e && e.message);
     }
 }
 

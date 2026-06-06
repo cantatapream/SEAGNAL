@@ -68,6 +68,23 @@ try {
     console.warn('[marine_warning_crawler] marine_client 로드 실패 — run() 비활성:', e && e.message);
 }
 
+// [자식-only 통보문 보강] 확정된 자식 변동(_buildUserPushChanges 통과분)에만 그 부모 관할
+//   지방청 ntfctn/list 를 이벤트성으로 조회·매칭해 ef/list 에 없는 자식 통보문을 영속 저장한다.
+//   로드 실패해도 크롤러 본체엔 영향 없음(자식 통보문 보강만 비활성).
+let childBulletin = null;
+try {
+    childBulletin = require('./services/child_bulletin');
+} catch (e) {
+    console.warn('[marine_warning_crawler] child_bulletin 로드 실패 — 자식 통보문 보강 비활성:', e && e.message);
+}
+// [단일 출처] 부모 해역 → 관할 지방청 prdc_go 정적 매핑 (routes/weather.js 와 공유).
+let ZONE_HOME_OFFICE = {};
+try {
+    ZONE_HOME_OFFICE = require('./config/zone_home_office').ZONE_HOME_OFFICE || {};
+} catch (e) {
+    console.warn('[marine_warning_crawler] zone_home_office 로드 실패 — 자식 통보문 보강 비활성:', e && e.message);
+}
+
 // ============================================================================
 // 부모 → 자식 fullName 매핑 (ZONE_MAPPING.md 확정본)
 // frontend mappings.js 와 동일 — 본 서버에서는 require 불가하므로 사본.
@@ -247,6 +264,10 @@ class StateSnapshot {
         // [B] 발효중인 해역에 "다가오는(예비)" 특보가 공존할 때 그것을 보관 (발효 우선 드롭 대신).
         //   parents 가 active 인 zone 의 예비를 upcomings 에 분리 보관 → 병렬 표출.
         this.upcomings = raw.upcomings instanceof Map ? raw.upcomings : new Map();
+        // [제외 자식 게이트] MMIS 가 warn-sasc/list 에서 warn_lvl='0' 빈 메타행으로 "미포함"이라
+        //   명시한 자식명 집합 (통보문 '연안바다 제외'에 해당). 매 사이클 재계산되는 일시 필드라
+        //   toJSON 영속 대상 아님 — 발표대기 GAP 합성이 유령 자식을 끼워넣지 못하게 막는 용도.
+        this.excludedChildren = raw.excludedChildren instanceof Set ? raw.excludedChildren : new Set();
     }
 
     static fromJSON(obj) {
@@ -967,6 +988,11 @@ function decideSuspiciousCase(decision, decidedBy) {
 // ============================================================================
 const CHILD_RELEASE_DEBOUNCE_MS = 3 * 60 * 1000;   // 3분
 let _childReleasePending = {};                     // key: parent child → { firstMissingAt }
+
+// [예비취소 디바운스] 예비특보가 글리치(통보문 깜빡임)로 한 사이클 사라졌다 재등장할 때
+//   가짜 "예비취소" 푸시가 나가던 문제 방지. 자식 해제 디바운스와 동일 정책(3분).
+const UPCOMING_CANCEL_DEBOUNCE_MS = 3 * 60 * 1000;
+let _upcomingCancelPending = {};                   // zone → { firstMissingAt, block, inParents }
 let _childReleaseNoticeSet = new Set();            // 이번 사이클 해제 통보문 있는 자식 (enrich 가 채움)
 
 /**
@@ -1022,6 +1048,79 @@ function _applyChildReleaseDebounce(prev, curr) {
             console.log(`[Marine] ⚡ 자식 깜빡임 감지(글리치): ${p} > ${ch} — ${elapsedSec}초 만에 복귀, 가짜 해제 억제됨`);
         }
         delete _childReleasePending[key];
+    }
+}
+
+// ============================================================================
+// [예비취소 디바운스] 예비특보가 실시간(warn/ready)·ef/list 양쪽에서 사라진 사이클에 한해
+//   직전 예비를 curr 로 N분간 이어받기(carry). carry 중엔 currUpcoming 이 채워져
+//   _buildUserPushChanges 의 UPCOMING_CANCEL 분기(!currUpcoming)가 성립하지 않아 가짜취소가
+//   원천 억제된다. N분 연속 부재면 carry 중단 → diff 가 UPCOMING_CANCEL 1회 정상 발사(진짜취소).
+//   - ef/list 보강·의심가드 이후에 호출되므로 "둘 다 놓친" 사이클만 대상(ef 가 살린 사이클은
+//     currUpcoming 이 차서 비대상). 발효 승격은 currActive 가 차서 비대상(발효 푸시로 처리).
+//   - carry 블록 = prev 예비 그대로 → blockEqual 무변화 → 다른 푸시(발표/변경/연장 등) 무영향.
+//   - 비영속(재시작=타이머 리셋=지연만, 가짜취소/누락 없음 — carry 는 첫 목격에도 발사 안 함).
+// ============================================================================
+function _applyUpcomingCancelDebounce(prev, curr) {
+    if (!prev || !curr) return;
+    const now = Date.now();
+    const stillPending = new Set();
+
+    // prev 의 예비 zone 수집 (parents 예비 + upcomings) — 위치(parents/upcomings) 기록
+    const prevUpZones = new Map();   // zone → { block, inParents }
+    if (prev.parents) for (const [z, info] of prev.parents) {
+        if (info && info.wrnLvlNm === '예비') prevUpZones.set(z, { block: info, inParents: true });
+    }
+    if (prev.upcomings) for (const [z, info] of prev.upcomings) {
+        if (!prevUpZones.has(z) && info && info.wrnLvlNm === '예비') prevUpZones.set(z, { block: info, inParents: false });
+    }
+
+    const hasUp = (z) => {
+        const p = curr.parents ? curr.parents.get(z) : null;
+        if (p && p.wrnLvlNm === '예비') return true;
+        return !!(curr.upcomings && curr.upcomings.get(z));
+    };
+    const hasAct = (z) => {
+        const p = curr.parents ? curr.parents.get(z) : null;
+        return !!(p && p.wrnLvlNm && p.wrnLvlNm !== '예비' && p.wrnLvlNm !== '해제');
+    };
+
+    for (const [zone, ent] of prevUpZones) {
+        if (hasUp(zone) || hasAct(zone)) {
+            // 예비 여전히 있음(실시간/ef) 또는 발효 승격 → 정상. 관찰 중이었으면 글리치 확정.
+            if (_upcomingCancelPending[zone]) {
+                const sec = Math.round((now - _upcomingCancelPending[zone].firstMissingAt) / 1000);
+                console.log(`[Marine] ⚡ 예비 깜빡임 감지(글리치): ${zone} — ${sec}초 만에 복귀, 가짜 예비취소 억제됨`);
+                delete _upcomingCancelPending[zone];
+            }
+            continue;
+        }
+        // 예비가 curr 어디에도 없음 → 글리치 의심 → 디바운스
+        if (!_upcomingCancelPending[zone]) {
+            _upcomingCancelPending[zone] = { firstMissingAt: now, block: Object.assign({}, ent.block), inParents: ent.inParents };
+            console.log(`[Marine] 예비취소 디바운스 시작: ${zone} (예비 사라짐, ${UPCOMING_CANCEL_DEBOUNCE_MS / 60000}분 관찰)`);
+        }
+        const p = _upcomingCancelPending[zone];
+        if (now - p.firstMissingAt < UPCOMING_CANCEL_DEBOUNCE_MS) {
+            // 관찰 중 — 직전 예비를 curr 에 이어받아 가짜취소·화면 깜빡임 방지 (빈 슬롯에만)
+            if (p.inParents) {
+                if (curr.parents && !curr.parents.has(zone)) curr.parents.set(zone, Object.assign({}, p.block));
+            } else {
+                if (!curr.upcomings) curr.upcomings = new Map();
+                if (!curr.upcomings.has(zone)) curr.upcomings.set(zone, Object.assign({}, p.block));
+            }
+            stillPending.add(zone);
+        } else {
+            // N분 경과 — 진짜취소 확정 (이어받기 중단 → diff 가 UPCOMING_CANCEL 발사)
+            console.log(`[Marine] 예비취소 확정(디바운스 ${Math.round((now - p.firstMissingAt) / 1000)}초 경과): ${zone}`);
+            delete _upcomingCancelPending[zone];
+        }
+    }
+
+    // prev 에서도 사라진 stale pending 정리
+    for (const zone of Object.keys(_upcomingCancelPending)) {
+        if (stillPending.has(zone) || prevUpZones.has(zone)) continue;
+        delete _upcomingCancelPending[zone];
     }
 }
 
@@ -1147,6 +1246,11 @@ function _isRangeTime(str) {
 // ============================================================================
 let _clrWindowEnd = {};   // zone → 해제 윈도우 끝 시각키
 let _efWindowEnd = {};    // zone → 발효 윈도우 끝 시각키 (예비/발표대기)
+// [표시형 보존] zone → 같은 모멘트의 "범위형" 표시 문자열. 비교용 정확값(info[field])과
+//   별개로, 화면 표출은 KMA 통보문과 동일한 범위형(예: "새벽(00시~06시)")을 우선·고정한다.
+//   warn/latest 가 범위↔정확을 깜빡여도 표시는 범위형으로 안정(깜빡임 없음), 비교/푸시는 정확값 유지.
+let _clrRangeDisp = {};   // 해제예정 표시용 범위
+let _efRangeDisp = {};    // 발효예정 표시용 범위
 
 function _applyTimeWindowHold(prev, curr, cfg) {
     if (!curr) return;
@@ -1173,6 +1277,33 @@ function _applyTimeWindowHold(prev, curr, cfg) {
             if (win == null && isRange && incKey != null) cfg.winMap[zone] = incKey;   // 윈도우는 범위로만 확립
             if (held && isRange) info[cfg.field] = held;   // [#1] 정확값 고정 (공백/확립 시에도)
         }
+        // [표시형 보존] 비교용 정확값(info[field])과 별개로, 화면 표출은 통보문과 동일한
+        //   범위형을 우선·고정한다. 범위형은 그대로 기억/표시, 정확값이 와도 같은 모멘트면
+        //   기억된 범위로 표시(sticky) → 깜빡임 없음. 윈도우 초과(연장=새 모멘트)면 폐기.
+        const dispKey = cfg.field + 'Disp';
+        if (isRange) {
+            cfg.rangeMap[zone] = incoming;
+            info[dispKey] = incoming;
+        } else if (cfg.rangeMap[zone]) {
+            // [수정] 정확값이 기억된 범위의 [시작,끝] 구간 안(=같은 모멘트)일 때만 범위형 유지(깜빡임 방지).
+            //   구간 밖(시각이 앞당겨지거나 연장돼 다른 모멘트가 됨)이면 범위 폐기 → 정확값으로 표출 갱신.
+            //   (기존 결함: incKey>win '연장(늦어짐)'만 폐기하고, 앞당겨진 경우는 옛 범위에 고착돼
+            //    푸시는 새 발효시각을 알리는데 화면은 안 갱신되던 문제.)
+            const rng = cfg.rangeMap[zone];
+            const startK = _timeKey(rng, null, true);   // 범위 시작 시각키
+            const endK = _timeKey(rng);                  // 범위 끝 시각키
+            if (startK != null && endK != null && incKey != null && (incKey < startK || incKey > endK)) {
+                delete cfg.rangeMap[zone];               // 키 산출 가능 + 구간 밖(앞당김/연장) → 폐기, 정확값 표시
+                // [winMap 동기화] 앞당김(구간보다 이름)이면 연장 기준선(winMap)도 함께 폐기 —
+                //   stale 윈도우로 이후 정확값이 가짜 '연장(_efExtend/_clrExtend)'으로 오발사되는 것 방지.
+                //   늦춰짐(incKey>endK)은 상위 블록이 winMap 갱신·연장 플래그를 이미 처리하므로 손대지 않음.
+                if (incKey < startK) delete cfg.winMap[zone];
+            } else {
+                // 같은 모멘트(구간 안), 또는 키 산출 불가(날짜 없는 범위 등)이면 범위형 유지.
+                //   후자에서 무조건 폐기하면 #818 이 막던 '동일 모멘트 깜빡임'이 재유입되므로 안전하게 sticky.
+                info[dispKey] = rng;
+            }
+        }
     };
     if (curr.parents) for (const [z, info] of curr.parents) {
         proc(z, info, prev && prev.parents ? prev.parents.get(z) : null);
@@ -1191,16 +1322,18 @@ function _applyTimeWindowHold(prev, curr, cfg) {
             const cv = info[cfg.field];
             if (pInfo && pInfo[cfg.field] && !_isRangeTime(pInfo[cfg.field]) &&
                 cv && _isRangeTime(cv) && pInfo.wrnTpNm === info.wrnTpNm) {
-                info[cfg.field] = pInfo[cfg.field];
+                info[cfg.field + 'Disp'] = cv;          // [표시형] 자식도 범위형 표시 보존
+                info[cfg.field] = pInfo[cfg.field];     // 비교용 정확값 고정
             }
         }
     }
     for (const z of Object.keys(cfg.winMap)) if (!seen.has(z)) delete cfg.winMap[z];
+    for (const z of Object.keys(cfg.rangeMap)) if (!seen.has(z)) delete cfg.rangeMap[z];
 }
 
 function _applyReleaseClrLogic(prev, curr) {
     _applyTimeWindowHold(prev, curr, {
-        field: 'clrNtcTm', phase: 'active', winMap: _clrWindowEnd, flag: '_clrExtend',
+        field: 'clrNtcTm', phase: 'active', winMap: _clrWindowEnd, rangeMap: _clrRangeDisp, flag: '_clrExtend',
         matchParent: (i) => !!(i && i.wrnLvlNm && i.wrnLvlNm !== '예비' && i.wrnLvlNm !== '해제'),
         matchChild: (i) => !!(i && i.wrnLvlNm && i.wrnLvlNm !== '예비' && i.wrnLvlNm !== '해제'),
         includeUpcomings: false
@@ -1208,7 +1341,7 @@ function _applyReleaseClrLogic(prev, curr) {
 }
 function _applyUpcomingEfLogic(prev, curr) {
     _applyTimeWindowHold(prev, curr, {
-        field: 'tmEf', phase: 'upcoming', winMap: _efWindowEnd, flag: '_efExtend',
+        field: 'tmEf', phase: 'upcoming', winMap: _efWindowEnd, rangeMap: _efRangeDisp, flag: '_efExtend',
         matchParent: (i) => !!(i && i.wrnLvlNm === '예비'),
         matchChild: (i) => !!(i && i.wrnLvlNm === '예비'),
         includeUpcomings: true
@@ -1314,8 +1447,10 @@ function _buildUserPushChanges(prev, curr) {
     };
 
     const toBlock = (info) => info ? {
+        // [B] 발효중 공존 격상/격하 예비는 wrnLvlReal(실제 등급)로 푸시 — push_sender 점수비교가
+        //   active 대비 정확한 격상/격하 방향을 내도록. 평상시(wrnLvlReal 없음)는 기존과 동일.
         wrnTp: info.wrnTpNm || info.wrnTp || '',
-        wrnLvl: info.wrnLvlNm || info.wrnLvl || '',
+        wrnLvl: info.wrnLvlReal || info.wrnLvlNm || info.wrnLvl || '',
         tmFc: info.tmFc || '',
         tmEf: info.tmEf || '',
         tmYn: info.tmYn || info.clrNtcTm || ''
@@ -1364,6 +1499,28 @@ function _buildUserPushChanges(prev, curr) {
         const pUp = getUp(prev, zone), cUp = getUp(curr, zone);
         const pAct = getAct(prev, zone), cAct = getAct(curr, zone);
         if (!pUp && !cUp && !pAct && !cAct) continue;
+
+        // [ef/list 보강 + 발송이력 dedup] ef/list 로만 잡힌 발표대기(_efBridged)는:
+        //   - 발송이력에 이미 있으면(=warn/latest 등으로 이미 발표 푸시됨) → 재푸시 방지로 skip.
+        //   - 이력에 없으면(=발표 순간을 통째로 놓쳐 ef/list 가 최초 포착) → 1회 발송 허용 + 기록.
+        //   (발효시각 도래로 warn/list 발효 승격 시엔 _efBridged 아님 → 정식 발효 푸시 정상 발사.)
+        let suppressUpcoming = false;                   // ef 보강 재푸시 방지(아래 upcoming emit 만 억제)
+        if (cUp) {
+            const pubs = _loadPushedPubs();
+            const key = _pubKey(zone, cUp);
+            const known = pubs.has(key);
+            pubs.set(key, Date.now());                  // 최신 확인시각 갱신(메모리)
+            if (cUp._efBridged && known) {
+                // ef 보강 + 이미 발송됨 → 재푸시 방지. 단, 발효중 active 와 공존(격상/격하 발표대기)
+                //   하는 경우엔 그 active 의 독립 변화(해제·해제예정시각·자식 추가/해제)는 계속
+                //   처리해야 하므로 zone 전체 skip 대신 upcoming emit 만 억제한다. 순수 GAP
+                //   (active 없음)은 기존대로 zone 전체 skip(부수효과 보존).
+                if (cAct) suppressUpcoming = true;
+                else continue;
+            }
+            if (!known) _pushedPubsDirty = true;        // 신규 통보문 → 이력 영속 저장 필요
+            // (ef 보강 + 미발송 → 아래로 진행해 1회 발송 / 비-ef 실시간 발표 → 정상 진행)
+        }
 
         let prevUpcoming = toBlock(pUp);
         const currUpcoming = toBlock(cUp);
@@ -1458,20 +1615,30 @@ function _buildUserPushChanges(prev, curr) {
         }
 
         // UPCOMING_CHANGE — 예비특보 변화. 연장이면 EF_EXTEND 로 대체 (신규 "발표" 오인 방지).
-        if (efExtend) {
+        //   suppressUpcoming(ef 공존 재푸시 방지)면 upcoming 계열 emit 만 건너뛰고 아래 active/자식은 처리.
+        if (suppressUpcoming) {
+            // 공존 예비 재푸시 억제 — UPCOMING 푸시(발표/연장/취소)만 생략
+        } else if (efExtend) {
             changes.push({
                 type: 'EF_EXTEND', zone: zone, curr: currUpcoming,
                 oldTime: efExtend.oldTime, newTime: efExtend.newTime, childState
             });
         } else if (upcomingChanged) {
-            changes.push({
-                type: 'UPCOMING_CHANGE',
-                zone: zone,
-                prev: prevUpcoming,
-                curr: currUpcoming,
-                currentActive: currActive || null,  // 현재 발효 중인 부모 (격상/격하 판정용)
-                childState                           // [작업2b] 자식 한정사용
-            });
+            // [예비특보 취소] 예비가 사라졌는데(curr=null) 발효(active)로 승격된 것도 아니면
+            //   → 정식 발효 없이 취소된 것. "✅ 예비특보 취소" 푸시.
+            //   (발효 승격이면 currActive 가 차므로 아래 CURRENT_CHANGE 발효 푸시로 처리됨.)
+            if (!currUpcoming && prevUpcoming && !currActive) {
+                changes.push({ type: 'UPCOMING_CANCEL', zone: zone, prev: prevUpcoming, childState });
+            } else {
+                changes.push({
+                    type: 'UPCOMING_CHANGE',
+                    zone: zone,
+                    prev: prevUpcoming,
+                    curr: currUpcoming,
+                    currentActive: currActive || null,  // 현재 발효 중인 부모 (격상/격하 판정용)
+                    childState                           // [작업2b] 자식 한정사용
+                });
+            }
         }
 
         // CURRENT_CHANGE — 발효 변화. 해제예정 연장이면 YN_EXTEND 로 대체.
@@ -1813,13 +1980,31 @@ function normalizeMmisTime(t) {
         return `${day}일 ${period}(${startStr}시~${endStr}시)`;
     }
 
+    // 연도 포함 범위형 (warn/ready 발효예정 형식): "2026.06.02 23~23시" → "2026년 06월 02일 밤(23시~23시)"
+    const ymdRange = s.match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{1,2})\s*[~∼]\s*(\d{1,2})시$/);
+    if (ymdRange) {
+        const [, Y, M, D, sh, eh] = ymdRange;
+        const period = _periodNameByHour(parseInt(sh, 10));
+        return `${Y}년 ${M}월 ${D}일 ${period}(${String(sh).padStart(2, '0')}시~${String(eh).padStart(2, '0')}시)`;
+    }
+
     // 이미 시간대 명칭 있는 범위형 → 그대로 통과
     if (/[~∼]/.test(s)) return s;
 
     // 일반 시간 변환: "2026.05.21 06:00" → "2026년 05월 21일 06시 00분"
+    // [레거시] 분=58/59 는 KMA 범위코드 → 해당 6시간 블록 범위로 복원
+    //   예: "2026.06.01 05:58" → "2026년 06월 01일 00시~06시"
     const m = s.match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})$/);
     if (m) {
         const [, Y, M, D, h, mn] = m;
+        const hh = parseInt(h, 10), mm = parseInt(mn, 10);
+        // [KMA 레거시 범위코드] 정확시각은 통상 분 일의자리가 0(00/10/.../50). 분=58/59 는
+        //   실제 시각이 아니라 시간대 범위 코드 → 해당 6시간 블록 범위로 복원 (main 기존 처리 채택).
+        if (mm === 58 || mm === 59) {
+            const block = (hh >= 18) ? '18시~24시' : (hh >= 12) ? '12시~18시'
+                        : (hh >= 9) ? '09시~12시' : (hh >= 6) ? '06시~09시' : '00시~06시';
+            return `${Y}년 ${M}월 ${D}일 ${block}`;
+        }
         return `${Y}년 ${M}월 ${D}일 ${h}시 ${mn}분`;
     }
 
@@ -1840,9 +2025,16 @@ function _buildZoneTreeFromSnapshot(snap) {
     const toBlock = (info) => ({
         wrnTp: info.wrnTpNm || info.wrnTp || '',       // 한글 우선 (data.js:269 호환)
         wrnTpNm: info.wrnTpNm || '',
-        wrnLvl: info.wrnLvlNm || info.wrnLvl || '',    // 한글 우선
-        wrnLvlNm: info.wrnLvlNm || '',
+        // [B] 발효중 공존 격상/격하 예비는 wrnLvlReal(실제 등급, 예: 경보)로 "다가오는 특보" 표출.
+        //   render.js 가 upcoming.wrnLvl 의 경보/주의보/예비를 모두 처리하므로 안전. 평상시 동일.
+        wrnLvl: info.wrnLvlReal || info.wrnLvlNm || info.wrnLvl || '',    // 한글 우선
+        wrnLvlNm: info.wrnLvlReal || info.wrnLvlNm || '',
         tmFc: normalizeMmisTime(info.tmFc),
+        // [표시 = 확정값] 비교/푸시용 info.tmEf 를 그대로 표출. info.tmEf 는 (a)정확시각이
+        //   오면 그 시각, (b)범위형만 오면 범위, (c)정확값을 본 뒤엔 그 정확값으로 고정(held),
+        //   (d):58/59 코드는 normalizeMmisTime 이 범위로 변환 — 즉 "확정 시각이 나오면 그 시각,
+        //   아직 예측(범위)이면 범위" 가 자연스럽게 표출됨. (이전 *Disp 범위 sticky 는 확정 시각을
+        //   가려 발효시각이 안 갱신되던 문제가 있어 폐지.)
         tmEf: normalizeMmisTime(info.tmEf),
         tmYn: normalizeMmisTime(info.tmYn),
         tmCc: normalizeMmisTime(info.clrNtcTm),        // 옛 tmCc = mmis clrNtcTm
@@ -1891,7 +2083,7 @@ function _buildZoneTreeFromSnapshot(snap) {
                 wrnLvl: lvlNmNorm || info.wrnLvl || '',    // 한글 우선
                 wrnLvlNm: lvlNmNorm,
                 tmFc: normalizeMmisTime(info.tmFc),
-                tmEf: normalizeMmisTime(info.tmEf),
+                tmEf: normalizeMmisTime(info.tmEf),       // [표시 = 확정값] 부모와 동일 정책
                 tmYn: normalizeMmisTime(info.tmYn),
                 tmCc: normalizeMmisTime(info.clrNtcTm),
                 clrNtcTm: normalizeMmisTime(info.clrNtcTm)
@@ -2082,7 +2274,14 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
         snap.parents.set(name, _rowToParentInfo(row));
     }
     // --- 2) 발효중 자식 (warn-sasc/list) ---
+    //   [제외 자식 게이트] MMIS 는 부모에 '미포함'인 자식을 warn-sasc/list 에 warn_lvl='0'
+    //   빈 메타행으로 명시한다(통보문 '연안바다 제외'). 그 명단을 모아 두었다가, 발표대기 GAP 의
+    //   PARENT_TO_CHILDREN '무조건 합성'이 이 자식을 유령으로 끼워넣지 못하게 막는다. 정상 포함
+    //   자식은 풀 행(warn_lvl≠0)으로 와서 여기 안 들어옴. (※ 반드시 list 기준 — warn-sasc/latest
+    //   는 발효중 정상 자식까지 전부 warn_lvl='0' 으로 줘서 분별력이 없어 게이트 소스로 부적합.)
     for (const row of (warnSascList || [])) {
+        const exName = _resolveZoneName(row);
+        if (exName && String(row.warn_lvl || '') === '0') snap.excludedChildren.add(exName);
         if (!_isLiveRow(row)) continue;
         if (!_isTargetRealtimeType(row.warn_tp)) continue;
         const childName = _resolveZoneName(row);
@@ -2233,16 +2432,23 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
         //   → 발효 전이므로 예비(upcoming)로 스냅샷에 추가 (정확한 tm_ef 보존).
         //     앱 표시=예비(발효예정 정확시각), 푸시=범위→정확 time_ef_change.
         //   발효시각 도래 시 warn/list / warn-sasc/list 로 인계되어 정식(발효)으로 전환됨.
-        if (!['발표', '변경', '연장'].includes(cmd)) continue;  // publish 계열만 (해제/변경해제 제외)
+        // publish 계열(발표/변경/연장) + '변경해제'(격상/격하 해제부) 통과. '변경해제' 는 발효중
+        //   zone 공존 격하 판정에만 쓰고, 아래에서 신규 GAP 부모 생성은 publish 계열로만 제한.
+        const isPublishCmd = ['발표', '변경', '연장'].includes(cmd);
+        if (!isPublishCmd && cmd !== '변경해제') continue;
         const tmEf = String(row.tm_ef || '').trim();
         if (!tmEf || !_isFutureExactTime(tmEf)) continue;  // 정확·미래 발효시각만 (발표 발효대기)
         const parent = _extractParent(name);
         if (parent === name) {
-            // 부모형 — 발효중/예비면 그쪽 우선
-            if (snap.parents.has(name)) continue;
             const info = _rowToParentInfo(row);
+            info._realLvlNm = info.wrnLvlNm;   // [B] 실제 등급 보존 (예비 덮어쓰기 전) — 공존 격상/격하용
             info.wrnLvlNm = '예비';   // 발효 전 → 예비 취급 (표시·푸시 일관성)
             info.wrnLvl = info.wrnLvl || '1';
+            // [B] 발효중 zone 과 공존하는 상·하위/다른종류 → upcomings 보강 (격상/격하 발표).
+            if (_tryAddCoexistingUpcoming(snap, name, info)) continue;
+            // 부모형 — 발효중/예비면 그쪽 우선
+            if (!isPublishCmd) continue;   // '변경해제' 는 공존 격하 전용 — 신규 GAP 부모 생성 안 함
+            if (snap.parents.has(name)) continue;
             snap.parents.set(name, info);
             gapAdded++;
             // [수정A] warn/latest 는 자식 행을 주지 않으므로(부모만), 발표대기 동안
@@ -2270,6 +2476,10 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
                     if (mapped.length > 0) {
                         const m = new Map();
                         for (const cn of mapped) {
+                            // [제외 자식 게이트] MMIS 가 warn-sasc/list 에서 미포함(warn_lvl=0)이라
+                            //   명시한 자식은 합성하지 않음 — 통보문 '연안바다 제외'를 맹목 합성이
+                            //   '포함'으로 뒤집던 버그 차단. (prev-carry 분기·디바운스는 무수정.)
+                            if (snap.excludedChildren.has(cn)) continue;
                             m.set(cn, {
                                 wrnTp: info.wrnTp,
                                 wrnTpNm: info.wrnTpNm,
@@ -2281,8 +2491,10 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
                                 clrNtcTm: info.clrNtcTm  // 부모 해제예고 상속
                             });
                         }
-                        snap.children.set(name, m);
-                        gapChildSynth += m.size;
+                        if (m.size > 0) {
+                            snap.children.set(name, m);
+                            gapChildSynth += m.size;
+                        }
                     }
                 }
             }
@@ -2314,6 +2526,244 @@ function _isFutureExactTime(tmStr) {
     if (!m) return false;
     const t = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5]);  // KST → UTC epoch
     return t > Date.now();
+}
+
+// ============================================================================
+// [발표대기 보강 — ef/list (인증 endpoint)]
+//   문제: 발표됐으나 발효시각이 미래라 warn/list(발효중)·warn/ready(예비)·warn/latest
+//         (발표대기 브릿지) 어디에도 안 잡히는 "발표 발효대기" 특보가 발표~발효 사이
+//         (수시간) 동안 앱에서 사라지던 문제. warn/latest 가 통보문을 잠깐만 보유해
+//         그 사이 GAP 보강 소스가 비면 특보가 무음으로 누락됨.
+//   해결: 인증 endpoint warn/ef/list 는 발효 전 특보도 "발효시각(ed_tm)" 과 함께 계속
+//         보유하므로, 실시간 endpoint 가 놓친 발표대기 zone 을 이걸로 메운다.
+//   범용성: 특정 해역 전용이 아니라 "발표됨 + 발효시각 미래 + 실시간 endpoint 미수록"
+//         조건의 모든 대상(풍랑/태풍, 부모·자식, 발표/변경/연장)에 일반 적용.
+//   안전성: 인증 미설정·실패 시 캐시(직전 성공분, TTL) fallback → 기존 동작 유지.
+//         _isFutureExactTime 가드로 발효시각 경과분은 자동 제외(유령특보 방지).
+// ============================================================================
+let _efListCache = { rows: [], at: 0 };
+const EF_LIST_CACHE_TTL_MS = 30 * 60 * 1000;   // 30분 — 인증 일시 실패 시 직전 성공분 재사용
+
+// ============================================================================
+// [발송이력 dedup] "이 통보문(발표)을 사용자에게 푸시한 적 있나" 를 통보문 단위로 영속 기록.
+//   목적: ef/list 로만 처음 발견된 발표대기 특보(발표 순간 warn/latest 창을 놓친 경우)도
+//         이력에 없으면 1회 발송하여 "신규인데 미발송" 공백을 메우되, 이미 발송된 통보문은
+//         재푸시하지 않는다(배포/공백 복귀 시 중복 방지). 재배포에도 유지되도록 디스크 영속.
+//   키: "zone|종류|발표시각(tmFc)" — tmFc 는 _applyAnnounceAnchor 로 고정되어 경로(warn/latest
+//       ↔ ef/list)·사이클과 무관하게 동일 통보문이면 같은 값으로 수렴(키 안정).
+// ============================================================================
+const PUSHED_PUBS_FILE = path.join(__dirname, 'data', 'marine_pushed_pubs.json');
+const PUSHED_PUB_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // 7일 — 오래된 통보문 이력 정리
+let _pushedPubs = null;       // Map(key → lastSeenMs), lazy-load
+let _pushedPubsDirty = false;
+
+function _loadPushedPubs() {
+    if (_pushedPubs) return _pushedPubs;
+    _pushedPubs = new Map();
+    try {
+        const raw = JSON.parse(fs.readFileSync(PUSHED_PUBS_FILE, 'utf8'));
+        const now = Date.now();
+        for (const k of Object.keys(raw)) {
+            if (now - raw[k] < PUSHED_PUB_TTL_MS) _pushedPubs.set(k, raw[k]);
+        }
+    } catch (_) { /* 파일 없음/파싱실패 → 빈 이력 */ }
+    return _pushedPubs;
+}
+
+function _savePushedPubs() {
+    if (!_pushedPubs || !_pushedPubsDirty) return;
+    try {
+        const now = Date.now();
+        const obj = {};
+        for (const [k, ms] of _pushedPubs) if (now - ms < PUSHED_PUB_TTL_MS) obj[k] = ms;
+        fs.writeFileSync(PUSHED_PUBS_FILE, JSON.stringify(obj), 'utf8');
+        _pushedPubsDirty = false;
+    } catch (e) {
+        console.warn('[Marine] pushed_pubs 저장 실패:', e && e.message);
+    }
+}
+
+/** 통보문(발표) 식별 키 — zone + 종류 + 발표시각(tmFc, anchor 고정). */
+function _pubKey(zone, info) {
+    const tp = (info && (info.wrnTpNm || info.wrnTp)) || '';
+    const fc = (info && info.tmFc) || '';
+    return `${zone}|${tp}|${fc}`;
+}
+
+/** ef/list 의 한글 종류명 → 실시간 문자코드 (스냅샷 일관성용). 대상 외는 ''. */
+function _efTpChar(tpNm) {
+    if (tpNm === '태풍') return 'T';
+    if (tpNm === '풍랑') return 'V';
+    return '';
+}
+
+/** ef/list row → 내부 부모/자식 info. 발표대기이므로 '예비' 로 취급, tmEf = 발효시각(ed_tm). */
+function _efRowToInfo(row) {
+    const tpNm = String(row.warn_tp_nm || '');
+    return {
+        wrnTp: _efTpChar(tpNm),
+        wrnTpNm: tpNm,
+        wrnLvl: '1',
+        wrnLvlNm: '예비',                 // 발효 전 → 예비 취급 (표시·푸시 일관성, 기존 GAP 과 동일)
+        _realLvlNm: _normLvlNm(row.warn_lvl_nm),   // [B] 실제 등급(경보/주의보) — 발효중 zone 공존 격상/격하 판정·표출용 (평상시 미사용)
+        tmFc: row.tm_fc || row.st_tm || '',
+        tmEf: row.ed_tm || '',            // [검증됨] ef/list 의 ed_tm = 발효(예정)시각 (정확시각)
+        tmYn: '',
+        clrNtcTm: '',
+        _efBridged: true                  // [표시전용 표식] ef/list 보강분 — 사용자 푸시 생성 제외(재푸시 방지)
+    };
+}
+
+/** GAP 부모를 snap 에 추가하면서 자식을 prev 이어받기 또는 매핑 합성 (warn/latest GAP 과 동일 정책). */
+function _addGapParentFromEf(snap, prev, name, info, counters) {
+    if (snap.parents.has(name)) return;        // 발효중/예비면 그쪽 우선
+    snap.parents.set(name, info);
+    counters.gapAdded++;
+    if (snap.children.has(name)) return;
+    const pkids = (prev && prev.children) ? prev.children.get(name) : null;
+    if (pkids && pkids.size > 0) {
+        const m = new Map();
+        for (const [cn, ci] of pkids) {
+            const cc = Object.assign({}, ci);
+            cc.wrnLvlNm = '예비';
+            cc.tmEf = info.tmEf;               // 부모의 새 발효예정 정확시각 상속
+            cc.clrNtcTm = info.clrNtcTm;
+            m.set(cn, cc);
+        }
+        snap.children.set(name, m);
+        counters.gapChildCarried += m.size;
+        return;
+    }
+    const mapped = PARENT_TO_CHILDREN[name] || [];
+    if (mapped.length > 0) {
+        const m = new Map();
+        for (const cn of mapped) {
+            // [제외 자식 게이트] warn-sasc/list 에서 미포함(warn_lvl=0)으로 명시된 자식은 합성 안 함.
+            if (snap.excludedChildren.has(cn)) continue;
+            m.set(cn, {
+                wrnTp: info.wrnTp, wrnTpNm: info.wrnTpNm, wrnLvl: '1', wrnLvlNm: '예비',
+                tmFc: info.tmFc, tmEf: info.tmEf, tmYn: info.tmYn, clrNtcTm: info.clrNtcTm
+            });
+        }
+        if (m.size > 0) {
+            snap.children.set(name, m);
+            counters.gapChildSynth += m.size;
+        }
+    }
+}
+
+/**
+ * [B — 발효중 zone 공존 격상/격하 발표대기 보강]
+ *   이미 발효중(warn/list)인 해역에, 등급이나 종류가 다른 "발표대기" 통보문(예: 풍랑주의보
+ *   발효중 → 풍랑경보 발표·발효예정)이 ef/list·warn/latest 에 올 때, 기존 로직은
+ *   `snap.parents.has(name)` 가드에 걸려 그 격상/격하 발표를 통째로 누락했다.
+ *   → 발효중 active 와 등급/종류가 다르면 upcomings 로 보강하여
+ *     (a) 앱에 "다가오는 특보"로 병렬 표출, (b) UPCOMING_CHANGE → 격상/격하 발표 푸시 발사.
+ *
+ *   [안전 설계] wrnLvlNm 은 '예비' 로 유지(분류 불변 → 매처/디바운스/dedup/표시 정책 무영향),
+ *     실제 등급은 별도 wrnLvlReal 에 보존. 푸시 점수 비교(push_sender.getAlertScore)와
+ *     표출 배지는 wrnLvlReal 을 우선 사용해 active 대비 정확한 격상/격하 방향을 산출한다.
+ *     (LVL_RANK 에서 '예비'='주의보' 동점이라, wrnLvlReal 없이는 주의보→경보 격상이 동점
+ *      처리돼 발사되지 않음 — 이 필드가 핵심.)
+ *   _efBridged 표식을 달아 깜빡임(ef/latest 진동) 시 _pubKey dedup 으로 1회만 발사되게 한다.
+ *
+ * @returns {boolean} 발효중 zone 과 공존 처리했으면(또는 이미 upcoming 점유) true — 호출측은
+ *                    이후 신규 GAP 부모 생성을 건너뛴다. 발효중 아님/동급·동종이면 false.
+ */
+function _tryAddCoexistingUpcoming(snap, name, info) {
+    const active = snap.parents ? snap.parents.get(name) : null;
+    // 발효중(정식)이 아니면 일반 GAP 경로로 — 예비/해제 부모는 대상 아님
+    if (!active || !active.wrnLvlNm || active.wrnLvlNm === '예비' || active.wrnLvlNm === '해제') return false;
+    const realLvl = info._realLvlNm || info.wrnLvlNm || '';
+    const realTp = info.wrnTpNm || '';
+    const lvlDiffers = realLvl && realLvl !== active.wrnLvlNm;
+    const tpDiffers = realTp && active.wrnTpNm && realTp !== active.wrnTpNm;
+    if (!lvlDiffers && !tpDiffers) return false;   // 동급·동종 → 단순 시각변경(기존 경로), 공존 아님
+    if (!snap.upcomings) snap.upcomings = new Map();
+    if (snap.upcomings.has(name)) return true;     // 이미 다가오는(예비) 점유 — warn/ready 우선, 덮어쓰지 않음
+    const up = Object.assign({}, info);
+    up.wrnLvlNm = '예비';            // 분류 유지 (매처/디바운스/dedup/표시 정책 불변)
+    up.wrnLvlReal = realLvl;         // [신규] 실제 등급 — 푸시 점수·표출 배지 전용
+    up._efBridged = true;            // 깜빡임 재발사 방지 (_pubKey dedup 연동)
+    delete up._realLvlNm;
+    snap.upcomings.set(name, up);
+    return true;
+}
+
+/**
+ * ef/list 행들로 발표대기 zone 을 snap 에 보강.
+ * @param {StateSnapshot} snap - 현재 사이클 스냅샷 (parents/children/upcomings)
+ * @param {Array} efRows - warn/ef/list 응답 row 배열
+ * @param {StateSnapshot} prev - 직전 스냅샷 (자식 이어받기용)
+ */
+function _enrichSnapshotWithEfList(snap, efRows, prev) {
+    if (!snap || !Array.isArray(efRows) || efRows.length === 0) return snap;
+    // zone 별 최신 행 선택: tm_fc 최신 → tm_seq 최대 (여러 통보office/seq 중 가장 최근 상태).
+    //   [영향 격리] 두 셀렉션을 분리한다:
+    //     - latestByZone   : publish 계열(발표/변경/연장)만 — 신규 발표대기 GAP 생성용.
+    //                        '변경해제' 를 섞으면 같은 zone 의 publish 행을 밀어내(최신 우선)
+    //                        기존 GAP 생성이 누락될 수 있어, 이 셀렉션은 기존과 100% 동일 유지.
+    //     - coexistByZone  : publish + '변경해제' — 발효중 zone 공존 격상/격하 판정 전용(가산만).
+    const PUBLISH_CMDS = new Set(['발표', '변경', '연장']);
+    const latestByZone = new Map();
+    const coexistByZone = new Map();
+    for (const row of efRows) {
+        const tpNm = String(row.warn_tp_nm || '');
+        if (tpNm !== '풍랑' && tpNm !== '태풍') continue;            // 앱 대상 종류만
+        const cmd = String(row.warn_cmd_nm || '').trim();
+        // '변경해제' 는 격상/격하의 해제부(옛 등급 종료)일 수 있어 발효중 공존 판정에 필요 →
+        //   통과시키되, _isFutureExactTime(ed) 가드로 순수해제(ed=과거)는 배제.
+        if (!['발표', '변경', '연장', '변경해제'].includes(cmd)) continue;
+        const name = _resolveZoneName(row);
+        if (!name) continue;
+        const ed = String(row.ed_tm || '').trim();
+        if (!_isFutureExactTime(ed)) continue;                      // 발효시각 미래(=발표대기)만
+        const key = String(row.tm_fc || '') + '#' + String(row.tm_seq || 0).padStart(4, '0');
+        const cx = coexistByZone.get(name);                         // 공존 판정용(모든 통과 cmd)
+        if (!cx || key > cx.key) coexistByZone.set(name, { key, row });
+        if (PUBLISH_CMDS.has(cmd)) {                                // 신규 GAP 선택용(publish 만 — 기존 동작 보존)
+            const sel = latestByZone.get(name);
+            if (!sel || key > sel.key) latestByZone.set(name, { key, row });
+        }
+    }
+    const counters = { gapAdded: 0, gapChildCarried: 0, gapChildSynth: 0 };
+    // [B] 1차: 발효중 zone 공존 격상/격하 → upcomings 보강 (가산만, 발효중 아니면 무동작).
+    for (const [name, sel] of coexistByZone) {
+        _tryAddCoexistingUpcoming(snap, name, _efRowToInfo(sel.row));
+    }
+    // 2차: 신규 발표대기 GAP (publish 계열만 — 기존 로직 그대로).
+    for (const [name, sel] of latestByZone) {
+        // 실시간 endpoint 가 이미 커버(발효중/예비/발표대기/공존)하면 skip — 중복/덮어쓰기 방지.
+        if (snap.parents.has(name)) continue;
+        if (snap.upcomings && snap.upcomings.has(name)) continue;
+        const parent = _extractParent(name);
+        const info = _efRowToInfo(sel.row);
+        if (parent === name) {
+            _addGapParentFromEf(snap, prev, name, info, counters);
+        } else {
+            // 자식형 행 (드묾) — 부모 컨테이너에 예비로 추가.
+            if (!snap.children.has(parent)) snap.children.set(parent, new Map());
+            const m = snap.children.get(parent);
+            if (!m.has(name)) { m.set(name, info); counters.gapChildSynth++; }
+        }
+    }
+    if (counters.gapAdded || counters.gapChildCarried || counters.gapChildSynth) {
+        console.log(`[Marine] ef/list 발표대기 보강: 부모 ${counters.gapAdded} 추가 ` +
+            `(자식 carry ${counters.gapChildCarried} / synth ${counters.gapChildSynth})`);
+    }
+    return snap;
+}
+
+/** ef/list 를 KST 어제~내일 윈도우로 조회 (발표대기 특보 포착). 인증 미설정 시 []. */
+async function _fetchEfListForGap() {
+    if (!marineClient || typeof marineClient.fetchWarnEfList !== 'function') return [];
+    const kst = new Date(Date.now() + 9 * 3600000);
+    const ymd = (offDays) => {
+        const d = new Date(kst.getTime() + offDays * 86400000);
+        return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+    };
+    const rows = await marineClient.fetchWarnEfList({ st_tm: ymd(-1), ed_tm: ymd(1) });
+    return Array.isArray(rows) ? rows : [];
 }
 
 // ============================================================================
@@ -2416,18 +2866,32 @@ async function run(opts = {}) {
             console.warn('[Marine] warn/latest 호출 실패 — 보강 skip:', e && e.message);
         }
 
-        // 3) [Followup E-1 + D-1] 빈 snapshot 가드 — prev snapshot 이 비어있으면 (이유 불문)
-        //    diff/dispatch 결과가 "전부 신규 발효" 로 오인되어 release/active 폭주 위험.
-        //    SPEC §운영안전: state 저장 + weather_alerts.json 갱신만 하고 push skip.
-        //    다음 cycle 부터 정상 diff/push.
-        //    조건: 부팅 직후 lazy load + 디스크 prev 비어있음, **또는** E-4 partial-fail 후
-        //    빈 snapshot 으로 lazy set 된 케이스 (D-1 보강 — isFirstLoad 가드 제거).
+        // 2-C) [발표대기 보강 — ef/list 인증 endpoint] 발표됐으나 발효시각이 미래라 실시간
+        //   endpoint(warn/list·ready·latest) 어디에도 안 잡히는 "발표 발효대기" 특보를 메움.
+        //   warn/latest 가 통보문을 잠깐만 보유해 발표~발효 사이 특보가 사라지던 문제 해결.
+        //   - 성공(빈 응답 포함) 시 캐시 갱신. 예외(네트워크/HTTP 실패) 시에만 캐시 fallback
+        //     → 진짜 빈 응답(해제/소멸)은 그대로 반영, 일시 장애만 캐시로 안정화(깜빡임/재push 방지).
+        //   - 인증 미설정(AUTH 비활성) 이면 fetch 가 [] 반환 → no-op (기존 동작 유지).
+        try {
+            const efRows = await _fetchEfListForGap();
+            _efListCache = { rows: efRows, at: Date.now() };
+            _enrichSnapshotWithEfList(curr, efRows, _prevSnapshot);
+        } catch (e) {
+            console.warn('[Marine] ef/list 발표대기 보강 실패 — 캐시 fallback:', e && e.message);
+            if (_efListCache.rows.length && (Date.now() - _efListCache.at) < EF_LIST_CACHE_TTL_MS) {
+                try { _enrichSnapshotWithEfList(curr, _efListCache.rows, _prevSnapshot); } catch (_) {}
+            }
+        }
+
+        // 3) [Followup E-1 + D-1] 빈 snapshot 가드 — 콜드 부팅 직후 prev 가 비어있을 때만.
+        //    재배포/장부 초기화로 활성 특보가 "전부 신규"로 오인되어 push 폭주하는 케이스만 차단.
+        //    자연 전이(이미 가동 중인 프로세스에서 무특보→신규특보)는 통과시켜 정상 push.
         //    [테스트] forceBaseline 이 true 면 이 가드를 1회 우회 →
         //    빈 prev vs 현재 발효+예비 를 "전부 신규" 로 diff 하여 실제 푸시 발사.
         //    (관리자 "장부 초기화(테스트 푸시)" 버튼 전용. opts 또는 예약 플래그로 지정)
         const forceBaseline = !!opts.forceBaselinePush || _forceBaselinePending;
-        if (_isSnapshotEmpty(_prevSnapshot) && !forceBaseline) {
-            console.log('[Marine] 첫 부팅 — push skip, state 저장만 (현재 발효 부모=' +
+        if (_isSnapshotEmpty(_prevSnapshot) && !forceBaseline && isFirstLoad) {
+            console.log('[Marine] 콜드 부팅 + 빈 prev — push skip, state 저장만 (현재 발효 부모=' +
                 curr.parents.size + ', 자식=' + curr.children.size + ')');
             _prevSnapshot = curr;
             _savePrevSnapshot(curr);
@@ -2455,6 +2919,11 @@ async function run(opts = {}) {
         //    curr 를 변형(이어받기)하므로 diff(_buildUserPushChanges)·표출(weather_alerts)
         //    양쪽에 반영됨. 해제 통보문(_childReleaseNoticeSet) 있는 자식은 즉시 해제.
         _applyChildReleaseDebounce(prevForDiff, curr);
+
+        // 4-B2) [예비취소 디바운스] 예비가 실시간·ef/list 양쪽에서 사라진 사이클에 한해 직전 예비를
+        //   curr 로 3분 이어받기 → 글리치성 가짜 "예비취소" 푸시 차단. 3분 연속 부재면 진짜취소 1회.
+        //   (ef/list 보강·의심가드 이후, 발표시각고정 이전 — _applyChildReleaseDebounce 와 동일 구역.)
+        _applyUpcomingCancelDebounce(prevForDiff, curr);
 
         // 4-C) [발표시각 고정] 현재 발효 등급의 최초 발표시각으로 tmFc 고정 (변경/연장 불변,
         //   격상/격하·종류변경·해제 시에만 재설정). _buildUserPushChanges·표출 전에 적용.
@@ -2487,17 +2956,34 @@ async function run(opts = {}) {
         //   - 부모 단위만 (자식 정보 X — V15 호환)
         //   - push_sender 자체 dedup (pendingPushes.json) 으로 중복 방지
         //   - 첫 부팅 가드 (위 E-1) 안 가드도 통과 후라 안전
+        // [자식-only 통보문 보강] _buildUserPushChanges 는 모든 디바운스·의심가드를 통과한
+        //   "확정 푸시 신호"다(SPEC §2). 이 결과를 자식 통보문 보강 모듈에 그대로 넘겨 자식
+        //   변동 펜딩을 등록한다(부모만 변동한 신호는 childState.added/released 가 비어 등록 안 됨).
+        let _userChanges = null;
         if (!opts.dryRun && pushSender && typeof pushSender.processChanges === 'function') {
             try {
-                const userChanges = _buildUserPushChanges(prevForDiff, curr);
+                _userChanges = _buildUserPushChanges(prevForDiff, curr);
                 // [P2] 변화 0 일 때도 호출 — push_sender 의 pending retry 보장
                 // (옛 weather_alerts_crawler 동일 패턴)
                 // [테스트 푸시] opts.adminToken 이 있으면 그 토큰(관리자 기기)에게만 발송.
                 //   장부 초기화(테스트 푸시) 버튼이 forceBaselinePush + adminToken 으로 호출.
                 const userOpts = opts.adminToken ? { adminToken: opts.adminToken } : {};
-                await pushSender.processChanges(userChanges, userOpts);
+                await pushSender.processChanges(_userChanges, userOpts);
             } catch (e) {
                 console.error('[marine_warning_crawler] 사용자 push 발사 실패 (관리자 push 영향 없음):', e && e.message);
+            }
+        }
+
+        // 5-B2) [자식-only 통보문 보강] 확정 자식 변동을 펜딩 등록 + 열린 펜딩 부모만 ntfctn/list 조회·매칭.
+        //   - 평상시(변동 없음·펜딩 없음) ntfctn 호출 0회 (tick 내부 가드).
+        //   - dryRun 이면 네트워크/등록 모두 skip. 실패해도 기존 흐름 무영향.
+        if (!opts.dryRun && childBulletin) {
+            try {
+                if (_userChanges === null) _userChanges = _buildUserPushChanges(prevForDiff, curr);
+                childBulletin.registerChildChanges(_userChanges, ZONE_HOME_OFFICE);
+                await childBulletin.tick({ marineClient, zoneHomeOffice: ZONE_HOME_OFFICE });
+            } catch (e) {
+                console.error('[marine_warning_crawler] 자식 통보문 보강 실패 (다른 동작 무영향):', e && e.message);
             }
         }
 
@@ -2508,6 +2994,7 @@ async function run(opts = {}) {
         // 6) curr 를 다음 사이클의 prev 로 저장
         _prevSnapshot = curr;
         _savePrevSnapshot(curr);
+        _savePushedPubs();   // [발송이력 dedup] 이번 사이클 갱신분 영속화 (재배포에도 유지)
 
         // 7) [Followup E-2] weather_alerts.json 갱신 — SPEC §4.
         //    dispatch 후 / state 저장 후 / cycle 끝에 한 번. atomic tmp → rename.
@@ -2538,6 +3025,8 @@ module.exports = {
     _score,
     _buildSnapshotFromMarine,
     _enrichSnapshotWithLatest,
+    _enrichSnapshotWithEfList,
+    _tryAddCoexistingUpcoming,
     _extractParent,
     _loadPrevSnapshot,
     _savePrevSnapshot,

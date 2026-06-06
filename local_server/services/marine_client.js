@@ -45,10 +45,28 @@ const https = require('https');
 // 1. 자격증명 + 활성 게이트
 // ============================================================================
 
-const USER_ID = process.env.MARINE_USER_ID || '';
-const USER_PWD = process.env.MARINE_USER_PWD || '';
+// [자격증명] 환경변수(MARINE_USER_ID/PWD) 우선, 미설정 시 아래 고정 기본값 사용.
+//   marine.kma(MMIS) 는 공개 해양기상 데이터 포털(읽기 전용)이며, 운영자 판단으로
+//   기본 계정을 코드에 고정한다(노출돼도 무방). 다른 계정을 쓰려면 환경변수로 덮어쓴다.
+const DEFAULT_USER_ID = 'hyoo14312';
+const DEFAULT_USER_PWD = 'zaqxsw12!';
+const USER_ID = process.env.MARINE_USER_ID || DEFAULT_USER_ID;
+const USER_PWD = process.env.MARINE_USER_PWD || DEFAULT_USER_PWD;
 const FORCE_DISABLED = process.env.MARINE_DISABLE === '1';
 const AUTH_ENABLED = !!USER_ID && !!USER_PWD && !FORCE_DISABLED;
+
+// [2차 자격증명] 1차 로그인 실패 시 폴백으로 사용할 계정 (환경변수 MARINE_USER_ID_2/PWD_2 우선).
+const DEFAULT_USER_ID_2 = 'hyoo1431';
+const DEFAULT_USER_PWD_2 = 'zaqxsw12!';
+const USER_ID_2 = process.env.MARINE_USER_ID_2 || DEFAULT_USER_ID_2;
+const USER_PWD_2 = process.env.MARINE_USER_PWD_2 || DEFAULT_USER_PWD_2;
+// 로그인 시도 순서: 1차 → 2차. 동일 (id,pwd) 중복은 제거.
+const CRED_LIST = [
+    { id: USER_ID, pwd: USER_PWD },
+    { id: USER_ID_2, pwd: USER_PWD_2 }
+].filter((c, i, arr) =>
+    c.id && c.pwd && arr.findIndex(o => o.id === c.id && o.pwd === c.pwd) === i
+);
 
 /** ID 마스킹: 앞 2자 + "***" 만 노출. 2자 이하면 "***" 단독. */
 function maskUserId(id) {
@@ -224,40 +242,55 @@ async function login() {
     }
     session.loginInProgress = true;
     try {
-        console.log(`[marine] login start (user=${maskUserId(USER_ID)})`);
-        const payload = JSON.stringify({
-            mmbrId: USER_ID,
-            mmbrPassword: USER_PWD,
-            rememberMe: false
-        });
-        const res = await _request({
-            method: 'POST',
-            path: PATHS.LOGIN,
-            body: payload,
-            // login 자체는 토큰 없이 호출. 응답 헤더에서 토큰 회수.
-            authRequired: false
-        });
-        if (res.statusCode !== 200) {
-            throw new Error(`login HTTP ${res.statusCode}`);
-        }
-        // 응답 헤더에서 토큰 회수
-        const got = _ingestAuthTokens(res.headers);
-        if (!got) {
-            // 응답 body 분석 — status 200/payload 가 있어도 토큰이 없으면 실패
-            throw new Error('login: accesstoken/refreshtoken 응답 헤더 없음');
-        }
-        // 응답 body 의 status 검증 (있으면)
-        try {
-            const j = JSON.parse(res.body);
-            if (j && j.status && j.status !== 200) {
-                throw new Error(`login body.status=${j.status}`);
+        // [폴백] 1차 자격증명으로 로그인 시도 → 실패 시 2차 자격증명으로 재시도.
+        let lastErr = null;
+        for (let i = 0; i < CRED_LIST.length; i++) {
+            const cred = CRED_LIST[i];
+            const tag = i === 0 ? '1차' : `${i + 1}차`;
+            try {
+                console.log(`[marine] login start (user=${maskUserId(cred.id)}, ${tag})`);
+                const payload = JSON.stringify({
+                    mmbrId: cred.id,
+                    mmbrPassword: cred.pwd,
+                    rememberMe: false
+                });
+                const res = await _request({
+                    method: 'POST',
+                    path: PATHS.LOGIN,
+                    body: payload,
+                    // login 자체는 토큰 없이 호출. 응답 헤더에서 토큰 회수.
+                    authRequired: false
+                });
+                if (res.statusCode !== 200) {
+                    throw new Error(`login HTTP ${res.statusCode}`);
+                }
+                // 응답 헤더에서 토큰 회수
+                const got = _ingestAuthTokens(res.headers);
+                if (!got) {
+                    // 응답 body 분석 — status 200/payload 가 있어도 토큰이 없으면 실패
+                    throw new Error('login: accesstoken/refreshtoken 응답 헤더 없음');
+                }
+                // 응답 body 의 status 검증 (있으면)
+                try {
+                    const j = JSON.parse(res.body);
+                    if (j && j.status && j.status !== 200) {
+                        throw new Error(`login body.status=${j.status}`);
+                    }
+                } catch (e) {
+                    // body 파싱 실패는 무시 — 토큰이 있으면 성공으로 간주
+                }
+                session.loginAt = Date.now();
+                session.lastRefreshAt = Date.now();
+                console.log(`[marine] login ok (${tag})`);
+                return;   // 성공 → 종료
+            } catch (e) {
+                lastErr = e;
+                const more = i < CRED_LIST.length - 1 ? ' → 다음 계정 시도' : '';
+                console.warn(`[marine] login 실패 (${maskUserId(cred.id)}, ${tag}): ${e.message}${more}`);
             }
-        } catch (e) {
-            // body 파싱 실패는 무시 — 토큰이 있으면 성공으로 간주
         }
-        session.loginAt = Date.now();
-        session.lastRefreshAt = Date.now();
-        console.log(`[marine] login ok`);
+        // 모든 자격증명 실패 → 기존과 동일하게 throw (호출자 재시도/스킵 판단)
+        throw lastErr || new Error('login 실패 (모든 자격증명)');
     } finally {
         session.loginInProgress = false;
     }
@@ -476,6 +509,47 @@ async function fetchWarnEfList({ prdc_go = '', warn_tp = '', st_tm = '', ed_tm =
     return _unwrap(j);
 }
 
+/**
+ * 관서별 통보문 목록 — ntfctn/list (auth).
+ *   ef/list 와 달리 해역 식별자가 없고 관서(prdc_go) 단위 통보문 PDF 메타만 준다.
+ *   row: { tm_fc, file_nm(PDF 경로), warn_title, ... } — file_nm 형식
+ *        KTKO50_<YYYYMMDDHHMM>_<prdc_go>_<seq>.pdf.
+ *   [자식-only 통보문 보강용] 자식 등급 변동이 확정됐을 때만 그 부모의 관할 지방청
+ *   (prdc_go) 통보문을 조회 → 새 PDF 본문에 부모명+자식명이 있으면 자식 통보문으로 매칭.
+ *   (참고: ntfctn/list 응답은 최신 약 50건으로 제한적 — 펜딩 직후 폴링이 전제.)
+ *
+ * @param {Object} params
+ *   - prdc_go: 관할관서 코드 (예: '184'=제주). 비우면 전체.
+ *   - st_tm:   YYYYMMDD (필수)
+ *   - ed_tm:   YYYYMMDD (없으면 st_tm 과 동일)
+ * @returns {Array} ntfctn row 배열
+ */
+async function fetchWarnNtfctnList({ prdc_go = '', st_tm = '', ed_tm = '' } = {}) {
+    if (!AUTH_ENABLED) return [];
+    if (!st_tm) throw new Error('ntfctn/list: st_tm 필수');
+    await ensureAuth();
+    const qs = new URLSearchParams({
+        prdc_go: String(prdc_go),
+        st_tm: String(st_tm),
+        ed_tm: String(ed_tm || st_tm)
+    }).toString();
+    const path = `${PATHS.WARN_NTFCTN_LIST}?${qs}`;
+    let res = await _request({ method: 'GET', path, authRequired: true });
+    if (res.statusCode === 401) {
+        // 세션 만료 — 재로그인 후 1회 재시도 (ef/list 와 동일 패턴)
+        console.log('[marine] ntfctn/list 401 — 재로그인 후 재시도');
+        await login();
+        res = await _request({ method: 'GET', path, authRequired: true });
+    }
+    if (res.statusCode !== 200) {
+        throw new Error(`ntfctn/list HTTP ${res.statusCode}`);
+    }
+    let j;
+    try { j = JSON.parse(res.body); }
+    catch (e) { throw new Error('ntfctn/list JSON parse fail'); }
+    return _unwrap(j);
+}
+
 // ============================================================================
 // 8. 디버그 / 상태 조회
 // ============================================================================
@@ -522,6 +596,8 @@ module.exports = {
     fetchAllRealtimeEndpoints,
     // 인증 endpoint
     fetchWarnEfList,
+    // [자식-only 통보문 보강] 관서별 통보문 목록 (auth)
+    fetchWarnNtfctnList,
     // 테스트
     _resetSessionForTest,
     _PATHS: PATHS

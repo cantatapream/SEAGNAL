@@ -4,12 +4,16 @@ import android.graphics.Bitmap;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.content.Context;
+import android.os.Bundle;
+import android.webkit.PermissionRequest;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebChromeClient;
 import com.getcapacitor.BridgeWebViewClient;
+import com.seagnal.app.voice.SeagnalAssistantPlugin;
 
 /**
  * SEAGNAL Android 앱의 메인 Activity (Capacitor BridgeActivity 확장).
@@ -36,6 +40,16 @@ public class MainActivity extends BridgeActivity {
     private boolean isShowingError = false;
     /** 마지막으로 실패한 URL — "다시 시도" 버튼이 이 URL 로 재로드 시도. */
     private String lastFailedUrl = null;
+
+    /**
+     * Capacitor 브릿지 초기화 전에 커스텀 플러그인을 등록한다.
+     * (음성 비서 네이티브 서비스 제어용 SeagnalAssistant 플러그인)
+     */
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(SeagnalAssistantPlugin.class);
+        super.onCreate(savedInstanceState);
+    }
 
     /**
      * Activity 시작 시점 hook — WebView 가 준비된 직후 폰트 줌/핀치 줌 설정 +
@@ -76,6 +90,25 @@ public class MainActivity extends BridgeActivity {
                     if (url == null || url.equals("about:blank")) return;
                     isShowingError = false;
                     super.onPageStarted(view, url, favicon);
+                }
+            });
+
+            // [음성] WebView 안의 웹 음성인식(getUserMedia/SpeechRecognition)이 마이크를
+            //   쓸 수 있도록 권한 요청을 허용한다. (앱에 RECORD_AUDIO 가 있어야 실제 동작)
+            //   Capacitor 기본 동작/파일 선택 등은 BridgeWebChromeClient 를 그대로 상속해 보존.
+            webView.setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
+                @Override
+                public void onPermissionRequest(final PermissionRequest request) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                request.grant(new String[]{ PermissionRequest.RESOURCE_AUDIO_CAPTURE });
+                            } catch (Exception e) {
+                                request.deny();
+                            }
+                        }
+                    });
                 }
             });
         }

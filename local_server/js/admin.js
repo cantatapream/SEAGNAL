@@ -527,7 +527,9 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
         { id: 'block', name: '차단 관리', icon: 'fa-ban' },
         { id: 'maintenance', name: '점검', icon: 'fa-wrench' },
         { id: 'version', name: '버전 관리', icon: 'fa-code-branch' },
-        { id: 'storage', name: '외부 저장소', icon: 'fa-cloud' }
+        { id: 'storage', name: '외부 저장소', icon: 'fa-cloud' },
+        { id: 'ai', name: 'AI', icon: 'fa-robot' },
+        { id: 'demo', name: '시연', icon: 'fa-flask' }
     ];
 
     const modal = document.createElement('div');
@@ -646,9 +648,280 @@ window.switchUnifiedAdminTab = function (tabId) {
             // 외부 저장소 현황 탭 (Cloudinary, Google Cloud Storage 사용량)
             // → admin_collect.js의 renderUnifiedStorageContent()에서 렌더링
             renderUnifiedStorageContent(body);
+        } else if (tabId === 'ai') {
+            renderUnifiedAiTab(body);
+        } else if (tabId === 'demo') {
+            if (typeof renderDemoAlertTab === 'function') renderDemoAlertTab(body);
+            else body.innerHTML = '<div style="padding:20px;color:#fca5a5;">시연 모듈(admin_demo.js)이 로드되지 않았습니다.</div>';
         }
     }, 100);
 };
+
+// ============================================================================
+// AI 탭 — Gemini 호출량 + AI 비서 테스트 호출 + 음성 권한 토글
+// ----------------------------------------------------------------------------
+//  보안: 이 탭은 관리자만 진입 가능. AI 도구는 공개/사용자 데이터 한정이며
+//        관리자 기능에는 접근하지 않는다(서버 측 도구 카탈로그에서 제외됨).
+// ============================================================================
+async function renderUnifiedAiTab(container) {
+    container.innerHTML = `
+        <div class="admin-section-title"><i class="fa-solid fa-robot" style="color:#22d3ee;"></i> AI 비서</div>
+
+        <div id="ai-usage-box" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">
+            <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-chart-simple"></i> 오늘 Gemini 호출량 (KST)</div>
+            <div id="ai-usage-content" style="color:#e2e8f0;font-size:0.9rem;">불러오는 중…</div>
+        </div>
+
+        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px;">
+            <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:10px;"><i class="fa-solid fa-shield-halved"></i> 권한 관리</div>
+
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <i class="fa-solid fa-microphone" style="color:#22d3ee;width:16px;"></i>
+                <span style="font-size:0.85rem;color:#cbd5e1;">마이크</span>
+                <span id="ai-perm-mic" style="font-size:0.8rem;color:#94a3b8;">확인 중…</span>
+                <button id="ai-perm-mic-req" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">권한 요청</button>
+                <button id="ai-perm-mic-set" style="padding:5px 10px;background:#64748b;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;display:none;">설정 열기</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <i class="fa-solid fa-location-dot" style="color:#34d399;width:16px;"></i>
+                <span style="font-size:0.85rem;color:#cbd5e1;">위치(GPS)</span>
+                <span id="ai-perm-gps" style="font-size:0.8rem;color:#94a3b8;">확인 중…</span>
+                <button id="ai-perm-gps-req" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">권한 요청</button>
+                <button id="ai-perm-gps-set" style="padding:5px 10px;background:#64748b;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;display:none;">설정 열기</button>
+            </div>
+            <div style="font-size:0.72rem;color:#64748b;margin-top:6px;">거부했어도 "권한 요청"을 다시 누르거나, 막혔으면 "설정 열기"로 직접 허용할 수 있습니다.</div>
+
+            <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:12px 0;">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <i class="fa-solid fa-tower-broadcast" style="color:#22d3ee;"></i>
+                <span style="font-size:0.85rem;color:#cbd5e1;">음성 비서(나리야)</span>
+                <span id="ai-voice-status" style="font-size:0.8rem;color:#94a3b8;">상태 확인 중…</span>
+                <button id="ai-voice-toggle" style="padding:6px 14px;background:#22d3ee;color:#04263b;border:none;border-radius:8px;font-weight:700;cursor:pointer;">켜기</button>
+            </div>
+            <div style="font-size:0.72rem;color:#64748b;margin-top:6px;">켜면 백그라운드에서 "나리야" 호출을 대기합니다. (앱에서만 동작)</div>
+        </div>
+
+        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;">
+            <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:8px;"><i class="fa-solid fa-flask"></i> 테스트 호출</div>
+            <div style="display:flex;gap:8px;">
+                <input id="ai-test-input" type="text" placeholder="예: 325 해구 60시간 후 조업 가능할까?" style="flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.3);color:#e2e8f0;font-size:0.9rem;outline:none;">
+                <button id="ai-test-send" style="padding:0 16px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">전송</button>
+            </div>
+            <div id="ai-test-result" style="margin-top:12px;color:#e2e8f0;font-size:0.9rem;line-height:1.6;white-space:pre-wrap;"></div>
+        </div>
+
+        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-top:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <span style="font-size:0.85rem;color:#94a3b8;"><i class="fa-solid fa-comments"></i> 대화 내역 (테스트)</span>
+                <span>
+                    <button id="ai-log-refresh" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">새로고침</button>
+                    <button id="ai-log-clear" style="padding:5px 10px;background:#64748b;color:#fff;border:none;border-radius:6px;font-size:0.75rem;cursor:pointer;">비우기</button>
+                </span>
+            </div>
+            <div id="ai-log-list" style="max-height:300px;overflow-y:auto;font-size:0.82rem;color:#cbd5e1;line-height:1.5;">불러오는 중…</div>
+            <div style="font-size:0.7rem;color:#64748b;margin-top:6px;">백그라운드 "나리야" 대화 포함. 서버 메모리에만 임시 보관(재시작 시 소멸).</div>
+        </div>
+    `;
+
+    // 1) 호출량 + 키 상태
+    try {
+        const r = await fetch('/api/admin/gemini-status');
+        const d = await r.json();
+        const u = d.usage || {};
+        const keyTxt = (d.keys || []).map(k => `${k.label}${k.onCooldown ? '(쿨다운)' : ''}`).join(', ') || '없음';
+        document.getElementById('ai-usage-content').innerHTML =
+            `요청 <b>${u.requests || 0}</b>회 · 성공 <b>${u.success || 0}</b> · 한도초과 <b>${u.rateLimited || 0}</b><br>` +
+            `<span style="color:#94a3b8;font-size:0.8rem;">키: ${keyTxt} · AI ${d.hasAnyKey ? '사용 가능' : '미설정(키 없음)'}</span>`;
+    } catch (e) {
+        document.getElementById('ai-usage-content').textContent = '호출량을 불러오지 못했습니다: ' + e.message;
+    }
+
+    // 2) 권한 관리 — 마이크/위치 권한 상태·요청·설정열기 (거부해도 재요청 가능)
+    (function () {
+        const P = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins : null;
+        const Native = P && P.SeagnalAssistant ? P.SeagnalAssistant : null;   // 마이크(@Permission) 보유
+        const Geo = P && P.Geolocation ? P.Geolocation : null;               // 위치
+        const Settings = P && P.NativeSettings ? P.NativeSettings : null;    // 앱 설정 열기
+        const label = (s) => s === 'granted' ? '허용됨' : (s === 'denied' ? '거부됨' : '미요청');
+        const color = (s) => s === 'granted' ? '#34d399' : (s === 'denied' ? '#fbbf24' : '#94a3b8');
+        const openSettings = () => { if (Settings && Settings.openAndroid) Settings.openAndroid({ option: 'application_details' }).catch(() => {}); };
+
+        // 공통 렌더러: plugin.checkPermissions/requestPermissions(권한키) 사용
+        function wire(plugin, permKey, ids) {
+            const stEl = document.getElementById(ids.st), reqEl = document.getElementById(ids.req), setEl = document.getElementById(ids.set);
+            if (!plugin || !plugin.checkPermissions) { stEl.textContent = '앱에서만 사용 가능'; reqEl.style.display = 'none'; return; }
+            const apply = (state) => {
+                stEl.textContent = label(state); stEl.style.color = color(state);
+                setEl.style.display = (state === 'denied') ? 'inline-block' : 'none';
+                reqEl.textContent = (state === 'granted') ? '재확인' : '권한 요청';
+            };
+            const refresh = () => plugin.checkPermissions().then(r => apply(r && r[permKey])).catch(() => apply('prompt'));
+            refresh();
+            reqEl.addEventListener('click', () => {
+                reqEl.disabled = true;
+                plugin.requestPermissions().then(r => apply(r && r[permKey])).catch(() => apply('denied')).then(() => { reqEl.disabled = false; });
+            });
+            setEl.addEventListener('click', openSettings);
+        }
+        wire(Native, 'microphone', { st: 'ai-perm-mic', req: 'ai-perm-mic-req', set: 'ai-perm-mic-set' });
+        wire(Geo, 'location', { st: 'ai-perm-gps', req: 'ai-perm-gps-req', set: 'ai-perm-gps-set' });
+
+        // 음성 비서(나리야) on/off 토글 — Vosk 모델 다운로드 다이얼로그·진행률·연속성 지원
+        const st = document.getElementById('ai-voice-status');
+        const btn = document.getElementById('ai-voice-toggle');
+        if (!Native) { st.textContent = '앱(안드로이드)에서만 사용 가능'; btn.disabled = true; btn.style.opacity = .5; return; }
+        let running = false;
+        const render = () => { st.textContent = running ? '켜짐 — "나리야" 대기 중' : '꺼짐'; st.style.color = running ? '#34d399' : '#94a3b8'; btn.textContent = running ? '끄기' : '켜기'; };
+        Native.isEnabled().then(x => { running = !!(x && x.running); render(); }).catch(render);
+
+        // ── Vosk 다운로드 다이얼로그 (assistant.js 의 흐름을 admin.js 토글에도 동일 적용) ──
+        let dl = null;
+        const buildDialog = () => {
+            if (dl) return dl;
+            const root = document.createElement('div');
+            root.id = 'admin-vosk-dl';
+            root.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:16px;font-family:-apple-system,BlinkMacSystemFont,Roboto,"Noto Sans KR",sans-serif;';
+            root.innerHTML =
+                '<div style="background:#0b1f33;border:1px solid rgba(56,189,248,.45);border-radius:16px;padding:18px;max-width:420px;width:100%;color:#e6f1ff;box-shadow:0 18px 50px rgba(0,0,0,.6);">' +
+                  '<div id="vdl-title" style="font-size:15px;font-weight:700;margin-bottom:8px;"></div>' +
+                  '<div id="vdl-body" style="font-size:13.5px;line-height:1.55;color:#cfe2f3;"></div>' +
+                  '<div id="vdl-progress" style="display:none;margin-top:12px;height:8px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden;"><div id="vdl-bar" style="height:100%;width:0%;background:#38bdf8;transition:width .25s ease;"></div></div>' +
+                  '<div id="vdl-pct" style="display:none;margin-top:6px;font-size:12px;color:#a9c3d8;text-align:right;"></div>' +
+                  '<label id="vdl-wifi" style="display:none;margin-top:12px;font-size:12.5px;color:#a9c3d8;cursor:pointer;"><input type="checkbox" id="vdl-wifi-chk" checked style="vertical-align:middle;margin-right:6px;">Wi-Fi 에서만 다운로드 (체크 해제 시 모바일 데이터 사용)</label>' +
+                  '<div id="vdl-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;"></div>' +
+                '</div>';
+            document.body.appendChild(root);
+            dl = { root, title: root.querySelector('#vdl-title'), body: root.querySelector('#vdl-body'), actions: root.querySelector('#vdl-actions'), wifi: root.querySelector('#vdl-wifi'), wifiChk: root.querySelector('#vdl-wifi-chk'), progress: root.querySelector('#vdl-progress'), bar: root.querySelector('#vdl-bar'), pct: root.querySelector('#vdl-pct') };
+            return dl;
+        };
+        const mkBtn = (label, primary) => { const b = document.createElement('button'); b.textContent = label; b.style.cssText = 'padding:8px 14px;border-radius:10px;border:0;font-size:13.5px;font-weight:600;cursor:pointer;' + (primary ? 'background:#38bdf8;color:#04263b;' : 'background:rgba(255,255,255,.08);color:#cfe2f3;'); return b; };
+        const hideDialog = () => { if (dl) dl.root.style.display = 'none'; };
+        const showDialog = (kind, opts) => {
+            const d = buildDialog(); opts = opts || {};
+            d.actions.innerHTML = ''; d.wifi.style.display = 'none'; d.progress.style.display = 'none'; d.pct.style.display = 'none';
+            if (kind === 'prompt') {
+                d.title.textContent = '음성 지원 데이터 다운로드';
+                d.body.textContent = '"나리야" 호출어를 사용하려면 한국어 음성 모델(약 80MB)을 한 번 다운로드해야 합니다. 다운로드는 백그라운드로 진행되며 그동안 앱은 평소처럼 사용할 수 있습니다.';
+                d.wifi.style.display = 'block'; d.wifiChk.checked = true;
+                const later = mkBtn('나중에', false); later.addEventListener('click', hideDialog);
+                const go = mkBtn('지금 다운로드', true);
+                go.addEventListener('click', () => { showDialog('progress', { percent: 0 }); Native.requestVoskDownload({ allowMobile: !d.wifiChk.checked }); });
+                d.actions.appendChild(later); d.actions.appendChild(go);
+            } else if (kind === 'progress') {
+                d.title.textContent = '음성 지원 데이터 준비 중';
+                d.body.textContent = '음성 지원을 하기 위한 데이터를 다운로드 중입니다. 앱은 평소처럼 사용하셔도 됩니다.';
+                d.progress.style.display = 'block'; d.pct.style.display = 'block';
+                const p = Math.max(0, Math.min(100, opts.percent|0));
+                d.bar.style.width = p + '%'; d.pct.textContent = p + '%';
+                const cancel = mkBtn('취소', false); cancel.addEventListener('click', () => { if (Native.cancelVoskDownload) Native.cancelVoskDownload(); hideDialog(); });
+                const hide = mkBtn('숨기기', true); hide.addEventListener('click', hideDialog);
+                d.actions.appendChild(cancel); d.actions.appendChild(hide);
+            } else if (kind === 'wifiRequired') {
+                d.title.textContent = 'Wi-Fi 가 필요합니다';
+                d.body.textContent = opts.message || '현재 Wi-Fi 에 연결돼 있지 않습니다. Wi-Fi 연결 후 다시 시도하거나, 모바일 데이터로 받을 수 있습니다.';
+                const close = mkBtn('닫기', false); close.addEventListener('click', hideDialog);
+                const mobile = mkBtn('데이터로 받기', true);
+                mobile.addEventListener('click', () => { showDialog('progress', { percent: 0 }); Native.requestVoskDownload({ allowMobile: true }); });
+                d.actions.appendChild(close); d.actions.appendChild(mobile);
+            } else if (kind === 'failed') {
+                d.title.textContent = '다운로드 실패';
+                d.body.textContent = opts.message || '다운로드에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+                const c2 = mkBtn('닫기', false); c2.addEventListener('click', hideDialog);
+                const retry = mkBtn('재시도', true); retry.addEventListener('click', () => showDialog('prompt'));
+                d.actions.appendChild(c2); d.actions.appendChild(retry);
+            }
+            d.root.style.display = 'flex';
+        };
+        const doEnable = () => {
+            btn.disabled = true;
+            let profile = '{}'; try { profile = localStorage.getItem('seagnal_profile') || '{}'; } catch (e) {}
+            Native.enable({ serverUrl: location.origin, profile })
+                .then(x => { running = x ? !!x.running : true; render(); })
+                .catch(e => { st.textContent = '오류: ' + (e && e.message ? e.message : '권한/서비스 실패'); st.style.color = '#fbbf24'; })
+                .then(() => { btn.disabled = false; });
+        };
+        // 모델 상태 이벤트 구독 — 진행률·완료·실패 다이얼로그 반영
+        if (Native.addListener) {
+            Native.addListener('voskState', e => {
+                const s = e && e.state;
+                if (s === 'DOWNLOADING')        showDialog('progress', { percent: e.progress|0 });
+                else if (s === 'READY')         { hideDialog(); if (!running) doEnable(); }
+                else if (s === 'WIFI_REQUIRED') showDialog('wifiRequired', { message: e.message });
+                else if (s === 'FAILED')        showDialog('failed', { message: e.message });
+            });
+        }
+
+        btn.addEventListener('click', () => {
+            if (running) {
+                btn.disabled = true;
+                Native.disable()
+                    .then(x => { running = x ? !!x.running : false; render(); })
+                    .catch(e => { st.textContent = '오류: ' + (e && e.message ? e.message : ''); })
+                    .then(() => { btn.disabled = false; });
+                return;
+            }
+            // ON — capabilities 분기
+            if (!Native.getCapabilities) { doEnable(); return; }  // 구버전 호환
+            Native.getCapabilities().then(cap => {
+                if (cap && cap.porcupineAvailable) { doEnable(); return; }
+                const v = (cap && cap.vosk) || { state: 'NOT_DOWNLOADED' };
+                if (v.state === 'READY')         { doEnable(); return; }
+                if (v.state === 'DOWNLOADING')   { showDialog('progress', { percent: v.progress|0 }); return; }
+                if (v.state === 'WIFI_REQUIRED') { showDialog('wifiRequired', { message: v.message }); return; }
+                showDialog('prompt');  // NOT_DOWNLOADED / FAILED
+            }).catch(() => doEnable());
+        });
+    })();
+
+    // 3) 테스트 호출 (기존 /api/assistant/ask 사용)
+    (function () {
+        const input = document.getElementById('ai-test-input');
+        const send = document.getElementById('ai-test-send');
+        const out = document.getElementById('ai-test-result');
+        const ask = () => {
+            const q = input.value.trim(); if (!q) return;
+            out.textContent = '생각 중…'; send.disabled = true;
+            fetch('/api/assistant/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }) })
+                .then(r => r.json())
+                .then(d => {
+                    if (!d || !d.ok) throw new Error((d && d.error) || '응답 오류');
+                    const tools = (d.data && d.data.toolsUsed) ? `\n[도구: ${d.data.toolsUsed.join(', ')}]` : '';
+                    out.textContent = (d.answer || '(빈 응답)') + `\n\n— 해역:${d.zone || '-'} · 방식:${d.aiUsed ? 'AI두뇌' : '폴백'} · intent:${d.intent}` + tools;
+                })
+                .catch(e => { out.textContent = '오류: ' + e.message; })
+                .then(() => { send.disabled = false; });
+        };
+        send.addEventListener('click', ask);
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
+    })();
+
+    // 4) 대화 내역 로그
+    (function () {
+        const listEl = document.getElementById('ai-log-list');
+        const esc = (s) => String(s || '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+        const load = () => {
+            listEl.textContent = '불러오는 중…';
+            fetch('/api/admin/assistant-log?n=100').then(r => r.json()).then(d => {
+                const es = (d && d.entries) || [];
+                if (!es.length) { listEl.textContent = '아직 대화 내역이 없습니다.'; return; }
+                listEl.innerHTML = es.map(e => {
+                    const t = new Date(e.ts).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+                    const tools = e.tools && e.tools.length ? ` · 도구:${esc(e.tools.join(','))}` : '';
+                    return `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+                        <div style="color:#22d3ee;">Q. ${esc(e.query)}</div>
+                        <div style="color:#e2e8f0;margin-top:3px;">A. ${esc(e.answer)}</div>
+                        <div style="color:#64748b;font-size:0.72rem;margin-top:3px;">${t} · ${e.aiUsed ? 'AI두뇌' : '폴백'} · ${esc(e.zone || '-')} · ${esc(e.intent || '-')}${tools}</div>
+                    </div>`;
+                }).join('');
+            }).catch(e => { listEl.textContent = '불러오기 실패: ' + e.message; });
+        };
+        const rb = document.getElementById('ai-log-refresh'), cb = document.getElementById('ai-log-clear');
+        if (rb) rb.addEventListener('click', load);
+        if (cb) cb.addEventListener('click', () => { fetch('/api/admin/assistant-log', { method: 'DELETE' }).then(load); });
+        load();
+    })();
+}
+window.renderUnifiedAiTab = renderUnifiedAiTab;
 
 // ============================================================================
 // (A-0) 오류 목록 / 수동 입력 (특보 알림 탭 내부에서 사용)
@@ -2525,10 +2798,11 @@ function renderUnifiedComprehensiveStats(container) {
  * - routes/push.js → /api/push-subscriber-stats API
  */
 async function renderUnifiedUsersContent(container) {
-    // 하위 탭 2개: 구독 현황 / 방문자 통계
+    // 하위 탭 3개: 구독 현황 / 방문자 통계 / 사용자 소속(직군) 현황
     var subTabs = [
         { id: 'subscriber', name: '구독 현황', icon: 'fa-bell' },
-        { id: 'visitor', name: '방문자 통계', icon: 'fa-chart-line' }
+        { id: 'visitor', name: '방문자 통계', icon: 'fa-chart-line' },
+        { id: 'affiliation', name: '사용자 소속(직군) 현황', icon: 'fa-user-tag' }
     ];
 
     container.innerHTML = '<div class="admin-section-title"><i class="fa-solid fa-chart-pie" style="color:#8b5cf6;"></i> 앱 이용자 현황</div>'
@@ -2565,11 +2839,125 @@ async function renderUnifiedUsersContent(container) {
             } else {
                 subContent.innerHTML = '<div style="color:#64748b;text-align:center;padding:40px;">방문자 통계 모듈을 불러올 수 없습니다.</div>';
             }
+        } else if (tabId === 'affiliation') {
+            renderAffiliationTab(subContent);
         }
     };
 
     // 기본 하위 탭: 구독 현황
     window.switchUsersSubTab('subscriber');
+}
+
+/**
+ * 사용자 소속(직군) 현황 하위 탭 렌더링
+ *
+ * [표시 항목]
+ * 1. 총 응답자 수 요약 카드
+ * 2. 직군 분포 도넛 차트 (좌) + 상세 표(직군/인원/비율) (우)
+ *
+ * [데이터 소스]
+ * - GET /api/stats/affiliations → 설문(소속 문항) 기반 기기별 최신 소속 집계
+ *
+ * [연계] renderUnifiedUsersContent() → switchUsersSubTab('affiliation')
+ */
+let affiliationChart = null; // 직군 분포 차트 인스턴스 (재생성 시 파괴용)
+
+async function renderAffiliationTab(container) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;"><i class="fa-solid fa-circle-notch fa-spin"></i> 로딩 중...</div>';
+    try {
+        var res = await fetch('/api/stats/affiliations');
+        var data = res.ok ? await res.json() : { distribution: [], totalRespondents: 0 };
+        var dist = data.distribution || [];
+        var total = data.totalRespondents || 0;
+
+        if (!dist.length) {
+            container.innerHTML = '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:40px;text-align:center;color:#94a3b8;">'
+                + '<i class="fa-solid fa-user-tag" style="font-size:1.6rem;color:#475569;margin-bottom:10px;display:block;"></i>'
+                + '설문(소속 문항)에 응답한 사용자가 아직 없습니다.</div>';
+            return;
+        }
+
+        var palette = ['#3b82f6', '#8b5cf6', '#22d3ee', '#f59e0b', '#10b981', '#ec4899', '#60a5fa', '#a3a3a3', '#64748b'];
+        var colorOf = function (i) { return palette[i % palette.length]; };
+
+        // 상세 표 행 (직군 / 인원 / 비율) — 인원 많은 순(서버 정렬)
+        var rows = dist.map(function (d, i) {
+            var pct = total ? (d.count / total * 100) : 0;
+            return '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">'
+                + '<td style="padding:9px 8px;color:#e2e8f0;font-size:0.84rem;">'
+                + '<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:' + colorOf(i) + ';margin-right:8px;vertical-align:middle;"></span>'
+                + escapeHtmlAdminAff(d.name) + '</td>'
+                + '<td style="padding:9px 8px;text-align:right;color:#fff;font-weight:700;font-size:0.84rem;">' + d.count.toLocaleString() + '명</td>'
+                + '<td style="padding:9px 8px;text-align:right;color:#94a3b8;font-size:0.8rem;">' + pct.toFixed(1) + '%</td>'
+                + '</tr>';
+        }).join('');
+
+        container.innerHTML =
+            // 요약 카드
+            '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
+            + '<div style="font-size:0.82rem;color:#94a3b8;"><i class="fa-solid fa-user-tag" style="margin-right:6px;color:#8b5cf6;"></i> 소속 설문 응답자</div>'
+            + '<div style="font-size:1.6rem;font-weight:800;color:#8b5cf6;">' + total.toLocaleString() + '<span style="font-size:0.85rem;font-weight:400;color:#64748b;">명</span></div>'
+            + '</div>'
+            // 차트 + 표 2단
+            + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch;">'
+            + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;">'
+            + '<div style="font-size:0.82rem;color:#94a3b8;margin-bottom:10px;font-weight:600;"><i class="fa-solid fa-chart-pie" style="margin-right:4px;color:#22d3ee;"></i> 직군 분포</div>'
+            + '<div style="height:240px;position:relative;"><canvas id="affiliation-chart"></canvas></div>'
+            + '</div>'
+            + '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;overflow-x:auto;">'
+            + '<div style="font-size:0.82rem;color:#94a3b8;margin-bottom:10px;font-weight:600;"><i class="fa-solid fa-table-list" style="margin-right:4px;color:#22d3ee;"></i> 상세 (인원 많은 순)</div>'
+            + '<table style="width:100%;border-collapse:collapse;">'
+            + '<thead><tr style="border-bottom:1px solid rgba(255,255,255,0.12);">'
+            + '<th style="padding:8px;text-align:left;color:#64748b;font-size:0.74rem;font-weight:600;">직군</th>'
+            + '<th style="padding:8px;text-align:right;color:#64748b;font-size:0.74rem;font-weight:600;">인원</th>'
+            + '<th style="padding:8px;text-align:right;color:#64748b;font-size:0.74rem;font-weight:600;">비율</th>'
+            + '</tr></thead><tbody>' + rows + '</tbody></table>'
+            + '</div>'
+            + '</div>';
+
+        // 도넛 차트 렌더
+        if (affiliationChart) { try { affiliationChart.destroy(); } catch (e) {} affiliationChart = null; }
+        var el = document.getElementById('affiliation-chart');
+        if (el && typeof Chart !== 'undefined') {
+            affiliationChart = new Chart(el, {
+                type: 'doughnut',
+                data: {
+                    labels: dist.map(function (d) { return d.name; }),
+                    datasets: [{
+                        data: dist.map(function (d) { return d.count; }),
+                        backgroundColor: dist.map(function (_, i) { return colorOf(i); }),
+                        borderColor: '#0c1120',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    cutout: '58%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 }, padding: 10 } },
+                        tooltip: {
+                            callbacks: {
+                                label: function (ctx) {
+                                    var v = ctx.parsed || 0;
+                                    var pct = total ? (v / total * 100).toFixed(1) : 0;
+                                    return ' ' + ctx.label + ': ' + v.toLocaleString() + '명 (' + pct + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    } catch (e) {
+        container.innerHTML = '<div style="color:#ef4444;text-align:center;padding:30px;">소속 현황 로드 실패: ' + (e && e.message) + '</div>';
+    }
+}
+
+// 소속명 HTML 이스케이프(설문 자유응답 대비)
+function escapeHtmlAdminAff(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
 }
 
 /**
@@ -3278,6 +3666,9 @@ function renderLedgerViewTab(container) {
                 <button onclick="resetLedgerWithTestPush()" style="padding:6px 12px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);border-radius:6px;color:#fca5a5;cursor:pointer;font-size:0.8rem;font-weight:600;">
                     <i class="fa-solid fa-bolt"></i> 장부 초기화 (테스트 푸시)
                 </button>
+                <button onclick="rebroadcastToAllUsers()" style="padding:6px 12px;background:rgba(220,38,38,0.2);border:1px solid rgba(220,38,38,0.5);border-radius:6px;color:#fecaca;cursor:pointer;font-size:0.8rem;font-weight:700;">
+                    <i class="fa-solid fa-tower-broadcast"></i> 전체 사용자 재발송
+                </button>
             </div>
         </div>
         <div style="margin-bottom:8px;color:#94a3b8;font-size:0.78rem;">
@@ -3318,6 +3709,26 @@ window.resetLedgerWithTestPush = async function () {
         refreshLedger();
     } catch (e) {
         alert('초기화 실패: ' + (e && e.message));
+    }
+};
+
+window.rebroadcastToAllUsers = async function () {
+    const ok1 = confirm('⚠️ 전체 사용자에게 푸시를 발송합니다.\n\n장부를 초기화하고 현재 활성 특보(발효+예비)를 신규로 감지하여 해당 해역 구독자 전원에게 푸시가 발사됩니다.\n\n진행할까요?');
+    if (!ok1) return;
+    const ok2 = confirm('정말로 전체 사용자에게 발송하시겠습니까?\n(되돌릴 수 없습니다)');
+    if (!ok2) return;
+    try {
+        const r = await fetch('/api/admin/marine/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ testPush: true, broadcastAll: true })
+        });
+        const data = await r.json();
+        if (!r.ok || !data.success) throw new Error(data.error || ('HTTP ' + r.status));
+        alert(data.message || '전체 사용자 재발송 완료');
+        refreshLedger();
+    } catch (e) {
+        alert('재발송 실패: ' + (e && e.message));
     }
 };
 
@@ -3757,7 +4168,6 @@ async function renderMaintenanceFullTab(container) {
                     { id: 'status-overview', label: '종합정보 버튼' },
                 ]},
             ]},
-            { id: 'typhoon', label: '태풍정보' },
             { id: 'marine-chart-tab', label: '해상일기도', children: [
                 { id: 'mc-wave', label: '수치파랑' },
                 { id: 'mc-surge', label: '폭풍해일' },

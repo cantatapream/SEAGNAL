@@ -1,0 +1,612 @@
+{
+ "builtAt": "2026-05-29T06:11:40.131Z",
+ "stats": {
+  "datasets": 21,
+  "exposed": 16,
+  "unexposed": 5,
+  "tools": 20
+ },
+ "dataParams": [
+  {
+   "key": "wave_height",
+   "unit": "m"
+  },
+  {
+   "key": "wind_speed",
+   "unit": "m/s"
+  },
+  {
+   "key": "wind_dir",
+   "unit": "deg"
+  },
+  {
+   "key": "wave_period",
+   "unit": "s"
+  },
+  {
+   "key": "water_temp",
+   "unit": "°C"
+  },
+  {
+   "key": "visibility",
+   "unit": "km"
+  },
+  {
+   "key": "current_speed",
+   "unit": "cm/s"
+  },
+  {
+   "key": "depth",
+   "unit": "m"
+  },
+  {
+   "key": "tide_phase",
+   "unit": "-"
+  },
+  {
+   "key": "warning",
+   "unit": "-"
+  },
+  {
+   "key": "typhoon_eta",
+   "unit": "h"
+  },
+  {
+   "key": "sky",
+   "unit": "-"
+  }
+ ],
+ "datasets": [
+  {
+   "key": "warnings",
+   "kind": "cache",
+   "exposed": true,
+   "label": "해상특보(주의보/경보)",
+   "org": "기상청 marine MMIS",
+   "method": "크롤링",
+   "cadence": "1분",
+   "granularity": "해역(특보구역)+자식",
+   "fields": [
+    "type",
+    "command",
+    "tmEf",
+    "history"
+   ],
+   "params": [
+    "warning"
+   ],
+   "exposedBy": [
+    "get_warning"
+   ]
+  },
+  {
+   "key": "buoys",
+   "kind": "cache",
+   "exposed": false,
+   "label": "부이 실황(J타입, raw)",
+   "org": "기상청 apihub",
+   "method": "API",
+   "cadence": "매시 05·35분",
+   "granularity": "부이",
+   "fields": [
+    "WH",
+    "WD",
+    "WS",
+    "TW",
+    "TA"
+   ],
+   "params": [
+    "wave_height",
+    "wind_speed",
+    "water_temp"
+   ],
+   "exposedBy": [],
+   "note": "레거시 raw 피드 — marineBuoys로 대체, AI 미노출"
+  },
+  {
+   "key": "kmaBuoys",
+   "kind": "cache",
+   "exposed": false,
+   "label": "[DEPRECATED] kma_buoy.php",
+   "org": "기상청",
+   "method": "API",
+   "cadence": "중단",
+   "granularity": "부이",
+   "fields": [],
+   "params": [],
+   "exposedBy": [],
+   "note": "갱신 중단, 호환용 키만 유지"
+  },
+  {
+   "key": "marineBuoys",
+   "kind": "cache",
+   "exposed": true,
+   "label": "해양기상부이(B타입)",
+   "org": "기상청 marine.kma",
+   "method": "API",
+   "cadence": ":03·:13",
+   "granularity": "부이(~43)",
+   "fields": [
+    "sig_wh",
+    "max_wh",
+    "wp",
+    "ws",
+    "wd",
+    "ta",
+    "pa",
+    "hm",
+    "tw",
+    "vs"
+   ],
+   "params": [
+    "wave_height",
+    "wind_speed",
+    "water_temp",
+    "visibility",
+    "wave_period"
+   ],
+   "exposedBy": [
+    "get_buoy_observation",
+    "get_buoys_with_obs",
+    "get_nearest_buoy",
+    "list_buoys_near"
+   ]
+  },
+  {
+   "key": "marineWhBuoys",
+   "kind": "cache",
+   "exposed": true,
+   "label": "파고부이(C타입)",
+   "org": "기상청 marine.kma",
+   "method": "API",
+   "cadence": ":03·:13",
+   "granularity": "부이(~51)",
+   "fields": [
+    "sig_wh",
+    "max_wh",
+    "ave_wh",
+    "wp",
+    "tw"
+   ],
+   "params": [
+    "wave_height",
+    "wave_period",
+    "water_temp"
+   ],
+   "exposedBy": [
+    "get_buoy_observation",
+    "get_buoys_with_obs",
+    "get_nearest_buoy",
+    "list_buoys_near"
+   ]
+  },
+  {
+   "key": "marineLhBuoys",
+   "kind": "cache",
+   "exposed": true,
+   "label": "등표(L타입)",
+   "org": "기상청 marine.kma",
+   "method": "API",
+   "cadence": ":03·:13",
+   "granularity": "등표(9)",
+   "fields": [
+    "ws",
+    "wd",
+    "gst",
+    "ta",
+    "pa",
+    "hm"
+   ],
+   "params": [
+    "wind_speed"
+   ],
+   "exposedBy": [
+    "get_buoy_observation",
+    "get_buoys_with_obs",
+    "get_nearest_buoy",
+    "list_buoys_near"
+   ]
+  },
+  {
+   "key": "marineVs",
+   "kind": "cache",
+   "exposed": true,
+   "label": "시정계(가시거리)",
+   "org": "기상청 marine.kma",
+   "method": "API",
+   "cadence": ":03·:13",
+   "granularity": "지점(~181)",
+   "fields": [
+    "vs"
+   ],
+   "params": [
+    "visibility"
+   ],
+   "exposedBy": [
+    "get_visibility",
+    "get_zones_ranked"
+   ]
+  },
+  {
+   "key": "forecasts",
+   "kind": "cache",
+   "exposed": true,
+   "label": "해상 단기예보",
+   "org": "기상청 apihub",
+   "method": "API",
+   "cadence": "05:15·17:15",
+   "granularity": "해역(43구역)",
+   "fields": [
+    "wf",
+    "wd",
+    "ws",
+    "wh",
+    "sky"
+   ],
+   "params": [
+    "wind_dir",
+    "wind_speed",
+    "wave_height",
+    "sky"
+   ],
+   "exposedBy": [
+    "get_marine_forecast",
+    "get_zones_ranked"
+   ]
+  },
+  {
+   "key": "zoneForecasts",
+   "kind": "cache",
+   "exposed": true,
+   "label": "해구별 파고·바람 시계열전망",
+   "org": "기상청 apihub",
+   "method": "API",
+   "cadence": "09:30·21:30 (+75h/3h)",
+   "granularity": "해구(번호격자)",
+   "fields": [
+    "wh",
+    "wp",
+    "waveDir",
+    "ws",
+    "windDir",
+    "tm"
+   ],
+   "params": [
+    "wave_height",
+    "wave_period",
+    "wind_speed",
+    "wind_dir"
+   ],
+   "exposedBy": [
+    "get_zone_forecast",
+    "get_zones_ranked"
+   ]
+  },
+  {
+   "key": "midTermSeaForecasts",
+   "kind": "cache",
+   "exposed": true,
+   "label": "중기 해상예보(3~10일)",
+   "org": "기상청 apihub",
+   "method": "API",
+   "cadence": "06:15·18:15",
+   "granularity": "해역(8광역)",
+   "fields": [
+    "wf",
+    "wh"
+   ],
+   "params": [
+    "wave_height",
+    "sky"
+   ],
+   "exposedBy": [
+    "get_midterm_forecast"
+   ]
+  },
+  {
+   "key": "notice",
+   "kind": "cache",
+   "exposed": false,
+   "label": "공지",
+   "org": "자체(관리자)",
+   "method": "CRUD",
+   "cadence": "수동",
+   "granularity": "-",
+   "fields": [],
+   "params": [],
+   "exposedBy": [],
+   "note": "앱 콘텐츠(기상데이터 아님)"
+  },
+  {
+   "key": "promo",
+   "kind": "cache",
+   "exposed": false,
+   "label": "홍보",
+   "org": "자체(관리자)",
+   "method": "CRUD",
+   "cadence": "수동",
+   "granularity": "-",
+   "fields": [],
+   "params": [],
+   "exposedBy": [],
+   "note": "앱 콘텐츠"
+  },
+  {
+   "key": "boards",
+   "kind": "cache",
+   "exposed": false,
+   "label": "게시판",
+   "org": "자체(사용자)",
+   "method": "CRUD",
+   "cadence": "수동",
+   "granularity": "-",
+   "fields": [],
+   "params": [],
+   "exposedBy": [],
+   "note": "앱 콘텐츠"
+  },
+  {
+   "key": "fishingIndex",
+   "kind": "cache",
+   "exposed": true,
+   "label": "바다낚시 지수",
+   "org": "국립해양조사원(KHOA)",
+   "method": "API",
+   "cadence": "06:30·18:30",
+   "granularity": "지점(갯바위/선상)",
+   "fields": [
+    "totalIndex",
+    "wave",
+    "temp",
+    "current",
+    "wind",
+    "fish"
+   ],
+   "params": [
+    "wave_height",
+    "water_temp",
+    "current_speed",
+    "wind_speed"
+   ],
+   "exposedBy": [
+    "get_fishing_index"
+   ]
+  },
+  {
+   "key": "seaSplitIndex",
+   "kind": "cache",
+   "exposed": true,
+   "label": "바다갈라짐(체험) 지수",
+   "org": "국립해양조사원(KHOA)",
+   "method": "API",
+   "cadence": "매시 35분",
+   "granularity": "지점(14)",
+   "fields": [
+    "bgng",
+    "end",
+    "index",
+    "ta",
+    "wind"
+   ],
+   "params": [],
+   "exposedBy": [
+    "get_sea_split_index"
+   ]
+  },
+  {
+   "key": "surfingIndex",
+   "kind": "cache",
+   "exposed": true,
+   "label": "서핑 지수",
+   "org": "국립해양조사원(KHOA)",
+   "method": "API",
+   "cadence": "06:30·18:30",
+   "granularity": "해수욕장(16)",
+   "fields": [
+    "wave",
+    "period",
+    "wind",
+    "temp",
+    "grades",
+    "alert"
+   ],
+   "params": [
+    "wave_height",
+    "wave_period",
+    "wind_speed",
+    "water_temp"
+   ],
+   "exposedBy": [
+    "get_surfing_index"
+   ]
+  }
+ ],
+ "ondemand": [
+  {
+   "key": "current",
+   "kind": "ondemand",
+   "exposed": true,
+   "label": "유향·유속(해류)",
+   "org": "국립해양조사원 해아름",
+   "method": "API(격자, 30분 캐시)",
+   "cadence": "현재~+72h",
+   "granularity": "격자/해역",
+   "fields": [
+    "s",
+    "d",
+    "temp"
+   ],
+   "params": [
+    "current_speed"
+   ],
+   "tools": [
+    "get_current"
+   ]
+  },
+  {
+   "key": "depth",
+   "kind": "ondemand",
+   "exposed": true,
+   "label": "수심(BADA2024)",
+   "org": "국립해양조사원",
+   "method": "정적 격자 CSV",
+   "cadence": "정적",
+   "granularity": "격자",
+   "fields": [
+    "수심"
+   ],
+   "params": [
+    "depth"
+   ],
+   "tools": [
+    "get_depth"
+   ]
+  },
+  {
+   "key": "tide",
+   "kind": "ondemand",
+   "exposed": true,
+   "label": "조석(고조·저조·조위)",
+   "org": "국립해양조사원 TideBED",
+   "method": "API(요청 시, LRU 캐시)",
+   "cadence": "요청 시",
+   "granularity": "지점/격자",
+   "fields": [
+    "조위",
+    "고조",
+    "저조"
+   ],
+   "params": [
+    "tide_phase"
+   ],
+   "tools": [
+    "get_tide"
+   ]
+  },
+  {
+   "key": "seafogCctv",
+   "kind": "ondemand",
+   "exposed": true,
+   "label": "해무 CCTV 스틸컷",
+   "org": "국립해양조사원",
+   "method": "API",
+   "cadence": "10분",
+   "granularity": "항만(9)",
+   "fields": [
+    "imgDt",
+    "uri"
+   ],
+   "params": [
+    "visibility"
+   ],
+   "tools": [
+    "get_seafog_cctv"
+   ]
+  },
+  {
+   "key": "typhoon",
+   "kind": "ondemand",
+   "exposed": true,
+   "label": "태풍 통보문·진로",
+   "org": "기상청 방재기상플랫폼(dmdw)",
+   "method": "로그인 크롤링",
+   "cadence": "10분",
+   "granularity": "태풍",
+   "fields": [
+    "lat",
+    "lon",
+    "pressure",
+    "windMs",
+    "grade"
+   ],
+   "params": [
+    "typhoon_eta"
+   ],
+   "tools": [
+    "get_typhoon_status"
+   ]
+  }
+ ],
+ "tools": [
+  {
+   "name": "get_marine_forecast",
+   "meta": null
+  },
+  {
+   "name": "get_zone_forecast",
+   "meta": null
+  },
+  {
+   "name": "get_warning",
+   "meta": null
+  },
+  {
+   "name": "list_buoys_near",
+   "meta": null
+  },
+  {
+   "name": "get_buoy_observation",
+   "meta": null
+  },
+  {
+   "name": "get_visibility",
+   "meta": null
+  },
+  {
+   "name": "get_buoys_with_obs",
+   "meta": null
+  },
+  {
+   "name": "get_tide",
+   "meta": null
+  },
+  {
+   "name": "get_typhoon_status",
+   "meta": null
+  },
+  {
+   "name": "get_zones_ranked",
+   "meta": null
+  },
+  {
+   "name": "get_app_capabilities",
+   "meta": "앱 기능 안내(메타)"
+  },
+  {
+   "name": "get_midterm_forecast",
+   "meta": null
+  },
+  {
+   "name": "get_fishing_index",
+   "meta": null
+  },
+  {
+   "name": "get_surfing_index",
+   "meta": null
+  },
+  {
+   "name": "get_sea_split_index",
+   "meta": null
+  },
+  {
+   "name": "get_seafog_cctv",
+   "meta": null
+  },
+  {
+   "name": "get_current",
+   "meta": null
+  },
+  {
+   "name": "get_depth",
+   "meta": null
+  },
+  {
+   "name": "resolve_location",
+   "meta": "지명→좌표 변환"
+  },
+  {
+   "name": "get_nearest_buoy",
+   "meta": null
+  }
+ ]
+}
