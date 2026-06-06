@@ -1002,24 +1002,36 @@ async function _getZoneBulletinData() {
         const non = Object.keys(cnt[z]).filter((g) => g !== NATIONAL_GO);
         if (non.length) { non.sort((a, b) => cnt[z][b] - cnt[z][a]); homeByZone[z] = non[0]; }
     }
-    // [통보문 호수] ntfctn/list(관서별 통보문 제목)에서 file_nm → 호수(제XX호) 매핑.
+    // [통보문 호수 + 실제 제목] ntfctn/list(관서별 통보문 제목)에서 file_nm → 호수(제XX호)·원제목 매핑.
     //   ef/list 엔 호수가 없으므로 같은 file_nm 으로 조인해 목록에 통보문 명칭을 붙인다.
+    //   titleByFile(원제목)은 해제 판정용 — ef/list 의 warn_cmd_nm 은 해역별로 '변경'으로
+    //   코딩될 수 있어(다중해역 해제 통보문) 신뢰 불가. ntfctn warn_title 의 '해제' 가 진실.
     const reportByFile = {};
+    const titleByFile = {};
     try {
         const ntf = await marineClient.fetchWarnNtfctnList({ st_tm: ymd(-30), ed_tm: ymd(1) });
         for (const n of (Array.isArray(ntf) ? ntf : [])) {
             const f = String(n.file_nm || '').trim();
             if (!f) continue;
-            const m = String(n.warn_title || '').match(/제\s*[0-9]+-[0-9]+호/);
+            const wt = String(n.warn_title || '');
+            titleByFile[f] = wt;
+            const m = wt.match(/제\s*[0-9]+-[0-9]+호/);
             if (m) reportByFile[f] = m[0].replace(/\s+/g, '');
         }
     } catch (e) { /* 호수 조회 실패해도 목록은 정상(호수만 생략) */ }
+    // [현재 발효중 부모 해역] warn/list(no-auth) = "지금 발효 중" 권위 소스.
+    //   ef/list 는 30일 이력이라 이미 끝난(해제·만료) 통보문도 들어오므로, 이 집합으로
+    //   "발효중인 zone(warn_zone_cd)" 만 발효 통보문으로 남긴다(해제·만료 통보문 자동 제외).
+    //   값 null = 조회 실패(이때는 ed_tm 만료 휴리스틱으로 폴백).
+    let warnListRows = null;
+    try { const wl = await marineClient.fetchWarnList(); warnListRows = Array.isArray(wl) ? wl : []; }
+    catch (e) { warnListRows = null; }
     // [예비특보] ef/list 엔 발효 통보문만 있고 예비특보(발표대기)는 없다.
     //   warn/ready(no-auth)가 예비특보 발표를 해역명(warn_zone_nm)+시각으로 준다(PDF 는 없음).
     let readyRows = [];
     try { const rd = await marineClient.fetchWarnReady(); readyRows = Array.isArray(rd) ? rd : []; }
     catch (e) { /* 예비 조회 실패해도 발효 목록은 정상 */ }
-    _zoneBulletinCache = { at: now, rows: safe, homeByZone, reportByFile, readyRows };
+    _zoneBulletinCache = { at: now, rows: safe, homeByZone, reportByFile, titleByFile, readyRows, warnListRows };
     return _zoneBulletinCache;
 }
 
@@ -1027,8 +1039,20 @@ router.get('/api/zone-bulletins', async (req, res) => {
     const zone = String(req.query.zone || '').trim();
     if (!zone) return res.status(400).json({ error: 'zone 파라미터 필요', bulletins: [] });
     try {
-        const { rows, homeByZone, reportByFile, readyRows } = await _getZoneBulletinData();
+        const { rows, homeByZone, reportByFile, titleByFile, readyRows, warnListRows } = await _getZoneBulletinData();
         const z = _zbNorm(zone);
+        // [현재 발효중 zone 코드] warn/list 의 발효중(warn_lvl≠0) 부모 zone 코드 집합.
+        //   null = warn/list 조회 실패(이때만 ed_tm 만료 휴리스틱으로 폴백).
+        let effectiveCodes = null;
+        if (Array.isArray(warnListRows)) {
+            effectiveCodes = new Set();
+            for (const r of warnListRows) {
+                const lvl = String(r.warn_lvl != null ? r.warn_lvl : (r.warn_lvl_nm || '')).trim();
+                if (lvl === '0' || lvl === '') continue;   // 미발효 메타행 제외
+                const cd = String(r.warn_zone_cd || '').trim();
+                if (cd) effectiveCodes.add(cd);
+            }
+        }
         // 관할 지방청: PDF 내용검증 정적 매핑 우선 → 미등록이면 빈도 휴리스틱. (108=전국 폴백 해역)
         const home = ZONE_HOME_OFFICE[z] || homeByZone[z] || null;
         // 발효(이벤트) 단위로 묶고, 관할 지방청 > 그 외 지방청 > 전국(108) 순으로 PDF 선택
@@ -1059,24 +1083,34 @@ router.get('/api/zone-bulletins', async (req, res) => {
                 title: (tp + lvl + (cmd ? ' ' + cmd : '')).trim(),
                 pdfUrl: fileNm ? (MARINE_PDF_HOST + fileNm) : '',
                 file_nm: fileNm,
+                warn_zone_cd: String(r.warn_zone_cd || '').trim(),       // 발효중 판정용(warn/list 조인)
+                ed_tm: String(r.ed_tm || '').trim(),                      // 발효구간 종료시각(만료 판정용)
+                reportTitle: (titleByFile && titleByFile[fileNm]) || '', // ntfctn 원제목(해제 판정용)
                 national: String(r.prdc_go) === NATIONAL_GO,   // true 면 전국 폴백(연안/평수 미포함 가능)
                 childOnly: false                                // ef/list = 부모 통보문
             });
         }
         // [예비특보] warn/ready 의 이 해역 예비특보(발표대기)를 목록에 추가.
-        //   ef/list 엔 없어 빠지던 "최신 예비특보 발표"를 반영. PDF 가 없으므로 클릭 시
-        //   날씨누리 특보 페이지(현재 발효중=이 예비)로 연결한다(webUrl).
+        //   ef/list 엔 없어 빠지던 "최신 예비특보 발표"를 반영. 해상 예비특보는 PDF 가 없고
+        //   날씨누리에도 예비특보 통보문 페이지는 본청(stn=108)·예비특보(kind=pwn)·발표일(date)로만
+        //   조회된다(실검증). 파라미터 없는 list.do 는 "종류무관 최신 통보문(예: 날씨해설)"을
+        //   띄우므로, 반드시 stn/kind/date 로 좁힌 딥링크를 줘야 정확한 예비특보가 표출된다.
         for (const r of (readyRows || [])) {
             if (_zbNorm(r.warn_zone_nm) !== z) continue;
             const tp = String(r.warn_tp_nm || '').trim();
             const lvl = String(r.warn_lvl_nm || '').trim();   // 예: '예비특보'
             const cmd = String(r.warn_cmd_nm || '').trim();   // 예: '발표'
+            const tmFc = String(r.tm_fc || '').trim();        // 예: '2026.06.05 16:00'
+            const ymdDate = (tmFc.match(/^(\d{4})\.(\d{2})\.(\d{2})/) || []);
+            const dateParam = ymdDate.length ? `${ymdDate[1]}-${ymdDate[2]}-${ymdDate[3]}` : '';
+            const prelimUrl = 'https://www.weather.go.kr/w/special-report/list.do?stn=108&kind=pwn'
+                + (dateParam ? `&date=${dateParam}` : '');
             bulletins.push({
-                time: String(r.tm_fc || '').trim(),
+                time: tmFc,
                 title: (tp + (lvl ? ' ' + lvl : '') + (cmd ? ' ' + cmd : '')).trim(),   // '풍랑 예비특보 발표'
                 pdfUrl: '',
                 file_nm: '',
-                webUrl: 'https://www.weather.go.kr/w/special-report/list.do',
+                webUrl: prelimUrl,
                 national: false,
                 childOnly: false,
                 prelim: true
@@ -1103,13 +1137,35 @@ router.get('/api/zone-bulletins', async (req, res) => {
         }
         const merged = Array.from(seen.values());
         merged.sort((a, b) => (a.time < b.time ? 1 : (a.time > b.time ? -1 : 0)));   // 최신 발표 우선
-        // [살아있는 특보만] 특보가 해제되면 그 특보는 끝나고 해역도 목록에서 사라진다. 따라서
-        //   해제 통보문(해제/변경해제)과 그 이전(이미 끝난 과거 주기)은 제외하고, *현재 활성
-        //   주기*(가장 최근 해제 이후의 발표/변경/격상/격하/예비특보)만 남긴다.
-        const isRelease = (b) => /해제/.test(b.title || '');
+        // [살아있는 특보만] 특보가 해제되면 그 특보는 끝나고 해역도 목록에서 사라진다.
+        //   판정 기준(3개 독립 원인분석 합의):
+        //   (1) 해제 통보문 제외 — ef/list 의 warn_cmd_nm 은 다중해역 해제 통보문에서 해역별로
+        //       '변경'으로 코딩될 수 있어(예: 제06-21호) 신뢰 불가. ntfctn 원제목(reportTitle)의
+        //       '해제' 를 함께 본다.
+        //   (2) 발효중 게이트 — warn/list(현재 발효 부모 zone) 에 그 warn_zone_cd 가 있어야 발효중.
+        //       해제·만료된 통보문은 warn/list 에서 빠지므로 자동 제외(핵심). warn/list 조회 실패
+        //       시에만 ed_tm(발효구간 종료) < 현재시각 인 만료 통보문을 폴백으로 제외.
+        //   (3) 예비특보(warn/ready)·자식-only 통보문은 발효중 게이트 대상이 아니며 해제만 제외.
+        const kstNow = new Date(Date.now() + 9 * 3600000);
+        const nowStr = `${kstNow.getUTCFullYear()}.${String(kstNow.getUTCMonth() + 1).padStart(2, '0')}.`
+            + `${String(kstNow.getUTCDate()).padStart(2, '0')} `
+            + `${String(kstNow.getUTCHours()).padStart(2, '0')}:${String(kstNow.getUTCMinutes()).padStart(2, '0')}`;
+        const isRelease = (b) => /해제/.test(b.title || '') || /해제/.test(b.reportTitle || '');
+        // 가장 최근 해제 시각 — 그 이전(이미 끝난 과거 주기)은 현재 cycle 이 아니다.
         let lastRelease = '';
         for (const b of merged) { if (isRelease(b) && String(b.time) > lastRelease) lastRelease = String(b.time); }
-        const alive = merged.filter((b) => !isRelease(b) && (!lastRelease || String(b.time) > lastRelease));
+        const inCurrentCycle = (b) => !lastRelease || String(b.time) > lastRelease;
+        const isEffective = (b) => {
+            if (effectiveCodes) return b.warn_zone_cd ? effectiveCodes.has(b.warn_zone_cd) : false;
+            return !b.ed_tm || String(b.ed_tm) >= nowStr;   // 폴백: ed_tm 만료 안 된 것만
+        };
+        const alive = merged.filter((b) => {
+            if (b.prelim) return true;                       // 예비특보(warn/ready) — 항상 표시
+            if (isRelease(b)) return false;                  // 해제 통보문 제외
+            if (!inCurrentCycle(b)) return false;            // 이미 끝난 과거 주기 제외
+            if (b.childOnly) return true;                    // 자식-only(현재주기·해제아님) — 표시
+            return isEffective(b);                           // ef 발효 통보문 — 발효중인 zone 만
+        });
         // 각 항목에 통보문 호수(제XX호) 부착 — 같은 file_nm 의 ntfctn 제목에서 추출.
         for (const b of alive) b.reportNo = (reportByFile && reportByFile[b.file_nm]) || '';
         res.json({ zone, count: alive.length, bulletins: alive.slice(0, 50) });
