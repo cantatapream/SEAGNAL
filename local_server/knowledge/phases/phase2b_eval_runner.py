@@ -40,13 +40,29 @@ PORT = int(os.environ.get("PORT", "3001"))
 URL  = f"http://127.0.0.1:{PORT}/api/assistant/ask"
 TIMEOUT = 60
 
+# p95 게이트 임계 — 환경변수로 카테고리별 오버라이드 (delta_synthesis_R2 §0 축2/§4.1)
+# 평가셋 default 3000 · sentinel(외부 진입점)은 SENTINEL_P95_MS 로 덮어쓰기.
+P95_GATE_MS = int(os.environ.get(
+    "SENTINEL_P95_MS",
+    os.environ.get("EVAL_P95_MS", "3000")
+))
+RAW_GATE_RATIO = float(os.environ.get("RAW_GATE_RATIO", "1.5"))  # raw WARN 비율
+
 def ask(query, profile=None, max_retry=3):
-    """호출 + 429(Gemini rate limit) 백오프 재시도. 429 외 오류는 즉시 반환."""
+    """호출 + 429 백오프 재시도. (data, metrics, err) 반환.
+    metrics = {pure_ms, backoff_ms, attempts, last_attempt_ms}
+      · pure_ms        : 마지막 성공 attempt 의 (t_end - t_start)
+      · backoff_ms     : 누적 sleep(429 백오프) 시간 ms
+      · attempts       : 실제 시도 수 (1=즉시 성공)
+      · last_attempt_ms: 실패 종료 시 마지막 시도 ms (성공 시 None)
+    raw_ms = pure_ms + backoff_ms 는 호출자(main)에서 케이스별 합산.
+    """
     body = {"query": query, "memory": []}
     if profile is not None:
         body["profile"] = profile
     payload = json.dumps(body).encode("utf-8")
-    last_ms = 0
+    backoff_ms = 0
+    last_pure = 0
     for attempt in range(max_retry + 1):
         req = urllib.request.Request(URL, data=payload,
             headers={"Content-Type": "application/json"}, method="POST")
@@ -54,18 +70,31 @@ def ask(query, profile=None, max_retry=3):
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
                 raw = r.read().decode("utf-8")
-                elapsed_ms = int((time.monotonic() - t0) * 1000)
-                return json.loads(raw), elapsed_ms, None
+                pure = int((time.monotonic() - t0) * 1000)
+                return json.loads(raw), {
+                    "pure_ms": pure,
+                    "backoff_ms": backoff_ms,
+                    "attempts": attempt + 1,
+                    "last_attempt_ms": None,
+                }, None
         except urllib.error.HTTPError as e:
-            last_ms = int((time.monotonic() - t0) * 1000)
+            last_pure = int((time.monotonic() - t0) * 1000)
             if e.code == 429 and attempt < max_retry:
-                # 백오프: 4s → 9s → 16s. Gemini quota 회복 대기.
-                time.sleep(4 + attempt * 5)
+                # 백오프: 4s → 9s → 14s. Gemini quota 회복 대기.
+                wait_s = 4 + attempt * 5
+                time.sleep(wait_s); backoff_ms += wait_s * 1000
                 continue
-            return None, last_ms, f"HTTP {e.code}"
+            return None, {"pure_ms": 0, "backoff_ms": backoff_ms,
+                          "attempts": attempt + 1,
+                          "last_attempt_ms": last_pure}, f"HTTP {e.code}"
         except Exception as e:
-            return None, int((time.monotonic() - t0) * 1000), f"{type(e).__name__}: {e}"
-    return None, last_ms, "HTTP 429(retry exhausted)"
+            return None, {"pure_ms": 0, "backoff_ms": backoff_ms,
+                          "attempts": attempt + 1,
+                          "last_attempt_ms": int((time.monotonic() - t0) * 1000)}, \
+                   f"{type(e).__name__}: {e}"
+    return None, {"pure_ms": 0, "backoff_ms": backoff_ms,
+                  "attempts": max_retry + 1,
+                  "last_attempt_ms": last_pure}, "HTTP 429(retry exhausted)"
 
 def percentile(values, p):
     if not values: return 0
@@ -103,7 +132,10 @@ def main():
 
     print(f"=== Phase 2b 품질 평가 + 지연 SLO ({len(cases)}케이스 × N={N}회 다수결) ===\n")
     npass = nfail = 0
-    latencies = []
+    latencies_net = []          # pure_ms 누적 — p95 게이트 판정 대상 (net)
+    latencies_raw = []          # pure_ms + backoff_ms 누적 — raw 보고용 (케이스별 합산)
+    backoff_per_case_ms = []    # 케이스별 backoff_ms (평균/최대 산출용)
+    n_429 = 0                   # 429 발생 케이스 수 (backoff_ms > 0)
     fails = []
     flaky = []  # 케이스별로 N회 결과가 갈린(=비결정성) 항목
 
@@ -118,12 +150,20 @@ def main():
         if cidx > 0: time.sleep(1.5)   # 케이스 간 짧은 페이싱 — Gemini quota 보호
         for i in range(N):
             if i > 0: time.sleep(0.8)   # 반복 간 페이싱
-            data, ms, err = ask(q, prof)
+            data, m, err = ask(q, prof)
             if err:
                 fails_n += 1
                 if first_err is None: first_err = err
+                # backoff 만 발생하고 결국 실패한 경우도 백오프는 적재
+                if m and m.get("backoff_ms"):
+                    backoff_per_case_ms.append(m["backoff_ms"]); n_429 += 1
                 continue
-            case_lat.append(ms); latencies.append(ms)
+            pure = m["pure_ms"]; bo = m["backoff_ms"]
+            case_lat.append(pure)
+            latencies_net.append(pure)
+            latencies_raw.append(pure + bo)     # ← 케이스별 raw 적재 (분위수의 합 금지)
+            backoff_per_case_ms.append(bo)
+            if bo: n_429 += 1
             tools = (data.get("data") or {}).get("toolsUsed") or []
             ans = data.get("answer") or ""
             last_tools = tools; last_ans = ans
@@ -153,13 +193,41 @@ def main():
     print(f"PASS {npass} / FAIL {nfail} / 총 {len(cases)} (다수결 N={N})")
     if flaky:
         print(f"비결정성(flaky, N회 중 일부만 통과) {len(flaky)}건:", ",".join(flaky))
-    if latencies:
-        print(f"지연 SLO  p50={percentile(latencies,0.5)}ms  p95={percentile(latencies,0.95)}ms  "
-              f"평균={sum(latencies)//len(latencies)}ms  min={min(latencies)}ms  max={max(latencies)}ms  n={len(latencies)} 호출")
+
+    # net/raw 분위수는 케이스별 적재값으로 직접 산출 (분위수의 합 금지)
+    if latencies_net:
+        p50_net = percentile(latencies_net, 0.5)
+        p95_net = percentile(latencies_net, 0.95)
+        p50_raw = percentile(latencies_raw, 0.5)
+        p95_raw = percentile(latencies_raw, 0.95)
+        bo_avg = sum(backoff_per_case_ms) // len(backoff_per_case_ms) if backoff_per_case_ms else 0
+        bo_max = max(backoff_per_case_ms) if backoff_per_case_ms else 0
+        bo_total_s = sum(backoff_per_case_ms) // 1000
+        print(f"지연 SLO (net = pure_ms, raw = pure + backoff)")
+        print(f"  net  p50={p50_net}ms  p95={p95_net}ms  (gate ≤{P95_GATE_MS}ms)")
+        print(f"  raw  p50={p50_raw}ms  p95={p95_raw}ms  (raw WARN >{int(P95_GATE_MS*RAW_GATE_RATIO)}ms)")
+        print(f"  backoff 평균 {bo_avg}ms · 최대 {bo_max}ms · 총 {bo_total_s}s · 429 발생 {n_429}/{len(latencies_net)}건")
+        print(f"  n={len(latencies_net)} 호출")
+    else:
+        p95_net = 0; p95_raw = 0
+
+    # raw 는 1.5배 초과 시 WARN 만 (exit 영향 없음)
+    warn_raw = p95_raw > int(P95_GATE_MS * RAW_GATE_RATIO)
+    if warn_raw:
+        print(f"⚠ raw p95 {p95_raw}ms > {int(P95_GATE_MS*RAW_GATE_RATIO)}ms (외부쿼터 WARN — exit 영향 없음)")
+
+    violations = []
+    if fails:
+        violations.append(f"FAIL {len(fails)}건")
+    if p95_net > P95_GATE_MS:
+        violations.append(f"net p95 {p95_net}>{P95_GATE_MS}")
+
     if fails:
         print("실패(다수결) 케이스:", ",".join(fails))
+    if violations:
+        print("\nVIOLATION:", " · ".join(violations))
         sys.exit(1)
-    print("다수결 기준 모두 통과 ✅")
+    print("다수결+지연 게이트 모두 통과 ✅")
     sys.exit(0)
 
 if __name__ == "__main__":

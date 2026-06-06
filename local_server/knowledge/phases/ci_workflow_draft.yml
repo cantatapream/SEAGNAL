@@ -1,0 +1,182 @@
+# ci_workflow_draft.yml — 나리야 빌더 CI (초안)
+#
+# [배치] 메인이 SEAGNAL/.github/workflows/builder-ci.yml 로 이동.
+#        레포 루트=SEAGNAL/, 빌더=SEAGNAL/local_server/knowledge/... → working-directory: local_server.
+# [게이트] lint / builders / phase0-static 3잡은 키·네트워크 불요 → 실패 시 머지 차단(브랜치 보호 규칙에서 required 지정).
+# [분리]  embeddings(GEMINI 키)·golden-gate(서버+다수 시크릿)는 외부의존·위양성 때문에 PR 게이트에서 제외, 수동/스케줄만.
+
+name: Builder CI
+
+on:
+  pull_request:
+    paths:
+      - 'local_server/knowledge/**'
+      - 'local_server/services/**'
+      - 'local_server/routes/**'
+      - '.github/workflows/builder-ci.yml'
+  push:
+    branches: [main, staging]
+    paths:
+      - 'local_server/knowledge/**'
+      - 'local_server/services/**'
+      - 'local_server/routes/**'
+  workflow_dispatch: {}   # embeddings / golden-gate 수동 실행용
+  schedule:
+    - cron: '0 18 * * *'  # 매일 03:00 KST golden-gate nightly
+
+# 게이트 잡은 시크릿을 일절 참조하지 않는다(포크 PR 안전).
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: local_server
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # (c) 문법체크 — 머지 차단
+  # ---------------------------------------------------------------------------
+  lint:
+    name: 문법체크 (node/python)
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - name: Node 문법체크 (--check, 실행 아님)
+        run: |
+          git ls-files '*.js' | grep -v node_modules | while read -r f; do
+            node --check "$f" || { echo "JS 파싱 실패: $f"; exit 1; }
+          done
+      - name: Python 문법체크 (py_compile)
+        run: python -m py_compile knowledge/phases/*.py
+
+  # ---------------------------------------------------------------------------
+  # (a) 빌더 드리프트 검출 — 머지 차단
+  # ---------------------------------------------------------------------------
+  builders:
+    name: 빌더 드리프트 (catalog/graph)
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: data_catalog 빌드 (드리프트 시 exit 1)
+        run: node knowledge/build_data_catalog.js
+      - name: graph 빌드
+        run: node knowledge/graph/build_graph.js
+      - name: 산출물 신선도 (커밋본 == 재빌드본, builtAt 타임스탬프 제외)
+        # 두 산출물은 매 빌드마다 "builtAt" 시각을 새로 쓰므로 단순 diff 는 항상 실패한다.
+        # 타임스탬프 줄을 빼고 비교해 실제 데이터 드리프트만 잡는다.
+        run: |
+          for f in knowledge/data_catalog.json knowledge/graph/graph.json; do
+            diff <(git show "HEAD:local_server/$f" | grep -v '"builtAt"') \
+                 <(grep -v '"builtAt"' "$f") >/dev/null \
+              || { echo "::error::$f 가 소스와 불일치 — 로컬에서 빌더 실행 후 커밋하세요."; exit 1; }
+          done
+
+  # ---------------------------------------------------------------------------
+  # (b) phase0 정적검사 3종(관리자격리·그래프무결성·카탈로그드리프트) — 머지 차단
+  #     서버 불요: phase0_runner.py 의 정적 함수만 호출(파일 수정 불필요).
+  # ---------------------------------------------------------------------------
+  phase0-static:
+    name: phase0 정적검사 (서버 불요)
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - name: 산출물 최신화(검사 입력 보장)
+        run: |
+          node knowledge/build_data_catalog.js
+          node knowledge/graph/build_graph.js
+      - name: 정적검사 3종 실행 (서버 호출 main() 비활성화 후 함수만)
+        working-directory: local_server/knowledge/phases
+        # phase0_runner.py 는 모듈 끝에서 main()(골든=서버 호출)을 무조건 실행하므로,
+        # 단순 import 는 서버를 기다리며 멈춘다. main() 호출만 제거하고 exec 해 정적 함수 3개만 호출.
+        # (phase0_runner.py 자체는 수정하지 않음. 메인이 __main__ 가드를 추가하면 이 우회는 단순화 가능.)
+        run: |
+          python - <<'PY'
+          import re, sys, os
+          src = open('phase0_runner.py', encoding='utf-8').read()
+          src = re.sub(r'^main\(\)\s*$', '', src, flags=re.M)
+          ns = {'__name__': 'phase0_ci', '__file__': os.path.abspath('phase0_runner.py')}
+          exec(compile(src, 'phase0_runner.py', 'exec'), ns)
+          probs = ns['static_security_check']() + ns['graph_integrity_check']() + ns['data_catalog_check']()
+          [print('FAIL:', x) for x in probs]
+          print('정적검사 통과' if not probs else '')
+          sys.exit(1 if probs else 0)
+          PY
+
+  # ---------------------------------------------------------------------------
+  # (d) 임베딩 — 옵션(GEMINI 키 필요). PR 게이트 제외, 수동/스케줄만. 비차단.
+  # ---------------------------------------------------------------------------
+  embeddings:
+    name: 임베딩 캐시 검증 (옵션·키 필요)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    continue-on-error: true   # 비차단
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: 의존성 설치
+        run: npm ci
+      - name: 임베딩 캐시 재생성/검증
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_EMBED_MODEL: ${{ vars.GEMINI_EMBED_MODEL }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then echo '키 없음 — SKIP'; exit 0; fi
+          node -e "require('./services/topic_embedding.js')"  # 빌더 진입점은 메인이 확정
+
+  # ---------------------------------------------------------------------------
+  # 골든 게이트 — 서버 구동 필요·다수 시크릿. PR 차단 부적합(외부 API 위양성) → 별도·비차단.
+  # 외부의존(marine.kma/KHOA/Gemini) 격리: 이 잡에서만 실호출.
+  # ---------------------------------------------------------------------------
+  golden-gate:
+    name: 골든 회귀 (서버+시크릿, 비차단)
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    continue-on-error: true   # 비차단(외부 API 장애로 머지/스케줄을 막지 않음)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: npm ci
+      - name: 서버 부팅
+        env:
+          PORT: '3001'
+          MARINE_DISABLE: '1'            # 콜드스타트 안정화(외부 의존 최소화)
+          GEMINI_API_KEY:     ${{ secrets.GEMINI_API_KEY }}
+          MARINE_USER_ID:     ${{ secrets.MARINE_USER_ID }}
+          MARINE_USER_PWD:    ${{ secrets.MARINE_USER_PWD }}
+          ROMS_SERVICE_KEY:   ${{ secrets.ROMS_SERVICE_KEY }}
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          ADMIN_PASSWORD:     ${{ secrets.ADMIN_PASSWORD }}
+          VAPID_PUBLIC_KEY:   ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY:  ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT:      ${{ secrets.VAPID_SUBJECT }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY:    ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+        run: |
+          node server.js &
+          echo $! > /tmp/server.pid
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:3001/ >/dev/null && break || sleep 2
+          done
+      - name: 골든 회귀 실행
+        run: python3 knowledge/phases/phase0_runner.py http://127.0.0.1:3001
+      - name: 서버 종료
+        if: always()
+        run: kill "$(cat /tmp/server.pid)" 2>/dev/null || true
