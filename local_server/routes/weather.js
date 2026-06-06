@@ -1091,10 +1091,13 @@ router.get('/api/zone-bulletins', async (req, res) => {
             });
         }
         // [예비특보] warn/ready 의 이 해역 예비특보(발표대기)를 목록에 추가.
-        //   ef/list 엔 없어 빠지던 "최신 예비특보 발표"를 반영. 해상 예비특보는 PDF 가 없고
-        //   날씨누리에도 예비특보 통보문 페이지는 본청(stn=108)·예비특보(kind=pwn)·발표일(date)로만
-        //   조회된다(실검증). 파라미터 없는 list.do 는 "종류무관 최신 통보문(예: 날씨해설)"을
-        //   띄우므로, 반드시 stn/kind/date 로 좁힌 딥링크를 줘야 정확한 예비특보가 표출된다.
+        //   ef/list 엔 없어 빠지던 "최신 예비특보 발표"를 반영. 해상 예비특보는 PDF 가 없으므로
+        //   날씨누리 통보문 페이지로 딥링크한다. 발효 통보문 PDF 와 동일하게 **관할 지방청**
+        //   (stn=home) 통보문을 따라가야 한다 — 전국(108)본엔 연안바다/평수구역(자식)이 안 보이고
+        //   지방청 통보문에만 자식 특보 발효 여부가 표시되기 때문(발효 PDF 와 동일 원리, 실검증:
+        //   stn=184 에 stn=108 과 별개의 지방청 예비특보 통보문 존재). 파라미터 없는 list.do 는
+        //   "종류무관 최신 통보문(날씨해설 등)"을 띄우므로, stn/kind/date 로 좁혀야 정확하다.
+        const prelimStn = home || NATIONAL_GO;   // 관할 지방청 우선, 미상이면 전국(108) 폴백
         for (const r of (readyRows || [])) {
             if (_zbNorm(r.warn_zone_nm) !== z) continue;
             const tp = String(r.warn_tp_nm || '').trim();
@@ -1103,7 +1106,7 @@ router.get('/api/zone-bulletins', async (req, res) => {
             const tmFc = String(r.tm_fc || '').trim();        // 예: '2026.06.05 16:00'
             const ymdDate = (tmFc.match(/^(\d{4})\.(\d{2})\.(\d{2})/) || []);
             const dateParam = ymdDate.length ? `${ymdDate[1]}-${ymdDate[2]}-${ymdDate[3]}` : '';
-            const prelimUrl = 'https://www.weather.go.kr/w/special-report/list.do?stn=108&kind=pwn'
+            const prelimUrl = `https://www.weather.go.kr/w/special-report/list.do?stn=${prelimStn}&kind=pwn`
                 + (dateParam ? `&date=${dateParam}` : '');
             bulletins.push({
                 time: tmFc,
