@@ -1089,17 +1089,18 @@
     function applyAvailability() {
         var btn = document.getElementById('ocean-typhoon-toggle-btn');
         if (!btn) return;
-        // 활성 태풍(dmdw)이 있으면 버튼 활성, 없으면 비활성. (일반 사용자 노출 — 탭 잠금 없음)
+        // 활성 태풍이 있으면 활성. 없을 때는 10회 탭으로 잠금해제(_unlocked, 세션 한정) 시에도 활성.
         var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
+        var canShow = has || _unlocked;
         var nBadge = document.getElementById('tphn-n-badge');
-        if (nBadge) nBadge.style.display = has ? 'flex' : 'none';
-        if (!has) {
+        if (nBadge) nBadge.style.display = has ? 'flex' : 'none';  // N 배지는 "현재 활성 태풍" 신호 → has 만
+        if (!canShow) {
             btn.classList.add('tphn-disabled');
             btn.title = '현재 태풍 없음';
             if (_visible) setVisible(false);
         } else {
             btn.classList.remove('tphn-disabled');
-            btn.title = '태풍 진로';
+            btn.title = has ? '태풍 진로' : '태풍 진로 (활성 없음 — 과거 통보문 조회)';
         }
     }
 
@@ -1218,7 +1219,8 @@
         if (btn) {
             btn.addEventListener('click', function () {
                 var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
-                if (!has) return;                               // 활성 태풍 없음 → 비활성
+                // 활성 태풍 있거나 잠금해제(10탭) 상태면 토글, 아니면 탭 카운트.
+                if (!has && !_unlocked) { handleGateTap(); return; }
                 setVisible(!_visible);
             });
         }
