@@ -1002,7 +1002,19 @@ async function _getZoneBulletinData() {
         const non = Object.keys(cnt[z]).filter((g) => g !== NATIONAL_GO);
         if (non.length) { non.sort((a, b) => cnt[z][b] - cnt[z][a]); homeByZone[z] = non[0]; }
     }
-    _zoneBulletinCache = { at: now, rows: safe, homeByZone };
+    // [통보문 호수] ntfctn/list(관서별 통보문 제목)에서 file_nm → 호수(제XX호) 매핑.
+    //   ef/list 엔 호수가 없으므로 같은 file_nm 으로 조인해 목록에 통보문 명칭을 붙인다.
+    const reportByFile = {};
+    try {
+        const ntf = await marineClient.fetchWarnNtfctnList({ st_tm: ymd(-30), ed_tm: ymd(1) });
+        for (const n of (Array.isArray(ntf) ? ntf : [])) {
+            const f = String(n.file_nm || '').trim();
+            if (!f) continue;
+            const m = String(n.warn_title || '').match(/제\s*[0-9]+-[0-9]+호/);
+            if (m) reportByFile[f] = m[0].replace(/\s+/g, '');
+        }
+    } catch (e) { /* 호수 조회 실패해도 목록은 정상(호수만 생략) */ }
+    _zoneBulletinCache = { at: now, rows: safe, homeByZone, reportByFile };
     return _zoneBulletinCache;
 }
 
@@ -1010,7 +1022,7 @@ router.get('/api/zone-bulletins', async (req, res) => {
     const zone = String(req.query.zone || '').trim();
     if (!zone) return res.status(400).json({ error: 'zone 파라미터 필요', bulletins: [] });
     try {
-        const { rows, homeByZone } = await _getZoneBulletinData();
+        const { rows, homeByZone, reportByFile } = await _getZoneBulletinData();
         const z = _zbNorm(zone);
         // 관할 지방청: PDF 내용검증 정적 매핑 우선 → 미등록이면 빈도 휴리스틱. (108=전국 폴백 해역)
         const home = ZONE_HOME_OFFICE[z] || homeByZone[z] || null;
@@ -1067,6 +1079,8 @@ router.get('/api/zone-bulletins', async (req, res) => {
         }
         const merged = Array.from(seen.values());
         merged.sort((a, b) => (a.time < b.time ? 1 : (a.time > b.time ? -1 : 0)));   // 최신 발표 우선
+        // 각 항목에 통보문 호수(제XX호) 부착 — 같은 file_nm 의 ntfctn 제목에서 추출.
+        for (const b of merged) b.reportNo = (reportByFile && reportByFile[b.file_nm]) || '';
         res.json({ zone, count: merged.length, bulletins: merged.slice(0, 50) });
     } catch (e) {
         console.error('[zone-bulletins] ef/list 조회 실패:', e && e.message);
