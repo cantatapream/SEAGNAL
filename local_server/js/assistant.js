@@ -282,41 +282,105 @@
   }
 
   function doAsk(query, loc) {
-    fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: query, profile: getProfile(), memory: getMemory(), style: getStyle(), location: loc, focus: getFocus() })
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (!d || !d.ok) { throw new Error((d && d.error) || '응답 오류'); }
-        // 음성인식 보정이 있었으면 "들은 질문 → 교정"으로 표시
-        if (d.corrected) setHeard(query + '  →  ' + d.corrected);
-        lastAnswer = d.answer || '';
-        setAnswer(d.answer, d.aiUsed);
-        metaEl.textContent = d.zone
-          ? ('해역: ' + d.zone + (d.zoneFromProfile ? '(프로필 기본)' : '') + ' · 의도: ' + d.intent)
-          : '';
-        renderActions(d.links);
-        // 성향 통계 누적(질문수·해역·주제) + 주기적 말투 요약 갱신
-        updateStyleStats(d);
-        // 과거 대화 요약을 휴대폰에 누적 → 다음 질문에 참고. 항상 저장하고(해역 없는 랭킹/해구
-        // 질문도 후속에서 이어지도록), 답변은 해구 번호·경위도가 살아남게 넉넉히(160자) 보관.
-        var memQ = d.corrected || query;
-        pushMemory((d.zone ? d.zone + ': ' : '') + '"' + memQ + '" → ' + String(d.answer || '').slice(0, 160));
-        // [구조화 연속성] 서버가 돌려준 직전 주목 대상(해역/해구/부이/좌표)을 저장 → 다음 요청에 재전송.
-        if (d.focus) setFocus(d.focus);
-        speak(d.answer);
-        if (!('speechSynthesis' in window) && micOn) startWakeMode();
-        // 임의 지점 물때: 지명 검색 → 확인 → 고조/저조 조회 흐름 시작
-        if (d.tideSearch) startTidePlaceSearch(d.tideSearch);
+    // [N2 HUNK C] 사용자 기억 v2 스냅샷 — 캐시 우선(동기) + 의미검색(비동기).
+    //   설계: knowledge/phases/n2_user_memory_client_integration.md §2.3
+    //   SeagnalMemory 미로드 시 무회귀(분기 무진입) — 기존 흐름 그대로 (G1·G5).
+    var n2Snapshot = null;
+    if (window.SeagnalMemory) {
+      try {
+        // 동기 getter — primed 시 캐시 hit (0ms), 미primed 시 localStorage 폴백.
+        n2Snapshot = {
+          profile: SeagnalMemory.getUserProfile(),
+          style:   SeagnalMemory.getStyleDigest(),
+          focus:   SeagnalMemory.getFocusLast()
+        };
+      } catch (e) { n2Snapshot = null; }
+    }
+    // 의미검색 회수는 항상 비동기 — 캐시 hit 시 즉시, miss 시 30ms.
+    var n2EpsPromise = (window.SeagnalMemory && SeagnalMemory.getRelevantEpisodes)
+      ? SeagnalMemory.getRelevantEpisodes(query, 8).catch(function () { return null; })
+      : Promise.resolve(null);
+
+    n2EpsPromise.then(function (eps) {
+      // body — 기존 키 호환 + N2 신키(userMemorySnapshot) 추가. 서버가 모르면 무시(G1).
+      var body = {
+        query:    query,
+        profile:  (n2Snapshot && n2Snapshot.profile) || getProfile(),
+        memory:   getMemory(),                                  // 호환 유지 — note 문자열 배열
+        style:    (n2Snapshot && n2Snapshot.style)   || getStyle(),
+        location: loc,
+        focus:    (n2Snapshot && n2Snapshot.focus)   || getFocus()
+      };
+      if (n2Snapshot || (eps && eps.length)) {
+        body.userMemorySnapshot = {
+          source:   'sqlite-mirror',
+          profile:  (n2Snapshot && n2Snapshot.profile) || null,
+          style:    (n2Snapshot && n2Snapshot.style)   || null,
+          focus:    (n2Snapshot && n2Snapshot.focus)   || null,
+          episodes: eps || []   // [{ id, ts, channel, zone, note }]
+        };
+      }
+
+      fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
       })
-      .catch(function (err) {
-        setAnswer('죄송해요, 데이터를 가져오지 못했습니다. (' + err.message + ')', null);
-        metaEl.textContent = '';
-        renderActions(null);
-        if (micOn) startWakeMode();
-      });
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d || !d.ok) { throw new Error((d && d.error) || '응답 오류'); }
+          // 음성인식 보정이 있었으면 "들은 질문 → 교정"으로 표시
+          if (d.corrected) setHeard(query + '  →  ' + d.corrected);
+          lastAnswer = d.answer || '';
+          setAnswer(d.answer, d.aiUsed);
+          metaEl.textContent = d.zone
+            ? ('해역: ' + d.zone + (d.zoneFromProfile ? '(프로필 기본)' : '') + ' · 의도: ' + d.intent)
+            : '';
+          renderActions(d.links);
+          // 성향 통계 누적(질문수·해역·주제) + 주기적 말투 요약 갱신
+          updateStyleStats(d);
+          // 과거 대화 요약을 휴대폰에 누적 → 다음 질문에 참고. 항상 저장하고(해역 없는 랭킹/해구
+          // 질문도 후속에서 이어지도록), 답변은 해구 번호·경위도가 살아남게 넉넉히(160자) 보관.
+          var memQ = d.corrected || query;
+          pushMemory((d.zone ? d.zone + ': ' : '') + '"' + memQ + '" → ' + String(d.answer || '').slice(0, 160));
+          // [구조화 연속성] 서버가 돌려준 직전 주목 대상(해역/해구/부이/좌표)을 저장 → 다음 요청에 재전송.
+          if (d.focus) setFocus(d.focus);
+
+          // [N2 HUNK D] write-through — 캐시 + IndexedDB + Plugin 3중. fire-and-forget.
+          //   설계: knowledge/phases/n2_user_memory_client_integration.md §2.4
+          //   기존 pushMemory()/setFocus() 는 v2 미마이그레이션 안전망으로 유지 (이중쓰기).
+          if (window.SeagnalMemory) {
+            try {
+              SeagnalMemory.appendEpisode({
+                query:   memQ,
+                answer:  String(d.answer || ''),
+                zone:    d.zone || null,
+                tools:   (d.links || []).map(function (l) { return l && l.type ? l.type : null; })
+                                        .filter(Boolean),
+                channel: 'chat',
+                focus:   d.focus || null
+              }).catch(function () { /* fire-and-forget */ });
+
+              // 8턴마다 압축 트리거 — localStorage style.totalQuestions 기반(결정론).
+              var s2 = getStyle();
+              if (s2 && s2.totalQuestions && (s2.totalQuestions % 8) === 0) {
+                SeagnalMemory.triggerConsolidation().catch(function () {});
+              }
+            } catch (n2err) { /* silent fallback — UI 흐름 무관 */ }
+          }
+
+          speak(d.answer);
+          if (!('speechSynthesis' in window) && micOn) startWakeMode();
+          // 임의 지점 물때: 지명 검색 → 확인 → 고조/저조 조회 흐름 시작
+          if (d.tideSearch) startTidePlaceSearch(d.tideSearch);
+        })
+        .catch(function (err) {
+          setAnswer('죄송해요, 데이터를 가져오지 못했습니다. (' + err.message + ')', null);
+          metaEl.textContent = '';
+          renderActions(null);
+          if (micOn) startWakeMode();
+        });
+    });
   }
 
   // ── 클라우드 정확 받아쓰기 (MediaRecorder → /api/assistant/transcribe → ask) ──────
@@ -897,6 +961,17 @@
     renderProfile();
     startOnboarding();
   });
+
+  // [N2 HUNK B] 사용자 기억 v2 — 마이그레이션 (1회 멱등) + 부팅 prime (1회 hydrate).
+  //   설계: knowledge/phases/n2_user_memory_client_integration.md §2.2
+  //   SeagnalMemory 미로드 시 무회귀(분기 무진입). 실패 시 다음 부팅 재시도 — 데이터 유실 0.
+  if (window.SeagnalMemory) {
+    try {
+      SeagnalMemory.migrateLocalStorageOnce()
+        .then(function () { return SeagnalMemory.primeUserMemory(); })
+        .catch(function () { /* 실패 시 다음 부팅 재시도 */ });
+    } catch (e) { /* silent fallback */ }
+  }
 
   setupNativeBridge();
 

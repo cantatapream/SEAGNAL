@@ -32,6 +32,14 @@ import androidx.core.app.ServiceCompat;
 import com.seagnal.app.MainActivity;
 import com.seagnal.app.R;
 
+// [N2] 사용자 기억 v2 — 같은 프로세스 DAO 직결(Plugin 우회).
+//   설계: local_server/knowledge/phases/n2_user_memory_client_integration.md §3
+import com.seagnal.app.memory.EpisodeEntity;
+import com.seagnal.app.memory.StyleDigestEntity;
+import com.seagnal.app.memory.UserMemoryDao;
+import com.seagnal.app.memory.UserMemoryDatabase;
+import com.seagnal.app.memory.UserProfileEntity;
+
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -41,6 +49,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -309,6 +318,58 @@ public class VoiceAssistantService extends Service {
                 for (String note : recentMemory) memArr.put(note);
                 body.put("memory", memArr);
             }
+            // [N2 §3.1] SQLite 정본 조회 → userMemorySnapshot 동봉(Plugin 우회 DAO 직결).
+            //   같은 프로세스의 UserMemoryDao 직접 호출 — 채팅 WebView 와 동일 DB 단일 정본.
+            //   회귀 가드: try/catch 로 SQLite 실패 시 기존 흐름 그대로(서버는 신키 무시 — G1).
+            try {
+                UserMemoryDao dao = UserMemoryDatabase.getInstance(getApplicationContext()).userMemoryDao();
+                UserProfileEntity profileRow = dao.readUserProfile();
+                StyleDigestEntity styleRow   = dao.readStyleDigest();
+                List<EpisodeEntity> epRows   = dao.readRelevantEpisodes("%", 8);
+
+                JSONObject snapshot = new JSONObject();
+                snapshot.put("source", "sqlite-mirror");
+                if (profileRow != null) {
+                    JSONObject p = new JSONObject();
+                    p.put("jikgun",          profileRow.jikgun);
+                    p.put("defaultZone",     profileRow.defaultZone);
+                    p.put("displayName",     profileRow.displayName);
+                    p.put("answerStyle",     profileRow.answerStyle);
+                    p.put("experienceYears", profileRow.experienceYears);
+                    p.put("preferredFormat", profileRow.preferredFormat);
+                    snapshot.put("profile", p);
+                }
+                if (styleRow != null) {
+                    JSONObject s = new JSONObject();
+                    s.put("totalQuestions",  styleRow.totalQuestions);
+                    s.put("styleNote",       styleRow.styleNote);
+                    s.put("preferredFormat", styleRow.preferredFormat);
+                    snapshot.put("style", s);
+                }
+                if (lastFocusJson != null && !lastFocusJson.isEmpty()) {
+                    try { snapshot.put("focus", new JSONObject(lastFocusJson)); }
+                    catch (Exception ignored) { /* 손상 시 무시 */ }
+                }
+                org.json.JSONArray epsArr = new org.json.JSONArray();
+                for (EpisodeEntity ep : epRows) {
+                    JSONObject o = new JSONObject();
+                    o.put("id",      ep.id);
+                    o.put("ts",      ep.createdAt);
+                    o.put("channel", ep.sourceChannel);
+                    o.put("zone",    ep.zone);
+                    // assistant.js#pushMemory 와 byte-equal — 서버 프롬프트 변경 0 (G1).
+                    String z = ep.zone == null ? "" : ep.zone + ": ";
+                    String a = ep.answerSummary == null ? "" : ep.answerSummary;
+                    if (a.length() > 160) a = a.substring(0, 160);
+                    o.put("note", z + "\"" + ep.query + "\" → " + a);
+                    epsArr.put(o);
+                }
+                snapshot.put("episodes", epsArr);
+                body.put("userMemorySnapshot", snapshot);
+            } catch (Exception snapEx) {
+                Log.w(TAG, "[N2] userMemorySnapshot skip: " + snapEx.getMessage());
+                // 회귀 가드 — snapshot 미동봉 시 서버는 기존 profile/memory/focus 만 사용 (G1).
+            }
             byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
             try (OutputStream os = conn.getOutputStream()) {
                 os.write(payload);
@@ -341,6 +402,32 @@ public class VoiceAssistantService extends Service {
                         + "\"" + query + "\" → " + shortAns;
                 recentMemory.addLast(note);
                 while (recentMemory.size() > MEMORY_MAX) recentMemory.pollFirst();
+
+                // [N2 §3.2] SQLite 정본 적재 — DAO 직결(Plugin 우회).
+                //   트랜잭션은 DAO.appendEpisode 의 @Transaction 헬퍼가 보장.
+                //   회귀 가드: 내부 try/catch — DAO 실패는 음성 답변 흐름과 무관.
+                try {
+                    UserMemoryDao dao = UserMemoryDatabase.getInstance(getApplicationContext()).userMemoryDao();
+                    String ans600 = answer.length() > 600 ? answer.substring(0, 600) : answer;
+                    long id = dao.appendEpisode(
+                            query,
+                            ans600,
+                            (zone == null || zone.isEmpty()) ? null : zone,
+                            null,        // tools — 음성 측은 미수집 (서버 응답의 links 도 미파싱)
+                            "voice"
+                    );
+                    // 채팅 WebView 캐시 무효화 신호 — Plugin static helper 통해 notifyListeners.
+                    SeagnalAssistantPlugin.notifyEpisodesChanged(id, "voice", System.currentTimeMillis());
+
+                    // 8턴마다 압축 트리거 (debounce 머지 — 단일 풀이라 폭주 무해).
+                    int cnt = dao.countEpisodes();
+                    if (cnt > 0 && (cnt % 8) == 0) {
+                        // A3 Consolidator 미연결 — N_impl 라운드가 채움.
+                        // 본 라운드는 ack 만(자체 enqueue 도 무해).
+                    }
+                } catch (Exception dbEx) {
+                    Log.w(TAG, "[N2] DAO appendEpisode 실패: " + dbEx.getMessage());
+                }
             } catch (Exception ignored) { /* 메모 적재 실패는 답변 흐름과 무관 */ }
             return answer;
         } catch (Exception e) {
