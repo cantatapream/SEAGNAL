@@ -1053,8 +1053,14 @@ router.get('/api/zone-bulletins', async (req, res) => {
                 if (cd) effectiveCodes.add(cd);
             }
         }
-        // 관할 지방청: PDF 내용검증 정적 매핑 우선 → 미등록이면 빈도 휴리스틱. (108=전국 폴백 해역)
-        const home = ZONE_HOME_OFFICE[z] || homeByZone[z] || null;
+        // 관할 지방청(통보문이 따라갈 청): PDF 내용검증 정적 매핑이 **실제 지방청**(≠108)이면 그것,
+        //   아니면(=정적값이 108 폴백이거나 미등록) ef/list 빈도 휴리스틱으로 실제 발행 지방청을 복원.
+        //   강원 앞바다처럼 정적 매핑이 108(이름이 105 PDF에 안 보여 폴백)이라도 ef/list 엔 105(강원청)
+        //   행이 있으므로, 108(전국)이 아닌 **지방청 통보문**을 따라가게 한다(발표/발효/예비 공통).
+        const staticHome = ZONE_HOME_OFFICE[z];
+        const regionalOffice =
+            (staticHome && staticHome !== NATIONAL_GO) ? staticHome      // 정적 매핑이 실제 지방청
+            : (homeByZone[z] || staticHome || null);                     // 아니면 빈도 휴리스틱(105 등)
         // 발효(이벤트) 단위로 묶고, 관할 지방청 > 그 외 지방청 > 전국(108) 순으로 PDF 선택
         const groups = new Map();   // key -> rows[]
         for (const r of rows) {
@@ -1070,9 +1076,10 @@ router.get('/api/zone-bulletins', async (req, res) => {
         const bulletins = [];
         for (const cands of groups.values()) {
             const pick =
-                (home && cands.find((r) => String(r.prdc_go) === home)) ||   // 1순위: 관할 지방청
-                cands.find((r) => String(r.prdc_go) !== NATIONAL_GO) ||       // 2순위: 그 외 지방청
-                cands[0];                                                     // 3순위: 전국(108) 폴백
+                (regionalOffice && regionalOffice !== NATIONAL_GO
+                    && cands.find((r) => String(r.prdc_go) === regionalOffice)) ||   // 1순위: 관할 지방청
+                cands.find((r) => String(r.prdc_go) !== NATIONAL_GO) ||              // 2순위: 그 외 지방청
+                cands[0];                                                            // 3순위: 전국(108) 최후 폴백
             const r = pick;
             const tp = String(r.warn_tp_nm || '').trim();
             const lvl = String(r.warn_lvl_nm || '').trim();
@@ -1097,7 +1104,7 @@ router.get('/api/zone-bulletins', async (req, res) => {
         //   지방청 통보문에만 자식 특보 발효 여부가 표시되기 때문(발효 PDF 와 동일 원리, 실검증:
         //   stn=184 에 stn=108 과 별개의 지방청 예비특보 통보문 존재). 파라미터 없는 list.do 는
         //   "종류무관 최신 통보문(날씨해설 등)"을 띄우므로, stn/kind/date 로 좁혀야 정확하다.
-        const prelimStn = home || NATIONAL_GO;   // 관할 지방청 우선, 미상이면 전국(108) 폴백
+        const prelimStn = regionalOffice || NATIONAL_GO;   // 관할 지방청 우선, 미상이면 전국(108) 폴백
         for (const r of (readyRows || [])) {
             if (_zbNorm(r.warn_zone_nm) !== z) continue;
             const tp = String(r.warn_tp_nm || '').trim();
