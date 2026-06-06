@@ -491,23 +491,21 @@ function createZoneBulletinItem(b) {
     headerEl.appendChild(timeEl);
     item.appendChild(headerEl);
 
-    if (b.pdfUrl) {
+    if (b.pdfUrl || b.webUrl) {
         item.style.cursor = 'pointer';
         item.addEventListener('click', function () {
-            // 통보문 원문 PDF 링크 열기. iframe(WebView)에 PDF 를 박으면 백지가 되므로,
-            //   앱 공통 패턴대로 시스템 브라우저(@capacitor/browser)로 그 *링크를 연다* →
-            //   폰 기본 PDF 뷰어가 렌더. 웹/데스크톱은 새 탭(브라우저가 PDF 표출).
-            var url = b.pdfUrl;
-            var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-            var Browser = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
-            if (isNative && Browser && Browser.open) {
-                try {
-                    var p = Browser.open({ url: url });
-                    if (p && typeof p.catch === 'function') p.catch(function () { window.open(url, '_blank'); });
-                    return;
-                } catch (e) { /* 폴백 */ }
+            // 메인 화면 '통보문' 버튼과 동일하게 iframe 모달(openKmaIframeModal)로 표출.
+            //   - 예비특보(webUrl=날씨누리 HTML): 그 버튼처럼 바로 iframe 렌더.
+            //   - 발효 통보문(pdfUrl): PDF 라 WebView iframe 직접 렌더 불가 → 구글 문서 뷰어로 감싼다.
+            var modalTitle = (b.reportNo ? b.reportNo + ' ' : '') + (b.title || '통보문');
+            var url = b.webUrl
+                ? b.webUrl
+                : 'https://docs.google.com/gview?embedded=true&url=' + encodeURIComponent(b.pdfUrl);
+            if (typeof window.openKmaIframeModal === 'function') {
+                window.openKmaIframeModal(url, modalTitle);
+            } else {
+                window.open(b.webUrl || b.pdfUrl, '_blank');
             }
-            window.open(url, '_blank');
         });
     }
     return item;
