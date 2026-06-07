@@ -47,6 +47,7 @@ const dataCache = {
     fishingIndex: null,       // 바다낚시 지수 (scheduler.js → fishing_index.json)
     seaSplitIndex: null,      // 바다갈라짐 체험지수 (scheduler.js → sea_split_index.json)
     surfingIndex: null,       // 서핑지수 (scheduler.js → surfing_index.json)
+    mudflatIndex: null,       // 갯벌체험 지수 (scheduler.js → mudflat_index.json)
     lastUpdate: {}
 };
 
@@ -86,7 +87,8 @@ function refreshCache() {
         boards: 'boards.json',
         fishingIndex: 'fishing_index.json',       // 바다낚시 지수 데이터
         seaSplitIndex: 'sea_split_index.json',  // 바다갈라짐 체험지수 데이터
-        surfingIndex: 'surfing_index.json'       // 서핑지수 데이터
+        surfingIndex: 'surfing_index.json',      // 서핑지수 데이터
+        mudflatIndex: 'mudflat_index.json'       // 갯벌체험 지수 데이터
     };
 
     Object.keys(files).forEach(key => {

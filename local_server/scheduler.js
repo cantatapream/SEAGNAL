@@ -98,6 +98,7 @@ const lastRunStatus = {
     fishing: { lastRun: null, status: '대기 중', message: '' },  // 해양생활기상 (바다낚시 지수)
     seaSplit: { lastRun: null, status: '대기 중', message: '' }, // 바다갈라짐 체험지수
     surfing: { lastRun: null, status: '대기 중', message: '' },  // 서핑지수
+    mudflat: { lastRun: null, status: '대기 중', message: '' },  // 갯벌체험 지수
 };
 
 const CONFIG_FILE = path.join(__dirname, 'data/api_config.json');
@@ -635,8 +636,8 @@ async function collectMidTermSeaForecasts() {
 // - routes/fishing.js → GET /api/fishing-index 엔드포인트에서 클라이언트에 제공
 // - js/fishing.js (프론트엔드) → 지도 마커 및 바텀시트 렌더링에 사용
 //
-// [API 갱신 주기] 하루 2회 (오전/오후)
-// [수집 스케줄] 06:30, 18:30 (발표 직후 여유를 두고 수집)
+// [API 갱신 주기] 매일 1회, 오전 09:00 KST 발표 (응답의 오전/오후는 예보 '내용' 구분이며 발표 횟수가 아님)
+// [수집 스케줄] 09:10(주) + 09:40(안전망) — 발표 직후 수집, 단발 실패 자동 복구
 // ============================================================================
 
 // 바다낚시 지수 API 인증키 (공공데이터포털 발급)
@@ -657,8 +658,8 @@ async function collectFishingIndex() {
         log('🎣 바다낚시 지수 수집 시작...');
 
         // 진행률 이벤트 발행 (admin 수동 호출 시 SSE 스트림으로 전달)
-        // total=9: 낚시지수 3단계(1~3) + 바다갈라짐 3단계(4~6) + 서핑지수 3단계(7~9) — 해양생활기상 통합 호출
-        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 1, total: 9, detail: 'API 호출 중' });
+        // total=12: 낚시지수 3단계(1~3) + 바다갈라짐 3단계(4~6) + 서핑지수 3단계(7~9) + 갯벌체험 3단계(10~12) — 해양생활기상 통합 호출
+        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 1, total: 12, detail: 'API 호출 중' });
 
         // API는 gubun 파라미터와 무관하게 갯바위+선상 전체 데이터를 반환하므로
         // 1회만 호출하고 위치명 패턴으로 분류 (선상: "항구명(Xkm)" 패턴)
@@ -673,7 +674,7 @@ async function collectFishingIndex() {
         const items = await _fetchFishingData('갯바위');
 
         // 진행률 이벤트: API 응답 수신 완료, 데이터 가공 시작
-        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 2, total: 9, detail: '데이터 가공 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 2, total: 12, detail: '데이터 가공 중' });
 
         if (!items || items.length === 0) {
             log('⚠️ 바다낚시 데이터 없음');
@@ -803,7 +804,7 @@ async function collectFishingIndex() {
         log(`🎣 바다낚시 날짜 분포 - 갯바위: ${dateAnalysis['갯바위'].join(',')} (${dateAnalysis['갯바위'].length}일), 선상: ${dateAnalysis['선상'].join(',')} (${dateAnalysis['선상'].length}일)`);
 
         // 진행률 이벤트: 파일 저장 단계
-        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 3, total: 9, detail: '저장 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 3, total: 12, detail: '저장 중' });
 
         // JSON 파일로 저장 (data/fishing_index.json)
         saveData('fishing_index.json', result);
@@ -940,11 +941,11 @@ async function collectSeaSplitIndex() {
 
         // 진행률 이벤트 발행 (관리자 수동 수집 시 SSE 스트림으로 전달)
         // type을 'fishing'으로 통일 — 해양생활기상 통합 호출 시 같은 SSE 스트림으로 전달되도록
-        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 4, total: 9, detail: 'API 호출 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 4, total: 12, detail: 'API 호출 중' });
 
         const items = await _fetchSeaSplitData();
 
-        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 5, total: 9, detail: '데이터 가공 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 5, total: 12, detail: '데이터 가공 중' });
 
         // ── 발표시각 판단을 위해 기존 저장 데이터를 읽어옴 ──
         // 이전에 저장된 sea_split_index.json을 읽어서 예보 데이터(places)가 바뀌었는지 비교
@@ -1016,7 +1017,7 @@ async function collectSeaSplitIndex() {
             log(`🛤️ 바다갈라짐 미발생 지점: ${missingPlaces.join(', ')}`);
         }
 
-        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 6, total: 9, detail: '저장 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 6, total: 12, detail: '저장 중' });
 
         // ── 발표시각 결정: 이전 데이터와 비교하여 변경 여부 판단 ──
         // places 객체(예보 데이터 본체)만 비교 — updatedAt/allPlaces는 비교 대상이 아님
@@ -1121,6 +1122,233 @@ async function _fetchSeaSplitData() {
     }
 }
 
+// ========================================================================
+// 갯벌체험 지수 수집
+// ========================================================================
+
+// 갯벌체험 API 설정 (바다낚시·바다갈라짐과 동일한 인증키 사용)
+const MUDFLAT_API_BASE = 'https://apis.data.go.kr/1192136/fcstMudflatv2/GetFcstMudflatApiServicev2';
+
+// 37개 전체 갯벌체험장 목록 (코드 TL1~TL37 순서, 데이터 없는 지점 안내용)
+const MUDFLAT_ALL_PLACES = [
+    'TL1:우전마을', 'TL2:백미리마을', 'TL3:문항마을', 'TL4:전곡리마을', 'TL5:만돌마을',
+    'TL6:하전마을', 'TL7:궁평마을', 'TL8:신리마을', 'TL9:월하성마을', 'TL10:선감마을',
+    'TL11:선유도마을', 'TL12:무창포마을', 'TL13:돌머리마을', 'TL14:모항마을', 'TL15:종현마을',
+    'TL16:수문마을', 'TL17:신시도마을', 'TL18:대야도마을', 'TL19:장자도마을', 'TL20:다대마을',
+    'TL21:냉천마을', 'TL22:사금마을', 'TL23:서중마을', 'TL24:제부마을', 'TL25:병술만마을',
+    'TL26:송계마을', 'TL27:국화리마을', 'TL28:유포마을', 'TL29:대포마을', 'TL30:청용마을',
+    'TL31:백사마을', 'TL32:장양마을', 'TL33:거차마을', 'TL34:죽림마을', 'TL35:둔장마을',
+    'TL36:마시안마을', 'TL37:만대마을'
+];
+
+/**
+ * 갯벌체험 지수 데이터 수집 함수
+ *
+ * [설명]
+ * 국립해양조사원 갯벌체험지수 API를 호출하여 전국 갯벌체험장의 7일간 예보 데이터를 수집합니다.
+ * 데이터 구조가 바다갈라짐과 거의 동일하므로 동일한 수집·가공·발표시각 판단 패턴을 사용합니다.
+ * 운영기간(5월~10월)에만 데이터가 제공되며, 운영기간 외에는 빈 places로 저장됩니다.
+ *
+ * [데이터 구조]
+ * {
+ *   updatedAt: '수집 시점',
+ *   allPlaces: ['우전마을','백미리마을',...],  // 37개 전체 지점명 (데이터 없는 지점 안내용)
+ *   places: {
+ *     '신리마을': {
+ *       lat: 37.14491, lot: 128.61360,
+ *       forecasts: {
+ *         '2026-06-07': [
+ *           { bgng: '10:50', end: '12:50', minArtmp: '14.9', maxArtmp: '19.6',
+ *             minWspd: '2.9', maxWspd: '6', weather: '구름많음', totalIndex: '좋음' }
+ *         ]
+ *       }
+ *     }
+ *   }
+ * }
+ *
+ * [연계] routes/fishing.js → /api/mudflat-index, js/mudflat.js → UI 렌더링
+ */
+async function collectMudflatIndex() {
+    try {
+        log('🦪 갯벌체험 지수 수집 시작...');
+
+        // 진행률 이벤트 발행 (관리자 수동 수집 시 SSE 스트림으로 전달)
+        // type을 'fishing'으로 통일 — 해양생활기상 통합 호출 시 같은 SSE 스트림으로 전달되도록
+        collectProgress.emit('progress', { type: 'fishing', step: '갯벌체험 지수', current: 10, total: 12, detail: 'API 호출 중' });
+
+        const items = await _fetchMudflatData();
+
+        collectProgress.emit('progress', { type: 'fishing', step: '갯벌체험 지수', current: 11, total: 12, detail: '데이터 가공 중' });
+
+        // ── 발표시각 판단을 위해 기존 저장 데이터를 읽어옴 ──
+        // 이전에 저장된 mudflat_index.json을 읽어서 예보 데이터(places)가 바뀌었는지 비교
+        let previousData = null;
+        try {
+            const prevPath = path.join(CONFIG.DATA_DIR, 'mudflat_index.json');
+            if (fs.existsSync(prevPath)) {
+                previousData = JSON.parse(fs.readFileSync(prevPath, 'utf8'));
+            }
+        } catch (readErr) {
+            log(`⚠️ 기존 갯벌체험 데이터 읽기 실패 (최초 실행 또는 파일 손상): ${readErr.message}`);
+        }
+
+        // 결과 객체 초기화 (updatedAt은 아래에서 데이터 비교 후 결정)
+        const result = {
+            updatedAt: '', // 데이터 비교 후 설정됨
+            allPlaces: MUDFLAT_ALL_PLACES.map(s => s.split(':')[1]), // ['우전마을','백미리마을',...]
+            places: {}
+        };
+
+        if (!items || items.length === 0) {
+            log('⚠️ 갯벌체험 데이터 없음 (운영기간 외 또는 전 지점 미발생)');
+        } else {
+            // API 응답을 지점명 기준으로 그룹핑
+            items.forEach(item => {
+                const placeName = item.mdftExpcnVlgNm;
+                if (!placeName) return;
+
+                // 해당 지점이 처음 등장하면 초기 객체 생성
+                if (!result.places[placeName]) {
+                    result.places[placeName] = {
+                        lat: parseFloat(item.lat) || 0,
+                        lot: parseFloat(item.lot) || 0,
+                        forecasts: {}
+                    };
+                }
+
+                const place = result.places[placeName];
+                const dateStr = item.predcYmd || ''; // 'YYYY-MM-DD' 형식
+
+                // 해당 날짜의 예보 배열 초기화 (같은 날 여러 구간 가능하므로 배열)
+                if (!place.forecasts[dateStr]) {
+                    place.forecasts[dateStr] = [];
+                }
+
+                // 시간 구간별 데이터 추가
+                place.forecasts[dateStr].push({
+                    bgng: item.mdftExprnBgngTm || '',    // 체험 시작 시간 (HH:MM)
+                    end: item.mdftExprnEndTm || '',       // 체험 종료 시간 (HH:MM)
+                    minArtmp: item.minArtmp || '',        // 최저기온 (°C)
+                    maxArtmp: item.maxArtmp || '',        // 최고기온 (°C)
+                    minWspd: item.minWspd || '',          // 최저풍속 (m/s)
+                    maxWspd: item.maxWspd || '',          // 최고풍속 (m/s)
+                    weather: item.weather || '',          // 날씨 (맑음, 흐림, 구름많음 등)
+                    totalIndex: item.totalIndex || ''     // 갯벌체험 지수 (5단계 + '체험불가')
+                });
+            });
+        }
+
+        // 수집 결과 로그
+        const placeNames = Object.keys(result.places);
+        log(`🦪 갯벌체험 수집 완료: ${placeNames.length}개 지점 (${placeNames.join(', ')})`);
+
+        // 데이터 없는 지점 목록 로그
+        const missingPlaces = result.allPlaces.filter(n => !result.places[n]);
+        if (missingPlaces.length > 0) {
+            log(`🦪 갯벌체험 미발생 지점: ${missingPlaces.length}개`);
+        }
+
+        collectProgress.emit('progress', { type: 'fishing', step: '갯벌체험 지수', current: 12, total: 12, detail: '저장 중' });
+
+        // ── 발표시각 결정: 이전 데이터와 비교하여 변경 여부 판단 ──
+        // places 객체(예보 데이터 본체)만 비교 — updatedAt/allPlaces는 비교 대상이 아님
+        const newPlacesStr = JSON.stringify(result.places);
+        const oldPlacesStr = previousData ? JSON.stringify(previousData.places) : null;
+        const isDataChanged = (oldPlacesStr === null) || (newPlacesStr !== oldPlacesStr);
+
+        if (isDataChanged) {
+            // 데이터가 바뀌었으므로 현재 시각의 "정시"를 발표시각으로 기록
+            const now = getCorrectedDate();
+            const kstMs = now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600000);
+            const kstDate = new Date(kstMs);
+            kstDate.setMinutes(0, 0, 0);
+            const yyyy = kstDate.getFullYear();
+            const mm = kstDate.getMonth() + 1;
+            const dd = kstDate.getDate();
+            const hh = kstDate.getHours();
+            const ampm = hh < 12 ? 'AM' : 'PM';
+            const hh12 = hh === 0 ? 12 : (hh > 12 ? hh - 12 : hh);
+            result.updatedAt = `${yyyy}. ${mm}. ${dd}. ${ampm} ${String(hh12).padStart(2, '0')}:00:00`;
+            log(`🦪 갯벌체험 데이터 변경 감지 → 발표시각 갱신: ${result.updatedAt}`);
+        } else {
+            // 데이터가 동일하므로 기존 발표시각을 그대로 유지
+            result.updatedAt = previousData.updatedAt;
+            log(`🦪 갯벌체험 데이터 변경 없음 → 기존 발표시각 유지: ${result.updatedAt}`);
+        }
+
+        // JSON 파일로 저장
+        saveData('mudflat_index.json', result);
+        lastRunStatus.mudflat = {
+            lastRun: getNowStr(),
+            status: '성공',
+            message: `${placeNames.length}개 지점, 미발생 ${missingPlaces.length}개`
+        };
+
+    } catch (e) {
+        lastRunStatus.mudflat = { lastRun: getNowStr(), status: '실패', message: e.message };
+        log(`⚠️ 갯벌체험 지수 수집 실패: ${e.message}`);
+    }
+}
+
+/**
+ * 갯벌체험 API 호출 함수 (페이지네이션 포함)
+ * @returns {Array} API 응답의 전체 items 배열 (실패 시 빈 배열)
+ *
+ * [설명]
+ * numOfRows=300(최대값)으로 호출하며, totalCount가 300을 초과하면 다음 페이지를 순회합니다.
+ * 현재 7일간 예보 × 약 18지점이므로 보통 1~2회 호출로 충분합니다.
+ *
+ * [연계] collectMudflatIndex()에서 호출
+ */
+async function _fetchMudflatData() {
+    const allItems = [];
+    const encodedKey = encodeURIComponent(FISHING_API_KEY); // 낚시와 동일한 API 키 사용
+    let pageNo = 1;
+    const numOfRows = 300;
+
+    try {
+        while (true) {
+            const params = new URLSearchParams({
+                numOfRows: String(numOfRows),
+                pageNo: String(pageNo),
+                type: 'json'
+            });
+            const url = `${MUDFLAT_API_BASE}?serviceKey=${encodedKey}&${params.toString()}`;
+            const response = await fetchWithTimeout(url, {}, 30000);
+
+            if (!response.ok) {
+                log(`⚠️ 갯벌체험 API 응답 오류 (p${pageNo}): HTTP ${response.status}`);
+                break;
+            }
+
+            const data = await response.json();
+
+            if (data?.header?.resultCode !== '00') {
+                log(`⚠️ 갯벌체험 API 오류: ${data?.header?.resultMsg}`);
+                break;
+            }
+
+            const items = data?.body?.items?.item;
+            if (!items) break;
+
+            const arr = Array.isArray(items) ? items : [items];
+            allItems.push(...arr);
+
+            const totalCount = data?.body?.totalCount || 0;
+            log(`🦪 갯벌체험 p${pageNo}: ${arr.length}건 수신 (누적 ${allItems.length}/${totalCount})`);
+
+            if (arr.length < numOfRows) break;
+            pageNo++;
+            if (pageNo > 10) break; // 안전장치
+        }
+
+        return allItems;
+    } catch (e) {
+        log(`⚠️ 갯벌체험 API 호출 실패: ${e.message}`);
+        return allItems;
+    }
+}
+
 // ============================================================================
 // 서핑지수 수집
 // ============================================================================
@@ -1191,7 +1419,7 @@ const SURFING_BEACH_META = {
  *
  * [호출 시점]
  * - 서버 시작 시 init() → Promise.all 병렬 실행
- * - 매일 06:30, 18:30 (낚시지수와 동일한 API 발표 직후)
+ * - 매일 09:10(주) + 09:40(안전망) (낚시지수와 동일한 API 발표 주기: 09:00 KST 1회)
  *
  * [연계]
  * - cache_manager.js → surfingIndex 키로 메모리 캐시
@@ -1201,7 +1429,7 @@ const SURFING_BEACH_META = {
 async function collectSurfingIndex() {
     try {
         log('🏄 서핑지수 수집 시작...');
-        collectProgress.emit('progress', { type: 'fishing', step: '서핑지수', current: 7, total: 9, detail: 'API 호출 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '서핑지수', current: 7, total: 12, detail: 'API 호출 중' });
 
         // 페이지네이션으로 전체 데이터 수집
         const allItems = await _fetchSurfingData();
@@ -1210,7 +1438,7 @@ async function collectSurfingIndex() {
             lastRunStatus.surfing = { lastRun: getNowStr(), status: '실패', message: '수신 데이터 없음' };
             return;
         }
-        collectProgress.emit('progress', { type: 'fishing', step: '서핑지수', current: 8, total: 9, detail: '데이터 가공 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '서핑지수', current: 8, total: 12, detail: '데이터 가공 중' });
 
         // 해수욕장명 기준으로 데이터 그룹핑
         // API는 1개 해수욕장 × 1개 날짜 × 1개 시간대 × 1개 등급 = 1행으로 반환
@@ -1269,7 +1497,7 @@ async function collectSurfingIndex() {
             beaches
         };
         saveData('surfing_index.json', result);
-        collectProgress.emit('progress', { type: 'fishing', step: '서핑지수', current: 9, total: 9, detail: '저장 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '서핑지수', current: 9, total: 12, detail: '저장 중' });
 
         lastRunStatus.surfing = {
             lastRun: getNowStr(),
@@ -1445,7 +1673,8 @@ async function init() {
             //   발생할 수 있음. PDF 가 끝난 뒤 직렬로 실행하도록 Promise.all 외부로 분리.
             collectFishingIndex().then(() => log('✅ 바다낚시 지수 수집 완료')),
             collectSeaSplitIndex().then(() => log('✅ 바다갈라짐 체험지수 수집 완료')),
-            collectSurfingIndex().then(() => log('✅ 서핑지수 수집 완료'))
+            collectSurfingIndex().then(() => log('✅ 서핑지수 수집 완료')),
+            collectMudflatIndex().then(() => log('✅ 갯벌체험 지수 수집 완료'))
         ]);
     } catch (e) {
         log(`⚠️ 일부 수집 중 오류: ${e.message}`);
@@ -1558,14 +1787,18 @@ async function init() {
         // 중기해상예보: 하루 2회 (06:15, 18:15)
         if (['06:15', '18:15'].includes(hm)) collectMidTermSeaForecasts();
 
-        // 바다낚시 지수: 하루 2회 (06:30, 18:30) - API 발표 직후 수집
-        if (['06:30', '18:30'].includes(hm)) collectFishingIndex();
-
-        // 서핑지수: 하루 2회 (06:30, 18:30) - 낚시지수와 동일한 API 발표 주기
-        if (['06:30', '18:30'].includes(hm)) collectSurfingIndex();
-
-        // 바다갈라짐 체험지수: 매시 35분 (1시간 간격)
-        if (min === 35) collectSeaSplitIndex();
+        // ── 해양생활기상지수 (바다낚시·서핑·바다갈라짐·갯벌체험) ──────────────────
+        // [발표 주기] 국립해양조사원 생활해양예보지수는 매일 오전 09:00 KST 1회 갱신.
+        //   (해양수산부 보도자료 2022.10: 제공시각 11:00 → 09:00 으로 변경, '매일' 1회)
+        //   → 발표 직후 09:10 에 1차 수집하고, 09:10 호출 실패/지연을 대비해 09:40 에
+        //      안전망으로 한 번 더 수집한다. (하루 2회 호출이면 충분 + 단발 실패 자동 복구)
+        //   부팅 시 1회 수집은 init() 의 Promise.all 에서 이미 수행됨.
+        if (['09:10', '09:40'].includes(hm)) {
+            collectFishingIndex();
+            collectSurfingIndex();
+            collectSeaSplitIndex();
+            collectMudflatIndex();
+        }
 
         // 지방기상청 단기예보: 발표 주기(05, 11, 17시) +10분에 수집
         if (['05:10', '11:10', '17:10'].includes(hm)) {
@@ -1685,6 +1918,7 @@ module.exports = {
     collectFishingIndex,
     collectSeaSplitIndex,
     collectSurfingIndex,
+    collectMudflatIndex,
     // 관리자 페이지용 상태 반환
     // fishing 키에 낚시지수 + 바다갈라짐 통합 상태를 담아서 반환
     // (내부적으로는 fishing/seaSplit 별도 관리, 외부에는 fishing으로 통합 노출)
@@ -1692,34 +1926,40 @@ module.exports = {
         const status = Object.assign({}, lastRunStatus);
         const f = lastRunStatus.fishing;
         const s = lastRunStatus.seaSplit;
+        const m = lastRunStatus.mudflat;
 
-        if (f.status === '성공' && s.status === '성공') {
-            // 둘 다 성공이면 메시지를 합치고, 더 최근에 실행된 쪽의 시각을 표시
-            status.fishing = {
-                lastRun: s.lastRun || f.lastRun,  // 바다갈라짐이 매시 35분 실행되므로 보통 더 최신
-                status: '성공',
-                message: f.message + ' / ' + s.message
-            };
-        } else if (f.status === '실패' || s.status === '실패') {
+        // 해양생활기상 통합 상태(fishing 카드) = 낚시 + 바다갈라짐 + 갯벌체험
+        const parts = [f, s, m];
+        const anyFail = parts.some(p => p.status === '실패');
+        const allSuccess = parts.every(p => p.status === '성공');
+        const anySuccess = parts.some(p => p.status === '성공');
+        // 가장 최근 실행 시각 (네 지수 모두 09:10/09:40 동시 수집이므로 사실상 동일; 갯벌>갈라짐>낚시 순으로 우선)
+        const latestRun = m.lastRun || s.lastRun || f.lastRun;
+
+        if (anyFail) {
             // 하나라도 실패면 실패 표시 (어떤 쪽이 실패했는지 메시지에 포함)
             const failMsg = [];
             if (f.status === '실패') failMsg.push('낚시: ' + f.message);
             if (s.status === '실패') failMsg.push('갈라짐: ' + s.message);
+            if (m.status === '실패') failMsg.push('갯벌: ' + m.message);
+            status.fishing = { lastRun: latestRun, status: '실패', message: failMsg.join(' / ') };
+        } else if (allSuccess) {
+            // 모두 성공이면 메시지를 합치고, 가장 최근 실행 시각을 표시
             status.fishing = {
-                lastRun: s.lastRun || f.lastRun,
-                status: '실패',
-                message: failMsg.join(' / ')
+                lastRun: latestRun,
+                status: '성공',
+                message: f.message + ' / ' + s.message + ' / 갯벌 ' + m.message
             };
-        } else if (f.status === '성공' || s.status === '성공') {
-            // 한쪽만 성공, 다른 쪽은 아직 대기 중 (서버 시작 직후 등)
-            // 실행 완료된 쪽의 상태를 표시
-            const done = f.status === '성공' ? f : s;
+        } else if (anySuccess) {
+            // 일부만 성공, 나머지는 아직 대기 중 (서버 시작 직후 등)
+            const done = parts.find(p => p.status === '성공');
             status.fishing = { lastRun: done.lastRun, status: done.status, message: done.message };
         }
-        // else: 둘 다 '대기 중'이면 기본 fishing 상태 그대로 유지
+        // else: 전부 '대기 중'이면 기본 fishing 상태 그대로 유지
 
-        // seaSplit 키는 외부에 노출하지 않음 (관리자 화면에서 별도 카드가 없으므로)
+        // seaSplit/mudflat 키는 외부에 노출하지 않음 (관리자 화면에서 별도 카드가 없으므로)
         delete status.seaSplit;
+        delete status.mudflat;
         return status;
     },
     collectProgress,
