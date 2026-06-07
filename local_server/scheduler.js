@@ -636,8 +636,8 @@ async function collectMidTermSeaForecasts() {
 // - routes/fishing.js → GET /api/fishing-index 엔드포인트에서 클라이언트에 제공
 // - js/fishing.js (프론트엔드) → 지도 마커 및 바텀시트 렌더링에 사용
 //
-// [API 갱신 주기] 하루 2회 (오전/오후)
-// [수집 스케줄] 06:30, 18:30 (발표 직후 여유를 두고 수집)
+// [API 갱신 주기] 매일 1회, 오전 09:00 KST 발표 (응답의 오전/오후는 예보 '내용' 구분이며 발표 횟수가 아님)
+// [수집 스케줄] 09:10(주) + 09:40(안전망) — 발표 직후 수집, 단발 실패 자동 복구
 // ============================================================================
 
 // 바다낚시 지수 API 인증키 (공공데이터포털 발급)
@@ -1419,7 +1419,7 @@ const SURFING_BEACH_META = {
  *
  * [호출 시점]
  * - 서버 시작 시 init() → Promise.all 병렬 실행
- * - 매일 06:30, 18:30 (낚시지수와 동일한 API 발표 직후)
+ * - 매일 09:10(주) + 09:40(안전망) (낚시지수와 동일한 API 발표 주기: 09:00 KST 1회)
  *
  * [연계]
  * - cache_manager.js → surfingIndex 키로 메모리 캐시
@@ -1787,17 +1787,18 @@ async function init() {
         // 중기해상예보: 하루 2회 (06:15, 18:15)
         if (['06:15', '18:15'].includes(hm)) collectMidTermSeaForecasts();
 
-        // 바다낚시 지수: 하루 2회 (06:30, 18:30) - API 발표 직후 수집
-        if (['06:30', '18:30'].includes(hm)) collectFishingIndex();
-
-        // 서핑지수: 하루 2회 (06:30, 18:30) - 낚시지수와 동일한 API 발표 주기
-        if (['06:30', '18:30'].includes(hm)) collectSurfingIndex();
-
-        // 바다갈라짐 체험지수: 매시 35분 (1시간 간격)
-        if (min === 35) collectSeaSplitIndex();
-
-        // 갯벌체험 지수: 매시 40분 (1시간 간격, 갈라짐과 5분 차이로 부하 분산)
-        if (min === 40) collectMudflatIndex();
+        // ── 해양생활기상지수 (바다낚시·서핑·바다갈라짐·갯벌체험) ──────────────────
+        // [발표 주기] 국립해양조사원 생활해양예보지수는 매일 오전 09:00 KST 1회 갱신.
+        //   (해양수산부 보도자료 2022.10: 제공시각 11:00 → 09:00 으로 변경, '매일' 1회)
+        //   → 발표 직후 09:10 에 1차 수집하고, 09:10 호출 실패/지연을 대비해 09:40 에
+        //      안전망으로 한 번 더 수집한다. (하루 2회 호출이면 충분 + 단발 실패 자동 복구)
+        //   부팅 시 1회 수집은 init() 의 Promise.all 에서 이미 수행됨.
+        if (['09:10', '09:40'].includes(hm)) {
+            collectFishingIndex();
+            collectSurfingIndex();
+            collectSeaSplitIndex();
+            collectMudflatIndex();
+        }
 
         // 지방기상청 단기예보: 발표 주기(05, 11, 17시) +10분에 수집
         if (['05:10', '11:10', '17:10'].includes(hm)) {
@@ -1932,7 +1933,7 @@ module.exports = {
         const anyFail = parts.some(p => p.status === '실패');
         const allSuccess = parts.every(p => p.status === '성공');
         const anySuccess = parts.some(p => p.status === '성공');
-        // 가장 최근 실행 시각 (갯벌체험 매시 40분 > 갈라짐 35분 순으로 보통 최신)
+        // 가장 최근 실행 시각 (네 지수 모두 09:10/09:40 동시 수집이므로 사실상 동일; 갯벌>갈라짐>낚시 순으로 우선)
         const latestRun = m.lastRun || s.lastRun || f.lastRun;
 
         if (anyFail) {
