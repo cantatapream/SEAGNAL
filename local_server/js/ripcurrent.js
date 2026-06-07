@@ -146,12 +146,85 @@
         map.addControl(new ol.control.Control({ element: legendEl }));
     }
 
+    /**
+     * 유의사항(이안류 발생 시 행동요령) 팝업.
+     * 기상청 '이안류 발생 시 행동요령' 이미지(ripcrnt_notice.png)를 상단에 표시하고,
+     * 그 아래에 텍스트 안내(#rip-disclaimer)를 함께 보여줍니다.
+     * (서핑/갯벌 지수 안내 팝업과 동일한 패턴 — 이미지 로딩 스피너 + 실패 시 폴백)
+     */
     function _openNoticePopup() {
+        _closeNoticePopup();
+
+        var imgSrc = '/images/ripcrnt_notice.png';
+        var title = '이안류 발생 시 행동요령';
         var src = document.getElementById('rip-disclaimer');
         var msgHtml = src ? src.innerHTML : '';
-        if (typeof window.showSeagnalModal === 'function') {
-            window.showSeagnalModal('이안류 지수 안내', msgHtml, 'info');
+
+        var overlay = document.createElement('div');
+        overlay.className = 'fishing-guide-overlay';
+        overlay.id = 'rip-notice-overlay';
+        overlay.addEventListener('click', function () { _closeNoticePopup(); });
+
+        var popup = document.createElement('div');
+        popup.className = 'fishing-guide-popup';
+        popup.id = 'rip-notice-popup';
+        popup.addEventListener('click', function (e) { e.stopPropagation(); });
+
+        var header = document.createElement('div');
+        header.className = 'fishing-guide-popup-header';
+        header.innerHTML = '<span>' + title + '</span>' +
+            '<button class="fishing-guide-popup-close" id="rip-notice-close"><i class="fa-solid fa-xmark"></i></button>';
+
+        var body = document.createElement('div');
+        body.className = 'fishing-guide-popup-body';
+
+        // 행동요령 이미지 (스피너 → 로딩 완료 시 표시, 실패 시 숨김)
+        var spinner = document.createElement('div');
+        spinner.className = 'guide-popup-spinner';
+        spinner.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        body.appendChild(spinner);
+
+        var img = document.createElement('img');
+        img.src = imgSrc;
+        img.alt = title;
+        img.style.width = '100%';
+        img.style.display = 'none';
+        img.onload = function () { spinner.style.display = 'none'; img.style.display = 'block'; };
+        img.onerror = function () { spinner.style.display = 'none'; }; // 이미지 없으면 텍스트만
+        body.appendChild(img);
+
+        // 텍스트 안내
+        if (msgHtml) {
+            var textBox = document.createElement('div');
+            textBox.className = 'fishing-disclaimer';
+            textBox.style.display = 'block';
+            textBox.style.marginTop = '10px';
+            textBox.innerHTML = msgHtml;
+            body.appendChild(textBox);
         }
+
+        popup.appendChild(header);
+        popup.appendChild(body);
+        document.body.appendChild(overlay);
+        document.body.appendChild(popup);
+
+        document.getElementById('rip-notice-close').addEventListener('click', function () { _closeNoticePopup(); });
+
+        if (window.PopupStack) {
+            window.PopupStack.push('rip-notice-popup', function () { _closeNoticePopup(); });
+        }
+    }
+
+    function _closeNoticePopup() {
+        var overlay = document.getElementById('rip-notice-overlay');
+        var popup = document.getElementById('rip-notice-popup');
+        if (popup) {
+            var img = popup.querySelector('img');
+            if (img) { img.onload = null; img.onerror = null; }
+            popup.remove();
+        }
+        if (overlay) overlay.remove();
+        if (window.PopupStack) window.PopupStack.remove('rip-notice-popup');
     }
 
     // ========================================================================
