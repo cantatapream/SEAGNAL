@@ -3255,7 +3255,10 @@ var USAGE_FEATURE_LABELS = {
     'life.surfing.point': '서핑 지점 클릭',
     'life.parting.region': '바다갈라짐 지역 선택',
     'life.mudflat.region': '갯벌체험 지역 선택',
-    'life.scuba.point': '스킨스쿠버 지점 클릭'
+    'life.mudflat.point': '갯벌체험 지점 클릭',
+    'life.scuba.point': '스킨스쿠버 지점 클릭',
+    'life.ripcurrent.tab': '이안류 탭 진입',
+    'life.ripcurrent.point': '이안류 지점 클릭'
 };
 function usageFeatureLabel(key) {
     return USAGE_FEATURE_LABELS[key] || key;

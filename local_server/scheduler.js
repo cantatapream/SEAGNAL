@@ -100,6 +100,7 @@ const lastRunStatus = {
     surfing: { lastRun: null, status: '대기 중', message: '' },  // 서핑지수
     mudflat: { lastRun: null, status: '대기 중', message: '' },  // 갯벌체험 지수
     scuba: { lastRun: null, status: '대기 중', message: '' },    // 스킨스쿠버 지수
+    ripcurrent: { lastRun: null, status: '대기 중', message: '' }, // 이안류 지수 (실시간)
 };
 
 const CONFIG_FILE = path.join(__dirname, 'data/api_config.json');
@@ -1525,6 +1526,153 @@ async function _fetchScubaData() {
     }
 }
 
+// ========================================================================
+// 이안류 지수 수집 (실시간 관측 — 스킨스쿠버와 동일한 지도형 표출)
+// ========================================================================
+
+// 이안류 API 설정 (다른 해양생활 지수와 동일 인증키, 단 엔드포인트는 v2 아님)
+const RIP_API_BASE = 'https://apis.data.go.kr/1192136/ripCurrent/GetRipCurrentApiService';
+
+/**
+ * 이안류 관측 10개 해수욕장 (코드/이름/좌표).
+ * - beachCode 가 필수라 지점별로 개별 호출한다.
+ * - 좌표는 데이터가 없을 때(검정 마커)도 표시할 수 있도록 정적으로 보유.
+ *   (모두 KHOA 공식 좌표 — 이안류/서핑 API에서 확인. 데이터 수신 시 API 좌표로 자동 보정)
+ */
+const RIP_BEACHES = [
+    { code: 'SOKCHO',   name: '속초해수욕장',   lat: 38.19058, lot: 128.60135 },
+    { code: 'NAKSAN',   name: '낙산해수욕장',   lat: 38.118,   lot: 128.63138 },
+    { code: 'GYEONGPO', name: '경포해수욕장',   lat: 37.80088, lot: 128.90947 },
+    { code: 'MANGSANG', name: '망상해수욕장',   lat: 37.59359, lot: 129.09065 },
+    { code: 'GORAEBUL', name: '고래불해수욕장', lat: 36.59722, lot: 129.41111 },
+    { code: 'DAECHON',  name: '대천해수욕장',   lat: 36.30559, lot: 126.50729 },
+    { code: 'IMRANG',   name: '임랑해수욕장',   lat: 35.31841, lot: 129.2644  },
+    { code: 'SONGJUNG', name: '송정해수욕장',   lat: 35.1785,  lot: 129.19978 },
+    { code: 'HAE',      name: '해운대해수욕장', lat: 35.15867, lot: 129.16035 },
+    { code: 'JUNGMUN',  name: '중문해수욕장',   lat: 33.24501, lot: 126.40944 }
+];
+
+/**
+ * 이안류 지수 데이터 수집 함수
+ *
+ * [설명]
+ * 국립해양조사원 이안류 API를 10개 해수욕장별로 호출하여 각 해수욕장의 '최신 관측'을 수집합니다.
+ * 이안류는 7일 예보가 아니라 5분 간격 실시간 관측이므로, 가장 최근 관측값을 현재 상태로 사용합니다.
+ * 4단계(관심/주의/경계/위험)로 표출하며, 데이터가 없는 해수욕장은 정보없음(검정 마커)으로 표시합니다.
+ * 운영기간은 여름철(6~9월)이며 그 외에는 전 지점 NODATA 입니다.
+ *
+ * [데이터 구조]
+ * {
+ *   updatedAt: '수집 시점',
+ *   places: {
+ *     '해운대해수욕장': {
+ *       code: 'HAE', lat, lot, hasData: true,
+ *       level: '경계', score: 49, obsrvnDt: '2026-06-07 22:40',
+ *       wvhgt, wvpd, wtem, artmp, wndrct, wspd
+ *     },
+ *     '대천해수욕장': { code: 'DAECHON', lat, lot, hasData: false, level: null }
+ *   }
+ * }
+ *
+ * [연계] routes/fishing.js → /api/ripcurrent-index, js/ripcurrent.js → 지도 마커/바텀시트
+ */
+async function collectRipCurrentIndex() {
+    try {
+        log('🌊 이안류 지수 수집 시작...');
+
+        const result = { updatedAt: getNowStr(), places: {} };
+        let dataCount = 0;
+
+        for (const beach of RIP_BEACHES) {
+            const latest = await _fetchRipLatest(beach.code);
+            if (latest) {
+                dataCount++;
+                result.places[beach.name] = {
+                    code: beach.code,
+                    lat: parseFloat(latest.lat) || beach.lat,   // API 좌표 우선, 없으면 정적 좌표
+                    lot: parseFloat(latest.lot) || beach.lot,
+                    hasData: true,
+                    level: latest.lastScrCn || null,            // 관심/주의/경계/위험
+                    score: (latest.lastScr != null) ? latest.lastScr : null, // 지수값(numeric)
+                    obsrvnDt: latest.obsrvnDt || '',
+                    wvhgt: latest.wvhgt != null ? String(latest.wvhgt) : '',
+                    wvpd: latest.wvpd != null ? String(latest.wvpd) : '',
+                    wtem: latest.wtem != null ? String(latest.wtem) : '',
+                    artmp: latest.artmp != null ? String(latest.artmp) : '',
+                    wndrct: latest.wndrct || '',
+                    wspd: latest.wspd != null ? String(latest.wspd) : ''
+                };
+            } else {
+                // 데이터 없음 → 정보없음(검정 마커)용으로 정적 좌표만 표시
+                result.places[beach.name] = {
+                    code: beach.code,
+                    lat: beach.lat,
+                    lot: beach.lot,
+                    hasData: false,
+                    level: null
+                };
+            }
+        }
+
+        saveData('ripcurrent_index.json', result);
+        lastRunStatus.ripcurrent = {
+            lastRun: getNowStr(),
+            status: '성공',
+            message: `${dataCount}/${RIP_BEACHES.length}개 관측`
+        };
+        log(`✅ 이안류 지수 수집 완료 (${dataCount}/${RIP_BEACHES.length}개 해수욕장 관측 수신)`);
+
+    } catch (e) {
+        lastRunStatus.ripcurrent = { lastRun: getNowStr(), status: '실패', message: e.message };
+        log(`⚠️ 이안류 지수 수집 실패: ${e.message}`);
+    }
+}
+
+/**
+ * 특정 해수욕장의 '가장 최근 관측' 1건을 반환합니다 (없으면 null).
+ *
+ * [설명]
+ * 이안류 API는 reqDate(기본 오늘)의 5분 간격 시계열을 반환합니다.
+ * obsrvnDt(관측일시) 기준 가장 최근 레코드를 현재 상태로 사용합니다.
+ *
+ * [연계] collectRipCurrentIndex()에서 호출
+ */
+async function _fetchRipLatest(beachCode) {
+    const encodedKey = encodeURIComponent(FISHING_API_KEY);
+    try {
+        const params = new URLSearchParams({
+            numOfRows: '300',
+            pageNo: '1',
+            type: 'json',
+            beachCode: beachCode
+        });
+        const url = `${RIP_API_BASE}?serviceKey=${encodedKey}&${params.toString()}`;
+        const response = await fetchWithTimeout(url, {}, 30000);
+        if (!response.ok) {
+            log(`⚠️ 이안류 API 응답 오류 (${beachCode}): HTTP ${response.status}`);
+            return null;
+        }
+        const data = await response.json();
+        // 데이터 없음(03)·파라미터 오류(10) 등은 정상적인 '미관측'으로 처리
+        if (data?.header?.resultCode !== '00') return null;
+
+        const items = data?.body?.items?.item;
+        if (!items) return null;
+        const arr = Array.isArray(items) ? items : [items];
+        if (arr.length === 0) return null;
+
+        // obsrvnDt 기준 최신 1건 선택 (레벨이 있는 레코드 우선)
+        arr.sort((a, b) => String(a.obsrvnDt || '').localeCompare(String(b.obsrvnDt || '')));
+        for (let i = arr.length - 1; i >= 0; i--) {
+            if (arr[i].lastScrCn) return arr[i];
+        }
+        return arr[arr.length - 1];
+    } catch (e) {
+        log(`⚠️ 이안류 API 호출 실패 (${beachCode}): ${e.message}`);
+        return null;
+    }
+}
+
 // ============================================================================
 // 서핑지수 수집
 // ============================================================================
@@ -1851,7 +1999,8 @@ async function init() {
             collectSeaSplitIndex().then(() => log('✅ 바다갈라짐 체험지수 수집 완료')),
             collectSurfingIndex().then(() => log('✅ 서핑지수 수집 완료')),
             collectMudflatIndex().then(() => log('✅ 갯벌체험 지수 수집 완료')),
-            collectScubaIndex().then(() => log('✅ 스킨스쿠버 지수 수집 완료'))
+            collectScubaIndex().then(() => log('✅ 스킨스쿠버 지수 수집 완료')),
+            collectRipCurrentIndex().then(() => log('✅ 이안류 지수 수집 완료'))
         ]);
     } catch (e) {
         log(`⚠️ 일부 수집 중 오류: ${e.message}`);
@@ -1978,6 +2127,10 @@ async function init() {
             collectScubaIndex();
         }
 
+        // 이안류 지수: 실시간 관측(5분 간격 갱신)이므로 30분마다 수집 (매시 05분, 35분)
+        //   여름철(6~9월) 외에는 전 지점 NODATA 라 가벼운 빈 수집으로 끝남.
+        if (min === 5 || min === 35) collectRipCurrentIndex();
+
         // 지방기상청 단기예보: 발표 주기(05, 11, 17시) +10분에 수집
         if (['05:10', '11:10', '17:10'].includes(hm)) {
             regionalForecastCollector.collectRegionalForecasts()
@@ -2098,6 +2251,7 @@ module.exports = {
     collectSurfingIndex,
     collectMudflatIndex,
     collectScubaIndex,
+    collectRipCurrentIndex,
     // 관리자 페이지용 상태 반환
     // fishing 키에 낚시지수 + 바다갈라짐 통합 상태를 담아서 반환
     // (내부적으로는 fishing/seaSplit 별도 관리, 외부에는 fishing으로 통합 노출)
@@ -2107,14 +2261,15 @@ module.exports = {
         const s = lastRunStatus.seaSplit;
         const m = lastRunStatus.mudflat;
         const sc = lastRunStatus.scuba;
+        const rc = lastRunStatus.ripcurrent;
 
-        // 해양생활기상 통합 상태(fishing 카드) = 낚시 + 바다갈라짐 + 갯벌체험 + 스킨스쿠버
-        const parts = [f, s, m, sc];
+        // 해양생활기상 통합 상태(fishing 카드) = 낚시 + 바다갈라짐 + 갯벌 + 스쿠버 + 이안류
+        const parts = [f, s, m, sc, rc];
         const anyFail = parts.some(p => p.status === '실패');
         const allSuccess = parts.every(p => p.status === '성공');
         const anySuccess = parts.some(p => p.status === '성공');
-        // 가장 최근 실행 시각 (다섯 지수 모두 09:10/09:40 동시 수집이므로 사실상 동일)
-        const latestRun = sc.lastRun || m.lastRun || s.lastRun || f.lastRun;
+        // 가장 최근 실행 시각 (이안류는 30분마다 수집되므로 보통 가장 최신)
+        const latestRun = rc.lastRun || sc.lastRun || m.lastRun || s.lastRun || f.lastRun;
 
         if (anyFail) {
             // 하나라도 실패면 실패 표시 (어떤 쪽이 실패했는지 메시지에 포함)
@@ -2123,13 +2278,14 @@ module.exports = {
             if (s.status === '실패') failMsg.push('갈라짐: ' + s.message);
             if (m.status === '실패') failMsg.push('갯벌: ' + m.message);
             if (sc.status === '실패') failMsg.push('스쿠버: ' + sc.message);
+            if (rc.status === '실패') failMsg.push('이안류: ' + rc.message);
             status.fishing = { lastRun: latestRun, status: '실패', message: failMsg.join(' / ') };
         } else if (allSuccess) {
             // 모두 성공이면 메시지를 합치고, 가장 최근 실행 시각을 표시
             status.fishing = {
                 lastRun: latestRun,
                 status: '성공',
-                message: f.message + ' / ' + s.message + ' / 갯벌 ' + m.message + ' / 스쿠버 ' + sc.message
+                message: f.message + ' / ' + s.message + ' / 갯벌 ' + m.message + ' / 스쿠버 ' + sc.message + ' / 이안류 ' + rc.message
             };
         } else if (anySuccess) {
             // 일부만 성공, 나머지는 아직 대기 중 (서버 시작 직후 등)
@@ -2138,10 +2294,11 @@ module.exports = {
         }
         // else: 전부 '대기 중'이면 기본 fishing 상태 그대로 유지
 
-        // seaSplit/mudflat/scuba 키는 외부에 노출하지 않음 (관리자 화면에서 별도 카드가 없으므로)
+        // 통합 카드(fishing)로만 노출, 개별 키는 숨김 (관리자 화면에 별도 카드 없음)
         delete status.seaSplit;
         delete status.mudflat;
         delete status.scuba;
+        delete status.ripcurrent;
         return status;
     },
     collectProgress,

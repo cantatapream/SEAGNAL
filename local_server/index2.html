@@ -463,7 +463,9 @@
            [참고] 기존 #cctv-section 은 해양종합에 통합되어 선택자에서 제거됨 */
         #fishing-section.tab-content.active,
         #surfing-section.tab-content.active,
-        #scuba-section.tab-content.active {
+        #scuba-section.tab-content.active,
+        #mudflat-section.tab-content.active,
+        #ripcurrent-section.tab-content.active {
             position: fixed !important;
             top: env(safe-area-inset-top, 20px) !important;
             bottom: var(--main-tab-height) !important;
@@ -481,14 +483,18 @@
         }
         body.sub-tabs-open #fishing-section.tab-content.active,
         body.sub-tabs-open #surfing-section.tab-content.active,
-        body.sub-tabs-open #scuba-section.tab-content.active {
+        body.sub-tabs-open #scuba-section.tab-content.active,
+        body.sub-tabs-open #mudflat-section.tab-content.active,
+        body.sub-tabs-open #ripcurrent-section.tab-content.active {
             bottom: calc(var(--main-tab-height) + var(--sub-tab-height)) !important;
         }
 
         /* 제목 줄은 섹션 상단 고정 높이, 지도 영역은 flex-grow 로 나머지 영역 차지 */
         #fishing-section.tab-content.active > .life-header-row,
         #surfing-section.tab-content.active > .life-header-row,
-        #scuba-section.tab-content.active > .life-header-row {
+        #scuba-section.tab-content.active > .life-header-row,
+        #mudflat-section.tab-content.active > .life-header-row,
+        #ripcurrent-section.tab-content.active > .life-header-row {
             flex: 0 0 auto;
             padding: 10px 14px;
             margin: 0;
@@ -497,7 +503,9 @@
         /* 지도 컨테이너: 섹션 내 남은 공간 전체 */
         #fishing-section.tab-content.active .life-map-container,
         #surfing-section.tab-content.active .life-map-container,
-        #scuba-section.tab-content.active .life-map-container {
+        #scuba-section.tab-content.active .life-map-container,
+        #mudflat-section.tab-content.active .life-map-container,
+        #ripcurrent-section.tab-content.active .life-map-container {
             flex: 1 1 auto;
             position: relative;   /* 내부 플로팅 컨트롤의 기준 */
             width: 100%;
@@ -510,7 +518,9 @@
         }
         #fishing-section.tab-content.active #fishing-map,
         #surfing-section.tab-content.active #surfing-map,
-        #scuba-section.tab-content.active #scuba-map {
+        #scuba-section.tab-content.active #scuba-map,
+        #mudflat-section.tab-content.active #mudflat-map,
+        #ripcurrent-section.tab-content.active #rip-map {
             position: absolute !important;
             top: 0; left: 0; right: 0; bottom: 0;
             width: 100% !important;
@@ -523,7 +533,9 @@
            fishing.js _updateDisclaimer() 가 display:'' 로 되돌리는 케이스도 차단. */
         #fishing-section.tab-content.active .fishing-disclaimer,
         #surfing-section.tab-content.active .surfing-disclaimer,
-        #scuba-section.tab-content.active .fishing-disclaimer {
+        #scuba-section.tab-content.active .fishing-disclaimer,
+        #mudflat-section.tab-content.active .fishing-disclaimer,
+        #ripcurrent-section.tab-content.active .fishing-disclaimer {
             display: none !important;
         }
 
@@ -586,7 +598,9 @@
         /* 바텀시트가 풀스크린 지도 위에서도 메인탭/서브탭에 가리지 않도록 위치 보정
            ( .ocean-bottom-sheet 와 동일한 패턴 — bottom 을 메인탭 높이만큼 올림 ) */
         #fishing-section.tab-content.active .fishing-bottomsheet,
-        #scuba-section.tab-content.active .fishing-bottomsheet {
+        #scuba-section.tab-content.active .fishing-bottomsheet,
+        #mudflat-section.tab-content.active .fishing-bottomsheet,
+        #ripcurrent-section.tab-content.active .fishing-bottomsheet {
             bottom: 0;
         }
 
@@ -3236,45 +3250,80 @@
             </section>
 
             <!-- ================================================================
-                 섹션: 해양생활 - 갯벌체험
-                 [연계] js/mudflat.js → initMudflat(), 드롭다운/테이블
+                 섹션: 해양생활 - 갯벌체험 (바다낚시/스킨스쿠버와 동일한 지도형 UI)
+                 [연계] js/mudflat.js → initMudflat(), 지도 마커/바텀시트
                  [연계] routes/fishing.js → /api/mudflat-index 데이터 제공
-                 [참고] 데이터 구조가 바다갈라짐과 동일하여 .sp-* 스타일을 공유.
-                        요소 ID만 #mp-* 로 분리(바다갈라짐 #sp-* 와 충돌 방지).
+                 [참고] .fishing-* 스타일을 공유, 요소 ID만 #mudflat-* 로 분리.
+                        데이터가 있는 체험장만 마커 표시(미발생 지점 미표출).
                  ================================================================ -->
             <section id="mudflat-section" class="tab-content">
 
-                <!-- 상단 헤더: 제목(좌) + 체험지수란? 버튼(우) -->
-                <div class="section-header-with-info sp-header">
-                    <h2 class="section-title"><i class="fa-solid fa-shoe-prints"></i> 갯벌체험 시간</h2>
-                    <button class="sp-guide-btn" id="mp-guide-btn">
-                        <i class="fa-solid fa-question-circle"></i> 체험지수란?
-                    </button>
+                <!-- 제목 라인: 좌측 아이콘+제목 / 우측 발표시각 -->
+                <div class="section-header-with-info life-header-row">
+                    <h2 class="section-title"><i class="fa-solid fa-shoe-prints"></i> 갯벌체험 지수</h2>
+                    <span class="life-publish-time" id="mudflat-publish-time">발표: -</span>
                 </div>
 
-                <!-- 지역 선택 줄: 드롭다운 + "지역 갯벌체험 시간" 라벨 + 즐겨찾기 별표 -->
-                <div class="sp-selector-row" id="mp-selector-row" style="display:none;">
-                    <select class="sp-place-select" id="mp-place-select">
-                        <!-- mudflat.js에서 데이터 기반 동적 생성 -->
-                    </select>
-                    <span class="sp-selector-label">지역 갯벌체험 시간</span>
-                    <button class="sp-favorite-btn" id="mp-favorite-btn" title="즐겨찾기">
-                        <i class="fa-regular fa-star"></i>
-                    </button>
+                <!-- 지도 영역 (풀스크린 플로팅 레이아웃) -->
+                <div class="fishing-map-container life-map-container">
+                    <div id="mudflat-map" class="fishing-map">
+                        <!-- OpenLayers 지도가 렌더링되는 영역 -->
+                    </div>
+
+                    <!-- 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 -->
+                    <div class="life-map-controls-topright">
+                        <button id="mudflat-my-location-btn" class="life-map-icon-btn" title="내 위치">
+                            <i class="fa-solid fa-location-crosshairs"></i>
+                        </button>
+                        <button id="mudflat-notice-btn" class="life-map-icon-btn" title="유의사항">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                        </button>
+                    </div>
                 </div>
 
-                <!-- 발표시점 (표 바로 위, 오른쪽 정렬) -->
-                <div class="sp-publish-row" id="mp-publish-row" style="display:none;">
-                    <span class="sp-publish-time" id="mp-publish-time">발표: -</span>
+                <!-- 바텀시트 오버레이 (마커 클릭 시 표시) -->
+                <div class="fishing-bottomsheet-overlay" id="mudflat-bottomsheet-overlay"></div>
+
+                <!-- 바텀시트 (마커 클릭 시 하단에서 슬라이드업) -->
+                <div class="fishing-bottomsheet" id="mudflat-bottomsheet">
+                    <div class="fishing-bs-handle"><div class="fishing-bs-handle-bar"></div></div>
+
+                    <div class="fishing-bs-header">
+                        <div class="fishing-bs-place">
+                            <i class="fa-solid fa-location-dot"></i>
+                            <span id="mudflat-bs-place-name">-</span>
+                        </div>
+                        <div class="fishing-bs-total-index" id="mudflat-bs-total-index">
+                            <!-- JS에서 그 날짜의 대표 지수 배지 렌더링 -->
+                        </div>
+                        <button class="fishing-bs-close" id="mudflat-bs-close" title="닫기">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <!-- 날짜 네비게이션 -->
+                    <div class="fishing-bs-date-nav">
+                        <button class="fishing-bs-date-btn" id="mudflat-date-prev" title="이전 날짜">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span class="fishing-bs-date-label" id="mudflat-bs-date-label">-</span>
+                        <button class="fishing-bs-date-btn" id="mudflat-date-next" title="다음 날짜">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+
+                    <!-- 예보 데이터 영역 (그 날짜의 체험시간 구간 목록 — JS 렌더링) -->
+                    <div class="fishing-bs-content" id="mudflat-bs-content">
+                        <!-- 체험시간/기온/날씨/체험지수 카드가 JS로 렌더링됨 -->
+                    </div>
                 </div>
 
-                <!-- 체험시간 데이터 테이블 영역 -->
-                <div class="sp-data-container" id="mp-data-container">
-                    <!-- mudflat.js에서 날짜별 테이블 렌더링 -->
+                <!-- 유의사항 팝업 소스 (숨김) — 유의사항 버튼 클릭 시 JS가 읽어 팝업 표출 -->
+                <div class="fishing-disclaimer" id="mudflat-disclaimer" style="display:none;">
+                    <p><i class="fa-solid fa-circle-check"></i> 생활해양예보지수는 수치예측결과를 활용하여 만들어진 참고자료로서 실제와 다를 수 있으니 현장의 해양·기상 상황을 반드시 확인하시기 바랍니다. 따라서 서비스는 사용자의 책임하에 이용되어야하며, 그 정보의 정확성과 법적인 책임은 조사원 및 본 앱에 있지 아니함을 알려드립니다.</p>
+                    <p><i class="fa-solid fa-circle-check"></i> 갯벌체험을 계획할 때에는 물때나 갯벌체험 가능 시간을 정확하게 확인하는 등 안전에 유의하시기 바랍니다.</p>
+                    <p><i class="fa-solid fa-circle-check"></i> 기상청의 자외선지수·날씨 등을 참고하여 야외 활동(자외선차단제, 긴 소매 옷, 우산 등)을 준비하시기 바랍니다.</p>
                 </div>
-
-                <!-- 하단 정보: 미제공 지역 안내 + 면책 문구 (mudflat.js에서 동적 생성) -->
-                <div id="mp-footer-info"></div>
 
             </section>
 
@@ -3299,7 +3348,7 @@
 
                 <!-- 제목 라인: 좌측 아이콘+제목 / 우측 발표시각 -->
                 <div class="section-header-with-info life-header-row">
-                    <h2 class="section-title"><i class="fa-solid fa-mask-snorkel"></i> 스킨스쿠버 지수</h2>
+                    <h2 class="section-title"><i class="fa-solid fa-person-swimming"></i> 스킨스쿠버 지수</h2>
                     <span class="life-publish-time" id="scuba-publish-time">발표: -</span>
                 </div>
 
@@ -3407,6 +3456,73 @@
 
             </section>
 
+            <!-- ================================================================
+                 섹션: 해양생활 - 이안류 (스킨스쿠버와 동일한 지도형 UI)
+                 [연계] js/ripcurrent.js → initRipCurrent(), 지도 마커/바텀시트
+                 [연계] routes/fishing.js → /api/ripcurrent-index 데이터 제공
+                 [참고] 실시간 관측이므로 날짜 네비게이션 없이 최신 관측값 표시.
+                        10개 해수욕장 모두 표시, 관측 없는 곳은 정보없음(검정) 마커.
+                 ================================================================ -->
+            <section id="ripcurrent-section" class="tab-content">
+
+                <!-- 제목 라인: 좌측 아이콘+제목 / 우측 관측 기준시각 -->
+                <div class="section-header-with-info life-header-row">
+                    <h2 class="section-title"><i class="fa-solid fa-water"></i> 이안류 지수</h2>
+                    <span class="life-publish-time" id="rip-publish-time">기준: -</span>
+                </div>
+
+                <!-- 지도 영역 (풀스크린 플로팅 레이아웃) -->
+                <div class="fishing-map-container life-map-container">
+                    <div id="rip-map" class="fishing-map">
+                        <!-- OpenLayers 지도가 렌더링되는 영역 -->
+                    </div>
+
+                    <!-- 우측 상단: 내 위치 / 안내 아이콘 버튼 세로 스택 -->
+                    <div class="life-map-controls-topright">
+                        <button id="rip-my-location-btn" class="life-map-icon-btn" title="내 위치">
+                            <i class="fa-solid fa-location-crosshairs"></i>
+                        </button>
+                        <button id="rip-notice-btn" class="life-map-icon-btn" title="이안류 지수 안내">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 바텀시트 오버레이 -->
+                <div class="fishing-bottomsheet-overlay" id="rip-bottomsheet-overlay"></div>
+
+                <!-- 바텀시트 (마커 클릭 시 — 실시간 단일 관측, 날짜 네비게이션 없음) -->
+                <div class="fishing-bottomsheet" id="rip-bottomsheet">
+                    <div class="fishing-bs-handle"><div class="fishing-bs-handle-bar"></div></div>
+
+                    <div class="fishing-bs-header">
+                        <div class="fishing-bs-place">
+                            <i class="fa-solid fa-location-dot"></i>
+                            <span id="rip-bs-place-name">-</span>
+                        </div>
+                        <div class="fishing-bs-total-index" id="rip-bs-level">
+                            <!-- JS에서 위험단계(관심/주의/경계/위험) 배지 렌더링 -->
+                        </div>
+                        <button class="fishing-bs-close" id="rip-bs-close" title="닫기">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <!-- 관측 데이터 영역 (JS 렌더링) -->
+                    <div class="fishing-bs-content" id="rip-bs-content">
+                        <!-- 관측시각/지수값/파고/파주기/수온/기온/바람 -->
+                    </div>
+                </div>
+
+                <!-- 안내 팝업 소스 (숨김) -->
+                <div class="fishing-disclaimer" id="rip-disclaimer" style="display:none;">
+                    <p><i class="fa-solid fa-circle-check"></i> 이안류 지수는 주요 해수욕장의 이안류(해안에서 바다 쪽으로 빠르게 흐르는 흐름) 발생 정도를 4단계(관심·주의·경계·위험)로 지수화한 실시간 관측 기반 정보입니다.</p>
+                    <p><i class="fa-solid fa-circle-check"></i> 이안류 지수는 여름철(6~9월) 운영기간에만 제공되며, 그 외 기간에는 관측 정보가 표시되지 않습니다.</p>
+                    <p><i class="fa-solid fa-circle-check"></i> 본 정보는 참고자료로서 실제와 다를 수 있으니 현장의 안전요원 안내와 해양·기상 상황을 반드시 확인하시기 바랍니다. 이안류 발생 시 흐름에 맞서지 말고 해안과 나란히 헤엄쳐 빠져나오시기 바랍니다.</p>
+                </div>
+
+            </section>
+
         </main>
 
         <!-- ================================================================
@@ -3460,7 +3576,7 @@
         </nav>
         <!-- [제거됨] 종합기상 서브탭 (#ocean-sub-tabs) — 조석정보 탭 삭제 및
              해양종합정보 단일 탭으로 변경되어 서브탭 자체가 불필요해짐. -->
-        <!-- 해양생활 서브탭 (바다낚시 | 서핑 | 해수욕 | 스킨스쿠버 | 갯벌체험 | 바다갈라짐) -->
+        <!-- 해양생활 서브탭 (바다낚시 | 서핑 | 해수욕 | 스킨스쿠버 | 갯벌체험 | 바다갈라짐 | 이안류) -->
         <nav class="sub-tabs bottom-sub-tabs" id="ocean-life-sub-tabs">
             <button class="sub-tab-btn active" data-target="fishing-section">바다낚시</button>
             <button class="sub-tab-btn" data-target="surfing-section">서핑</button>
@@ -3468,6 +3584,7 @@
             <button class="sub-tab-btn" data-target="scuba-section">스킨스쿠버</button>
             <button class="sub-tab-btn" data-target="mudflat-section">갯벌체험</button>
             <button class="sub-tab-btn" data-target="sea-parting-section">바다갈라짐</button>
+            <button class="sub-tab-btn" data-target="ripcurrent-section">이안류</button>
         </nav>
 
         <!-- 메인탭 바 (화면 하단 고정)
@@ -3581,6 +3698,7 @@
     <script src="js/sea_parting.js"></script>
     <script src="js/mudflat.js"></script>
     <script src="js/scuba.js"></script>
+    <script src="js/ripcurrent.js"></script>
 
     <!-- 해양종합정보 (히든 탭) -->
     <script src="js/ocean_map.js"></script>

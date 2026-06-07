@@ -252,4 +252,28 @@ router.get('/api/scuba-index', (req, res) => {
     res.status(404).json({ error: '스킨스쿠버 지수 데이터 준비 중' });
 });
 
+// ============================================================================
+// 이안류 지수 API
+// ============================================================================
+
+/**
+ * GET /api/ripcurrent-index
+ * 이안류 지수(실시간 관측) 전체 데이터를 반환합니다.
+ *
+ * [응답 구조]
+ * {
+ *   updatedAt: "...",
+ *   places: { "해운대해수욕장": { code, lat, lot, hasData, level, score, obsrvnDt, wvhgt, ... } }
+ * }
+ *
+ * [연계] scheduler.js → collectRipCurrentIndex()가 ripcurrent_index.json으로 저장
+ *        js/ripcurrent.js (프론트엔드) → fetch('/api/ripcurrent-index')로 요청
+ */
+router.get('/api/ripcurrent-index', (req, res) => {
+    if (dataCache.ripCurrentIndex) {
+        return res.json(dataCache.ripCurrentIndex);
+    }
+    res.status(404).json({ error: '이안류 지수 데이터 준비 중' });
+});
+
 module.exports = router;
