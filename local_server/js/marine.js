@@ -1296,6 +1296,16 @@ function _onSectionActivated(sectionId) {
             }
         }, 200);
     }
+    // 스킨스쿠버 탭 활성화 시 지도 초기화 (바다낚시와 동일한 지도형)
+    if (sectionId === 'scuba-section') {
+        // [사용량] 스킨스쿠버 하위 탭 진입
+        if (window.trackUsage) window.trackUsage('life.scuba.tab');
+        setTimeout(() => {
+            if (window.initScubaMap) {
+                window.initScubaMap();
+            }
+        }, 200);
+    }
     // 공지사항 탭 활성화 시 게시글 로드
     if (sectionId === 'promo-section') {
         if (typeof loadPromoPosts === 'function') setTimeout(loadPromoPosts, 100);

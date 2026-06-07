@@ -462,7 +462,8 @@
            - bottom: 메인탭/서브탭 높이만큼 올림 (--main-tab-height, --sub-tab-height)
            [참고] 기존 #cctv-section 은 해양종합에 통합되어 선택자에서 제거됨 */
         #fishing-section.tab-content.active,
-        #surfing-section.tab-content.active {
+        #surfing-section.tab-content.active,
+        #scuba-section.tab-content.active {
             position: fixed !important;
             top: env(safe-area-inset-top, 20px) !important;
             bottom: var(--main-tab-height) !important;
@@ -479,13 +480,15 @@
             overflow: hidden;
         }
         body.sub-tabs-open #fishing-section.tab-content.active,
-        body.sub-tabs-open #surfing-section.tab-content.active {
+        body.sub-tabs-open #surfing-section.tab-content.active,
+        body.sub-tabs-open #scuba-section.tab-content.active {
             bottom: calc(var(--main-tab-height) + var(--sub-tab-height)) !important;
         }
 
         /* 제목 줄은 섹션 상단 고정 높이, 지도 영역은 flex-grow 로 나머지 영역 차지 */
         #fishing-section.tab-content.active > .life-header-row,
-        #surfing-section.tab-content.active > .life-header-row {
+        #surfing-section.tab-content.active > .life-header-row,
+        #scuba-section.tab-content.active > .life-header-row {
             flex: 0 0 auto;
             padding: 10px 14px;
             margin: 0;
@@ -493,7 +496,8 @@
 
         /* 지도 컨테이너: 섹션 내 남은 공간 전체 */
         #fishing-section.tab-content.active .life-map-container,
-        #surfing-section.tab-content.active .life-map-container {
+        #surfing-section.tab-content.active .life-map-container,
+        #scuba-section.tab-content.active .life-map-container {
             flex: 1 1 auto;
             position: relative;   /* 내부 플로팅 컨트롤의 기준 */
             width: 100%;
@@ -505,7 +509,8 @@
             overflow: hidden;
         }
         #fishing-section.tab-content.active #fishing-map,
-        #surfing-section.tab-content.active #surfing-map {
+        #surfing-section.tab-content.active #surfing-map,
+        #scuba-section.tab-content.active #scuba-map {
             position: absolute !important;
             top: 0; left: 0; right: 0; bottom: 0;
             width: 100% !important;
@@ -517,7 +522,8 @@
            .surfing-disclaimer)은 팝업 소스로만 사용해야 하므로 무조건 숨김.
            fishing.js _updateDisclaimer() 가 display:'' 로 되돌리는 케이스도 차단. */
         #fishing-section.tab-content.active .fishing-disclaimer,
-        #surfing-section.tab-content.active .surfing-disclaimer {
+        #surfing-section.tab-content.active .surfing-disclaimer,
+        #scuba-section.tab-content.active .fishing-disclaimer {
             display: none !important;
         }
 
@@ -579,7 +585,8 @@
 
         /* 바텀시트가 풀스크린 지도 위에서도 메인탭/서브탭에 가리지 않도록 위치 보정
            ( .ocean-bottom-sheet 와 동일한 패턴 — bottom 을 메인탭 높이만큼 올림 ) */
-        #fishing-section.tab-content.active .fishing-bottomsheet {
+        #fishing-section.tab-content.active .fishing-bottomsheet,
+        #scuba-section.tab-content.active .fishing-bottomsheet {
             bottom: 0;
         }
 
@@ -3281,14 +3288,82 @@
                 </div>
             </section>
 
-            <!-- 섹션: 해양생활 - 스킨스쿠버 -->
+            <!-- ================================================================
+                 섹션: 해양생활 - 스킨스쿠버 (바다낚시와 동일한 지도형 UI)
+                 [연계] js/scuba.js → initScubaMap(), 지도 마커/바텀시트
+                 [연계] routes/fishing.js → /api/scuba-index 데이터 제공
+                 [참고] 데이터 구조가 바다낚시와 동일하여 .fishing-* 스타일을 공유.
+                        요소 ID만 #scuba-* 로 분리(바다낚시 #fishing-* 와 충돌 방지).
+                 ================================================================ -->
             <section id="scuba-section" class="tab-content">
-                <div class="section-header-with-info">
+
+                <!-- 제목 라인: 좌측 아이콘+제목 / 우측 발표시각 -->
+                <div class="section-header-with-info life-header-row">
                     <h2 class="section-title"><i class="fa-solid fa-mask-snorkel"></i> 스킨스쿠버 지수</h2>
+                    <span class="life-publish-time" id="scuba-publish-time">발표: -</span>
                 </div>
-                <div style="margin:15px 0;padding:20px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(0,0,0,0.3);text-align:center;">
-                    <p style="margin:0;color:var(--accent-yellow,#ffd54f);font-weight:500;font-size:0.95rem;">스킨스쿠버 지수는 운영기간(6월~10월)에 제공됩니다.</p>
+
+                <!-- 지도 영역 (풀스크린 플로팅 레이아웃) -->
+                <div class="fishing-map-container life-map-container">
+                    <div id="scuba-map" class="fishing-map">
+                        <!-- OpenLayers 지도가 렌더링되는 영역 -->
+                    </div>
+
+                    <!-- 우측 상단: 내 위치 / 유의사항 아이콘 버튼 세로 스택 -->
+                    <div class="life-map-controls-topright">
+                        <button id="scuba-my-location-btn" class="life-map-icon-btn" title="내 위치">
+                            <i class="fa-solid fa-location-crosshairs"></i>
+                        </button>
+                        <button id="scuba-notice-btn" class="life-map-icon-btn" title="유의사항">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                        </button>
+                    </div>
                 </div>
+
+                <!-- 바텀시트 오버레이 (마커 클릭 시 표시) -->
+                <div class="fishing-bottomsheet-overlay" id="scuba-bottomsheet-overlay"></div>
+
+                <!-- 바텀시트 (마커 클릭 시 하단에서 슬라이드업) -->
+                <div class="fishing-bottomsheet" id="scuba-bottomsheet">
+                    <div class="fishing-bs-handle"><div class="fishing-bs-handle-bar"></div></div>
+
+                    <div class="fishing-bs-header">
+                        <div class="fishing-bs-place">
+                            <i class="fa-solid fa-location-dot"></i>
+                            <span id="scuba-bs-place-name">-</span>
+                        </div>
+                        <div class="fishing-bs-total-index" id="scuba-bs-total-index">
+                            <!-- JS에서 종합 지수 배지 렌더링 -->
+                        </div>
+                        <button class="fishing-bs-close" id="scuba-bs-close" title="닫기">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <!-- 날짜 네비게이션 -->
+                    <div class="fishing-bs-date-nav">
+                        <button class="fishing-bs-date-btn" id="scuba-date-prev" title="이전 날짜">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span class="fishing-bs-date-label" id="scuba-bs-date-label">-</span>
+                        <button class="fishing-bs-date-btn" id="scuba-date-next" title="다음 날짜">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+
+                    <!-- 예보 데이터 영역 (JS에서 동적 렌더링) -->
+                    <div class="fishing-bs-content" id="scuba-bs-content">
+                        <!-- 오전/오후 기상요약 등이 JS로 렌더링됨 -->
+                    </div>
+                </div>
+
+                <!-- 유의사항 팝업 소스 (숨김) — 유의사항 버튼 클릭 시 JS가 읽어 팝업 표출 -->
+                <div class="fishing-disclaimer" id="scuba-disclaimer" style="display:none;">
+                    <p><i class="fa-solid fa-circle-check"></i> 생활해양예보지수는 수치예측결과를 활용하여 만들어진 참고자료로서 실제와 다를 수 있으니 현장의 해양·기상 상황을 반드시 확인하시기 바랍니다. 따라서 서비스는 사용자의 책임하에 이용되어야하며, 그 정보의 정확성과 법적인 책임은 조사원 및 본 앱에 있지 아니함을 알려드립니다.</p>
+                    <p><i class="fa-solid fa-circle-check"></i> 스킨스쿠버다이빙을 할 때에는 사전에 충분한 이론교육과 실습을 받아야 하며, 입수 전 장비상태와 주변상황(선박·다이버 유무 등)을 반드시 점검·확인하시기 바랍니다.</p>
+                    <p><i class="fa-solid fa-circle-check"></i> 다이버에게 직접적인 영향을 주는 유속·조석·수중시야·수온·해저상태와 해상·기상 상황을 항상 고려하고, 악화 시 다이빙을 중단·금지하시기 바랍니다.</p>
+                </div>
+
             </section>
 
             <!-- ================================================================
@@ -3505,6 +3580,7 @@
     <script src="js/surfing5.js"></script>
     <script src="js/sea_parting.js"></script>
     <script src="js/mudflat.js"></script>
+    <script src="js/scuba.js"></script>
 
     <!-- 해양종합정보 (히든 탭) -->
     <script src="js/ocean_map.js"></script>
