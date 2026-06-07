@@ -117,7 +117,8 @@
         });
 
         _addLegendControl(ripMap);
-        _addGuideControl(ripMap);
+        // [제거] '이안류 지수란?' 안내 이미지가 없어 지도 위 안내 버튼은 두지 않음.
+        //        4단계 설명은 우측 상단 ❗(유의사항) 버튼의 텍스트 안내로 제공.
         _loadRipData();
         _bindEvents();
     };
@@ -143,20 +144,6 @@
         legendEl.style.bottom = '8px';
         legendEl.style.left = '8px';
         map.addControl(new ol.control.Control({ element: legendEl }));
-    }
-
-    function _addGuideControl(map) {
-        var btn = document.createElement('button');
-        btn.className = 'fishing-guide-btn';
-        btn.innerHTML = '<i class="fa-solid fa-circle-question"></i> <span>이안류 지수란?</span>';
-        btn.style.position = 'absolute';
-        btn.style.bottom = '8px';
-        btn.style.right = '8px';
-        btn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            _openNoticePopup();
-        });
-        map.addControl(new ol.control.Control({ element: btn }));
     }
 
     function _openNoticePopup() {
