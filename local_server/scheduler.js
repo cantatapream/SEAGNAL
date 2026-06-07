@@ -99,6 +99,7 @@ const lastRunStatus = {
     seaSplit: { lastRun: null, status: '대기 중', message: '' }, // 바다갈라짐 체험지수
     surfing: { lastRun: null, status: '대기 중', message: '' },  // 서핑지수
     mudflat: { lastRun: null, status: '대기 중', message: '' },  // 갯벌체험 지수
+    scuba: { lastRun: null, status: '대기 중', message: '' },    // 스킨스쿠버 지수
 };
 
 const CONFIG_FILE = path.join(__dirname, 'data/api_config.json');
@@ -658,8 +659,8 @@ async function collectFishingIndex() {
         log('🎣 바다낚시 지수 수집 시작...');
 
         // 진행률 이벤트 발행 (admin 수동 호출 시 SSE 스트림으로 전달)
-        // total=12: 낚시지수 3단계(1~3) + 바다갈라짐 3단계(4~6) + 서핑지수 3단계(7~9) + 갯벌체험 3단계(10~12) — 해양생활기상 통합 호출
-        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 1, total: 12, detail: 'API 호출 중' });
+        // total=15: 낚시(1~3) + 바다갈라짐(4~6) + 서핑(7~9) + 갯벌체험(10~12) + 스킨스쿠버(13~15) — 해양생활기상 통합 호출
+        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 1, total: 15, detail: 'API 호출 중' });
 
         // API는 gubun 파라미터와 무관하게 갯바위+선상 전체 데이터를 반환하므로
         // 1회만 호출하고 위치명 패턴으로 분류 (선상: "항구명(Xkm)" 패턴)
@@ -674,7 +675,7 @@ async function collectFishingIndex() {
         const items = await _fetchFishingData('갯바위');
 
         // 진행률 이벤트: API 응답 수신 완료, 데이터 가공 시작
-        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 2, total: 12, detail: '데이터 가공 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 2, total: 15, detail: '데이터 가공 중' });
 
         if (!items || items.length === 0) {
             log('⚠️ 바다낚시 데이터 없음');
@@ -804,7 +805,7 @@ async function collectFishingIndex() {
         log(`🎣 바다낚시 날짜 분포 - 갯바위: ${dateAnalysis['갯바위'].join(',')} (${dateAnalysis['갯바위'].length}일), 선상: ${dateAnalysis['선상'].join(',')} (${dateAnalysis['선상'].length}일)`);
 
         // 진행률 이벤트: 파일 저장 단계
-        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 3, total: 12, detail: '저장 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 3, total: 15, detail: '저장 중' });
 
         // JSON 파일로 저장 (data/fishing_index.json)
         saveData('fishing_index.json', result);
@@ -941,11 +942,11 @@ async function collectSeaSplitIndex() {
 
         // 진행률 이벤트 발행 (관리자 수동 수집 시 SSE 스트림으로 전달)
         // type을 'fishing'으로 통일 — 해양생활기상 통합 호출 시 같은 SSE 스트림으로 전달되도록
-        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 4, total: 12, detail: 'API 호출 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 4, total: 15, detail: 'API 호출 중' });
 
         const items = await _fetchSeaSplitData();
 
-        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 5, total: 12, detail: '데이터 가공 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 5, total: 15, detail: '데이터 가공 중' });
 
         // ── 발표시각 판단을 위해 기존 저장 데이터를 읽어옴 ──
         // 이전에 저장된 sea_split_index.json을 읽어서 예보 데이터(places)가 바뀌었는지 비교
@@ -1017,7 +1018,7 @@ async function collectSeaSplitIndex() {
             log(`🛤️ 바다갈라짐 미발생 지점: ${missingPlaces.join(', ')}`);
         }
 
-        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 6, total: 12, detail: '저장 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '바다갈라짐 지수', current: 6, total: 15, detail: '저장 중' });
 
         // ── 발표시각 결정: 이전 데이터와 비교하여 변경 여부 판단 ──
         // places 객체(예보 데이터 본체)만 비교 — updatedAt/allPlaces는 비교 대상이 아님
@@ -1174,11 +1175,11 @@ async function collectMudflatIndex() {
 
         // 진행률 이벤트 발행 (관리자 수동 수집 시 SSE 스트림으로 전달)
         // type을 'fishing'으로 통일 — 해양생활기상 통합 호출 시 같은 SSE 스트림으로 전달되도록
-        collectProgress.emit('progress', { type: 'fishing', step: '갯벌체험 지수', current: 10, total: 12, detail: 'API 호출 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '갯벌체험 지수', current: 10, total: 15, detail: 'API 호출 중' });
 
         const items = await _fetchMudflatData();
 
-        collectProgress.emit('progress', { type: 'fishing', step: '갯벌체험 지수', current: 11, total: 12, detail: '데이터 가공 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '갯벌체험 지수', current: 11, total: 15, detail: '데이터 가공 중' });
 
         // ── 발표시각 판단을 위해 기존 저장 데이터를 읽어옴 ──
         // 이전에 저장된 mudflat_index.json을 읽어서 예보 데이터(places)가 바뀌었는지 비교
@@ -1248,7 +1249,7 @@ async function collectMudflatIndex() {
             log(`🦪 갯벌체험 미발생 지점: ${missingPlaces.length}개`);
         }
 
-        collectProgress.emit('progress', { type: 'fishing', step: '갯벌체험 지수', current: 12, total: 12, detail: '저장 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '갯벌체험 지수', current: 12, total: 15, detail: '저장 중' });
 
         // ── 발표시각 결정: 이전 데이터와 비교하여 변경 여부 판단 ──
         // places 객체(예보 데이터 본체)만 비교 — updatedAt/allPlaces는 비교 대상이 아님
@@ -1349,6 +1350,181 @@ async function _fetchMudflatData() {
     }
 }
 
+// ========================================================================
+// 스킨스쿠버 지수 수집
+// ========================================================================
+
+// 스킨스쿠버 API 설정 (바다낚시 등과 동일한 인증키 사용)
+const SCUBA_API_BASE = 'https://apis.data.go.kr/1192136/fcstSkinScubav2/GetFcstSkinScubaApiServicev2';
+
+// 18개 전체 스킨스쿠버 체험장 목록 (코드 SS1~SS18 순서, 데이터 없는 지점 안내용)
+const SCUBA_ALL_PLACES = [
+    'SS1:동명항', 'SS2:남애항', 'SS3:강문해변', 'SS4:오산항', 'SS5:월포해수욕장',
+    'SS6:구조라해수욕장', 'SS7:미조도', 'SS8:거문도', 'SS9:성산일출봉', 'SS10:문섬',
+    'SS11:홍도', 'SS12:울릉도', 'SS13:어영', 'SS14:태종대', 'SS15:격렬비열도',
+    'SS16:추자도', 'SS17:욕지도', 'SS18:추암'
+];
+
+/**
+ * 스킨스쿠버 지수 데이터 수집 함수
+ *
+ * [설명]
+ * 국립해양조사원 스킨스쿠버지수 API를 호출하여 전국 체험장의 7일간 예보를 수집합니다.
+ * 데이터 구조가 바다낚시와 동일(지점 → 날짜 → 오전/오후/일 슬롯)하므로, 프론트엔드도
+ * 바다낚시와 같은 지도형(마커+바텀시트) UI를 재사용합니다.
+ * 단, 갯바위/선상 구분과 어종 데이터가 없는 단일 카테고리입니다.
+ * 운영기간(6월~10월)에만 데이터가 제공됩니다.
+ *
+ * [데이터 구조]
+ * {
+ *   updatedAt: "2026.06.07 09:10",
+ *   places: {
+ *     "동명항": {
+ *       lat, lot,
+ *       forecasts: {
+ *         "20260607": {
+ *           "오전": { totalIndex, minWvhgt, maxWvhgt, minCrsp, maxCrsp, minWtem, maxWtem, tdlvHrCn },
+ *           "오후": {...}
+ *         },
+ *         "20260610": { "일": {...} }   // D+3 이후는 종일('일') 슬롯
+ *       }
+ *     }
+ *   }
+ * }
+ *
+ * [연계] routes/fishing.js → /api/scuba-index, js/scuba.js → 지도 마커/바텀시트
+ */
+async function collectScubaIndex() {
+    try {
+        log('🤿 스킨스쿠버 지수 수집 시작...');
+
+        // 진행률 이벤트 (해양생활기상 통합 호출 시 같은 SSE 스트림으로 전달; type='fishing')
+        collectProgress.emit('progress', { type: 'fishing', step: '스킨스쿠버 지수', current: 13, total: 15, detail: 'API 호출 중' });
+
+        const items = await _fetchScubaData();
+
+        collectProgress.emit('progress', { type: 'fishing', step: '스킨스쿠버 지수', current: 14, total: 15, detail: '데이터 가공 중' });
+
+        const result = {
+            updatedAt: getNowStr(),
+            places: {}
+        };
+
+        if (!items || items.length === 0) {
+            log('⚠️ 스킨스쿠버 데이터 없음 (운영기간 외 또는 전 지점 미발생)');
+        } else {
+            items.forEach(item => {
+                const placeName = item.skscExpcnRgnNm;
+                if (!placeName) return;
+
+                // API 날짜 형식 "YYYY-MM-DD" → "YYYYMMDD" (바다낚시 프론트와 동일한 키 형식)
+                const dateStr = item.predcYmd ? item.predcYmd.replace(/-/g, '') : '';
+                if (!dateStr) return;
+
+                // 지점 최초 등장 시 초기화
+                if (!result.places[placeName]) {
+                    result.places[placeName] = {
+                        lat: parseFloat(item.lat) || 0,
+                        lot: parseFloat(item.lot) || 0,
+                        forecasts: {}
+                    };
+                }
+                const place = result.places[placeName];
+
+                if (!place.forecasts[dateStr]) place.forecasts[dateStr] = {};
+
+                // 시간대 키: '오전' / '오후' / '일'(종일)
+                const slot = item.predcNoonSeCd || '일';
+                if (!place.forecasts[dateStr][slot]) {
+                    place.forecasts[dateStr][slot] = {
+                        totalIndex: item.totalIndex || '',  // 스킨스쿠버 종합 지수 (5단계)
+                        minWvhgt: item.minWvhgt || '',       // 최저 파고 (m)
+                        maxWvhgt: item.maxWvhgt || '',       // 최고 파고 (m)
+                        minCrsp: item.minCrsp || '',         // 최저 유속 (kn)
+                        maxCrsp: item.maxCrsp || '',         // 최고 유속 (kn)
+                        minWtem: item.minWtem || '',         // 최저 수온 (°C)
+                        maxWtem: item.maxWtem || '',         // 최고 수온 (°C)
+                        tdlvHrCn: item.tdlvHrCn || ''        // 물때
+                    };
+                }
+            });
+        }
+
+        collectProgress.emit('progress', { type: 'fishing', step: '스킨스쿠버 지수', current: 15, total: 15, detail: '저장 중' });
+
+        const placeNames = Object.keys(result.places);
+        const dateSet = new Set();
+        placeNames.forEach(n => Object.keys(result.places[n].forecasts).forEach(d => dateSet.add(d)));
+
+        saveData('scuba_index.json', result);
+        lastRunStatus.scuba = {
+            lastRun: getNowStr(),
+            status: '성공',
+            message: `${placeNames.length}개 지점(${dateSet.size}일)`
+        };
+        log(`✅ 스킨스쿠버 지수 수집 완료 (${placeNames.length}개 지점, ${dateSet.size}일)`);
+
+    } catch (e) {
+        lastRunStatus.scuba = { lastRun: getNowStr(), status: '실패', message: e.message };
+        log(`⚠️ 스킨스쿠버 지수 수집 실패: ${e.message}`);
+    }
+}
+
+/**
+ * 스킨스쿠버 API 호출 함수 (페이지네이션 포함)
+ * @returns {Array} API 응답의 전체 items 배열 (실패 시 빈 배열)
+ *
+ * [연계] collectScubaIndex()에서 호출
+ */
+async function _fetchScubaData() {
+    const allItems = [];
+    const encodedKey = encodeURIComponent(FISHING_API_KEY); // 낚시와 동일한 API 키 사용
+    let pageNo = 1;
+    const numOfRows = 300;
+
+    try {
+        while (true) {
+            const params = new URLSearchParams({
+                numOfRows: String(numOfRows),
+                pageNo: String(pageNo),
+                type: 'json'
+            });
+            const url = `${SCUBA_API_BASE}?serviceKey=${encodedKey}&${params.toString()}`;
+            const response = await fetchWithTimeout(url, {}, 30000);
+
+            if (!response.ok) {
+                log(`⚠️ 스킨스쿠버 API 응답 오류 (p${pageNo}): HTTP ${response.status}`);
+                break;
+            }
+
+            const data = await response.json();
+
+            if (data?.header?.resultCode !== '00') {
+                log(`⚠️ 스킨스쿠버 API 오류: ${data?.header?.resultMsg}`);
+                break;
+            }
+
+            const items = data?.body?.items?.item;
+            if (!items) break;
+
+            const arr = Array.isArray(items) ? items : [items];
+            allItems.push(...arr);
+
+            const totalCount = data?.body?.totalCount || 0;
+            log(`🤿 스킨스쿠버 p${pageNo}: ${arr.length}건 수신 (누적 ${allItems.length}/${totalCount})`);
+
+            if (arr.length < numOfRows) break;
+            pageNo++;
+            if (pageNo > 10) break; // 안전장치
+        }
+
+        return allItems;
+    } catch (e) {
+        log(`⚠️ 스킨스쿠버 API 호출 실패: ${e.message}`);
+        return allItems;
+    }
+}
+
 // ============================================================================
 // 서핑지수 수집
 // ============================================================================
@@ -1429,7 +1605,7 @@ const SURFING_BEACH_META = {
 async function collectSurfingIndex() {
     try {
         log('🏄 서핑지수 수집 시작...');
-        collectProgress.emit('progress', { type: 'fishing', step: '서핑지수', current: 7, total: 12, detail: 'API 호출 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '서핑지수', current: 7, total: 15, detail: 'API 호출 중' });
 
         // 페이지네이션으로 전체 데이터 수집
         const allItems = await _fetchSurfingData();
@@ -1438,7 +1614,7 @@ async function collectSurfingIndex() {
             lastRunStatus.surfing = { lastRun: getNowStr(), status: '실패', message: '수신 데이터 없음' };
             return;
         }
-        collectProgress.emit('progress', { type: 'fishing', step: '서핑지수', current: 8, total: 12, detail: '데이터 가공 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '서핑지수', current: 8, total: 15, detail: '데이터 가공 중' });
 
         // 해수욕장명 기준으로 데이터 그룹핑
         // API는 1개 해수욕장 × 1개 날짜 × 1개 시간대 × 1개 등급 = 1행으로 반환
@@ -1497,7 +1673,7 @@ async function collectSurfingIndex() {
             beaches
         };
         saveData('surfing_index.json', result);
-        collectProgress.emit('progress', { type: 'fishing', step: '서핑지수', current: 9, total: 12, detail: '저장 중' });
+        collectProgress.emit('progress', { type: 'fishing', step: '서핑지수', current: 9, total: 15, detail: '저장 중' });
 
         lastRunStatus.surfing = {
             lastRun: getNowStr(),
@@ -1674,7 +1850,8 @@ async function init() {
             collectFishingIndex().then(() => log('✅ 바다낚시 지수 수집 완료')),
             collectSeaSplitIndex().then(() => log('✅ 바다갈라짐 체험지수 수집 완료')),
             collectSurfingIndex().then(() => log('✅ 서핑지수 수집 완료')),
-            collectMudflatIndex().then(() => log('✅ 갯벌체험 지수 수집 완료'))
+            collectMudflatIndex().then(() => log('✅ 갯벌체험 지수 수집 완료')),
+            collectScubaIndex().then(() => log('✅ 스킨스쿠버 지수 수집 완료'))
         ]);
     } catch (e) {
         log(`⚠️ 일부 수집 중 오류: ${e.message}`);
@@ -1798,6 +1975,7 @@ async function init() {
             collectSurfingIndex();
             collectSeaSplitIndex();
             collectMudflatIndex();
+            collectScubaIndex();
         }
 
         // 지방기상청 단기예보: 발표 주기(05, 11, 17시) +10분에 수집
@@ -1919,6 +2097,7 @@ module.exports = {
     collectSeaSplitIndex,
     collectSurfingIndex,
     collectMudflatIndex,
+    collectScubaIndex,
     // 관리자 페이지용 상태 반환
     // fishing 키에 낚시지수 + 바다갈라짐 통합 상태를 담아서 반환
     // (내부적으로는 fishing/seaSplit 별도 관리, 외부에는 fishing으로 통합 노출)
@@ -1927,14 +2106,15 @@ module.exports = {
         const f = lastRunStatus.fishing;
         const s = lastRunStatus.seaSplit;
         const m = lastRunStatus.mudflat;
+        const sc = lastRunStatus.scuba;
 
-        // 해양생활기상 통합 상태(fishing 카드) = 낚시 + 바다갈라짐 + 갯벌체험
-        const parts = [f, s, m];
+        // 해양생활기상 통합 상태(fishing 카드) = 낚시 + 바다갈라짐 + 갯벌체험 + 스킨스쿠버
+        const parts = [f, s, m, sc];
         const anyFail = parts.some(p => p.status === '실패');
         const allSuccess = parts.every(p => p.status === '성공');
         const anySuccess = parts.some(p => p.status === '성공');
-        // 가장 최근 실행 시각 (네 지수 모두 09:10/09:40 동시 수집이므로 사실상 동일; 갯벌>갈라짐>낚시 순으로 우선)
-        const latestRun = m.lastRun || s.lastRun || f.lastRun;
+        // 가장 최근 실행 시각 (다섯 지수 모두 09:10/09:40 동시 수집이므로 사실상 동일)
+        const latestRun = sc.lastRun || m.lastRun || s.lastRun || f.lastRun;
 
         if (anyFail) {
             // 하나라도 실패면 실패 표시 (어떤 쪽이 실패했는지 메시지에 포함)
@@ -1942,13 +2122,14 @@ module.exports = {
             if (f.status === '실패') failMsg.push('낚시: ' + f.message);
             if (s.status === '실패') failMsg.push('갈라짐: ' + s.message);
             if (m.status === '실패') failMsg.push('갯벌: ' + m.message);
+            if (sc.status === '실패') failMsg.push('스쿠버: ' + sc.message);
             status.fishing = { lastRun: latestRun, status: '실패', message: failMsg.join(' / ') };
         } else if (allSuccess) {
             // 모두 성공이면 메시지를 합치고, 가장 최근 실행 시각을 표시
             status.fishing = {
                 lastRun: latestRun,
                 status: '성공',
-                message: f.message + ' / ' + s.message + ' / 갯벌 ' + m.message
+                message: f.message + ' / ' + s.message + ' / 갯벌 ' + m.message + ' / 스쿠버 ' + sc.message
             };
         } else if (anySuccess) {
             // 일부만 성공, 나머지는 아직 대기 중 (서버 시작 직후 등)
@@ -1957,9 +2138,10 @@ module.exports = {
         }
         // else: 전부 '대기 중'이면 기본 fishing 상태 그대로 유지
 
-        // seaSplit/mudflat 키는 외부에 노출하지 않음 (관리자 화면에서 별도 카드가 없으므로)
+        // seaSplit/mudflat/scuba 키는 외부에 노출하지 않음 (관리자 화면에서 별도 카드가 없으므로)
         delete status.seaSplit;
         delete status.mudflat;
+        delete status.scuba;
         return status;
     },
     collectProgress,

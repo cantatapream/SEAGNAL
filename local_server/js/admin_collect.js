@@ -3249,11 +3249,13 @@ var USAGE_FEATURE_LABELS = {
     'life.surfing.tab': '서핑 탭 진입',
     'life.parting.tab': '바다갈라짐 탭 진입',
     'life.mudflat.tab': '갯벌체험 탭 진입',
+    'life.scuba.tab': '스킨스쿠버 탭 진입',
     'life.fishing.point.갯바위': '바다낚시 지점 · 갯바위',
     'life.fishing.point.선상': '바다낚시 지점 · 선상',
     'life.surfing.point': '서핑 지점 클릭',
     'life.parting.region': '바다갈라짐 지역 선택',
-    'life.mudflat.region': '갯벌체험 지역 선택'
+    'life.mudflat.region': '갯벌체험 지역 선택',
+    'life.scuba.point': '스킨스쿠버 지점 클릭'
 };
 function usageFeatureLabel(key) {
     return USAGE_FEATURE_LABELS[key] || key;

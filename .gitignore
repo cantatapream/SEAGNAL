@@ -44,6 +44,7 @@ local_server/data/fishing_index.json
 local_server/data/surfing_index.json
 local_server/data/sea_split_index.json
 local_server/data/mudflat_index.json
+local_server/data/scuba_index.json
 local_server/data/weather_alerts.json
 local_server/data/zone_forecasts.json
 

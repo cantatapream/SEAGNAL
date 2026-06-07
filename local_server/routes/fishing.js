@@ -228,4 +228,28 @@ router.get('/api/mudflat-index', (req, res) => {
     res.status(404).json({ error: '갯벌체험 지수 데이터 준비 중' });
 });
 
+// ============================================================================
+// 스킨스쿠버 지수 API
+// ============================================================================
+
+/**
+ * GET /api/scuba-index
+ * 스킨스쿠버 지수 전체 데이터를 반환합니다. (바다낚시와 동일한 지도형 구조)
+ *
+ * [응답 구조]
+ * {
+ *   updatedAt: "2026.06.07 09:10",
+ *   places: { "동명항": { lat, lot, forecasts: { "20260607": { "오전": {...}, "오후": {...} } } }, ... }
+ * }
+ *
+ * [연계] scheduler.js → collectScubaIndex()가 scuba_index.json으로 저장
+ *        js/scuba.js (프론트엔드) → fetch('/api/scuba-index')로 요청
+ */
+router.get('/api/scuba-index', (req, res) => {
+    if (dataCache.scubaIndex) {
+        return res.json(dataCache.scubaIndex);
+    }
+    res.status(404).json({ error: '스킨스쿠버 지수 데이터 준비 중' });
+});
+
 module.exports = router;
