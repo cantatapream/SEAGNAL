@@ -1286,6 +1286,16 @@ function _onSectionActivated(sectionId) {
             }
         }, 200);
     }
+    // 갯벌체험 탭 활성화 시 데이터 로드
+    if (sectionId === 'mudflat-section') {
+        // [사용량] 갯벌체험 하위 탭 진입
+        if (window.trackUsage) window.trackUsage('life.mudflat.tab');
+        setTimeout(() => {
+            if (window.initMudflat) {
+                window.initMudflat();
+            }
+        }, 200);
+    }
     // 공지사항 탭 활성화 시 게시글 로드
     if (sectionId === 'promo-section') {
         if (typeof loadPromoPosts === 'function') setTimeout(loadPromoPosts, 100);

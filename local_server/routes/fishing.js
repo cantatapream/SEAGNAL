@@ -201,4 +201,31 @@ router.get('/api/sea-split-index', (req, res) => {
     res.status(404).json({ error: '바다갈라짐 체험지수 데이터 준비 중' });
 });
 
+// ============================================================================
+// 갯벌체험 지수 API
+// ============================================================================
+
+/**
+ * GET /api/mudflat-index
+ * 갯벌체험 지수 전체 데이터를 반환합니다.
+ *
+ * [응답 구조]
+ * {
+ *   updatedAt: '수집 시점',
+ *   allPlaces: ['우전마을','백미리마을',...],  // 37개 전체 지점명
+ *   places: { '신리마을': { lat, lot, forecasts: { '2026-06-07': [...] } }, ... }
+ * }
+ *
+ * [연계] scheduler.js → collectMudflatIndex()가 mudflat_index.json으로 저장
+ *        js/mudflat.js (프론트엔드) → fetch('/api/mudflat-index')로 요청
+ */
+router.get('/api/mudflat-index', (req, res) => {
+    // 캐시된 데이터가 있으면 바로 응답
+    if (dataCache.mudflatIndex) {
+        return res.json(dataCache.mudflatIndex);
+    }
+    // 아직 수집되지 않은 경우
+    res.status(404).json({ error: '갯벌체험 지수 데이터 준비 중' });
+});
+
 module.exports = router;

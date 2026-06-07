@@ -3228,14 +3228,47 @@
 
             </section>
 
-            <!-- 섹션: 해양생활 - 갯벌체험 -->
+            <!-- ================================================================
+                 섹션: 해양생활 - 갯벌체험
+                 [연계] js/mudflat.js → initMudflat(), 드롭다운/테이블
+                 [연계] routes/fishing.js → /api/mudflat-index 데이터 제공
+                 [참고] 데이터 구조가 바다갈라짐과 동일하여 .sp-* 스타일을 공유.
+                        요소 ID만 #mp-* 로 분리(바다갈라짐 #sp-* 와 충돌 방지).
+                 ================================================================ -->
             <section id="mudflat-section" class="tab-content">
-                <div class="section-header-with-info">
-                    <h2 class="section-title"><i class="fa-solid fa-shoe-prints"></i> 갯벌체험 지수</h2>
+
+                <!-- 상단 헤더: 제목(좌) + 체험지수란? 버튼(우) -->
+                <div class="section-header-with-info sp-header">
+                    <h2 class="section-title"><i class="fa-solid fa-shoe-prints"></i> 갯벌체험 시간</h2>
+                    <button class="sp-guide-btn" id="mp-guide-btn">
+                        <i class="fa-solid fa-question-circle"></i> 체험지수란?
+                    </button>
                 </div>
-                <div style="margin:15px 0;padding:20px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(0,0,0,0.3);text-align:center;">
-                    <p style="margin:0;color:var(--accent-yellow,#ffd54f);font-weight:500;font-size:0.95rem;">갯벌체험 지수는 운영기간(5월~10월)에 제공됩니다.</p>
+
+                <!-- 지역 선택 줄: 드롭다운 + "지역 갯벌체험 시간" 라벨 + 즐겨찾기 별표 -->
+                <div class="sp-selector-row" id="mp-selector-row" style="display:none;">
+                    <select class="sp-place-select" id="mp-place-select">
+                        <!-- mudflat.js에서 데이터 기반 동적 생성 -->
+                    </select>
+                    <span class="sp-selector-label">지역 갯벌체험 시간</span>
+                    <button class="sp-favorite-btn" id="mp-favorite-btn" title="즐겨찾기">
+                        <i class="fa-regular fa-star"></i>
+                    </button>
                 </div>
+
+                <!-- 발표시점 (표 바로 위, 오른쪽 정렬) -->
+                <div class="sp-publish-row" id="mp-publish-row" style="display:none;">
+                    <span class="sp-publish-time" id="mp-publish-time">발표: -</span>
+                </div>
+
+                <!-- 체험시간 데이터 테이블 영역 -->
+                <div class="sp-data-container" id="mp-data-container">
+                    <!-- mudflat.js에서 날짜별 테이블 렌더링 -->
+                </div>
+
+                <!-- 하단 정보: 미제공 지역 안내 + 면책 문구 (mudflat.js에서 동적 생성) -->
+                <div id="mp-footer-info"></div>
+
             </section>
 
             <!-- 섹션: 해양생활 - 해수욕 -->
@@ -3471,6 +3504,7 @@
     <script src="js/surfing4.js"></script>
     <script src="js/surfing5.js"></script>
     <script src="js/sea_parting.js"></script>
+    <script src="js/mudflat.js"></script>
 
     <!-- 해양종합정보 (히든 탭) -->
     <script src="js/ocean_map.js"></script>
