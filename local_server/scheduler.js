@@ -1584,6 +1584,11 @@ async function collectRipCurrentIndex() {
         let dataCount = 0;
 
         for (const beach of RIP_BEACHES) {
+            // 망상은 공개 API에 데이터가 없어(코드에 BOM 박힘 → 데이터 미제공) 아래에서 KHOA 내부 데이터로 보강
+            if (beach.code === 'MANGSANG') {
+                result.places[beach.name] = { code: beach.code, lat: beach.lat, lot: beach.lot, hasData: false, level: null };
+                continue;
+            }
             const latest = await _fetchRipLatest(beach.code);
             if (latest) {
                 dataCount++;
@@ -1612,6 +1617,19 @@ async function collectRipCurrentIndex() {
                     level: null
                 };
             }
+        }
+
+        // ── 망상 보강: 공개 API에 망상 데이터가 없어 KHOA 내부 RCData.do로 별도 채움 ──
+        //   (비공식 엔드포인트 — 실패 시 망상은 정보없음(검정)으로 안전 강등, 나머지 9개는 영향 없음)
+        try {
+            const mg = await _fetchKhoaMangsang();
+            if (mg) {
+                result.places['망상해수욕장'] = mg;
+                if (mg.hasData) dataCount++;
+                log(`🌊 망상 KHOA 보강: 단계=${mg.level} 지수=${mg.score} (${mg.obsrvnDt})`);
+            }
+        } catch (e) {
+            log(`⚠️ 망상 KHOA 보강 실패(무시): ${e.message}`);
         }
 
         saveData('ripcurrent_index.json', result);
@@ -1671,6 +1689,55 @@ async function _fetchRipLatest(beachCode) {
         log(`⚠️ 이안류 API 호출 실패 (${beachCode}): ${e.message}`);
         return null;
     }
+}
+
+// KHOA 내부 이안류 데이터 엔드포인트 (공개 API에 없는 망상 보강용)
+//   - 전 해수욕장의 '현재 관측'을 한 번에 반환. 우리는 망상 1건만 사용.
+//   - 비공식 엔드포인트라 언제든 바뀔 수 있어 try/catch 로 안전 처리.
+const KHOA_RC_DATA_URL = 'https://www.khoa.go.kr/oceandata/oceaninfo/ripcurrent/RCData.do';
+
+/**
+ * KHOA 내부 RCData.do 에서 망상해수욕장의 현재 이안류 관측을 가져옵니다.
+ * @returns {Object|null} 망상 place 객체 (없으면 null)
+ *
+ * [응답 필드(KHOA)] siteId, sfPointName, obsTime, quotient(지수값),
+ *   waveHeight(파고), wavePeriod(파주기), warnStep(단계코드), warnMsg(관심/주의/경계/위험/점검)
+ * [주의] 망상 siteId 에 BOM(﻿)이 박혀 있음 → 비교 시 제거.
+ *        warnMsg 가 '점검' 등 4단계 외 값이면 정보없음(검정)으로 처리.
+ */
+async function _fetchKhoaMangsang() {
+    const VALID = ['관심', '주의', '경계', '위험'];
+    const response = await fetchWithTimeout(KHOA_RC_DATA_URL, {
+        headers: { 'Referer': 'https://www.khoa.go.kr/oceandata/oceaninfo/map.do' }
+    }, 30000);
+    if (!response.ok) return null;
+
+    // 응답 선두에 BOM 이 올 수 있어 text 로 받아 제거 후 파싱
+    const text = await response.text();
+    const data = JSON.parse(text.replace(/^﻿/, ''));
+    const list = data && data.selectRCDataList;
+    if (!Array.isArray(list)) return null;
+
+    const row = list.find(r =>
+        String(r.siteId || '').replace(/﻿/g, '').trim() === 'MANGSANG' ||
+        String(r.sfPointName || '').includes('망상'));
+    if (!row) return null;
+
+    const beach = RIP_BEACHES.find(b => b.code === 'MANGSANG');
+    const level = VALID.includes(row.warnMsg) ? row.warnMsg : null;
+    return {
+        code: 'MANGSANG',
+        lat: beach ? beach.lat : (parseFloat(row.sfLat) || 0),
+        lot: beach ? beach.lot : (parseFloat(row.sfLon) || 0),
+        hasData: !!level,
+        level: level,
+        score: (row.quotient != null) ? row.quotient : null,
+        obsrvnDt: String(row.obsTime || '').replace(/\//g, '-'), // '2026/06/07 23:20' → '2026-06-07 23:20'
+        wvhgt: (row.waveHeight != null) ? String(row.waveHeight) : '',
+        wvpd: (row.wavePeriod != null) ? String(row.wavePeriod) : '',
+        wtem: '', artmp: '', wndrct: '', wspd: '',
+        source: 'KHOA'  // 데이터 출처 표시 (KHOA 내부)
+    };
 }
 
 // ============================================================================
