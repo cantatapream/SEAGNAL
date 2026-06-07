@@ -929,7 +929,8 @@ const SECTION_TO_GROUP = {
     'mudflat-section': 'ocean-life-group',
     'swimming-section': 'ocean-life-group',
     'scuba-section': 'ocean-life-group',
-    'sea-parting-section': 'ocean-life-group'
+    'sea-parting-section': 'ocean-life-group',
+    'ripcurrent-section': 'ocean-life-group'
 };
 
 /**
@@ -1303,6 +1304,16 @@ function _onSectionActivated(sectionId) {
         setTimeout(() => {
             if (window.initScubaMap) {
                 window.initScubaMap();
+            }
+        }, 200);
+    }
+    // 이안류 탭 활성화 시 지도 초기화 (스킨스쿠버와 동일한 지도형)
+    if (sectionId === 'ripcurrent-section') {
+        // [사용량] 이안류 하위 탭 진입
+        if (window.trackUsage) window.trackUsage('life.ripcurrent.tab');
+        setTimeout(() => {
+            if (window.initRipCurrent) {
+                window.initRipCurrent();
             }
         }, 200);
     }
