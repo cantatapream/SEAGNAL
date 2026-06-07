@@ -428,34 +428,29 @@
         if (window.PopupStack) window.PopupStack.remove('rip-bottomsheet');
     }
 
+    /**
+     * 바텀시트 본문: 이안류 등급(헤더 배지) + 유의파고 + 유의파주기 중심으로 표출.
+     * 데이터 출처(국립해양조사원/기상청)를 함께 표기.
+     */
     function _buildContent(place) {
         if (!place.hasData) {
             return '<p style="color:#94a3b8;text-align:center;padding:24px 12px;line-height:1.6;">' +
-                '<i class="fa-solid fa-circle-info" style="margin-right:4px;"></i> 현재 이안류 관측 정보가 없습니다.<br>' +
+                '<i class="fa-solid fa-circle-info" style="margin-right:4px;"></i> 현재 이안류 정보가 없습니다.<br>' +
                 '<span style="font-size:0.85rem;">이안류 지수는 여름철(6~9월) 운영기간에 제공됩니다.</span></p>';
         }
 
-        var html = '';
-        // 관측시각 + 지수값
-        html += '<div class="fishing-time-block">';
-        html += '<div class="fishing-weather-table">';
-        if (place.obsrvnDt) html += '<span><i class="fa-solid fa-clock"></i> 관측 ' + _escapeHtml(place.obsrvnDt) + '</span>';
-        if (place.score != null && place.score !== '') html += '<span><i class="fa-solid fa-gauge-high"></i> 지수값 ' + _escapeHtml(String(place.score)) + '</span>';
-        html += '</div>';
-        html += '</div>';
+        var isKma = place.source === 'KMA';
+        var timeLabel = isKma ? '예측' : '관측';
 
-        // 해양·기상 관측값
-        html += '<div class="fishing-time-block">';
-        html += '<span class="fishing-time-badge">관측 환경</span>';
+        var html = '<div class="fishing-time-block">';
         html += '<div class="fishing-weather-table">';
-        if (place.wvhgt) html += '<span><i class="fa-solid fa-water"></i> 파고 ' + _escapeHtml(place.wvhgt) + 'm</span>';
-        if (place.wvpd)  html += '<span><i class="fa-solid fa-wave-square"></i> 파주기 ' + _escapeHtml(place.wvpd) + 'sec</span>';
-        if (place.wtem)  html += '<span><i class="fa-solid fa-temperature-half"></i> 수온 ' + _escapeHtml(place.wtem) + '°C</span>';
-        if (place.artmp) html += '<span><i class="fa-solid fa-thermometer-half"></i> 기온 ' + _escapeHtml(place.artmp) + '°C</span>';
-        if (place.wndrct || place.wspd) {
-            html += '<span><i class="fa-solid fa-wind"></i> 바람 ' + _escapeHtml(place.wndrct || '') + ' ' + _escapeHtml(place.wspd || '') + (place.wspd ? 'm/s' : '') + '</span>';
-        }
+        if (place.obsrvnDt) html += '<span><i class="fa-solid fa-clock"></i> ' + timeLabel + ' ' + _escapeHtml(place.obsrvnDt) + '</span>';
+        // 이안류 지수값(국립해양조사원만 숫자 제공)
+        if (!isKma && place.score != null && place.score !== '') html += '<span><i class="fa-solid fa-gauge-high"></i> 이안류지수 ' + _escapeHtml(String(place.score)) + '</span>';
+        if (place.wvhgt) html += '<span><i class="fa-solid fa-water"></i> 유의파고 ' + _escapeHtml(place.wvhgt) + 'm</span>';
+        if (place.wvpd)  html += '<span><i class="fa-solid fa-wave-square"></i> 유의파주기 ' + _escapeHtml(place.wvpd) + 'sec</span>';
         html += '</div>';
+        html += '<div style="margin-top:8px;font-size:0.75rem;color:#94a3b8;">출처: ' + (isKma ? '기상청' : '국립해양조사원') + '</div>';
         html += '</div>';
 
         return html;

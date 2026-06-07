@@ -1632,13 +1632,27 @@ async function collectRipCurrentIndex() {
             log(`⚠️ 망상 KHOA 보강 실패(무시): ${e.message}`);
         }
 
+        // ── 기상청 전용 지점 보강: KHOA와 겹치지 않는 강문/안목/신지명사십리 ──
+        //   (KHOA와 겹치는 해수욕장은 KHOA 데이터로 표출하고, 안 겹치는 곳만 기상청으로 표출)
+        try {
+            const kma = await _fetchKmaRipBeaches();
+            Object.keys(kma).forEach(name => {
+                result.places[name] = kma[name];
+                if (kma[name].hasData) dataCount++;
+            });
+            log(`🌊 기상청 이안류 보강: ${Object.keys(kma).length}개 지점`);
+        } catch (e) {
+            log(`⚠️ 기상청 이안류 보강 실패(무시): ${e.message}`);
+        }
+
+        const totalPlaces = Object.keys(result.places).length;
         saveData('ripcurrent_index.json', result);
         lastRunStatus.ripcurrent = {
             lastRun: getNowStr(),
             status: '성공',
-            message: `${dataCount}/${RIP_BEACHES.length}개 관측`
+            message: `${dataCount}/${totalPlaces}개 관측`
         };
-        log(`✅ 이안류 지수 수집 완료 (${dataCount}/${RIP_BEACHES.length}개 해수욕장 관측 수신)`);
+        log(`✅ 이안류 지수 수집 완료 (${dataCount}/${totalPlaces}개 해수욕장, KHOA+기상청 통합)`);
 
     } catch (e) {
         lastRunStatus.ripcurrent = { lastRun: getNowStr(), status: '실패', message: e.message };
@@ -1738,6 +1752,107 @@ async function _fetchKhoaMangsang() {
         wtem: '', artmp: '', wndrct: '', wspd: '',
         source: 'KHOA'  // 데이터 출처 표시 (KHOA 내부)
     };
+}
+
+// ── 기상청(KMA) 이안류 — KHOA와 겹치지 않는 지점만 보강 ─────────────────────────
+//   기상청 해양기상정보(marine.kma.go.kr)는 단기예보/해구별 예측 기반 이안류 등급을 제공.
+//   공개 API(인증 불필요): /mmis_marine_api/v1/kma/mdl/ripcrnt-1h/{list | {stnId}/list}
+//   - list: 전 지점 현재 등급(dngr_grde_lvl)
+//   - {stnId}/list: data.mdl(등급 시계열) + data.marine_zone(유의파고 wh/유의파주기 wp)
+const KMA_RIP_BASE = 'https://marine.kma.go.kr/mmis_marine_api/v1/kma/mdl/ripcrnt-1h';
+const KMA_LEVEL_MAP = { 1: '관심', 2: '주의', 3: '경계', 4: '위험' };
+
+// KHOA 10개와 겹치지 않는 기상청 전용 이안류 지점 (겹치는 곳은 KHOA로 표출)
+const KMA_RIP_BEACHES = [
+    { stnId: 7, name: '강문해수욕장',       lat: 37.795486, lot: 128.917920 },
+    { stnId: 8, name: '안목해수욕장',       lat: 37.772873, lot: 128.947624 },
+    { stnId: 2, name: '신지명사십리해수욕장', lat: 34.326905, lot: 126.808856 }
+];
+
+/** "2026.06.08 00:00" → 비교용 timestamp (없으면 null) */
+function _parseFctTm(s) {
+    const m = String(s || '').match(/(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/);
+    if (!m) return null;
+    return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime();
+}
+
+/** fct_tm 이 현재(KST)에 가장 가까운 항목 반환 (없으면 첫 항목) */
+function _nearestByFctTm(arr) {
+    if (!Array.isArray(arr) || arr.length === 0) return null;
+    const d = getCorrectedDate();
+    const kst = new Date(d.getTime() + (d.getTimezoneOffset() * 60000) + 9 * 3600000);
+    const nowLocal = new Date(kst.getFullYear(), kst.getMonth(), kst.getDate(), kst.getHours(), kst.getMinutes()).getTime();
+    let best = arr[0], bestDiff = Infinity;
+    for (const e of arr) {
+        const t = _parseFctTm(e.fct_tm);
+        if (t == null) continue;
+        const diff = Math.abs(t - nowLocal);
+        if (diff < bestDiff) { bestDiff = diff; best = e; }
+    }
+    return best;
+}
+
+/**
+ * 기상청 전용 이안류 지점(강문/안목/신지명사십리)의 현재 등급 + 유의파고/파주기를 수집.
+ * @returns {Object} { 지점명: place객체, ... } (실패 지점은 정보없음(검정)으로 포함)
+ */
+async function _fetchKmaRipBeaches() {
+    const out = {};
+
+    // 1) 전 지점 현재 등급 목록 (1회 호출)
+    const listMap = {};
+    try {
+        const r = await fetchWithTimeout(`${KMA_RIP_BASE}/list`, {}, 30000);
+        if (r.ok) {
+            const d = await r.json();
+            (d && d.data || []).forEach(s => { listMap[String(s.stn_id)] = s; });
+        }
+    } catch (e) {
+        log(`⚠️ 기상청 이안류 목록 호출 실패: ${e.message}`);
+    }
+
+    // 2) 지점별 유의파고/파주기 (상세 호출)
+    for (const b of KMA_RIP_BEACHES) {
+        const s = listMap[String(b.stnId)];
+        let lvl = (s && s.dngr_grde_lvl != null) ? Number(s.dngr_grde_lvl) : null;
+        let wh = '', wp = '', fctTm = (s && s.fct_tm) || '';
+
+        try {
+            const r2 = await fetchWithTimeout(`${KMA_RIP_BASE}/${b.stnId}/list`, {}, 30000);
+            if (r2.ok) {
+                const d2 = await r2.json();
+                const data = (d2 && d2.data) || {};
+                const mz = _nearestByFctTm(data.marine_zone || []);
+                if (mz) {
+                    if (mz.wh != null) wh = String(mz.wh);
+                    if (mz.wp != null) wp = String(mz.wp);
+                    if (mz.fct_tm) fctTm = mz.fct_tm;
+                }
+                if (lvl == null) {
+                    const md = _nearestByFctTm(data.mdl || []);
+                    if (md && md.dngr_grde_lvl != null) lvl = Number(md.dngr_grde_lvl);
+                }
+            }
+        } catch (e) {
+            log(`⚠️ 기상청 이안류 상세 실패(${b.name}): ${e.message}`);
+        }
+
+        const level = (lvl && KMA_LEVEL_MAP[lvl]) ? KMA_LEVEL_MAP[lvl] : null;
+        out[b.name] = {
+            code: 'KMA_' + b.stnId,
+            lat: (s && parseFloat(s.lat)) || b.lat,
+            lot: (s && parseFloat(s.lon)) || b.lot,
+            hasData: !!level,
+            level: level,
+            score: null,
+            obsrvnDt: String(fctTm || '').replace(/\./g, '-'), // "2026.06.08 00:00" → "2026-06-08 00:00"
+            wvhgt: wh,
+            wvpd: wp,
+            wtem: '', artmp: '', wndrct: '', wspd: '',
+            source: 'KMA'  // 데이터 출처 표시 (기상청)
+        };
+    }
+    return out;
 }
 
 // ============================================================================
