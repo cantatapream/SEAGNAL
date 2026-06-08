@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>SEA:GNAL — 바다 그 날의 신호</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#000;color:#fff;font-family:'Pretendard',sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;height:100%;}
+  *{box-sizing:border-box;}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  #frameWrap{position:relative;width:1920px;height:1080px;transform-origin:center center;}
+  iframe{width:1920px;height:1080px;border:0;display:block;background:#000;}
+  #topbar{position:fixed;top:0;left:0;right:0;height:48px;display:flex;align-items:center;padding:0 16px;background:rgba(0,0,0,0.5);backdrop-filter:blur(10px);font-size:13px;letter-spacing:0.04em;z-index:100;opacity:0;transition:opacity 0.2s;}
+  #topbar.show{opacity:1;}
+  #title{color:#FF6B35;font-weight:600;letter-spacing:0.24em;font-size:12px;}
+  #section{margin-left:24px;color:rgba(255,255,255,0.6);}
+  #counter{margin-left:auto;color:rgba(255,255,255,0.6);}
+  #slideLabel{margin-left:16px;color:#fff;font-weight:500;}
+  #help{margin-left:24px;color:rgba(255,255,255,0.4);font-size:11px;}
+  #toc{position:fixed;top:0;left:-360px;width:360px;height:100%;background:rgba(0,0,0,0.92);backdrop-filter:blur(20px);overflow-y:auto;transition:left 0.25s;padding:64px 16px 24px;z-index:200;}
+  #toc.show{left:0;}
+  #toc h3{font-size:11px;color:#FF6B35;letter-spacing:0.24em;margin:20px 0 8px;padding:0 8px;font-weight:600;}
+  #toc h3:first-child{margin-top:0;}
+  .tocItem{display:flex;padding:6px 8px;font-size:13px;color:rgba(255,255,255,0.65);cursor:pointer;border-radius:4px;}
+  .tocItem:hover{background:rgba(255,255,255,0.08);color:#fff;}
+  .tocItem.active{background:rgba(255,107,53,0.16);color:#FF6B35;}
+  .tocItem .num{width:36px;color:rgba(255,255,255,0.4);font-variant-numeric:tabular-nums;}
+  .tocItem.active .num{color:#FF6B35;}
+  #progress{position:fixed;bottom:0;left:0;right:0;height:3px;background:rgba(255,255,255,0.08);z-index:100;}
+  #progress div{height:100%;background:#FF6B35;transition:width 0.2s;}
+</style>
+</head>
+<body>
+<div id="stage"><div id="frameWrap"><iframe id="frame" src=""></iframe></div></div>
+
+<div id="topbar">
+  <span id="title">SEA:GNAL · 바다 그 날의 신호</span>
+  <span id="section"></span>
+  <span id="slideLabel"></span>
+  <span id="help">← → 이동 · M 목차 · F 전체화면</span>
+  <span id="counter"></span>
+</div>
+
+<div id="toc"></div>
+
+<div id="progress"><div></div></div>
+
+<script>
+let manifest = null;
+let flat = [];
+let cur = 0;
+
+async function load(){
+  const r = await fetch('manifest.json');
+  manifest = await r.json();
+  manifest.sections.forEach(sec => {
+    sec.slides.forEach(s => flat.push({...s, section: sec.name}));
+  });
+  buildToc();
+  const m = location.hash.match(/^#(\d+)$/);
+  go(m ? Math.max(0, Math.min(flat.length-1, parseInt(m[1])-1)) : 0);
+  fit();
+}
+
+function buildToc(){
+  const toc = document.getElementById('toc');
+  manifest.sections.forEach(sec => {
+    const h = document.createElement('h3');
+    h.textContent = sec.name;
+    toc.appendChild(h);
+    sec.slides.forEach(s => {
+      const it = document.createElement('div');
+      it.className = 'tocItem';
+      it.dataset.idx = flat.findIndex(f => f.no === s.no);
+      it.innerHTML = `<span class="num">${String(s.no).padStart(2,'0')}</span><span>${s.label}</span>`;
+      it.onclick = () => { go(parseInt(it.dataset.idx)); document.getElementById('toc').classList.remove('show'); };
+      toc.appendChild(it);
+    });
+  });
+}
+
+function go(i){
+  cur = i;
+  const s = flat[i];
+  document.getElementById('frame').src = s.file;
+  document.getElementById('section').textContent = s.section;
+  document.getElementById('slideLabel').textContent = s.label;
+  document.getElementById('counter').textContent = `${i+1} / ${flat.length}`;
+  document.querySelector('#progress div').style.width = ((i+1)/flat.length*100) + '%';
+  document.querySelectorAll('.tocItem').forEach(el => el.classList.toggle('active', parseInt(el.dataset.idx) === i));
+  location.hash = '#' + (i+1);
+}
+
+function fit(){
+  const w = window.innerWidth, h = window.innerHeight;
+  const s = Math.min(w/1920, h/1080);
+  document.getElementById('frameWrap').style.transform = `scale(${s})`;
+}
+
+window.addEventListener('resize', fit);
+window.addEventListener('keydown', e => {
+  if(e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown'){ if(cur < flat.length-1) go(cur+1); e.preventDefault(); }
+  else if(e.key === 'ArrowLeft' || e.key === 'PageUp'){ if(cur > 0) go(cur-1); e.preventDefault(); }
+  else if(e.key === 'Home'){ go(0); }
+  else if(e.key === 'End'){ go(flat.length-1); }
+  else if(e.key.toLowerCase() === 'm'){ document.getElementById('toc').classList.toggle('show'); }
+  else if(e.key.toLowerCase() === 'f'){
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen();
+    else document.exitFullscreen();
+  }
+});
+
+let timer;
+document.addEventListener('mousemove', () => {
+  document.getElementById('topbar').classList.add('show');
+  clearTimeout(timer);
+  timer = setTimeout(() => document.getElementById('topbar').classList.remove('show'), 2000);
+});
+
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,132 @@
+{
+  "title": "SEA:GNAL — 바다 그 날의 신호",
+  "subtitle": "해양경찰청 AI 경진대회 · 개발 및 활용 부문",
+  "author": "해양경찰청 경사 신진섭",
+  "totalSlides": 76,
+  "aspect": "16:9",
+  "width": 1920,
+  "height": 1080,
+  "sections": [
+    {
+      "name": "Opening",
+      "slides": [
+        { "no": 1, "file": "slides/01-title.html", "label": "Title" },
+        { "no": 2, "file": "slides/02-scene.html", "label": "Scene" },
+        { "no": 3, "file": "slides/03-hero-sentence.html", "label": "Hero Sentence" }
+      ]
+    },
+    {
+      "name": "Why now",
+      "slides": [
+        { "no": 4, "file": "slides/04-world-changed-1.html", "label": "1,012만 명" },
+        { "no": 5, "file": "slides/05-world-changed-2.html", "label": "48% 고령" },
+        { "no": 6, "file": "slides/06-world-changed-3.html", "label": "정보 파편화" },
+        { "no": 7, "file": "slides/07-world-changed-4.html", "label": "외산앱 의존" },
+        { "no": 8, "file": "slides/08-wrong-solutions.html", "label": "기존 해결책의 한계" }
+      ]
+    },
+    {
+      "name": "Product",
+      "slides": [
+        { "no": 9, "file": "slides/09-show-product-1.html", "label": "SEA:GNAL" },
+        { "no": 10, "file": "slides/10-show-product-2.html", "label": "4개 탭" },
+        { "no": 11, "file": "slides/11-traction.html", "label": "Traction" }
+      ]
+    },
+    {
+      "name": "Tab 1 · 특보 및 전망",
+      "slides": [
+        { "no": 12, "file": "slides/12-tab1-intro.html", "label": "Tab 1 intro" },
+        { "no": 13, "file": "slides/13-tab1-f1-intro.html", "label": "F1 해상 기상 전망" },
+        { "no": 14, "file": "slides/14-tab1-f1-before.html", "label": "F1 6단계" },
+        { "no": 15, "file": "slides/15-tab1-f1-after.html", "label": "F1 2단계" },
+        { "no": 16, "file": "slides/16-tab1-f2-intro.html", "label": "F2 해역별 특보 intro" },
+        { "no": 17, "file": "slides/17-tab1-f2-problem1.html", "label": "F2 한계 ①" },
+        { "no": 18, "file": "slides/18-tab1-f2-problem2.html", "label": "F2 한계 ②" },
+        { "no": 19, "file": "slides/19-tab1-f2-solution.html", "label": "F2 해결" },
+        { "no": 20, "file": "slides/20-tab1-f2-alert.html", "label": "F2 알림" },
+        { "no": 21, "file": "slides/21-tab1-f3-intro.html", "label": "F3 기상예보 intro" },
+        { "no": 22, "file": "slides/22-tab1-f3-before.html", "label": "F3 7단계" },
+        { "no": 23, "file": "slides/23-tab1-f3-after.html", "label": "F3 1단계" },
+        { "no": 24, "file": "slides/24-tab1-f4-intro.html", "label": "F4 기상부이 intro" },
+        { "no": 25, "file": "slides/25-tab1-f4-before.html", "label": "F4 6단계" },
+        { "no": 26, "file": "slides/26-tab1-f4-after.html", "label": "F4 2단계+지도" },
+        { "no": 27, "file": "slides/27-tab1-f5-intro.html", "label": "F5 해상일기도" },
+        { "no": 28, "file": "slides/28-tab1-f5-compare.html", "label": "F5 비교" },
+        { "no": 29, "file": "slides/29-tab1-summary.html", "label": "Tab 1 요약" }
+      ]
+    },
+    {
+      "name": "Tab 2 · 해양종합정보",
+      "slides": [
+        { "no": 30, "file": "slides/30-tab2-intro.html", "label": "Tab 2 intro" },
+        { "no": 31, "file": "slides/31-tab2-f1-intro.html", "label": "F1 유향·유속 intro" },
+        { "no": 32, "file": "slides/32-tab2-f1-before.html", "label": "F1 7단계" },
+        { "no": 33, "file": "slides/33-tab2-f1-after.html", "label": "F1 2단계" },
+        { "no": 34, "file": "slides/34-tab2-f2-intro.html", "label": "F2 풍·파 intro" },
+        { "no": 35, "file": "slides/35-tab2-f2-before.html", "label": "F2 분리 조회" },
+        { "no": 36, "file": "slides/36-tab2-f2-after.html", "label": "F2 통합" },
+        { "no": 37, "file": "slides/37-tab2-f3-buoy.html", "label": "F3 기상부이 118" },
+        { "no": 38, "file": "slides/38-tab2-f4-intro.html", "label": "F4 특보구역 intro" },
+        { "no": 39, "file": "slides/39-tab2-f4-vpass.html", "label": "F4 V-Pass 정합성" },
+        { "no": 40, "file": "slides/40-tab2-f4-color.html", "label": "F4 색상·팝업" },
+        { "no": 41, "file": "slides/41-tab2-f5-intro.html", "label": "F5 해구별 기상 intro" },
+        { "no": 42, "file": "slides/42-tab2-f5-before.html", "label": "F5 10단계" },
+        { "no": 43, "file": "slides/43-tab2-f5-after.html", "label": "F5 1번 클릭" },
+        { "no": 44, "file": "slides/44-tab2-f6-intro.html", "label": "F6 천기 전망 intro" },
+        { "no": 45, "file": "slides/45-tab2-f6-before.html", "label": "F6 8단계" },
+        { "no": 46, "file": "slides/46-tab2-f6-after.html", "label": "F6 1단계" },
+        { "no": 47, "file": "slides/47-tab2-f7-intro.html", "label": "F7 태풍 전망 intro" },
+        { "no": 48, "file": "slides/48-tab2-f7-before.html", "label": "F7 기존" },
+        { "no": 49, "file": "slides/49-tab2-f7-after.html", "label": "F7 진로+행동지침" },
+        { "no": 50, "file": "slides/50-tab2-f8-cctv.html", "label": "F8 CCTV 237개소" },
+        { "no": 51, "file": "slides/51-tab2-f9-intro.html", "label": "F9 임의 해점 intro" },
+        { "no": 52, "file": "slides/52-tab2-f9-tide.html", "label": "F9 조석 한계" },
+        { "no": 53, "file": "slides/53-tab2-f9-astro.html", "label": "F9 천문·월상 한계" },
+        { "no": 54, "file": "slides/54-tab2-f9-after.html", "label": "F9 통합 조회" },
+        { "no": 55, "file": "slides/55-tab2-basemap.html", "label": "배경지도 4종 + OSM" },
+        { "no": 56, "file": "slides/56-tab2-summary.html", "label": "Tab 2 요약" }
+      ]
+    },
+    {
+      "name": "Tab 3 · 해양생활",
+      "slides": [
+        { "no": 57, "file": "slides/57-tab3-intro.html", "label": "Tab 3 intro" },
+        { "no": 58, "file": "slides/58-tab3-features.html", "label": "낚시·서핑·바다갈라짐" },
+        { "no": 59, "file": "slides/59-tab3-diff.html", "label": "특보 연동 차별점" }
+      ]
+    },
+    {
+      "name": "Tab 4 · AI 나리",
+      "slides": [
+        { "no": 60, "file": "slides/60-ai-intro.html", "label": "나리야, 바다 어때?" },
+        { "no": 61, "file": "slides/61-ai-handsfree.html", "label": "왜 음성인가" },
+        { "no": 62, "file": "slides/62-ai-wake.html", "label": "호출어 + Vosk" },
+        { "no": 63, "file": "slides/63-ai-toolbrain.html", "label": "Tool Use Brain" },
+        { "no": 64, "file": "slides/64-ai-jikgun.html", "label": "8 직군 RAG" },
+        { "no": 65, "file": "slides/65-ai-memory.html", "label": "사용자 기억 v2" },
+        { "no": 66, "file": "slides/66-ai-quality.html", "label": "품질 측정" },
+        { "no": 67, "file": "slides/67-ai-122.html", "label": "122 핸즈프리" },
+        { "no": 68, "file": "slides/68-ai-roadmap.html", "label": "AI 로드맵 Phase" }
+      ]
+    },
+    {
+      "name": "현장적합성 · 사업화",
+      "slides": [
+        { "no": 69, "file": "slides/69-field-officer.html", "label": "현장 경찰관이 만든 앱" },
+        { "no": 70, "file": "slides/70-data-ethics.html", "label": "공공 데이터 윤리" },
+        { "no": 71, "file": "slides/71-business-targets.html", "label": "활용 대상" },
+        { "no": 72, "file": "slides/72-business-impact.html", "label": "기대효과" },
+        { "no": 73, "file": "slides/73-roadmap.html", "label": "시기별 로드맵" }
+      ]
+    },
+    {
+      "name": "Closing",
+      "slides": [
+        { "no": 74, "file": "slides/74-hero-restate.html", "label": "Hero Sentence 재강조" },
+        { "no": 75, "file": "slides/75-one-more.html", "label": "One More Thing" },
+        { "no": 76, "file": "slides/76-thanks.html", "label": "감사합니다" }
+      ]
+    }
+  ]
+}
