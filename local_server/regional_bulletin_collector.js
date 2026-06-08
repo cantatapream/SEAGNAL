@@ -362,11 +362,19 @@ function getStoredCycleId(bulletinPublishTime) {
 
 /**
  * 현재 시각이 어느 발표 사이클에 속하는지 ID 로 반환.
- * 서버가 UTC 컨테이너에서 돌아도 KST 기준으로 일관 동작.
+ * 서버 TZ(UTC/KST 무관)에 상관없이 KST 기준으로 일관 동작.
  */
 function getCurrentExpectedCycleId(now) {
-    // 서버 timezone 무관하게 KST 시각 도출
-    const kstMs = now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600000);
+    // [TZ 버그 수정] getTime() 은 서버 TZ 와 무관하게 항상 UTC epoch ms 이므로,
+    //   여기에 +9h 만 더한 뒤 getUTC* 로 읽으면 어떤 서버 TZ 에서도 KST 가 된다.
+    //   (이전: + now.getTimezoneOffset()*60000 항을 더했는데, 운영 서버가 KST
+    //    [Dockerfile ENV TZ=Asia/Seoul]이면 offset(-540분)이 +9h 를 상쇄해
+    //    getUTCHours() 가 UTC(=KST-9h)를 돌려줬다. 그 결과 실제 KST 오후(16:20~)에
+    //    사이클을 'am' 으로 오판 → 저장된 오전 통보문과 일치 → 오후 PM 통보문이 매일
+    //    cycle-skip 되어 fetch/AI 도 못 하고 영구 미수집되던 버그.
+    //    scheduler.js 의 kstDate 는 getHours()[로컬TZ]로 읽어 KST 서버에서도 맞았지만,
+    //    본 함수만 getUTCHours()를 써서 두 계산이 어긋나 있었다.)
+    const kstMs = now.getTime() + (9 * 3600000);
     const kst = new Date(kstMs);
     const minOfDay = kst.getUTCHours() * 60 + kst.getUTCMinutes();
 
