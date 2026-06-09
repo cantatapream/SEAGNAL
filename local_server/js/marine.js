@@ -173,13 +173,24 @@ function parseMarineZoneData(text) {
     return result;
 }
 
-// 시간 포맷팅 (YYYYMMDDHH -> MM.DD HH시)
+// UTC "YYYYMMDDHH" → KST(+9h) 파트 분해. 표는 KST 기준으로 표시해야 하므로 공용 사용.
+function _tmKst(tm) {
+    const d = new Date(Date.UTC(+tm.substring(0, 4), +tm.substring(4, 6) - 1, +tm.substring(6, 8), +tm.substring(8, 10)));
+    d.setUTCHours(d.getUTCHours() + 9);
+    const p = n => String(n).padStart(2, '0');
+    return {
+        ymd: `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}`,
+        mm: p(d.getUTCMonth() + 1),
+        dd: p(d.getUTCDate()),
+        hh: p(d.getUTCHours())
+    };
+}
+
+// 시간 포맷팅 — tm 은 UTC "YYYYMMDDHH" 이므로 KST(+9h) 로 변환해 "MM.DD HH시" 로 표시.
 function formatMarineTime(tm) {
     if (!tm || tm.length < 10) return tm;
-    const mm = tm.substring(4, 6);
-    const dd = tm.substring(6, 8);
-    const hh = tm.substring(8, 10);
-    return `${mm}.${dd} ${hh}시`;
+    const k = _tmKst(tm);
+    return `${k.mm}.${k.dd} ${k.hh}시`;
 }
 
 // 현재(UTC) 시각 이전의 지나간 예보 슬롯 제거 — 진행 중인 슬롯 1개는 포함.
@@ -672,11 +683,9 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
     if (baseTime) {
         const bt = String(baseTime);
         if (bt.length >= 10) {
-            const y = bt.substring(0, 4);
-            const m = bt.substring(4, 6);
-            const d = bt.substring(6, 8);
-            const h = bt.substring(8, 10);
-            baseTimeFormatted = `${y}.${m}.${d} ${h}:00 발표`;
+            // baseTmUtf 는 UTC → KST(+9h) 로 변환해 표시
+            const k = _tmKst(bt);
+            baseTimeFormatted = `${k.ymd.substring(0, 4)}.${k.mm}.${k.dd} ${k.hh}:00 발표`;
         } else {
             baseTimeFormatted = `발표시각: ${bt}`;
         }
@@ -709,10 +718,10 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
         return;
     }
 
-    // 날짜별 그룹화
+    // 날짜별 그룹화 — tm 은 UTC 라 KST 날짜 기준으로 묶는다.
     const dateGroups = {};
     data.forEach(row => {
-        const date = row.tm.substring(0, 8);
+        const date = _tmKst(row.tm).ymd;
         if (!dateGroups[date]) dateGroups[date] = [];
         dateGroups[date].push(row);
     });
@@ -740,7 +749,7 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
     const cellStyle = 'width:45px; min-width:45px; max-width:45px; box-sizing:border-box; padding:3px 0; border:1px solid #333; text-align:center;';
 
     data.forEach((row, index) => {
-        const hh = row.tm.substring(8, 10);
+        const hh = _tmKst(row.tm).hh;  // UTC → KST
         tableHTML += `<td id="time-cell-${index}" data-index="${index}" style="${cellStyle} font-weight:bold;">${hh}시</td>`;
     });
     tableHTML += '</tr></thead><tbody>';
@@ -853,6 +862,25 @@ function getMarineVisibilityColor(vs) {
     return '#81c784';               // 양호
 }
 
+// 시정 경고 임계값(해리, NM) — 항해 기준. 이 값 미만이면 그래프에 점·수치·위험색 표출.
+const VIS_WARN_NM = 2;
+
+// 합본 그래프 시정 라인/라벨 색 — 나쁠수록 위험색(빨강), 평소엔 앰버. (NM 기준)
+//   <1NM 빨강 / <2NM 주황 / 그 외 앰버(점선 기본색)
+function _visGraphColor(km) {
+    if (km == null) return '#ffd54f';
+    const nm = km * VIS_KM_TO_NM;
+    if (nm < 1) return '#ff5252';
+    if (nm < VIS_WARN_NM) return '#ffb74d';
+    return '#ffd54f';
+}
+
+// 시정 라벨/점을 그래프에 노출할지 — 2 NM 미만(나쁠 때)만 표시.
+function _visLabelVisible(km) {
+    if (km == null) return false;
+    return (km * VIS_KM_TO_NM) < VIS_WARN_NM;
+}
+
 // Chart.js 렌더링
 function renderMarineChart(data) {
     const canvas = document.getElementById('marineChart');
@@ -955,8 +983,7 @@ function renderMarineChart(data) {
                     }
                 },
                 {
-                    // [합본] 시정 라인 — 추세만 표시(수치는 별도 시정 텍스트 행).
-                    //   라벨 없음 + 점 없음 + 점선 → 풍속/파고 수치와 겹치지 않고 시각적으로도 구분됨.
+                    // [합본] 시정 라인 — 평소엔 추세만(점선), 시정이 나빠지면(<4) 그 지점만 점·수치·위험색 표시.
                     label: '시정',
                     data: data.map(d => (typeof d.vs === 'number' ? Math.min(d.vs, VIS_CAP_KM) : null)),
                     type: 'line',
@@ -967,11 +994,37 @@ function renderMarineChart(data) {
                     yAxisID: 'y_vis',
                     tension: 0.3,
                     spanGaps: true,
-                    pointRadius: 0,
+                    // 점은 시정이 나쁠 때(<4 표시단위)만 노출 + 위험색
+                    pointRadius: (ctx) => (_visLabelVisible(ctx.dataset.data[ctx.dataIndex]) ? 4 : 0),
                     pointHoverRadius: 0,
+                    pointBackgroundColor: (ctx) => _visGraphColor(ctx.dataset.data[ctx.dataIndex]),
+                    pointBorderColor: (ctx) => _visGraphColor(ctx.dataset.data[ctx.dataIndex]),
                     fill: false,
                     order: 0,
-                    datalabels: { display: false }
+                    // 시정이 떨어지는 구간(둘 중 더 나쁜 값 기준)은 라인을 위험색으로
+                    segment: {
+                        borderColor: (ctx) => {
+                            const worse = Math.min(
+                                ctx.p0.parsed.y == null ? 99 : ctx.p0.parsed.y,
+                                ctx.p1.parsed.y == null ? 99 : ctx.p1.parsed.y
+                            );
+                            return _visGraphColor(worse);
+                        }
+                    },
+                    // 수치 라벨은 시정이 나쁠 때(<4 표시단위)만 — 좋을 땐 깔끔하게 숨김
+                    datalabels: {
+                        display: (ctx) => _visLabelVisible(ctx.dataset.data[ctx.dataIndex]),
+                        color: (ctx) => _visGraphColor(ctx.dataset.data[ctx.dataIndex]),
+                        anchor: 'center',
+                        align: 'top',
+                        offset: 6,
+                        font: { size: 9, weight: 'bold' },
+                        formatter: (km) => {
+                            if (km == null) return '';
+                            const u = (window._marineVisUnit === 'NM') ? 'NM' : 'km';
+                            return ((u === 'NM') ? km * VIS_KM_TO_NM : km).toFixed(1);
+                        }
+                    }
                 }
             ]
         },
@@ -1012,8 +1065,8 @@ function renderMarineChart(data) {
                 },
                 y_wind: { type: 'linear', display: false, position: 'left', beginAtZero: true },
                 y_wave: { type: 'linear', display: false, position: 'right', beginAtZero: true },
-                // 시정 전용 축(0~20km 고정) — 안개로 시정이 떨어지면 라인이 또렷이 하강
-                y_vis: { type: 'linear', display: false, position: 'right', beginAtZero: true, min: 0, max: VIS_CAP_KM }
+                // 시정 전용 축 — 상한(20)보다 위에 여유(26)를 둬서 '맑음(20)' 선이 천장에 붙지 않게.
+                y_vis: { type: 'linear', display: false, position: 'right', beginAtZero: true, min: 0, max: 26 }
             }
         }
     });
@@ -1074,13 +1127,14 @@ function applyMarineVisibility(data) {
     renderMarineChart(data);  // vs 채워진 데이터로 재렌더 → 시정 라인 표시
 }
 
-// 시정 행 클릭 → km ↔ 해리(NM) 토글 (그래프 시정 라인은 km축 고정이라 텍스트 행만 갱신).
+// 시정 행 클릭 → km ↔ 해리(NM) 토글 (텍스트 행 + 그래프 라벨 단위 함께 갱신).
 window.toggleMarineVisUnit = function () {
     const data = window._marineVisData;
     if (!data || !data.some || !data.some(d => typeof d.vs === 'number')) return;  // 로딩 전/데이터 없음
     window._marineVisUnit = (window._marineVisUnit === 'NM') ? 'km' : 'NM';
     const row = document.getElementById('marine-vis-row');
     if (row) row.outerHTML = _marineVisRowHTML(data, false);
+    renderMarineChart(data);  // 그래프 시정 라벨도 단위 반영
 };
 
 // 스켈레톤 shimmer 애니메이션 스타일 1회 주입
