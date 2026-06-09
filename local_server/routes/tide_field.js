@@ -67,9 +67,45 @@ function loadMetaIfNeeded() {
     }
     _anchors = TFC.loadAnchors() || [];
     buildCellAnchorIndex();
+    buildCellTiles();
     // 메타 갱신 시 시각 캐시 무효화
     _timeCache.clear();
     return true;
+}
+
+// ── 셀 타일 인덱스 (bbox 빠른 조회 — 미세 격자 성능 대응) ──────────────
+const TILE_DEG = 0.1;
+// 한 요청에서 계산·전송할 셀 상한. 초과(줌 아웃) 시 스트라이드 서브샘플.
+//   모바일 벡터 렌더 한계 고려. 만(灣) 단위로 줌인하면 100m 전부, 줌아웃하면 개요.
+const MAX_CANDIDATE_CELLS = 30000;
+let _cellTiles = null; // tileKey -> [cell...]
+function buildCellTiles() {
+    _cellTiles = new Map();
+    if (!_meta || !Array.isArray(_meta.cells)) return;
+    for (const cell of _meta.cells) {
+        const tk = `${Math.floor(cell.lon / TILE_DEG)}_${Math.floor(cell.lat / TILE_DEG)}`;
+        let arr = _cellTiles.get(tk);
+        if (!arr) { arr = []; _cellTiles.set(tk, arr); }
+        arr.push(cell);
+    }
+}
+/** bbox=[lonMin,latMin,lonMax,latMax] 내 셀만 반환 (없으면 전체). */
+function cellsInBbox(bbox) {
+    if (!bbox || !_cellTiles) return (_meta && _meta.cells) || [];
+    const [lonMin, latMin, lonMax, latMax] = bbox;
+    const out = [];
+    const txMin = Math.floor(lonMin / TILE_DEG), txMax = Math.floor(lonMax / TILE_DEG);
+    const tyMin = Math.floor(latMin / TILE_DEG), tyMax = Math.floor(latMax / TILE_DEG);
+    for (let tx = txMin; tx <= txMax; tx++) {
+        for (let ty = tyMin; ty <= tyMax; ty++) {
+            const arr = _cellTiles.get(`${tx}_${ty}`);
+            if (!arr) continue;
+            for (const cell of arr) {
+                if (cell.lon >= lonMin && cell.lon <= lonMax && cell.lat >= latMin && cell.lat <= latMax) out.push(cell);
+            }
+        }
+    }
+    return out;
 }
 
 /**
@@ -188,13 +224,10 @@ function snapMinute(minute) {
  * 한 시각의 전 셀 상태 계산.
  * @returns {Array<{lon,lat,state,depth_m}>}
  */
-function computeField(yyyymmdd, minute) {
+function computeField(yyyymmdd, minute, cells) {
     const snapped = snapMinute(minute);
-    const ck = `${yyyymmdd}_${snapped}`;
-    if (_timeCache.has(ck)) return _timeCache.get(ck);
-
     const out = [];
-    for (const cell of _meta.cells) {
+    for (const cell of cells) {
         const refs = _cellAnchorIdx.get(cell.key) || [];
         // η(t) IDW (cm)
         let wsum = 0, vsum = 0;
@@ -205,29 +238,14 @@ function computeField(yyyymmdd, minute) {
             const w = distKm < 0.1 ? 1e6 : 1 / (distKm * distKm);
             wsum += w; vsum += w * eta;
         }
-        if (wsum === 0) {
-            // 이 셀에 보간 가능한 곡선 없음 → 미정(state=-1). 프론트는 미표시.
-            out.push({ lon: cell.lon, lat: cell.lat, state: -1, depth_m: null });
-            continue;
+        if (wsum === 0) continue;             // 보간 곡선 없음(미정) → 미표시
+        const d = cell.depth, z0 = cell.z0;   // BADA 수심·Z₀ (m). null 가능.
+        if (d == null || z0 == null) continue;
+        const depthM = d + (vsum / wsum) / 100 - z0; // 물깊이(m)
+        if (depthM < 0) {                     // 드러남만 출력 (잠김 제외)
+            out.push({ lon: cell.lon, lat: cell.lat, state: 1, depth_m: Math.round(depthM * 100) / 100 });
         }
-        const etaM = (vsum / wsum) / 100; // cm → m
-        const d = cell.depth;             // BADA 수심 (MSL, m). null 가능(합성/결측).
-        const z0 = cell.z0;               // Z₀ (m). null 가능.
-        if (d == null || z0 == null) {
-            out.push({ lon: cell.lon, lat: cell.lat, state: -1, depth_m: null });
-            continue;
-        }
-        const depthM = d + etaM - z0;     // 물깊이(m)
-        const state = depthM < 0 ? 1 : 0; // 드러남 / 잠김
-        out.push({ lon: cell.lon, lat: cell.lat, state, depth_m: Math.round(depthM * 100) / 100 });
     }
-
-    // LRU 흉내 (단순 FIFO)
-    if (_timeCache.size >= TIME_CACHE_MAX) {
-        const firstKey = _timeCache.keys().next().value;
-        _timeCache.delete(firstKey);
-    }
-    _timeCache.set(ck, out);
     return out;
 }
 
@@ -298,19 +316,25 @@ router.get('/api/tide-field', (req, res) => {
         });
     }
 
-    let cells = computeField(parsed.yyyymmdd, parsed.minute);
-
-    // bbox 필터 (선택) — 뷰포트 전송량 절감
+    // bbox(뷰포트) 내 후보 셀만 선택 — 미세 격자(100m) 성능 대응.
+    let bbox = null;
     if (req.query.bbox) {
         const b = String(req.query.bbox).split(',').map(Number);
-        if (b.length === 4 && b.every(n => !isNaN(n))) {
-            const [lonMin, latMin, lonMax, latMax] = b;
-            cells = cells.filter(c => c.lon >= lonMin && c.lon <= lonMax && c.lat >= latMin && c.lat <= latMax);
-        }
+        if (b.length === 4 && b.every(n => !isNaN(n))) bbox = b;
+    }
+    let candidates = cellsInBbox(bbox);
+
+    // [과밀 방어] 후보가 너무 많으면(줌 아웃) 스트라이드 서브샘플 → 개요만.
+    //   computeField·렌더 부하·전송량을 상한으로 묶는다.
+    if (candidates.length > MAX_CANDIDATE_CELLS) {
+        const stride = Math.ceil(candidates.length / MAX_CANDIDATE_CELLS);
+        const sub = [];
+        for (let i = 0; i < candidates.length; i += stride) sub.push(candidates[i]);
+        candidates = sub;
     }
 
-    // state=-1(미정) 셀은 전송 제외 — 프론트가 표시하지 않으므로 대역폭 절감.
-    const visible = cells.filter(c => c.state >= 0);
+    // 드러남(state=1)만 계산·전송 (잠김·미정 제외).
+    const visible = computeField(parsed.yyyymmdd, parsed.minute, candidates);
 
     res.set('Cache-Control', 'public, max-age=120');
     res.json({

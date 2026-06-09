@@ -136,6 +136,9 @@ function accumulateBathFile(filePath, cells) {
             const depth = parseFloat(parts[2]);
             if (isNaN(lon) || isNaN(lat) || isNaN(depth)) return;
             if (!C.isWestSouthSea(lat, lon)) return;
+            // [사전필터] 수심 > SHALLOW_MAX_M 은 어차피 안 드러나므로 제외 →
+            //   100m 미세 격자에서 셀 수를 통제 (정확도 손해 없음).
+            if (depth > CFG.SHALLOW_MAX_M) return;
             const key = cellKey(lat, lon);
             let c = cells.get(key);
             if (!c) { c = { sumDepth: 0, n: 0 }; cells.set(key, c); }
@@ -180,10 +183,10 @@ async function loadBathymetryCells() {
 function buildSyntheticCells() {
     const cells = new Map();
     // 합성 모드는 CELL_DEG 해상도의 "연속" 격자를 만든다 (연결성/컴포넌트/물길
-    // BFS 가 현실처럼 빈틈 없이 동작하도록). 전 박스(약14만 셀)는 BFS-per-anchor
-    // 가 느리므로, 검증용으로 경기만~서해중부 작은 sub-box 만 채운다.
+    // BFS 가 현실처럼 빈틈 없이 동작하도록). 100m(0.001°)에선 셀이 폭증하므로
+    // 검증용으로 인천 인근의 아주 작은 sub-box 만 채운다(표준항 인천 포함).
     //   (실데이터에선 BADA 점이 있는 셀만 자연스럽게 채워져 육지가 제외됨)
-    const SYN_BOX = { lonMin: 126.0, lonMax: 126.8, latMin: 36.8, latMax: 37.6 };
+    const SYN_BOX = { lonMin: 126.5, lonMax: 126.66, latMin: 37.4, latMax: 37.5 };
     for (let lon = SYN_BOX.lonMin; lon <= SYN_BOX.lonMax; lon += CFG.CELL_DEG) {
         for (let lat = SYN_BOX.latMin; lat <= SYN_BOX.latMax; lat += CFG.CELL_DEG) {
             if (!C.isWestSouthSea(lat, lon)) continue;
@@ -512,19 +515,29 @@ async function main() {
         a.z0_m = z0ByCell.has(a.cellKey) ? round3(z0ByCell.get(a.cellKey)) : null;
     }
 
-    // ── 셀 배열 직렬화 ───────────────────────────────────────────────
+    // ── 셀 배열 직렬화 (드러남 가능 셀만 출력) ───────────────────────
+    //   [드러남 필터] 수심 < Z₀ + DRY_MARGIN_M 인 셀만 grid_meta 에 남긴다.
+    //   그 외(절대 안 드러나는 깊은 셀)는 어차피 표출 안 되므로 제외 → 출력 크기 통제.
+    //   합성(DRYRUN, depth=null)은 파이프라인 검증을 위해 그대로 유지.
     const cellArr = [];
+    let droppedDeep = 0;
     for (const [key, v] of cellMap) {
+        const z0 = z0ByCell.has(key) ? z0ByCell.get(key) : null;
+        if (v.depth != null) {
+            // 실데이터: Z₀ 없으면 판정 불가 → 제외. 깊으면(>Z₀+여유) 제외.
+            if (z0 == null || v.depth >= z0 + CFG.DRY_MARGIN_M) { droppedDeep++; continue; }
+        }
         const c = cellCenterOf(key);
         cellArr.push({
             key,
             lon: +c.lon.toFixed(5),
             lat: +c.lat.toFixed(5),
             depth: v.depth == null ? null : round3(v.depth),
-            z0: z0ByCell.has(key) ? round3(z0ByCell.get(key)) : null,
+            z0: z0 == null ? null : round3(z0),
             comp: comp.get(key) || null
         });
     }
+    log(`드러남 가능 셀: ${cellArr.length}개 (깊어서 제외 ${droppedDeep}개)`);
 
     writeOutputs(cellArr, anchors, {
         year, fileCount, synthetic, empty: false,
