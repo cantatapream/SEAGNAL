@@ -1476,6 +1476,8 @@
      * 동일한 캐시 (imgList + image cache) 활용 → 천기 popup 과 시너지.
      */
     window._shrtForecastSamplePointAt = samplePointAt;
+    /** [외부 노출] 통합 팝업 본문 HTML 빌더 — 시정 레이어 팝업도 동일 내용으로 재사용. */
+    window._shrtForecastBuildPopupBodyHtml = function (data) { return buildPopupBodyHtml(data); };
     /** [외부 노출] 임의 시각 → KMA 가장 가까운 정시 frame 의 fct_tm 문자열. */
     window._shrtForecastNearestFctTm = function (date) {
         var d = new Date(date);

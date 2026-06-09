@@ -918,10 +918,20 @@
         var token = ++popupState.currentFetchToken;
         var lat = popupState.latLon[0], lon = popupState.latLon[1];
 
-        return _samplePoint(fctTm, lon, lat)
+        // 천기 통합: shrt 모듈의 샘플러+빌더가 있으면 하늘상태·강수·적설·기온·시정을
+        //   한 팝업에 모두 표출(천기 레이어 클릭 팝업과 동일 내용). 없으면 시정 단독 폴백.
+        var unified = (typeof window._shrtForecastSamplePointAt === 'function'
+                    && typeof window._shrtForecastBuildPopupBodyHtml === 'function');
+        var dataP = unified
+            ? window._shrtForecastSamplePointAt(lat, lon, fctTm, true)
+            : _samplePoint(fctTm, lon, lat);
+
+        return dataP
             .then(function (data) {
                 if (!popupState.box || token !== popupState.currentFetchToken) return;
-                if (bodyEl) bodyEl.innerHTML = buildPopupBodyHtml(data);
+                if (bodyEl) bodyEl.innerHTML = unified
+                    ? window._shrtForecastBuildPopupBodyHtml(data)
+                    : buildPopupBodyHtml(data);
             })
             .catch(function (e) {
                 if (!popupState.box || token !== popupState.currentFetchToken) return;
