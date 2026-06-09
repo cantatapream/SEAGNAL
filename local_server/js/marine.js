@@ -798,11 +798,12 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
         <div style="display:flex; flex-direction:column; gap:2px; font-size:9px; align-items:center;">
             <span style="color:#ffd54f;">시정</span>
             <span style="display:inline-block; width:14px; height:3px; background:#ffd54f; border-radius:2px;"></span>
-            <span style="color:#888; font-weight:normal;">(km)</span>
+            <span id="marine-vis-unit-label" style="color:#888; font-weight:normal;">(km)</span>
+            <span style="color:#666; font-weight:normal; font-size:8px; line-height:1.1;">클릭:단위</span>
         </div>
     </th>`;
         tableHTML += `<td colspan="${data.length}" style="padding:0; border:1px solid #333; overflow:hidden; box-sizing:border-box;">`;
-        tableHTML += `<div style="width:${chartWidth}px; height:110px; margin:0; padding-left:${CHART_OFFSET_LEFT}px; display:block; box-sizing:border-box;"><canvas id="marineVisChart" width="${chartWidth}" height="110" style="display:block;"></canvas></div>`;
+        tableHTML += `<div style="width:${chartWidth}px; height:110px; margin:0; padding-left:${CHART_OFFSET_LEFT}px; display:block; box-sizing:border-box;"><canvas id="marineVisChart" width="${chartWidth}" height="110" style="display:block; cursor:pointer;" title="클릭하면 km ↔ 해리(NM) 단위가 전환됩니다"></canvas></div>`;
         tableHTML += '</td></tr>';
     }
 
@@ -977,8 +978,14 @@ function renderMarineChart(data) {
     });
 }
 
+// 시정 단위 변환 상수
+const VIS_CAP_KM = 20;            // 표시 상한: 20km 이상은 "맑음" 으로 묶어 캡
+const VIS_KM_TO_NM = 0.539957;    // 1km = 0.539957 해리(NM)
+
 // 시정 꺾은선 그래프 (MMIS 해구별 시정예측, 3시간 간격 공식값)
 //   풍속/파고 메인 차트와 동일한 컬럼 정렬(CHART_OFFSETS)·스타일 규칙을 그대로 따름.
+//   [상한] 값은 20km 에서 캡(min(vs,20)) — 20 이상은 라벨에 "20+" 표시. 세로축 고정 0~20km(=0~10.8NM).
+//   [단위] 차트 영역 클릭 시 km ↔ 해리(NM) 토글 (window._marineVisUnit 에 상태 저장 → 재렌더).
 //   값이 없는 시각(우리 표가 MMIS 예보범위를 벗어난 끝부분 등)은 null → 라인에서 생략.
 function renderMarineVisChart(data) {
     const canvas = document.getElementById('marineVisChart');
@@ -986,9 +993,24 @@ function renderMarineVisChart(data) {
 
     const ctx = canvas.getContext('2d');
     const labels = data.map(d => d.displayTime);
-    const vis = data.map(d => (typeof d.vs === 'number' ? d.vs : null));
-    // 점 색상은 시정 위험도(안개)에 따라
-    const pointColors = vis.map(v => (v == null ? 'rgba(0,0,0,0)' : getMarineVisibilityColor(v)));
+
+    // 단위 토글 재렌더에 쓰도록 원본 데이터 보관
+    window._marineVisData = data;
+    const unit = (window._marineVisUnit === 'NM') ? 'NM' : 'km';
+
+    // 원본 km → 20km 캡 → 표시단위 변환
+    const rawKm = data.map(d => (typeof d.vs === 'number' ? d.vs : null));
+    const cappedKm = rawKm.map(v => (v == null ? null : Math.min(v, VIS_CAP_KM)));
+    const atCap = rawKm.map(v => (v != null && v >= VIS_CAP_KM));   // 상한 도달 → 라벨 "+"
+    const vis = cappedKm.map(v => (v == null ? null : (unit === 'NM' ? v * VIS_KM_TO_NM : v)));
+    // 점 색상은 시정 위험도(안개)에 따라 — 단위와 무관하게 원본 km 기준
+    const pointColors = rawKm.map(v => (v == null ? 'rgba(0,0,0,0)' : getMarineVisibilityColor(v)));
+    const axisMax = (unit === 'NM') ? VIS_CAP_KM * VIS_KM_TO_NM : VIS_CAP_KM;
+    const unitTxt = (unit === 'NM') ? 'NM' : 'km';
+
+    // 헤더 단위 라벨 갱신
+    const unitLabelEl = document.getElementById('marine-vis-unit-label');
+    if (unitLabelEl) unitLabelEl.textContent = `(${unitTxt})`;
 
     if (window.currentMarineVisChart) {
         window.currentMarineVisChart.destroy();
@@ -1017,7 +1039,7 @@ function renderMarineVisChart(data) {
         data: {
             labels: labels,
             datasets: [{
-                label: '시정 (km)',
+                label: `시정 (${unitTxt})`,
                 data: vis,
                 borderColor: '#ffd54f',
                 backgroundColor: 'rgba(255, 213, 79, 0.15)',
@@ -1039,7 +1061,7 @@ function renderMarineVisChart(data) {
                     align: 'top',
                     offset: 4,
                     font: { size: 9, weight: 'bold' },
-                    formatter: (value) => (value == null ? '' : value.toFixed(1))
+                    formatter: (value, ctx) => (value == null ? '' : value.toFixed(1) + (atCap[ctx.dataIndex] ? '+' : ''))
                 }
             }]
         },
@@ -1049,15 +1071,26 @@ function renderMarineVisChart(data) {
             hover: { mode: null, animationDuration: 0 },
             responsive: false,
             maintainAspectRatio: false,
-            layout: { padding: { left: 0, right: 0, top: 15, bottom: 4 } },
+            layout: { padding: { left: 0, right: 0, top: 18, bottom: 4 } },
             interaction: { mode: 'index', intersect: false },
+            // 차트 영역 아무 곳이나 클릭 → km ↔ NM 단위 전환 후 재렌더
+            onClick: () => {
+                window._marineVisUnit = (window._marineVisUnit === 'NM') ? 'km' : 'NM';
+                if (window._marineVisData) renderMarineVisChart(window._marineVisData);
+            },
             plugins: {
                 legend: { display: false },
-                tooltip: { enabled: true }
+                tooltip: {
+                    enabled: true,
+                    callbacks: {
+                        label: (c) => (c.parsed.y == null ? '' : `시정 ${c.parsed.y.toFixed(1)} ${unitTxt}${atCap[c.dataIndex] ? '+' : ''}`)
+                    }
+                }
             },
             scales: {
                 x: { display: false, grid: { display: false }, offset: true },
-                y: { type: 'linear', display: false, beginAtZero: true, grace: '10%' }
+                // 세로축 0~20km(또는 0~10.8NM) 고정 → 안개(낮은 값) 변화가 또렷이 보이도록
+                y: { type: 'linear', display: false, beginAtZero: true, min: 0, max: axisMax }
             }
         }
     });
