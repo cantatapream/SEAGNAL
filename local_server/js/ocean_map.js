@@ -785,6 +785,13 @@
                 window.initVsbyForecastLayer(oceanMap);
             }
 
+            // [물빠짐] 서해·남해 갯벌 노출 예측 레이어 (index2 전용)
+            //   tide_field.js 가 토글 버튼 + 시간 슬라이더 + 2색 벡터 레이어를 바인딩.
+            //   (tide_field.js 자체에도 autoInit 폴링이 있어 누락 시 자동 보강)
+            if (window.__SEAGNAL_PAGE === 'index2' && window.initTideFieldLayer) {
+                window.initTideFieldLayer(oceanMap);
+            }
+
             console.log('[OceanMap] 지도 초기화 완료 (해아름 WMS)');
         } catch (error) {
             console.error('[OceanMap] 초기화 오류:', error);
