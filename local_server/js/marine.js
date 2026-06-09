@@ -735,24 +735,8 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
     });
     tableHTML += '</tr></thead><tbody>';
 
-    // 행 1: 풍향
-    tableHTML += '<tr style="background:#1e1e1e; border-bottom:1px solid #333;">';
-    tableHTML += '<th style="padding:4px 8px; border:1px solid #333; text-align:center; position:sticky; left:0; background:#2c3e50; z-index:1; color:#4fc3f7; font-size:10px;"> 풍향<br><span style="font-size:9px; font-weight:normal; color:#888;">(deg)</span></th>';
-    data.forEach(row => {
-        tableHTML += `<td style="${cellStyle}"><i class="fas fa-arrow-up" style="transform:rotate(${row.windDir}deg); color:#4fc3f7; font-size:14px;"></i></td>`;
-    });
-    tableHTML += '</tr>';
-
-    // 행 2: 풍속
-    tableHTML += '<tr style="background:#1a1a1a; border-bottom:1px solid #333;">';
-    tableHTML += '<th style="padding:4px 8px; border:1px solid #333; text-align:center; position:sticky; left:0; background:#2c3e50; z-index:1; color:#ff7043; font-size:10px;"> 풍속<br><span style="font-size:9px; font-weight:normal; color:#888;">(m/s)</span></th>';
-    data.forEach(row => {
-        const color = getMarineWindColor(row.ws);
-        tableHTML += `<td style="${cellStyle} color:${color}; font-weight:bold; font-size:11px;">${row.ws.toFixed(1)}</td>`;
-    });
-    tableHTML += '</tr>';
-
-    // 행 3: 그래프
+    // [순서] 사용자 요청: 풍속/유의파고 그래프를 표 상단에 먼저 표출.
+    //   (consts 는 아래 시정 행에서도 재사용하므로 여기서 한 번만 정의)
     const CHART_OFFSET_LEFT = 0;
     const CHART_WIDTH_ADJUST = -3;
     const cellWidth = 45;
@@ -772,7 +756,24 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
     tableHTML += `<div style="width:${chartWidth}px; height:140px; margin:0; padding-left:${CHART_OFFSET_LEFT}px; display:block; box-sizing:border-box;"><canvas id="marineChart" width="${chartWidth}" height="140" style="display:block;"></canvas></div>`;
     tableHTML += '</td></tr>';
 
-    // 행 4: 유의파고
+    // 행: 풍향
+    tableHTML += '<tr style="background:#1e1e1e; border-bottom:1px solid #333;">';
+    tableHTML += '<th style="padding:4px 8px; border:1px solid #333; text-align:center; position:sticky; left:0; background:#2c3e50; z-index:1; color:#4fc3f7; font-size:10px;"> 풍향<br><span style="font-size:9px; font-weight:normal; color:#888;">(deg)</span></th>';
+    data.forEach(row => {
+        tableHTML += `<td style="${cellStyle}"><i class="fas fa-arrow-up" style="transform:rotate(${row.windDir}deg); color:#4fc3f7; font-size:14px;"></i></td>`;
+    });
+    tableHTML += '</tr>';
+
+    // 행 2: 풍속
+    tableHTML += '<tr style="background:#1a1a1a; border-bottom:1px solid #333;">';
+    tableHTML += '<th style="padding:4px 8px; border:1px solid #333; text-align:center; position:sticky; left:0; background:#2c3e50; z-index:1; color:#ff7043; font-size:10px;"> 풍속<br><span style="font-size:9px; font-weight:normal; color:#888;">(m/s)</span></th>';
+    data.forEach(row => {
+        const color = getMarineWindColor(row.ws);
+        tableHTML += `<td style="${cellStyle} color:${color}; font-weight:bold; font-size:11px;">${row.ws.toFixed(1)}</td>`;
+    });
+    tableHTML += '</tr>';
+
+    // 행: 유의파고
     tableHTML += '<tr style="background:#1a1a1a; border-bottom:1px solid #333;">';
     tableHTML += '<th style="padding:4px 8px; border:1px solid #333; text-align:center; position:sticky; left:0; background:#2c3e50; z-index:1; color:#26c6da; font-size:10px;"> 유의<br>파고<br><span style="font-size:9px; font-weight:normal; color:#888;">(m)</span></th>';
     data.forEach(row => {
@@ -1068,9 +1069,14 @@ function renderMarineVisChart(data) {
                 datalabels: {
                     display: true,
                     color: '#ffd54f',
-                    anchor: 'end',
-                    align: 'top',
-                    offset: 4,
+                    anchor: 'center',
+                    // 라벨은 점 '바로 아래'가 기본 → 상단(20km 캡) 점도 안 잘림.
+                    //   단, 점이 바닥(시정 0 근처)이면 '위'로 띄워 하단 잘림 방지.
+                    align: (ctx) => {
+                        const v = ctx.dataset.data[ctx.dataIndex];
+                        return (v != null && v <= axisMax * 0.18) ? 'top' : 'bottom';
+                    },
+                    offset: 6,
                     font: { size: 9, weight: 'bold' },
                     formatter: (value, ctx) => (value == null ? '' : value.toFixed(1) + (atCap[ctx.dataIndex] ? '+' : ''))
                 }
@@ -1082,7 +1088,8 @@ function renderMarineVisChart(data) {
             hover: { mode: null, animationDuration: 0 },
             responsive: false,
             maintainAspectRatio: false,
-            layout: { padding: { left: 0, right: 0, top: 18, bottom: 4 } },
+            // 라벨이 점 아래로 내려오므로 상단 여백은 줄이고 하단 여백을 확보(라벨 잘림 방지)
+            layout: { padding: { left: 0, right: 0, top: 10, bottom: 16 } },
             interaction: { mode: 'index', intersect: false },
             // 차트 영역 아무 곳이나 클릭 → km ↔ NM 단위 전환 후 재렌더
             onClick: () => {
@@ -1115,9 +1122,10 @@ function _marineVisCanvasHTML(chartWidth, offsetLeft) {
 // 시정 로딩 스켈레톤(shimmer) + 스피너 — 시정 fetch 도착 전까지 표시
 function _marineVisSkeletonHTML(chartWidth) {
     _ensureMarineVisSkeletonStyle();
+    // [모바일] 안내 텍스트는 맨 왼쪽(시정 라벨 옆)에 배치 — 화면이 좁아도 로딩 중임을 바로 인지하도록.
     return `<div style="position:relative; width:${chartWidth}px; height:110px; overflow:hidden;">
         <div class="marine-vis-skeleton"></div>
-        <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:6px; color:#ffd54f; font-size:11px;">
+        <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:flex-start; gap:6px; padding-left:12px; color:#ffd54f; font-size:11px; white-space:nowrap;">
             <i class="fas fa-spinner fa-spin"></i> 시정 불러오는 중…
         </div>
     </div>`;
