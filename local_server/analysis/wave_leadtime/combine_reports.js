@@ -1,74 +1,92 @@
 /**
- * combine_reports.js — out/leadtime_<code>_*.json (청별 최신) 을 모아 전국 종합 리포트 생성.
- *   사용: node combine_reports.js  → out/SUMMARY_national.md / .json
+ * combine_reports.js — 청별 파고(wave)+풍속(wind) 결과를 결합해 전국 종합 리포트 생성.
+ *   결합 예측: per-zone 에서 (유의파고 ≥3m) OR (풍속 ≥25kt) → 풍랑주의보 선행 신호.
+ *   사용: node combine_reports.js → out/SUMMARY_national.md / .json
  */
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const OUT = path.join(__dirname, 'out');
+const CODE_NAME = { jeju: '제주청', busn: '부산청', gwju: '광주청', degu: '대구청', gawn: '강원청', dajn: '대전청' };
 
-const CODE_NAME = {
-    jeju: '제주청', busn: '부산청', gwju: '광주청', degu: '대구청', gawn: '강원청', dajn: '대전청',
-};
-
-// 청별 최신 json 선택
-function latestByCode() {
-    const files = fs.readdirSync(OUT).filter((f) => /^leadtime_[a-z]+_.*\.json$/.test(f));
-    const pick = {};
+// 청코드+신호별 최신 json
+function latest() {
+    const files = fs.readdirSync(OUT).filter((f) => /^leadtime_[a-z]+_(wave|wind)_.*\.json$/.test(f));
+    const pick = {}; // pick[code][signal] = file
     for (const f of files) {
-        const code = f.match(/^leadtime_([a-z]+)_/)[1];
-        if (!pick[code] || f > pick[code]) pick[code] = f;
+        const m = f.match(/^leadtime_([a-z]+)_(wave|wind)_/);
+        const [, code, sig] = m;
+        pick[code] = pick[code] || {};
+        if (!pick[code][sig] || f > pick[code][sig]) pick[code][sig] = f;
     }
     return pick;
 }
+const load = (f) => JSON.parse(fs.readFileSync(path.join(OUT, f), 'utf8'));
+const pct = (x) => x != null ? `${(x * 100).toFixed(0)}%` : '-';
+
+function mergeCode(code, files) {
+    const wave = files.wave ? load(files.wave) : null;
+    const wind = files.wind ? load(files.wind) : null;
+    const base = wave || wind; if (!base) return null;
+    const leads = Object.keys(base.agg.leads).map(Number).sort((a, b) => a - b);
+    // 이벤트 매칭 (effectiveAt 기준)
+    const windByT = new Map(); if (wind) wind.results.forEach((r) => windByT.set(r.effectiveAt, r));
+    const waveByT = new Map(); if (wave) wave.results.forEach((r) => waveByT.set(r.effectiveAt, r));
+    const allT = new Set([...waveByT.keys(), ...windByT.keys()]);
+    const per = {}; // lead → {covered, waveHit, windHit, combHit}
+    for (const L of leads) per[L] = { covered: 0, waveHit: 0, windHit: 0, combHit: 0 };
+    for (const t of allT) {
+        const wv = waveByT.get(t), wd = windByT.get(t);
+        for (const L of leads) {
+            const a = wv && wv.leads[L], b = wd && wd.leads[L];
+            const aZ = a && a.ok ? !!a.zoneHit3 : null;
+            const bZ = b && b.ok ? !!b.zoneHit3 : null;
+            if (aZ == null && bZ == null) continue;
+            per[L].covered++;
+            if (aZ) per[L].waveHit++;
+            if (bZ) per[L].windHit++;
+            if (aZ || bZ) per[L].combHit++;
+        }
+    }
+    return { code, leads, events: allT.size, per,
+             waveControl: wave && wave.agg.control, windControl: wind && wind.agg.control,
+             hasWave: !!wave, hasWind: !!wind };
+}
 
 function main() {
-    const pick = latestByCode();
-    const rows = [];
-    for (const [code, file] of Object.entries(pick)) {
-        const { agg } = JSON.parse(fs.readFileSync(path.join(OUT, file), 'utf8'));
-        rows.push({ code, agg });
-    }
-    rows.sort((a, b) => a.code.localeCompare(b.code));
-    const leads = rows.length ? Object.keys(rows[0].agg.leads).map(Number).sort((a, b) => a - b) : [];
+    const pick = latest();
+    const codes = Object.entries(pick).map(([code, files]) => mergeCode(code, files)).filter(Boolean).sort((a, b) => a.code.localeCompare(b.code));
+    if (!codes.length) { console.log('결과 json 없음'); return; }
+    const leads = codes[0].leads;
 
-    let s = `# 전국 종합 — 해상일기도→풍랑주의보 선행예측 리드타임\n\n`;
-    s += `(청별 최신 분석 결과 취합. 생성 ${new Date().toISOString().slice(0, 16)})\n\n`;
+    let s = `# 전국 종합 — 해상일기도(파고+풍속)→풍랑주의보 선행예측\n\n`;
+    s += `생성 ${new Date().toISOString().slice(0, 16)}. **결합 예측 = per-zone 에서 (유의파고 ≥3m) OR (해상풍 ≥25kt≈14m/s)**\n\n`;
 
-    // 청 단위 HIT율
-    s += `## 청 단위 HIT율 (발효 L시간 전 차트에 ≥3m)\n\n`;
-    s += `| 청 | 이벤트 | ` + leads.map((l) => `${l}h전`).join(' | ') + ` | 거짓경보율 |\n`;
-    s += `|---|---|` + leads.map(() => '---').join('|') + `|---|\n`;
-    for (const { code, agg } of rows) {
-        const cells = leads.map((l) => { const x = agg.leads[l]; return x && x.hit3Rate != null ? `${(x.hit3Rate * 100).toFixed(0)}%` : '-'; });
-        const fp = agg.control && agg.control.falseRate != null ? `${(agg.control.falseRate * 100).toFixed(0)}%` : '-';
-        s += `| ${CODE_NAME[code] || code} | ${agg.events} | ${cells.join(' | ')} | ${fp} |\n`;
+    s += `## 청별 per-zone 결합 HIT율 (발효 L시간 전, 그 특보구역에 신호)\n\n`;
+    s += `| 청 | 이벤트 | ` + leads.map((l) => `${l}h전`).join(' | ') + ` |\n|---|---|` + leads.map(() => '---').join('|') + `|\n`;
+    for (const c of codes) {
+        const cells = leads.map((l) => { const p = c.per[l]; return p.covered ? pct(p.combHit / p.covered) : '-'; });
+        s += `| ${CODE_NAME[c.code] || c.code} | ${c.events} | ${cells.join(' | ')} |\n`;
     }
 
-    // per-zone HIT율
-    s += `\n## per-zone HIT율 (발효된 바로 그 특보구역에 ≥3m)\n\n`;
-    s += `| 청 | ` + leads.map((l) => `${l}h전`).join(' | ') + ` |\n`;
-    s += `|---|` + leads.map(() => '---').join('|') + `|\n`;
-    for (const { code, agg } of rows) {
-        const cells = leads.map((l) => { const x = agg.leads[l]; return x && x.zoneHit3Rate != null ? `${(x.zoneHit3Rate * 100).toFixed(0)}%` : '-'; });
-        s += `| ${CODE_NAME[code] || code} | ${cells.join(' | ')} |\n`;
-    }
-
-    // 전국 합산(가중평균)
-    const sum = {};
+    s += `\n## 신호별 기여 (전국 합산 per-zone HIT율)\n\n`;
+    s += `| 리드타임 | 파고만 | 풍속만 | 결합(OR) |\n|---|---|---|---|\n`;
     for (const l of leads) {
-        let cov = 0, h = 0, zc = 0, zh = 0;
-        for (const { agg } of rows) { const x = agg.leads[l]; if (!x) continue; cov += x.covered || 0; h += x.hit3 || 0; zc += x.zoneCovered || 0; zh += x.zoneHit3 || 0; }
-        sum[l] = { covWhole: cov ? (h / cov) : null, covZone: zc ? (zh / zc) : null };
+        let cov = 0, wv = 0, wd = 0, cb = 0;
+        for (const c of codes) { const p = c.per[l]; cov += p.covered; wv += p.waveHit; wd += p.windHit; cb += p.combHit; }
+        s += `| ${l}시간 전 | ${cov ? pct(wv / cov) : '-'} | ${cov ? pct(wd / cov) : '-'} | **${cov ? pct(cb / cov) : '-'}** |\n`;
     }
-    s += `\n## 전국 합산\n\n| 리드타임 | 청단위 HIT율 | per-zone HIT율 |\n|---|---|---|\n`;
-    for (const l of leads) s += `| ${l}시간 전 | ${sum[l].covWhole != null ? (sum[l].covWhole * 100).toFixed(0) + '%' : '-'} | ${sum[l].covZone != null ? (sum[l].covZone * 100).toFixed(0) + '%' : '-'} |\n`;
 
-    s += `\n> 해석: 청단위는 "그 청 해역 어딘가에 ≥3m", per-zone 은 "발효된 바로 그 구역에 ≥3m".\n`;
-    s += `> per-zone < 청단위 격차는 풍속(≥14m/s)으로 발효된 앞바다 주의보가 파고로는 안 잡히는 비중을 시사.\n`;
+    s += `\n## 거짓경보율(청단위, 잔잔한 날 임계초과 비율)\n\n| 청 | 파고 | 풍속 |\n|---|---|---|\n`;
+    for (const c of codes) {
+        const wf = c.waveControl && c.waveControl.falseRate != null ? pct(c.waveControl.falseRate) : '-';
+        const df = c.windControl && c.windControl.falseRate != null ? pct(c.windControl.falseRate) : '-';
+        s += `| ${CODE_NAME[c.code] || c.code} | ${wf} | ${df} |\n`;
+    }
+    s += `\n> 청단위 풍속 거짓경보율이 높으면(차트 어딘가 항상 강풍) per-zone 결합이 정확한 지표.\n`;
 
     fs.writeFileSync(path.join(OUT, 'SUMMARY_national.md'), s);
-    fs.writeFileSync(path.join(OUT, 'SUMMARY_national.json'), JSON.stringify(rows, null, 1));
+    fs.writeFileSync(path.join(OUT, 'SUMMARY_national.json'), JSON.stringify(codes, null, 1));
     console.log(s);
     console.log('[saved] out/SUMMARY_national.md');
 }
