@@ -26,9 +26,11 @@
  *     시작 → 슬라이더가 자연스럽게 현재→미래 (약 90 프레임, +96h) 로 흐른다.
  *
  *   PNG 본체: 'https://marine.kma.go.kr' + img_list[i]
- *     이 PNG 들은 `access-control-allow-origin: *` 헤더가 있어 **직접** 로드한다
- *     (crossOrigin='anonymous'). /api/kma-png-proxy 경유 불필요 (천기와 다른 점).
- *     → ImageStatic 도, 클릭 픽셀 샘플링 Image 도 모두 crossOrigin='anonymous'.
+ *   [WebView 호환 — 천기와 동일 정책]
+ *     - 화면 표시(ImageStatic): crossOrigin 미지정으로 **직접** 로드. crossOrigin:'anonymous'
+ *       로 요청하면 Capacitor WebView(앱)에서 이미지 로드가 실패하기 때문.
+ *     - 클릭 픽셀 샘플링: same-origin 프록시 /api/kma-png-proxy?path= 경유로 로드
+ *       (same-origin 이라 canvas 가 tainted 되지 않아 getImageData 가능).
  *
  * [실패 처리]
  *   manifest fetch 실패 또는 frame 0개 → 토스트 안내 후 레이어 graceful OFF.
@@ -221,11 +223,12 @@
         var map = getOceanMap();
         if (!map || typeof ol === 'undefined') return;
 
-        // 시정 PNG 는 ACAO:* 헤더가 있어 crossOrigin:'anonymous' 로 직접 로드 가능
-        // (천기와 달리 프록시 불필요). canvas getImageData 도 tainted 되지 않음.
+        // [중요] crossOrigin 미지정 — KMA PNG 를 crossOrigin:'anonymous' 로 요청하면
+        //   Capacitor WebView(앱)에서 이미지 로드가 실패한다(천기와 동일 이슈).
+        //   화면 표시는 tainted canvas 여도 정상이므로 crossOrigin 없이 직접 로드.
+        //   (클릭 픽셀 샘플링은 same-origin 프록시 /api/kma-png-proxy 로 별도 처리)
         var src = new ol.source.ImageStatic({
             url: url,
-            crossOrigin: 'anonymous',
             imageExtent: VSBY_IMAGE_EXTENT,
             projection: VSBY_PROJECTION
         });
@@ -250,8 +253,8 @@
 
     function preloadImg(url) {
         if (state.preloadedImgs[url]) return;
+        // 표시 ImageStatic 과 동일하게 crossOrigin 없이 직접 로드(WebView 호환·캐시 공유).
         var img = new Image();
-        img.crossOrigin = 'anonymous';
         img.src = KMA_BASE + url;
         state.preloadedImgs[url] = img;
     }
@@ -345,8 +348,8 @@
             var pre = state.preloadedImgs[frame.url];
             if (pre && pre.complete) return resolve();
             if (pre) { pre.addEventListener('load', resolve); pre.addEventListener('error', resolve); return; }
+            // 표시 ImageStatic 과 동일하게 crossOrigin 없이 로드(WebView 호환·캐시 공유).
             var img = new Image();
-            img.crossOrigin = 'anonymous';
             img.onload = function () { resolve(); };
             img.onerror = function () { resolve(); };
             img.src = KMA_BASE + frame.url;
@@ -676,7 +679,7 @@
 
     // ─────────────────────────────────────────────────────────────
     // 클릭 팝업 — 클라이언트 PNG 픽셀 샘플링 (천기와 동일 철학)
-    //   시정 PNG 는 ACAO:* 라 직접 crossOrigin 로드 → canvas getImageData 가능.
+    //   PNG 는 same-origin 프록시(/api/kma-png-proxy)로 로드 → canvas 비-tainted → getImageData 가능.
     // ─────────────────────────────────────────────────────────────
 
     function _hex2rgb(h) {
@@ -697,13 +700,15 @@
         }
         var p = new Promise(function (resolve, reject) {
             var img = new Image();
-            img.crossOrigin = 'anonymous';   // PNG ACAO:* → canvas getImageData 가능
+            // [중요] same-origin 프록시 경유 — crossOrigin:'anonymous' 직접요청은 앱 WebView 에서
+            //   이미지 로드가 실패한다. 프록시(same-origin)면 canvas 가 tainted 되지 않아
+            //   getImageData 도 가능(천기와 동일 방식).
             img.onload = function () { resolve(img); };
             img.onerror = function () {
                 _imgElemCache.delete(kmaPath);
                 reject(new Error('img load fail: ' + kmaPath));
             };
-            img.src = KMA_BASE + kmaPath;
+            img.src = '/api/kma-png-proxy?path=' + encodeURIComponent(kmaPath);
         });
         _imgElemCache.set(kmaPath, p);
         if (_imgElemCache.size > IMG_CACHE_MAX) {

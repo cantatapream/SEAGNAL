@@ -2813,18 +2813,16 @@
                                     <i class="fa-solid fa-temperature-half"></i>
                                     <span class="ocean-overlay-label" data-line1="기온">기온</span>
                                 </button>
+                                <!-- 7번째 — 시정예측 (KMA RDPS): 천기 팝아웃의 하위버튼으로 편입.
+                                     data-shrt 없음 → 천기(shrt) 아이템 핸들러는 무시(return)하고 팝아웃만 닫음.
+                                     실제 동작은 js/vsby_forecast_layer.js 가 #ocean-vsby-toggle-btn 클릭을 바인딩하여 처리.
+                                     [데이터] marine.kma.go.kr/mmis_marine_api/v1/kma/mdl/rdps/imgList -->
+                                <button class="ocean-overlay-btn ocean-other-wx-item" id="ocean-vsby-toggle-btn" title="시정예측">
+                                    <i class="fa-solid fa-smog"></i>
+                                    <span class="ocean-overlay-label" data-line1="시정" data-line2="예측">시정예측</span>
+                                </button>
                             </div>
                         </div>
-                        <!-- 시정예측 토글: js/vsby_forecast_layer.js 가 바인딩 (천기와 동일 메커니즘 복제)
-                             클릭 시 KMA RDPS 시정(안개) 예측 PNG raster 를 ImageStatic 레이어로 표출
-                             + 하단 슬라이더/재생/범례 + 클릭 시 시정(km) 픽셀 샘플링 팝업.
-                             천기/조류/바람/파고 와 상호 배타 (서로 켜면 끔).
-                             [데이터] marine.kma.go.kr/mmis_marine_api/v1/kma/mdl/rdps/imgList
-                             [연계] js/vsby_forecast_layer.js -->
-                        <button class="ocean-overlay-btn" id="ocean-vsby-toggle-btn" title="시정예측">
-                            <i class="fa-solid fa-smog"></i>
-                            <span class="ocean-overlay-label" data-line1="시정" data-line2="예측">시정예측</span>
-                        </button>
                         <!-- 태풍 진로/예보 토글 (기본 비활성 — 10회 탭으로 활성화): js/ocean_typhoon.js
                              방재기상플랫폼 통보문 기반 진로선·반경 원·재생 애니메이션 표출.
                              [위치] 천기 아래·CCTV 위. [연계] /api/typhoon (routes/typhoon.js) -->
