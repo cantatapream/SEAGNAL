@@ -63,6 +63,15 @@ const chartCode = OFFICE_CHART[officeCode] || officeCode;
 const chartMeta = REGIONAL_OFFICES[chartCode];
 const calib = CALIB[chartCode] || null;
 
+// 신호: wave(유의파고, m) | wind(해상풍 풍속, kt). wind 는 '_wave_'→'_wind_' prefix.
+const SIGNAL = args.signal === 'wind' ? 'wind' : 'wave';
+const windPalette = require('./windPalette');
+const SIG = SIGNAL === 'wind'
+    ? { classify: windPalette.classify, ge3: windPalette.WARN_KT, ge5: windPalette.ALARM_KT, unit: 'kt',
+        prefixKIM: chartMeta.prefixKIM && chartMeta.prefixKIM.replace('_wave_', '_wind_'),
+        prefixAPPM: chartMeta.prefixAPPM && chartMeta.prefixAPPM.replace('_wave_', '_wind_') }
+    : { classify: undefined, ge3: 3.0, ge5: 5.0, unit: 'm', prefixKIM: chartMeta.prefixKIM, prefixAPPM: chartMeta.prefixAPPM };
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pad = (n) => String(n).padStart(2, '0');
 const ymdh = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}${pad(d.getHours())}`;
@@ -82,10 +91,10 @@ function runSlotsBefore(queryAt, maxBack = 4) {
 const listCache = new Map();
 async function getFrames(queryTm) {
     if (listCache.has(queryTm)) return listCache.get(queryTm);
-    const diskFile = path.join(CACHE_DIR, `list_${chartCode}_${queryTm}.json`);
+    const diskFile = path.join(CACHE_DIR, `list_${chartCode}_${SIGNAL}_${queryTm}.json`);
     if (fs.existsSync(diskFile)) { const v = JSON.parse(fs.readFileSync(diskFile, 'utf8')); listCache.set(queryTm, v); return v; }
     const model = chartMeta.prefixKIM ? 'KIMA' : 'APPM';
-    const prefix = chartMeta.prefixKIM || chartMeta.prefixAPPM;
+    const prefix = SIG.prefixKIM || SIG.prefixAPPM;
     const headData = `0#12#3#/DATA/CHT/${model}/#/${prefix}`;
     let frames = [];
     try { frames = await listFrames({ headData, model, modelText: chartMeta.name, type: 'wave' }, queryTm); } catch (e) { frames = []; }
@@ -106,7 +115,7 @@ const wholeCache = new Map();
 const decodedLRU = new Map(); const DECODE_CAP = 24;
 function getWhole(buf, fileName) {
     if (wholeCache.has(fileName)) return wholeCache.get(fileName);
-    const r = analyze(buf, { mask: STATIC_MASK && STATIC_MASK.mask });
+    const r = analyze(buf, { mask: STATIC_MASK && STATIC_MASK.mask, classify: SIG.classify, ge3Level: SIG.ge3, ge5Level: SIG.ge5 });
     wholeCache.set(fileName, r); return r;
 }
 function getDecoded(buf, fileName) {
@@ -141,9 +150,13 @@ const calibAdapter = calib ? {
 } : null;
 
 (async () => {
-    console.log(`[run] 청=${OFFICE}(${officeMeta.name}) 차트=${chartCode} leads=${LEADS}h level=${LEVEL || '전체'} zone=${DO_ZONE && !!calib}`);
-    try { STATIC_MASK = await getStaticMask(chartCode, chartMeta, { rebuild: !!args.rebuildmask }); }
-    catch (e) { console.log('[mask] 실패, 마스크 없이:', e.message); }
+    console.log(`[run] 청=${OFFICE}(${officeMeta.name}) 차트=${chartCode} signal=${SIGNAL} leads=${LEADS}h level=${LEVEL || '전체'} zone=${DO_ZONE && !!calib}`);
+    try {
+        STATIC_MASK = await getStaticMask(chartCode, chartMeta, {
+            rebuild: !!args.rebuildmask, signal: SIGNAL, classify: SIG.classify, ge3Level: SIG.ge3,
+            prefix: chartMeta.prefixKIM ? SIG.prefixKIM : SIG.prefixAPPM,
+        });
+    } catch (e) { console.log('[mask] 실패, 마스크 없이:', e.message); }
 
     // 이벤트 파싱 + 필터 + 동일 발효시각 병합(해역 합치기)
     let raw = parseWarnings(CSV, { kinds: new Set(['풍랑']), actions: new Set(['발표', '변경']) })
@@ -180,17 +193,18 @@ const calibAdapter = calib ? {
                         const buf = await getGif(best);
                         const whole = getWhole(buf, best.fileName);
                         rec = { ok: true, frame: best.fileName, ftHours: best.ftHours, validDiffMin: Math.round(bestDiff / 60000),
-                                maxBand: whole.maxBand, hit3: whole.maxBand >= 3.0, hit5: whole.maxBand >= 5.0 };
+                                maxBand: whole.maxBand, hit3: whole.maxBand >= SIG.ge3, hit5: whole.maxBand >= SIG.ge5 };
                         if (DO_ZONE && calib && zones.length) {
                             const dec = getDecoded(buf, best.fileName);
                             let zMax = 0;
                             for (const z of zones) {
                                 // 구역 크기에 맞춘 샘플 반경: H(광역 먼바다)는 크게, I(앞바다 국지)는 작게
                                 const rad = args.zoneradius ? ZONE_RADIUS : (z.type === 'H' ? 55 : 30);
-                                const za = analyzeZone(dec, calibAdapter, z, { mask: STATIC_MASK && STATIC_MASK.mask, radiusPx: rad });
+                                const za = analyzeZone(dec, calibAdapter, z, { mask: STATIC_MASK && STATIC_MASK.mask, radiusPx: rad,
+                                    classify: SIG.classify, ge3Level: SIG.ge3, ge5Level: SIG.ge5 });
                                 if (za && za.maxBand > zMax) zMax = za.maxBand;
                             }
-                            rec.zoneMaxBand = zMax; rec.zoneHit3 = zMax >= 3.0; rec.zoneHit5 = zMax >= 5.0;
+                            rec.zoneMaxBand = zMax; rec.zoneHit3 = zMax >= SIG.ge3; rec.zoneHit5 = zMax >= SIG.ge5;
                         }
                     }
                 }
@@ -235,13 +249,14 @@ const calibAdapter = calib ? {
         let cChecked = 0, cFalse = 0;
         for (const slot of calmSlots) {
             try { const frames = await getFrames(slot); const f0 = frames.find((f) => f.ftHours === 0) || frames[0];
-                if (!f0) continue; const a = getWhole(await getGif(f0), f0.fileName); cChecked++; if (a.maxBand >= 3.0) cFalse++; } catch (e) { /* */ }
+                if (!f0) continue; const a = getWhole(await getGif(f0), f0.fileName); cChecked++; if (a.maxBand >= SIG.ge3) cFalse++; } catch (e) { /* */ }
         }
         agg.control = { sampled: cChecked, falsePositive: cFalse, falseRate: cChecked ? +(cFalse / cChecked).toFixed(3) : null };
     }
 
+    agg.signal = SIGNAL; agg.unit = SIG.unit;
     const stamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, 15);
-    const outBase = path.join(OUT_DIR, `leadtime_${officeCode}_${stamp}`);
+    const outBase = path.join(OUT_DIR, `leadtime_${officeCode}_${SIGNAL}_${stamp}`);
     fs.writeFileSync(outBase + '.json', JSON.stringify({ agg, results }, null, 1));
     fs.writeFileSync(outBase + '.md', render(agg));
     console.log('\n[done]', outBase + '.md');
@@ -250,10 +265,11 @@ const calibAdapter = calib ? {
 
 function render(agg) {
     const L = Object.keys(agg.leads).map(Number).sort((a, b) => a - b);
-    let s = `# 리드타임 분석 — ${agg.office} (차트:${agg.chart}) / 풍랑${agg.level}\n\n`;
+    const sigTxt = agg.signal === 'wind' ? '해상풍 풍속 ≥ 25kt(≈14m/s, 주의보 기준)' : '유의파고 ≥ 3.0m(주의보 기준)';
+    let s = `# 리드타임 분석 — ${agg.office} (차트:${agg.chart}, 신호:${agg.signal || 'wave'}) / 풍랑${agg.level}\n\n`;
     s += `- 분석 이벤트: **${agg.events}건**${agg.hasZone ? ' (per-zone 적용)' : ''}\n`;
-    s += `- 가설: "일기도가 유의파고 ≥ 3.0m(주의보급)를 그리면 → 풍랑주의보로 이어진다"\n\n`;
-    s += `## 발효 L시간 전, 일기도가 이미 ≥3m 를 그린 비율\n\n`;
+    s += `- 가설: "일기도가 ${sigTxt}를 그리면 → 풍랑주의보로 이어진다"\n\n`;
+    s += `## 발효 L시간 전, 일기도가 이미 임계(${sigTxt})를 그린 비율\n\n`;
     s += `| 리드타임 | 청단위 HIT율 | per-zone HIT율 |\n|---|---|---|\n`;
     for (const l of L) { const x = agg.leads[l];
         const w = x.hit3Rate != null ? `${(x.hit3Rate * 100).toFixed(0)}% (${x.hit3}/${x.covered})` : '-';

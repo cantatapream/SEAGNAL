@@ -52,12 +52,16 @@ function decodeRGBA(buf) {
  * 청 코드별 마스크 확보(캐시 우선). 반환 { w, h, mask: Uint8Array(1=정적) } 또는 null.
  */
 async function getStaticMask(officeCode, officeMeta, opt = {}) {
-    const cacheFile = path.join(MASK_DIR, `mask_${officeCode}.json`);
+    // 신호별(파고/풍속) 분류기·임계·prefix·캐시키 파라미터화. 기본=파고.
+    const signal = opt.signal || 'wave';
+    const classifyFn = opt.classify || classify;
+    const ge3Level = opt.ge3Level != null ? opt.ge3Level : 3.0;
+    const cacheFile = path.join(MASK_DIR, `mask_${officeCode}_${signal}.json`);
     if (!opt.rebuild && fs.existsSync(cacheFile)) {
         const j = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
         return { w: j.w, h: j.h, mask: Uint8Array.from(j.mask) };
     }
-    const prefix = officeMeta.prefixKIM || officeMeta.prefixAPPM;
+    let prefix = opt.prefix || officeMeta.prefixKIM || officeMeta.prefixAPPM;
     const model = officeMeta.prefixKIM ? 'KIMA' : 'APPM';
     const headData = `0#12#3#/DATA/CHT/${model === 'KIMA' ? 'KIMA' : 'APPM'}/#/${prefix}`;
 
@@ -91,13 +95,13 @@ async function getStaticMask(officeCode, officeMeta, opt = {}) {
         // RGB 가 거의 불변(고정 크롬)인가?
         const constant = (rmax - rmin) <= RGB_CONST_TOL && (gmax - gmin) <= RGB_CONST_TOL && (bmax - bmin) <= RGB_CONST_TOL;
         if (!constant) continue;
-        // 그 불변색이 ≥3m 로 분류되는 색이면 정적 마스크(범례·캡션·마커)
+        // 그 불변색이 임계 이상으로 분류되는 색이면 정적 마스크(범례·캡션·마커)
         const n = valid.length;
-        const band = classify(Math.round(rs / n), Math.round(gs / n), Math.round(bs / n));
-        if (band != null && band >= 3.0) mask[p] = 1;
+        const band = classifyFn(Math.round(rs / n), Math.round(gs / n), Math.round(bs / n));
+        if (band != null && band >= ge3Level) mask[p] = 1;
     }
     const cnt = mask.reduce((s, v) => s + v, 0);
-    console.log(`[mask] ${officeCode}: ${valid.length}개 기준프레임 RGB불변+≥3m → 정적픽셀 ${cnt}개 (${w}x${h})`);
+    console.log(`[mask] ${officeCode}/${signal}: ${valid.length}개 기준프레임 RGB불변 → 정적픽셀 ${cnt}개 (${w}x${h})`);
     fs.writeFileSync(cacheFile, JSON.stringify({ w, h, refs: valid.length, staticPixels: cnt, mask: Array.from(mask) }));
     return { w, h, mask };
 }

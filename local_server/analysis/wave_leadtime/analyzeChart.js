@@ -22,7 +22,7 @@
 'use strict';
 
 const { GifReader } = require('omggif');
-const { classify } = require('./palette');
+const { classify: waveClassify } = require('./palette');
 
 const MIN_BAND_PIXELS = 60; // 이 픽셀 수 미만의 등급은 maxBand 판정에서 무시(노이즈/라벨)
 
@@ -39,6 +39,9 @@ function analyze(gifBuf, opt = {}) {
     const rgba = Buffer.alloc(w * h * 4);
     reader.decodeAndBlitFrameRGBA(0, rgba);
     const mask = (opt.mask && opt.mask.length === w * h) ? opt.mask : null;
+    const classify = opt.classify || waveClassify;
+    const ge3Level = opt.ge3Level != null ? opt.ge3Level : 3.0;
+    const ge5Level = opt.ge5Level != null ? opt.ge5Level : 5.0;
 
     // 하단 캡션(VALID/TIME 빨강 텍스트)·우측 범례는 분석에서 제외.
     //  - 범례: 오른쪽 ~8% 컬럼 제외
@@ -60,8 +63,8 @@ function analyze(gifBuf, opt = {}) {
             if (band == null) continue;
             seaPixels++;
             hist.set(band, (hist.get(band) || 0) + 1);
-            if (band >= 3.0) ge3++;
-            if (band >= 5.0) ge5++;
+            if (band >= ge3Level) ge3++;
+            if (band >= ge5Level) ge5++;
         }
     }
 

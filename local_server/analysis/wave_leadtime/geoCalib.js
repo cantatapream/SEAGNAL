@@ -19,7 +19,7 @@
 'use strict';
 
 const { GifReader } = require('omggif');
-const { classify } = require('./palette');
+const { classify: waveClassify } = require('./palette');
 
 // ----------------------------------------------------------------------------
 // 청별 affine 보정 — 프레임박스(검출) + 최외곽 라벨범위 ±0.5° 규칙으로 산출.
@@ -74,6 +74,10 @@ function analyzeZone(decoded, calib, zone, opt = {}) {
     const radius = opt.radiusPx != null ? opt.radiusPx : 26; // ~0.2° 반경
     const mask = (opt.mask && opt.mask.length === w * h) ? opt.mask : null;
     const minBandPixels = opt.minBandPixels != null ? opt.minBandPixels : 12;
+    // 분류기/임계 파라미터화: 기본=파고(m, 3/5), 풍속 분석 시 windPalette.classify + 25/40(kt)
+    const classify = opt.classify || waveClassify;
+    const ge3Level = opt.ge3Level != null ? opt.ge3Level : 3.0;
+    const ge5Level = opt.ge5Level != null ? opt.ge5Level : 5.0;
     const cx = Math.round(calib.xOf(zone.lon));
     const cy = Math.round(calib.yOf(zone.lat));
     const fr = calib.frame;
@@ -96,8 +100,8 @@ function analyzeZone(decoded, calib, zone, opt = {}) {
             if (band == null) continue;
             sampled++;
             hist.set(band, (hist.get(band) || 0) + 1);
-            if (band >= 3.0) ge3++;
-            if (band >= 5.0) ge5++;
+            if (band >= ge3Level) ge3++;
+            if (band >= ge5Level) ge5++;
         }
     }
     let maxBand = 0;
