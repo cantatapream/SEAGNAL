@@ -11,8 +11,11 @@
  *
  * [핵심 정책]
  *   - collectTideBedPages(lat,lon,reqDate) 재사용 (3키 라운드로빈·페이지 재시도 내장).
- *   - 동시성 풀(CONCURRENCY)로 앵커를 5~10개씩만 흘려보냄 → TideBED 과부하/
- *     UNKNOWN_ERROR 방지. 절대 전 앵커×5페이지 동시발사 금지.
+ *     → 해양종합정보 바텀시트(해점 클릭)가 서버에서 쓰는 것과 동일한 수집 1차 함수.
+ *   - [포인트별 순차 수집] CONCURRENCY=1. 바텀시트가 "한 번에 한 점씩" 클릭하는
+ *     것과 동일하게 (앵커,날짜)를 하나씩 처리. 절대 여러 점을 동시 발사하지 않는다.
+ *     (과거 동시 발사 → apis.data.go.kr 가 HTML 차단 페이지 반환 → 수집 전멸)
+ *   - 회로 차단기: 연속 하드 실패 누적 시 중단(점검/차단 추정) → 다음 사이클 재시도.
  *   - 롤링 윈도우 + 부족분만 재호출: 이미 완전 수집된 (앵커,날짜)는 건너뜀.
  *     완전 = 파일 존재 + loadedPages 5개 + failedPages 없음.
  *     최초 실행=자동 3일, 이후 1일/일, 다운타임 self-heal.
@@ -49,11 +52,18 @@ function getTideCollector() {
     return _tc;
 }
 
-// 동시성 풀 크기 (앵커 단위). 5~10 범위 권장. 한 앵커=최대 5페이지이므로
-// 5 앵커 = 동시 ~25 요청. TideBED 부하/UNKNOWN_ERROR 방어선.
-const CONCURRENCY = 5;
-// 앵커 간 소량 슬립(ms) — 풀이 한 앵커 끝낼 때마다 다음 투입 전 약간 간격.
-const ANCHOR_GAP_MS = 150;
+// [포인트별 순차 수집] 동시성 = 1. 해양종합정보 바텀시트가 해점을 "한 번에
+//   한 점씩" 클릭하는 것과 동일하게, 한 (앵커,날짜)를 끝낸 뒤 다음으로 넘어간다.
+//   한 (앵커,날짜)당 내부 5페이지만 병렬(단건 클릭과 동일 수준)이라 게이트웨이
+//   버스트가 없다. 과거 CONCURRENCY=5(동시 ~25요청)는 apis.data.go.kr 가
+//   HTML 차단 페이지(<!DOCTYPE>)를 반환하게 만들어 수집이 전멸했다.
+const CONCURRENCY = 1;
+// 각 (앵커,날짜) 사이 슬립(ms) — 연속 클릭처럼 약간의 간격을 둬 버스트 완화.
+const ANCHOR_GAP_MS = 350;
+// 회로 차단기: 연속 하드 실패(게이트웨이 HTML/무응답)가 이만큼 누적되면 수집을
+//   중단한다. KHOA 점검·차단으로 추정 → 다음 사이클(부트스트랩/스케줄러)에
+//   부족분만 자동 재시도. 수천 건을 끝까지 때리며 로그 도배하는 것을 방지.
+const FAIL_ABORT_THRESHOLD = 8;
 
 // ============================================================================
 // 날짜 유틸 (KST)
@@ -120,12 +130,18 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
     const verifyGrid = opts.verifyGrid !== false;
     const isoDate = isoDateOf(yyyymmdd);
 
+    // [좌표 양자화 — 바텀시트와 동일] 5소수점(≈1m) round. 부동소수점 noise 로
+    //   같은 격자에서 다른 lat/lon 이 전송돼 서버 grid hash 캐시가 false-miss
+    //   나는 것을 막는다 (ocean_bottom_sheet3.js fetchTideKhoa 와 동일 처리).
+    const qLat = Math.round(anchor.lat * 100000) / 100000;
+    const qLon = Math.round(anchor.lon * 100000) / 100000;
+
     const { collectTideBedPages, getGridHash } = getTideCollector();
 
     // (선택) 격자 제공 해역 검증 — TideBED 미제공이면 skip 기록 후 종료.
     if (verifyGrid) {
         try {
-            const hash = await getGridHash(anchor.lat, anchor.lon, yyyymmdd);
+            const hash = await getGridHash(qLat, qLon, yyyymmdd);
             if (!hash) {
                 writeCurve(anchor, yyyymmdd, {
                     status: 'no_grid', curve: [], loadedPages: [], failedPages: [],
@@ -138,7 +154,14 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
         }
     }
 
-    const { items, loadedPages, failedPages } = await collectTideBedPages(anchor.lat, anchor.lon, String(yyyymmdd));
+    const { items, loadedPages, failedPages } = await collectTideBedPages(qLat, qLon, String(yyyymmdd));
+
+    // [하드 실패] 한 페이지도 못 받음(게이트웨이 HTML/무응답 추정) → 파일을
+    //   쓰지 않고 'failed' 반환. 빈 파일 littering 방지 + 다음 사이클 깨끗한 재시도.
+    //   회로 차단기(runPool)가 이 status 를 세어 연속 실패 시 수집을 중단한다.
+    if (!loadedPages || loadedPages.length === 0) {
+        return { anchorId: anchor.id, date: yyyymmdd, status: 'failed', count: 0 };
+    }
 
     // 해당 날짜 레코드만 추출 + 1분 곡선 [{t:'HH:MM', h(cm)}] 으로 경량화
     const dayItems = (items || []).filter(it => {
@@ -192,22 +215,34 @@ function writeCurve(anchor, yyyymmdd, rec) {
 // ============================================================================
 async function runPool(tasks, concurrency, worker) {
     let idx = 0;
+    let consecFail = 0;   // 연속 하드 실패 카운터 (회로 차단기)
+    let aborted = false;  // 차단기 발동 시 true → 잔여 태스크 중단
     const results = [];
     async function next() {
-        while (idx < tasks.length) {
+        while (idx < tasks.length && !aborted) {
             const myIdx = idx++;
+            let r;
             try {
-                results[myIdx] = await worker(tasks[myIdx]);
+                r = await worker(tasks[myIdx]);
             } catch (e) {
-                results[myIdx] = { error: e.message, task: tasks[myIdx] };
+                r = { error: e.message, task: tasks[myIdx], status: 'failed' };
             }
-            if (ANCHOR_GAP_MS > 0) await new Promise(r => setTimeout(r, ANCHOR_GAP_MS));
+            results[myIdx] = r;
+            // 회로 차단기: 연속 하드 실패 누적 시 중단 (게이트웨이 점검/차단 추정).
+            //   no_grid(정상적 미제공)·complete·partial 은 실패로 세지 않는다.
+            if (r && r.status === 'failed') {
+                consecFail++;
+                if (consecFail >= FAIL_ABORT_THRESHOLD) aborted = true;
+            } else {
+                consecFail = 0;
+            }
+            if (ANCHOR_GAP_MS > 0) await new Promise(res => setTimeout(res, ANCHOR_GAP_MS));
         }
     }
     const runners = [];
     for (let i = 0; i < Math.min(concurrency, tasks.length); i++) runners.push(next());
     await Promise.all(runners);
-    return results;
+    return { results, aborted };
 }
 
 // ============================================================================
@@ -248,7 +283,7 @@ async function ensureBuilt(opts = {}) {
  * 배포/서버 기동 시 1회 자동 실행: 전처리 보장 → 롤링 윈도우 수집.
  *   - 곡선 캐시가 이미 있으면 collectTideField 가 부족분만 받으므로 재배포 시
  *     사실상 no-op (캐시는 Fly 영속 볼륨에 저장되어 재배포 후에도 유지됨).
- *   - fire-and-forget 로 호출할 것(서버 기동 비차단). 내부 동시성 5앵커 제한.
+ *   - fire-and-forget 로 호출할 것(서버 기동 비차단). 포인트별 순차 수집(동시성 1).
  */
 async function bootstrapTideField(opts = {}) {
     const log = opts.log || ((...a) => console.log('[tide_field]', ...a));
@@ -310,18 +345,25 @@ async function _collectTideFieldInner(opts = {}) {
     }
 
     const t0 = Date.now();
-    const results = await runPool(tasks, CONCURRENCY, (task) =>
+    const { results, aborted } = await runPool(tasks, CONCURRENCY, (task) =>
         collectOne(task.anchor, task.date, { verifyGrid: opts.verifyGrid })
     );
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
 
     const byStatus = {};
+    let done = 0;
     for (const r of results) {
-        const s = (r && r.status) || (r && r.error ? 'error' : 'unknown');
+        if (!r) continue;
+        done++;
+        const s = r.status || (r.error ? 'error' : 'unknown');
         byStatus[s] = (byStatus[s] || 0) + 1;
     }
-    log(`수집 완료: ${tasks.length}건, ${elapsed}s, 상태 ${JSON.stringify(byStatus)}`);
-    return { ok: true, collected: tasks.length, elapsedSec: +elapsed, byStatus };
+    if (aborted) {
+        log(`⛔ 회로 차단기 발동 — 연속 ${FAIL_ABORT_THRESHOLD}회 하드 실패(게이트웨이 점검/차단 추정). ` +
+            `수집 중단(${done}/${tasks.length} 처리). 다음 사이클에 부족분만 자동 재시도.`);
+    }
+    log(`수집 종료: 처리 ${done}/${tasks.length}건, ${elapsed}s, 상태 ${JSON.stringify(byStatus)}`);
+    return { ok: true, collected: done, total: tasks.length, aborted, elapsedSec: +elapsed, byStatus };
 }
 
 module.exports = {
