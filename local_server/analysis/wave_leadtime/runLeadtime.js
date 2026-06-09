@@ -31,7 +31,7 @@ const { REGIONAL_OFFICES, listFrames, downloadFrame } = require('./chartClient')
 const { analyze } = require('./analyzeChart');
 const { getStaticMask } = require('./staticMask');
 const { CALIB, OFFICE_CHART, decode, analyzeZone } = require('./geoCalib');
-const { resolveZone } = require('./zones');
+const { resolveZone, ZONES } = require('./zones');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const CSV = path.join(DATA_DIR, 'warnings_2023-2026.csv');
@@ -54,6 +54,8 @@ const SLEEP_MS = args.sleep ? +args.sleep : 150;
 const PUB_DELAY_H = args.pubdelay ? +args.pubdelay : 7;
 const DO_ZONE = !args.nozone;
 const ZONE_RADIUS = args.zoneradius ? +args.zoneradius : 26; // 구역 샘플 반경(px)
+const RAD_MULT = args.radmult ? +args.radmult : 1.0;         // [개선] 반경 배수
+const WIND_KT = args.windkt ? +args.windkt : null;           // [개선] 풍속 임계 override(kt)
 
 // office(CSV 지역) → 차트 청코드(degu 는 gawn 차트 사용) + 보정 + 차트용 prefix
 const officeEntry = Object.entries(REGIONAL_OFFICES).find(([, v]) => v.csvRegion === OFFICE);
@@ -67,7 +69,7 @@ const calib = CALIB[chartCode] || null;
 const SIGNAL = args.signal === 'wind' ? 'wind' : 'wave';
 const windPalette = require('./windPalette');
 const SIG = SIGNAL === 'wind'
-    ? { classify: windPalette.classify, ge3: windPalette.WARN_KT, ge5: windPalette.ALARM_KT, unit: 'kt',
+    ? { classify: windPalette.classify, ge3: WIND_KT != null ? WIND_KT : windPalette.WARN_KT, ge5: windPalette.ALARM_KT, unit: 'kt',
         prefixKIM: chartMeta.prefixKIM && chartMeta.prefixKIM.replace('_wave_', '_wind_'),
         prefixAPPM: chartMeta.prefixAPPM && chartMeta.prefixAPPM.replace('_wave_', '_wind_') }
     : { classify: undefined, ge3: 3.0, ge5: 5.0, unit: 'm', prefixKIM: chartMeta.prefixKIM, prefixAPPM: chartMeta.prefixAPPM };
@@ -198,8 +200,8 @@ const calibAdapter = calib ? {
                             const dec = getDecoded(buf, best.fileName);
                             let zMax = 0;
                             for (const z of zones) {
-                                // 구역 크기에 맞춘 샘플 반경: H(광역 먼바다)는 크게, I(앞바다 국지)는 작게
-                                const rad = args.zoneradius ? ZONE_RADIUS : (z.type === 'H' ? 55 : 30);
+                                // 구역 크기에 맞춘 샘플 반경: H(광역 먼바다)는 크게, I(앞바다 국지)는 작게. [개선] RAD_MULT 배수.
+                                const rad = Math.round((args.zoneradius ? ZONE_RADIUS : (z.type === 'H' ? 55 : 30)) * RAD_MULT);
                                 const za = analyzeZone(dec, calibAdapter, z, { mask: STATIC_MASK && STATIC_MASK.mask, radiusPx: rad,
                                     classify: SIG.classify, ge3Level: SIG.ge3, ge5Level: SIG.ge5 });
                                 if (za && za.maxBand > zMax) zMax = za.maxBand;
@@ -246,15 +248,34 @@ const calibAdapter = calib ? {
             if (isCalm(d.getTime())) calmSlots.push(ymdh(d));
             if (calmSlots.length >= 30) break;
         }
-        let cChecked = 0, cFalse = 0;
+        // 차트 도메인 안에 드는 구역 목록 (per-zone 거짓경보 스캔용)
+        const chartZones = (DO_ZONE && calib) ? ZONES.filter((z) => {
+            const cx = calibAdapter.xOf(z.lon), cy = calibAdapter.yOf(z.lat);
+            return cx >= calib.frame.x0 && cx <= calib.frame.x1 && cy >= calib.frame.y0 && cy <= calib.frame.y1;
+        }) : [];
+        let cChecked = 0, cFalse = 0;       // 청 단위 거짓경보(차트 어딘가)
+        let zChecked = 0, zFalse = 0;       // per-zone 거짓경보(어느 구역이라도)
         for (const slot of calmSlots) {
-            try { const frames = await getFrames(slot); const f0 = frames.find((f) => f.ftHours === 0) || frames[0];
-                if (!f0) continue; const a = getWhole(await getGif(f0), f0.fileName); cChecked++; if (a.maxBand >= SIG.ge3) cFalse++; } catch (e) { /* */ }
+            try {
+                const frames = await getFrames(slot); const f0 = frames.find((f) => f.ftHours === 0) || frames[0];
+                if (!f0) continue; const buf = await getGif(f0);
+                const a = getWhole(buf, f0.fileName); cChecked++; if (a.maxBand >= SIG.ge3) cFalse++;
+                if (chartZones.length) {
+                    const dec = getDecoded(buf, f0.fileName); let zHit = false;
+                    for (const z of chartZones) {
+                        const rad = Math.round((z.type === 'H' ? 55 : 30) * RAD_MULT);
+                        const za = analyzeZone(dec, calibAdapter, z, { mask: STATIC_MASK && STATIC_MASK.mask, radiusPx: rad, classify: SIG.classify, ge3Level: SIG.ge3, ge5Level: SIG.ge5 });
+                        if (za && za.maxBand >= SIG.ge3) { zHit = true; break; }
+                    }
+                    zChecked++; if (zHit) zFalse++;
+                }
+            } catch (e) { /* */ }
         }
-        agg.control = { sampled: cChecked, falsePositive: cFalse, falseRate: cChecked ? +(cFalse / cChecked).toFixed(3) : null };
+        agg.control = { sampled: cChecked, falsePositive: cFalse, falseRate: cChecked ? +(cFalse / cChecked).toFixed(3) : null,
+                        zoneSampled: zChecked, zoneFalsePositive: zFalse, zoneFalseRate: zChecked ? +(zFalse / zChecked).toFixed(3) : null };
     }
 
-    agg.signal = SIGNAL; agg.unit = SIG.unit;
+    agg.signal = SIGNAL; agg.unit = SIG.unit; agg.threshold = SIG.ge3; agg.radMult = RAD_MULT;
     const stamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, 15);
     const outBase = path.join(OUT_DIR, `leadtime_${officeCode}_${SIGNAL}_${stamp}`);
     fs.writeFileSync(outBase + '.json', JSON.stringify({ agg, results }, null, 1));
@@ -265,7 +286,7 @@ const calibAdapter = calib ? {
 
 function render(agg) {
     const L = Object.keys(agg.leads).map(Number).sort((a, b) => a - b);
-    const sigTxt = agg.signal === 'wind' ? '해상풍 풍속 ≥ 25kt(≈14m/s, 주의보 기준)' : '유의파고 ≥ 3.0m(주의보 기준)';
+    const sigTxt = agg.signal === 'wind' ? `해상풍 풍속 ≥ ${agg.threshold}kt(≈${(agg.threshold * 0.514).toFixed(0)}m/s)` : `유의파고 ≥ ${agg.threshold}m`;
     let s = `# 리드타임 분석 — ${agg.office} (차트:${agg.chart}, 신호:${agg.signal || 'wave'}) / 풍랑${agg.level}\n\n`;
     s += `- 분석 이벤트: **${agg.events}건**${agg.hasZone ? ' (per-zone 적용)' : ''}\n`;
     s += `- 가설: "일기도가 ${sigTxt}를 그리면 → 풍랑주의보로 이어진다"\n\n`;

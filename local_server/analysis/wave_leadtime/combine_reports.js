@@ -80,13 +80,13 @@ function main() {
         s += `| ${l}시간 전 | ${cov ? pct(wv / cov) : '-'} | ${cov ? pct(wd / cov) : '-'} | **${cov ? pct(cb / cov) : '-'}** |\n`;
     }
 
-    s += `\n## 거짓경보율(청단위, 잔잔한 날 임계초과 비율)\n\n| 청 | 파고 | 풍속 |\n|---|---|---|\n`;
+    s += `\n## per-zone 거짓경보율 (잔잔한 날, 어느 구역이라도 임계초과)\n\n| 청 | 파고 | 풍속 |\n|---|---|---|\n`;
     for (const c of codes) {
-        const wf = c.waveControl && c.waveControl.falseRate != null ? pct(c.waveControl.falseRate) : '-';
-        const df = c.windControl && c.windControl.falseRate != null ? pct(c.windControl.falseRate) : '-';
+        const wf = c.waveControl && c.waveControl.zoneFalseRate != null ? pct(c.waveControl.zoneFalseRate) : (c.waveControl && c.waveControl.falseRate != null ? pct(c.waveControl.falseRate) + '†' : '-');
+        const df = c.windControl && c.windControl.zoneFalseRate != null ? pct(c.windControl.zoneFalseRate) : (c.windControl && c.windControl.falseRate != null ? pct(c.windControl.falseRate) + '†' : '-');
         s += `| ${CODE_NAME[c.code] || c.code} | ${wf} | ${df} |\n`;
     }
-    s += `\n> 청단위 풍속 거짓경보율이 높으면(차트 어딘가 항상 강풍) per-zone 결합이 정확한 지표.\n`;
+    s += `\n> †=청단위 값(per-zone 미측정 결과). per-zone 거짓경보가 실제 운영 지표.\n`;
 
     fs.writeFileSync(path.join(OUT, 'SUMMARY_national.md'), s);
     fs.writeFileSync(path.join(OUT, 'SUMMARY_national.json'), JSON.stringify(codes, null, 1));

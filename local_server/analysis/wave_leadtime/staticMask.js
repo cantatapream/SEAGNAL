@@ -56,7 +56,7 @@ async function getStaticMask(officeCode, officeMeta, opt = {}) {
     const signal = opt.signal || 'wave';
     const classifyFn = opt.classify || classify;
     const ge3Level = opt.ge3Level != null ? opt.ge3Level : 3.0;
-    const cacheFile = path.join(MASK_DIR, `mask_${officeCode}_${signal}.json`);
+    const cacheFile = path.join(MASK_DIR, `mask_${officeCode}_${signal}_${ge3Level}.json`);
     if (!opt.rebuild && fs.existsSync(cacheFile)) {
         const j = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
         return { w: j.w, h: j.h, mask: Uint8Array.from(j.mask) };
