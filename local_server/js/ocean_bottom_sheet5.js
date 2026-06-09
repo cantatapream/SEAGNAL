@@ -59,11 +59,11 @@
 
         // (2) 5개 일반카드 reset → 진행바 표시 + 카드 보이기
         ['ocean-val-depth', 'ocean-val-temp', 'ocean-val-current',
-         'ocean-val-wind', 'ocean-val-wave'
+         'ocean-val-wind', 'ocean-val-wave', 'ocean-val-vsby'
         ].forEach(function (id) { OS.resetCardToProgress(id); });
 
         ['ocean-card-depth', 'ocean-card-temp', 'ocean-card-current',
-         'ocean-card-wind', 'ocean-card-wave'
+         'ocean-card-wind', 'ocean-card-wave', 'ocean-card-vsby'
         ].forEach(function (id) { OS.showCard(id); });
 
         // raw 값 초기화 (날짜/위치 변경 시 이전 값 잔류 방지)
@@ -95,6 +95,8 @@
 
         // (4) 천기 카드 — forceRefresh: 풀 재로드만 imgList 캐시 무효화.
         if (OS.loadWeatherCard) OS.loadWeatherCard(lat, lon, d, /*forceRefresh*/ !skipHeavy);
+        // (4-1) 시정 카드 — 클릭 팝업과 동일 RDPS 시정 점 샘플.
+        if (OS.loadVsbyCard) OS.loadVsbyCard(lat, lon, d);
 
         // (5) 시간 의존 카드 — 항상 호출. epoch 토큰으로 stale 응답 차단.
         fetchDepth(lat, lon, myEpoch);
@@ -358,7 +360,7 @@
                 OS.SheetTL.setVisible(false);
             }
             ['ocean-card-wave', 'ocean-card-wind', 'ocean-card-current',
-             'ocean-card-temp', 'ocean-card-weather'].forEach(function (id) {
+             'ocean-card-temp', 'ocean-card-weather', 'ocean-card-vsby'].forEach(function (id) {
                 if (typeof OS.hideCard === 'function') OS.hideCard(id);
             });
         }
