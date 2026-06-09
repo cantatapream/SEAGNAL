@@ -6,7 +6,8 @@
     "scripts": {
         "start": "node server.js",
         "build-gzip": "node build-gzip.js",
-        "collect": "node scheduler.js"
+        "collect": "node scheduler.js",
+        "build-tide-field": "node scripts/build_tide_field.js"
     },
     "keywords": [],
     "author": "",
