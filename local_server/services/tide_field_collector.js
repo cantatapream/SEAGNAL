@@ -285,8 +285,20 @@ async function ensureBuilt(opts = {}) {
  *     사실상 no-op (캐시는 Fly 영속 볼륨에 저장되어 재배포 후에도 유지됨).
  *   - fire-and-forget 로 호출할 것(서버 기동 비차단). 포인트별 순차 수집(동시성 1).
  */
+// ============================================================================
+// [킬스위치] 물빠짐 수집 전면 중단
+// ============================================================================
+//   100m 앵커 폭발(166k 작업) 대응 — 부트스트랩·스케줄러의 자동 수집을 모두
+//   비활성화한다. 볼륨에 남은 옛 100m grid_meta/앵커로 수집이 재개되는 것을 막는다.
+//   정상(앵커-격자 분리) 버전 재반영 시 false 로 되돌린다.
+const COLLECT_DISABLED = true;
+
 async function bootstrapTideField(opts = {}) {
     const log = opts.log || ((...a) => console.log('[tide_field]', ...a));
+    if (COLLECT_DISABLED) {
+        log('물빠짐 수집 비활성화(킬스위치) — 부트스트랩 skip');
+        return { ok: true, skipped: 'disabled' };
+    }
     const built = await ensureBuilt({ log });
     if (!built) return { ok: false, reason: 'not_built' };
     return collectTideField({ ...opts, log });
@@ -305,6 +317,10 @@ async function bootstrapTideField(opts = {}) {
  */
 async function collectTideField(opts = {}) {
     const log = opts.log || ((...a) => console.log('[tide_field_collector]', ...a));
+    if (COLLECT_DISABLED) {
+        log('물빠짐 수집 비활성화(킬스위치) — skip');
+        return { ok: true, skipped: 'disabled' };
+    }
     if (_running) {
         log('이미 수집이 진행 중 — 중복 실행 skip');
         return { ok: true, skipped: 'already_running' };
