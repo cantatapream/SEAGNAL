@@ -66,8 +66,6 @@
     let myLocationLayer = null;
     let mudflatData = null;
     let selectedPlace = null;
-    let selectedDateIdx = 0;
-    let availableDates = [];
     let selectedFeature = null;
 
     // ========================================================================
@@ -382,11 +380,6 @@
 
         var overlay = document.getElementById('mudflat-bottomsheet-overlay');
         if (overlay) overlay.addEventListener('click', function () { _closeBottomSheet(); });
-
-        var prevBtn = document.getElementById('mudflat-date-prev');
-        var nextBtn = document.getElementById('mudflat-date-next');
-        if (prevBtn) prevBtn.addEventListener('click', function () { if (selectedDateIdx > 0) { selectedDateIdx--; _renderBottomSheetContent(); } });
-        if (nextBtn) nextBtn.addEventListener('click', function () { if (selectedDateIdx < availableDates.length - 1) { selectedDateIdx++; _renderBottomSheetContent(); } });
     }
 
     // ========================================================================
@@ -439,13 +432,9 @@
 
     function _openBottomSheet(placeName) {
         selectedPlace = placeName;
-        selectedDateIdx = 0;
 
         var place = mudflatData && mudflatData.places && mudflatData.places[placeName];
         if (!place || !place.forecasts) return;
-
-        availableDates = Object.keys(place.forecasts).sort();
-        if (availableDates.length === 0) return;
 
         var placeEl = document.getElementById('mudflat-bs-place-name');
         if (placeEl) placeEl.textContent = placeName;
@@ -475,76 +464,76 @@
     }
 
     // ========================================================================
-    // 6. 바텀시트 콘텐츠 렌더링 (선택 날짜의 체험시간 구간 목록)
+    // 6. 바텀시트 콘텐츠 렌더링 (수집된 전체 날짜를 표로 — 바다갈라짐과 동일 형식)
     // ========================================================================
 
+    /**
+     * 선택 지점의 7일치 전체 예보를 날짜별 표로 렌더링합니다.
+     * - 컬럼: 날짜(+요일) / 체험시간(+소요시간) / 기온 / 날씨 / 체험지수
+     * - 같은 날 여러 구간이면 그 날짜 아래 여러 줄(첫 줄에 rowspan)
+     * - 체험불가(시작·종료 00:00)는 '체험 가능 시간 없음' + 검정 배지
+     * - 스타일은 바다갈라짐 표(.sp-*)를 재사용
+     */
     function _renderBottomSheetContent() {
         if (!selectedPlace || !mudflatData) return;
 
         var place = mudflatData.places && mudflatData.places[selectedPlace];
         if (!place) return;
 
-        var dateStr = availableDates[selectedDateIdx];
-        var windows = place.forecasts && place.forecasts[dateStr];
-
-        var dateLabel = document.getElementById('mudflat-bs-date-label');
-        if (dateLabel) dateLabel.textContent = _formatDateLabel(dateStr);
-
-        var prevBtn = document.getElementById('mudflat-date-prev');
-        var nextBtn = document.getElementById('mudflat-date-next');
-        if (prevBtn) prevBtn.disabled = selectedDateIdx <= 0;
-        if (nextBtn) nextBtn.disabled = selectedDateIdx >= availableDates.length - 1;
-
-        // 종합 지수 배지 (그 날짜의 대표 지수)
-        var totalIdxEl = document.getElementById('mudflat-bs-total-index');
-        if (totalIdxEl) {
-            var rep = _representativeLevel(place, dateStr);
-            totalIdxEl.innerHTML = _badgeHtml(rep);
-        }
+        // 발표시각
+        var pubEl = document.getElementById('mudflat-bs-publish');
+        if (pubEl) pubEl.textContent = mudflatData.updatedAt ? ('발표 ' + mudflatData.updatedAt) : '';
 
         var contentEl = document.getElementById('mudflat-bs-content');
         if (!contentEl) return;
 
-        if (!windows || windows.length === 0) {
-            contentEl.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">해당 날짜의 예보 데이터가 없습니다.</p>';
+        var dates = place.forecasts ? Object.keys(place.forecasts).sort() : [];
+        if (dates.length === 0) {
+            contentEl.innerHTML = '<div class="sp-no-data">해당 지역의 데이터가 없습니다.</div>';
             return;
         }
 
-        // 같은 날 여러 구간이면 시작시간 기준 정렬
-        var sorted = windows.slice().sort(function (a, b) { return (a.bgng || '').localeCompare(b.bgng || ''); });
+        var html = '<div class="sp-table-wrap"><table class="sp-table">';
+        html += '<thead><tr><th>날짜</th><th>체험시간</th><th>기온</th><th>날씨</th><th>체험지수</th></tr></thead><tbody>';
 
-        var html = '';
-        sorted.forEach(function (w) {
-            html += _buildWindowBlock(w);
+        dates.forEach(function (date) {
+            var windows = place.forecasts[date];
+            if (!windows || windows.length === 0) return;
+
+            // 같은 날 여러 구간은 시작시간 기준 오름차순 정렬
+            var sorted = windows.slice().sort(function (a, b) { return (a.bgng || '').localeCompare(b.bgng || ''); });
+            var fdate = _formatDate(date);
+            var dow = _getDayOfWeek(date);
+            var di = _dayIndex(date);
+            var weekend = (di === 0 || di === 6);
+
+            sorted.forEach(function (w, idx) {
+                if (!w) return;
+                var isBan = (w.totalIndex === '체험불가') || (!w.bgng || !w.end) || (w.bgng === '00:00' && w.end === '00:00');
+                var timeRange = isBan ? '체험 가능 시간 없음' : (w.bgng + ' ~ ' + w.end);
+                var duration = isBan ? '' : _calcDuration(w.bgng, w.end);
+                var temp = (w.minArtmp != null && w.maxArtmp != null && w.minArtmp !== '' && w.maxArtmp !== '') ? (w.minArtmp + '~' + w.maxArtmp + '°C') : '-';
+                var weather = w.weather || '-';
+
+                html += '<tr>';
+                // 날짜 셀: 같은 날 여러 구간이면 첫 줄에서만 rowspan
+                if (idx === 0) {
+                    html += '<td class="sp-date-cell' + (weekend ? ' sp-weekend' : '') + '"' +
+                        (sorted.length > 1 ? ' rowspan="' + sorted.length + '"' : '') + '>' +
+                        '<div class="sp-date-main">' + fdate + '</div>' +
+                        '<div class="sp-date-day' + (weekend ? ' sp-weekend' : '') + '">' + dow + '</div></td>';
+                }
+                html += '<td class="sp-time-cell">' + timeRange +
+                    (duration ? '<span class="sp-duration">(' + duration + ')</span>' : '') + '</td>';
+                html += '<td>' + temp + '</td>';
+                html += '<td>' + _getWeatherIcon(weather) + ' ' + _escapeHtml(weather) + '</td>';
+                html += '<td>' + _badgeHtml(w.totalIndex) + '</td>';
+                html += '</tr>';
+            });
         });
+
+        html += '</tbody></table></div>';
         contentEl.innerHTML = html;
-    }
-
-    /**
-     * 체험시간 구간 1개를 카드로 렌더링.
-     * 체험불가(시작·종료 00:00)면 시간 대신 '체험 가능 시간 없음' 표시.
-     */
-    function _buildWindowBlock(w) {
-        var isBan = (w.totalIndex === '체험불가') || (!w.bgng || !w.end) || (w.bgng === '00:00' && w.end === '00:00');
-        var timeRange = isBan ? '체험 가능 시간 없음' : (w.bgng + ' ~ ' + w.end);
-        var duration = isBan ? '' : _calcDuration(w.bgng, w.end);
-        var temp = (w.minArtmp != null && w.maxArtmp != null && w.minArtmp !== '' && w.maxArtmp !== '') ? (w.minArtmp + '~' + w.maxArtmp + '°C') : '-';
-        var weather = w.weather || '-';
-
-        var html = '<div class="fishing-time-block">';
-        html += '<div class="fishing-time-header">';
-        html += '<span class="fishing-time-badge"><i class="fa-solid fa-clock" style="margin-right:4px;"></i>' + timeRange +
-            (duration ? ' <span style="opacity:0.8;font-weight:400;">(' + duration + ')</span>' : '') + '</span>';
-        html += _badgeHtml(w.totalIndex);
-        html += '</div>';
-
-        html += '<div class="fishing-weather-table">';
-        html += '<span><i class="fa-solid fa-thermometer-half"></i> 기온 ' + temp + '</span>';
-        html += '<span>' + _getWeatherIcon(weather) + ' 날씨 ' + _escapeHtml(weather) + '</span>';
-        html += '</div>';
-
-        html += '</div>';
-        return html;
     }
 
     /** 체험지수 배지 HTML (5단계는 level-* 클래스, 체험불가는 인라인 검정) */
@@ -569,15 +558,25 @@
         return yyyy + '-' + mm + '-' + dd;
     }
 
-    /** 'YYYY-MM-DD' → '오늘 06월 07일 (일)' 형식 */
-    function _formatDateLabel(dateStr) {
+    /** 'YYYY-MM-DD' → '06.07' (표 날짜 셀용) */
+    function _formatDate(dateStr) {
         var parts = (dateStr || '').split('-');
         if (parts.length !== 3) return dateStr || '-';
-        var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10), d = parseInt(parts[2], 10);
-        var date = new Date(y, m - 1, d);
-        var days = ['일', '월', '화', '수', '목', '금', '토'];
-        var prefix = (dateStr === _getTodayStr()) ? '오늘 ' : '';
-        return prefix + String(m).padStart(2, '0') + '월 ' + String(d).padStart(2, '0') + '일 (' + days[date.getDay()] + ')';
+        return parts[1] + '.' + parts[2];
+    }
+
+    /** 'YYYY-MM-DD' → 요일 인덱스(0=일~6=토), 실패 시 -1 */
+    function _dayIndex(dateStr) {
+        var parts = (dateStr || '').split('-');
+        if (parts.length !== 3) return -1;
+        return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)).getDay();
+    }
+
+    /** 표 날짜 셀의 요일 라벨: 오늘이면 '오늘', 아니면 요일('일'~'토') */
+    function _getDayOfWeek(dateStr) {
+        if (dateStr === _getTodayStr()) return '오늘';
+        var di = _dayIndex(dateStr);
+        return di < 0 ? '' : ['일', '월', '화', '수', '목', '금', '토'][di];
     }
 
     /** 체험시간 소요시간 계산 ('09:00','15:25' → '6시간 25분') */
