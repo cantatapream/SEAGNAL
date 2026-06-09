@@ -37,6 +37,12 @@ window.closeSeaZoneModal = function () {
             const chartInstance = Chart.getChart(chartCanvas);
             if (chartInstance) chartInstance.destroy();
         }
+        // 시정 차트 인스턴스 정리
+        const visCanvas = document.getElementById('marineVisChart');
+        if (visCanvas) {
+            const visInstance = Chart.getChart(visCanvas);
+            if (visInstance) visInstance.destroy();
+        }
         // 모달 완전 제거 (다음 호출 시 새로 생성)
         modal.remove();
     }
@@ -59,6 +65,9 @@ window.getMarineZoneData = async function (zoneId) {
         lZone = parts[0];
         isSmallZone = true;
     }
+
+    // [시정] MMIS 해구별 시정예측을 병렬로 미리 요청 (천기와 동일: 클라이언트 직접 fetch)
+    const visPromise = fetchZoneVisibility(zoneId);
 
     try {
         // ============================================================
@@ -87,11 +96,19 @@ window.getMarineZoneData = async function (zoneId) {
         const zoneData = json.data && json.data[lZone];
 
         if (zoneData && zoneData.length > 0) {
-            // displayTime 추가
-            const formattedData = zoneData.map(item => ({
-                ...item,
-                displayTime: formatMarineTime(item.tm)
-            }));
+            // 시정 시계열 수신 대기 (실패해도 빈 맵 → 표는 정상 표출)
+            const visMap = await visPromise;
+            if (requestId !== window._marineZoneRequestId) return;
+
+            // displayTime + 시정(vs) 병합 — visMap 은 UTC키, item.tm 도 UTC 라 직접 조회
+            const formattedData = zoneData.map(item => {
+                const vs = visMap[item.tm];
+                return {
+                    ...item,
+                    displayTime: formatMarineTime(item.tm),
+                    vs: (typeof vs === 'number') ? vs : null
+                };
+            });
             formattedData.baseTime = json.baseTmUtf;
 
             showMarineZoneModal(zoneId, formattedData, false, null, json.baseTmUtf);
@@ -158,6 +175,53 @@ function formatMarineTime(tm) {
     const dd = tm.substring(6, 8);
     const hh = tm.substring(8, 10);
     return `${mm}.${dd} ${hh}시`;
+}
+
+// ============================================================
+// 🌫️ 해구 시정(視程) — MMIS 해구별 시정예측
+//   천기 기능과 동일한 방식: 서버 수집 없이 클라이언트가 MMIS 를 직접 fetch.
+//   GET /mmis_marine_api/v1/kma/fct/netcdf/small-area/latlon/data/detail?lat&lon
+//     응답 payload.marine_zone[]: { fctTm:"YYYY.MM.DD HH:00"(KST), vs:시정(km), ... }
+//   매칭: 우리 zone tm 은 UTC("YYYYMMDDHH"), MMIS fctTm 은 KST → UTC 로 환산해 키 매칭.
+//   (TZ 검증: detail baseTm "..21:00"(KST) == mdl_data_prdct_time "..12:00+00:00"(UTC) → KST 확정)
+// ============================================================
+const MMIS_VS_DETAIL_URL = 'https://marine.kma.go.kr/mmis_marine_api/v1/kma/fct/netcdf/small-area/latlon/data/detail';
+
+// "2026.06.09 12:00"(KST) → "2026060903"(UTC YYYYMMDDHH) — zone tm 과 비교용 키
+function _mmisFctTmToUtcKey(fctTm) {
+    const m = String(fctTm || '').match(/(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/);
+    if (!m) return null;
+    const utc = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) - 9 * 3600 * 1000);
+    const p = n => String(n).padStart(2, '0');
+    return `${utc.getUTCFullYear()}${p(utc.getUTCMonth() + 1)}${p(utc.getUTCDate())}${p(utc.getUTCHours())}`;
+}
+
+// 해구 중심좌표로 시정 시계열을 받아 { UTC키 → vs(km) } 맵 반환. 실패 시 빈 맵(부가정보이므로 표는 유지).
+async function fetchZoneVisibility(zoneId) {
+    const out = {};
+    try {
+        const coords = getZoneCoordinatesByZoneId(zoneId);
+        if (!coords || coords.lat == null || coords.lon == null) return out;
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 6000);
+        const url = `${MMIS_VS_DETAIL_URL}?lat=${encodeURIComponent(coords.lat)}&lon=${encodeURIComponent(coords.lon)}`;
+        let r;
+        try {
+            r = await fetch(url, { credentials: 'omit', signal: ctrl.signal });
+        } finally {
+            clearTimeout(timer);
+        }
+        if (!r || !r.ok) return out;
+        const j = await r.json();
+        const arr = (j && j.payload && j.payload.marine_zone) || [];
+        arr.forEach(e => {
+            const key = _mmisFctTmToUtcKey(e.fctTm);
+            if (key && e.vs != null && !isNaN(e.vs)) out[key] = Number(e.vs);
+        });
+    } catch (e) {
+        // 시정은 부가정보 — 실패해도 기존 풍향/풍속/파고 표는 그대로 표출
+    }
+    return out;
 }
 
 // 현재 표시 중인 해구 정보 (Windy 연동용)
@@ -725,6 +789,23 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
     });
     tableHTML += '</tr>';
 
+    // 행 7: 시정 (MMIS 해구별 시정예측) — 3시간 간격 공식값을 꺾은선 그래프로 표출
+    //   값이 하나라도 있을 때만 행 추가. 실제 차트는 setTimeout 의 renderMarineVisChart 가 그림.
+    const _hasVis = data.some(r => typeof r.vs === 'number');
+    if (_hasVis) {
+        tableHTML += '<tr style="background:#222; border-top:1px solid #333;">';
+        tableHTML += `<th style="padding:4px 6px; border:1px solid #333; text-align:center; position:sticky; left:0; background:#2c3e50; z-index:1; vertical-align:middle;">
+        <div style="display:flex; flex-direction:column; gap:2px; font-size:9px; align-items:center;">
+            <span style="color:#ffd54f;">시정</span>
+            <span style="display:inline-block; width:14px; height:3px; background:#ffd54f; border-radius:2px;"></span>
+            <span style="color:#888; font-weight:normal;">(km)</span>
+        </div>
+    </th>`;
+        tableHTML += `<td colspan="${data.length}" style="padding:0; border:1px solid #333; overflow:hidden; box-sizing:border-box;">`;
+        tableHTML += `<div style="width:${chartWidth}px; height:110px; margin:0; padding-left:${CHART_OFFSET_LEFT}px; display:block; box-sizing:border-box;"><canvas id="marineVisChart" width="${chartWidth}" height="110" style="display:block;"></canvas></div>`;
+        tableHTML += '</td></tr>';
+    }
+
     tableHTML += '</tbody></table></div>';
 
     // 스크롤 안내 메시지 (가운데 정렬)
@@ -738,7 +819,10 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
     body.innerHTML = tableHTML;
 
     // 차트 그리기
-    setTimeout(() => renderMarineChart(data), 100);
+    setTimeout(() => {
+        renderMarineChart(data);
+        if (data.some(r => typeof r.vs === 'number')) renderMarineVisChart(data);
+    }, 100);
 }
 
 // 풍속 색상
@@ -753,6 +837,13 @@ function getMarineWaveColor(wh) {
     if (wh >= 3.0) return '#ff5252';
     if (wh >= 1.5) return '#ffb74d';
     return '#81c784';
+}
+
+// 시정 색상 (km) — 낮을수록 위험(안개). 항해 가시거리 기준.
+function getMarineVisibilityColor(vs) {
+    if (vs < 1) return '#ff5252';   // 1km 미만: 짙은 안개 (위험)
+    if (vs < 3) return '#ffb74d';   // 3km 미만: 안개 (주의)
+    return '#81c784';               // 양호
 }
 
 // Chart.js 렌더링
@@ -881,6 +972,92 @@ function renderMarineChart(data) {
                 },
                 y_wind: { type: 'linear', display: false, position: 'left', beginAtZero: true },
                 y_wave: { type: 'linear', display: false, position: 'right', beginAtZero: true }
+            }
+        }
+    });
+}
+
+// 시정 꺾은선 그래프 (MMIS 해구별 시정예측, 3시간 간격 공식값)
+//   풍속/파고 메인 차트와 동일한 컬럼 정렬(CHART_OFFSETS)·스타일 규칙을 그대로 따름.
+//   값이 없는 시각(우리 표가 MMIS 예보범위를 벗어난 끝부분 등)은 null → 라인에서 생략.
+function renderMarineVisChart(data) {
+    const canvas = document.getElementById('marineVisChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const labels = data.map(d => d.displayTime);
+    const vis = data.map(d => (typeof d.vs === 'number' ? d.vs : null));
+    // 점 색상은 시정 위험도(안개)에 따라
+    const pointColors = vis.map(v => (v == null ? 'rgba(0,0,0,0)' : getMarineVisibilityColor(v)));
+
+    if (window.currentMarineVisChart) {
+        window.currentMarineVisChart.destroy();
+    }
+    if (typeof ChartDataLabels !== 'undefined') {
+        Chart.register(ChartDataLabels);
+    }
+
+    // 메인 차트와 동일한 컬럼 정렬 오프셋 적용 (표 칸 아래에 점이 오도록)
+    const adjustmentPluginVis = {
+        id: 'adjustmentPluginVis',
+        beforeDatasetsDraw(chart) {
+            if (!window.CHART_OFFSETS) window.CHART_OFFSETS = [];
+            chart.data.datasets.forEach((dataset, di) => {
+                const meta = chart.getDatasetMeta(di);
+                meta.data.forEach((el, i) => {
+                    if (typeof el.originalX === 'undefined') el.originalX = el.x;
+                    el.x = el.originalX + (window.CHART_OFFSETS[i] || 0);
+                });
+            });
+        }
+    };
+
+    window.currentMarineVisChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '시정 (km)',
+                data: vis,
+                borderColor: '#ffd54f',
+                backgroundColor: 'rgba(255, 213, 79, 0.15)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                spanGaps: true,
+                pointRadius: 4,
+                pointBackgroundColor: pointColors,
+                pointBorderColor: pointColors,
+                pointHoverRadius: 4,
+                pointHoverBackgroundColor: pointColors,
+                pointHoverBorderColor: pointColors,
+                pointHoverBorderWidth: 0,
+                datalabels: {
+                    display: true,
+                    color: '#ffd54f',
+                    anchor: 'end',
+                    align: 'top',
+                    offset: 4,
+                    font: { size: 9, weight: 'bold' },
+                    formatter: (value) => (value == null ? '' : value.toFixed(1))
+                }
+            }]
+        },
+        plugins: [ChartDataLabels, adjustmentPluginVis],
+        options: {
+            animation: false,
+            hover: { mode: null, animationDuration: 0 },
+            responsive: false,
+            maintainAspectRatio: false,
+            layout: { padding: { left: 0, right: 0, top: 15, bottom: 4 } },
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: true }
+            },
+            scales: {
+                x: { display: false, grid: { display: false }, offset: true },
+                y: { type: 'linear', display: false, beginAtZero: true, grace: '10%' }
             }
         }
     });
