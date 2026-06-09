@@ -104,6 +104,17 @@ function curvePath(anchorId, yyyymmdd) {
     return path.join(C.CURVES_DIR, `${anchorId}_${yyyymmdd}.json`);
 }
 
+/** grid_meta.json 의 cell_deg 가 현재 CFG.CELL_DEG 와 일치하는지(=최신 빌드인지). */
+function _gridMetaUpToDate() {
+    try {
+        const j = JSON.parse(fs.readFileSync(C.GRID_META_PATH, 'utf8'));
+        if (j && j.meta && j.meta.empty) return false;
+        return j && typeof j.cell_deg === 'number' && Math.abs(j.cell_deg - CFG.CELL_DEG) < 1e-9;
+    } catch (e) {
+        return false;
+    }
+}
+
 /**
  * (앵커,날짜) 가 이미 완전 수집되었는지 판정.
  * 완전 = 파일 존재 + loadedPages 5개 + failedPages 없음 + 곡선 길이 충분.
@@ -263,9 +274,15 @@ let _running = false;
 async function ensureBuilt(opts = {}) {
     const log = opts.log || ((...a) => console.log('[tide_field]', ...a));
     const existing = loadAnchors();
-    if (existing && existing.length > 0) return true; // 이미 준비됨 → 재빌드 skip
+    // 이미 앵커가 있고 grid_meta 의 해상도(cell_deg)가 현재 설정과 일치하면 재빌드 skip.
+    //   설정(CELL_DEG 등)이 바뀌면 cell_deg 불일치 → 강제 재빌드해 새 격자 반영.
+    if (existing && existing.length > 0 && _gridMetaUpToDate()) return true;
 
-    log('grid_meta/anchors 미준비 — Phase 0 전처리(build_tide_field) 1회 실행...');
+    if (existing && existing.length > 0) {
+        log(`grid_meta 해상도가 현재 설정(CELL_DEG=${CFG.CELL_DEG})과 불일치 — 재빌드합니다.`);
+    } else {
+        log('grid_meta/anchors 미준비 — Phase 0 전처리(build_tide_field) 1회 실행...');
+    }
     try {
         const builder = require('../scripts/build_tide_field');
         await builder.main({ log });
