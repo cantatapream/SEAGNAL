@@ -862,20 +862,23 @@ function getMarineVisibilityColor(vs) {
     return '#81c784';               // 양호
 }
 
-// 합본 그래프 시정 라인/라벨 색 — 나쁠수록 위험색(빨강), 평소엔 앰버.
-//   <1km 빨강 / <4km 주황 / 그 외 앰버(점선 기본색)
+// 시정 경고 임계값(해리, NM) — 항해 기준. 이 값 미만이면 그래프에 점·수치·위험색 표출.
+const VIS_WARN_NM = 2;
+
+// 합본 그래프 시정 라인/라벨 색 — 나쁠수록 위험색(빨강), 평소엔 앰버. (NM 기준)
+//   <1NM 빨강 / <2NM 주황 / 그 외 앰버(점선 기본색)
 function _visGraphColor(km) {
     if (km == null) return '#ffd54f';
-    if (km < 1) return '#ff5252';
-    if (km < 4) return '#ffb74d';
+    const nm = km * VIS_KM_TO_NM;
+    if (nm < 1) return '#ff5252';
+    if (nm < VIS_WARN_NM) return '#ffb74d';
     return '#ffd54f';
 }
 
-// 시정 라벨/점을 그래프에 노출할지 — 표시단위 기준 4 미만(나쁠 때)만 표시.
+// 시정 라벨/점을 그래프에 노출할지 — 2 NM 미만(나쁠 때)만 표시.
 function _visLabelVisible(km) {
     if (km == null) return false;
-    const dv = (window._marineVisUnit === 'NM') ? km * VIS_KM_TO_NM : km;
-    return dv < 4;
+    return (km * VIS_KM_TO_NM) < VIS_WARN_NM;
 }
 
 // Chart.js 렌더링
