@@ -37,6 +37,12 @@ window.closeSeaZoneModal = function () {
             const chartInstance = Chart.getChart(chartCanvas);
             if (chartInstance) chartInstance.destroy();
         }
+        // 시정 차트 인스턴스 정리
+        const visCanvas = document.getElementById('marineVisChart');
+        if (visCanvas) {
+            const visInstance = Chart.getChart(visCanvas);
+            if (visInstance) visInstance.destroy();
+        }
         // 모달 완전 제거 (다음 호출 시 새로 생성)
         modal.remove();
     }
@@ -783,20 +789,21 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
     });
     tableHTML += '</tr>';
 
-    // 행 7: 시정 (MMIS 해구별 시정예측) — 시정 값이 하나라도 있을 때만 표출
+    // 행 7: 시정 (MMIS 해구별 시정예측) — 3시간 간격 공식값을 꺾은선 그래프로 표출
+    //   값이 하나라도 있을 때만 행 추가. 실제 차트는 setTimeout 의 renderMarineVisChart 가 그림.
     const _hasVis = data.some(r => typeof r.vs === 'number');
     if (_hasVis) {
-        tableHTML += '<tr style="background:#1e1e1e; border-top:1px solid #333;">';
-        tableHTML += '<th style="padding:4px 8px; border:1px solid #333; text-align:center; position:sticky; left:0; background:#2c3e50; z-index:1; color:#ffd54f; font-size:10px;"> 시정<br><span style="font-size:9px; font-weight:normal; color:#888;">(km)</span></th>';
-        data.forEach(row => {
-            if (typeof row.vs === 'number') {
-                const color = getMarineVisibilityColor(row.vs);
-                tableHTML += `<td style="${cellStyle} color:${color}; font-weight:bold; font-size:11px;">${row.vs.toFixed(1)}</td>`;
-            } else {
-                tableHTML += `<td style="${cellStyle} color:#555; font-size:11px;">-</td>`;
-            }
-        });
-        tableHTML += '</tr>';
+        tableHTML += '<tr style="background:#222; border-top:1px solid #333;">';
+        tableHTML += `<th style="padding:4px 6px; border:1px solid #333; text-align:center; position:sticky; left:0; background:#2c3e50; z-index:1; vertical-align:middle;">
+        <div style="display:flex; flex-direction:column; gap:2px; font-size:9px; align-items:center;">
+            <span style="color:#ffd54f;">시정</span>
+            <span style="display:inline-block; width:14px; height:3px; background:#ffd54f; border-radius:2px;"></span>
+            <span style="color:#888; font-weight:normal;">(km)</span>
+        </div>
+    </th>`;
+        tableHTML += `<td colspan="${data.length}" style="padding:0; border:1px solid #333; overflow:hidden; box-sizing:border-box;">`;
+        tableHTML += `<div style="width:${chartWidth}px; height:110px; margin:0; padding-left:${CHART_OFFSET_LEFT}px; display:block; box-sizing:border-box;"><canvas id="marineVisChart" width="${chartWidth}" height="110" style="display:block;"></canvas></div>`;
+        tableHTML += '</td></tr>';
     }
 
     tableHTML += '</tbody></table></div>';
@@ -812,7 +819,10 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
     body.innerHTML = tableHTML;
 
     // 차트 그리기
-    setTimeout(() => renderMarineChart(data), 100);
+    setTimeout(() => {
+        renderMarineChart(data);
+        if (data.some(r => typeof r.vs === 'number')) renderMarineVisChart(data);
+    }, 100);
 }
 
 // 풍속 색상
@@ -962,6 +972,92 @@ function renderMarineChart(data) {
                 },
                 y_wind: { type: 'linear', display: false, position: 'left', beginAtZero: true },
                 y_wave: { type: 'linear', display: false, position: 'right', beginAtZero: true }
+            }
+        }
+    });
+}
+
+// 시정 꺾은선 그래프 (MMIS 해구별 시정예측, 3시간 간격 공식값)
+//   풍속/파고 메인 차트와 동일한 컬럼 정렬(CHART_OFFSETS)·스타일 규칙을 그대로 따름.
+//   값이 없는 시각(우리 표가 MMIS 예보범위를 벗어난 끝부분 등)은 null → 라인에서 생략.
+function renderMarineVisChart(data) {
+    const canvas = document.getElementById('marineVisChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const labels = data.map(d => d.displayTime);
+    const vis = data.map(d => (typeof d.vs === 'number' ? d.vs : null));
+    // 점 색상은 시정 위험도(안개)에 따라
+    const pointColors = vis.map(v => (v == null ? 'rgba(0,0,0,0)' : getMarineVisibilityColor(v)));
+
+    if (window.currentMarineVisChart) {
+        window.currentMarineVisChart.destroy();
+    }
+    if (typeof ChartDataLabels !== 'undefined') {
+        Chart.register(ChartDataLabels);
+    }
+
+    // 메인 차트와 동일한 컬럼 정렬 오프셋 적용 (표 칸 아래에 점이 오도록)
+    const adjustmentPluginVis = {
+        id: 'adjustmentPluginVis',
+        beforeDatasetsDraw(chart) {
+            if (!window.CHART_OFFSETS) window.CHART_OFFSETS = [];
+            chart.data.datasets.forEach((dataset, di) => {
+                const meta = chart.getDatasetMeta(di);
+                meta.data.forEach((el, i) => {
+                    if (typeof el.originalX === 'undefined') el.originalX = el.x;
+                    el.x = el.originalX + (window.CHART_OFFSETS[i] || 0);
+                });
+            });
+        }
+    };
+
+    window.currentMarineVisChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '시정 (km)',
+                data: vis,
+                borderColor: '#ffd54f',
+                backgroundColor: 'rgba(255, 213, 79, 0.15)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                spanGaps: true,
+                pointRadius: 4,
+                pointBackgroundColor: pointColors,
+                pointBorderColor: pointColors,
+                pointHoverRadius: 4,
+                pointHoverBackgroundColor: pointColors,
+                pointHoverBorderColor: pointColors,
+                pointHoverBorderWidth: 0,
+                datalabels: {
+                    display: true,
+                    color: '#ffd54f',
+                    anchor: 'end',
+                    align: 'top',
+                    offset: 4,
+                    font: { size: 9, weight: 'bold' },
+                    formatter: (value) => (value == null ? '' : value.toFixed(1))
+                }
+            }]
+        },
+        plugins: [ChartDataLabels, adjustmentPluginVis],
+        options: {
+            animation: false,
+            hover: { mode: null, animationDuration: 0 },
+            responsive: false,
+            maintainAspectRatio: false,
+            layout: { padding: { left: 0, right: 0, top: 15, bottom: 4 } },
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: true }
+            },
+            scales: {
+                x: { display: false, grid: { display: false }, offset: true },
+                y: { type: 'linear', display: false, beginAtZero: true, grace: '10%' }
             }
         }
     });
