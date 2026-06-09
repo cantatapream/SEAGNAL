@@ -655,6 +655,23 @@ const FISHING_API_BASE = 'https://apis.data.go.kr/1192136/fcstFishingv2/GetFcstF
  *
  * [연계] routes/fishing.js → /api/fishing-index, js/fishing.js → 지도 마커
  */
+/**
+ * [전송오류 방어 공통] 기존 저장 파일에 정상 데이터가 있으면 true.
+ * API가 전송 오류로 null(빈 응답)을 줬을 때, 좋은 데이터를 0건으로 덮어쓰지 않도록
+ * 보존 여부를 판단하는 데 사용. (정상 '데이터 없음'은 fetch가 []를 반환하므로 이 함수와 무관)
+ * @param {string} filename data/ 하위 저장 파일명
+ * @param {function} counter (obj)=>number 데이터 건수 계산 함수
+ */
+function _hasPreviousData(filename, counter) {
+    try {
+        const p = path.join(CONFIG.DATA_DIR, filename);
+        if (!fs.existsSync(p)) return false;
+        return counter(JSON.parse(fs.readFileSync(p, 'utf8'))) > 0;
+    } catch (e) {
+        return false;
+    }
+}
+
 async function collectFishingIndex() {
     try {
         log('🎣 바다낚시 지수 수집 시작...');
@@ -674,6 +691,13 @@ async function collectFishingIndex() {
         };
 
         const items = await _fetchFishingData('갯바위');
+
+        // [전송오류 방어] API 전송오류로 null이 오고 기존에 정상 데이터가 있으면 덮어쓰지 않고 보존
+        if (items === null && _hasPreviousData('fishing_index.json', (o) => Object.keys(o['갯바위'] || {}).length + Object.keys(o['선상'] || {}).length)) {
+            log('🎣 바다낚시: API 전송오류 → 기존 데이터 보존(덮어쓰기 방지)');
+            lastRunStatus.fishing = { lastRun: getNowStr(), status: '유지', message: '일시적 API 오류로 기존 데이터 보존' };
+            return;
+        }
 
         // 진행률 이벤트: API 응답 수신 완료, 데이터 가공 시작
         collectProgress.emit('progress', { type: 'fishing', step: '바다낚시 지수', current: 2, total: 15, detail: '데이터 가공 중' });
@@ -840,6 +864,7 @@ async function _fetchFishingData(gubun) {
     const encodedKey = encodeURIComponent(FISHING_API_KEY);
     let pageNo = 1;
     const numOfRows = 300; // API 최대값
+    let fetchError = false; // 전송 오류(정상 '데이터 없음'과 구분)
 
     try {
         while (true) {
@@ -854,14 +879,16 @@ async function _fetchFishingData(gubun) {
 
             if (!response.ok) {
                 log(`⚠️ 바다낚시 API 응답 오류 (${gubun}, p${pageNo}): HTTP ${response.status}`);
+                fetchError = true;
                 break;
             }
 
             const data = await response.json();
 
-            // 결과코드 검증
-            if (data?.header?.resultCode !== '00') {
-                log(`⚠️ 바다낚시 API 오류 (${gubun}): ${data?.header?.resultMsg}`);
+            // 결과코드 검증 ('03' NODATA는 정상적인 '데이터 없음')
+            const rc = data?.header?.resultCode;
+            if (rc !== '00') {
+                if (rc !== '03') { log(`⚠️ 바다낚시 API 오류 (${gubun}): ${data?.header?.resultMsg}`); fetchError = true; }
                 break;
             }
 
@@ -885,10 +912,12 @@ async function _fetchFishingData(gubun) {
         }
 
         log(`🎣 바다낚시 ${gubun} API 수집: ${allItems.length}건 (${pageNo}페이지)`);
+        // 전송 오류로 0건이면 null(전송오류 신호) — 호출측이 기존 데이터 보존
+        if (fetchError && allItems.length === 0) return null;
         return allItems;
     } catch (e) {
         log(`⚠️ 바다낚시 API 호출 실패 (${gubun}): ${e.message}`);
-        return allItems; // 이미 수집한 데이터는 반환
+        return allItems.length > 0 ? allItems : null;
     }
 }
 
@@ -961,6 +990,16 @@ async function collectSeaSplitIndex() {
         } catch (readErr) {
             // 파일 읽기 실패 시 previousData = null → "변경됨"으로 처리 (안전하게)
             log(`⚠️ 기존 바다갈라짐 데이터 읽기 실패 (최초 실행 또는 파일 손상): ${readErr.message}`);
+        }
+
+        // [전송오류 방어] API 전송오류로 null이 오고 기존에 정상 데이터가 있으면 덮어쓰지 않고 보존.
+        //   (정상 '전 지점 갈라짐 없음'은 fetch가 []를 반환하므로 정상적으로 빈 저장됨)
+        if (items === null) {
+            if (previousData && previousData.places && Object.keys(previousData.places).length > 0) {
+                log('🛤️ 바다갈라짐: API 전송오류 → 기존 데이터 보존(덮어쓰기 방지)');
+                lastRunStatus.seaSplit = { lastRun: getNowStr(), status: '유지', message: '일시적 API 오류로 기존 데이터 보존' };
+                return;
+            }
         }
 
         // 결과 객체 초기화 (updatedAt은 아래에서 데이터 비교 후 결정)
@@ -1080,6 +1119,7 @@ async function _fetchSeaSplitData() {
     const encodedKey = encodeURIComponent(FISHING_API_KEY); // 낚시와 동일한 API 키 사용
     let pageNo = 1;
     const numOfRows = 300;
+    let fetchError = false; // 전송 오류(정상 '전 지점 갈라짐 없음'과 구분)
 
     try {
         while (true) {
@@ -1093,13 +1133,15 @@ async function _fetchSeaSplitData() {
 
             if (!response.ok) {
                 log(`⚠️ 바다갈라짐 API 응답 오류 (p${pageNo}): HTTP ${response.status}`);
+                fetchError = true;
                 break;
             }
 
             const data = await response.json();
 
-            if (data?.header?.resultCode !== '00') {
-                log(`⚠️ 바다갈라짐 API 오류: ${data?.header?.resultMsg}`);
+            const rc = data?.header?.resultCode;
+            if (rc !== '00') {
+                if (rc !== '03') { log(`⚠️ 바다갈라짐 API 오류: ${data?.header?.resultMsg}`); fetchError = true; }
                 break;
             }
 
@@ -1117,10 +1159,12 @@ async function _fetchSeaSplitData() {
             if (pageNo > 10) break; // 안전장치
         }
 
+        // 전송 오류로 0건이면 null(전송오류 신호). 정상 '갈라짐 없음'은 []를 반환해 빈 저장 허용.
+        if (fetchError && allItems.length === 0) return null;
         return allItems;
     } catch (e) {
         log(`⚠️ 바다갈라짐 API 호출 실패: ${e.message}`);
-        return allItems;
+        return allItems.length > 0 ? allItems : null;
     }
 }
 
@@ -1421,6 +1465,13 @@ async function collectScubaIndex() {
 
         const items = await _fetchScubaData();
 
+        // [전송오류 방어] API 전송오류로 null이 오고 기존에 정상 데이터가 있으면 덮어쓰지 않고 보존
+        if (items === null && _hasPreviousData('scuba_index.json', (o) => Object.keys(o.places || {}).length)) {
+            log('🤿 스킨스쿠버: API 전송오류 → 기존 데이터 보존(덮어쓰기 방지)');
+            lastRunStatus.scuba = { lastRun: getNowStr(), status: '유지', message: '일시적 API 오류로 기존 데이터 보존' };
+            return;
+        }
+
         collectProgress.emit('progress', { type: 'fishing', step: '스킨스쿠버 지수', current: 14, total: 15, detail: '데이터 가공 중' });
 
         const result = {
@@ -1499,6 +1550,7 @@ async function _fetchScubaData() {
     const encodedKey = encodeURIComponent(FISHING_API_KEY); // 낚시와 동일한 API 키 사용
     let pageNo = 1;
     const numOfRows = 300;
+    let fetchError = false; // 전송 오류(정상 '데이터 없음'과 구분)
 
     try {
         while (true) {
@@ -1512,13 +1564,15 @@ async function _fetchScubaData() {
 
             if (!response.ok) {
                 log(`⚠️ 스킨스쿠버 API 응답 오류 (p${pageNo}): HTTP ${response.status}`);
+                fetchError = true;
                 break;
             }
 
             const data = await response.json();
 
-            if (data?.header?.resultCode !== '00') {
-                log(`⚠️ 스킨스쿠버 API 오류: ${data?.header?.resultMsg}`);
+            const rc = data?.header?.resultCode;
+            if (rc !== '00') {
+                if (rc !== '03') { log(`⚠️ 스킨스쿠버 API 오류: ${data?.header?.resultMsg}`); fetchError = true; }
                 break;
             }
 
@@ -1536,10 +1590,11 @@ async function _fetchScubaData() {
             if (pageNo > 10) break; // 안전장치
         }
 
+        if (fetchError && allItems.length === 0) return null;
         return allItems;
     } catch (e) {
         log(`⚠️ 스킨스쿠버 API 호출 실패: ${e.message}`);
-        return allItems;
+        return allItems.length > 0 ? allItems : null;
     }
 }
 
