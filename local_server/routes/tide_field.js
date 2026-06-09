@@ -309,8 +309,9 @@ router.get('/api/tide-field', (req, res) => {
         }
     }
 
-    // state=-1(미정) 셀은 전송 제외 — 프론트가 표시하지 않으므로 대역폭 절감.
-    const visible = cells.filter(c => c.state >= 0);
+    // 드러남(state=1)만 전송 — 물 찬 곳(잠김)·미정(-1)은 표출하지 않는다.
+    //   "물빠짐"은 노출 영역만 의미 있으므로 잠김 셀을 빼서 지도를 깔끔하게.
+    const visible = cells.filter(c => c.state === 1);
 
     res.set('Cache-Control', 'public, max-age=120');
     res.json({
