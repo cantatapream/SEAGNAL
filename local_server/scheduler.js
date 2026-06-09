@@ -1194,6 +1194,18 @@ async function collectMudflatIndex() {
             log(`⚠️ 기존 갯벌체험 데이터 읽기 실패 (최초 실행 또는 파일 손상): ${readErr.message}`);
         }
 
+        // [전송오류 방어] API 전송 오류로 빈 응답(null)이 왔는데 기존에 정상 데이터가 있으면,
+        //   일시적 장애로 보고 기존 데이터를 덮어쓰지 않고 그대로 보존한다.
+        //   (운영기간 중 빈 응답은 거의 항상 일시적 API 오류 — 좋은 데이터가 0건으로 지워지는 사고 방지)
+        if (items === null) {
+            if (previousData && previousData.places && Object.keys(previousData.places).length > 0) {
+                log('🦪 갯벌체험: API 전송오류(빈 응답) → 기존 데이터 보존(덮어쓰기 방지)');
+                lastRunStatus.mudflat = { lastRun: getNowStr(), status: '유지', message: '일시적 API 오류로 기존 데이터 보존' };
+                return;
+            }
+            // 기존 데이터도 없으면(최초 실행 등) 빈 상태로 진행
+        }
+
         // 결과 객체 초기화 (updatedAt은 아래에서 데이터 비교 후 결정)
         const result = {
             updatedAt: '', // 데이터 비교 후 설정됨
@@ -1307,6 +1319,7 @@ async function _fetchMudflatData() {
     const encodedKey = encodeURIComponent(FISHING_API_KEY); // 낚시와 동일한 API 키 사용
     let pageNo = 1;
     const numOfRows = 300;
+    let fetchError = false; // HTTP/네트워크/서버 오류 발생 여부 (정상 '데이터 없음'과 구분)
 
     try {
         while (true) {
@@ -1320,13 +1333,15 @@ async function _fetchMudflatData() {
 
             if (!response.ok) {
                 log(`⚠️ 갯벌체험 API 응답 오류 (p${pageNo}): HTTP ${response.status}`);
+                fetchError = true;
                 break;
             }
 
             const data = await response.json();
-
-            if (data?.header?.resultCode !== '00') {
-                log(`⚠️ 갯벌체험 API 오류: ${data?.header?.resultMsg}`);
+            const rc = data?.header?.resultCode;
+            if (rc !== '00') {
+                // '03'(NODATA)는 정상적인 '데이터 없음'이므로 오류가 아님
+                if (rc !== '03') { log(`⚠️ 갯벌체험 API 오류: ${data?.header?.resultMsg}`); fetchError = true; }
                 break;
             }
 
@@ -1344,10 +1359,12 @@ async function _fetchMudflatData() {
             if (pageNo > 10) break; // 안전장치
         }
 
+        // 전송 오류로 단 한 건도 못 받았으면 null(전송오류 신호) — 호출측이 기존 데이터 보존
+        if (fetchError && allItems.length === 0) return null;
         return allItems;
     } catch (e) {
         log(`⚠️ 갯벌체험 API 호출 실패: ${e.message}`);
-        return allItems;
+        return allItems.length > 0 ? allItems : null;
     }
 }
 
