@@ -4,18 +4,20 @@
  * 역할: "서해·남해 물빠짐 예측" 오프라인 전처리 (Phase 0)
  * ============================================================================
  *
- * [무엇을 만드나]
+ * [무엇을 만드나 — 앵커를 연결성 그래프에서 완전히 분리 (폭발 방지)]
  *   1) BADA2024 격자 수심(d, MSL 기준 m)을 서해·남해 박스로 필터 → 예측 셀
- *      (CELL_DEG 해상도) 로 다운샘플.
- *   2) 인접 바다셀 연결성 그래프 구축 → 연결성 컴포넌트(폐쇄 만/수로 단위) 부여.
- *      물길거리(BFS) 의 기반. (B안: 곶·섬 너머 직선 연결 방지)
- *   3) 앵커 선정: 서해·남해 표준항을 seed → BFS 물길거리 기준 그리디 커버링
- *      (ANCHOR_COVER_KM 안에 앵커 없는 셀에 앵커 추가) → 컴포넌트마다 최소 1개 보장.
- *   4) Z₀ 필드: 표준항 연간 조석표 MTL(고+저조 평균, cm→m) 을 물길거리 IDW 로
- *      각 셀·앵커에 보간.
+ *      (CELL_DEG=0.001 ≈ 100m). 로드 시 수심 > SHALLOW_MAX_M(8m) 셀은 버린다
+ *      (드러날 수 있는 얕은 연안만 → 셀 수 통제).
+ *   2) Z₀ 필드: 표준항 연간 조석표 MTL(고+저조 평균, cm→m) 을 "직선거리 IDW"
+ *      (가까운 표준항 3~4개, 1/d²) 로 각 셀·앵커에 보간. (물길 BFS 제거)
+ *   3) 드러남 가능 셀 필터: depth != null && z0 != null && depth < z0 + DRY_MARGIN_M
+ *      (합성 DRYRUN depth=null 은 통과시킨다).
+ *   4) 버킷 앵커: 드러남 셀을 ANCHOR_BUCKET_DEG(0.1° ≈ 10km) 버킷으로 묶어
+ *      버킷마다 대표 1개(버킷 내 최심 셀)를 앵커로. → 앵커 수 = 버킷 수 ≈ 수백 개.
+ *      격자 파편화와 무관하게 폭발하지 않는다. (컴포넌트/그리디 커버링 제거)
  *   5) 산출물 저장:
- *      - data/tide_field/grid_meta.json  (셀 + 앵커 + 메타)
- *      - data/tide_field/anchors.json    (수집 대상 앵커 리스트)
+ *      - data/tide_field/grid_meta.json  (드러남 셀 + 메타, cell_deg/build_version)
+ *      - data/tide_field/anchors.json    (수집 대상 버킷 앵커 리스트)
  *
  * [실행]
  *   node scripts/build_tide_field.js
@@ -136,6 +138,9 @@ function accumulateBathFile(filePath, cells) {
             const depth = parseFloat(parts[2]);
             if (isNaN(lon) || isNaN(lat) || isNaN(depth)) return;
             if (!C.isWestSouthSea(lat, lon)) return;
+            // [수심 사전필터] 드러날 수 있는 얕은 연안만. 깊은 수로/먼바다는 버려
+            //   셀 수를 통제한다(100m 격자 폭발 방지의 1차 게이트).
+            if (depth > CFG.SHALLOW_MAX_M) return;
             const key = cellKey(lat, lon);
             let c = cells.get(key);
             if (!c) { c = { sumDepth: 0, n: 0 }; cells.set(key, c); }
@@ -173,17 +178,16 @@ async function loadBathymetryCells() {
 }
 
 /**
- * [DRYRUN] BADA 미존재 시 합성 셀 생성 — 파이프라인(연결성/앵커/Z₀) 로직 검증용.
- *   서해·남해 박스를 CELL_DEG 로 채우되, 가짜 수심을 "지어내지 않기 위해"
- *   depth=null 로 둔다(검증 목적임을 산출물에 synthetic:true 로 명시).
+ * [DRYRUN] BADA 미존재 시 합성 셀 생성 — 파이프라인(Z₀/드러남필터/버킷앵커) 검증용.
+ *   인천 인근 작은 sub-box 를 CELL_DEG(0.001 ≈ 100m) 로 채우되, 가짜 수심을
+ *   "지어내지 않기 위해" depth=null 로 둔다(검증 목적임을 synthetic:true 로 명시).
+ *   depth=null 셀은 드러남 필터를 통과시키므로(아래 main 참고) 버킷 앵커 검증이
+ *   가능하다. 박스가 여러 0.1° 버킷에 걸치도록 0.25°×0.25° 로 잡아 버킷 앵커가
+ *   복수(수개~수십 개) 나오는 것을 로그로 확인할 수 있게 한다.
  */
 function buildSyntheticCells() {
     const cells = new Map();
-    // 합성 모드는 CELL_DEG 해상도의 "연속" 격자를 만든다 (연결성/컴포넌트/물길
-    // BFS 가 현실처럼 빈틈 없이 동작하도록). 전 박스(약14만 셀)는 BFS-per-anchor
-    // 가 느리므로, 검증용으로 경기만~서해중부 작은 sub-box 만 채운다.
-    //   (실데이터에선 BADA 점이 있는 셀만 자연스럽게 채워져 육지가 제외됨)
-    const SYN_BOX = { lonMin: 126.0, lonMax: 126.8, latMin: 36.8, latMax: 37.6 };
+    const SYN_BOX = { lonMin: 126.45, lonMax: 126.70, latMin: 37.30, latMax: 37.55 };
     for (let lon = SYN_BOX.lonMin; lon <= SYN_BOX.lonMax; lon += CFG.CELL_DEG) {
         for (let lat = SYN_BOX.latMin; lat <= SYN_BOX.latMax; lat += CFG.CELL_DEG) {
             if (!C.isWestSouthSea(lat, lon)) continue;
@@ -193,239 +197,38 @@ function buildSyntheticCells() {
     return cells;
 }
 
-// ============================================================================
-// 3. 연결성 그래프 + 컴포넌트(물길) 라벨링
-// ============================================================================
-//
-// 이웃: 셀 중심간 거리가 CELL_DEG * NEIGHBOR_TOL_FACTOR 이하인 8방향 인접 셀.
-// 격자 인덱스 기반으로 (gx±1, gy±1) 후보만 검사하므로 O(N).
-
-function buildAdjacency(cellMap) {
-    const keys = Array.from(cellMap.keys());
-    const adj = new Map(); // key -> [neighborKey...]
-    for (const key of keys) {
-        const { gx, gy } = parseCellKey(key);
-        const nbrs = [];
-        for (let dx = -1; dx <= 1; dx++) {
-            for (let dy = -1; dy <= 1; dy++) {
-                if (dx === 0 && dy === 0) continue;
-                const nk = `${gx + dx}_${gy + dy}`;
-                if (cellMap.has(nk)) nbrs.push(nk);
-            }
-        }
-        adj.set(key, nbrs);
-    }
-    return adj;
-}
-
-/** 연결성 컴포넌트 라벨링 (BFS). key -> componentId */
-function labelComponents(cellMap, adj) {
-    const comp = new Map();
-    let cid = 0;
-    for (const key of cellMap.keys()) {
-        if (comp.has(key)) continue;
-        cid++;
-        const queue = [key];
-        comp.set(key, cid);
-        while (queue.length) {
-            const cur = queue.shift();
-            for (const nk of adj.get(cur) || []) {
-                if (!comp.has(nk)) { comp.set(nk, cid); queue.push(nk); }
-            }
-        }
-    }
-    return { comp, componentCount: cid };
-}
-
-// ============================================================================
-// 4. 물길거리 BFS (앵커 커버링·Z₀ IDW 입력)
-// ============================================================================
-//
-// 한 시작 셀에서 인접 셀로 BFS 하며 누적 물길거리(중심간 Haversine 합) 계산.
-// maxKm 를 넘으면 확장 중단. 반환: key -> waterwayKm.
-
-function waterwayBFS(startKey, cellMap, adj, maxKm) {
-    const dist = new Map();
-    dist.set(startKey, 0);
-    const start = cellCenterOf(startKey);
-    // 우선순위 없는 BFS 근사 (격자 균일 → 큰 오차 없음). 정확도가 더 필요하면
-    // Dijkstra 로 교체 가능(인터페이스 동일).
-    const queue = [startKey];
-    while (queue.length) {
-        const cur = queue.shift();
-        const curC = cellCenterOf(cur);
-        const curD = dist.get(cur);
-        for (const nk of adj.get(cur) || []) {
-            const nc = cellCenterOf(nk);
-            const step = C.haversineKm(curC.lat, curC.lon, nc.lat, nc.lon);
-            const nd = curD + step;
-            if (nd > maxKm) continue;
-            if (!dist.has(nk) || nd < dist.get(nk)) {
-                dist.set(nk, nd);
-                queue.push(nk);
-            }
-        }
-    }
-    return dist;
-}
 function cellCenterOf(key) {
     const { gx, gy } = parseCellKey(key);
     return cellCenter(gx, gy);
 }
 
 // ============================================================================
-// 5. 앵커 선정 (그리디 물길거리 커버링 + 컴포넌트별 최소 1개)
+// 3. Z₀ 필드 (표준항 MTL 을 "직선거리 IDW" 로 셀에 보간)
 // ============================================================================
 //
-// seed: 서해·남해 표준항을 가장 가까운 바다셀에 스냅. 그 셀이 앵커.
-// 그 후 "아직 ANCHOR_COVER_KM 물길 내 앵커가 없는 셀"이 있으면 그 중 하나를
-// 새 앵커로 추가하는 그리디. 컴포넌트마다 최소 1개 앵커 보장.
-//
-// [적응형 densification 훅] 후보점 IDW vs 실제값 잔차로 추가하는 단계는
-//   인터페이스만 마련(densifyHook). 1차는 10km 커버링으로 충분.
+// [설계] 물길 BFS 를 쓰지 않는다. 표준항 좌표(MTL 보유)에서 각 셀까지의 직선
+//   거리로 가까운 표준항 3~4개를 골라 1/d² 가중 평균. Z₀ 는 광역에서 완만히
+//   변하는 평균해면고라 직선거리 보간으로 충분하며, 격자 파편화·연결성과 무관.
 
-function nearestCellKey(lat, lon, cellMap) {
-    let best = null, bestD = Infinity;
-    // 격자 인덱스 근방부터 탐색 (정확 매칭 우선)
-    const k0 = cellKey(lat, lon);
-    if (cellMap.has(k0)) return k0;
-    // 근방 ±5 셀 박스 탐색
-    const { gx, gy } = parseCellKey(k0);
-    for (let dx = -5; dx <= 5; dx++) {
-        for (let dy = -5; dy <= 5; dy++) {
-            const nk = `${gx + dx}_${gy + dy}`;
-            if (!cellMap.has(nk)) continue;
-            const c = cellCenterOf(nk);
-            const d = C.haversineKm(lat, lon, c.lat, c.lon);
-            if (d < bestD) { bestD = d; best = nk; }
-        }
-    }
-    return best;
-}
-
-function selectAnchors(cellMap, adj, comp, stationsByCell, densifyHook) {
-    const anchors = []; // {id, cellKey, lon, lat, stationCode, stationName}
-    const anchorCellSet = new Set();
-    let aid = 0;
-
-    function addAnchor(cellK, station) {
-        if (anchorCellSet.has(cellK)) return;
-        const c = cellCenterOf(cellK);
-        aid++;
-        anchors.push({
-            id: 'A' + String(aid).padStart(4, '0'),
-            cellKey: cellK,
-            lon: +c.lon.toFixed(5),
-            lat: +c.lat.toFixed(5),
-            stationCode: station ? station.code : null,
-            stationName: station ? station.name : null,
-            componentId: comp.get(cellK) || null
-        });
-        anchorCellSet.add(cellK);
-    }
-
-    // ── seed: 표준항 → 가장 가까운 셀 ───────────────────────────────
+/** 표준항 MTL → seed 좌표 목록 [{lat, lon, z0_m}] */
+function buildStationZ0Seeds(stationMTL) {
+    const seeds = [];
     for (const st of C.getRegionStations()) {
-        const ck = nearestCellKey(st.lat, st.lon, cellMap);
-        if (ck) addAnchor(ck, st);
+        const m = stationMTL[st.code] || findMTLByName(stationMTL, st.name);
+        if (!m || m.mtl_cm == null) continue;
+        seeds.push({ lat: st.lat, lon: st.lon, z0_m: m.mtl_cm / 100 });
     }
-    log(`표준항 seed 앵커: ${anchors.length}개`);
-
-    // ── 컴포넌트별 최소 1개 보장 ─────────────────────────────────────
-    const coveredComponents = new Set(anchors.map(a => a.componentId));
-    const byComponent = new Map();
-    for (const key of cellMap.keys()) {
-        const cid = comp.get(key);
-        if (!byComponent.has(cid)) byComponent.set(cid, []);
-        byComponent.get(cid).push(key);
-    }
-    for (const [cid, keys] of byComponent) {
-        if (coveredComponents.has(cid)) continue;
-        // 컴포넌트 중심에 가까운 셀 하나를 앵커로
-        addAnchor(keys[Math.floor(keys.length / 2)], null);
-        coveredComponents.add(cid);
-    }
-    log(`컴포넌트 보장 후 앵커: ${anchors.length}개 (컴포넌트 ${byComponent.size}개)`);
-
-    // ── 그리디 커버링: 미커버 셀이 없을 때까지 ───────────────────────
-    // 각 앵커에서 BFS(ANCHOR_COVER_KM) 로 커버 집합 계산 → 합집합.
-    const covered = new Set();
-    function markCovered(cellK) {
-        const reach = waterwayBFS(cellK, cellMap, adj, CFG.ANCHOR_COVER_KM);
-        for (const k of reach.keys()) covered.add(k);
-    }
-    for (const a of anchors) markCovered(a.cellKey);
-
-    const allKeys = Array.from(cellMap.keys());
-    let guard = 0;
-    while (guard < 100000) {
-        guard++;
-        const uncovered = allKeys.find(k => !covered.has(k));
-        if (!uncovered) break;
-        addAnchor(uncovered, null);
-        markCovered(uncovered);
-    }
-    log(`그리디 커버링 후 앵커: ${anchors.length}개 (전 셀 ${allKeys.length} 커버 완료)`);
-
-    // ── 적응형 densification 훅 (1차 미사용) ─────────────────────────
-    if (typeof densifyHook === 'function') {
-        try { densifyHook({ anchors, addAnchor, cellMap, adj, comp }); }
-        catch (e) { warn('densifyHook 오류(무시):', e.message); }
-    }
-
-    return anchors;
+    return seeds;
 }
 
-// ============================================================================
-// 6. Z₀ 필드 (표준항 MTL 을 물길거리 IDW 로 셀/앵커에 보간)
-// ============================================================================
-//
-// 표준항 셀(seed 앵커 중 stationCode 보유) 에 MTL(m) 을 부여한 뒤, 각 셀에서
-// 가까운 표준항 셀들로 물길거리 IDW. 물길로 닿지 않으면(다른 컴포넌트) 직선거리
-// fallback (희소 컴포넌트 방어).
-
-function buildZ0Field(cellMap, adj, anchors, stationMTL) {
-    // 표준항 셀: anchor.stationCode → MTL(m)
-    const stationCells = []; // {cellKey, lat, lon, z0_m}
-    for (const a of anchors) {
-        if (!a.stationCode) continue;
-        const m = stationMTL[a.stationCode] || findMTLByName(stationMTL, a.stationName);
-        if (!m || m.mtl_cm == null) continue;
-        stationCells.push({ cellKey: a.cellKey, lat: a.lat, lon: a.lon, z0_m: m.mtl_cm / 100 });
-    }
-    if (stationCells.length === 0) {
-        warn('Z₀ seed(표준항 MTL) 0개 — Z₀ 보간 불가. (조석표 미로드?)');
-        return new Map();
-    }
-    log(`Z₀ seed 표준항 셀: ${stationCells.length}개`);
-
-    // 각 표준항 셀에서 BFS(INTERP_MAX_WATERWAY_KM*2) 로 물길거리 사전 계산
-    const stationReach = stationCells.map(sc => ({
-        sc,
-        reach: waterwayBFS(sc.cellKey, cellMap, adj, CFG.INTERP_MAX_WATERWAY_KM * 2)
-    }));
-
-    const z0ByCell = new Map();
-    for (const key of cellMap.keys()) {
-        // 물길로 닿는 표준항만 IDW
-        const contrib = [];
-        for (const { sc, reach } of stationReach) {
-            if (reach.has(key)) contrib.push({ d: reach.get(key), z0: sc.z0_m });
-        }
-        let z0;
-        if (contrib.length > 0) {
-            z0 = idw(contrib);
-        } else {
-            // fallback: 직선거리 IDW (최근접 3 표준항)
-            const c = cellCenterOf(key);
-            const lin = stationCells
-                .map(sc => ({ d: C.haversineKm(c.lat, c.lon, sc.lat, sc.lon), z0: sc.z0_m }))
-                .sort((a, b) => a.d - b.d).slice(0, 3);
-            z0 = idw(lin);
-        }
-        z0ByCell.set(key, z0);
-    }
-    return z0ByCell;
+/** 한 지점(lat,lon) 의 Z₀ 를 직선거리 IDW(최근접 INTERP_MAX_ANCHORS개) 로 계산 */
+function z0AtPoint(lat, lon, seeds) {
+    if (!seeds || seeds.length === 0) return null;
+    const near = seeds
+        .map(s => ({ d: C.haversineKm(lat, lon, s.lat, s.lon), z0: s.z0_m }))
+        .sort((a, b) => a.d - b.d)
+        .slice(0, CFG.INTERP_MAX_ANCHORS);
+    return idw(near);
 }
 
 function findMTLByName(stationMTL, name) {
@@ -440,10 +243,59 @@ function findMTLByName(stationMTL, name) {
 function idw(contrib) {
     let wsum = 0, vsum = 0;
     for (const { d, z0 } of contrib) {
+        if (z0 == null) continue;
         const w = d < 0.1 ? 1e6 : 1 / (d * d);
         wsum += w; vsum += w * z0;
     }
     return wsum > 0 ? vsum / wsum : null;
+}
+
+// ============================================================================
+// 4. 버킷 앵커 생성 (폭발 불가 — 연결성 그래프와 무관)
+// ============================================================================
+//
+// [설계] 드러남 후보 셀을 ANCHOR_BUCKET_DEG(0.1° ≈ 10km) 격자 버킷으로 묶고,
+//   버킷마다 대표 1개(버킷 내 수심이 가장 깊은 셀 = TideBED 격자 제공 가능성↑)를
+//   앵커로 삼는다. 앵커 수 = 드러남 셀이 있는 버킷 수 ≈ 수백 개(해안 연장 비례).
+//   격자가 5만 조각으로 파편화돼도 버킷 수는 변하지 않으므로 폭발하지 않는다.
+//
+// @param dryCells [{key, lat, lon, depth, z0}]  드러남 후보 셀 배열
+// @param seeds Z₀ seed (앵커 z0 계산용)
+// @returns [{id, lon, lat, stationCode:null, stationName:null, componentId:null, z0_m}]
+function buildBucketAnchors(dryCells, seeds) {
+    const B = CFG.ANCHOR_BUCKET_DEG;
+    const buckets = new Map(); // bucketKey -> best cell
+    for (const cell of dryCells) {
+        const bx = Math.floor(cell.lon / B);
+        const by = Math.floor(cell.lat / B);
+        const bk = `${bx}_${by}`;
+        const prev = buckets.get(bk);
+        // 대표 선정: depth 가 가장 깊은(큰) 셀. depth=null(합성)은 0 으로 취급.
+        const score = cell.depth == null ? 0 : cell.depth;
+        if (!prev || score > prev._score) {
+            buckets.set(bk, Object.assign({}, cell, { _score: score, _bucket: bk }));
+        }
+    }
+
+    // 버킷키 정렬로 결정적(deterministic) id 부여
+    const bkeys = Array.from(buckets.keys()).sort();
+    const anchors = [];
+    let aid = 0;
+    for (const bk of bkeys) {
+        const cell = buckets.get(bk);
+        aid++;
+        anchors.push({
+            id: 'A' + String(aid).padStart(4, '0'),
+            bucket: bk,
+            lon: +cell.lon.toFixed(5),
+            lat: +cell.lat.toFixed(5),
+            stationCode: null,
+            stationName: null,
+            componentId: null,
+            z0_m: round3(cell.z0 != null ? cell.z0 : z0AtPoint(cell.lat, cell.lon, seeds))
+        });
+    }
+    return anchors;
 }
 
 // ============================================================================
@@ -494,41 +346,45 @@ async function main() {
         for (const [k] of cellMap) m.set(k, { depth: null, synthetic: true });
         cellMap = m;
     }
-    log(`예측 셀: ${cellMap.size}개 (CELL_DEG=${CFG.CELL_DEG})`);
+    log(`로드 셀(얕은 연안, 수심≤${CFG.SHALLOW_MAX_M}m): ${cellMap.size}개 (CELL_DEG=${CFG.CELL_DEG})`);
 
-    // ── (3) 연결성/컴포넌트 ──────────────────────────────────────────
-    const adj = buildAdjacency(cellMap);
-    const { comp, componentCount } = labelComponents(cellMap, adj);
-    log(`연결성 컴포넌트: ${componentCount}개`);
-
-    // ── (4) 앵커 선정 ────────────────────────────────────────────────
-    const anchors = selectAnchors(cellMap, adj, comp, null, null /* densifyHook 1차 미사용 */);
-
-    // ── (5) Z₀ 필드 ─────────────────────────────────────────────────
-    const z0ByCell = buildZ0Field(cellMap, adj, anchors, stationMTL);
-
-    // ── 앵커에 Z₀ 부여 ───────────────────────────────────────────────
-    for (const a of anchors) {
-        a.z0_m = z0ByCell.has(a.cellKey) ? round3(z0ByCell.get(a.cellKey)) : null;
+    // ── (3) Z₀ 필드 (직선거리 IDW) ───────────────────────────────────
+    const z0Seeds = buildStationZ0Seeds(stationMTL);
+    log(`Z₀ seed 표준항: ${z0Seeds.length}개`);
+    if (z0Seeds.length === 0) {
+        warn('Z₀ seed(표준항 MTL) 0개 — z0 보간 불가(조석표 미로드). 모든 셀 z0=null.');
     }
 
-    // ── 셀 배열 직렬화 ───────────────────────────────────────────────
-    const cellArr = [];
+    // ── (4) 드러남 가능 셀 필터 ──────────────────────────────────────
+    //   조건: depth != null && z0 != null && depth < z0 + DRY_MARGIN_M
+    //   (합성 DRYRUN: depth=null 은 통과시켜 파이프라인을 검증한다)
+    const dryCells = [];
     for (const [key, v] of cellMap) {
         const c = cellCenterOf(key);
-        cellArr.push({
+        const z0 = z0AtPoint(c.lat, c.lon, z0Seeds);
+        const depth = v.depth == null ? null : round3(v.depth);
+        const pass = synthetic
+            ? true                              // 합성: depth=null → 검증용 통과
+            : (depth != null && z0 != null && depth < z0 + CFG.DRY_MARGIN_M);
+        if (!pass) continue;
+        dryCells.push({
             key,
             lon: +c.lon.toFixed(5),
             lat: +c.lat.toFixed(5),
-            depth: v.depth == null ? null : round3(v.depth),
-            z0: z0ByCell.has(key) ? round3(z0ByCell.get(key)) : null,
-            comp: comp.get(key) || null
+            depth,
+            z0: round3(z0),
+            comp: null
         });
     }
+    log(`예측(드러남) 셀: ${dryCells.length}개`);
 
-    writeOutputs(cellArr, anchors, {
+    // ── (5) 버킷 앵커 생성 (폭발 불가) ───────────────────────────────
+    const anchors = buildBucketAnchors(dryCells, z0Seeds);
+    log(`앵커(버킷): ${anchors.length}개 (버킷=${CFG.ANCHOR_BUCKET_DEG}°≈10km, 드러남 셀이 있는 버킷마다 1개)`);
+
+    writeOutputs(dryCells, anchors, {
         year, fileCount, synthetic, empty: false,
-        componentCount, cellDeg: CFG.CELL_DEG
+        cellDeg: CFG.CELL_DEG
     });
     log('완료.');
 }
@@ -543,6 +399,7 @@ function writeOutputs(cellArr, anchors, meta) {
         generated_at: new Date().toISOString(),
         region_bbox: C.REGION_BBOX,
         cell_deg: CFG.CELL_DEG,
+        build_version: CFG.BUILD_VERSION,
         step_minutes: CFG.STEP_MINUTES,
         window_days: CFG.WINDOW_DAYS,
         physics: {
@@ -562,8 +419,9 @@ function writeOutputs(cellArr, anchors, meta) {
         count: anchors.length,
         anchors: anchors.map(a => ({
             id: a.id, lon: a.lon, lat: a.lat,
-            stationCode: a.stationCode, stationName: a.stationName,
-            componentId: a.componentId, z0_m: a.z0_m
+            bucket: a.bucket || null,
+            stationCode: a.stationCode || null, stationName: a.stationName || null,
+            componentId: a.componentId || null, z0_m: a.z0_m
         }))
     }, null, 2), 'utf8');
     log(`저장: ${C.GRID_META_PATH} (셀 ${cellArr.length}, 앵커 ${anchors.length})`);
