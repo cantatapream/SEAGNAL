@@ -224,7 +224,6 @@ app.use(require('./routes/ocean2'));        // ROMS 격자/저질 API
 app.use(require('./routes/ocean3'));        // 해양현황 날씨/바람 API (zone_forecasts 기반)
 app.use(require('./routes/ocean4'));        // 해양현황 파고/zone-forecasts 오버레이 API
 app.use(require('./routes/ocean5'));        // 해저지형/기타 해양 API
-app.use(require('./routes/tide_field'));    // 서해·남해 물빠짐(갯벌 노출) 예측 API (Phase 2)
 app.use(require('./routes/assistant'));     // AI 음성/텍스트 비서 (자연어 질문 → 실데이터 답변)
 
 // ============================================================================
@@ -353,29 +352,6 @@ app.listen(PORT, '0.0.0.0', () => {
             }
         } catch (e) {
             console.error('[startup] CCTV 초기수집 트리거 실패:', e && e.message);
-        }
-
-        // ====================================================================
-        // [물빠짐 예측] 배포/기동 시 자동 부트스트랩 (Fly 운영 환경 한정)
-        // --------------------------------------------------------------------
-        //   - grid_meta/anchors 없으면 Phase 0 전처리(BADA→격자/앵커/Z₀) 1회 실행.
-        //   - 이어서 롤링 윈도우(오늘~+2일, KST) 곡선 수집. 곡선 캐시는 Fly 영속
-        //     볼륨에 저장되므로, 재배포·머지해도 부족분만 받고 나머지는 스킵.
-        //     (collectTideField 내부 in-progress 락으로 scheduler 23:30 과 중복 방지)
-        //   - fire-and-forget — 서버 기동/응답을 막지 않음.
-        //   - 로컬/개발(FLY_ALLOC_ID 미설정)에서는 자동 실행하지 않는다(라이브
-        //     TideBED 호출·쿼터 보호). 로컬은 npm run build-tide-field + 수동 수집.
-        // ====================================================================
-        if (process.env.FLY_ALLOC_ID) {
-            try {
-                const tideFieldCollector = require('./services/tide_field_collector');
-                console.log('🌊 [startup] 물빠짐 예측 부트스트랩 시작 (전처리 보장 → 롤링 수집)...');
-                Promise.resolve(tideFieldCollector.bootstrapTideField())
-                    .then(r => console.log(`🌊 [startup] 물빠짐 부트스트랩 결과: ${JSON.stringify(r)}`))
-                    .catch(err => console.error('[startup] 물빠짐 부트스트랩 실패:', err && err.message));
-            } catch (e) {
-                console.error('[startup] 물빠짐 부트스트랩 트리거 실패:', e && e.message);
-            }
         }
 
         // ====================================================================
