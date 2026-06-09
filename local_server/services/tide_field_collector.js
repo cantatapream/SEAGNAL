@@ -211,7 +211,54 @@ async function runPool(tasks, concurrency, worker) {
 }
 
 // ============================================================================
-// 메인: 롤링 윈도우 수집
+// 중복 실행 락 + 부트스트랩 (배포/기동 시 자동 수집)
+// ============================================================================
+// 부팅 부트스트랩과 scheduler(KST 23:30) 가 겹쳐도 같은 곡선을 두 번 받지
+// 않도록 모듈 단위 in-progress 락으로 직렬화한다. 진행 중이면 즉시 반환.
+let _running = false;
+
+/**
+ * grid_meta/anchors 준비 여부를 확인하고, 비어 있으면 Phase 0 전처리
+ * (build_tide_field.main)를 1회 실행해 생성한다.
+ *   - 이미 앵커가 있으면 재빌드하지 않음 → 재배포 시 빌드 스킵.
+ *   - BADA 실데이터가 없으면 build 가 빈 메타를 남기고 graceful 종료(앵커 0)
+ *     → 본 함수는 false 반환(수집 skip). 로컬/데이터 부재 환경에서 안전.
+ * @returns {Promise<boolean>} 앵커가 준비됐으면 true
+ */
+async function ensureBuilt(opts = {}) {
+    const log = opts.log || ((...a) => console.log('[tide_field]', ...a));
+    const existing = loadAnchors();
+    if (existing && existing.length > 0) return true; // 이미 준비됨 → 재빌드 skip
+
+    log('grid_meta/anchors 미준비 — Phase 0 전처리(build_tide_field) 1회 실행...');
+    try {
+        const builder = require('../scripts/build_tide_field');
+        await builder.main({ log });
+    } catch (e) {
+        log(`⚠️ 전처리 실행 실패: ${e && e.message}`);
+        return false;
+    }
+    const after = loadAnchors();
+    const ok = !!(after && after.length > 0);
+    if (!ok) log('전처리 후에도 앵커 없음 (BADA 수심 데이터 부재 가능) — 수집 skip');
+    return ok;
+}
+
+/**
+ * 배포/서버 기동 시 1회 자동 실행: 전처리 보장 → 롤링 윈도우 수집.
+ *   - 곡선 캐시가 이미 있으면 collectTideField 가 부족분만 받으므로 재배포 시
+ *     사실상 no-op (캐시는 Fly 영속 볼륨에 저장되어 재배포 후에도 유지됨).
+ *   - fire-and-forget 로 호출할 것(서버 기동 비차단). 내부 동시성 5앵커 제한.
+ */
+async function bootstrapTideField(opts = {}) {
+    const log = opts.log || ((...a) => console.log('[tide_field]', ...a));
+    const built = await ensureBuilt({ log });
+    if (!built) return { ok: false, reason: 'not_built' };
+    return collectTideField({ ...opts, log });
+}
+
+// ============================================================================
+// 메인: 롤링 윈도우 수집 (중복 실행 락 래퍼)
 // ============================================================================
 /**
  * @param {Object} opts
@@ -222,6 +269,20 @@ async function runPool(tasks, concurrency, worker) {
  *   - log: 로거 (기본 console.log)
  */
 async function collectTideField(opts = {}) {
+    const log = opts.log || ((...a) => console.log('[tide_field_collector]', ...a));
+    if (_running) {
+        log('이미 수집이 진행 중 — 중복 실행 skip');
+        return { ok: true, skipped: 'already_running' };
+    }
+    _running = true;
+    try {
+        return await _collectTideFieldInner(opts);
+    } finally {
+        _running = false;
+    }
+}
+
+async function _collectTideFieldInner(opts = {}) {
     const log = opts.log || ((...a) => console.log('[tide_field_collector]', ...a));
     const anchors = loadAnchors();
     if (!anchors || anchors.length === 0) {
@@ -265,6 +326,8 @@ async function collectTideField(opts = {}) {
 
 module.exports = {
     collectTideField,
+    bootstrapTideField,
+    ensureBuilt,
     // 테스트/라우트용 보조 export
     windowDatesKST, isoDateOf, curvePath, isComplete, loadAnchors, collectOne
 };
