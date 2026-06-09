@@ -44,7 +44,9 @@ function analyze(gifBuf, opt = {}) {
     //  - 범례: 오른쪽 ~8% 컬럼 제외
     //  - 캡션: 하단 ~10% 행 제외. 캡션 텍스트는 매 프레임 내용이 달라 RGB 불변
     //    마스크로 못 잡으므로 크롭으로 제거(빨강·분홍 글자가 ≥4.5m 로 오분류되던 주범).
-    const xMax = Math.floor(w * 0.92);
+    // 범례 색상막대가 시작되는 우측 가장자리를 확실히 배제(0.92 는 범례 좌측 가장자리
+    //   몇 컬럼이 누수되어 잔여 빨강이 ≥5m 로 오분류됨 — frame-box 검증으로 확인).
+    const xMax = Math.floor(w * 0.91);
     const yMax = h - Math.max(0, opt.cropBottom != null ? opt.cropBottom : Math.floor(h * 0.10));
 
     const hist = new Map();
