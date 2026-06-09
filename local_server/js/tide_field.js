@@ -95,8 +95,8 @@
     // 물빠짐은 아직 테스트 기능이라, 버튼은 보이되 비활성(회색) 상태로 두고
     // 10회 클릭하면 활성화한다. 활성화 상태는 localStorage 에 저장되어 한 번
     // 풀면 유지된다(진행 중 클릭 수도 저장 → 새로고침해도 누적 유지).
-    var UNLOCK_KEY = 'tide_field_unlock_v1';
-    var CLICK_KEY = 'tide_field_click_v1';
+    var UNLOCK_KEY = 'tide_field_unlock_v2';
+    var CLICK_KEY = 'tide_field_click_v2';
     var UNLOCK_CLICKS = 10;
 
     function isUnlocked() {
