@@ -256,6 +256,10 @@
                     if (typeof window._shrtForecastDeactivate === 'function') {
                         try { window._shrtForecastDeactivate(); } catch (e) {}
                     }
+                    // [Mutual Exclusion] 시정예측 raster 가 활성 상태면 끔
+                    if (typeof window._vsbyForecastDeactivate === 'function') {
+                        try { window._vsbyForecastDeactivate(); } catch (e) {}
+                    }
                     streamActive = true;
                     document.querySelectorAll('.ocean-overlay-btn[data-layer]').forEach(function (b) {
                         b.classList.remove('active');
@@ -377,6 +381,13 @@
      * - ON 상태이면: 파티클 애니메이션 중단 → 캔버스 초기화 → 버튼 active 해제 → 통합박스 숨김
      */
     window.oceanOverlayTurnOff = function () {
+        // [Mutual Exclusion] 시정예측 raster 가 활성 상태면 함께 끔.
+        //   천기(shrt) activate 가 이 함수를 호출하므로, 천기 ON 시 시정예측이 꺼진다.
+        //   시정예측 activate 도 이 함수를 호출하지만 그 시점엔 state.active 가 아직
+        //   false 라 _vsbyForecastDeactivate 는 no-op (자기 자신 끄기 방지).
+        if (typeof window._vsbyForecastDeactivate === 'function') {
+            try { window._vsbyForecastDeactivate(); } catch (e) {}
+        }
         if (!streamActive) return; // 이미 꺼진 상태면 불필요
         streamActive = false;
         activeLayer = null;
