@@ -60,6 +60,9 @@ window.getMarineZoneData = async function (zoneId) {
         isSmallZone = true;
     }
 
+    // [시정] MMIS 해구별 시정예측을 병렬로 미리 요청 (천기와 동일: 클라이언트 직접 fetch)
+    const visPromise = fetchZoneVisibility(zoneId);
+
     try {
         // ============================================================
         // [성능 최적화 — 4순위] 단일 해구 라우트 사용
@@ -87,11 +90,19 @@ window.getMarineZoneData = async function (zoneId) {
         const zoneData = json.data && json.data[lZone];
 
         if (zoneData && zoneData.length > 0) {
-            // displayTime 추가
-            const formattedData = zoneData.map(item => ({
-                ...item,
-                displayTime: formatMarineTime(item.tm)
-            }));
+            // 시정 시계열 수신 대기 (실패해도 빈 맵 → 표는 정상 표출)
+            const visMap = await visPromise;
+            if (requestId !== window._marineZoneRequestId) return;
+
+            // displayTime + 시정(vs) 병합 — visMap 은 UTC키, item.tm 도 UTC 라 직접 조회
+            const formattedData = zoneData.map(item => {
+                const vs = visMap[item.tm];
+                return {
+                    ...item,
+                    displayTime: formatMarineTime(item.tm),
+                    vs: (typeof vs === 'number') ? vs : null
+                };
+            });
             formattedData.baseTime = json.baseTmUtf;
 
             showMarineZoneModal(zoneId, formattedData, false, null, json.baseTmUtf);
@@ -158,6 +169,53 @@ function formatMarineTime(tm) {
     const dd = tm.substring(6, 8);
     const hh = tm.substring(8, 10);
     return `${mm}.${dd} ${hh}시`;
+}
+
+// ============================================================
+// 🌫️ 해구 시정(視程) — MMIS 해구별 시정예측
+//   천기 기능과 동일한 방식: 서버 수집 없이 클라이언트가 MMIS 를 직접 fetch.
+//   GET /mmis_marine_api/v1/kma/fct/netcdf/small-area/latlon/data/detail?lat&lon
+//     응답 payload.marine_zone[]: { fctTm:"YYYY.MM.DD HH:00"(KST), vs:시정(km), ... }
+//   매칭: 우리 zone tm 은 UTC("YYYYMMDDHH"), MMIS fctTm 은 KST → UTC 로 환산해 키 매칭.
+//   (TZ 검증: detail baseTm "..21:00"(KST) == mdl_data_prdct_time "..12:00+00:00"(UTC) → KST 확정)
+// ============================================================
+const MMIS_VS_DETAIL_URL = 'https://marine.kma.go.kr/mmis_marine_api/v1/kma/fct/netcdf/small-area/latlon/data/detail';
+
+// "2026.06.09 12:00"(KST) → "2026060903"(UTC YYYYMMDDHH) — zone tm 과 비교용 키
+function _mmisFctTmToUtcKey(fctTm) {
+    const m = String(fctTm || '').match(/(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/);
+    if (!m) return null;
+    const utc = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) - 9 * 3600 * 1000);
+    const p = n => String(n).padStart(2, '0');
+    return `${utc.getUTCFullYear()}${p(utc.getUTCMonth() + 1)}${p(utc.getUTCDate())}${p(utc.getUTCHours())}`;
+}
+
+// 해구 중심좌표로 시정 시계열을 받아 { UTC키 → vs(km) } 맵 반환. 실패 시 빈 맵(부가정보이므로 표는 유지).
+async function fetchZoneVisibility(zoneId) {
+    const out = {};
+    try {
+        const coords = getZoneCoordinatesByZoneId(zoneId);
+        if (!coords || coords.lat == null || coords.lon == null) return out;
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 6000);
+        const url = `${MMIS_VS_DETAIL_URL}?lat=${encodeURIComponent(coords.lat)}&lon=${encodeURIComponent(coords.lon)}`;
+        let r;
+        try {
+            r = await fetch(url, { credentials: 'omit', signal: ctrl.signal });
+        } finally {
+            clearTimeout(timer);
+        }
+        if (!r || !r.ok) return out;
+        const j = await r.json();
+        const arr = (j && j.payload && j.payload.marine_zone) || [];
+        arr.forEach(e => {
+            const key = _mmisFctTmToUtcKey(e.fctTm);
+            if (key && e.vs != null && !isNaN(e.vs)) out[key] = Number(e.vs);
+        });
+    } catch (e) {
+        // 시정은 부가정보 — 실패해도 기존 풍향/풍속/파고 표는 그대로 표출
+    }
+    return out;
 }
 
 // 현재 표시 중인 해구 정보 (Windy 연동용)
@@ -725,6 +783,22 @@ function showMarineZoneModal(zoneId, data, isLoading, errorMessage, baseTime = n
     });
     tableHTML += '</tr>';
 
+    // 행 7: 시정 (MMIS 해구별 시정예측) — 시정 값이 하나라도 있을 때만 표출
+    const _hasVis = data.some(r => typeof r.vs === 'number');
+    if (_hasVis) {
+        tableHTML += '<tr style="background:#1e1e1e; border-top:1px solid #333;">';
+        tableHTML += '<th style="padding:4px 8px; border:1px solid #333; text-align:center; position:sticky; left:0; background:#2c3e50; z-index:1; color:#ffd54f; font-size:10px;"> 시정<br><span style="font-size:9px; font-weight:normal; color:#888;">(km)</span></th>';
+        data.forEach(row => {
+            if (typeof row.vs === 'number') {
+                const color = getMarineVisibilityColor(row.vs);
+                tableHTML += `<td style="${cellStyle} color:${color}; font-weight:bold; font-size:11px;">${row.vs.toFixed(1)}</td>`;
+            } else {
+                tableHTML += `<td style="${cellStyle} color:#555; font-size:11px;">-</td>`;
+            }
+        });
+        tableHTML += '</tr>';
+    }
+
     tableHTML += '</tbody></table></div>';
 
     // 스크롤 안내 메시지 (가운데 정렬)
@@ -753,6 +827,13 @@ function getMarineWaveColor(wh) {
     if (wh >= 3.0) return '#ff5252';
     if (wh >= 1.5) return '#ffb74d';
     return '#81c784';
+}
+
+// 시정 색상 (km) — 낮을수록 위험(안개). 항해 가시거리 기준.
+function getMarineVisibilityColor(vs) {
+    if (vs < 1) return '#ff5252';   // 1km 미만: 짙은 안개 (위험)
+    if (vs < 3) return '#ffb74d';   // 3km 미만: 안개 (주의)
+    return '#81c784';               // 양호
 }
 
 // Chart.js 렌더링
