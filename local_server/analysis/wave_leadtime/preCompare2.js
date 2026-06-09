@@ -3,7 +3,7 @@
  *
  * data/pre_windtyphoon.json (풍랑/태풍 예비특보: tmFcMs, areas[]) 와
  * 실제 풍랑 발효 이벤트를 '해역 겹침 + 168h 내'로 매칭해 KMA 예비특보 첫발표 선행을 구하고,
- * 우리 검출 리드(Lmax,≤72h)와 비교.
+ * 우리 검출 리드(Lmax,≤96h(예보지평한계))와 비교.
  */
 'use strict';
 const fs = require('fs'), path = require('path');
@@ -58,9 +58,9 @@ md += `## 데이터\n- 풍랑/태풍 예비특보(전국): ${pre.length}건\n- �
 md += `## 결과\n`;
 md += `- 발효 중 직전 168h 내 '풍랑/태풍 예비특보(해역일치)' 존재: **${hasPre}건 (${(hasPre / evTimes.length * 100).toFixed(0)}%)**\n`;
 md += `- 기상청 풍랑/태풍 예비특보 **첫 발표 선행 중앙값: ${med(preLeads) != null ? med(preLeads).toFixed(0) : '-'}시간**\n\n`;
-md += `### 우리 검출(Lmax,≤72h) vs 풍랑/태풍 예비특보 첫발표 (둘 다 있는 ${both}건)\n`;
+md += `### 우리 검출(Lmax,≤96h(예보지평한계)) vs 풍랑/태풍 예비특보 첫발표 (둘 다 있는 ${both}건)\n`;
 md += `- 우리가 더 이르거나 동시: **${both ? (weEarlier / both * 100).toFixed(0) : '-'}%** (${weEarlier}/${both})\n`;
 md += `- (우리 Lmax − 예비특보 첫발표) 중앙값: **${med(diffs) != null ? med(diffs).toFixed(0) : '-'}시간**\n`;
-md += `\n> 우리 리드 72h 상한 → 예비특보 72h+ 전이면 불리 집계(보수적). 즉 실제 우위는 이 값 이상.\n`;
+md += `\n> 우리 리드 ~96h 상한(예보지평) → 예비특보 72h+ 전이면 불리 집계(보수적). 즉 실제 우위는 이 값 이상.\n`;
 fs.writeFileSync(path.join(DIR, 'reports', 'PRE_windtyphoon_compare.md'), md);
 console.log(md);
