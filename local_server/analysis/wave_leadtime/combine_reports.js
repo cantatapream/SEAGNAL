@@ -11,11 +11,14 @@ const CODE_NAME = { jeju: '제주청', busn: '부산청', gwju: '광주청', deg
 
 // 청코드+신호별 최신 json
 function latest() {
-    const files = fs.readdirSync(OUT).filter((f) => /^leadtime_[a-z]+_(wave|wind)_.*\.json$/.test(f));
+    // 파고 파일은 신호추가 前 배치라 옛 이름(leadtime_<code>_<stamp>.json)일 수 있음 → wave 로 간주.
+    const files = fs.readdirSync(OUT).filter((f) => /^leadtime_[a-z]+_.*\.json$/.test(f) && !/SUMMARY/.test(f));
     const pick = {}; // pick[code][signal] = file
     for (const f of files) {
-        const m = f.match(/^leadtime_([a-z]+)_(wave|wind)_/);
-        const [, code, sig] = m;
+        let m = f.match(/^leadtime_([a-z]+)_(wave|wind)_/);
+        let code, sig;
+        if (m) { code = m[1]; sig = m[2]; }
+        else { const m2 = f.match(/^leadtime_([a-z]+)_/); if (!m2) continue; code = m2[1]; sig = 'wave'; }
         pick[code] = pick[code] || {};
         if (!pick[code][sig] || f > pick[code][sig]) pick[code][sig] = f;
     }
