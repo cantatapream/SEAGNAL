@@ -90,12 +90,66 @@
     }
 
     // ====================================================================
-    // 토글 버튼
+    // 토글 버튼 (테스트 단계: 비활성 표시 + 10회 클릭 시 활성화)
     // ====================================================================
+    // 물빠짐은 아직 테스트 기능이라, 버튼은 보이되 비활성(회색) 상태로 두고
+    // 10회 클릭하면 활성화한다. 활성화 상태는 localStorage 에 저장되어 한 번
+    // 풀면 유지된다(진행 중 클릭 수도 저장 → 새로고침해도 누적 유지).
+    var UNLOCK_KEY = 'tide_field_unlock_v1';
+    var CLICK_KEY = 'tide_field_click_v1';
+    var UNLOCK_CLICKS = 10;
+
+    function isUnlocked() {
+        try { return localStorage.getItem(UNLOCK_KEY) === '1'; } catch (e) { return false; }
+    }
+    function setUnlocked() {
+        try { localStorage.setItem(UNLOCK_KEY, '1'); } catch (e) {}
+    }
+    function getUnlockClicks() {
+        try { return parseInt(localStorage.getItem(CLICK_KEY) || '0', 10) || 0; } catch (e) { return 0; }
+    }
+    function setUnlockClicks(n) {
+        try { localStorage.setItem(CLICK_KEY, String(n)); } catch (e) {}
+    }
+
+    // 잠금(비활성) 외형 적용/해제 — 회색 처리하되 클릭은 계속 받는다.
+    function applyLockedLook(btn, locked) {
+        if (!btn) return;
+        if (locked) {
+            btn.classList.add('ocean-overlay-btn--locked');
+            btn.style.opacity = '0.45';
+            btn.style.filter = 'grayscale(1)';
+            btn.title = '물빠짐 (테스트 — 비활성화 상태)';
+        } else {
+            btn.classList.remove('ocean-overlay-btn--locked');
+            btn.style.opacity = '';
+            btn.style.filter = '';
+            btn.title = '물빠짐 (서해·남해 갯벌 노출)';
+        }
+    }
+
     function bindToggle() {
         var btn = $('ocean-mudflat-toggle-btn');
         if (!btn) return;
+
+        applyLockedLook(btn, !isUnlocked());
+
         btn.addEventListener('click', function () {
+            // [테스트 게이트] 잠금 상태면 토글하지 않고 클릭 수만 누적, 10회에 해제.
+            if (!isUnlocked()) {
+                var n = getUnlockClicks() + 1;
+                setUnlockClicks(n);
+                if (n >= UNLOCK_CLICKS) {
+                    setUnlocked();
+                    applyLockedLook(btn, false);
+                    toast('물빠짐 기능이 활성화되었습니다.');
+                    activate(); // 해제 직후 바로 표출
+                } else {
+                    toast('물빠짐 활성화까지 ' + (UNLOCK_CLICKS - n) + '회 남았습니다.');
+                }
+                return;
+            }
+            // 잠금 해제됨: 정상 토글
             if (_active) deactivate();
             else activate();
         });
