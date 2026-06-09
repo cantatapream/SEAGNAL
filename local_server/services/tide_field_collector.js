@@ -345,9 +345,15 @@ async function _collectTideFieldInner(opts = {}) {
     }
 
     const t0 = Date.now();
-    const { results, aborted } = await runPool(tasks, CONCURRENCY, (task) =>
-        collectOne(task.anchor, task.date, { verifyGrid: opts.verifyGrid })
-    );
+    const total = tasks.length;
+    let progress = 0;
+    const { results, aborted } = await runPool(tasks, CONCURRENCY, async (task) => {
+        progress++;
+        log(`▶ [${progress}/${total}] 앵커 ${task.anchor.id} (${task.anchor.lat.toFixed(3)},${task.anchor.lon.toFixed(3)}) 날짜 ${task.date} 수집 중...`);
+        const r = await collectOne(task.anchor, task.date, { verifyGrid: opts.verifyGrid });
+        log(`  ↳ [${progress}/${total}] → ${r.status}${r.count != null ? ` (${r.count}분)` : ''}`);
+        return r;
+    });
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
 
     const byStatus = {};
@@ -366,10 +372,38 @@ async function _collectTideFieldInner(opts = {}) {
     return { ok: true, collected: done, total: tasks.length, aborted, elapsedSec: +elapsed, byStatus };
 }
 
+/**
+ * 수집 진행 현황 (경량 — readdir 1회). 라우트 /api/tide-field/status 용.
+ *   collected = 현재 윈도우(오늘~+2일) 날짜의 곡선 파일 수(완전/부분/no_grid 포함 근사).
+ *   total = 앵커수 × 날짜수. running = 수집 진행 중 여부.
+ */
+function getStatus() {
+    const anchors = loadAnchors() || [];
+    const dates = windowDatesKST(CFG.WINDOW_DAYS);
+    const total = anchors.length * dates.length;
+    const dateSet = new Set(dates.map(String));
+    let files = [];
+    try { files = fs.readdirSync(C.CURVES_DIR); } catch (e) { /* 폴더 없음 */ }
+    const collected = files.filter(f => {
+        const m = f.match(/_(\d{8})\.json$/);
+        return m && dateSet.has(m[1]);
+    }).length;
+    return {
+        running: _running,
+        anchors: anchors.length,
+        windowDays: dates.length,
+        total,
+        collected: Math.min(collected, total),
+        remaining: Math.max(0, total - collected),
+        percent: total > 0 ? Math.round((Math.min(collected, total) / total) * 1000) / 10 : 0
+    };
+}
+
 module.exports = {
     collectTideField,
     bootstrapTideField,
     ensureBuilt,
+    getStatus,
     // 테스트/라우트용 보조 export
     windowDatesKST, isoDateOf, curvePath, isComplete, loadAnchors, collectOne
 };

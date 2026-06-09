@@ -331,4 +331,17 @@ function kstMidnightToISO(yyyymmdd, addMinutes) {
     return new Date(utcMs).toISOString();
 }
 
+/**
+ * GET /api/tide-field/status
+ * 수집 진행 현황 — 총 (앵커×날짜) 중 몇 건 수집됐는지 + 진행 여부.
+ * 브라우저로 폴링하며 "몇 개 중 몇 번째" 확인용.
+ */
+router.get('/api/tide-field/status', (req, res) => {
+    try {
+        res.json({ success: true, ...TFC.getStatus() });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 module.exports = router;
