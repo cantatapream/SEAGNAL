@@ -7,7 +7,8 @@
  * [무엇을 하나]
  *   해양종합정보 지도에 "물빠짐" 토글 버튼을 붙인다(기존 조류/바람/파고/해구도
  *   오버레이 버튼과 동일 패턴). ON 시:
- *     - OpenLayers 벡터 레이어로 A안 표출: 잠김(물색)·드러남(갯벌색) 2색 셀.
+ *     - OpenLayers 벡터 레이어로 표출: 드러남(갯벌색) 셀만 칠한다(잠김 미표시).
+ *       격자 경계선 없이 매끄럽게(서버가 드러남 state=1 셀만 보냄).
  *     - 하단 시간 슬라이더(앞으로 3일, 30분 간격) → 시각 변경 시
  *       /api/tide-field?time= 호출(프리페치 캐시)로 다시 칠함. 재생 버튼.
  *     - 셀 클릭 시 그 지점 "현재 물깊이 / 간조시각·최저조위" 보조 팝업.
@@ -32,10 +33,8 @@
 
     if (typeof window === 'undefined') return;
 
-    // ── 색상 (A안 2색) ────────────────────────────────────────────────
-    var COLOR_SUBMERGED = 'rgba(33, 120, 200, 0.30)';   // 잠김(물색)
+    // ── 색상 (드러남만 표시) ──────────────────────────────────────────
     var COLOR_EXPOSED = 'rgba(150, 110, 60, 0.55)';      // 드러남(갯벌색)
-    var COLOR_EXPOSED_STROKE = 'rgba(120, 85, 40, 0.7)';
 
     // ── 상태 ─────────────────────────────────────────────────────────
     var _map = null;
@@ -47,7 +46,7 @@
     var _frameIdx = 0;
     var _cellCache = {};        // ISO -> cells[] (프리페치)
     var _playTimer = null;
-    var _cellHalf = 0.01;       // 셀 반폭(도). meta.cell_deg/2 로 갱신.
+    var _cellHalf = 0.0005;     // 셀 반폭(도). meta.cell_deg/2 로 갱신(0.001→0.0005).
     var _popupOverlay = null;
 
     function $(id) { return document.getElementById(id); }
@@ -75,18 +74,15 @@
         console.log('[tide_field] 물빠짐 레이어 초기화 완료');
     };
 
-    // 셀 feature 스타일: state 로 색 분기
-    function styleFn(feature) {
-        var st = feature.get('state');
-        if (st === 1) {
-            return new ol.style.Style({
-                fill: new ol.style.Fill({ color: COLOR_EXPOSED }),
-                stroke: new ol.style.Stroke({ color: COLOR_EXPOSED_STROKE, width: 0.4 })
+    // 셀 feature 스타일: 드러남만 채움(경계선 없음 — 인접 셀이 매끄럽게 이어짐)
+    var _exposedStyle = null;
+    function styleFn() {
+        if (!_exposedStyle) {
+            _exposedStyle = new ol.style.Style({
+                fill: new ol.style.Fill({ color: COLOR_EXPOSED })
             });
         }
-        return new ol.style.Style({
-            fill: new ol.style.Fill({ color: COLOR_SUBMERGED })
-        });
+        return _exposedStyle;
     }
 
     // ====================================================================
@@ -204,7 +200,7 @@
         }).then(function (j) {
             if (!j || !j.success || !j.ready) return false;
             _meta = j;
-            _cellHalf = (j.cell_deg || 0.02) / 2;
+            _cellHalf = (j.cell_deg || 0.001) / 2;
             buildFrames(j);
             return true;
         });
@@ -344,8 +340,7 @@
         if (legend) {
             if (show) {
                 legend.innerHTML =
-                    '<div class="mudflat-legend-row"><span class="mudflat-sw mudflat-sw-exposed"></span>드러남(갯벌)</div>' +
-                    '<div class="mudflat-legend-row"><span class="mudflat-sw mudflat-sw-sub"></span>잠김(바다)</div>';
+                    '<div class="mudflat-legend-row"><span class="mudflat-sw mudflat-sw-exposed"></span>드러남(갯벌)</div>';
                 legend.style.display = 'block';
                 legend.setAttribute('aria-hidden', 'false');
             } else {
@@ -406,12 +401,10 @@
         ensurePopupOverlay();
         var el = $('mudflat-popup');
         if (!el) return;
-        var state = feature.get('state');
         var depth = feature.get('depth_m');
         var lat = feature.get('lat'), lon = feature.get('lon');
-        var stateTxt = state === 1
-            ? '<b style="color:#8a5a2b;">드러남(갯벌 노출)</b>'
-            : '<b style="color:#1f6fbf;">잠김(바다)</b>';
+        // 레이어엔 드러남(state=1) 셀만 존재한다.
+        var stateTxt = '<b style="color:#8a5a2b;">드러남(갯벌 노출)</b>';
         var depthTxt = (depth == null) ? '-' :
             (depth <= 0 ? ('노출 ' + Math.abs(depth).toFixed(2) + ' m') : (depth.toFixed(2) + ' m'));
         el.innerHTML =

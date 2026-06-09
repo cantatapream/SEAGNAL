@@ -12,14 +12,14 @@
  *
  *   GET /api/tide-field?time=<ISO8601>[&bbox=lonMin,latMin,lonMax,latMax]
  *     → { time, step_minutes, cells: [{lon,lat,state,depth_m}] }
- *       state: 0=잠김, 1=드러남. depth_m=그 시각 물깊이(드러나면 ≤0).
+ *       드러남(state=1) 셀만 반환. depth_m=그 시각 물깊이(드러나면 ≤0).
  *
- * [계산]
- *   1) 셀별 η(t) = 물길거리 제약 IDW. "같은 연결성 컴포넌트 + INTERP_MAX_WATERWAY_KM
- *      이내" 앵커 곡선에서 보간 (곶·섬 너머 앵커 배제 — 컴포넌트 라벨이 보장).
+ * [계산 — 앵커가 버킷 기반(연결성 그래프 제거)]
+ *   1) 셀별 η(t) = 직선거리 IDW. 직선거리 ≤ INTERP_MAX_KM 이내 가까운 앵커
+ *      최대 INTERP_MAX_ANCHORS개 곡선에서 1/d² 보간. (컴포넌트 제약 없음)
  *   2) 물깊이 = d(BADA, MSL m) + η(t)(m) − Z₀(m).
- *   3) state: 물깊이 < 0 → 드러남(1), 아니면 잠김(0). (η < Z₀ − d 와 동치)
- *   4) 시각별 결과 캐시(성능).
+ *   3) 드러남: 물깊이 < 0 → state=1 만 반환. 잠김/미정은 제외(대역폭 절감).
+ *   4) bbox 후보 셀만 계산(타일 인덱스). 후보 초과 시 스트라이드 서브샘플.
  *
  * [데이터 준비 안 됨]
  *   grid_meta.json / 곡선이 없으면 503 + 명확한 메시지(준비중). 크래시 X.
@@ -49,7 +49,13 @@ const TFC = require('./../services/tide_field_collector');
 let _meta = null;          // grid_meta.json 파싱본
 let _metaMtime = 0;
 let _anchors = null;       // anchors.json 의 anchors 배열
-let _cellAnchorIdx = null; // cellKey -> [{anchor, distKm}] (같은 comp + 거리 이내)
+let _cellAnchorIdx = null; // cellKey -> [{anchor, distKm}] (직선거리 이내)
+let _cellTileIdx = null;   // 타일키 -> [cell...] (bbox 후보 선택용)
+
+// bbox 후보 셀 상한. 초과 시 스트라이드 서브샘플로 줄여 계산량을 통제한다.
+const MAX_CANDIDATE_CELLS = 30000;
+// 셀 타일 인덱스 격자 크기 (도). 0.1° 버킷 — bbox 와 겹치는 타일만 훑는다.
+const TILE_DEG = 0.1;
 
 function loadMetaIfNeeded() {
     if (!fs.existsSync(C.GRID_META_PATH)) { _meta = null; return false; }
@@ -67,6 +73,7 @@ function loadMetaIfNeeded() {
     }
     _anchors = TFC.loadAnchors() || [];
     buildCellAnchorIndex();
+    buildCellTileIndex();
     // 메타 갱신 시 시각 캐시 무효화
     _timeCache.clear();
     return true;
@@ -74,33 +81,58 @@ function loadMetaIfNeeded() {
 
 /**
  * 각 셀이 참조할 앵커 목록을 사전 계산.
- *   조건: 같은 연결성 컴포넌트(comp) + 직선거리 ≤ INTERP_MAX_WATERWAY_KM.
- *   컴포넌트 라벨이 곶·섬 너머 연결을 이미 차단하므로, 같은 comp 안에서는
- *   직선거리로 근사해도 물길 위상이 보존된다. 가까운 순 최대 INTERP_MAX_ANCHORS 개.
+ *   조건: 직선거리 ≤ INTERP_MAX_KM. 컴포넌트 제약 없음(앵커가 버킷 기반이라
+ *   연결성 위상이 없다). 가까운 순 최대 INTERP_MAX_ANCHORS 개.
  */
 function buildCellAnchorIndex() {
     _cellAnchorIdx = new Map();
     if (!_meta || !Array.isArray(_meta.cells)) return;
 
-    // 컴포넌트별 앵커 버킷
-    const anchorsByComp = new Map();
-    for (const a of _anchors) {
-        const cid = a.componentId == null ? '_' : a.componentId;
-        if (!anchorsByComp.has(cid)) anchorsByComp.set(cid, []);
-        anchorsByComp.get(cid).push(a);
-    }
-
     for (const cell of _meta.cells) {
-        const cid = cell.comp == null ? '_' : cell.comp;
-        const pool = anchorsByComp.get(cid) || [];
         const scored = [];
-        for (const a of pool) {
+        for (const a of _anchors) {
             const d = C.haversineKm(cell.lat, cell.lon, a.lat, a.lon);
-            if (d <= CFG.INTERP_MAX_WATERWAY_KM) scored.push({ anchor: a, distKm: d });
+            if (d <= CFG.INTERP_MAX_KM) scored.push({ anchor: a, distKm: d });
         }
         scored.sort((x, y) => x.distKm - y.distKm);
         _cellAnchorIdx.set(cell.key, scored.slice(0, CFG.INTERP_MAX_ANCHORS));
     }
+}
+
+/** 셀 타일 인덱스 (0.1° 버킷). bbox 후보 셀을 O(bbox 타일 수) 로 추린다. */
+function tileKey(lon, lat) {
+    return `${Math.floor(lon / TILE_DEG)}_${Math.floor(lat / TILE_DEG)}`;
+}
+function buildCellTileIndex() {
+    _cellTileIdx = new Map();
+    if (!_meta || !Array.isArray(_meta.cells)) return;
+    for (const cell of _meta.cells) {
+        const tk = tileKey(cell.lon, cell.lat);
+        let arr = _cellTileIdx.get(tk);
+        if (!arr) { arr = []; _cellTileIdx.set(tk, arr); }
+        arr.push(cell);
+    }
+}
+
+/** bbox 와 겹치는 타일의 셀 중 bbox 내부 셀만 반환. bbox 없으면 전 셀. */
+function cellsInBbox(bbox) {
+    if (!_meta || !Array.isArray(_meta.cells)) return [];
+    if (!bbox) return _meta.cells;
+    const [lonMin, latMin, lonMax, latMax] = bbox;
+    const out = [];
+    const txMin = Math.floor(lonMin / TILE_DEG), txMax = Math.floor(lonMax / TILE_DEG);
+    const tyMin = Math.floor(latMin / TILE_DEG), tyMax = Math.floor(latMax / TILE_DEG);
+    for (let tx = txMin; tx <= txMax; tx++) {
+        for (let ty = tyMin; ty <= tyMax; ty++) {
+            const arr = _cellTileIdx.get(`${tx}_${ty}`);
+            if (!arr) continue;
+            for (const cell of arr) {
+                if (cell.lon >= lonMin && cell.lon <= lonMax &&
+                    cell.lat >= latMin && cell.lat <= latMax) out.push(cell);
+            }
+        }
+    }
+    return out;
 }
 
 // ============================================================================
@@ -174,10 +206,10 @@ function parseTimeToKst(iso) {
 }
 
 // ============================================================================
-// 시각별 결과 캐시
+// 시각별 곡선 캐시 (computeField 는 후보 셀에 따라 결과가 달라 결과 캐시는 두지
+//   않는다. 곡선(_curveCache)·앵커 인덱스 캐시로 충분히 빠르다.)
 // ============================================================================
-const _timeCache = new Map(); // `${yyyymmdd}_${snappedMinute}` -> cells[]
-const TIME_CACHE_MAX = 200;
+const _timeCache = new Map(); // 호환용 placeholder (loadMetaIfNeeded 가 clear 호출)
 
 function snapMinute(minute) {
     const step = CFG.STEP_MINUTES;
@@ -185,16 +217,20 @@ function snapMinute(minute) {
 }
 
 /**
- * 한 시각의 전 셀 상태 계산.
- * @returns {Array<{lon,lat,state,depth_m}>}
+ * 주어진 후보 셀들의 한 시각 상태 계산 → 드러남(state=1) 셀만 반환.
+ * @param {number} yyyymmdd
+ * @param {number} minute
+ * @param {Array} cells  후보 셀(_meta.cells 의 부분집합)
+ * @returns {Array<{lon,lat,state,depth_m}>}  state=1(드러남) 만
  */
-function computeField(yyyymmdd, minute) {
+function computeField(yyyymmdd, minute, cells) {
     const snapped = snapMinute(minute);
-    const ck = `${yyyymmdd}_${snapped}`;
-    if (_timeCache.has(ck)) return _timeCache.get(ck);
-
     const out = [];
-    for (const cell of _meta.cells) {
+    for (const cell of cells) {
+        const d = cell.depth;             // BADA 수심 (MSL, m). null 가능(합성/결측).
+        const z0 = cell.z0;               // Z₀ (m). null 가능.
+        if (d == null || z0 == null) continue; // 미정 — 드러남 판정 불가, 제외
+
         const refs = _cellAnchorIdx.get(cell.key) || [];
         // η(t) IDW (cm)
         let wsum = 0, vsum = 0;
@@ -205,29 +241,13 @@ function computeField(yyyymmdd, minute) {
             const w = distKm < 0.1 ? 1e6 : 1 / (distKm * distKm);
             wsum += w; vsum += w * eta;
         }
-        if (wsum === 0) {
-            // 이 셀에 보간 가능한 곡선 없음 → 미정(state=-1). 프론트는 미표시.
-            out.push({ lon: cell.lon, lat: cell.lat, state: -1, depth_m: null });
-            continue;
-        }
-        const etaM = (vsum / wsum) / 100; // cm → m
-        const d = cell.depth;             // BADA 수심 (MSL, m). null 가능(합성/결측).
-        const z0 = cell.z0;               // Z₀ (m). null 가능.
-        if (d == null || z0 == null) {
-            out.push({ lon: cell.lon, lat: cell.lat, state: -1, depth_m: null });
-            continue;
-        }
-        const depthM = d + etaM - z0;     // 물깊이(m)
-        const state = depthM < 0 ? 1 : 0; // 드러남 / 잠김
-        out.push({ lon: cell.lon, lat: cell.lat, state, depth_m: Math.round(depthM * 100) / 100 });
-    }
+        if (wsum === 0) continue;         // 보간 가능한 곡선 없음 — 미정, 제외
 
-    // LRU 흉내 (단순 FIFO)
-    if (_timeCache.size >= TIME_CACHE_MAX) {
-        const firstKey = _timeCache.keys().next().value;
-        _timeCache.delete(firstKey);
+        const etaM = (vsum / wsum) / 100; // cm → m
+        const depthM = d + etaM - z0;     // 물깊이(m)
+        if (depthM >= 0) continue;        // 잠김 — 제외. 드러남(<0)만 반환.
+        out.push({ lon: cell.lon, lat: cell.lat, state: 1, depth_m: Math.round(depthM * 100) / 100 });
     }
-    _timeCache.set(ck, out);
     return out;
 }
 
@@ -298,19 +318,25 @@ router.get('/api/tide-field', (req, res) => {
         });
     }
 
-    let cells = computeField(parsed.yyyymmdd, parsed.minute);
-
-    // bbox 필터 (선택) — 뷰포트 전송량 절감
+    // ── bbox 후보 셀 선택 (타일 인덱스) ──────────────────────────────
+    let bbox = null;
     if (req.query.bbox) {
         const b = String(req.query.bbox).split(',').map(Number);
-        if (b.length === 4 && b.every(n => !isNaN(n))) {
-            const [lonMin, latMin, lonMax, latMax] = b;
-            cells = cells.filter(c => c.lon >= lonMin && c.lon <= lonMax && c.lat >= latMin && c.lat <= latMax);
-        }
+        if (b.length === 4 && b.every(n => !isNaN(n))) bbox = b;
+    }
+    let candidates = cellsInBbox(bbox);
+
+    // ── 후보 과다 시 스트라이드 서브샘플 (계산량·전송량 통제) ─────────
+    let stride = 1;
+    if (candidates.length > MAX_CANDIDATE_CELLS) {
+        stride = Math.ceil(candidates.length / MAX_CANDIDATE_CELLS);
+        const sampled = [];
+        for (let i = 0; i < candidates.length; i += stride) sampled.push(candidates[i]);
+        candidates = sampled;
     }
 
-    // state=-1(미정) 셀은 전송 제외 — 프론트가 표시하지 않으므로 대역폭 절감.
-    const visible = cells.filter(c => c.state >= 0);
+    // ── 드러남(state=1) 셀만 계산·반환 ───────────────────────────────
+    const cells = computeField(parsed.yyyymmdd, parsed.minute, candidates);
 
     res.set('Cache-Control', 'public, max-age=120');
     res.json({
@@ -318,8 +344,10 @@ router.get('/api/tide-field', (req, res) => {
         time: timeQ || new Date().toISOString(),
         date: parsed.yyyymmdd,
         step_minutes: CFG.STEP_MINUTES,
-        count: visible.length,
-        cells: visible
+        candidate_count: candidates.length,
+        stride,
+        count: cells.length,
+        cells
     });
 });
 

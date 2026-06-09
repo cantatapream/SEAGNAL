@@ -252,10 +252,23 @@ async function runPool(tasks, concurrency, worker) {
 // 않도록 모듈 단위 in-progress 락으로 직렬화한다. 진행 중이면 즉시 반환.
 let _running = false;
 
+/** grid_meta.json 을 읽어 {build_version, cell_deg} 반환(없거나 파싱 실패면 null). */
+function readGridMetaInfo() {
+    if (!fs.existsSync(C.GRID_META_PATH)) return null;
+    try {
+        const j = JSON.parse(fs.readFileSync(C.GRID_META_PATH, 'utf8'));
+        return { build_version: j.build_version, cell_deg: j.cell_deg, empty: !!(j.meta && j.meta.empty) };
+    } catch (e) {
+        return null;
+    }
+}
+
 /**
- * grid_meta/anchors 준비 여부를 확인하고, 비어 있으면 Phase 0 전처리
+ * grid_meta/anchors 준비 여부를 확인하고, 미준비/구버전이면 Phase 0 전처리
  * (build_tide_field.main)를 1회 실행해 생성한다.
- *   - 이미 앵커가 있으면 재빌드하지 않음 → 재배포 시 빌드 스킵.
+ *   - 앵커가 있고 build_version·cell_deg 가 현재 CFG 와 일치하면 재빌드 skip.
+ *   - build_version 이 다르거나 cell_deg 가 다르면 강제 재빌드. → 운영 볼륨에
+ *     남은 옛 100m/5만앵커(구버전) 산출물을 새 버킷 앵커 빌드로 자동 교체한다.
  *   - BADA 실데이터가 없으면 build 가 빈 메타를 남기고 graceful 종료(앵커 0)
  *     → 본 함수는 false 반환(수집 skip). 로컬/데이터 부재 환경에서 안전.
  * @returns {Promise<boolean>} 앵커가 준비됐으면 true
@@ -263,9 +276,19 @@ let _running = false;
 async function ensureBuilt(opts = {}) {
     const log = opts.log || ((...a) => console.log('[tide_field]', ...a));
     const existing = loadAnchors();
-    if (existing && existing.length > 0) return true; // 이미 준비됨 → 재빌드 skip
+    const info = readGridMetaInfo();
+    const versionOk = info && info.build_version === CFG.BUILD_VERSION && info.cell_deg === CFG.CELL_DEG;
 
-    log('grid_meta/anchors 미준비 — Phase 0 전처리(build_tide_field) 1회 실행...');
+    if (existing && existing.length > 0 && versionOk) {
+        return true; // 이미 준비됨 + 버전·해상도 일치 → 재빌드 skip
+    }
+    if (existing && existing.length > 0 && !versionOk) {
+        log(`기존 산출물이 구버전(build_version=${info && info.build_version}, cell_deg=${info && info.cell_deg}) — ` +
+            `현재(v=${CFG.BUILD_VERSION}, cell_deg=${CFG.CELL_DEG})로 강제 재빌드.`);
+    } else {
+        log('grid_meta/anchors 미준비 — Phase 0 전처리(build_tide_field) 1회 실행...');
+    }
+
     try {
         const builder = require('../scripts/build_tide_field');
         await builder.main({ log });
@@ -286,12 +309,13 @@ async function ensureBuilt(opts = {}) {
  *   - fire-and-forget 로 호출할 것(서버 기동 비차단). 포인트별 순차 수집(동시성 1).
  */
 // ============================================================================
-// [킬스위치] 물빠짐 수집 전면 중단
+// [킬스위치] 물빠짐 수집 전면 중단 (현재 해제됨)
 // ============================================================================
-//   100m 앵커 폭발(166k 작업) 대응 — 부트스트랩·스케줄러의 자동 수집을 모두
-//   비활성화한다. 볼륨에 남은 옛 100m grid_meta/앵커로 수집이 재개되는 것을 막는다.
-//   정상(앵커-격자 분리) 버전 재반영 시 false 로 되돌린다.
-const COLLECT_DISABLED = true;
+//   과거 100m 앵커 폭발(166k 작업) 대응으로 수집을 전면 중단했었다. 이제 앵커가
+//   버킷 기반(연결성 그래프와 무관, 수백 개로 고정)으로 재설계되어 폭발이 구조적으로
+//   불가능하므로 수집을 재개한다(false). ensureBuilt 가 build_version/cell_deg 로
+//   옛 100m/5만앵커 산출물을 자동 재빌드 교체한 뒤 수집한다.
+const COLLECT_DISABLED = false;
 
 async function bootstrapTideField(opts = {}) {
     const log = opts.log || ((...a) => console.log('[tide_field]', ...a));
