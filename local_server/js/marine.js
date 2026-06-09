@@ -29,6 +29,12 @@ window.closeSeaZoneModal = function () {
     // 진행 중인 요청 취소 (요청 ID 무효화)
     window._marineZoneRequestId = null;
 
+    // [위험 글로우] 펄스 rAF 루프 즉시 취소 (모달 닫힘 후 백그라운드 spin 방지)
+    if (window._marineGlowRAF) {
+        cancelAnimationFrame(window._marineGlowRAF);
+        window._marineGlowRAF = null;
+    }
+
     const modal = document.getElementById('sea-zone-modal');
     if (modal) {
         // 차트 인스턴스 정리 (메모리 누수 방지)
@@ -865,14 +871,39 @@ function getMarineVisibilityColor(vs) {
 // 시정 경고 임계값(해리, NM) — 항해 기준. 이 값 미만이면 그래프에 점·수치·위험색 표출.
 const VIS_WARN_NM = 2;
 
-// 합본 그래프 시정 라인/라벨 색 — 나쁠수록 위험색(빨강), 평소엔 앰버. (NM 기준)
-//   <1NM 빨강 / <2NM 주황 / 그 외 앰버(점선 기본색)
+// 합본 그래프 시정 라인/라벨 색 — 나쁠수록 위험색(짙은 빨강), 평소엔 앰버. (NM 기준)
+//   <1NM 짙은 빨강(#c62828) / <2NM 짙은 앰버(#ff6f00, 풍속 라인 #ff7043 과 톤 구별) / 그 외 앰버(점선 기본색)
 function _visGraphColor(km) {
     if (km == null) return '#ffd54f';
     const nm = km * VIS_KM_TO_NM;
-    if (nm < 1) return '#ff5252';
-    if (nm < VIS_WARN_NM) return '#ffb74d';
+    if (nm < 1) return '#c62828';            // 1NM 미만: 짙은 빨강 (매우 위험)
+    if (nm < VIS_WARN_NM) return '#ff6f00';  // 2NM 미만: 짙은 앰버 (풍속 주황 #ff7043 과 구별)
     return '#ffd54f';
+}
+
+// ============================================================
+// 파고(유의파고) 막대 색 — 높이가 클수록 위험. (단위: m)
+//   <2m: 기존 청록(teal). >=2m: 노랑(#ffeb3b) → 짙은 빨강(#d50000) 그라데이션(2m~4m, 4m 에서 만빨강 클램프).
+//   호버 색도 동일하게 묶어 호버 시 색이 변하지 않도록 한다.
+// ============================================================
+// 두 hex 색을 t(0~1) 비율로 선형보간 → "rgb(r,g,b)" 문자열.
+function _lerpHexColor(a, b, t) {
+    const pa = [parseInt(a.slice(1, 3), 16), parseInt(a.slice(3, 5), 16), parseInt(a.slice(5, 7), 16)];
+    const pb = [parseInt(b.slice(1, 3), 16), parseInt(b.slice(3, 5), 16), parseInt(b.slice(5, 7), 16)];
+    const m = pa.map((v, i) => Math.round(v + (pb[i] - v) * t));
+    return `rgb(${m[0]}, ${m[1]}, ${m[2]})`;
+}
+
+// 파고 높이(m) → { fill, border } 색. <2m 는 기존 teal, 그 이상은 노랑→빨강 그라데이션.
+function _waveColor(wh) {
+    if (wh == null || isNaN(wh) || wh < 2) {
+        // 기존 청록 유지 (정상 파고)
+        return { fill: 'rgba(38, 198, 218, 0.6)', border: '#26c6da' };
+    }
+    // 2m(노랑) ~ 4m(짙은 빨강) 사이를 0~1 로 정규화 (4m 이상은 만빨강 클램프)
+    const t = Math.min(Math.max((wh - 2) / (4 - 2), 0), 1);
+    const c = _lerpHexColor('#ffeb3b', '#d50000', t);
+    return { fill: c, border: c };
 }
 
 // 시정 라벨/점을 그래프에 노출할지 — 2 NM 미만(나쁠 때)만 표시.
@@ -893,6 +924,12 @@ function renderMarineChart(data) {
 
     if (window.currentMarineChart) {
         window.currentMarineChart.destroy();
+    }
+
+    // [위험 글로우] 이전 차트의 펄스 rAF 루프가 남아 있으면 취소 (재렌더 시 중첩/누수 방지)
+    if (window._marineGlowRAF) {
+        cancelAnimationFrame(window._marineGlowRAF);
+        window._marineGlowRAF = null;
     }
 
     if (typeof ChartDataLabels !== 'undefined') {
@@ -921,6 +958,89 @@ function renderMarineChart(data) {
                     element.x = element.originalX + offset;
                 });
             });
+        }
+    };
+
+    // [라인 다크 헤일로] 풍속/시정 라인(line 타입)이 다른 색 위에 겹쳐도 윤곽이 살도록
+    //   각 라인 데이터셋을 그리기 직전에 어두운 그림자(외곽 헤일로)를 깔고, 그린 뒤 복원한다.
+    //   (위험 구간의 빨간 글로우는 lineGlowPlugin 이 afterDatasetsDraw 에서 덧칠 → 시각적으로 우선)
+    const lineHaloPlugin = {
+        id: 'lineHaloPlugin',
+        beforeDatasetDraw(chart, args) {
+            const ds = chart.data.datasets[args.index];
+            if (!ds || ds.type !== 'line') return;
+            const c = chart.ctx;
+            c.save();
+            c.shadowColor = 'rgba(0,0,0,0.65)';
+            c.shadowBlur = 3;
+        },
+        afterDatasetDraw(chart, args) {
+            const ds = chart.data.datasets[args.index];
+            if (!ds || ds.type !== 'line') return;
+            chart.ctx.restore();
+        }
+    };
+
+    // [위험 글로우] 시정 라인 중 위험(<2NM) 구간 세그먼트를 빨간 펄스 글로우로 덧칠.
+    //   pulse = 0.5 + 0.5*sin(t) 로 shadowBlur 를 6~12 사이 진동 → 깜빡이는 경고 효과.
+    //   rAF 로 다시 draw() 를 돌리되, (a) 차트가 살아있고 (b) 위험 세그먼트가 1개 이상일 때만
+    //   루프를 유지 → 모달이 닫히면(차트 destroy) 더 이상 돌지 않는다.
+    const lineGlowPlugin = {
+        id: 'lineGlowPlugin',
+        afterDatasetsDraw(chart) {
+            // 시정 데이터셋 찾기
+            const visIdx = chart.data.datasets.findIndex(d => d.label === '시정');
+            if (visIdx < 0) return;
+            const meta = chart.getDatasetMeta(visIdx);
+            const dsData = chart.data.datasets[visIdx].data;
+            if (!meta || !meta.data || meta.hidden) return;
+
+            const c = chart.ctx;
+            const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 350);  // 0~1 진동
+            let dangerCount = 0;
+
+            // 인접한 두 점을 잇는 세그먼트 중, 더 나쁜 값이 위험(<2NM)이면 빨간 글로우로 재차 stroke
+            for (let i = 0; i < meta.data.length - 1; i++) {
+                const v0 = dsData[i];
+                const v1 = dsData[i + 1];
+                if (v0 == null || v1 == null) continue;             // 빈 구간은 건너뜀
+                const worse = Math.min(v0, v1);
+                if (!_visLabelVisible(worse)) continue;             // 위험(<2NM) 구간만
+                dangerCount++;
+
+                const p0 = meta.data[i];
+                const p1 = meta.data[i + 1];
+                c.save();
+                c.shadowColor = 'rgba(198, 40, 40, 0.95)';          // 짙은 빨강 글로우
+                c.shadowBlur = 6 + 6 * pulse;                       // 6~12 진동
+                c.strokeStyle = _visGraphColor(worse);
+                c.lineWidth = 2;
+                c.beginPath();
+                c.moveTo(p0.x, p0.y);
+                c.lineTo(p1.x, p1.y);
+                c.stroke();
+                c.restore();
+            }
+
+            // [누수 방지] 차트가 아직 살아있고(파괴되면 getChart != chart) 위험 구간이 있을 때만 다음 프레임 예약.
+            const alive = (typeof Chart.getChart === 'function')
+                ? (Chart.getChart(chart.canvas) === chart)
+                : true;
+            if (dangerCount > 0 && alive) {
+                // 직전 예약은 취소 후 1개만 유지 (중첩 방지)
+                if (window._marineGlowRAF) cancelAnimationFrame(window._marineGlowRAF);
+                window._marineGlowRAF = requestAnimationFrame(() => {
+                    window._marineGlowRAF = null;
+                    // 프레임 사이에 차트가 파괴/교체됐을 수 있으니 다시 확인
+                    if ((typeof Chart.getChart !== 'function' || Chart.getChart(chart.canvas) === chart)) {
+                        chart.draw();
+                    }
+                });
+            } else if (window._marineGlowRAF) {
+                // 위험 구간이 사라졌거나 차트가 죽었으면 루프 종료
+                cancelAnimationFrame(window._marineGlowRAF);
+                window._marineGlowRAF = null;
+            }
         }
     };
 
@@ -953,6 +1073,9 @@ function renderMarineChart(data) {
                         align: (context) => context.dataset.data[context.dataIndex] >= 9.0 ? 'bottom' : 'top',
                         offset: 4,
                         font: { size: 9, weight: 'bold' },
+                        // [가독성] 겹치는 라인/막대 위에서도 숫자가 읽히도록 어두운 외곽선
+                        textStrokeColor: 'rgba(0,0,0,0.85)',
+                        textStrokeWidth: 3,
                         formatter: (value) => value.toFixed(1)
                     }
                 },
@@ -960,12 +1083,13 @@ function renderMarineChart(data) {
                     label: '유의파고 (m)',
                     data: waveHeight,
                     type: 'bar',
-                    backgroundColor: 'rgba(38, 198, 218, 0.6)',
-                    borderColor: '#26c6da',
+                    // [파고색] <2m teal, >=2m 노랑→빨강 그라데이션 (높이별 위험 강조). ctx.raw = 해당 막대 높이.
+                    backgroundColor: (ctx) => _waveColor(ctx.raw).fill,
+                    borderColor: (ctx) => _waveColor(ctx.raw).border,
                     borderWidth: 1,
-                    // [Fix] 호버 시 애니메이션/스타일 변경 제거
-                    hoverBackgroundColor: 'rgba(38, 198, 218, 0.6)',
-                    hoverBorderColor: '#26c6da',
+                    // [Fix] 호버 시 애니메이션/스타일 변경 제거 — 호버 색도 동일 규칙으로 묶어 색 변동 방지
+                    hoverBackgroundColor: (ctx) => _waveColor(ctx.raw).fill,
+                    hoverBorderColor: (ctx) => _waveColor(ctx.raw).border,
                     hoverBorderWidth: 1,
                     yAxisID: 'y_wave',
                     borderRadius: 2,
@@ -979,6 +1103,9 @@ function renderMarineChart(data) {
                         anchor: 'center',
                         align: 'center',
                         font: { size: 9, weight: 'bold' },
+                        // [가독성] 막대/라인 위에서도 숫자가 읽히도록 어두운 외곽선
+                        textStrokeColor: 'rgba(0,0,0,0.85)',
+                        textStrokeWidth: 3,
                         formatter: (value) => value.toFixed(1)
                     }
                 },
@@ -1019,6 +1146,9 @@ function renderMarineChart(data) {
                         align: 'top',
                         offset: 6,
                         font: { size: 9, weight: 'bold' },
+                        // [가독성] 겹치는 라인/막대 위에서도 숫자가 읽히도록 어두운 외곽선
+                        textStrokeColor: 'rgba(0,0,0,0.85)',
+                        textStrokeWidth: 3,
                         formatter: (km) => {
                             if (km == null) return '';
                             const u = (window._marineVisUnit === 'NM') ? 'NM' : 'km';
@@ -1028,7 +1158,7 @@ function renderMarineChart(data) {
                 }
             ]
         },
-        plugins: [ChartDataLabels, adjustmentPlugin],
+        plugins: [ChartDataLabels, adjustmentPlugin, lineHaloPlugin, lineGlowPlugin],
         options: {
             animation: false,
             hover: { mode: null, animationDuration: 0 },
