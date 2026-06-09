@@ -75,14 +75,18 @@
         console.log('[tide_field] 물빠짐 레이어 초기화 완료');
     };
 
-    // 셀 feature 스타일: 드러남(state=1)만 칠한다. 잠김/미정은 표출하지 않음.
-    //   격자 경계선(stroke)을 없애 인접 셀이 매끄럽게 이어 보이도록 한다.
-    var _exposedStyle = new ol.style.Style({
-        fill: new ol.style.Fill({ color: COLOR_EXPOSED })
-    });
-    var _emptyStyle = new ol.style.Style({});
+    // 셀 feature 스타일: state 로 색 분기
     function styleFn(feature) {
-        return feature.get('state') === 1 ? _exposedStyle : _emptyStyle;
+        var st = feature.get('state');
+        if (st === 1) {
+            return new ol.style.Style({
+                fill: new ol.style.Fill({ color: COLOR_EXPOSED }),
+                stroke: new ol.style.Stroke({ color: COLOR_EXPOSED_STROKE, width: 0.4 })
+            });
+        }
+        return new ol.style.Style({
+            fill: new ol.style.Fill({ color: COLOR_SUBMERGED })
+        });
     }
 
     // ====================================================================
@@ -340,7 +344,8 @@
         if (legend) {
             if (show) {
                 legend.innerHTML =
-                    '<div class="mudflat-legend-row"><span class="mudflat-sw mudflat-sw-exposed"></span>드러남(갯벌)</div>';
+                    '<div class="mudflat-legend-row"><span class="mudflat-sw mudflat-sw-exposed"></span>드러남(갯벌)</div>' +
+                    '<div class="mudflat-legend-row"><span class="mudflat-sw mudflat-sw-sub"></span>잠김(바다)</div>';
                 legend.style.display = 'block';
                 legend.setAttribute('aria-hidden', 'false');
             } else {
