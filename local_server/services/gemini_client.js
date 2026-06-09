@@ -23,7 +23,13 @@
 
 const { GoogleGenAI } = require('@google/genai');
 
-const AI_COOLDOWN_MS = 60 * 60 * 1000; // 1시간
+// [쿨다운 정책] 429 의 종류에 따라 차등 적용.
+//   기존엔 무조건 1시간이라, 분당 한도(RPM, 1분이면 회복)엔 과하게 길어 불필요한
+//   장시간 블랙아웃을 만들고, 일일 한도(RPD)엔 모자라 의미가 약했음.
+const COOLDOWN_MINUTE_MS  = 70 * 1000;          // 분당 한도(RPM): ~1분이면 회복 → 70초
+const COOLDOWN_DEFAULT_MS = 5 * 60 * 1000;      // 종류 불명 429: 5분
+const COOLDOWN_DAILY_MS   = 3 * 60 * 60 * 1000; // 일일 한도(RPD): 길게(다음 리셋까지 보수적 재시도)
+const AI_COOLDOWN_MS = COOLDOWN_DEFAULT_MS;      // (구버전 export 호환용 별칭)
 // 같은 알림이 과도하게 반복되지 않도록 종류별 최소 간격 유지
 const NOTIFY_THROTTLE_MS = 10 * 60 * 1000; // 10분
 
@@ -93,12 +99,25 @@ function pickNextKey(excludeIndices) {
     return null;
 }
 
-/** 특정 키를 429(쿨다운) 상태로 표시 */
-function markRateLimited(index) {
+/**
+ * 429 오류 메시지로 한도 종류를 추정해 쿨다운 길이를 차등 결정.
+ *   일일(RPD)=길게 / 분당(RPM)=짧게 / 불명=기본(5분).
+ *   구글 429 메시지엔 보통 "per day"/"per minute" 또는 quota metric 명이 포함된다.
+ */
+function classifyCooldown(errorMsg) {
+    const m = String(errorMsg || '');
+    if (/per\s*day|perday|requests?\s*per\s*day|PerDay|daily/i.test(m)) return { ms: COOLDOWN_DAILY_MS, kind: '일일(RPD)' };
+    if (/per\s*minute|perminute|requests?\s*per\s*minute|PerMinute/i.test(m)) return { ms: COOLDOWN_MINUTE_MS, kind: '분당(RPM)' };
+    return { ms: COOLDOWN_DEFAULT_MS, kind: '불명' };
+}
+
+/** 특정 키를 429(쿨다운) 상태로 표시 — 한도 종류(일일/분당/불명)에 따라 쿨다운 차등 */
+function markRateLimited(index, errorMsg) {
     if (index < 0 || index >= keys.length) return;
-    keys[index].cooldownUntil = Date.now() + AI_COOLDOWN_MS;
+    const { ms, kind } = classifyCooldown(errorMsg);
+    keys[index].cooldownUntil = Date.now() + ms;
     const untilStr = new Date(keys[index].cooldownUntil).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-    console.error(`[Gemini] ⚠️ ${keys[index].label} 키 429 감지 → ${untilStr}까지 쿨다운 (1시간)`);
+    console.error(`[Gemini] ⚠️ ${keys[index].label} 키 429(${kind}) → ${untilStr}까지 쿨다운(${Math.round(ms / 60000)}분). err=${String(errorMsg).slice(0, 180)}`);
 }
 
 /** 관리자 푸시 (순환 참조 방지용 lazy require) */
@@ -173,9 +192,12 @@ async function callGeminiRaw({ model, contents, config, caller = 'unknown' }) {
         } catch (e) {
             const errorMsg = e.message || '';
             const isRateLimited = errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED');
+            // [진단 로그] 모든 실패를 호출자/키/상태와 함께 남겨 원인(429 종류/404/인증 등)을 추적.
+            //   "모든 키 소진"이 진짜 한도인지, 설정/일시 오류인지 로그로 바로 판별 가능.
+            console.error(`[Gemini] 호출 실패 caller=${caller} key=${picked.label} rateLimited=${isRateLimited} err=${String(errorMsg).slice(0, 250)}`);
             if (isRateLimited) {
                 bumpUsage('rateLimited');
-                markRateLimited(picked.index);
+                markRateLimited(picked.index, errorMsg);
                 triedIndices.push(picked.index);
                 if (!firstFailedKeyLabel) firstFailedKeyLabel = picked.label;
                 // 다음 키로 폴백 시도 (루프 계속)

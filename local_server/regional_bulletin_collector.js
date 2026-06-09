@@ -39,6 +39,8 @@
  *   - bulletinReportId    : 이번에 수집된 통보문 ID
  *   - bulletinPublishTime : "2026.05.02 04:30" 형식의 발표시각 (헤더용)
  *   - summary             : 마크업이 적용된 전체 본문 텍스트
+ *                           (AI 색칠 실패 시엔 마크업 없는 원문 텍스트 — 프론트가 자동 색칠/표출)
+ *   - bulletinColored     : AI 색칠 완료 여부(false=원문만 표출 중, 다음 사이클 재색칠 대상)
  *   PDF 출처 필드(publishTime, temperature, marineForecast, coastalForecast)는 그대로 유지.
  *
  * [연계]
@@ -420,25 +422,45 @@ async function processOneOffice(office) {
             return null;
         }
 
-        // 캐시 hit ?  → 같은 윈도우 내 5분 간격 재호출은 여기서 끝남 (fetch/AI 호출 0회)
+        // [캐시 정책] AI 색칠까지 끝난(aiColored===true) 경우에만 "완료"로 보고 즉시 반환.
+        //   색칠 못 한 폴백(aiColored===false, 원문만 표출 중)은 할당량 회복 후 재색칠하도록
+        //   캐시에 남겨둔 rawText 를 재사용해 AI 만 다시 시도한다(기상청 재요청 회피).
         const cached = loadCache(office.code, found.reportId);
-        if (cached && cached.summary !== undefined) {
-            console.log(`[RegionalBulletin] ${office.name}: 캐시 hit (${found.title})`);
+        if (cached && cached.aiColored === true && cached.summary !== undefined) {
+            console.log(`[RegionalBulletin] ${office.name}: 캐시 hit (색칠 완료) (${found.title})`);
             return { ...cached, fromCache: true };
         }
 
-        console.log(`[RegionalBulletin] ${office.name}: 새 통보문 수집 (${found.title})`);
-        const rawText = await fetchBulletinBody(office.code, found.reportId);
+        let rawText = (cached && cached.rawText) ? cached.rawText : null;
+        if (!rawText) {
+            console.log(`[RegionalBulletin] ${office.name}: 새 통보문 수집 (${found.title})`);
+            rawText = await fetchBulletinBody(office.code, found.reportId);
+        } else {
+            console.log(`[RegionalBulletin] ${office.name}: 미색칠 통보문 재색칠 시도 (${found.title})`);
+        }
         if (!rawText) {
             console.log(`[RegionalBulletin] ${office.name}: 본문 비어있음, 스킵`);
             return null;
         }
 
+        // AI 색칠 시도. 실패해도 원문(rawText)을 summary 로 그대로 표출한다.
+        //   - 프론트 renderMarineMarkup() 이 마크업 없는 텍스트도 escape + 자동 패턴 색칠로
+        //     안전하게 그려주므로, 색칠 실패 시에도 사용자는 통보문 내용을 즉시 볼 수 있다.
+        //   - aiColored=false 로 캐시/저장해 다음 사이클에 재색칠을 시도한다.
         const ai = await analyzeBulletinWithAI(rawText);
-        if (!ai || !ai.summary) {
-            // AI 실패 시 캐시 저장하지 않음 — 다음 사이클(5분 뒤)에 재시도
-            console.log(`[RegionalBulletin] ${office.name}: AI 분석 실패, 다음 사이클 재시도 예정`);
-            return null;
+        let summary, aiColored;
+        if (ai && ai.summary) {
+            summary = ai.summary;
+            aiColored = true;
+        } else if (cached && cached.summary && (cached.aiColored === true || /\{\{(loc|num|warn):/.test(cached.summary))) {
+            // 재색칠 실패했지만 이미 색칠본을 보유 → 원문으로 후퇴하지 않고 기존 색칠본 유지.
+            summary = cached.summary;
+            aiColored = true;
+            console.log(`[RegionalBulletin] ${office.name}: AI 재색칠 실패 → 기존 색칠본 유지`);
+        } else {
+            // 색칠본이 전혀 없으면 원문 텍스트로라도 표출 (다음 사이클 재색칠 시도).
+            summary = rawText;
+            aiColored = false;
         }
 
         const result = {
@@ -446,11 +468,15 @@ async function processOneOffice(office) {
             title: found.title,
             publishTime: parsePublishTimeFromTitle(found.title),
             rawText,
-            summary: ai.summary,
+            summary,
+            aiColored,
             collectedAt: new Date().toISOString()
         };
 
         saveCache(office.code, found.reportId, result);
+        if (!aiColored) {
+            console.log(`[RegionalBulletin] ${office.name}: AI 색칠 실패 → 원문 텍스트로 표출(다음 사이클 재색칠 예정)`);
+        }
         return { ...result, fromCache: false };
     } catch (e) {
         console.error(`[RegionalBulletin] ${office.name} 처리 오류: ${e.message}`);
@@ -491,6 +517,7 @@ async function collectAllRegionalBulletins() {
     let cacheHits = 0;
     let cycleSkips = 0;
     let failed = 0;
+    let rawFallbacks = 0; // AI 색칠 실패로 원문만 표출한 건수
 
     // 이번 사이클에 수집한 "통보문이 책임지는 필드"만 모아둔다.
     // 느린 fetch/AI(await) 가 전부 끝난 뒤, 마지막에 파일을 다시 신선하게 읽어
@@ -506,8 +533,12 @@ async function collectAllRegionalBulletins() {
         // 부팅 직후나 윈도우 안 반복 호출에서 KMA 부담을 크게 절감.
         const storedEntry = store[office.code];
         const storedCycle = storedEntry ? getStoredCycleId(storedEntry.bulletinPublishTime) : null;
-        if (storedCycle && storedCycle === expectedCycle) {
-            console.log(`[RegionalBulletin] ${office.name}: 발표 사이클 일치(${expectedCycle}), 수집 생략`);
+        // 색칠 완료 여부: 구(舊) 데이터(undefined)는 색칠된 것으로 간주(불필요한 재처리 방지).
+        const storedColored = storedEntry ? storedEntry.bulletinColored !== false : false;
+        // [사이클 사전 스킵] 사이클 일치 + 이미 색칠까지 완료된 경우에만 생략.
+        //   색칠 안 된(원문만 표출 중) 상태면 같은 사이클이어도 재색칠을 위해 수집을 진행한다.
+        if (storedCycle && storedCycle === expectedCycle && storedColored) {
+            console.log(`[RegionalBulletin] ${office.name}: 발표 사이클 일치 + 색칠 완료(${expectedCycle}), 수집 생략`);
             cycleSkips++;
             continue;
         }
@@ -518,14 +549,17 @@ async function collectAllRegionalBulletins() {
         if (result.fromCache) cacheHits++; else updated++;
 
         // 이 모듈이 책임지는 필드만 누적 (PDF 출처 필드는 절대 건드리지 않음)
+        //   bulletinColored: AI 색칠 완료 여부. false 면 원문만 표출 중 → 다음 사이클 재색칠 대상.
         collected[office.code] = {
             officeCode: office.code,
             officeName: office.name,
             bulletinReportId: result.reportId,
             bulletinPublishTime: result.publishTime,
             summary: result.summary,
+            bulletinColored: result.aiColored !== false,
             collectedAt: result.collectedAt,
         };
+        if (result.aiColored === false) rawFallbacks++;
 
         // KMA 부하 보호용 짧은 딜레이
         await new Promise(r => setTimeout(r, 300));
@@ -563,7 +597,7 @@ async function collectAllRegionalBulletins() {
     }
     // ──────────────────────────────────────────────────────────────────────
 
-    console.log(`[RegionalBulletin] 완료: 신규 ${updated}건 / 캐시 ${cacheHits}건 / 사이클스킵 ${cycleSkips}건 / 실패 ${failed}건`);
+    console.log(`[RegionalBulletin] 완료: 신규 ${updated}건 / 캐시 ${cacheHits}건 / 사이클스킵 ${cycleSkips}건 / 실패 ${failed}건 / 원문폴백 ${rawFallbacks}건`);
     return store;
 }
 
