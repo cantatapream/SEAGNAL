@@ -811,6 +811,17 @@
         outsideClickHandler: null
     };
 
+    // [외부 노출] 천기 통합 클릭 팝업이 '시정'을 한 줄 합쳐 표시할 수 있도록 점 샘플 제공.
+    //   fctTm: "YYYY.MM.DD HH:00"(KST, 천기와 동일 포맷). 반환: Promise<{value:km|null}>.
+    //   레이어 활성 여부와 무관(imgList+PNG 프록시 샘플만 사용). 실패 시 {value:null}.
+    window._vsbyForecastSamplePointAt = function (lat, lon, fctTm) {
+        try {
+            return _samplePoint(fctTm, lon, lat).catch(function () { return { value: null }; });
+        } catch (e) {
+            return Promise.resolve({ value: null });
+        }
+    };
+
     /** 한국어 요일 + 시간 포맷팅: "6월 9일 (화) 15:00" */
     function fmtPopupTm(s) {
         if (!s) return '';
