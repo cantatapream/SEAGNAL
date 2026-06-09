@@ -81,8 +81,20 @@ KMA_DMDW_USER_ID=... KMA_DMDW_USER_PWD=... \
 - **남은 작업**: 나머지 5청(busn/gwju/degu/gawn/dajn) 차트 축 라벨 확인 → `CALIB` 보정값 추가.
   그 후 `runLeadtime.js` 에 per-zone 매칭 옵션(CSV 해역명 = seaZoneCoordinates 구역명 1:1) 추가.
 
+## per-zone 운영
+- 6청 보정 완료(`geoCalib.CALIB`). degu(대구·경북)는 전용 차트가 APPM(빈 archive)이라 gawn 차트 사용(`OFFICE_CHART`).
+- CSV 해역명 → 부모 특보구역 매칭(`zones.js`, 97.4%): 정확매칭 + 집합/지역(region) centroid.
+- 러너가 청 단위와 per-zone HIT 를 함께 산출. 구역 샘플 반경은 type별(H 먼바다 55px / I 앞바다 30px).
+- `calibrate_offices.js`: 청 차트 프레임+라벨범위로 보정값 재산출(축 라벨은 LABEL_EXTENT 에 기록).
+
+### 발견 (제주 2026-04)
+per-zone HIT(≈33%@12h) < 청단위(83%). 버그가 아니라, **제주 풍랑주의보 상당수가 앞바다 대상이고
+파고(3m)보다 풍속(≥14m/s)으로 발효**되어 파고 차트만으론 그 구역에 ≥3m 가 안 나타나기 때문.
+청 단위는 차트 다른 곳(먼바다)의 ≥3m 를 잡아 과대계상. → 완전한 재현을 위해선 해상풍(풍속) 차트
+(`*_wind_ft03_pa4_`)도 병행 분석 필요(다음 단계).
+
 ## 진행 현황
-- [x] 청 단위 파이프라인(크롤링·색상분석·리드타임·거짓경보율) — 검증 완료
-- [x] 전 기간×6청 청 단위 배치 (`run_all_offices.sh`, 백그라운드 실행 중)
-- [x] per-zone 보정·투영·분석 모듈(`geoCalib.js`) — 제주청 검증
-- [ ] 5청 보정값 추가 + per-zone 리드타임 러너 통합
+- [x] 청 단위 파이프라인(크롤링·색상분석·리드타임·거짓경보율) — 검증
+- [x] per-zone 보정·투영·분석(`geoCalib.js`/`zones.js`) — 6청 보정 + 러너 통합
+- [ ] 전 기간×6청 (청×연도) 병렬 배치 실행 → 종합 리포트
+- [ ] (개선) 해상풍 차트 병행 → 풍속기반 주의보 재현율 보강 / 폴리곤 기반 구역 샘플
