@@ -151,6 +151,12 @@ const regionalBulletinCollector = require('./regional_bulletin_collector');
 //   변경 사유 및 동작은 services/khoa_stream_cache.js 모듈 헤더 참고.
 const khoaStreamCache = require('./services/khoa_stream_cache');
 
+// [물빠짐 예측 — Phase 1] 서해·남해 앵커 1분 조위곡선 배치 수집기.
+//   anchors.json(build_tide_field.js 산출) 을 순회하며 오늘~+2일(KST) TideBED
+//   곡선을 동시성 풀로 수집해 data/tide_field/curves/ 에 영속 저장.
+//   롤링 윈도우 + 부족분만 재호출 (다운타임 self-heal). KST 23:30 1일 1회.
+const tideFieldCollector = require('./services/tide_field_collector');
+
 
 const DUCKDNS_CONFIG = {
     ENABLED: !process.env.FLY_ALLOC_ID,
@@ -2480,6 +2486,17 @@ async function init() {
             khoaStreamCache.refreshCycle({ log }).catch(err =>
                 log(`⚠️ [KHOA] 정기 수집 오류: ${err.message}`)
             );
+        }
+
+        // [물빠짐 예측 곡선 수집 — Phase 1] KST 23:30 1일 1회.
+        //   앵커 곡선(오늘~+2일) 중 없거나 부분수집분만 골라 동시성 풀로 수집.
+        //   최초 실행=자동 3일, 이후 1일/일. anchors.json 미존재 시 모듈이 안전 skip.
+        //   fire-and-forget — 다른 작업/사이클을 막지 않음. 내부 동시성 5앵커 제한.
+        if (hm === '23:30') {
+            log('🌊 물빠짐 앵커 곡선 수집 시작 (오늘~+2일, KST)...');
+            tideFieldCollector.collectTideField({ log })
+                .then(r => log(`✅ 물빠짐 곡선 수집 결과: ${JSON.stringify(r)}`))
+                .catch(err => log(`⚠️ 물빠짐 곡선 수집 오류: ${err.message}`));
         }
 
         if (process.env.FLY_ALLOC_ID) {
