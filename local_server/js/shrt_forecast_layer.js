@@ -1453,13 +1453,21 @@
     }
 
     /** 6개 카테고리 동시 sampling — Promise.all 로 병렬. 실패한 카테고리는 null. */
-    function samplePointAt(lat, lon, fctTm) {
+    //   includeVis=true 면 시정(RDPS, vsby 모듈) 값도 함께 샘플해 data.vis 로 포함.
+    //   (천기 클릭 팝업 전용 — 바텀시트 카드는 includeVis 없이 호출하므로 영향 없음)
+    function samplePointAt(lat, lon, fctTm, includeVis) {
         var types = ['sky','pty','pop','pcp','sno','tmp'];
-        return Promise.all(types.map(function (t) {
+        var typesP = Promise.all(types.map(function (t) {
             return _samplePointForType(t, fctTm, lon, lat).catch(function () { return null; });
-        })).then(function (arr) {
+        }));
+        var visP = (includeVis && typeof window._vsbyForecastSamplePointAt === 'function')
+            ? window._vsbyForecastSamplePointAt(lat, lon, fctTm).catch(function () { return null; })
+            : Promise.resolve(null);
+        return Promise.all([typesP, visP]).then(function (res) {
+            var arr = res[0], vis = res[1];
             return { fct_tm: fctTm, lat: lat, lon: lon,
-                     sky: arr[0], pty: arr[1], pop: arr[2], pcp: arr[3], sno: arr[4], tmp: arr[5] };
+                     sky: arr[0], pty: arr[1], pop: arr[2], pcp: arr[3], sno: arr[4], tmp: arr[5],
+                     vis: vis };
         });
     }
 
@@ -1596,6 +1604,13 @@
         } else {
             tmpStr = '정보 없음';
         }
+        // 시정(RDPS) — vsby 모듈 샘플. 20km 이상은 '맑음' 의미로 '20km 이상' 표기.
+        var visStr;
+        if (data.vis && data.vis.value != null) {
+            visStr = (data.vis.value >= 20) ? '20km 이상' : (_fmtNum(data.vis.value) + 'km');
+        } else {
+            visStr = '정보 없음';
+        }
         return '<div class="shrt-fcst-point-row">'
             +    '<span class="shrt-fcst-point-row-label">하늘 상태</span>'
             +    '<span class="shrt-fcst-point-row-value">' + skyLabel + '</span>'
@@ -1611,6 +1626,10 @@
             +  '<div class="shrt-fcst-point-row">'
             +    '<span class="shrt-fcst-point-row-label">기온</span>'
             +    '<span class="shrt-fcst-point-row-value">' + tmpStr + '</span>'
+            +  '</div>'
+            +  '<div class="shrt-fcst-point-row">'
+            +    '<span class="shrt-fcst-point-row-label">시정</span>'
+            +    '<span class="shrt-fcst-point-row-value">' + visStr + '</span>'
             +  '</div>';
     }
 
@@ -1686,7 +1705,7 @@
         popupState.lastFctTm = fctTm;
         var lat = popupState.latLon[0], lon = popupState.latLon[1];
 
-        return samplePointAt(lat, lon, fctTm)
+        return samplePointAt(lat, lon, fctTm, true)
             .then(function (data) {
                 if (!popupState.box || token !== popupState.currentFetchToken) return;
                 if (bodyEl) bodyEl.innerHTML = buildPopupBodyHtml(data);
