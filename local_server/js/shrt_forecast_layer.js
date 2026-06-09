@@ -962,10 +962,6 @@
         if (typeof window.oceanOverlayTurnOff === 'function') {
             try { window.oceanOverlayTurnOff(); } catch (e) {}
         }
-        // [Mutual Exclusion] 물빠짐 레이어도 하단 슬라이더를 공유하므로 함께 끔.
-        if (typeof window._tideFieldDeactivate === 'function') {
-            try { window._tideFieldDeactivate(); } catch (e) {}
-        }
 
         // [C-cache] 사용자가 의식적으로 천기 카테고리를 활성화 → 캐시 무효화 + 강제 새 fetch.
         //   사유: 평상시 5분 TTL 캐시가 있지만, 사용자가 KMA 점진 발표를 기다리거나
