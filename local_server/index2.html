@@ -3293,28 +3293,15 @@
                             <i class="fa-solid fa-location-dot"></i>
                             <span id="mudflat-bs-place-name">-</span>
                         </div>
-                        <div class="fishing-bs-total-index" id="mudflat-bs-total-index">
-                            <!-- JS에서 그 날짜의 대표 지수 배지 렌더링 -->
-                        </div>
+                        <span class="life-publish-time" id="mudflat-bs-publish" style="margin-left:auto;margin-right:10px;font-size:0.78rem;"></span>
                         <button class="fishing-bs-close" id="mudflat-bs-close" title="닫기">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
                     </div>
 
-                    <!-- 날짜 네비게이션 -->
-                    <div class="fishing-bs-date-nav">
-                        <button class="fishing-bs-date-btn" id="mudflat-date-prev" title="이전 날짜">
-                            <i class="fa-solid fa-chevron-left"></i>
-                        </button>
-                        <span class="fishing-bs-date-label" id="mudflat-bs-date-label">-</span>
-                        <button class="fishing-bs-date-btn" id="mudflat-date-next" title="다음 날짜">
-                            <i class="fa-solid fa-chevron-right"></i>
-                        </button>
-                    </div>
-
-                    <!-- 예보 데이터 영역 (그 날짜의 체험시간 구간 목록 — JS 렌더링) -->
+                    <!-- 예보 데이터 영역 (수집된 전체 날짜의 체험시간/지수 표 — JS 렌더링) -->
                     <div class="fishing-bs-content" id="mudflat-bs-content">
-                        <!-- 체험시간/기온/날씨/체험지수 카드가 JS로 렌더링됨 -->
+                        <!-- 날짜별 체험시간/기온/날씨/체험지수 표가 JS로 렌더링됨 -->
                     </div>
                 </div>
 
@@ -3584,7 +3571,8 @@
             <button class="sub-tab-btn" data-target="scuba-section">스킨스쿠버</button>
             <button class="sub-tab-btn" data-target="mudflat-section">갯벌체험</button>
             <button class="sub-tab-btn" data-target="sea-parting-section">바다갈라짐</button>
-            <button class="sub-tab-btn" data-target="ripcurrent-section">이안류</button>
+            <!-- [임시 숨김] 이안류 탭 — 테스트 중이라 사용자 미노출. 공개 시 style 제거. -->
+            <button class="sub-tab-btn" data-target="ripcurrent-section" style="display:none;">이안류</button>
         </nav>
 
         <!-- 메인탭 바 (화면 하단 고정)
