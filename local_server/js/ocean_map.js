@@ -780,6 +780,10 @@
             if (window.__SEAGNAL_PAGE === 'index2' && window.initShrtForecastLayer) {
                 window.initShrtForecastLayer(oceanMap);
             }
+            // [시정예측] KMA RDPS 시정/안개 PNG 오버레이 모듈 (index2 전용 — 천기 메커니즘 복제)
+            if (window.__SEAGNAL_PAGE === 'index2' && window.initVsbyForecastLayer) {
+                window.initVsbyForecastLayer(oceanMap);
+            }
 
             // [물빠짐] 서해·남해 갯벌 노출 예측 레이어 (index2 전용)
             //   tide_field.js 가 토글 버튼 + 시간 슬라이더 + 2색 벡터 레이어를 바인딩.
@@ -958,6 +962,13 @@
         //        그 외엔 false 반환 → 다음 가드 (해구도 / 특보 / 바텀시트) 진행.
         if (typeof window._shrtForecastTryHandleClick === 'function') {
             if (window._shrtForecastTryHandleClick(oceanMap, evt)) return;
+        }
+
+        // [시정예측 가드] 천기 바로 다음 우선순위. 시정 레이어 활성 + extent 내부 +
+        // frame 있음 → 시정(km) 팝업 박스 띄우고 true 반환 (클릭 소비).
+        // 천기와 시정은 상호 배타라 둘이 동시에 활성일 수 없음 (순서는 안전상 천기 다음).
+        if (typeof window._vsbyForecastTryHandleClick === 'function') {
+            if (window._vsbyForecastTryHandleClick(oceanMap, evt)) return;
         }
 
         // 해구도 격자 클릭 (해구도 토글 ON 일 때만)
