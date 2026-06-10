@@ -332,11 +332,9 @@
         _currentCells = cells || [];
         _drawCells = [];
         _lastDrawDeg = cellDeg || (_cellHalf * 2);
-        // [핵심] BADA 수심 데이터는 ~150m 간격인데 렌더 셀은 100m라, 100m로 그리면
-        //   데이터 없는 칸이 번갈아 생겨 체커보드(격자 메시)가 된다. 그래서 타일을
-        //   데이터 간격보다 작게는 그리지 않도록 최소 ~180m(MIN_TILE_DEG)로 바닥처리 +
-        //   1.4× 겹침 → 빈칸 없이 솔리드. (균일 처리 → 축척 일관 유지)
-        var MIN_TILE_DEG = 0.0018;
+        // 렌더 셀이 BADA 데이터(150m)에 맞춰졌으니(cell_deg≈0.0015), 타일 최소를
+        //   셀 크기로 바닥처리 + 1.4× 겹침 → 빈칸/체커보드 없이 솔리드. 블러로 부드럽게.
+        var MIN_TILE_DEG = 0.0015;
         for (var i = 0; i < _currentCells.length; i++) {
             var c = _currentCells[i];
             var sz = Math.max(c.s || _lastDrawDeg, MIN_TILE_DEG);
