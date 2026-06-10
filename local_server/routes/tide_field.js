@@ -415,4 +415,72 @@ router.get('/api/tide-field/status', (req, res) => {
     }
 });
 
+/**
+ * GET /api/tide-field/debug?lat=&lon=
+ * 한 지점의 조위(η)·물깊이 시계열을 전 프레임(3일)에 대해 반환 + 자동 분석.
+ *   - 자정(날짜 경계)에서 η가 비현실적으로 점프하는지(maxJumpCm)
+ *   - 특정 날짜의 곡선이 결측인지(missingByDate: anchorsUsed=0 프레임 수)
+ *   → "급변"이 데이터(곡선 결측/불연속) 문제인지 모델(이진) 문제인지 판별용.
+ */
+router.get('/api/tide-field/debug', (req, res) => {
+    if (!loadMetaIfNeeded() || !_meta || !Array.isArray(_meta.cells) || (_meta.meta && _meta.meta.empty)) {
+        return res.status(503).json({ success: false, ready: false });
+    }
+    const lat = parseFloat(req.query.lat), lon = parseFloat(req.query.lon);
+    if (isNaN(lat) || isNaN(lon)) return res.status(400).json({ success: false, error: 'lat/lon 필요' });
+
+    // 가장 가까운 셀
+    let nearest = null, nd = Infinity;
+    for (const cell of _meta.cells) {
+        const d = (cell.lat - lat) * (cell.lat - lat) + (cell.lon - lon) * (cell.lon - lon);
+        if (d < nd) { nd = d; nearest = cell; }
+    }
+    if (!nearest) return res.json({ success: false, error: '셀 없음' });
+    const refs = _cellAnchorIdx.get(nearest.key) || [];
+    const dates = TFC.windowDatesKST(CFG.WINDOW_DAYS);
+    const step = CFG.STEP_MINUTES;
+
+    const series = [];
+    for (const ymd of dates) {
+        for (let m = 0; m < 1440; m += step) {
+            let wsum = 0, vsum = 0, nUsed = 0;
+            for (const { anchor, distKm } of refs) {
+                const bm = loadAnchorCurve(anchor.id, ymd);
+                const eta = etaCmAt(bm, m);
+                if (eta == null) continue;
+                const w = distKm < 0.1 ? 1e6 : 1 / (distKm * distKm);
+                wsum += w; vsum += w * eta; nUsed++;
+            }
+            const etaCm = wsum > 0 ? vsum / wsum : null;
+            const depthM = (etaCm != null && nearest.depth != null && nearest.z0 != null)
+                ? nearest.depth + etaCm / 100 - nearest.z0 : null;
+            series.push({
+                date: ymd, min: m,
+                etaCm: etaCm == null ? null : Math.round(etaCm),
+                depthM: depthM == null ? null : Math.round(depthM * 100) / 100,
+                anchorsUsed: nUsed
+            });
+        }
+    }
+    // 자동 분석: 인접 프레임 η 최대 점프 + 날짜별 결측 수
+    let maxJumpCm = 0, jumpAt = null;
+    for (let i = 1; i < series.length; i++) {
+        if (series[i].etaCm != null && series[i - 1].etaCm != null) {
+            const j = Math.abs(series[i].etaCm - series[i - 1].etaCm);
+            if (j > maxJumpCm) { maxJumpCm = j; jumpAt = { from: series[i - 1], to: series[i] }; }
+        }
+    }
+    const missingByDate = {};
+    for (const s of series) if (s.anchorsUsed === 0) missingByDate[s.date] = (missingByDate[s.date] || 0) + 1;
+
+    res.json({
+        success: true,
+        cell: { lat: nearest.lat, lon: nearest.lon, depth: nearest.depth, z0: nearest.z0 },
+        anchorCount: refs.length,
+        anchors: refs.map(r => ({ id: r.anchor.id, distKm: Math.round(r.distKm * 10) / 10 })),
+        analysis: { maxJumpCm, jumpAt, missingByDate, stepMinutes: step },
+        series
+    });
+});
+
 module.exports = router;
