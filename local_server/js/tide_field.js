@@ -48,6 +48,7 @@
     var _frameIdx = 0;
     var _cellCache = {};        // ISO -> cells[] (프리페치)
     var _playTimer = null;
+    var _playing = false;       // 재생 중 여부(로드 동기 재생 가드)
     var _cellHalf = 0.0005;     // 데이터 최소 셀 반폭(도). meta.cell_deg/2.
     var _lastDrawDeg = 0.001;   // 마지막 렌더에 쓴 타일 크기(도) — 클릭 허용반경용.
     var _moveTimer = null;      // 줌/팬 재렌더 디바운스
@@ -385,17 +386,37 @@
         }
     }
 
+    // 로드 동기 재생: 다음 프레임 데이터가 "로드 완료된 뒤"에만 바를 전진시킨다.
+    //   (setInterval 로 무조건 전진하면 로딩이 못 따라가 바만 가고 화면이 멈춘다)
     function startPlay() {
         var playBtn = $('mudflat-play-btn');
         if (playBtn) playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
-        _playTimer = setInterval(function () {
+        _playing = true;
+        var FRAME_MS = 650;     // 프레임이 준비된 뒤 화면에 머무는 시간
+        function step() {
+            if (!_playing || !_active) return;
             var next = _frameIdx + 1;
             if (next >= _frames.length) next = 0;
-            renderFrame(next, true);
-        }, 800);
+            // 앞 2개 프리페치(다음 프레임들을 미리 받아두면 끊김 없이 재생)
+            for (var k = 1; k <= 2; k++) {
+                var p = next + k;
+                if (p < _frames.length) fetchCells(_frames[p]);
+            }
+            fetchCells(_frames[next]).then(function (res) {
+                if (!_playing || !_active) return;
+                _frameIdx = next;
+                var slider = $('mudflat-slider');
+                if (slider) slider.value = next;
+                updateTooltip(next);
+                paintCells(res.cells, res.cellDeg);   // 데이터 준비된 뒤에만 바·화면 갱신
+                _playTimer = setTimeout(step, FRAME_MS);
+            });
+        }
+        step();
     }
     function stopPlay() {
-        if (_playTimer) { clearInterval(_playTimer); _playTimer = null; }
+        _playing = false;
+        if (_playTimer) { clearTimeout(_playTimer); _playTimer = null; }
         var playBtn = $('mudflat-play-btn');
         if (playBtn) playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
     }
