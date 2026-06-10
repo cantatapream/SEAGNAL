@@ -288,7 +288,7 @@ router.get('/api/tide-field/meta', (req, res) => {
         region_bbox: _meta.region_bbox || C.REGION_BBOX,
         time_start: timeStartISO,
         time_end: timeEndISO,
-        step_minutes: _meta.step_minutes || CFG.STEP_MINUTES,
+        step_minutes: CFG.STEP_MINUTES,   // 시각 간격은 설정값(=요청시 정합) 사용 — 재빌드 불필요
         window_days: _meta.window_days || CFG.WINDOW_DAYS,
         anchor_count: _meta.anchor_count || (_anchors ? _anchors.length : 0),
         cell_count: _meta.cell_count || (_meta.cells ? _meta.cells.length : 0),

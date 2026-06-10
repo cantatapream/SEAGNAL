@@ -345,8 +345,8 @@ const TIDE_FIELD_CONFIG = {
     INTERP_MAX_ANCHORS: 4,
     // 수집/예측 윈도우 (오늘 ~ +N일). 3일.
     WINDOW_DAYS: 3,
-    // 예측 step (분). 프론트 슬라이더 30분 간격과 정합.
-    STEP_MINUTES: 30
+    // 예측 step (분). 갯벌은 완만히 변해 1시간(60)이면 충분 → 프레임 144→72로 경량화.
+    STEP_MINUTES: 60
 
     // [제거됨 — 더 이상 사용 안 함] 연결성 그래프/물길 BFS 기반 상수:
     //   NEIGHBOR_TOL_FACTOR, ANCHOR_COVER_KM, INTERP_MAX_WATERWAY_KM.

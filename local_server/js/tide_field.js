@@ -38,8 +38,10 @@
 
     // ── 상태 ─────────────────────────────────────────────────────────
     var _map = null;
-    var _layer = null;          // ol.layer.Vector
-    var _source = null;         // ol.source.Vector
+    var _layer = null;          // ol.layer.Image (캔버스 래스터)
+    var _imgSource = null;      // ol.source.ImageCanvas
+    var _drawCells = [];        // 그릴 셀 [{x0,y0,x1,y1}](3857, 사전변환) — canvasFunction 입력
+    var _currentCells = [];     // 원본 셀(클릭 조회용)
     var _active = false;
     var _meta = null;           // /api/tide-field/meta 응답
     var _frames = [];           // 슬라이더 frame 의 ISO 시각 목록
@@ -59,10 +61,14 @@
         if (!_map) { console.warn('[tide_field] 지도 핸들 없음 — 초기화 보류'); return; }
         if (typeof ol === 'undefined') { console.warn('[tide_field] OpenLayers 미로드'); return; }
 
-        _source = new ol.source.Vector();
-        _layer = new ol.layer.Vector({
-            source: _source,
-            style: styleFn,
+        // [캔버스 래스터] 폴리곤 수천 개 대신 캔버스에 사각형으로 한 번에 칠해
+        //   이미지 1장으로 렌더 → 버벅임 해소 + 이음선 없는 연속 표출.
+        _imgSource = new ol.source.ImageCanvas({
+            canvasFunction: drawFieldCanvas,
+            ratio: 1
+        });
+        _layer = new ol.layer.Image({
+            source: _imgSource,
             visible: false,
             zIndex: 45   // 베이스맵 위, 해구도(49~51) 아래
         });
@@ -71,18 +77,29 @@
         bindToggle();
         bindSlider();
         bindMapClickPopup();
-        console.log('[tide_field] 물빠짐 레이어 초기화 완료');
+        console.log('[tide_field] 물빠짐 레이어 초기화 완료 (캔버스 래스터)');
     };
 
-    // 셀 feature 스타일: 드러남만 채움(경계선 없음 — 인접 셀이 매끄럽게 이어짐)
-    var _exposedStyle = null;
-    function styleFn() {
-        if (!_exposedStyle) {
-            _exposedStyle = new ol.style.Style({
-                fill: new ol.style.Fill({ color: COLOR_EXPOSED })
-            });
+    // ImageCanvas 콜백: 현재 _drawCells(3857 사각형)를 캔버스에 채워 반환.
+    //   extent/resolution/pixelRatio 로 지도좌표→픽셀 변환. 셀이 많아도
+    //   "사각형 칠하기"라 폴리곤 객체 생성보다 훨씬 가볍다.
+    function drawFieldCanvas(extent, resolution, pixelRatio, size) {
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(size[0]));
+        canvas.height = Math.max(1, Math.round(size[1]));
+        var ctx = canvas.getContext('2d');
+        if (!_drawCells.length) return canvas;
+        ctx.fillStyle = COLOR_EXPOSED;
+        var ex0 = extent[0], ey3 = extent[3], r = resolution / pixelRatio;
+        for (var i = 0; i < _drawCells.length; i++) {
+            var d = _drawCells[i];
+            var px = (d.x0 - ex0) / r;
+            var py = (ey3 - d.y1) / r;          // y1=상단(큰 Y)→작은 픽셀
+            var pw = (d.x1 - d.x0) / r;
+            var ph = (d.y1 - d.y0) / r;
+            ctx.fillRect(px, py, pw < 1 ? 1 : pw, ph < 1 ? 1 : ph);
         }
-        return _exposedStyle;
+        return canvas;
     }
 
     // ====================================================================
@@ -181,7 +198,9 @@
         var btn = $('ocean-mudflat-toggle-btn');
         if (btn) btn.classList.remove('active');
         if (_layer) _layer.setVisible(false);
-        if (_source) _source.clear();
+        _drawCells = [];
+        _currentCells = [];
+        if (_imgSource) _imgSource.changed();
         showSliderBar(false);
         hidePopup();
     }
@@ -276,28 +295,18 @@
     }
 
     function paintCells(cells) {
-        _source.clear();
-        if (!cells || !cells.length) return;
-        var feats = [];
+        _currentCells = cells || [];
+        _drawCells = [];
         // 셀을 약간 키워(1.25×) 인접 셀끼리 겹치게 → 이음선/틈 제거, 연속 표출.
-        //   불투명(0.92) 색이라 겹쳐도 농담 차이가 거의 없다.
+        //   3857 좌표는 fetch 시 1회만 변환(재렌더 시 픽셀 계산만 → 가벼움).
         var h = _cellHalf * 1.25;
-        for (var i = 0; i < cells.length; i++) {
-            var c = cells[i];
-            // 셀을 작은 사각형 폴리곤으로 (lon±h, lat±h)
-            var ring = [
-                [c.lon - h, c.lat - h], [c.lon + h, c.lat - h],
-                [c.lon + h, c.lat + h], [c.lon - h, c.lat + h],
-                [c.lon - h, c.lat - h]
-            ].map(function (p) { return ol.proj.fromLonLat(p); });
-            var f = new ol.Feature({ geometry: new ol.geom.Polygon([ring]) });
-            f.set('state', c.state);
-            f.set('depth_m', c.depth_m);
-            f.set('lon', c.lon);
-            f.set('lat', c.lat);
-            feats.push(f);
+        for (var i = 0; i < _currentCells.length; i++) {
+            var c = _currentCells[i];
+            var ll = ol.proj.fromLonLat([c.lon - h, c.lat - h]); // 좌하단 [x0,y0]
+            var ur = ol.proj.fromLonLat([c.lon + h, c.lat + h]); // 우상단 [x1,y1]
+            _drawCells.push({ x0: ll[0], y0: ll[1], x1: ur[0], y1: ur[1] });
         }
-        _source.addFeatures(feats);
+        if (_imgSource) _imgSource.changed(); // 캔버스 다시 그리기
     }
 
     // ====================================================================
@@ -392,25 +401,32 @@
     // 셀 클릭 팝업 (현재 물깊이 / 간조 보조 표시)
     // ====================================================================
     function bindMapClickPopup() {
-        // 클릭은 ocean_map.js handleMapClick 이 먼저 처리하지만, 물빠짐 활성 시엔
-        // 셀 hit 면 우리가 팝업을 띄운다. forEachFeatureAtPixel 로 우리 레이어 hit 확인.
+        // 캔버스 래스터엔 feature 가 없으므로, 클릭 좌표에서 가장 가까운 드러남 셀을
+        // 직접 찾는다(1셀 반경 내). 물빠짐 활성 시에만.
         _map.on('singleclick', function (evt) {
-            if (!_active) return;
-            var hit = null;
-            _map.forEachFeatureAtPixel(evt.pixel, function (feature, lyr) {
-                if (lyr === _layer && hit == null) hit = feature;
-            });
-            if (!hit) { hidePopup(); return; }
-            showCellPopup(evt.coordinate, hit);
+            if (!_active || !_currentCells.length) return;
+            var ll = ol.proj.toLonLat(evt.coordinate);
+            var clon = ll[0], clat = ll[1];
+            var tol = _cellHalf * 2.5;     // 클릭 허용 반경(도)
+            var tol2 = tol * tol;
+            var best = null, bestD = Infinity;
+            for (var i = 0; i < _currentCells.length; i++) {
+                var c = _currentCells[i];
+                var dx = c.lon - clon, dy = c.lat - clat;
+                var d2 = dx * dx + dy * dy;
+                if (d2 < bestD) { bestD = d2; best = c; }
+            }
+            if (!best || bestD > tol2) { hidePopup(); return; }
+            showCellPopup(evt.coordinate, best);
         });
     }
 
-    function showCellPopup(coordinate, feature) {
+    function showCellPopup(coordinate, cell) {
         ensurePopupOverlay();
         var el = $('mudflat-popup');
         if (!el) return;
-        var depth = feature.get('depth_m');
-        var lat = feature.get('lat'), lon = feature.get('lon');
+        var depth = cell.depth_m;
+        var lat = cell.lat, lon = cell.lon;
         // 레이어엔 드러남(state=1) 셀만 존재한다.
         var stateTxt = '<b style="color:#8a5a2b;">드러남(갯벌 노출)</b>';
         var depthTxt = (depth == null) ? '-' :
