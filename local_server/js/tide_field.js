@@ -114,7 +114,7 @@
             ctx.fillRect(px, py, pw < 1 ? 1 : pw, ph < 1 ? 1 : ph);
         }
         // 2) 블러 1회로 픽셀 경계를 부드럽게 → 해안선 따라 유연한 형태.
-        try { octx.filter = 'blur(' + (2.2 * pixelRatio) + 'px)'; } catch (e) {}
+        try { octx.filter = 'blur(' + (2.6 * pixelRatio) + 'px)'; } catch (e) {}
         octx.drawImage(tmp, 0, 0);
         return out;
     }
@@ -332,13 +332,13 @@
         _currentCells = cells || [];
         _drawCells = [];
         _lastDrawDeg = cellDeg || (_cellHalf * 2);
-        // 타일마다 서버가 준 면적보존 크기(c.s)로 그림(없으면 cellDeg). 1.6× 키워
-        //   인접 타일이 겹쳐 격자 메시(BADA ~150m 간격으로 생기는 틈)를 메워 솔리드
-        //   영역으로 만든다(우수 균일 배율 → 축척 일관 유지). 블러가 경계를 부드럽게.
+        // 렌더 셀이 BADA 데이터(150m)에 맞춰졌으니(cell_deg≈0.0015), 타일 최소를
+        //   셀 크기로 바닥처리 + 1.4× 겹침 → 빈칸/체커보드 없이 솔리드. 블러로 부드럽게.
+        var MIN_TILE_DEG = 0.0015;
         for (var i = 0; i < _currentCells.length; i++) {
             var c = _currentCells[i];
-            var sz = c.s || _lastDrawDeg;
-            var h = (sz / 2) * 1.6;
+            var sz = Math.max(c.s || _lastDrawDeg, MIN_TILE_DEG);
+            var h = (sz / 2) * 1.4;
             var ll = ol.proj.fromLonLat([c.lon - h, c.lat - h]); // 좌하단 [x0,y0]
             var ur = ol.proj.fromLonLat([c.lon + h, c.lat + h]); // 우상단 [x1,y1]
             _drawCells.push({ x0: ll[0], y0: ll[1], x1: ur[0], y1: ur[1] });
