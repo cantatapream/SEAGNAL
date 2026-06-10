@@ -1,0 +1,398 @@
+[
+  {
+    "code": "S1252010",
+    "name": "서해중부안쪽먼바다",
+    "region": "서해중부",
+    "ok": true,
+    "idx": 1,
+    "file": "01_S1252010.png",
+    "zoom": 9
+  },
+  {
+    "code": "S1251100",
+    "name": "인천·경기북부앞바다",
+    "region": "서해중부",
+    "ok": true,
+    "idx": 2,
+    "file": "02_S1251100.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1251200",
+    "name": "인천·경기남부앞바다",
+    "region": "서해중부",
+    "ok": true,
+    "idx": 3,
+    "file": "03_S1251200.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1251300",
+    "name": "충남북부앞바다",
+    "region": "서해중부",
+    "ok": true,
+    "idx": 4,
+    "file": "04_S1251300.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1251400",
+    "name": "충남남부앞바다",
+    "region": "서해중부",
+    "ok": true,
+    "idx": 5,
+    "file": "05_S1251400.png",
+    "zoom": 11
+  },
+  {
+    "code": "S1232110",
+    "name": "서해남부북쪽안쪽먼바다",
+    "region": "서해남부",
+    "ok": true,
+    "idx": 6,
+    "file": "06_S1232110.png",
+    "zoom": 9
+  },
+  {
+    "code": "S1231100",
+    "name": "전북북부앞바다",
+    "region": "서해남부",
+    "ok": true,
+    "idx": 7,
+    "file": "07_S1231100.png",
+    "zoom": 11
+  },
+  {
+    "code": "S1231200",
+    "name": "전북남부앞바다",
+    "region": "서해남부",
+    "ok": true,
+    "idx": 8,
+    "file": "08_S1231200.png",
+    "zoom": 11
+  },
+  {
+    "code": "S1231300",
+    "name": "전남북부서해앞바다",
+    "region": "서해남부",
+    "ok": true,
+    "idx": 9,
+    "file": "09_S1231300.png",
+    "zoom": 11
+  },
+  {
+    "code": "S1231400",
+    "name": "전남중부서해앞바다",
+    "region": "서해남부",
+    "ok": true,
+    "idx": 10,
+    "file": "10_S1231400.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1232210",
+    "name": "서해남부남쪽안쪽먼바다",
+    "region": "서해남부",
+    "ok": true,
+    "idx": 11,
+    "file": "11_S1232210.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1231500",
+    "name": "전남남부서해앞바다",
+    "region": "서해남부",
+    "ok": true,
+    "idx": 12,
+    "file": "12_S1231500.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1252020",
+    "name": "서해중부바깥먼바다",
+    "region": "서해중부",
+    "ok": true,
+    "idx": 13,
+    "file": "13_S1252020.png",
+    "zoom": 9
+  },
+  {
+    "code": "S1232120",
+    "name": "서해남부북쪽바깥먼바다",
+    "region": "서해남부",
+    "ok": true,
+    "idx": 14,
+    "file": "14_S1232120.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1232220",
+    "name": "서해남부남쪽바깥먼바다",
+    "region": "서해남부",
+    "ok": true,
+    "idx": 15,
+    "file": "15_S1232220.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1322100",
+    "name": "남해서부서쪽먼바다",
+    "region": "남해서부",
+    "ok": true,
+    "idx": 16,
+    "file": "16_S1322100.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1321100",
+    "name": "전남서부남해앞바다",
+    "region": "남해서부",
+    "ok": true,
+    "idx": 17,
+    "file": "17_S1321100.png",
+    "zoom": 11
+  },
+  {
+    "code": "S1322200",
+    "name": "남해서부동쪽먼바다",
+    "region": "남해서부",
+    "ok": true,
+    "idx": 18,
+    "file": "18_S1322200.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1321200",
+    "name": "전남동부남해앞바다",
+    "region": "남해서부",
+    "ok": true,
+    "idx": 19,
+    "file": "19_S1321200.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1312010",
+    "name": "남해동부안쪽먼바다",
+    "region": "남해동부",
+    "ok": true,
+    "idx": 20,
+    "file": "20_S1312010.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1311200",
+    "name": "경남서부남해앞바다",
+    "region": "남해동부",
+    "ok": true,
+    "idx": 21,
+    "file": "21_S1311200.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1311400",
+    "name": "거제시동부앞바다",
+    "region": "남해동부",
+    "ok": true,
+    "idx": 22,
+    "file": "22_S1311400.png",
+    "zoom": 11
+  },
+  {
+    "code": "S1311300",
+    "name": "경남중부남해앞바다",
+    "region": "남해동부",
+    "ok": true,
+    "idx": 23,
+    "file": "23_S1311300.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1311100",
+    "name": "부산앞바다",
+    "region": "남해동부",
+    "ok": true,
+    "idx": 24,
+    "file": "24_S1311100.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1132110",
+    "name": "동해남부남쪽안쪽먼바다",
+    "region": "동해남부",
+    "ok": true,
+    "idx": 25,
+    "file": "25_S1132110.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1131100",
+    "name": "울산앞바다",
+    "region": "동해남부",
+    "ok": true,
+    "idx": 26,
+    "file": "26_S1131100.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1132210",
+    "name": "동해남부북쪽안쪽먼바다",
+    "region": "동해남부",
+    "ok": true,
+    "idx": 27,
+    "file": "27_S1132210.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1131200",
+    "name": "경북남부앞바다",
+    "region": "동해남부",
+    "ok": true,
+    "idx": 28,
+    "file": "28_S1131200.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1131300",
+    "name": "경북북부앞바다",
+    "region": "동해남부",
+    "ok": true,
+    "idx": 29,
+    "file": "29_S1131300.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1152010",
+    "name": "동해중부안쪽먼바다",
+    "region": "동해중부",
+    "ok": true,
+    "idx": 30,
+    "file": "30_S1152010.png",
+    "zoom": 9
+  },
+  {
+    "code": "S1151300",
+    "name": "강원남부앞바다",
+    "region": "동해중부",
+    "ok": true,
+    "idx": 31,
+    "file": "31_S1151300.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1151200",
+    "name": "강원중부앞바다",
+    "region": "동해중부",
+    "ok": true,
+    "idx": 32,
+    "file": "32_S1151200.png",
+    "zoom": 11
+  },
+  {
+    "code": "S1151100",
+    "name": "강원북부앞바다",
+    "region": "동해중부",
+    "ok": true,
+    "idx": 33,
+    "file": "33_S1151100.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1132120",
+    "name": "동해남부남쪽바깥먼바다",
+    "region": "동해남부",
+    "ok": true,
+    "idx": 34,
+    "file": "34_S1132120.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1132220",
+    "name": "동해남부북쪽바깥먼바다",
+    "region": "동해남부",
+    "ok": true,
+    "idx": 35,
+    "file": "35_S1132220.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1152020",
+    "name": "동해중부바깥먼바다",
+    "region": "동해중부",
+    "ok": true,
+    "idx": 36,
+    "file": "36_S1152020.png",
+    "zoom": 9
+  },
+  {
+    "code": "S1324210",
+    "name": "제주도남서쪽안쪽먼바다",
+    "region": "제주",
+    "ok": true,
+    "idx": 37,
+    "file": "37_S1324210.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1323100",
+    "name": "제주도북부앞바다",
+    "region": "제주",
+    "ok": true,
+    "idx": 38,
+    "file": "38_S1323100.png",
+    "zoom": 11
+  },
+  {
+    "code": "S1323200",
+    "name": "제주도동부앞바다",
+    "region": "제주",
+    "ok": true,
+    "idx": 39,
+    "file": "39_S1323200.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1323300",
+    "name": "제주도남부앞바다",
+    "region": "제주",
+    "ok": true,
+    "idx": 40,
+    "file": "40_S1323300.png",
+    "zoom": 11
+  },
+  {
+    "code": "S1323400",
+    "name": "제주도서부앞바다",
+    "region": "제주",
+    "ok": true,
+    "idx": 41,
+    "file": "41_S1323400.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1324110",
+    "name": "제주도남동쪽안쪽먼바다",
+    "region": "제주",
+    "ok": true,
+    "idx": 42,
+    "file": "42_S1324110.png",
+    "zoom": 10
+  },
+  {
+    "code": "S1324020",
+    "name": "제주도남쪽바깥먼바다",
+    "region": "제주",
+    "ok": true,
+    "idx": 43,
+    "file": "43_S1324020.png",
+    "zoom": 9
+  },
+  {
+    "code": "S1312020",
+    "name": "남해동부바깥먼바다",
+    "region": "남해동부",
+    "ok": true,
+    "idx": 44,
+    "file": "44_S1312020.png",
+    "zoom": 10
+  }
+]
