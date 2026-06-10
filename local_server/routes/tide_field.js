@@ -328,40 +328,57 @@ router.get('/api/tide-field', (req, res) => {
     }
     const candidates = cellsInBbox(bbox);
 
-    // ── 공간 집계: 줌(화면 픽셀)에 맞춘 격자(agg)로 묶어 "연속 타일"로 채운다 ──
-    //   프론트가 agg(=화면 ~Npx에 해당하는 도 단위)를 보낸다. 데이터보다 잘게는
-    //   안 가고(>fineDeg), 그 격자 버킷마다 "가장 얕은(가장 잘 드러나는) 셀"을 대표로
-    //   노출 계산 → 버킷 중심에 출력. 흩뿌려진 점이 아니라 격자 타일로 메워진다.
+    // ── 면적 보존 집계: 줌과 무관하게 "실제 드러난 면적"을 일관되게 표출 ──────
+    //   버킷을 통째로 칠하면(이전 방식) 작은 갯벌이 큰 버킷으로 부풀려져 축척마다
+    //   면적이 달라진다. 대신 버킷의 드러난 셀 "면적"만큼만 타일 크기(s)를 정한다:
+    //     드러난면적 ≈ (드러난 비율 f) × (버킷 내 드러남가능 셀 수 n) × fineDeg²
+    //     타일 한 변 s = √(드러난면적)  → 줌이 달라도 같은 면적으로 표출.
+    //   노출 비율 f 는 버킷에서 M개만 샘플 계산(계산량 통제).
     const snapped = snapMinute(parsed.minute);
     const fineDeg = (_meta.cell_deg || CFG.CELL_DEG);
+    const fineArea = fineDeg * fineDeg;
+
     let aggDeg = parseFloat(req.query.agg);
     if (!(aggDeg > fineDeg)) aggDeg = fineDeg;
 
     let cells;
     let cellDegUsed = fineDeg;
     if (aggDeg > fineDeg * 1.4) {
-        // 버킷마다 최저수심 셀 대표 선정
-        const repByBucket = new Map();
+        // 버킷별 셀 그룹 + 무게중심
+        const buckets = new Map();
         for (const c of candidates) {
             if (c.depth == null || c.z0 == null) continue;
-            const gx = Math.floor(c.lon / aggDeg), gy = Math.floor(c.lat / aggDeg);
-            const k = gx + '_' + gy;
-            const prev = repByBucket.get(k);
-            if (!prev || c.depth < prev.c.depth) repByBucket.set(k, { c, gx, gy });
+            const k = Math.floor(c.lon / aggDeg) + '_' + Math.floor(c.lat / aggDeg);
+            let b = buckets.get(k);
+            if (!b) { b = { cells: [], sumLon: 0, sumLat: 0 }; buckets.set(k, b); }
+            b.cells.push(c); b.sumLon += c.lon; b.sumLat += c.lat;
         }
+        const M = 8;
         cells = [];
-        for (const { c, gx, gy } of repByBucket.values()) {
-            const dm = cellDepthM(c, parsed.yyyymmdd, snapped);
-            if (dm == null || dm >= 0) continue;       // 드러남만
+        for (const b of buckets.values()) {
+            const n = b.cells.length;
+            const step = Math.max(1, Math.floor(n / M));
+            let sampled = 0, exposed = 0, depthSum = 0;
+            for (let i = 0; i < n; i += step) {
+                const dm = cellDepthM(b.cells[i], parsed.yyyymmdd, snapped);
+                if (dm == null) continue;
+                sampled++;
+                if (dm < 0) { exposed++; depthSum += dm; }
+            }
+            if (!sampled || !exposed) continue;
+            const frac = exposed / sampled;
+            const side = Math.sqrt(frac * n * fineArea);   // 면적 보존 타일 한 변(도)
             cells.push({
-                lon: +((gx + 0.5) * aggDeg).toFixed(5),
-                lat: +((gy + 0.5) * aggDeg).toFixed(5),
-                state: 1, depth_m: Math.round(dm * 100) / 100
+                lon: +(b.sumLon / n).toFixed(5),
+                lat: +(b.sumLat / n).toFixed(5),
+                s: +side.toFixed(6),
+                state: 1, depth_m: Math.round((depthSum / exposed) * 100) / 100
             });
         }
         cellDegUsed = aggDeg;
     } else {
         cells = computeField(parsed.yyyymmdd, parsed.minute, candidates);
+        for (const c of cells) c.s = fineDeg;   // 미세 셀은 fineDeg 크기
     }
 
     res.set('Cache-Control', 'public, max-age=120');
@@ -370,7 +387,7 @@ router.get('/api/tide-field', (req, res) => {
         time: timeQ || new Date().toISOString(),
         date: parsed.yyyymmdd,
         step_minutes: CFG.STEP_MINUTES,
-        cell_deg: cellDegUsed,            // 프론트가 이 크기로 타일을 그림
+        cell_deg: cellDegUsed,
         candidate_count: candidates.length,
         count: cells.length,
         cells
