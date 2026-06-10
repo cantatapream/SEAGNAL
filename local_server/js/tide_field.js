@@ -94,11 +94,15 @@
     //   extent/resolution/pixelRatio 로 지도좌표→픽셀 변환. 셀이 많아도
     //   "사각형 칠하기"라 폴리곤 객체 생성보다 훨씬 가볍다.
     function drawFieldCanvas(extent, resolution, pixelRatio, size) {
-        var canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.round(size[0]));
-        canvas.height = Math.max(1, Math.round(size[1]));
-        var ctx = canvas.getContext('2d');
-        if (!_drawCells.length) return canvas;
+        var W = Math.max(1, Math.round(size[0])), H = Math.max(1, Math.round(size[1]));
+        var out = document.createElement('canvas');
+        out.width = W; out.height = H;
+        var octx = out.getContext('2d');
+        if (!_drawCells.length) return out;
+        // 1) 타일을 임시 캔버스에 샤프하게 채움
+        var tmp = document.createElement('canvas');
+        tmp.width = W; tmp.height = H;
+        var ctx = tmp.getContext('2d');
         ctx.fillStyle = COLOR_EXPOSED;
         var ex0 = extent[0], ey3 = extent[3], r = resolution / pixelRatio;
         for (var i = 0; i < _drawCells.length; i++) {
@@ -109,7 +113,10 @@
             var ph = (d.y1 - d.y0) / r;
             ctx.fillRect(px, py, pw < 1 ? 1 : pw, ph < 1 ? 1 : ph);
         }
-        return canvas;
+        // 2) 블러 1회로 픽셀 경계를 부드럽게 → 해안선 따라 유연한 형태.
+        try { octx.filter = 'blur(' + (1.8 * pixelRatio) + 'px)'; } catch (e) {}
+        octx.drawImage(tmp, 0, 0);
+        return out;
     }
 
     // ====================================================================
@@ -324,12 +331,13 @@
     function paintCells(cells, cellDeg) {
         _currentCells = cells || [];
         _drawCells = [];
-        // 타일(집계 격자) 크기의 절반 × 1.35 → 인접 타일이 겹쳐 이음선/틈 없이 연속.
-        //   cellDeg 는 서버가 줌에 맞춰 정한 격자 크기. 3857 변환은 fetch당 1회.
         _lastDrawDeg = cellDeg || (_cellHalf * 2);
-        var h = (_lastDrawDeg / 2) * 1.35;
+        // 타일마다 서버가 준 면적보존 크기(c.s)로 그림(없으면 cellDeg). 1.1× 살짝
+        //   키워 인접 타일과 자연스럽게 잇고, 블러(drawFieldCanvas)가 경계를 부드럽게.
         for (var i = 0; i < _currentCells.length; i++) {
             var c = _currentCells[i];
+            var sz = c.s || _lastDrawDeg;
+            var h = (sz / 2) * 1.1;
             var ll = ol.proj.fromLonLat([c.lon - h, c.lat - h]); // 좌하단 [x0,y0]
             var ur = ol.proj.fromLonLat([c.lon + h, c.lat + h]); // 우상단 [x1,y1]
             _drawCells.push({ x0: ll[0], y0: ll[1], x1: ur[0], y1: ur[1] });
