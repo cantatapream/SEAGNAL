@@ -52,8 +52,10 @@ let _anchors = null;       // anchors.json 의 anchors 배열
 let _cellAnchorIdx = null; // cellKey -> [{anchor, distKm}] (직선거리 이내)
 let _cellTileIdx = null;   // 타일키 -> [cell...] (bbox 후보 선택용)
 
-// bbox 후보 셀 상한. 초과 시 스트라이드 서브샘플로 줄여 계산량을 통제한다.
-const MAX_CANDIDATE_CELLS = 30000;
+// bbox 후보 셀 상한. 초과 시 스트라이드 서브샘플로 줄여 계산·렌더량을 통제한다.
+//   모바일 벡터 렌더 버벅임 완화 위해 보수적으로(14000). 만(灣) 단위 줌인이면
+//   100m 전부, 줌아웃하면 서브샘플 개요.
+const MAX_CANDIDATE_CELLS = 14000;
 // 셀 타일 인덱스 격자 크기 (도). 0.1° 버킷 — bbox 와 겹치는 타일만 훑는다.
 const TILE_DEG = 0.1;
 
@@ -286,7 +288,7 @@ router.get('/api/tide-field/meta', (req, res) => {
         region_bbox: _meta.region_bbox || C.REGION_BBOX,
         time_start: timeStartISO,
         time_end: timeEndISO,
-        step_minutes: _meta.step_minutes || CFG.STEP_MINUTES,
+        step_minutes: CFG.STEP_MINUTES,   // 시각 간격은 설정값(=요청시 정합) 사용 — 재빌드 불필요
         window_days: _meta.window_days || CFG.WINDOW_DAYS,
         anchor_count: _meta.anchor_count || (_anchors ? _anchors.length : 0),
         cell_count: _meta.cell_count || (_meta.cells ? _meta.cells.length : 0),
