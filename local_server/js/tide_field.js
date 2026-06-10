@@ -114,7 +114,7 @@
             ctx.fillRect(px, py, pw < 1 ? 1 : pw, ph < 1 ? 1 : ph);
         }
         // 2) 블러 1회로 픽셀 경계를 부드럽게 → 해안선 따라 유연한 형태.
-        try { octx.filter = 'blur(' + (1.8 * pixelRatio) + 'px)'; } catch (e) {}
+        try { octx.filter = 'blur(' + (2.2 * pixelRatio) + 'px)'; } catch (e) {}
         octx.drawImage(tmp, 0, 0);
         return out;
     }
@@ -332,12 +332,13 @@
         _currentCells = cells || [];
         _drawCells = [];
         _lastDrawDeg = cellDeg || (_cellHalf * 2);
-        // 타일마다 서버가 준 면적보존 크기(c.s)로 그림(없으면 cellDeg). 1.1× 살짝
-        //   키워 인접 타일과 자연스럽게 잇고, 블러(drawFieldCanvas)가 경계를 부드럽게.
+        // 타일마다 서버가 준 면적보존 크기(c.s)로 그림(없으면 cellDeg). 1.6× 키워
+        //   인접 타일이 겹쳐 격자 메시(BADA ~150m 간격으로 생기는 틈)를 메워 솔리드
+        //   영역으로 만든다(우수 균일 배율 → 축척 일관 유지). 블러가 경계를 부드럽게.
         for (var i = 0; i < _currentCells.length; i++) {
             var c = _currentCells[i];
             var sz = c.s || _lastDrawDeg;
-            var h = (sz / 2) * 1.1;
+            var h = (sz / 2) * 1.6;
             var ll = ol.proj.fromLonLat([c.lon - h, c.lat - h]); // 좌하단 [x0,y0]
             var ur = ol.proj.fromLonLat([c.lon + h, c.lat + h]); // 우상단 [x1,y1]
             _drawCells.push({ x0: ll[0], y0: ll[1], x1: ur[0], y1: ur[1] });
