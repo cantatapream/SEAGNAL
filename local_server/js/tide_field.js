@@ -48,7 +48,9 @@
     var _frameIdx = 0;
     var _cellCache = {};        // ISO -> cells[] (프리페치)
     var _playTimer = null;
-    var _cellHalf = 0.0005;     // 셀 반폭(도). meta.cell_deg/2 로 갱신(0.001→0.0005).
+    var _cellHalf = 0.0005;     // 데이터 최소 셀 반폭(도). meta.cell_deg/2.
+    var _lastDrawDeg = 0.001;   // 마지막 렌더에 쓴 타일 크기(도) — 클릭 허용반경용.
+    var _moveTimer = null;      // 줌/팬 재렌더 디바운스
     var _popupOverlay = null;
 
     function $(id) { return document.getElementById(id); }
@@ -77,6 +79,14 @@
         bindToggle();
         bindSlider();
         bindMapClickPopup();
+
+        // 줌/팬 시 집계 격자(agg)·뷰포트가 바뀌므로 현재 프레임을 다시 받아 그린다(디바운스).
+        _map.on('moveend', function () {
+            if (!_active) return;
+            if (_moveTimer) clearTimeout(_moveTimer);
+            _moveTimer = setTimeout(function () { renderFrame(_frameIdx, false); }, 200);
+        });
+
         console.log('[tide_field] 물빠짐 레이어 초기화 완료 (캔버스 래스터)');
     };
 
@@ -264,9 +274,9 @@
         if (slider) slider.value = idx;
         updateTooltip(idx);
 
-        fetchCells(iso).then(function (cells) {
+        fetchCells(iso).then(function (res) {
             if (!_active) return;
-            paintCells(cells);
+            paintCells(res.cells, res.cellDeg);
         });
 
         // 다음 프레임 프리페치 (재생 부드럽게)
@@ -275,31 +285,49 @@
         }
     }
 
+    // 현재 줌(화면 픽셀)에 맞는 집계 격자 크기(도). 각 타일이 화면 ~4.5px가
+    //   되도록 → 줌에 무관하게 일정한 크기의 연속 타일로 채워진다.
+    function currentAggDeg() {
+        try {
+            var size = _map.getSize();
+            var ext = _map.getView().calculateExtent(size);
+            var ll = ol.proj.toLonLat([ext[0], ext[1]]);
+            var ur = ol.proj.toLonLat([ext[2], ext[3]]);
+            var degPerPx = (ur[0] - ll[0]) / (size[0] || 360);
+            return degPerPx * 4.5;
+        } catch (e) { return (_meta && _meta.cell_deg) || 0.001; }
+    }
+
     function fetchCells(iso) {
-        if (_cellCache[iso]) return Promise.resolve(_cellCache[iso]);
-        // 뷰포트 bbox 로 전송량 절감
-        var bboxParam = '';
+        var agg = currentAggDeg();
+        var key = iso + '@' + agg.toFixed(5);
+        if (_cellCache[key]) return Promise.resolve(_cellCache[key]);
+        var params = '&agg=' + agg.toFixed(5);
         try {
             var ext = _map.getView().calculateExtent(_map.getSize());
             var ll = ol.proj.toLonLat([ext[0], ext[1]]);
             var ur = ol.proj.toLonLat([ext[2], ext[3]]);
-            bboxParam = '&bbox=' + [ll[0], ll[1], ur[0], ur[1]].map(function (n) { return n.toFixed(3); }).join(',');
+            params += '&bbox=' + [ll[0], ll[1], ur[0], ur[1]].map(function (n) { return n.toFixed(3); }).join(',');
         } catch (e) {}
-        return fetch('/api/tide-field?time=' + encodeURIComponent(iso) + bboxParam)
+        return fetch('/api/tide-field?time=' + encodeURIComponent(iso) + params)
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (j) {
-                var cells = (j && j.success && j.cells) ? j.cells : [];
-                _cellCache[iso] = cells;
-                return cells;
-            }).catch(function () { return []; });
+                var out = {
+                    cells: (j && j.success && j.cells) ? j.cells : [],
+                    cellDeg: (j && j.cell_deg) || ((_meta && _meta.cell_deg) || 0.001)
+                };
+                _cellCache[key] = out;
+                return out;
+            }).catch(function () { return { cells: [], cellDeg: (_meta && _meta.cell_deg) || 0.001 }; });
     }
 
-    function paintCells(cells) {
+    function paintCells(cells, cellDeg) {
         _currentCells = cells || [];
         _drawCells = [];
-        // 셀을 약간 키워(1.25×) 인접 셀끼리 겹치게 → 이음선/틈 제거, 연속 표출.
-        //   3857 좌표는 fetch 시 1회만 변환(재렌더 시 픽셀 계산만 → 가벼움).
-        var h = _cellHalf * 1.25;
+        // 타일(집계 격자) 크기의 절반 × 1.35 → 인접 타일이 겹쳐 이음선/틈 없이 연속.
+        //   cellDeg 는 서버가 줌에 맞춰 정한 격자 크기. 3857 변환은 fetch당 1회.
+        _lastDrawDeg = cellDeg || (_cellHalf * 2);
+        var h = (_lastDrawDeg / 2) * 1.35;
         for (var i = 0; i < _currentCells.length; i++) {
             var c = _currentCells[i];
             var ll = ol.proj.fromLonLat([c.lon - h, c.lat - h]); // 좌하단 [x0,y0]
@@ -407,7 +435,7 @@
             if (!_active || !_currentCells.length) return;
             var ll = ol.proj.toLonLat(evt.coordinate);
             var clon = ll[0], clat = ll[1];
-            var tol = _cellHalf * 2.5;     // 클릭 허용 반경(도)
+            var tol = _lastDrawDeg * 1.2;  // 클릭 허용 반경(도) — 현재 타일 크기 기준
             var tol2 = tol * tol;
             var best = null, bestD = Infinity;
             for (var i = 0; i < _currentCells.length; i++) {

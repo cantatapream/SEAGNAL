@@ -229,28 +229,28 @@ function computeField(yyyymmdd, minute, cells) {
     const snapped = snapMinute(minute);
     const out = [];
     for (const cell of cells) {
-        const d = cell.depth;             // BADA 수심 (MSL, m). null 가능(합성/결측).
-        const z0 = cell.z0;               // Z₀ (m). null 가능.
-        if (d == null || z0 == null) continue; // 미정 — 드러남 판정 불가, 제외
-
-        const refs = _cellAnchorIdx.get(cell.key) || [];
-        // η(t) IDW (cm)
-        let wsum = 0, vsum = 0;
-        for (const { anchor, distKm } of refs) {
-            const byMinute = loadAnchorCurve(anchor.id, yyyymmdd);
-            const eta = etaCmAt(byMinute, snapped);
-            if (eta == null) continue;
-            const w = distKm < 0.1 ? 1e6 : 1 / (distKm * distKm);
-            wsum += w; vsum += w * eta;
-        }
-        if (wsum === 0) continue;         // 보간 가능한 곡선 없음 — 미정, 제외
-
-        const etaM = (vsum / wsum) / 100; // cm → m
-        const depthM = d + etaM - z0;     // 물깊이(m)
-        if (depthM >= 0) continue;        // 잠김 — 제외. 드러남(<0)만 반환.
-        out.push({ lon: cell.lon, lat: cell.lat, state: 1, depth_m: Math.round(depthM * 100) / 100 });
+        const dm = cellDepthM(cell, yyyymmdd, snapped);
+        if (dm == null || dm >= 0) continue;   // 미정/잠김 제외, 드러남(<0)만
+        out.push({ lon: cell.lon, lat: cell.lat, state: 1, depth_m: Math.round(dm * 100) / 100 });
     }
     return out;
+}
+
+/** 단일 셀의 그 시각 물깊이(m) — 미정이면 null. (집계·computeField 공용) */
+function cellDepthM(cell, yyyymmdd, snapped) {
+    const d = cell.depth, z0 = cell.z0;       // BADA 수심·Z₀ (m). null 가능.
+    if (d == null || z0 == null) return null;
+    const refs = _cellAnchorIdx.get(cell.key) || [];
+    let wsum = 0, vsum = 0;
+    for (const { anchor, distKm } of refs) {
+        const byMinute = loadAnchorCurve(anchor.id, yyyymmdd);
+        const eta = etaCmAt(byMinute, snapped);
+        if (eta == null) continue;
+        const w = distKm < 0.1 ? 1e6 : 1 / (distKm * distKm);
+        wsum += w; vsum += w * eta;
+    }
+    if (wsum === 0) return null;               // 보간 곡선 없음 — 미정
+    return d + (vsum / wsum) / 100 - z0;       // 물깊이(m)
 }
 
 // ============================================================================
@@ -326,19 +326,43 @@ router.get('/api/tide-field', (req, res) => {
         const b = String(req.query.bbox).split(',').map(Number);
         if (b.length === 4 && b.every(n => !isNaN(n))) bbox = b;
     }
-    let candidates = cellsInBbox(bbox);
+    const candidates = cellsInBbox(bbox);
 
-    // ── 후보 과다 시 스트라이드 서브샘플 (계산량·전송량 통제) ─────────
-    let stride = 1;
-    if (candidates.length > MAX_CANDIDATE_CELLS) {
-        stride = Math.ceil(candidates.length / MAX_CANDIDATE_CELLS);
-        const sampled = [];
-        for (let i = 0; i < candidates.length; i += stride) sampled.push(candidates[i]);
-        candidates = sampled;
+    // ── 공간 집계: 줌(화면 픽셀)에 맞춘 격자(agg)로 묶어 "연속 타일"로 채운다 ──
+    //   프론트가 agg(=화면 ~Npx에 해당하는 도 단위)를 보낸다. 데이터보다 잘게는
+    //   안 가고(>fineDeg), 그 격자 버킷마다 "가장 얕은(가장 잘 드러나는) 셀"을 대표로
+    //   노출 계산 → 버킷 중심에 출력. 흩뿌려진 점이 아니라 격자 타일로 메워진다.
+    const snapped = snapMinute(parsed.minute);
+    const fineDeg = (_meta.cell_deg || CFG.CELL_DEG);
+    let aggDeg = parseFloat(req.query.agg);
+    if (!(aggDeg > fineDeg)) aggDeg = fineDeg;
+
+    let cells;
+    let cellDegUsed = fineDeg;
+    if (aggDeg > fineDeg * 1.4) {
+        // 버킷마다 최저수심 셀 대표 선정
+        const repByBucket = new Map();
+        for (const c of candidates) {
+            if (c.depth == null || c.z0 == null) continue;
+            const gx = Math.floor(c.lon / aggDeg), gy = Math.floor(c.lat / aggDeg);
+            const k = gx + '_' + gy;
+            const prev = repByBucket.get(k);
+            if (!prev || c.depth < prev.c.depth) repByBucket.set(k, { c, gx, gy });
+        }
+        cells = [];
+        for (const { c, gx, gy } of repByBucket.values()) {
+            const dm = cellDepthM(c, parsed.yyyymmdd, snapped);
+            if (dm == null || dm >= 0) continue;       // 드러남만
+            cells.push({
+                lon: +((gx + 0.5) * aggDeg).toFixed(5),
+                lat: +((gy + 0.5) * aggDeg).toFixed(5),
+                state: 1, depth_m: Math.round(dm * 100) / 100
+            });
+        }
+        cellDegUsed = aggDeg;
+    } else {
+        cells = computeField(parsed.yyyymmdd, parsed.minute, candidates);
     }
-
-    // ── 드러남(state=1) 셀만 계산·반환 ───────────────────────────────
-    const cells = computeField(parsed.yyyymmdd, parsed.minute, candidates);
 
     res.set('Cache-Control', 'public, max-age=120');
     res.json({
@@ -346,8 +370,8 @@ router.get('/api/tide-field', (req, res) => {
         time: timeQ || new Date().toISOString(),
         date: parsed.yyyymmdd,
         step_minutes: CFG.STEP_MINUTES,
+        cell_deg: cellDegUsed,            // 프론트가 이 크기로 타일을 그림
         candidate_count: candidates.length,
-        stride,
         count: cells.length,
         cells
     });
