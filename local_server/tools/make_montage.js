@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { Jimp } = require('jimp');
 
-const DIR = path.join(__dirname, 'zone_crops');
+const DIR = path.join(__dirname, process.argv[2] || 'zone_crops');
 const results = require(path.join(DIR, '_index.json')).filter(r => r.ok);
 
 // 5x7 숫자 비트맵
