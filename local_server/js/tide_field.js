@@ -34,7 +34,7 @@
     if (typeof window === 'undefined') return;
 
     // ── 색상 (드러남만 표시) ──────────────────────────────────────────
-    var COLOR_EXPOSED = 'rgba(150, 110, 60, 0.55)';      // 드러남(갯벌색)
+    var COLOR_EXPOSED = 'rgba(165, 125, 72, 0.92)';      // 드러남(갯벌색) — 불투명에 가깝게(이음선·농담차 방지)
 
     // ── 상태 ─────────────────────────────────────────────────────────
     var _map = null;
@@ -279,7 +279,9 @@
         _source.clear();
         if (!cells || !cells.length) return;
         var feats = [];
-        var h = _cellHalf;
+        // 셀을 약간 키워(1.25×) 인접 셀끼리 겹치게 → 이음선/틈 제거, 연속 표출.
+        //   불투명(0.92) 색이라 겹쳐도 농담 차이가 거의 없다.
+        var h = _cellHalf * 1.25;
         for (var i = 0; i < cells.length; i++) {
             var c = cells[i];
             // 셀을 작은 사각형 폴리곤으로 (lon±h, lat±h)
@@ -305,9 +307,15 @@
         var slider = $('mudflat-slider');
         var playBtn = $('mudflat-play-btn');
         if (slider) {
+            // 디바운스: 드래그 중 input 이 연속 발생해도 마지막값만 ~120ms 후 렌더.
+            //   (드래그마다 즉시 fetch+재렌더 → 버벅임의 주원인 제거)
+            var _sliderTimer = null;
             slider.addEventListener('input', function () {
                 stopPlay();
-                renderFrame(parseInt(slider.value, 10) || 0, false);
+                if (_sliderTimer) clearTimeout(_sliderTimer);
+                _sliderTimer = setTimeout(function () {
+                    renderFrame(parseInt(slider.value, 10) || 0, false);
+                }, 120);
             });
         }
         if (playBtn) {
