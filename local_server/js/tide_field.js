@@ -90,6 +90,17 @@
         console.log('[tide_field] 물빠짐 레이어 초기화 완료 (캔버스 래스터)');
     };
 
+    // 수심(dm, m·음수=드러남)→ 채움색. 물가(dm≈0)는 연하게, 많이 빠진 곳은 진하게.
+    function depthToFill(dm) {
+        var a = 0.85;
+        if (dm != null) {
+            var t = (-dm) / 1.2;            // 0(물가)~1(-1.2m 이하)
+            t = t < 0 ? 0 : (t > 1 ? 1 : t);
+            a = 0.22 + t * (0.92 - 0.22);
+        }
+        return 'rgba(165,125,72,' + a.toFixed(3) + ')';
+    }
+
     // ImageCanvas 콜백: 현재 _drawCells(3857 사각형)를 캔버스에 채워 반환.
     //   extent/resolution/pixelRatio 로 지도좌표→픽셀 변환. 셀이 많아도
     //   "사각형 칠하기"라 폴리곤 객체 생성보다 훨씬 가볍다.
@@ -103,10 +114,12 @@
         var tmp = document.createElement('canvas');
         tmp.width = W; tmp.height = H;
         var ctx = tmp.getContext('2d');
-        ctx.fillStyle = COLOR_EXPOSED;
         var ex0 = extent[0], ey3 = extent[3], r = resolution / pixelRatio;
         for (var i = 0; i < _drawCells.length; i++) {
             var d = _drawCells[i];
+            // 수심별 농도 그라데이션: 막 드러난 물가(dm≈0)는 연하게, 많이 빠진 곳
+            //   (dm≤-1.2m)은 진하게 → 물가선이 부드럽게 페이드(연한 라인).
+            ctx.fillStyle = depthToFill(d.dm);
             var px = (d.x0 - ex0) / r;
             var py = (ey3 - d.y1) / r;          // y1=상단(큰 Y)→작은 픽셀
             var pw = (d.x1 - d.x0) / r;
@@ -341,7 +354,7 @@
             var h = (sz / 2) * 1.4;
             var ll = ol.proj.fromLonLat([c.lon - h, c.lat - h]); // 좌하단 [x0,y0]
             var ur = ol.proj.fromLonLat([c.lon + h, c.lat + h]); // 우상단 [x1,y1]
-            _drawCells.push({ x0: ll[0], y0: ll[1], x1: ur[0], y1: ur[1] });
+            _drawCells.push({ x0: ll[0], y0: ll[1], x1: ur[0], y1: ur[1], dm: c.depth_m });
         }
         if (_imgSource) _imgSource.changed(); // 캔버스 다시 그리기
     }
