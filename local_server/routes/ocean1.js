@@ -290,7 +290,7 @@ router.get('/api/ocean/coastal-cctv-image/:beach/:cam', async (req, res) => {
         });
 
         if (!r.ok) {
-            return res.status(r.status).send('upstream error');
+            return res.status(r.status).send('upstream error ' + r.status);
         }
 
         const ct = r.headers.get('content-type') || '';
@@ -300,7 +300,7 @@ router.get('/api/ocean/coastal-cctv-image/:beach/:cam', async (req, res) => {
         // 프론트의 onerror 가 "이미지를 불러올 수 없습니다" 를 띄우게 한다.
         if (!/^image\//i.test(ct)) {
             console.warn('[coastal-cctv proxy] non-image', beach, cam, 'ct=', ct, 'len=', buf.length);
-            return res.status(502).send('not an image');
+            return res.status(502).send('not an image: ct=' + ct + ' len=' + buf.length);
         }
 
         res.set('Content-Type', ct);
@@ -308,8 +308,12 @@ router.get('/api/ocean/coastal-cctv-image/:beach/:cam', async (req, res) => {
         res.set('Cache-Control', 'public, max-age=2');
         res.send(buf);
     } catch (e) {
-        console.error('[coastal-cctv proxy] error:', e && e.message);
-        res.status(502).send('proxy error');
+        // [임시 진단] fetch 예외의 실제 원인을 응답 본문에 노출(TLS/DNS/연결 구분).
+        //   undici fetch 는 진짜 원인을 e.cause 에 담는다. 확정 후 제거 예정.
+        const cause = e && e.cause;
+        const detail = (cause && (cause.code || cause.message)) || (e && (e.code || e.message)) || 'unknown';
+        console.error('[coastal-cctv proxy] fetch 예외:', e && e.message, '| cause=', cause);
+        res.status(502).send('proxy error: ' + detail);
     }
 });
 
