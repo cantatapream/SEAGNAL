@@ -374,13 +374,21 @@
 
         const waveBadge = document.createElement('span');
         waveBadge.className = 'zone-avg-badge wave';
-        waveBadge.innerHTML = `<span class="lbl">평균 유의파고</span> ${result.avgWh.toFixed(1)}m`;
+        waveBadge.innerHTML = `<span class="lbl">유의파고</span> ${result.avgWh.toFixed(1)}m`;
         box.appendChild(waveBadge);
 
         const windBadge = document.createElement('span');
         windBadge.className = 'zone-avg-badge wind';
-        windBadge.innerHTML = `<span class="lbl">평균 풍속</span> ${result.avgWs.toFixed(1)}m/s`;
+        windBadge.innerHTML = `<span class="lbl">풍속</span> ${result.avgWs.toFixed(1)}m/s`;
         box.appendChild(windBadge);
+
+        // 시정 뱃지 — 같은 줄·같은 스타일. 값/클릭은 OceanWarnVsby 가 제공(매핑 없으면 null).
+        try {
+            if (window.OceanWarnVsby && typeof window.OceanWarnVsby.makeBadge === 'function') {
+                const vsByBadge = window.OceanWarnVsby.makeBadge(zoneName);
+                if (vsByBadge) box.insertBefore(vsByBadge, box.firstChild);   // 시정을 맨 앞에
+            }
+        } catch (e) { /* 시정은 부가 — 실패해도 평균박스 유지 */ }
 
         _attachTooltipHandler(box);
 
