@@ -275,7 +275,10 @@ router.get('/api/ocean/coastal-cctv-image/:beach/:cam', async (req, res) => {
         return res.status(400).send('bad params');
     }
 
-    const upstream = 'https://coast.mof.go.kr/proxy.jsp?' +
+    // [http 호출] HTTPS 로는 Fly(해외 IP)→coast.mof.go.kr 연결이 ECONNRESET 으로
+    //   끊긴다(한국 공공서버의 해외/DC IP TLS 차단 추정). 기존 KHOA 프록시처럼
+    //   http 로 호출하면 같은 공공망에 닿는다. 응답이 https 로 301 되면 follow.
+    const upstream = 'http://coast.mof.go.kr/proxy.jsp?' +
         'http://10.176.62.134:9001/tilemapApi.do?url=' +
         'http://220.95.232.18/camera/' + beach + '_' + cam + '.jpg';
 
