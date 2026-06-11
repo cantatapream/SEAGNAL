@@ -82,11 +82,17 @@
             });
     }
 
+    // [하위탭] 데모 콘텐츠 마운트 지점 — "특보 시연/특보 예측 시연" 하위탭으로 묶이면
+    //   demo-subtab-body 에, 단독이면 unified-admin-body 에 렌더(하위탭 바 보존).
+    function _demoMount() {
+        return document.getElementById('demo-subtab-body') || document.getElementById('unified-admin-body');
+    }
+
     /** 테스트 모드 ON/OFF 토글 */
     window.demoToggleTestMode = function (enabled) {
         // 즉시 UI 반영(낙관적) 후 서버 반영
         _testMode = !!enabled;
-        var c = document.getElementById('unified-admin-body');
+        var c = _demoMount();
         if (c) _renderList(c);
         fetch('/api/admin/demo/testmode', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -390,7 +396,7 @@
             if (resp && resp.slots) _slots = resp.slots;
             var modal = document.getElementById('demo-add-modal');
             if (modal) modal.remove();
-            var c = document.getElementById('unified-admin-body');
+            var c = _demoMount();
             if (c) _renderList(c);
         }).catch(function (e) { alert('저장 실패: ' + e.message); });
     };
@@ -407,7 +413,7 @@
             if (resp && resp.slots) _slots = resp.slots;
             return _fetchSlots();
         }).then(function () {
-            var c = document.getElementById('unified-admin-body');
+            var c = _demoMount();
             if (c) _renderList(c);
         });
     };
@@ -415,7 +421,7 @@
     // ── 표출 / 내리기 ──────────────────────────────────────────
     window.demoEmit = function (slotId) {
         var btnReload = function () {
-            var c = document.getElementById('unified-admin-body');
+            var c = _demoMount();
             if (c) _renderList(c);
         };
         fetch('/api/admin/demo/emit', {
@@ -441,7 +447,7 @@
             body: JSON.stringify({ slotId: slotId })
         }).then(function (r) { return r.json(); }).then(function (resp) {
             if (resp && resp.active) _active = resp.active;
-            var c = document.getElementById('unified-admin-body');
+            var c = _demoMount();
             if (c) _renderList(c);
             if (typeof reapplyDemoAlerts === 'function') setTimeout(reapplyDemoAlerts, 200);
         }).catch(function (e) { alert('내리기 실패: ' + e.message); });
@@ -452,7 +458,7 @@
         fetch('/api/admin/demo/clear', { method: 'POST' })
             .then(function (r) { return r.json(); }).then(function (resp) {
                 _active = (resp && resp.active) || [];
-                var c = document.getElementById('unified-admin-body');
+                var c = _demoMount();
                 if (c) _renderList(c);
                 if (typeof reapplyDemoAlerts === 'function') setTimeout(reapplyDemoAlerts, 200);
             });

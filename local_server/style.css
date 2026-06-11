@@ -10661,14 +10661,16 @@ body.mc-fullscreen-active {
     position: relative;
     top: -0.75em;              /* 글자 우측 상단으로 올림 */
     margin-left: 4px;
-    padding: 2px 5px;
-    font-size: 0.5rem;
+    padding: 2px 6px;
+    font-size: 0.52rem;
     font-weight: 800;
+    font-style: italic;        /* 텍스트 약간 기울임 */
     letter-spacing: 0.5px;
     line-height: 1;
     border-radius: 6px;
     vertical-align: top;
     pointer-events: none;
+    text-transform: lowercase;
     /* --- 기본: LED(전광판) --- */
     color: #ffe14d;
     background: rgba(45, 37, 0, 0.55);

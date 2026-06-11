@@ -260,7 +260,7 @@
             // 관심해역 등록자 → 관심해역만 표출 / 전 해역 등록자 → 해역별 전체
             const label = isFilteredState() ? '관심해역 특보 예측' : '해역별 특보 예측';
             // "측" 우측 상단 베타 배지 — 아코디언 텍스트와 별개 요소(전광판 더블블링크)
-            const beta = '<sup class="adv-beta-badge" aria-label="베타">베타</sup>';
+            const beta = '<sup class="adv-beta-badge" aria-label="beta">beta</sup>';
             titleEl.innerHTML = icon + label + beta;
         }
     }
@@ -270,6 +270,8 @@
     // ==========================================================================
     async function loadAdvisoryPrediction() {
         if (typeof fetch === 'undefined') return;
+        // 시연(특보 예측 시연) 표출 중이면 실제 예측이 목업을 덮어쓰지 않게 건너뛴다.
+        if (typeof window !== 'undefined' && window.__advisoryDemoActive) return;
         try {
             const r = await fetch('/api/advisory-prediction');
             if (!r.ok) return;
