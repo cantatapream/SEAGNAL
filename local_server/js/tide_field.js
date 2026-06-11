@@ -175,6 +175,33 @@
         }
     }
 
+    // 앵커 점 스타일 — 상태별 색으로 "데이터 확보 해점"을 증명.
+    //   초록=데이터 확보(complete/partial), 보정 이동분은 파란 테두리로 강조,
+    //   회색(작고 옅음)=데이터 없음(no_grid/missing).
+    function anchorPointStyle(feature) {
+        var st = feature.get('status');
+        var secured = (st === 'complete' || st === 'partial');
+        if (secured) {
+            return new ol.style.Style({
+                image: new ol.style.Circle({
+                    radius: 3.4,
+                    fill: new ol.style.Fill({ color: 'rgba(30,170,90,0.95)' }),
+                    stroke: new ol.style.Stroke({
+                        color: feature.get('nudged') ? '#1565ff' : '#ffffff',
+                        width: feature.get('nudged') ? 1.6 : 1
+                    })
+                })
+            });
+        }
+        return new ol.style.Style({   // 데이터 없음 — 옅은 회색 작은 점
+            image: new ol.style.Circle({
+                radius: 2,
+                fill: new ol.style.Fill({ color: 'rgba(150,150,150,0.5)' }),
+                stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,0.55)', width: 0.5 })
+            })
+        });
+    }
+
     // [세션 디버그] 앵커 포인트 표출 토글. 레이어는 메모리에만 있어 앱 재시작 시 사라짐.
     function toggleAnchorOverlay() {
         if (_anchorLayer) {                       // 이미 만들어져 있으면 표시/숨김 토글
@@ -191,20 +218,21 @@
                 var src = new ol.source.Vector();
                 for (var i = 0; i < j.anchors.length; i++) {
                     var a = j.anchors[i];
-                    src.addFeature(new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([a.lon, a.lat])) }));
+                    // 실제 수집 좌표(a.lon/a.lat = 보정 반영). status/nudged 를 속성으로 보관.
+                    src.addFeature(new ol.Feature({
+                        geometry: new ol.geom.Point(ol.proj.fromLonLat([a.lon, a.lat])),
+                        status: a.status, nudged: !!a.nudged
+                    }));
                 }
                 _anchorLayer = new ol.layer.Vector({
-                    source: src, zIndex: 60,
-                    style: new ol.style.Style({
-                        image: new ol.style.Circle({
-                            radius: 3,
-                            fill: new ol.style.Fill({ color: 'rgba(220,40,40,0.95)' }),
-                            stroke: new ol.style.Stroke({ color: '#ffffff', width: 1 })
-                        })
-                    })
+                    source: src, zIndex: 60, style: anchorPointStyle
                 });
                 _map.addLayer(_anchorLayer);
-                if (typeof toast === 'function') toast('앵커 포인트 표시 (' + j.anchors.length + '개)');
+                if (typeof toast === 'function') {
+                    var sec = (j.secured != null ? j.secured : j.anchors.length);
+                    toast('데이터 확보 ' + sec + '개소 / 전체 ' + (j.count || j.anchors.length) +
+                          (j.nudged ? ' (보정 ' + j.nudged + ')' : ''));
+                }
             }).catch(function () { if (typeof toast === 'function') toast('앵커 정보를 불러오지 못했습니다.'); });
     }
 

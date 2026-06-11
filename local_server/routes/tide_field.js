@@ -551,16 +551,14 @@ router.get('/api/tide-field/nogrid', (req, res) => {
 
 /**
  * GET /api/tide-field/anchors
- * 앵커 포인트 좌표 목록 (디버그 표출용 — 프론트 15회 클릭 제스처).
+ * 앵커 포인트 목록 (프론트 15회 클릭 제스처 — 데이터 확보 해점 증명).
+ *   - lon/lat: 실제 수집 좌표(보정 시 이동된 좌표). origLon/origLat: 논리 위치.
+ *   - status: complete|partial|no_grid|missing, nudged: 보정 이동 여부.
+ *   - secured: 데이터 확보(complete|partial) 해점 수, nudged: 보정 이동 해점 수.
  */
 router.get('/api/tide-field/anchors', (req, res) => {
     try {
-        const anchors = TFC.loadAnchors() || [];
-        res.json({
-            success: true,
-            count: anchors.length,
-            anchors: anchors.map(a => ({ id: a.id, lon: a.lon, lat: a.lat }))
-        });
+        res.json({ success: true, ...TFC.getAnchorReport() });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
