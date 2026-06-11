@@ -282,7 +282,7 @@ function showCctvPopup(data) {
                 `<img id="cctv-coast-img-${i}" class="cctv-coast-img"` +
                 ` src="${src}" alt="${data.name}${label}"` +
                 ` onerror="this.style.display='none';` +
-                    `document.getElementById('cctv-coast-err-${i}').style.display='flex'">` +
+                    `var _e=document.getElementById('cctv-coast-err-${i}');if(_e)_e.style.display='flex';">` +
                 `<div id="cctv-coast-err-${i}" class="cctv-coast-err" style="display:none;">` +
                     `<i class="fa-solid fa-triangle-exclamation"></i>` +
                     `<span>이미지를 불러올 수 없습니다</span>` +
