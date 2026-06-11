@@ -68,6 +68,7 @@
     <div id="vbReadout" style="font-size:11px;color:#8aa0bf;margin-top:6px;line-height:1.5;">미지정 (없으면 배정 셀 자동 범위 사용)</div>
 
     <div class="toggles">
+      <label><input type="checkbox" id="tgBnd" checked> 특보구역 경계선 표시(빨강)</label>
       <label><input type="checkbox" id="tgOther" checked> 다른 구역 배정 셀 표시(주황)</label>
       <label><input type="checkbox" id="tgKhoa"> KHOA 해안도 배경</label>
       <label><input type="checkbox" id="tgLabels"> 해구번호 라벨</label>
@@ -85,6 +86,7 @@
       <div><span class="sw" style="background:rgba(47,155,255,.55)"></span>선택 구역 배정 셀</div>
       <div><span class="sw" style="background:rgba(255,160,60,.5)"></span>다른 구역 배정 셀</div>
       <div><span class="sw" style="background:rgba(255,70,70,.7)"></span>중복 배정(충돌)</div>
+      <div><span class="sw" style="background:#ff2e2e"></span>특보구역 경계선</div>
       <div><span class="sw" style="border:1px dashed #36e0e0;background:transparent"></span>표출 영역(viewBox)</div>
       <div><span class="sw" style="border:1px solid #5a6c88;background:transparent"></span>대해구 격자</div>
     </div>
@@ -100,13 +102,20 @@
   const setHud = t => hud.textContent = t;
   if (!window.ol) { setHud('OpenLayers 로드 실패 (/assets/vendor/ol/ol.js)'); return; }
 
-  // ---- 데이터 로드 ----
-  let GEO, MAP;
+  // ---- 데이터 로드 (서버: fetch / 단독본: 인라인 전역) ----
+  let GEO, MAP, WARN;
   try {
-    [GEO, MAP] = await Promise.all([
-      fetch('/marine_zone_area.json').then(r => r.json()),
-      fetch('/assets/zone_grid_map.json').then(r => r.json())
-    ]);
+    if (window.__GEO__) {
+      GEO = window.__GEO__;
+      MAP = JSON.parse(JSON.stringify(window.__MAP__));
+      WARN = window.__WARN__ || null;
+    } else {
+      [GEO, MAP, WARN] = await Promise.all([
+        fetch('/marine_zone_area.json').then(r => r.json()),
+        fetch('/assets/zone_grid_map.json').then(r => r.json()),
+        fetch('/assets/warn_zones.geojson').then(r => r.json()).catch(() => null)
+      ]);
+    }
   } catch (e) { setHud('데이터 로드 실패: ' + e.message); return; }
 
   // ---- 대해구 bbox (코드 → {lonMin,latMin,lonMax,latMax}) ----
@@ -173,7 +182,10 @@
   const gridLayer = new ol.layer.Vector({
     source: gridSrc,
     style: function (feat) {
-      const styles = [new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(120,140,175,0.45)', width: 1 }) })];
+      // fill(거의 투명)이 있어야 셀 내부 전체가 클릭 hit-detection 대상이 됨
+      const styles = [new ol.style.Style({
+        fill: new ol.style.Fill({ color: 'rgba(255,255,255,0.01)' }),
+        stroke: new ol.style.Stroke({ color: 'rgba(120,140,175,0.45)', width: 1 }) })];
       if (showLabels) styles.push(new ol.style.Style({ text: new ol.style.Text({
         text: String(feat.get('marine_zone_no')), font: '10px sans-serif',
         fill: new ol.style.Fill({ color: '#cfe0f5' }), stroke: new ol.style.Stroke({ color: '#0b1422', width: 2 }) }) }));
@@ -184,13 +196,22 @@
   const assignSrc = new ol.source.Vector();   // 선택 구역 배정 셀
   const otherSrc  = new ol.source.Vector();   // 다른 구역 배정 셀
   const vbSrc     = new ol.source.Vector();   // 표출 영역(viewBox)
+  const bndSrc    = new ol.source.Vector();   // 선택 특보구역 경계선
   const assignLayer = new ol.layer.Vector({ source: assignSrc });
   const otherLayer  = new ol.layer.Vector({ source: otherSrc });
   const vbLayer     = new ol.layer.Vector({ source: vbSrc });
+  const bndLayer    = new ol.layer.Vector({ source: bndSrc });
+
+  // 특보구역 경계 인덱스: WarnCode → ol.Feature
+  const warnByCode = {};
+  if (WARN && WARN.features) {
+    const wf = new ol.format.GeoJSON().readFeatures(WARN, { dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' });
+    wf.forEach(f => { const c = f.get('WarnCode'); if (c) warnByCode[c] = f; });
+  }
 
   const map = new ol.Map({
     target: 'map',
-    layers: [osm, khoa, otherLayer, gridLayer, assignLayer, vbLayer],
+    layers: [osm, khoa, otherLayer, gridLayer, assignLayer, bndLayer, vbLayer],
     view: new ol.View({ projection: 'EPSG:3857', center: ol.proj.fromLonLat([128.5, 36]), zoom: 6 })
   });
 
@@ -200,6 +221,10 @@
   const styConflict= new ol.style.Style({ fill: new ol.style.Fill({ color: 'rgba(255,70,70,0.55)' }), stroke: new ol.style.Stroke({ color: '#ff5555', width: 1.5 }) });
   const styOther   = new ol.style.Style({ fill: new ol.style.Fill({ color: 'rgba(255,160,60,0.22)' }), stroke: new ol.style.Stroke({ color: 'rgba(255,160,60,0.7)', width: 1 }) });
   const styViewBox = new ol.style.Style({ fill: new ol.style.Fill({ color: 'rgba(54,224,224,0.07)' }), stroke: new ol.style.Stroke({ color: '#36e0e0', width: 2, lineDash: [8, 5] }) });
+  const styBoundary = [
+    new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,0.9)', width: 5 }) }),
+    new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#ff2e2e', width: 2.5 }) })
+  ];
   const round4 = n => Math.round(n * 1e4) / 1e4;
 
   // ---- 현재 상태 ----
@@ -264,6 +289,16 @@
     document.getElementById('cntOrphan').textContent = orphan;
     renderWarnings();
     renderViewBox();
+    renderBoundary();
+  }
+
+  // ---- 선택 특보구역 경계선 ----
+  let showBoundary = true;
+  function renderBoundary() {
+    bndSrc.clear();
+    if (!showBoundary) return;
+    const f = warnByCode[cur];
+    if (f) { const c = f.clone(); c.setStyle(styBoundary); bndSrc.addFeature(c); }
   }
 
   // ---- 표출 영역(viewBox) ----
@@ -371,7 +406,12 @@
   });
 
   // ---- UI ----
-  sel.addEventListener('change', () => { cur = sel.value; stopViewBoxDraw(); refresh(); });
+  sel.addEventListener('change', () => { cur = sel.value; stopViewBoxDraw(); refresh(); fitToZone(); });
+  function fitToZone() {
+    const f = warnByCode[cur];
+    if (f) map.getView().fit(f.getGeometry().getExtent(), { padding: [60, 60, 60, 60], duration: 350, maxZoom: 11 });
+  }
+  document.getElementById('tgBnd').onchange = e => { showBoundary = e.target.checked; renderBoundary(); };
   document.getElementById('vbDraw').onclick = startViewBoxDraw;
   document.getElementById('vbFit').onclick = fitViewBoxFromCells;
   document.getElementById('vbClear').onclick = () => { if (MAP[cur]) delete MAP[cur].viewBox; stopViewBoxDraw(); renderViewBox(); };
@@ -405,7 +445,9 @@
 
   setMode('major');
   refresh();
-  setHud(`로드 완료 · 대해구 ${GEO.features.length}칸 · 구역 ${Object.keys(MAP).length}개`);
+  fitToZone();
+  const wn = Object.keys(warnByCode).length;
+  setHud(`로드 완료 · 대해구 ${GEO.features.length}칸 · 구역 ${Object.keys(MAP).length}개 · 경계 ${wn}개`);
 })();
 </script>
 </body>
