@@ -360,7 +360,8 @@
                 OS.SheetTL.setVisible(false);
             }
             ['ocean-card-wave', 'ocean-card-wind', 'ocean-card-current',
-             'ocean-card-temp', 'ocean-card-weather', 'ocean-card-vsby'].forEach(function (id) {
+             'ocean-card-temp', 'ocean-card-weather', 'ocean-card-vsby',
+             'ocean-card-vsby-graph'].forEach(function (id) {
                 if (typeof OS.hideCard === 'function') OS.hideCard(id);
             });
         }
