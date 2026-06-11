@@ -39,6 +39,25 @@ router.get('/api/vsby-smallzone/point', async (req, res) => {
     }
 });
 
+// [선 차트] 임의 해점 → 그 점이 속한 대해구의 1시간 시정 시계열 (소해구는 3시간뿐이라 선은 대해구 1시간)
+router.get('/api/vsby-smallzone/major', async (req, res) => {
+    try {
+        const no = (req.query.no || '').trim();
+        let r;
+        if (no) r = await sz.getMajorSeries(no);
+        else {
+            const lat = parseFloat(req.query.lat), lon = parseFloat(req.query.lon);
+            if (!isFinite(lat) || !isFinite(lon)) return res.json({ success: false, error: 'no 또는 lat/lon 필요' });
+            r = await sz.getMajorByPoint(lat, lon);
+        }
+        if (!r) return res.json({ success: false, error: '격자 밖 좌표' });
+        res.json({ success: true, ...r });
+    } catch (e) {
+        console.error('[vsby-smallzone/major] 실패:', e.message);
+        res.status(500).json({ success: false, error: 'server error' });
+    }
+});
+
 // [B1] 특정 소해구 키 → 시정 (지연 로딩)
 router.get('/api/vsby-smallzone/cell', async (req, res) => {
     const key = (req.query.key || '').trim();

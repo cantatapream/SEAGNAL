@@ -43,6 +43,8 @@ const API_V1 = '/mmis_marine_api/v1/kma';
 const TIMES_PATH = `${API_V1}/mdl/marine_zone/small-area/fct-tm/list/vs`;
 const detailPath = (lat, lon) =>
     `${API_V1}/fct/netcdf/small-area/latlon/data/detail?lat=${lat}&lon=${lon}`;
+// 대해구(부모) 시정 1시간 시계열 — 선(line) 차트용. (소해구는 3시간만 제공되므로)
+const majorSeriesPath = (no) => `${API_V1}/mdl/marine_zone/vs/${no}/list`;
 
 // ── 메모리 캐시 ──
 //   { baseTm, collectedAt, cells: { "144-9": [ {t:"2026.06.12 01:00", v:3.2}, ... ] } }
@@ -324,6 +326,46 @@ async function getByPoint(lat, lon) {
     return getCellLazy(key);
 }
 
+// ── 대해구(부모) 1시간 시정 — 선 차트용 (지연 로딩, baseTm 태그 캐시) ──
+const _majorCache = {};   // { [no]: { baseTm, series:[{t,v}] } }
+
+/** 임의 점(lat/lon) → 그 점이 속한 대해구 번호(marine_zone_no). 격자 밖이면 null. */
+function pointToMajorNo(lat, lon) {
+    const box = _loadCellBox();
+    for (const no of Object.keys(box)) {
+        const b = box[no];
+        if (lon >= b.lonMin && lon < b.lonMax && lat >= b.latMin && lat < b.latMax) return no;
+    }
+    return null;
+}
+
+/** 대해구 번호 → 1시간 시정 시계열 [{t,v}] (캐시 우선, baseTm 바뀌면 갱신). */
+async function getMajorSeries(no) {
+    if (!no) return null;
+    const cached = _majorCache[no];
+    if (cached && cached.baseTm === _cache.baseTm) {
+        return { no: no, baseTm: _cache.baseTm, series: cached.series, cached: true };
+    }
+    try {
+        const j = await marine.getAuthedJson(majorSeriesPath(no));
+        const arr = j.data || j.payload || [];
+        const series = (Array.isArray(arr) ? arr : [])
+            .filter(r => r && r.vs != null && (r.fct_tm || r.fctTm))
+            .map(r => ({ t: r.fct_tm || r.fctTm, v: Math.round(Number(r.vs) * 10) / 10 }));
+        _majorCache[no] = { baseTm: _cache.baseTm, series: series };
+        return { no: no, baseTm: _cache.baseTm, series: series, cached: false };
+    } catch (e) {
+        return { no: no, baseTm: _cache.baseTm, series: [], cached: false };
+    }
+}
+
+/** [선 차트] 임의 해점 → 그 점이 속한 대해구의 1시간 시정 시계열. */
+async function getMajorByPoint(lat, lon) {
+    const no = pointToMajorNo(Number(lat), Number(lon));
+    if (!no) return null;
+    return getMajorSeries(no);
+}
+
 /** 특보구역 코드 → 그 구역 smallZones 의 시정 시계열 묶음. */
 function getZone(zoneCode) {
     let map;
@@ -363,7 +405,10 @@ module.exports = {
     getZone,
     getCellLazy,
     getByPoint,
+    getMajorSeries,
+    getMajorByPoint,
     // 내부 유틸(테스트/라우트 보조)
+    pointToMajorNo,
     pointToCellKey,
     smallZoneCenter,
     allMappedSmallZones,
