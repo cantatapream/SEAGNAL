@@ -2239,6 +2239,28 @@
                     </div>
                 </div>
 
+                <!-- Advisory Prediction Accordion Header -->
+                <div id="advisory-prediction-accordion-header" class="main-accordion-header gradient-prediction"
+                    onclick="toggleAdvisoryPredictionAccordion()">
+                    <div class="accordion-title-with-info">
+                        <h2 class="section-title" style="margin: 0;"><i class="fa-solid fa-wand-magic-sparkles"></i>
+                            해역별 특보 예측<sup class="adv-beta-badge" aria-label="beta">beta</sup></h2>
+                    </div>
+                    <div class="header-status">
+                        <!-- Initial Loading State -->
+                        <span style="color: rgba(255,255,255,0.5); font-size: 0.85rem; margin-right: 8px;">
+                            <i class="fa-solid fa-spinner fa-spin"></i>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Advisory Prediction Accordion Body -->
+                <div id="advisory-prediction-accordion-body" class="main-accordion-body collapsed">
+                    <div class="advisory-prediction-wrap">
+                        <div class="adv-empty">예측 정보를 불러오는 중입니다...</div>
+                    </div>
+                </div>
+
                 <!-- Main Accordion Header -->
                 <div id="main-accordion-header" class="main-accordion-header gradient-alert" onclick="toggleMainAccordion()">
                     <div class="accordion-title-with-info">
@@ -4028,6 +4050,7 @@
     <script src="js/forecast.js"></script>
     <script src="js/windy.js"></script>
     <script src="js/marine_forecast.js"></script>
+    <script src="js/advisory_prediction.js"></script>
     <!-- 해상일기도 (KMA 날씨누리 GIF 차트) — 5개 파일 분할
          1: 카탈로그/상태/init/드롭다운/즐겨찾기  2: fetch/render/슬라이더/재생
          3: 전체화면 진입/종료/백버튼  4: 컨트롤 페이드  5: 핀치줌·팬·탭 -->
@@ -4104,6 +4127,8 @@
     <!-- [데모 시연] 관리자 센터 데모 특보 슬롯 UI + 관리자 기기 한정 표출 -->
     <script src="js/admin_demo.js"></script>
     <script src="js/demo_alert.js"></script>
+    <script src="js/advisory_demo_admin.js"></script>
+    <script src="js/advisory_demo.js"></script>
     <script src="js/report_user.js"></script>
     <script src="js/survey_user.js"></script>
     <script src="js/zone_guide.js"></script>

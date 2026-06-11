@@ -198,6 +198,8 @@ console.log(`🌍 Serving static files from: ${staticRoot}`);
 // ============================================================================
 app.use(require('./routes/health'));
 app.use(require('./routes/weather'));
+app.use(require('./routes/advisoryPrediction'));  // 특보 예측 상태 조회 API (관심해역 필터, 읽기 전용)
+app.use(require('./routes/advisoryDemo'));         // 특보 예측 시연 — 기기 폴링용 공개 라우트(읽기 전용)
 app.use(require('./routes/tide'));
 app.use(require('./routes/content'));
 app.use(require('./routes/stats'));

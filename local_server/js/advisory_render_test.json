@@ -1,0 +1,44 @@
+{
+  "generatedAt": "2026-06-11T14:36:58.066Z",
+  "variant": "merged",
+  "allPass": true,
+  "total": 7,
+  "passed": 7,
+  "results": [
+    {
+      "case": "case1_full",
+      "pass": true,
+      "detail": "모든 검사 통과"
+    },
+    {
+      "case": "case2_filter",
+      "pass": true,
+      "detail": "필터 정상"
+    },
+    {
+      "case": "case3_empty",
+      "pass": true,
+      "detail": "빈 상태 정상"
+    },
+    {
+      "case": "case4_xss",
+      "pass": true,
+      "detail": "XSS escape 정상"
+    },
+    {
+      "case": "case5_header_status",
+      "pass": true,
+      "detail": "헤더 배지 정상"
+    },
+    {
+      "case": "case6_grade_string_robust",
+      "pass": true,
+      "detail": "문자열 grade 견고성 정상"
+    },
+    {
+      "case": "case7_crossref",
+      "pass": true,
+      "detail": "교차참조 병기 정상"
+    }
+  ]
+}

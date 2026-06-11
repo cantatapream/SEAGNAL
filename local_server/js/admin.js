@@ -651,10 +651,52 @@ window.switchUnifiedAdminTab = function (tabId) {
         } else if (tabId === 'ai') {
             renderUnifiedAiTab(body);
         } else if (tabId === 'demo') {
-            if (typeof renderDemoAlertTab === 'function') renderDemoAlertTab(body);
-            else body.innerHTML = '<div style="padding:20px;color:#fca5a5;">시연 모듈(admin_demo.js)이 로드되지 않았습니다.</div>';
+            renderDemoTabWithSubtabs(body);
         }
     }, 100);
+};
+
+// ============================================================================
+// [시연] "시연" 메인탭을 두 하위탭으로 분리: 특보 시연 / 특보 예측 시연.
+//   각 하위 시연은 자체 테스트모드 on/off 를 독립적으로 가진다.
+//   하위탭 바(#demo-subtab-bar)는 유지되고, 콘텐츠만 #demo-subtab-body 에 교체.
+// ============================================================================
+function renderDemoTabWithSubtabs(body) {
+    var saved = 'alert';
+    try { saved = localStorage.getItem('seagnal_demo_subtab') || 'alert'; } catch (e) { /* noop */ }
+    var btn = function (id, label) {
+        return '<button data-subtab="' + id + '" onclick="switchDemoSubTab(\'' + id + '\')" '
+            + 'style="padding:8px 16px;border:none;border-radius:8px;background:transparent;color:#94a3b8;'
+            + 'font-weight:700;cursor:pointer;font-size:0.86rem;">' + label + '</button>';
+    };
+    body.innerHTML =
+        '<div id="demo-subtab-bar" style="display:flex;gap:6px;margin-bottom:14px;'
+        + 'border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;">'
+        + btn('alert', '특보 시연') + btn('advisory', '특보 예측 시연')
+        + '</div>'
+        + '<div id="demo-subtab-body"></div>';
+    switchDemoSubTab(saved === 'advisory' ? 'advisory' : 'alert');
+}
+
+window.switchDemoSubTab = function (which) {
+    try { localStorage.setItem('seagnal_demo_subtab', which); } catch (e) { /* noop */ }
+    var bar = document.getElementById('demo-subtab-bar');
+    if (bar) {
+        bar.querySelectorAll('button[data-subtab]').forEach(function (b) {
+            var on = b.dataset.subtab === which;
+            b.style.background = on ? 'rgba(168,85,247,0.18)' : 'transparent';
+            b.style.color = on ? '#d8b4fe' : '#94a3b8';
+        });
+    }
+    var sub = document.getElementById('demo-subtab-body');
+    if (!sub) return;
+    if (which === 'advisory') {
+        if (typeof renderAdvisoryPredictionDemoTab === 'function') renderAdvisoryPredictionDemoTab(sub);
+        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">특보 예측 시연 모듈(advisory_demo_admin.js)이 로드되지 않았습니다.</div>';
+    } else {
+        if (typeof renderDemoAlertTab === 'function') renderDemoAlertTab(sub);
+        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">시연 모듈(admin_demo.js)이 로드되지 않았습니다.</div>';
+    }
 };
 
 // ============================================================================

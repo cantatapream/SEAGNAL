@@ -1991,6 +1991,50 @@ router.post('/api/admin/demo/testmode', (req, res) => {
     }
 });
 
+// ============================================================================
+// [특보 예측 시연] 제어 엔드포인트 (관리자 인증 하).
+//   목업/상태 헬퍼는 advisory/demoScenarios.js 공유. 기기 폴링은 공개 라우트
+//   /api/advisory-demo/* (routes/advisoryDemo.js) 에서 별도 처리.
+// ============================================================================
+const advDemo = require('../advisory/demoScenarios');
+
+// 현재 시연 상태(테스트모드 + 표출중 시나리오 + 시나리오 목록) — 관리자 UI 렌더용
+router.get('/api/admin/advisory-demo/state', (req, res) => {
+    try {
+        res.json({ testMode: advDemo.isTestMode(), scenarioId: advDemo.getActiveId(), scenarios: advDemo.listScenarios() });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 테스트 모드 ON/OFF (body: { enabled }) — OFF 시 표출중 시연도 정리
+router.post('/api/admin/advisory-demo/testmode', (req, res) => {
+    try {
+        const enabled = advDemo.setTestMode(!!(req.body && req.body.enabled));
+        console.log(`[AdvisoryDemo] 테스트 모드 ${enabled ? 'ON' : 'OFF'}`);
+        res.json({ success: true, testMode: enabled, scenarioId: advDemo.getActiveId() });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 시나리오 표출 (body: { scenarioId }) — 테스트모드 ON 일 때만 유효
+router.post('/api/admin/advisory-demo/emit', (req, res) => {
+    try {
+        const id = req.body && req.body.scenarioId;
+        if (!advDemo.SCENARIOS[id]) return res.status(400).json({ error: '알 수 없는 시나리오: ' + id });
+        if (!advDemo.isTestMode()) return res.status(409).json({ error: '테스트 모드를 먼저 켜세요.' });
+        advDemo.setActive(id);
+        console.log(`[AdvisoryDemo] 표출: ${id}`);
+        res.json({ success: true, scenarioId: id });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 표출 내리기
+router.post('/api/admin/advisory-demo/clear', (req, res) => {
+    try {
+        advDemo.clearActive();
+        console.log('[AdvisoryDemo] 표출 내림');
+        res.json({ success: true, scenarioId: null });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // 데모 슬롯 추가/저장 (전체 목록을 통째로 받아 덮어씀 — 추가/수정/삭제 공용)
 router.post('/api/admin/demo/slots', (req, res) => {
     try {
