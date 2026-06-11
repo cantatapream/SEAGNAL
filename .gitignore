@@ -96,3 +96,6 @@ local_server/data/tide_field/frames.bin
 local_server/data/tide_field/frames.bin.tmp
 local_server/data/tide_field/frames_meta.json
 local_server/data/tide_field/frames_meta.json.tmp
+# 격자 보정(nudge) 캐시 — 수집 중 생성되는 런타임 산출물(볼륨 영속).
+local_server/data/tide_field/anchor_probe_override.json
+local_server/data/tide_field/anchor_probe_override.json.tmp
