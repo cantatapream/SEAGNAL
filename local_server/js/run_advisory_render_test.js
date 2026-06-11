@@ -187,6 +187,57 @@ const emptyData = {
         failed.length === 0 ? '문자열 grade 견고성 정상' : '실패: ' + failed.join(', '));
 })();
 
+// ---- Case 7: 교차참조 — kmaForecast 있으면 병기, 없으면 줄 숨김 --------------
+(function () {
+    const withKma = {
+        baseTimeKST: '2026061021',
+        active: [
+            {
+                office: 'jeju', zone: ZONE_HIGH,
+                grade: { key: 'high', label: '높음', emoji: '🔴' },
+                probPct: 80, windKt: 30, onsetLabel: '6/13(토) 밤', narrative: 'h',
+                kmaForecast: { windSpeed: '14~18', waveHeight: '2.0~3.0', periodLabel: '6/13(토) 오후', publishTime: '2026061105' }
+            },
+            {
+                office: 'jeju', zone: ZONE_WATCH,
+                grade: { key: 'watch', label: '관심', emoji: '🟡' },
+                probPct: 55, windKt: 22, onsetLabel: '6/14(일) 새벽', narrative: 'w'
+                // kmaForecast 없음 → 병기 줄 없어야 함
+            }
+        ],
+        resolved: [],
+        counts: { high: 1, watch: 1, resolved: 0 }
+    };
+    const html = buildAdvisoryHtml(withKma, () => true);
+    const checks = [];
+    checks.push(['기상청 병기 라벨 포함', html.includes('기상청 단기예보')]);
+    checks.push(['풍속 숫자 포함', html.includes('풍속 14~18m/s')]);
+    checks.push(['파고 숫자 포함', html.includes('파고 2.0~3.0m')]);
+    checks.push(['예보 시간대 라벨 포함', html.includes('6/13(토) 오후')]);
+    checks.push(['병기 클래스 포함', html.includes('adv-kma-ref')]);
+    // kmaForecast 없는 항목은 병기 줄이 단 한 번만(=high 카드) 등장
+    const occurrences = html.split('adv-kma-ref').length - 1;
+    checks.push(['병기 줄 정확히 1회', occurrences === 1]);
+
+    // XSS: kmaForecast 값 escape
+    const xss = {
+        baseTimeKST: '2026061021',
+        active: [{
+            office: 'x', zone: ZONE_HIGH,
+            grade: { key: 'high', label: '높음', emoji: '🔴' },
+            probPct: 80, windKt: 30, onsetLabel: '밤', narrative: 'h',
+            kmaForecast: { windSpeed: '<b>9~13</b>', waveHeight: '1.0', periodLabel: '<i>x</i>' }
+        }],
+        resolved: [], counts: { high: 1, watch: 0, resolved: 0 }
+    };
+    const xssHtml = buildAdvisoryHtml(xss, () => true);
+    checks.push(['kma 값 escape', !xssHtml.includes('<b>9~13</b>') && xssHtml.includes('&lt;b&gt;9~13')]);
+
+    const failed = checks.filter((c) => !c[1]).map((c) => c[0]);
+    record('case7_crossref', failed.length === 0,
+        failed.length === 0 ? '교차참조 병기 정상' : '실패: ' + failed.join(', '));
+})();
+
 // ---- 결과 출력 + JSON 기록 ------------------------------------------------
 const allPass = results.every((r) => r.pass);
 const outPath = path.join(__dirname, 'advisory_render_test.json');

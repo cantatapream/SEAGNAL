@@ -8,12 +8,14 @@
  *
  *     엔진(generatePredictions)
  *        → 억제(applySuppression)
+ *        → 교차참조(crossReference — 기상청 단기예보 숫자 병기)
  *        → 상태관리(updateState)
  *        → data/advisory_state.json 저장
  *
  * - 스케줄러가 주기적으로 fire-and-forget 호출(권장: 시간당 1회, 매시 :25).
  * - CLI 로도 1회 실행 가능(`node advisory/runPrediction.js`).
- * - 교차참조/Gemini 해설은 이번 범위 제외(deferred).
+ * - 교차참조 실패는 흡수 — 병기만 생략하고 예측은 그대로 진행한다.
+ * - Gemini 해설은 이번 범위 제외(deferred).
  *
  * [설계 원칙]
  *  - 절대 throw 가 스케줄러로 새지 않게 전체를 try/catch 로 격리.
@@ -92,10 +94,26 @@ async function runPredictionCycle(opts = {}) {
             .map((s) => s && s.zone)
             .filter(Boolean);
 
+        // ── 3.5) 교차참조: 기상청 단기 해상예보 숫자 병기(판정 없이) ───────
+        //   같은 해역·시간대의 기상청 공식 예보(풍속/파고)를 prediction.kmaForecast
+        //   로 부착한다. 디스크 IO/매칭 실패는 모두 흡수 — 실패해도 예측은 그대로.
+        let enriched = visible;
+        try {
+            const cx = deps.crossReference || require('./crossReference');
+            const loadForecastMap = deps.loadForecastMap || cx.loadForecastMap;
+            const enrichPredictions = deps.enrichPredictions || cx.enrichPredictions;
+            const forecastMap = loadForecastMap();
+            enriched = enrichPredictions(visible, forecastMap) || visible;
+        } catch (e) {
+            const error = (e && e.message) || String(e);
+            console.log(`[advisory] 교차참조 실패 → 병기 생략(예측 유지): ${error}`);
+            enriched = visible;
+        }
+
         // ── 4) 상태관리: data/advisory_state.json 갱신/저장 ───────────────
         const current = {
             baseTimeKST: g.baseTimeKST,
-            predictions: visible,
+            predictions: enriched,
             zoneSignals,
         };
         const state = updState(current, suppressedZones, opts.stateOpts || {}) || {};

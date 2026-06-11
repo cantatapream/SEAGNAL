@@ -177,6 +177,30 @@
                     if (narrative) {
                         html.push('<div class="adv-card-narrative">' + narrative + '</div>');
                     }
+
+                    // ---- 기상청 단기예보 병기(교차참조) — 판정 없이 숫자만 ----
+                    //   kmaForecast 가 있고 풍속/파고 중 하나라도 있을 때만 표출.
+                    //   없으면(해역·시간대 예보 없음) 이 줄 자체를 숨긴다.
+                    const kma = it.kmaForecast;
+                    if (kma && typeof kma === 'object' &&
+                        (kma.windSpeed || kma.waveHeight)) {
+                        const parts = [];
+                        if (kma.windSpeed) {
+                            parts.push('풍속 ' + escapeHtml(kma.windSpeed) + 'm/s');
+                        }
+                        if (kma.waveHeight) {
+                            parts.push('파고 ' + escapeHtml(kma.waveHeight) + 'm');
+                        }
+                        const pLabel = kma.periodLabel
+                            ? ' <span class="adv-kma-period">(' + escapeHtml(kma.periodLabel) + ')</span>'
+                            : '';
+                        html.push('<div class="adv-kma-ref">' +
+                            '<span class="adv-kma-label">🛰️ 기상청 단기예보</span>' +
+                            '<span class="adv-kma-vals">' + parts.join(' · ') + '</span>' +
+                            pLabel +
+                            '</div>');
+                    }
+
                     html.push('</div>'); // adv-card
                 });
                 html.push('</div>'); // adv-active-list

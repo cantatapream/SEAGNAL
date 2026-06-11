@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-11T05:23:29.894Z",
+  "generatedAt": "2026-06-11T11:35:07.324Z",
   "variant": "merged",
   "allPass": true,
-  "total": 6,
-  "passed": 6,
+  "total": 7,
+  "passed": 7,
   "results": [
     {
       "case": "case1_full",
@@ -34,6 +34,11 @@
       "case": "case6_grade_string_robust",
       "pass": true,
       "detail": "문자열 grade 견고성 정상"
+    },
+    {
+      "case": "case7_crossref",
+      "pass": true,
+      "detail": "교차참조 병기 정상"
     }
   ]
 }

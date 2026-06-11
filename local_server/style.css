@@ -10622,6 +10622,35 @@ body.mc-fullscreen-active {
     line-height: 1.5;
 }
 
+/* 기상청 단기예보 병기(교차참조) — 우리 예측 아래에 공식 숫자만 나란히.
+   판정(일치/불일치) 없이 풍속/파고만 보여주고, 데이터 없으면 렌더되지 않음. */
+.adv-kma-ref {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(148, 163, 184, 0.2);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+.adv-kma-label {
+    color: #94a3b8;
+    font-weight: 700;
+}
+
+.adv-kma-vals {
+    color: #38bdf8;
+    font-weight: 600;
+}
+
+.adv-kma-period {
+    color: #8b8f99;
+    font-weight: 400;
+}
+
 /* 최근 해소 서브섹션 */
 .adv-resolved-section {
     border-top: 1px dashed rgba(148, 163, 184, 0.2);
