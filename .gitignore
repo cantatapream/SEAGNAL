@@ -120,3 +120,6 @@ local_server/analysis/wave_leadtime/reports/RECALIB_gawn.md
 local_server/analysis/wave_leadtime/reports/RECALIB_dajn.md
 local_server/analysis/wave_leadtime/reports/RECALIB_all.md
 local_server/analysis/wave_leadtime/out/recalib_samples_*.json
+
+# 예비특보 통보문 수집물(dmdw 크롤링 산출)
+local_server/analysis/wave_leadtime/data/prelim_warnings.json
