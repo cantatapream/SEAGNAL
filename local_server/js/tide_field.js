@@ -425,6 +425,8 @@
         var bar = $('mudflat-slider-bar');
         var legend = $('mudflat-legend');
         if (bar) { bar.style.display = show ? 'flex' : 'none'; bar.setAttribute('aria-hidden', show ? 'false' : 'true'); }
+        // 표시 직후(레이아웃 완료 후) 눈금·말풍선 위치 재계산
+        if (show) requestAnimationFrame(function () { buildTicks(); updateTooltip(_frameIdx); });
         if (legend) {
             if (show) {
                 legend.innerHTML =
@@ -440,32 +442,68 @@
 
     function updateTooltip(idx) {
         var tip = $('mudflat-tooltip');
-        if (!tip || !_frames[idx]) return;
-        var d = new Date(_frames[idx]);
-        // KST 표시
-        var kst = new Date(d.getTime() + 9 * 3600000);
+        var slider = $('mudflat-slider');
+        if (!tip || !slider || !_frames[idx]) return;
+        // 라벨 (KST mm/dd HH:MM)
+        var kst = new Date(new Date(_frames[idx]).getTime() + 9 * 3600000);
         var mm = String(kst.getUTCMonth() + 1).padStart(2, '0');
         var dd = String(kst.getUTCDate()).padStart(2, '0');
         var hh = String(kst.getUTCHours()).padStart(2, '0');
         var mi = String(kst.getUTCMinutes()).padStart(2, '0');
         tip.textContent = mm + '/' + dd + ' ' + hh + ':' + mi;
+
+        // 핸들 위치에 말풍선 정렬 (천기 슬라이더와 동일 로직)
+        tip.style.left = '0px';
+        tip.style.transform = 'none';
+        var sliderRect = slider.getBoundingClientRect();
+        if (!sliderRect.width) return; // 아직 미표시 → 위치 계산 보류
+        var min = parseFloat(slider.min) || 0;
+        var max = parseFloat(slider.max) || 0;
+        var pct = max > min ? ((idx - min) / (max - min)) : 0;
+        var thumbHalf = 9;
+        var thumbXVp = sliderRect.left + thumbHalf + pct * (sliderRect.width - thumbHalf * 2);
+        var tipW = tip.getBoundingClientRect().width;
+        var pad = 4;
+        var idealLV = thumbXVp - tipW / 2;
+        var clampedLV = Math.max(pad, Math.min(idealLV, window.innerWidth - tipW - pad));
+        var wrapRect = tip.parentElement.getBoundingClientRect();
+        tip.style.left = (clampedLV - wrapRect.left) + 'px';
+        // 화살표 x (말풍선 안에서 핸들 가리키게)
+        var arrowX = Math.max(8, Math.min(thumbXVp - clampedLV, tipW - 8));
+        tip.style.setProperty('--shrt-arrow-x', arrowX + 'px');
     }
 
+    // 천기 슬라이더와 동일: 모든 프레임에 작은 눈금, 자정/정오에 큰 눈금 + 자정에 날짜 라벨.
     function buildTicks() {
         var ticks = $('mudflat-ticks');
         if (!ticks || !_frames.length) return;
         ticks.innerHTML = '';
-        // 자정 frame 마다 날짜 라벨
-        for (var i = 0; i < _frames.length; i++) {
+        var n = _frames.length;
+        var labelsAdded = {};
+        var frag = document.createDocumentFragment();
+        for (var i = 0; i < n; i++) {
             var kst = new Date(new Date(_frames[i]).getTime() + 9 * 3600000);
-            if (kst.getUTCHours() === 0 && kst.getUTCMinutes() === 0) {
-                var span = document.createElement('span');
-                span.className = 'shrt-fcst-tick';
-                span.style.left = (i / (_frames.length - 1) * 100) + '%';
-                span.textContent = (kst.getUTCMonth() + 1) + '/' + kst.getUTCDate();
-                ticks.appendChild(span);
+            var hh = kst.getUTCHours();
+            var pct = (i / Math.max(1, n - 1)) * 100;
+            var isMajor = (hh === 0 || hh === 12);
+            var tick = document.createElement('div');
+            tick.className = 'shrt-fcst-tick ' + (isMajor ? 'major' : 'minor');
+            tick.style.left = pct + '%';
+            frag.appendChild(tick);
+            if (isMajor && hh === 0 && kst.getUTCMinutes() === 0) {
+                var mo = kst.getUTCMonth() + 1, da = kst.getUTCDate();
+                var key = mo + '-' + da;
+                if (!labelsAdded[key]) {
+                    labelsAdded[key] = 1;
+                    var label = document.createElement('div');
+                    label.className = 'shrt-fcst-tick-label top';
+                    label.style.left = pct + '%';
+                    label.textContent = mo + '/' + da;
+                    frag.appendChild(label);
+                }
             }
         }
+        ticks.appendChild(frag);
     }
 
     // ====================================================================
