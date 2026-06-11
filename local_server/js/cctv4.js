@@ -291,7 +291,7 @@ function showCctvPopup(data) {
             const src = provider.imageBaseUrl(data.cctvId, i) + '?' + Date.now();
             const label = camCount > 1 ? ` 카메라 ${i + 1}` : '';
             imgsHtml += `<div class="cctv-coast-img-wrap">` +
-                `<img id="cctv-coast-img-${i}" class="cctv-coast-img"` +
+                `<img id="cctv-coast-img-${i}" class="cctv-coast-img" referrerpolicy="no-referrer"` +
                 ` src="${src}" alt="${data.name}${label}"` +
                 ` onerror="this.style.display='none';` +
                     `var _e=document.getElementById('cctv-coast-err-${i}');if(_e)_e.style.display='flex';">` +
