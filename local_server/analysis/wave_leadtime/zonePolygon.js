@@ -7,13 +7,14 @@
  * 면적비율이 의미를 잃었다(이벤트 면적비율 중앙값 3%). 이 모듈은 실제
  * 특보구역 폴리곤(assets/warn_zones.geojson) 내부만 샘플해:
  *   - maxBand (세기) + areaFraction = pixelsGE3 / sampled (구역 내 임계초과 면적비율)
- * 을 "그 구역" 기준으로 정확히 산출한다.
+ * 을 "그 구역" 기준으로 산출한다.
  *
- * 폴리곤은 위경도 → 픽셀(calib.xOf/yOf)로 투영해 픽셀공간에서 point-in-polygon
- * 판정한다. MultiPolygon + 홀(내부 링) 지원. 폴리곤 없는 구역(최북단 4개)은
- * loadZonePolygons 에 없으므로 호출측이 기존 analyzeZone 으로 폴백한다.
+ * 성능: 폴리곤→픽셀 멤버십은 (calib·폴리곤 고정 시) 불변이므로 구역별로 1회만
+ *   zonePixelIndices() 로 미리 구해두고, 매 프레임은 analyzeByIndices() 로
+ *   그 인덱스만 훑는다(point-in-polygon 재계산 없음).
  *
- * 반환값 형태는 analyzeZone 과 호환 + areaFraction 추가.
+ * MultiPolygon + 홀 지원. 폴리곤 없는 구역(최북단 4)은 loadZonePolygons 에 없으니
+ * 호출측이 기존 analyzeZone(원형)으로 폴백한다. 반환은 analyzeZone 호환 + areaFraction.
  * ============================================================================
  */
 'use strict';
@@ -26,10 +27,7 @@ function normName(s) {
     return String(s == null ? '' : s).replace(/[\s·.]/g, '').trim();
 }
 
-/**
- * warn_zones.geojson → Map<정규화이름, MultiPolygon coordinates(lon/lat)>.
- * 실패 시 빈 Map (호출측 폴백).
- */
+/** warn_zones.geojson → Map<정규화이름, MultiPolygon coordinates(lon/lat)>. 실패 시 빈 Map. */
 function loadZonePolygons(geojsonPath) {
     const out = new Map();
     try {
@@ -39,19 +37,17 @@ function loadZonePolygons(geojsonPath) {
             const name = f && f.properties && f.properties.name;
             const geom = f && f.geometry;
             if (!name || !geom) continue;
-            // Polygon → MultiPolygon 으로 통일
             let polys;
             if (geom.type === 'MultiPolygon') polys = geom.coordinates;
             else if (geom.type === 'Polygon') polys = [geom.coordinates];
             else continue;
             out.set(normName(name), polys);
         }
-    } catch (_) { /* 빈 맵 반환 */ }
+    } catch (_) { /* 빈 맵 */ }
     return out;
 }
 
 // ── point-in-polygon (픽셀공간, ray casting) ─────────────────────────────────
-// ring: [[x,y], ...] (픽셀좌표). 마지막=처음 자동 처리.
 function pointInRing(px, py, ring) {
     let inside = false;
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -63,37 +59,21 @@ function pointInRing(px, py, ring) {
     }
     return inside;
 }
-
 // projected polygon(픽셀): [outerRing, hole1, ...]. 내부=outer 안 && 어떤 홀에도 없음.
 function pointInPolygonWithHoles(px, py, rings) {
     if (!rings.length || !pointInRing(px, py, rings[0])) return false;
-    for (let k = 1; k < rings.length; k++) {
-        if (pointInRing(px, py, rings[k])) return false; // 홀 안 → 제외
-    }
+    for (let k = 1; k < rings.length; k++) if (pointInRing(px, py, rings[k])) return false;
     return true;
 }
 
 /**
- * 폴리곤 내부만 샘플해 밴드/면적비율 산출.
- *
- * @param {{w,h,rgba}} decoded
- * @param {{xOf,yOf,frame}} calib
- * @param {Array} polys          MultiPolygon coordinates (lon/lat) — loadZonePolygons 값
- * @param {object} opt           { mask, classify, ge3Level, ge5Level, minBandPixels }
- * @returns {{maxBand,pixelsGE3,pixelsGE5,sampled,areaFraction,histogram}|null}
+ * 폴리곤을 픽셀공간으로 투영하고, 프레임 내부에서 폴리곤에 드는 픽셀 인덱스(p=y*w+x)를
+ * 1회 산출한다. (구역별 1회만 호출 → 프레임마다 재사용)
+ * @returns {Int32Array|null}
  */
-function analyzeZonePolygon(decoded, calib, polys, opt = {}) {
-    const { w, h, rgba } = decoded;
-    const mask = (opt.mask && opt.mask.length === w * h) ? opt.mask : null;
-    const minBandPixels = opt.minBandPixels != null ? opt.minBandPixels : 12;
-    const classify = opt.classify;
-    if (typeof classify !== 'function') return null;
-    const ge3Level = opt.ge3Level != null ? opt.ge3Level : 3.0;
-    const ge5Level = opt.ge5Level != null ? opt.ge5Level : 5.0;
+function zonePixelIndices(calib, polys, w, h) {
     const fr = calib.frame;
     if (!Array.isArray(polys) || polys.length === 0) return null;
-
-    // 1) 폴리곤을 픽셀공간으로 투영 + 전체 bbox 산출
     const pxPolys = [];
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const poly of polys) {
@@ -101,8 +81,7 @@ function analyzeZonePolygon(decoded, calib, polys, opt = {}) {
         for (const ring of poly) {
             const pr = [];
             for (const pt of ring) {
-                const x = calib.xOf(pt[0]); // lon → px
-                const y = calib.yOf(pt[1]); // lat → px
+                const x = calib.xOf(pt[0]), y = calib.yOf(pt[1]);
                 pr.push([x, y]);
                 if (x < minX) minX = x; if (x > maxX) maxX = x;
                 if (y < minY) minY = y; if (y > maxY) maxY = y;
@@ -112,34 +91,45 @@ function analyzeZonePolygon(decoded, calib, polys, opt = {}) {
         pxPolys.push(rings);
     }
     if (!isFinite(minX)) return null;
-
-    // 2) 프레임으로 클램프
-    const x0 = Math.max(fr.x0, Math.floor(minX));
-    const x1 = Math.min(fr.x1, Math.ceil(maxX));
-    const y0 = Math.max(fr.y0, Math.floor(minY));
-    const y1 = Math.min(fr.y1, Math.ceil(maxY));
+    const x0 = Math.max(fr.x0, Math.floor(minX)), x1 = Math.min(fr.x1, Math.ceil(maxX));
+    const y0 = Math.max(fr.y0, Math.floor(minY)), y1 = Math.min(fr.y1, Math.ceil(maxY));
     if (x0 > x1 || y0 > y1) return null;
-
-    // 3) bbox 내 픽셀 중 폴리곤 내부만 샘플
-    const hist = new Map();
-    let sampled = 0, ge3 = 0, ge5 = 0;
+    const idx = [];
     for (let y = y0; y <= y1; y++) {
         for (let x = x0; x <= x1; x++) {
-            let inside = false;
             for (const rings of pxPolys) {
-                if (pointInPolygonWithHoles(x, y, rings)) { inside = true; break; }
+                if (pointInPolygonWithHoles(x, y, rings)) { idx.push(y * w + x); break; }
             }
-            if (!inside) continue;
-            const p = y * w + x;
-            if (mask && mask[p]) continue;
-            const i = p * 4;
-            const band = classify(rgba[i], rgba[i + 1], rgba[i + 2]);
-            if (band == null) continue;
-            sampled++;
-            hist.set(band, (hist.get(band) || 0) + 1);
-            if (band >= ge3Level) ge3++;
-            if (band >= ge5Level) ge5++;
         }
+    }
+    return Int32Array.from(idx);
+}
+
+/**
+ * 미리 구한 픽셀 인덱스로 한 프레임의 밴드/면적비율 산출.
+ * @returns {{maxBand,pixelsGE3,pixelsGE5,sampled,areaFraction,histogram}|null}
+ */
+function analyzeByIndices(decoded, indices, opt = {}) {
+    if (!indices || indices.length === 0) return null;
+    const { w, h, rgba } = decoded;
+    const mask = (opt.mask && opt.mask.length === w * h) ? opt.mask : null;
+    const minBandPixels = opt.minBandPixels != null ? opt.minBandPixels : 12;
+    const classify = opt.classify;
+    if (typeof classify !== 'function') return null;
+    const ge3Level = opt.ge3Level != null ? opt.ge3Level : 3.0;
+    const ge5Level = opt.ge5Level != null ? opt.ge5Level : 5.0;
+    const hist = new Map();
+    let sampled = 0, ge3 = 0, ge5 = 0;
+    for (let k = 0; k < indices.length; k++) {
+        const p = indices[k];
+        if (mask && mask[p]) continue;
+        const i = p * 4;
+        const band = classify(rgba[i], rgba[i + 1], rgba[i + 2]);
+        if (band == null) continue;
+        sampled++;
+        hist.set(band, (hist.get(band) || 0) + 1);
+        if (band >= ge3Level) ge3++;
+        if (band >= ge5Level) ge5++;
     }
     let maxBand = 0;
     for (const [band, n] of hist) if (n >= minBandPixels && band > maxBand) maxBand = band;
@@ -150,4 +140,13 @@ function analyzeZonePolygon(decoded, calib, polys, opt = {}) {
     };
 }
 
-module.exports = { loadZonePolygons, analyzeZonePolygon, pointInRing, pointInPolygonWithHoles, normName };
+/** 편의: 인덱스 미리계산 없이 한 번에 (구역별 1회 분석용). */
+function analyzeZonePolygon(decoded, calib, polys, opt = {}) {
+    const idx = zonePixelIndices(calib, polys, decoded.w, decoded.h);
+    return analyzeByIndices(decoded, idx, opt);
+}
+
+module.exports = {
+    loadZonePolygons, zonePixelIndices, analyzeByIndices, analyzeZonePolygon,
+    pointInRing, pointInPolygonWithHoles, normName,
+};
