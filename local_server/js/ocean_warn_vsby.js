@@ -343,11 +343,17 @@
         });
     }
 
-    /** #alert-content 내 모든 카드 스캔. */
+    // 시정 뱃지를 부착할 아코디언 컨테이너 — 해역별 특보현황 + 해역별 기상현황.
+    //   두 곳 모두 createAlertElement(.alert-card/.zone-name/.alert-badges) 동일 구조.
+    var BADGE_CONTAINER_IDS = ['alert-content', 'marine-status-content'];
+
+    /** 대상 컨테이너들 내 모든 카드 스캔. */
     function _scanCards() {
         if (!state.nameToCode) return;
-        var cards = document.querySelectorAll('#alert-content .alert-card');
-        for (var i = 0; i < cards.length; i++) _attachBadgeToCard(cards[i]);
+        for (var ci = 0; ci < BADGE_CONTAINER_IDS.length; ci++) {
+            var cards = document.querySelectorAll('#' + BADGE_CONTAINER_IDS[ci] + ' .alert-card');
+            for (var i = 0; i < cards.length; i++) _attachBadgeToCard(cards[i]);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -581,16 +587,24 @@
     // ─────────────────────────────────────────────────────────────
 
     function _startObserver() {
-        var container = document.getElementById('alert-content');
-        if (!container) return false;
-        if (state.observer) return true;
-        state.observer = new MutationObserver(function () {
-            // 카드가 다시 그려지면 재스캔 (renderApp 이 카드 DOM 교체).
-            _scanCards();
-        });
-        state.observer.observe(container, { childList: true, subtree: true });
-        _scanCards();   // 초기 1회
-        return true;
+        if (!state.observers) state.observers = {};
+        var observedAny = false;
+        for (var ci = 0; ci < BADGE_CONTAINER_IDS.length; ci++) {
+            var id = BADGE_CONTAINER_IDS[ci];
+            if (state.observers[id]) { observedAny = true; continue; }
+            var container = document.getElementById(id);
+            if (!container) continue;
+            var ob = new MutationObserver(function () {
+                // 카드가 다시 그려지면 재스캔 (renderApp 이 카드 DOM 교체).
+                _scanCards();
+            });
+            ob.observe(container, { childList: true, subtree: true });
+            state.observers[id] = ob;
+            observedAny = true;
+        }
+        if (observedAny) _scanCards();   // 초기 1회
+        // 두 컨테이너 모두 관찰되기 전까지는 false 로 보고해 재시도 루프 유지.
+        return Object.keys(state.observers).length >= BADGE_CONTAINER_IDS.length;
     }
 
     function _boot() {
