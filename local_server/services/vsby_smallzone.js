@@ -1,26 +1,25 @@
 /**
  * ============================================================================
  * 파일명: services/vsby_smallzone.js
- * 역할: 해구별 시정(視程) 데이터 수집·캐시·제공.
+ * 역할: MMIS "해구별예측 → 시정"(소해구 단위) 값을 수집·캐시·제공.
  *
- * [소해구 시정 — 래스터 색 추출 방식]
- *   MMIS 는 소해구 시정 "숫자"를 3시간 간격(지점상세)으로만 제공한다. 그러나
- *   같은 KIM RDPS 시정 모델의 고해상도 PNG(바다안개→시정예측)는 1시간 간격으로
- *   제공되며, 이를 각 소해구 중심 좌표에서 픽셀 샘플 → 범례(VSBY_STOPS) 색
- *   역매칭하면 "소해구별 1시간 시정(km, 11단계 버킷)"을 전 해역에 대해 얻는다.
- *   - RDPS imgList(무인증): GET /mmis_marine_api/v1/kma/mdl/rdps/imgList
- *       → { fct_tm_list:[...], img_list:["/resources/mdl/khope/mvis/.../*.png", ...] }
- *   - PNG 본체(무인증): https://marine.kma.go.kr + img_list[i]
- *   - PNG 배치: EPSG:4326, extent = MMIS 번들 검증값(아래 VSBY_EXTENT).
- *   런(생산시각)은 img 경로의 RDPS_<YYYYMMDDHH>_VIS 에서 추출 → 바뀔 때만 재수집.
+ * [데이터 소스 — 검증 완료]
+ *   - 소해구 시정(점단위): GET kma/fct/netcdf/small-area/latlon/data/detail?lat&lon
+ *       → payload.marine_zone = [{ marineZoneNo:"144_9", fctTm, vs(km), ... }]
+ *       (로그인 필요 — marine_client.getAuthedJson 사용)
+ *   - 모델 런(생산시각): GET kma/mdl/marine_zone/small-area/fct-tm/list/vs
+ *       → payload[0].mdl_data_prdct_time  (이게 바뀔 때만 재수집)
  *
- * [대해구 시정 — 숫자(정밀)]
- *   해구별 기상전망에서 "대해구" 클릭 시 선 차트는 정밀 숫자가 필요하므로
- *   대해구 1시간 시계열(marine_zone/vs, 로그인)을 별도 제공(getMajorSeries).
+ * [수집 범위]
+ *   assets/zone_grid_map.json 의 모든 특보구역 smallZones 합집합(고유 소해구)만.
+ *   각 소해구 중심 lat/lon 으로 1회씩 호출(레이트리밋은 marine_client 가 200ms 보장).
  *
  * [캐시 / 영속성]
- *   메모리 상주 + data/vsby_smallzone.json.gz(gzip). 부팅 시 로드, 런 동일하면
- *   재수집 생략(재부팅·머지 안전).
+ *   - 메모리 상주(즉시 추출) + data/vsby_smallzone.json.gz 로 gzip 저장.
+ *   - 부팅 시 gz 로드 → 캐시 baseTm 이 현재 런과 같으면 재수집 안 함(재부팅·머지 안전).
+ *
+ * [표기 규칙은 클라이언트 책임] 단위 km, 20km 상한 클램프 / >10km 투명+텍스트만.
+ *   본 모듈은 원값(vs, 소수1자리)을 보관하고, 클램프/색은 표시 단계에서 처리.
  * ============================================================================
  */
 'use strict';
@@ -28,9 +27,11 @@
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
-const fetch = require('node-fetch');
-const { Jimp } = require('jimp');
+const https = require('https');
 const marine = require('./marine_client');
+
+const COLLECT_CONCURRENCY = 12;   // 동시 수집 요청 수 (MMIS 응답 ~2s 대비 벽시계 단축, 0실패 확인)
+const POLL_INTERVAL_MS = 60 * 60 * 1000;   // 모델 런 변경 폴링 주기(1시간)
 
 const ROOT = path.join(__dirname, '..');
 const GEO_PATH = path.join(ROOT, 'marine_zone_area.json');
@@ -38,31 +39,18 @@ const MAP_PATH = path.join(ROOT, 'assets', 'zone_grid_map.json');
 const DATA_DIR = path.join(ROOT, 'data');
 const CACHE_PATH = path.join(DATA_DIR, 'vsby_smallzone.json.gz');
 
-const KMA_BASE = 'https://marine.kma.go.kr';
 const API_V1 = '/mmis_marine_api/v1/kma';
-const IMGLIST_URL = `${KMA_BASE}${API_V1}/mdl/rdps/imgList`;
-const majorSeriesPath = (no) => `${API_V1}/mdl/marine_zone/vs/${no}/list`;   // 대해구 1시간 숫자(로그인)
+const TIMES_PATH = `${API_V1}/mdl/marine_zone/small-area/fct-tm/list/vs`;
+const detailPath = (lat, lon) =>
+    `${API_V1}/fct/netcdf/small-area/latlon/data/detail?lat=${lat}&lon=${lon}`;
 
-const DOWNLOAD_CONCURRENCY = 6;            // PNG 동시 다운로드
-const POLL_INTERVAL_MS = 60 * 60 * 1000;   // 런 변경 폴링(1시간)
-
-// RDPS 시정 PNG 배치 (EPSG:4326) — MMIS 번들서 검증한 정확값.
-const VSBY_EXTENT = [123.2770767211914, 31.580740724291122, 132.8739022435368, 43.44957733154297];
-// 범례(km → RGB) — vsby_forecast_layer.js VSBY_STOPS 와 동일.
-const VSBY_STOPS = [
-    { v: 0.0, c: [255, 43, 214] }, { v: 0.2, c: [230, 0, 0] }, { v: 0.6, c: [255, 127, 0] },
-    { v: 1.0, c: [255, 181, 71] }, { v: 2.0, c: [255, 232, 0] }, { v: 3.0, c: [200, 214, 0] },
-    { v: 5.0, c: [22, 180, 26] }, { v: 7.0, c: [111, 223, 111] }, { v: 10.0, c: [31, 182, 214] },
-    { v: 14.0, c: [47, 123, 230] }, { v: 20.0, c: [255, 255, 255] }
-];
-
-// ── 캐시 ──
-//  { baseTm, collectedAt, fctTimes:[...], cells:{ "144-9":[km,km,...](프레임별) } }
-let _cache = { baseTm: null, collectedAt: null, fctTimes: [], cells: {} };
+// ── 메모리 캐시 ──
+//   { baseTm, collectedAt, cells: { "144-9": [ {t:"2026.06.12 01:00", v:3.2}, ... ] } }
+let _cache = { baseTm: null, collectedAt: null, cells: {} };
 let _collecting = false;
 
 // ────────────────────────────────────────────────────────────────────────────
-// 1. 격자 / 소해구 중심좌표
+// 1. 소해구 중심좌표 (에디터 subBox 와 동일 규칙: subNo=row*3+col+1, row0=북)
 // ────────────────────────────────────────────────────────────────────────────
 let _cellBox = null;
 function _loadCellBox() {
@@ -83,40 +71,20 @@ function _loadCellBox() {
     return _cellBox;
 }
 
-/** "144-9" → {lat,lon} 소해구 중심. */
+/** "144-9" → {lat, lon} 소해구 중심. 부모 없거나 sub 범위 밖이면 null. */
 function smallZoneCenter(key) {
     const [parent, subStr] = String(key).split('-');
     const s = parseInt(subStr, 10);
-    const b = _loadCellBox()[parent];
-    if (!b || !(s >= 1 && s <= 9)) return null;
+    const box = _loadCellBox()[parent];
+    if (!box || !(s >= 1 && s <= 9)) return null;
     const r = Math.floor((s - 1) / 3), c = (s - 1) % 3;
-    const dlon = (b.lonMax - b.lonMin) / 3, dlat = (b.latMax - b.latMin) / 3;
-    return { lat: +(b.latMax - (r + 0.5) * dlat).toFixed(4), lon: +(b.lonMin + (c + 0.5) * dlon).toFixed(4) };
+    const dlon = (box.lonMax - box.lonMin) / 3, dlat = (box.latMax - box.latMin) / 3;
+    const lon = box.lonMin + (c + 0.5) * dlon;
+    const lat = box.latMax - (r + 0.5) * dlat;
+    return { lat: +lat.toFixed(4), lon: +lon.toFixed(4) };
 }
 
-/** 전 소해구 중심 [{key,lon,lat}] (1331 대해구 × 9 ≈ 12000). */
-let _allCenters = null;
-function allSmallZoneCenters() {
-    if (_allCenters) return _allCenters;
-    const box = _loadCellBox();
-    const out = [];
-    for (const no of Object.keys(box)) {
-        const b = box[no];
-        const dlon = (b.lonMax - b.lonMin) / 3, dlat = (b.latMax - b.latMin) / 3;
-        for (let s = 1; s <= 9; s++) {
-            const r = Math.floor((s - 1) / 3), c = (s - 1) % 3;
-            out.push({
-                key: `${no}-${s}`,
-                lon: b.lonMin + (c + 0.5) * dlon,
-                lat: b.latMax - (r + 0.5) * dlat
-            });
-        }
-    }
-    _allCenters = out;
-    return out;
-}
-
-/** 임의 점 → 소해구 키 "부모-서브". 격자 밖이면 null. */
+/** 임의 점(lat/lon) → 그 점이 속한 소해구 키 "부모-서브". 격자 밖이면 null. */
 function pointToCellKey(lat, lon) {
     const box = _loadCellBox();
     let parent = null, pb = null;
@@ -126,141 +94,143 @@ function pointToCellKey(lat, lon) {
     }
     if (!parent) return null;
     const dlon = (pb.lonMax - pb.lonMin) / 3, dlat = (pb.latMax - pb.latMin) / 3;
-    let c = Math.max(0, Math.min(2, Math.floor((lon - pb.lonMin) / dlon)));
-    let r = Math.max(0, Math.min(2, Math.floor((pb.latMax - lat) / dlat)));
+    let c = Math.floor((lon - pb.lonMin) / dlon); c = Math.max(0, Math.min(2, c));
+    let r = Math.floor((pb.latMax - lat) / dlat); r = Math.max(0, Math.min(2, r));
     return `${parent}-${r * 3 + c + 1}`;
 }
 
-/** 임의 점 → 대해구 번호. */
-function pointToMajorNo(lat, lon) {
-    const box = _loadCellBox();
-    for (const no of Object.keys(box)) {
-        const b = box[no];
-        if (lon >= b.lonMin && lon < b.lonMax && lat >= b.latMin && lat < b.latMax) return no;
+/** zone_grid_map 의 모든 smallZones 합집합(고유, 정렬). */
+function allMappedSmallZones() {
+    const map = JSON.parse(fs.readFileSync(MAP_PATH, 'utf8'));
+    const set = new Set();
+    for (const code of Object.keys(map)) {
+        (map[code].smallZones || []).forEach(s => set.add(String(s)));
     }
-    return null;
+    return [...set].sort((a, b) => {
+        const [pa, sa] = a.split('-').map(Number), [pb, sb] = b.split('-').map(Number);
+        return pa - pb || sa - sb;
+    });
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// 2. 래스터 샘플 헬퍼
+// 2. MMIS 호출
 // ────────────────────────────────────────────────────────────────────────────
-/** lon/lat → PNG 픽셀 (extent 안일 때만). */
-function _lonLatToPx(lon, lat, W, H) {
-    const E = VSBY_EXTENT;
-    if (lon < E[0] || lon > E[2] || lat < E[1] || lat > E[3]) return null;
-    const x = Math.round((lon - E[0]) / (E[2] - E[0]) * (W - 1));
-    const y = Math.round((E[3] - lat) / (E[3] - E[1]) * (H - 1));
-    if (x < 0 || x >= W || y < 0 || y >= H) return null;
-    return { x, y };
-}
-
-/** (x,y) 3x3 최빈 불투명 RGB → 최근접 VSBY_STOPS km. 무데이터면 null. */
-function _sampleKm(data, W, H, x, y) {
-    const counts = {};
-    let best = null, bestN = 0;
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        const xx = x + dx, yy = y + dy;
-        if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
-        const i = (yy * W + xx) * 4;
-        if (data[i + 3] < 128) continue;           // 투명 무시
-        const k = data[i] + ',' + data[i + 1] + ',' + data[i + 2];
-        counts[k] = (counts[k] || 0) + 1;
-        if (counts[k] > bestN) { bestN = counts[k]; best = [data[i], data[i + 1], data[i + 2]]; }
+/** 현재 모델 런(생산시각) 문자열. 실패 시 null. */
+async function fetchBaseTm() {
+    try {
+        const j = await marine.getAuthedJson(TIMES_PATH);
+        const arr = j.payload || j.data || [];
+        return (arr[0] && (arr[0].mdl_data_prdct_time || arr[0].mdlDataPrdctTime)) || null;
+    } catch (e) {
+        console.error('[vsby_sz] baseTm 조회 실패:', e.message);
+        return null;
     }
-    if (!best) return null;
-    let bi = 0, bd = Infinity;
-    for (let i = 0; i < VSBY_STOPS.length; i++) {
-        const C = VSBY_STOPS[i].c;
-        const d = (best[0] - C[0]) ** 2 + (best[1] - C[1]) ** 2 + (best[2] - C[2]) ** 2;
-        if (d < bd) { bd = d; bi = i; }
-    }
-    return VSBY_STOPS[bi].v;
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// 3. RDPS imgList / 수집
-// ────────────────────────────────────────────────────────────────────────────
-const _H = { Referer: `${KMA_BASE}/mmis/`, 'User-Agent': 'Mozilla/5.0 (SEAGNAL/vsby)' };
-
-/** imgList → { fctTimes:[...], imgs:[...], baseTm } (무인증). */
-async function fetchImgList() {
-    const r = await fetch(IMGLIST_URL, { headers: _H, timeout: 15000 });
-    if (!r.ok) throw new Error('imgList ' + r.status);
-    const j = await r.json();
-    const fctTimes = (j.data && j.data.fct_tm_list) || [];
-    const imgs = (j.data && j.data.img_list) || [];
-    const m = /RDPS_(\d{10})_VIS/.exec(imgs[0] || '');
-    return { fctTimes, imgs, baseTm: m ? m[1] : (fctTimes[0] || null) };
+/** raw https GET(JSON) — 인증 헤더 주입. { status, json } 반환. */
+function _httpGetJson(urlPath, headers) {
+    return new Promise((resolve, reject) => {
+        const req = https.request({
+            host: marine.HOST, path: urlPath, method: 'GET',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Linux; SEAGNAL/vsby)',
+                'Accept': 'application/json',
+                'Referer': `https://${marine.HOST}/mmis/`,
+                ...headers
+            }, timeout: 20000
+        }, res => {
+            const chunks = [];
+            res.on('data', c => chunks.push(c));
+            res.on('end', () => {
+                const body = Buffer.concat(chunks).toString('utf8');
+                let json = null; try { json = JSON.parse(body); } catch (e) { }
+                resolve({ status: res.statusCode, body, json });
+            });
+        });
+        req.on('error', reject);
+        req.on('timeout', () => req.destroy(new Error('timeout')));
+        req.end();
+    });
 }
 
-/** 한 PNG 다운로드 → Buffer. */
-async function _downloadPng(imgPath) {
-    const r = await fetch(KMA_BASE + imgPath, { headers: _H, timeout: 20000 });
-    if (!r.ok) throw new Error('png ' + r.status);
-    return Buffer.from(await r.arrayBuffer());
+/** 시정 시계열 파싱. LOGIN 오류면 'LOGIN' 문자열 반환(상위에서 재로그인). */
+function _parseSeries(res) {
+    if (res && typeof res.body === 'string' && /"type"\s*:\s*"LOGIN"/.test(res.body)) return 'LOGIN';
+    const p = (res && res.json && (res.json.payload || res.json.data)) || {};
+    const arr = p.marine_zone || p.marineZone || [];
+    if (!Array.isArray(arr) || !arr.length) return null;
+    return arr
+        .filter(r => r && (r.vs != null) && (r.fctTm || r.fct_tm))
+        .map(r => ({ t: r.fctTm || r.fct_tm, v: Math.round(Number(r.vs) * 10) / 10 }));
 }
 
-/** 동시성 제한 풀. */
-async function _pool(items, conc, fn) {
-    let i = 0; const out = new Array(items.length);
+/** 한 소해구 시정 시계열 [{t,v}] (marine_client 단발 경로 — 테스트/소량용). */
+async function fetchCellSeries(key) {
+    const c = smallZoneCenter(key);
+    if (!c) return null;
+    try {
+        const j = await marine.getAuthedJson(detailPath(c.lat, c.lon));
+        return _parseSeries({ json: j, body: JSON.stringify(j) });
+    } catch (e) { return null; }
+}
+
+/** 동시성 제한 map: items 를 conc 개씩 병렬 처리. */
+async function _mapPool(items, conc, fn) {
+    let i = 0;
     const workers = Array.from({ length: Math.min(conc, items.length) }, async () => {
-        while (i < items.length) { const idx = i++; out[idx] = await fn(items[idx], idx).catch(() => null); }
+        while (i < items.length) {
+            const idx = i++;
+            await fn(items[idx], idx);
+        }
     });
     await Promise.all(workers);
-    return out;
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// 3. 수집 / 캐시
+// ────────────────────────────────────────────────────────────────────────────
 /**
- * 전 소해구 × 전 프레임(1시간) 래스터 샘플 → 캐시.
- * opts.limitFrames: 앞 N 프레임만(테스트용, 저장 안 함).
+ * 매핑 소해구 전체 수집. opts.limit 지정 시 앞 N개만(테스트용).
+ * 동시 수집 방지. 성공 시 _cache 갱신 + 디스크 저장.
  */
-async function collect({ baseTm = null, limitFrames = 0 } = {}) {
+async function collect({ limit = 0, baseTm = null, concurrency = COLLECT_CONCURRENCY } = {}) {
     if (_collecting) { console.log('[vsby_sz] 이미 수집 중 — skip'); return _cache; }
     _collecting = true;
     const t0 = Date.now();
     try {
-        const il = await fetchImgList();
-        const bt = baseTm || il.baseTm;
-        let imgs = il.imgs, fctTimes = il.fctTimes;
-        if (limitFrames > 0) { imgs = imgs.slice(0, limitFrames); fctTimes = fctTimes.slice(0, limitFrames); }
-        if (!imgs.length) { console.error('[vsby_sz] imgList 비어있음'); return _cache; }
+        const bt = baseTm || await fetchBaseTm();
+        let keys = allMappedSmallZones();
+        if (limit > 0) keys = keys.slice(0, limit);
 
-        // 1) PNG 전부 버퍼로 다운로드(동시성)
-        const bufs = await _pool(imgs, DOWNLOAD_CONCURRENCY, p => _downloadPng(p));
-
-        // 2) 첫 유효 이미지로 W/H 확정 → 전 소해구 픽셀좌표 1회 계산
-        const centers = allSmallZoneCenters();
-        let W = 0, H = 0;
-        for (const b of bufs) { if (b) { const im = await Jimp.read(b); W = im.bitmap.width; H = im.bitmap.height; break; } }
-        if (!W) { console.error('[vsby_sz] 유효 PNG 없음'); return _cache; }
-        const px = centers.map(c => _lonLatToPx(c.lon, c.lat, W, H));   // null = extent 밖
-
-        // 3) 프레임별 디코드 + 전 소해구 샘플 (메모리 위해 순차 디코드)
+        let headers = await marine.getAuthHeaders();
+        let reloginInFlight = null;   // 토큰 만료 시 1회만 재로그인
         const cells = {};
-        for (let f = 0; f < bufs.length; f++) {
-            const buf = bufs[f];
-            if (!buf) continue;
-            let img; try { img = await Jimp.read(buf); } catch (e) { continue; }
-            const data = img.bitmap.data;
-            for (let ci = 0; ci < centers.length; ci++) {
-                const p = px[ci]; if (!p) continue;
-                const km = _sampleKm(data, W, H, p.x, p.y);
-                if (km == null) continue;
-                const key = centers[ci].key;
-                let arr = cells[key]; if (!arr) { arr = cells[key] = new Array(bufs.length).fill(null); }
-                arr[f] = km;
-            }
-        }
-        // 4) 전부 null 인 셀(육지/도메인밖) 제거
-        for (const k of Object.keys(cells)) if (cells[k].every(v => v == null)) delete cells[k];
+        let ok = 0, fail = 0;
 
-        _cache = { baseTm: bt, collectedAt: new Date().toISOString(), fctTimes, cells };
-        if (limitFrames === 0) _saveCache();
-        const nCells = Object.keys(cells).length;
-        console.log(`[vsby_sz] 래스터 수집 완료: ${imgs.length}프레임 × ${nCells}셀 (${((Date.now() - t0) / 1000).toFixed(0)}s, baseTm=${bt})`);
-        return _cache;
-    } catch (e) {
-        console.error('[vsby_sz] 수집 실패:', e.message);
+        await _mapPool(keys, concurrency, async (key) => {
+            const c = smallZoneCenter(key);
+            if (!c) { fail++; return; }
+            for (let attempt = 0; attempt < 2; attempt++) {
+                let res;
+                try { res = await _httpGetJson(detailPath(c.lat, c.lon), headers); }
+                catch (e) { fail++; return; }
+                const series = _parseSeries(res);
+                if (series === 'LOGIN') {
+                    // 공유 재로그인 (동시 다발 401 → 한 번만)
+                    if (!reloginInFlight) reloginInFlight = marine.relogin().finally(() => { reloginInFlight = null; });
+                    try { headers = await reloginInFlight; } catch (e) { fail++; return; }
+                    continue;   // 재시도
+                }
+                if (series && series.length) { cells[key] = series; ok++; }
+                else fail++;
+                return;
+            }
+            fail++;
+        });
+
+        _cache = { baseTm: bt, collectedAt: new Date().toISOString(), cells };
+        if (limit === 0) _saveCache();   // 부분(테스트) 수집은 저장하지 않음
+        console.log(`[vsby_sz] 수집 완료 ${ok}성공/${fail}실패 (${((Date.now() - t0) / 1000).toFixed(0)}s, conc=${concurrency}, baseTm=${bt})`);
         return _cache;
     } finally {
         _collecting = false;
@@ -270,74 +240,47 @@ async function collect({ baseTm = null, limitFrames = 0 } = {}) {
 function _saveCache() {
     try {
         if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-        const gz = zlib.gzipSync(Buffer.from(JSON.stringify({ fmt: 2, ..._cache }), 'utf8'));
+        const gz = zlib.gzipSync(Buffer.from(JSON.stringify(_cache), 'utf8'));
         fs.writeFileSync(CACHE_PATH, gz);
-        console.log(`[vsby_sz] 캐시 저장 ${(gz.length / 1024).toFixed(0)}KB`);
-    } catch (e) { console.error('[vsby_sz] 캐시 저장 실패:', e.message); }
+        console.log(`[vsby_sz] 캐시 저장 ${(gz.length / 1024).toFixed(0)}KB → ${CACHE_PATH}`);
+    } catch (e) {
+        console.error('[vsby_sz] 캐시 저장 실패:', e.message);
+    }
 }
 
 function _loadCache() {
     try {
         if (!fs.existsSync(CACHE_PATH)) return false;
-        const obj = JSON.parse(zlib.gunzipSync(fs.readFileSync(CACHE_PATH)).toString('utf8'));
-        if (obj && obj.fmt !== 2) { console.log('[vsby_sz] 구버전 캐시 포맷 — 무시(재수집)'); return false; }
+        const buf = zlib.gunzipSync(fs.readFileSync(CACHE_PATH));
+        const obj = JSON.parse(buf.toString('utf8'));
         if (obj && obj.cells) {
             _cache = obj;
-            if (!_cache.fctTimes) _cache.fctTimes = [];
-            console.log(`[vsby_sz] 캐시 로드: ${Object.keys(obj.cells).length}셀, ${(_cache.fctTimes || []).length}프레임, baseTm=${obj.baseTm}`);
+            console.log(`[vsby_sz] 캐시 로드: ${Object.keys(obj.cells).length}셀, baseTm=${obj.baseTm}`);
             return true;
         }
-    } catch (e) { console.error('[vsby_sz] 캐시 로드 실패:', e.message); }
+    } catch (e) {
+        console.error('[vsby_sz] 캐시 로드 실패:', e.message);
+    }
     return false;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// 4. 대해구 1시간 숫자(정밀) — 선 차트용 (로그인)
+// 4. 공개 API
 // ────────────────────────────────────────────────────────────────────────────
-const _majorCache = {};
-async function getMajorSeries(no) {
-    if (!no) return null;
-    const cached = _majorCache[no];
-    if (cached && cached.baseTm === _cache.baseTm) return { no, baseTm: _cache.baseTm, series: cached.series, cached: true };
-    try {
-        const j = await marine.getAuthedJson(majorSeriesPath(no));
-        const arr = j.data || j.payload || [];
-        const series = (Array.isArray(arr) ? arr : [])
-            .filter(r => r && r.vs != null && (r.fct_tm || r.fctTm))
-            .map(r => ({ t: r.fct_tm || r.fctTm, v: Math.round(Number(r.vs) * 10) / 10 }));
-        _majorCache[no] = { baseTm: _cache.baseTm, series };
-        return { no, baseTm: _cache.baseTm, series, cached: false };
-    } catch (e) { return { no, baseTm: _cache.baseTm, series: [], cached: false }; }
-}
-async function getMajorByPoint(lat, lon) {
-    const no = pointToMajorNo(Number(lat), Number(lon));
-    if (!no) return null;
-    return getMajorSeries(no);
+/** 부팅 시 1회. 디스크 캐시 로드만(수집은 refreshIfStale 가 판단). */
+function init() {
+    _loadCache();
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// 5. 공개 API
-// ────────────────────────────────────────────────────────────────────────────
-function init() { _loadCache(); }
-
+/** 현재 런과 캐시 baseTm 비교 → 다르거나 캐시 비었으면 수집. */
 async function refreshIfStale() {
-    let il;
-    try { il = await fetchImgList(); } catch (e) { console.error('[vsby_sz] imgList 확인 실패:', e.message); return; }
+    if (!marine.AUTH_ENABLED) { console.log('[vsby_sz] 자격증명 없음 — 수집 생략'); return; }
+    const cur = await fetchBaseTm();
     const empty = !_cache || !Object.keys(_cache.cells || {}).length;
-    if (!il.baseTm) { if (empty) console.log('[vsby_sz] baseTm 미확인 + 캐시 없음'); return; }
-    if (!empty && _cache.baseTm === il.baseTm) return;   // 최신
-    console.log(`[vsby_sz] 갱신 필요 (캐시 ${_cache.baseTm} → 현재 ${il.baseTm})`);
-    await collect({ baseTm: il.baseTm });
-}
-
-let _autoStarted = false;
-function startAutoRefresh() {
-    if (_autoStarted) return;
-    _autoStarted = true;
-    init();
-    setTimeout(() => { refreshIfStale().catch(e => console.error('[vsby_sz] 초기 갱신 실패:', e.message)); }, 8000);
-    setInterval(() => { refreshIfStale().catch(e => console.error('[vsby_sz] 주기 갱신 실패:', e.message)); }, POLL_INTERVAL_MS);
-    console.log('[vsby_sz] 자동 갱신 시작 (래스터, 폴링 1시간)');
+    if (!cur) { if (empty) console.log('[vsby_sz] baseTm 미확인 + 캐시 없음'); return; }
+    if (!empty && _cache.baseTm === cur) return;   // 최신 → 재수집 불필요
+    console.log(`[vsby_sz] 갱신 필요 (캐시 baseTm=${_cache.baseTm} → 현재 ${cur})`);
+    await collect({ baseTm: cur });
 }
 
 function getStatus() {
@@ -345,72 +288,69 @@ function getStatus() {
         baseTm: _cache.baseTm,
         collectedAt: _cache.collectedAt,
         cellCount: Object.keys(_cache.cells || {}).length,
-        frameCount: (_cache.fctTimes || []).length,
         cached: fs.existsSync(CACHE_PATH)
     };
 }
 
-/** 셀 km 배열 → [{t,v}] (fctTimes 와 1:1). */
-function _series(key) {
-    const arr = _cache.cells[key];
-    if (!arr) return null;
-    const ft = _cache.fctTimes || [];
-    const out = [];
-    for (let i = 0; i < arr.length; i++) if (arr[i] != null) out.push({ t: ft[i] || null, v: arr[i] });
-    return out;
-}
-
-/** cellKeys → { key:[{t,v}] } (래스터만, 없는 셀 생략 — 내부/상태용). */
+/** cellKeys(["144-9",...]) → { "144-9": [{t,v}], ... } (없는 셀은 생략). */
 function getCells(cellKeys) {
     const out = {};
-    for (const k of cellKeys || []) { const s = _series(k); if (s && s.length) out[k] = s; }
+    for (const k of cellKeys || []) if (_cache.cells[k]) out[k] = _cache.cells[k];
     return out;
 }
 
 /**
- * 소해구 시계열 — 래스터 우선, 없으면 부모 대해구 1시간 숫자로 폴백(100% 커버).
- * @returns {Promise<{series:[{t,v}], source:'raster'|'major'|'none'}>}
+ * [B1 지연 로딩] 한 소해구 시정 — 캐시 우선, 없으면 MMIS 즉시 1회 수집 후 캐시.
+ *  - 같은 셀 재요청은 캐시 히트(즉시). 1회 호출이 전체 시각 시계열을 주므로 슬라이더 즉시.
+ *  @returns {Promise<{cell, baseTm, series, cached}|null>}
  */
-async function _seriesWithFallback(key) {
-    const s = _series(key);
-    if (s && s.length) return { series: s, source: 'raster' };
-    const parent = String(key).split('-')[0];
-    const mj = await getMajorSeries(parent);
-    if (mj && mj.series && mj.series.length) return { series: mj.series, source: 'major' };
-    return { series: [], source: 'none' };
-}
-
-/** 특보구역 코드 → 그 구역 smallZones 시정 묶음 (래스터+대해구 폴백 → 100% 커버). */
-async function getZone(zoneCode) {
-    let map; try { map = JSON.parse(fs.readFileSync(MAP_PATH, 'utf8')); } catch (e) { return null; }
-    const z = map[zoneCode];
-    if (!z) return null;
-    const cells = {}; const fallback = {};
-    for (const k of z.smallZones || []) {
-        const r = await _seriesWithFallback(k);
-        if (r.series.length) { cells[k] = r.series; if (r.source === 'major') fallback[k] = true; }
-    }
-    return { zone: zoneCode, name: z.name, baseTm: _cache.baseTm, cells, fallback };
-}
-
-/** 소해구 키 → 시정 시계열 (래스터 우선, 대해구 폴백). */
 async function getCellLazy(key) {
-    const r = await _seriesWithFallback(key);
-    return { cell: key, baseTm: _cache.baseTm, series: r.series, source: r.source };
+    if (!key) return null;
+    if (_cache.cells[key]) {
+        return { cell: key, baseTm: _cache.baseTm, series: _cache.cells[key], cached: true };
+    }
+    const series = await fetchCellSeries(key);   // 셀 중심좌표로 MMIS 1회 호출
+    if (series && series.length) {
+        _cache.cells[key] = series;              // 런 캐시에 적재(다음 호출부터 즉시)
+        return { cell: key, baseTm: _cache.baseTm, series, cached: false };
+    }
+    return { cell: key, baseTm: _cache.baseTm, series: [], cached: false };
 }
 
-/** 임의 해점 → 그 점이 속한 소해구 시정 (래스터 우선, 대해구 폴백). */
+/** [B1] 임의 해점(lat/lon) → 그 점이 속한 소해구의 시정(지연 로딩). */
 async function getByPoint(lat, lon) {
     const key = pointToCellKey(Number(lat), Number(lon));
     if (!key) return null;
     return getCellLazy(key);
 }
 
-function allMappedSmallZones() {
-    const map = JSON.parse(fs.readFileSync(MAP_PATH, 'utf8'));
-    const set = new Set();
-    for (const code of Object.keys(map)) (map[code].smallZones || []).forEach(s => set.add(String(s)));
-    return [...set];
+/** 특보구역 코드 → 그 구역 smallZones 의 시정 시계열 묶음. */
+function getZone(zoneCode) {
+    let map;
+    try { map = JSON.parse(fs.readFileSync(MAP_PATH, 'utf8')); } catch (e) { return null; }
+    const z = map[zoneCode];
+    if (!z) return null;
+    return {
+        zone: zoneCode,
+        name: z.name,
+        baseTm: _cache.baseTm,
+        cells: getCells(z.smallZones || [])
+    };
+}
+
+let _autoStarted = false;
+/**
+ * 서버 기동 시 1회 호출. 디스크 캐시 로드 → 즉시 1회 갱신 점검 → 이후 1시간마다 폴링.
+ * (모델 런이 바뀐 경우에만 실제 수집 — 평상시 부하 0)
+ */
+function startAutoRefresh() {
+    if (_autoStarted) return;
+    _autoStarted = true;
+    init();
+    // 기동 직후 비동기 점검 (서버 listen 을 막지 않음)
+    setTimeout(() => { refreshIfStale().catch(e => console.error('[vsby_sz] 초기 갱신 실패:', e.message)); }, 8000);
+    setInterval(() => { refreshIfStale().catch(e => console.error('[vsby_sz] 주기 갱신 실패:', e.message)); }, POLL_INTERVAL_MS);
+    console.log('[vsby_sz] 자동 갱신 시작 (폴링 1시간, 런 변경 시에만 수집)');
 }
 
 module.exports = {
@@ -423,13 +363,10 @@ module.exports = {
     getZone,
     getCellLazy,
     getByPoint,
-    getMajorSeries,
-    getMajorByPoint,
-    // 유틸
-    smallZoneCenter,
+    // 내부 유틸(테스트/라우트 보조)
     pointToCellKey,
-    pointToMajorNo,
-    allSmallZoneCenters,
+    smallZoneCenter,
     allMappedSmallZones,
-    fetchImgList,
+    fetchBaseTm,
+    fetchCellSeries,
 };
