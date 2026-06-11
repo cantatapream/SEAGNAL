@@ -536,6 +536,20 @@ router.get('/api/tide-field/status', (req, res) => {
 });
 
 /**
+ * GET /api/tide-field/nogrid
+ * TideBED 격자 미제공(no_grid) 앵커를 좌표와 함께 보고 (운영 진단용).
+ *   - summary: 앵커별 대표 상태 집계(complete/partial/no_grid/failed/missing)
+ *   - no_grid: 격자 미제공 앵커 [{id,lon,lat}] — 지도에 찍어 빈 구역 파악·앵커 보정 판단.
+ */
+router.get('/api/tide-field/nogrid', (req, res) => {
+    try {
+        res.json({ success: true, ...TFC.getNoGridReport() });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+/**
  * GET /api/tide-field/anchors
  * 앵커 포인트 좌표 목록 (디버그 표출용 — 프론트 15회 클릭 제스처).
  */

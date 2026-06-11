@@ -492,12 +492,59 @@ function getStatus() {
     };
 }
 
+/**
+ * no_grid 진단 — 어느 앵커가 TideBED 격자 미제공(no_grid) 구역인지 좌표와 함께 보고.
+ *   곡선 파일(data/tide_field/curves/{id}_{date}.json)의 status 를 앵커별로 집계한다.
+ *   no_grid 는 "위치" 속성이라 한 앵커의 모든 날짜가 동일하게 no_grid 가 되지만,
+ *   날짜별로 섞일 수 있으므로 앵커별 "대표 상태"를 가장 좋은 값으로 본다
+ *   (complete > partial > no_grid > missing). 라우트 /api/tide-field/nogrid 용.
+ *
+ *   반환: { anchors, windowDays, summary:{complete,partial,no_grid,failed,missing},
+ *           no_grid:[{id,lon,lat}], generated_at }
+ */
+function getNoGridReport() {
+    const anchors = loadAnchors() || [];
+    const dates = windowDatesKST(CFG.WINDOW_DAYS);
+    // 대표 상태 우선순위 (클수록 좋음)
+    const RANK = { missing: 0, no_grid: 1, partial: 2, complete: 3 };
+    const summary = { complete: 0, partial: 0, no_grid: 0, failed: 0, missing: 0 };
+    const noGrid = [];
+
+    for (const a of anchors) {
+        let best = 'missing';
+        for (const ymd of dates) {
+            const p = curvePath(a.id, ymd);
+            if (!fs.existsSync(p)) continue;
+            let st = 'missing';
+            try {
+                const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+                st = j && typeof j.status === 'string' ? j.status : 'missing';
+            } catch (e) { st = 'missing'; }
+            // 알 수 없는 상태(예: failed 흔적)는 missing 으로 환원해 대표값 계산에서 제외
+            if (!(st in RANK)) st = (st === 'failed') ? 'missing' : 'missing';
+            if (RANK[st] > RANK[best]) best = st;
+        }
+        summary[best] = (summary[best] || 0) + 1;
+        if (best === 'no_grid') noGrid.push({ id: a.id, lon: a.lon, lat: a.lat });
+    }
+
+    return {
+        anchors: anchors.length,
+        windowDays: dates.length,
+        summary,
+        no_grid_count: noGrid.length,
+        no_grid: noGrid,
+        generated_at: new Date().toISOString()
+    };
+}
+
 module.exports = {
     collectTideField,
     bootstrapTideField,
     ensureBuilt,
     spawnPrecompute,
     getStatus,
+    getNoGridReport,
     // 테스트/라우트용 보조 export
     windowDatesKST, isoDateOf, curvePath, isComplete, loadAnchors, collectOne
 };
