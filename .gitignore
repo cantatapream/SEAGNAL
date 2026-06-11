@@ -39,6 +39,7 @@ local_server/data/marine_lh_buoys.json
 local_server/data/marine_vs.json
 local_server/data/marine_warning_state.json
 local_server/data/marine_wh_buoys.json
+local_server/data/vsby_smallzone.json.gz
 local_server/data/mid_term_sea_forecasts.json
 local_server/data/fishing_index.json
 local_server/data/surfing_index.json
@@ -100,3 +101,11 @@ local_server/data/tide_field/curves/*.json
 # 특보 예측 시연 런타임 상태(관리자가 토글/표출 — 배치/운영이 생성)
 local_server/data/advisory_demo_testmode.json
 local_server/data/advisory_demo_active.json
+
+# 물빠짐 예측 — 서버 사이드 프리컴퓨트 산출물 (precompute_tide_field.js 가 수집
+# 직후 재생성, Fly.io Volume에 저장). 전 프레임×전 셀 물깊이 바이너리라 대용량 +
+# 매일 갱신이라 추적 제외(런타임 산출물). 라우트는 없으면 cellDepthM 폴백.
+local_server/data/tide_field/frames.bin
+local_server/data/tide_field/frames.bin.tmp
+local_server/data/tide_field/frames_meta.json
+local_server/data/tide_field/frames_meta.json.tmp

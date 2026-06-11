@@ -429,31 +429,29 @@
         }
     }
 
-    // 로드 동기 재생: 다음 프레임 데이터가 "로드 완료된 뒤"에만 바를 전진시킨다.
-    //   (setInterval 로 무조건 전진하면 로딩이 못 따라가 바만 가고 화면이 멈춘다)
+    // 연속 재생: 로딩과 무관하게 일정 간격으로 바를 전진(멈추지 않음). 각 프레임은
+    //   캐시면 즉시, 아니면 받아지는 대로(아직 그 프레임이면) 그린다. 앞 프레임은
+    //   미리 받아둠 → 첫 바퀴엔 화면이 살짝 따라오다, 캐시가 데워지면 완전히 매끄럽다.
     function startPlay() {
         var playBtn = $('mudflat-play-btn');
         if (playBtn) playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
         _playing = true;
-        var FRAME_MS = 650;     // 프레임이 준비된 뒤 화면에 머무는 시간
+        var FRAME_MS = 650;     // 프레임 간격(로딩과 무관하게 일정)
         function step() {
             if (!_playing || !_active) return;
             var next = _frameIdx + 1;
             if (next >= _frames.length) next = 0;
-            // 앞 2개 프리페치(다음 프레임들을 미리 받아두면 끊김 없이 재생)
-            for (var k = 1; k <= 2; k++) {
-                var p = next + k;
-                if (p < _frames.length) fetchCells(_frames[p]);
-            }
+            _frameIdx = next;
+            var slider = $('mudflat-slider');
+            if (slider) slider.value = next;
+            updateTooltip(next);
+            // 앞 4프레임 미리 받기(도착 전 캐시 워밍)
+            for (var k = 1; k <= 4; k++) fetchCells(_frames[(next + k) % _frames.length]);
+            // 이 프레임: 받아지는 대로 그림(이미 다음으로 넘어갔으면 버림 → 최신 우선)
             fetchCells(_frames[next]).then(function (res) {
-                if (!_playing || !_active) return;
-                _frameIdx = next;
-                var slider = $('mudflat-slider');
-                if (slider) slider.value = next;
-                updateTooltip(next);
-                paintCells(res.cells, res.cellDeg);   // 데이터 준비된 뒤에만 바·화면 갱신
-                _playTimer = setTimeout(step, FRAME_MS);
+                if (_playing && _active && _frameIdx === next) paintCells(res.cells, res.cellDeg);
             });
+            _playTimer = setTimeout(step, FRAME_MS);   // 로딩 기다리지 않고 계속 진행
         }
         step();
     }

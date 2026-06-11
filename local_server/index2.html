@@ -3284,7 +3284,7 @@
                             </div>
                         </div>
 
-                        <!-- 카드 그리드: 파고 / 풍향·속 / 유향·속 / 수온 / 수심 / 천문 / 월상 -->
+                        <!-- 카드 그리드: 파고 / 풍향·속 / 유향·속 / 수온 / 수심 / 시정 / 천문 / 월상 -->
                         <div class="ocean-cards-grid" id="ocean-cards-grid">
                             <div class="ocean-data-card" id="ocean-card-wave">
                                 <div class="ocean-card-icon">
@@ -3328,6 +3328,16 @@
                                     <div class="ocean-card-icon-label">수심</div>
                                 </div>
                                 <div class="ocean-card-value" id="ocean-val-depth">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
+                                </div>
+                            </div>
+                            <!-- 시정 카드 — js/ocean_bottom_sheet_vsby.js 가 채움(클릭 팝업과 동일 RDPS 시정 샘플) -->
+                            <div class="ocean-data-card" id="ocean-card-vsby">
+                                <div class="ocean-card-icon">
+                                    <i class="fa-solid fa-eye"></i>
+                                    <div class="ocean-card-icon-label">시정</div>
+                                </div>
+                                <div class="ocean-card-value" id="ocean-val-vsby">
                                     <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
                             </div>
@@ -4073,6 +4083,8 @@
     <script src="js/ocean_bottom_sheet5.js"></script>
     <!-- 천기 카드 (해점 클릭 시 KMA 단기예보 6 카테고리 종합 표시) — sheet1~5 의존 -->
     <script src="js/ocean_bottom_sheet_weather.js"></script>
+    <!-- 시정 카드 (수심 오른쪽) — vsby_forecast_layer 의 점 샘플러 재사용 -->
+    <script src="js/ocean_bottom_sheet_vsby.js"></script>
     <script src="js/ocean_overlay.js"></script>
     <!-- 진북(North Up) 회전 컨트롤 — 3-state 사이클 + 잠금 상태 localStorage 보존 -->
     <script src="js/ocean_northup.js"></script>
@@ -4086,6 +4098,7 @@
     <script src="js/ocean_warn_active3.js"></script>
     <script src="js/ocean_warn_active4.js"></script>
     <script src="js/ocean_warn_active5.js"></script>
+    <script src="js/ocean_warn_vsby.js"></script>
     <script src="js/ocean_timeline.js"></script>
     <!-- 천기 (KMA 단기예보 PNG 오버레이): 토글 버튼 + 5개 서브버튼 + 슬라이더/재생 + 범례 + 클릭 팝업 -->
     <script src="js/shrt_forecast_layer.js"></script>
