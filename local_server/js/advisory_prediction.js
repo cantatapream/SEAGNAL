@@ -257,7 +257,11 @@
         const titleEl = document.querySelector('#advisory-prediction-accordion-header .section-title');
         if (titleEl) {
             const icon = '<i class="fa-solid fa-wand-magic-sparkles"></i> ';
-            titleEl.innerHTML = icon + (isFilteredState() ? '관심해역별 특보 예측' : '특보 예측');
+            // 관심해역 등록자 → 관심해역만 표출 / 전 해역 등록자 → 해역별 전체
+            const label = isFilteredState() ? '관심해역 특보 예측' : '해역별 특보 예측';
+            // "측" 우측 상단 베타 배지 — 아코디언 텍스트와 별개 요소(전광판 더블블링크)
+            const beta = '<sup class="adv-beta-badge" aria-label="베타">베타</sup>';
+            titleEl.innerHTML = icon + label + beta;
         }
     }
 

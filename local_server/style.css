@@ -10651,6 +10651,65 @@ body.mc-fullscreen-active {
     font-weight: 400;
 }
 
+/* ============================================================================
+   베타 배지 — "특보 예측"의 "측" 우측 상단. 아코디언 텍스트와 별개 요소(sup).
+   전광판 더블블링크: 1초에 2회 깜빡 → 2초 정지 → 반복(3초 주기).
+   기본 = LED(전광판) 스타일. 대안: 클래스에 .beta-neon / .beta-chip 추가로 교체.
+   ============================================================================ */
+.adv-beta-badge {
+    display: inline-block;
+    position: relative;
+    top: -0.75em;              /* 글자 우측 상단으로 올림 */
+    margin-left: 4px;
+    padding: 2px 5px;
+    font-size: 0.5rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    line-height: 1;
+    border-radius: 6px;
+    vertical-align: top;
+    pointer-events: none;
+    /* --- 기본: LED(전광판) --- */
+    color: #ffe14d;
+    background: rgba(45, 37, 0, 0.55);
+    border: 1.5px solid #ffd400;
+    text-shadow: 0 0 4px rgba(255, 212, 0, 0.95);
+    box-shadow: 0 0 7px rgba(255, 212, 0, 0.6), inset 0 0 4px rgba(255, 212, 0, 0.3);
+    animation: advBetaBlink 3s infinite;
+}
+
+/* 더블블링크(전광판 느낌의 또렷한 on/off) */
+@keyframes advBetaBlink {
+    0%, 7%      { opacity: 1; }
+    7.5%, 15%   { opacity: 0.1; }
+    15.5%, 23%  { opacity: 1; }
+    23.5%, 31%  { opacity: 0.1; }
+    31.5%, 100% { opacity: 1; }   /* 약 2초 정지(켜진 채) */
+}
+
+/* 대안 A — 네온 아웃라인(채움 없음, 강한 테두리 글로우) */
+.adv-beta-badge.beta-neon {
+    color: #fff48a;
+    background: transparent;
+    border: 1.5px solid #ffe14d;
+    text-shadow: 0 0 6px #ffd400, 0 0 12px rgba(255, 212, 0, 0.7);
+    box-shadow: 0 0 8px rgba(255, 212, 0, 0.85), inset 0 0 6px rgba(255, 212, 0, 0.45);
+}
+
+/* 대안 B — 솔리드 옐로 칩(스티커 느낌) */
+.adv-beta-badge.beta-chip {
+    color: #1a1400;
+    background: #ffd400;
+    border: 1.5px solid #b38f00;
+    text-shadow: none;
+    box-shadow: 0 0 6px rgba(255, 212, 0, 0.6);
+}
+
+/* 모션 최소화 선호 사용자는 깜빡임 끔(가독성/접근성) */
+@media (prefers-reduced-motion: reduce) {
+    .adv-beta-badge { animation: none; }
+}
+
 /* 최근 해소 서브섹션 */
 .adv-resolved-section {
     border-top: 1px dashed rgba(148, 163, 184, 0.2);
