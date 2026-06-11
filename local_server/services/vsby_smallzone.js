@@ -29,8 +29,17 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const fetch = require('node-fetch');
-const { Jimp } = require('jimp');
 const marine = require('./marine_client');
+
+// jimp 는 지연·가드 로드 — 미설치/로드 실패해도 서버 부팅을 막지 않는다(래스터 수집만 비활성).
+//   (package.json 에 jimp 가 없거나 프로덕션 설치 누락 시에도 require 단계 크래시 방지)
+let _Jimp = undefined;
+function _ensureJimp() {
+    if (_Jimp !== undefined) return _Jimp;
+    try { _Jimp = require('jimp').Jimp || null; }
+    catch (e) { console.error('[vsby_sz] jimp 로드 실패 — 래스터 수집 비활성:', e.message); _Jimp = null; }
+    return _Jimp;
+}
 
 const ROOT = path.join(__dirname, '..');
 const GEO_PATH = path.join(ROOT, 'marine_zone_area.json');
@@ -216,6 +225,8 @@ async function _pool(items, conc, fn) {
  */
 async function collect({ baseTm = null, limitFrames = 0 } = {}) {
     if (_collecting) { console.log('[vsby_sz] 이미 수집 중 — skip'); return _cache; }
+    const Jimp = _ensureJimp();
+    if (!Jimp) { console.warn('[vsby_sz] jimp 없음 — 래스터 수집 생략(대해구 폴백만 동작)'); return _cache; }
     _collecting = true;
     const t0 = Date.now();
     try {
