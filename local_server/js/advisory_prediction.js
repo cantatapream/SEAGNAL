@@ -47,6 +47,25 @@
         return (typeof isVisible === 'function') ? isVisible : function () { return true; };
     }
 
+    // ---- grade 형태 정규화 (문자열 'high'|'watch' 또는 {key,label,emoji} 객체 모두 허용) --
+    //   엔진은 {key,label,emoji} 객체를 출력하지만, 과거 산출/직렬화 변이로 문자열이
+    //   들어와도 깨지지 않도록 방어한다. (API 의 gradeKeyOf 관용성과 동일 취지.)
+    //   emoji/label 누락 시 key 로 보강 — predictionConfig.GRADES 와 동일한 표기.
+    const GRADE_META = {
+        high: { emoji: '🔴', label: '높음' },
+        watch: { emoji: '🟡', label: '관심' },
+    };
+    function normGrade(g) {
+        const obj = (g && typeof g === 'object') ? g : { key: g };
+        const key = (obj.key === 'high' || obj.key === 'watch') ? obj.key : null;
+        const meta = GRADE_META[key] || {};
+        return {
+            key: key,
+            emoji: obj.emoji || meta.emoji || '',
+            label: obj.label || meta.label || '',
+        };
+    }
+
     // ---- 필터 상태 판정: settings 값 중 false 가 하나라도 있으면 필터됨 --------
     function isFilteredState() {
         try {
@@ -73,7 +92,7 @@
 
         let high = 0, watch = 0;
         fActive.forEach(function (it) {
-            const key = it && it.grade && it.grade.key;
+            const key = normGrade(it && it.grade).key;
             if (key === 'high') high++;
             else if (key === 'watch') watch++;
         });
@@ -105,7 +124,7 @@
 
         // high 를 위로 + probPct 내림차순 정렬
         const gradeWeight = function (it) {
-            const k = it && it.grade && it.grade.key;
+            const k = normGrade(it && it.grade).key;
             return k === 'high' ? 0 : (k === 'watch' ? 1 : 2);
         };
         const sortedActive = fActive.slice().sort(function (a, b) {
@@ -132,10 +151,10 @@
             if (sortedActive.length > 0) {
                 html.push('<div class="adv-active-list">');
                 sortedActive.forEach(function (it) {
-                    const grade = it.grade || {};
+                    const grade = normGrade(it.grade);
                     const emoji = escapeHtml(grade.emoji || '');
                     const gLabel = escapeHtml(grade.label || '');
-                    const gKey = (grade.key === 'high' || grade.key === 'watch') ? grade.key : 'watch';
+                    const gKey = grade.key || 'watch';
                     const zone = escapeHtml(it.zone || '');
                     const prob = (it.probPct === 0 || it.probPct) ? Number(it.probPct) : null;
                     const windKt = (it.windKt === 0 || it.windKt) ? Number(it.windKt) : null;

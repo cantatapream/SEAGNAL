@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-11T02:41:22.255Z",
+  "generatedAt": "2026-06-11T05:23:29.894Z",
   "variant": "merged",
   "allPass": true,
-  "total": 5,
-  "passed": 5,
+  "total": 6,
+  "passed": 6,
   "results": [
     {
       "case": "case1_full",
@@ -29,6 +29,11 @@
       "case": "case5_header_status",
       "pass": true,
       "detail": "헤더 배지 정상"
+    },
+    {
+      "case": "case6_grade_string_robust",
+      "pass": true,
+      "detail": "문자열 grade 견고성 정상"
     }
   ]
 }

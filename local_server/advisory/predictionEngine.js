@@ -294,7 +294,7 @@ async function generatePredictions(options = {}) {
                         office: code,
                         zone: z.name,
                         lat: z.lat, lon: z.lon,
-                        grade: grade.key,
+                        grade: { key: grade.key, label: grade.label, emoji: grade.emoji },
                         probPct,
                         windKt, windMs, waveM,
                         onsetISO: kstDateToISO(onset),

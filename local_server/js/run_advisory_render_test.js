@@ -153,6 +153,40 @@ const emptyData = {
         failed.length === 0 ? '헤더 배지 정상' : '실패: ' + failed.join(', '));
 })();
 
+// ---- Case 6: grade 형태 견고성 — 문자열 grade('high'/'watch')도 정상 렌더 ----
+//   회귀 방지: 엔진은 {key,label,emoji} 객체를 출력하지만, 문자열이 들어와도
+//   emoji/label/등급색/헤더배지가 깨지지 않아야 한다(normGrade 방어).
+(function () {
+    const data = {
+        baseTimeKST: '2026061021',
+        active: [
+            { office: 'jeju', zone: ZONE_WATCH, grade: 'watch', probPct: 55, windKt: 22, onsetLabel: '6/14(일) 새벽', narrative: 'w' },
+            { office: 'jeju', zone: ZONE_HIGH, grade: 'high', probPct: 80, windKt: 30, onsetLabel: '6/13(토) 밤', narrative: 'h' }
+        ],
+        resolved: [],
+        counts: { high: 1, watch: 1, resolved: 0 }
+    };
+    const html = buildAdvisoryHtml(data, () => true);
+    const hs = buildHeaderStatus(data, () => true);
+    const checks = [];
+    // 카드: high 항목에 🔴/높음/빨강 클래스, watch 항목에 🟡/관심
+    checks.push(['🔴 emoji 보강', html.includes('🔴')]);
+    checks.push(['높음 label 보강', html.includes('높음')]);
+    checks.push(['🟡 emoji 보강', html.includes('🟡')]);
+    checks.push(['관심 label 보강', html.includes('관심')]);
+    checks.push(['high 카드 adv-grade-high 클래스', html.includes('adv-grade-high')]);
+    checks.push(['watch 카드 adv-grade-watch 클래스', html.includes('adv-grade-watch')]);
+    checks.push(['high가 watch보다 앞(정렬)', html.indexOf(ZONE_HIGH) < html.indexOf(ZONE_WATCH)]);
+    // 헤더 배지: 문자열 grade 에서도 카운트 정상
+    checks.push(['헤더 🔴 1', hs.includes('🔴') && hs.includes('1')]);
+    checks.push(['헤더 🟡 포함', hs.includes('🟡')]);
+    checks.push(['헤더 빈 문자열 아님', hs.length > 0]);
+
+    const failed = checks.filter((c) => !c[1]).map((c) => c[0]);
+    record('case6_grade_string_robust', failed.length === 0,
+        failed.length === 0 ? '문자열 grade 견고성 정상' : '실패: ' + failed.join(', '));
+})();
+
 // ---- 결과 출력 + JSON 기록 ------------------------------------------------
 const allPass = results.every((r) => r.pass);
 const outPath = path.join(__dirname, 'advisory_render_test.json');
