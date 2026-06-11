@@ -52,6 +52,18 @@ let _anchors = null;       // anchors.json 의 anchors 배열
 let _cellAnchorIdx = null; // cellKey -> [{anchor, distKm}] (직선거리 이내)
 let _cellTileIdx = null;   // 타일키 -> [cell...] (bbox 후보 선택용)
 
+// ── 프리컴퓨트(frames.bin) 캐시 ───────────────────────────────────────
+//   수집 직후 precompute_tide_field.js 가 전 프레임(날짜×시각)×전 셀의
+//   물깊이(cm, Int16 LE)를 미리 계산해 둔다. 라우트는 η 재계산 없이 읽어 쓴다.
+//   유효하지 않으면(없음/stale/스키마 불일치) 폴백으로 cellDepthM 을 쓴다(무중단).
+const FRAMES_SENTINEL = -32768;
+let _framesBuf = null;     // Buffer (numFrames × numCells × Int16 LE)
+let _framesMeta = null;    // frames_meta.json 파싱본
+let _framesBinMtime = 0;
+let _framesMetaMtime = 0;
+let _framesValid = false;  // 현재 grid_meta/CFG 와 정합해 사용 가능한가
+let _frameIndex = null;    // `${date}_${minute}` -> frame index
+
 // bbox 후보 셀 상한. 초과 시 스트라이드 서브샘플로 줄여 계산·렌더량을 통제한다.
 //   모바일 벡터 렌더 버벅임 완화 위해 보수적으로(14000). 만(灣) 단위 줌인이면
 //   100m 전부, 줌아웃하면 서브샘플 개요.
@@ -73,12 +85,94 @@ function loadMetaIfNeeded() {
         _meta = null;
         return false;
     }
+    // 각 셀에 배열 인덱스(_i) 부여 — frames.bin 의 cell 인덱스와 동일(셀 순서 보존).
+    if (Array.isArray(_meta.cells)) {
+        for (let i = 0; i < _meta.cells.length; i++) _meta.cells[i]._i = i;
+    }
     _anchors = TFC.loadAnchors() || [];
     buildCellAnchorIndex();
     buildCellTileIndex();
+    // grid_meta 갱신 → 프리컴퓨트 캐시도 다시 검증/로드.
+    loadFramesIfNeeded(true);
     // 메타 갱신 시 시각 캐시 무효화
     _timeCache.clear();
     return true;
+}
+
+/**
+ * 프리컴퓨트 산출물(frames.bin + frames_meta.json)을 로드/검증.
+ *   mtime 캐시. 유효성: build_version·cell_deg·step_minutes·grid_generated_at 가
+ *   현재 grid_meta/CFG 와 일치하고 num_cells == _meta.cells.length 면 사용.
+ *   불일치/없음/파싱실패면 _framesValid=false → 라우트가 cellDepthM 폴백.
+ * @param {boolean} force grid_meta 갱신 시 강제 재검증
+ */
+function loadFramesIfNeeded(force) {
+    try {
+        if (!fs.existsSync(C.FRAMES_META) || !fs.existsSync(C.FRAMES_BIN)) {
+            _framesValid = false; _framesBuf = null; _framesMeta = null; _frameIndex = null;
+            return;
+        }
+        let mstat, bstat;
+        try { mstat = fs.statSync(C.FRAMES_META); bstat = fs.statSync(C.FRAMES_BIN); }
+        catch (e) { _framesValid = false; return; }
+        if (!force && _framesMeta &&
+            mstat.mtimeMs === _framesMetaMtime && bstat.mtimeMs === _framesBinMtime) {
+            return; // 캐시 유효
+        }
+
+        let fm;
+        try { fm = JSON.parse(fs.readFileSync(C.FRAMES_META, 'utf8')); }
+        catch (e) {
+            console.warn('[tide_field] frames_meta.json 파싱 실패 — 폴백:', e.message);
+            _framesValid = false; _framesBuf = null; _framesMeta = null; _frameIndex = null;
+            return;
+        }
+
+        // ── 유효성 검증 ──
+        const cellCount = (_meta && Array.isArray(_meta.cells)) ? _meta.cells.length : -1;
+        const gridGen = _meta ? (_meta.generated_at || null) : null;
+        const cellDeg = _meta ? (_meta.cell_deg || CFG.CELL_DEG) : CFG.CELL_DEG;
+        const valid = fm
+            && fm.build_version === CFG.BUILD_VERSION
+            && fm.cell_deg === cellDeg
+            && fm.step_minutes === CFG.STEP_MINUTES
+            && fm.grid_generated_at === gridGen
+            && fm.num_cells === cellCount
+            && Array.isArray(fm.frames);
+        if (!valid) {
+            console.warn('[tide_field] frames_meta 스키마/메타 불일치 — 프리컴퓨트 미사용(폴백).');
+            _framesValid = false; _framesBuf = null; _framesMeta = null; _frameIndex = null;
+            _framesMetaMtime = mstat.mtimeMs; _framesBinMtime = bstat.mtimeMs;
+            return;
+        }
+
+        const buf = fs.readFileSync(C.FRAMES_BIN);
+        const expectedBytes = fm.num_frames * fm.num_cells * 2;
+        if (buf.length !== expectedBytes) {
+            console.warn(`[tide_field] frames.bin 크기 불일치(${buf.length}≠${expectedBytes}) — 폴백.`);
+            _framesValid = false; _framesBuf = null; _framesMeta = null; _frameIndex = null;
+            _framesMetaMtime = mstat.mtimeMs; _framesBinMtime = bstat.mtimeMs;
+            return;
+        }
+
+        // (date,minute) → frame index 맵
+        const idx = new Map();
+        for (let i = 0; i < fm.frames.length; i++) {
+            const fr = fm.frames[i];
+            idx.set(`${fr.date}_${fr.minute}`, i);
+        }
+
+        _framesBuf = buf;
+        _framesMeta = fm;
+        _frameIndex = idx;
+        _framesMetaMtime = mstat.mtimeMs;
+        _framesBinMtime = bstat.mtimeMs;
+        _framesValid = true;
+        console.log(`[tide_field] 프리컴퓨트 로드: ${fm.num_frames}프레임 × ${fm.num_cells}셀 (${(buf.length / 1048576).toFixed(2)}MB)`);
+    } catch (e) {
+        console.warn('[tide_field] frames 로드 실패 — 폴백:', e.message);
+        _framesValid = false; _framesBuf = null; _framesMeta = null; _frameIndex = null;
+    }
 }
 
 /**
@@ -229,7 +323,7 @@ function computeField(yyyymmdd, minute, cells) {
     const snapped = snapMinute(minute);
     const out = [];
     for (const cell of cells) {
-        const dm = cellDepthM(cell, yyyymmdd, snapped);
+        const dm = getDepthM(cell, yyyymmdd, snapped);
         if (dm == null || dm >= 0) continue;   // 미정/잠김 제외, 드러남(<0)만
         out.push({ lon: cell.lon, lat: cell.lat, state: 1, depth_m: Math.round(dm * 100) / 100 });
     }
@@ -251,6 +345,31 @@ function cellDepthM(cell, yyyymmdd, snapped) {
     }
     if (wsum === 0) return null;               // 보간 곡선 없음 — 미정
     return d + (vsum / wsum) / 100 - z0;       // 물깊이(m)
+}
+
+/**
+ * 셀의 그 시각 물깊이(m) 조회 — 프리컴퓨트 우선, 없으면 cellDepthM 폴백.
+ *   프리컴퓨트 사용 가능 + 해당 (date,snapped) 프레임 존재 → frames.bin Int16(cm)/100.
+ *     sentinel(-32768)이면 null.
+ *   그 외(미사용/stale/해당 프레임 없음) → 기존 cellDepthM (무중단 폴백).
+ * @param {Object} cell  _meta.cells 원소 (cell._i = frames.bin 의 cell 인덱스)
+ * @param {number} yyyymmdd
+ * @param {number} snapped  STEP_MINUTES 격자로 스냅된 분
+ */
+function getDepthM(cell, yyyymmdd, snapped) {
+    if (_framesValid && _framesBuf && _frameIndex) {
+        const f = _frameIndex.get(`${yyyymmdd}_${snapped}`);
+        if (f != null) {
+            const ci = cell._i;
+            if (ci != null && ci >= 0 && ci < _framesMeta.num_cells) {
+                const cm = _framesBuf.readInt16LE((f * _framesMeta.num_cells + ci) * 2);
+                if (cm === FRAMES_SENTINEL) return null;
+                return cm / 100;
+            }
+        }
+        // 해당 프레임/셀 인덱스가 없으면 폴백.
+    }
+    return cellDepthM(cell, yyyymmdd, snapped);
 }
 
 // ============================================================================
@@ -360,7 +479,7 @@ router.get('/api/tide-field', (req, res) => {
             const step = Math.max(1, Math.floor(n / M));
             let sampled = 0, exposed = 0, depthSum = 0;
             for (let i = 0; i < n; i += step) {
-                const dm = cellDepthM(b.cells[i], parsed.yyyymmdd, snapped);
+                const dm = getDepthM(b.cells[i], parsed.yyyymmdd, snapped);
                 if (dm == null) continue;
                 sampled++;
                 if (dm < 0) { exposed++; depthSum += dm; }
@@ -390,6 +509,7 @@ router.get('/api/tide-field', (req, res) => {
         cell_deg: cellDegUsed,
         candidate_count: candidates.length,
         count: cells.length,
+        precomputed: _framesValid,   // 디버그: 프리컴퓨트 사용 여부
         cells
     });
 });
@@ -410,6 +530,20 @@ function kstMidnightToISO(yyyymmdd, addMinutes) {
 router.get('/api/tide-field/status', (req, res) => {
     try {
         res.json({ success: true, ...TFC.getStatus() });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+/**
+ * GET /api/tide-field/nogrid
+ * TideBED 격자 미제공(no_grid) 앵커를 좌표와 함께 보고 (운영 진단용).
+ *   - summary: 앵커별 대표 상태 집계(complete/partial/no_grid/failed/missing)
+ *   - no_grid: 격자 미제공 앵커 [{id,lon,lat}] — 지도에 찍어 빈 구역 파악·앵커 보정 판단.
+ */
+router.get('/api/tide-field/nogrid', (req, res) => {
+    try {
+        res.json({ success: true, ...TFC.getNoGridReport() });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }

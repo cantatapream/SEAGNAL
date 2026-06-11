@@ -6,18 +6,6 @@
 app = 'seagnal-server'
 primary_region = 'nrt'
 
-[env]
-  # [1회용 — 검증 후 즉시 제거할 것]
-  # 시간대(TZ) 버그 수정 후 첫 배포에서 dmdw 백필을 강제 재실행하기 위한 플래그.
-  # dmdw_warn_crawler.js 의 runBackfill() 이 디스크의 backfillReady=true 를 무시하고
-  # KST 기준 24시간치 EF/FC 를 다시 훑게 만든다. 새 백필 푸시 정책에 의해 "최근 12h
-  # 안에 발생한 자식 변화" 만 enqueue/flush 되어 운영자에게 정상 발송됨.
-  #
-  # ⚠️  검증 완료 후 이 줄을 반드시 삭제하고 재배포할 것 — 자동 self-clear 없음.
-  #     영구 유지 시 매 머신 재시작/스케일링마다 24시간치 백필이 반복 실행되어
-  #     dmdw API 부담 + 푸시 폭주(특히 안전망 미발동 구간) 위험.
-  SERVER_RESTART_FORCE_REBACKFILL = "1"
-
 [[mounts]]
   source = 'seagnal_data'
   destination = '/app/local_server/data'

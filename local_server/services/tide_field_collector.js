@@ -38,6 +38,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 
 const C = require('./tide_field_common');
 const CFG = C.TIDE_FIELD_CONFIG;
@@ -346,6 +347,35 @@ async function bootstrapTideField(opts = {}) {
 }
 
 // ============================================================================
+// 프리컴퓨트 spawn (수집 직후 자식 프로세스로 1회)
+// ============================================================================
+/**
+ * scripts/precompute_tide_field.js 를 자식 프로세스로 fire-and-forget 실행.
+ *   - 수집이 정상 완료된 직후 호출되어, 전 프레임×전 셀의 물깊이를 미리 계산해
+ *     frames.bin/frames_meta.json 으로 저장한다(라우트가 η 재계산 없이 사용).
+ *   - 자식 프로세스라 메인 이벤트 루프(수집/서버)를 막지 않는다(핵심).
+ *   - 예외 안전: spawn 실패해도 수집 결과·서버에 영향 없음(라우트는 폴백).
+ */
+function spawnPrecompute(log) {
+    const _log = log || ((...a) => console.log('[tide_field_collector]', ...a));
+    if (COLLECT_DISABLED) return; // 킬스위치면 프리컴퓨트도 skip
+    try {
+        const script = path.join(__dirname, '..', 'scripts', 'precompute_tide_field.js');
+        const cwd = path.join(__dirname, '..'); // local_server 루트
+        const child = spawn(process.execPath, [script], {
+            cwd,
+            stdio: ['ignore', 'inherit', 'inherit'],
+            env: process.env
+        });
+        child.on('error', (e) => _log(`⚠️ 프리컴퓨트 spawn 오류: ${e && e.message}`));
+        child.on('exit', (code) => _log(`프리컴퓨트 종료(code=${code})`));
+        _log('프리컴퓨트 자식 프로세스 시작(fire-and-forget)');
+    } catch (e) {
+        _log(`⚠️ 프리컴퓨트 spawn 실패(무시): ${e && e.message}`);
+    }
+}
+
+// ============================================================================
 // 메인: 롤링 윈도우 수집 (중복 실행 락 래퍼)
 // ============================================================================
 /**
@@ -398,6 +428,9 @@ async function _collectTideFieldInner(opts = {}) {
     log(`수집 대상 (앵커,날짜): ${tasks.length}건 (앵커 ${anchorList.length} × 날짜 ${dates.length}, 완전 수집분 제외)`);
 
     if (tasks.length === 0) {
+        // 이미 전부 완전 수집됨 — 그래도 프리컴퓨트는 보장(없거나 stale 일 수 있음).
+        //   precompute 스크립트가 자체 신선도 체크로 불필요 시 즉시 skip 한다.
+        spawnPrecompute(log);
         return { ok: true, collected: 0, skipped: anchorList.length * dates.length };
     }
 
@@ -426,6 +459,9 @@ async function _collectTideFieldInner(opts = {}) {
             `수집 중단(${done}/${tasks.length} 처리). 다음 사이클에 부족분만 자동 재시도.`);
     }
     log(`수집 종료: 처리 ${done}/${tasks.length}건, ${elapsed}s, 상태 ${JSON.stringify(byStatus)}`);
+    // 수집 직후 프리컴퓨트(자식 프로세스, fire-and-forget). 회로 차단(aborted)으로
+    //   부분 수집됐어도 최신 곡선으로 프레임을 갱신해 두는 편이 낫다(폴백 안전).
+    spawnPrecompute(log);
     return { ok: true, collected: done, total: tasks.length, aborted, elapsedSec: +elapsed, byStatus };
 }
 
@@ -456,11 +492,59 @@ function getStatus() {
     };
 }
 
+/**
+ * no_grid 진단 — 어느 앵커가 TideBED 격자 미제공(no_grid) 구역인지 좌표와 함께 보고.
+ *   곡선 파일(data/tide_field/curves/{id}_{date}.json)의 status 를 앵커별로 집계한다.
+ *   no_grid 는 "위치" 속성이라 한 앵커의 모든 날짜가 동일하게 no_grid 가 되지만,
+ *   날짜별로 섞일 수 있으므로 앵커별 "대표 상태"를 가장 좋은 값으로 본다
+ *   (complete > partial > no_grid > missing). 라우트 /api/tide-field/nogrid 용.
+ *
+ *   반환: { anchors, windowDays, summary:{complete,partial,no_grid,failed,missing},
+ *           no_grid:[{id,lon,lat}], generated_at }
+ */
+function getNoGridReport() {
+    const anchors = loadAnchors() || [];
+    const dates = windowDatesKST(CFG.WINDOW_DAYS);
+    // 대표 상태 우선순위 (클수록 좋음)
+    const RANK = { missing: 0, no_grid: 1, partial: 2, complete: 3 };
+    const summary = { complete: 0, partial: 0, no_grid: 0, failed: 0, missing: 0 };
+    const noGrid = [];
+
+    for (const a of anchors) {
+        let best = 'missing';
+        for (const ymd of dates) {
+            const p = curvePath(a.id, ymd);
+            if (!fs.existsSync(p)) continue;
+            let st = 'missing';
+            try {
+                const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+                st = j && typeof j.status === 'string' ? j.status : 'missing';
+            } catch (e) { st = 'missing'; }
+            // 알 수 없는 상태(예: failed 흔적)는 missing 으로 환원해 대표값 계산에서 제외
+            if (!(st in RANK)) st = (st === 'failed') ? 'missing' : 'missing';
+            if (RANK[st] > RANK[best]) best = st;
+        }
+        summary[best] = (summary[best] || 0) + 1;
+        if (best === 'no_grid') noGrid.push({ id: a.id, lon: a.lon, lat: a.lat });
+    }
+
+    return {
+        anchors: anchors.length,
+        windowDays: dates.length,
+        summary,
+        no_grid_count: noGrid.length,
+        no_grid: noGrid,
+        generated_at: new Date().toISOString()
+    };
+}
+
 module.exports = {
     collectTideField,
     bootstrapTideField,
     ensureBuilt,
+    spawnPrecompute,
     getStatus,
+    getNoGridReport,
     // 테스트/라우트용 보조 export
     windowDatesKST, isoDateOf, curvePath, isComplete, loadAnchors, collectOne
 };

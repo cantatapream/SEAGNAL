@@ -89,3 +89,11 @@ local_server/data/blocks.json
 # grid_meta.json / anchors.json (build_tide_field.js 산출물) 은 추적해 "준비중"
 # 상태(빈 메타)라도 명시적으로 커밋 — 운영에서 BADA 로 재생성됨.
 local_server/data/tide_field/curves/*.json
+
+# 물빠짐 예측 — 서버 사이드 프리컴퓨트 산출물 (precompute_tide_field.js 가 수집
+# 직후 재생성, Fly.io Volume에 저장). 전 프레임×전 셀 물깊이 바이너리라 대용량 +
+# 매일 갱신이라 추적 제외(런타임 산출물). 라우트는 없으면 cellDepthM 폴백.
+local_server/data/tide_field/frames.bin
+local_server/data/tide_field/frames.bin.tmp
+local_server/data/tide_field/frames_meta.json
+local_server/data/tide_field/frames_meta.json.tmp

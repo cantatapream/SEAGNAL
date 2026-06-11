@@ -46,6 +46,11 @@ const GRID_META_PATH = path.join(TIDE_FIELD_DIR, 'grid_meta.json');
 const ANCHORS_PATH = path.join(TIDE_FIELD_DIR, 'anchors.json');
 const CURVES_DIR = path.join(TIDE_FIELD_DIR, 'curves');
 const BATHYMETRY_DIR = path.join(DATA_DIR, 'bathymetry');
+// [프리컴퓨트 산출물] 전 프레임(날짜×시각) × 전 셀의 "물깊이(cm, Int16 LE)" 바이너리와
+//   그 메타. precompute_tide_field.js 가 수집 직후 1회 생성하고, routes/tide_field.js 가
+//   요청 시 η 재계산 없이 읽어 쓴다(폴백: 없거나 stale 이면 기존 cellDepthM 로 계산).
+const FRAMES_BIN = path.join(TIDE_FIELD_DIR, 'frames.bin');
+const FRAMES_META = path.join(TIDE_FIELD_DIR, 'frames_meta.json');
 
 // ============================================================================
 // 대상 해역 게이팅 (서해 + 남해)
@@ -358,6 +363,7 @@ const TIDE_FIELD_CONFIG = {
 module.exports = {
     // 경로
     TIDE_FIELD_DIR, GRID_META_PATH, ANCHORS_PATH, CURVES_DIR, BATHYMETRY_DIR,
+    FRAMES_BIN, FRAMES_META,
     // 해역 게이팅
     REGION_BBOX, isWestSouthSea, isExcludedSea,
     // 표준항
