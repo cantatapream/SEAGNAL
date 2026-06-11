@@ -257,6 +257,63 @@ router.get('/api/ocean/khoa-wms', async (req, res) => {
 });
 
 // ============================================================================
+// 연안침식(연안포털) CCTV 이미지 프록시
+// ============================================================================
+// coast.mof.go.kr 연안포털 카메라 이미지는 내부적으로 HTTP/사설망 프록시 체인을
+// 거치므로, HTTPS 앱에서 <img> 로 직접 로드하면 mixed-content 등으로 차단된다
+// (주소창 직접 진입은 됨). KHOA WMS 프록시와 동일하게 서버에서 대신 받아
+// 이미지 바이트만 같은 출처(HTTPS)로 전달한다.
+//
+// GET /api/ocean/coastal-cctv-image/:beach/:cam
+//   - frontend(cctv1.js coastal.imageBaseUrl)가 이 경로를 <img> src 로 쓰고,
+//     끝에 ?{timestamp} 를 붙여 3초마다 갱신한다.
+router.get('/api/ocean/coastal-cctv-image/:beach/:cam', async (req, res) => {
+    // 경로 파라미터는 숫자만 허용 (URL 템플릿 고정 → SSRF 방지)
+    const beach = parseInt(req.params.beach, 10);
+    const cam = parseInt(req.params.cam, 10);
+    if (!Number.isInteger(beach) || !Number.isInteger(cam)) {
+        return res.status(400).send('bad params');
+    }
+
+    const upstream = 'https://coast.mof.go.kr/proxy.jsp?' +
+        'http://10.176.62.134:9001/tilemapApi.do?url=' +
+        'http://220.95.232.18/camera/' + beach + '_' + cam + '.jpg';
+
+    try {
+        const fetchFn = global.fetch || require('node-fetch');
+        const r = await fetchFn(upstream, {
+            redirect: 'follow',
+            headers: {
+                'Referer': 'https://coast.mof.go.kr/coastScene/coastMediaService.do',
+                'User-Agent': 'Mozilla/5.0'
+            }
+        });
+
+        if (!r.ok) {
+            return res.status(r.status).send('upstream error');
+        }
+
+        const ct = r.headers.get('content-type') || '';
+        const buf = Buffer.from(await r.arrayBuffer());
+
+        // 업스트림이 이미지가 아니라 HTML(에러/안내 페이지)을 주면 502 로 변환해
+        // 프론트의 onerror 가 "이미지를 불러올 수 없습니다" 를 띄우게 한다.
+        if (!/^image\//i.test(ct)) {
+            console.warn('[coastal-cctv proxy] non-image', beach, cam, 'ct=', ct, 'len=', buf.length);
+            return res.status(502).send('not an image');
+        }
+
+        res.set('Content-Type', ct);
+        // 이미지는 3초마다 갱신되므로 짧게만 캐시 (과캐시 방지)
+        res.set('Cache-Control', 'public, max-age=2');
+        res.send(buf);
+    } catch (e) {
+        console.error('[coastal-cctv proxy] error:', e && e.message);
+        res.status(502).send('proxy error');
+    }
+});
+
+// ============================================================================
 // KHOA 해아름 dynamic-stream-vector 프록시 + 메모리 캐시
 // ============================================================================
 //

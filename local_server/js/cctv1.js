@@ -461,8 +461,12 @@ const CCTV_PROVIDERS = {
          * @param {number} [camIdx=0] — 카메라 인덱스 (하맹방=2대)
          * @returns {string}
          */
+        // [mixed-content 우회] 포털 프록시를 브라우저가 직접 <img> 로드하면
+        //   HTTPS→HTTP 리다이렉트 등으로 차단되므로, 우리 서버 프록시 경로를 사용한다.
+        //   서버(routes/ocean1.js)가 coast.mof.go.kr 에서 받아 이미지로 전달.
+        //   끝의 ?{timestamp} 는 cctv4.js 가 붙임(3초 갱신) → 경로형이라 충돌 없음.
         imageBaseUrl: (beachCode, camIdx) =>
-            `https://coast.mof.go.kr/proxy.jsp?http://10.176.62.134:9001/tilemapApi.do?url=http://220.95.232.18/camera/${beachCode}_${camIdx || 0}.jpg`,
+            `/api/ocean/coastal-cctv-image/${beachCode}/${camIdx || 0}`,
 
         /** 팝업 헤더 외부 링크 버튼 목록 */
         links: [
