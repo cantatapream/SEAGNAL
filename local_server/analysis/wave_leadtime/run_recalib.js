@@ -28,10 +28,12 @@ const { loadZonePolygons, zonePixelIndices, analyzeByIndices, normName } = requi
 const GIF = path.join(__dirname, 'cache', 'gif');
 const CSV = path.join(__dirname, 'data', 'warnings_2023-2026.csv');
 const OUT = path.join(__dirname, 'out');
-const LEAD = 24, PUB_DELAY_H = 7;
+const PUB_DELAY_H = 7;
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = a.match(/^--([^=]+)=(.*)$/); return m ? [m[1], m[2]] : [a.replace(/^--/, ''), true]; }));
 const ONLY = args.office || null;                       // 청별 실행(예: --office=jeju)
 const POSCAP = args.poscap ? +args.poscap : (ONLY ? 100000 : 120); // 청별이면 전 이벤트 사용
+// 발효 5일 전부터 전 시점 스캔(이미지↔발효 매칭). leadtime JSON 에 12~120h 프레임 캐시됨.
+const LEADS = (args.leads ? String(args.leads).split(',') : ['12', '24', '48', '72', '96', '120']).map(Number);
 const SPLIT = new Date('2026-01-01T00:00:00');
 const OFFICES = { jeju: '제주도', busn: '부산·울산·경상남도', gwju: '광주·전라남도', degu: '대구·경상북도', gawn: '강원특별자치도', dajn: '대전·세종·충청남도' };
 
@@ -99,20 +101,27 @@ async function collect() {
 
         // 이벤트(발효) 프레임을 전 기간 고르게 stride 샘플 → 그 프레임에서 양성/음성 동시 수집.
         //   양성=발효구역, 음성=같은 프레임의 ±24h 무발효(진짜 잔잔) 구역(hard negative, 오프라인 가용).
-        const usable = results.filter(r => { const rc = r.leads[LEAD]; return rc && rc.ok && rc.frame && areasByT.get(r.effectiveAt); });
-        const stride = Math.max(1, Math.floor(usable.length / POSCAP));
-        let np = 0;
-        for (let k = 0; k < usable.length && np < POSCAP; k += stride) {
-            const r = usable[k]; const fr = r.leads[LEAD].frame;
-            const b = loadGif(fr); if (!b) continue;          // 프레임 캐시 안 함(메모리 1장 한정)
-            let dec; try { dec = decode(b); } catch (_) { continue; }
-            np++;
+        // 발효 5일 전부터 전 시점(LEADS) × 전 이벤트 전수. 각 lead 프레임을 디코드해 폴리곤/원 동시 분석.
+        const usable = results.filter(r => areasByT.get(r.effectiveAt) && LEADS.some(L => { const rc = r.leads[L]; return rc && rc.ok && rc.frame; }));
+        let nev = 0;
+        for (const r of usable) {
+            if (nev >= POSCAP) break;
             const tt = new Date(r.effectiveAt), tms = tt.getTime();
             const areas = areasByT.get(r.effectiveAt); const warnedNorm = new Set([...areas].map(normName));
-            for (const z of [...areas].map(resolveZone).filter(Boolean)) { const f = feat(dec, z); if (f) samples.push({ time: tt, label: 1, ...f }); }
-            for (const z of chartZones) { if (warnedNorm.has(normName(z.name))) continue; if (!isZoneCalmAt(z.name, tms)) continue; const f = feat(dec, z); if (f) samples.push({ time: tt, label: 0, ...f }); }
+            const warned = [...areas].map(resolveZone).filter(Boolean);
+            let used = false;
+            for (const L of LEADS) {
+                const rc = r.leads[L]; if (!rc || !rc.ok || !rc.frame) continue;
+                const b = loadGif(rc.frame); if (!b) continue;
+                let dec; try { dec = decode(b); } catch (_) { continue; }
+                used = true;
+                for (const z of warned) { const f = feat(dec, z); if (f) samples.push({ time: tt, label: 1, lead: L, ...f }); }
+                for (const z of chartZones) { if (warnedNorm.has(normName(z.name))) continue; if (!isZoneCalmAt(z.name, tms)) continue; const f = feat(dec, z); if (f) samples.push({ time: tt, label: 0, lead: L, ...f }); }
+            }
+            if (used) nev++;
+            if (nev % 50 === 0) console.error(`[recalib] ${code}: ${nev}/${usable.length} 이벤트, 표본 ${samples.length}`);
         }
-        console.error(`[recalib] ${code}: 이벤트프레임 ${np}, 표본누적 ${samples.length}`);
+        console.error(`[recalib] ${code}: 이벤트 ${nev}, 표본 ${samples.length} (lead ${LEADS.join('/')}h)`);
     }
     console.error(`[recalib] 총 표본 ${samples.length} (양성 ${samples.filter(s => s.label).length} / 음성 ${samples.filter(s => !s.label).length})`);
     return samples;
@@ -176,6 +185,17 @@ function renderReport(all, byOffice) {
     md += '\n> 같은 재현율서 오탐(잔잔 헛발효) 작을수록 우수. "오탐감소" 양수=신방식 우월.\n';
     md += section('■ 전체(전 청 합산)', all);
     md += section('■ 2026 홀드아웃', all.filter(s => s.time >= SPLIT));
+
+    // 발효 전 시점별(5일~12h) 탐지율/오탐 — 운영점 고정 비교
+    const ruleC = s => s.cb >= 25, ruleP = s => s.pb >= 25 && s.pf >= 0.30;
+    const atLead = (set, L, rule) => { const ss = set.filter(s => s.lead === L); const pos = ss.filter(s => s.label), neg = ss.filter(s => !s.label); return { recall: pos.length ? pos.filter(rule).length / pos.length : null, fp: neg.length ? neg.filter(rule).length / neg.length : null, npos: pos.length }; };
+    const leadsPresent = [...new Set(all.map(s => s.lead).filter(v => v != null))].sort((a, b) => b - a);
+    if (leadsPresent.length) {
+        md += '\n## 발효 전 시점별 탐지/오탐 (5일~12h 전, 운영점 고정: 원 밴드≥25 / 폴 밴드≥25&면적≥30%)\n\n';
+        md += '| 발효 전 | 표본(양성) | 현재식 탐지 | 현재식 오탐 | 신방식 탐지 | 신방식 오탐 |\n|---|---|---|---|---|---|\n';
+        for (const L of leadsPresent) { const c = atLead(all, L, ruleC), n = atLead(all, L, ruleP); md += `| ${L}h(${(L / 24).toFixed(L % 24 ? 1 : 0)}일) | ${c.npos} | ${pc(c.recall)} | ${pc1(c.fp)} | ${pc(n.recall)} | ${pc1(n.fp)} |\n`; }
+        md += '\n> 발효에 가까워질수록(아래로) 탐지율↑. 신방식이 같은 시점서 오탐을 낮추면 우월.\n';
+    }
     if (byOffice) for (const code of Object.keys(byOffice).sort()) {
         md += section(`▷ ${code} 전체`, byOffice[code]);
         md += section(`▷ ${code} 2026`, byOffice[code].filter(s => s.time >= SPLIT));
@@ -192,7 +212,7 @@ function renderReport(all, byOffice) {
         const byOffice = {}; const all = [];
         for (const f of files) {
             const code = f.match(/^recalib_samples_(.+)\.json$/)[1];
-            const arr = JSON.parse(fs.readFileSync(path.join(OUT, f), 'utf8')).map(s => ({ time: new Date(s.t), label: s.label, cb: s.cb, pb: s.pb, pf: s.pf }));
+            const arr = JSON.parse(fs.readFileSync(path.join(OUT, f), 'utf8')).map(s => ({ time: new Date(s.t), label: s.label, cb: s.cb, pb: s.pb, pf: s.pf, lead: s.lead }));
             byOffice[code] = arr; all.push(...arr);
         }
         console.error(`[aggregate] ${files.length}청 합산, 표본 ${all.length}`);
@@ -201,7 +221,7 @@ function renderReport(all, byOffice) {
         console.log(md); return;
     }
     const all = await collect();                // ONLY 지정 시 그 청만
-    if (ONLY) { try { fs.writeFileSync(path.join(OUT, `recalib_samples_${ONLY}.json`), JSON.stringify(all.map(s => ({ t: s.time.getTime(), label: s.label, cb: s.cb, pb: s.pb, pf: s.pf })))); } catch (_) {} }
+    if (ONLY) { try { fs.writeFileSync(path.join(OUT, `recalib_samples_${ONLY}.json`), JSON.stringify(all.map(s => ({ t: s.time.getTime(), label: s.label, cb: s.cb, pb: s.pb, pf: s.pf, lead: s.lead })))); } catch (_) {} }
     const md = renderReport(all, ONLY ? { [ONLY]: all } : null);
     try { fs.writeFileSync(path.join(__dirname, 'reports', `RECALIB_${ONLY || 'all'}.md`), md); } catch (_) {}
     console.log(md);
