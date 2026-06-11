@@ -55,6 +55,15 @@ let _currentCctvData = null;
 /** 연안침식(coastal) 이미지 자동 갱신 타이머 ID */
 let _cctvImageRefreshTimer = null;
 
+/**
+ * CCTV 팝업이 마지막으로 열린(display:flex) 시각(ms).
+ * [버그수정] 터치 합성 click 관통 가드용 — 팝업이 열린 직후 같은 탭의 native
+ *   click 이 전체화면 오버레이(.cctv-modal-overlay onclick=closeCctvPopup)에
+ *   떨어져 팝업이 즉시 닫히는 문제를 막기 위해, 열린 지 일정 시간 이내의
+ *   닫기 요청은 무시한다. (부이 모달 backdrop pointer-events 가드와 동일 취지)
+ */
+let _cctvPopupOpenedAt = 0;
+
 /** 해무 CCTV 슬라이드 인덱스 (0 = 가장 오래된 이미지) */
 let _seafogSlideIndex = 0;
 
@@ -419,6 +428,8 @@ function showCctvPopup(data) {
     // 모달 표시 (display: flex → 화면 중앙에 배치)
     console.log('[DIAG][cctvpopup] 끝까지 도달 → display:flex 설정 (팝업 표시되어야 정상)');
     backdrop.style.display = 'flex';
+    // [버그수정] 합성 click 관통 가드 기준 시각 기록 (closeCctvPopup 에서 사용)
+    _cctvPopupOpenedAt = Date.now();
 
     // HLS 스트림인 경우 비디오 플레이어 초기화 (innerHTML 설정 후 실행)
     if (data.streamUrl) {
@@ -737,6 +748,14 @@ function seafogFullscreen() {
 function closeCctvPopup() {
     const backdrop = document.getElementById('cctv-modal-backdrop');
     if (!backdrop || backdrop.style.display === 'none') return;
+    // [버그수정] 터치 합성 click 관통 가드: 팝업이 열린 직후(같은 탭의 native
+    //   click 이 전체화면 오버레이에 떨어져) 즉시 닫히는 것을 방지. 열린 지
+    //   350ms 이내의 닫기 요청은 무시한다. 정상적인 '바깥 클릭/닫기 버튼' 은
+    //   항상 그 이후라 영향 없음.
+    if (Date.now() - _cctvPopupOpenedAt < 350) {
+        console.log('[DIAG][cctvpopup] close 무시됨 (' + (Date.now() - _cctvPopupOpenedAt) + 'ms) — 합성 click 가드 동작');
+        return;
+    }
     // [임시 진단 로그 — 팝업이 열리자마자 닫히는지 추적용. 진단 끝나면 제거.]
     console.log('[DIAG][cctvpopup] closeCctvPopup 호출됨 (누가 닫는지 ↓ 스택)');
     console.trace('[DIAG][cctvpopup] close stack');
