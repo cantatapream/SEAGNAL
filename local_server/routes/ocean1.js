@@ -259,10 +259,15 @@ router.get('/api/ocean/khoa-wms', async (req, res) => {
 // ============================================================================
 // 연안침식(연안포털) CCTV 이미지 프록시
 // ============================================================================
-// coast.mof.go.kr 연안포털 카메라 이미지는 내부적으로 HTTP/사설망 프록시 체인을
-// 거치므로, HTTPS 앱에서 <img> 로 직접 로드하면 mixed-content 등으로 차단된다
-// (주소창 직접 진입은 됨). KHOA WMS 프록시와 동일하게 서버에서 대신 받아
-// 이미지 바이트만 같은 출처(HTTPS)로 전달한다.
+// 연안포털(coast.mof.go.kr) 카메라 이미지는 포털이 HTTP/사설망 프록시 체인
+// (proxy.jsp → 10.176.62.134:9001/tilemapApi.do → 220.95.232.18/camera)을 거쳐
+// 보여준다. 이 체인을 HTTPS 앱에서 <img> 로 직접 로드하면 mixed-content 로 차단되고,
+// 서버에서 바깥 호스트(coast.mof.go.kr)로 대신 받으려 해도 해외/DC IP 는
+// ECONNRESET 으로 끊긴다.
+//
+// → 해결: 체인을 건너뛰고 실제 이미지가 있는 카메라 호스트(공인 IP 220.95.232.18)로
+//   서버가 직접 받아 이미지 바이트만 같은 출처(HTTPS)로 전달한다. 이 호스트는
+//   Fly 에서 직접 도달 가능함을 확인했다(2026-06).
 //
 // GET /api/ocean/coastal-cctv-image/:beach/:cam
 //   - frontend(cctv1.js coastal.imageBaseUrl)가 이 경로를 <img> src 로 쓰고,
@@ -275,9 +280,8 @@ router.get('/api/ocean/coastal-cctv-image/:beach/:cam', async (req, res) => {
         return res.status(400).send('bad params');
     }
 
-    // [테스트] 바깥 호스트(coast.mof.go.kr)는 Fly 에서 ECONNRESET 으로 차단됨.
-    //   실제 이미지가 있는 카메라 호스트(공인 IP)로 직접 받아본다. 닿으면 해결.
-    //   안 닿으면(reset/timeout) Fly 에서는 어떤 경로로도 불가 → 폴백으로 전환.
+    // 카메라 호스트로 직접 호출(공공망과 동일하게 http). 바깥 포털 호스트는
+    //   Fly 에서 TLS reset 되지만 이 카메라 호스트는 직접 도달 가능.
     const upstream = 'http://220.95.232.18/camera/' + beach + '_' + cam + '.jpg';
 
     try {
@@ -309,12 +313,12 @@ router.get('/api/ocean/coastal-cctv-image/:beach/:cam', async (req, res) => {
         res.set('Cache-Control', 'public, max-age=2');
         res.send(buf);
     } catch (e) {
-        // [임시 진단] fetch 예외의 실제 원인을 응답 본문에 노출(TLS/DNS/연결 구분).
-        //   undici fetch 는 진짜 원인을 e.cause 에 담는다. 확정 후 제거 예정.
+        // 카메라 호스트 도달 실패(reset/timeout 등). 원인은 서버 로그로만 남기고
+        //   프론트에는 502 만 주어 onerror 가 안내 문구를 띄우게 한다.
         const cause = e && e.cause;
         const detail = (cause && (cause.code || cause.message)) || (e && (e.code || e.message)) || 'unknown';
-        console.error('[coastal-cctv proxy] fetch 예외:', e && e.message, '| cause=', cause);
-        res.status(502).send('proxy error: ' + detail);
+        console.error('[coastal-cctv proxy] fetch 예외:', e && e.message, '| cause=', detail);
+        res.status(502).send('proxy error');
     }
 });
 
