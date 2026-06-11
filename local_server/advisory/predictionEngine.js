@@ -309,6 +309,10 @@ async function generatePredictions(options = {}) {
         } catch (oErr) {
             console.error(`[office] ${code} 실패: ${oErr.message}`);
         }
+        // 청 단위로 디코드 캐시를 비운다 — 일기도 GIF 의 RGBA 디코드(프레임당 ~2MB)가
+        // 6개 청에 걸쳐 누적되면 메모리(OOM)를 유발한다. 프레임은 청별로 독립이므로
+        // 다음 청 진입 전에 회수해도 안전(피크 메모리를 1개 청 분량으로 한정).
+        decodeCache.clear();
     }
 
     // 등급 강한 순 → 확률 순 → onset 빠른 순 정렬

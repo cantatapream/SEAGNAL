@@ -30,6 +30,45 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
+// ============================================================================
+// [특보 예측] 무거운 일기도(GIF) 분석 사이클을 별도 자식 프로세스로 격리 실행.
+// ----------------------------------------------------------------------------
+//   왜? predictionEngine 은 6개 청의 풍속/파고 GIF 를 RGBA 로 디코드하느라
+//   메모리를 크게 쓴다. 이를 메인 웹서버 프로세스 안에서 돌리면 1GB 머신이
+//   OOM 으로 강제 재시작될 수 있다(실제 장애 발생). 자식 프로세스로 분리하면:
+//     - 디코드 버퍼가 메인 서버 메모리와 분리되고, 종료 시 전량 회수된다.
+//     - 자식이 OOM/크래시 해도 메인 서버는 영향받지 않는다.
+//   동시에 1개만 실행(중복 가드). 자식은 runPrediction.js 의 CLI 진입점을 쓴다.
+// ============================================================================
+let _advisoryChildRunning = false;
+function spawnAdvisoryCycle(reason) {
+    if (_advisoryChildRunning) {
+        console.log(`[advisory] 이전 사이클 진행 중 — ${reason} 스킵`);
+        return;
+    }
+    try {
+        const { spawn } = require('child_process');
+        const child = spawn(
+            process.execPath,
+            [path.join(__dirname, 'advisory', 'runPrediction.js')],
+            { cwd: __dirname, stdio: ['ignore', 'inherit', 'inherit'], env: process.env }
+        );
+        _advisoryChildRunning = true;
+        console.log(`[advisory] 사이클 자식 시작 (${reason}, pid=${child.pid})`);
+        child.on('exit', (code) => {
+            _advisoryChildRunning = false;
+            console.log(`[advisory] 사이클 자식 종료 (${reason}, code=${code})`);
+        });
+        child.on('error', (e) => {
+            _advisoryChildRunning = false;
+            console.error(`[advisory] 사이클 자식 spawn 실패 (${reason}):`, e && e.message);
+        });
+    } catch (e) {
+        _advisoryChildRunning = false;
+        console.error(`[advisory] 사이클 트리거 실패 (${reason}):`, e && e.message);
+    }
+}
+
 // [Push] Firebase Admin 초기화는 services/firebase_admin_lazy.js 로 이동.
 //   - 본 파일에서는 admin 자체를 사용하지 않으므로 require 자체를 제거하여
 //     서버 startup 의 require 체인에서 ~3초 분량을 절약한다.
@@ -2291,19 +2330,13 @@ async function init() {
         log(`⚠️ [KHOA] 초기 정기 수집 오류: ${err.message}`)
     );
 
-    // [특보 예측] 부팅 직후 1회 시드 — 다음 :25 를 기다리지 않고 상태 파일을 채운다.
-    //   부팅 폭주(초기 수집/크롤)와 경합 회피 위해 ~90초 지연. fire-and-forget, throw 격리.
+    // [특보 예측] 부팅 후 1회 시드 — 다음 :25 를 기다리지 않고 상태 파일을 채운다.
+    //   부팅 직후엔 build-gzip·tide_field·각종 수집기가 동시에 돌아 메모리/CPU 가
+    //   몰린다. 무거운 예측 사이클(자식 프로세스)이 그 위에 겹치지 않도록 6분 뒤로
+    //   시드를 미룬다. spawnAdvisoryCycle 가 자체적으로 격리/중복가드 처리.
     setTimeout(() => {
-        if (!crawlPaused) {
-            // require() 자체가 동기 throw(의존성 누락 등)일 수 있어 try 로 격리.
-            // 특보 예측 하나가 서버 프로세스 전체를 죽이지 않도록 한다.
-            try {
-                require('./advisory/runPrediction').runPredictionCycle().catch(() => {});
-            } catch (e) {
-                console.error('[advisory] 시드 사이클 트리거 실패 — 건너뜀:', e && e.message);
-            }
-        }
-    }, 90 * 1000);
+        if (!crawlPaused) spawnAdvisoryCycle('boot-seed');
+    }, 6 * 60 * 1000);
 
     const weatherAlertsCrawler = require('./weather_alerts_crawler'); // 크롤러 모듈 추가
 
@@ -2487,12 +2520,7 @@ async function init() {
         //   crawlPaused 가드: 운영자가 크롤을 멈추면 예측(dmdw 크롤 동반)도 멈춘다.
         //   await 없음 — 느린 dmdw 크롤이 1분 틱을 블로킹하지 않게.
         if (min === 25 && !crawlPaused) {
-            // require() 동기 throw(의존성 누락 등) 격리 — 서버 전체 크래시 방지.
-            try {
-                require('./advisory/runPrediction').runPredictionCycle().catch(() => {});
-            } catch (e) {
-                console.error('[advisory] :25 사이클 트리거 실패 — 건너뜀:', e && e.message);
-            }
+            spawnAdvisoryCycle(':25');
         }
 
         // [관리자 반복 푸시] 매 정시(min === 0)에 미확인 항목 체크 후 관리자 푸시 재발송
