@@ -618,42 +618,69 @@ function getStatus() {
     };
 }
 
+// 앵커 대표 상태 우선순위(클수록 좋음) + 윈도우 날짜의 곡선 파일에서 대표 상태 산출.
+const STATUS_RANK = { missing: 0, no_grid: 1, partial: 2, complete: 3 };
+function anchorBestStatus(anchorId, dates) {
+    let best = 'missing';
+    for (const ymd of dates) {
+        const p = curvePath(anchorId, ymd);
+        if (!fs.existsSync(p)) continue;
+        let st = 'missing';
+        try {
+            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+            st = j && typeof j.status === 'string' ? j.status : 'missing';
+        } catch (e) { st = 'missing'; }
+        if (!(st in STATUS_RANK)) st = 'missing';  // 알 수 없는 상태(예: failed)는 missing
+        if (STATUS_RANK[st] > STATUS_RANK[best]) best = st;
+    }
+    return best;
+}
+
+/**
+ * 앵커 데이터 확보 현황 — 각 앵커의 "실제 수집 좌표"(보정 시 이동된 좌표) + 대표 상태.
+ *   15회 제스처 오버레이가 "몇 개 해점의 데이터를 실제로 확보했는지" 증명하는 용도.
+ *   - 보정(nudge)된 앵커는 lon/lat 이 이동된 수집 좌표(origLon/origLat = 원위치).
+ *   - secured = 데이터 확보(complete|partial) 앵커 수. 라우트 /api/tide-field/anchors 용.
+ *   반환: { count, secured, nudged, anchors:[{id,lon,lat,origLon,origLat,nudged,status}] }
+ */
+function getAnchorReport() {
+    const anchors = loadAnchors() || [];
+    const dates = windowDatesKST(CFG.WINDOW_DAYS);
+    const overrides = loadProbeOverrides();
+    let secured = 0, nudgedCount = 0;
+    const out = [];
+    for (const a of anchors) {
+        const status = anchorBestStatus(a.id, dates);
+        const ov = overrides[a.id];
+        const nudged = !!(ov && ov.lon != null);
+        if (status === 'complete' || status === 'partial') secured++;
+        if (nudged) nudgedCount++;
+        out.push({
+            id: a.id,
+            lon: nudged ? ov.lon : a.lon,   // 실제 수집 좌표(보정 반영)
+            lat: nudged ? ov.lat : a.lat,
+            origLon: a.lon, origLat: a.lat, // 논리 위치(보간 기준)
+            nudged, status
+        });
+    }
+    return { count: anchors.length, secured, nudged: nudgedCount, anchors: out };
+}
+
 /**
  * no_grid 진단 — 어느 앵커가 TideBED 격자 미제공(no_grid) 구역인지 좌표와 함께 보고.
- *   곡선 파일(data/tide_field/curves/{id}_{date}.json)의 status 를 앵커별로 집계한다.
- *   no_grid 는 "위치" 속성이라 한 앵커의 모든 날짜가 동일하게 no_grid 가 되지만,
- *   날짜별로 섞일 수 있으므로 앵커별 "대표 상태"를 가장 좋은 값으로 본다
- *   (complete > partial > no_grid > missing). 라우트 /api/tide-field/nogrid 용.
- *
- *   반환: { anchors, windowDays, summary:{complete,partial,no_grid,failed,missing},
- *           no_grid:[{id,lon,lat}], generated_at }
+ *   앵커별 대표 상태(complete>partial>no_grid>missing)를 집계. 라우트 /api/tide-field/nogrid 용.
+ *   반환: { anchors, windowDays, summary, no_grid_count, no_grid:[{id,lon,lat}], generated_at }
  */
 function getNoGridReport() {
     const anchors = loadAnchors() || [];
     const dates = windowDatesKST(CFG.WINDOW_DAYS);
-    // 대표 상태 우선순위 (클수록 좋음)
-    const RANK = { missing: 0, no_grid: 1, partial: 2, complete: 3 };
     const summary = { complete: 0, partial: 0, no_grid: 0, failed: 0, missing: 0 };
     const noGrid = [];
-
     for (const a of anchors) {
-        let best = 'missing';
-        for (const ymd of dates) {
-            const p = curvePath(a.id, ymd);
-            if (!fs.existsSync(p)) continue;
-            let st = 'missing';
-            try {
-                const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-                st = j && typeof j.status === 'string' ? j.status : 'missing';
-            } catch (e) { st = 'missing'; }
-            // 알 수 없는 상태(예: failed 흔적)는 missing 으로 환원해 대표값 계산에서 제외
-            if (!(st in RANK)) st = (st === 'failed') ? 'missing' : 'missing';
-            if (RANK[st] > RANK[best]) best = st;
-        }
+        const best = anchorBestStatus(a.id, dates);
         summary[best] = (summary[best] || 0) + 1;
         if (best === 'no_grid') noGrid.push({ id: a.id, lon: a.lon, lat: a.lat });
     }
-
     return {
         anchors: anchors.length,
         windowDays: dates.length,
@@ -671,6 +698,7 @@ module.exports = {
     spawnPrecompute,
     getStatus,
     getNoGridReport,
+    getAnchorReport,
     // 테스트/라우트용 보조 export
     windowDatesKST, isoDateOf, curvePath, isComplete, loadAnchors, collectOne
 };
