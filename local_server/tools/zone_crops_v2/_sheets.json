@@ -1,0 +1,220 @@
+[
+  {
+    "region": "서해중부",
+    "out": "/home/user/SEAGNAL/local_server/tools/zone_crops_v2/_sheet_서해중부.png",
+    "items": [
+      {
+        "idx": 1,
+        "name": "서해중부안쪽먼바다"
+      },
+      {
+        "idx": 2,
+        "name": "인천·경기북부앞바다"
+      },
+      {
+        "idx": 3,
+        "name": "인천·경기남부앞바다"
+      },
+      {
+        "idx": 4,
+        "name": "충남북부앞바다"
+      },
+      {
+        "idx": 5,
+        "name": "충남남부앞바다"
+      },
+      {
+        "idx": 13,
+        "name": "서해중부바깥먼바다"
+      }
+    ]
+  },
+  {
+    "region": "서해남부",
+    "out": "/home/user/SEAGNAL/local_server/tools/zone_crops_v2/_sheet_서해남부.png",
+    "items": [
+      {
+        "idx": 6,
+        "name": "서해남부북쪽안쪽먼바다"
+      },
+      {
+        "idx": 7,
+        "name": "전북북부앞바다"
+      },
+      {
+        "idx": 8,
+        "name": "전북남부앞바다"
+      },
+      {
+        "idx": 9,
+        "name": "전남북부서해앞바다"
+      },
+      {
+        "idx": 10,
+        "name": "전남중부서해앞바다"
+      },
+      {
+        "idx": 11,
+        "name": "서해남부남쪽안쪽먼바다"
+      },
+      {
+        "idx": 12,
+        "name": "전남남부서해앞바다"
+      },
+      {
+        "idx": 14,
+        "name": "서해남부북쪽바깥먼바다"
+      },
+      {
+        "idx": 15,
+        "name": "서해남부남쪽바깥먼바다"
+      }
+    ]
+  },
+  {
+    "region": "남해서부",
+    "out": "/home/user/SEAGNAL/local_server/tools/zone_crops_v2/_sheet_남해서부.png",
+    "items": [
+      {
+        "idx": 16,
+        "name": "남해서부서쪽먼바다"
+      },
+      {
+        "idx": 17,
+        "name": "전남서부남해앞바다"
+      },
+      {
+        "idx": 18,
+        "name": "남해서부동쪽먼바다"
+      },
+      {
+        "idx": 19,
+        "name": "전남동부남해앞바다"
+      }
+    ]
+  },
+  {
+    "region": "남해동부",
+    "out": "/home/user/SEAGNAL/local_server/tools/zone_crops_v2/_sheet_남해동부.png",
+    "items": [
+      {
+        "idx": 20,
+        "name": "남해동부안쪽먼바다"
+      },
+      {
+        "idx": 21,
+        "name": "경남서부남해앞바다"
+      },
+      {
+        "idx": 22,
+        "name": "거제시동부앞바다"
+      },
+      {
+        "idx": 23,
+        "name": "경남중부남해앞바다"
+      },
+      {
+        "idx": 24,
+        "name": "부산앞바다"
+      },
+      {
+        "idx": 44,
+        "name": "남해동부바깥먼바다"
+      }
+    ]
+  },
+  {
+    "region": "동해남부",
+    "out": "/home/user/SEAGNAL/local_server/tools/zone_crops_v2/_sheet_동해남부.png",
+    "items": [
+      {
+        "idx": 25,
+        "name": "동해남부남쪽안쪽먼바다"
+      },
+      {
+        "idx": 26,
+        "name": "울산앞바다"
+      },
+      {
+        "idx": 27,
+        "name": "동해남부북쪽안쪽먼바다"
+      },
+      {
+        "idx": 28,
+        "name": "경북남부앞바다"
+      },
+      {
+        "idx": 29,
+        "name": "경북북부앞바다"
+      },
+      {
+        "idx": 34,
+        "name": "동해남부남쪽바깥먼바다"
+      },
+      {
+        "idx": 35,
+        "name": "동해남부북쪽바깥먼바다"
+      }
+    ]
+  },
+  {
+    "region": "동해중부",
+    "out": "/home/user/SEAGNAL/local_server/tools/zone_crops_v2/_sheet_동해중부.png",
+    "items": [
+      {
+        "idx": 30,
+        "name": "동해중부안쪽먼바다"
+      },
+      {
+        "idx": 31,
+        "name": "강원남부앞바다"
+      },
+      {
+        "idx": 32,
+        "name": "강원중부앞바다"
+      },
+      {
+        "idx": 33,
+        "name": "강원북부앞바다"
+      },
+      {
+        "idx": 36,
+        "name": "동해중부바깥먼바다"
+      }
+    ]
+  },
+  {
+    "region": "제주",
+    "out": "/home/user/SEAGNAL/local_server/tools/zone_crops_v2/_sheet_제주.png",
+    "items": [
+      {
+        "idx": 37,
+        "name": "제주도남서쪽안쪽먼바다"
+      },
+      {
+        "idx": 38,
+        "name": "제주도북부앞바다"
+      },
+      {
+        "idx": 39,
+        "name": "제주도동부앞바다"
+      },
+      {
+        "idx": 40,
+        "name": "제주도남부앞바다"
+      },
+      {
+        "idx": 41,
+        "name": "제주도서부앞바다"
+      },
+      {
+        "idx": 42,
+        "name": "제주도남동쪽안쪽먼바다"
+      },
+      {
+        "idx": 43,
+        "name": "제주도남쪽바깥먼바다"
+      }
+    ]
+  }
+]

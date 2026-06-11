@@ -210,6 +210,7 @@
         // 3) 천기 카드 진행 중 fetch 토큰 무효화 + display:none — 잔여 응답 무시.
         //    INDEX1 등 이 모듈 미로드 환경은 자동 skip (typeof check).
         if (typeof OS.hideWeatherCard === 'function') OS.hideWeatherCard();
+        if (typeof OS.hideVsbyCard === 'function') OS.hideVsbyCard();
 
         // 4) [차등 캐싱 — 2026-05] 비즐겨찾기 해점이면 메모리 조석 캐시 폐기.
         //    즐겨찾기 해점은 메모리 캐시 그대로 유지 → 다음 오픈 시 prefill 없이도 hit.
