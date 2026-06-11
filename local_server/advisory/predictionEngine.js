@@ -163,6 +163,7 @@ async function generatePredictions(options = {}) {
     const waveCut = options.waveCutM != null ? options.waveCutM : THRESHOLDS.WAVE_M;
 
     const predictions = [];
+    const zoneSignals = []; // 모든 도메인 구역의 현재 예보 peak 신호 (해소 카드 '전→후' 용)
     let baseTimeKST = null;
     const decodeCache = new Map(); // fileName → decoded {w,h,rgba}
 
@@ -225,6 +226,7 @@ async function generatePredictions(options = {}) {
                 try {
                     const rad = Math.round((z.type === 'H' ? 55 : 30) * THRESHOLDS.RAD_MULT);
                     let onset = null, windBand = 0, waveBand = 0;
+                    let peakWind = 0, peakWave = 0; // 스캔 중 본 최대 신호(임계 미만 포함)
 
                     // onset 전방 스캔: 풍속 시퀀스를 기준으로, 같은 유효시각의 파고도 함께 평가.
                     // (풍속 시퀀스가 없으면 파고 시퀀스 단독 스캔)
@@ -259,11 +261,17 @@ async function generatePredictions(options = {}) {
                             } catch (e) { /* 흡수 */ }
                         }
 
+                        if (wB > peakWind) peakWind = wB;
+                        if (vB > peakWave) peakWave = vB;
+
                         if (wB >= windCut || vB >= waveCut) {
                             onset = vt; windBand = wB; waveBand = vB;
                             break; // 첫 임계초과 즉시 중단(최소 다운로드)
                         }
                     }
+
+                    // 구역별 현재 peak 신호 기록 (해소 카드 '전→후' / 디버그용)
+                    zoneSignals.push({ office: code, zone: z.name, windKt: peakWind, waveM: peakWave, prob: combinedProb(peakWind, peakWave) });
 
                     if (!onset) continue; // 예측 없음
 
@@ -314,6 +322,7 @@ async function generatePredictions(options = {}) {
         generatedAt: new Date().toISOString(),
         baseTimeKST: baseTimeKST || null,
         predictions,
+        zoneSignals, // 모든 도메인 구역 현재 peak 신호 (해소 '전→후' 계산용)
     };
 
     if (!options.noWrite) {
