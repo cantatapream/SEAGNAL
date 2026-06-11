@@ -52,6 +52,7 @@
     var _cellHalf = 0.0005;     // 데이터 최소 셀 반폭(도). meta.cell_deg/2.
     var _lastDrawDeg = 0.001;   // 마지막 렌더에 쓴 타일 크기(도) — 클릭 허용반경용.
     var _moveTimer = null;      // 줌/팬 재렌더 디바운스
+    var _prefetchTimer = null;  // 전 프레임 백그라운드 프리페치
     var _popupOverlay = null;
 
     function $(id) { return document.getElementById(id); }
@@ -85,7 +86,7 @@
         _map.on('moveend', function () {
             if (!_active) return;
             if (_moveTimer) clearTimeout(_moveTimer);
-            _moveTimer = setTimeout(function () { renderFrame(_frameIdx, false); }, 200);
+            _moveTimer = setTimeout(function () { renderFrame(_frameIdx, false); prefetchAll(); }, 250);
         });
 
         console.log('[tide_field] 물빠짐 레이어 초기화 완료 (캔버스 래스터)');
@@ -216,6 +217,7 @@
             }
             showSliderBar(true);
             renderFrame(_frameIdx, true);
+            prefetchAll();   // 현재 화면(첫 프레임) 그린 뒤, 나머지 시각을 백그라운드로 미리 받아 슬라이더 즉시화
         }).catch(function (e) {
             console.warn('[tide_field] meta 로드 실패:', e);
             toast('물빠짐 데이터를 불러오지 못했습니다.');
@@ -226,6 +228,7 @@
     function deactivate() {
         _active = false;
         stopPlay();
+        stopPrefetch();
         var btn = $('ocean-mudflat-toggle-btn');
         if (btn) btn.classList.remove('active');
         if (_layer) _layer.setVisible(false);
@@ -419,6 +422,22 @@
         if (_playTimer) { clearTimeout(_playTimer); _playTimer = null; }
         var playBtn = $('mudflat-play-btn');
         if (playBtn) playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+    }
+
+    // 전 프레임을 백그라운드로 미리 받아 캐시 워밍 → 슬라이더가 즉시 반응.
+    //   순차+간격(150ms)으로 가볍게. fetchCells 는 iso+agg 로 캐시하므로 이미 받은 건
+    //   즉시 반환(서버 부담 X). 재생 중엔 재생 루프가 따로 받으므로 생략.
+    function stopPrefetch() { if (_prefetchTimer) { clearTimeout(_prefetchTimer); _prefetchTimer = null; } }
+    function prefetchAll() {
+        stopPrefetch();
+        var i = 0;
+        function next() {
+            if (!_active || _playing || i >= _frames.length) { _prefetchTimer = null; return; }
+            fetchCells(_frames[i]);  // 캐시되면 다음부터 즉시
+            i++;
+            _prefetchTimer = setTimeout(next, 150);
+        }
+        _prefetchTimer = setTimeout(next, 300); // 첫 프레임 표시 먼저
     }
 
     function showSliderBar(show) {
