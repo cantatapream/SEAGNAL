@@ -112,3 +112,17 @@ local_server/data/tide_field/frames_meta.json.tmp
 # 격자 보정(nudge) 캐시 — 수집 중 생성되는 런타임 산출물(볼륨 영속).
 local_server/data/tide_field/anchor_probe_override.json
 local_server/data/tide_field/anchor_probe_override.json.tmp
+
+# 특보예측 검증 청별 중간 산출물(재생성 가능 — 최종 RECALIB_national.md 만 추적)
+local_server/analysis/wave_leadtime/reports/recalib_*.log
+local_server/analysis/wave_leadtime/reports/RECALIB_jeju.md
+local_server/analysis/wave_leadtime/reports/RECALIB_busn.md
+local_server/analysis/wave_leadtime/reports/RECALIB_gwju.md
+local_server/analysis/wave_leadtime/reports/RECALIB_degu.md
+local_server/analysis/wave_leadtime/reports/RECALIB_gawn.md
+local_server/analysis/wave_leadtime/reports/RECALIB_dajn.md
+local_server/analysis/wave_leadtime/reports/RECALIB_all.md
+local_server/analysis/wave_leadtime/out/recalib_samples_*.json
+
+# 예비특보 통보문 수집물(dmdw 크롤링 산출)
+local_server/analysis/wave_leadtime/data/prelim_warnings.json
