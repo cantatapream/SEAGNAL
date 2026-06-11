@@ -416,6 +416,23 @@ router.get('/api/tide-field/status', (req, res) => {
 });
 
 /**
+ * GET /api/tide-field/anchors
+ * 앵커 포인트 좌표 목록 (디버그 표출용 — 프론트 15회 클릭 제스처).
+ */
+router.get('/api/tide-field/anchors', (req, res) => {
+    try {
+        const anchors = TFC.loadAnchors() || [];
+        res.json({
+            success: true,
+            count: anchors.length,
+            anchors: anchors.map(a => ({ id: a.id, lon: a.lon, lat: a.lat }))
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+/**
  * GET /api/tide-field/debug?lat=&lon=
  * 한 지점의 조위(η)·물깊이 시계열을 전 프레임(3일)에 대해 반환 + 자동 분석.
  *   - 자정(날짜 경계)에서 η가 비현실적으로 점프하는지(maxJumpCm)

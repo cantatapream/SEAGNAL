@@ -53,6 +53,8 @@
     var _lastDrawDeg = 0.001;   // 마지막 렌더에 쓴 타일 크기(도) — 클릭 허용반경용.
     var _moveTimer = null;      // 줌/팬 재렌더 디바운스
     var _prefetchTimer = null;  // 전 프레임 백그라운드 프리페치
+    var _anchorClicks = 0;      // [세션] 앵커 표출 제스처 클릭 수(앱 재시작 시 0으로 리셋)
+    var _anchorLayer = null;    // 앵커 포인트 디버그 레이어(세션 한정)
     var _popupOverlay = null;
 
     function $(id) { return document.getElementById(id); }
@@ -173,6 +175,39 @@
         }
     }
 
+    // [세션 디버그] 앵커 포인트 표출 토글. 레이어는 메모리에만 있어 앱 재시작 시 사라짐.
+    function toggleAnchorOverlay() {
+        if (_anchorLayer) {                       // 이미 만들어져 있으면 표시/숨김 토글
+            var vis = !_anchorLayer.getVisible();
+            _anchorLayer.setVisible(vis);
+            if (typeof toast === 'function') toast(vis ? '앵커 포인트 표시' : '앵커 포인트 숨김');
+            return;
+        }
+        if (!_map || typeof ol === 'undefined') return;
+        fetch('/api/tide-field/anchors')
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) {
+                if (!j || !j.anchors || !j.anchors.length) { if (typeof toast === 'function') toast('앵커 정보가 없습니다.'); return; }
+                var src = new ol.source.Vector();
+                for (var i = 0; i < j.anchors.length; i++) {
+                    var a = j.anchors[i];
+                    src.addFeature(new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([a.lon, a.lat])) }));
+                }
+                _anchorLayer = new ol.layer.Vector({
+                    source: src, zIndex: 60,
+                    style: new ol.style.Style({
+                        image: new ol.style.Circle({
+                            radius: 3,
+                            fill: new ol.style.Fill({ color: 'rgba(220,40,40,0.95)' }),
+                            stroke: new ol.style.Stroke({ color: '#ffffff', width: 1 })
+                        })
+                    })
+                });
+                _map.addLayer(_anchorLayer);
+                if (typeof toast === 'function') toast('앵커 포인트 표시 (' + j.anchors.length + '개)');
+            }).catch(function () { if (typeof toast === 'function') toast('앵커 정보를 불러오지 못했습니다.'); });
+    }
+
     function bindToggle() {
         var btn = $('ocean-mudflat-toggle-btn');
         if (!btn) return;
@@ -180,6 +215,11 @@
         applyLockedLook(btn, !isUnlocked());
 
         btn.addEventListener('click', function () {
+            // [세션 제스처] 매 클릭마다 누적, 15회에 앵커 포인트 표출 토글.
+            //   메모리 카운터라 앱 재시작 시 0으로 리셋 → 다시 15회 눌러야 표출.
+            _anchorClicks++;
+            if (_anchorClicks >= 15) { _anchorClicks = 0; toggleAnchorOverlay(); }
+
             // [테스트 게이트] 잠금 상태면 토글하지 않고 클릭 수만 누적, 10회에 해제.
             if (!isUnlocked()) {
                 var n = getUnlockClicks() + 1;
