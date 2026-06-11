@@ -223,6 +223,7 @@ app.use(require('./routes/ocean1'));        // 해양종합정보 API (수심/RO
 app.use(require('./routes/ocean2'));        // ROMS 격자/저질 API
 app.use(require('./routes/ocean3'));        // 해양현황 날씨/바람 API (zone_forecasts 기반)
 app.use(require('./routes/ocean4'));        // 해양현황 파고/zone-forecasts 오버레이 API
+app.use(require('./routes/vsby_smallzone')); // 해구별예측(소해구) 시정 캐시 API
 app.use(require('./routes/ocean5'));        // 해저지형/기타 해양 API
 app.use(require('./routes/assistant'));     // AI 음성/텍스트 비서 (자연어 질문 → 실데이터 답변)
 
@@ -352,6 +353,13 @@ app.listen(PORT, '0.0.0.0', () => {
             }
         } catch (e) {
             console.error('[startup] CCTV 초기수집 트리거 실패:', e && e.message);
+        }
+
+        // 해구별예측(소해구) 시정 캐시: 디스크 로드 + 런 변경 시에만 수집(자동 갱신).
+        try {
+            require('./services/vsby_smallzone').startAutoRefresh();
+        } catch (e) {
+            console.error('[startup] vsby_smallzone 자동갱신 시작 실패:', e && e.message);
         }
 
         // ====================================================================
