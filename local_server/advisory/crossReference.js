@@ -1,0 +1,182 @@
+/**
+ * ============================================================================
+ * advisory/crossReference.js — 특보 예측 ↔ 기상청 단기 해상예보 교차참조
+ * ============================================================================
+ *
+ * 우리 자체 예측(predictionEngine 산출)에, 같은 해역·같은 시간대의 기상청
+ * "공식 단기 해상예보"(먼바다/앞바다 PDF 파싱값) 숫자를 그대로 병기한다.
+ *
+ *   ※ 판정(일치/불일치) 없음. 풍속·파고 숫자만 옆에 보여주고, 사용자가
+ *     우리 예측과 직접 눈으로 비교하게 한다. 매칭 실패(해역·시간대 예보 없음)
+ *     시에는 아무 것도 붙이지 않아, 프론트가 그 줄을 통째로 숨긴다.
+ *
+ * [데이터 출처]
+ *   regional_forecast_collector.loadMarineForecasts()  → 먼바다 { zoneName: {periods} }
+ *   regional_forecast_collector.loadCoastalForecasts() → 앞바다 { zoneName: {periods} }
+ *   각 period: { date:'YYYYMMDD'(KST), period:'am'|'pm', wind:'북동~동 / 7~11',
+ *               weather, waveHeight:'0.5~1.0' }
+ *
+ * [시간 매칭]
+ *   예측 onsetISO(실제 UTC) → KST 벽시계로 변환 → date(YYYYMMDD)+오전/오후 슬롯.
+ *   같은 zone 의 같은 슬롯 period 를 찾아 풍속/파고를 뽑는다.
+ *   (오전=KST 00~12시, 오후=12~24시. 엔진 onsetLabel 의 시간대 구분과 일치.)
+ *
+ * [설계 원칙]
+ *   - 순수 매칭 로직(IO 무관)과 디스크 로더를 분리 → 네트워크 0 으로 테스트 가능.
+ *   - 어떤 입력에도 throw 하지 않고 graceful(매칭 실패 → 원본 그대로) 동작.
+ *   - 원본 prediction 을 변형(mutate)하지 않음. 매칭 시에만 얕은 복사로 kmaForecast 부착.
+ *
+ * [부착 필드] prediction.kmaForecast = {
+ *     windSpeed: '7~11' | null,     // m/s 범위 문자열(방향 제외)
+ *     waveHeight: '0.5~1.0' | null, // m 범위/단일 문자열
+ *     periodLabel: '6/13(토) 오후',  // 매칭된 기상청 예보 시간대
+ *     publishTime: '...' | null,    // 기상청 발표시각(있으면)
+ *   }
+ *   windSpeed·waveHeight 가 둘 다 비면 부착하지 않는다(표출할 숫자가 없음).
+ * ============================================================================
+ */
+'use strict';
+
+const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
+
+/** zone 키 정규화 (trim). null/undefined 안전. */
+function zoneKey(z) {
+    return z == null ? '' : String(z).trim();
+}
+
+/**
+ * onsetISO(실제 UTC ISO) → 기상청 예보 슬롯 { date:'YYYYMMDD', period:'am'|'pm' } (KST).
+ *   KST 벽시계 = UTC + 9h. getUTC* 로 KST 필드를 읽는다(서버 TZ 비의존).
+ * @param {string} onsetISO
+ * @returns {{date:string, period:'am'|'pm', mo:number, da:number, wd:string}|null}
+ */
+function onsetToSlot(onsetISO) {
+    if (!onsetISO) return null;
+    const ms = Date.parse(onsetISO);
+    if (!isFinite(ms)) return null;
+    const d = new Date(ms + 9 * 3600 * 1000); // KST 벽시계
+    const y = d.getUTCFullYear();
+    const mo = d.getUTCMonth() + 1;
+    const da = d.getUTCDate();
+    const h = d.getUTCHours();
+    const pad = (n) => String(n).padStart(2, '0');
+    return {
+        date: `${y}${pad(mo)}${pad(da)}`,
+        period: h < 12 ? 'am' : 'pm',
+        mo, da, wd: WEEKDAY[d.getUTCDay()],
+    };
+}
+
+/**
+ * 기상청 wind 문자열에서 풍속 범위만 추출.
+ *   "북동~동 / 7~11" → "7~11",  "7~11" → "7~11",  "-"/빈값 → null.
+ * @param {string} windStr
+ * @returns {string|null}
+ */
+function parseWindSpeed(windStr) {
+    if (windStr == null) return null;
+    const s = String(windStr).trim();
+    if (!s || s === '-') return null;
+    // "방향 / 속도" 형태면 마지막 '/' 뒤를 속도로 본다.
+    const slash = s.lastIndexOf('/');
+    const tail = slash >= 0 ? s.slice(slash + 1) : s;
+    const m = tail.match(/(\d+(?:\.\d+)?\s*~\s*\d+(?:\.\d+)?|\d+(?:\.\d+)?)/);
+    if (!m) return null;
+    return m[1].replace(/\s+/g, '');
+}
+
+/**
+ * 기상청 waveHeight 문자열 정규화. "0.5~1.0"/"0.5" 그대로, "-"/빈값 → null.
+ * @param {string} waveStr
+ * @returns {string|null}
+ */
+function parseWaveHeight(waveStr) {
+    if (waveStr == null) return null;
+    const s = String(waveStr).trim();
+    if (!s || s === '-') return null;
+    const m = s.match(/(\d+(?:\.\d+)?\s*~\s*\d+(?:\.\d+)?|\d+(?:\.\d+)?)/);
+    if (!m) return null;
+    return m[1].replace(/\s+/g, '');
+}
+
+/**
+ * 한 해역의 기상청 예보(periods)에서 onset 슬롯에 해당하는 풍속/파고를 뽑는다.
+ * @param {{periods?:Array, publishTime?:string}} zoneForecast
+ * @param {string} onsetISO
+ * @returns {{windSpeed:string|null, waveHeight:string|null, periodLabel:string,
+ *            publishTime:string|null}|null}  매칭/표출값 없으면 null.
+ */
+function buildKmaForecast(zoneForecast, onsetISO) {
+    if (!zoneForecast || typeof zoneForecast !== 'object') return null;
+    const periods = Array.isArray(zoneForecast.periods) ? zoneForecast.periods : [];
+    if (periods.length === 0) return null;
+
+    const slot = onsetToSlot(onsetISO);
+    if (!slot) return null;
+
+    const hit = periods.find((p) =>
+        p && String(p.date) === slot.date && p.period === slot.period);
+    if (!hit) return null;
+
+    const windSpeed = parseWindSpeed(hit.wind);
+    const waveHeight = parseWaveHeight(hit.waveHeight);
+    if (windSpeed == null && waveHeight == null) return null; // 표출할 숫자 없음
+
+    const band = slot.period === 'am' ? '오전' : '오후';
+    return {
+        windSpeed,
+        waveHeight,
+        periodLabel: `${slot.mo}/${slot.da}(${slot.wd}) ${band}`,
+        publishTime: zoneForecast.publishTime != null ? zoneForecast.publishTime : null,
+    };
+}
+
+/**
+ * predictions 배열에 교차참조(kmaForecast)를 부착한 새 배열을 반환.
+ *   - 매칭/표출값 없는 항목은 원본 객체 참조를 그대로 둔다(불필요한 복사 회피).
+ *   - 입력을 변형하지 않는다.
+ * @param {Array} predictions
+ * @param {Object} forecastMap  { zoneName: {periods, publishTime, ...} }
+ * @returns {Array}
+ */
+function enrichPredictions(predictions, forecastMap) {
+    if (!Array.isArray(predictions)) return predictions;
+    const map = (forecastMap && typeof forecastMap === 'object') ? forecastMap : {};
+    return predictions.map((p) => {
+        if (!p || typeof p !== 'object') return p;
+        const zf = map[zoneKey(p.zone)];
+        if (!zf) return p;
+        let kma = null;
+        try { kma = buildKmaForecast(zf, p.onsetISO); } catch (_) { kma = null; }
+        if (!kma) return p;
+        return Object.assign({}, p, { kmaForecast: kma });
+    });
+}
+
+/**
+ * 디스크에서 기상청 단기 해상예보(먼바다+앞바다)를 합쳐 zone→예보 맵을 만든다.
+ *   regional_forecast_collector 가 없거나 실패하면 빈 객체({})를 반환(graceful).
+ * @returns {Object} { zoneName: {periods, publishTime, ...} }
+ */
+function loadForecastMap() {
+    try {
+        const collector = require('../regional_forecast_collector');
+        const marine = (typeof collector.loadMarineForecasts === 'function')
+            ? collector.loadMarineForecasts() : {};
+        const coastal = (typeof collector.loadCoastalForecasts === 'function')
+            ? collector.loadCoastalForecasts() : {};
+        // 먼바다·앞바다 키는 서로 겹치지 않음. 합치되 먼바다 우선.
+        return Object.assign({}, coastal || {}, marine || {});
+    } catch (_) {
+        return {};
+    }
+}
+
+module.exports = {
+    onsetToSlot,
+    parseWindSpeed,
+    parseWaveHeight,
+    buildKmaForecast,
+    enrichPredictions,
+    loadForecastMap,
+};
