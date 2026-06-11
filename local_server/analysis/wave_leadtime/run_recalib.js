@@ -196,6 +196,16 @@ function renderReport(all, byOffice) {
         for (const L of leadsPresent) { const c = atLead(all, L, ruleC), n = atLead(all, L, ruleP); md += `| ${L}h(${(L / 24).toFixed(L % 24 ? 1 : 0)}일) | ${c.npos} | ${pc(c.recall)} | ${pc1(c.fp)} | ${pc(n.recall)} | ${pc1(n.fp)} |\n`; }
         md += '\n> 발효에 가까워질수록(아래로) 탐지율↑. 신방식이 같은 시점서 오탐을 낮추면 우월.\n';
     }
+
+    // ── 발표시각 기준 시점별(발표 N시간 전) — 같은 프레임에서 발표→발효 간격만큼 보정 ──
+    const aB = [['~12h(0.5일)', a => a >= 0 && a < 18], ['~24h(1일)', a => a >= 18 && a < 36], ['~48h(2일)', a => a >= 36 && a < 60], ['~72h(3일)', a => a >= 60 && a < 84], ['~96h(4일)', a => a >= 84]];
+    if (all.some(s => s.alead != null)) {
+        const atA = (set, f2, rule) => { const ss = set.filter(s => s.alead != null && f2(s.alead)); const pos = ss.filter(s => s.label), neg = ss.filter(s => !s.label); return { recall: pos.length ? pos.filter(rule).length / pos.length : null, fp: neg.length ? neg.filter(rule).length / neg.length : null, npos: pos.length }; };
+        md += '\n## 발표시각 기준 시점별 탐지/오탐 (발표 N시간 전, 운영점 고정)\n\n';
+        md += '| 발표 전 | 표본(양성) | 현재식 탐지 | 현재식 오탐 | 신방식 탐지 | 신방식 오탐 |\n|---|---|---|---|---|---|\n';
+        for (const [name, f2] of aB) { const c = atA(all, f2, ruleC), n = atA(all, f2, ruleP); md += `| ${name} | ${c.npos} | ${pc(c.recall)} | ${pc1(c.fp)} | ${pc(n.recall)} | ${pc1(n.fp)} |\n`; }
+        md += '\n> KMA 발표보다 일찍(위쪽 시점서도) 탐지할수록 선제적. 발표 후(음수 lead)는 제외.\n';
+    }
     if (byOffice) for (const code of Object.keys(byOffice).sort()) {
         md += section(`▷ ${code} 전체`, byOffice[code]);
         md += section(`▷ ${code} 2026`, byOffice[code].filter(s => s.time >= SPLIT));
@@ -212,7 +222,14 @@ function renderReport(all, byOffice) {
         const byOffice = {}; const all = [];
         for (const f of files) {
             const code = f.match(/^recalib_samples_(.+)\.json$/)[1];
-            const arr = JSON.parse(fs.readFileSync(path.join(OUT, f), 'utf8')).map(s => ({ time: new Date(s.t), label: s.label, cb: s.cb, pb: s.pb, pf: s.pf, lead: s.lead }));
+            // 발표시각 매핑: 그 청의 발효시각ms → 가장 이른 발표시각ms (발표기준 lead 유도용)
+            const region = OFFICES[code]; const annMap = new Map();
+            if (region) { for (const e of parseWarnings(CSV, { kinds: new Set(['풍랑']), actions: new Set(['발표', '변경']) }).filter(e => e.officeRegion === region && e.effectiveAt && e.announceAt && e.level === '주의보')) { const k = e.effectiveAt.getTime(), a = e.announceAt.getTime(); if (!annMap.has(k) || a < annMap.get(k)) annMap.set(k, a); } }
+            const arr = JSON.parse(fs.readFileSync(path.join(OUT, f), 'utf8')).map(s => {
+                const ann = annMap.get(s.t);
+                const alead = (ann != null && s.lead != null) ? s.lead - (s.t - ann) / 3600000 : null; // 발표 N시간 전
+                return { time: new Date(s.t), label: s.label, cb: s.cb, pb: s.pb, pf: s.pf, lead: s.lead, alead };
+            });
             byOffice[code] = arr; all.push(...arr);
         }
         console.error(`[aggregate] ${files.length}청 합산, 표본 ${all.length}`);
