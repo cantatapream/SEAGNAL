@@ -712,6 +712,10 @@
             oceanMap = new ol.Map({
                 target: 'ocean-map',
                 layers: layers,
+                // [버그수정] 터치 미세 흔들림으로 첫 탭이 '드래그(팬)'로 분류되어
+                //   'click' 이벤트가 소실되는 문제 방지. 기본 1px → 6px 로 완화하여
+                //   터치 탭이 클릭으로 안정적으로 인정되게 함. (부이/마커 첫 클릭 미표출 해결)
+                moveTolerance: 6,
                 view: new ol.View({
                     center: ol.proj.fromLonLat(DEFAULT_CENTER),
                     zoom: DEFAULT_ZOOM,
@@ -725,6 +729,11 @@
 
             // 클릭 이벤트
             oceanMap.on('click', handleMapClick);
+
+            // [임시 진단 로그 — 탭이 '드래그(팬)'로 분류되는지 확인용. 진단 끝나면 제거.]
+            oceanMap.on('movestart', function () {
+                console.log('[DIAG][movestart] 지도 이동 시작 (이 탭은 클릭이 아닌 드래그로 분류됨)');
+            });
 
             // 뷰포트 변경 시 오버레이 갱신
             oceanMap.on('moveend', function () {
