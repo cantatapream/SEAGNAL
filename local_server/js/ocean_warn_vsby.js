@@ -288,13 +288,66 @@
         return '시정 ' + lo + '~' + hiStr;
     }
 
-    /** 카드 헤더에서 해역명 추출. */
+    /**
+     * 카드 헤더에서 해역명 추출.
+     *
+     * 두 종류의 카드를 모두 지원한다(둘 다 같은 아코디언에 섞여 있을 수 있음):
+     *   (A) 해역별 특보현황 — render.js createAlertElement:
+     *        .alert-card > .alert-header > h3.zone-name > span(해역명)
+     *   (B) 해역별 기상현황 — windy.js createStatusCard:
+     *        .weather-status-card > div > div(nameRow) > span(해역명) (+ .zone-avg-box 등)
+     *
+     * (A) 는 `.zone-name span` 으로 정확히 잡히지만 (B) 는 `.zone-name` 자체가
+     * 없어 과거 구현이 빈 문자열을 반환 → 뱃지 미부착의 근본 원인이었다.
+     * 따라서 정규화 후 nameToCode 에 존재하는 텍스트를 가진 요소를 탐색하는
+     * 폴백을 둔다.
+     */
     function _zoneNameOfCard(card) {
+        // (A) 특보 카드 — .zone-name 의 첫 span(추가 정보 span 제외).
         var nameEl = card.querySelector('.zone-name');
-        if (!nameEl) return '';
-        // 첫 자식 span 이 순수 해역명 (추가 정보 span 제외).
-        var span = nameEl.querySelector('span');
-        return span ? span.textContent : nameEl.textContent;
+        if (nameEl) {
+            var span = nameEl.querySelector('span');
+            var t = (span ? span.textContent : nameEl.textContent) || '';
+            if (t && state.nameToCode && state.nameToCode[_normName(t)]) return t;
+            if (t) return t; // 매칭 안 돼도 일단 반환(상위에서 코드 없으면 skip)
+        }
+        // (B) 기상현황 카드 등 — 매칭되는 텍스트를 가진 요소를 탐색.
+        if (state.nameToCode) {
+            var nodes = card.querySelectorAll('span, h3, h4, strong, b, div');
+            for (var i = 0; i < nodes.length; i++) {
+                var node = nodes[i];
+                // 자식 요소가 또 있는 컨테이너는 건너뛰고 말단 텍스트 노드 위주로.
+                var txt = (node.textContent || '').trim();
+                if (!txt || txt.length > 40) continue;
+                if (state.nameToCode[_normName(txt)]) return txt;
+            }
+        }
+        return '';
+    }
+
+    /** 카드 안에서 뱃지를 끼워 넣을 위치(부모, 기준노드) 결정. */
+    function _badgeAnchor(card) {
+        // (A) 특보 카드: .alert-header 안, .alert-badges 앞.
+        var header = card.querySelector('.alert-header');
+        if (header) {
+            var badgeBox = header.querySelector('.alert-badges');
+            return { parent: header, before: badgeBox || null };
+        }
+        // (B) 기상현황 카드: 해역명 span 의 부모(nameRow) 끝에 부착.
+        var zname = _zoneNameOfCard(card);
+        if (zname && state.nameToCode) {
+            var nodes = card.querySelectorAll('span, h3, h4, strong, b');
+            for (var i = 0; i < nodes.length; i++) {
+                if (_normName(nodes[i].textContent || '') === _normName(zname)
+                    && state.nameToCode[_normName(zname)]) {
+                    var parent = nodes[i].parentElement || card;
+                    return { parent: parent, before: null };
+                }
+            }
+        }
+        // 폴백: 카드의 첫 번째 요소(헤더로 추정) 끝.
+        var first = card.firstElementChild || card;
+        return { parent: first, before: null };
     }
 
     /** 카드 하나에 시정 뱃지 부착 (이미 있으면 skip). */
@@ -311,10 +364,10 @@
             return;
         }
 
-        card.dataset.vsbyBadgeDone = '1';
+        var anchor = _badgeAnchor(card);
+        if (!anchor || !anchor.parent) return;
 
-        var header = card.querySelector('.alert-header');
-        if (!header) return;
+        card.dataset.vsbyBadgeDone = '1';
 
         var badge = document.createElement('button');
         badge.type = 'button';
@@ -327,10 +380,12 @@
             _onBadgeClick(code, badge);
         });
 
-        // 뱃지 컨테이너(.alert-badges) 앞에 둬서 등급 뱃지들과 함께 한 줄에.
-        var badgeBox = header.querySelector('.alert-badges');
-        if (badgeBox) header.insertBefore(badge, badgeBox);
-        else header.appendChild(badge);
+        // (A) 특보 카드: .alert-badges 앞 / (B) 기상현황 카드: nameRow 끝.
+        if (anchor.before && anchor.before.parentElement === anchor.parent) {
+            anchor.parent.insertBefore(badge, anchor.before);
+        } else {
+            anchor.parent.appendChild(badge);
+        }
 
         // 비동기로 범위 채움.
         _computeZoneSummary(code).then(function (summary) {
@@ -344,15 +399,30 @@
     }
 
     // 시정 뱃지를 부착할 아코디언 컨테이너 — 해역별 특보현황 + 해역별 기상현황.
-    //   두 곳 모두 createAlertElement(.alert-card/.zone-name/.alert-badges) 동일 구조.
+    //   특보현황: render.js createAlertElement → .alert-card
+    //   기상현황: windy.js  createStatusCard   → .weather-status-card
+    //   (두 카드의 DOM 구조가 달라서 카드 셀렉터·해역명 추출을 둘 다 지원해야 한다.)
     var BADGE_CONTAINER_IDS = ['alert-content', 'marine-status-content'];
+    var CARD_SELECTOR = '.alert-card, .weather-status-card';
 
     /** 대상 컨테이너들 내 모든 카드 스캔. */
     function _scanCards() {
         if (!state.nameToCode) return;
+        var seen = 0, attached = 0;
         for (var ci = 0; ci < BADGE_CONTAINER_IDS.length; ci++) {
-            var cards = document.querySelectorAll('#' + BADGE_CONTAINER_IDS[ci] + ' .alert-card');
-            for (var i = 0; i < cards.length; i++) _attachBadgeToCard(cards[i]);
+            var container = document.getElementById(BADGE_CONTAINER_IDS[ci]);
+            if (!container) continue;
+            var cards = container.querySelectorAll(CARD_SELECTOR);
+            for (var i = 0; i < cards.length; i++) {
+                var done = cards[i].dataset.vsbyBadgeDone === '1';
+                _attachBadgeToCard(cards[i]);
+                seen++;
+                if (!done && cards[i].querySelector('.vsby-zone-badge')) attached++;
+            }
+        }
+        if (window.__VSBY_DEBUG) {
+            console.warn('[vsby-badge] scan: cards=' + seen + ' newBadges=' + attached
+                + ' nameToCode=' + (state.nameToCode ? Object.keys(state.nameToCode).length : 0));
         }
     }
 
