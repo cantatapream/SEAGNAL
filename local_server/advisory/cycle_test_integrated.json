@@ -1,0 +1,70 @@
+{
+  "generatedAt": "2026-06-11T12:22:27.643Z",
+  "allPass": true,
+  "passCount": 5,
+  "total": 5,
+  "results": [
+    {
+      "case": "happy_path",
+      "pass": true,
+      "detail": {
+        "ok": true,
+        "activeCount": 2,
+        "suppressedCount": 1,
+        "suppressedZones": [
+          "Zx"
+        ],
+        "currentMatches": true,
+        "returnMatches": true
+      }
+    },
+    {
+      "case": "suppressedZones_mapping",
+      "pass": true,
+      "detail": {
+        "suppressedZones": [
+          "A",
+          "B"
+        ],
+        "expected": [
+          "A",
+          "B"
+        ]
+      }
+    },
+    {
+      "case": "engine_failure",
+      "pass": true,
+      "detail": {
+        "ok": false,
+        "stage": "generate",
+        "updateStateCalls": 0,
+        "error": "boom-engine"
+      }
+    },
+    {
+      "case": "suppression_fallback",
+      "pass": true,
+      "detail": {
+        "ok": true,
+        "activeCount": 3,
+        "suppressedCount": 0,
+        "predictionsFull": true,
+        "suppressedZonesEmpty": true
+      }
+    },
+    {
+      "case": "current_shape",
+      "pass": true,
+      "detail": {
+        "keys": [
+          "baseTimeKST",
+          "predictions",
+          "zoneSignals"
+        ],
+        "valueMatches": true,
+        "resolvedCount": 1
+      }
+    }
+  ]
+}
