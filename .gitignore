@@ -90,3 +90,9 @@ local_server/analysis/wave_leadtime/reports/miss_samples/
 
 # advisory 런타임 예측 산출물 (배치가 생성)
 local_server/data/advisory_prediction.json
+
+# 물빠짐 예측 — 앵커 1분 조위곡선 캐시 (tide_field_collector 가 KST 23:30 재생성,
+# Fly.io Volume에 저장). 대용량 + 매일 갱신이라 추적 제외.
+# grid_meta.json / anchors.json (build_tide_field.js 산출물) 은 추적해 "준비중"
+# 상태(빈 메타)라도 명시적으로 커밋 — 운영에서 BADA 로 재생성됨.
+local_server/data/tide_field/curves/*.json

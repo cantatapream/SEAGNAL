@@ -1364,8 +1364,11 @@ const _kmaPngFetch = require('node-fetch');
 router.get('/api/kma-png-proxy', async (req, res) => {
     try {
         const path = (req.query.path || '').trim();
-        // 보안: KMA 의 단기예보 PNG 경로만 허용 (다른 임의 경로 프록시 방지)
-        if (!path.startsWith('/resources/fct/shrt_gemd_img/')) {
+        // 보안: KMA 의 예보 PNG 경로만 허용 (다른 임의 경로 프록시 방지)
+        //   - /resources/fct/shrt_gemd_img/ : 천기(단기예보) raster
+        //   - /resources/mdl/khope/mvis/    : 시정예측(RDPS) raster
+        if (!path.startsWith('/resources/fct/shrt_gemd_img/') &&
+            !path.startsWith('/resources/mdl/khope/mvis/')) {
             return res.status(400).send('invalid path');
         }
         const upstreamUrl = 'https://marine.kma.go.kr' + path;

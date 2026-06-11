@@ -1183,6 +1183,48 @@
         /* 시간 라벨 (정오) — 제거 (사용자 요구). renderTicks() 에서 그리지 않음. */
         .shrt-fcst-tick-label.bottom { display: none; }
 
+        /* ── 물빠짐(갯벌 노출) 레이어 UI (js/tide_field.js) ───────────── */
+        .mudflat-legend .mudflat-legend-row {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+            white-space: nowrap;
+        }
+        .mudflat-legend .mudflat-legend-row + .mudflat-legend-row { margin-top: 0.25rem; }
+        .mudflat-sw {
+            display: inline-block;
+            width: 0.875rem;
+            height: 0.875rem;
+            border-radius: 0.1875rem;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .mudflat-sw-exposed { background: rgba(150, 110, 60, 0.85); }
+        .mudflat-sw-sub     { background: rgba(33, 120, 200, 0.6); }
+        /* 클릭 팝업 — 천기 점데이터 팝업과 유사 톤 */
+        .mudflat-popup {
+            position: absolute;
+            min-width: 9.5rem;
+            background: rgba(15, 25, 50, 0.95);
+            border: 1px solid rgba(120, 150, 200, 0.3);
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.75rem 0.625rem;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+            font-family: "Pretendard", sans-serif;
+            font-size: 0.75rem;
+            color: #e5edff;
+            z-index: 1200;
+            pointer-events: auto;
+        }
+        .mudflat-popup-title { font-weight: 700; margin-bottom: 0.25rem; }
+        .mudflat-popup-row { line-height: 1.5; }
+        .mudflat-popup-close {
+            position: absolute;
+            top: 0.25rem; right: 0.5rem;
+            cursor: pointer;
+            font-size: 1rem;
+            color: rgba(220, 230, 245, 0.7);
+        }
+
         /* 단기예보 범례 공통 — 어두운 남색 톤 (슬라이더 바와 동일 색상) */
         .shrt-fcst-legend {
             position: absolute;
@@ -1352,6 +1394,259 @@
             font-size: 0.8125rem;
             text-align: center;
         }
+
+        /* ════════════════════════════════════════════════════════════
+           시정예측(KMA RDPS) 오버레이 스타일 — 천기 스타일을 그대로 복제.
+           [연계] js/vsby_forecast_layer.js
+           천기와 동일 위치(슬라이더/범례)·디자인이라 클래스만 vsby-* 로 분리. */
+        .vsby-fcst-slider-bar {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: calc(var(--main-tab-height, 68px) - env(safe-area-inset-bottom, 0px));
+            z-index: 1200;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(15, 25, 50, 0.92);
+            backdrop-filter: blur(2px);
+            border-top: 1px solid rgba(120, 150, 200, 0.25);
+            padding: 0 0.875rem;
+            height: 2.25rem;
+            box-sizing: border-box;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.35);
+        }
+        .vsby-fcst-play-btn {
+            flex: 0 0 auto;
+            width: 1.75rem;
+            height: 1.75rem;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            background: rgba(255, 255, 255, 0.92);
+            color: #1f2937;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.6875rem;
+            padding: 0;
+        }
+        .vsby-fcst-play-btn:hover { background: #ffffff; }
+        .vsby-fcst-play-btn.playing { color: #2563eb; }
+        .vsby-fcst-slider-wrap {
+            position: relative;
+            flex: 1 1 auto;
+            min-width: 0;
+            height: 100%;
+        }
+        .vsby-fcst-slider {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            left: 0; right: 0;
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            background: transparent;
+            border-radius: 2px;
+            outline: none;
+            margin: 0;
+        }
+        .vsby-fcst-slider::-webkit-slider-runnable-track { background: transparent; height: 4px; }
+        .vsby-fcst-slider::-moz-range-track { background: transparent; height: 4px; }
+        .vsby-fcst-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #60a5fa;
+            border: 2px solid #ffffff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+            cursor: pointer;
+            margin-top: -6px;
+        }
+        .vsby-fcst-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #60a5fa;
+            border: 2px solid #ffffff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+            cursor: pointer;
+        }
+        .vsby-fcst-tooltip {
+            position: absolute;
+            top: -1.375rem;
+            background: #ffffff;
+            color: #111827;
+            padding: 0.1875rem 0.5625rem;
+            border-radius: 0.25rem;
+            font-family: "Pretendard", sans-serif;
+            font-size: 0.6875rem;
+            font-weight: 700;
+            white-space: nowrap;
+            pointer-events: none;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            z-index: 2;
+            opacity: 1;
+            transition: opacity 1s ease;
+        }
+        .vsby-fcst-slider-bar.tooltip-suppressed .vsby-fcst-tooltip { opacity: 0; }
+        .vsby-fcst-tooltip::after {
+            content: '';
+            position: absolute;
+            left: var(--vsby-arrow-x, 50%);
+            top: 100%;
+            transform: translateX(-50%);
+            border: 0.25rem solid transparent;
+            border-top-color: #ffffff;
+            filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.08));
+        }
+        .vsby-fcst-ticks {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+        .vsby-fcst-tick {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 1px;
+            background: rgba(220, 230, 245, 0.40);
+        }
+        .vsby-fcst-tick.minor { height: 4px; }
+        .vsby-fcst-tick.major { height: 8px; background: rgba(220, 230, 245, 0.85); }
+        .vsby-fcst-tick-label {
+            position: absolute;
+            transform: translateX(-50%);
+            color: rgba(220, 230, 245, 0.85);
+            font-family: "Pretendard", sans-serif;
+            font-size: 0.625rem;
+            line-height: 1;
+            white-space: nowrap;
+            font-weight: 600;
+        }
+        .vsby-fcst-tick-label.top { bottom: calc(50% + 6px); }
+        .vsby-fcst-tick-label.bottom { display: none; }
+
+        /* 시정 범례 — 천기 gradient 범례와 동일 (화면 폭 풀너비, 슬라이더 상단 밀착) */
+        .vsby-fcst-legend {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: calc(var(--main-tab-height, 68px) - env(safe-area-inset-bottom, 0px) + 2.25rem);
+            z-index: 1100;
+            background: rgba(15, 25, 50, 0.92);
+            backdrop-filter: blur(2px);
+            border-top: 1px solid rgba(120, 150, 200, 0.25);
+            padding: 0.375rem 0.875rem 0.4375rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+            font-family: "Pretendard", sans-serif;
+            font-size: 0.6875rem;
+            color: #e5edff;
+            user-select: none;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.1875rem;
+        }
+        .vsby-fcst-legend .vsby-fcst-legend-loading {
+            font-size: 0.75rem;
+            color: #c5d0e5;
+            padding: 0.125rem 0.25rem;
+            font-style: italic;
+        }
+        .vsby-fcst-grad-bar {
+            display: flex;
+            width: 100%;
+            height: 0.625rem;
+            border: 1px solid rgba(255, 255, 255, 0.20);
+            border-radius: 0.125rem;
+            overflow: hidden;
+        }
+        .vsby-fcst-grad-block { flex: 1 1 0; height: 100%; }
+        .vsby-fcst-grad-labels {
+            position: relative;
+            width: 100%;
+            height: 0.625rem;
+            font-size: 0.5625rem;
+            color: #e5edff;
+            line-height: 1;
+        }
+        .vsby-fcst-grad-labels span {
+            position: absolute;
+            top: 0;
+            white-space: nowrap;
+        }
+
+        /* 시정 클릭 팝업 (.vsby-fcst-point-box) — 천기 팝업과 동일 패턴 */
+        .vsby-fcst-point-box {
+            position: absolute;
+            z-index: 1300;
+            min-width: 11rem;
+            max-width: calc(100vw - 1rem);
+            background: rgba(15, 25, 50, 0.96);
+            backdrop-filter: blur(2px);
+            border: 1px solid rgba(120, 150, 200, 0.30);
+            border-radius: 0.5rem;
+            box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.45);
+            color: #e5edff;
+            font-family: "Pretendard", sans-serif;
+            font-size: 0.8125rem;
+            line-height: 1.4;
+            user-select: none;
+        }
+        .vsby-fcst-point-box-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0.5rem 0.625rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+        .vsby-fcst-point-box-close {
+            background: transparent;
+            border: none;
+            color: #c5d0e5;
+            font-size: 1.125rem;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0 0.25rem;
+        }
+        .vsby-fcst-point-box-close:hover { color: #ffffff; }
+        .vsby-fcst-point-box-body {
+            padding: 0.5rem 0.625rem 0.625rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        .vsby-fcst-point-row {
+            display: flex;
+            gap: 0.5rem;
+            align-items: baseline;
+        }
+        .vsby-fcst-point-row-label {
+            color: #b0bdd9;
+            min-width: 3rem;
+            font-size: 0.75rem;
+        }
+        .vsby-fcst-point-row-value {
+            color: #f0f5ff;
+            font-weight: 500;
+        }
+        .vsby-fcst-point-loading {
+            padding: 0.75rem 0.625rem;
+            color: #b0bdd9;
+            font-size: 0.8125rem;
+            text-align: center;
+        }
+        /* ════════════════════════════════════════════════════════════ */
+
         /* OpenStreetMap 저작권 출처표기 — 좌측 하단 고정·상시 노출 (ODbL 준수) */
         /* 하단 메인 탭바(+서브탭바)에 가려지지 않도록 탭 높이만큼 위로 띄움 */
         .ol-attribution {
@@ -2471,6 +2766,15 @@
                             <i class="fa-solid fa-table-cells"></i>
                             <span class="ocean-overlay-label" data-line1="해구">해구도</span>
                         </button>
+                        <!-- 물빠짐 토글: js/tide_field.js 가 바인딩 (서해·남해 한정).
+                             ON 시 /api/tide-field?time= 로 그 시각의 갯벌 노출/잠김 2색 벡터 레이어 표출 +
+                             하단 시간 슬라이더(앞으로 3일, 30분 간격) + 재생.
+                             [데이터] grid_meta.json(build_tide_field.js) + 앵커 곡선(tide_field_collector)
+                             [물리] 물깊이=수심d+조위η−Z₀, 드러남=η<Z₀−d. 동해·제주 미표출. -->
+                        <button class="ocean-overlay-btn" id="ocean-mudflat-toggle-btn" title="물빠짐 (서해·남해 갯벌 노출)">
+                            <i class="fa-solid fa-water"></i>
+                            <span class="ocean-overlay-label" data-line1="물빠짐">물빠짐</span>
+                        </button>
                         <!-- 천기 토글: js/shrt_forecast_layer.js 가 바인딩 (이전 이름: "기타 기상")
                              클릭 시 좌측으로 5개 단기예보 서브버튼 팝아웃
                              (강수확률·강수량·적설·하늘상태·강수형태) — 하나 선택 시 팝아웃이 접히면서
@@ -2508,6 +2812,14 @@
                                 <button class="ocean-overlay-btn ocean-other-wx-item" data-shrt="tmp" title="기온">
                                     <i class="fa-solid fa-temperature-half"></i>
                                     <span class="ocean-overlay-label" data-line1="기온">기온</span>
+                                </button>
+                                <!-- 7번째 — 시정예측 (KMA RDPS): 천기 팝아웃의 하위버튼으로 편입.
+                                     data-shrt 없음 → 천기(shrt) 아이템 핸들러는 무시(return)하고 팝아웃만 닫음.
+                                     실제 동작은 js/vsby_forecast_layer.js 가 #ocean-vsby-toggle-btn 클릭을 바인딩하여 처리.
+                                     [데이터] marine.kma.go.kr/mmis_marine_api/v1/kma/mdl/rdps/imgList -->
+                                <button class="ocean-overlay-btn ocean-other-wx-item" id="ocean-vsby-toggle-btn" title="시정예측">
+                                    <i class="fa-solid fa-smog"></i>
+                                    <span class="ocean-overlay-label" data-line1="시정" data-line2="예측">시정예측</span>
                                 </button>
                             </div>
                         </div>
@@ -2767,6 +3079,43 @@
                          [위치] 지도 컨테이너 우측 하단 (특보 범례와 동일 좌표 — 동시 표출 안 함)
                          [내용] 활성 shrtType 에 따라 색상-라벨 매트릭스 (sky=3종, pty=4종 등) -->
                     <div id="shrt-fcst-legend" class="warn-active-legend shrt-fcst-legend" style="display:none;" aria-hidden="true"></div>
+
+                    <!-- 물빠짐 시간 슬라이더 + 재생 (js/tide_field.js 가 제어)
+                         [표출 조건] 물빠짐 레이어 ON 시 display:'flex'
+                         [범위] 오늘~+2일(KST), 30분 간격. 핸들 위 말풍선에 절대 시각 표시.
+                         shrt 슬라이더와 동일 디자인 클래스를 재사용. -->
+                    <div id="mudflat-slider-bar" class="shrt-fcst-slider-bar" style="display:none;" aria-hidden="true">
+                        <button id="mudflat-play-btn" class="shrt-fcst-play-btn" type="button" title="재생/일시정지">
+                            <i class="fa-solid fa-play"></i>
+                        </button>
+                        <div class="shrt-fcst-slider-wrap">
+                            <div class="shrt-fcst-tooltip" id="mudflat-tooltip"></div>
+                            <input type="range" class="shrt-fcst-slider" id="mudflat-slider" min="0" max="0" value="0" step="1">
+                            <div class="shrt-fcst-ticks" id="mudflat-ticks"></div>
+                        </div>
+                    </div>
+                    <!-- 물빠짐 범례 (특보 ON 범례와 동일 디자인) -->
+                    <div id="mudflat-legend" class="warn-active-legend shrt-fcst-legend mudflat-legend" style="display:none;" aria-hidden="true"></div>
+                    <!-- 시정예측(KMA RDPS) 시간 슬라이더 + 재생버튼
+                         [표출 조건] js/vsby_forecast_layer.js 가 레이어 ON 시 display:'' 로 표출
+                         [위치] 지도 컨테이너 하단 가운데 (메인 탭바 위 — 천기 슬라이더와 동일 좌표)
+                         [연계] js/vsby_forecast_layer.js
+                         초기 슬라이더 max=0 — 데이터 수신 후 동적 갱신 -->
+                    <div id="vsby-fcst-slider-bar" class="vsby-fcst-slider-bar" style="display:none;" aria-hidden="true">
+                        <button id="vsby-fcst-play-btn" class="vsby-fcst-play-btn" type="button" title="재생/일시정지">
+                            <i class="fa-solid fa-play"></i>
+                        </button>
+                        <div class="vsby-fcst-slider-wrap">
+                            <div class="vsby-fcst-tooltip" id="vsby-fcst-tooltip"></div>
+                            <input type="range" class="vsby-fcst-slider" id="vsby-fcst-slider" min="0" max="0" value="0" step="1">
+                            <div class="vsby-fcst-ticks" id="vsby-fcst-ticks"></div>
+                        </div>
+                    </div>
+
+                    <!-- 시정예측 범례 (천기 gradient 범례와 동일 디자인 — km 단계 색상바)
+                         [표출 조건] js/vsby_forecast_layer.js 가 레이어 ON 시 표출
+                         [연계] js/vsby_forecast_layer.js -->
+                    <div id="vsby-fcst-legend" class="warn-active-legend vsby-fcst-legend" style="display:none;" aria-hidden="true"></div>
                 </div>
 
                 <!--
@@ -3293,28 +3642,15 @@
                             <i class="fa-solid fa-location-dot"></i>
                             <span id="mudflat-bs-place-name">-</span>
                         </div>
-                        <div class="fishing-bs-total-index" id="mudflat-bs-total-index">
-                            <!-- JS에서 그 날짜의 대표 지수 배지 렌더링 -->
-                        </div>
+                        <span class="life-publish-time" id="mudflat-bs-publish" style="margin-left:auto;margin-right:10px;font-size:0.78rem;"></span>
                         <button class="fishing-bs-close" id="mudflat-bs-close" title="닫기">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
                     </div>
 
-                    <!-- 날짜 네비게이션 -->
-                    <div class="fishing-bs-date-nav">
-                        <button class="fishing-bs-date-btn" id="mudflat-date-prev" title="이전 날짜">
-                            <i class="fa-solid fa-chevron-left"></i>
-                        </button>
-                        <span class="fishing-bs-date-label" id="mudflat-bs-date-label">-</span>
-                        <button class="fishing-bs-date-btn" id="mudflat-date-next" title="다음 날짜">
-                            <i class="fa-solid fa-chevron-right"></i>
-                        </button>
-                    </div>
-
-                    <!-- 예보 데이터 영역 (그 날짜의 체험시간 구간 목록 — JS 렌더링) -->
+                    <!-- 예보 데이터 영역 (수집된 전체 날짜의 체험시간/지수 표 — JS 렌더링) -->
                     <div class="fishing-bs-content" id="mudflat-bs-content">
-                        <!-- 체험시간/기온/날씨/체험지수 카드가 JS로 렌더링됨 -->
+                        <!-- 날짜별 체험시간/기온/날씨/체험지수 표가 JS로 렌더링됨 -->
                     </div>
                 </div>
 
@@ -3584,7 +3920,8 @@
             <button class="sub-tab-btn" data-target="scuba-section">스킨스쿠버</button>
             <button class="sub-tab-btn" data-target="mudflat-section">갯벌체험</button>
             <button class="sub-tab-btn" data-target="sea-parting-section">바다갈라짐</button>
-            <button class="sub-tab-btn" data-target="ripcurrent-section">이안류</button>
+            <!-- [임시 숨김] 이안류 탭 — 테스트 중이라 사용자 미노출. 공개 시 style 제거. -->
+            <button class="sub-tab-btn" data-target="ripcurrent-section" style="display:none;">이안류</button>
         </nav>
 
         <!-- 메인탭 바 (화면 하단 고정)
@@ -3729,6 +4066,11 @@
     <script src="js/ocean_timeline.js"></script>
     <!-- 천기 (KMA 단기예보 PNG 오버레이): 토글 버튼 + 5개 서브버튼 + 슬라이더/재생 + 범례 + 클릭 팝업 -->
     <script src="js/shrt_forecast_layer.js"></script>
+    <!-- 물빠짐 (서해·남해 갯벌 노출 예측): 토글 버튼 + 시간 슬라이더/재생 + 2색 벡터 레이어 + 클릭 팝업
+         (의존: ocean_map.js 의 window.__getOceanMap, /api/tide-field) -->
+    <script src="js/tide_field.js"></script>
+    <!-- 시정예측 (KMA RDPS 시정/안개 PNG 오버레이): 토글 버튼 + 슬라이더/재생 + 범례 + 클릭 팝업 (천기 메커니즘 복제) -->
+    <script src="js/vsby_forecast_layer.js"></script>
 
     <script src="js/admin_trigger.js"></script>
     <script src="js/image_compress.js"></script>

@@ -257,6 +257,72 @@ router.get('/api/ocean/khoa-wms', async (req, res) => {
 });
 
 // ============================================================================
+// 연안침식(연안포털) CCTV 이미지 프록시
+// ============================================================================
+// 연안포털(coast.mof.go.kr) 카메라 이미지는 포털이 HTTP/사설망 프록시 체인
+// (proxy.jsp → 10.176.62.134:9001/tilemapApi.do → 220.95.232.18/camera)을 거쳐
+// 보여준다. 이 체인을 HTTPS 앱에서 <img> 로 직접 로드하면 mixed-content 로 차단되고,
+// 서버에서 바깥 호스트(coast.mof.go.kr)로 대신 받으려 해도 해외/DC IP 는
+// ECONNRESET 으로 끊긴다.
+//
+// → 해결: 체인을 건너뛰고 실제 이미지가 있는 카메라 호스트(공인 IP 220.95.232.18)로
+//   서버가 직접 받아 이미지 바이트만 같은 출처(HTTPS)로 전달한다. 이 호스트는
+//   Fly 에서 직접 도달 가능함을 확인했다(2026-06).
+//
+// GET /api/ocean/coastal-cctv-image/:beach/:cam
+//   - frontend(cctv1.js coastal.imageBaseUrl)가 이 경로를 <img> src 로 쓰고,
+//     끝에 ?{timestamp} 를 붙여 3초마다 갱신한다.
+router.get('/api/ocean/coastal-cctv-image/:beach/:cam', async (req, res) => {
+    // 경로 파라미터는 숫자만 허용 (URL 템플릿 고정 → SSRF 방지)
+    const beach = parseInt(req.params.beach, 10);
+    const cam = parseInt(req.params.cam, 10);
+    if (!Number.isInteger(beach) || !Number.isInteger(cam)) {
+        return res.status(400).send('bad params');
+    }
+
+    // 카메라 호스트로 직접 호출(공공망과 동일하게 http). 바깥 포털 호스트는
+    //   Fly 에서 TLS reset 되지만 이 카메라 호스트는 직접 도달 가능.
+    const upstream = 'http://220.95.232.18/camera/' + beach + '_' + cam + '.jpg';
+
+    try {
+        const fetchFn = global.fetch || require('node-fetch');
+        const r = await fetchFn(upstream, {
+            redirect: 'follow',
+            headers: {
+                'Referer': 'https://coast.mof.go.kr/coastScene/coastMediaService.do',
+                'User-Agent': 'Mozilla/5.0'
+            }
+        });
+
+        if (!r.ok) {
+            return res.status(r.status).send('upstream error ' + r.status);
+        }
+
+        const ct = r.headers.get('content-type') || '';
+        const buf = Buffer.from(await r.arrayBuffer());
+
+        // 업스트림이 이미지가 아니라 HTML(에러/안내 페이지)을 주면 502 로 변환해
+        // 프론트의 onerror 가 "이미지를 불러올 수 없습니다" 를 띄우게 한다.
+        if (!/^image\//i.test(ct)) {
+            console.warn('[coastal-cctv proxy] non-image', beach, cam, 'ct=', ct, 'len=', buf.length);
+            return res.status(502).send('not an image: ct=' + ct + ' len=' + buf.length);
+        }
+
+        res.set('Content-Type', ct);
+        // 이미지는 3초마다 갱신되므로 짧게만 캐시 (과캐시 방지)
+        res.set('Cache-Control', 'public, max-age=2');
+        res.send(buf);
+    } catch (e) {
+        // 카메라 호스트 도달 실패(reset/timeout 등). 원인은 서버 로그로만 남기고
+        //   프론트에는 502 만 주어 onerror 가 안내 문구를 띄우게 한다.
+        const cause = e && e.cause;
+        const detail = (cause && (cause.code || cause.message)) || (e && (e.code || e.message)) || 'unknown';
+        console.error('[coastal-cctv proxy] fetch 예외:', e && e.message, '| cause=', detail);
+        res.status(502).send('proxy error');
+    }
+});
+
+// ============================================================================
 // KHOA 해아름 dynamic-stream-vector 프록시 + 메모리 캐시
 // ============================================================================
 //
