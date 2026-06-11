@@ -609,21 +609,119 @@
     }
 
     function _onBadgeClick(code, badge) {
-        // 이미 같은 구역이 켜져 있으면 토글 OFF.
-        if (state.activeCode === code) {
-            _removeLayer();
-            _refreshBadgeActiveState();
-            return;
-        }
-        // 시정예측 raster 가 켜져 있으면 충돌 방지 차원에서 끔(선택적).
-        _drawZone(code).then(function () {
-            _refreshBadgeActiveState();
-        }).catch(function (e) {
-            console.warn('[vsby-badge] 폴리곤 표시 실패:', e && e.message);
+        if (state.activeCode === code) { _closePopup(); return; }
+        _showZonePopup(code).catch(function (e) {
+            console.warn('[vsby-badge] 시정 팝업 실패:', e && e.message);
+            _closePopup();
             if (typeof window._showOceanToast === 'function') {
                 window._showOceanToast('시정 정보를 표시할 수 없습니다.', 'bottom', 1800, false);
             }
         });
+    }
+
+    // 특보구역 소해구 색칠 feature 빌드 (현재시각 기준).
+    function _buildZoneFeatures(code) {
+        return Promise.all([_loadParentBoxes(), _loadZoneCells(code)]).then(function (res) {
+            var parentBox = res[0];
+            var cells = res[1].cells || {};
+            var pick = _pickNearestTimeIndex(cells);
+            var meta = state.gridMap[code];
+            var smallZones = (meta && meta.smallZones) || Object.keys(cells);
+            var features = [];
+            if (pick) {
+                for (var i = 0; i < smallZones.length; i++) {
+                    var parts = _splitCellKey(smallZones[i]);
+                    if (!parts) continue;
+                    var box = parentBox[parts.parent];
+                    if (!box) continue;
+                    var rawV = _valueAt(cells[smallZones[i]], pick.index, pick.t);
+                    if (rawV == null) continue;
+                    var v = _clamp(rawV);
+                    var feat = new ol.Feature({ geometry: new ol.geom.Polygon([_ringTo3857(_subRing(box, parts.sub))]) });
+                    feat.set('vsbyV', v);
+                    feat.set('vsbyColor', VSBY_STOPS[_bucketIndex(v)].color);
+                    feat.set('vsbyLabel', _fmtKm(v));
+                    features.push(feat);
+                }
+            }
+            return { features: features, meta: meta, time: pick && pick.t };
+        });
+    }
+
+    function _legendHTML() {
+        var h = '<span class="vsby-pop-legend-label">시정(km)</span>';
+        for (var i = 0; i < VSBY_STOPS.length; i++) {
+            h += '<span class="vsby-pop-chip" style="background:' + VSBY_STOPS[i].color + '" title="' + VSBY_STOPS[i].v + 'km"></span>';
+        }
+        h += '<span class="vsby-pop-legend-sub">≤10km 색 / &gt;10km 투명</span>';
+        return h;
+    }
+
+    // [팝업] viewBox 영역을 크롭한 자체 ol.Map 에 소해구 색칠 표출.
+    //   해양종합정보 탭의 지도(__getOceanMap)에 의존하지 않으므로 어느 탭에서도 동작.
+    function _showZonePopup(code) {
+        if (typeof ol === 'undefined') return Promise.reject(new Error('ol 없음'));
+        return _buildZoneFeatures(code).then(function (built) {
+            _closePopup();
+            var meta = built.meta || {};
+            var overlay = document.createElement('div');
+            overlay.className = 'vsby-pop-overlay';
+            overlay.addEventListener('click', function (e) { if (e.target === overlay) _closePopup(); });
+            var boxEl = document.createElement('div');
+            boxEl.className = 'vsby-pop-box';
+            boxEl.addEventListener('click', function (e) { e.stopPropagation(); });
+            var head = document.createElement('div');
+            head.className = 'vsby-pop-head';
+            head.innerHTML = '<span class="vsby-pop-title">' + (meta.name || code) + ' · 시정</span>'
+                + '<span class="vsby-pop-time">' + (built.time || '') + '</span>';
+            var closeBtn = document.createElement('button');
+            closeBtn.type = 'button'; closeBtn.className = 'vsby-pop-close'; closeBtn.textContent = '×';
+            closeBtn.addEventListener('click', _closePopup);
+            head.appendChild(closeBtn);
+            var mapDiv = document.createElement('div');
+            mapDiv.className = 'vsby-pop-map';
+            var legend = document.createElement('div');
+            legend.className = 'vsby-pop-legend';
+            legend.innerHTML = _legendHTML();
+            boxEl.appendChild(head); boxEl.appendChild(mapDiv); boxEl.appendChild(legend);
+            overlay.appendChild(boxEl);
+            document.body.appendChild(overlay);
+            state.popupEl = overlay;
+
+            var vLayer = new ol.layer.Vector({
+                source: new ol.source.Vector({ features: built.features }),
+                style: _cellStyleFn, zIndex: 5
+            });
+            var layers = [];
+            // 베이스맵(OSM) — 빌드에 없으면 가드해 벡터만 표시(팝업 자체는 항상 뜸).
+            try { if (ol.source && ol.source.OSM) layers.push(new ol.layer.Tile({ source: new ol.source.OSM(), opacity: 0.9 })); } catch (e) {}
+            layers.push(vLayer);
+            var map = new ol.Map({
+                target: mapDiv,
+                layers: layers,
+                view: new ol.View({ projection: 'EPSG:3857', center: ol.proj.fromLonLat([128, 36]), zoom: 6 })
+            });
+            state.popupMap = map;
+            setTimeout(function () {
+                try { map.updateSize(); } catch (e) {}
+                if (meta && Array.isArray(meta.viewBox) && meta.viewBox.length === 4) _fitToExtentLonLat(map, meta.viewBox);
+                else if (built.features.length) _fitToFeatures(map, vLayer.getSource());
+            }, 40);
+            if (!built.features.length) {
+                var em = document.createElement('div'); em.className = 'vsby-pop-empty'; em.textContent = '시정 데이터 없음';
+                mapDiv.appendChild(em);
+            }
+            state.activeCode = code;
+            _refreshBadgeActiveState();
+        });
+    }
+
+    function _closePopup() {
+        if (state.popupMap) { try { state.popupMap.setTarget(null); } catch (e) {} state.popupMap = null; }
+        if (state.popupEl && state.popupEl.parentNode) state.popupEl.parentNode.removeChild(state.popupEl);
+        state.popupEl = null;
+        state.activeCode = null;
+        _refreshBadgeActiveState();
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -648,7 +746,28 @@
             + '}'
             + '.vsby-zone-badge.active{'
             +   'background:rgba(31,182,214,0.55);border-color:#1fb6d6;color:#fff;'
-            + '}';
+            + '}'
+            // ── 시정 팝업(자체 미니 해구도) ──
+            + '.vsby-pop-overlay{position:fixed;inset:0;z-index:11000;background:rgba(0,0,0,0.55);'
+            +   'display:flex;align-items:center;justify-content:center;padding:16px;}'
+            + '.vsby-pop-box{width:min(92vw,560px);max-height:88vh;display:flex;flex-direction:column;'
+            +   'background:#0f1722;border:1px solid #243246;border-radius:12px;overflow:hidden;'
+            +   'box-shadow:0 12px 40px rgba(0,0,0,0.5);}'
+            + '.vsby-pop-head{display:flex;align-items:center;gap:8px;padding:12px 14px;'
+            +   'background:#16202f;border-bottom:1px solid #243246;}'
+            + '.vsby-pop-title{font-size:0.95rem;font-weight:700;color:#eaf2fb;}'
+            + '.vsby-pop-time{font-size:0.72rem;color:#8aa0bf;}'
+            + '.vsby-pop-close{margin-left:auto;width:28px;height:28px;border-radius:6px;border:0;'
+            +   'background:#243246;color:#cdd9ea;font-size:18px;line-height:1;cursor:pointer;}'
+            + '.vsby-pop-close:hover{background:#2f4259;}'
+            + '.vsby-pop-map{position:relative;width:100%;height:min(60vh,420px);background:#16202f;}'
+            + '.vsby-pop-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;'
+            +   'color:#8aa0bf;font-size:0.85rem;}'
+            + '.vsby-pop-legend{display:flex;align-items:center;gap:3px;flex-wrap:wrap;padding:8px 12px;'
+            +   'background:#0f1722;border-top:1px solid #243246;}'
+            + '.vsby-pop-legend-label{font-size:0.72rem;color:#aebfd6;margin-right:4px;}'
+            + '.vsby-pop-chip{width:13px;height:13px;border-radius:2px;display:inline-block;}'
+            + '.vsby-pop-legend-sub{font-size:0.68rem;color:#7d8ea8;margin-left:6px;}';
         document.head.appendChild(st);
     }
 
@@ -700,7 +819,7 @@
 
     // 외부 디버깅/연동용 최소 API.
     window.OceanWarnVsby = {
-        clear: function () { _removeLayer(); _refreshBadgeActiveState(); },
+        clear: function () { _closePopup(); },
         rescan: _scanCards
     };
 
