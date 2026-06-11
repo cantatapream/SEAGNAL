@@ -730,11 +730,6 @@
             // 클릭 이벤트
             oceanMap.on('click', handleMapClick);
 
-            // [임시 진단 로그 — 탭이 '드래그(팬)'로 분류되는지 확인용. 진단 끝나면 제거.]
-            oceanMap.on('movestart', function () {
-                console.log('[DIAG][movestart] 지도 이동 시작 (이 탭은 클릭이 아닌 드래그로 분류됨)');
-            });
-
             // 뷰포트 변경 시 오버레이 갱신
             oceanMap.on('moveend', function () {
                 if (window.oceanOverlayRefresh) {
@@ -924,9 +919,6 @@
         const coord = ol.proj.toLonLat(evt.coordinate);
         const lon = coord[0];
         const lat = coord[1];
-
-        // [임시 진단 로그 — 부이 첫 클릭 미표출 원인 추적용. 진단 끝나면 제거.]
-        console.log('[DIAG][mapclick] fired px=', evt.pixel, 'lonlat=', lon.toFixed(4), lat.toFixed(4));
 
         // 태풍 말풍선/팝업 위 클릭은 지도(바텀시트) 처리에서 제외 — 말풍선 자체 핸들러가 처리.
         //   (말풍선 오버레이는 stopEvent:false 라 지도 드래그/줌은 통과하되, 클릭은 여기서 무시)

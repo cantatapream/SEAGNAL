@@ -428,11 +428,7 @@
      * @returns {boolean} 처리했으면 true (다른 핸들러가 더 처리하지 않도록)
      */
     function _handleCctvClick(map, evt) {
-        if (!_cctvActive || !_cctvLayer) {
-            // [임시 진단 로그 — CCTV 클릭 미반응 원인 추적용. 진단 끝나면 제거.]
-            console.log('[DIAG][cctv] skip active=', _cctvActive, 'layer=', !!_cctvLayer);
-            return false;
-        }
+        if (!_cctvActive || !_cctvLayer) return false;
 
         // 후보 중 가장 가까운 피처 선택 (밀집 구역 오인식 방지)
         var candidates = [];
@@ -447,16 +443,6 @@
             candidates.push({ feature: feature, dist: Math.sqrt(dx * dx + dy * dy) });
         }, { hitTolerance: 30 });  // 모바일 손가락 탭 오차 보정 — CCTV 아이콘이 작아 부이보다 크게 잡음
 
-        // [임시 진단 로그 — CCTV 클릭 미반응 원인 추적용. 진단 끝나면 제거.]
-        try {
-            var _src = _cctvLayer.getSource();
-            var _srcN = _src ? _src.getFeatures().length : -1;
-            var _nd = candidates.length
-                ? Math.round(candidates.slice().sort(function (a, b) { return a.dist - b.dist; })[0].dist)
-                : null;
-            console.log('[DIAG][cctv] candidates=', candidates.length, 'srcFeatures=', _srcN, 'nearestDist=', _nd);
-        } catch (e) {}
-
         if (candidates.length === 0) return false;
 
         candidates.sort(function (a, b) { return a.dist - b.dist; });
@@ -465,7 +451,7 @@
         if (typeof window.showCctvPopup === 'function') {
             // [사용량] CCTV 아이콘 클릭으로 팝업이 켜질 때만 +1
             if (window.trackUsage) window.trackUsage('ocean.cctv_open');
-            try { window.showCctvPopup({
+            window.showCctvPopup({
                 cctvId:       f.get('cctvId'),
                 name:         f.get('name'),
                 subtitle:     f.get('subtitle'),
@@ -477,7 +463,7 @@
                 sensorName:   f.get('sensorName') || null,
                 cameraCount:  f.get('cameraCount')|| 1,
                 obsName:      f.get('obsName')    || null
-            }); } catch (_e) { console.error('[DIAG][cctv] showCctvPopup threw:', _e); }
+            });
         }
         return true;
     }

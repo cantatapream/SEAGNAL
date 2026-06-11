@@ -175,11 +175,8 @@ function handleCctvMapClick(event) {
  * @param {Object} data — { cctvId, name, subtitle, providerKey, providerName, shareUrl, streamUrl }
  */
 function showCctvPopup(data) {
-    // [임시 진단 로그 — CCTV 팝업 미표출 원인 추적용. 진단 끝나면 제거.]
-    var _prov = (window.CCTV_PROVIDERS && data) ? window.CCTV_PROVIDERS[data.providerKey] : null;
-    console.log('[DIAG][cctvpopup] called providerKey=', data && data.providerKey, 'type=', _prov ? _prov.type : '(provider없음)', 'streamUrl=', !!(data && data.streamUrl), 'shareUrl=', data && data.shareUrl, 'cctvId=', data && data.cctvId);
     const backdrop = document.getElementById('cctv-modal-backdrop');
-    if (!backdrop) { console.log('[DIAG][cctvpopup] #cctv-modal-backdrop 없음 → return (팝업 미표출)'); return; }
+    if (!backdrop) return;
 
     // 현재 팝업 데이터를 전역에 저장 (즐겨찾기 토글 시 사용)
     _currentCctvData = data;
@@ -426,7 +423,6 @@ function showCctvPopup(data) {
     `;
 
     // 모달 표시 (display: flex → 화면 중앙에 배치)
-    console.log('[DIAG][cctvpopup] 끝까지 도달 → display:flex 설정 (팝업 표시되어야 정상)');
     backdrop.style.display = 'flex';
     // [버그수정] 합성 click 관통 가드 기준 시각 기록 (closeCctvPopup 에서 사용)
     _cctvPopupOpenedAt = Date.now();
@@ -752,13 +748,7 @@ function closeCctvPopup() {
     //   click 이 전체화면 오버레이에 떨어져) 즉시 닫히는 것을 방지. 열린 지
     //   350ms 이내의 닫기 요청은 무시한다. 정상적인 '바깥 클릭/닫기 버튼' 은
     //   항상 그 이후라 영향 없음.
-    if (Date.now() - _cctvPopupOpenedAt < 350) {
-        console.log('[DIAG][cctvpopup] close 무시됨 (' + (Date.now() - _cctvPopupOpenedAt) + 'ms) — 합성 click 가드 동작');
-        return;
-    }
-    // [임시 진단 로그 — 팝업이 열리자마자 닫히는지 추적용. 진단 끝나면 제거.]
-    console.log('[DIAG][cctvpopup] closeCctvPopup 호출됨 (누가 닫는지 ↓ 스택)');
-    console.trace('[DIAG][cctvpopup] close stack');
+    if (Date.now() - _cctvPopupOpenedAt < 350) return;
 
     // iframe 스트림 즉시 중단 (KBS 방식)
     const iframe = backdrop.querySelector('iframe');
