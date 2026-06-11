@@ -346,9 +346,9 @@ const TIDE_FIELD_CONFIG = {
     INTERP_MAX_ANCHORS: 4,
     // 수집/예측 윈도우 (오늘 ~ +N일). 3일.
     WINDOW_DAYS: 3,
-    // 예측 step (분). 서해 갯벌은 빠르게 들고 나서(중간조 ~1.5m/h), 1시간 간격이면
-    //   빠른 전환을 건너뛰어 "1시간 만에 급변"처럼 보인다 → 30분으로 촘촘히.
-    STEP_MINUTES: 30
+    // 예측 step (분). 자정 불연속 버그 수정(곡선 위치 정합) 후 변화가 연속적이라
+    //   1시간(60) 간격이면 충분 — 프레임 절반으로 가볍게.
+    STEP_MINUTES: 60
 
     // [제거됨 — 더 이상 사용 안 함] 연결성 그래프/물길 BFS 기반 상수:
     //   NEIGHBOR_TOL_FACTOR, ANCHOR_COVER_KM, INTERP_MAX_WATERWAY_KM.
