@@ -1,0 +1,34 @@
+{
+  "generatedAt": "2026-06-11T02:41:22.255Z",
+  "variant": "merged",
+  "allPass": true,
+  "total": 5,
+  "passed": 5,
+  "results": [
+    {
+      "case": "case1_full",
+      "pass": true,
+      "detail": "모든 검사 통과"
+    },
+    {
+      "case": "case2_filter",
+      "pass": true,
+      "detail": "필터 정상"
+    },
+    {
+      "case": "case3_empty",
+      "pass": true,
+      "detail": "빈 상태 정상"
+    },
+    {
+      "case": "case4_xss",
+      "pass": true,
+      "detail": "XSS escape 정상"
+    },
+    {
+      "case": "case5_header_status",
+      "pass": true,
+      "detail": "헤더 배지 정상"
+    }
+  ]
+}
