@@ -329,7 +329,7 @@ function rowMTL(row) {
 const TIDE_FIELD_CONFIG = {
     // [재빌드 가드] 운영 볼륨에 남은 옛 100m/5만앵커 산출물을 자동 교체하기 위한
     //   스키마 버전. ensureBuilt 가 grid_meta.build_version ≠ 이 값이면 강제 재빌드.
-    BUILD_VERSION: 3,
+    BUILD_VERSION: 4,
     // 렌더 셀 해상도 (도). 0.0015° ≈ 150m — BADA 수심 데이터 간격에 맞춤.
     //   (100m로 더 잘게 하면 데이터 없는 칸이 생겨 체커보드 격자가 됨)
     CELL_DEG: 0.0015,

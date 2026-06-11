@@ -104,6 +104,18 @@ function curvePath(anchorId, yyyymmdd) {
     return path.join(C.CURVES_DIR, `${anchorId}_${yyyymmdd}.json`);
 }
 
+/** 곡선 파일 전체 삭제(재빌드로 앵커 위치가 바뀔 때 옛 곡선 폐기용). 삭제 수 반환. */
+function clearCurves() {
+    let n = 0;
+    try {
+        const files = fs.readdirSync(C.CURVES_DIR);
+        for (const f of files) {
+            if (f.endsWith('.json')) { try { fs.unlinkSync(path.join(C.CURVES_DIR, f)); n++; } catch (e) {} }
+        }
+    } catch (e) { /* 폴더 없음 */ }
+    return n;
+}
+
 /**
  * (앵커,날짜) 가 이미 완전 수집되었는지 판정.
  * 완전 = 파일 존재 + loadedPages 5개 + failedPages 없음 + 곡선 길이 충분.
@@ -290,6 +302,11 @@ async function ensureBuilt(opts = {}) {
     }
 
     try {
+        // [중요] 재빌드는 앵커 대표 셀 위치를 바꿀 수 있다. 그러면 같은 anchorId 라도
+        //   날짜마다 다른 위치의 곡선이 섞여 자정에 조위가 불연속(급변)이 된다.
+        //   → 재빌드 전 옛 곡선을 모두 폐기하고 새 위치에서 전부 새로 수집한다.
+        const cleared = clearCurves();
+        if (cleared) log(`재빌드 — 옛 곡선 ${cleared}개 폐기(앵커 위치 변동) → 전부 새로 수집`);
         const builder = require('../scripts/build_tide_field');
         await builder.main({ log });
     } catch (e) {
