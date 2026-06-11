@@ -360,29 +360,47 @@ function _series(key) {
     return out;
 }
 
-/** cellKeys → { key:[{t,v}] } (없는 셀 생략). */
+/** cellKeys → { key:[{t,v}] } (래스터만, 없는 셀 생략 — 내부/상태용). */
 function getCells(cellKeys) {
     const out = {};
     for (const k of cellKeys || []) { const s = _series(k); if (s && s.length) out[k] = s; }
     return out;
 }
 
-/** 특보구역 코드 → 그 구역 smallZones 시정 묶음. */
-function getZone(zoneCode) {
+/**
+ * 소해구 시계열 — 래스터 우선, 없으면 부모 대해구 1시간 숫자로 폴백(100% 커버).
+ * @returns {Promise<{series:[{t,v}], source:'raster'|'major'|'none'}>}
+ */
+async function _seriesWithFallback(key) {
+    const s = _series(key);
+    if (s && s.length) return { series: s, source: 'raster' };
+    const parent = String(key).split('-')[0];
+    const mj = await getMajorSeries(parent);
+    if (mj && mj.series && mj.series.length) return { series: mj.series, source: 'major' };
+    return { series: [], source: 'none' };
+}
+
+/** 특보구역 코드 → 그 구역 smallZones 시정 묶음 (래스터+대해구 폴백 → 100% 커버). */
+async function getZone(zoneCode) {
     let map; try { map = JSON.parse(fs.readFileSync(MAP_PATH, 'utf8')); } catch (e) { return null; }
     const z = map[zoneCode];
     if (!z) return null;
-    return { zone: zoneCode, name: z.name, baseTm: _cache.baseTm, cells: getCells(z.smallZones || []) };
+    const cells = {}; const fallback = {};
+    for (const k of z.smallZones || []) {
+        const r = await _seriesWithFallback(k);
+        if (r.series.length) { cells[k] = r.series; if (r.source === 'major') fallback[k] = true; }
+    }
+    return { zone: zoneCode, name: z.name, baseTm: _cache.baseTm, cells, fallback };
 }
 
-/** 소해구 키 → 시정 시계열(전 소해구 사전샘플이므로 캐시 조회). */
-function getCellLazy(key) {
-    const s = _series(key);
-    return { cell: key, baseTm: _cache.baseTm, series: s || [], cached: true };
+/** 소해구 키 → 시정 시계열 (래스터 우선, 대해구 폴백). */
+async function getCellLazy(key) {
+    const r = await _seriesWithFallback(key);
+    return { cell: key, baseTm: _cache.baseTm, series: r.series, source: r.source };
 }
 
-/** 임의 해점 → 그 점이 속한 소해구 시정. */
-function getByPoint(lat, lon) {
+/** 임의 해점 → 그 점이 속한 소해구 시정 (래스터 우선, 대해구 폴백). */
+async function getByPoint(lat, lon) {
     const key = pointToCellKey(Number(lat), Number(lon));
     if (!key) return null;
     return getCellLazy(key);

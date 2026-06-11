@@ -71,13 +71,13 @@ router.get('/api/vsby-smallzone/cell', async (req, res) => {
     }
 });
 
-router.get('/api/vsby-smallzone', (req, res) => {
+router.get('/api/vsby-smallzone', async (req, res) => {
     try {
         const zone = (req.query.zone || '').trim();
         const cellsParam = (req.query.cells || '').trim();
 
         if (zone) {
-            const data = sz.getZone(zone);
+            const data = await sz.getZone(zone);
             if (!data) return res.json({ success: false, error: '해당 특보구역 없음' });
             return res.json({ success: true, ...data });
         }
