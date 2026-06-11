@@ -87,3 +87,6 @@ local_server/data/blocks.json
 local_server/analysis/wave_leadtime/cache/
 local_server/analysis/wave_leadtime/out/
 local_server/analysis/wave_leadtime/reports/miss_samples/
+
+# advisory 런타임 예측 산출물 (배치가 생성)
+local_server/data/advisory_prediction.json
