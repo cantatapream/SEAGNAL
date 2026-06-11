@@ -582,6 +582,8 @@ if (window.__SEAGNAL_PAGE === 'index2') {
     //  forEachFeatureAtPixel 로 그대로 hit 가능.
     //
     window.handleOceanBuoyClick = function (map, evt) {
+        // [임시 진단 로그 — 부이 첫 클릭 미표출 원인 추적용. 진단 끝나면 제거.]
+        console.log('[DIAG][buoy] entry layer=', !!_layer, 'visible=', _layer && _layer.getVisible(), 'srcFeatures=', _vectorSource && _vectorSource.getFeatures().length);
         if (!_layer || !_layer.getVisible()) return false;
 
         // 인접 마커 중 가장 가까운 단일 피처 선택 (밀집 구역의 오인식 방지)
@@ -598,6 +600,9 @@ if (window.__SEAGNAL_PAGE === 'index2') {
             var dist = Math.sqrt(dx * dx + dy * dy);
             candidates.push({ feature: feature, dist: dist });
         }, { hitTolerance: 8 });
+
+        // [임시 진단 로그 — 부이 첫 클릭 미표출 원인 추적용. 진단 끝나면 제거.]
+        console.log('[DIAG][buoy] candidates=', candidates.length, candidates.length ? 'nearestDist=' + candidates.map(function (c) { return Math.round(c.dist); }).sort(function (a, b) { return a - b; })[0] : '');
 
         if (candidates.length === 0) return false;
 
