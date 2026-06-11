@@ -94,12 +94,18 @@ function blend(bg, fg, fa){ // fg rgb hex 0xRRGGBB, fa 0..1
   const results = []; let idx = 0;
   for (const [code, z] of zones) {
     const fp = footprintOf(z); if (!fp.length){results.push({code,name:z.name,ok:false});continue;}
-    // 크롭 범위 = 영역 합집합 bbox + 여백(해안 맥락 보이게)
-    let loMin=Infinity,loMax=-Infinity,laMin=Infinity,laMax=-Infinity;
-    for (const c of fp){loMin=Math.min(loMin,c.lonMin);loMax=Math.max(loMax,c.lonMax);laMin=Math.min(laMin,c.latMin);laMax=Math.max(laMax,c.latMax);}
-    const spanLon=loMax-loMin, spanLat=laMax-laMin;
-    const padLon=Math.max(0.18, spanLon*0.45), padLat=Math.max(0.18, spanLat*0.45);
-    loMin-=padLon;loMax+=padLon;laMin-=padLat;laMax+=padLat;
+    // 크롭 범위: zone_grid_map 에 viewBox([lonMin,latMin,lonMax,latMax])가 있으면
+    // 에디터에서 수동 지정한 그 영역을 그대로 사용, 없으면 영역 합집합 bbox + 여백.
+    let loMin,loMax,laMin,laMax;
+    if (Array.isArray(z.viewBox) && z.viewBox.length===4){
+      [loMin,laMin,loMax,laMax]=z.viewBox.map(Number);
+    } else {
+      loMin=Infinity;loMax=-Infinity;laMin=Infinity;laMax=-Infinity;
+      for (const c of fp){loMin=Math.min(loMin,c.lonMin);loMax=Math.max(loMax,c.lonMax);laMin=Math.min(laMin,c.latMin);laMax=Math.max(laMax,c.latMax);}
+      const spanLon=loMax-loMin, spanLat=laMax-laMin;
+      const padLon=Math.max(0.18, spanLon*0.45), padLat=Math.max(0.18, spanLat*0.45);
+      loMin-=padLon;loMax+=padLon;laMin-=padLat;laMax+=padLat;
+    }
     const X0=mx(loMin),X1=mx(loMax),Y0=my(laMin),Y1=my(laMax);
     const longer=Math.max(X1-X0,Y1-Y0);
     let zoom=Math.max(7,Math.min(13,Math.round(Math.log2(TARGET_TILES*2*Math.PI*R/longer))));

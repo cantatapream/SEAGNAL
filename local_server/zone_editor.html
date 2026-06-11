@@ -59,6 +59,14 @@
       <div class="stat"><span>렌더 불가(부모 없음)</span><b id="cntOrphan">0</b></div>
     </div>
 
+    <label class="fld">표출 영역 (시정 화면 크롭 범위)</label>
+    <div class="modes" style="margin-top:0;">
+      <button id="vbDraw">영역 그리기</button>
+      <button id="vbFit">셀에 맞춤</button>
+      <button id="vbClear">지우기</button>
+    </div>
+    <div id="vbReadout" style="font-size:11px;color:#8aa0bf;margin-top:6px;line-height:1.5;">미지정 (없으면 배정 셀 자동 범위 사용)</div>
+
     <div class="toggles">
       <label><input type="checkbox" id="tgOther" checked> 다른 구역 배정 셀 표시(주황)</label>
       <label><input type="checkbox" id="tgKhoa"> KHOA 해안도 배경</label>
@@ -77,6 +85,7 @@
       <div><span class="sw" style="background:rgba(47,155,255,.55)"></span>선택 구역 배정 셀</div>
       <div><span class="sw" style="background:rgba(255,160,60,.5)"></span>다른 구역 배정 셀</div>
       <div><span class="sw" style="background:rgba(255,70,70,.7)"></span>중복 배정(충돌)</div>
+      <div><span class="sw" style="border:1px dashed #36e0e0;background:transparent"></span>표출 영역(viewBox)</div>
       <div><span class="sw" style="border:1px solid #5a6c88;background:transparent"></span>대해구 격자</div>
     </div>
 
@@ -174,12 +183,14 @@
 
   const assignSrc = new ol.source.Vector();   // 선택 구역 배정 셀
   const otherSrc  = new ol.source.Vector();   // 다른 구역 배정 셀
+  const vbSrc     = new ol.source.Vector();   // 표출 영역(viewBox)
   const assignLayer = new ol.layer.Vector({ source: assignSrc });
   const otherLayer  = new ol.layer.Vector({ source: otherSrc });
+  const vbLayer     = new ol.layer.Vector({ source: vbSrc });
 
   const map = new ol.Map({
     target: 'map',
-    layers: [osm, khoa, otherLayer, gridLayer, assignLayer],
+    layers: [osm, khoa, otherLayer, gridLayer, assignLayer, vbLayer],
     view: new ol.View({ projection: 'EPSG:3857', center: ol.proj.fromLonLat([128.5, 36]), zoom: 6 })
   });
 
@@ -188,6 +199,8 @@
   const stySub     = new ol.style.Style({ fill: new ol.style.Fill({ color: 'rgba(47,155,255,0.55)' }), stroke: new ol.style.Stroke({ color: '#7fd0ff', width: 1 }) });
   const styConflict= new ol.style.Style({ fill: new ol.style.Fill({ color: 'rgba(255,70,70,0.55)' }), stroke: new ol.style.Stroke({ color: '#ff5555', width: 1.5 }) });
   const styOther   = new ol.style.Style({ fill: new ol.style.Fill({ color: 'rgba(255,160,60,0.22)' }), stroke: new ol.style.Stroke({ color: 'rgba(255,160,60,0.7)', width: 1 }) });
+  const styViewBox = new ol.style.Style({ fill: new ol.style.Fill({ color: 'rgba(54,224,224,0.07)' }), stroke: new ol.style.Stroke({ color: '#36e0e0', width: 2, lineDash: [8, 5] }) });
+  const round4 = n => Math.round(n * 1e4) / 1e4;
 
   // ---- 현재 상태 ----
   let cur = null;       // 현재 특보구역 키
@@ -250,6 +263,55 @@
     document.getElementById('cntSmall').textContent = curSubSet.size;
     document.getElementById('cntOrphan').textContent = orphan;
     renderWarnings();
+    renderViewBox();
+  }
+
+  // ---- 표출 영역(viewBox) ----
+  function renderViewBox() {
+    vbSrc.clear();
+    const vb = MAP[cur] && MAP[cur].viewBox;
+    const ro = document.getElementById('vbReadout');
+    if (Array.isArray(vb) && vb.length === 4) {
+      const fe = new ol.Feature(boxToPoly({ lonMin: vb[0], latMin: vb[1], lonMax: vb[2], latMax: vb[3] }));
+      fe.setStyle(styViewBox); vbSrc.addFeature(fe);
+      ro.innerHTML = `lon ${vb[0]}~${vb[2]} · lat ${vb[1]}~${vb[3]}<br>(${round4(vb[2]-vb[0])}° × ${round4(vb[3]-vb[1])}°)`;
+    } else {
+      ro.textContent = '미지정 (없으면 배정 셀 자동 범위 사용)';
+    }
+  }
+
+  // 배정 셀 합집합 bbox + 여백 (크롭 도구 기본값과 동일 규칙)
+  function fitViewBoxFromCells() {
+    const z = MAP[cur] || {};
+    let loMin = Infinity, loMax = -Infinity, laMin = Infinity, laMax = -Infinity, n = 0;
+    const add = b => { if (!b) return; loMin = Math.min(loMin, b.lonMin); loMax = Math.max(loMax, b.lonMax); laMin = Math.min(laMin, b.latMin); laMax = Math.max(laMax, b.latMax); n++; };
+    (z.majorZones || []).forEach(m => add(cellBox[String(m)]));
+    (z.smallZones || []).forEach(s => { const [p, sn] = String(s).split('-'); add(subBoxOf(p, sn)); });
+    if (!n) { setHud('배정된 셀이 없어 맞춤 불가'); return; }
+    const padLon = Math.max(0.18, (loMax - loMin) * 0.45), padLat = Math.max(0.18, (laMax - laMin) * 0.45);
+    MAP[cur].viewBox = [round4(loMin - padLon), round4(laMin - padLat), round4(loMax + padLon), round4(laMax + padLat)];
+    renderViewBox();
+  }
+
+  let vbDrawInter = null;
+  function stopViewBoxDraw() {
+    if (vbDrawInter) { map.removeInteraction(vbDrawInter); vbDrawInter = null; }
+    document.getElementById('vbDraw').classList.remove('on');
+  }
+  function startViewBoxDraw() {
+    if (vbDrawInter) { stopViewBoxDraw(); return; }
+    document.getElementById('vbDraw').classList.add('on');
+    setHud('드래그해 표출 영역 사각형을 그리세요');
+    vbDrawInter = new ol.interaction.Draw({ source: vbSrc, type: 'Circle', geometryFunction: ol.interaction.Draw.createBox() });
+    vbDrawInter.on('drawend', e => {
+      const ext = e.feature.getGeometry().getExtent();
+      const a = ol.proj.toLonLat([ext[0], ext[1]]), b = ol.proj.toLonLat([ext[2], ext[3]]);
+      MAP[cur] = MAP[cur] || {};
+      MAP[cur].viewBox = [round4(a[0]), round4(a[1]), round4(b[0]), round4(b[1])];
+      stopViewBoxDraw();
+      renderViewBox();
+    });
+    map.addInteraction(vbDrawInter);
   }
 
   function renderWarnings() {
@@ -273,6 +335,7 @@
 
   // ---- 클릭 토글 ----
   map.on('singleclick', function (evt) {
+    if (vbDrawInter) return;   // 표출 영역 그리는 중엔 셀 토글 금지
     let hit = null;
     map.forEachFeatureAtPixel(evt.pixel, f => { if (gridSrc.hasFeature(f)) { hit = f; return true; } }, { layerFilter: l => l === gridLayer });
     if (!hit) return;
@@ -308,7 +371,10 @@
   });
 
   // ---- UI ----
-  sel.addEventListener('change', () => { cur = sel.value; refresh(); });
+  sel.addEventListener('change', () => { cur = sel.value; stopViewBoxDraw(); refresh(); });
+  document.getElementById('vbDraw').onclick = startViewBoxDraw;
+  document.getElementById('vbFit').onclick = fitViewBoxFromCells;
+  document.getElementById('vbClear').onclick = () => { if (MAP[cur]) delete MAP[cur].viewBox; stopViewBoxDraw(); renderViewBox(); };
   function setMode(m) {
     mode = m;
     document.getElementById('modeMajor').classList.toggle('on', m === 'major');
