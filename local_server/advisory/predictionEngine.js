@@ -39,6 +39,9 @@ const path = require('path');
 const cfg = require('./predictionConfig');
 const { CALIB, OFFICE_CHART, OFFICES, THRESHOLDS, gradeOf, combinedProb } = cfg;
 
+// --- 프레임-외부 onset 스캔 (메모리 절감; zone-outer 와 동치 — run_onsetscan_test) ---
+const { scanOnsets } = require('./onsetScan');
+
 // --- 재사용 검증 모듈 (../analysis/wave_leadtime) ---
 const WL = path.join(__dirname, '..', 'analysis', 'wave_leadtime');
 const { REGIONAL_OFFICES, listFrames, downloadFrame } = require(path.join(WL, 'chartClient'));
@@ -165,15 +168,12 @@ async function generatePredictions(options = {}) {
     const predictions = [];
     const zoneSignals = []; // 모든 도메인 구역의 현재 예보 peak 신호 (해소 카드 '전→후' 용)
     let baseTimeKST = null;
-    const decodeCache = new Map(); // fileName → decoded {w,h,rgba}
 
-    async function getDecoded(frame) {
-        if (decodeCache.has(frame.fileName)) return decodeCache.get(frame.fileName);
+    // 프레임 1장만 메모리에 올렸다 버리는 디코더 (캐시 없음 — OOM 방지).
+    async function decodeFrame(frame) {
         const buf = await downloadFrame(frame);
         await sleep(jitter());
-        const dec = decode(buf);
-        decodeCache.set(frame.fileName, dec);
-        return dec;
+        return decode(buf);
     }
 
     for (const code of Object.keys(OFFICES)) {
@@ -222,68 +222,54 @@ async function generatePredictions(options = {}) {
             // --- 이 차트 도메인에 드는 구역 ---
             const zones = ZONES.filter((z) => inFrame(cal, z));
 
+            // 해역별 반경(샘플 픽셀): H 먼바다 55 / I 앞바다 30 × RAD_MULT.
+            const radOf = (z) => Math.round((z.type === 'H' ? 55 : 30) * THRESHOLDS.RAD_MULT);
+
+            // 프레임-외부 스캔: 일기도를 한 장씩만 디코드·분석·폐기(메모리에 1장만 유지).
+            //   결과(onset/밴드/peak)는 기존 zone-outer 와 동치 — run_onsetscan_test 로 증명.
+            const scan = await scanOnsets({
+                primary: windSeq.length ? windSeq : waveSeq,
+                waveByVt,
+                hasWind: windSeq.length > 0,
+                zones,
+                windCut, waveCut,
+                decodeFrame,
+                bandWind: (dec, z) => {
+                    const a = analyzeZone(dec, cal, z, {
+                        mask: windMask, radiusPx: radOf(z),
+                        classify: windPalette.classify, ge3Level: windCut, ge5Level: THRESHOLDS.WIND_ALARM_KT,
+                        minBandPixels: THRESHOLDS.MIN_BAND_PIXELS,
+                    });
+                    return a ? a.maxBand : 0;
+                },
+                bandWave: (dec, z) => {
+                    const a = analyzeZone(dec, cal, z, {
+                        mask: waveMask, radiusPx: radOf(z),
+                        classify: wavePalette.classify, ge3Level: waveCut, ge5Level: THRESHOLDS.WAVE_ALARM_M,
+                        minBandPixels: THRESHOLDS.MIN_BAND_PIXELS,
+                    });
+                    return a ? a.maxBand : 0;
+                },
+            });
+
             for (const z of zones) {
                 try {
-                    const rad = Math.round((z.type === 'H' ? 55 : 30) * THRESHOLDS.RAD_MULT);
-                    let onset = null, windBand = 0, waveBand = 0;
-                    let peakWind = 0, peakWave = 0; // 스캔 중 본 최대 신호(임계 미만 포함)
-
-                    // onset 전방 스캔: 풍속 시퀀스를 기준으로, 같은 유효시각의 파고도 함께 평가.
-                    // (풍속 시퀀스가 없으면 파고 시퀀스 단독 스캔)
-                    const primary = windSeq.length ? windSeq : waveSeq;
-                    for (const { f, vt } of primary) {
-                        let wB = 0, vB = 0;
-
-                        // 풍속 평가
-                        if (windSeq.length) {
-                            try {
-                                const dec = await getDecoded(f);
-                                const a = analyzeZone(dec, cal, z, {
-                                    mask: windMask, radiusPx: rad,
-                                    classify: windPalette.classify, ge3Level: windCut, ge5Level: THRESHOLDS.WIND_ALARM_KT,
-                                    minBandPixels: THRESHOLDS.MIN_BAND_PIXELS,
-                                });
-                                if (a) wB = a.maxBand;
-                            } catch (e) { /* 프레임 실패 흡수 */ }
-                        }
-
-                        // 같은 유효시각의 파고 평가
-                        const waveFrame = windSeq.length ? waveByVt.get(vt.getTime()) : f;
-                        if (waveFrame) {
-                            try {
-                                const dec = await getDecoded(waveFrame);
-                                const a = analyzeZone(dec, cal, z, {
-                                    mask: waveMask, radiusPx: rad,
-                                    classify: wavePalette.classify, ge3Level: waveCut, ge5Level: THRESHOLDS.WAVE_ALARM_M,
-                                    minBandPixels: THRESHOLDS.MIN_BAND_PIXELS,
-                                });
-                                if (a) vB = a.maxBand;
-                            } catch (e) { /* 흡수 */ }
-                        }
-
-                        if (wB > peakWind) peakWind = wB;
-                        if (vB > peakWave) peakWave = vB;
-
-                        if (wB >= windCut || vB >= waveCut) {
-                            onset = vt; windBand = wB; waveBand = vB;
-                            break; // 첫 임계초과 즉시 중단(최소 다운로드)
-                        }
-                    }
+                    const r = scan.get(z) || { onset: null, windBand: 0, waveBand: 0, peakWind: 0, peakWave: 0 };
 
                     // 구역별 현재 peak 신호 기록 (해소 카드 '전→후' / 디버그용)
-                    zoneSignals.push({ office: code, zone: z.name, windKt: peakWind, waveM: peakWave, prob: combinedProb(peakWind, peakWave) });
+                    zoneSignals.push({ office: code, zone: z.name, windKt: r.peakWind, waveM: r.peakWave, prob: combinedProb(r.peakWind, r.peakWave) });
 
-                    if (!onset) continue; // 예측 없음
+                    if (!r.onset) continue; // 예측 없음
 
-                    const prob = combinedProb(windBand, waveBand);
+                    const prob = combinedProb(r.windBand, r.waveBand);
                     const grade = gradeOf(prob);
                     if (!grade) continue; // <0.5 → 미표시
 
-                    const windKt = windBand || 0;
+                    const windKt = r.windBand || 0;
                     const windMs = Math.round(windKt * KT_TO_MS);
-                    const waveM = waveBand || 0;
+                    const waveM = r.waveBand || 0;
                     const probPct = Math.round(prob * 100);
-                    const label = onsetLabel(onset);
+                    const label = onsetLabel(r.onset);
 
                     const narrative =
                         `${z.name} 일기도를 분석한 결과, ${label}경 ` +
@@ -297,7 +283,7 @@ async function generatePredictions(options = {}) {
                         grade: { key: grade.key, label: grade.label, emoji: grade.emoji },
                         probPct,
                         windKt, windMs, waveM,
-                        onsetISO: kstDateToISO(onset),
+                        onsetISO: kstDateToISO(r.onset),
                         onsetLabel: label,
                         narrative,
                     });
@@ -309,10 +295,6 @@ async function generatePredictions(options = {}) {
         } catch (oErr) {
             console.error(`[office] ${code} 실패: ${oErr.message}`);
         }
-        // 청 단위로 디코드 캐시를 비운다 — 일기도 GIF 의 RGBA 디코드(프레임당 ~2MB)가
-        // 6개 청에 걸쳐 누적되면 메모리(OOM)를 유발한다. 프레임은 청별로 독립이므로
-        // 다음 청 진입 전에 회수해도 안전(피크 메모리를 1개 청 분량으로 한정).
-        decodeCache.clear();
     }
 
     // 등급 강한 순 → 확률 순 → onset 빠른 순 정렬
