@@ -84,6 +84,21 @@ function smallZoneCenter(key) {
     return { lat: +lat.toFixed(4), lon: +lon.toFixed(4) };
 }
 
+/** 임의 점(lat/lon) → 그 점이 속한 소해구 키 "부모-서브". 격자 밖이면 null. */
+function pointToCellKey(lat, lon) {
+    const box = _loadCellBox();
+    let parent = null, pb = null;
+    for (const no of Object.keys(box)) {
+        const b = box[no];
+        if (lon >= b.lonMin && lon < b.lonMax && lat >= b.latMin && lat < b.latMax) { parent = no; pb = b; break; }
+    }
+    if (!parent) return null;
+    const dlon = (pb.lonMax - pb.lonMin) / 3, dlat = (pb.latMax - pb.latMin) / 3;
+    let c = Math.floor((lon - pb.lonMin) / dlon); c = Math.max(0, Math.min(2, c));
+    let r = Math.floor((pb.latMax - lat) / dlat); r = Math.max(0, Math.min(2, r));
+    return `${parent}-${r * 3 + c + 1}`;
+}
+
 /** zone_grid_map 의 모든 smallZones 합집합(고유, 정렬). */
 function allMappedSmallZones() {
     const map = JSON.parse(fs.readFileSync(MAP_PATH, 'utf8'));
@@ -284,6 +299,31 @@ function getCells(cellKeys) {
     return out;
 }
 
+/**
+ * [B1 지연 로딩] 한 소해구 시정 — 캐시 우선, 없으면 MMIS 즉시 1회 수집 후 캐시.
+ *  - 같은 셀 재요청은 캐시 히트(즉시). 1회 호출이 전체 시각 시계열을 주므로 슬라이더 즉시.
+ *  @returns {Promise<{cell, baseTm, series, cached}|null>}
+ */
+async function getCellLazy(key) {
+    if (!key) return null;
+    if (_cache.cells[key]) {
+        return { cell: key, baseTm: _cache.baseTm, series: _cache.cells[key], cached: true };
+    }
+    const series = await fetchCellSeries(key);   // 셀 중심좌표로 MMIS 1회 호출
+    if (series && series.length) {
+        _cache.cells[key] = series;              // 런 캐시에 적재(다음 호출부터 즉시)
+        return { cell: key, baseTm: _cache.baseTm, series, cached: false };
+    }
+    return { cell: key, baseTm: _cache.baseTm, series: [], cached: false };
+}
+
+/** [B1] 임의 해점(lat/lon) → 그 점이 속한 소해구의 시정(지연 로딩). */
+async function getByPoint(lat, lon) {
+    const key = pointToCellKey(Number(lat), Number(lon));
+    if (!key) return null;
+    return getCellLazy(key);
+}
+
 /** 특보구역 코드 → 그 구역 smallZones 의 시정 시계열 묶음. */
 function getZone(zoneCode) {
     let map;
@@ -321,7 +361,10 @@ module.exports = {
     getStatus,
     getCells,
     getZone,
+    getCellLazy,
+    getByPoint,
     // 내부 유틸(테스트/라우트 보조)
+    pointToCellKey,
     smallZoneCenter,
     allMappedSmallZones,
     fetchBaseTm,
