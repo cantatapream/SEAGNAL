@@ -30,8 +30,8 @@ const CSV = path.join(__dirname, 'data', 'warnings_2023-2026.csv');
 const OUT = path.join(__dirname, 'out');
 const LEAD = 24, PUB_DELAY_H = 7;
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = a.match(/^--([^=]+)=(.*)$/); return m ? [m[1], m[2]] : [a.replace(/^--/, ''), true]; }));
-const POSCAP = args.poscap ? +args.poscap : 120;
-const NCALM = args.ncalm ? +args.ncalm : 160;
+const ONLY = args.office || null;                       // 청별 실행(예: --office=jeju)
+const POSCAP = args.poscap ? +args.poscap : (ONLY ? 100000 : 120); // 청별이면 전 이벤트 사용
 const SPLIT = new Date('2026-01-01T00:00:00');
 const OFFICES = { jeju: '제주도', busn: '부산·울산·경상남도', gwju: '광주·전라남도', degu: '대구·경상북도', gawn: '강원특별자치도', dajn: '대전·세종·충청남도' };
 
@@ -71,6 +71,7 @@ async function collect() {
     const samples = []; // {time, label, cb(circleBand), pb(polyBand), pf(polyArea)}
     let calmHit = 0, calmMiss = 0;
     for (const [code, region] of Object.entries(OFFICES)) {
+        if (ONLY && code !== ONLY) continue;
         const jfs = fs.readdirSync(OUT).filter(f => new RegExp(`^leadtime_${code}_wind_.*\\.json$`).test(f));
         if (!jfs.length) { console.error(`[skip] ${code}`); continue; }
         const { results } = JSON.parse(fs.readFileSync(path.join(OUT, jfs.sort().pop()), 'utf8'));
@@ -100,10 +101,11 @@ async function collect() {
         //   양성=발효구역, 음성=같은 프레임의 ±24h 무발효(진짜 잔잔) 구역(hard negative, 오프라인 가용).
         const usable = results.filter(r => { const rc = r.leads[LEAD]; return rc && rc.ok && rc.frame && areasByT.get(r.effectiveAt); });
         const stride = Math.max(1, Math.floor(usable.length / POSCAP));
-        const decCache = new Map(); let np = 0;
+        let np = 0;
         for (let k = 0; k < usable.length && np < POSCAP; k += stride) {
             const r = usable[k]; const fr = r.leads[LEAD].frame;
-            let dec = decCache.get(fr); if (!dec) { const b = loadGif(fr); if (!b) continue; try { dec = decode(b); } catch (_) { continue; } decCache.set(fr, dec); }
+            const b = loadGif(fr); if (!b) continue;          // 프레임 캐시 안 함(메모리 1장 한정)
+            let dec; try { dec = decode(b); } catch (_) { continue; }
             np++;
             const tt = new Date(r.effectiveAt), tms = tt.getTime();
             const areas = areasByT.get(r.effectiveAt); const warnedNorm = new Set([...areas].map(normName));
@@ -145,50 +147,62 @@ function metrics(test, predFn, M, thr) {
     return { tp, fp, fn, tn, recall: tp + fn ? tp / (tp + fn) : null, prec: tp + fp ? tp / (tp + fp) : null, fpr: fp + tn ? fp / (fp + tn) : null };
 }
 
-(async () => {
-    const all = await collect();
-    const pc = x => x == null ? '-' : (x * 100).toFixed(0) + '%';
-    const pc1 = x => x == null ? '-' : (x * 100).toFixed(1) + '%';
+const pc = x => x == null ? '-' : (x * 100).toFixed(0) + '%';
+const pc1 = x => x == null ? '-' : (x * 100).toFixed(1) + '%';
+const med = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const p90 = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y); return s[Math.floor(.9 * s.length)]; };
 
-    function evalOn(set, fn) { const pos = set.filter(s => s.label), neg = set.filter(s => !s.label); return { recall: pos.length ? pos.filter(fn).length / pos.length : null, fp: neg.length ? neg.filter(fn).length / neg.length : null, npos: pos.length, nneg: neg.length }; }
-    // 현재식 곡선: 원 maxBand ≥ bt
+// ── 리포트 렌더 (전체 + 2026 홀드아웃 + 청별) ────────────────────────────────
+function renderReport(all, byOffice) {
+    const evalOn = (set, fn) => { const pos = set.filter(s => s.label), neg = set.filter(s => !s.label); return { recall: pos.length ? pos.filter(fn).length / pos.length : null, fp: neg.length ? neg.filter(fn).length / neg.length : null }; };
     const curCurve = [18, 20, 22, 25, 28, 30, 33, 36].map(bt => ({ name: `원·밴드≥${bt}kt`, fn: s => s.cb >= bt }));
-    // 신방식 곡선: 폴리곤 maxBand≥bt & 면적≥at (Pareto front)
     const newPts = [];
     for (const bt of [18, 20, 22, 25, 28, 30]) for (const at of [0, .1, .2, .3, .4, .5, .6]) newPts.push({ name: `폴·밴드≥${bt}&면적≥${(at * 100) | 0}%`, fn: s => s.pb >= bt && s.pf >= at });
-
-    function curveOf(set, defs) { return defs.map(d => ({ name: d.name, ...evalOn(set, d.fn) })).filter(p => p.recall != null && p.fp != null); }
-    // 목표 재현율 이상에서 최소 FP 점
-    function minFPatRecall(curve, target) { const ok = curve.filter(p => p.recall >= target); if (!ok.length) return null; return ok.reduce((a, b) => b.fp < a.fp ? b : a); }
-
-    function section(title, set) {
+    const curveOf = (set, defs) => defs.map(d => ({ name: d.name, ...evalOn(set, d.fn) })).filter(p => p.recall != null && p.fp != null);
+    const minFPatRecall = (curve, t) => { const ok = curve.filter(p => p.recall >= t); if (!ok.length) return null; return ok.reduce((a, b) => b.fp < a.fp ? b : a); };
+    const section = (title, set) => {
         const cc = curveOf(set, curCurve), nc = curveOf(set, newPts);
         let s = `\n## ${title} (양성 ${set.filter(x => x.label).length} · 음성 ${set.filter(x => !x.label).length})\n\n`;
-        s += '| 목표 재현율 | 현재식 최소 오탐 | 신방식 최소 오탐 | 오탐 감소 |\n|---|---|---|---|\n';
+        s += '| 목표 재현율 | 현재식 최소 오탐 | 신방식 최소 오탐 | 오탐감소 |\n|---|---|---|---|\n';
         for (const tgt of [0.8, 0.7, 0.6, 0.5]) {
             const c = minFPatRecall(cc, tgt), n = minFPatRecall(nc, tgt);
             const red = (c && n) ? (c.fp - n.fp) : null;
-            s += `| ≥${(tgt * 100) | 0}% | ${c ? pc1(c.fp) + ' (' + c.name + ', 재현 ' + pc(c.recall) + ')' : '-'} | ${n ? pc1(n.fp) + ' (' + n.name + ', 재현 ' + pc(n.recall) + ')' : '-'} | ${red != null ? pc1(red) : '-'} |\n`;
+            s += `| ≥${(tgt * 100) | 0}% | ${c ? pc1(c.fp) + ' (' + c.name + ',재현' + pc(c.recall) + ')' : '-'} | ${n ? pc1(n.fp) + ' (' + n.name + ',재현' + pc(n.recall) + ')' : '-'} | ${red != null ? pc1(red) : '-'} |\n`;
         }
         return s;
+    };
+    let md = '# 재검증 — 현재식(원+밴드) vs 신방식(폴리곤+면적)\n\n';
+    md += `풍속 ge3=20kt, lead24h. 음성=±24h 잔잔(거친날씨 인근). 표본 ${all.length} (양성 ${all.filter(s => s.label).length}/음성 ${all.filter(s => !s.label).length}).\n`;
+    md += '\n> 같은 재현율서 오탐(잔잔 헛발효) 작을수록 우수. "오탐감소" 양수=신방식 우월.\n';
+    md += section('■ 전체(전 청 합산)', all);
+    md += section('■ 2026 홀드아웃', all.filter(s => s.time >= SPLIT));
+    if (byOffice) for (const code of Object.keys(byOffice).sort()) {
+        md += section(`▷ ${code} 전체`, byOffice[code]);
+        md += section(`▷ ${code} 2026`, byOffice[code].filter(s => s.time >= SPLIT));
     }
-
-    let md = '# Phase D — 재검증: 현재식(원+밴드) vs 신방식(폴리곤+면적)\n\n';
-    md += `풍속 신호(ge3=20kt), lead 24h. 음성=±24h 잔잔(거친날씨 인근 hard negative).\n`;
-    md += `표본 총 ${all.length} (양성 ${all.filter(s => s.label).length}/음성 ${all.filter(s => !s.label).length}).\n`;
-    md += `\n> 같은 재현율에서 **오탐(잔잔구역 헛발효)** 이 작을수록 좋다. "오탐 감소"가 양수면 신방식이 우월.\n`;
-    md += section('전체 기간', all);
-    md += section('2026 홀드아웃', all.filter(s => s.time >= SPLIT));
-
-    md += '\n## 참고 — 폴리곤 면적비율 분포(전체)\n\n| | 양성 중앙값 | 음성 중앙값 | 음성 p90 |\n|---|---|---|---|\n';
-    const med = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
-    const p90 = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y); return s[Math.floor(.9 * s.length)]; };
     const P = all.filter(s => s.label), N = all.filter(s => !s.label);
-    md += `| 폴리곤 면적 | ${pc1(med(P.map(s => s.pf)))} | ${pc1(med(N.map(s => s.pf)))} | ${pc1(p90(N.map(s => s.pf)))} |\n`;
-    md += '\n## C(절대 확률표) 관련 주의\n\n';
-    md += '오프라인 캐시엔 **잔잔날 프레임이 없어** 음성이 hard negative 뿐 → 절대 확률 보정(예: 30kt→80%)은 깔려서 무효. ';
-    md += '**배포용 확률표 재보정은 KMA 자격증명 환경에서 잔잔표본을 받아** 동일 절차(밴드×면적 2D)로 1회 수행 필요. 본 검증은 그와 별개로 "신방식이 동일 재현율서 오탐을 줄인다"를 증명.\n';
+    md += `\n## 참고 — 폴리곤 면적비율(전체)\n\n양성 중앙 ${pc1(med(P.map(s => s.pf)))} · 음성 중앙 ${pc1(med(N.map(s => s.pf)))} · 음성 p90 ${pc1(p90(N.map(s => s.pf)))}\n`;
+    md += '\n## C(절대 확률표) 주의: 오프라인 캐시엔 잔잔날 프레임이 없어 배포용 절대 확률표는 KMA 자격증명 환경의 잔잔표본으로 마무리 필요. 본 검증은 "동일 재현율서 오탐 감소"를 증명.\n';
+    return md;
+}
 
-    try { fs.writeFileSync(path.join(__dirname, 'reports', 'RECALIB_polygon.md'), md); } catch (_) {}
-    console.log('\n' + md);
+(async () => {
+    if (args.aggregate) {                       // 청별 덤프 집계 → 전국 + 청별 리포트
+        const files = fs.readdirSync(OUT).filter(f => /^recalib_samples_.+\.json$/.test(f));
+        const byOffice = {}; const all = [];
+        for (const f of files) {
+            const code = f.match(/^recalib_samples_(.+)\.json$/)[1];
+            const arr = JSON.parse(fs.readFileSync(path.join(OUT, f), 'utf8')).map(s => ({ time: new Date(s.t), label: s.label, cb: s.cb, pb: s.pb, pf: s.pf }));
+            byOffice[code] = arr; all.push(...arr);
+        }
+        console.error(`[aggregate] ${files.length}청 합산, 표본 ${all.length}`);
+        const md = renderReport(all, byOffice);
+        try { fs.writeFileSync(path.join(__dirname, 'reports', 'RECALIB_national.md'), md); } catch (_) {}
+        console.log(md); return;
+    }
+    const all = await collect();                // ONLY 지정 시 그 청만
+    if (ONLY) { try { fs.writeFileSync(path.join(OUT, `recalib_samples_${ONLY}.json`), JSON.stringify(all.map(s => ({ t: s.time.getTime(), label: s.label, cb: s.cb, pb: s.pb, pf: s.pf })))); } catch (_) {} }
+    const md = renderReport(all, ONLY ? { [ONLY]: all } : null);
+    try { fs.writeFileSync(path.join(__dirname, 'reports', `RECALIB_${ONLY || 'all'}.md`), md); } catch (_) {}
+    console.log(md);
 })().catch(e => { console.error('FATAL', e); process.exit(1); });
