@@ -166,8 +166,11 @@ function handleCctvMapClick(event) {
  * @param {Object} data — { cctvId, name, subtitle, providerKey, providerName, shareUrl, streamUrl }
  */
 function showCctvPopup(data) {
+    // [임시 진단 로그 — CCTV 팝업 미표출 원인 추적용. 진단 끝나면 제거.]
+    var _prov = (window.CCTV_PROVIDERS && data) ? window.CCTV_PROVIDERS[data.providerKey] : null;
+    console.log('[DIAG][cctvpopup] called providerKey=', data && data.providerKey, 'type=', _prov ? _prov.type : '(provider없음)', 'streamUrl=', !!(data && data.streamUrl), 'shareUrl=', data && data.shareUrl, 'cctvId=', data && data.cctvId);
     const backdrop = document.getElementById('cctv-modal-backdrop');
-    if (!backdrop) return;
+    if (!backdrop) { console.log('[DIAG][cctvpopup] #cctv-modal-backdrop 없음 → return (팝업 미표출)'); return; }
 
     // 현재 팝업 데이터를 전역에 저장 (즐겨찾기 토글 시 사용)
     _currentCctvData = data;
@@ -414,6 +417,7 @@ function showCctvPopup(data) {
     `;
 
     // 모달 표시 (display: flex → 화면 중앙에 배치)
+    console.log('[DIAG][cctvpopup] 끝까지 도달 → display:flex 설정 (팝업 표시되어야 정상)');
     backdrop.style.display = 'flex';
 
     // HLS 스트림인 경우 비디오 플레이어 초기화 (innerHTML 설정 후 실행)
@@ -733,6 +737,9 @@ function seafogFullscreen() {
 function closeCctvPopup() {
     const backdrop = document.getElementById('cctv-modal-backdrop');
     if (!backdrop || backdrop.style.display === 'none') return;
+    // [임시 진단 로그 — 팝업이 열리자마자 닫히는지 추적용. 진단 끝나면 제거.]
+    console.log('[DIAG][cctvpopup] closeCctvPopup 호출됨 (누가 닫는지 ↓ 스택)');
+    console.trace('[DIAG][cctvpopup] close stack');
 
     // iframe 스트림 즉시 중단 (KBS 방식)
     const iframe = backdrop.querySelector('iframe');

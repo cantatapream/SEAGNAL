@@ -465,7 +465,7 @@
         if (typeof window.showCctvPopup === 'function') {
             // [사용량] CCTV 아이콘 클릭으로 팝업이 켜질 때만 +1
             if (window.trackUsage) window.trackUsage('ocean.cctv_open');
-            window.showCctvPopup({
+            try { window.showCctvPopup({
                 cctvId:       f.get('cctvId'),
                 name:         f.get('name'),
                 subtitle:     f.get('subtitle'),
@@ -477,7 +477,7 @@
                 sensorName:   f.get('sensorName') || null,
                 cameraCount:  f.get('cameraCount')|| 1,
                 obsName:      f.get('obsName')    || null
-            });
+            }); } catch (_e) { console.error('[DIAG][cctv] showCctvPopup threw:', _e); }
         }
         return true;
     }
