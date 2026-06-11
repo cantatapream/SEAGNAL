@@ -231,28 +231,47 @@ function _mmisFctTmToUtcKey(fctTm) {
     return `${utc.getUTCFullYear()}${p(utc.getUTCMonth() + 1)}${p(utc.getUTCDate())}${p(utc.getUTCHours())}`;
 }
 
-// 해구 중심좌표로 시정 시계열을 받아 { UTC키 → vs(km) } 맵 반환. 실패 시 빈 맵(부가정보이므로 표는 유지).
+// "2026.06.12 02:00"(KST) → 절대 ms (TZ 무관, 1시간 시정선 x 계산용).
+function _kstTmToMs(s) {
+    const m = /^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/.exec(s || '');
+    if (!m) return NaN;
+    return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) - 9 * 3600 * 1000;
+}
+// zone tm "YYYYMMDDHH"(UTC) → 절대 ms (3시간 카테고리 시각).
+function _zoneTmToMs(tm) {
+    const s = String(tm);
+    if (s.length < 10) return NaN;
+    return Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10));
+}
+
+// 해구 시정 — 우리 서버 API(소해구='-'포함 → 래스터 1h / 대해구 → 대해구 숫자 1h).
+//   반환: { UTC키(YYYYMMDDHH) → vs } (3시간 표 텍스트 병합용, 실패 시 빈 맵).
+//   부수: window._marineVis1h = [{ms,v}] 전체 1시간 시계열(상단 그래프 1시간 시정선용).
 async function fetchZoneVisibility(zoneId) {
     const out = {};
+    window._marineVis1h = null;
     try {
-        const coords = getZoneCoordinatesByZoneId(zoneId);
-        if (!coords || coords.lat == null || coords.lon == null) return out;
+        const sid = String(zoneId);
+        const url = sid.includes('-')
+            ? `/api/vsby-smallzone/cell?key=${encodeURIComponent(sid)}`   // 소해구 = 래스터(1h)
+            : `/api/vsby-smallzone/major?no=${encodeURIComponent(sid)}`;  // 대해구 = 숫자(1h)
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 6000);
-        const url = `${MMIS_VS_DETAIL_URL}?lat=${encodeURIComponent(coords.lat)}&lon=${encodeURIComponent(coords.lon)}`;
         let r;
-        try {
-            r = await fetch(url, { credentials: 'omit', signal: ctrl.signal });
-        } finally {
-            clearTimeout(timer);
-        }
+        try { r = await fetch(url, { signal: ctrl.signal }); }
+        finally { clearTimeout(timer); }
         if (!r || !r.ok) return out;
         const j = await r.json();
-        const arr = (j && j.payload && j.payload.marine_zone) || [];
-        arr.forEach(e => {
-            const key = _mmisFctTmToUtcKey(e.fctTm);
-            if (key && e.vs != null && !isNaN(e.vs)) out[key] = Number(e.vs);
+        const series = (j && j.series) || [];
+        const oneH = [];
+        series.forEach(e => {
+            if (e == null || e.v == null || isNaN(e.v)) return;
+            const key = _mmisFctTmToUtcKey(e.t);       // 3h 표 병합용 UTC키
+            if (key) out[key] = Number(e.v);
+            const ms = _kstTmToMs(e.t);                 // 1h 선용 절대 ms
+            if (isFinite(ms)) oneH.push({ ms: ms, v: Number(e.v) });
         });
+        if (oneH.length) { oneH.sort((a, b) => a.ms - b.ms); window._marineVis1h = oneH; }
     } catch (e) {
         // 시정은 부가정보 — 실패해도 기존 풍향/풍속/파고 표는 그대로 표출
     }
@@ -988,6 +1007,8 @@ function renderMarineChart(data) {
     const lineGlowPlugin = {
         id: 'lineGlowPlugin',
         afterDatasetsDraw(chart) {
+            // 1시간 시정선이 있으면 3시간 글로우는 생략(1h 플러그인이 위험색을 직접 처리).
+            if (window._marineVis1h && window._marineVis1h.length) return;
             // 시정 데이터셋 찾기
             const visIdx = chart.data.datasets.findIndex(d => d.label === '시정');
             if (visIdx < 0) return;
@@ -1041,6 +1062,53 @@ function renderMarineChart(data) {
                 cancelAnimationFrame(window._marineGlowRAF);
                 window._marineGlowRAF = null;
             }
+        }
+    };
+
+    // [1시간 시정선] 3시간 카테고리축 위에, 우리 서버의 1시간 시정 시계열을 카테고리
+    //   시각 사이 보간 x + y_vis 스케일로 오버레이. (텍스트 수치는 기존 3시간 데이터셋 라벨 유지)
+    //   기존 풍속/파고/오프셋(CHART_OFFSETS) 구조는 건드리지 않는 순수 가산 오버레이.
+    const vis1hLinePlugin = {
+        id: 'vis1hLinePlugin',
+        afterDatasetsDraw(chart) {
+            const vis1h = window._marineVis1h;
+            if (!vis1h || vis1h.length < 2) return;
+            const xs = chart.scales.x, ys = chart.scales.y_vis;
+            if (!xs || !ys) return;
+            const offs = window.CHART_OFFSETS || [];
+            const catX = data.map((d, i) => xs.getPixelForValue(i) + (offs[i] || 0));
+            const catMs = data.map(d => _zoneTmToMs(d.tm));
+            const n = catMs.length;
+            if (n < 2 || !isFinite(catMs[0])) return;
+            const pts = [];
+            for (let k = 0; k < vis1h.length; k++) {
+                const ms = vis1h[k].ms;
+                if (ms < catMs[0] || ms > catMs[n - 1]) continue;   // 표 범위 내만
+                let i = 0;
+                while (i < n - 1 && catMs[i + 1] < ms) i++;
+                const span = catMs[i + 1] - catMs[i];
+                const frac = (span > 0) ? (ms - catMs[i]) / span : 0;
+                const x = catX[i] + (catX[i + 1] - catX[i]) * frac;
+                const v = Math.min(vis1h[k].v, VIS_CAP_KM);
+                pts.push({ x: x, y: ys.getPixelForValue(v), v: vis1h[k].v });
+            }
+            if (pts.length < 2) return;
+            const c = chart.ctx;
+            c.save();
+            c.lineWidth = 2;
+            c.lineJoin = 'round';
+            c.setLineDash([6, 4]);   // 시정선은 점선(범례 표기와 일치)
+            for (let i = 0; i < pts.length - 1; i++) {
+                const worse = Math.min(pts[i].v, pts[i + 1].v);
+                c.strokeStyle = _visGraphColor(worse);
+                c.shadowColor = 'rgba(0,0,0,0.55)';
+                c.shadowBlur = 2;
+                c.beginPath();
+                c.moveTo(pts[i].x, pts[i].y);
+                c.lineTo(pts[i + 1].x, pts[i + 1].y);
+                c.stroke();
+            }
+            c.restore();
         }
     };
 
@@ -1116,13 +1184,14 @@ function renderMarineChart(data) {
                     type: 'line',
                     borderColor: '#ffd54f',
                     backgroundColor: 'rgba(255, 213, 79, 0)',
-                    borderWidth: 2,
+                    // 1시간 시정선(vis1hLinePlugin)이 있으면 3시간 연결선/점은 숨기고 텍스트 라벨만 유지.
+                    borderWidth: (window._marineVis1h && window._marineVis1h.length) ? 0 : 2,
                     borderDash: [5, 3],
                     yAxisID: 'y_vis',
                     tension: 0.3,
                     spanGaps: true,
-                    // 점은 시정이 나쁠 때(<4 표시단위)만 노출 + 위험색
-                    pointRadius: (ctx) => (_visLabelVisible(ctx.dataset.data[ctx.dataIndex]) ? 4 : 0),
+                    // 점은 (1h 선 없을 때) 시정이 나쁠 때만 노출 + 위험색. 1h 선 있으면 숨김.
+                    pointRadius: (ctx) => ((window._marineVis1h && window._marineVis1h.length) ? 0 : (_visLabelVisible(ctx.dataset.data[ctx.dataIndex]) ? 4 : 0)),
                     pointHoverRadius: 0,
                     pointBackgroundColor: (ctx) => _visGraphColor(ctx.dataset.data[ctx.dataIndex]),
                     pointBorderColor: (ctx) => _visGraphColor(ctx.dataset.data[ctx.dataIndex]),
@@ -1158,7 +1227,7 @@ function renderMarineChart(data) {
                 }
             ]
         },
-        plugins: [ChartDataLabels, adjustmentPlugin, lineHaloPlugin, lineGlowPlugin],
+        plugins: [ChartDataLabels, adjustmentPlugin, lineHaloPlugin, lineGlowPlugin, vis1hLinePlugin],
         options: {
             animation: false,
             hover: { mode: null, animationDuration: 0 },
