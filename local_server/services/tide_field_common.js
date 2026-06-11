@@ -52,6 +52,12 @@ const BATHYMETRY_DIR = path.join(DATA_DIR, 'bathymetry');
 const FRAMES_BIN = path.join(TIDE_FIELD_DIR, 'frames.bin');
 const FRAMES_META = path.join(TIDE_FIELD_DIR, 'frames_meta.json');
 
+// [앵커 격자 보정 캐시] no_grid(TideBED 격자 미제공) 앵커를 인근 격자 셀 좌표로
+//   이동(nudge)한 결과를 영속 캐시한다. { build_version, overrides: { anchorId:
+//   {lon,lat}(이동 좌표) | null(반경 내 격자 없음=no_grid 확정) } }. 수집기가
+//   no_grid 발생 시 1회 탐색해 채우고, 이후 수집은 재탐색 없이 이 값을 쓴다.
+const PROBE_OVERRIDE_PATH = path.join(TIDE_FIELD_DIR, 'anchor_probe_override.json');
+
 // ============================================================================
 // 대상 해역 게이팅 (서해 + 남해)
 // ============================================================================
@@ -363,7 +369,7 @@ const TIDE_FIELD_CONFIG = {
 module.exports = {
     // 경로
     TIDE_FIELD_DIR, GRID_META_PATH, ANCHORS_PATH, CURVES_DIR, BATHYMETRY_DIR,
-    FRAMES_BIN, FRAMES_META,
+    FRAMES_BIN, FRAMES_META, PROBE_OVERRIDE_PATH,
     // 해역 게이팅
     REGION_BBOX, isWestSouthSea, isExcludedSea,
     // 표준항

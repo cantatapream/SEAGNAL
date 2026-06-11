@@ -137,6 +137,102 @@ function isComplete(anchorId, yyyymmdd) {
 }
 
 // ============================================================================
+// 앵커 격자 보정 (nudge) — no_grid 앵커를 인근 격자 셀로 이동
+// ============================================================================
+// TideBED 조석격자는 연안·조간대 위주라, 버킷에서 "가장 깊은 드러남 셀"로 뽑힌
+// 앵커가 깊은 수로에 놓이면 격자가 없어 no_grid 가 된다. 이때 인근(반경
+// NUDGE_RADIUS_KM)의 더 얕은 격자 셀(= 조간대, 격자 존재 확률 높음)을 가까운 순으로
+// getGridHash 탐색해 첫 적중 좌표로 "수집 좌표"만 옮긴다. 앵커의 논리적 위치(보간
+// 기하)는 그대로 두므로 재빌드가 불필요하고, 2~3km 내 이동이라 조위 위상 차이는 무시
+// 가능하다. 물빠짐(노출)은 조간대에서 일어나므로 인근 조간대 곡선이 오히려 대표성이 높다.
+const NUDGE_RADIUS_KM = 3;     // 탐색 반경(km)
+const NUDGE_MAX_PROBES = 8;    // 앵커당 최대 getGridHash 탐색 횟수(API 부담 상한)
+const NUDGE_MAX_RETRIES = 3;   // 격자 못 찾은 앵커 재탐색 상한(일시 오류 자가복구 후 포기)
+
+// grid_meta 셀 1회 로드(캐시) — 후보 셀 탐색용. [{lon,lat,depth}]
+let _gridCells = null;
+function loadGridCells() {
+    if (_gridCells !== null) return _gridCells;
+    try {
+        const j = JSON.parse(fs.readFileSync(C.GRID_META_PATH, 'utf8'));
+        _gridCells = Array.isArray(j.cells) ? j.cells : [];
+    } catch (e) { _gridCells = []; }
+    return _gridCells;
+}
+
+// 격자 보정 캐시(사이드카) 로드/저장 — build_version 불일치면 폐기(앵커 위치 변동).
+//   값: {lon,lat}(이동 좌표=영구) | {noGrid:true,tries:n}(미발견, n회까지 재탐색).
+let _probeOverrides = null;
+function loadProbeOverrides() {
+    if (_probeOverrides !== null) return _probeOverrides;
+    try {
+        const j = JSON.parse(fs.readFileSync(C.PROBE_OVERRIDE_PATH, 'utf8'));
+        _probeOverrides = (j && j.build_version === CFG.BUILD_VERSION && j.overrides && typeof j.overrides === 'object')
+            ? j.overrides : {};
+    } catch (e) { _probeOverrides = {}; }
+    return _probeOverrides;
+}
+function saveProbeOverrides() {
+    if (!_probeOverrides) return;
+    try {
+        fs.mkdirSync(C.TIDE_FIELD_DIR, { recursive: true });
+        const out = { build_version: CFG.BUILD_VERSION, updated_at: new Date().toISOString(), overrides: _probeOverrides };
+        const tmp = C.PROBE_OVERRIDE_PATH + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify(out), 'utf8');
+        fs.renameSync(tmp, C.PROBE_OVERRIDE_PATH);
+    } catch (e) { /* 캐시 저장 실패는 치명적 아님 */ }
+}
+/** 재빌드(앵커 위치 변동) 시 보정 캐시·격자 캐시 폐기. */
+function clearProbeOverrides() {
+    _probeOverrides = null; _gridCells = null;
+    try { if (fs.existsSync(C.PROBE_OVERRIDE_PATH)) fs.unlinkSync(C.PROBE_OVERRIDE_PATH); } catch (e) {}
+}
+
+/**
+ * no_grid 앵커를 인근 격자 셀로 보정(nudge). 캐시에 결과가 있으면 재탐색 없이 반환.
+ *   - 적중 좌표는 영구 캐시. 미발견은 tries 누적하며 NUDGE_MAX_RETRIES 까지 재탐색
+ *     (일시 게이트웨이 오류로 인한 오탐을 다음 사이클에 자가복구), 이후 포기(null).
+ *   @returns {Promise<{lon,lat}|null>} 이동 좌표(격자 적중) 또는 null(보정 불가)
+ */
+async function resolveNudge(anchor, yyyymmdd, log) {
+    const cache = loadProbeOverrides();
+    const cur = cache[anchor.id];
+    if (cur && cur.lon != null) return { lon: cur.lon, lat: cur.lat };  // 적중(영구)
+    const tries = (cur && cur.noGrid) ? (cur.tries || 0) : 0;
+    if (tries >= NUDGE_MAX_RETRIES) return null;                        // 포기
+
+    // 후보: 반경 내 격자 셀, 가까운 순(앵커 자신 좌표는 이미 no_grid 라 제외).
+    const cand = [];
+    for (const c of loadGridCells()) {
+        if (c.lon == null || c.lat == null) continue;
+        const dKm = C.haversineKm(anchor.lat, anchor.lon, c.lat, c.lon);
+        if (dKm > 0.05 && dKm <= NUDGE_RADIUS_KM) cand.push({ lon: c.lon, lat: c.lat, dKm });
+    }
+    cand.sort((a, b) => a.dKm - b.dKm);
+
+    const { getGridHash } = getTideCollector();
+    let found = null;
+    const n = Math.min(NUDGE_MAX_PROBES, cand.length);
+    for (let i = 0; i < n; i++) {
+        const qLat = Math.round(cand[i].lat * 100000) / 100000;
+        const qLon = Math.round(cand[i].lon * 100000) / 100000;
+        let hash = null;
+        try { hash = await getGridHash(qLat, qLon, yyyymmdd); } catch (e) { hash = null; }
+        if (hash) { found = { lon: qLon, lat: qLat, distKm: Math.round(cand[i].dKm * 100) / 100 }; break; }
+    }
+
+    if (found) {
+        cache[anchor.id] = { lon: found.lon, lat: found.lat };
+        if (log) log(`  ↳ 보정: ${anchor.id} no_grid → 인근 격자(${found.distKm}km) 이동 (${found.lat},${found.lon})`);
+    } else {
+        cache[anchor.id] = { noGrid: true, tries: tries + 1 };
+        if (log) log(`  ↳ 보정: ${anchor.id} 반경 ${NUDGE_RADIUS_KM}km 내 격자 없음 (시도 ${tries + 1}/${NUDGE_MAX_RETRIES})`);
+    }
+    saveProbeOverrides();
+    return found ? { lon: found.lon, lat: found.lat } : null;
+}
+
+// ============================================================================
 // 단일 (앵커,날짜) 수집 + 저장
 // ============================================================================
 async function collectOne(anchor, yyyymmdd, opts = {}) {
@@ -150,24 +246,32 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
     const qLon = Math.round(anchor.lon * 100000) / 100000;
 
     const { collectTideBedPages, getGridHash } = getTideCollector();
+    const log = opts.log;
 
-    // (선택) 격자 제공 해역 검증 — TideBED 미제공이면 skip 기록 후 종료.
+    // 수집에 사용할 좌표(기본=앵커). no_grid 보정(nudge) 시 인근 격자 좌표로 교체.
+    let cLat = qLat, cLon = qLon, nudged = null;
+
+    // (선택) 격자 제공 해역 검증 — TideBED 미제공이면 인근 격자로 보정, 실패 시 skip.
     if (verifyGrid) {
-        try {
-            const hash = await getGridHash(qLat, qLon, yyyymmdd);
-            if (!hash) {
+        let hash = null;
+        try { hash = await getGridHash(qLat, qLon, yyyymmdd); }
+        catch (e) { hash = null; /* 조회 실패는 막지 않음 — 아래 보정/진행 */ }
+        if (!hash) {
+            // 앵커 자체는 격자 미제공 → 인근 격자 셀로 보정 시도(캐시·자가복구).
+            nudged = (opts.nudge !== false) ? await resolveNudge(anchor, yyyymmdd, log) : null;
+            if (!nudged) {
                 writeCurve(anchor, yyyymmdd, {
                     status: 'no_grid', curve: [], loadedPages: [], failedPages: [],
-                    note: 'TideBED 격자 미제공 해역'
+                    note: 'TideBED 격자 미제공 해역(인근 보정 실패)'
                 });
                 return { anchorId: anchor.id, date: yyyymmdd, status: 'no_grid' };
             }
-        } catch (e) {
-            // 격자 조회 실패는 수집 자체를 막지 않음 (계속 시도)
+            cLat = Math.round(nudged.lat * 100000) / 100000;
+            cLon = Math.round(nudged.lon * 100000) / 100000;
         }
     }
 
-    const { items, loadedPages, failedPages } = await collectTideBedPages(qLat, qLon, String(yyyymmdd));
+    const { items, loadedPages, failedPages } = await collectTideBedPages(cLat, cLon, String(yyyymmdd));
 
     // [하드 실패] 한 페이지도 못 받음(게이트웨이 HTML/무응답 추정) → 파일을
     //   쓰지 않고 'failed' 반환. 빈 파일 littering 방지 + 다음 사이클 깨끗한 재시도.
@@ -200,6 +304,8 @@ async function collectOne(anchor, yyyymmdd, opts = {}) {
             lowTide1: peaks.lowTide1, lowTide2: peaks.lowTide2,
             highTide1: peaks.highTide1, highTide2: peaks.highTide2
         },
+        // 보정된 경우 실제 수집 좌표 기록(디버그/투명성). 라우트는 앵커 원위치로 보간.
+        ...(nudged ? { nudgedTo: { lon: cLon, lat: cLat } } : {}),
         curve
     };
     writeCurve(anchor, yyyymmdd, rec);
@@ -307,6 +413,7 @@ async function ensureBuilt(opts = {}) {
         //   날짜마다 다른 위치의 곡선이 섞여 자정에 조위가 불연속(급변)이 된다.
         //   → 재빌드 전 옛 곡선을 모두 폐기하고 새 위치에서 전부 새로 수집한다.
         const cleared = clearCurves();
+        clearProbeOverrides();  // 앵커 위치가 바뀌면 옛 격자 보정 좌표도 무효
         if (cleared) log(`재빌드 — 옛 곡선 ${cleared}개 폐기(앵커 위치 변동) → 전부 새로 수집`);
         const builder = require('../scripts/build_tide_field');
         await builder.main({ log });
@@ -440,7 +547,7 @@ async function _collectTideFieldInner(opts = {}) {
     const { results, aborted } = await runPool(tasks, CONCURRENCY, async (task) => {
         progress++;
         log(`▶ [${progress}/${total}] 앵커 ${task.anchor.id} (${task.anchor.lat.toFixed(3)},${task.anchor.lon.toFixed(3)}) 날짜 ${task.date} 수집 중...`);
-        const r = await collectOne(task.anchor, task.date, { verifyGrid: opts.verifyGrid });
+        const r = await collectOne(task.anchor, task.date, { verifyGrid: opts.verifyGrid, nudge: opts.nudge, log });
         log(`  ↳ [${progress}/${total}] → ${r.status}${r.count != null ? ` (${r.count}분)` : ''}`);
         return r;
     });
