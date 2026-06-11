@@ -109,3 +109,14 @@ local_server/data/tide_field/frames.bin
 local_server/data/tide_field/frames.bin.tmp
 local_server/data/tide_field/frames_meta.json
 local_server/data/tide_field/frames_meta.json.tmp
+
+# 특보예측 검증 청별 중간 산출물(재생성 가능 — 최종 RECALIB_national.md 만 추적)
+local_server/analysis/wave_leadtime/reports/recalib_*.log
+local_server/analysis/wave_leadtime/reports/RECALIB_jeju.md
+local_server/analysis/wave_leadtime/reports/RECALIB_busn.md
+local_server/analysis/wave_leadtime/reports/RECALIB_gwju.md
+local_server/analysis/wave_leadtime/reports/RECALIB_degu.md
+local_server/analysis/wave_leadtime/reports/RECALIB_gawn.md
+local_server/analysis/wave_leadtime/reports/RECALIB_dajn.md
+local_server/analysis/wave_leadtime/reports/RECALIB_all.md
+local_server/analysis/wave_leadtime/out/recalib_samples_*.json
