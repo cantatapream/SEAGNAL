@@ -2295,7 +2295,13 @@ async function init() {
     //   부팅 폭주(초기 수집/크롤)와 경합 회피 위해 ~90초 지연. fire-and-forget, throw 격리.
     setTimeout(() => {
         if (!crawlPaused) {
-            require('./advisory/runPrediction').runPredictionCycle().catch(() => {});
+            // require() 자체가 동기 throw(의존성 누락 등)일 수 있어 try 로 격리.
+            // 특보 예측 하나가 서버 프로세스 전체를 죽이지 않도록 한다.
+            try {
+                require('./advisory/runPrediction').runPredictionCycle().catch(() => {});
+            } catch (e) {
+                console.error('[advisory] 시드 사이클 트리거 실패 — 건너뜀:', e && e.message);
+            }
         }
     }, 90 * 1000);
 
@@ -2481,7 +2487,12 @@ async function init() {
         //   crawlPaused 가드: 운영자가 크롤을 멈추면 예측(dmdw 크롤 동반)도 멈춘다.
         //   await 없음 — 느린 dmdw 크롤이 1분 틱을 블로킹하지 않게.
         if (min === 25 && !crawlPaused) {
-            require('./advisory/runPrediction').runPredictionCycle().catch(() => {});
+            // require() 동기 throw(의존성 누락 등) 격리 — 서버 전체 크래시 방지.
+            try {
+                require('./advisory/runPrediction').runPredictionCycle().catch(() => {});
+            } catch (e) {
+                console.error('[advisory] :25 사이클 트리거 실패 — 건너뜀:', e && e.message);
+            }
         }
 
         // [관리자 반복 푸시] 매 정시(min === 0)에 미확인 항목 체크 후 관리자 푸시 재발송
