@@ -351,51 +351,37 @@
     }
 
     /** 카드 하나에 시정 뱃지 부착 (이미 있으면 skip). */
-    function _attachBadgeToCard(card) {
-        if (!card || card.dataset.vsbyBadgeDone === '1') return;
-        var zoneName = _zoneNameOfCard(card);
-        if (!zoneName) return;
-        var code = state.nameToCode && state.nameToCode[_normName(zoneName)];
-        if (!code) { card.dataset.vsbyBadgeDone = '1'; return; }
+    // [일원화] 시정 뱃지는 평균박스(zone_avg.createBox)가 makeBadge 로 같은 줄에 합류.
+    //   기존의 카드 헤더 근접 삽입은 폐지(스타일/위치 불일치 해소). 관찰자 인프라는 무해 유지.
+    function _attachBadgeToCard(card) { /* no-op */ }
 
+    /**
+     * [공개] zone_avg.createBox 가 호출 — 그 특보구역의 시정 뱃지(.zone-avg-badge vsby) 반환.
+     *   매핑(smallZones) 없거나 gridMap 미로드 시 null → 평균박스에 시정 미표시(먼바다 제외).
+     */
+    function makeBadge(zoneName) {
+        if (!state.nameToCode) return null;
+        var code = state.nameToCode[_normName(zoneName)];
+        if (!code) return null;
         var meta = state.gridMap[code];
-        if (!meta || !meta.smallZones || !meta.smallZones.length) {
-            card.dataset.vsbyBadgeDone = '1';
-            return;
-        }
-
-        var anchor = _badgeAnchor(card);
-        if (!anchor || !anchor.parent) return;
-
-        card.dataset.vsbyBadgeDone = '1';
-
-        var badge = document.createElement('button');
-        badge.type = 'button';
-        badge.className = 'vsby-zone-badge';
-        badge.textContent = '시정 …';
+        if (!meta || !meta.smallZones || !meta.smallZones.length) return null;
+        var badge = document.createElement('span');
+        badge.className = 'zone-avg-badge vsby';
+        badge.style.cursor = 'pointer';
         badge.dataset.vsbyCode = code;
-        badge.title = '클릭하면 지도에 소해구별 시정을 표시합니다';
+        badge.innerHTML = '<span class="lbl">시정</span> …';
+        badge.title = '클릭하면 소해구별 시정을 지도로 표시합니다';
         badge.addEventListener('click', function (e) {
-            e.stopPropagation();   // 카드 아코디언 토글 방지
+            e.stopPropagation();
             _onBadgeClick(code, badge);
         });
-
-        // (A) 특보 카드: .alert-badges 앞 / (B) 기상현황 카드: nameRow 끝.
-        if (anchor.before && anchor.before.parentElement === anchor.parent) {
-            anchor.parent.insertBefore(badge, anchor.before);
-        } else {
-            anchor.parent.appendChild(badge);
-        }
-
-        // 비동기로 범위 채움.
         _computeZoneSummary(code).then(function (summary) {
             if (!badge.isConnected) return;
             if (!summary) { badge.remove(); return; }
-            badge.textContent = _badgeText(summary);
-            badge.dataset.vsbyReady = '1';
-        }).catch(function () {
-            if (badge.isConnected) badge.remove();
-        });
+            var val = _badgeText(summary).replace(/^시정\s*/, '');   // "0.2~5km" / "20km"
+            badge.innerHTML = '<span class="lbl">시정</span> ' + val;
+        }).catch(function () { if (badge.isConnected) badge.remove(); });
+        return badge;
     }
 
     // 시정 뱃지를 부착할 아코디언 컨테이너 — 해역별 특보현황 + 해역별 기상현황.
@@ -600,7 +586,7 @@
 
     /** 모든 뱃지의 active 표시 갱신. */
     function _refreshBadgeActiveState() {
-        var badges = document.querySelectorAll('.vsby-zone-badge');
+        var badges = document.querySelectorAll('.zone-avg-badge.vsby');
         for (var i = 0; i < badges.length; i++) {
             var b = badges[i];
             if (b.dataset.vsbyCode === state.activeCode) b.classList.add('active');
@@ -745,6 +731,14 @@
             + '.vsby-zone-badge.active{'
             +   'background:rgba(31,182,214,0.55);border-color:#1fb6d6;color:#fff;'
             + '}'
+            // ── 평균박스에 합류한 시정 펄 (.zone-avg-badge 와 동일 모양, 색만 teal) ──
+            + '.zone-avg-box .zone-avg-badge.vsby{'
+            +   '--zab-strong:rgba(38,198,218,0.9);--zab-faded:rgba(38,198,218,0.15);'
+            +   'background:rgba(38,198,218,0.18);color:#80deea;cursor:pointer;'
+            + '}'
+            + '.zone-avg-box .zone-avg-badge.vsby.active{'
+            +   'background:rgba(38,198,218,0.5);border-color:#26c6da;color:#fff;'
+            + '}'
             // ── 시정 팝업(자체 미니 해구도) ──
             + '.vsby-pop-overlay{position:fixed;inset:0;z-index:11000;background:rgba(0,0,0,0.55);'
             +   'display:flex;align-items:center;justify-content:center;padding:16px;}'
@@ -796,29 +790,21 @@
 
     function _boot() {
         _injectCss();
-        // 매핑 데이터 먼저 로드한 뒤 카드 스캔 시작.
+        // 매핑 로드 후, 평균박스(zone_avg)를 다시 그려 시정 뱃지를 합류시킨다.
+        //   (첫 렌더 때 gridMap 미로드면 makeBadge 가 null 이라 시정이 빠질 수 있어,
+        //    로드 완료 시 refreshAll 로 보강.)
         _loadGridMap().then(function () {
-            var ok = _startObserver();
-            if (!ok) {
-                // alert-content 아직 없으면 잠깐 후 재시도.
-                var tries = 0;
-                var iv = setInterval(function () {
-                    tries++;
-                    if (_startObserver() || tries > 40) clearInterval(iv);
-                }, 250);
+            if (window.ZoneAvg && typeof window.ZoneAvg.refreshAll === 'function') {
+                try { window.ZoneAvg.refreshAll(); } catch (e) {}
             }
-            // 특보 데이터 갱신 시 재스캔 (새 카드 등장 대비).
-            window.addEventListener('seagnal:alerts-changed', function () {
-                // render 가 DOM 교체 후라 약간 지연 후 스캔.
-                setTimeout(_scanCards, 0);
-            });
+            // 특보/기상 데이터 갱신 시 평균박스 재생성으로 시정 자동 합류 → 별도 관찰 불필요.
         });
     }
 
-    // 외부 디버깅/연동용 최소 API.
+    // 외부 연동 API — zone_avg 가 makeBadge 호출, 디버깅용 clear.
     window.OceanWarnVsby = {
-        clear: function () { _closePopup(); },
-        rescan: _scanCards
+        makeBadge: makeBadge,
+        clear: function () { _closePopup(); }
     };
 
     if (document.readyState === 'loading') {
