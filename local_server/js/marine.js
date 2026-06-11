@@ -1097,6 +1097,7 @@ function renderMarineChart(data) {
             c.save();
             c.lineWidth = 2;
             c.lineJoin = 'round';
+            c.setLineDash([6, 4]);   // 시정선은 점선(범례 표기와 일치)
             for (let i = 0; i < pts.length - 1; i++) {
                 const worse = Math.min(pts[i].v, pts[i + 1].v);
                 c.strokeStyle = _visGraphColor(worse);

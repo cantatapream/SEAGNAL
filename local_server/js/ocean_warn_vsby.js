@@ -680,10 +680,8 @@
             head.appendChild(closeBtn);
             var mapDiv = document.createElement('div');
             mapDiv.className = 'vsby-pop-map';
-            var legend = document.createElement('div');
-            legend.className = 'vsby-pop-legend';
-            legend.innerHTML = _legendHTML();
-            boxEl.appendChild(head); boxEl.appendChild(mapDiv); boxEl.appendChild(legend);
+            // 범례 제거 — 폴리곤이 색칠되고 km 텍스트도 표기되므로 불필요(사용자 요청).
+            boxEl.appendChild(head); boxEl.appendChild(mapDiv);
             overlay.appendChild(boxEl);
             document.body.appendChild(overlay);
             state.popupEl = overlay;
