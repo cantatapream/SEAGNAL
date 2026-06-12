@@ -14,9 +14,10 @@
  *   - PNG 배치: EPSG:4326, extent = MMIS 번들 검증값(아래 VSBY_EXTENT).
  *   런(생산시각)은 img 경로의 RDPS_<YYYYMMDDHH>_VIS 에서 추출 → 바뀔 때만 재수집.
  *
- * [대해구 시정 — 숫자(정밀)]
- *   해구별 기상전망에서 "대해구" 클릭 시 선 차트는 정밀 숫자가 필요하므로
- *   대해구 1시간 시계열(marine_zone/vs, 로그인)을 별도 제공(getMajorSeries).
+ * [대해구 시정 — 소해구 래스터 집계(완전 래스터화)]
+ *   해구별 기상전망에서 "대해구" 클릭 시 선 차트는 그 대해구에 속한 9개 소해구
+ *   래스터를 프레임별 최악값(min km)으로 집계해 제공(getMajorForGraph). 종전
+ *   marine_zone/vs(로그인) 숫자는 RDPS 래스터와 크게 어긋나 제거 — 단일 제품 통일.
  *
  * [캐시 / 영속성]
  *   메모리 상주 + data/vsby_smallzone.json.gz(gzip). 부팅 시 로드, 런 동일하면
@@ -29,7 +30,6 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const fetch = require('node-fetch');
-const marine = require('./marine_client');
 
 // jimp 는 지연·가드 로드 — 미설치/로드 실패해도 서버 부팅을 막지 않는다(래스터 수집만 비활성).
 //   (package.json 에 jimp 가 없거나 프로덕션 설치 누락 시에도 require 단계 크래시 방지)
@@ -50,7 +50,6 @@ const CACHE_PATH = path.join(DATA_DIR, 'vsby_smallzone.json.gz');
 const KMA_BASE = 'https://marine.kma.go.kr';
 const API_V1 = '/mmis_marine_api/v1/kma';
 const IMGLIST_URL = `${KMA_BASE}${API_V1}/mdl/rdps/imgList`;
-const majorSeriesPath = (no) => `${API_V1}/mdl/marine_zone/vs/${no}/list`;   // 대해구 1시간 숫자(로그인)
 
 const DOWNLOAD_CONCURRENCY = 6;            // PNG 동시 다운로드
 const POLL_INTERVAL_MS = 60 * 60 * 1000;   // 런 변경 폴링(1시간)
@@ -303,35 +302,15 @@ function _loadCache() {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// 4. 대해구 1시간 숫자(정밀) — 선 차트용 (로그인)
+// 4. 대해구 시정 — 소해구 래스터 집계(완전 래스터화)
+//    종전 marine_zone/vs(MMIS 로그인) 숫자 폴백은 RDPS 래스터와 크게 어긋나(맑음 vs
+//    안개) 한 화면에서 상반돼 보이는 문제가 있어 제거. 대해구/소해구/오버레이를
+//    모두 동일한 RDPS 바다안개 래스터 제품으로 통일한다.
 // ────────────────────────────────────────────────────────────────────────────
-const _majorCache = {};
-async function getMajorSeries(no) {
-    if (!no) return null;
-    const cached = _majorCache[no];
-    if (cached && cached.baseTm === _cache.baseTm) return { no, baseTm: _cache.baseTm, series: cached.series, cached: true };
-    try {
-        const j = await marine.getAuthedJson(majorSeriesPath(no));
-        const arr = j.data || j.payload || [];
-        const series = (Array.isArray(arr) ? arr : [])
-            .filter(r => r && r.vs != null && (r.fct_tm || r.fctTm))
-            .map(r => ({ t: r.fct_tm || r.fctTm, v: Math.round(Number(r.vs) * 10) / 10 }));
-        _majorCache[no] = { baseTm: _cache.baseTm, series };
-        return { no, baseTm: _cache.baseTm, series, cached: false };
-    } catch (e) { return { no, baseTm: _cache.baseTm, series: [], cached: false }; }
-}
-async function getMajorByPoint(lat, lon) {
-    const no = pointToMajorNo(Number(lat), Number(lon));
-    if (!no) return null;
-    return getMajorSeries(no);
-}
-
 /**
  * 대해구 번호 → 9개 소해구 래스터를 프레임별 "최악값(min km)"으로 집계 → [{t,v}].
- * 대해구/소해구/오버레이를 모두 동일한 RDPS 바다안개 래스터 제품으로 통일하기 위함.
- * (marine_zone/vs 수치와 RDPS 래스터가 크게 어긋나 한 화면에서 상반돼 보이는 문제 해소)
  * 안개가 일부 소해구에만 끼어도 대해구 전체를 보수적으로 나쁘게 표기한다.
- * 래스터 미수집/무데이터면 빈 배열.
+ * 래스터 미수집/무데이터(범위 밖)면 빈 배열.
  */
 function majorRasterSeries(no) {
     const ft = _cache.fctTimes || [];
@@ -348,13 +327,10 @@ function majorRasterSeries(no) {
     return out;
 }
 
-/** [선 차트] 대해구 시정 — 래스터(소해구 9칸 최악값) 우선, 래스터 없으면 marine_zone/vs 숫자 폴백. */
+/** [선 차트] 대해구 시정 — 소해구 9칸 래스터 최악값 집계(완전 래스터). 범위 밖이면 빈 series. */
 async function getMajorForGraph(no) {
     if (!no) return null;
-    const rs = majorRasterSeries(no);
-    if (rs.length) return { no, baseTm: _cache.baseTm, series: rs, source: 'raster' };
-    const mj = await getMajorSeries(no);
-    return { no, baseTm: _cache.baseTm, series: (mj && mj.series) || [], source: 'major' };
+    return { no, baseTm: _cache.baseTm, series: majorRasterSeries(no), source: 'raster' };
 }
 async function getMajorForGraphByPoint(lat, lon) {
     const no = pointToMajorNo(Number(lat), Number(lon));
@@ -415,15 +391,16 @@ function getCells(cellKeys) {
 }
 
 /**
- * 소해구 시계열 — 래스터 우선, 없으면 부모 대해구 1시간 숫자로 폴백(100% 커버).
- * @returns {Promise<{series:[{t,v}], source:'raster'|'major'|'none'}>}
+ * 소해구 시계열 — 해당 셀 래스터 우선, 없으면 부모 대해구 래스터 집계(형제 8칸)로
+ * 폴백. 완전 래스터화 — marine_zone/vs(로그인) 의존 없음. 부모도 래스터 0이면 none.
+ * @returns {{series:[{t,v}], source:'raster'|'major-raster'|'none'}}
  */
-async function _seriesWithFallback(key) {
+function _seriesWithFallback(key) {
     const s = _series(key);
     if (s && s.length) return { series: s, source: 'raster' };
     const parent = String(key).split('-')[0];
-    const mj = await getMajorSeries(parent);
-    if (mj && mj.series && mj.series.length) return { series: mj.series, source: 'major' };
+    const pr = majorRasterSeries(parent);
+    if (pr.length) return { series: pr, source: 'major-raster' };
     return { series: [], source: 'none' };
 }
 
@@ -434,20 +411,20 @@ async function getZone(zoneCode) {
     if (!z) return null;
     const cells = {}; const fallback = {};
     for (const k of z.smallZones || []) {
-        const r = await _seriesWithFallback(k);
-        if (r.series.length) { cells[k] = r.series; if (r.source === 'major') fallback[k] = true; }
+        const r = _seriesWithFallback(k);
+        if (r.series.length) { cells[k] = r.series; if (r.source === 'major-raster') fallback[k] = true; }
     }
     return { zone: zoneCode, name: z.name, baseTm: _cache.baseTm, cells, fallback };
 }
 
-/** 소해구 키 → 시정 시계열 (래스터 우선, 대해구 폴백). */
-async function getCellLazy(key) {
-    const r = await _seriesWithFallback(key);
+/** 소해구 키 → 시정 시계열 (셀 래스터 우선, 부모 대해구 래스터 집계 폴백). */
+function getCellLazy(key) {
+    const r = _seriesWithFallback(key);
     return { cell: key, baseTm: _cache.baseTm, series: r.series, source: r.source };
 }
 
-/** 임의 해점 → 그 점이 속한 소해구 시정 (래스터 우선, 대해구 폴백). */
-async function getByPoint(lat, lon) {
+/** 임의 해점 → 그 점이 속한 소해구 시정 (셀 래스터 우선, 부모 대해구 래스터 집계 폴백). */
+function getByPoint(lat, lon) {
     const key = pointToCellKey(Number(lat), Number(lon));
     if (!key) return null;
     return getCellLazy(key);
@@ -470,8 +447,6 @@ module.exports = {
     getZone,
     getCellLazy,
     getByPoint,
-    getMajorSeries,
-    getMajorByPoint,
     getMajorForGraph,
     getMajorForGraphByPoint,
     // 유틸

@@ -39,13 +39,12 @@ router.get('/api/vsby-smallzone/point', async (req, res) => {
     }
 });
 
-// [선 차트] 임의 해점 → 그 점이 속한 대해구의 1시간 시정 시계열 (소해구는 3시간뿐이라 선은 대해구 1시간)
+// [선 차트] 대해구 1시간 시정 시계열 — 소해구·오버레이와 동일한 RDPS 래스터로 통일
+//           (그 대해구 9개 소해구 래스터의 프레임별 최악값 집계, 완전 래스터화)
 router.get('/api/vsby-smallzone/major', async (req, res) => {
     try {
         const no = (req.query.no || '').trim();
         let r;
-        // 대해구 선차트는 소해구·오버레이와 동일한 RDPS 래스터로 통일(소해구 9칸 최악값 집계),
-        // 래스터 없는 구역만 marine_zone/vs 숫자로 폴백.
         if (no) r = await sz.getMajorForGraph(no);
         else {
             const lat = parseFloat(req.query.lat), lon = parseFloat(req.query.lon);
