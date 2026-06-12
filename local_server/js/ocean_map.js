@@ -927,6 +927,10 @@
         }
         _clickPinOverlay.setPosition(coordinate);
     };
+    // 핀 제거(위치 해제) — 물빠짐 종료 등에서 호출.
+    window.oceanClearClickPin = function () {
+        if (_clickPinOverlay) _clickPinOverlay.setPosition(undefined);
+    };
 
     function handleMapClick(evt) {
         const coord = ol.proj.toLonLat(evt.coordinate);

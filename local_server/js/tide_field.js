@@ -103,20 +103,15 @@
     };
 
     // 수심(dm, m·음수=드러남)→ 채움색. 물가(dm≈0)는 연하게, 많이 빠진 곳은 진하게.
-    // 물깊이(dm)→ 채움색. dm<0=갯벌(진갈색, 많이 빠질수록 진함),
-    //   0≤dm<2=얕은물(진한 파랑, 얕을수록 진함 — 배경 하늘색과 구분).
+    // 물깊이(dm, m·음수=드러남)→ 갯벌색. 물가(dm≈0)는 연하게, 많이 빠진 곳은 진하게.
     function depthToFill(dm) {
-        if (dm == null) return 'rgba(140,96,50,0.90)';
-        if (dm < 0) {
-            var t = (-dm) / 1.2;            // 0(물가)~1(-1.2m 이하)
+        var a = 0.90;
+        if (dm != null) {
+            var t = (-dm) / 1.2;
             t = t < 0 ? 0 : (t > 1 ? 1 : t);
-            var a = 0.40 + t * (0.97 - 0.40);
-            return 'rgba(140,96,50,' + a.toFixed(3) + ')';
+            a = 0.40 + t * (0.97 - 0.40);
         }
-        var s = (2 - dm) / 2;              // dm=0 → 1(진함), dm=2 → 0(연함)
-        s = s < 0 ? 0 : (s > 1 ? 1 : s);
-        var ab = 0.32 + s * (0.74 - 0.32);
-        return 'rgba(20,90,200,' + ab.toFixed(3) + ')';
+        return 'rgba(140,96,50,' + a.toFixed(3) + ')';
     }
 
     // ImageCanvas 콜백: 현재 _drawCells(3857 사각형)를 캔버스에 채워 반환.
@@ -300,6 +295,8 @@
                 return;
             }
             showSliderBar(true);
+            // 슬라이더 바가 생기며 뷰포트가 바뀌므로 지도 크기 재측정(작게 렌더 방지).
+            if (_map) { try { _map.updateSize(); } catch (e) {} setTimeout(function () { try { _map.updateSize(); } catch (e) {} }, 80); }
             renderFrame(_frameIdx, true);
             // [안내] 예측 자료 면책 — 두 줄(\n)로 나눠 각 줄이 정상 폰트로 들어가게
             //   한다(한 줄이 길면 _showOceanToast 가 폰트를 11px까지 축소하므로).
@@ -316,14 +313,25 @@
         _active = false;
         stopPlay();
         stopPrefetch();
+        if (_moveTimer) { clearTimeout(_moveTimer); _moveTimer = null; }
         var btn = $('ocean-mudflat-toggle-btn');
         if (btn) btn.classList.remove('active');
         if (_layer) _layer.setVisible(false);
         _drawCells = [];
         _currentCells = [];
+        // 메모리 해제 — 끈 뒤에도 캐시(전 프레임 셀)가 남아 부하/지연 유발하던 것 정리.
+        _cellCache = {};
+        _cacheKeys = [];
         if (_imgSource) _imgSource.changed();
         showSliderBar(false);
         hidePopup();
+        if (window.oceanClearClickPin) window.oceanClearClickPin();  // 꽂힌 핀 제거
+        // [지도 크기 재측정] 슬라이더 바가 사라지며 뷰포트가 바뀌므로, 베이스맵이
+        //   일부(작은 박스)만 렌더되는 현상 방지를 위해 OL 에 크기 재측정·재렌더 요청.
+        if (_map) {
+            try { _map.updateSize(); } catch (e) {}
+            setTimeout(function () { try { _map.updateSize(); } catch (e) {} }, 80);
+        }
     }
     // 외부(다른 오버레이 활성 시)에서 강제 OFF
     window._tideFieldDeactivate = function () { if (_active) deactivate(); };
@@ -431,16 +439,11 @@
         }
     }
 
-    // 2m 얕은물은 가까이 봤을 때만(부하 제한). 이 줌(agg 이하)부터 함께 요청.
-    var SHALLOW_MAX_AGG = 0.005;
-    function shallowEnabled() { return currentAggDeg() <= SHALLOW_MAX_AGG; }
-
     function fetchCells(iso) {
         var vp = currentViewParams();
-        var sh = shallowEnabled();
-        var key = iso + '@' + vp.key + (sh ? '@s' : '');
+        var key = iso + '@' + vp.key;
         if (_cellCache[key]) return Promise.resolve(_cellCache[key]);
-        var params = '&agg=' + vp.agg + (vp.bbox ? '&bbox=' + vp.bbox : '') + (sh ? '&shallow=1' : '');
+        var params = '&agg=' + vp.agg + (vp.bbox ? '&bbox=' + vp.bbox : '');
         return fetch('/api/tide-field?time=' + encodeURIComponent(iso) + params)
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (j) {
@@ -559,10 +562,9 @@
         if (show) requestAnimationFrame(function () { buildTicks(); updateTooltip(_frameIdx); });
         if (legend) {
             if (show) {
-                // 가로 방향 범례 — 갯벌(노출) + 2m 미만 얕은물
+                // 가로 방향 범례 — 갯벌(노출)
                 legend.innerHTML =
-                    '<span class="mudflat-legend-item"><span class="mudflat-sw mudflat-sw-exposed"></span>갯벌 노출</span>' +
-                    '<span class="mudflat-legend-item"><span class="mudflat-sw mudflat-sw-shallow"></span>2m 미만</span>';
+                    '<span class="mudflat-legend-item"><span class="mudflat-sw mudflat-sw-exposed"></span>갯벌 노출</span>';
                 legend.style.display = 'flex';
                 legend.setAttribute('aria-hidden', 'false');
             } else {
@@ -727,23 +729,19 @@
         ensurePopupOverlay();
         var el = $('mudflat-popup');
         if (!el) return;
-        var depth = cell.depth_m;
-        var isDry = (depth == null) || depth < 0;   // dm<0 갯벌, dm≥0 얕은물
-        var headRow = isDry
-            ? '<div class="mudflat-popup-row">상태: <b style="color:#8a5a2b;">갯벌 노출</b></div>'
-            : '<div class="mudflat-popup-row">예측 수심: <b>' + depth.toFixed(2) + ' m</b></div>';
-        var etaLabel = isDry ? '물 잠김까지 남은 시간' : '물빠짐까지 남은 시간';
         el.innerHTML =
             '<div class="mudflat-popup-close" id="mudflat-popup-close">&times;</div>' +
             '<div class="mudflat-popup-title">물빠짐 예측 <span class="mudflat-popup-ref">(' + sliderRefLabel() + ')</span></div>' +
-            headRow +
-            '<div class="mudflat-popup-row">' + etaLabel + ': <b id="mudflat-popup-eta">계산 중…</b></div>' +
+            '<div class="mudflat-popup-row">상태 : <b style="color:#d49a5a;">갯벌 노출</b></div>' +
+            '<div class="mudflat-popup-row mudflat-popup-eta-row">' +
+                '<span class="eta-label">물 잠김 남은시간 :</span>' +
+                '<span class="eta-val" id="mudflat-popup-eta">계산 중…</span></div>' +
             '<div class="mudflat-popup-row mudflat-popup-coord">' + toDMS(cell.lat, cell.lon) + '</div>';
         _popupOverlay.setPosition(coordinate);
         el.style.display = 'block';
         var closeBtn = $('mudflat-popup-close');
         if (closeBtn) closeBtn.onclick = hidePopup;
-        fetchEta(cell.lat, cell.lon, isDry ? 'dry' : 'shallow', function (txt) {
+        fetchEta(cell.lat, cell.lon, 'dry', function (txt) {
             var etaEl = $('mudflat-popup-eta'); if (etaEl) etaEl.textContent = txt;
         });
     }
