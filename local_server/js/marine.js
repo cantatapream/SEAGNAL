@@ -254,7 +254,7 @@ async function fetchZoneVisibility(zoneId) {
         const sid = String(zoneId);
         const url = sid.includes('-')
             ? `/api/vsby-smallzone/cell?key=${encodeURIComponent(sid)}`   // 소해구 = 래스터(1h)
-            : `/api/vsby-smallzone/major?no=${encodeURIComponent(sid)}`;  // 대해구 = 숫자(1h)
+            : `/api/vsby-smallzone/major?no=${encodeURIComponent(sid)}`;  // 대해구 = 래스터 집계(1h, 소해구와 동일 제품)
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 6000);
         let r;

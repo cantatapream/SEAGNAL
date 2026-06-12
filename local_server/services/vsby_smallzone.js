@@ -326,6 +326,42 @@ async function getMajorByPoint(lat, lon) {
     return getMajorSeries(no);
 }
 
+/**
+ * 대해구 번호 → 9개 소해구 래스터를 프레임별 "최악값(min km)"으로 집계 → [{t,v}].
+ * 대해구/소해구/오버레이를 모두 동일한 RDPS 바다안개 래스터 제품으로 통일하기 위함.
+ * (marine_zone/vs 수치와 RDPS 래스터가 크게 어긋나 한 화면에서 상반돼 보이는 문제 해소)
+ * 안개가 일부 소해구에만 끼어도 대해구 전체를 보수적으로 나쁘게 표기한다.
+ * 래스터 미수집/무데이터면 빈 배열.
+ */
+function majorRasterSeries(no) {
+    const ft = _cache.fctTimes || [];
+    if (!ft.length) return [];
+    const arrs = [];
+    for (let s = 1; s <= 9; s++) { const a = _cache.cells[`${no}-${s}`]; if (a) arrs.push(a); }
+    if (!arrs.length) return [];
+    const out = [];
+    for (let i = 0; i < ft.length; i++) {
+        let m = null;
+        for (const a of arrs) { const v = a[i]; if (v == null) continue; if (m == null || v < m) m = v; }
+        if (m != null) out.push({ t: ft[i] || null, v: m });
+    }
+    return out;
+}
+
+/** [선 차트] 대해구 시정 — 래스터(소해구 9칸 최악값) 우선, 래스터 없으면 marine_zone/vs 숫자 폴백. */
+async function getMajorForGraph(no) {
+    if (!no) return null;
+    const rs = majorRasterSeries(no);
+    if (rs.length) return { no, baseTm: _cache.baseTm, series: rs, source: 'raster' };
+    const mj = await getMajorSeries(no);
+    return { no, baseTm: _cache.baseTm, series: (mj && mj.series) || [], source: 'major' };
+}
+async function getMajorForGraphByPoint(lat, lon) {
+    const no = pointToMajorNo(Number(lat), Number(lon));
+    if (!no) return null;
+    return getMajorForGraph(no);
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // 5. 공개 API
 // ────────────────────────────────────────────────────────────────────────────
@@ -436,6 +472,8 @@ module.exports = {
     getByPoint,
     getMajorSeries,
     getMajorByPoint,
+    getMajorForGraph,
+    getMajorForGraphByPoint,
     // 유틸
     smallZoneCenter,
     pointToCellKey,
