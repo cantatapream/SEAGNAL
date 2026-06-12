@@ -71,21 +71,30 @@ async function runPredictionCycle(opts = {}) {
         }
         g = g && typeof g === 'object' ? g : {};
         const predictions = Array.isArray(g.predictions) ? g.predictions : [];
+        const pendingRaw = Array.isArray(g.pending) ? g.pending : [];
         const zoneSignals = Array.isArray(g.zoneSignals) ? g.zoneSignals : [];
 
         // ── 2) 억제: 발효/예비특보 구역 가림 ──────────────────────────────
         //   applySuppression 자체가 graceful 이나, 방어적으로 try 로 감싸
         //   예외 시 보수적 폴백(과억제 방지)으로 계속한다.
+        //   pending(지속성 대기)도 함께 억제 — 공식특보 구역의 대기 신호가
+        //   carry-over 로 표출되는 일이 없도록. zone 집합으로 다시 분리
+        //   (dedup 후라 한 zone 은 표출/대기 중 한쪽에만 존재).
+        const pendingZoneSet = new Set(pendingRaw.map((p) => p && p.zone).filter(Boolean));
         let visible;
         let suppressed;
+        let pendingVisible;
         try {
-            const r = await applySupp(predictions);
-            visible = (r && Array.isArray(r.visible)) ? r.visible : predictions;
+            const r = await applySupp(predictions.concat(pendingRaw));
+            const vis = (r && Array.isArray(r.visible)) ? r.visible : predictions.concat(pendingRaw);
+            visible = vis.filter((p) => p && !pendingZoneSet.has(p.zone));
+            pendingVisible = vis.filter((p) => p && pendingZoneSet.has(p.zone));
             suppressed = (r && Array.isArray(r.suppressed)) ? r.suppressed : [];
         } catch (e) {
             const error = (e && e.message) || String(e);
             console.log(`[advisory] suppression 실패 → 폴백(과억제 방지): ${error}`);
             visible = predictions;   // 보수적: 전체 노출
+            pendingVisible = pendingRaw;
             suppressed = [];
         }
 
@@ -114,6 +123,7 @@ async function runPredictionCycle(opts = {}) {
         const current = {
             baseTimeKST: g.baseTimeKST,
             predictions: enriched,
+            pending: pendingVisible,   // 지속성 대기 — 직전 표출 구역이면 carry-over(해소 오판 방지)
             zoneSignals,
         };
         const state = updState(current, suppressedZones, opts.stateOpts || {}) || {};

@@ -124,7 +124,8 @@ function buildNarrative(reason, zone, before, after) {
 /**
  * 상태 갱신.
  *
- * @param {{baseTimeKST?:string, predictions?:Array, zoneSignals?:Array}} current
+ * @param {{baseTimeKST?:string, predictions?:Array, pending?:Array, zoneSignals?:Array}} current
+ *        pending — 지속성 '대기'(게이트 통과·미확정) 예측. 직전 표출 구역이면 carry-over.
  * @param {string[]} [suppressedZones=[]]  공식/예비특보로 억제된 zone 이름 배열
  * @param {object} [opts]
  *        opts.prevState  — 직접 주입할 이전 상태(없으면 디스크 로드)
@@ -151,6 +152,25 @@ function updateState(current, suppressedZones = [], opts = {}) {
     for (const p of active) {
         const k = zoneKey(p && p.zone);
         if (k) activeZones.add(k);
+    }
+
+    // 2.5) 지속성 '대기' 연속 유지(carry-over) — 직전 사이클에 표출 중이던 구역이
+    //   이번 사이클에 '대기'(게이트 통과·미확정, 예: 지속성 상태파일 유실/만료)로
+    //   분류됐다면, 해소로 오판하지 않고 새 예측값으로 표출을 이어간다.
+    //   (신호가 실제로 살아있으므로 해소→재등장 깜빡임 방지)
+    const pendingMap = new Map();
+    for (const p of (Array.isArray(current.pending) ? current.pending : [])) {
+        const k = zoneKey(p && p.zone);
+        if (k) pendingMap.set(k, p);
+    }
+    for (const pp of prev.active) {
+        const zone = zoneKey(pp && pp.zone);
+        if (!zone || activeZones.has(zone)) continue;
+        const pend = pendingMap.get(zone);
+        if (!pend) continue;
+        const carried = Object.assign({}, pend, { confirmed: true });
+        active.push(carried);
+        activeZones.add(zone);
     }
 
     // 억제 zone 집합 (trim 정규화)
