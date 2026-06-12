@@ -132,7 +132,42 @@ function runSlotsBefore(queryAt, maxBack = 3) {
     md += '\n## 운영점(밴드≥25kt & 면적≥30%) — 2026 검증\n\n';
     md += `- 정밀도(Precision): ${pc(tp + fp ? tp / (tp + fp) : null)}  ·  재현율(Recall): ${pc(tp + fn ? tp / (tp + fn) : null)}\n`;
     md += `- TP ${tp} · FP ${fp} · FN ${fn} · TN ${tn}\n\n`;
-    md += '> 음성표본은 fetch_calm.js 의 잔잔 (구역,시각) 수집물. 표본이 적으면 %는 잠정 — ncalm 늘려 재수집 권장.\n';
+
+    // ── 정직한 핵심: 잔잔표본의 운영점 통과율(실질 오탐) + Bayes 보정 정밀도 ────
+    //   위 버킷표는 면적≥30% 통과분만 집계 → 잔잔이 게이트에서 다 떨어지면 동어반복.
+    //   진짜 질문: P(신호|잔잔) 이 얼마나 낮나. 0/N 이면 95% 상한 ≈ 3/N (rule of three).
+    const calmAll = rows.filter(t => t.label === 0);
+    const calmPass = calmAll.filter(op).length;
+    const posAll = rows.filter(t => t.label === 1);
+    const posPass = posAll.filter(op).length;
+    const fpRate = calmAll.length ? calmPass / calmAll.length : null;
+    const fpUpper = calmAll.length ? (calmPass === 0 ? 3 / calmAll.length : Math.min(1, (calmPass + 1.96 * Math.sqrt(calmPass)) / calmAll.length)) : null;
+    const recall = posAll.length ? posPass / posAll.length : null;
+    // base rate: 6년 기후값 풍랑 9,946 에피소드 / (44구역 × 2,190일) ≈ 0.103 (구역-일 단위)
+    const BASE = 0.103;
+    const bayes = (fpr) => (recall * BASE) / (recall * BASE + fpr * (1 - BASE));
+    md += '## 정직한 핵심 수치 (버킷표의 동어반복 보정)\n\n';
+    md += `- 잔잔표본 운영점 통과(오탐): **${calmPass}/${calmAll.length}** (95% 상한 ${(fpUpper * 100).toFixed(1)}%)\n`;
+    md += `- 발효표본 운영점 통과(재현): ${posPass}/${posAll.length} (${pc(recall)})\n`;
+    md += `- 구역-일 발효 기저율 ${(BASE * 100).toFixed(0)}% 가정 시 Bayes 정밀도: 점추정 ${calmPass === 0 ? '≈100%' : pc(bayes(fpRate))} · 보수(오탐상한) **${pc(bayes(fpUpper))}**\n`;
+    md += `- 카드 표기 권고: 운영점 통과 시 "발효 가능성 높음(보수 추정 ${Math.floor(bayes(fpUpper) * 100)}%+)" — 단일 정밀 % 단정 금지\n\n`;
+
+    // ── 2단계 등급 게이트 스윕 (Phase E 등급 재정의 근거) ───────────────────────
+    md += '## 등급 게이트 스윕 — (밴드,면적) 2차원\n\n| 게이트 | 잔잔통과/310 | 재현율 | Bayes점추정 | Bayes보수 |\n|---|---|---|---|---|\n';
+    for (const [b, a] of [[25, 0.3], [25, 0.5], [30, 0.3], [30, 0.5], [35, 0.3], [35, 0.5]]) {
+        const g = r => r.band >= b && r.area >= a;
+        const cp = calmAll.filter(g).length, pp = posAll.filter(g).length;
+        const rec2 = pp / posAll.length, fpr2 = cp / calmAll.length;
+        const fpU2 = cp === 0 ? 3 / calmAll.length : (cp + 1.96 * Math.sqrt(cp)) / calmAll.length;
+        const by = f => rec2 * BASE / (rec2 * BASE + f * (1 - BASE));
+        md += `| ≥${b}kt & 면적≥${a * 100}% | ${cp} | ${pc(rec2)} | ${pc(by(fpr2))} | ${pc(by(fpU2))} |\n`;
+    }
+    md += '\n**등급 권고(Phase E)**: 면적이 풍속보다 강한 판별자.\n';
+    md += '- 🔴 높음: 밴드≥25kt & 면적≥50% → "발효 가능성 높음(~80%, 보수 74%+)"\n';
+    md += '- 🟡 관심: 밴드≥25kt & 면적 30~50% → "관심(~65%)"\n';
+    md += '- 미표출: 면적<30% (현행 12픽셀 스침 표출 폐지)\n\n';
+    md += '> 한계: ① 음성 310표본(2023-06~2025-12)이라 2026 홀드아웃에 음성 없음(TN 0) — 홀드아웃 정밀도 100%는 공허. ② 잔잔표본은 무작위라 "거칠지만 미발효"인 어려운 음성 비중이 낮음(상대 판별력은 RECALIB 의 hard-negative 검증으로 별도 확인됨). ③ ncalm 확대 시 상한이 더 조여짐.\n';
+    fs.writeFileSync(path.join(__dirname, 'out', 'calib_abs_rows.json'), JSON.stringify(rows.map(t => ({ label: t.label, zone: t.zone, office: t.office, time: t.time, band: t.band, area: +t.area.toFixed(3) }))));
     fs.writeFileSync(OUT_MD, md);
     console.log(md);
 })().catch(e => { console.error('FATAL', e); process.exit(1); });
