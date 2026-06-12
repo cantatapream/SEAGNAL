@@ -81,7 +81,32 @@ html {
 }
 
 body {
-    /* Nanobanana Style Pattern (Visible, Restored) */
+    background-color: #0a101f;
+    color: var(--text-main);
+    font-family: var(--font-family);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    overflow-x: hidden;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* 고정 배경(Nanobanana 패턴).
+ * [왜 의사요소로 분리했나]
+ *   종전엔 body 에 background-image + background-attachment: fixed 였다.
+ *   안드로이드 WebView 에서 background-attachment: fixed 는 스크롤마다
+ *   뷰포트 전체를 다시 그리게 만들어, 둥근 모서리·반투명 배경 요소(시정/
+ *   파고/풍속 뱃지, 부이 버튼)의 이전 페인트가 지워지지 않고 직각 사각형
+ *   회색 잔상으로 남는다(스크롤 후 버튼이 잘려 보이는 증상의 실제 원인).
+ *   position: fixed 의사요소로 옮기면 "스크롤해도 고정" 인 시각효과는
+ *   동일하게 유지하면서 fixed-attachment 리페인트 경로를 타지 않는다.
+ *   pseudo 는 position:fixed 라 body 의 flex 레이아웃에 끼지 않는다. */
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
     background-color: #0a101f;
     background-image:
         /* Glowing Orbs */
@@ -95,15 +120,6 @@ body {
             transparent 20px),
         /* Deep Base Gradient */
         linear-gradient(180deg, #0a101f 0%, #111827 100%);
-    background-attachment: fixed;
-    /* Keeps gradient in place while scrolling */
-    color: var(--text-main);
-    font-family: var(--font-family);
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    overflow-x: hidden;
-    padding-bottom: env(safe-area-inset-bottom);
 }
 
 .app-container {
