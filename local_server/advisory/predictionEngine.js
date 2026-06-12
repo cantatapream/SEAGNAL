@@ -309,10 +309,11 @@ async function generatePredictions(options = {}) {
                     if (windKt > 0) sigParts.push(`풍속 ~${windKt}kt(${windMs}m/s)`);
                     if (waveM > 0) sigParts.push(`파고 ~${waveM}m`);
                     const sigText = sigParts.join('·') || '위험 신호';
+                    // 플레인 폴백 문구. UI(advisory_prediction.js)는 필드로 하이라이트/줄바꿈 재구성.
                     const narrative =
                         `${z.name} 위험기상일기도 분석 결과, ${label}경 ` +
-                        `${sigText} 가 구역의 약 ${areaPct}%에 예상됩니다. ` +
-                        `과거 통계상 이 수준 신호의 약 ${probPct}%가 실제 발효로 이어졌습니다(${grade.emoji}${grade.label}).`;
+                        `${sigText}가 전체 구역의 약 ${areaPct}%를 차지할 것으로 예상됨. ` +
+                        `과거 통계 상 이 수준의 약 ${probPct}%가 실제 발효로 연결.`;
 
                     predictions.push({
                         office: code,

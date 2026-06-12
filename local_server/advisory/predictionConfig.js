@@ -62,21 +62,32 @@ const THRESHOLDS = {
 };
 
 // 2단계 등급 — (밴드, 면적). probPct = 현실가중 정밀도(경보 1건당 실제 발효 확률).
-//   높음: 강풍(≥30kt) & 넓은면적(≥50%)  → 정밀 ~64%
-//   관심: 풍속(≥25kt&면적≥30%) 또는 파고(≥3m&면적≥30%) → 정밀 ~51%
+//   높음: 강풍(≥30kt) & 넓은면적(≥50%)  / 관심: 풍속(≥25&면적≥30) 또는 파고(≥3m&면적≥30)
 const GRADES = {
-    HIGH: { key: 'high', label: '높음', emoji: '🔴', probPct: 64 },
-    WATCH: { key: 'watch', label: '관심', emoji: '🟡', probPct: 51 },
+    HIGH: { key: 'high', label: '높음', emoji: '🔴' },
+    WATCH: { key: 'watch', label: '관심', emoji: '🟡' },
 };
+// 신호강도(풍속밴드·면적) → 현실가중 정밀도(%) — calib_abs 게이트 스윕값(어려운음성 포함).
+function probPctOf(windKt, windArea) {
+    const b = windKt || 0, a = windArea || 0;
+    if (b >= 35 && a >= 0.50) return 70;
+    if (b >= 35) return 68;
+    if (b >= 30 && a >= 0.50) return 64;
+    if (b >= 30) return 58;
+    if (b >= 25 && a >= 0.50) return 56;
+    return 51;
+}
 function gradeOf2(sig) {
     const windKt = sig.windKt || 0, windArea = sig.windArea || 0;
     const waveM = sig.waveM || 0, waveArea = sig.waveArea || 0;
-    if (windKt >= 30 && windArea >= 0.50) return GRADES.HIGH;
-    if ((windKt >= 25 && windArea >= 0.30) || (waveM >= 3.0 && waveArea >= 0.30)) return GRADES.WATCH;
+    const pct = probPctOf(windKt, windArea);
+    if (windKt >= 30 && windArea >= 0.50) return Object.assign({}, GRADES.HIGH, { probPct: pct });
+    if ((windKt >= 25 && windArea >= 0.30) || (waveM >= 3.0 && waveArea >= 0.30))
+        return Object.assign({}, GRADES.WATCH, { probPct: pct });
     return null;
 }
 
 module.exports = {
     CALIB, OFFICE_CHART, OFFICES, THRESHOLDS, GRADES,
-    gradeOf2,
+    gradeOf2, probPctOf,
 };
