@@ -1666,6 +1666,37 @@
             color: #333;
             text-shadow: none;
         }
+
+        /* ── 해양생활 풀스크린 지도: 출처표기·범례 위치 보정 ─────────────
+           [문제] 위 .ol-attribution 규칙은 bottom 을
+             calc(--main-tab-height + 8px) 로 잡는다. 그런데 해양생활
+             풀스크린 섹션(#fishing/#surfing/#scuba/#mudflat/#ripcurrent)은
+             이미 bottom:var(--main-tab-height) 로 "탭바 위" 까지만 차지한다.
+             즉 출처표기의 기준 박스(지도 뷰포트) 바닥이 이미 탭바 위이므로,
+             거기에 탭 높이를 또 더하면 출처표기가 좌하단 범례
+             (bottom:8px, 높이 ~90px) 한가운데로 올라가 가려진다.
+           [해결] 해양생활 섹션에 한정해
+             1) 출처표기는 bottom:8px 로 내려 하단 탭바 바로 위에 둔다.
+                (섹션이 이미 탭/서브탭 위로 올라와 있어 추가 보정 불필요 —
+                 서브탭 펼침 여부와 무관하게 항상 탭바 바로 위에 위치)
+             2) 범례는 출처표기 위로 올려(bottom 34px) 서로 겹치지 않게 한다.
+             → 아래에서 위 순서: 하단 탭바 / 출처표기 / 범례
+           [범위] #ocean-map-section(해양종합)은 .ocean-legend 가 전폭 하단
+             바이므로 전역 규칙을 그대로 두고, 여기서는 건드리지 않는다. */
+        #fishing-section.tab-content.active .ol-attribution,
+        #surfing-section.tab-content.active .ol-attribution,
+        #scuba-section.tab-content.active .ol-attribution,
+        #mudflat-section.tab-content.active .ol-attribution,
+        #ripcurrent-section.tab-content.active .ol-attribution {
+            bottom: 8px !important;
+        }
+        #fishing-section.tab-content.active .fishing-legend,
+        #scuba-section.tab-content.active .fishing-legend,
+        #mudflat-section.tab-content.active .fishing-legend,
+        #ripcurrent-section.tab-content.active .fishing-legend,
+        #surfing-section.tab-content.active .surfing-legend {
+            bottom: 34px !important;
+        }
     </style>
     <script>window.__SEAGNAL_PAGE = 'index2';</script>
     <title>SEA:GNAL(바다:그 날의 신호)</title>
