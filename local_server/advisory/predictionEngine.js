@@ -336,9 +336,32 @@ async function generatePredictions(options = {}) {
         }
     }
 
-    // 등급 강한 순 → 확률 순 → onset 빠른 순 정렬
+    // --- 구역 dedup: 한 구역이 여러 청 차트에 포함(40개 중 25개 구역이 2~3청 중복) ---
+    //   같은 zone 의 청별 결과 중 가장 강한 신호 1건만 채택(등급 → 확률 → 면적 → 풍속).
     const gradeRank = { high: 2, watch: 1 };
-    predictions.sort((a, b) =>
+    const strength = (p) => [gradeRank[p.grade.key] || 0, p.probPct || 0, p.areaPct || 0, p.windKt || 0];
+    const stronger = (a, b) => {
+        const sa = strength(a), sb = strength(b);
+        for (let i = 0; i < sa.length; i++) { if (sa[i] !== sb[i]) return sa[i] > sb[i]; }
+        return false;
+    };
+    const dedupMap = new Map();
+    for (const p of predictions) {
+        const cur = dedupMap.get(p.zone);
+        if (!cur || stronger(p, cur)) dedupMap.set(p.zone, p);
+    }
+    const deduped = Array.from(dedupMap.values());
+    // zoneSignals 도 zone 단위 최강값만(해소 '전→후'가 가장 강한 차트 기준이 되도록)
+    const sigMap = new Map();
+    for (const s of zoneSignals) {
+        const cur = sigMap.get(s.zone);
+        if (!cur || (s.prob || 0) > (cur.prob || 0) ||
+            ((s.prob || 0) === (cur.prob || 0) && (s.windKt || 0) > (cur.windKt || 0))) sigMap.set(s.zone, s);
+    }
+    const dedupedSignals = Array.from(sigMap.values());
+
+    // 등급 강한 순 → 확률 순 → onset 빠른 순 정렬
+    deduped.sort((a, b) =>
         (gradeRank[b.grade.key] - gradeRank[a.grade.key]) ||
         (b.probPct - a.probPct) ||
         (a.onsetISO < b.onsetISO ? -1 : a.onsetISO > b.onsetISO ? 1 : 0));
@@ -347,19 +370,22 @@ async function generatePredictions(options = {}) {
     //   상태파일(STATE_PENDING)에 이번 사이클 통과구역 전부를 기록하고, 표출은 직전 기록과의
     //   교집합만. 첫 등장은 '대기'(미표출), 다음 사이클에도 잡히면 '표출'. 직전 상태가
     //   PERSIST_MAX_AGE_H 보다 오래면 연속으로 보지 않음(전부 대기).
-    const keyOf = (p) => `${p.office}|${p.zone}`;
-    const thisFlagged = predictions.map(keyOf);
-    let shown = predictions, pendingCount = 0;
+    //   키는 zone 단위 — 같은 구역이 사이클마다 다른 청에서 잡혀도 연속으로 인정.
+    const keyOf = (p) => p.zone;
+    const thisFlagged = deduped.map(keyOf);
+    let shown = deduped, pending = [];
     if (THRESHOLDS.PERSIST_ENABLED && !options.noPersist) {
         let prevFlagged = new Set();
         try {
             const prev = JSON.parse(fs.readFileSync(STATE_PENDING, 'utf8'));
             const ageH = (Date.now() - new Date(prev.generatedAt).getTime()) / 3600000;
-            if (prev && Array.isArray(prev.flagged) && ageH <= THRESHOLDS.PERSIST_MAX_AGE_H) prevFlagged = new Set(prev.flagged);
+            if (prev && Array.isArray(prev.flagged) && ageH <= THRESHOLDS.PERSIST_MAX_AGE_H) {
+                // 구버전 키('office|zone') 호환: 마지막 토큰(zone)으로 정규화
+                prevFlagged = new Set(prev.flagged.map((s) => String(s).split('|').pop()));
+            }
         } catch (_) { /* 직전 상태 없음 → 전부 대기 */ }
-        shown = predictions.filter((p) => prevFlagged.has(keyOf(p)));
-        shown.forEach((p) => { p.confirmed = true; });
-        pendingCount = predictions.length - shown.length;
+        shown = deduped.filter((p) => prevFlagged.has(keyOf(p)));
+        pending = deduped.filter((p) => !prevFlagged.has(keyOf(p)));
         if (!options.noWrite) {
             try { fs.mkdirSync(path.dirname(STATE_PENDING), { recursive: true });
                 fs.writeFileSync(STATE_PENDING, JSON.stringify({ generatedAt: new Date().toISOString(), baseTimeKST: baseTimeKST || null, flagged: thisFlagged })); }
@@ -367,12 +393,17 @@ async function generatePredictions(options = {}) {
         }
     }
 
+    // confirmed 플래그 — 지속성 ON/OFF 양쪽에서 일관되게 표출분에 부여
+    //   (runPrediction 이 억제 후 confirmed 로 표출/대기를 다시 분리하는 데 사용)
+    shown.forEach((p) => { p.confirmed = true; });
+
     const result = {
         generatedAt: new Date().toISOString(),
         baseTimeKST: baseTimeKST || null,
         predictions: shown,                 // 표출 = 2사이클 연속 통과분
-        pendingCount,                        // 이번에 처음 잡혀 대기 중인 구역 수
-        zoneSignals, // 모든 도메인 구역 현재 peak 신호 (해소 '전→후' 계산용)
+        pending,                             // 이번에 처음 잡혀 대기 중인 예측(미표출, 상태관리용)
+        pendingCount: pending.length,
+        zoneSignals: dedupedSignals, // 구역별 최강 peak 신호 (해소 '전→후' 계산용)
     };
 
     if (!options.noWrite) {
