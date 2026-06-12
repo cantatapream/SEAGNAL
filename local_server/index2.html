@@ -1200,30 +1200,86 @@
         }
         .mudflat-sw-exposed { background: rgba(140, 96, 50, 0.95); }
         .mudflat-sw-sub     { background: rgba(33, 120, 200, 0.6); }
-        /* 클릭 팝업 — 천기 점데이터 팝업과 유사 톤 */
+        .mudflat-sw-shallow { background: rgba(20, 90, 200, 0.9); }
+        /* 가로 범례 — 갯벌 + 2m 미만 */
+        .mudflat-legend { flex-direction: row; gap: 0.9rem; align-items: center; }
+        .mudflat-legend-item {
+            display: inline-flex; align-items: center; gap: 0.375rem; white-space: nowrap;
+        }
+        /* 클릭 팝업 — 컴팩트·가로형(한 줄). 내용 길이에 맞춰 가로로 늘어남(nowrap). */
         .mudflat-popup {
             position: absolute;
-            min-width: 9.5rem;
+            min-width: 16.5rem;
+            max-width: calc(100vw - 1.5rem);
             background: rgba(15, 25, 50, 0.95);
             border: 1px solid rgba(120, 150, 200, 0.3);
-            border-radius: 0.5rem;
-            padding: 0.5rem 0.75rem 0.625rem;
+            border-radius: 0.45rem;
+            padding: 0.45rem 1.6rem 0.5rem 0.7rem;
             box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
             font-family: "Pretendard", sans-serif;
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             color: #e5edff;
             z-index: 1200;
             pointer-events: auto;
         }
-        .mudflat-popup-title { font-weight: 700; margin-bottom: 0.25rem; }
-        .mudflat-popup-row { line-height: 1.5; }
+        .mudflat-popup-title {
+            font-weight: 700; margin-bottom: 0.2rem; font-size: 0.86rem; white-space: nowrap;
+        }
+        .mudflat-popup-ref {
+            font-weight: 500; font-size: 0.82em; color: rgba(180, 200, 235, 0.85);
+        }
+        /* 기본 행은 한 줄 유지 */
+        .mudflat-popup-row { line-height: 1.45; white-space: nowrap; }
+        /* 남은시간 행 — 한 줄에 안 들어가면 값이 통째로 다음 줄로(우측 정렬) */
+        .mudflat-popup-eta-row {
+            display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 0.35rem;
+            white-space: normal;
+        }
+        .mudflat-popup-eta-row .eta-label { white-space: nowrap; }
+        .mudflat-popup-eta-row .eta-val { margin-left: auto; white-space: nowrap; font-weight: 700; }
+        .mudflat-popup-coord { opacity: 0.72; margin-top: 0.1rem; font-size: 0.9em; }
         .mudflat-popup-close {
             position: absolute;
             top: 0.25rem; right: 0.5rem;
             cursor: pointer;
-            font-size: 1rem;
+            font-size: 1.05rem;
+            line-height: 1;
             color: rgba(220, 230, 245, 0.7);
         }
+        /* 배경지도 클릭 위치 핀 (해양종합정보 공통) */
+        .ocean-click-pin {
+            color: #e23b3b;
+            font-size: 1.7rem;
+            line-height: 1;
+            pointer-events: none;
+            filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+        }
+        /* 물빠짐 로딩 스피너 (중앙) */
+        #mudflat-loading {
+            position: fixed; inset: 0; z-index: 1400;
+            display: none; align-items: center; justify-content: center;
+            pointer-events: none;
+        }
+        #mudflat-loading.show { display: flex; }
+        .mudflat-loading-box {
+            display: flex; flex-direction: column; align-items: center; gap: 0.6rem;
+            background: rgba(15, 25, 50, 0.92);
+            border: 1px solid rgba(120, 150, 200, 0.3);
+            border-radius: 0.8rem;
+            padding: 1.1rem 1.5rem;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+        }
+        .mudflat-loading-spin {
+            width: 2rem; height: 2rem;
+            border: 3px solid rgba(180, 200, 235, 0.25);
+            border-top-color: #4da3ff;
+            border-radius: 50%;
+            animation: mudflat-spin 0.8s linear infinite;
+        }
+        .mudflat-loading-text {
+            color: #e5edff; font-size: 0.85rem; font-family: "Pretendard", sans-serif;
+        }
+        @keyframes mudflat-spin { to { transform: rotate(360deg); } }
 
         /* 단기예보 범례 공통 — 어두운 남색 톤 (슬라이더 바와 동일 색상) */
         .shrt-fcst-legend {
@@ -1715,7 +1771,7 @@
     <link rel="stylesheet" href="/assets/vendor/fonts/fonts.css">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="style.css?v=Margin_Final_v5">
+    <link rel="stylesheet" href="style.css?v=LayerClip_20260612">
     <link rel="stylesheet" href="splash.css?v=Progress_Bar_20260612">
 
 
@@ -2340,15 +2396,45 @@
                      재활성: 아래 헤더/바디 두 div 의 style="display:none" 제거. -->
                 <div id="advisory-prediction-accordion-header" class="main-accordion-header gradient-prediction"
                     onclick="toggleAdvisoryPredictionAccordion()" style="display: none;">
-                    <div class="accordion-title-with-info">
-                        <h2 class="section-title" style="margin: 0;"><i class="fa-solid fa-wand-magic-sparkles"></i>
-                            해역별 특보 예측<sup class="adv-beta-badge" aria-label="beta">beta</sup></h2>
+                    <div class="adv-title-wrap">
+                        <i class="fa-solid fa-wand-magic-sparkles adv-wand"></i>
+                        <div class="adv-title-col">
+                            <div class="adv-title-row">
+                                <h2 class="section-title" style="margin: 0;">해역별 특보 예측<sup
+                                        class="adv-beta-badge" aria-label="beta">beta</sup></h2>
+                                <button type="button" class="adv-info-btn" aria-label="예측 설명"
+                                    onclick="event.stopPropagation(); window.openAdvisoryInfo&amp;&amp;window.openAdvisoryInfo()">i</button>
+                            </div>
+                            <div class="adv-basetime-layer" id="adv-basetime-layer"></div>
+                        </div>
                     </div>
                     <div class="header-status">
                         <!-- Initial Loading State -->
                         <span style="color: rgba(255,255,255,0.5); font-size: 0.85rem; margin-right: 8px;">
                             <i class="fa-solid fa-spinner fa-spin"></i>
                         </span>
+                    </div>
+                </div>
+
+                <!-- 특보 예측 설명 팝업(ⓘ) — 기본 숨김 -->
+                <div id="adv-info-modal" class="adv-info-modal"
+                    onclick="if(event.target===this){window.closeAdvisoryInfo&amp;&amp;window.closeAdvisoryInfo()}">
+                    <div class="adv-info-box">
+                        <h3 class="adv-info-title">ⓘ SEAGNAL 특보 예측이란?
+                            <span class="adv-info-x"
+                                onclick="window.closeAdvisoryInfo&amp;&amp;window.closeAdvisoryInfo()">✕</span></h3>
+                        <ul class="adv-info-list">
+                            <li>SEAGNAL이 기상청 <b>위험기상일기도(수치모델 일기도)</b>를 분석한 자체 예측 시스템으로,
+                                <b>2020~2026년 총 6년치</b> 풍랑 특보 기록*과 일기도를 분석·대조하여 특보 발표(발효)
+                                가능성을 검증하였습니다.<span class="adv-info-fn">* 8천여 건의 발효 정보 + 4천여 건의 '거친
+                                    날'을 표본으로 정밀도 보정</span></li>
+                            <li>통상 공식 발표(발효) <b>약 3일 전</b> 사전 탐지하였으며, 사전 탐지율 <b>약 67%</b>·예측
+                                적중률 <b>약 51~70%</b>로 확인되었습니다.</li>
+                            <li><b>1차</b>로 일기도를 기반으로 예측하고, <b>2차</b>로 기상청이 발표하는 기상 전망(단기예보)과
+                                교차검증하여 신뢰도를 높입니다.</li>
+                            <li>처음에는 위험하게 보였더라도 이후 일기도가 호전되면 가능성이 낮아져 <b>'해소'</b>로 처리합니다.
+                            </li>
+                        </ul>
                     </div>
                 </div>
 
@@ -4139,14 +4225,14 @@
     <script src="js/mappings.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/data.js"></script>
-    <script src="js/zone_avg.js"></script>
-    <script src="js/render.js"></script>
+    <script src="js/zone_avg.js?v=FarSeaWave_SyncVsby_20260612"></script>
+    <script src="js/render.js?v=BuoyClip_20260612"></script>
     <script src="js/alert_history.js"></script>
     <script src="js/render_coastal.js"></script>
     <script src="js/marine.js"></script>
     <script src="js/settings.js"></script>
     <script src="js/forecast.js"></script>
-    <script src="js/windy.js"></script>
+    <script src="js/windy.js?v=BuoyClip_20260612"></script>
     <script src="js/marine_forecast.js"></script>
     <script src="js/advisory_prediction.js"></script>
     <!-- 해상일기도 (KMA 날씨누리 GIF 차트) — 5개 파일 분할
@@ -4196,7 +4282,7 @@
     <script src="js/ocean_warn_active3.js"></script>
     <script src="js/ocean_warn_active4.js"></script>
     <script src="js/ocean_warn_active5.js"></script>
-    <script src="js/ocean_warn_vsby.js"></script>
+    <script src="js/ocean_warn_vsby.js?v=VsbyClip_20260612"></script>
     <script src="js/ocean_timeline.js"></script>
     <!-- 천기 (KMA 단기예보 PNG 오버레이): 토글 버튼 + 5개 서브버튼 + 슬라이더/재생 + 범례 + 클릭 팝업 -->
     <script src="js/shrt_forecast_layer.js"></script>

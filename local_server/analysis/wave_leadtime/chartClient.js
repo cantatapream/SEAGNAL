@@ -107,6 +107,12 @@ async function login() {
 
     const warm = await request('GET', '/rsw/mfp/mfpMain');
     session.csrf = extractCsrf(warm.buf.toString('utf8'));
+    // 워밍 GET 은 간헐적으로 CSRF 메타가 비어 오기도 함(일시 차단/CDN 변동) → 짧게 재시도.
+    for (let i = 0; !session.csrf && i < 4; i++) {
+        await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+        const w2 = await request('GET', '/rsw/mfp/mfpMain');
+        session.csrf = extractCsrf(w2.buf.toString('utf8'));
+    }
     if (!session.csrf) throw new Error('CSRF 토큰 추출 실패');
 
     const loginBody = new URLSearchParams({ userId: enc64(USER_ID), userPwd: enc64(USER_PWD) }).toString();

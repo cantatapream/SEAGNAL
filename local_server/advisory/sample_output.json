@@ -1,104 +1,661 @@
 {
-  "generatedAt": "2026-06-11T01:50:01.395Z",
-  "baseTimeKST": "2026061021",
+  "generatedAt": "2026-06-12T09:17:00.537Z",
+  "baseTimeKST": "2026061209",
   "predictions": [
-    {
-      "office": "jeju",
-      "zone": "서해남부남쪽안쪽먼바다",
-      "lat": 34.8,
-      "lon": 125.4,
-      "grade": "high",
-      "probPct": 95,
-      "windKt": 15,
-      "windMs": 8,
-      "waveM": 6,
-      "onsetISO": "2026-06-11T18:00:00.000Z",
-      "onsetLabel": "6/12(금) 새벽",
-      "narrative": "서해남부남쪽안쪽먼바다 일기도를 분석한 결과, 6/12(금) 새벽경 풍속이 ~15kt(8m/s), 파고 ~6m 로 예상됩니다. 과거 유사 패턴 기준 발효 가능성 95%(🔴높음)."
-    },
     {
       "office": "jeju",
       "zone": "제주도남쪽바깥먼바다",
       "lat": 31.8,
       "lon": 126.5,
-      "grade": "high",
-      "probPct": 80,
+      "grade": {
+        "key": "watch",
+        "label": "관심",
+        "emoji": "🟡"
+      },
+      "probPct": 51,
       "windKt": 30,
       "windMs": 15,
-      "waveM": 2.5,
-      "onsetISO": "2026-06-13T12:00:00.000Z",
-      "onsetLabel": "6/13(토) 밤",
-      "narrative": "제주도남쪽바깥먼바다 일기도를 분석한 결과, 6/13(토) 밤경 풍속이 ~30kt(15m/s), 파고 ~2.5m 로 예상됩니다. 과거 유사 패턴 기준 발효 가능성 80%(🔴높음)."
+      "waveM": 0,
+      "areaPct": 31,
+      "onsetISO": "2026-06-14T00:00:00.000Z",
+      "onsetLabel": "6/14(일) 오전",
+      "narrative": "제주도남쪽바깥먼바다 위험기상일기도 분석 결과, 6/14(일) 오전경 풍속 ~30kt(15m/s)·파고 ~0m 가 구역의 약 31%에 예상됩니다. 과거 통계상 이 수준 신호의 약 51%가 실제 발효로 이어졌습니다(🟡관심).",
+      "confirmed": true
+    },
+    {
+      "office": "busn",
+      "zone": "남해동부바깥먼바다",
+      "lat": 34.3,
+      "lon": 129,
+      "grade": {
+        "key": "watch",
+        "label": "관심",
+        "emoji": "🟡"
+      },
+      "probPct": 51,
+      "windKt": 25,
+      "windMs": 13,
+      "waveM": 0,
+      "areaPct": 55,
+      "onsetISO": "2026-06-14T12:00:00.000Z",
+      "onsetLabel": "6/14(일) 밤",
+      "narrative": "남해동부바깥먼바다 위험기상일기도 분석 결과, 6/14(일) 밤경 풍속 ~25kt(13m/s)·파고 ~0m 가 구역의 약 55%에 예상됩니다. 과거 통계상 이 수준 신호의 약 51%가 실제 발효로 이어졌습니다(🟡관심).",
+      "confirmed": true
+    }
+  ],
+  "pendingCount": 0,
+  "zoneSignals": [
+    {
+      "office": "jeju",
+      "zone": "전남북부서해앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "전남중부서해앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.03305785123966942,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "전남남부서해앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.012422360248447204,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "서해남부남쪽안쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
     },
     {
       "office": "jeju",
       "zone": "서해남부남쪽바깥먼바다",
-      "lat": 34.5,
-      "lon": 124,
-      "grade": "watch",
-      "probPct": 63,
-      "windKt": 25,
-      "windMs": 13,
-      "waveM": 2,
-      "onsetISO": "2026-06-12T18:00:00.000Z",
-      "onsetLabel": "6/13(토) 새벽",
-      "narrative": "서해남부남쪽바깥먼바다 일기도를 분석한 결과, 6/13(토) 새벽경 풍속이 ~25kt(13m/s), 파고 ~2m 로 예상됩니다. 과거 유사 패턴 기준 발효 가능성 63%(🟡관심)."
-    },
-    {
-      "office": "gawn",
-      "zone": "동해북부앞바다",
-      "lat": 38.7,
-      "lon": 129,
-      "grade": "watch",
-      "probPct": 63,
-      "windKt": 25,
-      "windMs": 13,
-      "waveM": 2.5,
-      "onsetISO": "2026-06-12T18:00:00.000Z",
-      "onsetLabel": "6/13(토) 새벽",
-      "narrative": "동해북부앞바다 일기도를 분석한 결과, 6/13(토) 새벽경 풍속이 ~25kt(13m/s), 파고 ~2.5m 로 예상됩니다. 과거 유사 패턴 기준 발효 가능성 63%(🟡관심)."
-    },
-    {
-      "office": "degu",
-      "zone": "동해북부앞바다",
-      "lat": 38.7,
-      "lon": 129,
-      "grade": "watch",
-      "probPct": 63,
-      "windKt": 25,
-      "windMs": 13,
-      "waveM": 2.5,
-      "onsetISO": "2026-06-12T18:00:00.000Z",
-      "onsetLabel": "6/13(토) 새벽",
-      "narrative": "동해북부앞바다 일기도를 분석한 결과, 6/13(토) 새벽경 풍속이 ~25kt(13m/s), 파고 ~2.5m 로 예상됩니다. 과거 유사 패턴 기준 발효 가능성 63%(🟡관심)."
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
     },
     {
       "office": "jeju",
-      "zone": "제주도남서쪽안쪽먼바다",
-      "lat": 32.8,
-      "lon": 126.3,
-      "grade": "watch",
-      "probPct": 63,
-      "windKt": 25,
-      "windMs": 13,
-      "waveM": 2.5,
-      "onsetISO": "2026-06-14T00:00:00.000Z",
-      "onsetLabel": "6/14(일) 오전",
-      "narrative": "제주도남서쪽안쪽먼바다 일기도를 분석한 결과, 6/14(일) 오전경 풍속이 ~25kt(13m/s), 파고 ~2.5m 로 예상됩니다. 과거 유사 패턴 기준 발효 가능성 63%(🟡관심)."
+      "zone": "경남중부남해앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.07692307692307693,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "경남서부남해앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.0017574692442882249,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "거제시동부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "남해동부안쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "전남서부남해앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "전남동부남해앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.0031847133757961785,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "남해서부서쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "남해서부동쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "제주도북부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
     },
     {
       "office": "jeju",
       "zone": "제주도남부앞바다",
-      "lat": 33.13,
-      "lon": 126.5,
-      "grade": "watch",
-      "probPct": 63,
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "제주도동부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "제주도서부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "제주도남서쪽안쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "제주도남동쪽안쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "jeju",
+      "zone": "제주도남쪽바깥먼바다",
+      "windKt": 30,
+      "waveM": 0,
+      "windArea": 0.30703538435074723,
+      "waveArea": 0.00011935548040580864,
+      "prob": 0.51
+    },
+    {
+      "office": "busn",
+      "zone": "울산앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "busn",
+      "zone": "경북남부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "busn",
+      "zone": "경북북부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "busn",
+      "zone": "부산앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "busn",
+      "zone": "경남중부남해앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "busn",
+      "zone": "경남서부남해앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "busn",
+      "zone": "거제시동부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "busn",
+      "zone": "남해동부안쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.00001924853711117955,
+      "prob": 0
+    },
+    {
+      "office": "busn",
+      "zone": "남해동부바깥먼바다",
       "windKt": 25,
-      "windMs": 13,
-      "waveM": 2,
-      "onsetISO": "2026-06-14T06:00:00.000Z",
-      "onsetLabel": "6/14(일) 오후",
-      "narrative": "제주도남부앞바다 일기도를 분석한 결과, 6/14(일) 오후경 풍속이 ~25kt(13m/s), 파고 ~2m 로 예상됩니다. 과거 유사 패턴 기준 발효 가능성 63%(🟡관심)."
+      "waveM": 0,
+      "windArea": 0.5531697341513292,
+      "waveArea": 0,
+      "prob": 0.51
+    },
+    {
+      "office": "busn",
+      "zone": "전남동부남해앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.03571428571428571,
+      "prob": 0
+    },
+    {
+      "office": "busn",
+      "zone": "남해서부동쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.0001422475106685633,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "충남북부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "충남남부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "전북북부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "전북남부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "전남북부서해앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "전남중부서해앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.009523809523809525,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "전남남부서해앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.05,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "서해남부북쪽안쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.00022097819681791397,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "서해남부남쪽안쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "전남서부남해앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "전남동부남해앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "남해서부서쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.0003405994550408719,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "남해서부동쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.0018674136321195146,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "제주도북부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "제주도남부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "제주도동부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.008928571428571428,
+      "prob": 0
+    },
+    {
+      "office": "gwju",
+      "zone": "제주도서부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "gawn",
+      "zone": "경북북부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.16666666666666666,
+      "prob": 0
+    },
+    {
+      "office": "gawn",
+      "zone": "동해남부북쪽안쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.000957548675390999,
+      "prob": 0
+    },
+    {
+      "office": "gawn",
+      "zone": "강원남부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "gawn",
+      "zone": "강원중부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "gawn",
+      "zone": "강원북부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "gawn",
+      "zone": "동해중부안쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.00013700506918755994,
+      "prob": 0
+    },
+    {
+      "office": "gawn",
+      "zone": "동해중부바깥먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.0019527012367107832,
+      "prob": 0
+    },
+    {
+      "office": "dajn",
+      "zone": "인천·경기북부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "dajn",
+      "zone": "인천·경기남부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "dajn",
+      "zone": "충남북부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "dajn",
+      "zone": "충남남부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "dajn",
+      "zone": "서해중부안쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.006493506493506494,
+      "prob": 0
+    },
+    {
+      "office": "dajn",
+      "zone": "서해중부바깥먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.0005468066491688539,
+      "prob": 0
+    },
+    {
+      "office": "degu",
+      "zone": "경북북부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.16666666666666666,
+      "prob": 0
+    },
+    {
+      "office": "degu",
+      "zone": "동해남부북쪽안쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.000957548675390999,
+      "prob": 0
+    },
+    {
+      "office": "degu",
+      "zone": "강원남부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "degu",
+      "zone": "강원중부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "degu",
+      "zone": "강원북부앞바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0,
+      "prob": 0
+    },
+    {
+      "office": "degu",
+      "zone": "동해중부안쪽먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.00013700506918755994,
+      "prob": 0
+    },
+    {
+      "office": "degu",
+      "zone": "동해중부바깥먼바다",
+      "windKt": 0,
+      "waveM": 0,
+      "windArea": 0,
+      "waveArea": 0.0019527012367107832,
+      "prob": 0
     }
   ]
 }

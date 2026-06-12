@@ -102,6 +102,10 @@ local_server/data/tide_field/curves/*.json
 local_server/data/advisory_demo_testmode.json
 local_server/data/advisory_demo_active.json
 
+# 특보 예측 2사이클 지속성 상태(엔진이 매 사이클 생성, Fly 볼륨 보존)
+local_server/data/advisory_pending.json
+local_server/data/advisory_pending.json.tmp
+
 # 물빠짐 예측 — 서버 사이드 프리컴퓨트 산출물 (precompute_tide_field.js 가 수집
 # 직후 재생성, Fly.io Volume에 저장). 전 프레임×전 셀 물깊이 바이너리라 대용량 +
 # 매일 갱신이라 추적 제외(런타임 산출물). 라우트는 없으면 cellDepthM 폴백.

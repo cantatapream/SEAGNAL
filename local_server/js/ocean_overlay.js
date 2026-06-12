@@ -260,6 +260,10 @@
                     if (typeof window._vsbyForecastDeactivate === 'function') {
                         try { window._vsbyForecastDeactivate(); } catch (e) {}
                     }
+                    // [Mutual Exclusion] 물빠짐이 활성 상태면 끔(단독 표출)
+                    if (typeof window._tideFieldDeactivate === 'function') {
+                        try { window._tideFieldDeactivate(); } catch (e) {}
+                    }
                     streamActive = true;
                     document.querySelectorAll('.ocean-overlay-btn[data-layer]').forEach(function (b) {
                         b.classList.remove('active');

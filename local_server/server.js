@@ -136,7 +136,21 @@ try {
 const STATIC_GZIP_OPTS = {
     enableBrotli: true,
     orderPreference: ['br', 'gzip'],        // brotli 우선, 없으면 gzip (표준 encodingName)
-    index: false                            // 동적 GET / 우선 보장
+    index: false,                           // 동적 GET / 우선 보장
+    serveStatic: {
+        // [왜] Cache-Control 미지정 시 WebView 가 휴리스틱 캐싱(Last-Modified
+        //   경과시간의 10%)으로 js/css/html 을 재검증 없이 오래 재사용 →
+        //   서버를 새로 배포해도 단말에 옛 코드가 남는다(버그 수정이 안 먹음).
+        //   no-cache 는 "캐시하되 매번 ETag 재검증" — 변경 없으면 304 로
+        //   본문 전송이 없어 비용은 미미하고, 배포 즉시 새 코드가 반영된다.
+        //   이미지·폰트 등 나머지 정적 자원은 종전(휴리스틱) 동작 유지.
+        //   (사전 압축 응답은 파일명이 .gz/.br 로 끝나므로 패턴에 포함)
+        setHeaders: function (res, filePath) {
+            if (/\.(js|css|html)(\.gz|\.br)?$/i.test(filePath)) {
+                res.setHeader('Cache-Control', 'no-cache');
+            }
+        }
+    }
 };
 
 /**

@@ -70,6 +70,8 @@
         parentBox: null,      // marine_zone_no → [lonMin,latMin,lonMax,latMax]
         parentBoxPromise: null,
         zoneCache: {},        // code → Promise<{cells, baseTm}>
+        summaryCache: {},     // code → {min,max,time} | null(데이터없음) | undefined(미계산/진행중)
+        refreshTimer: null,   // 요약 도착 후 ZoneAvg.refreshAll 디바운스 타이머
         layer: null,          // 현재 그려진 OL VectorLayer
         activeCode: null,     // 현재 토글 ON 인 특보구역 코드 (없으면 null)
         observer: null
@@ -365,23 +367,64 @@
         if (!code) return null;
         var meta = state.gridMap[code];
         if (!meta || !meta.smallZones || !meta.smallZones.length) return null;
+
+        // [동기 렌더링] 시정 값을 비동기로 받은 뒤 innerHTML 을 교체하면(폭 0→실제폭),
+        //   무한 깜빡임 애니메이션 중인 요소의 폭 변화가 안드로이드 WebView 에서
+        //   배경 알약 페인트를 무효화하지 못해 "글자보다 좁은 알약"(뱃지 잘림)이
+        //   생긴다. 파고/풍속 배지가 멀쩡한 이유는 완성된 내용으로 DOM 에 들어가
+        //   폭이 변하지 않기 때문 — 시정도 동일하게, 값이 준비된 뒤에만 최종
+        //   내용으로 한 번에 만들어 반환한다.
+        var summary = state.summaryCache[code];
+        if (summary === undefined) {
+            // 아직 값이 없음 → 백그라운드 로드 후 refreshAll 로 재합류. 이번엔
+            //   시정을 빼고(null) 반환 → 파고/풍속 배지는 정상 표시됨.
+            _ensureSummary(code);
+            return null;
+        }
+        if (summary === null) return null;   // 데이터 없는 구역 → 시정 미표시
+
+        var val = _badgeText(summary).replace(/^시정\s*/, '');   // "0.2~5km" / "20km"
         var badge = document.createElement('span');
         badge.className = 'zone-avg-badge vsby';
         badge.style.cursor = 'pointer';
         badge.dataset.vsbyCode = code;
-        badge.innerHTML = '<span class="lbl">시정</span> …';
         badge.title = '클릭하면 소해구별 시정을 지도로 표시합니다';
+        badge.innerHTML = '<span class="lbl">시정</span> ' + val;
+        // 클릭 리스너를 배지에 직접 부착한다. (이전엔 'click 리스너가 잘림을
+        //   유발한다'고 보고 document 위임으로 옮겼으나 — 5개 독립분석 결과
+        //   클릭은 잘림과 무관(상관관계였을 뿐, 진짜 원인은 합성 레이어 사각
+        //   백킹 잔상)으로 확정. 위임은 오히려 박스의 stopPropagation 에 막혀
+        //   시정 팝업이 안 뜨고 파고/풍속 툴팁만 뜨는 부작용을 냈다.)
+        //   여기서 e.stopPropagation() 으로 박스 툴팁 핸들러로의 버블을 끊어야
+        //   시정 팝업이 정상 동작한다.
         badge.addEventListener('click', function (e) {
             e.stopPropagation();
             _onBadgeClick(code, badge);
         });
-        _computeZoneSummary(code).then(function (summary) {
-            if (!badge.isConnected) return;
-            if (!summary) { badge.remove(); return; }
-            var val = _badgeText(summary).replace(/^시정\s*/, '');   // "0.2~5km" / "20km"
-            badge.innerHTML = '<span class="lbl">시정</span> ' + val;
-        }).catch(function () { if (badge.isConnected) badge.remove(); });
         return badge;
+    }
+
+    /** 시정 요약을 1회 비동기 로드해 summaryCache 에 저장하고 refreshAll 예약. */
+    function _ensureSummary(code) {
+        if (code in state.summaryCache) return;   // 이미 계산됨/진행중 → 중복 요청 방지
+        state.summaryCache[code] = undefined;      // 진행중 마커
+        _computeZoneSummary(code).then(function (summary) {
+            state.summaryCache[code] = summary || null;
+            _scheduleBadgeRefresh();
+        }).catch(function () {
+            state.summaryCache[code] = null;
+        });
+    }
+
+    /** 여러 구역의 요약이 도착할 때 묶어서 평균박스를 1회만 다시 그린다(디바운스). */
+    function _scheduleBadgeRefresh() {
+        if (state.refreshTimer) return;
+        state.refreshTimer = setTimeout(function () {
+            state.refreshTimer = null;
+            if (window.ZoneAvg && typeof window.ZoneAvg.refreshAll === 'function') {
+                try { window.ZoneAvg.refreshAll(); } catch (e) {}
+            }
+        }, 150);
     }
 
     // 시정 뱃지를 부착할 아코디언 컨테이너 — 해역별 특보현황 + 해역별 기상현황.

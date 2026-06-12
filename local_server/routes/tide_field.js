@@ -313,19 +313,26 @@ function snapMinute(minute) {
 }
 
 /**
- * 주어진 후보 셀들의 한 시각 상태 계산 → 드러남(state=1) 셀만 반환.
+ * 주어진 후보 셀들의 한 시각 상태 계산.
+ *   - 기본: 드러남(물깊이<0) 셀만 state=1 로 반환.
+ *   - includeShallow=true: 0≤물깊이<2m 얕은물 셀도 state=2 로 함께 반환(근접 줌 전용).
  * @param {number} yyyymmdd
  * @param {number} minute
  * @param {Array} cells  후보 셀(_meta.cells 의 부분집합)
- * @returns {Array<{lon,lat,state,depth_m}>}  state=1(드러남) 만
+ * @param {boolean} [includeShallow]
+ * @returns {Array<{lon,lat,state,depth_m}>}  state=1(드러남)/2(얕은물)
  */
-function computeField(yyyymmdd, minute, cells) {
+function computeField(yyyymmdd, minute, cells, includeShallow) {
     const snapped = snapMinute(minute);
     const out = [];
     for (const cell of cells) {
         const dm = getDepthM(cell, yyyymmdd, snapped);
-        if (dm == null || dm >= 0) continue;   // 미정/잠김 제외, 드러남(<0)만
-        out.push({ lon: cell.lon, lat: cell.lat, state: 1, depth_m: Math.round(dm * 100) / 100 });
+        if (dm == null) continue;
+        if (dm < 0) {
+            out.push({ lon: cell.lon, lat: cell.lat, state: 1, depth_m: Math.round(dm * 100) / 100 });
+        } else if (includeShallow && dm < 2) {
+            out.push({ lon: cell.lon, lat: cell.lat, state: 2, depth_m: Math.round(dm * 100) / 100 });
+        }
     }
     return out;
 }
@@ -460,9 +467,17 @@ router.get('/api/tide-field', (req, res) => {
     let aggDeg = parseFloat(req.query.agg);
     if (!(aggDeg > fineDeg)) aggDeg = fineDeg;
 
+    // 얕은물(0~2m) 포함 모드 — 근접 줌 전용(클라이언트가 줌 제한). 오버랩 방지를 위해
+    //   집계(버킷) 대신 미세 셀로 갯벌(state1)+얕은물(state2)을 개별 타일로 반환.
+    const includeShallow = req.query.shallow === '1';
+
     let cells;
     let cellDegUsed = fineDeg;
-    if (aggDeg > fineDeg * 1.4) {
+    if (includeShallow) {
+        cells = computeField(parsed.yyyymmdd, parsed.minute, candidates, true);
+        for (const c of cells) c.s = fineDeg;
+        cellDegUsed = fineDeg;
+    } else if (aggDeg > fineDeg * 1.4) {
         // 버킷별 셀 그룹 + 무게중심
         const buckets = new Map();
         for (const c of candidates) {

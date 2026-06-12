@@ -46,13 +46,15 @@
     var _meta = null;           // /api/tide-field/meta 응답
     var _frames = [];           // 슬라이더 frame 의 ISO 시각 목록
     var _frameIdx = 0;
-    var _cellCache = {};        // ISO -> cells[] (프리페치)
+    var _cellCache = {};        // key(iso@agg@bbox) -> {cells,cellDeg} (프리페치 캐시)
+    var _cacheKeys = [];        // _cellCache 키 입력 순서(상한 초과 시 오래된 것부터 제거)
     var _playTimer = null;
     var _playing = false;       // 재생 중 여부(로드 동기 재생 가드)
     var _cellHalf = 0.0005;     // 데이터 최소 셀 반폭(도). meta.cell_deg/2.
     var _lastDrawDeg = 0.001;   // 마지막 렌더에 쓴 타일 크기(도) — 클릭 허용반경용.
     var _moveTimer = null;      // 줌/팬 재렌더 디바운스
     var _prefetchTimer = null;  // 전 프레임 백그라운드 프리페치
+    var _prefetchSettleTimer = null; // 이동 멈춘 뒤 1회만 프리페치(요청 폭주 방지)
     var _anchorClicks = 0;      // [세션] 앵커 표출 제스처 클릭 수(앱 재시작 시 0으로 리셋)
     var _anchorLayer = null;    // 앵커 포인트 디버그 레이어(세션 한정)
     var _popupOverlay = null;
@@ -87,20 +89,27 @@
         // 줌/팬 시 집계 격자(agg)·뷰포트가 바뀌므로 현재 프레임을 다시 받아 그린다(디바운스).
         _map.on('moveend', function () {
             if (!_active) return;
+            // 이동 중엔 현재 프레임만 다시 그린다(가벼움). 전체 프리페치는 매 이동마다
+            //   돌리면 줌 한 번에 수십 요청이 쏟아져 버벅임 → 이동을 멈춘 뒤(1.2s) 1회만.
             if (_moveTimer) clearTimeout(_moveTimer);
-            _moveTimer = setTimeout(function () { renderFrame(_frameIdx, false); prefetchAll(); }, 250);
+            _moveTimer = setTimeout(function () { renderFrame(_frameIdx, false); }, 300);
+            if (_prefetchSettleTimer) clearTimeout(_prefetchSettleTimer);
+            _prefetchSettleTimer = setTimeout(function () {
+                if (_active && !_playing) prefetchAll();
+            }, 1200);
         });
 
         console.log('[tide_field] 물빠짐 레이어 초기화 완료 (캔버스 래스터)');
     };
 
     // 수심(dm, m·음수=드러남)→ 채움색. 물가(dm≈0)는 연하게, 많이 빠진 곳은 진하게.
+    // 물깊이(dm, m·음수=드러남)→ 갯벌색. 물가(dm≈0)는 연하게, 많이 빠진 곳은 진하게.
     function depthToFill(dm) {
         var a = 0.90;
         if (dm != null) {
-            var t = (-dm) / 1.2;            // 0(물가)~1(-1.2m 이하)
+            var t = (-dm) / 1.2;
             t = t < 0 ? 0 : (t > 1 ? 1 : t);
-            a = 0.40 + t * (0.97 - 0.40);   // 물가도 또렷하게(진한 갈색)
+            a = 0.40 + t * (0.97 - 0.40);
         }
         return 'rgba(140,96,50,' + a.toFixed(3) + ')';
     }
@@ -272,12 +281,17 @@
 
     function activate() {
         var btn = $('ocean-mudflat-toggle-btn');
-        // 다른 배타 오버레이(천기) 가 켜져 있으면 끔 — 슬라이더 충돌 방지
+        // [단독 표출] 물빠짐은 유향유속·풍향풍속·파고파랑·해구도·천기·시정과 겹치지
+        //   않게 — 켜질 때 그 오버레이들을 모두 끈다(슬라이더/캔버스 충돌·중첩 방지).
         if (window._shrtForecastDeactivate) { try { window._shrtForecastDeactivate(); } catch (e) {} }
+        if (window._vsbyForecastDeactivate) { try { window._vsbyForecastDeactivate(); } catch (e) {} }
+        if (window.oceanOverlayTurnOff) { try { window.oceanOverlayTurnOff(); } catch (e) {} }
+        if (window.setMarineZoneGridVisible) { try { window.setMarineZoneGridVisible(false); } catch (e) {} }
 
         _active = true;
         if (btn) btn.classList.add('active');
         _layer.setVisible(true);
+        showLoading();   // 슬라이더·범례·첫 화면 준비될 때까지 중앙 로딩 표시
 
         ensureMeta().then(function (ok) {
             if (!ok) {
@@ -286,6 +300,8 @@
                 return;
             }
             showSliderBar(true);
+            // 슬라이더 바가 생기며 뷰포트가 바뀌므로 지도 크기 재측정(작게 렌더 방지).
+            if (_map) { try { _map.updateSize(); } catch (e) {} setTimeout(function () { try { _map.updateSize(); } catch (e) {} }, 80); }
             renderFrame(_frameIdx, true);
             // [안내] 예측 자료 면책 — 두 줄(\n)로 나눠 각 줄이 정상 폰트로 들어가게
             //   한다(한 줄이 길면 _showOceanToast 가 폰트를 11px까지 축소하므로).
@@ -302,14 +318,26 @@
         _active = false;
         stopPlay();
         stopPrefetch();
+        if (_moveTimer) { clearTimeout(_moveTimer); _moveTimer = null; }
         var btn = $('ocean-mudflat-toggle-btn');
         if (btn) btn.classList.remove('active');
         if (_layer) _layer.setVisible(false);
+        hideLoading();
         _drawCells = [];
         _currentCells = [];
+        // 메모리 해제 — 끈 뒤에도 캐시(전 프레임 셀)가 남아 부하/지연 유발하던 것 정리.
+        _cellCache = {};
+        _cacheKeys = [];
         if (_imgSource) _imgSource.changed();
         showSliderBar(false);
         hidePopup();
+        if (window.oceanClearClickPin) window.oceanClearClickPin();  // 꽂힌 핀 제거
+        // [지도 크기 재측정] 슬라이더 바가 사라지며 뷰포트가 바뀌므로, 베이스맵이
+        //   일부(작은 박스)만 렌더되는 현상 방지를 위해 OL 에 크기 재측정·재렌더 요청.
+        if (_map) {
+            try { _map.updateSize(); } catch (e) {}
+            setTimeout(function () { try { _map.updateSize(); } catch (e) {} }, 80);
+        }
     }
     // 외부(다른 오버레이 활성 시)에서 강제 OFF
     window._tideFieldDeactivate = function () { if (_active) deactivate(); };
@@ -395,17 +423,33 @@
         } catch (e) { return (_meta && _meta.cell_deg) || 0.001; }
     }
 
-    function fetchCells(iso) {
+    // 뷰포트 파라미터 — 여유(패딩) bbox + 스냅으로 작은 이동은 같은 키가 되게 한다.
+    //   → 패닝마다 서버 재요청하지 않고 캐시 재사용(이전엔 키에 bbox 가 없어 패닝 시
+    //   옛 영역 셀이 그대로 보이는 문제도 있었음). 패딩으로 살짝 넘겨받아 즉시 채움.
+    function currentViewParams() {
         var agg = currentAggDeg();
-        var key = iso + '@' + agg.toFixed(5);
-        if (_cellCache[key]) return Promise.resolve(_cellCache[key]);
-        var params = '&agg=' + agg.toFixed(5);
+        var aggStr = agg.toFixed(5);
         try {
             var ext = _map.getView().calculateExtent(_map.getSize());
             var ll = ol.proj.toLonLat([ext[0], ext[1]]);
             var ur = ol.proj.toLonLat([ext[2], ext[3]]);
-            params += '&bbox=' + [ll[0], ll[1], ur[0], ur[1]].map(function (n) { return n.toFixed(3); }).join(',');
-        } catch (e) {}
+            var w = ur[0] - ll[0], h = ur[1] - ll[1];
+            var snap = Math.max(0.02, w * 0.25);   // 이 격자 안의 이동은 동일 키 → 캐시 재사용
+            function rd(v) { return Math.round(v / snap) * snap; }
+            var x0 = rd(ll[0] - w * 0.3), y0 = rd(ll[1] - h * 0.3);
+            var x1 = rd(ur[0] + w * 0.3), y1 = rd(ur[1] + h * 0.3);
+            var bboxStr = [x0, y0, x1, y1].map(function (n) { return n.toFixed(3); }).join(',');
+            return { agg: aggStr, bbox: bboxStr, key: aggStr + '@' + bboxStr };
+        } catch (e) {
+            return { agg: aggStr, bbox: '', key: aggStr + '@all' };
+        }
+    }
+
+    function fetchCells(iso) {
+        var vp = currentViewParams();
+        var key = iso + '@' + vp.key;
+        if (_cellCache[key]) return Promise.resolve(_cellCache[key]);
+        var params = '&agg=' + vp.agg + (vp.bbox ? '&bbox=' + vp.bbox : '');
         return fetch('/api/tide-field?time=' + encodeURIComponent(iso) + params)
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (j) {
@@ -414,6 +458,8 @@
                     cellDeg: (j && j.cell_deg) || ((_meta && _meta.cell_deg) || 0.001)
                 };
                 _cellCache[key] = out;
+                _cacheKeys.push(key);
+                if (_cacheKeys.length > 240) { delete _cellCache[_cacheKeys.shift()]; } // 메모리 상한
                 return out;
             }).catch(function () { return { cells: [], cellDeg: (_meta && _meta.cell_deg) || 0.001 }; });
     }
@@ -434,6 +480,28 @@
             _drawCells.push({ x0: ll[0], y0: ll[1], x1: ur[0], y1: ur[1], dm: c.depth_m });
         }
         if (_imgSource) _imgSource.changed(); // 캔버스 다시 그리기
+        if (_loadingShown) hideLoading();     // 첫 화면이 그려지면 로딩 스피너 종료
+    }
+
+    // 로딩 스피너(중앙) — 최초 활성 시 메타·첫 프레임 받는 동안 표시.
+    var _loadingShown = false;
+    function ensureLoadingEl() {
+        var el = document.getElementById('mudflat-loading');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'mudflat-loading';
+            el.innerHTML = '<div class="mudflat-loading-box">' +
+                '<div class="mudflat-loading-spin"></div>' +
+                '<div class="mudflat-loading-text">로딩 중…</div></div>';
+            document.body.appendChild(el);
+        }
+        return el;
+    }
+    function showLoading() { ensureLoadingEl().classList.add('show'); _loadingShown = true; }
+    function hideLoading() {
+        var el = document.getElementById('mudflat-loading');
+        if (el) el.classList.remove('show');
+        _loadingShown = false;
     }
 
     // ====================================================================
@@ -498,7 +566,10 @@
     // 전 프레임을 백그라운드로 미리 받아 캐시 워밍 → 슬라이더가 즉시 반응.
     //   순차+간격(150ms)으로 가볍게. fetchCells 는 iso+agg 로 캐시하므로 이미 받은 건
     //   즉시 반환(서버 부담 X). 재생 중엔 재생 루프가 따로 받으므로 생략.
-    function stopPrefetch() { if (_prefetchTimer) { clearTimeout(_prefetchTimer); _prefetchTimer = null; } }
+    function stopPrefetch() {
+        if (_prefetchTimer) { clearTimeout(_prefetchTimer); _prefetchTimer = null; }
+        if (_prefetchSettleTimer) { clearTimeout(_prefetchSettleTimer); _prefetchSettleTimer = null; }
+    }
     function prefetchAll() {
         stopPrefetch();
         var i = 0;
@@ -519,9 +590,10 @@
         if (show) requestAnimationFrame(function () { buildTicks(); updateTooltip(_frameIdx); });
         if (legend) {
             if (show) {
+                // 가로 방향 범례 — 갯벌(노출)
                 legend.innerHTML =
-                    '<div class="mudflat-legend-row"><span class="mudflat-sw mudflat-sw-exposed"></span>드러남(갯벌)</div>';
-                legend.style.display = 'block';
+                    '<span class="mudflat-legend-item"><span class="mudflat-sw mudflat-sw-exposed"></span>갯벌 노출</span>';
+                legend.style.display = 'flex';
                 legend.setAttribute('aria-hidden', 'false');
             } else {
                 legend.style.display = 'none';
@@ -600,46 +672,109 @@
     // 셀 클릭 팝업 (현재 물깊이 / 간조 보조 표시)
     // ====================================================================
     function bindMapClickPopup() {
-        // 캔버스 래스터엔 feature 가 없으므로, 클릭 좌표에서 가장 가까운 드러남 셀을
-        // 직접 찾는다(1셀 반경 내). 물빠짐 활성 시에만.
-        _map.on('singleclick', function (evt) {
-            if (!_active || !_currentCells.length) return;
+        // [바텀시트 억제] 물빠짐 활성 시 ocean_map.handleMapClick 가 이 가드를 먼저 호출.
+        //   true 반환 → 클릭 소비(바텀시트 안 열림), 물빠짐 팝업만. 비활성이면 false(통과).
+        window._tideFieldTryHandleClick = function (map, evt) {
+            if (!_active) return false;
             var ll = ol.proj.toLonLat(evt.coordinate);
-            var clon = ll[0], clat = ll[1];
-            var tol = _lastDrawDeg * 1.2;  // 클릭 허용 반경(도) — 현재 타일 크기 기준
-            var tol2 = tol * tol;
-            var best = null, bestD = Infinity;
-            for (var i = 0; i < _currentCells.length; i++) {
-                var c = _currentCells[i];
-                var dx = c.lon - clon, dy = c.lat - clat;
-                var d2 = dx * dx + dy * dy;
-                if (d2 < bestD) { bestD = d2; best = c; }
-            }
-            if (!best || bestD > tol2) { hidePopup(); return; }
-            showCellPopup(evt.coordinate, best);
-        });
+            var best = nearestCell(ll[0], ll[1]);
+            if (best) showCellPopup(evt.coordinate, best);
+            else hidePopup();
+            return true;   // 활성 중엔 항상 소비 → 바텀시트 억제
+        };
+    }
+
+    // 클릭 좌표에서 허용 반경 내 가장 가까운 셀(갯벌/얕은물) 반환, 없으면 null.
+    function nearestCell(clon, clat) {
+        if (!_currentCells.length) return null;
+        var tol = _lastDrawDeg * 1.2, tol2 = tol * tol;
+        var best = null, bestD = Infinity;
+        for (var i = 0; i < _currentCells.length; i++) {
+            var c = _currentCells[i];
+            var dx = c.lon - clon, dy = c.lat - clat, d2 = dx * dx + dy * dy;
+            if (d2 < bestD) { bestD = d2; best = c; }
+        }
+        return (best && bestD <= tol2) ? best : null;
+    }
+
+    // 십진도 → 도분초(DMS) 문자열
+    function toDMS(lat, lon) {
+        function fmt(v, pos, neg) {
+            var dir = v >= 0 ? pos : neg; v = Math.abs(v);
+            var d = Math.floor(v), mf = (v - d) * 60, m = Math.floor(mf), s = Math.round((mf - m) * 60);
+            if (s === 60) { s = 0; m++; } if (m === 60) { m = 0; d++; }
+            return d + '°' + (m < 10 ? '0' : '') + m + '′' + (s < 10 ? '0' : '') + s + '″' + dir;
+        }
+        return fmt(lat, 'N', 'S') + ', ' + fmt(lon, 'E', 'W');
+    }
+
+    // 슬라이더가 가리키는 예측 시각 라벨 (KST) — "12일 17시 기준"
+    function sliderRefLabel() {
+        var iso = _frames[_frameIdx]; if (!iso) return '';
+        var kst = new Date(new Date(iso).getTime() + 9 * 3600000);
+        return kst.getUTCDate() + '일 ' + kst.getUTCHours() + '시 기준';
+    }
+
+    // debug 시계열({date,min,depthM}) → [{t(ms,UTC), dm}] 정렬
+    function _seriesToPoints(series) {
+        var out = [];
+        for (var i = 0; i < series.length; i++) {
+            var s = series[i]; if (s.depthM == null) continue;
+            var ds = String(s.date);
+            var kstMs = Date.UTC(+ds.slice(0, 4), +ds.slice(4, 6) - 1, +ds.slice(6, 8)) + (s.min || 0) * 60000;
+            out.push({ t: kstMs - 9 * 3600000, dm: s.depthM });
+        }
+        out.sort(function (a, b) { return a.t - b.t; });
+        return out;
+    }
+    // fromMs 이후 목표 방향 첫 교차(부호 변화)까지 분. band='dry'→다음 잠김(dm≥0),
+    //   'shallow'→다음 물빠짐(dm<0). 선형보간으로 분 단위. 없으면 null.
+    function _minutesUntilCross(points, fromMs, band) {
+        for (var j = 0; j < points.length - 1; j++) {
+            var a = points[j], b = points[j + 1];
+            if (b.t <= fromMs) continue;
+            var cross = (band === 'dry') ? (a.dm < 0 && b.dm >= 0) : (a.dm >= 0 && b.dm < 0);
+            if (!cross) continue;
+            var frac = (0 - a.dm) / (b.dm - a.dm);
+            var crossMs = a.t + frac * (b.t - a.t);
+            if (crossMs >= fromMs) return Math.round((crossMs - fromMs) / 60000);
+        }
+        return null;
+    }
+    function fetchEta(lat, lon, band, cb) {
+        fetch('/api/tide-field/debug?lat=' + lat + '&lon=' + lon)
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) {
+                if (!j || !j.series) { cb('—'); return; }
+                var mins = _minutesUntilCross(_seriesToPoints(j.series), new Date(_frames[_frameIdx]).getTime(), band);
+                if (mins == null) { cb('예측 범위 내 없음'); return; }
+                var h = Math.floor(mins / 60), m = mins % 60;
+                cb((h < 10 ? '0' : '') + h + '시간 ' + (m < 10 ? '0' : '') + m + '분');
+            }).catch(function () { cb('—'); });
     }
 
     function showCellPopup(coordinate, cell) {
         ensurePopupOverlay();
         var el = $('mudflat-popup');
         if (!el) return;
-        var depth = cell.depth_m;
-        var lat = cell.lat, lon = cell.lon;
-        // 레이어엔 드러남(state=1) 셀만 존재한다.
-        var stateTxt = '<b style="color:#8a5a2b;">드러남(갯벌 노출)</b>';
-        var depthTxt = (depth == null) ? '-' :
-            (depth <= 0 ? ('노출 ' + Math.abs(depth).toFixed(2) + ' m') : (depth.toFixed(2) + ' m'));
         el.innerHTML =
             '<div class="mudflat-popup-close" id="mudflat-popup-close">&times;</div>' +
-            '<div class="mudflat-popup-title">물빠짐 예측</div>' +
-            '<div class="mudflat-popup-row">상태: ' + stateTxt + '</div>' +
-            '<div class="mudflat-popup-row">현재 물깊이: ' + depthTxt + '</div>' +
-            '<div class="mudflat-popup-row" style="opacity:.7;">' + lat.toFixed(3) + ', ' + lon.toFixed(3) + '</div>';
+            '<div class="mudflat-popup-title">물빠짐 예측 <span class="mudflat-popup-ref">(' + sliderRefLabel() + ')</span></div>' +
+            '<div class="mudflat-popup-row">상태 : <b style="color:#d49a5a;">갯벌 노출</b></div>' +
+            '<div class="mudflat-popup-row mudflat-popup-eta-row">' +
+                '<span class="eta-label">물 잠김 남은시간 :</span>' +
+                '<span class="eta-val" id="mudflat-popup-eta">계산 중…</span></div>' +
+            '<div class="mudflat-popup-row mudflat-popup-coord">' + toDMS(cell.lat, cell.lon) + '</div>';
         _popupOverlay.setPosition(coordinate);
         el.style.display = 'block';
         var closeBtn = $('mudflat-popup-close');
-        if (closeBtn) closeBtn.onclick = hidePopup;
+        if (closeBtn) closeBtn.onclick = function () {
+            hidePopup();
+            if (window.oceanClearClickPin) window.oceanClearClickPin();   // 팝업 닫으면 핀도 제거
+        };
+        fetchEta(cell.lat, cell.lon, 'dry', function (txt) {
+            var etaEl = $('mudflat-popup-eta'); if (etaEl) etaEl.textContent = txt;
+        });
     }
 
     function ensurePopupOverlay() {
