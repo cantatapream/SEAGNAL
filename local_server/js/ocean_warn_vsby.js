@@ -678,13 +678,24 @@
             });
             var layers = [];
             // 베이스맵(OSM) — 빌드에 없으면 가드해 벡터만 표시(팝업 자체는 항상 뜸).
-            try { if (ol.source && ol.source.OSM) layers.push(new ol.layer.Tile({ source: new ol.source.OSM(), opacity: 0.9 })); } catch (e) {}
+            var hasOsm = false;
+            try { if (ol.source && ol.source.OSM) { layers.push(new ol.layer.Tile({ source: new ol.source.OSM(), opacity: 0.9 })); hasOsm = true; } } catch (e) {}
             layers.push(vLayer);
-            var map = new ol.Map({
+            // OL 기본 저작권 컨트롤은 끄고(중앙/우측에 떠 보이는 문제), 직접 좌측하단에 고정 표기.
+            var ctrls; try { ctrls = ol.control.defaults.defaults({ attribution: false }); } catch (e) { try { ctrls = ol.control.defaults({ attribution: false }); } catch (e2) { ctrls = undefined; } }
+            var mapOpts = {
                 target: mapDiv,
                 layers: layers,
                 view: new ol.View({ projection: 'EPSG:3857', center: ol.proj.fromLonLat([128, 36]), zoom: 6 })
-            });
+            };
+            if (ctrls) mapOpts.controls = ctrls;
+            var map = new ol.Map(mapOpts);
+            if (hasOsm) {
+                var attr = document.createElement('div');
+                attr.className = 'vsby-pop-attr';
+                attr.innerHTML = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
+                mapDiv.appendChild(attr);
+            }
             state.popupMap = map;
             setTimeout(function () {
                 try { map.updateSize(); } catch (e) {}
@@ -697,10 +708,13 @@
             }
             state.activeCode = code;
             _refreshBadgeActiveState();
+            // 하드웨어 뒤로가기 버튼으로 닫히도록 팝업 스택에 등록(backbutton.js).
+            try { if (window.PopupStack) window.PopupStack.push('vsby-zone-popup', _closePopup); } catch (e) {}
         });
     }
 
     function _closePopup() {
+        try { if (window.PopupStack) window.PopupStack.remove('vsby-zone-popup'); } catch (e) {}
         if (state.popupMap) { try { state.popupMap.setTarget(null); } catch (e) {} state.popupMap = null; }
         if (state.popupEl && state.popupEl.parentNode) state.popupEl.parentNode.removeChild(state.popupEl);
         state.popupEl = null;
@@ -754,12 +768,13 @@
             +   'background:#243246;color:#cdd9ea;font-size:18px;line-height:1;cursor:pointer;}'
             + '.vsby-pop-close:hover{background:#2f4259;}'
             + '.vsby-pop-map{position:relative;width:100%;height:min(60vh,420px);background:#16202f;}'
-            // OSM 저작권 표기는 지도 좌측 하단에 고정(기본 우측/중앙 표출 방지).
-            + '.vsby-pop-map .ol-attribution{left:.5em;right:auto;bottom:.4em;top:auto;'
-            +   'max-width:calc(100% - 1em);background:rgba(15,23,34,0.7);border-radius:4px;}'
-            + '.vsby-pop-map .ol-attribution ul{font-size:0.62rem;color:#cdd9ea;text-shadow:none;}'
-            + '.vsby-pop-map .ol-attribution a{color:#9ec5ff;}'
-            + '.vsby-pop-map .ol-attribution button{display:none;}'
+            // OL 기본 저작권 표기는 숨기고, 직접 만든 표기를 지도 좌측 하단 코너에 딱 붙임.
+            + '.vsby-pop-map .ol-attribution{display:none!important;}'
+            + '.vsby-pop-attr{position:absolute;left:0;bottom:0;z-index:10;'
+            +   'font-size:0.6rem;line-height:1.5;color:#cdd9ea;'
+            +   'background:rgba(15,23,34,0.72);padding:1px 7px;border-radius:0 6px 0 0;'
+            +   'pointer-events:auto;}'
+            + '.vsby-pop-attr a{color:#9ec5ff;text-decoration:none;}'
             + '.vsby-pop-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;'
             +   'color:#8aa0bf;font-size:0.85rem;}'
             + '.vsby-pop-legend{display:flex;align-items:center;gap:3px;flex-wrap:wrap;padding:8px 12px;'
