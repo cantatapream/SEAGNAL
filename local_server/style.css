@@ -72,6 +72,12 @@ html {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+    /* 안드로이드 WebView 탭 하이라이트(반투명 회색 사각형) 전역 제거.
+     * 클릭 가능한 요소(시정/파고/풍속 뱃지, 부이 버튼 등)가 터치 중에
+     * refreshAll()/renderApp() 으로 DOM 교체되면 하이라이트가 지워지지
+     * 않고 화면에 잔상(요소가 잘려 보이는 회색 블록)으로 남는 WebView
+     * 버그가 있어, 하이라이트 자체를 그리지 않게 한다. */
+    -webkit-tap-highlight-color: transparent;
 }
 
 body {
