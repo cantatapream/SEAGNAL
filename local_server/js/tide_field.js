@@ -281,8 +281,12 @@
 
     function activate() {
         var btn = $('ocean-mudflat-toggle-btn');
-        // 다른 배타 오버레이(천기) 가 켜져 있으면 끔 — 슬라이더 충돌 방지
+        // [단독 표출] 물빠짐은 유향유속·풍향풍속·파고파랑·해구도·천기·시정과 겹치지
+        //   않게 — 켜질 때 그 오버레이들을 모두 끈다(슬라이더/캔버스 충돌·중첩 방지).
         if (window._shrtForecastDeactivate) { try { window._shrtForecastDeactivate(); } catch (e) {} }
+        if (window._vsbyForecastDeactivate) { try { window._vsbyForecastDeactivate(); } catch (e) {} }
+        if (window.oceanOverlayTurnOff) { try { window.oceanOverlayTurnOff(); } catch (e) {} }
+        if (window.setMarineZoneGridVisible) { try { window.setMarineZoneGridVisible(false); } catch (e) {} }
 
         _active = true;
         if (btn) btn.classList.add('active');
@@ -764,7 +768,10 @@
         _popupOverlay.setPosition(coordinate);
         el.style.display = 'block';
         var closeBtn = $('mudflat-popup-close');
-        if (closeBtn) closeBtn.onclick = hidePopup;
+        if (closeBtn) closeBtn.onclick = function () {
+            hidePopup();
+            if (window.oceanClearClickPin) window.oceanClearClickPin();   // 팝업 닫으면 핀도 제거
+        };
         fetchEta(cell.lat, cell.lon, 'dry', function (txt) {
             var etaEl = $('mudflat-popup-eta'); if (etaEl) etaEl.textContent = txt;
         });

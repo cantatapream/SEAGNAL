@@ -577,6 +577,10 @@
         if (typeof window.oceanOverlayTurnOff === 'function') {
             try { window.oceanOverlayTurnOff(); } catch (e) {}
         }
+        // [Mutual Exclusion] 물빠짐이 켜져있으면 끔(단독 표출).
+        if (typeof window._tideFieldDeactivate === 'function') {
+            try { window._tideFieldDeactivate(); } catch (e) {}
+        }
 
         // 사용자 의도적 ON → 캐시 무효화 + 강제 새 fetch (천기와 동일 정책).
         _imgListCache = null;
