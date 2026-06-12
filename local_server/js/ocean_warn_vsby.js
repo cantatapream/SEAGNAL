@@ -368,8 +368,13 @@
         var badge = document.createElement('span');
         badge.className = 'zone-avg-badge vsby';
         badge.style.cursor = 'pointer';
+        // 값이 준비되기 전에는 페인트 자체를 막는다(display:none).
+        //   "시정 …" 자리표시자를 먼저 그린 뒤 innerHTML 을 교체하면, 무한
+        //   깜빡임 애니메이션(zoneAvgBadgeBlink) 중인 요소의 폭 변화 페인트가
+        //   안드로이드 WebView 에서 무효화되지 않아 배경 알약이 옛 폭으로 남는
+        //   잔상(뱃지 잘림)이 생긴다. 첫 페인트 = 최종 내용이면 잔상이 없다.
+        badge.style.display = 'none';
         badge.dataset.vsbyCode = code;
-        badge.innerHTML = '<span class="lbl">시정</span> …';
         badge.title = '클릭하면 소해구별 시정을 지도로 표시합니다';
         badge.addEventListener('click', function (e) {
             e.stopPropagation();
@@ -380,6 +385,7 @@
             if (!summary) { badge.remove(); return; }
             var val = _badgeText(summary).replace(/^시정\s*/, '');   // "0.2~5km" / "20km"
             badge.innerHTML = '<span class="lbl">시정</span> ' + val;
+            badge.style.display = '';
         }).catch(function () { if (badge.isConnected) badge.remove(); });
         return badge;
     }
