@@ -1690,6 +1690,37 @@ window.exitOceanMapSection = function () {
 };
 
 /**
+ * 지연 로드(defer) 스크립트가 아직 실행되지 않았을 수 있는 init 함수를
+ * 안전하게 호출하기 위한 폴링 헬퍼.
+ *
+ * [배경] index2.html 의 기능별 스크립트(ocean_*, fishing, surfing 등)는
+ *  defer 로 분할되어 부팅 후 비동기로 실행된다. 사용자가 해당 탭을 매우
+ *  빨리 눌러 _onSectionActivated 가 먼저 도달하면 window.initXxx 가 아직
+ *  정의되지 않았을 수 있다. 기존 `if (window.initXxx)` 가드는 이때 그냥
+ *  넘어가 버려 지도/데이터가 끝내 초기화되지 않는 사각지대가 생긴다.
+ *
+ * [동작] getter() 가 truthy 가 될 때까지 intervalMs 간격으로 최대 maxTries
+ *  회 폴링하고, 준비되면 fn() 을 1회 실행한다. 이미 준비된 경우 즉시 실행.
+ *
+ * @param {Function} getter   - 준비 여부를 반환 (예: () => window.initOceanMap)
+ * @param {number}   maxTries - 최대 재시도 횟수
+ * @param {number}   intervalMs - 재시도 간격(ms)
+ * @param {Function} fn       - 준비됐을 때 실행할 콜백
+ */
+function _callWhenDefined(getter, maxTries, intervalMs, fn) {
+    let tries = 0;
+    const tick = () => {
+        if (getter()) {
+            fn();
+            return;
+        }
+        if (++tries >= maxTries) return; // 한도 초과 시 조용히 포기
+        setTimeout(tick, intervalMs);
+    };
+    tick();
+}
+
+/**
  * 메인 섹션(해양종합정보/특보정보/해양생활/공지사항 등) 활성화 hook.
  * switchMainTab 의 후처리 — 진입/퇴장 시 로고/탭바 등 부가 UI 동기.
  *
@@ -1711,9 +1742,8 @@ function _onSectionActivated(sectionId) {
     // 해구별 기상 탭 활성화 시 지도 초기화
     if (sectionId === 'sea-zone-section') {
         setTimeout(() => {
-            if (window.initSeaZoneMap) {
-                window.initSeaZoneMap();
-            }
+            // defer 로드된 seaZones.js 가 늦게 실행될 수 있어 재시도 가드 적용
+            _callWhenDefined(() => window.initSeaZoneMap, 20, 250, () => window.initSeaZoneMap());
         }, 200);
     }
 // 바다낚시 탭 활성화 시 지도 초기화 (탭 전환 후 사이즈 갱신)
@@ -1721,9 +1751,8 @@ function _onSectionActivated(sectionId) {
         // [사용량] 바다낚시 하위 탭 진입
         if (window.trackUsage) window.trackUsage('life.fishing.tab');
         setTimeout(() => {
-            if (window.initFishingMap) {
-                window.initFishingMap();
-            }
+            // defer 로드된 fishing.js 가 늦게 실행될 수 있어 재시도 가드 적용
+            _callWhenDefined(() => window.initFishingMap, 20, 250, () => window.initFishingMap());
         }, 200);
     }
     // 서핑지수 탭 활성화 시 지도 초기화
@@ -1733,9 +1762,8 @@ function _onSectionActivated(sectionId) {
         // [사용량] 서핑 하위 탭 진입
         if (window.trackUsage) window.trackUsage('life.surfing.tab');
         setTimeout(() => {
-            if (window.initSurfingMap) {
-                window.initSurfingMap();
-            }
+            // defer 로드된 surfing1.js 가 늦게 실행될 수 있어 재시도 가드 적용
+            _callWhenDefined(() => window.initSurfingMap, 20, 250, () => window.initSurfingMap());
         }, 200);
     }
     // 바다갈라짐 탭 활성화 시 데이터 로드
@@ -1743,9 +1771,8 @@ function _onSectionActivated(sectionId) {
         // [사용량] 바다갈라짐 하위 탭 진입
         if (window.trackUsage) window.trackUsage('life.parting.tab');
         setTimeout(() => {
-            if (window.initSeaParting) {
-                window.initSeaParting();
-            }
+            // defer 로드된 sea_parting.js 가 늦게 실행될 수 있어 재시도 가드 적용
+            _callWhenDefined(() => window.initSeaParting, 20, 250, () => window.initSeaParting());
         }, 200);
     }
     // 갯벌체험 탭 활성화 시 데이터 로드
@@ -1753,9 +1780,8 @@ function _onSectionActivated(sectionId) {
         // [사용량] 갯벌체험 하위 탭 진입
         if (window.trackUsage) window.trackUsage('life.mudflat.tab');
         setTimeout(() => {
-            if (window.initMudflat) {
-                window.initMudflat();
-            }
+            // defer 로드된 mudflat.js 가 늦게 실행될 수 있어 재시도 가드 적용
+            _callWhenDefined(() => window.initMudflat, 20, 250, () => window.initMudflat());
         }, 200);
     }
     // 스킨스쿠버 탭 활성화 시 지도 초기화 (바다낚시와 동일한 지도형)
@@ -1763,9 +1789,8 @@ function _onSectionActivated(sectionId) {
         // [사용량] 스킨스쿠버 하위 탭 진입
         if (window.trackUsage) window.trackUsage('life.scuba.tab');
         setTimeout(() => {
-            if (window.initScubaMap) {
-                window.initScubaMap();
-            }
+            // defer 로드된 scuba.js 가 늦게 실행될 수 있어 재시도 가드 적용
+            _callWhenDefined(() => window.initScubaMap, 20, 250, () => window.initScubaMap());
         }, 200);
     }
     // 이안류 탭 활성화 시 지도 초기화 (스킨스쿠버와 동일한 지도형)
@@ -1773,9 +1798,8 @@ function _onSectionActivated(sectionId) {
         // [사용량] 이안류 하위 탭 진입
         if (window.trackUsage) window.trackUsage('life.ripcurrent.tab');
         setTimeout(() => {
-            if (window.initRipCurrent) {
-                window.initRipCurrent();
-            }
+            // defer 로드된 ripcurrent.js 가 늦게 실행될 수 있어 재시도 가드 적용
+            _callWhenDefined(() => window.initRipCurrent, 20, 250, () => window.initRipCurrent());
         }, 200);
     }
     // 공지사항 탭 활성화 시 게시글 로드
@@ -1785,9 +1809,8 @@ function _onSectionActivated(sectionId) {
     // 해양종합정보 탭 활성화 시 지도 초기화
     if (sectionId === 'ocean-map-section') {
         setTimeout(() => {
-            if (window.initOceanMap) {
-                window.initOceanMap();
-            }
+            // defer 로드된 ocean_map.js 가 늦게 실행될 수 있어 재시도 가드 적용
+            _callWhenDefined(() => window.initOceanMap, 20, 250, () => window.initOceanMap());
         }, 200);
     }
     // 해상일기도 탭 활성화 시 — KMA 날씨누리 GIF 차트 모듈 초기화
@@ -1796,9 +1819,12 @@ function _onSectionActivated(sectionId) {
     //        재진입: 이벤트 재바인딩 없이 기존 state 유지 (자동재생 끊김 없음)
     if (sectionId === 'marine-chart-section') {
         setTimeout(() => {
-            if (window.MarineChart && typeof window.MarineChart.init === 'function') {
-                window.MarineChart.init();
-            }
+            // defer 로드된 marine_chart1.js 가 늦게 실행될 수 있어 재시도 가드 적용
+            _callWhenDefined(
+                () => window.MarineChart && typeof window.MarineChart.init === 'function',
+                20, 250,
+                () => window.MarineChart.init()
+            );
         }, 100);
     }
     // 해상일기도 외 다른 섹션으로 이동 시 자동재생 중지
