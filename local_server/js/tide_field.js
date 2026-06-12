@@ -46,13 +46,15 @@
     var _meta = null;           // /api/tide-field/meta 응답
     var _frames = [];           // 슬라이더 frame 의 ISO 시각 목록
     var _frameIdx = 0;
-    var _cellCache = {};        // ISO -> cells[] (프리페치)
+    var _cellCache = {};        // key(iso@agg@bbox) -> {cells,cellDeg} (프리페치 캐시)
+    var _cacheKeys = [];        // _cellCache 키 입력 순서(상한 초과 시 오래된 것부터 제거)
     var _playTimer = null;
     var _playing = false;       // 재생 중 여부(로드 동기 재생 가드)
     var _cellHalf = 0.0005;     // 데이터 최소 셀 반폭(도). meta.cell_deg/2.
     var _lastDrawDeg = 0.001;   // 마지막 렌더에 쓴 타일 크기(도) — 클릭 허용반경용.
     var _moveTimer = null;      // 줌/팬 재렌더 디바운스
     var _prefetchTimer = null;  // 전 프레임 백그라운드 프리페치
+    var _prefetchSettleTimer = null; // 이동 멈춘 뒤 1회만 프리페치(요청 폭주 방지)
     var _anchorClicks = 0;      // [세션] 앵커 표출 제스처 클릭 수(앱 재시작 시 0으로 리셋)
     var _anchorLayer = null;    // 앵커 포인트 디버그 레이어(세션 한정)
     var _popupOverlay = null;
@@ -87,22 +89,34 @@
         // 줌/팬 시 집계 격자(agg)·뷰포트가 바뀌므로 현재 프레임을 다시 받아 그린다(디바운스).
         _map.on('moveend', function () {
             if (!_active) return;
+            // 이동 중엔 현재 프레임만 다시 그린다(가벼움). 전체 프리페치는 매 이동마다
+            //   돌리면 줌 한 번에 수십 요청이 쏟아져 버벅임 → 이동을 멈춘 뒤(1.2s) 1회만.
             if (_moveTimer) clearTimeout(_moveTimer);
-            _moveTimer = setTimeout(function () { renderFrame(_frameIdx, false); prefetchAll(); }, 250);
+            _moveTimer = setTimeout(function () { renderFrame(_frameIdx, false); }, 300);
+            if (_prefetchSettleTimer) clearTimeout(_prefetchSettleTimer);
+            _prefetchSettleTimer = setTimeout(function () {
+                if (_active && !_playing) prefetchAll();
+            }, 1200);
         });
 
         console.log('[tide_field] 물빠짐 레이어 초기화 완료 (캔버스 래스터)');
     };
 
     // 수심(dm, m·음수=드러남)→ 채움색. 물가(dm≈0)는 연하게, 많이 빠진 곳은 진하게.
+    // 물깊이(dm)→ 채움색. dm<0=갯벌(진갈색, 많이 빠질수록 진함),
+    //   0≤dm<2=얕은물(진한 파랑, 얕을수록 진함 — 배경 하늘색과 구분).
     function depthToFill(dm) {
-        var a = 0.90;
-        if (dm != null) {
+        if (dm == null) return 'rgba(140,96,50,0.90)';
+        if (dm < 0) {
             var t = (-dm) / 1.2;            // 0(물가)~1(-1.2m 이하)
             t = t < 0 ? 0 : (t > 1 ? 1 : t);
-            a = 0.40 + t * (0.97 - 0.40);   // 물가도 또렷하게(진한 갈색)
+            var a = 0.40 + t * (0.97 - 0.40);
+            return 'rgba(140,96,50,' + a.toFixed(3) + ')';
         }
-        return 'rgba(140,96,50,' + a.toFixed(3) + ')';
+        var s = (2 - dm) / 2;              // dm=0 → 1(진함), dm=2 → 0(연함)
+        s = s < 0 ? 0 : (s > 1 ? 1 : s);
+        var ab = 0.32 + s * (0.74 - 0.32);
+        return 'rgba(20,90,200,' + ab.toFixed(3) + ')';
     }
 
     // ImageCanvas 콜백: 현재 _drawCells(3857 사각형)를 캔버스에 채워 반환.
@@ -395,17 +409,38 @@
         } catch (e) { return (_meta && _meta.cell_deg) || 0.001; }
     }
 
-    function fetchCells(iso) {
+    // 뷰포트 파라미터 — 여유(패딩) bbox + 스냅으로 작은 이동은 같은 키가 되게 한다.
+    //   → 패닝마다 서버 재요청하지 않고 캐시 재사용(이전엔 키에 bbox 가 없어 패닝 시
+    //   옛 영역 셀이 그대로 보이는 문제도 있었음). 패딩으로 살짝 넘겨받아 즉시 채움.
+    function currentViewParams() {
         var agg = currentAggDeg();
-        var key = iso + '@' + agg.toFixed(5);
-        if (_cellCache[key]) return Promise.resolve(_cellCache[key]);
-        var params = '&agg=' + agg.toFixed(5);
+        var aggStr = agg.toFixed(5);
         try {
             var ext = _map.getView().calculateExtent(_map.getSize());
             var ll = ol.proj.toLonLat([ext[0], ext[1]]);
             var ur = ol.proj.toLonLat([ext[2], ext[3]]);
-            params += '&bbox=' + [ll[0], ll[1], ur[0], ur[1]].map(function (n) { return n.toFixed(3); }).join(',');
-        } catch (e) {}
+            var w = ur[0] - ll[0], h = ur[1] - ll[1];
+            var snap = Math.max(0.02, w * 0.25);   // 이 격자 안의 이동은 동일 키 → 캐시 재사용
+            function rd(v) { return Math.round(v / snap) * snap; }
+            var x0 = rd(ll[0] - w * 0.3), y0 = rd(ll[1] - h * 0.3);
+            var x1 = rd(ur[0] + w * 0.3), y1 = rd(ur[1] + h * 0.3);
+            var bboxStr = [x0, y0, x1, y1].map(function (n) { return n.toFixed(3); }).join(',');
+            return { agg: aggStr, bbox: bboxStr, key: aggStr + '@' + bboxStr };
+        } catch (e) {
+            return { agg: aggStr, bbox: '', key: aggStr + '@all' };
+        }
+    }
+
+    // 2m 얕은물은 가까이 봤을 때만(부하 제한). 이 줌(agg 이하)부터 함께 요청.
+    var SHALLOW_MAX_AGG = 0.005;
+    function shallowEnabled() { return currentAggDeg() <= SHALLOW_MAX_AGG; }
+
+    function fetchCells(iso) {
+        var vp = currentViewParams();
+        var sh = shallowEnabled();
+        var key = iso + '@' + vp.key + (sh ? '@s' : '');
+        if (_cellCache[key]) return Promise.resolve(_cellCache[key]);
+        var params = '&agg=' + vp.agg + (vp.bbox ? '&bbox=' + vp.bbox : '') + (sh ? '&shallow=1' : '');
         return fetch('/api/tide-field?time=' + encodeURIComponent(iso) + params)
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (j) {
@@ -414,6 +449,8 @@
                     cellDeg: (j && j.cell_deg) || ((_meta && _meta.cell_deg) || 0.001)
                 };
                 _cellCache[key] = out;
+                _cacheKeys.push(key);
+                if (_cacheKeys.length > 240) { delete _cellCache[_cacheKeys.shift()]; } // 메모리 상한
                 return out;
             }).catch(function () { return { cells: [], cellDeg: (_meta && _meta.cell_deg) || 0.001 }; });
     }
@@ -498,7 +535,10 @@
     // 전 프레임을 백그라운드로 미리 받아 캐시 워밍 → 슬라이더가 즉시 반응.
     //   순차+간격(150ms)으로 가볍게. fetchCells 는 iso+agg 로 캐시하므로 이미 받은 건
     //   즉시 반환(서버 부담 X). 재생 중엔 재생 루프가 따로 받으므로 생략.
-    function stopPrefetch() { if (_prefetchTimer) { clearTimeout(_prefetchTimer); _prefetchTimer = null; } }
+    function stopPrefetch() {
+        if (_prefetchTimer) { clearTimeout(_prefetchTimer); _prefetchTimer = null; }
+        if (_prefetchSettleTimer) { clearTimeout(_prefetchSettleTimer); _prefetchSettleTimer = null; }
+    }
     function prefetchAll() {
         stopPrefetch();
         var i = 0;
@@ -519,9 +559,11 @@
         if (show) requestAnimationFrame(function () { buildTicks(); updateTooltip(_frameIdx); });
         if (legend) {
             if (show) {
+                // 가로 방향 범례 — 갯벌(노출) + 2m 미만 얕은물
                 legend.innerHTML =
-                    '<div class="mudflat-legend-row"><span class="mudflat-sw mudflat-sw-exposed"></span>드러남(갯벌)</div>';
-                legend.style.display = 'block';
+                    '<span class="mudflat-legend-item"><span class="mudflat-sw mudflat-sw-exposed"></span>갯벌 노출</span>' +
+                    '<span class="mudflat-legend-item"><span class="mudflat-sw mudflat-sw-shallow"></span>2m 미만</span>';
+                legend.style.display = 'flex';
                 legend.setAttribute('aria-hidden', 'false');
             } else {
                 legend.style.display = 'none';
@@ -600,24 +642,85 @@
     // 셀 클릭 팝업 (현재 물깊이 / 간조 보조 표시)
     // ====================================================================
     function bindMapClickPopup() {
-        // 캔버스 래스터엔 feature 가 없으므로, 클릭 좌표에서 가장 가까운 드러남 셀을
-        // 직접 찾는다(1셀 반경 내). 물빠짐 활성 시에만.
-        _map.on('singleclick', function (evt) {
-            if (!_active || !_currentCells.length) return;
+        // [바텀시트 억제] 물빠짐 활성 시 ocean_map.handleMapClick 가 이 가드를 먼저 호출.
+        //   true 반환 → 클릭 소비(바텀시트 안 열림), 물빠짐 팝업만. 비활성이면 false(통과).
+        window._tideFieldTryHandleClick = function (map, evt) {
+            if (!_active) return false;
             var ll = ol.proj.toLonLat(evt.coordinate);
-            var clon = ll[0], clat = ll[1];
-            var tol = _lastDrawDeg * 1.2;  // 클릭 허용 반경(도) — 현재 타일 크기 기준
-            var tol2 = tol * tol;
-            var best = null, bestD = Infinity;
-            for (var i = 0; i < _currentCells.length; i++) {
-                var c = _currentCells[i];
-                var dx = c.lon - clon, dy = c.lat - clat;
-                var d2 = dx * dx + dy * dy;
-                if (d2 < bestD) { bestD = d2; best = c; }
-            }
-            if (!best || bestD > tol2) { hidePopup(); return; }
-            showCellPopup(evt.coordinate, best);
-        });
+            var best = nearestCell(ll[0], ll[1]);
+            if (best) showCellPopup(evt.coordinate, best);
+            else hidePopup();
+            return true;   // 활성 중엔 항상 소비 → 바텀시트 억제
+        };
+    }
+
+    // 클릭 좌표에서 허용 반경 내 가장 가까운 셀(갯벌/얕은물) 반환, 없으면 null.
+    function nearestCell(clon, clat) {
+        if (!_currentCells.length) return null;
+        var tol = _lastDrawDeg * 1.2, tol2 = tol * tol;
+        var best = null, bestD = Infinity;
+        for (var i = 0; i < _currentCells.length; i++) {
+            var c = _currentCells[i];
+            var dx = c.lon - clon, dy = c.lat - clat, d2 = dx * dx + dy * dy;
+            if (d2 < bestD) { bestD = d2; best = c; }
+        }
+        return (best && bestD <= tol2) ? best : null;
+    }
+
+    // 십진도 → 도분초(DMS) 문자열
+    function toDMS(lat, lon) {
+        function fmt(v, pos, neg) {
+            var dir = v >= 0 ? pos : neg; v = Math.abs(v);
+            var d = Math.floor(v), mf = (v - d) * 60, m = Math.floor(mf), s = Math.round((mf - m) * 60);
+            if (s === 60) { s = 0; m++; } if (m === 60) { m = 0; d++; }
+            return d + '°' + (m < 10 ? '0' : '') + m + '′' + (s < 10 ? '0' : '') + s + '″' + dir;
+        }
+        return fmt(lat, 'N', 'S') + ', ' + fmt(lon, 'E', 'W');
+    }
+
+    // 슬라이더가 가리키는 예측 시각 라벨 (KST) — "12일 17시 기준"
+    function sliderRefLabel() {
+        var iso = _frames[_frameIdx]; if (!iso) return '';
+        var kst = new Date(new Date(iso).getTime() + 9 * 3600000);
+        return kst.getUTCDate() + '일 ' + kst.getUTCHours() + '시 기준';
+    }
+
+    // debug 시계열({date,min,depthM}) → [{t(ms,UTC), dm}] 정렬
+    function _seriesToPoints(series) {
+        var out = [];
+        for (var i = 0; i < series.length; i++) {
+            var s = series[i]; if (s.depthM == null) continue;
+            var ds = String(s.date);
+            var kstMs = Date.UTC(+ds.slice(0, 4), +ds.slice(4, 6) - 1, +ds.slice(6, 8)) + (s.min || 0) * 60000;
+            out.push({ t: kstMs - 9 * 3600000, dm: s.depthM });
+        }
+        out.sort(function (a, b) { return a.t - b.t; });
+        return out;
+    }
+    // fromMs 이후 목표 방향 첫 교차(부호 변화)까지 분. band='dry'→다음 잠김(dm≥0),
+    //   'shallow'→다음 물빠짐(dm<0). 선형보간으로 분 단위. 없으면 null.
+    function _minutesUntilCross(points, fromMs, band) {
+        for (var j = 0; j < points.length - 1; j++) {
+            var a = points[j], b = points[j + 1];
+            if (b.t <= fromMs) continue;
+            var cross = (band === 'dry') ? (a.dm < 0 && b.dm >= 0) : (a.dm >= 0 && b.dm < 0);
+            if (!cross) continue;
+            var frac = (0 - a.dm) / (b.dm - a.dm);
+            var crossMs = a.t + frac * (b.t - a.t);
+            if (crossMs >= fromMs) return Math.round((crossMs - fromMs) / 60000);
+        }
+        return null;
+    }
+    function fetchEta(lat, lon, band, cb) {
+        fetch('/api/tide-field/debug?lat=' + lat + '&lon=' + lon)
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) {
+                if (!j || !j.series) { cb('—'); return; }
+                var mins = _minutesUntilCross(_seriesToPoints(j.series), new Date(_frames[_frameIdx]).getTime(), band);
+                if (mins == null) { cb('예측 범위 내 없음'); return; }
+                var h = Math.floor(mins / 60), m = mins % 60;
+                cb((h < 10 ? '0' : '') + h + '시간 ' + (m < 10 ? '0' : '') + m + '분');
+            }).catch(function () { cb('—'); });
     }
 
     function showCellPopup(coordinate, cell) {
@@ -625,21 +728,24 @@
         var el = $('mudflat-popup');
         if (!el) return;
         var depth = cell.depth_m;
-        var lat = cell.lat, lon = cell.lon;
-        // 레이어엔 드러남(state=1) 셀만 존재한다.
-        var stateTxt = '<b style="color:#8a5a2b;">드러남(갯벌 노출)</b>';
-        var depthTxt = (depth == null) ? '-' :
-            (depth <= 0 ? ('노출 ' + Math.abs(depth).toFixed(2) + ' m') : (depth.toFixed(2) + ' m'));
+        var isDry = (depth == null) || depth < 0;   // dm<0 갯벌, dm≥0 얕은물
+        var headRow = isDry
+            ? '<div class="mudflat-popup-row">상태: <b style="color:#8a5a2b;">갯벌 노출</b></div>'
+            : '<div class="mudflat-popup-row">예측 수심: <b>' + depth.toFixed(2) + ' m</b></div>';
+        var etaLabel = isDry ? '물 잠김까지 남은 시간' : '물빠짐까지 남은 시간';
         el.innerHTML =
             '<div class="mudflat-popup-close" id="mudflat-popup-close">&times;</div>' +
-            '<div class="mudflat-popup-title">물빠짐 예측</div>' +
-            '<div class="mudflat-popup-row">상태: ' + stateTxt + '</div>' +
-            '<div class="mudflat-popup-row">현재 물깊이: ' + depthTxt + '</div>' +
-            '<div class="mudflat-popup-row" style="opacity:.7;">' + lat.toFixed(3) + ', ' + lon.toFixed(3) + '</div>';
+            '<div class="mudflat-popup-title">물빠짐 예측 <span class="mudflat-popup-ref">(' + sliderRefLabel() + ')</span></div>' +
+            headRow +
+            '<div class="mudflat-popup-row">' + etaLabel + ': <b id="mudflat-popup-eta">계산 중…</b></div>' +
+            '<div class="mudflat-popup-row mudflat-popup-coord">' + toDMS(cell.lat, cell.lon) + '</div>';
         _popupOverlay.setPosition(coordinate);
         el.style.display = 'block';
         var closeBtn = $('mudflat-popup-close');
         if (closeBtn) closeBtn.onclick = hidePopup;
+        fetchEta(cell.lat, cell.lon, isDry ? 'dry' : 'shallow', function (txt) {
+            var etaEl = $('mudflat-popup-eta'); if (etaEl) etaEl.textContent = txt;
+        });
     }
 
     function ensurePopupOverlay() {
