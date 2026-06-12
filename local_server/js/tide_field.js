@@ -288,7 +288,7 @@
             showSliderBar(true);
             renderFrame(_frameIdx, true);
             // [안내] 예측 자료 면책 — 버튼으로 들어올 때마다 참고용 사용 안내.
-            //   공용 toast(window.showToast) 사용 → 다른 기능과 동일 위치(상단 중앙).
+            //   공용 toast(_showOceanToast) 사용 → 천기·시정과 동일 위치(하단 중앙).
             toast('예측 자료입니다. 참고용으로만 사용하고 실제 현장·기상 상황을 꼭 확인하세요.');
             prefetchAll();   // 현재 화면(첫 프레임) 그린 뒤, 나머지 시각을 백그라운드로 미리 받아 슬라이더 즉시화
         }).catch(function (e) {
@@ -671,7 +671,11 @@
     // 토스트 (간단)
     // ====================================================================
     function toast(msg) {
-        if (window.showToast) { try { window.showToast(msg); return; } catch (e) {} }
+        // 앱 공용 토스트(_showOceanToast) 사용 — 천기·시정 등 형제 오버레이와 동일
+        //   (하단 중앙). 이전엔 존재하지 않는 window.showToast 를 불러 토스트가 안 떴음.
+        if (typeof window._showOceanToast === 'function') {
+            try { window._showOceanToast(msg, 'bottom', 2600, true); return; } catch (e) {}
+        }
         console.log('[tide_field]', msg);
     }
 
