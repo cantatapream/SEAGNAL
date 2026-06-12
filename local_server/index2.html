@@ -1716,7 +1716,7 @@
 
     <!-- Styles -->
     <link rel="stylesheet" href="style.css?v=Margin_Final_v5">
-    <link rel="stylesheet" href="splash.css?v=Badge_Update_20260101">
+    <link rel="stylesheet" href="splash.css?v=Progress_Bar_20260612">
 
 
     <!-- Font Awesome (자체 호스팅 — A안 단위 2-D 적용)
@@ -2135,8 +2135,73 @@
             <p class="splash-subtitle-start">바다 : 그 날의 신호</p>
             <h1 class="splash-title"><span class="splash-sea">SEA</span><span class="splash-accent">:</span><span
                     class="splash-gnal">GNAL</span></h1>
+            <!-- 데이터 로딩 진행 표시 (가로 바 + % + 상태문구) — js/data.js 가 갱신 -->
+            <div class="splash-progress" id="splash-progress">
+                <div class="splash-progress-row">
+                    <div class="splash-progress-track">
+                        <div class="splash-progress-fill" id="splash-progress-fill"></div>
+                    </div>
+                    <div class="splash-progress-pct" id="splash-progress-pct">0%</div>
+                </div>
+                <div class="splash-progress-label" id="splash-progress-label">앱 초기화…</div>
+            </div>
         </div>
     </div>
+    <script>
+    /* [스플래시 진행 표시] 데이터 로딩 진척도를 가로 진행바로 노출한다.
+       - window.SplashProgress.set(ceil, label): 이 단계의 상한(ceil)까지 천천히
+         차오르도록 목표를 올리고 상태 문구를 바꾼다. 단계가 길어도(머지 직후
+         첫 접속 등) 끝으로 갈수록 느려지는 creep 으로 "멈춤"처럼 보이지 않게 한다.
+       - window.SplashProgress.done(label): 즉시 100% + 완료 문구.
+       [연계] js/data.js fetchAllData() 의 각 단계에서 호출.
+       [방어] 스플래시가 이미 제거된 뒤(수동 새로고침 등)에는 대상 요소가 없어
+              자동으로 무시된다(no-op). data.js 보다 먼저 정의되어야 하므로
+              스플래시 마크업 직후 인라인으로 둔다. */
+    (function () {
+        var cur = 0, target = 0, raf = null;
+        function els() {
+            return {
+                fill:  document.getElementById('splash-progress-fill'),
+                pct:   document.getElementById('splash-progress-pct'),
+                label: document.getElementById('splash-progress-label')
+            };
+        }
+        function paint() {
+            var e = els();
+            if (!e.fill) return;
+            e.fill.style.width = cur.toFixed(1) + '%';
+            e.pct.textContent = Math.round(cur) + '%';
+        }
+        function tick() {
+            var diff = target - cur;
+            if (diff > 0.15) {
+                cur += Math.max(diff * 0.08, 0.18); // 남은 거리의 일부씩 → 점점 느려지는 creep
+                if (cur > target) cur = target;
+                paint();
+                raf = requestAnimationFrame(tick);
+            } else {
+                cur = target; paint(); raf = null;
+            }
+        }
+        function start() { if (raf == null) raf = requestAnimationFrame(tick); }
+        window.SplashProgress = {
+            set: function (ceil, label) {
+                ceil = Math.min(Math.max(ceil, 0), 100);
+                if (ceil > target) target = ceil;
+                var e = els();
+                if (e.label && label != null) e.label.textContent = label;
+                start();
+            },
+            done: function (label) {
+                target = 100; cur = 100;
+                if (raf) { cancelAnimationFrame(raf); raf = null; }
+                var e = els();
+                if (e.fill) { e.fill.style.width = '100%'; e.pct.textContent = '100%'; }
+                if (e.label) { e.label.textContent = label || '완료'; e.label.classList.add('done'); }
+            }
+        };
+    })();
+    </script>
 
     <div class="app-container">
         <!-- Header -->
