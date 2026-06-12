@@ -120,4 +120,69 @@ function logCycle(p) {
     return { preds: lines.length - warns, warns };
 }
 
-module.exports = { JOURNAL_FILE, logCycle, readTail };
+// ── 통계(적중/미적중 판정 + 집계) — 관리자 탭·journal_report 공용 ────────────
+const WIN_BEFORE_H = 12, WIN_AFTER_H = 24; // 적중 창: onset −12h ~ +24h
+
+/** 저널 전체 로드(통계용 — 관리자 조회 빈도라 전량 읽기 허용). */
+function readAll() {
+    const preds = [], warns = [];
+    try {
+        for (const ln of fs.readFileSync(JOURNAL_FILE, 'utf8').split('\n')) {
+            const s = ln.trim(); if (!s) continue;
+            let r; try { r = JSON.parse(s); } catch (_) { continue; }
+            if (r.k === 'pred') preds.push(r); else if (r.k === 'warn') warns.push(r);
+        }
+    } catch (_) { /* 저널 없음 */ }
+    return { preds, warns };
+}
+
+/**
+ * 등급별/확률구간별 적중 통계.
+ *  - 적중: onset −12h~+24h 창에 같은 zone 공식특보 관측. 억제(suppressed) 기록은 정의상 적중.
+ *  - 창이 안 끝났으면 '진행중'(미결정).
+ * @returns {{counts, byGrade, byProb, recent}}
+ */
+function computeStats() {
+    const { preds, warns } = readAll();
+    const H = 3600 * 1000;
+    const warnByZone = new Map();
+    for (const w of warns) {
+        const t = Date.parse(w.t); if (!isFinite(t)) continue;
+        if (!warnByZone.has(w.zone)) warnByZone.set(w.zone, []);
+        warnByZone.get(w.zone).push(t);
+    }
+    const now = Date.now();
+    for (const p of preds) {
+        if (p.st === 'suppressed') { p.outcome = 'hit'; continue; }
+        const onset = Date.parse(p.onsetISO || '');
+        if (!isFinite(onset)) { p.outcome = 'invalid'; continue; }
+        const lo = onset - WIN_BEFORE_H * H, hi = onset + WIN_AFTER_H * H;
+        if ((warnByZone.get(p.zone) || []).some((t) => t >= lo && t <= hi)) p.outcome = 'hit';
+        else p.outcome = (now > hi) ? 'miss' : 'pending';
+    }
+    const agg = (arr) => {
+        const hit = arr.filter((p) => p.outcome === 'hit').length;
+        const miss = arr.filter((p) => p.outcome === 'miss').length;
+        const pending = arr.filter((p) => p.outcome === 'pending').length;
+        const decided = hit + miss;
+        return { hit, miss, pending, decided, ratePct: decided ? Math.round(hit / decided * 100) : null };
+    };
+    const byProb = [[51, 56], [57, 64], [65, 100]].map(([lo, hi]) => Object.assign(
+        { range: `${lo}~${hi}%` }, agg(preds.filter((p) => p.prob >= lo && p.prob <= hi))));
+    const recent = preds
+        .filter((p) => p.outcome === 'hit' || p.outcome === 'miss')
+        .sort((a, b) => Date.parse(b.t) - Date.parse(a.t))
+        .slice(0, 20)
+        .map((p) => ({ t: p.t, zone: p.zone, grade: p.grade, prob: p.prob, st: p.st, outcome: p.outcome }));
+    return {
+        counts: { pred: preds.length, warn: warns.length, ...agg(preds) },
+        byGrade: {
+            high: agg(preds.filter((p) => p.grade === 'high')),
+            watch: agg(preds.filter((p) => p.grade === 'watch')),
+        },
+        byProb, recent,
+        window: { beforeH: WIN_BEFORE_H, afterH: WIN_AFTER_H },
+    };
+}
+
+module.exports = { JOURNAL_FILE, logCycle, readTail, readAll, computeStats };

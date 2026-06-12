@@ -10970,3 +10970,14 @@ body.mc-fullscreen-active {
 
 /* 단기전망 문장(통보문 AI 추출) — 숫자 줄 아래 */
 .adv-kma-outlook { font-size: 0.78rem; color: #c4d3de; margin-top: 4px; line-height: 1.55; }
+
+/* 특보 예측 관리 — 통계 테이블/최근 사례 */
+.advm-stats { width: 100%; border-collapse: collapse; font-size: 0.76rem; color: #d6dee6; }
+.advm-stats th, .advm-stats td { border: 1px solid #2a3340; padding: 5px 7px; text-align: center; }
+.advm-stats th { background: rgba(255,255,255,0.05); font-weight: 700; color: #aebbc7; }
+.advm-stats td:first-child { text-align: left; }
+.advm-recent { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.advm-recent-item { font-size: 0.76rem; color: #c9d3dd; }
+.advm-oc { font-size: 0.66rem; font-weight: 800; padding: 1px 6px; border-radius: 10px; }
+.advm-oc.hit { background: rgba(34,197,94,0.2); color: #86efac; }
+.advm-oc.miss { background: rgba(239,68,68,0.2); color: #ff9a9a; }

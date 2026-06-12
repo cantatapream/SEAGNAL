@@ -2110,6 +2110,14 @@ router.post('/api/admin/advisory-display/clear-edit', (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// 예측 적중 통계 (운영 누적 저널 기반 — 등급/확률구간별 적중·미적중·진행중)
+router.get('/api/admin/advisory-display/stats', (req, res) => {
+    try {
+        const journal = require('../advisory/journal');
+        res.json(journal.computeStats());
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // 구역 해소 전환 (body: { zone }) — active 에서 빼고 사용자 '최근 해소'에 합성 표출(24h)
 router.post('/api/admin/advisory-display/resolve', (req, res) => {
     try {

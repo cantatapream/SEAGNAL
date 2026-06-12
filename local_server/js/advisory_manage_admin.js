@@ -29,9 +29,42 @@
     function load() {
         if (!_container) return;
         _container.innerHTML = '<div style="padding:18px;color:#9aa7b4">불러오는 중…</div>';
-        api('/api/admin/advisory-display/state').then(render).catch(function () {
+        Promise.all([
+            api('/api/admin/advisory-display/state'),
+            api('/api/admin/advisory-display/stats').catch(function () { return null; }),
+        ]).then(function (rs) { render(rs[0], rs[1]); }).catch(function () {
             _container.innerHTML = '<div style="padding:18px;color:#ff8a8a">상태 조회 실패</div>';
         });
+    }
+
+    // ── 통계 섹션 HTML (운영 누적 저널 — 등급/확률구간별 적중·미적중) ──────────
+    function statsHtml(st) {
+        if (!st || !st.counts) return '';
+        var pc = function (v) { return (v == null) ? '–' : v + '%'; };
+        var row = function (label, a, expect) {
+            return '<tr><td>' + label + '</td><td>' + a.hit + '</td><td>' + a.miss + '</td>' +
+                '<td>' + a.pending + '</td><td><b>' + pc(a.ratePct) + '</b></td><td>' + expect + '</td></tr>';
+        };
+        var h = '<div class="advm-sec-title" style="margin-top:16px">예측 통계 (운영 누적 — 적중/미적중)</div>';
+        h += '<table class="advm-stats"><thead><tr><th>분류</th><th>적중</th><th>미적중</th><th>진행중</th><th>적중률</th><th>기대</th></tr></thead><tbody>';
+        h += row('🔴 높음', st.byGrade.high, '64~70%');
+        h += row('🟡 관심', st.byGrade.watch, '51~58%');
+        (st.byProb || []).forEach(function (b) { h += row('확률 ' + b.range, b, b.range); });
+        h += '</tbody></table>';
+        h += '<div class="advm-note">적중 창: 예상시각 −' + st.window.beforeH + 'h ~ +' + st.window.afterH +
+            'h 내 공식 풍랑/태풍 발효 · 총 기록 ' + st.counts.pred + '건(결정 ' + st.counts.decided + ')</div>';
+        // 최근 결정 사례
+        if (st.recent && st.recent.length) {
+            h += '<div class="advm-recent">';
+            st.recent.slice(0, 8).forEach(function (r) {
+                var ok = r.outcome === 'hit';
+                h += '<div class="advm-recent-item">' +
+                    '<span class="advm-oc ' + (ok ? 'hit' : 'miss') + '">' + (ok ? '적중' : '미적중') + '</span> ' +
+                    esc(r.zone) + ' <span style="color:#8b97a3">(' + (r.grade === 'high' ? '높음' : '관심') + ' ' + esc(r.prob) + '%)</span></div>';
+            });
+            h += '</div>';
+        }
+        return h;
     }
 
     function modeBtn(cur, val, label, desc) {
@@ -48,7 +81,7 @@
         return '<span class="advm-st advm-st-on">표출중</span>';
     }
 
-    function render(s) {
+    function render(s, stats) {
         if (!_container) return;
         s = s || {};
         var mode = s.mode || 'off';
@@ -122,6 +155,7 @@
             });
             html += '</div>';
         }
+        html += statsHtml(stats);
         html += '</div>';
         _container.innerHTML = html;
     }
