@@ -1226,6 +1226,12 @@
         if (typeof window.switchMainTab === 'function') {
             window.switchMainTab('ocean-map-section');
         }
+        // [최초 로드 대응] 탭 전환 경로에 따라 지도 빌드가 지연될 수 있어 지도
+        //   초기화를 직접 한 번 더 호출(멱등 — 이미 있으면 updateSize만). 이렇게
+        //   하면 getOceanMap() 이 빨리 준비돼 아래 animate 재시도가 곧 성공한다.
+        if (typeof window.initOceanMap === 'function') {
+            try { window.initOceanMap(); } catch (e) {}
+        }
 
         // 탭 전환 애니메이션/지도 초기화 완료 대기 후 center 이동(줌 유지)
         //
@@ -1235,7 +1241,7 @@
         //   스킵돼서 "처음 클릭은 줌/깜빡임 안 됨, 두번째부터 됨" 증상 발생.
         //   100ms × 최대 20회(=2초) 폴링으로 map 이 준비되면 즉시 animate.
         var attempt = 0;
-        var MAX_ATTEMPT = 20;
+        var MAX_ATTEMPT = 50;   // 100ms × 50 = 최대 5초 (최초 로드 지도 빌드 커버)
         function tryAnimate() {
             var map = window.getOceanMap && window.getOceanMap();
             if (map && typeof map.getView === 'function') {

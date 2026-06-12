@@ -472,12 +472,19 @@
      * @param {boolean} visible - 원하는 가시 상태 (true=ON, false=OFF)
      * @returns {boolean} 토글 버튼이 존재해 처리 가능했으면 true
      */
-    window.setMarineZoneGridVisible = function (visible) {
+    window.setMarineZoneGridVisible = function (visible, _attempt) {
         const btn = document.getElementById('ocean-marine-zone-toggle-btn');
         if (!btn) return false;
         const isActive = btn.classList.contains('active');
         if (isActive !== !!visible) {
             btn.click();   // 토글 핸들러 + 토스트가 같이 발화 → 상태 일관성 보장
+            // [최초 로드 대응] 지도 빌드 전이면 토글 핸들러가 아직 안 묶여 click 이
+            //   무시될 수 있다(.active 가 안 바뀜). 실제 적용될 때까지 폴링 재시도.
+            if (btn.classList.contains('active') !== !!visible && (_attempt || 0) < 40) {
+                setTimeout(function () {
+                    window.setMarineZoneGridVisible(visible, (_attempt || 0) + 1);
+                }, 150);
+            }
         }
         return true;
     };
