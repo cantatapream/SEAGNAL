@@ -443,6 +443,10 @@
             try { localStorage.setItem('seagnal_marine_zone_visible', String(visible)); } catch (e) {}
             // OFF 로 돌아갈 때는 "선택 상태" 도 같이 비워서 다음에 켤 때 깨끗하게 시작.
             if (!visible) _resetMarineZoneSelection();
+            // [단독 표출] 해구도 ON 시 물빠짐이 켜져 있으면 끔.
+            if (visible && typeof window._tideFieldDeactivate === 'function') {
+                try { window._tideFieldDeactivate(); } catch (e) {}
+            }
         });
     }
 
@@ -736,6 +740,13 @@
 
             // 클릭 이벤트
             oceanMap.on('click', handleMapClick);
+
+            // [클릭 핀 정리] 우측 기능 버튼(파고/바람/조류/해구도/천기/물빠짐 등)을 누르면
+            //   배경지도에 꽂아둔 핀을 제거. capture 단계라 버튼 핸들러의 stopPropagation 과 무관.
+            document.addEventListener('click', function (e) {
+                var b = e.target && e.target.closest && e.target.closest('.ocean-overlay-btn');
+                if (b && typeof window.oceanClearClickPin === 'function') window.oceanClearClickPin();
+            }, true);
 
             // 뷰포트 변경 시 오버레이 갱신
             oceanMap.on('moveend', function () {
