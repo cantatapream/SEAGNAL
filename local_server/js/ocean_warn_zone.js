@@ -576,11 +576,22 @@
      * @param {boolean} visible - 원하는 가시 상태 (true=ON, false=OFF)
      * @returns {boolean} 토글 버튼이 존재해 처리 가능했으면 true
      */
-    window.setWarnZoneVisible = function (visible) {
+    window.setWarnZoneVisible = function (visible, _attempt) {
         var btn = document.getElementById('ocean-warn-zone-toggle-btn');
         if (!btn) return false;
         var isActive = btn.classList.contains('active');
-        if (isActive !== !!visible) btn.click();
+        if (isActive !== !!visible) {
+            btn.click();
+            // [최초 로드 대응] 지도 빌드 전이면 토글 핸들러가 아직 안 묶여(=_bindToggle
+            //   은 지도 준비 후 실행) click 이 무시돼 .active 가 안 바뀐다. 그러면
+            //   특보구역 lazy fetch 도 안 돼 flashWarnZone 이 깜빡일 feature 를 못 찾는다.
+            //   → 실제 적용될 때까지 폴링 재시도(지도/핸들러 준비되면 즉시 반영).
+            if (btn.classList.contains('active') !== !!visible && (_attempt || 0) < 40) {
+                setTimeout(function () {
+                    window.setWarnZoneVisible(visible, (_attempt || 0) + 1);
+                }, 150);
+            }
+        }
         return true;
     };
 
@@ -758,7 +769,9 @@
         if (_flashFeature) { _flashFeature.setStyle(undefined); _flashFeature = null; }
 
         var attempts = 0;
-        var MAX_ATTEMPTS = 8;        // 200ms × 8 = 최대 1.6초 대기
+        var MAX_ATTEMPTS = 40;       // 200ms × 40 = 최대 8초 대기. 최초 로드 시
+                                     //   지도 빌드 + 특보구역 토글 lazy fetch 완료까지
+                                     //   넉넉히 커버 (feature 찾으면 즉시 종료).
         var WAIT_MS = 200;
 
         function tryFlash() {
