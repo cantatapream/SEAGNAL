@@ -44,11 +44,13 @@ router.get('/api/vsby-smallzone/major', async (req, res) => {
     try {
         const no = (req.query.no || '').trim();
         let r;
-        if (no) r = await sz.getMajorSeries(no);
+        // 대해구 선차트는 소해구·오버레이와 동일한 RDPS 래스터로 통일(소해구 9칸 최악값 집계),
+        // 래스터 없는 구역만 marine_zone/vs 숫자로 폴백.
+        if (no) r = await sz.getMajorForGraph(no);
         else {
             const lat = parseFloat(req.query.lat), lon = parseFloat(req.query.lon);
             if (!isFinite(lat) || !isFinite(lon)) return res.json({ success: false, error: 'no 또는 lat/lon 필요' });
-            r = await sz.getMajorByPoint(lat, lon);
+            r = await sz.getMajorForGraphByPoint(lat, lon);
         }
         if (!r) return res.json({ success: false, error: '격자 밖 좌표' });
         res.json({ success: true, ...r });

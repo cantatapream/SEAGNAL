@@ -731,13 +731,14 @@
             + '.vsby-zone-badge.active{'
             +   'background:rgba(31,182,214,0.55);border-color:#1fb6d6;color:#fff;'
             + '}'
-            // ── 평균박스에 합류한 시정 펄 (.zone-avg-badge 와 동일 모양, 색만 teal) ──
+            // ── 평균박스에 합류한 시정 펄 (.zone-avg-badge 와 동일 모양) ──
+            //    파고(하늘색)·풍속(주황)과 확실히 구분되도록 보라색 사용.
             + '.zone-avg-box .zone-avg-badge.vsby{'
-            +   '--zab-strong:rgba(38,198,218,0.9);--zab-faded:rgba(38,198,218,0.15);'
-            +   'background:rgba(38,198,218,0.18);color:#80deea;cursor:pointer;'
+            +   '--zab-strong:rgba(186,104,200,0.9);--zab-faded:rgba(186,104,200,0.15);'
+            +   'background:rgba(186,104,200,0.18);color:#e1bee7;cursor:pointer;'
             + '}'
             + '.zone-avg-box .zone-avg-badge.vsby.active{'
-            +   'background:rgba(38,198,218,0.5);border-color:#26c6da;color:#fff;'
+            +   'background:rgba(186,104,200,0.5);border-color:#ba68c8;color:#fff;'
             + '}'
             // ── 시정 팝업(자체 미니 해구도) ──
             + '.vsby-pop-overlay{position:fixed;inset:0;z-index:11000;background:rgba(0,0,0,0.55);'
@@ -753,6 +754,12 @@
             +   'background:#243246;color:#cdd9ea;font-size:18px;line-height:1;cursor:pointer;}'
             + '.vsby-pop-close:hover{background:#2f4259;}'
             + '.vsby-pop-map{position:relative;width:100%;height:min(60vh,420px);background:#16202f;}'
+            // OSM 저작권 표기는 지도 좌측 하단에 고정(기본 우측/중앙 표출 방지).
+            + '.vsby-pop-map .ol-attribution{left:.5em;right:auto;bottom:.4em;top:auto;'
+            +   'max-width:calc(100% - 1em);background:rgba(15,23,34,0.7);border-radius:4px;}'
+            + '.vsby-pop-map .ol-attribution ul{font-size:0.62rem;color:#cdd9ea;text-shadow:none;}'
+            + '.vsby-pop-map .ol-attribution a{color:#9ec5ff;}'
+            + '.vsby-pop-map .ol-attribution button{display:none;}'
             + '.vsby-pop-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;'
             +   'color:#8aa0bf;font-size:0.85rem;}'
             + '.vsby-pop-legend{display:flex;align-items:center;gap:3px;flex-wrap:wrap;padding:8px 12px;'
