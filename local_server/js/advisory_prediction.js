@@ -66,22 +66,27 @@
         return zone + ' 위험기상일기도 분석 결과,<br>' + l2 + (l3 ? '<br>' + l3 : '');
     }
 
-    // ── 기상청 단기예보 병기(판정 없이 숫자만). 없으면 빈 문자열(줄 숨김). ──
+    // ── 기상청 단기예보 병기(판정 없이). 숫자 한 줄 + 그 아래 단기전망 문장. ──
+    //   숫자도 문장도 없으면 빈 문자열(줄 숨김).
     function buildKmaHtml(it) {
         const kma = it.kmaForecast;
         if (!kma || typeof kma !== 'object') return '';
         const ktms = kma.windKtMs || (kma.windSpeed ? (kma.windSpeed + 'm/s') : null);
         const wave = kma.waveHeight ? (kma.waveHeight + 'm') : null;
-        if (!ktms && !wave) return '';
+        const outlook = (typeof kma.outlook === 'string' && kma.outlook.trim()) ? kma.outlook.trim() : null;
+        if (!ktms && !wave && !outlook) return '';
         const parts = [];
         if (ktms) parts.push('풍속 <b>' + escapeHtml(String(ktms)) + '</b>');
         if (wave) parts.push('파고 <b>' + escapeHtml(String(wave)) + '</b>');
         const office = kma.office ? escapeHtml(kma.office) + ' ' : '';
         const pub = kma.publishLabel ? ' <span class="adv-kma-pub">(' + escapeHtml(kma.publishLabel) + ')</span>' : '';
         const period = kma.periodLabel ? escapeHtml(kma.periodLabel) + ' ' : '';
-        return '<div class="adv-kma">' +
-            '<div class="adv-kma-kt">🛰️ ' + office + '단기예보' + pub + '</div>' +
-            '<div class="adv-kma-vals">' + period + parts.join(', ') + '</div></div>';
+        let html = '<div class="adv-kma">' +
+            '<div class="adv-kma-kt">🛰️ ' + office + '단기예보' + pub + '</div>';
+        if (parts.length) html += '<div class="adv-kma-vals">' + period + parts.join(', ') + '</div>';
+        if (outlook) html += '<div class="adv-kma-outlook">“' + escapeHtml(outlook) + '”</div>';
+        html += '</div>';
+        return html;
     }
 
     // ── 헤더 상태배지(카운트) — 앱 기존 .adv-badge(반투명) 재사용 ──

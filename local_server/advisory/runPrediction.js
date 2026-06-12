@@ -112,7 +112,8 @@ async function runPredictionCycle(opts = {}) {
             const loadForecastMap = deps.loadForecastMap || cx.loadForecastMap;
             const enrichPredictions = deps.enrichPredictions || cx.enrichPredictions;
             const forecastMap = loadForecastMap();
-            enriched = enrichPredictions(visible, forecastMap) || visible;
+            const outlookMap = (deps.loadOutlookMap || cx.loadOutlookMap || (() => ({})))();
+            enriched = enrichPredictions(visible, forecastMap, outlookMap) || visible;
         } catch (e) {
             const error = (e && e.message) || String(e);
             console.log(`[advisory] 교차참조 실패 → 병기 생략(예측 유지): ${error}`);
@@ -127,6 +128,25 @@ async function runPredictionCycle(opts = {}) {
             zoneSignals,
         };
         const state = updState(current, suppressedZones, opts.stateOpts || {}) || {};
+
+        // ── 4.5) 누적 저널: 예측(표출/대기/억제) + 공식특보 관측 기록 ───────
+        //   분석력 강화용 운영 데이터 축적(append-only). 실패해도 사이클은 정상.
+        try {
+            const journal = deps.journal || require('./journal');
+            let warnZones = [];
+            try {
+                const supp = require('./suppression');
+                const zset = supp.getActiveWarningZones();
+                warnZones = zset ? Array.from(zset) : [];
+            } catch (_) { warnZones = []; }
+            journal.logCycle({
+                baseTimeKST: g.baseTimeKST,
+                shown: visible, pending: pendingVisible, suppressed,
+                warnZones,
+            });
+        } catch (e) {
+            console.log(`[advisory] journal 기록 실패(무시): ${(e && e.message) || e}`);
+        }
 
         // ── 5) 요약 반환 ──────────────────────────────────────────────────
         const summary = {

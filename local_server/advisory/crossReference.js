@@ -185,15 +185,23 @@ function buildKmaForecast(zoneForecast, onsetISO, zoneName) {
  * @param {Object} forecastMap  { zoneName: {periods, publishTime, ...} }
  * @returns {Array}
  */
-function enrichPredictions(predictions, forecastMap) {
+function enrichPredictions(predictions, forecastMap, outlookMap) {
     if (!Array.isArray(predictions)) return predictions;
     const map = (forecastMap && typeof forecastMap === 'object') ? forecastMap : {};
+    const omap = (outlookMap && typeof outlookMap === 'object') ? outlookMap : {};
     return predictions.map((p) => {
         if (!p || typeof p !== 'object') return p;
-        const zf = map[zoneKey(p.zone)];
-        if (!zf) return p;
+        const key = zoneKey(p.zone);
+        const zf = map[key];
         let kma = null;
-        try { kma = buildKmaForecast(zf, p.onsetISO, p.zone); } catch (_) { kma = null; }
+        if (zf) { try { kma = buildKmaForecast(zf, p.onsetISO, p.zone); } catch (_) { kma = null; } }
+        // 단기전망 문장(통보문 AI 추출) — 숫자 줄 아래 병기. 숫자 매칭이 없어도 문장만 부착 가능.
+        const sentence = omap[key];
+        if (sentence) {
+            if (!kma) kma = { windSpeed: null, windKtMs: null, waveHeight: null, periodLabel: null,
+                office: ZONE_OFFICE_NAME[key] || null, publishTime: null, publishLabel: null };
+            kma = Object.assign({}, kma, { outlook: sentence });
+        }
         if (!kma) return p;
         return Object.assign({}, p, { kmaForecast: kma });
     });
@@ -218,6 +226,40 @@ function loadForecastMap() {
     }
 }
 
+/**
+ * 구역 → 단기전망 문장 맵 로드 (regional_forecast.json 의 marineOutlooks —
+ * 통보문 AI 추출). 묶음 구역명(예: 제주도전해상)은 ZONE_GROUP_MAP 으로 자식
+ * 구역에 펼치되, 정확일치 문장이 이미 있으면 덮어쓰지 않는다. 실패 시 {}.
+ * @returns {Object} { zoneName: sentence }
+ */
+function loadOutlookMap() {
+    const out = {};
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        const file = path.join(__dirname, '..', 'data', 'regional_forecast.json');
+        const store = JSON.parse(fs.readFileSync(file, 'utf8'));
+        let GROUP = {};
+        try { GROUP = require('../ai_report_parser').ZONE_GROUP_MAP || {}; } catch (_) { GROUP = {}; }
+        const exact = {}, expanded = {};
+        for (const entry of Object.values(store)) {
+            if (!entry || !Array.isArray(entry.marineOutlooks)) continue;
+            for (const o of entry.marineOutlooks) {
+                if (!o || typeof o.zone !== 'string' || typeof o.sentence !== 'string') continue;
+                const z = o.zone.trim(), st = o.sentence.trim();
+                if (!z || !st) continue;
+                exact[z] = st;
+                const members = GROUP[z];
+                if (Array.isArray(members)) for (const m of members) {
+                    if (typeof m === 'string' && m.trim()) expanded[m.trim()] = st;
+                }
+            }
+        }
+        Object.assign(out, expanded, exact); // 정확일치 우선
+    } catch (_) { /* graceful */ }
+    return out;
+}
+
 module.exports = {
     onsetToSlot,
     parseWindSpeed,
@@ -227,5 +269,6 @@ module.exports = {
     buildKmaForecast,
     enrichPredictions,
     loadForecastMap,
+    loadOutlookMap,
     ZONE_OFFICE_NAME,
 };

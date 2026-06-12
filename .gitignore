@@ -133,3 +133,6 @@ local_server/analysis/wave_leadtime/out/recalib_samples_*.json
 
 # 예비특보 통보문 수집물(dmdw 크롤링 산출)
 local_server/analysis/wave_leadtime/data/prelim_warnings.json
+
+# 특보 예측 운영 누적 저널(분석력 강화용 — Fly 볼륨, append-only)
+local_server/data/advisory_journal.jsonl
