@@ -171,6 +171,21 @@ async function maskFor(chartCode, regMeta, signal, classify, ge3Level, prefix) {
 // 메인 — 예측 생성
 // ----------------------------------------------------------------------------
 async function generatePredictions(options = {}) {
+    // ── 변경감지(폴링 절약) ───────────────────────────────────────────────
+    //   최신 base 가 직전 처리분(options.prevBaseKST)과 같으면 다운로드/분석을
+    //   건너뛴다. 일기도는 12h 마다 갱신되므로 대부분 사이클은 같은 base → 스킵.
+    //   업데이트(새 base) 시에만 풀 분석. (해상일기도 탭도 동일 원리로 폴링)
+    if (options.prevBaseKST && typeof listFrames === 'function' && typeof require(path.join(WL, CHART_MOD)).latestBaseKST === 'function') {
+        try {
+            const firstCode = Object.keys(OFFICES)[0];
+            const latest = await require(path.join(WL, CHART_MOD)).latestBaseKST(OFFICE_CHART[firstCode] || firstCode, 'wind');
+            if (latest && latest === options.prevBaseKST) {
+                console.error(`[advisory] 변경 없음 (base=${latest}) — 사이클 스킵`);
+                return { skipped: true, baseTimeKST: latest, predictions: [], pending: [], zoneSignals: [] };
+            }
+        } catch (_) { /* 확인 실패 → 정상 진행(보수적) */ }
+    }
+
     // 검증 시연용 임계 override (정상 운영은 config 기본값)
     const windCut = options.windCutKt != null ? options.windCutKt : THRESHOLDS.WIND_ONSET_KT;
     const waveCut = options.waveCutM != null ? options.waveCutM : THRESHOLDS.WAVE_M;

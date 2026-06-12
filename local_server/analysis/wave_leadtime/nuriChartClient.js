@@ -125,8 +125,29 @@ async function downloadFrame(frame) {
     return reqBuf(path);
 }
 
+/**
+ * 변경감지용 — 한 청·신호의 목록에서 '최신 base(KST 슬롯, YYYYMMDDHH)'만 가볍게 확인.
+ *   (이미지 다운로드 0, 목록 JSON 1회). 직전 처리 base 와 같으면 사이클 스킵에 사용.
+ * @param {string} area  청코드(jeju/busn/...)  @param {string} signal  'wind'|'wave'
+ * @returns {Promise<string|null>}
+ */
+async function latestBaseKST(area, signal) {
+    const sig = signal === 'wave' ? 'wave' : 'wind';
+    const path = `${LIST_PATH}?type=C&data=kim_cww3_[AREA]_${sig}_&area=${area}&unit=km/h&leaflet=0&kmap=0`;
+    const list = await reqJson(path);
+    if (!Array.isArray(list)) return null;
+    const want = new RegExp(`kim_cww3_${area}_${sig}_s\\d{3}_(\\d{10})\\.gif`);
+    let latest = null;
+    for (const it of list) {
+        const m = it && it.url && it.url.match(want);
+        if (m && (!latest || m[1] > latest)) latest = m[1];
+    }
+    if (!latest) return null;
+    return ymdh(new Date(ymdhToDate(latest).getTime() + 9 * 3600 * 1000)); // UTC base → KST 슬롯
+}
+
 module.exports = {
     REGIONAL_OFFICES, NATIONAL_WAVE,
-    login, ensureSession, listFrames, downloadFrame,
+    login, ensureSession, listFrames, downloadFrame, latestBaseKST,
     _parsePrefix: parsePrefix,
 };

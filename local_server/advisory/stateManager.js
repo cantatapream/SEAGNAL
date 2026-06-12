@@ -282,6 +282,6 @@ function updateState(current, suppressedZones = [], opts = {}) {
     return newState;
 }
 
-module.exports = { updateState, STATE_PATH };
+module.exports = { updateState, readPrevState, STATE_PATH };
 
 // 신호 등급/확률은 엔진이 zoneSignal.prob(등급기반)으로 채워 전달 → 여기선 그대로 사용.
