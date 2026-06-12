@@ -767,6 +767,20 @@ function _shrinkToastFontIfWraps(el, message) {
  * 아니면 --main-tab-height + (범례 보이면 +115) + 여유 값.
  */
 function _computeBottomToastOffsetPx() {
+    // 하단을 차지하는 요소(슬라이더 바·즐겨찾기 바) 중 화면에서 가장 위에 있는 것의
+    //   top 을 찾아 그 위로 토스트를 올린다 → 슬라이더 바와 겹치지 않음(모든 토스트 공통).
+    var topMost = Infinity;
+
+    // 하단 슬라이더 바(물빠짐/천기 = .shrt-fcst-slider-bar, 시정 = .vsby-fcst-slider-bar)
+    var bars = document.querySelectorAll('.shrt-fcst-slider-bar, .vsby-fcst-slider-bar');
+    for (var i = 0; i < bars.length; i++) {
+        var b = bars[i];
+        if (b.offsetParent === null) continue;          // display:none 이면 제외
+        var rb = b.getBoundingClientRect();
+        if (rb.height > 0 && rb.top < topMost) topMost = rb.top;
+    }
+
+    // 즐겨찾기 바
     var favBar = document.getElementById('ocean-fav-bar');
     var favVisible = !!(favBar
         && !favBar.classList.contains('empty')
@@ -774,11 +788,16 @@ function _computeBottomToastOffsetPx() {
         && !document.body.classList.contains('ocean-sheet-open')
         && favBar.offsetParent !== null);
     if (favVisible) {
-        var rect = favBar.getBoundingClientRect();
-        // 바 top 위 8px
-        return Math.max(0, window.innerHeight - rect.top + 8);
+        var rf = favBar.getBoundingClientRect();
+        if (rf.top < topMost) topMost = rf.top;
     }
-    // 즐겨찾기 바 없음 → 메인탭(+ 범례) 위로
+
+    if (topMost !== Infinity) {
+        // 가장 위 요소의 top 보다 10px 위에 토스트 하단이 오도록
+        return Math.max(0, window.innerHeight - topMost + 10);
+    }
+
+    // 아무 바도 없음 → 메인탭(+ 범례) 위로
     var mainStr = getComputedStyle(document.documentElement).getPropertyValue('--main-tab-height');
     var mainH = parseInt(mainStr, 10);
     if (!mainH || isNaN(mainH)) mainH = 68;
