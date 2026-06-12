@@ -518,7 +518,7 @@ window.showUnifiedAdminModal = function (initialTab = 'alert') {
     const tabs = [
         // [종합 통계] 기존 '이용자 현황' 탭을 대체. 내부에 [이용자 현황][사용량 통계] 하위탭.
         { id: 'stats', name: '종합 통계', icon: 'fa-chart-line' },
-        { id: 'alert', name: '특보 알림', icon: 'fa-tower-broadcast' },
+        { id: 'alert', name: '특보 관리', icon: 'fa-tower-broadcast' },
         { id: 'api', name: 'API 설정', icon: 'fa-server' },
         { id: 'notice', name: '공지 팝업', icon: 'fa-bell' },
         { id: 'promo', name: '게시판 관리', icon: 'fa-bullhorn' },
@@ -3578,6 +3578,7 @@ async function renderUnifiedAlertContent(container) {
 
     const topTabs = [
         { id: 'alert-manage', name: '실시간 특보 알림 관리', icon: 'fa-tower-broadcast' },
+        { id: 'advisory-pred', name: '특보 예측',            icon: 'fa-wand-magic-sparkles' },
         { id: 'ledger-view',  name: '장부',                   icon: 'fa-book' },
         { id: 'error-log',    name: '오류 로그',              icon: 'fa-triangle-exclamation' },
         { id: 'manual-edit',  name: '특보 수정',              icon: 'fa-pen-to-square' }
@@ -3613,6 +3614,9 @@ async function renderUnifiedAlertContent(container) {
 
         if (topTabId === 'alert-manage') {
             renderAlertManageSubTab(topContent);
+        } else if (topTabId === 'advisory-pred') {
+            if (typeof window.renderAdvisoryDisplayManageTab === 'function') window.renderAdvisoryDisplayManageTab(topContent);
+            else topContent.innerHTML = '<div style="padding:16px;color:#888">특보 예측 관리 모듈 로드 실패(advisory_manage_admin.js).</div>';
         } else if (topTabId === 'ledger-view') {
             renderLedgerViewTab(topContent);
         } else if (topTabId === 'error-log') {

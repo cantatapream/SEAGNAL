@@ -210,15 +210,36 @@
         if (bt) bt.textContent = formatBaseTime(d.baseTimeKST);
     }
 
+    // 관리자 기기면 push_token 을 붙여 'admin' 모드 표출 인가를 받는다(비관리자는 빈값).
+    function _adminTokenParam() {
+        try {
+            if (localStorage.getItem('seagnal_admin_mode') !== 'true') return '';
+            const t = localStorage.getItem('push_token') || '';
+            return t ? ('?adminToken=' + encodeURIComponent(t)) : '';
+        } catch (e) { return ''; }
+    }
+    // 표출 제어: display=true 일 때만 아코디언(헤더+바디)을 보인다.
+    function _setAccordionVisible(show) {
+        if (typeof document === 'undefined') return;
+        const h = document.getElementById('advisory-prediction-accordion-header');
+        const b = document.getElementById('advisory-prediction-accordion-body');
+        const v = show ? '' : 'none';
+        if (h) h.style.display = v;
+        if (b && show && b.style.display === 'none') b.style.display = '';
+        if (b && !show) b.style.display = 'none';
+    }
+
     async function loadAdvisoryPrediction() {
         if (typeof fetch === 'undefined') return;
         if (typeof window !== 'undefined' && window.__advisoryDemoActive) return;
         try {
-            const r = await fetch('/api/advisory-prediction');
+            const r = await fetch('/api/advisory-prediction' + _adminTokenParam());
             if (!r.ok) return;
             const d = await r.json();
             if (typeof window !== 'undefined' && window.appState) window.appState.advisoryPrediction = d;
-            renderAdvisoryPrediction(d);
+            // 표출 인가 없으면 아코디언 숨김(off, 또는 admin 모드의 비관리자 기기).
+            _setAccordionVisible(d && d.display === true);
+            if (d && d.display === true) renderAdvisoryPrediction(d);
         } catch (e) { /* graceful */ }
     }
 
@@ -257,6 +278,7 @@
         window.toggleAdvisoryCard = toggleAdvisoryCard;
         window.openAdvisoryInfo = openAdvisoryInfo;
         window.closeAdvisoryInfo = closeAdvisoryInfo;
+        window.__advShowAccordion = _setAccordionVisible; // 데모 표출기가 가시성 제어에 사용
     }
 
     if (typeof document !== 'undefined') {
