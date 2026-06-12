@@ -390,10 +390,11 @@
         badge.dataset.vsbyCode = code;
         badge.title = '클릭하면 소해구별 시정을 지도로 표시합니다';
         badge.innerHTML = '<span class="lbl">시정</span> ' + val;
-        badge.addEventListener('click', function (e) {
-            e.stopPropagation();
-            _onBadgeClick(code, badge);
-        });
+        // 클릭은 개별 배지에 붙이지 않고 document 한 곳에 위임한다(_delegateBadgeClick).
+        //   [이유] click 리스너가 붙은 요소를 안드로이드 WebView 가 인터랙티브
+        //   레이어로 승격 → 스크롤 시 그 레이어의 사각형 백킹 텍스처가 갱신되지
+        //   않고 남아 "둥근 배지 위 청회색 사각형 잔상"(잘림)이 생긴다. 클릭
+        //   리스너가 없는 파고/풍속 배지가 멀쩡한 것과 정확히 대비된다.
         return badge;
     }
 
@@ -846,8 +847,23 @@
         return Object.keys(state.observers).length >= BADGE_CONTAINER_IDS.length;
     }
 
+    /** 시정 배지 클릭을 document 한 곳에 위임(개별 배지엔 리스너를 두지 않음). */
+    function _delegateBadgeClick() {
+        if (state._clickDelegated) return;
+        state._clickDelegated = true;
+        document.addEventListener('click', function (e) {
+            var t = e.target;
+            var b = (t && t.closest) ? t.closest('.zone-avg-badge.vsby') : null;
+            if (b && b.dataset && b.dataset.vsbyCode) {
+                e.stopPropagation();
+                _onBadgeClick(b.dataset.vsbyCode, b);
+            }
+        });
+    }
+
     function _boot() {
         _injectCss();
+        _delegateBadgeClick();
         // 매핑 로드 후, 평균박스(zone_avg)를 다시 그려 시정 뱃지를 합류시킨다.
         //   (첫 렌더 때 gridMap 미로드면 makeBadge 가 null 이라 시정이 빠질 수 있어,
         //    로드 완료 시 refreshAll 로 보강.)
