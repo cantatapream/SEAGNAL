@@ -287,9 +287,9 @@
             }
             showSliderBar(true);
             renderFrame(_frameIdx, true);
-            // [안내] 예측 자료 면책 — 버튼으로 들어올 때마다 참고용 사용 안내.
-            //   공용 toast(_showOceanToast) 사용 → 천기·시정과 동일 위치(하단 중앙).
-            toast('예측 자료입니다. 참고용으로만 사용하고 실제 현장·기상 상황을 꼭 확인하세요.');
+            // [안내] 예측 자료 면책 — 두 줄(\n)로 나눠 각 줄이 정상 폰트로 들어가게
+            //   한다(한 줄이 길면 _showOceanToast 가 폰트를 11px까지 축소하므로).
+            toast('예측 자료입니다. 참고용으로만 사용하고\n실제 현장·기상 상황을 꼭 확인하세요.');
             prefetchAll();   // 현재 화면(첫 프레임) 그린 뒤, 나머지 시각을 백그라운드로 미리 받아 슬라이더 즉시화
         }).catch(function (e) {
             console.warn('[tide_field] meta 로드 실패:', e);
