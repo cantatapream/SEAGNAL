@@ -46,13 +46,15 @@
     var _meta = null;           // /api/tide-field/meta 응답
     var _frames = [];           // 슬라이더 frame 의 ISO 시각 목록
     var _frameIdx = 0;
-    var _cellCache = {};        // ISO -> cells[] (프리페치)
+    var _cellCache = {};        // key(iso@agg@bbox) -> {cells,cellDeg} (프리페치 캐시)
+    var _cacheKeys = [];        // _cellCache 키 입력 순서(상한 초과 시 오래된 것부터 제거)
     var _playTimer = null;
     var _playing = false;       // 재생 중 여부(로드 동기 재생 가드)
     var _cellHalf = 0.0005;     // 데이터 최소 셀 반폭(도). meta.cell_deg/2.
     var _lastDrawDeg = 0.001;   // 마지막 렌더에 쓴 타일 크기(도) — 클릭 허용반경용.
     var _moveTimer = null;      // 줌/팬 재렌더 디바운스
     var _prefetchTimer = null;  // 전 프레임 백그라운드 프리페치
+    var _prefetchSettleTimer = null; // 이동 멈춘 뒤 1회만 프리페치(요청 폭주 방지)
     var _anchorClicks = 0;      // [세션] 앵커 표출 제스처 클릭 수(앱 재시작 시 0으로 리셋)
     var _anchorLayer = null;    // 앵커 포인트 디버그 레이어(세션 한정)
     var _popupOverlay = null;
@@ -87,8 +89,14 @@
         // 줌/팬 시 집계 격자(agg)·뷰포트가 바뀌므로 현재 프레임을 다시 받아 그린다(디바운스).
         _map.on('moveend', function () {
             if (!_active) return;
+            // 이동 중엔 현재 프레임만 다시 그린다(가벼움). 전체 프리페치는 매 이동마다
+            //   돌리면 줌 한 번에 수십 요청이 쏟아져 버벅임 → 이동을 멈춘 뒤(1.2s) 1회만.
             if (_moveTimer) clearTimeout(_moveTimer);
-            _moveTimer = setTimeout(function () { renderFrame(_frameIdx, false); prefetchAll(); }, 250);
+            _moveTimer = setTimeout(function () { renderFrame(_frameIdx, false); }, 300);
+            if (_prefetchSettleTimer) clearTimeout(_prefetchSettleTimer);
+            _prefetchSettleTimer = setTimeout(function () {
+                if (_active && !_playing) prefetchAll();
+            }, 1200);
         });
 
         console.log('[tide_field] 물빠짐 레이어 초기화 완료 (캔버스 래스터)');
@@ -395,17 +403,33 @@
         } catch (e) { return (_meta && _meta.cell_deg) || 0.001; }
     }
 
-    function fetchCells(iso) {
+    // 뷰포트 파라미터 — 여유(패딩) bbox + 스냅으로 작은 이동은 같은 키가 되게 한다.
+    //   → 패닝마다 서버 재요청하지 않고 캐시 재사용(이전엔 키에 bbox 가 없어 패닝 시
+    //   옛 영역 셀이 그대로 보이는 문제도 있었음). 패딩으로 살짝 넘겨받아 즉시 채움.
+    function currentViewParams() {
         var agg = currentAggDeg();
-        var key = iso + '@' + agg.toFixed(5);
-        if (_cellCache[key]) return Promise.resolve(_cellCache[key]);
-        var params = '&agg=' + agg.toFixed(5);
+        var aggStr = agg.toFixed(5);
         try {
             var ext = _map.getView().calculateExtent(_map.getSize());
             var ll = ol.proj.toLonLat([ext[0], ext[1]]);
             var ur = ol.proj.toLonLat([ext[2], ext[3]]);
-            params += '&bbox=' + [ll[0], ll[1], ur[0], ur[1]].map(function (n) { return n.toFixed(3); }).join(',');
-        } catch (e) {}
+            var w = ur[0] - ll[0], h = ur[1] - ll[1];
+            var snap = Math.max(0.02, w * 0.25);   // 이 격자 안의 이동은 동일 키 → 캐시 재사용
+            function rd(v) { return Math.round(v / snap) * snap; }
+            var x0 = rd(ll[0] - w * 0.3), y0 = rd(ll[1] - h * 0.3);
+            var x1 = rd(ur[0] + w * 0.3), y1 = rd(ur[1] + h * 0.3);
+            var bboxStr = [x0, y0, x1, y1].map(function (n) { return n.toFixed(3); }).join(',');
+            return { agg: aggStr, bbox: bboxStr, key: aggStr + '@' + bboxStr };
+        } catch (e) {
+            return { agg: aggStr, bbox: '', key: aggStr + '@all' };
+        }
+    }
+
+    function fetchCells(iso) {
+        var vp = currentViewParams();
+        var key = iso + '@' + vp.key;
+        if (_cellCache[key]) return Promise.resolve(_cellCache[key]);
+        var params = '&agg=' + vp.agg + (vp.bbox ? '&bbox=' + vp.bbox : '');
         return fetch('/api/tide-field?time=' + encodeURIComponent(iso) + params)
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (j) {
@@ -414,6 +438,8 @@
                     cellDeg: (j && j.cell_deg) || ((_meta && _meta.cell_deg) || 0.001)
                 };
                 _cellCache[key] = out;
+                _cacheKeys.push(key);
+                if (_cacheKeys.length > 240) { delete _cellCache[_cacheKeys.shift()]; } // 메모리 상한
                 return out;
             }).catch(function () { return { cells: [], cellDeg: (_meta && _meta.cell_deg) || 0.001 }; });
     }
@@ -498,7 +524,10 @@
     // 전 프레임을 백그라운드로 미리 받아 캐시 워밍 → 슬라이더가 즉시 반응.
     //   순차+간격(150ms)으로 가볍게. fetchCells 는 iso+agg 로 캐시하므로 이미 받은 건
     //   즉시 반환(서버 부담 X). 재생 중엔 재생 루프가 따로 받으므로 생략.
-    function stopPrefetch() { if (_prefetchTimer) { clearTimeout(_prefetchTimer); _prefetchTimer = null; } }
+    function stopPrefetch() {
+        if (_prefetchTimer) { clearTimeout(_prefetchTimer); _prefetchTimer = null; }
+        if (_prefetchSettleTimer) { clearTimeout(_prefetchSettleTimer); _prefetchSettleTimer = null; }
+    }
     function prefetchAll() {
         stopPrefetch();
         var i = 0;
