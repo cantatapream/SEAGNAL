@@ -225,20 +225,14 @@ function renderBuoyButtonsForStatus(zoneName, container) {
         else if (buoy.type === 'L') icon = 'fa-lightbulb';
 
         btn.innerHTML = `<i class="fa-solid ${icon}"></i> ${buoy.name}`;
-        // 클릭은 개별 버튼이 아니라 컨테이너에 위임(아래 buoyContainer 리스너).
-        //   [이유] click 핸들러가 붙은 버튼을 안드로이드 WebView 가 인터랙티브
-        //   레이어로 승격 → 스크롤 시 사각형 백킹 텍스처가 잔류해 둥근 버튼이
-        //   청회색 사각형으로 잘려 보인다(클릭 없는 파고/풍속 배지는 멀쩡).
-        btn.dataset.buoyId = buoy.id;
-        btn.dataset.buoyName = buoy.name;
-        buoyContainer.appendChild(btn);
-    });
-    buoyContainer.addEventListener('click', (e) => {
-        const b = e.target.closest('.buoy-btn');
-        if (b && b.dataset.buoyId) {
+        // 클릭은 개별 버튼에 직접 부착(원복). 클릭 리스너는 잘림과 무관함이
+        //   5개 독립분석으로 확정됨(진짜 원인은 합성 레이어 사각 백킹 잔상,
+        //   .buoy-btn 의 transform/overflow CSS + transition 제거로 해결).
+        btn.onclick = (e) => {
             e.stopPropagation();
-            if (typeof fetchBuoyData === 'function') fetchBuoyData(b.dataset.buoyId, b.dataset.buoyName);
-        }
+            if (typeof fetchBuoyData === 'function') fetchBuoyData(buoy.id, buoy.name);
+        };
+        buoyContainer.appendChild(btn);
     });
     container.appendChild(buoyContainer);
 }
@@ -873,6 +867,8 @@ function createStatusCard(zoneName) {
             btn.dataset.buoyId = buoy.id;
             btn.className = 'buoy-status-btn';
 
+            // transition(background/border-color) 제거: paint 속성 transition 이
+            //   안드로이드 WebView 합성 레이어 사각 백킹 잔상(버튼 잘림)을 유발.
             btn.style.cssText = `
                 padding: 4px 10px;
                 border-radius: 12px;
@@ -881,7 +877,6 @@ function createStatusCard(zoneName) {
                 color: #ccc;
                 font-size: 0.75rem;
                 cursor: pointer;
-                transition: background-color 0.2s, color 0.2s, border-color 0.2s;
             `;
 
             btn.onclick = (e) => {

@@ -519,6 +519,25 @@ line-height: 1.1;
     white-space: nowrap;
     border: 1px solid var(--zab-strong);
     animation: zoneAvgBadgeBlink 2s infinite;
+    /* [잘림 방지 — 5개 독립분석 수렴 결론]
+       시정 배지(후삽입)·부이 버튼(transition 색변경)이 안드로이드 WebView 에서
+       자체 합성 레이어로 분리될 때, 그 레이어의 '사각형' 백킹 텍스처가 스크롤
+       후 둥근 모서리(border-radius) 밖으로 재래스터되지 않아 카드 배경색
+       rgb(30,40,60) 의 직각 잔상을 남긴다(잘림). 요소를 자체 레이어로 명시
+       승격하고 둥근 클립을 백킹에 강제해 잔상을 제거한다. */
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    overflow: hidden;
+}
+/* 관측부이 버튼(특보현황 render.js / 기상현황 windy.js, 둘 다 .buoy-btn)
+   — 인라인 스타일로만 그려져 CSS 규칙이 없었음. 동일한 레이어 클립 적용. */
+.buoy-btn,
+.buoy-status-btn {
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    overflow: hidden;
 }
 .zone-avg-box .zone-avg-badge.wave {
     --zab-strong: rgba(79, 195, 247, 0.9);
