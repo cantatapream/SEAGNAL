@@ -37,7 +37,7 @@ const path = require('path');
 
 // --- 설정 단일 출처 ---
 const cfg = require('./predictionConfig');
-const { CALIB, OFFICE_CHART, OFFICES, THRESHOLDS, gradeOf, combinedProb } = cfg;
+const { CALIB, OFFICE_CHART, OFFICES, THRESHOLDS, gradeOf2 } = cfg;
 
 // --- 프레임-외부 onset 스캔 (메모리 절감; zone-outer 와 동치 — run_onsetscan_test) ---
 const { scanOnsets } = require('./onsetScan');
@@ -45,15 +45,22 @@ const { scanOnsets } = require('./onsetScan');
 // --- 재사용 검증 모듈 (../analysis/wave_leadtime) ---
 const WL = path.join(__dirname, '..', 'analysis', 'wave_leadtime');
 const { REGIONAL_OFFICES, listFrames, downloadFrame } = require(path.join(WL, 'chartClient'));
-const { decode, analyzeZone } = require(path.join(WL, 'geoCalib'));
+const { decode } = require(path.join(WL, 'geoCalib'));
 const { getStaticMask } = require(path.join(WL, 'staticMask'));
 const windPalette = require(path.join(WL, 'windPalette'));
 const wavePalette = require(path.join(WL, 'palette'));
 const { ZONES } = require(path.join(WL, 'zones'));
+// 폴리곤+면적 (검증된 과탐억제 — CALIB_ABS/BEATKMA). 원형 반경 방식 폐지.
+const { loadZonePolygons, zonePixelIndices, analyzeByIndices, normName } = require(path.join(WL, 'zonePolygon'));
 
 // 검증 산출(advisory) + 운영 저장(data) 경로
 const OUT_SAMPLE = path.join(__dirname, 'sample_output.json');
 const OUT_OPERATIONAL = path.join(__dirname, '..', 'data', 'advisory_prediction.json');
+// 2사이클 지속성 상태(직전 사이클에 게이트 통과한 구역 집합). Fly 볼륨에 보존.
+const STATE_PENDING = path.join(__dirname, '..', 'data', 'advisory_pending.json');
+
+// 폴리곤 1회 로드(구역명 normName 키). 비면 기존처럼 구역 스킵.
+const polyMap = loadZonePolygons();
 
 const PUB_DELAY_H = 7;          // 발표지연(가용성 보정) — 슬롯 선택에만 사용
 const RUN_BACK_MAX = 4;         // run 슬롯 역행 횟수
@@ -162,7 +169,7 @@ async function maskFor(chartCode, regMeta, signal, classify, ge3Level, prefix) {
 // ----------------------------------------------------------------------------
 async function generatePredictions(options = {}) {
     // 검증 시연용 임계 override (정상 운영은 config 기본값)
-    const windCut = options.windCutKt != null ? options.windCutKt : THRESHOLDS.WIND_KT;
+    const windCut = options.windCutKt != null ? options.windCutKt : THRESHOLDS.WIND_ONSET_KT;
     const waveCut = options.waveCutM != null ? options.waveCutM : THRESHOLDS.WAVE_M;
 
     const predictions = [];
@@ -219,14 +226,26 @@ async function generatePredictions(options = {}) {
             // 유효시각 → 파고프레임 빠른 조회(동일 valid 의 파고 동시 평가)
             const waveByVt = new Map(waveSeq.map((x) => [x.vt.getTime(), x.f]));
 
-            // --- 이 차트 도메인에 드는 구역 ---
-            const zones = ZONES.filter((z) => inFrame(cal, z));
+            // --- 이 차트 도메인 + 폴리곤 보유 구역만 (북부 등 폴리곤 없는 구역은 스킵) ---
+            const zones = ZONES.filter((z) => inFrame(cal, z) && polyMap.has(normName(z.name)));
 
-            // 해역별 반경(샘플 픽셀): H 먼바다 55 / I 앞바다 30 × RAD_MULT.
-            const radOf = (z) => Math.round((z.type === 'H' ? 55 : 30) * THRESHOLDS.RAD_MULT);
+            // 구역별 폴리곤 픽셀 인덱스(차트 w/h 고정 → 첫 디코드 시 1회 산출 후 재사용)
+            const idxCache = new Map();        // zone.name → Int32Array|null
+            const windAreaAt = new Map();      // zone.name → 마지막 풍속 면적비율
+            const waveAreaAt = new Map();      // zone.name → 마지막 파고 면적비율
+            const zoneIdx = (dec, z) => {
+                let idx = idxCache.get(z.name);
+                if (idx === undefined) {
+                    const polys = polyMap.get(normName(z.name));
+                    idx = polys ? zonePixelIndices(cal, polys, dec.w, dec.h) : null;
+                    idxCache.set(z.name, idx);
+                }
+                return idx;
+            };
 
             // 프레임-외부 스캔: 일기도를 한 장씩만 디코드·분석·폐기(메모리에 1장만 유지).
-            //   결과(onset/밴드/peak)는 기존 zone-outer 와 동치 — run_onsetscan_test 로 증명.
+            //   bandWind/bandWave 는 폴리곤 내부 면적게이트를 통과할 때만 밴드를 반환(아니면 0)
+            //   → onset 은 "밴드≥컷 AND 면적≥게이트" 에서만 발화(이웃 번짐 스침 차단).
             const scan = await scanOnsets({
                 primary: windSeq.length ? windSeq : waveSeq,
                 waveByVt,
@@ -235,46 +254,66 @@ async function generatePredictions(options = {}) {
                 windCut, waveCut,
                 decodeFrame,
                 bandWind: (dec, z) => {
-                    const a = analyzeZone(dec, cal, z, {
-                        mask: windMask, radiusPx: radOf(z),
-                        classify: windPalette.classify, ge3Level: windCut, ge5Level: THRESHOLDS.WIND_ALARM_KT,
+                    const idx = zoneIdx(dec, z);
+                    if (!idx || !idx.length) return 0;
+                    const a = analyzeByIndices(dec, idx, {
+                        mask: windMask, classify: windPalette.classify,
+                        ge3Level: THRESHOLDS.GE3_KT, ge5Level: THRESHOLDS.WIND_ALARM_KT,
                         minBandPixels: THRESHOLDS.MIN_BAND_PIXELS,
                     });
-                    return a ? a.maxBand : 0;
+                    if (!a) return 0;
+                    windAreaAt.set(z.name, a.areaFraction);
+                    return a.areaFraction >= THRESHOLDS.WIND_AREA_MIN ? a.maxBand : 0;
                 },
                 bandWave: (dec, z) => {
-                    const a = analyzeZone(dec, cal, z, {
-                        mask: waveMask, radiusPx: radOf(z),
-                        classify: wavePalette.classify, ge3Level: waveCut, ge5Level: THRESHOLDS.WAVE_ALARM_M,
+                    const idx = zoneIdx(dec, z);
+                    if (!idx || !idx.length) return 0;
+                    const a = analyzeByIndices(dec, idx, {
+                        mask: waveMask, classify: wavePalette.classify,
+                        ge3Level: waveCut, ge5Level: THRESHOLDS.WAVE_ALARM_M,
                         minBandPixels: THRESHOLDS.MIN_BAND_PIXELS,
                     });
-                    return a ? a.maxBand : 0;
+                    if (!a) return 0;
+                    waveAreaAt.set(z.name, a.areaFraction);
+                    return a.areaFraction >= THRESHOLDS.WAVE_AREA_MIN ? a.maxBand : 0;
                 },
             });
 
             for (const z of zones) {
                 try {
                     const r = scan.get(z) || { onset: null, windBand: 0, waveBand: 0, peakWind: 0, peakWave: 0 };
+                    const windArea = windAreaAt.get(z.name) || 0;
+                    const waveArea = waveAreaAt.get(z.name) || 0;
 
                     // 구역별 현재 peak 신호 기록 (해소 카드 '전→후' / 디버그용)
-                    zoneSignals.push({ office: code, zone: z.name, windKt: r.peakWind, waveM: r.peakWave, prob: combinedProb(r.peakWind, r.peakWave) });
+                    //   prob: 등급기반(현실 정밀도) — 없으면 0. stateManager 가 그대로 사용.
+                    const sigGrade = gradeOf2({ windKt: r.peakWind, windArea, waveM: r.peakWave, waveArea });
+                    zoneSignals.push({ office: code, zone: z.name, windKt: r.peakWind, waveM: r.peakWave, windArea, waveArea, prob: sigGrade ? sigGrade.probPct / 100 : 0 });
 
                     if (!r.onset) continue; // 예측 없음
 
-                    const prob = combinedProb(r.windBand, r.waveBand);
-                    const grade = gradeOf(prob);
-                    if (!grade) continue; // <0.5 → 미표시
-
                     const windKt = r.windBand || 0;
-                    const windMs = Math.round(windKt * KT_TO_MS);
                     const waveM = r.waveBand || 0;
-                    const probPct = Math.round(prob * 100);
+                    const grade = gradeOf2({ windKt, windArea, waveM, waveArea });
+                    if (!grade) continue; // 게이트 미달 → 미표시
+
+                    const windMs = Math.round(windKt * KT_TO_MS);
+                    const probPct = grade.probPct;
+                    // 표출을 결정한 주 신호(면적게이트 통과한 쪽)의 면적을 대표값으로.
+                    const windPass = windKt >= 25 && windArea >= 0.30;
+                    const areaPct = Math.round((windPass ? windArea : Math.max(windArea, waveArea)) * 100);
                     const label = onsetLabel(r.onset);
 
+                    // 0 신호는 문구에서 생략(풍속 주도면 파고 0 미표기, 반대도).
+                    const sigParts = [];
+                    if (windKt > 0) sigParts.push(`풍속 ~${windKt}kt(${windMs}m/s)`);
+                    if (waveM > 0) sigParts.push(`파고 ~${waveM}m`);
+                    const sigText = sigParts.join('·') || '위험 신호';
+                    // 플레인 폴백 문구. UI(advisory_prediction.js)는 필드로 하이라이트/줄바꿈 재구성.
                     const narrative =
-                        `${z.name} 일기도를 분석한 결과, ${label}경 ` +
-                        `풍속이 ~${windKt}kt(${windMs}m/s), 파고 ~${waveM}m 로 예상됩니다. ` +
-                        `과거 유사 패턴 기준 발효 가능성 ${probPct}%(${grade.emoji}${grade.label}).`;
+                        `${z.name} 위험기상일기도 분석 결과, ${label}경 ` +
+                        `${sigText}가 전체 구역의 약 ${areaPct}%를 차지할 것으로 예상됨. ` +
+                        `과거 통계 상 이 수준의 약 ${probPct}%가 실제 발효로 연결.`;
 
                     predictions.push({
                         office: code,
@@ -282,7 +321,7 @@ async function generatePredictions(options = {}) {
                         lat: z.lat, lon: z.lon,
                         grade: { key: grade.key, label: grade.label, emoji: grade.emoji },
                         probPct,
-                        windKt, windMs, waveM,
+                        windKt, windMs, waveM, areaPct,
                         onsetISO: kstDateToISO(r.onset),
                         onsetLabel: label,
                         narrative,
@@ -300,14 +339,39 @@ async function generatePredictions(options = {}) {
     // 등급 강한 순 → 확률 순 → onset 빠른 순 정렬
     const gradeRank = { high: 2, watch: 1 };
     predictions.sort((a, b) =>
-        (gradeRank[b.grade] - gradeRank[a.grade]) ||
+        (gradeRank[b.grade.key] - gradeRank[a.grade.key]) ||
         (b.probPct - a.probPct) ||
         (a.onsetISO < b.onsetISO ? -1 : a.onsetISO > b.onsetISO ? 1 : 0));
+
+    // --- 2사이클 지속성: 직전 사이클에도 게이트 통과한 구역만 표출(1회성 노이즈 억제) ---
+    //   상태파일(STATE_PENDING)에 이번 사이클 통과구역 전부를 기록하고, 표출은 직전 기록과의
+    //   교집합만. 첫 등장은 '대기'(미표출), 다음 사이클에도 잡히면 '표출'. 직전 상태가
+    //   PERSIST_MAX_AGE_H 보다 오래면 연속으로 보지 않음(전부 대기).
+    const keyOf = (p) => `${p.office}|${p.zone}`;
+    const thisFlagged = predictions.map(keyOf);
+    let shown = predictions, pendingCount = 0;
+    if (THRESHOLDS.PERSIST_ENABLED && !options.noPersist) {
+        let prevFlagged = new Set();
+        try {
+            const prev = JSON.parse(fs.readFileSync(STATE_PENDING, 'utf8'));
+            const ageH = (Date.now() - new Date(prev.generatedAt).getTime()) / 3600000;
+            if (prev && Array.isArray(prev.flagged) && ageH <= THRESHOLDS.PERSIST_MAX_AGE_H) prevFlagged = new Set(prev.flagged);
+        } catch (_) { /* 직전 상태 없음 → 전부 대기 */ }
+        shown = predictions.filter((p) => prevFlagged.has(keyOf(p)));
+        shown.forEach((p) => { p.confirmed = true; });
+        pendingCount = predictions.length - shown.length;
+        if (!options.noWrite) {
+            try { fs.mkdirSync(path.dirname(STATE_PENDING), { recursive: true });
+                fs.writeFileSync(STATE_PENDING, JSON.stringify({ generatedAt: new Date().toISOString(), baseTimeKST: baseTimeKST || null, flagged: thisFlagged })); }
+            catch (e) { console.error(`[persist] 상태 저장 실패: ${e.message}`); }
+        }
+    }
 
     const result = {
         generatedAt: new Date().toISOString(),
         baseTimeKST: baseTimeKST || null,
-        predictions,
+        predictions: shown,                 // 표출 = 2사이클 연속 통과분
+        pendingCount,                        // 이번에 처음 잡혀 대기 중인 구역 수
         zoneSignals, // 모든 도메인 구역 현재 peak 신호 (해소 '전→후' 계산용)
     };
 
@@ -334,12 +398,13 @@ if (require.main === module) {
         if (m && m[1] === 'windCut') opts.windCutKt = +m[2];
         if (m && m[1] === 'waveCut') opts.waveCutM = +m[2];
         if (a === '--noWrite') opts.noWrite = true;
+        if (a === '--noPersist') opts.noPersist = true;
     }
     generatePredictions(opts).then((r) => {
         console.log(`\n=== 예측 결과 ===`);
-        console.log(`baseTimeKST=${r.baseTimeKST}  predictions=${r.predictions.length}`);
+        console.log(`baseTimeKST=${r.baseTimeKST}  표출=${r.predictions.length}  대기(1회성)=${r.pendingCount}`);
         r.predictions.slice(0, 3).forEach((p, i) => {
-            console.log(`\n[${i + 1}] ${p.office}/${p.zone}  ${p.grade} ${p.probPct}%`);
+            console.log(`\n[${i + 1}] ${p.office}/${p.zone}  ${p.grade.emoji}${p.grade.label} ${p.probPct}%  면적${p.areaPct}%`);
             console.log(`    onsetISO=${p.onsetISO}  windKt=${p.windKt}  waveM=${p.waveM}`);
             console.log(`    ${p.narrative}`);
         });

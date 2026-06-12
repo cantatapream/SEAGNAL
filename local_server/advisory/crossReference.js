@@ -38,6 +38,48 @@
 'use strict';
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
+const MS_TO_KT = 1 / 0.514444;
+
+// 구역 → 발표청명(과거 통보문 발표청 컬럼으로 검증, 2023~2026 풍랑 이력 24구역).
+//   여기 없는 구역(풍랑 이력 희소)은 발표청명 생략(null).
+const ZONE_OFFICE_NAME = {
+    '제주도남쪽바깥먼바다': '제주지방기상청', '제주도남동쪽안쪽먼바다': '제주지방기상청',
+    '제주도남서쪽안쪽먼바다': '제주지방기상청', '제주도남부앞바다': '제주지방기상청',
+    '제주도동부앞바다': '제주지방기상청', '남해서부서쪽먼바다': '제주지방기상청',
+    '남해동부안쪽먼바다': '부산지방기상청', '남해동부바깥먼바다': '부산지방기상청',
+    '동해남부남쪽안쪽먼바다': '부산지방기상청', '동해남부남쪽바깥먼바다': '부산지방기상청',
+    '경남서부남해앞바다': '부산지방기상청', '경남중부남해앞바다': '부산지방기상청',
+    '서해남부남쪽안쪽먼바다': '광주지방기상청', '서해남부남쪽바깥먼바다': '광주지방기상청',
+    '서해남부북쪽안쪽먼바다': '광주지방기상청', '서해남부북쪽바깥먼바다': '광주지방기상청',
+    '남해서부동쪽먼바다': '광주지방기상청', '전남중부서해앞바다': '광주지방기상청',
+    '동해중부안쪽먼바다': '강원지방기상청', '동해중부바깥먼바다': '강원지방기상청',
+    '동해남부북쪽안쪽먼바다': '대구지방기상청', '동해남부북쪽바깥먼바다': '대구지방기상청',
+    '서해중부안쪽먼바다': '수도권기상청', '서해중부바깥먼바다': '수도권기상청',
+};
+
+/** "13~17"(m/s) → "25~33kt(13~17m/s)". 단일값 "12" → "23kt(12m/s)". 실패 시 원본 m/s. */
+function windToKtMs(msStr) {
+    if (msStr == null) return null;
+    const s = String(msStr).trim();
+    const m = s.match(/^(\d+(?:\.\d+)?)(?:\s*~\s*(\d+(?:\.\d+)?))?$/);
+    if (!m) return s ? s + 'm/s' : null;
+    const lo = Math.round(parseFloat(m[1]) * MS_TO_KT);
+    if (m[2] != null) {
+        const hi = Math.round(parseFloat(m[2]) * MS_TO_KT);
+        return `${lo}~${hi}kt(${m[1]}~${m[2]}m/s)`;
+    }
+    return `${lo}kt(${m[1]}m/s)`;
+}
+
+/** 발표시각 문자열 → "06월 10일 17:00 발표". 알 수 없는 형식이면 원문, 빈값이면 null. */
+function formatPublish(s) {
+    if (s == null) return null;
+    const str = String(s).trim();
+    if (!str) return null;
+    const m = str.match(/(\d{4})\D?(\d{2})\D?(\d{2})\D?(\d{2})\D?(\d{2})/);
+    if (m) return `${m[2]}월 ${m[3]}일 ${m[4]}:${m[5]} 발표`;
+    return str;
+}
 
 /** zone 키 정규화 (trim). null/undefined 안전. */
 function zoneKey(z) {
@@ -106,7 +148,7 @@ function parseWaveHeight(waveStr) {
  * @returns {{windSpeed:string|null, waveHeight:string|null, periodLabel:string,
  *            publishTime:string|null}|null}  매칭/표출값 없으면 null.
  */
-function buildKmaForecast(zoneForecast, onsetISO) {
+function buildKmaForecast(zoneForecast, onsetISO, zoneName) {
     if (!zoneForecast || typeof zoneForecast !== 'object') return null;
     const periods = Array.isArray(zoneForecast.periods) ? zoneForecast.periods : [];
     if (periods.length === 0) return null;
@@ -123,11 +165,15 @@ function buildKmaForecast(zoneForecast, onsetISO) {
     if (windSpeed == null && waveHeight == null) return null; // 표출할 숫자 없음
 
     const band = slot.period === 'am' ? '오전' : '오후';
+    const publishTime = zoneForecast.publishTime != null ? zoneForecast.publishTime : null;
     return {
-        windSpeed,
+        windSpeed,                          // 원본 m/s 범위(하위호환)
+        windKtMs: windToKtMs(windSpeed),    // "25~33kt(13~17m/s)" 병기
         waveHeight,
         periodLabel: `${slot.mo}/${slot.da}(${slot.wd}) ${band}`,
-        publishTime: zoneForecast.publishTime != null ? zoneForecast.publishTime : null,
+        office: zoneName ? (ZONE_OFFICE_NAME[String(zoneName).trim()] || null) : null,
+        publishTime,
+        publishLabel: formatPublish(publishTime),
     };
 }
 
@@ -147,7 +193,7 @@ function enrichPredictions(predictions, forecastMap) {
         const zf = map[zoneKey(p.zone)];
         if (!zf) return p;
         let kma = null;
-        try { kma = buildKmaForecast(zf, p.onsetISO); } catch (_) { kma = null; }
+        try { kma = buildKmaForecast(zf, p.onsetISO, p.zone); } catch (_) { kma = null; }
         if (!kma) return p;
         return Object.assign({}, p, { kmaForecast: kma });
     });
@@ -176,7 +222,10 @@ module.exports = {
     onsetToSlot,
     parseWindSpeed,
     parseWaveHeight,
+    windToKtMs,
+    formatPublish,
     buildKmaForecast,
     enrichPredictions,
     loadForecastMap,
+    ZONE_OFFICE_NAME,
 };

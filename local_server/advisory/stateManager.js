@@ -36,7 +36,7 @@ const fs = require('fs');
 const path = require('path');
 
 // 설정 단일 출처. THRESHOLDS.RESOLVED_KEEP_H / ONSET_GRACE_H, combinedProb 등.
-const { THRESHOLDS, combinedProb, gradeOf } = require('./predictionConfig');
+const { THRESHOLDS } = require('./predictionConfig');
 
 // 상태 영속 경로 (local_server/data/advisory_state.json).
 const STATE_PATH = path.resolve(__dirname, '..', 'data', 'advisory_state.json');
@@ -184,15 +184,13 @@ function updateState(current, suppressedZones = [], opts = {}) {
         };
 
         // after = 현재 zoneSignal (임계 미만 포함). 없으면 null.
-        //   probPct: zoneSignal.prob 있으면 사용, 없으면 combinedProb(windKt,waveM) 폴백.
+        //   probPct: zoneSignal.prob(엔진이 등급기반으로 채움) 사용, 없으면 0.
         let after = null;
         const sig = signalMap.get(zone);
         if (sig) {
             const wk = sig.windKt;
             const wv = sig.waveM;
-            const prob = (typeof sig.prob === 'number')
-                ? sig.prob
-                : combinedProb(typeof wk === 'number' ? wk : 0, typeof wv === 'number' ? wv : 0);
+            const prob = (typeof sig.prob === 'number') ? sig.prob : 0;
             after = {
                 windKt: (typeof wk === 'number') ? wk : null,
                 waveM: (typeof wv === 'number') ? wv : null,
@@ -266,6 +264,4 @@ function updateState(current, suppressedZones = [], opts = {}) {
 
 module.exports = { updateState, STATE_PATH };
 
-// gradeOf 는 설정 요구사항(require)으로 명시되어 향후 신호 등급화에 쓰일 수 있도록 보존.
-// 현 로직은 zoneSignal.prob / combinedProb 폴백을 사용하므로 gradeOf 는 미참조.
-void gradeOf;
+// 신호 등급/확률은 엔진이 zoneSignal.prob(등급기반)으로 채워 전달 → 여기선 그대로 사용.

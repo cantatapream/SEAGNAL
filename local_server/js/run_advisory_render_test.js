@@ -1,7 +1,6 @@
 /**
  * run_advisory_render_test.js — node 렌더 테스트 하네스 (브라우저 불필요).
- *   require('./advisory_prediction') 의 buildAdvisoryHtml / buildHeaderStatus 를
- *   mock data 로 호출해 문자열 assert 한다.
+ *   advisory_prediction(v6) 의 buildAdvisoryHtml / buildHeaderStatus / formatBaseTime 검증.
  *
  * 실행: node /home/user/SEAGNAL/local_server/js/run_advisory_render_test.js
  * 결과: js/advisory_render_test.json
@@ -9,7 +8,9 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { buildAdvisoryHtml, buildHeaderStatus } = require('./advisory_prediction');
+const { buildAdvisoryHtml, buildHeaderStatus, formatBaseTime } = require('./advisory_prediction');
+
+const DISCLAIMER = '자체 예측 결과';   // 새 면책문구 핵심구
 
 const results = [];
 function record(name, pass, detail) {
@@ -17,7 +18,6 @@ function record(name, pass, detail) {
     console.log((pass ? 'PASS' : 'FAIL') + '  ' + name + (detail ? '  — ' + detail : ''));
 }
 
-// ---- mock data ------------------------------------------------------------
 const ZONE_HIGH = '제주도남쪽바깥먼바다';
 const ZONE_WATCH = '제주도남동쪽안쪽먼바다';
 const ZONE_RESOLVED = '제주도남서쪽안쪽먼바다';
@@ -27,62 +27,39 @@ function makeFullData() {
         generatedAt: '2026-06-10T12:00:00.000Z',
         baseTimeKST: '2026061021',
         active: [
-            // watch 를 일부러 먼저 넣어 정렬이 high 를 앞으로 올리는지 확인
-            {
-                office: 'jeju', zone: ZONE_WATCH, lat: 33, lon: 126,
-                grade: { key: 'watch', label: '관심', emoji: '🟡' },
-                probPct: 55, windKt: 22, windMs: 11, waveM: 2.0,
-                onsetISO: '2026-06-14T15:00:00Z', onsetLabel: '6/14(일) 새벽',
-                narrative: '🟡 ' + ZONE_WATCH + ' 55% · 풍속~22kt · 6/14(일) 새벽'
-            },
-            {
-                office: 'jeju', zone: ZONE_HIGH, lat: 33, lon: 126,
-                grade: { key: 'high', label: '높음', emoji: '🔴' },
-                probPct: 80, windKt: 30, windMs: 15, waveM: 2.5,
-                onsetISO: '2026-06-13T12:00:00Z', onsetLabel: '6/13(토) 밤',
-                narrative: '🔴 ' + ZONE_HIGH + ' 80% · 풍속~30kt · 6/13(토) 밤'
-            }
+            { office: 'jeju', zone: ZONE_WATCH, grade: { key: 'watch', label: '관심', emoji: '🟡' },
+              probPct: 56, windKt: 27, windMs: 14, waveM: 2.0, areaPct: 55, onsetLabel: '6/14(일) 새벽' },
+            { office: 'jeju', zone: ZONE_HIGH, grade: { key: 'high', label: '높음', emoji: '🔴' },
+              probPct: 70, windKt: 35, windMs: 18, waveM: 2.5, areaPct: 70, onsetLabel: '6/13(토) 밤' }
         ],
         resolved: [
-            {
-                zone: ZONE_RESOLVED, office: 'jeju', reason: 'forecast_eased',
-                onsetISO: '2026-06-12T00:00:00Z', resolvedAt: '2026-06-10T11:00:00Z',
-                before: { windKt: 30, waveM: 3.5, probPct: 65 },
-                after: { windKt: 18, waveM: 1.5, probPct: 20 },
-                narrative: ZONE_RESOLVED + ' 예보 호전 — 발효 가능성 낮아짐 (풍속 ~30kt→~18kt, 파고 ~3.5m→~1.5m, 가능성 65%→20%)'
-            }
+            { zone: ZONE_RESOLVED, office: 'jeju', reason: 'forecast_eased',
+              narrative: ZONE_RESOLVED + ' 예보 호전 — 발효 가능성 낮아짐' }
         ],
-        counts: { high: 1, watch: 1, resolved: 1 },
-        filtered: false
+        counts: { high: 1, watch: 1, resolved: 1 }, filtered: false
     };
 }
+const emptyData = { baseTimeKST: '2026061021', active: [], resolved: [], counts: { high: 0, watch: 0, resolved: 0 } };
 
-const emptyData = {
-    generatedAt: '2026-06-10T12:00:00.000Z', baseTimeKST: '2026061021',
-    active: [], resolved: [], counts: { high: 0, watch: 0, resolved: 0 }, filtered: false
-};
-
-// ---- Case 1: full — active 2건(high/watch)+resolved 1건, isVisible=()=>true --
+// Case 1: full
 (function () {
     const html = buildAdvisoryHtml(makeFullData(), () => true);
     const checks = [];
     checks.push(['high zone 포함', html.includes(ZONE_HIGH)]);
     checks.push(['watch zone 포함', html.includes(ZONE_WATCH)]);
-    checks.push(['80% 포함', html.includes('80%')]);
-    checks.push(['onsetLabel 포함', html.includes('6/13(토) 밤')]);
+    checks.push(['확률배지(70% 확률)', html.includes('70% 확률')]);
+    checks.push(['onsetLabel 포함(서술)', html.includes('6/13(토) 밤')]);
+    checks.push(['카드 아코디언(adv-card-head)', html.includes('adv-card-head')]);
+    checks.push(['카드 이모지 제거(🔴 없음)', !html.includes('🔴')]);
     checks.push(['최근 해소 포함', html.includes('최근 해소')]);
-    checks.push(['면책문구 포함', html.includes('SEAGNAL 자체 예측')]);
-    checks.push(['기준 시각 포함', html.includes('기준 2026-06-10 21시')]);
-    const idxHigh = html.indexOf(ZONE_HIGH);
-    const idxWatch = html.indexOf(ZONE_WATCH);
-    checks.push(['high가 watch보다 앞', idxHigh !== -1 && idxWatch !== -1 && idxHigh < idxWatch]);
-
+    checks.push(['새 면책문구', html.includes(DISCLAIMER)]);
+    checks.push(['기준시각 바디에 없음(헤더로 이동)', !html.includes('기준')]);
+    checks.push(['high가 watch보다 앞', html.indexOf(ZONE_HIGH) !== -1 && html.indexOf(ZONE_HIGH) < html.indexOf(ZONE_WATCH)]);
     const failed = checks.filter((c) => !c[1]).map((c) => c[0]);
-    record('case1_full', failed.length === 0,
-        failed.length === 0 ? '모든 검사 통과' : '실패: ' + failed.join(', '));
+    record('case1_full', failed.length === 0, failed.length === 0 ? '모든 검사 통과' : '실패: ' + failed.join(', '));
 })();
 
-// ---- Case 2: 필터 — isVisible=z=>z===ZONE_HIGH → 그 zone 만 ------------------
+// Case 2: 필터
 (function () {
     const html = buildAdvisoryHtml(makeFullData(), (z) => z === ZONE_HIGH);
     const checks = [];
@@ -90,169 +67,133 @@ const emptyData = {
     checks.push(['watch zone 미포함', !html.includes(ZONE_WATCH)]);
     checks.push(['해소 zone 미포함', !html.includes(ZONE_RESOLVED)]);
     checks.push(['최근 해소 섹션 생략', !html.includes('최근 해소')]);
-    checks.push(['면책문구 유지', html.includes('SEAGNAL 자체 예측')]);
-
+    checks.push(['면책문구 유지', html.includes(DISCLAIMER)]);
     const failed = checks.filter((c) => !c[1]).map((c) => c[0]);
-    record('case2_filter', failed.length === 0,
-        failed.length === 0 ? '필터 정상' : '실패: ' + failed.join(', '));
+    record('case2_filter', failed.length === 0, failed.length === 0 ? '필터 정상' : '실패: ' + failed.join(', '));
 })();
 
-// ---- Case 3: 빈 데이터 → "예측된 특보가 없습니다" --------------------------
+// Case 3: 빈 데이터
 (function () {
     const html = buildAdvisoryHtml(emptyData, () => true);
     const checks = [];
     checks.push(['빈 안내 문구', html.includes('예측된 특보가 없습니다')]);
     checks.push(['최근 해소 섹션 없음', !html.includes('최근 해소')]);
-    checks.push(['면책문구 유지', html.includes('SEAGNAL 자체 예측')]);
-
+    checks.push(['면책문구 유지', html.includes(DISCLAIMER)]);
     const failed = checks.filter((c) => !c[1]).map((c) => c[0]);
-    record('case3_empty', failed.length === 0,
-        failed.length === 0 ? '빈 상태 정상' : '실패: ' + failed.join(', '));
+    record('case3_empty', failed.length === 0, failed.length === 0 ? '빈 상태 정상' : '실패: ' + failed.join(', '));
 })();
 
-// ---- Case 4: XSS — zone 에 <script> → escape -------------------------------
+// Case 4: XSS — zone escape (narrative 필드는 active 카드에서 미사용 → 필드 기반 재구성)
 (function () {
     const data = {
         baseTimeKST: '2026061021',
-        active: [{
-            office: 'x', zone: '<script>alert(1)</script>',
-            grade: { key: 'high', label: '높음', emoji: '🔴' },
-            probPct: 80, windKt: 30, onsetLabel: '밤',
-            narrative: '<img src=x onerror=alert(2)> 위험'
-        }],
-        resolved: [],
-        counts: { high: 1, watch: 0, resolved: 0 }
+        active: [{ office: 'x', zone: '<script>alert(1)</script>', grade: { key: 'high', label: '높음', emoji: '🔴' },
+            probPct: 70, windKt: 35, windMs: 18, waveM: 2.5, areaPct: 70, onsetLabel: '밤' }],
+        resolved: [], counts: { high: 1, watch: 0, resolved: 0 }
     };
     const html = buildAdvisoryHtml(data, () => true);
     const checks = [];
     checks.push(['raw <script> 미포함', !html.includes('<script>alert(1)</script>')]);
     checks.push(['escape된 &lt;script&gt; 포함', html.includes('&lt;script&gt;')]);
-    checks.push(['raw onerror 태그 미포함', !html.includes('<img src=x onerror=alert(2)>')]);
-    checks.push(['narrative escape 확인', html.includes('&lt;img')]);
-
     const failed = checks.filter((c) => !c[1]).map((c) => c[0]);
-    record('case4_xss', failed.length === 0,
-        failed.length === 0 ? 'XSS escape 정상' : '실패: ' + failed.join(', '));
+    record('case4_xss', failed.length === 0, failed.length === 0 ? 'XSS escape 정상' : '실패: ' + failed.join(', '));
 })();
 
-// ---- Case 5: buildHeaderStatus — counts 반영 + 빈 데이터 --------------------
+// Case 5: buildHeaderStatus
 (function () {
     const hs = buildHeaderStatus(makeFullData(), () => true);
     const hsHighOnly = buildHeaderStatus(makeFullData(), (z) => z === ZONE_HIGH);
     const hsEmpty = buildHeaderStatus(emptyData, () => true);
-
     const checks = [];
     checks.push(['high 배지(🔴 1)', hs.includes('🔴') && hs.includes('1')]);
     checks.push(['watch 배지(🟡 1)', hs.includes('🟡')]);
     checks.push(['해소 배지', hs.includes('해소')]);
     checks.push(['필터 후 high만(🟡 미포함)', hsHighOnly.includes('🔴') && !hsHighOnly.includes('🟡')]);
     checks.push(['빈 데이터 "예측 없음"', hsEmpty.includes('예측 없음')]);
-
     const failed = checks.filter((c) => !c[1]).map((c) => c[0]);
-    record('case5_header_status', failed.length === 0,
-        failed.length === 0 ? '헤더 배지 정상' : '실패: ' + failed.join(', '));
+    record('case5_header_status', failed.length === 0, failed.length === 0 ? '헤더 배지 정상' : '실패: ' + failed.join(', '));
 })();
 
-// ---- Case 6: grade 형태 견고성 — 문자열 grade('high'/'watch')도 정상 렌더 ----
-//   회귀 방지: 엔진은 {key,label,emoji} 객체를 출력하지만, 문자열이 들어와도
-//   emoji/label/등급색/헤더배지가 깨지지 않아야 한다(normGrade 방어).
+// Case 6: grade 형태 견고성(문자열 grade) — 카드는 이모지 없이 라벨/등급색, 헤더배지는 이모지
 (function () {
     const data = {
         baseTimeKST: '2026061021',
         active: [
-            { office: 'jeju', zone: ZONE_WATCH, grade: 'watch', probPct: 55, windKt: 22, onsetLabel: '6/14(일) 새벽', narrative: 'w' },
-            { office: 'jeju', zone: ZONE_HIGH, grade: 'high', probPct: 80, windKt: 30, onsetLabel: '6/13(토) 밤', narrative: 'h' }
+            { office: 'jeju', zone: ZONE_WATCH, grade: 'watch', probPct: 56, windKt: 27, windMs: 14, waveM: 0, areaPct: 50, onsetLabel: '6/14(일) 새벽' },
+            { office: 'jeju', zone: ZONE_HIGH, grade: 'high', probPct: 70, windKt: 35, windMs: 18, waveM: 0, areaPct: 70, onsetLabel: '6/13(토) 밤' }
         ],
-        resolved: [],
-        counts: { high: 1, watch: 1, resolved: 0 }
+        resolved: [], counts: { high: 1, watch: 1, resolved: 0 }
     };
     const html = buildAdvisoryHtml(data, () => true);
     const hs = buildHeaderStatus(data, () => true);
     const checks = [];
-    // 카드: high 항목에 🔴/높음/빨강 클래스, watch 항목에 🟡/관심
-    checks.push(['🔴 emoji 보강', html.includes('🔴')]);
     checks.push(['높음 label 보강', html.includes('높음')]);
-    checks.push(['🟡 emoji 보강', html.includes('🟡')]);
     checks.push(['관심 label 보강', html.includes('관심')]);
-    checks.push(['high 카드 adv-grade-high 클래스', html.includes('adv-grade-high')]);
-    checks.push(['watch 카드 adv-grade-watch 클래스', html.includes('adv-grade-watch')]);
-    checks.push(['high가 watch보다 앞(정렬)', html.indexOf(ZONE_HIGH) < html.indexOf(ZONE_WATCH)]);
-    // 헤더 배지: 문자열 grade 에서도 카운트 정상
+    checks.push(['high 카드 adv-grade-high', html.includes('adv-grade-high')]);
+    checks.push(['watch 카드 adv-grade-watch', html.includes('adv-grade-watch')]);
+    checks.push(['카드에 이모지 없음', !html.includes('🔴') && !html.includes('🟡')]);
+    checks.push(['high가 watch보다 앞', html.indexOf(ZONE_HIGH) < html.indexOf(ZONE_WATCH)]);
     checks.push(['헤더 🔴 1', hs.includes('🔴') && hs.includes('1')]);
     checks.push(['헤더 🟡 포함', hs.includes('🟡')]);
-    checks.push(['헤더 빈 문자열 아님', hs.length > 0]);
-
     const failed = checks.filter((c) => !c[1]).map((c) => c[0]);
-    record('case6_grade_string_robust', failed.length === 0,
-        failed.length === 0 ? '문자열 grade 견고성 정상' : '실패: ' + failed.join(', '));
+    record('case6_grade_string_robust', failed.length === 0, failed.length === 0 ? '문자열 grade 견고성 정상' : '실패: ' + failed.join(', '));
 })();
 
-// ---- Case 7: 교차참조 — kmaForecast 있으면 병기, 없으면 줄 숨김 --------------
+// Case 7: 교차참조 — 발표청 + kt(m/s) + 발표시각, 없으면 줄 숨김, XSS escape
 (function () {
     const withKma = {
         baseTimeKST: '2026061021',
         active: [
-            {
-                office: 'jeju', zone: ZONE_HIGH,
-                grade: { key: 'high', label: '높음', emoji: '🔴' },
-                probPct: 80, windKt: 30, onsetLabel: '6/13(토) 밤', narrative: 'h',
-                kmaForecast: { windSpeed: '14~18', waveHeight: '2.0~3.0', periodLabel: '6/13(토) 오후', publishTime: '2026061105' }
-            },
-            {
-                office: 'jeju', zone: ZONE_WATCH,
-                grade: { key: 'watch', label: '관심', emoji: '🟡' },
-                probPct: 55, windKt: 22, onsetLabel: '6/14(일) 새벽', narrative: 'w'
-                // kmaForecast 없음 → 병기 줄 없어야 함
-            }
+            { office: 'jeju', zone: ZONE_HIGH, grade: { key: 'high', label: '높음', emoji: '🔴' },
+              probPct: 70, windKt: 35, windMs: 18, waveM: 2.5, areaPct: 70, onsetLabel: '6/13(토) 밤',
+              kmaForecast: { office: '제주지방기상청', windKtMs: '27~35kt(14~18m/s)', waveHeight: '2.0~3.0',
+                  periodLabel: '6/13(토) 오후', publishLabel: '06월 11일 05:00 발표' } },
+            { office: 'jeju', zone: ZONE_WATCH, grade: { key: 'watch', label: '관심', emoji: '🟡' },
+              probPct: 56, windKt: 27, windMs: 14, waveM: 0, areaPct: 50, onsetLabel: '6/14(일) 새벽' }
         ],
-        resolved: [],
-        counts: { high: 1, watch: 1, resolved: 0 }
+        resolved: [], counts: { high: 1, watch: 1, resolved: 0 }
     };
     const html = buildAdvisoryHtml(withKma, () => true);
     const checks = [];
-    checks.push(['기상청 병기 라벨 포함', html.includes('기상청 단기예보')]);
-    checks.push(['풍속 숫자 포함', html.includes('풍속 14~18m/s')]);
-    checks.push(['파고 숫자 포함', html.includes('파고 2.0~3.0m')]);
-    checks.push(['예보 시간대 라벨 포함', html.includes('6/13(토) 오후')]);
-    checks.push(['병기 클래스 포함', html.includes('adv-kma-ref')]);
-    // kmaForecast 없는 항목은 병기 줄이 단 한 번만(=high 카드) 등장
-    const occurrences = html.split('adv-kma-ref').length - 1;
+    checks.push(['발표청 단기예보 라벨', html.includes('제주지방기상청 단기예보')]);
+    checks.push(['kt(m/s) 병기', html.includes('27~35kt(14~18m/s)')]);
+    checks.push(['파고 숫자', html.includes('2.0~3.0')]);
+    checks.push(['예보 시간대 라벨', html.includes('6/13(토) 오후')]);
+    checks.push(['발표시각 라벨', html.includes('06월 11일 05:00 발표')]);
+    checks.push(['교차참조 블록 클래스', html.includes('class="adv-kma"')]);
+    const occurrences = html.split('class="adv-kma"').length - 1;
     checks.push(['병기 줄 정확히 1회', occurrences === 1]);
 
-    // XSS: kmaForecast 값 escape
     const xss = {
         baseTimeKST: '2026061021',
-        active: [{
-            office: 'x', zone: ZONE_HIGH,
-            grade: { key: 'high', label: '높음', emoji: '🔴' },
-            probPct: 80, windKt: 30, onsetLabel: '밤', narrative: 'h',
-            kmaForecast: { windSpeed: '<b>9~13</b>', waveHeight: '1.0', periodLabel: '<i>x</i>' }
-        }],
+        active: [{ office: 'x', zone: ZONE_HIGH, grade: { key: 'high', label: '높음', emoji: '🔴' },
+            probPct: 70, windKt: 35, windMs: 18, waveM: 0, areaPct: 70, onsetLabel: '밤',
+            kmaForecast: { windKtMs: '<b>9~13kt</b>', waveHeight: '1.0', periodLabel: '<i>x</i>' } }],
         resolved: [], counts: { high: 1, watch: 0, resolved: 0 }
     };
     const xssHtml = buildAdvisoryHtml(xss, () => true);
-    checks.push(['kma 값 escape', !xssHtml.includes('<b>9~13</b>') && xssHtml.includes('&lt;b&gt;9~13')]);
+    checks.push(['kma 값 escape', !xssHtml.includes('<b>9~13kt</b>') && xssHtml.includes('&lt;b&gt;9~13kt')]);
 
     const failed = checks.filter((c) => !c[1]).map((c) => c[0]);
-    record('case7_crossref', failed.length === 0,
-        failed.length === 0 ? '교차참조 병기 정상' : '실패: ' + failed.join(', '));
+    record('case7_crossref', failed.length === 0, failed.length === 0 ? '교차참조 병기 정상' : '실패: ' + failed.join(', '));
 })();
 
-// ---- 결과 출력 + JSON 기록 ------------------------------------------------
+// Case 8: formatBaseTime — KST "MM월 DD일 HH시 기준"
+(function () {
+    const checks = [];
+    checks.push(['정상 포맷', formatBaseTime('2026061021') === '06월 10일 21시 기준']);
+    checks.push(['형식 불량 → 빈문자', formatBaseTime('bad') === '' && formatBaseTime(null) === '']);
+    const failed = checks.filter((c) => !c[1]).map((c) => c[0]);
+    record('case8_basetime', failed.length === 0, failed.length === 0 ? '기준시각 포맷 정상' : '실패: ' + failed.join(', '));
+})();
+
 const allPass = results.every((r) => r.pass);
 const outPath = path.join(__dirname, 'advisory_render_test.json');
 fs.writeFileSync(outPath, JSON.stringify({
-    generatedAt: new Date().toISOString(),
-    variant: 'merged',
-    allPass: allPass,
-    total: results.length,
-    passed: results.filter((r) => r.pass).length,
-    results: results
+    generatedAt: new Date().toISOString(), variant: 'v6', allPass: allPass,
+    total: results.length, passed: results.filter((r) => r.pass).length, results: results
 }, null, 2));
-
 console.log('---------------------------------------------------');
-console.log((allPass ? 'ALL PASS' : 'SOME FAILED') + '  (' +
-    results.filter((r) => r.pass).length + '/' + results.length + ')');
+console.log((allPass ? 'ALL PASS' : 'SOME FAILED') + '  (' + results.filter((r) => r.pass).length + '/' + results.length + ')');
 console.log('결과 기록: ' + outPath);
-
 process.exit(allPass ? 0 : 1);

@@ -20,7 +20,7 @@ const { parseWarnings } = require('./warnings');
 const { normName } = require('./zonePolygon');
 
 const IN = path.join(__dirname, 'data', 'prelim_warnings.json');
-const CSV = path.join(__dirname, 'data', 'warnings_2023-2026.csv');
+const CSVS = ['warnings_2020-2023.csv', 'warnings_2023-2026.csv'].map(f => path.join(__dirname, 'data', f));
 const OUT_EVENTS = path.join(__dirname, 'out', 'prelim_events.json');
 const OUT_MD = path.join(__dirname, 'reports', 'PRELIM_census.md');
 
@@ -114,9 +114,13 @@ function parseBody(body) {
         episodes.push(ep); lastByKey.set(k, ep);
     }
 
-    // 2) 발효 연계 — 풍랑 주의보/경보 발효 census
-    const evs = parseWarnings(CSV, { kinds: new Set(['풍랑', '태풍']), actions: new Set(['발표', '변경']) })
-        .filter(e => e.effectiveAt);
+    // 2) 발효 연계 — 풍랑 주의보/경보 발효 census (6년: 두 CSV 합산)
+    const evs = [];
+    for (const csv of CSVS) {
+        if (!fs.existsSync(csv)) continue;
+        for (const e of parseWarnings(csv, { kinds: new Set(['풍랑', '태풍']), actions: new Set(['발표', '변경']) }))
+            if (e.effectiveAt) evs.push(e);
+    }
     const effByZone = new Map(); // zoneNorm → [발효ms...] (오름차순)
     for (const e of evs) for (const a of e.seaAreas) {
         const z = normName(a); if (!z) continue;
@@ -156,7 +160,7 @@ function parseBody(body) {
     const f1 = v => v == null ? '-' : v.toFixed(1);
 
     const vEp = episodes.filter(e => e.kind === '풍랑'), tEp = episodes.filter(e => e.kind === '태풍');
-    let md = '# 예비특보 census (2023-06 ~ 2026-06) — 구조화 + 발효 연계\n\n';
+    let md = '# 예비특보 census (2020-06 ~ 2026-06) — 구조화 + 발효 연계\n\n';
     md += `통보문(풍랑/태풍 포함): ${bulletins.length} (파싱성공 ${parsedBul} / 실패 ${noParse})\n`;
     md += `구역단위 행: ${rows.length} → 에피소드(24h dedup): 풍랑 ${vEp.length} · 태풍 ${tEp.length}\n\n`;
     md += '## 예비 → 발효 연계 (풍랑, 72h 윈도)\n\n';
@@ -167,7 +171,7 @@ function parseBody(body) {
     md += `- 풍랑/태풍 발효 에피소드 ${effTotal} 중 사전 예비 있던 것 **${effCovered}** (${(effCovered / effTotal * 100).toFixed(0)}%)\n`;
     md += `  → 나머지 ${(100 - effCovered / effTotal * 100).toFixed(0)}% 는 예비 없이 발효 — 우리 예측이 가치를 더할 1차 영역\n\n`;
     md += '## 연도별 풍랑 예비 에피소드\n\n| 연도 | 에피소드 | 발효연계 | 취소 |\n|---|---|---|---|\n';
-    for (const y of ['2023', '2024', '2025', '2026']) {
+    for (const y of ['2020', '2021', '2022', '2023', '2024', '2025', '2026']) {
         const g = vEp.filter(e => new Date(e.announceAt).getFullYear() === +y);
         const l = g.filter(e => e.linked != null).length;
         md += `| ${y} | ${g.length} | ${l} | ${g.length - l} |\n`;
