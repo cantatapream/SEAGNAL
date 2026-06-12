@@ -39,49 +39,44 @@ const OFFICES = {
 };
 
 // ----------------------------------------------------------------------------
-// 2) 임계 / 등급
+// 2) 임계 / 등급 — 폴리곤+면적 (CALIB_ABS / BEATKMA 검증 반영, 2026-06)
+//    · 면적비율 = 구역 내부 바다픽셀 중 ge3(≥GE3_KT)인 비율. 옛 "원형 반경+12픽셀
+//      스침"을 폐지하고 "구역이 충분히 덮였을 때만" 표출 → 이웃 번짐 과탐 차단.
+//    · 운영점/등급은 어려운음성(이웃발효·자기미발효) 포함 현실가중 정밀도 기준.
 // ----------------------------------------------------------------------------
 const THRESHOLDS = {
-    WIND_KT: 20,        // 풍속 주의보 신호컷(kt). 14m/s≈27kt가 25kt밴드, 검증상 20kt가 무손실 최적
+    GE3_KT: 20,         // 면적비율 산정 기준(이 풍속 이상 픽셀을 '거침'으로 카운트)
+    WIND_ONSET_KT: 25,  // onset/표출 풍속 밴드컷(이 값 이상 + 면적게이트 통과 시 onset)
+    WIND_AREA_MIN: 0.30,// 표출 최소 면적비율(풍속). 미만은 비표출
     WAVE_M: 3.0,        // 파고 주의보 신호컷(m)
-    WIND_ALARM_KT: 40,  // 경보급
+    WAVE_AREA_MIN: 0.30,
+    WIND_ALARM_KT: 40,  // 경보급(ge5)
     WAVE_ALARM_M: 5.0,
-    RAD_MULT: 1.8,      // 구역 샘플 반경 배수 (H 먼바다 55px·I 앞바다 30px × 1.8)
     MIN_BAND_PIXELS: 12,// 구역 maxBand 인정 최소 픽셀
     LEAD_MAX_H: 96,     // 예보지평 실질 한계(4일). 120h는 빈값
     ONSET_GRACE_H: 6,   // 예상시각 경과 후 해소 유예
     RESOLVED_KEEP_H: 24,// '최근 해소' 유지 기간
+    // 2사이클 지속성: 직전 사이클에도 잡힌 구역만 표출(노이즈성 1회 신호 억제).
+    PERSIST_ENABLED: true,
+    PERSIST_MAX_AGE_H: 18, // 직전 상태가 이 시간 내일 때만 '연속'으로 인정
 };
 
+// 2단계 등급 — (밴드, 면적). probPct = 현실가중 정밀도(경보 1건당 실제 발효 확률).
+//   높음: 강풍(≥30kt) & 넓은면적(≥50%)  → 정밀 ~64%
+//   관심: 풍속(≥25kt&면적≥30%) 또는 파고(≥3m&면적≥30%) → 정밀 ~51%
 const GRADES = {
-    HIGH: { min: 0.80, key: 'high', label: '높음', emoji: '🔴' },   // 정밀도 ~99%
-    WATCH: { min: 0.50, key: 'watch', label: '관심', emoji: '🟡' }, // 가능성
-    // <0.50 → 미표시
+    HIGH: { key: 'high', label: '높음', emoji: '🔴', probPct: 64 },
+    WATCH: { key: 'watch', label: '관심', emoji: '🟡', probPct: 51 },
 };
-function gradeOf(prob) { if (prob >= GRADES.HIGH.min) return GRADES.HIGH; if (prob >= GRADES.WATCH.min) return GRADES.WATCH; return null; }
-
-// ----------------------------------------------------------------------------
-// 3) 확률 보정표 (풍속 최대밴드 kt → 발효확률)
-//    probCalib(홀드아웃) 원자료를 단조(monotonic) 보정. <20kt는 신호컷 미만이라 비표출 영역.
-//    원자료 노이즈(<15kt 61%·35kt 55%, 소표본) 제거하고 추세에 맞춰 단조화.
-// ----------------------------------------------------------------------------
-const WIND_PROB_TABLE = [ // [kt 하한, 발효확률]
-    [0, 0.05], [15, 0.10], [20, 0.40], [25, 0.63], [30, 0.80], [35, 0.88], [40, 0.96],
-];
-function windProb(bandKt) {
-    let p = 0.05;
-    for (const [kt, prob] of WIND_PROB_TABLE) if (bandKt >= kt) p = prob;
-    return p;
+function gradeOf2(sig) {
+    const windKt = sig.windKt || 0, windArea = sig.windArea || 0;
+    const waveM = sig.waveM || 0, waveArea = sig.waveArea || 0;
+    if (windKt >= 30 && windArea >= 0.50) return GRADES.HIGH;
+    if ((windKt >= 25 && windArea >= 0.30) || (waveM >= 3.0 && waveArea >= 0.30)) return GRADES.WATCH;
+    return null;
 }
-// 파고 보정(보조 신호 — 풍속과 겹쳐 추가효과 작음). 보수적 단조표.
-const WAVE_PROB_TABLE = [[0, 0.05], [2.5, 0.20], [3.0, 0.55], [3.5, 0.70], [4.5, 0.85], [5.0, 0.95]];
-function waveProb(bandM) { let p = 0.05; for (const [m, prob] of WAVE_PROB_TABLE) if (bandM >= m) p = prob; return p; }
-
-// 결합 확률 (파고 OR 풍속 — 둘 중 높은 쪽 채택; 독립 가정의 단순 max)
-function combinedProb(windKt, waveM) { return Math.max(windProb(windKt || 0), waveProb(waveM || 0)); }
 
 module.exports = {
     CALIB, OFFICE_CHART, OFFICES, THRESHOLDS, GRADES,
-    gradeOf, windProb, waveProb, combinedProb,
-    WIND_PROB_TABLE, WAVE_PROB_TABLE,
+    gradeOf2,
 };
