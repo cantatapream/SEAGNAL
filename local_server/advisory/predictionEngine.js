@@ -299,12 +299,19 @@ async function generatePredictions(options = {}) {
 
                     const windMs = Math.round(windKt * KT_TO_MS);
                     const probPct = grade.probPct;
-                    const areaPct = Math.round((windKt >= waveM ? windArea : Math.max(windArea, waveArea)) * 100);
+                    // 표출을 결정한 주 신호(면적게이트 통과한 쪽)의 면적을 대표값으로.
+                    const windPass = windKt >= 25 && windArea >= 0.30;
+                    const areaPct = Math.round((windPass ? windArea : Math.max(windArea, waveArea)) * 100);
                     const label = onsetLabel(r.onset);
 
+                    // 0 신호는 문구에서 생략(풍속 주도면 파고 0 미표기, 반대도).
+                    const sigParts = [];
+                    if (windKt > 0) sigParts.push(`풍속 ~${windKt}kt(${windMs}m/s)`);
+                    if (waveM > 0) sigParts.push(`파고 ~${waveM}m`);
+                    const sigText = sigParts.join('·') || '위험 신호';
                     const narrative =
                         `${z.name} 위험기상일기도 분석 결과, ${label}경 ` +
-                        `풍속 ~${windKt}kt(${windMs}m/s)·파고 ~${waveM}m 가 구역의 약 ${areaPct}%에 예상됩니다. ` +
+                        `${sigText} 가 구역의 약 ${areaPct}%에 예상됩니다. ` +
                         `과거 통계상 이 수준 신호의 약 ${probPct}%가 실제 발효로 이어졌습니다(${grade.emoji}${grade.label}).`;
 
                     predictions.push({
