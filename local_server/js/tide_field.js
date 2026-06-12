@@ -137,16 +137,18 @@
     }
 
     // ====================================================================
-    // 토글 버튼 (테스트 단계: 비활성 표시 + 10회 클릭 시 활성화)
+    // 토글 버튼 (정식 활성화: 버튼 기본 활성, 누르면 바로 표출)
     // ====================================================================
-    // 물빠짐은 아직 테스트 기능이라, 버튼은 보이되 비활성(회색) 상태로 두고
-    // 10회 클릭하면 활성화한다. 활성화 상태는 localStorage 에 저장되어 한 번
-    // 풀면 유지된다(진행 중 클릭 수도 저장 → 새로고침해도 누적 유지).
+    // 물빠짐을 정식 공개하여 버튼을 기본 활성 상태로 둔다(10회 잠금 해제 게이트 제거).
+    //   - FEATURE_RELEASED=false 로 바꾸면 다시 "10회 클릭 시 활성화" 테스트 게이트 적용.
+    //   - 15회 클릭 앵커 표출 제스처는 그대로 유지(데이터 확보 해점 증명용).
+    var FEATURE_RELEASED = true;       // 정식 활성화(true) / 테스트 잠금(false)
     var UNLOCK_KEY = 'tide_field_unlock_v2';
     var CLICK_KEY = 'tide_field_click_v2';
     var UNLOCK_CLICKS = 10;
 
     function isUnlocked() {
+        if (FEATURE_RELEASED) return true;   // 정식 활성화 — 잠금 없음
         try { return localStorage.getItem(UNLOCK_KEY) === '1'; } catch (e) { return false; }
     }
     function setUnlocked() {
