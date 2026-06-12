@@ -273,7 +273,12 @@
             if (!series) continue;
             const item = _nearestForecast(series, now);
             if (!item) continue;
-            if (typeof item.wh === 'number' && typeof item.ws === 'number') {
+            // [결측 센티넬 제외] KMA 원천에서 예보가 없는 대해구는 wh/ws=-999 로
+            //   내려온다(예: 5164 — 인천·경기남부/충남북부앞바다의 평균이
+            //   -110.9m/-166.4m 로 표시되던 원인). 파고/풍속은 물리적으로
+            //   음수가 될 수 없으므로 음수는 모두 결측으로 보고 평균에서 뺀다.
+            if (typeof item.wh === 'number' && typeof item.ws === 'number'
+                && item.wh >= 0 && item.ws >= 0) {
                 items.push(item);
                 if (!representativeTm) representativeTm = item.tm;
             }
