@@ -2046,14 +2046,16 @@ const ADV_STATE_FILE = path.join(DATA_DIR, 'advisory_state.json');
 router.get('/api/admin/advisory-display/state', (req, res) => {
     try {
         const s = advDisplay.readState();
-        let predictions = [];
+        let predictions = [], resolvedCount = 0, baseTimeKST = null;
         try {
             const raw = JSON.parse(fs.readFileSync(ADV_STATE_FILE, 'utf8'));
             predictions = Array.isArray(raw.active) ? raw.active : [];
-        } catch (_) { predictions = []; }
+            resolvedCount = Array.isArray(raw.resolved) ? raw.resolved.length : 0;
+            baseTimeKST = raw.baseTimeKST || null;
+        } catch (_) { /* 상태 없음 — 기본값 */ }
         res.json({
             mode: s.mode, hidden: s.hidden, stopped: s.stopped, edits: s.edits, updatedAt: s.updatedAt,
-            predictions, baseTimeKST: (function () { try { return JSON.parse(fs.readFileSync(ADV_STATE_FILE, 'utf8')).baseTimeKST || null; } catch (_) { return null; } })(),
+            predictions, resolvedCount, baseTimeKST,
         });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -2104,6 +2106,21 @@ router.post('/api/admin/advisory-display/clear-edit', (req, res) => {
         if (!zone) return res.status(400).json({ error: 'zone 필요' });
         advDisplay.clearEdit(zone);
         res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 해소 목록 즉시 비우기 — advisory_state.json 의 resolved 를 [] 로 (나머지 필드 보존).
+//   용도: 전환기 잔재(구엔진 해소 항목) 등을 24h 자연만료 전에 정리하고 공개 전환.
+router.post('/api/admin/advisory-display/clear-resolved', (req, res) => {
+    try {
+        let raw = {};
+        try { raw = JSON.parse(fs.readFileSync(ADV_STATE_FILE, 'utf8')); } catch (_) { raw = {}; }
+        const cleared = Array.isArray(raw.resolved) ? raw.resolved.length : 0;
+        raw.resolved = [];
+        raw.updatedAt = new Date().toISOString();
+        fs.writeFileSync(ADV_STATE_FILE, JSON.stringify(raw, null, 2), 'utf8');
+        console.log(`[AdvisoryDisplay] 해소 목록 비움 (${cleared}건)`);
+        res.json({ success: true, cleared });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

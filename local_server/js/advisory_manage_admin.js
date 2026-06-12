@@ -65,6 +65,15 @@
             '</div>';
         html += '<div class="advm-note">기준시각: ' + esc(s.baseTimeKST || '—') + ' · 마지막 변경: ' + esc(s.updatedAt || '—') + '</div>';
 
+        // 해소 목록 관리 — 잔재 정리(24h 자연만료 전 즉시 비우기)
+        var rc = (typeof s.resolvedCount === 'number') ? s.resolvedCount : 0;
+        html += '<div class="advm-sec-title" style="margin-top:16px">해소 목록 (' + rc + '건)</div>';
+        html += '<div class="advm-actions" style="margin-top:0">' +
+            '<button class="advm-btn advm-btn-danger"' + (rc === 0 ? ' disabled style="opacity:.45"' : '') +
+            ' onclick="window.__advmClearResolved()">해소 목록 즉시 비우기</button>' +
+            '<span class="advm-note" style="margin-top:0;align-self:center">사용자 화면의 \'최근 해소\' 섹션을 즉시 제거합니다(예측 카드는 유지).</span>' +
+            '</div>';
+
         // 예측 목록
         html += '<div class="advm-sec-title" style="margin-top:16px">현재 예측 (' + preds.length + '건)</div>';
         if (preds.length === 0) {
@@ -132,6 +141,12 @@
     window.__advmCancelEdit = function () { _editing = null; load(); };
     window.__advmClearEdit = function (zone) {
         api('/api/admin/advisory-display/clear-edit', { zone: zone }).then(function () { toast('수정 해제'); load(); });
+    };
+    window.__advmClearResolved = function () {
+        if (typeof confirm === 'function' && !confirm('최근 해소 목록을 모두 비울까요? (사용자 화면에서 즉시 사라집니다)')) return;
+        api('/api/admin/advisory-display/clear-resolved', {}).then(function (r) {
+            toast('해소 ' + ((r && r.cleared) || 0) + '건 비움'); load();
+        });
     };
     window.__advmSaveEdit = function (zone) {
         var g = document.getElementById('advm-grade-sel');
