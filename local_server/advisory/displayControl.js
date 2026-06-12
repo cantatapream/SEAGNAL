@@ -13,6 +13,8 @@
  *       hidden[zone]  = 영구 삭제(표출 목록에서 제외)
  *       stopped[zone] = 일시 표출중지(복귀 가능)
  *       edits[zone]   = { narrative?, gradeKey?('high'|'watch'), probPct? } 수정 덮어쓰기
+ *       resolvedZ[zone] = { at, narrative } 관리자 해소 전환 — active 에서 빼고
+ *                         사용자 '최근 해소'에 합성 항목으로 표출(24h 자동 만료)
  *
  *  상태파일: data/advisory_display.json (런타임, Fly 볼륨). gitignore.
  *  기기식별: admin_devices.json(토큰/endpoint) 대조 — routes/admin.js 와 동일 규약.
@@ -29,7 +31,8 @@ const DISPLAY_FILE = path.join(DATA_DIR, 'advisory_display.json');
 const ADMIN_DEVICES_FILE = path.join(DATA_DIR, 'admin_devices.json');
 
 const GRADE_META = { high: { key: 'high', label: '높음', emoji: '🔴' }, watch: { key: 'watch', label: '관심', emoji: '🟡' } };
-const DEFAULT = { mode: 'off', hidden: {}, stopped: {}, edits: {}, updatedAt: null };
+const DEFAULT = { mode: 'off', hidden: {}, stopped: {}, edits: {}, resolvedZ: {}, updatedAt: null };
+const RESOLVED_KEEP_MS = 24 * 3600 * 1000; // 합성 해소 유지(일반 해소와 동일 24h)
 
 function readState() {
     try {
@@ -39,6 +42,7 @@ function readState() {
             hidden: (d && d.hidden && typeof d.hidden === 'object') ? d.hidden : {},
             stopped: (d && d.stopped && typeof d.stopped === 'object') ? d.stopped : {},
             edits: (d && d.edits && typeof d.edits === 'object') ? d.edits : {},
+            resolvedZ: (d && d.resolvedZ && typeof d.resolvedZ === 'object') ? d.resolvedZ : {},
             updatedAt: (d && d.updatedAt) || null,
         };
     } catch (_) { return JSON.parse(JSON.stringify(DEFAULT)); }
@@ -66,7 +70,17 @@ function hideZone(zone, permanent) {
 }
 function restoreZone(zone) {
     if (!zone) return false; const s = readState();
-    delete s.hidden[zone]; delete s.stopped[zone];
+    delete s.hidden[zone]; delete s.stopped[zone]; delete s.resolvedZ[zone];
+    return writeState(stamp(s));
+}
+/** 관리자 해소 전환 — active 에서 제거되고 사용자 '최근 해소'에 합성 항목으로 표출(24h). */
+function resolveZone(zone) {
+    if (!zone) return false; const s = readState();
+    s.resolvedZ[zone] = {
+        at: new Date().toISOString(),
+        narrative: `${zone} 재분석 결과 — 발효 가능성 낮아짐`,
+    };
+    delete s.stopped[zone]; // 해소 전환이 우선(이중 상태 방지)
     return writeState(stamp(s));
 }
 function editZone(zone, patch) {
@@ -99,7 +113,12 @@ function isAdminDevice(deviceId) {
 function applyOverrides(payload) {
     if (!payload || typeof payload !== 'object') return payload;
     const s = readState();
-    const dropped = (z) => s.hidden[z] || s.stopped[z];
+    const now = Date.now();
+    const adminResolved = (z) => {
+        const r = s.resolvedZ[z];
+        return r && (now - Date.parse(r.at || 0)) <= RESOLVED_KEEP_MS;
+    };
+    const dropped = (z) => s.hidden[z] || s.stopped[z] || adminResolved(z);
     const src = Array.isArray(payload.active) ? payload.active : [];
     const active = [];
     for (const p of src) {
@@ -113,14 +132,29 @@ function applyOverrides(payload) {
         np._edited = true;
         active.push(np);
     }
+    // 관리자 해소 전환 — '최근 해소'에 합성 항목 합류(최신순 유지, zone 중복 방지, 24h 만료)
+    const baseResolved = Array.isArray(payload.resolved) ? payload.resolved : [];
+    const resolvedOut = baseResolved.slice();
+    const seen = new Set(resolvedOut.map((r) => r && r.zone));
+    for (const [z, r] of Object.entries(s.resolvedZ)) {
+        if (!adminResolved(z) || seen.has(z)) continue;
+        resolvedOut.push({ zone: z, reason: 'admin_resolved', resolvedAt: r.at, narrative: r.narrative });
+    }
+    resolvedOut.sort((a, b) => Date.parse(b.resolvedAt || 0) - Date.parse(a.resolvedAt || 0));
     let high = 0, watch = 0;
     for (const a of active) { const k = a.grade && a.grade.key; if (k === 'high') high++; else if (k === 'watch') watch++; }
-    const counts = Object.assign({}, payload.counts, { high, watch });
-    return Object.assign({}, payload, { active, counts });
+    const counts = Object.assign({}, payload.counts, { high, watch, resolved: resolvedOut.length });
+    return Object.assign({}, payload, { active, resolved: resolvedOut, counts });
+}
+
+/** 관리자 해소 전환 항목 전부 제거(해소목록 비우기와 함께 사용). */
+function clearAdminResolved() {
+    const s = readState(); s.resolvedZ = {}; return writeState(stamp(s));
 }
 
 module.exports = {
     DISPLAY_FILE, readState, getMode, setMode,
     hideZone, restoreZone, editZone, clearEdit,
+    resolveZone, clearAdminResolved,
     isAdminDevice, applyOverrides, GRADE_META,
 };

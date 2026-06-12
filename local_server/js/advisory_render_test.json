@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-11T14:36:58.066Z",
-  "variant": "merged",
+  "generatedAt": "2026-06-12T13:48:52.698Z",
+  "variant": "v6",
   "allPass": true,
-  "total": 7,
-  "passed": 7,
+  "total": 8,
+  "passed": 8,
   "results": [
     {
       "case": "case1_full",
@@ -39,6 +39,11 @@
       "case": "case7_crossref",
       "pass": true,
       "detail": "교차참조 병기 정상"
+    },
+    {
+      "case": "case8_basetime",
+      "pass": true,
+      "detail": "기준시각 포맷 정상"
     }
   ]
 }
