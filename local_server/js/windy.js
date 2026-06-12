@@ -225,11 +225,20 @@ function renderBuoyButtonsForStatus(zoneName, container) {
         else if (buoy.type === 'L') icon = 'fa-lightbulb';
 
         btn.innerHTML = `<i class="fa-solid ${icon}"></i> ${buoy.name}`;
-        btn.onclick = (e) => {
-            e.stopPropagation();
-            if (typeof fetchBuoyData === 'function') fetchBuoyData(buoy.id, buoy.name);
-        };
+        // 클릭은 개별 버튼이 아니라 컨테이너에 위임(아래 buoyContainer 리스너).
+        //   [이유] click 핸들러가 붙은 버튼을 안드로이드 WebView 가 인터랙티브
+        //   레이어로 승격 → 스크롤 시 사각형 백킹 텍스처가 잔류해 둥근 버튼이
+        //   청회색 사각형으로 잘려 보인다(클릭 없는 파고/풍속 배지는 멀쩡).
+        btn.dataset.buoyId = buoy.id;
+        btn.dataset.buoyName = buoy.name;
         buoyContainer.appendChild(btn);
+    });
+    buoyContainer.addEventListener('click', (e) => {
+        const b = e.target.closest('.buoy-btn');
+        if (b && b.dataset.buoyId) {
+            e.stopPropagation();
+            if (typeof fetchBuoyData === 'function') fetchBuoyData(b.dataset.buoyId, b.dataset.buoyName);
+        }
     });
     container.appendChild(buoyContainer);
 }
