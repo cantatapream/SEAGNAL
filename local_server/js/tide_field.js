@@ -287,6 +287,9 @@
             }
             showSliderBar(true);
             renderFrame(_frameIdx, true);
+            // [안내] 예측 자료 면책 — 버튼으로 들어올 때마다 참고용 사용 안내.
+            //   공용 toast(window.showToast) 사용 → 다른 기능과 동일 위치(상단 중앙).
+            toast('예측 자료입니다. 참고용으로만 사용하고 실제 현장·기상 상황을 꼭 확인하세요.');
             prefetchAll();   // 현재 화면(첫 프레임) 그린 뒤, 나머지 시각을 백그라운드로 미리 받아 슬라이더 즉시화
         }).catch(function (e) {
             console.warn('[tide_field] meta 로드 실패:', e);
