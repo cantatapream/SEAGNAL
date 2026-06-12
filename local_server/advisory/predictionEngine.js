@@ -44,7 +44,9 @@ const { scanOnsets } = require('./onsetScan');
 
 // --- 재사용 검증 모듈 (../analysis/wave_leadtime) ---
 const WL = path.join(__dirname, '..', 'analysis', 'wave_leadtime');
-const { REGIONAL_OFFICES, listFrames, downloadFrame } = require(path.join(WL, 'chartClient'));
+// 차트 소스: 기본 날씨누리(공개·인증불필요·게시빠름). ADVISORY_CHART_SOURCE=dmdw 면 방재기상플랫폼.
+const CHART_MOD = (process.env.ADVISORY_CHART_SOURCE === 'dmdw') ? 'chartClient' : 'nuriChartClient';
+const { REGIONAL_OFFICES, listFrames, downloadFrame } = require(path.join(WL, CHART_MOD));
 const { decode } = require(path.join(WL, 'geoCalib'));
 const { getStaticMask } = require(path.join(WL, 'staticMask'));
 const windPalette = require(path.join(WL, 'windPalette'));
@@ -62,7 +64,8 @@ const STATE_PENDING = path.join(__dirname, '..', 'data', 'advisory_pending.json'
 // 폴리곤 1회 로드(구역명 normName 키). 비면 기존처럼 구역 스킵.
 const polyMap = loadZonePolygons();
 
-const PUB_DELAY_H = 7;          // 발표지연(가용성 보정) — 슬롯 선택에만 사용
+const PUB_DELAY_H = 2;          // 발표지연(가용성 보정) — 날씨누리는 발표 직후 게시라 작게.
+                               //   못 받으면 listFrames 가 빈배열 → 이전 슬롯 자동 폴백(안전).
 const RUN_BACK_MAX = 4;         // run 슬롯 역행 횟수
 const SLEEP_MIN = 80, SLEEP_MAX = 120;
 const KT_TO_MS = 0.514444;
