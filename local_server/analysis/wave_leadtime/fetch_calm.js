@@ -15,7 +15,7 @@
  *  실행:
  *    KMA_DMDW_USER_ID=.. KMA_DMDW_USER_PWD=.. node fetch_calm.js [--ncalm=60] [--lead=24] [--plan]
  *      --plan : 네트워크 없이 표본 계획만 출력(자격증명 점검 전 건수 확인용)
- *  산출: out/calm_samples.json  — [{zone, office, validAt, base, fnSlot, step, fileName}]
+ *  산출: out/calm_samples.json  — [{zone, office, validAt, base, kstSlot, step, fileName}]
  *        (실제 GIF 는 cache/gif/ 에 저장 → calib_abs.js 가 폴리곤+면적으로 분석)
  */
 const fs = require('fs');
@@ -107,8 +107,9 @@ function planSamples(polyMap, zoneOffice, busy) {
                 // lead≈LEAD_H 가 되도록 valid 를 base+LEAD_H 로 본다(step 계산은 valid 기준)
                 const step = Math.round(((validAt) - base) / H / 3) * 3;
                 if (step < 0 || step > 120) continue;
-                const fnSlot = ymdh(new Date(base - 9 * H));
-                tasks.push({ zone: z, office: o, validAt, base, fnSlot, step });
+                // LIST tm 은 KST 슬롯(09/21시) 그대로. (−9h 는 GIF 파일명 안의 베이스시각에만 해당)
+                const kstSlot = ymdh(new Date(base));
+                tasks.push({ zone: z, office: o, validAt, base, kstSlot, step });
                 got++;
             }
         }
@@ -129,23 +130,23 @@ function planSamples(polyMap, zoneOffice, busy) {
     // 기존 진행분 로드(재개)
     let done = [];
     try { done = JSON.parse(fs.readFileSync(OUT, 'utf8')); } catch (_) { done = []; }
-    const doneKey = new Set(done.map(d => d.zone + '|' + d.fnSlot + '|' + d.step));
+    const doneKey = new Set(done.map(d => d.zone + '|' + d.kstSlot + '|' + d.step));
 
-    // LIST 캐시 디스크 재사용(runLeadtime 규약): list_<chart>_wind_<fnSlot>.json
+    // LIST 캐시 디스크 재사용(runLeadtime 규약): list_<chart>_wind_<kstSlot>.json
     const listMem = new Map();
-    async function framesFor(office, fnSlot) {
+    async function framesFor(office, kstSlot) {
         const chartCode = OFFICE_CHART[office] || office;
-        const key = chartCode + '|' + fnSlot;
+        const key = chartCode + '|' + kstSlot;
         if (listMem.has(key)) return listMem.get(key);
-        const disk = path.join(CACHE, `list_${chartCode}_wind_${fnSlot}.json`);
+        const disk = path.join(CACHE, `list_${chartCode}_wind_${kstSlot}.json`);
         if (fs.existsSync(disk)) { const v = JSON.parse(fs.readFileSync(disk, 'utf8')); listMem.set(key, v); return v; }
         const meta = REGIONAL_OFFICES[chartCode];
         const model = meta.prefixKIM ? 'KIMA' : 'APPM';
         const prefix = (meta.prefixKIM || meta.prefixAPPM).replace('_wave_', '_wind_');
         const headData = `0#12#3#/DATA/CHT/${model}/#/${prefix}`;
         let frames = [];
-        try { frames = await listFrames({ headData, model, modelText: meta.name, type: 'wave' }, fnSlot); }
-        catch (e) { console.error(`  LIST 실패 ${chartCode} ${fnSlot}: ${e.message}`); frames = []; }
+        try { frames = await listFrames({ headData, model, modelText: meta.name, type: 'wave' }, kstSlot); }
+        catch (e) { console.error(`  LIST 실패 ${chartCode} ${kstSlot}: ${e.message}`); frames = []; }
         fs.writeFileSync(disk, JSON.stringify(frames));
         await sleep(SLEEP_MS);
         listMem.set(key, frames);
@@ -154,9 +155,9 @@ function planSamples(polyMap, zoneOffice, busy) {
 
     let fetched = 0, skipped = 0, miss = 0;
     for (const t of tasks) {
-        const k = t.zone + '|' + t.fnSlot + '|' + t.step;
+        const k = t.zone + '|' + t.kstSlot + '|' + t.step;
         if (doneKey.has(k)) { skipped++; continue; }
-        const frames = await framesFor(t.office, t.fnSlot);
+        const frames = await framesFor(t.office, t.kstSlot);
         // step 매칭: ±3,±6 허용
         let fr = null;
         for (const dlt of [0, 3, -3, 6, -6]) { const s = t.step + dlt; fr = frames.find(f => f.ftHours === s); if (fr) { t.step = s; break; } }
@@ -166,7 +167,7 @@ function planSamples(polyMap, zoneOffice, busy) {
             try { const buf = await downloadFrame(fr); fs.writeFileSync(gpath, buf); await sleep(SLEEP_MS); fetched++; }
             catch (e) { console.error(`  GIF 실패 ${fr.fileName}: ${e.message}`); miss++; continue; }
         }
-        done.push({ zone: t.zone, office: t.office, validAt: t.validAt, base: t.base, fnSlot: t.fnSlot, step: t.step, fileName: fr.fileName });
+        done.push({ zone: t.zone, office: t.office, validAt: t.validAt, base: t.base, kstSlot: t.kstSlot, step: t.step, fileName: fr.fileName });
         doneKey.add(k);
         if (done.length % 20 === 0) fs.writeFileSync(OUT, JSON.stringify(done));
     }
