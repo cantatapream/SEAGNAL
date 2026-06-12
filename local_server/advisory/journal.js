@@ -137,14 +137,24 @@ function readAll() {
 }
 
 /**
- * 등급별/확률구간별 적중 통계.
+ * 등급별/확률구간별 적중 통계 (+ 기간 조회/월별 누적).
  *  - 적중: onset −12h~+24h 창에 같은 zone 공식특보 관측. 억제(suppressed) 기록은 정의상 적중.
  *  - 창이 안 끝났으면 '진행중'(미결정).
- * @returns {{counts, byGrade, byProb, recent}}
+ *  - 기간 필터(opt.fromMs/toMs): 예측 '기록 시각' 기준으로 집계 대상을 제한.
+ *    (warn 관측은 기간과 무관하게 전체 사용 — 창 끝이 기간 밖이어도 판정 정확)
+ * @param {{fromMs?:number, toMs?:number}} [opt]
+ * @returns {{counts, byGrade, byProb, byMonth, recent, period, window}}
  */
-function computeStats() {
-    const { preds, warns } = readAll();
+function computeStats(opt) {
+    opt = opt && typeof opt === 'object' ? opt : {};
+    const { preds: allPreds, warns } = readAll();
     const H = 3600 * 1000;
+    const fromMs = isFinite(opt.fromMs) ? opt.fromMs : -Infinity;
+    const toMs = isFinite(opt.toMs) ? opt.toMs : Infinity;
+    const preds = allPreds.filter((p) => {
+        const t = Date.parse(p.t);
+        return isFinite(t) && t >= fromMs && t <= toMs;
+    });
     const warnByZone = new Map();
     for (const w of warns) {
         const t = Date.parse(w.t); if (!isFinite(t)) continue;
@@ -169,6 +179,20 @@ function computeStats() {
     };
     const byProb = [[51, 56], [57, 64], [65, 100]].map(([lo, hi]) => Object.assign(
         { range: `${lo}~${hi}%` }, agg(preds.filter((p) => p.prob >= lo && p.prob <= hi))));
+    // 월별 누적 (기록 시각 기준 YYYY-MM, 최신 월 먼저)
+    const monthKey = (p) => {
+        const d = new Date(Date.parse(p.t));
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
+    const monthMap = new Map();
+    for (const p of preds) {
+        const k = monthKey(p);
+        if (!monthMap.has(k)) monthMap.set(k, []);
+        monthMap.get(k).push(p);
+    }
+    const byMonth = Array.from(monthMap.entries())
+        .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+        .map(([month, arr]) => Object.assign({ month }, agg(arr)));
     const recent = preds
         .filter((p) => p.outcome === 'hit' || p.outcome === 'miss')
         .sort((a, b) => Date.parse(b.t) - Date.parse(a.t))
@@ -180,7 +204,11 @@ function computeStats() {
             high: agg(preds.filter((p) => p.grade === 'high')),
             watch: agg(preds.filter((p) => p.grade === 'watch')),
         },
-        byProb, recent,
+        byProb, byMonth, recent,
+        period: {
+            from: isFinite(fromMs) && fromMs !== -Infinity ? new Date(fromMs).toISOString() : null,
+            to: isFinite(toMs) && toMs !== Infinity ? new Date(toMs).toISOString() : null,
+        },
         window: { beforeH: WIN_BEFORE_H, afterH: WIN_AFTER_H },
     };
 }

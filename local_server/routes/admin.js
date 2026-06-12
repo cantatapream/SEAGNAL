@@ -2110,11 +2110,20 @@ router.post('/api/admin/advisory-display/clear-edit', (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 예측 적중 통계 (운영 누적 저널 기반 — 등급/확률구간별 적중·미적중·진행중)
+// 예측 적중 통계 (운영 누적 저널 기반 — 등급/확률구간별 + 월별 누적)
+//   기간 조회: ?days=7|30  또는 ?from=ISO&to=ISO (없으면 전체)
 router.get('/api/admin/advisory-display/stats', (req, res) => {
     try {
         const journal = require('../advisory/journal');
-        res.json(journal.computeStats());
+        const q = req.query || {};
+        const opt = {};
+        if (q.days && isFinite(Number(q.days))) {
+            opt.fromMs = Date.now() - Number(q.days) * 24 * 3600 * 1000;
+        } else {
+            if (q.from) { const f = Date.parse(q.from); if (isFinite(f)) opt.fromMs = f; }
+            if (q.to) { const t = Date.parse(q.to); if (isFinite(t)) opt.toMs = t; }
+        }
+        res.json(journal.computeStats(opt));
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

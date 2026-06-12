@@ -10981,3 +10981,9 @@ body.mc-fullscreen-active {
 .advm-oc { font-size: 0.66rem; font-weight: 800; padding: 1px 6px; border-radius: 10px; }
 .advm-oc.hit { background: rgba(34,197,94,0.2); color: #86efac; }
 .advm-oc.miss { background: rgba(239,68,68,0.2); color: #ff9a9a; }
+
+/* 통계 기간 선택 칩 */
+.advm-chips { display: flex; gap: 6px; margin-bottom: 8px; }
+.advm-chip { font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 14px;
+    border: 1px solid #2a3340; background: #161b22; color: #9aa7b4; cursor: pointer; }
+.advm-chip.on { border-color: #7c3aed; background: #2a1d47; color: #d9c9ff; }

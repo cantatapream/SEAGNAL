@@ -13,7 +13,8 @@
     if (typeof window === 'undefined') return;
 
     var _container = null;
-    var _editing = null; // 현재 인라인 수정 중인 zone
+    var _editing = null;    // 현재 인라인 수정 중인 zone
+    var _statsDays = 0;     // 통계 조회 기간(0=전체, 7, 30)
 
     function esc(s) {
         return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -29,9 +30,10 @@
     function load() {
         if (!_container) return;
         _container.innerHTML = '<div style="padding:18px;color:#9aa7b4">불러오는 중…</div>';
+        var statsUrl = '/api/admin/advisory-display/stats' + (_statsDays > 0 ? ('?days=' + _statsDays) : '');
         Promise.all([
             api('/api/admin/advisory-display/state'),
-            api('/api/admin/advisory-display/stats').catch(function () { return null; }),
+            api(statsUrl).catch(function () { return null; }),
         ]).then(function (rs) { render(rs[0], rs[1]); }).catch(function () {
             _container.innerHTML = '<div style="padding:18px;color:#ff8a8a">상태 조회 실패</div>';
         });
@@ -46,13 +48,30 @@
                 '<td>' + a.pending + '</td><td><b>' + pc(a.ratePct) + '</b></td><td>' + expect + '</td></tr>';
         };
         var h = '<div class="advm-sec-title" style="margin-top:16px">예측 통계 (운영 누적 — 적중/미적중)</div>';
+        // 기간 선택 칩(전체/7일/30일)
+        var chip = function (days, label) {
+            return '<button class="advm-chip' + (_statsDays === days ? ' on' : '') +
+                '" onclick="window.__advmStatsPeriod(' + days + ')">' + label + '</button>';
+        };
+        h += '<div class="advm-chips">' + chip(0, '전체') + chip(7, '최근 7일') + chip(30, '최근 30일') + '</div>';
         h += '<table class="advm-stats"><thead><tr><th>분류</th><th>적중</th><th>미적중</th><th>진행중</th><th>적중률</th><th>기대</th></tr></thead><tbody>';
         h += row('🔴 높음', st.byGrade.high, '64~70%');
         h += row('🟡 관심', st.byGrade.watch, '51~58%');
         (st.byProb || []).forEach(function (b) { h += row('확률 ' + b.range, b, b.range); });
         h += '</tbody></table>';
+        // 월별 누적 (전체 조회일 때 의미 — 기간 필터 중에도 해당 범위의 월만 나옴)
+        if (st.byMonth && st.byMonth.length) {
+            h += '<div class="advm-sec-title" style="margin-top:10px;font-size:0.78rem">월별 누적</div>';
+            h += '<table class="advm-stats"><thead><tr><th>월</th><th>적중</th><th>미적중</th><th>진행중</th><th>적중률</th></tr></thead><tbody>';
+            st.byMonth.forEach(function (m) {
+                h += '<tr><td>' + esc(m.month) + '</td><td>' + m.hit + '</td><td>' + m.miss +
+                    '</td><td>' + m.pending + '</td><td><b>' + pc(m.ratePct) + '</b></td></tr>';
+            });
+            h += '</tbody></table>';
+        }
         h += '<div class="advm-note">적중 창: 예상시각 −' + st.window.beforeH + 'h ~ +' + st.window.afterH +
-            'h 내 공식 풍랑/태풍 발효 · 총 기록 ' + st.counts.pred + '건(결정 ' + st.counts.decided + ')</div>';
+            'h 내 공식 풍랑/태풍 발효 · 총 기록 ' + st.counts.pred + '건(결정 ' + st.counts.decided + ')' +
+            (st.period && st.period.from ? ' · 조회 시작: ' + esc(st.period.from.slice(0, 10)) : ' · 전체 기간') + '</div>';
         // 최근 결정 사례
         if (st.recent && st.recent.length) {
             h += '<div class="advm-recent">';
@@ -174,6 +193,7 @@
     window.__advmRestore = function (zone) {
         api('/api/admin/advisory-display/restore', { zone: zone }).then(function () { toast('복귀'); load(); });
     };
+    window.__advmStatsPeriod = function (days) { _statsDays = days; load(); };
     window.__advmResolve = function (zone) {
         if (typeof confirm === 'function' && !confirm(zone + ' 예측을 \'최근 해소\'로 보낼까요? (사용자에게 해소로 표시)')) return;
         api('/api/admin/advisory-display/resolve', { zone: zone }).then(function () { toast('해소 전환'); load(); });
