@@ -287,6 +287,7 @@
         _active = true;
         if (btn) btn.classList.add('active');
         _layer.setVisible(true);
+        showLoading();   // 슬라이더·범례·첫 화면 준비될 때까지 중앙 로딩 표시
 
         ensureMeta().then(function (ok) {
             if (!ok) {
@@ -317,6 +318,7 @@
         var btn = $('ocean-mudflat-toggle-btn');
         if (btn) btn.classList.remove('active');
         if (_layer) _layer.setVisible(false);
+        hideLoading();
         _drawCells = [];
         _currentCells = [];
         // 메모리 해제 — 끈 뒤에도 캐시(전 프레임 셀)가 남아 부하/지연 유발하던 것 정리.
@@ -474,6 +476,28 @@
             _drawCells.push({ x0: ll[0], y0: ll[1], x1: ur[0], y1: ur[1], dm: c.depth_m });
         }
         if (_imgSource) _imgSource.changed(); // 캔버스 다시 그리기
+        if (_loadingShown) hideLoading();     // 첫 화면이 그려지면 로딩 스피너 종료
+    }
+
+    // 로딩 스피너(중앙) — 최초 활성 시 메타·첫 프레임 받는 동안 표시.
+    var _loadingShown = false;
+    function ensureLoadingEl() {
+        var el = document.getElementById('mudflat-loading');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'mudflat-loading';
+            el.innerHTML = '<div class="mudflat-loading-box">' +
+                '<div class="mudflat-loading-spin"></div>' +
+                '<div class="mudflat-loading-text">로딩 중…</div></div>';
+            document.body.appendChild(el);
+        }
+        return el;
+    }
+    function showLoading() { ensureLoadingEl().classList.add('show'); _loadingShown = true; }
+    function hideLoading() {
+        var el = document.getElementById('mudflat-loading');
+        if (el) el.classList.remove('show');
+        _loadingShown = false;
     }
 
     // ====================================================================
