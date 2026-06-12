@@ -156,28 +156,35 @@ function runSlotsBefore(queryAt, maxBack = 3) {
     const rateUp = (k, n) => n ? (k === 0 ? 3 / n : Math.min(1, (k + 1.96 * Math.sqrt(k)) / n)) : null;
     const hardFp = hardN.length ? hardPass / hardN.length : null;          // 어려운음성 오탐(보수·현실)
     const hardFpUp = rateUp(hardPass, hardN.length);
-    md += '## 정직한 핵심 수치 (음성 종류별 오탐)\n\n';
-    md += '| 음성 종류 | 운영점 통과(오탐) | 오탐율 | 95% 상한 |\n|---|---|---|---|\n';
-    md += `| 쉬운(무작위 잔잔) | ${easyPass}/${easyN.length} | ${pc(easyN.length ? easyPass / easyN.length : null)} | ${(rateUp(easyPass, easyN.length) * 100).toFixed(1)}% |\n`;
-    md += `| **어려운(이웃발효·자기미발효)** | ${hardPass}/${hardN.length} | **${pc(hardFp)}** | ${hardFpUp != null ? (hardFpUp * 100).toFixed(1) + '%' : '-'} |\n`;
-    md += `| 합계 | ${calmPass}/${calmAll.length} | ${pc(fpRate)} | ${(fpUpper * 100).toFixed(1)}% |\n\n`;
-    md += `- 발효표본 운영점 통과(재현): ${posPass}/${posAll.length} (${pc(recall)})\n`;
-    md += `- **현실 정밀도**(어려운음성 오탐 ${pc(hardFp)} 기준, 기저율 ${(BASE * 100).toFixed(0)}%): 점추정 **${pc(bayes(hardFp))}** · 보수 ${pc(bayes(hardFpUp))}\n`;
-    md += `- (참고) 쉬운음성만 기준 낙관 정밀도: ${pc(bayes(fpRate))}\n`;
-    md += `- 카드 표기 권고: 단일 % 단정 금지 — 운영점 통과 시 "발효 가능성 높음(추정 ${Math.floor(bayes(hardFp) * 100)}% 안팎)"\n\n`;
+    // 현실 가중: 무경보 zone-day 중 '어려운(이웃 발효)' 비중(2023-06~2026-06 기록 산출).
+    //   별도 계산(climatology 류): hard/calm = 9,276/44,283 ≈ 0.209.
+    const W_HARD = 0.209;
+    const easyFp = easyN.length ? easyPass / easyN.length : 0;
+    const realFp = (1 - W_HARD) * easyFp + W_HARD * hardFp;   // 현실 분포 가중 오탐
+    md += '## 정직한 핵심 수치 (음성 종류별 오탐 + 현실 가중)\n\n';
+    md += '| 음성 종류 | 운영점 통과(오탐) | 오탐율 | 현실비중 |\n|---|---|---|---|\n';
+    md += `| 쉬운(무작위 잔잔) | ${easyPass}/${easyN.length} | ${pc(easyFp)} | ${pc(1 - W_HARD)} |\n`;
+    md += `| 어려운(이웃발효·자기미발효) | ${hardPass}/${hardN.length} | **${pc(hardFp)}** | ${pc(W_HARD)} |\n`;
+    md += `| **현실 가중 오탐** | — | **${pc(realFp)}** | (79%×쉬움 + 21%×어려움) |\n\n`;
+    md += `- 발효표본 운영점 통과(재현): ${posPass}/${posAll.length} (**${pc(recall)}**)\n`;
+    md += `- **현실 정밀도**(현실가중 오탐 ${pc(realFp)}, 기저율 ${(BASE * 100).toFixed(0)}%): **${pc(bayes(realFp))}** ← 경보 1건당 실제 발효될 확률\n`;
+    md += `  - 양극단 참고: 쉬운날만 ${pc(bayes(easyFp))} … 거친지역만 ${pc(bayes(hardFp))}\n`;
+    md += `- 카드 표기 권고: 단일 % 단정 금지 — 운영점 통과 시 "발효 가능성 높음(추정 ${Math.round(bayes(realFp) * 100)}% 안팎)"\n\n`;
 
-    // ── 2단계 등급 게이트 스윕 (Phase E 등급 재정의 근거) — 어려운음성 기준 ──────
-    md += `## 등급 게이트 스윕 — (밴드,면적), 오탐은 어려운음성 ${hardN.length}건 기준\n\n`;
-    md += '| 게이트 | 어려운오탐 | 어려운오탐율 | 재현율 | 정밀도(현실) |\n|---|---|---|---|---|\n';
+    // ── 2단계 등급 게이트 스윕 — 현실 가중 정밀도 ──────────────────────────────
+    md += '## 등급 게이트 스윕 — (밴드,면적), 현실 가중 정밀도\n\n';
+    md += '| 게이트 | 쉬운오탐 | 어려운오탐 | 현실오탐 | 재현율 | **현실정밀도** |\n|---|---|---|---|---|---|\n';
     for (const [b, a] of [[25, 0.3], [25, 0.5], [25, 0.6], [30, 0.3], [30, 0.5], [35, 0.3]]) {
         const g = r => r.band >= b && r.area >= a;
-        const hp = hardN.filter(g).length, pp = posAll.filter(g).length;
-        const rec2 = pp / posAll.length, fpr2 = hardN.length ? hp / hardN.length : 0;
+        const ef = easyN.length ? easyN.filter(g).length / easyN.length : 0;
+        const hf = hardN.length ? hardN.filter(g).length / hardN.length : 0;
+        const rf = (1 - W_HARD) * ef + W_HARD * hf;
+        const rec2 = posAll.filter(g).length / posAll.length;
         const by = f => rec2 * BASE / (rec2 * BASE + f * (1 - BASE));
-        md += `| ≥${b}kt & 면적≥${a * 100}% | ${hp}/${hardN.length} | ${pc(fpr2)} | ${pc(rec2)} | ${pc(by(fpr2))} |\n`;
+        md += `| ≥${b}kt & 면적≥${a * 100}% | ${pc(ef)} | ${pc(hf)} | ${pc(rf)} | ${pc(rec2)} | **${pc(by(rf))}** |\n`;
     }
-    md += '\n**등급 권고(Phase E)**: 면적이 풍속보다 강한 판별자. (정밀도=어려운음성 기준 현실값)\n';
-    md += '- 🔴 높음 / 🟡 관심 / 미표출(면적<30%, 현행 12픽셀 스침 표출 폐지) — 위 표에서 재현·정밀 균형점 선택.\n\n';
+    md += '\n**등급 권고(Phase E)**: 면적이 풍속보다 강한 판별자. 현실정밀도·재현율 균형점 선택.\n';
+    md += '- 🔴 높음 / 🟡 관심 / 미표출(면적<30%, 현행 12픽셀 스침 표출 폐지).\n\n';
     const holdNeg = test.filter(t => t.label === 0).length;
     md += `> 한계: ① 2026 홀드아웃 음성 ${holdNeg}건(어려운음성 확장으로 TN0 해소 ${holdNeg > 0 ? '✅' : '미해소'}). ② 어려운음성은 "이웃 발효·자기 미발효"라 진짜 운영 오탐의 상한에 가까움(보수적). ③ 표본 확대 시 신뢰구간 더 조여짐.\n`;
     fs.writeFileSync(path.join(__dirname, 'out', 'calib_abs_rows.json'), JSON.stringify(rows.map(t => ({ label: t.label, zone: t.zone, office: t.office, time: t.time, band: t.band, area: +t.area.toFixed(3) }))));
