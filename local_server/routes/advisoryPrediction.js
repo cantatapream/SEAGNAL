@@ -64,6 +64,11 @@ if (!DATA_DIR) {
 // 상태파일 경로 (= local_server/data/advisory_state.json)
 const STATE_FILE = path.join(DATA_DIR, 'advisory_state.json');
 
+// 표출 제어(관리자 운영) — graceful 로드(없으면 'all' 취급해 기존 동작 유지하지 않고,
+//   안전하게 'off' 가 기본이므로 미로드 시엔 게이팅을 건너뛴다).
+let displayControl = null;
+try { displayControl = require('../advisory/displayControl'); } catch (_) { displayControl = null; }
+
 // ── zone 펼침 헬퍼 로드 (graceful) ───────────────────────────────────────────
 //   부모 관심해역(예: '제주도먼바다')이 자식 먼바다 예측(예: '제주도남쪽바깥먼바다')을
 //   잡도록 펼친다. require 실패해도 라우트는 "정확일치"만으로 동작해야 한다.
@@ -117,6 +122,8 @@ function emptyPayload() {
         resolved: [],
         counts: { high: 0, watch: 0, resolved: 0 },
         filtered: false,
+        audience: 'off',
+        display: false,
     };
 }
 
@@ -277,7 +284,28 @@ router.get('/api/advisory-prediction', (req, res) => {
     try {
         const favoritesArr = parseFavorites(req.query ? req.query.favorites : undefined);
         const state = loadState();           // null 가능 → filterState 가 빈 payload 반환.
-        const payload = filterState(state, favoritesArr);
+        let payload = filterState(state, favoritesArr);
+
+        // ── 표출 제어(청중 게이팅 + 구역 오버라이드) ──────────────────────────
+        //   mode off → 누구에게도 미표출 / admin → 등록 관리자기기만 / all → 전체.
+        //   display=true 일 때만 클라이언트가 아코디언을 표시한다.
+        let audience = 'all', display = true;
+        if (displayControl) {
+            audience = displayControl.getMode();           // 'off' | 'admin' | 'all'
+            if (audience === 'all') {
+                display = true;
+                payload = displayControl.applyOverrides(payload);
+            } else if (audience === 'admin') {
+                const dev = (req.query && (req.query.adminToken || req.query.endpoint)) || req.get('X-Admin-Device') || '';
+                display = displayControl.isAdminDevice(dev);
+                payload = display ? displayControl.applyOverrides(payload)
+                    : Object.assign({}, payload, { active: [], resolved: [], counts: { high: 0, watch: 0, resolved: 0 } });
+            } else { // off
+                display = false;
+                payload = Object.assign({}, payload, { active: [], resolved: [], counts: { high: 0, watch: 0, resolved: 0 } });
+            }
+        }
+        payload = Object.assign({}, payload, { audience, display });
         return res.status(200).send(JSON.stringify(payload));
     } catch (err) {
         // 진짜 예기치 못한 경우에도 빈 200 선호(UI graceful degradation).
