@@ -42,6 +42,7 @@
 
     function statusBadge(zone, st) {
         if (st.hidden) return '<span class="advm-st advm-st-del">삭제됨</span>';
+        if (st.resolved) return '<span class="advm-st advm-st-on">해소전환</span>';
         if (st.stopped) return '<span class="advm-st advm-st-stop">표출중지</span>';
         if (st.edited) return '<span class="advm-st advm-st-edit">수정됨</span>';
         return '<span class="advm-st advm-st-on">표출중</span>';
@@ -52,6 +53,7 @@
         s = s || {};
         var mode = s.mode || 'off';
         var hidden = s.hidden || {}, stopped = s.stopped || {}, edits = s.edits || {};
+        var resolvedZ = s.resolvedZ || {};
         var preds = Array.isArray(s.predictions) ? s.predictions : [];
 
         var html = '';
@@ -84,19 +86,20 @@
                 var zone = p.zone || '';
                 var gKey = (p.grade && p.grade.key) || 'watch';
                 var gLabel = (p.grade && p.grade.label) || (gKey === 'high' ? '높음' : '관심');
-                var st = { hidden: !!hidden[zone], stopped: !!stopped[zone], edited: !!edits[zone] };
+                var st = { hidden: !!hidden[zone], stopped: !!stopped[zone], edited: !!edits[zone], resolved: !!resolvedZ[zone] };
                 var ed = edits[zone] || {};
                 var prob = (ed.probPct != null) ? ed.probPct : p.probPct;
-                html += '<div class="advm-item' + (st.hidden || st.stopped ? ' off' : '') + '">';
+                html += '<div class="advm-item' + (st.hidden || st.stopped || st.resolved ? ' off' : '') + '">';
                 html += '  <div class="advm-item-head">';
                 html += '    <span class="advm-zone">' + esc(zone) + '</span>';
                 html += '    <span class="advm-grade advm-grade-' + gKey + '">' + esc((ed.gradeKey ? (ed.gradeKey === 'high' ? '높음' : '관심') : gLabel)) + ' · ' + esc(prob) + '%</span>';
                 html += '    ' + statusBadge(zone, st);
                 html += '  </div>';
                 html += '  <div class="advm-actions">';
-                if (st.hidden || st.stopped) {
+                if (st.hidden || st.stopped || st.resolved) {
                     html += '<button class="advm-btn" onclick="window.__advmRestore(\'' + esc(zone) + '\')">복귀</button>';
                 } else {
+                    html += '<button class="advm-btn" onclick="window.__advmResolve(\'' + esc(zone) + '\')">해소로</button>';
                     html += '<button class="advm-btn" onclick="window.__advmHide(\'' + esc(zone) + '\',false)">표출중지</button>';
                     html += '<button class="advm-btn advm-btn-danger" onclick="window.__advmHide(\'' + esc(zone) + '\',true)">삭제</button>';
                 }
@@ -136,6 +139,10 @@
     };
     window.__advmRestore = function (zone) {
         api('/api/admin/advisory-display/restore', { zone: zone }).then(function () { toast('복귀'); load(); });
+    };
+    window.__advmResolve = function (zone) {
+        if (typeof confirm === 'function' && !confirm(zone + ' 예측을 \'최근 해소\'로 보낼까요? (사용자에게 해소로 표시)')) return;
+        api('/api/admin/advisory-display/resolve', { zone: zone }).then(function () { toast('해소 전환'); load(); });
     };
     window.__advmEdit = function (zone) { _editing = zone; load(); };
     window.__advmCancelEdit = function () { _editing = null; load(); };

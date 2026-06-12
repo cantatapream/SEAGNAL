@@ -52,7 +52,7 @@ const emptyData = { baseTimeKST: '2026061021', active: [], resolved: [], counts:
     checks.push(['카드 아코디언(adv-card-head)', html.includes('adv-card-head')]);
     checks.push(['카드 이모지 제거(🔴 없음)', !html.includes('🔴')]);
     checks.push(['최근 해소 포함', html.includes('최근 해소')]);
-    checks.push(['새 면책문구', html.includes(DISCLAIMER)]);
+    checks.push(['새 면책문구(최상단)', html.includes(DISCLAIMER) && html.indexOf('adv-disclaimer-top') < html.indexOf(ZONE_HIGH)]);
     checks.push(['기준시각 바디에 없음(헤더로 이동)', !html.includes('기준')]);
     checks.push(['high가 watch보다 앞', html.indexOf(ZONE_HIGH) !== -1 && html.indexOf(ZONE_HIGH) < html.indexOf(ZONE_WATCH)]);
     const failed = checks.filter((c) => !c[1]).map((c) => c[0]);
@@ -72,13 +72,13 @@ const emptyData = { baseTimeKST: '2026061021', active: [], resolved: [], counts:
     record('case2_filter', failed.length === 0, failed.length === 0 ? '필터 정상' : '실패: ' + failed.join(', '));
 })();
 
-// Case 3: 빈 데이터
+// Case 3: 빈 데이터 — 면책문구도 미표출(예측 정보 있을 때만)
 (function () {
     const html = buildAdvisoryHtml(emptyData, () => true);
     const checks = [];
     checks.push(['빈 안내 문구', html.includes('예측된 특보가 없습니다')]);
     checks.push(['최근 해소 섹션 없음', !html.includes('최근 해소')]);
-    checks.push(['면책문구 유지', html.includes(DISCLAIMER)]);
+    checks.push(['면책문구 미표출(빈 상태)', !html.includes(DISCLAIMER)]);
     const failed = checks.filter((c) => !c[1]).map((c) => c[0]);
     record('case3_empty', failed.length === 0, failed.length === 0 ? '빈 상태 정상' : '실패: ' + failed.join(', '));
 })();
@@ -107,7 +107,7 @@ const emptyData = { baseTimeKST: '2026061021', active: [], resolved: [], counts:
     const checks = [];
     checks.push(['high 배지(🔴 1)', hs.includes('🔴') && hs.includes('1')]);
     checks.push(['watch 배지(🟡 1)', hs.includes('🟡')]);
-    checks.push(['해소 배지', hs.includes('해소')]);
+    checks.push(['해소 배지(초록원+체크, 숫자만)', hs.includes('adv-dot-check') && !hs.includes('해소')]);
     checks.push(['필터 후 high만(🟡 미포함)', hsHighOnly.includes('🔴') && !hsHighOnly.includes('🟡')]);
     checks.push(['빈 데이터 "예측 없음"', hsEmpty.includes('예측 없음')]);
     const failed = checks.filter((c) => !c[1]).map((c) => c[0]);

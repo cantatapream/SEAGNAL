@@ -10933,3 +10933,37 @@ body.mc-fullscreen-active {
     border: 1px solid #2a3340; border-radius: 7px; padding: 5px 8px; font-size: 0.82rem; margin-left: 6px; }
 .advm-edit textarea { width: 100%; margin-left: 0; margin-top: 4px; resize: vertical; }
 .advm-edit-actions { display: flex; gap: 6px; }
+
+/* ── 특보 예측 헤더 컴팩트 개편 (해소 🟢숫자 · beta 제목 위 · ⓘ 간격 절반 · 배지 줄바꿈 쌓임) ── */
+/* beta — 제목("해역") 위쪽, 축소판. 절대배치라 줄 높이를 거의 안 키움 */
+.gradient-prediction .adv-title-col { position: relative; padding-top: 11px; }
+.adv-beta-badge.adv-beta-above {
+    position: absolute; top: -2px; left: 0; margin: 0;
+    font-size: 0.44rem; padding: 1px 5px; border-width: 1px;
+}
+/* ⓘ — 제목과의 간격 절반(8→4px), 버튼도 살짝 축소 */
+.gradient-prediction .adv-title-row { gap: 4px; }
+.gradient-prediction .adv-info-btn { width: 19px; height: 19px; font-size: 11px; }
+/* 우측 상태배지 — 가로 한 줄 기본, 공간 부족 시 줄바꿈(세로 쌓임) */
+.gradient-prediction .header-status {
+    display: flex; flex-wrap: wrap; justify-content: flex-end; align-content: center;
+    gap: 4px; max-width: 42%; flex-shrink: 0;
+}
+.gradient-prediction .header-status .adv-badge { margin-left: 0; padding: 1px 7px; font-size: 0.72rem; }
+/* 헤더 상하 패딩 축소 — 다른 아코디언과 비슷한 높이로 */
+.main-accordion-header.gradient-prediction { padding-top: 8px; padding-bottom: 9px; }
+
+/* ── 해역 카드 슬림화 — 특보현황 부모 해역 아코디언 수준 ── */
+.adv-card { border-radius: 10px; }
+.adv-card-head { padding: 7px 12px; gap: 7px; }
+.adv-card-head .adv-zone { font-size: 0.88rem; }
+.adv-badge2 { font-size: 0.68rem; padding: 2px 8px; }
+.adv-card-chev { font-size: 10px; }
+
+/* 해소 배지 — 🔴/🟡 이모지와 동일 크기·스타일의 초록 원 + 흰 체크 */
+.adv-dot-check {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 12px; height: 12px; border-radius: 50%; vertical-align: -1px;
+    background: radial-gradient(circle at 35% 30%, #4ade80, #16a34a 75%);
+    color: #fff; font-size: 9px; line-height: 1; font-weight: 800;
+}

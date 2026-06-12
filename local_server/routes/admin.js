@@ -2054,7 +2054,8 @@ router.get('/api/admin/advisory-display/state', (req, res) => {
             baseTimeKST = raw.baseTimeKST || null;
         } catch (_) { /* 상태 없음 — 기본값 */ }
         res.json({
-            mode: s.mode, hidden: s.hidden, stopped: s.stopped, edits: s.edits, updatedAt: s.updatedAt,
+            mode: s.mode, hidden: s.hidden, stopped: s.stopped, edits: s.edits,
+            resolvedZ: s.resolvedZ, updatedAt: s.updatedAt,
             predictions, resolvedCount, baseTimeKST,
         });
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -2109,7 +2110,19 @@ router.post('/api/admin/advisory-display/clear-edit', (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 해소 목록 즉시 비우기 — advisory_state.json 의 resolved 를 [] 로 (나머지 필드 보존).
+// 구역 해소 전환 (body: { zone }) — active 에서 빼고 사용자 '최근 해소'에 합성 표출(24h)
+router.post('/api/admin/advisory-display/resolve', (req, res) => {
+    try {
+        const zone = req.body && req.body.zone;
+        if (!zone) return res.status(400).json({ error: 'zone 필요' });
+        advDisplay.resolveZone(zone);
+        console.log(`[AdvisoryDisplay] 해소 전환: ${zone}`);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 해소 목록 즉시 비우기 — advisory_state.json 의 resolved 를 [] 로 (나머지 필드 보존)
+//   + 관리자 해소 전환(합성) 항목도 함께 비움.
 //   용도: 전환기 잔재(구엔진 해소 항목) 등을 24h 자연만료 전에 정리하고 공개 전환.
 router.post('/api/admin/advisory-display/clear-resolved', (req, res) => {
     try {
@@ -2119,7 +2132,8 @@ router.post('/api/admin/advisory-display/clear-resolved', (req, res) => {
         raw.resolved = [];
         raw.updatedAt = new Date().toISOString();
         fs.writeFileSync(ADV_STATE_FILE, JSON.stringify(raw, null, 2), 'utf8');
-        console.log(`[AdvisoryDisplay] 해소 목록 비움 (${cleared}건)`);
+        try { advDisplay.clearAdminResolved(); } catch (_) { /* graceful */ }
+        console.log(`[AdvisoryDisplay] 해소 목록 비움 (${cleared}건 + 합성)`);
         res.json({ success: true, cleared });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });

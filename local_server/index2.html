@@ -2315,11 +2315,6 @@
                         style="margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">
                         <img src="./assets/sun_cloud_icon.png" alt="Weather Icon" style="width: 24px; height: 24px;">
                         기상정보
-                        <button class="info-btn info-btn-small"
-                            onclick="event.stopPropagation(); showWeatherAlertInfoPopup()" title="이용안내"
-                            style="margin-left: 0;">
-                            <i class="fa-solid fa-circle-info" style="color: white;"></i>
-                        </button>
                     </h2>
 
                     <!-- 기상청 바로가기 위젯 [New] -->
@@ -2399,9 +2394,9 @@
                     <div class="adv-title-wrap">
                         <i class="fa-solid fa-wand-magic-sparkles adv-wand"></i>
                         <div class="adv-title-col">
+                            <sup class="adv-beta-badge adv-beta-above" aria-label="beta">beta</sup>
                             <div class="adv-title-row">
-                                <h2 class="section-title" style="margin: 0;">해역별 특보 예측<sup
-                                        class="adv-beta-badge" aria-label="beta">beta</sup></h2>
+                                <h2 class="section-title" style="margin: 0;">해역별 특보 예측</h2>
                                 <button type="button" class="adv-info-btn" aria-label="예측 설명"
                                     onclick="event.stopPropagation(); window.openAdvisoryInfo&amp;&amp;window.openAdvisoryInfo()">i</button>
                             </div>

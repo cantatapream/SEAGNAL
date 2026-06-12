@@ -104,7 +104,7 @@
         const parts = [];
         if (high > 0) parts.push('<span class="adv-badge adv-badge-high">🔴 ' + high + '</span>');
         if (watch > 0) parts.push('<span class="adv-badge adv-badge-watch">🟡 ' + watch + '</span>');
-        if (rc > 0) parts.push('<span class="adv-badge adv-badge-resolved">✓ 해소 ' + rc + '</span>');
+        if (rc > 0) parts.push('<span class="adv-badge adv-badge-resolved"><span class="adv-dot-check">✓</span> ' + rc + '</span>');
         return parts.join('');
     }
 
@@ -133,6 +133,9 @@
         if (sortedActive.length === 0 && fResolved.length === 0) {
             html.push('<div class="adv-empty">현재 예측된 특보가 없습니다.</div>');
         } else {
+            // 면책문구 — 바디 최상단(아코디언 바로 아래), 예측 정보가 있을 때만
+            html.push('<div class="adv-disclaimer adv-disclaimer-top">※ 본 예측은 위험기상일기도 분석 및 ' +
+                '과거 특보 데이터 기반 자체 예측 결과입니다.</div>');
             if (sortedActive.length > 0) {
                 html.push('<div class="adv-active-list">');
                 sortedActive.forEach(function (it) {
@@ -174,8 +177,6 @@
             }
         }
 
-        html.push('<div class="adv-disclaimer">※ 본 예측은 위험기상일기도 분석 및 ' +
-            '과거 특보 데이터 기반 자체 예측 결과입니다.</div>');
         html.push('</div>');
         return html.join('');
     }
@@ -198,11 +199,10 @@
         const hs = document.querySelector('#advisory-prediction-accordion-header .header-status');
         if (hs) hs.innerHTML = buildHeaderStatus(d, visFn);
 
-        // 제목 라벨(관심해역 필터 시 문구 변경) — 아이콘/ⓘ 는 정적 마크업이라 건드리지 않음.
+        // 제목 라벨(관심해역 필터 시 문구 변경) — beta 는 제목 위 별도 요소(정적 마크업).
         const titleEl = document.querySelector('#advisory-prediction-accordion-header .section-title');
         if (titleEl) {
-            const label = isFilteredState() ? '관심해역 특보 예측' : '해역별 특보 예측';
-            titleEl.innerHTML = label + '<sup class="adv-beta-badge" aria-label="beta">beta</sup>';
+            titleEl.textContent = isFilteredState() ? '관심해역 특보 예측' : '해역별 특보 예측';
         }
 
         // 기준시각 레이어(흰색, KST)
