@@ -118,6 +118,11 @@ function analyzeByIndices(decoded, indices, opt = {}) {
     if (typeof classify !== 'function') return null;
     const ge3Level = opt.ge3Level != null ? opt.ge3Level : 3.0;
     const ge5Level = opt.ge5Level != null ? opt.ge5Level : 5.0;
+    // opt.collectDanger — 위험영역(임계 초과) 픽셀의 위치(전역 인덱스)를 수집해 반환.
+    //   일기도 오버레이에서 ge3(거침) 연한색·ge5(경보) 진한색으로 칠하는 데 사용.
+    const collect = !!opt.collectDanger;
+    const dGE3 = collect ? [] : null;
+    const dGE5 = collect ? [] : null;
     const hist = new Map();
     let sampled = 0, ge3 = 0, ge5 = 0;
     for (let k = 0; k < indices.length; k++) {
@@ -128,8 +133,8 @@ function analyzeByIndices(decoded, indices, opt = {}) {
         if (band == null) continue;
         sampled++;
         hist.set(band, (hist.get(band) || 0) + 1);
-        if (band >= ge3Level) ge3++;
-        if (band >= ge5Level) ge5++;
+        if (band >= ge3Level) { ge3++; if (dGE3) dGE3.push(p); }
+        if (band >= ge5Level) { ge5++; if (dGE5) dGE5.push(p); }
     }
     let maxBand = 0;
     for (const [band, n] of hist) if (n >= minBandPixels && band > maxBand) maxBand = band;
@@ -137,6 +142,7 @@ function analyzeByIndices(decoded, indices, opt = {}) {
         maxBand, pixelsGE3: ge3, pixelsGE5: ge5, sampled,
         areaFraction: sampled ? ge3 / sampled : 0,
         histogram: Object.fromEntries([...hist.entries()].sort((a, b) => a[0] - b[0])),
+        dangerGE3: dGE3, dangerGE5: dGE5,
     };
 }
 
