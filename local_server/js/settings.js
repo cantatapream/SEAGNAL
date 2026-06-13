@@ -651,6 +651,11 @@ function saveSettingsAndClose() {
     if (typeof loadRegionalForecast === 'function') {
         loadRegionalForecast();
     }
+    // [작업7] 해역별 특보 예측 섹션도 즉시 반영 — 보관된 마지막 data 로 재렌더
+    // (데이터 재요청 없이 헤더 문구·카드 필터를 관심해역 토글에 맞춰 갱신).
+    if (typeof window.rerenderAdvisoryPrediction === 'function') {
+        window.rerenderAdvisoryPrediction();
+    }
 }
 
 /**
