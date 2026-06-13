@@ -875,6 +875,8 @@
             '<div class="mudflat-popup-row mudflat-popup-coord">' + toDMS(cell.lat, cell.lon) + '</div>';
         _popupOverlay.setPosition(coordinate);
         el.style.display = 'block';
+        // 클릭한 지점을 화면 중앙으로 부드럽게 이동(팝업·핀은 지도 좌표에 고정돼 함께 따라옴).
+        try { if (_map) _map.getView().animate({ center: coordinate, duration: 350 }); } catch (e) {}
         var closeBtn = $('mudflat-popup-close');
         if (closeBtn) closeBtn.onclick = function () {
             hidePopup();
