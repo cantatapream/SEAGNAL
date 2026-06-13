@@ -19,11 +19,13 @@
  */
 const zlib = require('zlib');
 
-// 등급색: 높음=빨강, 관심=노랑(약간 주황기).
+// 등급색 — 일기도 풍속 팔레트(파·녹·노·주·빨)와 겹치지 않는 대비색.
+//   높음=자홍(마젠타), 관심=보라. 어느 배경 위에서도 식별된다.
 const GRADE_COLOR = {
-    high: [230, 45, 45],
-    watch: [240, 190, 30],
+    high: [235, 0, 140],
+    watch: [150, 60, 235],
 };
+const BORDER_HALO = [255, 255, 255]; // 테두리 흰색 외곽(가독성)
 
 // ── 픽셀 합성 헬퍼 ──────────────────────────────────────────────────────────
 function blendIndices(rgb, indices, color, alpha) {
@@ -116,10 +118,13 @@ function renderZoneOverlay({ decoded, cal, polys, dGE3, dGE5, gradeKey }) {
     const rgb = Buffer.alloc(w * h * 3);
     for (let i = 0; i < w * h; i++) { rgb[i * 3] = rgba[i * 4]; rgb[i * 3 + 1] = rgba[i * 4 + 1]; rgb[i * 3 + 2] = rgba[i * 4 + 2]; }
     const color = GRADE_COLOR[gradeKey] || GRADE_COLOR.watch;
-    // 위험영역 색칠: ge3(거침) 연한 → ge5(경보) 진한. ge5 를 나중에 칠해 위로 덮음.
-    blendIndices(rgb, dGE3, color, 0.30);
-    blendIndices(rgb, dGE5, color, 0.55);
-    // 구역 테두리(불투명, 2px).
+    // 위험영역 색칠 — 해당 구역 폴리곤 내부의 임계초과 픽셀에만(dGE3/dGE5 는 이미
+    //   그 구역 인덱스로 한정 → 인접 구역엔 칠하지 않음). 배경 풍속색과 대비되도록
+    //   진하게: ge3(거침) 0.45, ge5(경보) 0.75. ge5 를 나중에 칠해 위로 덮음.
+    blendIndices(rgb, dGE3, color, 0.45);
+    blendIndices(rgb, dGE5, color, 0.75);
+    // 구역 테두리 — 흰색 외곽(4px) 위에 등급색(2px) → 어떤 배경에서도 또렷.
+    drawPolygonBorder(rgb, w, h, cal, polys, BORDER_HALO, 4);
     drawPolygonBorder(rgb, w, h, cal, polys, color, 2);
     return encodePng(w, h, rgb);
 }
