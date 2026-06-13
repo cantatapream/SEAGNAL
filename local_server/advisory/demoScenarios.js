@@ -32,12 +32,38 @@ const HIGH = { key: 'high', label: '높음', emoji: '🔴' };
 const WATCH = { key: 'watch', label: '관심', emoji: '🟡' };
 const BASE = '2026061021';
 
+// 실제 엔진(predictionEngine.js)이 만드는 오버레이 URL 규칙과 동일하게 목업 경로 생성.
+//   base: /uploads/advisory/<zone>.png  ·  blink: /uploads/advisory/<zone>_danger.png
+const OVERLAY_URL_BASE = '/uploads/advisory';
+function overlayUrls(zone) {
+    const enc = encodeURIComponent(zone);
+    return { overlay: `${OVERLAY_URL_BASE}/${enc}.png`, overlayBlink: `${OVERLAY_URL_BASE}/${enc}_danger.png` };
+}
+
+// 기상청 단기전망 병기(kmaForecast) — 실제 crossReference.js 산출 형태와 1:1.
+//   { windSpeed, windKtMs, waveHeight, periodLabel, office, publishTime, publishLabel, outlook }
+function kmaRef({ windKtMs, waveHeight, periodLabel, office, outlook }) {
+    return {
+        windSpeed: null,
+        windKtMs: windKtMs || null,
+        waveHeight: waveHeight || null,
+        periodLabel: periodLabel || null,
+        office: office || null,
+        publishTime: BASE,
+        publishLabel: `${BASE.slice(4, 6)}/${BASE.slice(6, 8)} ${BASE.slice(8, 10)}:00 발표`,
+        outlook: outlook || null,
+    };
+}
+
 function pred(zone, grade, probPct, windKt, waveM, onsetLabel, kma) {
     const windMs = Math.round(windKt * 0.514444);
+    const ovl = overlayUrls(zone);
     const p = {
         office: 'demo', zone, lat: 33, lon: 126,
         grade, probPct, windKt, windMs, waveM,
         onsetISO: '2026-06-13T12:00:00.000Z', onsetLabel,
+        // 실제 카드와 동일하게 "위험기상 일기도 보기" 버튼이 뜨도록 오버레이 경로 부착
+        overlay: ovl.overlay, overlayBlink: ovl.overlayBlink,
         narrative: `${zone} 일기도를 분석한 결과, ${onsetLabel}경 풍속이 ~${windKt}kt(${windMs}m/s), ` +
             `파고 ~${waveM}m 로 예상됩니다. 과거 유사 패턴 기준 발효 가능성 ${probPct}%(${grade.emoji}${grade.label}).`,
     };
@@ -62,10 +88,11 @@ function payload(active, resolved) {
 const SCENARIOS = {
     high_single: {
         title: '🔴 높음 1건 (기상청 병기 일치)',
-        desc: '제주도남쪽바깥먼바다 80% · 풍속~30kt, 기상청 단기예보 병기 표시',
+        desc: '제주도남쪽바깥먼바다 80% · 풍속~30kt, 기상청 단기예보 병기 + 일기도 보기',
         payload: payload([
             pred('제주도남쪽바깥먼바다', HIGH, 80, 30, 2.5, '6/13(토) 밤',
-                { windSpeed: '13~17', waveHeight: '2.0~3.0', periodLabel: '6/13(토) 오후', publishTime: BASE }),
+                kmaRef({ windKtMs: '25~33kt(13~17m/s)', waveHeight: '2.0~3.0', periodLabel: '6/13(토) 오후',
+                    office: '제주지방기상청', outlook: '저기압의 영향으로 바람이 강하게 불고 물결이 높게 일겠음.' })),
         ], []),
     },
     watch_single: {
@@ -73,7 +100,8 @@ const SCENARIOS = {
         desc: '서해남부남쪽바깥먼바다 63% · 풍속~25kt',
         payload: payload([
             pred('서해남부남쪽바깥먼바다', WATCH, 63, 25, 2, '6/13(토) 새벽',
-                { windSpeed: '10~14', waveHeight: '1.5~2.5', periodLabel: '6/13(토) 오전', publishTime: BASE }),
+                kmaRef({ windKtMs: '19~27kt(10~14m/s)', waveHeight: '1.5~2.5', periodLabel: '6/13(토) 오전',
+                    office: '광주지방기상청', outlook: '기압골의 영향으로 바람이 다소 강하게 불겠음.' })),
         ], []),
     },
     mixed: {
@@ -81,12 +109,15 @@ const SCENARIOS = {
         desc: '여러 해역 동시 표출 + 정렬(높음 우선) 확인',
         payload: payload([
             pred('서해남부남쪽안쪽먼바다', HIGH, 95, 15, 6, '6/12(금) 새벽',
-                { windSpeed: '12~16', waveHeight: '5.0~6.0', periodLabel: '6/12(금) 오전', publishTime: BASE }),
+                kmaRef({ windKtMs: '23~31kt(12~16m/s)', waveHeight: '5.0~6.0', periodLabel: '6/12(금) 오전',
+                    office: '광주지방기상청', outlook: '발달한 저기압의 영향으로 물결이 매우 높게 일겠음.' })),
             pred('제주도남쪽바깥먼바다', HIGH, 80, 30, 2.5, '6/13(토) 밤',
-                { windSpeed: '13~17', waveHeight: '2.0~3.0', periodLabel: '6/13(토) 오후', publishTime: BASE }),
+                kmaRef({ windKtMs: '25~33kt(13~17m/s)', waveHeight: '2.0~3.0', periodLabel: '6/13(토) 오후',
+                    office: '제주지방기상청', outlook: '저기압의 영향으로 바람이 강하게 불고 물결이 높게 일겠음.' })),
             pred('동해북부앞바다', WATCH, 63, 25, 2.5, '6/13(토) 새벽', null),
             pred('제주도남부앞바다', WATCH, 63, 25, 2, '6/14(일) 오후',
-                { windSpeed: '9~13', waveHeight: '1.5~2.0', periodLabel: '6/14(일) 오후', publishTime: BASE }),
+                kmaRef({ windKtMs: '17~25kt(9~13m/s)', waveHeight: '1.5~2.0', periodLabel: '6/14(일) 오후',
+                    office: '제주지방기상청', outlook: '바람이 다소 강하게 불겠음.' })),
         ], []),
     },
     with_resolved: {
@@ -94,7 +125,8 @@ const SCENARIOS = {
         desc: '활성 예측과 "최근 해소" 서브섹션 동시 표출',
         payload: payload([
             pred('제주도남쪽바깥먼바다', HIGH, 80, 30, 2.5, '6/13(토) 밤',
-                { windSpeed: '13~17', waveHeight: '2.0~3.0', periodLabel: '6/13(토) 오후', publishTime: BASE }),
+                kmaRef({ windKtMs: '25~33kt(13~17m/s)', waveHeight: '2.0~3.0', periodLabel: '6/13(토) 오후',
+                    office: '제주지방기상청', outlook: '저기압의 영향으로 바람이 강하게 불고 물결이 높게 일겠음.' })),
         ], [
             {
                 zone: '제주도남서쪽안쪽먼바다', office: 'demo', reason: 'forecast_eased',

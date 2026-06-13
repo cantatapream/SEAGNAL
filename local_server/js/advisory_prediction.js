@@ -203,7 +203,6 @@
                     html.push('<span class="adv-zone">' + zone + '</span>');
                     if (chgBadge) html.push(chgBadge);
                     html.push('<span class="adv-badge2 adv-badge2-' + gKey + '">' + badgeTxt + '</span>');
-                    html.push('<span class="adv-card-chev">▼</span>');
                     html.push('</div>');
                     html.push('<div class="adv-card-body">');
                     html.push('<div class="adv-card-hr"></div>');
@@ -237,8 +236,13 @@
     }
 
     // ── DOM 와이어링 ──
+    // 관심해역 토글 즉시 반영용: 마지막으로 렌더에 쓴 data 를 보관해 두고,
+    // 설정 저장 신호가 오면 데이터 재요청 없이 그 data 로 다시 렌더한다.
+    let _lastData = null;
+
     function renderAdvisoryPrediction(data) {
         if (typeof document === 'undefined') return;
+        _lastData = data || _lastData;
         const visFn = function (z) {
             try {
                 if (typeof UserSettings !== 'undefined' && UserSettings &&
@@ -263,6 +267,17 @@
         // 기준시각 레이어(흰색, KST)
         const bt = document.getElementById('adv-basetime-layer');
         if (bt) bt.textContent = formatBaseTime(d.baseTimeKST);
+    }
+
+    // 관심해역 on/off 즉시 반영: 보관된 마지막 data 로 헤더 문구/카드 목록을
+    // 데이터 재요청 없이 다시 렌더한다(설정 저장 신호에 등록됨).
+    function rerenderAdvisoryPrediction() {
+        if (typeof document === 'undefined') return;
+        // 아코디언이 표출 중(헤더가 안 숨겨짐)일 때만 + 보관된 data 가 있을 때만.
+        const h = document.getElementById('advisory-prediction-accordion-header');
+        if (!h || h.style.display === 'none') return;
+        if (!_lastData) return;
+        renderAdvisoryPrediction(_lastData);
     }
 
     // 통합관리자센터 '관리자 모드'가 체크된 기기면 'admin' 모드 표출 인가를 받는다.
@@ -366,6 +381,7 @@
         window.toggleAdvisoryPredictionAccordion = toggleAdvisoryPredictionAccordion;
         window.loadAdvisoryPrediction = loadAdvisoryPrediction;
         window.renderAdvisoryPrediction = renderAdvisoryPrediction;
+        window.rerenderAdvisoryPrediction = rerenderAdvisoryPrediction;
         window.buildAdvisoryHtml = buildAdvisoryHtml;
         window.buildHeaderStatus = buildHeaderStatus;
         window.toggleAdvisoryCard = toggleAdvisoryCard;
