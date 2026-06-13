@@ -476,12 +476,19 @@
      * @param {boolean} visible - 원하는 가시 상태 (true=ON, false=OFF)
      * @returns {boolean} 토글 버튼이 존재해 처리 가능했으면 true
      */
-    window.setMarineZoneGridVisible = function (visible) {
+    window.setMarineZoneGridVisible = function (visible, _attempt) {
         const btn = document.getElementById('ocean-marine-zone-toggle-btn');
         if (!btn) return false;
         const isActive = btn.classList.contains('active');
         if (isActive !== !!visible) {
             btn.click();   // 토글 핸들러 + 토스트가 같이 발화 → 상태 일관성 보장
+            // [최초 로드 대응] 지도 빌드 전이면 토글 핸들러가 아직 안 묶여 click 이
+            //   무시될 수 있다(.active 가 안 바뀜). 실제 적용될 때까지 폴링 재시도.
+            if (btn.classList.contains('active') !== !!visible && (_attempt || 0) < 40) {
+                setTimeout(function () {
+                    window.setMarineZoneGridVisible(visible, (_attempt || 0) + 1);
+                }, 150);
+            }
         }
         return true;
     };
@@ -716,6 +723,10 @@
             oceanMap = new ol.Map({
                 target: 'ocean-map',
                 layers: layers,
+                // [버그수정] 터치 미세 흔들림으로 첫 탭이 '드래그(팬)'로 분류되어
+                //   'click' 이벤트가 소실되는 문제 방지. 기본 1px → 6px 로 완화하여
+                //   터치 탭이 클릭으로 안정적으로 인정되게 함. (부이/마커 첫 클릭 미표출 해결)
+                moveTolerance: 6,
                 view: new ol.View({
                     center: ol.proj.fromLonLat(DEFAULT_CENTER),
                     zoom: DEFAULT_ZOOM,

@@ -120,10 +120,29 @@ const REGIONAL_BULLETIN_AI_PROMPT = `
 - "날씨해설 다운로드", "첨부파일 다운로드" 같은 부가 텍스트는 제거.
 - 원문에 없는 내용은 추가하지 않고, 텍스트 자체는 변경하지 않으며 마크업만 추가.
 
-### 3. 출력 형식 (반드시 JSON만, 추가 설명 금지)
+### 3. 해상구역별 전망 추출 (marineOutlooks)
+본문에서 해상 특보구역(…안쪽먼바다/…바깥먼바다/…먼바다/…앞바다/전해상 등) 단위의
+바람·물결 전망을 구역별로 추출한다. 각 항목은 sentence(문장) + wind/wave(수치)로 구성한다.
+- sentence 규칙: 시점 표현(오늘/내일/모레(N일) 오전·오후 등) 보존, 수치·단위(괄호 포함) 제거,
+  "항해나 조업하는 선박은 유의…", "앞으로 발표하는 기상정보를 참고…" 등 행동지침 제거,
+  마크업({{..}}) 없이 평문, "~겠음" 종결로 간결하게.
+- wind 규칙: 그 구역 바람의 풍속을 m/s 범위 문자열로(괄호 안 m/s 값). 예 "30~50km/h(9~14m/s)" → "9~14".
+  단일값이면 "12". 풍속 수치가 없으면 null.
+- wave 규칙: 그 구역 물결(파고)을 m 범위 문자열로. 예 "1.5~3.0m" → "1.5~3.0". 단일값이면 "2.0".
+  파고 수치가 없으면 null.
+  예) 원문 "모레(14일) 오후부터 제주도남쪽바깥먼바다에는 차차 바람이 30~50km/h(9~14m/s)로
+      강하게 불고, 물결이 1.5~3.0m로 높게 일겠으니, 항해나 조업하는 선박은 유의하기 바라며…"
+      → { "zone": "제주도남쪽바깥먼바다",
+          "sentence": "모레(14일) 오후부터 차차 바람이 강하게 불고 물결이 높게 일겠음",
+          "wind": "9~14", "wave": "1.5~3.0" }
+- zone 은 본문에 등장한 구역명 그대로(여러 구역이 묶이면 그 묶음 표현 그대로).
+- 해당 내용이 없으면 빈 배열 [].
+
+### 4. 출력 형식 (반드시 JSON만, 추가 설명 금지)
 
 {
-  "summary": "마크업이 적용된 전체 본문 텍스트 (줄바꿈 보존)"
+  "summary": "마크업이 적용된 전체 본문 텍스트 (줄바꿈 보존)",
+  "marineOutlooks": [{ "zone": "구역명", "sentence": "전망 문장", "wind": "9~14"|null, "wave": "1.5~3.0"|null }]
 }
 `;
 
@@ -448,19 +467,22 @@ async function processOneOffice(office) {
         //     안전하게 그려주므로, 색칠 실패 시에도 사용자는 통보문 내용을 즉시 볼 수 있다.
         //   - aiColored=false 로 캐시/저장해 다음 사이클에 재색칠을 시도한다.
         const ai = await analyzeBulletinWithAI(rawText);
-        let summary, aiColored;
+        let summary, aiColored, marineOutlooks;
         if (ai && ai.summary) {
             summary = ai.summary;
             aiColored = true;
+            marineOutlooks = Array.isArray(ai.marineOutlooks) ? ai.marineOutlooks : [];
         } else if (cached && cached.summary && (cached.aiColored === true || /\{\{(loc|num|warn):/.test(cached.summary))) {
             // 재색칠 실패했지만 이미 색칠본을 보유 → 원문으로 후퇴하지 않고 기존 색칠본 유지.
             summary = cached.summary;
             aiColored = true;
+            marineOutlooks = Array.isArray(cached.marineOutlooks) ? cached.marineOutlooks : [];
             console.log(`[RegionalBulletin] ${office.name}: AI 재색칠 실패 → 기존 색칠본 유지`);
         } else {
             // 색칠본이 전혀 없으면 원문 텍스트로라도 표출 (다음 사이클 재색칠 시도).
             summary = rawText;
             aiColored = false;
+            marineOutlooks = [];
         }
 
         const result = {
@@ -470,6 +492,7 @@ async function processOneOffice(office) {
             rawText,
             summary,
             aiColored,
+            marineOutlooks,
             collectedAt: new Date().toISOString()
         };
 
@@ -556,6 +579,7 @@ async function collectAllRegionalBulletins() {
             bulletinReportId: result.reportId,
             bulletinPublishTime: result.publishTime,
             summary: result.summary,
+            marineOutlooks: Array.isArray(result.marineOutlooks) ? result.marineOutlooks : [],
             bulletinColored: result.aiColored !== false,
             collectedAt: result.collectedAt,
         };

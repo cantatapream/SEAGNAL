@@ -127,9 +127,14 @@
         if (!isFinite(n)) n = 0;
         OS.state.date = new Date(Date.now() + n * 60 * 60 * 1000);
         OS.renderHeader();
-        // 천기 카드 — 새 시각으로 다시 sample. 캐시 적중 시 즉답.
-        if (typeof OS.loadWeatherCard === 'function' && OS.state.lat != null && OS.state.lon != null) {
-            OS.loadWeatherCard(OS.state.lat, OS.state.lon, OS.state.date);
+        // 천기/시정 카드 — 새 시각으로 다시 sample. 캐시 적중 시 즉답.
+        if (OS.state.lat != null && OS.state.lon != null) {
+            if (typeof OS.loadWeatherCard === 'function') {
+                OS.loadWeatherCard(OS.state.lat, OS.state.lon, OS.state.date);
+            }
+            if (typeof OS.loadVsbyCard === 'function') {
+                OS.loadVsbyCard(OS.state.lat, OS.state.lon, OS.state.date);
+            }
         }
     };
 

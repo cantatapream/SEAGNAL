@@ -444,7 +444,7 @@ async function collectRegionalForecasts(progressEmitter) {
     } catch (_) {}
 
     // [partial-merge] 통보문 수집기(regional_bulletin_collector)가 채운 필드를 보존한다.
-    //   - 보존: bulletinReportId, bulletinPublishTime, summary
+    //   - 보존: bulletinReportId, bulletinPublishTime, summary, marineOutlooks
     //   - 갱신: officeCode, officeName, publishTime(=PDF 발표시각), temperature,
     //           marineForecast, coastalForecast, collectedAt
     //   PDF 수집(05/11/17 +10분)이 통보문 수집(04/16시 윈도우)보다 늦게 돌면서 통째로

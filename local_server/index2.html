@@ -1752,6 +1752,37 @@
             color: #333;
             text-shadow: none;
         }
+
+        /* ── 해양생활 풀스크린 지도: 출처표기·범례 위치 보정 ─────────────
+           [문제] 위 .ol-attribution 규칙은 bottom 을
+             calc(--main-tab-height + 8px) 로 잡는다. 그런데 해양생활
+             풀스크린 섹션(#fishing/#surfing/#scuba/#mudflat/#ripcurrent)은
+             이미 bottom:var(--main-tab-height) 로 "탭바 위" 까지만 차지한다.
+             즉 출처표기의 기준 박스(지도 뷰포트) 바닥이 이미 탭바 위이므로,
+             거기에 탭 높이를 또 더하면 출처표기가 좌하단 범례
+             (bottom:8px, 높이 ~90px) 한가운데로 올라가 가려진다.
+           [해결] 해양생활 섹션에 한정해
+             1) 출처표기는 bottom:8px 로 내려 하단 탭바 바로 위에 둔다.
+                (섹션이 이미 탭/서브탭 위로 올라와 있어 추가 보정 불필요 —
+                 서브탭 펼침 여부와 무관하게 항상 탭바 바로 위에 위치)
+             2) 범례는 출처표기 위로 올려(bottom 34px) 서로 겹치지 않게 한다.
+             → 아래에서 위 순서: 하단 탭바 / 출처표기 / 범례
+           [범위] #ocean-map-section(해양종합)은 .ocean-legend 가 전폭 하단
+             바이므로 전역 규칙을 그대로 두고, 여기서는 건드리지 않는다. */
+        #fishing-section.tab-content.active .ol-attribution,
+        #surfing-section.tab-content.active .ol-attribution,
+        #scuba-section.tab-content.active .ol-attribution,
+        #mudflat-section.tab-content.active .ol-attribution,
+        #ripcurrent-section.tab-content.active .ol-attribution {
+            bottom: 8px !important;
+        }
+        #fishing-section.tab-content.active .fishing-legend,
+        #scuba-section.tab-content.active .fishing-legend,
+        #mudflat-section.tab-content.active .fishing-legend,
+        #ripcurrent-section.tab-content.active .fishing-legend,
+        #surfing-section.tab-content.active .surfing-legend {
+            bottom: 34px !important;
+        }
     </style>
     <script>window.__SEAGNAL_PAGE = 'index2';</script>
     <title>SEA:GNAL(바다:그 날의 신호)</title>
@@ -1767,11 +1798,16 @@
          변경: assets/vendor/fonts/fonts.css (493 @font-face, unicode-range 보존)
          → font-family 이름은 동일 (Inter / Noto Sans KR / Nanum Pen Script)
          → style.css / splash.css 등의 font-family 선언 변경 불필요 -->
+    <!-- [FOUT 방지] 스플래시 타이틀(SEA:GNAL = Inter 700, Latin) 슬라이스를 HTML 파싱
+         시점에 미리 받아 첫 페인트부터 정자체로 표시. fonts.css 파싱을 기다리지 않음.
+         crossorigin 필수(woff2 는 CORS 모드 페치 — 없으면 @font-face 가 재다운로드). -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="/assets/vendor/fonts/inter/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2">
     <link rel="stylesheet" href="/assets/vendor/fonts/fonts.css">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="style.css?v=Margin_Final_v5">
-    <link rel="stylesheet" href="splash.css?v=Badge_Update_20260101">
+    <link rel="stylesheet" href="style.css?v=LayerClip_20260612">
+    <link rel="stylesheet" href="splash.css?v=Progress_Bar_20260612">
 
 
     <!-- Font Awesome (자체 호스팅 — A안 단위 2-D 적용)
@@ -2190,8 +2226,73 @@
             <p class="splash-subtitle-start">바다 : 그 날의 신호</p>
             <h1 class="splash-title"><span class="splash-sea">SEA</span><span class="splash-accent">:</span><span
                     class="splash-gnal">GNAL</span></h1>
+            <!-- 데이터 로딩 진행 표시 (가로 바 + % + 상태문구) — js/data.js 가 갱신 -->
+            <div class="splash-progress" id="splash-progress">
+                <div class="splash-progress-row">
+                    <div class="splash-progress-track">
+                        <div class="splash-progress-fill" id="splash-progress-fill"></div>
+                    </div>
+                    <div class="splash-progress-pct" id="splash-progress-pct">0%</div>
+                </div>
+                <div class="splash-progress-label" id="splash-progress-label">앱 초기화…</div>
+            </div>
         </div>
     </div>
+    <script>
+    /* [스플래시 진행 표시] 데이터 로딩 진척도를 가로 진행바로 노출한다.
+       - window.SplashProgress.set(ceil, label): 이 단계의 상한(ceil)까지 천천히
+         차오르도록 목표를 올리고 상태 문구를 바꾼다. 단계가 길어도(머지 직후
+         첫 접속 등) 끝으로 갈수록 느려지는 creep 으로 "멈춤"처럼 보이지 않게 한다.
+       - window.SplashProgress.done(label): 즉시 100% + 완료 문구.
+       [연계] js/data.js fetchAllData() 의 각 단계에서 호출.
+       [방어] 스플래시가 이미 제거된 뒤(수동 새로고침 등)에는 대상 요소가 없어
+              자동으로 무시된다(no-op). data.js 보다 먼저 정의되어야 하므로
+              스플래시 마크업 직후 인라인으로 둔다. */
+    (function () {
+        var cur = 0, target = 0, raf = null;
+        function els() {
+            return {
+                fill:  document.getElementById('splash-progress-fill'),
+                pct:   document.getElementById('splash-progress-pct'),
+                label: document.getElementById('splash-progress-label')
+            };
+        }
+        function paint() {
+            var e = els();
+            if (!e.fill) return;
+            e.fill.style.width = cur.toFixed(1) + '%';
+            e.pct.textContent = Math.round(cur) + '%';
+        }
+        function tick() {
+            var diff = target - cur;
+            if (diff > 0.15) {
+                cur += Math.max(diff * 0.08, 0.18); // 남은 거리의 일부씩 → 점점 느려지는 creep
+                if (cur > target) cur = target;
+                paint();
+                raf = requestAnimationFrame(tick);
+            } else {
+                cur = target; paint(); raf = null;
+            }
+        }
+        function start() { if (raf == null) raf = requestAnimationFrame(tick); }
+        window.SplashProgress = {
+            set: function (ceil, label) {
+                ceil = Math.min(Math.max(ceil, 0), 100);
+                if (ceil > target) target = ceil;
+                var e = els();
+                if (e.label && label != null) e.label.textContent = label;
+                start();
+            },
+            done: function (label) {
+                target = 100; cur = 100;
+                if (raf) { cancelAnimationFrame(raf); raf = null; }
+                var e = els();
+                if (e.fill) { e.fill.style.width = '100%'; e.pct.textContent = '100%'; }
+                if (e.label) { e.label.textContent = label || '완료'; e.label.classList.add('done'); }
+            }
+        };
+    })();
+    </script>
 
     <div class="app-container">
         <!-- Header -->
@@ -2249,11 +2350,6 @@
                         style="margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">
                         <img src="./assets/sun_cloud_icon.png" alt="Weather Icon" style="width: 24px; height: 24px;">
                         기상정보
-                        <button class="info-btn info-btn-small"
-                            onclick="event.stopPropagation(); showWeatherAlertInfoPopup()" title="이용안내"
-                            style="margin-left: 0;">
-                            <i class="fa-solid fa-circle-info" style="color: white;"></i>
-                        </button>
                     </h2>
 
                     <!-- 기상청 바로가기 위젯 [New] -->
@@ -2322,6 +2418,60 @@
                                 <p class="marine-forecast-empty">데이터를 불러오는 중...</p>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Advisory Prediction Accordion Header -->
+                <!-- [임시 비활성] 특보 예측 과대검출 점검 중 — 표출 숨김.
+                     재활성: 아래 헤더/바디 두 div 의 style="display:none" 제거. -->
+                <div id="advisory-prediction-accordion-header" class="main-accordion-header gradient-prediction"
+                    onclick="toggleAdvisoryPredictionAccordion()" style="display: none;">
+                    <div class="adv-title-wrap">
+                        <i class="fa-solid fa-wand-magic-sparkles adv-wand"></i>
+                        <div class="adv-title-col">
+                            <sup class="adv-beta-badge adv-beta-above" aria-label="beta">beta</sup>
+                            <div class="adv-title-row">
+                                <h2 class="section-title" style="margin: 0;">해역별 특보 예측</h2>
+                                <button type="button" class="adv-info-btn" aria-label="예측 설명"
+                                    onclick="event.stopPropagation(); window.openAdvisoryInfo&amp;&amp;window.openAdvisoryInfo()">i</button>
+                            </div>
+                            <div class="adv-basetime-layer" id="adv-basetime-layer"></div>
+                        </div>
+                    </div>
+                    <div class="header-status">
+                        <!-- Initial Loading State -->
+                        <span style="color: rgba(255,255,255,0.5); font-size: 0.85rem; margin-right: 8px;">
+                            <i class="fa-solid fa-spinner fa-spin"></i>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- 특보 예측 설명 팝업(ⓘ) — 기본 숨김 -->
+                <div id="adv-info-modal" class="adv-info-modal"
+                    onclick="if(event.target===this){window.closeAdvisoryInfo&amp;&amp;window.closeAdvisoryInfo()}">
+                    <div class="adv-info-box">
+                        <h3 class="adv-info-title">ⓘ SEAGNAL 특보 예측이란?
+                            <span class="adv-info-x"
+                                onclick="window.closeAdvisoryInfo&amp;&amp;window.closeAdvisoryInfo()">✕</span></h3>
+                        <ul class="adv-info-list">
+                            <li>SEAGNAL이 기상청 <b>위험기상일기도(수치모델 일기도)</b>를 분석한 자체 예측 시스템으로,
+                                <b>2020~2026년 총 6년치</b> 풍랑 특보 기록*과 일기도를 분석·대조하여 특보 발표(발효)
+                                가능성을 검증하였습니다.<span class="adv-info-fn">* 8천여 건의 발효 정보 + 4천여 건의 '거친
+                                    날'을 표본으로 정밀도 보정</span></li>
+                            <li>통상 공식 발표(발효) <b>약 3일 전</b> 사전 탐지하였으며, 사전 탐지율 <b>약 67%</b>·예측
+                                적중률 <b>약 51~70%</b>로 확인되었습니다.</li>
+                            <li><b>1차</b>로 일기도를 기반으로 예측하고, <b>2차</b>로 기상청이 발표하는 기상 전망(단기예보)과
+                                교차검증하여 신뢰도를 높입니다.</li>
+                            <li>처음에는 위험하게 보였더라도 이후 일기도가 호전되면 가능성이 낮아져 <b>'해소'</b>로 처리합니다.
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Advisory Prediction Accordion Body -->
+                <div id="advisory-prediction-accordion-body" class="main-accordion-body collapsed" style="display: none;">
+                    <div class="advisory-prediction-wrap">
+                        <div class="adv-empty">예측 정보를 불러오는 중입니다...</div>
                     </div>
                 </div>
 
@@ -3348,7 +3498,7 @@
                             </div>
                         </div>
 
-                        <!-- 카드 그리드: 파고 / 풍향·속 / 유향·속 / 수온 / 수심 / 천문 / 월상 -->
+                        <!-- 카드 그리드: 파고 / 풍향·속 / 유향·속 / 수온 / 수심 / 시정 / 천문 / 월상 -->
                         <div class="ocean-cards-grid" id="ocean-cards-grid">
                             <div class="ocean-data-card" id="ocean-card-wave">
                                 <div class="ocean-card-icon">
@@ -3392,6 +3542,16 @@
                                     <div class="ocean-card-icon-label">수심</div>
                                 </div>
                                 <div class="ocean-card-value" id="ocean-val-depth">
+                                    <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
+                                </div>
+                            </div>
+                            <!-- 시정 카드 — js/ocean_bottom_sheet_vsby.js 가 채움(클릭 팝업과 동일 RDPS 시정 샘플) -->
+                            <div class="ocean-data-card" id="ocean-card-vsby">
+                                <div class="ocean-card-icon">
+                                    <i class="fa-solid fa-eye"></i>
+                                    <div class="ocean-card-icon-label">시정</div>
+                                </div>
+                                <div class="ocean-card-value" id="ocean-val-vsby">
                                     <div class="ocean-progress-bar"><div class="ocean-progress-bar-fill"></div></div>
                                 </div>
                             </div>
@@ -4095,15 +4255,16 @@
     <script src="js/mappings.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/data.js"></script>
-    <script src="js/zone_avg.js"></script>
-    <script src="js/render.js"></script>
+    <script src="js/zone_avg.js?v=FarSeaWave_SyncVsby_20260612"></script>
+    <script src="js/render.js?v=BuoyClip_20260612"></script>
     <script src="js/alert_history.js"></script>
     <script src="js/render_coastal.js"></script>
     <script src="js/marine.js"></script>
     <script src="js/settings.js"></script>
     <script src="js/forecast.js"></script>
-    <script src="js/windy.js"></script>
+    <script src="js/windy.js?v=BuoyClip_20260612"></script>
     <script src="js/marine_forecast.js"></script>
+    <script src="js/advisory_prediction.js"></script>
     <!-- 해상일기도 (KMA 날씨누리 GIF 차트) — 5개 파일 분할
          1: 카탈로그/상태/init/드롭다운/즐겨찾기  2: fetch/render/슬라이더/재생
          3: 전체화면 진입/종료/백버튼  4: 컨트롤 페이드  5: 핀치줌·팬·탭 -->
@@ -4136,6 +4297,8 @@
     <script src="js/ocean_bottom_sheet5.js"></script>
     <!-- 천기 카드 (해점 클릭 시 KMA 단기예보 6 카테고리 종합 표시) — sheet1~5 의존 -->
     <script src="js/ocean_bottom_sheet_weather.js"></script>
+    <!-- 시정 카드 (수심 오른쪽) — vsby_forecast_layer 의 점 샘플러 재사용 -->
+    <script src="js/ocean_bottom_sheet_vsby.js"></script>
     <script src="js/ocean_overlay.js"></script>
     <!-- 진북(North Up) 회전 컨트롤 — 3-state 사이클 + 잠금 상태 localStorage 보존 -->
     <script src="js/ocean_northup.js"></script>
@@ -4149,6 +4312,7 @@
     <script src="js/ocean_warn_active3.js"></script>
     <script src="js/ocean_warn_active4.js"></script>
     <script src="js/ocean_warn_active5.js"></script>
+    <script src="js/ocean_warn_vsby.js?v=VsbyClip_20260612"></script>
     <script src="js/ocean_timeline.js"></script>
     <!-- 천기 (KMA 단기예보 PNG 오버레이): 토글 버튼 + 5개 서브버튼 + 슬라이더/재생 + 범례 + 클릭 팝업 -->
     <script src="js/shrt_forecast_layer.js"></script>
@@ -4177,6 +4341,9 @@
     <!-- [데모 시연] 관리자 센터 데모 특보 슬롯 UI + 관리자 기기 한정 표출 -->
     <script src="js/admin_demo.js"></script>
     <script src="js/demo_alert.js"></script>
+    <script src="js/advisory_demo_admin.js"></script>
+    <script src="js/advisory_manage_admin.js"></script>
+    <script src="js/advisory_demo.js"></script>
     <script src="js/report_user.js"></script>
     <script src="js/survey_user.js"></script>
     <script src="js/zone_guide.js"></script>

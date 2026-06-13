@@ -26,7 +26,7 @@
         rel="stylesheet">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="style.css?v=Margin_Final_v5">
+    <link rel="stylesheet" href="style.css?v=LayerClip_20260612">
     <link rel="stylesheet" href="splash.css?v=Badge_Update_20260101">
 
 
@@ -447,6 +447,28 @@
                                 <p class="marine-forecast-empty">데이터를 불러오는 중...</p>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Advisory Prediction Accordion Header -->
+                <div id="advisory-prediction-accordion-header" class="main-accordion-header gradient-prediction"
+                    onclick="toggleAdvisoryPredictionAccordion()">
+                    <div class="accordion-title-with-info">
+                        <h2 class="section-title" style="margin: 0;"><i class="fa-solid fa-wand-magic-sparkles"></i>
+                            특보 예측</h2>
+                    </div>
+                    <div class="header-status">
+                        <!-- Initial Loading State -->
+                        <span style="color: rgba(255,255,255,0.5); font-size: 0.85rem; margin-right: 8px;">
+                            <i class="fa-solid fa-spinner fa-spin"></i>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Advisory Prediction Accordion Body -->
+                <div id="advisory-prediction-accordion-body" class="main-accordion-body collapsed">
+                    <div class="advisory-prediction-wrap">
+                        <div class="adv-empty">예측 정보를 불러오는 중입니다...</div>
                     </div>
                 </div>
 
@@ -1353,12 +1375,13 @@
     <script src="js/mappings.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/data.js"></script>
-    <script src="js/zone_avg.js"></script>
+    <script src="js/zone_avg.js?v=FarSeaWave_SyncVsby_20260612"></script>
     <script src="js/render.js"></script>
     <script src="js/alert_history.js"></script>
     <script src="js/render_coastal.js"></script>
     <script src="js/marine.js"></script>
     <script src="js/settings.js"></script>
+    <script src="js/advisory_prediction.js"></script>
     <script src="js/forecast.js"></script>
     <script src="js/windy.js"></script>
     <script src="js/marine_forecast.js"></script>

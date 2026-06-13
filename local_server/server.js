@@ -136,7 +136,34 @@ try {
 const STATIC_GZIP_OPTS = {
     enableBrotli: true,
     orderPreference: ['br', 'gzip'],        // brotli 우선, 없으면 gzip (표준 encodingName)
-    index: false                            // 동적 GET / 우선 보장
+    index: false,                           // 동적 GET / 우선 보장
+    serveStatic: {
+        // [정책] 확장자별 Cache-Control 분류 (사전 압축 .gz/.br 접미사 제거 후 판정).
+        //   1) js/css/html/json → no-cache: "캐시하되 사용 전 ETag 재검증". 변경 없으면
+        //      304(본문 없음)라 저렴하고, 배포 즉시 새 코드 반영 + 버전 스큐 방지.
+        //      (벤더 JS/CSS 도 여기 포함 — 콘텐츠 해시가 없으므로 immutable 금지)
+        //   2) 폰트(woff2 등) → 1년 immutable: 파일명이 구글 콘텐츠 해시라 in-place 교체
+        //      불가 → 배포(SW 캐시 wipe) 후에도 HTTP 캐시 잔존, 재검증·재다운로드 없음.
+        //      [예외] FontAwesome 폰트는 고정 파일명(fa-solid-900.woff2 등)이고 css 가
+        //      버전 쿼리 없이 참조 → 업그레이드 시 in-place 교체되므로 immutable 금지(no-cache).
+        //   3) 이미지 → 7일 캐시(가끔 교체되므로 만료 후 재검증).
+        //   4) 그 외 → 안전하게 no-cache.
+        //   [주의] fonts.css 자체는 .css(1번)라 no-cache — 폰트 '파일'만 immutable.
+        setHeaders: function (res, filePath) {
+            var p = filePath.replace(/\.(gz|br)$/i, '');
+            if (/\.(js|css|html|json)$/i.test(p)) {
+                res.setHeader('Cache-Control', 'no-cache');
+            } else if (/[\\/]fontawesome[\\/].*\.(woff2?|ttf|otf|eot)$/i.test(p)) {
+                res.setHeader('Cache-Control', 'no-cache');
+            } else if (/\.(woff2?|ttf|otf|eot)$/i.test(p)) {
+                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            } else if (/\.(png|jpe?g|gif|webp|avif|svg|ico)$/i.test(p)) {
+                res.setHeader('Cache-Control', 'public, max-age=604800');
+            } else {
+                res.setHeader('Cache-Control', 'no-cache');
+            }
+        }
+    }
 };
 
 /**
@@ -198,6 +225,8 @@ console.log(`🌍 Serving static files from: ${staticRoot}`);
 // ============================================================================
 app.use(require('./routes/health'));
 app.use(require('./routes/weather'));
+app.use(require('./routes/advisoryPrediction'));  // 특보 예측 상태 조회 API (관심해역 필터, 읽기 전용)
+app.use(require('./routes/advisoryDemo'));         // 특보 예측 시연 — 기기 폴링용 공개 라우트(읽기 전용)
 app.use(require('./routes/tide'));
 app.use(require('./routes/content'));
 app.use(require('./routes/stats'));
@@ -223,6 +252,7 @@ app.use(require('./routes/ocean1'));        // 해양종합정보 API (수심/RO
 app.use(require('./routes/ocean2'));        // ROMS 격자/저질 API
 app.use(require('./routes/ocean3'));        // 해양현황 날씨/바람 API (zone_forecasts 기반)
 app.use(require('./routes/ocean4'));        // 해양현황 파고/zone-forecasts 오버레이 API
+app.use(require('./routes/vsby_smallzone')); // 해구별예측(소해구) 시정 캐시 API
 app.use(require('./routes/ocean5'));        // 해저지형/기타 해양 API
 app.use(require('./routes/tide_field'));    // 서해·남해 물빠짐(갯벌 노출) 예측 API (Phase 2)
 app.use(require('./routes/assistant'));     // AI 음성/텍스트 비서 (자연어 질문 → 실데이터 답변)
@@ -353,6 +383,13 @@ app.listen(PORT, '0.0.0.0', () => {
             }
         } catch (e) {
             console.error('[startup] CCTV 초기수집 트리거 실패:', e && e.message);
+        }
+
+        // 해구별예측(소해구) 시정 캐시: 디스크 로드 + 런 변경 시에만 수집(자동 갱신).
+        try {
+            require('./services/vsby_smallzone').startAutoRefresh();
+        } catch (e) {
+            console.error('[startup] vsby_smallzone 자동갱신 시작 실패:', e && e.message);
         }
 
         // ====================================================================

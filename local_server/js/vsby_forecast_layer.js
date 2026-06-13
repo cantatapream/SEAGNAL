@@ -82,8 +82,9 @@
     //   추후 RDPS Lambert 정밀 정합이 필요하면 proj4 를 로드해 커스텀 projection 을
     //   정의하고 VSBY_PROJECTION 을 그 코드로 교체하면 된다 (v1 은 EPSG:4326).
     // ─────────────────────────────────────────────────────────────
-    var VSBY_PROJECTION = 'EPSG:4326';                     // 추후 RDPS Lambert 로 교체 가능
-    var VSBY_IMAGE_EXTENT = [113.0, 18.0, 152.0, 53.0];    // [minLon,minLat,maxLon,maxLat] 첫 추정값
+    var VSBY_PROJECTION = 'EPSG:4326';                     // RDPS 시정 PNG 은 정축 lon/lat(EPSG:4326)
+    // MMIS 프런트엔드 번들에서 추출·검증한 정확 extent (RDPS/DFS 기본값). 해안선·해구 격자와 정합 확인됨.
+    var VSBY_IMAGE_EXTENT = [123.2770767211914, 31.580740724291122, 132.8739022435368, 43.44957733154297];
     // ─────────────────────────────────────────────────────────────
 
     var KMA_BASE = 'https://marine.kma.go.kr';
@@ -823,6 +824,51 @@
             return _samplePoint(fctTm, lon, lat).catch(function () { return { value: null }; });
         } catch (e) {
             return Promise.resolve({ value: null });
+        }
+    };
+
+    // [외부 노출] 해역 아코디언 소해구 색칠용 — 다지점 배치 샘플 + 프레임 정보.
+    //   같은 KIM RDPS 시정 PNG 를 1회 로드해 여러 좌표를 샘플(소해구 중심) → 색→km.
+    window.VsbyRaster = {
+        // 사용 가능 프레임 fct_tm 배열.
+        frames: function () {
+            return _getImgListEntry().then(function (e) { return e.frames.map(function (f) { return f.fct_tm; }); })
+                .catch(function () { return []; });
+        },
+        // targetMs(기본 now)에 가장 가까운 프레임 fct_tm.
+        nearestFctTm: function (targetMs) {
+            var now = targetMs || Date.now();
+            return _getImgListEntry().then(function (e) {
+                if (!e.frames.length) return null;
+                var best = e.frames[0].fct_tm, bd = Infinity;
+                for (var i = 0; i < e.frames.length; i++) {
+                    var m = /^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/.exec(e.frames[i].fct_tm);
+                    if (!m) continue;
+                    var t = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime();
+                    var d = Math.abs(t - now);
+                    if (d < bd) { bd = d; best = e.frames[i].fct_tm; }
+                }
+                return best;
+            }).catch(function () { return null; });
+        },
+        // points:[{key,lon,lat}], fctTm → Promise<[{key,lon,lat,km}]> (km=null 무데이터). 프레임 1회 로드 후 다지점 샘플.
+        sampleMany: function (points, fctTm) {
+            var miss = (points || []).map(function (p) { return { key: p.key, lon: p.lon, lat: p.lat, km: null }; });
+            return _getImgListEntry().then(function (e) {
+                var path = e.fctMap[fctTm];
+                if (!path) return miss;
+                return _loadImg(path).then(function (img) {
+                    var W = img.naturalWidth, H = img.naturalHeight;
+                    return (points || []).map(function (p) {
+                        var px = _lonLatToPx(p.lon, p.lat, W, H);
+                        if (!px) return { key: p.key, lon: p.lon, lat: p.lat, km: null };
+                        var s = _sampleImgArea(img, px.x, px.y);
+                        if (!s) return { key: p.key, lon: p.lon, lat: p.lat, km: null };
+                        var idx = _matchRgb(s.r, s.g, s.b, _VSBY_RGB);
+                        return { key: p.key, lon: p.lon, lat: p.lat, km: idx < 0 ? null : VSBY_STOPS[idx].v };
+                    });
+                }).catch(function () { return miss; });
+            }).catch(function () { return miss; });
         }
     };
 

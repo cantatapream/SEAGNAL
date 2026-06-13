@@ -575,11 +575,57 @@ function _resetSessionForTest() {
     _lastRequestAt = 0;
 }
 
+/**
+ * 범용 인증 GET (JSON) — 해구별예측(시정 등) 수집용.
+ *  - ensureAuth 로 세션 보장 → 401 또는 본문 type:"LOGIN" 응답 시 1회 재로그인 후 재시도.
+ *  @param {string} urlPath  '/mmis_marine_api/...' 절대 경로 (쿼리 포함 가능)
+ *  @returns {Promise<object>} 파싱된 JSON
+ */
+async function getAuthedJson(urlPath) {
+    await ensureAuth();
+    let res = await _request({ method: 'GET', path: urlPath, authRequired: true });
+    const looksLoginErr = res.statusCode === 401 ||
+        (typeof res.body === 'string' && /"type"\s*:\s*"LOGIN"/.test(res.body));
+    if (looksLoginErr) {
+        await login();
+        res = await _request({ method: 'GET', path: urlPath, authRequired: true });
+    }
+    if (res.statusCode !== 200) throw new Error(`GET ${urlPath} HTTP ${res.statusCode}`);
+    try { return JSON.parse(res.body); }
+    catch (e) { throw new Error(`GET ${urlPath} JSON parse fail (${res.body.slice(0, 60)})`); }
+}
+
+/**
+ * 인증 헤더 묶음 반환 (대량 동시 수집용 — 자체 https 풀에서 재사용).
+ *  - ensureAuth 로 세션 보장 후 { accesstoken, refreshtoken, Cookie } 반환.
+ *  - 호출 측이 LOGIN 오류 감지 시 다시 호출하면 갱신된 토큰을 받음.
+ */
+async function getAuthHeaders() {
+    await ensureAuth();
+    const h = {};
+    if (session.accessToken) h.accesstoken = session.accessToken;
+    if (session.refreshToken) h.refreshtoken = session.refreshToken;
+    const cookie = _cookieHeader();
+    if (cookie) h.Cookie = cookie;
+    return h;
+}
+
+/** LOGIN 만료 등으로 강제 재로그인 후 새 인증 헤더 반환. */
+async function relogin() {
+    await login();
+    return getAuthHeaders();
+}
+
 module.exports = {
     // 상태
     AUTH_ENABLED,
     maskUserId,
     getAuthStatus,
+    // 범용 인증 GET (해구별예측 시정 수집)
+    getAuthedJson,
+    getAuthHeaders,
+    relogin,
+    HOST,
     // 인증
     login,
     refreshToken,

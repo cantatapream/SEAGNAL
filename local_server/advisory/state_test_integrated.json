@@ -1,0 +1,479 @@
+{
+  "ranAt": "2026-06-13T14:47:57.459Z",
+  "fixedNow": "2026-06-11T03:00:00.000Z",
+  "summary": {
+    "scenariosPassed": 7,
+    "scenariosTotal": 7,
+    "checksPassed": 26,
+    "checksTotal": 26,
+    "allPass": true
+  },
+  "scenarioResults": [
+    {
+      "scenario": 1,
+      "pass": true,
+      "detail": [
+        {
+          "scenario": 1,
+          "name": "강원B resolved 됨",
+          "pass": true,
+          "detail": {
+            "zone": "강원B",
+            "office": "gawn",
+            "reason": "forecast_eased",
+            "onsetISO": "2026-06-11T13:00:00.000Z",
+            "resolvedAt": "2026-06-11T03:00:00.000Z",
+            "before": {
+              "windKt": 30,
+              "waveM": 3.5,
+              "probPct": 65
+            },
+            "after": {
+              "windKt": 18,
+              "waveM": 1.5,
+              "probPct": 20
+            },
+            "narrative": "강원B 예보 호전 — 발효 가능성 낮아짐 (풍속 ~30kt→~18kt, 파고 ~3.5m→~1.5m, 가능성 65%→20%)"
+          }
+        },
+        {
+          "scenario": 1,
+          "name": "사유 forecast_eased",
+          "pass": true,
+          "detail": "forecast_eased"
+        },
+        {
+          "scenario": 1,
+          "name": "narrative 30kt→~18kt 포함",
+          "pass": true,
+          "detail": "강원B 예보 호전 — 발효 가능성 낮아짐 (풍속 ~30kt→~18kt, 파고 ~3.5m→~1.5m, 가능성 65%→20%)"
+        },
+        {
+          "scenario": 1,
+          "name": "narrative 65%→20% 포함",
+          "pass": true,
+          "detail": "강원B 예보 호전 — 발효 가능성 낮아짐 (풍속 ~30kt→~18kt, 파고 ~3.5m→~1.5m, 가능성 65%→20%)"
+        },
+        {
+          "scenario": 1,
+          "name": "after probPct 20",
+          "pass": true,
+          "detail": {
+            "windKt": 18,
+            "waveM": 1.5,
+            "probPct": 20
+          }
+        },
+        {
+          "scenario": 1,
+          "name": "제주A active 유지",
+          "pass": true,
+          "detail": {
+            "office": "jeju",
+            "zone": "제주A",
+            "windKt": 30,
+            "waveM": 2,
+            "probPct": 80,
+            "onsetISO": "2026-06-11T15:00:00.000Z",
+            "change": null
+          }
+        },
+        {
+          "scenario": 1,
+          "name": "제주A resolved 아님",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "scenario": 2,
+      "pass": true,
+      "detail": [
+        {
+          "scenario": 2,
+          "name": "X drop (resolved 없음)",
+          "pass": true,
+          "detail": []
+        },
+        {
+          "scenario": 2,
+          "name": "X active 없음",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "scenario": 3,
+      "pass": true,
+      "detail": [
+        {
+          "scenario": 3,
+          "name": "Y resolved 됨",
+          "pass": true,
+          "detail": {
+            "zone": "Y",
+            "office": "gwju",
+            "reason": "onset_passed",
+            "onsetISO": "2026-06-10T15:00:00.000Z",
+            "resolvedAt": "2026-06-11T03:00:00.000Z",
+            "before": {
+              "windKt": 28,
+              "waveM": 3.2,
+              "probPct": 75
+            },
+            "after": null,
+            "narrative": "Y 예상 시각 경과 — 발효되지 않음 (최종 예측 풍속 ~28kt/파고 ~3.2m)"
+          }
+        },
+        {
+          "scenario": 3,
+          "name": "사유 onset_passed",
+          "pass": true,
+          "detail": "onset_passed"
+        },
+        {
+          "scenario": 3,
+          "name": "after null (신호 없음)",
+          "pass": true,
+          "detail": null
+        },
+        {
+          "scenario": 3,
+          "name": "narrative 예상 시각 경과",
+          "pass": true,
+          "detail": "Y 예상 시각 경과 — 발효되지 않음 (최종 예측 풍속 ~28kt/파고 ~3.2m)"
+        }
+      ]
+    },
+    {
+      "scenario": 4,
+      "pass": true,
+      "detail": [
+        {
+          "scenario": 4,
+          "name": "OLD(25h) 만료 제거",
+          "pass": true,
+          "detail": [
+            "FRESH"
+          ]
+        },
+        {
+          "scenario": 4,
+          "name": "FRESH(2h) 유지",
+          "pass": true,
+          "detail": [
+            "FRESH"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": 5,
+      "pass": true,
+      "detail": [
+        {
+          "scenario": 5,
+          "name": "Z resolved 에서 제거",
+          "pass": true,
+          "detail": []
+        },
+        {
+          "scenario": 5,
+          "name": "Z active 등장",
+          "pass": true,
+          "detail": [
+            "Z"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": 6,
+      "pass": true,
+      "detail": [
+        {
+          "scenario": 6,
+          "name": "첫 미검출 → 유예W active carry",
+          "pass": true,
+          "detail": [
+            "유예W"
+          ]
+        },
+        {
+          "scenario": 6,
+          "name": "유예W resolved 아님(carry)",
+          "pass": true
+        },
+        {
+          "scenario": 6,
+          "name": "유예W _missStreak=1",
+          "pass": true,
+          "detail": 1
+        },
+        {
+          "scenario": 6,
+          "name": "2회 연속 미검출 → 유예W resolved",
+          "pass": true,
+          "detail": [
+            "유예W"
+          ]
+        },
+        {
+          "scenario": 6,
+          "name": "유예W after 실제값 20kt(0 아님)",
+          "pass": true,
+          "detail": {
+            "windKt": 20,
+            "waveM": 1.5,
+            "probPct": 30
+          }
+        }
+      ]
+    },
+    {
+      "scenario": 7,
+      "pass": true,
+      "detail": [
+        {
+          "scenario": 7,
+          "name": "격상Z change.dir=up",
+          "pass": true,
+          "detail": {
+            "dir": "up",
+            "fromGrade": "관심",
+            "toGrade": "높음",
+            "fromProb": 52,
+            "toProb": 64,
+            "deltaProb": 12
+          }
+        },
+        {
+          "scenario": 7,
+          "name": "격상Z deltaProb=+12",
+          "pass": true,
+          "detail": {
+            "dir": "up",
+            "fromGrade": "관심",
+            "toGrade": "높음",
+            "fromProb": 52,
+            "toProb": 64,
+            "deltaProb": 12
+          }
+        },
+        {
+          "scenario": 7,
+          "name": "격하Y change.dir=down",
+          "pass": true,
+          "detail": {
+            "dir": "down",
+            "fromGrade": "높음",
+            "toGrade": "관심",
+            "fromProb": 64,
+            "toProb": 56,
+            "deltaProb": -8
+          }
+        },
+        {
+          "scenario": 7,
+          "name": "격하Y 높음→관심",
+          "pass": true,
+          "detail": {
+            "dir": "down",
+            "fromGrade": "높음",
+            "toGrade": "관심",
+            "fromProb": 64,
+            "toProb": 56,
+            "deltaProb": -8
+          }
+        }
+      ]
+    }
+  ],
+  "scenarios": {
+    "s1_forecast_eased": {
+      "updatedAt": "2026-06-11T03:00:00.000Z",
+      "baseTimeKST": "2026061100",
+      "active": [
+        {
+          "office": "jeju",
+          "zone": "제주A",
+          "windKt": 30,
+          "waveM": 2,
+          "probPct": 80,
+          "onsetISO": "2026-06-11T15:00:00.000Z",
+          "change": null
+        }
+      ],
+      "resolved": [
+        {
+          "zone": "강원B",
+          "office": "gawn",
+          "reason": "forecast_eased",
+          "onsetISO": "2026-06-11T13:00:00.000Z",
+          "resolvedAt": "2026-06-11T03:00:00.000Z",
+          "before": {
+            "windKt": 30,
+            "waveM": 3.5,
+            "probPct": 65
+          },
+          "after": {
+            "windKt": 18,
+            "waveM": 1.5,
+            "probPct": 20
+          },
+          "narrative": "강원B 예보 호전 — 발효 가능성 낮아짐 (풍속 ~30kt→~18kt, 파고 ~3.5m→~1.5m, 가능성 65%→20%)"
+        }
+      ]
+    },
+    "s2_suppressed_drop": {
+      "updatedAt": "2026-06-11T03:00:00.000Z",
+      "baseTimeKST": "2026061100",
+      "active": [],
+      "resolved": []
+    },
+    "s3_onset_passed": {
+      "updatedAt": "2026-06-11T03:00:00.000Z",
+      "baseTimeKST": "2026061100",
+      "active": [],
+      "resolved": [
+        {
+          "zone": "Y",
+          "office": "gwju",
+          "reason": "onset_passed",
+          "onsetISO": "2026-06-10T15:00:00.000Z",
+          "resolvedAt": "2026-06-11T03:00:00.000Z",
+          "before": {
+            "windKt": 28,
+            "waveM": 3.2,
+            "probPct": 75
+          },
+          "after": null,
+          "narrative": "Y 예상 시각 경과 — 발효되지 않음 (최종 예측 풍속 ~28kt/파고 ~3.2m)"
+        }
+      ]
+    },
+    "s4_expiry": {
+      "updatedAt": "2026-06-11T03:00:00.000Z",
+      "baseTimeKST": "2026061100",
+      "active": [],
+      "resolved": [
+        {
+          "zone": "FRESH",
+          "office": "jeju",
+          "reason": "forecast_eased",
+          "resolvedAt": "2026-06-11T01:00:00.000Z",
+          "before": {},
+          "after": null,
+          "narrative": "fresh"
+        }
+      ]
+    },
+    "s5_reentry": {
+      "updatedAt": "2026-06-11T03:00:00.000Z",
+      "baseTimeKST": "2026061100",
+      "active": [
+        {
+          "office": "dajn",
+          "zone": "Z",
+          "windKt": 26,
+          "waveM": 2.1,
+          "probPct": 63,
+          "onsetISO": "2026-06-11T09:00:00.000Z",
+          "change": null
+        }
+      ],
+      "resolved": []
+    },
+    "s6_resolve_grace": {
+      "updatedAt": "2026-06-11T03:00:00.000Z",
+      "baseTimeKST": "2026061100",
+      "active": [
+        {
+          "office": "jeju",
+          "zone": "유예W",
+          "windKt": 28,
+          "waveM": 3,
+          "probPct": 58,
+          "onsetISO": "2026-06-11T13:00:00.000Z",
+          "_missStreak": 1,
+          "_grace": true,
+          "confirmed": true,
+          "change": null
+        }
+      ],
+      "resolved": []
+    },
+    "s6b_resolve_grace2": {
+      "updatedAt": "2026-06-11T15:00:00.000Z",
+      "baseTimeKST": "2026061112",
+      "active": [],
+      "resolved": [
+        {
+          "zone": "유예W",
+          "office": "jeju",
+          "reason": "forecast_eased",
+          "onsetISO": "2026-06-11T13:00:00.000Z",
+          "resolvedAt": "2026-06-11T15:00:00.000Z",
+          "before": {
+            "windKt": 28,
+            "waveM": 3,
+            "probPct": 58
+          },
+          "after": {
+            "windKt": 20,
+            "waveM": 1.5,
+            "probPct": 30
+          },
+          "narrative": "유예W 예보 호전 — 발효 가능성 낮아짐 (풍속 ~28kt→~20kt, 파고 ~3m→~1.5m, 가능성 58%→30%)"
+        }
+      ]
+    },
+    "s7_grade_change": {
+      "updatedAt": "2026-06-11T03:00:00.000Z",
+      "baseTimeKST": "2026061100",
+      "active": [
+        {
+          "office": "busn",
+          "zone": "격상Z",
+          "grade": {
+            "key": "high",
+            "label": "높음"
+          },
+          "windKt": 30,
+          "waveM": 2,
+          "probPct": 64,
+          "onsetISO": "2026-06-11T13:00:00.000Z",
+          "change": {
+            "dir": "up",
+            "fromGrade": "관심",
+            "toGrade": "높음",
+            "fromProb": 52,
+            "toProb": 64,
+            "deltaProb": 12
+          }
+        },
+        {
+          "office": "jeju",
+          "zone": "격하Y",
+          "grade": {
+            "key": "watch",
+            "label": "관심"
+          },
+          "windKt": 25,
+          "waveM": 2,
+          "probPct": 56,
+          "onsetISO": "2026-06-11T13:00:00.000Z",
+          "change": {
+            "dir": "down",
+            "fromGrade": "높음",
+            "toGrade": "관심",
+            "fromProb": 64,
+            "toProb": 56,
+            "deltaProb": -8
+          }
+        }
+      ],
+      "resolved": []
+    }
+  }
+}
