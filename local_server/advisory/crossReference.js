@@ -185,16 +185,30 @@ function buildKmaForecast(zoneForecast, onsetISO, zoneName) {
  * @param {Object} forecastMap  { zoneName: {periods, publishTime, ...} }
  * @returns {Array}
  */
-function enrichPredictions(predictions, forecastMap) {
+function enrichPredictions(predictions, bulletinMap) {
     if (!Array.isArray(predictions)) return predictions;
-    const map = (forecastMap && typeof forecastMap === 'object') ? forecastMap : {};
+    // 단일 출처: 날씨누리 list.do [해설] 단기전망 통보문(zone→{sentence,wind,wave,publishTime}).
+    //   풍속/파고 숫자·문장·발표시각 모두 통보문에서 온다. (PDF 단기예보 병기는 폐지)
+    const bmap = (bulletinMap && typeof bulletinMap === 'object') ? bulletinMap : {};
     return predictions.map((p) => {
         if (!p || typeof p !== 'object') return p;
-        const zf = map[zoneKey(p.zone)];
-        if (!zf) return p;
-        let kma = null;
-        try { kma = buildKmaForecast(zf, p.onsetISO, p.zone); } catch (_) { kma = null; }
-        if (!kma) return p;
+        const key = zoneKey(p.zone);
+        const b = bmap[key];
+        if (!b) return p;
+        const windKtMs = windToKtMs(b.wind);          // "9~14" → "17~27kt(9~14m/s)"
+        const waveHeight = parseWaveHeight(b.wave);   // "1.5~3.0" 그대로
+        const outlook = (typeof b.sentence === 'string' && b.sentence.trim()) ? b.sentence.trim() : null;
+        if (!windKtMs && !waveHeight && !outlook) return p; // 표출할 게 없음
+        const kma = {
+            windSpeed: b.wind || null,
+            windKtMs,
+            waveHeight,
+            periodLabel: null,                        // 통보문은 시간대 슬롯이 없음(해역당 1건)
+            office: ZONE_OFFICE_NAME[key] || null,
+            publishTime: b.publishTime || null,
+            publishLabel: formatPublish(b.publishTime),
+            outlook,
+        };
         return Object.assign({}, p, { kmaForecast: kma });
     });
 }
@@ -218,6 +232,83 @@ function loadForecastMap() {
     }
 }
 
+/**
+ * 구역 → 단기전망 문장 맵 로드 (regional_forecast.json 의 marineOutlooks —
+ * 통보문 AI 추출). 묶음 구역명(예: 제주도전해상)은 ZONE_GROUP_MAP 으로 자식
+ * 구역에 펼치되, 정확일치 문장이 이미 있으면 덮어쓰지 않는다. 실패 시 {}.
+ * @returns {Object} { zoneName: sentence }
+ */
+function loadOutlookMap() {
+    const out = {};
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        const file = path.join(__dirname, '..', 'data', 'regional_forecast.json');
+        const store = JSON.parse(fs.readFileSync(file, 'utf8'));
+        let GROUP = {};
+        try { GROUP = require('../ai_report_parser').ZONE_GROUP_MAP || {}; } catch (_) { GROUP = {}; }
+        const exact = {}, expanded = {};
+        for (const entry of Object.values(store)) {
+            if (!entry || !Array.isArray(entry.marineOutlooks)) continue;
+            for (const o of entry.marineOutlooks) {
+                if (!o || typeof o.zone !== 'string' || typeof o.sentence !== 'string') continue;
+                const z = o.zone.trim(), st = o.sentence.trim();
+                if (!z || !st) continue;
+                exact[z] = st;
+                const members = GROUP[z];
+                if (Array.isArray(members)) for (const m of members) {
+                    if (typeof m === 'string' && m.trim()) expanded[m.trim()] = st;
+                }
+            }
+        }
+        Object.assign(out, expanded, exact); // 정확일치 우선
+    } catch (_) { /* graceful */ }
+    return out;
+}
+
+/**
+ * 구역 → 통보문 전망 레코드 맵. regional_forecast.json 의 marineOutlooks
+ * (통보문 [해설] 단기전망 AI 추출: zone/sentence/wind/wave) + entry.bulletinPublishTime.
+ *   { zoneName: { sentence, wind, wave, publishTime } }
+ *   묶음 구역명은 ZONE_GROUP_MAP 으로 자식에 펼치되 정확일치 우선. 실패 시 {}.
+ * @returns {Object}
+ */
+function loadBulletinMap() {
+    const out = {};
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        const file = path.join(__dirname, '..', 'data', 'regional_forecast.json');
+        const store = JSON.parse(fs.readFileSync(file, 'utf8'));
+        let GROUP = {};
+        try { GROUP = require('../ai_report_parser').ZONE_GROUP_MAP || {}; } catch (_) { GROUP = {}; }
+        const exact = {}, expanded = {};
+        for (const entry of Object.values(store)) {
+            if (!entry || !Array.isArray(entry.marineOutlooks)) continue;
+            const pub = entry.bulletinPublishTime || null;
+            for (const o of entry.marineOutlooks) {
+                if (!o || typeof o.zone !== 'string') continue;
+                const z = o.zone.trim();
+                if (!z) continue;
+                const rec = {
+                    sentence: (typeof o.sentence === 'string' && o.sentence.trim()) ? o.sentence.trim() : null,
+                    wind: (typeof o.wind === 'string' && o.wind.trim()) ? o.wind.trim() : null,
+                    wave: (typeof o.wave === 'string' && o.wave.trim()) ? o.wave.trim() : null,
+                    publishTime: pub,
+                };
+                if (!rec.sentence && !rec.wind && !rec.wave) continue;
+                exact[z] = rec;
+                const members = GROUP[z];
+                if (Array.isArray(members)) for (const m of members) {
+                    if (typeof m === 'string' && m.trim()) expanded[m.trim()] = rec;
+                }
+            }
+        }
+        Object.assign(out, expanded, exact); // 정확일치 우선
+    } catch (_) { /* graceful */ }
+    return out;
+}
+
 module.exports = {
     onsetToSlot,
     parseWindSpeed,
@@ -227,5 +318,7 @@ module.exports = {
     buildKmaForecast,
     enrichPredictions,
     loadForecastMap,
+    loadOutlookMap,
+    loadBulletinMap,
     ZONE_OFFICE_NAME,
 };

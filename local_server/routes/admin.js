@@ -2035,6 +2035,126 @@ router.post('/api/admin/advisory-demo/clear', (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ============================================================================
+// [특보 예측 표출 관리] — 청중 모드(off/admin/all) + 구역별 삭제/표출중지/수정.
+//   상태 헬퍼: advisory/displayControl.js. 공개 표출은 /api/advisory-prediction 가 반영.
+// ============================================================================
+const advDisplay = require('../advisory/displayControl');
+const ADV_STATE_FILE = path.join(DATA_DIR, 'advisory_state.json');
+
+// 현재 상태(모드 + 오버라이드 + 현재 생성된 예측 목록) — 관리 UI 렌더용
+router.get('/api/admin/advisory-display/state', (req, res) => {
+    try {
+        const s = advDisplay.readState();
+        let predictions = [], resolvedCount = 0, baseTimeKST = null;
+        try {
+            const raw = JSON.parse(fs.readFileSync(ADV_STATE_FILE, 'utf8'));
+            predictions = Array.isArray(raw.active) ? raw.active : [];
+            resolvedCount = Array.isArray(raw.resolved) ? raw.resolved.length : 0;
+            baseTimeKST = raw.baseTimeKST || null;
+        } catch (_) { /* 상태 없음 — 기본값 */ }
+        res.json({
+            mode: s.mode, hidden: s.hidden, stopped: s.stopped, edits: s.edits,
+            resolvedZ: s.resolvedZ, updatedAt: s.updatedAt,
+            predictions, resolvedCount, baseTimeKST,
+        });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 청중 모드 설정 (body: { mode: 'off'|'admin'|'all' }) — off 면 생성도 중단
+router.post('/api/admin/advisory-display/mode', (req, res) => {
+    try {
+        const mode = advDisplay.setMode(req.body && req.body.mode);
+        console.log(`[AdvisoryDisplay] 표출 모드: ${mode}`);
+        res.json({ success: true, mode });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 구역 숨김 (body: { zone, permanent }) — permanent=true 삭제 / false 표출중지
+router.post('/api/admin/advisory-display/hide', (req, res) => {
+    try {
+        const zone = req.body && req.body.zone;
+        if (!zone) return res.status(400).json({ error: 'zone 필요' });
+        advDisplay.hideZone(zone, !!(req.body && req.body.permanent));
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 구역 복귀 (body: { zone }) — 삭제/표출중지 해제
+router.post('/api/admin/advisory-display/restore', (req, res) => {
+    try {
+        const zone = req.body && req.body.zone;
+        if (!zone) return res.status(400).json({ error: 'zone 필요' });
+        advDisplay.restoreZone(zone);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 구역 수정 (body: { zone, narrative?, gradeKey?, probPct? })
+router.post('/api/admin/advisory-display/edit', (req, res) => {
+    try {
+        const b = req.body || {};
+        if (!b.zone) return res.status(400).json({ error: 'zone 필요' });
+        advDisplay.editZone(b.zone, { narrative: b.narrative, gradeKey: b.gradeKey, probPct: b.probPct });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 구역 수정 해제 (body: { zone })
+router.post('/api/admin/advisory-display/clear-edit', (req, res) => {
+    try {
+        const zone = req.body && req.body.zone;
+        if (!zone) return res.status(400).json({ error: 'zone 필요' });
+        advDisplay.clearEdit(zone);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 예측 적중 통계 (운영 누적 저널 기반 — 등급/확률구간별 + 월별 누적)
+//   기간 조회: ?days=7|30  또는 ?from=ISO&to=ISO (없으면 전체)
+router.get('/api/admin/advisory-display/stats', (req, res) => {
+    try {
+        const journal = require('../advisory/journal');
+        const q = req.query || {};
+        const opt = {};
+        if (q.days && isFinite(Number(q.days))) {
+            opt.fromMs = Date.now() - Number(q.days) * 24 * 3600 * 1000;
+        } else {
+            if (q.from) { const f = Date.parse(q.from); if (isFinite(f)) opt.fromMs = f; }
+            if (q.to) { const t = Date.parse(q.to); if (isFinite(t)) opt.toMs = t; }
+        }
+        res.json(journal.computeStats(opt));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 구역 해소 전환 (body: { zone }) — active 에서 빼고 사용자 '최근 해소'에 합성 표출(24h)
+router.post('/api/admin/advisory-display/resolve', (req, res) => {
+    try {
+        const zone = req.body && req.body.zone;
+        if (!zone) return res.status(400).json({ error: 'zone 필요' });
+        advDisplay.resolveZone(zone);
+        console.log(`[AdvisoryDisplay] 해소 전환: ${zone}`);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 해소 목록 즉시 비우기 — advisory_state.json 의 resolved 를 [] 로 (나머지 필드 보존)
+//   + 관리자 해소 전환(합성) 항목도 함께 비움.
+//   용도: 전환기 잔재(구엔진 해소 항목) 등을 24h 자연만료 전에 정리하고 공개 전환.
+router.post('/api/admin/advisory-display/clear-resolved', (req, res) => {
+    try {
+        let raw = {};
+        try { raw = JSON.parse(fs.readFileSync(ADV_STATE_FILE, 'utf8')); } catch (_) { raw = {}; }
+        const cleared = Array.isArray(raw.resolved) ? raw.resolved.length : 0;
+        raw.resolved = [];
+        raw.updatedAt = new Date().toISOString();
+        fs.writeFileSync(ADV_STATE_FILE, JSON.stringify(raw, null, 2), 'utf8');
+        try { advDisplay.clearAdminResolved(); } catch (_) { /* graceful */ }
+        console.log(`[AdvisoryDisplay] 해소 목록 비움 (${cleared}건 + 합성)`);
+        res.json({ success: true, cleared });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // 데모 슬롯 추가/저장 (전체 목록을 통째로 받아 덮어씀 — 추가/수정/삭제 공용)
 router.post('/api/admin/demo/slots', (req, res) => {
     try {

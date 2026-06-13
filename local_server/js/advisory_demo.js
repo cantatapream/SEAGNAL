@@ -40,6 +40,7 @@
 
         if (payload) {
             window.__advisoryDemoActive = true;
+            try { if (typeof window.__advShowAccordion === 'function') window.__advShowAccordion(true); } catch (e) { /* noop */ }
             if (id !== _lastId) {
                 _lastId = id;
                 try {

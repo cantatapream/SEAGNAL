@@ -50,6 +50,35 @@
 
     const numOf = function (v) { return (v === 0 || v) ? Number(v) : null; };
 
+    // ── 등급 변동(격상/격하) 표식 ─────────────────────────────────────────────
+    //   change = { dir:'up'|'down', fromGrade, toGrade, fromProb, toProb, deltaProb }
+    //   - 접힌 헤더용 미니 뱃지: ▲격상(빨강) / ▼격하(초록·노랑).
+    //   - 펼친 바디용 전이 한 줄: "▲ 격상  관심 → 높음 (+12%p)".
+    function normChange(c) {
+        if (!c || (c.dir !== 'up' && c.dir !== 'down')) return null;
+        return c;
+    }
+    function buildChangeBadge(change) {
+        const c = normChange(change);
+        if (!c) return '';
+        const up = c.dir === 'up';
+        const tri = up ? '▲' : '▼';
+        const label = up ? '격상' : '격하';
+        return '<span class="adv-chg adv-chg-' + (up ? 'up' : 'down') + '">' + tri + ' ' + label + '</span>';
+    }
+    function buildChangeLine(change) {
+        const c = normChange(change);
+        if (!c) return '';
+        const up = c.dir === 'up';
+        const tri = up ? '▲' : '▼';
+        const from = escapeHtml(c.fromGrade || ''), to = escapeHtml(c.toGrade || '');
+        const arrow = (from && to) ? (from + ' → ' + to) : '';
+        const dp = (c.deltaProb != null && isFinite(c.deltaProb))
+            ? ' <span class="adv-chg-dp">(' + (c.deltaProb > 0 ? '+' : '') + c.deltaProb + '%p)</span>' : '';
+        return '<div class="adv-chg-line adv-chg-' + (up ? 'up' : 'down') + '">' +
+            tri + ' ' + (up ? '격상' : '격하') + (arrow ? '  ' + arrow : '') + dp + '</div>';
+    }
+
     // ── 서술문구(하이라이트 HTML) — 등급색은 CSS(.adv-card.* .adv-narr b)가 입힌다 ──
     function buildNarrativeHtml(it) {
         const zone = escapeHtml(it.zone || '');
@@ -66,22 +95,27 @@
         return zone + ' 위험기상일기도 분석 결과,<br>' + l2 + (l3 ? '<br>' + l3 : '');
     }
 
-    // ── 기상청 단기예보 병기(판정 없이 숫자만). 없으면 빈 문자열(줄 숨김). ──
+    // ── 기상청 단기예보 병기(판정 없이). 숫자 한 줄 + 그 아래 단기전망 문장. ──
+    //   숫자도 문장도 없으면 빈 문자열(줄 숨김).
     function buildKmaHtml(it) {
         const kma = it.kmaForecast;
         if (!kma || typeof kma !== 'object') return '';
         const ktms = kma.windKtMs || (kma.windSpeed ? (kma.windSpeed + 'm/s') : null);
         const wave = kma.waveHeight ? (kma.waveHeight + 'm') : null;
-        if (!ktms && !wave) return '';
+        const outlook = (typeof kma.outlook === 'string' && kma.outlook.trim()) ? kma.outlook.trim() : null;
+        if (!ktms && !wave && !outlook) return '';
         const parts = [];
         if (ktms) parts.push('풍속 <b>' + escapeHtml(String(ktms)) + '</b>');
         if (wave) parts.push('파고 <b>' + escapeHtml(String(wave)) + '</b>');
         const office = kma.office ? escapeHtml(kma.office) + ' ' : '';
         const pub = kma.publishLabel ? ' <span class="adv-kma-pub">(' + escapeHtml(kma.publishLabel) + ')</span>' : '';
         const period = kma.periodLabel ? escapeHtml(kma.periodLabel) + ' ' : '';
-        return '<div class="adv-kma">' +
-            '<div class="adv-kma-kt">🛰️ ' + office + '단기예보' + pub + '</div>' +
-            '<div class="adv-kma-vals">' + period + parts.join(', ') + '</div></div>';
+        let html = '<div class="adv-kma">' +
+            '<div class="adv-kma-kt">🛰️ ' + office + '단기전망' + pub + '</div>';
+        if (parts.length) html += '<div class="adv-kma-vals">' + period + parts.join(', ') + '</div>';
+        if (outlook) html += '<div class="adv-kma-outlook">“' + escapeHtml(outlook) + '”</div>';
+        html += '</div>';
+        return html;
     }
 
     // ── 헤더 상태배지(카운트) — 앱 기존 .adv-badge(반투명) 재사용 ──
@@ -104,7 +138,7 @@
         const parts = [];
         if (high > 0) parts.push('<span class="adv-badge adv-badge-high">🔴 ' + high + '</span>');
         if (watch > 0) parts.push('<span class="adv-badge adv-badge-watch">🟡 ' + watch + '</span>');
-        if (rc > 0) parts.push('<span class="adv-badge adv-badge-resolved">✓ 해소 ' + rc + '</span>');
+        if (rc > 0) parts.push('<span class="adv-badge adv-badge-resolved"><span class="adv-dot-check">✓</span> ' + rc + '</span>');
         return parts.join('');
     }
 
@@ -133,6 +167,9 @@
         if (sortedActive.length === 0 && fResolved.length === 0) {
             html.push('<div class="adv-empty">현재 예측된 특보가 없습니다.</div>');
         } else {
+            // 면책문구 — 바디 최상단(아코디언 바로 아래), 예측 정보가 있을 때만
+            html.push('<div class="adv-disclaimer adv-disclaimer-top">※ 본 예측은 위험기상일기도 분석 및 ' +
+                '과거 특보 데이터 기반 자체 예측 결과입니다.</div>');
             if (sortedActive.length > 0) {
                 html.push('<div class="adv-active-list">');
                 sortedActive.forEach(function (it) {
@@ -143,14 +180,19 @@
                     const gLabel = escapeHtml(grade.label || '');
                     const badgeTxt = gLabel + (prob !== null ? ' · ' + prob + '% 확률' : '');
 
+                    const chgBadge = buildChangeBadge(it.change);
+                    const chgLine = buildChangeLine(it.change);
+
                     html.push('<div class="adv-card adv-grade-' + gKey + '">');
                     html.push('<div class="adv-card-head" onclick="window.toggleAdvisoryCard&&window.toggleAdvisoryCard(this)">');
                     html.push('<span class="adv-zone">' + zone + '</span>');
+                    if (chgBadge) html.push(chgBadge);
                     html.push('<span class="adv-badge2 adv-badge2-' + gKey + '">' + badgeTxt + '</span>');
                     html.push('<span class="adv-card-chev">▼</span>');
                     html.push('</div>');
                     html.push('<div class="adv-card-body">');
                     html.push('<div class="adv-card-hr"></div>');
+                    if (chgLine) html.push(chgLine);
                     html.push('<div class="adv-narr">' + buildNarrativeHtml(it) + '</div>');
                     html.push(buildKmaHtml(it));
                     html.push('</div></div>');
@@ -174,8 +216,6 @@
             }
         }
 
-        html.push('<div class="adv-disclaimer">※ 본 예측은 위험기상일기도 분석 및 ' +
-            '과거 특보 데이터 기반 자체 예측 결과입니다.</div>');
         html.push('</div>');
         return html.join('');
     }
@@ -198,11 +238,10 @@
         const hs = document.querySelector('#advisory-prediction-accordion-header .header-status');
         if (hs) hs.innerHTML = buildHeaderStatus(d, visFn);
 
-        // 제목 라벨(관심해역 필터 시 문구 변경) — 아이콘/ⓘ 는 정적 마크업이라 건드리지 않음.
+        // 제목 라벨(관심해역 필터 시 문구 변경) — beta 는 제목 위 별도 요소(정적 마크업).
         const titleEl = document.querySelector('#advisory-prediction-accordion-header .section-title');
         if (titleEl) {
-            const label = isFilteredState() ? '관심해역 특보 예측' : '해역별 특보 예측';
-            titleEl.innerHTML = label + '<sup class="adv-beta-badge" aria-label="beta">beta</sup>';
+            titleEl.textContent = isFilteredState() ? '관심해역 특보 예측' : '해역별 특보 예측';
         }
 
         // 기준시각 레이어(흰색, KST)
@@ -210,15 +249,45 @@
         if (bt) bt.textContent = formatBaseTime(d.baseTimeKST);
     }
 
+    // 통합관리자센터 '관리자 모드'가 체크된 기기면 'admin' 모드 표출 인가를 받는다.
+    //   - 앱(푸시 등록 기기): push_token 을 adminToken 쿼리로(기존 호환).
+    //   - PC 등(푸시 미구독): 로그인 토큰(seagnal_admin_token)을 X-Admin-Token 헤더로.
+    //   비관리자(체크 해제)는 빈값 → 서버가 미표출.
+    function _adminAuth() {
+        try {
+            if (localStorage.getItem('seagnal_admin_mode') !== 'true') return { query: '', headers: {} };
+            const headers = {};
+            let tok = '';
+            try { tok = localStorage.getItem('seagnal_admin_token') || ''; } catch (e) { tok = ''; }
+            if (!tok) { try { tok = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('seagnal_admin_token')) || ''; } catch (e) { /* noop */ } }
+            if (tok) headers['X-Admin-Token'] = tok;
+            const pt = localStorage.getItem('push_token') || '';
+            return { query: pt ? ('?adminToken=' + encodeURIComponent(pt)) : '', headers: headers };
+        } catch (e) { return { query: '', headers: {} }; }
+    }
+    // 표출 제어: display=true 일 때만 아코디언(헤더+바디)을 보인다.
+    function _setAccordionVisible(show) {
+        if (typeof document === 'undefined') return;
+        const h = document.getElementById('advisory-prediction-accordion-header');
+        const b = document.getElementById('advisory-prediction-accordion-body');
+        const v = show ? '' : 'none';
+        if (h) h.style.display = v;
+        if (b && show && b.style.display === 'none') b.style.display = '';
+        if (b && !show) b.style.display = 'none';
+    }
+
     async function loadAdvisoryPrediction() {
         if (typeof fetch === 'undefined') return;
         if (typeof window !== 'undefined' && window.__advisoryDemoActive) return;
         try {
-            const r = await fetch('/api/advisory-prediction');
+            const auth = _adminAuth();
+            const r = await fetch('/api/advisory-prediction' + auth.query, { headers: auth.headers });
             if (!r.ok) return;
             const d = await r.json();
             if (typeof window !== 'undefined' && window.appState) window.appState.advisoryPrediction = d;
-            renderAdvisoryPrediction(d);
+            // 표출 인가 없으면 아코디언 숨김(off, 또는 admin 모드의 비관리자 기기).
+            _setAccordionVisible(d && d.display === true);
+            if (d && d.display === true) renderAdvisoryPrediction(d);
         } catch (e) { /* graceful */ }
     }
 
@@ -257,6 +326,7 @@
         window.toggleAdvisoryCard = toggleAdvisoryCard;
         window.openAdvisoryInfo = openAdvisoryInfo;
         window.closeAdvisoryInfo = closeAdvisoryInfo;
+        window.__advShowAccordion = _setAccordionVisible; // 데모 표출기가 가시성 제어에 사용
     }
 
     if (typeof document !== 'undefined') {
@@ -277,6 +347,8 @@
         module.exports = {
             buildAdvisoryHtml: buildAdvisoryHtml,
             buildHeaderStatus: buildHeaderStatus,
+            buildChangeBadge: buildChangeBadge,
+            buildChangeLine: buildChangeLine,
             escapeHtml: escapeHtml,
             formatBaseTime: formatBaseTime,
         };

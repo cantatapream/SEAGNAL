@@ -9,7 +9,8 @@
  *   2) suppressedZones 매핑 (null 제거)
  *   3) 엔진 실패 → ok:false, stage:'generate', updateState 미호출
  *   4) 억제 실패 폴백 → visible=전체, suppressedZones=[], ok:true
- *   5) current 형태 — { baseTimeKST, predictions, zoneSignals } 키/값 일치
+ *   5) current 형태 — { baseTimeKST, predictions, pending, zoneSignals } 키/값 일치
+ *   6) pending 전달 — 지속성 대기가 억제 통과 후 current.pending 으로 전달
  *
  * 산출: cycle_test_integrated.json  +  stdout PASS/FAIL.
  * 실행: node /home/user/SEAGNAL/local_server/advisory/run_cycle_test.js
@@ -71,6 +72,7 @@ function deepEqual(a, b) {
         const okCurrent = call && deepEqual(call.current, {
             baseTimeKST: '2026061021',
             predictions: [p1, p2],
+            pending: [],
             zoneSignals,
         });
         const okZones = call && deepEqual(call.suppressedZones, ['Zx']);
@@ -161,16 +163,45 @@ function deepEqual(a, b) {
             },
         });
         const call = upd.calls[0];
-        const expectedCurrent = { baseTimeKST: 'B5', predictions: [p1], zoneSignals };
+        const expectedCurrent = { baseTimeKST: 'B5', predictions: [p1], pending: [], zoneSignals };
         // 키 집합 일치 확인(정확히 이 키만).
         const keysOk = call &&
-            deepEqual(Object.keys(call.current).sort(), ['baseTimeKST', 'predictions', 'zoneSignals']);
+            deepEqual(Object.keys(call.current).sort(), ['baseTimeKST', 'pending', 'predictions', 'zoneSignals']);
         const valOk = call && deepEqual(call.current, expectedCurrent);
         const resolvedOk = r.resolvedCount === 1;
         const pass = keysOk && valOk && resolvedOk;
         rec('current_shape', pass, {
             keys: call && Object.keys(call.current), valueMatches: valOk,
             resolvedCount: r.resolvedCount,
+        });
+    }
+
+    // ── 케이스 6: pending 전달 + 억제 — 대기 구역도 억제 거쳐 current.pending 으로 ──
+    {
+        const pPend = { office: 'jeju', zone: 'Zp', windKt: 27, waveM: 2 };       // 대기(통과)
+        const pPendSupp = { office: 'jeju', zone: 'Zq', windKt: 26, waveM: 2 };   // 대기(공식특보 → 억제)
+        const upd = makeUpdateCapture({ active: [p1], resolved: [] });
+        const r = await runPredictionCycle({
+            deps: {
+                generatePredictions: async () => ({
+                    generatedAt: 'G6', baseTimeKST: 'B6',
+                    predictions: [p1], pending: [pPend, pPendSupp], zoneSignals,
+                }),
+                // 억제 mock: Zq 만 가림 — 입력은 표출+대기 합본이어야 함
+                applySuppression: async (input) => ({
+                    visible: input.filter((p) => p.zone !== 'Zq'),
+                    suppressed: [{ zone: 'Zq', reason: 'official' }],
+                }),
+                updateState: upd.fn,
+            },
+        });
+        const call = upd.calls[0];
+        const okPred = call && deepEqual(call.current.predictions, [p1]);
+        const okPend = call && deepEqual(call.current.pending, [pPend]); // Zq 억제로 제외
+        const okZones = call && deepEqual(call.suppressedZones, ['Zq']);
+        const pass = r.ok === true && okPred && okPend && okZones;
+        rec('pending_passthrough', pass, {
+            predictions: okPred, pending: okPend, suppressedZones: call && call.suppressedZones,
         });
     }
 

@@ -102,6 +102,9 @@ local_server/data/tide_field/curves/*.json
 local_server/data/advisory_demo_testmode.json
 local_server/data/advisory_demo_active.json
 
+# 특보 예측 표출 제어 상태(관리자: 청중 모드 off/admin/all + 구역별 삭제/중지/수정)
+local_server/data/advisory_display.json
+
 # 특보 예측 2사이클 지속성 상태(엔진이 매 사이클 생성, Fly 볼륨 보존)
 local_server/data/advisory_pending.json
 local_server/data/advisory_pending.json.tmp
@@ -130,3 +133,6 @@ local_server/analysis/wave_leadtime/out/recalib_samples_*.json
 
 # 예비특보 통보문 수집물(dmdw 크롤링 산출)
 local_server/analysis/wave_leadtime/data/prelim_warnings.json
+
+# 특보 예측 운영 누적 저널(분석력 강화용 — Fly 볼륨, append-only)
+local_server/data/advisory_journal.jsonl

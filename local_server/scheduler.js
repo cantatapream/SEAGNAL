@@ -41,11 +41,16 @@ const https = require('https');
 //   동시에 1개만 실행(중복 가드). 자식은 runPrediction.js 의 CLI 진입점을 쓴다.
 // ============================================================================
 let _advisoryChildRunning = false;
-// [임시 비활성] 특보 예측 과대검출 점검 중 — 사이클 중지. 재활성: false → true.
-var ADVISORY_CYCLE_ENABLED = false;
+// 마스터 스위치: 관리자 "특보 관리 → 특보 예측" 표출 모드. 'off' 면 생성도 중단.
+//   displayControl.getMode() != 'off' (admin/all) 이면 사이클 가동.
+let _displayControl = null;
+try { _displayControl = require('./advisory/displayControl'); } catch (_) { _displayControl = null; }
+function _advisoryEnabled() {
+    try { return _displayControl ? _displayControl.getMode() !== 'off' : false; } catch (_) { return false; }
+}
 function spawnAdvisoryCycle(reason) {
-    if (!ADVISORY_CYCLE_ENABLED) {
-        console.log(`[advisory] 임시 비활성 상태 — ${reason} 스킵`);
+    if (!_advisoryEnabled()) {
+        console.log(`[advisory] 표출모드 off — ${reason} 스킵`);
         return;
     }
     if (_advisoryChildRunning) {

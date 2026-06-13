@@ -58,11 +58,23 @@ async function runPredictionCycle(opts = {}) {
     const updState = deps.updateState || updateState;
 
     try {
+        // ── 0) 변경감지: 직전 처리 base 를 엔진에 전달(같으면 엔진이 스킵) ──
+        let prevBaseKST = null;
+        try {
+            const sm = deps.stateManager || require('./stateManager');
+            if (sm && typeof sm.readPrevState === 'function') {
+                const ps = sm.readPrevState();
+                prevBaseKST = ps && ps.baseTimeKST ? ps.baseTimeKST : null;
+            }
+        } catch (_) { prevBaseKST = null; }
+        const genOptions = Object.assign({}, opts.genOptions || {});
+        if (prevBaseKST && genOptions.prevBaseKST == null && !opts.forceFull) genOptions.prevBaseKST = prevBaseKST;
+
         // ── 1) 엔진: 예측 생성 ────────────────────────────────────────────
         //   실패 시 updateState 호출하지 않음 → 이전 상태(디스크) 보존.
         let g;
         try {
-            g = await gen(opts.genOptions || {});
+            g = await gen(genOptions);
         } catch (e) {
             const error = (e && e.message) || String(e);
             console.log(`[advisory] generate 실패 → 이전 상태 보존: ${error}`);
@@ -70,22 +82,36 @@ async function runPredictionCycle(opts = {}) {
             return { ok: false, stage: 'generate', error };
         }
         g = g && typeof g === 'object' ? g : {};
+        // 변경 없음 → 엔진이 스킵. 이전 상태 그대로 유지(updateState 호출 안 함).
+        if (g.skipped) {
+            console.log(`[advisory] cycle skip — base=${g.baseTimeKST} (변경 없음, 이전 상태 유지)`);
+            return { ok: true, skipped: true, baseTimeKST: g.baseTimeKST || prevBaseKST || null };
+        }
         const predictions = Array.isArray(g.predictions) ? g.predictions : [];
+        const pendingRaw = Array.isArray(g.pending) ? g.pending : [];
         const zoneSignals = Array.isArray(g.zoneSignals) ? g.zoneSignals : [];
 
         // ── 2) 억제: 발효/예비특보 구역 가림 ──────────────────────────────
         //   applySuppression 자체가 graceful 이나, 방어적으로 try 로 감싸
         //   예외 시 보수적 폴백(과억제 방지)으로 계속한다.
+        //   pending(지속성 대기)도 함께 억제 — 공식특보 구역의 대기 신호가
+        //   carry-over 로 표출되는 일이 없도록. zone 집합으로 다시 분리
+        //   (dedup 후라 한 zone 은 표출/대기 중 한쪽에만 존재).
+        const pendingZoneSet = new Set(pendingRaw.map((p) => p && p.zone).filter(Boolean));
         let visible;
         let suppressed;
+        let pendingVisible;
         try {
-            const r = await applySupp(predictions);
-            visible = (r && Array.isArray(r.visible)) ? r.visible : predictions;
+            const r = await applySupp(predictions.concat(pendingRaw));
+            const vis = (r && Array.isArray(r.visible)) ? r.visible : predictions.concat(pendingRaw);
+            visible = vis.filter((p) => p && !pendingZoneSet.has(p.zone));
+            pendingVisible = vis.filter((p) => p && pendingZoneSet.has(p.zone));
             suppressed = (r && Array.isArray(r.suppressed)) ? r.suppressed : [];
         } catch (e) {
             const error = (e && e.message) || String(e);
             console.log(`[advisory] suppression 실패 → 폴백(과억제 방지): ${error}`);
             visible = predictions;   // 보수적: 전체 노출
+            pendingVisible = pendingRaw;
             suppressed = [];
         }
 
@@ -100,10 +126,11 @@ async function runPredictionCycle(opts = {}) {
         let enriched = visible;
         try {
             const cx = deps.crossReference || require('./crossReference');
-            const loadForecastMap = deps.loadForecastMap || cx.loadForecastMap;
             const enrichPredictions = deps.enrichPredictions || cx.enrichPredictions;
-            const forecastMap = loadForecastMap();
-            enriched = enrichPredictions(visible, forecastMap) || visible;
+            // 단일 출처: 날씨누리 [해설] 단기전망 통보문(풍속/파고/문장/발표시각).
+            const loadBulletinMap = deps.loadBulletinMap || cx.loadBulletinMap || (() => ({}));
+            const bulletinMap = loadBulletinMap();
+            enriched = enrichPredictions(visible, bulletinMap) || visible;
         } catch (e) {
             const error = (e && e.message) || String(e);
             console.log(`[advisory] 교차참조 실패 → 병기 생략(예측 유지): ${error}`);
@@ -114,9 +141,29 @@ async function runPredictionCycle(opts = {}) {
         const current = {
             baseTimeKST: g.baseTimeKST,
             predictions: enriched,
+            pending: pendingVisible,   // 지속성 대기 — 직전 표출 구역이면 carry-over(해소 오판 방지)
             zoneSignals,
         };
         const state = updState(current, suppressedZones, opts.stateOpts || {}) || {};
+
+        // ── 4.5) 누적 저널: 예측(표출/대기/억제) + 공식특보 관측 기록 ───────
+        //   분석력 강화용 운영 데이터 축적(append-only). 실패해도 사이클은 정상.
+        try {
+            const journal = deps.journal || require('./journal');
+            let warnZones = [];
+            try {
+                const supp = require('./suppression');
+                const zset = supp.getActiveWarningZones();
+                warnZones = zset ? Array.from(zset) : [];
+            } catch (_) { warnZones = []; }
+            journal.logCycle({
+                baseTimeKST: g.baseTimeKST,
+                shown: visible, pending: pendingVisible, suppressed,
+                warnZones,
+            });
+        } catch (e) {
+            console.log(`[advisory] journal 기록 실패(무시): ${(e && e.message) || e}`);
+        }
 
         // ── 5) 요약 반환 ──────────────────────────────────────────────────
         const summary = {

@@ -44,7 +44,9 @@ const { scanOnsets } = require('./onsetScan');
 
 // --- 재사용 검증 모듈 (../analysis/wave_leadtime) ---
 const WL = path.join(__dirname, '..', 'analysis', 'wave_leadtime');
-const { REGIONAL_OFFICES, listFrames, downloadFrame } = require(path.join(WL, 'chartClient'));
+// 차트 소스: 기본 날씨누리(공개·인증불필요·게시빠름). ADVISORY_CHART_SOURCE=dmdw 면 방재기상플랫폼.
+const CHART_MOD = (process.env.ADVISORY_CHART_SOURCE === 'dmdw') ? 'chartClient' : 'nuriChartClient';
+const { REGIONAL_OFFICES, listFrames, downloadFrame } = require(path.join(WL, CHART_MOD));
 const { decode } = require(path.join(WL, 'geoCalib'));
 const { getStaticMask } = require(path.join(WL, 'staticMask'));
 const windPalette = require(path.join(WL, 'windPalette'));
@@ -62,7 +64,8 @@ const STATE_PENDING = path.join(__dirname, '..', 'data', 'advisory_pending.json'
 // 폴리곤 1회 로드(구역명 normName 키). 비면 기존처럼 구역 스킵.
 const polyMap = loadZonePolygons();
 
-const PUB_DELAY_H = 7;          // 발표지연(가용성 보정) — 슬롯 선택에만 사용
+const PUB_DELAY_H = 2;          // 발표지연(가용성 보정) — 날씨누리는 발표 직후 게시라 작게.
+                               //   못 받으면 listFrames 가 빈배열 → 이전 슬롯 자동 폴백(안전).
 const RUN_BACK_MAX = 4;         // run 슬롯 역행 횟수
 const SLEEP_MIN = 80, SLEEP_MAX = 120;
 const KT_TO_MS = 0.514444;
@@ -168,6 +171,21 @@ async function maskFor(chartCode, regMeta, signal, classify, ge3Level, prefix) {
 // 메인 — 예측 생성
 // ----------------------------------------------------------------------------
 async function generatePredictions(options = {}) {
+    // ── 변경감지(폴링 절약) ───────────────────────────────────────────────
+    //   최신 base 가 직전 처리분(options.prevBaseKST)과 같으면 다운로드/분석을
+    //   건너뛴다. 일기도는 12h 마다 갱신되므로 대부분 사이클은 같은 base → 스킵.
+    //   업데이트(새 base) 시에만 풀 분석. (해상일기도 탭도 동일 원리로 폴링)
+    if (options.prevBaseKST && typeof listFrames === 'function' && typeof require(path.join(WL, CHART_MOD)).latestBaseKST === 'function') {
+        try {
+            const firstCode = Object.keys(OFFICES)[0];
+            const latest = await require(path.join(WL, CHART_MOD)).latestBaseKST(OFFICE_CHART[firstCode] || firstCode, 'wind');
+            if (latest && latest === options.prevBaseKST) {
+                console.error(`[advisory] 변경 없음 (base=${latest}) — 사이클 스킵`);
+                return { skipped: true, baseTimeKST: latest, predictions: [], pending: [], zoneSignals: [] };
+            }
+        } catch (_) { /* 확인 실패 → 정상 진행(보수적) */ }
+    }
+
     // 검증 시연용 임계 override (정상 운영은 config 기본값)
     const windCut = options.windCutKt != null ? options.windCutKt : THRESHOLDS.WIND_ONSET_KT;
     const waveCut = options.waveCutM != null ? options.waveCutM : THRESHOLDS.WAVE_M;
@@ -233,6 +251,10 @@ async function generatePredictions(options = {}) {
             const idxCache = new Map();        // zone.name → Int32Array|null
             const windAreaAt = new Map();      // zone.name → 마지막 풍속 면적비율
             const waveAreaAt = new Map();      // zone.name → 마지막 파고 면적비율
+            // 게이트(면적) 무관 "실제 관측 최대밴드" — 사용자 표시용(해소 카드 등).
+            //   면적 미달이어도 폴리곤 내부의 실제 풍속/파고를 0 대신 그대로 보여주기 위함.
+            const windPeakAt = new Map();      // zone.name → 실제 최대 풍속밴드(kt)
+            const wavePeakAt = new Map();      // zone.name → 실제 최대 파고밴드(m)
             const zoneIdx = (dec, z) => {
                 let idx = idxCache.get(z.name);
                 if (idx === undefined) {
@@ -263,6 +285,7 @@ async function generatePredictions(options = {}) {
                     });
                     if (!a) return 0;
                     windAreaAt.set(z.name, a.areaFraction);
+                    windPeakAt.set(z.name, Math.max(windPeakAt.get(z.name) || 0, a.maxBand)); // 실제값(게이트 무관)
                     return a.areaFraction >= THRESHOLDS.WIND_AREA_MIN ? a.maxBand : 0;
                 },
                 bandWave: (dec, z) => {
@@ -275,6 +298,7 @@ async function generatePredictions(options = {}) {
                     });
                     if (!a) return 0;
                     waveAreaAt.set(z.name, a.areaFraction);
+                    wavePeakAt.set(z.name, Math.max(wavePeakAt.get(z.name) || 0, a.maxBand)); // 실제값(게이트 무관)
                     return a.areaFraction >= THRESHOLDS.WAVE_AREA_MIN ? a.maxBand : 0;
                 },
             });
@@ -287,8 +311,12 @@ async function generatePredictions(options = {}) {
 
                     // 구역별 현재 peak 신호 기록 (해소 카드 '전→후' / 디버그용)
                     //   prob: 등급기반(현실 정밀도) — 없으면 0. stateManager 가 그대로 사용.
+                    //   확률/등급(prob)은 게이트 적용값(r.peakWind/Wave)으로 — 발효 가능성 정밀도 유지.
+                    //   표시값(windKt/waveM)은 게이트 무관 실제 관측 peak — 0 대신 실제 풍속/파고 노출.
                     const sigGrade = gradeOf2({ windKt: r.peakWind, windArea, waveM: r.peakWave, waveArea });
-                    zoneSignals.push({ office: code, zone: z.name, windKt: r.peakWind, waveM: r.peakWave, windArea, waveArea, prob: sigGrade ? sigGrade.probPct / 100 : 0 });
+                    const realWind = windPeakAt.get(z.name) || 0;
+                    const realWave = wavePeakAt.get(z.name) || 0;
+                    zoneSignals.push({ office: code, zone: z.name, windKt: realWind, waveM: realWave, windArea, waveArea, prob: sigGrade ? sigGrade.probPct / 100 : 0 });
 
                     if (!r.onset) continue; // 예측 없음
 
@@ -336,9 +364,32 @@ async function generatePredictions(options = {}) {
         }
     }
 
-    // 등급 강한 순 → 확률 순 → onset 빠른 순 정렬
+    // --- 구역 dedup: 한 구역이 여러 청 차트에 포함(40개 중 25개 구역이 2~3청 중복) ---
+    //   같은 zone 의 청별 결과 중 가장 강한 신호 1건만 채택(등급 → 확률 → 면적 → 풍속).
     const gradeRank = { high: 2, watch: 1 };
-    predictions.sort((a, b) =>
+    const strength = (p) => [gradeRank[p.grade.key] || 0, p.probPct || 0, p.areaPct || 0, p.windKt || 0];
+    const stronger = (a, b) => {
+        const sa = strength(a), sb = strength(b);
+        for (let i = 0; i < sa.length; i++) { if (sa[i] !== sb[i]) return sa[i] > sb[i]; }
+        return false;
+    };
+    const dedupMap = new Map();
+    for (const p of predictions) {
+        const cur = dedupMap.get(p.zone);
+        if (!cur || stronger(p, cur)) dedupMap.set(p.zone, p);
+    }
+    const deduped = Array.from(dedupMap.values());
+    // zoneSignals 도 zone 단위 최강값만(해소 '전→후'가 가장 강한 차트 기준이 되도록)
+    const sigMap = new Map();
+    for (const s of zoneSignals) {
+        const cur = sigMap.get(s.zone);
+        if (!cur || (s.prob || 0) > (cur.prob || 0) ||
+            ((s.prob || 0) === (cur.prob || 0) && (s.windKt || 0) > (cur.windKt || 0))) sigMap.set(s.zone, s);
+    }
+    const dedupedSignals = Array.from(sigMap.values());
+
+    // 등급 강한 순 → 확률 순 → onset 빠른 순 정렬
+    deduped.sort((a, b) =>
         (gradeRank[b.grade.key] - gradeRank[a.grade.key]) ||
         (b.probPct - a.probPct) ||
         (a.onsetISO < b.onsetISO ? -1 : a.onsetISO > b.onsetISO ? 1 : 0));
@@ -347,19 +398,22 @@ async function generatePredictions(options = {}) {
     //   상태파일(STATE_PENDING)에 이번 사이클 통과구역 전부를 기록하고, 표출은 직전 기록과의
     //   교집합만. 첫 등장은 '대기'(미표출), 다음 사이클에도 잡히면 '표출'. 직전 상태가
     //   PERSIST_MAX_AGE_H 보다 오래면 연속으로 보지 않음(전부 대기).
-    const keyOf = (p) => `${p.office}|${p.zone}`;
-    const thisFlagged = predictions.map(keyOf);
-    let shown = predictions, pendingCount = 0;
+    //   키는 zone 단위 — 같은 구역이 사이클마다 다른 청에서 잡혀도 연속으로 인정.
+    const keyOf = (p) => p.zone;
+    const thisFlagged = deduped.map(keyOf);
+    let shown = deduped, pending = [];
     if (THRESHOLDS.PERSIST_ENABLED && !options.noPersist) {
         let prevFlagged = new Set();
         try {
             const prev = JSON.parse(fs.readFileSync(STATE_PENDING, 'utf8'));
             const ageH = (Date.now() - new Date(prev.generatedAt).getTime()) / 3600000;
-            if (prev && Array.isArray(prev.flagged) && ageH <= THRESHOLDS.PERSIST_MAX_AGE_H) prevFlagged = new Set(prev.flagged);
+            if (prev && Array.isArray(prev.flagged) && ageH <= THRESHOLDS.PERSIST_MAX_AGE_H) {
+                // 구버전 키('office|zone') 호환: 마지막 토큰(zone)으로 정규화
+                prevFlagged = new Set(prev.flagged.map((s) => String(s).split('|').pop()));
+            }
         } catch (_) { /* 직전 상태 없음 → 전부 대기 */ }
-        shown = predictions.filter((p) => prevFlagged.has(keyOf(p)));
-        shown.forEach((p) => { p.confirmed = true; });
-        pendingCount = predictions.length - shown.length;
+        shown = deduped.filter((p) => prevFlagged.has(keyOf(p)));
+        pending = deduped.filter((p) => !prevFlagged.has(keyOf(p)));
         if (!options.noWrite) {
             try { fs.mkdirSync(path.dirname(STATE_PENDING), { recursive: true });
                 fs.writeFileSync(STATE_PENDING, JSON.stringify({ generatedAt: new Date().toISOString(), baseTimeKST: baseTimeKST || null, flagged: thisFlagged })); }
@@ -367,12 +421,17 @@ async function generatePredictions(options = {}) {
         }
     }
 
+    // confirmed 플래그 — 지속성 ON/OFF 양쪽에서 일관되게 표출분에 부여
+    //   (runPrediction 이 억제 후 confirmed 로 표출/대기를 다시 분리하는 데 사용)
+    shown.forEach((p) => { p.confirmed = true; });
+
     const result = {
         generatedAt: new Date().toISOString(),
         baseTimeKST: baseTimeKST || null,
         predictions: shown,                 // 표출 = 2사이클 연속 통과분
-        pendingCount,                        // 이번에 처음 잡혀 대기 중인 구역 수
-        zoneSignals, // 모든 도메인 구역 현재 peak 신호 (해소 '전→후' 계산용)
+        pending,                             // 이번에 처음 잡혀 대기 중인 예측(미표출, 상태관리용)
+        pendingCount: pending.length,
+        zoneSignals: dedupedSignals, // 구역별 최강 peak 신호 (해소 '전→후' 계산용)
     };
 
     if (!options.noWrite) {
