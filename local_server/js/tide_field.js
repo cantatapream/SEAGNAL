@@ -105,7 +105,6 @@
             // [줌 바닥선] 표출 줌 미만이면 갯벌을 그리지 않고 안내 카드만 띄운다.
             //   (minZoom 잠금 전 단계 — 사용자가 직접 확대하도록 둠. 강제 줌 점프 없음.)
             if (_belowFloor()) {
-                showZoomHint();
                 _drawCells = [];
                 if (_imgSource) _imgSource.changed();
                 hideLoading();
@@ -332,7 +331,10 @@
         _active = true;
         if (btn) btn.classList.add('active');
         _layer.setVisible(true);
-        showLoading();   // 슬라이더·범례·첫 화면 준비될 때까지 중앙 로딩 표시
+        // [안내 카드] 줌아웃 상태(표출 줌 미만)면 버튼 클릭 즉시 1.5초 안내(스피너 대신).
+        //   표출 줌이면 데이터 준비 동안 로딩 스피너.
+        if (_belowFloor()) showZoomHint();
+        else showLoading();
 
         ensureMeta().then(function (ok) {
             if (!ok) {
@@ -349,8 +351,7 @@
             // [줌 바닥선] 표출 줌 미만이면 강제로 당기지 않고(점프 X) 안내 카드만 띄운다.
             //   사용자가 직접 확대해 표출 줌에 도달하면(moveend) 그때 잠그고 렌더한다.
             if (_belowFloor()) {
-                hideLoading();
-                showZoomHint();
+                hideLoading();   // (스피너가 떠 있었다면 정리) — 안내는 클릭 즉시 이미 표시됨
             } else {
                 hideZoomHint();
                 applyFloorLock();
@@ -452,8 +453,8 @@
         if (slider) slider.value = idx;
         updateTooltip(idx);
 
-        // [줌 바닥선] 표출 줌 미만에선 요청·렌더를 생략하고 안내 카드만.
-        if (_active && _belowFloor()) { showZoomHint(); return; }
+        // [줌 바닥선] 표출 줌 미만에선 요청·렌더를 생략.
+        if (_active && _belowFloor()) { return; }
 
         fetchCells(iso).then(function (res) {
             if (!_active) return;
@@ -594,14 +595,25 @@
             el.id = 'mudflat-zoom-hint';
             el.innerHTML = '<div class="mudflat-zoom-hint-box">' +
                 '<div class="mudflat-zoom-hint-icon"><i class="fa-solid fa-magnifying-glass-plus"></i></div>' +
-                '<div class="mudflat-zoom-hint-title">지도를 확대하면 갯벌이 표시됩니다</div>' +
-                '<div class="mudflat-zoom-hint-sub">이 축척부터 물빠짐 정보가 나타나요.</div></div>';
+                '<div class="mudflat-zoom-hint-title">지도를 확대하면<br>갯벌이 표시됩니다.</div></div>';
             document.body.appendChild(el);
         }
         return el;
     }
-    function showZoomHint() { ensureZoomHintEl().classList.add('show'); }
+    // 안내 카드: 표시 후 1.5초만 유지하고 페이드아웃(CSS opacity transition). 버튼을
+    //   누른 순간 1회 안내 용도. (지속 표시가 아니라 잠깐 떴다 사라짐)
+    var _zoomHintTimer = null;
+    function showZoomHint() {
+        ensureZoomHintEl().classList.add('show');
+        if (_zoomHintTimer) clearTimeout(_zoomHintTimer);
+        _zoomHintTimer = setTimeout(function () {
+            var e = document.getElementById('mudflat-zoom-hint');
+            if (e) e.classList.remove('show');   // opacity 0 → CSS 로 페이드아웃
+            _zoomHintTimer = null;
+        }, 1500);
+    }
     function hideZoomHint() {
+        if (_zoomHintTimer) { clearTimeout(_zoomHintTimer); _zoomHintTimer = null; }
         var el = document.getElementById('mudflat-zoom-hint');
         if (el) el.classList.remove('show');
     }
