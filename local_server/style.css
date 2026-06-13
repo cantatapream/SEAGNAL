@@ -10864,6 +10864,15 @@ body.mc-fullscreen-active {
 .adv-badge2 { font-size: 0.72rem; font-weight: 700; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
 .adv-badge2-high { background: rgba(239, 68, 68, 0.22); color: #ff8a8a; border: 1px solid rgba(239, 68, 68, 0.4); }
 .adv-badge2-watch { background: rgba(234, 179, 8, 0.22); color: #ffdf7a; border: 1px solid rgba(234, 179, 8, 0.4); }
+/* 등급 변동(격상/격하) — 격상 ▲빨강 / 격하 ▼초록(약간 노란기). 접힌 헤더 미니 뱃지. */
+.adv-chg { display: inline-flex; align-items: center; gap: 2px; font-size: 0.68rem; font-weight: 800; padding: 2px 7px; border-radius: 20px; white-space: nowrap; margin-right: 4px; }
+.adv-chg-up { background: rgba(239, 68, 68, 0.20); color: #ff7a7a; border: 1px solid rgba(239, 68, 68, 0.45); }
+.adv-chg-down { background: rgba(124, 200, 90, 0.18); color: #aee08a; border: 1px solid rgba(124, 200, 90, 0.42); }
+/* 펼친 바디의 전이 한 줄("▲ 격상  관심 → 높음 (+12%p)"). */
+.adv-chg-line { font-size: 0.8rem; font-weight: 700; margin: 0 0 8px; display: flex; align-items: center; gap: 6px; }
+.adv-chg-line.adv-chg-up { color: #ff7a7a; }
+.adv-chg-line.adv-chg-down { color: #aee08a; }
+.adv-chg-dp { font-weight: 600; opacity: 0.9; }
 .adv-card-chev { color: var(--text-sub, #9aa7b4); font-size: 11px; width: 14px; text-align: center; transition: transform 0.18s; }
 .adv-card.open .adv-card-chev { transform: rotate(180deg); }
 .adv-card-body { display: none; padding: 0 13px 12px; }

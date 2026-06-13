@@ -1154,7 +1154,7 @@ window.toggleReaction = async function(postId, type) {
 };
 
 // 12. 탭 전환 시 게시글 로드 및 관리자 인증 (15회 클릭)
-async function _bootPromoAndSplash() {
+document.addEventListener('DOMContentLoaded', async function () {
     // [New] 네이티브 스플래시(=검정화면) 종료 -> 웹 스플래시 시작
     if (window.hideNativeSplash) {
         // 약간의 딜레이를 주어 흰색 플래시를 완전히 방지할 수도 있음
@@ -1290,18 +1290,5 @@ async function _bootPromoAndSplash() {
             }
         });
     });
-}
-
-// [부팅 조기 시작] 다수 스크립트가 defer 로 분할되면서 DOMContentLoaded 는
-// 모든 defer 스크립트 실행이 끝난 뒤에야 발생한다. 그 시점까지 부팅 데이터
-// fetch(fetchAllData) 를 미루면 defer 분할의 이득이 상쇄되므로,
-// promo.js 가 body 끝(스플래시 DOM 및 eager 의존성 이후)에서 즉시 실행되는
-// 점을 이용해 부팅 핸들러를 파싱 시점에 직접 호출한다.
-// (이 시점 document.readyState 는 아직 'loading' 이므로 readyState 검사만으로는
-//  조기 시작이 불가능 → 핸들러를 직접 호출). 실패 시 DOMContentLoaded 로 폴백.
-try {
-    _bootPromoAndSplash();
-} catch (e) {
-    document.addEventListener('DOMContentLoaded', () => { _bootPromoAndSplash(); });
-}
+});
 
