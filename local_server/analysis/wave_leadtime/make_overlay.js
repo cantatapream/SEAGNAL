@@ -52,11 +52,13 @@ const domain = ZONES.filter(z => inFrame(z) && (warnMap.has(normName(z.name)) ||
 console.log(`프레임 ${w}x${h}, 도메인 구역 ${domain.length}개`);
 for (const z of domain) {
     const nm = normName(z.name);
-    drawPolys(warnMap.get(nm), 255, 40, 40);     // warn = 빨강
-    drawPolys(stermMap.get(nm), 0, 220, 255);    // sterm = 청록
+    const jeju = z.name.startsWith('제주');
+    // 제주 = 마젠타, 그 외(남해 등) = 흰색 — 강풍역(배경 빨강/주황)과 구분
+    if (jeju) drawPolys(warnMap.get(nm), 255, 0, 255);
+    else drawPolys(warnMap.get(nm), 255, 255, 255);
     const cx = xOf(z.lon), cy = yOf(z.lat);
     dot(cx, cy, 255, 255, 0, 3);                 // 구역 중심 = 노랑
-    console.log(`  ${z.name}: 중심px(${cx},${cy})  warn조각 ${(warnMap.get(nm) || []).length}  sterm조각 ${(stermMap.get(nm) || []).length}`);
+    console.log(`  ${z.name}: 중심px(${cx},${cy})  ${jeju ? '제주(마젠타)' : '기타(흰)'}`);
 }
 
 // CALIB 기준 경위도 격자(초록): 일기도 자체 눈금과 겹치면 CALIB 정확.
