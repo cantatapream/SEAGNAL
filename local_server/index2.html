@@ -1286,11 +1286,12 @@
            통과(pointer-events:none). "확대하세요" 안내라 스피너와 아이콘·문구가 다름. */
         #mudflat-zoom-hint {
             position: fixed; inset: 0; z-index: 1400;
-            display: flex; align-items: center; justify-content: center;
+            display: none; align-items: center; justify-content: center;
             pointer-events: none;
             opacity: 0; transition: opacity 0.45s ease;   /* 페이드 인/아웃 */
         }
-        #mudflat-zoom-hint.show { opacity: 1; }
+        #mudflat-zoom-hint.show { display: flex; }          /* 표시(레이아웃 확보) */
+        #mudflat-zoom-hint.show.visible { opacity: 1; }     /* 페이드 인 */
         .mudflat-zoom-hint-box {
             display: flex; flex-direction: column; align-items: center; gap: 0.55rem;
             max-width: 16rem; text-align: center;
