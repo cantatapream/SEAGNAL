@@ -1,78 +1,102 @@
 'use strict';
 /**
  * ============================================================================
- * advisory/overlayRenderer.js — 위험기상 일기도 오버레이 PNG 생성
+ * advisory/overlayRenderer.js — 위험기상 일기도 오버레이(2레이어)
  * ============================================================================
  *
- * 일기도(청별 풍속/파고 GIF) 디코드 결과 위에, 특보구역 폴리곤 테두리와
- * "위험영역"(임계 초과 픽셀)을 등급색으로 그려 PNG 버퍼를 만든다.
- *   - 사용자가 "이 구역의 이 부분 때문에 예측이 떴구나"를 눈으로 보게 한다.
- *   - 전체 청 차트 그대로(크롭 없음). 외부 이미지 라이브러리 불필요(zlib 직접).
+ * 카드 '일기도 보기'용 이미지를 두 레이어로 생성한다(면 채색 없음, 선만):
+ *   - base  PNG(RGB)  : 일기도 + 특보구역 테두리(빨강 진한 실선, 고정)
+ *   - blink PNG(RGBA) : 투명 배경 + 위험영역(임계초과) 경계(노랑 진한 점선)
+ *                       프론트에서 겹쳐 올려 CSS 로 깜빡(opacity 맥동)시킨다.
+ *                       → 깜빡 레이어가 위 = 위험영역 점선이 특보구역 실선 위.
  *
- * [설계] 무거운 GIF 디코드는 호출측(예측 사이클 자식 프로세스)이 책임지고,
- *   본 모듈은 디코드 결과(decoded)만 받아 합성→PNG 인코딩한다(순수, IO 없음).
- *
- * @example
- *   const png = renderZoneOverlay({ decoded, cal, polys, dGE3, dGE5, gradeKey });
- *   fs.writeFileSync(out, png);
+ * 선 가독성: 노랑/빨강이 일기도 풍속색(노/주/빨)에 묻히지 않도록 얇은 흰 외곽(halo).
+ * 외부 이미지 라이브러리 불필요(zlib 직접).
  * ============================================================================
  */
 const zlib = require('zlib');
 
-// 등급색 — 일기도 풍속 팔레트(파·녹·노·주·빨)와 겹치지 않는 대비색.
-//   높음=자홍(마젠타), 관심=보라. 어느 배경 위에서도 식별된다.
-const GRADE_COLOR = {
-    high: [235, 0, 140],
-    watch: [150, 60, 235],
-};
-const BORDER_HALO = [255, 255, 255]; // 테두리 흰색 외곽(가독성)
+const ZONE_COLOR = [225, 30, 30];    // 특보구역 테두리 — 빨강 진한 실선
+const DANGER_COLOR = [255, 215, 0];  // 위험영역 테두리 — 노랑 진한 점선
+const HALO = [255, 255, 255];        // 흰 외곽(가독성)
 
-// ── 픽셀 합성 헬퍼 ──────────────────────────────────────────────────────────
-function blendIndices(rgb, indices, color, alpha) {
-    if (!Array.isArray(indices) || !indices.length) return;
-    const [cr, cg, cb] = color;
-    const a = alpha, ia = 1 - alpha;
-    for (let k = 0; k < indices.length; k++) {
-        const o = indices[k] * 3;
-        rgb[o] = (rgb[o] * ia + cr * a) | 0;
-        rgb[o + 1] = (rgb[o + 1] * ia + cg * a) | 0;
-        rgb[o + 2] = (rgb[o + 2] * ia + cb * a) | 0;
-    }
-}
-function setPx(rgb, w, h, x, y, c) {
+// ── RGB 버퍼 픽셀/선 ────────────────────────────────────────────────────────
+function setRgb(buf, w, h, x, y, c) {
     if (x < 0 || y < 0 || x >= w || y >= h) return;
     const o = (y * w + x) * 3;
-    rgb[o] = c[0]; rgb[o + 1] = c[1]; rgb[o + 2] = c[2];
+    buf[o] = c[0]; buf[o + 1] = c[1]; buf[o + 2] = c[2];
 }
-// 두께 thick(px) 의 선(Bresenham + 주변 채움).
-function drawLine(rgb, w, h, x0, y0, x1, y1, c, thick) {
+function lineRgb(buf, w, h, x0, y0, x1, y1, c, thick) {
     const t = Math.max(1, thick | 0);
     let dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
     let sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx + dy;
     for (; ;) {
-        for (let oy = 0; oy < t; oy++) for (let ox = 0; ox < t; ox++) setPx(rgb, w, h, x0 + ox, y0 + oy, c);
+        for (let oy = 0; oy < t; oy++) for (let ox = 0; ox < t; ox++) setRgb(buf, w, h, x0 + ox, y0 + oy, c);
         if (x0 === x1 && y0 === y1) break;
         const e2 = 2 * err;
         if (e2 >= dy) { err += dy; x0 += sx; }
         if (e2 <= dx) { err += dx; y0 += sy; }
     }
 }
-function drawPolygonBorder(rgb, w, h, cal, polys, color, thick) {
+// 특보구역 폴리곤 테두리(흰 외곽 위 색선).
+function drawZoneBorder(buf, w, h, cal, polys) {
     if (!Array.isArray(polys)) return;
-    for (const poly of polys) {
-        if (!Array.isArray(poly)) continue;
-        for (const ring of poly) {
-            if (!Array.isArray(ring)) continue;
-            for (let i = 0; i < ring.length - 1; i++) {
-                const x0 = Math.round(cal.xOf(ring[i][0])), y0 = Math.round(cal.yOf(ring[i][1]));
-                const x1 = Math.round(cal.xOf(ring[i + 1][0])), y1 = Math.round(cal.yOf(ring[i + 1][1]));
-                drawLine(rgb, w, h, x0, y0, x1, y1, color, thick);
+    const draw = (color, thick) => {
+        for (const poly of polys) {
+            if (!Array.isArray(poly)) continue;
+            for (const ring of poly) {
+                if (!Array.isArray(ring)) continue;
+                for (let i = 0; i < ring.length - 1; i++) {
+                    lineRgb(buf, w, h,
+                        Math.round(cal.xOf(ring[i][0])), Math.round(cal.yOf(ring[i][1])),
+                        Math.round(cal.xOf(ring[i + 1][0])), Math.round(cal.yOf(ring[i + 1][1])),
+                        color, thick);
+                }
             }
         }
+    };
+    draw(HALO, 4);        // 흰 외곽
+    draw(ZONE_COLOR, 2);  // 빨강 실선
+}
+
+// ── 위험영역 경계 픽셀 추출(ge3 픽셀 집합의 외곽) ─────────────────────────────
+function dangerBorderPixels(dangerIdx, w, h) {
+    if (!Array.isArray(dangerIdx) || !dangerIdx.length) return [];
+    const set = new Set(dangerIdx);
+    const out = [];
+    for (let k = 0; k < dangerIdx.length; k++) {
+        const p = dangerIdx[k];
+        const x = p % w, y = (p / w) | 0;
+        // 4방향 중 하나라도 집합 밖(또는 화면 끝)이면 경계.
+        if (x === 0 || y === 0 || x === w - 1 || y === h - 1 ||
+            !set.has(p - 1) || !set.has(p + 1) || !set.has(p - w) || !set.has(p + w)) {
+            out.push(p);
+        }
+    }
+    return out;
+}
+
+// ── RGBA 픽셀(투명 레이어용) ────────────────────────────────────────────────
+function setRgba(buf, w, h, x, y, c, a) {
+    if (x < 0 || y < 0 || x >= w || y >= h) return;
+    const o = (y * w + x) * 4;
+    buf[o] = c[0]; buf[o + 1] = c[1]; buf[o + 2] = c[2]; buf[o + 3] = a;
+}
+// 위험영역 경계를 노랑 점선(흰 halo)으로 RGBA 버퍼에 그린다.
+function paintDangerDash(rgba, w, h, border) {
+    const DASH = 11, ON = 6; // 점선 주기(켜짐 ON / 전체 DASH)
+    for (let k = 0; k < border.length; k++) {
+        const p = border[k];
+        const x = p % w, y = (p / w) | 0;
+        if (((x + y) % DASH) >= ON) continue; // 점선 OFF 구간 건너뜀
+        // 흰 halo 3x3 (반투명)
+        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) setRgba(rgba, w, h, x + ox, y + oy, HALO, 210);
+        // 노랑 core 2x2 (불투명)
+        for (let oy = 0; oy <= 1; oy++) for (let ox = 0; ox <= 1; ox++) setRgba(rgba, w, h, x + ox, y + oy, DANGER_COLOR, 255);
     }
 }
 
-// ── PNG 인코딩(24bit RGB, zlib) ─────────────────────────────────────────────
+// ── PNG 인코딩(RGB type2 / RGBA type6) ──────────────────────────────────────
 let _crcTable = null;
 function crc32(buf) {
     if (!_crcTable) {
@@ -89,11 +113,13 @@ function chunk(type, data) {
     const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([t, data])), 0);
     return Buffer.concat([len, t, data, crc]);
 }
-function encodePng(w, h, rgb) {
-    const raw = Buffer.alloc((w * 3 + 1) * h);
-    for (let y = 0; y < h; y++) { raw[y * (w * 3 + 1)] = 0; rgb.copy(raw, y * (w * 3 + 1) + 1, y * w * 3, (y + 1) * w * 3); }
+function encodePng(w, h, buf, channels) {
+    const ch = channels === 4 ? 4 : 3;
+    const stride = w * ch + 1;
+    const raw = Buffer.alloc(stride * h);
+    for (let y = 0; y < h; y++) { raw[y * stride] = 0; buf.copy(raw, y * stride + 1, y * w * ch, (y + 1) * w * ch); }
     const ihdr = Buffer.alloc(13);
-    ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2; // 8bit, RGB
+    ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = ch === 4 ? 6 : 2;
     return Buffer.concat([
         Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
         chunk('IHDR', ihdr),
@@ -103,30 +129,48 @@ function encodePng(w, h, rgb) {
 }
 
 /**
- * 위험기상 일기도 오버레이 PNG 생성.
- * @param {object} p
- * @param {{w,h,rgba}} p.decoded  일기도 디코드 결과
- * @param {{xOf:(lon)=>number, yOf:(lat)=>number}} p.cal  경위도→픽셀 보정
- * @param {Array} p.polys  특보구역 폴리곤([[ring...]])
- * @param {number[]} p.dGE3  위험영역(임계초과) 픽셀 인덱스 — 연한 색칠
- * @param {number[]} p.dGE5  경보급 픽셀 인덱스 — 진한 색칠
- * @param {'high'|'watch'} p.gradeKey  등급(색 결정)
- * @returns {Buffer} PNG
+ * base 레이어 — 일기도 + 특보구역 테두리(빨강 실선). 면 채색 없음.
+ * @returns {Buffer} RGB PNG
  */
-function renderZoneOverlay({ decoded, cal, polys, dGE3, dGE5, gradeKey }) {
+function renderBaseLayer({ decoded, cal, polys }) {
     const { w, h, rgba } = decoded;
     const rgb = Buffer.alloc(w * h * 3);
     for (let i = 0; i < w * h; i++) { rgb[i * 3] = rgba[i * 4]; rgb[i * 3 + 1] = rgba[i * 4 + 1]; rgb[i * 3 + 2] = rgba[i * 4 + 2]; }
-    const color = GRADE_COLOR[gradeKey] || GRADE_COLOR.watch;
-    // 위험영역 색칠 — 해당 구역 폴리곤 내부의 임계초과 픽셀에만(dGE3/dGE5 는 이미
-    //   그 구역 인덱스로 한정 → 인접 구역엔 칠하지 않음). 배경 풍속색과 대비되도록
-    //   진하게: ge3(거침) 0.45, ge5(경보) 0.75. ge5 를 나중에 칠해 위로 덮음.
-    blendIndices(rgb, dGE3, color, 0.45);
-    blendIndices(rgb, dGE5, color, 0.75);
-    // 구역 테두리 — 흰색 외곽(4px) 위에 등급색(2px) → 어떤 배경에서도 또렷.
-    drawPolygonBorder(rgb, w, h, cal, polys, BORDER_HALO, 4);
-    drawPolygonBorder(rgb, w, h, cal, polys, color, 2);
-    return encodePng(w, h, rgb);
+    drawZoneBorder(rgb, w, h, cal, polys);
+    return encodePng(w, h, rgb, 3);
 }
 
-module.exports = { renderZoneOverlay, encodePng, GRADE_COLOR };
+/**
+ * blink 레이어 — 투명 배경 + 위험영역 경계(노랑 점선). 프론트에서 깜빡 표시.
+ *   dGE3(임계초과 픽셀 위치)의 외곽만 점선으로. 비면 null(레이어 없음).
+ * @returns {Buffer|null} RGBA PNG
+ */
+function renderDangerLayer({ decoded, dGE3 }) {
+    const { w, h } = decoded;
+    const border = dangerBorderPixels(dGE3, w, h);
+    if (!border.length) return null;
+    const rgba = Buffer.alloc(w * h * 4); // 전부 투명(alpha 0)
+    paintDangerDash(rgba, w, h, border);
+    return encodePng(w, h, rgba, 4);
+}
+
+/**
+ * 미리보기 — base + blink 를 한 장(RGB)에 합성(검증/캡처용). 운영 표출은 2레이어 사용.
+ */
+function renderPreview({ decoded, cal, polys, dGE3 }) {
+    const { w, h, rgba } = decoded;
+    const rgb = Buffer.alloc(w * h * 3);
+    for (let i = 0; i < w * h; i++) { rgb[i * 3] = rgba[i * 4]; rgb[i * 3 + 1] = rgba[i * 4 + 1]; rgb[i * 3 + 2] = rgba[i * 4 + 2]; }
+    drawZoneBorder(rgb, w, h, cal, polys);
+    const border = dangerBorderPixels(dGE3, w, h);
+    const DASH = 11, ON = 6;
+    for (let k = 0; k < border.length; k++) {
+        const p = border[k]; const x = p % w, y = (p / w) | 0;
+        if (((x + y) % DASH) >= ON) continue;
+        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) setRgb(rgb, w, h, x + ox, y + oy, HALO);
+        for (let oy = 0; oy <= 1; oy++) for (let ox = 0; ox <= 1; ox++) setRgb(rgb, w, h, x + ox, y + oy, DANGER_COLOR);
+    }
+    return encodePng(w, h, rgb, 3);
+}
+
+module.exports = { renderBaseLayer, renderDangerLayer, renderPreview, ZONE_COLOR, DANGER_COLOR };

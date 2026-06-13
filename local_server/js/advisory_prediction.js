@@ -121,13 +121,15 @@
     // ── 위험기상 일기도 보기 — 버튼 + 펼침 컨테이너(이미지는 클릭 시 lazy load) ──
     //   it.overlay 가 있을 때만(엔진이 생성한 PNG 경로). 없으면 빈 문자열(버튼 숨김).
     function buildOverlayToggle(it) {
-        const src = (it && typeof it.overlay === 'string' && it.overlay) ? it.overlay : '';
-        if (!src) return '';
+        const base = (it && typeof it.overlay === 'string' && it.overlay) ? it.overlay : '';
+        if (!base) return '';
+        const blink = (it && typeof it.overlayBlink === 'string' && it.overlayBlink) ? it.overlayBlink : '';
         return '<div class="adv-ovl">' +
             '<button type="button" class="adv-ovl-btn" ' +
             'onclick="window.toggleAdvOverlay&&window.toggleAdvOverlay(this)">' +
             '🛰️ 위험기상 일기도 보기</button>' +
-            '<div class="adv-ovl-body" data-src="' + escapeHtml(src) + '"></div>' +
+            '<div class="adv-ovl-body" data-base="' + escapeHtml(base) + '" ' +
+            'data-blink="' + escapeHtml(blink) + '"></div>' +
             '</div>';
     }
 
@@ -321,22 +323,31 @@
         const card = headEl.closest('.adv-card');
         if (card) card.classList.toggle('open');
     }
-    // 위험기상 일기도 토글 — 펼칠 때 이미지를 lazy 삽입(첫 펼침에만 src 로드).
+    // 위험기상 일기도 토글 — 펼칠 때 2레이어(base 일기도+구역선 / blink 위험영역 점선)를
+    //   lazy 삽입해 겹친다. 깜빡 레이어가 위(DOM 나중)에 와 특보구역 선 위에서 맥동한다.
     function toggleAdvOverlay(btn) {
         if (!btn) return;
         const body = btn.nextElementSibling;
         if (!body || typeof body.classList === 'undefined') return;
         const willOpen = !body.classList.contains('open');
         body.classList.toggle('open', willOpen);
-        if (willOpen && !body.querySelector('img')) {
-            const src = body.getAttribute('data-src');
-            if (src) {
+        if (willOpen && !body.querySelector('.adv-ovl-stack')) {
+            const base = body.getAttribute('data-base');
+            const blink = body.getAttribute('data-blink');
+            if (base) {
+                const stack = document.createElement('div');
+                stack.className = 'adv-ovl-stack';
                 const img = document.createElement('img');
-                img.className = 'adv-ovl-img';
-                img.loading = 'lazy';
-                img.alt = '위험기상 일기도';
-                img.src = src;
-                body.appendChild(img);
+                img.className = 'adv-ovl-img'; img.loading = 'lazy';
+                img.alt = '위험기상 일기도'; img.src = base;
+                stack.appendChild(img);
+                if (blink) {
+                    const b = document.createElement('img');
+                    b.className = 'adv-ovl-img adv-ovl-blink'; b.loading = 'lazy';
+                    b.alt = ''; b.src = blink;
+                    stack.appendChild(b);
+                }
+                body.appendChild(stack);
             }
         }
         btn.textContent = willOpen ? '🛰️ 위험기상 일기도 닫기' : '🛰️ 위험기상 일기도 보기';
