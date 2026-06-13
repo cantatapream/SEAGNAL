@@ -116,17 +116,16 @@ function setRgba(buf, w, h, x, y, c, a) {
     const o = (y * w + x) * 4;
     buf[o] = c[0]; buf[o + 1] = c[1]; buf[o + 2] = c[2]; buf[o + 3] = a;
 }
-// 위험영역 경계를 노랑 점선(흰 halo)으로 RGBA 버퍼에 그린다.
-function paintDangerDash(rgba, w, h, border) {
-    const DASH = 11, ON = 6; // 점선 주기(켜짐 ON / 전체 DASH)
-    for (let k = 0; k < border.length; k++) {
-        const p = border[k];
-        const x = p % w, y = (p / w) | 0;
-        if (((x + y) % DASH) >= ON) continue; // 점선 OFF 구간 건너뜀
-        // 흰 halo 3x3 (반투명)
-        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) setRgba(rgba, w, h, x + ox, y + oy, HALO, 210);
-        // 노랑 core 2x2 (불투명)
-        for (let oy = 0; oy <= 1; oy++) for (let ox = 0; ox <= 1; ox++) setRgba(rgba, w, h, x + ox, y + oy, DANGER_COLOR, 255);
+// 위험영역 경계를 빨강 실선(흰 halo)으로 RGBA 버퍼에 그린다(내부는 투명).
+//   halo 를 먼저 전부 깔고 그 위에 빨강을 올려야 선이 halo 에 덮이지 않는다.
+function paintDangerOutline(rgba, w, h, border) {
+    for (let k = 0; k < border.length; k++) { // 흰 halo 5x5 (반투명)
+        const p = border[k]; const x = p % w, y = (p / w) | 0;
+        for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) setRgba(rgba, w, h, x + ox, y + oy, HALO, 200);
+    }
+    for (let k = 0; k < border.length; k++) { // 빨강 실선 3x3 (불투명)
+        const p = border[k]; const x = p % w, y = (p / w) | 0;
+        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) setRgba(rgba, w, h, x + ox, y + oy, DANGER_COLOR, 255);
     }
 }
 
@@ -184,7 +183,7 @@ function renderDangerLayer({ decoded, dGE3, zoneIdx }) {
     const border = dangerBorderPixels(dGE3, zoneIdx, w, h);
     if (!border.length) return null;
     const rgba = Buffer.alloc(w * h * 4); // 전부 투명(alpha 0)
-    paintDangerDash(rgba, w, h, border);
+    paintDangerOutline(rgba, w, h, border);
     return encodePng(w, h, rgba, 4);
 }
 
@@ -197,12 +196,13 @@ function renderPreview({ decoded, cal, polys, dGE3, zoneIdx }) {
     for (let i = 0; i < w * h; i++) { rgb[i * 3] = rgba[i * 4]; rgb[i * 3 + 1] = rgba[i * 4 + 1]; rgb[i * 3 + 2] = rgba[i * 4 + 2]; }
     drawZoneBorder(rgb, w, h, cal, polys);
     const border = dangerBorderPixels(dGE3, zoneIdx, w, h);
-    const DASH = 11, ON = 6;
-    for (let k = 0; k < border.length; k++) {
+    for (let k = 0; k < border.length; k++) { // 흰 halo
         const p = border[k]; const x = p % w, y = (p / w) | 0;
-        if (((x + y) % DASH) >= ON) continue;
-        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) setRgb(rgb, w, h, x + ox, y + oy, HALO);
-        for (let oy = 0; oy <= 1; oy++) for (let ox = 0; ox <= 1; ox++) setRgb(rgb, w, h, x + ox, y + oy, DANGER_COLOR);
+        for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) setRgb(rgb, w, h, x + ox, y + oy, HALO);
+    }
+    for (let k = 0; k < border.length; k++) { // 빨강 실선
+        const p = border[k]; const x = p % w, y = (p / w) | 0;
+        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) setRgb(rgb, w, h, x + ox, y + oy, DANGER_COLOR);
     }
     return encodePng(w, h, rgb, 3);
 }
