@@ -251,6 +251,10 @@ async function generatePredictions(options = {}) {
             const idxCache = new Map();        // zone.name → Int32Array|null
             const windAreaAt = new Map();      // zone.name → 마지막 풍속 면적비율
             const waveAreaAt = new Map();      // zone.name → 마지막 파고 면적비율
+            // 게이트(면적) 무관 "실제 관측 최대밴드" — 사용자 표시용(해소 카드 등).
+            //   면적 미달이어도 폴리곤 내부의 실제 풍속/파고를 0 대신 그대로 보여주기 위함.
+            const windPeakAt = new Map();      // zone.name → 실제 최대 풍속밴드(kt)
+            const wavePeakAt = new Map();      // zone.name → 실제 최대 파고밴드(m)
             const zoneIdx = (dec, z) => {
                 let idx = idxCache.get(z.name);
                 if (idx === undefined) {
@@ -281,6 +285,7 @@ async function generatePredictions(options = {}) {
                     });
                     if (!a) return 0;
                     windAreaAt.set(z.name, a.areaFraction);
+                    windPeakAt.set(z.name, Math.max(windPeakAt.get(z.name) || 0, a.maxBand)); // 실제값(게이트 무관)
                     return a.areaFraction >= THRESHOLDS.WIND_AREA_MIN ? a.maxBand : 0;
                 },
                 bandWave: (dec, z) => {
@@ -293,6 +298,7 @@ async function generatePredictions(options = {}) {
                     });
                     if (!a) return 0;
                     waveAreaAt.set(z.name, a.areaFraction);
+                    wavePeakAt.set(z.name, Math.max(wavePeakAt.get(z.name) || 0, a.maxBand)); // 실제값(게이트 무관)
                     return a.areaFraction >= THRESHOLDS.WAVE_AREA_MIN ? a.maxBand : 0;
                 },
             });
@@ -305,8 +311,12 @@ async function generatePredictions(options = {}) {
 
                     // 구역별 현재 peak 신호 기록 (해소 카드 '전→후' / 디버그용)
                     //   prob: 등급기반(현실 정밀도) — 없으면 0. stateManager 가 그대로 사용.
+                    //   확률/등급(prob)은 게이트 적용값(r.peakWind/Wave)으로 — 발효 가능성 정밀도 유지.
+                    //   표시값(windKt/waveM)은 게이트 무관 실제 관측 peak — 0 대신 실제 풍속/파고 노출.
                     const sigGrade = gradeOf2({ windKt: r.peakWind, windArea, waveM: r.peakWave, waveArea });
-                    zoneSignals.push({ office: code, zone: z.name, windKt: r.peakWind, waveM: r.peakWave, windArea, waveArea, prob: sigGrade ? sigGrade.probPct / 100 : 0 });
+                    const realWind = windPeakAt.get(z.name) || 0;
+                    const realWave = wavePeakAt.get(z.name) || 0;
+                    zoneSignals.push({ office: code, zone: z.name, windKt: realWind, waveM: realWave, windArea, waveArea, prob: sigGrade ? sigGrade.probPct / 100 : 0 });
 
                     if (!r.onset) continue; // 예측 없음
 
