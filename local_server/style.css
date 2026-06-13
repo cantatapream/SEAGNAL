@@ -10801,6 +10801,12 @@ body.mc-fullscreen-active {
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     padding-top: 8px;
 }
+/* 본문 최상단 면책문구(해역 카드 바로 위) — 헤더와 본문 사이 구분선 제거 */
+.adv-disclaimer.adv-disclaimer-top {
+    border-top: none;
+    padding-top: 0;
+    margin-bottom: 2px;
+}
 
 /* 헤더 상태 배지 */
 .adv-badge {
@@ -10839,10 +10845,9 @@ body.mc-fullscreen-active {
  * ============================================================================ */
 
 /* 헤더: 아이콘 + (제목/기준시각) 칼럼. '해'와 '0'이 같은 좌측선(자동 정렬). */
-.gradient-prediction .adv-title-wrap { display: flex; align-items: flex-start; gap: 0.55rem; min-width: 0; padding-right: 8px; }
-.gradient-prediction .adv-wand { color: #ff4dab; font-size: 1.05rem; line-height: 1.5; flex-shrink: 0; }
-.gradient-prediction .adv-title-col { display: flex; flex-direction: column; min-width: 0; }
-.gradient-prediction .adv-title-row { display: flex; align-items: center; gap: 8px; min-height: 22px; }
+.gradient-prediction .adv-title-wrap { display: flex; align-items: center; gap: 0.55rem; min-width: 0; padding-right: 8px; }
+.gradient-prediction .adv-wand { color: #ff4dab; font-size: 1.05rem; line-height: 1; flex-shrink: 0; }
+.gradient-prediction .adv-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .gradient-prediction .adv-title-row .section-title { margin: 0; }
 /* ⓘ 버튼 — 제목 바로 오른쪽 */
 .adv-info-btn {
@@ -10851,8 +10856,9 @@ body.mc-fullscreen-active {
     color: #fff; font-size: 12px; font-weight: 700; font-style: italic;
     display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
 }
-/* 기준시각 — 별도 레이어(흰색). 제목/배지 흐름에 영향 없음 */
-.adv-basetime-layer { color: #fff; font-size: 0.7rem; font-weight: 500; opacity: 0.9; margin-top: 1px; letter-spacing: 0.2px; }
+/* 기준시각 — 제목 줄에 인라인 병기(흰색). 별도 줄을 만들지 않아 헤더 높이를 키우지 않음 */
+.adv-basetime-layer { color: #fff; font-size: 0.7rem; font-weight: 500; opacity: 0.9; letter-spacing: 0.2px; white-space: nowrap; }
+.adv-basetime-layer:empty { display: none; }
 
 /* 해역 카드 아코디언 (기본 닫힘) */
 .adv-active-list { display: flex; flex-direction: column; gap: 10px; }
@@ -10885,9 +10891,7 @@ body.mc-fullscreen-active {
 .adv-ovl-stack .adv-ovl-blink { position: absolute; inset: 0; border: 0; background: transparent; animation: advBlink 1s ease-in-out infinite; pointer-events: none; }
 @keyframes advBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 @media (prefers-reduced-motion: reduce) { .adv-ovl-stack .adv-ovl-blink { animation: none; opacity: 1; } }
-.adv-card-chev { color: var(--text-sub, #9aa7b4); font-size: 11px; width: 14px; text-align: center; transition: transform 0.18s; }
-.adv-card.open .adv-card-chev { transform: rotate(180deg); }
-.adv-card-body { display: none; padding: 0 13px 12px; }
+.adv-card-body { display: none; padding: 0 13px 4px; }
 .adv-card.open .adv-card-body { display: block; }
 .adv-card-hr { height: 1px; background: var(--border-color, #2a3340); margin: 2px 0 9px; }
 .adv-narr { font-size: 0.86rem; line-height: 1.6; color: var(--text-main, #e6edf3); }
@@ -10955,15 +10959,14 @@ body.mc-fullscreen-active {
 .advm-edit textarea { width: 100%; margin-left: 0; margin-top: 4px; resize: vertical; }
 .advm-edit-actions { display: flex; gap: 6px; }
 
-/* ── 특보 예측 헤더 컴팩트 개편 (해소 🟢숫자 · beta 제목 위 · ⓘ 간격 절반 · 배지 줄바꿈 쌓임) ── */
-/* beta — 제목("해역") 위쪽, 축소판. 절대배치라 줄 높이를 거의 안 키움 */
-.gradient-prediction .adv-title-col { position: relative; padding-top: 11px; }
-.adv-beta-badge.adv-beta-above {
-    position: absolute; top: -2px; left: 0; margin: 0;
+/* ── 특보 예측 헤더 컴팩트 개편 (beta 인라인 · 기준시각 인라인 · ⓘ 간격 절반 · 배지 줄바꿈 쌓임) ── */
+/* beta — 제목 옆 인라인 축소판. 별도 줄을 만들지 않아 헤더 높이를 다른 헤더와 동일하게 유지 */
+.adv-beta-badge.adv-beta-inline {
+    position: static; top: auto; left: auto; margin: 0;
+    align-self: flex-start; vertical-align: top;
     font-size: 0.44rem; padding: 1px 5px; border-width: 1px;
 }
 /* ⓘ — 제목과의 간격 절반(8→4px), 버튼도 살짝 축소 */
-.gradient-prediction .adv-title-row { gap: 4px; }
 .gradient-prediction .adv-info-btn { width: 19px; height: 19px; font-size: 11px; }
 /* 우측 상태배지 — 가로 한 줄 기본, 공간 부족 시 줄바꿈(세로 쌓임) */
 .gradient-prediction .header-status {
@@ -10971,15 +10974,14 @@ body.mc-fullscreen-active {
     gap: 4px; max-width: 42%; flex-shrink: 0;
 }
 .gradient-prediction .header-status .adv-badge { margin-left: 0; padding: 1px 7px; font-size: 0.72rem; }
-/* 헤더 상하 패딩 축소 — 다른 아코디언과 비슷한 높이로 */
-.main-accordion-header.gradient-prediction { padding-top: 8px; padding-bottom: 9px; }
+/* 헤더 높이 — 다른 상위 헤더(.main-accordion-header 기본값 15px 20px)와 동일하게 통일 */
 
-/* ── 해역 카드 슬림화 — 특보현황 부모 해역 아코디언 수준 ── */
+/* ── 해역 카드 슬림화 — 특보현황 부모 해역 아코디언(.sea-header) 높이에 맞춤 ──
+   .sea-header padding: 0.8rem 1.2rem 와 동일한 세로 높이로 통일 */
 .adv-card { border-radius: 10px; }
-.adv-card-head { padding: 7px 12px; gap: 7px; }
+.adv-card-head { padding: 0.8rem 12px; gap: 7px; }
 .adv-card-head .adv-zone { font-size: 0.88rem; }
 .adv-badge2 { font-size: 0.68rem; padding: 2px 8px; }
-.adv-card-chev { font-size: 10px; }
 
 /* 해소 배지 — 🔴/🟡 이모지와 동일 크기·스타일의 초록 원 + 흰 체크 */
 .adv-dot-check {
