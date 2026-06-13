@@ -126,11 +126,11 @@ async function runPredictionCycle(opts = {}) {
         let enriched = visible;
         try {
             const cx = deps.crossReference || require('./crossReference');
-            const loadForecastMap = deps.loadForecastMap || cx.loadForecastMap;
             const enrichPredictions = deps.enrichPredictions || cx.enrichPredictions;
-            const forecastMap = loadForecastMap();
-            const outlookMap = (deps.loadOutlookMap || cx.loadOutlookMap || (() => ({})))();
-            enriched = enrichPredictions(visible, forecastMap, outlookMap) || visible;
+            // 단일 출처: 날씨누리 [해설] 단기전망 통보문(풍속/파고/문장/발표시각).
+            const loadBulletinMap = deps.loadBulletinMap || cx.loadBulletinMap || (() => ({}));
+            const bulletinMap = loadBulletinMap();
+            enriched = enrichPredictions(visible, bulletinMap) || visible;
         } catch (e) {
             const error = (e && e.message) || String(e);
             console.log(`[advisory] 교차참조 실패 → 병기 생략(예측 유지): ${error}`);

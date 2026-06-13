@@ -111,7 +111,7 @@
         const pub = kma.publishLabel ? ' <span class="adv-kma-pub">(' + escapeHtml(kma.publishLabel) + ')</span>' : '';
         const period = kma.periodLabel ? escapeHtml(kma.periodLabel) + ' ' : '';
         let html = '<div class="adv-kma">' +
-            '<div class="adv-kma-kt">🛰️ ' + office + '단기예보' + pub + '</div>';
+            '<div class="adv-kma-kt">🛰️ ' + office + '단기전망' + pub + '</div>';
         if (parts.length) html += '<div class="adv-kma-vals">' + period + parts.join(', ') + '</div>';
         if (outlook) html += '<div class="adv-kma-outlook">“' + escapeHtml(outlook) + '”</div>';
         html += '</div>';
