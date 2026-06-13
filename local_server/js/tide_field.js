@@ -600,22 +600,34 @@
         }
         return el;
     }
-    // 안내 카드: 표시 후 1.5초만 유지하고 페이드아웃(CSS opacity transition). 버튼을
-    //   누른 순간 1회 안내 용도. (지속 표시가 아니라 잠깐 떴다 사라짐)
-    var _zoomHintTimer = null;
+    // 안내 카드: 표시 후 1.5초만 유지하고 페이드아웃. 버튼 누른 순간 1회 안내 용도.
+    //   [중요] 숨길 땐 반드시 .show 를 떼 display:none 으로 돌려 "화면 전체를 덮는
+    //   투명 오버레이"가 남지 않게 한다(상시 오버레이는 지도 표출/조작을 막는다).
+    //   .show = display:flex(레이아웃), .visible = opacity:1(페이드 인). 페이드아웃은
+    //   .visible 만 떼고 트랜지션(0.45s) 후 .show 까지 떼어 완전히 숨긴다.
+    var _zoomHintTimer = null;      // 1.5초 유지 타이머
+    var _zoomHintHideTimer = null;  // 페이드아웃 후 display:none 전환 타이머
     function showZoomHint() {
-        ensureZoomHintEl().classList.add('show');
+        var el = ensureZoomHintEl();
         if (_zoomHintTimer) clearTimeout(_zoomHintTimer);
+        if (_zoomHintHideTimer) { clearTimeout(_zoomHintHideTimer); _zoomHintHideTimer = null; }
+        el.classList.add('show');                  // display:flex (opacity 0)
+        // 다음 프레임에 visible 추가 → opacity 0→1 페이드 인
+        requestAnimationFrame(function () { el.classList.add('visible'); });
         _zoomHintTimer = setTimeout(function () {
-            var e = document.getElementById('mudflat-zoom-hint');
-            if (e) e.classList.remove('show');   // opacity 0 → CSS 로 페이드아웃
+            el.classList.remove('visible');        // opacity 1→0 페이드아웃
+            _zoomHintHideTimer = setTimeout(function () {
+                el.classList.remove('show');       // display:none (오버레이 완전 제거)
+                _zoomHintHideTimer = null;
+            }, 500);                                // 트랜지션(0.45s) 종료 후 숨김
             _zoomHintTimer = null;
         }, 1500);
     }
     function hideZoomHint() {
         if (_zoomHintTimer) { clearTimeout(_zoomHintTimer); _zoomHintTimer = null; }
+        if (_zoomHintHideTimer) { clearTimeout(_zoomHintHideTimer); _zoomHintHideTimer = null; }
         var el = document.getElementById('mudflat-zoom-hint');
-        if (el) el.classList.remove('show');
+        if (el) { el.classList.remove('visible'); el.classList.remove('show'); }
     }
 
     // ====================================================================
