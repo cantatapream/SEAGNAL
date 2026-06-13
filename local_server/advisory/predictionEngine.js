@@ -44,7 +44,9 @@ const { scanOnsets } = require('./onsetScan');
 
 // --- 재사용 검증 모듈 (../analysis/wave_leadtime) ---
 const WL = path.join(__dirname, '..', 'analysis', 'wave_leadtime');
-const { REGIONAL_OFFICES, listFrames, downloadFrame } = require(path.join(WL, 'chartClient'));
+// 차트 소스: 기본 날씨누리(공개·인증불필요·게시빠름). ADVISORY_CHART_SOURCE=dmdw 면 방재기상플랫폼.
+const CHART_MOD = (process.env.ADVISORY_CHART_SOURCE === 'dmdw') ? 'chartClient' : 'nuriChartClient';
+const { REGIONAL_OFFICES, listFrames, downloadFrame } = require(path.join(WL, CHART_MOD));
 const { decode } = require(path.join(WL, 'geoCalib'));
 const { getStaticMask } = require(path.join(WL, 'staticMask'));
 const windPalette = require(path.join(WL, 'windPalette'));
@@ -62,7 +64,8 @@ const STATE_PENDING = path.join(__dirname, '..', 'data', 'advisory_pending.json'
 // 폴리곤 1회 로드(구역명 normName 키). 비면 기존처럼 구역 스킵.
 const polyMap = loadZonePolygons();
 
-const PUB_DELAY_H = 7;          // 발표지연(가용성 보정) — 슬롯 선택에만 사용
+const PUB_DELAY_H = 2;          // 발표지연(가용성 보정) — 날씨누리는 발표 직후 게시라 작게.
+                               //   못 받으면 listFrames 가 빈배열 → 이전 슬롯 자동 폴백(안전).
 const RUN_BACK_MAX = 4;         // run 슬롯 역행 횟수
 const SLEEP_MIN = 80, SLEEP_MAX = 120;
 const KT_TO_MS = 0.514444;
@@ -168,6 +171,21 @@ async function maskFor(chartCode, regMeta, signal, classify, ge3Level, prefix) {
 // 메인 — 예측 생성
 // ----------------------------------------------------------------------------
 async function generatePredictions(options = {}) {
+    // ── 변경감지(폴링 절약) ───────────────────────────────────────────────
+    //   최신 base 가 직전 처리분(options.prevBaseKST)과 같으면 다운로드/분석을
+    //   건너뛴다. 일기도는 12h 마다 갱신되므로 대부분 사이클은 같은 base → 스킵.
+    //   업데이트(새 base) 시에만 풀 분석. (해상일기도 탭도 동일 원리로 폴링)
+    if (options.prevBaseKST && typeof listFrames === 'function' && typeof require(path.join(WL, CHART_MOD)).latestBaseKST === 'function') {
+        try {
+            const firstCode = Object.keys(OFFICES)[0];
+            const latest = await require(path.join(WL, CHART_MOD)).latestBaseKST(OFFICE_CHART[firstCode] || firstCode, 'wind');
+            if (latest && latest === options.prevBaseKST) {
+                console.error(`[advisory] 변경 없음 (base=${latest}) — 사이클 스킵`);
+                return { skipped: true, baseTimeKST: latest, predictions: [], pending: [], zoneSignals: [] };
+            }
+        } catch (_) { /* 확인 실패 → 정상 진행(보수적) */ }
+    }
+
     // 검증 시연용 임계 override (정상 운영은 config 기본값)
     const windCut = options.windCutKt != null ? options.windCutKt : THRESHOLDS.WIND_ONSET_KT;
     const waveCut = options.waveCutM != null ? options.waveCutM : THRESHOLDS.WAVE_M;
@@ -233,6 +251,10 @@ async function generatePredictions(options = {}) {
             const idxCache = new Map();        // zone.name → Int32Array|null
             const windAreaAt = new Map();      // zone.name → 마지막 풍속 면적비율
             const waveAreaAt = new Map();      // zone.name → 마지막 파고 면적비율
+            // 게이트(면적) 무관 "실제 관측 최대밴드" — 사용자 표시용(해소 카드 등).
+            //   면적 미달이어도 폴리곤 내부의 실제 풍속/파고를 0 대신 그대로 보여주기 위함.
+            const windPeakAt = new Map();      // zone.name → 실제 최대 풍속밴드(kt)
+            const wavePeakAt = new Map();      // zone.name → 실제 최대 파고밴드(m)
             const zoneIdx = (dec, z) => {
                 let idx = idxCache.get(z.name);
                 if (idx === undefined) {
@@ -263,6 +285,7 @@ async function generatePredictions(options = {}) {
                     });
                     if (!a) return 0;
                     windAreaAt.set(z.name, a.areaFraction);
+                    windPeakAt.set(z.name, Math.max(windPeakAt.get(z.name) || 0, a.maxBand)); // 실제값(게이트 무관)
                     return a.areaFraction >= THRESHOLDS.WIND_AREA_MIN ? a.maxBand : 0;
                 },
                 bandWave: (dec, z) => {
@@ -275,6 +298,7 @@ async function generatePredictions(options = {}) {
                     });
                     if (!a) return 0;
                     waveAreaAt.set(z.name, a.areaFraction);
+                    wavePeakAt.set(z.name, Math.max(wavePeakAt.get(z.name) || 0, a.maxBand)); // 실제값(게이트 무관)
                     return a.areaFraction >= THRESHOLDS.WAVE_AREA_MIN ? a.maxBand : 0;
                 },
             });
@@ -287,8 +311,12 @@ async function generatePredictions(options = {}) {
 
                     // 구역별 현재 peak 신호 기록 (해소 카드 '전→후' / 디버그용)
                     //   prob: 등급기반(현실 정밀도) — 없으면 0. stateManager 가 그대로 사용.
+                    //   확률/등급(prob)은 게이트 적용값(r.peakWind/Wave)으로 — 발효 가능성 정밀도 유지.
+                    //   표시값(windKt/waveM)은 게이트 무관 실제 관측 peak — 0 대신 실제 풍속/파고 노출.
                     const sigGrade = gradeOf2({ windKt: r.peakWind, windArea, waveM: r.peakWave, waveArea });
-                    zoneSignals.push({ office: code, zone: z.name, windKt: r.peakWind, waveM: r.peakWave, windArea, waveArea, prob: sigGrade ? sigGrade.probPct / 100 : 0 });
+                    const realWind = windPeakAt.get(z.name) || 0;
+                    const realWave = wavePeakAt.get(z.name) || 0;
+                    zoneSignals.push({ office: code, zone: z.name, windKt: realWind, waveM: realWave, windArea, waveArea, prob: sigGrade ? sigGrade.probPct / 100 : 0 });
 
                     if (!r.onset) continue; // 예측 없음
 

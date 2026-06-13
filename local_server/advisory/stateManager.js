@@ -43,7 +43,26 @@ const STATE_PATH = path.resolve(__dirname, '..', 'data', 'advisory_state.json');
 
 const RESOLVED_KEEP_H = (THRESHOLDS && THRESHOLDS.RESOLVED_KEEP_H) || 24;
 const ONSET_GRACE_H = (THRESHOLDS && THRESHOLDS.ONSET_GRACE_H) || 6;
+// 해소 지연 사이클(표출 2사이클 지속성과 대칭). 직전 표출 구역이 신호소실되어도
+//   이 횟수만큼은 직전 예측을 유지(carry)하고, 연속 초과 시에만 '해소' 확정.
+const RESOLVE_GRACE_CYCLES = (THRESHOLDS && Number.isFinite(THRESHOLDS.RESOLVE_GRACE_CYCLES))
+    ? THRESHOLDS.RESOLVE_GRACE_CYCLES : 1;
 const HOUR_MS = 60 * 60 * 1000;
+
+// 등급 순위(격상/격하 판정). high > watch > 없음.
+function gradeRankOf(grade) {
+    const k = (grade && typeof grade === 'object') ? grade.key : grade;
+    if (k === 'high') return 2;
+    if (k === 'watch') return 1;
+    return 0;
+}
+function gradeLabelOf(grade) {
+    const k = (grade && typeof grade === 'object') ? grade.key : grade;
+    if (grade && typeof grade === 'object' && grade.label) return grade.label;
+    if (k === 'high') return '높음';
+    if (k === 'watch') return '관심';
+    return '';
+}
 
 // ── 작은 헬퍼 ───────────────────────────────────────────────────────────────
 
@@ -191,6 +210,17 @@ function updateState(current, suppressedZones = [], opts = {}) {
         if (activeZones.has(zone)) continue;        // 여전히 예측 중 → 전이 없음
         if (suppressedSet.has(zone)) continue;      // 공식이 가져감 → drop (해소 X)
 
+        // 해소 지연(표출 2사이클 지속성과 대칭): 직전 표출 구역의 신호가 사라져도
+        //   RESOLVE_GRACE_CYCLES 만큼은 직전 예측을 그대로 유지(carry)하고 해소로
+        //   보내지 않는다. 경계 면적/일시적 신호 깜빡임에 의한 해소→재등장 오보 차단.
+        //   다음 사이클에도 미검출이면 _missStreak 가 누적되어 결국 해소된다.
+        const miss = (pp && Number.isFinite(pp._missStreak) ? pp._missStreak : 0) + 1;
+        if (miss <= RESOLVE_GRACE_CYCLES) {
+            active.push(Object.assign({}, pp, { _missStreak: miss, _grace: true, confirmed: true }));
+            activeZones.add(zone);
+            continue;
+        }
+
         // 사유 판정: onsetISO + ONSET_GRACE_H 경과 여부
         const onsetMs = pp && pp.onsetISO ? Date.parse(pp.onsetISO) : NaN;
         const onsetPassed = isFinite(onsetMs) && (nowMs > onsetMs + ONSET_GRACE_H * HOUR_MS);
@@ -228,6 +258,34 @@ function updateState(current, suppressedZones = [], opts = {}) {
             after,
             narrative: buildNarrative(reason, zone, before, after),
         });
+    }
+
+    // 4.5) 등급 변동(격상/격하) 표식 — 직전 표출(prev.active) 대비 현재 active 의 등급 변화.
+    //   UI(카드 뱃지)가 '관심 → 높음'(격상) / '높음 → 관심'(격하) + 확률 변화량(%p)을
+    //   표시하도록 change 필드를 부착한다. 신규 등장/등급 동일은 표식 없음(null).
+    const prevByZone = new Map();
+    for (const pp of prev.active) {
+        const k = zoneKey(pp && pp.zone);
+        if (k && !prevByZone.has(k)) prevByZone.set(k, pp);
+    }
+    for (const p of active) {
+        if (!p || typeof p !== 'object') continue;
+        const prevP = prevByZone.get(zoneKey(p.zone));
+        if (!prevP) { p.change = null; continue; }            // 신규 등장
+        const fromRank = gradeRankOf(prevP.grade), toRank = gradeRankOf(p.grade);
+        let dir = null;
+        if (toRank > fromRank) dir = 'up';                    // 격상
+        else if (toRank < fromRank) dir = 'down';             // 격하
+        if (!dir) { p.change = null; continue; }              // 등급 동일 → 미표시
+        const fromProb = (typeof prevP.probPct === 'number') ? prevP.probPct : null;
+        const toProb = (typeof p.probPct === 'number') ? p.probPct : null;
+        p.change = {
+            dir,
+            fromGrade: gradeLabelOf(prevP.grade),
+            toGrade: gradeLabelOf(p.grade),
+            fromProb, toProb,
+            deltaProb: (fromProb != null && toProb != null) ? (toProb - fromProb) : null,
+        };
     }
 
     // 5) resolved 병합·만료
@@ -282,6 +340,6 @@ function updateState(current, suppressedZones = [], opts = {}) {
     return newState;
 }
 
-module.exports = { updateState, STATE_PATH };
+module.exports = { updateState, readPrevState, STATE_PATH };
 
 // 신호 등급/확률은 엔진이 zoneSignal.prob(등급기반)으로 채워 전달 → 여기선 그대로 사용.
