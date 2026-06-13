@@ -2393,11 +2393,13 @@
                     onclick="toggleAdvisoryPredictionAccordion()" style="display: none;">
                     <div class="adv-title-wrap">
                         <i class="fa-solid fa-wand-magic-sparkles adv-wand"></i>
-                        <div class="adv-title-row">
-                            <h2 class="section-title" style="margin: 0;">해역별 특보 예측</h2>
-                            <sup class="adv-beta-badge adv-beta-inline" aria-label="beta">beta</sup>
-                            <button type="button" class="adv-info-btn" aria-label="예측 설명"
-                                onclick="event.stopPropagation(); window.openAdvisoryInfo&amp;&amp;window.openAdvisoryInfo()">i</button>
+                        <div class="adv-title-col">
+                            <sup class="adv-beta-badge adv-beta-top" aria-label="beta">beta</sup>
+                            <div class="adv-title-row">
+                                <h2 class="section-title" style="margin: 0;">해역별 특보 예측</h2>
+                                <button type="button" class="adv-info-btn" aria-label="예측 설명"
+                                    onclick="event.stopPropagation(); window.openAdvisoryInfo&amp;&amp;window.openAdvisoryInfo()">i</button>
+                            </div>
                             <span class="adv-basetime-layer" id="adv-basetime-layer"></span>
                         </div>
                     </div>
