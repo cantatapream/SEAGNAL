@@ -379,7 +379,7 @@ async function generatePredictions(options = {}) {
                                         const basePng = renderBaseLayer({ decoded: dec, cal, polys });
                                         fs.writeFileSync(path.join(OVERLAY_DIR, `${z.name}.png`), basePng);
                                         overlay = `${OVERLAY_URL_BASE}/${encodeURIComponent(z.name)}.png`;
-                                        const blinkPng = renderDangerLayer({ decoded: dec, dGE3: a2.dangerGE3 });
+                                        const blinkPng = renderDangerLayer({ decoded: dec, dGE3: a2.dangerGE3, zoneIdx: idx });
                                         if (blinkPng) {
                                             fs.writeFileSync(path.join(OVERLAY_DIR, `${z.name}_danger.png`), blinkPng);
                                             overlayBlink = `${OVERLAY_URL_BASE}/${encodeURIComponent(z.name)}_danger.png`;
