@@ -3567,10 +3567,18 @@ line-height: 1.1;
     max-height: 90vh;
     display: flex;
     flex-direction: column;
+    /* base .modal-content 의 overflow-y:auto 를 무효화한다.
+       바깥(모달 전체)이 스크롤되면 헤더/푸터가 같이 밀리고 툴바 sticky 도
+       무력화되므로, 스크롤은 아래 .promo-editor-body 한 곳에서만 일어나게 한다. */
+    overflow: hidden;
 }
 
 .promo-editor-body {
     flex: 1;
+    /* flex 아이템 기본값 min-height:auto 때문에 내용만큼 늘어나 내부 스크롤이
+       생기지 않는다. min-height:0 으로 축소를 허용해야 이 영역이 실제 스크롤
+       컨테이너가 되고, 그 안의 툴바 sticky 가 정상 동작한다. */
+    min-height: 0;
     overflow-y: auto;
     padding: 20px;
 }
