@@ -1784,13 +1784,20 @@
          CSS 안의 ../webfonts/ 상대경로가 동일 디렉토리 구조로 보존됨 -->
     <link rel="stylesheet" href="/assets/vendor/fontawesome/css/all.min.css">
 
+    <!-- [perf] 무거운 벤더(quill/chart/ol/suncalc + 아래 hls)는 defer 로딩.
+         head 의 동기 <script> 는 HTML 파싱을 멈춘다(특히 ol.js 792KB) → 첫 페인트 지연.
+         defer 는 다운로드를 파싱과 병렬화하고 실행을 DOMContentLoaded 직전으로 미뤄
+         파싱 블로킹을 제거한다. 이 전역(Quill/Chart/ol/SunCalc/Hls)은 전부 사용자 동작
+         시점(지도탭 진입·차트 렌더·에디터 오픈·CCTV 재생) 함수 내부에서만 호출되므로
+         DCL 이후라 항상 로드 완료(top-level·인라인 사용 0건 확인). defer 는 문서순서를
+         보존하므로 chart→datalabels 의존도 안전. 앱 .js 와 부팅 흐름은 일절 미변경. -->
     <!-- Quill Editor (게시판 에디터) — 자체 호스팅 -->
     <link href="/assets/vendor/quill/quill.snow.css" rel="stylesheet">
-    <script src="/assets/vendor/quill/quill.min.js"></script>
+    <script defer src="/assets/vendor/quill/quill.min.js"></script>
 
     <!-- Chart.js — 자체 호스팅 (다운로드 시점 latest = 4.5.1 로 잠금) -->
-    <script src="/assets/vendor/chartjs/chart.umd.min.js"></script>
-    <script src="/assets/vendor/chartjs/chartjs-plugin-datalabels.min.js"></script>
+    <script defer src="/assets/vendor/chartjs/chart.umd.min.js"></script>
+    <script defer src="/assets/vendor/chartjs/chartjs-plugin-datalabels.min.js"></script>
 
     <!-- html2canvas(1.4.1)는 전역 로드하지 않는다(약 200KB). 사용량 통계 대시보드의
          표/카드 PNG 캡처를 관리자가 실제로 호출할 때만 js/admin_collect.js 가
@@ -1799,7 +1806,7 @@
 
     <!-- OpenLayers for Tide Map — 자체 호스팅 -->
     <link rel="stylesheet" href="/assets/vendor/ol/ol.css">
-    <script src="/assets/vendor/ol/ol.js"></script>
+    <script defer src="/assets/vendor/ol/ol.js"></script>
 
     <!-- [제거됨] proj4 (좌표계 변환 라이브러리) — dead dependency
          - 코드에서 proj4 함수 호출 0건 확인 (전체 grep 결과).
@@ -1818,7 +1825,7 @@
          - 향후 항공/위성 베이스맵 도입 시 다시 추가하면 됨 (도메인 락/API key 종속) -->
 
     <!-- SunCalc - 천문 정보 계산 (일출몰, 월령 등) — 자체 호스팅 -->
-    <script src="/assets/vendor/suncalc/suncalc.min.js"></script>
+    <script defer src="/assets/vendor/suncalc/suncalc.min.js"></script>
 
     <!-- [제거됨] Korean Lunar Calendar CDN 의존성 — dead dependency
          - 이 스크립트는 https://cdn.jsdelivr.net/npm/korean-lunar-calendar@0.3.6/lib/...
@@ -4326,7 +4333,7 @@
     <!-- 백그라운드 "나리야" 음성 비서 상태/대화를 화면 하단 오버레이로 표시 -->
     <script src="js/assistant_overlay.js"></script>
     <!-- HLS.js: 거제시 등 HLS 스트림 재생 (cctv4.js _initCctvHlsPlayer에서 사용) — 자체 호스팅 -->
-    <script src="/assets/vendor/hls.js/hls.min.js"></script>
+    <script defer src="/assets/vendor/hls.js/hls.min.js"></script>
     <!-- ================================================================
          CCTV 기능 (index2 에서는 해양종합에 통합)
          ----------------------------------------------------------------
