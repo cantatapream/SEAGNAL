@@ -1768,6 +1768,11 @@
          변경: assets/vendor/fonts/fonts.css (493 @font-face, unicode-range 보존)
          → font-family 이름은 동일 (Inter / Noto Sans KR / Nanum Pen Script)
          → style.css / splash.css 등의 font-family 선언 변경 불필요 -->
+    <!-- [FOUT 방지] 스플래시 타이틀(SEA:GNAL = Inter 700, Latin) 슬라이스를 HTML 파싱
+         시점에 미리 받아 첫 페인트부터 정자체로 표시. fonts.css 파싱을 기다리지 않음.
+         crossorigin 필수(woff2 는 CORS 모드 페치 — 없으면 @font-face 가 재다운로드). -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="/assets/vendor/fonts/inter/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2">
     <link rel="stylesheet" href="/assets/vendor/fonts/fonts.css">
 
     <!-- Styles -->
