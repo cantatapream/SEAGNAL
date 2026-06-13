@@ -10882,7 +10882,7 @@ body.mc-fullscreen-active {
 /* 2레이어: base(일기도+구역선) 위에 blink(위험영역 점선)을 겹쳐 깜빡(맥동) */
 .adv-ovl-stack { position: relative; }
 .adv-ovl-img { width: 100%; height: auto; border-radius: 9px; display: block; border: 1px solid var(--border-color, #2a3340); background: #0d1117; }
-.adv-ovl-stack .adv-ovl-blink { position: absolute; inset: 0; border: 0; background: transparent; animation: advBlink 1.2s ease-in-out infinite; pointer-events: none; }
+.adv-ovl-stack .adv-ovl-blink { position: absolute; inset: 0; border: 0; background: transparent; animation: advBlink 1s ease-in-out infinite; pointer-events: none; }
 @keyframes advBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 @media (prefers-reduced-motion: reduce) { .adv-ovl-stack .adv-ovl-blink { animation: none; opacity: 1; } }
 .adv-card-chev { color: var(--text-sub, #9aa7b4); font-size: 11px; width: 14px; text-align: center; transition: transform 0.18s; }

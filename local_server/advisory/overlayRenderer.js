@@ -16,8 +16,8 @@
  */
 const zlib = require('zlib');
 
-const ZONE_COLOR = [225, 30, 30];    // 특보구역 테두리 — 빨강 진한 실선
-const DANGER_COLOR = [255, 215, 0];  // 위험영역 테두리 — 노랑 진한 점선
+const ZONE_COLOR = [25, 25, 25];     // 특보구역 테두리 — 검정 진한 실선
+const DANGER_COLOR = [225, 0, 0];    // 위험영역 테두리 — 빨강 진한 점선
 const HALO = [255, 255, 255];        // 흰 외곽(가독성)
 
 // ── RGB 버퍼 픽셀/선 ────────────────────────────────────────────────────────
@@ -59,17 +59,51 @@ function drawZoneBorder(buf, w, h, cal, polys) {
     draw(ZONE_COLOR, 2);  // 빨강 실선
 }
 
-// ── 위험영역 경계 픽셀 추출(ge3 픽셀 집합의 외곽) ─────────────────────────────
-function dangerBorderPixels(dangerIdx, w, h) {
-    if (!Array.isArray(dangerIdx) || !dangerIdx.length) return [];
-    const set = new Set(dangerIdx);
+// ── 위험영역 경계 픽셀 추출 ─────────────────────────────────────────────────
+//   ge3 픽셀은 내부에 구멍이 많다(바람 화살표·격자·글자 픽셀이 풍속색이 아니라
+//   임계초과로 분류되지 않아 빠짐). 그 구멍 가장자리까지 경계로 잡히면 점선이
+//   영역 내부에 흩뿌려진다. → 구역(zone) 내부에서 '바깥과 연결되지 않은' 비위험
+//   픽셀(=내부 구멍)을 메운 뒤(hole-fill) 바깥 윤곽선만 딴다.
+function dangerBorderPixels(dangerIdx, zoneIdx, w, h) {
+    if (!dangerIdx || !dangerIdx.length) return [];
+    let danger = new Set(dangerIdx);
+    let filled = danger;
+
+    if (zoneIdx && zoneIdx.length) { // 배열/TypedArray 모두 허용(zonePixelIndices 는 Int32Array)
+        const zone = new Set(zoneIdx);
+        // 모폴로지 닫힘(팽창→침식, 반경 R) — 위험영역 내부 구멍(바람 화살표·격자
+        //   픽셀이 임계초과로 분류되지 않아 생김)을 메운다. 그 구멍은 화살표 통로로
+        //   바깥까지 이어져 flood 방식 hole-fill 은 무력하므로 closing 을 쓴다.
+        //   외곽 크기는 보존되어 윤곽선만 깔끔히 남는다(점선이 내부에 흩뿌려지지 않음).
+        const R = 4;
+        const dil = new Set();
+        for (const p of danger) {
+            const x = p % w, y = (p / w) | 0;
+            for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+                const q = (y + dy) * w + (x + dx);
+                if (zone.has(q)) dil.add(q);
+            }
+        }
+        const ero = new Set();
+        for (const p of dil) {
+            const x = p % w, y = (p / w) | 0;
+            let ok = true;
+            for (let dy = -R; dy <= R && ok; dy++) {
+                for (let dx = -R; dx <= R; dx++) {
+                    const q = (y + dy) * w + (x + dx);
+                    if (zone.has(q) && !dil.has(q)) { ok = false; break; } // 구역 밖 이웃은 무시 → 구역 경계 보존
+                }
+            }
+            if (ok) ero.add(p);
+        }
+        filled = ero;
+    }
+
     const out = [];
-    for (let k = 0; k < dangerIdx.length; k++) {
-        const p = dangerIdx[k];
+    for (const p of filled) {
         const x = p % w, y = (p / w) | 0;
-        // 4방향 중 하나라도 집합 밖(또는 화면 끝)이면 경계.
         if (x === 0 || y === 0 || x === w - 1 || y === h - 1 ||
-            !set.has(p - 1) || !set.has(p + 1) || !set.has(p - w) || !set.has(p + w)) {
+            !filled.has(p - 1) || !filled.has(p + 1) || !filled.has(p - w) || !filled.has(p + w)) {
             out.push(p);
         }
     }
@@ -145,9 +179,9 @@ function renderBaseLayer({ decoded, cal, polys }) {
  *   dGE3(임계초과 픽셀 위치)의 외곽만 점선으로. 비면 null(레이어 없음).
  * @returns {Buffer|null} RGBA PNG
  */
-function renderDangerLayer({ decoded, dGE3 }) {
+function renderDangerLayer({ decoded, dGE3, zoneIdx }) {
     const { w, h } = decoded;
-    const border = dangerBorderPixels(dGE3, w, h);
+    const border = dangerBorderPixels(dGE3, zoneIdx, w, h);
     if (!border.length) return null;
     const rgba = Buffer.alloc(w * h * 4); // 전부 투명(alpha 0)
     paintDangerDash(rgba, w, h, border);
@@ -157,12 +191,12 @@ function renderDangerLayer({ decoded, dGE3 }) {
 /**
  * 미리보기 — base + blink 를 한 장(RGB)에 합성(검증/캡처용). 운영 표출은 2레이어 사용.
  */
-function renderPreview({ decoded, cal, polys, dGE3 }) {
+function renderPreview({ decoded, cal, polys, dGE3, zoneIdx }) {
     const { w, h, rgba } = decoded;
     const rgb = Buffer.alloc(w * h * 3);
     for (let i = 0; i < w * h; i++) { rgb[i * 3] = rgba[i * 4]; rgb[i * 3 + 1] = rgba[i * 4 + 1]; rgb[i * 3 + 2] = rgba[i * 4 + 2]; }
     drawZoneBorder(rgb, w, h, cal, polys);
-    const border = dangerBorderPixels(dGE3, w, h);
+    const border = dangerBorderPixels(dGE3, zoneIdx, w, h);
     const DASH = 11, ON = 6;
     for (let k = 0; k < border.length; k++) {
         const p = border[k]; const x = p % w, y = (p / w) | 0;
