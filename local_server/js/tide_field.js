@@ -94,6 +94,7 @@
         bindToggle();
         bindSlider();
         bindMapClickPopup();
+        observeOceanTabVisibility();
 
         // 이동(줌/팬) 시작 — 진행 중 플래그 ON(재생 룩어헤드 억제용).
         _map.on('movestart', function () { if (_active) _moving = true; });
@@ -609,6 +610,23 @@
     function hideZoomHint() {
         var el = document.getElementById('mudflat-zoom-hint');
         if (el) el.classList.remove('show');
+    }
+
+    // 해양종합정보 탭(#ocean-map-section)이 비활성화되면(다른 탭으로 이동) body 에
+    //   fixed 로 떠 있는 안내 카드·로딩이 화면에 남는다 → 탭 .active 토글을 감시해
+    //   비활성 시 숨기고, 다시 돌아왔을 때 조건(활성·표출 줌 미만)이면 재표시한다.
+    function observeOceanTabVisibility() {
+        var sec = document.getElementById('ocean-map-section');
+        if (!sec || typeof MutationObserver === 'undefined') return;
+        var obs = new MutationObserver(function () {
+            if (sec.classList.contains('active')) {
+                if (_active && _belowFloor()) showZoomHint();
+            } else {
+                hideZoomHint();
+                hideLoading();
+            }
+        });
+        obs.observe(sec, { attributes: true, attributeFilter: ['class'] });
     }
 
     // ====================================================================
