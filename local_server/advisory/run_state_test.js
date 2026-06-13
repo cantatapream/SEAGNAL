@@ -37,7 +37,8 @@ const s1 = updateState(
         prevState: {
             active: [
                 { office: 'jeju', zone: '제주A', windKt: 30, waveM: 2, probPct: 80, onsetISO: iso(nowMs + 12 * H) },
-                { office: 'gawn', zone: '강원B', windKt: 30, waveM: 3.5, probPct: 65, onsetISO: iso(nowMs + 10 * H) },
+                // _missStreak: 1 — 직전 사이클에 이미 1회 미검출(유예 소진) → 이번엔 즉시 해소.
+                { office: 'gawn', zone: '강원B', windKt: 30, waveM: 3.5, probPct: 65, onsetISO: iso(nowMs + 10 * H), _missStreak: 1 },
             ],
             resolved: [],
         },
@@ -76,7 +77,7 @@ const s3 = updateState(
     {
         now: NOW, noWrite: true,
         prevState: {
-            active: [{ office: 'gwju', zone: 'Y', windKt: 28, waveM: 3.2, probPct: 75, onsetISO: iso(nowMs - 12 * H) }],
+            active: [{ office: 'gwju', zone: 'Y', windKt: 28, waveM: 3.2, probPct: 75, onsetISO: iso(nowMs - 12 * H), _missStreak: 1 }],
             resolved: [],
         },
     }
@@ -128,8 +129,52 @@ const s5 = updateState(
 check(5, 'Z resolved 에서 제거', !s5.resolved.find(r => r.zone === 'Z'), s5.resolved.map(r => r.zone));
 check(5, 'Z active 등장', !!s5.active.find(a => a.zone === 'Z'), s5.active.map(a => a.zone));
 
+// ── 시나리오 6: 해소 지연(2사이클) — 첫 미검출은 carry, 둘째에 resolved ──────
+//   6a) prev.active 의 '유예W' 가 current 에서 빠짐(_missStreak 없음) → 즉시 해소가
+//       아니라 active 에 carry(_missStreak=1, _grace), resolved 아님.
+const s6 = updateState(
+    { baseTimeKST: '2026061100', predictions: [], zoneSignals: [{ office: 'jeju', zone: '유예W', windKt: 22, waveM: 2, prob: 0.4 }] },
+    [],
+    { now: NOW, noWrite: true,
+        prevState: { active: [{ office: 'jeju', zone: '유예W', windKt: 28, waveM: 3, probPct: 58, onsetISO: iso(nowMs + 10 * H) }], resolved: [] } }
+);
+const s6w = s6.active.find(a => a.zone === '유예W');
+check(6, '첫 미검출 → 유예W active carry', !!s6w, s6.active.map(a => a.zone));
+check(6, '유예W resolved 아님(carry)', !s6.resolved.find(r => r.zone === '유예W'));
+check(6, '유예W _missStreak=1', s6w && s6w._missStreak === 1, s6w && s6w._missStreak);
+
+//   6b) 6a 결과를 prev 로 다시 — 또 미검출 → 이번엔 resolved. after 는 실제 관측값.
+const s6b = updateState(
+    { baseTimeKST: '2026061112', predictions: [], zoneSignals: [{ office: 'jeju', zone: '유예W', windKt: 20, waveM: 1.5, prob: 0.3 }] },
+    [],
+    { now: iso(nowMs + 12 * H), noWrite: true, prevState: { active: s6.active, resolved: s6.resolved } }
+);
+const s6bw = s6b.resolved.find(r => r.zone === '유예W');
+check(6, '2회 연속 미검출 → 유예W resolved', !!s6bw, s6b.resolved.map(r => r.zone));
+check(6, '유예W after 실제값 20kt(0 아님)', s6bw && s6bw.after && s6bw.after.windKt === 20, s6bw && s6bw.after);
+
+// ── 시나리오 7: 등급 변동(격상/격하) change 표식 ─────────────────────────────
+const s7 = updateState(
+    { baseTimeKST: '2026061100',
+        predictions: [
+            { office: 'busn', zone: '격상Z', grade: { key: 'high', label: '높음' }, windKt: 30, waveM: 2, probPct: 64, onsetISO: iso(nowMs + 10 * H) },
+            { office: 'jeju', zone: '격하Y', grade: { key: 'watch', label: '관심' }, windKt: 25, waveM: 2, probPct: 56, onsetISO: iso(nowMs + 10 * H) },
+        ], zoneSignals: [] },
+    [],
+    { now: NOW, noWrite: true,
+        prevState: { active: [
+            { office: 'busn', zone: '격상Z', grade: { key: 'watch', label: '관심' }, windKt: 25, probPct: 52 },
+            { office: 'jeju', zone: '격하Y', grade: { key: 'high', label: '높음' }, windKt: 30, probPct: 64 },
+        ], resolved: [] } }
+);
+const s7up = s7.active.find(a => a.zone === '격상Z'), s7dn = s7.active.find(a => a.zone === '격하Y');
+check(7, '격상Z change.dir=up', s7up && s7up.change && s7up.change.dir === 'up', s7up && s7up.change);
+check(7, '격상Z deltaProb=+12', s7up && s7up.change && s7up.change.deltaProb === 12, s7up && s7up.change);
+check(7, '격하Y change.dir=down', s7dn && s7dn.change && s7dn.change.dir === 'down', s7dn && s7dn.change);
+check(7, '격하Y 높음→관심', s7dn && s7dn.change && s7dn.change.fromGrade === '높음' && s7dn.change.toGrade === '관심', s7dn && s7dn.change);
+
 // ── 시나리오별 PASS 집계 ────────────────────────────────────────────────────
-const scenarioIds = [1, 2, 3, 4, 5];
+const scenarioIds = [1, 2, 3, 4, 5, 6, 7];
 const scenarioResults = scenarioIds.map(id => {
     const cs = checks.filter(c => c.scenario === id);
     const pass = cs.every(c => c.pass);
@@ -157,6 +202,9 @@ const out = {
         s3_onset_passed: s3,
         s4_expiry: s4,
         s5_reentry: s5,
+        s6_resolve_grace: s6,
+        s6b_resolve_grace2: s6b,
+        s7_grade_change: s7,
     },
 };
 fs.writeFileSync(path.resolve(__dirname, 'state_test_integrated.json'), JSON.stringify(out, null, 2));

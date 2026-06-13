@@ -138,33 +138,15 @@ const STATIC_GZIP_OPTS = {
     orderPreference: ['br', 'gzip'],        // brotli 우선, 없으면 gzip (표준 encodingName)
     index: false,                           // 동적 GET / 우선 보장
     serveStatic: {
-        // [정책] 확장자별 Cache-Control 분류 (사전 압축 .gz/.br 접미사 제거 후 판정).
-        //   1) js/css/html/json → no-cache: "캐시하되 사용 전 ETag 재검증". 변경 없으면
-        //      304(본문 없음)라 저렴하고, 배포 즉시 새 코드 반영 + 버전 스큐 방지.
-        //      (벤더 JS/CSS 도 여기 포함 — 콘텐츠 해시가 없으므로 immutable 금지)
-        //   2) 폰트(woff2/woff/ttf/otf/eot) → 1년 immutable: 파일명이 사실상 콘텐츠
-        //      주소(구글 해시명)이고 거의 안 바뀜. 배포(SW 캐시 wipe) 후에도 브라우저
-        //      HTTP 캐시에 잔존 → 재검증·재다운로드 없음, 스플래시 FOUT 재발 방지.
-        //      [주의] fonts.css 자체는 .css(1번)라 no-cache — 폰트 '파일'만 immutable.
-        //      [예외] FontAwesome 폰트는 고정 파일명이라 immutable 금지 → no-cache(아래 별도 분기).
-        //   3) 이미지 → 7일 캐시(가끔 교체되므로 immutable 대신 만료 후 재검증).
-        //   4) 그 외 → 안전하게 no-cache.
+        // [왜] Cache-Control 미지정 시 WebView 가 휴리스틱 캐싱(Last-Modified
+        //   경과시간의 10%)으로 js/css/html 을 재검증 없이 오래 재사용 →
+        //   서버를 새로 배포해도 단말에 옛 코드가 남는다(버그 수정이 안 먹음).
+        //   no-cache 는 "캐시하되 매번 ETag 재검증" — 변경 없으면 304 로
+        //   본문 전송이 없어 비용은 미미하고, 배포 즉시 새 코드가 반영된다.
+        //   이미지·폰트 등 나머지 정적 자원은 종전(휴리스틱) 동작 유지.
+        //   (사전 압축 응답은 파일명이 .gz/.br 로 끝나므로 패턴에 포함)
         setHeaders: function (res, filePath) {
-            var p = filePath.replace(/\.(gz|br)$/i, '');
-            if (/\.(js|css|html|json)$/i.test(p)) {
-                res.setHeader('Cache-Control', 'no-cache');
-            } else if (/[\\/]fontawesome[\\/].*\.(woff2?|ttf|otf|eot)$/i.test(p)) {
-                // FontAwesome 폰트는 고정 파일명(fa-solid-900.woff2 등)이고 css 가 버전 쿼리
-                // 없이 참조 → 업그레이드 시 in-place 교체된다. immutable 이면 옛 폰트가 1년
-                // 고정(SW wipe 로도 복구 불가, 새 아이콘 깨짐) → no-cache 로 매번 재검증(304,
-                // woff2 3개 합 284KB 소형이라 비용 무시 가능).
-                res.setHeader('Cache-Control', 'no-cache');
-            } else if (/\.(woff2?|ttf|otf|eot)$/i.test(p)) {
-                // Inter/Noto/Nanum 은 구글 콘텐츠 해시 파일명 → in-place 교체 불가 → 1년 immutable.
-                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-            } else if (/\.(png|jpe?g|gif|webp|avif|svg|ico)$/i.test(p)) {
-                res.setHeader('Cache-Control', 'public, max-age=604800');
-            } else {
+            if (/\.(js|css|html)(\.gz|\.br)?$/i.test(filePath)) {
                 res.setHeader('Cache-Control', 'no-cache');
             }
         }

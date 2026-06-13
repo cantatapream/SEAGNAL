@@ -1768,11 +1768,6 @@
          변경: assets/vendor/fonts/fonts.css (493 @font-face, unicode-range 보존)
          → font-family 이름은 동일 (Inter / Noto Sans KR / Nanum Pen Script)
          → style.css / splash.css 등의 font-family 선언 변경 불필요 -->
-    <!-- [FOUT 방지] 스플래시 타이틀(SEA:GNAL = Inter 700, Latin) 슬라이스를 HTML 파싱
-         시점에 미리 받아 첫 페인트부터 정자체로 표시. fonts.css 파싱을 기다리지 않음.
-         crossorigin 필수(woff2 는 CORS 모드 페치 — 없으면 @font-face 가 재다운로드). -->
-    <link rel="preload" as="font" type="font/woff2" crossorigin
-          href="/assets/vendor/fonts/inter/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2">
     <link rel="stylesheet" href="/assets/vendor/fonts/fonts.css">
 
     <!-- Styles -->
@@ -1786,11 +1781,11 @@
 
     <!-- Quill Editor (게시판 에디터) — 자체 호스팅 -->
     <link href="/assets/vendor/quill/quill.snow.css" rel="stylesheet">
-    <script defer src="/assets/vendor/quill/quill.min.js"></script>
+    <script src="/assets/vendor/quill/quill.min.js"></script>
 
     <!-- Chart.js — 자체 호스팅 (다운로드 시점 latest = 4.5.1 로 잠금) -->
-    <script defer src="/assets/vendor/chartjs/chart.umd.min.js"></script>
-    <script defer src="/assets/vendor/chartjs/chartjs-plugin-datalabels.min.js"></script>
+    <script src="/assets/vendor/chartjs/chart.umd.min.js"></script>
+    <script src="/assets/vendor/chartjs/chartjs-plugin-datalabels.min.js"></script>
 
     <!-- html2canvas(1.4.1)는 전역 로드하지 않는다(약 200KB). 사용량 통계 대시보드의
          표/카드 PNG 캡처를 관리자가 실제로 호출할 때만 js/admin_collect.js 가
@@ -1799,7 +1794,7 @@
 
     <!-- OpenLayers for Tide Map — 자체 호스팅 -->
     <link rel="stylesheet" href="/assets/vendor/ol/ol.css">
-    <script defer src="/assets/vendor/ol/ol.js"></script>
+    <script src="/assets/vendor/ol/ol.js"></script>
 
     <!-- [제거됨] proj4 (좌표계 변환 라이브러리) — dead dependency
          - 코드에서 proj4 함수 호출 0건 확인 (전체 grep 결과).
@@ -1818,7 +1813,7 @@
          - 향후 항공/위성 베이스맵 도입 시 다시 추가하면 됨 (도메인 락/API key 종속) -->
 
     <!-- SunCalc - 천문 정보 계산 (일출몰, 월령 등) — 자체 호스팅 -->
-    <script defer src="/assets/vendor/suncalc/suncalc.min.js"></script>
+    <script src="/assets/vendor/suncalc/suncalc.min.js"></script>
 
     <!-- [제거됨] Korean Lunar Calendar CDN 의존성 — dead dependency
          - 이 스크립트는 https://cdn.jsdelivr.net/npm/korean-lunar-calendar@0.3.6/lib/...
@@ -4231,102 +4226,102 @@
     <script src="js/render_coastal.js"></script>
     <script src="js/marine.js"></script>
     <script src="js/settings.js"></script>
-    <script defer src="js/forecast.js"></script>
+    <script src="js/forecast.js"></script>
     <script src="js/windy.js?v=BuoyClip_20260612"></script>
     <script src="js/marine_forecast.js"></script>
     <script src="js/advisory_prediction.js"></script>
     <!-- 해상일기도 (KMA 날씨누리 GIF 차트) — 5개 파일 분할
          1: 카탈로그/상태/init/드롭다운/즐겨찾기  2: fetch/render/슬라이더/재생
          3: 전체화면 진입/종료/백버튼  4: 컨트롤 페이드  5: 핀치줌·팬·탭 -->
-    <script defer src="js/marine_chart1.js"></script>
-    <script defer src="js/marine_chart2.js"></script>
-    <script defer src="js/marine_chart3.js"></script>
-    <script defer src="js/marine_chart4.js"></script>
-    <script defer src="js/marine_chart5.js"></script>
-    <script defer src="js/fishing.js"></script>
-    <script defer src="js/surfing1.js"></script>
-    <script defer src="js/surfing2.js"></script>
-    <script defer src="js/surfing3.js"></script>
-    <script defer src="js/surfing4.js"></script>
-    <script defer src="js/surfing5.js"></script>
-    <script defer src="js/sea_parting.js"></script>
-    <script defer src="js/mudflat.js"></script>
-    <script defer src="js/scuba.js"></script>
-    <script defer src="js/ripcurrent.js"></script>
+    <script src="js/marine_chart1.js"></script>
+    <script src="js/marine_chart2.js"></script>
+    <script src="js/marine_chart3.js"></script>
+    <script src="js/marine_chart4.js"></script>
+    <script src="js/marine_chart5.js"></script>
+    <script src="js/fishing.js"></script>
+    <script src="js/surfing1.js"></script>
+    <script src="js/surfing2.js"></script>
+    <script src="js/surfing3.js"></script>
+    <script src="js/surfing4.js"></script>
+    <script src="js/surfing5.js"></script>
+    <script src="js/sea_parting.js"></script>
+    <script src="js/mudflat.js"></script>
+    <script src="js/scuba.js"></script>
+    <script src="js/ripcurrent.js"></script>
 
     <!-- 해양종합정보 (히든 탭) -->
-    <script defer src="js/ocean_map.js"></script>
-    <script defer src="js/ocean_markers.js"></script>
-    <script defer src="js/ocean_bottom_sheet1.js"></script>
+    <script src="js/ocean_map.js"></script>
+    <script src="js/ocean_markers.js"></script>
+    <script src="js/ocean_bottom_sheet1.js"></script>
     <!-- 시트 슬라이더 모듈 — bottom_sheet2.js 가 STL.onRelease 를 wire 하므로 그 전에 로드되어
          OS.SheetTL 이 정의된 상태여야 함. (sheet1.js 가 OS 생성 → 여기서 OS.SheetTL 생성) -->
-    <script defer src="js/ocean_sheet_timeline.js"></script>
-    <script defer src="js/ocean_bottom_sheet2.js"></script>
-    <script defer src="js/ocean_bottom_sheet3.js"></script>
-    <script defer src="js/ocean_bottom_sheet4.js"></script>
-    <script defer src="js/ocean_bottom_sheet5.js"></script>
+    <script src="js/ocean_sheet_timeline.js"></script>
+    <script src="js/ocean_bottom_sheet2.js"></script>
+    <script src="js/ocean_bottom_sheet3.js"></script>
+    <script src="js/ocean_bottom_sheet4.js"></script>
+    <script src="js/ocean_bottom_sheet5.js"></script>
     <!-- 천기 카드 (해점 클릭 시 KMA 단기예보 6 카테고리 종합 표시) — sheet1~5 의존 -->
-    <script defer src="js/ocean_bottom_sheet_weather.js"></script>
+    <script src="js/ocean_bottom_sheet_weather.js"></script>
     <!-- 시정 카드 (수심 오른쪽) — vsby_forecast_layer 의 점 샘플러 재사용 -->
-    <script defer src="js/ocean_bottom_sheet_vsby.js"></script>
-    <script defer src="js/ocean_overlay.js"></script>
+    <script src="js/ocean_bottom_sheet_vsby.js"></script>
+    <script src="js/ocean_overlay.js"></script>
     <!-- 진북(North Up) 회전 컨트롤 — 3-state 사이클 + 잠금 상태 localStorage 보존 -->
-    <script defer src="js/ocean_northup.js"></script>
-    <script defer src="js/ocean_buoy.js"></script>
-    <script defer src="js/ocean_warn_zone.js"></script>
+    <script src="js/ocean_northup.js"></script>
+    <script src="js/ocean_buoy.js"></script>
+    <script src="js/ocean_warn_zone.js"></script>
     <!-- 태풍 진로/예보 오버레이 + 재생 애니메이션 (의존: ocean_map.js + /api/typhoon) -->
-    <script defer src="js/ocean_typhoon.js"></script>
+    <script src="js/ocean_typhoon.js"></script>
     <!-- 활성 특보 색칠 모듈 (5개 파일 분할, 의존: ocean_warn_zone.js + data.js + ocean_map.js) -->
-    <script defer src="js/ocean_warn_active1.js"></script>
-    <script defer src="js/ocean_warn_active2.js"></script>
-    <script defer src="js/ocean_warn_active3.js"></script>
-    <script defer src="js/ocean_warn_active4.js"></script>
-    <script defer src="js/ocean_warn_active5.js"></script>
-    <script defer src="js/ocean_warn_vsby.js?v=VsbyClip_20260612"></script>
-    <script defer src="js/ocean_timeline.js"></script>
+    <script src="js/ocean_warn_active1.js"></script>
+    <script src="js/ocean_warn_active2.js"></script>
+    <script src="js/ocean_warn_active3.js"></script>
+    <script src="js/ocean_warn_active4.js"></script>
+    <script src="js/ocean_warn_active5.js"></script>
+    <script src="js/ocean_warn_vsby.js?v=VsbyClip_20260612"></script>
+    <script src="js/ocean_timeline.js"></script>
     <!-- 천기 (KMA 단기예보 PNG 오버레이): 토글 버튼 + 5개 서브버튼 + 슬라이더/재생 + 범례 + 클릭 팝업 -->
-    <script defer src="js/shrt_forecast_layer.js"></script>
+    <script src="js/shrt_forecast_layer.js"></script>
     <!-- 물빠짐 (서해·남해 갯벌 노출 예측): 토글 버튼 + 시간 슬라이더/재생 + 2색 벡터 레이어 + 클릭 팝업
          (의존: ocean_map.js 의 window.__getOceanMap, /api/tide-field) -->
-    <script defer src="js/tide_field.js"></script>
+    <script src="js/tide_field.js"></script>
     <!-- 시정예측 (KMA RDPS 시정/안개 PNG 오버레이): 토글 버튼 + 슬라이더/재생 + 범례 + 클릭 팝업 (천기 메커니즘 복제) -->
-    <script defer src="js/vsby_forecast_layer.js"></script>
+    <script src="js/vsby_forecast_layer.js"></script>
 
-    <script defer src="js/admin_trigger.js"></script>
-    <script defer src="js/image_compress.js"></script>
+    <script src="js/admin_trigger.js"></script>
+    <script src="js/image_compress.js"></script>
     <script src="js/promo.js"></script>
-    <script defer src="js/promo_comment1.js"></script>
-    <script defer src="js/promo_comment2.js"></script>
-    <script defer src="js/promo_comment3.js"></script>
-    <script defer src="js/promo_comment4.js"></script>
-    <script defer src="js/promo_comment5.js"></script>
+    <script src="js/promo_comment1.js"></script>
+    <script src="js/promo_comment2.js"></script>
+    <script src="js/promo_comment3.js"></script>
+    <script src="js/promo_comment4.js"></script>
+    <script src="js/promo_comment5.js"></script>
     <!-- 공용 페이지네이션 helper (window.renderStandardPagination 노출)
          관리자 리스트 화면(admin.js / admin_collect.js / admin_survey.js / admin_report.js / alert_push.js)에서
          사용하므로 반드시 이 스크립트들보다 먼저 로드되어야 함 -->
-    <script defer src="js/pagination_helper.js"></script>
-    <script defer src="js/admin.js"></script>
-    <script defer src="js/admin_collect.js"></script>
-    <script defer src="js/admin_survey.js"></script>
-    <script defer src="js/admin_report.js"></script>
+    <script src="js/pagination_helper.js"></script>
+    <script src="js/admin.js"></script>
+    <script src="js/admin_collect.js"></script>
+    <script src="js/admin_survey.js"></script>
+    <script src="js/admin_report.js"></script>
     <!-- [데모 시연] 관리자 센터 데모 특보 슬롯 UI + 관리자 기기 한정 표출 -->
-    <script defer src="js/admin_demo.js"></script>
-    <script defer src="js/demo_alert.js"></script>
-    <script defer src="js/advisory_demo_admin.js"></script>
-    <script defer src="js/advisory_manage_admin.js"></script>
-    <script defer src="js/advisory_demo.js"></script>
-    <script defer src="js/report_user.js"></script>
-    <script defer src="js/survey_user.js"></script>
-    <script defer src="js/zone_guide.js"></script>
-    <script defer src="js/alert_push.js"></script>
-    <script defer src="js/ui_modal.js"></script>
+    <script src="js/admin_demo.js"></script>
+    <script src="js/demo_alert.js"></script>
+    <script src="js/advisory_demo_admin.js"></script>
+    <script src="js/advisory_manage_admin.js"></script>
+    <script src="js/advisory_demo.js"></script>
+    <script src="js/report_user.js"></script>
+    <script src="js/survey_user.js"></script>
+    <script src="js/zone_guide.js"></script>
+    <script src="js/alert_push.js"></script>
+    <script src="js/ui_modal.js"></script>
     <script src="js/app_init.js"></script>
     <script src="js/backbutton.js"></script>
     <!-- AI 비서 바로가기 딥링크(?assistant=ocean&layer=...) → 해양종합정보 레이어 자동 활성화 -->
-    <script defer src="js/assistant_deeplink.js"></script>
+    <script src="js/assistant_deeplink.js"></script>
     <!-- 백그라운드 "나리야" 음성 비서 상태/대화를 화면 하단 오버레이로 표시 -->
-    <script defer src="js/assistant_overlay.js"></script>
+    <script src="js/assistant_overlay.js"></script>
     <!-- HLS.js: 거제시 등 HLS 스트림 재생 (cctv4.js _initCctvHlsPlayer에서 사용) — 자체 호스팅 -->
-    <script defer src="/assets/vendor/hls.js/hls.min.js"></script>
+    <script src="/assets/vendor/hls.js/hls.min.js"></script>
     <!-- ================================================================
          CCTV 기능 (index2 에서는 해양종합에 통합)
          ----------------------------------------------------------------
@@ -4342,9 +4337,9 @@
          - cctv7.js (관리자 위치 편집 도구) — index2 미사용
          [주의] index1(index.html) 은 변함없이 cctv1~7.js 전체를 로드함.
          ================================================================ -->
-    <script defer src="js/cctv1.js"></script>
-    <script defer src="js/cctv4.js"></script>
-    <script defer src="js/ocean_cctv.js"></script>
+    <script src="js/cctv1.js"></script>
+    <script src="js/cctv4.js"></script>
+    <script src="js/ocean_cctv.js"></script>
 
     <!-- index2 전용 패치: 종합기상 탭 + 헤더 유지 -->
     <script src="js/index2_patch.js"></script>

@@ -90,30 +90,35 @@ function rec(name, pass, detail) {
     rec('buildKmaForecast', failed.length === 0, failed.length ? '실패: ' + failed.join(', ') : 'OK');
 })();
 
-// ── 4) enrichPredictions — 매칭 시 부착 / 미매칭 시 원본 보존 ─────────────────
+// ── 4) enrichPredictions — 통보문 단일 출처(zone→{sentence,wind,wave,publishTime}) ──
 (function () {
-    const map = {
+    const bmap = {
         '제주도남쪽바깥먼바다': {
-            publishTime: '2026061105',
-            periods: [{ date: '20260613', period: 'pm', wind: '서 / 14~18', waveHeight: '2.0~3.0' }],
+            sentence: '모레(15일) 새벽부터 오후 사이 바람이 강하게 불고 물결이 높게 일겠음',
+            wind: '9~14', wave: '1.5~3.0', publishTime: '2026.06.13 16:20',
         },
     };
     const predictions = [
         { zone: '제주도남쪽바깥먼바다', onsetISO: '2026-06-13T12:00:00.000Z', probPct: 80 },
-        { zone: '동해북부앞바다', onsetISO: '2026-06-13T12:00:00.000Z', probPct: 63 }, // map 에 없음
+        { zone: '동해북부앞바다', onsetISO: '2026-06-13T12:00:00.000Z', probPct: 63 }, // bmap 에 없음
     ];
-    const out = cx.enrichPredictions(predictions, map);
+    const out = cx.enrichPredictions(predictions, bmap);
+    const k = out[0].kmaForecast;
     const checks = [];
     checks.push(['배열 길이 유지', out.length === 2]);
-    checks.push(['매칭 항목 kmaForecast 부착', out[0].kmaForecast && out[0].kmaForecast.windSpeed === '14~18']);
-    checks.push(['매칭 파고', out[0].kmaForecast && out[0].kmaForecast.waveHeight === '2.0~3.0']);
+    checks.push(['풍속 kt(m/s) 변환', k && k.windKtMs === cx.windToKtMs('9~14')]);
+    checks.push(['파고 통보문값', k && k.waveHeight === '1.5~3.0']);
+    checks.push(['문장(outlook) 부착', k && /물결이 높게 일겠음/.test(k.outlook || '')]);
+    checks.push(['발표청명(통보문)', k && k.office === '제주지방기상청']);
+    checks.push(['발표시각 라벨(통보문)', k && /16:20 발표/.test(k.publishLabel || '')]);
+    checks.push(['시간대 슬롯 없음(periodLabel null)', k && k.periodLabel === null]);
     checks.push(['미매칭 항목 원본 참조 유지', out[1] === predictions[1] && !out[1].kmaForecast]);
     checks.push(['원본 불변(mutate 안 함)', !predictions[0].kmaForecast]);
     // 빈 맵 → 전부 원본 참조
     const out2 = cx.enrichPredictions(predictions, {});
     checks.push(['빈 맵 → 원본 그대로', out2[0] === predictions[0] && out2[1] === predictions[1]]);
     // 비배열 방어
-    checks.push(['비배열 입력 방어', cx.enrichPredictions(null, map) === null]);
+    checks.push(['비배열 입력 방어', cx.enrichPredictions(null, bmap) === null]);
     const failed = checks.filter((c) => !c[1]).map((c) => c[0]);
     rec('enrichPredictions', failed.length === 0, failed.length ? '실패: ' + failed.join(', ') : 'OK');
 })();
