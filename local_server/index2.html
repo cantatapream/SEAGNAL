@@ -706,7 +706,16 @@
             border-color: rgba(68, 138, 255, 0.45);
             color: #fff;
         }
-        .ocean-info-panels { text-align: left; }
+        /* 안내 내용 영역: 길면(예: 물빠짐) 모달이 화면을 넘기므로 이 영역만 스크롤.
+           탭바·확인 버튼은 고정되고 본문만 슬라이드해서 본다. */
+        .ocean-info-panels {
+            text-align: left;
+            max-height: 40vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            padding-right: 4px;   /* 스크롤바와 글자 간격 */
+        }
         .ocean-info-panel { display: none; color: #e2e8f0; font-size: 0.9rem; line-height: 1.65; white-space: pre-line; }
         .ocean-info-panel.active { display: block; }
         .ocean-info-panel ol,
