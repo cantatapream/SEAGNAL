@@ -10873,6 +10873,13 @@ body.mc-fullscreen-active {
 .adv-chg-line.adv-chg-up { color: #ff7a7a; }
 .adv-chg-line.adv-chg-down { color: #aee08a; }
 .adv-chg-dp { font-weight: 600; opacity: 0.9; }
+/* 위험기상 일기도 보기 — 단기전망 하단 버튼 + 펼침 이미지(lazy) */
+.adv-ovl { margin-top: 10px; }
+.adv-ovl-btn { width: 100%; padding: 9px 12px; background: rgba(56, 132, 255, 0.12); color: #8fc0ff; border: 1px solid rgba(56, 132, 255, 0.38); border-radius: 9px; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+.adv-ovl-btn:hover { background: rgba(56, 132, 255, 0.2); }
+.adv-ovl-body { display: none; margin-top: 9px; }
+.adv-ovl-body.open { display: block; }
+.adv-ovl-img { width: 100%; height: auto; border-radius: 9px; display: block; border: 1px solid var(--border-color, #2a3340); background: #0d1117; }
 .adv-card-chev { color: var(--text-sub, #9aa7b4); font-size: 11px; width: 14px; text-align: center; transition: transform 0.18s; }
 .adv-card.open .adv-card-chev { transform: rotate(180deg); }
 .adv-card-body { display: none; padding: 0 13px 12px; }

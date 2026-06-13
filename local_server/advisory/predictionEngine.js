@@ -54,6 +54,12 @@ const wavePalette = require(path.join(WL, 'palette'));
 const { ZONES } = require(path.join(WL, 'zones'));
 // 폴리곤+면적 (검증된 과탐억제 — CALIB_ABS/BEATKMA). 원형 반경 방식 폐지.
 const { loadZonePolygons, zonePixelIndices, analyzeByIndices, normName } = require(path.join(WL, 'zonePolygon'));
+// 위험기상 일기도 오버레이(특보구역 테두리 + 위험영역 색칠) — 카드 '일기도 보기' 용.
+const { renderZoneOverlay } = require('./overlayRenderer');
+let UPLOAD_DIR; try { ({ UPLOAD_DIR } = require('../config/server_config')); } catch (_) { UPLOAD_DIR = null; }
+if (!UPLOAD_DIR) UPLOAD_DIR = path.join(__dirname, '..', 'data', 'uploads');
+const OVERLAY_DIR = path.join(UPLOAD_DIR, 'advisory');
+const OVERLAY_URL_BASE = '/uploads/advisory';
 
 // 검증 산출(advisory) + 운영 저장(data) 경로
 const OUT_SAMPLE = path.join(__dirname, 'sample_output.json');
@@ -343,6 +349,46 @@ async function generatePredictions(options = {}) {
                         `${sigText}가 전체 구역의 약 ${areaPct}%를 차지할 것으로 예상됨. ` +
                         `과거 통계 상 이 수준의 약 ${probPct}%가 실제 발효로 연결.`;
 
+                    // 위험기상 일기도 오버레이 PNG 생성(카드 '일기도 보기' 버튼용).
+                    //   onset 주신호(풍속 우선, 아니면 파고) 프레임 1장을 디코드해
+                    //   구역 테두리 + 위험영역(임계초과 픽셀)을 등급색으로 그려 저장.
+                    //   실패는 흡수(예측엔 영향 없음). --noWrite 검증 모드에선 생략.
+                    let overlay = null;
+                    if (!options.noWrite) {
+                        try {
+                            const onsetVt = r.onset.getTime();
+                            const useWave = !(windKt >= windCut) && (waveM >= waveCut);
+                            const frameH = useWave
+                                ? waveByVt.get(onsetVt)
+                                : ((windSeq.find((x) => x.vt.getTime() === onsetVt) || {}).f);
+                            if (frameH) {
+                                const dec = await decodeFrame(frameH);
+                                const idx = zoneIdx(dec, z);
+                                if (idx && idx.length) {
+                                    const a2 = analyzeByIndices(dec, idx, {
+                                        mask: useWave ? waveMask : windMask,
+                                        classify: useWave ? wavePalette.classify : windPalette.classify,
+                                        ge3Level: useWave ? waveCut : THRESHOLDS.GE3_KT,
+                                        ge5Level: useWave ? THRESHOLDS.WAVE_ALARM_M : THRESHOLDS.WIND_ALARM_KT,
+                                        minBandPixels: THRESHOLDS.MIN_BAND_PIXELS,
+                                        collectDanger: true,
+                                    });
+                                    if (a2) {
+                                        const png = renderZoneOverlay({
+                                            decoded: dec, cal, polys: polyMap.get(normName(z.name)),
+                                            dGE3: a2.dangerGE3, dGE5: a2.dangerGE5, gradeKey: grade.key,
+                                        });
+                                        fs.mkdirSync(OVERLAY_DIR, { recursive: true });
+                                        fs.writeFileSync(path.join(OVERLAY_DIR, `${z.name}.png`), png);
+                                        overlay = `${OVERLAY_URL_BASE}/${encodeURIComponent(z.name)}.png`;
+                                    }
+                                }
+                            }
+                        } catch (ovErr) {
+                            console.error(`[overlay] ${code}/${z.name} 실패: ${ovErr.message}`);
+                        }
+                    }
+
                     predictions.push({
                         office: code,
                         zone: z.name,
@@ -353,6 +399,7 @@ async function generatePredictions(options = {}) {
                         onsetISO: kstDateToISO(r.onset),
                         onsetLabel: label,
                         narrative,
+                        overlay,
                     });
                 } catch (zErr) {
                     console.error(`[zone] ${code}/${z.name} 실패: ${zErr.message}`);

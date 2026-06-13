@@ -118,6 +118,19 @@
         return html;
     }
 
+    // ── 위험기상 일기도 보기 — 버튼 + 펼침 컨테이너(이미지는 클릭 시 lazy load) ──
+    //   it.overlay 가 있을 때만(엔진이 생성한 PNG 경로). 없으면 빈 문자열(버튼 숨김).
+    function buildOverlayToggle(it) {
+        const src = (it && typeof it.overlay === 'string' && it.overlay) ? it.overlay : '';
+        if (!src) return '';
+        return '<div class="adv-ovl">' +
+            '<button type="button" class="adv-ovl-btn" ' +
+            'onclick="window.toggleAdvOverlay&&window.toggleAdvOverlay(this)">' +
+            '🛰️ 위험기상 일기도 보기</button>' +
+            '<div class="adv-ovl-body" data-src="' + escapeHtml(src) + '"></div>' +
+            '</div>';
+    }
+
     // ── 헤더 상태배지(카운트) — 앱 기존 .adv-badge(반투명) 재사용 ──
     function buildHeaderStatus(data, isVisible) {
         const vis = normVisible(isVisible);
@@ -195,6 +208,7 @@
                     if (chgLine) html.push(chgLine);
                     html.push('<div class="adv-narr">' + buildNarrativeHtml(it) + '</div>');
                     html.push(buildKmaHtml(it));
+                    html.push(buildOverlayToggle(it));
                     html.push('</div></div>');
                 });
                 html.push('</div>');
@@ -307,6 +321,26 @@
         const card = headEl.closest('.adv-card');
         if (card) card.classList.toggle('open');
     }
+    // 위험기상 일기도 토글 — 펼칠 때 이미지를 lazy 삽입(첫 펼침에만 src 로드).
+    function toggleAdvOverlay(btn) {
+        if (!btn) return;
+        const body = btn.nextElementSibling;
+        if (!body || typeof body.classList === 'undefined') return;
+        const willOpen = !body.classList.contains('open');
+        body.classList.toggle('open', willOpen);
+        if (willOpen && !body.querySelector('img')) {
+            const src = body.getAttribute('data-src');
+            if (src) {
+                const img = document.createElement('img');
+                img.className = 'adv-ovl-img';
+                img.loading = 'lazy';
+                img.alt = '위험기상 일기도';
+                img.src = src;
+                body.appendChild(img);
+            }
+        }
+        btn.textContent = willOpen ? '🛰️ 위험기상 일기도 닫기' : '🛰️ 위험기상 일기도 보기';
+    }
     // ⓘ 팝업 열고/닫기 (마크업은 index2.html 의 #adv-info-modal)
     function openAdvisoryInfo() {
         const m = document.getElementById('adv-info-modal');
@@ -324,6 +358,7 @@
         window.buildAdvisoryHtml = buildAdvisoryHtml;
         window.buildHeaderStatus = buildHeaderStatus;
         window.toggleAdvisoryCard = toggleAdvisoryCard;
+        window.toggleAdvOverlay = toggleAdvOverlay;
         window.openAdvisoryInfo = openAdvisoryInfo;
         window.closeAdvisoryInfo = closeAdvisoryInfo;
         window.__advShowAccordion = _setAccordionVisible; // 데모 표출기가 가시성 제어에 사용
@@ -349,6 +384,7 @@
             buildHeaderStatus: buildHeaderStatus,
             buildChangeBadge: buildChangeBadge,
             buildChangeLine: buildChangeLine,
+            buildOverlayToggle: buildOverlayToggle,
             escapeHtml: escapeHtml,
             formatBaseTime: formatBaseTime,
         };
