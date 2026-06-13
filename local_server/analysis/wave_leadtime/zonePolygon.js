@@ -27,21 +27,37 @@ function normName(s) {
     return String(s == null ? '' : s).replace(/[\s·.]/g, '').trim();
 }
 
-/** warn_zones.geojson → Map<정규화이름, MultiPolygon coordinates(lon/lat)>. 실패 시 빈 Map. */
-function loadZonePolygons(geojsonPath) {
+/**
+ * geojson → Map<정규화이름, MultiPolygon coordinates(lon/lat)>. 실패 시 빈 Map.
+ *
+ * 기본은 warn_zones.geojson (properties.name, 구역당 feature 1개).
+ * opts 로 sterm(정밀) geojson 도 읽을 수 있다:
+ *   - nameKeys: 이름으로 쓸 properties 키 우선순위(첫 존재값). sterm 은 ['sterm_parent'].
+ *   - aliases:  Map<정규화이름, 정규화이름> — sterm parent명 → warn/CSV/ZONES 표준명 보정.
+ *   - 같은 정규화이름이 여러 feature 로 쪼개진 경우(sterm 다대일) MultiPolygon 으로 병합한다.
+ *     (warn 은 구역당 1 feature 라 병합이 일어나도 결과 불변 → 하위호환.)
+ */
+function loadZonePolygons(geojsonPath, opts = {}) {
     const out = new Map();
+    const nameKeys = (opts.nameKeys && opts.nameKeys.length) ? opts.nameKeys : ['name'];
+    const aliases = opts.aliases instanceof Map ? opts.aliases : null;
     try {
         const p = geojsonPath || path.resolve(__dirname, '..', '..', 'assets', 'warn_zones.geojson');
         const gj = JSON.parse(fs.readFileSync(p, 'utf8'));
         for (const f of (gj.features || [])) {
-            const name = f && f.properties && f.properties.name;
+            const props = (f && f.properties) || {};
+            let rawName = null;
+            for (const k of nameKeys) { if (props[k] != null && props[k] !== '') { rawName = props[k]; break; } }
             const geom = f && f.geometry;
-            if (!name || !geom) continue;
+            if (!rawName || !geom) continue;
             let polys;
             if (geom.type === 'MultiPolygon') polys = geom.coordinates;
             else if (geom.type === 'Polygon') polys = [geom.coordinates];
             else continue;
-            out.set(normName(name), polys);
+            let nm = normName(rawName);
+            if (aliases && aliases.has(nm)) nm = aliases.get(nm);
+            if (out.has(nm)) { const cur = out.get(nm); for (const pl of polys) cur.push(pl); } // 다대일 병합
+            else out.set(nm, polys.slice());
         }
     } catch (_) { /* 빈 맵 */ }
     return out;
