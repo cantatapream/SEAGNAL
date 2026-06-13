@@ -146,13 +146,21 @@ const STATIC_GZIP_OPTS = {
         //      주소(구글 해시명)이고 거의 안 바뀜. 배포(SW 캐시 wipe) 후에도 브라우저
         //      HTTP 캐시에 잔존 → 재검증·재다운로드 없음, 스플래시 FOUT 재발 방지.
         //      [주의] fonts.css 자체는 .css(1번)라 no-cache — 폰트 '파일'만 immutable.
+        //      [예외] FontAwesome 폰트는 고정 파일명이라 immutable 금지 → no-cache(아래 별도 분기).
         //   3) 이미지 → 7일 캐시(가끔 교체되므로 immutable 대신 만료 후 재검증).
         //   4) 그 외 → 안전하게 no-cache.
         setHeaders: function (res, filePath) {
             var p = filePath.replace(/\.(gz|br)$/i, '');
             if (/\.(js|css|html|json)$/i.test(p)) {
                 res.setHeader('Cache-Control', 'no-cache');
+            } else if (/[\\/]fontawesome[\\/].*\.(woff2?|ttf|otf|eot)$/i.test(p)) {
+                // FontAwesome 폰트는 고정 파일명(fa-solid-900.woff2 등)이고 css 가 버전 쿼리
+                // 없이 참조 → 업그레이드 시 in-place 교체된다. immutable 이면 옛 폰트가 1년
+                // 고정(SW wipe 로도 복구 불가, 새 아이콘 깨짐) → no-cache 로 매번 재검증(304,
+                // woff2 3개 합 284KB 소형이라 비용 무시 가능).
+                res.setHeader('Cache-Control', 'no-cache');
             } else if (/\.(woff2?|ttf|otf|eot)$/i.test(p)) {
+                // Inter/Noto/Nanum 은 구글 콘텐츠 해시 파일명 → in-place 교체 불가 → 1년 immutable.
                 res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
             } else if (/\.(png|jpe?g|gif|webp|avif|svg|ico)$/i.test(p)) {
                 res.setHeader('Cache-Control', 'public, max-age=604800');
