@@ -308,6 +308,7 @@
                     setUnlocked();
                     applyLockedLook(btn, false);
                     toast('물빠짐 기능이 활성화되었습니다.');
+                    if (window.trackUsage) window.trackUsage('ocean.mudflat');  // [사용량] 켤 때만 1회
                     activate(); // 해제 직후 바로 표출
                 } else {
                     toast('물빠짐 활성화까지 ' + (UNLOCK_CLICKS - n) + '회 남았습니다.');
@@ -316,7 +317,10 @@
             }
             // 잠금 해제됨: 정상 토글
             if (_active) deactivate();
-            else activate();
+            else {
+                if (window.trackUsage) window.trackUsage('ocean.mudflat');  // [사용량] 켤 때만 1회
+                activate();
+            }
         });
     }
 

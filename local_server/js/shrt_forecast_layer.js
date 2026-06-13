@@ -1751,6 +1751,8 @@
             popupState.box.style.visibility = '';
         });
         refreshPopupContents();
+        // [사용량] 천기 레이어 ON + 지도 클릭으로 팝업 표출(시정 행 포함) → 시정 정보 1회 집계
+        if (window.trackUsage) window.trackUsage('shrt.vsby');
         return true;
     };
 
