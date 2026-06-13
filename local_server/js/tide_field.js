@@ -123,25 +123,41 @@
         out.width = W; out.height = H;
         var octx = out.getContext('2d');
         if (!_drawCells.length) return out;
-        // 1) 타일을 임시 캔버스에 샤프하게 채움
+
+        // [저해상도 렌더링] 갯벌은 어차피 blur 로 뭉개 부드럽게 표현하므로, 셀을
+        //   기기 픽셀비율(레티나 2~3배) 그대로 채울 필요가 없다. 무거운 "셀 채우기"는
+        //   CSS 해상도(=1배)로 낮춘 임시 캔버스에서 하고, 그걸 출력 캔버스로 확대한다.
+        //   → 칠하는 픽셀 수가 픽셀비율²(2배 화면 4배, 3배 화면 9배) 줄어 렌더 시간·
+        //   임시 캔버스 메모리가 크게 절감된다. 확대 보간 + blur 가 픽셀 경계를 가려
+        //   체감 화질 차이는 없다. (pixelRatio=1 기기에선 다운스케일 없이 동일 동작)
+        var pr = pixelRatio || 1;
+        var ds = pr > 1 ? (1 / pr) : 1;            // 다운스케일 배율(레티나에서만 < 1)
+        var tw = Math.max(1, Math.round(W * ds));
+        var th = Math.max(1, Math.round(H * ds));
+
+        // 1) 타일을 (저해상도) 임시 캔버스에 채움
         var tmp = document.createElement('canvas');
-        tmp.width = W; tmp.height = H;
+        tmp.width = tw; tmp.height = th;
         var ctx = tmp.getContext('2d');
-        var ex0 = extent[0], ey3 = extent[3], r = resolution / pixelRatio;
+        var ex0 = extent[0], ey3 = extent[3];
+        var r = resolution / pixelRatio / ds;      // 월드(m) → 임시 캔버스 픽셀
         for (var i = 0; i < _drawCells.length; i++) {
             var d = _drawCells[i];
             // 수심별 농도 그라데이션: 막 드러난 물가(dm≈0)는 연하게, 많이 빠진 곳
             //   (dm≤-1.2m)은 진하게 → 물가선이 부드럽게 페이드(연한 라인).
             ctx.fillStyle = depthToFill(d.dm);
             var px = (d.x0 - ex0) / r;
-            var py = (ey3 - d.y1) / r;          // y1=상단(큰 Y)→작은 픽셀
+            var py = (ey3 - d.y1) / r;             // y1=상단(큰 Y)→작은 픽셀
             var pw = (d.x1 - d.x0) / r;
             var ph = (d.y1 - d.y0) / r;
             ctx.fillRect(px, py, pw < 1 ? 1 : pw, ph < 1 ? 1 : ph);
         }
-        // 2) 블러 1회로 픽셀 경계를 부드럽게 → 해안선 따라 유연한 형태.
-        try { octx.filter = 'blur(' + (2.6 * pixelRatio) + 'px)'; } catch (e) {}
-        octx.drawImage(tmp, 0, 0);
+        // 2) 출력 캔버스로 확대 + 블러 1회 → 부드러운 해안선. 확대 보간과 blur 가
+        //    저해상도 채움의 픽셀 경계를 함께 가린다.
+        try { octx.filter = 'blur(' + (2.6 * pr) + 'px)'; } catch (e) {}
+        octx.imageSmoothingEnabled = true;
+        try { octx.imageSmoothingQuality = 'low'; } catch (e) {}
+        octx.drawImage(tmp, 0, 0, tw, th, 0, 0, W, H);
         return out;
     }
 
