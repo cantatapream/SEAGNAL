@@ -1281,6 +1281,36 @@
         }
         @keyframes mudflat-spin { to { transform: rotate(360deg); } }
 
+        /* 물빠짐 줌 안내 카드 — 표출 줌(바닥선)에 도달할 때까지 화면 중앙에 떠 있다.
+           로딩 스피너와 달리 지도 조작을 막지 않도록 카드 자체만 떠 있고 배경은
+           통과(pointer-events:none). "확대하세요" 안내라 스피너와 아이콘·문구가 다름. */
+        #mudflat-zoom-hint {
+            position: fixed; inset: 0; z-index: 1400;
+            display: none; align-items: center; justify-content: center;
+            pointer-events: none;
+        }
+        #mudflat-zoom-hint.show { display: flex; }
+        .mudflat-zoom-hint-box {
+            display: flex; flex-direction: column; align-items: center; gap: 0.55rem;
+            max-width: 16rem; text-align: center;
+            background: rgba(15, 25, 50, 0.92);
+            border: 1px solid rgba(120, 150, 200, 0.3);
+            border-radius: 0.8rem;
+            padding: 1.1rem 1.4rem;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+        }
+        .mudflat-zoom-hint-icon {
+            color: #4da3ff; font-size: 1.7rem; line-height: 1;
+        }
+        .mudflat-zoom-hint-title {
+            color: #e5edff; font-size: 0.92rem; font-weight: 600;
+            font-family: "Pretendard", sans-serif;
+        }
+        .mudflat-zoom-hint-sub {
+            color: #aab8d6; font-size: 0.76rem; line-height: 1.45;
+            font-family: "Pretendard", sans-serif;
+        }
+
         /* 단기예보 범례 공통 — 어두운 남색 톤 (슬라이더 바와 동일 색상) */
         .shrt-fcst-legend {
             position: absolute;

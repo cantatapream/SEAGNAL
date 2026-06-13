@@ -59,6 +59,15 @@
     var _anchorLayer = null;    // 앵커 포인트 디버그 레이어(세션 한정)
     var _popupOverlay = null;
 
+    // [줌 바닥선] 갯벌이 표출되는 최소 줌. 이보다 더 줌아웃하면 표출하지 않고 "확대
+    //   하세요" 안내만 띄운다. 활성 중 이 줌에 도달하면 minZoom 으로 잠가 더 못 줌아웃
+    //   하게 한다(단독 표출·광역 과부하 통제). 값은 "경기만 광역(한 만 전체가 보이는)"
+    //   프레이밍 기준 — 기기에서 미세조정 가능.
+    var MIN_DISPLAY_ZOOM = 11.5;
+    var _floorLocked = false;     // minZoom 잠금 적용 여부
+    var _prevMinZoom = undefined; // 잠금 전 원래 minZoom(해제 시 복원용)
+    var _moving = false;          // 지도 이동(줌/팬) 진행 중 — 재생 룩어헤드 억제용
+
     function $(id) { return document.getElementById(id); }
 
     // ====================================================================
@@ -86,9 +95,25 @@
         bindSlider();
         bindMapClickPopup();
 
+        // 이동(줌/팬) 시작 — 진행 중 플래그 ON(재생 룩어헤드 억제용).
+        _map.on('movestart', function () { if (_active) _moving = true; });
+
         // 줌/팬 시 집계 격자(agg)·뷰포트가 바뀌므로 현재 프레임을 다시 받아 그린다(디바운스).
         _map.on('moveend', function () {
+            _moving = false;
             if (!_active) return;
+            // [줌 바닥선] 표출 줌 미만이면 갯벌을 그리지 않고 안내 카드만 띄운다.
+            //   (minZoom 잠금 전 단계 — 사용자가 직접 확대하도록 둠. 강제 줌 점프 없음.)
+            if (_belowFloor()) {
+                showZoomHint();
+                _drawCells = [];
+                if (_imgSource) _imgSource.changed();
+                hideLoading();
+                return;
+            }
+            // 표출 줌 도달 — 안내 숨기고, 그 줌을 바닥선으로 잠근 뒤 렌더.
+            hideZoomHint();
+            applyFloorLock();
             // 이동 중엔 현재 프레임만 다시 그린다(가벼움). 전체 프리페치는 매 이동마다
             //   돌리면 줌 한 번에 수십 요청이 쏟아져 버벅임 → 이동을 멈춘 뒤(1.2s) 1회만.
             if (_moveTimer) clearTimeout(_moveTimer);
@@ -123,25 +148,41 @@
         out.width = W; out.height = H;
         var octx = out.getContext('2d');
         if (!_drawCells.length) return out;
-        // 1) 타일을 임시 캔버스에 샤프하게 채움
+
+        // [저해상도 렌더링] 갯벌은 어차피 blur 로 뭉개 부드럽게 표현하므로, 셀을
+        //   기기 픽셀비율(레티나 2~3배) 그대로 채울 필요가 없다. 무거운 "셀 채우기"는
+        //   CSS 해상도(=1배)로 낮춘 임시 캔버스에서 하고, 그걸 출력 캔버스로 확대한다.
+        //   → 칠하는 픽셀 수가 픽셀비율²(2배 화면 4배, 3배 화면 9배) 줄어 렌더 시간·
+        //   임시 캔버스 메모리가 크게 절감된다. 확대 보간 + blur 가 픽셀 경계를 가려
+        //   체감 화질 차이는 없다. (pixelRatio=1 기기에선 다운스케일 없이 동일 동작)
+        var pr = pixelRatio || 1;
+        var ds = pr > 1 ? (1 / pr) : 1;            // 다운스케일 배율(레티나에서만 < 1)
+        var tw = Math.max(1, Math.round(W * ds));
+        var th = Math.max(1, Math.round(H * ds));
+
+        // 1) 타일을 (저해상도) 임시 캔버스에 채움
         var tmp = document.createElement('canvas');
-        tmp.width = W; tmp.height = H;
+        tmp.width = tw; tmp.height = th;
         var ctx = tmp.getContext('2d');
-        var ex0 = extent[0], ey3 = extent[3], r = resolution / pixelRatio;
+        var ex0 = extent[0], ey3 = extent[3];
+        var r = resolution / pixelRatio / ds;      // 월드(m) → 임시 캔버스 픽셀
         for (var i = 0; i < _drawCells.length; i++) {
             var d = _drawCells[i];
             // 수심별 농도 그라데이션: 막 드러난 물가(dm≈0)는 연하게, 많이 빠진 곳
             //   (dm≤-1.2m)은 진하게 → 물가선이 부드럽게 페이드(연한 라인).
             ctx.fillStyle = depthToFill(d.dm);
             var px = (d.x0 - ex0) / r;
-            var py = (ey3 - d.y1) / r;          // y1=상단(큰 Y)→작은 픽셀
+            var py = (ey3 - d.y1) / r;             // y1=상단(큰 Y)→작은 픽셀
             var pw = (d.x1 - d.x0) / r;
             var ph = (d.y1 - d.y0) / r;
             ctx.fillRect(px, py, pw < 1 ? 1 : pw, ph < 1 ? 1 : ph);
         }
-        // 2) 블러 1회로 픽셀 경계를 부드럽게 → 해안선 따라 유연한 형태.
-        try { octx.filter = 'blur(' + (2.6 * pixelRatio) + 'px)'; } catch (e) {}
-        octx.drawImage(tmp, 0, 0);
+        // 2) 출력 캔버스로 확대 + 블러 1회 → 부드러운 해안선. 확대 보간과 blur 가
+        //    저해상도 채움의 픽셀 경계를 함께 가린다.
+        try { octx.filter = 'blur(' + (2.6 * pr) + 'px)'; } catch (e) {}
+        octx.imageSmoothingEnabled = true;
+        try { octx.imageSmoothingQuality = 'low'; } catch (e) {}
+        octx.drawImage(tmp, 0, 0, tw, th, 0, 0, W, H);
         return out;
     }
 
@@ -302,11 +343,20 @@
             showSliderBar(true);
             // 슬라이더 바가 생기며 뷰포트가 바뀌므로 지도 크기 재측정(작게 렌더 방지).
             if (_map) { try { _map.updateSize(); } catch (e) {} setTimeout(function () { try { _map.updateSize(); } catch (e) {} }, 80); }
-            renderFrame(_frameIdx, true);
             // [안내] 예측 자료 면책 — 두 줄(\n)로 나눠 각 줄이 정상 폰트로 들어가게
             //   한다(한 줄이 길면 _showOceanToast 가 폰트를 11px까지 축소하므로).
             toast('예측 자료입니다. 참고용으로만 사용하고\n실제 현장·기상 상황을 꼭 확인하세요.');
-            prefetchAll();   // 현재 화면(첫 프레임) 그린 뒤, 나머지 시각을 백그라운드로 미리 받아 슬라이더 즉시화
+            // [줌 바닥선] 표출 줌 미만이면 강제로 당기지 않고(점프 X) 안내 카드만 띄운다.
+            //   사용자가 직접 확대해 표출 줌에 도달하면(moveend) 그때 잠그고 렌더한다.
+            if (_belowFloor()) {
+                hideLoading();
+                showZoomHint();
+            } else {
+                hideZoomHint();
+                applyFloorLock();
+                renderFrame(_frameIdx, true);
+                prefetchAll();   // 첫 프레임 그린 뒤, 나머지 시각을 백그라운드로 미리 받아 슬라이더 즉시화
+            }
         }).catch(function (e) {
             console.warn('[tide_field] meta 로드 실패:', e);
             toast('물빠짐 데이터를 불러오지 못했습니다.');
@@ -316,8 +366,11 @@
 
     function deactivate() {
         _active = false;
+        _moving = false;
         stopPlay();
         stopPrefetch();
+        releaseFloorLock();   // 줌아웃 잠금 해제 — 끈 뒤엔 자유롭게 줌아웃 가능
+        hideZoomHint();
         if (_moveTimer) { clearTimeout(_moveTimer); _moveTimer = null; }
         var btn = $('ocean-mudflat-toggle-btn');
         if (btn) btn.classList.remove('active');
@@ -399,6 +452,9 @@
         if (slider) slider.value = idx;
         updateTooltip(idx);
 
+        // [줌 바닥선] 표출 줌 미만에선 요청·렌더를 생략하고 안내 카드만.
+        if (_active && _belowFloor()) { showZoomHint(); return; }
+
         fetchCells(iso).then(function (res) {
             if (!_active) return;
             paintCells(res.cells, res.cellDeg);
@@ -465,6 +521,13 @@
     }
 
     function paintCells(cells, cellDeg) {
+        // [줌 바닥선] 표출 줌 미만이면 어떤 경로로 들어와도 그리지 않는다(방어).
+        if (_active && _belowFloor()) {
+            _currentCells = []; _drawCells = [];
+            if (_imgSource) _imgSource.changed();
+            hideLoading();
+            return;
+        }
         _currentCells = cells || [];
         _drawCells = [];
         _lastDrawDeg = cellDeg || (_cellHalf * 2);
@@ -502,6 +565,45 @@
         var el = document.getElementById('mudflat-loading');
         if (el) el.classList.remove('show');
         _loadingShown = false;
+    }
+
+    // ── 줌 바닥선 게이트 + 안내 카드 ─────────────────────────────────────
+    //   표출 줌 미만에선 갯벌을 그리지 않고 중앙 안내 카드만 띄운다(강제 줌 점프 없음).
+    //   표출 줌에 도달하면 그 줌을 minZoom 으로 잠가 더 못 줌아웃하게 한다.
+    function _belowFloor() {
+        try { return _map.getView().getZoom() < MIN_DISPLAY_ZOOM; } catch (e) { return false; }
+    }
+    function applyFloorLock() {
+        if (_floorLocked || !_map) return;
+        try {
+            var v = _map.getView();
+            _prevMinZoom = v.getMinZoom();
+            v.setMinZoom(MIN_DISPLAY_ZOOM);
+            _floorLocked = true;
+        } catch (e) {}
+    }
+    function releaseFloorLock() {
+        if (!_floorLocked || !_map) return;
+        try { _map.getView().setMinZoom(_prevMinZoom || 0); } catch (e) {}
+        _floorLocked = false; _prevMinZoom = undefined;
+    }
+    function ensureZoomHintEl() {
+        var el = document.getElementById('mudflat-zoom-hint');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'mudflat-zoom-hint';
+            el.innerHTML = '<div class="mudflat-zoom-hint-box">' +
+                '<div class="mudflat-zoom-hint-icon"><i class="fa-solid fa-magnifying-glass-plus"></i></div>' +
+                '<div class="mudflat-zoom-hint-title">지도를 확대하면 갯벌이 표시됩니다</div>' +
+                '<div class="mudflat-zoom-hint-sub">이 축척부터 물빠짐 정보가 나타나요.</div></div>';
+            document.body.appendChild(el);
+        }
+        return el;
+    }
+    function showZoomHint() { ensureZoomHintEl().classList.add('show'); }
+    function hideZoomHint() {
+        var el = document.getElementById('mudflat-zoom-hint');
+        if (el) el.classList.remove('show');
     }
 
     // ====================================================================
@@ -546,8 +648,13 @@
             var slider = $('mudflat-slider');
             if (slider) slider.value = next;
             updateTooltip(next);
-            // 앞 4프레임 미리 받기(도착 전 캐시 워밍)
-            for (var k = 1; k <= 4; k++) fetchCells(_frames[(next + k) % _frames.length]);
+            // [줌 바닥선] 표출 줌 미만이면 받기·그리기 없이 진행만(안내 카드 유지).
+            if (_belowFloor()) { _playTimer = setTimeout(step, FRAME_MS); return; }
+            // [폭주 억제] 지도 이동(줌/팬) 중에는 앞 프레임 룩어헤드를 멈춰 요청 폭주를
+            //   막는다(이동이 멈추면 다시 미리받기). 현재 프레임은 계속 받아 그린다.
+            if (!_moving) {
+                for (var k = 1; k <= 4; k++) fetchCells(_frames[(next + k) % _frames.length]);
+            }
             // 이 프레임: 받아지는 대로 그림(이미 다음으로 넘어갔으면 버림 → 최신 우선)
             fetchCells(_frames[next]).then(function (res) {
                 if (_playing && _active && _frameIdx === next) paintCells(res.cells, res.cellDeg);
