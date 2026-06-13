@@ -42,6 +42,23 @@ const { findTidePeaks } = require('../peak_finder');
 const TIDEBED_CONFIG_FILE = path.join(DATA_DIR, 'tidebed_config.json');
 const TIDEBED_BASE_URL = 'https://apis.data.go.kr/1192136/tidebed/GetTidebedApiService';
 
+// ============================================================================
+// 사용자 요청 우선 신호 (야간 앵커 수집과 TideBED 키 충돌 회피)
+// ----------------------------------------------------------------------------
+//   야간 수집기(tide_field_collector)와 사용자 바텀시트 조석 요청이 같은 TideBED
+//   키 3개를 공유한다. 수집 중 사용자가 바텀시트를 열면 동시 호출이 키 한도를
+//   넘겨 사용자 요청이 실패할 수 있다. 사용자 라우트가 요청마다 noteUserRequest()
+//   로 활동 시각을 찍고, 수집기는 isUserActive() 인 동안 키를 양보(대기)한다.
+//   → 사용자 요청이 우선 처리되고 수집은 그 뒤 이어진다.
+let _lastUserTideRequestAt = 0;
+const USER_ACTIVE_WINDOW_MS = 10000;   // 사용자 요청 후 이 시간 동안 수집 양보(10초)
+/** 사용자 조석 요청 처리 시 호출 — "지금 사용자 활동 중" 표시. */
+function noteUserRequest() { _lastUserTideRequestAt = Date.now(); }
+/** 최근 windowMs 내 사용자 조석 요청이 있었나(=수집기가 양보해야 하나). */
+function isUserActive(windowMs) {
+    return (Date.now() - _lastUserTideRequestAt) < (windowMs || USER_ACTIVE_WINDOW_MS);
+}
+
 let tideBedConfig = {
     keys: [
         {
@@ -599,6 +616,10 @@ module.exports = {
     collectTideBedPages,   // 페이지 셀렉터 (boundary 최적화) 지원 신규 API
     getGridHash,
     getAdjacentDates,
-    collectAndSaveTideData
+    collectAndSaveTideData,
+    // [사용자 우선] 야간 수집과 키 충돌 회피용 신호
+    noteUserRequest,
+    isUserActive,
+    USER_ACTIVE_WINDOW_MS
     // scheduleFileCleanup 제거됨 — 디스크 캐시 제거로 dead code (사용처 0건)
 };

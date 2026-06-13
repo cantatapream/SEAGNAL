@@ -65,6 +65,11 @@ const ANCHOR_GAP_MS = 350;
 //   중단한다. KHOA 점검·차단으로 추정 → 다음 사이클(부트스트랩/스케줄러)에
 //   부족분만 자동 재시도. 수천 건을 끝까지 때리며 로그 도배하는 것을 방지.
 const FAIL_ABORT_THRESHOLD = 8;
+// [사용자 우선] 사용자 조석 요청(바텀시트)과 TideBED 키 충돌 회피. 사용자 활동 중
+//   에는 각 앵커 수집 직전 키를 양보(대기)한다. 폴링 간격·앵커당 최대 양보시간.
+//   (연속 사용자 활동이 길어도 MAX_USER_YIELD_MS 후엔 진행해 수집이 멈추지 않게 함)
+const USER_YIELD_POLL_MS = 500;
+const MAX_USER_YIELD_MS = 30000;
 
 // ============================================================================
 // 날짜 유틸 (KST)
@@ -563,7 +568,20 @@ async function _collectTideFieldInner(opts = {}) {
     const t0 = Date.now();
     const total = tasks.length;
     let progress = 0;
+    const tcMod = getTideCollector();
     const { results, aborted } = await runPool(tasks, CONCURRENCY, async (task) => {
+        // [사용자 우선] 최근 사용자 조석 요청이 있으면 TideBED 키를 양보 — 사용자
+        //   활동이 끝날 때까지(USER_ACTIVE_WINDOW_MS 경과) 또는 최대 대기시간까지
+        //   이 앵커 수집을 미룬다. CONCURRENCY=1 이라 앵커 사이에서 안전하게 멈춤.
+        if (tcMod && typeof tcMod.isUserActive === 'function') {
+            let yielded = 0, didYield = false;
+            while (tcMod.isUserActive() && yielded < MAX_USER_YIELD_MS) {
+                didYield = true;
+                await new Promise(res => setTimeout(res, USER_YIELD_POLL_MS));
+                yielded += USER_YIELD_POLL_MS;
+            }
+            if (didYield) log(`  ⏸ 사용자 요청 우선 — 키 양보 ${(yielded / 1000).toFixed(1)}s 후 진행`);
+        }
         progress++;
         log(`▶ [${progress}/${total}] 앵커 ${task.anchor.id} (${task.anchor.lat.toFixed(3)},${task.anchor.lon.toFixed(3)}) 날짜 ${task.date} 수집 중...`);
         const r = await collectOne(task.anchor, task.date, { verifyGrid: opts.verifyGrid, nudge: opts.nudge, log });
