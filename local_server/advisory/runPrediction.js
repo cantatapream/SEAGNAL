@@ -58,23 +58,11 @@ async function runPredictionCycle(opts = {}) {
     const updState = deps.updateState || updateState;
 
     try {
-        // ── 0) 변경감지: 직전 처리 base 를 엔진에 전달(같으면 엔진이 스킵) ──
-        let prevBaseKST = null;
-        try {
-            const sm = deps.stateManager || require('./stateManager');
-            if (sm && typeof sm.readPrevState === 'function') {
-                const ps = sm.readPrevState();
-                prevBaseKST = ps && ps.baseTimeKST ? ps.baseTimeKST : null;
-            }
-        } catch (_) { prevBaseKST = null; }
-        const genOptions = Object.assign({}, opts.genOptions || {});
-        if (prevBaseKST && genOptions.prevBaseKST == null && !opts.forceFull) genOptions.prevBaseKST = prevBaseKST;
-
         // ── 1) 엔진: 예측 생성 ────────────────────────────────────────────
         //   실패 시 updateState 호출하지 않음 → 이전 상태(디스크) 보존.
         let g;
         try {
-            g = await gen(genOptions);
+            g = await gen(opts.genOptions || {});
         } catch (e) {
             const error = (e && e.message) || String(e);
             console.log(`[advisory] generate 실패 → 이전 상태 보존: ${error}`);
@@ -82,11 +70,6 @@ async function runPredictionCycle(opts = {}) {
             return { ok: false, stage: 'generate', error };
         }
         g = g && typeof g === 'object' ? g : {};
-        // 변경 없음 → 엔진이 스킵. 이전 상태 그대로 유지(updateState 호출 안 함).
-        if (g.skipped) {
-            console.log(`[advisory] cycle skip — base=${g.baseTimeKST} (변경 없음, 이전 상태 유지)`);
-            return { ok: true, skipped: true, baseTimeKST: g.baseTimeKST || prevBaseKST || null };
-        }
         const predictions = Array.isArray(g.predictions) ? g.predictions : [];
         const pendingRaw = Array.isArray(g.pending) ? g.pending : [];
         const zoneSignals = Array.isArray(g.zoneSignals) ? g.zoneSignals : [];
@@ -126,11 +109,11 @@ async function runPredictionCycle(opts = {}) {
         let enriched = visible;
         try {
             const cx = deps.crossReference || require('./crossReference');
+            const loadForecastMap = deps.loadForecastMap || cx.loadForecastMap;
             const enrichPredictions = deps.enrichPredictions || cx.enrichPredictions;
-            // 단일 출처: 날씨누리 [해설] 단기전망 통보문(풍속/파고/문장/발표시각).
-            const loadBulletinMap = deps.loadBulletinMap || cx.loadBulletinMap || (() => ({}));
-            const bulletinMap = loadBulletinMap();
-            enriched = enrichPredictions(visible, bulletinMap) || visible;
+            const forecastMap = loadForecastMap();
+            const outlookMap = (deps.loadOutlookMap || cx.loadOutlookMap || (() => ({})))();
+            enriched = enrichPredictions(visible, forecastMap, outlookMap) || visible;
         } catch (e) {
             const error = (e && e.message) || String(e);
             console.log(`[advisory] 교차참조 실패 → 병기 생략(예측 유지): ${error}`);

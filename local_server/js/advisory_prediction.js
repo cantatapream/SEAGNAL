@@ -50,35 +50,6 @@
 
     const numOf = function (v) { return (v === 0 || v) ? Number(v) : null; };
 
-    // ── 등급 변동(격상/격하) 표식 ─────────────────────────────────────────────
-    //   change = { dir:'up'|'down', fromGrade, toGrade, fromProb, toProb, deltaProb }
-    //   - 접힌 헤더용 미니 뱃지: ▲격상(빨강) / ▼격하(초록·노랑).
-    //   - 펼친 바디용 전이 한 줄: "▲ 격상  관심 → 높음 (+12%p)".
-    function normChange(c) {
-        if (!c || (c.dir !== 'up' && c.dir !== 'down')) return null;
-        return c;
-    }
-    function buildChangeBadge(change) {
-        const c = normChange(change);
-        if (!c) return '';
-        const up = c.dir === 'up';
-        const tri = up ? '▲' : '▼';
-        const label = up ? '격상' : '격하';
-        return '<span class="adv-chg adv-chg-' + (up ? 'up' : 'down') + '">' + tri + ' ' + label + '</span>';
-    }
-    function buildChangeLine(change) {
-        const c = normChange(change);
-        if (!c) return '';
-        const up = c.dir === 'up';
-        const tri = up ? '▲' : '▼';
-        const from = escapeHtml(c.fromGrade || ''), to = escapeHtml(c.toGrade || '');
-        const arrow = (from && to) ? (from + ' → ' + to) : '';
-        const dp = (c.deltaProb != null && isFinite(c.deltaProb))
-            ? ' <span class="adv-chg-dp">(' + (c.deltaProb > 0 ? '+' : '') + c.deltaProb + '%p)</span>' : '';
-        return '<div class="adv-chg-line adv-chg-' + (up ? 'up' : 'down') + '">' +
-            tri + ' ' + (up ? '격상' : '격하') + (arrow ? '  ' + arrow : '') + dp + '</div>';
-    }
-
     // ── 서술문구(하이라이트 HTML) — 등급색은 CSS(.adv-card.* .adv-narr b)가 입힌다 ──
     function buildNarrativeHtml(it) {
         const zone = escapeHtml(it.zone || '');
@@ -111,7 +82,7 @@
         const pub = kma.publishLabel ? ' <span class="adv-kma-pub">(' + escapeHtml(kma.publishLabel) + ')</span>' : '';
         const period = kma.periodLabel ? escapeHtml(kma.periodLabel) + ' ' : '';
         let html = '<div class="adv-kma">' +
-            '<div class="adv-kma-kt">🛰️ ' + office + '단기전망' + pub + '</div>';
+            '<div class="adv-kma-kt">🛰️ ' + office + '단기예보' + pub + '</div>';
         if (parts.length) html += '<div class="adv-kma-vals">' + period + parts.join(', ') + '</div>';
         if (outlook) html += '<div class="adv-kma-outlook">“' + escapeHtml(outlook) + '”</div>';
         html += '</div>';
@@ -180,19 +151,14 @@
                     const gLabel = escapeHtml(grade.label || '');
                     const badgeTxt = gLabel + (prob !== null ? ' · ' + prob + '% 확률' : '');
 
-                    const chgBadge = buildChangeBadge(it.change);
-                    const chgLine = buildChangeLine(it.change);
-
                     html.push('<div class="adv-card adv-grade-' + gKey + '">');
                     html.push('<div class="adv-card-head" onclick="window.toggleAdvisoryCard&&window.toggleAdvisoryCard(this)">');
                     html.push('<span class="adv-zone">' + zone + '</span>');
-                    if (chgBadge) html.push(chgBadge);
                     html.push('<span class="adv-badge2 adv-badge2-' + gKey + '">' + badgeTxt + '</span>');
                     html.push('<span class="adv-card-chev">▼</span>');
                     html.push('</div>');
                     html.push('<div class="adv-card-body">');
                     html.push('<div class="adv-card-hr"></div>');
-                    if (chgLine) html.push(chgLine);
                     html.push('<div class="adv-narr">' + buildNarrativeHtml(it) + '</div>');
                     html.push(buildKmaHtml(it));
                     html.push('</div></div>');
@@ -249,21 +215,13 @@
         if (bt) bt.textContent = formatBaseTime(d.baseTimeKST);
     }
 
-    // 통합관리자센터 '관리자 모드'가 체크된 기기면 'admin' 모드 표출 인가를 받는다.
-    //   - 앱(푸시 등록 기기): push_token 을 adminToken 쿼리로(기존 호환).
-    //   - PC 등(푸시 미구독): 로그인 토큰(seagnal_admin_token)을 X-Admin-Token 헤더로.
-    //   비관리자(체크 해제)는 빈값 → 서버가 미표출.
-    function _adminAuth() {
+    // 관리자 기기면 push_token 을 붙여 'admin' 모드 표출 인가를 받는다(비관리자는 빈값).
+    function _adminTokenParam() {
         try {
-            if (localStorage.getItem('seagnal_admin_mode') !== 'true') return { query: '', headers: {} };
-            const headers = {};
-            let tok = '';
-            try { tok = localStorage.getItem('seagnal_admin_token') || ''; } catch (e) { tok = ''; }
-            if (!tok) { try { tok = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('seagnal_admin_token')) || ''; } catch (e) { /* noop */ } }
-            if (tok) headers['X-Admin-Token'] = tok;
-            const pt = localStorage.getItem('push_token') || '';
-            return { query: pt ? ('?adminToken=' + encodeURIComponent(pt)) : '', headers: headers };
-        } catch (e) { return { query: '', headers: {} }; }
+            if (localStorage.getItem('seagnal_admin_mode') !== 'true') return '';
+            const t = localStorage.getItem('push_token') || '';
+            return t ? ('?adminToken=' + encodeURIComponent(t)) : '';
+        } catch (e) { return ''; }
     }
     // 표출 제어: display=true 일 때만 아코디언(헤더+바디)을 보인다.
     function _setAccordionVisible(show) {
@@ -280,8 +238,7 @@
         if (typeof fetch === 'undefined') return;
         if (typeof window !== 'undefined' && window.__advisoryDemoActive) return;
         try {
-            const auth = _adminAuth();
-            const r = await fetch('/api/advisory-prediction' + auth.query, { headers: auth.headers });
+            const r = await fetch('/api/advisory-prediction' + _adminTokenParam());
             if (!r.ok) return;
             const d = await r.json();
             if (typeof window !== 'undefined' && window.appState) window.appState.advisoryPrediction = d;
@@ -347,8 +304,6 @@
         module.exports = {
             buildAdvisoryHtml: buildAdvisoryHtml,
             buildHeaderStatus: buildHeaderStatus,
-            buildChangeBadge: buildChangeBadge,
-            buildChangeLine: buildChangeLine,
             escapeHtml: escapeHtml,
             formatBaseTime: formatBaseTime,
         };

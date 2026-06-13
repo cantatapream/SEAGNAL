@@ -69,12 +69,6 @@ const STATE_FILE = path.join(DATA_DIR, 'advisory_state.json');
 let displayControl = null;
 try { displayControl = require('../advisory/displayControl'); } catch (_) { displayControl = null; }
 
-// 관리자 인증(토큰) — admin 모드에서 '관리자 모드'로 로그인된 PC/기기 인가용(graceful).
-//   푸시 미구독(PC 등)이라 admin_devices 등록이 불가한 관리자도, 통합관리자센터에서
-//   발급된 유효 토큰(X-Admin-Token)이면 표출을 허용한다.
-let adminAuth = null;
-try { adminAuth = require('../services/admin_auth'); } catch (_) { adminAuth = null; }
-
 // ── zone 펼침 헬퍼 로드 (graceful) ───────────────────────────────────────────
 //   부모 관심해역(예: '제주도먼바다')이 자식 먼바다 예측(예: '제주도남쪽바깥먼바다')을
 //   잡도록 펼친다. require 실패해도 라우트는 "정확일치"만으로 동작해야 한다.
@@ -303,14 +297,7 @@ router.get('/api/advisory-prediction', (req, res) => {
                 payload = displayControl.applyOverrides(payload);
             } else if (audience === 'admin') {
                 const dev = (req.query && (req.query.adminToken || req.query.endpoint)) || req.get('X-Admin-Device') || '';
-                // 1) 등록된 관리자 기기(앱: 푸시 토큰/endpoint).
                 display = displayControl.isAdminDevice(dev);
-                // 2) 폴백 — '관리자 모드'로 로그인된 PC/기기: 유효한 관리자 토큰이면 인가.
-                //    (PC 는 푸시 미구독이라 기기등록 불가 → X-Admin-Token 으로 인증)
-                if (!display && adminAuth && typeof adminAuth.verifyToken === 'function') {
-                    const tok = req.get('X-Admin-Token') || (req.query && req.query.adminAuthToken) || '';
-                    if (tok) { try { display = !!adminAuth.verifyToken(tok); } catch (_) { /* graceful */ } }
-                }
                 payload = display ? displayControl.applyOverrides(payload)
                     : Object.assign({}, payload, { active: [], resolved: [], counts: { high: 0, watch: 0, resolved: 0 } });
             } else { // off
