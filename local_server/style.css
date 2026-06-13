@@ -3618,6 +3618,16 @@ line-height: 1.1;
     border-radius: 8px 8px 0 0;
 }
 
+/* 편집 툴바 상단 고정: 본문이 길어져 스크롤이 내려가도 툴바가 가려지지 않도록
+   스크롤 컨테이너(.promo-editor-body) 상단에 sticky 로 붙여 둔다.
+   에디터(#promo-quill-editor)가 containing block 이므로 에디터가 화면에 보이는
+   동안 툴바가 따라다닌다. 배경(#1e293b)이 불투명해 스크롤되는 본문을 가린다. */
+#promo-quill-editor .ql-toolbar.ql-snow {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
 .ql-toolbar .ql-stroke {
     stroke: #94a3b8;
 }
