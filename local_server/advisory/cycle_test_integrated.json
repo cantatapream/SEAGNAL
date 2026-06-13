@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-06-11T14:00:27.120Z",
+  "generatedAt": "2026-06-13T12:43:42.373Z",
   "allPass": true,
-  "passCount": 5,
-  "total": 5,
+  "passCount": 6,
+  "total": 6,
   "results": [
     {
       "case": "happy_path",
@@ -60,10 +60,22 @@
         "keys": [
           "baseTimeKST",
           "predictions",
+          "pending",
           "zoneSignals"
         ],
         "valueMatches": true,
         "resolvedCount": 1
+      }
+    },
+    {
+      "case": "pending_passthrough",
+      "pass": true,
+      "detail": {
+        "predictions": true,
+        "pending": true,
+        "suppressedZones": [
+          "Zq"
+        ]
       }
     }
   ]
