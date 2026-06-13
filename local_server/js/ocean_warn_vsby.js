@@ -639,6 +639,7 @@
 
     function _onBadgeClick(code, badge) {
         if (state.activeCode === code) { _closePopup(); return; }
+        if (window.trackUsage) window.trackUsage('shrt.vsby');  // [사용량] 시정 — 팝업 열릴 때만 1회(같은 코드 토글 닫기 제외)
         _showZonePopup(code).catch(function (e) {
             console.warn('[vsby-badge] 시정 팝업 실패:', e && e.message);
             _closePopup();
