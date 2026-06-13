@@ -515,6 +515,20 @@ router.get('/api/tide-field', (req, res) => {
         for (const c of cells) c.s = fineDeg;   // 미세 셀은 fineDeg 크기
     }
 
+    // ── 셀 예산(상한) ────────────────────────────────────────────────
+    //   한 응답의 셀 수에 상한을 둬 전송량·클라이언트 렌더(캔버스 채우기)·메모리를
+    //   통제한다. 광역(바닥 줌)에서 거대한 갯벌이 통째로 노출되면 미세 셀이 수만 개가
+    //   될 수 있는데, 갯벌은 blur 로 뭉개 표현하므로 균일 솎기(stride)로 줄여도 외형
+    //   체감 차이가 없다. (집계 버킷 경로는 이미 버킷 수만큼 적어 거의 해당 없음)
+    let dropped = 0;
+    if (cells.length > MAX_CANDIDATE_CELLS) {
+        const stride = Math.ceil(cells.length / MAX_CANDIDATE_CELLS);
+        const sub = [];
+        for (let i = 0; i < cells.length; i += stride) sub.push(cells[i]);
+        dropped = cells.length - sub.length;
+        cells = sub;
+    }
+
     res.set('Cache-Control', 'public, max-age=120');
     res.json({
         success: true,
@@ -524,6 +538,7 @@ router.get('/api/tide-field', (req, res) => {
         cell_deg: cellDegUsed,
         candidate_count: candidates.length,
         count: cells.length,
+        budget_dropped: dropped,     // 디버그: 셀 예산 초과로 솎은 수
         precomputed: _framesValid,   // 디버그: 프리컴퓨트 사용 여부
         cells
     });
