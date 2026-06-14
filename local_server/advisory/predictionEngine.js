@@ -280,6 +280,7 @@ async function generatePredictions(options = {}) {
                 hasWind: windSeq.length > 0,
                 zones,
                 windCut, waveCut,
+                sustainNeedH: THRESHOLDS.SUSTAIN_MIN_H, // ③ 지속 게이트(onset 후 연속 임계유지 최소시간)
                 decodeFrame,
                 bandWind: (dec, z) => {
                     const idx = zoneIdx(dec, z);
@@ -325,6 +326,9 @@ async function generatePredictions(options = {}) {
                     zoneSignals.push({ office: code, zone: z.name, windKt: realWind, waveM: realWave, windArea, waveArea, prob: sigGrade ? sigGrade.probPct / 100 : 0 });
 
                     if (!r.onset) continue; // 예측 없음
+                    // ③ 지속 게이트: onset 후 연속 임계유지가 SUSTAIN_MIN_H 미만이면
+                    //   일시적(소나기성) 신호로 보고 미표시. (onsetScan 이 sustainHours 산출)
+                    if (THRESHOLDS.SUSTAIN_MIN_H > 0 && (r.sustainHours || 0) < THRESHOLDS.SUSTAIN_MIN_H) continue;
 
                     const windKt = r.windBand || 0;
                     const waveM = r.waveBand || 0;

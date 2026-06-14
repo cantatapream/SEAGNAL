@@ -49,14 +49,18 @@ async function scanOnsets(p) {
     const waveCut = p.waveCut;
     const waveByVt = p.waveByVt instanceof Map ? p.waveByVt : new Map();
 
+    // 지속 게이트: onset 후 연속 임계유지를 sustainNeedH 시간만큼 확인(③).
+    //   미지정(0)이면 기존 동작 — onset 즉시 확정·조기종료(동치성 테스트 보존).
+    const sustainNeedH = (typeof p.sustainNeedH === 'number' && p.sustainNeedH > 0) ? p.sustainNeedH : 0;
+
     // 해역별 누적 상태
     const st = zones.map((z) => ({
-        z, onset: null, windBand: 0, waveBand: 0, peakWind: 0, peakWave: 0, done: false,
+        z, onset: null, windBand: 0, waveBand: 0, peakWind: 0, peakWave: 0, done: false, sustainUntil: null,
     }));
     let remaining = st.length;
 
     for (const { f, vt } of primary) {
-        if (remaining === 0) break; // 모든 해역 onset 확정 → 더 받을 필요 없음
+        if (remaining === 0) break; // 모든 해역 onset(+지속) 확정 → 더 받을 필요 없음
 
         // 프레임 한 장씩만 디코드(캐시 없음). 실패는 흡수 → 해당 프레임은 밴드 0.
         let windDec = null;
@@ -78,9 +82,20 @@ async function scanOnsets(p) {
             if (wB > s.peakWind) s.peakWind = wB;
             if (vB > s.peakWave) s.peakWave = vB;
 
-            if (wB >= windCut || vB >= waveCut) {
-                s.onset = vt; s.windBand = wB; s.waveBand = vB;
-                s.done = true; remaining -= 1;
+            const over = (wB >= windCut || vB >= waveCut);
+            if (!s.onset) {
+                if (over) {
+                    s.onset = vt; s.windBand = wB; s.waveBand = vB; s.sustainUntil = vt;
+                    if (sustainNeedH <= 0) { s.done = true; remaining -= 1; } // 게이트 없음 → 즉시 확정(기존)
+                }
+            } else {
+                // onset 후 지속 추적: 연속 임계유지면 sustainUntil 연장, 끊기면 종료.
+                if (over) {
+                    s.sustainUntil = vt;
+                    if ((vt.getTime() - s.onset.getTime()) / 3600000 >= sustainNeedH) { s.done = true; remaining -= 1; } // 충분 지속 확정
+                } else {
+                    s.done = true; remaining -= 1; // 지속 끊김 → sustainUntil 고정(=지속시간 확정)
+                }
             }
         }
         // windDec/waveDec 는 다음 프레임 진입 시 교체 → 메모리에 1장만 유지.
@@ -88,9 +103,10 @@ async function scanOnsets(p) {
 
     const out = new Map();
     for (const s of st) {
+        const sustainHours = (s.onset && s.sustainUntil) ? (s.sustainUntil.getTime() - s.onset.getTime()) / 3600000 : 0;
         out.set(s.z, {
             onset: s.onset, windBand: s.windBand, waveBand: s.waveBand,
-            peakWind: s.peakWind, peakWave: s.peakWave,
+            peakWind: s.peakWind, peakWave: s.peakWave, sustainHours,
         });
     }
     return out;

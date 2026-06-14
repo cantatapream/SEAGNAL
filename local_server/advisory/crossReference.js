@@ -185,6 +185,43 @@ function buildKmaForecast(zoneForecast, onsetISO, zoneName) {
  * @param {Object} forecastMap  { zoneName: {periods, publishTime, ...} }
  * @returns {Array}
  */
+// ── ② 통보문 신호 → 발효율 기반 확률 보강 (reports/BULLETIN_match.md §5 분석값) ──
+//   통보문이 해당 구역을 경고하면(특히 풍랑 예비/강한 수치) 실제 발효 가능성이 높다는
+//   전수 분석(2024-12~2026-06, 사전경고율 76.8%)을 우리 예측 확률에 보수적 반영.
+//   상향만(통보문이 우리보다 높게 볼 때) + α 가중 + 캡 → 과신/미수집 오판 방지.
+const BULLETIN_ALPHA = 0.3;   // 통보문 발효율을 끌어오는 보수적 가중(0~1)
+const BULLETIN_CAP = 90;      // 보강 상한(%) — 과신 방지
+function _upperNum(s) {        // "9~14"→14, "1.5~3.0"→3.0, "최대 5.0 이상"→5.0
+    if (!s) return 0;
+    const a = String(s).match(/\d+(?:\.\d+)?/g);
+    return a ? Math.max.apply(null, a.map(Number)) : 0;
+}
+// 통보문 신호의 과거 발효율 추정(보정표): prelim 84% / 풍속≥14m/s 58% / 물결≥3.0m 56% / …
+function bulletinHitRate(b) {
+    if (!b) return null;
+    let r = 0;
+    const sent = String(b.sentence || '');
+    if (/예비특보|발표될\s*가능성|발표(?:될|할)?\s*예정|발효(?:될|할)?\s*가능성/.test(sent)) r = Math.max(r, 0.84);
+    const ws = _upperNum(b.wind);  // m/s 상한
+    if (ws >= 14) r = Math.max(r, 0.58); else if (ws >= 12) r = Math.max(r, 0.205); else if (ws > 0) r = Math.max(r, 0.05);
+    const wv = _upperNum(b.wave);  // m 상한
+    if (wv >= 3.0) r = Math.max(r, 0.56); else if (wv >= 2.5) r = Math.max(r, 0.264); else if (wv > 0) r = Math.max(r, 0.05);
+    return r > 0 ? r : null;
+}
+// 예측 객체 probPct 를 통보문 발효율로 상향 보강. 보정 시 out.probAdjust 기록.
+function applyBulletinBoost(out, b) {
+    if (typeof out.probPct !== 'number') return;
+    const hit = bulletinHitRate(b);
+    if (hit == null) return;
+    const pm = out.probPct / 100;
+    if (hit <= pm) return;                        // 통보문이 더 낮거나 같으면 유지(우리 예측 존중)
+    const adj = Math.min(BULLETIN_CAP, Math.round((pm + BULLETIN_ALPHA * (hit - pm)) * 100));
+    if (adj > out.probPct) {
+        out.probAdjust = { from: out.probPct, to: adj, hitPct: Math.round(hit * 100) };
+        out.probPct = adj;
+    }
+}
+
 function enrichPredictions(predictions, bulletinMap) {
     if (!Array.isArray(predictions)) return predictions;
     // 단일 출처: 날씨누리 list.do [해설] 단기전망 통보문(zone→{sentence,wind,wave,publishTime}).
@@ -209,7 +246,9 @@ function enrichPredictions(predictions, bulletinMap) {
             publishLabel: formatPublish(b.publishTime),
             outlook,
         };
-        return Object.assign({}, p, { kmaForecast: kma });
+        const out = Object.assign({}, p, { kmaForecast: kma });
+        applyBulletinBoost(out, b);   // ② 통보문 발효율로 확률 보강(상향만)
+        return out;
     });
 }
 

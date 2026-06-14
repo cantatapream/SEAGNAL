@@ -10862,20 +10862,25 @@ body.mc-fullscreen-active {
  * (advisory_prediction.js v6 / index2.html 헤더 구조와 1:1)
  * ============================================================================ */
 
-/* 헤더: 아이콘 + (제목/기준시각) 칼럼. '해'와 '0'이 같은 좌측선(자동 정렬). */
+/* 헤더 3단 세로 배치: (1)beta 뱃지 → (2)✨아이콘+제목+ⓘ → (3)기준시각.
+   왼쪽 ✨아이콘은 제목 줄(2단)과 세로 정렬. 줄간격/여백을 최대한 압축해
+   상위 헤더(.gradient-slate)와 높이를 최대한 비슷하게 맞춘다. */
 .gradient-prediction .adv-title-wrap { display: flex; align-items: center; gap: 0.55rem; min-width: 0; padding-right: 8px; }
 .gradient-prediction .adv-wand { color: #ff4dab; font-size: 1.05rem; line-height: 1; flex-shrink: 0; }
-.gradient-prediction .adv-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
-.gradient-prediction .adv-title-row .section-title { margin: 0; }
-/* ⓘ 버튼 — 제목 바로 오른쪽 */
+/* 세로 3단 칼럼 — 줄간격/여백 압축 */
+.gradient-prediction .adv-title-col { display: flex; flex-direction: column; align-items: flex-start; gap: 0; min-width: 0; line-height: 1.05; }
+/* (2단) 제목 + ⓘ — 한 줄 */
+.gradient-prediction .adv-title-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.gradient-prediction .adv-title-row .section-title { margin: 0; line-height: 1.1; }
+/* ⓘ 버튼 — 제목 마지막 글자 바로 오른쪽 */
 .adv-info-btn {
     width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
     border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.14);
     color: #fff; font-size: 12px; font-weight: 700; font-style: italic;
     display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
 }
-/* 기준시각 — 제목 줄에 인라인 병기(흰색). 별도 줄을 만들지 않아 헤더 높이를 키우지 않음 */
-.adv-basetime-layer { color: #fff; font-size: 0.7rem; font-weight: 500; opacity: 0.9; letter-spacing: 0.2px; white-space: nowrap; }
+/* (3단) 기준시각 — 제목 아래 흰색 블록 */
+.gradient-prediction .adv-basetime-layer { display: block; color: #fff; font-size: 0.7rem; font-weight: 500; opacity: 0.9; letter-spacing: 0.2px; white-space: nowrap; line-height: 1.1; margin-top: 1px; }
 .adv-basetime-layer:empty { display: none; }
 
 /* 해역 카드 아코디언 (기본 닫힘) */
@@ -10977,14 +10982,14 @@ body.mc-fullscreen-active {
 .advm-edit textarea { width: 100%; margin-left: 0; margin-top: 4px; resize: vertical; }
 .advm-edit-actions { display: flex; gap: 6px; }
 
-/* ── 특보 예측 헤더 컴팩트 개편 (beta 인라인 · 기준시각 인라인 · ⓘ 간격 절반 · 배지 줄바꿈 쌓임) ── */
-/* beta — 제목 옆 인라인 축소판. 별도 줄을 만들지 않아 헤더 높이를 다른 헤더와 동일하게 유지 */
-.adv-beta-badge.adv-beta-inline {
-    position: static; top: auto; left: auto; margin: 0;
-    align-self: flex-start; vertical-align: top;
-    font-size: 0.44rem; padding: 1px 5px; border-width: 1px;
+/* ── 특보 예측 헤더 3단 세로 배치 (beta 위 · 제목+ⓘ · 기준시각 아래) ── */
+/* (1단) beta — 제목 "해역" 바로 위에 작은 블록. position 해제하고 흐름에 둔다. */
+.adv-beta-badge.adv-beta-top {
+    display: inline-block; position: static; top: auto; left: auto; margin: 0 0 1px;
+    align-self: flex-start; vertical-align: baseline;
+    font-size: 0.44rem; padding: 1px 5px; border-width: 1px; line-height: 1;
 }
-/* ⓘ — 제목과의 간격 절반(8→4px), 버튼도 살짝 축소 */
+/* ⓘ — 제목과의 간격 좁힘, 버튼 살짝 축소 */
 .gradient-prediction .adv-info-btn { width: 19px; height: 19px; font-size: 11px; }
 /* 우측 상태배지 — 가로 한 줄 기본, 공간 부족 시 줄바꿈(세로 쌓임) */
 .gradient-prediction .header-status {
@@ -10992,14 +10997,20 @@ body.mc-fullscreen-active {
     gap: 4px; max-width: 42%; flex-shrink: 0;
 }
 .gradient-prediction .header-status .adv-badge { margin-left: 0; padding: 1px 7px; font-size: 0.72rem; }
-/* 헤더 높이 — 다른 상위 헤더(.main-accordion-header 기본값 15px 20px)와 동일하게 통일 */
+/* 헤더 세로 패딩 압축 — 3단으로 길어진 만큼 상하 여백을 줄여
+   상위 헤더(.gradient-slate, padding 15px 20px) 높이와 최대한 비슷하게 맞춘다. */
+.main-accordion-header.gradient-prediction { padding-top: 8px; padding-bottom: 8px; }
 
-/* ── 해역 카드 슬림화 — 특보현황 부모 해역 아코디언(.sea-header) 높이에 맞춤 ──
-   .sea-header padding: 0.8rem 1.2rem 와 동일한 세로 높이로 통일 */
+/* ── 해역 카드 슬림화 — 닫힌 카드는 사실상 한 줄(구역명+등급뱃지)이므로
+   상하 빈 여백을 제거해 특보현황 부모 해역 아코디언처럼 컴팩트하게.
+   [원인] 직전 작업은 .adv-card-head 세로 패딩을 7px→0.8rem(12.8px)로 오히려
+   키워서 높이가 줄지 않았다. 실제 높이를 결정하는 것은 이 세로 패딩 + .adv-zone
+   줄높이이므로, 세로 패딩을 8px로 낮추고 줄높이를 1.2로 조여 한 줄에 밀착시킨다.
+   (좌우 패딩은 12px 유지) */
 .adv-card { border-radius: 10px; }
-.adv-card-head { padding: 0.8rem 12px; gap: 7px; }
-.adv-card-head .adv-zone { font-size: 0.88rem; }
-.adv-badge2 { font-size: 0.68rem; padding: 2px 8px; }
+.adv-card-head { padding: 8px 12px; gap: 7px; }
+.adv-card-head .adv-zone { font-size: 0.88rem; line-height: 1.2; }
+.adv-badge2 { font-size: 0.68rem; padding: 2px 8px; line-height: 1.2; }
 
 /* 해소 배지 — 🔴/🟡 이모지와 동일 크기·스타일의 초록 원 + 흰 체크 */
 .adv-dot-check {
@@ -11011,6 +11022,8 @@ body.mc-fullscreen-active {
 
 /* 단기전망 문장(통보문 AI 추출) — 숫자 줄 아래 */
 .adv-kma-outlook { font-size: 0.78rem; color: #c4d3de; margin-top: 4px; line-height: 1.55; }
+.adv-kma-boost { font-size: 0.78rem; color: #5db0ff; margin-top: 5px; line-height: 1.5; }
+.adv-kma-boost b { color: #8fd0ff; font-weight: 700; }
 
 /* 특보 예측 관리 — 통계 테이블/최근 사례 */
 .advm-stats { width: 100%; border-collapse: collapse; font-size: 0.76rem; color: #d6dee6; }
