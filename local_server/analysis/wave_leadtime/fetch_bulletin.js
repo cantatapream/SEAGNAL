@@ -20,8 +20,9 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const HOST = 'dmdw.kma.go.kr', BASE = 'https://' + HOST;
-const OUT = path.join(__dirname, 'data', 'bulletins.json');
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = a.match(/^--([^=]+)=(.*)$/); return m ? [m[1], m[2]] : [a.replace(/^--/, ''), true]; }));
+// 청별 병렬 수집 시 같은 파일 동시 쓰기 방지 — --stn 지정 시 관서별 출력으로 분리.
+const OUT = path.join(__dirname, 'data', args.stn ? `bulletins_${args.stn}.json` : 'bulletins.json');
 const SLEEP_MS = args.sleep ? +args.sleep : 2500;
 const RPT_BULLETIN = '10';
 const OFFICES = { '184': '제주', '159': '부산', '156': '광주', '143': '대구', '105': '강원', '109': '수도권', '133': '대전', '146': '전북' };
