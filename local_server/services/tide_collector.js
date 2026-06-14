@@ -72,6 +72,14 @@ let tideBedConfig = {
     lastResetDate: new Date().toISOString().split('T')[0]
 };
 
+// [TDZ 수정] 아래 설정 로드/초기화 블록이 saveTideBedConfig({ flush: true }) 를 호출하는데,
+//   그 함수가 참조하는 _saveDebounceTimer(let) 선언이 블록보다 뒤에 있으면
+//   "Cannot access '_saveDebounceTimer' before initialization" 으로 부팅이 깨진다
+//   (설정파일이 없거나 날짜변경/키 마이그레이션이 필요한 경우). 선언을 호출보다
+//   앞으로 끌어올려 TDZ 를 제거한다. (함수 _doWriteConfig/saveTideBedConfig 는 호이스팅됨)
+let _saveDebounceTimer = null;
+const _SAVE_DEBOUNCE_MS = 5000;
+
 // 기존 설정 파일 로드
 if (fs.existsSync(TIDEBED_CONFIG_FILE)) {
     try {
@@ -117,8 +125,6 @@ if (fs.existsSync(TIDEBED_CONFIG_FILE)) {
  *
  *   실패 시 콘솔 경고만 (예외 throw 안 함) — 다음 정상 갱신에서 자동 복구.
  */
-let _saveDebounceTimer = null;
-const _SAVE_DEBOUNCE_MS = 5000;
 function _doWriteConfig() {
     try {
         fs.writeFileSync(TIDEBED_CONFIG_FILE, JSON.stringify(tideBedConfig, null, 2), 'utf8');
