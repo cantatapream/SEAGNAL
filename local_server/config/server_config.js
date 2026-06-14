@@ -123,7 +123,7 @@ const PORT = 3001;
 // Fly.io 환경과 로컬 환경 모두 대응
 const staticRoot = process.env.FLY_ALLOC_ID
     ? SERVER_ROOT
-    : (fs.existsSync(path.join(SERVER_ROOT, 'index.html')) ? SERVER_ROOT : path.join(SERVER_ROOT, '..'));
+    : (fs.existsSync(path.join(SERVER_ROOT, 'index2.html')) ? SERVER_ROOT : path.join(SERVER_ROOT, '..'));
 
 // ============================================================================
 // 데이터 파일 경로 상수 (JSON 파일들)

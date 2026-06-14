@@ -75,7 +75,6 @@ const BLACKLIST_PREFIXES = [
 // 정확히 일치하는 경로 (HTML 및 관리자 갱신 JSON)
 const BLACKLIST_EXACT = new Set([
     '/',
-    '/index.html',
     '/index2.html',
     '/app_version.json',
     '/version.json',
