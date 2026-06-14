@@ -10,6 +10,8 @@
  *   - 대기/종료(wake·idle·stopped·off): 아무것도 표시하지 않음(완전 숨김).
  *   - 듣는중(listening)·생각중(thinking): 하단에 작은 Gemini 그라데이션 오브 + 상태.
  *   - 답변중(speaking): 넓은 패널로 확장 — 답변 내용이 충분히 크게·읽기 쉽게.
+ *     답변이 길면 패널 크기가 동적으로 커지고, 한계(뷰포트)에 닿으면 패널 안에서
+ *     스크롤(슬라이더)로 읽을 수 있다. ✕ 버튼으로 닫는다.
  *
  *  - index2 페이지 + Capacitor 플러그인이 있을 때만 동작(없으면 무동작).
  *  - 멈춤/꺼짐 시 잔류 방지를 위한 안전 자동 숨김 + 전역 숨김 훅(window.__nariyaOverlayHide).
@@ -33,12 +35,23 @@
     '#nariya-overlay .nv-st{font-size:13px;font-weight:700;}',
     '#nariya-overlay .nv-q{font-size:12.5px;color:#7fd2ff;margin-top:8px;}',
     '#nariya-overlay .nv-a{font-size:15px;line-height:1.55;margin-top:6px;color:#eaf4ff;}',
-    // 답변중: 넓고 크게
+    // ✕ 닫기 버튼 — 답변중에만 노출. 스크롤과 충돌하지 않도록 탭-닫기 대신 명시 버튼 사용.
+    '#nariya-overlay .nv-close{flex:0 0 auto;width:28px;height:28px;border-radius:50%;display:none;',
+      'align-items:center;justify-content:center;background:rgba(255,255,255,.08);color:#cfe2f3;',
+      'font-size:15px;line-height:1;cursor:pointer;border:0;}',
+    '#nariya-overlay.nv-speaking .nv-close{display:flex;}',
+    // 답변중: 넓고 크게 + 내부 스크롤(슬라이더)
     '#nariya-overlay.nv-speaking{max-width:680px;padding:18px 20px;}',
     '#nariya-overlay.nv-speaking .nv-a{font-size:17.5px;line-height:1.65;margin-top:10px;',
-      'max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}',
-    '#nariya-overlay .nv-tap{font-size:11px;color:#6f8aa3;margin-top:10px;text-align:right;display:none;}',
-    '#nariya-overlay.nv-speaking .nv-tap{display:block;}',
+      'max-height:52vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;',
+      'padding-right:6px;}',
+    // 보이는 스크롤바(슬라이더)
+    '#nariya-overlay .nv-a::-webkit-scrollbar{width:7px;}',
+    '#nariya-overlay .nv-a::-webkit-scrollbar-thumb{background:rgba(120,180,255,.55);border-radius:7px;}',
+    '#nariya-overlay .nv-a::-webkit-scrollbar-track{background:rgba(255,255,255,.06);border-radius:7px;}',
+    '#nariya-overlay .nv-a{scrollbar-width:thin;scrollbar-color:rgba(120,180,255,.55) rgba(255,255,255,.06);}',
+    '#nariya-overlay .nv-hint{font-size:11px;color:#6f8aa3;margin-top:8px;text-align:right;display:none;}',
+    '#nariya-overlay.nv-speaking .nv-hint{display:block;}',
     // ── A. Gemini 그라데이션 오브 ──
     '#nariya-overlay .orb{width:46px;height:46px;border-radius:50%;flex:0 0 auto;position:relative;',
       'background:conic-gradient(from 0deg,#4f8cff,#9b6bff,#ff6bcb,#ffd36b,#4f8cff);',
@@ -55,6 +68,7 @@
   ].join('');
 
   var box, stEl, qEl, aEl, hideTimer;
+
   function injectStyle() {
     if (document.getElementById('nariya-overlay-style')) return;
     var s = document.createElement('style');
@@ -70,14 +84,20 @@
     box.innerHTML =
       '<div class="nv-head"><div class="orb"></div>' +
       '<div style="flex:1;min-width:0;"><div class="nv-st">나리야</div>' +
-      '<div class="nv-q"></div></div></div>' +
+      '<div class="nv-q"></div></div>' +
+      '<button class="nv-close" type="button" aria-label="닫기">✕</button></div>' +
       '<div class="nv-a"></div>' +
-      '<div class="nv-tap">화면을 누르면 닫혀요</div>';
+      '<div class="nv-hint">길면 패널 안에서 스크롤하세요 · ✕ 로 닫기</div>';
     document.body.appendChild(box);
     stEl = box.querySelector('.nv-st');
     qEl = box.querySelector('.nv-q');
     aEl = box.querySelector('.nv-a');
-    box.addEventListener('click', hideNow);   // 답변 패널 탭하면 닫힘
+    // 닫기는 ✕ 버튼으로만 (답변을 스크롤하다 실수로 닫히지 않도록).
+    box.querySelector('.nv-close').addEventListener('click', function (ev) { ev.stopPropagation(); hideNow(); });
+    // 답변을 스크롤/터치하는 동안엔 자동 숨김을 미뤄 읽는 중에 사라지지 않게.
+    var keepAlive = function () { if (box.classList.contains('nv-speaking')) hideSoon(45000); };
+    aEl.addEventListener('scroll', keepAlive, { passive: true });
+    aEl.addEventListener('touchstart', keepAlive, { passive: true });
   }
 
   function hideNow() { if (box) box.style.display = 'none'; clearTimeout(hideTimer); }
@@ -113,7 +133,8 @@
 
       // 안전 자동 숨김 — 멈춤/꺼짐에도 오버레이가 영영 남지 않게.
       //   대화가 진행되면 단계마다 새 이벤트로 타이머가 갱신되어 조기 숨김 없음.
-      if (s === 'speaking') hideSoon(28000);
+      //   답변중은 길게(45s) — 긴 답변을 읽을 시간 확보(스크롤 시 추가 연장).
+      if (s === 'speaking') hideSoon(45000);
       else if (s === 'listening') hideSoon(12000);
       else if (s === 'thinking') hideSoon(15000);
     } catch (err) { /* 무시 */ }

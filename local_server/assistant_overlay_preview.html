@@ -30,10 +30,16 @@
   #nariya-overlay .nv-st{font-size:13px;font-weight:700;}
   #nariya-overlay .nv-q{font-size:12.5px;color:#7fd2ff;margin-top:8px;}
   #nariya-overlay .nv-a{font-size:15px;line-height:1.55;margin-top:6px;color:#eaf4ff;}
+  #nariya-overlay .nv-close{flex:0 0 auto;width:28px;height:28px;border-radius:50%;display:none;align-items:center;justify-content:center;background:rgba(255,255,255,.08);color:#cfe2f3;font-size:15px;cursor:pointer;border:0;}
+  #nariya-overlay.nv-speaking .nv-close{display:flex;}
   #nariya-overlay.nv-speaking{max-width:680px;padding:18px 20px;}
-  #nariya-overlay.nv-speaking .nv-a{font-size:17.5px;line-height:1.65;margin-top:10px;max-height:300px;overflow-y:auto;}
-  #nariya-overlay .nv-tap{font-size:11px;color:#6f8aa3;margin-top:10px;text-align:right;display:none;}
-  #nariya-overlay.nv-speaking .nv-tap{display:block;}
+  #nariya-overlay.nv-speaking .nv-a{font-size:17.5px;line-height:1.65;margin-top:10px;max-height:200px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-right:6px;}
+  #nariya-overlay .nv-a::-webkit-scrollbar{width:7px;}
+  #nariya-overlay .nv-a::-webkit-scrollbar-thumb{background:rgba(120,180,255,.55);border-radius:7px;}
+  #nariya-overlay .nv-a::-webkit-scrollbar-track{background:rgba(255,255,255,.06);border-radius:7px;}
+  #nariya-overlay .nv-a{scrollbar-width:thin;scrollbar-color:rgba(120,180,255,.55) rgba(255,255,255,.06);}
+  #nariya-overlay .nv-hint{font-size:11px;color:#6f8aa3;margin-top:8px;text-align:right;display:none;}
+  #nariya-overlay.nv-speaking .nv-hint{display:block;}
   #nariya-overlay .orb{width:46px;height:46px;border-radius:50%;flex:0 0 auto;position:relative;
     background:conic-gradient(from 0deg,#4f8cff,#9b6bff,#ff6bcb,#ffd36b,#4f8cff);
     animation:nvSpin 4s linear infinite, nvBreathe 2.4s ease-in-out infinite;}
@@ -62,6 +68,7 @@
     <div class="row"><span class="lab">답변 길이</span>
       <button data-len="short" class="on">짧은 답변</button>
       <button data-len="long">긴 답변</button>
+      <button data-len="xlong">아주 긴 답변(스크롤)</button>
     </div>
     <div class="row"><span class="lab"></span>
       <button id="cycle" style="background:#1f6feb;border-color:#1f6feb;color:#fff;">▶ 전체 흐름 자동 재생</button>
@@ -72,9 +79,10 @@
     <div class="hintmap">— 지도 화면(앱 배경) —</div>
     <div id="nariya-overlay">
       <div class="nv-head"><div class="orb"></div>
-        <div style="flex:1;min-width:0;"><div class="nv-st">나리야</div><div class="nv-q"></div></div></div>
+        <div style="flex:1;min-width:0;"><div class="nv-st">나리야</div><div class="nv-q"></div></div>
+        <button class="nv-close" type="button" aria-label="닫기">✕</button></div>
       <div class="nv-a"></div>
-      <div class="nv-tap">화면을 누르면 닫혀요</div>
+      <div class="nv-hint">길면 패널 안에서 스크롤하세요 · ✕ 로 닫기</div>
     </div>
   </div>
 </div>
@@ -87,6 +95,12 @@
   var LONG  = '거문도는 지금 파고 0.5미터로 잔잔하고, 바람은 북동풍 초속 4미터 정도입니다. '
     + '오전까지는 비슷하게 유지되겠지만 오후 들어 남서풍이 초속 8미터까지 강해지면서 파고도 1.5미터로 높아질 전망입니다. '
     + '조업은 오전에 마치고 복귀하시는 편이 안전하겠습니다. 현재 발효 중인 특보는 없습니다. 최종 판단은 선장님 몫입니다.';
+  var XLONG = LONG + ' ';
+  for (var k = 0; k < 4; k++) {
+    XLONG += '추가로, 인근 해역의 조류는 현재 창조류로 북동 방향 초속 20센티미터 안팎이며, 물때는 다섯 물입니다. '
+      + '수온은 표층 기준 약 18도이고, 시정은 10킬로미터로 양호합니다. 너울 주기는 6초 내외로 항해에 큰 무리는 없습니다. ';
+  }
+  var TEXT = { short:SHORT, long:LONG, xlong:XLONG };
   var curState = 'off', curLen = 'short';
 
   function render() {
@@ -96,7 +110,8 @@
     box.style.display = 'block';
     stEl.textContent = LABEL[s] || '나리야';
     qEl.textContent = (s === 'listening') ? '' : 'Q. 거문도 날씨 어때?';
-    aEl.textContent = (s === 'speaking') ? (curLen === 'long' ? LONG : SHORT) : '';
+    aEl.textContent = (s === 'speaking') ? (TEXT[curLen] || SHORT) : '';
+    aEl.scrollTop = 0;
   }
   function setBtns(attr, val) {
     document.querySelectorAll('button[' + attr + ']').forEach(function (b) { b.classList.toggle('on', b.getAttribute(attr) === val); });
@@ -107,7 +122,7 @@
   document.querySelectorAll('button[data-len]').forEach(function (b) {
     b.addEventListener('click', function () { curLen = b.dataset.len; setBtns('data-len', curLen); render(); });
   });
-  box.addEventListener('click', function () { curState = 'off'; setBtns('data-st', 'off'); render(); });
+  box.querySelector('.nv-close').addEventListener('click', function (ev) { ev.stopPropagation(); curState = 'off'; setBtns('data-st', 'off'); render(); });
 
   document.getElementById('cycle').addEventListener('click', function () {
     var seq = [['listening',1600],['thinking',1600],['speaking',5000],['off',300]], i = 0;
