@@ -91,6 +91,13 @@ public class VoiceAssistantService extends Service {
     /** 플러그인(SeagnalAssistantPlugin) 의 isEnabled 조회용. */
     public static volatile boolean isRunning = false;
 
+    /**
+     * 현재 가동 중인 서비스가 onCreate 에서 실제로 고른 호출어 엔진 표식(#39).
+     * 관리자 AI 패널이 getCapabilities 로 읽어 "현재 엔진: Vosk ✅ / 안드로이드 기본 ⚠️"
+     * 을 보여 폴백 여부를 즉시 눈으로 확인할 수 있게 한다. null = 미가동.
+     */
+    public static volatile String activeEngine = null;  // "porcupine" | "vosk" | "android"
+
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newSingleThreadExecutor();
 
@@ -130,12 +137,15 @@ public class VoiceAssistantService extends Service {
         //   3) AndroidSpeech — 둘 다 없을 때의 마지막 안전망(연속 STT 기반 폴백)
         if (PorcupineWakeEngine.isAvailable(this)) {
             wakeEngine = new PorcupineWakeEngine(this);
+            activeEngine = "porcupine";
             Log.i(TAG, "호출어 엔진: Porcupine");
         } else if (VoskWakeEngine.isAvailable(this)) {
             wakeEngine = new VoskWakeEngine(this);
+            activeEngine = "vosk";
             Log.i(TAG, "호출어 엔진: Vosk(오프라인 한국어)");
         } else {
             wakeEngine = new AndroidSpeechWakeEngine(this);
+            activeEngine = "android";
             Log.i(TAG, "호출어 엔진: AndroidSpeechRecognizer(폴백)");
         }
     }
@@ -163,6 +173,7 @@ public class VoiceAssistantService extends Service {
     @Override
     public void onDestroy() {
         isRunning = false;
+        activeEngine = null;
         cancelCommandTimeout();
         if (wakeEngine != null) wakeEngine.destroy();
         releaseCommandRecognizer();
