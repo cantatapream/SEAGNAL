@@ -84,7 +84,9 @@ public class VoiceAssistantService extends Service {
     public static final String EXTRA_PROFILE = "profile";
     private static final String DEFAULT_SERVER_URL = "https://seagnal-server.fly.dev";
 
-    private static final String CHANNEL_ID = "seagnal_voice_assistant";
+    // 상태표시줄에 거의 안 보이게(IMPORTANCE_MIN). 기존 채널은 한 번 만들어지면 중요도를
+    //   못 낮추므로 새 채널 ID 로 교체해 MIN 중요도를 확실히 적용한다.
+    private static final String CHANNEL_ID = "seagnal_voice_assistant_min";
     private static final int NOTIF_ID = 7321;
     private static final long COMMAND_TIMEOUT_MS = 7000L;
 
@@ -174,6 +176,7 @@ public class VoiceAssistantService extends Service {
     public void onDestroy() {
         isRunning = false;
         activeEngine = null;
+        SeagnalAssistantPlugin.emitState("idle", null, null);   // 화면 오버레이 즉시 숨김
         cancelCommandTimeout();
         if (wakeEngine != null) wakeEngine.destroy();
         releaseCommandRecognizer();
@@ -499,9 +502,11 @@ public class VoiceAssistantService extends Service {
     private void createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID, "음성 비서", NotificationManager.IMPORTANCE_LOW);
+                    CHANNEL_ID, "음성 비서", NotificationManager.IMPORTANCE_MIN);
             channel.setDescription("호출어 \"나리야\" 상시 청취");
             channel.setShowBadge(false);
+            channel.setSound(null, null);
+            channel.enableVibration(false);
             NotificationManager nm = getSystemService(NotificationManager.class);
             if (nm != null) nm.createNotificationChannel(channel);
         }
@@ -527,7 +532,8 @@ public class VoiceAssistantService extends Service {
                 .setOnlyAlertOnce(true)
                 .setContentIntent(openPi)
                 .addAction(0, "끄기", stopPi)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setPriority(NotificationCompat.PRIORITY_MIN)
+                .setSilent(true)
                 .build();
     }
 
@@ -586,6 +592,7 @@ public class VoiceAssistantService extends Service {
 
     private void stopEverythingAndSelf() {
         isRunning = false;
+        SeagnalAssistantPlugin.emitState("idle", null, null);   // 화면 오버레이 즉시 숨김
         cancelCommandTimeout();
         if (wakeEngine != null) wakeEngine.stop();
         releaseCommandRecognizer();
