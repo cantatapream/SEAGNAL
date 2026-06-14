@@ -268,8 +268,8 @@ function initSeaZoneMap() {
     };
 
     mapImage.onerror = function () {
-        console.error("이미지 로드 실패: images/haegudo.gif");
-        mapContainer.innerHTML = '<div style="color:#aaa; text-align:center; padding-top:100px;">지도 이미지를 불러올 수 없습니다.<br>(images/haegudo.gif)<br><br><small>새로고침을 해보세요.</small></div>';
+        // [제거됨] 레거시 해구도 이미지 지도 onerror — index2 미표출 잔재(이미지 src 설정 제거됨).
+        console.warn("[seaZones] 레거시 해구도 이미지 지도는 제거되었습니다(미사용).");
     };
 
     // 이미지 경로 설정 (핸들러 정의 후 실행)
@@ -281,8 +281,9 @@ function initSeaZoneMap() {
         console.log('[Preload] 프리로드된 이미지 사용');
         mapImage.onload();
     } else {
-        // 프리로드 미완료 또는 최초 로드: src 설정으로 로드 시작
-        mapImage.src = '/images/haegudo.gif';
+        // [제거됨] 레거시 해구도 이미지(haegudo.gif) 로드 — index2 미표출 잔재로 삭제됨.
+        //   이 함수는 sea-zone-map 컨테이너가 있을 때만 진행하는데, index2에는 해당 마크업이
+        //   없어 위 null 가드에서 이미 return된다(도달 불가 dead code). no-op 유지.
     }
 
     // 🖱️ 마우스 이벤트 바인딩 (PC)
@@ -876,19 +877,10 @@ function resetGuideMessage() {
     updateGuideMessage('기상을 확인할 해구를 선택해주세요');
 }
 
-// [Preload] 메인 로딩 완료 후 백그라운드에서 해구 지도 이미지를 미리 로드
+// [제거됨] 레거시 해구도 이미지(haegudo.gif) 프리로드 — index2 미표출 잔재로 삭제됨.
+//   호출처 없음(data.js의 유일 호출도 이미 제거). 전역 노출 호환을 위해 no-op 스텁만 유지.
 function preloadSeaZoneImage() {
-    if (_preloadedMapImage) return; // 이미 프리로드 시작됨
-    _preloadedMapImage = new Image();
-    _preloadedMapImage.onload = function () {
-        _preloadComplete = true;
-        console.log('[Preload] 해구 지도 이미지 프리로드 완료:', _preloadedMapImage.naturalWidth, 'x', _preloadedMapImage.naturalHeight);
-    };
-    _preloadedMapImage.onerror = function () {
-        console.warn('[Preload] 해구 지도 이미지 프리로드 실패');
-        _preloadedMapImage = null;
-    };
-    _preloadedMapImage.src = '/images/haegudo.gif';
+    /* no-op: 레거시 해구도 이미지 지도 제거됨 */
 }
 
 // 함수를 전역에 노출 (탭 클릭 시 호출용)

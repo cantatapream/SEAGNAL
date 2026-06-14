@@ -1708,14 +1708,8 @@ function _onSectionActivated(sectionId) {
         window.oceanOverlayClear();
     }
 
-    // 해구별 기상 탭 활성화 시 지도 초기화
-    if (sectionId === 'sea-zone-section') {
-        setTimeout(() => {
-            if (window.initSeaZoneMap) {
-                window.initSeaZoneMap();
-            }
-        }, 200);
-    }
+    // [제거됨] 해구별 기상 탭(sea-zone-section) 활성화 훅 — 레거시 해구도 이미지 지도(initSeaZoneMap)
+    //   호출부. index2에서 해당 섹션/지도를 제거했으므로 함께 삭제.
 // 바다낚시 탭 활성화 시 지도 초기화 (탭 전환 후 사이즈 갱신)
     if (sectionId === 'fishing-section') {
         // [사용량] 바다낚시 하위 탭 진입

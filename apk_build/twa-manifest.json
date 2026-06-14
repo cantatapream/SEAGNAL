@@ -12,7 +12,7 @@
   "navigationDividerColorDark": "#000000",
   "backgroundColor": "#05070A",
   "enableNotifications": true,
-  "startUrl": "/index.html",
+  "startUrl": "/",
   "iconUrl": "https://seagnal-server.fly.dev/assets/icon_wave_pulse_square.png",
   "maskableIconUrl": "https://seagnal-server.fly.dev/assets/icon_wave_pulse_square.png",
   "splashScreenFadeOutDuration": 300,

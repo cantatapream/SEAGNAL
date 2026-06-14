@@ -45,7 +45,7 @@
 
   // 탭 이동 허용 섹션 화이트리스트 (방어적 — 임의 값으로 switchMainTab 호출 방지)
   var ALLOWED_TABS = {
-    'weather-alert-section': 1, 'typhoon-section': 1, 'sea-zone-section': 1,
+    'weather-alert-section': 1, 'typhoon-section': 1,
     'marine-chart-section': 1, 'ocean-map-section': 1, 'fishing-section': 1,
     'surfing-section': 1, 'promo-section': 1
   };

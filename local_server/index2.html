@@ -2629,52 +2629,9 @@
 
             </section>
 
-            <!-- 섹션 2: 해구별 기상정보 -->
-            <section id="sea-zone-section" class="sea-zone-section tab-content">
-                <div class="section-header-with-info">
-                    <h2 class="section-title"><i class="fa-solid fa-map-location-dot"></i> 해구별 기상정보</h2>
-                    <button class="info-btn" onclick="showSeaZoneInfoPopup()" title="이용안내">
-                        <i class="fa-solid fa-circle-info" style="color: white;"></i>
-                    </button>
-                </div>
-
-                <div class="sea-zone-map-container">
-                    <div class="map-controls">
-                        <button onclick="zoomMap(1.2)" title="확대">+</button>
-                        <button onclick="zoomMap(0.8)" title="축소">−</button>
-                        <button onclick="resetMap()" title="초기화">⟲</button>
-                    </div>
-
-                    <div class="sea-zone-guide-overlay" id="sea-zone-guide-overlay">
-                        <span class="guide-text" id="sea-zone-guide-text">기상을 확인할 해구를 선택해주세요</span>
-                        <button id="sea-zone-my-location-btn" class="my-location-btn-overlay"
-                            onclick="moveSeaZoneMapToMyLocation()" title="내 위치 찾기">
-                            내 위치
-                        </button>
-                    </div>
-                    <div id="sea-zone-map" class="sea-zone-map">
-                        <!-- SVG 지도가 여기에 렌더링됨 -->
-                    </div>
-                </div>
-
-                <!-- 출처 정보 (컨테이너 밖) -->
-                <div class="map-source">
-                    <a href="https://www.fips.go.kr/p/S01030102/#" target="_blank" rel="noopener noreferrer">
-                        <span>해양수산부 수산정보포털 수역도</span>
-                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                    </a>
-                </div>
-
-                <div id="zone-info-panel" class="zone-info-panel hidden">
-                    <div class="zone-info-header">
-                        <h4 id="zone-info-title">해구 정보</h4>
-                        <button onclick="closeZonePanel()" class="close-btn">&times;</button>
-                    </div>
-                    <div id="zone-info-content" class="zone-info-content">
-                        <!-- 해구 상세 정보 -->
-                    </div>
-                </div>
-            </section>
+            <!-- [제거됨] 섹션 2: 해구별 기상정보(레거시 해구도 이미지 지도) — index2 미표출 잔재로 삭제.
+                 해양종합정보(OpenLayers) 지도로 대체됨. 연계 자산(haegudo.gif)과 seaZones.js
+                 이미지지도 경로(initSeaZoneMap/showZoneOverlay fallback)도 함께 제거. -->
 
 
             <!-- [제거됨] 섹션 3: 태풍정보 — 더 이상 필요 없어 삭제(서브탭/점검 매핑도 함께 제거). -->
