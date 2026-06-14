@@ -974,7 +974,7 @@ async function renderAiAssistantSubtab(container) {
             if (running) {
                 btn.disabled = true;
                 Native.disable()
-                    .then(x => { running = x ? !!x.running : false; render(); refreshEngine(); })
+                    .then(x => { running = x ? !!x.running : false; render(); refreshEngine(); if (window.__nariyaOverlayHide) window.__nariyaOverlayHide(); })
                     .catch(e => { st.textContent = '오류: ' + (e && e.message ? e.message : ''); })
                     .then(() => { btn.disabled = false; });
                 return;

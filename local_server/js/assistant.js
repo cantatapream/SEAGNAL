@@ -847,7 +847,7 @@
       if (running) {
         toggleBtn.disabled = true;
         Native.disable()
-          .then(function (r) { running = r ? !!r.running : false; render(); })
+          .then(function (r) { running = r ? !!r.running : false; render(); if (window.__nariyaOverlayHide) window.__nariyaOverlayHide(); })
           .catch(function (e) { statusEl.textContent = '오류: ' + (e && e.message ? e.message : ''); })
           .then(function () { toggleBtn.disabled = false; });
         return;
