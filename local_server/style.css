@@ -11004,6 +11004,8 @@ body.mc-fullscreen-active {
 
 /* 단기전망 문장(통보문 AI 추출) — 숫자 줄 아래 */
 .adv-kma-outlook { font-size: 0.78rem; color: #c4d3de; margin-top: 4px; line-height: 1.55; }
+.adv-kma-boost { font-size: 0.78rem; color: #5db0ff; margin-top: 5px; line-height: 1.5; }
+.adv-kma-boost b { color: #8fd0ff; font-weight: 700; }
 
 /* 특보 예측 관리 — 통계 테이블/최근 사례 */
 .advm-stats { width: 100%; border-collapse: collapse; font-size: 0.76rem; color: #d6dee6; }

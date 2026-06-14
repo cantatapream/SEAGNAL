@@ -114,6 +114,13 @@
             '<div class="adv-kma-kt">🛰️ ' + office + '단기전망' + pub + '</div>';
         if (parts.length) html += '<div class="adv-kma-vals">' + period + parts.join(', ') + '</div>';
         if (outlook) html += '<div class="adv-kma-outlook">“' + escapeHtml(outlook) + '”</div>';
+        // ② 통보문 발효율 반영으로 확률이 상향됐으면 근거 표시
+        const adj = it.probAdjust;
+        if (adj && typeof adj.to === 'number' && adj.to > adj.from) {
+            html += '<div class="adv-kma-boost">📈 기상청 해설 반영 — 발효 가능성 ' +
+                adj.from + '% → <b>' + adj.to + '%</b>' +
+                '<span class="adv-kma-pub"> (해설 신호 과거 발효율 ' + adj.hitPct + '%)</span></div>';
+        }
         html += '</div>';
         return html;
     }
