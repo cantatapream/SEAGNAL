@@ -48,6 +48,11 @@ dependencies {
     // 한국어 모델(~80MB)은 사용자 동의 후 VoskDownloadService 가 첫 1회 내려받음(APK 미포함).
     implementation 'net.java.dev.jna:jna:5.13.0@aar'
     implementation 'com.alphacephei:vosk-android:0.3.47'
+    // [사용자 기억 v2] Room SQLite — memory/*.java(@Entity/@Dao/@Database)가 사용.
+    // Java 프로젝트라 annotationProcessor 사용(kapt 는 Kotlin 전용). 없으면 컴파일 시
+    // "package androidx.room does not exist" 에러가 난다.
+    implementation 'androidx.room:room-runtime:2.6.1'
+    annotationProcessor 'androidx.room:room-compiler:2.6.1'
 }
 
 apply from: 'capacitor.build.gradle'
