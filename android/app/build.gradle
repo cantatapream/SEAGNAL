@@ -51,8 +51,10 @@ dependencies {
     // [사용자 기억 v2] Room SQLite — memory/*.java(@Entity/@Dao/@Database)가 사용.
     // Java 프로젝트라 annotationProcessor 사용(kapt 는 Kotlin 전용). 없으면 컴파일 시
     // "package androidx.room does not exist" 에러가 난다.
-    implementation 'androidx.room:room-runtime:2.6.1'
-    annotationProcessor 'androidx.room:room-compiler:2.6.1'
+    // 2.7.x: room-compiler 가 Kotlin 2.1 메타데이터(capacitor 플러그인 등)를 읽을 수 있어야
+    // 하므로 2.6.1 → 2.7.2 (2.6.1 은 kotlinx-metadata 2.0.0 한계로 빌드 실패).
+    implementation 'androidx.room:room-runtime:2.7.2'
+    annotationProcessor 'androidx.room:room-compiler:2.7.2'
 }
 
 apply from: 'capacitor.build.gradle'
