@@ -1647,6 +1647,7 @@ ${catalogLine}
 - 유속/유향/해류는 get_current(zone=해역명), 수심은 get_depth(zone=해역명)로 호출하세요.
   해역명이 분명하면 resolve_location 을 쓰지 말고 zone 인자에 해역명을 그대로 넣으세요.
   resolve_location 은 항/해수욕장/마을 같은 임의 지명일 때만 쓰세요.
+- **(지명 오인식 되묻기 — 중요)** 질문은 음성인식이라 지명이 잘못 들릴 수 있습니다. 질의의 핵심 지명이 알려진 해역·항·섬·부이 이름과 정확히 안 맞는데 발음이 비슷한 실제 지명이 떠오르고(예: "한리망"→"한림항", "거문돈"→"거문도", "마라더"→"마라도") 확신이 100% 가 아니면, 절대 추측해서 답하지 말고 steps 를 비운 뒤 clarify 에 짧은 확인 질문을 넣으세요(예: "혹시 한림항을 말씀하신 건가요? 맞으면 다시 말씀해 주세요"). 단, 명백히 알아들은 지명·이미 표준 해역명·지명이 없는 일반 질의면 clarify 는 null 로 두고 정상 처리하세요(멀쩡한 질문을 과도하게 되묻지 말 것).
 - 섬·항·해안 지명(예: 추자도, 거문도, 마라도, 연평도)의 바다 상황·기상을 물으면, 웹검색 말고 먼저
   get_buoy_observation(지명) 또는 get_nearest_buoy 로 해상 관측을, 해역명이면 get_marine_forecast 를 쓰세요.
 - "조업 가능?" 같은 판단 질문은 관련 예보(해구/해역)·특보·필요시 부이를 함께 모으세요.
@@ -1665,7 +1666,7 @@ ${catalogLine}
 사용자 프로필(참고): ${profile ? JSON.stringify(profile).slice(0, 500) : '없음'}
 질문: "${query}"
 
-JSON 으로만: {"correctedQuery":"<교정된 질문 또는 원문>", "steps":[{"tool":"<도구명>","args":{...}}], "zone":"<관련 해역명 또는 null>"}`;
+JSON 으로만: {"correctedQuery":"<교정된 질문 또는 원문>", "clarify":"<지명 오인식 의심 시 확인 질문, 아니면 null>", "steps":[{"tool":"<도구명>","args":{...}}], "zone":"<관련 해역명 또는 null>"}`;
     const r = await gemini.callGemini({
         model: BRAIN_MODEL, contents: prompt,
         config: { responseMimeType: 'application/json', temperature: 0 }, caller: 'Assistant-Plan'
@@ -1868,6 +1869,12 @@ async function runBrain(query, profile, memory, style, location, focus, userMemo
     const cq = (plan.correctedQuery && typeof plan.correctedQuery === 'string' && plan.correctedQuery.trim())
         ? plan.correctedQuery.trim() : query;
     const corrected = (cq !== query) ? cq : null;
+
+    // [지명 오인식 되묻기] planQuery 가 지명을 확신 못 하면 추측 대신 확인 질문(clarify)을 낸다.
+    //   도구 호출·합성 없이 바로 되물어 사용자 확답을 받는다(예: "한리망"→"한림항 맞나요?").
+    if (plan.clarify && typeof plan.clarify === 'string' && plan.clarify.trim()) {
+        return { answer: plan.clarify.trim(), zone: null, toolsUsed: [], corrected, focus: null };
+    }
 
     // [지명 정규화] LLM 이 "전남남해" 처럼 표준 해역명을 살짝 다르게 주면,
     //   detectZoneDeterministic 으로 fuzzy 매칭해 표준명("전남남해앞바다")으로 정정.
@@ -2267,8 +2274,8 @@ async function runBrain(query, profile, memory, style, location, focus, userMemo
     //   Few-shot 2: 광역 통상 (동해 수심) / 비등록 섬 (흑산도 파고).
     //   회귀 가드: H7 runner DECISION_RE 의미축 3축 분리 페어 적용 완료.
     const synth =
-`당신은 한국 어선·항해자·해양 종사자를 돕는 해양 기상 비서입니다. 당신의 이름은 "나리야"입니다.
-정체·이름·소속을 물으면 "바다 날씨를 돕는 음성 비서 나리야"라고 답하고, "구글/제미나이/대규모 언어 모델" 같은 표현은 절대 쓰지 마세요.
+`당신은 한국 어선·항해자·해양 종사자를 돕는 해양 기상 비서입니다.
+답변은 자기소개 없이 곧바로 본론부터 말하세요 — "나리야입니다", "음성 비서 나리야입니다" 같은 이름·소개 문구를 답 앞에 붙이지 마세요. (이름이나 정체를 직접 물었을 때만 "바다 날씨를 돕는 음성 비서 나리야"라고 답하고, "구글/제미나이/대규모 언어 모델" 같은 표현은 절대 쓰지 마세요.)
 다음 4 가드와 7 답 가이드로 답하세요. 음성 구어체, 표·마크다운·이모지 금지.
 
 [가드 G1 — 환각 금지 + get_warning 양방향]
