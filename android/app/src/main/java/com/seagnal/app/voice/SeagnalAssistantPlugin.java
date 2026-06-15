@@ -142,10 +142,42 @@ public class SeagnalAssistantPlugin extends Plugin {
         if (profile != null && !profile.isEmpty()) {
             intent.putExtra(VoiceAssistantService.EXTRA_PROFILE, profile);
         }
+        // 대기 방식: "always"(상시 호출어) | "ptt"(버튼 눌러 말하기). 기본 always.
+        String mode = call.getString("mode");
+        if (mode != null && !mode.isEmpty()) {
+            intent.putExtra(VoiceAssistantService.EXTRA_MODE, mode);
+        }
         ContextCompat.startForegroundService(getContext(), intent);
 
         JSObject ret = new JSObject();
         ret.put("running", true);
+        call.resolve(ret);
+    }
+
+    /**
+     * 푸시투토크 — 버튼 탭 시 한 번만 듣기. 상시 대기 없이 마이크를 그때만 켠다.
+     *   서비스가 꺼져 있으면 시작하면서 바로 듣기 모드로 진입한다.
+     */
+    @PluginMethod
+    public void listenOnce(PluginCall call) {
+        if (getPermissionState("microphone") != PermissionState.GRANTED) {
+            requestPermissionForAlias("microphone", call, "micPermissionCallback");
+            return;
+        }
+        Intent intent = new Intent(getContext(), VoiceAssistantService.class);
+        intent.setAction(VoiceAssistantService.ACTION_LISTEN_ONCE);
+        String serverUrl = call.getString("serverUrl");
+        if (serverUrl != null && !serverUrl.isEmpty()) {
+            intent.putExtra(VoiceAssistantService.EXTRA_SERVER_URL, serverUrl);
+        }
+        String profile = call.getString("profile");
+        if (profile != null && !profile.isEmpty()) {
+            intent.putExtra(VoiceAssistantService.EXTRA_PROFILE, profile);
+        }
+        intent.putExtra(VoiceAssistantService.EXTRA_MODE, "ptt");
+        ContextCompat.startForegroundService(getContext(), intent);
+        JSObject ret = new JSObject();
+        ret.put("listening", true);
         call.resolve(ret);
     }
 

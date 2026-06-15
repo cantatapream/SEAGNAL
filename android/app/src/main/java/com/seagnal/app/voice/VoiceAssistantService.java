@@ -80,8 +80,10 @@ public class VoiceAssistantService extends Service {
     private static final String TAG = "VoiceAssistant";
 
     public static final String ACTION_STOP = "com.seagnal.app.voice.STOP";
+    public static final String ACTION_LISTEN_ONCE = "com.seagnal.app.voice.LISTEN_ONCE";
     public static final String EXTRA_SERVER_URL = "serverUrl";
     public static final String EXTRA_PROFILE = "profile";
+    public static final String EXTRA_MODE = "mode";   // "always"(상시 대기) | "ptt"(버튼 눌러 말하기)
     private static final String DEFAULT_SERVER_URL = "https://seagnal-server.fly.dev";
 
     // 상태표시줄에 거의 안 보이게(IMPORTANCE_MIN). 기존 채널은 한 번 만들어지면 중요도를
@@ -109,6 +111,9 @@ public class VoiceAssistantService extends Service {
     private boolean ttsReady = false;
 
     private String serverUrl = DEFAULT_SERVER_URL;
+    // 호출어 대기 방식: false=상시 대기("나리야" 핸즈프리), true=푸시투토크(버튼 탭할 때만 듣기).
+    //   PTT 에서는 wakeEngine 을 켜지 않아 평소 마이크를 점유하지 않는다(초록 마이크 표시 없음).
+    private volatile boolean pttMode = false;
     private String profileJson = null;   // 개인화용 프로필(JSON 문자열) — 휴대폰에서 전달받음
     // 직전 턴의 focus(서버 응답 그대로의 JSON 문자열) — 음성 비서 대화의 구조화 연속성.
     // 웹 UI(js/assistant.js)는 localStorage 로 이걸 잇지만, 음성 비서는 자체적으로
@@ -165,10 +170,24 @@ public class VoiceAssistantService extends Service {
         if (intent != null && intent.hasExtra(EXTRA_PROFILE)) {
             profileJson = intent.getStringExtra(EXTRA_PROFILE);
         }
+        if (intent != null && intent.hasExtra(EXTRA_MODE)) {
+            pttMode = "ptt".equals(intent.getStringExtra(EXTRA_MODE));
+        }
 
-        startForegroundSafely(getString_(R.string.app_name) + " 음성 비서", "\"나리야\" 라고 불러주세요");
+        // PTT: 버튼 탭(ACTION_LISTEN_ONCE)으로 한 번만 듣기. 평소엔 마이크를 켜지 않는다.
+        if (intent != null && ACTION_LISTEN_ONCE.equals(intent.getAction())) {
+            if (!isRunning) {
+                startForegroundSafely(getString_(R.string.app_name) + " 음성 비서", "듣고 있어요…");
+                isRunning = true;
+            }
+            enterCommandMode();
+            return START_STICKY;
+        }
+
+        String idleText = pttMode ? "탭하여 말하기" : "\"나리야\" 라고 불러주세요";
+        startForegroundSafely(getString_(R.string.app_name) + " 음성 비서", idleText);
         isRunning = true;
-        enterWakeMode();
+        if (pttMode) enterPttIdle(); else enterWakeMode();
         return START_STICKY;
     }
 
@@ -199,6 +218,19 @@ public class VoiceAssistantService extends Service {
         updateNotification("\"나리야\" 라고 불러주세요");
         SeagnalAssistantPlugin.emitState("wake", null, null);
         wakeEngine.start(wakeCallback);
+    }
+
+    /** PTT 대기 — 마이크를 켜지 않고 버튼 탭을 기다린다(초록 마이크 표시 없음). */
+    private void enterPttIdle() {
+        state = State.IDLE;
+        if (wakeEngine != null) wakeEngine.stop();   // 혹시 켜져 있었다면 중지(마이크 해제)
+        updateNotification("탭하여 말하기");
+        SeagnalAssistantPlugin.emitState("idle", null, null);   // 오버레이 숨김
+    }
+
+    /** 한 턴(질문→답변)이 끝났을 때 복귀 — 상시 대기면 호출어 대기, PTT 면 마이크 끄고 대기. */
+    private void afterTurn() {
+        if (pttMode) enterPttIdle(); else enterWakeMode();
     }
 
     private final WakeWordEngine.Callback wakeCallback = new WakeWordEngine.Callback() {
@@ -276,9 +308,10 @@ public class VoiceAssistantService extends Service {
             // 명령 인식 실패 → 짧게 안내하고 호출어 대기로 복귀
             if (error == SpeechRecognizer.ERROR_NO_MATCH
                     || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                speak("질문을 못 들었어요. 다시 나리야 라고 불러 주세요.");
+                speak(pttMode ? "질문을 못 들었어요. 다시 눌러서 말씀해 주세요."
+                              : "질문을 못 들었어요. 다시 나리야 라고 불러 주세요.");
             } else {
-                enterWakeMode();
+                afterTurn();
             }
         }
     };
@@ -472,10 +505,10 @@ public class VoiceAssistantService extends Service {
     private final UtteranceProgressListener utteranceListener = new UtteranceProgressListener() {
         @Override public void onStart(String utteranceId) {}
         @Override public void onDone(String utteranceId) {
-            mainHandler.post(VoiceAssistantService.this::enterWakeMode);
+            mainHandler.post(VoiceAssistantService.this::afterTurn);
         }
         @Override public void onError(String utteranceId) {
-            mainHandler.post(VoiceAssistantService.this::enterWakeMode);
+            mainHandler.post(VoiceAssistantService.this::afterTurn);
         }
     };
 
@@ -494,8 +527,8 @@ public class VoiceAssistantService extends Service {
                 Log.w(TAG, "TTS speak 실패: " + e.getMessage());
             }
         }
-        // TTS 미준비/실패 시에도 멈추지 않고 호출어 대기로 복귀
-        mainHandler.postDelayed(this::enterWakeMode, 1500L);
+        // TTS 미준비/실패 시에도 멈추지 않고 대기로 복귀(상시=호출어 / PTT=버튼 대기)
+        mainHandler.postDelayed(this::afterTurn, 1500L);
     }
 
     // ── 알림(포그라운드) ─────────────────────────────────────────────────────
@@ -570,7 +603,7 @@ public class VoiceAssistantService extends Service {
         commandTimeoutRunnable = () -> {
             if (state == State.COMMAND) {
                 releaseCommandRecognizer();
-                enterWakeMode();
+                afterTurn();
             }
         };
         mainHandler.postDelayed(commandTimeoutRunnable, COMMAND_TIMEOUT_MS);

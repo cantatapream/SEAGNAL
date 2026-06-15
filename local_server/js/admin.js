@@ -787,6 +787,14 @@ async function renderAiAssistantSubtab(container) {
             </div>
             <div style="font-size:0.72rem;color:#64748b;margin-top:6px;">켜면 백그라운드에서 "나리야" 호출을 대기합니다. (앱에서만 동작)</div>
             <div id="ai-voice-engine" style="font-size:0.78rem;color:#94a3b8;margin-top:8px;display:none;"></div>
+
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;">
+                <span style="font-size:0.8rem;color:#cbd5e1;">대기 방식</span>
+                <button id="ai-mode-always" style="padding:5px 10px;border:1px solid rgba(255,255,255,.15);border-radius:8px;background:rgba(255,255,255,.05);color:#e2e8f0;font-size:0.75rem;cursor:pointer;">항상 대기 ("나리야")</button>
+                <button id="ai-mode-ptt" style="padding:5px 10px;border:1px solid rgba(255,255,255,.15);border-radius:8px;background:rgba(255,255,255,.05);color:#e2e8f0;font-size:0.75rem;cursor:pointer;">버튼 눌러 말하기</button>
+                <button id="ai-listen-once" style="padding:6px 14px;background:#a855f7;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;display:none;"><i class="fa-solid fa-microphone"></i> 말하기</button>
+            </div>
+            <div style="font-size:0.72rem;color:#64748b;margin-top:6px;">"버튼 눌러 말하기"는 평소 마이크를 켜지 않아 상태표시줄 마이크 표시가 없습니다. (핸즈프리 "나리야" 호출은 안 됨)</div>
         </div>
 
         <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;">
@@ -860,7 +868,29 @@ async function renderAiAssistantSubtab(container) {
         const engineEl = document.getElementById('ai-voice-engine');
         if (!Native) { st.textContent = '앱(안드로이드)에서만 사용 가능'; btn.disabled = true; btn.style.opacity = .5; return; }
         let running = false;
-        const render = () => { st.textContent = running ? '켜짐 — "나리야" 대기 중' : '꺼짐'; st.style.color = running ? '#34d399' : '#94a3b8'; btn.textContent = running ? '끄기' : '켜기'; };
+        // ── 대기 방식(항상 대기 / 버튼 눌러 말하기) ──
+        const modeAlwaysBtn = document.getElementById('ai-mode-always');
+        const modePttBtn = document.getElementById('ai-mode-ptt');
+        const listenBtn = document.getElementById('ai-listen-once');
+        const getMode = () => { try { return localStorage.getItem('seagnal_voice_mode') === 'ptt' ? 'ptt' : 'always'; } catch (e) { return 'always'; } };
+        const renderMode = () => {
+            const m = getMode();
+            [[modeAlwaysBtn, 'always'], [modePttBtn, 'ptt']].forEach(pair => {
+                const b = pair[0]; if (!b) return;
+                const sel = m === pair[1];
+                b.style.background = sel ? '#22d3ee' : 'rgba(255,255,255,.05)';
+                b.style.color = sel ? '#04263b' : '#e2e8f0';
+                b.style.fontWeight = sel ? '700' : '400';
+            });
+            if (listenBtn) listenBtn.style.display = (m === 'ptt' && running) ? 'inline-block' : 'none';
+        };
+        const render = () => {
+            const m = getMode();
+            st.textContent = running ? (m === 'ptt' ? '켜짐 — 버튼 눌러 말하기' : '켜짐 — "나리야" 대기 중') : '꺼짐';
+            st.style.color = running ? '#34d399' : '#94a3b8';
+            btn.textContent = running ? '끄기' : '켜기';
+            renderMode();
+        };
 
         // [#39] 현재 실제 선택된 호출어 엔진 표시 — 폴백(안드로이드 기본) 여부를 눈으로 확인.
         const ENGINE_LABEL = {
@@ -941,7 +971,7 @@ async function renderAiAssistantSubtab(container) {
         const doEnable = () => {
             btn.disabled = true;
             let profile = '{}'; try { profile = localStorage.getItem('seagnal_profile') || '{}'; } catch (e) {}
-            Native.enable({ serverUrl: location.origin, profile })
+            Native.enable({ serverUrl: location.origin, profile, mode: getMode() })
                 .then(x => { running = x ? !!x.running : true; render(); refreshEngine(); setTimeout(refreshEngine, 600); })
                 .catch(e => { st.textContent = '오류: ' + (e && e.message ? e.message : '권한/서비스 실패'); st.style.color = '#fbbf24'; })
                 .then(() => { btn.disabled = false; });
@@ -952,7 +982,7 @@ async function renderAiAssistantSubtab(container) {
             btn.disabled = true;
             Native.disable()
                 .then(() => { let profile = '{}'; try { profile = localStorage.getItem('seagnal_profile') || '{}'; } catch (e) {}
-                              return Native.enable({ serverUrl: location.origin, profile }); })
+                              return Native.enable({ serverUrl: location.origin, profile, mode: getMode() }); })
                 .then(x => { running = x ? !!x.running : true; render(); refreshEngine(); setTimeout(refreshEngine, 600); })
                 .catch(() => {})
                 .then(() => { btn.disabled = false; });
@@ -979,7 +1009,9 @@ async function renderAiAssistantSubtab(container) {
                     .then(() => { btn.disabled = false; });
                 return;
             }
-            // ON — capabilities 분기
+            // ON — PTT 는 호출어 엔진(Vosk) 불필요 → 바로 시작. (Vosk 다운로드 게이트 생략)
+            if (getMode() === 'ptt') { doEnable(); return; }
+            // 항상 대기 — capabilities 분기
             if (!Native.getCapabilities) { doEnable(); return; }  // 구버전 호환
             Native.getCapabilities().then(cap => {
                 window.SeagnalDebug.push('getCapabilities', cap);
@@ -991,6 +1023,22 @@ async function renderAiAssistantSubtab(container) {
                 showDialog('prompt');  // NOT_DOWNLOADED / FAILED
             }).catch(() => doEnable());
         });
+
+        // 대기 방식 전환 — 켜져 있으면 즉시 새 모드로 서비스 재시작.
+        const setMode = (m) => {
+            try { localStorage.setItem('seagnal_voice_mode', m); } catch (e) {}
+            renderMode();
+            if (running) reEnableForVosk();
+        };
+        if (modeAlwaysBtn) modeAlwaysBtn.addEventListener('click', () => setMode('always'));
+        if (modePttBtn) modePttBtn.addEventListener('click', () => setMode('ptt'));
+        if (listenBtn) listenBtn.addEventListener('click', () => {
+            if (!Native.listenOnce) { st.textContent = '이 버전은 "말하기" 미지원 — APK 업데이트가 필요합니다'; st.style.color = '#fbbf24'; return; }
+            let profile = '{}'; try { profile = localStorage.getItem('seagnal_profile') || '{}'; } catch (e) {}
+            window.SeagnalDebug.push('listenOnce', {});
+            Native.listenOnce({ serverUrl: location.origin, profile }).catch(e => { st.textContent = '오류: ' + (e && e.message ? e.message : ''); });
+        });
+        renderMode();
     })();
 
     // 3) 테스트 호출 (기존 /api/assistant/ask 사용)

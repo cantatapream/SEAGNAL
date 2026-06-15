@@ -809,7 +809,9 @@
 
     function doEnable() {
       toggleBtn.disabled = true;
-      Native.enable({ serverUrl: location.origin, profile: JSON.stringify(getProfile() || {}) })
+      var voiceMode = 'always';
+      try { voiceMode = localStorage.getItem('seagnal_voice_mode') === 'ptt' ? 'ptt' : 'always'; } catch (e) {}
+      Native.enable({ serverUrl: location.origin, profile: JSON.stringify(getProfile() || {}), mode: voiceMode })
         .then(function (r) { running = r ? !!r.running : true; render(); })
         .catch(function (e) {
           statusEl.textContent = '오류: ' + (e && e.message ? e.message : '권한/서비스 실패');
