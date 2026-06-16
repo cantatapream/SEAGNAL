@@ -409,6 +409,10 @@
         if (_frames.length < 2) return 0;
         var t0 = _frames[0]._t, t1 = _frames[_frames.length - 1]._t;
         if (t1 <= t0) return 0;
+        // 통보문 구간 전체가 과거(지금 > 마지막 예보시각)면 예보 끝점이 아니라
+        //   관측 현재위치(프레임0)를 기준으로 둔다 — 과거 통보문 열람 시 "그 통보문의
+        //   실제 위치"로 지도가 포커스되게 함. (라이브 태풍은 t1 이 미래라 영향 없음)
+        if (nowKstMs() > t1) return 0;
         return Math.max(0, Math.min(1, (nowKstMs() - t0) / (t1 - t0)));
     }
 
@@ -967,7 +971,8 @@
         _selSeq = seq;
         var inline = activeTyphoon(year, seq);
         if (inline) {
-            _bulletinList = (inline.bulletins || []).map(function (b) { return { code: b.code, label: b.label, isLatest: b.isLatest }; });
+            // 통보문 목록은 "태풍단계(TYP)"만 노출 — 열대저압부(TD) 단계는 아직 태풍이 아니므로 제외.
+            _bulletinList = (inline.bulletins || []).filter(function (b) { return b.kind !== 'TD'; }).map(function (b) { return { code: b.code, label: b.label, isLatest: b.isLatest }; });
             (inline.bulletins || []).forEach(function (b) { if (b.code) _tableCache[year + '_' + b.code] = b; });
             populateBulletins();
             var code0 = pickCode(preferCode);
@@ -976,7 +981,8 @@
             return Promise.resolve();
         }
         return fetchJSON('/api/typhoon/bulletins?year=' + year + '&seq=' + seq).then(function (j) {
-            _bulletinList = (j && j.bulletins) || [];
+            // 통보문 목록은 "태풍단계(TYP)"만 노출 — 열대저압부(TD) 단계 제외.
+            _bulletinList = (((j && j.bulletins) || []).filter(function (b) { return b.kind !== 'TD'; }));
             populateBulletins();
             var code0 = pickCode(preferCode);
             setSelValue('tphn-bulletin', code0);
