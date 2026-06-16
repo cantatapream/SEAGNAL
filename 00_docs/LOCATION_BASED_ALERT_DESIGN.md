@@ -140,7 +140,13 @@
 
 ## 10. 동의 · 권한 UX 흐름 (확정)
 순서가 중요(사전 고지가 시스템 권한창보다 먼저, 동의도 동시 수령).
-1. **기본 OFF** — 푸시 설정(관심해역 옆)에 "위치 기반 특보 정보 제공" 토글 추가. opt-in.
+
+> **★ 활성 권한 게이트 (확정)**: 본 기능 토글은 **기본 비활성이며 일반 사용자는 활성할 수 없다.**
+> **관리자 권한으로 등록(로그인)된 휴대폰에서만** 활성 가능. (= `adminAuthenticated` 상태인 단말,
+> 관리자 토큰 `seagnal_admin_token` 보유 기기) 비관리자에게는 토글이 비활성/잠금으로 표시된다.
+> 서버 깨우는 신호(방식 A)도 활성한 관리자 단말의 구독만 대상이 된다. (통제된 단계적 도입 목적)
+
+1. **기본 OFF + 관리자 단말만 활성 가능** — 푸시 설정(관심해역 옆)에 "위치 기반 특보 정보 제공" 토글 추가. opt-in. **비관리자는 잠금(활성 불가).**
 2. **토글 ON → 우리 동의 팝업 먼저** (아래 문안). 위치정보법 동의 + 구글 사전 고지 동시 충족.
 3. **[동의함] → 전경 위치 권한("앱 사용 중 허용") 요청.**
 4. **백그라운드("항상 허용") 안내** — 안드로이드 11+는 권한창에서 바로 못 줌. 설정 화면으로 유도.
@@ -188,6 +194,8 @@ SEAGNAL은 이용자가 현재 위치한 해역의 해상특보를 신속히 안
 
 ---
 
-## 13. 구현 메모
-- 본 문서는 **설계 합의본**이며 코드 구현은 **미착수**. 별도 합의 후 착수.
-- 신규/확장 지점(참고): 푸시 설정 UI(`js/settings.js` 등), 권한 처리(`capacitor-plugins.js`), 특보 수집·푸시(`report_alert_processor.js`, `services/push_helpers.js`, `push_sender.js`, `scheduler.js`), 폴리곤 자산(`assets/warn_zones.geojson`).
+## 13. 구현 메모 / 진행 상황
+- 구현 순서(합의): ① 폴리곤 판정·거리·방위·문구 순수 로직 → ② 백그라운드 위치 → ③ 동의/활성 UI → ④ 서버 신호 연동.
+- **① 완료**: `js/location_alert_core.js` (순수 로직: 구역 판정·최근접 구역 방위/거리·경로 육지 판정·상황별 문구). 테스트 `scripts/test_location_alert_core.js` 실제 `warn_zones.geojson`로 13항목 통과.
+  - 섬 제외 판정은 `properties._holedGeometry`(구멍 포함) 사용. 최상위 `geometry`는 구멍 없는 솔리드(외곽 거리 계산용).
+- 신규/확장 지점(참고): 푸시 설정 UI(`js/settings.js` 등) + **관리자 게이트(`js/admin.js`의 `adminAuthenticated`/`seagnal_admin_token`)**, 권한 처리(`capacitor-plugins.js`), 특보 수집·푸시(`report_alert_processor.js`, `services/push_helpers.js`, `push_sender.js`, `scheduler.js`), 폴리곤 자산(`assets/warn_zones.geojson`).
