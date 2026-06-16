@@ -2234,6 +2234,24 @@ router.post('/api/admin/demo/emit', async (req, res) => {
     }
 });
 
+// [태풍 시연] 발생/소멸 테스트 푸시 — 관리자 등록 기기(admin_devices.json)에만 발송.
+//   실제 발송기(typhoon_notifier)와 동일한 문구 빌더(typhoon_message)를 써서 표기가 갈라지지 않음.
+router.post('/api/admin/demo/typhoon-test', async (req, res) => {
+    try {
+        const { kind } = req.body || {};
+        const k = kind === 'dissipation' ? 'dissipation' : 'onset';
+        const tmsg = require('../services/typhoon_message');
+        const { title, body, url } = tmsg.buildSample(k);
+        // sendAdminPush → admin_devices.json 대상 (일반 사용자에게는 발송되지 않음)
+        const pushResult = await sendAdminPush(title, body, { url, type: 'typhoon_test' });
+        console.log(`[Typhoon Demo] ${k} 테스트 발송: ${title}`);
+        res.json({ success: true, kind: k, title, body, pushResult });
+    } catch (e) {
+        console.error('[Typhoon Demo] 테스트 발송 오류:', e && e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // 데모 특보 "내리기" — 특정 slotId 1건만 표출 해제
 router.post('/api/admin/demo/retract', (req, res) => {
     try {
