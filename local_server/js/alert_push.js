@@ -596,7 +596,8 @@ window.renderHistoryTab = async function (container) {
             { id: 'all', name: '전체' }, { id: 'publish', name: '발표' },
             { id: 'active', name: '발효' }, { id: 'change-time', name: '시각변경' },
             { id: 'release', name: '해제' },
-            { id: 'level', name: '격상/격하' }, { id: 'custom', name: '직접 발송' }
+            { id: 'level', name: '격상/격하' }, { id: 'custom', name: '직접 발송' },
+            { id: 'typhoon', name: '태풍 발생/소멸' }  // 태풍 알림(tab:'typhoon')만 필터링
         ];
 
         var catHtml = categories.map(function(c) {
