@@ -62,5 +62,12 @@ const m4 = RT.decideAlert({ lat: upt[1], lng: upt[0], accuracyM: 30 }, features,
 check('주의보 제목 안전정보', m4 && /안전정보/.test(m4.title), m4 && m4.title);
 check('주의보 제목 긴급경보 아님', m4 && !/긴급경보/.test(m4.title));
 
+console.log('\n[5] 회색지대(GPS 오차 큼): severe 보류, advisory 표출');
+const huge = { lat: upt[1], lng: upt[0], accuracyM: 999999 };
+const g1 = RT.decideAlert(huge, features, snapSevere);
+check('회색지대 + 경보 → 보류(null)', g1 === null);
+const g2 = RT.decideAlert(huge, features, snapAdv);
+check('회색지대 + 주의보 → 표출(안전정보)', g2 && /안전정보/.test(g2.title), g2 && g2.title);
+
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`);
 process.exit(fail ? 1 : 0);

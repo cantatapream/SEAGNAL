@@ -106,12 +106,18 @@
         }
     }
 
+    /** 푸시 토큰(앱 표준 키 'push_token'). capacitor-plugins.js subscribeUser가 저장. */
+    function getPushToken() {
+        try { return (ls() && ls().getItem('push_token')) || null; } catch (_) { return null; }
+    }
+
     /** 동의 사실만 서버에 최소 기록(위치 좌표 전송 안 함). 엔드포인트는 ④에서 구현 — 실패는 무시. */
     function syncConsentToServer(agreed) {
         try {
             if (!(root.Capacitor && root.Capacitor.isNativePlatform && root.Capacitor.isNativePlatform())) return;
-            const token = (ls() && ls().getItem('fcm_token')) || (root.fcmToken || null);
-            const fetchFn = (root._origFetch || root.fetch);
+            const token = getPushToken();
+            if (!token) return; // 토큰 없으면 기록 불가(조용히 무시)
+            const fetchFn = root.fetch;
             if (!fetchFn) return;
             fetchFn('/api/location-alert/consent', {
                 method: 'POST',
@@ -207,7 +213,7 @@
     }
 
     const api = {
-        CONSENT_VERSION, LocationAlertSettings, isAdminDevice,
+        CONSENT_VERSION, LocationAlertSettings, isAdminDevice, getPushToken,
         consentMessageHtml, initLocationAlertUI, onToggle,
     };
     if (root) { root.LocationAlertSettings = LocationAlertSettings; root.initLocationAlertUI = initLocationAlertUI; root.LocationAlertUI = api; }

@@ -62,5 +62,11 @@ check('문안에 "백그라운드" 포함', /백그라운드/.test(html));
 check('문안에 "약 15분" 포함', /약 15분/.test(html));
 check('문안에 "서버 등 외부로 전송" 포함', /서버 등 외부로 전송/.test(html));
 
+console.log('\n[4] 푸시 토큰 키 (push_token — 앱 표준)');
+global.localStorage.setItem('push_token', 'PT123');
+check('getPushToken은 push_token 키를 읽음', UI.getPushToken() === 'PT123', UI.getPushToken());
+global.localStorage.removeItem('push_token');
+check('토큰 없으면 null', UI.getPushToken() === null);
+
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`);
 process.exit(fail ? 1 : 0);

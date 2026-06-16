@@ -37,12 +37,15 @@
 
         const located = core.locateZone({ lat: pos.lat, lng: pos.lng }, features, pos.accuracyM || 0);
         if (!located) return null;                 // 바다 구역 밖(육지/외해)
-        if (located.grayZone) return null;          // 경계 회색지대(오차 반경 내) → 강경보 보류
 
         const zoneName = located.feature.properties.name;
         const z = snapshot.zones && snapshot.zones[zoneName];
         if (!z || z.tier === 'none' || z.tier === 'prelim_none') return null; // 내 구역에 유효 특보 없음
         const tier = z.tier;
+
+        // 경계 회색지대(GPS 오차 반경 내): 설계 §6/§8 — 강한 경보(severe)만 보류.
+        //   예비·주의보(안전정보)는 약한 안내라 그대로 표출(과소 알림 방지).
+        if (located.grayZone && tier === 'severe') return null;
 
         // 최근접 무특보 구역
         const nearestClear = core.nearestZoneBy({ lat: pos.lat, lng: pos.lng }, features,

@@ -273,8 +273,8 @@
             lines.push('해당 해역에서 조업 및 해상활동이 전면 제한되므로 즉시 안전한 해역·항포구로 이동하세요.');
         }
         if (ctx.nearestClear) lines.push(targetLine('최근접 특보 미발표 해역', ctx.nearestClear));
-        // 두 목표가 다른 구역일 때만 '주의보·예비특보 해역' 줄 추가
-        if (ctx.nearestLower && (!ctx.nearestClear || ctx.nearestLower.warnCode !== ctx.nearestClear.warnCode)) {
+        // 두 목표가 다른 구역일 때만 '주의보·예비특보 해역' 줄 추가 (구역명 기준 — runtime 예측자와 일관)
+        if (ctx.nearestLower && (!ctx.nearestClear || ctx.nearestLower.name !== ctx.nearestClear.name)) {
             lines.push(targetLine('최근접 주의보·예비특보 해역', ctx.nearestLower));
         }
         lines.push(footer([ctx.nearestClear, ctx.nearestLower]));
