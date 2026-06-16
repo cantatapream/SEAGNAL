@@ -211,6 +211,13 @@ SEAGNAL은 이용자가 현재 위치한 해역의 해상특보를 신속히 안
 - 테스트 총 63 통과(core 15 / ui 18 / server 21 / runtime 9).
 - 실기기: 앱 켜진 상태에서 가장 확실히 수신. `push_token` 없으면 미리보기만 동작.
 
+## 12.7 보강 (2026-06-16) — extract 정합화 / 종료상태 테스트 / 위치·토큰 표시
+- **Q1 해결**: `extractActiveWarnings` 를 **실제 weather_alerts.json 구조**(루트 `empty_tree.json` + `report_alert_processor.js` 확인)에 맞춰 재작성. 지역 중첩 트리를 재귀 순회, 말단 구역 노드의 `current`/`upcoming`(**객체|null**, 필드 `wrnTp/wrnLvl/tmEf/tmFc/tmCc`)에서 추출. children(자식 구역)도 순회. 서버 테스트를 실제 구조로 교체·검증(현 23항목).
+- **종료상태 수신 테스트 수단**: 시연 버튼을 **즉시 / 5분 후** 2종으로. `POST /api/location-alert/demo`에 `delayMs`(0~10분) 추가 — >0이면 서버가 setTimeout 예약 후 즉시 응답. "5분 후" 누르고 앱을 완전 종료해 두면 종료상태 수신을 검증할 수 있음.
+- **Q2(a)**: 시연 탭에 "마지막 저장 위치(위경도·오차·N분 전)" 표시 + 새로고침. 백그라운드 수집 동작 확인용.
+- **Q2(b)**: 시연 탭에 "이 기기 push_token" 표시(외부/교차 발송 테스트 참고용).
+- **Q3**: 매니페스트에 전경 서비스(location) 선언은 플러그인 머지 의존 — **빌드 후 merged AndroidManifest 확인** 주석 추가(블라인드 직접 선언은 머지 충돌 위험이라 지양).
+
 ## 13. 구현 메모 / 진행 상황
 - 구현 순서(합의): ① 폴리곤 판정·거리·방위·문구 순수 로직 → ② 백그라운드 위치 → ③ 동의/활성 UI → ④ 서버 신호 연동.
 - **① 완료**: `js/location_alert_core.js` (순수 로직: 구역 판정·최근접 구역 방위/거리·경로 육지 판정·상황별 문구). 테스트 `scripts/test_location_alert_core.js` 실제 `warn_zones.geojson`로 13항목 통과.

@@ -75,22 +75,40 @@ const mockSend = async (tk, m) => { sentTo = tk; sentMsg = m; return { ok: true,
     const r3 = await dispatch.dispatchWake(active, { sendFn: mockSend, getConsents: () => [] });
     check('동의자 없으면 미전송', r3.sent === 0 && r3.reason === 'no_targets', JSON.stringify(r3));
 
-    console.log('\n[5] weather_alerts 트리 추출(어댑터, 방어적)');
+    console.log('\n[5] weather_alerts 실제 트리 구조 추출');
+    // 실제 구조: 지역 중첩 트리 + 말단 구역 노드(current/upcoming = 객체|null), 필드 wrnTp/wrnLvl/tmEf/tmCc
     const tree = {
-        regions: {
-            동해: {
-                children: [
-                    { current: [{ zones: ['울산앞바다'], type: '풍랑경보', tmEf: '20260617T2100', tmCc: '20260618T0600' }] },
-                    { upcoming: [{ zones: ['경북남부앞바다'], type: '풍랑예비특보' }] },
-                ],
+        '동해': {
+            '동해남부해상': {
+                '동해남부앞바다': {
+                    '울산앞바다': {
+                        current: { wrnTp: '풍랑', wrnLvl: '경보', tmFc: 'F', tmEf: '20260617T2100', tmCc: '20260618T0600' },
+                        upcoming: null, history: [], missingCount: 0,
+                        children: { '울산앞바다중연안바다': null },
+                    },
+                    '경북남부앞바다': {
+                        current: null,
+                        upcoming: { wrnTp: '풍랑', wrnLvl: '예비', tmFc: 'F', tmEf: '오늘 밤(21~24시)', tmCc: '' },
+                        history: [], missingCount: 0, children: {},
+                    },
+                    '제주도북부앞바다': { // current(주의보)+upcoming(태풍경보 발표예정) 동시
+                        current: { wrnTp: '풍랑', wrnLvl: '주의보', tmEf: 'A', tmCc: 'B' },
+                        upcoming: { wrnTp: '태풍', wrnLvl: '경보', tmEf: 'C', tmCc: '' },
+                        history: [], missingCount: 0, children: {},
+                    },
+                },
             },
         },
     };
     const ext = dispatch.extractActiveWarnings(tree);
-    const ulsan = ext.find(w => w.zone === '울산앞바다');
+    const ulsan = ext.find(w => w.zone === '울산앞바다' && w.event === 'active');
     const gb = ext.find(w => w.zone === '경북남부앞바다');
-    check('current → 울산 풍랑 경보 active', ulsan && ulsan.level === '경보' && ulsan.event === 'active' && ulsan.warnType === '풍랑', JSON.stringify(ulsan));
-    check('upcoming → 경북 예비 publish', gb && gb.level === '예비' && gb.event === 'publish', JSON.stringify(gb));
+    check('current 객체 → 울산 풍랑 경보 active', ulsan && ulsan.level === '경보' && ulsan.event === 'active' && ulsan.warnType === '풍랑', JSON.stringify(ulsan));
+    check('upcoming 객체 → 경북 예비 publish', gb && gb.level === '예비' && gb.event === 'publish', JSON.stringify(gb));
+    const jeju = ext.filter(w => w.zone === '제주도북부앞바다');
+    check('current+upcoming 동시 → 2건', jeju.length === 2, JSON.stringify(jeju));
+    const snap2 = dispatch.buildSnapshot(ext);
+    check('제주 대표 tier=severe(태풍경보 우선)', snap2.zones['제주도북부앞바다'] && snap2.zones['제주도북부앞바다'].tier === 'severe', snap2.zones['제주도북부앞바다'] && snap2.zones['제주도북부앞바다'].tier);
 
     try { fs.unlinkSync(TMP); } catch (_) { }
     console.log(`\n결과: ${pass} 통과 / ${fail} 실패`);

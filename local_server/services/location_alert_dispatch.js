@@ -118,38 +118,47 @@ async function dispatchWake(activeWarnings, opts = {}) {
 }
 
 /**
- * weather_alerts 트리 → 활성 특보 레코드 추출(방어적).
- * ⚠️ 실제 weather_alerts.json 구조에 대한 최종 검증 필요(개발환경에 파일 없음).
- *    노드를 재귀 순회하며 current(발효)/upcoming(예비) 배열 항목을 수집.
- *    항목 형식 가정: { zones:[구역명], type, level, tmEf, tmCc }
+ * weather_alerts 트리 → 활성 특보 레코드 추출.
+ * 실제 구조(empty_tree.json/report_alert_processor 확인): 지역별 중첩 트리.
+ *   말단 구역 노드(키=구역명)에 current(발효중)·upcoming(예비/발표예정)이 **객체 또는 null**.
+ *   필드: wrnTp(종류 예:'풍랑'), wrnLvl(등급 '주의보'|'경보'|'예비'), tmEf(발효시각·범위형 포함), tmCc(해제예정).
+ *   children(연안/평수 자식)도 동일 형태 — 함께 순회하되 device는 메인 구역명만 매칭.
  */
 function extractActiveWarnings(tree) {
     const out = [];
-    const strip = (t) => String(t || '').replace('주의보', '').replace('경보', '').replace('예비특보', '').replace('특보', '').trim() || '풍랑';
-    function pushItems(items, event) {
-        for (const it of (Array.isArray(items) ? items : [])) {
-            if (!it) continue;
-            const level = event === 'publish' ? '예비'
-                : (/경보/.test(it.type || '') ? '경보' : (/주의보/.test(it.type || '') ? '주의보' : (it.level || '주의보')));
-            const warnType = strip(it.type);
-            for (const z of (Array.isArray(it.zones) ? it.zones : (it.zone ? [it.zone] : []))) {
-                if (z) out.push({ zone: z, warnType, level, event, efTime: it.tmEf || null, ynTime: it.tmCc || null });
-            }
+    const LEAF_KEYS = ['current', 'upcoming', 'history', 'children', 'missingCount'];
+    function emit(zoneName, node) {
+        const cur = node.current;
+        if (cur && typeof cur === 'object') {
+            out.push({
+                zone: zoneName, warnType: cur.wrnTp || '풍랑', level: cur.wrnLvl || '주의보',
+                event: 'active', efTime: cur.tmEf || null, ynTime: cur.tmCc || null,
+            });
+        }
+        const up = node.upcoming;
+        if (up && typeof up === 'object') {
+            out.push({
+                zone: zoneName, warnType: up.wrnTp || '풍랑', level: up.wrnLvl || '예비',
+                event: 'publish', efTime: up.tmEf || null, ynTime: up.tmCc || null,
+            });
         }
     }
-    function walk(node) {
+    function walk(node, keyName) {
         if (!node || typeof node !== 'object') return;
-        if (Array.isArray(node)) { node.forEach(walk); return; }
-        if (node.current) pushItems(node.current, 'active');
-        if (node.upcoming) pushItems(node.upcoming, 'publish');
-        if (node.children) walk(node.children);
-        // 일반 객체의 하위도 탐색(트리 형태 다양성 방어)
+        const isZoneNode = ('current' in node) || ('upcoming' in node) || ('history' in node);
+        if (isZoneNode && keyName) emit(keyName, node);
+        // children 맵(자식 구역)
+        if (node.children && typeof node.children === 'object') {
+            for (const k of Object.keys(node.children)) walk(node.children[k], k);
+        }
+        // 그 외 지역 하위 키 재귀(말단 필드 제외)
         for (const k of Object.keys(node)) {
+            if (LEAF_KEYS.includes(k)) continue;
             const v = node[k];
-            if (v && typeof v === 'object' && k !== 'current' && k !== 'upcoming' && k !== 'children') walk(v);
+            if (v && typeof v === 'object') walk(v, k);
         }
     }
-    walk(tree);
+    walk(tree, null);
     return out;
 }
 

@@ -45,6 +45,11 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <!-- 위치기반 특보 경보(②): 앱 종료 상태에서도 위치 확인 — 백그라운드 위치 + 전경 서비스(위치) -->
+    <!-- [확인필요-빌드후] 전경 서비스 <service android:foregroundServiceType="location"> 선언은
+         @capacitor-community/background-geolocation 플러그인 매니페스트가 머지하여 제공한다.
+         npx cap sync 후 app/build/intermediates/.../AndroidManifest.xml(merged)에서
+         BackgroundGeolocationService + foregroundServiceType="location" 존재를 확인할 것.
+         (여기서 동일 service명을 직접 선언하면 머지 충돌로 빌드 실패 위험 → 머지 결과 부재 시에만 수동 추가) -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />

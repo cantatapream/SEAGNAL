@@ -43,8 +43,14 @@ router.post('/api/location-alert/demo', requireAdminToken, async (req, res) => {
         if (!Array.isArray(activeWarnings) || activeWarnings.length === 0) {
             return res.status(400).json({ success: false, error: 'activeWarnings array required' });
         }
-        // 동의 저장소를 거치지 않고 이 기기 토큰 하나로만 발송(시연).
-        const result = await dispatch.dispatchWake(activeWarnings, { getConsents: () => [{ token, agreed: true }] });
+        const send = () => dispatch.dispatchWake(activeWarnings, { getConsents: () => [{ token, agreed: true }] });
+        // 지연 발송(앱 종료 상태 수신 테스트용): 0~10분 범위. >0 이면 서버가 예약 후 즉시 응답.
+        const delay = Math.max(0, Math.min(600000, Number(req.body.delayMs) || 0));
+        if (delay > 0) {
+            setTimeout(() => { send().catch(() => { }); }, delay);
+            return res.json({ success: true, scheduled: true, delayMs: delay });
+        }
+        const result = await send();
         return res.json({ success: true, result });
     } catch (e) {
         return res.status(500).json({ success: false, error: e.message });

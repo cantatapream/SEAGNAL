@@ -87,8 +87,8 @@
         } catch (e) { setStatus('<span style="color:#fca5a5;">위치 설정 실패: ' + (e && e.message) + '</span>'); return null; }
     };
 
-    // 시나리오 실행: (1) 단말 미리보기 (2) 서버가 이 기기로 실제 데이터 메시지 발송
-    window.laDemoRun = async function (scenarioId) {
+    // 시나리오 실행: (1) 단말 미리보기 (2) 서버가 이 기기로 실제 데이터 메시지 발송(즉시 또는 N분 지연)
+    window.laDemoRun = async function (scenarioId, delayMs) {
         const sc = SCENARIOS.find(s => s.id === scenarioId);
         if (!sc) return;
         try {
@@ -120,16 +120,21 @@
             const sendEl = document.getElementById('la-demo-send');
             if (!token) { if (sendEl) sendEl.innerHTML = '<span style="color:#fbbf24;">⚠ push_token 없음 — 실기기(앱)에서 푸시 등록 후 발송 가능. 미리보기만 동작.</span>'; return; }
 
+            if (sendEl && delayMs) sendEl.innerHTML = '발송 예약 요청 중…';
             const resp = await fetch('/api/location-alert/demo', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken || '' },
-                body: JSON.stringify({ token, activeWarnings: sc.warnings }),
+                body: JSON.stringify({ token, activeWarnings: sc.warnings, delayMs: delayMs || 0 }),
             });
             const data = await resp.json().catch(() => ({}));
             if (sendEl) {
                 if (resp.ok && data.success) {
-                    const r = data.result || {};
-                    sendEl.innerHTML = '✅ 발송 요청 완료 (대상 ' + (r.targets || 0) + '명) — 잠시 후 이 기기에 알림 도착';
+                    if (data.scheduled) {
+                        sendEl.innerHTML = '⏱ ' + Math.round((data.delayMs || 0) / 60000) + '분 후 발송 예약됨 — 지금 <b>앱을 완전히 종료</b>하고 알림이 오는지 확인하세요.';
+                    } else {
+                        const r = data.result || {};
+                        sendEl.innerHTML = '✅ 발송 요청 완료 (대상 ' + (r.targets || 0) + '명) — 잠시 후 이 기기에 알림 도착';
+                    }
                     sendEl.style.color = '#86efac';
                 } else {
                     sendEl.innerHTML = '❌ 발송 실패: ' + (data.error || resp.status);
@@ -139,24 +144,49 @@
         } catch (e) { setResult('<span style="color:#fca5a5;">실행 실패: ' + (e && e.message) + '</span>'); }
     };
 
+    // 마지막 저장 위치 + 이 기기 토큰 표시 갱신
+    window.laDemoRefreshInfo = function () {
+        try {
+            const pos = (window.LocationAlertBackground && window.LocationAlertBackground.getPosition)
+                ? window.LocationAlertBackground.getPosition() : null;
+            const posEl = document.getElementById('la-demo-pos');
+            if (posEl) {
+                if (pos) {
+                    const mins = pos.at ? Math.round((Date.now() - Date.parse(pos.at)) / 60000) : '?';
+                    posEl.innerHTML = '마지막 저장 위치: <b>' + Number(pos.lat).toFixed(4) + ', ' + Number(pos.lng).toFixed(4)
+                        + '</b> (±' + (pos.acc != null ? pos.acc : '?') + 'm, ' + mins + '분 전)';
+                } else posEl.innerHTML = '마지막 저장 위치: <span style="color:#fbbf24;">없음</span>';
+            }
+            const tk = localStorage.getItem('push_token') || '';
+            const tkEl = document.getElementById('la-demo-token');
+            if (tkEl) tkEl.textContent = tk ? (tk.slice(0, 18) + '…' + tk.slice(-6)) : '(없음 — 앱에서 푸시 등록 필요)';
+        } catch (_) { }
+    };
+
     // 하위탭 렌더
     window.renderLocationAlertDemoTab = function (container) {
         if (!container) return;
-        const btns = SCENARIOS.map(s =>
-            '<button onclick="laDemoRun(\'' + s.id + '\')" style="padding:9px 12px;border:none;border-radius:8px;'
-            + 'background:linear-gradient(135deg,#0ea5e9,#0369a1);color:#fff;font-weight:700;font-size:0.82rem;cursor:pointer;">'
-            + s.label + '</button>').join('');
+        const rows = SCENARIOS.map(s =>
+            '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05);">'
+            + '<div style="flex:1;color:#cbd5e1;font-size:0.88rem;">' + s.label + '</div>'
+            + '<button onclick="laDemoRun(\'' + s.id + '\',0)" style="padding:6px 12px;border:none;border-radius:7px;background:linear-gradient(135deg,#0ea5e9,#0369a1);color:#fff;font-weight:700;font-size:0.8rem;cursor:pointer;">즉시</button>'
+            + '<button onclick="laDemoRun(\'' + s.id + '\',300000)" style="padding:6px 12px;border:none;border-radius:7px;background:#475569;color:#e2e8f0;font-weight:700;font-size:0.8rem;cursor:pointer;">5분 후</button>'
+            + '</div>').join('');
+        const btnStyle = 'padding:8px 14px;border:none;border-radius:8px;background:#334155;color:#e2e8f0;font-weight:700;cursor:pointer;font-size:0.82rem;';
         container.innerHTML =
             '<div class="admin-section-title"><i class="fa-solid fa-location-crosshairs" style="color:#0ea5e9;"></i> 위치 기반 특보 시연 (실제 푸시)</div>'
             + '<div style="font-size:0.82rem;color:#94a3b8;line-height:1.6;margin:6px 0 12px;">'
-            + '내 위치를 <b>' + ZONE_NAME + '</b>로 임의 고정하고, 시나리오를 누르면 서버가 <b>이 관리자 기기에만</b> 실제 데이터 메시지를 보냅니다. '
-            + '단말이 판정해 로컬 알림을 띄웁니다. (아래 미리보기로 발송 전 문구도 확인)</div>'
-            + '<div style="margin-bottom:10px;"><button onclick="laDemoSetPosition()" style="padding:8px 14px;border:none;border-radius:8px;background:#334155;color:#e2e8f0;font-weight:700;cursor:pointer;font-size:0.82rem;"><i class="fa-solid fa-map-pin"></i> 시연 위치 설정(' + ZONE_NAME + ')</button>'
-            + ' <span id="la-demo-status" style="font-size:0.8rem;color:#94a3b8;margin-left:8px;">위치 미설정</span></div>'
-            + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px;">' + btns + '</div>'
+            + '내 위치를 <b>' + ZONE_NAME + '</b>로 임의 고정하고, 시나리오의 <b>즉시</b>/<b>5분 후</b> 버튼을 누르면 서버가 <b>이 관리자 기기에만</b> 데이터 메시지를 보냅니다. '
+            + '<b>5분 후</b>는 누른 뒤 앱을 <b>완전히 종료</b>해 두고 알림이 오는지(종료 상태 수신)를 확인하는 용도입니다.</div>'
+            + '<div style="margin-bottom:8px;"><button onclick="laDemoSetPosition()" style="' + btnStyle + '"><i class="fa-solid fa-map-pin"></i> 시연 위치 설정</button>'
+            + ' <button onclick="laDemoRefreshInfo()" style="' + btnStyle + '"><i class="fa-solid fa-rotate"></i> 정보 새로고침</button></div>'
+            + '<div id="la-demo-status" style="font-size:0.8rem;color:#94a3b8;margin-bottom:4px;">위치 미설정</div>'
+            + '<div id="la-demo-pos" style="font-size:0.8rem;color:#94a3b8;margin-bottom:4px;">마지막 저장 위치: -</div>'
+            + '<div style="font-size:0.78rem;color:#64748b;margin-bottom:10px;">이 기기 토큰: <code id="la-demo-token" style="color:#94a3b8;">-</code></div>'
+            + '<div style="margin:6px 0;">' + rows + '</div>'
             + '<div id="la-demo-result"></div>'
-            + '<div style="margin-top:12px;font-size:0.74rem;color:#64748b;line-height:1.5;">※ 실기기(앱)에서 동작. 앱이 <b>켜져 있을 때</b> 가장 확실히 수신됩니다. push_token이 없으면 미리보기만 동작합니다.</div>';
-        // 진입 시 위치 자동 설정 시도
+            + '<div style="margin-top:12px;font-size:0.74rem;color:#64748b;line-height:1.5;">※ 실기기(앱)에서 동작. push_token이 없으면 미리보기만 동작합니다. 종료 상태 수신 여부는 기기·안드로이드 버전에 따라 다를 수 있습니다.</div>';
         window.laDemoSetPosition();
+        window.laDemoRefreshInfo();
     };
 })();
