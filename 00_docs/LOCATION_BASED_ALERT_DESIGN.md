@@ -201,5 +201,14 @@ SEAGNAL은 이용자가 현재 위치한 해역의 해상특보를 신속히 안
 - **③ (UI/동의 흐름) 완료**: `js/location_alert_ui.js` + 푸시 설정 탭 카드(`index2.html` #location-alert-card) + `settings.js`(openSettingsModal에서 `initLocationAlertUI()` 호출).
   - 관리자 게이트(`seagnal_admin_token` 보유 단말만 활성, 비관리자 잠금+배지), 동의 팝업(앱 내부 저장 명시), 전경 위치 권한, "항상 허용" 안내, 동의 기록(단말 저장 + 서버 최소기록 hook `/api/location-alert/consent`).
   - 테스트 `scripts/test_location_alert_ui.js` 16항목 통과(게이트/저장/문안).
-  - **남은 연결점(②)**: 실제 백그라운드 추적 시작/중지 hook(`window.LocationAlertBackground.start/stop`) 미구현. 서버 동의기록 라우트(④)·깨우는 신호(④) 미구현.
+  - **남은 연결점(②)**: 실제 백그라운드 추적 시작/중지 hook(`window.LocationAlertBackground.start/stop`) 미구현.
+- **④ (서버 신호 + 동의기록) 완료**:
+  - `services/location_alert_store.js` — 동의 사실 최소 기록(`data/location_alert_consents.json`, 위치 좌표 미저장). upsert/철회/활성조회.
+  - `routes/location_alert.js` — `POST /api/location-alert/consent`(클라이언트 토글이 호출), `GET /api/location-alert/stats`. `server.js`에 등록.
+  - `services/location_alert_dispatch.js` — 활성 특보→스냅샷(`{zones:{구역명:{...,tier}}}`), 동의 단말 타깃 선택, **데이터 전용(조용한) FCM** 메시지, `dispatchOnLatest()`(weather_alerts.json 읽어 전송). tier는 `location_alert_core.classifyTier` 재사용.
+  - 크롤러 hook: `marine_warning_crawler.js` 사용자 푸시 직후 `dispatchOnLatest()` 호출(try/catch로 기존 푸시와 완전 격리).
+  - 테스트 `scripts/test_location_alert_server.js` 21항목 통과(저장소/스냅샷/타깃/페이로드/추출).
+  - **남은 검증/연결점**:
+    - `extractActiveWarnings(weatherTree)` 는 실제 `weather_alerts.json` 구조로 **최종 검증 필요**(개발환경에 파일 없음, 방어적 작성 + hook은 가드됨).
+    - **단말 수신 핸들러 미구현**: 데이터 메시지(`type:'location_alert_wake'`) 수신 시 단말이 `location_alert_core`로 판정→로컬 알림 표출하는 클라이언트 핸들러(②/푸시 핸들러에서 연결).
 - 신규/확장 지점(참고): 푸시 설정 UI(`js/settings.js` 등) + **관리자 게이트(`js/admin.js`의 `adminAuthenticated`/`seagnal_admin_token`)**, 권한 처리(`capacitor-plugins.js`), 특보 수집·푸시(`report_alert_processor.js`, `services/push_helpers.js`, `push_sender.js`, `scheduler.js`), 폴리곤 자산(`assets/warn_zones.geojson`).
