@@ -344,7 +344,7 @@ const NotificationSettings = {
         release: true,
         night: true,
         childZones: true,  // [작업2a] 특정관리해역(연안바다/평수구역) 자식 정보 푸시 표시 (기본 ON)
-        typhoon: true      // 태풍 발생/소멸 알림 수신 (기본 ON — 켠 사람에게만 전국 단위 발송)
+        typhoon: false     // 태풍 발생/소멸 알림 수신 (기본 OFF — 옵트인: 켠 사람에게만 전국 단위 발송)
     },
     init() {
         try {

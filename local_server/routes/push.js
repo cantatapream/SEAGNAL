@@ -529,7 +529,7 @@ router.post('/api/push-custom', async (req, res) => {
 // ============================================================================
 //   - services/typhoon_notifier.js 가 호출. 특보(zone 기반 개인화)와 달리
 //     구역 매칭 없이 "옵트인 전원"에게 보낸다.
-//   - 수신 대상: master ON + options.typhoon !== false (키 없으면 ON = 마이그레이션)
+//   - 수신 대상: master ON + options.typhoon === true (기본 OFF — 옵트인: 켠 사람만 수신)
 //   - 야간 차단은 호출부(notifier)가 코호트로 결정하므로 여기서 시간대 판정은 하지 않는다.
 //       nightCohort 'on'  → 야간수신 ON 사용자만 (야간 즉시 발송)
 //       nightCohort 'off' → 야간수신 OFF 사용자만 (아침 보류분 발송)
@@ -550,7 +550,7 @@ router.post('/api/push-typhoon', async (req, res) => {
             await Promise.all(batch.map(async (user) => {
                 const o = user.options || {};
                 if (o.master === false) return;          // 전체 알림 OFF
-                if (o.typhoon === false) return;          // 태풍 알림 OFF (키 없으면 ON)
+                if (o.typhoon !== true) return;           // 태풍 알림 OFF (기본 OFF — 옵트인: 켠 사람만)
                 if (nightCohort === 'on' && o.night === false) return;   // 야간 OFF 제외
                 if (nightCohort === 'off' && o.night !== false) return;  // 야간 ON 제외
                 try {
@@ -607,8 +607,9 @@ router.post('/api/push-typhoon', async (req, res) => {
             const timeStr = kstDate.toISOString().replace('T', ' ').substring(2, 16).replace(/-/g, '.');
             history.unshift({
                 id: Date.now() + Math.floor(Math.random() * 1000), time: timeStr,
-                title, content: body, target: '태풍 알림 구독자', count: successCount,
-                status: 'sent', type: 'typhoon', tab: 'typhoon', tmRef: ''
+                // target 은 비움 — 태풍은 해역 단위가 아니므로 이력의 "해역별 구독자 수" 패널 미표시.
+                title, content: body, target: '', count: successCount,
+                status: 'sent', type: 'auto', tab: 'typhoon', tmRef: ''
             });
             if (history.length > 500) history = history.slice(0, 500);
             fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
