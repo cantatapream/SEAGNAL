@@ -1337,37 +1337,24 @@
         installWhenReady();
     }
 
-    // [관리자 시연 전용] 지정한 통보문 위치(실데이터)를 단일 포인트로 즉시 표출 + 지도 이동.
-    //   - 위치 좌표는 테스트 푸시 딥링크(demoTphn/dtLat/dtLon...)로 전달된 실제 통보문 위치다.
+    // [관리자 시연 전용] 지정한 "실제 통보문"(연도+호수+코드)을 그대로 불러와 표출 + 지도 이동.
+    //   - 가짜 데이터를 주입하지 않는다. 사용자가 드롭다운으로 과거 통보문을 고르는 것과 동일한
+    //     실데이터 경로(loadYear→loadTyphoon→selectBulletin→renderBulletin)를 그대로 태운다.
+    //     → 실제 태풍명/통보문 라벨·정보(ⓘ)·통보문 이미지·예상 진로·지도 포커스가 모두 정상 표출.
     //   - 현재 활성 태풍이 없어 버튼이 비활성이어도 강제로 잠금해제·활성화한다.
-    //   - 단일 통보문(current=전달 위치)을 _activeData/_tableCache 에 주입한 뒤
-    //     기존 표출 경로(setVisible→primeDefaultFromActive→renderBulletin→focusOnTyphoon)
-    //     를 그대로 태워, 포인트 렌더와 지도 포커스를 동일하게 재사용한다.
-    //   - 호출: js/assistant_deeplink.js (테스트 푸시 딥링크의 demoTphn 파라미터).
+    //   - 호출: js/assistant_deeplink.js (테스트 푸시 딥링크의 demoTphn/dtYear/dtSeq/dtCode).
     function demoFocus(demo) {
         try {
-            if (!demo || demo.lat == null || demo.lon == null) return;
-            _unlocked = true;       // 세션 한정 잠금해제 → 버튼 활성화 허용
-            _yearLoaded = true;     // 시연이므로 dmdw 온디맨드 목록 호출은 생략
-            _year = curYearKst();
-            var code = 'demo';
-            var bulletin = {
-                code: code, label: '시연', isLatest: true,
-                current: {
-                    lat: demo.lat, lon: demo.lon, time: demo.time || '',
-                    grade: (demo.grade != null && !isNaN(demo.grade)) ? demo.grade : 3,
-                    windMs: null, windKmh: null, pressure: null, dir: '', speedKmh: null,
-                    radStrong: null, radStorm: null, radProb: null, size: ''
-                },
-                forecast: [], rem: '', other: ''
-            };
-            _activeData = {
-                year: _year, hasActive: true,
-                typhoons: [{ seq: String(demo.seq || '0'), name: demo.name || '태풍', bulletins: [bulletin] }]
-            };
-            _tableCache[_year + '_' + code] = bulletin;
-            applyAvailability();    // 버튼에서 'tphn-disabled' 제거(활성화)
-            setVisible(true);       // 레이어 ON + 가짜 통보문 렌더 + focusOnTyphoon(지도 이동)
+            if (!demo) return;
+            _unlocked = true;        // 세션 한정 잠금해제 → 버튼 활성화 허용
+            _yearLoaded = true;      // setVisible 의 자동 loadYear 중복 호출 방지(아래에서 직접 로드)
+            applyAvailability();     // 버튼에서 'tphn-disabled' 제거(활성화)
+            setVisible(true);        // 레이어 ON (활성 태풍이 없어도 패널/버튼 표시)
+            var year = parseInt(demo.year, 10) || curYearKst();
+            _year = year;
+            setSelValue('tphn-year', String(year));
+            // 실제 연도/호수/통보문코드로 dmdw 실데이터 로드 → 실제 라벨·정보·이미지 + 지도 포커스
+            loadYear(year, demo.seq != null ? String(demo.seq) : null, demo.code || null);
         } catch (e) { /* 시연 실패는 조용히 무시 */ }
     }
 
@@ -1376,7 +1363,7 @@
         show: function () { setVisible(true); },
         hide: function () { setVisible(false); },
         isVisible: function () { return _visible; },
-        demoFocus: demoFocus,   // 관리자 시연: 가짜 태풍 위치로 강제 활성화 + 지도 이동
+        demoFocus: demoFocus,   // 관리자 시연: 실제 통보문을 강제 활성화 표출 + 지도 이동
         // 육지 클릭 처리: 태풍 ON + 실제 육지일 때만 강풍반경 도달시간 팝업 표출. consumed 시 true.
         tryHandleLandClick: function (lon, lat) {
             if (!_visible || _frames.length === 0) return false;
