@@ -140,7 +140,13 @@
 
 ## 10. 동의 · 권한 UX 흐름 (확정)
 순서가 중요(사전 고지가 시스템 권한창보다 먼저, 동의도 동시 수령).
-1. **기본 OFF** — 푸시 설정(관심해역 옆)에 "위치 기반 특보 정보 제공" 토글 추가. opt-in.
+
+> **★ 활성 권한 게이트 (확정)**: 본 기능 토글은 **기본 비활성이며 일반 사용자는 활성할 수 없다.**
+> **관리자 권한으로 등록(로그인)된 휴대폰에서만** 활성 가능. (= `adminAuthenticated` 상태인 단말,
+> 관리자 토큰 `seagnal_admin_token` 보유 기기) 비관리자에게는 토글이 비활성/잠금으로 표시된다.
+> 서버 깨우는 신호(방식 A)도 활성한 관리자 단말의 구독만 대상이 된다. (통제된 단계적 도입 목적)
+
+1. **기본 OFF + 관리자 단말만 활성 가능** — 푸시 설정(관심해역 옆)에 "위치 기반 특보 정보 제공" 토글 추가. opt-in. **비관리자는 잠금(활성 불가).**
 2. **토글 ON → 우리 동의 팝업 먼저** (아래 문안). 위치정보법 동의 + 구글 사전 고지 동시 충족.
 3. **[동의함] → 전경 위치 권한("앱 사용 중 허용") 요청.**
 4. **백그라운드("항상 허용") 안내** — 안드로이드 11+는 권한창에서 바로 못 줌. 설정 화면으로 유도.
@@ -188,6 +194,50 @@ SEAGNAL은 이용자가 현재 위치한 해역의 해상특보를 신속히 안
 
 ---
 
-## 13. 구현 메모
-- 본 문서는 **설계 합의본**이며 코드 구현은 **미착수**. 별도 합의 후 착수.
-- 신규/확장 지점(참고): 푸시 설정 UI(`js/settings.js` 등), 권한 처리(`capacitor-plugins.js`), 특보 수집·푸시(`report_alert_processor.js`, `services/push_helpers.js`, `push_sender.js`, `scheduler.js`), 폴리곤 자산(`assets/warn_zones.geojson`).
+## 12.5 검토(에이전트) 발견 및 조치 (2026-06-16)
+별도 에이전트로 대화 결정사항 ↔ 코드 대조 검토. 14개 체크리스트 중 ✅11/⚠️3, 버그 4건 발견 → 조치:
+- **[수정] 위험1(치명)**: 동의 토큰 키가 `fcm_token`(미존재)이라 동의가 서버에 한 건도 기록되지 않아 신호 대상이 항상 비던 문제 → 앱 표준 키 **`push_token`**으로 교정(`location_alert_ui.js` `getPushToken()`). 테스트 추가.
+- **[수정] 위험3(설계 어긋남)**: 경계 회색지대에서 예비·주의보까지 전부 묵살되던 것 → **강경보(severe)만 보류**, 예비/주의보(안전정보)는 표출(`location_alert_runtime.js`). 테스트 추가.
+- **[수정] 위험4(일관성)**: 둘째줄 생략 dedup 키 warnCode↔name 혼용 → **name 기준 통일**(`location_alert_core.js`).
+- **[수정] 경미**: `_origFetch`(window 미존재) 폴백 제거, `root.fetch` 사용.
+- **[미해결] 위험2**: 앱 **완전 종료(killed) 상태**의 데이터 메시지 수신은 포그라운드 리스너만 있어 미처리. 네이티브 FCM 서비스 보강 또는 전경 서비스 상시 가동으로 완화 필요(실기기 검증 대상).
+
+## 12.6 시연(테스트) 기능 — 관리자 센터 하위탭 (2026-06-16)
+통합 관리자 센터 > 시연 > **"위치 기반 특보 시연"** 하위탭 추가. **실제 푸시 경로** 검증용.
+- `js/admin_location_demo.js` (`renderLocationAlertDemoTab`): 내 위치를 **제주도북부앞바다** 중심으로 임의 고정(단말 저장) → 시나리오(예비/주의보 발효예정·발효중/경보 발표·발효/태풍경보) 버튼 → ① 단말 미리보기(제목/본문) + ② 서버가 **이 관리자 기기에만** 실제 데이터 메시지 발송.
+- 라우트 `POST /api/location-alert/demo`(`requireAdminToken` 보호): body `{token(기기 push_token), activeWarnings}` → `dispatchWake`로 그 토큰 1개에만 발송.
+- 연결: `js/admin.js` 시연 하위탭 호스트에 'location' 추가, `index2.html` 스크립트 로딩.
+- 2차 검토(에이전트): 직전 버그수정 4건 정확·완전, 회귀 없음 확인. 둘째줄 dedup 전용 테스트 추가(core 15항목).
+- 테스트 총 63 통과(core 15 / ui 18 / server 21 / runtime 9).
+- 실기기: 앱 켜진 상태에서 가장 확실히 수신. `push_token` 없으면 미리보기만 동작.
+
+## 12.7 보강 (2026-06-16) — extract 정합화 / 종료상태 테스트 / 위치·토큰 표시
+- **Q1 해결**: `extractActiveWarnings` 를 **실제 weather_alerts.json 구조**(루트 `empty_tree.json` + `report_alert_processor.js` 확인)에 맞춰 재작성. 지역 중첩 트리를 재귀 순회, 말단 구역 노드의 `current`/`upcoming`(**객체|null**, 필드 `wrnTp/wrnLvl/tmEf/tmFc/tmCc`)에서 추출. children(자식 구역)도 순회. 서버 테스트를 실제 구조로 교체·검증(현 23항목).
+- **종료상태 수신 테스트 수단**: 시연 버튼을 **즉시 / 5분 후** 2종으로. `POST /api/location-alert/demo`에 `delayMs`(0~10분) 추가 — >0이면 서버가 setTimeout 예약 후 즉시 응답. "5분 후" 누르고 앱을 완전 종료해 두면 종료상태 수신을 검증할 수 있음.
+- **Q2(a)**: 시연 탭에 "마지막 저장 위치(위경도·오차·N분 전)" 표시 + 새로고침. 백그라운드 수집 동작 확인용.
+- **Q2(b)**: 시연 탭에 "이 기기 push_token" 표시(외부/교차 발송 테스트 참고용).
+- **Q3**: 매니페스트에 전경 서비스(location) 선언은 플러그인 머지 의존 — **빌드 후 merged AndroidManifest 확인** 주석 추가(블라인드 직접 선언은 머지 충돌 위험이라 지양).
+
+## 13. 구현 메모 / 진행 상황
+- 구현 순서(합의): ① 폴리곤 판정·거리·방위·문구 순수 로직 → ② 백그라운드 위치 → ③ 동의/활성 UI → ④ 서버 신호 연동.
+- **① 완료**: `js/location_alert_core.js` (순수 로직: 구역 판정·최근접 구역 방위/거리·경로 육지 판정·상황별 문구). 테스트 `scripts/test_location_alert_core.js` 실제 `warn_zones.geojson`로 13항목 통과.
+  - 섬 제외 판정은 `properties._holedGeometry`(구멍 포함) 사용. 최상위 `geometry`는 구멍 없는 솔리드(외곽 거리 계산용).
+- **③ (UI/동의 흐름) 완료**: `js/location_alert_ui.js` + 푸시 설정 탭 카드(`index2.html` #location-alert-card) + `settings.js`(openSettingsModal에서 `initLocationAlertUI()` 호출).
+  - 관리자 게이트(`seagnal_admin_token` 보유 단말만 활성, 비관리자 잠금+배지), 동의 팝업(앱 내부 저장 명시), 전경 위치 권한, "항상 허용" 안내, 동의 기록(단말 저장 + 서버 최소기록 hook `/api/location-alert/consent`).
+  - 테스트 `scripts/test_location_alert_ui.js` 16항목 통과(게이트/저장/문안).
+- **② (백그라운드 위치 + 단말 수신 핸들러) 코드 완료 / 실기기 검증 대기**:
+  - `js/location_alert_background.js` — `@capacitor-community/background-geolocation`로 전경 서비스(상시 알림 "해상안전을 위해 위치 확인 중") 기반 위치 수집. 최신 1건만 localStorage 저장(약 15분 throttle), 해제 시 즉시 삭제. `window.LocationAlertBackground.start/stop` (③ hook과 연결됨).
+  - `js/location_alert_runtime.js` — `decideAlert(pos, features, snapshot)` 순수 판정(구역·tier·최근접·문구) + `handleWake(snapshot)` 표시 셸(로컬 알림). `capacitor-plugins.js`의 `pushNotificationReceived`에서 `type:'location_alert_wake'` 시 호출.
+  - `@capacitor/local-notifications` 추가, `AndroidManifest.xml`에 `ACCESS_BACKGROUND_LOCATION`·`FOREGROUND_SERVICE_LOCATION` 추가, `package.json` 의존성 추가, `index2.html` 스크립트 로딩.
+  - 테스트 `scripts/test_location_alert_runtime.js` 7항목 통과(decideAlert 순수 로직).
+  - **실기기 필요(이 환경 검증 불가)**: `npm install && npx cap sync`, 백그라운드 위치 권한 흐름, 전경 서비스, Play 백그라운드 위치 심사. **앱 완전 종료(killed) 상태에서 데이터 메시지 수신**은 플랫폼 제약이 있어 별도 검증 필요(전경 서비스 상시 가동으로 완화되나, 필요 시 네이티브 FCM 서비스 보강).
+- **④ (서버 신호 + 동의기록) 완료**:
+  - `services/location_alert_store.js` — 동의 사실 최소 기록(`data/location_alert_consents.json`, 위치 좌표 미저장). upsert/철회/활성조회.
+  - `routes/location_alert.js` — `POST /api/location-alert/consent`(클라이언트 토글이 호출), `GET /api/location-alert/stats`. `server.js`에 등록.
+  - `services/location_alert_dispatch.js` — 활성 특보→스냅샷(`{zones:{구역명:{...,tier}}}`), 동의 단말 타깃 선택, **데이터 전용(조용한) FCM** 메시지, `dispatchOnLatest()`(weather_alerts.json 읽어 전송). tier는 `location_alert_core.classifyTier` 재사용.
+  - 크롤러 hook: `marine_warning_crawler.js` 사용자 푸시 직후 `dispatchOnLatest()` 호출(try/catch로 기존 푸시와 완전 격리).
+  - 테스트 `scripts/test_location_alert_server.js` 21항목 통과(저장소/스냅샷/타깃/페이로드/추출).
+  - **남은 검증/연결점**:
+    - `extractActiveWarnings(weatherTree)` 는 실제 `weather_alerts.json` 구조로 **최종 검증 필요**(개발환경에 파일 없음, 방어적 작성 + hook은 가드됨).
+    - **단말 수신 핸들러 미구현**: 데이터 메시지(`type:'location_alert_wake'`) 수신 시 단말이 `location_alert_core`로 판정→로컬 알림 표출하는 클라이언트 핸들러(②/푸시 핸들러에서 연결).
+- 신규/확장 지점(참고): 푸시 설정 UI(`js/settings.js` 등) + **관리자 게이트(`js/admin.js`의 `adminAuthenticated`/`seagnal_admin_token`)**, 권한 처리(`capacitor-plugins.js`), 특보 수집·푸시(`report_alert_processor.js`, `services/push_helpers.js`, `push_sender.js`, `scheduler.js`), 폴리곤 자산(`assets/warn_zones.geojson`).

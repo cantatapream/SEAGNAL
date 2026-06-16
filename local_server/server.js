@@ -234,6 +234,7 @@ app.use(require('./routes/usage'));         // 사용량 통계(Usage Analytics)
 app.use(require('./routes/archive'));
 app.use(require('./routes/push'));
 app.use(require('./routes/push_test'));
+app.use(require('./routes/location_alert'));  // 위치기반 특보 경보 동의 기록 API (④)
 app.use(require('./routes/admin'));
 app.use(require('./routes/survey'));
 app.use(require('./routes/report'));
