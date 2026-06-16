@@ -16,7 +16,7 @@
  *
  * [누가 이 파일을 사용하나 — 연관 파일]
  *   - services/typhoon_notifier.js  → 실제 사용자에게 보낼 때 buildOnset/buildDissipation 호출
- *   - routes/admin.js               → 관리자 시연 테스트 발송 때 buildSample 호출
+ *   - routes/admin.js               → 관리자 시연: dmdw 실데이터(6호 장미)로 문구 + buildDemoUrl 호출
  *
  * [입력으로 받는 "스냅샷" 형태]  (typhoon.json 의 태풍/통보문에서 골라 정리한 값)
  *   {
@@ -163,14 +163,26 @@ function dissipationReason(rem) {
 }
 
 /**
+ * 태풍 이름에서 "제 N호" 접두를 떼어 순수 이름만 남긴다.
+ *   - 방재기상플랫폼의 태풍 목록 이름은 "제 6호 장미"처럼 호수를 포함한다.
+ *     호수는 formatTyphoonNumber(seq) 가 따로 붙이므로, 여기서 접두를 제거해 중복을 막는다.
+ *   - 통보문 typName("장미")처럼 이미 순수 이름이면 그대로 둔다.
+ * @param {string} name 예: "제 6호 장미" 또는 "장미"
+ * @returns {string} 예: "장미"
+ */
+function pureName(name) {
+    return String(name || '').replace(/^제\s*\d+\s*호\s*/, '').trim();
+}
+
+/**
  * "태풍 '이름'"에서 따옴표로 감싼 이름 조각을 만든다. 이름이 없으면 ""(따옴표 생략).
- *   - 한글 이름이 없으면 영문 이름이라도 사용.
+ *   - 한글 이름이 없으면 영문 이름이라도 사용. "제 N호" 접두는 제거(pureName).
  *   - 사용처: 제목·본문 공통.
  * @param {{name:string, nameEn:string}} snap
- * @returns {string} 예: " '개미'"
+ * @returns {string} 예: " '장미'"
  */
 function namePhrase(snap) {
-    const name = (snap.name || snap.nameEn || '').trim();
+    const name = pureName(snap.name) || (snap.nameEn || '').trim();
     return name ? ` '${name}'` : '';
 }
 
@@ -181,7 +193,7 @@ function namePhrase(snap) {
 /**
  * [태풍 발생] 알림 문구를 만든다.
  *   - 조립: 호수 + 이름 + 발표/관측 시각 + 제주 기준 위치 + "앱에서 예상 진로를 확인하세요."
- *   - 호출: typhoon_notifier.detectAndNotify() / routes/admin.js(buildSample 경유).
+ *   - 호출: typhoon_notifier.detectAndNotify() / routes/admin.js(실데이터 테스트 발송).
  * @param {object} snap 스냅샷(파일 상단 설명 참고)
  * @returns {{title:string, body:string, url:string}}
  */
@@ -199,13 +211,13 @@ function buildOnset(snap) {
 /**
  * [태풍 소멸] 알림 문구를 만든다(안내문구는 넣지 않음 — 소멸 후엔 볼 게 없으므로).
  *   - 조립: 호수 + 이름 + 시각 + 제주 기준 위치 + 소멸 사유 + "소멸했습니다."
- *   - 호출: typhoon_notifier.detectAndNotify() / routes/admin.js(buildSample 경유).
+ *   - 호출: typhoon_notifier.detectAndNotify() / routes/admin.js(실데이터 테스트 발송).
  * @param {object} snap 스냅샷(파일 상단 설명 참고)
  * @returns {{title:string, body:string, url:string}}
  */
 function buildDissipation(snap) {
     const num = formatTyphoonNumber(snap.seq);
-    const name = (snap.name || snap.nameEn || '').trim();
+    const name = pureName(snap.name) || (snap.nameEn || '').trim();
     const np = namePhrase(snap);
     const particle = name ? subjectParticle(name) : '이'; // "태풍이" / "태풍 '개미'가"
     const when = formatKstTime((snap.current && snap.current.time) || snap.tmFc);
@@ -218,43 +230,36 @@ function buildDissipation(snap) {
 }
 
 /**
- * 지금 한국시각을 "YYYYMMDDHHmm"(12자리)로 만든다.
- *   - 관리자 시연 문구의 "기준" 시각으로 쓰인다(실제 태풍이 없어도 현재 시각으로 표시).
- *   - 사용처: buildSample.
+ * 탭 시 "해당 통보문 위치로 지도 이동 + 태풍 버튼 강제 활성화"를 위한 시연 딥링크 URL.
+ *   - 실제 통보문 위치(snap.current)를 파라미터로 실어 보낸다(가짜 좌표를 만들지 않는다).
+ *   - 위치가 없으면 위치 이동 없이 일반 태풍 화면(TYPHOON_DEEPLINK_URL)으로만 연결.
+ *   - 사용처: routes/admin.js 의 태풍 테스트 발송(실데이터 기반).
+ *   - 처리: js/assistant_deeplink.js 가 demoTphn 파라미터를 읽어 ocean_typhoon.demoFocus 호출.
+ * @param {object} snap { seq, name, current:{lat,lon,time}, tmFc }
+ * @param {number} [grade] 강도(0~5) — 포인트 색상용
  * @returns {string}
  */
-function nowKstYmdHm() {
-    const d = new Date(Date.now() + 9 * 3600 * 1000); // UTC + 9시간 = 한국시각
-    const p = (n) => String(n).padStart(2, '0');
-    return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}${p(d.getUTCHours())}${p(d.getUTCMinutes())}`;
-}
-
-/**
- * [관리자 시연용] 실제 태풍 없이도 형식을 확인할 수 있는 "샘플" 문구를 만든다.
- *   - 가짜 태풍(제3호 '개미', 제주 남서쪽 바다)을 만들어 buildOnset/buildDissipation 에 넘긴다.
- *   - 호출: routes/admin.js 의 /api/admin/demo/typhoon-test → 관리자 등록 기기에만 발송.
- * @param {'onset'|'dissipation'} kind 발생/소멸 구분
- * @returns {{title:string, body:string, url:string}}
- */
-function buildSample(kind) {
-    const now = nowKstYmdHm();
-    const snap = {
-        seq: '3', name: '개미', nameEn: 'GAEMI',
-        current: { lat: 28.5, lon: 123.0, time: now },
-        rem: kind === 'dissipation' ? "제3호 태풍 '개미'에 대한 정보 발표를 종료합니다." : '',
-        tmFc: now
-    };
-    return kind === 'dissipation' ? buildDissipation(snap) : buildOnset(snap);
+function buildDemoUrl(snap, grade) {
+    const cur = snap && snap.current;
+    if (!cur || typeof cur.lat !== 'number' || typeof cur.lon !== 'number') return TYPHOON_DEEPLINK_URL;
+    return TYPHOON_DEEPLINK_URL
+        + '&demoTphn=1'
+        + '&dtLat=' + cur.lat + '&dtLon=' + cur.lon
+        + '&dtSeq=' + encodeURIComponent(snap.seq || '')
+        + '&dtName=' + encodeURIComponent(pureName(snap.name) || (snap.nameEn || ''))
+        + '&dtTime=' + encodeURIComponent(cur.time || snap.tmFc || '')
+        + '&dtGrade=' + (grade != null && !isNaN(grade) ? grade : '');
 }
 
 module.exports = {
     TYPHOON_DEEPLINK_URL,
     buildOnset,
     buildDissipation,
-    buildSample,
+    buildDemoUrl,
     // 내부 헬퍼도 노출(단위 테스트/재사용 편의)
     formatTyphoonNumber,
     formatKstTime,
     jejuBearingDistance,
-    dissipationReason
+    dissipationReason,
+    pureName
 };
