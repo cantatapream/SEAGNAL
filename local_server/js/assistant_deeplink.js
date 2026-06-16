@@ -39,6 +39,14 @@
   var layer = params.get('layer') || '';
   var buoyId = params.get('buoy') || '';
   var target = params.get('target') || '';
+  // [태풍 시연 전용] 테스트 푸시는 가짜 태풍 위치를 함께 실어 보낸다(실데이터 없이 지도 이동·버튼 강제 활성화).
+  var demoTphn = params.get('demoTphn') === '1';
+  var dtLat = parseFloat(params.get('dtLat'));
+  var dtLon = parseFloat(params.get('dtLon'));
+  var dtName = params.get('dtName') || '';
+  var dtSeq = params.get('dtSeq') || '';
+  var dtTime = params.get('dtTime') || '';
+  var dtGrade = parseInt(params.get('dtGrade'), 10);
   var lat = parseFloat(params.get('lat'));
   var lon = parseFloat(params.get('lon'));
   var label = params.get('label') || '';
@@ -132,7 +140,14 @@
       // 탭/지도 초기화 여유를 둔 뒤 레이어 활성화
       setTimeout(function () {
         try {
-          if (OVERLAY_LAYERS[layer]) {
+          if (layer === 'typhoon' && demoTphn && isFinite(dtLat) && isFinite(dtLon)) {
+            // [태풍 시연] 가짜 태풍 위치로 강제 활성화 + 지도 이동 (버튼 비활성이어도 동작)
+            waitFor(function () { return window.OceanTyphoon && typeof window.OceanTyphoon.demoFocus === 'function'; }, function () {
+              window.OceanTyphoon.demoFocus({ seq: dtSeq, name: dtName, lat: dtLat, lon: dtLon, time: dtTime, grade: dtGrade });
+              cleanUrl();
+            }, 8000);
+            return; // demoFocus 경로는 자체적으로 cleanUrl 호출
+          } else if (OVERLAY_LAYERS[layer]) {
             activateOverlay(layer);
           } else if (TOGGLE_BTN_IDS[layer]) {
             activateToggle(TOGGLE_BTN_IDS[layer]);

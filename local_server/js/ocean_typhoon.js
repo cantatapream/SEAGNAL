@@ -1337,11 +1337,46 @@
         installWhenReady();
     }
 
+    // [관리자 시연 전용] 지정한 통보문 위치(실데이터)를 단일 포인트로 즉시 표출 + 지도 이동.
+    //   - 위치 좌표는 테스트 푸시 딥링크(demoTphn/dtLat/dtLon...)로 전달된 실제 통보문 위치다.
+    //   - 현재 활성 태풍이 없어 버튼이 비활성이어도 강제로 잠금해제·활성화한다.
+    //   - 단일 통보문(current=전달 위치)을 _activeData/_tableCache 에 주입한 뒤
+    //     기존 표출 경로(setVisible→primeDefaultFromActive→renderBulletin→focusOnTyphoon)
+    //     를 그대로 태워, 포인트 렌더와 지도 포커스를 동일하게 재사용한다.
+    //   - 호출: js/assistant_deeplink.js (테스트 푸시 딥링크의 demoTphn 파라미터).
+    function demoFocus(demo) {
+        try {
+            if (!demo || demo.lat == null || demo.lon == null) return;
+            _unlocked = true;       // 세션 한정 잠금해제 → 버튼 활성화 허용
+            _yearLoaded = true;     // 시연이므로 dmdw 온디맨드 목록 호출은 생략
+            _year = curYearKst();
+            var code = 'demo';
+            var bulletin = {
+                code: code, label: '시연', isLatest: true,
+                current: {
+                    lat: demo.lat, lon: demo.lon, time: demo.time || '',
+                    grade: (demo.grade != null && !isNaN(demo.grade)) ? demo.grade : 3,
+                    windMs: null, windKmh: null, pressure: null, dir: '', speedKmh: null,
+                    radStrong: null, radStorm: null, radProb: null, size: ''
+                },
+                forecast: [], rem: '', other: ''
+            };
+            _activeData = {
+                year: _year, hasActive: true,
+                typhoons: [{ seq: String(demo.seq || '0'), name: demo.name || '태풍', bulletins: [bulletin] }]
+            };
+            _tableCache[_year + '_' + code] = bulletin;
+            applyAvailability();    // 버튼에서 'tphn-disabled' 제거(활성화)
+            setVisible(true);       // 레이어 ON + 가짜 통보문 렌더 + focusOnTyphoon(지도 이동)
+        } catch (e) { /* 시연 실패는 조용히 무시 */ }
+    }
+
     window.OceanTyphoon = {
         reload: load,
         show: function () { setVisible(true); },
         hide: function () { setVisible(false); },
         isVisible: function () { return _visible; },
+        demoFocus: demoFocus,   // 관리자 시연: 가짜 태풍 위치로 강제 활성화 + 지도 이동
         // 육지 클릭 처리: 태풍 ON + 실제 육지일 때만 강풍반경 도달시간 팝업 표출. consumed 시 true.
         tryHandleLandClick: function (lon, lat) {
             if (!_visible || _frames.length === 0) return false;
