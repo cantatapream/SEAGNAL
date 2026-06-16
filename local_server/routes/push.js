@@ -525,6 +525,104 @@ router.post('/api/push-custom', async (req, res) => {
 });
 
 // ============================================================================
+// 태풍 발생/소멸 푸시 발송 API (전국 단위 브로드캐스트)
+// ============================================================================
+//   - services/typhoon_notifier.js 가 호출. 특보(zone 기반 개인화)와 달리
+//     구역 매칭 없이 "옵트인 전원"에게 보낸다.
+//   - 수신 대상: master ON + options.typhoon !== false (키 없으면 ON = 마이그레이션)
+//   - 야간 차단은 호출부(notifier)가 코호트로 결정하므로 여기서 시간대 판정은 하지 않는다.
+//       nightCohort 'on'  → 야간수신 ON 사용자만 (야간 즉시 발송)
+//       nightCohort 'off' → 야간수신 OFF 사용자만 (아침 보류분 발송)
+//       (없음)            → 전원(옵트인) (주간 발송)
+router.post('/api/push-typhoon', async (req, res) => {
+    const { title, body, url, nightCohort } = req.body || {};
+    if (!title || !body) return res.status(400).json({ error: 'title/body required' });
+    const linkUrl = url || '/?assistant=ocean&layer=typhoon';
+
+    try {
+        if (!fs.existsSync(SUBS_FILE)) return res.json({ success: true, successCount: 0, failCount: 0 });
+        const subs = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8'));
+
+        let successCount = 0, failCount = 0, deadSubscriptionsFound = false;
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < subs.length; i += BATCH_SIZE) {
+            const batch = subs.slice(i, i + BATCH_SIZE);
+            await Promise.all(batch.map(async (user) => {
+                const o = user.options || {};
+                if (o.master === false) return;          // 전체 알림 OFF
+                if (o.typhoon === false) return;          // 태풍 알림 OFF (키 없으면 ON)
+                if (nightCohort === 'on' && o.night === false) return;   // 야간 OFF 제외
+                if (nightCohort === 'off' && o.night !== false) return;  // 야간 ON 제외
+                try {
+                    if (user.type === 'fcm' && user.token) {
+                        const admin = getAdmin();
+                        if (admin && admin.apps.length > 0) {
+                            try {
+                                await admin.messaging().send({
+                                    token: user.token,
+                                    notification: { title, body },
+                                    data: { url: linkUrl, type: 'typhoon' },
+                                    android: { priority: 'high' },
+                                    apns: { headers: { 'apns-priority': '10' } }
+                                });
+                                successCount++;
+                            } catch (err) {
+                                failCount++;
+                                if (err.code === 'messaging/registration-token-not-registered' || err.code === 'messaging/invalid-registration-token') {
+                                    user._isDead = true; deadSubscriptionsFound = true;
+                                }
+                            }
+                        }
+                    } else if (user.subscription) {
+                        try {
+                            const webpush = getWebPush();
+                            if (!webpush) throw new Error('web-push SDK 사용 불가');
+                            await webpush.sendNotification(user.subscription, JSON.stringify({ title, body, url: linkUrl }), { TTL: 86400, urgency: 'high' });
+                            successCount++;
+                        } catch (err) {
+                            failCount++;
+                            if (err.statusCode === 404 || err.statusCode === 410) { user._isDead = true; deadSubscriptionsFound = true; }
+                        }
+                    }
+                } catch (e) { failCount++; }
+            }));
+        }
+
+        // 만료 토큰 정리 (push-custom 과 동일 패턴)
+        if (deadSubscriptionsFound) {
+            const deadIds = new Set(subs.filter(u => u._isDead).map(u => u.type === 'fcm' ? u.token : (u.subscription ? u.subscription.endpoint : null)));
+            const updated = subs.filter(s => !deadIds.has(s.type === 'fcm' ? s.token : (s.subscription ? s.subscription.endpoint : null)));
+            const expiredCount = subs.length - updated.length;
+            if (expiredCount > 0) {
+                fs.writeFileSync(SUBS_FILE, JSON.stringify(updated, null, 2));
+                recordSubscriberEvent('expired', expiredCount);
+                console.log(`🧹 [Push/Typhoon] 만료된 구독 ${expiredCount}건 정리`);
+            }
+        }
+
+        // 이력 기록 (관리자 발송 이력 탭에 노출)
+        try {
+            let history = fs.existsSync(HISTORY_FILE) ? JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8')) : [];
+            const kstDate = new Date(Date.now() + (9 * 60 * 60 * 1000));
+            const timeStr = kstDate.toISOString().replace('T', ' ').substring(2, 16).replace(/-/g, '.');
+            history.unshift({
+                id: Date.now() + Math.floor(Math.random() * 1000), time: timeStr,
+                title, content: body, target: '태풍 알림 구독자', count: successCount,
+                status: 'sent', type: 'typhoon', tab: 'typhoon', tmRef: ''
+            });
+            if (history.length > 500) history = history.slice(0, 500);
+            fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
+        } catch (_e) { /* 이력 실패는 무시 */ }
+        try { pushCounter.incrementSend(successCount || 0); } catch (_e) { /* noop */ }
+
+        res.json({ success: true, successCount, failCount });
+    } catch (e) {
+        console.error('태풍 푸시 발송 실패:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ============================================================================
 // 푸시 이력 관리 API
 // ============================================================================
 
