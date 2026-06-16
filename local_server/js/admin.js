@@ -672,10 +672,10 @@ function renderDemoTabWithSubtabs(body) {
     body.innerHTML =
         '<div id="demo-subtab-bar" style="display:flex;gap:6px;margin-bottom:14px;'
         + 'border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;">'
-        + btn('alert', '특보 시연') + btn('advisory', '특보 예측 시연')
+        + btn('alert', '특보 시연') + btn('advisory', '특보 예측 시연') + btn('location', '위치 기반 특보 시연')
         + '</div>'
         + '<div id="demo-subtab-body"></div>';
-    switchDemoSubTab(saved === 'advisory' ? 'advisory' : 'alert');
+    switchDemoSubTab((saved === 'advisory' || saved === 'location') ? saved : 'alert');
 }
 
 window.switchDemoSubTab = function (which) {
@@ -690,7 +690,10 @@ window.switchDemoSubTab = function (which) {
     }
     var sub = document.getElementById('demo-subtab-body');
     if (!sub) return;
-    if (which === 'advisory') {
+    if (which === 'location') {
+        if (typeof renderLocationAlertDemoTab === 'function') renderLocationAlertDemoTab(sub);
+        else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">위치 기반 특보 시연 모듈(admin_location_demo.js)이 로드되지 않았습니다.</div>';
+    } else if (which === 'advisory') {
         if (typeof renderAdvisoryPredictionDemoTab === 'function') renderAdvisoryPredictionDemoTab(sub);
         else sub.innerHTML = '<div style="padding:20px;color:#fca5a5;">특보 예측 시연 모듈(advisory_demo_admin.js)이 로드되지 않았습니다.</div>';
     } else {

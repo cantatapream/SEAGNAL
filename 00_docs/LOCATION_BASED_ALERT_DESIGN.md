@@ -202,6 +202,15 @@ SEAGNAL은 이용자가 현재 위치한 해역의 해상특보를 신속히 안
 - **[수정] 경미**: `_origFetch`(window 미존재) 폴백 제거, `root.fetch` 사용.
 - **[미해결] 위험2**: 앱 **완전 종료(killed) 상태**의 데이터 메시지 수신은 포그라운드 리스너만 있어 미처리. 네이티브 FCM 서비스 보강 또는 전경 서비스 상시 가동으로 완화 필요(실기기 검증 대상).
 
+## 12.6 시연(테스트) 기능 — 관리자 센터 하위탭 (2026-06-16)
+통합 관리자 센터 > 시연 > **"위치 기반 특보 시연"** 하위탭 추가. **실제 푸시 경로** 검증용.
+- `js/admin_location_demo.js` (`renderLocationAlertDemoTab`): 내 위치를 **제주도북부앞바다** 중심으로 임의 고정(단말 저장) → 시나리오(예비/주의보 발효예정·발효중/경보 발표·발효/태풍경보) 버튼 → ① 단말 미리보기(제목/본문) + ② 서버가 **이 관리자 기기에만** 실제 데이터 메시지 발송.
+- 라우트 `POST /api/location-alert/demo`(`requireAdminToken` 보호): body `{token(기기 push_token), activeWarnings}` → `dispatchWake`로 그 토큰 1개에만 발송.
+- 연결: `js/admin.js` 시연 하위탭 호스트에 'location' 추가, `index2.html` 스크립트 로딩.
+- 2차 검토(에이전트): 직전 버그수정 4건 정확·완전, 회귀 없음 확인. 둘째줄 dedup 전용 테스트 추가(core 15항목).
+- 테스트 총 63 통과(core 15 / ui 18 / server 21 / runtime 9).
+- 실기기: 앱 켜진 상태에서 가장 확실히 수신. `push_token` 없으면 미리보기만 동작.
+
 ## 13. 구현 메모 / 진행 상황
 - 구현 순서(합의): ① 폴리곤 판정·거리·방위·문구 순수 로직 → ② 백그라운드 위치 → ③ 동의/활성 UI → ④ 서버 신호 연동.
 - **① 완료**: `js/location_alert_core.js` (순수 로직: 구역 판정·최근접 구역 방위/거리·경로 육지 판정·상황별 문구). 테스트 `scripts/test_location_alert_core.js` 실제 `warn_zones.geojson`로 13항목 통과.

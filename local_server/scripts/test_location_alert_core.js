@@ -106,5 +106,19 @@ const adv = C.buildMessage({
 console.log('주의보 제목:', adv.title);
 check('주의보 제목에 발효 예정', /풍랑주의보 발효 예정/.test(adv.title));
 
+console.log('\n[5] 둘째줄(주의보·예비특보 해역) 생략 dedup — name 기준');
+const tDiff = C.buildMessage({
+    zoneName: 'A해역', warnType: '풍랑', tier: 'severe', event: 'active',
+    nearestClear: { name: '클리어해역', bearing: 90, distNm: 5 },
+    nearestLower: { name: '주의보해역', bearing: 100, distNm: 3 },
+});
+check('두 목표 다르면 둘째줄 표시', /최근접 주의보·예비특보 해역/.test(tDiff.body));
+const tSame = C.buildMessage({
+    zoneName: 'A해역', warnType: '풍랑', tier: 'severe', event: 'active',
+    nearestClear: { name: '같은해역', bearing: 90, distNm: 5 },
+    nearestLower: { name: '같은해역', bearing: 90, distNm: 5 },
+});
+check('두 목표 같으면 둘째줄 생략', !/최근접 주의보·예비특보 해역/.test(tSame.body));
+
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`);
 process.exit(fail ? 1 : 0);
