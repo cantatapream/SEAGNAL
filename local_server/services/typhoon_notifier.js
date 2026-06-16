@@ -286,7 +286,13 @@ async function detectAndNotify(opts = {}) {
             }
         }
 
-        if (!events.length) { return; } // 새 소식 없으면 끝
+        if (!events.length) {
+            // 새로 알릴 소식은 없어도, 이번에 갱신한 "마지막 위치/비고" 캐시는 저장해 둔다.
+            //   → 나중에 태풍이 종료 통보 없이 목록에서 사라져 '사라짐 소멸'을 만들 때,
+            //     발생 당시 위치가 아닌 "최신 위치"로 문구를 만들 수 있다.
+            writeJsonAtomic(STATE_FILE, state);
+            return;
+        }
 
         // 5~6) 이벤트 처리 — "먼저 기록(중복방지)" 후, 야간이면 보류/주간이면 즉시 발송
         const night = isNightWindow();
