@@ -201,7 +201,12 @@ SEAGNAL은 이용자가 현재 위치한 해역의 해상특보를 신속히 안
 - **③ (UI/동의 흐름) 완료**: `js/location_alert_ui.js` + 푸시 설정 탭 카드(`index2.html` #location-alert-card) + `settings.js`(openSettingsModal에서 `initLocationAlertUI()` 호출).
   - 관리자 게이트(`seagnal_admin_token` 보유 단말만 활성, 비관리자 잠금+배지), 동의 팝업(앱 내부 저장 명시), 전경 위치 권한, "항상 허용" 안내, 동의 기록(단말 저장 + 서버 최소기록 hook `/api/location-alert/consent`).
   - 테스트 `scripts/test_location_alert_ui.js` 16항목 통과(게이트/저장/문안).
-  - **남은 연결점(②)**: 실제 백그라운드 추적 시작/중지 hook(`window.LocationAlertBackground.start/stop`) 미구현.
+- **② (백그라운드 위치 + 단말 수신 핸들러) 코드 완료 / 실기기 검증 대기**:
+  - `js/location_alert_background.js` — `@capacitor-community/background-geolocation`로 전경 서비스(상시 알림 "해상안전을 위해 위치 확인 중") 기반 위치 수집. 최신 1건만 localStorage 저장(약 15분 throttle), 해제 시 즉시 삭제. `window.LocationAlertBackground.start/stop` (③ hook과 연결됨).
+  - `js/location_alert_runtime.js` — `decideAlert(pos, features, snapshot)` 순수 판정(구역·tier·최근접·문구) + `handleWake(snapshot)` 표시 셸(로컬 알림). `capacitor-plugins.js`의 `pushNotificationReceived`에서 `type:'location_alert_wake'` 시 호출.
+  - `@capacitor/local-notifications` 추가, `AndroidManifest.xml`에 `ACCESS_BACKGROUND_LOCATION`·`FOREGROUND_SERVICE_LOCATION` 추가, `package.json` 의존성 추가, `index2.html` 스크립트 로딩.
+  - 테스트 `scripts/test_location_alert_runtime.js` 7항목 통과(decideAlert 순수 로직).
+  - **실기기 필요(이 환경 검증 불가)**: `npm install && npx cap sync`, 백그라운드 위치 권한 흐름, 전경 서비스, Play 백그라운드 위치 심사. **앱 완전 종료(killed) 상태에서 데이터 메시지 수신**은 플랫폼 제약이 있어 별도 검증 필요(전경 서비스 상시 가동으로 완화되나, 필요 시 네이티브 FCM 서비스 보강).
 - **④ (서버 신호 + 동의기록) 완료**:
   - `services/location_alert_store.js` — 동의 사실 최소 기록(`data/location_alert_consents.json`, 위치 좌표 미저장). upsert/철회/활성조회.
   - `routes/location_alert.js` — `POST /api/location-alert/consent`(클라이언트 토글이 호출), `GET /api/location-alert/stats`. `server.js`에 등록.

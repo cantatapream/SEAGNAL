@@ -92,6 +92,13 @@ const initPushNotifications = async () => {
     // 알림 수신 시 (앱이 열려있을 때)
     await PushNotifications.addListener('pushNotificationReceived', (notification) => {
         console.log('Push received:', notification);
+        // [위치기반 특보 ②] 깨우는 신호(데이터 메시지) → 단말이 위치 판정 후 로컬 알림
+        try {
+            const data = (notification && notification.data) || {};
+            if (data.type === 'location_alert_wake' && window.LocationAlertRuntime) {
+                window.LocationAlertRuntime.handleWake(data.snapshot);
+            }
+        } catch (e) { console.error('location_alert_wake 처리 실패:', e); }
     });
 
     // 알림 클릭 시
