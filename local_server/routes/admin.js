@@ -2269,7 +2269,8 @@ router.post('/api/admin/demo/typhoon-test', async (req, res) => {
         }
         const snap = { seq: SEQ, name: d.name, nameEn: d.nameEn, current: d.current, rem: d.rem, tmFc: d.tmFc };
         const msg = k === 'onset' ? tmsg.buildOnset(snap) : tmsg.buildDissipation(snap);
-        const url = tmsg.buildDemoUrl(snap, d.current.grade);
+        // 탭 시 이 실제 통보문(연도/호수/코드)을 그대로 표출(라벨·정보·이미지·지도 이동)
+        const url = tmsg.buildDemoUrl({ year, seq: SEQ, code });
         // sendAdminPush → admin_devices.json 대상 (일반 사용자에게는 발송되지 않음)
         const pushResult = await sendAdminPush(msg.title, msg.body, { url, type: 'typhoon_test' });
         console.log(`[Typhoon Demo] ${k} 테스트 발송(실데이터 ${SEQ}호): ${msg.title}`);

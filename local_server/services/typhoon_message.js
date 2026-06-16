@@ -230,25 +230,22 @@ function buildDissipation(snap) {
 }
 
 /**
- * 탭 시 "해당 통보문 위치로 지도 이동 + 태풍 버튼 강제 활성화"를 위한 시연 딥링크 URL.
- *   - 실제 통보문 위치(snap.current)를 파라미터로 실어 보낸다(가짜 좌표를 만들지 않는다).
- *   - 위치가 없으면 위치 이동 없이 일반 태풍 화면(TYPHOON_DEEPLINK_URL)으로만 연결.
+ * 탭 시 "해당 실제 통보문을 표출 + 지도 이동 + 태풍 버튼 강제 활성화"를 위한 시연 딥링크 URL.
+ *   - 실제 통보문 식별자(연도/호수/코드)를 실어 보낸다(가짜 좌표를 만들지 않는다).
+ *     → 클라이언트가 dmdw 실데이터를 그대로 로드해 라벨·정보(ⓘ)·통보문 이미지·진로·지도까지 표출.
+ *   - code 가 없으면 일반 태풍 화면(TYPHOON_DEEPLINK_URL)으로만 연결.
  *   - 사용처: routes/admin.js 의 태풍 테스트 발송(실데이터 기반).
- *   - 처리: js/assistant_deeplink.js 가 demoTphn 파라미터를 읽어 ocean_typhoon.demoFocus 호출.
- * @param {object} snap { seq, name, current:{lat,lon,time}, tmFc }
- * @param {number} [grade] 강도(0~5) — 포인트 색상용
+ *   - 처리: js/assistant_deeplink.js 가 demoTphn/dtYear/dtSeq/dtCode 를 읽어 ocean_typhoon.demoFocus 호출.
+ * @param {object} ref { year, seq, code } 실제 통보문 식별자
  * @returns {string}
  */
-function buildDemoUrl(snap, grade) {
-    const cur = snap && snap.current;
-    if (!cur || typeof cur.lat !== 'number' || typeof cur.lon !== 'number') return TYPHOON_DEEPLINK_URL;
+function buildDemoUrl(ref) {
+    if (!ref || !ref.code) return TYPHOON_DEEPLINK_URL;
     return TYPHOON_DEEPLINK_URL
         + '&demoTphn=1'
-        + '&dtLat=' + cur.lat + '&dtLon=' + cur.lon
-        + '&dtSeq=' + encodeURIComponent(snap.seq || '')
-        + '&dtName=' + encodeURIComponent(pureName(snap.name) || (snap.nameEn || ''))
-        + '&dtTime=' + encodeURIComponent(cur.time || snap.tmFc || '')
-        + '&dtGrade=' + (grade != null && !isNaN(grade) ? grade : '');
+        + '&dtYear=' + encodeURIComponent(ref.year != null ? ref.year : '')
+        + '&dtSeq=' + encodeURIComponent(ref.seq != null ? ref.seq : '')
+        + '&dtCode=' + encodeURIComponent(ref.code);
 }
 
 module.exports = {
