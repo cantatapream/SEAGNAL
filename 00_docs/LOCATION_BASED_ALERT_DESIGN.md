@@ -198,4 +198,8 @@ SEAGNAL은 이용자가 현재 위치한 해역의 해상특보를 신속히 안
 - 구현 순서(합의): ① 폴리곤 판정·거리·방위·문구 순수 로직 → ② 백그라운드 위치 → ③ 동의/활성 UI → ④ 서버 신호 연동.
 - **① 완료**: `js/location_alert_core.js` (순수 로직: 구역 판정·최근접 구역 방위/거리·경로 육지 판정·상황별 문구). 테스트 `scripts/test_location_alert_core.js` 실제 `warn_zones.geojson`로 13항목 통과.
   - 섬 제외 판정은 `properties._holedGeometry`(구멍 포함) 사용. 최상위 `geometry`는 구멍 없는 솔리드(외곽 거리 계산용).
+- **③ (UI/동의 흐름) 완료**: `js/location_alert_ui.js` + 푸시 설정 탭 카드(`index2.html` #location-alert-card) + `settings.js`(openSettingsModal에서 `initLocationAlertUI()` 호출).
+  - 관리자 게이트(`seagnal_admin_token` 보유 단말만 활성, 비관리자 잠금+배지), 동의 팝업(앱 내부 저장 명시), 전경 위치 권한, "항상 허용" 안내, 동의 기록(단말 저장 + 서버 최소기록 hook `/api/location-alert/consent`).
+  - 테스트 `scripts/test_location_alert_ui.js` 16항목 통과(게이트/저장/문안).
+  - **남은 연결점(②)**: 실제 백그라운드 추적 시작/중지 hook(`window.LocationAlertBackground.start/stop`) 미구현. 서버 동의기록 라우트(④)·깨우는 신호(④) 미구현.
 - 신규/확장 지점(참고): 푸시 설정 UI(`js/settings.js` 등) + **관리자 게이트(`js/admin.js`의 `adminAuthenticated`/`seagnal_admin_token`)**, 권한 처리(`capacitor-plugins.js`), 특보 수집·푸시(`report_alert_processor.js`, `services/push_helpers.js`, `push_sender.js`, `scheduler.js`), 폴리곤 자산(`assets/warn_zones.geojson`).

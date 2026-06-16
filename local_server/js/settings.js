@@ -581,6 +581,7 @@ function openSettingsModal() {
 
     renderSettingsList();
     initNotificationUI(); // [New] UI 초기화 (localStorage에서 최신 값 다시 읽음)
+    if (typeof initLocationAlertUI === 'function') initLocationAlertUI(); // [위치기반 특보] 토글/관리자 게이트 초기화
 
     // 스냅샷 저장 (initNotificationUI 이후에 생성해야 localStorage 최신 값 기준)
     UserSettings._snapshot = JSON.parse(JSON.stringify(UserSettings.settings));

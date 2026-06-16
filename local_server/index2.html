@@ -4223,6 +4223,8 @@
     <script src="js/render_coastal.js"></script>
     <script src="js/marine.js"></script>
     <script src="js/settings.js"></script>
+    <script src="js/location_alert_core.js"></script>
+    <script src="js/location_alert_ui.js"></script>
     <script src="js/forecast.js"></script>
     <script src="js/windy.js?v=BuoyClip_20260612"></script>
     <script src="js/marine_forecast.js"></script>
@@ -5037,6 +5039,32 @@
                                 </div>
                                 <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">연안바다, 평수구역 특보 정보 표출</div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- 위치 기반 특보 정보 제공 (관리자 전용) -->
+                    <div id="location-alert-card" class="notification-settings-card"
+                        style="margin: 0 15px 15px; background: rgba(30, 41, 59, 0.4); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); overflow: hidden; backdrop-filter: blur(10px);">
+                        <div
+                            style="padding: 18px 15px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                            <div style="flex: 1;">
+                                <div
+                                    style="font-size: 1rem; color: #fff; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <i class="fa-solid fa-location-crosshairs" style="color: var(--accent-blue);"></i>위치 기반 특보 정보 제공
+                                    <span id="location-alert-admin-badge"
+                                        style="display: none; font-size: 0.65rem; font-weight: 600; color: #fbbf24; background: rgba(251, 191, 36, 0.12); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 6px; padding: 2px 6px;">관리자 전용</span>
+                                </div>
+                                <div
+                                    style="font-size: 0.75rem; color: #94a3b8; font-weight: normal; margin-top: 6px; line-height: 1.5;">
+                                    내가 실제로 위치한 해역에 특보가 발효되면 안전 경보를 보내드립니다. 위치정보는 휴대폰 내부에만 저장되며 서버로 전송되지 않습니다.
+                                </div>
+                                <div id="location-alert-status"
+                                    style="font-size: 0.72rem; color: #64748b; margin-top: 8px;">비활성 상태입니다.</div>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="location-alert-toggle">
+                                <span class="slider"></span>
+                            </label>
                         </div>
                     </div>
                 </div>
