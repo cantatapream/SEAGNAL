@@ -92,14 +92,18 @@ const initPushNotifications = async () => {
     // 알림 수신 시 (앱이 열려있을 때)
     await PushNotifications.addListener('pushNotificationReceived', (notification) => {
         console.log('Push received:', notification);
-        // [위치기반 특보] 깨우는 신호(데이터 메시지) → 위치 판정 후 로컬 알림.
-        //   앱이 떠 있을 때(포그라운드/백그라운드)는 JS 가 처리(localStorage 위치 사용 — 시연 즉시 포함).
-        //   앱 완전 종료 상태는 네이티브 서비스가 처리(Preferences 위치). 둘 다 떠서 중복이 거슬리면
-        //   추후 네이티브가 포그라운드일 때 skip 하도록 보강(현재는 표출 누락 방지를 우선).
+        // [위치기반 특보] 깨우는 신호(데이터 메시지).
+        //   네이티브 모듈이 있는(최신) 앱은 네이티브가 모든 상태(켜짐/백그라운드/종료)를 처리함이
+        //   실기기에서 확인됨 → JS 경로는 건너뛴다(중복 알림 방지). 구버전 앱(네이티브 없음)만 JS 처리.
         try {
             const data = (notification && notification.data) || {};
             if (data.type === 'location_alert_wake' && window.LocationAlertRuntime) {
-                window.LocationAlertRuntime.handleWake(data.snapshot);
+                const ui = window.LocationAlertUI;
+                if (ui && typeof ui.isNativeCapable === 'function') {
+                    ui.isNativeCapable().then((cap) => { if (!cap) window.LocationAlertRuntime.handleWake(data.snapshot); });
+                } else {
+                    window.LocationAlertRuntime.handleWake(data.snapshot);
+                }
             }
         } catch (e) { console.error('location_alert_wake 처리 실패:', e); }
     });
