@@ -235,8 +235,10 @@ function buildDissipation(snap) {
  *     → 클라이언트가 dmdw 실데이터를 그대로 로드해 라벨·정보(ⓘ)·통보문 이미지·진로·지도까지 표출.
  *   - code 가 없으면 일반 태풍 화면(TYPHOON_DEEPLINK_URL)으로만 연결.
  *   - 사용처: routes/admin.js 의 태풍 테스트 발송(실데이터 기반).
- *   - 처리: js/assistant_deeplink.js 가 demoTphn/dtYear/dtSeq/dtCode 를 읽어 ocean_typhoon.demoFocus 호출.
- * @param {object} ref { year, seq, code } 실제 통보문 식별자
+ *   - 처리: js/assistant_deeplink.js 가 demoTphn/dtYear/dtSeq/dtCode[/dtGuide] 를 읽어 ocean_typhoon.demoFocus 호출.
+ *   - ref.guide 가 truthy 면 끝에 &dtGuide=1 을 붙여, 탭 시 행동요령(2탭) 팝업까지 자동 표출.
+ *     (위치기반 반경 시연 전용. 기존 발생/소멸 호출은 guide 미지정이라 동작 불변.)
+ * @param {object} ref { year, seq, code, guide? } 실제 통보문 식별자
  * @returns {string}
  */
 function buildDemoUrl(ref) {
@@ -245,7 +247,34 @@ function buildDemoUrl(ref) {
         + '&demoTphn=1'
         + '&dtYear=' + encodeURIComponent(ref.year != null ? ref.year : '')
         + '&dtSeq=' + encodeURIComponent(ref.seq != null ? ref.seq : '')
-        + '&dtCode=' + encodeURIComponent(ref.code);
+        + '&dtCode=' + encodeURIComponent(ref.code)
+        + (ref.guide ? '&dtGuide=1' : '');
+}
+
+/**
+ * [위치기반 반경 시연] "내 위치가 강풍/폭풍반경에 든다"는 긴급경보 문구를 만든다.
+ *   - 관리자 시연 전용. 일반 발생/소멸 빌더와 별개. url 은 호출부가 buildDemoUrl 로 따로 생성.
+ *   - 호출: routes/admin.js 의 /api/admin/demo/typhoon-radius-test.
+ * @param {'strong'|'storm'} which 강풍/폭풍 구분
+ * @param {{seq, name, nameEn}} snap 태풍 스냅샷(호수/이름)
+ * @param {string} etaTmFc 진입(ETA) 프레임 시각 "YYYYMMDDHHmm"
+ * @returns {{title:string, body:string}}
+ */
+function buildRadiusAlert(which, snap, etaTmFc) {
+    const num = formatTyphoonNumber(snap.seq);
+    const np = namePhrase(snap);
+    const when = formatKstTime(etaTmFc);
+    const etaText = when + '경';
+    if (which === 'storm') {
+        return {
+            title: `📍 [위치기반 긴급경보🚨] ${num}태풍${np} 폭풍반경 접근`,
+            body: `현재 위치하신 지역이 ${etaText} 폭풍반경에 들 것으로 예상됩니다.\n폭풍반경에 해당될 경우 매우 위험하므로 행동요령에 따라 사전 안전점검 등 조치 바랍니다.\n이 알림을 누르면 행동요령 및 태풍 상세정보를 확인할 수 있습니다.`
+        };
+    }
+    return {
+        title: `📍 [위치기반 긴급경보🚨] ${num}태풍${np} 강풍반경 접근`,
+        body: `현재 위치하신 지역이 ${etaText} 강풍반경에 들 것으로 예상됩니다.\n강풍 대비 행동요령에 따라 사전 안전점검이 필요합니다.\n이 알림을 누르면 행동요령 및 태풍 상세정보를 확인할 수 있습니다.`
+    };
 }
 
 module.exports = {
@@ -253,6 +282,7 @@ module.exports = {
     buildOnset,
     buildDissipation,
     buildDemoUrl,
+    buildRadiusAlert,
     // 내부 헬퍼도 노출(단위 테스트/재사용 편의)
     formatTyphoonNumber,
     formatKstTime,

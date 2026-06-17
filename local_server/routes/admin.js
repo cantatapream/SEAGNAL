@@ -2281,6 +2281,47 @@ router.post('/api/admin/demo/typhoon-test', async (req, res) => {
     }
 });
 
+// [위치기반 반경 시연] 고정 위치(30.345,130.625) + 고정 통보문(2026 6호 장미, 제6-20호)
+//   으로 강풍/폭풍반경 진입 ETA 를 계산해 "위치기반 긴급경보" 푸시를 관리자 기기에만 발송.
+//   - 발생/소멸 테스트와 완전 별개. 일반 사용자 발송 경로/라이브 위치 서브시스템 미사용.
+//   - 탭 시: 그 통보문이 선택된 태풍 화면 + 행동요령(2탭) 팝업 자동 표출(dtGuide=1).
+router.post('/api/admin/demo/typhoon-radius-test', async (req, res) => {
+    try {
+        const { kind } = req.body || {};
+        const which = kind === 'storm' ? 'storm' : 'strong';
+        const typhoon = require('../typhoon_crawler');
+        const tmsg = require('../services/typhoon_message');
+        const tr = require('../services/typhoon_radius');
+        if (!typhoon.enabled) {
+            return res.status(503).json({ error: '방재기상플랫폼 자격증명(KMA_DMDW_USER_ID/PWD) 미설정 — 실데이터 조회 불가' });
+        }
+        const LOC = { lat: 30.345, lon: 130.625 };
+        const CODE = '1_202606010400_6_20';
+        const year = 2026, seq = '6';
+        const d = await typhoon.getBulletin(year, CODE);
+        if (!d) {
+            return res.status(404).json({ error: `${year}년 통보문(${CODE})을 찾을 수 없습니다.` });
+        }
+        const frames = [];
+        if (d.current && d.current.lat != null) frames.push(d.current);
+        (d.forecast || []).forEach(f => { if (f.lat != null) frames.push(f); });
+        const entry = tr.radiusEntry(LOC, frames, which);
+        if (!entry) {
+            return res.status(422).json({ error: '해당 반경 진입 프레임 없음' });
+        }
+        const snap = { seq, name: d.name, nameEn: d.nameEn };
+        const { title, body } = tmsg.buildRadiusAlert(which, snap, entry.time);
+        const url = tmsg.buildDemoUrl({ year, seq, code: CODE, guide: true });
+        // sendAdminPush → admin_devices.json 대상 (일반 사용자에게는 발송되지 않음)
+        const pushResult = await sendAdminPush(title, body, { url, type: 'typhoon_radius_test' });
+        console.log(`[Typhoon Demo] 위치기반 ${which} 반경 발송(실데이터 ${CODE}): ${title}`);
+        res.json({ success: true, kind: which, eta: entry.time, title, body, pushResult });
+    } catch (e) {
+        console.error('[Typhoon Demo] 위치기반 반경 발송 오류:', e && e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // 데모 특보 "내리기" — 특정 slotId 1건만 표출 해제
 router.post('/api/admin/demo/retract', (req, res) => {
     try {
