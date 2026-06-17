@@ -228,6 +228,21 @@ window.openAppLocationSettings = async () => {
     }
 };
 
+// [위치기반 특보] 전경 위치 "권한만" 요청(위치 획득 없이 — 빠름). 동의 흐름의 GPS 대기 지연 제거.
+window.requestForegroundLocationPermission = async () => {
+    if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return 'granted';
+    try {
+        let st = await Geolocation.checkPermissions();
+        const loc = st && st.location;
+        if (loc === 'prompt' || loc === 'prompt-with-rationale' || loc === 'prompt-with-description') {
+            st = await Geolocation.requestPermissions();
+        }
+        return (st && st.location) || 'denied';
+    } catch (e) {
+        return 'denied';
+    }
+};
+
 // 권한 상태 확인
 window.checkPushPermission = async () => {
     if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return 'granted';
