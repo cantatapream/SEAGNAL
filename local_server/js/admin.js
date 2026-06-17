@@ -3889,6 +3889,8 @@ function renderAlertManageSubTab(container) {
         { id: 'active', name: '발효', icon: 'fa-check-circle' },
         { id: 'release', name: '해제', icon: 'fa-check' },
         { id: 'level', name: '격상/격하', icon: 'fa-arrow-up-right-dots' },
+        { id: 'typhoon', name: '태풍 발생/소멸', icon: 'fa-hurricane' },
+        { id: 'location', name: '위치기반', icon: 'fa-location-crosshairs' },
         { id: 'custom', name: '직접 발송', icon: 'fa-paper-plane' },
         { id: 'history', name: '발송 이력', icon: 'fa-history' }
     ];
