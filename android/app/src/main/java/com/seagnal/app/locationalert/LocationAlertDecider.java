@@ -74,6 +74,13 @@ public final class LocationAlertDecider {
         ctx.timeText = optStr(z, "efTime", "");
         ctx.nearestClear = nearestClear;
         ctx.nearestLower = nearestLower;
+        // 예측 기상(최악) — 서버가 스냅샷 zone.forecast {day, summary} 로 주입(위치 유출 방지).
+        //   누락/형식오류 → null(줄 생략). JS decideAlert 의 z.forecast 전달과 동일.
+        JSONObject fc = z.optJSONObject("forecast");
+        if (fc != null) {
+            ctx.forecastDay = optStr(fc, "day", null);
+            ctx.forecastSummary = optStr(fc, "summary", null);
+        }
 
         return LocationAlertCore.buildMessage(ctx);
     }

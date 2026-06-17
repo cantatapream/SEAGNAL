@@ -235,31 +235,44 @@
      *   nearestClear(무특보 대상 또는 null), nearestLower(주의보·예비특보 대상 또는 null)
      * }
      */
+    // 예측 기상 줄: { day, summary } → "🌬️ 20일 예측 기상 : ..." (없으면 '')
+    function forecastLine(fc) {
+        return (fc && fc.summary)
+            ? ('🌬️ ' + (fc.day != null ? fc.day + '일 ' : '') + '예측 기상 : ' + fc.summary)
+            : '';
+    }
+
     function buildMessage(ctx) {
         const z = ctx.zoneName, wt = ctx.warnType || '풍랑';
+        const fcLine = forecastLine(ctx.forecast);
 
         if (ctx.tier === 'prelim') {
+            const lines = [
+                `현재 위치하신 해역에 ${wt} 예비특보가 발표되었습니다.`,
+                `🕒 발효 예정시각 : ${ctx.timeText || '미정'}`,
+            ];
+            if (fcLine) lines.push(fcLine);
+            lines.push('');
+            lines.push('현지 해상·기상 상황을 살피고 안전에 유의하세요.');
             return {
-                title: `📍 [위치기반 안전정보] ${z} ${wt} 예비특보 발표`,
-                body:
-                    `현재 위치하신 해역에 ${wt} 예비특보가 발표되었습니다.\n` +
-                    `🕒 발효 예정시각 : ${ctx.timeText || '미정'}\n` +
-                    `기상이 악화될 가능성이 있으니, 현지 해상·기상 상황을 살피고 안전에 유의하세요.`,
+                title: `📍 [위치기반 안전정보] 현재 해역 ${wt} 예비특보 발표`,
+                body: lines.join('\n'),
             };
         }
 
         if (ctx.tier === 'advisory') {
             const verbTitle = ctx.event === 'active' ? '발효' : '발효 예정';
             const sent = ctx.event === 'active'
-                ? `현재 위치하신 해역에 ${wt}주의보가 발효 중입니다.`
-                : `현재 위치하신 해역에 ${wt}주의보가 ${ctx.timeText || ''} 발효 예정입니다.`;
-            const lines = [
-                sent,
-                '발효 시 선박 톤수·운항 시기, 수상레저 종사 여부 등에 따라 조업·활동이 제한될 수 있으니 안전한 해역으로 이동을 고려하세요.',
-            ];
+                ? `위치하신 해역에 ${wt}주의보가 발효 중입니다.`
+                : `위치하신 해역에 ${wt}주의보가 ${ctx.timeText || ''} 발효 예정입니다.`;
+            const lines = [sent];
+            if (fcLine) lines.push(fcLine);
             if (ctx.nearestClear) lines.push(targetLine('최근접 특보 미발표 해역', ctx.nearestClear));
+            lines.push('');
+            lines.push('발효 시 선박 톤수·운항 시기, 수상레저 종사 여부 등에 따라 조업·활동이 제한될 수 있으니 안전한 해역으로 이동을 고려하세요.');
+            lines.push('');
             lines.push(footer([ctx.nearestClear]));
-            return { title: `📍 [위치기반 안전정보] ${z} ${wt}주의보 ${verbTitle}`, body: lines.join('\n') };
+            return { title: `📍 [위치기반 안전정보] 현재 해역 ${wt}주의보 ${verbTitle}`, body: lines.join('\n') };
         }
 
         // severe (경보·태풍)
@@ -270,15 +283,16 @@
             lines.push('즉시 안전한 해역·항포구로 이동하세요.');
         } else {
             lines.push(`현재 위치하신 해역에 ${wt}경보가 ${ctx.timeText || ''} 발효 예정입니다.`);
-            lines.push('해당 해역에서 조업 및 해상활동이 전면 제한되므로 즉시 안전한 해역·항포구로 이동하세요.');
+            lines.push('해당 해역에서 조업 및 해상활동이 전면 제한되므로 사전에 안전한 해역·항포구로 이동하세요.');
         }
+        if (fcLine) lines.push(fcLine);
         if (ctx.nearestClear) lines.push(targetLine('최근접 특보 미발표 해역', ctx.nearestClear));
         // 두 목표가 다른 구역일 때만 '주의보·예비특보 해역' 줄 추가 (구역명 기준 — runtime 예측자와 일관)
         if (ctx.nearestLower && (!ctx.nearestClear || ctx.nearestLower.name !== ctx.nearestClear.name)) {
             lines.push(targetLine('최근접 주의보·예비특보 해역', ctx.nearestLower));
         }
         lines.push(footer([ctx.nearestClear, ctx.nearestLower]));
-        return { title: `📍 [위치기반 긴급경보🚨] ${z} ${wt}경보 ${verbTitle}`, body: lines.join('\n') };
+        return { title: `📍 [위치기반 긴급경보🚨] 현재 해역 ${wt}경보 ${verbTitle}`, body: lines.join('\n') };
     }
 
     return {

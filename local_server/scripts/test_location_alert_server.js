@@ -48,6 +48,46 @@ check('주의보 구역 tier=advisory', snap.zones['경북남부앞바다'].tier
 check('예비 구역 tier=prelim', snap.zones['제주도앞바다'].tier === 'prelim', snap.zones['제주도앞바다'].tier);
 check('스냅샷 generatedAt ISO', /\d{4}-\d{2}-\d{2}T/.test(snap.generatedAt));
 
+console.log('\n[2b] 스냅샷 forecast 주입');
+// 레코드가 forecast 를 직접 들고 오면(데모 override) 그대로 zone.forecast 에 부착.
+const snapFc = dispatch.buildSnapshot([
+    { zone: '울산앞바다', warnType: '풍랑', level: '경보', event: 'active', efTime: '20260617T2100',
+      forecast: { day: '17', summary: '서풍 16~20m/s, 파고 3.0~5.0m' } },
+]);
+check('forecast 보유 레코드 → zone.forecast 부착',
+    snapFc.zones['울산앞바다'].forecast && snapFc.zones['울산앞바다'].forecast.day === '17'
+    && /파고 3.0~5.0m/.test(snapFc.zones['울산앞바다'].forecast.summary),
+    JSON.stringify(snapFc.zones['울산앞바다'].forecast));
+// forecast 없는 레코드 → 런타임 데이터 파일이 없는 개발환경에선 null(graceful).
+const snapNoFc = dispatch.buildSnapshot([
+    { zone: '존재하지않는해역XYZ', warnType: '풍랑', level: '주의보', event: 'active' },
+]);
+check('forecast 미보유 + 데이터 없음 → null',
+    snapNoFc.zones['존재하지않는해역XYZ'].forecast === null,
+    JSON.stringify(snapNoFc.zones['존재하지않는해역XYZ'].forecast));
+
+console.log('\n[2c] buildMessage 예측 기상 줄');
+const core = require('../js/location_alert_core.js');
+const msgWithFc = core.buildMessage({
+    zoneName: '제주도북부앞바다', warnType: '풍랑', tier: 'advisory', event: 'active',
+    forecast: { day: '20', summary: '남동풍 4~12m/s, 파고 1.0~2.0m' },
+});
+check('forecast 있으면 예측 기상 줄 포함',
+    /🌬️ 20일 예측 기상 : 남동풍 4~12m\/s, 파고 1\.0~2\.0m/.test(msgWithFc.body), msgWithFc.body);
+const msgNoFc = core.buildMessage({
+    zoneName: '제주도북부앞바다', warnType: '풍랑', tier: 'advisory', event: 'active', forecast: null,
+});
+check('forecast 없으면 예측 기상 줄 생략', !/예측 기상/.test(msgNoFc.body), msgNoFc.body);
+// 제목은 구역명 대신 "현재 해역"
+check('제목에 "현재 해역" 사용', /현재 해역/.test(msgWithFc.title), msgWithFc.title);
+// day 없고 summary 만 있으면 "🌬️ 예측 기상 : {summary}"
+const msgMidOnly = core.buildMessage({
+    zoneName: 'X', warnType: '풍랑', tier: 'prelim', event: 'publish',
+    forecast: { summary: '파고 2.0~3.0m' },
+});
+check('day 없으면 "🌬️ 예측 기상 :" 로 렌더',
+    /🌬️ 예측 기상 : 파고 2\.0~3\.0m/.test(msgMidOnly.body) && !/일 예측/.test(msgMidOnly.body), msgMidOnly.body);
+
 console.log('\n[3] 타깃 선택 / 데이터 메시지');
 const tokens = dispatch.selectTargetTokens([
     { token: 'x', agreed: true }, { token: 'y', agreed: false }, { token: 'x', agreed: true }, { token: 'z', agreed: true },
