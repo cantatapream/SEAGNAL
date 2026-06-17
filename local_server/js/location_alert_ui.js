@@ -158,13 +158,15 @@
     async function ensureForegroundLocation() {
         // 네이티브가 아니면(웹) 통과 — 실제 권한은 네이티브에서만 의미.
         if (!(root.Capacitor && root.Capacitor.isNativePlatform && root.Capacitor.isNativePlatform())) return true;
-        if (typeof root.getCurrentPositionViaCapacitor !== 'function') return false;
-        try {
-            await root.getCurrentPositionViaCapacitor(); // 권한 요청 + 1회 획득
-            return true;
-        } catch (_) {
-            return false; // location_permission_denied 등
+        // 위치 "획득"이 아니라 "권한만" 요청(빠름). getCurrentPosition 의 GPS 대기(최대 20초) 지연 제거.
+        if (typeof root.requestForegroundLocationPermission === 'function') {
+            try { return (await root.requestForegroundLocationPermission()) === 'granted'; }
+            catch (_) { return false; }
         }
+        // 폴백(구버전 앱): 위치 1회 획득으로 권한 확인.
+        if (typeof root.getCurrentPositionViaCapacitor !== 'function') return false;
+        try { await root.getCurrentPositionViaCapacitor(); return true; }
+        catch (_) { return false; }
     }
 
     /** 위치 권한 설정 화면 열기 — 앱 정보(권한) 화면. 알림 설정(openAppSettings)으로 가지 않도록 분리. */
@@ -260,8 +262,10 @@
             return;
         }
 
-        // 3) 백그라운드("항상 허용") — 설명 후 시스템 권한 "요청"으로 위치 권한 화면을 직접 띄움.
-        //    (Android 11+는 백그라운드 위치 요청 시 '위치 액세스 권한' 화면으로 안내 → 설정 디깅 불필요)
+        // 3) 백그라운드("항상 허용") 안내 후 — 위치 권한 화면을 연다.
+        //    안드로이드는 앱별 위치-권한 라디오 화면으로 가는 공개 인텐트가 없어, 앱 정보(권한)
+        //    화면을 연다(거기서 위치 → '항상 허용'). 플러그인 권한요청에만 의존하면 안 열리는
+        //    기기가 있어, 설정 화면 열기를 보장한다.
         const proceed = await showBackgroundGuidePopup();
 
         // 4) 활성 확정 + 기록
@@ -269,8 +273,11 @@
         LocationAlertSettings.setEnabled(true);
         updateVisual(true);
         syncConsentToServer(true);
-        // 백그라운드 추적 시작 — 플러그인이 requestPermissions:true 로 '항상 허용' 권한을 요청한다.
-        if (proceed && root.LocationAlertBackground && root.LocationAlertBackground.start) {
+        if (proceed) {
+            openLocationSettings();   // 앱 정보(권한) 화면 — 위치 → '항상 허용' 설정(확실히 열림)
+        }
+        // 백그라운드 추적 시작(플러그인 존재 시). '항상 허용'이면 종료 상태에서도 위치 수집.
+        if (root.LocationAlertBackground && root.LocationAlertBackground.start) {
             root.LocationAlertBackground.start();
         }
     }
