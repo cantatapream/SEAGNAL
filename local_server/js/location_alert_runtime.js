@@ -65,6 +65,7 @@
             timeText: z.efTime || '',
             nearestClear,
             nearestLower,
+            forecast: z.forecast || null,
         });
     }
 

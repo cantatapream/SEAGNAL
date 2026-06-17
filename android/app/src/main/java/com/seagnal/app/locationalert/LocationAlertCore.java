@@ -244,32 +244,49 @@ public final class LocationAlertCore {
                 : "🌊 항행 안전에 유의하여 항행하세요.";
     }
 
-    /** 상황별 푸시 {title, body}. JS buildMessage 와 글자 단위로 동일. */
+    // 예측 기상 줄: forecastSummary 있으면 "🌬️ {day}일 예측 기상 : {summary}" (없으면 null).
+    //   JS forecastLine 과 글자 단위로 동일.
+    private static String forecastLine(MessageCtx ctx) {
+        if (ctx.forecastSummary == null || ctx.forecastSummary.isEmpty()) return null;
+        String dayPart = (ctx.forecastDay != null && !ctx.forecastDay.isEmpty())
+                ? (ctx.forecastDay + "일 ") : "";
+        return "🌬️ " + dayPart + "예측 기상 : " + ctx.forecastSummary;
+    }
+
+    /** 상황별 푸시 {title, body}. JS buildMessage 와 글자 단위로 동일.
+     *  ※ JS(local_server/js/location_alert_core.js)의 buildMessage 와 출력이 byte-identical 해야 함.
+     *    제목은 구역명 대신 "현재 해역", 예비/주의보/경보 본문 재배치 + 예측 기상 줄 포함. */
     public static Message buildMessage(MessageCtx ctx) {
-        String z = ctx.zoneName;
         String wt = (ctx.warnType != null && !ctx.warnType.isEmpty()) ? ctx.warnType : "풍랑";
+        String fcLine = forecastLine(ctx);
 
         if ("prelim".equals(ctx.tier)) {
-            String title = "📍 [위치기반 안전정보] " + z + " " + wt + " 예비특보 발표";
             String timeText = (ctx.timeText != null && !ctx.timeText.isEmpty()) ? ctx.timeText : "미정";
-            String body = "현재 위치하신 해역에 " + wt + " 예비특보가 발표되었습니다.\n"
-                    + "🕒 발효 예정시각 : " + timeText + "\n"
-                    + "기상이 악화될 가능성이 있으니, 현지 해상·기상 상황을 살피고 안전에 유의하세요.";
-            return new Message(title, body);
+            List<String> lines = new ArrayList<>();
+            lines.add("현재 위치하신 해역에 " + wt + " 예비특보가 발표되었습니다.");
+            lines.add("🕒 발효 예정시각 : " + timeText);
+            if (fcLine != null) lines.add(fcLine);
+            lines.add("");
+            lines.add("현지 해상·기상 상황을 살피고 안전에 유의하세요.");
+            String title = "📍 [위치기반 안전정보] 현재 해역 " + wt + " 예비특보 발표";
+            return new Message(title, join(lines));
         }
 
         if ("advisory".equals(ctx.tier)) {
             String verbTitle = "active".equals(ctx.event) ? "발효" : "발효 예정";
             String tText = ctx.timeText != null ? ctx.timeText : "";
             String sent = "active".equals(ctx.event)
-                    ? "현재 위치하신 해역에 " + wt + "주의보가 발효 중입니다."
-                    : "현재 위치하신 해역에 " + wt + "주의보가 " + tText + " 발효 예정입니다.";
+                    ? "위치하신 해역에 " + wt + "주의보가 발효 중입니다."
+                    : "위치하신 해역에 " + wt + "주의보가 " + tText + " 발효 예정입니다.";
             List<String> lines = new ArrayList<>();
             lines.add(sent);
-            lines.add("발효 시 선박 톤수·운항 시기, 수상레저 종사 여부 등에 따라 조업·활동이 제한될 수 있으니 안전한 해역으로 이동을 고려하세요.");
+            if (fcLine != null) lines.add(fcLine);
             if (ctx.nearestClear != null) lines.add(targetLine("최근접 특보 미발표 해역", ctx.nearestClear));
+            lines.add("");
+            lines.add("발효 시 선박 톤수·운항 시기, 수상레저 종사 여부 등에 따라 조업·활동이 제한될 수 있으니 안전한 해역으로 이동을 고려하세요.");
+            lines.add("");
             lines.add(footer(new Target[] { ctx.nearestClear }));
-            String title = "📍 [위치기반 안전정보] " + z + " " + wt + "주의보 " + verbTitle;
+            String title = "📍 [위치기반 안전정보] 현재 해역 " + wt + "주의보 " + verbTitle;
             return new Message(title, join(lines));
         }
 
@@ -282,15 +299,16 @@ public final class LocationAlertCore {
         } else {
             String tText = ctx.timeText != null ? ctx.timeText : "";
             lines.add("현재 위치하신 해역에 " + wt + "경보가 " + tText + " 발효 예정입니다.");
-            lines.add("해당 해역에서 조업 및 해상활동이 전면 제한되므로 즉시 안전한 해역·항포구로 이동하세요.");
+            lines.add("해당 해역에서 조업 및 해상활동이 전면 제한되므로 사전에 안전한 해역·항포구로 이동하세요.");
         }
+        if (fcLine != null) lines.add(fcLine);
         if (ctx.nearestClear != null) lines.add(targetLine("최근접 특보 미발표 해역", ctx.nearestClear));
         if (ctx.nearestLower != null
                 && (ctx.nearestClear == null || !ctx.nearestLower.name.equals(ctx.nearestClear.name))) {
             lines.add(targetLine("최근접 주의보·예비특보 해역", ctx.nearestLower));
         }
         lines.add(footer(new Target[] { ctx.nearestClear, ctx.nearestLower }));
-        String title = "📍 [위치기반 긴급경보🚨] " + z + " " + wt + "경보 " + verbTitle;
+        String title = "📍 [위치기반 긴급경보🚨] 현재 해역 " + wt + "경보 " + verbTitle;
         return new Message(title, join(lines));
     }
 
@@ -355,6 +373,9 @@ public final class LocationAlertCore {
         public String timeText;
         public Target nearestClear;
         public Target nearestLower;
+        // 예측 기상(최악) — 스냅샷 zone.forecast {day, summary} 에서 채움. 없으면 null.
+        public String forecastDay;
+        public String forecastSummary;
     }
 
     /** FeatureCollection JSON → List<Feature>. _holedGeometry 우선, 없으면 null. */

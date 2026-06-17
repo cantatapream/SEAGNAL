@@ -264,3 +264,21 @@ SEAGNAL은 이용자가 현재 위치한 해역의 해상특보를 신속히 안
     - `extractActiveWarnings(weatherTree)` 는 실제 `weather_alerts.json` 구조로 **최종 검증 필요**(개발환경에 파일 없음, 방어적 작성 + hook은 가드됨).
     - **단말 수신 핸들러 미구현**: 데이터 메시지(`type:'location_alert_wake'`) 수신 시 단말이 `location_alert_core`로 판정→로컬 알림 표출하는 클라이언트 핸들러(②/푸시 핸들러에서 연결).
 - 신규/확장 지점(참고): 푸시 설정 UI(`js/settings.js` 등) + **관리자 게이트(`js/admin.js`의 `adminAuthenticated`/`seagnal_admin_token`)**, 권한 처리(`capacitor-plugins.js`), 특보 수집·푸시(`report_alert_processor.js`, `services/push_helpers.js`, `push_sender.js`, `scheduler.js`), 폴리곤 자산(`assets/warn_zones.geojson`).
+
+## 14. 예측 기상(최악 기상) 줄 추가 (2026-06-17)
+- **목적**: 각 tier 푸시(예비/주의보/경보) 본문에 "특보 기간 중 최악 예측 기상" 한 줄(`🌬️ {일}일 예측 기상 : ...`)을 추가해, 사용자가 악화 정도를 바로 가늠하도록 함.
+- **줄 형식**:
+  - 단기(풍향/풍속 있음): `🌬️ {일}일 예측 기상 : {풍향}풍 {풍속}m/s, 파고 {파고}m` (예: `🌬️ 20일 예측 기상 : 남동풍 4~12m/s, 파고 1.0~2.0m`)
+  - 중기만(파고만): `🌬️ {일}일 예측 기상 : 파고 {파고}m`
+  - `{일}` 없으면 `🌬️ 예측 기상 : ...`, 데이터 없음 → 줄 통째 생략(graceful).
+- **개인정보(핵심)**: 위치기반 경보는 단말 GPS 가 서버로 절대 나가지 않는다. 따라서 "예측 기상"도 단말이 자기 위치로 직접 조회하면 위치(개략)가 유출되므로, **서버가 구역별로 미리 계산하여 스냅샷에 주입**한다(`zones[구역명].forecast = {day, summary}`). 단말은 자기 구역의 forecast 문자열만 꺼내 표시 — 위치로 직접 예보를 받지 않는다(좌표 유출 방지).
+- **데이터 출처(앱 "기상예보" 버튼과 동일)**: 앞바다 `regionalForecastCollector.loadCoastalForecasts()`, 먼바다(구역명에 '먼바다' 포함) `loadMarineForecasts()`. period: `{date:'YYYYMMDD', period:'am'|'pm', wind:'동~남동 / 4~8', weather, waveHeight:'0.5~1.0'}`. 중기(선택, 파고만, 4~10일)는 `dataCache.midTermSeaForecasts`(= `/api/mid-term-sea-forecasts`) + `getMidTermRegId` + `parseMidTermSeaData` 규약 포팅.
+- **최악 선정 규칙**: (1) wind 파싱 — 방향군 첫 토큰이 풍향("동~남동"→"동"), 풍속 범위 유지. (2) 파고 비교는 범위의 최대 수치. (3) 날짜별 am/pm 중 더 나쁜 쪽(파고 max↑, 동률이면 풍속 max↑). (4) 날짜들 중 최악도 동일 기준 = 단기 최악. (5) 중기는 단기 최악보다 파고 max 가 **엄격히 클 때만** 사용(이때 파고만, 풍향/풍속 없음). (6) `{일}` = YYYYMMDD → DD → parseInt(앞 0 제거). (7) 어떤 결손/형식오류에도 throw 없이 null(줄 생략).
+- **구현 파일**:
+  - 신규 `services/location_alert_forecast.js` — `worstForZone(zoneName, deps?)`. deps 주입으로 단위 테스트 가능(데이터 파일은 런타임 생성 — dev 환경엔 부재). 내부 헬퍼는 `_internals` 로 노출.
+  - `services/location_alert_dispatch.js` `buildSnapshot` — 레코드 자체 `forecast`(데모 오버라이드) 우선, 없으면 `worstForZone(zoneName)`(try/catch) → `zones[z].forecast`.
+  - `js/location_alert_core.js` `buildMessage` — `forecastLine(fc)` + tier별 줄 배치. 제목 "현재 해역", prelim 접두("기상이 악화될...") 제거 + 빈 줄, advisory 활성문 선두 "현재" 제거, severe publish "즉시"→"사전에".
+  - `js/location_alert_runtime.js` `decideAlert` — `forecast: z.forecast || null` 전달.
+  - `js/admin_location_demo.js` — 시나리오별 `forecast` 샘플 추가(태풍 시나리오는 파고-only 예시 포함) + 데모 `buildSnapshot`에 forecast 복사.
+- **네이티브(APK 재빌드 필요)**: `LocationAlertCore.java`(`MessageCtx.forecastDay/forecastSummary` + `forecastLine` + buildMessage 미러 — JS 와 **byte-identical**), `LocationAlertDecider.java`(스냅샷 `forecast` 객체 `{day, summary}` 방어적 파싱 → MessageCtx). 서버/JS 변경분은 재배포로 반영되나, 종료 상태 native 표시는 새 APK 빌드·배포가 필요하다.
+- **테스트**: `scripts/test_location_alert_forecast.js`(19항목 — 최악 선정/풍향 첫 토큰/중기 엄격비교·전용/파고-only 단기/방어성, mock 주입), `scripts/test_location_alert_server.js`(29항목 — forecast 부착·줄 포함/생략·"현재 해역" 제목·day-less 렌더). 모두 통과.

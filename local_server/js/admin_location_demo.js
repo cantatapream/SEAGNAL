@@ -45,13 +45,15 @@
     }
 
     // 시나리오 정의 (단일 구역 = 제주도북부앞바다)
+    // 예측 기상(최악) 샘플 — 실제 운영에선 서버 buildSnapshot 이 구역별로 계산해 주입.
+    //   시연에선 warnings 에 forecast 를 직접 실어 보내면 서버가 그대로 사용(데모 override 경로).
     const SCENARIOS = [
-        { id: 'prelim', label: '예비특보 발표', warnings: [{ zone: ZONE_NAME, warnType: '풍랑', level: '예비', event: 'publish', efTime: '오늘 밤(21~24시)' }] },
-        { id: 'adv_pub', label: '풍랑주의보 발효 예정', warnings: [{ zone: ZONE_NAME, warnType: '풍랑', level: '주의보', event: 'publish', efTime: '6월 17일 21시' }] },
-        { id: 'adv_act', label: '풍랑주의보 발효 중', warnings: [{ zone: ZONE_NAME, warnType: '풍랑', level: '주의보', event: 'active' }] },
-        { id: 'warn_pub', label: '풍랑경보 발표', warnings: [{ zone: ZONE_NAME, warnType: '풍랑', level: '경보', event: 'publish', efTime: '6월 17일 21시' }] },
-        { id: 'warn_act', label: '풍랑경보 발효', warnings: [{ zone: ZONE_NAME, warnType: '풍랑', level: '경보', event: 'active' }] },
-        { id: 'typhoon', label: '태풍경보 발효', warnings: [{ zone: ZONE_NAME, warnType: '태풍', level: '경보', event: 'active' }] },
+        { id: 'prelim', label: '예비특보 발표', warnings: [{ zone: ZONE_NAME, warnType: '풍랑', level: '예비', event: 'publish', efTime: '오늘 밤(21~24시)', forecast: { day: '17', summary: '남동풍 4~12m/s, 파고 1.0~2.0m' } }] },
+        { id: 'adv_pub', label: '풍랑주의보 발효 예정', warnings: [{ zone: ZONE_NAME, warnType: '풍랑', level: '주의보', event: 'publish', efTime: '6월 17일 21시', forecast: { day: '17', summary: '남서풍 7~13m/s, 파고 1.5~2.5m' } }] },
+        { id: 'adv_act', label: '풍랑주의보 발효 중', warnings: [{ zone: ZONE_NAME, warnType: '풍랑', level: '주의보', event: 'active', forecast: { day: '17', summary: '북서풍 9~14m/s, 파고 2.0~3.0m' } }] },
+        { id: 'warn_pub', label: '풍랑경보 발표', warnings: [{ zone: ZONE_NAME, warnType: '풍랑', level: '경보', event: 'publish', efTime: '6월 17일 21시', forecast: { day: '17', summary: '서풍 14~18m/s, 파고 3.0~4.0m' } }] },
+        { id: 'warn_act', label: '풍랑경보 발효', warnings: [{ zone: ZONE_NAME, warnType: '풍랑', level: '경보', event: 'active', forecast: { day: '17', summary: '서풍 16~20m/s, 파고 3.0~5.0m' } }] },
+        { id: 'typhoon', label: '태풍경보 발효', warnings: [{ zone: ZONE_NAME, warnType: '태풍', level: '경보', event: 'active', forecast: { day: '18', summary: '파고 4.0~6.0m' } }] },
     ];
 
     // 시나리오 warnings → 스냅샷(서버 buildSnapshot과 동일 규칙)
@@ -65,6 +67,8 @@
             const tier = core.classifyTier(ws.map(w => ({ type: w.warnType, level: w.level })));
             const rep = ws[0];
             zones[z] = { warnType: rep.warnType, level: rep.level, event: rep.event, efTime: rep.efTime || null, tier };
+            // 예측 기상(최악) — 데모 시나리오가 실은 forecast 를 미리보기에도 반영(서버와 동일).
+            zones[z].forecast = rep.forecast || null;
         });
         return { generatedAt: new Date().toISOString(), zones };
     }

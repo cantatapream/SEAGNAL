@@ -89,6 +89,21 @@ function buildSnapshot(activeWarnings, now) {
             ynTime: rep.ynTime || null,
             tier,
         };
+        // 예측 기상(최악) 주입. 데모 override(레코드가 forecast 직접 보유) 우선,
+        //   없으면 서버측 구역별 계산. 어떤 경우에도 throw 흡수(줄 생략 허용).
+        let fc = null;
+        if (rep && rep.forecast && typeof rep.forecast === 'object') {
+            fc = rep.forecast;
+        } else {
+            // ws 중 forecast 를 가진 레코드가 있으면 사용
+            const withFc = ws.find(w => w && w.forecast && typeof w.forecast === 'object');
+            if (withFc) fc = withFc.forecast;
+            else {
+                try { fc = require('../services/location_alert_forecast').worstForZone(z); }
+                catch (_) { fc = null; }
+            }
+        }
+        zones[z].forecast = fc || null;
     }
     return { generatedAt: (now ? new Date(now) : new Date()).toISOString(), zones };
 }
