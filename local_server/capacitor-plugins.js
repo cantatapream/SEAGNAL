@@ -92,11 +92,18 @@ const initPushNotifications = async () => {
     // 알림 수신 시 (앱이 열려있을 때)
     await PushNotifications.addListener('pushNotificationReceived', (notification) => {
         console.log('Push received:', notification);
-        // [위치기반 특보 ②] 깨우는 신호(데이터 메시지) → 단말이 위치 판정 후 로컬 알림
+        // [위치기반 특보] 깨우는 신호(데이터 메시지) → 위치 판정 후 로컬 알림.
+        //   네이티브 모듈이 있는(최신) 앱은 네이티브가 모든 상태(켜짐/백그라운드/종료)를 처리하므로
+        //   JS 경로는 건너뛴다(포그라운드 중복 알림 방지). 구버전 앱(네이티브 없음)만 JS가 처리.
         try {
             const data = (notification && notification.data) || {};
             if (data.type === 'location_alert_wake' && window.LocationAlertRuntime) {
-                window.LocationAlertRuntime.handleWake(data.snapshot);
+                const ui = window.LocationAlertUI;
+                if (ui && typeof ui.isNativeCapable === 'function') {
+                    ui.isNativeCapable().then((cap) => { if (!cap) window.LocationAlertRuntime.handleWake(data.snapshot); });
+                } else {
+                    window.LocationAlertRuntime.handleWake(data.snapshot);
+                }
             }
         } catch (e) { console.error('location_alert_wake 처리 실패:', e); }
     });
