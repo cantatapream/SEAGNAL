@@ -470,3 +470,18 @@ time: trimStr(r.ftTm || r.typTm),   // YYYYMMDDHHmm
 7. **러너 등록**(package.json) + 전체 그린.
 8. (사장님 결정 후) 동의 문안/CONSENT_VERSION 처리.
 9. (이후) v2: 네이티브 MessagingService 분기 + radiusEntry Java 포팅(killed 지원).
+
+---
+
+## 15. 결정 확정 (2026-06-17, 사장님)
+
+대화로 미결 3항목을 확정한다. 본 결정이 이후 §1~14에 우선한다.
+
+1. **동의 문안 = 현행 유지(A안).** `CONSENT_VERSION('2026-06-16')` 변경하지 않음 → 기존 동의자 재동의 팝업 없음. (태풍 반경은 동일 위치데이터·동일 목적[안전 경보]으로 간주. 출시 전 법무 최종확인 권장.)
+2. **태풍 wake 처리에 관리자/버전 게이트 재확인 안 함.** 위치 토글이 관리자+버전 게이트에서만 켜지므로 "위치 동의 ON = 이미 관리자 단말" 전제. `handleTyphoonWake`/네이티브는 subTyphoon + 위치 유무만 확인.
+3. **killed(완전 종료) 상태 수신을 v1에 포함 — 네이티브 작업 필수.**
+   - 즉 §7·§14-9의 "killed=v2 보류"를 **폐기**. v1 범위에 **안드로이드 네이티브 killed 처리 포함**.
+   - 구현: `android/.../locationalert/LocationAlertMessagingService` 에 `typhoon_radius_wake` 분기 추가 + `radiusEntry`/문구/dedup/window 로직을 **자바(또는 코틀린)로 포팅한 TyphoonRadiusDecider** 신규. JS(`typhoon_radius.js`)와 byte-level 패리티 검증(기존 특보 Core 방식 답습).
+   - **APK 재빌드 필수**: `versionCode`/`versionName` 상향 + `NATIVE_MIN_VERSION`(location_alert_ui.js) 갱신. **이 환경에선 APK 빌드/서명/실기기 검증 불가 → 빌드 파이프라인(예: 1.1.6 빌드와 동일 경로)에서 수행.**
+   - **충돌 주의**: 네이티브 파일(LocationAlertMessagingService 등)은 다른 세션(위치)이 활발 개발 중 → 동시 수정 시 충돌 위험. 네이티브 분기 추가는 그 세션과 조율 또는 동일 영역 최소 침습으로.
+
