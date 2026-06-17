@@ -175,6 +175,16 @@
         if (typeof root.openAppSettings === 'function') return root.openAppSettings(); // 폴백
     }
 
+    /** 백그라운드('항상 허용') 위치 권한을 네이티브에서 직접 요청 → Android 11+ 는 '항상 허용' 화면 표출.
+     *  네이티브 플러그인(LocationPerm)이 있을 때만 동작. 호출에 성공하면 true. */
+    async function requestBackgroundLocation() {
+        try {
+            const LP = root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.LocationPerm;
+            if (LP && LP.requestBackground) { await LP.requestBackground(); return true; }
+        } catch (_) { }
+        return false;
+    }
+
     /** 푸시 토큰(앱 표준 키 'push_token'). capacitor-plugins.js subscribeUser가 저장. */
     function getPushToken() {
         try { return (ls() && ls().getItem('push_token')) || null; } catch (_) { return null; }
@@ -274,7 +284,9 @@
         updateVisual(true);
         syncConsentToServer(true);
         if (proceed) {
-            openLocationSettings();   // 앱 정보(권한) 화면 — 위치 → '항상 허용' 설정(확실히 열림)
+            // 네이티브 권한 요청 → '항상 허용' 화면 직접 표출(최신 앱). 구버전 앱은 앱 정보 화면으로 폴백.
+            const asked = await requestBackgroundLocation();
+            if (!asked) openLocationSettings();
         }
         // 백그라운드 추적 시작(플러그인 존재 시). '항상 허용'이면 종료 상태에서도 위치 수집.
         if (root.LocationAlertBackground && root.LocationAlertBackground.start) {

@@ -15,6 +15,7 @@ import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebChromeClient;
 import com.getcapacitor.BridgeWebViewClient;
 import com.seagnal.app.voice.SeagnalAssistantPlugin;
+import com.seagnal.app.locationalert.LocationPermPlugin;
 
 /**
  * SEAGNAL Android 앱의 메인 Activity (Capacitor BridgeActivity 확장).
@@ -69,6 +70,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SeagnalAssistantPlugin.class);
+        registerPlugin(LocationPermPlugin.class);   // 위치 '항상 허용' 네이티브 권한 요청
         super.onCreate(savedInstanceState);
     }
 
