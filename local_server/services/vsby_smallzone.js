@@ -69,6 +69,35 @@ const VSBY_STOPS = [
 let _cache = { baseTm: null, collectedAt: null, fctTimes: [], cells: {} };
 let _collecting = false;
 
+// ── 상류(KMA imgList) 가용성 ──
+//  상류가 장애면(우리 캐시가 있어도) 클라이언트가 시정 뱃지를 회색 비활성 처리하도록
+//  /api/vsby-smallzone 응답에 헬스를 실어 보낸다. fetchImgList 성공/실패로 갱신하고,
+//  요청 시 헬스가 stale(90초↑)하면 백그라운드로 가볍게 재확인한다(응답은 블로킹 안 함).
+let _upstream = { ok: true, status: null, lastCheckAt: 0, lastOkAt: 0, checking: false };
+const UPSTREAM_STALE_MS = 90 * 1000;
+
+function _markUpstream(ok, status) {
+    _upstream.ok = !!ok;
+    _upstream.status = status != null ? status : _upstream.status;
+    _upstream.lastCheckAt = Date.now();
+    if (ok) _upstream.lastOkAt = _upstream.lastCheckAt;
+}
+
+/** 현재 상류 헬스 반환(논블로킹). stale 하면 백그라운드로 재확인만 트리거. */
+function getUpstreamHealth() {
+    if (!_upstream.checking && (Date.now() - _upstream.lastCheckAt > UPSTREAM_STALE_MS)) {
+        _upstream.checking = true;
+        // fetchImgList 가 내부에서 _markUpstream 갱신 — 결과는 기다리지 않는다.
+        fetchImgList().catch(() => {}).finally(() => { _upstream.checking = false; });
+    }
+    return {
+        ok: _upstream.ok,
+        status: _upstream.status,
+        lastOkAt: _upstream.lastOkAt || null,
+        lastCheckAt: _upstream.lastCheckAt || null
+    };
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // 1. 격자 / 소해구 중심좌표
 // ────────────────────────────────────────────────────────────────────────────
@@ -192,9 +221,16 @@ const _H = { Referer: `${KMA_BASE}/mmis/`, 'User-Agent': 'Mozilla/5.0 (SEAGNAL/v
 
 /** imgList → { fctTimes:[...], imgs:[...], baseTm } (무인증). */
 async function fetchImgList() {
-    const r = await fetch(IMGLIST_URL, { headers: _H, timeout: 15000 });
-    if (!r.ok) throw new Error('imgList ' + r.status);
+    let r;
+    try {
+        r = await fetch(IMGLIST_URL, { headers: _H, timeout: 15000 });
+    } catch (e) {
+        _markUpstream(false, e.message || 'network');   // 네트워크/타임아웃 → 상류 장애
+        throw e;
+    }
+    if (!r.ok) { _markUpstream(false, r.status); throw new Error('imgList ' + r.status); }
     const j = await r.json();
+    _markUpstream(true, 200);                            // 상류 정상
     const fctTimes = (j.data && j.data.fct_tm_list) || [];
     const imgs = (j.data && j.data.img_list) || [];
     const m = /RDPS_(\d{10})_VIS/.exec(imgs[0] || '');
@@ -443,6 +479,7 @@ module.exports = {
     refreshIfStale,
     collect,
     getStatus,
+    getUpstreamHealth,
     getCells,
     getZone,
     getCellLazy,

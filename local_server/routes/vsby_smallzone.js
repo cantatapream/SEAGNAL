@@ -20,7 +20,7 @@ const router = express.Router();
 const sz = require('../services/vsby_smallzone');
 
 router.get('/api/vsby-smallzone/status', (req, res) => {
-    res.json({ success: true, ...sz.getStatus() });
+    res.json({ success: true, ...sz.getStatus(), upstream: sz.getUpstreamHealth() });
 });
 
 // [B1] 임의 해점 → 그 점이 속한 소해구 시정 (지연 로딩: 캐시 우선, 없으면 MMIS 즉시 1회)
@@ -80,7 +80,8 @@ router.get('/api/vsby-smallzone', async (req, res) => {
         if (zone) {
             const data = await sz.getZone(zone);
             if (!data) return res.json({ success: false, error: '해당 특보구역 없음' });
-            return res.json({ success: true, ...data });
+            // 상류(KMA) 헬스를 함께 전달 — 장애면 클라가 캐시값이 있어도 뱃지를 회색 처리.
+            return res.json({ success: true, ...data, upstream: sz.getUpstreamHealth() });
         }
         if (cellsParam) {
             const keys = cellsParam.split(',').map(s => s.trim()).filter(Boolean);

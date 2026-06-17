@@ -72,6 +72,8 @@
         zoneCache: {},        // code → Promise<{cells, baseTm}>
         summaryCache: {},     // code → {min,max,time} | null(데이터없음) | 'error'(서버장애) | undefined(미계산/진행중)
         errRetryAt: {},       // code → 다음 'error' 재시도 허용 epoch ms (장애 시 폭주 방지 쿨다운)
+        upstreamOk: true,     // 상류(KMA) 가용성 — false 면 캐시값이 있어도 시정 뱃지를 회색 처리
+        upstreamCheckedAt: 0, // 마지막 상류 헬스 확인 epoch ms (폴링 TTL 판정)
         refreshTimer: null,   // 요약 도착 후 ZoneAvg.refreshAll 디바운스 타이머
         layer: null,          // 현재 그려진 OL VectorLayer
         activeCode: null,     // 현재 토글 ON 인 특보구역 코드 (없으면 null)
@@ -192,12 +194,40 @@
         return state.parentBoxPromise;
     }
 
+    var UPSTREAM_TTL_MS = 60 * 1000;   // 상류 헬스 폴링 주기(클라이언트)
+
+    /** 상류(KMA) 헬스 플래그를 적용 — 변화 시 평균박스 재합류로 회색/정상 전환. */
+    function _applyUpstream(upstream) {
+        if (!upstream) return;
+        state.upstreamCheckedAt = Date.now();
+        var ok = (upstream.ok !== false);
+        if (ok !== state.upstreamOk) {
+            state.upstreamOk = ok;
+            _scheduleBadgeRefresh();
+        }
+    }
+
+    /**
+     * 상류 헬스를 주기적으로 확인(TTL 경과 시에만). zone 데이터는 zoneCache 로
+     * 영구 캐시되어 헬스 갱신을 못 싣기 때문에, status 엔드포인트를 별도 폴링해
+     * 장애↔회복 전환을 따라간다. (논블로킹 — 결과 도착 시 refreshAll 로 반영)
+     */
+    function _ensureUpstreamHealth() {
+        if (Date.now() - state.upstreamCheckedAt < UPSTREAM_TTL_MS) return;
+        state.upstreamCheckedAt = Date.now();   // 중복 요청 방지(선반영)
+        fetch('/api/vsby-smallzone/status')
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) { if (j) _applyUpstream(j.upstream); })
+            .catch(function () { /* 헬스 확인 실패는 무시 — 기존 상태 유지 */ });
+    }
+
     /** 특보구역 시정 시계열 fetch (코드 단위 캐시). */
     function _loadZoneCells(code) {
         if (state.zoneCache[code]) return state.zoneCache[code];
         var p = fetch('/api/vsby-smallzone?zone=' + encodeURIComponent(code))
             .then(function (r) { if (!r.ok) throw new Error('vsby ' + r.status); return r.json(); })
             .then(function (j) {
+                if (j && j.upstream) _applyUpstream(j.upstream);   // 첫 진입 즉시성
                 if (!j || !j.success || !j.cells) return { cells: {}, baseTm: null };
                 return { cells: j.cells, baseTm: j.baseTm || null };
             })
@@ -368,6 +398,14 @@
         if (!code) return null;
         var meta = state.gridMap[code];
         if (!meta || !meta.smallZones || !meta.smallZones.length) return null;
+
+        // 상류(KMA) 헬스를 주기 확인(TTL 경과 시에만 실제 요청).
+        _ensureUpstreamHealth();
+        // 상류 장애 시: 우리 서버에 캐시된 시정값이 있어도 회색 비활성 "--km" 뱃지로
+        //   표시(사용자 요청). 클릭하면 색칠 팝업 대신 안내 토스트만 띄운다.
+        if (state.upstreamOk === false) {
+            return _makeDisabledBadge(code);
+        }
 
         // [동기 렌더링] 시정 값을 비동기로 받은 뒤 innerHTML 을 교체하면(폭 0→실제폭),
         //   무한 깜빡임 애니메이션 중인 요소의 폭 변화가 안드로이드 WebView 에서
