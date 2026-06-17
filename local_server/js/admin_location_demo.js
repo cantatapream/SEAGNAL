@@ -81,7 +81,18 @@
             const p = interiorPoint(f);
             if (!p) { setStatus('<span style="color:#fca5a5;">구역 내부점 계산 실패</span>'); return null; }
             const rec = { lat: p[1], lng: p[0], acc: 20, at: new Date().toISOString() };
-            localStorage.setItem(POS_KEY, JSON.stringify(rec));
+            const json = JSON.stringify(rec);
+            localStorage.setItem(POS_KEY, json);
+            // 네이티브(종료 상태)가 읽도록 @capacitor/preferences(=SharedPreferences "CapacitorStorage")에도
+            // 위치를 미러하고, 시연을 위해 게이팅 플래그(활성/동의)를 ON 으로 둔다(관리자 시연 단말 한정).
+            try {
+                const M = window.LocationAlertBackground && window.LocationAlertBackground.Mirror;
+                if (M && M.set) {
+                    M.set(POS_KEY, json);
+                    M.set('location_alert_active', 'true');
+                    M.set('location_alert_consent', 'true');
+                }
+            } catch (_) { }
             setStatus('시연 위치 고정됨 → <b>' + ZONE_NAME + '</b> (' + rec.lat.toFixed(4) + ', ' + rec.lng.toFixed(4) + ')');
             return rec;
         } catch (e) { setStatus('<span style="color:#fca5a5;">위치 설정 실패: ' + (e && e.message) + '</span>'); return null; }
