@@ -114,6 +114,15 @@
             const features = await loadFeatures();
             const msg = decideAlert(
                 { lat: pos.lat, lng: pos.lng, accuracyM: pos.acc || 0 }, features, snapshot);
+            // ① 하위 토글 게이트: '위치 기반 특보 정보 받기'(subAlert)가 OFF 면 표출 스킵.
+            //   미설정(=기본 ON) 또는 LocationAlertSettings 미로드 시엔 fail-open(기존 동작 유지).
+            //   decideAlert 순수성 유지 위해 가드는 표출 셸 handleWake 에 둔다.
+            if (msg && root.LocationAlertSettings && root.LocationAlertSettings.get
+                && root.LocationAlertSettings.get().subAlert === false) {
+                console.log('[LocationAlertRuntime] subAlert OFF → 표출 skip');
+                return;
+            }
+            // ② 태풍 반경 엔진은 아직 없음 → subTyphoon 설정은 저장만 하며, 엔진 구축 시 여기 연동.
             if (msg) await showLocalNotification(msg);
         } catch (e) { console.error('[LocationAlertRuntime] handleWake 실패:', e && e.message); }
     }

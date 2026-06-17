@@ -5102,7 +5102,7 @@
                         </div>
                     </div>
 
-                    <!-- 위치 기반 특보 정보 제공 (관리자 전용) -->
+                    <!-- 위치 기반 기상 정보 제공 (관리자 전용) -->
                     <div id="location-alert-card" class="notification-settings-card"
                         style="margin: 0 15px 15px; background: rgba(30, 41, 59, 0.4); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); overflow: hidden; backdrop-filter: blur(10px);">
                         <div
@@ -5110,7 +5110,7 @@
                             <div style="flex: 1;">
                                 <div
                                     style="font-size: 1rem; color: #fff; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                    <i class="fa-solid fa-location-crosshairs" style="color: var(--accent-blue);"></i>위치 기반 특보 정보 제공
+                                    <i class="fa-solid fa-location-crosshairs" style="color: var(--accent-blue);"></i>위치 기반 기상 정보 제공
                                     <span id="location-alert-admin-badge"
                                         style="display: none; font-size: 0.65rem; font-weight: 600; color: #fbbf24; background: rgba(251, 191, 36, 0.12); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 6px; padding: 2px 6px;">관리자 전용</span>
                                 </div>
@@ -5128,6 +5128,36 @@
                                 <input type="checkbox" id="location-alert-toggle">
                                 <span class="slider"></span>
                             </label>
+                        </div>
+                        <!-- 하위 토글: 동의(상위 토글) ON 시 활성, OFF/게이트 잠금 시 흐림(opacity)+비활성. (#tab-push setting-item 패턴) -->
+                        <div id="location-alert-sub"
+                            style="padding: 0 15px 15px; transition: opacity 0.3s; opacity: 0.4; pointer-events: none;">
+                            <div style="display: flex; flex-direction: column; gap: 4px; border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 6px;">
+                                <div class="setting-item" style="padding: 10px 0 0 0; border: none; background: none;">
+                                    <div class="setting-label" style="font-size: 0.95rem; color: #cbd5e1;">
+                                        위치 기반 특보 정보 받기
+                                        <i class="fa-solid fa-triangle-exclamation"
+                                            style="font-size: 0.8rem; color: #94a3b8; margin-left: 5px;"></i>
+                                    </div>
+                                    <label class="switch" style="transform: scale(0.85);">
+                                        <input type="checkbox" id="location-alert-sub-alert" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">내 위치 해역에 해상특보가 발효되면 알림</div>
+                                <div class="setting-item" style="padding: 10px 0 0 0; border: none; background: none;">
+                                    <div class="setting-label" style="font-size: 0.95rem; color: #cbd5e1;">
+                                        위치 기반 태풍 정보 받기
+                                        <i class="fa-solid fa-hurricane"
+                                            style="font-size: 0.8rem; color: #94a3b8; margin-left: 5px;"></i>
+                                    </div>
+                                    <label class="switch" style="transform: scale(0.85);">
+                                        <input type="checkbox" id="location-alert-sub-typhoon" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div style="font-size: 0.75rem; color: #64748b; padding: 0 0 8px 0;">내 위치가 태풍 강풍/폭풍반경에 들 것으로 예상되면 알림</div>
+                            </div>
                         </div>
                     </div>
                 </div>
