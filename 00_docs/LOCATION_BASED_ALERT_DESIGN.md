@@ -227,6 +227,13 @@ SEAGNAL은 이용자가 현재 위치한 해역의 해상특보를 신속히 안
   - **네이티브 지원 감지 = 앱 버전 정보 기반(확정)**: `@capacitor/app` 의 설치 앱 버전(versionName)을 읽어, 네이티브 기능이 포함된 **최소 버전(NATIVE_MIN_VERSION, 네이티브 APK 출시 시 확정·고정)** 과 비교. 미만이면 토글 `disabled` + 아래 빨간 글씨 "이 기능을 사용하려면 앱을 업데이트해 주세요". (웹 UI는 fly.dev 최신이라 토글은 보이지만, 네이티브는 업데이트된 APK에만 존재하므로 버전으로 가드.)
   - 활성 조건 = **관리자 게이트(seagnal_admin_token) AND 버전 게이트(versionName ≥ NATIVE_MIN_VERSION)** 둘 다 충족.
 
+## 12.9 네이티브 종료상태 모듈 — 통합 완료 (2026-06-17)
+- 독립 worktree 2개 에이전트(A·B)가 거의 동일 아키텍처로 수렴 → **B를 기준으로 통합**(매니페스트 FCM 서비스 공존을 `tools:node="remove"`+서브클래스로 결정적 처리, firebase-messaging 25.0.1 일치) + **A의 컴파일 안전장치(`implementation project(':capacitor-push-notifications')`) 흡수**.
+- 구성: `android/app/src/main/java/com/seagnal/app/locationalert/`(LocationAlertCore/Decider/Store/WarnZoneAssets/Notifier/MessagingService) + `assets/warn_zones.geojson` 번들 + 매니페스트/`build.gradle` + JS 미러(`location_alert_background.js`·`location_alert_ui.js` → 위치·플래그를 @capacitor/preferences=SharedPreferences "CapacitorStorage"에 미러) + `package.json`(@capacitor/preferences).
+- 두 에이전트 모두 핵심 로직을 JDK로 컴파일·JS와 byte-level 패리티(7케이스) 검증. 위치는 단말 밖 전송 0.
+- **버전 게이팅 구현 완료**: `location_alert_ui.js` `NATIVE_MIN_VERSION='1.1.3'`, `@capacitor/app` versionName 비교(`cmpVersion`). 관리자라도 버전 미만이면 토글 비활성 + `#location-alert-update-note` 빨간 안내("앱을 최신 버전으로 업데이트"). 활성=관리자 AND 버전≥최소. 앱 버전 1.1.2→**1.1.3**(versionCode 4→5).
+- 테스트 65 통과(core15/ui22/server23/runtime9). **남은 검증=실기기**: merged manifest 단일 FCM 서비스·일반 푸시 정상, firebase 버전 충돌 無, killed 수신, Preferences 키(`CapacitorStorage`) 일치.
+
 ## 13. 구현 메모 / 진행 상황
 - 구현 순서(합의): ① 폴리곤 판정·거리·방위·문구 순수 로직 → ② 백그라운드 위치 → ③ 동의/활성 UI → ④ 서버 신호 연동.
 - **① 완료**: `js/location_alert_core.js` (순수 로직: 구역 판정·최근접 구역 방위/거리·경로 육지 판정·상황별 문구). 테스트 `scripts/test_location_alert_core.js` 실제 `warn_zones.geojson`로 13항목 통과.

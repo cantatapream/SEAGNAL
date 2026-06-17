@@ -27,6 +27,11 @@
     const NATIVE_ACTIVE_KEY = 'location_alert_active';   // "true"/"false"
     const NATIVE_CONSENT_KEY = 'location_alert_consent'; // "true"/"false"
 
+    // 종료(killed) 상태 알림은 네이티브 모듈이 포함된 APK 에서만 동작한다. 웹 UI 는 fly.dev
+    // 최신이 떠서 토글이 보이지만, 구버전 APK(네이티브 미포함)에선 못 쓰므로 앱 버전으로 가드한다.
+    // 네이티브 종료상태 기능이 들어간 최소 앱 버전(=이 기능 출시 버전). versionName 비교 기준.
+    const NATIVE_MIN_VERSION = '1.1.3';
+
     // ── 안전 스토리지 접근 ────────────────────────────────────────────────────
     function ls() { try { return root && root.localStorage; } catch (_) { return null; } }
     function ss() { try { return root && root.sessionStorage; } catch (_) { return null; } }
@@ -79,6 +84,34 @@
         try {
             return !!((ls() && ls().getItem(ADMIN_TOKEN_KEY)) || (ss() && ss().getItem(ADMIN_TOKEN_KEY)));
         } catch (_) { return false; }
+    }
+
+    // ── 버전 게이팅 (네이티브 종료상태 지원 = 최신 APK 여부) ──────────────────
+    let _nativeCapable = false; // 비동기 판정 결과 캐시(초기 보수적 false)
+    /** 'a.b.c' 비교 → a<b:-1, ==:0, a>b:1 */
+    function cmpVersion(a, b) {
+        const pa = String(a == null ? '0' : a).split('.').map(function (n) { return parseInt(n, 10) || 0; });
+        const pb = String(b == null ? '0' : b).split('.').map(function (n) { return parseInt(n, 10) || 0; });
+        for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+            const x = pa[i] || 0, y = pb[i] || 0;
+            if (x !== y) return x < y ? -1 : 1;
+        }
+        return 0;
+    }
+    /** 설치된 앱 버전(versionName) — @capacitor/app. 못 읽으면 null. */
+    async function getAppVersion() {
+        try {
+            const App = root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.App;
+            if (App && App.getInfo) { const info = await App.getInfo(); return info && info.version; }
+        } catch (_) { }
+        return null;
+    }
+    /** 네이티브 종료상태 기능 사용 가능 여부 = 네이티브 플랫폼 && 앱버전 ≥ NATIVE_MIN_VERSION. */
+    async function isNativeCapable() {
+        if (!(root.Capacitor && root.Capacitor.isNativePlatform && root.Capacitor.isNativePlatform())) return false;
+        const v = await getAppVersion();
+        if (!v) return false; // 버전 못 읽으면 보수적으로 미지원
+        return cmpVersion(v, NATIVE_MIN_VERSION) >= 0;
     }
 
     // ── 동의 팝업 ─────────────────────────────────────────────────────────────
@@ -195,6 +228,20 @@
             return;
         }
 
+        // 켜기 — 네이티브 종료상태 미지원(구버전 앱)이면 차단 + 업데이트 안내
+        if (!_nativeCapable) {
+            checkbox.checked = false;
+            if (typeof root.showCustomPopup === 'function') {
+                root.showCustomPopup({
+                    icon: PIN_ICON, iconBg: 'rgba(248,113,113,0.12)',
+                    title: '앱 업데이트가 필요합니다',
+                    message: '이 기능은 최신 버전 앱에서만 사용할 수 있습니다.<br>앱을 최신 버전으로 업데이트해 주세요.',
+                    confirmText: '확인',
+                });
+            }
+            return;
+        }
+
         // 1) 동의
         const agreed = await showConsentPopup();
         if (!agreed) { checkbox.checked = false; return; }
@@ -228,12 +275,13 @@
         }
     }
 
-    /** 설정 모달이 열릴 때 호출 — 토글 상태/관리자 게이트 반영 + 이벤트 바인딩. */
+    /** 설정 모달이 열릴 때 호출 — 토글 상태/관리자 게이트 + 버전 게이트 반영 + 이벤트 바인딩. */
     function initLocationAlertUI() {
         if (!root.document) return;
         LocationAlertSettings.init();
         const toggle = root.document.getElementById('location-alert-toggle');
         const badge = root.document.getElementById('location-alert-admin-badge');
+        const updateNote = root.document.getElementById('location-alert-update-note');
         if (!toggle) return;
 
         const admin = isAdminDevice();
@@ -241,16 +289,33 @@
         toggle.checked = !!(admin && LocationAlertSettings.get().enabled);
         toggle.disabled = !admin;
         if (badge) badge.style.display = admin ? 'none' : 'inline-block';
+        if (updateNote) updateNote.style.display = 'none';
         const card = root.document.getElementById('location-alert-card');
         if (card) card.style.opacity = admin ? '1' : '0.6';
 
         toggle.onchange = function () { onToggle(toggle); };
         updateVisual(toggle.checked);
+
+        // 버전 게이트(비동기): 관리자라도 네이티브 미지원(구버전 앱)이면 토글 비활성 + 빨간 안내.
+        if (admin) {
+            isNativeCapable().then(function (capable) {
+                _nativeCapable = capable;
+                if (!capable) {
+                    toggle.checked = false;
+                    toggle.disabled = true;
+                    if (updateNote) updateNote.style.display = 'block';
+                    updateVisual(false);
+                } else {
+                    toggle.disabled = false;
+                    if (updateNote) updateNote.style.display = 'none';
+                }
+            });
+        }
     }
 
     const api = {
-        CONSENT_VERSION, LocationAlertSettings, isAdminDevice, getPushToken,
-        consentMessageHtml, initLocationAlertUI, onToggle,
+        CONSENT_VERSION, NATIVE_MIN_VERSION, LocationAlertSettings, isAdminDevice, getPushToken,
+        consentMessageHtml, initLocationAlertUI, onToggle, cmpVersion, isNativeCapable,
     };
     if (root) { root.LocationAlertSettings = LocationAlertSettings; root.initLocationAlertUI = initLocationAlertUI; root.LocationAlertUI = api; }
     if (typeof module !== 'undefined' && module.exports) module.exports = api;

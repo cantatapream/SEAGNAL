@@ -7,8 +7,8 @@ android {
         applicationId "com.seagnal.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 4
-        versionName "1.1.2"
+        versionCode 5
+        versionName "1.1.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -62,6 +62,10 @@ dependencies {
     //   RemoteMessage 등이 컴파일 클래스패스에 올라온다. push 플러그인 기본값과 동일 버전(25.0.1)으로
     //   고정해 전이 의존성 충돌(다운그레이드)을 피한다.
     implementation 'com.google.firebase:firebase-messaging:25.0.1'
+    // LocationAlertMessagingService 는 push 플러그인의 MessagingService 를 상속하므로 그 클래스가
+    //   앱 모듈 컴파일 클래스패스에 필요하다. capacitor.build.gradle 가 자동 포함하지만, 생성 순서·
+    //   누락에 대비해 명시적으로 선언(중복 시 gradle 이 dedup, 무해).
+    implementation project(':capacitor-push-notifications')
 }
 
 apply from: 'capacitor.build.gradle'
