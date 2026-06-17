@@ -87,8 +87,8 @@
             icon: PIN_ICON,
             iconBg: 'rgba(127, 209, 255, 0.12)',
             title: '“항상 허용”이 필요합니다',
-            message: '앱이 꺼져 있을 때도 해상특보를 받으려면 위치 권한을 <b>“항상 허용”</b>으로 설정해야 합니다.<br>설정 화면에서 위치 권한을 “항상 허용”으로 변경해 주세요.',
-            confirmText: '설정으로 이동',
+            message: '앱이 꺼져 있을 때도 해상특보를 받으려면 위치 권한을 <b>“항상 허용”</b>으로 설정해야 합니다.<br>다음 화면에서 “항상 허용”을 선택해 주세요.',
+            confirmText: '권한 요청',
             cancelText: '나중에',
         });
     }
@@ -185,17 +185,19 @@
             return;
         }
 
-        // 3) 백그라운드("항상 허용") 안내 — 앱 정보(권한) 화면으로 이동(알림 설정 아님)
-        const goSettings = await showBackgroundGuidePopup();
-        if (goSettings) openLocationSettings();
+        // 3) 백그라운드("항상 허용") — 설명 후 시스템 권한 "요청"으로 위치 권한 화면을 직접 띄움.
+        //    (Android 11+는 백그라운드 위치 요청 시 '위치 액세스 권한' 화면으로 안내 → 설정 디깅 불필요)
+        const proceed = await showBackgroundGuidePopup();
 
         // 4) 활성 확정 + 기록
         LocationAlertSettings.recordConsent();
         LocationAlertSettings.setEnabled(true);
         updateVisual(true);
         syncConsentToServer(true);
-        // TODO(②): 백그라운드 위치 추적 시작 (항상 허용이 실제 부여된 경우에만 동작)
-        if (root.LocationAlertBackground && root.LocationAlertBackground.start) root.LocationAlertBackground.start();
+        // 백그라운드 추적 시작 — 플러그인이 requestPermissions:true 로 '항상 허용' 권한을 요청한다.
+        if (proceed && root.LocationAlertBackground && root.LocationAlertBackground.start) {
+            root.LocationAlertBackground.start();
+        }
     }
 
     /** 설정 모달이 열릴 때 호출 — 토글 상태/관리자 게이트 반영 + 이벤트 바인딩. */
