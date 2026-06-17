@@ -65,11 +65,12 @@ const mockSend = async (tk, m) => { sentTo = tk; sentMsg = m; return { ok: true,
     const r1 = await dispatch.dispatchWake(active, {
         sendFn: mockSend,
         getConsents: () => [{ token: 'tkB', agreed: true }],
+        record: false,
     });
     check('대상 1명 전송', r1.sent === 1 && sentTo[0] === 'tkB', JSON.stringify(r1));
     check('전송 메시지에 스냅샷 포함', sentMsg && sentMsg.data.type === 'location_alert_wake');
 
-    const r2 = await dispatch.dispatchWake([], { sendFn: mockSend, getConsents: () => [{ token: 'tkB', agreed: true }] });
+    const r2 = await dispatch.dispatchWake([], { sendFn: mockSend, getConsents: () => [{ token: 'tkB', agreed: true }], record: false });
     check('활성 특보 없으면 미전송', r2.sent === 0 && r2.reason === 'no_active_zones', JSON.stringify(r2));
 
     const r3 = await dispatch.dispatchWake(active, { sendFn: mockSend, getConsents: () => [] });

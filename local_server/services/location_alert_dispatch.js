@@ -22,7 +22,43 @@ const fs = require('fs');
 const core = require('../js/location_alert_core.js'); // classifyTier 재사용
 
 const _WEATHER_ALERTS_FILE = path.join(__dirname, '..', 'data', 'weather_alerts.json');
+const _HISTORY_FILE = path.join(__dirname, '..', 'data', 'custom_push_history.json');
 const RANK = { none: 0, prelim: 1, advisory: 2, severe: 3 };
+
+// 위치기반 발송을 관리자 '실시간 특보 알림 관리 > 발송 이력'(tab:'location') + 누적 집계에 기록.
+function _zoneSummary(snapshot) {
+    const names = Object.keys((snapshot && snapshot.zones) || {});
+    if (!names.length) return '';
+    const tierLabel = (t) => t === 'severe' ? '경보' : (t === 'advisory' ? '주의보' : (t === 'prelim' ? '예비특보' : ''));
+    const parts = names.slice(0, 5).map((z) => {
+        const s = snapshot.zones[z] || {};
+        return z + '(' + (s.warnType || '') + tierLabel(s.tier) + ')';
+    });
+    return parts.join(', ') + (names.length > 5 ? ' 외 ' + (names.length - 5) + '개' : '');
+}
+
+function recordHistory(snapshot, count) {
+    try {
+        let history = [];
+        try { const a = JSON.parse(fs.readFileSync(_HISTORY_FILE, 'utf8')); if (Array.isArray(a)) history = a; } catch (_) { history = []; }
+        const kst = new Date(Date.now() + 9 * 3600 * 1000);
+        const timeStr = kst.toISOString().replace('T', ' ').substring(2, 16).replace(/-/g, '.');
+        history.unshift({
+            id: Date.now() + Math.floor(Math.random() * 1000),
+            time: timeStr,
+            title: '📍 [위치기반] 해상특보 안전 경보 발송',
+            content: _zoneSummary(snapshot) || '활성 특보 해역에 위치기반 경보 신호 발송',
+            target: '', count: count || 0, status: 'sent',
+            type: 'auto', tab: 'location', tmRef: '',
+        });
+        if (history.length > 500) history = history.slice(0, 500);
+        fs.mkdirSync(path.dirname(_HISTORY_FILE), { recursive: true });
+        fs.writeFileSync(_HISTORY_FILE, JSON.stringify(history, null, 2), 'utf8');
+        try { require('./push_counter').incrementSend(count || 0); } catch (_) { /* 집계 실패 무시 */ }
+    } catch (e) {
+        console.error('[LocationAlertDispatch] 이력 기록 실패(무시):', e && e.message);
+    }
+}
 
 function _tierOfOne(w) {
     return core.classifyTier([{ type: w.warnType, level: w.level }]);
@@ -114,6 +150,11 @@ async function dispatchWake(activeWarnings, opts = {}) {
     const sendFn = opts.sendFn || _defaultSendFn;
     const message = buildDataMessage(snapshot);
     const result = await sendFn(tokens, message);
+    // 발송 이력 + 누적 집계 기록(관리자 '실시간 특보 알림 관리'). 테스트는 opts.record===false 로 생략.
+    if (opts.record !== false) {
+        const count = (result && Number.isFinite(result.successCount)) ? result.successCount : tokens.length;
+        recordHistory(snapshot, count);
+    }
     return { sent: tokens.length, targets: tokens.length, snapshot, result };
 }
 
@@ -162,13 +203,33 @@ function extractActiveWarnings(tree) {
     return out;
 }
 
-/** 디스크의 weather_alerts.json 을 읽어 dispatchWake 수행. 크롤러 hook에서 호출(가드됨). */
+// 변화 감지용 — 직전 발송 스냅샷 시그니처(구역:tier:event). 같은 상황이면 재발송/이력 폭주 방지.
+const _SIG_FILE = path.join(__dirname, '..', 'data', 'location_alert_last_sig.json');
+function _signatureOf(snapshot) {
+    const zones = (snapshot && snapshot.zones) || {};
+    return Object.keys(zones).sort().map((z) => z + ':' + zones[z].tier + ':' + zones[z].event).join('|');
+}
+function _readLastSig() {
+    try { return (JSON.parse(fs.readFileSync(_SIG_FILE, 'utf8')) || {}).sig || ''; } catch (_) { return ''; }
+}
+function _writeLastSig(sig) {
+    try { fs.mkdirSync(path.dirname(_SIG_FILE), { recursive: true }); fs.writeFileSync(_SIG_FILE, JSON.stringify({ sig, at: new Date().toISOString() })); } catch (_) { }
+}
+
+/** 디스크의 weather_alerts.json 을 읽어 dispatchWake 수행. 크롤러 hook에서 호출(가드됨).
+ *  변화 감지: 직전과 동일한 활성 특보 상황이면 재발송하지 않는다(매 주기 중복 방지). */
 async function dispatchOnLatest(opts = {}) {
     let tree = null;
     try { tree = JSON.parse(fs.readFileSync(_WEATHER_ALERTS_FILE, 'utf8')); }
     catch (_) { return { sent: 0, reason: 'no_alerts_file' }; }
     const active = extractActiveWarnings(tree);
-    return dispatchWake(active, opts);
+    const sig = _signatureOf(buildSnapshot(active));
+    if (sig === _readLastSig()) return { sent: 0, reason: 'unchanged' };
+    const res = await dispatchWake(active, opts);
+    // 실제 발송됐거나(중복방지) 활성 0건으로 정리됐을 때 시그니처 갱신. no_targets(동의자 없음)는
+    //   갱신하지 않아 동의자 생기면 다음 주기에 발송되도록 한다.
+    if ((res && res.sent > 0) || sig === '') _writeLastSig(sig);
+    return res;
 }
 
 module.exports = {
