@@ -55,6 +55,13 @@ dependencies {
     // 하므로 2.6.1 → 2.7.2 (2.6.1 은 kotlinx-metadata 2.0.0 한계로 빌드 실패).
     implementation 'androidx.room:room-runtime:2.7.2'
     annotationProcessor 'androidx.room:room-compiler:2.7.2'
+    // [위치기반 특보 killed 대응] LocationAlertMessagingService 가
+    //   com.google.firebase.messaging.RemoteMessage / FirebaseMessagingService(=Capacitor
+    //   MessagingService 부모) 를 컴파일타임에 참조한다. @capacitor/push-notifications 는
+    //   firebase-messaging 을 'implementation'(비노출)으로 가져오므로 앱 모듈에서 직접 선언해야
+    //   RemoteMessage 등이 컴파일 클래스패스에 올라온다. push 플러그인 기본값과 동일 버전(25.0.1)으로
+    //   고정해 전이 의존성 충돌(다운그레이드)을 피한다.
+    implementation 'com.google.firebase:firebase-messaging:25.0.1'
 }
 
 apply from: 'capacitor.build.gradle'

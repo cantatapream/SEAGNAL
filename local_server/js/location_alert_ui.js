@@ -22,9 +22,31 @@
     const STORAGE_KEY = 'locationAlertSettings_v1';
     const ADMIN_TOKEN_KEY = 'seagnal_admin_token';   // js/admin.js 와 동일 키
 
+    // 네이티브 게이팅 플래그 키 (LocationAlertStore 와 합의). @capacitor/preferences 에 저장 →
+    // Android SharedPreferences "CapacitorStorage". 종료 상태 네이티브가 활성+동의 확인에 사용.
+    const NATIVE_ACTIVE_KEY = 'location_alert_active';   // "true"/"false"
+    const NATIVE_CONSENT_KEY = 'location_alert_consent'; // "true"/"false"
+
     // ── 안전 스토리지 접근 ────────────────────────────────────────────────────
     function ls() { try { return root && root.localStorage; } catch (_) { return null; } }
     function ss() { try { return root && root.sessionStorage; } catch (_) { return null; } }
+
+    // ── @capacitor/preferences 미러 (네이티브 killed 대응 플래그) ──────────────
+    //   localStorage(기존) 는 그대로 두고, 같은 활성/동의 플래그를 Preferences 에도 저장한다.
+    //   LocationAlertBackground.Mirror 를 우선 사용(공유), 없으면 Preferences 플러그인 직접 호출.
+    function prefsSet(key, value) {
+        try {
+            const M = root.LocationAlertBackground && root.LocationAlertBackground.Mirror;
+            if (M && M.set) { M.set(key, value); return; }
+            const P = root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.Preferences;
+            if (P && P.set) P.set({ key, value: String(value) }).catch(() => { });
+        } catch (_) { }
+    }
+    /** 활성+동의 플래그를 네이티브 미러에 반영. */
+    function syncNativeFlags(enabled, consented) {
+        prefsSet(NATIVE_ACTIVE_KEY, enabled ? 'true' : 'false');
+        prefsSet(NATIVE_CONSENT_KEY, consented ? 'true' : 'false');
+    }
 
     // ── 설정/동의 상태 (단말 저장) ────────────────────────────────────────────
     const LocationAlertSettings = {
@@ -34,9 +56,15 @@
                 const raw = ls() && ls().getItem(STORAGE_KEY);
                 if (raw) Object.assign(this.data, JSON.parse(raw));
             } catch (_) { }
+            // 기존 활성 단말이 앱 업데이트 후에도 네이티브 플래그를 갖도록 1회 동기화.
+            syncNativeFlags(!!this.data.enabled, !!this.data.consent);
             return this;
         },
-        save() { try { ls() && ls().setItem(STORAGE_KEY, JSON.stringify(this.data)); } catch (_) { } },
+        save() {
+            try { ls() && ls().setItem(STORAGE_KEY, JSON.stringify(this.data)); } catch (_) { }
+            // 네이티브 게이팅 플래그 미러(활성 + 동의 여부). killed 상태 네이티브가 읽음.
+            syncNativeFlags(!!this.data.enabled, !!this.data.consent);
+        },
         get() { return this.data; },
         setEnabled(v) { this.data.enabled = !!v; this.save(); },
         recordConsent() {

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -39,6 +40,28 @@
             android:name=".voice.VoskDownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- ════════════════════════════════════════════════════════════════
+             위치기반 해상특보(killed 대응) FCM 수신 서비스.
+
+             @capacitor/push-notifications 의 라이브러리 서비스
+             (com.capacitorjs.plugins.pushnotifications.MessagingService)를 상속한다.
+             FirebaseMessagingService 는 앱당 하나만 메시지를 받으므로:
+               1) 라이브러리 서비스를 tools:node="remove" 로 제거하고
+               2) 그 서브클래스인 우리 서비스를 MESSAGING_EVENT 로 등록한다.
+             우리 서비스는 onMessageReceived 에서 super(=Capacitor 처리)를 항상 호출하므로
+             기존 푸시 기능(포그라운드 리스너/일반 알림/토큰 등록)은 그대로 보존된다.
+             ════════════════════════════════════════════════════════════════ -->
+        <service
+            android:name="com.capacitorjs.plugins.pushnotifications.MessagingService"
+            tools:node="remove" />
+        <service
+            android:name=".locationalert.LocationAlertMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
     </application>
 
     <!-- Permissions -->
