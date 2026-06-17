@@ -234,6 +234,13 @@ SEAGNAL은 이용자가 현재 위치한 해역의 해상특보를 신속히 안
 - **버전 게이팅 구현 완료**: `location_alert_ui.js` `NATIVE_MIN_VERSION='1.1.3'`, `@capacitor/app` versionName 비교(`cmpVersion`). 관리자라도 버전 미만이면 토글 비활성 + `#location-alert-update-note` 빨간 안내("앱을 최신 버전으로 업데이트"). 활성=관리자 AND 버전≥최소. 앱 버전 1.1.2→**1.1.3**(versionCode 4→5).
 - 테스트 65 통과(core15/ui22/server23/runtime9). **남은 검증=실기기**: merged manifest 단일 FCM 서비스·일반 푸시 정상, firebase 버전 충돌 無, killed 수신, Preferences 키(`CapacitorStorage`) 일치.
 
+## 12.10 관리자 통합(발송 이력·집계) + 태풍 하위탭 + 변화감지 (2026-06-17)
+- **위치기반 발송 이력 기록**: `location_alert_dispatch.js` 의 dispatchWake 가 실제 발송 시 `data/custom_push_history.json` 에 `{tab:'location', type:'auto', title:'📍[위치기반] 해상특보 안전 경보 발송', content:구역요약, count:대상수}` 기록 + `push_counter.incrementSend(count)` 누적. (테스트는 `opts.record:false`)
+- **관리자 UI**(`js/alert_push.js`): 카테고리 상단 탭에 **태풍 발생/소멸·위치기반** 추가(태풍은 필터엔 있었으나 상단탭 누락이던 버그 해소). 발송 이력 필터에 **위치기반** 카테고리 추가. 상단 태풍/위치 탭 진입 시 해당 `tab`으로 발송 이력 필터링 표시.
+- **집계**: "총 N회 M개" 는 push_counter 기반이라 위치기반 발송도 자동 누적.
+- **변화 감지**: `dispatchOnLatest` 가 직전 발송 스냅샷 시그니처(`data/location_alert_last_sig.json`)와 비교해 **동일 상황이면 재발송 안 함**(매 크롤 주기 중복 발송/이력 폭주 방지). 데모(`/demo`)는 변화감지 없이 항상 발송.
+- JS/서버 변경 → fly.dev 재배포로 반영(APK 무관). 테스트 69 통과.
+
 ## 13. 구현 메모 / 진행 상황
 - 구현 순서(합의): ① 폴리곤 판정·거리·방위·문구 순수 로직 → ② 백그라운드 위치 → ③ 동의/활성 UI → ④ 서버 신호 연동.
 - **① 완료**: `js/location_alert_core.js` (순수 로직: 구역 판정·최근접 구역 방위/거리·경로 육지 판정·상황별 문구). 테스트 `scripts/test_location_alert_core.js` 실제 `warn_zones.geojson`로 13항목 통과.
