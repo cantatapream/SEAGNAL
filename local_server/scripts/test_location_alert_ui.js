@@ -68,5 +68,11 @@ check('getPushToken은 push_token 키를 읽음', UI.getPushToken() === 'PT123',
 global.localStorage.removeItem('push_token');
 check('토큰 없으면 null', UI.getPushToken() === null);
 
+console.log('\n[5] 버전 게이팅 비교(cmpVersion)');
+check('동일 버전 → 0', UI.cmpVersion('1.1.3', '1.1.3') === 0);
+check('구버전 < 최소 → -1', UI.cmpVersion('1.1.2', UI.NATIVE_MIN_VERSION) === -1, UI.cmpVersion('1.1.2', UI.NATIVE_MIN_VERSION));
+check('상위 버전 → 1', UI.cmpVersion('1.2.0', '1.1.3') === 1);
+check('1.1.10 > 1.1.3 (숫자 비교)', UI.cmpVersion('1.1.10', '1.1.3') === 1);
+
 console.log(`\n결과: ${pass} 통과 / ${fail} 실패`);
 process.exit(fail ? 1 : 0);

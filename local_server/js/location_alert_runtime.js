@@ -92,7 +92,12 @@
                     id: Math.floor(Date.now() % 2147483647),
                     title: msg.title,
                     body: msg.body,
-                    smallIcon: 'ic_stat_icon',
+                    // BigTextStyle — 펼치면 본문 전체가 표시되도록(한 줄 "..." 잘림 방지)
+                    largeBody: msg.body,
+                    summaryText: '해상특보 안전 경보',
+                    // 상태바/알림 아이콘을 앱 마크로. 전용 알림 아이콘이 없어 앱 아이콘 전경 드로어블 사용.
+                    smallIcon: 'ic_launcher_foreground',
+                    largeIcon: 'ic_launcher_foreground',
                 }],
             });
         } catch (e) { console.error('[LocationAlertRuntime] 알림 표시 실패:', e && e.message); }

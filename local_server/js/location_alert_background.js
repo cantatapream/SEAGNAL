@@ -19,6 +19,31 @@
     const POS_KEY = 'location_alert_last_pos';   // {lat,lng,acc,at}
     const WATCHER_KEY = '_locationAlertWatcherId';
 
+    // ── @capacitor/preferences 미러 (네이티브 killed 대응) ────────────────────
+    //   기존 localStorage 경로는 그대로 두되(앱 켜짐/백그라운드 JS 가 사용), 같은 값을
+    //   @capacitor/preferences(= Android SharedPreferences "CapacitorStorage") 에도 저장한다.
+    //   네이티브 FCM 서비스(LocationAlertStore)가 이 SharedPreferences 를 읽어 종료 상태에서도
+    //   위치 판정/알림을 수행한다. (위치는 단말 밖으로 절대 나가지 않음 — on-device 미러일 뿐)
+    function prefsPlugin() {
+        try { return root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.Preferences; }
+        catch (_) { return null; }
+    }
+    /** Preferences 에 set (fire-and-forget, 실패 무시). 네이티브가 동기 읽기로 사용. */
+    function prefsSet(key, value) {
+        try {
+            const P = prefsPlugin();
+            if (P && P.set) P.set({ key, value: String(value) }).catch(() => { });
+        } catch (_) { }
+    }
+    function prefsRemove(key) {
+        try {
+            const P = prefsPlugin();
+            if (P && P.remove) P.remove({ key }).catch(() => { });
+        } catch (_) { }
+    }
+    // 다른 모듈(location_alert_ui.js)이 동일 경로로 플래그를 쓰도록 노출.
+    const Mirror = { set: prefsSet, remove: prefsRemove, POS_KEY };
+
     function plugin() {
         try { return root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.BackgroundGeolocation; }
         catch (_) { return null; }
@@ -36,7 +61,9 @@
                 acc: (typeof loc.accuracy === 'number' ? loc.accuracy : null),
                 at: new Date().toISOString(),
             };
-            root.localStorage.setItem(POS_KEY, JSON.stringify(rec));
+            const json = JSON.stringify(rec);
+            root.localStorage.setItem(POS_KEY, json);
+            prefsSet(POS_KEY, json);   // 네이티브(killed)에서 읽을 수 있도록 미러
         } catch (_) { }
     }
 
@@ -46,6 +73,7 @@
 
     function clearPosition() {
         try { root.localStorage.removeItem(POS_KEY); } catch (_) { }
+        prefsRemove(POS_KEY);          // 미러도 즉시 삭제(해제 시 단말 위치 제거)
     }
 
     async function start() {
@@ -94,7 +122,7 @@
 
     function isRunning() { return !!root[WATCHER_KEY]; }
 
-    const api = { start, stop, isRunning, getPosition, savePosition, clearPosition, POS_KEY };
+    const api = { start, stop, isRunning, getPosition, savePosition, clearPosition, POS_KEY, Mirror };
     if (root) root.LocationAlertBackground = api;
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this));

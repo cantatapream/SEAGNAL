@@ -22,9 +22,36 @@
     const STORAGE_KEY = 'locationAlertSettings_v1';
     const ADMIN_TOKEN_KEY = 'seagnal_admin_token';   // js/admin.js 와 동일 키
 
+    // 네이티브 게이팅 플래그 키 (LocationAlertStore 와 합의). @capacitor/preferences 에 저장 →
+    // Android SharedPreferences "CapacitorStorage". 종료 상태 네이티브가 활성+동의 확인에 사용.
+    const NATIVE_ACTIVE_KEY = 'location_alert_active';   // "true"/"false"
+    const NATIVE_CONSENT_KEY = 'location_alert_consent'; // "true"/"false"
+
+    // 종료(killed) 상태 알림은 네이티브 모듈이 포함된 APK 에서만 동작한다. 웹 UI 는 fly.dev
+    // 최신이 떠서 토글이 보이지만, 구버전 APK(네이티브 미포함)에선 못 쓰므로 앱 버전으로 가드한다.
+    // 네이티브 종료상태 기능이 들어간 최소 앱 버전(=이 기능 출시 버전). versionName 비교 기준.
+    const NATIVE_MIN_VERSION = '1.1.3';
+
     // ── 안전 스토리지 접근 ────────────────────────────────────────────────────
     function ls() { try { return root && root.localStorage; } catch (_) { return null; } }
     function ss() { try { return root && root.sessionStorage; } catch (_) { return null; } }
+
+    // ── @capacitor/preferences 미러 (네이티브 killed 대응 플래그) ──────────────
+    //   localStorage(기존) 는 그대로 두고, 같은 활성/동의 플래그를 Preferences 에도 저장한다.
+    //   LocationAlertBackground.Mirror 를 우선 사용(공유), 없으면 Preferences 플러그인 직접 호출.
+    function prefsSet(key, value) {
+        try {
+            const M = root.LocationAlertBackground && root.LocationAlertBackground.Mirror;
+            if (M && M.set) { M.set(key, value); return; }
+            const P = root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.Preferences;
+            if (P && P.set) P.set({ key, value: String(value) }).catch(() => { });
+        } catch (_) { }
+    }
+    /** 활성+동의 플래그를 네이티브 미러에 반영. */
+    function syncNativeFlags(enabled, consented) {
+        prefsSet(NATIVE_ACTIVE_KEY, enabled ? 'true' : 'false');
+        prefsSet(NATIVE_CONSENT_KEY, consented ? 'true' : 'false');
+    }
 
     // ── 설정/동의 상태 (단말 저장) ────────────────────────────────────────────
     const LocationAlertSettings = {
@@ -34,9 +61,15 @@
                 const raw = ls() && ls().getItem(STORAGE_KEY);
                 if (raw) Object.assign(this.data, JSON.parse(raw));
             } catch (_) { }
+            // 기존 활성 단말이 앱 업데이트 후에도 네이티브 플래그를 갖도록 1회 동기화.
+            syncNativeFlags(!!this.data.enabled, !!this.data.consent);
             return this;
         },
-        save() { try { ls() && ls().setItem(STORAGE_KEY, JSON.stringify(this.data)); } catch (_) { } },
+        save() {
+            try { ls() && ls().setItem(STORAGE_KEY, JSON.stringify(this.data)); } catch (_) { }
+            // 네이티브 게이팅 플래그 미러(활성 + 동의 여부). killed 상태 네이티브가 읽음.
+            syncNativeFlags(!!this.data.enabled, !!this.data.consent);
+        },
         get() { return this.data; },
         setEnabled(v) { this.data.enabled = !!v; this.save(); },
         recordConsent() {
@@ -51,6 +84,34 @@
         try {
             return !!((ls() && ls().getItem(ADMIN_TOKEN_KEY)) || (ss() && ss().getItem(ADMIN_TOKEN_KEY)));
         } catch (_) { return false; }
+    }
+
+    // ── 버전 게이팅 (네이티브 종료상태 지원 = 최신 APK 여부) ──────────────────
+    let _nativeCapable = false; // 비동기 판정 결과 캐시(초기 보수적 false)
+    /** 'a.b.c' 비교 → a<b:-1, ==:0, a>b:1 */
+    function cmpVersion(a, b) {
+        const pa = String(a == null ? '0' : a).split('.').map(function (n) { return parseInt(n, 10) || 0; });
+        const pb = String(b == null ? '0' : b).split('.').map(function (n) { return parseInt(n, 10) || 0; });
+        for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+            const x = pa[i] || 0, y = pb[i] || 0;
+            if (x !== y) return x < y ? -1 : 1;
+        }
+        return 0;
+    }
+    /** 설치된 앱 버전(versionName) — @capacitor/app. 못 읽으면 null. */
+    async function getAppVersion() {
+        try {
+            const App = root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.App;
+            if (App && App.getInfo) { const info = await App.getInfo(); return info && info.version; }
+        } catch (_) { }
+        return null;
+    }
+    /** 네이티브 종료상태 기능 사용 가능 여부 = 네이티브 플랫폼 && 앱버전 ≥ NATIVE_MIN_VERSION. */
+    async function isNativeCapable() {
+        if (!(root.Capacitor && root.Capacitor.isNativePlatform && root.Capacitor.isNativePlatform())) return false;
+        const v = await getAppVersion();
+        if (!v) return false; // 버전 못 읽으면 보수적으로 미지원
+        return cmpVersion(v, NATIVE_MIN_VERSION) >= 0;
     }
 
     // ── 동의 팝업 ─────────────────────────────────────────────────────────────
@@ -87,8 +148,8 @@
             icon: PIN_ICON,
             iconBg: 'rgba(127, 209, 255, 0.12)',
             title: '“항상 허용”이 필요합니다',
-            message: '앱이 꺼져 있을 때도 해상특보를 받으려면 위치 권한을 <b>“항상 허용”</b>으로 설정해야 합니다.<br>설정 화면에서 위치 권한을 “항상 허용”으로 변경해 주세요.',
-            confirmText: '설정으로 이동',
+            message: '앱이 꺼져 있을 때도 해상특보를 받으려면 위치 권한을 <b>“항상 허용”</b>으로 설정해야 합니다.<br>다음 화면에서 “항상 허용”을 선택해 주세요.',
+            confirmText: '권한 요청',
             cancelText: '나중에',
         });
     }
@@ -167,6 +228,20 @@
             return;
         }
 
+        // 켜기 — 네이티브 종료상태 미지원(구버전 앱)이면 차단 + 업데이트 안내
+        if (!_nativeCapable) {
+            checkbox.checked = false;
+            if (typeof root.showCustomPopup === 'function') {
+                root.showCustomPopup({
+                    icon: PIN_ICON, iconBg: 'rgba(248,113,113,0.12)',
+                    title: '앱 업데이트가 필요합니다',
+                    message: '이 기능은 최신 버전 앱에서만 사용할 수 있습니다.<br>앱을 최신 버전으로 업데이트해 주세요.',
+                    confirmText: '확인',
+                });
+            }
+            return;
+        }
+
         // 1) 동의
         const agreed = await showConsentPopup();
         if (!agreed) { checkbox.checked = false; return; }
@@ -185,25 +260,28 @@
             return;
         }
 
-        // 3) 백그라운드("항상 허용") 안내 — 앱 정보(권한) 화면으로 이동(알림 설정 아님)
-        const goSettings = await showBackgroundGuidePopup();
-        if (goSettings) openLocationSettings();
+        // 3) 백그라운드("항상 허용") — 설명 후 시스템 권한 "요청"으로 위치 권한 화면을 직접 띄움.
+        //    (Android 11+는 백그라운드 위치 요청 시 '위치 액세스 권한' 화면으로 안내 → 설정 디깅 불필요)
+        const proceed = await showBackgroundGuidePopup();
 
         // 4) 활성 확정 + 기록
         LocationAlertSettings.recordConsent();
         LocationAlertSettings.setEnabled(true);
         updateVisual(true);
         syncConsentToServer(true);
-        // TODO(②): 백그라운드 위치 추적 시작 (항상 허용이 실제 부여된 경우에만 동작)
-        if (root.LocationAlertBackground && root.LocationAlertBackground.start) root.LocationAlertBackground.start();
+        // 백그라운드 추적 시작 — 플러그인이 requestPermissions:true 로 '항상 허용' 권한을 요청한다.
+        if (proceed && root.LocationAlertBackground && root.LocationAlertBackground.start) {
+            root.LocationAlertBackground.start();
+        }
     }
 
-    /** 설정 모달이 열릴 때 호출 — 토글 상태/관리자 게이트 반영 + 이벤트 바인딩. */
+    /** 설정 모달이 열릴 때 호출 — 토글 상태/관리자 게이트 + 버전 게이트 반영 + 이벤트 바인딩. */
     function initLocationAlertUI() {
         if (!root.document) return;
         LocationAlertSettings.init();
         const toggle = root.document.getElementById('location-alert-toggle');
         const badge = root.document.getElementById('location-alert-admin-badge');
+        const updateNote = root.document.getElementById('location-alert-update-note');
         if (!toggle) return;
 
         const admin = isAdminDevice();
@@ -211,16 +289,33 @@
         toggle.checked = !!(admin && LocationAlertSettings.get().enabled);
         toggle.disabled = !admin;
         if (badge) badge.style.display = admin ? 'none' : 'inline-block';
+        if (updateNote) updateNote.style.display = 'none';
         const card = root.document.getElementById('location-alert-card');
         if (card) card.style.opacity = admin ? '1' : '0.6';
 
         toggle.onchange = function () { onToggle(toggle); };
         updateVisual(toggle.checked);
+
+        // 버전 게이트(비동기): 관리자라도 네이티브 미지원(구버전 앱)이면 토글 비활성 + 빨간 안내.
+        if (admin) {
+            isNativeCapable().then(function (capable) {
+                _nativeCapable = capable;
+                if (!capable) {
+                    toggle.checked = false;
+                    toggle.disabled = true;
+                    if (updateNote) updateNote.style.display = 'block';
+                    updateVisual(false);
+                } else {
+                    toggle.disabled = false;
+                    if (updateNote) updateNote.style.display = 'none';
+                }
+            });
+        }
     }
 
     const api = {
-        CONSENT_VERSION, LocationAlertSettings, isAdminDevice, getPushToken,
-        consentMessageHtml, initLocationAlertUI, onToggle,
+        CONSENT_VERSION, NATIVE_MIN_VERSION, LocationAlertSettings, isAdminDevice, getPushToken,
+        consentMessageHtml, initLocationAlertUI, onToggle, cmpVersion, isNativeCapable,
     };
     if (root) { root.LocationAlertSettings = LocationAlertSettings; root.initLocationAlertUI = initLocationAlertUI; root.LocationAlertUI = api; }
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
