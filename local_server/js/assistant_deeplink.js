@@ -45,6 +45,7 @@
   var dtYear = params.get('dtYear') || '';
   var dtSeq = params.get('dtSeq') || '';
   var dtCode = params.get('dtCode') || '';
+  var dtGuide = params.get('dtGuide') || '';  // '1' 이면 탭 시 행동요령(2탭) 팝업 자동 표출(위치기반 반경 시연)
   var lat = parseFloat(params.get('lat'));
   var lon = parseFloat(params.get('lon'));
   var label = params.get('label') || '';
@@ -141,7 +142,7 @@
           if (layer === 'typhoon' && demoTphn && dtCode) {
             // [태풍 시연] 실제 통보문(연도/호수/코드)을 강제 활성화 표출 + 지도 이동 (버튼 비활성이어도 동작)
             waitFor(function () { return window.OceanTyphoon && typeof window.OceanTyphoon.demoFocus === 'function'; }, function () {
-              window.OceanTyphoon.demoFocus({ year: dtYear, seq: dtSeq, code: dtCode });
+              window.OceanTyphoon.demoFocus({ year: dtYear, seq: dtSeq, code: dtCode, openGuide: (dtGuide === '1') });
               cleanUrl();
             }, 8000);
             return; // demoFocus 경로는 자체적으로 cleanUrl 호출

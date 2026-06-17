@@ -1361,7 +1361,8 @@
     //     실데이터 경로(loadYear→loadTyphoon→selectBulletin→renderBulletin)를 그대로 태운다.
     //     → 실제 태풍명/통보문 라벨·정보(ⓘ)·통보문 이미지·예상 진로·지도 포커스가 모두 정상 표출.
     //   - 현재 활성 태풍이 없어 버튼이 비활성이어도 강제로 잠금해제·활성화한다.
-    //   - 호출: js/assistant_deeplink.js (테스트 푸시 딥링크의 demoTphn/dtYear/dtSeq/dtCode).
+    //   - 호출: js/assistant_deeplink.js (테스트 푸시 딥링크의 demoTphn/dtYear/dtSeq/dtCode[/dtGuide]).
+    //   - demo.openGuide 가 truthy 면(위치기반 반경 시연) 행동요령(해상/육상 2탭) 팝업까지 자동 표출.
     function demoFocus(demo) {
         try {
             if (!demo) return;
@@ -1374,6 +1375,8 @@
             setSelValue('tphn-year', String(year));
             // 실제 연도/호수/통보문코드로 dmdw 실데이터 로드 → 실제 라벨·정보·이미지 + 지도 포커스
             loadYear(year, demo.seq != null ? String(demo.seq) : null, demo.code || null);
+            // [위치기반 반경 시연] 행동요령 2탭 팝업 자동 표출(추가형 — openGuide 없으면 미호출).
+            if (demo.openGuide) openGuideModal();
         } catch (e) { /* 시연 실패는 조용히 무시 */ }
     }
 
