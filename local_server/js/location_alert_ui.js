@@ -106,6 +106,12 @@
         }
     }
 
+    /** 위치 권한 설정 화면 열기 — 앱 정보(권한) 화면. 알림 설정(openAppSettings)으로 가지 않도록 분리. */
+    function openLocationSettings() {
+        if (typeof root.openAppLocationSettings === 'function') return root.openAppLocationSettings();
+        if (typeof root.openAppSettings === 'function') return root.openAppSettings(); // 폴백
+    }
+
     /** 푸시 토큰(앱 표준 키 'push_token'). capacitor-plugins.js subscribeUser가 저장. */
     function getPushToken() {
         try { return (ls() && ls().getItem('push_token')) || null; } catch (_) { return null; }
@@ -174,14 +180,14 @@
                     icon: PIN_ICON, iconBg: 'rgba(255,152,0,0.12)',
                     title: '위치 권한이 필요합니다', message: '위치 권한이 거부되어 기능을 켤 수 없습니다.<br>휴대폰 설정에서 위치 권한을 허용해 주세요.',
                     confirmText: '설정으로 이동', cancelText: '취소',
-                }).then((go) => { if (go && typeof root.openAppSettings === 'function') root.openAppSettings(); });
+                }).then((go) => { if (go) openLocationSettings(); });
             }
             return;
         }
 
-        // 3) 백그라운드("항상 허용") 안내 — 실제 권한 확인/추적 시작은 ②에서
+        // 3) 백그라운드("항상 허용") 안내 — 앱 정보(권한) 화면으로 이동(알림 설정 아님)
         const goSettings = await showBackgroundGuidePopup();
-        if (goSettings && typeof root.openAppSettings === 'function') root.openAppSettings();
+        if (goSettings) openLocationSettings();
 
         // 4) 활성 확정 + 기록
         LocationAlertSettings.recordConsent();

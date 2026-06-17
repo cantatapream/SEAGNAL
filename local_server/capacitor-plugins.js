@@ -205,6 +205,22 @@ window.openAppSettings = async () => {
     }
 };
 
+// [위치기반 특보] 위치 권한 설정 — 알림 설정이 아니라 "앱 정보(권한)" 화면으로 이동.
+//   여기서 권한 > 위치 > "항상 허용" 까지 설정 가능. (openAppSettings 는 알림 설정으로 감)
+window.openAppLocationSettings = async () => {
+    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+        const { NativeSettings } = window.Capacitor.Plugins;
+        if (!NativeSettings) return;
+        try {
+            await NativeSettings.open({
+                optionAndroid: 'application_details',
+                optionIOS: 'App'
+            });
+        } catch (e) {
+        }
+    }
+};
+
 // 권한 상태 확인
 window.checkPushPermission = async () => {
     if (!window.Capacitor || !window.Capacitor.isNativePlatform()) return 'granted';
