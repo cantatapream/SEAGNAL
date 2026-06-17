@@ -199,7 +199,7 @@
             var wv = beaufortWaveM(o.windMs);
             if (wv != null) more += '<div class="tphn-b-sub">예상파고(추정) 약 ' + wv + 'm</div>';
         }
-        more += '<button type="button" class="tphn-guide-btn"><i class="fa-solid fa-life-ring"></i> 해상 종사자 행동요령</button>';
+        more += '<button type="button" class="tphn-guide-btn"><i class="fa-solid fa-life-ring"></i> 행동요령</button>';
         h += '<div class="tphn-b-more">' + more + '</div>';
         return h;
     }
@@ -232,6 +232,7 @@
     function openGuideModal() {
         var gm = document.getElementById('tphn-guide-modal');
         if (!gm) return;
+        selectGuideTab('sea'); // 열 때마다 기본=해상 탭으로 초기화(예측 가능·일관)
         gm.style.display = 'flex';
         if (window.PopupStack) window.PopupStack.push('tphn-guide', closeGuideModal);
     }
@@ -239,6 +240,13 @@
         var gm = document.getElementById('tphn-guide-modal');
         if (gm) gm.style.display = 'none';
         if (window.PopupStack) window.PopupStack.remove('tphn-guide');
+    }
+    // 행동요령 모달 탭 전환(해상/육상) — 해당 블록만 보이고 탭 버튼 활성표시. 기본=해상.
+    function selectGuideTab(which) {
+        var tabs = document.querySelectorAll('#tphn-guide-modal .tphn-guide-tab');
+        var panes = document.querySelectorAll('#tphn-guide-modal .tphn-guide-pane');
+        for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i].getAttribute('data-tab') === which);
+        for (var j = 0; j < panes.length; j++) panes[j].style.display = (panes[j].getAttribute('data-pane') === which) ? '' : 'none';
     }
     function escHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
     // 통보문 안내(i) 팝업 — rem(발표/종료 안내, '|' 구분) + other(참고사항).
@@ -1269,6 +1277,11 @@
         var guideClose = document.getElementById('tphn-guide-close');
         if (guideClose) guideClose.addEventListener('click', closeGuideModal);
         if (guideModal) guideModal.addEventListener('click', function (e) { if (e.target === guideModal) closeGuideModal(); });
+        // 해상/육상 탭 전환(추가형) — 모달 열기/닫기·PopupStack 동작은 변경하지 않음. 기본 선택은 openGuideModal()에서 보장.
+        var guideTabs = document.querySelectorAll('#tphn-guide-modal .tphn-guide-tab');
+        for (var gi = 0; gi < guideTabs.length; gi++) {
+            guideTabs[gi].addEventListener('click', function () { selectGuideTab(this.getAttribute('data-tab')); });
+        }
 
         // 통보문 안내(i) 팝업
         var infoBtn = document.getElementById('tphn-info-btn');
