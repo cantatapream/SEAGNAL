@@ -63,14 +63,16 @@ public final class LocationAlertNotifier {
                 .setContentTitle(title)
                 .setContentText(body)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
-                .setSmallIcon(R.mipmap.ic_launcher_foreground)
+                // 기존 특보 푸시와 동일하게 앱 아이콘(사각) 사용. ic_launcher_foreground 는 기본
+                // 안드로이드 로봇 전경이라 상태바에 로봇이 떴음 → 앱 아이콘 ic_launcher 로 교체.
+                .setSmallIcon(R.mipmap.ic_launcher)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                 .setAutoCancel(true)
                 .setContentIntent(openPi);
 
         try {
-            b.setLargeIcon(BitmapFactory.decodeResource(ctx.getResources(), R.mipmap.ic_launcher_foreground));
+            b.setLargeIcon(BitmapFactory.decodeResource(ctx.getResources(), R.mipmap.ic_launcher));
         } catch (Exception ignored) { /* 라지 아이콘 실패는 비치명적 */ }
 
         NotificationManager nm = ctx.getSystemService(NotificationManager.class);
