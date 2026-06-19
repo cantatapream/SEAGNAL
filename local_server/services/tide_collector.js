@@ -42,6 +42,23 @@ const { findTidePeaks } = require('../peak_finder');
 const TIDEBED_CONFIG_FILE = path.join(DATA_DIR, 'tidebed_config.json');
 const TIDEBED_BASE_URL = 'https://apis.data.go.kr/1192136/tidebed/GetTidebedApiService';
 
+// ============================================================================
+// 사용자 요청 우선 신호 (야간 앵커 수집과 TideBED 키 충돌 회피)
+// ----------------------------------------------------------------------------
+//   야간 수집기(tide_field_collector)와 사용자 바텀시트 조석 요청이 같은 TideBED
+//   키 3개를 공유한다. 수집 중 사용자가 바텀시트를 열면 동시 호출이 키 한도를
+//   넘겨 사용자 요청이 실패할 수 있다. 사용자 라우트가 요청마다 noteUserRequest()
+//   로 활동 시각을 찍고, 수집기는 isUserActive() 인 동안 키를 양보(대기)한다.
+//   → 사용자 요청이 우선 처리되고 수집은 그 뒤 이어진다.
+let _lastUserTideRequestAt = 0;
+const USER_ACTIVE_WINDOW_MS = 10000;   // 사용자 요청 후 이 시간 동안 수집 양보(10초)
+/** 사용자 조석 요청 처리 시 호출 — "지금 사용자 활동 중" 표시. */
+function noteUserRequest() { _lastUserTideRequestAt = Date.now(); }
+/** 최근 windowMs 내 사용자 조석 요청이 있었나(=수집기가 양보해야 하나). */
+function isUserActive(windowMs) {
+    return (Date.now() - _lastUserTideRequestAt) < (windowMs || USER_ACTIVE_WINDOW_MS);
+}
+
 let tideBedConfig = {
     keys: [
         {
@@ -54,6 +71,14 @@ let tideBedConfig = {
     currentIndex: 0,
     lastResetDate: new Date().toISOString().split('T')[0]
 };
+
+// [TDZ 수정] 아래 설정 로드/초기화 블록이 saveTideBedConfig({ flush: true }) 를 호출하는데,
+//   그 함수가 참조하는 _saveDebounceTimer(let) 선언이 블록보다 뒤에 있으면
+//   "Cannot access '_saveDebounceTimer' before initialization" 으로 부팅이 깨진다
+//   (설정파일이 없거나 날짜변경/키 마이그레이션이 필요한 경우). 선언을 호출보다
+//   앞으로 끌어올려 TDZ 를 제거한다. (함수 _doWriteConfig/saveTideBedConfig 는 호이스팅됨)
+let _saveDebounceTimer = null;
+const _SAVE_DEBOUNCE_MS = 5000;
 
 // 기존 설정 파일 로드
 if (fs.existsSync(TIDEBED_CONFIG_FILE)) {
@@ -100,8 +125,6 @@ if (fs.existsSync(TIDEBED_CONFIG_FILE)) {
  *
  *   실패 시 콘솔 경고만 (예외 throw 안 함) — 다음 정상 갱신에서 자동 복구.
  */
-let _saveDebounceTimer = null;
-const _SAVE_DEBOUNCE_MS = 5000;
 function _doWriteConfig() {
     try {
         fs.writeFileSync(TIDEBED_CONFIG_FILE, JSON.stringify(tideBedConfig, null, 2), 'utf8');
@@ -599,6 +622,10 @@ module.exports = {
     collectTideBedPages,   // 페이지 셀렉터 (boundary 최적화) 지원 신규 API
     getGridHash,
     getAdjacentDates,
-    collectAndSaveTideData
+    collectAndSaveTideData,
+    // [사용자 우선] 야간 수집과 키 충돌 회피용 신호
+    noteUserRequest,
+    isUserActive,
+    USER_ACTIVE_WINDOW_MS
     // scheduleFileCleanup 제거됨 — 디스크 캐시 제거로 dead code (사용처 0건)
 };

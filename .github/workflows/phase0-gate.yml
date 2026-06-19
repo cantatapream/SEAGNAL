@@ -1,0 +1,220 @@
+# phase0-gate.yml — SEAGNAL Phase 0 통합 게이트 (sentinel v2 — 35 케이스)
+#
+# [용도]
+#   - 골든 38 + sentinel 30(일반) + SEC 5 = 73 케이스 + 정적 3종을 야간 일괄 검증.
+#   - `phase0_runner.py --sentinel-v2` 실행 후 결과를 아티팩트로 저장.
+#
+# [트리거]
+#   - schedule: 매일 KST 02:00 (= UTC 17:00 전날). 야간 배치.
+#   - workflow_dispatch: 머지 직전 수동 트리거 (큰 PR 책임자 확인용).
+#
+# [차단 정책]
+#   - 비차단(non-blocking) 운영 — PR 게이트가 아니라 nightly 회귀 신호 수집기.
+#   - 단, "일반 30 PASS ≥ 80% AND SEC 5/5" 둘 다 통과 못하면 잡 자체는 fail 표시
+#     (`continue-on-error: true` 로 워크플로 전체는 성공 처리 → 배포·머지 차단 없음).
+#   - 골든 게이트(`phase0_runner.py` 기존 골든 38 분기)는 본 잡과 무관하게 보존.
+#
+# [설계 근거]
+#   - beta_synthesis_R2.md §3.2 (일반 PASS%≥80 ∧ SEC 5/5 의 AND 결합)
+#   - beta_runner_impl.md  §4 (실행 wall-clock ≈ 6 분, CI 타임아웃 10 분)
+#   - builder_ci_design.md §2-5 / §3 (golden-gate 와 동일 시크릿 환경)
+#
+# [제약 / 분리]
+#   - 기존 deploy.yml / deploy-staging.yml 미수정.
+#   - phase0_runner.py 미수정 (--sentinel-v2 플래그는 다른 워커가 구현).
+#   - 시크릿은 env 매핑만 (로그 echo 금지, GitHub 자동 마스킹).
+
+name: Phase 0 Gate (sentinel v2)
+
+on:
+  schedule:
+    # KST 02:00 = UTC 17:00 (전날). 야간 배치 — 사용자 영향 최소.
+    - cron: "0 17 * * *"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "수동 실행 사유 (예: 머지 직전 확인 / 회귀 재현)"
+        required: false
+        default: "manual"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  phase0-gate:
+    name: Phase 0 통합 게이트 (73 + 정적 3종)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # 비차단 정책 — 잡 실패가 워크플로 전체를 fail 시키지 않도록.
+    # (스케줄 잡이므로 PR/머지 차단 영향은 본래 없지만, 명시적으로 표기.)
+    continue-on-error: true
+
+    env:
+      BASE_URL: "http://127.0.0.1:3001"
+      # 시크릿 → 서버 부팅·러너 양쪽이 참조. 로그 echo 금지.
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      KMA_DMDW_ID: ${{ secrets.KMA_DMDW_ID }}
+      KMA_DMDW_PW: ${{ secrets.KMA_DMDW_PW }}
+      MARINE_USER_ID: ${{ secrets.MARINE_USER_ID }}
+      MARINE_USER_PWD: ${{ secrets.MARINE_USER_PWD }}
+      ROMS_SERVICE_KEY: ${{ secrets.ROMS_SERVICE_KEY }}
+      KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: local_server/package-lock.json
+
+      - name: Setup Python 3.x
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install Node dependencies (local_server)
+        working-directory: local_server
+        run: npm ci
+
+      - name: Start server (background, await health)
+        working-directory: local_server
+        run: |
+          set -eu
+          mkdir -p ../_ci_logs
+          # nohup 으로 서버를 백그라운드 기동. stdout/stderr 는 로그파일로 분리.
+          nohup node server.js > ../_ci_logs/server.log 2>&1 &
+          echo $! > ../_ci_logs/server.pid
+          # health 대기: 최대 60초 동안 /api/assistant 응답 가능까지 폴링.
+          # 루트(/) 가 정적 index 를 반환하면 200 이므로 헬스 신호로 충분.
+          for i in $(seq 1 60); do
+            if curl -fsS -o /dev/null "${BASE_URL}/" 2>/dev/null; then
+              echo "[health] server up after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "[health] server did not start within 60s"
+          echo "--- server.log tail ---"
+          tail -50 ../_ci_logs/server.log || true
+          exit 1
+
+      - name: Run phase0_runner --sentinel-v2 (35 cases + static 3)
+        id: run_gate
+        working-directory: local_server/knowledge/phases
+        # 러너 자체 exit code (0=OK, 2=SOFT, 1=HARD) 는 출력만 보존.
+        # 본 잡의 PASS/FAIL 판정은 다음 step 의 결과 파싱으로 별도 결정.
+        continue-on-error: true
+        run: |
+          set +e
+          python3 phase0_runner.py --sentinel-v2 "${BASE_URL}" | tee sentinel_v2_result.md
+          echo "runner_exit=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Evaluate gate criteria (일반 30 PASS≥80% AND SEC 5/5)
+        id: gate
+        working-directory: local_server/knowledge/phases
+        # PASS 기준 식 (beta_synthesis_R2.md §3.2):
+        #   TARGET_GENERAL = (sentinel_general_pass / 30 >= 0.80)   # 24/30 이상
+        #   TARGET_SEC     = (sec_pass == 5)                        # 5/5
+        #   GATE_PASS      = TARGET_GENERAL AND TARGET_SEC
+        # 러너 출력 형식 (beta_runner_impl.md §3.2):
+        #   "요약 (sentinel): PASS N / FAIL M"
+        #   "요약 (SEC):      PASS N / FAIL M"
+        run: |
+          set -eu
+          RESULT="sentinel_v2_result.md"
+          if [ ! -s "${RESULT}" ]; then
+            echo "[gate] result file missing or empty"
+            echo "gate_pass=false" >> "$GITHUB_OUTPUT"
+            echo "reason=result-missing" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          SENT_PASS=$(grep -E '^요약 \(sentinel\):' "${RESULT}" | grep -oE 'PASS [0-9]+' | head -1 | awk '{print $2}')
+          SEC_PASS=$(grep -E '^요약 \(SEC\):' "${RESULT}" | grep -oE 'PASS [0-9]+' | head -1 | awk '{print $2}')
+          SEC_FAIL=$(grep -E '^요약 \(SEC\):' "${RESULT}" | grep -oE 'FAIL [0-9]+' | head -1 | awk '{print $2}')
+          SENT_PASS=${SENT_PASS:-0}
+          SEC_PASS=${SEC_PASS:-0}
+          SEC_FAIL=${SEC_FAIL:-0}
+
+          echo "[gate] sentinel general PASS = ${SENT_PASS}/30"
+          echo "[gate] SEC PASS = ${SEC_PASS}/5 (FAIL=${SEC_FAIL})"
+
+          # TARGET_GENERAL: 24/30 이상 (≥80%)
+          if [ "${SENT_PASS}" -ge 24 ]; then
+            TG=1
+          else
+            TG=0
+          fi
+          # TARGET_SEC: 5/5 정확히
+          if [ "${SEC_PASS}" -eq 5 ] && [ "${SEC_FAIL}" -eq 0 ]; then
+            TS=1
+          else
+            TS=0
+          fi
+
+          if [ "${TG}" -eq 1 ] && [ "${TS}" -eq 1 ]; then
+            echo "[gate] PASS (general≥80% AND SEC 5/5)"
+            echo "gate_pass=true" >> "$GITHUB_OUTPUT"
+            echo "sent_pass=${SENT_PASS}" >> "$GITHUB_OUTPUT"
+            echo "sec_pass=${SEC_PASS}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          REASON=""
+          [ "${TG}" -eq 0 ] && REASON="general<80%(${SENT_PASS}/30)"
+          [ "${TS}" -eq 0 ] && REASON="${REASON}${REASON:+ AND }SEC<5/5(${SEC_PASS}/5,fail=${SEC_FAIL})"
+          echo "[gate] FAIL — ${REASON}"
+          echo "gate_pass=false" >> "$GITHUB_OUTPUT"
+          echo "reason=${REASON}" >> "$GITHUB_OUTPUT"
+          echo "sent_pass=${SENT_PASS}" >> "$GITHUB_OUTPUT"
+          echo "sec_pass=${SEC_PASS}" >> "$GITHUB_OUTPUT"
+          # 비차단 모드 — step 자체는 성공 종료 (잡 레벨 fail 표기는 아래 fail step 에서).
+          exit 0
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f _ci_logs/server.pid ]; then
+            kill "$(cat _ci_logs/server.pid)" 2>/dev/null || true
+            sleep 1
+            kill -9 "$(cat _ci_logs/server.pid)" 2>/dev/null || true
+          fi
+
+      - name: Upload sentinel v2 result artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-v2-result-${{ github.run_id }}
+          path: |
+            local_server/knowledge/phases/sentinel_v2_result.md
+            _ci_logs/server.log
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Notify (placeholder — Slack / GitHub Issue)
+        if: always() && steps.gate.outputs.gate_pass == 'false'
+        # NOTE: 본 step 은 알림 placeholder. 실제 Slack webhook / 이슈 자동 생성은
+        # 후속 PR 에서 채워 넣는다 (deploy.yml 의 actions/github-script 패턴 참조).
+        # 비차단 모드이므로 알림 실패가 잡 결과에 영향 주지 않도록 continue-on-error.
+        continue-on-error: true
+        run: |
+          echo "[notify] gate FAIL — reason: ${{ steps.gate.outputs.reason }}"
+          echo "[notify] sentinel general PASS=${{ steps.gate.outputs.sent_pass }}/30"
+          echo "[notify] SEC PASS=${{ steps.gate.outputs.sec_pass }}/5"
+          echo "[notify] runner exit=${{ steps.run_gate.outputs.runner_exit }}"
+          echo "[notify] TODO: post to Slack / create GitHub issue"
+
+      - name: Mark job failed if gate criteria not met (non-blocking)
+        # 잡 결과 가시화 — gate FAIL 시 본 step 이 fail.
+        # 그러나 job 레벨 `continue-on-error: true` 로 워크플로 전체는 성공 처리.
+        if: steps.gate.outputs.gate_pass == 'false'
+        run: |
+          echo "Gate criteria not met — see sentinel_v2_result.md artifact."
+          echo "Reason: ${{ steps.gate.outputs.reason }}"
+          exit 1

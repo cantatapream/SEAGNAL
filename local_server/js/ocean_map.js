@@ -443,6 +443,10 @@
             try { localStorage.setItem('seagnal_marine_zone_visible', String(visible)); } catch (e) {}
             // OFF 로 돌아갈 때는 "선택 상태" 도 같이 비워서 다음에 켤 때 깨끗하게 시작.
             if (!visible) _resetMarineZoneSelection();
+            // [단독 표출] 해구도 ON 시 물빠짐이 켜져 있으면 끔.
+            if (visible && typeof window._tideFieldDeactivate === 'function') {
+                try { window._tideFieldDeactivate(); } catch (e) {}
+            }
         });
     }
 
@@ -472,12 +476,19 @@
      * @param {boolean} visible - 원하는 가시 상태 (true=ON, false=OFF)
      * @returns {boolean} 토글 버튼이 존재해 처리 가능했으면 true
      */
-    window.setMarineZoneGridVisible = function (visible) {
+    window.setMarineZoneGridVisible = function (visible, _attempt) {
         const btn = document.getElementById('ocean-marine-zone-toggle-btn');
         if (!btn) return false;
         const isActive = btn.classList.contains('active');
         if (isActive !== !!visible) {
             btn.click();   // 토글 핸들러 + 토스트가 같이 발화 → 상태 일관성 보장
+            // [최초 로드 대응] 지도 빌드 전이면 토글 핸들러가 아직 안 묶여 click 이
+            //   무시될 수 있다(.active 가 안 바뀜). 실제 적용될 때까지 폴링 재시도.
+            if (btn.classList.contains('active') !== !!visible && (_attempt || 0) < 40) {
+                setTimeout(function () {
+                    window.setMarineZoneGridVisible(visible, (_attempt || 0) + 1);
+                }, 150);
+            }
         }
         return true;
     };
@@ -712,6 +723,10 @@
             oceanMap = new ol.Map({
                 target: 'ocean-map',
                 layers: layers,
+                // [버그수정] 터치 미세 흔들림으로 첫 탭이 '드래그(팬)'로 분류되어
+                //   'click' 이벤트가 소실되는 문제 방지. 기본 1px → 6px 로 완화하여
+                //   터치 탭이 클릭으로 안정적으로 인정되게 함. (부이/마커 첫 클릭 미표출 해결)
+                moveTolerance: 6,
                 view: new ol.View({
                     center: ol.proj.fromLonLat(DEFAULT_CENTER),
                     zoom: DEFAULT_ZOOM,
@@ -725,6 +740,13 @@
 
             // 클릭 이벤트
             oceanMap.on('click', handleMapClick);
+
+            // [클릭 핀 정리] 우측 기능 버튼(파고/바람/조류/해구도/천기/물빠짐 등)을 누르면
+            //   배경지도에 꽂아둔 핀을 제거. capture 단계라 버튼 핸들러의 stopPropagation 과 무관.
+            document.addEventListener('click', function (e) {
+                var b = e.target && e.target.closest && e.target.closest('.ocean-overlay-btn');
+                if (b && typeof window.oceanClearClickPin === 'function') window.oceanClearClickPin();
+            }, true);
 
             // 뷰포트 변경 시 오버레이 갱신
             oceanMap.on('moveend', function () {
@@ -779,6 +801,17 @@
             window.__getOceanMap = function () { return oceanMap; };
             if (window.__SEAGNAL_PAGE === 'index2' && window.initShrtForecastLayer) {
                 window.initShrtForecastLayer(oceanMap);
+            }
+            // [시정예측] KMA RDPS 시정/안개 PNG 오버레이 모듈 (index2 전용 — 천기 메커니즘 복제)
+            if (window.__SEAGNAL_PAGE === 'index2' && window.initVsbyForecastLayer) {
+                window.initVsbyForecastLayer(oceanMap);
+            }
+
+            // [물빠짐] 서해·남해 갯벌 노출 예측 레이어 (index2 전용)
+            //   tide_field.js 가 토글 버튼 + 시간 슬라이더 + 2색 벡터 레이어를 바인딩.
+            //   (tide_field.js 자체에도 autoInit 폴링이 있어 누락 시 자동 보강)
+            if (window.__SEAGNAL_PAGE === 'index2' && window.initTideFieldLayer) {
+                window.initTideFieldLayer(oceanMap);
             }
 
             console.log('[OceanMap] 지도 초기화 완료 (해아름 WMS)');
@@ -900,6 +933,27 @@
     // 지도 클릭 처리
     // ========================================================================
 
+    // [공통 클릭 핀] 배경지도를 누른 위치에 핀 1개를 표시한다(다른 곳 누르면 이동).
+    //   해양종합정보 공통 — 물빠짐/바텀시트 등과 무관하게 "내가 누른 지점" 표시용.
+    let _clickPinOverlay = null;
+    window.oceanDropClickPin = function (map, coordinate) {
+        if (!map || !coordinate || typeof ol === 'undefined') return;
+        if (!_clickPinOverlay) {
+            const el = document.createElement('div');
+            el.className = 'ocean-click-pin';
+            el.innerHTML = '<i class="fa-solid fa-location-dot"></i>';
+            _clickPinOverlay = new ol.Overlay({
+                element: el, positioning: 'bottom-center', offset: [0, 1], stopEvent: false
+            });
+            map.addOverlay(_clickPinOverlay);
+        }
+        _clickPinOverlay.setPosition(coordinate);
+    };
+    // 핀 제거(위치 해제) — 물빠짐 종료 등에서 호출.
+    window.oceanClearClickPin = function () {
+        if (_clickPinOverlay) _clickPinOverlay.setPosition(undefined);
+    };
+
     function handleMapClick(evt) {
         const coord = ol.proj.toLonLat(evt.coordinate);
         const lon = coord[0];
@@ -942,6 +996,10 @@
             if (hit) return; // 마커 클릭이면 마커 핸들러에서 처리
         }
 
+        // [공통 핀] 배경(해역) 클릭 시 클릭 지점에 핀 1개 표시(다음 클릭 시 이동).
+        //   마커/CCTV/부이 클릭은 위에서 return 되므로 그 위엔 안 찍힘.
+        if (typeof window.oceanDropClickPin === 'function') window.oceanDropClickPin(oceanMap, evt.coordinate);
+
         // [T5 — 가드 순서 변경] 천기(KMA 단기예보) 레이어 활성 시 가장 우선.
         // [정책] 사용자 요구 — "해구도/특보가 같이 켜져있어도 천기가 1순위".
         //        해구도 가드 위로 옮겨져 천기가 활성이면 빈 영역 클릭은 천기 박스로 소비.
@@ -951,6 +1009,18 @@
         //        그 외엔 false 반환 → 다음 가드 (해구도 / 특보 / 바텀시트) 진행.
         if (typeof window._shrtForecastTryHandleClick === 'function') {
             if (window._shrtForecastTryHandleClick(oceanMap, evt)) return;
+        }
+
+        // [시정예측 가드] 천기 바로 다음 우선순위. 시정 레이어 활성 + extent 내부 +
+        // frame 있음 → 시정(km) 팝업 박스 띄우고 true 반환 (클릭 소비).
+        // 천기와 시정은 상호 배타라 둘이 동시에 활성일 수 없음 (순서는 안전상 천기 다음).
+        if (typeof window._vsbyForecastTryHandleClick === 'function') {
+            if (window._vsbyForecastTryHandleClick(oceanMap, evt)) return;
+        }
+
+        // [물빠짐 가드] 물빠짐 활성 시 클릭 소비 → 바텀시트 억제, 물빠짐 팝업만 표출.
+        if (typeof window._tideFieldTryHandleClick === 'function') {
+            if (window._tideFieldTryHandleClick(oceanMap, evt)) return;
         }
 
         // 해구도 격자 클릭 (해구도 토글 ON 일 때만)

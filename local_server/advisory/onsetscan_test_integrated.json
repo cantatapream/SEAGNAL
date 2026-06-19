@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-06-14T10:19:39.863Z",
+  "allPass": true,
+  "passed": 3,
+  "total": 3,
+  "results": [
+    {
+      "case": "equivalence_5000_random",
+      "pass": true,
+      "detail": "5000개 시나리오 결과·디코드효율 동치"
+    },
+    {
+      "case": "no_onset_peak",
+      "pass": true,
+      "detail": "{\"onset\":null,\"peakWind\":12,\"windBand\":0}"
+    },
+    {
+      "case": "early_onset_stops_decode",
+      "pass": true,
+      "detail": "{\"windBand\":25,\"decoded\":[\"w0\",\"w1\"]}"
+    }
+  ]
+}

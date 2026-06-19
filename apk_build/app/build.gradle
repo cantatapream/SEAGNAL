@@ -23,7 +23,7 @@ plugins {
 def twaManifest = [
     applicationId: 'com.seagnal.app',
     hostName: 'seagnal-server.fly.dev', // The domain being opened in the TWA.
-    launchUrl: '/index.html', // The start path for the TWA. Must be relative to the domain.
+    launchUrl: '/', // The start path for the TWA. Must be relative to the domain.
     name: 'SEA:GNAL', // The application name.
     launcherName: 'SEA:GNAL', // The name shown on the Android Launcher.
     themeColor: '#05070A', // The color used for the status bar.

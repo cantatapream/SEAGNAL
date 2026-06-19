@@ -121,11 +121,12 @@ window.renderAlertAdminContent = async function (tabId, targetContainer) {
     var container = targetContainer || document.getElementById('alert-management-content');
     if (!container) return;
     if (tabId === 'custom') { window.renderCustomPushTab(container); return; }
-    if (tabId === 'history') {
-        // [탭 재진입 리셋] 발송 이력 탭 첫 진입 시 1페이지부터 시작.
-        // 같은 탭 내 페이지 클릭/필터 변경은 renderHistoryTab 을 직접 호출하므로
-        // 여기서 리셋해도 영향 없음.
+    if (tabId === 'history' || tabId === 'typhoon' || tabId === 'location') {
+        // [탭 재진입 리셋] 첫 진입 시 1페이지부터 시작.
         _pushHistoryPage = 1;
+        // 태풍 발생/소멸·위치기반 상단 탭은 발송 이력을 해당 카테고리로 필터링해 보여준다.
+        //   (이력 기록의 tab 값: 'typhoon' / 'location' — 필터 cat 과 동일)
+        historyFilter.cat = (tabId === 'history') ? 'all' : tabId;
         window.renderHistoryTab(container);
         return;
     }
@@ -596,7 +597,9 @@ window.renderHistoryTab = async function (container) {
             { id: 'all', name: '전체' }, { id: 'publish', name: '발표' },
             { id: 'active', name: '발효' }, { id: 'change-time', name: '시각변경' },
             { id: 'release', name: '해제' },
-            { id: 'level', name: '격상/격하' }, { id: 'custom', name: '직접 발송' }
+            { id: 'level', name: '격상/격하' }, { id: 'custom', name: '직접 발송' },
+            { id: 'typhoon', name: '태풍 발생/소멸' },  // 태풍 알림(tab:'typhoon')만 필터링
+            { id: 'location', name: '위치기반' }        // 위치기반 알림(tab:'location')만 필터링
         ];
 
         var catHtml = categories.map(function(c) {

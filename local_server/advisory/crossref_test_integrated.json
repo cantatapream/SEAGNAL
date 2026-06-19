@@ -1,0 +1,28 @@
+{
+  "generatedAt": "2026-06-14T10:14:33.878Z",
+  "allPass": true,
+  "passed": 4,
+  "total": 4,
+  "results": [
+    {
+      "case": "onsetToSlot",
+      "pass": true,
+      "detail": "OK"
+    },
+    {
+      "case": "parse_wind_wave",
+      "pass": true,
+      "detail": "OK"
+    },
+    {
+      "case": "buildKmaForecast",
+      "pass": true,
+      "detail": "OK"
+    },
+    {
+      "case": "enrichPredictions",
+      "pass": true,
+      "detail": "OK"
+    }
+  ]
+}

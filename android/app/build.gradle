@@ -7,8 +7,8 @@ android {
         applicationId "com.seagnal.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.1.1"
+        versionCode 8
+        versionName "1.1.6"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -48,6 +48,24 @@ dependencies {
     // 한국어 모델(~80MB)은 사용자 동의 후 VoskDownloadService 가 첫 1회 내려받음(APK 미포함).
     implementation 'net.java.dev.jna:jna:5.13.0@aar'
     implementation 'com.alphacephei:vosk-android:0.3.47'
+    // [사용자 기억 v2] Room SQLite — memory/*.java(@Entity/@Dao/@Database)가 사용.
+    // Java 프로젝트라 annotationProcessor 사용(kapt 는 Kotlin 전용). 없으면 컴파일 시
+    // "package androidx.room does not exist" 에러가 난다.
+    // 2.7.x: room-compiler 가 Kotlin 2.1 메타데이터(capacitor 플러그인 등)를 읽을 수 있어야
+    // 하므로 2.6.1 → 2.7.2 (2.6.1 은 kotlinx-metadata 2.0.0 한계로 빌드 실패).
+    implementation 'androidx.room:room-runtime:2.7.2'
+    annotationProcessor 'androidx.room:room-compiler:2.7.2'
+    // [위치기반 특보 killed 대응] LocationAlertMessagingService 가
+    //   com.google.firebase.messaging.RemoteMessage / FirebaseMessagingService(=Capacitor
+    //   MessagingService 부모) 를 컴파일타임에 참조한다. @capacitor/push-notifications 는
+    //   firebase-messaging 을 'implementation'(비노출)으로 가져오므로 앱 모듈에서 직접 선언해야
+    //   RemoteMessage 등이 컴파일 클래스패스에 올라온다. push 플러그인 기본값과 동일 버전(25.0.1)으로
+    //   고정해 전이 의존성 충돌(다운그레이드)을 피한다.
+    implementation 'com.google.firebase:firebase-messaging:25.0.1'
+    // LocationAlertMessagingService 는 push 플러그인의 MessagingService 를 상속하므로 그 클래스가
+    //   앱 모듈 컴파일 클래스패스에 필요하다. capacitor.build.gradle 가 자동 포함하지만, 생성 순서·
+    //   누락에 대비해 명시적으로 선언(중복 시 gradle 이 dedup, 무해).
+    implementation project(':capacitor-push-notifications')
 }
 
 apply from: 'capacitor.build.gradle'

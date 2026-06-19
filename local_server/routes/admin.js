@@ -1991,6 +1991,170 @@ router.post('/api/admin/demo/testmode', (req, res) => {
     }
 });
 
+// ============================================================================
+// [특보 예측 시연] 제어 엔드포인트 (관리자 인증 하).
+//   목업/상태 헬퍼는 advisory/demoScenarios.js 공유. 기기 폴링은 공개 라우트
+//   /api/advisory-demo/* (routes/advisoryDemo.js) 에서 별도 처리.
+// ============================================================================
+const advDemo = require('../advisory/demoScenarios');
+
+// 현재 시연 상태(테스트모드 + 표출중 시나리오 + 시나리오 목록) — 관리자 UI 렌더용
+router.get('/api/admin/advisory-demo/state', (req, res) => {
+    try {
+        res.json({ testMode: advDemo.isTestMode(), scenarioId: advDemo.getActiveId(), scenarios: advDemo.listScenarios() });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 테스트 모드 ON/OFF (body: { enabled }) — OFF 시 표출중 시연도 정리
+router.post('/api/admin/advisory-demo/testmode', (req, res) => {
+    try {
+        const enabled = advDemo.setTestMode(!!(req.body && req.body.enabled));
+        console.log(`[AdvisoryDemo] 테스트 모드 ${enabled ? 'ON' : 'OFF'}`);
+        res.json({ success: true, testMode: enabled, scenarioId: advDemo.getActiveId() });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 시나리오 표출 (body: { scenarioId }) — 테스트모드 ON 일 때만 유효
+router.post('/api/admin/advisory-demo/emit', (req, res) => {
+    try {
+        const id = req.body && req.body.scenarioId;
+        if (!advDemo.SCENARIOS[id]) return res.status(400).json({ error: '알 수 없는 시나리오: ' + id });
+        if (!advDemo.isTestMode()) return res.status(409).json({ error: '테스트 모드를 먼저 켜세요.' });
+        advDemo.setActive(id);
+        console.log(`[AdvisoryDemo] 표출: ${id}`);
+        res.json({ success: true, scenarioId: id });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 표출 내리기
+router.post('/api/admin/advisory-demo/clear', (req, res) => {
+    try {
+        advDemo.clearActive();
+        console.log('[AdvisoryDemo] 표출 내림');
+        res.json({ success: true, scenarioId: null });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ============================================================================
+// [특보 예측 표출 관리] — 청중 모드(off/admin/all) + 구역별 삭제/표출중지/수정.
+//   상태 헬퍼: advisory/displayControl.js. 공개 표출은 /api/advisory-prediction 가 반영.
+// ============================================================================
+const advDisplay = require('../advisory/displayControl');
+const ADV_STATE_FILE = path.join(DATA_DIR, 'advisory_state.json');
+
+// 현재 상태(모드 + 오버라이드 + 현재 생성된 예측 목록) — 관리 UI 렌더용
+router.get('/api/admin/advisory-display/state', (req, res) => {
+    try {
+        const s = advDisplay.readState();
+        let predictions = [], resolvedCount = 0, baseTimeKST = null;
+        try {
+            const raw = JSON.parse(fs.readFileSync(ADV_STATE_FILE, 'utf8'));
+            predictions = Array.isArray(raw.active) ? raw.active : [];
+            resolvedCount = Array.isArray(raw.resolved) ? raw.resolved.length : 0;
+            baseTimeKST = raw.baseTimeKST || null;
+        } catch (_) { /* 상태 없음 — 기본값 */ }
+        res.json({
+            mode: s.mode, hidden: s.hidden, stopped: s.stopped, edits: s.edits,
+            resolvedZ: s.resolvedZ, updatedAt: s.updatedAt,
+            predictions, resolvedCount, baseTimeKST,
+        });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 청중 모드 설정 (body: { mode: 'off'|'admin'|'all' }) — off 면 생성도 중단
+router.post('/api/admin/advisory-display/mode', (req, res) => {
+    try {
+        const mode = advDisplay.setMode(req.body && req.body.mode);
+        console.log(`[AdvisoryDisplay] 표출 모드: ${mode}`);
+        res.json({ success: true, mode });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 구역 숨김 (body: { zone, permanent }) — permanent=true 삭제 / false 표출중지
+router.post('/api/admin/advisory-display/hide', (req, res) => {
+    try {
+        const zone = req.body && req.body.zone;
+        if (!zone) return res.status(400).json({ error: 'zone 필요' });
+        advDisplay.hideZone(zone, !!(req.body && req.body.permanent));
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 구역 복귀 (body: { zone }) — 삭제/표출중지 해제
+router.post('/api/admin/advisory-display/restore', (req, res) => {
+    try {
+        const zone = req.body && req.body.zone;
+        if (!zone) return res.status(400).json({ error: 'zone 필요' });
+        advDisplay.restoreZone(zone);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 구역 수정 (body: { zone, narrative?, gradeKey?, probPct? })
+router.post('/api/admin/advisory-display/edit', (req, res) => {
+    try {
+        const b = req.body || {};
+        if (!b.zone) return res.status(400).json({ error: 'zone 필요' });
+        advDisplay.editZone(b.zone, { narrative: b.narrative, gradeKey: b.gradeKey, probPct: b.probPct });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 구역 수정 해제 (body: { zone })
+router.post('/api/admin/advisory-display/clear-edit', (req, res) => {
+    try {
+        const zone = req.body && req.body.zone;
+        if (!zone) return res.status(400).json({ error: 'zone 필요' });
+        advDisplay.clearEdit(zone);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 예측 적중 통계 (운영 누적 저널 기반 — 등급/확률구간별 + 월별 누적)
+//   기간 조회: ?days=7|30  또는 ?from=ISO&to=ISO (없으면 전체)
+router.get('/api/admin/advisory-display/stats', (req, res) => {
+    try {
+        const journal = require('../advisory/journal');
+        const q = req.query || {};
+        const opt = {};
+        if (q.days && isFinite(Number(q.days))) {
+            opt.fromMs = Date.now() - Number(q.days) * 24 * 3600 * 1000;
+        } else {
+            if (q.from) { const f = Date.parse(q.from); if (isFinite(f)) opt.fromMs = f; }
+            if (q.to) { const t = Date.parse(q.to); if (isFinite(t)) opt.toMs = t; }
+        }
+        res.json(journal.computeStats(opt));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 구역 해소 전환 (body: { zone }) — active 에서 빼고 사용자 '최근 해소'에 합성 표출(24h)
+router.post('/api/admin/advisory-display/resolve', (req, res) => {
+    try {
+        const zone = req.body && req.body.zone;
+        if (!zone) return res.status(400).json({ error: 'zone 필요' });
+        advDisplay.resolveZone(zone);
+        console.log(`[AdvisoryDisplay] 해소 전환: ${zone}`);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 해소 목록 즉시 비우기 — advisory_state.json 의 resolved 를 [] 로 (나머지 필드 보존)
+//   + 관리자 해소 전환(합성) 항목도 함께 비움.
+//   용도: 전환기 잔재(구엔진 해소 항목) 등을 24h 자연만료 전에 정리하고 공개 전환.
+router.post('/api/admin/advisory-display/clear-resolved', (req, res) => {
+    try {
+        let raw = {};
+        try { raw = JSON.parse(fs.readFileSync(ADV_STATE_FILE, 'utf8')); } catch (_) { raw = {}; }
+        const cleared = Array.isArray(raw.resolved) ? raw.resolved.length : 0;
+        raw.resolved = [];
+        raw.updatedAt = new Date().toISOString();
+        fs.writeFileSync(ADV_STATE_FILE, JSON.stringify(raw, null, 2), 'utf8');
+        try { advDisplay.clearAdminResolved(); } catch (_) { /* graceful */ }
+        console.log(`[AdvisoryDisplay] 해소 목록 비움 (${cleared}건 + 합성)`);
+        res.json({ success: true, cleared });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // 데모 슬롯 추가/저장 (전체 목록을 통째로 받아 덮어씀 — 추가/수정/삭제 공용)
 router.post('/api/admin/demo/slots', (req, res) => {
     try {
@@ -2066,6 +2230,94 @@ router.post('/api/admin/demo/emit', async (req, res) => {
         res.json({ success: true, active, pushResult });
     } catch (e) {
         console.error('[Demo] 표출 오류:', e && e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// [태풍 시연] 발생/소멸 테스트 푸시 — 관리자 등록 기기(admin_devices.json)에만 발송.
+//   가짜 좌표를 만들지 않고, 방재기상플랫폼에서 "올해 6호 태풍 장미"의 실제 통보문을 받아 사용한다.
+//     - 발생: 최초 "태풍" 통보문(열대저압부 단계 제외) 위치
+//     - 소멸: 최후 통보문 위치
+//   실제 발송기(typhoon_notifier)와 동일한 문구 빌더(typhoon_message)를 써서 표기가 갈라지지 않음.
+//   탭 시 해당 통보문 위치로 지도가 이동(버튼 비활성이어도 강제 활성화) — buildDemoUrl/assistant_deeplink 처리.
+router.post('/api/admin/demo/typhoon-test', async (req, res) => {
+    try {
+        const { kind } = req.body || {};
+        const k = kind === 'dissipation' ? 'dissipation' : 'onset';
+        const typhoon = require('../typhoon_crawler');
+        const tmsg = require('../services/typhoon_message');
+        if (!typhoon.enabled) {
+            return res.status(503).json({ error: '방재기상플랫폼 자격증명(KMA_DMDW_USER_ID/PWD) 미설정 — 실데이터 조회 불가' });
+        }
+        const SEQ = '6'; // 사용자 지정 기준: 올해 6호 태풍 장미
+        const year = new Date(Date.now() + 9 * 3600 * 1000).getUTCFullYear();
+        const bl = await typhoon.getBulletinList(year, SEQ);
+        if (!bl || !bl.length) {
+            return res.status(404).json({ error: `${year}년 ${SEQ}호 태풍 통보문을 찾을 수 없습니다.` });
+        }
+        // bl[0]=최신(최후), bl[length-1]=가장 이른(최초)
+        let code;
+        if (k === 'onset') {
+            const typs = bl.filter(b => b.kind === 'TYP'); // 태풍단계만 (TD/열대저압부 제외)
+            code = (typs.length ? typs[typs.length - 1] : bl[bl.length - 1]).code; // 가장 이른 태풍 통보문
+        } else {
+            code = bl[0].code; // 최후 통보문
+        }
+        const d = await typhoon.getBulletin(year, code);
+        if (!d || !d.current) {
+            return res.status(404).json({ error: '통보문 위치 정보를 가져오지 못했습니다.' });
+        }
+        const snap = { seq: SEQ, name: d.name, nameEn: d.nameEn, current: d.current, rem: d.rem, tmFc: d.tmFc };
+        const msg = k === 'onset' ? tmsg.buildOnset(snap) : tmsg.buildDissipation(snap);
+        // 탭 시 이 실제 통보문(연도/호수/코드)을 그대로 표출(라벨·정보·이미지·지도 이동)
+        const url = tmsg.buildDemoUrl({ year, seq: SEQ, code });
+        // sendAdminPush → admin_devices.json 대상 (일반 사용자에게는 발송되지 않음)
+        const pushResult = await sendAdminPush(msg.title, msg.body, { url, type: 'typhoon_test' });
+        console.log(`[Typhoon Demo] ${k} 테스트 발송(실데이터 ${SEQ}호): ${msg.title}`);
+        res.json({ success: true, kind: k, title: msg.title, body: msg.body, pushResult });
+    } catch (e) {
+        console.error('[Typhoon Demo] 테스트 발송 오류:', e && e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// [위치기반 반경 시연] 고정 위치(30.345,130.625) + 고정 통보문(2026 6호 장미, 제6-20호)
+//   으로 강풍/폭풍반경 진입 ETA 를 계산해 "위치기반 긴급경보" 푸시를 관리자 기기에만 발송.
+//   - 발생/소멸 테스트와 완전 별개. 일반 사용자 발송 경로/라이브 위치 서브시스템 미사용.
+//   - 탭 시: 그 통보문이 선택된 태풍 화면 + 행동요령(2탭) 팝업 자동 표출(dtGuide=1).
+router.post('/api/admin/demo/typhoon-radius-test', async (req, res) => {
+    try {
+        const { kind } = req.body || {};
+        const which = kind === 'storm' ? 'storm' : 'strong';
+        const typhoon = require('../typhoon_crawler');
+        const tmsg = require('../services/typhoon_message');
+        const tr = require('../services/typhoon_radius');
+        if (!typhoon.enabled) {
+            return res.status(503).json({ error: '방재기상플랫폼 자격증명(KMA_DMDW_USER_ID/PWD) 미설정 — 실데이터 조회 불가' });
+        }
+        const LOC = { lat: 30.345, lon: 130.625 };
+        const CODE = '1_202606010400_6_20';
+        const year = 2026, seq = '6';
+        const d = await typhoon.getBulletin(year, CODE);
+        if (!d) {
+            return res.status(404).json({ error: `${year}년 통보문(${CODE})을 찾을 수 없습니다.` });
+        }
+        const frames = [];
+        if (d.current && d.current.lat != null) frames.push(d.current);
+        (d.forecast || []).forEach(f => { if (f.lat != null) frames.push(f); });
+        const entry = tr.radiusEntry(LOC, frames, which);
+        if (!entry) {
+            return res.status(422).json({ error: '해당 반경 진입 프레임 없음' });
+        }
+        const snap = { seq, name: d.name, nameEn: d.nameEn };
+        const { title, body } = tmsg.buildRadiusAlert(which, snap, entry.time);
+        const url = tmsg.buildDemoUrl({ year, seq, code: CODE, guide: true });
+        // sendAdminPush → admin_devices.json 대상 (일반 사용자에게는 발송되지 않음)
+        const pushResult = await sendAdminPush(title, body, { url, type: 'typhoon_radius_test' });
+        console.log(`[Typhoon Demo] 위치기반 ${which} 반경 발송(실데이터 ${CODE}): ${title}`);
+        res.json({ success: true, kind: which, eta: entry.time, title, body, pushResult });
+    } catch (e) {
+        console.error('[Typhoon Demo] 위치기반 반경 발송 오류:', e && e.message);
         res.status(500).json({ error: e.message });
     }
 });

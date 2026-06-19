@@ -136,6 +136,9 @@ router.get('/data/:filename', (req, res, next) => {
 // 조석 데이터 수집 요청 (격자 캐싱 + 3일 패딩 분석)
 // ============================================================================
 router.post('/api/save_tide_input', async (req, res) => {
+    // [사용자 우선] 야간 앵커 수집과 TideBED 키 충돌 회피 — 사용자 요청이 들어온
+    //   순간을 표시해, 수집기(tide_field_collector)가 잠깐 키를 양보하도록 한다.
+    tideCollector.noteUserRequest();
     const { date, time, lat, lon, deviceId } = req.body;
     // ❹ 클라이언트 격자ID 캐시 — body 에 동봉되어 오면 KHOA 사전 조회 1회 절감.
     // 잘못된 값을 보내도 후속 KHOA 호출이 그 격자에서 실패할 뿐 다른 사용자에 영향 없음.

@@ -19,10 +19,12 @@
  *   4) 본문을 Gemini AI 에 전달해 마크업({{loc:}}, {{num:}}, {{warn:}})을 입힌
  *      summary 와 대표 기온(아침최저/낮최고 범위)을 받아옴
  *
- * [발표 시각] KST 04:30 / 16:20~16:30 (지방청별 다름) — 하루 2회
+ * [발표 시각] KST 04:40~04:50 / 16:40 (지방청별 다름, 실측 2026-06) — 하루 2회
+ *   ※ 과거 04:30 / 16:20~16:30 에서 뒤로 이동했고 웹 게시는 더 지연될 수 있어
+ *     발표 시각대 한 시간만으론 늦게 뜨는 발표분(특히 오후)을 놓친다 → 윈도우를 한 시간 더 넓힘.
  *
  * [실행 윈도우] scheduler.js 가 호출
- *   04:01~04:56 / 16:01~16:56  (5분 간격, min % 5 === 1)
+ *   04:01~05:56 / 16:01~17:56  (5분 간격, min % 5 === 1)
  *   같은 윈도우 안에서 동일 reportId 는 캐시로 즉시 스킵되므로 5분마다 호출되어도
  *   실제 fetch/AI 호출은 처음 1회만 발생.
  *
@@ -37,6 +39,8 @@
  *   - bulletinReportId    : 이번에 수집된 통보문 ID
  *   - bulletinPublishTime : "2026.05.02 04:30" 형식의 발표시각 (헤더용)
  *   - summary             : 마크업이 적용된 전체 본문 텍스트
+ *                           (AI 색칠 실패 시엔 마크업 없는 원문 텍스트 — 프론트가 자동 색칠/표출)
+ *   - bulletinColored     : AI 색칠 완료 여부(false=원문만 표출 중, 다음 사이클 재색칠 대상)
  *   PDF 출처 필드(publishTime, temperature, marineForecast, coastalForecast)는 그대로 유지.
  *
  * [연계]
@@ -116,10 +120,29 @@ const REGIONAL_BULLETIN_AI_PROMPT = `
 - "날씨해설 다운로드", "첨부파일 다운로드" 같은 부가 텍스트는 제거.
 - 원문에 없는 내용은 추가하지 않고, 텍스트 자체는 변경하지 않으며 마크업만 추가.
 
-### 3. 출력 형식 (반드시 JSON만, 추가 설명 금지)
+### 3. 해상구역별 전망 추출 (marineOutlooks)
+본문에서 해상 특보구역(…안쪽먼바다/…바깥먼바다/…먼바다/…앞바다/전해상 등) 단위의
+바람·물결 전망을 구역별로 추출한다. 각 항목은 sentence(문장) + wind/wave(수치)로 구성한다.
+- sentence 규칙: 시점 표현(오늘/내일/모레(N일) 오전·오후 등) 보존, 수치·단위(괄호 포함) 제거,
+  "항해나 조업하는 선박은 유의…", "앞으로 발표하는 기상정보를 참고…" 등 행동지침 제거,
+  마크업({{..}}) 없이 평문, "~겠음" 종결로 간결하게.
+- wind 규칙: 그 구역 바람의 풍속을 m/s 범위 문자열로(괄호 안 m/s 값). 예 "30~50km/h(9~14m/s)" → "9~14".
+  단일값이면 "12". 풍속 수치가 없으면 null.
+- wave 규칙: 그 구역 물결(파고)을 m 범위 문자열로. 예 "1.5~3.0m" → "1.5~3.0". 단일값이면 "2.0".
+  파고 수치가 없으면 null.
+  예) 원문 "모레(14일) 오후부터 제주도남쪽바깥먼바다에는 차차 바람이 30~50km/h(9~14m/s)로
+      강하게 불고, 물결이 1.5~3.0m로 높게 일겠으니, 항해나 조업하는 선박은 유의하기 바라며…"
+      → { "zone": "제주도남쪽바깥먼바다",
+          "sentence": "모레(14일) 오후부터 차차 바람이 강하게 불고 물결이 높게 일겠음",
+          "wind": "9~14", "wave": "1.5~3.0" }
+- zone 은 본문에 등장한 구역명 그대로(여러 구역이 묶이면 그 묶음 표현 그대로).
+- 해당 내용이 없으면 빈 배열 [].
+
+### 4. 출력 형식 (반드시 JSON만, 추가 설명 금지)
 
 {
-  "summary": "마크업이 적용된 전체 본문 텍스트 (줄바꿈 보존)"
+  "summary": "마크업이 적용된 전체 본문 텍스트 (줄바꿈 보존)",
+  "marineOutlooks": [{ "zone": "구역명", "sentence": "전망 문장", "wind": "9~14"|null, "wave": "1.5~3.0"|null }]
 }
 `;
 
@@ -325,9 +348,10 @@ function saveCache(officeCode, reportId, data) {
 // 발표 사이클 ID — 같은 사이클이면 수집 생략 (KMA list.do 호출 자체 절감)
 // ============================================================================
 //
-// KMA 단기 전망 발표 주기:
-//   AM 사이클: 04:30 발표 (모든 지방청 동일)
-//   PM 사이클: 16:20 발표 (부산/강원) 또는 16:30 발표 (광주/대전/대구/제주/수도권)
+// KMA 단기 전망 발표 주기(실측 2026-06): AM 04:40~04:50 / PM 16:40 (지방청별 다름).
+//   ※ 아래 사이클 경계(04:30 / 16:20)는 실제 발표보다 일부러 조금 이르게 둬,
+//     경계를 넘는 순간부터 "이제 새 발표분을 찾아라" 상태가 되어 발표 직후부터 수집을
+//     시도하게 한다. 실제 게시가 늦어도 윈도우(05/17시까지)가 끝까지 재시도한다.
 //
 // 사이클 경계 (KST):
 //   00:00 ~ 04:29  → 어제 PM 사이클
@@ -359,11 +383,19 @@ function getStoredCycleId(bulletinPublishTime) {
 
 /**
  * 현재 시각이 어느 발표 사이클에 속하는지 ID 로 반환.
- * 서버가 UTC 컨테이너에서 돌아도 KST 기준으로 일관 동작.
+ * 서버 TZ(UTC/KST 무관)에 상관없이 KST 기준으로 일관 동작.
  */
 function getCurrentExpectedCycleId(now) {
-    // 서버 timezone 무관하게 KST 시각 도출
-    const kstMs = now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600000);
+    // [TZ 버그 수정] getTime() 은 서버 TZ 와 무관하게 항상 UTC epoch ms 이므로,
+    //   여기에 +9h 만 더한 뒤 getUTC* 로 읽으면 어떤 서버 TZ 에서도 KST 가 된다.
+    //   (이전: + now.getTimezoneOffset()*60000 항을 더했는데, 운영 서버가 KST
+    //    [Dockerfile ENV TZ=Asia/Seoul]이면 offset(-540분)이 +9h 를 상쇄해
+    //    getUTCHours() 가 UTC(=KST-9h)를 돌려줬다. 그 결과 실제 KST 오후(16:20~)에
+    //    사이클을 'am' 으로 오판 → 저장된 오전 통보문과 일치 → 오후 PM 통보문이 매일
+    //    cycle-skip 되어 fetch/AI 도 못 하고 영구 미수집되던 버그.
+    //    scheduler.js 의 kstDate 는 getHours()[로컬TZ]로 읽어 KST 서버에서도 맞았지만,
+    //    본 함수만 getUTCHours()를 써서 두 계산이 어긋나 있었다.)
+    const kstMs = now.getTime() + (9 * 3600000);
     const kst = new Date(kstMs);
     const minOfDay = kst.getUTCHours() * 60 + kst.getUTCMinutes();
 
@@ -401,6 +433,32 @@ function getCurrentExpectedCycleId(now) {
  *   { reportId, title, publishTime, rawText, summary, collectedAt, fromCache }
  *   또는 null (수집/분석 실패)
  */
+// 통보문 원문에서 해상(풍랑/물결/바람) 전망을 정규식으로 추출 — AI(marineOutlooks)
+//   실패/미설정 시 fallback. crossReference 가 기대하는 형식
+//   {zone, sentence, wind:"9~14"|null, wave:"1.5~3.0"|null} 으로 반환(wind=m/s, wave=m).
+function extractMarineOutlooksRegex(text) {
+    if (!text) return [];
+    const segs = String(text).split(/\n|○/)
+        .filter((s) => /(먼바다|앞바다)/.test(s) && /(물결|바람|풍랑|너울|m\/s|m로)/.test(s));
+    const out = [], seen = new Set();
+    for (const seg of segs) {
+        const zones = [...seg.matchAll(/([가-힣]+(?:안쪽먼바다|바깥먼바다|먼바다|앞바다))/g)].map((m) => m[1]);
+        if (!zones.length) continue;
+        const wm = seg.match(/(\d+(?:\.\d+)?~\d+(?:\.\d+)?|\d+(?:\.\d+)?)\s*m\/s/);     // "9~14m/s"
+        const wind = wm ? wm[1] : null;
+        const vm = seg.match(/물결[이가]?\s*(?:최대\s*)?(\d+(?:\.\d+)?~\d+(?:\.\d+)?|\d+(?:\.\d+)?)\s*m(?!\/s)/);
+        const wave = vm ? vm[1] : null;
+        if (!wind && !wave) continue; // 수치 없는 일반 문장 제외
+        const sentence = seg.replace(/\s+/g, ' ').trim().slice(0, 180);
+        for (const z of zones) {
+            if (seen.has(z)) continue;
+            seen.add(z);
+            out.push({ zone: z, sentence, wind, wave });
+        }
+    }
+    return out;
+}
+
 async function processOneOffice(office) {
     try {
         const found = await findBulletinForOffice(office.code);
@@ -409,37 +467,68 @@ async function processOneOffice(office) {
             return null;
         }
 
-        // 캐시 hit ?  → 같은 윈도우 내 5분 간격 재호출은 여기서 끝남 (fetch/AI 호출 0회)
+        // [캐시 정책] AI 색칠까지 끝난(aiColored===true) 경우에만 "완료"로 보고 즉시 반환.
+        //   색칠 못 한 폴백(aiColored===false, 원문만 표출 중)은 할당량 회복 후 재색칠하도록
+        //   캐시에 남겨둔 rawText 를 재사용해 AI 만 다시 시도한다(기상청 재요청 회피).
         const cached = loadCache(office.code, found.reportId);
-        if (cached && cached.summary !== undefined) {
-            console.log(`[RegionalBulletin] ${office.name}: 캐시 hit (${found.title})`);
+        if (cached && cached.aiColored === true && cached.summary !== undefined) {
+            console.log(`[RegionalBulletin] ${office.name}: 캐시 hit (색칠 완료) (${found.title})`);
             return { ...cached, fromCache: true };
         }
 
-        console.log(`[RegionalBulletin] ${office.name}: 새 통보문 수집 (${found.title})`);
-        const rawText = await fetchBulletinBody(office.code, found.reportId);
+        let rawText = (cached && cached.rawText) ? cached.rawText : null;
+        if (!rawText) {
+            console.log(`[RegionalBulletin] ${office.name}: 새 통보문 수집 (${found.title})`);
+            rawText = await fetchBulletinBody(office.code, found.reportId);
+        } else {
+            console.log(`[RegionalBulletin] ${office.name}: 미색칠 통보문 재색칠 시도 (${found.title})`);
+        }
         if (!rawText) {
             console.log(`[RegionalBulletin] ${office.name}: 본문 비어있음, 스킵`);
             return null;
         }
 
+        // AI 색칠 시도. 실패해도 원문(rawText)을 summary 로 그대로 표출한다.
+        //   - 프론트 renderMarineMarkup() 이 마크업 없는 텍스트도 escape + 자동 패턴 색칠로
+        //     안전하게 그려주므로, 색칠 실패 시에도 사용자는 통보문 내용을 즉시 볼 수 있다.
+        //   - aiColored=false 로 캐시/저장해 다음 사이클에 재색칠을 시도한다.
         const ai = await analyzeBulletinWithAI(rawText);
-        if (!ai || !ai.summary) {
-            // AI 실패 시 캐시 저장하지 않음 — 다음 사이클(5분 뒤)에 재시도
-            console.log(`[RegionalBulletin] ${office.name}: AI 분석 실패, 다음 사이클 재시도 예정`);
-            return null;
+        let summary, aiColored, marineOutlooks;
+        if (ai && ai.summary) {
+            summary = ai.summary;
+            aiColored = true;
+            marineOutlooks = Array.isArray(ai.marineOutlooks) ? ai.marineOutlooks : [];
+        } else if (cached && cached.summary && (cached.aiColored === true || /\{\{(loc|num|warn):/.test(cached.summary))) {
+            // 재색칠 실패했지만 이미 색칠본을 보유 → 원문으로 후퇴하지 않고 기존 색칠본 유지.
+            summary = cached.summary;
+            aiColored = true;
+            marineOutlooks = Array.isArray(cached.marineOutlooks) ? cached.marineOutlooks : [];
+            console.log(`[RegionalBulletin] ${office.name}: AI 재색칠 실패 → 기존 색칠본 유지`);
+        } else {
+            // 색칠본이 전혀 없으면 원문 텍스트로라도 표출 (다음 사이클 재색칠 시도).
+            summary = rawText;
+            aiColored = false;
+            marineOutlooks = [];
         }
+        // 해상 전망 fallback — AI/캐시가 marineOutlooks 를 못 채웠으면 원문에서 정규식 추출.
+        //   AI(Gemini) 실패·미설정 시에도 카드에 풍속/물결 수치가 표시되도록 보장.
+        if (!marineOutlooks.length) marineOutlooks = extractMarineOutlooksRegex(rawText);
 
         const result = {
             reportId: found.reportId,
             title: found.title,
             publishTime: parsePublishTimeFromTitle(found.title),
             rawText,
-            summary: ai.summary,
+            summary,
+            aiColored,
+            marineOutlooks,
             collectedAt: new Date().toISOString()
         };
 
         saveCache(office.code, found.reportId, result);
+        if (!aiColored) {
+            console.log(`[RegionalBulletin] ${office.name}: AI 색칠 실패 → 원문 텍스트로 표출(다음 사이클 재색칠 예정)`);
+        }
         return { ...result, fromCache: false };
     } catch (e) {
         console.error(`[RegionalBulletin] ${office.name} 처리 오류: ${e.message}`);
@@ -464,7 +553,8 @@ async function collectAllRegionalBulletins() {
     console.log('[RegionalBulletin] 지방청 단기 전망 수집 시작');
     ensureCacheDir();
 
-    // PDF 수집기가 채워둔 기존 데이터 보존을 위해 먼저 읽음
+    // [사이클 사전 스킵 판단용] 기존 데이터를 읽는다 — 어디까지나 "이미 보유?" 최적화용이며,
+    // 최종 저장에는 쓰지 않는다(아래 atomic 임계영역에서 파일을 다시 신선하게 읽음).
     let store = {};
     try {
         if (fs.existsSync(DATA_FILE)) {
@@ -479,6 +569,12 @@ async function collectAllRegionalBulletins() {
     let cacheHits = 0;
     let cycleSkips = 0;
     let failed = 0;
+    let rawFallbacks = 0; // AI 색칠 실패로 원문만 표출한 건수
+
+    // 이번 사이클에 수집한 "통보문이 책임지는 필드"만 모아둔다.
+    // 느린 fetch/AI(await) 가 전부 끝난 뒤, 마지막에 파일을 다시 신선하게 읽어
+    // 한 번에 동기 병합한다(race-free atomic write).
+    const collected = {};
 
     // 현재 시각이 어느 발표 사이클인지 한 번만 계산 (이 사이클 안에선 모든 지방청 동일 기준)
     const expectedCycle = getCurrentExpectedCycleId(new Date());
@@ -489,8 +585,12 @@ async function collectAllRegionalBulletins() {
         // 부팅 직후나 윈도우 안 반복 호출에서 KMA 부담을 크게 절감.
         const storedEntry = store[office.code];
         const storedCycle = storedEntry ? getStoredCycleId(storedEntry.bulletinPublishTime) : null;
-        if (storedCycle && storedCycle === expectedCycle) {
-            console.log(`[RegionalBulletin] ${office.name}: 발표 사이클 일치(${expectedCycle}), 수집 생략`);
+        // 색칠 완료 여부: 구(舊) 데이터(undefined)는 색칠된 것으로 간주(불필요한 재처리 방지).
+        const storedColored = storedEntry ? storedEntry.bulletinColored !== false : false;
+        // [사이클 사전 스킵] 사이클 일치 + 이미 색칠까지 완료된 경우에만 생략.
+        //   색칠 안 된(원문만 표출 중) 상태면 같은 사이클이어도 재색칠을 위해 수집을 진행한다.
+        if (storedCycle && storedCycle === expectedCycle && storedColored) {
+            console.log(`[RegionalBulletin] ${office.name}: 발표 사이클 일치 + 색칠 완료(${expectedCycle}), 수집 생략`);
             cycleSkips++;
             continue;
         }
@@ -500,36 +600,57 @@ async function collectAllRegionalBulletins() {
 
         if (result.fromCache) cacheHits++; else updated++;
 
-        // partial merge: prev 의 PDF 필드(publishTime, temperature, marineForecast,
-        // coastalForecast 등)는 보존하고 통보문 출처 필드만 덮어쓴다.
-        // (temperature 는 PDF 파이프라인이 책임 — 본 모듈이 건드리지 않음)
-        const prev = store[office.code] || {};
-        store[office.code] = {
-            ...prev,
+        // 이 모듈이 책임지는 필드만 누적 (PDF 출처 필드는 절대 건드리지 않음)
+        //   bulletinColored: AI 색칠 완료 여부. false 면 원문만 표출 중 → 다음 사이클 재색칠 대상.
+        collected[office.code] = {
             officeCode: office.code,
             officeName: office.name,
-            // ↓ 이 모듈이 책임지는 필드들
             bulletinReportId: result.reportId,
             bulletinPublishTime: result.publishTime,
             summary: result.summary,
+            marineOutlooks: Array.isArray(result.marineOutlooks) ? result.marineOutlooks : [],
+            bulletinColored: result.aiColored !== false,
             collectedAt: result.collectedAt,
         };
+        if (result.aiColored === false) rawFallbacks++;
 
         // KMA 부하 보호용 짧은 딜레이
         await new Promise(r => setTimeout(r, 300));
     }
 
-    store._lastUpdated = new Date().toISOString();
+    // 변경분이 없으면(전부 사이클스킵/실패) 파일을 건드리지 않는다 — 불필요한 write/경합 회피.
+    if (Object.keys(collected).length === 0) {
+        console.log(`[RegionalBulletin] 완료: 신규 ${updated}건 / 캐시 ${cacheHits}건 / 사이클스킵 ${cycleSkips}건 / 실패 ${failed}건 (변경 없음, 저장 생략)`);
+        return store;
+    }
 
+    // ── 동기 임계영역(atomic) ──────────────────────────────────────────────
+    // 위 루프의 await 동안 PDF 수집기(본수집 05/11/17시·재시도)가 같은 파일을 갱신했을 수
+    // 있으므로, 여기서 파일을 다시 신선하게 읽어 "통보문 필드"만 덮어쓴다.
+    // read→merge→write 사이에 await 가 없어 단일 스레드 Node 에서 다른 콜백이 끼어들 수
+    // 없다 → PDF 필드(publishTime/temperature/marineForecast/coastalForecast)는 보존된다.
     try {
         const dir = path.dirname(DATA_FILE);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2), 'utf8');
+
+        let fresh = {};
+        try {
+            if (fs.existsSync(DATA_FILE)) fresh = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        } catch (_) { fresh = {}; }
+
+        for (const [code, fields] of Object.entries(collected)) {
+            fresh[code] = { ...(fresh[code] || {}), ...fields };
+        }
+        fresh._lastUpdated = new Date().toISOString();
+
+        fs.writeFileSync(DATA_FILE, JSON.stringify(fresh, null, 2), 'utf8');
+        store = fresh; // 반환값 일관성
     } catch (e) {
         console.error(`[RegionalBulletin] 저장 오류: ${e.message}`);
     }
+    // ──────────────────────────────────────────────────────────────────────
 
-    console.log(`[RegionalBulletin] 완료: 신규 ${updated}건 / 캐시 ${cacheHits}건 / 사이클스킵 ${cycleSkips}건 / 실패 ${failed}건`);
+    console.log(`[RegionalBulletin] 완료: 신규 ${updated}건 / 캐시 ${cacheHits}건 / 사이클스킵 ${cycleSkips}건 / 실패 ${failed}건 / 원문폴백 ${rawFallbacks}건`);
     return store;
 }
 

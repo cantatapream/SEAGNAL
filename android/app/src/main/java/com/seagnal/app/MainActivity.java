@@ -4,6 +4,7 @@ import android.graphics.Bitmap;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.webkit.PermissionRequest;
 import android.webkit.WebResourceError;
@@ -14,6 +15,7 @@ import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebChromeClient;
 import com.getcapacitor.BridgeWebViewClient;
 import com.seagnal.app.voice.SeagnalAssistantPlugin;
+import com.seagnal.app.locationalert.LocationPermPlugin;
 
 /**
  * SEAGNAL Android 앱의 메인 Activity (Capacitor BridgeActivity 확장).
@@ -36,6 +38,26 @@ import com.seagnal.app.voice.SeagnalAssistantPlugin;
  */
 public class MainActivity extends BridgeActivity {
 
+    /**
+     * WebView HTTP 캐시 1회 강제 비우기 토큰.
+     *
+     * [왜 필요한가]
+     *   앱은 원격(fly.dev)에서 index2.html/js/css 를 로드한다. 과거 이 응답들에
+     *   Cache-Control 헤더가 없어 WebView 가 휴리스틱 캐싱으로 오래 보관 →
+     *   서버를 고쳐 배포(no-cache 헤더 부여)해도, 단말에 이미 캐시된 옛
+     *   index2.html 은 만료 전까지 재검증조차 하지 않아 수정이 화면에 반영되지
+     *   않는 문제가 있었다(시정 뱃지·부이 버튼 잔상 등).
+     *
+     * [동작]
+     *   설치된 빌드의 토큰이 직전 저장값보다 크면, 첫 실행 시 1회만
+     *   webView.clearCache(true) 로 누적 캐시를 비운다. 그 뒤 받는 index2.html
+     *   은 no-cache 라 이후로는 항상 최신으로 유지된다. 매 실행마다 지우지
+     *   않으므로(토큰 동일하면 skip) 이미지·폰트 재다운로드 낭비도 없다.
+     *
+     *   ⚠️ 서버측 수정을 단말에 강제 반영해야 할 때 이 값을 1 올려 배포한다.
+     */
+    private static final int WEBVIEW_CACHE_BUST_TOKEN = 2;
+
     /** 현재 오프라인 에러 페이지가 표시 중인지 여부 — onPageStarted 에서 reset. */
     private boolean isShowingError = false;
     /** 마지막으로 실패한 URL — "다시 시도" 버튼이 이 URL 로 재로드 시도. */
@@ -48,6 +70,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SeagnalAssistantPlugin.class);
+        registerPlugin(LocationPermPlugin.class);   // 위치 '항상 허용' 네이티브 권한 요청
         super.onCreate(savedInstanceState);
     }
 
@@ -60,6 +83,17 @@ public class MainActivity extends BridgeActivity {
         super.onStart();
         WebView webView = getBridge().getWebView();
         if (webView != null) {
+            // [캐시 버스트] 새 빌드 설치 후 첫 실행 시에만 누적 WebView 캐시 1회 제거.
+            //   (원격 로드 앱이라, 옛 무헤더 캐시에 갇혀 서버 수정이 반영 안 되는
+            //    문제를 끊어준다. 이후엔 서버의 no-cache 헤더로 최신 유지.)
+            try {
+                SharedPreferences prefs = getSharedPreferences("seagnal_app", Context.MODE_PRIVATE);
+                if (prefs.getInt("webview_cache_bust_token", 0) < WEBVIEW_CACHE_BUST_TOKEN) {
+                    webView.clearCache(true);
+                    prefs.edit().putInt("webview_cache_bust_token", WEBVIEW_CACHE_BUST_TOKEN).apply();
+                }
+            } catch (Exception e) { /* 캐시 제거 실패는 비치명적 */ }
+
             // 시스템 폰트 크기 설정을 무시하고 100%로 고정
             WebSettings settings = webView.getSettings();
             settings.setTextZoom(100);

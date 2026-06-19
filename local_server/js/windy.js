@@ -225,6 +225,9 @@ function renderBuoyButtonsForStatus(zoneName, container) {
         else if (buoy.type === 'L') icon = 'fa-lightbulb';
 
         btn.innerHTML = `<i class="fa-solid ${icon}"></i> ${buoy.name}`;
+        // 클릭은 개별 버튼에 직접 부착(원복). 클릭 리스너는 잘림과 무관함이
+        //   5개 독립분석으로 확정됨(진짜 원인은 합성 레이어 사각 백킹 잔상,
+        //   .buoy-btn 의 transform/overflow CSS + transition 제거로 해결).
         btn.onclick = (e) => {
             e.stopPropagation();
             if (typeof fetchBuoyData === 'function') fetchBuoyData(buoy.id, buoy.name);
@@ -340,7 +343,7 @@ function renderOtherButtonsForStatus(zoneName, container) {
                     return;
                 }
             }
-            if (typeof showZoneOverlay === 'function') showZoneOverlay(zoneName);
+            // [제거됨] 레거시 해구도 이미지 지도 fallback(showZoneOverlay) — index2 미표출 잔재로 삭제.
         });
         btnContainer.appendChild(zoneViewBtn);
 
@@ -742,7 +745,7 @@ function createStatusCard(zoneName) {
                 return;
             }
         }
-        if (typeof showZoneOverlay === 'function') showZoneOverlay(zoneName);
+        // [제거됨] 레거시 해구도 이미지 지도 fallback(showZoneOverlay) — index2 미표출 잔재로 삭제.
     });
     btnContainer.appendChild(zoneViewBtn);
 
@@ -864,6 +867,8 @@ function createStatusCard(zoneName) {
             btn.dataset.buoyId = buoy.id;
             btn.className = 'buoy-status-btn';
 
+            // transition(background/border-color) 제거: paint 속성 transition 이
+            //   안드로이드 WebView 합성 레이어 사각 백킹 잔상(버튼 잘림)을 유발.
             btn.style.cssText = `
                 padding: 4px 10px;
                 border-radius: 12px;
@@ -872,7 +877,6 @@ function createStatusCard(zoneName) {
                 color: #ccc;
                 font-size: 0.75rem;
                 cursor: pointer;
-                transition: background-color 0.2s, color 0.2s, border-color 0.2s;
             `;
 
             btn.onclick = (e) => {

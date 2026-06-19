@@ -3230,6 +3230,7 @@ var USAGE_FEATURE_LABELS = {
     'ocean.gugu_forecast': '해구 전망표/그래프',
     'ocean.cctv_open': 'CCTV 팝업',
     'ocean.typhoon': '태풍',
+    'ocean.mudflat': '물빠짐',
     'ocean.basemap.rltm': '배경 · 기본맵',
     'ocean.basemap.enc': '배경 · 전자해도',
     'ocean.basemap.coast': '배경 · 해안도',
@@ -3240,6 +3241,7 @@ var USAGE_FEATURE_LABELS = {
     'shrt.snow': '적설',
     'shrt.sky': '하늘상태',
     'shrt.temp_air': '기온(천기)',
+    'shrt.vsby': '시정',
     // E. 해점 바텀시트 — 바텀시트로 얻은 데이터는 통합 1건으로 집계.
     'sheet.bottom_sheet': '해점 바텀시트',
     // (legacy) 마이그레이션 전 개별 집계분 라벨 — 표시 호환용으로 유지.
@@ -3248,10 +3250,17 @@ var USAGE_FEATURE_LABELS = {
     'life.fishing.tab': '바다낚시 탭 진입',
     'life.surfing.tab': '서핑 탭 진입',
     'life.parting.tab': '바다갈라짐 탭 진입',
+    'life.mudflat.tab': '갯벌체험 탭 진입',
+    'life.scuba.tab': '스킨스쿠버 탭 진입',
     'life.fishing.point.갯바위': '바다낚시 지점 · 갯바위',
     'life.fishing.point.선상': '바다낚시 지점 · 선상',
     'life.surfing.point': '서핑 지점 클릭',
-    'life.parting.region': '바다갈라짐 지역 선택'
+    'life.parting.region': '바다갈라짐 지역 선택',
+    'life.mudflat.region': '갯벌체험 지역 선택',
+    'life.mudflat.point': '갯벌체험 지점 클릭',
+    'life.scuba.point': '스킨스쿠버 지점 클릭',
+    'life.ripcurrent.tab': '이안류 탭 진입',
+    'life.ripcurrent.point': '이안류 지점 클릭'
 };
 function usageFeatureLabel(key) {
     return USAGE_FEATURE_LABELS[key] || key;
@@ -3383,10 +3392,10 @@ async function renderUsageStatsContent(container) {
         <!-- 필터 제어바 -->
         <div style="background:${T.cardBg}; padding:12px; border-radius:14px; margin:12px 0 18px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; border:1px solid ${T.cardBorder}; box-shadow:${T.cardShadow};">
             <div style="display:flex; background:${T.ctrlBg}; padding:3px; border-radius:8px; flex-wrap:wrap;">
-                ${['daily', 'monthly', 'yearly', 'custom'].map(p => `
+                ${['today', 'daily', 'monthly', 'yearly', 'custom'].map(p => `
                     <button onclick="window.updateUsagePeriod('${p}')" id="btn-usage-${p}"
                             style="${btnStyle}">
-                        ${p === 'daily' ? '일별' : (p === 'monthly' ? '월별' : (p === 'yearly' ? '연별' : '직접 설정'))}
+                        ${p === 'today' ? '오늘' : (p === 'daily' ? '일별' : (p === 'monthly' ? '월별' : (p === 'yearly' ? '연별' : '직접 설정')))}
                     </button>
                 `).join('')}
             </div>
@@ -3498,9 +3507,20 @@ async function renderUsageStatsContent(container) {
     var usagePeriod = 'daily';
 
     // (가) 직접 설정: custom 은 서버 집계를 일별(daily)로 받되, 사용자가 지정한 start~end 범위만 표출.
+    //     오늘: start=end=오늘(KST) 로 자동 설정 + daily 집계.
     window.updateUsagePeriod = function (p) {
+        // '오늘' 클릭 시 날짜 input 을 오늘로 맞춘다(서버 버킷은 daily).
+        if (p === 'today') {
+            var _now = new Date();
+            var _kst = new Date(_now.getTime() + (9 * 60 * 60 * 1000));
+            var _t = _kst.toISOString().split('T')[0];
+            var _s = document.getElementById('usage-start-date');
+            var _e = document.getElementById('usage-end-date');
+            if (_s) _s.value = _t;
+            if (_e) _e.value = _t;
+        }
         usagePeriod = p;
-        ['daily', 'monthly', 'yearly', 'custom'].forEach(function (x) {
+        ['today', 'daily', 'monthly', 'yearly', 'custom'].forEach(function (x) {
             var b = document.getElementById('btn-usage-' + x);
             if (!b) return;
             if (x === p) { b.style.background = 'linear-gradient(135deg,' + T.accent + ',' + T.accent2 + ')'; b.style.color = '#fff'; }
@@ -3522,8 +3542,8 @@ async function renderUsageStatsContent(container) {
         var end = document.getElementById('usage-end-date').value;
         // 소속 복수선택 상태(_usageAffSelection)를 콤마조인. 비면 '전체'.
         var aff = (_usageAffSelection && _usageAffSelection.length) ? _usageAffSelection.join(',') : '전체';
-        // custom 은 서버측 버킷을 daily 로(임의 start~end 범위), 그 외는 그대로.
-        var serverPeriod = (usagePeriod === 'custom') ? 'daily' : usagePeriod;
+        // custom / today 는 서버측 버킷을 daily 로, 그 외는 그대로.
+        var serverPeriod = (usagePeriod === 'custom' || usagePeriod === 'today') ? 'daily' : usagePeriod;
 
         var loadingEl = document.getElementById('usage-loading');
         if (loadingEl) loadingEl.style.display = 'block';

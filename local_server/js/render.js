@@ -973,7 +973,9 @@ function createAlertElement(items) {
             const defaultColor = hasData ? '#ccc' : '#ff6b6b';
             const defaultBorder = hasData ? 'rgba(255,255,255,0.3)' : 'rgba(255,107,107,0.5)';
 
-            btn.style.cssText = `padding: 6px 14px; border-radius: 16px; border: 1px solid ${defaultBorder}; background: rgba(255,255,255,0.08); color: ${defaultColor}; font-size: 0.85rem; cursor: pointer; transition: background-color 0.2s, color 0.2s, border-color 0.2s;`;
+            // transition(background/border-color) 제거: paint 속성 transition 이
+            //   안드로이드 WebView 합성 레이어 사각 백킹 잔상(버튼 잘림)을 유발.
+            btn.style.cssText = `padding: 6px 14px; border-radius: 16px; border: 1px solid ${defaultBorder}; background: rgba(255,255,255,0.08); color: ${defaultColor}; font-size: 0.85rem; cursor: pointer;`;
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (btn.classList.contains('active')) {
@@ -1076,7 +1078,8 @@ function createAlertElement(items) {
                 return;
             }
         }
-        if (typeof showZoneOverlay === 'function') showZoneOverlay(data.zoneName);
+        // [제거됨] 레거시 해구도 이미지 지도 fallback(showZoneOverlay) — index2 미표출 잔재로 삭제.
+        //   매핑 44해역은 위 OL 분기에서 return하므로 영향 없음. 미매핑 해역(울릉도·독도 등)은 no-op.
     });
     actionsContainer.appendChild(zoneViewBtn);
 

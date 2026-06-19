@@ -211,18 +211,30 @@
      * @param {Object} m - STATE.gridMap[code] 항목 ({majorZones, smallZones, ...})
      * @returns {string[]} - 대해구 번호 문자열 배열 (없으면 빈 배열)
      */
-    function _resolveLzones(m) {
-        if (!m) return [];
-        if (Array.isArray(m.majorZones) && m.majorZones.length > 0) {
-            return m.majorZones.map(String);
-        }
-        if (Array.isArray(m.smallZones) && m.smallZones.length > 0) {
-            const set = new Set();
-            for (const sid of m.smallZones) {
-                const parent = String(sid).split('-')[0];
-                if (parent) set.add(parent);
+    function _resolveLzones(m, zoneName) {
+        if (m) {
+            if (Array.isArray(m.majorZones) && m.majorZones.length > 0) {
+                return m.majorZones.map(String);
             }
-            return [...set];
+            if (Array.isArray(m.smallZones) && m.smallZones.length > 0) {
+                const set = new Set();
+                for (const sid of m.smallZones) {
+                    const parent = String(sid).split('-')[0];
+                    if (parent) set.add(parent);
+                }
+                return [...set];
+            }
+        }
+        // [먼바다 fallback] zone_grid_map 에 대해구/소해구 매핑이 비어 있는
+        //   먼바다 구역(서해중부바깥먼바다 등 11곳)은 forecast.js 의
+        //   FAR_SEA_ZONE_ID_MAP(구역명 → 대표 해구번호)으로 파고/풍속을 계산한다.
+        //   ⚠ 이 fallback 이 없으면 lzones=[] → getAverages=null → createBox=null
+        //     이 되어 파고·풍속 배지까지 통째로 사라진다(시정만 빼려던 의도와 달리).
+        //   시정 배지는 smallZones 가 없으면 makeBadge 가 null 이라 계속 미표시 →
+        //   "먼바다는 시정 제외, 파고/풍속은 유지" 가 정확히 충족된다.
+        if (zoneName && typeof FAR_SEA_ZONE_ID_MAP !== 'undefined'
+            && FAR_SEA_ZONE_ID_MAP[zoneName] != null) {
+            return [String(FAR_SEA_ZONE_ID_MAP[zoneName])];
         }
         return [];
     }
@@ -260,8 +272,9 @@
         }
         if (!code) return null;
         const m = STATE.gridMap[code];
-        if (!m) return null;
-        const lzones = _resolveLzones(m);
+        // 먼바다는 m 의 매핑이 비어 있어도 FAR_SEA_ZONE_ID_MAP 으로 lzones 를
+        // 얻으므로, m 이 없다고 무조건 막지 않고 _resolveLzones 결과로 판단한다.
+        const lzones = _resolveLzones(m, zoneName);
         if (lzones.length === 0) return null;
 
         const now = new Date();
@@ -273,7 +286,12 @@
             if (!series) continue;
             const item = _nearestForecast(series, now);
             if (!item) continue;
-            if (typeof item.wh === 'number' && typeof item.ws === 'number') {
+            // [결측 센티넬 제외] KMA 원천에서 예보가 없는 대해구는 wh/ws=-999 로
+            //   내려온다(예: 5164 — 인천·경기남부/충남북부앞바다의 평균이
+            //   -110.9m/-166.4m 로 표시되던 원인). 파고/풍속은 물리적으로
+            //   음수가 될 수 없으므로 음수는 모두 결측으로 보고 평균에서 뺀다.
+            if (typeof item.wh === 'number' && typeof item.ws === 'number'
+                && item.wh >= 0 && item.ws >= 0) {
                 items.push(item);
                 if (!representativeTm) representativeTm = item.tm;
             }
@@ -374,13 +392,21 @@
 
         const waveBadge = document.createElement('span');
         waveBadge.className = 'zone-avg-badge wave';
-        waveBadge.innerHTML = `<span class="lbl">평균 유의파고</span> ${result.avgWh.toFixed(1)}m`;
+        waveBadge.innerHTML = `<span class="lbl">유의파고</span> ${result.avgWh.toFixed(1)}m`;
         box.appendChild(waveBadge);
 
         const windBadge = document.createElement('span');
         windBadge.className = 'zone-avg-badge wind';
-        windBadge.innerHTML = `<span class="lbl">평균 풍속</span> ${result.avgWs.toFixed(1)}m/s`;
+        windBadge.innerHTML = `<span class="lbl">풍속</span> ${result.avgWs.toFixed(1)}m/s`;
         box.appendChild(windBadge);
+
+        // 시정 뱃지 — 같은 줄·같은 스타일. 값/클릭은 OceanWarnVsby 가 제공(매핑 없으면 null).
+        try {
+            if (window.OceanWarnVsby && typeof window.OceanWarnVsby.makeBadge === 'function') {
+                const vsByBadge = window.OceanWarnVsby.makeBadge(zoneName);
+                if (vsByBadge) box.insertBefore(vsByBadge, box.firstChild);   // 시정을 맨 앞에
+            }
+        } catch (e) { /* 시정은 부가 — 실패해도 평균박스 유지 */ }
 
         _attachTooltipHandler(box);
 

@@ -72,10 +72,41 @@ html {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+    /* 안드로이드 WebView 탭 하이라이트(반투명 회색 사각형) 전역 제거.
+     * 클릭 가능한 요소(시정/파고/풍속 뱃지, 부이 버튼 등)가 터치 중에
+     * refreshAll()/renderApp() 으로 DOM 교체되면 하이라이트가 지워지지
+     * 않고 화면에 잔상(요소가 잘려 보이는 회색 블록)으로 남는 WebView
+     * 버그가 있어, 하이라이트 자체를 그리지 않게 한다. */
+    -webkit-tap-highlight-color: transparent;
 }
 
 body {
-    /* Nanobanana Style Pattern (Visible, Restored) */
+    background-color: #0a101f;
+    color: var(--text-main);
+    font-family: var(--font-family);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    overflow-x: hidden;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* 고정 배경(Nanobanana 패턴).
+ * [왜 의사요소로 분리했나]
+ *   종전엔 body 에 background-image + background-attachment: fixed 였다.
+ *   안드로이드 WebView 에서 background-attachment: fixed 는 스크롤마다
+ *   뷰포트 전체를 다시 그리게 만들어, 둥근 모서리·반투명 배경 요소(시정/
+ *   파고/풍속 뱃지, 부이 버튼)의 이전 페인트가 지워지지 않고 직각 사각형
+ *   회색 잔상으로 남는다(스크롤 후 버튼이 잘려 보이는 증상의 실제 원인).
+ *   position: fixed 의사요소로 옮기면 "스크롤해도 고정" 인 시각효과는
+ *   동일하게 유지하면서 fixed-attachment 리페인트 경로를 타지 않는다.
+ *   pseudo 는 position:fixed 라 body 의 flex 레이아웃에 끼지 않는다. */
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
     background-color: #0a101f;
     background-image:
         /* Glowing Orbs */
@@ -89,15 +120,6 @@ body {
             transparent 20px),
         /* Deep Base Gradient */
         linear-gradient(180deg, #0a101f 0%, #111827 100%);
-    background-attachment: fixed;
-    /* Keeps gradient in place while scrolling */
-    color: var(--text-main);
-    font-family: var(--font-family);
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    overflow-x: hidden;
-    padding-bottom: env(safe-area-inset-bottom);
 }
 
 .app-container {
@@ -497,6 +519,25 @@ line-height: 1.1;
     white-space: nowrap;
     border: 1px solid var(--zab-strong);
     animation: zoneAvgBadgeBlink 2s infinite;
+    /* [잘림 방지 — 5개 독립분석 수렴 결론]
+       시정 배지(후삽입)·부이 버튼(transition 색변경)이 안드로이드 WebView 에서
+       자체 합성 레이어로 분리될 때, 그 레이어의 '사각형' 백킹 텍스처가 스크롤
+       후 둥근 모서리(border-radius) 밖으로 재래스터되지 않아 카드 배경색
+       rgb(30,40,60) 의 직각 잔상을 남긴다(잘림). 요소를 자체 레이어로 명시
+       승격하고 둥근 클립을 백킹에 강제해 잔상을 제거한다. */
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    overflow: hidden;
+}
+/* 관측부이 버튼(특보현황 render.js / 기상현황 windy.js, 둘 다 .buoy-btn)
+   — 인라인 스타일로만 그려져 CSS 규칙이 없었음. 동일한 레이어 클립 적용. */
+.buoy-btn,
+.buoy-status-btn {
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    overflow: hidden;
 }
 .zone-avg-box .zone-avg-badge.wave {
     --zab-strong: rgba(79, 195, 247, 0.9);
@@ -3526,10 +3567,18 @@ line-height: 1.1;
     max-height: 90vh;
     display: flex;
     flex-direction: column;
+    /* base .modal-content 의 overflow-y:auto 를 무효화한다.
+       바깥(모달 전체)이 스크롤되면 헤더/푸터가 같이 밀리고 툴바 sticky 도
+       무력화되므로, 스크롤은 아래 .promo-editor-body 한 곳에서만 일어나게 한다. */
+    overflow: hidden;
 }
 
 .promo-editor-body {
     flex: 1;
+    /* flex 아이템 기본값 min-height:auto 때문에 내용만큼 늘어나 내부 스크롤이
+       생기지 않는다. min-height:0 으로 축소를 허용해야 이 영역이 실제 스크롤
+       컨테이너가 되고, 그 안의 툴바 sticky 가 정상 동작한다. */
+    min-height: 0;
     overflow-y: auto;
     padding: 20px;
 }
@@ -3575,6 +3624,16 @@ line-height: 1.1;
     background: #1e293b;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px 8px 0 0;
+}
+
+/* 편집 툴바 상단 고정: 본문이 길어져 스크롤이 내려가도 툴바가 가려지지 않도록
+   스크롤 컨테이너(.promo-editor-body) 상단에 sticky 로 붙여 둔다.
+   에디터(#promo-quill-editor)가 containing block 이므로 에디터가 화면에 보이는
+   동안 툴바가 따라다닌다. 배경(#1e293b)이 불투명해 스크롤되는 본문을 가린다. */
+#promo-quill-editor .ql-toolbar.ql-snow {
+    position: sticky;
+    top: 0;
+    z-index: 5;
 }
 
 .ql-toolbar .ql-stroke {
@@ -10501,3 +10560,484 @@ body.mc-fullscreen-active {
     overflow: hidden;
 }
 
+/* ============================================================================
+ * "특보 예측" 아코디언 (Phase 5 통합본)
+ *  클래스명 세트: .gradient-prediction / .advisory-prediction-wrap / .adv-*
+ *  → js/advisory_prediction.js 가 생성하는 클래스명과 1:1 일치한다.
+ *  기존 .gradient-* 헤더 구조와 동일. 보라 계열.
+ * ============================================================================ */
+
+/* 헤더 그라데이션 (보라) */
+.main-accordion-header.gradient-prediction {
+    background: linear-gradient(90deg, #3b1f5e 0%, #7c3aed 100%);
+    border-color: rgba(168, 85, 247, 0.3);
+}
+
+/* 본문 래퍼 */
+.advisory-prediction-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 4px 0;
+}
+
+/* 기준 시각 */
+.adv-basetime {
+    font-size: 0.78rem;
+    color: #a78bda;
+    font-weight: 500;
+}
+
+/* 빈 상태 */
+.adv-empty {
+    padding: 18px 12px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.9rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 10px;
+}
+
+/* 활성 카드 목록 */
+.adv-active-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* 카드 */
+.adv-card {
+    background: rgba(124, 58, 237, 0.06);
+    border: 1px solid rgba(168, 85, 247, 0.18);
+    border-left: 4px solid rgba(168, 85, 247, 0.5);
+    border-radius: 10px;
+    padding: 12px 14px;
+}
+
+.adv-card.adv-grade-high {
+    border-left-color: #ef4444;
+    background: rgba(239, 68, 68, 0.07);
+}
+
+.adv-card.adv-grade-watch {
+    border-left-color: #eab308;
+    background: rgba(234, 179, 8, 0.06);
+}
+
+.adv-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.adv-emoji {
+    font-size: 1.05rem;
+}
+
+.adv-zone {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #f1f5f9;
+}
+
+.adv-grade-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 1px 7px;
+}
+
+.adv-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin-top: 7px;
+    font-size: 0.82rem;
+    color: #cbd5e1;
+}
+
+.adv-meta-prob {
+    color: #f87171;
+    font-weight: 700;
+}
+
+.adv-meta-wind {
+    color: #60a5fa;
+    font-weight: 600;
+}
+
+.adv-meta-onset {
+    color: #a78bfa;
+    font-weight: 600;
+}
+
+.adv-card-narrative {
+    margin-top: 8px;
+    font-size: 0.84rem;
+    color: #cbd5e1;
+    line-height: 1.5;
+}
+
+/* 기상청 단기예보 병기(교차참조) — 우리 예측 아래에 공식 숫자만 나란히.
+   판정(일치/불일치) 없이 풍속/파고만 보여주고, 데이터 없으면 렌더되지 않음. */
+.adv-kma-ref {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(148, 163, 184, 0.2);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+.adv-kma-label {
+    color: #94a3b8;
+    font-weight: 700;
+}
+
+.adv-kma-vals {
+    color: #38bdf8;
+    font-weight: 600;
+}
+
+.adv-kma-period {
+    color: #8b8f99;
+    font-weight: 400;
+}
+
+/* ============================================================================
+   베타 배지 — "특보 예측"의 "측" 우측 상단. 아코디언 텍스트와 별개 요소(sup).
+   전광판 더블블링크: 1초에 2회 깜빡 → 2초 정지 → 반복(3초 주기).
+   기본 = LED(전광판) 스타일. 대안: 클래스에 .beta-neon / .beta-chip 추가로 교체.
+   ============================================================================ */
+.adv-beta-badge {
+    display: inline-block;
+    position: relative;
+    top: -0.75em;              /* 글자 우측 상단으로 올림 */
+    margin-left: 2px;          /* "측"과의 간격을 기존(4px)의 1/2로 */
+    padding: 2px 6px;
+    font-size: 0.52rem;
+    font-weight: 800;
+    font-style: italic;        /* 텍스트 약간 기울임 */
+    letter-spacing: 0.5px;
+    line-height: 1;
+    border-radius: 6px;
+    vertical-align: top;
+    pointer-events: none;
+    text-transform: lowercase;
+    /* --- 기본: LED(전광판) --- */
+    color: #ffe14d;
+    background: rgba(45, 37, 0, 0.55);
+    border: 1.5px solid #ffd400;
+    text-shadow: 0 0 4px rgba(255, 212, 0, 0.95);
+    box-shadow: 0 0 7px rgba(255, 212, 0, 0.6), inset 0 0 4px rgba(255, 212, 0, 0.3);
+    animation: advBetaBlink 3s infinite;
+}
+
+/* 더블블링크(전광판 느낌의 또렷한 on/off) */
+@keyframes advBetaBlink {
+    0%, 7%      { opacity: 1; }
+    7.5%, 15%   { opacity: 0.1; }
+    15.5%, 23%  { opacity: 1; }
+    23.5%, 31%  { opacity: 0.1; }
+    31.5%, 100% { opacity: 1; }   /* 약 2초 정지(켜진 채) */
+}
+
+/* 대안 A — 네온 아웃라인(채움 없음, 강한 테두리 글로우) */
+.adv-beta-badge.beta-neon {
+    color: #fff48a;
+    background: transparent;
+    border: 1.5px solid #ffe14d;
+    text-shadow: 0 0 6px #ffd400, 0 0 12px rgba(255, 212, 0, 0.7);
+    box-shadow: 0 0 8px rgba(255, 212, 0, 0.85), inset 0 0 6px rgba(255, 212, 0, 0.45);
+}
+
+/* 대안 B — 솔리드 옐로 칩(스티커 느낌) */
+.adv-beta-badge.beta-chip {
+    color: #1a1400;
+    background: #ffd400;
+    border: 1.5px solid #b38f00;
+    text-shadow: none;
+    box-shadow: 0 0 6px rgba(255, 212, 0, 0.6);
+}
+
+/* 모션 최소화 선호 사용자는 깜빡임 끔(가독성/접근성) */
+@media (prefers-reduced-motion: reduce) {
+    .adv-beta-badge { animation: none; }
+}
+
+/* 최근 해소 서브섹션 */
+.adv-resolved-section {
+    border-top: 1px dashed rgba(148, 163, 184, 0.2);
+    padding-top: 10px;
+}
+
+.adv-resolved-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #94a3b8;
+    margin-bottom: 8px;
+}
+
+.adv-resolved-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.adv-resolved-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    line-height: 1.45;
+    opacity: 0.85;
+}
+
+.adv-resolved-icon {
+    color: #4ade80;
+    font-size: 0.78rem;
+    margin-top: 3px;
+    flex-shrink: 0;
+}
+
+.adv-resolved-text {
+    flex: 1;
+}
+
+/* 면책 문구 */
+.adv-disclaimer {
+    font-size: 0.72rem;
+    color: #8b8f99;
+    line-height: 1.5;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 8px;
+}
+/* 본문 최상단 면책문구(해역 카드 바로 위) — 헤더와 본문 사이 구분선 제거 */
+.adv-disclaimer.adv-disclaimer-top {
+    border-top: none;
+    padding-top: 0;
+    margin-bottom: 2px;
+}
+
+/* 헤더 상태 배지 */
+.adv-badge {
+    display: inline-block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: 6px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.adv-badge-high {
+    background: rgba(239, 68, 68, 0.25);
+}
+
+.adv-badge-watch {
+    background: rgba(234, 179, 8, 0.25);
+}
+
+.adv-badge-resolved {
+    background: rgba(74, 222, 128, 0.2);
+}
+
+.adv-badge-empty {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 500;
+}
+
+
+/* ============================================================================
+ * 특보 예측 v6 재설계 — 헤더(기준시각 레이어/ⓘ) · 카드 아코디언 · 교차참조 · 팝업
+ * (advisory_prediction.js v6 / index2.html 헤더 구조와 1:1)
+ * ============================================================================ */
+
+/* 헤더 3단 세로 배치: (1)beta 뱃지 → (2)✨아이콘+제목+ⓘ → (3)기준시각.
+   왼쪽 ✨아이콘은 제목 줄(2단)과 세로 정렬. 줄간격/여백을 최대한 압축해
+   상위 헤더(.gradient-slate)와 높이를 최대한 비슷하게 맞춘다. */
+.gradient-prediction .adv-title-wrap { display: flex; align-items: center; gap: 0.55rem; min-width: 0; padding-right: 8px; }
+.gradient-prediction .adv-wand { color: #ff4dab; font-size: 1.05rem; line-height: 1; flex-shrink: 0; }
+/* 세로 3단 칼럼 — 줄간격/여백 압축 */
+.gradient-prediction .adv-title-col { display: flex; flex-direction: column; align-items: flex-start; gap: 0; min-width: 0; line-height: 1.05; }
+/* (2단) 제목 + ⓘ — 한 줄 */
+.gradient-prediction .adv-title-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.gradient-prediction .adv-title-row .section-title { margin: 0; line-height: 1.1; }
+/* ⓘ 버튼 — 제목 마지막 글자 바로 오른쪽 */
+.adv-info-btn {
+    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.14);
+    color: #fff; font-size: 12px; font-weight: 700; font-style: italic;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
+}
+/* (3단) 기준시각 — 제목 아래 흰색 블록 */
+.gradient-prediction .adv-basetime-layer { display: block; color: #fff; font-size: 0.7rem; font-weight: 500; opacity: 0.9; letter-spacing: 0.2px; white-space: nowrap; line-height: 1.1; margin-top: 1px; }
+.adv-basetime-layer:empty { display: none; }
+
+/* 해역 카드 아코디언 (기본 닫힘) */
+.adv-active-list { display: flex; flex-direction: column; gap: 10px; }
+.adv-card { background: var(--sea-section-bg, #161b22); border: 1px solid var(--border-color, #2a3340); border-radius: 12px; overflow: hidden; }
+.adv-card.adv-grade-high { border-left: 4px solid #ef4444; }
+.adv-card.adv-grade-watch { border-left: 4px solid #eab308; }
+.adv-card-head { display: flex; align-items: center; gap: 8px; padding: 12px 13px; cursor: pointer; }
+.adv-card-head .adv-zone { font-weight: 700; font-size: 0.95rem; flex: 1; min-width: 0; color: var(--text-main, #e6edf3); }
+.adv-badge2 { font-size: 0.72rem; font-weight: 700; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+.adv-badge2-high { background: rgba(239, 68, 68, 0.22); color: #ff8a8a; border: 1px solid rgba(239, 68, 68, 0.4); }
+.adv-badge2-watch { background: rgba(234, 179, 8, 0.22); color: #ffdf7a; border: 1px solid rgba(234, 179, 8, 0.4); }
+/* 등급 변동(격상/격하) — 격상 ▲빨강 / 격하 ▼초록(약간 노란기). 접힌 헤더 미니 뱃지. */
+.adv-chg { display: inline-flex; align-items: center; gap: 2px; font-size: 0.68rem; font-weight: 800; padding: 2px 7px; border-radius: 20px; white-space: nowrap; margin-right: 4px; }
+.adv-chg-up { background: rgba(239, 68, 68, 0.20); color: #ff7a7a; border: 1px solid rgba(239, 68, 68, 0.45); }
+.adv-chg-down { background: rgba(124, 200, 90, 0.18); color: #aee08a; border: 1px solid rgba(124, 200, 90, 0.42); }
+/* 펼친 바디의 전이 한 줄("▲ 격상  관심 → 높음 (+12%p)"). */
+.adv-chg-line { font-size: 0.8rem; font-weight: 700; margin: 0 0 8px; display: flex; align-items: center; gap: 6px; }
+.adv-chg-line.adv-chg-up { color: #ff7a7a; }
+.adv-chg-line.adv-chg-down { color: #aee08a; }
+.adv-chg-dp { font-weight: 600; opacity: 0.9; }
+/* 위험기상 일기도 보기 — 단기전망 하단 버튼 + 펼침 이미지(lazy) */
+.adv-ovl { margin-top: 10px; }
+.adv-ovl-btn { width: 100%; padding: 9px 12px; background: rgba(56, 132, 255, 0.12); color: #8fc0ff; border: 1px solid rgba(56, 132, 255, 0.38); border-radius: 9px; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+.adv-ovl-btn:hover { background: rgba(56, 132, 255, 0.2); }
+.adv-ovl-body { display: none; margin-top: 9px; }
+.adv-ovl-body.open { display: block; }
+/* 2레이어: base(일기도+구역선) 위에 blink(위험영역 점선)을 겹쳐 깜빡(맥동) */
+.adv-ovl-stack { position: relative; }
+.adv-ovl-img { width: 100%; height: auto; border-radius: 9px; display: block; border: 1px solid var(--border-color, #2a3340); background: #0d1117; }
+.adv-ovl-stack .adv-ovl-blink { position: absolute; inset: 0; border: 0; background: transparent; animation: advBlink 1s ease-in-out infinite; pointer-events: none; }
+@keyframes advBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .adv-ovl-stack .adv-ovl-blink { animation: none; opacity: 1; } }
+.adv-card-body { display: none; padding: 0 13px 4px; }
+.adv-card.open .adv-card-body { display: block; }
+.adv-card-hr { height: 1px; background: var(--border-color, #2a3340); margin: 2px 0 9px; }
+.adv-narr { font-size: 0.86rem; line-height: 1.6; color: var(--text-main, #e6edf3); }
+/* 등급색 하이라이트 — 높음=빨강 / 관심=노랑 */
+.adv-card.adv-grade-high .adv-narr b { color: #ff7d7d; font-weight: 700; }
+.adv-card.adv-grade-watch .adv-narr b { color: #ffd24a; font-weight: 700; }
+
+/* 교차참조(기상청 단기예보 병기) */
+.adv-kma { margin-top: 11px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-color, #2a3340); border-radius: 9px; padding: 8px 10px; }
+.adv-kma-kt { color: #bcd; font-size: 0.74rem; font-weight: 600; margin-bottom: 3px; }
+.adv-kma-pub { color: #8fb3c0; font-weight: 500; }
+.adv-kma-vals { font-size: 0.8rem; color: #dfe7ee; }
+.adv-kma-vals b { color: #6fd3ff; font-weight: 700; }
+
+/* ⓘ 설명 팝업(모달) */
+.adv-info-modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); z-index: 1200; align-items: center; justify-content: center; padding: 20px; }
+.adv-info-modal.open { display: flex; }
+.adv-info-box { background: #12151c; border: 1px solid #34304a; border-radius: 14px; max-width: 420px; width: 100%; padding: 16px 17px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6); max-height: 84vh; overflow: auto; }
+.adv-info-title { margin: 0 0 10px; font-size: 0.95rem; color: #c9b8ff; display: flex; align-items: center; gap: 7px; }
+.adv-info-x { margin-left: auto; color: #9aa7b4; font-size: 18px; cursor: pointer; }
+.adv-info-list { margin: 0; padding: 0; }
+.adv-info-list li { margin: 0 0 10px; list-style: none; padding-left: 15px; position: relative; font-size: 0.82rem; color: #d6e2ea; line-height: 1.6; }
+.adv-info-list li::before { content: "○"; position: absolute; left: 0; color: #7a6aa6; font-size: 11px; top: 2px; }
+.adv-info-list b { color: #ffd24a; }
+.adv-info-fn { color: #9a8fc0; font-size: 0.74rem; display: block; margin-top: 3px; }
+
+/* ============================================================================
+ * 특보 예측 표출 관리 (관리자 "특보 관리 → 특보 예측") — advisory_manage_admin.js
+ * ============================================================================ */
+.advm-wrap { padding: 4px 2px; }
+.advm-sec-title { font-size: 0.86rem; font-weight: 700; color: #cdd6e0; margin: 6px 0 8px; }
+.advm-modes { display: flex; gap: 8px; flex-wrap: wrap; }
+.advm-mode-btn { flex: 1; min-width: 130px; text-align: left; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid #2a3340; background: #161b22; color: #c9d3dd; cursor: pointer; }
+.advm-mode-btn.on { border-color: #7c3aed; background: linear-gradient(90deg, #241338 0%, #3a2363 100%); color: #fff; }
+.advm-mode-label { font-weight: 700; font-size: 0.86rem; }
+.advm-mode-desc { font-size: 0.72rem; color: #9aa7b4; margin-top: 2px; }
+.advm-mode-btn.on .advm-mode-desc { color: #cdbbf0; }
+.advm-note { font-size: 0.72rem; color: #8b97a3; margin-top: 8px; }
+.advm-empty { padding: 16px; text-align: center; color: #8b97a3; font-size: 0.84rem;
+    background: rgba(255,255,255,0.03); border-radius: 10px; }
+.advm-list { display: flex; flex-direction: column; gap: 8px; }
+.advm-item { background: #161b22; border: 1px solid #2a3340; border-radius: 10px; padding: 10px 12px; }
+.advm-item.off { opacity: 0.55; }
+.advm-item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.advm-zone { font-weight: 700; font-size: 0.9rem; color: #e6edf3; flex: 1; min-width: 0; }
+.advm-grade { font-size: 0.74rem; font-weight: 700; padding: 2px 8px; border-radius: 14px; }
+.advm-grade-high { background: rgba(239,68,68,0.22); color: #ff8a8a; }
+.advm-grade-watch { background: rgba(234,179,8,0.22); color: #ffdf7a; }
+.advm-st { font-size: 0.68rem; font-weight: 700; padding: 2px 7px; border-radius: 12px; }
+.advm-st-on { background: rgba(34,197,94,0.18); color: #86efac; }
+.advm-st-stop { background: rgba(148,163,184,0.18); color: #cbd5e1; }
+.advm-st-del { background: rgba(239,68,68,0.18); color: #ff9a9a; }
+.advm-st-edit { background: rgba(59,130,246,0.18); color: #93c5fd; }
+.advm-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.advm-btn { font-size: 0.74rem; padding: 5px 10px; border-radius: 8px; border: 1px solid #2a3340;
+    background: #1c2330; color: #c9d3dd; cursor: pointer; }
+.advm-btn:hover { filter: brightness(1.15); }
+.advm-btn-danger { border-color: #5a2a2c; color: #ff9a9a; }
+.advm-btn-primary { border-color: #7c3aed; background: #3a2363; color: #fff; }
+.advm-edit { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #2a3340; display: flex; flex-direction: column; gap: 8px; }
+.advm-edit label { font-size: 0.76rem; color: #9aa7b4; }
+.advm-edit select, .advm-edit input, .advm-edit textarea { background: #0e131a; color: #e6edf3;
+    border: 1px solid #2a3340; border-radius: 7px; padding: 5px 8px; font-size: 0.82rem; margin-left: 6px; }
+.advm-edit textarea { width: 100%; margin-left: 0; margin-top: 4px; resize: vertical; }
+.advm-edit-actions { display: flex; gap: 6px; }
+
+/* ── 특보 예측 헤더 3단 세로 배치 (beta 위 · 제목+ⓘ · 기준시각 아래) ── */
+/* (1단) beta — 제목 "해역" 바로 위에 작은 블록. position 해제하고 흐름에 둔다. */
+.adv-beta-badge.adv-beta-top {
+    display: inline-block; position: static; top: auto; left: auto; margin: 0 0 1px;
+    align-self: flex-start; vertical-align: baseline;
+    font-size: 0.44rem; padding: 1px 5px; border-width: 1px; line-height: 1;
+}
+/* ⓘ — 제목과의 간격 좁힘, 버튼 살짝 축소 */
+.gradient-prediction .adv-info-btn { width: 19px; height: 19px; font-size: 11px; }
+/* 우측 상태배지 — 가로 한 줄 기본, 공간 부족 시 줄바꿈(세로 쌓임) */
+.gradient-prediction .header-status {
+    display: flex; flex-wrap: wrap; justify-content: flex-end; align-content: center;
+    gap: 4px; max-width: 42%; flex-shrink: 0;
+}
+.gradient-prediction .header-status .adv-badge { margin-left: 0; padding: 1px 7px; font-size: 0.72rem; }
+/* 헤더 세로 패딩 압축 — 3단으로 길어진 만큼 상하 여백을 줄여
+   상위 헤더(.gradient-slate, padding 15px 20px) 높이와 최대한 비슷하게 맞춘다. */
+.main-accordion-header.gradient-prediction { padding-top: 8px; padding-bottom: 8px; }
+
+/* ── 해역 카드 슬림화 — 닫힌 카드는 사실상 한 줄(구역명+등급뱃지)이므로
+   상하 빈 여백을 제거해 특보현황 부모 해역 아코디언처럼 컴팩트하게.
+   [원인] 직전 작업은 .adv-card-head 세로 패딩을 7px→0.8rem(12.8px)로 오히려
+   키워서 높이가 줄지 않았다. 실제 높이를 결정하는 것은 이 세로 패딩 + .adv-zone
+   줄높이이므로, 세로 패딩을 8px로 낮추고 줄높이를 1.2로 조여 한 줄에 밀착시킨다.
+   (좌우 패딩은 12px 유지) */
+.adv-card { border-radius: 10px; }
+.adv-card-head { padding: 8px 12px; gap: 7px; }
+.adv-card-head .adv-zone { font-size: 0.88rem; line-height: 1.2; }
+.adv-badge2 { font-size: 0.68rem; padding: 2px 8px; line-height: 1.2; }
+
+/* 해소 배지 — 🔴/🟡 이모지와 동일 크기·스타일의 초록 원 + 흰 체크 */
+.adv-dot-check {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 12px; height: 12px; border-radius: 50%; vertical-align: -1px;
+    background: radial-gradient(circle at 35% 30%, #4ade80, #16a34a 75%);
+    color: #fff; font-size: 9px; line-height: 1; font-weight: 800;
+}
+
+/* 단기전망 문장(통보문 AI 추출) — 숫자 줄 아래 */
+.adv-kma-outlook { font-size: 0.78rem; color: #c4d3de; margin-top: 4px; line-height: 1.55; }
+.adv-kma-boost { font-size: 0.78rem; color: #5db0ff; margin-top: 5px; line-height: 1.5; }
+.adv-kma-boost b { color: #8fd0ff; font-weight: 700; }
+
+/* 특보 예측 관리 — 통계 테이블/최근 사례 */
+.advm-stats { width: 100%; border-collapse: collapse; font-size: 0.76rem; color: #d6dee6; }
+.advm-stats th, .advm-stats td { border: 1px solid #2a3340; padding: 5px 7px; text-align: center; }
+.advm-stats th { background: rgba(255,255,255,0.05); font-weight: 700; color: #aebbc7; }
+.advm-stats td:first-child { text-align: left; }
+.advm-recent { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.advm-recent-item { font-size: 0.76rem; color: #c9d3dd; }
+.advm-oc { font-size: 0.66rem; font-weight: 800; padding: 1px 6px; border-radius: 10px; }
+.advm-oc.hit { background: rgba(34,197,94,0.2); color: #86efac; }
+.advm-oc.miss { background: rgba(239,68,68,0.2); color: #ff9a9a; }
+
+/* 통계 기간 선택 칩 */
+.advm-chips { display: flex; gap: 6px; margin-bottom: 8px; }
+.advm-chip { font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 14px;
+    border: 1px solid #2a3340; background: #161b22; color: #9aa7b4; cursor: pointer; }
+.advm-chip.on { border-color: #7c3aed; background: #2a1d47; color: #d9c9ff; }

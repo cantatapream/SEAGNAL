@@ -38,10 +38,18 @@ async function fetchAllData() {
     if (appState.isLoading) return;
     updateLoading(true);
 
+    // [스플래시] 단계별 진행 표시 — window.SplashProgress 는 index2.html 인라인 정의.
+    // 각 단계 시작 시 "그 단계의 상한 %" 를 목표로 올려두면, 다음 단계 호출까지
+    // 바가 그 상한을 향해 천천히 차오른다(creep). 스플래시가 이미 사라진 뒤
+    // (수동 새로고침 등)에는 내부에서 no-op 처리되므로 호출해도 안전.
+    const sp = window.SplashProgress;
+    if (sp) sp.set(6, '앱 초기화…');
+
     // [New] 방문객 카운트 업데이트
     updateVisitorStats();
     // [New] 수집 실패 여부 확인 → 헤더 경고 표시
     checkCollectFailures();
+    if (sp) sp.set(15, '방문 기록 확인…');
 
     appState.apiStatus = { hub: 'loading', buoy: 'loading', coastal: 'loading' };
     updateApiStatusDisplay();
@@ -54,6 +62,7 @@ async function fetchAllData() {
         // 1. 특보 데이터 (crawler가 생성한 JSON 파일) — 스플래시 종료 조건
         // [캐시] 서버 Cache-Control: max-age=30 — 30초 안의 자동 재호출은 브라우저 캐시 사용
         //        이전엔 ?_t=Date.now() 로 캐시를 강제 우회했으나 max-age 가 짧아 신선도 충분.
+        if (sp) sp.set(52, '기상 특보 불러오는 중…'); // fetch 대기 동안 52% 까지 creep
         const alertsResponse = await fetch('/api/weather-alerts');
         if (alertsResponse.ok) {
             const rootData = await alertsResponse.json();
@@ -68,10 +77,12 @@ async function fetchAllData() {
         appState.lastUpdated = new Date();
 
         // 2. 해상 기상 전망 — 스플래시 종료 조건
+        if (sp) sp.set(86, '해상 예보 불러오는 중…'); // 대기 동안 86% 까지 creep
         if (typeof loadMarineForecast === 'function') {
             await loadMarineForecast();
         }
 
+        if (sp) sp.set(96, '화면 구성 중…');
         updateApiStatusDisplay();
         renderApp();
 
@@ -83,6 +94,9 @@ async function fetchAllData() {
     } finally {
         updateLoading(false);
     }
+
+    // 모든 스플래시 종료 조건 데이터 로드 완료 → 100%
+    if (sp) sp.done('완료');
 
     // 3. 백그라운드 순차 로딩 (스플래시 종료 후 실행)
     loadBackgroundData();

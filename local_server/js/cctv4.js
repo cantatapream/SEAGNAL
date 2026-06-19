@@ -55,6 +55,15 @@ let _currentCctvData = null;
 /** 연안침식(coastal) 이미지 자동 갱신 타이머 ID */
 let _cctvImageRefreshTimer = null;
 
+/**
+ * CCTV 팝업이 마지막으로 열린(display:flex) 시각(ms).
+ * [버그수정] 터치 합성 click 관통 가드용 — 팝업이 열린 직후 같은 탭의 native
+ *   click 이 전체화면 오버레이(.cctv-modal-overlay onclick=closeCctvPopup)에
+ *   떨어져 팝업이 즉시 닫히는 문제를 막기 위해, 열린 지 일정 시간 이내의
+ *   닫기 요청은 무시한다. (부이 모달 backdrop pointer-events 가드와 동일 취지)
+ */
+let _cctvPopupOpenedAt = 0;
+
 /** 해무 CCTV 슬라이드 인덱스 (0 = 가장 오래된 이미지) */
 let _seafogSlideIndex = 0;
 
@@ -279,10 +288,10 @@ function showCctvPopup(data) {
             const src = provider.imageBaseUrl(data.cctvId, i) + '?' + Date.now();
             const label = camCount > 1 ? ` 카메라 ${i + 1}` : '';
             imgsHtml += `<div class="cctv-coast-img-wrap">` +
-                `<img id="cctv-coast-img-${i}" class="cctv-coast-img"` +
+                `<img id="cctv-coast-img-${i}" class="cctv-coast-img" referrerpolicy="no-referrer"` +
                 ` src="${src}" alt="${data.name}${label}"` +
                 ` onerror="this.style.display='none';` +
-                    `document.getElementById('cctv-coast-err-${i}').style.display='flex'">` +
+                    `var _e=document.getElementById('cctv-coast-err-${i}');if(_e)_e.style.display='flex';">` +
                 `<div id="cctv-coast-err-${i}" class="cctv-coast-err" style="display:none;">` +
                     `<i class="fa-solid fa-triangle-exclamation"></i>` +
                     `<span>이미지를 불러올 수 없습니다</span>` +
@@ -415,6 +424,8 @@ function showCctvPopup(data) {
 
     // 모달 표시 (display: flex → 화면 중앙에 배치)
     backdrop.style.display = 'flex';
+    // [버그수정] 합성 click 관통 가드 기준 시각 기록 (closeCctvPopup 에서 사용)
+    _cctvPopupOpenedAt = Date.now();
 
     // HLS 스트림인 경우 비디오 플레이어 초기화 (innerHTML 설정 후 실행)
     if (data.streamUrl) {
@@ -733,6 +744,11 @@ function seafogFullscreen() {
 function closeCctvPopup() {
     const backdrop = document.getElementById('cctv-modal-backdrop');
     if (!backdrop || backdrop.style.display === 'none') return;
+    // [버그수정] 터치 합성 click 관통 가드: 팝업이 열린 직후(같은 탭의 native
+    //   click 이 전체화면 오버레이에 떨어져) 즉시 닫히는 것을 방지. 열린 지
+    //   350ms 이내의 닫기 요청은 무시한다. 정상적인 '바깥 클릭/닫기 버튼' 은
+    //   항상 그 이후라 영향 없음.
+    if (Date.now() - _cctvPopupOpenedAt < 350) return;
 
     // iframe 스트림 즉시 중단 (KBS 방식)
     const iframe = backdrop.querySelector('iframe');

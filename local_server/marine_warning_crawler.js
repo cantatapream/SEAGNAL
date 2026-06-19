@@ -3038,6 +3038,16 @@ async function run(opts = {}) {
             }
         }
 
+        // 5-B1) [위치기반 특보 경보 ④] 활성 특보 변화 → 동의(활성) 단말에 깨우는 신호(데이터 메시지).
+        //   기존 푸시와 완전 독립. 위치 좌표는 서버로 오지 않음(단말이 판정). 실패는 흡수.
+        if (!opts.dryRun) {
+            try {
+                await require('./services/location_alert_dispatch').dispatchOnLatest();
+            } catch (e) {
+                console.error('[marine_warning_crawler] 위치기반 경보 dispatch skip:', e && e.message);
+            }
+        }
+
         // 5-B2) [자식-only 통보문 보강] 확정 자식 변동을 펜딩 등록 + 열린 펜딩 부모만 ntfctn/list 조회·매칭.
         //   - 평상시(변동 없음·펜딩 없음) ntfctn 호출 0회 (tick 내부 가드).
         //   - dryRun 이면 네트워크/등록 모두 skip. 실패해도 기존 흐름 무영향.

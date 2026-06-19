@@ -44,8 +44,8 @@
 
     var _map = null;
     // dmdw 상세정보 레이어 대응: 예측경로(track) / 70%확률반경(prob) / 강풍반경(strong) / 폭풍반경(storm)
-    var _trackLayer = null, _probLayer = null, _strongLayer = null, _stormLayer = null, _headLayer = null, _pointLayer = null;
-    var _trackSrc = null, _probSrc = null, _strongSrc = null, _stormSrc = null, _headSrc = null, _pointSrc = null;
+    var _trackLayer = null, _probLayer = null, _strongLayer = null, _stormLayer = null, _trailLayer = null, _headLayer = null, _pointLayer = null;
+    var _trackSrc = null, _probSrc = null, _strongSrc = null, _stormSrc = null, _trailSrc = null, _headSrc = null, _pointSrc = null;
     var _prevBasemap = null;  // 태풍 ON 직전 베이스맵(끄면 복원)
     var LAYER_KEY = 'seagnal_typhoon_layers';
     var _layerOn = { track: true, prob: true, strong: false, storm: false };
@@ -199,7 +199,7 @@
             var wv = beaufortWaveM(o.windMs);
             if (wv != null) more += '<div class="tphn-b-sub">예상파고(추정) 약 ' + wv + 'm</div>';
         }
-        more += '<button type="button" class="tphn-guide-btn"><i class="fa-solid fa-life-ring"></i> 해상 종사자 행동요령</button>';
+        more += '<button type="button" class="tphn-guide-btn"><i class="fa-solid fa-life-ring"></i> 행동요령</button>';
         h += '<div class="tphn-b-more">' + more + '</div>';
         return h;
     }
@@ -232,6 +232,7 @@
     function openGuideModal() {
         var gm = document.getElementById('tphn-guide-modal');
         if (!gm) return;
+        selectGuideTab('sea'); // 열 때마다 기본=해상 탭으로 초기화(예측 가능·일관)
         gm.style.display = 'flex';
         if (window.PopupStack) window.PopupStack.push('tphn-guide', closeGuideModal);
     }
@@ -239,6 +240,13 @@
         var gm = document.getElementById('tphn-guide-modal');
         if (gm) gm.style.display = 'none';
         if (window.PopupStack) window.PopupStack.remove('tphn-guide');
+    }
+    // 행동요령 모달 탭 전환(해상/육상) — 해당 블록만 보이고 탭 버튼 활성표시. 기본=해상.
+    function selectGuideTab(which) {
+        var tabs = document.querySelectorAll('#tphn-guide-modal .tphn-guide-tab');
+        var panes = document.querySelectorAll('#tphn-guide-modal .tphn-guide-pane');
+        for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i].getAttribute('data-tab') === which);
+        for (var j = 0; j < panes.length; j++) panes[j].style.display = (panes[j].getAttribute('data-pane') === which) ? '' : 'none';
     }
     function escHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
     // 통보문 안내(i) 팝업 — rem(발표/종료 안내, '|' 구분) + other(참고사항).
@@ -409,6 +417,10 @@
         if (_frames.length < 2) return 0;
         var t0 = _frames[0]._t, t1 = _frames[_frames.length - 1]._t;
         if (t1 <= t0) return 0;
+        // 통보문 구간 전체가 과거(지금 > 마지막 예보시각)면 예보 끝점이 아니라
+        //   관측 현재위치(프레임0)를 기준으로 둔다 — 과거 통보문 열람 시 "그 통보문의
+        //   실제 위치"로 지도가 포커스되게 함. (라이브 태풍은 t1 이 미래라 영향 없음)
+        if (nowKstMs() > t1) return 0;
         return Math.max(0, Math.min(1, (nowKstMs() - t0) / (t1 - t0)));
     }
 
@@ -446,12 +458,14 @@
     var DIR16_DEG = { N: 0, NNE: 22.5, NE: 45, ENE: 67.5, E: 90, ESE: 112.5, SE: 135, SSE: 157.5, S: 180, SSW: 202.5, SW: 225, WSW: 247.5, W: 270, WNW: 292.5, NW: 315, NNW: 337.5 };
     function dirToDeg(d) { if (d == null) return null; var v = DIR16_DEG[String(d).trim().toUpperCase()]; return v == null ? null : v; }
     function angDiff(a, b) { var d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
-    // 방위(deg)에서의 반경: 단반경 방향(edDeg) ±90°(가항측 반원)이면 단반경, 반대쪽(위험)이면 장반경.
+    // 방위(deg)에서의 반경 — ed(가항측, 0°) → rShort, 반대(위험측, 180°) → rLong 로 코사인 S-커브 보간.
+    //   2반원 하드컷(±90°에서 r 점프)으로 인한 톱니/노치 없이 매끈한 비대칭 달걀형이 되도록.
     function radAt(rLong, rShort, edDeg, brngDeg) {
         if (edDeg == null || rShort == null || !(rShort > 0) || rShort >= rLong) return rLong;
-        return angDiff(brngDeg, edDeg) <= 90 ? rShort : rLong;
+        var s = (1 - Math.cos(Math.PI * angDiff(brngDeg, edDeg) / 180)) / 2;   // 0..1 S-커브
+        return rShort + (rLong - rShort) * s;
     }
-    // 비대칭 2반원 원 링 — bearing 별 반경 적용(edDeg/rShort 없으면 균일 원).
+    // 비대칭 달걀형 원 링 — bearing 별 반경 적용(edDeg/rShort 없으면 균일 원).
     function asymRing(lon, lat, rLong, rShort, edDeg, n) {
         n = n || 72;
         var ring = [];
@@ -776,6 +790,7 @@
     function renderHead(p) {
         if (!_headSrc) return;
         _headSrc.clear();
+        if (_trailSrc) _trailSrc.clear();
         var f = frameAt(p);
         if (!f) return;
         var c = f._colorF || gradeColor(f._gradeF || 0);
@@ -792,14 +807,15 @@
             if (_layerOn.storm) { var gs = swathCorridorGeom(passedPts, { long: 'radStorm', short: 'radStormS', dir: 'radStormD' }); if (gs) _stormSrc.addFeature(new ol.Feature(gs)); }
         }
 
-        // 진행 자취 중심선: 지나온 경로 + 현재 위치 (굵은 실선, 강도색)
+        // 진행 자취 중심선: 지나온 경로 + 현재 위치 (굵은 실선, 강도색).
+        //   포인트 원/숫자에 가려지지 않도록 별도 _trailLayer(zIndex 128)에 추가.
         var passed = [];
         _frames.forEach(function (fr) { if (fr._t <= f._rtMs) passed.push(ol.proj.fromLonLat([fr.lon, fr.lat])); });
         passed.push(ol.proj.fromLonLat([f.lon, f.lat]));
-        if (passed.length >= 2) {
+        if (passed.length >= 2 && _trailSrc) {
             var trail = new ol.Feature(new ol.geom.LineString(passed));
             trail.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: rgba(c, 0.95), width: 3.5 }) }));
-            _headSrc.addFeature(trail);
+            _trailSrc.addFeature(trail);
         }
 
         // 태풍 본체(강도색 점 + 소용돌이)
@@ -963,7 +979,8 @@
         _selSeq = seq;
         var inline = activeTyphoon(year, seq);
         if (inline) {
-            _bulletinList = (inline.bulletins || []).map(function (b) { return { code: b.code, label: b.label, isLatest: b.isLatest }; });
+            // 통보문 목록은 "태풍단계(TYP)"만 노출 — 열대저압부(TD) 단계는 아직 태풍이 아니므로 제외.
+            _bulletinList = (inline.bulletins || []).filter(function (b) { return b.kind !== 'TD'; }).map(function (b) { return { code: b.code, label: b.label, isLatest: b.isLatest }; });
             (inline.bulletins || []).forEach(function (b) { if (b.code) _tableCache[year + '_' + b.code] = b; });
             populateBulletins();
             var code0 = pickCode(preferCode);
@@ -972,7 +989,8 @@
             return Promise.resolve();
         }
         return fetchJSON('/api/typhoon/bulletins?year=' + year + '&seq=' + seq).then(function (j) {
-            _bulletinList = (j && j.bulletins) || [];
+            // 통보문 목록은 "태풍단계(TYP)"만 노출 — 열대저압부(TD) 단계 제외.
+            _bulletinList = (((j && j.bulletins) || []).filter(function (b) { return b.kind !== 'TD'; }));
             populateBulletins();
             var code0 = pickCode(preferCode);
             setSelValue('tphn-bulletin', code0);
@@ -1027,7 +1045,7 @@
     }
     function clearTrack() {
         _frames = [];
-        [_trackSrc, _probSrc, _strongSrc, _stormSrc, _headSrc, _pointSrc].forEach(function (s) { if (s) s.clear(); });
+        [_trackSrc, _probSrc, _strongSrc, _stormSrc, _trailSrc, _headSrc, _pointSrc].forEach(function (s) { if (s) s.clear(); });
         _pointBubbles.forEach(function (ov) { ov.setPosition(undefined); });
         if (_moveBubble) _moveBubble.setPosition(undefined);
     }
@@ -1089,17 +1107,18 @@
     function applyAvailability() {
         var btn = document.getElementById('ocean-typhoon-toggle-btn');
         if (!btn) return;
-        // 활성 태풍(dmdw)이 있으면 버튼 활성, 없으면 비활성. (일반 사용자 노출 — 탭 잠금 없음)
+        // 활성 태풍이 있으면 활성. 없을 때는 10회 탭으로 잠금해제(_unlocked, 세션 한정) 시에도 활성.
         var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
+        var canShow = has || _unlocked;
         var nBadge = document.getElementById('tphn-n-badge');
-        if (nBadge) nBadge.style.display = has ? 'flex' : 'none';
-        if (!has) {
+        if (nBadge) nBadge.style.display = has ? 'flex' : 'none';  // N 배지는 "현재 활성 태풍" 신호 → has 만
+        if (!canShow) {
             btn.classList.add('tphn-disabled');
             btn.title = '현재 태풍 없음';
             if (_visible) setVisible(false);
         } else {
             btn.classList.remove('tphn-disabled');
-            btn.title = '태풍 진로';
+            btn.title = has ? '태풍 진로' : '태풍 진로 (활성 없음 — 과거 통보문 조회)';
         }
     }
 
@@ -1168,6 +1187,7 @@
         _strongSrc = new ol.source.Vector();
         _stormSrc = new ol.source.Vector();
         _trackSrc = new ol.source.Vector();
+        _trailSrc = new ol.source.Vector();
         _headSrc = new ol.source.Vector();
         _pointSrc = new ol.source.Vector();
         // 채움은 유형별 색(원·말풍선과 동일), 반투명 유지 → 배경 지도 희미하게 비침.
@@ -1178,11 +1198,13 @@
         _strongLayer = new ol.layer.Vector(Object.assign({ source: _strongSrc, zIndex: 118, style: swathStyle(rgba(STRONG_C, 0.95), rgba(STRONG_C, 0.32)) }, uw));
         _stormLayer = new ol.layer.Vector(Object.assign({ source: _stormSrc, zIndex: 120, style: swathStyle(rgba(STORM_C, 0.95), rgba(STORM_C, 0.36)) }, uw));
         _trackLayer = new ol.layer.Vector(Object.assign({ source: _trackSrc, zIndex: 124 }, uw));
+        // 자취선(지나온 경로 실선)은 포인트(140)보다 아래에 — 포인트 원/숫자가 가려지지 않도록.
+        _trailLayer = new ol.layer.Vector(Object.assign({ source: _trailSrc, zIndex: 128 }, uw));
         _pointLayer = new ol.layer.Vector(Object.assign({ source: _pointSrc, zIndex: 140 }, uw)); // 강도숫자 포인트
-        // 이동 태풍(🌀) 헤드는 포인트(140)보다 위 → 재생 중 포인트 숫자에 가려지지 않음.
+        // 이동 태풍(🌀) 헤드만 포인트(140)보다 위 → 재생 중 포인트 숫자에 가려지지 않음.
         _headLayer = new ol.layer.Vector(Object.assign({ source: _headSrc, zIndex: 150 }, uw));
         map.addLayer(_probLayer); map.addLayer(_strongLayer); map.addLayer(_stormLayer);
-        map.addLayer(_trackLayer); map.addLayer(_headLayer); map.addLayer(_pointLayer);
+        map.addLayer(_trackLayer); map.addLayer(_trailLayer); map.addLayer(_headLayer); map.addLayer(_pointLayer);
         _moveBubble = makeBubbleOverlay(); map.addOverlay(_moveBubble); _moveEl = _moveBubble.getElement();
         // 육지 클릭 팝업(강풍반경 도달시간) — 클릭 차단(stopEvent), 닫기·행동요령 버튼 처리.
         _landEl = document.createElement('div');
@@ -1207,7 +1229,8 @@
         if (_stormLayer) _stormLayer.setVisible(_visible && _layerOn.storm);
         if (_trackLayer) _trackLayer.setVisible(_visible && _layerOn.track);
         if (_pointLayer) _pointLayer.setVisible(_visible && _layerOn.track);
-        if (_headLayer) _headLayer.setVisible(_visible && pb); // 이동 헤드는 재생 모드에서만
+        if (_trailLayer) _trailLayer.setVisible(_visible && pb); // 자취선(재생 모드에서만)
+        if (_headLayer) _headLayer.setVisible(_visible && pb);   // 이동 헤드(재생 모드에서만)
         updateBubbleVisibility();
     }
 
@@ -1218,7 +1241,8 @@
         if (btn) {
             btn.addEventListener('click', function () {
                 var has = _activeData && _activeData.hasActive && (_activeData.typhoons || []).length;
-                if (!has) return;                               // 활성 태풍 없음 → 비활성
+                // 활성 태풍 있거나 잠금해제(10탭) 상태면 토글, 아니면 탭 카운트.
+                if (!has && !_unlocked) { handleGateTap(); return; }
                 if (!_visible && window.trackUsage) window.trackUsage('ocean.typhoon');  // [사용량] 켤 때만 1회
                 setVisible(!_visible);
             });
@@ -1253,6 +1277,11 @@
         var guideClose = document.getElementById('tphn-guide-close');
         if (guideClose) guideClose.addEventListener('click', closeGuideModal);
         if (guideModal) guideModal.addEventListener('click', function (e) { if (e.target === guideModal) closeGuideModal(); });
+        // 해상/육상 탭 전환(추가형) — 모달 열기/닫기·PopupStack 동작은 변경하지 않음. 기본 선택은 openGuideModal()에서 보장.
+        var guideTabs = document.querySelectorAll('#tphn-guide-modal .tphn-guide-tab');
+        for (var gi = 0; gi < guideTabs.length; gi++) {
+            guideTabs[gi].addEventListener('click', function () { selectGuideTab(this.getAttribute('data-tab')); });
+        }
 
         // 통보문 안내(i) 팝업
         var infoBtn = document.getElementById('tphn-info-btn');
@@ -1327,11 +1356,36 @@
         installWhenReady();
     }
 
+    // [관리자 시연 전용] 지정한 "실제 통보문"(연도+호수+코드)을 그대로 불러와 표출 + 지도 이동.
+    //   - 가짜 데이터를 주입하지 않는다. 사용자가 드롭다운으로 과거 통보문을 고르는 것과 동일한
+    //     실데이터 경로(loadYear→loadTyphoon→selectBulletin→renderBulletin)를 그대로 태운다.
+    //     → 실제 태풍명/통보문 라벨·정보(ⓘ)·통보문 이미지·예상 진로·지도 포커스가 모두 정상 표출.
+    //   - 현재 활성 태풍이 없어 버튼이 비활성이어도 강제로 잠금해제·활성화한다.
+    //   - 호출: js/assistant_deeplink.js (테스트 푸시 딥링크의 demoTphn/dtYear/dtSeq/dtCode[/dtGuide]).
+    //   - demo.openGuide 가 truthy 면(위치기반 반경 시연) 행동요령(해상/육상 2탭) 팝업까지 자동 표출.
+    function demoFocus(demo) {
+        try {
+            if (!demo) return;
+            _unlocked = true;        // 세션 한정 잠금해제 → 버튼 활성화 허용
+            _yearLoaded = true;      // setVisible 의 자동 loadYear 중복 호출 방지(아래에서 직접 로드)
+            applyAvailability();     // 버튼에서 'tphn-disabled' 제거(활성화)
+            setVisible(true);        // 레이어 ON (활성 태풍이 없어도 패널/버튼 표시)
+            var year = parseInt(demo.year, 10) || curYearKst();
+            _year = year;
+            setSelValue('tphn-year', String(year));
+            // 실제 연도/호수/통보문코드로 dmdw 실데이터 로드 → 실제 라벨·정보·이미지 + 지도 포커스
+            loadYear(year, demo.seq != null ? String(demo.seq) : null, demo.code || null);
+            // [위치기반 반경 시연] 행동요령 2탭 팝업 자동 표출(추가형 — openGuide 없으면 미호출).
+            if (demo.openGuide) openGuideModal();
+        } catch (e) { /* 시연 실패는 조용히 무시 */ }
+    }
+
     window.OceanTyphoon = {
         reload: load,
         show: function () { setVisible(true); },
         hide: function () { setVisible(false); },
         isVisible: function () { return _visible; },
+        demoFocus: demoFocus,   // 관리자 시연: 실제 통보문을 강제 활성화 표출 + 지도 이동
         // 육지 클릭 처리: 태풍 ON + 실제 육지일 때만 강풍반경 도달시간 팝업 표출. consumed 시 true.
         tryHandleLandClick: function (lon, lat) {
             if (!_visible || _frames.length === 0) return false;
