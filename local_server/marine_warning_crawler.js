@@ -371,6 +371,21 @@ class DiffMatrix {
 
         for (const parent of allParents) {
             try {
+                // [버그수정 1회성 가드 — 자식이 prev 에서 self-key 부모로 잘못 저장된 경우]
+                //   구코드(_extractParent 이름분할)는 '중' 구분자가 없는 자식
+                //   (울릉도*연안바다 → 동해중부안쪽먼바다, 천수만/안면도/당진/태안·서산북쪽
+                //    평수구역 → 충남북부앞바다)을 self-key 부모로 prev 에 저장했다.
+                //   신코드는 이들을 올바른 부모 아래 자식으로 분류하므로, 배포 첫 사이클에
+                //   "부모(prev)→소멸(curr)" 디프로 보여 거짓 prelim_cancel/release 푸시를
+                //   3건 낼 수 있다. CHILD_TO_PARENT 에 정의된 키(=실제로는 절대 부모일 수
+                //   없는 자식 fullName)가 부모 루프에 들어왔다면, 이는 재분류 아티팩트이므로
+                //   디프에서 제외한다. (정상 부모는 CHILD_TO_PARENT 키가 아니므로 무영향 —
+                //   정상 예비취소/해제를 삼키지 않음. 1회성: 다음 사이클부터 prev 가 신코드로
+                //   재저장되어 이 키는 더 이상 부모로 안 나타남.)
+                if (CHILD_TO_PARENT[parent] && !curr.parents.has(parent)) {
+                    continue;
+                }
+
                 const pPrev = prev.getParent(parent);
                 const pCurr = curr.getParent(parent);
                 const childrenAll = PARENT_TO_CHILDREN[parent] || [];
@@ -2177,15 +2192,54 @@ function _extractParent(korNm) {
     return s;
 }
 
-// [부모/자식 분류 — 코드 기반] warn_zone_cd 접두사로 분류한다. 부모=S1…, 자식(연안/평수)=S2…·S3….
-//   이름 기반(_extractParent(name)===name) 분류는 "강원'중'부앞바다"처럼 부모명에 '중'이 든
-//   해역('중부' 권역)을 자식으로 오분할해 목록에서 통째로 누락시켰다(실측 7개 해역). 코드는
-//   불변이므로 이름 표기차·'중부' 함정과 무관하게 안전. 코드 부재 시에만 이름 기반 폴백.
+// ============================================================================
+// [버그수정 — 중부 부모 누락] 부모/자식 분류·부모키 산출을 코드 기반으로 통일.
+//
+//  근본원인: _extractParent 가 lastIndexOf('중') 로 분할 → "강원중부앞바다" 등
+//   이름에 '중부'가 든 *부모* 해역을 "강원"+"부앞바다" 로 오분할 → 부모를 자식으로
+//   오분류 → snap.parents 누락 → 화면에서 7개 해역(중부) 사라짐.
+//
+//  해결: MMIS warn_zone_cd 는 ^S1=부모, ^S2/^S3=자식 으로 불변 규약(전 93코드 반례 0
+//   검증). 코드가 있으면 코드로 분류하고, 없을 때만 이름폴백(_extractParent===self).
+//
+//  부모키 역인덱스(CHILD_TO_PARENT): PARENT_TO_CHILDREN 의 자식 fullName → 부모.
+//   이름에 '중' 구분자가 없는 자식(울릉도*연안바다→동해중부안쪽먼바다, 천수만/안면도/
+//   당진/태안·서산북쪽 평수구역→충남북부앞바다)은 _extractParent 가 self-key 로 잡아
+//   고아 등록되던 문제를, 역인덱스 우선으로 해소한다.
+// ============================================================================
+const CHILD_TO_PARENT = (() => {
+    const idx = {};
+    for (const parent of Object.keys(PARENT_TO_CHILDREN)) {
+        for (const child of PARENT_TO_CHILDREN[parent]) idx[child] = parent;
+    }
+    return idx;
+})();
+
+/**
+ * warn_zone_cd 기반 자식 여부 판정.
+ *   ^S1 → 부모(false), ^S2/^S3 → 자식(true). 코드 부재/비표준 시 이름폴백.
+ * @param {string} cd   warn_zone_cd (예: 'S1151200', 'S2120500')
+ * @param {string} name 정식 해역명 (이름폴백용)
+ * @returns {boolean} 자식이면 true
+ */
 function _isChildZoneCode(cd, name) {
-    const s = String(cd || '');
-    if (/^S[23]/.test(s)) return true;     // S2…/S3… = 마린 자식
-    if (/^S1/.test(s)) return false;       // S1… = 부모
-    return _extractParent(name) !== name;  // 코드 부재 폴백(레거시 동작)
+    const c = String(cd || '');
+    if (/^S1/.test(c)) return false;        // S1 = 부모(앞바다/먼바다)
+    if (/^S[23]/.test(c)) return true;      // S2/S3 = 자식(평수구역/연안바다)
+    // 코드 부재(L* 육상은 호출 전 allowlist 로 이미 배제) → 이름폴백
+    return name ? _extractParent(name) !== name : false;
+}
+
+/**
+ * 자식 fullName → 부모키.
+ *   1순위: CHILD_TO_PARENT 역인덱스(정의된 모든 자식, '중' 구분자 유무 무관 정확).
+ *   2순위: _extractParent 이름분할(역인덱스에 없는 미지 자식 폴백).
+ * @param {string} childName 자식 정식 해역명
+ * @returns {string} 부모키
+ */
+function _parentKeyForChild(childName) {
+    if (childName && CHILD_TO_PARENT[childName]) return CHILD_TO_PARENT[childName];
+    return _extractParent(childName);
 }
 
 /**
@@ -2269,7 +2323,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
     const snap = new StateSnapshot();
 
     const addChild = (childName, row) => {
-        const parent = _extractParent(childName);
+        const parent = _parentKeyForChild(childName);   // 역인덱스 우선 (self-key 고아 방지)
         if (!snap.children.has(parent)) snap.children.set(parent, new Map());
         const m = snap.children.get(parent);
         if (m.has(childName)) return;   // 이미 등록(발효 우선) → skip
@@ -2374,8 +2428,8 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             if (!_isTargetRealtimeType(row.warn_tp)) continue;   // 통보문 없는 빈 메타행 자동 제외
             const cname = _resolveZoneName(row);
             if (!cname) continue;
-            const parent = _extractParent(cname);
-            if (parent === cname) continue;   // 부모형 행은 warn/latest 루프가 처리
+            if (!_isChildZoneCode(row.warn_zone_cd, cname)) continue;   // 부모형 행은 warn/latest 루프가 처리
+            const parent = _parentKeyForChild(cname);   // 역인덱스 우선 (snap.children 키 일관)
             const cmd = String(row.warn_cmd_nm || '').trim();
 
             if (cmd === '해제') {
@@ -2448,8 +2502,7 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
         if (!isPublishCmd && cmd !== '변경해제') continue;
         const tmEf = String(row.tm_ef || '').trim();
         if (!tmEf || !_isFutureExactTime(tmEf)) continue;  // 정확·미래 발효시각만 (발표 발효대기)
-        const parent = _extractParent(name);
-        if (parent === name) {
+        if (!_isChildZoneCode(row.warn_zone_cd, name)) {
             const info = _rowToParentInfo(row);
             info._realLvlNm = info.wrnLvlNm;   // [B] 실제 등급 보존 (예비 덮어쓰기 전) — 공존 격상/격하용
             info.wrnLvlNm = '예비';   // 발효 전 → 예비 취급 (표시·푸시 일관성)
@@ -2510,6 +2563,7 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             }
         } else {
             // 자식형 행 (warn/latest 가 자식을 주는 경우 — 현재는 거의 없음). 발효중/예비면 그쪽 우선.
+            const parent = _parentKeyForChild(name);   // 역인덱스 우선 (snap.children 키 일관)
             if (!snap.children.has(parent)) snap.children.set(parent, new Map());
             const m = snap.children.get(parent);
             if (m.has(name)) continue;
@@ -2746,12 +2800,12 @@ function _enrichSnapshotWithEfList(snap, efRows, prev) {
         // 실시간 endpoint 가 이미 커버(발효중/예비/발표대기/공존)하면 skip — 중복/덮어쓰기 방지.
         if (snap.parents.has(name)) continue;
         if (snap.upcomings && snap.upcomings.has(name)) continue;
-        const parent = _extractParent(name);
         const info = _efRowToInfo(sel.row);
-        if (parent === name) {
+        if (!_isChildZoneCode(sel.row.warn_zone_cd, name)) {
             _addGapParentFromEf(snap, prev, name, info, counters);
         } else {
             // 자식형 행 (드묾) — 부모 컨테이너에 예비로 추가.
+            const parent = _parentKeyForChild(name);   // 역인덱스 우선 (snap.children 키 일관)
             if (!snap.children.has(parent)) snap.children.set(parent, new Map());
             const m = snap.children.get(parent);
             if (!m.has(name)) { m.set(name, info); counters.gapChildSynth++; }
