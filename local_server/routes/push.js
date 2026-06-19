@@ -341,10 +341,16 @@ router.post('/api/push-custom', async (req, res) => {
                     if (opts.release === false && (tid === 'release' || tid === 'prelim_cancel')) {
                         return;
                     }
-                    // [자식 독립 푸시] additional_active(추가 발효) / partial_release(일부 해제)
-                    //   - 자식(연안바다/평수구역) 전용 알림 → childZones OFF 사용자는 수신 안 함
-                    //   - 추가 발효 ~ 발효 계열 토글, 일부 해제 ~ 해제 계열 토글 적용
-                    if (['additional_active', 'partial_release'].includes(tid) && opts.childZones === false) {
+                    // [자식 독립 푸시] additional_active(추가 발효) / partial_release(일부 해제) /
+                    //   child_prelim(자식 단독 예비 발표)
+                    //   - 모두 자식(연안바다/평수구역) 전용 알림 → childZones OFF 사용자는 수신 안 함
+                    //   - 추가 발효 ~ 발효 계열, 일부 해제 ~ 해제 계열, 자식 예비 발표 ~ 발표 계열 토글
+                    if (['additional_active', 'partial_release', 'child_prelim'].includes(tid) && opts.childZones === false) {
+                        return;
+                    }
+                    // 자식 단독 예비 발표 = 발표(예비) → announce(발표 알림) 토글 OFF 면 미수신.
+                    //   (부모 예비 발표 publish 와 동일하게 '발표' 계열로 묶음 — 정확한 구독자군 선택.)
+                    if (opts.announce === false && tid === 'child_prelim') {
                         return;
                     }
                     if (opts.active === false && tid === 'additional_active') {

@@ -329,6 +329,7 @@ class DiffMatrix {
             publish: [],
             active: [],
             additional_active: [],
+            child_prelim: [],          // [자식 예비 보존] 자식 단독 예비 발표(발효 전) — '발표(예비)'
             prelim_cancel: [],
             partial_release: [],
             release: [],
@@ -551,12 +552,32 @@ class DiffMatrix {
                     }
 
                     // ----- 자식만 변화 -----
-                    // 추가 발효
+                    // [자식 예비 보존] 추가된 자식을 예비(발표 전)/발효로 분리.
+                    //   예비 자식 → child_prelim('발표(예비)'), 발효 자식 → additional_active('추가 발효').
+                    //   과거엔 둘 다 additional_active 로 보내 자식 단독 예비가 "추가 발효"로 오발송됐다.
+                    //   (※ 사용자 채널은 push_sender CHILD_PRELIM_ADD/CHILD_ADD 분기로 동일 처리. 이
+                    //    관리자 채널은 ADMIN_PUSH_ENABLED=false 라 현재 비활성이나 일관성 위해 동기화.)
                     if (childState.added.length > 0) {
-                        matrix.add('additional_active',
-                            { parent, time: pCurr.tmYn, childState },
-                            { wrnTp: pCurr.wrnTp, wrnLvl: pCurr.wrnLvl,
-                              wrnTpNm: pCurr.wrnTpNm, wrnLvlNm: pCurr.wrnLvlNm });
+                        const currChMap2 = curr.children.get(parent) || new Map();
+                        const prelimAdded = childState.added.filter(cn => {
+                            const ci = currChMap2.get(cn);
+                            return ci && ci.wrnLvlNm === '예비';
+                        });
+                        const activeAdded = childState.added.filter(cn => !prelimAdded.includes(cn));
+                        if (prelimAdded.length > 0) {
+                            const csPub = Object.assign({}, childState, { added: prelimAdded });
+                            matrix.add('child_prelim',
+                                { parent, time: pCurr.tmEf, childState: csPub },
+                                { wrnTp: pCurr.wrnTp, wrnLvl: pCurr.wrnLvl,
+                                  wrnTpNm: pCurr.wrnTpNm, wrnLvlNm: pCurr.wrnLvlNm });
+                        }
+                        if (activeAdded.length > 0) {
+                            const csAct = Object.assign({}, childState, { added: activeAdded });
+                            matrix.add('additional_active',
+                                { parent, time: pCurr.tmYn, childState: csAct },
+                                { wrnTp: pCurr.wrnTp, wrnLvl: pCurr.wrnLvl,
+                                  wrnTpNm: pCurr.wrnTpNm, wrnLvlNm: pCurr.wrnLvlNm });
+                        }
                     }
                     // 자식 일부 해제 (부모 유지)
                     if (childState.released.length > 0) {
@@ -588,6 +609,8 @@ class EventDispatcher {
             active:                   (cid, m, info, entries) => dmdwPush.enqueueParentActive(cid, info.wrnTp, info.wrnLvl, entries, info),
             release:                  (cid, m, info, entries) => dmdwPush.enqueueParentRelease(cid, info.wrnTp, info.wrnLvl, entries, info),
             additional_active:        (cid, m, info, entries) => dmdwPush.enqueueAdditionalActive(cid, info.wrnTp, info.wrnLvl, entries, info),
+            // [자식 예비 보존] 자식 단독 예비 발표 = 발표(announce) 계열 → publish enqueue 로 라우팅.
+            child_prelim:             (cid, m, info, entries) => dmdwPush.enqueueParentPublish(cid, info.wrnTp, info.wrnLvl, entries, info),
             prelim_cancel:            (cid, m, info, entries) => dmdwPush.enqueuePrelimCancel(cid, info.wrnTp, entries, info),
             partial_release:          (cid, m, info, entries) => dmdwPush.enqueuePartialRelease(cid, info.wrnTp, info.wrnLvl, entries, info),
             level_upgrade_publish:    (cid, m, info, entries) => dmdwPush.enqueueLevelUpgrade(cid, info.wrnTp, info.prevWrnLvlNm, info.wrnLvl, entries, 'publish', info),
@@ -1679,12 +1702,41 @@ function _buildUserPushChanges(prev, curr) {
         if (!upcomingChanged && !activeChanged && c) {
             const addedChildren = currChildren.filter(x => !prevChildren.includes(x));
             const releasedChildren = prevChildren.filter(x => !currChildren.includes(x));
-            if (addedChildren.length > 0) {
+            // [자식 예비 보존] 자식도 부모와 동일하게 발표(예비)/발효 lifecycle 을 갖는다.
+            //   신규 등장 자식을 등급으로 분기:
+            //     · 예비(미발효)      → CHILD_PRELIM_ADD ("발표(예비)") — "추가 발효"로 오발사 금지.
+            //     · 주의보/경보(발효) → CHILD_ADD ("추가 발효").
+            //   snapshot(snap.children, _rowToChildInfo)은 wrnLvlNm='예비'를 보존하므로 여기서 분별 가능
+            //   하다. weather_alerts 트리의 '예비→주의보' 정규화는 표출 dedup 용일 뿐 snapshot 엔 무관.
+            const childLvl = (snap, name) => {
+                const info = childInfoOf(snap, zone, name);
+                return info ? (info.wrnLvlNm || '') : '';
+            };
+            const addedPrelim = addedChildren.filter(x => childLvl(curr, x) === '예비');
+            const addedActive = addedChildren.filter(x => childLvl(curr, x) !== '예비');
+            // [자식 예비→발효 전이] prev·curr 양쪽에 키가 있어 "신규 추가"는 아니지만 등급이
+            //   예비→발효(주의보/경보)로 올라간 자식 = 그 순간이 진짜 "추가 발효". 이 신호가 없으면
+            //   사용자는 자식 발효를 영영 통지받지 못한다(예비 발표만 받고 발효 푸시 누락).
+            //   (발효→예비 격하는 별도 발사 안 함 — 현실에 거의 없고 오분류 위험만 큼.)
+            const nowActivated = currChildren.filter(x =>
+                prevChildren.includes(x) &&
+                childLvl(prev, x) === '예비' &&
+                childLvl(curr, x) !== '예비' && childLvl(curr, x) !== '');
+            if (addedPrelim.length > 0) {
+                changes.push({
+                    type: 'CHILD_PRELIM_ADD',
+                    zone: zone,
+                    curr: childToBlock(childInfoOf(curr, zone, addedPrelim[0])),
+                    childState: { all, active: currChildren, added: addedPrelim, released: [] }
+                });
+            }
+            const activeAdds = addedActive.concat(nowActivated);
+            if (activeAdds.length > 0) {
                 changes.push({
                     type: 'CHILD_ADD',
                     zone: zone,
-                    curr: childToBlock(childInfoOf(curr, zone, addedChildren[0])),
-                    childState: { all, active: currChildren, added: addedChildren, released: [] }
+                    curr: childToBlock(childInfoOf(curr, zone, activeAdds[0])),
+                    childState: { all, active: currChildren, added: activeAdds, released: [] }
                 });
             }
             if (releasedChildren.length > 0) {
@@ -2089,14 +2141,19 @@ function _buildZoneTreeFromSnapshot(snap) {
         for (const [childName, info] of childMap) {
             if (!Object.prototype.hasOwnProperty.call(leaf.children, childName)) continue;
             if (!info || !info.wrnLvlNm) continue;
-            // 예비는 푸시 dedup 정책 따라 wrnLvlNm '주의보' 정규화 (배지엔 wrnLvl 별도 보존)
-            const lvlNmNorm = info.wrnLvlNm === '예비' ? '주의보' : info.wrnLvlNm;
+            // [자식 예비 보존] 자식 '예비'를 그대로 표출한다. (과거엔 "푸시 dedup 정책"이라 적힌
+            //   채 '주의보'로 강제 정규화했으나, 실제 푸시 diff/dedup 은 StateSnapshot(snap.children)
+            //   으로만 동작하고 이 트리(weather_alerts.json)는 화면 표출 전용이라 dedup 과 무관함을
+            //   라이브 grep + 시뮬로 확인. 정규화를 제거하면 프론트(js/data.js processSingleAlert)가
+            //   level==='예비'를 1순위로 '발표(예비)' 표출 → 시간추정(childEfNotYet) 보정에 의존하지
+            //   않아 더 견고. 실제 발효 시 snapshot 이 '주의보'가 되어 트리도 자동 전환.)
+            const lvlNm = info.wrnLvlNm;
             leaf.children[childName] = {
                 source: 'MARINE_MMIS',
                 wrnTp: info.wrnTpNm || info.wrnTp || '',  // 한글 우선
                 wrnTpNm: info.wrnTpNm || '',
-                wrnLvl: lvlNmNorm || info.wrnLvl || '',    // 한글 우선
-                wrnLvlNm: lvlNmNorm,
+                wrnLvl: lvlNm || info.wrnLvl || '',    // 한글 우선
+                wrnLvlNm: lvlNm,
                 tmFc: normalizeMmisTime(info.tmFc),
                 tmEf: normalizeMmisTime(info.tmEf),       // [표시 = 확정값] 부모와 동일 정책
                 tmYn: normalizeMmisTime(info.tmYn),

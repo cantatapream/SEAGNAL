@@ -368,6 +368,15 @@ function generateMessage(filteredPayload) {
         const grouped = groupByTime(items, 'tmYn');
         genBody = formatGroupedMessage(grouped, '해제예정');
     }
+    // 10-b. 자식 단독 예비 발표 (부모 발효중 + 자식만 "예비/미발효" 등장)
+    //   "추가 발효"가 아니라 "발표". 부모명 옆 한정사 "(가파도연안바다 발표 예정)" 는 decorateZone 생성.
+    //   시각은 발효예정(tmEf). 실제 발효되면 그때 additional_active("추가 발효")로 전환된다.
+    //   (effectiveLevel 보정으로 fullTitle 은 "풍랑 주의보" — 부모 예비 발표와 동일 표기 규칙.)
+    else if (templateId === 'child_prelim') {
+        genTitle = `📢 ${fullTitle} 발표`;
+        const grouped = groupByTime(items, 'tmEf');
+        genBody = formatGroupedMessage(grouped, '발효예정');
+    }
     // 11. 일부 해제 (자식 독립 — 부모 유지 상태에서 자식만 해제)
     //   한정사 "(가파도연안바다만 해제)" 는 decorateZone 가 생성.
     else if (templateId === 'partial_release') {
@@ -491,6 +500,7 @@ const TIME_LABEL_BY_EVENT = {
     publish: '발효예정',
     active: '해제예정',
     additional_active: '해제예정',
+    child_prelim: '발효예정',     // 자식 단독 예비 발표 — 발효예정 시각(tmEf)
     prelim_cancel: null,        // 시간 없음
     partial_release: null,      // 시간 없음
     release: null,              // 시간 없음
@@ -511,6 +521,7 @@ const TIME_KEY_BY_EVENT = {
     publish: 'tmEf',
     active: 'tmYn',
     additional_active: 'tmYn',
+    child_prelim: 'tmEf',        // 자식 단독 예비 발표 — 발효예정(tmEf)
     level_upgrade_publish: 'tmEf',
     level_upgrade_active: 'tmYn',
     level_downgrade_publish: 'tmEf',
@@ -602,6 +613,15 @@ function buildChildQualifier(parent, childState, eventType) {
             if (added.length > 0) {
                 const shown = added.map(c => _stripParentPrefix(parent, c));
                 return `(${shown.join(', ')} 추가 발효)`;
+            }
+            return '';
+        }
+
+        // [자식 단독 예비 발표] child_prelim: 발표(예비)된 자식만 "(가파도연안바다 발표 예정)" 로 나열.
+        if (eventType === 'child_prelim') {
+            if (added.length > 0) {
+                const shown = added.map(c => _stripParentPrefix(parent, c));
+                return `(${shown.join(', ')} 발표 예정)`;
             }
             return '';
         }
