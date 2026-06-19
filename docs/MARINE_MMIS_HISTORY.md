@@ -7004,6 +7004,16 @@ KMA archive 비교로 신규 자식 zone 자동 등록.
 - 수정: 부모/자식 분류를 이름 대신 **warn_zone_cd 코드 기반**(`_isChildZoneCode`: `^S[23]`=자식, `^S1`=부모, 코드 부재 시에만 이름 폴백)으로 전환. warn/ready·warn-sasc/ready 두 혼재 루프에 적용. `_extractParent` 는 (실제 자식의) 부모명 추출 용도로만 유지(자식은 마지막 '중'이 구분자라 정상).
 - 라이브 검증: 수정 후 `_buildSnapshotFromMarine` 의 `snap.parents` = **40개**(7개 중부 전부 `풍랑 예비` 부모로 등록), 기상청 발표 40 부모와 일치.
 
+#### § 7.7.11.1 종합 보강 (독립 5중 검토 후 — 2026-06-19)
+
+1차 수정(warn/ready·warn-sasc/ready 분류만 코드 기반 전환) 후, **2개 독립 원인검토 + 2개 독립 수정·회귀검토 + 1개 메타검토**를 거쳐 다음 3개 보완을 추가했다. 핵심: 이번 변경들은 **MD에 이미 명문화된 설계**(§ 2.3 `warn_zone_cd`: `S1`=부모/`S2·S3`=자식, § 1 자식 독립 표출 정책 U-1)를 코드가 못 따르던 빈틈을 정렬한 것이며, 새 규칙을 만든 것이 아니다.
+
+- **(보완1) 분류 코드 기반 전수 통일** — 같은 `_extractParent(name)===name` 이름 분류가 `_enrichSnapshotWithLatest`(warn-sasc/latest·warn/latest)·`_enrichSnapshotWithEfList`(ef GAP) 보강 경로에도 남아 있었다. 중부 부모가 warn/list·warn/ready 없이 latest/ef 로만 들어오는 발표대기(GAP) 타이밍에 동일 누락이 재발할 수 있어, 이 경로들도 `_isChildZoneCode` 로 통일.
+- **(보완2) 자식 부모키 역인덱스(`CHILD_TO_PARENT`)** — 이름에 '중' 구분자가 없는 자식(`울릉도울릉읍/서면/북면연안바다`→`동해중부안쪽먼바다`, `천수만/안면도서쪽/당진/태안·서산북쪽평수구역`→`충남북부앞바다`)은 `_extractParent`가 자기 이름을 부모키로 반환해 **self-key 고아**가 되어 부모 트리에 자식이 안 붙었다(U-1 위반). `PARENT_TO_CHILDREN` 역인덱스(`_parentKeyForChild`)로 진짜 부모키를 산출해 정상 부착.
+- **(보완3) 재배포 1회성 가짜 취소 가드** — prev 스냅샷(구코드: 위 self-key 자식이 부모로 저장)과 신코드 디프 시 배포 첫 사이클에 거짓 `prelim_cancel`(울릉도 등)이 발사될 수 있다. `DiffMatrix.compute` 루프 선두에 `CHILD_TO_PARENT[parent] && !curr.parents.has(parent)` 면 제외하는 1회성 가드 추가(정상 부모는 이 키가 아니므로 정상 해제/예비취소를 삼키지 않음 — 부모키∩자식fullName=∅ 검증).
+
+회귀 검토(12 시나리오): 발효/해제/격상·격하·예비공존·자식변동·콜드부팅 푸시가드·`PARENT_TO_CHILDREN` 합성·`excludedChildren` 게이트·프론트 표출 전부 무영향(PASS). 라이브 재검증: `snap.parents=40`(중부 7/7), 울릉도 3 자식이 `동해중부안쪽먼바다` 아래 정상 부착, self-key 고아 0, 배포 디프 가짜취소 0·정상 publish 7 보존.
+
 ---
 
 # § 8. 부록
