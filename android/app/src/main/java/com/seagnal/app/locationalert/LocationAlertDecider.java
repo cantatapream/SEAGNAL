@@ -82,7 +82,10 @@ public final class LocationAlertDecider {
             ctx.forecastSummary = optStr(fc, "summary", null);
         }
 
-        return LocationAlertCore.buildMessage(ctx);
+        LocationAlertCore.Message msg = LocationAlertCore.buildMessage(ctx);
+        // 진단 주석(텍스트는 변경하지 않음). 단말 last_match 기록 + 시연 탭 표시용.
+        if (msg != null) { msg.zone = zoneName; msg.tier = tier; msg.event = ctx.event; }
+        return msg;
     }
 
     private static String optStr(JSONObject o, String key, String def) {

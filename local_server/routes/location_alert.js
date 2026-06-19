@@ -36,14 +36,15 @@ router.post('/api/location-alert/consent', (req, res) => {
 //   단말은 미리 설정한 시연 위치 + 내장 폴리곤으로 판정해 로컬 알림을 띄운다.
 router.post('/api/location-alert/demo', requireAdminToken, async (req, res) => {
     try {
-        const { token, activeWarnings } = req.body || {};
+        const { token, activeWarnings, demoPos } = req.body || {};
         if (!token || typeof token !== 'string') {
             return res.status(400).json({ success: false, error: 'token(device push_token) required' });
         }
         if (!Array.isArray(activeWarnings) || activeWarnings.length === 0) {
             return res.status(400).json({ success: false, error: 'activeWarnings array required' });
         }
-        const send = () => dispatch.dispatchWake(activeWarnings, { getConsents: () => [{ token, agreed: true }] });
+        // 시연 위치(demoPos)는 wake 메시지 안으로만 전달 → 단말이 POS_KEY(실제 GPS)를 오염시키지 않음.
+        const send = () => dispatch.dispatchWake(activeWarnings, { getConsents: () => [{ token, agreed: true }], demoPos });
         // 지연 발송(앱 종료 상태 수신 테스트용): 0~10분 범위. >0 이면 서버가 예약 후 즉시 응답.
         const delay = Math.max(0, Math.min(600000, Number(req.body.delayMs) || 0));
         if (delay > 0) {

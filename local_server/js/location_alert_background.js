@@ -60,6 +60,7 @@
                 lat: loc.latitude, lng: loc.longitude,
                 acc: (typeof loc.accuracy === 'number' ? loc.accuracy : null),
                 at: new Date().toISOString(),
+                src: 'gps',   // 진짜 백그라운드 GPS 고정값 표시(데모 위치와 구분). POS_KEY 오염 방지.
             };
             const json = JSON.stringify(rec);
             root.localStorage.setItem(POS_KEY, json);

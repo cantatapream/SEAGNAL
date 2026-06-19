@@ -43,7 +43,7 @@ public class LocationAlertMessagingService extends MessagingService {
         try {
             Map<String, String> data = remoteMessage.getData();
             if (data != null && WAKE_TYPE.equals(data.get("type"))) {
-                handleWake(getApplicationContext(), data.get("snapshot"));
+                handleWake(getApplicationContext(), data);
             }
         } catch (Throwable t) {
             Log.e(TAG, "wake 처리 실패", t);
@@ -53,8 +53,10 @@ public class LocationAlertMessagingService extends MessagingService {
         super.onMessageReceived(remoteMessage);
     }
 
-    /** 데이터 메시지의 snapshot(JSON 문자열) → 판정 → 네이티브 알림. */
-    private void handleWake(Context ctx, String snapshotStr) {
+    /** 데이터 메시지(data 맵) → 위치 선택(시연/실제) → 판정 → 네이티브 알림 + 진단 기록. */
+    private void handleWake(Context ctx, Map<String, String> data) {
+        if (data == null) return;
+        String snapshotStr = data.get("snapshot");
         if (snapshotStr == null || snapshotStr.isEmpty()) return;
 
         // 게이팅: 활성+동의 플래그가 있을 때만 동작.
@@ -63,9 +65,36 @@ public class LocationAlertMessagingService extends MessagingService {
             return;
         }
 
-        LocationAlertStore.Position pos = LocationAlertStore.getPosition(ctx);
+        // 위치 선택: demoLat/demoLng 가 있으면 시연 위치(메시지 동봉) — 실제 저장 위치(POS_KEY) 미사용.
+        //   없으면 단말 진짜 백그라운드 GPS(POS_KEY).
+        boolean isDemo = false;
+        LocationAlertStore.Position pos = null;
+        String demoLat = data.get("demoLat");
+        String demoLng = data.get("demoLng");
+        if (demoLat != null && demoLng != null) {
+            try {
+                LocationAlertStore.Position dp = new LocationAlertStore.Position();
+                dp.lat = Double.parseDouble(demoLat);
+                dp.lng = Double.parseDouble(demoLng);
+                double acc = 0.0;
+                String demoAcc = data.get("demoAcc");
+                if (demoAcc != null) {
+                    try { acc = Double.parseDouble(demoAcc); } catch (Exception ignore) { acc = 0.0; }
+                }
+                dp.accuracyM = acc;
+                pos = dp;
+                isDemo = true;
+            } catch (Exception e) {
+                Log.w(TAG, "demoPos 파싱 실패 → 실제 위치 사용", e);
+                pos = null;
+                isDemo = false;
+            }
+        }
         if (pos == null) {
-            Log.d(TAG, "저장 위치 없음 → skip");
+            pos = LocationAlertStore.getPosition(ctx);
+        }
+        if (pos == null) {
+            Log.d(TAG, "위치 없음 → skip");
             return;
         }
 
@@ -80,10 +109,36 @@ public class LocationAlertMessagingService extends MessagingService {
             LocationAlertCore.Message msg = LocationAlertDecider.decideAlert(
                     pos.lat, pos.lng, pos.accuracyM, features, snapshot);
             if (msg != null) {
+                // 진단 기록(단말 로컬에만 — 네트워크 전송 없음). 완전 방어적.
+                try {
+                    JSONObject diag = new JSONObject();
+                    diag.put("zone", msg.zone != null ? msg.zone : "");
+                    diag.put("lat", pos.lat);
+                    diag.put("lng", pos.lng);
+                    diag.put("src", isDemo ? "demo" : "gps");
+                    diag.put("tier", msg.tier != null ? msg.tier : "");
+                    diag.put("event", msg.event != null ? msg.event : "");
+                    diag.put("at", nowIso());
+                    LocationAlertStore.putLastMatch(ctx, diag.toString());
+                } catch (Throwable t) {
+                    Log.w(TAG, "진단 기록 실패(무시)", t);
+                }
                 LocationAlertNotifier.notify(ctx, msg.title, msg.body);
             }
         } catch (Exception e) {
             Log.e(TAG, "decideAlert 실패", e);
+        }
+    }
+
+    /** ISO-8601(UTC) 현재 시각. */
+    private static String nowIso() {
+        try {
+            java.text.SimpleDateFormat f =
+                    new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US);
+            f.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+            return f.format(new java.util.Date());
+        } catch (Throwable t) {
+            return "";
         }
     }
 }
