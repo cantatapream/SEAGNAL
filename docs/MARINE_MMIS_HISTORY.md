@@ -7014,6 +7014,23 @@ KMA archive 비교로 신규 자식 zone 자동 등록.
 
 회귀 검토(12 시나리오): 발효/해제/격상·격하·예비공존·자식변동·콜드부팅 푸시가드·`PARENT_TO_CHILDREN` 합성·`excludedChildren` 게이트·프론트 표출 전부 무영향(PASS). 라이브 재검증: `snap.parents=40`(중부 7/7), 울릉도 3 자식이 `동해중부안쪽먼바다` 아래 정상 부착, self-key 고아 0, 배포 디프 가짜취소 0·정상 publish 7 보존.
 
+### § 7.7.12 자식(연안/평수) 단독 예비특보가 "추가 발효"로 오발송 — 자식 발표(예비) 개념 신설 (2026-06-19)
+
+증상: 자식 해역(연안바다·평수구역)이 **예비특보(발표·미발효)**인데 푸시가 **"풍랑주의보 추가 발효"**로 발송됨(관측: `동해중부안쪽먼바다(울릉도울릉읍연안바다 추가 발효)` — 울릉도 연안바다는 예비). § 7.7.11.1 보완2가 자식을 부모에 정상 부착하면서 이 잠재 문제가 드러남.
+
+- **핵심 발견(독립 2+메타 검토)**: 푸시 경로와 화면 트리는 **별개 데이터원**이다.
+  - 푸시 diff·dedup 은 `StateSnapshot`(`_rowToChildInfo`)으로만 동작하며 자식 `wrnLvlNm='예비'`를 **보존**한다.
+  - `_buildZoneTreeFromSnapshot` 의 자식 `예비→주의보` 정규화(주석 "푸시 dedup 정책")는 **화면(weather_alerts.json) 전용**이며 푸시·dedup 에 무관(실측·grep 확정). "dedup 정책" 주석은 실체 없는 오해.
+- 실제 오발송 원인: `_buildUserPushChanges` 가 신규 자식을 **등급 무시하고 일괄 `CHILD_ADD`** 로 분류 → `push_sender` 가 `CHILD_ADD → additional_active`("추가 발효")로 무조건 매핑. 자식의 '예비'가 묻힘. 부모는 `upcoming`/`current` 분리로 발표/발효를 구분하지만 자식엔 그 개념이 없었던 것.
+- 수정(독립 2개 구현 → 메타 종합, 4파일 +113/-16):
+  1. `_buildUserPushChanges` — 신규 자식을 등급 분기: **예비→신규 `CHILD_PRELIM_ADD`**, 발효(주의보/경보)→기존 `CHILD_ADD`. **예비→발효 전이 감지(`nowActivated`)** 시 그 순간 `CHILD_ADD`("추가 발효") 발사(실제 발효될 때 비로소 발효 통지).
+  2. `push_sender` — `CHILD_PRELIM_ADD → child_prelim` 템플릿(시각=발효예정 `tmEf`).
+  3. `push_helpers` — `child_prelim` 문구("📢 …발표", 한정사 "(…발표 예정)").
+  4. `routes/push.js` — `child_prelim` 을 **발표(announce)+자식(childZones) 양쪽 토글로 게이트**(발효 토글만 끈 사용자는 예비와 무관하므로 정상 수신). 부모 발표(`publish`)·자식 추가발효(`additional_active`) 기존 토글 동작 불변.
+  5. `_buildZoneTreeFromSnapshot` — 자식 `예비` 보존(정규화 제거) → 화면이 시간추정 대신 명시적 '예비'로 표출.
+  (admin 채널 DiffMatrix 도 일관성 위해 `child_prelim` 버킷 분리 — `ADMIN_PUSH_ENABLED=false`라 현재 비활성.)
+- 검증(라이브 + 회귀): 자식 단독 예비 → "발표"(예비, 오발사 0), 자식 예비→발효 전이 → "추가 발효", 자식 직접 발효 → "추가 발효", 일부 해제·혼합·연장·무변화·콜드부팅 가드·부모 7종 전부 불변(PASS). 부모+자식 동시 발표 = **단일 푸시**(중복 없음). 트리 자식 예비 40/40 보존.
+
 ---
 
 # § 8. 부록
