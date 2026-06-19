@@ -2177,6 +2177,17 @@ function _extractParent(korNm) {
     return s;
 }
 
+// [부모/자식 분류 — 코드 기반] warn_zone_cd 접두사로 분류한다. 부모=S1…, 자식(연안/평수)=S2…·S3….
+//   이름 기반(_extractParent(name)===name) 분류는 "강원'중'부앞바다"처럼 부모명에 '중'이 든
+//   해역('중부' 권역)을 자식으로 오분할해 목록에서 통째로 누락시켰다(실측 7개 해역). 코드는
+//   불변이므로 이름 표기차·'중부' 함정과 무관하게 안전. 코드 부재 시에만 이름 기반 폴백.
+function _isChildZoneCode(cd, name) {
+    const s = String(cd || '');
+    if (/^S[23]/.test(s)) return true;     // S2…/S3… = 마린 자식
+    if (/^S1/.test(s)) return false;       // S1… = 부모
+    return _extractParent(name) !== name;  // 코드 부재 폴백(레거시 동작)
+}
+
 /**
  * [V11 — 등급명 정규화]
  * mmis 실시간 endpoint 는 예비특보를 warn_lvl_nm='예비특보' 로 내려주지만,
@@ -2294,8 +2305,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
         if (!_isTargetRealtimeType(row.warn_tp)) continue;
         const name = _resolveZoneName(row);
         if (!name) continue;
-        const parent = _extractParent(name);
-        if (parent === name) {
+        if (!_isChildZoneCode(row.warn_zone_cd, name)) {
             // 부모형 예비 — 발효중이면 parents 는 유지하되, 예비를 upcomings 에 보관(병렬 표출용).
             //   [B] 과거엔 발효 우선으로 드롭했으나, 다가오는 특보를 별도 트랙으로 보존.
             if (snap.parents.has(name)) {
@@ -2313,7 +2323,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
         if (!_isTargetRealtimeType(row.warn_tp)) continue;
         const childName = _resolveZoneName(row);
         if (!childName) continue;
-        if (_extractParent(childName) === childName) continue;   // 부모형이면 자식 endpoint 에선 skip
+        if (!_isChildZoneCode(row.warn_zone_cd, childName)) continue;   // 부모형이면 자식 endpoint 에선 skip
         addChild(childName, row);
     }
     return snap;
