@@ -6995,6 +6995,42 @@ KMA archive 비교로 신규 자식 zone 자동 등록.
 - 수정: `regionalOffice` 도입 — 정적 매핑이 **실제 지방청(≠108)이면 그것**, 아니면(108 폴백/미등록) **ef/list 빈도 휴리스틱(`homeByZone`)으로 실제 발행 지방청 복원**(강원→105). `pick` 1순위를 `regionalOffice(≠108)` 로, 예비특보 `prelimStn` 도 `regionalOffice` 로 통일. → 발표/발효/격상/격하/예비 **전부 지방청 통보문**.
 - 라이브 검증: 30일 ef 이벤트 **114건 전부 지방청 PDF(전국 폴백 0건)**, 강원남부앞바다 `regionalOffice=105`.
 
+### § 7.7.11 "중부" 해역 예비특보 누락 — `_extractParent` 의 '중' 오분할 (2026-06-19)
+
+증상: 기상청이 풍랑 예비특보를 40개 부모 해역에 발표했는데 앱은 **33개만 표출**. 누락 7개가 **전부 이름에 "중부" 포함**: 강원중부앞바다·동해중부안쪽/바깥먼바다·전남중부서해앞바다·서해중부안쪽/바깥먼바다·경남중부남해앞바다. (비-중부 해역은 누락 0.)
+
+- 원인: `marine_warning_crawler.js` `_buildSnapshotFromMarine` 의 warn/ready(예비, 부모+자식 혼재) 분류가 **이름 기반**(`_extractParent(name) === name` 이면 부모, 아니면 자식)이었다. `_extractParent` 는 `lastIndexOf('중')` 로 부모/자식을 가르는데(자식 표기 `부모중자식`), **부모명에 '중'이 든 "중**부**" 권역**(강원**중**부앞바다 등)은 그 '중'에 걸려 `_extractParent("강원중부앞바다") = "강원"` → `"강원" ≠ "강원중부앞바다"` → **부모인데 자식으로 오분류** → `snap.parents` 에서 누락 → leaf `upcoming` 미설정 → 화면 누락.
+- 핵심 사실: MMIS warn/ready 원본엔 7개 모두 **부모 코드 S1…**(S1151200 강원중부앞바다 등)로 정상 존재. 부모=`S1…`, 마린 자식(연안/평수)=`S2…`·`S3…` 로 **코드 접두사가 불변 분류자**(실측 부모 40 / 자식 40 깔끔 분할). 이름 '중부' 함정과 무관.
+- 수정: 부모/자식 분류를 이름 대신 **warn_zone_cd 코드 기반**(`_isChildZoneCode`: `^S[23]`=자식, `^S1`=부모, 코드 부재 시에만 이름 폴백)으로 전환. warn/ready·warn-sasc/ready 두 혼재 루프에 적용. `_extractParent` 는 (실제 자식의) 부모명 추출 용도로만 유지(자식은 마지막 '중'이 구분자라 정상).
+- 라이브 검증: 수정 후 `_buildSnapshotFromMarine` 의 `snap.parents` = **40개**(7개 중부 전부 `풍랑 예비` 부모로 등록), 기상청 발표 40 부모와 일치.
+
+#### § 7.7.11.1 종합 보강 (독립 5중 검토 후 — 2026-06-19)
+
+1차 수정(warn/ready·warn-sasc/ready 분류만 코드 기반 전환) 후, **2개 독립 원인검토 + 2개 독립 수정·회귀검토 + 1개 메타검토**를 거쳐 다음 3개 보완을 추가했다. 핵심: 이번 변경들은 **MD에 이미 명문화된 설계**(§ 2.3 `warn_zone_cd`: `S1`=부모/`S2·S3`=자식, § 1 자식 독립 표출 정책 U-1)를 코드가 못 따르던 빈틈을 정렬한 것이며, 새 규칙을 만든 것이 아니다.
+
+- **(보완1) 분류 코드 기반 전수 통일** — 같은 `_extractParent(name)===name` 이름 분류가 `_enrichSnapshotWithLatest`(warn-sasc/latest·warn/latest)·`_enrichSnapshotWithEfList`(ef GAP) 보강 경로에도 남아 있었다. 중부 부모가 warn/list·warn/ready 없이 latest/ef 로만 들어오는 발표대기(GAP) 타이밍에 동일 누락이 재발할 수 있어, 이 경로들도 `_isChildZoneCode` 로 통일.
+- **(보완2) 자식 부모키 역인덱스(`CHILD_TO_PARENT`)** — 이름에 '중' 구분자가 없는 자식(`울릉도울릉읍/서면/북면연안바다`→`동해중부안쪽먼바다`, `천수만/안면도서쪽/당진/태안·서산북쪽평수구역`→`충남북부앞바다`)은 `_extractParent`가 자기 이름을 부모키로 반환해 **self-key 고아**가 되어 부모 트리에 자식이 안 붙었다(U-1 위반). `PARENT_TO_CHILDREN` 역인덱스(`_parentKeyForChild`)로 진짜 부모키를 산출해 정상 부착.
+- **(보완3) 재배포 1회성 가짜 취소 가드** — prev 스냅샷(구코드: 위 self-key 자식이 부모로 저장)과 신코드 디프 시 배포 첫 사이클에 거짓 `prelim_cancel`(울릉도 등)이 발사될 수 있다. `DiffMatrix.compute` 루프 선두에 `CHILD_TO_PARENT[parent] && !curr.parents.has(parent)` 면 제외하는 1회성 가드 추가(정상 부모는 이 키가 아니므로 정상 해제/예비취소를 삼키지 않음 — 부모키∩자식fullName=∅ 검증).
+
+회귀 검토(12 시나리오): 발효/해제/격상·격하·예비공존·자식변동·콜드부팅 푸시가드·`PARENT_TO_CHILDREN` 합성·`excludedChildren` 게이트·프론트 표출 전부 무영향(PASS). 라이브 재검증: `snap.parents=40`(중부 7/7), 울릉도 3 자식이 `동해중부안쪽먼바다` 아래 정상 부착, self-key 고아 0, 배포 디프 가짜취소 0·정상 publish 7 보존.
+
+### § 7.7.12 자식(연안/평수) 단독 예비특보가 "추가 발효"로 오발송 — 자식 발표(예비) 개념 신설 (2026-06-19)
+
+증상: 자식 해역(연안바다·평수구역)이 **예비특보(발표·미발효)**인데 푸시가 **"풍랑주의보 추가 발효"**로 발송됨(관측: `동해중부안쪽먼바다(울릉도울릉읍연안바다 추가 발효)` — 울릉도 연안바다는 예비). § 7.7.11.1 보완2가 자식을 부모에 정상 부착하면서 이 잠재 문제가 드러남.
+
+- **핵심 발견(독립 2+메타 검토)**: 푸시 경로와 화면 트리는 **별개 데이터원**이다.
+  - 푸시 diff·dedup 은 `StateSnapshot`(`_rowToChildInfo`)으로만 동작하며 자식 `wrnLvlNm='예비'`를 **보존**한다.
+  - `_buildZoneTreeFromSnapshot` 의 자식 `예비→주의보` 정규화(주석 "푸시 dedup 정책")는 **화면(weather_alerts.json) 전용**이며 푸시·dedup 에 무관(실측·grep 확정). "dedup 정책" 주석은 실체 없는 오해.
+- 실제 오발송 원인: `_buildUserPushChanges` 가 신규 자식을 **등급 무시하고 일괄 `CHILD_ADD`** 로 분류 → `push_sender` 가 `CHILD_ADD → additional_active`("추가 발효")로 무조건 매핑. 자식의 '예비'가 묻힘. 부모는 `upcoming`/`current` 분리로 발표/발효를 구분하지만 자식엔 그 개념이 없었던 것.
+- 수정(독립 2개 구현 → 메타 종합, 4파일 +113/-16):
+  1. `_buildUserPushChanges` — 신규 자식을 등급 분기: **예비→신규 `CHILD_PRELIM_ADD`**, 발효(주의보/경보)→기존 `CHILD_ADD`. **예비→발효 전이 감지(`nowActivated`)** 시 그 순간 `CHILD_ADD`("추가 발효") 발사(실제 발효될 때 비로소 발효 통지).
+  2. `push_sender` — `CHILD_PRELIM_ADD → child_prelim` 템플릿(시각=발효예정 `tmEf`).
+  3. `push_helpers` — `child_prelim` 문구("📢 …발표", 한정사 "(…발표 예정)").
+  4. `routes/push.js` — `child_prelim` 을 **발표(announce)+자식(childZones) 양쪽 토글로 게이트**(발효 토글만 끈 사용자는 예비와 무관하므로 정상 수신). 부모 발표(`publish`)·자식 추가발효(`additional_active`) 기존 토글 동작 불변.
+  5. `_buildZoneTreeFromSnapshot` — 자식 `예비` 보존(정규화 제거) → 화면이 시간추정 대신 명시적 '예비'로 표출.
+  (admin 채널 DiffMatrix 도 일관성 위해 `child_prelim` 버킷 분리 — `ADMIN_PUSH_ENABLED=false`라 현재 비활성.)
+- 검증(라이브 + 회귀): 자식 단독 예비 → "발표"(예비, 오발사 0), 자식 예비→발효 전이 → "추가 발효", 자식 직접 발효 → "추가 발효", 일부 해제·혼합·연장·무변화·콜드부팅 가드·부모 7종 전부 불변(PASS). 부모+자식 동시 발표 = **단일 푸시**(중복 없음). 트리 자식 예비 40/40 보존.
+
 ---
 
 # § 8. 부록

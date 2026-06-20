@@ -1,10 +1,10 @@
 /**
  * ============================================================================
- * location_alert_ui.js — 위치 기반 특보 경보: 동의·활성 UI (③ 단계)
+ * location_alert_ui.js — 위치 기반 기상 정보 제공: 동의·활성 UI (③ 단계)
  * ============================================================================
  * 설계 문서: 00_docs/LOCATION_BASED_ALERT_DESIGN.md (§10)
  *
- * 푸시 설정 탭의 "위치 기반 특보 정보 제공" 토글을 담당.
+ * 푸시 설정 탭의 "위치 기반 기상 정보 제공" 토글을 담당.
  *  - 기본 비활성. **관리자 등록(로그인) 단말에서만 활성 가능** (seagnal_admin_token 보유).
  *  - 토글 ON 시 순서: 동의 팝업 → 전경 위치 권한 → 백그라운드("항상 허용") 안내 → 활성.
  *  - 동의 기록은 단말 저장(+서버 최소 기록 hook). 위치 좌표는 서버로 보내지 않음.
@@ -55,7 +55,9 @@
 
     // ── 설정/동의 상태 (단말 저장) ────────────────────────────────────────────
     const LocationAlertSettings = {
-        data: { enabled: false, consent: null }, // consent: { version, agreedAt }
+        // subAlert/subTyphoon: 하위 알림 토글(특보/태풍, 둘 다 기본 ON). 미설정 단말은 init 의
+        //   Object.assign 이 저장값에 없는 키를 덮어쓰지 않으므로 기본 ON 으로 마이그레이션됨.
+        data: { enabled: false, consent: null, subAlert: true, subTyphoon: true }, // consent: { version, agreedAt }
         init() {
             try {
                 const raw = ls() && ls().getItem(STORAGE_KEY);
@@ -72,11 +74,25 @@
         },
         get() { return this.data; },
         setEnabled(v) { this.data.enabled = !!v; this.save(); },
+        /** 하위 알림 토글 저장. key ∈ {'subAlert','subTyphoon'}. (enabled/consent 흐름과 독립) */
+        setSub(key, v) {
+            if (key !== 'subAlert' && key !== 'subTyphoon') return;
+            this.data[key] = !!v; this.save();
+        },
         recordConsent() {
             this.data.consent = { version: CONSENT_VERSION, agreedAt: new Date().toISOString() };
             this.save();
         },
-        clear() { this.data = { enabled: false, consent: null }; this.save(); },
+        // 동의/활성만 초기화. 하위 토글(subAlert/subTyphoon) 사용자 선호는 보존(재동의 시 재설정 불필요).
+        //   save()→syncNativeFlags 에는 enabled=false/consent=null 만 전달되므로 네이티브 게이팅 영향 없음.
+        clear() {
+            this.data = {
+                enabled: false, consent: null,
+                subAlert: this.data.subAlert !== false,
+                subTyphoon: this.data.subTyphoon !== false,
+            };
+            this.save();
+        },
     };
 
     /** 관리자 등록 단말 여부 = 관리자 토큰 보유. (활성 권한 게이트) */
@@ -135,7 +151,7 @@
         return await root.showCustomPopup({
             icon: PIN_ICON,
             iconBg: 'rgba(127, 209, 255, 0.12)',
-            title: '위치 기반 특보 정보 제공 동의',
+            title: '위치 기반 기상 정보 제공 동의',
             message: consentMessageHtml(),
             confirmText: '동의함',
             cancelText: '동의하지 않음',
@@ -215,12 +231,38 @@
         }
     }
 
+    /** 하위 토글 컨테이너 활성/잠금 처리. active=true 면 조작 가능, false 면 흐림+pointer-events 차단+disabled.
+     *  상위(동의) 토글이 ON 이면서 게이트 통과 시에만 active. init·onToggle·버전게이트 공용 헬퍼. */
+    function syncSubToggles(active) {
+        if (!root.document) return;
+        const box = root.document.getElementById('location-alert-sub');
+        if (box) {
+            box.style.opacity = active ? '1' : '0.4';
+            box.style.pointerEvents = active ? 'auto' : 'none';
+        }
+        const subA = root.document.getElementById('location-alert-sub-alert');
+        const subT = root.document.getElementById('location-alert-sub-typhoon');
+        if (subA) subA.disabled = !active;
+        if (subT) subT.disabled = !active;
+    }
+
+    /** 저장된 하위 토글 값을 체크박스 checked 에 반영(표시만). */
+    function reflectSubToggleValues() {
+        if (!root.document) return;
+        const d = LocationAlertSettings.get();
+        const subA = root.document.getElementById('location-alert-sub-alert');
+        const subT = root.document.getElementById('location-alert-sub-typhoon');
+        if (subA) subA.checked = d.subAlert !== false;
+        if (subT) subT.checked = d.subTyphoon !== false;
+    }
+
     async function onToggle(checkbox) {
         // 끄기
         if (!checkbox.checked) {
             LocationAlertSettings.setEnabled(false);
             LocationAlertSettings.clear();
             updateVisual(false);
+            syncSubToggles(false); // 상위 OFF → 하위 토글 잠금(흐림). 선호값 자체는 clear()가 보존.
             syncConsentToServer(false);
             // TODO(②): 백그라운드 위치 추적 중지 + 단말 저장 위치 삭제
             if (root.LocationAlertBackground && root.LocationAlertBackground.stop) root.LocationAlertBackground.stop();
@@ -282,6 +324,9 @@
         LocationAlertSettings.recordConsent();
         LocationAlertSettings.setEnabled(true);
         updateVisual(true);
+        // 상위 ON 확정 → 하위 토글 활성 + 저장값 반영(체크박스 상태 동기화).
+        reflectSubToggleValues();
+        syncSubToggles(true);
         syncConsentToServer(true);
         if (proceed) {
             // 네이티브 권한 요청 → '항상 허용' 화면 직접 표출(최신 앱). 구버전 앱은 앱 정보 화면으로 폴백.
@@ -315,6 +360,18 @@
         toggle.onchange = function () { onToggle(toggle); };
         updateVisual(toggle.checked);
 
+        // 하위 토글: 저장값 반영 + onchange→저장 바인딩.
+        reflectSubToggleValues();
+        const subA = root.document.getElementById('location-alert-sub-alert');
+        const subT = root.document.getElementById('location-alert-sub-typhoon');
+        if (subA) subA.onchange = function () { LocationAlertSettings.setSub('subAlert', subA.checked); };
+        if (subT) {
+            // ② 태풍: 라이브 태풍-반경 엔진 미구축 → 설정 저장만(엔진 구축 시 런타임/서버 연동).
+            subT.onchange = function () { LocationAlertSettings.setSub('subTyphoon', subT.checked); };
+        }
+        // 하위 토글 활성 조건 = 상위 토글이 조작 가능(미잠금)하고 켜져 있음.
+        syncSubToggles(!!toggle.checked && !toggle.disabled);
+
         // 버전 게이트(비동기): 관리자라도 네이티브 미지원(구버전 앱)이면 토글 비활성 + 빨간 안내.
         if (admin) {
             isNativeCapable().then(function (capable) {
@@ -328,6 +385,8 @@
                     toggle.disabled = false;
                     if (updateNote) updateNote.style.display = 'none';
                 }
+                // 게이트 판정 반영 후 하위 토글 잠금 재계산.
+                syncSubToggles(!!toggle.checked && !toggle.disabled);
             });
         }
     }
@@ -335,6 +394,7 @@
     const api = {
         CONSENT_VERSION, NATIVE_MIN_VERSION, LocationAlertSettings, isAdminDevice, getPushToken,
         consentMessageHtml, initLocationAlertUI, onToggle, cmpVersion, isNativeCapable,
+        syncSubToggles, reflectSubToggleValues,
     };
     if (root) { root.LocationAlertSettings = LocationAlertSettings; root.initLocationAlertUI = initLocationAlertUI; root.LocationAlertUI = api; }
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
