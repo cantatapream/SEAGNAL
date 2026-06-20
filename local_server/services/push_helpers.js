@@ -390,7 +390,7 @@ function generateMessage(filteredPayload) {
     //   시각은 발효예정(tmEf). 실제 발효되면 그때 additional_active("추가 발효")로 전환된다.
     //   (effectiveLevel 보정으로 fullTitle 은 "풍랑 주의보" — 부모 예비 발표와 동일 표기 규칙.)
     else if (templateId === 'child_prelim') {
-        genTitle = `📢 ${fullTitle} 발표`;
+        genTitle = `📢 ${fullTitle} 추가 발표`;
         const grouped = groupByTime(items, 'tmEf');
         genBody = formatGroupedMessage(grouped, '발효예정');
     }
@@ -645,7 +645,7 @@ function buildChildQualifier(parent, childState, eventType) {
         if (eventType === 'child_prelim') {
             if (added.length > 0) {
                 const shown = added.map(c => _stripParentPrefix(parent, c));
-                return `(${shown.join(', ')})`;
+                return `(${shown.join(', ')} 추가 발표)`;
             }
             return '';
         }
