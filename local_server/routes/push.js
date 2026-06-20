@@ -327,13 +327,15 @@ router.post('/api/push-custom', async (req, res) => {
                     const tid = payload.templateId;
 
                     // 발표 관련 (publish, 격상/격하 발표, 발효시각 변경)
+                    //   child_time_ef_change(수정 #3 자식 단독 발효시각 변경)도 발표(announce) 계열.
                     if (opts.announce === false &&
-                        ['publish', 'level_upgrade_publish', 'level_downgrade_publish', 'time_ef_change'].includes(tid)) {
+                        ['publish', 'level_upgrade_publish', 'level_downgrade_publish', 'time_ef_change', 'child_time_ef_change'].includes(tid)) {
                         return;
                     }
                     // 발효 관련 (active, 격상/격하 발효, 해제시각 변경)
+                    //   child_time_yn_change(수정 #3 자식 단독 해제시각 변경)도 발효(active) 계열.
                     if (opts.active === false &&
-                        ['active', 'level_upgrade_active', 'level_downgrade_active', 'time_yn_change'].includes(tid)) {
+                        ['active', 'level_upgrade_active', 'level_downgrade_active', 'time_yn_change', 'child_time_yn_change'].includes(tid)) {
                         return;
                     }
                     // 해제 — 예비특보 취소(prelim_cancel)도 ✅ 해제 계열로 묶어 release 토글에 연동.
@@ -346,6 +348,12 @@ router.post('/api/push-custom', async (req, res) => {
                     //   - 모두 자식(연안바다/평수구역) 전용 알림 → childZones OFF 사용자는 수신 안 함
                     //   - 추가 발효 ~ 발효 계열, 일부 해제 ~ 해제 계열, 자식 예비 발표 ~ 발표 계열 토글
                     if (['additional_active', 'partial_release', 'child_prelim'].includes(tid) && opts.childZones === false) {
+                        return;
+                    }
+                    // [자식 독립 푸시] child_time_ef_change/child_time_yn_change(수정 #3 자식 단독 시각 변경) →
+                    //   자식(연안바다/평수구역) 전용 시각 변경 → childZones OFF 사용자는 수신 안 함
+                    //   (additional_active/partial_release/child_prelim 과 동일 정책).
+                    if (['child_time_ef_change', 'child_time_yn_change'].includes(tid) && opts.childZones === false) {
                         return;
                     }
                     // 자식 단독 예비 발표 = 발표(예비) → announce(발표 알림) 토글 OFF 면 미수신.
@@ -508,7 +516,7 @@ router.post('/api/push-custom', async (req, res) => {
             tab: isManualGroupSend
                 ? (payload.templateId && payload.templateId.startsWith('level_')
                     ? 'level'
-                    : (payload.templateId === 'time_ef_change' || payload.templateId === 'time_yn_change'
+                    : (['time_ef_change', 'time_yn_change', 'child_time_ef_change', 'child_time_yn_change'].includes(payload.templateId)
                         ? 'change-time'
                         : (payload.templateId || 'active')))
                 : 'custom',
