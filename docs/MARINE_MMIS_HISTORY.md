@@ -7031,6 +7031,20 @@ KMA archive 비교로 신규 자식 zone 자동 등록.
   (admin 채널 DiffMatrix 도 일관성 위해 `child_prelim` 버킷 분리 — `ADMIN_PUSH_ENABLED=false`라 현재 비활성.)
 - 검증(라이브 + 회귀): 자식 단독 예비 → "발표"(예비, 오발사 0), 자식 예비→발효 전이 → "추가 발효", 자식 직접 발효 → "추가 발효", 일부 해제·혼합·연장·무변화·콜드부팅 가드·부모 7종 전부 불변(PASS). 부모+자식 동시 발표 = **단일 푸시**(중복 없음). 트리 자식 예비 40/40 보존.
 
+### § 7.7.15 자식 한정사 문구 2건 + 자식 단독 시각/해제예고 푸시 누락 (2026-06-20)
+
+자식(연안/평수) 푸시 문구·로직 3건을 다중 에이전트 교차검증(독립 구현 4 + 메타 종합 1)으로 수정. 파일: `push_helpers.js`·`marine_warning_crawler.js`·`push_sender.js`·`routes/push.js`·`child_bulletin.js` (+167/-15).
+
+- **#1 (문구) child_prelim "발표 예정" 모순** — 자식 단독 예비특보 발표 시 한정사가 `(연안바다 발표 예정)`. 제목은 "📢 …발표"(이미 발표)인데 한정사는 "발표 예정"(아직)이라 모순. '예정'인 건 발효(발효예정은 본문에 별도 표시). → `buildChildQualifier` child_prelim 분기를 `(연안바다)` 로 단순화.
+- **#2 (문구) "미발효" vs "미발표" 단계 미구분** — "부모만, 자식 미포함" 한정사가 단계 무관하게 `(연안바다 미발효)` 고정. 부모가 **발표(예비) 단계면 "미발표"**, **발효 단계면 "미발효"**. → `TIME_KEY_BY_EVENT`(단일 출처) 기준: `tmEf`(발효예정) 계열(publish·time_ef_change)→"미발표", `tmYn`(해제예정) 계열(active·time_yn_change)→"미발효". (도달 eventType 4종 전수 확인.)
+- **#3 (로직) 자식만 해제예고/시각변경 시 푸시 누락** — 통보문이 **자식 해역만 해제예고**(예: 제06-37호 제주도동부앞바다중북동연안바다·제주도서부앞바다중북서연안바다 해제 17시, 부모 불변)인데 푸시 안 나감(앱 표시·데이터는 정상).
+  - 원인: 발송경로 `_buildUserPushChanges` 의 자식 독립 블록이 **자식 set 변화만** 처리하고 **자식 단독 시각/해제예고(tmEf/clrNtcTm) 변경 emit 이 전무**. 시각변경은 부모 기준만 계산 → 부모 불변·자식만 해제예고면 무푸시. **MD §4.25/S-CHILD-TIMECH("🕐 자식 시각 변경") 명세인데 사용자 경로 미구현**(비활성 admin DiffMatrix 에만 존재) — 명세-코드 모순.
+  - 수정: `_buildUserPushChanges` 에 자식 단독 시각/해제예고 검출 → 신규 `CHILD_TIME_EF_CHANGE`/`CHILD_TIME_YN_CHANGE`(자식 전용 templateId `child_time_ef_change`/`child_time_yn_change`) 1건 발사. 자식 해제예고 필드는 실측상 `clr_ntc_tm` 우선.
+  - **정합 4관문(과다발송 방지)**: ① 부모 불변일 때만 ② 자식 set 변화 동반 시 억제(Major-3) ③ 범위↔정확 깜빡임·연장 중복은 `_sameReleaseMoment`/HOLD/연장Set 흡수 ④ 의미있는 변경(없음→값/값→다른모멘트)만. childZones OFF 는 라우트 토글+빈본문 2중 미수신.
+  - 자식 전용 templateId 채택: 부모 `time_*_change` 재사용 시 `addToGroup` 그룹키 충돌·혼합 발사·토글 미게이트 위험 → 분리 키로 차단.
+
+검증(라이브 MMIS): #1 `(연안바다)`, #2 publish→미발표/active→미발효, #3 자식만 해제예고 신규(부모불변)→정확 1건 "🕐 해제시각 변경 (…만 시각 변경)" / 부모동반→미발사 / set동반→억제 / 깜빡임→0 / self-diff=0. 회귀 전수(한정사 전 분기·부모 lifecycle·예비취소·release·연장·콜드부팅·excludedChildren·dedup·단일푸시) 보존. §4.25 모순 해소.
+
 ---
 
 # § 8. 부록

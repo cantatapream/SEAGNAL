@@ -1782,6 +1782,82 @@ function _buildUserPushChanges(prev, curr) {
                     childState: { all, active: currChildren, extended: g.names }
                 });
             }
+
+            // [자식 단독 시각/해제예고 변경] (수정 #3 — MD §4.25 / S-CHILD-TIMECH) — 부모 블록 불변
+            //   (이 if 조건: !upcomingChanged && !activeChanged) + 자식 set 변화 없음일 때, 유지중인 자식의
+            //   발효예정(tmEf)·해제예정/해제예고(clrNtcTm|tmYn) 가 "의미있게" 바뀌면 자식 전용 1건 푸시.
+            //   (예: 자식만 해제예고시각이 새로 생김/달라짐 — 부모 앞바다는 변동 없음.)
+            //   기존엔 자식 set 변화(추가/해제/예비→발효)와 "범위→더 늦은 범위"(연장)만 처리하고,
+            //   자식 단독 해제예고 신규(없음→정확시각)·정확↔다른정확·앞당김은 무푸시였다(사용자 경로 누락).
+            //   → push_sender 가 child_time_ef_change/child_time_yn_change 로 매핑(부모 time_*_change 와 분리).
+            //
+            //   [정합 4관문]
+            //     ① 부모 불변: 이 블록 자체가 !upcomingChanged && !activeChanged && c 안에 있음.
+            //     ② Major-3(자식 set 변화 동반 억제): 같은 사이클 추가/해제/예비→발효면 그 푸시가 대표 →
+            //        setChanged 일 때 시각 변경 억제(중복/우선순위 충돌 방지).
+            //     ③ 범위↔정확 깜빡임 / HOLD / 연장 중복 제외: _sameReleaseMoment(동일 모멘트) 흡수,
+            //        위 efKids/ynKids 가 가져간 자식(연장)은 제외(이중 발사 방지).
+            //     ④ 의미있는 변경만: (없음→값) 또는 (값→다른 모멘트) 일 때만. 동일값/사라짐/깜빡임 무시.
+            //   등급(wrnLvlNm) 이 바뀐 자식은 격상/격하이지 시각변경이 아니므로 제외(오분류 방지).
+            //   [해제예고 필드] 실측상 자식 해제예고는 clr_ntc_tm(범위형)에 옴, tm_yn 미존재 → clrNtcTm 우선.
+            const childSetChanged =
+                addedChildren.length > 0 || releasedChildren.length > 0 || nowActivated.length > 0;
+            if (!childSetChanged) {
+                // 위 연장 블록이 이미 발사한 자식 — 이중 발사 방지용 집합.
+                const efExtendedNames = new Set();
+                for (const g of Object.values(efKids)) g.names.forEach(n => efExtendedNames.add(n));
+                const ynExtendedNames = new Set();
+                for (const g of Object.values(ynKids)) g.names.forEach(n => ynExtendedNames.add(n));
+
+                const efChangeKids = [];   // 발효예정(tmEf) 변경 자식 (예비 단계)
+                const ynChangeKids = [];   // 해제예정(clrNtcTm/tmYn) 변경 자식 (발효 단계)
+                let efChangeBlock = null, ynChangeBlock = null;
+                for (const cn of currChildren) {
+                    if (!prevChildren.includes(cn)) continue;     // 유지중인 자식만 (추가/해제는 위에서 처리)
+                    const pi = childInfoOf(prev, zone, cn), ci = childInfoOf(curr, zone, cn);
+                    if (!pi || !ci) continue;
+                    if (pi.wrnLvlNm !== ci.wrnLvlNm) continue;    // 등급 변하면 격상/격하 — 시각변경 아님
+                    const isUp = ci.wrnLvlNm === '예비';
+                    if (isUp) {
+                        // 발효예정 시각 변경 (예비 자식)
+                        if (efExtendedNames.has(cn)) continue;             // 연장으로 이미 발사 → 스킵
+                        const oldT = pi.tmEf || '', newT = ci.tmEf || '';
+                        if (!newT) continue;                               // curr 값 없음(사라짐) → 시각변경 아님(무푸시)
+                        if (oldT === newT) continue;                       // 동일값 무시
+                        if (_sameReleaseMoment(oldT, newT)) continue;      // 범위↔정확 깜빡임(동일 모멘트) 흡수
+                        efChangeKids.push(cn);
+                        if (!efChangeBlock) efChangeBlock = childToBlock(ci);
+                    } else {
+                        // 해제예정 시각 변경/신규 (발효 자식) — clrNtcTm 우선, 없으면 tmYn.
+                        if (ynExtendedNames.has(cn)) continue;             // 연장으로 이미 발사 → 스킵
+                        const oldT = pi.clrNtcTm || pi.tmYn || '';
+                        const newT = ci.clrNtcTm || ci.tmYn || '';
+                        if (!newT) continue;                               // 사라짐(해제예고 취소)은 시각변경 아님
+                        if (oldT === newT) continue;                       // 동일값 무시
+                        if (_sameReleaseMoment(oldT, newT)) continue;      // 범위↔정확 깜빡임 흡수
+                        ynChangeKids.push(cn);
+                        if (!ynChangeBlock) ynChangeBlock = childToBlock(ci);
+                    }
+                }
+                if (efChangeKids.length > 0) {
+                    changes.push({
+                        type: 'CHILD_TIME_EF_CHANGE', zone: zone, curr: efChangeBlock,
+                        childState: {
+                            all, active: currChildren,
+                            parentTimeUnchanged: true, timeChanged: efChangeKids.slice()
+                        }
+                    });
+                }
+                if (ynChangeKids.length > 0) {
+                    changes.push({
+                        type: 'CHILD_TIME_YN_CHANGE', zone: zone, curr: ynChangeBlock,
+                        childState: {
+                            all, active: currChildren,
+                            parentTimeUnchanged: true, timeChanged: ynChangeKids.slice()
+                        }
+                    });
+                }
+            }
         }
     }
 
