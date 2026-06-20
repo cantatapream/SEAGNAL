@@ -268,6 +268,11 @@ class StateSnapshot {
         //   명시한 자식명 집합 (통보문 '연안바다 제외'에 해당). 매 사이클 재계산되는 일시 필드라
         //   toJSON 영속 대상 아님 — 발표대기 GAP 합성이 유령 자식을 끼워넣지 못하게 막는 용도.
         this.excludedChildren = raw.excludedChildren instanceof Set ? raw.excludedChildren : new Set();
+        // [라이브 자식 집합] 이번 사이클 실제 라이브 row(warn-sasc/list 발효 + warn-sasc/ready 예비
+        //   + warn/ready 자식형)로 들어온 자식명 집합. carry/synth/디바운스로 끼워진 자식과 구분용.
+        //   제외 자식 사후정리가 "라이브 근거 없는 유령"만 제거하도록 하는 화이트리스트.
+        //   매 사이클 재계산되는 일시 필드 — toJSON 영속 대상 아님.
+        this.liveChildren = raw.liveChildren instanceof Set ? raw.liveChildren : new Set();
     }
 
     static fromJSON(obj) {
@@ -1163,6 +1168,41 @@ function _applyUpcomingCancelDebounce(prev, curr) {
 }
 
 // ============================================================================
+// [제외 자식 사후정리(post-pass)] 모든 보강(latest/ef)·디바운스가 끝난 직후, snap.children
+//   전체를 순회해 "이번 사이클 라이브 근거가 전혀 없는데 carry/synth 로만 들어온 유령 자식"을
+//   제거한다. 제거 조건 = (warn-sasc/list level-0 으로 명시 제외) AND (이번 사이클 라이브 자식 아님).
+//   - 배경: 제외 게이트가 synth(맹목 합성) 분기에만 있고 carry(prev 이어받기)·해제 디바운스
+//     3경로는 무게이트라, synth 가 1회 시드한 유령 자식이 carry 로 영속하던 문제(제주도북부앞바다
+//     연안바다 오포함). 개별 carry 게이트는 경로가 셋이라 누락 재발 위험 → 단일 사후정리로 통합.
+//   - [라이브 회귀 방지 — 핵심] 제외 소스 excludedChildren(warn-sasc/list level-0) 은 "미포함"뿐
+//     아니라 "아직 미발효(예비)"도 level-0 으로 내려준다(라이브 확인: warn-sasc/ready 의 예비특보
+//     자식이 warn-sasc/list 에선 level-0). 따라서 excludedChildren 만으로 지우면 진짜 예비 자식까지
+//     오삭제된다. → 이번 사이클 실제 row(snap.liveChildren: warn-sasc/list 발효 + warn-sasc/ready
+//     예비 + warn/ready 자식형 + latest/ef 자식 통보문)로 들어온 자식은 항상 보존(화이트리스트).
+//   - 게이트 소스는 warn-sasc/list 단독(excludedChildren). latest 로 넓히면 분별력이 없어 부적합.
+//   - carry 글리치 방어(adab23e) 보존: 글리치(잠깐 row 부재)는 level-0 명시가 아니라 *부재*라
+//     excludedChildren 에 안 들어옴 → 디바운스 carry 유지(무영향).
+//   - 결과적으로 제거되는 건 "list level-0 명시 제외 + 이번 사이클 어떤 라이브 row 도 없음 +
+//     prev carry/synth 로만 존재" = 통보문상 명백히 제외된 유령 자식뿐.
+// ============================================================================
+function _purgeExcludedChildren(snap) {
+    if (!snap || !snap.children || !snap.excludedChildren || snap.excludedChildren.size === 0) return 0;
+    const live = snap.liveChildren instanceof Set ? snap.liveChildren : new Set();
+    let purged = 0;
+    for (const [parent, kids] of snap.children) {
+        for (const childName of Array.from(kids.keys())) {
+            if (!snap.excludedChildren.has(childName)) continue;   // list level-0 제외 명시 아님 → 보존
+            if (live.has(childName)) continue;                     // 이번 사이클 라이브 근거 있음 → 보존(예비 자식 등)
+            kids.delete(childName);
+            purged++;
+            console.log(`[Marine] 제외 자식 사후정리: ${parent} > ${childName} (warn-sasc/list level-0 명시 제외 + 라이브 근거 없음 → 유령 제거)`);
+        }
+        if (kids.size === 0) snap.children.delete(parent);
+    }
+    return purged;
+}
+
+// ============================================================================
 // [발표시각 고정] 발표시각(tmFc)은 "현재 발효중 특보가 최초 발표된 시각"으로 고정.
 //   예비→발표→발효→해제 동안 불변(변경/연장에도 안 바뀜). 격상/격하(등급 변화)·
 //   종류 변화·해제 시에만 새 등급의 발표시각으로 재설정.
@@ -1739,12 +1779,24 @@ function _buildUserPushChanges(prev, curr) {
                     childState: { all, active: currChildren, added: activeAdds, released: [] }
                 });
             }
-            if (releasedChildren.length > 0) {
+            // [문제1 — 예비 자식 소멸 비대칭 해소] 해제 자식을 prev 등급으로 분기.
+            //   발표측(PR#991)이 신규 자식을 예비/발효로 분기(CHILD_PRELIM_ADD/CHILD_ADD)한 것과
+            //   대칭이 되도록 해제측도 분기한다.
+            //     · prev 자식이 '주의보'/'경보'(진짜 발효중) → 기존 CHILD_RELEASE("주의보 일부 해제") 유지.
+            //     · prev 자식이 '예비'(미발효 예비 자식)        → "일부 해제" 발사 금지. 예비는 발효된 적이
+            //       없으므로 독립 "주의보 일부 해제"는 오발송이다. 그 부모가 곧/지금 예비취소(UPCOMING_CANCEL)
+            //       되면 단일 prelim_cancel 푸시가 전체를 대표하므로 별도 푸시 불필요. (부모가 예비로 남고
+            //       자식 예비만 소멸하는 희귀 케이스도, "발효 없던 예비 자식의 조용한 소멸"이라 무푸시가 안전.)
+            //   [보수적] prev 등급이 명확히 '예비'일 때만 억제한다. 등급 메타가 비었거나(enrich
+            //   누락) 알 수 없는 경우는 기존대로 partial_release 유지(누락 푸시 방지 — 안전쪽).
+            const releasedActive = releasedChildren.filter(x => childLvl(prev, x) !== '예비');
+            // (releasedPrelim = 나머지 예비 자식 소멸 → 무푸시. 부모 UPCOMING_CANCEL 가 대표.)
+            if (releasedActive.length > 0) {
                 changes.push({
                     type: 'CHILD_RELEASE',
                     zone: zone,
-                    prev: childToBlock(childInfoOf(prev, zone, releasedChildren[0])),
-                    childState: { all, active: currChildren, added: [], released: releasedChildren }
+                    prev: childToBlock(childInfoOf(prev, zone, releasedActive[0])),
+                    childState: { all, active: currChildren, added: [], released: releasedActive }
                 });
             }
 
@@ -2457,6 +2509,7 @@ function _buildSnapshotFromMarine(warnList, warnSascList, warnReady, warnSascRea
 
     const addChild = (childName, row) => {
         const parent = _parentKeyForChild(childName);   // 역인덱스 우선 (self-key 고아 방지)
+        snap.liveChildren.add(childName);   // [라이브 근거] 실제 row 출처 표식 (사후정리 화이트리스트)
         if (!snap.children.has(parent)) snap.children.set(parent, new Map());
         const m = snap.children.get(parent);
         if (m.has(childName)) return;   // 이미 등록(발효 우선) → skip
@@ -2596,6 +2649,7 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             cinfo.wrnLvl = cinfo.wrnLvl || '1';
             cinfo.clrNtcTm = childClr;          // 자식 개별 해제예고 (부모 비종속)
             snap.children.get(parent).set(cname, cinfo);
+            snap.liveChildren.add(cname);   // [라이브 근거] 자식 자신의 통보문(발표/변경/연장) → 사후정리 화이트리스트
             sascChildAdded++;
         }
     }
@@ -2704,6 +2758,7 @@ function _enrichSnapshotWithLatest(snap, warnLatest, prev, warnSascLatest) {
             cinfo.wrnLvlNm = '예비';
             cinfo.wrnLvl = cinfo.wrnLvl || '1';
             m.set(name, cinfo);
+            snap.liveChildren.add(name);   // [라이브 근거] 자식 자신의 통보문(warn/latest 자식행) → 사후정리 화이트리스트
             gapChildAdded++;
         }
     }
@@ -2941,7 +2996,11 @@ function _enrichSnapshotWithEfList(snap, efRows, prev) {
             const parent = _parentKeyForChild(name);   // 역인덱스 우선 (snap.children 키 일관)
             if (!snap.children.has(parent)) snap.children.set(parent, new Map());
             const m = snap.children.get(parent);
-            if (!m.has(name)) { m.set(name, info); counters.gapChildSynth++; }
+            if (!m.has(name)) {
+                m.set(name, info);
+                snap.liveChildren.add(name);   // [라이브 근거] ef/list 자식 자신의 통보문 → 사후정리 화이트리스트
+                counters.gapChildSynth++;
+            }
         }
     }
     if (counters.gapAdded || counters.gapChildCarried || counters.gapChildSynth) {
@@ -3122,6 +3181,13 @@ async function run(opts = {}) {
         //   (ef/list 보강·의심가드 이후, 발표시각고정 이전 — _applyChildReleaseDebounce 와 동일 구역.)
         _applyUpcomingCancelDebounce(prevForDiff, curr);
 
+        // 4-B3) [제외 자식 사후정리] 모든 보강(latest/ef)·디바운스가 curr 를 변형한 직후, MMIS 가
+        //   이번 사이클 warn-sasc/list 에서 level-0(미포함)으로 명시한 자식을 출처불문 제거.
+        //   carry(prev 이어받기) 3경로가 무게이트라 synth 가 시드한 유령 자식이 영속하던 문제
+        //   (제주도북부앞바다 연안바다 오포함)를 단일 사후정리로 차단. 글리치 carry(부재≠level-0)는
+        //   excludedChildren 밖이라 보존. diff·표출 양쪽 반영 위해 발표시각고정·앵커 전에 적용.
+        _purgeExcludedChildren(curr);
+
         // 4-C) [발표시각 고정] 현재 발효 등급의 최초 발표시각으로 tmFc 고정 (변경/연장 불변,
         //   격상/격하·종류변경·해제 시에만 재설정). _buildUserPushChanges·표출 전에 적용.
         _applyAnnounceAnchor(prevForDiff, curr);
@@ -3233,6 +3299,7 @@ module.exports = {
     _buildSnapshotFromMarine,
     _enrichSnapshotWithLatest,
     _enrichSnapshotWithEfList,
+    _purgeExcludedChildren,
     _tryAddCoexistingUpcoming,
     _extractParent,
     _loadPrevSnapshot,
